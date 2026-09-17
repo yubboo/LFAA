@@ -10,8 +10,7 @@ $DefaultBranch = "main"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PackageRoot = (Resolve-Path (Join-Path $ScriptDir "..\..")).Path
-$ParentRoot = Split-Path -Parent $PackageRoot
-$SiblingStableWorkspace = Join-Path $ParentRoot "lfaa"
+$LaunchDirectory = (Get-Location).Path
 
 function Write-Label {
     param(
@@ -265,6 +264,167 @@ function Show-RemoteChanges {
     }
 }
 
+
+function Get-GitRootFromPath {
+    param([string]$StartPath)
+
+    if ([string]::IsNullOrWhiteSpace($StartPath)) {
+        return $null
+    }
+
+    if (-not (Test-Path -LiteralPath $StartPath)) {
+        return $null
+    }
+
+    $item = Get-Item -LiteralPath $StartPath
+
+    $probePath = if ($item.PSIsContainer) {
+        $item.FullName
+    }
+    else {
+        $item.DirectoryName
+    }
+
+    $result = Invoke-GitRaw -GitArgs @("-C", $probePath, "rev-parse", "--show-toplevel")
+
+    if ($result.ExitCode -ne 0 -or $result.Output.Count -eq 0) {
+        return $null
+    }
+
+    $root = ($result.Output -join "").Trim()
+
+    if ([string]::IsNullOrWhiteSpace($root)) {
+        return $null
+    }
+
+    if (-not (Test-Path -LiteralPath (Join-Path $root ".git"))) {
+        return $null
+    }
+
+    return (Resolve-Path -LiteralPath $root).Path
+}
+
+function Get-NearbyGitRoots {
+    param([string]$BasePath)
+
+    $found = New-Object System.Collections.Generic.List[string]
+
+    if ([string]::IsNullOrWhiteSpace($BasePath) -or -not (Test-Path -LiteralPath $BasePath)) {
+        return @()
+    }
+
+    $baseItem = Get-Item -LiteralPath $BasePath
+    $baseDir = if ($baseItem.PSIsContainer) {
+        $baseItem.FullName
+    }
+    else {
+        $baseItem.DirectoryName
+    }
+
+    $parent = Split-Path -Parent $baseDir
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+    $candidates.Add($baseDir)
+
+    if (-not [string]::IsNullOrWhiteSpace($parent) -and (Test-Path -LiteralPath $parent)) {
+        Get-ChildItem -LiteralPath $parent -Directory -Force -ErrorAction SilentlyContinue | ForEach-Object {
+            $candidates.Add($_.FullName)
+        }
+    }
+
+    foreach ($candidate in $candidates) {
+        $root = Get-GitRootFromPath $candidate
+        if (-not [string]::IsNullOrWhiteSpace($root) -and -not $found.Contains($root)) {
+            $found.Add($root)
+        }
+    }
+
+    return @($found)
+}
+
+function Select-WorkspaceRoot {
+    # 1. 优先：脚本所在项目本身就是 Git 仓库。
+    $root = Get-GitRootFromPath $PackageRoot
+    if (-not [string]::IsNullOrWhiteSpace($root)) {
+        Write-Label "【定位】" "【自动】" ("已根据脚本所在项目识别 Git 根目录：" + $root) Green
+        return $root
+    }
+
+    # 2. 其次：从用户启动脚本时的当前目录识别。
+    $root = Get-GitRootFromPath $LaunchDirectory
+    if (-not [string]::IsNullOrWhiteSpace($root)) {
+        Write-Label "【定位】" "【自动】" ("已根据当前目录识别 Git 根目录：" + $root) Green
+        return $root
+    }
+
+    # 3. 扫描脚本附近目录，不依赖盘符或固定目录名。
+    $nearby = @(Get-NearbyGitRoots $PackageRoot)
+
+    if ($nearby.Count -eq 1) {
+        Write-Label "【定位】" "【自动】" ("检测到附近唯一 Git 工作区：" + $nearby[0]) Green
+        return $nearby[0]
+    }
+
+    if ($nearby.Count -gt 1) {
+        Write-Host ""
+        Write-Label "【定位】" "【多个项目】" "检测到多个 Git 工作区，请选择：" Yellow
+
+        for ($i = 0; $i -lt $nearby.Count; $i++) {
+            Write-Host ("  [{0}] {1}" -f ($i + 1), $nearby[$i]) -ForegroundColor Cyan
+        }
+
+        Write-Host "  [0] 手工输入其他路径" -ForegroundColor DarkGray
+
+        while ($true) {
+            $choice = Read-Host "【请选择】【项目编号】"
+            $number = 0
+
+            if ([int]::TryParse($choice, [ref]$number)) {
+                if ($number -ge 1 -and $number -le $nearby.Count) {
+                    return $nearby[$number - 1]
+                }
+
+                if ($number -eq 0) {
+                    break
+                }
+            }
+
+            Write-Label "【提示】" "【无效选项】" "请输入列表中的有效编号。" Yellow
+        }
+    }
+
+    # 4. 最后：用户手工输入项目路径。
+    while ($true) {
+        Write-Host ""
+        Write-Label "【定位】" "【需要路径】" "未自动找到 Git 工作区，请输入你实际项目所在目录。" Magenta
+        Write-Label "【说明】" "【不限制盘符】" "例如 C:\\Code\\LFAA、D:\\AI\\Project、U 盘目录都可以。" DarkCyan
+
+        $inputPath = Read-Host "【输入】【项目路径】"
+
+        if ([string]::IsNullOrWhiteSpace($inputPath)) {
+            Write-Label "【提示】" "【不能为空】" "请输入有效项目路径。" Yellow
+            continue
+        }
+
+        $expanded = [Environment]::ExpandEnvironmentVariables($inputPath.Trim().Trim('"'))
+
+        if (-not (Test-Path -LiteralPath $expanded)) {
+            Write-Label "【提示】" "【路径不存在】" $expanded Yellow
+            continue
+        }
+
+        $manualRoot = Get-GitRootFromPath $expanded
+
+        if ([string]::IsNullOrWhiteSpace($manualRoot)) {
+            Write-Label "【提示】" "【不是 Git 仓库】" "该路径及其父级未识别到有效 .git，请重新输入。" Yellow
+            continue
+        }
+
+        Write-Label "【定位】" "【确认】" $manualRoot Green
+        return $manualRoot
+    }
+}
+
 # --------------------------------------------------------------
 # 菜单
 # --------------------------------------------------------------
@@ -303,16 +463,12 @@ while ([string]::IsNullOrWhiteSpace($UpdateMode)) {
 
 # --------------------------------------------------------------
 # 定位真正的 Git 工作区
+# 不依赖 H: / C: / 固定目录名。
 # --------------------------------------------------------------
-if (Test-Path -LiteralPath (Join-Path $PackageRoot ".git")) {
-    $WorkspaceRoot = $PackageRoot
-}
-elseif (Test-Path -LiteralPath (Join-Path $SiblingStableWorkspace ".git")) {
-    $WorkspaceRoot = (Resolve-Path $SiblingStableWorkspace).Path
-}
-else {
-    $WorkspaceRoot = $PackageRoot
-    Stop-Lfaa "没有找到可更新的 Git 工作区。请先完成一次 git clone，或先使用 LFAA-GitHub.bat 初始化稳定工作区。"
+$WorkspaceRoot = Select-WorkspaceRoot
+
+if ([string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
+    Stop-Lfaa "无法确定需要更新的 Git 工作区。"
 }
 
 Write-Host ""

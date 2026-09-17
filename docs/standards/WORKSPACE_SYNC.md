@@ -324,3 +324,29 @@ LFAA-Sync.bat
 - 用户确认后才 reset；
 - 不使用 `git clean -fdx`，避免删除 ignored 的本地 Secret/缓存；
 - 完成后显示恢复点。
+
+
+## 17. Git 工作区路径无关
+
+Git 拉取/更新工具严禁写死：
+
+```text
+C:\
+D:\
+H:\
+H:\lfaa\lfaa
+```
+
+等路径。
+
+更新脚本必须优先通过：
+
+```text
+git rev-parse --show-toplevel
+```
+
+确定真实 Git 根目录。
+
+自动发现失败时才允许用户输入项目路径。
+
+目录名称、磁盘盘符、移动硬盘/U盘位置均不能成为脚本运行前提。
