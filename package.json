@@ -1,0 +1,14 @@
+{
+  "name": "lfaa",
+  "private": true,
+  "version": "0.0.7",
+  "description": "Little Fish AI Agent monorepo",
+  "scripts": {
+    "governance:check": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs",
+    "release:name": "node scripts/release-name.mjs",
+    "test": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs",
+    "typecheck": "echo \"TypeScript dependencies are intentionally not pinned in v0.0.1 skeleton.\"",
+    "build": "echo \"Build pipeline will be enabled by project-foundation/config-system follow-up tasks.\"",
+    "imports:check": "node scripts/import-path-check.mjs"
+  }
+}

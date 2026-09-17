@@ -1,0 +1,19 @@
+node_modules/
+dist/
+target/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+coverage/
+.tmp/
+.cache/
+artifacts/local/
+
+
+# Local workspace sync runtime logs (README remains tracked)
+docs/logs/workspace-sync/*.log
+
+# Local GitHub push runtime logs
+docs/logs/github-push/*.log
