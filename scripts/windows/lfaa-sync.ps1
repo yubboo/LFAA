@@ -122,6 +122,10 @@ function Test-ProtectedPath {
         return $true
     }
 
+    if ($rel -imatch "^docs/logs/source-update/.+\.log$") {
+        return $true
+    }
+
     $segments = $rel.Split("/")
     $first = $segments[0]
 
@@ -367,7 +371,7 @@ $plan = Get-SyncPlan $ProjectRoot $TargetRoot
 Show-Plan $plan
 
 Write-Host ""
-Write-Label "【保护】" "【SAFE】" ".git、docs/logs/workspace-sync/*.log、docs/logs/github-push/*.log、node_modules、target、dist、coverage、.cache、.tmp 和本地 .env 不会被删除。" DarkGray
+Write-Label "【保护】" "【SAFE】" ".git、docs/logs/workspace-sync/*.log、docs/logs/github-push/*.log、docs/logs/source-update/*.log、node_modules、target、dist、coverage、.cache、.tmp 和本地 .env 不会被删除。" DarkGray
 
 if (($plan.Adds.Count + $plan.Mods.Count + $plan.Dels.Count) -eq 0) {
     Write-Host ""

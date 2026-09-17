@@ -214,3 +214,27 @@
 - 是否可交付：是
 - 是否已交付：是
 - 下一步：继续 `config-system`
+
+
+## 2026-09-18 / #11
+
+- 当前状态：delivered
+- 本次目标：新增 Git Clone 后的一键源码更新工具
+- 已完成：
+  - `LFAA-Update.bat`
+  - `scripts/windows/lfaa-update.ps1`
+  - 自动定位 Git 工作区
+  - origin 读取
+  - 本地 dirty 检测
+  - fetch
+  - ahead / behind 判断
+  - 远程文件差异展示
+  - fast-forward only 拉取
+  - 分叉保护
+  - 更新后校验
+  - source-update 日志
+  - 可关闭终端提示
+- 待测试：Windows 实机对有新远程 Commit 的仓库执行更新
+- 是否可交付：是
+- 是否已交付：是
+- 下一步：继续 `config-system`

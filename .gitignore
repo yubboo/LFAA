@@ -17,3 +17,6 @@ docs/logs/workspace-sync/*.log
 
 # Local GitHub push runtime logs
 docs/logs/github-push/*.log
+
+# Local source update runtime logs
+docs/logs/source-update/*.log

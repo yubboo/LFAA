@@ -251,3 +251,42 @@ GitHub 一键推送中：
 避免重复交互。
 
 远程 Push 仍保留独立确认，因为 Push 会改变远程仓库状态。
+
+
+## 14. Git Clone 后的源码更新
+
+`git clone` 只用于第一次获取仓库。
+
+以后更新已经克隆的源码使用：
+
+```text
+LFAA-Update.bat
+→ scripts/windows/lfaa-update.ps1
+```
+
+更新脚本必须：
+
+1. 找到真实 `.git` 工作区；
+2. 使用 `.git/config` 中的 `origin`；
+3. 检测本地未提交修改；
+4. 有未提交修改时停止，禁止覆盖；
+5. `git fetch --prune origin`；
+6. 比较本地/远程 ahead/behind；
+7. 已是最新则直接结束；
+8. 本地领先时不 pull，提示 Push；
+9. 本地/远程分叉时停止，不自动 merge/rebase；
+10. 仅在“本地纯落后”状态下使用 `git pull --ff-only`；
+11. 拉取前列出远程新增/修改/删除/重命名文件；
+12. 拉取后校验本地 HEAD 与远程一致；
+13. 生成 `docs/logs/source-update/*.log`；
+14. 成功后明确提示可以关闭终端。
+
+禁止更新脚本默认执行：
+
+```text
+git reset --hard
+git clean -fd
+git pull --force
+```
+
+等可能破坏用户本地工作的操作。
