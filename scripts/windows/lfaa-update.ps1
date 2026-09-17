@@ -265,6 +265,48 @@ function Show-RemoteChanges {
 }
 
 
+function Get-RemoteFileChanges {
+    param(
+        [Parameter(Mandatory = $true)][string]$FromRef,
+        [Parameter(Mandatory = $true)][string]$ToRef
+    )
+
+    # 第一方案：直接比较两个明确的 tree-ish。
+    # 不使用 HEAD..origin/main 这种 revision-range 字符串，降低不同 Git/PowerShell
+    # 参数解析环境下出现歧义的可能。
+    $primary = Invoke-GitRaw -GitArgs @(
+        "-c", "core.quotepath=false",
+        "diff", "--name-status", "-M",
+        $FromRef, $ToRef
+    )
+
+    if ($primary.ExitCode -eq 0) {
+        return @($primary.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
+
+    # 第二方案：diff-tree fallback。
+    $fallback = Invoke-GitRaw -GitArgs @(
+        "-c", "core.quotepath=false",
+        "diff-tree", "-r", "--no-commit-id", "--name-status", "-M",
+        $FromRef, $ToRef
+    )
+
+    if ($fallback.ExitCode -eq 0) {
+        Write-Label "【兼容】" "【备用比较】" "标准 diff 不可用，已自动使用备用文件差异比较。" DarkYellow
+        return @($fallback.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
+
+    $technical = @()
+    $technical += "[git diff]"
+    $technical += $primary.Output
+    $technical += ""
+    $technical += "[git diff-tree]"
+    $technical += $fallback.Output
+
+    Stop-Lfaa -Message "读取远程文件变化失败。" -TechnicalOutput $technical
+}
+
+
 function Get-GitRootFromPath {
     param([string]$StartPath)
 
@@ -616,19 +658,67 @@ Write-Label "【版本差异】" "【本地落后】" ($behind.ToString() + " �
 $oldHeadResult = Invoke-GitChecked -GitArgs @("rev-parse", "HEAD") -ActionName "读取当前 Commit"
 $oldHead = ($oldHeadResult.Output -join "").Trim()
 
-$diffResult = Invoke-GitChecked -GitArgs @(
-    "-c", "core.quotepath=false",
-    "diff", "--name-status", "--find-renames", "HEAD.." + $remoteRef
-) -ActionName "读取远程文件变化"
+# --------------------------------------------------------------
+# 先处理无需读取文件差异的状态。
+# 0/0 已经证明本地 HEAD 与 origin/<branch> 完全一致，
+# 此时禁止再执行多余的 git diff。
+# --------------------------------------------------------------
+if ($ahead -eq 0 -and $behind -eq 0) {
+    Write-Host ""
+    Write-Label "【远程变化】" "【无】" "本地与远程指向同一版本，没有文件差异。" Green
 
-$remoteChanges = @($diffResult.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($UpdateMode -eq "check") {
+        Write-Label "【检查】" "【已是最新】" "本地与远程完全一致。" Green
+    }
+    elseif ($UpdateMode -eq "safe") {
+        Write-Label "【更新】" "【已是最新】" "当前源码已经是远程最新版本，无需拉取。" Green
+    }
+    else {
+        Write-Label "【强制拉取】" "【无需执行】" "本地已经与远程完全一致，不需要强制覆盖。" Green
+    }
+
+    Wait-LfaaClose -Success $true
+    exit 0
+}
+
+# 本地纯领先时，远程没有“需要拉取”的新提交。
+if ($ahead -gt 0 -and $behind -eq 0 -and $UpdateMode -ne "force") {
+    Write-Host ""
+    Write-Label "【远程变化】" "【无新提交】" "远程没有比本地更新的 Commit。" Green
+
+    if ($UpdateMode -eq "check") {
+        Write-Label "【检查】" "【本地领先】" ("本地有 " + $ahead + " 个尚未推送的 Commit。") Yellow
+    }
+    else {
+        Write-Label "【保护】" "【本地领先】" "本地存在尚未出现在远程的 Commit，不需要拉取。" Yellow
+        Write-Label "【处理】" "【建议】" "如需上传，请使用 LFAA-GitHub.bat。" DarkYellow
+    }
+
+    Wait-LfaaClose -Success $true
+    exit 0
+}
+
+# 安全拉取遇到分叉时，在读取文件 diff 之前直接停止。
+if ($UpdateMode -eq "safe" -and $ahead -gt 0 -and $behind -gt 0) {
+    Write-Host ""
+    Write-Label "【保护】" "【分支已分叉】" "安全拉取不会自动 merge / rebase。" Red
+    Write-Label "【处理】" "【建议】" "请人工处理，或明确选择强制拉取并使用自动备份。" DarkYellow
+    Wait-LfaaClose -Success $false
+    exit 2
+}
+
+# --------------------------------------------------------------
+# 只有确实需要查看远程变化时，才读取文件差异。
+# 使用两个明确 ref 直接比较，并提供 diff-tree fallback。
+# --------------------------------------------------------------
+$remoteChanges = @(Get-RemoteFileChanges -FromRef $oldHead -ToRef $remoteRef)
 
 if ($remoteChanges.Count -gt 0) {
     Show-RemoteChanges -Lines $remoteChanges
 }
 else {
     Write-Host ""
-    Write-Label "【远程变化】" "【无】" "没有需要从远程应用的文件差异。" Green
+    Write-Label "【远程变化】" "【无文件差异】" "Commit 状态存在差异，但最终文件树没有变化。" Green
 }
 
 # --------------------------------------------------------------
@@ -637,17 +727,14 @@ else {
 if ($UpdateMode -eq "check") {
     Write-Host ""
 
-    if ($ahead -eq 0 -and $behind -eq 0) {
-        Write-Label "【检查】" "【已是最新】" "本地与远程完全一致。" Green
-    }
-    elseif ($ahead -eq 0 -and $behind -gt 0) {
+    if ($ahead -eq 0 -and $behind -gt 0) {
         Write-Label "【检查】" "【可更新】" ("远程有 " + $behind + " 个新 Commit，可选择安全拉取。") Cyan
     }
-    elseif ($ahead -gt 0 -and $behind -eq 0) {
-        Write-Label "【检查】" "【本地领先】" ("本地有 " + $ahead + " 个尚未推送的 Commit。") Yellow
+    elseif ($ahead -gt 0 -and $behind -gt 0) {
+        Write-Label "【检查】" "【已分叉】" "本地和远程都有各自的新 Commit。" Red
     }
     else {
-        Write-Label "【检查】" "【已分叉】" "本地和远程都有各自的新 Commit。" Red
+        Write-Label "【检查】" "【状态】" "已完成本地与远程状态检查。" Cyan
     }
 
     Wait-LfaaClose -Success $true
@@ -658,29 +745,6 @@ if ($UpdateMode -eq "check") {
 # 安全拉取
 # --------------------------------------------------------------
 if ($UpdateMode -eq "safe") {
-    if ($ahead -eq 0 -and $behind -eq 0) {
-        Write-Host ""
-        Write-Label "【更新】" "【已是最新】" "当前源码已经是远程最新版本，无需拉取。" Green
-        Wait-LfaaClose -Success $true
-        exit 0
-    }
-
-    if ($ahead -gt 0 -and $behind -eq 0) {
-        Write-Host ""
-        Write-Label "【保护】" "【本地领先】" "本地存在尚未出现在远程的 Commit，不需要拉取。" Yellow
-        Write-Label "【处理】" "【建议】" "如需上传，请使用 LFAA-GitHub.bat。" DarkYellow
-        Wait-LfaaClose -Success $true
-        exit 0
-    }
-
-    if ($ahead -gt 0 -and $behind -gt 0) {
-        Write-Host ""
-        Write-Label "【保护】" "【分支已分叉】" "安全拉取不会自动 merge / rebase。" Red
-        Write-Label "【处理】" "【建议】" "请人工处理，或明确选择强制拉取并使用自动备份。" DarkYellow
-        Wait-LfaaClose -Success $false
-        exit 2
-    }
-
     Write-Host ""
     Write-Label "【更新】" "【提交数量】" ("将拉取 " + $behind + " 个远程 Commit。") Cyan
     Write-Label "【更新】" "【方式】" "fast-forward only，不执行自动 merge/rebase。" Green

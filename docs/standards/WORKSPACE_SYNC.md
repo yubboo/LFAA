@@ -350,3 +350,33 @@ git rev-parse --show-toplevel
 自动发现失败时才允许用户输入项目路径。
 
 目录名称、磁盘盘符、移动硬盘/U盘位置均不能成为脚本运行前提。
+
+
+## 18. Update 状态判断顺序
+
+源码更新必须先判断 Git Commit 状态，再决定是否读取文件差异。
+
+```text
+ahead=0 / behind=0
+→ 已是最新
+→ 禁止继续 diff
+
+ahead>0 / behind=0
+→ 本地领先
+→ 安全模式不读取远程 diff
+
+ahead>0 / behind>0
+→ 已分叉
+→ 安全模式直接停止
+
+behind>0
+→ 才读取远程文件变化
+```
+
+文件差异优先使用两个明确 tree-ish：
+
+```text
+git diff <local-commit> <remote-ref>
+```
+
+不要依赖拼接 revision-range 字符串作为唯一实现。
