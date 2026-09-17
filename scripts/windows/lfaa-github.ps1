@@ -341,6 +341,42 @@ function Save-PushLog {
 }
 
 # --------------------------------------------------------------
+# 菜单
+# --------------------------------------------------------------
+function Show-GitHubMenu {
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor DarkCyan
+    Write-Host " LFAA Git 推送菜单" -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor DarkCyan
+    Write-Host ""
+    Write-Label "【1】" "【一键推送】" "检测变化 -> Commit -> Push。" Green
+    Write-Label "【2】" "【查看状态】" "只查看分支、origin 和本地文件变化。" Cyan
+    Write-Label "【3】" "【配置 origin】" "新增或修改远程 Git 仓库地址。" Magenta
+    Write-Label "【0】" "【退出】" "不执行任何 Git 写操作。" DarkGray
+    Write-Host ""
+}
+
+$GitMenuMode = ""
+while ([string]::IsNullOrWhiteSpace($GitMenuMode)) {
+    Show-GitHubMenu
+    $choice = Read-Host "【请选择】【0-3】"
+
+    switch ($choice.Trim()) {
+        "1" { $GitMenuMode = "push" }
+        "2" { $GitMenuMode = "status" }
+        "3" { $GitMenuMode = "origin" }
+        "0" {
+            Write-Label "【退出】" "【完成】" "未执行任何操作。" Green
+            Wait-LfaaClose -Success $true
+            exit 0
+        }
+        default {
+            Write-Label "【提示】" "【无效选项】" "请输入 0、1、2 或 3。" Yellow
+        }
+    }
+}
+
+# --------------------------------------------------------------
 # 定位稳定工作区
 # --------------------------------------------------------------
 if ((Split-Path -Leaf $PackageRoot) -ieq "lfaa") {
@@ -355,10 +391,6 @@ else {
 }
 
 Write-Host ""
-Write-Host "============================================================" -ForegroundColor DarkCyan
-Write-Host " LFAA GitHub 一键推送" -ForegroundColor Cyan
-Write-Host "============================================================" -ForegroundColor DarkCyan
-
 Write-Label "【工作区】" "【路径】" $WorkspaceRoot Cyan
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
@@ -368,49 +400,73 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 $version = Get-ReleaseVersion $WorkspaceRoot
 Write-Label "【版本】" "【当前】" $version Magenta
 
-# --------------------------------------------------------------
-# 治理检查
-# --------------------------------------------------------------
-$governance = Join-Path $WorkspaceRoot "scripts\governance-check.mjs"
-
-if ((Get-Command node -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath $governance)) {
-    Write-Host ""
-    Write-Label "【检查】" "【治理】" "推送前运行项目治理检查..." Cyan
-
-    Push-Location $WorkspaceRoot
-    try {
-        $oldPreference = $ErrorActionPreference
-        $ErrorActionPreference = "Continue"
-        $governanceOutput = @(
-            & node "scripts\governance-check.mjs" 2>&1 | ForEach-Object { [string]$_ }
-        )
-        $governanceCode = $LASTEXITCODE
-        $ErrorActionPreference = $oldPreference
-
-        if ($governanceCode -ne 0) {
-            Stop-Lfaa -Message "项目治理检查未通过，已阻止 GitHub 推送。" -TechnicalOutput $governanceOutput
-        }
-    }
-    finally {
-        Pop-Location
-    }
-
-    Write-Label "【检查】" "【通过】" "项目治理检查通过。" Green
-}
-else {
-    Write-Label "【检查】" "【跳过】" "未检测到 Node 或治理脚本，跳过自动治理检查。" DarkYellow
-}
-
 Set-Location $WorkspaceRoot
 
 # --------------------------------------------------------------
-# Git 初始化
+# 查看状态：不自动初始化
+# --------------------------------------------------------------
+if ($GitMenuMode -eq "status") {
+    $gitDir = Join-Path $WorkspaceRoot ".git"
+
+    if (-not (Test-Path -LiteralPath $gitDir)) {
+        Write-Label "【Git】" "【未初始化】" "当前稳定工作区还没有 .git。" Yellow
+        Write-Label "【处理】" "【建议】" "选择菜单 1 可在首次推送时初始化；菜单 3 也可先配置 origin。" DarkYellow
+        Wait-LfaaClose -Success $true
+        exit 0
+    }
+
+    [void](Invoke-GitChecked -GitArgs @("config", "core.quotepath", "false") -ActionName "设置 Git 中文路径显示")
+
+    $branchResult = Invoke-GitRaw -GitArgs @("branch", "--show-current")
+    $currentBranch = if ($branchResult.ExitCode -eq 0) { ($branchResult.Output -join "").Trim() } else { "" }
+
+    $remoteList = Invoke-GitRaw -GitArgs @("remote")
+    $remotes = if ($remoteList.ExitCode -eq 0) {
+        @($remoteList.Output | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    }
+    else {
+        @()
+    }
+
+    Write-Host ""
+    Write-Label "【Git】" "【分支】" $(if ($currentBranch) { $currentBranch } else { "未确定" }) Cyan
+
+    if ($remotes -contains "origin") {
+        $originResult = Invoke-GitRaw -GitArgs @("remote", "get-url", "origin")
+        if ($originResult.ExitCode -eq 0) {
+            Write-Label "【远程】" "【origin】" (($originResult.Output -join "").Trim()) Green
+        }
+    }
+    else {
+        Write-Label "【远程】" "【origin】" "尚未配置。" Yellow
+    }
+
+    $statusResult = Invoke-GitChecked -GitArgs @(
+        "-c", "core.quotepath=false",
+        "status", "--porcelain=v1", "--untracked-files=all"
+    ) -ActionName "读取 Git 文件状态"
+
+    $lines = @($statusResult.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+    if ($lines.Count -eq 0) {
+        Write-Label "【状态】" "【干净】" "当前没有未提交变化。" Green
+    }
+    else {
+        [void](Show-ChangeSummary -StatusLines $lines)
+    }
+
+    Wait-LfaaClose -Success $true
+    exit 0
+}
+
+# --------------------------------------------------------------
+# 首次需要 .git 的操作：Push / origin 配置
 # --------------------------------------------------------------
 $gitDir = Join-Path $WorkspaceRoot ".git"
 
 if (-not (Test-Path -LiteralPath $gitDir)) {
     Write-Host ""
-    Write-Label "【Git】" "【初始化】" "首次使用，正在创建 .git..." Cyan
+    Write-Label "【Git】" "【初始化】" "当前没有 .git，正在进行首次初始化..." Cyan
 
     [void](Invoke-GitChecked -GitArgs @("init") -ActionName "初始化 Git 仓库")
     [void](Invoke-GitChecked -GitArgs @("branch", "-M", $Branch) -ActionName "设置 main 分支")
@@ -418,56 +474,123 @@ if (-not (Test-Path -LiteralPath $gitDir)) {
     Write-Label "【Git】" "【完成】" ".git 初始化完成。" Green
 }
 else {
-    Write-Label "【Git】" "【已存在】" ".git 已存在，将继续复用当前 Git 历史。" Green
+    Write-Label "【Git】" "【已存在】" ".git 已存在，将复用当前 Git 历史。" Green
 }
 
 [void](Invoke-GitChecked -GitArgs @("config", "core.quotepath", "false") -ActionName "设置 Git 中文路径显示")
 
 # --------------------------------------------------------------
-# 用户信息
+# 配置 / 修改 origin
 # --------------------------------------------------------------
+if ($GitMenuMode -eq "origin") {
+    $remoteList = Invoke-GitChecked -GitArgs @("remote") -ActionName "读取 Git 远程仓库"
+    $remotes = @($remoteList.Output | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
+    $currentOrigin = ""
+    if ($remotes -contains "origin") {
+        $currentResult = Invoke-GitChecked -GitArgs @("remote", "get-url", "origin") -ActionName "读取 origin 地址"
+        $currentOrigin = ($currentResult.Output -join "").Trim()
+        Write-Label "【远程】" "【当前 origin】" $currentOrigin Cyan
+    }
+    else {
+        Write-Label "【远程】" "【当前 origin】" "尚未配置。" Yellow
+    }
+
+    Write-Label "【说明】" "【地址示例】" "https://github.com/用户名/仓库.git" DarkCyan
+
+    do {
+        $newOrigin = Read-Host "【输入】【新的 origin 地址】"
+        if (-not (Test-RemoteUrlFormat $newOrigin)) {
+            Write-Label "【提示】" "【格式】" "地址格式无法识别，请重新输入。" Yellow
+            $newOrigin = ""
+        }
+    }
+    while ([string]::IsNullOrWhiteSpace($newOrigin))
+
+    $newOrigin = $newOrigin.Trim()
+    Write-Label "【确认】" "【origin】" $newOrigin Magenta
+    $confirmOrigin = Read-Host "【确认】【保存 origin】输入 Y 确认，其他键取消"
+
+    if ($confirmOrigin -notmatch "^(?i:y|yes)$") {
+        Write-Label "【取消】" "【origin】" "未修改远程仓库配置。" Yellow
+        Wait-LfaaClose -Success $true
+        exit 0
+    }
+
+    if ($remotes -contains "origin") {
+        [void](Invoke-GitChecked -GitArgs @("remote", "set-url", "origin", $newOrigin) -ActionName "修改 origin")
+    }
+    else {
+        [void](Invoke-GitChecked -GitArgs @("remote", "add", "origin", $newOrigin) -ActionName "添加 origin")
+    }
+
+    Write-Label "【远程】" "【保存成功】" "origin 已写入 .git/config。" Green
+    Wait-LfaaClose -Success $true
+    exit 0
+}
+
+# --------------------------------------------------------------
+# 一键推送
+# --------------------------------------------------------------
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor DarkCyan
+Write-Host " LFAA 一键提交并推送" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor DarkCyan
+
+# 治理检查
+$governance = Join-Path $WorkspaceRoot "scripts\governance-check.mjs"
+
+if ((Get-Command node -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath $governance)) {
+    Write-Label "【检查】" "【治理】" "推送前运行项目治理检查..." Cyan
+
+    $oldPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $governanceOutput = @(
+            & node "scripts\governance-check.mjs" 2>&1 | ForEach-Object { [string]$_ }
+        )
+        $governanceCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $oldPreference
+    }
+
+    if ($governanceCode -ne 0) {
+        Stop-Lfaa -Message "项目治理检查未通过，已阻止推送。" -TechnicalOutput $governanceOutput
+    }
+
+    Write-Label "【检查】" "【通过】" "项目治理检查通过。" Green
+}
+
+# Git identity
 $nameResult = Invoke-GitRaw -GitArgs @("config", "user.name")
 $emailResult = Invoke-GitRaw -GitArgs @("config", "user.email")
 
 $userName = if ($nameResult.ExitCode -eq 0 -and $nameResult.Output.Count -gt 0) {
     ($nameResult.Output -join "").Trim()
 }
-else {
-    ""
-}
+else { "" }
 
 $userEmail = if ($emailResult.ExitCode -eq 0 -and $emailResult.Output.Count -gt 0) {
     ($emailResult.Output -join "").Trim()
 }
-else {
-    ""
-}
+else { "" }
 
 if ([string]::IsNullOrWhiteSpace($userName)) {
     $userName = Read-Host "【Git】【姓名】请输入 Git 提交显示名称"
-
-    if ([string]::IsNullOrWhiteSpace($userName)) {
-        Stop-Lfaa "Git 提交显示名称不能为空。"
-    }
-
+    if ([string]::IsNullOrWhiteSpace($userName)) { Stop-Lfaa "Git 提交显示名称不能为空。" }
     [void](Invoke-GitChecked -GitArgs @("config", "user.name", $userName) -ActionName "保存 Git 提交显示名称")
 }
 
 if ([string]::IsNullOrWhiteSpace($userEmail)) {
     $userEmail = Read-Host "【Git】【邮箱】请输入 Git 提交邮箱"
-
-    if ([string]::IsNullOrWhiteSpace($userEmail)) {
-        Stop-Lfaa "Git 提交邮箱不能为空。"
-    }
-
+    if ([string]::IsNullOrWhiteSpace($userEmail)) { Stop-Lfaa "Git 提交邮箱不能为空。" }
     [void](Invoke-GitChecked -GitArgs @("config", "user.email", $userEmail) -ActionName "保存 Git 提交邮箱")
 }
 
 Write-Label "【Git】" "【身份】" ("{0} <{1}>" -f $userName, $userEmail) DarkCyan
 
-# --------------------------------------------------------------
-# origin 首次由用户配置；以后读取 .git/config 自动复用。
-# --------------------------------------------------------------
+# Origin
 $remoteList = Invoke-GitChecked -GitArgs @("remote") -ActionName "读取 Git 远程仓库"
 $remotes = @($remoteList.Output | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 
@@ -477,9 +600,7 @@ if ($remotes -notcontains "origin") {
 else {
     $originResult = Invoke-GitChecked -GitArgs @("remote", "get-url", "origin") -ActionName "读取 origin 地址"
     $origin = ($originResult.Output -join "").Trim()
-
-    Write-Label "【远程】" "【已配置】" $origin Green
-    Write-Label "【远程】" "【说明】" "origin 已保存在 .git/config，本次无需重新输入。" DarkGray
+    Write-Label "【远程】" "【origin】" $origin Green
 }
 
 if ([string]::IsNullOrWhiteSpace($origin)) {
@@ -488,9 +609,7 @@ if ([string]::IsNullOrWhiteSpace($origin)) {
 
 [void](Invoke-GitChecked -GitArgs @("branch", "-M", $Branch) -ActionName "确认 main 分支")
 
-# --------------------------------------------------------------
-# 文件变化
-# --------------------------------------------------------------
+# Changes
 Write-Host ""
 Write-Label "【检测】" "【文件变化】" "正在检查稳定工作区..." Cyan
 
@@ -508,9 +627,6 @@ else {
     [void](Show-ChangeSummary -StatusLines $workingStatus)
 }
 
-# --------------------------------------------------------------
-# 暂存和提交
-# --------------------------------------------------------------
 if ($workingStatus.Count -gt 0) {
     Write-Host ""
     Write-Label "【暂存】" "【开始】" "正在执行 git add -A..." Cyan
@@ -541,12 +657,7 @@ if ($workingStatus.Count -gt 0) {
             Write-Label "【删除】" "【文件】" $parts[1] Red
         }
         elseif ($code -match "^R") {
-            $renameText = if ($parts.Count -ge 3) {
-                $parts[1] + " -> " + $parts[2]
-            }
-            else {
-                $line
-            }
+            $renameText = if ($parts.Count -ge 3) { $parts[1] + " -> " + $parts[2] } else { $line }
             Write-Label "【重命名】" "【文件】" $renameText Magenta
         }
         else {
@@ -580,14 +691,11 @@ else {
     $commitMessage = "本次没有新提交"
 }
 
-# --------------------------------------------------------------
-# 远程分支
-# --------------------------------------------------------------
+# Remote branch
 Write-Host ""
 Write-Label "【远程】" "【检测】" "正在检测远程 main 分支..." Cyan
 
 $lsRemote = Invoke-GitRaw -GitArgs @("ls-remote", "--heads", "origin", $Branch)
-
 if ($lsRemote.ExitCode -ne 0) {
     Stop-Lfaa -Message "无法连接 origin，请检查仓库地址、网络或 Git 登录状态。" -TechnicalOutput $lsRemote.Output
 }
@@ -595,25 +703,21 @@ if ($lsRemote.ExitCode -ne 0) {
 $remoteHasMain = -not [string]::IsNullOrWhiteSpace(($lsRemote.Output -join "").Trim())
 
 if ($remoteHasMain) {
-    Write-Label "【远程】" "【已有 main】" "推送前先同步远程更新..." Cyan
+    Write-Label "【远程】" "【同步】" "推送前先执行 pull --rebase..." Cyan
 
     $pullResult = Invoke-GitRaw -GitArgs @("pull", "--rebase", "origin", $Branch)
-
     if ($pullResult.ExitCode -ne 0) {
         $logFile = Save-PushLog $WorkspaceRoot $version $origin $commitMessage $workingStatus "PULL_REBASE_FAILED"
         Write-Label "【日志】" "【路径】" $logFile DarkYellow
-        Stop-Lfaa -Message "同步远程 main 失败。请先处理 Git 冲突，再重新运行脚本。" -TechnicalOutput $pullResult.Output
+        Stop-Lfaa -Message "同步远程 main 失败。请先处理冲突，再重新运行。" -TechnicalOutput $pullResult.Output
     }
 
-    Write-Label "【远程】" "【同步完成】" "远程 main 已同步。" Green
+    Write-Label "【远程】" "【完成】" "远程 main 已同步。" Green
 }
 else {
-    Write-Label "【远程】" "【首次推送】" "远程 main 目前为空，将执行第一次推送。" DarkYellow
+    Write-Label "【远程】" "【首次推送】" "远程 main 目前为空。" DarkYellow
 }
 
-# --------------------------------------------------------------
-# Push
-# --------------------------------------------------------------
 Write-Host ""
 Write-Label "【推送】" "【origin】" $origin Cyan
 Write-Label "【推送】" "【分支】" $Branch Cyan
@@ -621,15 +725,14 @@ Write-Label "【推送】" "【提交】" $commitMessage Cyan
 
 $confirmPush = Read-Host "【确认】【推送远程仓库】输入 Y 确认，其他键取消"
 if ($confirmPush -notmatch "^(?i:y|yes)$") {
-    Write-Label "【取消】" "【推送】" "已取消远程推送；本地提交会继续保留。" Yellow
-    exit 2
+    Write-Label "【取消】" "【推送】" "已取消远程推送；本地 Commit 会继续保留。" Yellow
+    Wait-LfaaClose -Success $true
+    exit 0
 }
 
-Write-Host ""
 Write-Label "【推送】" "【进行中】" "正在推送，请稍候；如出现 Git 登录窗口，请完成授权。" Cyan
 
 $pushResult = Invoke-GitRaw -GitArgs @("push", "-u", "origin", $Branch)
-
 if ($pushResult.ExitCode -ne 0) {
     $logFile = Save-PushLog $WorkspaceRoot $version $origin $commitMessage $workingStatus "PUSH_FAILED"
     Write-Label "【日志】" "【路径】" $logFile DarkYellow

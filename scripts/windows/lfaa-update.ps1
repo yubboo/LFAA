@@ -266,6 +266,42 @@ function Show-RemoteChanges {
 }
 
 # --------------------------------------------------------------
+# 菜单
+# --------------------------------------------------------------
+function Show-UpdateMenu {
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor DarkCyan
+    Write-Host " LFAA 源码更新菜单" -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor DarkCyan
+    Write-Host ""
+    Write-Label "【1】" "【安全拉取】" "推荐。保护本地修改，只允许 fast-forward 更新。" Green
+    Write-Label "【2】" "【强制拉取】" "先自动备份，再强制让当前分支与远程一致。" Red
+    Write-Label "【3】" "【检查更新】" "只 fetch 和比较，不修改本地源码。" Cyan
+    Write-Label "【0】" "【退出】" "不执行任何更新操作。" DarkGray
+    Write-Host ""
+}
+
+$UpdateMode = ""
+while ([string]::IsNullOrWhiteSpace($UpdateMode)) {
+    Show-UpdateMenu
+    $choice = Read-Host "【请选择】【0-3】"
+
+    switch ($choice.Trim()) {
+        "1" { $UpdateMode = "safe" }
+        "2" { $UpdateMode = "force" }
+        "3" { $UpdateMode = "check" }
+        "0" {
+            Write-Label "【退出】" "【完成】" "未执行任何操作。" Green
+            Wait-LfaaClose -Success $true
+            exit 0
+        }
+        default {
+            Write-Label "【提示】" "【无效选项】" "请输入 0、1、2 或 3。" Yellow
+        }
+    }
+}
+
+# --------------------------------------------------------------
 # 定位真正的 Git 工作区
 # --------------------------------------------------------------
 if (Test-Path -LiteralPath (Join-Path $PackageRoot ".git")) {
@@ -281,7 +317,15 @@ else {
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor DarkCyan
-Write-Host " LFAA 源码一键更新" -ForegroundColor Cyan
+if ($UpdateMode -eq "safe") {
+    Write-Host " LFAA 安全拉取" -ForegroundColor Green
+}
+elseif ($UpdateMode -eq "force") {
+    Write-Host " LFAA 强制拉取" -ForegroundColor Red
+}
+else {
+    Write-Host " LFAA 检查远程更新" -ForegroundColor Cyan
+}
 Write-Host "============================================================" -ForegroundColor DarkCyan
 
 Write-Label "【工作区】" "【路径】" $WorkspaceRoot Cyan
@@ -298,7 +342,7 @@ $version = Get-ReleaseVersion $WorkspaceRoot
 Write-Label "【版本】" "【本地】" $version Magenta
 
 # --------------------------------------------------------------
-# 读取 origin
+# origin / branch
 # --------------------------------------------------------------
 $remoteList = Invoke-GitChecked -GitArgs @("remote") -ActionName "读取远程仓库"
 $remotes = @($remoteList.Output | ForEach-Object { $_.Trim() } | Where-Object { $_ })
@@ -309,12 +353,8 @@ if ($remotes -notcontains "origin") {
 
 $originResult = Invoke-GitChecked -GitArgs @("remote", "get-url", "origin") -ActionName "读取 origin 地址"
 $origin = ($originResult.Output -join "").Trim()
-
 Write-Label "【远程】" "【origin】" $origin Green
 
-# --------------------------------------------------------------
-# 当前分支
-# --------------------------------------------------------------
 $branchResult = Invoke-GitChecked -GitArgs @("branch", "--show-current") -ActionName "读取当前分支"
 $branch = ($branchResult.Output -join "").Trim()
 
@@ -325,7 +365,7 @@ if ([string]::IsNullOrWhiteSpace($branch)) {
 Write-Label "【分支】" "【当前】" $branch Cyan
 
 # --------------------------------------------------------------
-# 本地未提交修改检查
+# 本地未提交修改
 # --------------------------------------------------------------
 $statusResult = Invoke-GitChecked -GitArgs @(
     "-c", "core.quotepath=false",
@@ -336,36 +376,47 @@ $localChanges = @($statusResult.Output | Where-Object { -not [string]::IsNullOrW
 
 if ($localChanges.Count -gt 0) {
     Write-Host ""
-    Write-Label "【保护】" "【未提交修改】" "检测到本地尚未提交的文件，为避免覆盖，已停止自动更新。" Yellow
-    Write-Host ""
+    Write-Label "【本地】" "【存在修改】" ("检测到 " + $localChanges.Count + " 条未提交变化。") Yellow
 
     foreach ($line in $localChanges) {
-        if ($line.Length -ge 3) {
-            $code = $line.Substring(0, 2)
-            $path = $line.Substring(3).Trim()
+        if ($line.Length -lt 3) { continue }
 
-            if ($code -match "A|\?") {
-                Write-Label "【新增】" "【本地】" $path Green
-            }
-            elseif ($code -match "D") {
-                Write-Label "【删除】" "【本地】" $path Red
-            }
-            elseif ($code -match "M") {
-                Write-Label "【修改】" "【本地】" $path Yellow
-            }
-            else {
-                Write-Label "【变更】" "【本地】" $path Cyan
-            }
+        $code = $line.Substring(0, 2)
+        $path = $line.Substring(3).Trim()
+
+        if ($code -match "A|\?") {
+            Write-Label "【新增】" "【本地】" $path Green
+        }
+        elseif ($code -match "D") {
+            Write-Label "【删除】" "【本地】" $path Red
+        }
+        elseif ($code -match "M") {
+            Write-Label "【修改】" "【本地】" $path Yellow
+        }
+        else {
+            Write-Label "【变更】" "【本地】" $path Cyan
         }
     }
 
-    Write-Host ""
-    Write-Label "【处理】" "【建议】" "请先提交这些修改，或手工 git stash 后，再重新运行更新脚本。" DarkYellow
-    Wait-LfaaClose -Success $false
-    exit 2
-}
+    if ($UpdateMode -eq "safe") {
+        Write-Host ""
+        Write-Label "【保护】" "【停止】" "安全拉取不会覆盖未提交修改。" Yellow
+        Write-Label "【处理】" "【建议】" "请先 Commit，或手工 stash，然后重新选择安全拉取。" DarkYellow
+        Wait-LfaaClose -Success $false
+        exit 2
+    }
 
-Write-Label "【本地】" "【干净】" "未检测到未提交修改，可以安全检查远程更新。" Green
+    if ($UpdateMode -eq "force") {
+        Write-Label "【强制模式】" "【备份】" "继续后会先自动 stash（包含未跟踪文件），再对齐远程。" Red
+    }
+
+    if ($UpdateMode -eq "check") {
+        Write-Label "【检查模式】" "【说明】" "仅检查远程，不会修改这些本地文件。" Cyan
+    }
+}
+else {
+    Write-Label "【本地】" "【干净】" "未检测到未提交修改。" Green
+}
 
 # --------------------------------------------------------------
 # Fetch
@@ -374,22 +425,19 @@ Write-Host ""
 Write-Label "【远程】" "【获取】" "正在获取远程最新状态，请稍候..." Cyan
 
 $fetchResult = Invoke-GitRaw -GitArgs @("fetch", "--prune", "origin")
-
 if ($fetchResult.ExitCode -ne 0) {
     Stop-Lfaa -Message "获取远程更新失败，请检查网络、origin 地址或 Git 登录状态。" -TechnicalOutput $fetchResult.Output
 }
-
 Write-Label "【远程】" "【完成】" "远程状态获取完成。" Green
 
 $remoteRef = "origin/" + $branch
-
 $remoteRefCheck = Invoke-GitRaw -GitArgs @("rev-parse", "--verify", $remoteRef)
 if ($remoteRefCheck.ExitCode -ne 0) {
     Stop-Lfaa -Message ("远程不存在分支：" + $remoteRef + "。") -TechnicalOutput $remoteRefCheck.Output
 }
 
 # --------------------------------------------------------------
-# 判断 ahead / behind
+# ahead / behind
 # --------------------------------------------------------------
 $countResult = Invoke-GitChecked -GitArgs @(
     "rev-list", "--left-right", "--count", "HEAD..." + $remoteRef
@@ -409,36 +457,6 @@ Write-Host ""
 Write-Label "【版本差异】" "【本地领先】" ($ahead.ToString() + " 个提交") Magenta
 Write-Label "【版本差异】" "【本地落后】" ($behind.ToString() + " 个提交") Cyan
 
-# Already up-to-date
-if ($ahead -eq 0 -and $behind -eq 0) {
-    Write-Host ""
-    Write-Label "【更新】" "【已是最新】" "当前源码已经是远程最新版本，无需拉取。" Green
-    Wait-LfaaClose -Success $true
-    exit 0
-}
-
-# Local only ahead
-if ($ahead -gt 0 -and $behind -eq 0) {
-    Write-Host ""
-    Write-Label "【保护】" "【本地领先】" "本地存在尚未出现在远程的 Commit，不需要拉取远程源码。" Yellow
-    Write-Label "【处理】" "【建议】" "如果这些 Commit 应该上传，请使用 LFAA-GitHub.bat 推送。" DarkYellow
-    Wait-LfaaClose -Success $true
-    exit 0
-}
-
-# Diverged
-if ($ahead -gt 0 -and $behind -gt 0) {
-    Write-Host ""
-    Write-Label "【保护】" "【分支已分叉】" "本地和远程都存在各自的新 Commit，自动更新已停止。" Red
-    Write-Label "【原因】" "【安全】" "此状态需要人工决定 rebase / merge，脚本不会自动改写历史。" Yellow
-    Write-Label "【处理】" "【建议】" "请先处理分支差异，再重新运行 LFAA-Update.bat。" DarkYellow
-    Wait-LfaaClose -Success $false
-    exit 2
-}
-
-# --------------------------------------------------------------
-# Safe behind-only update
-# --------------------------------------------------------------
 $oldHeadResult = Invoke-GitChecked -GitArgs @("rev-parse", "HEAD") -ActionName "读取当前 Commit"
 $oldHead = ($oldHeadResult.Output -join "").Trim()
 
@@ -449,62 +467,215 @@ $diffResult = Invoke-GitChecked -GitArgs @(
 
 $remoteChanges = @($diffResult.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 
-Show-RemoteChanges -Lines $remoteChanges
+if ($remoteChanges.Count -gt 0) {
+    Show-RemoteChanges -Lines $remoteChanges
+}
+else {
+    Write-Host ""
+    Write-Label "【远程变化】" "【无】" "没有需要从远程应用的文件差异。" Green
+}
 
-Write-Host ""
-Write-Label "【更新】" "【提交数量】" ("将拉取 " + $behind + " 个远程 Commit。") Cyan
-Write-Label "【更新】" "【方式】" "使用 fast-forward only，不执行自动 merge/rebase。" DarkCyan
+# --------------------------------------------------------------
+# 仅检查
+# --------------------------------------------------------------
+if ($UpdateMode -eq "check") {
+    Write-Host ""
 
-$confirm = Read-Host "【确认】【拉取最新源码】输入 Y 确认，其他键取消"
+    if ($ahead -eq 0 -and $behind -eq 0) {
+        Write-Label "【检查】" "【已是最新】" "本地与远程完全一致。" Green
+    }
+    elseif ($ahead -eq 0 -and $behind -gt 0) {
+        Write-Label "【检查】" "【可更新】" ("远程有 " + $behind + " 个新 Commit，可选择安全拉取。") Cyan
+    }
+    elseif ($ahead -gt 0 -and $behind -eq 0) {
+        Write-Label "【检查】" "【本地领先】" ("本地有 " + $ahead + " 个尚未推送的 Commit。") Yellow
+    }
+    else {
+        Write-Label "【检查】" "【已分叉】" "本地和远程都有各自的新 Commit。" Red
+    }
 
-if ($confirm -notmatch "^(?i:y|yes)$") {
-    Write-Label "【取消】" "【更新】" "已取消，本地源码未发生改变。" Yellow
     Wait-LfaaClose -Success $true
     exit 0
 }
 
-Write-Host ""
-Write-Label "【更新】" "【进行中】" "正在拉取远程最新源码..." Cyan
+# --------------------------------------------------------------
+# 安全拉取
+# --------------------------------------------------------------
+if ($UpdateMode -eq "safe") {
+    if ($ahead -eq 0 -and $behind -eq 0) {
+        Write-Host ""
+        Write-Label "【更新】" "【已是最新】" "当前源码已经是远程最新版本，无需拉取。" Green
+        Wait-LfaaClose -Success $true
+        exit 0
+    }
 
-$pullResult = Invoke-GitRaw -GitArgs @("pull", "--ff-only", "origin", $branch)
+    if ($ahead -gt 0 -and $behind -eq 0) {
+        Write-Host ""
+        Write-Label "【保护】" "【本地领先】" "本地存在尚未出现在远程的 Commit，不需要拉取。" Yellow
+        Write-Label "【处理】" "【建议】" "如需上传，请使用 LFAA-GitHub.bat。" DarkYellow
+        Wait-LfaaClose -Success $true
+        exit 0
+    }
 
-if ($pullResult.ExitCode -ne 0) {
-    Stop-Lfaa -Message "拉取远程源码失败。为保护本地历史，脚本没有执行强制覆盖。" -TechnicalOutput $pullResult.Output
+    if ($ahead -gt 0 -and $behind -gt 0) {
+        Write-Host ""
+        Write-Label "【保护】" "【分支已分叉】" "安全拉取不会自动 merge / rebase。" Red
+        Write-Label "【处理】" "【建议】" "请人工处理，或明确选择强制拉取并使用自动备份。" DarkYellow
+        Wait-LfaaClose -Success $false
+        exit 2
+    }
+
+    Write-Host ""
+    Write-Label "【更新】" "【提交数量】" ("将拉取 " + $behind + " 个远程 Commit。") Cyan
+    Write-Label "【更新】" "【方式】" "fast-forward only，不执行自动 merge/rebase。" Green
+
+    $confirm = Read-Host "【确认】【安全拉取】输入 Y 确认，其他键取消"
+    if ($confirm -notmatch "^(?i:y|yes)$") {
+        Write-Label "【取消】" "【更新】" "已取消，本地源码未发生改变。" Yellow
+        Wait-LfaaClose -Success $true
+        exit 0
+    }
+
+    Write-Host ""
+    Write-Label "【更新】" "【进行中】" "正在安全拉取远程最新源码..." Cyan
+
+    $pullResult = Invoke-GitRaw -GitArgs @("pull", "--ff-only", "origin", $branch)
+    if ($pullResult.ExitCode -ne 0) {
+        Stop-Lfaa -Message "安全拉取失败；脚本没有执行强制覆盖。" -TechnicalOutput $pullResult.Output
+    }
+
+    $newHeadResult = Invoke-GitChecked -GitArgs @("rev-parse", "HEAD") -ActionName "读取更新后 Commit"
+    $newHead = ($newHeadResult.Output -join "").Trim()
+
+    $verifyResult = Invoke-GitChecked -GitArgs @(
+        "rev-list", "--left-right", "--count", "HEAD..." + $remoteRef
+    ) -ActionName "校验更新结果"
+
+    $verifyText = ($verifyResult.Output -join " ").Trim()
+    $verifyParts = $verifyText -split "\s+"
+
+    if ($verifyParts.Count -lt 2 -or [int]$verifyParts[0] -ne 0 -or [int]$verifyParts[1] -ne 0) {
+        Stop-Lfaa "安全拉取完成后，本地与远程仍不一致。"
+    }
+
+    $newVersion = Get-ReleaseVersion $WorkspaceRoot
+    $logFile = Save-UpdateLog `
+        -Root $WorkspaceRoot `
+        -OriginUrl $origin `
+        -Branch $branch `
+        -OldCommit $oldHead `
+        -NewCommit $newHead `
+        -ChangedFiles $remoteChanges `
+        -Result "SAFE_SUCCESS"
+
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor DarkGreen
+    Write-Label "【完成】" "【安全拉取成功】" "本地源码已更新到远程最新版本。" Green
+    Write-Label "【版本】" "【更新前】" $version Magenta
+    Write-Label "【版本】" "【更新后】" $newVersion Green
+    Write-Label "【日志】" "【路径】" $logFile DarkCyan
+    Write-Host "============================================================" -ForegroundColor DarkGreen
+
+    Wait-LfaaClose -Success $true
+    exit 0
 }
 
-$newHeadResult = Invoke-GitChecked -GitArgs @("rev-parse", "HEAD") -ActionName "读取更新后 Commit"
-$newHead = ($newHeadResult.Output -join "").Trim()
+# --------------------------------------------------------------
+# 强制拉取：自动恢复点 -> reset --hard remote -> clean -fd
+# --------------------------------------------------------------
+if ($UpdateMode -eq "force") {
+    Write-Host ""
+    Write-Label "【警告】" "【强制拉取】" "该模式会让当前分支最终与远程分支保持一致。" Red
+    Write-Label "【保护】" "【自动备份】" "执行前会创建本地备份分支；未提交修改会自动保存到 stash。" Yellow
+    Write-Label "【保护】" "【忽略文件】" "Git 忽略的本地文件（例如 .env、缓存）不会被 git clean -fd 删除。" DarkYellow
 
-# Verify local now equals remote.
-$verifyResult = Invoke-GitChecked -GitArgs @(
-    "rev-list", "--left-right", "--count", "HEAD..." + $remoteRef
-) -ActionName "校验更新结果"
+    $confirmForce = Read-Host "【确认】【强制拉取】输入 Y 继续，其他键取消"
+    if ($confirmForce -notmatch "^(?i:y|yes)$") {
+        Write-Label "【取消】" "【强制拉取】" "已取消，本地源码未发生改变。" Yellow
+        Wait-LfaaClose -Success $true
+        exit 0
+    }
 
-$verifyText = ($verifyResult.Output -join " ").Trim()
-$verifyParts = $verifyText -split "\s+"
+    $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $backupBranch = "lfaa-backup/" + $branch + "-" + $stamp
 
-if ($verifyParts.Count -lt 2 -or [int]$verifyParts[0] -ne 0 -or [int]$verifyParts[1] -ne 0) {
-    Stop-Lfaa "更新命令完成，但本地 HEAD 与远程分支仍不一致，已停止继续操作。"
+    [void](Invoke-GitChecked -GitArgs @("branch", $backupBranch, "HEAD") -ActionName "创建强制拉取备份分支")
+    Write-Label "【备份】" "【分支】" $backupBranch Green
+
+    $stashRef = ""
+    if ($localChanges.Count -gt 0) {
+        $stashResult = Invoke-GitRaw -GitArgs @(
+            "stash", "push", "-u", "-m", ("LFAA force update backup " + $stamp)
+        )
+
+        if ($stashResult.ExitCode -ne 0) {
+            Stop-Lfaa -Message "自动保存未提交修改失败；尚未执行强制覆盖。" -TechnicalOutput $stashResult.Output
+        }
+
+        $stashRefResult = Invoke-GitRaw -GitArgs @("stash", "list", "-1", "--format=%gd")
+        if ($stashRefResult.ExitCode -eq 0 -and $stashRefResult.Output.Count -gt 0) {
+            $stashRef = ($stashRefResult.Output -join "").Trim()
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($stashRef)) {
+            Write-Label "【备份】" "【stash】" $stashRef Green
+        }
+    }
+
+    Write-Host ""
+    Write-Label "【强制拉取】" "【进行中】" ("正在对齐 " + $remoteRef + "...") Red
+
+    $resetResult = Invoke-GitRaw -GitArgs @("reset", "--hard", $remoteRef)
+    if ($resetResult.ExitCode -ne 0) {
+        Stop-Lfaa -Message "强制对齐远程失败；备份分支已经保留。" -TechnicalOutput $resetResult.Output
+    }
+
+    $cleanResult = Invoke-GitRaw -GitArgs @("clean", "-fd")
+    if ($cleanResult.ExitCode -ne 0) {
+        Stop-Lfaa -Message "清理未跟踪文件失败；当前 HEAD 已对齐远程，备份仍然保留。" -TechnicalOutput $cleanResult.Output
+    }
+
+    $verifyResult = Invoke-GitChecked -GitArgs @(
+        "rev-list", "--left-right", "--count", "HEAD..." + $remoteRef
+    ) -ActionName "校验强制拉取结果"
+
+    $verifyText = ($verifyResult.Output -join " ").Trim()
+    $verifyParts = $verifyText -split "\s+"
+
+    if ($verifyParts.Count -lt 2 -or [int]$verifyParts[0] -ne 0 -or [int]$verifyParts[1] -ne 0) {
+        Stop-Lfaa "强制拉取完成后，本地与远程仍不一致；请使用备份分支检查。"
+    }
+
+    $newHeadResult = Invoke-GitChecked -GitArgs @("rev-parse", "HEAD") -ActionName "读取强制拉取后 Commit"
+    $newHead = ($newHeadResult.Output -join "").Trim()
+    $newVersion = Get-ReleaseVersion $WorkspaceRoot
+
+    $logFile = Save-UpdateLog `
+        -Root $WorkspaceRoot `
+        -OriginUrl $origin `
+        -Branch $branch `
+        -OldCommit $oldHead `
+        -NewCommit $newHead `
+        -ChangedFiles $remoteChanges `
+        -Result "FORCE_SUCCESS"
+
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor DarkGreen
+    Write-Label "【完成】" "【强制拉取成功】" "当前分支已与远程分支完全对齐。" Green
+    Write-Label "【备份】" "【分支】" $backupBranch Yellow
+
+    if (-not [string]::IsNullOrWhiteSpace($stashRef)) {
+        Write-Label "【备份】" "【stash】" $stashRef Yellow
+        Write-Label "【恢复】" "【提示】" ("如需恢复未提交文件，可手工执行：git stash apply " + $stashRef) DarkYellow
+    }
+
+    Write-Label "【版本】" "【更新前】" $version Magenta
+    Write-Label "【版本】" "【更新后】" $newVersion Green
+    Write-Label "【日志】" "【路径】" $logFile DarkCyan
+    Write-Host "============================================================" -ForegroundColor DarkGreen
+
+    Wait-LfaaClose -Success $true
+    exit 0
 }
 
-$newVersion = Get-ReleaseVersion $WorkspaceRoot
-$logFile = Save-UpdateLog `
-    -Root $WorkspaceRoot `
-    -OriginUrl $origin `
-    -Branch $branch `
-    -OldCommit $oldHead `
-    -NewCommit $newHead `
-    -ChangedFiles $remoteChanges `
-    -Result "SUCCESS"
-
-Write-Host ""
-Write-Host "============================================================" -ForegroundColor DarkGreen
-Write-Label "【完成】" "【更新成功】" "本地源码已更新到远程最新版本。" Green
-Write-Label "【版本】" "【更新前】" $version Magenta
-Write-Label "【版本】" "【更新后】" $newVersion Green
-Write-Label "【分支】" "【名称】" $branch Cyan
-Write-Label "【日志】" "【路径】" $logFile DarkCyan
-Write-Host "============================================================" -ForegroundColor DarkGreen
-
-Wait-LfaaClose -Success $true
-exit 0
+Stop-Lfaa "未知更新模式。"

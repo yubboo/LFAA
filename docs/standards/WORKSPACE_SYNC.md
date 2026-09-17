@@ -290,3 +290,37 @@ git pull --force
 ```
 
 等可能破坏用户本地工作的操作。
+
+
+## 15. Windows 工具菜单
+
+LFAA 的 Windows BAT 启动器双击后不得直接执行写操作。
+
+必须先进入数字菜单：
+
+```text
+LFAA-Update.bat
+LFAA-GitHub.bat
+LFAA-Sync.bat
+```
+
+菜单至少必须包含：
+
+- 执行主操作；
+- 只读检查/预览；
+- 相关配置或安全高级操作；
+- 退出。
+
+## 16. 强制拉取
+
+强制拉取属于明确用户选择的高级操作。
+
+执行前必须：
+
+- fetch 最新远程；
+- 显示本地/远程差异；
+- 建立本地 backup branch；
+- 将未提交和未跟踪文件保存到 stash；
+- 用户确认后才 reset；
+- 不使用 `git clean -fdx`，避免删除 ignored 的本地 Secret/缓存；
+- 完成后显示恢复点。

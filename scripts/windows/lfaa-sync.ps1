@@ -320,10 +320,38 @@ function Verify-Mirror {
 # ------------------------------------------------------------------
 # Start
 # ------------------------------------------------------------------
-Write-Host ""
-Write-Host "============================================================" -ForegroundColor DarkCyan
-Write-Host " LFAA Stable Workspace Sync" -ForegroundColor Cyan
-Write-Host "============================================================" -ForegroundColor DarkCyan
+function Show-SyncMenu {
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor DarkCyan
+    Write-Host " LFAA 稳定工作区同步菜单" -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor DarkCyan
+    Write-Host ""
+    Write-Label "【1】" "【预览差异】" "只比较版本包与稳定工作区，不修改文件。" Cyan
+    Write-Label "【2】" "【执行同步】" "显示差异后确认，并同步到稳定工作区。" Green
+    Write-Label "【3】" "【同步配置】" "查看来源、目标和保护规则。" Magenta
+    Write-Label "【0】" "【退出】" "不执行任何同步操作。" DarkGray
+    Write-Host ""
+}
+
+$SyncMenuMode = ""
+while ([string]::IsNullOrWhiteSpace($SyncMenuMode)) {
+    Show-SyncMenu
+    $choice = Read-Host "【请选择】【0-3】"
+
+    switch ($choice.Trim()) {
+        "1" { $SyncMenuMode = "preview" }
+        "2" { $SyncMenuMode = "sync" }
+        "3" { $SyncMenuMode = "config" }
+        "0" {
+            Write-Label "【退出】" "【完成】" "未执行任何操作。" Green
+            Wait-LfaaClose -Success $true
+            exit 0
+        }
+        default {
+            Write-Label "【提示】" "【无效选项】" "请输入 0、1、2 或 3。" Yellow
+        }
+    }
+}
 
 $releaseFile = Join-Path $ProjectRoot "lfaa.release.json"
 if (-not (Test-Path -LiteralPath $releaseFile)) {
@@ -345,18 +373,58 @@ if ([System.IO.Path]::GetFullPath($ProjectRoot).TrimEnd("\") -ieq $TargetRoot.Tr
     Stop-Lfaa "源目录与目标工作区相同，禁止自我同步。"
 }
 
-Write-Label "【版本】" "【VERSION】" $version Magenta
-Write-Label "【来源】" "【SOURCE】" $ProjectRoot Cyan
+Write-Host ""
+Write-Label "【版本】" "【当前】" $version Magenta
+Write-Label "【来源】" "【路径】" $ProjectRoot Cyan
 Write-Label "【目标】" "【路径】" $TargetRoot Cyan
 
+if ($SyncMenuMode -eq "config") {
+    Write-Host ""
+    Write-Label "【保护】" "【Git】" ".git 永远不会被同步删除。" Green
+    Write-Label "【保护】" "【日志】" "docs/logs/*/*.log 保留为本机运行记录。" Green
+    Write-Label "【保护】" "【Secret】" ".env / .env.local 等本机环境文件不会删除。" Green
+    Write-Label "【保护】" "【缓存】" "node_modules、target、dist、coverage、.cache、.tmp 不参与镜像删除。" Green
+    Wait-LfaaClose -Success $true
+    exit 0
+}
+
+$plan = Get-SyncPlan $ProjectRoot $TargetRoot
+Show-Plan $plan
+
+Write-Host ""
+Write-Label "【保护】" "【说明】" ".git、本机日志、依赖缓存和本地 .env 不会被同步删除。" DarkGray
+
+if ($SyncMenuMode -eq "preview") {
+    Write-Host ""
+    Write-Label "【预览】" "【完成】" "以上仅为差异预览，没有修改任何文件。" Green
+    Wait-LfaaClose -Success $true
+    exit 0
+}
+
+# --------------------------------------------------------------
+# Execute sync
+# --------------------------------------------------------------
 if (Test-Path -LiteralPath (Join-Path $TargetRoot ".git")) {
-    Write-Label "【Git】" "【FOUND】" "检测到稳定工作区 .git，将永久保留，不参与同步删除。" Green
+    Write-Label "【Git】" "【已存在】" "稳定工作区 .git 将永久保留。" Green
 
     if (Get-Command git -ErrorAction SilentlyContinue) {
-        $gitStatus = & git -C $TargetRoot status --porcelain 2>$null
-        if ($LASTEXITCODE -eq 0 -and $gitStatus) {
+        $oldPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+
+        try {
+            $gitStatus = @(
+                & git -C $TargetRoot -c core.quotepath=false status --porcelain 2>&1 |
+                    ForEach-Object { [string]$_ }
+            )
+            $gitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $oldPreference
+        }
+
+        if ($gitCode -eq 0 -and $gitStatus.Count -gt 0) {
             Write-Host ""
-            Write-Label "【警告】" "【DIRTY】" "稳定工作区存在未提交修改：" Yellow
+            Write-Label "【警告】" "【未提交修改】" "稳定工作区当前存在 Git 未提交变化：" Yellow
             foreach ($line in $gitStatus) {
                 Write-Host ("  " + $line) -ForegroundColor Yellow
             }
@@ -364,71 +432,68 @@ if (Test-Path -LiteralPath (Join-Path $TargetRoot ".git")) {
     }
 }
 else {
-    Write-Label "【Git】" "【INFO】" "目标工作区尚无 .git；同步不会创建 .git，首次推送时由 GitHub 脚本初始化。" DarkYellow
+    Write-Label "【Git】" "【未初始化】" "同步不会创建 .git；首次推送时由 Git 推送脚本初始化。" DarkYellow
 }
-
-$plan = Get-SyncPlan $ProjectRoot $TargetRoot
-Show-Plan $plan
-
-Write-Host ""
-Write-Label "【保护】" "【SAFE】" ".git、docs/logs/workspace-sync/*.log、docs/logs/github-push/*.log、docs/logs/source-update/*.log、node_modules、target、dist、coverage、.cache、.tmp 和本地 .env 不会被删除。" DarkGray
 
 if (($plan.Adds.Count + $plan.Mods.Count + $plan.Dels.Count) -eq 0) {
     Write-Host ""
-    Write-Label "【完成】" "【OK】" "无需同步，稳定工作区已经与版本包一致。" Green
+    Write-Label "【完成】" "【无需同步】" "稳定工作区已经与版本包一致。" Green
+    Wait-LfaaClose -Success $true
     exit 0
 }
 
 Write-Host ""
-$answer = Read-Host "【确认】【SYNC】以上差异将同步到稳定工作区。输入 Y 确认，其他键取消"
+$answer = Read-Host "【确认】【执行同步】输入 Y 确认，其他键取消"
 if ($answer -notmatch "^(?i:y|yes)$") {
-    Write-Label "【取消】" "【CANCEL】" "用户取消同步，未修改任何文件。" Yellow
-    exit 2
+    Write-Label "【取消】" "【同步】" "用户取消，未修改任何文件。" Yellow
+    Wait-LfaaClose -Success $true
+    exit 0
 }
 
 if (-not (Test-Path -LiteralPath $TargetRoot)) {
     New-Item -ItemType Directory -Force -Path $TargetRoot | Out-Null
-    Write-Label "【创建】" "【TARGET】" $TargetRoot Green
+    Write-Label "【创建】" "【目标目录】" $TargetRoot Green
 }
 
 Write-Host ""
-Write-Label "【同步】" "【START】" "开始应用文件变化..." Cyan
+Write-Label "【同步】" "【进行中】" "开始应用文件变化..." Cyan
 
-# Add new files.
 foreach ($item in $plan.Adds) {
     $dstFile = Join-Path $TargetRoot ($item.Relative -replace "/", "\")
     $dstDir = Split-Path -Parent $dstFile
+
     if (-not (Test-Path -LiteralPath $dstDir)) {
         New-Item -ItemType Directory -Force -Path $dstDir | Out-Null
     }
+
     Copy-Item -LiteralPath $item.FullName -Destination $dstFile -Force
-    Write-Label "【新增】" "【ADD】" $item.Relative Green
+    Write-Label "【新增】" "【文件】" $item.Relative Green
 }
 
-# Replace modified files.
 foreach ($item in $plan.Mods) {
     $dstDir = Split-Path -Parent $item.Target
+
     if (-not (Test-Path -LiteralPath $dstDir)) {
         New-Item -ItemType Directory -Force -Path $dstDir | Out-Null
     }
+
     Copy-Item -LiteralPath $item.Source -Destination $item.Target -Force
-    Write-Label "【修改】" "【MOD】" $item.Relative Yellow
+    Write-Label "【修改】" "【文件】" $item.Relative Yellow
 }
 
-# Delete files that no longer exist in the release package.
 foreach ($item in $plan.Dels) {
     if (Test-Path -LiteralPath $item.FullName) {
         Remove-Item -LiteralPath $item.FullName -Force
-        Write-Label "【删除】" "【DEL】" $item.Relative Red
+        Write-Label "【删除】" "【文件】" $item.Relative Red
     }
 }
 
-# Remove empty non-protected directories from deepest to shallowest.
 if (Test-Path -LiteralPath $TargetRoot) {
     Get-ChildItem -LiteralPath $TargetRoot -Recurse -Directory -Force |
         Sort-Object { $_.FullName.Length } -Descending |
         ForEach-Object {
             $rel = Get-RelativePath $TargetRoot $_.FullName
+
             if (-not (Test-ProtectedPath $rel)) {
                 $children = Get-ChildItem -LiteralPath $_.FullName -Force
                 if ($children.Count -eq 0) {
@@ -439,7 +504,7 @@ if (Test-Path -LiteralPath $TargetRoot) {
 }
 
 Write-Host ""
-Write-Label "【校验】" "【VERIFY】" "开始逐文件 SHA-256 镜像校验..." Cyan
+Write-Label "【校验】" "【进行中】" "开始逐文件 SHA-256 镜像校验..." Cyan
 
 if (-not (Verify-Mirror $ProjectRoot $TargetRoot)) {
     $logFile = Save-SyncLog $TargetRoot $plan $version "VERIFY_FAILED"
@@ -447,38 +512,48 @@ if (-not (Verify-Mirror $ProjectRoot $TargetRoot)) {
     Stop-Lfaa "同步后镜像校验失败，请检查上方差异。"
 }
 
-Write-Label "【校验】" "【通过】" "版本包项目文件与稳定工作区完全一致（保护目录除外）。" Green
+Write-Label "【校验】" "【通过】" "版本包项目文件与稳定工作区完全一致（保护项除外）。" Green
 
-# Run project governance checks when Node is available.
+# Governance check - capture raw output, only show Chinese result.
 $governance = Join-Path $TargetRoot "scripts\governance-check.mjs"
 if ((Get-Command node -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath $governance)) {
     Write-Host ""
-    Write-Label "【检查】" "【GOVERNANCE】" "运行 LFAA governance check..." Cyan
+    Write-Label "【检查】" "【治理】" "运行 LFAA 项目治理检查..." Cyan
+
     Push-Location $TargetRoot
     try {
-        & node "scripts\governance-check.mjs"
-        if ($LASTEXITCODE -ne 0) {
-            $logFile = Save-SyncLog $TargetRoot $plan $version "GOVERNANCE_FAILED"
-            Write-Label "【日志】" "【路径】" $logFile DarkYellow
-            Stop-Lfaa "Governance check 失败。"
-        }
+        $oldPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        $governanceOutput = @(
+            & node "scripts\governance-check.mjs" 2>&1 | ForEach-Object { [string]$_ }
+        )
+        $governanceCode = $LASTEXITCODE
+        $ErrorActionPreference = $oldPreference
     }
     finally {
         Pop-Location
     }
-    Write-Label "【检查】" "【通过】" "Governance check 通过。" Green
+
+    if ($governanceCode -ne 0) {
+        $logFile = Save-SyncLog $TargetRoot $plan $version "GOVERNANCE_FAILED"
+        Write-Label "【日志】" "【路径】" $logFile DarkYellow
+        Stop-Lfaa "项目治理检查失败。"
+    }
+
+    Write-Label "【检查】" "【通过】" "项目治理检查通过。" Green
 }
 else {
-    Write-Label "【检查】" "【跳过】" "未检测到 Node 或 governance 脚本，跳过自动治理检查。" DarkYellow
+    Write-Label "【检查】" "【跳过】" "未检测到 Node 或治理脚本，跳过自动检查。" DarkYellow
 }
 
 $logFile = Save-SyncLog $TargetRoot $plan $version "SUCCESS"
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor DarkGreen
-Write-Label "【完成】" "【同步成功】" ("LFAA v{0} 已完整同步到稳定工作区。" -f $version) Green
+Write-Label "【完成】" "【同步成功】" ("LFAA v" + $version + " 已完整同步到稳定工作区。") Green
 Write-Label "【日志】" "【路径】" $logFile DarkCyan
 Write-Label "【目标】" "【路径】" $TargetRoot Cyan
 Write-Host "============================================================" -ForegroundColor DarkGreen
+
 Wait-LfaaClose -Success $true
 exit 0

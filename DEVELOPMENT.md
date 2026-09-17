@@ -584,3 +584,14 @@ LFAA-Update.bat
 - 未提交修改不自动覆盖；
 - 分支分叉不自动改写历史；
 - 只有纯 fast-forward 更新才自动拉取。
+
+
+---
+
+## 20. Windows 一键脚本菜单化
+
+`LFAA-Sync.bat`、`LFAA-GitHub.bat`、`LFAA-Update.bat` 双击后只允许打开菜单。
+
+禁止双击即执行同步、Push、Pull 等写操作。
+
+危险级较高的操作必须作为独立菜单项显示，并建立恢复机制。
