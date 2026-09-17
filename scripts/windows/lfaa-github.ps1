@@ -571,12 +571,7 @@ if ($workingStatus.Count -gt 0) {
     while ([string]::IsNullOrWhiteSpace($commitMessage))
 
     Write-Label "【提交】" "【名称】" $commitMessage Green
-
-    $confirmCommit = Read-Host "【确认】【创建提交】输入 Y 确认，其他键取消"
-    if ($confirmCommit -notmatch "^(?i:y|yes)$") {
-        Write-Label "【取消】" "【提交】" "已取消提交；文件仍在暂存区，尚未推送。" Yellow
-        exit 2
-    }
+    Write-Label "【提交】" "【进行中】" "正在创建本地提交..." Cyan
 
     [void](Invoke-GitChecked -GitArgs @("commit", "-m", $commitMessage) -ActionName "创建 Git 提交")
     Write-Label "【提交】" "【完成】" "本地提交创建成功。" Green

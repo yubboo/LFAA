@@ -150,8 +150,8 @@ LFAA-GitHub.bat
 3. `git add -A` 后再次列出真正 staged 文件；
 4. Commit 名称由用户手工输入；
 5. 首次 Commit 也不强制使用固定 `first commit`；
-6. Commit 前确认；
-7. Push 前再次确认；
+6. 用户输入 Commit 名称后直接创建本地 Commit，不再二次确认；
+7. Push 前保留确认；
 8. 默认禁止 `git push --force`；
 9. 远程已有 main 时先 `git pull --rebase`；
 10. 生成本机日志到 `docs/logs/github-push/`。
@@ -230,3 +230,24 @@ BAT 只负责启动 PowerShell。
 - 用户不知道是否还能关闭；
 - BAT/PowerShell 双重 pause；
 - 中英文提示混杂。
+
+
+## 13. Commit 名称输入即确认
+
+GitHub 一键推送中：
+
+```text
+【输入】【提交名称】
+```
+
+用户完成提交名称输入后，即视为确认创建本地 Commit。
+
+禁止再次出现：
+
+```text
+【确认】【创建提交】
+```
+
+避免重复交互。
+
+远程 Push 仍保留独立确认，因为 Push 会改变远程仓库状态。

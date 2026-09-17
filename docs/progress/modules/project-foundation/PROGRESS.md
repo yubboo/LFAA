@@ -200,3 +200,17 @@
 - 是否可交付：是
 - 是否已交付：是
 - 下一步：继续 `config-system`
+
+
+## 2026-09-18 / #10
+
+- 当前状态：delivered
+- 本次目标：移除 Git Commit 二次确认
+- 已完成：
+  - Commit 名称输入后直接创建本地 Commit
+  - 删除重复 Commit 确认
+  - 保留 Push 前确认
+- 待测试：Windows 实机确认交互流程
+- 是否可交付：是
+- 是否已交付：是
+- 下一步：继续 `config-system`

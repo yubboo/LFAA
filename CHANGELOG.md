@@ -3,29 +3,27 @@
 > 根目录只保留当前索引和最近版本。
 > 历史详细记录放入 `docs/changelog/`。
 
-## #9 终端完成状态与关闭提示
+## #10 移除 Commit 二次确认
 
 - 产品：Little Fish AI Agent
 - 简称：LFAA
-- 用户版本：v0.0.8
+- 用户版本：v0.0.9
 - 状态：delivered
 - 日期：2026-09-18
 
 ### 完成
 
-- GitHub 推送成功后明确提示“现在可以安全关闭终端窗口”。
-- Workspace Sync 成功后同样明确提示。
-- 失败时提示错误已保留，可以关闭窗口后处理。
-- BAT 不再负责 pause，避免双重等待。
-- PowerShell 统一负责最终状态、颜色和按键等待。
+- 用户填写 Commit 名称后直接创建本地 Commit。
+- 删除重复的“是否确认创建 Commit”步骤。
+- 保留 Push 前确认。
 - 当前主业务模块仍为 `config-system`。
 
 完整记录：
 
-`docs/changelog/v0.0.8.md`
+`docs/changelog/v0.0.9.md`
 
-## #8 用户首次配置 Git origin
+## #9 终端完成状态与关闭提示
 
 历史版本：
 
-`docs/changelog/v0.0.7.md`
+`docs/changelog/v0.0.8.md`
