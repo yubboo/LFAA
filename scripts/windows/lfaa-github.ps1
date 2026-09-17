@@ -25,6 +25,32 @@ function Write-Label {
     Write-Host $Text
 }
 
+
+function Wait-LfaaClose {
+    param(
+        [Parameter(Mandatory = $true)]
+        [bool]$Success
+    )
+
+    Write-Host ""
+
+    if ($Success) {
+        Write-Label "【提示】" "【可关闭】" "全部操作已完成，现在可以安全关闭终端窗口。" Green
+    }
+    else {
+        Write-Label "【提示】" "【可关闭】" "错误信息已经保留，现在可以关闭窗口；处理问题后再重新运行。" Yellow
+    }
+
+    Write-Label "【提示】" "【操作】" "按任意键关闭窗口，或直接点击右上角 X。" DarkGray
+
+    try {
+        [void][System.Console]::ReadKey($true)
+    }
+    catch {
+        # 某些非交互终端不支持 ReadKey；这种情况下直接返回。
+    }
+}
+
 function Stop-Lfaa {
     param(
         [Parameter(Mandatory = $true)][string]$Message,
@@ -64,6 +90,7 @@ function Stop-Lfaa {
         }
     }
 
+    Wait-LfaaClose -Success $false
     exit 1
 }
 
@@ -625,4 +652,5 @@ Write-Label "【版本】" "【当前】" $version Magenta
 Write-Label "【日志】" "【路径】" $logFile DarkCyan
 Write-Host "============================================================" -ForegroundColor DarkGreen
 
+Wait-LfaaClose -Success $true
 exit 0

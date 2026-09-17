@@ -49,10 +49,37 @@ function Write-Label {
     Write-Host $Text
 }
 
+
+function Wait-LfaaClose {
+    param(
+        [Parameter(Mandatory = $true)]
+        [bool]$Success
+    )
+
+    Write-Host ""
+
+    if ($Success) {
+        Write-Label "【提示】" "【可关闭】" "全部操作已完成，现在可以安全关闭终端窗口。" Green
+    }
+    else {
+        Write-Label "【提示】" "【可关闭】" "错误信息已经保留，现在可以关闭窗口；处理问题后再重新运行。" Yellow
+    }
+
+    Write-Label "【提示】" "【操作】" "按任意键关闭窗口，或直接点击右上角 X。" DarkGray
+
+    try {
+        [void][System.Console]::ReadKey($true)
+    }
+    catch {
+        # 某些非交互终端不支持 ReadKey；这种情况下直接返回。
+    }
+}
+
 function Stop-Lfaa {
     param([string]$Message)
     Write-Host ""
     Write-Label "【错误】" "【ERROR】" $Message Red
+    Wait-LfaaClose -Success $false
     exit 1
 }
 
@@ -316,7 +343,7 @@ if ([System.IO.Path]::GetFullPath($ProjectRoot).TrimEnd("\") -ieq $TargetRoot.Tr
 
 Write-Label "【版本】" "【VERSION】" $version Magenta
 Write-Label "【来源】" "【SOURCE】" $ProjectRoot Cyan
-Write-Label "【目标】" "【TARGET】" $TargetRoot Cyan
+Write-Label "【目标】" "【路径】" $TargetRoot Cyan
 
 if (Test-Path -LiteralPath (Join-Path $TargetRoot ".git")) {
     Write-Label "【Git】" "【FOUND】" "检测到稳定工作区 .git，将永久保留，不参与同步删除。" Green
@@ -412,11 +439,11 @@ Write-Label "【校验】" "【VERIFY】" "开始逐文件 SHA-256 镜像校验.
 
 if (-not (Verify-Mirror $ProjectRoot $TargetRoot)) {
     $logFile = Save-SyncLog $TargetRoot $plan $version "VERIFY_FAILED"
-    Write-Label "【日志】" "【LOG】" $logFile DarkYellow
+    Write-Label "【日志】" "【路径】" $logFile DarkYellow
     Stop-Lfaa "同步后镜像校验失败，请检查上方差异。"
 }
 
-Write-Label "【校验】" "【PASS】" "版本包项目文件与稳定工作区完全一致（保护目录除外）。" Green
+Write-Label "【校验】" "【通过】" "版本包项目文件与稳定工作区完全一致（保护目录除外）。" Green
 
 # Run project governance checks when Node is available.
 $governance = Join-Path $TargetRoot "scripts\governance-check.mjs"
@@ -428,25 +455,26 @@ if ((Get-Command node -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPat
         & node "scripts\governance-check.mjs"
         if ($LASTEXITCODE -ne 0) {
             $logFile = Save-SyncLog $TargetRoot $plan $version "GOVERNANCE_FAILED"
-            Write-Label "【日志】" "【LOG】" $logFile DarkYellow
+            Write-Label "【日志】" "【路径】" $logFile DarkYellow
             Stop-Lfaa "Governance check 失败。"
         }
     }
     finally {
         Pop-Location
     }
-    Write-Label "【检查】" "【PASS】" "Governance check 通过。" Green
+    Write-Label "【检查】" "【通过】" "Governance check 通过。" Green
 }
 else {
-    Write-Label "【检查】" "【SKIP】" "未检测到 Node 或 governance 脚本，跳过自动治理检查。" DarkYellow
+    Write-Label "【检查】" "【跳过】" "未检测到 Node 或 governance 脚本，跳过自动治理检查。" DarkYellow
 }
 
 $logFile = Save-SyncLog $TargetRoot $plan $version "SUCCESS"
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor DarkGreen
-Write-Label "【完成】" "【SUCCESS】" ("LFAA v{0} 已完整同步到稳定工作区。" -f $version) Green
-Write-Label "【日志】" "【LOG】" $logFile DarkCyan
-Write-Label "【目标】" "【TARGET】" $TargetRoot Cyan
+Write-Label "【完成】" "【同步成功】" ("LFAA v{0} 已完整同步到稳定工作区。" -f $version) Green
+Write-Label "【日志】" "【路径】" $logFile DarkCyan
+Write-Label "【目标】" "【路径】" $TargetRoot Cyan
 Write-Host "============================================================" -ForegroundColor DarkGreen
+Wait-LfaaClose -Success $true
 exit 0

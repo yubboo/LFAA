@@ -3,31 +3,29 @@
 > 根目录只保留当前索引和最近版本。
 > 历史详细记录放入 `docs/changelog/`。
 
-## #8 用户首次配置 Git origin
+## #9 终端完成状态与关闭提示
 
 - 产品：Little Fish AI Agent
 - 简称：LFAA
-- 用户版本：v0.0.7
+- 用户版本：v0.0.8
 - 状态：delivered
 - 日期：2026-09-18
 
 ### 完成
 
-- Git 推送脚本不再写死远程仓库地址。
-- 第一次没有 `origin` 时要求用户手工输入仓库地址。
-- 输入后先显示地址并要求确认。
-- 确认后保存到 `.git/config`。
-- 后续运行自动读取现有 `origin`，不重复询问。
-- origin 地址成为 Git 自己的唯一事实源。
-- 推送日志记录本次实际使用的 origin。
+- GitHub 推送成功后明确提示“现在可以安全关闭终端窗口”。
+- Workspace Sync 成功后同样明确提示。
+- 失败时提示错误已保留，可以关闭窗口后处理。
+- BAT 不再负责 pause，避免双重等待。
+- PowerShell 统一负责最终状态、颜色和按键等待。
 - 当前主业务模块仍为 `config-system`。
 
 完整记录：
 
-`docs/changelog/v0.0.7.md`
+`docs/changelog/v0.0.8.md`
 
-## #7 GitHub 首次远程仓库检测与中文输出修复
+## #8 用户首次配置 Git origin
 
 历史版本：
 
-`docs/changelog/v0.0.6.md`
+`docs/changelog/v0.0.7.md`
