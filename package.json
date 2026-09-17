@@ -1,7 +1,7 @@
 {
   "name": "lfaa",
   "private": true,
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "Little Fish AI Agent monorepo",
   "scripts": {
     "governance:check": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs",

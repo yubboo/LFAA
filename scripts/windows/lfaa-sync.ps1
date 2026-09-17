@@ -326,8 +326,8 @@ function Show-SyncMenu {
     Write-Host " LFAA 稳定工作区同步菜单" -ForegroundColor Cyan
     Write-Host "============================================================" -ForegroundColor DarkCyan
     Write-Host ""
-    Write-Label "【1】" "【预览差异】" "只比较版本包与稳定工作区，不修改文件。" Cyan
-    Write-Label "【2】" "【执行同步】" "显示差异后确认，并同步到稳定工作区。" Green
+    Write-Label "【1】" "【执行同步】" "显示差异后确认，并同步到稳定工作区。" Green
+    Write-Label "【2】" "【预览差异】" "只比较版本包与稳定工作区，不修改文件。" Cyan
     Write-Label "【3】" "【同步配置】" "查看来源、目标和保护规则。" Magenta
     Write-Label "【0】" "【退出】" "不执行任何同步操作。" DarkGray
     Write-Host ""
@@ -339,8 +339,8 @@ while ([string]::IsNullOrWhiteSpace($SyncMenuMode)) {
     $choice = Read-Host "【请选择】【0-3】"
 
     switch ($choice.Trim()) {
-        "1" { $SyncMenuMode = "preview" }
-        "2" { $SyncMenuMode = "sync" }
+        "1" { $SyncMenuMode = "sync" }
+        "2" { $SyncMenuMode = "preview" }
         "3" { $SyncMenuMode = "config" }
         "0" {
             Write-Label "【退出】" "【完成】" "未执行任何操作。" Green
