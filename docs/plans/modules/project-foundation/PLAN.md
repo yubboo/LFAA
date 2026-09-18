@@ -40,6 +40,54 @@ deliverable
 - 性能、安全和质量门禁；
 - 路径无关的依赖安装与开发检查菜单。
 
+## #21.13 Web 响应式与弹性吸附重构
+
+### 任务原因
+
+v0.0.44 在 Tooltip 单一来源上已修正，但用户 Windows 实机缩小浏览器后发现：右栏浮层仍可覆盖绝大多数主区、Header 控件在覆盖布局中不可见，且左右/底部吸附从 min 硬跳到 0，拖拽手感生硬。
+
+### 本次范围
+
+允许修改：
+
+- `packages/app-shell/src/AgentWorkbench.tsx`；
+- `packages/app-shell/src/agent-workbench.css`；
+- `packages/ui/src/workbench/ResizableWorkbench.tsx`；
+- `packages/ui/src/workbench/workbench.css`；
+- UI 静态契约门禁；
+- Prompt / Plan / Progress / Development Log / UI Standard / Test / Code Map / Changelog / Release。
+
+禁止修改：
+
+- Sync / GitHub / Setup / Update 业务逻辑；
+- PTY bridge 与 node-pty 协议；
+- Config / Agent Runtime / Permission / Rust Native 边界。
+
+### 实施顺序
+
+1. 保留 v0.0.44 为历史版本；
+2. 归档 #21.12；
+3. 增加 Desktop / Compact / Mobile LayoutMode；
+4. Compact 右栏和 Mobile 双侧栏改为 Drawer；
+5. 保证核心 Shell Actions 在小屏 Header 始终可见；
+6. Tooltip 增加贴边方向；
+7. 左 / 右 / 底部统一弹性磁区状态机；
+8. Pointer 拖拽期间禁止 CSS transition；
+9. 更新静态 UI 契约检查；
+10. 同步所有当前事实源与发布记录；
+11. 执行治理、语法、版本、ZIP、PowerShell BOM 门禁。
+
+### 验收条件
+
+- 1180 / 760 两个响应式断点有明确模式；
+- Compact 右 Drawer 不超过 420px / 56vw 上限；
+- Mobile 主区全宽，Header 核心入口可用；
+- 三向拖拽按住时均可从 snap capture 反向拖回 min；
+- Pointer Up 后正式 collapsed，separator 不能拖出；
+- 拖拽时不启用 transition 追鼠标；
+- Tooltip 不贴边裁切；
+- Windows 脚本和 PTY 业务逻辑不变。
+
 ## #21.11 Web 工作台 Header 联动布局
 
 ### 任务原因

@@ -1,13 +1,15 @@
 # Web 工作台本地测试
-## v0.0.44 / #21.12 Shell Tooltip 单一提示源重点
 
-1. 右栏展开：终端 / 右栏按钮必须出现在右栏顶部 Header，不能漂在中间正文右上角。
-2. 右栏收起：同一组按钮必须回到中间 Header 最右侧。
-3. 左栏按钮位于中间 Header 最左侧；Hover 仍临时预览，Click / `Ctrl+B` 正式开合。
-4. Center Header 与 Right Header 的底边线、48px 高度必须连续。
-5. 鼠标停留 Shell 按钮应只出现一层黑色 Tooltip，快捷键分别为 `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B`；不得延迟再弹出第二层浏览器原生提示。
-6. 对话正文不得被 Header 按钮覆盖。
+## v0.0.45 / #21.13 响应式与弹性吸附重点
 
+本版本必须优先验证：
+
+1. 窄窗口主区不再被右栏大面积覆盖；
+2. 右栏 Drawer 打开时关闭入口仍在 Header 可见；
+3. Tooltip 在左右边缘不被裁切；
+4. 左 / 右 / 底部拖拽按住期间可以“吸附后反向拖回”；
+5. 松手确认收起后 separator 不能重新拖出；
+6. 拖拽过程不应有 transition 追鼠标造成的卡顿。
 
 ## 前置
 
@@ -29,148 +31,130 @@ LFAA-Setup.bat
 http://127.0.0.1:5173
 ```
 
-## 1. 主题测试
+## 1. Desktop（>=1180 CSS px）
 
-1. 默认跟随系统偏好初始化；
-2. 点击左下角主题按钮，浅色 / 深色切换；
-3. 刷新浏览器，确认主题偏好保留；
-4. 不应出现宣纸、山水、水墨等装饰主题。
+1. 左 / 中 / 右三栏正常 Dock；
+2. 右栏展开：终端 / 右栏按钮位于 Right Header；
+3. 右栏收起：按钮回到 Center Header；
+4. Header 底边线连续；
+5. Composer 保持居中，不被侧栏压扁；
+6. 页面无横向滚动。
 
-## 2. 当前 Shell Header 位置
+## 2. Compact（760~1179 CSS px）
 
-1. 不再存在独立的全宽 `Web 页面顶栏`；
-2. 中间区域第一行是 48px `Center Header`；
-3. 左栏按钮与 `Web 工作台` 标题位于 Center Header 左侧；
-4. 更多 / 分享位于 Center Header 右侧；
-5. 右栏展开时，终端 / 右栏按钮位于 48px `Right Header`；
-6. 右栏收起时，终端 / 右栏按钮回到 Center Header 右侧；
-7. Center Header / Right Header 底边线应连续，按钮不得漂在正文层；
-8. 窄屏可以隐藏分享，但左栏 / 终端 / 右栏入口必须仍可操作。
+建议测试：1024x768、820x900。
 
-## 3. 左栏 Hover Preview
+1. 进入该断点后右栏默认收起；
+2. 左栏继续作为 Dock；
+3. 点击右栏按钮，右栏从右侧以 Drawer 覆盖主内容；
+4. Drawer 宽度不能超过约 420px / 56vw 上限，不允许旧版 88vw；
+5. Drawer 从 48px Header 下方开始，不能盖住 Header；
+6. 终端 / 右栏按钮始终留在 Center Header；
+7. 点击右栏按钮可立即关闭 Drawer；
+8. 缩小 / 放大窗口过程中不出现主区突然消失。
 
-先正式收起左栏：
+## 3. Mobile（<760 CSS px）
+
+建议测试：759x900、640x800、390x844。
+
+1. 中间主区占满宽度；
+2. 左右栏和终端进入该断点时默认收起；
+3. Header 必须保留左栏 / 终端 / 右栏三个核心入口；
+4. 更多 / 分享可以隐藏；
+5. 左栏点击后从 Header 下方以 Drawer 出现；
+6. 右栏点击后从 Header 下方以 Drawer 出现；
+7. 左右 Drawer 宽度 <= 86vw 且 <= 340px；
+8. Drawer 打开时仍能通过 Header 按钮关闭；
+9. Composer 宽度适配屏幕，不溢出；
+10. 不出现整页水平滚动。
+
+## 4. Tooltip
+
+Desktop / Compact：
+
+- 左栏 Tooltip 向右展开，不能被左边界裁掉；
+- 终端 / 右栏 Tooltip 向左展开，不能被右边界裁掉；
+- 只出现一层自定义 Tooltip；
+- 快捷键为 `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B`；
+- 等待数秒不能再出现浏览器原生 `title`；
+- Tooltip 不应拦截 Click。
+
+Mobile：Tooltip 可以隐藏，操作入口本身必须仍可理解和点击。
+
+## 5. 左栏 Hover Preview
+
+仅 Desktop / Compact 验证：
+
+1. 正式收起左栏；
+2. Hover 左栏按钮；
+3. Preview 淡入但不改变 `leftCollapsed`；
+4. 鼠标移动到 Preview 不闪退；
+5. 离开后短延迟淡出；
+6. Click / `Ctrl+B` 才正式展开。
+
+## 6. 左侧拖拽 / 弹性吸附
+
+Desktop / Compact：
+
+1. 从正常宽度向内拖；
+2. 低于 min 后宽度继续连续变小，不能在 min 处硬跳到 0；
+3. 继续靠近左边缘进入 snap capture；
+4. **不要松手**，反向拖；
+5. 左栏应跟手恢复；
+6. 拉回 min 时退出 snap capture；
+7. 继续向外可正常拉伸；
+8. 再次拖入 snap capture 并松手，左栏正式收起；
+9. 松手后 separator 不允许重新拉开；
+10. 通过按钮 / `Ctrl+B` 才能重新展开。
+
+## 7. 右侧拖拽 / 弹性吸附
+
+只在 Desktop Dock 模式验证：
+
+步骤与左侧一致：吸附后不松手可反向拖回 min；松手确认后只能通过按钮 / `Ctrl+Alt+B` 打开。
+
+Compact / Mobile 的右栏是 Drawer，不要求侧边 separator Resize。
+
+## 8. Bottom Terminal 弹性吸附
+
+1. 打开 Terminal Dock；
+2. 向下拖动高度；
+3. 低于 min 后高度连续压缩；
+4. 靠近底部进入 snap capture；
+5. **不要松手**，向上反向拖；
+6. 回到 min 时退出 snap capture并继续拉高；
+7. 再次进入 snap capture 后松手，终端正式关闭；
+8. 关闭后不能从底边拖出；
+9. 必须通过 Header / `Ctrl+J` / 右栏终端入口打开。
+
+## 9. 动画手感
+
+使用慢速拖拽验证：
+
+- Pointer 跟手，无明显“拖一下、面板过一会儿追上”的感觉；
+- 磁区是连续压缩，不是突然消失；
+- 松手提交收起约 220~280ms ease-out；
+- 按钮重新展开约 220~280ms ease-out；
+- opacity / translate 与宽高变化同步。
+
+## 10. 快捷键
+
+非输入框聚焦时：
 
 ```text
-点击左栏按钮
-或 Ctrl+B
+Ctrl+B       左栏
+Ctrl+J       底部终端
+Ctrl+Alt+B   右栏
 ```
 
-然后验证：
+输入框 / textarea / contentEditable 聚焦时不得抢文本输入。
 
-1. 鼠标移入左上角左栏按钮；
-2. 左栏内容以浮层形式淡入；
-3. 不应推动中间 Grid，也不应改变正式左栏宽度；
-4. 鼠标从按钮移动到预览浮层时，预览不能立刻闪退；
-5. 离开按钮和浮层后，短延迟淡出；
-6. Hover 结束后刷新页面，左栏仍应保持正式“收起”状态；
-7. 再次点击按钮或 `Ctrl+B`，才正式展开左栏。
+## 11. 真实终端与资源桥
 
-核心语义：
+保持原有验收：
 
-```text
-Hover = 临时看一眼
-Click / Ctrl+B = 正式改变布局
-```
-
-## 4. 左右栏拖拽 / 吸附
-
-1. 左栏默认约 288px；右栏默认约 360px；
-2. 左栏向外拉到最大，不无限扩张；
-3. 右栏向外拉到最大，不无限扩张；
-4. 两边展开时，中间区仍保留目标最小宽度；
-5. 左栏向内拖到 240px，未松手就进入吸附收起预览；
-6. 同一 Pointer 反向超过约 264px，可退出吸附预览；
-7. Pointer Up 完成收起后，separator 不能反向拉开；
-8. 右栏向内拖到 300px，未松手就进入吸附；
-9. 同一 Pointer 反向超过约 324px，可退出吸附预览；
-10. Pointer Up 完成右栏收起后，separator 不能反向拉开。
-
-## 5. 快捷键
-
-在非输入框聚焦状态验证：
-
-```text
-Ctrl+B       左栏正式开合
-Ctrl+J       底部终端开合
-Ctrl+Alt+B   右栏开合
-```
-
-鼠标悬停对应按钮，应从唯一的自定义 Tooltip 看到快捷键；等待数秒也不能出现第二层原生 `title` 提示。
-
-右栏不允许 Hover 自动展开。
-
-## 6. 底部 Terminal Dock
-
-1. 终端位于中间 + 右侧区域底部；
-2. 左侧栏保持全高；
-3. 终端顶部边界可拖高 / 拖低；
-4. 向下拖到最小阈值可吸附收起；
-5. 收起后不能从底边 separator 反向拖出；
-6. 使用当前 Header 中的终端按钮、`Ctrl+J` 或右栏“终端”入口重新展开；
-7. 终端 Dock 不应挤坏主对话区。
-
-## 7. 真实终端测试
-
-首次准备依赖：
-
-```text
-LFAA-Setup.bat → 1
-```
-
-然后：
-
-```text
-LFAA-Setup.bat → 2
-```
-
-验收：
-
-1. 底部出现真实 xterm；
-2. 能看到真实 PowerShell / 系统 Shell Prompt；
-3. 输入目录命令可得到真实输出；
-4. 普通项目命令可以执行；
-5. 调整底部高度时 xterm 自动 fit；
-6. Vite / 页面退出后 PTY 被回收。
-
-注意：这是**人类直接交互的本地开发 PTY**，不是 Agent Tool Runtime。
-
-## 8. `.lfaa` 热插拔
-
-在以下目录新增 / 删除测试资源：
-
-```text
-.lfaa/skills/
-.lfaa/plugins/
-.lfaa/mcp/
-```
-
-右侧资源区应自动刷新，无需手工刷新页面。
-
-Network 中 `/__lfaa/dev/resources` 只允许出现：
-
-- kind
-- name
-- relativePath
-- entryType
-- updatedAt
-
-不得出现资源正文、Secret、Token 或绝对路径。
-
-## 9. 端口 / Setup 菜单
-
-1. 5173 空闲时优先使用 5173；
-2. 已有 LFAA Vite 运行时应快速复用；
-3. 5173 被其他程序占用时选择 5174-5199 空闲端口；
-4. 不自动结束未知占用进程；
-5. Web 按 `Ctrl+C` 停止后返回 Setup 主菜单；
-6. 普通检查 / 错误后返回主菜单；
-7. 只有菜单 `0` 退出。
-
-## 10. 响应式
-
-- `>1120px`：标准三栏；
-- `<=1120px`：右栏浮层；
-- `<=820px`：左右栏浮层；
-- Header Shell Actions 继续可见；
-- 页面不得产生整页横向滚动。
+- xterm + node-pty 可交互；
+- resize 后 FitAddon 正常；
+- Vite 退出后 PTY 回收；
+- `.lfaa` 资源变更自动刷新；
+- 资源接口不泄露 Secret / Token / 绝对路径。

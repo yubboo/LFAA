@@ -1,3 +1,19 @@
+## 2026-09-18 / #21.13 响应式重构与弹性吸附
+
+- 当前状态：pending-windows-visual-test
+- 用户实机发现：v0.0.44 在窄窗口中右栏覆盖过宽、核心按钮可见性不足，页面布局会崩；三向吸附从 min 到 0 的过渡过硬。
+- 已完成：新增 Desktop / Compact / Mobile 三档 LayoutMode（1180 / 760）。
+- 已完成：Compact 右栏改 Drawer，Mobile 左右栏改 Drawer；核心 Header 按钮始终保留。
+- 已完成：响应式 Drawer 从 48px Header 下方出现，移除旧版 88vw 覆盖方案。
+- 已完成：Tooltip start/end 对齐，防止贴边裁切。
+- 已完成：左右栏 / Bottom Terminal 统一 elasticSize + snapCommitThreshold。
+- 已完成：Pointer 按住时进入 snap capture 后可反向拖回 min；只有 Pointer Up 才正式 collapsed。
+- 已完成：拖拽期间彻底关闭 Workbench transition，正式展开/收起统一 ease-out。
+- 已完成：UI contract 门禁加入响应式和弹性吸附静态契约。
+- 不改：Sync / GitHub / Setup / Update、PTY bridge、Agent Runtime。
+- 用户版本：v0.0.45
+- 待完成：Windows Chrome / Edge 多尺寸实机视觉与手感确认。
+
 # project-foundation PROGRESS
 
 ## 2026-09-18 / #21.11 Header 联动与按钮归属修正

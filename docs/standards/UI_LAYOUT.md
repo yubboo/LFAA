@@ -2,7 +2,9 @@
 
 ## 1. 当前 Web 总体结构
 
-当前 Web 工作台不再使用“全宽独立 Web 顶栏 + 正文悬浮按钮”方案。框架级控制必须进入各自区域的顶部 Header，并与右栏展开/收起联动。
+当前工作台采用 Header + 三区域 + Bottom Dock。框架级按钮必须属于 Header，不允许漂在正文层。
+
+### Desktop（>= 1180px）
 
 ```text
 ┌────────左侧栏────────┬──────────────中间工作区──────────────┬────右侧栏────┐
@@ -15,59 +17,90 @@
 └──────────────────────┴──────────────────────────────────────────────────────┘
 ```
 
-当右栏收起时：
+右栏收起时，终端 / 右栏按钮回到 Center Header 右侧。
+
+### Compact（760px ~ 1179px）
 
 ```text
-┌────────左侧栏────────┬────────────────────────中间工作区────────────────────┐
-│                      │ [左栏] Web 工作台      … 分享 [终端][右栏]           │
+┌────左栏 Dock────┬──────────────────主区──────────────────┐
+│                 │ [左栏] 标题       [终端][右栏]        │
+│                 ├────────────────────────────────────────┤
+│                 │ 主内容                                 │
+│                 │                          ┌─右栏 Drawer─┐│
+│                 │                          │ 工具与资源   ││
+│                 │                          └─────────────┘│
+└─────────────────┴────────────────────────────────────────┘
 ```
 
-关键：
+规则：
 
-- 左栏按钮属于中间 Header 左侧，不允许 absolute 漂在正文层；
-- `Web 工作台` 标题、更多、分享属于中间 Header；
-- 右栏展开时，终端和右栏按钮属于右栏 Header；
-- 右栏收起时，同一组终端/右栏按钮回到中间 Header 右侧；
-- 中间 Header 与右栏 Header 高度一致，形成连续顶部工具栏；
-- Terminal Dock 继续位于中间 + 右栏区域底部。
+- 右栏变覆盖式 Drawer，不参与挤压主区宽度；
+- Drawer 从 48px Header 下方开始；
+- Shell Actions 始终留在 Center Header，因此关闭入口永远可见；
+- 进入 Compact 时只自动收起右栏一次；用户可在同一断点内手动重新打开。
+
+### Mobile（< 760px）
+
+```text
+┌────────────────────主区全宽────────────────────┐
+│ [左栏] 标题                  [终端][右栏]       │
+├─────────────────────────────────────────────────┤
+│ 主内容                                          │
+│                                                 │
+│ 左 Drawer / 右 Drawer 从 Header 下方覆盖式出现 │
+└─────────────────────────────────────────────────┘
+```
+
+规则：
+
+- 左右栏不再占固定列；
+- 默认收起左右栏和底部终端；
+- Header 核心入口永远保留；
+- 更多 / 分享等次要按钮可隐藏；
+- 移动端不依赖 Hover 作为唯一操作方式；
+- 页面不得产生整页横向滚动。
 
 ## 2. 左栏 Hover 预览与正式开合
 
-### 2.1 Hover / Focus：临时预览
-
-仅当左栏正式收起时：
+Desktop / Compact 下，左栏正式收起后：
 
 ```text
-鼠标移入中间 Header 左栏按钮
+Hover / Focus 左栏按钮
 → 左栏预览浮层淡入
-→ 鼠标可移动到预览浮层继续浏览
-→ 离开按钮和浮层后短延迟淡出
+→ 不改变 leftCollapsed
+→ 离开后短延迟淡出
 ```
 
-Hover 预览不得修改 `leftCollapsed`。
-
-### 2.2 Click / Ctrl+B：正式开合
+正式布局只由：
 
 ```text
-点击左栏按钮 / Ctrl+B
-→ 改变 leftCollapsed
-→ 正式展开 / 收起 Grid 左栏
+Click / Ctrl+B
 ```
 
-## 3. 右侧与终端控制
+改变。
 
-右侧保持显式控制，不做 Hover 自动展开：
+Mobile 不依赖 Hover Preview；用户通过显式按钮打开 Drawer。
+
+## 3. Shell Header 控制
+
+快捷键：
 
 ```text
-Ctrl+J       → 切换底部终端
-Ctrl+Alt+B   → 切换右侧栏
+Ctrl+B       左栏
+Ctrl+J       底部终端
+Ctrl+Alt+B   右栏
 ```
 
-按钮必须提供快捷键提示。三个 Shell Header 按钮只允许使用一套自定义黑色 Tooltip；禁止同时使用原生 `title`，避免浏览器原生提示与自定义提示叠成两层。`aria-label` 保留无障碍语义，`.agent-shell-tooltip` 必须 `pointer-events:none`，不能抢鼠标事件。
+三个框架按钮必须：
+
+- 保留 `aria-label`；
+- 只使用一套 `.agent-shell-tooltip`；
+- 禁止同时使用原生 `title`；
+- Tooltip 必须 `pointer-events:none`；
+- 左侧按钮 Tooltip 使用 start 对齐；
+- 右侧按钮 Tooltip 使用 end 对齐，防止贴边裁切。
 
 ## 4. Header 层级规则
-
-Header 属于正常文档流，不能覆盖正文：
 
 ```text
 CenterWorkspace
@@ -75,51 +108,97 @@ CenterWorkspace
 ├─ Conversation
 └─ Composer
 
-RightSidebar
+RightSidebar（仅 Desktop）
 ├─ 48px Shell Header
+└─ Right Body
+
+RightSidebar（Compact / Mobile）
 └─ Right Body
 ```
 
-禁止把 Shell Actions 再实现为 `position:absolute` 的正文悬浮层。
+Compact / Mobile 的右栏从 Center Header 下方出现，因此不能再重复渲染 Right Shell Header。
 
-## 5. 侧栏尺寸
+## 5. Desktop 尺寸
 
 ```text
 左栏 默认 288px / min 240 / max 640
 右栏 默认 360px / min 300 / max 760
 中央区目标最小宽度约 520px
+底部 默认 270px / min 150 / max 560
 ```
 
-## 6. 侧栏拖拽与吸附
+Compact / Mobile 的 Drawer 宽度由响应式规则限制，不允许 `88vw` 这类几乎覆盖全屏的旧方案。
+
+## 6. 三向拖拽与弹性吸附
+
+左栏、右栏、底部终端使用同一交互语义。
+
+### 6.1 Pointer 按住期间
 
 ```text
-Pointer Move
-→ requestAnimationFrame
-→ 到 min 自动吸附 0
-→ 同一拖拽反向拉回使用 24px hysteresis
+正常尺寸
+→ 跟手拖拽
+→ 进入 min 以下
+→ 弹性压缩区
+→ 靠近边缘进入 snap capture
+→ Pointer 仍保持 capture
 ```
 
-Pointer Up 完成吸附后：
+此时用户**不松手**可以反向拖动：
+
+```text
+snap capture
+→ 反向拖动
+→ 视觉尺寸连续恢复
+→ 回到 min
+→ 退出 snap capture
+→ 可继续向外拉伸
+```
+
+### 6.2 Pointer Up
+
+只有 Pointer Up 时仍在 snap capture，才真正提交 collapsed。
+
+如果已经反向拖回 min，则本次拖拽保持展开。
+
+### 6.3 Pointer Up 之后
+
+正式 collapsed 后：
 
 - separator 禁止反向拖开展开；
-- 左栏通过 Header 按钮 / `Ctrl+B` 展开；
-- 右栏通过 Header 按钮 / `Ctrl+Alt+B` 展开；
-- 终端通过 Header 按钮 / `Ctrl+J` 或右栏终端入口展开。
+- 左栏必须通过 Header / `Ctrl+B`；
+- 右栏必须通过 Header / `Ctrl+Alt+B`；
+- 终端必须通过 Header / `Ctrl+J` 或右栏终端入口。
 
-## 7. 代码与盒子归属
+## 7. 动画与性能
+
+拖拽阶段：
+
+- `pointermove` 使用 `requestAnimationFrame` 合并；
+- 直接更新 CSS 变量；
+- `.lfaa-is-resizing` 时禁止 Workbench transition；
+- 不允许 CSS transition 追逐 Pointer，避免“卡一下”的黏滞感。
+
+提交展开 / 收起阶段：
+
+- 允许约 220~280ms ease-out；
+- opacity / transform 与 Grid 行列变化保持同一节奏；
+- 不允许从 min 硬跳到 0。
+
+## 8. 代码与盒子归属
 
 ```text
 packages/app-shell/src/AgentWorkbench.tsx
-→ 区域结构、Header 按钮归属、Shell 状态、Hover Preview、快捷键
+→ Shell 状态、LayoutMode、Header 按钮归属、Hover Preview、快捷键
 
 packages/app-shell/src/agent-workbench.css
-→ Header / Tooltip / 左右栏正文 / Preview / Composer / Terminal 视觉
+→ Header / Tooltip / 左右栏内容 / Drawer 内容视觉 / Composer / Terminal 外壳
 
 packages/ui/src/workbench/ResizableWorkbench.tsx
-→ 左右/底部几何尺寸、拖拽、吸附算法
+→ 几何尺寸、Pointer Capture、弹性吸附状态机、尺寸持久化
 
 packages/ui/src/workbench/workbench.css
-→ Grid、separator、collapsed/snap 几何样式
+→ Grid、separator、Dock/Drawer 几何、collapsed 动画、响应式布局
 
 apps/web/src/LocalTerminal.tsx + apps/web/vite.config.ts
 → xterm + node-pty 本地开发终端
@@ -127,7 +206,7 @@ apps/web/src/LocalTerminal.tsx + apps/web/vite.config.ts
 
 详细导航：`docs/项目结构与代码地图.md`。
 
-## 8. 真实 Terminal Dock
+## 9. 真实 Terminal Dock
 
 真实终端仍使用：
 
@@ -135,21 +214,25 @@ apps/web/src/LocalTerminal.tsx + apps/web/vite.config.ts
 xterm.js + FitAddon + node-pty
 ```
 
-位于工作区底部，可拖动高度、向下吸附收起，收起后不能从底边反向拖出。
-
-## 9. 安全
-
-Web PTY 仅开发模式：
+安全边界不变：
 
 - Vite 绑定 `127.0.0.1`；
 - cwd 为项目根；
 - 不自动提升权限；
 - 不提供 Agent 自动执行通道。
 
-## 10. 响应式
+## 10. 响应式验收尺寸
 
-- `>1120px` 标准三栏；
-- `<=1120px` 右栏浮层；
-- `<=820px` 左右栏浮层；
-- Header 控件语义保持不变；
-- 可隐藏分享等次要操作，但不能隐藏左栏 / 终端 / 右栏入口。
+至少验证：
+
+```text
+1600x900   Desktop
+1280x800   Desktop / 浏览器缩放后仍不能崩
+1024x768   Compact
+820x900    Compact
+759x900    Mobile 边界
+640x800    Mobile
+390x844    Mobile
+```
+
+每个尺寸都必须检查：Header、Composer、左右入口、右 Drawer、Terminal Dock、无横向滚动。

@@ -6,7 +6,10 @@
  * 状态归属：本组件拥有几何尺寸；栏位开合可由父组件受控，受控时父组件是 collapsed/open 的事实源。
  * 对外接口：ResizableWorkbench(props)。
  * 关联文件：workbench-layout.types.ts、workbench.css、@lfaa/app-shell/AgentWorkbench.tsx。
- * 修改注意事项：吸附后 separator 不允许反向展开；不要在本组件新增业务按钮；受控/非受控状态必须保持一致。
+ * 修改注意事项：
+ * - Pointer 按住期间允许“进入吸附磁区 -> 反向拖回最小尺寸”；只有 Pointer Up 真正确认 collapsed。
+ * - Pointer Up 后 separator 不允许反向展开，只能由显式按钮/快捷键恢复。
+ * - 不要在本组件新增业务按钮；受控/非受控状态必须保持一致。
  *
  * Grid 结构：
  * ┌──── left ────┬ handle ┬──────── center ────────┬ handle ┬── right ──┐
@@ -66,6 +69,19 @@ const HANDLE_WIDTH = 7;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+// min 以下不是立刻从“最小宽度”硬跳到 0，而是进入弹性磁区。
+// Pointer 越靠近边缘，视觉尺寸越接近 0；反向拖回 min 时可在同一次 Pointer Capture 中恢复。
+function elasticSize(raw: number, min: number): number {
+  if (min <= 0 || raw >= min) return raw;
+  const progress = clamp(raw / min, 0, 1);
+  return min * Math.pow(progress, 1.35);
+}
+
+// 真正提交吸附的磁区只占靠近边缘的一小段，避免用户刚碰到 min 就突然整栏消失。
+function snapCommitThreshold(min: number, hysteresis: number): number {
+  return clamp(hysteresis * 2.25, 36, Math.max(36, min * 0.34));
 }
 
 function resolveNext(current: boolean, next: boolean | ((value: boolean) => boolean)) {
@@ -188,19 +204,23 @@ export function ResizableWorkbench({
 
   // ===== 4. 左右栏 Pointer 拖拽与吸附预览 =====
   // 拖动过程中直接写 CSS 变量，避免每个 pointermove 都触发 React render。
-  const setSidePreview = useCallback((side: "left" | "right", value: number, snapped: boolean) => {
+  const setSidePreview = useCallback((side: "left" | "right", visualSize: number, snapped: boolean) => {
     const root = rootRef.current;
     if (!root) return;
     const columnName = side === "left" ? "--lfaa-left-column" : "--lfaa-right-column";
     const sizeName = side === "left" ? "--lfaa-left-size" : "--lfaa-right-size";
     root.dataset.snapPreview = snapped ? side : "none";
     root.dataset.autoSnap = snapped ? side : "none";
-    root.style.setProperty(columnName, `${snapped ? 0 : value}px`);
-    if (!snapped) root.style.setProperty(sizeName, `${Math.max(value, 1)}px`);
+    root.style.setProperty(columnName, `${Math.max(0, visualSize)}px`);
+    root.style.setProperty(sizeName, `${Math.max(1, visualSize)}px`);
   }, []);
 
-  // requestAnimationFrame 合并高频 pointermove；
-  // raw <= min 时进入 snap 预览，只有重新拉过 min + hysteresis 才退出 snap。
+  // requestAnimationFrame 合并高频 pointermove。
+  // 规则：
+  // 1) raw < min 时进入“弹性压缩区”，视觉尺寸连续变化，不再从 min 硬跳到 0；
+  // 2) raw 进入靠边磁区后只标记 snapped，Pointer 仍然保持捕获；
+  // 3) 用户不松手并反向拖回 min，立即退出 snapped，可继续正常拉伸；
+  // 4) 只有 Pointer Up 时仍处于 snapped，才真正提交 collapsed。
   const flushPending = useCallback(() => {
     frameRef.current = null;
     const rawValue = pendingRef.current;
@@ -208,25 +228,14 @@ export function ResizableWorkbench({
     if (rawValue === null || drag === null) return;
 
     const raw = clamp(rawValue, 0, drag.max);
+    const commitAt = snapCommitThreshold(drag.min, snapHysteresis);
     drag.lastRaw = raw;
 
-    if (!drag.snapped && raw <= drag.min) {
-      drag.snapped = true;
-      setSidePreview(drag.side, 0, true);
-      return;
-    }
+    if (!drag.snapped && raw <= commitAt) drag.snapped = true;
+    else if (drag.snapped && raw >= drag.min) drag.snapped = false;
 
-    if (drag.snapped) {
-      if (raw >= drag.min + snapHysteresis) {
-        drag.snapped = false;
-        setSidePreview(drag.side, clamp(raw, drag.min, drag.max), false);
-      } else {
-        setSidePreview(drag.side, 0, true);
-      }
-      return;
-    }
-
-    setSidePreview(drag.side, clamp(raw, drag.min, drag.max), false);
+    const visual = elasticSize(raw, drag.min);
+    setSidePreview(drag.side, visual, drag.snapped);
   }, [setSidePreview, snapHysteresis]);
 
   const schedule = useCallback((value: number) => {
@@ -283,9 +292,10 @@ export function ResizableWorkbench({
       const rawValue = pendingRef.current;
       if (rawValue !== null) {
         const bounded = clamp(rawValue, 0, drag.max);
+        const commitAt = snapCommitThreshold(drag.min, snapHysteresis);
         drag.lastRaw = bounded;
-        if (!drag.snapped && bounded <= drag.min) drag.snapped = true;
-        else if (drag.snapped && bounded >= drag.min + snapHysteresis) drag.snapped = false;
+        if (!drag.snapped && bounded <= commitAt) drag.snapped = true;
+        else if (drag.snapped && bounded >= drag.min) drag.snapped = false;
       }
     }
 
@@ -293,14 +303,24 @@ export function ResizableWorkbench({
     document.body.classList.remove("lfaa-is-resizing");
 
     if (drag.side === "left") {
-      if (drag.snapped) setResolvedLeftCollapsed(true);
-      else {
-        setLeftWidth(clamp(drag.lastRaw, drag.min, drag.max));
+      if (drag.snapped) {
+        root?.style.setProperty("--lfaa-left-column", "0px");
+        setResolvedLeftCollapsed(true);
+      } else {
+        const finalWidth = clamp(drag.lastRaw, drag.min, drag.max);
+        root?.style.setProperty("--lfaa-left-column", `${finalWidth}px`);
+        root?.style.setProperty("--lfaa-left-size", `${finalWidth}px`);
+        setLeftWidth(finalWidth);
         setResolvedLeftCollapsed(false);
       }
-    } else if (drag.snapped) setResolvedRightCollapsed(true);
-    else {
-      setRightWidth(clamp(drag.lastRaw, drag.min, drag.max));
+    } else if (drag.snapped) {
+      root?.style.setProperty("--lfaa-right-column", "0px");
+      setResolvedRightCollapsed(true);
+    } else {
+      const finalWidth = clamp(drag.lastRaw, drag.min, drag.max);
+      root?.style.setProperty("--lfaa-right-column", `${finalWidth}px`);
+      root?.style.setProperty("--lfaa-right-size", `${finalWidth}px`);
+      setRightWidth(finalWidth);
       setResolvedRightCollapsed(false);
     }
 
@@ -316,15 +336,15 @@ export function ResizableWorkbench({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }, [setResolvedLeftCollapsed, setResolvedRightCollapsed, snapHysteresis]);
 
-  const setBottomPreview = useCallback((height: number, snapped: boolean) => {
+  const setBottomPreview = useCallback((visualHeight: number, snapped: boolean) => {
     const root = rootRef.current;
     if (!root) return;
     root.dataset.snapPreview = snapped ? "bottom" : "none";
     root.dataset.autoSnap = snapped ? "bottom" : "none";
-    root.style.setProperty("--lfaa-bottom-row", `${snapped ? 0 : height}px`);
+    root.style.setProperty("--lfaa-bottom-row", `${Math.max(0, visualHeight)}px`);
   }, []);
 
-  // ===== 5. 底部面板拖拽与向下吸附 =====
+  // ===== 5. 底部面板拖拽与向下弹性吸附 =====
   const onBottomPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const root = rootRef.current;
     if (!root || !bottomOpen) return;
@@ -351,27 +371,15 @@ export function ResizableWorkbench({
     if (!drag || drag.pointerId !== event.pointerId) return;
 
     const raw = clamp(drag.rectBottom - event.clientY, 0, drag.max);
+    const commitAt = snapCommitThreshold(drag.min, snapHysteresis);
     drag.lastRaw = raw;
 
-    if (!drag.snapped && raw <= drag.min) {
-      drag.snapped = true;
-      setBottomPreview(0, true);
-      return;
-    }
+    if (!drag.snapped && raw <= commitAt) drag.snapped = true;
+    else if (drag.snapped && raw >= drag.min) drag.snapped = false;
 
-    if (drag.snapped) {
-      if (raw >= drag.min + snapHysteresis) {
-        drag.snapped = false;
-        drag.lastHeight = clamp(raw, drag.min, drag.max);
-        setBottomPreview(drag.lastHeight, false);
-      } else {
-        setBottomPreview(0, true);
-      }
-      return;
-    }
-
-    drag.lastHeight = clamp(raw, drag.min, drag.max);
-    setBottomPreview(drag.lastHeight, false);
+    const visual = elasticSize(raw, drag.min);
+    drag.lastHeight = clamp(Math.max(raw, drag.min), drag.min, drag.max);
+    setBottomPreview(visual, drag.snapped);
   }, [setBottomPreview, snapHysteresis]);
 
   const finishBottomDrag = useCallback((event: PointerEvent<HTMLDivElement>) => {
@@ -380,9 +388,12 @@ export function ResizableWorkbench({
     if (!drag || drag.pointerId !== event.pointerId) return;
 
     if (drag.snapped) {
+      root?.style.setProperty("--lfaa-bottom-row", "0px");
       onBottomOpenChange?.(false);
     } else {
-      setBottomHeight(clamp(drag.lastHeight, drag.min, drag.max));
+      const finalHeight = clamp(drag.lastHeight, drag.min, drag.max);
+      root?.style.setProperty("--lfaa-bottom-row", `${finalHeight}px`);
+      setBottomHeight(finalHeight);
     }
 
     bottomDragRef.current = null;

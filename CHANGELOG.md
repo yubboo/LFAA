@@ -2,20 +2,23 @@
 
 > 根目录只保留当前索引和最近版本；旧版本详细记录保存在 `docs/changelog/` 与 `docs/releases/`。
 
-## #21.12 Shell Tooltip 单一提示源
+## #21.13 响应式重构与弹性吸附
 
-- 用户版本：v0.0.44
-- 状态：pending-test
+- 用户版本：v0.0.45
+- 状态：pending-windows-visual-test
 - 日期：2026-09-18
-- 以 v0.0.43 为历史基线，不覆盖旧包。
-- 修复左栏、底部终端、右侧栏三个 Shell Header 按钮出现双层 Tooltip 的问题。
-- 根因是同一按钮同时存在浏览器原生 `title` 和自定义 `.agent-shell-tooltip`；v0.0.44 删除 Shell Header 按钮的 `title`，只保留一套自定义 Tooltip。
-- `aria-label` 与 `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B` 快捷键提示继续保留。
-- `.agent-shell-tooltip` 继续使用 `pointer-events:none`，提示层不会抢鼠标 Hover / Click。
-- 新增 `scripts/ui-contract-check.mjs` 并接入 `governance:check`，防止双 Tooltip 回归。
-- v0.0.43 的 Header 联动、左栏 Hover Preview、三向吸附、真实 PTY 不回退。
-- Sync / GitHub / Setup / Update Windows 脚本业务逻辑不修改。
+- 以 v0.0.44 为历史基线，不覆盖旧包。
+- 新增 Desktop / Compact / Mobile 三档响应式：1180 / 760 两个断点。
+- Compact 使用“左 Dock + 右 Drawer”；Mobile 使用“主区全宽 + 左右 Drawer”，核心 Header 控件始终可见。
+- 移除旧版 `88vw` 右栏覆盖方案，右 Drawer 限制为不超过 420px / 56vw。
+- Tooltip 增加 start / end 边缘对齐，解决左、右贴边裁切。
+- 左栏、右栏、底部终端统一升级为弹性吸附：Pointer 按住时可进入吸附后反向拖回 min；Pointer Up 才真正提交收起。
+- min 以下不再硬跳到 0，而是连续弹性压缩。
+- 拖拽期间不再启用 CSS transition 追赶 Pointer，减少卡顿和“硬吸附”感觉。
+- 正式展开 / 收起动画统一为更平滑的 ease-out。
+- UI 静态契约门禁增加响应式、Drawer、弹性吸附检查。
+- Sync / GitHub / Setup / Update 和 PTY bridge 业务逻辑不修改。
 
 详细记录：
 
-`docs/changelog/v0.0.44.md`
+`docs/changelog/v0.0.45.md`

@@ -9,7 +9,7 @@
  * 修改注意事项：先看下方“盒子结构”；不要在这里改变 ResizableWorkbench 的 Grid 列/行规则。
  *
  * 盒子结构：
- * 当前版本：v0.0.43
+ * 当前版本：v0.0.45
  * .agent-theme
  * └─ .agent-workbench-stage
  *    ├─ .agent-left-hover-preview           左栏收起后的临时浮层
@@ -25,9 +25,10 @@
  *       └─ .agent-terminal-shell            底部终端壳
  *
  * 顶部联动：
- * - 右栏展开：终端/右栏按钮位于 .agent-right-shell-header。
- * - 右栏收起：同一组按钮回到 .agent-center-header__right。
+ * - Desktop：右栏展开时，终端/右栏按钮位于 .agent-right-shell-header。
+ * - Compact/Mobile：右栏变覆盖式抽屉，按钮继续留在 .agent-center-header__right，避免关闭入口被抽屉遮掉。
  * - Shell 按钮永远属于 Header，不再使用 absolute 漂浮在正文上。
+ * - 三档响应式：Desktop >=1180、Compact 760~1179、Mobile <760。
  */
 
 /* ===== 1. 全局基础与浅/深主题变量 ===== */
@@ -98,15 +99,22 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 
 /* ===== 5. Header 通用控件 =====
  * Shell Header 按钮是框架级入口：左栏、终端、右栏。
- * Tooltip 使用独立 DOM，不依赖浏览器 title 的显示时机；title 仍保留作为原生降级提示。
+ * Tooltip 使用独立 DOM；框架级按钮禁止再写 title，避免浏览器原生 Tooltip 重叠。
+ * 左按钮向右展开提示、右按钮向左展开提示，防止在窄栏边缘被 overflow 裁切。
  */
 .agent-shell-actions { gap:5px; }
 .agent-shell-button { position:relative; width:32px; height:32px; flex:0 0 auto; display:grid; place-items:center; border:0; border-radius:8px; background:transparent; color:var(--agent-muted); cursor:pointer; transition:background 140ms ease,color 140ms ease; }
 .agent-shell-button:hover,.agent-shell-button:focus-visible { background:var(--agent-hover); color:var(--agent-text); outline:none; }
 .agent-shell-button.is-active { color:var(--agent-text); }
-.agent-shell-tooltip { position:absolute; z-index:220; top:calc(100% + 9px); left:50%; display:flex; align-items:center; gap:9px; width:max-content; max-width:min(300px,80vw); padding:7px 10px; border-radius:9px; background:#202020; color:#fff; box-shadow:0 8px 24px rgba(0,0,0,.22); font-size:12px; line-height:1; opacity:0; transform:translate(-50%,-3px); pointer-events:none; visibility:hidden; transition:opacity 120ms ease, transform 120ms ease, visibility 120ms linear; }
+.agent-shell-tooltip { position:absolute; z-index:220; top:calc(100% + 9px); display:flex; align-items:center; gap:9px; width:max-content; max-width:min(300px,calc(100vw - 24px)); padding:7px 10px; border-radius:9px; background:#202020; color:#fff; box-shadow:0 8px 24px rgba(0,0,0,.22); font-size:12px; line-height:1; opacity:0; pointer-events:none; visibility:hidden; transition:opacity 140ms ease, transform 160ms cubic-bezier(.22,1,.36,1), visibility 140ms linear; }
+.agent-shell-tooltip--center { left:50%; transform:translate(-50%,-4px); }
+.agent-shell-tooltip--start { left:0; transform:translate(0,-4px); }
+.agent-shell-tooltip--end { right:0; transform:translate(0,-4px); }
 .agent-shell-tooltip kbd { padding:2px 6px; border:0; border-radius:6px; background:#5a5a5a; color:#eaeaea; font:inherit; font-size:11px; white-space:nowrap; }
-.agent-shell-button:hover .agent-shell-tooltip,.agent-shell-button:focus-visible .agent-shell-tooltip { opacity:1; transform:translate(-50%,0); visibility:visible; }
+.agent-shell-button:hover .agent-shell-tooltip,.agent-shell-button:focus-visible .agent-shell-tooltip { opacity:1; visibility:visible; }
+.agent-shell-button:hover .agent-shell-tooltip--center,.agent-shell-button:focus-visible .agent-shell-tooltip--center { transform:translate(-50%,0); }
+.agent-shell-button:hover .agent-shell-tooltip--start,.agent-shell-button:focus-visible .agent-shell-tooltip--start,
+.agent-shell-button:hover .agent-shell-tooltip--end,.agent-shell-button:focus-visible .agent-shell-tooltip--end { transform:translate(0,0); }
 .agent-ghost-button { height:32px; padding:0 10px; border:0; border-radius:8px; background:transparent; color:var(--agent-muted); cursor:pointer; }
 .agent-ghost-button:hover,.agent-ghost-button:focus-visible { background:var(--agent-hover); color:var(--agent-text); outline:none; }
 .agent-header-divider { width:1px; height:20px; flex:0 0 auto; margin:0 4px; background:var(--agent-border); }
@@ -196,24 +204,44 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-terminal-unavailable { padding:16px; color:var(--agent-muted); font-size:12px; }
 
 
-/* ===== 11. 响应式 =====
- * 窄屏只调整 Header/正文间距和 Hover 浮层宽度，不改变 Shell 控件语义。
+/* ===== 11. 响应式：Desktop / Compact / Mobile =====
+ * 不能只做“缩小宽度”；每档都要重新决定：侧栏是 Dock 还是 Overlay、按钮归属、Composer 宽度。
+ * JS useLayoutMode 与这里使用同一组断点：1180 / 760。
  */
-@media (max-width: 820px) {
-  .agent-center-header { padding-left:6px; padding-right:6px; }
+
+/* Compact：保留左侧 Dock；右侧改为覆盖式抽屉。
+ * 右栏 Shell Header 在 React 中不渲染，所以右栏只剩正文一行。
+ */
+@media (max-width: 1179px) and (min-width: 760px) {
+  .agent-theme[data-layout-mode="compact"] .agent-side--right { grid-template-rows:minmax(0,1fr); }
+  .agent-center-header { padding-left:8px; padding-right:8px; }
   .agent-center-header__right .agent-ghost-button { display:none; }
   .agent-header-divider { display:none; }
-  .agent-conversation-inner { width:min(100% - 24px,760px); padding-top:28px; }
-  .agent-user-message { max-width:88%; }
-  .agent-composer-wrap { padding-left:10px; padding-right:10px; }
-  .agent-left-hover-preview { width:min(300px, calc(100vw - 56px)); }
+  .agent-conversation-inner { width:min(720px,calc(100% - 32px)); padding-top:30px; }
+  .agent-composer-wrap { padding-left:14px; padding-right:14px; }
+  .agent-left-hover-preview { width:min(288px,calc(100vw - 96px)); }
 }
 
-@media (max-width: 520px) {
-  .agent-center-header__title strong { max-width:120px; }
+/* Mobile：主区占满；左右栏都成为抽屉，顶栏始终留在主区顶端。
+ * 触摸设备没有可靠 hover，因此 Tooltip 和左栏 Hover Preview 都不作为必要入口。
+ */
+@media (max-width: 759px) {
+  .agent-theme[data-layout-mode="mobile"] .agent-side--right { grid-template-rows:minmax(0,1fr); }
+  .agent-center-header { padding-left:6px; padding-right:6px; gap:6px; }
   .agent-center-header__left,.agent-center-header__right { gap:2px; }
-  .agent-right-shell-header { padding-left:5px; padding-right:5px; }
-  .agent-shell-actions { gap:2px; }
-  .agent-conversation-inner { padding-top:24px; }
+  .agent-center-header__title { padding-left:2px; padding-right:2px; }
+  .agent-center-header__title strong { max-width:112px; }
+  .agent-center-header__right > .agent-icon-button,
+  .agent-center-header__right > .agent-ghost-button,
+  .agent-header-divider { display:none; }
+  .agent-shell-actions { gap:1px; }
+  .agent-shell-button { width:30px; height:30px; }
   .agent-shell-tooltip { display:none; }
+  .agent-left-hover-preview { display:none; }
+  .agent-conversation-inner { width:min(100% - 20px,680px); padding:22px 0 20px; }
+  .agent-user-message { max-width:90%; }
+  .agent-answer { font-size:13px; line-height:1.65; }
+  .agent-composer-wrap { padding:0 8px 8px; }
+  .agent-composer { border-radius:16px; padding:9px 10px 8px; }
+  .agent-model { max-width:96px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 }

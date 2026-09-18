@@ -5,10 +5,13 @@ AgentWorkbench.tsx
 → 工作台 Shell 总装配
 → 左栏 / 中间 / 右栏 / 底部终端
 → Shell 状态、快捷键、左栏 Hover 预览
+→ Desktop / Compact / Mobile LayoutMode
+→ 决定 Shell Actions 在 Center Header 还是 Right Header
 
 agent-workbench.css
 → 上述各内容盒子的视觉样式
-→ 不管三栏拖拽几何
+→ Header / Tooltip / Drawer 内容 / Composer / Terminal 外壳
+→ 不管 separator 的拖拽数学
 
 WorkbenchIcon.tsx
 → 工作台 SVG 图标库
@@ -20,6 +23,16 @@ index.ts
 → @lfaa/app-shell 公共导出
 ```
 
-布局拖拽和吸附不在这里，在：
+## 当前响应式
+
+```text
+>=1180px      Desktop：三栏 Dock
+760~1179px    Compact：左栏 Dock + 右栏 Drawer
+<760px        Mobile：主区全宽 + 左右 Drawer
+```
+
+`AgentWorkbench.tsx` 负责“什么时候进入哪种布局模式”和“按钮归属在哪里”。
+
+真正的拖拽尺寸、Pointer Capture、弹性吸附在：
 
 `packages/ui/src/workbench/`

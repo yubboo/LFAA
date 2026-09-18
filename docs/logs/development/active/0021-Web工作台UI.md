@@ -2,80 +2,95 @@
 
 - **主编号：** #21
 - **名称：** Web 工作台 UI
-- **最新变更：** #21.12
+- **最新变更：** #21.13
 - **状态：** active
-- **关键词：** Web、三栏、Header联动、Tooltip、Hover、左栏预览、终端、PTY、ChatGPT、Codex
+- **关键词：** Web、响应式、Desktop、Compact、Mobile、Drawer、Header、Tooltip、拖拽、弹性吸附、终端
 - **当前文件：** `docs/logs/development/active/0021-Web工作台UI.md`
 
 ## 当前结论
 
-当前 Web 工作台继续使用 #21.11 确立的 Header 联动结构；本次只修正 Shell Header 三个框架按钮的提示层契约：
+v0.0.45 把 Web 工作台从“只有 CSS 缩小”升级为真正的三档响应式布局，并重做三向吸附手感。
 
 ```text
-左栏按钮      → 单一自定义 Tooltip：Ctrl+B
-终端按钮      → 单一自定义 Tooltip：Ctrl+J
-右栏按钮      → 单一自定义 Tooltip：Ctrl+Alt+B
+Desktop >=1180
+→ 三栏 Dock
+
+Compact 760~1179
+→ 左栏 Dock + 右栏 Drawer
+
+Mobile <760
+→ 主区全宽 + 左右 Drawer
 ```
 
-同一个按钮禁止同时存在：
+右栏在 Compact / Mobile 下从主 Header 下方覆盖式出现，不能再使用旧版 `88vw` 盖住大部分页面；Shell Actions 继续留在 Center Header，用户始终能看到关闭入口。
+
+拖拽规则改为：
 
 ```text
-HTML title 原生 Tooltip
-+
-.agent-shell-tooltip 自定义 Tooltip
+按住 Pointer
+→ min 以下连续弹性压缩
+→ 靠边进入 snap capture
+→ 不松手可反向拉回 min 并恢复正常拖拽
+→ Pointer Up 才决定是否真正 collapsed
 ```
 
-否则浏览器会延迟再弹出第二层原生提示，形成用户实机照片中的“双层黑框/互相挤压”。
-
-`aria-label` 继续保留给无障碍语义；自定义 Tooltip 必须 `pointer-events:none`，不能抢鼠标事件。
+这条规则同时适用于左栏、右栏和底部 Terminal Dock。
 
 ## 最新变更
 
-### #21.12 Shell Tooltip 单一提示源
+### #21.13 响应式重构与弹性吸附
 
-v0.0.44 根据用户实机照片修复三处重复 Tooltip：
+1. 新增 `LayoutMode = desktop / compact / mobile`；
+2. React 与 CSS 使用同一组断点：1180 / 760；
+3. 进入 Compact 时只自动收起右栏；进入 Mobile 时默认收起左右栏和终端；同一断点内用户仍可手动重新展开；
+4. Compact 右栏宽度限制为固定抽屉上限，不再使用 `88vw`；
+5. Mobile 左右栏均从 48px Header 下方滑出，不覆盖核心 Header 按钮；
+6. Compact / Mobile 中 Right Header 不重复渲染，Shell Actions 留在 Center Header；
+7. Tooltip 新增 start / center / end 对齐，解决左/右边缘裁切；
+8. `ResizableWorkbench` 增加 `elasticSize()` 和 `snapCommitThreshold()`；
+9. min 以下允许视觉连续压缩，不再从 min 突然跳到 0；
+10. snapped 状态在 Pointer 仍按住时可反向拖回 min 解锁；
+11. Pointer Up 后才提交正式 collapsed；
+12. 移除拖拽磁区中的 CSS transition，避免 pointermove 追赶造成卡顿；
+13. 正式展开/收起动画统一延长并使用 ease-out；
+14. v0.0.44 的单 Tooltip 契约继续保留。
 
-1. 左栏按钮删除原生 `title`；
-2. 底部终端按钮删除原生 `title`；
-3. 右侧栏按钮删除原生 `title`；
-4. 三个按钮统一只使用 `ShellHeaderButton` 内的 `.agent-shell-tooltip`；
-5. 保留 `aria-label` 与快捷键文本；
-6. Tooltip 继续 `pointer-events:none`，避免 Hover/Click 被提示层截获；
-7. 新增 `scripts/ui-contract-check.mjs`，发布门禁禁止 Shell Header 按钮再次出现 `title + 自定义 Tooltip` 双提示源；
-8. #21.11 的 Header 联动、左栏 Hover Preview、三向吸附、真实 PTY 全部保持不变。
+### #21.12 Shell Tooltip 单一提示源（历史基线）
 
-### #21.11 Header 联动与按钮归属修正（历史基线）
+已归档：
 
-结构方案仍然有效，但 v0.0.43 的 Tooltip 同时保留了原生 `title` 和自定义提示，导致视觉重复。历史快照：
-
-`archive/0021-11-Header联动与按钮归属修正.md`
+`archive/0021-12-ShellTooltip单一提示源.md`
 
 ## 影响范围
 
 - `packages/app-shell/src/AgentWorkbench.tsx`
+- `packages/app-shell/src/agent-workbench.css`
+- `packages/ui/src/workbench/ResizableWorkbench.tsx`
+- `packages/ui/src/workbench/workbench.css`
 - `scripts/ui-contract-check.mjs`
-- `scripts/governance-check.mjs`
-- `scripts/comment-check.mjs`
 - `docs/standards/UI_LAYOUT.md`
 - `docs/testing/WEB_UI_TEST.md`
+- `docs/项目结构与代码地图.md`
 
 ## 验证结果
 
-静态实现要求：
+静态门禁：
 
-- `ShellHeaderButton` 内不存在 `title=`；
-- 仍存在 `.agent-shell-tooltip`；
-- `.agent-shell-tooltip` 使用 `pointer-events:none`；
-- `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B` 三个提示仍在；
-- Header 联动结构不回退；
-- Sync / GitHub / Setup / Update 业务逻辑不修改。
+- LayoutMode 断点存在；
+- Compact / Mobile Drawer 规则存在；
+- `88vw` 旧覆盖宽度不得回归；
+- `elasticSize` / `snapCommitThreshold` 存在；
+- snapped 反向释放条件必须回到 `min`；
+- Pointer dragging 时 Workbench transition 必须为 none；
+- Shell Button 不得重新出现原生 title；
+- Windows 脚本 BOM 必须继续通过。
 
-真实视觉仍需 Windows 浏览器实机验证。
+真实视觉仍需 Windows Chrome / Edge 实机验证。
 
 ## 历史索引
 
 | 版本 | 状态 | 日志 |
 |---|---|---|
-| #21.0 - #21.10 | superseded / delivered | `archive/` 对应历史文件 |
-| #21.11 | delivered-with-tooltip-defect | `archive/0021-11-Header联动与按钮归属修正.md` |
-| #21.12 | active | `active/0021-Web工作台UI.md` |
+| #21.0 - #21.11 | superseded / delivered | `archive/` 对应历史文件 |
+| #21.12 | delivered-with-responsive-defect | `archive/0021-12-ShellTooltip单一提示源.md` |
+| #21.13 | active | `active/0021-Web工作台UI.md` |

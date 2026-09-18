@@ -8,7 +8,7 @@
  * 关联文件：agent-workbench.css、workbench.types.ts、@lfaa/ui/ResizableWorkbench、apps/web/src/App.tsx。
  * 修改注意事项：框架级开合状态只保留一个 Owner；布局拖拽交给 @lfaa/ui；Web 专有桥接不能写入共享 App Shell。
  *
- * 页面结构（v0.0.43）：
+ * 页面结构（v0.0.45）：
  * AgentWorkbench
  * └─ agent-workbench-stage                  整个可缩放工作区
  *    ├─ agent-left-hover-preview            左栏收起后的 Hover 临时预览层
@@ -27,8 +27,9 @@
  *
  * 关键布局原则：
  * - Shell 按钮属于“区域 Header”，不是正文上方的绝对定位悬浮物。
- * - 右栏展开时，终端/右栏按钮进入右栏 Header；右栏收起时，按钮回到中间 Header 右侧。
- * - 这样顶部横条会随右栏宽度联动，视觉结构与 ChatGPT / Codex 的工作区 Header 更接近。
+ * - Desktop：右栏展开时，终端/右栏按钮进入右栏 Header；右栏收起时，按钮回到中间 Header 右侧。
+ * - Compact/Mobile：右栏变覆盖式抽屉，Shell 按钮始终留在中间 Header，保证小屏也能看见关闭入口。
+ * - 响应式断点由 useLayoutMode 与 CSS 同步管理，不能只靠 overflow 把内容裁掉。
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ResizableWorkbench } from "@lfaa/ui";
@@ -45,9 +46,39 @@ const THEME_KEY = "lfaa.workbench.theme.v1";
 const CHROME_KEY = "lfaa.workbench.chrome.v2";
 
 type ThemeMode = "light" | "dark";
+type LayoutMode = "desktop" | "compact" | "mobile";
 interface ChromeState { leftCollapsed: boolean; rightCollapsed: boolean; terminalOpen: boolean; }
 const recentRuns = ["配置系统", "Web 工作台", "热插拔测试", "模型接入规划"];
 const resourceLabels: Record<ResourceKind, string> = { skills: "Skills", experts: "Experts", plugins: "Plugins", extensions: "Extensions", mcp: "MCP" };
+
+function getLayoutMode(): LayoutMode {
+  if (typeof window === "undefined") return "desktop";
+  if (window.innerWidth < 760) return "mobile";
+  if (window.innerWidth < 1180) return "compact";
+  return "desktop";
+}
+
+// 监听浏览器可视宽度，而不是只靠 CSS 隐藏内容。
+// 这样 Shell 状态可以在进入窄屏时主动降级，避免“两个侧栏同时展开把主区挤没”。
+function useLayoutMode(): LayoutMode {
+  const [mode, setMode] = useState<LayoutMode>(getLayoutMode);
+  useEffect(() => {
+    let frame: number | null = null;
+    const update = () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        setMode(getLayoutMode());
+      });
+    };
+    window.addEventListener("resize", update);
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+  return mode;
+}
 
 // ===== 2. 本地初始状态 =====
 // Theme 和 Chrome 只读取浏览器 localStorage，不参与业务配置系统。
@@ -87,12 +118,14 @@ function ShellHeaderButton({
   onMouseLeave,
   onFocus,
   onBlur,
+  tooltipAlign = "center",
   children,
 }: {
   label: string;
   shortcut: string;
   active?: boolean;
   expanded?: boolean;
+  tooltipAlign?: "start" | "center" | "end";
   onClick: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -114,7 +147,7 @@ function ShellHeaderButton({
       aria-expanded={expanded}
     >
       {children}
-      <span className="agent-shell-tooltip" role="presentation">
+      <span className={`agent-shell-tooltip agent-shell-tooltip--${tooltipAlign}`} role="presentation">
         <span>{label}</span>
         <kbd>{shortcut}</kbd>
       </span>
@@ -142,6 +175,7 @@ function RightShellActions({
         active={terminalOpen}
         expanded={terminalOpen}
         onClick={onToggleTerminal}
+        tooltipAlign="end"
       >
         <WorkbenchIcon name="terminal" size={16} />
       </ShellHeaderButton>
@@ -150,6 +184,7 @@ function RightShellActions({
         shortcut="Ctrl+Alt+B"
         expanded={!rightCollapsed}
         onClick={onToggleRight}
+        tooltipAlign="end"
       >
         <WorkbenchIcon name="panelRight" size={16} />
       </ShellHeaderButton>
@@ -196,6 +231,7 @@ function LeftSidebar({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme
 // Header 是中间区的第一行，Shell Actions 不再 position:absolute 漂在正文上方。
 // 右栏收起时，RightShellActions 回到中间 Header；右栏展开时则交给 RightSidebar Header。
 function CenterWorkspace({
+  layoutMode,
   leftCollapsed,
   rightCollapsed,
   terminalOpen,
@@ -205,6 +241,7 @@ function CenterWorkspace({
   onLeftHoverEnter,
   onLeftHoverLeave,
 }: {
+  layoutMode: LayoutMode;
   leftCollapsed: boolean;
   rightCollapsed: boolean;
   terminalOpen: boolean;
@@ -227,6 +264,7 @@ function CenterWorkspace({
             onMouseLeave={onLeftHoverLeave}
             onFocus={onLeftHoverEnter}
             onBlur={onLeftHoverLeave}
+            tooltipAlign="start"
           >
             <WorkbenchIcon name="panelLeft" size={16} />
           </ShellHeaderButton>
@@ -236,7 +274,7 @@ function CenterWorkspace({
         <div className="agent-center-header__right">
           <button className="agent-icon-button" type="button" aria-label="更多" title="更多"><WorkbenchIcon name="dots" size={16} /></button>
           <button className="agent-ghost-button" type="button">分享</button>
-          {rightCollapsed ? (
+          {rightCollapsed || layoutMode !== "desktop" ? (
             <>
               <span className="agent-header-divider" aria-hidden="true" />
               <RightShellActions
@@ -287,11 +325,13 @@ function groupResources(resources: readonly DevResourceItem[]) {
 function RightSidebar({
   resources = [],
   resourceBridgeStatus = "offline",
+  layoutMode,
   terminalOpen,
   rightCollapsed,
   onToggleTerminal,
   onToggleRight,
 }: AgentWorkbenchProps & {
+  layoutMode: LayoutMode;
   terminalOpen: boolean;
   rightCollapsed: boolean;
   onToggleTerminal: () => void;
@@ -301,14 +341,16 @@ function RightSidebar({
   const statusText = resourceBridgeStatus === "connected" ? "已连接" : resourceBridgeStatus === "refreshing" ? "刷新中" : "未连接";
   return (
     <aside className="agent-side agent-side--right">
-      <header className="agent-right-shell-header">
-        <RightShellActions
-          terminalOpen={terminalOpen}
-          rightCollapsed={rightCollapsed}
-          onToggleTerminal={onToggleTerminal}
-          onToggleRight={onToggleRight}
-        />
-      </header>
+      {layoutMode === "desktop" ? (
+        <header className="agent-right-shell-header">
+          <RightShellActions
+            terminalOpen={terminalOpen}
+            rightCollapsed={rightCollapsed}
+            onToggleTerminal={onToggleTerminal}
+            onToggleRight={onToggleRight}
+          />
+        </header>
+      ) : null}
 
       <div className="agent-right-body">
         <header className="agent-right-header">
@@ -349,10 +391,12 @@ function BottomTerminal({ terminal, onClose }: { terminal: AgentWorkbenchProps["
 
 // ===== 8. 工作台 Shell 状态与总装配 =====
 export function AgentWorkbench(props: AgentWorkbenchProps) {
+  const layoutMode = useLayoutMode();
   const [theme, setTheme] = useState<ThemeMode>(initialTheme);
   const [chrome, setChrome] = useState<ChromeState>(initialChrome);
   const [leftPreviewOpen, setLeftPreviewOpen] = useState(false);
   const previewCloseTimerRef = useRef<number | null>(null);
+  const appliedLayoutModeRef = useRef<LayoutMode | null>(null);
 
   // Hover 预览使用短延迟关闭，让鼠标能从按钮移动到预览浮层而不闪退。
   const clearPreviewTimer = useCallback(() => {
@@ -363,10 +407,10 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   }, []);
 
   const openLeftPreview = useCallback(() => {
-    if (!chrome.leftCollapsed) return;
+    if (!chrome.leftCollapsed || layoutMode === "mobile") return;
     clearPreviewTimer();
     setLeftPreviewOpen(true);
-  }, [chrome.leftCollapsed, clearPreviewTimer]);
+  }, [chrome.leftCollapsed, clearPreviewTimer, layoutMode]);
 
   const closeLeftPreview = useCallback((delay = 120) => {
     clearPreviewTimer();
@@ -379,6 +423,20 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
       previewCloseTimerRef.current = null;
     }, delay);
   }, [chrome.leftCollapsed, clearPreviewTimer]);
+
+  // 响应式状态降级只在“跨断点”时执行一次；用户在同一断点内仍可手动重新展开。
+  // compact：右栏默认收起并改为覆盖式抽屉；mobile：左右栏和终端都默认收起。
+  useEffect(() => {
+    if (appliedLayoutModeRef.current === layoutMode) return;
+    appliedLayoutModeRef.current = layoutMode;
+    clearPreviewTimer();
+    setLeftPreviewOpen(false);
+    if (layoutMode === "compact") {
+      setChrome((value) => ({ ...value, rightCollapsed: true }));
+    } else if (layoutMode === "mobile") {
+      setChrome((value) => ({ ...value, leftCollapsed: true, rightCollapsed: true, terminalOpen: false }));
+    }
+  }, [clearPreviewTimer, layoutMode]);
 
   useEffect(() => { window.localStorage.setItem(THEME_KEY, theme); }, [theme]);
   useEffect(() => { window.localStorage.setItem(CHROME_KEY, JSON.stringify(chrome)); }, [chrome]);
@@ -430,7 +488,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   );
 
   return (
-    <div className="agent-theme" data-theme={theme}>
+    <div className="agent-theme" data-theme={theme} data-layout-mode={layoutMode}>
       <div className="agent-workbench-stage">
         {/* 左栏收起后才挂载临时预览层；正常展开时由 ResizableWorkbench 渲染正式左栏。 */}
         {chrome.leftCollapsed ? (
@@ -447,6 +505,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
           left={leftSidebar}
           center={(
             <CenterWorkspace
+              layoutMode={layoutMode}
               leftCollapsed={chrome.leftCollapsed}
               rightCollapsed={chrome.rightCollapsed}
               terminalOpen={chrome.terminalOpen}
@@ -460,6 +519,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
           right={(
             <RightSidebar
               {...props}
+              layoutMode={layoutMode}
               terminalOpen={chrome.terminalOpen}
               rightCollapsed={chrome.rightCollapsed}
               onToggleTerminal={toggleTerminal}
