@@ -6,6 +6,8 @@ $ErrorActionPreference = "Stop"
 
 # Force UTF-8 console output so Chinese status labels do not become garbled.
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$Utf8Strict = New-Object System.Text.UTF8Encoding($false, $true)
+$Cp437 = [System.Text.Encoding]::GetEncoding(437)
 [Console]::OutputEncoding = $Utf8NoBom
 $OutputEncoding = $Utf8NoBom
 try { & chcp.com 65001 | Out-Null } catch {}
@@ -104,6 +106,76 @@ function Get-RelativePath {
     return Normalize-RelativePath ([System.Uri]::UnescapeDataString($relativeUri.ToString()))
 }
 
+function Get-RecoveredUnicodeName {
+    param([string]$Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return $null
+    }
+
+    try {
+        $bytes = $Cp437.GetBytes($Name)
+        $recovered = $Utf8Strict.GetString($bytes)
+    }
+    catch {
+        return $null
+    }
+
+    if (($recovered -ne $Name) -and ($recovered -match "[\u3400-\u9FFF]")) {
+        return $recovered
+    }
+
+    return $null
+}
+
+function Assert-SourcePathEncoding {
+    param([string]$Root)
+
+    $issues = New-Object System.Collections.ArrayList
+    $seen = @{}
+
+    Get-ChildItem -LiteralPath $Root -Recurse -Force | ForEach-Object {
+        $recovered = Get-RecoveredUnicodeName $_.Name
+        if ([string]::IsNullOrWhiteSpace($recovered)) {
+            return
+        }
+
+        $relative = Get-RelativePath $Root $_.FullName
+        $key = ($relative + "|" + $recovered).ToLowerInvariant()
+        if (-not $seen.ContainsKey($key)) {
+            $seen[$key] = $true
+            [void]$issues.Add([PSCustomObject]@{
+                Relative = $relative
+                Recovered = $recovered
+            })
+        }
+    }
+
+    if ($issues.Count -eq 0) {
+        Write-Label "【检查】" "【路径编码】" "源版本包文件名编码正常。" Green
+        return
+    }
+
+    Write-Host ""
+    Write-Label "【错误】" "【路径编码】" "源版本包检测到疑似中文文件名乱码，已阻止同步。" Red
+
+    $shown = 0
+    foreach ($item in $issues) {
+        Write-Host ("  {0}" -f $item.Relative) -ForegroundColor Red
+        Write-Host ("    可能应为: {0}" -f $item.Recovered) -ForegroundColor Yellow
+        $shown++
+        if ($shown -ge 20) {
+            break
+        }
+    }
+
+    if ($issues.Count -gt $shown) {
+        Write-Label "【提示】" "【更多】" ("另有 {0} 个疑似乱码路径未展开显示。" -f ($issues.Count - $shown)) DarkYellow
+    }
+
+    Stop-Lfaa "源版本包路径编码异常。请不要同步此版本包，重新获取修复后的发布包。"
+}
+
 function Test-ProtectedPath {
     param([string]$RelativePath)
 
@@ -134,11 +206,12 @@ function Test-ProtectedPath {
     if ($rel -imatch "^\\.lfaa/(cache|state|tmp|logs)(/|$)") { return $true }
 
     $segments = $rel.Split("/")
-    $first = $segments[0]
 
-    foreach ($dir in $ProtectedTopDirs) {
-        if ($first -ieq $dir) {
-            return $true
+    foreach ($segment in $segments) {
+        foreach ($dir in $ProtectedTopDirs) {
+            if ($segment -ieq $dir) {
+                return $true
+            }
         }
     }
 
@@ -394,6 +467,10 @@ if ($SyncMenuMode -eq "config") {
     Wait-LfaaClose -Success $true
     exit 0
 }
+
+Write-Host ""
+Write-Label "【检查】" "【路径编码】" "正在检查源版本包中文文件名..." Cyan
+Assert-SourcePathEncoding $ProjectRoot
 
 $plan = Get-SyncPlan $ProjectRoot $TargetRoot
 Show-Plan $plan

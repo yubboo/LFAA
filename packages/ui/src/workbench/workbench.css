@@ -28,6 +28,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-is-resizing-vertical .lfaa-workbench { transition: none; }
 .lfaa-is-resizing .lfaa-workbench[data-auto-snap="left"],
 .lfaa-is-resizing .lfaa-workbench[data-auto-snap="right"] { transition: grid-template-columns 180ms cubic-bezier(.22, 1, .36, 1); }
+.lfaa-is-resizing-vertical .lfaa-workbench[data-auto-snap="bottom"] { transition: grid-template-rows 180ms cubic-bezier(.22, 1, .36, 1); }
 
 .lfaa-workbench__pane,
 .lfaa-workbench__center,
@@ -58,6 +59,10 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-workbench__handle::after { content: ""; position: absolute; inset: 0 -5px; }
 .lfaa-workbench__handle:hover::before,
 .lfaa-workbench__handle:focus-visible::before { width: 2px; opacity: 1; background: var(--agent-strong-border, #cfcfcf); }
+.lfaa-workbench[data-left-collapsed="true"] .lfaa-workbench__handle--left,
+.lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__handle--right { cursor: default; }
+.lfaa-workbench[data-left-collapsed="true"] .lfaa-workbench__handle--left::after,
+.lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__handle--right::after { display: none; }
 .lfaa-workbench[data-snap-preview="left"] .lfaa-workbench__handle--left::before,
 .lfaa-workbench[data-snap-preview="right"] .lfaa-workbench__handle--right::before { width: 2px; opacity: 1; background: var(--agent-text, #171717); }
 
@@ -66,6 +71,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-workbench__bottom-handle { position: absolute; z-index: 30; top: -4px; left: 0; right: 0; height: 8px; cursor: row-resize; touch-action: none; }
 .lfaa-workbench__bottom-handle::before { content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 1px; background: transparent; transition: background 140ms ease, height 140ms ease; }
 .lfaa-workbench__bottom-handle:hover::before { height: 2px; background: var(--agent-strong-border, #cfcfcf); }
+.lfaa-workbench[data-snap-preview="bottom"] .lfaa-workbench__bottom-handle::before { height: 2px; background: var(--agent-text, #171717); }
 .lfaa-workbench__bottom-content { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
 
 @media (max-width: 1120px) {

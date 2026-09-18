@@ -2,7 +2,7 @@
 
 - **主编号：** #21
 - **名称：** Web 工作台 UI
-- **最新变更：** #21.7
+- **最新变更：** #21.8
 - **状态：** active
 - **关键词：** Web、三栏、侧栏、Hover、终端、PTY、xterm、ChatGPT、Codex
 - **当前文件：** `docs/logs/development/active/0021-Web工作台UI.md`
@@ -43,6 +43,19 @@ Web 服务器仍只绑定：
 真实终端默认工作目录为项目根。
 
 ## 最新变更
+
+### #21.8 三向吸附与显式重新展开
+
+统一左、右、底部三向 Dock 的交互：
+
+```text
+展开状态：分隔条可拖拽
+→ 拖到最小阈值：吸附收起
+→ 已收起：分隔条不允许反向拖拽展开
+→ 重新展开：点击对应左 / 右 / 底部显式入口
+```
+
+底部终端新增与侧栏一致的吸附迟滞，避免临界点抖动；收起后提供底部 hover 终端入口。
 
 ### #21.7 侧栏 Hover 与真实终端
 
@@ -126,4 +139,5 @@ Agent 自动执行命令的 Tool
 | #21.4 | superseded | `archive/0021-04-Web端口复用.md` |
 | #21.5 | superseded | `archive/0021-05-Web启动延迟修复.md` |
 | #21.6 | superseded | `archive/0021-06-三栏交互与终端停靠.md` |
-| #21.7 | active | `active/0021-Web工作台UI.md` |
+| #21.7 | delivered | `active/0021-Web工作台UI.md` |
+| #21.8 | active | `active/0021-Web工作台UI.md` |

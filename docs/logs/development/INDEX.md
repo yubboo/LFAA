@@ -15,10 +15,10 @@
 | 主编号 | 名称 | 最新变更 | 状态 | 关键词 | 当前日志 |
 |---|---|---|---|---|---|
 | #2 | 配置系统 | #2.1 | active | 配置、Schema、模型、账号、权限、UI | `active/0002-配置系统.md` |
-| #10 | GitHub 推送确认交互 | #10.1 | active | Git、GitHub、Commit、Push、确认、交互 | `active/0010-GitHub推送确认.md` |
+| #10 | GitHub 推送确认交互 | #10.2 | active | Git、GitHub、Commit、Push、确认、交互 | `active/0010-GitHub推送确认.md` |
 | #19 | 一键准备与依赖检测 | #19.10 | active | Setup、Rustup、Windows、架构、Target、官方安装器 | `active/0019-一键准备与依赖检测.md` |
 | #20 | 开发日志与文档规范 | #20.2 | active | 日志、文档、中文、命名、目录、索引 | `active/0020-开发日志与文档规范.md` |
-| #21 | Web 工作台 UI | #21.7 | active | Web、三栏、侧栏、Hover、终端、PTY、xterm、ChatGPT、Codex | `active/0021-Web工作台UI.md` |
+| #21 | Web 工作台 UI | #21.8 | active | Web、三栏、侧栏、Hover、终端、PTY、xterm、ChatGPT、Codex | `active/0021-Web工作台UI.md` |
 
 ## 历史已交付记录
 
@@ -26,7 +26,7 @@
 |---|---|---|---|---|---|
 | #1 | 项目初始化与架构骨架 | #1.0 | delivered | 项目、架构、骨架、治理 | `archive/0001-项目初始化与架构骨架.md` |
 | #3 | 导入路径与别名优化 | #3.0 | delivered | 导入、Alias、路径、边界 | `archive/0003-导入路径与别名优化.md` |
-| #4 | 工作区同步与推送 | #4.0 | delivered | 同步、GitHub、工作区、推送 | `archive/0004-工作区同步与推送.md` |
+| #4 | 工作区同步与推送 | #4.1 | delivered | 同步、GitHub、工作区、推送、ZIP、中文路径 | `archive/0004-01-版本包中文路径保护.md` |
 | #5 | 同步日志目录 | #5.0 | delivered | 同步、日志、目录 | `archive/0005-同步日志目录.md` |
 | #6 | GitHub推送修复 | #6.0 | delivered | GitHub、推送、Commit、脚本 | `archive/0006-GitHub推送修复.md` |
 | #7 | GitHub远程检测 | #7.0 | delivered | GitHub、origin、中文、错误 | `archive/0007-GitHub远程检测.md` |
@@ -80,7 +80,8 @@ Cargo
 | 版本 | 状态 | 日志 |
 |---|---|---|
 | #10.0 | delivered | `archive/0010-Commit确认优化.md` |
-| #10.1 | active | `active/0010-GitHub推送确认.md` |
+| #10.1 | delivered | `active/0010-GitHub推送确认.md` |
+| #10.2 | active | `active/0010-GitHub推送确认.md` |
 
 
 ## #19 历史变更
@@ -119,4 +120,13 @@ Cargo
 | #21.4 | superseded | `archive/0021-04-Web端口复用.md` |
 | #21.5 | superseded | `archive/0021-05-Web启动延迟修复.md` |
 | #21.6 | superseded | `archive/0021-06-三栏交互与终端停靠.md` |
-| #21.7 | active | `active/0021-Web工作台UI.md` |
+| #21.7 | delivered | `active/0021-Web工作台UI.md` |
+| #21.8 | active | `active/0021-Web工作台UI.md` |
+
+
+## #4 历史变更
+
+| 版本 | 状态 | 日志 |
+|---|---|---|
+| #4.0 | delivered | `archive/0004-工作区同步与推送.md` |
+| #4.1 | delivered | `archive/0004-01-版本包中文路径保护.md` |

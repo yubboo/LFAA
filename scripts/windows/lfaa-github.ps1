@@ -691,31 +691,46 @@ else {
     $commitMessage = "本次没有新提交"
 }
 
-# Remote branch
+# Remote branch / safe sync
 Write-Host ""
-Write-Label "【远程】" "【检测】" "正在检测远程 main 分支..." Cyan
+Write-Label "【远程】" "【同步检测】" "正在获取远程 main；失败时不会在预检测阶段直接终止。" Cyan
 
-$lsRemote = Invoke-GitRaw -GitArgs @("ls-remote", "--heads", "origin", $Branch)
-if ($lsRemote.ExitCode -ne 0) {
-    Stop-Lfaa -Message "无法连接 origin，请检查仓库地址、网络或 Git 登录状态。" -TechnicalOutput $lsRemote.Output
+$fetchResult = Invoke-GitRaw -GitArgs @("fetch", "--prune", "origin", ("+refs/heads/{0}:refs/remotes/origin/{0}" -f $Branch))
+$fetchText = ($fetchResult.Output -join "`n")
+$remoteHasMain = $false
+$remoteSyncReady = $false
+
+if ($fetchResult.ExitCode -eq 0) {
+    $remoteHasMain = $true
+    $remoteSyncReady = $true
+    Write-Label "【远程】" "【已连接】" "已获取 origin/main。" Green
 }
-
-$remoteHasMain = -not [string]::IsNullOrWhiteSpace(($lsRemote.Output -join "").Trim())
-
-if ($remoteHasMain) {
-    Write-Label "【远程】" "【同步】" "推送前先执行 pull --rebase..." Cyan
-
-    $pullResult = Invoke-GitRaw -GitArgs @("pull", "--rebase", "origin", $Branch)
-    if ($pullResult.ExitCode -ne 0) {
-        $logFile = Save-PushLog $WorkspaceRoot $version $origin $commitMessage $workingStatus "PULL_REBASE_FAILED"
-        Write-Label "【日志】" "【路径】" $logFile DarkYellow
-        Stop-Lfaa -Message "同步远程 main 失败。请先处理冲突，再重新运行。" -TechnicalOutput $pullResult.Output
-    }
-
-    Write-Label "【远程】" "【完成】" "远程 main 已同步。" Green
+elseif ($fetchText -match "(?i)couldn['’]t find remote ref|remote ref .+ not found|fatal:\s+couldn['’]t find remote ref") {
+    Write-Label "【远程】" "【首次推送】" "远程 main 尚不存在，将直接创建。" DarkYellow
 }
 else {
-    Write-Label "【远程】" "【首次推送】" "远程 main 目前为空。" DarkYellow
+    Write-Label "【远程】" "【预检警告】" "fetch 未成功；不再因为预检测失败而提前终止，将继续尝试安全 push。" Yellow
+    if ($fetchResult.Output.Count -gt 0) {
+        $preview = @($fetchResult.Output | Select-Object -Last 4)
+        foreach ($line in $preview) {
+            Write-Label "【Git】" "【提示】" ([string]$line) DarkYellow
+        }
+    }
+}
+
+if ($remoteHasMain -and $remoteSyncReady) {
+    Write-Label "【远程】" "【同步】" "正在将本地提交 rebase 到 origin/main..." Cyan
+
+    $rebaseResult = Invoke-GitRaw -GitArgs @("rebase", ("origin/{0}" -f $Branch))
+    if ($rebaseResult.ExitCode -ne 0) {
+        $logFile = Save-PushLog $WorkspaceRoot $version $origin $commitMessage $workingStatus "REBASE_FAILED"
+        Write-Label "【日志】" "【路径】" $logFile DarkYellow
+        Stop-Lfaa -Message "本地提交与远端 main 无法自动 rebase。请处理冲突后重新运行。" -TechnicalOutput $rebaseResult.Output
+    }
+
+    $aheadResult = Invoke-GitRaw -GitArgs @("rev-list", "--count", ("origin/{0}..HEAD" -f $Branch))
+    $aheadCount = if ($aheadResult.ExitCode -eq 0) { ($aheadResult.Output -join "").Trim() } else { "?" }
+    Write-Label "【远程】" "【同步完成】" ("本地待推送提交：{0}" -f $aheadCount) Green
 }
 
 Write-Host ""
@@ -728,7 +743,21 @@ $pushResult = Invoke-GitRaw -GitArgs @("push", "-u", "origin", $Branch)
 if ($pushResult.ExitCode -ne 0) {
     $logFile = Save-PushLog $WorkspaceRoot $version $origin $commitMessage $workingStatus "PUSH_FAILED"
     Write-Label "【日志】" "【路径】" $logFile DarkYellow
-    Stop-Lfaa -Message "远程仓库推送失败，原始 Git 技术信息已写入日志。" -TechnicalOutput $pushResult.Output
+
+    $pushText = ($pushResult.Output -join "`n")
+    $pushMessage = "远程仓库推送失败，原始 Git 技术信息已写入日志。"
+
+    if ($pushText -match "(?i)non-fast-forward|fetch first|rejected.*main") {
+        $pushMessage = "远端 main 有新提交，本次安全推送已被 Git 拒绝；重新运行后脚本会先同步再推送。"
+    }
+    elseif ($pushText -match "(?i)authentication failed|permission denied|could not read username|403|repository not found") {
+        $pushMessage = "GitHub 登录或仓库权限校验失败。请完成 Git Credential Manager 登录后重新运行。"
+    }
+    elseif ($pushText -match "(?i)could not resolve host|failed to connect|connection timed out|connection was reset|schannel|ssl certificate|proxy") {
+        $pushMessage = "本机 Git 无法稳定连接 GitHub。请检查网络、代理或 Git TLS 配置；具体错误已写入日志。"
+    }
+
+    Stop-Lfaa -Message $pushMessage -TechnicalOutput $pushResult.Output
 }
 
 $logFile = Save-PushLog $WorkspaceRoot $version $origin $commitMessage $workingStatus "SUCCESS"

@@ -2,7 +2,7 @@
 
 - **主编号：** #10
 - **名称：** GitHub 推送确认交互
-- **最新变更：** #10.1
+- **最新变更：** #10.2
 - **状态：** active
 - **关键词：** Git、GitHub、Commit、Push、确认、交互
 - **当前文件：** `docs/logs/development/active/0010-GitHub推送确认.md`
@@ -32,6 +32,21 @@
 ```
 
 ## 最新变更
+
+### #10.2 远程预检容错与安全推送
+
+35 版的问题是远程阶段先执行 `git ls-remote`，只要该预检测在本机 Git 环境返回非零，就直接终止，真正的 push 根本不会执行。
+
+36 版改为：
+
+```text
+fetch origin main
+→ 成功：rebase origin/main
+→ 预检网络异常：提示警告但继续 safe push
+→ push 最终决定成功 / 认证失败 / 网络失败 / non-fast-forward
+```
+
+并保留失败原始 Git 输出日志。此前已创建但未推送的本地 commit，在工作区没有新文件变化时也会继续进入同步与 push。
 
 ### #10.1 取消 Push 二次确认
 
@@ -73,4 +88,5 @@
 | 版本 | 状态 | 日志 |
 |---|---|---|
 | #10.0 | delivered | `archive/0010-Commit确认优化.md` |
-| #10.1 | active | `active/0010-GitHub推送确认.md` |
+| #10.1 | delivered | `active/0010-GitHub推送确认.md` |
+| #10.2 | active | `active/0010-GitHub推送确认.md` |

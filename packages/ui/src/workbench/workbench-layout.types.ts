@@ -22,4 +22,5 @@ export interface ResizableWorkbenchProps {
   bottomOpen?: boolean;
   onLeftCollapsedChange?: (collapsed: boolean) => void;
   onRightCollapsedChange?: (collapsed: boolean) => void;
+  onBottomOpenChange?: (open: boolean) => void;
 }

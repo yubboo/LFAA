@@ -88,9 +88,9 @@ function CenterWorkspace() {
               <li>左侧承载导航、项目和最近任务；</li>
               <li>中间保持主要工作区和对话上下文；</li>
               <li>右侧放工具入口、运行状态和 <code>.lfaa</code> 热插拔资源；</li>
-              <li>拖到侧栏最小宽度自动吸附收起；</li>
+              <li>拖到侧栏最小宽度自动吸附收起，收起后不能从分隔条反向拖开；</li>
               <li>侧栏开合按钮属于侧栏 hover 控件，不占用拖拽分隔条；</li>
-              <li>底部终端直接连接本地 PTY，不使用假日志。</li>
+              <li>底部终端直接连接本地 PTY，并支持向下吸附收起与显式入口重新展开。</li>
             </ul>
           </article>
         </div>
@@ -153,6 +153,10 @@ function CollapsedEdgeControl({ side, onClick }: { side: "left" | "right"; onCli
   return <div className={`agent-edge-reveal agent-edge-reveal--${side}`}><button type="button" onClick={onClick} aria-label={`展开${side === "left" ? "左" : "右"}侧栏`}><WorkbenchIcon name={side === "left" ? "panelLeft" : "panelRight"} size={16} /></button></div>;
 }
 
+function CollapsedBottomControl({ onClick }: { onClick: () => void }) {
+  return <div className="agent-bottom-reveal"><button type="button" onClick={onClick} aria-label="展开底部终端" title="展开底部终端"><WorkbenchIcon name="terminal" size={16} /></button></div>;
+}
+
 export function AgentWorkbench(props: AgentWorkbenchProps) {
   const [theme, setTheme] = useState<ThemeMode>(initialTheme);
   const [chrome, setChrome] = useState<ChromeState>(initialChrome);
@@ -188,6 +192,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     <div className="agent-theme" data-theme={theme}>
       {chrome.leftCollapsed ? <CollapsedEdgeControl side="left" onClick={toggleLeft} /> : null}
       {chrome.rightCollapsed ? <CollapsedEdgeControl side="right" onClick={toggleRight} /> : null}
+      {!chrome.terminalOpen ? <CollapsedBottomControl onClick={toggleTerminal} /> : null}
       <ResizableWorkbench
         left={<LeftSidebar theme={theme} onToggleTheme={() => setTheme((value) => value === "light" ? "dark" : "light")} onToggleLeft={toggleLeft} />}
         center={<CenterWorkspace />}
@@ -203,6 +208,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
         rightCollapsed={chrome.rightCollapsed}
         onLeftCollapsedChange={(leftCollapsed) => setChrome((value) => value.leftCollapsed === leftCollapsed ? value : { ...value, leftCollapsed })}
         onRightCollapsedChange={(rightCollapsed) => setChrome((value) => value.rightCollapsed === rightCollapsed ? value : { ...value, rightCollapsed })}
+        onBottomOpenChange={(terminalOpen) => setChrome((value) => value.terminalOpen === terminalOpen ? value : { ...value, terminalOpen })}
       />
     </div>
   );

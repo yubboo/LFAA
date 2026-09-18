@@ -2,18 +2,18 @@
 
 > 根目录只保留当前索引和最近版本。
 
-## #19 一键准备与依赖检测
+## #4.1 版本包中文路径修复与同步保护
 
-- 用户版本：v0.0.35
+- 用户版本：v0.0.37
 - 状态：delivered
-- 最新变更：#19.10
+- 最新变更：#4.1
 - 日期：2026-09-18
-- 修复 Windows 新机器 Rust 首装时 `Get-WindowsRustupTarget` 缺失。
-- 新增 AMD64 / ARM64 / x86 到 Rust 官方 MSVC target 的映射。
-- 保留 Rust 官方 HTTPS 与 SHA-256 校验。
-- Governance 新增 Windows Rustup target resolver 防回归门禁。
-- #21 真实终端开发桥接继续保持 pending-test。
+- 以 v0.0.36 功能代码为基线，恢复错误编码的中文文件名，不回退 GitHub 推送与三向吸附功能。
+- 修复 v0.0.36 打包过程中将 UTF-8 中文路径误解释为 CP437/OEM 字符后重新写入 ZIP 的问题。
+- 同步脚本新增源版本包路径编码预检；检测到可逆的 CP437→UTF-8 乱码路径时直接阻止同步。
+- 修正嵌套 `node_modules` / `target` / `dist` 等缓存目录保护，避免被误列为删除。
+- v0.0.37 发布包在打包后重新读取 ZIP 清单，确认中文文件名保持正确。
 
 详细记录：
 
-`docs/changelog/v0.0.35.md`
+`docs/changelog/v0.0.37.md`
