@@ -870,3 +870,21 @@ xterm.js → Vite HMR → node-pty → Shell
 这是人类直接操作的本地开发能力，不是 Agent Tool。
 
 正式 Agent Shell 仍必须走 Rust PTY Broker 安全链。
+
+
+---
+
+### pnpm 原生依赖构建许可
+
+LFAA 保持 `strictDepBuilds: true`。
+
+需要执行安装 / 构建脚本的原生依赖必须在 `pnpm-workspace.yaml` 精确批准版本，例如：
+
+```yaml
+allowBuilds:
+  "node-pty@1.1.0": true
+```
+
+禁止启用 `dangerouslyAllowAllBuilds: true`。
+
+这样全新电脑执行菜单 `1` 时无需人工 `approve-builds`，同时不放宽其他依赖的脚本权限。

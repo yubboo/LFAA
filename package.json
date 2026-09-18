@@ -1,7 +1,7 @@
 {
   "name": "lfaa",
   "private": true,
-  "version": "0.0.32",
+  "version": "0.0.33",
   "description": "Little Fish AI Agent monorepo",
   "scripts": {
     "preinstall": "node scripts/pnpm-only.mjs",

@@ -111,3 +111,12 @@ Rust 自动安装只走 Rust 官方 `rustup-init`：
 - 校验通过后执行。
 
 已有 Rust/Cargo 直接复用，不迁移、不覆盖。
+
+
+### pnpm 原生构建脚本门禁
+
+- `strictDepBuilds` 必须保持 `true`；
+- 原生依赖必须以精确包名 + 版本进入 `allowBuilds`；
+- 当前批准：`node-pty@1.1.0`；
+- 禁止 `dangerouslyAllowAllBuilds: true`；
+- 菜单 1 安装后必须验证 node-pty 可以被 Node 实际加载。

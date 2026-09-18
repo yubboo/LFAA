@@ -68,6 +68,8 @@ const required = [
   "docs/logs/development/archive/0019-02-本地依赖与lockfile.md",
   "docs/prompts/archive/v0.0.22/0019-01-一键准备真实检测.md",
   "docs/logs/development/active/0019-一键准备与依赖检测.md",
+  "docs/prompts/archive/v0.0.33/0019-08-node-pty跨机器安装.md",
+  "docs/logs/development/archive/0019-07-Setup主菜单循环.md",
   "docs/prompts/archive/v0.0.30/0019-07-Setup主菜单循环.md",
   "docs/logs/development/archive/0019-06-依赖模型简化.md",
   "docs/prompts/archive/v0.0.29/0019-06-依赖模型简化.md",
@@ -104,6 +106,7 @@ const required = [
   "scripts/pnpm-only.mjs",
   "scripts/quality-not-configured.mjs",
   "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
   "apps/desktop/tsconfig.json",
   "apps/web/tsconfig.json",
   "packages/ui/tsconfig.json",
@@ -142,6 +145,21 @@ for (const legacyResourceRoot of ["skills", "plugins"]) {
     );
     process.exit(1);
   }
+}
+
+
+const pnpmWorkspace = fs.readFileSync(path.join(root, "pnpm-workspace.yaml"), "utf8");
+if (!/^strictDepBuilds:\s*true\s*$/m.test(pnpmWorkspace)) {
+  console.error("LFAA governance check failed: pnpm strictDepBuilds must stay enabled.");
+  process.exit(1);
+}
+if (!/^\s*["']?node-pty@1\.1\.0["']?:\s*true\s*$/m.test(pnpmWorkspace)) {
+  console.error("LFAA governance check failed: node-pty@1.1.0 must be explicitly approved in allowBuilds.");
+  process.exit(1);
+}
+if (/dangerouslyAllowAllBuilds:\s*true/i.test(pnpmWorkspace)) {
+  console.error("LFAA governance check failed: dangerouslyAllowAllBuilds must not be enabled.");
+  process.exit(1);
 }
 
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));

@@ -316,6 +316,28 @@ function Show-Environment {
     Write-Label "【规则】" "【包管理器】" "Node.js workspace 只允许 pnpm。" Green
 }
 
+function Test-NodePtyRuntime {
+    $webRoot = Join-Path $ProjectRoot "apps\web"
+    if (-not (Test-Path -LiteralPath $webRoot)) {
+        return $false
+    }
+
+    $code = 1
+    Push-Location $webRoot
+    try {
+        & node -e 'const pty = require("node-pty"); if (!pty || typeof pty.spawn !== "function") process.exit(2);'
+        $code = $LASTEXITCODE
+    }
+    catch {
+        $code = 1
+    }
+    finally {
+        Pop-Location
+    }
+
+    return ($code -eq 0)
+}
+
 function Install-NodeDependencies {
     $toolchain = Assert-NodeToolchain
     $summary = Get-NodeDependencySummary
@@ -333,6 +355,15 @@ function Install-NodeDependencies {
     Invoke-Pnpm $args "校验、安装并同步 pnpm workspace 项目依赖"
 
     Write-Label "【校验】" "【Node 依赖】" "pnpm install 已完成；缺失依赖会安装，已存在依赖会复用，依赖声明变化时同步 lockfile。" Green
+
+    $nodePtyPackage = Join-Path $ProjectRoot "apps\web\node_modules\node-pty\package.json"
+    if (Test-Path -LiteralPath $nodePtyPackage) {
+        Write-Label "【校验】" "【node-pty】" "检测真实终端原生模块是否可加载。" Cyan
+        if (-not (Test-NodePtyRuntime)) {
+            throw "node-pty 已安装但原生模块无法加载。请查看上方构建日志；这通常表示原生构建未完成，而不是普通 JS 依赖缺失。"
+        }
+        Write-Label "【通过】" "【node-pty】" "真实终端原生模块可用。" Green
+    }
 }
 
 

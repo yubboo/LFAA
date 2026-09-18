@@ -1,5 +1,12 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #19.8 node-pty 跨机器安装
+
+- 当前状态：delivered
+- 已完成：pnpm 精确 allowBuilds、严格门禁保留、Setup node-pty Smoke Check
+- 解决：全新机器 ERR_PNPM_IGNORED_BUILDS
+- 是否已交付：v0.0.33
+
 ## 2026-09-18 / #21.7 侧栏 Hover 与真实终端
 
 - 当前状态：pending-test
