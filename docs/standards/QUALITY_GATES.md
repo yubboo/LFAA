@@ -120,3 +120,12 @@ Rust 自动安装只走 Rust 官方 `rustup-init`：
 - 当前批准：`node-pty@1.1.0`；
 - 禁止 `dangerouslyAllowAllBuilds: true`；
 - 菜单 1 安装后必须验证 node-pty 可以被 Node 实际加载。
+
+
+### node-pty Smoke Check
+
+- 菜单 1 安装后必须验证 `node-pty` 可以被 Node 实际加载；
+- node-pty Smoke Check 必须使用独立脚本文件；
+- 禁止用依赖复杂引号的 `node -e` 内嵌代码作为 Windows PowerShell 校验；
+- 当前校验入口：`scripts/check-node-pty.mjs`；
+- 必须检查 `pty.spawn` 为函数。

@@ -16,7 +16,7 @@
 |---|---|---|---|---|---|
 | #2 | 配置系统 | #2.1 | active | 配置、Schema、模型、账号、权限、UI | `active/0002-配置系统.md` |
 | #10 | GitHub 推送确认交互 | #10.1 | active | Git、GitHub、Commit、Push、确认、交互 | `active/0010-GitHub推送确认.md` |
-| #19 | 一键准备与依赖检测 | #19.8 | active | Setup、pnpm、allowBuilds、node-pty、原生依赖、跨机器安装 | `active/0019-一键准备与依赖检测.md` |
+| #19 | 一键准备与依赖检测 | #19.9 | active | Setup、node-pty、PowerShell、Smoke Check、Windows、引号兼容 | `active/0019-一键准备与依赖检测.md` |
 | #20 | 开发日志与文档规范 | #20.2 | active | 日志、文档、中文、命名、目录、索引 | `active/0020-开发日志与文档规范.md` |
 | #21 | Web 工作台 UI | #21.7 | active | Web、三栏、侧栏、Hover、终端、PTY、xterm、ChatGPT、Codex | `active/0021-Web工作台UI.md` |
 
@@ -95,7 +95,8 @@ Cargo
 | #19.5 | superseded | `archive/0019-05-Rust工具链分层.md` |
 | #19.6 | superseded | `archive/0019-06-依赖模型简化.md` |
 | #19.7 | superseded | `archive/0019-07-Setup主菜单循环.md` |
-| #19.8 | active | `active/0019-一键准备与依赖检测.md` |
+| #19.8 | superseded | `archive/0019-08-node-pty跨机器安装.md` |
+| #19.9 | active | `active/0019-一键准备与依赖检测.md` |
 
 
 ## #2 历史变更

@@ -4,20 +4,15 @@
 
 ## #19 一键准备与依赖检测
 
-- 用户版本：v0.0.33
+- 用户版本：v0.0.34
 - 状态：delivered
-- 最新变更：#19.8
+- 最新变更：#19.9
 - 日期：2026-09-18
-- 修复全新 Windows 机器安装 node-pty 时被 pnpm 严格构建策略阻止的问题。
-- 精确批准 `node-pty@1.1.0`，不放宽其他依赖。
-- Setup 菜单 1 增加 node-pty 运行时校验。
-
-## #21 Web 工作台 UI
-
-- 最新变更：#21.7
-- 真实终端仍使用 xterm.js + node-pty。
-- UI 实机验证继续进行。
+- 修复 Windows PowerShell 5 下 node-pty Smoke Check 的 `node -e` 引号丢失问题。
+- node-pty 校验改为 `scripts/check-node-pty.mjs` 独立脚本。
+- `allowBuilds` 精确许可和严格依赖构建策略保持不变。
+- #21 真实终端开发桥接继续保持 pending-test。
 
 详细记录：
 
-`docs/changelog/v0.0.33.md`
+`docs/changelog/v0.0.34.md`

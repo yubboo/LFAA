@@ -888,3 +888,20 @@ allowBuilds:
 禁止启用 `dangerouslyAllowAllBuilds: true`。
 
 这样全新电脑执行菜单 `1` 时无需人工 `approve-builds`，同时不放宽其他依赖的脚本权限。
+
+
+---
+
+### node-pty Smoke Check 参数兼容
+
+Windows Setup 禁止使用包含复杂引号的 `node -e` 来检查原生依赖。
+
+使用：
+
+```text
+node scripts/check-node-pty.mjs
+```
+
+独立脚本从 `apps/web/package.json` 的依赖上下文加载 `node-pty`。
+
+原因：Windows PowerShell 5 调用原生命令时存在历史参数引号转换行为，可能使内嵌 JavaScript 引号丢失。

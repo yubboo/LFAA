@@ -1,5 +1,15 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #19.9 node-pty Smoke Check 引号兼容
+
+- 当前状态：delivered
+- 已完成：
+  - node-pty 独立 Smoke Check 脚本
+  - 移除 Windows Setup 内嵌 node -e 检查
+  - PowerShell 5 参数引号兼容修复
+- #21 真实终端状态：pending-test
+- 是否已交付：Setup 修复已交付（v0.0.34）
+
 ## 2026-09-18 / #19.8 node-pty 跨机器安装
 
 - 当前状态：delivered

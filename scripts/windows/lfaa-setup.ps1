@@ -317,15 +317,16 @@ function Show-Environment {
 }
 
 function Test-NodePtyRuntime {
-    $webRoot = Join-Path $ProjectRoot "apps\web"
-    if (-not (Test-Path -LiteralPath $webRoot)) {
+    $checkScript = Join-Path $ProjectRoot "scripts\check-node-pty.mjs"
+    if (-not (Test-Path -LiteralPath $checkScript)) {
+        Write-Label "【校验】" "【node-pty】" "缺少 scripts/check-node-pty.mjs。" Yellow
         return $false
     }
 
     $code = 1
-    Push-Location $webRoot
+    Push-Location $ProjectRoot
     try {
-        & node -e 'const pty = require("node-pty"); if (!pty || typeof pty.spawn !== "function") process.exit(2);'
+        & node $checkScript
         $code = $LASTEXITCODE
     }
     catch {

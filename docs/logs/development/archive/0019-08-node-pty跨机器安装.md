@@ -1,0 +1,88 @@
+# #19 一键准备与依赖检测
+
+- **主编号：** #19
+- **名称：** 一键准备与依赖检测
+- **最新变更：** #19.8
+- **状态：** superseded
+- **关键词：** Setup、pnpm、allowBuilds、node-pty、原生依赖、跨机器安装
+- **已由：** #19.9 替代
+- **当前查看：** `docs/logs/development/active/0019-一键准备与依赖检测.md`
+
+## 当前结论
+
+菜单 `1` 必须在全新电脑上无需人工执行 `pnpm approve-builds` 就能安装 LFAA 已经审核过的原生依赖。
+
+LFAA 继续保持 pnpm 的严格构建脚本策略：
+
+```text
+strictDepBuilds: true
+```
+
+只有经过项目审核并且锁定版本的依赖可以执行安装 / 构建脚本。
+
+当前真实终端依赖：
+
+```text
+node-pty@1.1.0
+```
+
+必须在 `pnpm-workspace.yaml` 明确：
+
+```yaml
+allowBuilds:
+  "node-pty@1.1.0": true
+```
+
+不允许使用“允许所有依赖执行构建脚本”的宽泛配置。
+
+## 最新变更
+
+### #19.8 node-pty 跨机器安装许可
+
+实机在另一台 Windows 电脑执行菜单 `1` 时出现：
+
+```text
+ERR_PNPM_IGNORED_BUILDS
+Ignored build scripts: node-pty@1.1.0
+```
+
+原因：`node-pty` 是原生模块，需要执行安装 / 构建脚本；pnpm 11 默认 `strictDepBuilds=true`，未审核的构建脚本会让安装返回非零退出码。
+
+修复：
+
+1. 在项目 `pnpm-workspace.yaml` 精确批准 `node-pty@1.1.0`；
+2. 保持 `strictDepBuilds: true`；
+3. 禁止 `dangerouslyAllowAllBuilds`；
+4. Setup 安装后增加 node-pty 运行时 Smoke Check；
+5. Smoke Check 失败时给出中文错误，避免只有底层原生模块错误。
+
+## 影响范围
+
+- `pnpm-workspace.yaml`
+- `scripts/windows/lfaa-setup.ps1`
+- `scripts/governance-check.mjs`
+- `DEVELOPMENT.md`
+- `docs/standards/QUALITY_GATES.md`
+
+## 验证结果
+
+- node-pty 精确版本构建许可已写入项目配置；
+- 严格依赖构建策略继续开启；
+- 未开启全部依赖构建权限；
+- Setup 增加 node-pty 可加载性检查；
+- Governance 会校验该策略存在；
+- Windows 全新机器真实安装仍需用户机器最终验证。
+
+## 历史索引
+
+| 版本 | 状态 | 日志 |
+|---|---|---|
+| #19.0 | delivered | `archive/0019-一键准备与资源根.md` |
+| #19.1 | superseded | `archive/0019-01-一键准备真实检测.md` |
+| #19.2 | superseded | `archive/0019-02-本地依赖与lockfile.md` |
+| #19.3 | superseded | `archive/0019-03-统一开发入口.md` |
+| #19.4 | superseded | `archive/0019-04-Rust安装诊断优化.md` |
+| #19.5 | superseded | `archive/0019-05-Rust工具链分层.md` |
+| #19.6 | superseded | `archive/0019-06-依赖模型简化.md` |
+| #19.7 | superseded | `archive/0019-07-Setup主菜单循环.md` |
+| #19.8 | active | `active/0019-一键准备与依赖检测.md` |
