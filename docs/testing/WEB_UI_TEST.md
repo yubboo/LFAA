@@ -1,11 +1,11 @@
 # Web 工作台本地测试
-## v0.0.43 / #21.11 Header 联动重点
+## v0.0.44 / #21.12 Shell Tooltip 单一提示源重点
 
 1. 右栏展开：终端 / 右栏按钮必须出现在右栏顶部 Header，不能漂在中间正文右上角。
 2. 右栏收起：同一组按钮必须回到中间 Header 最右侧。
 3. 左栏按钮位于中间 Header 最左侧；Hover 仍临时预览，Click / `Ctrl+B` 正式开合。
 4. Center Header 与 Right Header 的底边线、48px 高度必须连续。
-5. 鼠标停留 Shell 按钮应出现黑色 Tooltip，快捷键分别为 `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B`。
+5. 鼠标停留 Shell 按钮应只出现一层黑色 Tooltip，快捷键分别为 `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B`；不得延迟再弹出第二层浏览器原生提示。
 6. 对话正文不得被 Header 按钮覆盖。
 
 
@@ -96,7 +96,7 @@ Ctrl+J       底部终端开合
 Ctrl+Alt+B   右栏开合
 ```
 
-鼠标悬停对应按钮，应能从 title 提示看到快捷键。
+鼠标悬停对应按钮，应从唯一的自定义 Tooltip 看到快捷键；等待数秒也不能出现第二层原生 `title` 提示。
 
 右栏不允许 Hover 自动展开。
 

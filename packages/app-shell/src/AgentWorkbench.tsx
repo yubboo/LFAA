@@ -100,6 +100,7 @@ function ShellHeaderButton({
   onBlur?: () => void;
   children: ReactNode;
 }) {
+  // 只保留自定义 Tooltip。不要再加 title，否则浏览器原生 Tooltip 会与自定义提示叠成两层。
   return (
     <button
       className={`agent-shell-button${active ? " is-active" : ""}`}
@@ -111,7 +112,6 @@ function ShellHeaderButton({
       onBlur={onBlur}
       aria-label={`${label}，快捷键 ${shortcut}`}
       aria-expanded={expanded}
-      title={`${label} (${shortcut})`}
     >
       {children}
       <span className="agent-shell-tooltip" role="presentation">

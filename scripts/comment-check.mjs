@@ -51,6 +51,7 @@ const keyFiles = [
   "scripts/comment-check.mjs",
   "scripts/windows-script-encoding-check.mjs",
   "scripts/release-consistency-check.mjs",
+  "scripts/ui-contract-check.mjs",
 ];
 
 const requiredFields = [

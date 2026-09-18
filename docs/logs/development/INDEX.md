@@ -18,7 +18,7 @@
 | #10 | GitHub 推送确认交互 | #10.2 | active | Git、GitHub、Commit、Push、确认、交互 | `active/0010-GitHub推送确认.md` |
 | #19 | 一键准备与依赖检测 | #19.10 | active | Setup、Rustup、Windows、架构、Target、官方安装器 | `active/0019-一键准备与依赖检测.md` |
 | #20 | 开发日志与文档规范 | #20.4 | active | 日志、文档、中文、命名、目录、索引、注释、可读性、发布闭环、编码门禁 | `active/0020-开发日志与文档规范.md` |
-| #21 | Web 工作台 UI | #21.11 | active | Web、三栏、Header联动、Hover预览、终端、PTY、xterm、ChatGPT、Codex | `active/0021-Web工作台UI.md` |
+| #21 | Web 工作台 UI | #21.12 | active | Web、三栏、Header联动、Tooltip、Hover预览、终端、PTY、xterm、ChatGPT、Codex | `active/0021-Web工作台UI.md` |
 
 ## 历史已交付记录
 
@@ -126,7 +126,8 @@ Cargo
 | #21.8 | delivered | `active/0021-Web工作台UI.md` |
 | #21.9 | superseded | `archive/0021-09-Web常驻工作台Chrome.md` |
 | #21.10 | superseded | `archive/0021-10-主区悬浮与左栏预览.md` |
-| #21.11 | active | `active/0021-Web工作台UI.md` |
+| #21.11 | superseded | `archive/0021-11-Header联动与按钮归属修正.md` |
+| #21.12 | active | `active/0021-Web工作台UI.md` |
 
 
 ## #4 历史变更

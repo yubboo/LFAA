@@ -6,11 +6,11 @@
 
 ## 当前任务目标
 
-实现接近 ChatGPT / Codex 的顶部 Header 联动三栏工作台：框架按钮属于区域 Header，不能漂在正文层。
+保持 #21.11 的 Header 联动布局，只修复 Shell Header 三个框架按钮的重复 Tooltip，并建立防回归门禁。
 
 ## 当前交互事实
 
-### 顶部 Header
+### Header 布局
 
 ```text
 Center Header 左侧
@@ -24,51 +24,59 @@ Right Header
 → RightCollapsed=false 时显示终端 / 右栏按钮
 ```
 
-Center / Right Header 必须同高并形成连续顶部结构。
+### Tooltip 单一来源
 
-### 左栏
+三个 Shell Header 按钮只允许：
 
-- Hover / Focus（仅正式收起时）：临时淡入左栏预览，不修改 `leftCollapsed`；
-- Click / `Ctrl+B`：正式开合左栏；
-- Preview 必须低于 Header 层级，不能挡住左栏按钮点击。
+```text
+aria-label
++
+.agent-shell-tooltip
+```
 
-### 右栏与终端
+禁止：
 
-- `Ctrl+J`：切换底部终端；
-- `Ctrl+Alt+B`：切换右栏；
-- 右栏不做 Hover 自动展开；
-- 按钮提供可见 Tooltip + 原生 title 提示。
+```text
+title="..."
++
+.agent-shell-tooltip
+```
 
-### 拖拽与真实终端
+原因：浏览器原生 `title` 会在自定义 Tooltip 之后再次弹出第二层提示，造成重复黑框。
 
-- 左右 separator 只负责拖拽/吸附；
-- 吸附后禁止 separator 反向拖开；
-- Terminal Dock 使用 xterm + node-pty，禁止模拟日志冒充终端。
+Tooltip 必须 `pointer-events:none`，不得抢鼠标 Hover / Click。
+
+### 快捷键
+
+- `Ctrl+B`：左栏正式开合；
+- `Ctrl+J`：底部终端开合；
+- `Ctrl+Alt+B`：右栏开合。
 
 ## 允许修改
 
-- `packages/app-shell`
-- 必要时 `packages/ui`
-- `apps/web`
-- UI / Testing / Readability 文档
+- `packages/app-shell/src/AgentWorkbench.tsx`
+- UI 契约门禁脚本
+- UI / Testing / Development Log / Changelog / Release 文档
 
 ## 禁止修改
 
+- `packages/ui` 拖拽吸附算法（本次无必要）
 - Agent Loop / Tool Runtime / Permission Engine
 - Config Storage / Secret Store
-- 正式 Rust PTY Broker
 - GitHub / Sync / Setup / Update 业务逻辑
+- PTY 业务逻辑
 
 ## 验收条件
 
-- 不存在 `agent-center-floats` / `agent-center-toggle` 旧正文悬浮实现；
-- 中间 Header 是正常文档流第一行；
-- 右栏展开时按钮位于右栏 Header；
-- 右栏收起时按钮回到中间 Header；
-- 左栏 Hover Preview 与点击开合语义分离；
-- 快捷键与 Tooltip 一致；
-- 三向吸附、PTY、资源桥不回退；
-- 代码注释、UI Layout、Development Log、Changelog / Release 同步。
+- 左栏按钮 Hover 只出现一层提示；
+- 终端按钮 Hover 只出现一层提示；
+- 右栏按钮 Hover 只出现一层提示；
+- Shell Header 按钮不存在 `title=`；
+- 自定义 Tooltip 仍显示快捷键；
+- Tooltip 不拦截鼠标事件；
+- Header 联动、Hover Preview、三向吸附、PTY 不回退；
+- `scripts/ui-contract-check.mjs` 进入治理门禁；
+- Development Log / UI Layout / Test / Changelog / Release 同步。
 
 ## 当前状态
 

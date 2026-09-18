@@ -15,6 +15,7 @@
 | `pnpm-only.mjs` | 强制 pnpm。 |
 | `quality-not-configured.mjs` | 未配置质量项明确失败。 |
 | `release-name.mjs` | 发布名。 |
+| `ui-contract-check.mjs` | 检查 Web Shell Tooltip 单一提示源、快捷键和鼠标事件契约。 |
 
 ## Windows
 

@@ -2,56 +2,60 @@
 
 - **主编号：** #21
 - **名称：** Web 工作台 UI
-- **最新变更：** #21.11
+- **最新变更：** #21.12
 - **状态：** active
-- **关键词：** Web、三栏、Header联动、左栏Hover预览、终端、PTY、xterm、ChatGPT、Codex
+- **关键词：** Web、三栏、Header联动、Tooltip、Hover、左栏预览、终端、PTY、ChatGPT、Codex
 - **当前文件：** `docs/logs/development/active/0021-Web工作台UI.md`
 
 ## 当前结论
 
-当前 Web 工作台的框架级按钮必须属于顶部 Header，而不是正文悬浮层：
+当前 Web 工作台继续使用 #21.11 确立的 Header 联动结构；本次只修正 Shell Header 三个框架按钮的提示层契约：
 
 ```text
-中间 Header 左侧
-→ 左栏按钮 + Web 工作台标题
-
-中间 Header 右侧
-→ 更多 / 分享
-→ 右栏收起时：终端 + 右栏按钮也在这里
-
-右栏 Header
-→ 右栏展开时：终端 + 右栏按钮移动到这里
+左栏按钮      → 单一自定义 Tooltip：Ctrl+B
+终端按钮      → 单一自定义 Tooltip：Ctrl+J
+右栏按钮      → 单一自定义 Tooltip：Ctrl+Alt+B
 ```
 
-左栏 Hover Preview 与正式布局状态继续分离：Hover 只临时预览，Click / `Ctrl+B` 才改变 `leftCollapsed`。
+同一个按钮禁止同时存在：
+
+```text
+HTML title 原生 Tooltip
++
+.agent-shell-tooltip 自定义 Tooltip
+```
+
+否则浏览器会延迟再弹出第二层原生提示，形成用户实机照片中的“双层黑框/互相挤压”。
+
+`aria-label` 继续保留给无障碍语义；自定义 Tooltip 必须 `pointer-events:none`，不能抢鼠标事件。
 
 ## 最新变更
 
-### #21.11 Header 联动与按钮归属修正
+### #21.12 Shell Tooltip 单一提示源
 
-v0.0.43 根据用户实机截图纠正 #21.10 的定位模型：
+v0.0.44 根据用户实机照片修复三处重复 Tooltip：
 
-1. 删除独立全宽 Web Header；
-2. 删除中间正文上的 absolute Shell Actions；
-3. 中间区新增 48px `agent-center-header`；
-4. 左栏按钮、标题、更多、分享进入中间 Header；
-5. 右栏展开时，终端/右栏按钮进入 `agent-right-shell-header`；
-6. 右栏收起时，同一组按钮回到中间 Header 右侧；
-7. 中间 Header 与右栏 Header 同高、同边框，形成连续顶部结构；
-8. 新增自定义黑色 Tooltip，同时保留 `title`；
-9. `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B` 行为不变；
-10. 左栏 Hover Preview、三向吸附、真实 PTY 不回退。
+1. 左栏按钮删除原生 `title`；
+2. 底部终端按钮删除原生 `title`；
+3. 右侧栏按钮删除原生 `title`；
+4. 三个按钮统一只使用 `ShellHeaderButton` 内的 `.agent-shell-tooltip`；
+5. 保留 `aria-label` 与快捷键文本；
+6. Tooltip 继续 `pointer-events:none`，避免 Hover/Click 被提示层截获；
+7. 新增 `scripts/ui-contract-check.mjs`，发布门禁禁止 Shell Header 按钮再次出现 `title + 自定义 Tooltip` 双提示源；
+8. #21.11 的 Header 联动、左栏 Hover Preview、三向吸附、真实 PTY 全部保持不变。
 
-### #21.10 主区悬浮与左栏预览（已替代）
+### #21.11 Header 联动与按钮归属修正（历史基线）
 
-#21.10 把按钮移动到中间区左右上角，但实现为正文 absolute 浮层。该布局已归档：
+结构方案仍然有效，但 v0.0.43 的 Tooltip 同时保留了原生 `title` 和自定义提示，导致视觉重复。历史快照：
 
-`archive/0021-10-主区悬浮与左栏预览.md`
+`archive/0021-11-Header联动与按钮归属修正.md`
 
 ## 影响范围
 
 - `packages/app-shell/src/AgentWorkbench.tsx`
-- `packages/app-shell/src/agent-workbench.css`
+- `scripts/ui-contract-check.mjs`
+- `scripts/governance-check.mjs`
+- `scripts/comment-check.mjs`
 - `docs/standards/UI_LAYOUT.md`
 - `docs/testing/WEB_UI_TEST.md`
 
@@ -59,12 +63,12 @@ v0.0.43 根据用户实机截图纠正 #21.10 的定位模型：
 
 静态实现要求：
 
-- Shell Actions 不再使用正文 absolute 定位；
-- Center / Right Header 同高 48px；
-- 右栏开合时控制按钮在 Center Header 与 Right Header 之间迁移；
-- Hover Preview 不修改正式 collapsed 状态；
-- 快捷键保持 `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B`；
-- separator 吸附逻辑与真实 PTY 不变。
+- `ShellHeaderButton` 内不存在 `title=`；
+- 仍存在 `.agent-shell-tooltip`；
+- `.agent-shell-tooltip` 使用 `pointer-events:none`；
+- `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B` 三个提示仍在；
+- Header 联动结构不回退；
+- Sync / GitHub / Setup / Update 业务逻辑不修改。
 
 真实视觉仍需 Windows 浏览器实机验证。
 
@@ -72,9 +76,6 @@ v0.0.43 根据用户实机截图纠正 #21.10 的定位模型：
 
 | 版本 | 状态 | 日志 |
 |---|---|---|
-| #21.0 - #21.6 | superseded | `archive/` 对应历史文件 |
-| #21.7 | delivered | 当前主日志历史阶段 |
-| #21.8 | delivered | 当前主日志历史阶段 |
-| #21.9 | superseded | `archive/0021-09-Web常驻工作台Chrome.md` |
-| #21.10 | superseded | `archive/0021-10-主区悬浮与左栏预览.md` |
-| #21.11 | active | `active/0021-Web工作台UI.md` |
+| #21.0 - #21.10 | superseded / delivered | `archive/` 对应历史文件 |
+| #21.11 | delivered-with-tooltip-defect | `archive/0021-11-Header联动与按钮归属修正.md` |
+| #21.12 | active | `active/0021-Web工作台UI.md` |

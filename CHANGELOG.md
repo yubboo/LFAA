@@ -2,19 +2,20 @@
 
 > 根目录只保留当前索引和最近版本；旧版本详细记录保存在 `docs/changelog/` 与 `docs/releases/`。
 
-## #21.11 Web 工作台 Header 联动与按钮归属修正
+## #21.12 Shell Tooltip 单一提示源
 
-- 用户版本：v0.0.43
+- 用户版本：v0.0.44
 - 状态：pending-test
 - 日期：2026-09-18
-- 以 v0.0.42 为历史基线，不覆盖旧包。
-- 修正 #21.10 的 UI 定位模型：左/右 Shell Actions 不再 absolute 漂在正文区域，而是进入中间 / 右栏顶部 Header。
-- 中间 Header 左侧承载左栏按钮与 `Web 工作台` 标题，右侧承载更多 / 分享。
-- 右栏展开时，终端 / 右栏按钮位于右栏 Header；右栏收起时，同一组按钮自动回到中间 Header 右侧。
-- 保留左栏 Hover Preview、`Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B`、三向吸附、真实 PTY 与 `.lfaa` 资源桥。
-- 新增自定义黑色快捷键 Tooltip，同时保留原生 `title` 降级提示。
-- Sync / GitHub / Setup / Update Windows 脚本不修改，继续保留 v0.0.42 的 UTF-8 BOM 保护。
+- 以 v0.0.43 为历史基线，不覆盖旧包。
+- 修复左栏、底部终端、右侧栏三个 Shell Header 按钮出现双层 Tooltip 的问题。
+- 根因是同一按钮同时存在浏览器原生 `title` 和自定义 `.agent-shell-tooltip`；v0.0.44 删除 Shell Header 按钮的 `title`，只保留一套自定义 Tooltip。
+- `aria-label` 与 `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B` 快捷键提示继续保留。
+- `.agent-shell-tooltip` 继续使用 `pointer-events:none`，提示层不会抢鼠标 Hover / Click。
+- 新增 `scripts/ui-contract-check.mjs` 并接入 `governance:check`，防止双 Tooltip 回归。
+- v0.0.43 的 Header 联动、左栏 Hover Preview、三向吸附、真实 PTY 不回退。
+- Sync / GitHub / Setup / Update Windows 脚本业务逻辑不修改。
 
 详细记录：
 
-`docs/changelog/v0.0.43.md`
+`docs/changelog/v0.0.44.md`

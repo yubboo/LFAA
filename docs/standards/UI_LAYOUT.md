@@ -63,7 +63,7 @@ Ctrl+J       → 切换底部终端
 Ctrl+Alt+B   → 切换右侧栏
 ```
 
-按钮必须提供快捷键提示。当前实现同时保留原生 `title` 和自定义黑色 Tooltip。
+按钮必须提供快捷键提示。三个 Shell Header 按钮只允许使用一套自定义黑色 Tooltip；禁止同时使用原生 `title`，避免浏览器原生提示与自定义提示叠成两层。`aria-label` 保留无障碍语义，`.agent-shell-tooltip` 必须 `pointer-events:none`，不能抢鼠标事件。
 
 ## 4. Header 层级规则
 

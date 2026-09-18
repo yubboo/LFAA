@@ -19,7 +19,8 @@
 - 关键实现文件结构化中文注释检查；
 - 项目结构 / 目录职责文档同步检查；
 - Windows PowerShell `UTF-8 with BOM` 编码检查；
-- 当前发布版本 / CHANGELOG / Release 一致性检查。
+- 当前发布版本 / CHANGELOG / Release 一致性检查；
+- Web Shell Tooltip 单一提示源与鼠标事件契约检查。
 
 ## 3. Node.js 工具链
 
@@ -173,3 +174,14 @@ node scripts/release-consistency-check.mjs
 ```
 
 它以 `lfaa.release.json` 为唯一版本事实源，检查 package / crate / README / CHANGELOG / Changelog / Release 是否仍混用旧版本。
+
+
+## Web UI 静态契约门禁
+
+工作台 Shell Header 的三个框架按钮必须通过：
+
+```text
+node scripts/ui-contract-check.mjs
+```
+
+该检查禁止 `title + 自定义 Tooltip` 双提示源，并要求 Tooltip `pointer-events:none`，防止提示层抢 Hover / Click。
