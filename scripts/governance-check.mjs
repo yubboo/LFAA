@@ -48,6 +48,8 @@ const required = [
   "docs/standards/UI_LAYOUT.md",
   "docs/prompts/active/0021-Web工作台UI.md",
   "docs/logs/development/active/0021-Web工作台UI.md",
+  "docs/logs/development/archive/0021-02-黑白工作台重构.md",
+  "docs/prompts/archive/v0.0.27/0021-03-最小宽度自动吸附.md",
   "docs/prompts/archive/v0.0.26/0021-02-黑白工作台重构.md",
   "docs/logs/development/archive/0021-01-Web启动入口调整.md",
   "docs/prompts/archive/v0.0.24/0019-03-统一开发入口.md",

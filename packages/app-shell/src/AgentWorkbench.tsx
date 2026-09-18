@@ -178,7 +178,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
         right={<RightSidebar {...props} />}
         leftLimits={LEFT_LIMITS}
         rightLimits={RIGHT_LIMITS}
-        snapThreshold={96}
+        snapHysteresis={24}
         minCenterWidth={520}
       />
     </div>

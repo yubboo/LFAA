@@ -1,6 +1,6 @@
 [package]
 name = "lfaa-fs-broker"
-version = "0.0.26"
+version = "0.0.27"
 authors = ["二鱼"]
 edition = "2021"
 

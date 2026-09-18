@@ -79,32 +79,40 @@
 
 ## 4. 吸附与拖动
 
-旧行为“拖过阈值立即 collapsed”禁止继续使用，因为会造成明显跳变。
+侧栏的 `min` 同时是自动吸附边界。
 
 当前规则：
 
 ```text
 Pointer Down
-→ Pointer Move 只更新 CSS 预览宽度
-→ requestAnimationFrame 合并
-→ 松开 Pointer
-→ 小于吸附阈值则动画收起
-→ 否则动画回到合法 min/max 范围
+→ Pointer Move 使用 requestAnimationFrame 合并
+→ max 到 min 之间正常跟随
+→ 一到 min 立即自动吸附为 0 / collapsed 预览
+→ 不等待 Pointer Up
+→ Pointer Up 只提交最终状态
 ```
 
-默认吸附阈值：
+禁止再使用独立的：
 
 ```text
-96px
+96px snapThreshold
+```
+
+因为这会导致侧栏在已经低于可用最小宽度后，还继续拖一段距离才收起，和目标交互不一致。
+
+为了避免指针停在 `min` 附近时反复开合，反向展开采用迟滞：
+
+```text
+reopen = min + 24px
+```
+
+自动吸附动画：
+
+```text
+约 150ms - 180ms
 ```
 
 拖动期间不得每帧通过 React setState 重绘整棵工作台。
-
-收起 / 展开动画：
-
-```text
-160ms - 200ms
-```
 
 ## 5. 输入方式
 

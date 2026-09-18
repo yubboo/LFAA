@@ -19,6 +19,6 @@ export interface ResizableWorkbenchProps {
   storageKey?: string;
   leftLimits?: WorkbenchPaneLimits;
   rightLimits?: WorkbenchPaneLimits;
-  snapThreshold?: number;
+  snapHysteresis?: number;
   minCenterWidth?: number;
 }

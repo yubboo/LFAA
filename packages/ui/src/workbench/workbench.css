@@ -18,6 +18,10 @@
 body.lfaa-is-resizing { cursor: col-resize !important; user-select: none !important; }
 body.lfaa-is-resizing * { cursor: col-resize !important; }
 .lfaa-is-resizing .lfaa-workbench { transition: none; }
+.lfaa-is-resizing .lfaa-workbench[data-auto-snap="left"],
+.lfaa-is-resizing .lfaa-workbench[data-auto-snap="right"] {
+  transition: grid-template-columns 150ms cubic-bezier(.2,.82,.2,1);
+}
 
 .lfaa-workbench__pane, .lfaa-workbench__center { min-width: 0; min-height: 0; overflow: hidden; }
 .lfaa-workbench__pane { opacity: 1; transition: opacity 140ms ease, transform 180ms cubic-bezier(.2,.9,.2,1); }
@@ -26,6 +30,8 @@ body.lfaa-is-resizing * { cursor: col-resize !important; }
 .lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__pane--right { opacity: 0; pointer-events: none; }
 .lfaa-workbench[data-dragging="left"] .lfaa-workbench__pane--left,
 .lfaa-workbench[data-dragging="right"] .lfaa-workbench__pane--right { opacity: 1; pointer-events: auto; }
+.lfaa-workbench[data-auto-snap="left"] .lfaa-workbench__pane--left,
+.lfaa-workbench[data-auto-snap="right"] .lfaa-workbench__pane--right { opacity: 0; pointer-events: none; }
 
 .lfaa-workbench__handle { position: relative; z-index: 20; cursor: col-resize; touch-action: none; outline: none; background: transparent; }
 .lfaa-workbench__handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; transform: translateX(-50%); background: var(--agent-border, #e5e5e5); transition: background 120ms ease, width 120ms ease; }
