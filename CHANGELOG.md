@@ -1,19 +1,20 @@
 # LFAA 更新日志
 
-> 根目录只保留当前索引和最近版本。
+> 根目录只保留当前索引和最近版本；旧版本详细记录保存在 `docs/changelog/` 与 `docs/releases/`。
 
-## #4.3 / #20.4 PowerShell 编码保护与开发规范执行闭环
+## #21.11 Web 工作台 Header 联动与按钮归属修正
 
-- 用户版本：v0.0.42
-- 状态：delivered
+- 用户版本：v0.0.43
+- 状态：pending-test
 - 日期：2026-09-18
-- 以 v0.0.41 为历史基线，不覆盖旧包；本版本专门修复 v0.0.41 的 Windows PowerShell 编码回归。
-- 恢复 `scripts/windows/lfaa-sync.ps1`、`lfaa-github.ps1`、`lfaa-setup.ps1`、`lfaa-update.ps1` 的 UTF-8 BOM，保持原业务逻辑不变。
-- 新增 `scripts/windows-script-encoding-check.mjs`，发布前强制检查 `.ps1` BOM、严格 UTF-8 和 BAT → PowerShell 入口关系。
-- 新增 `scripts/release-consistency-check.mjs`，以 `lfaa.release.json` 为唯一版本事实源，检查 package / crate / README / CHANGELOG / Release 新旧版本一致性。
-- `DEVELOPMENT.md` / `AGENTS.md` 增加“按照开发规范开发”强制触发器：必须真实执行读取、Plan/Prompt、实现、Progress/Log、Standards、Changelog/Release、门禁、递增版本全过程。
-- #20.3 进入 Archive，当前开发规范变更为 #20.4；#4 增加 #4.3 PowerShell 脚本编码保护历史记录。
+- 以 v0.0.42 为历史基线，不覆盖旧包。
+- 修正 #21.10 的 UI 定位模型：左/右 Shell Actions 不再 absolute 漂在正文区域，而是进入中间 / 右栏顶部 Header。
+- 中间 Header 左侧承载左栏按钮与 `Web 工作台` 标题，右侧承载更多 / 分享。
+- 右栏展开时，终端 / 右栏按钮位于右栏 Header；右栏收起时，同一组按钮自动回到中间 Header 右侧。
+- 保留左栏 Hover Preview、`Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B`、三向吸附、真实 PTY 与 `.lfaa` 资源桥。
+- 新增自定义黑色快捷键 Tooltip，同时保留原生 `title` 降级提示。
+- Sync / GitHub / Setup / Update Windows 脚本不修改，继续保留 v0.0.42 的 UTF-8 BOM 保护。
 
 详细记录：
 
-`docs/changelog/v0.0.42.md`
+`docs/changelog/v0.0.43.md`

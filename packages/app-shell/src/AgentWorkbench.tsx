@@ -8,18 +8,29 @@
  * 关联文件：agent-workbench.css、workbench.types.ts、@lfaa/ui/ResizableWorkbench、apps/web/src/App.tsx。
  * 修改注意事项：框架级开合状态只保留一个 Owner；布局拖拽交给 @lfaa/ui；Web 专有桥接不能写入共享 App Shell。
  *
- * 页面结构：
+ * 页面结构（v0.0.43）：
  * AgentWorkbench
- * ├─ WebWorkbenchHeader            页面顶栏：标题 / 更多 / 分享
- * └─ agent-workbench-stage         可缩放工作区
- *    ├─ agent-left-hover-preview   左栏收起后的 Hover 临时预览层
+ * └─ agent-workbench-stage                  整个可缩放工作区
+ *    ├─ agent-left-hover-preview            左栏收起后的 Hover 临时预览层
  *    └─ ResizableWorkbench
- *       ├─ LeftSidebar             左侧导航 / 项目 / 最近任务
- *       ├─ CenterWorkspace         主内容 + 左右上角 Shell 控件 + 输入框
- *       ├─ RightSidebar            工具 / 资源
- *       └─ BottomTerminal          底部终端外壳
+ *       ├─ LeftSidebar                      左侧导航 / 项目 / 最近任务
+ *       ├─ CenterWorkspace                  中间区
+ *       │  ├─ agent-center-header           中间区顶部工具栏
+ *       │  │  ├─ 左栏按钮 + Web 工作台标题
+ *       │  │  └─ 更多 / 分享 /（右栏收起时）终端 + 右栏按钮
+ *       │  ├─ agent-conversation            主内容
+ *       │  └─ agent-composer-wrap           输入框
+ *       ├─ RightSidebar                     右侧区
+ *       │  ├─ agent-right-shell-header      右栏展开时承载终端 + 右栏按钮
+ *       │  └─ agent-right-body              工具与资源正文
+ *       └─ BottomTerminal                   底部终端外壳
+ *
+ * 关键布局原则：
+ * - Shell 按钮属于“区域 Header”，不是正文上方的绝对定位悬浮物。
+ * - 右栏展开时，终端/右栏按钮进入右栏 Header；右栏收起时，按钮回到中间 Header 右侧。
+ * - 这样顶部横条会随右栏宽度联动，视觉结构与 ChatGPT / Codex 的工作区 Header 更接近。
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ResizableWorkbench } from "@lfaa/ui";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 import type { AgentWorkbenchProps, DevResourceItem, ResourceKind } from "./workbench.types";
@@ -63,7 +74,90 @@ function initialChrome(): ChromeState {
   }
 }
 
-// ===== 3. 左侧栏内容 =====
+
+// ===== 3. Shell Header 按钮 =====
+// 所有框架级按钮共用同一视觉与 Tooltip 结构，避免三处分别维护提示文案样式。
+function ShellHeaderButton({
+  label,
+  shortcut,
+  active = false,
+  expanded,
+  onClick,
+  onMouseEnter,
+  onMouseLeave,
+  onFocus,
+  onBlur,
+  children,
+}: {
+  label: string;
+  shortcut: string;
+  active?: boolean;
+  expanded?: boolean;
+  onClick: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      className={`agent-shell-button${active ? " is-active" : ""}`}
+      type="button"
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      aria-label={`${label}，快捷键 ${shortcut}`}
+      aria-expanded={expanded}
+      title={`${label} (${shortcut})`}
+    >
+      {children}
+      <span className="agent-shell-tooltip" role="presentation">
+        <span>{label}</span>
+        <kbd>{shortcut}</kbd>
+      </span>
+    </button>
+  );
+}
+
+// 右侧 Shell Actions 在“右栏展开”和“右栏收起”两种布局里复用。
+function RightShellActions({
+  terminalOpen,
+  rightCollapsed,
+  onToggleTerminal,
+  onToggleRight,
+}: {
+  terminalOpen: boolean;
+  rightCollapsed: boolean;
+  onToggleTerminal: () => void;
+  onToggleRight: () => void;
+}) {
+  return (
+    <div className="agent-shell-actions" aria-label="工作台面板控制">
+      <ShellHeaderButton
+        label="切换底部面板显示"
+        shortcut="Ctrl+J"
+        active={terminalOpen}
+        expanded={terminalOpen}
+        onClick={onToggleTerminal}
+      >
+        <WorkbenchIcon name="terminal" size={16} />
+      </ShellHeaderButton>
+      <ShellHeaderButton
+        label="显示/隐藏侧边面板"
+        shortcut="Ctrl+Alt+B"
+        expanded={!rightCollapsed}
+        onClick={onToggleRight}
+      >
+        <WorkbenchIcon name="panelRight" size={16} />
+      </ShellHeaderButton>
+    </div>
+  );
+}
+
+// ===== 4. 左侧栏内容 =====
 // 这里只描述左栏“里面有什么”；左栏宽度和收起逻辑不在这里实现。
 function LeftSidebar({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme: () => void }) {
   return (
@@ -97,9 +191,10 @@ function LeftSidebar({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme
   );
 }
 
-// ===== 4. 中间主工作区 =====
-// 左上角按钮控制左栏；右上角按钮控制底部终端和右栏。
-// 左栏已收起时，左上角按钮 hover/focus 只触发临时预览，不改变持久化 collapsed 状态。
+
+// ===== 5. 中间主工作区 =====
+// Header 是中间区的第一行，Shell Actions 不再 position:absolute 漂在正文上方。
+// 右栏收起时，RightShellActions 回到中间 Header；右栏展开时则交给 RightSidebar Header。
 function CenterWorkspace({
   leftCollapsed,
   rightCollapsed,
@@ -121,59 +216,53 @@ function CenterWorkspace({
 }) {
   return (
     <section className="agent-center">
-      <div className="agent-center-floats agent-center-floats--left">
-        <button
-          className="agent-center-toggle"
-          type="button"
-          onClick={onToggleLeft}
-          onMouseEnter={onLeftHoverEnter}
-          onMouseLeave={onLeftHoverLeave}
-          onFocus={onLeftHoverEnter}
-          onBlur={onLeftHoverLeave}
-          aria-label={leftCollapsed ? "切换侧边栏" : "收起侧边栏"}
-          aria-expanded={!leftCollapsed}
-          title={leftCollapsed ? "切换侧边栏 (Ctrl+B)" : "收起侧边栏 (Ctrl+B)"}
-        >
-          <WorkbenchIcon name="panelLeft" size={16} />
-        </button>
-      </div>
+      <header className="agent-center-header">
+        <div className="agent-center-header__left">
+          <ShellHeaderButton
+            label="切换侧边栏"
+            shortcut="Ctrl+B"
+            expanded={!leftCollapsed}
+            onClick={onToggleLeft}
+            onMouseEnter={onLeftHoverEnter}
+            onMouseLeave={onLeftHoverLeave}
+            onFocus={onLeftHoverEnter}
+            onBlur={onLeftHoverLeave}
+          >
+            <WorkbenchIcon name="panelLeft" size={16} />
+          </ShellHeaderButton>
+          <div className="agent-center-header__title"><WorkbenchIcon name="folder" size={16} /><strong>Web 工作台</strong></div>
+        </div>
 
-      <div className="agent-center-floats agent-center-floats--right">
-        <button
-          className={`agent-center-toggle${terminalOpen ? " is-active" : ""}`}
-          type="button"
-          onClick={onToggleTerminal}
-          aria-label={terminalOpen ? "切换底部面板显示" : "切换底部面板显示"}
-          aria-expanded={terminalOpen}
-          title="切换底部面板显示 (Ctrl+J)"
-        >
-          <WorkbenchIcon name="terminal" size={16} />
-        </button>
-        <button
-          className="agent-center-toggle"
-          type="button"
-          onClick={onToggleRight}
-          aria-label={rightCollapsed ? "显示/隐藏侧边面板" : "显示/隐藏侧边面板"}
-          aria-expanded={!rightCollapsed}
-          title="显示/隐藏侧边面板 (Ctrl+Alt+B)"
-        >
-          <WorkbenchIcon name="panelRight" size={16} />
-        </button>
-      </div>
+        <div className="agent-center-header__right">
+          <button className="agent-icon-button" type="button" aria-label="更多" title="更多"><WorkbenchIcon name="dots" size={16} /></button>
+          <button className="agent-ghost-button" type="button">分享</button>
+          {rightCollapsed ? (
+            <>
+              <span className="agent-header-divider" aria-hidden="true" />
+              <RightShellActions
+                terminalOpen={terminalOpen}
+                rightCollapsed={rightCollapsed}
+                onToggleTerminal={onToggleTerminal}
+                onToggleRight={onToggleRight}
+              />
+            </>
+          ) : null}
+        </div>
+      </header>
 
       <div className="agent-conversation">
         <div className="agent-conversation-inner">
           <div className="agent-user-message">把 LFAA 的工作台做成简洁、稳定、适合长时间工作的 Agent 界面。</div>
           <article className="agent-answer">
-            <p>工作台继续采用接近 ChatGPT / Codex 的三栏结构。左侧入口移动到中间主区域左上角，右侧入口与终端入口移动到中间主区域右上角；左侧按钮支持 hover 预览左侧内容区，右侧按钮保持显式点击开合。</p>
+            <p>工作台继续采用接近 ChatGPT / Codex 的三栏结构。框架级按钮属于区域顶部 Header，而不是悬浮在正文上方：左栏按钮固定在中间 Header 左侧；右栏展开时，终端与右栏按钮进入右栏 Header；右栏收起时，它们回到中间 Header 右侧。</p>
             <h2>当前 UI 目标</h2>
             <ul>
               <li>左侧承载导航、项目和最近任务；</li>
               <li>中间保持主要工作区和对话上下文；</li>
               <li>右侧放工具入口、运行状态和 <code>.lfaa</code> 热插拔资源；</li>
               <li>拖到侧栏最小宽度自动吸附收起，收起后不能从分隔条反向拖开；</li>
-              <li>左侧按钮固定在中间区域左上角，并在 hover 时淡入淡出预览左栏内容；</li>
-              <li>右上角保留终端与右侧面板按钮，并提供快捷键提示。</li>
+              <li>左栏按钮 Hover 只临时预览左栏，Click / Ctrl+B 才正式改变布局；</li>
+              <li>顶部 Header 与右栏展开/收起同步重排，不允许按钮漂在正文内容层。</li>
             </ul>
           </article>
         </div>
@@ -188,39 +277,63 @@ function CenterWorkspace({
   );
 }
 
-// ===== 5. 右侧资源区 =====
-// 把宿主传入的 .lfaa 开发资源按类型分组；这里只消费元数据，不读取资源正文。
+
+// ===== 6. 右侧资源区 =====
+// 右栏展开时，第一行是独立 Shell Header；其下 agent-right-body 才是“工具与资源”正文。
 function groupResources(resources: readonly DevResourceItem[]) {
   return (Object.keys(resourceLabels) as ResourceKind[]).map((kind) => ({ kind, items: resources.filter((resource) => resource.kind === kind) }));
 }
 
-function RightSidebar({ resources = [], resourceBridgeStatus = "offline", terminalOpen, onToggleTerminal }: AgentWorkbenchProps & { terminalOpen: boolean; onToggleTerminal: () => void }) {
+function RightSidebar({
+  resources = [],
+  resourceBridgeStatus = "offline",
+  terminalOpen,
+  rightCollapsed,
+  onToggleTerminal,
+  onToggleRight,
+}: AgentWorkbenchProps & {
+  terminalOpen: boolean;
+  rightCollapsed: boolean;
+  onToggleTerminal: () => void;
+  onToggleRight: () => void;
+}) {
   const groups = groupResources(resources);
   const statusText = resourceBridgeStatus === "connected" ? "已连接" : resourceBridgeStatus === "refreshing" ? "刷新中" : "未连接";
   return (
     <aside className="agent-side agent-side--right">
-      <header className="agent-right-header">
-        <div><strong>工具与资源</strong><span>当前项目</span></div>
-        <div className="agent-right-header-actions">
-          <span className={`agent-bridge agent-bridge--${resourceBridgeStatus}`}><i />{statusText}</span>
-        </div>
+      <header className="agent-right-shell-header">
+        <RightShellActions
+          terminalOpen={terminalOpen}
+          rightCollapsed={rightCollapsed}
+          onToggleTerminal={onToggleTerminal}
+          onToggleRight={onToggleRight}
+        />
       </header>
-      <div className="agent-tool-list">
-        <button type="button"><WorkbenchIcon name="review" /><span>审查</span><kbd>Ctrl+Shift+G</kbd></button>
-        <button type="button" className={terminalOpen ? "is-active" : ""} onClick={onToggleTerminal}><WorkbenchIcon name="terminal" /><span>终端</span><kbd>Ctrl+J</kbd></button>
-        <button type="button"><WorkbenchIcon name="browser" /><span>浏览器</span><kbd>Ctrl+T</kbd></button>
-        <button type="button"><WorkbenchIcon name="file" /><span>文件</span><kbd>Ctrl+P</kbd></button>
+
+      <div className="agent-right-body">
+        <header className="agent-right-header">
+          <div><strong>工具与资源</strong><span>当前项目</span></div>
+          <div className="agent-right-header-actions">
+            <span className={`agent-bridge agent-bridge--${resourceBridgeStatus}`}><i />{statusText}</span>
+          </div>
+        </header>
+        <div className="agent-tool-list">
+          <button type="button"><WorkbenchIcon name="review" /><span>审查</span><kbd>Ctrl+Shift+G</kbd></button>
+          <button type="button" className={terminalOpen ? "is-active" : ""} onClick={onToggleTerminal}><WorkbenchIcon name="terminal" /><span>终端</span><kbd>Ctrl+J</kbd></button>
+          <button type="button"><WorkbenchIcon name="browser" /><span>浏览器</span><kbd>Ctrl+T</kbd></button>
+          <button type="button"><WorkbenchIcon name="file" /><span>文件</span><kbd>Ctrl+P</kbd></button>
+        </div>
+        <div className="agent-resource-head"><span>项目资源</span><b>{resources.length}</b></div>
+        <div className="agent-resource-groups">
+          {groups.map(({ kind, items }) => <section key={kind}><header><span>{resourceLabels[kind]}</span><b>{items.length}</b></header>{items.length === 0 ? <p className="agent-empty">.lfaa/{kind}</p> : items.map((item) => <div className="agent-resource" key={`${kind}:${item.relativePath}`}><WorkbenchIcon name={item.entryType === "directory" ? "folder" : "file"} size={15} /><div><strong>{item.name}</strong><small>{item.relativePath}</small></div></div>)}</section>)}
+        </div>
+        <div className="agent-dev-note"><strong>只读资源桥接</strong><p>资源舱只读；终端是单独的本地开发 PTY，会执行你亲自输入的命令。</p></div>
       </div>
-      <div className="agent-resource-head"><span>项目资源</span><b>{resources.length}</b></div>
-      <div className="agent-resource-groups">
-        {groups.map(({ kind, items }) => <section key={kind}><header><span>{resourceLabels[kind]}</span><b>{items.length}</b></header>{items.length === 0 ? <p className="agent-empty">.lfaa/{kind}</p> : items.map((item) => <div className="agent-resource" key={`${kind}:${item.relativePath}`}><WorkbenchIcon name={item.entryType === "directory" ? "folder" : "file"} size={15} /><div><strong>{item.name}</strong><small>{item.relativePath}</small></div></div>)}</section>)}
-      </div>
-      <div className="agent-dev-note"><strong>只读资源桥接</strong><p>资源舱只读；终端是单独的本地开发 PTY，会执行你亲自输入的命令。</p></div>
     </aside>
   );
 }
 
-// ===== 6. 底部终端外壳 =====
+// ===== 7. 底部终端外壳 =====
 // 这里只提供 Tab/关闭按钮/内容插槽，真实 xterm + PTY 在 apps/web 中实现。
 function BottomTerminal({ terminal, onClose }: { terminal: AgentWorkbenchProps["terminal"]; onClose: () => void }) {
   return (
@@ -231,20 +344,6 @@ function BottomTerminal({ terminal, onClose }: { terminal: AgentWorkbenchProps["
       </header>
       <div className="agent-terminal-shell__content">{terminal ?? <div className="agent-terminal-unavailable">当前宿主没有提供终端后端。</div>}</div>
     </section>
-  );
-}
-
-// ===== 7. Web 页面顶栏 =====
-// 顶栏只保留页面标题与次要操作；Shell 开合按钮已移动到 CenterWorkspace 左右上角。
-function WebWorkbenchHeader() {
-  return (
-    <header className="agent-web-header">
-      <div className="agent-web-header__title"><WorkbenchIcon name="folder" /><strong>Web 工作台</strong></div>
-      <div className="agent-web-header__actions">
-        <button className="agent-icon-button" type="button" aria-label="更多"><WorkbenchIcon name="dots" size={16} /></button>
-        <button className="agent-ghost-button" type="button">分享</button>
-      </div>
-    </header>
   );
 }
 
@@ -332,7 +431,6 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
 
   return (
     <div className="agent-theme" data-theme={theme}>
-      <WebWorkbenchHeader />
       <div className="agent-workbench-stage">
         {/* 左栏收起后才挂载临时预览层；正常展开时由 ResizableWorkbench 渲染正式左栏。 */}
         {chrome.leftCollapsed ? (
@@ -359,7 +457,15 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
               onLeftHoverLeave={() => closeLeftPreview(120)}
             />
           )}
-          right={<RightSidebar {...props} terminalOpen={chrome.terminalOpen} onToggleTerminal={toggleTerminal} />}
+          right={(
+            <RightSidebar
+              {...props}
+              terminalOpen={chrome.terminalOpen}
+              rightCollapsed={chrome.rightCollapsed}
+              onToggleTerminal={toggleTerminal}
+              onToggleRight={toggleRight}
+            />
+          )}
           bottom={<BottomTerminal terminal={props.terminal} onClose={() => setChrome((value) => ({ ...value, terminalOpen: false }))} />}
           bottomOpen={chrome.terminalOpen}
           leftLimits={LEFT_LIMITS}

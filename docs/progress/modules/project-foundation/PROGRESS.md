@@ -1,5 +1,17 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #21.11 Header 联动与按钮归属修正
+
+- 当前状态：pending-test
+- 用户实机发现：v0.0.42 的左右 Shell 按钮虽然位置接近目标，但仍漂在正文层，没有进入顶部工作区 Header。
+- 已完成：Center Header 结构化为正常第一行；左栏按钮 + 标题 + 更多 / 分享进入中间 Header。
+- 已完成：右栏展开时终端 / 右栏按钮进入 Right Shell Header；右栏收起时回到 Center Header。
+- 已完成：新增自定义快捷键 Tooltip，保留 `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B`。
+- 保留：左栏 Hover Preview、三向吸附、真实 PTY、资源桥。
+- 不改：Sync / GitHub / Setup / Update 业务逻辑。
+- 用户版本：v0.0.43
+- 待完成：Windows 浏览器实机视觉确认。
+
 ## 2026-09-18 / #4.3 + #20.4 PowerShell 编码回归修复
 
 - 当前状态：delivered

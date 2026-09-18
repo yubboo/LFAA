@@ -40,6 +40,47 @@ deliverable
 - 性能、安全和质量门禁；
 - 路径无关的依赖安装与开发检查菜单。
 
+## #21.11 Web 工作台 Header 联动布局
+
+### 任务原因
+
+v0.0.42 的 #21.10 已把 Shell Actions 移到中间区域左右上角，但按钮仍通过 `position:absolute` 漂在正文层，和用户提供的 Codex 参考中“按钮属于顶部工作区 Header”的结构不一致。
+
+### 本次范围
+
+允许修改：
+
+- `packages/app-shell/src/AgentWorkbench.tsx`；
+- `packages/app-shell/src/agent-workbench.css`；
+- #21 Active Prompt / Development Log / UI Layout / Web UI Test；
+- Changelog / Release / 版本号。
+
+禁止修改：
+
+- Sync / GitHub / Setup / Update 业务逻辑；
+- `ResizableWorkbench` 拖拽吸附算法；
+- PTY 协议与 Vite node-pty bridge；
+- Config / Agent Runtime / Permission / Rust Native 边界。
+
+### 实施顺序
+
+1. 保留 v0.0.42 为旧版本；
+2. 把 #21.10 当前日志归档；
+3. 新建 Center Header 与 Right Shell Header；
+4. 右栏开合时迁移终端/右栏按钮归属；
+5. 保留左栏 Hover Preview / 快捷键 / 三向吸附；
+6. 同步 Prompt / Progress / Log / UI Standard / Changelog / Release；
+7. 执行治理、语法、版本、ZIP、PowerShell BOM 门禁。
+
+### 验收条件
+
+- Shell Actions 不再使用正文 absolute 浮层；
+- Center Header / Right Header 高度一致；
+- 右栏展开与收起时按钮位置符合当前结构事实；
+- Tooltip 与快捷键提示存在；
+- v0.0.42 的 Sync / GitHub / Setup / Update 脚本字节不变；
+- 旧 #21.10 有 Archive，新 #21.11 为 Active。
+
 ## #4.3 / #20.4 Windows 脚本编码与开发规范执行闭环
 
 ### 任务原因

@@ -2,133 +2,79 @@
 
 - **主编号：** #21
 - **名称：** Web 工作台 UI
-- **最新变更：** #21.10
+- **最新变更：** #21.11
 - **状态：** active
-- **关键词：** Web、三栏、主区悬浮按钮、左栏 Hover 预览、终端、PTY、xterm、ChatGPT、Codex
+- **关键词：** Web、三栏、Header联动、左栏Hover预览、终端、PTY、xterm、ChatGPT、Codex
 - **当前文件：** `docs/logs/development/active/0021-Web工作台UI.md`
 
 ## 当前结论
 
-当前 Web 工作台采用：
+当前 Web 工作台的框架级按钮必须属于顶部 Header，而不是正文悬浮层：
 
 ```text
-页面顶栏
-→ 只保留 Web 工作台标题 / 更多 / 分享
+中间 Header 左侧
+→ 左栏按钮 + Web 工作台标题
 
-中间主区左上角
-→ 左栏按钮
-→ Hover / Focus：左栏收起时临时预览
-→ Click / Ctrl+B：正式开合左栏
+中间 Header 右侧
+→ 更多 / 分享
+→ 右栏收起时：终端 + 右栏按钮也在这里
 
-中间主区右上角
-→ 终端按钮 Ctrl+J
-→ 右栏按钮 Ctrl+Alt+B
+右栏 Header
+→ 右栏展开时：终端 + 右栏按钮移动到这里
 ```
 
-左栏 Hover 预览与正式布局状态必须分开：
-
-```text
-Hover Preview
-→ 临时浮层
-→ 不修改 leftCollapsed
-
-Click / Ctrl+B
-→ 修改 leftCollapsed
-→ 正式改变 Grid 左栏宽度
-```
-
-右栏不采用 Hover 自动展开，继续显式点击 / 快捷键控制。
-
-侧栏分隔条只负责：
-
-```text
-拖拽调宽
-→ 到最小阈值吸附收起
-→ Pointer Up 后禁止 separator 反向拖开
-```
-
-底部真实终端：
-
-```text
-xterm.js
-↓
-Vite HMR 本地通信
-↓
-node-pty
-↓
-PowerShell / 当前系统 Shell
-```
-
-Web 服务器只绑定 `127.0.0.1`，真实终端默认 cwd 为项目根。
+左栏 Hover Preview 与正式布局状态继续分离：Hover 只临时预览，Click / `Ctrl+B` 才改变 `leftCollapsed`。
 
 ## 最新变更
 
-### #21.10 主区悬浮与左栏预览
+### #21.11 Header 联动与按钮归属修正
 
-v0.0.39 根据新的 ChatGPT / Codex 参考调整 Shell Actions 位置和左栏交互：
+v0.0.43 根据用户实机截图纠正 #21.10 的定位模型：
 
-1. Web 顶栏移除左栏 / 终端 / 右栏三个 Shell 控制；
-2. 左栏按钮固定到中间主区左上角；
-3. 终端 / 右栏按钮固定到中间主区右上角；
-4. 左栏收起时，Hover / Focus 左栏按钮临时淡入左栏内容；
-5. 鼠标可从按钮移动到预览浮层，不立即闪退；
-6. Hover 预览不修改 `leftCollapsed`；
-7. 点击 / `Ctrl+B` 才执行正式左栏开合；
-8. 右栏保持显式控制；
-9. 终端快捷键为 `Ctrl+J`，右栏快捷键为 `Ctrl+Alt+B`；
-10. #21.8 的三向吸附和吸附后禁止 separator 反向展开保持不变。
+1. 删除独立全宽 Web Header；
+2. 删除中间正文上的 absolute Shell Actions；
+3. 中间区新增 48px `agent-center-header`；
+4. 左栏按钮、标题、更多、分享进入中间 Header；
+5. 右栏展开时，终端/右栏按钮进入 `agent-right-shell-header`；
+6. 右栏收起时，同一组按钮回到中间 Header 右侧；
+7. 中间 Header 与右栏 Header 同高、同边框，形成连续顶部结构；
+8. 新增自定义黑色 Tooltip，同时保留 `title`；
+9. `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B` 行为不变；
+10. 左栏 Hover Preview、三向吸附、真实 PTY 不回退。
 
-### #21.9 Web 常驻工作台 Chrome（已替代）
+### #21.10 主区悬浮与左栏预览（已替代）
 
-v0.0.38 曾把 Shell Actions 放在全宽 Web Chrome 中。该布局已由 #21.10 替代，历史见：
+#21.10 把按钮移动到中间区左右上角，但实现为正文 absolute 浮层。该布局已归档：
 
-`archive/0021-09-Web常驻工作台Chrome.md`
+`archive/0021-10-主区悬浮与左栏预览.md`
 
 ## 影响范围
 
-- `packages/ui/src/workbench/ResizableWorkbench.tsx`
-- `packages/ui/src/workbench/workbench-layout.types.ts`
-- `packages/ui/src/workbench/workbench.css`
 - `packages/app-shell/src/AgentWorkbench.tsx`
-- `packages/app-shell/src/workbench.types.ts`
-- `packages/app-shell/src/WorkbenchIcon.tsx`
 - `packages/app-shell/src/agent-workbench.css`
-- `apps/web/src/LocalTerminal.tsx`
-- `apps/web/src/local-terminal.css`
-- `apps/web/src/vite-custom-events.d.ts`
-- `apps/web/src/App.tsx`
-- `apps/web/vite.config.ts`
 - `docs/standards/UI_LAYOUT.md`
+- `docs/testing/WEB_UI_TEST.md`
 
 ## 验证结果
 
-静态实现当前满足：
+静态实现要求：
 
-- 顶栏不再承载三枚 Shell Actions；
-- 左栏按钮位于中间主区左上角；
-- 终端 / 右栏按钮位于中间主区右上角；
-- 左栏收起后存在独立 Hover preview 浮层；
-- Preview 状态与正式 collapsed 状态分离；
-- 右栏没有 Hover 自动展开；
-- 快捷键为 `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B`；
-- Separator 吸附后仍不能反向拖开；
-- Vite terminal bridge 继续使用真实 `node-pty`；
-- Vite 仍绑定 `127.0.0.1`。
+- Shell Actions 不再使用正文 absolute 定位；
+- Center / Right Header 同高 48px；
+- 右栏开合时控制按钮在 Center Header 与 Right Header 之间迁移；
+- Hover Preview 不修改正式 collapsed 状态；
+- 快捷键保持 `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B`；
+- separator 吸附逻辑与真实 PTY 不变。
 
-真实视觉位置与 PTY 交互仍需用户 Windows 浏览器环境执行 `LFAA-Setup.bat → 2` 实机验证。
+真实视觉仍需 Windows 浏览器实机验证。
 
 ## 历史索引
 
 | 版本 | 状态 | 日志 |
 |---|---|---|
-| #21.0 | superseded | `archive/0021-00-Web工作台初始实现.md` |
-| #21.1 | superseded | `archive/0021-01-Web启动入口调整.md` |
-| #21.2 | superseded | `archive/0021-02-黑白工作台重构.md` |
-| #21.3 | superseded | `archive/0021-03-最小宽度自动吸附.md` |
-| #21.4 | superseded | `archive/0021-04-Web端口复用.md` |
-| #21.5 | superseded | `archive/0021-05-Web启动延迟修复.md` |
-| #21.6 | superseded | `archive/0021-06-三栏交互与终端停靠.md` |
-| #21.7 | delivered | `active/0021-Web工作台UI.md` |
-| #21.8 | delivered | `active/0021-Web工作台UI.md` |
+| #21.0 - #21.6 | superseded | `archive/` 对应历史文件 |
+| #21.7 | delivered | 当前主日志历史阶段 |
+| #21.8 | delivered | 当前主日志历史阶段 |
 | #21.9 | superseded | `archive/0021-09-Web常驻工作台Chrome.md` |
-| #21.10 | active | `active/0021-Web工作台UI.md` |
+| #21.10 | superseded | `archive/0021-10-主区悬浮与左栏预览.md` |
+| #21.11 | active | `active/0021-Web工作台UI.md` |
