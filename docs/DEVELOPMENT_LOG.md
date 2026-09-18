@@ -11,6 +11,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
+| #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
 ### #20.5 文档体系单文件时间线重构
@@ -25,6 +26,19 @@
 - **验收：** AI 门禁完成后进入 `pending-user-acceptance`，用户明确通过后才允许 `delivered`。
 
 ## 当前记录
+
+### #2.2 Config Schema 基线
+
+- **版本：** v0.0.51
+- **状态：** pending-user-acceptance
+- **AI 验证：** pass
+- **用户验收：** pending
+- **主模块：** config-system / config-schema
+- **结果：** 新增 `@lfaa/config-system`，完成 Schema v1、默认配置、O(n) 运行时校验、credentialRef 安全边界与专项门禁。
+- **明确未做：** SQLite / Drizzle / Migration 执行器、Secret Broker、Config UI、Agent/Tool/Permission 执行逻辑。
+- **测试：** TypeScript noEmit、8 个 Schema 单元测试、config-schema-check 已通过；`governance:check` 的 10 个实际 Node 门禁已逐项通过；100 Provider + 100 Account + 100 Model 配置校验 1000 次 P95 约 0.61ms。当前环境无法联网取得 pnpm 11.17.0，因此未伪造 pnpm 包装命令结果。
+- **下一步：** 用户验收本版本后进入 `config-storage`；如验收不通过，使用新的 #2.x 和递增版本修复，禁止覆盖 v0.0.51。
+
 
 > 迁移来源：`docs/logs/development/active/0020-开发日志与文档规范.md`
 
@@ -137,7 +151,7 @@ v0.0.42 发布时必须满足：
 
 - **主编号：** #2
 - **名称：** 配置系统
-- **最新变更：** #2.1
+- **最新变更：** #2.2
 - **状态：** active
 - **关键词：** 配置、Schema、模型、账号、权限、UI
 - **当前文件：** `docs/DEVELOPMENT_LOG.md`
@@ -162,6 +176,14 @@ v0.0.42 发布时必须满足：
 ```
 
 ### 最新变更
+
+#### #2.2 Config Schema 基线
+
+- 配置系统从 planned 进入 implementing；
+- 新增 @lfaa/config-system 作为 Config Schema 唯一事实源；
+- Schema Version = 1，与产品版本 v0.0.51 分离；
+- 只保存 credentialRef，不保存 Secret 明文；
+- 本次不进入 Storage / UI。
 
 #### #2.1 UI 前置验证壳
 

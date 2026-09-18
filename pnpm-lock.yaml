@@ -20,6 +20,7 @@ importers:
   packages/app-shell: {}
   packages/builtin-tools: {}
   packages/code-intelligence: {}
+  packages/config-system: {}
   packages/compatibility/deepseek-harness: {}
   packages/context-engine: {}
   packages/document-parser: {}

@@ -12,6 +12,10 @@ app-shell/
 ui/
 → 纯 UI / Layout
 → 当前 ResizableWorkbench 拖拽、吸附在这里
+
+config-system/
+→ 配置系统业务边界
+→ v0.0.51 起拥有唯一 Config Schema / 默认值 / 运行时校验
 ```
 
 其他 package 的逐项职责见：

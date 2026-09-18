@@ -11,26 +11,27 @@ config-system
 当前状态：
 
 ```text
-planned
+implementing
 ```
 
-当前前置实现任务：
+当前实现任务：
 
 ```text
-#21 Web 工作台 UI
-status: in-progress
+#2.2 Config Schema 基线
+version: v0.0.51
+status: pending-user-acceptance
 ```
 
 `project-foundation` 已建立可交付骨架。`#16` 和 `#17` 属于 Config Schema 前置治理/工具链修复，不改变当前主业务模块。
 
-根据用户最新开发顺序，先完成 `#21 Web 工作台 UI`，用于 Vite 本地 UI 与 `.lfaa` 热插拔验证；完成后立即回到 `config-schema`。
+用户已明确要求按照开发规范进入配置系统。#21 Web 工作台历史/实机验收状态保留，不再阻塞业务顺序；当前已完成 `config-schema` 基线并等待用户验收，验收通过后进入 `config-storage`。
 
 ## 模块顺序
 
 | 顺序 | 模块 | 状态 | 目标 |
 |---|---|---|---|
 | 1 | project-foundation | delivered | 项目骨架、规范、边界、文档治理 |
-| 2 | config-system | planned | 设置、模型管理、账号、权限配置、配置存储与 UI |
+| 2 | config-system | implementing | 设置、模型管理、账号、权限配置、配置存储与 UI |
 | 3 | session-system | pending-development | Session / Turn / Run |
 | 4 | permission-system | pending-development | Ask / Auto / Full |
 | 5 | tool-runtime | pending-development | Tool Registry / Tool Pipeline |

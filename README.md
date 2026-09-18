@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.50**
+**当前包：LFAA-v0.0.51**
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
@@ -45,16 +45,23 @@ v0.0.50 起，Prompt、开发日志、版本记录不再“一次任务一个 Ma
 
 `v0.0.23` 开始 #21 Web 工作台 UI：三栏布局、水墨主题、Vite 本地热插拔验证。
 
-当前主业务模块仍是：
+当前主业务模块：
 
 ```text
 config-system
 ```
 
-下一步进入：
+当前子任务：
 
 ```text
-config-schema
+#2.2 config-schema
+status: pending-user-acceptance
+```
+
+用户验收通过后的下一步：
+
+```text
+config-storage
 ```
 
 ## Node.js 包管理器

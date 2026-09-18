@@ -1,11 +1,11 @@
 {
   "name": "lfaa",
   "private": true,
-  "version": "0.0.50",
+  "version": "0.0.51",
   "description": "Little Fish AI Agent monorepo",
   "scripts": {
     "preinstall": "node scripts/pnpm-only.mjs",
-    "governance:check": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs && node scripts/dev-log-check.mjs && node scripts/docs-check.mjs && node scripts/comment-check.mjs && node scripts/windows-script-encoding-check.mjs && node scripts/release-consistency-check.mjs && node scripts/prompt-lifecycle-check.mjs && node scripts/ui-contract-check.mjs",
+    "governance:check": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs && node scripts/dev-log-check.mjs && node scripts/docs-check.mjs && node scripts/comment-check.mjs && node scripts/windows-script-encoding-check.mjs && node scripts/release-consistency-check.mjs && node scripts/prompt-lifecycle-check.mjs && node scripts/config-schema-check.mjs && node scripts/ui-contract-check.mjs",
     "release:name": "node scripts/release-name.mjs",
     "test": "pnpm run governance:check && node scripts/quality-not-configured.mjs test",
     "typecheck": "node scripts/quality-not-configured.mjs typecheck",
@@ -20,7 +20,10 @@
     "windows-encoding:check": "node scripts/windows-script-encoding-check.mjs",
     "release:check": "node scripts/release-consistency-check.mjs",
     "ui-contract:check": "node scripts/ui-contract-check.mjs",
-    "prompt-lifecycle:check": "node scripts/prompt-lifecycle-check.mjs"
+    "prompt-lifecycle:check": "node scripts/prompt-lifecycle-check.mjs",
+    "config-schema:check": "node scripts/config-schema-check.mjs",
+    "typecheck:config-system": "pnpm --filter @lfaa/config-system exec tsc -p tsconfig.json --noEmit",
+    "test:config-system": "pnpm --filter @lfaa/config-system test"
   },
   "author": "二鱼",
   "packageManager": "pnpm@11.17.0",

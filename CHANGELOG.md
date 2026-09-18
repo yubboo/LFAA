@@ -2,6 +2,22 @@
 
 > 单文件版本时间线。每个版本在顶部追加一节；不再创建 `docs/changelog/vX.Y.Z.md`。
 
+## LFAA v0.0.51 — #2.2 Config Schema 基线
+
+- **状态：** pending-user-acceptance
+- **基线：** v0.0.50
+- **任务：** #2.2
+- 正式开始 `config-system` 业务实现，新增 `@lfaa/config-system`。
+- Config Schema Version 独立为 `1`，不与产品版本 0.0.51 混用。
+- 建立 Settings / Runtime / Provider / Account / Model / Permission Default 的可序列化配置契约。
+- 新增默认配置、O(n) 运行时校验、ID 唯一性与引用完整性检查。
+- Account 只保存 `credentialRef`；运行时拒绝 API Key / Token / Secret / Password 等明文字段。
+- 新增 `config-schema-check.mjs` 与 8 个 Schema 单元测试。
+- **未修改：** Config Storage / SQLite / Drizzle / Migration 执行器、Rust Secret Store、Config UI、Agent/Tool/Permission 执行逻辑、PTY、Sync / GitHub / Setup / Update。
+- 本地可用环境已完成 TypeScript noEmit、8/8 单测、Config Schema 专项门禁；`governance:check` 中 10 个实际 Node 门禁已逐项执行并全部通过。当前环境无法联网取得项目锁定的 pnpm 11.17.0，因此未伪造 `pnpm run governance:check` 包装命令执行结果。100 Provider + 100 Account + 100 Model 的 1000 次校验实测 P95 约 0.61ms。
+- 下一步：用户验收通过后进入 `config-storage`。
+
+
 ## LFAA v0.0.50 — #20.5 文档体系单文件时间线重构
 
 - **状态：** pending-user-acceptance

@@ -25,9 +25,102 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance | pass | pending |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.2 Config Schema 基线
+
+### 主模块
+
+`config-system / config-schema`
+
+### 任务目标
+
+正式开始 LFAA 第一个业务模块 `config-system`，本次只完成第一阶段 `config-schema`：建立配置对象的版本化 TypeScript 契约、默认值、运行时校验与安全字段边界，为后续 Config Storage / Migration / Settings / Model / Account / Permission / UI 提供唯一 Schema 事实源。
+
+### 允许修改
+
+- `packages/config-system/**`；
+- Config Schema 专项门禁与根 package 脚本；
+- Config System 的 Plan / Progress / Prompt / Development Log / Testing / Code Map；
+- v0.0.51 版本事实、CHANGELOG、Release；
+- 所有 workspace package / Rust crate 的产品版本一致性。
+
+### 禁止修改
+
+- SQLite / Drizzle / Config Storage / Migration 执行器；
+- Rust Secret Store 的真实 Secret 实现；
+- API Key / Token / Password 等 Secret 明文持久化；
+- Config UI / Web 工作台交互；
+- Agent Runtime / Tool Runtime / Policy / Permission 执行逻辑；
+- PTY / node-pty；
+- Sync / GitHub / Setup / Update 业务行为；
+- Agent Protocol 与 Database Schema Version 语义。
+
+### 状态所有权
+
+Config Schema 的唯一事实源是 `@lfaa/config-system`。Schema Version 只在该模块定义；账号仅保存 `credentialRef`；真实 Secret 归未来 Rust Secret Broker / OS Credential Store。UI 不拥有 Config 真值，后续 Storage 不得另造第二套配置结构。
+
+### 实现约束
+
+- Product Version 与 Config Schema Version 分离；本版本产品为 v0.0.51，Config Schema Version 为 1；
+- Schema 使用可序列化 JSON 数据；
+- Provider / Model / Account ID 唯一；引用必须完整；
+- 校验保持本地纯内存 O(n)，典型各 100 项配置目标 P95 < 10ms；
+- 不新增第三方运行时依赖；
+- 新关键实现文件使用结构化中文文件头。
+
+### 安全约束
+
+- 禁止 `apiKey` / `token` / `secret` / `password` 等 Secret 明文字段；
+- Account 只允许 `credentialRef`；
+- 运行时校验拒绝嵌套 Secret 字段和危险对象键；
+- 本任务不读取 OS Credential Store，不进行数据库、网络或进程 I/O。
+
+### 验收条件
+
+- 新增 `@lfaa/config-system`；
+- Config Schema Version 单一且为 1；
+- Settings / Runtime / Provider / Model / Account / Permission 边界清晰；
+- 默认配置通过自身校验；
+- 错误 Schema Version、重复 ID、悬空引用、Secret 明文字段被拒绝；
+- 不包含 Storage / Secret 明文 / Config UI 实现；
+- 当前任务状态为 `pending-user-acceptance`，用户明确验收前不得写 `delivered`。
+
+### 必须测试
+
+- `pnpm --filter @lfaa/config-system exec tsc -p tsconfig.json --noEmit`；
+- `pnpm --filter @lfaa/config-system test`；
+- `node scripts/config-schema-check.mjs`；
+- `pnpm run governance:check`；
+- Windows PowerShell BOM 不回退。
+
+### 必须更新的文档
+
+`PROJECT_PLAN.md`、`docs/MODULES.md`、`docs/PROMPTS.md`、`docs/DEVELOPMENT_LOG.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`packages/README.md`、`README.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG 编号
+
+`#2.2 Config Schema 基线`
+
+### 版本目标
+
+`v0.0.51`
+
+### 当前状态
+
+`pending-user-acceptance`
+
+### AI 验证
+
+`pass`
+
+### 用户验收
+
+`pending`
+
 
 > 迁移来源：`docs/prompts/active/0020-05-文档体系单文件时间线重构.md`
 

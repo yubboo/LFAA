@@ -1,6 +1,35 @@
 # LFAA 测试与验收规范
 
+## v0.0.51 / #2.2 Config Schema 基线验证
+
+- TypeScript `--noEmit`：PASS；
+- Config Schema 单元测试：8/8 PASS；
+- `scripts/config-schema-check.mjs`：PASS；
+- `governance:check` 所含 10 个实际 Node 门禁逐项执行：全部 PASS；
+- Windows PowerShell BOM：PASS，且 v0.0.50 → v0.0.51 四个 `.ps1` SHA-256 完全一致；
+- 性能：100 Provider + 100 Account + 100 Model，1000 次纯内存校验，P95 约 0.61ms，低于 10ms 预算；
+- 当前执行环境无法联网取得项目锁定的 pnpm 11.17.0，因此没有伪造 `pnpm run governance:check` 包装命令执行结果；用户环境仍应通过 `LFAA-Setup.bat` 后执行一次正式 pnpm 入口复验。
+
+
 > 所有测试策略、Web UI 验收矩阵和 Definition of Done 测试要求统一维护在本文件。
+
+## v0.0.51 / #2.2 Config Schema 基线
+
+本版本只验收 Config Schema，不把 Storage / Migration / UI 测试提前算入通过。
+
+必须执行：
+
+```text
+pnpm --filter @lfaa/config-system exec tsc -p tsconfig.json --noEmit
+pnpm --filter @lfaa/config-system test
+node scripts/config-schema-check.mjs
+pnpm run governance:check
+```
+
+核心用例：默认配置通过；错误 Schema Version 拒绝；Provider / Model / Account 重复 ID 拒绝；悬空 Provider / Account 引用拒绝；Model 与 Account Provider 不一致拒绝；remote mode 缺 Endpoint 或非 http/https 拒绝；API Key / Token / Secret / Password 等明文字段拒绝；`credentialRef` 合法引用通过。
+
+性能边界：校验为纯内存 O(n)，Provider / Model / Account 各 100 项时目标 P95 < 10ms；不得进行磁盘、数据库、网络或进程 I/O。
+
 
 > 迁移来源：`docs/testing/WEB_UI_TEST.md`
 

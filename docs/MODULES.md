@@ -1061,7 +1061,7 @@ LFAA 第一个正式业务模块。
 #### 当前状态
 
 ```text
-planned
+implementing
 ```
 
 > 迁移来源：`docs/plans/modules/config-system/PLAN.md`
@@ -1071,7 +1071,7 @@ planned
 #### 当前状态
 
 ```text
-planned
+implementing
 ```
 
 #### 目标版本
@@ -1161,6 +1161,17 @@ v0.0.2+
 > 迁移来源：`docs/progress/modules/config-system/PROGRESS.md`
 
 ### config-system PROGRESS
+
+#### 2026-09-19 / #2.2 Config Schema 基线
+
+- 当前状态：pending-user-acceptance
+- 用户版本：v0.0.51
+- 已完成：`@lfaa/config-system`、Config Schema v1、默认配置、运行时校验、Secret 明文字段拒绝、专项静态门禁与 8 个单元测试。
+- 状态 Owner：Config Schema 只归 `@lfaa/config-system`；UI / Storage 不得维护第二套结构。
+- 未实现：Config Storage / SQLite / Drizzle / Migration 执行器 / Rust Secret Store / Config UI。
+- 验证：TypeScript noEmit PASS；Schema unit 8/8 PASS；config-schema-check PASS；governance:check 的 10 个实际 Node 门禁逐项 PASS；100 Provider + 100 Account + 100 Model 校验 1000 次 P95 约 0.61ms。当前环境缺少可离线使用的 pnpm 11.17.0，因此未伪造 pnpm 包装命令结果。
+- 下一步：用户验收通过后进入 `config-storage`。
+
 
 #### 2026-09-18 / #20.3 + #21.10 UI 前置壳与代码可读性同步
 

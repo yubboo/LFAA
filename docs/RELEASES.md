@@ -3,6 +3,37 @@
 > 每个版本在本文件新增一个版本章节，不再创建 `docs/releases/vX.Y.Z/RELEASE.md`。
 > 当前版本在用户验收前必须标记 `pending-user-acceptance`，验收通过后才能改为 `delivered`。
 
+## LFAA v0.0.51 Release — #2.2 Config Schema 基线
+
+- **状态：** pending-user-acceptance
+- **基线：** v0.0.50
+- **用户验收：** pending
+
+### 交付内容
+
+- 新增 `@lfaa/config-system`；
+- Config Schema Version 1 单一事实源；
+- Settings / Runtime / Provider / Account / Model / Permission Default 类型；
+- 默认配置与纯内存运行时校验；
+- Provider / Model / Account 唯一性与引用完整性；
+- Account `credentialRef` 安全边界；
+- Secret 明文字段拒绝；
+- Config Schema 专项门禁与 8 个单元测试。
+
+### 未修改
+
+- Config Storage / SQLite / Drizzle / Migration 执行器；
+- Rust Secret Store；
+- Config UI；
+- Agent / Tool / Policy / Permission 执行逻辑；
+- PTY / node-pty；
+- Sync / GitHub / Setup / Update 业务逻辑。
+
+### 验证状态
+
+AI 可执行验证：TypeScript noEmit PASS；Schema unit 8/8 PASS；config-schema-check PASS；`governance:check` 的 10 个实际 Node 门禁逐项 PASS；典型 100/100/100 配置校验 1000 次实测 P95 约 0.61ms。当前执行环境无法联网取得项目锁定的 pnpm 11.17.0，因此没有伪造 `pnpm run governance:check` 包装命令的执行结果。
+
+
 ## LFAA v0.0.50 Release — #20.5 文档体系单文件时间线重构
 
 - **状态：** pending-user-acceptance

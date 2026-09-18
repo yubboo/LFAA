@@ -54,6 +54,10 @@ const keyFiles = [
   "scripts/release-consistency-check.mjs",
   "scripts/prompt-lifecycle-check.mjs",
   "scripts/ui-contract-check.mjs",
+  "scripts/config-schema-check.mjs",
+  "packages/config-system/src/config-schema.ts",
+  "packages/config-system/src/config-validator.ts",
+  "packages/config-system/src/index.ts",
 ];
 
 const requiredFields = [
