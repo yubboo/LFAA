@@ -131,3 +131,39 @@ http://127.0.0.1:5173
 - 点击右上终端按钮可开合；
 - 点击右栏“终端”按钮也可开合；
 - 终端停靠区不会挤坏顶部对话区。
+
+
+## 真实终端测试
+
+首次同步 v0.0.32 后先执行：
+
+```text
+LFAA-Setup.bat → 1
+```
+
+以安装 `@xterm/xterm`、`@xterm/addon-fit`、`node-pty` 并同步 lockfile。
+
+然后：
+
+```text
+LFAA-Setup.bat → 2
+```
+
+验收：
+
+1. 底部真正出现终端 Dock；
+2. 能看到真实 PowerShell Prompt；
+3. 输入 `pwd` 或 PowerShell 等价的目录命令后得到真实输出；
+4. 输入普通项目命令能真实执行；
+5. 调整底部高度时 xterm 自动 fit；
+6. 关闭 / 展开终端布局平滑；
+7. 左栏保持全高；
+8. 右栏位于终端上方；
+9. 左 / 右侧栏 Hover 时自身控制淡入；
+10. 中间顶部不再出现错误的侧栏 Hover 控件。
+
+注意：
+
+- 这是本地开发 PTY；
+- 不要用它验证 Agent 权限链；
+- Agent 自动执行 Shell 仍属于未来 Rust PTY Broker 范围。

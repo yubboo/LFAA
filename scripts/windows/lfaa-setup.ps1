@@ -794,6 +794,26 @@ function Resolve-LfaaWebDevPort {
     return $null
 }
 
+function Assert-WebDevelopmentDependencies {
+    $required = @(
+        "apps\web\node_modules\vite\package.json",
+        "apps\web\node_modules\@xterm\xterm\package.json",
+        "apps\web\node_modules\@xterm\addon-fit\package.json",
+        "apps\web\node_modules\node-pty\package.json"
+    )
+
+    $missing = @()
+    foreach ($relative in $required) {
+        if (-not (Test-Path -LiteralPath (Join-Path $ProjectRoot $relative))) {
+            $missing += $relative
+        }
+    }
+
+    if ($missing.Count -gt 0) {
+        throw "Web 开发依赖未完整安装。请先运行菜单 1【一键依赖】，再启动 Web。"
+    }
+}
+
 function Get-WebViteCommandPath {
     $candidates = @(
         (Join-Path $ProjectRoot "apps\web\node_modules\.bin\vite.cmd"),
@@ -851,6 +871,7 @@ function Invoke-WebViteForeground {
 
 function Start-WebDevelopment {
     Assert-WorkspaceScript "apps\web\package.json" "dev" "Web 端"
+    Assert-WebDevelopmentDependencies
 
     Write-Host ""
     Write-Label "【检测】" "【Web】" "正在快速检查本地 Vite 端口..." DarkGray

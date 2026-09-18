@@ -1,4 +1,5 @@
-/** Web 开发期资源快照。正式资源状态未来由 Resource Registry 持有。 */
+import type { ReactNode } from "react";
+
 export type ResourceKind = "skills" | "experts" | "plugins" | "extensions" | "mcp";
 
 export interface DevResourceItem {
@@ -12,4 +13,5 @@ export interface DevResourceItem {
 export interface AgentWorkbenchProps {
   resources?: readonly DevResourceItem[];
   resourceBridgeStatus?: "connected" | "refreshing" | "offline";
+  terminal?: ReactNode;
 }

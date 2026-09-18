@@ -28,3 +28,12 @@ SQLite 必须定义事务、busy timeout、WAL、索引、慢查询、Migration 
 - 缺依赖时快速失败，并提示运行菜单 1。
 
 Windows 实机启动耗时需要在实际环境中记录，不允许用静态检查伪造性能通过。
+
+
+## Web Terminal 性能
+
+- xterm resize 必须使用 `ResizeObserver`；
+- Shell I/O 使用 WebSocket/HMR 事件流，不允许轮询；
+- 终端滚动缓冲默认限制，避免无限增长；
+- PTY session 数量必须设置上限；
+- UI 主线程不得直接执行进程操作。

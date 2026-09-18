@@ -49,6 +49,8 @@ const required = [
   "docs/standards/UI_LAYOUT.md",
   "docs/prompts/active/0021-Web工作台UI.md",
   "docs/logs/development/active/0021-Web工作台UI.md",
+  "docs/prompts/archive/v0.0.32/0021-07-侧栏Hover与真实终端.md",
+  "docs/logs/development/archive/0021-06-三栏交互与终端停靠.md",
   "docs/prompts/archive/v0.0.30/0021-05-Web启动延迟修复.md",
   "docs/prompts/archive/v0.0.31/0021-06-三栏交互与终端停靠.md",
   "docs/logs/development/archive/0021-05-Web启动延迟修复.md",

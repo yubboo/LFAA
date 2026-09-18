@@ -1,5 +1,12 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #21.7 侧栏 Hover 与真实终端
+
+- 当前状态：pending-test
+- 已完成代码：侧栏 Hover / 底部 Dock / xterm / node-pty PTY
+- 待完成：Windows 实机 PTY 启动验证
+- 用户版本：v0.0.32
+
 ## 2026-09-18 / #21.6 三栏交互与终端停靠
 
 - 当前状态：delivered

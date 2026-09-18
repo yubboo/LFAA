@@ -1,11 +1,3 @@
-/**
- * 文件：ResizableWorkbench.tsx
- * 作用：提供左右可拉伸、到达最小宽度即自动吸附收起的三栏工作台布局。
- * 负责：UI 布局宽度、收起状态、键盘/Pointer 交互和本地持久化。
- * 不负责：业务事实状态、资源加载、Agent 状态。
- * 状态归属：浏览器 UI 本地状态。
- * 对外接口：ResizableWorkbench。
- */
 import {
   useCallback,
   useEffect,
@@ -22,11 +14,12 @@ import "./workbench.css";
 interface StoredLayoutState {
   leftWidth: number;
   rightWidth: number;
+  bottomHeight: number;
   leftCollapsed: boolean;
   rightCollapsed: boolean;
 }
 
-interface DragState {
+interface SideDragState {
   side: "left" | "right";
   pointerId: number;
   rectLeft: number;
@@ -37,8 +30,17 @@ interface DragState {
   snapped: boolean;
 }
 
+interface BottomDragState {
+  pointerId: number;
+  rectBottom: number;
+  min: number;
+  max: number;
+  lastHeight: number;
+}
+
 const DEFAULT_LEFT: WorkbenchPaneLimits = { min: 240, max: 640, initial: 288 };
 const DEFAULT_RIGHT: WorkbenchPaneLimits = { min: 300, max: 760, initial: 360 };
+const DEFAULT_BOTTOM: WorkbenchPaneLimits = { min: 150, max: 560, initial: 260 };
 const HANDLE_WIDTH = 7;
 
 function clamp(value: number, min: number, max: number): number {
@@ -49,9 +51,20 @@ function resolveNext(current: boolean, next: boolean | ((value: boolean) => bool
   return typeof next === "function" ? next(current) : next;
 }
 
-function loadState(key: string, left: WorkbenchPaneLimits, right: WorkbenchPaneLimits): StoredLayoutState {
+function loadState(
+  key: string,
+  left: WorkbenchPaneLimits,
+  right: WorkbenchPaneLimits,
+  bottom: WorkbenchPaneLimits,
+): StoredLayoutState {
   if (typeof window === "undefined") {
-    return { leftWidth: left.initial, rightWidth: right.initial, leftCollapsed: false, rightCollapsed: false };
+    return {
+      leftWidth: left.initial,
+      rightWidth: right.initial,
+      bottomHeight: bottom.initial,
+      leftCollapsed: false,
+      rightCollapsed: false,
+    };
   }
 
   try {
@@ -61,11 +74,18 @@ function loadState(key: string, left: WorkbenchPaneLimits, right: WorkbenchPaneL
     return {
       leftWidth: clamp(Number(parsed.leftWidth) || left.initial, left.min, left.max),
       rightWidth: clamp(Number(parsed.rightWidth) || right.initial, right.min, right.max),
+      bottomHeight: clamp(Number(parsed.bottomHeight) || bottom.initial, bottom.min, bottom.max),
       leftCollapsed: Boolean(parsed.leftCollapsed),
       rightCollapsed: Boolean(parsed.rightCollapsed),
     };
   } catch {
-    return { leftWidth: left.initial, rightWidth: right.initial, leftCollapsed: false, rightCollapsed: false };
+    return {
+      leftWidth: left.initial,
+      rightWidth: right.initial,
+      bottomHeight: bottom.initial,
+      leftCollapsed: false,
+      rightCollapsed: false,
+    };
   }
 }
 
@@ -73,25 +93,34 @@ export function ResizableWorkbench({
   left,
   center,
   right,
-  storageKey = "lfaa.workbench.layout.v4",
+  bottom,
+  storageKey = "lfaa.workbench.layout.v5",
   leftLimits = DEFAULT_LEFT,
   rightLimits = DEFAULT_RIGHT,
+  bottomLimits = DEFAULT_BOTTOM,
   snapHysteresis = 24,
   minCenterWidth = 520,
   leftCollapsed: leftCollapsedProp,
   rightCollapsed: rightCollapsedProp,
+  bottomOpen = false,
   onLeftCollapsedChange,
   onRightCollapsedChange,
 }: ResizableWorkbenchProps) {
-  const initial = useMemo(() => loadState(storageKey, leftLimits, rightLimits), [storageKey, leftLimits, rightLimits]);
+  const initial = useMemo(
+    () => loadState(storageKey, leftLimits, rightLimits, bottomLimits),
+    [bottomLimits, leftLimits, rightLimits, storageKey],
+  );
   const [leftWidth, setLeftWidth] = useState(initial.leftWidth);
   const [rightWidth, setRightWidth] = useState(initial.rightWidth);
+  const [bottomHeight, setBottomHeight] = useState(initial.bottomHeight);
   const [internalLeftCollapsed, setInternalLeftCollapsed] = useState(initial.leftCollapsed);
   const [internalRightCollapsed, setInternalRightCollapsed] = useState(initial.rightCollapsed);
   const leftCollapsed = leftCollapsedProp ?? internalLeftCollapsed;
   const rightCollapsed = rightCollapsedProp ?? internalRightCollapsed;
+
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const dragRef = useRef<DragState | null>(null);
+  const sideDragRef = useRef<SideDragState | null>(null);
+  const bottomDragRef = useRef<BottomDragState | null>(null);
   const frameRef = useRef<number | null>(null);
   const pendingRef = useRef<number | null>(null);
 
@@ -121,57 +150,30 @@ export function ResizableWorkbench({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(storageKey, JSON.stringify({ leftWidth, rightWidth, leftCollapsed, rightCollapsed }));
-  }, [leftCollapsed, leftWidth, rightCollapsed, rightWidth, storageKey]);
+    window.localStorage.setItem(storageKey, JSON.stringify({
+      leftWidth,
+      rightWidth,
+      bottomHeight,
+      leftCollapsed,
+      rightCollapsed,
+    }));
+  }, [bottomHeight, leftCollapsed, leftWidth, rightCollapsed, rightWidth, storageKey]);
 
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root || typeof ResizeObserver === "undefined") return;
-
-    const observer = new ResizeObserver(([entry]) => {
-      if (!entry || entry.contentRect.width <= 1120) return;
-      const totalAllowed = Math.max(0, entry.contentRect.width - minCenterWidth - HANDLE_WIDTH * 2);
-      const visibleLeft = leftCollapsed ? 0 : leftWidth;
-      const visibleRight = rightCollapsed ? 0 : rightWidth;
-      if (visibleLeft + visibleRight <= totalAllowed) return;
-
-      const leftBase = leftCollapsed ? 0 : Math.min(leftLimits.min, totalAllowed);
-      const rightBase = rightCollapsed ? 0 : Math.min(rightLimits.min, Math.max(0, totalAllowed - leftBase));
-      const baseTotal = leftBase + rightBase;
-      const extraAllowed = Math.max(0, totalAllowed - baseTotal);
-      const leftExtra = leftCollapsed ? 0 : Math.max(0, visibleLeft - leftBase);
-      const rightExtra = rightCollapsed ? 0 : Math.max(0, visibleRight - rightBase);
-      const extraTotal = leftExtra + rightExtra;
-      const leftShare = extraTotal > 0 ? leftExtra / extraTotal : 0.5;
-
-      if (!leftCollapsed) setLeftWidth(clamp(leftBase + extraAllowed * leftShare, leftBase, leftLimits.max));
-      if (!rightCollapsed) setRightWidth(clamp(rightBase + extraAllowed * (1 - leftShare), rightBase, rightLimits.max));
-    });
-
-    observer.observe(root);
-    return () => observer.disconnect();
-  }, [leftCollapsed, leftLimits.max, leftLimits.min, leftWidth, minCenterWidth, rightCollapsed, rightLimits.max, rightLimits.min, rightWidth]);
-
-  const setPreview = useCallback((side: "left" | "right", value: number, snapped: boolean) => {
+  const setSidePreview = useCallback((side: "left" | "right", value: number, snapped: boolean) => {
     const root = rootRef.current;
     if (!root) return;
-
     const columnName = side === "left" ? "--lfaa-left-column" : "--lfaa-right-column";
     const sizeName = side === "left" ? "--lfaa-left-size" : "--lfaa-right-size";
-
     root.dataset.snapPreview = snapped ? side : "none";
     root.dataset.autoSnap = snapped ? side : "none";
     root.style.setProperty(columnName, `${snapped ? 0 : value}px`);
-
-    if (!snapped) {
-      root.style.setProperty(sizeName, `${Math.max(value, 1)}px`);
-    }
+    if (!snapped) root.style.setProperty(sizeName, `${Math.max(value, 1)}px`);
   }, []);
 
   const flushPending = useCallback(() => {
     frameRef.current = null;
     const rawValue = pendingRef.current;
-    const drag = dragRef.current;
+    const drag = sideDragRef.current;
     if (rawValue === null || drag === null) return;
 
     const raw = clamp(rawValue, 0, drag.max);
@@ -179,22 +181,22 @@ export function ResizableWorkbench({
 
     if (!drag.snapped && raw <= drag.min) {
       drag.snapped = true;
-      setPreview(drag.side, 0, true);
+      setSidePreview(drag.side, 0, true);
       return;
     }
 
     if (drag.snapped) {
       if (raw >= drag.min + snapHysteresis) {
         drag.snapped = false;
-        setPreview(drag.side, clamp(raw, drag.min, drag.max), false);
+        setSidePreview(drag.side, clamp(raw, drag.min, drag.max), false);
       } else {
-        setPreview(drag.side, 0, true);
+        setSidePreview(drag.side, 0, true);
       }
       return;
     }
 
-    setPreview(drag.side, clamp(raw, drag.min, drag.max), false);
-  }, [setPreview, snapHysteresis]);
+    setSidePreview(drag.side, clamp(raw, drag.min, drag.max), false);
+  }, [setSidePreview, snapHysteresis]);
 
   const schedule = useCallback((value: number) => {
     pendingRef.current = value;
@@ -202,10 +204,9 @@ export function ResizableWorkbench({
     frameRef.current = window.requestAnimationFrame(flushPending);
   }, [flushPending]);
 
-  const onPointerDown = useCallback((event: PointerEvent<HTMLDivElement>, side: "left" | "right") => {
+  const onSidePointerDown = useCallback((event: PointerEvent<HTMLDivElement>, side: "left" | "right") => {
     const root = rootRef.current;
     if (!root) return;
-
     const rect = root.getBoundingClientRect();
     const staticMin = side === "left" ? leftLimits.min : rightLimits.min;
     const effectiveMax = getDynamicMax(side);
@@ -213,7 +214,7 @@ export function ResizableWorkbench({
     const collapsed = side === "left" ? leftCollapsed : rightCollapsed;
     const current = side === "left" ? (collapsed ? 0 : leftWidth) : (collapsed ? 0 : rightWidth);
 
-    dragRef.current = {
+    sideDragRef.current = {
       side,
       pointerId: event.pointerId,
       rectLeft: rect.left,
@@ -231,15 +232,15 @@ export function ResizableWorkbench({
     document.body.classList.add("lfaa-is-resizing");
   }, [getDynamicMax, leftCollapsed, leftLimits.min, leftWidth, rightCollapsed, rightLimits.min, rightWidth]);
 
-  const onPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
+  const onSidePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const drag = sideDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     const raw = drag.side === "left" ? event.clientX - drag.rectLeft : drag.rectRight - event.clientX;
     schedule(raw);
   }, [schedule]);
 
-  const finishDrag = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
+  const finishSideDrag = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const drag = sideDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
 
     if (frameRef.current !== null) {
@@ -258,22 +259,19 @@ export function ResizableWorkbench({
     document.body.classList.remove("lfaa-is-resizing");
 
     if (drag.side === "left") {
-      if (drag.snapped) {
-        setResolvedLeftCollapsed(true);
-      } else {
+      if (drag.snapped) setResolvedLeftCollapsed(true);
+      else {
         setLeftWidth(clamp(drag.lastRaw, drag.min, drag.max));
         setResolvedLeftCollapsed(false);
       }
-    } else if (drag.snapped) {
-      setResolvedRightCollapsed(true);
-    } else {
+    } else if (drag.snapped) setResolvedRightCollapsed(true);
+    else {
       setRightWidth(clamp(drag.lastRaw, drag.min, drag.max));
       setResolvedRightCollapsed(false);
     }
 
-    dragRef.current = null;
+    sideDragRef.current = null;
     pendingRef.current = null;
-
     if (root) {
       window.requestAnimationFrame(() => {
         root.dataset.dragging = "none";
@@ -281,24 +279,55 @@ export function ResizableWorkbench({
         root.dataset.autoSnap = "none";
       });
     }
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }, [setResolvedLeftCollapsed, setResolvedRightCollapsed, snapHysteresis]);
+
+  const onBottomPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const root = rootRef.current;
+    if (!root) return;
+    const rect = root.getBoundingClientRect();
+    const dynamicMax = Math.max(bottomLimits.min, Math.min(bottomLimits.max, rect.height - 180));
+    bottomDragRef.current = {
+      pointerId: event.pointerId,
+      rectBottom: rect.bottom,
+      min: bottomLimits.min,
+      max: dynamicMax,
+      lastHeight: bottomHeight,
+    };
+    root.dataset.dragging = "bottom";
+    event.currentTarget.setPointerCapture(event.pointerId);
+    document.body.classList.add("lfaa-is-resizing-vertical");
+  }, [bottomHeight, bottomLimits.max, bottomLimits.min]);
+
+  const onBottomPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const drag = bottomDragRef.current;
+    const root = rootRef.current;
+    if (!drag || !root || drag.pointerId !== event.pointerId) return;
+    drag.lastHeight = clamp(drag.rectBottom - event.clientY, drag.min, drag.max);
+    root.style.setProperty("--lfaa-bottom-row", `${drag.lastHeight}px`);
+  }, []);
+
+  const finishBottomDrag = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const drag = bottomDragRef.current;
+    const root = rootRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setBottomHeight(clamp(drag.lastHeight, drag.min, drag.max));
+    bottomDragRef.current = null;
+    document.body.classList.remove("lfaa-is-resizing-vertical");
+    if (root) root.dataset.dragging = "none";
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }, []);
 
   const keyboardResize = useCallback((event: KeyboardEvent<HTMLDivElement>, side: "left" | "right") => {
     const step = event.shiftKey ? 36 : 12;
     const collapseKey = side === "left" ? "ArrowLeft" : "ArrowRight";
     const expandKey = side === "left" ? "ArrowRight" : "ArrowLeft";
-
     if (event.key === "Home") {
       event.preventDefault();
       if (side === "left") setResolvedLeftCollapsed(true);
       else setResolvedRightCollapsed(true);
       return;
     }
-
     if (event.key === "End") {
       event.preventDefault();
       if (side === "left") {
@@ -312,10 +341,8 @@ export function ResizableWorkbench({
       }
       return;
     }
-
     if (event.key !== collapseKey && event.key !== expandKey) return;
     event.preventDefault();
-
     if (side === "left") {
       const max = Math.max(leftLimits.min, getDynamicMax("left"));
       setResolvedLeftCollapsed(false);
@@ -332,6 +359,8 @@ export function ResizableWorkbench({
     "--lfaa-right-size": `${rightWidth}px`,
     "--lfaa-left-column": `${leftCollapsed ? 0 : leftWidth}px`,
     "--lfaa-right-column": `${rightCollapsed ? 0 : rightWidth}px`,
+    "--lfaa-bottom-size": `${bottomHeight}px`,
+    "--lfaa-bottom-row": `${bottom && bottomOpen ? bottomHeight : 0}px`,
   } as CSSProperties;
 
   return (
@@ -341,12 +370,12 @@ export function ResizableWorkbench({
       style={style}
       data-left-collapsed={leftCollapsed}
       data-right-collapsed={rightCollapsed}
+      data-bottom-open={Boolean(bottom && bottomOpen)}
       data-dragging="none"
       data-snap-preview="none"
       data-auto-snap="none"
     >
       <aside className="lfaa-workbench__pane lfaa-workbench__pane--left" aria-label="左侧导航">{left}</aside>
-
       <div
         className="lfaa-workbench__handle lfaa-workbench__handle--left"
         role="separator"
@@ -356,10 +385,10 @@ export function ResizableWorkbench({
         aria-valuemax={leftLimits.max}
         aria-valuenow={leftCollapsed ? 0 : leftWidth}
         tabIndex={0}
-        onPointerDown={(event) => onPointerDown(event, "left")}
-        onPointerMove={onPointerMove}
-        onPointerUp={finishDrag}
-        onPointerCancel={finishDrag}
+        onPointerDown={(event) => onSidePointerDown(event, "left")}
+        onPointerMove={onSidePointerMove}
+        onPointerUp={finishSideDrag}
+        onPointerCancel={finishSideDrag}
         onKeyDown={(event) => keyboardResize(event, "left")}
       />
 
@@ -374,14 +403,33 @@ export function ResizableWorkbench({
         aria-valuemax={rightLimits.max}
         aria-valuenow={rightCollapsed ? 0 : rightWidth}
         tabIndex={0}
-        onPointerDown={(event) => onPointerDown(event, "right")}
-        onPointerMove={onPointerMove}
-        onPointerUp={finishDrag}
-        onPointerCancel={finishDrag}
+        onPointerDown={(event) => onSidePointerDown(event, "right")}
+        onPointerMove={onSidePointerMove}
+        onPointerUp={finishSideDrag}
+        onPointerCancel={finishSideDrag}
         onKeyDown={(event) => keyboardResize(event, "right")}
       />
 
       <aside className="lfaa-workbench__pane lfaa-workbench__pane--right" aria-label="右侧工具与资源">{right}</aside>
+
+      {bottom ? (
+        <section className="lfaa-workbench__bottom" aria-label="底部面板">
+          <div
+            className="lfaa-workbench__bottom-handle"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="调整底部面板高度"
+            aria-valuemin={bottomLimits.min}
+            aria-valuemax={bottomLimits.max}
+            aria-valuenow={bottomOpen ? bottomHeight : 0}
+            onPointerDown={onBottomPointerDown}
+            onPointerMove={onBottomPointerMove}
+            onPointerUp={finishBottomDrag}
+            onPointerCancel={finishBottomDrag}
+          />
+          <div className="lfaa-workbench__bottom-content">{bottom}</div>
+        </section>
+      ) : null}
     </div>
   );
 }

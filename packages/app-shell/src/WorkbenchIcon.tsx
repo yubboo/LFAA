@@ -7,7 +7,7 @@
 import type { ReactElement, SVGProps } from "react";
 
 export type WorkbenchIconName =
-  | "archive" | "browser" | "chevron" | "dots" | "file" | "folder" | "grid" | "history"
+  | "archive" | "browser" | "chevron" | "close" | "dots" | "file" | "folder" | "grid" | "history"
   | "moon" | "new" | "panelLeft" | "panelRight" | "plus" | "review" | "search"
   | "settings" | "spark" | "sun" | "terminal" | "tools" | "user";
 
@@ -20,6 +20,7 @@ const paths: Record<WorkbenchIconName, ReactElement> = {
   archive: <><path d="M4 7h16"/><path d="M5 7v12h14V7"/><path d="M8 3h8l2 4H6l2-4Z"/><path d="M9 11h6"/></>,
   browser: <><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.7 2.4 4 5.4 4 9s-1.3 6.6-4 9c-2.7-2.4-4-5.4-4-9s1.3-6.6 4-9Z"/></>,
   chevron: <path d="m8 10 4 4 4-4"/>,
+  close: <><path d="m6 6 12 12"/><path d="M18 6 6 18"/></>,
   dots: <><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></>,
   file: <><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/></>,
   folder: <><path d="M3 6h7l2 2h9v11H3z"/></>,

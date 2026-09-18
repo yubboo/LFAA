@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { AgentWorkbench, type DevResourceItem } from "@lfaa/app-shell";
+import { LocalTerminal } from "./LocalTerminal";
 
 interface ResourceResponse { resources: DevResourceItem[]; }
 
@@ -36,5 +37,5 @@ export function App() {
     return () => import.meta.hot?.off("lfaa:resources-changed", handler);
   }, [refresh]);
 
-  return <AgentWorkbench resources={resources} resourceBridgeStatus={status} />;
+  return <AgentWorkbench resources={resources} resourceBridgeStatus={status} terminal={<LocalTerminal />} />;
 }

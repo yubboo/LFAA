@@ -855,3 +855,18 @@ Web / Desktop 长运行开发进程停止后也必须返回主菜单。
 中间工作区底部必须预留 Terminal Dock。
 
 它当前可以是开发期壳层，但位置、开合和视觉层级要先稳定。
+
+
+---
+
+### Web 真实开发终端
+
+Web 开发模式允许真实本地终端：
+
+```text
+xterm.js → Vite HMR → node-pty → Shell
+```
+
+这是人类直接操作的本地开发能力，不是 Agent Tool。
+
+正式 Agent Shell 仍必须走 Rust PTY Broker 安全链。
