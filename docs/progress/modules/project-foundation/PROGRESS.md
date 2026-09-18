@@ -1,3 +1,21 @@
+## 2026-09-18 / #21.15 容器响应式与布局变量化
+
+- 当前状态：pending-windows-visual-test
+- 用户实机发现：v0.0.46 固定左 280 / 右 360 和固定 1240 / 760 断点在小窗口下仍会把主区挤坏，与 ChatGPT / Codex 的自适应差距明显。
+- 已完成：新增 `workbench-layout.config.ts`，集中管理 ratio / floor / ceiling / center / separator / snap hysteresis。
+- 已完成：App Shell 删除固定 `LEFT_LIMITS / RIGHT_LIMITS / BOTTOM_LIMITS`。
+- 已完成：使用 `ResizeObserver` 监听工作台容器尺寸，并通过 `resolveWorkbenchLayoutMetrics()` 自动选择 Desktop / Compact / Mobile。
+- 已完成：Desktop 只有在容器实际能同时容纳 left + center + right 时才双 Dock。
+- 已完成：Compact 为左 Dock + 右 Overlay；Mobile 为主区全宽 + 双 Overlay。
+- 已完成：右 Overlay 宽度改为 CSS 变量 + `clamp()` / 百分比，不再使用 420px / 56vw / 88vw。
+- 已完成：历史持久化 pane width 在容器缩小时重新 clamp 到当前动态 limits 与 center 保护上限。
+- 已完成：动态 min 当前大致为左 196~232、右 228~288、Bottom 136~176，替代 v0.0.46 固定 280 / 360 / 180。
+- 已完成：三向“到 min 吸附收起、Pointer 不松手反向解锁、松手才提交 collapsed”语义保留。
+- 已完成：UI contract 改为检查容器响应式、变量化布局和旧固定断点/Drawer 禁止回归。
+- 不改：Sync / GitHub / Setup / Update、PTY bridge、Agent Runtime。
+- 用户版本：v0.0.47
+- 待完成：Windows Chrome / Edge 1600 / 1280 / 1024 / 950 / 820 / 680 / 390 多尺寸实机视觉与手感确认。
+
 # project-foundation PROGRESS
 
 ## 2026-09-18 / #21.14 最小尺寸吸附收起语义修正

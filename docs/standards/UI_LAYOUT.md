@@ -1,240 +1,333 @@
 # LFAA 工作台 UI 规范
 
-## 1. 当前 Web 总体结构
+## 1. 当前原则：主区优先，不用固定断点硬挤三栏
 
-当前工作台采用 Header + 三区域 + Bottom Dock。框架级按钮必须属于 Header，不允许漂在正文层。
+v0.0.47 起，Workbench 不再以 `window.innerWidth < 1240 / 760` 决定布局，也不再把左栏 / 右栏写死成 280 / 360px。
 
-### Desktop（>= 1240px）
+响应式事实源：
 
 ```text
-┌────────左侧栏────────┬──────────────中间工作区──────────────┬────右侧栏────┐
-│ LFAA / 导航 / 项目    │ [左栏] Web 工作台        … 分享      │ [终端][右栏] │
-│                      ├───────────────────────────────────────┼──────────────┤
-│                      │             中间正文                  │ 工具与资源    │
-│                      │                                       │              │
-│                      ├───────────────────────────────────────┴──────────────┤
-│                      │                   真实终端                            │
-└──────────────────────┴──────────────────────────────────────────────────────┘
+agent-workbench-stage 实际尺寸
+→ ResizeObserver
+→ resolveWorkbenchLayoutMetrics(width, height)
+→ 计算 pane limits / center protection / snap hysteresis
+→ 选择 Desktop / Compact / Mobile
 ```
 
-右栏收起时，终端 / 右栏按钮回到 Center Header 右侧。
+这样浏览器小窗、桌面宿主、未来 Electron 内容区、DevTools 占宽都以“真正可用内容宽度”为准。
 
-### Compact（760px ~ 1239px）
+## 2. 单一几何配置源
+
+文件：
 
 ```text
-┌────左栏 Dock────┬──────────────────主区──────────────────┐
-│                 │ [左栏] 标题       [终端][右栏]        │
-│                 ├────────────────────────────────────────┤
-│                 │ 主内容                                 │
-│                 │                          ┌─右栏 Drawer─┐│
-│                 │                          │ 工具与资源   ││
-│                 │                          └─────────────┘│
-└─────────────────┴────────────────────────────────────────┘
+packages/ui/src/workbench/workbench-layout.config.ts
+```
+
+统一定义：
+
+```text
+left.min / initial / max
+right.min / initial / max
+bottom.min / initial / max
+center.comfortable
+separator
+snapHysteresis
+mobileGuard
+```
+
+每个尺寸规则由：
+
+```text
+ratio + floor + ceiling
+```
+
+组成。
+
+解释：
+
+- `ratio`：随容器变化；
+- `floor`：防止过窄；
+- `ceiling`：防止过宽；
+- 最终 Pointer 几何使用 CSS px，因为 `clientX/clientY/getBoundingClientRect()` 本身就是 CSS px；
+- 业务层禁止再复制一套固定侧栏宽度。
+
+## 3. 当前参考尺寸
+
+这只是公式输出示例，不是固定断点：
+
+| 容器宽度 | Mode | 左栏 initial | 右栏 initial | 中央区保护 |
+|---:|---|---:|---:|---:|
+| 1600 | Desktop | ~288 | ~360 | ~720 |
+| 1280 | Desktop | ~243 | ~307 | ~640 |
+| 1100 | Desktop | ~216 | ~264 | ~550 |
+| 1024 | Desktop | ~216 | ~252 | ~512 |
+| 950 | Compact | ~216 | Overlay | ~475 |
+| 820 | Compact | ~216 | Overlay | ~440 |
+| 680 | Compact | ~216 | Overlay | ~422 |
+| <680 左右 | Mobile | Overlay | Overlay | 主区全宽 |
+
+当前动态 min 大致：
+
+```text
+左栏：196 ~ 232
+右栏：228 ~ 288
+Bottom：136 ~ 176（跟容器高度变化）
+```
+
+以后调整应修改布局 Token / 比例，不应在多个组件里逐个改 px。
+
+## 4. 三种布局模式
+
+### Desktop：双 Dock
+
+只有容器实际能容纳：
+
+```text
+left.initial + center.comfortable + right.initial + separators
+```
+
+才进入 Desktop。
+
+```text
+┌────左 Dock────┬────────────Center────────────┬──右 Dock──┐
+│ 导航 / 项目    │ Header / Conversation        │ Tools     │
+│               │ Composer                     │ Resources │
+│               ├───────────────────────────────┴───────────┤
+│               │                 Bottom Terminal            │
+└───────────────┴─────────────────────────────────────────────┘
+```
+
+### Compact：单 Dock + Overlay
+
+容器放不下双 Dock，但仍能放下左栏 + 可用 Center：
+
+```text
+┌──左 Dock──┬──────────────────Center──────────────────┐
+│           │ Header                                  │
+│           │ Conversation             ┌─Right Overlay┐│
+│           │ Composer                 │ Tools         ││
+│           │                          └───────────────┘│
+└───────────┴───────────────────────────────────────────┘
 ```
 
 规则：
 
-- 右栏变覆盖式 Drawer，不参与挤压主区宽度；
-- Drawer 从 48px Header 下方开始；
-- Shell Actions 始终留在 Center Header，因此关闭入口永远可见；
-- 进入 Compact 时只自动收起右栏一次；用户可在同一断点内手动重新打开。
+- 右栏不参与 Center 宽度计算；
+- 右栏 Overlay 从 Header 下方出现；
+- 终端 / 右栏关闭入口始终留在 Center Header；
+- Overlay 使用 `clamp()` + 百分比，不得使用近乎全屏的固定 vw。
 
-### Mobile（< 760px）
+### Mobile：双 Overlay
+
+容器连左 Dock + Center 都无法舒适容纳时：
 
 ```text
-┌────────────────────主区全宽────────────────────┐
-│ [左栏] 标题                  [终端][右栏]       │
-├─────────────────────────────────────────────────┤
-│ 主内容                                          │
-│                                                 │
-│ 左 Drawer / 右 Drawer 从 Header 下方覆盖式出现 │
-└─────────────────────────────────────────────────┘
+┌──────────────────Center 全宽──────────────────┐
+│ Header                                        │
+│ Conversation                                  │
+│ Composer                                      │
+│ 左 / 右 Overlay 由按钮显式打开               │
+└───────────────────────────────────────────────┘
 ```
 
 规则：
 
-- 左右栏不再占固定列；
-- 默认收起左右栏和底部终端；
-- Header 核心入口永远保留；
-- 更多 / 分享等次要按钮可隐藏；
-- 移动端不依赖 Hover 作为唯一操作方式；
-- 页面不得产生整页横向滚动。
+- 左右 separator 隐藏；
+- 左右栏都不参与 Center 宽度；
+- 默认进入时收起左右栏与 Bottom；
+- 核心 Shell Actions 必须保留；
+- 触摸设备不能依赖 Hover 作为唯一入口；
+- 禁止整页横向滚动。
 
-## 2. 左栏 Hover 预览与正式开合
-
-Desktop / Compact 下，左栏正式收起后：
+## 5. Header 层级
 
 ```text
-Hover / Focus 左栏按钮
-→ 左栏预览浮层淡入
-→ 不改变 leftCollapsed
-→ 离开后短延迟淡出
+CenterWorkspace
+├─ var(--agent-shell-header-h)
+├─ Conversation
+└─ Composer
+
+RightSidebar / Desktop
+├─ var(--agent-shell-header-h)
+└─ Right Body
+
+RightSidebar / Compact / Mobile
+└─ Right Body
 ```
 
-正式布局只由：
+Shell Actions 属于 Header，不允许 absolute 漂在正文上。
 
-```text
-Click / Ctrl+B
-```
-
-改变。
-
-Mobile 不依赖 Hover Preview；用户通过显式按钮打开 Drawer。
-
-## 3. Shell Header 控制
+## 6. Shell 控制与 Tooltip
 
 快捷键：
 
 ```text
 Ctrl+B       左栏
-Ctrl+J       底部终端
+Ctrl+J       Bottom Terminal
 Ctrl+Alt+B   右栏
 ```
 
-三个框架按钮必须：
+要求：
 
-- 保留 `aria-label`；
-- 只使用一套 `.agent-shell-tooltip`；
-- 禁止同时使用原生 `title`；
-- Tooltip 必须 `pointer-events:none`；
-- 左侧按钮 Tooltip 使用 start 对齐；
-- 右侧按钮 Tooltip 使用 end 对齐，防止贴边裁切。
+- 使用自定义 `.agent-shell-tooltip`；
+- 禁止同一按钮再加原生 `title`；
+- Tooltip `pointer-events:none`；
+- 左侧按钮 start 对齐；
+- 右侧按钮 end 对齐；
+- Mobile 可隐藏 Tooltip，但按钮必须可点击并保留 `aria-label`。
 
-## 4. Header 层级规则
+## 7. 左栏 Hover Preview
+
+Desktop / Compact 正式收起左栏后：
 
 ```text
-CenterWorkspace
-├─ 48px Header
-├─ Conversation
-└─ Composer
-
-RightSidebar（仅 Desktop）
-├─ 48px Shell Header
-└─ Right Body
-
-RightSidebar（Compact / Mobile）
-└─ Right Body
+Hover / Focus 左栏按钮
+→ Preview 临时淡入
+→ 不改变 leftCollapsed
+→ 离开后短延迟淡出
 ```
 
-Compact / Mobile 的右栏从 Center Header 下方出现，因此不能再重复渲染 Right Shell Header。
+正式开合仍由 Click / `Ctrl+B`。
 
-## 5. Desktop 尺寸
+Mobile 禁用 Hover Preview。
+
+## 8. 三向 Resize 与“吸附收起”
+
+左栏、右栏、Bottom 统一语义。
+
+### Pointer 按住
 
 ```text
-左栏 默认 300px / min 280 / max 640
-右栏 默认 400px / min 360 / max 760
-中央区目标最小宽度约 520px
-底部 默认 280px / min 180 / max 560
+正常 Resize
+→ 到当前动态 min
+→ snap preview 吸到 0
 ```
 
-Compact / Mobile 的 Drawer 宽度由响应式规则限制，不允许 `88vw` 这类几乎覆盖全屏的旧方案。
-
-## 6. 三向拖拽与吸附收起
-
-左栏、右栏、底部终端使用同一交互语义。**min 是展开态可用布局的硬下限，不允许面板在 min 以下继续作为展开布局存在。**
-
-### 6.1 Pointer 按住期间
+如果仍然按住：
 
 ```text
-正常尺寸
-→ 跟手拖拽
-→ 到达 min
-→ 立即进入 snap capture
-→ 收起预览吸到 0
-```
-
-此时用户**不松手**可以反向拖动：
-
-```text
-snap capture
+snap preview
 → 反向拖动
-→ 达到 min + hysteresis
-→ 退出 snap capture
-→ 面板恢复到至少 min
-→ 可继续向外拉伸
+→ 超过 min + snapHysteresis
+→ 恢复到 min
+→ 继续向外 Resize
 ```
 
-因此不会再出现“右栏仍然展开，但窄到文字和快捷键被截断”的中间状态。
+### Pointer Up
 
-### 6.2 Pointer Up
-
-只有 Pointer Up 时仍在 snap capture，才真正提交 collapsed。
-
-如果已经反向拖过迟滞区，则本次拖拽保持展开，最终尺寸至少为 min。
-
-### 6.3 Pointer Up 之后
+只有松手时仍 snapped 才正式 collapsed。
 
 正式 collapsed 后：
 
-- separator 禁止反向拖开展开；
-- 左栏必须通过 Header / `Ctrl+B`；
-- 右栏必须通过 Header / `Ctrl+Alt+B`；
-- 终端必须通过 Header / `Ctrl+J` 或右栏终端入口。
+- separator 不能重新拖出；
+- 必须用 Header 按钮 / 快捷键恢复。
 
-## 7. 动画与性能
+## 9. 动画与拖拽手感
 
-拖拽阶段：
+普通 Resize：
 
-- `pointermove` 使用 `requestAnimationFrame` 合并；
-- 直接更新 CSS 变量；
-- `.lfaa-is-resizing` 时禁止 Workbench transition；
-- 不允许 CSS transition 追逐 Pointer，避免“卡一下”的黏滞感。
+- `requestAnimationFrame` 合并 pointermove；
+- 直接写 CSS 变量；
+- `transition:none`；
+- 不允许 transition 追逐鼠标。
 
-提交展开 / 收起阶段：
+进入 snap preview：
 
-- 普通拖拽不使用 Grid transition；
-- 从 min 进入 snap preview 时允许约 150ms 的短磁吸过渡；
-- 正式按钮展开 / 收起继续使用约 220~280ms ease-out；
-- 不允许以 min 以下的尺寸继续渲染展开内容。
+- 允许约 180ms 短磁吸；
+- pane opacity / translate 与 Grid 同步；
+- 不显示 min 以下残缺内容。
 
-## 8. 代码与盒子归属
+正式按钮开合：
+
+- 使用约 240ms ease-out；
+- 视觉过渡与布局过渡同步。
+
+## 10. 持久化尺寸与小窗保护
+
+localStorage 中保存的 pane width 不是绝对真值。
+
+容器变小时必须：
 
 ```text
-packages/app-shell/src/AgentWorkbench.tsx
-→ Shell 状态、LayoutMode、Header 按钮归属、Hover Preview、快捷键
+stored width
+→ clamp(current min, current max)
+→ clamp(dynamic max based on center protection)
+```
 
-packages/app-shell/src/agent-workbench.css
-→ Header / Tooltip / 左右栏内容 / Drawer 内容视觉 / Composer / Terminal 外壳
+Compact / Mobile Overlay 不应错误参与另一侧 Dock 的 dynamic max。
+
+## 11. CSS 变量要求
+
+App Shell 主要布局变量：
+
+```text
+--agent-shell-header-h
+--agent-control-size
+--agent-page-gutter
+--agent-content-max
+--agent-composer-max
+--agent-left-preview-width
+```
+
+Workbench 主要布局变量：
+
+```text
+--lfaa-left-size
+--lfaa-right-size
+--lfaa-left-column
+--lfaa-right-column
+--lfaa-bottom-row
+--lfaa-handle-width
+--lfaa-overlay-left-width
+--lfaa-overlay-right-width
+--lfaa-mobile-pane-width
+```
+
+新增尺寸前先判断是否应该成为变量；不要在多处复制相同 px 常量。
+
+## 12. 代码归属
+
+```text
+packages/ui/src/workbench/workbench-layout.config.ts
+→ 响应式比例 / floor / ceiling / Mode 计算
 
 packages/ui/src/workbench/ResizableWorkbench.tsx
-→ 几何尺寸、Pointer Capture、min 吸附收起状态机、尺寸持久化
+→ Pointer / Resize / Snap / 几何状态 / 持久化宽度 clamp
 
 packages/ui/src/workbench/workbench.css
-→ Grid、separator、Dock/Drawer 几何、collapsed 动画、响应式布局
+→ Dock / Overlay / Grid / separator / snap 视觉
 
-apps/web/src/LocalTerminal.tsx + apps/web/vite.config.ts
-→ xterm + node-pty 本地开发终端
+packages/app-shell/src/AgentWorkbench.tsx
+→ Shell 状态 / ResizeObserver / Header 按钮归属 / Hover Preview
+
+packages/app-shell/src/agent-workbench.css
+→ Header / 内容 / Tooltip / Composer / 侧栏内容视觉
 ```
 
-详细导航：`docs/项目结构与代码地图.md`。
+## 13. 实机响应式验收
 
-## 9. 真实 Terminal Dock
-
-真实终端仍使用：
+至少验证工作台容器接近：
 
 ```text
-xterm.js + FitAddon + node-pty
+1600x900
+1280x800
+1100x800
+1024x768
+950x800
+820x900
+760x900
+680x800
+640x800
+390x844
 ```
 
-安全边界不变：
+每个尺寸检查：
 
-- Vite 绑定 `127.0.0.1`；
-- cwd 为项目根；
-- 不自动提升权限；
-- 不提供 Agent 自动执行通道。
-
-## 10. 响应式验收尺寸
-
-至少验证：
-
-```text
-1600x900   Desktop
-1280x800   Desktop / 浏览器缩放后仍不能崩
-1024x768   Compact
-820x900    Compact
-759x900    Mobile 边界
-640x800    Mobile
-390x844    Mobile
-```
-
-每个尺寸都必须检查：Header、Composer、左右入口、右 Drawer、Terminal Dock、无横向滚动。
+- Center 是否仍可用；
+- Mode 是否合理；
+- 左右入口是否可见；
+- Overlay 是否不会把主区挤窄；
+- Composer 是否溢出；
+- 三向 snap 是否保持；
+- 无整页横向滚动。

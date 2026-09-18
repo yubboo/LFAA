@@ -2,21 +2,22 @@
 
 > 根目录只保留当前索引和最近版本；旧版本详细记录保存在 `docs/changelog/` 与 `docs/releases/`。
 
-## #21.14 最小尺寸吸附收起语义修正
+## #21.15 容器响应式与布局变量化
 
-- 用户版本：v0.0.46
+- 用户版本：v0.0.47
 - 状态：pending-windows-visual-test
 - 日期：2026-09-18
-- 以 v0.0.45 为历史基线，不覆盖旧包。
-- 修正 v0.0.45 的吸附语义：吸附目标是“收起”，不是“继续以 min 以下超窄宽度展开”。
-- 左栏 / 右栏 / Bottom Terminal 展开态都设置可用最小尺寸；到 min 即进入 snap capture / 收起预览。
-- Pointer 不松手时仍可反向拖过 `min + snapHysteresis`，恢复到至少 min 并继续拉伸。
-- Pointer Up 时仍 snapped 才真正提交 collapsed；正式收起后 separator 继续禁止反向展开。
-- 左栏 min 提升到 280px，右栏 min 提升到 360px，Bottom min 提升到 180px。
-- Desktop / Compact 断点调整为 1240 / 760，以保证新最小宽度与中央区可用空间兼容。
-- 删除 `elasticSize()` / `snapCommitThreshold()` 当前实现，禁止 min 以下展开态回归。
-- 保留响应式 Drawer、Header、Tooltip、真实终端、Sync / GitHub / Setup / Update 现有行为。
+- 以 v0.0.46 为历史基线，不覆盖旧包。
+- 删除 App Shell 固定 `LEFT_LIMITS / RIGHT_LIMITS / BOTTOM_LIMITS`，新增统一 `workbench-layout.config.ts`。
+- 侧栏 / Bottom 尺寸改为 `ratio + floor + ceiling` 动态计算；当前参考 min 大致为左 196~232、右 228~288、Bottom 136~176。
+- 响应式从固定 `1240 / 760` viewport 断点改为 `ResizeObserver + 工作台容器实际尺寸`。
+- Desktop 只有真正能容纳左 + 中 + 右时才双 Dock；Compact 为左 Dock + 右 Overlay；Mobile 为双 Overlay。
+- 右 Overlay 改用 CSS 变量 + `clamp()` / 百分比，删除旧固定 Drawer 尺寸语义。
+- 大屏保存的 pane width 在小窗口中会按当前 limits 与 center protection 重新 clamp，避免中央区被挤坏。
+- 三向“到 min 吸附收起、Pointer 不松手反向解锁、Pointer Up 才提交 collapsed”保持不变。
+- UI contract 新增容器响应式、变量化布局、旧固定断点/Drawer 防回归检查。
+- Sync / GitHub / Setup / Update、PowerShell BOM、PTY bridge 均不改。
 
 详细记录：
 
-`docs/changelog/v0.0.46.md`
+`docs/changelog/v0.0.47.md`

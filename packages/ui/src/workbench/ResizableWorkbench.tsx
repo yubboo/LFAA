@@ -28,6 +28,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
+import { WORKBENCH_LAYOUT_TOKENS, resolveWorkbenchLayoutMetrics } from "./workbench-layout.config";
 import type { ResizableWorkbenchProps, WorkbenchPaneLimits } from "./workbench-layout.types";
 import "./workbench.css";
 
@@ -62,10 +63,11 @@ interface BottomDragState {
 }
 
 // ===== 2. 默认布局参数与通用辅助函数 =====
-const DEFAULT_LEFT: WorkbenchPaneLimits = { min: 280, max: 640, initial: 300 };
-const DEFAULT_RIGHT: WorkbenchPaneLimits = { min: 360, max: 760, initial: 400 };
-const DEFAULT_BOTTOM: WorkbenchPaneLimits = { min: 180, max: 560, initial: 280 };
-const HANDLE_WIDTH = 7;
+const DEFAULT_METRICS = resolveWorkbenchLayoutMetrics(1200, 800);
+const DEFAULT_LEFT: WorkbenchPaneLimits = DEFAULT_METRICS.left;
+const DEFAULT_RIGHT: WorkbenchPaneLimits = DEFAULT_METRICS.right;
+const DEFAULT_BOTTOM: WorkbenchPaneLimits = DEFAULT_METRICS.bottom;
+const HANDLE_WIDTH = WORKBENCH_LAYOUT_TOKENS.separator;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -129,6 +131,7 @@ export function ResizableWorkbench({
   leftCollapsed: leftCollapsedProp,
   rightCollapsed: rightCollapsedProp,
   bottomOpen = false,
+  layoutMode = "desktop",
   onLeftCollapsedChange,
   onRightCollapsedChange,
   onBottomOpenChange,
@@ -165,18 +168,51 @@ export function ResizableWorkbench({
     onRightCollapsedChange?.(resolved);
   }, [onRightCollapsedChange, rightCollapsed, rightCollapsedProp]);
 
-  // 动态 max 会给中间区预留 minCenterWidth，并扣除另一侧已展开栏位。
+  // 动态 max 会给中间区预留 minCenterWidth。
+  // 只有 Desktop 双 Dock 才需要扣除“另一侧栏”的宽度；Compact/Mobile 的 Overlay 不参与主区几何。
   const getDynamicMax = useCallback((side: "left" | "right") => {
     const root = rootRef.current;
     if (!root) return side === "left" ? leftLimits.max : rightLimits.max;
     const rect = root.getBoundingClientRect();
-    const otherWidth = side === "left"
-      ? (rightCollapsed ? 0 : rightWidth)
-      : (leftCollapsed ? 0 : leftWidth);
+    const otherWidth = layoutMode === "desktop"
+      ? side === "left"
+        ? (rightCollapsed ? 0 : rightWidth)
+        : (leftCollapsed ? 0 : leftWidth)
+      : 0;
     const staticMax = side === "left" ? leftLimits.max : rightLimits.max;
-    const available = Math.max(0, rect.width - otherWidth - minCenterWidth - HANDLE_WIDTH * 2);
+    const handleBudget = layoutMode === "desktop" ? HANDLE_WIDTH * 2 : HANDLE_WIDTH;
+    const available = Math.max(0, rect.width - otherWidth - minCenterWidth - handleBudget);
     return Math.max(0, Math.min(staticMax, available > 0 ? available : staticMax));
-  }, [leftCollapsed, leftLimits.max, leftWidth, minCenterWidth, rightCollapsed, rightLimits.max, rightWidth]);
+  }, [layoutMode, leftCollapsed, leftLimits.max, leftWidth, minCenterWidth, rightCollapsed, rightLimits.max, rightWidth]);
+
+  // 响应式计算结果变化时，把历史持久化尺寸重新夹进当前容器允许的范围。
+  // 这一步很重要：用户在大屏保存的 340px 侧栏，切到小窗后不能继续拿 340px 挤压主区。
+  useEffect(() => {
+    setLeftWidth((value) => clamp(value, leftLimits.min, leftLimits.max));
+  }, [leftLimits.max, leftLimits.min]);
+
+  useEffect(() => {
+    setRightWidth((value) => clamp(value, rightLimits.min, rightLimits.max));
+  }, [rightLimits.max, rightLimits.min]);
+
+  useEffect(() => {
+    setBottomHeight((value) => clamp(value, bottomLimits.min, bottomLimits.max));
+  }, [bottomLimits.max, bottomLimits.min]);
+
+  // 容器变窄时，历史持久化宽度还要继续受“中心区保护”约束。
+  // 例如 1440px 保存的左栏宽度，在 760px 小窗里不能原样保留并把中心区挤没。
+  useEffect(() => {
+    const dynamicMax = getDynamicMax("left");
+    const dynamicMin = Math.min(leftLimits.min, dynamicMax);
+    setLeftWidth((value) => clamp(value, dynamicMin, dynamicMax));
+  }, [getDynamicMax, leftLimits.min]);
+
+  useEffect(() => {
+    if (layoutMode !== "desktop") return;
+    const dynamicMax = getDynamicMax("right");
+    const dynamicMin = Math.min(rightLimits.min, dynamicMax);
+    setRightWidth((value) => clamp(value, dynamicMin, dynamicMax));
+  }, [getDynamicMax, layoutMode, rightLimits.min]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -459,6 +495,7 @@ export function ResizableWorkbench({
       data-dragging="none"
       data-snap-preview="none"
       data-auto-snap="none"
+      data-layout-mode={layoutMode}
     >
       <aside className="lfaa-workbench__pane lfaa-workbench__pane--left" aria-label="左侧导航">{left}</aside>
       <div

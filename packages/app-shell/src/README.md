@@ -25,14 +25,31 @@ index.ts
 
 ## 当前响应式
 
+`AgentWorkbench.tsx` 不再自己维护 1240 / 760 断点，也不再保存固定侧栏 Limits。
+
+当前链路：
+
 ```text
->=1240px      Desktop：三栏 Dock
-760~1239px    Compact：左栏 Dock + 右栏 Drawer
-<760px        Mobile：主区全宽 + 左右 Drawer
+.agent-workbench-stage
+→ ResizeObserver
+→ @lfaa/ui resolveWorkbenchLayoutMetrics(width, height)
+→ Desktop / Compact / Mobile
 ```
 
-`AgentWorkbench.tsx` 负责“什么时候进入哪种布局模式”和“按钮归属在哪里”。
+模式语义：
 
-真正的拖拽尺寸、Pointer Capture、min 吸附收起在：
+```text
+Desktop  = 容器实际能容纳左 + 中 + 右 → 双 Dock
+Compact  = 左 Dock + 右 Overlay
+Mobile   = 中间主区全宽 + 左右 Overlay
+```
 
-`packages/ui/src/workbench/`
+`AgentWorkbench.tsx` 负责 Shell 状态、按钮归属和容器测量。
+
+真正的比例 / floor / ceiling / min / max / snap hysteresis 在：
+
+`packages/ui/src/workbench/workbench-layout.config.ts`
+
+真正的 Pointer / Resize / Snap 在：
+
+`packages/ui/src/workbench/ResizableWorkbench.tsx`

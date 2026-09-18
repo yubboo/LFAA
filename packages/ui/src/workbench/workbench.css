@@ -1,67 +1,91 @@
 /**
  * 文件：workbench.css
  * 作用：ResizableWorkbench 的纯几何布局和吸附/收起视觉状态。
- * 负责：五列两行 Grid、separator、collapsed/snap preview、底部 Dock、窄屏浮层降级。
- * 不负责：左/中/右实际内容、Shell 开合按钮、主题业务、终端 xterm 样式。
+ * 负责：Desktop 双 Dock、Compact 单 Dock + 右 Overlay、Mobile 双 Overlay、separator、collapsed/snap preview、底部 Dock。
+ * 不负责：左/中/右实际内容、Shell 按钮、主题业务、终端 xterm 样式。
  * 状态归属：无状态；读取 ResizableWorkbench 写入的 CSS 变量和 data-* 属性。
- * 对外接口：lfaa-workbench* CSS class、--lfaa-* CSS 变量。
- * 关联文件：ResizableWorkbench.tsx、workbench-layout.types.ts、packages/app-shell/src/agent-workbench.css。
- * 修改注意事项：Grid 列顺序必须和 ResizableWorkbench DOM 顺序一致；吸附后 separator 只保留边界，不承担重新展开。
+ * 对外接口：lfaa-workbench* CSS class、--lfaa-* CSS 变量、data-layout-mode。
+ * 关联文件：ResizableWorkbench.tsx、workbench-layout.config.ts、workbench-layout.types.ts、packages/app-shell/src/agent-workbench.css。
+ * 修改注意事项：
+ * - 响应式结构由 data-layout-mode 决定，不再把 1240/760 断点分别硬编码在 JS 与 CSS 两处；
+ * - 展开态只允许 >= 当前计算 min；到 min 后进入“收起吸附预览”，不能渲染残缺的超窄侧栏；
+ * - 真正 collapsed 后 separator 失效，只能由显式按钮/快捷键重新展开。
  *
- * Grid：
+ * Desktop Grid：
  * column 1 left | 2 left-handle | 3 center | 4 right-handle | 5 right
  * row 1    left 跨两行；center/right 在上方
  * row 2    bottom 从 column 3 跨到 column 5
  */
 
-/* ===== 1. 根 Grid 与尺寸变量 ===== */
+/* ===== 1. 根容器与统一几何变量 ===== */
 .lfaa-workbench {
-  --lfaa-left-size: 300px;
-  --lfaa-right-size: 400px;
-  --lfaa-left-column: 300px;
-  --lfaa-right-column: 400px;
-  --lfaa-bottom-size: 280px;
+  --lfaa-left-size: 15rem;
+  --lfaa-right-size: 18rem;
+  --lfaa-left-column: var(--lfaa-left-size);
+  --lfaa-right-column: var(--lfaa-right-size);
+  --lfaa-bottom-size: 15rem;
   --lfaa-bottom-row: 0px;
-  --lfaa-handle-width: 7px;
+  --lfaa-handle-width: .375rem;
+  --lfaa-shell-header-h: var(--agent-shell-header-h, 3rem);
+  --lfaa-overlay-left-width: clamp(13.5rem, 30%, 17.5rem);
+  --lfaa-overlay-right-width: clamp(15rem, 34%, 20rem);
+  --lfaa-mobile-pane-width: clamp(15rem, 84%, 20rem);
+
+  container-type: inline-size;
   display: grid;
-  grid-template-columns: var(--lfaa-left-column) var(--lfaa-handle-width) minmax(0, 1fr) var(--lfaa-handle-width) var(--lfaa-right-column);
+  grid-template-columns:
+    var(--lfaa-left-column)
+    var(--lfaa-handle-width)
+    minmax(0, 1fr)
+    var(--lfaa-handle-width)
+    var(--lfaa-right-column);
   grid-template-rows: minmax(0, 1fr) var(--lfaa-bottom-row);
   width: 100%;
   height: 100%;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   background: var(--agent-bg, #fff);
   color: var(--agent-text, #171717);
   transition:
-    grid-template-columns 280ms cubic-bezier(.22, 1, .36, 1),
-    grid-template-rows 280ms cubic-bezier(.22, 1, .36, 1);
+    grid-template-columns 240ms cubic-bezier(.22, 1, .36, 1),
+    grid-template-rows 240ms cubic-bezier(.22, 1, .36, 1);
 }
 
-
-/* ===== 2. 拖拽中的全局鼠标状态 ===== */
+/* ===== 2. 拖拽阶段：Pointer 必须直接跟手 ===== */
 body.lfaa-is-resizing { cursor: col-resize !important; user-select: none !important; }
 body.lfaa-is-resizing * { cursor: col-resize !important; }
 body.lfaa-is-resizing-vertical { cursor: row-resize !important; user-select: none !important; }
 body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
+
 .lfaa-is-resizing .lfaa-workbench,
-.lfaa-is-resizing-vertical .lfaa-workbench { transition: none; }
-/* 正常 Pointer Move 完全跟手；只有真正进入 snap preview 的那一刻，
- * 才允许一个很短的磁吸过渡，把 min 吸到 0。这样不会出现 min 以下的破碎布局，
- * 同时也比硬切 0 更接近“吸附收起”的手感。
- */
+.lfaa-is-resizing-vertical .lfaa-workbench,
+.lfaa-is-resizing .lfaa-workbench__pane,
+.lfaa-is-resizing-vertical .lfaa-workbench__bottom {
+  transition: none;
+}
+
+/* 到 min 以后才开启很短的“磁吸收起”动画；普通 resize 不追逐 Pointer。 */
 .lfaa-is-resizing .lfaa-workbench[data-snap-preview="left"],
 .lfaa-is-resizing .lfaa-workbench[data-snap-preview="right"] {
-  transition: grid-template-columns 150ms cubic-bezier(.2,.8,.2,1);
+  transition: grid-template-columns 180ms cubic-bezier(.18, .9, .2, 1);
 }
 .lfaa-is-resizing-vertical .lfaa-workbench[data-snap-preview="bottom"] {
-  transition: grid-template-rows 150ms cubic-bezier(.2,.8,.2,1);
+  transition: grid-template-rows 180ms cubic-bezier(.18, .9, .2, 1);
+}
+.lfaa-is-resizing .lfaa-workbench[data-snap-preview="left"] .lfaa-workbench__pane--left,
+.lfaa-is-resizing .lfaa-workbench[data-snap-preview="right"] .lfaa-workbench__pane--right {
+  transition: opacity 160ms ease-out, transform 180ms cubic-bezier(.18, .9, .2, 1);
 }
 
-
-/* ===== 3. Grid 区域定位 ===== */
+/* ===== 3. 通用区域定位 ===== */
 .lfaa-workbench__pane,
 .lfaa-workbench__center,
-.lfaa-workbench__bottom { min-width: 0; min-height: 0; overflow: hidden; }
+.lfaa-workbench__bottom {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
 
 .lfaa-workbench__pane--left { grid-column: 1; grid-row: 1 / 3; }
 .lfaa-workbench__handle--left { grid-column: 2; grid-row: 1 / 3; }
@@ -74,25 +98,62 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   position: relative;
   opacity: 1;
   transform: translateX(0);
-  transition: opacity 220ms ease, transform 280ms cubic-bezier(.22, 1, .36, 1), visibility 280ms step-end;
+  visibility: visible;
+  transition:
+    opacity 180ms ease-out,
+    transform 240ms cubic-bezier(.22, 1, .36, 1),
+    visibility 240ms step-end;
 }
 
-/* ===== 4. 左右栏 collapsed / snap 视觉 ===== */
-.lfaa-workbench[data-left-collapsed="true"] .lfaa-workbench__pane--left { opacity: 0; transform: translateX(-18px); pointer-events: none; }
-.lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__pane--right { opacity: 0; transform: translateX(18px); pointer-events: none; }
+/* ===== 4. collapsed / snap preview ===== */
+.lfaa-workbench[data-left-collapsed="true"] .lfaa-workbench__pane--left {
+  opacity: 0;
+  transform: translateX(-.75rem);
+  visibility: hidden;
+  pointer-events: none;
+}
+.lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__pane--right {
+  opacity: 0;
+  transform: translateX(.75rem);
+  visibility: hidden;
+  pointer-events: none;
+}
 .lfaa-workbench[data-dragging="left"] .lfaa-workbench__pane--left,
-.lfaa-workbench[data-dragging="right"] .lfaa-workbench__pane--right { opacity: 1; transform: translateX(0); pointer-events: auto; }
-/* snap capture 期间 pane 仍由 Grid 裁切；展开态永远不进入 min 以下的超窄布局。
- * 到 min 后直接切换为“收起吸附预览”，反向拖过迟滞区后再恢复到 min。
- */
+.lfaa-workbench[data-dragging="right"] .lfaa-workbench__pane--right {
+  visibility: visible;
+  pointer-events: auto;
+}
+.lfaa-workbench[data-snap-preview="left"] .lfaa-workbench__pane--left {
+  opacity: .28;
+  transform: translateX(-.5rem);
+}
+.lfaa-workbench[data-snap-preview="right"] .lfaa-workbench__pane--right {
+  opacity: .28;
+  transform: translateX(.5rem);
+}
 
-
-/* ===== 5. 左右 separator =====
- * 只负责 Resize；collapsed 后禁用点击/拖拽反向展开。
- */
-.lfaa-workbench__handle { position: relative; z-index: 20; cursor: col-resize; touch-action: none; outline: none; background: transparent; }
-.lfaa-workbench__handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; transform: translateX(-50%); background: var(--agent-border, #e5e5e5); opacity: .9; transition: background 140ms ease, width 140ms ease, opacity 140ms ease; }
-.lfaa-workbench__handle::after { content: ""; position: absolute; inset: 0 -5px; }
+/* ===== 5. Resize separator ===== */
+.lfaa-workbench__handle {
+  position: relative;
+  z-index: 20;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+  background: transparent;
+}
+.lfaa-workbench__handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--agent-border, #e5e5e5);
+  opacity: .82;
+  transition: background 120ms ease, width 120ms ease, opacity 120ms ease;
+}
+.lfaa-workbench__handle::after { content: ""; position: absolute; inset: 0 -.35rem; }
 .lfaa-workbench__handle:hover::before,
 .lfaa-workbench__handle:focus-visible::before { width: 2px; opacity: 1; background: var(--agent-strong-border, #cfcfcf); }
 .lfaa-workbench[data-left-collapsed="true"] .lfaa-workbench__handle--left,
@@ -100,63 +161,123 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-workbench[data-left-collapsed="true"] .lfaa-workbench__handle--left::after,
 .lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__handle--right::after { display: none; }
 .lfaa-workbench[data-snap-preview="left"] .lfaa-workbench__handle--left::before,
-.lfaa-workbench[data-snap-preview="right"] .lfaa-workbench__handle--right::before { width: 2px; opacity: 1; background: var(--agent-text, #171717); }
+.lfaa-workbench[data-snap-preview="right"] .lfaa-workbench__handle--right::before {
+  width: 2px;
+  opacity: 1;
+  background: var(--agent-text, #171717);
+}
 
-
-/* ===== 6. 底部 Terminal Dock ===== */
-.lfaa-workbench__bottom { position: relative; opacity: 1; transform: translateY(0); border-top: 1px solid var(--agent-border, #e5e5e5); background: var(--agent-bg, #fff); transition: opacity 220ms ease, transform 280ms cubic-bezier(.22, 1, .36, 1); }
-.lfaa-workbench[data-bottom-open="false"] .lfaa-workbench__bottom { opacity: 0; transform: translateY(16px); pointer-events: none; border-color: transparent; }
-.lfaa-workbench__bottom-handle { position: absolute; z-index: 30; top: -4px; left: 0; right: 0; height: 8px; cursor: row-resize; touch-action: none; }
-.lfaa-workbench__bottom-handle::before { content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 1px; background: transparent; transition: background 140ms ease, height 140ms ease; }
+/* ===== 6. Bottom Terminal Dock ===== */
+.lfaa-workbench__bottom {
+  position: relative;
+  opacity: 1;
+  transform: translateY(0);
+  border-top: 1px solid var(--agent-border, #e5e5e5);
+  background: var(--agent-bg, #fff);
+  transition: opacity 180ms ease-out, transform 240ms cubic-bezier(.22, 1, .36, 1);
+}
+.lfaa-workbench[data-bottom-open="false"] .lfaa-workbench__bottom {
+  opacity: 0;
+  transform: translateY(.75rem);
+  pointer-events: none;
+  border-color: transparent;
+}
+.lfaa-workbench[data-snap-preview="bottom"] .lfaa-workbench__bottom {
+  opacity: .24;
+  transform: translateY(.5rem);
+}
+.lfaa-workbench__bottom-handle {
+  position: absolute;
+  z-index: 30;
+  top: -.25rem;
+  left: 0;
+  right: 0;
+  height: .5rem;
+  cursor: row-resize;
+  touch-action: none;
+}
+.lfaa-workbench__bottom-handle::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: .25rem;
+  height: 1px;
+  background: transparent;
+  transition: background 120ms ease, height 120ms ease;
+}
 .lfaa-workbench__bottom-handle:hover::before { height: 2px; background: var(--agent-strong-border, #cfcfcf); }
 .lfaa-workbench[data-snap-preview="bottom"] .lfaa-workbench__bottom-handle::before { height: 2px; background: var(--agent-text, #171717); }
 .lfaa-workbench__bottom-content { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
 
-
-/* ===== 7. Compact：760~1239px，右栏变覆盖式抽屉 =====
- * 左栏仍可 Dock；右栏不再挤压中间主区，也不会再用接近整屏的超宽比例盖住主区。
- * 右栏抽屉从 48px Header 下方开始，顶部控制按钮留在中间 Header。
+/* ===== 7. Compact：左 Dock + 右 Overlay =====
+ * Mode 由容器计算器决定，不依赖 viewport 固定断点。
+ * 右 Overlay 不参与 Grid 宽度，所以不会再把 Center 挤成一条窄缝。
  */
-@media (max-width: 1239px) and (min-width: 760px) {
-  .lfaa-workbench { position: relative; grid-template-columns: var(--lfaa-left-column) var(--lfaa-handle-width) minmax(0, 1fr); }
-  .lfaa-workbench__center { grid-column: 3; }
-  .lfaa-workbench__bottom { grid-column: 3; }
-  .lfaa-workbench__handle--right { display:none; }
-  .lfaa-workbench__pane--right {
-    position:absolute;
-    z-index:50;
-    top:48px;
-    right:0;
-    bottom:var(--lfaa-bottom-row);
-    width:min(var(--lfaa-right-size), min(420px, 56vw));
-    box-shadow:-16px 10px 36px rgba(0,0,0,.14);
-    transition:opacity 220ms ease, transform 280ms cubic-bezier(.22,1,.36,1), visibility 280ms step-end;
-  }
-  .lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__pane--right { transform:translateX(102%); }
+.lfaa-workbench[data-layout-mode="compact"] {
+  position: relative;
+  grid-template-columns: var(--lfaa-left-column) var(--lfaa-handle-width) minmax(0, 1fr);
+}
+.lfaa-workbench[data-layout-mode="compact"] .lfaa-workbench__center { grid-column: 3; }
+.lfaa-workbench[data-layout-mode="compact"] .lfaa-workbench__bottom { grid-column: 3; }
+.lfaa-workbench[data-layout-mode="compact"] .lfaa-workbench__handle--right { display: none; }
+.lfaa-workbench[data-layout-mode="compact"] .lfaa-workbench__pane--right {
+  position: absolute;
+  z-index: 70;
+  top: var(--lfaa-shell-header-h);
+  right: 0;
+  bottom: var(--lfaa-bottom-row);
+  width: var(--lfaa-overlay-right-width);
+  max-width: calc(100% - 1rem);
+  box-shadow: -1rem .625rem 2.25rem rgba(0, 0, 0, .12);
+  border-left: 1px solid var(--agent-border, #e5e5e5);
+}
+.lfaa-workbench[data-layout-mode="compact"][data-right-collapsed="true"] .lfaa-workbench__pane--right {
+  transform: translateX(calc(100% + 1rem));
 }
 
-/* ===== 8. Mobile：<760px，左右栏都变覆盖式抽屉 =====
- * 主区永远占满可用宽度；左右栏从 Header 下方滑出。
- * 侧栏 resize separator 隐藏，移动端通过显式按钮开合，避免窄屏误拖。
- */
-@media (max-width: 759px) {
-  .lfaa-workbench { display:block; position:relative; }
-  .lfaa-workbench__center { width:100%; height:100%; padding-bottom:var(--lfaa-bottom-row); }
-  .lfaa-workbench__bottom { position:absolute; z-index:45; left:0; right:0; bottom:0; height:var(--lfaa-bottom-row); }
-  .lfaa-workbench__pane--left,
-  .lfaa-workbench__pane--right {
-    position:absolute;
-    z-index:60;
-    top:48px;
-    bottom:var(--lfaa-bottom-row);
-    width:min(86vw, 340px);
-    transition:opacity 220ms ease, transform 280ms cubic-bezier(.22,1,.36,1), visibility 280ms step-end;
-  }
-  .lfaa-workbench__pane--left { left:0; box-shadow:16px 10px 36px rgba(0,0,0,.14); }
-  .lfaa-workbench__pane--right { right:0; box-shadow:-16px 10px 36px rgba(0,0,0,.14); }
-  .lfaa-workbench[data-left-collapsed="true"] .lfaa-workbench__pane--left { transform:translateX(-102%); }
-  .lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__pane--right { transform:translateX(102%); }
-  .lfaa-workbench__handle--left,
-  .lfaa-workbench__handle--right { display:none; }
-  .lfaa-workbench__bottom { max-height:calc(100% - 48px); }
+/* ===== 8. Mobile：主区全宽 + 左右 Overlay ===== */
+.lfaa-workbench[data-layout-mode="mobile"] {
+  display: block;
+  position: relative;
 }
+.lfaa-workbench[data-layout-mode="mobile"] .lfaa-workbench__center {
+  width: 100%;
+  height: 100%;
+  padding-bottom: var(--lfaa-bottom-row);
+}
+.lfaa-workbench[data-layout-mode="mobile"] .lfaa-workbench__bottom {
+  position: absolute;
+  z-index: 65;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--lfaa-bottom-row);
+  max-height: calc(100% - var(--lfaa-shell-header-h));
+}
+.lfaa-workbench[data-layout-mode="mobile"] .lfaa-workbench__pane--left,
+.lfaa-workbench[data-layout-mode="mobile"] .lfaa-workbench__pane--right {
+  position: absolute;
+  z-index: 80;
+  top: var(--lfaa-shell-header-h);
+  bottom: var(--lfaa-bottom-row);
+  width: var(--lfaa-mobile-pane-width);
+  max-width: calc(100% - .75rem);
+  box-shadow: 0 .75rem 2.25rem rgba(0, 0, 0, .14);
+}
+.lfaa-workbench[data-layout-mode="mobile"] .lfaa-workbench__pane--left {
+  left: 0;
+  box-shadow: 1rem .625rem 2.25rem rgba(0, 0, 0, .14);
+}
+.lfaa-workbench[data-layout-mode="mobile"] .lfaa-workbench__pane--right {
+  right: 0;
+  box-shadow: -1rem .625rem 2.25rem rgba(0, 0, 0, .14);
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-left-collapsed="true"] .lfaa-workbench__pane--left {
+  transform: translateX(calc(-100% - 1rem));
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-right-collapsed="true"] .lfaa-workbench__pane--right {
+  transform: translateX(calc(100% + 1rem));
+}
+.lfaa-workbench[data-layout-mode="mobile"] .lfaa-workbench__handle--left,
+.lfaa-workbench[data-layout-mode="mobile"] .lfaa-workbench__handle--right { display: none; }

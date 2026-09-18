@@ -1,247 +1,335 @@
 /**
  * 文件：agent-workbench.css
  * 作用：AgentWorkbench 共享工作台壳的视觉样式。
- * 负责：主题变量、左右栏内容、中间/右侧 Header、Shell 按钮 Tooltip、Hover 左栏预览、输入框、底部终端壳和响应式视觉。
+ * 负责：主题变量、左右栏内容、中间/右侧 Header、Shell Tooltip、Hover 左栏预览、正文、Composer、终端壳与响应式视觉。
  * 不负责：三栏 Grid 几何、separator 拖拽/吸附算法、xterm 内部样式。
- * 状态归属：无状态；通过 AgentWorkbench 输出的 class / data-theme 反映 React 状态。
- * 对外接口：agent-* CSS class。
+ * 状态归属：无状态；读取 AgentWorkbench 输出的 data-theme / data-layout-mode。
+ * 对外接口：agent-* CSS class、--agent-* 设计变量。
  * 关联文件：AgentWorkbench.tsx、packages/ui/src/workbench/workbench.css、apps/web/src/local-terminal.css。
- * 修改注意事项：先看下方“盒子结构”；不要在这里改变 ResizableWorkbench 的 Grid 列/行规则。
+ * 修改注意事项：
+ * - 几何尺寸优先通过 CSS 变量 / clamp() / calc() 表达，不要把同一尺寸散落成多处 px；
+ * - Desktop / Compact / Mobile 由容器计算器决定，CSS 只读取 data-layout-mode；
+ * - Grid 列/行由 ResizableWorkbench 管，本文件只负责内容层和视觉层。
  *
- * 盒子结构：
- * 当前版本：v0.0.46
+ * 盒子结构：v0.0.47
  * .agent-theme
  * └─ .agent-workbench-stage
- *    ├─ .agent-left-hover-preview           左栏收起后的临时浮层
- *    └─ .lfaa-workbench                     由 @lfaa/ui 管理几何
- *       ├─ .agent-side--left                左侧内容
- *       ├─ .agent-center                    中间主区
- *       │  ├─ .agent-center-header          顶部连续工具栏：左栏按钮 / 标题 / 更多 / 分享
- *       │  ├─ .agent-conversation           对话滚动区
- *       │  └─ .agent-composer-wrap          底部输入框
- *       ├─ .agent-side--right               右侧工具/资源
- *       │  ├─ .agent-right-shell-header     右栏展开时的终端 / 右栏控制
- *       │  └─ .agent-right-body             工具与资源正文
- *       └─ .agent-terminal-shell            底部终端壳
- *
- * 顶部联动：
- * - Desktop：右栏展开时，终端/右栏按钮位于 .agent-right-shell-header。
- * - Compact/Mobile：右栏变覆盖式抽屉，按钮继续留在 .agent-center-header__right，避免关闭入口被抽屉遮掉。
- * - Shell 按钮永远属于 Header，不再使用 absolute 漂浮在正文上。
- * - 三档响应式：Desktop >=1240、Compact 760~1239、Mobile <760。
+ *    ├─ .agent-left-hover-preview
+ *    └─ .lfaa-workbench
+ *       ├─ .agent-side--left
+ *       ├─ .agent-center
+ *       │  ├─ .agent-center-header
+ *       │  ├─ .agent-conversation
+ *       │  └─ .agent-composer-wrap
+ *       ├─ .agent-side--right
+ *       │  ├─ .agent-right-shell-header     Desktop 才渲染
+ *       │  └─ .agent-right-body
+ *       └─ .agent-terminal-shell
  */
 
-/* ===== 1. 全局基础与浅/深主题变量 ===== */
-:root { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; font-synthesis: none; text-rendering: optimizeLegibility; }
+/* ===== 1. 全局基础与设计变量 ===== */
+:root {
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; width: 100%; height: 100%; overflow: hidden; }
 button, input, textarea { font: inherit; }
 button { color: inherit; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
 
-.agent-theme { position: relative; width: 100%; height: 100dvh; overflow:hidden; --agent-bg:#fff; --agent-sidebar:#f7f7f8; --agent-elevated:#fff; --agent-bubble:#f4f4f4; --agent-hover:#ededee; --agent-active:#e7e7e8; --agent-text:#171717; --agent-muted:#737373; --agent-subtle:#a3a3a3; --agent-border:#e5e5e5; --agent-strong-border:#d4d4d4; --agent-shadow:0 8px 28px rgba(0,0,0,.08); --agent-status-ok:#2f8f58; --agent-status-warn:#b7862f; --agent-status-off:#999; color:var(--agent-text); background:var(--agent-bg); color-scheme:light; }
-.agent-theme[data-theme="dark"] { --agent-bg:#1f1f1f; --agent-sidebar:#171717; --agent-elevated:#1f1f1f; --agent-bubble:#2f2f2f; --agent-hover:#2d2d2d; --agent-active:#343434; --agent-text:#f5f5f5; --agent-muted:#a3a3a3; --agent-subtle:#737373; --agent-border:#343434; --agent-strong-border:#454545; --agent-shadow:0 10px 32px rgba(0,0,0,.28); --agent-status-ok:#67b88a; --agent-status-warn:#d2aa5b; --agent-status-off:#777; color-scheme:dark; }
+.agent-theme {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
 
+  /* 主题颜色 */
+  --agent-bg: #fff;
+  --agent-sidebar: #f7f7f8;
+  --agent-elevated: #fff;
+  --agent-bubble: #f4f4f4;
+  --agent-hover: #ededee;
+  --agent-active: #e7e7e8;
+  --agent-text: #171717;
+  --agent-muted: #737373;
+  --agent-subtle: #a3a3a3;
+  --agent-border: #e5e5e5;
+  --agent-strong-border: #d4d4d4;
+  --agent-shadow: 0 .5rem 1.75rem rgba(0, 0, 0, .08);
+  --agent-status-ok: #2f8f58;
+  --agent-status-warn: #b7862f;
+  --agent-status-off: #999;
 
-/* ===== 2. 左右侧栏共同盒子 =====
- * .agent-side 是内容层，不决定栏宽；栏宽由 ResizableWorkbench 的 Grid 控制。
- */
-.agent-side { position:relative; height:100%; min-width:0; display:flex; flex-direction:column; background:var(--agent-sidebar); color:var(--agent-text); }
-.agent-side--left { padding:12px 10px 10px; border-right:1px solid var(--agent-border); }
-.agent-side--right { padding:0; border-left:1px solid var(--agent-border); display:grid; grid-template-rows:48px minmax(0,1fr); }
-.agent-brand-row,.agent-brand,.agent-brand-actions,.agent-right-header,.agent-right-header-actions,.agent-tool-list button,.agent-composer-actions,.agent-terminal-shell__header,.agent-terminal-shell__tab,.agent-center-header,.agent-center-header__left,.agent-center-header__right,.agent-center-header__title,.agent-right-shell-header,.agent-shell-actions { display:flex; align-items:center; }
+  /* 布局 Token：同一尺寸只有一个来源。 */
+  --agent-shell-header-h: 3rem;
+  --agent-control-size: 2rem;
+  --agent-small-control-size: 1.875rem;
+  --agent-page-gutter: clamp(.875rem, 2vw, 1.5rem);
+  --agent-content-max: 48rem;
+  --agent-composer-max: 48rem;
+  --agent-left-preview-width: clamp(13.5rem, 20vw, 17.5rem);
+  --agent-radius-md: .625rem;
+  --agent-radius-lg: 1.125rem;
 
-/* ===== 3. 左栏：品牌、导航、项目、最近任务、底部账号 ===== */
-.agent-brand-row { justify-content:space-between; gap:8px; padding:2px 2px 12px; }
-.agent-brand { display:inline-flex; gap:8px; align-items:center; height:34px; padding:0 11px; border:0; border-radius:9px; background:transparent; cursor:pointer; }
-.agent-brand:hover { background:var(--agent-hover); }
-.agent-brand strong { font-size:13px; font-weight:600; }
-.agent-brand__mark { width:20px; height:20px; display:grid; place-items:center; border-radius:6px; background:var(--agent-text); color:var(--agent-bg); font-size:11px; font-weight:700; }
-.agent-brand-actions { gap:4px; }
-.agent-icon-button { width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:8px; background:transparent; color:var(--agent-muted); cursor:pointer; transition:background 140ms ease,color 140ms ease; }
-.agent-icon-button:hover,.agent-icon-button:focus-visible { background:var(--agent-hover); color:var(--agent-text); outline:none; }
-.agent-new-task { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; margin-bottom:10px; padding:9px 10px; border:0; border-radius:9px; background:transparent; color:var(--agent-text); text-align:left; cursor:pointer; }
-.agent-new-task:hover { background:var(--agent-hover); }
-.agent-new-task span { color:var(--agent-subtle); font-size:10px; }
-.agent-nav { display:grid; gap:2px; padding:4px 0 12px; border-bottom:1px solid var(--agent-border); }
-.agent-nav button,.agent-projects button,.agent-history button { border:0; background:transparent; color:var(--agent-muted); cursor:pointer; }
-.agent-nav button { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; text-align:left; }
-.agent-nav button:hover,.agent-nav button.is-active { background:var(--agent-hover); color:var(--agent-text); }
-.agent-nav button.is-active { font-weight:550; }
-.agent-section-title { display:flex; align-items:center; justify-content:space-between; padding:16px 9px 5px; color:var(--agent-subtle); font-size:11px; }
-.agent-section-title button { width:24px; height:24px; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; color:inherit; cursor:pointer; }
-.agent-section-title button:hover { background:var(--agent-hover); color:var(--agent-text); }
-.agent-section-title--recent { padding-top:17px; }
-.agent-projects,.agent-history { display:grid; gap:2px; min-height:0; }
-.agent-projects button { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; text-align:left; }
-.agent-history { overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--agent-strong-border) transparent; }
-.agent-history button { padding:8px 10px; border-radius:8px; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.agent-projects button:hover,.agent-history button:hover,.agent-history button.is-current { background:var(--agent-hover); color:var(--agent-text); }
-.agent-history button.is-current { font-weight:520; }
-.agent-profile { margin-top:auto; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:5px; padding:8px 2px 0; border-top:1px solid var(--agent-border); }
-.agent-profile-main { min-width:0; display:grid; grid-template-columns:30px minmax(0,1fr); align-items:center; gap:9px; border:0; background:transparent; border-radius:9px; padding:5px; text-align:left; cursor:pointer; }
-.agent-profile-main:hover { background:var(--agent-hover); }
-.agent-avatar { width:30px; height:30px; display:grid; place-items:center; border-radius:50%; background:var(--agent-active); font-size:11px; font-weight:650; }
-.agent-profile-main>span:last-child { min-width:0; display:grid; gap:1px; }
-.agent-profile strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:600; }
-.agent-profile small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--agent-muted); font-size:10px; }
+  color: var(--agent-text);
+  background: var(--agent-bg);
+  color-scheme: light;
+}
 
+.agent-theme[data-theme="dark"] {
+  --agent-bg: #1f1f1f;
+  --agent-sidebar: #171717;
+  --agent-elevated: #1f1f1f;
+  --agent-bubble: #2f2f2f;
+  --agent-hover: #2d2d2d;
+  --agent-active: #343434;
+  --agent-text: #f5f5f5;
+  --agent-muted: #a3a3a3;
+  --agent-subtle: #737373;
+  --agent-border: #343434;
+  --agent-strong-border: #454545;
+  --agent-shadow: 0 .625rem 2rem rgba(0, 0, 0, .28);
+  --agent-status-ok: #67b88a;
+  --agent-status-warn: #d2aa5b;
+  --agent-status-off: #777;
+  color-scheme: dark;
+}
 
-/* ===== 4. 工作区舞台与左栏 Hover 预览浮层 =====
- * stage 现在占满整个页面；不再额外占一条全宽 Web Header 行。
- * preview 只在左栏 collapsed 时挂载，且层级低于中间 Header，保证左栏按钮仍可点击。
- */
-.agent-workbench-stage { position:relative; width:100%; height:100%; min-width:0; min-height:0; overflow:hidden; }
-.agent-left-hover-preview { position:absolute; z-index:110; top:0; left:0; bottom:0; width:min(288px, calc(100vw - 140px)); opacity:0; transform:translateX(-18px); pointer-events:none; transition:opacity 180ms ease, transform 220ms cubic-bezier(.22,1,.36,1); }
-.agent-left-hover-preview.is-visible { opacity:1; transform:translateX(0); pointer-events:auto; }
-.agent-left-hover-preview .agent-side--left { box-shadow:var(--agent-shadow); }
+/* Compact / Mobile 只改 Token，不重新复制整套样式。 */
+.agent-theme[data-layout-mode="compact"] {
+  --agent-page-gutter: clamp(.75rem, 1.7vw, 1.125rem);
+  --agent-content-max: 45rem;
+  --agent-composer-max: 44rem;
+  --agent-left-preview-width: clamp(13rem, 27vw, 16.5rem);
+}
+.agent-theme[data-layout-mode="mobile"] {
+  --agent-shell-header-h: 2.875rem;
+  --agent-control-size: 1.875rem;
+  --agent-page-gutter: .625rem;
+  --agent-content-max: 100%;
+  --agent-composer-max: 100%;
+}
 
+/* ===== 2. 左右栏共同内容盒子 ===== */
+.agent-side {
+  position: relative;
+  height: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--agent-sidebar);
+  color: var(--agent-text);
+}
+.agent-side--left {
+  padding: .75rem .625rem .625rem;
+  border-right: 1px solid var(--agent-border);
+}
+.agent-side--right {
+  padding: 0;
+  border-left: 1px solid var(--agent-border);
+  display: grid;
+  grid-template-rows: var(--agent-shell-header-h) minmax(0, 1fr);
+}
+.agent-theme:not([data-layout-mode="desktop"]) .agent-side--right {
+  grid-template-rows: minmax(0, 1fr);
+}
 
-/* ===== 5. Header 通用控件 =====
- * Shell Header 按钮是框架级入口：左栏、终端、右栏。
- * Tooltip 使用独立 DOM；框架级按钮禁止再写 title，避免浏览器原生 Tooltip 重叠。
- * 左按钮向右展开提示、右按钮向左展开提示，防止在窄栏边缘被 overflow 裁切。
- */
-.agent-shell-actions { gap:5px; }
-.agent-shell-button { position:relative; width:32px; height:32px; flex:0 0 auto; display:grid; place-items:center; border:0; border-radius:8px; background:transparent; color:var(--agent-muted); cursor:pointer; transition:background 140ms ease,color 140ms ease; }
-.agent-shell-button:hover,.agent-shell-button:focus-visible { background:var(--agent-hover); color:var(--agent-text); outline:none; }
-.agent-shell-button.is-active { color:var(--agent-text); }
-.agent-shell-tooltip { position:absolute; z-index:220; top:calc(100% + 9px); display:flex; align-items:center; gap:9px; width:max-content; max-width:min(300px,calc(100vw - 24px)); padding:7px 10px; border-radius:9px; background:#202020; color:#fff; box-shadow:0 8px 24px rgba(0,0,0,.22); font-size:12px; line-height:1; opacity:0; pointer-events:none; visibility:hidden; transition:opacity 140ms ease, transform 160ms cubic-bezier(.22,1,.36,1), visibility 140ms linear; }
-.agent-shell-tooltip--center { left:50%; transform:translate(-50%,-4px); }
-.agent-shell-tooltip--start { left:0; transform:translate(0,-4px); }
-.agent-shell-tooltip--end { right:0; transform:translate(0,-4px); }
-.agent-shell-tooltip kbd { padding:2px 6px; border:0; border-radius:6px; background:#5a5a5a; color:#eaeaea; font:inherit; font-size:11px; white-space:nowrap; }
-.agent-shell-button:hover .agent-shell-tooltip,.agent-shell-button:focus-visible .agent-shell-tooltip { opacity:1; visibility:visible; }
-.agent-shell-button:hover .agent-shell-tooltip--center,.agent-shell-button:focus-visible .agent-shell-tooltip--center { transform:translate(-50%,0); }
+.agent-brand-row,
+.agent-brand,
+.agent-brand-actions,
+.agent-right-header,
+.agent-right-header-actions,
+.agent-tool-list button,
+.agent-composer-actions,
+.agent-terminal-shell__header,
+.agent-terminal-shell__tab,
+.agent-center-header,
+.agent-center-header__left,
+.agent-center-header__right,
+.agent-center-header__title,
+.agent-right-shell-header,
+.agent-shell-actions {
+  display: flex;
+  align-items: center;
+}
+
+/* ===== 3. 左栏 ===== */
+.agent-brand-row { justify-content: space-between; gap: .5rem; padding: .125rem .125rem .75rem; }
+.agent-brand {
+  min-width: 0;
+  display: inline-flex;
+  gap: .5rem;
+  align-items: center;
+  height: 2.125rem;
+  padding: 0 .625rem;
+  border: 0;
+  border-radius: .5625rem;
+  background: transparent;
+  cursor: pointer;
+}
+.agent-brand:hover { background: var(--agent-hover); }
+.agent-brand strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8125rem; font-weight: 600; }
+.agent-brand__mark { width: 1.25rem; height: 1.25rem; flex: 0 0 auto; display: grid; place-items: center; border-radius: .375rem; background: var(--agent-text); color: var(--agent-bg); font-size: .6875rem; font-weight: 700; }
+.agent-brand-actions { gap: .125rem; flex: 0 0 auto; }
+.agent-icon-button { width: var(--agent-small-control-size); height: var(--agent-small-control-size); display: grid; place-items: center; border: 0; border-radius: .5rem; background: transparent; color: var(--agent-muted); cursor: pointer; transition: background 120ms ease, color 120ms ease; }
+.agent-icon-button:hover,.agent-icon-button:focus-visible { background: var(--agent-hover); color: var(--agent-text); outline: none; }
+.agent-new-task { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; margin-bottom: .625rem; padding: .5625rem .625rem; border: 0; border-radius: .5625rem; background: transparent; color: var(--agent-text); text-align: left; cursor: pointer; }
+.agent-new-task:hover { background: var(--agent-hover); }
+.agent-new-task span { flex: 0 0 auto; color: var(--agent-subtle); font-size: .625rem; }
+.agent-nav { display: grid; gap: .125rem; padding: .25rem 0 .75rem; border-bottom: 1px solid var(--agent-border); }
+.agent-nav button,.agent-projects button,.agent-history button { min-width: 0; border: 0; background: transparent; color: var(--agent-muted); cursor: pointer; }
+.agent-nav button { display: flex; align-items: center; gap: .5625rem; padding: .5rem .625rem; border-radius: .5rem; text-align: left; }
+.agent-nav button:hover,.agent-nav button.is-active { background: var(--agent-hover); color: var(--agent-text); }
+.agent-nav button.is-active { font-weight: 550; }
+.agent-section-title { display: flex; align-items: center; justify-content: space-between; padding: 1rem .5625rem .3125rem; color: var(--agent-subtle); font-size: .6875rem; }
+.agent-section-title button { width: 1.5rem; height: 1.5rem; display: grid; place-items: center; border: 0; border-radius: .375rem; background: transparent; color: inherit; cursor: pointer; }
+.agent-section-title button:hover { background: var(--agent-hover); color: var(--agent-text); }
+.agent-section-title--recent { padding-top: 1.0625rem; }
+.agent-projects,.agent-history { display: grid; gap: .125rem; min-height: 0; }
+.agent-projects button { display: flex; align-items: center; gap: .5rem; padding: .5rem .625rem; border-radius: .5rem; text-align: left; }
+.agent-history { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--agent-strong-border) transparent; }
+.agent-history button { padding: .5rem .625rem; border-radius: .5rem; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-projects button:hover,.agent-history button:hover,.agent-history button.is-current { background: var(--agent-hover); color: var(--agent-text); }
+.agent-history button.is-current { font-weight: 520; }
+.agent-profile { margin-top: auto; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: .3125rem; padding: .5rem .125rem 0; border-top: 1px solid var(--agent-border); }
+.agent-profile-main { min-width: 0; display: grid; grid-template-columns: 1.875rem minmax(0,1fr); align-items: center; gap: .5625rem; border: 0; background: transparent; border-radius: .5625rem; padding: .3125rem; text-align: left; cursor: pointer; }
+.agent-profile-main:hover { background: var(--agent-hover); }
+.agent-avatar { width: 1.875rem; height: 1.875rem; display: grid; place-items: center; border-radius: 50%; background: var(--agent-active); font-size: .6875rem; font-weight: 650; }
+.agent-profile-main>span:last-child { min-width: 0; display: grid; gap: .0625rem; }
+.agent-profile strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; font-weight: 600; }
+.agent-profile small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--agent-muted); font-size: .625rem; }
+
+/* ===== 4. 工作区舞台与左栏 Hover Preview ===== */
+.agent-workbench-stage { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; }
+.agent-left-hover-preview {
+  position: absolute;
+  z-index: 110;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(var(--agent-left-preview-width), calc(100% - 4rem));
+  opacity: 0;
+  transform: translateX(-.875rem);
+  pointer-events: none;
+  transition: opacity 160ms ease-out, transform 220ms cubic-bezier(.22,1,.36,1);
+}
+.agent-left-hover-preview.is-visible { opacity: 1; transform: translateX(0); pointer-events: auto; }
+.agent-left-hover-preview .agent-side--left { box-shadow: var(--agent-shadow); }
+.agent-theme[data-layout-mode="mobile"] .agent-left-hover-preview { display: none; }
+
+/* ===== 5. Header 控件 / Tooltip ===== */
+.agent-shell-actions { gap: .3125rem; }
+.agent-shell-button { position: relative; width: var(--agent-control-size); height: var(--agent-control-size); flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: .5rem; background: transparent; color: var(--agent-muted); cursor: pointer; transition: background 120ms ease, color 120ms ease; }
+.agent-shell-button:hover,.agent-shell-button:focus-visible { background: var(--agent-hover); color: var(--agent-text); outline: none; }
+.agent-shell-button.is-active { color: var(--agent-text); }
+.agent-shell-tooltip { position: absolute; z-index: 220; top: calc(100% + .5625rem); display: flex; align-items: center; gap: .5625rem; width: max-content; max-width: min(18.75rem, calc(100vw - 1.5rem)); padding: .4375rem .625rem; border-radius: .5625rem; background: #202020; color: #fff; box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.22); font-size: .75rem; line-height: 1; opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 120ms ease, transform 150ms cubic-bezier(.22,1,.36,1), visibility 120ms linear; }
+.agent-shell-tooltip--center { left: 50%; transform: translate(-50%,-.25rem); }
+.agent-shell-tooltip--start { left: 0; transform: translate(0,-.25rem); }
+.agent-shell-tooltip--end { right: 0; transform: translate(0,-.25rem); }
+.agent-shell-tooltip kbd { padding: .125rem .375rem; border: 0; border-radius: .375rem; background: #5a5a5a; color: #eaeaea; font: inherit; font-size: .6875rem; white-space: nowrap; }
+.agent-shell-button:hover .agent-shell-tooltip,.agent-shell-button:focus-visible .agent-shell-tooltip { opacity: 1; visibility: visible; }
+.agent-shell-button:hover .agent-shell-tooltip--center,.agent-shell-button:focus-visible .agent-shell-tooltip--center { transform: translate(-50%,0); }
 .agent-shell-button:hover .agent-shell-tooltip--start,.agent-shell-button:focus-visible .agent-shell-tooltip--start,
-.agent-shell-button:hover .agent-shell-tooltip--end,.agent-shell-button:focus-visible .agent-shell-tooltip--end { transform:translate(0,0); }
-.agent-ghost-button { height:32px; padding:0 10px; border:0; border-radius:8px; background:transparent; color:var(--agent-muted); cursor:pointer; }
-.agent-ghost-button:hover,.agent-ghost-button:focus-visible { background:var(--agent-hover); color:var(--agent-text); outline:none; }
-.agent-header-divider { width:1px; height:20px; flex:0 0 auto; margin:0 4px; background:var(--agent-border); }
+.agent-shell-button:hover .agent-shell-tooltip--end,.agent-shell-button:focus-visible .agent-shell-tooltip--end { transform: translate(0,0); }
+.agent-ghost-button { height: var(--agent-control-size); padding: 0 .625rem; border: 0; border-radius: .5rem; background: transparent; color: var(--agent-muted); cursor: pointer; }
+.agent-ghost-button:hover,.agent-ghost-button:focus-visible { background: var(--agent-hover); color: var(--agent-text); outline: none; }
+.agent-header-divider { width: 1px; height: 1.25rem; flex: 0 0 auto; margin: 0 .25rem; background: var(--agent-border); }
 
+/* ===== 6. 中间区 / Header ===== */
+.agent-center { position: relative; height: 100%; min-width: 0; display: grid; grid-template-rows: var(--agent-shell-header-h) minmax(0,1fr) auto; background: var(--agent-bg); color: var(--agent-text); overflow: hidden; }
+.agent-center-header { position: relative; z-index: 140; min-width: 0; justify-content: space-between; gap: .75rem; height: var(--agent-shell-header-h); padding: 0 .625rem 0 .5625rem; border-bottom: 1px solid var(--agent-border); background: var(--agent-bg); }
+.agent-center-header__left,.agent-center-header__right { min-width: 0; gap: .375rem; }
+.agent-center-header__title { min-width: 0; gap: .5rem; padding: 0 .25rem; }
+.agent-center-header__title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8125rem; font-weight: 600; }
+.agent-center-header__right { justify-content: flex-end; margin-left: auto; }
 
-/* ===== 6. 中间主工作区与中间 Header =====
- * Header 是正常文档流中的第一行，不覆盖对话正文。
- * 右栏收起时，中间 Header 右侧额外接管终端/右栏按钮。
- */
-.agent-center { position:relative; height:100%; min-width:0; display:grid; grid-template-rows:48px minmax(0,1fr) auto; background:var(--agent-bg); color:var(--agent-text); overflow:hidden; }
-.agent-center-header { position:relative; z-index:140; min-width:0; justify-content:space-between; gap:12px; height:48px; padding:0 10px 0 9px; border-bottom:1px solid var(--agent-border); background:var(--agent-bg); }
-.agent-center-header__left,.agent-center-header__right { min-width:0; gap:6px; }
-.agent-center-header__title { min-width:0; gap:8px; padding:0 4px; }
-.agent-center-header__title strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; font-weight:600; }
-.agent-center-header__right { justify-content:flex-end; margin-left:auto; }
+.agent-theme[data-layout-mode="compact"] .agent-center-header__right .agent-ghost-button { display: none; }
+.agent-theme[data-layout-mode="compact"] .agent-header-divider { display: none; }
+.agent-theme[data-layout-mode="mobile"] .agent-center-header { gap: .375rem; padding-left: .375rem; padding-right: .375rem; }
+.agent-theme[data-layout-mode="mobile"] .agent-center-header__left,
+.agent-theme[data-layout-mode="mobile"] .agent-center-header__right { gap: .125rem; }
+.agent-theme[data-layout-mode="mobile"] .agent-center-header__title { padding-inline: .125rem; }
+.agent-theme[data-layout-mode="mobile"] .agent-center-header__title strong { max-width: min(32vw, 7rem); }
+.agent-theme[data-layout-mode="mobile"] .agent-center-header__right > .agent-icon-button,
+.agent-theme[data-layout-mode="mobile"] .agent-center-header__right > .agent-ghost-button,
+.agent-theme[data-layout-mode="mobile"] .agent-header-divider { display: none; }
+.agent-theme[data-layout-mode="mobile"] .agent-shell-actions { gap: .0625rem; }
+.agent-theme[data-layout-mode="mobile"] .agent-shell-tooltip { display: none; }
 
-
-/* ===== 7. 中间区：对话内容 ===== */
-.agent-conversation { min-height:0; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--agent-strong-border) transparent; }
-.agent-conversation-inner { width:min(760px,calc(100% - 36px)); margin:0 auto; padding:38px 0 28px; }
-.agent-user-message { width:fit-content; max-width:min(76%,620px); margin-left:auto; padding:11px 15px; border-radius:18px; background:var(--agent-bubble); border:1px solid color-mix(in srgb,var(--agent-border) 72%,transparent); font-size:13px; line-height:1.55; }
-.agent-answer { margin-top:28px; font-size:14px; line-height:1.75; }
-.agent-answer p { margin:0 0 18px; }
-.agent-answer h2 { margin:24px 0 10px; font-size:15px; font-weight:650; }
-.agent-answer ul { margin:0; padding-left:22px; }
-.agent-answer li { margin:7px 0; }
-.agent-answer code { padding:1px 4px; border-radius:5px; background:var(--agent-hover); font-size:.92em; }
-
-/* ===== 8. 中间区：底部输入框 Composer ===== */
-.agent-composer-wrap { padding:0 18px 14px; background:var(--agent-bg); }
-.agent-composer { width:min(760px,100%); margin:0 auto; padding:11px 12px 9px; border:1px solid var(--agent-strong-border); border-radius:18px; background:var(--agent-elevated); box-shadow:0 8px 30px rgba(0,0,0,.08); }
-.agent-composer textarea { display:block; width:100%; min-height:34px; resize:none; border:0; outline:0; background:transparent; color:var(--agent-text); font-size:14px; }
-.agent-composer textarea::placeholder { color:var(--agent-subtle); }
-.agent-composer-actions { gap:8px; margin-top:7px; }
-.agent-composer-icon,.agent-send { width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:50%; cursor:pointer; }
-.agent-composer-icon { background:transparent; color:var(--agent-muted); }
-.agent-composer-icon:hover { background:var(--agent-hover); color:var(--agent-text); }
-.agent-permission { color:var(--agent-muted); font-size:11px; }
-.agent-model { margin-left:auto; color:var(--agent-muted); font-size:11px; }
-.agent-send { background:var(--agent-text); color:var(--agent-bg); font-weight:700; }
-
-
-/* ===== 9. 右栏：顶部 Shell Header + 工具与资源正文 =====
- * .agent-right-shell-header 与中间 .agent-center-header 同高，同属顶部工具栏层。
- * .agent-right-body 才负责工具、资源列表和只读桥接说明。
- */
-.agent-right-shell-header { justify-content:flex-end; height:48px; padding:0 9px; border-bottom:1px solid var(--agent-border); background:var(--agent-bg); }
-.agent-right-body { min-height:0; display:flex; flex-direction:column; padding:12px 12px 10px; overflow:hidden; }
-.agent-right-header { justify-content:space-between; gap:8px; padding:4px 4px 14px; border-bottom:1px solid var(--agent-border); }
-.agent-right-header>div:first-child { min-width:0; display:grid; gap:2px; }
-.agent-right-header strong { font-size:13px; font-weight:650; }
-.agent-right-header span { color:var(--agent-muted); font-size:10px; }
-.agent-right-header-actions { gap:4px; }
-.agent-bridge { display:flex; align-items:center; gap:6px; color:var(--agent-muted); font-size:10px; }
-.agent-bridge i { width:7px; height:7px; border-radius:50%; background:var(--agent-status-off); }
-.agent-bridge--connected i { background:var(--agent-status-ok); }
-.agent-bridge--refreshing i { background:var(--agent-status-warn); }
-.agent-tool-list { display:grid; gap:4px; padding:14px 0; border-bottom:1px solid var(--agent-border); }
-.agent-tool-list button { min-width:0; display:grid; grid-template-columns:22px minmax(0,1fr) auto; align-items:center; gap:8px; width:100%; padding:9px 10px; border:0; border-radius:9px; background:transparent; color:var(--agent-text); cursor:pointer; text-align:left; }
-.agent-tool-list button:hover,.agent-tool-list button.is-active { background:var(--agent-hover); }
-.agent-tool-list span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
-.agent-tool-list kbd { padding:2px 6px; border:0; border-radius:6px; background:var(--agent-hover); color:var(--agent-muted); font:inherit; font-size:9px; white-space:nowrap; }
-.agent-resource-head { display:flex; align-items:center; justify-content:space-between; padding:15px 4px 6px; color:var(--agent-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
-.agent-resource-head b,.agent-resource-groups header b { min-width:22px; text-align:center; padding:2px 6px; border-radius:999px; background:var(--agent-hover); color:var(--agent-muted); font-size:9px; font-weight:600; }
-.agent-resource-groups { min-height:0; overflow-y:auto; display:grid; align-content:start; gap:13px; padding:4px 0 12px; scrollbar-width:thin; scrollbar-color:var(--agent-strong-border) transparent; }
-.agent-resource-groups section>header { display:flex; align-items:center; justify-content:space-between; padding:0 4px 5px; color:var(--agent-muted); font-size:10px; }
-.agent-empty { margin:0; padding:8px 9px; border-radius:8px; color:var(--agent-subtle); font-size:10px; }
-.agent-resource { display:grid; grid-template-columns:20px minmax(0,1fr); align-items:center; gap:7px; padding:8px 9px; border-radius:8px; color:var(--agent-muted); }
-.agent-resource:hover { background:var(--agent-hover); color:var(--agent-text); }
-.agent-resource>div { min-width:0; display:grid; gap:2px; }
-.agent-resource strong,.agent-resource small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.agent-resource strong { color:var(--agent-text); font-size:11px; font-weight:550; }
-.agent-resource small { color:var(--agent-subtle); font-size:9px; }
-.agent-dev-note { margin-top:auto; padding:11px; border-top:1px solid var(--agent-border); color:var(--agent-muted); }
-.agent-dev-note strong { color:var(--agent-text); font-size:10px; }
-.agent-dev-note p { margin:4px 0 0; font-size:9px; line-height:1.5; }
-
-
-/* ===== 10. 底部终端外壳 =====
- * 这里只画终端 Tab 与容器；真实 xterm 由 apps/web/src/local-terminal.css 管。
- */
-.agent-terminal-shell { width:100%; height:100%; display:grid; grid-template-rows:38px minmax(0,1fr); background:var(--agent-bg); }
-.agent-terminal-shell__header { justify-content:space-between; padding:0 8px 0 13px; border-bottom:1px solid var(--agent-border); background:var(--agent-sidebar); }
-.agent-terminal-shell__tab { gap:8px; height:100%; }
-.agent-terminal-shell__tab strong { font-size:11px; font-weight:600; }
-.agent-terminal-shell__content { min-width:0; min-height:0; overflow:hidden; background:var(--agent-bg); }
-.agent-terminal-unavailable { padding:16px; color:var(--agent-muted); font-size:12px; }
-
-
-/* ===== 11. 响应式：Desktop / Compact / Mobile =====
- * 不能只做“缩小宽度”；每档都要重新决定：侧栏是 Dock 还是 Overlay、按钮归属、Composer 宽度。
- * JS useLayoutMode 与这里使用同一组断点：1240 / 760。
- */
-
-/* Compact：保留左侧 Dock；右侧改为覆盖式抽屉。
- * 右栏 Shell Header 在 React 中不渲染，所以右栏只剩正文一行。
- */
-@media (max-width: 1239px) and (min-width: 760px) {
-  .agent-theme[data-layout-mode="compact"] .agent-side--right { grid-template-rows:minmax(0,1fr); }
-  .agent-center-header { padding-left:8px; padding-right:8px; }
-  .agent-center-header__right .agent-ghost-button { display:none; }
-  .agent-header-divider { display:none; }
-  .agent-conversation-inner { width:min(720px,calc(100% - 32px)); padding-top:30px; }
-  .agent-composer-wrap { padding-left:14px; padding-right:14px; }
-  .agent-left-hover-preview { width:min(288px,calc(100vw - 96px)); }
+/* ===== 7. 对话正文 ===== */
+.agent-conversation { min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--agent-strong-border) transparent; }
+.agent-conversation-inner {
+  width: min(var(--agent-content-max), calc(100% - var(--agent-page-gutter) * 2));
+  margin: 0 auto;
+  padding: clamp(1.375rem, 4vh, 2.375rem) 0 1.75rem;
 }
+.agent-user-message { width: fit-content; max-width: min(76%, 38.75rem); margin-left: auto; padding: .6875rem .9375rem; border-radius: 1.125rem; background: var(--agent-bubble); border: 1px solid color-mix(in srgb,var(--agent-border) 72%,transparent); font-size: .8125rem; line-height: 1.55; }
+.agent-answer { margin-top: 1.75rem; font-size: .875rem; line-height: 1.75; }
+.agent-answer p { margin: 0 0 1.125rem; }
+.agent-answer h2 { margin: 1.5rem 0 .625rem; font-size: .9375rem; font-weight: 650; }
+.agent-answer ul { margin: 0; padding-left: 1.375rem; }
+.agent-answer li { margin: .4375rem 0; }
+.agent-answer code { padding: .0625rem .25rem; border-radius: .3125rem; background: var(--agent-hover); font-size: .92em; }
+.agent-theme[data-layout-mode="mobile"] .agent-user-message { max-width: 90%; }
+.agent-theme[data-layout-mode="mobile"] .agent-answer { font-size: .8125rem; line-height: 1.65; }
 
-/* Mobile：主区占满；左右栏都成为抽屉，顶栏始终留在主区顶端。
- * 触摸设备没有可靠 hover，因此 Tooltip 和左栏 Hover Preview 都不作为必要入口。
- */
-@media (max-width: 759px) {
-  .agent-theme[data-layout-mode="mobile"] .agent-side--right { grid-template-rows:minmax(0,1fr); }
-  .agent-center-header { padding-left:6px; padding-right:6px; gap:6px; }
-  .agent-center-header__left,.agent-center-header__right { gap:2px; }
-  .agent-center-header__title { padding-left:2px; padding-right:2px; }
-  .agent-center-header__title strong { max-width:112px; }
-  .agent-center-header__right > .agent-icon-button,
-  .agent-center-header__right > .agent-ghost-button,
-  .agent-header-divider { display:none; }
-  .agent-shell-actions { gap:1px; }
-  .agent-shell-button { width:30px; height:30px; }
-  .agent-shell-tooltip { display:none; }
-  .agent-left-hover-preview { display:none; }
-  .agent-conversation-inner { width:min(100% - 20px,680px); padding:22px 0 20px; }
-  .agent-user-message { max-width:90%; }
-  .agent-answer { font-size:13px; line-height:1.65; }
-  .agent-composer-wrap { padding:0 8px 8px; }
-  .agent-composer { border-radius:16px; padding:9px 10px 8px; }
-  .agent-model { max-width:96px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-}
+/* ===== 8. Composer ===== */
+.agent-composer-wrap { padding: 0 var(--agent-page-gutter) max(.5rem, env(safe-area-inset-bottom)); background: var(--agent-bg); }
+.agent-composer { width: min(var(--agent-composer-max), 100%); margin: 0 auto; padding: .6875rem .75rem .5625rem; border: 1px solid var(--agent-strong-border); border-radius: var(--agent-radius-lg); background: var(--agent-elevated); box-shadow: 0 .5rem 1.875rem rgba(0,0,0,.08); }
+.agent-composer textarea { display: block; width: 100%; min-height: 2.125rem; resize: none; border: 0; outline: 0; background: transparent; color: var(--agent-text); font-size: .875rem; }
+.agent-composer textarea::placeholder { color: var(--agent-subtle); }
+.agent-composer-actions { gap: .5rem; margin-top: .4375rem; }
+.agent-composer-icon,.agent-send { width: 1.875rem; height: 1.875rem; display: grid; place-items: center; border: 0; border-radius: 50%; cursor: pointer; }
+.agent-composer-icon { background: transparent; color: var(--agent-muted); }
+.agent-composer-icon:hover { background: var(--agent-hover); color: var(--agent-text); }
+.agent-permission { color: var(--agent-muted); font-size: .6875rem; }
+.agent-model { margin-left: auto; color: var(--agent-muted); font-size: .6875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-send { flex: 0 0 auto; background: var(--agent-text); color: var(--agent-bg); font-weight: 700; }
+.agent-theme[data-layout-mode="mobile"] .agent-composer { border-radius: 1rem; padding: .5625rem .625rem .5rem; }
+.agent-theme[data-layout-mode="mobile"] .agent-model { max-width: 6rem; }
+
+/* ===== 9. 右栏 ===== */
+.agent-right-shell-header { justify-content: flex-end; height: var(--agent-shell-header-h); padding: 0 .5625rem; border-bottom: 1px solid var(--agent-border); background: var(--agent-bg); }
+.agent-right-body { min-height: 0; display: flex; flex-direction: column; padding: .75rem .75rem .625rem; overflow: hidden; }
+.agent-right-header { justify-content: space-between; gap: .5rem; padding: .25rem .25rem .875rem; border-bottom: 1px solid var(--agent-border); }
+.agent-right-header>div:first-child { min-width: 0; display: grid; gap: .125rem; }
+.agent-right-header strong { font-size: .8125rem; font-weight: 650; }
+.agent-right-header span { color: var(--agent-muted); font-size: .625rem; }
+.agent-right-header-actions { gap: .25rem; flex: 0 0 auto; }
+.agent-bridge { display: flex; align-items: center; gap: .375rem; color: var(--agent-muted); font-size: .625rem; white-space: nowrap; }
+.agent-bridge i { width: .4375rem; height: .4375rem; border-radius: 50%; background: var(--agent-status-off); }
+.agent-bridge--connected i { background: var(--agent-status-ok); }
+.agent-bridge--refreshing i { background: var(--agent-status-warn); }
+.agent-tool-list { display: grid; gap: .25rem; padding: .875rem 0; border-bottom: 1px solid var(--agent-border); }
+.agent-tool-list button { min-width: 0; display: grid; grid-template-columns: 1.375rem minmax(0,1fr) max-content; align-items: center; gap: .5rem; width: 100%; padding: .5625rem .625rem; border: 0; border-radius: .5625rem; background: transparent; color: var(--agent-text); cursor: pointer; text-align: left; }
+.agent-tool-list button:hover,.agent-tool-list button.is-active { background: var(--agent-hover); }
+.agent-tool-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; }
+.agent-tool-list kbd { padding: .125rem .375rem; border: 0; border-radius: .375rem; background: var(--agent-hover); color: var(--agent-muted); font: inherit; font-size: .5625rem; white-space: nowrap; }
+.agent-resource-head { display: flex; align-items: center; justify-content: space-between; padding: .9375rem .25rem .375rem; color: var(--agent-muted); font-size: .625rem; text-transform: uppercase; letter-spacing: .08em; }
+.agent-resource-head b,.agent-resource-groups header b { min-width: 1.375rem; text-align: center; padding: .125rem .375rem; border-radius: 999px; background: var(--agent-hover); color: var(--agent-muted); font-size: .5625rem; font-weight: 600; }
+.agent-resource-groups { min-height: 0; overflow-y: auto; display: grid; align-content: start; gap: .8125rem; padding: .25rem 0 .75rem; scrollbar-width: thin; scrollbar-color: var(--agent-strong-border) transparent; }
+.agent-resource-groups section>header { display: flex; align-items: center; justify-content: space-between; padding: 0 .25rem .3125rem; color: var(--agent-muted); font-size: .625rem; }
+.agent-empty { margin: 0; padding: .5rem .5625rem; border-radius: .5rem; color: var(--agent-subtle); font-size: .625rem; }
+.agent-resource { display: grid; grid-template-columns: 1.25rem minmax(0,1fr); align-items: center; gap: .4375rem; padding: .5rem .5625rem; border-radius: .5rem; color: var(--agent-muted); }
+.agent-resource:hover { background: var(--agent-hover); color: var(--agent-text); }
+.agent-resource>div { min-width: 0; display: grid; gap: .125rem; }
+.agent-resource strong,.agent-resource small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-resource strong { color: var(--agent-text); font-size: .6875rem; font-weight: 550; }
+.agent-resource small { color: var(--agent-subtle); font-size: .5625rem; }
+.agent-dev-note { margin-top: auto; padding: .6875rem; border-top: 1px solid var(--agent-border); color: var(--agent-muted); }
+.agent-dev-note strong { color: var(--agent-text); font-size: .625rem; }
+.agent-dev-note p { margin: .25rem 0 0; font-size: .5625rem; line-height: 1.5; }
+
+/* 在最窄的“仍允许 Dock”宽度下，右栏内容优先保证图标/文字/快捷键三列都可读。 */
+.agent-theme[data-layout-mode="desktop"] .agent-side--right,
+.agent-theme[data-layout-mode="compact"] .agent-side--right { font-size: clamp(.75rem, .85vw, .875rem); }
+
+/* ===== 10. 底部终端外壳 ===== */
+.agent-terminal-shell { width: 100%; height: 100%; display: grid; grid-template-rows: 2.375rem minmax(0,1fr); background: var(--agent-bg); }
+.agent-terminal-shell__header { justify-content: space-between; padding: 0 .5rem 0 .8125rem; border-bottom: 1px solid var(--agent-border); background: var(--agent-sidebar); }
+.agent-terminal-shell__tab { gap: .5rem; height: 100%; }
+.agent-terminal-shell__tab strong { font-size: .6875rem; font-weight: 600; }
+.agent-terminal-shell__content { min-width: 0; min-height: 0; overflow: hidden; background: var(--agent-bg); }
+.agent-terminal-unavailable { padding: 1rem; color: var(--agent-muted); font-size: .75rem; }

@@ -1,17 +1,19 @@
 # Web 工作台本地测试
 
-## v0.0.46 / #21.14 最小尺寸吸附收起重点
+## v0.0.47 / #21.15 容器响应式与布局变量化重点
 
-本版本必须优先验证：
+本版本优先验证：
 
-1. 窄窗口主区不再被右栏大面积覆盖；
-2. 右栏 Drawer 打开时关闭入口仍在 Header 可见；
-3. Tooltip 在左右边缘不被裁切；
-4. 左 / 右 / 底部展开态不得小于各自 min；
-5. 拖到 min 立即进入吸附收起预览；
-6. Pointer 不松手时可从吸附状态反向拖回并恢复到至少 min；
-7. 松手确认收起后 separator 不能重新拖出；
-8. 右栏在最小宽度下文字 / 快捷键仍应完整可读。
+1. 小窗口不再同时被固定 280 / 360 侧栏挤压；
+2. LayoutMode 根据 Workbench 容器实际可用宽度计算，而不是 window 固定断点；
+3. 1024 左右可在空间允许时保持合理双 Dock；
+4. 950 / 820 / 760 左右自动进入左 Dock + 右 Overlay；
+5. 更窄容器进入双 Overlay；
+6. 大屏保存的侧栏宽度切到小窗后自动重新 clamp；
+7. 左 / 右 / Bottom 到动态 min 后吸附收起；
+8. Pointer 不松手时仍能从 snap preview 反向拖回；
+9. CSS 变量 / clamp / calc 不产生横向溢出；
+10. Tooltip / Header / Composer 保持可用。
 
 ## 前置
 
@@ -33,128 +35,149 @@ LFAA-Setup.bat
 http://127.0.0.1:5173
 ```
 
-## 1. Desktop（>=1240 CSS px）
+## 1. 响应式矩阵
 
-1. 左 / 中 / 右三栏正常 Dock；
-2. 右栏展开：终端 / 右栏按钮位于 Right Header；
-3. 右栏收起：按钮回到 Center Header；
-4. Header 底边线连续；
-5. Composer 保持居中，不被侧栏压扁；
-6. 页面无横向滚动。
+依次把“浏览器内容区 / 工作台容器”调到接近：
 
-## 2. Compact（760~1239 CSS px）
+```text
+1600x900
+1280x800
+1100x800
+1024x768
+950x800
+820x900
+760x900
+680x800
+640x800
+390x844
+```
 
-建议测试：1024x768、820x900。
+不要只看浏览器外框像素；最终以页面内容区实际宽度为准。
 
-1. 进入该断点后右栏默认收起；
-2. 左栏继续作为 Dock；
-3. 点击右栏按钮，右栏从右侧以 Drawer 覆盖主内容；
-4. Drawer 宽度不能超过约 420px / 56vw 上限，不允许旧版 88vw；
-5. Drawer 从 48px Header 下方开始，不能盖住 Header；
-6. 终端 / 右栏按钮始终留在 Center Header；
-7. 点击右栏按钮可立即关闭 Drawer；
-8. 缩小 / 放大窗口过程中不出现主区突然消失。
+### 期望
 
-## 3. Mobile（<760 CSS px）
+- 1600 / 1280 / 1100 / 1024：通常能进入 Desktop 双 Dock；
+- 950 / 820 / 760 / 680：通常为 Compact（左 Dock + 右 Overlay）；
+- 640 / 390：Mobile（双 Overlay）；
+- 实际 Mode 由计算公式决定，边界附近允许因容器高度/宽度计算产生少量差异。
 
-建议测试：759x900、640x800、390x844。
+## 2. Desktop 双 Dock
 
-1. 中间主区占满宽度；
-2. 左右栏和终端进入该断点时默认收起；
-3. Header 必须保留左栏 / 终端 / 右栏三个核心入口；
-4. 更多 / 分享可以隐藏；
-5. 左栏点击后从 Header 下方以 Drawer 出现；
-6. 右栏点击后从 Header 下方以 Drawer 出现；
-7. 左右 Drawer 宽度 <= 86vw 且 <= 340px；
-8. Drawer 打开时仍能通过 Header 按钮关闭；
-9. Composer 宽度适配屏幕，不溢出；
-10. 不出现整页水平滚动。
+1. 左 / 中 / 右三栏均参与布局；
+2. 左 / 右默认宽度随容器变化，不是固定 300 / 400；
+3. 中央区不得被压成细条；
+4. Right Header 与 Center Header 底边连续；
+5. 收起右栏后 Shell Actions 回到 Center Header；
+6. 页面无水平滚动。
 
-## 4. Tooltip
+## 3. Compact：左 Dock + 右 Overlay
+
+1. 左栏参与布局；
+2. 右栏打开后覆盖在主区右侧，但不改变 Center 宽度；
+3. 右 Overlay 大约为容器 34%，并受 15rem~20rem clamp 约束；
+4. Overlay 从 Header 下方开始；
+5. 终端 / 右栏按钮始终在 Center Header；
+6. 关闭右 Overlay 后中央区几何不能跳动；
+7. 从 1280 缩到 900 时，历史左栏宽度不能原样过大保留。
+
+## 4. Mobile：双 Overlay
+
+1. Center 占满可用宽度；
+2. 左右栏默认收起；
+3. 点击左栏 / 右栏按钮分别出现 Overlay；
+4. Overlay 不参与 Center 几何；
+5. Header 核心三个控制入口保留；
+6. Tooltip 可隐藏；
+7. Composer 不超出页面；
+8. 不产生整页横向滚动。
+
+## 5. 动态侧栏最小宽度
+
+不要用“必须正好 280 / 360”验收。
+
+当前公式输出大致：
+
+```text
+左 min：196~232
+右 min：228~288
+Bottom min：136~176
+```
+
+验证：
+
+- 左栏在 min 时导航文字仍可读；
+- 右栏在 min 时“审查 / 终端 / 浏览器 / 文件 + 快捷键”仍可正常排布；
+- 如果容器不足以让右栏 Dock 后保持可用 Center，应切 Compact，而不是继续缩 Center。
+
+## 6. 左侧 Resize / Snap
 
 Desktop / Compact：
 
-- 左栏 Tooltip 向右展开，不能被左边界裁掉；
-- 终端 / 右栏 Tooltip 向左展开，不能被右边界裁掉；
+1. 向内拖左 separator；
+2. 到本次动态 min 后进入 snap preview，视觉吸到 0；
+3. 不松手，反向拖；
+4. 超过 `min + snapHysteresis` 后恢复到 min；
+5. 继续向外正常拉宽；
+6. 再拖到 min 并松手，正式 collapsed；
+7. collapsed 后 separator 不能拉开；
+8. 用按钮 / `Ctrl+B` 恢复。
+
+## 7. 右侧 Resize / Snap
+
+仅 Desktop Dock：
+
+步骤同左侧。Compact / Mobile 的右栏是 Overlay，不显示右 resize separator。
+
+正式收起后用按钮 / `Ctrl+Alt+B` 恢复。
+
+## 8. Bottom Resize / Snap
+
+1. 打开 Terminal Dock；
+2. 向下拖；
+3. 到动态 bottom min 后 snap preview 收到 0；
+4. 不松手向上反拖，超过 hysteresis 后恢复；
+5. 松手确认收起后底边不能直接拉出；
+6. 用 Header / `Ctrl+J` / 右栏“终端”入口恢复。
+
+## 9. Tooltip
+
+Desktop / Compact：
+
 - 只出现一层自定义 Tooltip；
-- 快捷键为 `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B`；
+- 左栏提示向右展开；
+- 终端 / 右栏提示向左展开；
+- `Ctrl+B / Ctrl+J / Ctrl+Alt+B` 正确；
 - 等待数秒不能再出现浏览器原生 `title`；
-- Tooltip 不应拦截 Click。
+- Tooltip 不拦截 Click。
 
-Mobile：Tooltip 可以隐藏，操作入口本身必须仍可理解和点击。
+## 10. 左栏 Hover Preview
 
-## 5. 左栏 Hover Preview
+Desktop / Compact：
 
-仅 Desktop / Compact 验证：
-
-1. 正式收起左栏；
+1. 正式 collapsed 左栏；
 2. Hover 左栏按钮；
 3. Preview 淡入但不改变 `leftCollapsed`；
 4. 鼠标移动到 Preview 不闪退；
-5. 离开后短延迟淡出；
+5. 离开后淡出；
 6. Click / `Ctrl+B` 才正式展开。
 
-## 6. 左侧拖拽 / min 吸附收起
+## 11. 动画手感
 
-Desktop / Compact：
+慢速拖拽确认：
 
-1. 从正常宽度向内拖；
-2. 到达 280px min 时立即进入 snap capture，不能继续出现 280px 以下的展开布局；
-3. snap preview 应表现为收起，而不是停在更窄宽度；
-4. **不要松手**，反向拖；
-5. 反向达到 min + hysteresis 后左栏恢复到至少 280px；
-6. 继续向外可正常拉伸；
-7. 再次拖到 min 并松手，左栏正式收起；
-8. 松手后 separator 不允许重新拉开；
-9. 通过按钮 / `Ctrl+B` 才能重新展开。
+- 普通 Resize 直接跟手；
+- 没到 min 前无 Grid transition 追鼠标；
+- 到 min 才有短磁吸收起；
+- 反向解锁不会卡住；
+- 正式开合使用 ease-out；
+- Drawer 打开 / 关闭不会推挤 Center。
 
-## 7. 右侧拖拽 / min 吸附收起
-
-只在 Desktop Dock 模式验证：
-
-步骤与左侧一致。右栏 min 为 360px；到 360px 即进入收起吸附预览，不允许以更小宽度继续展开。松手确认后只能通过按钮 / `Ctrl+Alt+B` 打开。
-
-Compact / Mobile 的右栏是 Drawer，不要求侧边 separator Resize。
-
-## 8. Bottom Terminal min 吸附收起
-
-1. 打开 Terminal Dock；
-2. 向下拖动高度；
-3. 到达 180px min 时立即进入 snap capture，不允许继续显示更矮的展开终端；
-4. **不要松手**，向上反向拖；
-5. 达到 min + hysteresis 后恢复到至少 180px，并可继续拉高；
-6. 再次拖到 min 并松手，终端正式关闭；
-7. 关闭后不能从底边拖出；
-8. 必须通过 Header / `Ctrl+J` / 右栏终端入口打开。
-
-## 9. 动画手感
-
-使用慢速拖拽验证：
-
-- Pointer 跟手，无明显“拖一下、面板过一会儿追上”的感觉；
-- 普通 Resize 跟手；到 min 后才触发短磁吸收起，不出现 min 以下的破碎布局；
-- 松手提交收起约 220~280ms ease-out；
-- 按钮重新展开约 220~280ms ease-out；
-- opacity / translate 与宽高变化同步。
-
-## 10. 快捷键
-
-非输入框聚焦时：
-
-```text
-Ctrl+B       左栏
-Ctrl+J       底部终端
-Ctrl+Alt+B   右栏
-```
-
-输入框 / textarea / contentEditable 聚焦时不得抢文本输入。
-
-## 11. 真实终端与资源桥
+## 12. 基础设施回归
 
 保持原有验收：
 
 - xterm + node-pty 可交互；
-- resize 后 FitAddon 正常；
-- Vite 退出后 PTY 回收；
-- `.lfaa` 资源变更自动刷新；
-- 资源接口不泄露 Secret / Token / 绝对路径。
+- Resize 后 FitAddon 正常；
+- `.lfaa` 资源热刷新；
+- Sync / GitHub / Setup / Update 行为不变化；
+- Windows PowerShell BOM 保留。

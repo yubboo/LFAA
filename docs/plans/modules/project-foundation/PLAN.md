@@ -40,6 +40,57 @@ deliverable
 - 性能、安全和质量门禁；
 - 路径无关的依赖安装与开发检查菜单。
 
+## #21.15 容器响应式与布局变量化
+
+### 任务原因
+
+v0.0.46 使用固定 `280 / 360` 最小宽度与固定 `1240 / 760` viewport 断点。Windows 实机缩小浏览器后，左右栏仍会占用过多横向空间，中央区被挤窄；同时 TS 与 CSS 分别维护尺寸，后续维护容易漂移。
+
+### 本次范围
+
+允许修改：
+
+- `packages/ui/src/workbench/workbench-layout.config.ts`（新增）；
+- `packages/ui/src/workbench/workbench-layout.types.ts`；
+- `packages/ui/src/workbench/ResizableWorkbench.tsx`；
+- `packages/ui/src/workbench/workbench.css`；
+- `packages/ui/src/index.ts`；
+- `packages/app-shell/src/AgentWorkbench.tsx`；
+- `packages/app-shell/src/agent-workbench.css`；
+- UI 静态契约门禁；
+- Prompt / Plan / Progress / Development Log / UI Standard / Test / Code Map / Changelog / Release。
+
+禁止修改：
+
+- Sync / GitHub / Setup / Update 业务逻辑；
+- PTY bridge 与 node-pty 协议；
+- Config / Agent Runtime / Permission / Rust Native 边界。
+
+### 实施顺序
+
+1. 保留 v0.0.46 为历史版本；
+2. 归档 #21.14 Active Log / Prompt；
+3. 新增单一布局变量与计算公式文件；
+4. 使用 ResizeObserver 观察 Workbench 容器，而不是 window 固定断点；
+5. 根据 left/right/center 实际需求自动选择 Desktop / Compact / Mobile；
+6. Compact 右栏保持 Overlay、Mobile 双侧栏 Overlay；
+7. 历史持久化 pane width 随当前容器重新 clamp；
+8. CSS 改用变量 / rem / clamp / calc，删除旧固定 Drawer 尺寸；
+9. 保持 min 吸附收起 + Pointer 不松手反向解锁语义；
+10. 更新静态 UI 契约与全部当前事实源；
+11. 执行治理、语法、版本、ZIP、PowerShell BOM 门禁。
+
+### 验收条件
+
+- App Shell 不存在固定 LEFT/RIGHT/BOTTOM_LIMITS；
+- 响应式由容器宽高计算；
+- 1024 左右宽度能保持可用中央区，不被 280/360 固定侧栏挤坏；
+- 760~950 左右进入左 Dock + 右 Overlay；
+- 更窄容器进入双 Overlay；
+- 侧栏 min 明显小于 v0.0.46，但内容仍可读；
+- 三向吸附不回退；
+- Windows 脚本与 PTY 业务逻辑不变。
+
 ## #21.14 最小尺寸吸附收起语义修正
 
 ### 任务原因

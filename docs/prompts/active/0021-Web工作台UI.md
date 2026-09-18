@@ -6,109 +6,125 @@
 
 ## 当前任务目标
 
-在 v0.0.45 的响应式基线上，修正三向吸附语义：**吸附目标是收起，不是把仍然展开的面板压到 min 以下。** 同时提高左栏、右栏、底部终端的可用最小尺寸，保证内容在展开状态下仍可阅读。
+以 v0.0.46 为历史基线，修正固定侧栏宽度与固定 viewport 断点导致的小窗口布局崩溃。布局必须更接近 ChatGPT / Codex 的“主区优先 + 侧栏按空间自动 Dock/Overlay”行为，并把几何配置集中为可维护变量和计算公式。
 
-## 当前交互事实
+## 当前实现要求
 
-### 1. 三档响应式
+### 1. 单一布局变量源
 
-```text
-Desktop >= 1240px
-→ 左 / 中 / 右 Dock 布局
-
-Compact 760 ~ 1239px
-→ 左栏 Dock
-→ 右栏 Drawer
-
-Mobile < 760px
-→ 中间主区全宽
-→ 左右栏 Drawer
-```
-
-### 2. 可用最小尺寸
+禁止在 `AgentWorkbench.tsx` 继续出现：
 
 ```text
-左栏：min 280 / initial 300 / max 640
-右栏：min 360 / initial 400 / max 760
-Bottom：min 180 / initial 280 / max 560
+LEFT_LIMITS
+RIGHT_LIMITS
+BOTTOM_LIMITS
 ```
 
-min 是“展开态还能正常排版”的硬下限，不能再拿 min 以下的宽度显示内容。
-
-### 3. 三向拖拽吸附
-
-左栏、右栏、底部终端统一：
+统一使用：
 
 ```text
-Pointer Down
-→ 正常跟手 Resize
-→ 到达 min
-→ 立即进入 snap capture / 收起预览
-→ 预览尺寸吸到 0
+packages/ui/src/workbench/workbench-layout.config.ts
 ```
 
-如果鼠标仍然按住：
+其中必须集中维护：
+
+- ratio；
+- floor；
+- ceiling；
+- center 保护；
+- separator；
+- snap hysteresis。
+
+### 2. 容器响应式
+
+不以 `window.innerWidth < 某固定值` 决定工作台模式。
+
+必须：
 
 ```text
-snap capture
-→ 反向拖动
-→ 达到 min + snapHysteresis
-→ 退出 snap capture
-→ 面板恢复到至少 min
-→ 可继续向外拉伸
+agent-workbench-stage
+→ ResizeObserver
+→ resolveWorkbenchLayoutMetrics(rect.width, rect.height)
+→ Desktop / Compact / Mobile
 ```
 
-只有：
+### 3. 当前几何目标
+
+当前动态安全范围：
 
 ```text
-Pointer Up 时仍处于 snapped
+左栏 min 约 196~232
+右栏 min 约 228~288
+Bottom min 约 136~176
 ```
 
-才真正提交 collapsed。
+实际值必须由容器计算，不能直接作为业务固定宽度使用。
 
-正式 collapsed 后 separator 不能重新拉开，只能通过：
+### 4. 模式语义
 
 ```text
-Ctrl+B       左栏
-Ctrl+J       Bottom Terminal
-Ctrl+Alt+B   右栏
+Desktop：容器真正放得下 left + center + right 才双 Dock
+Compact：左 Dock + 右 Overlay
+Mobile：左右 Overlay + 主区全宽
 ```
 
-或对应 Header 按钮恢复。
+右 Overlay 不能再把主区挤小；Overlay 宽度必须通过 CSS 变量 + `clamp()` / 百分比计算。
 
-### 4. 动画手感
+### 5. 三向吸附
 
-- 普通 pointermove 阶段不启用 Grid transition；
-- 到 min 触发 snap preview 时允许一个很短的磁吸收起过渡；
-- 不允许出现 min 以下的“半残废展开态”；
-- 正式开合继续使用平滑 ease-out。
+左 / 右 / Bottom 继续统一：
+
+```text
+正常 Resize
+→ 到动态 min
+→ snap preview 收到 0
+→ Pointer 仍按住可反向越过 hysteresis 恢复
+→ Pointer Up 仍 snapped 才正式 collapsed
+```
+
+正式 collapsed 后 separator 不能拖开，只能通过：
+
+```text
+Ctrl+B
+Ctrl+J
+Ctrl+Alt+B
+```
+
+或 Header 对应按钮恢复。
+
+### 6. 动画
+
+- 普通 resize：transition:none，跟手；
+- snap preview：短磁吸过渡；
+- 正式按钮开合：ease-out；
+- 不允许以 min 以下尺寸继续渲染残缺侧栏。
 
 ## 允许修改
 
-- `packages/app-shell/src/AgentWorkbench.tsx`
-- `packages/app-shell/src/agent-workbench.css`
-- `packages/ui/src/workbench/ResizableWorkbench.tsx`
-- `packages/ui/src/workbench/workbench.css`
-- `scripts/ui-contract-check.mjs`
-- UI / Testing / Development Log / Plan / Progress / Changelog / Release / Code Map
+- App Shell / UI Workbench 当前实现；
+- 布局 config / types / exports；
+- UI contract；
+- UI Standard / Test / Code Map / README；
+- Prompt / Plan / Progress / Development Log / Changelog / Release / Version。
 
 ## 禁止修改
 
-- GitHub / Sync / Setup / Update 业务逻辑
-- PTY 协议和 node-pty bridge
-- Agent Runtime / Tool Runtime / Permission Engine
-- Config Storage / Secret Store
+- Sync / GitHub / Setup / Update 业务逻辑；
+- PTY 协议 / node-pty bridge；
+- Agent Runtime / Permission / Config / Rust Native 边界。
 
 ## 验收条件
 
-- 左右栏展开时不允许小于 min；
-- 拖到 min 立即进入吸附收起预览；
-- Pointer 不松手可从已吸附状态反向拖回并恢复至少 min；
-- 松手后正式 collapsed，separator 不可展开；
-- 右栏最小宽度足以完整显示“审查 / 终端 / 浏览器 / 文件”及快捷键，不再出现截图中的文字截断；
-- Desktop / Compact 断点与新 min 相容；
-- Windows PowerShell 脚本不修改且 BOM 不回退；
-- Development Log / UI Layout / Test / Code Map / Changelog / Release 同步。
+- 950px 左右窗口不再同时被大左栏 + 大右栏挤压；
+- 1024px 左右在容器允许时可维持合理双 Dock；
+- 760~950px 右栏变 Overlay，中央主区不变窄；
+- <680px 左右栏都 Overlay；
+- 侧栏最小宽度明显小于 v0.0.46 的 280 / 360，但仍足够阅读；
+- 历史持久化宽度会随容器重新 clamp；
+- CSS 尺寸由变量 / rem / clamp / calc 维护；
+- 三向吸附行为不回退；
+- Windows 脚本与 PTY 不变；
+- 所有当前事实源同步更新。
 
 ## 当前状态
 

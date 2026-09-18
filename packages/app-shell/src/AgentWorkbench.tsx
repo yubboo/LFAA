@@ -8,7 +8,7 @@
  * 关联文件：agent-workbench.css、workbench.types.ts、@lfaa/ui/ResizableWorkbench、apps/web/src/App.tsx。
  * 修改注意事项：框架级开合状态只保留一个 Owner；布局拖拽交给 @lfaa/ui；Web 专有桥接不能写入共享 App Shell。
  *
- * 页面结构（v0.0.46）：
+ * 页面结构（v0.0.47）：
  * AgentWorkbench
  * └─ agent-workbench-stage                  整个可缩放工作区
  *    ├─ agent-left-hover-preview            左栏收起后的 Hover 临时预览层
@@ -29,55 +29,79 @@
  * - Shell 按钮属于“区域 Header”，不是正文上方的绝对定位悬浮物。
  * - Desktop：右栏展开时，终端/右栏按钮进入右栏 Header；右栏收起时，按钮回到中间 Header 右侧。
  * - Compact/Mobile：右栏变覆盖式抽屉，Shell 按钮始终留在中间 Header，保证小屏也能看见关闭入口。
- * - 响应式断点由 useLayoutMode 与 CSS 同步管理，不能只靠 overflow 把内容裁掉。
+ * - 响应式由 ResizeObserver + 统一布局计算器决定，不能用固定 viewport 断点硬挤三栏。
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ResizableWorkbench } from "@lfaa/ui";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  ResizableWorkbench,
+  resolveWorkbenchLayoutMetrics,
+  type WorkbenchLayoutMetrics,
+  type WorkbenchLayoutMode,
+} from "@lfaa/ui";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 import type { AgentWorkbenchProps, DevResourceItem, ResourceKind } from "./workbench.types";
 import "./agent-workbench.css";
 
-// ===== 1. Workbench 尺寸与持久化 Key =====
-// 尺寸值只描述 Shell 布局；真正的拖拽、吸附与动态 max 由 ResizableWorkbench 处理。
-const LEFT_LIMITS = { min: 280, max: 640, initial: 300 } as const;
-const RIGHT_LIMITS = { min: 360, max: 760, initial: 400 } as const;
-const BOTTOM_LIMITS = { min: 180, max: 560, initial: 280 } as const;
+// ===== 1. Workbench 响应式几何与持久化 Key =====
+// 几何尺寸不再在 App Shell 写死 280 / 360 之类固定值。
+// 所有比例、上下限和 Mode 计算集中在 @lfaa/ui/workbench-layout.config.ts。
 const THEME_KEY = "lfaa.workbench.theme.v1";
 const CHROME_KEY = "lfaa.workbench.chrome.v2";
 
 type ThemeMode = "light" | "dark";
-type LayoutMode = "desktop" | "compact" | "mobile";
+type LayoutMode = WorkbenchLayoutMode;
 interface ChromeState { leftCollapsed: boolean; rightCollapsed: boolean; terminalOpen: boolean; }
 const recentRuns = ["配置系统", "Web 工作台", "热插拔测试", "模型接入规划"];
 const resourceLabels: Record<ResourceKind, string> = { skills: "Skills", experts: "Experts", plugins: "Plugins", extensions: "Extensions", mcp: "MCP" };
 
-function getLayoutMode(): LayoutMode {
-  if (typeof window === "undefined") return "desktop";
-  if (window.innerWidth < 760) return "mobile";
-  if (window.innerWidth < 1240) return "compact";
-  return "desktop";
+function initialLayoutMetrics(): WorkbenchLayoutMetrics {
+  if (typeof window === "undefined") return resolveWorkbenchLayoutMetrics(1440, 900);
+  return resolveWorkbenchLayoutMetrics(window.innerWidth, window.innerHeight);
 }
 
-// 监听浏览器可视宽度，而不是只靠 CSS 隐藏内容。
-// 这样 Shell 状态可以在进入窄屏时主动降级，避免“两个侧栏同时展开把主区挤没”。
-function useLayoutMode(): LayoutMode {
-  const [mode, setMode] = useState<LayoutMode>(getLayoutMode);
+// 以“工作台容器”而不是整个 window 为响应式依据。
+// ResizeObserver 可以正确处理浏览器小窗、桌面宿主、未来嵌入式容器和 DevTools 占宽。
+function useWorkbenchLayoutMetrics(containerRef: RefObject<HTMLDivElement | null>): WorkbenchLayoutMetrics {
+  const [metrics, setMetrics] = useState<WorkbenchLayoutMetrics>(initialLayoutMetrics);
+
   useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+
     let frame: number | null = null;
     const update = () => {
       if (frame !== null) window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
         frame = null;
-        setMode(getLayoutMode());
+        const rect = element.getBoundingClientRect();
+        const next = resolveWorkbenchLayoutMetrics(rect.width, rect.height);
+        setMetrics((current) => {
+          const same = current.mode === next.mode
+            && current.containerWidth === next.containerWidth
+            && current.containerHeight === next.containerHeight
+            && current.left.min === next.left.min
+            && current.left.initial === next.left.initial
+            && current.right.min === next.right.min
+            && current.right.initial === next.right.initial
+            && current.bottom.min === next.bottom.min
+            && current.bottom.initial === next.bottom.initial
+            && current.minCenterWidth === next.minCenterWidth
+            && current.snapHysteresis === next.snapHysteresis;
+          return same ? current : next;
+        });
       });
     };
-    window.addEventListener("resize", update);
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
     return () => {
       if (frame !== null) window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", update);
+      observer.disconnect();
     };
-  }, []);
-  return mode;
+  }, [containerRef]);
+
+  return metrics;
 }
 
 // ===== 2. 本地初始状态 =====
@@ -89,18 +113,27 @@ function initialTheme(): ThemeMode {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-function initialChrome(): ChromeState {
-  if (typeof window === "undefined") return { leftCollapsed: false, rightCollapsed: false, terminalOpen: true };
+function initialChrome(mode: LayoutMode): ChromeState {
+  if (typeof window === "undefined") return mode === "mobile"
+    ? { leftCollapsed: true, rightCollapsed: true, terminalOpen: false }
+    : mode === "compact"
+      ? { leftCollapsed: false, rightCollapsed: true, terminalOpen: true }
+      : { leftCollapsed: false, rightCollapsed: false, terminalOpen: true };
   try {
     const raw = window.localStorage.getItem(CHROME_KEY);
     if (!raw) throw new Error("empty");
     const parsed = JSON.parse(raw) as Partial<ChromeState>;
-    return {
+    const restored = {
       leftCollapsed: Boolean(parsed.leftCollapsed),
       rightCollapsed: Boolean(parsed.rightCollapsed),
       terminalOpen: parsed.terminalOpen === undefined ? true : Boolean(parsed.terminalOpen),
     };
+    if (mode === "mobile") return { ...restored, leftCollapsed: true, rightCollapsed: true, terminalOpen: false };
+    if (mode === "compact") return { ...restored, rightCollapsed: true };
+    return restored;
   } catch {
+    if (mode === "mobile") return { leftCollapsed: true, rightCollapsed: true, terminalOpen: false };
+    if (mode === "compact") return { leftCollapsed: false, rightCollapsed: true, terminalOpen: true };
     return { leftCollapsed: false, rightCollapsed: false, terminalOpen: true };
   }
 }
@@ -391,12 +424,14 @@ function BottomTerminal({ terminal, onClose }: { terminal: AgentWorkbenchProps["
 
 // ===== 8. 工作台 Shell 状态与总装配 =====
 export function AgentWorkbench(props: AgentWorkbenchProps) {
-  const layoutMode = useLayoutMode();
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const layout = useWorkbenchLayoutMetrics(stageRef);
+  const layoutMode = layout.mode;
   const [theme, setTheme] = useState<ThemeMode>(initialTheme);
-  const [chrome, setChrome] = useState<ChromeState>(initialChrome);
+  const [chrome, setChrome] = useState<ChromeState>(() => initialChrome(layoutMode));
   const [leftPreviewOpen, setLeftPreviewOpen] = useState(false);
   const previewCloseTimerRef = useRef<number | null>(null);
-  const appliedLayoutModeRef = useRef<LayoutMode | null>(null);
+  const appliedLayoutModeRef = useRef<LayoutMode | null>(layoutMode);
 
   // Hover 预览使用短延迟关闭，让鼠标能从按钮移动到预览浮层而不闪退。
   const clearPreviewTimer = useCallback(() => {
@@ -424,8 +459,9 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     }, delay);
   }, [chrome.leftCollapsed, clearPreviewTimer]);
 
-  // 响应式状态降级只在“跨断点”时执行一次；用户在同一断点内仍可手动重新展开。
-  // compact：右栏默认收起并改为覆盖式抽屉；mobile：左右栏和终端都默认收起。
+  // 跨模式时只做一次“安全降级”：
+  // Desktop→Compact 关闭右 Dock，防止刚切 Overlay 就遮住内容；进入 Mobile 则关闭左右 Overlay 与终端。
+  // 同一模式内用户仍可以主动重新打开，不会被 resize 事件反复强制关闭。
   useEffect(() => {
     if (appliedLayoutModeRef.current === layoutMode) return;
     appliedLayoutModeRef.current = layoutMode;
@@ -489,7 +525,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
 
   return (
     <div className="agent-theme" data-theme={theme} data-layout-mode={layoutMode}>
-      <div className="agent-workbench-stage">
+      <div ref={stageRef} className="agent-workbench-stage">
         {/* 左栏收起后才挂载临时预览层；正常展开时由 ResizableWorkbench 渲染正式左栏。 */}
         {chrome.leftCollapsed ? (
           <div
@@ -528,11 +564,12 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
           )}
           bottom={<BottomTerminal terminal={props.terminal} onClose={() => setChrome((value) => ({ ...value, terminalOpen: false }))} />}
           bottomOpen={chrome.terminalOpen}
-          leftLimits={LEFT_LIMITS}
-          rightLimits={RIGHT_LIMITS}
-          bottomLimits={BOTTOM_LIMITS}
-          snapHysteresis={24}
-          minCenterWidth={520}
+          layoutMode={layoutMode}
+          leftLimits={layout.left}
+          rightLimits={layout.right}
+          bottomLimits={layout.bottom}
+          snapHysteresis={layout.snapHysteresis}
+          minCenterWidth={layout.minCenterWidth}
           leftCollapsed={chrome.leftCollapsed}
           rightCollapsed={chrome.rightCollapsed}
           onLeftCollapsedChange={(leftCollapsed) => {

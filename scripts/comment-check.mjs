@@ -28,6 +28,7 @@ const keyFiles = [
   "packages/app-shell/src/workbench.types.ts",
   "packages/app-shell/src/agent-workbench.css",
   "packages/ui/src/workbench/ResizableWorkbench.tsx",
+  "packages/ui/src/workbench/workbench-layout.config.ts",
   "packages/ui/src/workbench/workbench-layout.types.ts",
   "packages/ui/src/workbench/workbench.css",
   "apps/web/src/main.tsx",

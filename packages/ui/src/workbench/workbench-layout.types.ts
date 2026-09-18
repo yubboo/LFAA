@@ -10,6 +10,8 @@
  */
 import type { ReactNode } from "react";
 
+export type WorkbenchLayoutMode = "desktop" | "compact" | "mobile";
+
 export interface WorkbenchPaneLimits {
   min: number;
   max: number;
@@ -30,6 +32,8 @@ export interface ResizableWorkbenchProps {
   leftCollapsed?: boolean;
   rightCollapsed?: boolean;
   bottomOpen?: boolean;
+  /** 当前容器布局模式；决定左右栏使用 Dock 还是 Overlay。 */
+  layoutMode?: WorkbenchLayoutMode;
   onLeftCollapsedChange?: (collapsed: boolean) => void;
   onRightCollapsedChange?: (collapsed: boolean) => void;
   onBottomOpenChange?: (open: boolean) => void;
