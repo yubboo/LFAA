@@ -4,7 +4,7 @@
 # 不负责：首次 clone、版本包镜像同步、GitHub 提交发布。
 # 状态归属：Git 仓库当前分支和工作树是更新事实源。
 # 对外接口：由根目录 LFAA-Update.bat 调用。
-# 关联文件：LFAA-Update.bat、docs/logs/runtime/source-update/README.md。
+# 关联文件：LFAA-Update.bat、docs/RUNTIME.md。
 # 修改注意事项：不得假定盘符或固定绝对路径；必须保护用户本地改动并清楚报告冲突。
 
 $ErrorActionPreference = "Stop"

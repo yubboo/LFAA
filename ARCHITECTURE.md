@@ -1,7 +1,7 @@
 # LFAA 当前架构
 
 > 本文件只描述当前有效架构。
-> 历史架构统一进入 `docs/architecture/archive/`。
+> 本文件只描述当前有效架构；历史变化统一通过 `docs/DEVELOPMENT_LOG.md` 追溯。
 
 ## 当前架构版本
 
@@ -12,7 +12,7 @@ product: Little Fish AI Agent
 short-name: LFAA
 ```
 
-详细架构：`docs/architecture/active/architecture-v1.md`
+详细架构已合并在本文件下方。
 
 人类代码导航：`docs/项目结构与代码地图.md`
 
@@ -161,3 +161,108 @@ Secret 不进入 `.lfaa/`，只保存 `credential_ref`。
 根目录 `/skills`、`/plugins` 不再作为 LFAA 资源目录。
 
 Desktop / Runtime 后续通过 File Watcher 监听 `.lfaa` 资源子目录，采用“校验 → 新 Registry Generation → 原子发布”的热插拔模型。运行中的 Run 固定使用启动时的资源 generation，避免中途替换造成状态破坏。
+
+
+---
+
+## 架构详细说明（原 architecture-v1 合并）
+
+### LFAA Architecture v1
+
+- 状态：active
+- 生效：2026-09-17
+- 产品版本：v0.0.1
+
+#### 1. Control Plane / Execution Plane
+
+##### TypeScript Control Plane
+
+负责：Agent Loop、Context、Model Router、Tool Runtime、Skills、MCP、Plugins、DSH Compatibility、Subagents、Verifier、Event/Job、Project Resource Registry。
+
+##### Rust Execution Plane
+
+负责：FS Broker、Process Broker、PTY、Sandbox、Secret Store、Workspace Security、File Watcher。
+
+#### 2. Desktop / Web 复用
+
+```text
+React UI
+↓
+App Shell
+↓
+Agent Client
+├── Electron Transport
+└── HTTP/SSE/WS Transport
+```
+
+#### 3. 安全边界
+
+```text
+Untrusted:
+React / Model / Web / Docs / Skills / Experts / Plugins / Extensions / MCP
+↓ typed capability boundary
+Tool Runtime
+↓
+Policy
+↓
+Permission
+↓
+Rust Broker re-validation
+```
+
+`Full` 不改变硬拒绝、项目边界、Secret 隔离和 Broker 最终校验。
+
+#### 4. Durable Agent
+
+Event Store 是事实源。
+
+#### 5. 当前/历史架构隔离
+
+当前：`/ARCHITECTURE.md`  
+历史变化：`/docs/DEVELOPMENT_LOG.md`
+
+#### 6. Import Path Boundary
+
+```text
+同目录     → ./
+workspace  → @/
+跨 package → @lfaa/*
+```
+
+#### 7. Project Resource Boundary
+
+```text
+<project>/.lfaa/
+├── skills/
+├── experts/
+├── plugins/
+├── extensions/
+└── mcp/
+```
+
+项目资源默认不可信；Secret 明文禁止进入项目资源目录。
+
+#### 8. Remote / Web Boundary
+
+Remote 模式必须在 Agent Client 之前增加身份认证、逐资源授权、用户/项目隔离、请求限制和审计。
+
+#### 9. Identity / Attribution Boundary
+
+LFAA 自有公开组件使用 `lfaa-*` 或 `@lfaa/*`，作者署名为二鱼。第三方成果保留原作者、来源和许可证。
+
+
+#### 10. Hot-Pluggable Project Resources
+
+`.lfaa/` is the only project resource namespace.
+
+```text
+File Watcher
+→ debounce
+→ validate
+→ Resource Registry generation
+→ atomic publish
+```
+
+New runs use the latest generation. In-flight runs remain pinned to the generation they started with.
+
+Dot-prefixed directories do not change filesystem API semantics and therefore do not block Electron/Node/Rust hot-plug support.

@@ -5,7 +5,7 @@
  * 不负责：业务单元测试、TypeScript/Rust 编译、UI 视觉验证。
  * 状态归属：无运行时状态；直接读取当前工作树配置。
  * 对外接口：`node scripts/governance-check.mjs`。
- * 关联文件：DEVELOPMENT.md、docs/standards/QUALITY_GATES.md、package.json、scripts/comment-check.mjs、scripts/windows-script-encoding-check.mjs、scripts/release-consistency-check.mjs、scripts/ui-contract-check.mjs。
+ * 关联文件：DEVELOPMENT.md、docs/README.md、docs/PROMPTS.md、docs/DEVELOPMENT_LOG.md、package.json、scripts/comment-check.mjs、scripts/windows-script-encoding-check.mjs、scripts/release-consistency-check.mjs、scripts/prompt-lifecycle-check.mjs、scripts/ui-contract-check.mjs。
  * 修改注意事项：新增真正的硬规则时才进入本文件；不要把一次性业务测试塞进治理检查。
  */
 import fs from "node:fs";
@@ -15,104 +15,35 @@ const root = process.cwd();
 
 const required = [
   "AGENTS.md",
-  "apps/README.md",
-  "packages/README.md",
-  "crates/README.md",
-  "scripts/README.md",
-  "docs/README.md",
-  "docs/项目结构与代码地图.md",
-  "docs/logs/README.md",
-  "docs/logs/runtime/README.md",
-  "docs/standards/README.md",
-  "docs/architecture/README.md",
-  "docs/plans/README.md",
-  "docs/progress/README.md",
-  "docs/prompts/README.md",
-  "docs/changelog/README.md",
-  "docs/testing/README.md",
-  "docs/logs/development/archive/0020-01-历史编号迁移.md",
-  "scripts/docs-check.mjs",
-  "scripts/comment-check.mjs",
-  "scripts/windows-script-encoding-check.mjs",
-  "scripts/release-consistency-check.mjs",
-  "scripts/ui-contract-check.mjs",
-  "docs/prompts/active/0020-开发规范执行.md",
   "DEVELOPMENT.md",
   "ARCHITECTURE.md",
   "PROJECT_PLAN.md",
   "CHANGELOG.md",
+  "README.md",
   "NOTICE.md",
   "lfaa.release.json",
   "rust-toolchain.toml",
-  "docs/architecture/active/architecture-v1.md",
-  "docs/plans/modules/project-foundation/PLAN.md",
-  "docs/progress/modules/project-foundation/PROGRESS.md",
-  "docs/plans/modules/config-system/PLAN.md",
-  "docs/progress/modules/config-system/PROGRESS.md",
-  "docs/prompts/active/0002-配置系统.md",
-  "docs/standards/IMPORT_PATHS.md",
-  "docs/standards/WORKSPACE_SYNC.md",
-  "docs/standards/PROJECT_IDENTITY_AND_ATTRIBUTION.md",
-  "docs/standards/PROJECT_RESOURCES.md",
-  "docs/standards/QUALITY_GATES.md",
+  "docs/README.md",
+  "docs/项目结构与代码地图.md",
+  "docs/PROMPTS.md",
+  "docs/DEVELOPMENT_LOG.md",
+  "docs/MODULES.md",
+  "docs/UI.md",
+  "docs/TESTING.md",
+  "docs/RELEASES.md",
+  "docs/RUNTIME.md",
+  "apps/README.md",
+  "packages/README.md",
+  "crates/README.md",
+  "scripts/README.md",
+  "scripts/docs-check.mjs",
   "scripts/dev-log-check.mjs",
-  "docs/logs/development/archive/legacy/INDEX.md",
-  "docs/logs/development/active/0020-开发日志与文档规范.md",
-  "docs/testing/WEB_UI_TEST.md",
-  "docs/standards/UI_LAYOUT.md",
-  "docs/prompts/active/0021-Web工作台UI.md",
-  "docs/logs/development/active/0021-Web工作台UI.md",
-  "docs/prompts/archive/v0.0.32/0021-07-侧栏Hover与真实终端.md",
-  "docs/logs/development/archive/0021-06-三栏交互与终端停靠.md",
-  "docs/prompts/archive/v0.0.30/0021-05-Web启动延迟修复.md",
-  "docs/prompts/archive/v0.0.31/0021-06-三栏交互与终端停靠.md",
-  "docs/logs/development/archive/0021-05-Web启动延迟修复.md",
-  "docs/logs/development/archive/0021-04-Web端口复用.md",
-  "docs/prompts/archive/v0.0.28/0021-04-Web端口复用.md",
-  "docs/prompts/archive/v0.0.28/0019-05-Rust工具链分层.md",
-  "docs/logs/development/archive/0019-04-Rust安装诊断优化.md",
-  "docs/logs/development/archive/0021-03-最小宽度自动吸附.md",
-  "docs/logs/development/archive/0021-02-黑白工作台重构.md",
-  "docs/prompts/archive/v0.0.27/0021-03-最小宽度自动吸附.md",
-  "docs/prompts/archive/v0.0.26/0021-02-黑白工作台重构.md",
-  "docs/logs/development/archive/0021-01-Web启动入口调整.md",
-  "docs/prompts/archive/v0.0.24/0019-03-统一开发入口.md",
-  "docs/logs/development/archive/0021-00-Web工作台初始实现.md",
-  "docs/logs/development/archive/0019-02-本地依赖与lockfile.md",
-  "docs/prompts/archive/v0.0.22/0019-01-一键准备真实检测.md",
-  "docs/logs/development/active/0019-一键准备与依赖检测.md",
-  "docs/prompts/archive/v0.0.33/0019-08-node-pty跨机器安装.md",
-  "docs/prompts/archive/v0.0.34/0019-09-node-pty校验引号兼容.md",
-  "docs/prompts/archive/v0.0.35/0019-10-Rustup平台目标修复.md",
-  "docs/prompts/archive/v0.0.36/0010-02-GitHub推送预检容错.md",
-  "docs/prompts/archive/v0.0.36/0021-08-三向吸附与显式展开.md",
-  "docs/releases/v0.0.36/RELEASE.md",
-  "docs/changelog/v0.0.36.md",
-  "docs/logs/development/archive/0004-01-版本包中文路径保护.md",
-  "docs/prompts/archive/v0.0.37/0004-01-中文路径打包保护.md",
-  "docs/releases/v0.0.37/RELEASE.md",
-  "docs/changelog/v0.0.37.md",
-  "docs/prompts/archive/v0.0.38/0021-09-Web常驻工作台Chrome.md",
-  "docs/releases/v0.0.38/RELEASE.md",
-  "docs/changelog/v0.0.38.md",
-  "docs/logs/development/archive/0019-09-node-pty校验引号兼容.md",
-  "docs/logs/development/archive/0019-08-node-pty跨机器安装.md",
+  "scripts/comment-check.mjs",
+  "scripts/windows-script-encoding-check.mjs",
+  "scripts/release-consistency-check.mjs",
+  "scripts/prompt-lifecycle-check.mjs",
+  "scripts/ui-contract-check.mjs",
   "scripts/check-node-pty.mjs",
-  "docs/logs/development/archive/0019-07-Setup主菜单循环.md",
-  "docs/prompts/archive/v0.0.30/0019-07-Setup主菜单循环.md",
-  "docs/logs/development/archive/0019-06-依赖模型简化.md",
-  "docs/prompts/archive/v0.0.29/0019-06-依赖模型简化.md",
-  "docs/logs/development/archive/0019-05-Rust工具链分层.md",
-  "docs/prompts/archive/v0.0.25/0019-04-Rust安装诊断优化.md",
-  "docs/logs/development/archive/0019-03-统一开发入口.md",
-  "docs/logs/development/active/0010-GitHub推送确认.md",
-  "docs/logs/development/archive/0020-00-开发日志初始分层.md",
-  "docs/logs/development/active/0002-配置系统.md",
-  "docs/logs/development/INDEX.md",
-  "docs/logs/development/README.md",
-  "docs/standards/DEV_LOGS.md",
-  "docs/standards/SECURITY.md",
-  "docs/standards/PERFORMANCE.md",
   ".lfaa/README.md",
   ".lfaa/manifest.json",
   ".lfaa/lock.json",
@@ -121,9 +52,6 @@ const required = [
   ".lfaa/plugins/README.md",
   ".lfaa/extensions/README.md",
   ".lfaa/mcp/README.md",
-  "docs/logs/runtime/workspace-sync/README.md",
-  "docs/logs/runtime/github-push/README.md",
-  "docs/logs/runtime/source-update/README.md",
   "LFAA-Sync.bat",
   "LFAA-GitHub.bat",
   "LFAA-Update.bat",
@@ -267,12 +195,10 @@ for (const relative of ["README.md", "CHANGELOG.md"]) {
     process.exit(1);
   }
 }
-for (const relative of [
-  `docs/changelog/v${releaseVersion}.md`,
-  `docs/releases/v${releaseVersion}/RELEASE.md`,
-]) {
-  if (!fs.existsSync(path.join(root, relative))) {
-    console.error(`LFAA governance check failed: missing current release record ${relative}.`);
+for (const relative of ["docs/RELEASES.md", "docs/PROMPTS.md", "docs/DEVELOPMENT_LOG.md"]) {
+  const text = fs.readFileSync(path.join(root, relative), "utf8");
+  if (!text.includes(`v${releaseVersion}`)) {
+    console.error(`LFAA governance check failed: ${relative} must contain current version v${releaseVersion}.`);
     process.exit(1);
   }
 }
@@ -325,8 +251,8 @@ for (const scriptName of ["build", "typecheck", "test"]) {
 }
 
 
-const configPlan = fs.readFileSync(path.join(root, "docs/plans/modules/config-system/PLAN.md"), "utf8");
-const configPrompt = fs.readFileSync(path.join(root, "docs/prompts/active/0002-配置系统.md"), "utf8");
+const configPlan = fs.readFileSync(path.join(root, "docs/MODULES.md"), "utf8");
+const configPrompt = fs.readFileSync(path.join(root, "docs/PROMPTS.md"), "utf8");
 
 if (/v0\.\d{2}(?!\.)/.test(configPlan) || /v0\.\d{2}(?!\.)/.test(configPrompt)) {
   console.error("LFAA governance check failed: config-system version must use MAJOR.MINOR.PATCH.");

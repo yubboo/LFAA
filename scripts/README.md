@@ -8,14 +8,15 @@
 |---|---|
 | `governance-check.mjs` | 项目治理和关键约束。 |
 | `import-path-check.mjs` | 导入路径边界。 |
-| `dev-log-check.mjs` | 开发日志结构。 |
-| `docs-check.mjs` | docs 目录结构。 |
+| `dev-log-check.mjs` | 单文件开发日志编号与当前任务状态。 |
+| `docs-check.mjs` | docs 固定长期文档结构，阻止碎片 Markdown 回归。 |
 | `comment-check.mjs` | 关键代码中文文件头 / CSS 分区注释。 |
 | `check-node-pty.mjs` | node-pty 实际加载检查。 |
 | `pnpm-only.mjs` | 强制 pnpm。 |
 | `quality-not-configured.mjs` | 未配置质量项明确失败。 |
 | `release-name.mjs` | 发布名。 |
-| `ui-contract-check.mjs` | 检查 Web Shell Tooltip 单一提示源、快捷键和鼠标事件契约。 |
+| `ui-contract-check.mjs` | 检查 Web Shell Tooltip、响应式与交互静态契约。 |
+| `prompt-lifecycle-check.mjs` | 检查 Prompt → AI 验证 → 用户验收生命周期及当前版本记录一致性。 |
 
 ## Windows
 

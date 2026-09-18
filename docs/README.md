@@ -1,94 +1,53 @@
 # LFAA 文档中心
 
-> 进入 `docs/` 后先看本文件。
-> 目录负责分类，文件名负责让人一眼看懂内容。
+> v0.0.50 起采用“按职责分文件、按编号在文件内递增”的长期文档模型。
+> 不再为每个任务、每个版本制造新的 Markdown 文件。
+> v0.0.50 已把旧体系的 251 个 docs Markdown 收敛为 9 个长期 Markdown；历史内容迁入对应时间线。
 
-## 新手导航
+## 现在只需要认识这些文档
 
-如果你主要想知道“这个文件夹 / 文件是干什么的”，直接看：
+| 文档 | 作用 | 更新方式 |
+|---|---|---|
+| `../DEVELOPMENT.md` | 唯一开发规范 / AI 执行合同 | 当前事实覆盖更新 |
+| `../ARCHITECTURE.md` | 当前架构 | 当前事实覆盖更新 |
+| `../PROJECT_PLAN.md` | 当前总计划 | 当前事实覆盖更新 |
+| `../CHANGELOG.md` | 所有版本变更时间线 | 只在顶部追加 |
+| `项目结构与代码地图.md` | 人类目录 / 源码导航 | 当前事实覆盖更新 |
+| `PROMPTS.md` | 所有开发 Prompt | 按 #编号追加 |
+| `DEVELOPMENT_LOG.md` | 所有开发日志 | 按 #编号追加 |
+| `MODULES.md` | 模块职责、Plan、Progress | 当前状态 + 历史段落 |
+| `UI.md` | 当前 UI / 响应式 / 交互规范 | 当前事实覆盖更新 |
+| `TESTING.md` | 测试策略与验收矩阵 | 当前事实覆盖更新 |
+| `RELEASES.md` | 所有正式版本发布记录 | 按版本追加 |
+| `RUNTIME.md` | Sync / GitHub / Update / Setup / Runtime Log | 当前事实覆盖更新 |
 
-```text
-docs/项目结构与代码地图.md
-```
+## 新任务怎么记录
 
-里面包含根目录地图、所有主要 package / crate 的作用，以及当前 Web UI 的 TSX / CSS 文件关系。
-
-## 目录总览
-
-```text
-docs/
-├── README.md                 # 文档总入口
-├── 项目结构与代码地图.md       # 人类代码导航 / 目录说明
-├── standards/                # 当前开发规范
-├── architecture/             # 当前/历史架构
-├── modules/                  # 模块职责说明
-├── plans/                    # 模块开发计划
-├── progress/                 # 模块开发进度
-├── prompts/                  # 任务合同
-├── logs/                     # 开发日志与运行日志
-├── changelog/                # 版本变更记录
-├── releases/                 # 正式发布记录
-└── testing/                  # 测试规范与策略
-```
-
-## 为什么目录仍用短英文
-
-这些目录属于稳定工具路径，会被脚本、治理检查和 AI 读取。
-
-因此目录名保持：
-
-- 短；
-- 稳定；
-- ASCII；
-- 不频繁改名。
-
-## 为什么文档文件名优先中文
-
-人类需要经常浏览文档。
-
-编号类文档统一使用：
+不要创建新 Markdown。直接：
 
 ```text
-编号-中文短名.md
+docs/PROMPTS.md          → 新增 #NN.x Prompt
+docs/DEVELOPMENT_LOG.md  → 新增 / 更新 #NN.x 开发记录
+CHANGELOG.md              → 新增 vX.Y.Z
+docs/RELEASES.md         → 新增 vX.Y.Z Release
 ```
 
-示例：
+## 当前 / 历史怎么区分
+
+不再通过 `active/`、`archive/` 移动文件；由条目状态区分：
+
+`active / implementing / testing / pending-user-acceptance / delivered / superseded / cancelled`。
+
+这样文件数量保持稳定，历史仍可直接 `Ctrl+F` 搜索编号、版本或功能名称。
+
+## Runtime Log
+
+实际运行生成的 `.log` 仍位于：
 
 ```text
-0002-配置系统.md
-0020-开发日志与文档规范.md
-0020-01-历史编号迁移.md
+docs/logs/runtime/workspace-sync/
+docs/logs/runtime/github-push/
+docs/logs/runtime/source-update/
 ```
 
-固定入口文件继续使用：
-
-```text
-README.md
-INDEX.md
-PLAN.md
-PROGRESS.md
-RELEASE.md
-```
-
-这些属于约定接口，不改成中文文件名。
-
-## 开发时先看
-
-```text
-/DEVELOPMENT.md
-→ docs/logs/development/INDEX.md
-→ 当前相关 active 日志
-→ 当前架构 / Plan / Progress / Prompt / Standards
-```
-
-## 日志怎么分
-
-```text
-docs/logs/development/
-→ 需求、设计、架构、规则的开发记录
-
-docs/logs/runtime/
-→ Sync / GitHub / Update 等脚本运行日志
-```
-
-两类日志不得混放。
+这些是本机运行数据目录，不再放 Markdown README。

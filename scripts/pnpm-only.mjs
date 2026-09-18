@@ -5,7 +5,7 @@
  * 不负责：安装依赖、固定 pnpm 版本、业务构建。
  * 状态归属：无运行时状态。
  * 对外接口：package.json preinstall。
- * 关联文件：package.json、pnpm-workspace.yaml、docs/standards/QUALITY_GATES.md。
+ * 关联文件：package.json、pnpm-workspace.yaml、DEVELOPMENT.md。
  * 修改注意事项：LFAA 包管理器策略变化必须先更新 DEVELOPMENT/QUALITY_GATES。
  */
 const userAgent = process.env.npm_config_user_agent ?? "";

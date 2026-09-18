@@ -1,134 +1,33 @@
 /**
  * 文件：dev-log-check.mjs
- * 作用：检查开发日志分层、中文命名、INDEX 引用、历史状态和主编号连续性。
- * 负责：development active/archive 的结构治理。
- * 不负责：判断业务结论是否正确、检查 Runtime Log 内容。
- * 状态归属：无运行时状态。
+ * 作用：检查单文件 Development Log 的编号历史、当前任务和状态字段。
+ * 负责：docs/DEVELOPMENT_LOG.md 的主编号可追溯性、#20.5 当前治理任务、禁止旧 active/archive 日志目录回归。
+ * 不负责：判断业务结论正确性、Runtime Log、用户是否真的完成验收。
+ * 状态归属：无运行时状态；直接读取当前工作树。
  * 对外接口：`node scripts/dev-log-check.mjs`。
- * 关联文件：docs/standards/DEV_LOGS.md、docs/logs/development/INDEX.md。
- * 修改注意事项：日志格式规则变化必须先改 DEV_LOGS.md，历史记录不得因检查器升级而被静默删除。
+ * 关联文件：docs/DEVELOPMENT_LOG.md、docs/PROMPTS.md、DEVELOPMENT.md。
+ * 修改注意事项：日志继续在一个文件内追加；不要恢复“一条日志一个 Markdown”。
  */
 import fs from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const logRoot = path.join(root, "docs", "logs", "development");
-const activeRoot = path.join(logRoot, "active");
-const archiveRoot = path.join(logRoot, "archive");
-const indexFile = path.join(logRoot, "INDEX.md");
-
+const file = path.join(root, "docs", "DEVELOPMENT_LOG.md");
 const fail = (message) => {
   console.error(`LFAA development log check failed: ${message}`);
   process.exit(1);
 };
+if (!fs.existsSync(file)) fail("missing docs/DEVELOPMENT_LOG.md");
+const text = fs.readFileSync(file, "utf8");
 
-for (const required of [logRoot, activeRoot, archiveRoot, indexFile]) {
-  if (!fs.existsSync(required)) {
-    fail(`missing ${path.relative(root, required).replaceAll("\\", "/")}`);
-  }
+for (let n = 1; n <= 21; n += 1) {
+  const re = new RegExp(`(^|[^0-9])#${n}(?:\\.|\\s|\\b)`, "m");
+  if (!re.test(text)) fail(`historical main task #${n} is not traceable in DEVELOPMENT_LOG.md`);
 }
-
-const indexText = fs.readFileSync(indexFile, "utf8");
-const activeName = /^(\d{4})-([^./\\]{2,28})\.md$/u;
-const archiveName = /^(\d{4})(?:-(\d{2}))?-([^./\\]{2,28})\.md$/u;
-const mainNumbers = new Set();
-
-function hasChinese(text) {
-  return /[\u3400-\u9fff]/u.test(text);
+for (const token of ["#20.5", "文档体系单文件时间线重构", "pending-user-acceptance"]) {
+  if (!text.includes(token)) fail(`current documentation task missing token: ${token}`);
 }
-
-const activeFiles = fs
-  .readdirSync(activeRoot, { withFileTypes: true })
-  .filter((entry) => entry.isFile() && entry.name.endsWith(".md"));
-
-if (activeFiles.length === 0) {
-  fail("active/ must contain at least one current development log");
+if (fs.existsSync(path.join(root, "docs", "logs", "development"))) {
+  fail("legacy docs/logs/development directory must not return");
 }
-
-for (const entry of activeFiles) {
-  const match = entry.name.match(activeName);
-  if (!match) fail(`invalid active log name: ${entry.name}`);
-  if (!hasChinese(entry.name)) fail(`active log must use readable Chinese name: ${entry.name}`);
-
-  mainNumbers.add(Number(match[1]));
-
-  const text = fs.readFileSync(path.join(activeRoot, entry.name), "utf8");
-  for (const requiredText of [
-    "主编号：",
-    "名称：",
-    "最新变更：",
-    "状态：",
-    "关键词：",
-    "当前文件：",
-    "## 当前结论",
-    "## 最新变更",
-    "## 影响范围",
-    "## 验证结果",
-    "## 历史索引",
-  ]) {
-    if (!text.includes(requiredText)) {
-      fail(`${entry.name} missing "${requiredText}"`);
-    }
-  }
-
-  if (!indexText.includes(entry.name)) {
-    fail(`INDEX.md does not reference active log ${entry.name}`);
-  }
-}
-
-for (const entry of fs.readdirSync(archiveRoot, { withFileTypes: true })) {
-  if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
-
-  const match = entry.name.match(archiveName);
-  if (!match) fail(`invalid archived log name: ${entry.name}`);
-  if (!hasChinese(entry.name)) fail(`archived log must use readable Chinese name: ${entry.name}`);
-
-  mainNumbers.add(Number(match[1]));
-
-  const text = fs.readFileSync(path.join(archiveRoot, entry.name), "utf8");
-
-  for (const requiredText of ["主编号：", "名称：", "状态："]) {
-    if (!text.includes(requiredText)) {
-      fail(`${entry.name} missing "${requiredText}"`);
-    }
-  }
-
-  const superseded = text.includes("superseded");
-  const delivered = text.includes("delivered");
-  const archived = text.includes("archived");
-  const deprecated = text.includes("deprecated");
-
-  if (!superseded && !delivered && !archived && !deprecated) {
-    fail(`${entry.name} has unsupported archive status`);
-  }
-
-  if (superseded) {
-    for (const requiredText of ["已由：", "当前查看："]) {
-      if (!text.includes(requiredText)) {
-        fail(`${entry.name} missing "${requiredText}"`);
-      }
-    }
-  } else if (!text.includes("## 原始来源")) {
-    fail(`${entry.name} must contain "## 原始来源"`);
-  }
-
-  if (!indexText.includes(entry.name)) {
-    fail(`INDEX.md does not reference archived log ${entry.name}`);
-  }
-}
-
-const maxMain = Math.max(...mainNumbers);
-for (let number = 1; number <= maxMain; number += 1) {
-  if (!mainNumbers.has(number)) {
-    fail(`missing main development log #${number}`);
-  }
-  if (!indexText.includes(`#${number}`)) {
-    fail(`INDEX.md missing main development log #${number}`);
-  }
-}
-
-if (!indexText.includes("没有真实 `#0`")) {
-  fail("INDEX.md must document why #0 is not present");
-}
-
-console.log("LFAA development log check passed.");
+console.log("LFAA single-file development log check passed.");

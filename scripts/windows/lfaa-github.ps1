@@ -4,7 +4,7 @@
 # 不负责：同步版本包文件、安装依赖、修改业务代码。
 # 状态归属：Git 历史和 origin 以稳定工作区 .git 为事实源。
 # 对外接口：由根目录 LFAA-GitHub.bat 调用。
-# 关联文件：LFAA-GitHub.bat、docs/logs/runtime/github-push/README.md。
+# 关联文件：LFAA-GitHub.bat、docs/RUNTIME.md。
 # 修改注意事项：不得强推覆盖远端历史；已有本地未推送 commit 必须可继续推送；错误要保留原始 Git 技术信息。
 
 $ErrorActionPreference = "Stop"

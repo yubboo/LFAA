@@ -43,3 +43,14 @@ status: in-progress
 | 12 | model-routing | pending-development | 多模型 Router / Fallback / Usage |
 | 13 | subagent-system | pending-development | Parent / Child Agent |
 | 14 | productization | pending-development | Update / Signing / Crash Recovery |
+
+
+## 文档治理前置任务
+
+```text
+#20.5 文档体系单文件时间线重构
+version: v0.0.50
+status: pending-user-acceptance
+```
+
+模块详细 Plan / Progress 已合并至 `docs/MODULES.md`。

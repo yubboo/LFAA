@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.49**
+**当前包：LFAA-v0.0.50**
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
@@ -17,6 +17,16 @@ docs/项目结构与代码地图.md
 ```
 
 它逐项解释根目录、`apps/`、`packages/`、`crates/`、`scripts/`、`docs/`，并画出当前 Web UI 的 TSX / CSS / Terminal 文件关联。
+
+开发前请先读：
+
+```text
+AGENTS.md
+→ DEVELOPMENT.md
+→ docs/README.md
+```
+
+v0.0.50 起，Prompt、开发日志、版本记录不再“一次任务一个 Markdown”，统一维护在固定长期文档中。
 
 ## 产品原则
 

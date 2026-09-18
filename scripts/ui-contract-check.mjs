@@ -5,7 +5,7 @@
  * 不负责：浏览器真实像素截图、Pointer 实机手感、PTY 行为测试。
  * 状态归属：无运行时状态；每次执行读取当前 App Shell 与 ResizableWorkbench 源码/CSS。
  * 对外接口：`node scripts/ui-contract-check.mjs`，成功返回 0，失败返回 1。
- * 关联文件：AgentWorkbench.tsx、agent-workbench.css、workbench-layout.config.ts、ResizableWorkbench.tsx、workbench.css、UI_LAYOUT.md、WEB_UI_TEST.md。
+ * 关联文件：AgentWorkbench.tsx、agent-workbench.css、workbench-layout.config.ts、ResizableWorkbench.tsx、workbench.css、docs/UI.md、docs/TESTING.md。
  * 修改注意事项：UI 交互事实变化时，先更新规范/测试，再同步更新此门禁；禁止删检查绕过回归。
  */
 import fs from "node:fs";
