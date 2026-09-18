@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.27**
+**当前包：LFAA-v0.0.29**
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
@@ -111,3 +111,25 @@ http://127.0.0.1:5173
 ## 当前 UI
 
 Web 工作台采用 Codex / ChatGPT 类黑白灰三栏工作台，支持浅色 / 深色、左右拉伸、动态最大宽度与平滑吸附收起。
+
+
+## 依赖模型
+
+LFAA 只采用一套简单规则：
+
+```text
+电脑只装一次
+→ Node / pnpm / Git / Rust / Cargo
+
+项目自己保存
+→ node_modules / Cargo.lock / target / .lfaa / rust-toolchain.toml
+```
+
+运行：
+
+```text
+LFAA-Setup.bat
+→ 1 一键依赖
+```
+
+已经存在的工具直接复用，缺失的自动补齐。

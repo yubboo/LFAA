@@ -1,14 +1,14 @@
 {
   "name": "@lfaa/web",
   "private": true,
-  "version": "0.0.27",
+  "version": "0.0.29",
   "type": "module",
   "author": "二鱼",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 5173",
+    "dev": "vite",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --host 127.0.0.1 --port 4173"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@lfaa/app-shell": "workspace:*",

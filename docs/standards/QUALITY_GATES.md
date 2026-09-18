@@ -77,3 +77,37 @@ Rust 工具链自动准备必须满足：
 5. 执行前必须通过官方 SHA-256；
 6. 官方 rustup 原始输出允许保留英文；
 7. LFAA 自身状态提示必须中文清楚。
+
+
+### Rust 工具链分层
+
+- `rustup` / toolchain 使用共享安装，避免多项目重复占用空间；
+- 根 `rust-toolchain.toml` 是项目 Rust 版本事实源；
+- Setup 不得执行 `rustup default` 改写用户全局默认；
+- `Cargo.lock` 必须跟项目走；
+- Cargo build `target` 属于项目构建缓存；
+- `CARGO_HOME` / `RUSTUP_HOME` 可自定义到非系统盘。
+
+
+## 工具链与项目依赖边界
+
+质量检查按以下边界判断环境是否完整：
+
+```text
+电脑基础工具
+→ Node / pnpm / Git / Rust / Cargo
+
+项目内容
+→ node_modules / Cargo.lock / rust-toolchain.toml / target / .lfaa
+```
+
+禁止为了“项目隔离”给每个项目复制完整 Rust 工具链。
+
+Rust 自动安装只走 Rust 官方 `rustup-init`：
+
+- 官方 HTTPS；
+- 官方 `.sha256`；
+- 本地 SHA-256 校验；
+- 校验通过后执行。
+
+已有 Rust/Cargo 直接复用，不迁移、不覆盖。

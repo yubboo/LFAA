@@ -8,6 +8,9 @@ const projectRoot = path.resolve(appRoot, "../..");
 const resourceRoot = path.join(projectRoot, ".lfaa");
 const resourceKinds = ["skills", "experts", "plugins", "extensions", "mcp"] as const;
 
+const devPort = Number.parseInt(process.env.LFAA_WEB_PORT ?? "5173", 10);
+const previewPort = Number.parseInt(process.env.LFAA_WEB_PREVIEW_PORT ?? "4173", 10);
+
 type ResourceKind = (typeof resourceKinds)[number];
 
 async function scanResources() {
@@ -70,12 +73,12 @@ export default defineConfig({
   plugins: [lfaaDevResourceBridge()],
   server: {
     host: "127.0.0.1",
-    port: 5173,
+    port: Number.isFinite(devPort) ? devPort : 5173,
     strictPort: true,
   },
   preview: {
     host: "127.0.0.1",
-    port: 4173,
+    port: Number.isFinite(previewPort) ? previewPort : 4173,
     strictPort: true,
   },
 });

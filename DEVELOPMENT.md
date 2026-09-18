@@ -761,3 +761,85 @@ WinGet 返回码不得一律显示“失败”。
 ```
 
 此时必须重新检测本机 rustup/Cargo，再决定是否使用官方 rustup-init。
+
+
+---
+
+### Rust 工具链与项目依赖分层
+
+默认采用：
+
+```text
+rustup / rustc / cargo / 标准库
+→ 用户/机器共享工具链
+
+rust-toolchain.toml
+→ 项目事实源，锁定版本
+
+Cargo.toml / Cargo.lock / target
+→ 项目级
+```
+
+禁止为每个普通项目复制一整套 Rust toolchain 作为默认方案。
+
+`CARGO_HOME` / `RUSTUP_HOME` 可以由用户配置到非系统盘；Setup 必须尊重已有配置。
+
+项目不得修改用户的全局 `rustup default`；项目版本由 `rust-toolchain.toml` 选择。
+
+
+---
+
+### 工具链与项目依赖最终规则
+
+LFAA 固定使用一套简单规则，不再提供多种安装模式。
+
+#### 电脑基础工具
+
+以下工具属于电脑环境：
+
+```text
+Node.js
+pnpm
+Git
+Rust / rustup / cargo / rustc
+```
+
+规则：
+
+- 一台电脑只准备一次；
+- 多个项目可以复用；
+- 已经安装在哪里就继续使用哪里；
+- LFAA 不迁移用户已有工具链；
+- 普通用户不需要选择“用户级 / 项目级 / 共享目录”。
+
+#### 项目内容
+
+以下内容跟项目走：
+
+```text
+node_modules/
+Cargo.toml
+Cargo.lock
+rust-toolchain.toml
+target/
+.lfaa/
+```
+
+`rust-toolchain.toml` 只负责声明 LFAA 需要的 Rust 版本，不代表把整套 Rust 编译器复制进项目。
+
+#### Setup
+
+`LFAA-Setup.bat → 1` 的目标只有一个：
+
+```text
+检查环境
+→ 已有工具直接复用
+→ 缺失工具自动补齐
+→ 安装项目依赖
+→ 初始化项目资源
+→ 给出最终状态
+```
+
+Rust 缺失时直接使用 Rust 官方 `rustup-init`，不再优先尝试 WinGet。
+
+Rust 官方原始安装输出允许保留英文；LFAA 自己的状态提示必须中文清楚。

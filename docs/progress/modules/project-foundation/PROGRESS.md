@@ -1,5 +1,26 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #19.6 依赖模型简化
+
+- 当前状态：delivered
+- 已完成：
+  - 工具链 / 项目依赖边界定稿
+  - Setup 用户提示简化
+  - Rust 安装路径收敛为官方 rustup-init
+  - 移除 WinGet Rust 安装分支
+  - 保留 Rust 官方 SHA-256 校验
+  - 已有工具链直接复用
+- #21 Web 工作台状态：in-progress
+- 是否已交付：基础设施变更已交付（v0.0.29）
+
+## 2026-09-18 / #19.5 / #21.4
+
+- Rust 工具链分层已调整；
+- 项目 Rust 版本由 rust-toolchain.toml 锁定；
+- Web 端口冲突处理已加入；
+- Windows 实机待验证；
+- #21 UI 仍为 in-progress。
+
 ## 2026-09-18 / #21.2 黑白工作台重构
 
 - 当前状态：in-progress
