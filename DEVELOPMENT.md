@@ -696,3 +696,16 @@ corepack pnpm ...
 ```
 
 根 `package.json` 必须固定 `packageManager` 与 `engines.pnpm`，并通过 `preinstall` 阻止其他包管理器安装依赖。
+
+
+---
+
+## 31. Setup 依赖安装容错
+
+`LFAA-Setup.bat` 菜单 `1` 是开发环境初始化入口。
+
+它必须先检测 Node/pnpm 与 Cargo：
+
+- 已安装的工具链正常下载对应依赖；
+- 未安装的工具链显示“跳过”，不能让另一类已经成功安装的依赖被标记为失败；
+- 菜单 `4` 与菜单 `10` 继续严格要求 Cargo。

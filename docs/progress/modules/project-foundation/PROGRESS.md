@@ -1,5 +1,20 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #18 Setup 缺少 Cargo 容错修复
+
+- 当前状态：delivered
+- 问题：菜单 1 在 pnpm 成功后因 Cargo 缺失错误终止
+- 已完成：
+  - Node/Rust 工具链预检
+  - 可用工具链独立安装
+  - 缺失工具链安全跳过
+  - 部分完成状态明确提示
+  - 菜单 4 / 10 保持严格检查
+- 配置系统业务实现：未改动
+- 是否可交付：是
+- 是否已交付：是（v0.0.16）
+- 下一步：进入 `config-schema`
+
 ## 2026-09-18 / #17 pnpm-only 一致性修复
 
 - 当前状态：delivered

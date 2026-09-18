@@ -20,13 +20,24 @@ function Write-Label {
 }
 
 function Wait-LfaaClose {
-    param([bool]$Success)
+    param(
+        [bool]$Success,
+        [string]$SuccessMessage = ""
+    )
+
     Write-Host ""
+
     if ($Success) {
-        Write-Label "【提示】" "【可关闭】" "全部操作已完成，现在可以安全关闭终端窗口。" Green
-    } else {
+        if ([string]::IsNullOrWhiteSpace($SuccessMessage)) {
+            $SuccessMessage = "全部操作已完成，现在可以安全关闭终端窗口。"
+        }
+
+        Write-Label "【提示】" "【可关闭】" $SuccessMessage Green
+    }
+    else {
         Write-Label "【提示】" "【可关闭】" "操作未完成；处理上方问题后可重新运行。" Yellow
     }
+
     Write-Label "【提示】" "【操作】" "按任意键关闭窗口，或直接点击右上角 X。" DarkGray
     try { [void][System.Console]::ReadKey($true) } catch {}
 }
@@ -141,6 +152,18 @@ function Invoke-PnpmScript {
     Invoke-Pnpm @("run",$Name) ("运行 {0}" -f $Name)
 }
 
+
+function Test-NodeDependencyToolchain {
+    return (Test-CommandAvailable "node") -and (
+        (Test-CommandAvailable "pnpm") -or
+        (Test-CommandAvailable "corepack")
+    )
+}
+
+function Test-RustDependencyToolchain {
+    return Test-CommandAvailable "cargo"
+}
+
 function Show-SetupMenu {
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor DarkCyan
@@ -148,7 +171,7 @@ function Show-SetupMenu {
     Write-Host " 作者：二鱼" -ForegroundColor DarkCyan
     Write-Host "============================================================" -ForegroundColor DarkCyan
     Write-Host ""
-    Write-Label "【1】" "【全部依赖】" "下载 pnpm 与 Rust/Cargo 项目依赖。" Green
+    Write-Label "【1】" "【全部依赖】" "安装当前环境可用的全部依赖；缺少 Rust 工具链时自动跳过并提示。" Green
     Write-Label "【2】" "【环境检查】" "查看项目根、工具链和 pnpm 状态。" Cyan
     Write-Label "【3】" "【Node 依赖】" "只下载 pnpm workspace 依赖。" Cyan
     Write-Label "【4】" "【Rust 依赖】" "只下载 Cargo workspace 依赖。" Cyan
@@ -171,10 +194,55 @@ $choice = (Read-Host "【请选择】【0-10】").Trim()
 try {
     switch ($choice) {
         "1" {
-            if (-not (Confirm-WriteOperation "将在当前项目下载 pnpm 与 Rust 依赖。")) { Wait-LfaaClose $true; exit 0 }
-            Install-NodeDependencies
-            Install-RustDependencies
+            $canInstallNode = Test-NodeDependencyToolchain
+            $canInstallRust = Test-RustDependencyToolchain
+
+            if (-not $canInstallNode -and -not $canInstallRust) {
+                Show-Environment
+                throw "当前既没有可用的 Node/pnpm 工具链，也没有 Cargo，无法下载项目依赖。"
+            }
+
+            Write-Host ""
+            Write-Label "【预检】" "【Node/pnpm】" $(if ($canInstallNode) { "可用" } else { "不可用，本次跳过" }) $(if ($canInstallNode) { "Green" } else { "Yellow" })
+            Write-Label "【预检】" "【Rust/Cargo】" $(if ($canInstallRust) { "可用" } else { "未检测到 Cargo，本次跳过 Rust 依赖" }) $(if ($canInstallRust) { "Green" } else { "Yellow" })
+
+            if (-not (Confirm-WriteOperation "将安装当前环境可用的项目依赖；不可用的工具链会安全跳过。")) {
+                Wait-LfaaClose $true "用户已取消，未继续安装依赖；现在可以安全关闭终端窗口。"
+                exit 0
+            }
+
+            $installed = New-Object System.Collections.Generic.List[string]
+            $skipped = New-Object System.Collections.Generic.List[string]
+
+            if ($canInstallNode) {
+                Install-NodeDependencies
+                $installed.Add("Node/pnpm")
+            }
+            else {
+                $skipped.Add("Node/pnpm")
+                Write-Label "【跳过】" "【Node/pnpm】" "未检测到可用的 Node + pnpm/corepack 工具链。" Yellow
+            }
+
+            if ($canInstallRust) {
+                Install-RustDependencies
+                $installed.Add("Rust/Cargo")
+            }
+            else {
+                $skipped.Add("Rust/Cargo")
+                Write-Label "【跳过】" "【Rust/Cargo】" "未检测到 Cargo；Node 依赖安装结果保留，Rust 依赖稍后安装即可。" Yellow
+                Write-Label "【提示】" "【Rust】" "安装 Rust/Cargo 后，可重新运行菜单 1，或直接选择菜单 4。" DarkYellow
+            }
+
             Initialize-ProjectResources
+
+            Write-Host ""
+            Write-Label "【完成】" "【已安装】" $(if ($installed.Count -gt 0) { $installed -join "、" } else { "无" }) Green
+
+            if ($skipped.Count -gt 0) {
+                Write-Label "【完成】" "【已跳过】" ($skipped -join "、") Yellow
+                Wait-LfaaClose $true "当前环境可执行的依赖安装已完成；缺失工具链对应依赖已安全跳过。现在可以关闭终端窗口。"
+                exit 0
+            }
         }
         "2" { Show-Environment }
         "3" {

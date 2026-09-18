@@ -1,5 +1,12 @@
 # config-system PROGRESS
 
+## 2026-09-18 / #18 Setup bug fix
+
+- 当前状态：planned
+- 配置系统业务实现：未改动
+- 基础设施：修复 Setup 菜单 1 缺少 Cargo 时错误终止
+- 下一步：正式进入 `config-schema`
+
 ## 2026-09-18 / #17 pnpm-only 一致性修复
 
 - 当前状态：planned
