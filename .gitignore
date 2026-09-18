@@ -11,6 +11,12 @@ coverage/
 .cache/
 artifacts/local/
 
+# Project-local runtime artifacts. Project resources themselves stay visible.
+.lfaa/cache/
+.lfaa/state/
+.lfaa/tmp/
+.lfaa/logs/
+
 
 # Local workspace sync runtime logs (README remains tracked)
 docs/logs/workspace-sync/*.log

@@ -1,5 +1,6 @@
 {
   "name": "@lfaa/desktop",
   "private": true,
-  "version": "0.0.14"
+  "version": "0.0.14",
+  "author": "二鱼"
 }

@@ -1,6 +1,7 @@
 {
   "productName": "Little Fish AI Agent",
   "shortName": "LFAA",
+  "author": "二鱼",
   "displayVersion": "0.0.14",
   "releaseSequence": 14,
   "architectureVersion": 1,

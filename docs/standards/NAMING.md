@@ -1,5 +1,21 @@
 # LFAA 命名规范
 
+## LFAA 官方命名空间
+
+面向外部的自有工具、发行物和 Rust crate 优先使用：
+
+```text
+lfaa-<domain>-<role>
+```
+
+TypeScript workspace 使用：
+
+```text
+@lfaa/<package>
+```
+
+普通内部文件不机械添加 `lfaa-`。第三方成果不得仅通过改名伪装成 LFAA 原创。
+
 ## `-`
 
 默认用于项目目录、package、普通 TS 文件单词分隔：

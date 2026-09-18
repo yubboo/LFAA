@@ -41,6 +41,8 @@ TypeScript Agent Runtime
 ├── Subagents
 └── Verifier
         ↓
+Typed Capability / Tool Runtime
+        ↓
 Policy Engine
         ↓
 Permission Engine
@@ -103,6 +105,8 @@ Capability
 → Execution Broker
 ```
 
+Skills、Experts、Plugins、Extensions、MCP 配置全部安装在当前项目 `.lfaa/`，不得从用户级目录隐式继承。
+
 ## 权限
 
 用户只看到：
@@ -136,6 +140,28 @@ Permission Preset
 7. Parent/Child Agent 只通过协议通信。
 8. 当前架构与历史架构物理隔离。
 9. TypeScript 深层相对导入 `../../` 及以上禁止，跨目录使用 `@/`，跨 Package 使用 `@lfaa/*`。
+10. `Full` 不绕过硬拒绝、项目边界、Secret 隔离或 Rust Broker 校验。
+11. Rust Broker 必须重新校验 canonical path、capability 和资源范围，不能信任上层已经检查。
+12. Skills、Experts、Plugins、Extensions、MCP 全部是项目级不可信资源。
+13. Remote/Web 必须经过身份认证、逐资源授权和用户/项目隔离后才能访问 Runtime。
+14. LFAA 自有组件使用官方命名空间；第三方成果必须保留原作者、来源和许可证。
+
+Policy Engine 拥有硬规则与 `Deny / Ask / AllowByPolicy` 决策；Permission Engine 拥有预设与审批生命周期。Permission 不得把 Policy 的 `Deny` 升级为 `Allow`。
+
+## 项目级资源
+
+```text
+<project>/.lfaa/
+├── skills/
+├── experts/
+├── plugins/
+├── extensions/
+└── mcp/
+```
+
+项目资源先经过 metadata/schema 校验，再注册 capability；文件位于项目内不代表可信。
+
+Secret 不进入 `.lfaa/`，只保存 `credential_ref`。
 
 
 ## 稳定开发工作区

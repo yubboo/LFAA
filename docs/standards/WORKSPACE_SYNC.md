@@ -27,10 +27,14 @@ H:\lfaa\lfaa\.git
 ```text
 LFAA-Sync.bat
 LFAA-GitHub.bat
+LFAA-Update.bat
+LFAA-Setup.bat
 
 scripts/windows/
 ├── lfaa-sync.ps1
-└── lfaa-github.ps1
+├── lfaa-github.ps1
+├── lfaa-update.ps1
+└── lfaa-setup.ps1
 ```
 
 BAT 只负责启动 PowerShell，不承载复杂逻辑。
@@ -78,6 +82,11 @@ coverage/
 .cache/
 .tmp/
 
+.lfaa/cache/
+.lfaa/state/
+.lfaa/tmp/
+.lfaa/logs/
+
 .env
 .env.local
 .env.development.local
@@ -91,6 +100,7 @@ coverage/
 - - `docs/logs/workspace-sync/*.log` 保存本机同步留痕，并从镜像差异判断中排除；
 - `.env*` 保存本机 Secret/环境差异；
 - build/cache 目录属于本机产物。
+- `.lfaa/skills`、`.lfaa/experts`、`.lfaa/plugins`、`.lfaa/extensions`、`.lfaa/mcp` 属于项目级资源，不得改为用户级全局目录；其中运行时 cache/state/tmp/logs 单独保护。
 
 `/.env.example` 仍然属于项目文件，必须正常同步。
 
@@ -302,6 +312,7 @@ LFAA 的 Windows BAT 启动器双击后不得直接执行写操作。
 LFAA-Update.bat
 LFAA-GitHub.bat
 LFAA-Sync.bat
+LFAA-Setup.bat
 ```
 
 菜单至少必须包含：

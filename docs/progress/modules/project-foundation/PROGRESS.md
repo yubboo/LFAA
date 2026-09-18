@@ -1,5 +1,36 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #16 项目治理与项目级资源边界加固
+
+- 当前状态：deliverable
+- 本次目标：补齐归属、项目资源、性能、安全、质量门禁与依赖菜单
+- 已完成：
+  - `lfaa-*` / `@lfaa/*` 官方命名与作者“二鱼”元数据门禁
+  - `NOTICE.md`、第三方来源、许可证和修改说明规范
+  - `.lfaa/skills|experts|plugins|extensions|mcp` 项目级资源边界
+  - 项目级空 manifest/lock 与禁止用户级隐式继承规则
+  - Policy / Permission / Rust Broker 不可绕过安全边界
+  - 性能预算、CI/测试、package/crate 创建和变更分级规范
+  - `LFAA-Setup.bat` 与 `lfaa-setup.ps1` 0-10 菜单
+  - pnpm 11.17.0 固定与 `pnpm-lock.yaml`
+  - build/typecheck/test 占位成功改为明确失败
+- 测试结果：
+  - Windows PowerShell 5.1 菜单环境检查通过
+  - 项目资源初始化和 manifest/lock 检查通过
+  - Node 依赖 frozen lockfile 安装通过
+  - Governance check 通过
+  - Import boundary check 通过
+  - PowerShell 语法检查通过
+  - typecheck 未配置时按预期返回非零退出码
+- 待开发：
+  - Config System 开始实现时接入真实 TypeScript、lint、test 和 build 工具链
+  - Rust 开发前固定 rust-toolchain 并生成 Cargo.lock
+- 阻塞项：当前主机未安装 Cargo/rustc，无法执行 Rust fetch/check/test
+- 配置系统业务实现：不修改
+- 是否可交付：是（本次治理与脚本范围）
+- 是否已交付：否
+- 下一步：随下一正式版本发布；随后锁定 Config System 技术依赖并进入 `config-schema`
+
 ## 2026-09-17 / #1
 
 - 当前状态：deliverable

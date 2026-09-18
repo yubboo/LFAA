@@ -19,6 +19,10 @@ LFAA 必须长期做到：
 - 所有开发有 Progress 留痕；
 - 所有业务变更有 Changelog；
 - 所有可交付版本可追溯。
+- 所有 LFAA 自有成果身份明确；
+- 所有第三方成果保留来源、作者和许可证；
+- 所有 Skills、Experts、Plugins、Extensions 与 MCP 资源跟随项目；
+- 所有性能、安全与质量要求可测量、可自动验证。
 
 ---
 
@@ -410,7 +414,7 @@ LFAA-v<MAJOR.MINOR.PATCH>.zip
 
 ---
 
-## 13. 导入路径强制规范
+## 14. 导入路径强制规范
 
 完整规范：
 
@@ -456,7 +460,7 @@ npm run imports:check
 
 ---
 
-## 14. 稳定工作区与版本快照
+## 15. 稳定工作区与版本快照
 
 完整规范：
 
@@ -476,7 +480,7 @@ GitHub
 
 `.git` 只常驻稳定工作区。
 
-每个正式版本包必须自带同步脚本和 GitHub 脚本，以便误删后恢复。
+每个正式版本包必须自带 Sync、GitHub、Update、Setup 启动器与对应 PowerShell 脚本，以便迁移、更新和误删后恢复。
 
 同步脚本必须：
 
@@ -492,7 +496,7 @@ GitHub
 
 ---
 
-## 15. GitHub 提交名称与推送规则
+## 16. GitHub 提交名称与推送规则
 
 `LFAA-GitHub.bat` 只作为启动器，真实逻辑必须在：
 
@@ -516,7 +520,7 @@ GitHub Push 前必须显示文件变化并二次确认。
 
 ---
 
-## 16. Git origin 配置
+## 17. Git origin 配置
 
 Git 远程地址属于稳定工作区 Git 配置。
 
@@ -533,7 +537,7 @@ Git 远程地址属于稳定工作区 Git 配置。
 
 ---
 
-## 17. 终端结束状态必须明确
+## 18. 终端结束状态必须明确
 
 任何 LFAA 一键脚本在退出前必须明确显示：
 
@@ -546,7 +550,7 @@ Git 远程地址属于稳定工作区 Git 配置。
 
 ---
 
-## 18. Git Commit 交互规则
+## 19. Git Commit 交互规则
 
 用户在：
 
@@ -567,7 +571,7 @@ Push 属于远程写操作，因此 Push 前确认继续保留。
 
 ---
 
-## 19. Git Clone 与源码更新
+## 20. Git Clone 与源码更新
 
 `git clone` 只执行一次。
 
@@ -588,9 +592,9 @@ LFAA-Update.bat
 
 ---
 
-## 20. Windows 一键脚本菜单化
+## 21. Windows 一键脚本菜单化
 
-`LFAA-Sync.bat`、`LFAA-GitHub.bat`、`LFAA-Update.bat` 双击后只允许打开菜单。
+`LFAA-Sync.bat`、`LFAA-GitHub.bat`、`LFAA-Update.bat`、`LFAA-Setup.bat` 双击后只允许打开菜单。
 
 禁止双击即执行同步、Push、Pull 等写操作。
 
@@ -599,7 +603,7 @@ LFAA-Update.bat
 
 ---
 
-## 21. 脚本路径无关原则
+## 22. 脚本路径无关原则
 
 LFAA Windows 工具不得把开发机盘符或用户目录写死到代码中。
 
@@ -610,8 +614,103 @@ LFAA Windows 工具不得把开发机盘符或用户目录写死到代码中。
 
 ---
 
-## 22. Update Git 状态优先
+## 23. Update Git 状态优先
 
 Git 拉取脚本必须先使用 ahead/behind 判断是否真的需要更新。
 
 如果本地与远程已经相同，不允许继续执行额外 diff 并把非必要步骤的失败误判为更新失败。
+
+
+---
+
+## 24. LFAA 项目身份与第三方归属
+
+完整规范：
+
+- `docs/standards/PROJECT_IDENTITY_AND_ATTRIBUTION.md`
+- `/NOTICE.md`
+
+强制原则：
+
+- LFAA 作者署名为“二鱼”；
+- 官方外部组件可使用 `lfaa-<domain>-<role>`；
+- TypeScript workspace 使用 `@lfaa/*`；
+- `lfaa` 官方命名空间不得用于掩盖第三方来源；
+- 使用第三方成果必须保留原作者、来源、许可证和修改说明；
+- 根许可证未确定前禁止伪造 SPDX 标识。
+
+
+---
+
+## 25. 项目级资源安装
+
+完整规范：
+
+`docs/standards/PROJECT_RESOURCES.md`
+
+Skills、Experts、Plugins、Extensions、MCP 和同类资源只能安装在：
+
+```text
+<project>/.lfaa/
+```
+
+禁止把用户目录或系统级目录作为项目资源事实源。
+
+项目移动后必须继续可解析；嵌套项目默认不合并父项目资源；Secret 明文不得进入 `.lfaa/`。
+
+
+---
+
+## 26. 质量门禁
+
+完整规范：
+
+`docs/standards/QUALITY_GATES.md`
+
+`build`、`typecheck`、`test`、`lint`、`security` 必须执行真实检查。
+
+禁止占位命令输出一句提示后返回成功。未配置的检查必须明确失败，不能制造“假绿”。
+
+业务模块未通过真实编译、测试、构建、安全与依赖边界检查，不得进入 `deliverable`。
+
+
+---
+
+## 27. 安全硬边界
+
+完整规范：
+
+`docs/standards/SECURITY.md`
+
+`Full` 只减少授权范围内的逐次询问，不得绕过硬拒绝、项目边界、Secret 隔离、capability 和 Rust Broker 最终校验。
+
+审批必须绑定规范化后的具体操作，关键参数变化后必须重新决策。
+
+
+---
+
+## 28. 性能与资源预算
+
+完整规范：
+
+`docs/standards/PERFORMANCE.md`
+
+涉及运行时、数据库、UI、网络、Agent、Tool 或大文件的模块，进入 `in-progress` 前必须定义测量场景、延迟、吞吐、资源、超时、并发和回归预算。
+
+没有可复现数据的“性能很好”不算验收。
+
+
+---
+
+## 29. 开发环境与依赖菜单
+
+统一入口：
+
+```text
+LFAA-Setup.bat
+→ scripts/windows/lfaa-setup.ps1
+```
+
+脚本负责项目依赖下载、环境检查、项目级资源目录、治理检查、typecheck、测试、build 和完整验证菜单。
+
+下载依赖前必须检查项目根和工具链；不得把项目依赖安装到用户级 LFAA 目录。

@@ -13,12 +13,18 @@
 6. 当前主模块的 `docs/plans/modules/<module>/PLAN.md`
 7. 当前主模块的 `docs/progress/modules/<module>/PROGRESS.md`
 8. 当前任务的 `docs/prompts/active/NNNN-*.md`
-9. 涉及 TypeScript/React/Node 代码时必须读取：
+9. 任何代码或脚本修改必须读取：
+   - `docs/standards/QUALITY_GATES.md`
+   - `docs/standards/PROJECT_IDENTITY_AND_ATTRIBUTION.md`
+10. 涉及 TypeScript/React/Node 代码时必须读取：
    - `docs/standards/NAMING.md`
    - `docs/standards/MODULE_BOUNDARIES.md`
    - `docs/standards/IMPORT_PATHS.md`
-10. 涉及版本包、稳定工作区或 GitHub 时必须读取 `docs/standards/WORKSPACE_SYNC.md`
-11. 如任务涉及其他专项规则，再读取 `docs/standards/`
+11. 涉及权限、执行、Secret、网络或外部输入时必须读取 `docs/standards/SECURITY.md`
+12. 涉及运行时、数据库、UI、网络、Agent 或大文件时必须读取 `docs/standards/PERFORMANCE.md`
+13. 涉及 Skills、Experts、Plugins、Extensions 或 MCP 时必须读取 `docs/standards/PROJECT_RESOURCES.md`
+14. 涉及版本包、稳定工作区或 GitHub 时必须读取 `docs/standards/WORKSPACE_SYNC.md`
+15. 如任务涉及其他专项规则，再读取 `docs/standards/`
 
 未完成阅读前，禁止修改业务代码。
 
@@ -114,6 +120,9 @@ OS
 - 禁止使用 archive 文档恢复旧设计。
 - 禁止为了通过测试删除安全检查。
 - 禁止无关重构。
+- 禁止把项目 Skills、Experts、Plugins、Extensions 或 MCP 安装到用户级目录。
+- 禁止删除、篡改或模糊第三方原版权与许可证信息。
+- 禁止用空命令、占位输出或跳过检查伪造 build/typecheck/test 成功。
 
 
 ## Git 源码更新

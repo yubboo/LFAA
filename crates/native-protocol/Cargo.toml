@@ -1,6 +1,7 @@
 [package]
 name = "lfaa-native-protocol"
 version = "0.0.14"
+authors = ["二鱼"]
 edition = "2021"
 
 [lib]

@@ -2,6 +2,7 @@
   "name": "@lfaa/policy-engine",
   "private": true,
   "version": "0.0.14",
+  "author": "二鱼",
   "type": "module",
   "exports": "./src/index.ts"
 }

@@ -19,6 +19,8 @@ planned
 
 `project-foundation` 已在 v0.0.1 建立可交付骨架。下一阶段围绕 `config-system` 完成配置系统，不提前跳转其他业务模块。
 
+`#16` 对 project-foundation 的安全、质量、归属和项目级资源边界加固属于 Config Schema 前置条件，不改变当前主业务模块。
+
 ## 模块顺序
 
 | 顺序 | 模块 | 状态 | 目标 |

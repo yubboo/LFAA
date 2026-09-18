@@ -1,0 +1,85 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  apps/cli: {}
+
+  apps/desktop: {}
+
+  apps/server: {}
+
+  apps/web: {}
+
+  packages/account-manager: {}
+
+  packages/agent-client: {}
+
+  packages/agent-loop: {}
+
+  packages/agent-runtime: {}
+
+  packages/app-shell: {}
+
+  packages/builtin-tools: {}
+
+  packages/code-intelligence: {}
+
+  packages/compatibility/deepseek-harness: {}
+
+  packages/context-engine: {}
+
+  packages/document-parser: {}
+
+  packages/domain: {}
+
+  packages/evals: {}
+
+  packages/event-store: {}
+
+  packages/job-engine: {}
+
+  packages/knowledge-core: {}
+
+  packages/mcp-host: {}
+
+  packages/model-core: {}
+
+  packages/model-providers: {}
+
+  packages/model-router: {}
+
+  packages/observability: {}
+
+  packages/permission-engine: {}
+
+  packages/plugin-runtime: {}
+
+  packages/plugin-sdk: {}
+
+  packages/policy-engine: {}
+
+  packages/protocol: {}
+
+  packages/retrieval: {}
+
+  packages/skill-runtime: {}
+
+  packages/subagent-runtime: {}
+
+  packages/tool-runtime: {}
+
+  packages/tool-sdk: {}
+
+  packages/ui: {}
+
+  packages/usage-manager: {}
+
+  packages/verifier: {}
+
+  packages/workspace: {}

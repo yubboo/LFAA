@@ -126,6 +126,12 @@ function Test-ProtectedPath {
         return $true
     }
 
+    # Project resources live under .lfaa, while runtime cache/state/logs are
+    # local artifacts and must survive version mirror operations.
+    if ($rel -imatch "^\.lfaa/(cache|state|tmp|logs)(/|$)") {
+        return $true
+    }
+
     $segments = $rel.Split("/")
     $first = $segments[0]
 
