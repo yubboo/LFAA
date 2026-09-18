@@ -16,9 +16,9 @@
 |---|---|---|---|---|---|
 | #2 | 配置系统 | #2.1 | active | 配置、Schema、模型、账号、权限、UI | `active/0002-配置系统.md` |
 | #10 | GitHub 推送确认交互 | #10.1 | active | Git、GitHub、Commit、Push、确认、交互 | `active/0010-GitHub推送确认.md` |
-| #19 | 一键准备与依赖检测 | #19.6 | active | Setup、Node、pnpm、Rust、Cargo、依赖、工具链、易用 | `active/0019-一键准备与依赖检测.md` |
+| #19 | 一键准备与依赖检测 | #19.7 | active | Setup、菜单、循环、返回、退出、依赖、开发工具 | `active/0019-一键准备与依赖检测.md` |
 | #20 | 开发日志与文档规范 | #20.2 | active | 日志、文档、中文、命名、目录、索引 | `active/0020-开发日志与文档规范.md` |
-| #21 | Web 工作台 UI | #21.4 | active | Web、Vite、端口、复用、热插拔、Resize、Snap | `active/0021-Web工作台UI.md` |
+| #21 | Web 工作台 UI | #21.5 | active | Web、Vite、启动、端口、性能、复用、热插拔 | `active/0021-Web工作台UI.md` |
 
 ## 历史已交付记录
 
@@ -93,7 +93,8 @@ Cargo
 | #19.3 | superseded | `archive/0019-03-统一开发入口.md` |
 | #19.4 | superseded | `archive/0019-04-Rust安装诊断优化.md` |
 | #19.5 | superseded | `archive/0019-05-Rust工具链分层.md` |
-| #19.6 | active | `active/0019-一键准备与依赖检测.md` |
+| #19.6 | superseded | `archive/0019-06-依赖模型简化.md` |
+| #19.7 | active | `active/0019-一键准备与依赖检测.md` |
 
 
 ## #2 历史变更
@@ -112,4 +113,5 @@ Cargo
 | #21.1 | superseded | `archive/0021-01-Web启动入口调整.md` |
 | #21.2 | superseded | `archive/0021-02-黑白工作台重构.md` |
 | #21.3 | superseded | `archive/0021-03-最小宽度自动吸附.md` |
-| #21.4 | active | `active/0021-Web工作台UI.md` |
+| #21.4 | superseded | `archive/0021-04-Web端口复用.md` |
+| #21.5 | active | `active/0021-Web工作台UI.md` |

@@ -2,20 +2,25 @@
 
 > 根目录只保留当前索引和最近版本。
 
+## #21 Web 工作台 UI
+
+- 用户版本：v0.0.30
+- 状态：delivered
+- 最新变更：#21.5
+- 日期：2026-09-18
+- 修复菜单 2 启动 Web 时逐个端口超时导致的长时间空白等待。
+- Web 端口检测改为读取系统 Active TCP Listener，只探测实际占用端口。
+- Vite 启动直接使用项目本地 binary，不在菜单 2 隐式安装依赖。
+- 已运行 LFAA 继续支持快速复用；未知程序占用 5173 时继续自动换端口。
+
 ## #19 一键准备与依赖检测
 
-- 用户版本：v0.0.29
-- 状态：delivered
-- 最新变更：#19.6
-- 日期：2026-09-18
-- 工具链和项目依赖规则正式简化。
-- Node / pnpm / Git / Rust / Cargo 作为电脑基础工具，一次准备，多项目复用。
-- node_modules / Cargo.lock / rust-toolchain.toml / target / .lfaa 跟项目走。
-- Setup 不再让普通用户理解或选择安装层级。
-- Rust 缺失时只走官方 rustup-init，不再优先尝试 WinGet。
-- 已有 Rust/Cargo 无论安装在哪个盘都直接复用。
-- #21 Web 工作台端口复用逻辑保持不变。
+- 最新变更：#19.7
+- Setup 改为持续主菜单。
+- 菜单 1-10 完成、取消或普通失败后返回主菜单。
+- Web Ctrl+C 停止后返回主菜单。
+- 只有菜单 0 退出终端。
 
 详细记录：
 
-`docs/changelog/v0.0.29.md`
+`docs/changelog/v0.0.30.md`

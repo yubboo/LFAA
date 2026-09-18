@@ -475,7 +475,7 @@ BAT 只负责启动 PowerShell。
 - 写操作明确确认；
 - 路径无关；
 - 成功/失败状态明确；
-- 结束时明确可关闭终端。
+- `LFAA-Setup.bat` 普通操作结束后返回主菜单；只有菜单 `0` 退出终端。
 
 ---
 
@@ -649,49 +649,25 @@ RELEASE.md
 
 ### Setup 真实依赖检测
 
-`LFAA-Setup.bat → 1` 不允许只根据目录是否存在判断依赖。
-
-必须真实检查：
+`LFAA-Setup.bat → 1` 必须真实检查：
 
 ```text
-Node 可执行文件
-Node 版本
-pnpm / corepack
-pnpm 版本
-workspace package 数量
+Node 可执行文件与版本
+pnpm / corepack 与版本
+workspace package
 package.json 依赖声明
-pnpm install --frozen-lockfile
-Cargo
-rustc
-winget
+pnpm install
+Cargo / rustc / rustup
 ```
 
-`node_modules` 的大小不是依赖完整性依据。
+规则：
 
-如果当前 `package.json` 没有声明第三方包，则：
-
-```text
-node_modules 很小
-```
-
-属于正常现象。
-
-Cargo 缺失时：
-
-```text
-winget 可用
-→ 优先 winget
-
-winget 不可用 / 安装失败
-→ Rust 官方 static.rust-lang.org
-→ 下载 rustup-init.exe
-→ 下载官方 .sha256
-→ SHA-256 校验
-→ 才允许执行
-```
-
-自动安装仍失败时，一键准备必须显示“部分完成 / Rust 未完成”，不能显示全部成功。
-
+- `node_modules` 大小不能作为依赖完整性依据；
+- 已有工具链直接复用；
+- Rust 缺失时使用 Rust 官方 `rustup-init`；
+- 官方 rustup 原始输出可以保留英文；
+- LFAA 自身状态提示必须中文；
+- 普通用户不需要选择工具链安装层级。
 
 ---
 
@@ -730,37 +706,9 @@ LFAA-Setup.bat
 
 ---
 
-### Rust 安装输出与 WinGet 语义
+### Rust 官方安装输出
 
-Rust 安装必须区分：
-
-```text
-LFAA 自身提示
-→ 中文
-
-Rust 官方 rustup 输出
-→ 保留官方原始英文
-```
-
-路径检测必须支持：
-
-```text
-CARGO_HOME/bin
-PATH
-%USERPROFILE%/.cargo/bin
-```
-
-WinGet 返回码不得一律显示“失败”。
-
-已知：
-
-```text
--1978335189 / 0x8A15002B
-→ No applicable update found
-→ 中文显示“未发现可适用更新”
-```
-
-此时必须重新检测本机 rustup/Cargo，再决定是否使用官方 rustup-init。
+Rust 缺失时使用官方 `rustup-init`。官方 `info:` 原始输出保留英文，LFAA 自身状态提示使用中文。
 
 
 ---
@@ -843,3 +791,42 @@ target/
 Rust 缺失时直接使用 Rust 官方 `rustup-init`，不再优先尝试 WinGet。
 
 Rust 官方原始安装输出允许保留英文；LFAA 自己的状态提示必须中文清楚。
+
+
+---
+
+### Setup 菜单循环
+
+`LFAA-Setup.bat` 必须保持一个持续主菜单：
+
+```text
+1 - 10
+→ 执行操作
+→ 返回主菜单
+
+0
+→ 退出
+```
+
+普通完成、取消、错误都不得自动关闭 Setup 终端。
+
+Web / Desktop 长运行开发进程停止后也必须返回主菜单。
+
+---
+
+### Web 本地启动性能
+
+菜单 `2 启动 Web` 不得通过逐端口长超时扫描寻找已有服务。
+
+推荐流程：
+
+```text
+读取当前 TCP Listener
+→ 只识别真正占用的候选端口
+→ 复用已有 LFAA
+→ 否则选择空闲端口
+```
+
+菜单 2 不负责安装依赖。
+
+本地 Vite binary 不存在时，应明确提示先运行菜单 1。

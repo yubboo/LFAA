@@ -2,54 +2,76 @@
 
 - **主编号：** #21
 - **名称：** Web 工作台 UI
-- **最新变更：** #21.4
+- **最新变更：** #21.5
 - **状态：** active
-- **关键词：** Web、Vite、端口、复用、冲突、热插拔、Resize、Snap
+- **关键词：** Web、Vite、启动、端口、性能、复用、热插拔
 - **当前文件：** `docs/logs/development/active/0021-Web工作台UI.md`
 
 ## 当前结论
 
-工作台保持黑白灰 Codex / ChatGPT 类三栏设计和 #21.3 最小宽度自动吸附。
+Web 开发启动必须快速，不得为了找端口逐个等待超时。
 
-Web 开发启动新增端口复用策略：
+当前策略：
 
 ```text
-先扫描 5173-5199
-→ 如果发现已经运行的 LFAA Vite
-→ 直接复用，不启动第二个进程
-
-没有 LFAA Vite
-→ 5173 空闲则使用 5173
-→ 5173 被其他程序占用则寻找下一空闲端口
-→ 不自动结束未知进程
+读取系统当前 TCP Listener
+→ 只对真正已占用的 5173-5199 端口识别是否为 LFAA
+→ 已运行 LFAA：立即复用
+→ 没有：直接选择第一个空闲端口
 ```
+
+Vite 启动不再经过 pnpm script 调度链：
+
+```text
+直接运行项目本地 node_modules/.bin/vite.cmd
+```
+
+如果本地 Vite 不存在：
+
+```text
+明确提示先运行菜单 1
+```
+
+不在菜单 2 自动安装依赖。
 
 ## 最新变更
 
-### #21.4 Web 端口复用
+### #21.5 Web 启动延迟修复
 
-1. 修复 `Port 5173 is already in use` 直接失败；
-2. 通过 `/__lfaa/dev/resources` 识别是否为已运行 LFAA Vite；
-3. 已运行时直接复用并打开地址；
-4. 非 LFAA 程序占用 5173 时自动选择 5174-5199 空闲端口；
-5. Vite 端口由 `LFAA_WEB_PORT` 注入；
-6. `strictPort` 保留，防止实际端口和脚本提示不一致；
-7. #21.3 Resize/Snap 行为不回退。
+根因：
+
+```text
+旧 Find-LfaaWebDevPort
+→ 5173 到 5199
+→ 每个端口 Invoke-WebRequest TimeoutSec 1
+```
+
+在没有 LFAA Web 运行时，最坏会产生二十多秒无输出等待。
+
+修复：
+
+1. 使用系统 Active TCP Listener 一次读取占用端口；
+2. 只探测真正占用的候选端口；
+3. 单次 LFAA HTTP 识别超时压到约 350ms；
+4. 未占用时立即得到 5173；
+5. Web 启动直接调用本地 Vite binary，避免 pnpm 启动前的额外依赖检查；
+6. 菜单 2 一开始立即显示“正在快速检查本地 Vite 端口”；
+7. Vite `Ctrl+C` 停止后返回 Setup 主菜单。
 
 ## 影响范围
 
 - `scripts/windows/lfaa-setup.ps1`
-- `apps/web/vite.config.ts`
-- `apps/web/package.json`
+- `apps/web/vite.config.ts`（端口协议保持不变）
 - `docs/testing/WEB_UI_TEST.md`
-- `docs/prompts/active/0021-Web工作台UI.md`
+- `docs/standards/PERFORMANCE.md`
 
 ## 验证结果
 
-- 已运行 LFAA Web 可被识别并复用；
-- 未知端口占用不会被强制结束；
-- 可自动选择 5173-5199；
-- Windows 实机最终端口行为待用户验证。
+- 不再对 27 个未占用端口逐个做 1 秒 HTTP 超时；
+- 没有监听端口时端口解析只读取系统 Listener；
+- 本地 Vite binary 缺失时有明确错误；
+- #21.3 Resize/Snap 和 #21.4 端口复用均保留；
+- Windows 实机启动耗时待用户机器最终验证。
 
 ## 历史索引
 
@@ -59,4 +81,5 @@ Web 开发启动新增端口复用策略：
 | #21.1 | superseded | `archive/0021-01-Web启动入口调整.md` |
 | #21.2 | superseded | `archive/0021-02-黑白工作台重构.md` |
 | #21.3 | superseded | `archive/0021-03-最小宽度自动吸附.md` |
-| #21.4 | active | `active/0021-Web工作台UI.md` |
+| #21.4 | superseded | `archive/0021-04-Web端口复用.md` |
+| #21.5 | active | `active/0021-Web工作台UI.md` |

@@ -19,26 +19,13 @@ function Write-Label {
     Write-Host $Text
 }
 
-function Wait-LfaaClose {
+function Wait-LfaaMenu {
     param(
-        [bool]$Success,
-        [string]$SuccessMessage = ""
+        [string]$Message = "按任意键返回主菜单。"
     )
 
     Write-Host ""
-
-    if ($Success) {
-        if ([string]::IsNullOrWhiteSpace($SuccessMessage)) {
-            $SuccessMessage = "全部操作已完成，现在可以安全关闭终端窗口。"
-        }
-
-        Write-Label "【提示】" "【可关闭】" $SuccessMessage Green
-    }
-    else {
-        Write-Label "【提示】" "【可关闭】" "操作未完成；处理上方问题后可重新运行。" Yellow
-    }
-
-    Write-Label "【提示】" "【操作】" "按任意键关闭窗口，或直接点击右上角 X。" DarkGray
+    Write-Label "【提示】" "【返回菜单】" $Message DarkGray
     try { [void][System.Console]::ReadKey($true) } catch {}
 }
 
@@ -46,7 +33,8 @@ function Stop-Lfaa {
     param([string]$Message)
     Write-Host ""
     Write-Label "【错误】" "【失败】" $Message Red
-    Wait-LfaaClose $false
+    Write-Label "【提示】" "【退出】" "项目根无效，无法进入主菜单。" Yellow
+    try { [void][System.Console]::ReadKey($true) } catch {}
     exit 1
 }
 
@@ -720,75 +708,179 @@ function Invoke-PnpmForeground {
 }
 
 
-function Test-LocalTcpPortInUse {
-    param([int]$Port)
-    $client = New-Object System.Net.Sockets.TcpClient
+function Get-ActiveLocalTcpPorts {
     try {
-        $task = $client.ConnectAsync("127.0.0.1", $Port)
-        if (-not $task.Wait(220)) { return $false }
-        return $client.Connected
+        return @(
+            [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().
+                GetActiveTcpListeners() |
+                ForEach-Object { [int]$_.Port } |
+                Sort-Object -Unique
+        )
     }
-    catch { return $false }
-    finally { $client.Dispose() }
+    catch {
+        return @()
+    }
 }
 
 function Test-LfaaWebDevServer {
     param([int]$Port)
+
+    $request = $null
+    $response = $null
+    $reader = $null
+
     try {
-        $response = Invoke-WebRequest -UseBasicParsing -Uri ("http://127.0.0.1:{0}/__lfaa/dev/resources" -f $Port) -TimeoutSec 1
-        if ($response.StatusCode -ne 200) { return $false }
-        $payload = $response.Content | ConvertFrom-Json
+        $request = [System.Net.HttpWebRequest]::Create(
+            ("http://127.0.0.1:{0}/__lfaa/dev/resources" -f $Port)
+        )
+        $request.Method = "GET"
+        $request.Timeout = 350
+        $request.ReadWriteTimeout = 350
+        $request.KeepAlive = $false
+        $request.Proxy = $null
+
+        $response = $request.GetResponse()
+
+        if ([int]$response.StatusCode -ne 200) {
+            return $false
+        }
+
+        $reader = New-Object System.IO.StreamReader($response.GetResponseStream())
+        $content = $reader.ReadToEnd()
+        $payload = $content | ConvertFrom-Json
+
         return $null -ne $payload.resources
     }
-    catch { return $false }
+    catch {
+        return $false
+    }
+    finally {
+        if ($null -ne $reader) { $reader.Dispose() }
+        if ($null -ne $response) { $response.Dispose() }
+    }
 }
 
-function Find-LfaaWebDevPort {
-    param([int]$StartPort=5173,[int]$EndPort=5199)
-    for ($port=$StartPort; $port -le $EndPort; $port++) {
-        if (Test-LfaaWebDevServer $port) { return $port }
+function Resolve-LfaaWebDevPort {
+    param(
+        [int]$StartPort = 5173,
+        [int]$EndPort = 5199
+    )
+
+    $activePorts = @(Get-ActiveLocalTcpPorts | Where-Object {
+        $_ -ge $StartPort -and $_ -le $EndPort
+    })
+
+    # 只探测真正已经监听的端口。
+    # 旧实现会对 5173-5199 每个端口做 1 秒 HTTP 超时，
+    # 在没有任何 Web 服务时也可能白等二十多秒。
+    foreach ($port in $activePorts) {
+        if (Test-LfaaWebDevServer $port) {
+            return [PSCustomObject]@{
+                Mode = "reuse"
+                Port = [int]$port
+            }
+        }
     }
+
+    for ($port = $StartPort; $port -le $EndPort; $port++) {
+        if ($activePorts -notcontains $port) {
+            return [PSCustomObject]@{
+                Mode = "start"
+                Port = [int]$port
+            }
+        }
+    }
+
     return $null
 }
 
-function Find-FreeLocalPort {
-    param([int]$StartPort=5173,[int]$EndPort=5199)
-    for ($port=$StartPort; $port -le $EndPort; $port++) {
-        if (-not (Test-LocalTcpPortInUse $port)) { return $port }
+function Get-WebViteCommandPath {
+    $candidates = @(
+        (Join-Path $ProjectRoot "apps\web\node_modules\.bin\vite.cmd"),
+        (Join-Path $ProjectRoot "node_modules\.bin\vite.cmd")
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate) {
+            return $candidate
+        }
     }
-    return $null
+
+    throw "未找到本地 Vite。请先运行菜单 1【一键依赖】准备项目依赖。"
+}
+
+function Invoke-WebViteForeground {
+    param(
+        [string]$ViteCommand,
+        [string]$WorkingDirectory,
+        [int]$Port
+    )
+
+    $code = 0
+    $oldPort = $env:LFAA_WEB_PORT
+    $env:LFAA_WEB_PORT = [string]$Port
+
+    Push-Location $WorkingDirectory
+    try {
+        try {
+            & $ViteCommand
+            $code = $LASTEXITCODE
+        }
+        catch [System.Management.Automation.PipelineStoppedException] {
+            $code = 130
+        }
+    }
+    finally {
+        Pop-Location
+
+        if ($null -eq $oldPort) {
+            Remove-Item Env:LFAA_WEB_PORT -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:LFAA_WEB_PORT = $oldPort
+        }
+    }
+
+    if ($code -notin @(0,130,-1073741510)) {
+        throw ("Web / Vite 开发服务器失败，退出码：{0}" -f $code)
+    }
+
+    Write-Host ""
+    Write-Label "【停止】" "【Web】" "Vite 开发服务器已停止。" Green
 }
 
 function Start-WebDevelopment {
     Assert-WorkspaceScript "apps\web\package.json" "dev" "Web 端"
 
-    $runningPort = Find-LfaaWebDevPort
-    if ($null -ne $runningPort) {
-        $url = "http://127.0.0.1:{0}" -f $runningPort
-        Write-Host ""
+    Write-Host ""
+    Write-Label "【检测】" "【Web】" "正在快速检查本地 Vite 端口..." DarkGray
+
+    $resolved = Resolve-LfaaWebDevPort
+    if ($null -eq $resolved) {
+        throw "5173-5199 均被占用，无法为 LFAA Web 分配本地开发端口。"
+    }
+
+    $url = "http://127.0.0.1:{0}" -f $resolved.Port
+
+    if ($resolved.Mode -eq "reuse") {
         Write-Label "【已运行】" "【Web】" ("已检测到 LFAA Vite：{0}" -f $url) Green
-        Write-Label "【处理】" "【复用】" "不再重复启动第二个 Vite 进程。" Cyan
+        Write-Label "【处理】" "【复用】" "直接复用现有服务，不重复启动。" Cyan
         try { Start-Process $url | Out-Null } catch {}
         return
     }
 
-    $port = Find-FreeLocalPort
-    if ($null -eq $port) {
-        throw "5173-5199 均被占用，无法为 LFAA Web 分配本地开发端口。"
+    if ($resolved.Port -ne 5173) {
+        Write-Label "【端口】" "【5173 已占用】" ("自动改用 {0}；不会结束未知进程。" -f $resolved.Port) Yellow
     }
 
-    if ($port -ne 5173) {
-        Write-Label "【端口】" "【5173 已占用】" ("检测到其他程序占用，LFAA 自动改用 {0}；不会结束未知进程。" -f $port) Yellow
-    }
+    $viteCommand = Get-WebViteCommandPath
+    $webRoot = Join-Path $ProjectRoot "apps\web"
 
-    $env:LFAA_WEB_PORT = [string]$port
-    $url = "http://127.0.0.1:{0}" -f $port
-
-    Write-Host ""
     Write-Label "【启动】" "【Web】" ("Vite：{0}" -f $url) Green
     Write-Label "【热插拔】" "【监听】" ".lfaa/skills、experts、plugins、extensions、mcp" Cyan
-    Write-Label "【提示】" "【停止】" "开发服务器运行期间保持窗口开启；按 Ctrl+C 停止。" DarkGray
-    Invoke-PnpmForeground @("--filter","@lfaa/web","dev") "Web / Vite 开发服务器"
+    Write-Label "【提示】" "【停止】" "按 Ctrl+C 停止 Web；停止后会返回主菜单。" DarkGray
+
+    Invoke-WebViteForeground $viteCommand $webRoot $resolved.Port
 }
 
 function Start-DesktopDevelopment {
@@ -870,121 +962,162 @@ if (-not (Test-Path (Join-Path $ProjectRoot "lfaa.release.json"))) {
     Stop-Lfaa "脚本所在目录不是有效的 LFAA 项目根。"
 }
 
-Show-SetupMenu
-$choice = (Read-Host "【请选择】【0-10】").Trim()
+$firstMenu = $true
 
-try {
-    switch ($choice) {
-        "1" {
-            if (-not (Test-NodeDependencyToolchain)) {
-                Show-Environment
-                throw "未检测到可用的 Node + pnpm/corepack 工具链。Node.js 是 LFAA 当前开发的基础前置条件。"
-            }
-
-            Write-Host ""
-            $nodeToolchain = Assert-NodeToolchain
-            $nodeSummary = Get-NodeDependencySummary
-
-            Write-Label "【预检】" "【Node】" ("{0} | {1}" -f $nodeToolchain.NodeVersion,$nodeToolchain.NodeSource) Green
-            Write-Label "【预检】" "【pnpm】" ("{0} | {1}" -f $nodeToolchain.PnpmVersion,$nodeToolchain.PnpmSource) Green
-            Write-Label "【预检】" "【workspace】" ("{0} 个项目 | 外部 Node 依赖 {1} 个" -f $nodeSummary.WorkspaceProjects,$nodeSummary.ExternalDependencies) Green
-
-            if ($nodeSummary.ExternalDependencies -eq 0) {
-                Write-Label "【说明】" "【node_modules】" "当前没有第三方 Node 包需要安装；目录很小是正常的。" DarkCyan
-            }
-
-            $cargoReadyBefore = Test-RustDependencyToolchain
-            if ($cargoReadyBefore) {
-                Write-Label "【预检】" "【Rust/Cargo】" ("可用 | {0}" -f (Get-CargoCommandPath)) Green
-            }
-            else {
-                Write-Label "【预检】" "【Rust/Cargo】" "缺失；确认后自动使用 Rust 官方安装器补齐。" Yellow
-            }
-
-            if (-not (Confirm-WriteOperation "将检查并补齐开发环境；已安装的工具直接复用，缺失的自动安装。")) {
-                Wait-LfaaClose $true "用户已取消，一键准备未继续执行；现在可以安全关闭终端窗口。"
-                exit 0
-            }
-
-            Install-NodeDependencies
-
-            $cargoReady = Install-RustToolchainIfMissing
-            if ($cargoReady) {
-                Install-RustDependencies
-            }
-            else {
-                Write-Label "【待补齐】" "【Rust/Cargo】" "Rust 环境尚未完成；当前 Node/pnpm 环境已经准备好。" Yellow
-            }
-
-            Initialize-ProjectResources
-
-            Write-Host ""
-            Write-Label "【完成】" "【Node/pnpm】" "项目 Node 依赖已确认。" Green
-
-            if ($cargoReady) {
-                Write-Label "【完成】" "【Rust/Cargo】" "Rust 工具链和当前已声明 Rust 依赖已确认。" Green
-                Wait-LfaaClose $true "项目当前已声明的开发依赖已经准备完成；现在可以安全关闭终端窗口。"
-                exit 0
-            }
-
-            Write-Host ""
-            Write-Label "【部分完成】" "【Node/pnpm】" "已完成真实校验。" Green
-            Write-Label "【未完成】" "【Rust/Cargo】" "自动安装没有得到可用 Cargo；请查看上方具体失败原因。" Yellow
-            Wait-LfaaClose $false
-            exit 2
-        }
-        "2" {
-            Start-WebDevelopment
-            exit 0
-        }
-        "3" {
-            Start-DesktopDevelopment
-            exit 0
-        }
-        "4" {
-            Build-Web
-        }
-        "5" {
-            Build-Desktop
-        }
-        "6" {
-            Build-AndReleaseAll
-        }
-        "7" {
-            Show-Environment
-        }
-        "8" {
-            if (-not (Confirm-WriteOperation "将在当前项目创建缺失的 .lfaa 目录。")) { Wait-LfaaClose $true; exit 0 }
-            Initialize-ProjectResources
-        }
-        "9" {
-            Invoke-PnpmScript "governance:check"
-        }
-        "10" {
-            Invoke-PnpmScript "governance:check"
-            Invoke-PnpmScript "typecheck:web"
-            Invoke-PnpmScript "build:web"
-
-            Invoke-PnpmScript "typecheck"
-            Invoke-PnpmScript "test"
-            Invoke-PnpmScript "build"
-
-            $cargoPath = Get-CargoCommandPath
-            if ([string]::IsNullOrWhiteSpace($cargoPath)) {
-                throw "完整检查需要 Rust/Cargo；当前未检测到 Cargo。"
-            }
-
-            Invoke-ProjectCommand $cargoPath @("check","--workspace") "运行 Rust cargo check"
-            Invoke-ProjectCommand $cargoPath @("test","--workspace") "运行 Rust cargo test"
-        }
-        "0" { Write-Label "【退出】" "【完成】" "未执行任何操作。" Green; Wait-LfaaClose $true; exit 0 }
-        default { throw "无效选项，请输入 0 到 10。" }
+while ($true) {
+    if (-not $firstMenu) {
+        try { Clear-Host } catch {}
     }
-} catch {
-    Stop-Lfaa ([string]$_.Exception.Message)
-}
+    $firstMenu = $false
 
-Write-Host ""
-Write-Label "【完成】" "【成功】" "所选操作已完成。" Green
-Wait-LfaaClose $true
-exit 0
+    Show-SetupMenu
+    $choice = (Read-Host "【请选择】【0-10】").Trim()
+
+    if ($choice -eq "0") {
+        Write-Host ""
+        Write-Label "【退出】" "【完成】" "已退出 LFAA 开发菜单。" Green
+        exit 0
+    }
+
+    $menuMessage = "操作结束，按任意键返回主菜单。"
+
+    try {
+        switch ($choice) {
+            "1" {
+                if (-not (Test-NodeDependencyToolchain)) {
+                    Show-Environment
+                    throw "未检测到可用的 Node + pnpm/corepack 工具链。Node.js 是 LFAA 当前开发的基础前置条件。"
+                }
+
+                Write-Host ""
+                $nodeToolchain = Assert-NodeToolchain
+                $nodeSummary = Get-NodeDependencySummary
+
+                Write-Label "【预检】" "【Node】" ("{0} | {1}" -f $nodeToolchain.NodeVersion,$nodeToolchain.NodeSource) Green
+                Write-Label "【预检】" "【pnpm】" ("{0} | {1}" -f $nodeToolchain.PnpmVersion,$nodeToolchain.PnpmSource) Green
+                Write-Label "【预检】" "【workspace】" ("{0} 个项目 | 外部 Node 依赖 {1} 个" -f $nodeSummary.WorkspaceProjects,$nodeSummary.ExternalDependencies) Green
+
+                if ($nodeSummary.ExternalDependencies -eq 0) {
+                    Write-Label "【说明】" "【node_modules】" "当前没有第三方 Node 包需要安装；目录很小是正常的。" DarkCyan
+                }
+
+                $cargoReadyBefore = Test-RustDependencyToolchain
+                if ($cargoReadyBefore) {
+                    Write-Label "【预检】" "【Rust/Cargo】" ("可用 | {0}" -f (Get-CargoCommandPath)) Green
+                }
+                else {
+                    Write-Label "【预检】" "【Rust/Cargo】" "缺失；确认后自动使用 Rust 官方安装器补齐。" Yellow
+                }
+
+                if (-not (Confirm-WriteOperation "将检查并补齐开发环境；已安装的工具直接复用，缺失的自动安装。")) {
+                    Write-Host ""
+                    Write-Label "【取消】" "【一键依赖】" "用户已取消，本次未修改环境。" Yellow
+                    $menuMessage = "已取消，按任意键返回主菜单。"
+                    break
+                }
+
+                Install-NodeDependencies
+
+                $cargoReady = Install-RustToolchainIfMissing
+                if ($cargoReady) {
+                    Install-RustDependencies
+                }
+                else {
+                    Write-Label "【待补齐】" "【Rust/Cargo】" "Rust 环境尚未完成；Node/pnpm 环境已经准备好。" Yellow
+                }
+
+                Initialize-ProjectResources
+
+                Write-Host ""
+                Write-Label "【完成】" "【Node/pnpm】" "项目 Node 依赖已确认。" Green
+
+                if ($cargoReady) {
+                    Write-Label "【完成】" "【Rust/Cargo】" "Rust 工具链和当前已声明 Rust 依赖已确认。" Green
+                    $menuMessage = "依赖准备完成，按任意键返回主菜单。"
+                }
+                else {
+                    Write-Label "【部分完成】" "【Rust/Cargo】" "Rust 自动安装未完成，请查看上方具体原因。" Yellow
+                    $menuMessage = "依赖部分完成，按任意键返回主菜单。"
+                }
+            }
+
+            "2" {
+                Start-WebDevelopment
+                $menuMessage = "Web 操作已结束，按任意键返回主菜单。"
+            }
+
+            "3" {
+                Start-DesktopDevelopment
+                $menuMessage = "Desktop 操作已结束，按任意键返回主菜单。"
+            }
+
+            "4" {
+                Build-Web
+                $menuMessage = "Web 构建完成，按任意键返回主菜单。"
+            }
+
+            "5" {
+                Build-Desktop
+                $menuMessage = "Desktop 构建完成，按任意键返回主菜单。"
+            }
+
+            "6" {
+                Build-AndReleaseAll
+                $menuMessage = "构建发布操作完成，按任意键返回主菜单。"
+            }
+
+            "7" {
+                Show-Environment
+                $menuMessage = "环境检查完成，按任意键返回主菜单。"
+            }
+
+            "8" {
+                if (-not (Confirm-WriteOperation "将在当前项目创建缺失的 .lfaa 目录。")) {
+                    Write-Host ""
+                    Write-Label "【取消】" "【项目资源】" "用户已取消，本次未修改项目资源。" Yellow
+                    $menuMessage = "已取消，按任意键返回主菜单。"
+                    break
+                }
+
+                Initialize-ProjectResources
+                $menuMessage = "项目资源检查完成，按任意键返回主菜单。"
+            }
+
+            "9" {
+                Invoke-PnpmScript "governance:check"
+                $menuMessage = "治理检查完成，按任意键返回主菜单。"
+            }
+
+            "10" {
+                Invoke-PnpmScript "governance:check"
+                Invoke-PnpmScript "typecheck:web"
+                Invoke-PnpmScript "build:web"
+
+                Invoke-PnpmScript "typecheck"
+                Invoke-PnpmScript "test"
+                Invoke-PnpmScript "build"
+
+                $cargoPath = Get-CargoCommandPath
+                if ([string]::IsNullOrWhiteSpace($cargoPath)) {
+                    throw "完整检查需要 Rust/Cargo；当前未检测到 Cargo。"
+                }
+
+                Invoke-ProjectCommand $cargoPath @("check","--workspace") "运行 Rust cargo check"
+                Invoke-ProjectCommand $cargoPath @("test","--workspace") "运行 Rust cargo test"
+
+                $menuMessage = "完整检查完成，按任意键返回主菜单。"
+            }
+
+            default {
+                throw "无效选项，请输入 0 到 10。"
+            }
+        }
+    }
+    catch {
+        Write-Host ""
+        Write-Label "【错误】" "【失败】" ([string]$_.Exception.Message) Red
+        $menuMessage = "操作未完成，按任意键返回主菜单。"
+    }
+
+    Wait-LfaaMenu $menuMessage
+}
