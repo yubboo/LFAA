@@ -40,6 +40,30 @@ deliverable
 - 性能、安全和质量门禁；
 - 路径无关的依赖安装与开发检查菜单。
 
+## #21.16 Hover / Click 左栏宽度统一
+
+### 任务原因
+
+v0.0.47 正式左栏和 Hover Preview 使用两个宽度来源，用户实机发现两者宽度不一致。
+
+### 实施顺序
+
+1. 保留 v0.0.47 为历史版本；
+2. 归档 #21.15 Active Log / Prompt；
+3. 从 ResizableWorkbench 回传真实 leftWidth；
+4. App Shell 用一个 CSS 变量供 Hover Preview 使用；
+5. 删除 Preview 独立 clamp 宽度；
+6. 增加 UI contract 防回归；
+7. 同步文档与发布记录；
+8. 执行治理、语法、版本、ZIP、PowerShell BOM 门禁。
+
+### 验收条件
+
+- Hover Preview == 点击展开宽度；
+- resize 后仍一致；
+- 响应式 clamp 后仍一致；
+- 不改三向吸附、PTY 和基础设施。
+
 ## #21.15 容器响应式与布局变量化
 
 ### 任务原因

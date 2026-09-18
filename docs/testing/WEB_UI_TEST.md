@@ -181,3 +181,7 @@ Desktop / Compact：
 - `.lfaa` 资源热刷新；
 - Sync / GitHub / Setup / Update 行为不变化；
 - Windows PowerShell BOM 保留。
+
+## 12. Hover / Click 左栏宽度一致性
+
+1. 记录正式左栏宽度；2. 收起；3. Hover 左栏按钮；4. Preview 宽度应与记录一致；5. 点击展开，宽度不得跳变；6. 手动 resize 后重复一次；7. 缩窄窗口触发 clamp 后再重复一次。

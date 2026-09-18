@@ -67,3 +67,7 @@ Bottom min：136~176
 App Shell 内容与状态：
 
 `packages/app-shell/src/AgentWorkbench.tsx`
+
+## v0.0.48 左栏宽度回传
+
+`ResizableWorkbench` 通过 `onLeftWidthChange` 把当前真实左栏宽度交给 App Shell。该回调用于保证 Hover Preview 和正式 Dock 共用一个几何事实源，不允许 Preview 再维护独立 clamp 宽度。

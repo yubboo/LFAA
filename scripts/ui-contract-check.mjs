@@ -126,4 +126,17 @@ if (!workbenchCss.includes('data-snap-preview="left"') || !workbenchCss.includes
   fail("snap preview must keep the short magnetic-collapse transition");
 }
 
+
+// 5. 左栏 Hover Preview 与点击展开必须共享同一实际宽度，禁止维护第二套 preview clamp。
+for (const token of [
+  "onLeftWidthChange",
+  "setLeftPaneWidth",
+  '"--agent-left-preview-width": `${leftPaneWidth}px`',
+]) {
+  if (!tsx.includes(token) && !resizeTsx.includes(token)) fail(`missing shared left preview width contract: ${token}`);
+}
+if (/--agent-left-preview-width\s*:\s*clamp\(/.test(css)) {
+  fail("Hover Preview must not own an independent clamp width; bind it to the real left pane width");
+}
+
 console.log("LFAA UI contract check passed.");

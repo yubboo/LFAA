@@ -34,6 +34,8 @@ export interface ResizableWorkbenchProps {
   bottomOpen?: boolean;
   /** 当前容器布局模式；决定左右栏使用 Dock 还是 Overlay。 */
   layoutMode?: WorkbenchLayoutMode;
+  /** 当前左栏真实宽度变化；供 Shell 的 Hover Preview 与正式 Dock 共享同一几何事实源。 */
+  onLeftWidthChange?: (width: number) => void;
   onLeftCollapsedChange?: (collapsed: boolean) => void;
   onRightCollapsedChange?: (collapsed: boolean) => void;
   onBottomOpenChange?: (open: boolean) => void;

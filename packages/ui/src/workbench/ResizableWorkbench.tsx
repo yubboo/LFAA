@@ -4,7 +4,7 @@
  * 负责：尺寸状态、Pointer 拖拽、吸附迟滞、动态最大宽度、键盘 Resize、布局持久化。
  * 不负责：侧栏里面显示什么、Shell 按钮放在哪里、终端内容、业务状态。
  * 状态归属：本组件拥有几何尺寸；栏位开合可由父组件受控，受控时父组件是 collapsed/open 的事实源。
- * 对外接口：ResizableWorkbench(props)。
+ * 对外接口：ResizableWorkbench(props)，其中 onLeftWidthChange 用于把真实左栏宽度同步给 Shell 的 Hover Preview。
  * 关联文件：workbench-layout.types.ts、workbench.css、@lfaa/app-shell/AgentWorkbench.tsx。
  * 修改注意事项：
  * - 展开态尺寸绝不低于 min；拖到 min 即进入吸附收起预览，Pointer 不松手可反向拖回 min 并继续拉伸。
@@ -132,6 +132,7 @@ export function ResizableWorkbench({
   rightCollapsed: rightCollapsedProp,
   bottomOpen = false,
   layoutMode = "desktop",
+  onLeftWidthChange,
   onLeftCollapsedChange,
   onRightCollapsedChange,
   onBottomOpenChange,
@@ -147,6 +148,11 @@ export function ResizableWorkbench({
   const [internalRightCollapsed, setInternalRightCollapsed] = useState(initial.rightCollapsed);
   const leftCollapsed = leftCollapsedProp ?? internalLeftCollapsed;
   const rightCollapsed = rightCollapsedProp ?? internalRightCollapsed;
+
+  // 将左栏实际宽度回传给 Shell。Hover Preview 不再维护独立宽度，保证预览与点击展开完全一致。
+  useEffect(() => {
+    onLeftWidthChange?.(leftWidth);
+  }, [leftWidth, onLeftWidthChange]);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const sideDragRef = useRef<SideDragState | null>(null);

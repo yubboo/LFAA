@@ -3,12 +3,12 @@
  * 作用：LFAA 共享工作台壳，把左栏、中间工作区、右栏和底部终端组织成一个可交互页面。
  * 负责：工作台壳状态、主题状态、左右栏开合、终端开合、左栏 Hover 预览、快捷键、各区域内容编排。
  * 不负责：分隔条拖拽算法、PTY 创建、Vite 资源扫描、Agent 业务执行。
- * 状态归属：本文件拥有 Shell UI 状态（theme / leftCollapsed / rightCollapsed / terminalOpen / leftPreviewOpen）。
+ * 状态归属：本文件拥有 Shell UI 状态（theme / leftCollapsed / rightCollapsed / terminalOpen / leftPreviewOpen）以及用于 Preview 投影的 leftPaneWidth；真实几何宽度仍由 ResizableWorkbench 拥有并回传。
  * 对外接口：AgentWorkbench(props)。
  * 关联文件：agent-workbench.css、workbench.types.ts、@lfaa/ui/ResizableWorkbench、apps/web/src/App.tsx。
  * 修改注意事项：框架级开合状态只保留一个 Owner；布局拖拽交给 @lfaa/ui；Web 专有桥接不能写入共享 App Shell。
  *
- * 页面结构（v0.0.47）：
+ * 页面结构（v0.0.48）：
  * AgentWorkbench
  * └─ agent-workbench-stage                  整个可缩放工作区
  *    ├─ agent-left-hover-preview            左栏收起后的 Hover 临时预览层
@@ -31,7 +31,7 @@
  * - Compact/Mobile：右栏变覆盖式抽屉，Shell 按钮始终留在中间 Header，保证小屏也能看见关闭入口。
  * - 响应式由 ResizeObserver + 统一布局计算器决定，不能用固定 viewport 断点硬挤三栏。
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import {
   ResizableWorkbench,
   resolveWorkbenchLayoutMetrics,
@@ -429,6 +429,8 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const layoutMode = layout.mode;
   const [theme, setTheme] = useState<ThemeMode>(initialTheme);
   const [chrome, setChrome] = useState<ChromeState>(() => initialChrome(layoutMode));
+  // Hover Preview 与正式左 Dock 共享同一个“实际宽度”值。默认取当前响应式 initial，随后由 ResizableWorkbench 回传真实宽度。
+  const [leftPaneWidth, setLeftPaneWidth] = useState(layout.left.initial);
   const [leftPreviewOpen, setLeftPreviewOpen] = useState(false);
   const previewCloseTimerRef = useRef<number | null>(null);
   const appliedLayoutModeRef = useRef<LayoutMode | null>(layoutMode);
@@ -525,7 +527,11 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
 
   return (
     <div className="agent-theme" data-theme={theme} data-layout-mode={layoutMode}>
-      <div ref={stageRef} className="agent-workbench-stage">
+      <div
+        ref={stageRef}
+        className="agent-workbench-stage"
+        style={{ "--agent-left-preview-width": `${leftPaneWidth}px` } as CSSProperties}
+      >
         {/* 左栏收起后才挂载临时预览层；正常展开时由 ResizableWorkbench 渲染正式左栏。 */}
         {chrome.leftCollapsed ? (
           <div
@@ -571,6 +577,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
           snapHysteresis={layout.snapHysteresis}
           minCenterWidth={layout.minCenterWidth}
           leftCollapsed={chrome.leftCollapsed}
+          onLeftWidthChange={setLeftPaneWidth}
           rightCollapsed={chrome.rightCollapsed}
           onLeftCollapsedChange={(leftCollapsed) => {
             clearPreviewTimer();

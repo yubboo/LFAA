@@ -331,3 +331,7 @@ packages/app-shell/src/agent-workbench.css
 - Composer 是否溢出；
 - 三向 snap 是否保持；
 - 无整页横向滚动。
+
+## 11. Hover Preview 宽度单一事实源（v0.0.48）
+
+左栏 Hover Preview 不允许维护独立宽度。必须使用正式 Dock 当前真实 `leftWidth`：`ResizableWorkbench → onLeftWidthChange → --agent-left-preview-width → Preview`。因此默认、用户 resize、响应式 clamp 后 Hover 与 Click 都必须一致。

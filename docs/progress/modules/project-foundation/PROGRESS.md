@@ -1,3 +1,15 @@
+## 2026-09-18 / #21.16 Hover / Click 左栏宽度统一
+
+- 当前状态：pending-windows-visual-test
+- 用户实机发现：v0.0.47 Hover Preview 与点击正式展开宽度不同。
+- 已完成：Preview 改为共享 ResizableWorkbench 当前真实 leftWidth。
+- 已完成：新增 `onLeftWidthChange`，App Shell 使用 `--agent-left-preview-width` 单一变量。
+- 已完成：删除 Preview 独立 CSS clamp 宽度。
+- 已完成：UI contract 增加共享宽度防回归检查。
+- 不改：三向吸附、响应式 Mode、PTY、Sync / GitHub / Setup / Update。
+- 用户版本：v0.0.48
+- 待完成：Windows Chrome / Edge 实机确认 Hover 与 Click 无宽度跳变。
+
 ## 2026-09-18 / #21.15 容器响应式与布局变量化
 
 - 当前状态：pending-windows-visual-test

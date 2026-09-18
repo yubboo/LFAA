@@ -53,3 +53,7 @@ Mobile   = 中间主区全宽 + 左右 Overlay
 真正的 Pointer / Resize / Snap 在：
 
 `packages/ui/src/workbench/ResizableWorkbench.tsx`
+
+## 左栏 Hover 宽度
+
+v0.0.48 起 Hover Preview 不再自己计算宽度，而是接收 `ResizableWorkbench` 当前真实 `leftWidth`，通过 `--agent-left-preview-width` 渲染；点击正式展开使用同一个值。

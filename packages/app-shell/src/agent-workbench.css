@@ -69,7 +69,6 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
   --agent-page-gutter: clamp(.875rem, 2vw, 1.5rem);
   --agent-content-max: 48rem;
   --agent-composer-max: 48rem;
-  --agent-left-preview-width: clamp(13.5rem, 20vw, 17.5rem);
   --agent-radius-md: .625rem;
   --agent-radius-lg: 1.125rem;
 
@@ -102,7 +101,6 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
   --agent-page-gutter: clamp(.75rem, 1.7vw, 1.125rem);
   --agent-content-max: 45rem;
   --agent-composer-max: 44rem;
-  --agent-left-preview-width: clamp(13rem, 27vw, 16.5rem);
 }
 .agent-theme[data-layout-mode="mobile"] {
   --agent-shell-header-h: 2.875rem;
@@ -209,7 +207,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
   top: 0;
   left: 0;
   bottom: 0;
-  width: min(var(--agent-left-preview-width), calc(100% - 4rem));
+  /* 宽度由 ResizableWorkbench 的真实 leftWidth 回传；Hover 与 Click 共用同一几何事实源。 */
+  width: min(var(--agent-left-preview-width, 15rem), calc(100% - 4rem));
   opacity: 0;
   transform: translateX(-.875rem);
   pointer-events: none;
