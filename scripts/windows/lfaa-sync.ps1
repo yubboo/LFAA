@@ -114,15 +114,20 @@ function Test-ProtectedPath {
 
     # Runtime workspace-sync logs live under docs for visibility, but they are
     # local execution artifacts: keep them out of mirror diff/delete checks.
-    if ($rel -imatch "^docs/logs/workspace-sync/.+\.log$") {
+    if ($rel -imatch "^docs/logs/runtime/workspace-sync/.+\.log$") {
         return $true
     }
 
-    if ($rel -imatch "^docs/logs/github-push/.+\.log$") {
+    if ($rel -imatch "^docs/logs/runtime/github-push/.+\.log$") {
         return $true
     }
 
-    if ($rel -imatch "^docs/logs/source-update/.+\.log$") {
+    if ($rel -imatch "^docs/logs/runtime/source-update/.+\.log$") {
+        return $true
+    }
+
+    # Legacy runtime log paths are still protected after the v0.0.20 move.
+    if ($rel -imatch "^docs/logs/(workspace-sync|github-push|source-update)/.+\.log$") {
         return $true
     }
 
@@ -272,7 +277,7 @@ function Save-SyncLog {
         [string]$Status
     )
 
-    $logDir = Join-Path $WorkspaceRoot "docs\logs\workspace-sync"
+    $logDir = Join-Path $WorkspaceRoot "docs\logs\runtime\workspace-sync"
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
@@ -383,7 +388,7 @@ Write-Label "【目标】" "【路径】" $TargetRoot Cyan
 if ($SyncMenuMode -eq "config") {
     Write-Host ""
     Write-Label "【保护】" "【Git】" ".git 永远不会被同步删除。" Green
-    Write-Label "【保护】" "【日志】" "docs/logs/*/*.log 保留为本机运行记录。" Green
+    Write-Label "【保护】" "【日志】" "docs/logs/runtime/*/*.log 保留为本机运行记录。" Green
     Write-Label "【保护】" "【Secret】" ".env / .env.local 等本机环境文件不会删除。" Green
     Write-Label "【保护】" "【缓存】" "node_modules、target、dist、coverage、.cache、.tmp 不参与镜像删除。" Green
     Wait-LfaaClose -Success $true

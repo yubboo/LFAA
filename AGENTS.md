@@ -1,26 +1,25 @@
 # AGENTS.md
 
 > LFAA 仓库的 AI 开发入口。
-> 任何 AI、Coding Agent、自动化 Agent 或开发者在修改代码前都必须先读取本文件。
+> 用户说“按照开发要求做”时，必须按本文件顺序读取，不得直接开始编码。
 
 ## 一、强制阅读顺序
 
-用户说“按照开发要求做”时，严格按以下顺序：
-
 1. `/DEVELOPMENT.md`
-2. `docs/logs/development/INDEX.md`
-3. 根据任务关键词读取 `docs/logs/development/active/` 中的相关当前日志
-4. `/ARCHITECTURE.md`
-5. `/PROJECT_PLAN.md`
-6. `/CHANGELOG.md`
-7. 当前模块 `docs/modules/<module>/README.md`
-8. 当前模块 `docs/plans/modules/<module>/PLAN.md`
-9. 当前模块 `docs/progress/modules/<module>/PROGRESS.md`
-10. 当前任务 `docs/prompts/active/NNNN-*.md`
-11. 任务相关 `docs/standards/`
-12. Code
+2. `docs/README.md`
+3. `docs/logs/development/INDEX.md`
+4. 根据任务关键词读取 `docs/logs/development/active/` 中的相关当前日志
+5. `/ARCHITECTURE.md`
+6. `/PROJECT_PLAN.md`
+7. `/CHANGELOG.md`
+8. 当前模块 README
+9. 当前模块 PLAN
+10. 当前模块 PROGRESS
+11. 当前 Active Prompt
+12. 相关 Standards
+13. Code
 
-只有需要追溯历史原因时，才读取：
+需要追溯原因时再读：
 
 ```text
 docs/logs/development/archive/
@@ -45,61 +44,64 @@ docs/releases/
 - Active Prompt
 - 当前 Standards
 
-历史文件只用于解释“为什么变”，不能覆盖当前 active 结论。
+历史只用于解释“为什么变”，不能覆盖当前结论。
 
-## 三、AI 四大规则
+## 三、文档命名
 
-1. 文档先行
-2. 边界优先
-3. 验证闭环
-4. 全程可追溯
-
-## 四、开发日志硬规则
-
-任何需求、设计、架构、目录、行为或安全规则发生变化：
+编号类人类文档优先中文：
 
 ```text
-先查主编号
-→ 同一问题追加 #NN.x
-→ 更新 active
-→ 旧版进入 archive
-→ 旧版指向新 active
-→ 更新 INDEX
+0002-配置系统.md
+0020-开发日志与文档规范.md
+0020-01-历史编号迁移.md
 ```
 
-旧记录不删除。
-
-禁止让旧主编号只存在于外部指针而不进入 Development Log 索引。
-
-详细规则：
+固定入口文件保持：
 
 ```text
-docs/standards/DEV_LOGS.md
+README.md
+INDEX.md
+PLAN.md
+PROGRESS.md
+RELEASE.md
 ```
-
-## 五、文档与命名硬规则
-
-- 文档中文为主；
-- 标题清晰；
-- 当前结论放前面；
-- 一项一项列清楚；
-- 禁止大段无标题流水账；
-- 名称短、准、规范；
-- 禁止 `final`、`latest`、`new`、`fix2` 等临时命名。
 
 详细规则：
 
 ```text
 docs/standards/NAMING.md
+docs/standards/DEV_LOGS.md
 ```
 
-## 六、当前主模块
+## 四、开发日志规则
+
+需求、设计、架构、目录、行为或安全规则发生变化：
+
+```text
+先查主编号
+→ 同一问题追加 #NN.x
+→ 更新 active
+→ 旧版本进入 archive
+→ 旧版本指向当前文件
+→ 更新 INDEX
+```
+
+旧记录不得删除。
+
+## 五、当前主模块
 
 ```text
 config-system
 ```
 
 达到 `deliverable` 或明确 `blocked` 前，不切换无关业务模块。
+
+## 六、AI 四大规则
+
+1. 文档先行
+2. 边界优先
+3. 验证闭环
+4. 全程可追溯
 
 ## 七、执行能力唯一链路
 
@@ -123,13 +125,9 @@ Node.js workspace 只允许：
 pnpm
 ```
 
-禁止使用 npm、npx、yarn、bun 替代 pnpm。
-
 ## 九、Git 源码更新
 
-Git Clone 后不重新克隆。
-
-统一使用：
+Git Clone 后统一使用：
 
 ```text
 LFAA-Update.bat

@@ -12,6 +12,18 @@ const root = process.cwd();
 
 const required = [
   "AGENTS.md",
+  "docs/README.md",
+  "docs/logs/README.md",
+  "docs/logs/runtime/README.md",
+  "docs/standards/README.md",
+  "docs/architecture/README.md",
+  "docs/plans/README.md",
+  "docs/progress/README.md",
+  "docs/prompts/README.md",
+  "docs/changelog/README.md",
+  "docs/testing/README.md",
+  "docs/logs/development/archive/0020-01-历史编号迁移.md",
+  "scripts/docs-check.mjs",
   "DEVELOPMENT.md",
   "ARCHITECTURE.md",
   "PROJECT_PLAN.md",
@@ -23,7 +35,7 @@ const required = [
   "docs/progress/modules/project-foundation/PROGRESS.md",
   "docs/plans/modules/config-system/PLAN.md",
   "docs/progress/modules/config-system/PROGRESS.md",
-  "docs/prompts/active/0002-config-system.md",
+  "docs/prompts/active/0002-配置系统.md",
   "docs/standards/IMPORT_PATHS.md",
   "docs/standards/WORKSPACE_SYNC.md",
   "docs/standards/PROJECT_IDENTITY_AND_ATTRIBUTION.md",
@@ -31,9 +43,9 @@ const required = [
   "docs/standards/QUALITY_GATES.md",
   "scripts/dev-log-check.mjs",
   "docs/logs/development/archive/legacy/INDEX.md",
-  "docs/logs/development/active/0020-dev-logs.md",
-  "docs/logs/development/archive/0020-dev-logs/0020.0-dev-logs.md",
-  "docs/logs/development/active/0002-config-system.md",
+  "docs/logs/development/active/0020-开发日志与文档规范.md",
+  "docs/logs/development/archive/0020-00-开发日志初始分层.md",
+  "docs/logs/development/active/0002-配置系统.md",
   "docs/logs/development/INDEX.md",
   "docs/logs/development/README.md",
   "docs/standards/DEV_LOGS.md",
@@ -47,9 +59,9 @@ const required = [
   ".lfaa/plugins/README.md",
   ".lfaa/extensions/README.md",
   ".lfaa/mcp/README.md",
-  "docs/logs/workspace-sync/README.md",
-  "docs/logs/github-push/README.md",
-  "docs/logs/source-update/README.md",
+  "docs/logs/runtime/workspace-sync/README.md",
+  "docs/logs/runtime/github-push/README.md",
+  "docs/logs/runtime/source-update/README.md",
   "LFAA-Sync.bat",
   "LFAA-GitHub.bat",
   "LFAA-Update.bat",
@@ -165,7 +177,7 @@ for (const scriptName of ["build", "typecheck", "test"]) {
 
 
 const configPlan = fs.readFileSync(path.join(root, "docs/plans/modules/config-system/PLAN.md"), "utf8");
-const configPrompt = fs.readFileSync(path.join(root, "docs/prompts/active/0002-config-system.md"), "utf8");
+const configPrompt = fs.readFileSync(path.join(root, "docs/prompts/active/0002-配置系统.md"), "utf8");
 
 if (/v0\.\d{2}(?!\.)/.test(configPlan) || /v0\.\d{2}(?!\.)/.test(configPrompt)) {
   console.error("LFAA governance check failed: config-system version must use MAJOR.MINOR.PATCH.");

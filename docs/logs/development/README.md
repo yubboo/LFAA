@@ -1,49 +1,52 @@
 # 开发日志
 
-这里保存 LFAA 的**开发决策、需求变化、方案修正和当前结论**。
+这里保存 LFAA 的**需求变化、设计决策、架构调整和规则修正**。
 
-## 先看哪里
-
-任何开发前先看：
+## 阅读顺序
 
 ```text
 INDEX.md
+→ active/
+→ 需要对比时再看 archive/
 ```
 
-再根据关键词打开：
+## 当前日志命名
 
 ```text
-active/
+NNNN-中文短名.md
 ```
 
-只有需要追溯历史时才进入：
+例如：
 
 ```text
-archive/
+0002-配置系统.md
+0020-开发日志与文档规范.md
 ```
 
-## 目录职责
+## 历史变更命名
 
 ```text
-active/
-→ 当前仍然有效的记录
-
-archive/
-→ 已被后续变更替代的历史记录
+NNNN-NN-中文短名.md
 ```
 
-开发日志不是机器运行日志。
-
-机器运行日志仍然分别放在：
+例如：
 
 ```text
-docs/logs/workspace-sync/
-docs/logs/github-push/
-docs/logs/source-update/
+0020-00-开发日志初始分层.md
+0020-01-历史编号迁移.md
 ```
 
-完整规则：
+显示编号仍写：
 
 ```text
-docs/standards/DEV_LOGS.md
+#20.0
+#20.1
+```
+
+## 注意
+
+运行脚本产生的 `.log` 不放这里，统一放：
+
+```text
+docs/logs/runtime/
 ```

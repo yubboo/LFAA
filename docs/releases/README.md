@@ -1,21 +1,16 @@
-# Releases
+# 发布记录
 
-每次正式发行建立：
+正式版本发布说明按版本目录保存：
 
 ```text
-docs/releases/vX.XX/
+v0.0.x/
+└── RELEASE.md
 ```
 
-保存：
+这里记录“这个正式包交付了什么”。
 
-- Release Notes
-- Artifact Manifest
-- Checksums（正式打包后）
-- Migration Notes
-- Known Issues
-
-用户包命名必须：
+开发过程历史不要写到 Release，开发过程统一查：
 
 ```text
-LFAA-v<display-version>-<platform>-<arch>.<ext>
+docs/logs/development/
 ```

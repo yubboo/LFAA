@@ -88,7 +88,7 @@ coverage/
 其中：
 
 - `.git` 保存唯一 Git 历史；
-- - `docs/logs/workspace-sync/*.log` 保存本机同步留痕，并从镜像差异判断中排除；
+- - `docs/logs/runtime/workspace-sync/*.log` 保存本机同步留痕，并从镜像差异判断中排除；
 - `.env*` 保存本机 Secret/环境差异；
 - build/cache 目录属于本机产物。
 
@@ -154,7 +154,7 @@ LFAA-GitHub.bat
 7. Push 前保留确认；
 8. 默认禁止 `git push --force`；
 9. 远程已有 main 时先 `git pull --rebase`；
-10. 生成本机日志到 `docs/logs/github-push/`。
+10. 生成本机日志到 `docs/logs/runtime/github-push/`。
 
 `.git` 只初始化一次，之后必须复用。
 
@@ -168,7 +168,7 @@ GitHub 脚本默认控制台使用中文。
 - 成功的 Git 原始输出不直接显示；
 - 首次无 `origin` 属于正常状态，不得当作错误；
 - 先 `git remote` 判断，再新增/读取 `origin`；
-- 失败时原始 Git 技术输出写入 `docs/logs/github-push/*.log`；
+- 失败时原始 Git 技术输出写入 `docs/logs/runtime/github-push/*.log`；
 - 控制台给用户显示中文错误摘要；
 - 禁止把 Git 大段英文帮助页直接暴露给普通用户。
 
@@ -278,7 +278,7 @@ LFAA-Update.bat
 10. 仅在“本地纯落后”状态下使用 `git pull --ff-only`；
 11. 拉取前列出远程新增/修改/删除/重命名文件；
 12. 拉取后校验本地 HEAD 与远程一致；
-13. 生成 `docs/logs/source-update/*.log`；
+13. 生成 `docs/logs/runtime/source-update/*.log`；
 14. 成功后明确提示可以关闭终端。
 
 禁止更新脚本默认执行：

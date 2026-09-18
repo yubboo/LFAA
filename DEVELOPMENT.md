@@ -15,7 +15,17 @@ DEVELOPMENT.md
 
 禁止先改代码再补文档。
 
-### 1.2 第二入口：开发日志
+### 1.2 第二入口：文档总索引
+
+然后读取：
+
+```text
+docs/README.md
+```
+
+先确认当前文档目录职责，禁止盲目搜索。
+
+### 1.3 第三入口：开发日志
 
 然后读取：
 
@@ -35,7 +45,7 @@ docs/logs/development/active/
 docs/logs/development/archive/
 ```
 
-### 1.3 第三入口：当前开发事实源
+### 1.4 第四入口：当前开发事实源
 
 按顺序继续读取：
 
@@ -171,8 +181,8 @@ docs/standards/NAMING.md
 - React 组件：`PascalCase.tsx`
 - Rust module：`snake_case.rs`
 - 固定治理文档：`README.md` / `PLAN.md` / `PROGRESS.md` / `INDEX.md`
-- 开发日志：`NNNN-short-name.md`
-- 开发历史变更：`NNNN.x-short-name.md`
+- 开发日志：`NNNN-中文短名.md`
+- 开发历史变更：`NNNN-NN-中文短名.md`
 
 禁止：
 
@@ -187,6 +197,8 @@ abc
 ```
 
 名称必须短、准、能表达职责。
+
+编号类人类文档必须优先使用中文短名；源码、Package、API 等技术标识继续遵守英文代码命名规则。
 
 ---
 
@@ -535,4 +547,61 @@ docs/standards/PERFORMANCE.md
 → 追加开发日志
 → 更新 Progress / CHANGELOG
 → 判断交付状态
+```
+
+
+---
+
+## 19. docs 文档目录硬规则
+
+开发者进入 `docs/` 后必须先读：
+
+```text
+docs/README.md
+```
+
+顶层目录固定为：
+
+```text
+standards
+architecture
+modules
+plans
+progress
+prompts
+logs
+changelog
+releases
+testing
+```
+
+未经开发日志、规范和治理检查同步更新，禁止随意新增同义顶层目录。
+
+日志只分：
+
+```text
+docs/logs/development/
+→ 开发决策
+
+docs/logs/runtime/
+→ 脚本运行记录
+```
+
+禁止混放。
+
+编号类人类文档使用：
+
+```text
+NNNN-中文短名.md
+NNNN-NN-中文短名.md
+```
+
+固定工具入口文件继续使用：
+
+```text
+README.md
+INDEX.md
+PLAN.md
+PROGRESS.md
+RELEASE.md
 ```

@@ -62,7 +62,7 @@ function Stop-Lfaa {
 
     if ($TechnicalOutput.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
         try {
-            $errorDir = Join-Path $WorkspaceRoot "docs\logs\github-push"
+            $errorDir = Join-Path $WorkspaceRoot "docs\logs\runtime\github-push"
             New-Item -ItemType Directory -Force -Path $errorDir | Out-Null
             $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
             $errorFile = Join-Path $errorDir ("push-error-{0}.log" -f $stamp)
@@ -310,7 +310,7 @@ function Save-PushLog {
         [string]$Result
     )
 
-    $logDir = Join-Path $Root "docs\logs\github-push"
+    $logDir = Join-Path $Root "docs\logs\runtime\github-push"
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"

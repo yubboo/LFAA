@@ -78,68 +78,87 @@ common-all.ts
 ```
 
 
+
 ## 文档命名
 
-固定治理文件使用固定名称：
+### 稳定目录
+
+`docs/` 顶层目录使用短英文，作为稳定工具路径：
+
+```text
+standards
+architecture
+modules
+plans
+progress
+prompts
+logs
+changelog
+releases
+testing
+```
+
+禁止随意增加同义目录，例如：
+
+```text
+doc
+documents
+notes
+history-new
+temp-docs
+```
+
+新增 docs 顶层目录必须先更新文档结构规范和治理检查。
+
+### 固定入口文件
+
+保持固定名称：
 
 ```text
 README.md
+INDEX.md
 PLAN.md
 PROGRESS.md
-INDEX.md
+RELEASE.md
 ```
 
-普通文档文件名：
+### 编号类人类文档
 
-- 英文短名；
-- `kebab-case`；
-- 2 到 4 个语义词；
-- 不把完整句子塞进文件名；
-- 不使用临时状态词。
-
-开发日志：
+使用中文短名：
 
 ```text
-NNNN-short-name.md
-NNNN.x-short-name.md
+NNNN-中文短名.md
+NNNN-NN-中文短名.md
 ```
 
 示例：
 
 ```text
-0020-dev-logs.md
-0020.1-layout.md
+0002-配置系统.md
+0020-开发日志与文档规范.md
+0020-01-历史编号迁移.md
 ```
 
-禁止：
+### 普通技术源码
+
+继续遵守原代码命名规则，不因为文档支持中文就把源码文件全部改成中文。
+
+## 中文文档硬要求
+
+LFAA 自有文档：
+
+- 中文为主；
+- 标题清楚；
+- 一项一项列明；
+- 文件名能直接看懂职责；
+- 英文只保留命令、路径、API、代码、专有名词。
+
+禁止模糊命名：
 
 ```text
-0020-this-is-the-new-final-development-log-file.md
-0020-final.md
-0020-latest.md
-0020-fix2.md
+其他.md
+新文档.md
+最终版.md
+最新版.md
+说明2.md
 ```
-
-## 文档内容命名
-
-标题必须表达真实职责。
-
-推荐：
-
-```text
-# 开发日志规范
-## 当前结论
-## 最新变更
-## 影响范围
-```
-
-禁止模糊标题：
-
-```text
-# 其他
-## 一些修改
-## 新东西
-## 注意
-```
-
-LFAA 自有文档必须中文为主，英文只保留技术专有内容。

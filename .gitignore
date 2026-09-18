@@ -13,14 +13,23 @@ artifacts/local/
 
 
 # Local workspace sync runtime logs (README remains tracked)
-docs/logs/workspace-sync/*.log
+docs/logs/runtime/workspace-sync/*.log
 
 # Local GitHub push runtime logs
-docs/logs/github-push/*.log
+docs/logs/runtime/github-push/*.log
 
 # Local source update runtime logs
-docs/logs/source-update/*.log
+docs/logs/runtime/source-update/*.log
 .lfaa/cache/
 .lfaa/state/
 .lfaa/tmp/
 .lfaa/logs/
+
+# Legacy runtime log path kept ignored for compatibility
+docs/logs/workspace-sync/*.log
+
+# Legacy runtime log path kept ignored for compatibility
+docs/logs/github-push/*.log
+
+# Legacy runtime log path kept ignored for compatibility
+docs/logs/source-update/*.log

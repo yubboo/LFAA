@@ -1,13 +1,22 @@
-# LFAA 模块索引
+# 模块文档索引
 
-模块详细边界优先查看对应 package/crate 的 README。
-
-当前主模块：
+每个模块目录只说明模块职责和边界。
 
 ```text
-config-system
+docs/modules/
+├── project-foundation/
+└── config-system/
 ```
 
-项目计划：
+对应开发计划与进度分别在：
 
-`/PROJECT_PLAN.md`
+```text
+docs/plans/modules/
+docs/progress/modules/
+```
+
+这样职责分开：
+
+- modules：是什么；
+- plans：准备怎么做；
+- progress：实际做到哪里。

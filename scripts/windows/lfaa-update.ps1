@@ -56,7 +56,7 @@ function Stop-Lfaa {
 
     if ($TechnicalOutput.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
         try {
-            $logDir = Join-Path $WorkspaceRoot "docs\logs\source-update"
+            $logDir = Join-Path $WorkspaceRoot "docs\logs\runtime\source-update"
             New-Item -ItemType Directory -Force -Path $logDir | Out-Null
             $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
             $logFile = Join-Path $logDir ("update-error-{0}.log" -f $stamp)
@@ -163,7 +163,7 @@ function Save-UpdateLog {
         [string]$Result
     )
 
-    $logDir = Join-Path $Root "docs\logs\source-update"
+    $logDir = Join-Path $Root "docs\logs\runtime\source-update"
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"

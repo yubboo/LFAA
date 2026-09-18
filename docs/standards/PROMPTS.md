@@ -3,16 +3,22 @@
 每个新业务先创建：
 
 ```text
-docs/prompts/active/NNNN-short-name.md
+docs/prompts/active/NNNN-中文短名.md
 ```
 
-任务完成且不再作为当前开发依据后：
+同一主任务的补充变更可使用：
+
+```text
+NNNN-NN-中文短名.md
+```
+
+任务完成后进入：
 
 ```text
 docs/prompts/archive/<version>/
 ```
 
-Prompt 模板：
+## Prompt 模板
 
 ```md
 # #编号 问题名
@@ -35,4 +41,12 @@ Prompt 模板：
 ## 版本目标
 ```
 
-Prompt 是任务合同；需求变化先改 Prompt，再改代码。
+Prompt 是任务合同。
+
+需求变化：
+
+```text
+先更新 Prompt
+→ 更新 Development Log
+→ 再改代码
+```

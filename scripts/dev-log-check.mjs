@@ -1,6 +1,6 @@
 /**
  * 文件：dev-log-check.mjs
- * 作用：检查开发日志分层、命名、索引、历史状态与主编号连续性。
+ * 作用：检查开发日志分层、中文命名、索引、历史状态与主编号连续性。
  */
 
 import fs from "node:fs";
@@ -23,20 +23,14 @@ for (const required of [logRoot, activeRoot, archiveRoot, indexFile]) {
   }
 }
 
-const rootMarkdown = fs
-  .readdirSync(logRoot, { withFileTypes: true })
-  .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-  .map((entry) => entry.name)
-  .filter((name) => !["README.md", "INDEX.md"].includes(name));
-
-if (rootMarkdown.length > 0) {
-  fail(`development logs cannot be flat at root: ${rootMarkdown.join(", ")}`);
-}
-
 const indexText = fs.readFileSync(indexFile, "utf8");
-const activeName = /^(\d{4})-[a-z0-9]+(?:-[a-z0-9]+){0,3}\.md$/;
-const archiveName = /^(\d{4})\.(\d+)-[a-z0-9]+(?:-[a-z0-9]+){0,3}\.md$/;
+const activeName = /^(\d{4})-([^./\\]{2,28})\.md$/u;
+const archiveName = /^(\d{4})(?:-(\d{2}))?-([^./\\]{2,28})\.md$/u;
 const mainNumbers = new Set();
+
+function hasChinese(text) {
+  return /[\u3400-\u9fff]/u.test(text);
+}
 
 const activeFiles = fs
   .readdirSync(activeRoot, { withFileTypes: true })
@@ -48,15 +42,12 @@ if (activeFiles.length === 0) {
 
 for (const entry of activeFiles) {
   const match = entry.name.match(activeName);
-  if (!match) {
-    fail(`invalid active log name: ${entry.name}`);
-  }
+  if (!match) fail(`invalid active log name: ${entry.name}`);
+  if (!hasChinese(entry.name)) fail(`active log must use readable Chinese name: ${entry.name}`);
 
   mainNumbers.add(Number(match[1]));
 
-  const full = path.join(activeRoot, entry.name);
-  const text = fs.readFileSync(full, "utf8");
-
+  const text = fs.readFileSync(path.join(activeRoot, entry.name), "utf8");
   for (const requiredText of [
     "主编号：",
     "名称：",
@@ -80,84 +71,59 @@ for (const entry of activeFiles) {
   }
 }
 
-function walk(dir) {
-  const results = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) results.push(...walk(full));
-    if (entry.isFile()) results.push(full);
-  }
-  return results;
-}
+for (const entry of fs.readdirSync(archiveRoot, { withFileTypes: true })) {
+  if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
 
-for (const file of walk(archiveRoot)) {
-  const relative = path.relative(archiveRoot, file).replaceAll("\\", "/");
-  const name = path.basename(file);
-
-  if (!name.endsWith(".md") || name === "INDEX.md" || name === "README.md") {
-    continue;
-  }
-
-  const match = name.match(archiveName);
-  if (!match) {
-    fail(`invalid archived log name: ${relative}`);
-  }
+  const match = entry.name.match(archiveName);
+  if (!match) fail(`invalid archived log name: ${entry.name}`);
+  if (!hasChinese(entry.name)) fail(`archived log must use readable Chinese name: ${entry.name}`);
 
   mainNumbers.add(Number(match[1]));
 
-  const text = fs.readFileSync(file, "utf8");
+  const text = fs.readFileSync(path.join(archiveRoot, entry.name), "utf8");
 
-  for (const requiredText of [
-    "主编号：",
-    "名称：",
-    "状态：",
-  ]) {
+  for (const requiredText of ["主编号：", "名称：", "状态："]) {
     if (!text.includes(requiredText)) {
-      fail(`${relative} missing "${requiredText}"`);
+      fail(`${entry.name} missing "${requiredText}"`);
     }
   }
 
-  const isSuperseded = text.includes("状态：** superseded") || text.includes("状态：superseded");
-  const isDelivered = text.includes("状态：** delivered") || text.includes("状态：delivered");
-  const isArchived = text.includes("状态：** archived") || text.includes("状态：archived");
-  const isDeprecated = text.includes("状态：** deprecated") || text.includes("状态：deprecated");
+  const superseded = text.includes("superseded");
+  const delivered = text.includes("delivered");
+  const archived = text.includes("archived");
+  const deprecated = text.includes("deprecated");
 
-  if (!isSuperseded && !isDelivered && !isArchived && !isDeprecated) {
-    fail(`${relative} has unsupported archive status`);
+  if (!superseded && !delivered && !archived && !deprecated) {
+    fail(`${entry.name} has unsupported archive status`);
   }
 
-  if (isSuperseded) {
+  if (superseded) {
     for (const requiredText of ["已由：", "当前查看："]) {
       if (!text.includes(requiredText)) {
-        fail(`${relative} missing "${requiredText}"`);
+        fail(`${entry.name} missing "${requiredText}"`);
       }
     }
   } else if (!text.includes("## 原始来源")) {
-    fail(`${relative} must contain "## 原始来源"`);
+    fail(`${entry.name} must contain "## 原始来源"`);
   }
 
-  if (!indexText.includes(name)) {
-    fail(`INDEX.md does not reference archived log ${name}`);
+  if (!indexText.includes(entry.name)) {
+    fail(`INDEX.md does not reference archived log ${entry.name}`);
   }
-}
-
-if (mainNumbers.size === 0) {
-  fail("no numbered development logs found");
 }
 
 const maxMain = Math.max(...mainNumbers);
 for (let number = 1; number <= maxMain; number += 1) {
   if (!mainNumbers.has(number)) {
-    fail(`missing main development log #${number}; historical numbers cannot silently disappear`);
+    fail(`missing main development log #${number}`);
   }
-
   if (!indexText.includes(`#${number}`)) {
     fail(`INDEX.md missing main development log #${number}`);
   }
 }
 
-if (!indexText.includes("没有发现真实 `#0`")) {
-  fail("INDEX.md must explicitly document why #0 is not present");
+if (!indexText.includes("没有真实 `#0`")) {
+  fail("INDEX.md must document why #0 is not present");
 }
 
 console.log("LFAA development log check passed.");

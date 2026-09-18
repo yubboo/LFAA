@@ -1,5 +1,12 @@
 # config-system PROGRESS
 
+## 2026-09-18 / #20.2 docs 整理
+
+- 当前状态：planned
+- 配置系统业务实现：未改动
+- 当前任务日志：`docs/logs/development/active/0002-配置系统.md`
+- 下一步：正式进入 `config-schema`
+
 ## 2026-09-18 / #20.1 历史日志补全
 
 - 当前状态：planned
@@ -68,7 +75,7 @@
 - 阻塞项：真实技术依赖版本尚未在 v0.0.1 锁定
 - 是否可交付：否
 - 是否已交付：否
-- 下一步：按照 `docs/prompts/active/0002-config-system.md` 开始 config-schema
+- 下一步：按照 `docs/prompts/active/0002-配置系统.md` 开始 config-schema
 
 
 ## 2026-09-17 / #3 基础设施前置优化
@@ -87,7 +94,7 @@
 - 阻塞项：真实技术依赖版本仍需在正式实现阶段锁定
 - 是否可交付：否
 - 是否已交付：否
-- 下一步：按照 `docs/prompts/active/0002-config-system.md` 开始 `config-schema`
+- 下一步：按照 `docs/prompts/active/0002-配置系统.md` 开始 `config-schema`
 
 
 ## 2026-09-17 / #4 开发工作流前置优化

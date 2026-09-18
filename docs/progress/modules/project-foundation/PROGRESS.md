@@ -1,5 +1,25 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #20.2 中文命名与 docs 整理
+
+- 当前状态：delivered
+- 主任务：#20 开发日志与文档规范
+- 最新变更：#20.2
+- 已完成：
+  - Development Log 中文文件名
+  - Prompt 中文编号文件名
+  - docs/README 总入口
+  - 主要分类 README 索引
+  - Development / Runtime Log 分离
+  - runtime 日志目录迁移
+  - docs-check 自动检查
+  - 历史 #20.0 / #20.1 保留
+- 原历史文件：保留
+- 配置系统业务实现：未改动
+- 是否可交付：是
+- 是否已交付：是（v0.0.20）
+- 下一步：进入 `config-schema`
+
 ## 2026-09-18 / #20.1 历史编号迁移
 
 - 当前状态：delivered
