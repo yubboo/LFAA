@@ -267,6 +267,7 @@ App Shell 主要布局变量：
 --agent-page-gutter
 --agent-content-max
 --agent-composer-max
+--agent-composer-bottom-gap
 --agent-left-preview-width
 ```
 
@@ -335,3 +336,27 @@ packages/app-shell/src/agent-workbench.css
 ## 11. Hover Preview 宽度单一事实源（v0.0.48）
 
 左栏 Hover Preview 不允许维护独立宽度。必须使用正式 Dock 当前真实 `leftWidth`：`ResizableWorkbench → onLeftWidthChange → --agent-left-preview-width → Preview`。因此默认、用户 resize、响应式 clamp 后 Hover 与 Click 都必须一致。
+
+## 14. Composer 底部安全间距（v0.0.49）
+
+Composer 必须保持正常 Grid 文档流，不使用 absolute / transform 假移动。底部视觉留白使用单一 Token：
+
+```text
+--agent-composer-bottom-gap
+```
+
+当前规则：
+
+```text
+Desktop → clamp(1rem, 2.4vh, 1.75rem)
+Compact → clamp(.875rem, 1.8vh, 1.375rem)
+Mobile  → .75rem
+```
+
+最终 padding 必须同时尊重设备安全区：
+
+```css
+max(var(--agent-composer-bottom-gap), env(safe-area-inset-bottom))
+```
+
+以后若调整 Composer 垂直位置，只修改该 Token；禁止在 `.agent-composer`、`.agent-composer-wrap` 或不同断点中再复制第二套 bottom margin / padding。

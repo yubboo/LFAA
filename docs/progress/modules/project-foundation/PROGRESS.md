@@ -1,3 +1,15 @@
+## 2026-09-18 / #21.17 Composer 底部安全间距
+
+- 当前状态：pending-windows-visual-test
+- 用户实机发现：v0.0.48 Composer 距离窗口底边过近，下方留白偏薄。
+- 已完成：新增 `--agent-composer-bottom-gap` 单一布局 Token。
+- 已完成：Desktop 使用 `clamp(1rem, 2.4vh, 1.75rem)`，Compact 使用更小的响应式间距，Mobile 使用 `.75rem`。
+- 已完成：`.agent-composer-wrap` 使用 `max(var(--agent-composer-bottom-gap), env(safe-area-inset-bottom))`。
+- 已完成：UI contract 增加 Composer bottom-gap 防回归检查。
+- 不改：Hover/Click 宽度统一、三向吸附、响应式 Mode、PTY、Sync / GitHub / Setup / Update。
+- 用户版本：v0.0.49
+- 待完成：Windows Chrome / Edge 实机确认全屏、小窗、终端打开状态下底部留白自然。
+
 ## 2026-09-18 / #21.16 Hover / Click 左栏宽度统一
 
 - 当前状态：pending-windows-visual-test

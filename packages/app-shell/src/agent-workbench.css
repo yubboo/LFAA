@@ -11,7 +11,7 @@
  * - Desktop / Compact / Mobile 由容器计算器决定，CSS 只读取 data-layout-mode；
  * - Grid 列/行由 ResizableWorkbench 管，本文件只负责内容层和视觉层。
  *
- * 盒子结构：v0.0.47
+ * 盒子结构：v0.0.49
  * .agent-theme
  * └─ .agent-workbench-stage
  *    ├─ .agent-left-hover-preview
@@ -69,6 +69,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
   --agent-page-gutter: clamp(.875rem, 2vw, 1.5rem);
   --agent-content-max: 48rem;
   --agent-composer-max: 48rem;
+  --agent-composer-bottom-gap: clamp(1rem, 2.4vh, 1.75rem);
   --agent-radius-md: .625rem;
   --agent-radius-lg: 1.125rem;
 
@@ -101,6 +102,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
   --agent-page-gutter: clamp(.75rem, 1.7vw, 1.125rem);
   --agent-content-max: 45rem;
   --agent-composer-max: 44rem;
+  --agent-composer-bottom-gap: clamp(.875rem, 1.8vh, 1.375rem);
 }
 .agent-theme[data-layout-mode="mobile"] {
   --agent-shell-header-h: 2.875rem;
@@ -108,6 +110,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
   --agent-page-gutter: .625rem;
   --agent-content-max: 100%;
   --agent-composer-max: 100%;
+  --agent-composer-bottom-gap: .75rem;
 }
 
 /* ===== 2. 左右栏共同内容盒子 ===== */
@@ -275,7 +278,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-theme[data-layout-mode="mobile"] .agent-answer { font-size: .8125rem; line-height: 1.65; }
 
 /* ===== 8. Composer ===== */
-.agent-composer-wrap { padding: 0 var(--agent-page-gutter) max(.5rem, env(safe-area-inset-bottom)); background: var(--agent-bg); }
+.agent-composer-wrap { padding: 0 var(--agent-page-gutter) max(var(--agent-composer-bottom-gap), env(safe-area-inset-bottom)); background: var(--agent-bg); }
 .agent-composer { width: min(var(--agent-composer-max), 100%); margin: 0 auto; padding: .6875rem .75rem .5625rem; border: 1px solid var(--agent-strong-border); border-radius: var(--agent-radius-lg); background: var(--agent-elevated); box-shadow: 0 .5rem 1.875rem rgba(0,0,0,.08); }
 .agent-composer textarea { display: block; width: 100%; min-height: 2.125rem; resize: none; border: 0; outline: 0; background: transparent; color: var(--agent-text); font-size: .875rem; }
 .agent-composer textarea::placeholder { color: var(--agent-subtle); }

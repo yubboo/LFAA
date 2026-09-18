@@ -18,7 +18,7 @@
 | #10 | GitHub 推送确认交互 | #10.2 | active | Git、GitHub、Commit、Push、确认、交互 | `active/0010-GitHub推送确认.md` |
 | #19 | 一键准备与依赖检测 | #19.10 | active | Setup、Rustup、Windows、架构、Target、官方安装器 | `active/0019-一键准备与依赖检测.md` |
 | #20 | 开发日志与文档规范 | #20.4 | active | 日志、文档、中文、命名、目录、索引、注释、可读性、发布闭环、编码门禁 | `active/0020-开发日志与文档规范.md` |
-| #21 | Web 工作台 UI | #21.16 | active | Web、Hover Preview、Dock Width、容器响应式、吸附收起、布局变量、终端、PTY、ChatGPT、Codex | `active/0021-Web工作台UI.md` |
+| #21 | Web 工作台 UI | #21.17 | active | Web、Composer、底部留白、Safe Area、Hover Preview、容器响应式、吸附收起、布局变量、终端、PTY | `active/0021-Web工作台UI.md` |
 
 ## 历史已交付记录
 
@@ -131,7 +131,8 @@ Cargo
 | #21.13 | superseded | `archive/0021-13-响应式重构与弹性吸附.md` |
 | #21.14 | superseded | `archive/0021-14-最小尺寸吸附收起语义修正.md` |
 | #21.15 | superseded | `archive/0021-15-容器响应式与布局变量化.md` |
-| #21.16 | active | `active/0021-Web工作台UI.md` |
+| #21.16 | superseded | `archive/0021-16-Hover与点击左栏宽度统一.md` |
+| #21.17 | active | `active/0021-Web工作台UI.md` |
 
 
 ## #4 历史变更

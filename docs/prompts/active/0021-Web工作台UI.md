@@ -6,31 +6,28 @@
 
 ## 当前任务目标
 
-以 v0.0.47 为历史基线，修复左栏 Hover Preview 与点击正式展开宽度不一致的问题。两种展示必须共享同一个实际左栏宽度事实源，不能再分别用 CSS clamp 和 ResizableWorkbench 内部 width 两套值。
+以 v0.0.48 为历史基线，调整 Composer 垂直落点。输入框不应贴近窗口底边；底部间距必须变量化并按 Desktop / Compact / Mobile 响应，不允许通过散落的固定 `margin-bottom` 或 absolute 定位硬抬。
 
 ## 当前实现要求
 
-### 1. 单一宽度事实源
+### 1. 单一底部间距变量
 
 ```text
-ResizableWorkbench.leftWidth
-→ onLeftWidthChange(width)
-→ AgentWorkbench.leftPaneWidth
-→ --agent-left-preview-width
-→ Hover Preview
+--agent-composer-bottom-gap
+→ .agent-composer-wrap
+→ max(variable, safe-area-inset-bottom)
 ```
 
-正式 Dock 和 Hover Preview 必须使用同一个 width。
+### 2. 响应式取值
 
-### 2. 默认与用户调整后都一致
-
-- 初次打开：Preview = 当前响应式 `left.initial`；
-- 用户拖过左栏后：Preview = 用户最后真实左栏宽度；
-- 容器缩小时：Preview 跟随重新 clamp 后的真实宽度；
-- collapsed 状态 Hover 不得维护第二套 `clamp()` 宽度。
+- Desktop 使用 `clamp()` + `vh`，适度抬高 Composer；
+- Compact 减小留白，避免短窗口浪费高度；
+- Mobile 保留较小固定 rem，并尊重 safe area；
+- 不新增第二套 Composer bottom 数值来源。
 
 ### 3. 保持现有行为
 
+- Hover / Click 左栏宽度统一不回退；
 - 容器响应式 / Desktop / Compact / Mobile 不回退；
 - 三向到 min 吸附收起不回退；
 - Pointer 不松手反向解锁不回退；
@@ -38,19 +35,17 @@ ResizableWorkbench.leftWidth
 
 ## 允许修改
 
-- `AgentWorkbench.tsx`；
-- `agent-workbench.css`；
-- `ResizableWorkbench.tsx`；
-- `workbench-layout.types.ts`；
-- UI contract；
-- 当前 UI 文档、测试、代码地图、Plan / Progress / Development Log / Changelog / Release / Version。
+- `packages/app-shell/src/agent-workbench.css`；
+- `scripts/ui-contract-check.mjs`；
+- 当前 UI 文档、测试、Plan / Progress / Development Log / Changelog / Release / Version。
 
 ## 验收条件
 
-- Hover Preview 与点击展开后的左栏宽度视觉一致；
-- 用户手动 resize 后再次 collapsed，Hover Preview 仍与下一次 click 展开宽度一致；
-- CSS 不再存在独立 `--agent-left-preview-width: clamp(...)`；
-- UI contract 能阻止第二套 Preview 宽度回归；
+- Desktop 输入框下方留白明显比 v0.0.48 更舒适；
+- Compact / Mobile 不因固定大间距浪费高度；
+- safe-area 仍然生效；
+- 不用 absolute / transform 假移动 Composer；
+- UI contract 能阻止固定底部 padding 回归；
 - 基础设施和 PTY 不变。
 
 ## 当前状态

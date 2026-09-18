@@ -40,6 +40,30 @@ deliverable
 - 性能、安全和质量门禁；
 - 路径无关的依赖安装与开发检查菜单。
 
+## #21.17 Composer 底部安全间距
+
+### 任务原因
+
+v0.0.48 输入框距离窗口底边过近，视觉重心偏低；现有 `.agent-composer-wrap` 仍使用固定 `.5rem` bottom padding，没有按 Desktop / Compact / Mobile 与安全区变化。
+
+### 实施顺序
+
+1. 保留 v0.0.48 为历史版本；
+2. 归档 #21.16 Active Log；
+3. 新增单一 `--agent-composer-bottom-gap`；
+4. Desktop / Compact / Mobile 只覆盖该 Token；
+5. Composer Wrap 同时尊重 `safe-area-inset-bottom`；
+6. UI contract 增加变量化底部间距防回归；
+7. 同步 Prompt / Progress / Log / UI Standard / Test / Changelog / Release；
+8. 执行治理、语法、版本、ZIP、PowerShell BOM 门禁。
+
+### 验收条件
+
+- 全屏下 Composer 比 v0.0.48 上移且留白自然；
+- 小窗口不会因过大的固定间距浪费高度；
+- Mobile safe area 正常；
+- 不改吸附、响应式模式、PTY 和基础设施。
+
 ## #21.16 Hover / Click 左栏宽度统一
 
 ### 任务原因

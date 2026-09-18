@@ -8,7 +8,7 @@
  * 关联文件：agent-workbench.css、workbench.types.ts、@lfaa/ui/ResizableWorkbench、apps/web/src/App.tsx。
  * 修改注意事项：框架级开合状态只保留一个 Owner；布局拖拽交给 @lfaa/ui；Web 专有桥接不能写入共享 App Shell。
  *
- * 页面结构（v0.0.48）：
+ * 页面结构（v0.0.49）：
  * AgentWorkbench
  * └─ agent-workbench-stage                  整个可缩放工作区
  *    ├─ agent-left-hover-preview            左栏收起后的 Hover 临时预览层

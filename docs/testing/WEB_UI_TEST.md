@@ -1,5 +1,16 @@
 # Web 工作台本地测试
 
+## v0.0.49 / #21.17 Composer 底部安全间距重点
+
+本版本在 v0.0.48 基础上只验证 Composer 垂直落点：
+
+1. 1600x900 / 1280x800 等桌面尺寸下，输入框下方留白明显比 v0.0.48 舒适；
+2. Composer 不贴窗口底边，也不能悬得过高；
+3. Compact 下底部留白应自动减小；
+4. Mobile 下保持较小留白并尊重 safe-area；
+5. 打开 Bottom Terminal 后，Composer 与终端上沿之间仍保持自然距离；
+6. 不允许出现横向溢出或对话区被异常压缩。
+
 ## v0.0.47 / #21.15 容器响应式与布局变量化重点
 
 本版本优先验证：
@@ -185,3 +196,14 @@ Desktop / Compact：
 ## 12. Hover / Click 左栏宽度一致性
 
 1. 记录正式左栏宽度；2. 收起；3. Hover 左栏按钮；4. Preview 宽度应与记录一致；5. 点击展开，宽度不得跳变；6. 手动 resize 后重复一次；7. 缩窄窗口触发 clamp 后再重复一次。
+
+## 13. Composer 底部留白验收
+
+分别测试 Desktop / Compact / Mobile：
+
+- Composer Wrap 实际底部留白来自 `--agent-composer-bottom-gap`；
+- Desktop 约为 1rem~1.75rem，随可用高度变化；
+- Compact 比 Desktop 更紧凑；
+- Mobile 不小于 `.75rem`，有 safe area 时取更大值；
+- 不存在额外 `margin-bottom` / `transform: translateY()` 叠加位移；
+- 缩放窗口时留白变化连续，不突然跳动。

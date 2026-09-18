@@ -2,20 +2,20 @@
 
 > 根目录只保留当前索引和最近版本；旧版本详细记录保存在 `docs/changelog/` 与 `docs/releases/`。
 
-## #21.16 Hover / Click 左栏宽度统一
+## #21.17 Composer 底部安全间距
 
-- 用户版本：v0.0.48
+- 用户版本：v0.0.49
 - 状态：pending-windows-visual-test
 - 日期：2026-09-18
-- 以 v0.0.47 为历史基线，不覆盖旧包。
-- 修复左栏 Hover Preview 与点击正式展开宽度不一致。
-- Preview 不再维护独立 CSS clamp 宽度；改为读取 ResizableWorkbench 当前真实 `leftWidth`。
-- 新增 `onLeftWidthChange` 几何回调，App Shell 通过单一 CSS 变量 `--agent-left-preview-width` 投影真实宽度。
-- 默认宽度、用户 resize 后宽度、容器重新 clamp 后宽度都会在 Hover / Click 间保持一致。
-- UI contract 新增单一 Preview 宽度事实源防回归检查。
-- #21.15 归档；当前 Active 为 #21.16。
-- Sync / GitHub / Setup / Update、PTY、三向吸附和响应式模式算法均不改。
+- 以 v0.0.48 为历史基线，不覆盖旧包。
+- 输入框底部留白由固定 `.5rem` 改为单一变量 `--agent-composer-bottom-gap`。
+- Desktop 使用 `clamp(1rem, 2.4vh, 1.75rem)`，让全屏输入框适度上移；Compact 与 Mobile 使用更紧凑值。
+- Composer Wrap 使用 `max(var(--agent-composer-bottom-gap), env(safe-area-inset-bottom))`，兼容设备安全区。
+- 不使用 absolute / transform 假移动输入框，保持正常 Grid 文档流。
+- UI contract 新增 Composer bottom-gap 单一变量防回归检查。
+- #21.16 归档；当前 Active 为 #21.17。
+- 三向吸附、响应式模式、Hover/Click 左栏宽度、PTY、Sync / GitHub / Setup / Update 均不改。
 
 详细记录：
 
-`docs/changelog/v0.0.48.md`
+`docs/changelog/v0.0.49.md`

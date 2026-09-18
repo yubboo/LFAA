@@ -1,7 +1,7 @@
 /**
  * 文件：ui-contract-check.mjs
  * 作用：检查 Web 工作台最容易发生视觉/交互回归的静态 UI 契约。
- * 负责：单一 Tooltip、容器响应式计算、变量化布局、三向 min 吸附收起状态机、Dock/Overlay 模式契约。
+ * 负责：单一 Tooltip、容器响应式计算、变量化布局、Composer 底部安全间距、三向 min 吸附收起状态机、Dock/Overlay 模式契约。
  * 不负责：浏览器真实像素截图、Pointer 实机手感、PTY 行为测试。
  * 状态归属：无运行时状态；每次执行读取当前 App Shell 与 ResizableWorkbench 源码/CSS。
  * 对外接口：`node scripts/ui-contract-check.mjs`，成功返回 0，失败返回 1。
@@ -90,6 +90,7 @@ for (const token of [
   "--agent-shell-header-h",
   "--agent-content-max",
   "--agent-composer-max",
+  "--agent-composer-bottom-gap",
   "--agent-page-gutter",
   "clamp(",
   'data-layout-mode="compact"',
@@ -99,6 +100,9 @@ for (const token of [
 }
 if (/grid-template-rows:\s*48px/.test(css) || /height:\s*48px/.test(css)) {
   fail("48px header magic number must not return; use --agent-shell-header-h");
+}
+if (!css.includes("max(var(--agent-composer-bottom-gap), env(safe-area-inset-bottom))")) {
+  fail("Composer bottom spacing must use --agent-composer-bottom-gap + safe-area instead of a fixed bottom padding");
 }
 
 // 4. 三向吸附仍然必须是“到 min 吸附收起；不松手可反向解锁；松手才提交 collapsed”。
