@@ -458,6 +458,36 @@ function Add-CargoBinToCurrentPath {
     }
 }
 
+
+function Get-WindowsRustupTarget {
+    # Windows PowerShell 5 可能以 32 位进程运行在 64 位系统上。
+    # PROCESSOR_ARCHITEW6432 在这种情况下提供原生系统架构；否则使用当前进程架构。
+    $architecture = [string]$env:PROCESSOR_ARCHITEW6432
+    if ([string]::IsNullOrWhiteSpace($architecture)) {
+        $architecture = [string]$env:PROCESSOR_ARCHITECTURE
+    }
+
+    $architecture = $architecture.Trim().ToUpperInvariant()
+
+    switch ($architecture) {
+        "AMD64" {
+            return "x86_64-pc-windows-msvc"
+        }
+        "ARM64" {
+            return "aarch64-pc-windows-msvc"
+        }
+        "X86" {
+            if ([Environment]::Is64BitOperatingSystem) {
+                return "x86_64-pc-windows-msvc"
+            }
+            return "i686-pc-windows-msvc"
+        }
+        default {
+            throw ("无法识别当前 Windows CPU 架构：{0}。为避免下载错误的 Rust 官方安装器，Setup 已停止 Rust 自动安装。" -f $architecture)
+        }
+    }
+}
+
 function Invoke-OfficialRustupInstaller {
     $target = Get-WindowsRustupTarget
     $baseUrl = "https://static.rust-lang.org/rustup/dist/{0}/rustup-init.exe" -f $target
@@ -469,6 +499,7 @@ function Invoke-OfficialRustupInstaller {
     $installer = Join-Path $tempRoot "rustup-init.exe"
     $hashFile = Join-Path $tempRoot "rustup-init.exe.sha256"
 
+    Write-Label "【检测】" "【Rust 平台】" $target DarkCyan
     Write-Label "【官方安装】" "【Rust/Cargo】" "当前未检测到 Rust，将使用 Rust 官方安装器自动补齐。" Cyan
     Write-Label "【校验】" "【SHA-256】" "执行前会下载 Rust 官方 SHA-256 并进行一致性校验。" DarkCyan
     Write-Label "【说明】" "【官方输出】" "后续 info: 英文为 Rust 官方 rustup 原始日志，保留原文便于排错。" DarkCyan

@@ -70,6 +70,8 @@ const required = [
   "docs/logs/development/active/0019-一键准备与依赖检测.md",
   "docs/prompts/archive/v0.0.33/0019-08-node-pty跨机器安装.md",
   "docs/prompts/archive/v0.0.34/0019-09-node-pty校验引号兼容.md",
+  "docs/prompts/archive/v0.0.35/0019-10-Rustup平台目标修复.md",
+  "docs/logs/development/archive/0019-09-node-pty校验引号兼容.md",
   "docs/logs/development/archive/0019-08-node-pty跨机器安装.md",
   "scripts/check-node-pty.mjs",
   "docs/logs/development/archive/0019-07-Setup主菜单循环.md",
@@ -162,6 +164,27 @@ if (!/^\s*["']?node-pty@1\.1\.0["']?:\s*true\s*$/m.test(pnpmWorkspace)) {
 }
 if (/dangerouslyAllowAllBuilds:\s*true/i.test(pnpmWorkspace)) {
   console.error("LFAA governance check failed: dangerouslyAllowAllBuilds must not be enabled.");
+  process.exit(1);
+}
+
+
+const setupScript = fs.readFileSync(path.join(root, "scripts/windows/lfaa-setup.ps1"), "utf8");
+if (!/function\s+Get-WindowsRustupTarget\s*\{/i.test(setupScript)) {
+  console.error("LFAA governance check failed: Windows Rustup target resolver is missing.");
+  process.exit(1);
+}
+for (const rustTarget of [
+  "x86_64-pc-windows-msvc",
+  "aarch64-pc-windows-msvc",
+  "i686-pc-windows-msvc",
+]) {
+  if (!setupScript.includes(rustTarget)) {
+    console.error(`LFAA governance check failed: missing Windows Rustup target ${rustTarget}.`);
+    process.exit(1);
+  }
+}
+if (!setupScript.includes("https://static.rust-lang.org/rustup/dist/{0}/rustup-init.exe")) {
+  console.error("LFAA governance check failed: Rustup installer must use the official static.rust-lang.org distribution URL.");
   process.exit(1);
 }
 

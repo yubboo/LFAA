@@ -71,12 +71,20 @@ Rustup 自动下载必须来自 Rust 官方 HTTPS 地址，并在执行前通过
 Rust 工具链自动准备必须满足：
 
 1. 支持 `CARGO_HOME` 自定义路径；
-2. WinGet 返回码按语义处理；
-3. WinGet 完成后必须重新检测环境；
+2. Rust 缺失时直接使用官方 `rustup-init`；
+3. Windows 必须先检测宿主 CPU 架构并映射到官方 target tuple；
 4. Rust 官方 `rustup-init` 只允许从官方 HTTPS 来源下载；
 5. 执行前必须通过官方 SHA-256；
 6. 官方 rustup 原始输出允许保留英文；
 7. LFAA 自身状态提示必须中文清楚。
+
+Windows 当前允许的 Rustup target：
+
+```text
+x86_64-pc-windows-msvc
+aarch64-pc-windows-msvc
+i686-pc-windows-msvc
+```
 
 
 ### Rust 工具链分层

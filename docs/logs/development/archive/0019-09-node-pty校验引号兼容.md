@@ -1,0 +1,84 @@
+# #19 一键准备与依赖检测
+
+- **主编号：** #19
+- **名称：** 一键准备与依赖检测
+- **最新变更：** #19.9
+- **状态：** superseded
+- **关键词：** Setup、node-pty、PowerShell、Smoke Check、Windows、引号兼容
+- **已由：** #19.10 替代
+- **当前查看：** `docs/logs/development/active/0019-一键准备与依赖检测.md`
+
+## 当前结论
+
+菜单 `1` 安装 Node 依赖后必须真实验证 `node-pty` 能加载，但 Windows PowerShell 5 不应使用 `node -e` 内嵌复杂 JavaScript 字符串做校验。
+
+统一规则：
+
+```text
+pnpm install
+→ scripts/check-node-pty.mjs
+→ Node 从 apps/web 的依赖上下文加载 node-pty
+→ 检查 pty.spawn
+```
+
+这样避免 PowerShell 在调用原生命令时重新解释 / 丢失 JavaScript 内部引号。
+
+## 最新变更
+
+### #19.9 node-pty Smoke Check 引号兼容修复
+
+实机在 Windows PowerShell 5 执行菜单 `1` 时出现：
+
+```text
+Eval:1
+const pty = require(node-pty); ...
+Expected '(', got 'o'
+SyntaxError
+```
+
+实际原因不是 `node-pty` 原生模块一定损坏，而是 Setup 使用：
+
+```text
+node -e '<inline JavaScript>'
+```
+
+在该 PowerShell / Node 参数传递组合下，JavaScript 内的引号被剥离，导致 `require("node-pty")` 变成 `require(node-pty)`。
+
+修复：
+
+1. 删除 Setup 中内嵌 `node -e` Smoke Check；
+2. 新增 `scripts/check-node-pty.mjs`；
+3. 使用 `createRequire(apps/web/package.json)` 从 Web workspace 的依赖上下文加载 `node-pty`；
+4. Setup 只执行 `node scripts/check-node-pty.mjs`；
+5. 保留 `allowBuilds` 与原生模块真实加载验证。
+
+## 影响范围
+
+- `scripts/windows/lfaa-setup.ps1`
+- `scripts/check-node-pty.mjs`
+- `scripts/governance-check.mjs`
+- `DEVELOPMENT.md`
+- `docs/standards/QUALITY_GATES.md`
+
+## 验证结果
+
+- Setup 不再包含 `node -e` 的 node-pty 内嵌 JavaScript；
+- Smoke Check 独立脚本通过 Node 语法检查；
+- `node-pty@1.1.0` 精确构建许可继续保留；
+- Governance / Import / Development Log / Docs Structure Check 通过；
+- Windows PowerShell 5 实机加载结果仍需用户机器最终验证。
+
+## 历史索引
+
+| 版本 | 状态 | 日志 |
+|---|---|---|
+| #19.0 | delivered | `archive/0019-一键准备与资源根.md` |
+| #19.1 | superseded | `archive/0019-01-一键准备真实检测.md` |
+| #19.2 | superseded | `archive/0019-02-本地依赖与lockfile.md` |
+| #19.3 | superseded | `archive/0019-03-统一开发入口.md` |
+| #19.4 | superseded | `archive/0019-04-Rust安装诊断优化.md` |
+| #19.5 | superseded | `archive/0019-05-Rust工具链分层.md` |
+| #19.6 | superseded | `archive/0019-06-依赖模型简化.md` |
+| #19.7 | superseded | `archive/0019-07-Setup主菜单循环.md` |
+| #19.8 | superseded | `archive/0019-08-node-pty跨机器安装.md` |
+| #19.9 | active | `active/0019-一键准备与依赖检测.md` |

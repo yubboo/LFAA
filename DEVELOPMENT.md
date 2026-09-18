@@ -905,3 +905,24 @@ node scripts/check-node-pty.mjs
 独立脚本从 `apps/web/package.json` 的依赖上下文加载 `node-pty`。
 
 原因：Windows PowerShell 5 调用原生命令时存在历史参数引号转换行为，可能使内嵌 JavaScript 引号丢失。
+
+
+---
+
+### Rust Windows 安装目标
+
+Windows 首次自动安装 Rust 时，Setup 必须先将本机架构映射为 Rust 官方 `rustup-init.exe` target tuple：
+
+```text
+AMD64 → x86_64-pc-windows-msvc
+ARM64 → aarch64-pc-windows-msvc
+x86   → i686-pc-windows-msvc
+```
+
+规则：
+
+- 目标检测 helper 不得缺失；
+- 未知架构不得猜测下载目标；
+- 下载仍只允许 `static.rust-lang.org`；
+- `.sha256` 校验必须在执行前通过；
+- LFAA 自身提示使用中文。

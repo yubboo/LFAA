@@ -4,15 +4,16 @@
 
 ## #19 一键准备与依赖检测
 
-- 用户版本：v0.0.34
+- 用户版本：v0.0.35
 - 状态：delivered
-- 最新变更：#19.9
+- 最新变更：#19.10
 - 日期：2026-09-18
-- 修复 Windows PowerShell 5 下 node-pty Smoke Check 的 `node -e` 引号丢失问题。
-- node-pty 校验改为 `scripts/check-node-pty.mjs` 独立脚本。
-- `allowBuilds` 精确许可和严格依赖构建策略保持不变。
+- 修复 Windows 新机器 Rust 首装时 `Get-WindowsRustupTarget` 缺失。
+- 新增 AMD64 / ARM64 / x86 到 Rust 官方 MSVC target 的映射。
+- 保留 Rust 官方 HTTPS 与 SHA-256 校验。
+- Governance 新增 Windows Rustup target resolver 防回归门禁。
 - #21 真实终端开发桥接继续保持 pending-test。
 
 详细记录：
 
-`docs/changelog/v0.0.34.md`
+`docs/changelog/v0.0.35.md`

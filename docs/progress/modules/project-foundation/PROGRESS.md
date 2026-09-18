@@ -1,5 +1,16 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #19.10 Rustup Windows Target 缺失修复
+
+- 当前状态：delivered
+- 已完成：
+  - 恢复 Get-WindowsRustupTarget
+  - Windows x64 / ARM64 / x86 target 映射
+  - 未知架构安全失败
+  - Governance 防回归门禁
+- #21 真实终端状态：pending-test
+- 是否已交付：Setup 修复已交付（v0.0.35）
+
 ## 2026-09-18 / #19.9 node-pty Smoke Check 引号兼容
 
 - 当前状态：delivered

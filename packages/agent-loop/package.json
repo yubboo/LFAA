@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/agent-loop",
   "private": true,
-  "version": "0.0.34",
+  "version": "0.0.35",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼"
