@@ -8,6 +8,8 @@ $ErrorActionPreference = "Stop"
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $Utf8Strict = New-Object System.Text.UTF8Encoding($false, $true)
 $Cp437 = [System.Text.Encoding]::GetEncoding(437)
+$Cp936 = [System.Text.Encoding]::GetEncoding(936)
+$LegacyPathEncodings = @($Cp437, $Cp936)
 [Console]::OutputEncoding = $Utf8NoBom
 $OutputEncoding = $Utf8NoBom
 try { & chcp.com 65001 | Out-Null } catch {}
@@ -17,8 +19,25 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = (Resolve-Path (Join-Path $ScriptDir "..\..")).Path
 $ProjectParent = Split-Path -Parent $ProjectRoot
 
+function Resolve-DefaultTargetRoot {
+    param([string]$SourceRoot)
+
+    $cursor = [System.IO.DirectoryInfo](Get-Item -LiteralPath $SourceRoot)
+    while ($null -ne $cursor) {
+        if ($cursor.Name -match "^LFAA-v\d+\.\d+\.\d+$") {
+            if ($null -ne $cursor.Parent) {
+                return (Join-Path $cursor.Parent.FullName "lfaa")
+            }
+            break
+        }
+        $cursor = $cursor.Parent
+    }
+
+    return (Join-Path (Split-Path -Parent $SourceRoot) "lfaa")
+}
+
 if ([string]::IsNullOrWhiteSpace($TargetRoot)) {
-    $TargetRoot = Join-Path $ProjectParent "lfaa"
+    $TargetRoot = Resolve-DefaultTargetRoot $ProjectRoot
 }
 $TargetRoot = [System.IO.Path]::GetFullPath($TargetRoot)
 
@@ -113,16 +132,18 @@ function Get-RecoveredUnicodeName {
         return $null
     }
 
-    try {
-        $bytes = $Cp437.GetBytes($Name)
-        $recovered = $Utf8Strict.GetString($bytes)
-    }
-    catch {
-        return $null
-    }
+    foreach ($legacyEncoding in $LegacyPathEncodings) {
+        try {
+            $bytes = $legacyEncoding.GetBytes($Name)
+            $recovered = $Utf8Strict.GetString($bytes)
+        }
+        catch {
+            continue
+        }
 
-    if (($recovered -ne $Name) -and ($recovered -match "[\u3400-\u9FFF]")) {
-        return $recovered
+        if (($recovered -ne $Name) -and ($recovered -match "[\u3400-\u9FFF]")) {
+            return $recovered
+        }
     }
 
     return $null

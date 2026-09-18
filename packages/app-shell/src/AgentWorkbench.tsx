@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ResizableWorkbench } from "@lfaa/ui";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 import type { AgentWorkbenchProps, DevResourceItem, ResourceKind } from "./workbench.types";
@@ -70,22 +70,80 @@ function LeftSidebar({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme
   );
 }
 
-function CenterWorkspace() {
+function CenterWorkspace({
+  leftCollapsed,
+  rightCollapsed,
+  terminalOpen,
+  onToggleLeft,
+  onToggleRight,
+  onToggleTerminal,
+  onLeftHoverEnter,
+  onLeftHoverLeave,
+}: {
+  leftCollapsed: boolean;
+  rightCollapsed: boolean;
+  terminalOpen: boolean;
+  onToggleLeft: () => void;
+  onToggleRight: () => void;
+  onToggleTerminal: () => void;
+  onLeftHoverEnter: () => void;
+  onLeftHoverLeave: () => void;
+}) {
   return (
     <section className="agent-center">
+      <div className="agent-center-floats agent-center-floats--left">
+        <button
+          className="agent-center-toggle"
+          type="button"
+          onClick={onToggleLeft}
+          onMouseEnter={onLeftHoverEnter}
+          onMouseLeave={onLeftHoverLeave}
+          onFocus={onLeftHoverEnter}
+          onBlur={onLeftHoverLeave}
+          aria-label={leftCollapsed ? "切换侧边栏" : "收起侧边栏"}
+          aria-expanded={!leftCollapsed}
+          title={leftCollapsed ? "切换侧边栏 (Ctrl+B)" : "收起侧边栏 (Ctrl+B)"}
+        >
+          <WorkbenchIcon name="panelLeft" size={16} />
+        </button>
+      </div>
+
+      <div className="agent-center-floats agent-center-floats--right">
+        <button
+          className={`agent-center-toggle${terminalOpen ? " is-active" : ""}`}
+          type="button"
+          onClick={onToggleTerminal}
+          aria-label={terminalOpen ? "切换底部面板显示" : "切换底部面板显示"}
+          aria-expanded={terminalOpen}
+          title="切换底部面板显示 (Ctrl+J)"
+        >
+          <WorkbenchIcon name="terminal" size={16} />
+        </button>
+        <button
+          className="agent-center-toggle"
+          type="button"
+          onClick={onToggleRight}
+          aria-label={rightCollapsed ? "显示/隐藏侧边面板" : "显示/隐藏侧边面板"}
+          aria-expanded={!rightCollapsed}
+          title="显示/隐藏侧边面板 (Ctrl+Alt+B)"
+        >
+          <WorkbenchIcon name="panelRight" size={16} />
+        </button>
+      </div>
+
       <div className="agent-conversation">
         <div className="agent-conversation-inner">
           <div className="agent-user-message">把 LFAA 的工作台做成简洁、稳定、适合长时间工作的 Agent 界面。</div>
           <article className="agent-answer">
-            <p>工作台继续采用接近 ChatGPT / Codex 的三栏结构。侧栏分隔条只负责拖拽与吸附；Web 版框架级开合按钮固定在页面顶栏，不依赖侧栏 hover；真实终端固定在主工作区最底部。</p>
+            <p>工作台继续采用接近 ChatGPT / Codex 的三栏结构。左侧入口移动到中间主区域左上角，右侧入口与终端入口移动到中间主区域右上角；左侧按钮支持 hover 预览左侧内容区，右侧按钮保持显式点击开合。</p>
             <h2>当前 UI 目标</h2>
             <ul>
               <li>左侧承载导航、项目和最近任务；</li>
               <li>中间保持主要工作区和对话上下文；</li>
               <li>右侧放工具入口、运行状态和 <code>.lfaa</code> 热插拔资源；</li>
               <li>拖到侧栏最小宽度自动吸附收起，收起后不能从分隔条反向拖开；</li>
-              <li>左栏、右栏和终端开合按钮属于 Web 工作台顶栏，始终可见且位置固定；</li>
-              <li>底部终端直接连接本地 PTY，并支持向下吸附收起与顶栏显式入口重新展开。</li>
+              <li>左侧按钮固定在中间区域左上角，并在 hover 时淡入淡出预览左栏内容；</li>
+              <li>右上角保留终端与右侧面板按钮，并提供快捷键提示。</li>
             </ul>
           </article>
         </div>
@@ -117,7 +175,7 @@ function RightSidebar({ resources = [], resourceBridgeStatus = "offline", termin
       </header>
       <div className="agent-tool-list">
         <button type="button"><WorkbenchIcon name="review" /><span>审查</span><kbd>Ctrl+Shift+G</kbd></button>
-        <button type="button" className={terminalOpen ? "is-active" : ""} onClick={onToggleTerminal}><WorkbenchIcon name="terminal" /><span>终端</span><kbd>Ctrl+`</kbd></button>
+        <button type="button" className={terminalOpen ? "is-active" : ""} onClick={onToggleTerminal}><WorkbenchIcon name="terminal" /><span>终端</span><kbd>Ctrl+J</kbd></button>
         <button type="button"><WorkbenchIcon name="browser" /><span>浏览器</span><kbd>Ctrl+T</kbd></button>
         <button type="button"><WorkbenchIcon name="file" /><span>文件</span><kbd>Ctrl+P</kbd></button>
       </div>
@@ -142,58 +200,11 @@ function BottomTerminal({ terminal, onClose }: { terminal: AgentWorkbenchProps["
   );
 }
 
-function WebWorkbenchChrome({
-  leftCollapsed,
-  rightCollapsed,
-  terminalOpen,
-  onToggleLeft,
-  onToggleRight,
-  onToggleTerminal,
-}: {
-  leftCollapsed: boolean;
-  rightCollapsed: boolean;
-  terminalOpen: boolean;
-  onToggleLeft: () => void;
-  onToggleRight: () => void;
-  onToggleTerminal: () => void;
-}) {
+function WebWorkbenchHeader() {
   return (
-    <header className="agent-web-chrome">
-      <div className="agent-web-chrome__left">
-        <button
-          className="agent-chrome-toggle"
-          type="button"
-          onClick={onToggleLeft}
-          aria-label={leftCollapsed ? "展开左侧栏" : "收起左侧栏"}
-          aria-expanded={!leftCollapsed}
-          title={leftCollapsed ? "展开左侧栏 (Ctrl+B)" : "收起左侧栏 (Ctrl+B)"}
-        >
-          <WorkbenchIcon name="panelLeft" size={16} />
-        </button>
-        <div className="agent-web-chrome__title"><WorkbenchIcon name="folder" /><strong>Web 工作台</strong></div>
-      </div>
-      <div className="agent-web-chrome__right">
-        <button
-          className={`agent-chrome-toggle${terminalOpen ? " is-active" : ""}`}
-          type="button"
-          onClick={onToggleTerminal}
-          aria-label={terminalOpen ? "收起终端" : "展开终端"}
-          aria-expanded={terminalOpen}
-          title={terminalOpen ? "收起终端 (Ctrl+`)" : "展开终端 (Ctrl+`)"}
-        >
-          <WorkbenchIcon name="terminal" size={16} />
-        </button>
-        <button
-          className="agent-chrome-toggle"
-          type="button"
-          onClick={onToggleRight}
-          aria-label={rightCollapsed ? "展开右侧栏" : "收起右侧栏"}
-          aria-expanded={!rightCollapsed}
-          title={rightCollapsed ? "展开右侧栏 (Ctrl+Alt+B)" : "收起右侧栏 (Ctrl+Alt+B)"}
-        >
-          <WorkbenchIcon name="panelRight" size={16} />
-        </button>
-        <span className="agent-web-chrome__divider" aria-hidden="true" />
+    <header className="agent-web-header">
+      <div className="agent-web-header__title"><WorkbenchIcon name="folder" /><strong>Web 工作台</strong></div>
+      <div className="agent-web-header__actions">
         <button className="agent-icon-button" type="button" aria-label="更多"><WorkbenchIcon name="dots" size={16} /></button>
         <button className="agent-ghost-button" type="button">分享</button>
       </div>
@@ -204,8 +215,40 @@ function WebWorkbenchChrome({
 export function AgentWorkbench(props: AgentWorkbenchProps) {
   const [theme, setTheme] = useState<ThemeMode>(initialTheme);
   const [chrome, setChrome] = useState<ChromeState>(initialChrome);
+  const [leftPreviewOpen, setLeftPreviewOpen] = useState(false);
+  const previewCloseTimerRef = useRef<number | null>(null);
+
+  const clearPreviewTimer = useCallback(() => {
+    if (previewCloseTimerRef.current !== null) {
+      window.clearTimeout(previewCloseTimerRef.current);
+      previewCloseTimerRef.current = null;
+    }
+  }, []);
+
+  const openLeftPreview = useCallback(() => {
+    if (!chrome.leftCollapsed) return;
+    clearPreviewTimer();
+    setLeftPreviewOpen(true);
+  }, [chrome.leftCollapsed, clearPreviewTimer]);
+
+  const closeLeftPreview = useCallback((delay = 120) => {
+    clearPreviewTimer();
+    if (!chrome.leftCollapsed) {
+      setLeftPreviewOpen(false);
+      return;
+    }
+    previewCloseTimerRef.current = window.setTimeout(() => {
+      setLeftPreviewOpen(false);
+      previewCloseTimerRef.current = null;
+    }, delay);
+  }, [chrome.leftCollapsed, clearPreviewTimer]);
+
   useEffect(() => { window.localStorage.setItem(THEME_KEY, theme); }, [theme]);
   useEffect(() => { window.localStorage.setItem(CHROME_KEY, JSON.stringify(chrome)); }, [chrome]);
+  useEffect(() => {
+    if (!chrome.leftCollapsed && leftPreviewOpen) setLeftPreviewOpen(false);
+  }, [chrome.leftCollapsed, leftPreviewOpen]);
+  useEffect(() => () => clearPreviewTimer(), [clearPreviewTimer]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -215,50 +258,80 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
 
       if (event.ctrlKey && !event.altKey && event.key.toLowerCase() === "b") {
         event.preventDefault();
+        clearPreviewTimer();
+        setLeftPreviewOpen(false);
         setChrome((value) => ({ ...value, leftCollapsed: !value.leftCollapsed }));
       } else if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "b") {
         event.preventDefault();
         setChrome((value) => ({ ...value, rightCollapsed: !value.rightCollapsed }));
-      } else if (event.ctrlKey && event.key === "`") {
+      } else if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "j") {
         event.preventDefault();
         setChrome((value) => ({ ...value, terminalOpen: !value.terminalOpen }));
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [clearPreviewTimer]);
 
-  const toggleLeft = () => setChrome((value) => ({ ...value, leftCollapsed: !value.leftCollapsed }));
+  const toggleLeft = useCallback(() => {
+    clearPreviewTimer();
+    setLeftPreviewOpen(false);
+    setChrome((value) => ({ ...value, leftCollapsed: !value.leftCollapsed }));
+  }, [clearPreviewTimer]);
   const toggleRight = () => setChrome((value) => ({ ...value, rightCollapsed: !value.rightCollapsed }));
   const toggleTerminal = () => setChrome((value) => ({ ...value, terminalOpen: !value.terminalOpen }));
 
+  const leftSidebar = (
+    <LeftSidebar
+      theme={theme}
+      onToggleTheme={() => setTheme((value) => value === "light" ? "dark" : "light")}
+    />
+  );
+
   return (
     <div className="agent-theme" data-theme={theme}>
-      <WebWorkbenchChrome
-        leftCollapsed={chrome.leftCollapsed}
-        rightCollapsed={chrome.rightCollapsed}
-        terminalOpen={chrome.terminalOpen}
-        onToggleLeft={toggleLeft}
-        onToggleRight={toggleRight}
-        onToggleTerminal={toggleTerminal}
-      />
+      <WebWorkbenchHeader />
       <div className="agent-workbench-stage">
+        {chrome.leftCollapsed ? (
+          <div
+            className={`agent-left-hover-preview${leftPreviewOpen ? " is-visible" : ""}`}
+            onMouseEnter={openLeftPreview}
+            onMouseLeave={() => closeLeftPreview(120)}
+          >
+            {leftSidebar}
+          </div>
+        ) : null}
         <ResizableWorkbench
-        left={<LeftSidebar theme={theme} onToggleTheme={() => setTheme((value) => value === "light" ? "dark" : "light")} />}
-        center={<CenterWorkspace />}
-        right={<RightSidebar {...props} terminalOpen={chrome.terminalOpen} onToggleTerminal={toggleTerminal} />}
-        bottom={<BottomTerminal terminal={props.terminal} onClose={() => setChrome((value) => ({ ...value, terminalOpen: false }))} />}
-        bottomOpen={chrome.terminalOpen}
-        leftLimits={LEFT_LIMITS}
-        rightLimits={RIGHT_LIMITS}
-        bottomLimits={BOTTOM_LIMITS}
-        snapHysteresis={24}
-        minCenterWidth={520}
-        leftCollapsed={chrome.leftCollapsed}
-        rightCollapsed={chrome.rightCollapsed}
-        onLeftCollapsedChange={(leftCollapsed) => setChrome((value) => value.leftCollapsed === leftCollapsed ? value : { ...value, leftCollapsed })}
-        onRightCollapsedChange={(rightCollapsed) => setChrome((value) => value.rightCollapsed === rightCollapsed ? value : { ...value, rightCollapsed })}
-        onBottomOpenChange={(terminalOpen) => setChrome((value) => value.terminalOpen === terminalOpen ? value : { ...value, terminalOpen })}
+          left={leftSidebar}
+          center={(
+            <CenterWorkspace
+              leftCollapsed={chrome.leftCollapsed}
+              rightCollapsed={chrome.rightCollapsed}
+              terminalOpen={chrome.terminalOpen}
+              onToggleLeft={toggleLeft}
+              onToggleRight={toggleRight}
+              onToggleTerminal={toggleTerminal}
+              onLeftHoverEnter={openLeftPreview}
+              onLeftHoverLeave={() => closeLeftPreview(120)}
+            />
+          )}
+          right={<RightSidebar {...props} terminalOpen={chrome.terminalOpen} onToggleTerminal={toggleTerminal} />}
+          bottom={<BottomTerminal terminal={props.terminal} onClose={() => setChrome((value) => ({ ...value, terminalOpen: false }))} />}
+          bottomOpen={chrome.terminalOpen}
+          leftLimits={LEFT_LIMITS}
+          rightLimits={RIGHT_LIMITS}
+          bottomLimits={BOTTOM_LIMITS}
+          snapHysteresis={24}
+          minCenterWidth={520}
+          leftCollapsed={chrome.leftCollapsed}
+          rightCollapsed={chrome.rightCollapsed}
+          onLeftCollapsedChange={(leftCollapsed) => {
+            clearPreviewTimer();
+            setLeftPreviewOpen(false);
+            setChrome((value) => value.leftCollapsed === leftCollapsed ? value : { ...value, leftCollapsed });
+          }}
+          onRightCollapsedChange={(rightCollapsed) => setChrome((value) => value.rightCollapsed === rightCollapsed ? value : { ...value, rightCollapsed })}
+          onBottomOpenChange={(terminalOpen) => setChrome((value) => value.terminalOpen === terminalOpen ? value : { ...value, terminalOpen })}
         />
       </div>
     </div>
