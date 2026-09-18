@@ -38,7 +38,7 @@ function initialChrome(): ChromeState {
   }
 }
 
-function LeftSidebar({ theme, onToggleTheme, onToggleLeft }: { theme: ThemeMode; onToggleTheme: () => void; onToggleLeft: () => void }) {
+function LeftSidebar({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme: () => void }) {
   return (
     <aside className="agent-side agent-side--left">
       <div className="agent-brand-row">
@@ -48,7 +48,6 @@ function LeftSidebar({ theme, onToggleTheme, onToggleLeft }: { theme: ThemeMode;
         <div className="agent-brand-actions">
           <button className="agent-icon-button" type="button" aria-label="搜索"><WorkbenchIcon name="search" /></button>
           <button className="agent-icon-button" type="button" aria-label="设置"><WorkbenchIcon name="settings" /></button>
-          <button className="agent-side-hover-toggle" type="button" onClick={onToggleLeft} aria-label="收起左侧栏" title="收起左侧栏"><WorkbenchIcon name="panelLeft" size={16} /></button>
         </div>
       </div>
 
@@ -74,23 +73,19 @@ function LeftSidebar({ theme, onToggleTheme, onToggleLeft }: { theme: ThemeMode;
 function CenterWorkspace() {
   return (
     <section className="agent-center">
-      <header className="agent-topbar">
-        <div className="agent-topbar-title"><WorkbenchIcon name="folder" /><strong>Web 工作台</strong></div>
-        <div className="agent-topbar-actions"><button className="agent-icon-button" type="button" aria-label="更多"><WorkbenchIcon name="dots" size={16} /></button><button className="agent-ghost-button" type="button">分享</button></div>
-      </header>
       <div className="agent-conversation">
         <div className="agent-conversation-inner">
           <div className="agent-user-message">把 LFAA 的工作台做成简洁、稳定、适合长时间工作的 Agent 界面。</div>
           <article className="agent-answer">
-            <p>工作台继续采用接近 ChatGPT / Codex 的三栏结构。侧栏分隔条只做拖拽；侧栏自身在鼠标移入时淡显开合控制；真实终端固定在主工作区最底部。</p>
+            <p>工作台继续采用接近 ChatGPT / Codex 的三栏结构。侧栏分隔条只负责拖拽与吸附；Web 版框架级开合按钮固定在页面顶栏，不依赖侧栏 hover；真实终端固定在主工作区最底部。</p>
             <h2>当前 UI 目标</h2>
             <ul>
               <li>左侧承载导航、项目和最近任务；</li>
               <li>中间保持主要工作区和对话上下文；</li>
               <li>右侧放工具入口、运行状态和 <code>.lfaa</code> 热插拔资源；</li>
               <li>拖到侧栏最小宽度自动吸附收起，收起后不能从分隔条反向拖开；</li>
-              <li>侧栏开合按钮属于侧栏 hover 控件，不占用拖拽分隔条；</li>
-              <li>底部终端直接连接本地 PTY，并支持向下吸附收起与显式入口重新展开。</li>
+              <li>左栏、右栏和终端开合按钮属于 Web 工作台顶栏，始终可见且位置固定；</li>
+              <li>底部终端直接连接本地 PTY，并支持向下吸附收起与顶栏显式入口重新展开。</li>
             </ul>
           </article>
         </div>
@@ -109,7 +104,7 @@ function groupResources(resources: readonly DevResourceItem[]) {
   return (Object.keys(resourceLabels) as ResourceKind[]).map((kind) => ({ kind, items: resources.filter((resource) => resource.kind === kind) }));
 }
 
-function RightSidebar({ resources = [], resourceBridgeStatus = "offline", terminalOpen, onToggleTerminal, onToggleRight }: AgentWorkbenchProps & { terminalOpen: boolean; onToggleTerminal: () => void; onToggleRight: () => void }) {
+function RightSidebar({ resources = [], resourceBridgeStatus = "offline", terminalOpen, onToggleTerminal }: AgentWorkbenchProps & { terminalOpen: boolean; onToggleTerminal: () => void }) {
   const groups = groupResources(resources);
   const statusText = resourceBridgeStatus === "connected" ? "已连接" : resourceBridgeStatus === "refreshing" ? "刷新中" : "未连接";
   return (
@@ -118,8 +113,6 @@ function RightSidebar({ resources = [], resourceBridgeStatus = "offline", termin
         <div><strong>工具与资源</strong><span>当前项目</span></div>
         <div className="agent-right-header-actions">
           <span className={`agent-bridge agent-bridge--${resourceBridgeStatus}`}><i />{statusText}</span>
-          <button className="agent-side-hover-toggle" type="button" onClick={onToggleTerminal} aria-label={terminalOpen ? "收起终端" : "展开终端"} title={terminalOpen ? "收起终端" : "展开终端"}><WorkbenchIcon name="terminal" size={16} /></button>
-          <button className="agent-side-hover-toggle" type="button" onClick={onToggleRight} aria-label="收起右侧栏" title="收起右侧栏"><WorkbenchIcon name="panelRight" size={16} /></button>
         </div>
       </header>
       <div className="agent-tool-list">
@@ -149,12 +142,63 @@ function BottomTerminal({ terminal, onClose }: { terminal: AgentWorkbenchProps["
   );
 }
 
-function CollapsedEdgeControl({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
-  return <div className={`agent-edge-reveal agent-edge-reveal--${side}`}><button type="button" onClick={onClick} aria-label={`展开${side === "left" ? "左" : "右"}侧栏`}><WorkbenchIcon name={side === "left" ? "panelLeft" : "panelRight"} size={16} /></button></div>;
-}
-
-function CollapsedBottomControl({ onClick }: { onClick: () => void }) {
-  return <div className="agent-bottom-reveal"><button type="button" onClick={onClick} aria-label="展开底部终端" title="展开底部终端"><WorkbenchIcon name="terminal" size={16} /></button></div>;
+function WebWorkbenchChrome({
+  leftCollapsed,
+  rightCollapsed,
+  terminalOpen,
+  onToggleLeft,
+  onToggleRight,
+  onToggleTerminal,
+}: {
+  leftCollapsed: boolean;
+  rightCollapsed: boolean;
+  terminalOpen: boolean;
+  onToggleLeft: () => void;
+  onToggleRight: () => void;
+  onToggleTerminal: () => void;
+}) {
+  return (
+    <header className="agent-web-chrome">
+      <div className="agent-web-chrome__left">
+        <button
+          className="agent-chrome-toggle"
+          type="button"
+          onClick={onToggleLeft}
+          aria-label={leftCollapsed ? "展开左侧栏" : "收起左侧栏"}
+          aria-expanded={!leftCollapsed}
+          title={leftCollapsed ? "展开左侧栏 (Ctrl+B)" : "收起左侧栏 (Ctrl+B)"}
+        >
+          <WorkbenchIcon name="panelLeft" size={16} />
+        </button>
+        <div className="agent-web-chrome__title"><WorkbenchIcon name="folder" /><strong>Web 工作台</strong></div>
+      </div>
+      <div className="agent-web-chrome__right">
+        <button
+          className={`agent-chrome-toggle${terminalOpen ? " is-active" : ""}`}
+          type="button"
+          onClick={onToggleTerminal}
+          aria-label={terminalOpen ? "收起终端" : "展开终端"}
+          aria-expanded={terminalOpen}
+          title={terminalOpen ? "收起终端 (Ctrl+`)" : "展开终端 (Ctrl+`)"}
+        >
+          <WorkbenchIcon name="terminal" size={16} />
+        </button>
+        <button
+          className="agent-chrome-toggle"
+          type="button"
+          onClick={onToggleRight}
+          aria-label={rightCollapsed ? "展开右侧栏" : "收起右侧栏"}
+          aria-expanded={!rightCollapsed}
+          title={rightCollapsed ? "展开右侧栏 (Ctrl+Alt+B)" : "收起右侧栏 (Ctrl+Alt+B)"}
+        >
+          <WorkbenchIcon name="panelRight" size={16} />
+        </button>
+        <span className="agent-web-chrome__divider" aria-hidden="true" />
+        <button className="agent-icon-button" type="button" aria-label="更多"><WorkbenchIcon name="dots" size={16} /></button>
+        <button className="agent-ghost-button" type="button">分享</button>
+      </div>
+    </header>
+  );
 }
 
 export function AgentWorkbench(props: AgentWorkbenchProps) {
@@ -190,13 +234,19 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
 
   return (
     <div className="agent-theme" data-theme={theme}>
-      {chrome.leftCollapsed ? <CollapsedEdgeControl side="left" onClick={toggleLeft} /> : null}
-      {chrome.rightCollapsed ? <CollapsedEdgeControl side="right" onClick={toggleRight} /> : null}
-      {!chrome.terminalOpen ? <CollapsedBottomControl onClick={toggleTerminal} /> : null}
-      <ResizableWorkbench
-        left={<LeftSidebar theme={theme} onToggleTheme={() => setTheme((value) => value === "light" ? "dark" : "light")} onToggleLeft={toggleLeft} />}
+      <WebWorkbenchChrome
+        leftCollapsed={chrome.leftCollapsed}
+        rightCollapsed={chrome.rightCollapsed}
+        terminalOpen={chrome.terminalOpen}
+        onToggleLeft={toggleLeft}
+        onToggleRight={toggleRight}
+        onToggleTerminal={toggleTerminal}
+      />
+      <div className="agent-workbench-stage">
+        <ResizableWorkbench
+        left={<LeftSidebar theme={theme} onToggleTheme={() => setTheme((value) => value === "light" ? "dark" : "light")} />}
         center={<CenterWorkspace />}
-        right={<RightSidebar {...props} terminalOpen={chrome.terminalOpen} onToggleTerminal={toggleTerminal} onToggleRight={toggleRight} />}
+        right={<RightSidebar {...props} terminalOpen={chrome.terminalOpen} onToggleTerminal={toggleTerminal} />}
         bottom={<BottomTerminal terminal={props.terminal} onClose={() => setChrome((value) => ({ ...value, terminalOpen: false }))} />}
         bottomOpen={chrome.terminalOpen}
         leftLimits={LEFT_LIMITS}
@@ -209,7 +259,8 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
         onLeftCollapsedChange={(leftCollapsed) => setChrome((value) => value.leftCollapsed === leftCollapsed ? value : { ...value, leftCollapsed })}
         onRightCollapsedChange={(rightCollapsed) => setChrome((value) => value.rightCollapsed === rightCollapsed ? value : { ...value, rightCollapsed })}
         onBottomOpenChange={(terminalOpen) => setChrome((value) => value.terminalOpen === terminalOpen ? value : { ...value, terminalOpen })}
-      />
+        />
+      </div>
     </div>
   );
 }

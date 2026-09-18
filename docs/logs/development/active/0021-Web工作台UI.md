@@ -2,24 +2,33 @@
 
 - **主编号：** #21
 - **名称：** Web 工作台 UI
-- **最新变更：** #21.8
+- **最新变更：** #21.9
 - **状态：** active
-- **关键词：** Web、三栏、侧栏、Hover、终端、PTY、xterm、ChatGPT、Codex
+- **关键词：** Web、三栏、侧栏、常驻按钮、Workbench Chrome、终端、PTY、xterm、ChatGPT、Codex
 - **当前文件：** `docs/logs/development/active/0021-Web工作台UI.md`
 
 ## 当前结论
 
-本轮修正两个明确问题：
+框架级开合入口必须与可收起栏位内容解耦：
 
 ```text
-侧栏 Hover 控件
-→ 控制必须属于左 / 右侧栏自身
-→ 不能放到中间工作区顶部
+桌面端
+→ 原生标题栏 / App Chrome 放常驻 Shell Actions
 
-终端
-→ 必须是最底部 Dock
-→ 必须是真实 PTY
-→ 禁止用模拟日志冒充终端
+Web 端
+→ 页面自身提供全宽 Workbench Chrome
+→ 左侧常驻左栏按钮
+→ 右侧常驻终端 / 右栏按钮
+```
+
+因此不再采用“侧栏 hover 才显示开合按钮”或“收起后靠屏幕边缘 hover 热点恢复”的方案。
+
+侧栏分隔条继续只负责：
+
+```text
+拖拽调宽
+→ 到最小阈值吸附收起
+→ Pointer Up 后禁止反向拖开
 ```
 
 当前 Web 开发模式使用：
@@ -44,6 +53,22 @@ Web 服务器仍只绑定：
 
 ## 最新变更
 
+### #21.9 Web 常驻工作台 Chrome
+
+根据桌面端参考重新定义壳层按钮归属：
+
+1. 左栏 / 终端 / 右栏按钮属于 Workbench Shell，不属于侧栏内容；
+2. Web 页面新增独立、全宽的 `WebWorkbenchChrome`；
+3. 左栏按钮固定在顶栏最左侧，展开 / 收起都保持同一位置；
+4. 终端和右栏按钮固定在顶栏右侧，并始终可见；
+5. 左栏内部删除 hover 收起按钮；
+6. 右栏内部删除 hover 终端 / 收起按钮；
+7. 删除左 / 右屏幕边缘 hover 重新展开入口；
+8. 删除底部 hover 终端重新展开入口；
+9. 右栏中的“终端”工具项与快捷键继续作为额外入口；
+10. 窄屏只隐藏分享等次要操作，三枚框架级按钮继续保留；
+11. #21.8 的拖拽吸附、迟滞和吸附后禁止 separator 反向拖开规则不变。
+
 ### #21.8 三向吸附与显式重新展开
 
 统一左、右、底部三向 Dock 的交互：
@@ -55,7 +80,7 @@ Web 服务器仍只绑定：
 → 重新展开：点击对应左 / 右 / 底部显式入口
 ```
 
-底部终端新增与侧栏一致的吸附迟滞，避免临界点抖动；收起后提供底部 hover 终端入口。
+底部终端新增与侧栏一致的吸附迟滞，避免临界点抖动。v0.0.38 起重新展开入口统一由常驻 Workbench Chrome 承载。
 
 ### #21.7 侧栏 Hover 与真实终端
 
@@ -117,16 +142,17 @@ Agent 自动执行命令的 Tool
 
 已完成静态与治理验证：
 
-- 分隔条不存在点击按钮；
-- 侧栏 Hover 控件位于对应侧栏；
-- 底部面板位于三栏 Grid 第二行并跨中间 + 右栏；
-- 模拟终端内容已删除；
-- Vite terminal bridge 使用真实 `node-pty`；
-- xterm 输入 / 输出 / resize 事件已接线；
+- Web Workbench Chrome 独立于左 / 中 / 右栏并横跨页面全宽；
+- 左栏 / 终端 / 右栏三枚框架级按钮常驻，不再依赖 hover 显隐；
+- 侧栏内部不存在重复的框架级开合按钮；
+- 收起状态不存在左右边缘 / 底部 hover 恢复入口；
+- 分隔条仍不存在点击按钮，吸附后仍禁止反向拖开；
+- 底部面板仍位于三栏 Grid 第二行并跨中间 + 右栏；
+- Vite terminal bridge 继续使用真实 `node-pty`；
 - Vite 仍绑定 `127.0.0.1`；
 - Governance / Import / Development Log / Docs Structure Check 通过。
 
-真实 PTY 仍需用户 Windows 环境执行菜单 1 安装新增依赖后进行实机验证。
+真实视觉位置与 PTY 交互仍需用户 Windows 浏览器环境执行 `LFAA-Setup.bat → 2` 实机验证。
 
 ## 历史索引
 
@@ -140,4 +166,5 @@ Agent 自动执行命令的 Tool
 | #21.5 | superseded | `archive/0021-05-Web启动延迟修复.md` |
 | #21.6 | superseded | `archive/0021-06-三栏交互与终端停靠.md` |
 | #21.7 | delivered | `active/0021-Web工作台UI.md` |
-| #21.8 | active | `active/0021-Web工作台UI.md` |
+| #21.8 | delivered | `active/0021-Web工作台UI.md` |
+| #21.9 | active | `active/0021-Web工作台UI.md` |

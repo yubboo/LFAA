@@ -121,7 +121,8 @@ Cargo
 | #21.5 | superseded | `archive/0021-05-Web启动延迟修复.md` |
 | #21.6 | superseded | `archive/0021-06-三栏交互与终端停靠.md` |
 | #21.7 | delivered | `active/0021-Web工作台UI.md` |
-| #21.8 | active | `active/0021-Web工作台UI.md` |
+| #21.8 | delivered | `active/0021-Web工作台UI.md` |
+| #21.9 | active | `active/0021-Web工作台UI.md` |
 
 
 ## #4 历史变更

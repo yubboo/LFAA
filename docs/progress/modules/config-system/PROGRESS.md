@@ -1,5 +1,12 @@
 # config-system PROGRESS
 
+## 2026-09-18 / #21.9 Web 常驻工作台 Chrome
+
+- 当前状态：planned
+- 配置系统业务实现：未改动
+- Web 工作台壳层改为常驻 Chrome 控制，不再依赖 Hover
+- 下一步：#21.9 实机验证后继续 `config-schema`
+
 ## 2026-09-18 / #21.7 真实终端与侧栏 Hover
 
 - 当前状态：planned

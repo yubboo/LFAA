@@ -1,5 +1,13 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #21.9 Web 常驻工作台 Chrome
+
+- 当前状态：pending-test
+- 已完成代码：Web 全宽 Workbench Chrome、左栏 / 终端 / 右栏常驻按钮、侧栏 Hover 壳层入口移除
+- 保留：三向拖拽吸附、真实 PTY、GitHub 推送修复、中文路径保护
+- 待完成：Windows 浏览器实机视觉位置与交互验证
+- 用户版本：v0.0.38
+
 ## 2026-09-18 / #19.10 Rustup Windows Target 缺失修复
 
 - 当前状态：delivered
