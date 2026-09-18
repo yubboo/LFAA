@@ -1,3 +1,13 @@
+/**
+ * 文件：workbench-layout.types.ts
+ * 作用：定义 ResizableWorkbench 的布局参数和受控状态接口。
+ * 负责：左右栏/底栏尺寸限制、内容插槽、开合状态回调。
+ * 不负责：具体拖拽算法、视觉样式、业务内容。
+ * 状态归属：类型契约，无运行时状态。
+ * 对外接口：WorkbenchPaneLimits、ResizableWorkbenchProps。
+ * 关联文件：ResizableWorkbench.tsx、workbench.css、@lfaa/app-shell。
+ * 修改注意事项：受控属性与回调必须成对考虑，避免父子状态出现双事实源。
+ */
 import type { ReactNode } from "react";
 
 export interface WorkbenchPaneLimits {

@@ -423,3 +423,42 @@ UTF-8 中文文件名
 4. 重新生成版本包后再执行。
 
 发布 ZIP 生成后也必须重新读取 ZIP 文件名清单，确认中文路径保持 Unicode 语义。
+
+## 14. Windows PowerShell 脚本编码契约
+
+根入口：
+
+```text
+LFAA-Sync.bat
+LFAA-GitHub.bat
+LFAA-Setup.bat
+LFAA-Update.bat
+```
+
+通过 Windows 自带：
+
+```text
+powershell.exe -File
+```
+
+调用 `scripts/windows/*.ps1`。
+
+因此这些 `.ps1` 必须使用：
+
+```text
+UTF-8 with BOM
+```
+
+原因：Windows PowerShell 5.1 对无 BOM UTF-8 脚本的自动识别不可靠，特别是脚本包含中文字符串和中文注释时可能发生误解码。
+
+发布前必须执行：
+
+```text
+node scripts/windows-script-encoding-check.mjs
+```
+
+该检查必须验证：
+
+- BOM 字节 `EF BB BF`；
+- BOM 后内容可严格按 UTF-8 解码；
+- 4 个根 BAT 仍通过 `powershell.exe` 指向正确 `.ps1`。

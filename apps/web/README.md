@@ -47,3 +47,5 @@ LFAA-Setup.bat
 ```text
 pnpm --filter @lfaa/web dev
 ```
+
+Web 源码导航：`apps/web/src/README.md`。

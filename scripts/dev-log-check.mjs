@@ -1,8 +1,13 @@
 /**
  * 文件：dev-log-check.mjs
- * 作用：检查开发日志分层、中文命名、索引、历史状态与主编号连续性。
+ * 作用：检查开发日志分层、中文命名、INDEX 引用、历史状态和主编号连续性。
+ * 负责：development active/archive 的结构治理。
+ * 不负责：判断业务结论是否正确、检查 Runtime Log 内容。
+ * 状态归属：无运行时状态。
+ * 对外接口：`node scripts/dev-log-check.mjs`。
+ * 关联文件：docs/standards/DEV_LOGS.md、docs/logs/development/INDEX.md。
+ * 修改注意事项：日志格式规则变化必须先改 DEV_LOGS.md，历史记录不得因检查器升级而被静默删除。
  */
-
 import fs from "node:fs";
 import path from "node:path";
 

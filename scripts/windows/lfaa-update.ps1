@@ -1,4 +1,13 @@
-﻿$ErrorActionPreference = "Stop"
+﻿# 文件：lfaa-update.ps1
+# 作用：更新已经 Git Clone 的 LFAA 源码工作区。
+# 负责：远端检测、分支同步、必要备份、更新日志和交互菜单。
+# 不负责：首次 clone、版本包镜像同步、GitHub 提交发布。
+# 状态归属：Git 仓库当前分支和工作树是更新事实源。
+# 对外接口：由根目录 LFAA-Update.bat 调用。
+# 关联文件：LFAA-Update.bat、docs/logs/runtime/source-update/README.md。
+# 修改注意事项：不得假定盘符或固定绝对路径；必须保护用户本地改动并清楚报告冲突。
+
+$ErrorActionPreference = "Stop"
 
 # Windows PowerShell 5.1 中文输出。
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)

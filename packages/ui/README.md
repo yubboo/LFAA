@@ -28,3 +28,5 @@
 ## 对外 API
 
 统一由 `src/index.ts` 暴露。
+
+Workbench 源码导航：`packages/ui/src/workbench/README.md`。

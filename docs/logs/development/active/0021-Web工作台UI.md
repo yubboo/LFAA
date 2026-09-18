@@ -2,36 +2,52 @@
 
 - **主编号：** #21
 - **名称：** Web 工作台 UI
-- **最新变更：** #21.9
+- **最新变更：** #21.10
 - **状态：** active
-- **关键词：** Web、三栏、侧栏、常驻按钮、Workbench Chrome、终端、PTY、xterm、ChatGPT、Codex
+- **关键词：** Web、三栏、主区悬浮按钮、左栏 Hover 预览、终端、PTY、xterm、ChatGPT、Codex
 - **当前文件：** `docs/logs/development/active/0021-Web工作台UI.md`
 
 ## 当前结论
 
-框架级开合入口必须与可收起栏位内容解耦：
+当前 Web 工作台采用：
 
 ```text
-桌面端
-→ 原生标题栏 / App Chrome 放常驻 Shell Actions
+页面顶栏
+→ 只保留 Web 工作台标题 / 更多 / 分享
 
-Web 端
-→ 页面自身提供全宽 Workbench Chrome
-→ 左侧常驻左栏按钮
-→ 右侧常驻终端 / 右栏按钮
+中间主区左上角
+→ 左栏按钮
+→ Hover / Focus：左栏收起时临时预览
+→ Click / Ctrl+B：正式开合左栏
+
+中间主区右上角
+→ 终端按钮 Ctrl+J
+→ 右栏按钮 Ctrl+Alt+B
 ```
 
-因此不再采用“侧栏 hover 才显示开合按钮”或“收起后靠屏幕边缘 hover 热点恢复”的方案。
+左栏 Hover 预览与正式布局状态必须分开：
 
-侧栏分隔条继续只负责：
+```text
+Hover Preview
+→ 临时浮层
+→ 不修改 leftCollapsed
+
+Click / Ctrl+B
+→ 修改 leftCollapsed
+→ 正式改变 Grid 左栏宽度
+```
+
+右栏不采用 Hover 自动展开，继续显式点击 / 快捷键控制。
+
+侧栏分隔条只负责：
 
 ```text
 拖拽调宽
 → 到最小阈值吸附收起
-→ Pointer Up 后禁止反向拖开
+→ Pointer Up 后禁止 separator 反向拖开
 ```
 
-当前 Web 开发模式使用：
+底部真实终端：
 
 ```text
 xterm.js
@@ -43,83 +59,30 @@ node-pty
 PowerShell / 当前系统 Shell
 ```
 
-Web 服务器仍只绑定：
-
-```text
-127.0.0.1
-```
-
-真实终端默认工作目录为项目根。
+Web 服务器只绑定 `127.0.0.1`，真实终端默认 cwd 为项目根。
 
 ## 最新变更
 
-### #21.9 Web 常驻工作台 Chrome
+### #21.10 主区悬浮与左栏预览
 
-根据桌面端参考重新定义壳层按钮归属：
+v0.0.39 根据新的 ChatGPT / Codex 参考调整 Shell Actions 位置和左栏交互：
 
-1. 左栏 / 终端 / 右栏按钮属于 Workbench Shell，不属于侧栏内容；
-2. Web 页面新增独立、全宽的 `WebWorkbenchChrome`；
-3. 左栏按钮固定在顶栏最左侧，展开 / 收起都保持同一位置；
-4. 终端和右栏按钮固定在顶栏右侧，并始终可见；
-5. 左栏内部删除 hover 收起按钮；
-6. 右栏内部删除 hover 终端 / 收起按钮；
-7. 删除左 / 右屏幕边缘 hover 重新展开入口；
-8. 删除底部 hover 终端重新展开入口；
-9. 右栏中的“终端”工具项与快捷键继续作为额外入口；
-10. 窄屏只隐藏分享等次要操作，三枚框架级按钮继续保留；
-11. #21.8 的拖拽吸附、迟滞和吸附后禁止 separator 反向拖开规则不变。
+1. Web 顶栏移除左栏 / 终端 / 右栏三个 Shell 控制；
+2. 左栏按钮固定到中间主区左上角；
+3. 终端 / 右栏按钮固定到中间主区右上角；
+4. 左栏收起时，Hover / Focus 左栏按钮临时淡入左栏内容；
+5. 鼠标可从按钮移动到预览浮层，不立即闪退；
+6. Hover 预览不修改 `leftCollapsed`；
+7. 点击 / `Ctrl+B` 才执行正式左栏开合；
+8. 右栏保持显式控制；
+9. 终端快捷键为 `Ctrl+J`，右栏快捷键为 `Ctrl+Alt+B`；
+10. #21.8 的三向吸附和吸附后禁止 separator 反向展开保持不变。
 
-### #21.8 三向吸附与显式重新展开
+### #21.9 Web 常驻工作台 Chrome（已替代）
 
-统一左、右、底部三向 Dock 的交互：
+v0.0.38 曾把 Shell Actions 放在全宽 Web Chrome 中。该布局已由 #21.10 替代，历史见：
 
-```text
-展开状态：分隔条可拖拽
-→ 拖到最小阈值：吸附收起
-→ 已收起：分隔条不允许反向拖拽展开
-→ 重新展开：点击对应左 / 右 / 底部显式入口
-```
-
-底部终端新增与侧栏一致的吸附迟滞，避免临界点抖动。v0.0.38 起重新展开入口统一由常驻 Workbench Chrome 承载。
-
-### #21.7 侧栏 Hover 与真实终端
-
-1. 移除中间顶部错误的左右栏 Hover 控件；
-2. 左侧栏鼠标移入时，左侧栏自身的收起按钮淡入；
-3. 右侧栏鼠标移入时，右侧栏自身的终端 / 收起按钮淡入；
-4. 侧栏已收起时，仅在对应屏幕边缘保留淡入式重新展开热点；
-5. 分隔条继续只负责拖拽，不承担点击按钮；
-6. 底部终端移到真正的最底部，并横跨中间工作区 + 右侧区域；
-7. 左侧栏保持全高，不被底部终端截断；
-8. 底部终端支持拖拽顶部边界改变高度；
-9. 删除模拟终端日志；
-10. Web 开发模式接入 `@xterm/xterm + @xterm/addon-fit + node-pty`；
-11. Windows 默认启动 `powershell.exe -NoLogo`；
-12. 终端输入、输出、窗口 resize 通过 Vite 自定义 HMR 事件连接真实 PTY；
-13. 页面关闭、会话 dispose 或 Vite 退出时回收 PTY；
-14. 真实终端只属于本地 Web 开发桥接，不作为正式 Agent Tool Runtime。
-
-## 安全边界
-
-当前终端是：
-
-```text
-人类直接交互的本地开发终端
-```
-
-不是：
-
-```text
-Agent 自动执行命令的 Tool
-```
-
-因此：
-
-- 不自动提升权限；
-- 不把 Secret 注入模型；
-- 不开放远程监听；
-- 不作为未来 Agent 绕过 Policy / Permission / Rust Broker 的通道；
-- Agent 自动调用终端时仍必须走正式 Tool Runtime → Policy → Permission → Rust PTY Broker。
+`archive/0021-09-Web常驻工作台Chrome.md`
 
 ## 影响范围
 
@@ -135,22 +98,22 @@ Agent 自动执行命令的 Tool
 - `apps/web/src/vite-custom-events.d.ts`
 - `apps/web/src/App.tsx`
 - `apps/web/vite.config.ts`
-- `apps/web/package.json`
-- UI / Security / Testing 文档
+- `docs/standards/UI_LAYOUT.md`
 
 ## 验证结果
 
-已完成静态与治理验证：
+静态实现当前满足：
 
-- Web Workbench Chrome 独立于左 / 中 / 右栏并横跨页面全宽；
-- 左栏 / 终端 / 右栏三枚框架级按钮常驻，不再依赖 hover 显隐；
-- 侧栏内部不存在重复的框架级开合按钮；
-- 收起状态不存在左右边缘 / 底部 hover 恢复入口；
-- 分隔条仍不存在点击按钮，吸附后仍禁止反向拖开；
-- 底部面板仍位于三栏 Grid 第二行并跨中间 + 右栏；
+- 顶栏不再承载三枚 Shell Actions；
+- 左栏按钮位于中间主区左上角；
+- 终端 / 右栏按钮位于中间主区右上角；
+- 左栏收起后存在独立 Hover preview 浮层；
+- Preview 状态与正式 collapsed 状态分离；
+- 右栏没有 Hover 自动展开；
+- 快捷键为 `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B`；
+- Separator 吸附后仍不能反向拖开；
 - Vite terminal bridge 继续使用真实 `node-pty`；
-- Vite 仍绑定 `127.0.0.1`；
-- Governance / Import / Development Log / Docs Structure Check 通过。
+- Vite 仍绑定 `127.0.0.1`。
 
 真实视觉位置与 PTY 交互仍需用户 Windows 浏览器环境执行 `LFAA-Setup.bat → 2` 实机验证。
 
@@ -167,4 +130,5 @@ Agent 自动执行命令的 Tool
 | #21.6 | superseded | `archive/0021-06-三栏交互与终端停靠.md` |
 | #21.7 | delivered | `active/0021-Web工作台UI.md` |
 | #21.8 | delivered | `active/0021-Web工作台UI.md` |
-| #21.9 | active | `active/0021-Web工作台UI.md` |
+| #21.9 | superseded | `archive/0021-09-Web常驻工作台Chrome.md` |
+| #21.10 | active | `active/0021-Web工作台UI.md` |

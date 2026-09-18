@@ -1,10 +1,13 @@
 /**
  * 文件：governance-check.mjs
- * 作用：检查 LFAA 项目治理骨架是否缺失关键入口。
- * 负责：验证当前规范、当前架构、Plan/Progress/Prompt 基础文件存在。
- * 不负责：业务测试、TypeScript/Rust 编译、安全扫描。
+ * 作用：检查 LFAA 项目治理骨架和不可破坏的项目级约束。
+ * 负责：关键文件存在性、包管理器、作者/命名空间、资源根、Rustup、安全工具链与质量脚本基础约束。
+ * 不负责：业务单元测试、TypeScript/Rust 编译、UI 视觉验证。
+ * 状态归属：无运行时状态；直接读取当前工作树配置。
+ * 对外接口：`node scripts/governance-check.mjs`。
+ * 关联文件：DEVELOPMENT.md、docs/standards/QUALITY_GATES.md、package.json、scripts/comment-check.mjs、scripts/windows-script-encoding-check.mjs、scripts/release-consistency-check.mjs。
+ * 修改注意事项：新增真正的硬规则时才进入本文件；不要把一次性业务测试塞进治理检查。
  */
-
 import fs from "node:fs";
 import path from "node:path";
 
@@ -12,7 +15,12 @@ const root = process.cwd();
 
 const required = [
   "AGENTS.md",
+  "apps/README.md",
+  "packages/README.md",
+  "crates/README.md",
+  "scripts/README.md",
   "docs/README.md",
+  "docs/项目结构与代码地图.md",
   "docs/logs/README.md",
   "docs/logs/runtime/README.md",
   "docs/standards/README.md",
@@ -24,6 +32,10 @@ const required = [
   "docs/testing/README.md",
   "docs/logs/development/archive/0020-01-历史编号迁移.md",
   "scripts/docs-check.mjs",
+  "scripts/comment-check.mjs",
+  "scripts/windows-script-encoding-check.mjs",
+  "scripts/release-consistency-check.mjs",
+  "docs/prompts/active/0020-开发规范执行.md",
   "DEVELOPMENT.md",
   "ARCHITECTURE.md",
   "PROJECT_PLAN.md",
@@ -152,6 +164,18 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
+// Windows PowerShell 5.1 对无 BOM UTF-8 脚本识别不可靠。
+// 这里直接做字节级门禁，避免 standalone governance 在 Sync 后漏掉编码回归。
+const utf8Bom = Buffer.from([0xef, 0xbb, 0xbf]);
+for (const name of ["lfaa-sync.ps1", "lfaa-github.ps1", "lfaa-setup.ps1", "lfaa-update.ps1"]) {
+  const relative = `scripts/windows/${name}`;
+  const bytes = fs.readFileSync(path.join(root, relative));
+  if (bytes.length < 3 || !bytes.subarray(0, 3).equals(utf8Bom)) {
+    console.error(`LFAA governance check failed: ${relative} must be UTF-8 with BOM.`);
+    process.exit(1);
+  }
+}
+
 
 for (const legacyResourceRoot of ["skills", "plugins"]) {
   if (fs.existsSync(path.join(root, legacyResourceRoot))) {
@@ -228,6 +252,28 @@ const releaseJson = JSON.parse(fs.readFileSync(path.join(root, "lfaa.release.jso
 if (releaseJson.author !== "二鱼") {
   console.error("LFAA governance check failed: release author must be 二鱼.");
   process.exit(1);
+}
+
+const releaseVersion = String(releaseJson.displayVersion ?? "");
+if (packageJson.version !== releaseVersion) {
+  console.error(`LFAA governance check failed: root package version ${packageJson.version} != release ${releaseVersion}.`);
+  process.exit(1);
+}
+for (const relative of ["README.md", "CHANGELOG.md"]) {
+  const text = fs.readFileSync(path.join(root, relative), "utf8");
+  if (!text.includes(`v${releaseVersion}`)) {
+    console.error(`LFAA governance check failed: ${relative} must identify current version v${releaseVersion}.`);
+    process.exit(1);
+  }
+}
+for (const relative of [
+  `docs/changelog/v${releaseVersion}.md`,
+  `docs/releases/v${releaseVersion}/RELEASE.md`,
+]) {
+  if (!fs.existsSync(path.join(root, relative))) {
+    console.error(`LFAA governance check failed: missing current release record ${relative}.`);
+    process.exit(1);
+  }
 }
 
 for (const resourceFile of [".lfaa/manifest.json", ".lfaa/lock.json"]) {

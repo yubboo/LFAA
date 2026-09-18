@@ -1,3 +1,20 @@
+/**
+ * 文件：workbench.css
+ * 作用：ResizableWorkbench 的纯几何布局和吸附/收起视觉状态。
+ * 负责：五列两行 Grid、separator、collapsed/snap preview、底部 Dock、窄屏浮层降级。
+ * 不负责：左/中/右实际内容、Shell 开合按钮、主题业务、终端 xterm 样式。
+ * 状态归属：无状态；读取 ResizableWorkbench 写入的 CSS 变量和 data-* 属性。
+ * 对外接口：lfaa-workbench* CSS class、--lfaa-* CSS 变量。
+ * 关联文件：ResizableWorkbench.tsx、workbench-layout.types.ts、packages/app-shell/src/agent-workbench.css。
+ * 修改注意事项：Grid 列顺序必须和 ResizableWorkbench DOM 顺序一致；吸附后 separator 只保留边界，不承担重新展开。
+ *
+ * Grid：
+ * column 1 left | 2 left-handle | 3 center | 4 right-handle | 5 right
+ * row 1    left 跨两行；center/right 在上方
+ * row 2    bottom 从 column 3 跨到 column 5
+ */
+
+/* ===== 1. 根 Grid 与尺寸变量 ===== */
 .lfaa-workbench {
   --lfaa-left-size: 288px;
   --lfaa-right-size: 360px;
@@ -20,6 +37,8 @@
     grid-template-rows 220ms cubic-bezier(.22, 1, .36, 1);
 }
 
+
+/* ===== 2. 拖拽中的全局鼠标状态 ===== */
 body.lfaa-is-resizing { cursor: col-resize !important; user-select: none !important; }
 body.lfaa-is-resizing * { cursor: col-resize !important; }
 body.lfaa-is-resizing-vertical { cursor: row-resize !important; user-select: none !important; }
@@ -30,6 +49,8 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-is-resizing .lfaa-workbench[data-auto-snap="right"] { transition: grid-template-columns 180ms cubic-bezier(.22, 1, .36, 1); }
 .lfaa-is-resizing-vertical .lfaa-workbench[data-auto-snap="bottom"] { transition: grid-template-rows 180ms cubic-bezier(.22, 1, .36, 1); }
 
+
+/* ===== 3. Grid 区域定位 ===== */
 .lfaa-workbench__pane,
 .lfaa-workbench__center,
 .lfaa-workbench__bottom { min-width: 0; min-height: 0; overflow: hidden; }
@@ -47,6 +68,8 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   transform: translateX(0);
   transition: opacity 180ms ease, transform 220ms cubic-bezier(.22, 1, .36, 1), visibility 220ms step-end;
 }
+
+/* ===== 4. 左右栏 collapsed / snap 视觉 ===== */
 .lfaa-workbench[data-left-collapsed="true"] .lfaa-workbench__pane--left { opacity: 0; transform: translateX(-18px); pointer-events: none; }
 .lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__pane--right { opacity: 0; transform: translateX(18px); pointer-events: none; }
 .lfaa-workbench[data-dragging="left"] .lfaa-workbench__pane--left,
@@ -54,6 +77,10 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-workbench[data-auto-snap="left"] .lfaa-workbench__pane--left { opacity: 0; transform: translateX(-12px); pointer-events: none; }
 .lfaa-workbench[data-auto-snap="right"] .lfaa-workbench__pane--right { opacity: 0; transform: translateX(12px); pointer-events: none; }
 
+
+/* ===== 5. 左右 separator =====
+ * 只负责 Resize；collapsed 后禁用点击/拖拽反向展开。
+ */
 .lfaa-workbench__handle { position: relative; z-index: 20; cursor: col-resize; touch-action: none; outline: none; background: transparent; }
 .lfaa-workbench__handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; transform: translateX(-50%); background: var(--agent-border, #e5e5e5); opacity: .9; transition: background 140ms ease, width 140ms ease, opacity 140ms ease; }
 .lfaa-workbench__handle::after { content: ""; position: absolute; inset: 0 -5px; }
@@ -66,6 +93,8 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-workbench[data-snap-preview="left"] .lfaa-workbench__handle--left::before,
 .lfaa-workbench[data-snap-preview="right"] .lfaa-workbench__handle--right::before { width: 2px; opacity: 1; background: var(--agent-text, #171717); }
 
+
+/* ===== 6. 底部 Terminal Dock ===== */
 .lfaa-workbench__bottom { position: relative; opacity: 1; transform: translateY(0); border-top: 1px solid var(--agent-border, #e5e5e5); background: var(--agent-bg, #fff); transition: opacity 180ms ease, transform 220ms cubic-bezier(.22, 1, .36, 1); }
 .lfaa-workbench[data-bottom-open="false"] .lfaa-workbench__bottom { opacity: 0; transform: translateY(16px); pointer-events: none; border-color: transparent; }
 .lfaa-workbench__bottom-handle { position: absolute; z-index: 30; top: -4px; left: 0; right: 0; height: 8px; cursor: row-resize; touch-action: none; }
@@ -74,6 +103,8 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-workbench[data-snap-preview="bottom"] .lfaa-workbench__bottom-handle::before { height: 2px; background: var(--agent-text, #171717); }
 .lfaa-workbench__bottom-content { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
 
+
+/* ===== 7. <=1120px：右栏改为右侧浮层 ===== */
 @media (max-width: 1120px) {
   .lfaa-workbench { position: relative; grid-template-columns: var(--lfaa-left-column) var(--lfaa-handle-width) minmax(0, 1fr); }
   .lfaa-workbench__center { grid-column: 3; }
@@ -83,6 +114,8 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   .lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__pane--right { transform: translateX(100%); }
 }
 
+
+/* ===== 8. <=820px：左右栏都改为覆盖式浮层 ===== */
 @media (max-width: 820px) {
   .lfaa-workbench { display: block; position: relative; }
   .lfaa-workbench__center { width: 100%; height: 100%; padding-bottom: var(--lfaa-bottom-row); }

@@ -1,3 +1,29 @@
+/**
+ * 文件：agent-workbench.css
+ * 作用：AgentWorkbench 共享工作台壳的视觉样式。
+ * 负责：主题变量、页面顶栏、左右栏内容、中间区、Hover 左栏预览、右侧工具区、输入框、底部终端壳和响应式视觉。
+ * 不负责：三栏 Grid 几何、separator 拖拽/吸附算法、xterm 内部样式。
+ * 状态归属：无状态；通过 AgentWorkbench 输出的 class / data-theme 反映 React 状态。
+ * 对外接口：agent-* CSS class。
+ * 关联文件：AgentWorkbench.tsx、packages/ui/src/workbench/workbench.css、apps/web/src/local-terminal.css。
+ * 修改注意事项：先看下方“盒子结构”；不要在这里改变 ResizableWorkbench 的 Grid 列/行规则。
+ *
+ * 盒子结构：
+ * .agent-theme
+ * ├─ .agent-web-header                 顶栏
+ * └─ .agent-workbench-stage            工作区容器
+ *    ├─ .agent-left-hover-preview      左栏收起后的临时浮层
+ *    └─ .lfaa-workbench                由 @lfaa/ui 管理几何
+ *       ├─ .agent-side--left           左侧内容
+ *       ├─ .agent-center               中间主区
+ *       │  ├─ .agent-center-floats     左/右上角壳层按钮
+ *       │  ├─ .agent-conversation      对话滚动区
+ *       │  └─ .agent-composer-wrap     底部输入框
+ *       ├─ .agent-side--right          右侧工具/资源
+ *       └─ .agent-terminal-shell       底部终端壳
+ */
+
+/* ===== 1. 全局基础与浅/深主题变量 ===== */
 :root { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; font-synthesis: none; text-rendering: optimizeLegibility; }
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; width: 100%; height: 100%; overflow: hidden; }
@@ -8,10 +34,16 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-theme { position: relative; width: 100%; height: 100dvh; display:grid; grid-template-rows:48px minmax(0,1fr); overflow:hidden; --agent-bg:#fff; --agent-sidebar:#f7f7f8; --agent-elevated:#fff; --agent-bubble:#f4f4f4; --agent-hover:#ededee; --agent-active:#e7e7e8; --agent-text:#171717; --agent-muted:#737373; --agent-subtle:#a3a3a3; --agent-border:#e5e5e5; --agent-strong-border:#d4d4d4; --agent-shadow:0 8px 28px rgba(0,0,0,.08); --agent-status-ok:#2f8f58; --agent-status-warn:#b7862f; --agent-status-off:#999; color:var(--agent-text); background:var(--agent-bg); color-scheme:light; }
 .agent-theme[data-theme="dark"] { --agent-bg:#1f1f1f; --agent-sidebar:#171717; --agent-elevated:#1f1f1f; --agent-bubble:#2f2f2f; --agent-hover:#2d2d2d; --agent-active:#343434; --agent-text:#f5f5f5; --agent-muted:#a3a3a3; --agent-subtle:#737373; --agent-border:#343434; --agent-strong-border:#454545; --agent-shadow:0 10px 32px rgba(0,0,0,.28); --agent-status-ok:#67b88a; --agent-status-warn:#d2aa5b; --agent-status-off:#777; color-scheme:dark; }
 
+
+/* ===== 2. 左右侧栏共同盒子 =====
+ * .agent-side 是内容层，不决定栏宽；栏宽由 ResizableWorkbench 的 Grid 控制。
+ */
 .agent-side { position:relative; height:100%; min-width:0; display:flex; flex-direction:column; background:var(--agent-sidebar); color:var(--agent-text); }
 .agent-side--left { padding:12px 10px 10px; border-right:1px solid var(--agent-border); }
 .agent-side--right { padding:12px 12px 10px; border-left:1px solid var(--agent-border); }
 .agent-brand-row,.agent-brand,.agent-brand-actions,.agent-right-header,.agent-right-header-actions,.agent-tool-list button,.agent-composer-actions,.agent-terminal-shell__header,.agent-terminal-shell__tab,.agent-web-header,.agent-web-header__title,.agent-web-header__actions { display:flex; align-items:center; }
+
+/* ===== 3. 左栏：品牌、导航、项目、最近任务、底部账号 ===== */
 .agent-brand-row { justify-content:space-between; gap:8px; padding:2px 2px 12px; }
 .agent-brand { display:inline-flex; gap:8px; align-items:center; height:34px; padding:0 11px; border:0; border-radius:9px; background:transparent; cursor:pointer; }
 .agent-brand:hover { background:var(--agent-hover); }
@@ -46,6 +78,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-profile strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:600; }
 .agent-profile small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--agent-muted); font-size:10px; }
 
+
+/* ===== 4. Web 页面顶栏 =====
+ * 只承载 Web 工作台标题与更多/分享；左栏/终端/右栏按钮位于中间主区上方。
+ */
 .agent-web-header { position:relative; z-index:120; grid-row:1; justify-content:space-between; gap:12px; min-width:0; height:48px; padding:0 8px 0 12px; border-bottom:1px solid var(--agent-border); background:var(--agent-bg); color:var(--agent-text); }
 .agent-web-header__title { min-width:0; gap:8px; }
 .agent-web-header__title strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; font-weight:600; }
@@ -53,12 +89,20 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-ghost-button { height:32px; padding:0 10px; border:0; border-radius:8px; background:transparent; color:var(--agent-muted); cursor:pointer; }
 .agent-ghost-button:hover,.agent-ghost-button:focus-visible { background:var(--agent-hover); color:var(--agent-text); outline:none; }
 
+
+/* ===== 5. 工作区舞台与左栏 Hover 预览浮层 =====
+ * stage 提供绝对定位上下文；preview 只在左栏 collapsed 时挂载。
+ */
 .agent-workbench-stage { position:relative; grid-row:2; min-width:0; min-height:0; overflow:hidden; }
 .agent-left-hover-preview { position:absolute; z-index:110; top:0; left:0; bottom:0; width:min(288px, calc(100vw - 140px)); opacity:0; transform:translateX(-18px); pointer-events:none; transition:opacity 180ms ease, transform 220ms cubic-bezier(.22,1,.36,1); }
 .agent-left-hover-preview.is-visible { opacity:1; transform:translateX(0); pointer-events:auto; }
 .agent-left-hover-preview .agent-side--left { box-shadow:var(--agent-shadow); }
 
+
+/* ===== 6. 中间主工作区 ===== */
 .agent-center { position:relative; height:100%; min-width:0; display:grid; grid-template-rows:minmax(0,1fr) auto; background:var(--agent-bg); color:var(--agent-text); overflow:hidden; }
+
+/* 左右上角常驻 Shell 控件：左边控制左栏；右边控制终端和右栏。 */
 .agent-center-floats { position:absolute; top:12px; z-index:35; display:flex; align-items:center; gap:8px; }
 .agent-center-floats--left { left:12px; }
 .agent-center-floats--right { right:12px; }
@@ -66,6 +110,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-center-toggle:hover,.agent-center-toggle:focus-visible { background:var(--agent-hover); color:var(--agent-text); border-color:var(--agent-strong-border); outline:none; transform:translateY(-1px); }
 .agent-center-toggle.is-active { color:var(--agent-text); }
 
+
+/* ===== 7. 中间区：对话内容 ===== */
 .agent-conversation { min-height:0; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--agent-strong-border) transparent; }
 .agent-conversation-inner { width:min(760px,calc(100% - 36px)); margin:0 auto; padding:72px 0 28px; }
 .agent-user-message { width:fit-content; max-width:min(76%,620px); margin-left:auto; padding:11px 15px; border-radius:18px; background:var(--agent-bubble); border:1px solid color-mix(in srgb,var(--agent-border) 72%,transparent); font-size:13px; line-height:1.55; }
@@ -75,6 +121,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-answer ul { margin:0; padding-left:22px; }
 .agent-answer li { margin:7px 0; }
 .agent-answer code { padding:1px 4px; border-radius:5px; background:var(--agent-hover); font-size:.92em; }
+
+/* ===== 8. 中间区：底部输入框 Composer ===== */
 .agent-composer-wrap { padding:0 18px 14px; background:var(--agent-bg); }
 .agent-composer { width:min(760px,100%); margin:0 auto; padding:11px 12px 9px; border:1px solid var(--agent-strong-border); border-radius:18px; background:var(--agent-elevated); box-shadow:0 8px 30px rgba(0,0,0,.08); }
 .agent-composer textarea { display:block; width:100%; min-height:34px; resize:none; border:0; outline:0; background:transparent; color:var(--agent-text); font-size:14px; }
@@ -87,6 +135,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-model { margin-left:auto; color:var(--agent-muted); font-size:11px; }
 .agent-send { background:var(--agent-text); color:var(--agent-bg); font-weight:700; }
 
+
+/* ===== 9. 右栏：状态、工具入口、项目资源 ===== */
 .agent-right-header { justify-content:space-between; gap:8px; padding:4px 4px 14px; border-bottom:1px solid var(--agent-border); }
 .agent-right-header>div:first-child { min-width:0; display:grid; gap:2px; }
 .agent-right-header strong { font-size:13px; font-weight:650; }
@@ -116,6 +166,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-dev-note strong { color:var(--agent-text); font-size:10px; }
 .agent-dev-note p { margin:4px 0 0; font-size:9px; line-height:1.5; }
 
+
+/* ===== 10. 底部终端外壳 =====
+ * 这里只画终端 Tab 与容器；真实 xterm 由 apps/web/src/local-terminal.css 管。
+ */
 .agent-terminal-shell { width:100%; height:100%; display:grid; grid-template-rows:38px minmax(0,1fr); background:var(--agent-bg); }
 .agent-terminal-shell__header { justify-content:space-between; padding:0 8px 0 13px; border-bottom:1px solid var(--agent-border); background:var(--agent-sidebar); }
 .agent-terminal-shell__tab { gap:8px; height:100%; }
@@ -123,6 +177,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-terminal-shell__content { min-width:0; min-height:0; overflow:hidden; background:var(--agent-bg); }
 .agent-terminal-unavailable { padding:16px; color:var(--agent-muted); font-size:12px; }
 
+
+/* ===== 11. 响应式 =====
+ * 窄屏只调整外层间距/浮层宽度，不改变 Shell 控件语义。
+ */
 @media (max-width: 820px) {
   .agent-web-header { padding-left:10px; padding-right:8px; }
   .agent-web-header__actions .agent-ghost-button { display:none; }

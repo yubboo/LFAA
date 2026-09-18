@@ -1,8 +1,12 @@
 /**
  * 文件：WorkbenchIcon.tsx
- * 作用：提供工作台壳层使用的轻量线性图标。
- * 负责：纯视觉 SVG。
- * 不负责：业务状态或交互状态。
+ * 作用：提供工作台壳层使用的轻量线性 SVG 图标集合。
+ * 负责：图标名称类型、SVG path 数据、统一 stroke/size 渲染。
+ * 不负责：业务状态、按钮点击、布局和可访问性文案。
+ * 状态归属：纯函数组件，无状态。
+ * 对外接口：WorkbenchIcon、WorkbenchIconName、WorkbenchIconProps。
+ * 关联文件：AgentWorkbench.tsx、agent-workbench.css。
+ * 修改注意事项：这里只放通用图标；交互含义由使用图标的 button 决定，不要把状态逻辑塞进图标组件。
  */
 import type { ReactElement, SVGProps } from "react";
 

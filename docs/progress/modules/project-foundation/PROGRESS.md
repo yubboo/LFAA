@@ -1,5 +1,29 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #4.3 + #20.4 PowerShell 编码回归修复
+
+- 当前状态：delivered
+- 缺陷来源：v0.0.41 补中文注释时意外移除 Windows PowerShell 脚本 UTF-8 BOM
+- 影响：Sync / GitHub / Setup / Update 四个 `.ps1` 都存在 Windows PowerShell 5.1 误解码风险
+- 已完成：4 个 `.ps1` 恢复 UTF-8 BOM，且去除 BOM 后正文与 v0.0.41 完全一致
+- 已完成：新增 Windows 脚本编码门禁，负向测试可正确阻止 BOM 缺失
+- 已完成：新增发布版本一致性门禁，DEVELOPMENT / AGENTS 固化开发规范触发器
+- 已完成：#20.3 归档、#20.4 Active、#4.3 delivered，Prompt / Changelog / Release / Standards 同步
+- 验证：governance / import / dev-log / docs / comment / Windows encoding / release consistency 全部通过
+- 验证：ZIP 无额外根目录，中文路径 UTF-8 标志正常，解压 Hash Round-trip 0 缺失 / 0 多余 / 0 不一致，PowerShell BOM 保留
+- 配置系统业务实现：不改动
+- 用户版本：v0.0.42
+
+## 2026-09-18 / #20.3 + #21.10 可读性与当前 UI 事实源同步
+
+- 当前状态：pending-test
+- #21 当前实现：中间主区左上角左栏按钮、右上角终端/右栏按钮、左栏 Hover 临时预览
+- #20.3 已完成：结构化中文源码注释、CSS 盒子分区、项目结构地图、一级目录 README、comment-check 门禁
+- 已修正文档漂移：UI Layout / Active Prompt / Development Log / Web UI Test 与代码重新一致
+- 配置系统业务实现：未改动
+- 用户版本：v0.0.41
+- 待完成：Windows 浏览器实机视觉与交互验证
+
 ## 2026-09-18 / #21.9 Web 常驻工作台 Chrome
 
 - 当前状态：pending-test

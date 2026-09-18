@@ -14,6 +14,8 @@ short-name: LFAA
 
 详细架构：`docs/architecture/active/architecture-v1.md`
 
+人类代码导航：`docs/项目结构与代码地图.md`
+
 ## 核心架构
 
 ```text

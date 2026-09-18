@@ -7,6 +7,7 @@
 | 范围 | 文件 |
 |---|---|
 | 命名 | `NAMING.md` |
+| 代码注释 / 可读性 | `COMMENTS.md` |
 | 开发日志 | `DEV_LOGS.md` |
 | 模块边界 | `MODULE_BOUNDARIES.md` |
 | 导入路径 | `IMPORT_PATHS.md` |

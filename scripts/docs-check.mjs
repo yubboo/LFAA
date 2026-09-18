@@ -1,8 +1,13 @@
 /**
  * 文件：docs-check.mjs
  * 作用：检查 docs 顶层结构、中文编号文档命名和日志分类。
+ * 负责：稳定 docs 目录、固定 README/INDEX 入口、编号类中文文件名。
+ * 不负责：检查文档事实正确性、代码注释、业务测试。
+ * 状态归属：无运行时状态。
+ * 对外接口：`node scripts/docs-check.mjs`。
+ * 关联文件：docs/README.md、docs/standards/NAMING.md、docs/standards/DEV_LOGS.md。
+ * 修改注意事项：新增 docs 顶层目录必须先更新规范和 allowedTopDirs。
  */
-
 import fs from "node:fs";
 import path from "node:path";
 

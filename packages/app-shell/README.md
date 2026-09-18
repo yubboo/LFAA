@@ -19,3 +19,5 @@
 视觉方向：Codex / ChatGPT 类生产力工具风格，但保留 LFAA 自有品牌和信息结构。
 
 Vite 特有的 `.lfaa` 开发桥接不放在本包，保持 App Shell 与运行环境解耦。
+
+源码导航：`packages/app-shell/src/README.md`。

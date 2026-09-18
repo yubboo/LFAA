@@ -1,9 +1,32 @@
+/**
+ * 文件：AgentWorkbench.tsx
+ * 作用：LFAA 共享工作台壳，把左栏、中间工作区、右栏和底部终端组织成一个可交互页面。
+ * 负责：工作台壳状态、主题状态、左右栏开合、终端开合、左栏 Hover 预览、快捷键、各区域内容编排。
+ * 不负责：分隔条拖拽算法、PTY 创建、Vite 资源扫描、Agent 业务执行。
+ * 状态归属：本文件拥有 Shell UI 状态（theme / leftCollapsed / rightCollapsed / terminalOpen / leftPreviewOpen）。
+ * 对外接口：AgentWorkbench(props)。
+ * 关联文件：agent-workbench.css、workbench.types.ts、@lfaa/ui/ResizableWorkbench、apps/web/src/App.tsx。
+ * 修改注意事项：框架级开合状态只保留一个 Owner；布局拖拽交给 @lfaa/ui；Web 专有桥接不能写入共享 App Shell。
+ *
+ * 页面结构：
+ * AgentWorkbench
+ * ├─ WebWorkbenchHeader            页面顶栏：标题 / 更多 / 分享
+ * └─ agent-workbench-stage         可缩放工作区
+ *    ├─ agent-left-hover-preview   左栏收起后的 Hover 临时预览层
+ *    └─ ResizableWorkbench
+ *       ├─ LeftSidebar             左侧导航 / 项目 / 最近任务
+ *       ├─ CenterWorkspace         主内容 + 左右上角 Shell 控件 + 输入框
+ *       ├─ RightSidebar            工具 / 资源
+ *       └─ BottomTerminal          底部终端外壳
+ */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ResizableWorkbench } from "@lfaa/ui";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 import type { AgentWorkbenchProps, DevResourceItem, ResourceKind } from "./workbench.types";
 import "./agent-workbench.css";
 
+// ===== 1. Workbench 尺寸与持久化 Key =====
+// 尺寸值只描述 Shell 布局；真正的拖拽、吸附与动态 max 由 ResizableWorkbench 处理。
 const LEFT_LIMITS = { min: 240, max: 640, initial: 288 } as const;
 const RIGHT_LIMITS = { min: 300, max: 760, initial: 360 } as const;
 const BOTTOM_LIMITS = { min: 150, max: 560, initial: 270 } as const;
@@ -15,6 +38,8 @@ interface ChromeState { leftCollapsed: boolean; rightCollapsed: boolean; termina
 const recentRuns = ["配置系统", "Web 工作台", "热插拔测试", "模型接入规划"];
 const resourceLabels: Record<ResourceKind, string> = { skills: "Skills", experts: "Experts", plugins: "Plugins", extensions: "Extensions", mcp: "MCP" };
 
+// ===== 2. 本地初始状态 =====
+// Theme 和 Chrome 只读取浏览器 localStorage，不参与业务配置系统。
 function initialTheme(): ThemeMode {
   if (typeof window === "undefined") return "light";
   const stored = window.localStorage.getItem(THEME_KEY);
@@ -38,6 +63,8 @@ function initialChrome(): ChromeState {
   }
 }
 
+// ===== 3. 左侧栏内容 =====
+// 这里只描述左栏“里面有什么”；左栏宽度和收起逻辑不在这里实现。
 function LeftSidebar({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme: () => void }) {
   return (
     <aside className="agent-side agent-side--left">
@@ -70,6 +97,9 @@ function LeftSidebar({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme
   );
 }
 
+// ===== 4. 中间主工作区 =====
+// 左上角按钮控制左栏；右上角按钮控制底部终端和右栏。
+// 左栏已收起时，左上角按钮 hover/focus 只触发临时预览，不改变持久化 collapsed 状态。
 function CenterWorkspace({
   leftCollapsed,
   rightCollapsed,
@@ -158,6 +188,8 @@ function CenterWorkspace({
   );
 }
 
+// ===== 5. 右侧资源区 =====
+// 把宿主传入的 .lfaa 开发资源按类型分组；这里只消费元数据，不读取资源正文。
 function groupResources(resources: readonly DevResourceItem[]) {
   return (Object.keys(resourceLabels) as ResourceKind[]).map((kind) => ({ kind, items: resources.filter((resource) => resource.kind === kind) }));
 }
@@ -188,6 +220,8 @@ function RightSidebar({ resources = [], resourceBridgeStatus = "offline", termin
   );
 }
 
+// ===== 6. 底部终端外壳 =====
+// 这里只提供 Tab/关闭按钮/内容插槽，真实 xterm + PTY 在 apps/web 中实现。
 function BottomTerminal({ terminal, onClose }: { terminal: AgentWorkbenchProps["terminal"]; onClose: () => void }) {
   return (
     <section className="agent-terminal-shell">
@@ -200,6 +234,8 @@ function BottomTerminal({ terminal, onClose }: { terminal: AgentWorkbenchProps["
   );
 }
 
+// ===== 7. Web 页面顶栏 =====
+// 顶栏只保留页面标题与次要操作；Shell 开合按钮已移动到 CenterWorkspace 左右上角。
 function WebWorkbenchHeader() {
   return (
     <header className="agent-web-header">
@@ -212,12 +248,14 @@ function WebWorkbenchHeader() {
   );
 }
 
+// ===== 8. 工作台 Shell 状态与总装配 =====
 export function AgentWorkbench(props: AgentWorkbenchProps) {
   const [theme, setTheme] = useState<ThemeMode>(initialTheme);
   const [chrome, setChrome] = useState<ChromeState>(initialChrome);
   const [leftPreviewOpen, setLeftPreviewOpen] = useState(false);
   const previewCloseTimerRef = useRef<number | null>(null);
 
+  // Hover 预览使用短延迟关闭，让鼠标能从按钮移动到预览浮层而不闪退。
   const clearPreviewTimer = useCallback(() => {
     if (previewCloseTimerRef.current !== null) {
       window.clearTimeout(previewCloseTimerRef.current);
@@ -250,6 +288,8 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   }, [chrome.leftCollapsed, leftPreviewOpen]);
   useEffect(() => () => clearPreviewTimer(), [clearPreviewTimer]);
 
+  // Shell 快捷键：Ctrl+B 左栏、Ctrl+J 底部终端、Ctrl+Alt+B 右栏。
+  // 输入框或 contentEditable 聚焦时不抢占用户文本快捷键。
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -281,6 +321,8 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const toggleRight = () => setChrome((value) => ({ ...value, rightCollapsed: !value.rightCollapsed }));
   const toggleTerminal = () => setChrome((value) => ({ ...value, terminalOpen: !value.terminalOpen }));
 
+  // 同一个 LeftSidebar 实例描述被复用到“正常布局”和“收起后的 Hover 预览”；
+  // 二者不会同时可交互，避免维护两套左栏内容。
   const leftSidebar = (
     <LeftSidebar
       theme={theme}
@@ -292,6 +334,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     <div className="agent-theme" data-theme={theme}>
       <WebWorkbenchHeader />
       <div className="agent-workbench-stage">
+        {/* 左栏收起后才挂载临时预览层；正常展开时由 ResizableWorkbench 渲染正式左栏。 */}
         {chrome.leftCollapsed ? (
           <div
             className={`agent-left-hover-preview${leftPreviewOpen ? " is-visible" : ""}`}
@@ -301,6 +344,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
             {leftSidebar}
           </div>
         ) : null}
+        {/* ResizableWorkbench 只管理几何布局与拖拽；Shell 开合真值仍由本组件受控。 */}
         <ResizableWorkbench
           left={leftSidebar}
           center={(

@@ -1,17 +1,13 @@
 /**
- * 文件：scripts/import-path-check.mjs
- * 作用：自动检查 LFAA TypeScript/JavaScript 导入路径是否违反模块边界。
- * 负责：
- * - 阻止 ../../ 及更深的相对导入；
- * - 阻止 @lfaa/* 跨包访问 src/internal 或 src；
- * - 给开发者和 AI 提供明确错误位置。
- *
- * 不负责：
- * - 判断单层 ../ 是否属于合理 Feature 内部引用；
- * - 解析 Rust use 路径；
- * - 取代 ESLint / TypeScript 类型检查。
+ * 文件：import-path-check.mjs
+ * 作用：检查 TypeScript/TSX 导入路径是否符合 LFAA 模块边界。
+ * 负责：阻止深层相对导入和跨 package 内部深链。
+ * 不负责：TypeScript 类型检查、运行时依赖解析、Rust import。
+ * 状态归属：无运行时状态。
+ * 对外接口：`node scripts/import-path-check.mjs`。
+ * 关联文件：docs/standards/IMPORT_PATHS.md、docs/standards/MODULE_BOUNDARIES.md。
+ * 修改注意事项：规则变化必须先更新对应 Standards，再调整检查器。
  */
-
 import fs from "node:fs";
 import path from "node:path";
 

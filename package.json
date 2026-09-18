@@ -1,11 +1,11 @@
 {
   "name": "lfaa",
   "private": true,
-  "version": "0.0.40",
+  "version": "0.0.42",
   "description": "Little Fish AI Agent monorepo",
   "scripts": {
     "preinstall": "node scripts/pnpm-only.mjs",
-    "governance:check": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs && node scripts/dev-log-check.mjs && node scripts/docs-check.mjs",
+    "governance:check": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs && node scripts/dev-log-check.mjs && node scripts/docs-check.mjs && node scripts/comment-check.mjs && node scripts/windows-script-encoding-check.mjs && node scripts/release-consistency-check.mjs",
     "release:name": "node scripts/release-name.mjs",
     "test": "pnpm run governance:check && node scripts/quality-not-configured.mjs test",
     "typecheck": "node scripts/quality-not-configured.mjs typecheck",
@@ -15,7 +15,10 @@
     "docs:check": "node scripts/docs-check.mjs",
     "dev:web": "pnpm --filter @lfaa/web dev",
     "typecheck:web": "pnpm --filter @lfaa/web typecheck",
-    "build:web": "pnpm --filter @lfaa/web build"
+    "build:web": "pnpm --filter @lfaa/web build",
+    "comments:check": "node scripts/comment-check.mjs",
+    "windows-encoding:check": "node scripts/windows-script-encoding-check.mjs",
+    "release:check": "node scripts/release-consistency-check.mjs"
   },
   "author": "二鱼",
   "packageManager": "pnpm@11.17.0",

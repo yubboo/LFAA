@@ -15,7 +15,11 @@
 - Rust 相关检查；
 - 依赖边界；
 - 安全扫描和依赖审计；
-- 无无关文件修改。
+- 无无关文件修改；
+- 关键实现文件结构化中文注释检查；
+- 项目结构 / 目录职责文档同步检查；
+- Windows PowerShell `UTF-8 with BOM` 编码检查；
+- 当前发布版本 / CHANGELOG / Release 一致性检查。
 
 ## 3. Node.js 工具链
 
@@ -137,3 +141,35 @@ Rust 自动安装只走 Rust 官方 `rustup-init`：
 - 禁止用依赖复杂引号的 `node -e` 内嵌代码作为 Windows PowerShell 校验；
 - 当前校验入口：`scripts/check-node-pty.mjs`；
 - 必须检查 `pty.spawn` 为函数。
+
+
+## 代码可读性门禁
+
+关键实现文件必须通过：
+
+```text
+node scripts/comment-check.mjs
+```
+
+该检查至少验证结构化文件头、关联文件说明和关键 CSS 分区注释。
+
+
+## Windows 脚本编码门禁
+
+所有 `scripts/windows/*.ps1` 必须通过：
+
+```text
+node scripts/windows-script-encoding-check.mjs
+```
+
+该门禁用于防止 Windows PowerShell 5.1 因 BOM 丢失而错误解析中文脚本。
+
+## 发布版本一致性门禁
+
+正式发布前必须通过：
+
+```text
+node scripts/release-consistency-check.mjs
+```
+
+它以 `lfaa.release.json` 为唯一版本事实源，检查 package / crate / README / CHANGELOG / Changelog / Release 是否仍混用旧版本。

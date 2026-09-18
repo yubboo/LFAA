@@ -1,9 +1,20 @@
+/**
+ * 文件：vite.config.ts
+ * 作用：LFAA Web 本地开发服务器配置，并提供仅开发模式可用的 .lfaa 资源桥和真实终端桥。
+ * 负责：Vite 配置、资源元数据扫描、资源变更通知、node-pty 会话创建/输入/输出/Resize/回收。
+ * 不负责：正式 Agent Tool Runtime、远程终端、Secret 注入、生产环境系统执行。
+ * 状态归属：开发服务器拥有 PTY session Map；资源文件本身仍以项目 .lfaa 目录为事实源。
+ * 对外接口：Vite config、/__lfaa/dev/resources、lfaa:terminal:* 自定义事件。
+ * 关联文件：apps/web/src/App.tsx、LocalTerminal.tsx、vite-custom-events.d.ts、.lfaa/*。
+ * 修改注意事项：服务器必须只绑定 127.0.0.1；资源桥只返回元数据；PTY owner 必须和 WebSocket client 一一校验。
+ */
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import type { IPty } from "node-pty";
 
+// ===== 1. 项目路径和开发端口 =====
 const appRoot = fileURLToPath(new URL(".", import.meta.url));
 const projectRoot = path.resolve(appRoot, "../..");
 const resourceRoot = path.join(projectRoot, ".lfaa");
@@ -14,6 +25,8 @@ const maxTerminalSessions = 4;
 
 type ResourceKind = (typeof resourceKinds)[number];
 
+// ===== 2. .lfaa 开发资源桥 =====
+// 只扫描名称、相对路径、类型和 mtime，不读取资源正文。
 async function scanResources() {
   const resources: Array<{ kind: ResourceKind; name: string; relativePath: string; entryType: "file" | "directory"; updatedAt: number }> = [];
   for (const kind of resourceKinds) {
@@ -38,6 +51,7 @@ function isAllowedResourcePath(file: string): boolean {
   return resourceKinds.includes(kind as ResourceKind);
 }
 
+// Vite Plugin：HTTP 提供资源快照，watcher 只广播 changed 通知。
 function lfaaDevResourceBridge(): Plugin {
   return {
     name: "lfaa-dev-resource-bridge",
@@ -58,11 +72,13 @@ function lfaaDevResourceBridge(): Plugin {
   };
 }
 
+// ===== 3. 本地 PTY 开发桥 =====
 function clampTerminalSize(value: number, min: number, max: number, fallback: number) {
   if (!Number.isFinite(value)) return fallback;
   return Math.max(min, Math.min(max, Math.floor(value)));
 }
 
+// Windows 默认 PowerShell；其他平台使用 $SHELL 或 /bin/bash。
 function resolveShell() {
   if (process.platform === "win32") {
     return { file: process.env.LFAA_TERMINAL_SHELL?.trim() || "powershell.exe", args: ["-NoLogo"] };
@@ -71,6 +87,7 @@ function resolveShell() {
   return { file, args: [] as string[] };
 }
 
+// Vite Plugin：每个浏览器 clientId 对应一个 node-pty，会话所有权绑定到 WebSocket client。
 function lfaaDevTerminalBridge(): Plugin {
   return {
     name: "lfaa-dev-terminal-bridge",
@@ -79,6 +96,7 @@ function lfaaDevTerminalBridge(): Plugin {
       const pty = await import("node-pty");
       const sessions = new Map<string, { terminal: IPty; owner: object }>();
 
+      // 所有退出路径都走同一个 dispose，避免 PTY 孤儿进程。
       const disposeSession = (clientId: string) => {
         const session = sessions.get(clientId);
         if (!session) return;
@@ -86,6 +104,7 @@ function lfaaDevTerminalBridge(): Plugin {
         try { session.terminal.kill(); } catch { /* already exited */ }
       };
 
+      // create：校验 clientId、限制并发、固定 cwd 为项目根，然后启动 PTY。
       server.ws.on("lfaa:terminal:create", (payload, client) => {
         const clientId = String(payload.clientId ?? "");
         if (!/^[0-9a-f-]{20,64}$/i.test(clientId)) return;

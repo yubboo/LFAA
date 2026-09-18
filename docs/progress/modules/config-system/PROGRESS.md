@@ -1,5 +1,13 @@
 # config-system PROGRESS
 
+## 2026-09-18 / #20.3 + #21.10 UI 前置壳与代码可读性同步
+
+- 当前状态：planned
+- 配置系统业务实现：未改动
+- Web 工作台当前壳层：主区左右上角 Shell Actions + 左栏 Hover 临时预览
+- 项目可读性：已补项目结构地图、源码文件头、CSS 盒子注释和自动门禁
+- 下一步：完成 #21 Windows 实机验证后继续 `config-schema`
+
 ## 2026-09-18 / #21.9 Web 常驻工作台 Chrome
 
 - 当前状态：planned

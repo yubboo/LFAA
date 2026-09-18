@@ -1,3 +1,20 @@
+/**
+ * 文件：ResizableWorkbench.tsx
+ * 作用：提供左栏 / 中间区 / 右栏 / 底部面板的纯布局容器，并实现拖拽缩放与吸附收起。
+ * 负责：尺寸状态、Pointer 拖拽、吸附迟滞、动态最大宽度、键盘 Resize、布局持久化。
+ * 不负责：侧栏里面显示什么、Shell 按钮放在哪里、终端内容、业务状态。
+ * 状态归属：本组件拥有几何尺寸；栏位开合可由父组件受控，受控时父组件是 collapsed/open 的事实源。
+ * 对外接口：ResizableWorkbench(props)。
+ * 关联文件：workbench-layout.types.ts、workbench.css、@lfaa/app-shell/AgentWorkbench.tsx。
+ * 修改注意事项：吸附后 separator 不允许反向展开；不要在本组件新增业务按钮；受控/非受控状态必须保持一致。
+ *
+ * Grid 结构：
+ * ┌──── left ────┬ handle ┬──────── center ────────┬ handle ┬── right ──┐
+ * │               │        │                        │        │           │
+ * │               │        ├────────────────────────┴────────┴───────────┤
+ * │               │        │                 bottom                     │
+ * └───────────────┴────────┴─────────────────────────────────────────────┘
+ */
 import {
   useCallback,
   useEffect,
@@ -11,6 +28,7 @@ import {
 import type { ResizableWorkbenchProps, WorkbenchPaneLimits } from "./workbench-layout.types";
 import "./workbench.css";
 
+// ===== 1. 内部持久化 / 拖拽状态 =====
 interface StoredLayoutState {
   leftWidth: number;
   rightWidth: number;
@@ -40,6 +58,7 @@ interface BottomDragState {
   snapped: boolean;
 }
 
+// ===== 2. 默认布局参数与通用辅助函数 =====
 const DEFAULT_LEFT: WorkbenchPaneLimits = { min: 240, max: 640, initial: 288 };
 const DEFAULT_RIGHT: WorkbenchPaneLimits = { min: 300, max: 760, initial: 360 };
 const DEFAULT_BOTTOM: WorkbenchPaneLimits = { min: 150, max: 560, initial: 260 };
@@ -53,6 +72,7 @@ function resolveNext(current: boolean, next: boolean | ((value: boolean) => bool
   return typeof next === "function" ? next(current) : next;
 }
 
+// 从 localStorage 恢复几何尺寸；读取失败时回退默认值，避免布局状态损坏导致页面不可用。
 function loadState(
   key: string,
   left: WorkbenchPaneLimits,
@@ -91,6 +111,7 @@ function loadState(
   }
 }
 
+// ===== 3. ResizableWorkbench 主组件 =====
 export function ResizableWorkbench({
   left,
   center,
@@ -127,6 +148,8 @@ export function ResizableWorkbench({
   const frameRef = useRef<number | null>(null);
   const pendingRef = useRef<number | null>(null);
 
+  // 受控模式：父组件提供 collapsed 值时，只通过回调请求变更；
+  // 非受控模式：组件自己保存 collapsed。两种模式不能同时拥有两份真值。
   const setResolvedLeftCollapsed = useCallback((next: boolean | ((value: boolean) => boolean)) => {
     const resolved = resolveNext(leftCollapsed, next);
     if (leftCollapsedProp === undefined) setInternalLeftCollapsed(resolved);
@@ -139,6 +162,7 @@ export function ResizableWorkbench({
     onRightCollapsedChange?.(resolved);
   }, [onRightCollapsedChange, rightCollapsed, rightCollapsedProp]);
 
+  // 动态 max 会给中间区预留 minCenterWidth，并扣除另一侧已展开栏位。
   const getDynamicMax = useCallback((side: "left" | "right") => {
     const root = rootRef.current;
     if (!root) return side === "left" ? leftLimits.max : rightLimits.max;
@@ -162,6 +186,8 @@ export function ResizableWorkbench({
     }));
   }, [bottomHeight, leftCollapsed, leftWidth, rightCollapsed, rightWidth, storageKey]);
 
+  // ===== 4. 左右栏 Pointer 拖拽与吸附预览 =====
+  // 拖动过程中直接写 CSS 变量，避免每个 pointermove 都触发 React render。
   const setSidePreview = useCallback((side: "left" | "right", value: number, snapped: boolean) => {
     const root = rootRef.current;
     if (!root) return;
@@ -173,6 +199,8 @@ export function ResizableWorkbench({
     if (!snapped) root.style.setProperty(sizeName, `${Math.max(value, 1)}px`);
   }, []);
 
+  // requestAnimationFrame 合并高频 pointermove；
+  // raw <= min 时进入 snap 预览，只有重新拉过 min + hysteresis 才退出 snap。
   const flushPending = useCallback(() => {
     frameRef.current = null;
     const rawValue = pendingRef.current;
@@ -207,6 +235,7 @@ export function ResizableWorkbench({
     frameRef.current = window.requestAnimationFrame(flushPending);
   }, [flushPending]);
 
+  // Pointer Down 记录本次拖拽的几何边界。已吸附栏位禁止从 separator 反向展开。
   const onSidePointerDown = useCallback((event: PointerEvent<HTMLDivElement>, side: "left" | "right") => {
     const root = rootRef.current;
     if (!root) return;
@@ -295,6 +324,7 @@ export function ResizableWorkbench({
     root.style.setProperty("--lfaa-bottom-row", `${snapped ? 0 : height}px`);
   }, []);
 
+  // ===== 5. 底部面板拖拽与向下吸附 =====
   const onBottomPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const root = rootRef.current;
     if (!root || !bottomOpen) return;
@@ -367,6 +397,8 @@ export function ResizableWorkbench({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }, [onBottomOpenChange]);
 
+  // ===== 6. Separator 键盘 Resize =====
+  // Home 收起、End 恢复；方向键按 12px，Shift+方向键按 36px。
   const keyboardResize = useCallback((event: KeyboardEvent<HTMLDivElement>, side: "left" | "right") => {
     const collapsed = side === "left" ? leftCollapsed : rightCollapsed;
     // 已吸附的栏位不能从 resize separator 反向展开；使用外部显式控件或快捷键。
@@ -406,6 +438,8 @@ export function ResizableWorkbench({
     }
   }, [getDynamicMax, leftCollapsed, leftLimits.initial, leftLimits.min, rightCollapsed, rightLimits.initial, rightLimits.min, setResolvedLeftCollapsed, setResolvedRightCollapsed]);
 
+  // ===== 7. CSS Grid 变量输出 =====
+  // collapsed/open 最终只转换成列宽 / 行高变量，视觉动画由 workbench.css 完成。
   const style = {
     "--lfaa-left-size": `${leftWidth}px`,
     "--lfaa-right-size": `${rightWidth}px`,
@@ -415,6 +449,8 @@ export function ResizableWorkbench({
     "--lfaa-bottom-row": `${bottom && bottomOpen ? bottomHeight : 0}px`,
   } as CSSProperties;
 
+  // ===== 8. DOM 结构 =====
+  // 顺序与 CSS Grid 列严格对应：left -> handle -> center -> handle -> right；bottom 单独占第二行。
   return (
     <div
       ref={rootRef}

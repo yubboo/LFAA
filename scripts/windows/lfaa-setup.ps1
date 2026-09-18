@@ -1,8 +1,12 @@
-﻿# Copyright (c) 2026 二鱼.
-# Part of the LFAA project.
-#
-# 文件：lfaa-setup.ps1
+﻿# 文件：lfaa-setup.ps1
 # 作用：提供 LFAA 项目依赖、项目级资源和开发质量检查菜单。
+# 负责：Node/pnpm/Rust/Cargo 环境检测、项目依赖、Web 启动、质量检查。
+# 不负责：Git 推送、版本包同步、业务运行时权限决策。
+# 状态归属：工具链事实来自当前电脑，项目依赖事实来自当前项目目录。
+# 对外接口：由根目录 LFAA-Setup.bat 调用。
+# 关联文件：LFAA-Setup.bat、package.json、rust-toolchain.toml、scripts/check-node-pty.mjs。
+# 修改注意事项：只允许 pnpm；Rustup 使用官方来源与校验；菜单完成后按既定规则返回主菜单。
+
 
 $ErrorActionPreference = "Stop"
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)

@@ -1,4 +1,13 @@
-﻿param(
+﻿# 文件：lfaa-sync.ps1
+# 作用：把版本包安全同步到稳定工作区。
+# 负责：差异预览、目标路径推导、保护项、镜像校验、治理检查、同步日志。
+# 不负责：Git Commit/Push、依赖安装、Web 启动。
+# 状态归属：稳定工作区文件状态由磁盘内容决定，本脚本不保存业务状态。
+# 对外接口：由根目录 LFAA-Sync.bat 调用，可选 -TargetRoot。
+# 关联文件：LFAA-Sync.bat、docs/standards/WORKSPACE_SYNC.md、scripts/governance-check.mjs。
+# 修改注意事项：.git / 本机日志 / node_modules / target / .env 等保护项不能被版本包删除；默认目标必须稳定指向版本目录同级 lfaa。
+
+param(
     [string]$TargetRoot = ""
 )
 

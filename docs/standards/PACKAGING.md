@@ -39,3 +39,20 @@ ZIP 内部必须直接包含项目根内容。
 - `lfaa.release.json` 与 package/Cargo 版本一致
 - CHANGELOG/Release Notes 一致
 - governance check 通过
+
+## Windows 脚本编码验证
+
+正式 ZIP 除了目录结构和中文路径外，还必须保证：
+
+```text
+scripts/windows/*.ps1
+→ UTF-8 with BOM
+```
+
+打包前和 ZIP 解压 Round-trip 后都要验证 BOM 未丢失。
+
+检查入口：
+
+```text
+node scripts/windows-script-encoding-check.mjs
+```

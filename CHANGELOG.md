@@ -2,18 +2,18 @@
 
 > 根目录只保留当前索引和最近版本。
 
-## #21.11 同步目标与 ZIP 中文路径修复
+## #4.3 / #20.4 PowerShell 编码保护与开发规范执行闭环
 
-- 用户版本：v0.0.40
+- 用户版本：v0.0.42
 - 状态：delivered
-- 最新变更：#21.11
 - 日期：2026-09-18
-- 以 v0.0.39 为基线，保留主区悬浮按钮、左栏 Hover 预览、GitHub 推送修复与三向吸附行为。
-- 修复版本包多一层目录时，`LFAA-Sync` 把目标错误推导到版本包内部的问题。
-- 默认目标现在会识别 `LFAA-vX.Y.Z` 祖先目录，并稳定指向该版本目录的同级 `lfaa` 稳定工作区。
-- 中文路径检查从 CP437 扩展到 CP936/GBK，可识别 `配置系统 -> 閰嶇疆绯荤粺` 这类 Windows 解压乱码。
-- 发布 ZIP 改为项目根内容直接入包，不再包含 `lfaa40` 额外包裹目录；中文文件名强制写入 UTF-8 ZIP 标志。
+- 以 v0.0.41 为历史基线，不覆盖旧包；本版本专门修复 v0.0.41 的 Windows PowerShell 编码回归。
+- 恢复 `scripts/windows/lfaa-sync.ps1`、`lfaa-github.ps1`、`lfaa-setup.ps1`、`lfaa-update.ps1` 的 UTF-8 BOM，保持原业务逻辑不变。
+- 新增 `scripts/windows-script-encoding-check.mjs`，发布前强制检查 `.ps1` BOM、严格 UTF-8 和 BAT → PowerShell 入口关系。
+- 新增 `scripts/release-consistency-check.mjs`，以 `lfaa.release.json` 为唯一版本事实源，检查 package / crate / README / CHANGELOG / Release 新旧版本一致性。
+- `DEVELOPMENT.md` / `AGENTS.md` 增加“按照开发规范开发”强制触发器：必须真实执行读取、Plan/Prompt、实现、Progress/Log、Standards、Changelog/Release、门禁、递增版本全过程。
+- #20.3 进入 Archive，当前开发规范变更为 #20.4；#4 增加 #4.3 PowerShell 脚本编码保护历史记录。
 
 详细记录：
 
-`docs/changelog/v0.0.40.md`
+`docs/changelog/v0.0.42.md`
