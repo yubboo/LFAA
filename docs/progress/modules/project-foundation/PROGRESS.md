@@ -1,5 +1,42 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #20.1 历史编号迁移
+
+- 当前状态：delivered
+- 主任务：#20 开发日志分层规范
+- 最新变更：#20.1
+- 问题：#20.0 只直接显示 #20，旧编号只有 legacy 指针
+- 已完成：
+  - #1 - #19 逐条迁入 Development Log
+  - #2 保持 active
+  - #1、#3 - #19 进入 archive
+  - #20.0 历史快照保留
+  - INDEX 全编号可搜索
+  - 主编号连续性自动检查
+- 原历史文件：全部保留
+- 是否可交付：是
+- 是否已交付：是（v0.0.19）
+- 下一步：进入 `config-schema`
+
+## 2026-09-18 / #20 开发日志分层规范
+
+- 当前状态：delivered
+- 最新变更：#20.0
+- 本次目标：当前/历史开发日志分层、命名、中文与读取顺序硬规则
+- 已完成：
+  - development active/archive
+  - development INDEX
+  - DEV_LOGS standard
+  - AGENTS 读取顺序
+  - DEVELOPMENT 重构
+  - NAMING 文档规则
+  - dev-log-check
+  - legacy 历史入口
+- 配置系统业务实现：未改动
+- 是否可交付：是
+- 是否已交付：是（v0.0.18）
+- 下一步：进入 `config-schema`
+
 ## 2026-09-18 / #19 一键准备与项目资源根收敛
 
 - 当前状态：delivered

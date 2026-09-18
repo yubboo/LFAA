@@ -1,161 +1,285 @@
 # LFAA 开发规范
 
-> 当前唯一有效开发规范。
-> 用户说“按照开发规范开发”时，默认必须执行本文件、`AGENTS.md`、当前架构、当前模块 Plan/Progress 与当前任务 Prompt。
+> **当前唯一有效开发规范。**
+> 用户说“按照开发要求做”或“按照开发规范开发”时，必须先执行本文件的阅读流程，再开始任何代码修改。
 
-## 1. 开发目标
+## 1. 开发前强制阅读顺序
 
-LFAA 必须长期做到：
+### 1.1 第一入口
 
-- 模块一眼可定位；
-- 当前架构一眼可判断；
-- 历史架构不会污染当前开发；
-- 当前开发进度一眼可判断；
-- 父子级状态边界明确；
-- 改一个子模块不牵动无关父模块；
-- AI 不靠全仓库盲搜猜结构；
-- 所有业务有 Prompt；
-- 所有模块有 Plan；
-- 所有开发有 Progress 留痕；
-- 所有业务变更有 Changelog；
-- 所有可交付版本可追溯。
-
----
-
-## 2. AI 四大规则
-
-### 规则一：文档先行
-
-开发前：
+必须先读：
 
 ```text
-AGENTS.md
-→ DEVELOPMENT.md
-→ ARCHITECTURE.md
+DEVELOPMENT.md
+```
+
+禁止先改代码再补文档。
+
+### 1.2 第二入口：开发日志
+
+然后读取：
+
+```text
+docs/logs/development/INDEX.md
+```
+
+根据当前任务的模块名、关键词、编号，打开对应：
+
+```text
+docs/logs/development/active/
+```
+
+只有需要追溯原因时才读取：
+
+```text
+docs/logs/development/archive/
+```
+
+### 1.3 第三入口：当前开发事实源
+
+按顺序继续读取：
+
+```text
+ARCHITECTURE.md
 → PROJECT_PLAN.md
+→ CHANGELOG.md
 → Module README
 → Module PLAN
 → Module PROGRESS
 → Active Prompt
+→ 相关 Standards
 → Code
 ```
 
-没有读完，不修改代码。
+没有读完，不修改业务代码。
 
-### 规则二：边界优先
+---
+
+## 2. 开发日志硬规则
+
+完整规范：
+
+```text
+docs/standards/DEV_LOGS.md
+```
+
+### 2.1 当前与历史分开
+
+```text
+active/
+→ 当前仍有效
+
+archive/
+→ 已被替代
+```
+
+禁止把新旧日志平铺在一起。
+
+### 2.2 同一问题使用子编号
+
+```text
+#20
+#20.1
+#20.2
+```
+
+属于同一问题的修正，不重复创建新主编号。
+
+### 2.3 旧记录不删除
+
+旧记录只能：
+
+```text
+superseded
+→ archive
+→ 指向新的 active 文件
+```
+
+禁止直接覆盖导致历史丢失。
+
+Development Log 索引也不得丢失旧主编号；旧任务必须能直接搜索到对应历史日志和原始来源。
+
+### 2.4 每次需求变化必须记录
+
+以下变化都必须写开发日志：
+
+- 用户要求改变；
+- 设计改变；
+- 架构改变；
+- 行为改变；
+- 安全规则改变；
+- 文件/目录职责改变；
+- 已解决问题出现新的修正结论。
+
+---
+
+## 3. 文档硬规则
+
+### 3.1 中文为主
+
+所有自有开发文档必须中文为主。
+
+英文只用于：
+
+- 代码；
+- API；
+- 命令；
+- 路径；
+- 标识符；
+- 专有名词。
+
+### 3.2 必须清楚分段
+
+重要文档至少要能快速看到：
+
+- 当前结论；
+- 任务目标；
+- 变更原因；
+- 修改内容；
+- 影响范围；
+- 验证结果；
+- 下一步。
+
+禁止大段无标题流水账。
+
+### 3.3 标题必须突出
+
+标题使用清晰层级：
+
+```text
+# 文档标题
+## 主要章节
+### 具体事项
+```
+
+同层级内容不要混写。
+
+---
+
+## 4. 命名硬规则
+
+完整规范：
+
+```text
+docs/standards/NAMING.md
+```
+
+核心规则：
+
+- 目录：`kebab-case`
+- TS 文件：`<name>.<role>.ts`
+- React 组件：`PascalCase.tsx`
+- Rust module：`snake_case.rs`
+- 固定治理文档：`README.md` / `PLAN.md` / `PROGRESS.md` / `INDEX.md`
+- 开发日志：`NNNN-short-name.md`
+- 开发历史变更：`NNNN.x-short-name.md`
+
+禁止：
+
+```text
+new
+latest
+final
+final-final
+fix2
+utils2
+abc
+```
+
+名称必须短、准、能表达职责。
+
+---
+
+## 5. AI 四大规则
+
+### 5.1 文档先行
+
+先读规范、日志和当前事实源，再写代码。
+
+### 5.2 边界优先
 
 每个任务开始前必须明确：
 
-- 主开发模块；
-- 允许修改模块；
-- 禁止修改模块；
-- 允许新增文件；
+- 主模块；
+- 允许修改；
+- 禁止修改；
 - 状态 Owner；
 - 对外 API；
-- 是否改 Agent Protocol；
-- 是否改 DB Schema；
-- 是否改安全边界。
+- Protocol 是否变化；
+- DB Schema 是否变化；
+- 安全边界是否变化。
 
 未明确允许的区域默认不修改。
 
-### 规则三：验证闭环
+### 5.3 验证闭环
 
-至少执行：
+按任务实际范围执行：
 
 - TypeScript typecheck；
-- 相关单元测试；
-- 相关集成测试；
-- Rust `cargo test` / `cargo check`（涉及 Rust 时）；
-- UI 变更对应 UI/E2E；
-- Agent 行为对应 Eval / Trace；
-- Durable Run 对应 Resume / Crash Recovery；
-- 权限/执行对应安全路径检查；
+- 单元测试；
+- 集成测试；
+- UI/E2E；
+- Rust check/test；
+- Agent Eval/Trace；
+- 安全路径测试；
 - 无无关文件修改检查。
 
-### 规则四：全程可追溯
+### 5.4 全程可追溯
 
-每次新业务必须同步：
+每次开发按需要同步：
 
-- Prompt；
+- Active Prompt；
 - Plan；
+- Development Log；
 - Progress；
-- 中文代码注释；
-- 模块 README；
+- Module README；
 - 测试记录；
 - CHANGELOG；
-- 达到发布条件时同步版本与发行记录。
+- Release。
 
 ---
 
-## 3. 模块聚焦开发
+## 6. 模块聚焦
 
-### 3.1 一次一个主模块
-
-当前模块没有达到：
-
-```text
-deliverable
-```
-
-前，原则上不切换无关模块。
-
-### 3.2 示例：配置系统
-
-如果当前主模块：
+当前主模块：
 
 ```text
 config-system
 ```
 
-必须围绕它依次完成：
+当前模块未达到 `deliverable` 或明确 `blocked` 前，不切换无关业务模块。
 
-```text
-config-system
-├── settings
-├── model-management
-├── account-management
-├── permission-settings
-├── config-storage
-├── config-ui
-├── tests
-└── docs
-```
-
-不要中途跳去写 Browser Agent、Plugin Marketplace 或 Knowledge UI。
-
-### 3.3 允许跨模块的情况
-
-仅允许：
+允许跨模块只有：
 
 1. 当前模块被基础依赖阻塞；
-2. 当前模块需要公共 Protocol 变更；
-3. P0/P1 缺陷阻塞开发；
+2. 需要公共 Protocol 变更；
+3. P0/P1 缺陷阻塞；
 4. 安全问题必须立即修复。
 
-跨模块前必须写入当前模块 `PLAN.md` 和 `PROGRESS.md`。
+跨模块必须先记录 Plan / Progress / Development Log。
 
 ---
 
-## 4. 统一开发状态
+## 7. 开发状态
 
 只能使用：
 
 ```text
-pending-development   待开发
-planned               已计划
-in-progress           进行中
-pending-test          待测试
-testing               测试中
-pending-optimization  待优化
-deliverable           可交付
-not-delivered         未交付完成
-delivered             交付完成
-blocked               阻塞
-deprecated            已废弃
-archived              已归档
+pending-development
+planned
+in-progress
+pending-test
+testing
+pending-optimization
+deliverable
+not-delivered
+delivered
+blocked
+deprecated
+archived
 ```
 
-推荐流转：
+推荐流程：
 
 ```text
 pending-development
@@ -167,178 +291,54 @@ pending-development
 → delivered
 ```
 
-需要优化：
-
-```text
-testing
-→ pending-optimization
-→ in-progress
-```
-
-不能交付：
-
-```text
-not-delivered
-```
-
 ---
 
-## 5. Plan 制度
+## 8. Plan / Progress / Prompt
 
-每个主模块必须存在：
+### 8.1 Plan
+
+路径：
 
 ```text
 docs/plans/modules/<module>/PLAN.md
 ```
 
-至少包含：
+Plan 负责“要怎么做”。
 
-- 开发目的；
-- 范围；
-- 子模块；
-- 开发顺序；
-- 依赖；
-- 非目标；
-- 验收条件；
-- 测试计划；
-- 风险；
-- 版本目标；
-- 当前状态。
+Plan 变更先于代码。
 
-Plan 变更时先改 Plan，再改代码。
+### 8.2 Progress
 
----
-
-## 6. Progress 留痕
-
-每个主模块必须存在：
+路径：
 
 ```text
 docs/progress/modules/<module>/PROGRESS.md
 ```
 
-每次开发后追加：
+Progress 负责“实际做到哪里”。
 
-- 日期；
-- 任务编号；
-- 当前状态；
-- 本次目标；
-- 已完成；
-- 进行中；
-- 待开发；
-- 待测试；
-- 测试结果；
-- 待优化；
-- 阻塞项；
-- 是否可交付；
-- 是否已交付；
-- 涉及文件；
-- 下一步。
+Progress 只记录事实，不写预计完成。
 
-Progress 记录事实，不写“预计已经完成”。
+### 8.3 Prompt
 
----
+新业务必须先有 Active Prompt。
 
-## 7. 命名规则摘要
+Prompt 负责：
 
-详细见：
+- 任务目标；
+- 允许修改；
+- 禁止修改；
+- 输入/输出；
+- 边界；
+- 验收。
 
-`docs/standards/NAMING.md`
-
-原则：
-
-- 目录默认 `kebab-case`
-- React 组件文件 `PascalCase.tsx`
-- TS 业务文件 `<name>.<role>.ts`
-- `_` 不用于 TS 文件/目录单词分隔
-- Rust module 允许 `snake_case.rs`
-- DB 字段允许 `snake_case`
-- `.` 只表示职责后缀、扩展名或隐藏配置
+需求变化先更新 Prompt 和 Development Log，再改代码。
 
 ---
 
-## 8. UI / Feature / Runtime 边界
+## 9. 中文源码注释
 
-### UI
-
-负责：
-
-- 展示；
-- 用户交互；
-- local visual state。
-
-不负责：
-
-- SQLite；
-- Agent Runtime；
-- Rust；
-- Provider SDK；
-- Secret；
-- Tool 执行。
-
-### Feature / App Shell
-
-负责：
-
-- 页面业务；
-- Feature state；
-- Use Case 编排。
-
-### Runtime / Domain
-
-负责：
-
-- Session；
-- Run；
-- Agent；
-- Tool；
-- Permission；
-- Model；
-- Knowledge；
-- Plugin。
-
-同一事实状态只能有一个 Owner。
-
----
-
-## 9. 父子级规则
-
-### UI
-
-```text
-Parent
-↓ props / command
-Child
-↓ event / result
-Parent
-```
-
-禁止 Child 直接 import Parent 私有 Store 并修改。
-
-### Agent
-
-```text
-Parent Agent
-↓ ChildRunRequest
-Child Agent
-↓ ChildRunEvent / ChildRunResult / ArtifactRef
-Parent Agent
-```
-
-Child 默认不能继承：
-
-- 全部 Secret；
-- 全部 Tool；
-- 全部 Context；
-- 全部 Permission。
-
-必须显式授予。
-
----
-
-## 10. 中文注释
-
-重要源码文件必须使用文件头注释：
+重要源码文件使用：
 
 ```ts
 /**
@@ -353,383 +353,186 @@ Child 默认不能继承：
  */
 ```
 
-注释重点说明边界、设计原因和关联，不做逐行中文翻译。
+注释说明设计原因和边界，不做逐行翻译。
 
 ---
 
-## 11. 新业务标准流程
+## 10. UI / Runtime / 状态边界
+
+### UI
+
+负责展示、交互、局部视觉状态。
+
+禁止 UI 直接访问：
+
+- SQLite；
+- Rust Broker；
+- Provider Secret；
+- Tool 执行。
+
+### 状态 Owner
+
+同一个事实状态只能有一个 Owner。
+
+Child 不直接修改 Parent 私有状态。
+
+---
+
+## 11. 执行与安全边界
+
+任何执行能力必须走：
 
 ```text
-确认主模块
-→ 更新 PLAN
-→ 创建 Active Prompt
-→ PROGRESS 标记 in-progress
-→ 实现
-→ 测试
-→ 更新模块 README
-→ 更新 PROGRESS
-→ 更新 CHANGELOG
-→ 判断 deliverable / not-delivered
-→ 达到发布条件后更新版本与 Release
+Agent / Plugin / MCP / DSH
+→ Capability / Tool Adapter
+→ Tool Runtime
+→ Policy
+→ Permission
+→ Rust Broker
+→ OS
 ```
 
----
-
-## 12. Definition of Done
-
-只有同时满足才算完成：
-
-- Prompt 与实际需求一致；
-- Plan 与实现一致；
-- 代码完成；
-- 中文注释完整；
-- 测试通过；
-- 无无关修改；
-- README 同步；
-- Progress 留痕；
-- Changelog 更新；
-- 明确 `deliverable` / `delivered` / `not-delivered`。
-
+`Full` 不能绕过硬拒绝、项目边界、Secret 隔离和 Broker 校验。
 
 ---
 
-## 13. 打包规范
+## 12. 项目资源
 
-正式发行必须遵守：
-
-`docs/standards/PACKAGING.md`
-
-正式包名只允许：
-
-```text
-LFAA-v<MAJOR.MINOR.PATCH>.zip
-```
-
-不得加入 `flat`、`fixed`、`final`、`latest` 等临时后缀。
-
-
----
-
-## 23. 导入路径强制规范
-
-完整规范：
-
-`docs/standards/IMPORT_PATHS.md`
-
-统一规则：
-
-```text
-同目录 / 同小模块
-→ ./
-
-当前 workspace 内跨目录
-→ @/
-
-跨 LFAA package
-→ @lfaa/*
-```
-
-禁止：
-
-```text
-../../
-../../../
-../../../../
-```
-
-禁止跨 package 访问：
-
-```text
-@lfaa/<package>/src/internal/*
-```
-
-任何新 TypeScript workspace 必须建立自己的 `tsconfig.json`，让 `@/*` 指向本 workspace 的 `src/*`。
-
-`@lfaa/*` 必须是真实 pnpm workspace package，不允许用 `paths` 假映射代替。
-
-修改导入边界后必须执行：
-
-```text
-pnpm run imports:check
-```
-
-
----
-
-## 14. 稳定工作区与版本快照
-
-完整规范：
-
-`docs/standards/WORKSPACE_SYNC.md`
-
-固定原则：
-
-```text
-版本快照
-LFAA-v0.0.x
-    ↓ LFAA-Sync.bat
-稳定工作区
-H:\lfaa\lfaa
-    ↓ LFAA-GitHub.bat
-GitHub
-```
-
-`.git` 只常驻稳定工作区。
-
-每个正式版本包必须自带同步脚本和 GitHub 脚本，以便误删后恢复。
-
-同步脚本必须：
-
-1. 先真实对比；
-2. 列举所有新增/修改/删除路径；
-3. 用户确认后执行；
-4. 保护 `.git` / Secret / 本地缓存；
-5. 同步后重新做 SHA-256 完整校验；
-6. 产生同步日志到 `docs/logs/workspace-sync/`。
-
-禁止使用不可审查的“直接覆盖”脚本。
-
-
----
-
-## 15. GitHub 提交名称与推送规则
-
-`LFAA-GitHub.bat` 只作为启动器，真实逻辑必须在：
-
-```text
-scripts/windows/lfaa-github.ps1
-```
-
-Commit 名称由用户每次手工输入，包括首次提交。
-
-禁止脚本自动固定：
-
-```text
-first commit
-chore: update ...
-```
-
-而不允许用户修改。
-
-GitHub Push 前必须显示文件变化并二次确认。
-
-
----
-
-## 16. Git origin 配置
-
-Git 远程地址属于稳定工作区 Git 配置。
-
-唯一事实源：
-
-```text
-.git/config
-```
-
-首次没有 `origin` 时，推送脚本必须询问用户并保存。
-
-后续不得重复要求输入，也不得在代码里写死某个 GitHub 仓库地址。
-
-
----
-
-## 17. 终端结束状态必须明确
-
-任何 LFAA 一键脚本在退出前必须明确显示：
-
-- 成功 / 失败；
-- 是否已经彻底结束；
-- 用户现在是否可以关闭终端。
-
-禁止脚本执行完后只留下一个空白光标，让用户猜测是否仍在运行。
-
-
----
-
-## 18. Git Commit 交互规则
-
-用户在：
-
-```text
-【输入】【提交名称】
-```
-
-完成输入后，即视为确认创建本地 Commit。
-
-脚本不得再次询问：
-
-```text
-是否确认创建 Commit
-```
-
-Push 属于远程写操作，因此 Push 前确认继续保留。
-
-
----
-
-## 19. Git Clone 与源码更新
-
-`git clone` 只执行一次。
-
-已克隆仓库后，使用：
-
-```text
-LFAA-Update.bat
-```
-
-拉取远程最新源码。
-
-更新脚本遵循“本地工作优先保护”原则：
-
-- 未提交修改不自动覆盖；
-- 分支分叉不自动改写历史；
-- 只有纯 fast-forward 更新才自动拉取。
-
-
----
-
-## 20. Windows 一键脚本菜单化
-
-`LFAA-Sync.bat`、`LFAA-GitHub.bat`、`LFAA-Update.bat`、`LFAA-Setup.bat` 双击后只允许打开菜单。
-
-禁止双击即执行同步、Push、Pull 等写操作。
-
-危险级较高的操作必须作为独立菜单项显示，并建立恢复机制。
-
-
----
-
-## 21. 脚本路径无关原则
-
-LFAA Windows 工具不得把开发机盘符或用户目录写死到代码中。
-
-凡涉及 Git 项目定位，应使用 Git 自身的仓库根目录识别能力。
-
-用户把项目移动到其他磁盘后，脚本应继续正常工作。
-
-
----
-
-## 22. Update Git 状态优先
-
-Git 拉取脚本必须先使用 ahead/behind 判断是否真的需要更新。
-
-如果本地与远程已经相同，不允许继续执行额外 diff 并把非必要步骤的失败误判为更新失败。
-
-
----
-
-## 24. LFAA 项目身份与第三方归属
-
-完整规范：
-
-- `docs/standards/PROJECT_IDENTITY_AND_ATTRIBUTION.md`
-- `/NOTICE.md`
-
-LFAA 作者署名为“二鱼”；第三方成果必须保留原作者、来源和许可证。
-
----
-
-## 25. 项目级资源安装
-
-Skills、Experts、Plugins、Extensions、MCP 和同类资源只能安装在：
+唯一项目资源根：
 
 ```text
 <project>/.lfaa/
 ```
 
-Secret 明文不得进入 `.lfaa/`。
-
----
-
-## 26. 质量门禁
-
-`build`、`typecheck`、`test`、`lint`、`security` 必须执行真实检查。未配置时必须明确失败，不能制造“假绿”。
-
----
-
-## 27. 安全硬边界
-
-`Full` 只减少授权范围内的逐次询问，不得绕过硬拒绝、项目边界、Secret 隔离、capability 和 Rust Broker 最终校验。
-
----
-
-## 28. 性能与资源预算
-
-涉及运行时、数据库、UI、网络、Agent、Tool 或大文件的模块，进入 `in-progress` 前必须定义可测量预算。
-
----
-
-## 29. 开发环境与依赖菜单
-
-统一入口：
+只认：
 
 ```text
-LFAA-Setup.bat
-→ scripts/windows/lfaa-setup.ps1
+skills/
+experts/
+plugins/
+extensions/
+mcp/
 ```
+
+禁止重新建立根 `/skills`、`/plugins` 作为第二事实源。
+
+Secret 明文禁止进入 `.lfaa/`。
 
 ---
 
-## 30. pnpm-only 包管理器规则
+## 13. Node.js 包管理器
 
-LFAA 的 Node.js 依赖与 workspace 命令唯一允许的包管理器是：
+唯一允许：
 
 ```text
 pnpm
 ```
 
-禁止在当前开发文档、根 scripts、自动化脚本和新业务实现中使用：
+允许：
 
 ```text
-npm install
-npm run
-npx
-yarn
-bun
+pnpm install
+pnpm add
+pnpm remove
+pnpm run
+pnpm exec
+pnpm --filter
+pnpm -r
 ```
 
-Corepack 只允许作为 pnpm 启动器：
+禁止使用 npm / npx / yarn / bun 替代 pnpm 管理本项目依赖。
+
+---
+
+## 14. Windows 一键工具
+
+入口：
 
 ```text
-corepack pnpm ...
+LFAA-Setup.bat
+LFAA-Sync.bat
+LFAA-GitHub.bat
+LFAA-Update.bat
 ```
 
-根 `package.json` 必须固定 `packageManager` 与 `engines.pnpm`，并通过 `preinstall` 阻止其他包管理器安装依赖。
+BAT 只负责启动 PowerShell。
 
+脚本必须：
 
----
-
-## 31. Setup 依赖安装容错
-
-`LFAA-Setup.bat` 菜单 `1` 是开发环境初始化入口。
-
-它必须先检测 Node/pnpm 与 Cargo：
-
-- 已安装的工具链正常下载对应依赖；
-- 未安装的工具链显示“跳过”，不能让另一类已经成功安装的依赖被标记为失败；
-- 菜单 `4` 与菜单 `10` 继续严格要求 Cargo。
-
+- 先显示菜单；
+- 写操作明确确认；
+- 路径无关；
+- 成功/失败状态明确；
+- 结束时明确可关闭终端。
 
 ---
 
-## 32. 项目资源唯一事实源
+## 15. Git 与工作区
 
-LFAA 项目级 Skills / Experts / Plugins / Extensions / MCP 只认 `.lfaa/`。
+- `.git` 只保留稳定工作区唯一历史；
+- `origin` 唯一事实源是 `.git/config`；
+- Commit 名称由用户输入；
+- Commit 名称输入后不再次确认；
+- Push 前继续确认；
+- Update 默认保护本地工作；
+- 分叉不自动改写历史；
+- 安全拉取只允许 fast-forward。
 
-禁止新增根目录 `/skills`、`/plugins` 作为第二资源根。
+详细规则：
 
-热插拔实现必须采用 Resource Registry generation，不直接突变正在运行中的资源实例。
+```text
+docs/standards/WORKSPACE_SYNC.md
+```
 
 ---
 
-## 33. 一键准备语义
+## 16. 质量门禁
 
-`LFAA-Setup.bat → 1` 是开发环境的一键准备入口：
+禁止 build/typecheck/test 假成功。
 
-1. 复用现有 Node/pnpm；
-2. `pnpm install --frozen-lockfile` 自动判断已下载/缺失依赖；
-3. 缺少 Rust/Cargo 时通过 Windows `winget` 尝试安装官方 `Rustlang.Rustup`；
-4. 已提交 `Cargo.lock` 时使用 `cargo fetch --locked`；
-5. Rust 外部依赖尚未声明时不生成本机 Cargo.lock；
-6. 初始化 `.lfaa` 项目资源和本机运行目录。
+详细规则：
+
+```text
+docs/standards/QUALITY_GATES.md
+docs/standards/SECURITY.md
+docs/standards/PERFORMANCE.md
+```
+
+涉及 Rust 时必须真实执行 Rust 检查；工具链缺失时明确记录 blocked / skipped 原因，不能伪造通过。
+
+---
+
+## 17. Definition of Done
+
+任务只有同时满足以下条件才算完成：
+
+1. Prompt 与需求一致；
+2. Plan 与实现一致；
+3. Development Log 已更新；
+4. 代码完成；
+5. 中文注释符合规范；
+6. 相关测试通过；
+7. 无无关修改；
+8. Module README 按需同步；
+9. Progress 已留痕；
+10. CHANGELOG 按需更新；
+11. 状态明确；
+12. 正式发布时 Version / Release 同步。
+
+---
+
+## 18. 标准开发流程
+
+```text
+读取 DEVELOPMENT
+→ 查 Development Log INDEX
+→ 读取相关 active 日志
+→ 读取当前架构/Plan/Progress/Prompt/Standards
+→ 明确边界
+→ 更新文档合同
+→ 实现
+→ 验证
+→ 追加开发日志
+→ 更新 Progress / CHANGELOG
+→ 判断交付状态
+```

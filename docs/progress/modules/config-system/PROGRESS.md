@@ -1,5 +1,20 @@
 # config-system PROGRESS
 
+## 2026-09-18 / #20.1 历史日志补全
+
+- 当前状态：planned
+- #2 已进入 Development Log active
+- 配置系统原 Progress / Prompt 全部保留
+- 配置系统业务实现：未改动
+- 下一步：正式进入 `config-schema`
+
+## 2026-09-18 / #20 开发日志规范
+
+- 当前状态：planned
+- 配置系统业务实现：未改动
+- 开发前读取与变更追踪规则已完成
+- 下一步：正式进入 `config-schema`
+
 ## 2026-09-18 / #19 Bootstrap / Resource Root
 
 - 当前状态：planned
