@@ -18,7 +18,7 @@
 | #10 | GitHub 推送确认交互 | #10.1 | active | Git、GitHub、Commit、Push、确认、交互 | `active/0010-GitHub推送确认.md` |
 | #19 | 一键准备与依赖检测 | #19.7 | active | Setup、菜单、循环、返回、退出、依赖、开发工具 | `active/0019-一键准备与依赖检测.md` |
 | #20 | 开发日志与文档规范 | #20.2 | active | 日志、文档、中文、命名、目录、索引 | `active/0020-开发日志与文档规范.md` |
-| #21 | Web 工作台 UI | #21.5 | active | Web、Vite、启动、端口、性能、复用、热插拔 | `active/0021-Web工作台UI.md` |
+| #21 | Web 工作台 UI | #21.6 | active | Web、三栏、拖拽、侧栏、终端、动画、ChatGPT | `active/0021-Web工作台UI.md` |
 
 ## 历史已交付记录
 
@@ -114,4 +114,5 @@ Cargo
 | #21.2 | superseded | `archive/0021-02-黑白工作台重构.md` |
 | #21.3 | superseded | `archive/0021-03-最小宽度自动吸附.md` |
 | #21.4 | superseded | `archive/0021-04-Web端口复用.md` |
-| #21.5 | active | `active/0021-Web工作台UI.md` |
+| #21.5 | superseded | `archive/0021-05-Web启动延迟修复.md` |
+| #21.6 | active | `active/0021-Web工作台UI.md` |

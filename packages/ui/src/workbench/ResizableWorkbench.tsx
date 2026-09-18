@@ -6,7 +6,16 @@
  * 状态归属：浏览器 UI 本地状态。
  * 对外接口：ResizableWorkbench。
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import type { ResizableWorkbenchProps, WorkbenchPaneLimits } from "./workbench-layout.types";
 import "./workbench.css";
 
@@ -36,6 +45,10 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function resolveNext(current: boolean, next: boolean | ((value: boolean) => boolean)) {
+  return typeof next === "function" ? next(current) : next;
+}
+
 function loadState(key: string, left: WorkbenchPaneLimits, right: WorkbenchPaneLimits): StoredLayoutState {
   if (typeof window === "undefined") {
     return { leftWidth: left.initial, rightWidth: right.initial, leftCollapsed: false, rightCollapsed: false };
@@ -60,21 +73,39 @@ export function ResizableWorkbench({
   left,
   center,
   right,
-  storageKey = "lfaa.workbench.layout.v3",
+  storageKey = "lfaa.workbench.layout.v4",
   leftLimits = DEFAULT_LEFT,
   rightLimits = DEFAULT_RIGHT,
   snapHysteresis = 24,
   minCenterWidth = 520,
+  leftCollapsed: leftCollapsedProp,
+  rightCollapsed: rightCollapsedProp,
+  onLeftCollapsedChange,
+  onRightCollapsedChange,
 }: ResizableWorkbenchProps) {
   const initial = useMemo(() => loadState(storageKey, leftLimits, rightLimits), [storageKey, leftLimits, rightLimits]);
   const [leftWidth, setLeftWidth] = useState(initial.leftWidth);
   const [rightWidth, setRightWidth] = useState(initial.rightWidth);
-  const [leftCollapsed, setLeftCollapsed] = useState(initial.leftCollapsed);
-  const [rightCollapsed, setRightCollapsed] = useState(initial.rightCollapsed);
+  const [internalLeftCollapsed, setInternalLeftCollapsed] = useState(initial.leftCollapsed);
+  const [internalRightCollapsed, setInternalRightCollapsed] = useState(initial.rightCollapsed);
+  const leftCollapsed = leftCollapsedProp ?? internalLeftCollapsed;
+  const rightCollapsed = rightCollapsedProp ?? internalRightCollapsed;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const frameRef = useRef<number | null>(null);
   const pendingRef = useRef<number | null>(null);
+
+  const setResolvedLeftCollapsed = useCallback((next: boolean | ((value: boolean) => boolean)) => {
+    const resolved = resolveNext(leftCollapsed, next);
+    if (leftCollapsedProp === undefined) setInternalLeftCollapsed(resolved);
+    onLeftCollapsedChange?.(resolved);
+  }, [leftCollapsed, leftCollapsedProp, onLeftCollapsedChange]);
+
+  const setResolvedRightCollapsed = useCallback((next: boolean | ((value: boolean) => boolean)) => {
+    const resolved = resolveNext(rightCollapsed, next);
+    if (rightCollapsedProp === undefined) setInternalRightCollapsed(resolved);
+    onRightCollapsedChange?.(resolved);
+  }, [onRightCollapsedChange, rightCollapsed, rightCollapsedProp]);
 
   const getDynamicMax = useCallback((side: "left" | "right") => {
     const root = rootRef.current;
@@ -89,6 +120,7 @@ export function ResizableWorkbench({
   }, [leftCollapsed, leftLimits.max, leftWidth, minCenterWidth, rightCollapsed, rightLimits.max, rightWidth]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
     window.localStorage.setItem(storageKey, JSON.stringify({ leftWidth, rightWidth, leftCollapsed, rightCollapsed }));
   }, [leftCollapsed, leftWidth, rightCollapsed, rightWidth, storageKey]);
 
@@ -131,7 +163,6 @@ export function ResizableWorkbench({
     root.dataset.autoSnap = snapped ? side : "none";
     root.style.setProperty(columnName, `${snapped ? 0 : value}px`);
 
-    // 收起时保留上一次展开宽度，方便按钮/刷新后恢复。
     if (!snapped) {
       root.style.setProperty(sizeName, `${Math.max(value, 1)}px`);
     }
@@ -146,15 +177,12 @@ export function ResizableWorkbench({
     const raw = clamp(rawValue, 0, drag.max);
     drag.lastRaw = raw;
 
-    // 目标交互：一到最小宽度就自动吸附，不再继续拖到独立 96px 阈值，
-    // 也不等待 Pointer Up 才决定 collapsed。
     if (!drag.snapped && raw <= drag.min) {
       drag.snapped = true;
       setPreview(drag.side, 0, true);
       return;
     }
 
-    // 反向拖回使用小迟滞，避免指针在 min 边界轻微抖动时反复开合。
     if (drag.snapped) {
       if (raw >= drag.min + snapHysteresis) {
         drag.snapped = false;
@@ -231,16 +259,16 @@ export function ResizableWorkbench({
 
     if (drag.side === "left") {
       if (drag.snapped) {
-        setLeftCollapsed(true);
+        setResolvedLeftCollapsed(true);
       } else {
         setLeftWidth(clamp(drag.lastRaw, drag.min, drag.max));
-        setLeftCollapsed(false);
+        setResolvedLeftCollapsed(false);
       }
     } else if (drag.snapped) {
-      setRightCollapsed(true);
+      setResolvedRightCollapsed(true);
     } else {
       setRightWidth(clamp(drag.lastRaw, drag.min, drag.max));
-      setRightCollapsed(false);
+      setResolvedRightCollapsed(false);
     }
 
     dragRef.current = null;
@@ -257,27 +285,31 @@ export function ResizableWorkbench({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-  }, [snapHysteresis]);
-
-  const toggleCollapsed = useCallback((side: "left" | "right") => {
-    if (side === "left") setLeftCollapsed((value) => !value);
-    else setRightCollapsed((value) => !value);
-  }, []);
+  }, [setResolvedLeftCollapsed, setResolvedRightCollapsed, snapHysteresis]);
 
   const keyboardResize = useCallback((event: KeyboardEvent<HTMLDivElement>, side: "left" | "right") => {
     const step = event.shiftKey ? 36 : 12;
     const collapseKey = side === "left" ? "ArrowLeft" : "ArrowRight";
     const expandKey = side === "left" ? "ArrowRight" : "ArrowLeft";
 
-    if (event.key === "Enter") {
+    if (event.key === "Home") {
       event.preventDefault();
-      toggleCollapsed(side);
+      if (side === "left") setResolvedLeftCollapsed(true);
+      else setResolvedRightCollapsed(true);
       return;
     }
 
-    if (event.key === "Home") {
+    if (event.key === "End") {
       event.preventDefault();
-      side === "left" ? setLeftCollapsed(true) : setRightCollapsed(true);
+      if (side === "left") {
+        const max = Math.max(leftLimits.min, getDynamicMax("left"));
+        setResolvedLeftCollapsed(false);
+        setLeftWidth((value) => clamp(Math.max(value, leftLimits.initial), leftLimits.min, max));
+      } else {
+        const max = Math.max(rightLimits.min, getDynamicMax("right"));
+        setResolvedRightCollapsed(false);
+        setRightWidth((value) => clamp(Math.max(value, rightLimits.initial), rightLimits.min, max));
+      }
       return;
     }
 
@@ -286,14 +318,14 @@ export function ResizableWorkbench({
 
     if (side === "left") {
       const max = Math.max(leftLimits.min, getDynamicMax("left"));
-      setLeftCollapsed(false);
+      setResolvedLeftCollapsed(false);
       setLeftWidth((value) => clamp(value + (event.key === expandKey ? step : -step), leftLimits.min, max));
     } else {
       const max = Math.max(rightLimits.min, getDynamicMax("right"));
-      setRightCollapsed(false);
+      setResolvedRightCollapsed(false);
       setRightWidth((value) => clamp(value + (event.key === expandKey ? step : -step), rightLimits.min, max));
     }
-  }, [getDynamicMax, leftLimits.min, rightLimits.min, toggleCollapsed]);
+  }, [getDynamicMax, leftLimits.initial, leftLimits.min, rightLimits.initial, rightLimits.min, setResolvedLeftCollapsed, setResolvedRightCollapsed]);
 
   const style = {
     "--lfaa-left-size": `${leftWidth}px`,
@@ -303,24 +335,53 @@ export function ResizableWorkbench({
   } as CSSProperties;
 
   return (
-    <div ref={rootRef} className="lfaa-workbench" style={style} data-left-collapsed={leftCollapsed} data-right-collapsed={rightCollapsed} data-dragging="none" data-snap-preview="none" data-auto-snap="none">
+    <div
+      ref={rootRef}
+      className="lfaa-workbench"
+      style={style}
+      data-left-collapsed={leftCollapsed}
+      data-right-collapsed={rightCollapsed}
+      data-dragging="none"
+      data-snap-preview="none"
+      data-auto-snap="none"
+    >
       <aside className="lfaa-workbench__pane lfaa-workbench__pane--left" aria-label="左侧导航">{left}</aside>
 
-      <div className="lfaa-workbench__handle lfaa-workbench__handle--left" role="separator" aria-orientation="vertical" aria-label="调整左侧栏宽度" aria-valuemin={leftLimits.min} aria-valuemax={leftLimits.max} aria-valuenow={leftCollapsed ? 0 : leftWidth} tabIndex={0}
-        onPointerDown={(event) => onPointerDown(event, "left")} onPointerMove={onPointerMove} onPointerUp={finishDrag} onPointerCancel={finishDrag}
-        onDoubleClick={() => toggleCollapsed("left")} onKeyDown={(event) => keyboardResize(event, "left")}>
-        <button className="lfaa-workbench__snap" type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => toggleCollapsed("left")} aria-label={leftCollapsed ? "展开左侧栏" : "收起左侧栏"}>{leftCollapsed ? "›" : "‹"}</button>
-      </div>
+      <div
+        className="lfaa-workbench__handle lfaa-workbench__handle--left"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整左侧栏宽度"
+        aria-valuemin={leftLimits.min}
+        aria-valuemax={leftLimits.max}
+        aria-valuenow={leftCollapsed ? 0 : leftWidth}
+        tabIndex={0}
+        onPointerDown={(event) => onPointerDown(event, "left")}
+        onPointerMove={onPointerMove}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
+        onKeyDown={(event) => keyboardResize(event, "left")}
+      />
 
       <main className="lfaa-workbench__center">{center}</main>
 
-      <div className="lfaa-workbench__handle lfaa-workbench__handle--right" role="separator" aria-orientation="vertical" aria-label="调整右侧栏宽度" aria-valuemin={rightLimits.min} aria-valuemax={rightLimits.max} aria-valuenow={rightCollapsed ? 0 : rightWidth} tabIndex={0}
-        onPointerDown={(event) => onPointerDown(event, "right")} onPointerMove={onPointerMove} onPointerUp={finishDrag} onPointerCancel={finishDrag}
-        onDoubleClick={() => toggleCollapsed("right")} onKeyDown={(event) => keyboardResize(event, "right")}>
-        <button className="lfaa-workbench__snap" type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => toggleCollapsed("right")} aria-label={rightCollapsed ? "展开右侧栏" : "收起右侧栏"}>{rightCollapsed ? "‹" : "›"}</button>
-      </div>
+      <div
+        className="lfaa-workbench__handle lfaa-workbench__handle--right"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整右侧栏宽度"
+        aria-valuemin={rightLimits.min}
+        aria-valuemax={rightLimits.max}
+        aria-valuenow={rightCollapsed ? 0 : rightWidth}
+        tabIndex={0}
+        onPointerDown={(event) => onPointerDown(event, "right")}
+        onPointerMove={onPointerMove}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
+        onKeyDown={(event) => keyboardResize(event, "right")}
+      />
 
-      <aside className="lfaa-workbench__pane lfaa-workbench__pane--right" aria-label="右侧资源栏">{right}</aside>
+      <aside className="lfaa-workbench__pane lfaa-workbench__pane--right" aria-label="右侧工具与资源">{right}</aside>
     </div>
   );
 }

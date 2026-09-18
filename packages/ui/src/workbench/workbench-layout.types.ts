@@ -21,4 +21,8 @@ export interface ResizableWorkbenchProps {
   rightLimits?: WorkbenchPaneLimits;
   snapHysteresis?: number;
   minCenterWidth?: number;
+  leftCollapsed?: boolean;
+  rightCollapsed?: boolean;
+  onLeftCollapsedChange?: (collapsed: boolean) => void;
+  onRightCollapsedChange?: (collapsed: boolean) => void;
 }

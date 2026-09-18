@@ -2,76 +2,73 @@
 
 - **主编号：** #21
 - **名称：** Web 工作台 UI
-- **最新变更：** #21.5
+- **最新变更：** #21.6
 - **状态：** active
-- **关键词：** Web、Vite、启动、端口、性能、复用、热插拔
+- **关键词：** Web、三栏、拖拽、侧栏、终端、动画、ChatGPT
 - **当前文件：** `docs/logs/development/active/0021-Web工作台UI.md`
 
 ## 当前结论
 
-Web 开发启动必须快速，不得为了找端口逐个等待超时。
-
-当前策略：
+Web 工作台三栏交互继续向 ChatGPT / Codex 的日常使用方式靠拢：
 
 ```text
-读取系统当前 TCP Listener
-→ 只对真正已占用的 5173-5199 端口识别是否为 LFAA
-→ 已运行 LFAA：立即复用
-→ 没有：直接选择第一个空闲端口
+分隔条
+→ 只负责拖拽拉伸与自动吸附
+
+顶部角落控制
+→ 负责点击展开 / 收起左右栏与终端
+
+中间底部
+→ 提供终端停靠区
 ```
 
-Vite 启动不再经过 pnpm script 调度链：
-
-```text
-直接运行项目本地 node_modules/.bin/vite.cmd
-```
-
-如果本地 Vite 不存在：
-
-```text
-明确提示先运行菜单 1
-```
-
-不在菜单 2 自动安装依赖。
+不再把点击展开 / 收起按钮叠在分隔条中间，避免拖拽与点击命中冲突。
 
 ## 最新变更
 
-### #21.5 Web 启动延迟修复
+### #21.6 三栏交互与终端停靠
 
 根因：
 
 ```text
-旧 Find-LfaaWebDevPort
-→ 5173 到 5199
-→ 每个端口 Invoke-WebRequest TimeoutSec 1
+旧版本
+→ 分隔条中间内嵌点击按钮
+→ 与拖拽热点重叠
+→ 有时点不到，命中却变成拖拽
+→ 收起 / 展开也缺少更顺滑的过渡
 ```
-
-在没有 LFAA Web 运行时，最坏会产生二十多秒无输出等待。
 
 修复：
 
-1. 使用系统 Active TCP Listener 一次读取占用端口；
-2. 只探测真正占用的候选端口；
-3. 单次 LFAA HTTP 识别超时压到约 350ms；
-4. 未占用时立即得到 5173；
-5. Web 启动直接调用本地 Vite binary，避免 pnpm 启动前的额外依赖检查；
-6. 菜单 2 一开始立即显示“正在快速检查本地 Vite 端口”；
-7. Vite `Ctrl+C` 停止后返回 Setup 主菜单。
+1. 分隔条移除独立点击按钮，只保留拖拽与键盘调宽；
+2. 顶部左上增加左侧栏开合按钮；
+3. 顶部右上增加终端与右侧栏开合按钮；
+4. 顶部控制按钮采用 hover 淡入、鼠标移出淡出；
+5. 左右栏收起 / 展开增加更明显的平滑过渡；
+6. 中间区域底部增加终端停靠区；
+7. 右侧工具列表中的“终端”与底部终端联动；
+8. 保留最小宽度自动吸附与迟滞回弹规则。
 
 ## 影响范围
 
-- `scripts/windows/lfaa-setup.ps1`
-- `apps/web/vite.config.ts`（端口协议保持不变）
+- `packages/ui/src/workbench/ResizableWorkbench.tsx`
+- `packages/ui/src/workbench/workbench.css`
+- `packages/app-shell/src/AgentWorkbench.tsx`
+- `packages/app-shell/src/WorkbenchIcon.tsx`
+- `packages/app-shell/src/agent-workbench.css`
+- `docs/standards/UI_LAYOUT.md`
 - `docs/testing/WEB_UI_TEST.md`
-- `docs/standards/PERFORMANCE.md`
 
 ## 验证结果
 
-- 不再对 27 个未占用端口逐个做 1 秒 HTTP 超时；
-- 没有监听端口时端口解析只读取系统 Listener；
-- 本地 Vite binary 缺失时有明确错误；
-- #21.3 Resize/Snap 和 #21.4 端口复用均保留；
-- Windows 实机启动耗时待用户机器最终验证。
+- 分隔条中央点击按钮已移除；
+- 左右侧栏仍可拖拽、自动吸附；
+- 顶部角落可点击开合左右栏；
+- 顶部角落 hover 有淡入 / 淡出；
+- 中间底部终端停靠区已加入；
+- 右侧“终端”按钮与底部终端联动；
+- 视觉仍保持黑 / 白 / 灰工作台语言；
+- 真实浏览器丝滑度待用户机器继续实机确认。
 
 ## 历史索引
 
@@ -82,4 +79,5 @@ Vite 启动不再经过 pnpm script 调度链：
 | #21.2 | superseded | `archive/0021-02-黑白工作台重构.md` |
 | #21.3 | superseded | `archive/0021-03-最小宽度自动吸附.md` |
 | #21.4 | superseded | `archive/0021-04-Web端口复用.md` |
-| #21.5 | active | `active/0021-Web工作台UI.md` |
+| #21.5 | superseded | `archive/0021-05-Web启动延迟修复.md` |
+| #21.6 | active | `active/0021-Web工作台UI.md` |

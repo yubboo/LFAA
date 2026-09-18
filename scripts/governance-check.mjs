@@ -50,6 +50,8 @@ const required = [
   "docs/prompts/active/0021-Web工作台UI.md",
   "docs/logs/development/active/0021-Web工作台UI.md",
   "docs/prompts/archive/v0.0.30/0021-05-Web启动延迟修复.md",
+  "docs/prompts/archive/v0.0.31/0021-06-三栏交互与终端停靠.md",
+  "docs/logs/development/archive/0021-05-Web启动延迟修复.md",
   "docs/logs/development/archive/0021-04-Web端口复用.md",
   "docs/prompts/archive/v0.0.28/0021-04-Web端口复用.md",
   "docs/prompts/archive/v0.0.28/0019-05-Rust工具链分层.md",

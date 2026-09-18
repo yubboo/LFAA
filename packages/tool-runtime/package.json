@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/tool-runtime",
   "private": true,
-  "version": "0.0.30",
+  "version": "0.0.31",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼"
