@@ -20,4 +20,5 @@ export interface ResizableWorkbenchProps {
   leftLimits?: WorkbenchPaneLimits;
   rightLimits?: WorkbenchPaneLimits;
   snapThreshold?: number;
+  minCenterWidth?: number;
 }

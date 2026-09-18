@@ -9,7 +9,7 @@ export interface DevResourceItem {
   updatedAt: number;
 }
 
-export interface InkWorkbenchProps {
+export interface AgentWorkbenchProps {
   resources?: readonly DevResourceItem[];
   resourceBridgeStatus?: "connected" | "refreshing" | "offline";
 }

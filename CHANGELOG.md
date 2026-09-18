@@ -2,20 +2,19 @@
 
 > 根目录只保留当前索引和最近版本。
 
-## #19 一键准备与依赖检测
+## #21 Web 工作台 UI
 
-- 用户版本：v0.0.24
-- 状态：delivered
-- 最新变更：#19.3
+- 用户版本：v0.0.26
+- 状态：in-progress
+- 最新变更：#21.2
 - 日期：2026-09-18
-- `LFAA-Setup.bat` 成为 Web / Desktop / Build / Release 统一开发入口。
-- 删除独立 `LFAA-Web.bat` 与 `lfaa-web.ps1`。
-- 菜单 2 直接启动 Web / Vite。
-- Desktop 启动与构建入口已预留，但未实现时明确失败。
-- 构建发布只生成本地产物，不自动上传远程。
-- #21 Web 工作台最新变更更新为 #21.1。
-- 当前主业务模块仍为 `config-system`，Web UI 为前置验证壳。
+- Web 工作台移除水墨视觉，改为 Codex / ChatGPT 类黑白灰风格。
+- 新增浅色 / 深色主题和本地主题偏好。
+- 左右栏扩大可拉伸范围，并加入动态最大宽度保护中央区域。
+- 吸附改为拖动预览、松开后平滑收起，避免跨阈值跳变。
+- `InkWorkbench` 更名为 `AgentWorkbench`。
+- `.lfaa` 热插拔开发桥接保持不变。
 
 详细记录：
 
-`docs/changelog/v0.0.24.md`
+`docs/changelog/v0.0.26.md`

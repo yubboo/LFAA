@@ -4,7 +4,7 @@
  * 不负责：读取资源正文、Secret 或正式 Runtime 状态。
  */
 import { useCallback, useEffect, useState } from "react";
-import { InkWorkbench, type DevResourceItem } from "@lfaa/app-shell";
+import { AgentWorkbench, type DevResourceItem } from "@lfaa/app-shell";
 
 interface ResourceResponse { resources: DevResourceItem[]; }
 
@@ -36,5 +36,5 @@ export function App() {
     return () => import.meta.hot?.off("lfaa:resources-changed", handler);
   }, [refresh]);
 
-  return <InkWorkbench resources={resources} resourceBridgeStatus={status} />;
+  return <AgentWorkbench resources={resources} resourceBridgeStatus={status} />;
 }

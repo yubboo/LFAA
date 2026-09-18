@@ -345,14 +345,28 @@ function Install-NodeDependencies {
     Write-Label "【校验】" "【Node 依赖】" "pnpm install 已完成；缺失依赖会安装，已存在依赖会复用，依赖声明变化时同步 lockfile。" Green
 }
 
+function Get-CargoBinCandidates {
+    $candidates = New-Object System.Collections.Generic.List[string]
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$env:CARGO_HOME)) {
+        $candidates.Add((Join-Path $env:CARGO_HOME "bin"))
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$env:USERPROFILE)) {
+        $candidates.Add((Join-Path $env:USERPROFILE ".cargo\bin"))
+    }
+
+    return @($candidates | Select-Object -Unique)
+}
+
 function Get-CargoCommandPath {
     $command = Get-Command "cargo" -ErrorAction SilentlyContinue
     if ($null -ne $command) {
         return $command.Source
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
-        $candidate = Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe"
+    foreach ($bin in Get-CargoBinCandidates) {
+        $candidate = Join-Path $bin "cargo.exe"
         if (Test-Path -LiteralPath $candidate) {
             return $candidate
         }
@@ -367,8 +381,8 @@ function Get-RustupCommandPath {
         return $command.Source
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
-        $candidate = Join-Path $env:USERPROFILE ".cargo\bin\rustup.exe"
+    foreach ($bin in Get-CargoBinCandidates) {
+        $candidate = Join-Path $bin "rustup.exe"
         if (Test-Path -LiteralPath $candidate) {
             return $candidate
         }
@@ -378,30 +392,36 @@ function Get-RustupCommandPath {
 }
 
 function Add-CargoBinToCurrentPath {
-    if ([string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
-        return
-    }
-
-    $cargoBin = Join-Path $env:USERPROFILE ".cargo\bin"
-
-    if ((Test-Path -LiteralPath $cargoBin) -and
-        (($env:PATH -split ";") -notcontains $cargoBin)) {
-        $env:PATH = $cargoBin + ";" + $env:PATH
+    foreach ($cargoBin in Get-CargoBinCandidates) {
+        if ((Test-Path -LiteralPath $cargoBin) -and
+            (($env:PATH -split ";") -notcontains $cargoBin)) {
+            $env:PATH = $cargoBin + ";" + $env:PATH
+        }
     }
 }
 
+function Get-WingetRustStatusMessage {
+    param([int]$ExitCode)
 
-function Get-WindowsRustupTarget {
-    $arch = [string]$env:PROCESSOR_ARCHITEW6432
-    if ([string]::IsNullOrWhiteSpace($arch)) {
-        $arch = [string]$env:PROCESSOR_ARCHITECTURE
-    }
-
-    switch -Regex ($arch.ToUpperInvariant()) {
-        "ARM64" { return "aarch64-pc-windows-msvc" }
-        "AMD64|X86_64" { return "x86_64-pc-windows-msvc" }
-        "X86" { return "i686-pc-windows-msvc" }
-        default { throw ("暂不支持自动识别的 Windows CPU 架构：{0}" -f $arch) }
+    switch ($ExitCode) {
+        0 {
+            return [PSCustomObject]@{
+                Kind = "success"
+                Message = "WinGet 已完成 Rustup 安装或确认。"
+            }
+        }
+        -1978335189 {
+            return [PSCustomObject]@{
+                Kind = "no-update"
+                Message = "WinGet 未发现可适用更新；可能已存在当前版本，将重新检测本机 Rustup/Cargo。"
+            }
+        }
+        default {
+            return [PSCustomObject]@{
+                Kind = "failure"
+                Message = ("WinGet 未完成 Rustup 安装，退出码：{0}。" -f $ExitCode)
+            }
+        }
     }
 }
 
@@ -418,6 +438,7 @@ function Invoke-OfficialRustupInstaller {
 
     Write-Label "【回退安装】" "【Rustup】" "winget 不可用，将从 Rust 官方 static.rust-lang.org 下载 rustup-init。" Cyan
     Write-Label "【校验】" "【SHA-256】" "执行前会下载 Rust 官方 SHA-256 并进行一致性校验。" DarkCyan
+    Write-Label "【说明】" "【官方输出】" "后续 info: 英文为 Rust 官方 rustup 原始日志，保留原文便于排错。" DarkCyan
 
     try {
         Invoke-WebRequest -UseBasicParsing -Uri $baseUrl -OutFile $installer
@@ -499,7 +520,49 @@ function Invoke-OfficialRustupInstaller {
     }
 }
 
+function Ensure-StableRustToolchain {
+    $rustupPath = Get-RustupCommandPath
+
+    if ([string]::IsNullOrWhiteSpace($rustupPath)) {
+        return $false
+    }
+
+    Add-CargoBinToCurrentPath
+
+    Write-Label "【Rust】" "【stable】" "检测到 rustup，正在确认 stable toolchain。" Cyan
+    Write-Label "【说明】" "【官方输出】" "后续 info: 英文为 Rust 官方 rustup 原始日志，保留原文便于排错。" DarkCyan
+
+    $oldPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $rustupPath toolchain install stable
+        $toolchainCode = $LASTEXITCODE
+
+        if ($toolchainCode -eq 0) {
+            & $rustupPath default stable
+            $defaultCode = $LASTEXITCODE
+        }
+        else {
+            $defaultCode = 1
+        }
+    }
+    finally {
+        $ErrorActionPreference = $oldPreference
+    }
+
+    Add-CargoBinToCurrentPath
+
+    if ($toolchainCode -ne 0 -or $defaultCode -ne 0) {
+        Write-Label "【未完成】" "【Rust stable】" "stable toolchain 安装或设置没有完成。" Yellow
+        return $false
+    }
+
+    return (-not [string]::IsNullOrWhiteSpace((Get-CargoCommandPath)))
+}
+
 function Install-RustToolchainIfMissing {
+    Add-CargoBinToCurrentPath
+
     $cargoPath = Get-CargoCommandPath
     if (-not [string]::IsNullOrWhiteSpace($cargoPath)) {
         Write-Label "【环境】" "【Rust/Cargo】" ("已安装 | {0}" -f $cargoPath) Green
@@ -507,24 +570,34 @@ function Install-RustToolchainIfMissing {
         return $true
     }
 
-    Write-Host ""
-    Write-Label "【缺失】" "【Rust/Cargo】" "当前没有 Cargo；一键准备将尝试补齐 Rust 工具链。" Yellow
+    $rustupPath = Get-RustupCommandPath
+    if (-not [string]::IsNullOrWhiteSpace($rustupPath)) {
+        Write-Label "【检测】" "【Rustup】" ("已存在 | {0}" -f $rustupPath) Green
 
-    $wingetSucceeded = $false
+        if (Ensure-StableRustToolchain) {
+            $cargoPath = Get-CargoCommandPath
+            Write-Label "【完成】" "【Cargo】" ("{0} | {1}" -f (Get-CommandVersion "cargo"),$cargoPath) Green
+            Write-Label "【完成】" "【rustc】" (Get-CommandVersion "rustc") Green
+            return $true
+        }
+    }
+
+    Write-Host ""
+    Write-Label "【缺失】" "【Rust/Cargo】" "当前没有可用 Cargo，将尝试补齐 Rust 工具链。" Yellow
 
     if (Test-CommandAvailable "winget") {
-        Write-Label "【准备安装】" "【Rustup】" "优先通过 winget 安装 Rustlang.Rustup。" Cyan
+        Write-Label "【尝试】" "【WinGet】" "正在检查/安装 Rustlang.Rustup。" Cyan
 
         $oldPreference = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
-
         try {
             & winget install `
                 --id Rustlang.Rustup `
                 -e `
                 --source winget `
                 --accept-package-agreements `
-                --accept-source-agreements
+                --accept-source-agreements `
+                --disable-interactivity
 
             $wingetCode = $LASTEXITCODE
         }
@@ -532,55 +605,64 @@ function Install-RustToolchainIfMissing {
             $ErrorActionPreference = $oldPreference
         }
 
-        if ($wingetCode -eq 0) {
-            $wingetSucceeded = $true
+        $wingetStatus = Get-WingetRustStatusMessage $wingetCode
+
+        if ($wingetStatus.Kind -eq "success") {
+            Write-Label "【WinGet】" "【完成】" $wingetStatus.Message Green
+        }
+        elseif ($wingetStatus.Kind -eq "no-update") {
+            Write-Label "【WinGet】" "【无需更新】" $wingetStatus.Message Cyan
         }
         else {
-            Write-Label "【回退】" "【winget】" ("winget 安装未完成，退出码 {0}；将尝试 Rust 官方安装器。" -f $wingetCode) Yellow
-        }
-    }
-    else {
-        Write-Label "【检测】" "【winget】" "未安装；将直接尝试 Rust 官方安装器。" Yellow
-    }
-
-    Add-CargoBinToCurrentPath
-
-    if (-not $wingetSucceeded -and [string]::IsNullOrWhiteSpace((Get-CargoCommandPath))) {
-        [void](Invoke-OfficialRustupInstaller)
-    }
-
-    Add-CargoBinToCurrentPath
-
-    $rustupPath = Get-RustupCommandPath
-    $cargoPath = Get-CargoCommandPath
-
-    if (-not [string]::IsNullOrWhiteSpace($rustupPath) -and
-        [string]::IsNullOrWhiteSpace($cargoPath)) {
-        Write-Label "【Rust】" "【stable】" "检测到 rustup，但 Cargo 尚不可用；正在显式安装 stable toolchain..." Cyan
-
-        $oldPreference = $ErrorActionPreference
-        $ErrorActionPreference = "Continue"
-        try {
-            & $rustupPath toolchain install stable
-            $toolchainCode = $LASTEXITCODE
-            if ($toolchainCode -eq 0) {
-                & $rustupPath default stable
-                $defaultCode = $LASTEXITCODE
-            }
-            else {
-                $defaultCode = 1
-            }
-        }
-        finally {
-            $ErrorActionPreference = $oldPreference
+            Write-Label "【WinGet】" "【未完成】" $wingetStatus.Message Yellow
         }
 
         Add-CargoBinToCurrentPath
+
+        $cargoPath = Get-CargoCommandPath
+        if (-not [string]::IsNullOrWhiteSpace($cargoPath)) {
+            Write-Label "【完成】" "【Cargo】" ("{0} | {1}" -f (Get-CommandVersion "cargo"),$cargoPath) Green
+            Write-Label "【完成】" "【rustc】" (Get-CommandVersion "rustc") Green
+            return $true
+        }
+
+        $rustupPath = Get-RustupCommandPath
+        if (-not [string]::IsNullOrWhiteSpace($rustupPath)) {
+            Write-Label "【检测】" "【Rustup】" ("WinGet 后已发现 | {0}" -f $rustupPath) Green
+
+            if (Ensure-StableRustToolchain) {
+                $cargoPath = Get-CargoCommandPath
+                Write-Label "【完成】" "【Cargo】" ("{0} | {1}" -f (Get-CommandVersion "cargo"),$cargoPath) Green
+                Write-Label "【完成】" "【rustc】" (Get-CommandVersion "rustc") Green
+                return $true
+            }
+        }
+
+        Write-Label "【回退】" "【Rust 官方】" "WinGet 后仍未得到可用 Cargo，改用 Rust 官方 rustup-init。" Yellow
+    }
+    else {
+        Write-Label "【检测】" "【WinGet】" "未安装，直接使用 Rust 官方 rustup-init。" Cyan
+    }
+
+    if (-not (Invoke-OfficialRustupInstaller)) {
+        Write-Label "【未完成】" "【Rust/Cargo】" "Rust 官方安装器执行后仍未得到可用 Cargo。" Yellow
+        return $false
+    }
+
+    Add-CargoBinToCurrentPath
+
+    $cargoPath = Get-CargoCommandPath
+    if ([string]::IsNullOrWhiteSpace($cargoPath)) {
+        if (-not (Ensure-StableRustToolchain)) {
+            Write-Label "【未完成】" "【Rust/Cargo】" "rustup 已运行，但 stable toolchain 仍不可用。" Yellow
+            return $false
+        }
+
         $cargoPath = Get-CargoCommandPath
     }
 
     if ([string]::IsNullOrWhiteSpace($cargoPath)) {
-        Write-Label "【未完成】" "【Rust/Cargo】" "winget 与 Rust 官方安装回退均未得到可用 Cargo。" Yellow
+        Write-Label "【未完成】" "【Rust/Cargo】" "最终检测仍未找到 Cargo。" Yellow
         return $false
     }
 

@@ -1,5 +1,29 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #21.2 黑白工作台重构
+
+- 当前状态：in-progress
+- UI 视觉：从水墨改为 Codex / ChatGPT 类黑白灰生产力工具风格
+- 已实现：浅色 / 深色、本地主题偏好、动态侧栏最大宽度、松开吸附策略
+- `.lfaa` Vite 热插拔桥接：保持现有协议
+- 静态治理检查：PASS
+- 变更 TS/TSX 语法检查：PASS
+- 完整 Vite build：当前环境缺少可用 pnpm 11.17.0，待用户 Windows 实机验证
+- 配置系统业务实现：未改动
+
+## 2026-09-18 / #19.4 Rust 安装诊断优化
+
+- 当前状态：delivered
+- Windows 实机：Cargo / rustc 已成功安装
+- 已完成：
+  - CARGO_HOME 检测
+  - WinGet 返回码语义化
+  - WinGet 后环境重新检测
+  - 官方 rustup 英文日志保留说明
+  - SHA-256 安全链保留
+- #21 Web 工作台状态：in-progress
+- 是否已交付：基础设施变更已交付（v0.0.25）
+
 ## 2026-09-18 / #19.3 统一开发入口
 
 - 当前状态：delivered

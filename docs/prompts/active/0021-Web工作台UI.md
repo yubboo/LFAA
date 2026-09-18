@@ -6,17 +6,30 @@
 
 ## 任务目标
 
-先实现可通过 Vite 本地启动的三栏工作台 UI，作为后续 Config UI、Agent UI 和 `.lfaa` 热插拔验证壳。
+实现可通过 Vite 本地启动、可供 Web / Desktop 复用的三栏工作台 UI，作为 Config UI、Agent UI 和 `.lfaa` 热插拔验证壳。
 
 ## 视觉要求
 
-- ChatGPT 类左右菜单 + 中间工作区；
-- 水墨 / 宣纸风格；
+- 参考 Codex / ChatGPT 的桌面生产力工具布局；
+- 不复制品牌标识，只采用简洁的黑 / 白 / 灰视觉语言；
+- 支持浅色和深色；
+- 左侧为导航、项目、会话；
+- 中间为主要工作区 / 对话；
+- 右侧为工具、运行状态和项目资源；
+- 高信息密度，但避免装饰性背景和拟物纹理。
+
+## 布局要求
+
 - 左右栏自由拉伸；
-- 拖拽到阈值吸附收起；
+- 左栏默认 288px，范围 240px - 640px；
+- 右栏默认 360px，范围 300px - 760px；
+- 桌面宽度下动态限制左右栏最大值，中央区至少保留约 520px；
+- 拖动过程中只预览宽度，不跨阈值立即改变 collapsed 状态；
+- 松开后处于吸附区才平滑收起；
 - 双击分隔条收起 / 展开；
-- 布局缩放时中央工作区不乱；
-- 窄窗口转为浮层侧栏。
+- 键盘可调整；
+- 状态保存到 `localStorage`；
+- 窄窗口侧栏转浮层，不产生整页横向滚动。
 
 ## 允许修改
 
@@ -24,8 +37,7 @@
 - `packages/app-shell`
 - `apps/web`
 - Web/Vite 相关 package 配置
-- UI 规范、Prompt、Plan、Progress、Development Log、CHANGELOG
-- Setup 本地依赖安装语义，如为 Vite 开发依赖首次安装所必需
+- UI 规范、Prompt、Progress、Development Log、CHANGELOG
 
 ## 禁止修改
 
@@ -40,13 +52,14 @@
 
 ## 状态所有权
 
-- 侧栏宽度 / 收起状态：UI 本地状态，可持久化到浏览器 `localStorage`；
-- `.lfaa` 资源列表：Vite 开发桥接的只读快照，不是正式 Runtime 状态；
+- 侧栏宽度 / 收起状态：UI 本地状态；
+- 主题偏好：UI 本地状态；
+- `.lfaa` 资源列表：Vite 开发桥接只读快照；
 - 正式资源状态 Owner 未来仍属于 Resource Registry。
 
 ## 本地热插拔测试
 
-Vite 开发服务器监听当前项目：
+Vite 开发服务器监听：
 
 ```text
 .lfaa/skills
@@ -56,29 +69,28 @@ Vite 开发服务器监听当前项目：
 .lfaa/mcp
 ```
 
-变化后通过 Vite HMR 自定义事件通知浏览器刷新资源列表。
-
-禁止暴露资源正文和 Secret。
+只允许把资源元数据暴露给浏览器，不读取资源正文和 Secret。
 
 ## 性能预算
 
-- 侧栏 Pointer Move 使用 `requestAnimationFrame` 合并；
+- Pointer Move 使用 `requestAnimationFrame` 合并；
+- 拖动期间不通过 React 每帧 setState 重绘整个工作台；
 - 拖拽目标 60 FPS；
-- 桌面宽度下不得产生整页横向滚动；
-- 收起动画 200ms 左右；
-- Vite 资源刷新只扫描 `.lfaa` 允许目录的直接子项。
+- 收起 / 展开动画 160ms - 200ms；
+- 桌面模式中央工作区不得被左右栏挤到不可用；
+- 不产生整页横向滚动。
 
 ## 验收条件
 
-- Vite Web 启动入口存在；
-- `LFAA-Setup.bat → 2 启动 Web` 可一键启动本地 Vite；
+- `LFAA-Setup.bat → 2` 可启动 Vite；
+- 黑白灰浅色 / 深色主题完成；
+- 水墨视觉完全移除；
 - 三栏布局完成；
-- 左右栏可拉伸、吸附、收起；
-- 中间工作区稳定；
-- 水墨风格完成；
+- 左右栏可拉伸、最大宽度受控；
+- 吸附收起无明显跳变；
+- 中央工作区稳定；
 - `.lfaa` 本地资源变化能触发 Web 列表刷新；
 - Web 开发桥接绑定 `127.0.0.1`；
-- Setup workspace 依赖统计不得递归扫描 `node_modules`；
 - 不读取 Secret；
 - 文档与日志同步。
 
@@ -86,23 +98,11 @@ Vite 开发服务器监听当前项目：
 
 `in-progress`
 
-
 ## 统一启动入口
-
-Windows 本地开发只保留一个主入口：
 
 ```text
 LFAA-Setup.bat
-```
-
-其中：
-
-```text
-2 → 启动 Web / Vite
-3 → 启动 Desktop / Electron
-4 → 构建 Web
-5 → 构建 Desktop
-6 → 构建并生成两端本地发布产物
+→ 2 启动 Web
 ```
 
 禁止重新创建独立 `LFAA-Web.bat`。

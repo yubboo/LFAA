@@ -726,3 +726,38 @@ LFAA-Setup.bat
 - “构建发布”只生成本地产物，不自动上传远程；
 - GitHub 推送继续由 `LFAA-GitHub.bat` 负责；
 - 源码更新继续由 `LFAA-Update.bat` 负责。
+
+
+---
+
+### Rust 安装输出与 WinGet 语义
+
+Rust 安装必须区分：
+
+```text
+LFAA 自身提示
+→ 中文
+
+Rust 官方 rustup 输出
+→ 保留官方原始英文
+```
+
+路径检测必须支持：
+
+```text
+CARGO_HOME/bin
+PATH
+%USERPROFILE%/.cargo/bin
+```
+
+WinGet 返回码不得一律显示“失败”。
+
+已知：
+
+```text
+-1978335189 / 0x8A15002B
+→ No applicable update found
+→ 中文显示“未发现可适用更新”
+```
+
+此时必须重新检测本机 rustup/Cargo，再决定是否使用官方 rustup-init。

@@ -64,3 +64,16 @@ pnpm install --frozen-lockfile
 ```
 
 Rustup 自动下载必须来自 Rust 官方 HTTPS 地址，并在执行前通过官方 SHA-256 校验。
+
+
+### Rust 工具链安装诊断
+
+Rust 工具链自动准备必须满足：
+
+1. 支持 `CARGO_HOME` 自定义路径；
+2. WinGet 返回码按语义处理；
+3. WinGet 完成后必须重新检测环境；
+4. Rust 官方 `rustup-init` 只允许从官方 HTTPS 来源下载；
+5. 执行前必须通过官方 SHA-256；
+6. 官方 rustup 原始输出允许保留英文；
+7. LFAA 自身状态提示必须中文清楚。
