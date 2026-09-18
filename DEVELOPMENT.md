@@ -709,3 +709,27 @@ corepack pnpm ...
 - 已安装的工具链正常下载对应依赖；
 - 未安装的工具链显示“跳过”，不能让另一类已经成功安装的依赖被标记为失败；
 - 菜单 `4` 与菜单 `10` 继续严格要求 Cargo。
+
+
+---
+
+## 32. 项目资源唯一事实源
+
+LFAA 项目级 Skills / Experts / Plugins / Extensions / MCP 只认 `.lfaa/`。
+
+禁止新增根目录 `/skills`、`/plugins` 作为第二资源根。
+
+热插拔实现必须采用 Resource Registry generation，不直接突变正在运行中的资源实例。
+
+---
+
+## 33. 一键准备语义
+
+`LFAA-Setup.bat → 1` 是开发环境的一键准备入口：
+
+1. 复用现有 Node/pnpm；
+2. `pnpm install --frozen-lockfile` 自动判断已下载/缺失依赖；
+3. 缺少 Rust/Cargo 时通过 Windows `winget` 尝试安装官方 `Rustlang.Rustup`；
+4. 已提交 `Cargo.lock` 时使用 `cargo fetch --locked`；
+5. Rust 外部依赖尚未声明时不生成本机 Cargo.lock；
+6. 初始化 `.lfaa` 项目资源和本机运行目录。

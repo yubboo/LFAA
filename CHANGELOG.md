@@ -2,17 +2,19 @@
 
 > 根目录只保留当前索引和最近版本。
 
-## #18 Setup 菜单缺少 Cargo 时错误终止修复
+## #19 一键准备与项目资源根收敛
 
-- 用户版本：v0.0.16
+- 用户版本：v0.0.17
 - 状态：delivered
 - 日期：2026-09-18
-- `LFAA-Setup.bat` 菜单 1 改为安装当前环境可用的全部依赖。
-- pnpm 成功、Cargo 缺失时不再把整个流程判定为失败。
-- 缺少 Cargo 时明确显示 Rust 依赖已跳过。
-- 菜单 4 / 10 仍严格要求 Cargo。
+- Setup 菜单 1 升级为“一键准备”。
+- 缺少 Rust/Cargo 时可通过 winget 尝试安装 Rustup。
+- pnpm/Cargo 已下载依赖继续复用，不重复做无意义下载。
+- 删除根 `/skills`、`/plugins` 占位目录。
+- `.lfaa/` 成为项目级 Skill/Expert/Plugin/Extension/MCP 唯一事实源。
+- 固定 File Watcher + Registry Generation 热插拔设计。
 - 当前主业务模块仍为 `config-system`。
 
 完整记录：
 
-`docs/changelog/v0.0.16.md`
+`docs/changelog/v0.0.17.md`

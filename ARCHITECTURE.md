@@ -146,3 +146,16 @@ Policy Engine 拥有硬规则与 `Deny / Ask / AllowByPolicy` 决策；Permissio
 ```
 
 Secret 不进入 `.lfaa/`，只保存 `credential_ref`。
+
+
+## 项目资源热插拔
+
+项目级 Skills、Experts、Plugins、Extensions、MCP 的唯一事实源是：
+
+```text
+<project>/.lfaa/
+```
+
+根目录 `/skills`、`/plugins` 不再作为 LFAA 资源目录。
+
+Desktop / Runtime 后续通过 File Watcher 监听 `.lfaa` 资源子目录，采用“校验 → 新 Registry Generation → 原子发布”的热插拔模型。运行中的 Run 固定使用启动时的资源 generation，避免中途替换造成状态破坏。

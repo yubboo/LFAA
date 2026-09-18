@@ -124,11 +124,158 @@ function Install-NodeDependencies {
     Invoke-Pnpm $args "下载 pnpm workspace 项目依赖"
 }
 
+function Get-CargoCommandPath {
+    $command = Get-Command "cargo" -ErrorAction SilentlyContinue
+    if ($null -ne $command) {
+        return $command.Source
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        $candidate = Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe"
+        if (Test-Path -LiteralPath $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Get-RustupCommandPath {
+    $command = Get-Command "rustup" -ErrorAction SilentlyContinue
+    if ($null -ne $command) {
+        return $command.Source
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        $candidate = Join-Path $env:USERPROFILE ".cargo\bin\rustup.exe"
+        if (Test-Path -LiteralPath $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Add-CargoBinToCurrentPath {
+    if ([string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        return
+    }
+
+    $cargoBin = Join-Path $env:USERPROFILE ".cargo\bin"
+
+    if ((Test-Path -LiteralPath $cargoBin) -and
+        (($env:PATH -split ";") -notcontains $cargoBin)) {
+        $env:PATH = $cargoBin + ";" + $env:PATH
+    }
+}
+
+function Install-RustToolchainIfMissing {
+    $cargoPath = Get-CargoCommandPath
+    if (-not [string]::IsNullOrWhiteSpace($cargoPath)) {
+        Write-Label "【环境】" "【Rust/Cargo】" "已安装，直接复用。" Green
+        return $true
+    }
+
+    Write-Host ""
+    Write-Label "【缺失】" "【Rust/Cargo】" "后续 Desktop / Native Core 会使用 Rust，当前未检测到 Cargo。" Yellow
+
+    if (-not (Test-CommandAvailable "winget")) {
+        Write-Label "【无法自动安装】" "【winget】" "当前系统未检测到 winget；本次先完成 Node/pnpm 依赖。" Yellow
+        return $false
+    }
+
+    Write-Label "【准备安装】" "【Rustup】" "将通过 Windows 官方包管理器 winget 安装 Rustlang.Rustup。" Cyan
+    Write-Label "【说明】" "【系统工具】" "这是系统级开发工具，不会安装到项目目录。" DarkCyan
+
+    $oldPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+
+    try {
+        & winget install `
+            --id Rustlang.Rustup `
+            -e `
+            --source winget `
+            --accept-package-agreements `
+            --accept-source-agreements
+
+        $wingetCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $oldPreference
+    }
+
+    if ($wingetCode -ne 0) {
+        Write-Label "【提示】" "【Rust】" "Rustup 自动安装未完成；Node/pnpm 依赖不会受影响。" Yellow
+        return $false
+    }
+
+    Add-CargoBinToCurrentPath
+
+    $rustupPath = Get-RustupCommandPath
+    if (-not [string]::IsNullOrWhiteSpace($rustupPath)) {
+        Write-Label "【Rust】" "【工具链】" "正在确认 stable toolchain..." Cyan
+        $oldPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+
+        try {
+            & $rustupPath default stable
+            $rustupCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $oldPreference
+        }
+
+        if ($rustupCode -ne 0) {
+            Write-Label "【提示】" "【Rust】" "Rustup 已安装，但 stable toolchain 初始化未完成。" Yellow
+        }
+    }
+
+    Add-CargoBinToCurrentPath
+    $cargoPath = Get-CargoCommandPath
+
+    if ([string]::IsNullOrWhiteSpace($cargoPath)) {
+        Write-Label "【提示】" "【Rust】" "Rustup 安装完成后当前终端仍未找到 Cargo；重新打开终端后会再次检测。" Yellow
+        return $false
+    }
+
+    Write-Label "【完成】" "【Rust/Cargo】" "Rust 工具链已准备完成。" Green
+    return $true
+}
+
+function Test-RustDependencyDeclarations {
+    $cargoFiles = Get-ChildItem -LiteralPath (Join-Path $ProjectRoot "crates") `
+        -Filter "Cargo.toml" -File -Recurse -ErrorAction SilentlyContinue
+
+    foreach ($file in $cargoFiles) {
+        $text = Get-Content -LiteralPath $file.FullName -Raw
+
+        if ($text -match '(?m)^\[(?:dev-|build-)?dependencies(?:\.[^\]]+)?\]\s*$' -or
+            $text -match '(?m)^\[target\.[^\]]+\.dependencies\]\s*$') {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Install-RustDependencies {
-    if (-not (Test-CommandAvailable "cargo")) { throw "未检测到 Cargo。" }
-    $args = @("fetch")
-    if (Test-Path (Join-Path $ProjectRoot "Cargo.lock")) { $args += "--locked" }
-    Invoke-ProjectCommand "cargo" $args "下载 Rust/Cargo 项目依赖"
+    $cargoPath = Get-CargoCommandPath
+    if ([string]::IsNullOrWhiteSpace($cargoPath)) {
+        throw "未检测到 Cargo。请选择菜单 1 进行一键准备，或先安装 Rust 工具链。"
+    }
+
+    $lockFile = Join-Path $ProjectRoot "Cargo.lock"
+
+    if (-not (Test-Path -LiteralPath $lockFile)) {
+        if (Test-RustDependencyDeclarations) {
+            throw "检测到 Rust 外部依赖，但仓库缺少 Cargo.lock。为避免本机生成未受控锁文件，已停止；请先由开发版本提交 Cargo.lock。"
+        }
+
+        Write-Label "【Rust】" "【依赖】" "当前 Cargo workspace 尚未声明外部 crate，无需下载 Rust 依赖。" Green
+        return
+    }
+
+    Invoke-ProjectCommand $cargoPath @("fetch","--locked") "下载 Rust/Cargo 项目依赖"
 }
 
 function Initialize-ProjectResources {
@@ -161,7 +308,7 @@ function Test-NodeDependencyToolchain {
 }
 
 function Test-RustDependencyToolchain {
-    return Test-CommandAvailable "cargo"
+    return -not [string]::IsNullOrWhiteSpace((Get-CargoCommandPath))
 }
 
 function Show-SetupMenu {
@@ -171,7 +318,7 @@ function Show-SetupMenu {
     Write-Host " 作者：二鱼" -ForegroundColor DarkCyan
     Write-Host "============================================================" -ForegroundColor DarkCyan
     Write-Host ""
-    Write-Label "【1】" "【全部依赖】" "安装当前环境可用的全部依赖；缺少 Rust 工具链时自动跳过并提示。" Green
+    Write-Label "【1】" "【一键准备】" "检查环境、补齐 Rust/Cargo、安装全部已声明依赖并初始化项目资源。" Green
     Write-Label "【2】" "【环境检查】" "查看项目根、工具链和 pnpm 状态。" Cyan
     Write-Label "【3】" "【Node 依赖】" "只下载 pnpm workspace 依赖。" Cyan
     Write-Label "【4】" "【Rust 依赖】" "只下载 Cargo workspace 依赖。" Cyan
@@ -194,55 +341,50 @@ $choice = (Read-Host "【请选择】【0-10】").Trim()
 try {
     switch ($choice) {
         "1" {
-            $canInstallNode = Test-NodeDependencyToolchain
-            $canInstallRust = Test-RustDependencyToolchain
-
-            if (-not $canInstallNode -and -not $canInstallRust) {
+            if (-not (Test-NodeDependencyToolchain)) {
                 Show-Environment
-                throw "当前既没有可用的 Node/pnpm 工具链，也没有 Cargo，无法下载项目依赖。"
+                throw "未检测到可用的 Node + pnpm/corepack 工具链。Node.js 是 LFAA 当前开发的基础前置条件。"
             }
 
             Write-Host ""
-            Write-Label "【预检】" "【Node/pnpm】" $(if ($canInstallNode) { "可用" } else { "不可用，本次跳过" }) $(if ($canInstallNode) { "Green" } else { "Yellow" })
-            Write-Label "【预检】" "【Rust/Cargo】" $(if ($canInstallRust) { "可用" } else { "未检测到 Cargo，本次跳过 Rust 依赖" }) $(if ($canInstallRust) { "Green" } else { "Yellow" })
+            Write-Label "【预检】" "【Node/pnpm】" "可用，将复用现有工具链和已下载依赖。" Green
 
-            if (-not (Confirm-WriteOperation "将安装当前环境可用的项目依赖；不可用的工具链会安全跳过。")) {
-                Wait-LfaaClose $true "用户已取消，未继续安装依赖；现在可以安全关闭终端窗口。"
+            $cargoReadyBefore = Test-RustDependencyToolchain
+            if ($cargoReadyBefore) {
+                Write-Label "【预检】" "【Rust/Cargo】" "可用，将复用现有 Rust 工具链。" Green
+            }
+            else {
+                Write-Label "【预检】" "【Rust/Cargo】" "缺失；确认后将尝试通过 winget 安装 Rustup。" Yellow
+            }
+
+            if (-not (Confirm-WriteOperation "将准备当前项目开发环境：pnpm 安装会复用已下载内容；如缺少 Rust/Cargo，将尝试通过 winget 安装 Rustup。")) {
+                Wait-LfaaClose $true "用户已取消，一键准备未继续执行；现在可以安全关闭终端窗口。"
                 exit 0
             }
 
-            $installed = New-Object System.Collections.Generic.List[string]
-            $skipped = New-Object System.Collections.Generic.List[string]
+            Install-NodeDependencies
 
-            if ($canInstallNode) {
-                Install-NodeDependencies
-                $installed.Add("Node/pnpm")
-            }
-            else {
-                $skipped.Add("Node/pnpm")
-                Write-Label "【跳过】" "【Node/pnpm】" "未检测到可用的 Node + pnpm/corepack 工具链。" Yellow
-            }
-
-            if ($canInstallRust) {
+            $cargoReady = Install-RustToolchainIfMissing
+            if ($cargoReady) {
                 Install-RustDependencies
-                $installed.Add("Rust/Cargo")
             }
             else {
-                $skipped.Add("Rust/Cargo")
-                Write-Label "【跳过】" "【Rust/Cargo】" "未检测到 Cargo；Node 依赖安装结果保留，Rust 依赖稍后安装即可。" Yellow
-                Write-Label "【提示】" "【Rust】" "安装 Rust/Cargo 后，可重新运行菜单 1，或直接选择菜单 4。" DarkYellow
+                Write-Label "【待补齐】" "【Rust/Cargo】" "Rust 环境尚未完成；当前 Node/pnpm 环境已经准备好。" Yellow
             }
 
             Initialize-ProjectResources
 
             Write-Host ""
-            Write-Label "【完成】" "【已安装】" $(if ($installed.Count -gt 0) { $installed -join "、" } else { "无" }) Green
+            Write-Label "【完成】" "【Node/pnpm】" "项目 Node 依赖已确认。" Green
 
-            if ($skipped.Count -gt 0) {
-                Write-Label "【完成】" "【已跳过】" ($skipped -join "、") Yellow
-                Wait-LfaaClose $true "当前环境可执行的依赖安装已完成；缺失工具链对应依赖已安全跳过。现在可以关闭终端窗口。"
+            if ($cargoReady) {
+                Write-Label "【完成】" "【Rust/Cargo】" "Rust 工具链和当前已声明 Rust 依赖已确认。" Green
+                Wait-LfaaClose $true "项目当前已声明的开发依赖已经准备完成；现在可以安全关闭终端窗口。"
                 exit 0
             }
+
+            Wait-LfaaClose $true "Node/pnpm 依赖已完成；Rust 自动安装未完成时可重新运行菜单 1 继续补齐。"
+            exit 0
         }
         "2" { Show-Environment }
         "3" {

@@ -80,3 +80,20 @@ Remote 模式必须在 Agent Client 之前增加身份认证、逐资源授权�
 ## 9. Identity / Attribution Boundary
 
 LFAA 自有公开组件使用 `lfaa-*` 或 `@lfaa/*`，作者署名为二鱼。第三方成果保留原作者、来源和许可证。
+
+
+## 10. Hot-Pluggable Project Resources
+
+`.lfaa/` is the only project resource namespace.
+
+```text
+File Watcher
+→ debounce
+→ validate
+→ Resource Registry generation
+→ atomic publish
+```
+
+New runs use the latest generation. In-flight runs remain pinned to the generation they started with.
+
+Dot-prefixed directories do not change filesystem API semantics and therefore do not block Electron/Node/Rust hot-plug support.

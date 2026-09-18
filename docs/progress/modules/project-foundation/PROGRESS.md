@@ -1,5 +1,19 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #19 一键准备与项目资源根收敛
+
+- 当前状态：delivered
+- 已完成：
+  - Setup 1 改为一键准备
+  - 缺少 Cargo 时支持 winget 安装 Rustup
+  - Rust 依赖锁文件安全策略
+  - 删除根 skills/plugins 双重目录
+  - `.lfaa` 唯一资源根
+  - Hot Plug Registry Generation 规范
+- 配置系统业务实现：未改动
+- 是否已交付：是（v0.0.17）
+- 下一步：进入 `config-schema`
+
 ## 2026-09-18 / #18 Setup 缺少 Cargo 容错修复
 
 - 当前状态：delivered

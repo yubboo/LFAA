@@ -1,13 +1,40 @@
-# LFAA 项目级资源根
+# LFAA 项目资源根
 
-此目录只属于当前项目，不属于当前操作系统用户。
+`.lfaa/` 是当前项目唯一的 LFAA 项目级资源与本机运行数据命名空间。
 
-Skills、Experts、Plugins、Extensions、MCP 等资源必须从这里解析，不得隐式读取用户级全局安装。
+它不是 Secret Store，也不是源码 package。
 
-完整规则见 `docs/standards/PROJECT_RESOURCES.md`。
+```text
+.lfaa/
+├── manifest.json
+├── lock.json
+├── skills/
+├── experts/
+├── plugins/
+├── extensions/
+├── mcp/
+├── cache/
+├── state/
+├── tmp/
+└── logs/
+```
 
-Secret 明文禁止进入本目录。
+## 项目资源
 
-- `manifest.json`：项目直接资源声明；
-- `lock.json`：解析后的版本、来源、哈希和许可证锁定；
-- 当前空清单表示尚未声明外部项目资源。
+`skills/`、`experts/`、`plugins/`、`extensions/`、`mcp/` 是当前项目的热插拔资源目录。
+
+根目录不再允许另建 `/skills` 或 `/plugins` 作为第二事实源。
+
+## 本机运行数据
+
+`cache/`、`state/`、`tmp/`、`logs/` 不进入正常 Git/Release 事实源。
+
+## 为什么使用点号目录
+
+点号用于表示“项目工具自己的命名空间”，避免与用户项目本身常见的 `plugins/`、`skills/`、`extensions/` 目录冲突。
+
+Windows 文件系统、Electron、Node.js 和 Rust 都可以正常访问该目录。后续 Desktop 会通过项目资源管理界面直接打开和管理它。
+
+## Secret
+
+API Key、Token、Credential 明文禁止进入 `.lfaa/`。这里只能保存 `credential_ref`。

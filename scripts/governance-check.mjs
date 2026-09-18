@@ -66,6 +66,17 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
+
+for (const legacyResourceRoot of ["skills", "plugins"]) {
+  if (fs.existsSync(path.join(root, legacyResourceRoot))) {
+    console.error(
+      `LFAA governance check failed: root /${legacyResourceRoot} is forbidden. ` +
+      `Project resources must use .lfaa/${legacyResourceRoot}.`
+    );
+    process.exit(1);
+  }
+}
+
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 
 if (packageJson.author !== "二鱼") {

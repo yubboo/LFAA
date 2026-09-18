@@ -1,5 +1,12 @@
 # config-system PROGRESS
 
+## 2026-09-18 / #19 Bootstrap / Resource Root
+
+- 当前状态：planned
+- 配置系统业务实现：未改动
+- 开发环境与项目资源边界已收敛
+- 下一步：正式进入 `config-schema`
+
 ## 2026-09-18 / #18 Setup bug fix
 
 - 当前状态：planned

@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.16**
+**当前包：LFAA-v0.0.17**
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
@@ -22,7 +22,7 @@
 
 ## 当前阶段
 
-`v0.0.16` 修复 `LFAA-Setup.bat` 菜单 1 在缺少 Cargo 时错误终止的问题。
+`v0.0.17` 将 Setup 菜单 1 升级为一键准备入口，并统一 `.lfaa/` 为项目资源唯一事实源。
 
 当前主业务模块仍是：
 
@@ -75,3 +75,19 @@ LFAA-Setup.bat
 ```
 
 Skills、Experts、Plugins、Extensions、MCP 均跟随项目安装，不使用用户级全局目录。
+
+
+## 项目资源目录
+
+LFAA 项目级可热插拔资源统一放在：
+
+```text
+.lfaa/
+├── skills/
+├── experts/
+├── plugins/
+├── extensions/
+└── mcp/
+```
+
+根目录不再使用 `/skills`、`/plugins` 作为第二套资源目录。
