@@ -2,64 +2,60 @@
 
 - **主编号：** #21
 - **名称：** Web 工作台 UI
-- **最新变更：** #21.13
+- **最新变更：** #21.14
 - **状态：** active
-- **关键词：** Web、响应式、Desktop、Compact、Mobile、Drawer、Header、Tooltip、拖拽、弹性吸附、终端
+- **关键词：** Web、响应式、Dock、Drawer、Resize、Snap、最小宽度、Terminal
 - **当前文件：** `docs/logs/development/active/0021-Web工作台UI.md`
 
 ## 当前结论
 
-v0.0.45 把 Web 工作台从“只有 CSS 缩小”升级为真正的三档响应式布局，并重做三向吸附手感。
+v0.0.46 修正 v0.0.45 对“吸附”的理解错误：**展开态不再允许进入 min 以下的超窄布局；拖到 min 就进入吸附收起预览。**
+
+统一规则：
 
 ```text
-Desktop >=1180
-→ 三栏 Dock
-
-Compact 760~1179
-→ 左栏 Dock + 右栏 Drawer
-
-Mobile <760
-→ 主区全宽 + 左右 Drawer
+正常展开
+→ 拖到可用最小尺寸 min
+→ 立即进入 snap capture / 收起预览
+→ Pointer 仍按住时，反向拖过 min + hysteresis
+→ 恢复到 min 并继续向外拉伸
+→ Pointer Up 时仍 snapped 才正式 collapsed
 ```
 
-右栏在 Compact / Mobile 下从主 Header 下方覆盖式出现，不能再使用旧版 `88vw` 盖住大部分页面；Shell Actions 继续留在 Center Header，用户始终能看到关闭入口。
+正式收起后，separator 继续禁止反向拖开展开，只能通过按钮或快捷键恢复。
 
-拖拽规则改为：
+本版本同时提高可用最小尺寸，避免右栏 / 左栏在仍然展开时被压成内容无法阅读的窄条：
 
 ```text
-按住 Pointer
-→ min 以下连续弹性压缩
-→ 靠边进入 snap capture
-→ 不松手可反向拉回 min 并恢复正常拖拽
-→ Pointer Up 才决定是否真正 collapsed
+左栏：initial 300 / min 280 / max 640
+右栏：initial 400 / min 360 / max 760
+底部：initial 280 / min 180 / max 560
+中央区拖拽保护目标：520px
 ```
 
-这条规则同时适用于左栏、右栏和底部 Terminal Dock。
+为了给新的最小宽度留出合理空间，Desktop 断点同步调整为 `>=1240px`；Compact 为 `760~1239px`；Mobile 仍为 `<760px`。
 
 ## 最新变更
 
-### #21.13 响应式重构与弹性吸附
+### #21.14 最小尺寸吸附收起语义修正
 
-1. 新增 `LayoutMode = desktop / compact / mobile`；
-2. React 与 CSS 使用同一组断点：1180 / 760；
-3. 进入 Compact 时只自动收起右栏；进入 Mobile 时默认收起左右栏和终端；同一断点内用户仍可手动重新展开；
-4. Compact 右栏宽度限制为固定抽屉上限，不再使用 `88vw`；
-5. Mobile 左右栏均从 48px Header 下方滑出，不覆盖核心 Header 按钮；
-6. Compact / Mobile 中 Right Header 不重复渲染，Shell Actions 留在 Center Header；
-7. Tooltip 新增 start / center / end 对齐，解决左/右边缘裁切；
-8. `ResizableWorkbench` 增加 `elasticSize()` 和 `snapCommitThreshold()`；
-9. min 以下允许视觉连续压缩，不再从 min 突然跳到 0；
-10. snapped 状态在 Pointer 仍按住时可反向拖回 min 解锁；
-11. Pointer Up 后才提交正式 collapsed；
-12. 移除拖拽磁区中的 CSS transition，避免 pointermove 追赶造成卡顿；
-13. 正式展开/收起动画统一延长并使用 ease-out；
-14. v0.0.44 的单 Tooltip 契约继续保留。
+1. 删除 `elasticSize()` 与 `snapCommitThreshold()`；
+2. 左 / 右 / Bottom 展开态绝不小于 min；
+3. `raw <= min` 即进入 snap capture；
+4. snapped 时预览尺寸直接进入 0，表达“准备收起”，不再停留在超窄展开态；
+5. Pointer 不松手时，反向拖到 `min + snapHysteresis` 退出 snap capture；
+6. 退出后恢复到至少 min，并可继续向外拉伸；
+7. Pointer Up 时仍 snapped 才正式提交 collapsed；
+8. 提高左右栏和 Bottom 的最小可用尺寸；
+9. Desktop / Compact 边界由 1180 调整到 1240，避免新 min 与中央区目标冲突；
+10. snap preview 保留极短磁吸过渡，但普通 Pointer Move 仍禁用 transition，避免拖拽滞后；
+11. UI contract 门禁同步改成“min 即吸附、禁止 min 以下展开态”的静态契约。
 
-### #21.12 Shell Tooltip 单一提示源（历史基线）
+### #21.13 响应式重构与弹性吸附（历史基线）
 
 已归档：
 
-`archive/0021-12-ShellTooltip单一提示源.md`
+`archive/0021-13-响应式重构与弹性吸附.md`
 
 ## 影响范围
 
@@ -74,16 +70,16 @@ Mobile <760
 
 ## 验证结果
 
-静态门禁：
+静态门禁必须确认：
 
-- LayoutMode 断点存在；
-- Compact / Mobile Drawer 规则存在；
-- `88vw` 旧覆盖宽度不得回归；
-- `elasticSize` / `snapCommitThreshold` 存在；
-- snapped 反向释放条件必须回到 `min`；
-- Pointer dragging 时 Workbench transition 必须为 none；
-- Shell Button 不得重新出现原生 title；
-- Windows 脚本 BOM 必须继续通过。
+- Desktop / Compact / Mobile 断点为 1240 / 760；
+- 左栏 min 280、右栏 min 360、Bottom min 180；
+- 不存在 `elasticSize()` / `snapCommitThreshold()`；
+- `raw <= drag.min` 进入 snap；
+- `raw >= drag.min + snapHysteresis` 反向解锁；
+- 非 snapped 视觉尺寸必须 clamp 到 min 以上；
+- Pointer Up 后才提交 collapsed；
+- PowerShell BOM / Sync / GitHub / Setup / Update 不回退。
 
 真实视觉仍需 Windows Chrome / Edge 实机验证。
 
@@ -91,6 +87,6 @@ Mobile <760
 
 | 版本 | 状态 | 日志 |
 |---|---|---|
-| #21.0 - #21.11 | superseded / delivered | `archive/` 对应历史文件 |
-| #21.12 | delivered-with-responsive-defect | `archive/0021-12-ShellTooltip单一提示源.md` |
-| #21.13 | active | `active/0021-Web工作台UI.md` |
+| #21.0 - #21.12 | superseded / delivered | `archive/` 对应历史文件 |
+| #21.13 | delivered-with-snap-semantics-defect | `archive/0021-13-响应式重构与弹性吸附.md` |
+| #21.14 | active | `active/0021-Web工作台UI.md` |

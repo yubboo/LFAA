@@ -26,13 +26,13 @@ index.ts
 ## 当前响应式
 
 ```text
->=1180px      Desktop：三栏 Dock
-760~1179px    Compact：左栏 Dock + 右栏 Drawer
+>=1240px      Desktop：三栏 Dock
+760~1239px    Compact：左栏 Dock + 右栏 Drawer
 <760px        Mobile：主区全宽 + 左右 Drawer
 ```
 
 `AgentWorkbench.tsx` 负责“什么时候进入哪种布局模式”和“按钮归属在哪里”。
 
-真正的拖拽尺寸、Pointer Capture、弹性吸附在：
+真正的拖拽尺寸、Pointer Capture、min 吸附收起在：
 
 `packages/ui/src/workbench/`

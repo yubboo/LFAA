@@ -7,7 +7,7 @@
  * 对外接口：ResizableWorkbench(props)。
  * 关联文件：workbench-layout.types.ts、workbench.css、@lfaa/app-shell/AgentWorkbench.tsx。
  * 修改注意事项：
- * - Pointer 按住期间允许“进入吸附磁区 -> 反向拖回最小尺寸”；只有 Pointer Up 真正确认 collapsed。
+ * - 展开态尺寸绝不低于 min；拖到 min 即进入吸附收起预览，Pointer 不松手可反向拖回 min 并继续拉伸。
  * - Pointer Up 后 separator 不允许反向展开，只能由显式按钮/快捷键恢复。
  * - 不要在本组件新增业务按钮；受控/非受控状态必须保持一致。
  *
@@ -62,26 +62,13 @@ interface BottomDragState {
 }
 
 // ===== 2. 默认布局参数与通用辅助函数 =====
-const DEFAULT_LEFT: WorkbenchPaneLimits = { min: 240, max: 640, initial: 288 };
-const DEFAULT_RIGHT: WorkbenchPaneLimits = { min: 300, max: 760, initial: 360 };
-const DEFAULT_BOTTOM: WorkbenchPaneLimits = { min: 150, max: 560, initial: 260 };
+const DEFAULT_LEFT: WorkbenchPaneLimits = { min: 280, max: 640, initial: 300 };
+const DEFAULT_RIGHT: WorkbenchPaneLimits = { min: 360, max: 760, initial: 400 };
+const DEFAULT_BOTTOM: WorkbenchPaneLimits = { min: 180, max: 560, initial: 280 };
 const HANDLE_WIDTH = 7;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
-}
-
-// min 以下不是立刻从“最小宽度”硬跳到 0，而是进入弹性磁区。
-// Pointer 越靠近边缘，视觉尺寸越接近 0；反向拖回 min 时可在同一次 Pointer Capture 中恢复。
-function elasticSize(raw: number, min: number): number {
-  if (min <= 0 || raw >= min) return raw;
-  const progress = clamp(raw / min, 0, 1);
-  return min * Math.pow(progress, 1.35);
-}
-
-// 真正提交吸附的磁区只占靠近边缘的一小段，避免用户刚碰到 min 就突然整栏消失。
-function snapCommitThreshold(min: number, hysteresis: number): number {
-  return clamp(hysteresis * 2.25, 36, Math.max(36, min * 0.34));
 }
 
 function resolveNext(current: boolean, next: boolean | ((value: boolean) => boolean)) {
@@ -217,9 +204,9 @@ export function ResizableWorkbench({
 
   // requestAnimationFrame 合并高频 pointermove。
   // 规则：
-  // 1) raw < min 时进入“弹性压缩区”，视觉尺寸连续变化，不再从 min 硬跳到 0；
-  // 2) raw 进入靠边磁区后只标记 snapped，Pointer 仍然保持捕获；
-  // 3) 用户不松手并反向拖回 min，立即退出 snapped，可继续正常拉伸；
+  // 1) 展开状态绝不允许低于 min；min 是“可用布局”的硬下限；
+  // 2) 向内拖到 min 即进入 snap capture，视觉上吸附到 0，表达“准备收起”；
+  // 3) Pointer 仍按住时，只要反向拖过 min + hysteresis，就从 0 恢复到 min 并继续正常拉伸；
   // 4) 只有 Pointer Up 时仍处于 snapped，才真正提交 collapsed。
   const flushPending = useCallback(() => {
     frameRef.current = null;
@@ -228,13 +215,13 @@ export function ResizableWorkbench({
     if (rawValue === null || drag === null) return;
 
     const raw = clamp(rawValue, 0, drag.max);
-    const commitAt = snapCommitThreshold(drag.min, snapHysteresis);
     drag.lastRaw = raw;
 
-    if (!drag.snapped && raw <= commitAt) drag.snapped = true;
-    else if (drag.snapped && raw >= drag.min) drag.snapped = false;
+    if (!drag.snapped && raw <= drag.min) drag.snapped = true;
+    else if (drag.snapped && raw >= drag.min + snapHysteresis) drag.snapped = false;
 
-    const visual = elasticSize(raw, drag.min);
+    // snapped 时只预览“收起”，非 snapped 时至少保持 min，禁止出现不可用的超窄展开态。
+    const visual = drag.snapped ? 0 : clamp(raw, drag.min, drag.max);
     setSidePreview(drag.side, visual, drag.snapped);
   }, [setSidePreview, snapHysteresis]);
 
@@ -292,10 +279,9 @@ export function ResizableWorkbench({
       const rawValue = pendingRef.current;
       if (rawValue !== null) {
         const bounded = clamp(rawValue, 0, drag.max);
-        const commitAt = snapCommitThreshold(drag.min, snapHysteresis);
         drag.lastRaw = bounded;
-        if (!drag.snapped && bounded <= commitAt) drag.snapped = true;
-        else if (drag.snapped && bounded >= drag.min) drag.snapped = false;
+        if (!drag.snapped && bounded <= drag.min) drag.snapped = true;
+        else if (drag.snapped && bounded >= drag.min + snapHysteresis) drag.snapped = false;
       }
     }
 
@@ -344,7 +330,7 @@ export function ResizableWorkbench({
     root.style.setProperty("--lfaa-bottom-row", `${Math.max(0, visualHeight)}px`);
   }, []);
 
-  // ===== 5. 底部面板拖拽与向下弹性吸附 =====
+  // ===== 5. 底部面板拖拽与向下吸附收起 =====
   const onBottomPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const root = rootRef.current;
     if (!root || !bottomOpen) return;
@@ -371,14 +357,14 @@ export function ResizableWorkbench({
     if (!drag || drag.pointerId !== event.pointerId) return;
 
     const raw = clamp(drag.rectBottom - event.clientY, 0, drag.max);
-    const commitAt = snapCommitThreshold(drag.min, snapHysteresis);
     drag.lastRaw = raw;
 
-    if (!drag.snapped && raw <= commitAt) drag.snapped = true;
-    else if (drag.snapped && raw >= drag.min) drag.snapped = false;
+    if (!drag.snapped && raw <= drag.min) drag.snapped = true;
+    else if (drag.snapped && raw >= drag.min + snapHysteresis) drag.snapped = false;
 
-    const visual = elasticSize(raw, drag.min);
-    drag.lastHeight = clamp(Math.max(raw, drag.min), drag.min, drag.max);
+    // 底部面板与左右栏一致：展开态不小于 min；到 min 后只进入“收起吸附预览”。
+    const visual = drag.snapped ? 0 : clamp(raw, drag.min, drag.max);
+    drag.lastHeight = clamp(raw, drag.min, drag.max);
     setBottomPreview(visual, drag.snapped);
   }, [setBottomPreview, snapHysteresis]);
 

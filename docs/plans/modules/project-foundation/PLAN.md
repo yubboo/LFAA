@@ -40,7 +40,53 @@ deliverable
 - 性能、安全和质量门禁；
 - 路径无关的依赖安装与开发检查菜单。
 
-## #21.13 Web 响应式与弹性吸附重构
+## #21.14 最小尺寸吸附收起语义修正
+
+### 任务原因
+
+v0.0.45 把 min 以下设计成“弹性压缩区”，导致面板仍然处于展开状态时可以被压得过窄，右栏文字和快捷键出现截断。用户明确要求：**到最小可用尺寸就应该吸附收起，而不是继续以更窄尺寸展开。**
+
+### 本次范围
+
+允许修改：
+
+- `packages/app-shell/src/AgentWorkbench.tsx`；
+- `packages/app-shell/src/agent-workbench.css`；
+- `packages/ui/src/workbench/ResizableWorkbench.tsx`；
+- `packages/ui/src/workbench/workbench.css`；
+- UI 静态契约门禁；
+- Prompt / Plan / Progress / Development Log / UI Standard / Test / Code Map / Changelog / Release。
+
+禁止修改：
+
+- Sync / GitHub / Setup / Update 业务逻辑；
+- PTY bridge 与 node-pty 协议；
+- Config / Agent Runtime / Permission / Rust Native 边界。
+
+### 实施顺序
+
+1. 保留 v0.0.45 为历史版本；
+2. 归档 #21.13 Active Log 与 Prompt；
+3. 删除 min 以下弹性展开算法；
+4. 到 min 即进入 snap capture / 收起预览；
+5. Pointer 不松手时保留反向恢复能力；
+6. 提高左 / 右 / Bottom 可用最小尺寸；
+7. 调整 Desktop / Compact 断点以容纳新 min；
+8. 更新 UI 静态门禁；
+9. 同步当前事实源与发布记录；
+10. 执行治理、语法、版本、ZIP、PowerShell BOM 门禁。
+
+### 验收条件
+
+- 左栏 min 280、右栏 min 360、Bottom min 180；
+- 展开态不得出现 min 以下尺寸；
+- 到 min 即进入吸附收起预览；
+- Pointer 不松手可反向拖过迟滞区，恢复到至少 min；
+- Pointer Up 后正式 collapsed，separator 不能拖出；
+- Desktop / Compact 断点为 1240 / 760；
+- Windows 脚本和 PTY 业务逻辑不变。
+
+## #21.13 Web 响应式与弹性吸附重构（历史）
 
 ### 任务原因
 

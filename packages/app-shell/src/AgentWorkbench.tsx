@@ -8,7 +8,7 @@
  * 关联文件：agent-workbench.css、workbench.types.ts、@lfaa/ui/ResizableWorkbench、apps/web/src/App.tsx。
  * 修改注意事项：框架级开合状态只保留一个 Owner；布局拖拽交给 @lfaa/ui；Web 专有桥接不能写入共享 App Shell。
  *
- * 页面结构（v0.0.45）：
+ * 页面结构（v0.0.46）：
  * AgentWorkbench
  * └─ agent-workbench-stage                  整个可缩放工作区
  *    ├─ agent-left-hover-preview            左栏收起后的 Hover 临时预览层
@@ -39,9 +39,9 @@ import "./agent-workbench.css";
 
 // ===== 1. Workbench 尺寸与持久化 Key =====
 // 尺寸值只描述 Shell 布局；真正的拖拽、吸附与动态 max 由 ResizableWorkbench 处理。
-const LEFT_LIMITS = { min: 240, max: 640, initial: 288 } as const;
-const RIGHT_LIMITS = { min: 300, max: 760, initial: 360 } as const;
-const BOTTOM_LIMITS = { min: 150, max: 560, initial: 270 } as const;
+const LEFT_LIMITS = { min: 280, max: 640, initial: 300 } as const;
+const RIGHT_LIMITS = { min: 360, max: 760, initial: 400 } as const;
+const BOTTOM_LIMITS = { min: 180, max: 560, initial: 280 } as const;
 const THEME_KEY = "lfaa.workbench.theme.v1";
 const CHROME_KEY = "lfaa.workbench.chrome.v2";
 
@@ -54,7 +54,7 @@ const resourceLabels: Record<ResourceKind, string> = { skills: "Skills", experts
 function getLayoutMode(): LayoutMode {
   if (typeof window === "undefined") return "desktop";
   if (window.innerWidth < 760) return "mobile";
-  if (window.innerWidth < 1180) return "compact";
+  if (window.innerWidth < 1240) return "compact";
   return "desktop";
 }
 

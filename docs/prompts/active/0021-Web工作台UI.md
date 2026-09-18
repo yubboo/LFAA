@@ -6,35 +6,34 @@
 
 ## 当前任务目标
 
-在 v0.0.44 的 Header / Tooltip 基线上，修复窄屏布局崩溃、Shell 控件在覆盖式侧栏中不可见、三向拖拽吸附过硬的问题，并把响应式与拖拽状态机升级为当前正式方案。
+在 v0.0.45 的响应式基线上，修正三向吸附语义：**吸附目标是收起，不是把仍然展开的面板压到 min 以下。** 同时提高左栏、右栏、底部终端的可用最小尺寸，保证内容在展开状态下仍可阅读。
 
 ## 当前交互事实
 
 ### 1. 三档响应式
 
 ```text
-Desktop >= 1180px
+Desktop >= 1240px
 → 左 / 中 / 右 Dock 布局
-→ 右栏展开时 Shell Actions 位于 Right Header
 
-Compact 760 ~ 1179px
-→ 左栏保持 Dock
-→ 右栏改为覆盖式 Drawer
-→ Shell Actions 始终留在 Center Header，保证关闭入口可见
+Compact 760 ~ 1239px
+→ 左栏 Dock
+→ 右栏 Drawer
 
 Mobile < 760px
 → 中间主区全宽
-→ 左右栏都改为覆盖式 Drawer
-→ 默认收起左右栏与底部终端
-→ Header 中始终保留左栏 / 终端 / 右栏三个核心入口
+→ 左右栏 Drawer
 ```
 
-### 2. Tooltip
+### 2. 可用最小尺寸
 
-- 左栏 Tooltip 从按钮左边界向右展开；
-- 右侧两个 Tooltip 从按钮右边界向左展开；
-- 禁止原生 `title` 与自定义 Tooltip 共存；
-- Mobile 下不依赖 Hover Tooltip 作为必要入口。
+```text
+左栏：min 280 / initial 300 / max 640
+右栏：min 360 / initial 400 / max 760
+Bottom：min 180 / initial 280 / max 560
+```
+
+min 是“展开态还能正常排版”的硬下限，不能再拿 min 以下的宽度显示内容。
 
 ### 3. 三向拖拽吸附
 
@@ -42,13 +41,21 @@ Mobile < 760px
 
 ```text
 Pointer Down
-→ Pointer Capture
-→ 正常跟手拖拽
-→ min 以下进入弹性磁区
-→ 靠近边缘才标记 snapped
-→ 鼠标仍按住时可以反向拖回 min
-→ 回到 min 即退出 snapped
-→ 继续向外拉伸
+→ 正常跟手 Resize
+→ 到达 min
+→ 立即进入 snap capture / 收起预览
+→ 预览尺寸吸到 0
+```
+
+如果鼠标仍然按住：
+
+```text
+snap capture
+→ 反向拖动
+→ 达到 min + snapHysteresis
+→ 退出 snap capture
+→ 面板恢复到至少 min
+→ 可继续向外拉伸
 ```
 
 只有：
@@ -57,16 +64,24 @@ Pointer Down
 Pointer Up 时仍处于 snapped
 ```
 
-才真正提交收起。
+才真正提交 collapsed。
 
-Pointer Up 完成收起后，separator 禁止重新展开，只能通过显式按钮或快捷键重新打开。
+正式 collapsed 后 separator 不能重新拉开，只能通过：
+
+```text
+Ctrl+B       左栏
+Ctrl+J       Bottom Terminal
+Ctrl+Alt+B   右栏
+```
+
+或对应 Header 按钮恢复。
 
 ### 4. 动画手感
 
-- Pointer Move 阶段禁止 CSS transition 追赶鼠标；
-- 吸附提交 / 按钮展开使用统一 ease-out；
-- 不允许从 `min` 硬跳到 `0`；
-- 展开/收起要平滑，但不能拖泥带水。
+- 普通 pointermove 阶段不启用 Grid transition；
+- 到 min 触发 snap preview 时允许一个很短的磁吸收起过渡；
+- 不允许出现 min 以下的“半残废展开态”；
+- 正式开合继续使用平滑 ease-out。
 
 ## 允许修改
 
@@ -74,8 +89,8 @@ Pointer Up 完成收起后，separator 禁止重新展开，只能通过显式�
 - `packages/app-shell/src/agent-workbench.css`
 - `packages/ui/src/workbench/ResizableWorkbench.tsx`
 - `packages/ui/src/workbench/workbench.css`
-- UI 契约门禁
-- UI / Testing / Development Log / Plan / Progress / Changelog / Release 文档
+- `scripts/ui-contract-check.mjs`
+- UI / Testing / Development Log / Plan / Progress / Changelog / Release / Code Map
 
 ## 禁止修改
 
@@ -86,15 +101,12 @@ Pointer Up 完成收起后，separator 禁止重新展开，只能通过显式�
 
 ## 验收条件
 
-- Desktop / Compact / Mobile 三档结构明确；
-- 小窗口不再出现右栏占 80%+ 宽度导致主区消失；
-- 右栏覆盖模式下关闭按钮始终可见；
-- Mobile 中间主区保持完整可用；
-- 左 / 右 / 底部三向拖拽都支持“按住时吸附后反向拖回 min”；
-- 松手确认收起后不能从 separator 反向展开；
-- 拖拽过程中无 transition 追鼠标造成的卡顿；
-- Tooltip 不被左右边缘裁切；
-- `Ctrl+B` / `Ctrl+J` / `Ctrl+Alt+B` 保持；
+- 左右栏展开时不允许小于 min；
+- 拖到 min 立即进入吸附收起预览；
+- Pointer 不松手可从已吸附状态反向拖回并恢复至少 min；
+- 松手后正式 collapsed，separator 不可展开；
+- 右栏最小宽度足以完整显示“审查 / 终端 / 浏览器 / 文件”及快捷键，不再出现截图中的文字截断；
+- Desktop / Compact 断点与新 min 相容；
 - Windows PowerShell 脚本不修改且 BOM 不回退；
 - Development Log / UI Layout / Test / Code Map / Changelog / Release 同步。
 

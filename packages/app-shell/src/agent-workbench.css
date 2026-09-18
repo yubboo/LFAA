@@ -9,7 +9,7 @@
  * 修改注意事项：先看下方“盒子结构”；不要在这里改变 ResizableWorkbench 的 Grid 列/行规则。
  *
  * 盒子结构：
- * 当前版本：v0.0.45
+ * 当前版本：v0.0.46
  * .agent-theme
  * └─ .agent-workbench-stage
  *    ├─ .agent-left-hover-preview           左栏收起后的临时浮层
@@ -28,7 +28,7 @@
  * - Desktop：右栏展开时，终端/右栏按钮位于 .agent-right-shell-header。
  * - Compact/Mobile：右栏变覆盖式抽屉，按钮继续留在 .agent-center-header__right，避免关闭入口被抽屉遮掉。
  * - Shell 按钮永远属于 Header，不再使用 absolute 漂浮在正文上。
- * - 三档响应式：Desktop >=1180、Compact 760~1179、Mobile <760。
+ * - 三档响应式：Desktop >=1240、Compact 760~1239、Mobile <760。
  */
 
 /* ===== 1. 全局基础与浅/深主题变量 ===== */
@@ -206,13 +206,13 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 
 /* ===== 11. 响应式：Desktop / Compact / Mobile =====
  * 不能只做“缩小宽度”；每档都要重新决定：侧栏是 Dock 还是 Overlay、按钮归属、Composer 宽度。
- * JS useLayoutMode 与这里使用同一组断点：1180 / 760。
+ * JS useLayoutMode 与这里使用同一组断点：1240 / 760。
  */
 
 /* Compact：保留左侧 Dock；右侧改为覆盖式抽屉。
  * 右栏 Shell Header 在 React 中不渲染，所以右栏只剩正文一行。
  */
-@media (max-width: 1179px) and (min-width: 760px) {
+@media (max-width: 1239px) and (min-width: 760px) {
   .agent-theme[data-layout-mode="compact"] .agent-side--right { grid-template-rows:minmax(0,1fr); }
   .agent-center-header { padding-left:8px; padding-right:8px; }
   .agent-center-header__right .agent-ghost-button { display:none; }

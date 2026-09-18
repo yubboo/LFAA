@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/document-parser",
   "private": true,
-  "version": "0.0.45",
+  "version": "0.0.46",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼"

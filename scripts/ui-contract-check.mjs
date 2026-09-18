@@ -1,7 +1,7 @@
 /**
  * 文件：ui-contract-check.mjs
  * 作用：检查 Web 工作台中容易发生视觉/交互回归的静态 UI 契约。
- * 负责：单一 Tooltip、响应式断点/Drawer 契约、三向弹性吸附状态机的关键静态条件。
+ * 负责：单一 Tooltip、响应式断点/Drawer 契约、三向 min 吸附收起状态机的关键静态条件。
  * 不负责：浏览器真实像素截图、Pointer 实机手感、PTY 行为测试。
  * 状态归属：无运行时状态；每次执行读取当前 App Shell 与 ResizableWorkbench 源码/CSS。
  * 对外接口：`node scripts/ui-contract-check.mjs`，成功返回 0，失败返回 1。
@@ -47,13 +47,13 @@ for (const shortcut of ["Ctrl+B", "Ctrl+J", "Ctrl+Alt+B"]) {
 for (const token of [
   'type LayoutMode = "desktop" | "compact" | "mobile"',
   "window.innerWidth < 760",
-  "window.innerWidth < 1180",
+  "window.innerWidth < 1240",
   'data-layout-mode={layoutMode}',
 ]) {
   if (!tsx.includes(token)) fail(`missing responsive contract: ${token}`);
 }
 for (const token of [
-  "@media (max-width: 1179px) and (min-width: 760px)",
+  "@media (max-width: 1239px) and (min-width: 760px)",
   "@media (max-width: 759px)",
   'data-layout-mode="compact"',
   'data-layout-mode="mobile"',
@@ -63,15 +63,30 @@ for (const token of [
 if (/88vw/.test(workbenchCss)) fail("legacy 88vw side drawer width must not return");
 if (!workbenchCss.includes("top:48px")) fail("responsive drawers must start below the 48px header");
 
-// 3. 三向吸附必须支持“Pointer 按住时进入吸附 -> 反向拖回 min -> 解锁”。
-for (const token of ["function elasticSize(", "function snapCommitThreshold(", "raw >= drag.min", "Pointer Up"]) {
-  if (!resizeTsx.includes(token)) fail(`missing elastic snap contract: ${token}`);
+// 3. 三向吸附必须是“到 min 即吸附收起”，不能再有 min 以下的展开布局。
+for (const token of [
+  "raw <= drag.min",
+  "raw >= drag.min + snapHysteresis",
+  "drag.snapped ? 0 : clamp(raw, drag.min, drag.max)",
+  "Pointer Up",
+]) {
+  if (!resizeTsx.includes(token)) fail(`missing min-snap contract: ${token}`);
+}
+for (const forbidden of ["function elasticSize(", "function snapCommitThreshold("]) {
+  if (resizeTsx.includes(forbidden)) fail(`legacy below-min elastic layout must not return: ${forbidden}`);
+}
+for (const token of [
+  "const LEFT_LIMITS = { min: 280",
+  "const RIGHT_LIMITS = { min: 360",
+  "const BOTTOM_LIMITS = { min: 180",
+]) {
+  if (!tsx.includes(token)) fail(`missing readable minimum-size contract: ${token}`);
 }
 if (!/\.lfaa-is-resizing \.lfaa-workbench,[\s\S]*transition:\s*none;/.test(workbenchCss)) {
-  fail("dragging must disable workbench transitions so Pointer stays responsive");
+  fail("normal dragging must disable workbench transitions so Pointer stays responsive");
 }
-if (/data-auto-snap="(?:left|right|bottom)"[^}]*transition:/s.test(workbenchCss)) {
-  fail("drag-time auto-snap must not re-enable CSS transition and chase the Pointer");
+if (!workbenchCss.includes('data-snap-preview="left"') || !workbenchCss.includes('150ms cubic-bezier')) {
+  fail("snap preview should keep the short magnetic collapse transition");
 }
 
 console.log("LFAA UI contract check passed.");

@@ -16,11 +16,11 @@
 
 /* ===== 1. 根 Grid 与尺寸变量 ===== */
 .lfaa-workbench {
-  --lfaa-left-size: 288px;
-  --lfaa-right-size: 360px;
-  --lfaa-left-column: 288px;
-  --lfaa-right-column: 360px;
-  --lfaa-bottom-size: 260px;
+  --lfaa-left-size: 300px;
+  --lfaa-right-size: 400px;
+  --lfaa-left-column: 300px;
+  --lfaa-right-column: 400px;
+  --lfaa-bottom-size: 280px;
   --lfaa-bottom-row: 0px;
   --lfaa-handle-width: 7px;
   display: grid;
@@ -45,9 +45,17 @@ body.lfaa-is-resizing-vertical { cursor: row-resize !important; user-select: non
 body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-is-resizing .lfaa-workbench,
 .lfaa-is-resizing-vertical .lfaa-workbench { transition: none; }
-/* Pointer 按住期间完全跟手，不对磁区预览加 CSS transition；
- * 否则每一帧都会追赶上一帧，产生“卡一下 / 拖不动”的黏滞感。
+/* 正常 Pointer Move 完全跟手；只有真正进入 snap preview 的那一刻，
+ * 才允许一个很短的磁吸过渡，把 min 吸到 0。这样不会出现 min 以下的破碎布局，
+ * 同时也比硬切 0 更接近“吸附收起”的手感。
  */
+.lfaa-is-resizing .lfaa-workbench[data-snap-preview="left"],
+.lfaa-is-resizing .lfaa-workbench[data-snap-preview="right"] {
+  transition: grid-template-columns 150ms cubic-bezier(.2,.8,.2,1);
+}
+.lfaa-is-resizing-vertical .lfaa-workbench[data-snap-preview="bottom"] {
+  transition: grid-template-rows 150ms cubic-bezier(.2,.8,.2,1);
+}
 
 
 /* ===== 3. Grid 区域定位 ===== */
@@ -74,8 +82,8 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__pane--right { opacity: 0; transform: translateX(18px); pointer-events: none; }
 .lfaa-workbench[data-dragging="left"] .lfaa-workbench__pane--left,
 .lfaa-workbench[data-dragging="right"] .lfaa-workbench__pane--right { opacity: 1; transform: translateX(0); pointer-events: auto; }
-/* snap capture 期间仍保持 pane 可见并由 Grid 尺寸连续裁切；
- * 不能提前 opacity:0，否则用户会感觉“刚碰到磁区整栏突然消失”。
+/* snap capture 期间 pane 仍由 Grid 裁切；展开态永远不进入 min 以下的超窄布局。
+ * 到 min 后直接切换为“收起吸附预览”，反向拖过迟滞区后再恢复到 min。
  */
 
 
@@ -105,11 +113,11 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-workbench__bottom-content { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
 
 
-/* ===== 7. Compact：760~1179px，右栏变覆盖式抽屉 =====
+/* ===== 7. Compact：760~1239px，右栏变覆盖式抽屉 =====
  * 左栏仍可 Dock；右栏不再挤压中间主区，也不会再用接近整屏的超宽比例盖住主区。
  * 右栏抽屉从 48px Header 下方开始，顶部控制按钮留在中间 Header。
  */
-@media (max-width: 1179px) and (min-width: 760px) {
+@media (max-width: 1239px) and (min-width: 760px) {
   .lfaa-workbench { position: relative; grid-template-columns: var(--lfaa-left-column) var(--lfaa-handle-width) minmax(0, 1fr); }
   .lfaa-workbench__center { grid-column: 3; }
   .lfaa-workbench__bottom { grid-column: 3; }

@@ -1,3 +1,19 @@
+# project-foundation PROGRESS
+
+## 2026-09-18 / #21.14 最小尺寸吸附收起语义修正
+
+- 当前状态：pending-windows-visual-test
+- 用户实机发现：v0.0.45 允许右栏在 min 以下继续作为展开布局存在，导致工具文字 / 快捷键被挤坏；吸附语义被错误实现成“吸附展开到超窄尺寸”。
+- 已完成：删除 `elasticSize()` / `snapCommitThreshold()` 当前算法。
+- 已完成：左 / 右 / Bottom 到达 min 即进入 snap capture / 收起预览。
+- 已完成：Pointer 按住期间仍可反向拖过 `min + snapHysteresis`，恢复到至少 min 并继续拉伸。
+- 已完成：左栏 min 提升到 280px，右栏 min 提升到 360px，Bottom min 提升到 180px。
+- 已完成：Desktop / Compact 边界调整为 1240 / 760，避免更大的最小尺寸压坏中央区。
+- 已完成：UI contract 改成“禁止 min 以下展开态”的新契约。
+- 不改：Sync / GitHub / Setup / Update、PTY bridge、Agent Runtime。
+- 用户版本：v0.0.46
+- 待完成：Windows Chrome / Edge 实机确认吸附手感与最小宽度可读性。
+
 ## 2026-09-18 / #21.13 响应式重构与弹性吸附
 
 - 当前状态：pending-windows-visual-test
@@ -13,8 +29,6 @@
 - 不改：Sync / GitHub / Setup / Update、PTY bridge、Agent Runtime。
 - 用户版本：v0.0.45
 - 待完成：Windows Chrome / Edge 多尺寸实机视觉与手感确认。
-
-# project-foundation PROGRESS
 
 ## 2026-09-18 / #21.11 Header 联动与按钮归属修正
 

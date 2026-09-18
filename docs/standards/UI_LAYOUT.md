@@ -4,7 +4,7 @@
 
 当前工作台采用 Header + 三区域 + Bottom Dock。框架级按钮必须属于 Header，不允许漂在正文层。
 
-### Desktop（>= 1180px）
+### Desktop（>= 1240px）
 
 ```text
 ┌────────左侧栏────────┬──────────────中间工作区──────────────┬────右侧栏────┐
@@ -19,7 +19,7 @@
 
 右栏收起时，终端 / 右栏按钮回到 Center Header 右侧。
 
-### Compact（760px ~ 1179px）
+### Compact（760px ~ 1239px）
 
 ```text
 ┌────左栏 Dock────┬──────────────────主区──────────────────┐
@@ -121,27 +121,26 @@ Compact / Mobile 的右栏从 Center Header 下方出现，因此不能再重复
 ## 5. Desktop 尺寸
 
 ```text
-左栏 默认 288px / min 240 / max 640
-右栏 默认 360px / min 300 / max 760
+左栏 默认 300px / min 280 / max 640
+右栏 默认 400px / min 360 / max 760
 中央区目标最小宽度约 520px
-底部 默认 270px / min 150 / max 560
+底部 默认 280px / min 180 / max 560
 ```
 
 Compact / Mobile 的 Drawer 宽度由响应式规则限制，不允许 `88vw` 这类几乎覆盖全屏的旧方案。
 
-## 6. 三向拖拽与弹性吸附
+## 6. 三向拖拽与吸附收起
 
-左栏、右栏、底部终端使用同一交互语义。
+左栏、右栏、底部终端使用同一交互语义。**min 是展开态可用布局的硬下限，不允许面板在 min 以下继续作为展开布局存在。**
 
 ### 6.1 Pointer 按住期间
 
 ```text
 正常尺寸
 → 跟手拖拽
-→ 进入 min 以下
-→ 弹性压缩区
-→ 靠近边缘进入 snap capture
-→ Pointer 仍保持 capture
+→ 到达 min
+→ 立即进入 snap capture
+→ 收起预览吸到 0
 ```
 
 此时用户**不松手**可以反向拖动：
@@ -149,17 +148,19 @@ Compact / Mobile 的 Drawer 宽度由响应式规则限制，不允许 `88vw` �
 ```text
 snap capture
 → 反向拖动
-→ 视觉尺寸连续恢复
-→ 回到 min
+→ 达到 min + hysteresis
 → 退出 snap capture
+→ 面板恢复到至少 min
 → 可继续向外拉伸
 ```
+
+因此不会再出现“右栏仍然展开，但窄到文字和快捷键被截断”的中间状态。
 
 ### 6.2 Pointer Up
 
 只有 Pointer Up 时仍在 snap capture，才真正提交 collapsed。
 
-如果已经反向拖回 min，则本次拖拽保持展开。
+如果已经反向拖过迟滞区，则本次拖拽保持展开，最终尺寸至少为 min。
 
 ### 6.3 Pointer Up 之后
 
@@ -181,9 +182,10 @@ snap capture
 
 提交展开 / 收起阶段：
 
-- 允许约 220~280ms ease-out；
-- opacity / transform 与 Grid 行列变化保持同一节奏；
-- 不允许从 min 硬跳到 0。
+- 普通拖拽不使用 Grid transition；
+- 从 min 进入 snap preview 时允许约 150ms 的短磁吸过渡；
+- 正式按钮展开 / 收起继续使用约 220~280ms ease-out；
+- 不允许以 min 以下的尺寸继续渲染展开内容。
 
 ## 8. 代码与盒子归属
 
@@ -195,7 +197,7 @@ packages/app-shell/src/agent-workbench.css
 → Header / Tooltip / 左右栏内容 / Drawer 内容视觉 / Composer / Terminal 外壳
 
 packages/ui/src/workbench/ResizableWorkbench.tsx
-→ 几何尺寸、Pointer Capture、弹性吸附状态机、尺寸持久化
+→ 几何尺寸、Pointer Capture、min 吸附收起状态机、尺寸持久化
 
 packages/ui/src/workbench/workbench.css
 → Grid、separator、Dock/Drawer 几何、collapsed 动画、响应式布局
