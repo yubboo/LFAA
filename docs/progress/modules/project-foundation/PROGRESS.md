@@ -1,5 +1,20 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #10.1 GitHub 推送确认优化
+
+- 当前状态：delivered
+- 主任务：#10 GitHub 推送确认交互
+- 最新变更：#10.1
+- 已完成：
+  - 移除远程 Push 二次确认
+  - 保留 origin 配置确认
+  - DEVELOPMENT 同步
+  - WORKSPACE_SYNC 同步
+  - Development Log 留痕
+- 配置系统业务实现：未改动
+- 是否已交付：是（v0.0.21）
+- 下一步：进入 `config-schema`
+
 ## 2026-09-18 / #20.2 中文命名与 docs 整理
 
 - 当前状态：delivered

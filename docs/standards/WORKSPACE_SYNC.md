@@ -151,7 +151,7 @@ LFAA-GitHub.bat
 4. Commit 名称由用户手工输入；
 5. 首次 Commit 也不强制使用固定 `first commit`；
 6. 用户输入 Commit 名称后直接创建本地 Commit，不再二次确认；
-7. Push 前保留确认；
+7. 用户选择“一键推送”并输入 Commit 名称后，直接 Push，不再二次确认；
 8. 默认禁止 `git push --force`；
 9. 远程已有 main 时先 `git pull --rebase`；
 10. 生成本机日志到 `docs/logs/runtime/github-push/`。
@@ -250,7 +250,17 @@ GitHub 一键推送中：
 
 避免重复交互。
 
-远程 Push 仍保留独立确认，因为 Push 会改变远程仓库状态。
+远程 Push 不再增加独立 Y/N 确认。
+
+一键推送的确认语义是：
+
+```text
+用户主动选择菜单 1
++ 用户手工输入 Commit 名称
+= 已确认本次 Commit + Push
+```
+
+`origin` 新增或修改仍保留独立确认。
 
 
 ## 14. Git Clone 后的源码更新

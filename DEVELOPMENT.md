@@ -485,7 +485,8 @@ BAT 只负责启动 PowerShell。
 - `origin` 唯一事实源是 `.git/config`；
 - Commit 名称由用户输入；
 - Commit 名称输入后不再次确认；
-- Push 前继续确认；
+- 菜单 1“一键推送”中，Commit 创建后直接 Push，不再增加远程 Push 二次确认；
+- origin 新增或修改仍必须单独确认；
 - Update 默认保护本地工作；
 - 分叉不自动改写历史；
 - 安全拉取只允许 fast-forward。
@@ -604,4 +605,41 @@ INDEX.md
 PLAN.md
 PROGRESS.md
 RELEASE.md
+```
+
+
+---
+
+### GitHub 一键推送确认语义
+
+`LFAA-GitHub.bat → 1 一键推送` 的用户意图链固定为：
+
+```text
+选择“一键推送”
+→ 查看文件变化
+→ 输入 Commit 名称
+→ 创建本地 Commit
+→ 显示 origin / 分支 / Commit
+→ 直接 Push
+```
+
+禁止再次出现：
+
+```text
+【确认】【推送远程仓库】输入 Y 确认
+```
+
+原因：
+
+- 用户已经主动选择“一键推送”；
+- 用户又手工输入了 Commit 名称；
+- 再增加 Push 的 Y/N 属于重复确认。
+
+以下操作仍然保留确认：
+
+```text
+新增 origin
+修改 origin
+强制拉取
+其他高风险恢复/覆盖操作
 ```

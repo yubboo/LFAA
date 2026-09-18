@@ -15,6 +15,7 @@
 | 主编号 | 名称 | 最新变更 | 状态 | 关键词 | 当前日志 |
 |---|---|---|---|---|---|
 | #2 | 配置系统 | #2.0 | active | 配置、Schema、模型、账号、权限 | `active/0002-配置系统.md` |
+| #10 | GitHub 推送确认交互 | #10.1 | active | Git、GitHub、Commit、Push、确认、交互 | `active/0010-GitHub推送确认.md` |
 | #20 | 开发日志与文档规范 | #20.2 | active | 日志、文档、中文、命名、目录、索引 | `active/0020-开发日志与文档规范.md` |
 
 ## 历史已交付记录
@@ -29,7 +30,6 @@
 | #7 | GitHub远程检测 | #7.0 | delivered | GitHub、origin、中文、错误 | `archive/0007-GitHub远程检测.md` |
 | #8 | Git远程配置 | #8.0 | delivered | Git、origin、远程、配置 | `archive/0008-Git远程配置.md` |
 | #9 | 终端结束提示 | #9.0 | delivered | 终端、提示、关闭、脚本 | `archive/0009-终端结束提示.md` |
-| #10 | Commit确认优化 | #10.0 | delivered | Git、Commit、确认、交互 | `archive/0010-Commit确认优化.md` |
 | #11 | 源码更新工具 | #11.0 | delivered | Git、更新、拉取、源码 | `archive/0011-源码更新工具.md` |
 | #12 | 脚本菜单与强制更新 | #12.0 | delivered | 脚本、菜单、强制拉取、备份 | `archive/0012-脚本菜单与强制更新.md` |
 | #13 | 更新路径无关 | #13.0 | delivered | Git、路径、盘符、更新 | `archive/0013-更新路径无关.md` |
@@ -72,3 +72,11 @@ Cargo
 ```
 
 再跳到当前日志，避免按旧方案开发。
+
+
+## #10 历史变更
+
+| 版本 | 状态 | 日志 |
+|---|---|---|
+| #10.0 | delivered | `archive/0010-Commit确认优化.md` |
+| #10.1 | active | `active/0010-GitHub推送确认.md` |

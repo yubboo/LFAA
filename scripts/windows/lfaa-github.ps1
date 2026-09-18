@@ -722,15 +722,7 @@ Write-Host ""
 Write-Label "【推送】" "【origin】" $origin Cyan
 Write-Label "【推送】" "【分支】" $Branch Cyan
 Write-Label "【推送】" "【提交】" $commitMessage Cyan
-
-$confirmPush = Read-Host "【确认】【推送远程仓库】输入 Y 确认，其他键取消"
-if ($confirmPush -notmatch "^(?i:y|yes)$") {
-    Write-Label "【取消】" "【推送】" "已取消远程推送；本地 Commit 会继续保留。" Yellow
-    Wait-LfaaClose -Success $true
-    exit 0
-}
-
-Write-Label "【推送】" "【进行中】" "正在推送，请稍候；如出现 Git 登录窗口，请完成授权。" Cyan
+Write-Label "【推送】" "【进行中】" "已确认一键推送操作，正在推送；如出现 Git 登录窗口，请完成授权。" Cyan
 
 $pushResult = Invoke-GitRaw -GitArgs @("push", "-u", "origin", $Branch)
 if ($pushResult.ExitCode -ne 0) {
