@@ -643,3 +643,51 @@ RELEASE.md
 强制拉取
 其他高风险恢复/覆盖操作
 ```
+
+
+---
+
+### Setup 真实依赖检测
+
+`LFAA-Setup.bat → 1` 不允许只根据目录是否存在判断依赖。
+
+必须真实检查：
+
+```text
+Node 可执行文件
+Node 版本
+pnpm / corepack
+pnpm 版本
+workspace package 数量
+package.json 依赖声明
+pnpm install --frozen-lockfile
+Cargo
+rustc
+winget
+```
+
+`node_modules` 的大小不是依赖完整性依据。
+
+如果当前 `package.json` 没有声明第三方包，则：
+
+```text
+node_modules 很小
+```
+
+属于正常现象。
+
+Cargo 缺失时：
+
+```text
+winget 可用
+→ 优先 winget
+
+winget 不可用 / 安装失败
+→ Rust 官方 static.rust-lang.org
+→ 下载 rustup-init.exe
+→ 下载官方 .sha256
+→ SHA-256 校验
+→ 才允许执行
+```
+
+自动安装仍失败时，一键准备必须显示“部分完成 / Rust 未完成”，不能显示全部成功。

@@ -16,6 +16,7 @@
 |---|---|---|---|---|---|
 | #2 | 配置系统 | #2.0 | active | 配置、Schema、模型、账号、权限 | `active/0002-配置系统.md` |
 | #10 | GitHub 推送确认交互 | #10.1 | active | Git、GitHub、Commit、Push、确认、交互 | `active/0010-GitHub推送确认.md` |
+| #19 | 一键准备与依赖检测 | #19.1 | active | Setup、Node、pnpm、Rust、Cargo、依赖、检测 | `active/0019-一键准备与依赖检测.md` |
 | #20 | 开发日志与文档规范 | #20.2 | active | 日志、文档、中文、命名、目录、索引 | `active/0020-开发日志与文档规范.md` |
 
 ## 历史已交付记录
@@ -38,7 +39,6 @@
 | #16 | 项目治理加固 | #16.0 | delivered | 治理、归属、资源、安全、质量 | `archive/0016-项目治理加固.md` |
 | #17 | pnpm一致性 | #17.0 | delivered | pnpm、包管理、工具链 | `archive/0017-pnpm一致性.md` |
 | #18 | Setup缺少Cargo修复 | #18.0 | delivered | Setup、Cargo、Rust、依赖 | `archive/0018-Setup缺少Cargo修复.md` |
-| #19 | 一键准备与资源根 | #19.0 | delivered | Setup、资源、lfaa、热插拔 | `archive/0019-一键准备与资源根.md` |
 
 ## #20 历史变更
 
@@ -80,3 +80,11 @@ Cargo
 |---|---|---|
 | #10.0 | delivered | `archive/0010-Commit确认优化.md` |
 | #10.1 | active | `active/0010-GitHub推送确认.md` |
+
+
+## #19 历史变更
+
+| 版本 | 状态 | 日志 |
+|---|---|---|
+| #19.0 | delivered | `archive/0019-一键准备与资源根.md` |
+| #19.1 | active | `active/0019-一键准备与依赖检测.md` |

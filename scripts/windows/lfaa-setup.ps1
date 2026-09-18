@@ -69,14 +69,179 @@ function Get-CommandVersion {
     }
 }
 
+function Get-RequiredToolchainInfo {
+    $packageFile = Join-Path $ProjectRoot "package.json"
+    $data = Get-Content -LiteralPath $packageFile -Raw | ConvertFrom-Json
+
+    $pnpmVersion = ""
+    if ($data.packageManager -and ([string]$data.packageManager -match "^pnpm@(.+)$")) {
+        $pnpmVersion = $Matches[1]
+    }
+
+    return [PSCustomObject]@{
+        NodeMajor = 24
+        PnpmVersion = $pnpmVersion
+    }
+}
+
+function Get-CommandSource {
+    param([string]$Name)
+    $command = Get-Command $Name -ErrorAction SilentlyContinue
+    if ($null -eq $command) { return "未安装" }
+    if ($command.Source) { return [string]$command.Source }
+    return [string]$command.Path
+}
+
+function Get-NodeVersionValue {
+    if (-not (Test-CommandAvailable "node")) { return "" }
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = @(& node -p "process.versions.node" 2>&1 | ForEach-Object { [string]$_ })
+        if ($LASTEXITCODE -ne 0 -or $output.Count -eq 0) { return "" }
+        return ($output -join "").Trim()
+    }
+    finally {
+        $ErrorActionPreference = $old
+    }
+}
+
+function Get-DirectPnpmVersion {
+    if (-not (Test-CommandAvailable "pnpm")) { return "" }
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = @(& pnpm --version 2>&1 | ForEach-Object { [string]$_ })
+        if ($LASTEXITCODE -ne 0 -or $output.Count -eq 0) { return "" }
+        return ($output -join "").Trim()
+    }
+    finally {
+        $ErrorActionPreference = $old
+    }
+}
+
 function Get-PnpmRunner {
-    if (Test-CommandAvailable "pnpm") {
-        return [PSCustomObject]@{ FilePath="pnpm"; Prefix=@() }
+    $required = Get-RequiredToolchainInfo
+    $directVersion = Get-DirectPnpmVersion
+
+    if (-not [string]::IsNullOrWhiteSpace($directVersion)) {
+        if ([string]::IsNullOrWhiteSpace($required.PnpmVersion) -or $directVersion -eq $required.PnpmVersion) {
+            return [PSCustomObject]@{
+                FilePath = "pnpm"
+                Prefix = @()
+                Version = $directVersion
+                Source = (Get-CommandSource "pnpm")
+            }
+        }
     }
+
     if (Test-CommandAvailable "corepack") {
-        return [PSCustomObject]@{ FilePath="corepack"; Prefix=@("pnpm") }
+        $old = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+            $output = @(& corepack pnpm --version 2>&1 | ForEach-Object { [string]$_ })
+            $code = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $old
+        }
+
+        if ($code -eq 0 -and $output.Count -gt 0) {
+            return [PSCustomObject]@{
+                FilePath = "corepack"
+                Prefix = @("pnpm")
+                Version = (($output -join "").Trim())
+                Source = (Get-CommandSource "corepack")
+            }
+        }
     }
-    throw "未检测到 pnpm 或 corepack。请先安装项目要求的 Node.js 工具链。"
+
+    if (-not [string]::IsNullOrWhiteSpace($directVersion)) {
+        throw ("检测到 pnpm {0}，但项目要求 pnpm {1}，并且无法通过 corepack 启动项目版本。" -f $directVersion,$required.PnpmVersion)
+    }
+
+    throw "未检测到可用的 pnpm 或 corepack。"
+}
+
+function Assert-NodeToolchain {
+    $required = Get-RequiredToolchainInfo
+    $nodeVersion = Get-NodeVersionValue
+
+    if ([string]::IsNullOrWhiteSpace($nodeVersion)) {
+        throw "未检测到可用的 Node.js。"
+    }
+
+    $majorText = ($nodeVersion -split "\.")[0]
+    $major = 0
+    if (-not [int]::TryParse($majorText, [ref]$major)) {
+        throw ("无法解析 Node.js 版本：{0}" -f $nodeVersion)
+    }
+
+    if ($major -ne $required.NodeMajor) {
+        throw ("当前 Node.js 为 {0}，项目要求 Node.js 24.x。" -f $nodeVersion)
+    }
+
+    $runner = Get-PnpmRunner
+
+    if (-not [string]::IsNullOrWhiteSpace($required.PnpmVersion) -and
+        $runner.Version -ne $required.PnpmVersion) {
+        throw ("当前可用 pnpm 为 {0}，项目要求 {1}。" -f $runner.Version,$required.PnpmVersion)
+    }
+
+    return [PSCustomObject]@{
+        NodeVersion = $nodeVersion
+        NodeSource = (Get-CommandSource "node")
+        PnpmVersion = $runner.Version
+        PnpmSource = $runner.Source
+    }
+}
+
+function Get-NodeDependencySummary {
+    $packageFiles = New-Object System.Collections.Generic.List[string]
+    $rootPackage = Join-Path $ProjectRoot "package.json"
+    if (Test-Path -LiteralPath $rootPackage) {
+        $packageFiles.Add($rootPackage)
+    }
+
+    foreach ($folderName in @("apps","packages")) {
+        $folder = Join-Path $ProjectRoot $folderName
+        if (Test-Path -LiteralPath $folder) {
+            Get-ChildItem -LiteralPath $folder -Filter "package.json" -File -Recurse -ErrorAction SilentlyContinue |
+                ForEach-Object { $packageFiles.Add($_.FullName) }
+        }
+    }
+
+    $external = New-Object System.Collections.Generic.HashSet[string]
+    $declarations = 0
+
+    foreach ($file in $packageFiles) {
+        try {
+            $data = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+
+            foreach ($section in @("dependencies","devDependencies","optionalDependencies")) {
+                $block = $data.$section
+                if ($null -eq $block) { continue }
+
+                foreach ($prop in $block.PSObject.Properties) {
+                    $declarations += 1
+                    $version = [string]$prop.Value
+
+                    if (-not $version.StartsWith("workspace:")) {
+                        [void]$external.Add([string]$prop.Name)
+                    }
+                }
+            }
+        }
+        catch {
+            throw ("无法读取 package.json：{0}" -f $file)
+        }
+    }
+
+    return [PSCustomObject]@{
+        WorkspaceProjects = $packageFiles.Count
+        DependencyDeclarations = $declarations
+        ExternalDependencies = $external.Count
+    }
 }
 
 function Invoke-ProjectCommand {
@@ -109,19 +274,57 @@ function Confirm-WriteOperation {
 function Show-Environment {
     Write-Host ""
     Write-Label "【项目】" "【根目录】" $ProjectRoot Cyan
-    Write-Label "【环境】" "【Node】" (Get-CommandVersion "node") Gray
+
+    $nodeVersion = Get-NodeVersionValue
+    if ([string]::IsNullOrWhiteSpace($nodeVersion)) {
+        Write-Label "【环境】" "【Node】" "未安装" Yellow
+    }
+    else {
+        Write-Label "【环境】" "【Node】" ("{0} | {1}" -f $nodeVersion,(Get-CommandSource "node")) Gray
+    }
+
+    try {
+        $runner = Get-PnpmRunner
+        Write-Label "【环境】" "【pnpm】" ("{0} | {1}" -f $runner.Version,$runner.Source) Gray
+    }
+    catch {
+        Write-Label "【环境】" "【pnpm】" ([string]$_.Exception.Message) Yellow
+    }
+
     Write-Label "【环境】" "【corepack】" (Get-CommandVersion "corepack") Gray
-    Write-Label "【环境】" "【pnpm】" (Get-CommandVersion "pnpm") Gray
     Write-Label "【环境】" "【cargo】" (Get-CommandVersion "cargo") Gray
     Write-Label "【环境】" "【rustc】" (Get-CommandVersion "rustc") Gray
+    Write-Label "【环境】" "【winget】" (Get-CommandVersion "winget") Gray
+
+    $summary = Get-NodeDependencySummary
+    Write-Label "【项目】" "【workspace】" ("{0} 个 Node workspace 项目" -f $summary.WorkspaceProjects) Cyan
+    Write-Label "【项目】" "【Node 依赖】" ("声明 {0} 项；其中外部依赖 {1} 个" -f $summary.DependencyDeclarations,$summary.ExternalDependencies) Cyan
+
+    if ($summary.ExternalDependencies -eq 0) {
+        Write-Label "【说明】" "【node_modules】" "当前项目尚未声明第三方 Node 包；目录很小是正常现象。" DarkCyan
+    }
+
     Write-Label "【规则】" "【包管理器】" "Node.js workspace 只允许 pnpm。" Green
 }
 
 function Install-NodeDependencies {
-    if (-not (Test-CommandAvailable "node")) { throw "未检测到 Node.js。" }
+    $toolchain = Assert-NodeToolchain
+    $summary = Get-NodeDependencySummary
+
+    Write-Label "【检测】" "【Node】" ("{0} | {1}" -f $toolchain.NodeVersion,$toolchain.NodeSource) Green
+    Write-Label "【检测】" "【pnpm】" ("{0} | {1}" -f $toolchain.PnpmVersion,$toolchain.PnpmSource) Green
+    Write-Label "【检测】" "【workspace】" ("{0} 个项目 | 外部 Node 依赖 {1} 个" -f $summary.WorkspaceProjects,$summary.ExternalDependencies) Green
+
+    if ($summary.ExternalDependencies -eq 0) {
+        Write-Label "【说明】" "【Node 依赖】" "当前 package.json 尚未声明第三方 Node 包，因此不会出现大型 node_modules。" DarkCyan
+    }
+
     $args = @("install")
     if (Test-Path (Join-Path $ProjectRoot "pnpm-lock.yaml")) { $args += "--frozen-lockfile" }
-    Invoke-Pnpm $args "下载 pnpm workspace 项目依赖"
+
+    Invoke-Pnpm $args "校验并补齐 pnpm workspace 项目依赖"
+
+    Write-Label "【校验】" "【Node 依赖】" "pnpm install --frozen-lockfile 已完成；缺失依赖会安装，已存在依赖会复用。" Green
 }
 
 function Get-CargoCommandPath {
@@ -169,76 +372,202 @@ function Add-CargoBinToCurrentPath {
     }
 }
 
-function Install-RustToolchainIfMissing {
-    $cargoPath = Get-CargoCommandPath
-    if (-not [string]::IsNullOrWhiteSpace($cargoPath)) {
-        Write-Label "【环境】" "【Rust/Cargo】" "已安装，直接复用。" Green
-        return $true
+
+function Get-WindowsRustupTarget {
+    $arch = [string]$env:PROCESSOR_ARCHITEW6432
+    if ([string]::IsNullOrWhiteSpace($arch)) {
+        $arch = [string]$env:PROCESSOR_ARCHITECTURE
     }
 
-    Write-Host ""
-    Write-Label "【缺失】" "【Rust/Cargo】" "后续 Desktop / Native Core 会使用 Rust，当前未检测到 Cargo。" Yellow
-
-    if (-not (Test-CommandAvailable "winget")) {
-        Write-Label "【无法自动安装】" "【winget】" "当前系统未检测到 winget；本次先完成 Node/pnpm 依赖。" Yellow
-        return $false
+    switch -Regex ($arch.ToUpperInvariant()) {
+        "ARM64" { return "aarch64-pc-windows-msvc" }
+        "AMD64|X86_64" { return "x86_64-pc-windows-msvc" }
+        "X86" { return "i686-pc-windows-msvc" }
+        default { throw ("暂不支持自动识别的 Windows CPU 架构：{0}" -f $arch) }
     }
+}
 
-    Write-Label "【准备安装】" "【Rustup】" "将通过 Windows 官方包管理器 winget 安装 Rustlang.Rustup。" Cyan
-    Write-Label "【说明】" "【系统工具】" "这是系统级开发工具，不会安装到项目目录。" DarkCyan
+function Invoke-OfficialRustupInstaller {
+    $target = Get-WindowsRustupTarget
+    $baseUrl = "https://static.rust-lang.org/rustup/dist/{0}/rustup-init.exe" -f $target
+    $hashUrl = $baseUrl + ".sha256"
 
-    $oldPreference = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "lfaa-rustup"
+    New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+
+    $installer = Join-Path $tempRoot "rustup-init.exe"
+    $hashFile = Join-Path $tempRoot "rustup-init.exe.sha256"
+
+    Write-Label "【回退安装】" "【Rustup】" "winget 不可用，将从 Rust 官方 static.rust-lang.org 下载 rustup-init。" Cyan
+    Write-Label "【校验】" "【SHA-256】" "执行前会下载 Rust 官方 SHA-256 并进行一致性校验。" DarkCyan
 
     try {
-        & winget install `
-            --id Rustlang.Rustup `
-            -e `
-            --source winget `
-            --accept-package-agreements `
-            --accept-source-agreements
+        Invoke-WebRequest -UseBasicParsing -Uri $baseUrl -OutFile $installer
+        Invoke-WebRequest -UseBasicParsing -Uri $hashUrl -OutFile $hashFile
 
-        $wingetCode = $LASTEXITCODE
-    }
-    finally {
-        $ErrorActionPreference = $oldPreference
-    }
+        $expectedText = (Get-Content -LiteralPath $hashFile -Raw).Trim()
+        $match = [regex]::Match($expectedText, "(?i)\b[0-9a-f]{64}\b")
+        if (-not $match.Success) {
+            throw "Rust 官方 SHA-256 文件格式无法识别。"
+        }
 
-    if ($wingetCode -ne 0) {
-        Write-Label "【提示】" "【Rust】" "Rustup 自动安装未完成；Node/pnpm 依赖不会受影响。" Yellow
-        return $false
-    }
+        $expected = $match.Value.ToLowerInvariant()
+        $actual = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
 
-    Add-CargoBinToCurrentPath
+        if ($actual -ne $expected) {
+            throw ("Rustup SHA-256 校验失败。expected={0} actual={1}" -f $expected,$actual)
+        }
 
-    $rustupPath = Get-RustupCommandPath
-    if (-not [string]::IsNullOrWhiteSpace($rustupPath)) {
-        Write-Label "【Rust】" "【工具链】" "正在确认 stable toolchain..." Cyan
+        Write-Label "【校验】" "【通过】" "rustup-init.exe SHA-256 与 Rust 官方值一致。" Green
+
         $oldPreference = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
-
         try {
-            & $rustupPath default stable
-            $rustupCode = $LASTEXITCODE
+            & $installer -y --profile default --default-toolchain none
+            $installCode = $LASTEXITCODE
         }
         finally {
             $ErrorActionPreference = $oldPreference
         }
 
-        if ($rustupCode -ne 0) {
-            Write-Label "【提示】" "【Rust】" "Rustup 已安装，但 stable toolchain 初始化未完成。" Yellow
+        if ($installCode -ne 0) {
+            Write-Label "【提示】" "【Rustup】" ("官方 rustup-init 退出码：{0}" -f $installCode) Yellow
+            return $false
         }
+
+        Add-CargoBinToCurrentPath
+        $rustupPath = Get-RustupCommandPath
+
+        if ([string]::IsNullOrWhiteSpace($rustupPath)) {
+            Write-Label "【提示】" "【Rustup】" "安装器完成，但当前终端仍未找到 rustup。" Yellow
+            return $false
+        }
+
+        Write-Label "【Rust】" "【stable】" "显式安装 stable toolchain..." Cyan
+
+        $oldPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+            & $rustupPath toolchain install stable
+            $toolchainCode = $LASTEXITCODE
+
+            if ($toolchainCode -eq 0) {
+                & $rustupPath default stable
+                $defaultCode = $LASTEXITCODE
+            }
+            else {
+                $defaultCode = 1
+            }
+        }
+        finally {
+            $ErrorActionPreference = $oldPreference
+        }
+
+        if ($toolchainCode -ne 0 -or $defaultCode -ne 0) {
+            Write-Label "【提示】" "【Rust】" "stable toolchain 安装或设置未完成。" Yellow
+            return $false
+        }
+
+        Add-CargoBinToCurrentPath
+        return (-not [string]::IsNullOrWhiteSpace((Get-CargoCommandPath)))
+    }
+    catch {
+        Write-Label "【提示】" "【Rust 官方安装】" ([string]$_.Exception.Message) Yellow
+        return $false
+    }
+    finally {
+        Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $hashFile -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Install-RustToolchainIfMissing {
+    $cargoPath = Get-CargoCommandPath
+    if (-not [string]::IsNullOrWhiteSpace($cargoPath)) {
+        Write-Label "【环境】" "【Rust/Cargo】" ("已安装 | {0}" -f $cargoPath) Green
+        Write-Label "【环境】" "【rustc】" (Get-CommandVersion "rustc") Green
+        return $true
+    }
+
+    Write-Host ""
+    Write-Label "【缺失】" "【Rust/Cargo】" "当前没有 Cargo；一键准备将尝试补齐 Rust 工具链。" Yellow
+
+    $wingetSucceeded = $false
+
+    if (Test-CommandAvailable "winget") {
+        Write-Label "【准备安装】" "【Rustup】" "优先通过 winget 安装 Rustlang.Rustup。" Cyan
+
+        $oldPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+
+        try {
+            & winget install `
+                --id Rustlang.Rustup `
+                -e `
+                --source winget `
+                --accept-package-agreements `
+                --accept-source-agreements
+
+            $wingetCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $oldPreference
+        }
+
+        if ($wingetCode -eq 0) {
+            $wingetSucceeded = $true
+        }
+        else {
+            Write-Label "【回退】" "【winget】" ("winget 安装未完成，退出码 {0}；将尝试 Rust 官方安装器。" -f $wingetCode) Yellow
+        }
+    }
+    else {
+        Write-Label "【检测】" "【winget】" "未安装；将直接尝试 Rust 官方安装器。" Yellow
     }
 
     Add-CargoBinToCurrentPath
+
+    if (-not $wingetSucceeded -and [string]::IsNullOrWhiteSpace((Get-CargoCommandPath))) {
+        [void](Invoke-OfficialRustupInstaller)
+    }
+
+    Add-CargoBinToCurrentPath
+
+    $rustupPath = Get-RustupCommandPath
     $cargoPath = Get-CargoCommandPath
 
+    if (-not [string]::IsNullOrWhiteSpace($rustupPath) -and
+        [string]::IsNullOrWhiteSpace($cargoPath)) {
+        Write-Label "【Rust】" "【stable】" "检测到 rustup，但 Cargo 尚不可用；正在显式安装 stable toolchain..." Cyan
+
+        $oldPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+            & $rustupPath toolchain install stable
+            $toolchainCode = $LASTEXITCODE
+            if ($toolchainCode -eq 0) {
+                & $rustupPath default stable
+                $defaultCode = $LASTEXITCODE
+            }
+            else {
+                $defaultCode = 1
+            }
+        }
+        finally {
+            $ErrorActionPreference = $oldPreference
+        }
+
+        Add-CargoBinToCurrentPath
+        $cargoPath = Get-CargoCommandPath
+    }
+
     if ([string]::IsNullOrWhiteSpace($cargoPath)) {
-        Write-Label "【提示】" "【Rust】" "Rustup 安装完成后当前终端仍未找到 Cargo；重新打开终端后会再次检测。" Yellow
+        Write-Label "【未完成】" "【Rust/Cargo】" "winget 与 Rust 官方安装回退均未得到可用 Cargo。" Yellow
         return $false
     }
 
-    Write-Label "【完成】" "【Rust/Cargo】" "Rust 工具链已准备完成。" Green
+    Write-Label "【完成】" "【Cargo】" ("{0} | {1}" -f (Get-CommandVersion "cargo"),$cargoPath) Green
+    Write-Label "【完成】" "【rustc】" (Get-CommandVersion "rustc") Green
     return $true
 }
 
@@ -301,10 +630,13 @@ function Invoke-PnpmScript {
 
 
 function Test-NodeDependencyToolchain {
-    return (Test-CommandAvailable "node") -and (
-        (Test-CommandAvailable "pnpm") -or
-        (Test-CommandAvailable "corepack")
-    )
+    try {
+        [void](Assert-NodeToolchain)
+        return $true
+    }
+    catch {
+        return $false
+    }
 }
 
 function Test-RustDependencyToolchain {
@@ -347,17 +679,31 @@ try {
             }
 
             Write-Host ""
-            Write-Label "【预检】" "【Node/pnpm】" "可用，将复用现有工具链和已下载依赖。" Green
+            $nodeToolchain = Assert-NodeToolchain
+            $nodeSummary = Get-NodeDependencySummary
+
+            Write-Label "【预检】" "【Node】" ("{0} | {1}" -f $nodeToolchain.NodeVersion,$nodeToolchain.NodeSource) Green
+            Write-Label "【预检】" "【pnpm】" ("{0} | {1}" -f $nodeToolchain.PnpmVersion,$nodeToolchain.PnpmSource) Green
+            Write-Label "【预检】" "【workspace】" ("{0} 个项目 | 外部 Node 依赖 {1} 个" -f $nodeSummary.WorkspaceProjects,$nodeSummary.ExternalDependencies) Green
+
+            if ($nodeSummary.ExternalDependencies -eq 0) {
+                Write-Label "【说明】" "【node_modules】" "当前没有第三方 Node 包需要安装；目录很小是正常的。" DarkCyan
+            }
 
             $cargoReadyBefore = Test-RustDependencyToolchain
             if ($cargoReadyBefore) {
-                Write-Label "【预检】" "【Rust/Cargo】" "可用，将复用现有 Rust 工具链。" Green
+                Write-Label "【预检】" "【Rust/Cargo】" ("可用 | {0}" -f (Get-CargoCommandPath)) Green
             }
             else {
-                Write-Label "【预检】" "【Rust/Cargo】" "缺失；确认后将尝试通过 winget 安装 Rustup。" Yellow
+                if (Test-CommandAvailable "winget") {
+                    Write-Label "【预检】" "【Rust/Cargo】" "缺失；确认后先用 winget，失败再用 Rust 官方安装器。" Yellow
+                }
+                else {
+                    Write-Label "【预检】" "【Rust/Cargo】" "缺失；winget 也缺失，确认后改用 Rust 官方安装器。" Yellow
+                }
             }
 
-            if (-not (Confirm-WriteOperation "将准备当前项目开发环境：pnpm 安装会复用已下载内容；如缺少 Rust/Cargo，将尝试通过 winget 安装 Rustup。")) {
+            if (-not (Confirm-WriteOperation "将真实校验 Node/pnpm 依赖；如 Cargo 缺失，会尝试 winget 或 Rust 官方安装器。")) {
                 Wait-LfaaClose $true "用户已取消，一键准备未继续执行；现在可以安全关闭终端窗口。"
                 exit 0
             }
@@ -383,8 +729,11 @@ try {
                 exit 0
             }
 
-            Wait-LfaaClose $true "Node/pnpm 依赖已完成；Rust 自动安装未完成时可重新运行菜单 1 继续补齐。"
-            exit 0
+            Write-Host ""
+            Write-Label "【部分完成】" "【Node/pnpm】" "已完成真实校验。" Green
+            Write-Label "【未完成】" "【Rust/Cargo】" "自动安装没有得到可用 Cargo；请查看上方具体失败原因。" Yellow
+            Wait-LfaaClose $false
+            exit 2
         }
         "2" { Show-Environment }
         "3" {

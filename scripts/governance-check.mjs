@@ -44,6 +44,8 @@ const required = [
   "scripts/dev-log-check.mjs",
   "docs/logs/development/archive/legacy/INDEX.md",
   "docs/logs/development/active/0020-开发日志与文档规范.md",
+  "docs/prompts/archive/v0.0.22/0019-01-一键准备真实检测.md",
+  "docs/logs/development/active/0019-一键准备与依赖检测.md",
   "docs/logs/development/active/0010-GitHub推送确认.md",
   "docs/logs/development/archive/0020-00-开发日志初始分层.md",
   "docs/logs/development/active/0002-配置系统.md",

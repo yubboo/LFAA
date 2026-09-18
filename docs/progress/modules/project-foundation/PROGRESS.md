@@ -1,5 +1,22 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #19.1 一键准备真实检测
+
+- 当前状态：delivered
+- 主任务：#19 一键准备与依赖检测
+- 最新变更：#19.1
+- 已完成：
+  - Node 24.x 真实检测
+  - pnpm 版本/路径真实检测
+  - workspace / Node 依赖统计
+  - Rust winget 回退
+  - Rust 官方 rustup-init 回退
+  - 官方 SHA-256 校验
+  - 部分完成状态
+- 配置系统业务实现：未改动
+- 是否已交付：是（v0.0.22）
+- 下一步：进入 `config-schema`
+
 ## 2026-09-18 / #10.1 GitHub 推送确认优化
 
 - 当前状态：delivered
