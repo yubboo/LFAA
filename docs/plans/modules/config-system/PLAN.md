@@ -59,12 +59,12 @@ v0.0.2+
 ## 开发前置硬门禁
 
 - 真实 TypeScript typecheck、测试和 build 不得使用成功占位命令；
+- Node.js 依赖和 workspace 命令只允许 pnpm；
 - Config Schema 必须版本化且只有一个事实源；
 - Migration 必须事务化、可重复验证，并具有失败恢复方案；
 - SQLite 写入必须定义原子性、并发和损坏恢复策略；
 - API Key / Token 不得进入普通配置、日志、Trace、错误信息或模型上下文；
-- 配置读写和迁移必须在进入实现前定义可量化性能预算；
-- 所有新 package、crate、脚本和发行物遵守 LFAA 命名与归属规范。
+- 配置读写和迁移必须在进入实现前定义可量化性能预算。
 
 ## 验收
 
@@ -75,5 +75,4 @@ v0.0.2+
 - UI 与配置业务分离；
 - Secret 不进入 SQLite 明文字段；
 - 测试完成；
-- Progress/Changelog 同步。
 - 安全、性能和质量门禁通过。

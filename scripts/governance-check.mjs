@@ -50,6 +50,7 @@ const required = [
   "scripts/windows/lfaa-github.ps1",
   "scripts/windows/lfaa-update.ps1",
   "scripts/windows/lfaa-setup.ps1",
+  "scripts/pnpm-only.mjs",
   "scripts/quality-not-configured.mjs",
   "pnpm-lock.yaml",
   "apps/desktop/tsconfig.json",
@@ -59,7 +60,6 @@ const required = [
 ];
 
 const missing = required.filter((file) => !fs.existsSync(path.join(root, file)));
-
 if (missing.length > 0) {
   console.error("LFAA governance check failed. Missing:");
   for (const file of missing) console.error(`- ${file}`);
@@ -76,6 +76,19 @@ if (packageJson.author !== "二鱼") {
 if (packageJson.packageManager !== "pnpm@11.17.0") {
   console.error("LFAA governance check failed: packageManager must be pinned to pnpm@11.17.0.");
   process.exit(1);
+}
+
+if (packageJson.engines?.pnpm !== "11.17.0") {
+  console.error("LFAA governance check failed: engines.pnpm must be 11.17.0.");
+  process.exit(1);
+}
+
+const forbiddenPackageManager = /\b(?:npm|npx|yarn|bun)\b/i;
+for (const [name, command] of Object.entries(packageJson.scripts ?? {})) {
+  if (forbiddenPackageManager.test(command)) {
+    console.error(`LFAA governance check failed: root script "${name}" must not invoke npm/npx/yarn/bun.`);
+    process.exit(1);
+  }
 }
 
 const releaseJson = JSON.parse(fs.readFileSync(path.join(root, "lfaa.release.json"), "utf8"));
@@ -131,14 +144,9 @@ for (const scriptName of ["build", "typecheck", "test"]) {
   }
 }
 
-const configPlan = fs.readFileSync(
-  path.join(root, "docs/plans/modules/config-system/PLAN.md"),
-  "utf8"
-);
-const configPrompt = fs.readFileSync(
-  path.join(root, "docs/prompts/active/0002-config-system.md"),
-  "utf8"
-);
+
+const configPlan = fs.readFileSync(path.join(root, "docs/plans/modules/config-system/PLAN.md"), "utf8");
+const configPrompt = fs.readFileSync(path.join(root, "docs/prompts/active/0002-config-system.md"), "utf8");
 
 if (/v0\.\d{2}(?!\.)/.test(configPlan) || /v0\.\d{2}(?!\.)/.test(configPrompt)) {
   console.error("LFAA governance check failed: config-system version must use MAJOR.MINOR.PATCH.");

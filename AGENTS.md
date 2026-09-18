@@ -48,45 +48,24 @@
 - `docs/releases/`
 - `docs/changelog/` 中旧版本记录
 
-**严禁依据 archive 中的旧架构开发新功能。**
-
-如果历史文档和当前文档冲突，以当前文档为唯一实现依据。
+严禁依据 archive 中的旧架构开发新功能。
 
 ## 三、AI 四大规则
 
-1. **文档先行**
-2. **边界优先**
-3. **验证闭环**
-4. **全程可追溯**
-
-完整定义见 `/DEVELOPMENT.md`。
+1. 文档先行
+2. 边界优先
+3. 验证闭环
+4. 全程可追溯
 
 ## 四、模块聚焦规则
 
-一个开发周期只允许一个主开发模块。
-
-例如：
+当前主模块：
 
 ```text
-主模块：config-system
+config-system
 ```
 
-则优先完成：
-
-```text
-settings
-model-management
-account-management
-permission-settings
-config-storage
-config-ui
-tests
-docs
-```
-
-达到 `deliverable` 或明确 `blocked` 后，才能切换主模块。
-
-禁止想到一个新功能就跨模块开工。
+达到 `deliverable` 或明确 `blocked` 前，不切换无关业务模块。
 
 ## 五、任何执行能力的唯一链路
 
@@ -114,7 +93,6 @@ OS
 - 禁止无 Prompt 开发新业务。
 - 禁止无 Plan 开始模块开发。
 - 禁止代码完成但不更新 Progress / Changelog。
-- 禁止 Child 直接修改 Parent 私有状态。
 - 禁止 UI 直接访问 SQLite、Rust Broker、模型 Provider 或 Secret。
 - 禁止 Plugin/MCP/DSH 绕过 Tool Runtime。
 - 禁止使用 archive 文档恢复旧设计。
@@ -123,16 +101,12 @@ OS
 - 禁止把项目 Skills、Experts、Plugins、Extensions 或 MCP 安装到用户级目录。
 - 禁止删除、篡改或模糊第三方原版权与许可证信息。
 - 禁止用空命令、占位输出或跳过检查伪造 build/typecheck/test 成功。
-
+- Node.js 依赖和 workspace 命令只允许使用 pnpm；禁止使用 npm、npx、yarn、bun 代替 pnpm。
 
 ## Git 源码更新
 
-Git Clone 后不重新克隆。
-
-更新现有仓库统一使用：
+Git Clone 后不重新克隆。更新现有仓库统一使用：
 
 ```text
 LFAA-Update.bat
 ```
-
-更新脚本必须保护用户未提交修改，不允许使用破坏性 hard reset 代替正常更新。

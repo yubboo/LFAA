@@ -2,16 +2,12 @@
 
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
-**作者：二鱼**
-**当前包：LFAA-v0.0.14**
+**作者：二鱼**  
+**当前包：LFAA-v0.0.15**
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
 ## 产品原则
-
-LFAA 不把用户绑定到某一家模型厂商，也不把 Agent 能力绑定到单一模型 API。
-
-核心能力围绕：
 
 - Workspace：工作区与项目上下文
 - Agent Runtime：持续执行任务的 Agent Harness
@@ -26,45 +22,49 @@ LFAA 不把用户绑定到某一家模型厂商，也不把 Agent 能力绑定�
 
 ## 当前阶段
 
-`v0.0.14` 是项目的**源码更新远程差异读取修复版本**。
+`v0.0.15` 正式交付 `#16` 项目治理/项目级资源边界加固，并完成 `#17 pnpm-only 一致性修复`。
 
-本版本重点不是业务功能，而是先建立：
+当前主业务模块仍是：
 
-- 唯一有效的当前架构
-- 开发规范
-- 项目骨架
-- 模块边界
-- Prompt 制度
-- Plan / Progress 制度
-- 更新日志制度
-- 版本制度
-- AI 开发入口
-- Web / Desktop / Runtime / Rust 的依赖方向
+```text
+config-system
+```
 
-## AI / 开发者开始工作前
+下一步进入：
 
-必须先读：
+```text
+config-schema
+```
 
-1. `AGENTS.md`
-2. `DEVELOPMENT.md`
-3. `ARCHITECTURE.md`
-4. `PROJECT_PLAN.md`
-5. `CHANGELOG.md`
+## Node.js 包管理器
 
-未经上述流程，不应直接修改业务代码。
+LFAA 只允许使用：
 
+```text
+pnpm
+```
+
+允许：
+
+```text
+pnpm install
+pnpm add
+pnpm remove
+pnpm run
+pnpm exec
+pnpm --filter
+pnpm -r
+```
+
+禁止使用 npm、npx、yarn、bun 替代 pnpm 管理本项目依赖或 workspace 命令。
 
 ## Git 源码更新
 
-首次 clone 后，不需要重复 clone。
-
-后续直接运行：
+首次 clone 后不需要重复 clone。后续运行：
 
 ```text
 LFAA-Update.bat
 ```
-
-安全检查并拉取远程最新源码。
 
 ## 开发环境与依赖
 
@@ -73,7 +73,5 @@ Windows 下运行：
 ```text
 LFAA-Setup.bat
 ```
-
-可下载项目依赖、检查环境、初始化项目级 `.lfaa/` 资源目录并运行治理、类型、测试和构建检查。
 
 Skills、Experts、Plugins、Extensions、MCP 均跟随项目安装，不使用用户级全局目录。

@@ -35,11 +35,7 @@ deliverable
 
 ## #16 横向加固范围
 
-`project-foundation` 已交付，但允许为后续业务补充以下全局硬边界：
-
 - LFAA 官方命名、作者署名、版权与第三方归属；
-- 项目级 Skills / Experts / Plugins / Extensions / MCP 安装位置；
+- 项目级 Skills / Experts / Plugins / Extensions / MCP；
 - 性能、安全和质量门禁；
 - 路径无关的依赖安装与开发检查菜单。
-
-本加固不切换当前主业务模块，不实现 `config-system` 业务。

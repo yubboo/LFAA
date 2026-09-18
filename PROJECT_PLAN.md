@@ -1,7 +1,6 @@
 # LFAA 项目主计划
 
 > 本文件只保存当前开发顺序和主模块状态。
-> 详细计划进入 `docs/plans/modules/`。
 
 ## 当前主开发模块
 
@@ -15,11 +14,7 @@ config-system
 planned
 ```
 
-说明：
-
-`project-foundation` 已在 v0.0.1 建立可交付骨架。下一阶段围绕 `config-system` 完成配置系统，不提前跳转其他业务模块。
-
-`#16` 对 project-foundation 的安全、质量、归属和项目级资源边界加固属于 Config Schema 前置条件，不改变当前主业务模块。
+`project-foundation` 已建立可交付骨架。`#16` 和 `#17` 属于 Config Schema 前置治理/工具链修复，不改变当前主业务模块。
 
 ## 模块顺序
 
@@ -39,19 +34,3 @@ planned
 | 12 | model-routing | pending-development | 多模型 Router / Fallback / Usage |
 | 13 | subagent-system | pending-development | Parent / Child Agent |
 | 14 | productization | pending-development | Update / Signing / Crash Recovery |
-
-## 模块切换
-
-当前主模块只有达到：
-
-```text
-deliverable
-```
-
-或明确：
-
-```text
-blocked
-```
-
-并在 Plan/Progress 中记录原因后，才能切换。

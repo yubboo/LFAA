@@ -1,17 +1,20 @@
 # config-system PROGRESS
 
+## 2026-09-18 / #17 pnpm-only 一致性修复
+
+- 当前状态：planned
+- 配置系统业务实现：未改动
+- 已完成：Node.js workspace 包管理器固定为 pnpm-only
+- 测试：治理检查与 pnpm-only 门禁静态验证通过
+- 下一步：锁定 Config System 真实 TypeScript 依赖并进入 `config-schema`
+
 ## 2026-09-18 / #16 开发前置硬门禁
 
 - 当前状态：planned
 - 本次目标：在 Config Schema 开始前补齐全项目安全、性能、归属和项目资源边界
 - 配置系统业务实现：未改动
-- 跨模块原因：属于后续配置存储、Secret Reference 和依赖安装的 P0 基础约束
 - 已完成：归属、项目资源、安全、性能、质量门禁与依赖菜单横向加固
-- 测试结果：治理检查、导入边界、Windows 菜单和 Node frozen lockfile 安装通过
-- 待开发：用真实 TypeScript/lint/test/build 替换明确失败保护后进入 Config Schema
-- 是否可交付：否
-- 是否已交付：否
-- 下一步：锁定 Config System 技术依赖并进入 `config-schema`
+- 下一步：进入 `config-schema`
 
 ## 2026-09-17 / #2
 

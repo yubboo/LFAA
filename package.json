@@ -1,20 +1,21 @@
 {
   "name": "lfaa",
   "private": true,
-  "version": "0.0.14",
+  "version": "0.0.15",
+  "description": "Little Fish AI Agent monorepo",
+  "scripts": {
+    "preinstall": "node scripts/pnpm-only.mjs",
+    "governance:check": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs",
+    "release:name": "node scripts/release-name.mjs",
+    "test": "pnpm run governance:check && node scripts/quality-not-configured.mjs test",
+    "typecheck": "node scripts/quality-not-configured.mjs typecheck",
+    "build": "node scripts/quality-not-configured.mjs build",
+    "imports:check": "node scripts/import-path-check.mjs"
+  },
   "author": "二鱼",
   "packageManager": "pnpm@11.17.0",
   "engines": {
     "node": ">=24.0.0 <25",
     "pnpm": "11.17.0"
-  },
-  "description": "Little Fish AI Agent monorepo",
-  "scripts": {
-    "governance:check": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs",
-    "release:name": "node scripts/release-name.mjs",
-    "test": "npm run governance:check && node scripts/quality-not-configured.mjs test",
-    "typecheck": "node scripts/quality-not-configured.mjs typecheck",
-    "build": "node scripts/quality-not-configured.mjs build",
-    "imports:check": "node scripts/import-path-check.mjs"
   }
 }
