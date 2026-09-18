@@ -14,10 +14,11 @@
 
 | 主编号 | 名称 | 最新变更 | 状态 | 关键词 | 当前日志 |
 |---|---|---|---|---|---|
-| #2 | 配置系统 | #2.0 | active | 配置、Schema、模型、账号、权限 | `active/0002-配置系统.md` |
+| #2 | 配置系统 | #2.1 | active | 配置、Schema、模型、账号、权限、UI | `active/0002-配置系统.md` |
 | #10 | GitHub 推送确认交互 | #10.1 | active | Git、GitHub、Commit、Push、确认、交互 | `active/0010-GitHub推送确认.md` |
-| #19 | 一键准备与依赖检测 | #19.1 | active | Setup、Node、pnpm、Rust、Cargo、依赖、检测 | `active/0019-一键准备与依赖检测.md` |
+| #19 | 一键准备与依赖检测 | #19.3 | active | Setup、Node、pnpm、Rust、Cargo、Web、Desktop、构建 | `active/0019-一键准备与依赖检测.md` |
 | #20 | 开发日志与文档规范 | #20.2 | active | 日志、文档、中文、命名、目录、索引 | `active/0020-开发日志与文档规范.md` |
+| #21 | Web 工作台 UI | #21.1 | active | Web、Vite、React、三栏、水墨、热插拔、工作区 | `active/0021-Web工作台UI.md` |
 
 ## 历史已交付记录
 
@@ -87,4 +88,22 @@ Cargo
 | 版本 | 状态 | 日志 |
 |---|---|---|
 | #19.0 | delivered | `archive/0019-一键准备与资源根.md` |
-| #19.1 | active | `active/0019-一键准备与依赖检测.md` |
+| #19.1 | superseded | `archive/0019-01-一键准备真实检测.md` |
+| #19.2 | superseded | `archive/0019-02-本地依赖与lockfile.md` |
+| #19.3 | active | `active/0019-一键准备与依赖检测.md` |
+
+
+## #2 历史变更
+
+| 版本 | 状态 | 日志 |
+|---|---|---|
+| #2.0 | superseded | `archive/0002-00-配置系统初始合同.md` |
+| #2.1 | active | `active/0002-配置系统.md` |
+
+
+## #21 历史变更
+
+| 版本 | 状态 | 日志 |
+|---|---|---|
+| #21.0 | superseded | `archive/0021-00-Web工作台初始实现.md` |
+| #21.1 | active | `active/0021-Web工作台UI.md` |

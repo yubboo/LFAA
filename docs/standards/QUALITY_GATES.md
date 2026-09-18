@@ -49,12 +49,18 @@ C：局部缺陷、文档和低风险脚本修复。
 - 只检查命令名，不检查项目要求版本；
 - Cargo 缺失时仍显示全部完成。
 
-Node 依赖以：
+本地 Setup 依赖准备以：
+
+```text
+pnpm install
+```
+
+的真实结果为准，允许在开发新增依赖后同步 lockfile。
+
+CI、正式质量门禁和可复现验证必须使用：
 
 ```text
 pnpm install --frozen-lockfile
 ```
-
-的真实结果为准。
 
 Rustup 自动下载必须来自 Rust 官方 HTTPS 地址，并在执行前通过官方 SHA-256 校验。

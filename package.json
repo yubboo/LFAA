@@ -1,7 +1,7 @@
 {
   "name": "lfaa",
   "private": true,
-  "version": "0.0.22",
+  "version": "0.0.24",
   "description": "Little Fish AI Agent monorepo",
   "scripts": {
     "preinstall": "node scripts/pnpm-only.mjs",
@@ -12,12 +12,24 @@
     "build": "node scripts/quality-not-configured.mjs build",
     "imports:check": "node scripts/import-path-check.mjs",
     "dev-logs:check": "node scripts/dev-log-check.mjs",
-    "docs:check": "node scripts/docs-check.mjs"
+    "docs:check": "node scripts/docs-check.mjs",
+    "dev:web": "pnpm --filter @lfaa/web dev",
+    "typecheck:web": "pnpm --filter @lfaa/web typecheck",
+    "build:web": "pnpm --filter @lfaa/web build"
   },
   "author": "二鱼",
   "packageManager": "pnpm@11.17.0",
   "engines": {
     "node": ">=24.0.0 <25",
     "pnpm": "11.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.3.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "typescript": "7.0.2",
+    "vite": "8.2.2"
   }
 }

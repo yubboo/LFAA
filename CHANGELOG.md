@@ -4,18 +4,18 @@
 
 ## #19 一键准备与依赖检测
 
-- 用户版本：v0.0.22
+- 用户版本：v0.0.24
 - 状态：delivered
-- 最新变更：#19.1
+- 最新变更：#19.3
 - 日期：2026-09-18
-- Setup 一键准备增加 Node / pnpm 真实版本和路径检测。
-- 增加 workspace 与 Node 依赖声明统计。
-- 当前没有第三方 Node 依赖时明确说明 node_modules 很小是正常。
-- Cargo 缺失且 winget 不存在时，改用 Rust 官方 rustup-init 回退安装。
-- Rustup 执行前必须通过 Rust 官方 SHA-256 校验。
-- Rust 安装仍失败时显示“部分完成”，不再假绿。
-- 当前主业务模块仍为 `config-system`。
+- `LFAA-Setup.bat` 成为 Web / Desktop / Build / Release 统一开发入口。
+- 删除独立 `LFAA-Web.bat` 与 `lfaa-web.ps1`。
+- 菜单 2 直接启动 Web / Vite。
+- Desktop 启动与构建入口已预留，但未实现时明确失败。
+- 构建发布只生成本地产物，不自动上传远程。
+- #21 Web 工作台最新变更更新为 #21.1。
+- 当前主业务模块仍为 `config-system`，Web UI 为前置验证壳。
 
 详细记录：
 
-`docs/changelog/v0.0.22.md`
+`docs/changelog/v0.0.24.md`

@@ -1,5 +1,21 @@
 # config-system PROGRESS
 
+## 2026-09-18 / #19.3 / #21.1 统一开发入口
+
+- 当前状态：planned
+- 配置系统业务实现：未改动
+- Web UI 前置验证入口已并入 `LFAA-Setup.bat → 2`
+- Desktop 菜单预留但 Electron 尚未实现
+- 下一步：先完成 Web 工作台实机验证，再进入 `config-schema`
+
+## 2026-09-18 / #2.1 UI 前置验证壳
+
+- 当前状态：planned
+- 开发顺序：先完成 #21 Web 工作台 UI，再进入 config-schema
+- 配置系统业务实现：未改动
+- UI 不拥有 Config 真值
+- 下一步：完成 Vite 实机验证后进入 `config-schema`
+
 ## 2026-09-18 / #20.2 docs 整理
 
 - 当前状态：planned

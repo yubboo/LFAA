@@ -1,8 +1,11 @@
 {
   "name": "@lfaa/ui",
   "private": true,
-  "version": "0.0.22",
+  "version": "0.0.24",
   "type": "module",
   "exports": "./src/index.ts",
-  "author": "二鱼"
+  "author": "二鱼",
+  "peerDependencies": {
+    "react": "19.3.0"
+  }
 }

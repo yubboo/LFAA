@@ -14,7 +14,16 @@ config-system
 planned
 ```
 
+当前前置实现任务：
+
+```text
+#21 Web 工作台 UI
+status: in-progress
+```
+
 `project-foundation` 已建立可交付骨架。`#16` 和 `#17` 属于 Config Schema 前置治理/工具链修复，不改变当前主业务模块。
+
+根据用户最新开发顺序，先完成 `#21 Web 工作台 UI`，用于 Vite 本地 UI 与 `.lfaa` 热插拔验证；完成后立即回到 `config-schema`。
 
 ## 模块顺序
 

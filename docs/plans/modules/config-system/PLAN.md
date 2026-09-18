@@ -18,6 +18,7 @@ v0.0.2+
 
 ## 子模块与顺序
 
+0. `web-workbench-shell`（用户要求的本地 UI 验证前置，不拥有 Config 事实状态）
 1. `config-schema`
 2. `config-storage`
 3. `settings`
@@ -76,3 +77,15 @@ v0.0.2+
 - Secret 不进入 SQLite 明文字段；
 - 测试完成；
 - 安全、性能和质量门禁通过。
+
+
+## UI 前置任务边界
+
+`web-workbench-shell` 只负责提供：
+
+- Vite 本地 Web 开发入口；
+- 三栏工作台框架；
+- Resizable / Collapse UI；
+- `.lfaa` 开发期只读资源刷新。
+
+它不实现 Config Schema / Storage，不改变 Config System 的状态 Owner。

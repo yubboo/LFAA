@@ -1,5 +1,17 @@
 # project-foundation PROGRESS
 
+## 2026-09-18 / #19.3 统一开发入口
+
+- 当前状态：delivered
+- 已完成：
+  - Setup 统一 Web / Desktop / Build / Release 入口
+  - 删除 LFAA-Web.bat
+  - 删除 lfaa-web.ps1
+  - Desktop 未实现功能真实门禁
+  - Governance 禁止重复启动器
+- #21 Web 工作台状态：in-progress
+- 是否已交付：基础设施变更已交付（v0.0.24）
+
 ## 2026-09-18 / #19.1 一键准备真实检测
 
 - 当前状态：delivered

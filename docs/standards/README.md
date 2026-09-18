@@ -14,6 +14,7 @@
 | 质量门禁 | `QUALITY_GATES.md` |
 | 性能 | `PERFORMANCE.md` |
 | 项目资源 | `PROJECT_RESOURCES.md` |
+| 工作台 UI | `UI_LAYOUT.md` |
 | 工作区同步 | `WORKSPACE_SYNC.md` |
 | 版本 | `VERSIONING.md` |
 | 打包 | `PACKAGING.md` |

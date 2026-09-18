@@ -44,6 +44,13 @@ const required = [
   "scripts/dev-log-check.mjs",
   "docs/logs/development/archive/legacy/INDEX.md",
   "docs/logs/development/active/0020-开发日志与文档规范.md",
+  "docs/testing/WEB_UI_TEST.md",
+  "docs/standards/UI_LAYOUT.md",
+  "docs/prompts/active/0021-Web工作台UI.md",
+  "docs/logs/development/active/0021-Web工作台UI.md",
+  "docs/prompts/archive/v0.0.24/0019-03-统一开发入口.md",
+  "docs/logs/development/archive/0021-00-Web工作台初始实现.md",
+  "docs/logs/development/archive/0019-02-本地依赖与lockfile.md",
   "docs/prompts/archive/v0.0.22/0019-01-一键准备真实检测.md",
   "docs/logs/development/active/0019-一键准备与依赖检测.md",
   "docs/logs/development/active/0010-GitHub推送确认.md",
@@ -81,6 +88,22 @@ const required = [
   "packages/ui/tsconfig.json",
   "packages/agent-runtime/tsconfig.json"
 ];
+
+
+const forbiddenDuplicateLaunchers = [
+  "LFAA-Web.bat",
+  "scripts/windows/lfaa-web.ps1",
+];
+
+for (const file of forbiddenDuplicateLaunchers) {
+  if (fs.existsSync(path.join(root, file))) {
+    console.error(
+      `LFAA governance check failed: duplicate launcher ${file} is forbidden. ` +
+      "Web/Desktop development entrypoints must live under LFAA-Setup.bat."
+    );
+    process.exit(1);
+  }
+}
 
 const missing = required.filter((file) => !fs.existsSync(path.join(root, file)));
 if (missing.length > 0) {

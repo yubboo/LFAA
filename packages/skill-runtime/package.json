@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/skill-runtime",
   "private": true,
-  "version": "0.0.22",
+  "version": "0.0.24",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼"

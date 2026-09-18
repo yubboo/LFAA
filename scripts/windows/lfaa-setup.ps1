@@ -196,21 +196,40 @@ function Assert-NodeToolchain {
     }
 }
 
-function Get-NodeDependencySummary {
-    $packageFiles = New-Object System.Collections.Generic.List[string]
+function Get-WorkspacePackageFiles {
+    $files = New-Object System.Collections.Generic.List[string]
+    $seen = New-Object System.Collections.Generic.HashSet[string]([System.StringComparer]::OrdinalIgnoreCase)
+
     $rootPackage = Join-Path $ProjectRoot "package.json"
     if (Test-Path -LiteralPath $rootPackage) {
-        $packageFiles.Add($rootPackage)
+        $full = [System.IO.Path]::GetFullPath($rootPackage)
+        if ($seen.Add($full)) { $files.Add($full) }
     }
 
-    foreach ($folderName in @("apps","packages")) {
-        $folder = Join-Path $ProjectRoot $folderName
-        if (Test-Path -LiteralPath $folder) {
-            Get-ChildItem -LiteralPath $folder -Filter "package.json" -File -Recurse -ErrorAction SilentlyContinue |
-                ForEach-Object { $packageFiles.Add($_.FullName) }
+    $workspaceFile = Join-Path $ProjectRoot "pnpm-workspace.yaml"
+    if (-not (Test-Path -LiteralPath $workspaceFile)) {
+        return $files
+    }
+
+    foreach ($line in Get-Content -LiteralPath $workspaceFile) {
+        $match = [regex]::Match($line, '^\s*-\s*["'']?([^"'']+)["'']?\s*$')
+        if (-not $match.Success) { continue }
+
+        $pattern = $match.Groups[1].Value.Trim().TrimEnd("/")
+        if ([string]::IsNullOrWhiteSpace($pattern)) { continue }
+
+        $packagePattern = Join-Path $ProjectRoot ($pattern + "/package.json")
+        Get-ChildItem -Path $packagePattern -File -ErrorAction SilentlyContinue | ForEach-Object {
+            $full = [System.IO.Path]::GetFullPath($_.FullName)
+            if ($seen.Add($full)) { $files.Add($full) }
         }
     }
 
+    return $files
+}
+
+function Get-NodeDependencySummary {
+    $packageFiles = Get-WorkspacePackageFiles
     $external = New-Object System.Collections.Generic.HashSet[string]
     $declarations = 0
 
@@ -320,11 +339,10 @@ function Install-NodeDependencies {
     }
 
     $args = @("install")
-    if (Test-Path (Join-Path $ProjectRoot "pnpm-lock.yaml")) { $args += "--frozen-lockfile" }
 
-    Invoke-Pnpm $args "校验并补齐 pnpm workspace 项目依赖"
+    Invoke-Pnpm $args "校验、安装并同步 pnpm workspace 项目依赖"
 
-    Write-Label "【校验】" "【Node 依赖】" "pnpm install --frozen-lockfile 已完成；缺失依赖会安装，已存在依赖会复用。" Green
+    Write-Label "【校验】" "【Node 依赖】" "pnpm install 已完成；缺失依赖会安装，已存在依赖会复用，依赖声明变化时同步 lockfile。" Green
 }
 
 function Get-CargoCommandPath {
@@ -629,6 +647,134 @@ function Invoke-PnpmScript {
 }
 
 
+function Get-WorkspacePackageData {
+    param([string]$RelativePackageFile)
+
+    $file = Join-Path $ProjectRoot $RelativePackageFile
+    if (-not (Test-Path -LiteralPath $file)) {
+        throw ("缺少 workspace package.json：{0}" -f $RelativePackageFile)
+    }
+
+    try {
+        return Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+    }
+    catch {
+        throw ("无法读取 workspace package.json：{0}" -f $RelativePackageFile)
+    }
+}
+
+function Assert-WorkspaceScript {
+    param(
+        [string]$RelativePackageFile,
+        [string]$ScriptName,
+        [string]$DisplayName
+    )
+
+    $data = Get-WorkspacePackageData $RelativePackageFile
+    $script = $data.scripts.$ScriptName
+
+    if ([string]::IsNullOrWhiteSpace([string]$script)) {
+        throw ("{0} 尚未配置 {1} 脚本；当前功能未实现，不会伪装成功。" -f $DisplayName,$ScriptName)
+    }
+}
+
+function Get-DesktopReleaseScript {
+    $data = Get-WorkspacePackageData "apps\desktop\package.json"
+
+    foreach ($candidate in @("make","package","release")) {
+        $value = $data.scripts.$candidate
+        if (-not [string]::IsNullOrWhiteSpace([string]$value)) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Invoke-PnpmForeground {
+    param(
+        [string[]]$Arguments,
+        [string]$Description
+    )
+
+    $runner = Get-PnpmRunner
+    $code = 0
+
+    Write-Host ""
+    Write-Label "【启动】" "【命令】" $Description Cyan
+
+    Push-Location $ProjectRoot
+    try {
+        try {
+            & $runner.FilePath @($runner.Prefix) @Arguments
+            $code = $LASTEXITCODE
+        }
+        catch [System.Management.Automation.PipelineStoppedException] {
+            $code = 130
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    if ($code -notin @(0,130,-1073741510)) {
+        throw ("{0}失败，退出码：{1}" -f $Description,$code)
+    }
+
+    Write-Label "【停止】" "【完成】" ("{0} 已停止。" -f $Description) Green
+}
+
+function Start-WebDevelopment {
+    Assert-WorkspaceScript "apps\web\package.json" "dev" "Web 端"
+    Write-Host ""
+    Write-Label "【启动】" "【Web】" "Vite：http://127.0.0.1:5173" Green
+    Write-Label "【热插拔】" "【监听】" ".lfaa/skills、experts、plugins、extensions、mcp" Cyan
+    Write-Label "【提示】" "【停止】" "开发服务器运行期间保持窗口开启；按 Ctrl+C 停止。" DarkGray
+    Invoke-PnpmForeground @("--filter","@lfaa/web","dev") "Web / Vite 开发服务器"
+}
+
+function Start-DesktopDevelopment {
+    Assert-WorkspaceScript "apps\desktop\package.json" "dev" "桌面端"
+    Write-Host ""
+    Write-Label "【启动】" "【Desktop】" "启动 Electron Desktop 开发模式。" Green
+    Write-Label "【提示】" "【停止】" "桌面开发进程运行期间保持窗口开启；按 Ctrl+C 停止。" DarkGray
+    Invoke-PnpmForeground @("--filter","@lfaa/desktop","dev") "Electron Desktop 开发模式"
+}
+
+function Build-Web {
+    Assert-WorkspaceScript "apps\web\package.json" "build" "Web 端"
+    Invoke-Pnpm @("--filter","@lfaa/web","build") "构建 Web production"
+    Write-Label "【产物】" "【Web】" "apps/web/dist" Green
+}
+
+function Build-Desktop {
+    Assert-WorkspaceScript "apps\desktop\package.json" "build" "桌面端"
+    Invoke-Pnpm @("--filter","@lfaa/desktop","build") "构建 Desktop production"
+}
+
+function Build-AndReleaseAll {
+    Assert-WorkspaceScript "apps\web\package.json" "build" "Web 端"
+    Assert-WorkspaceScript "apps\desktop\package.json" "build" "桌面端"
+
+    $desktopReleaseScript = Get-DesktopReleaseScript
+    if ([string]::IsNullOrWhiteSpace($desktopReleaseScript)) {
+        throw "桌面端尚未配置 make/package/release 脚本；正式构建发布暂不可执行。"
+    }
+
+    Write-Host ""
+    Write-Label "【预检】" "【构建发布】" "Web 与 Desktop 发布脚本齐备，开始生成本地发布产物。" Cyan
+    Write-Label "【说明】" "【远程】" "本操作只生成本地产物，不自动上传 GitHub 或其他远程服务。" DarkCyan
+
+    Build-Web
+    Build-Desktop
+    Invoke-Pnpm @("--filter","@lfaa/desktop",$desktopReleaseScript) ("生成 Desktop 发布产物：{0}" -f $desktopReleaseScript)
+
+    Write-Host ""
+    Write-Label "【完成】" "【Web】" "Web production 已生成。" Green
+    Write-Label "【完成】" "【Desktop】" "Desktop 本地发布产物已生成。" Green
+}
+
+
 function Test-NodeDependencyToolchain {
     try {
         [void](Assert-NodeToolchain)
@@ -646,23 +792,22 @@ function Test-RustDependencyToolchain {
 function Show-SetupMenu {
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor DarkCyan
-    Write-Host " LFAA 开发环境、项目依赖与质量检查菜单" -ForegroundColor Cyan
+    Write-Host " LFAA 开发、运行、构建与质量检查菜单" -ForegroundColor Cyan
     Write-Host " 作者：二鱼" -ForegroundColor DarkCyan
     Write-Host "============================================================" -ForegroundColor DarkCyan
     Write-Host ""
-    Write-Label "【1】" "【一键准备】" "检查环境、补齐 Rust/Cargo、安装全部已声明依赖并初始化项目资源。" Green
-    Write-Label "【2】" "【环境检查】" "查看项目根、工具链和 pnpm 状态。" Cyan
-    Write-Label "【3】" "【Node 依赖】" "只下载 pnpm workspace 依赖。" Cyan
-    Write-Label "【4】" "【Rust 依赖】" "只下载 Cargo workspace 依赖。" Cyan
-    Write-Label "【5】" "【项目资源】" "初始化当前项目 .lfaa 目录。" Magenta
-    Write-Label "【6】" "【治理检查】" "运行治理和导入边界检查。" Magenta
-    Write-Label "【7】" "【类型检查】" "运行 typecheck。" Yellow
-    Write-Label "【8】" "【测试】" "运行 test。" Yellow
-    Write-Label "【9】" "【构建】" "运行 build。" Yellow
-    Write-Label "【10】" "【完整检查】" "运行治理、类型、测试、构建和 Rust 检查。" Green
+    Write-Label "【1】" "【一键依赖】" "检测工具链、补齐 Rust/Cargo、安装全部项目依赖并初始化 .lfaa。" Green
+    Write-Label "【2】" "【启动 Web】" "启动 Vite Web 开发服务器，并启用 .lfaa 本地热插拔监听。" Green
+    Write-Label "【3】" "【启动桌面】" "启动 Electron Desktop 开发模式；未配置时明确提示。" Green
+    Write-Label "【4】" "【构建 Web】" "执行 Web production build。" Cyan
+    Write-Label "【5】" "【构建桌面】" "执行 Desktop production build；未配置时明确提示。" Cyan
+    Write-Label "【6】" "【构建发布】" "构建 Web + Desktop 并生成本地发布产物；不自动上传远程。" Magenta
+    Write-Label "【7】" "【环境检查】" "查看项目根、Node/pnpm、Rust/Cargo 和依赖状态。" Cyan
+    Write-Label "【8】" "【项目资源】" "初始化当前项目 .lfaa 缺失目录。" Magenta
+    Write-Label "【9】" "【治理检查】" "运行治理、导入边界、开发日志和 docs 结构检查。" Yellow
+    Write-Label "【10】" "【完整检查】" "运行项目严格质量检查；未配置项必须失败，不假绿。" Yellow
     Write-Label "【0】" "【退出】" "不执行任何操作。" DarkGray
 }
-
 if (-not (Test-Path (Join-Path $ProjectRoot "lfaa.release.json"))) {
     Stop-Lfaa "脚本所在目录不是有效的 LFAA 项目根。"
 }
@@ -735,30 +880,49 @@ try {
             Wait-LfaaClose $false
             exit 2
         }
-        "2" { Show-Environment }
+        "2" {
+            Start-WebDevelopment
+            exit 0
+        }
         "3" {
-            if (-not (Confirm-WriteOperation "将在当前项目下载 pnpm workspace 依赖。")) { Wait-LfaaClose $true; exit 0 }
-            Install-NodeDependencies
+            Start-DesktopDevelopment
+            exit 0
         }
         "4" {
-            if (-not (Confirm-WriteOperation "将在当前项目下载 Cargo workspace 依赖。")) { Wait-LfaaClose $true; exit 0 }
-            Install-RustDependencies
+            Build-Web
         }
         "5" {
+            Build-Desktop
+        }
+        "6" {
+            Build-AndReleaseAll
+        }
+        "7" {
+            Show-Environment
+        }
+        "8" {
             if (-not (Confirm-WriteOperation "将在当前项目创建缺失的 .lfaa 目录。")) { Wait-LfaaClose $true; exit 0 }
             Initialize-ProjectResources
         }
-        "6" { Invoke-GovernanceChecks }
-        "7" { Invoke-PnpmScript "typecheck" }
-        "8" { Invoke-PnpmScript "test" }
-        "9" { Invoke-PnpmScript "build" }
+        "9" {
+            Invoke-PnpmScript "governance:check"
+        }
         "10" {
-            Invoke-GovernanceChecks
+            Invoke-PnpmScript "governance:check"
+            Invoke-PnpmScript "typecheck:web"
+            Invoke-PnpmScript "build:web"
+
             Invoke-PnpmScript "typecheck"
             Invoke-PnpmScript "test"
             Invoke-PnpmScript "build"
-            Invoke-ProjectCommand "cargo" @("check","--workspace") "运行 Rust cargo check"
-            Invoke-ProjectCommand "cargo" @("test","--workspace") "运行 Rust cargo test"
+
+            $cargoPath = Get-CargoCommandPath
+            if ([string]::IsNullOrWhiteSpace($cargoPath)) {
+                throw "完整检查需要 Rust/Cargo；当前未检测到 Cargo。"
+            }
+
+            Invoke-ProjectCommand $cargoPath @("check","--workspace") "运行 Rust cargo check"
+            Invoke-ProjectCommand $cargoPath @("test","--workspace") "运行 Rust cargo test"
         }
         "0" { Write-Label "【退出】" "【完成】" "未执行任何操作。" Green; Wait-LfaaClose $true; exit 0 }
         default { throw "无效选项，请输入 0 到 10。" }
