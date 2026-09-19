@@ -1977,6 +1977,120 @@ function Get-WebViteCommandPath {
     throw "未找到本地 Vite。可运行菜单 1【按需依赖】准备项目依赖，或自行使用项目 pnpm 安装后重试。"
 }
 
+
+function Convert-ToLfaaHttpProxyUrl {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+    $candidate = $Value.Trim()
+    if ($candidate -match '^(?i)https?://') { return $candidate }
+    if ($candidate -match '^[^\s;=]+:\d+$') { return ("http://{0}" -f $candidate) }
+    return $null
+}
+
+function Get-LfaaWindowsInternetProxy {
+    try {
+        $settings = Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction Stop
+        if ([int]$settings.ProxyEnable -ne 1) { return $null }
+        $raw = [string]$settings.ProxyServer
+        if ([string]::IsNullOrWhiteSpace($raw)) { return $null }
+
+        $candidate = $raw.Trim()
+        if ($candidate.Contains('=')) {
+            $parts = @{}
+            foreach ($item in ($candidate -split ';')) {
+                $pair = $item -split '=', 2
+                if ($pair.Count -eq 2) {
+                    $parts[$pair[0].Trim().ToLowerInvariant()] = $pair[1].Trim()
+                }
+            }
+            if ($parts.ContainsKey('https')) { $candidate = [string]$parts['https'] }
+            elseif ($parts.ContainsKey('http')) { $candidate = [string]$parts['http'] }
+            else { return $null }
+        }
+
+        return (Convert-ToLfaaHttpProxyUrl $candidate)
+    }
+    catch {
+        return $null
+    }
+}
+
+function Add-LfaaLoopbackNoProxy {
+    param([string]$Value)
+
+    $items = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($Value)) {
+        foreach ($entry in ($Value -split ',')) {
+            $trimmed = $entry.Trim()
+            if (-not [string]::IsNullOrWhiteSpace($trimmed)) { $items.Add($trimmed) }
+        }
+    }
+    foreach ($required in @('localhost', '127.0.0.1')) {
+        if (-not ($items -contains $required)) { $items.Add($required) }
+    }
+    return ($items -join ',')
+}
+
+function Push-LfaaProviderNetworkEnvironment {
+    $names = @(
+        'NODE_USE_ENV_PROXY', 'NODE_USE_SYSTEM_CA',
+        'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
+        'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy'
+    )
+    $snapshot = @{}
+    foreach ($name in $names) {
+        $item = Get-Item -LiteralPath ("Env:{0}" -f $name) -ErrorAction SilentlyContinue
+        $snapshot[$name] = if ($null -eq $item) { $null } else { [string]$item.Value }
+    }
+
+    $env:NODE_USE_ENV_PROXY = '1'
+    $env:NODE_USE_SYSTEM_CA = '1'
+
+    $hasProxy = -not [string]::IsNullOrWhiteSpace([string]$env:HTTPS_PROXY) -or
+        -not [string]::IsNullOrWhiteSpace([string]$env:https_proxy) -or
+        -not [string]::IsNullOrWhiteSpace([string]$env:HTTP_PROXY) -or
+        -not [string]::IsNullOrWhiteSpace([string]$env:http_proxy) -or
+        -not [string]::IsNullOrWhiteSpace([string]$env:ALL_PROXY) -or
+        -not [string]::IsNullOrWhiteSpace([string]$env:all_proxy)
+
+    $source = '环境变量代理'
+    if (-not $hasProxy) {
+        $windowsProxy = Get-LfaaWindowsInternetProxy
+        if (-not [string]::IsNullOrWhiteSpace($windowsProxy)) {
+            $env:HTTP_PROXY = $windowsProxy
+            $env:HTTPS_PROXY = $windowsProxy
+            $source = 'Windows 系统代理'
+            $hasProxy = $true
+        }
+        else {
+            $source = '直连（未检测到环境/Windows 系统代理）'
+        }
+    }
+
+    $existingNoProxy = if (-not [string]::IsNullOrWhiteSpace([string]$env:no_proxy)) { [string]$env:no_proxy } else { [string]$env:NO_PROXY }
+    $loopbackNoProxy = Add-LfaaLoopbackNoProxy $existingNoProxy
+    $env:NO_PROXY = $loopbackNoProxy
+    $env:no_proxy = $loopbackNoProxy
+
+    Write-Label "【网络】" "【Provider】" ("{0} | Node 环境代理已启用 | Windows 系统 CA 已启用" -f $source) DarkGray
+    return $snapshot
+}
+
+function Pop-LfaaProviderNetworkEnvironment {
+    param([hashtable]$Snapshot)
+
+    foreach ($name in $Snapshot.Keys) {
+        $value = $Snapshot[$name]
+        if ($null -eq $value) {
+            Remove-Item -LiteralPath ("Env:{0}" -f $name) -ErrorAction SilentlyContinue
+        }
+        else {
+            Set-Item -LiteralPath ("Env:{0}" -f $name) -Value ([string]$value)
+        }
+    }
+}
+
 function Invoke-WebViteForeground {
     param(
         [string]$ViteCommand,
@@ -1986,6 +2100,7 @@ function Invoke-WebViteForeground {
 
     $code = 0
     $oldPort = $env:LFAA_WEB_PORT
+    $networkSnapshot = Push-LfaaProviderNetworkEnvironment
     $env:LFAA_WEB_PORT = [string]$Port
 
     Push-Location $WorkingDirectory
@@ -2007,6 +2122,7 @@ function Invoke-WebViteForeground {
         else {
             $env:LFAA_WEB_PORT = $oldPort
         }
+        Pop-LfaaProviderNetworkEnvironment $networkSnapshot
     }
 
     if ($code -notin @(0,130,-1073741510)) {

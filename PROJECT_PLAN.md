@@ -17,12 +17,12 @@ pending-user-acceptance
 当前版本总任务：
 
 ```text
-#2.18 模型管理 Active Model / Catalog 真值修复
-version: v0.0.83
+#2.19 Provider Host 网络代理 / 系统 CA / 可诊断错误修复
+version: v0.0.84
 status: pending-user-acceptance
 ```
 
-v0.0.83 先修正模型管理事实边界：Account 只负责认证/连接与账户默认模型，`activeModel` 是 Chat/Work/Agent Runtime 的唯一当前模型真值；账户保存最近官方 `modelCatalog`，Settings 重开可直接配置模型。这个地基通过 Windows 实机后，再进入 Plugin Platform P2 Capability Invocation。
+v0.0.84 先修正 Provider Host 的网络边界：浏览器网络可用不等于 Node Host 可用，Web Host 必须显式继承环境/Windows 系统代理并使用系统受信 CA；错误必须分层诊断且不能泄露凭据。模型管理 Active Model / Catalog 结构继续沿用 v0.0.83，网络链实机通过后再进入 Plugin Platform P2 Capability Invocation。
 
 v0.0.80 以用户提供的 DeepSeek Harness 源码包为主要工程参考，重点借鉴 capability seam、profile/bundle、PluginManager 共享事务、HMR 生命周期、credentials 引用和“抽象必须有当前 Consumer”的维护原则；不复制其产品实现。
 
@@ -108,7 +108,7 @@ P6  Distribution & Compatibility
     插件签名/来源、依赖、升级、兼容矩阵、回滚与社区分发
 ```
 
-### v0.0.83 通过后的近期顺序
+### v0.0.84 通过后的近期顺序
 
 ```text
 A. P2 Capability Invocation Contract
@@ -130,7 +130,7 @@ F. 第一个端到端 App Pack
    用“一键开服”验证：一句话/画布 → 规划 → 安装/配置 → 启动 → 验证 → 产物/状态
 ```
 
-模型 Router、Fallback、多模型协作不会抢在 P2 前面；Config System 在 v0.0.83 后只维护稳定 Account / Credential / Active Model 事实，执行选择策略归后续 model-routing / Agent Runtime。
+模型 Router、Fallback、多模型协作不会抢在 P2 前面；Config System 在 v0.0.84 后只维护稳定 Account / Credential / Active Model 事实，执行选择策略归后续 model-routing / Agent Runtime。
 
 每个阶段都必须满足两个反向检查：**新增场景是否可以不改 Core？接入强 Harness 是否完整保留原生能力？** 任一答案为“否”时，先修接口，不允许用厂商/场景特判绕过去。
 

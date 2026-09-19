@@ -1,3 +1,9 @@
+## v0.0.84：Provider Host 网络事实
+
+浏览器网络与 Node/Vite Host 网络是不同进程事实。Web 开发宿主启动时启用 Node 24 环境代理与系统 CA；若没有显式 `HTTP_PROXY/HTTPS_PROXY`，Windows Setup 可把当前用户已启用的静态 Internet Settings 代理临时映射到 Vite 子进程。该映射只在 Web 进程生命周期内存在，停止后恢复原环境。
+
+Provider HTTP Adapter 继续只接收脱敏请求描述，绝不记录 Header/Secret；网络失败按 DNS、refused、timeout、reset、TLS 分类，HTTP 401/403/429/5xx 单独解释。LFAA 不通过关闭 TLS 校验绕过证书问题。
+
 ## v0.0.83：账户认证与当前 Agent 模型分离
 
 AI Account 只拥有认证连接、Provider 设置、该账户默认模型及最近一次官方 `modelCatalog`；全局当前执行模型由独立 `activeModel = { accountId, providerId, modelId }` 持久化。Chat / Work / Agent Runtime 只能读取 `activeModel`，禁止再次用账户数组顺序、第一条 selectedModel 或 UI 临时状态推断当前模型。

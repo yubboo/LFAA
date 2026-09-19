@@ -1,3 +1,7 @@
+## v0.0.84 Web Host：Provider Network Adapter 边界
+
+`apps/web/dev/bridges/ai/node-http-json.ts` 是 Web 开发宿主当前唯一 Provider HTTP JSON Adapter。它负责 Node 网络初始化、超时、TLS/代理兼容和脱敏错误分类；Provider URL/Header 仍由 `@lfaa/config-system` Provider plugin 决定，Secret 仍由 Credentials/Rust Broker 持有。Windows Setup 只负责启动期网络环境适配，不拥有 Provider 业务。
+
 ## v0.0.83 Config System：Account / Model Selection 边界收敛
 
 `@lfaa/config-system` 明确分离两个事实：`AiAccountRecord` 负责“如何连接/认证某 Provider”，`AiActiveModelBinding` 负责“当前 Agent 真正使用哪个账户/模型”。账户内 `selectedModelId` 是该账户默认选择，不再承担全局当前模型职责。

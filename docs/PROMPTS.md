@@ -25,6 +25,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #2.19 | Provider Host 网络代理 / 系统 CA / 可诊断错误修复 | v0.0.84 | pending-user-acceptance | pass | pending |
 | #2.18 | 模型管理 Active Model / Catalog 真值修复 | v0.0.83 | pending-user-acceptance | pass | pending |
 | #2.17 | Node ESM Source Package 运行时导入修复 | v0.0.82 | pending-user-acceptance | pass | pending |
 | #20.18 | Windows Setup PowerShell 智能引号解析修复 | v0.0.81 | pending-user-acceptance | pass | pending |
@@ -64,6 +65,35 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.19 Provider Host 网络代理 / 系统 CA / 可诊断错误修复
+
+### 用户目标
+
+修复输入 OpenAI/DeepSeek API Key 后出现 `fetch failed` 或难以判断的 HTTP 错误：浏览器代理、Windows 系统代理、Node Host 网络和系统 CA 必须形成可维护的明确边界，同时错误信息要能定位网络/认证类别且不能泄露 Secret。
+
+### 允许修改
+
+- Web 开发 Host 的 Provider HTTP Adapter；
+- Windows Setup 启动 Web 时的临时网络环境；
+- Provider 网络错误脱敏分类；
+- 对应测试、运行时、版本和测试文档。
+
+### 禁止修改
+
+- 不关闭 TLS 证书校验；
+- 不把 API Key / Token / Proxy credential 写入日志、账户 JSON、浏览器 Storage；
+- 不把远端 Provider 错误 body 直接回传 UI；
+- 不因网络修复修改 Active Model / Plugin Platform / Rust Secret Broker 业务语义；
+- 不永久修改用户系统代理或全局环境变量。
+
+### 验收条件
+
+- `LFAA-Setup.bat → 2` 的 Node/Vite Host 显式启用 Node 24 env proxy 与 system CA；
+- 无显式代理变量时可继承 Windows 当前用户已启用的静态 HTTP/HTTPS 系统代理，停止 Web 后恢复原环境；
+- `fetch failed` 至少可区分 DNS / timeout / refused / reset / TLS；401/403/429/5xx 有清楚错误；
+- TLS 校验不能被禁用，Secret/Headers/远端错误体不能出现在 UI/日志；
+- Windows 实机 OpenAI/DeepSeek Provider 探测可根据真实网络/凭据给出正确结果。
 
 ## #2.18 模型管理 Active Model / Catalog 真值修复
 

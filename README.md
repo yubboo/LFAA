@@ -3,9 +3,9 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.83**
+**当前包：LFAA-v0.0.84**
 
-## 当前产品定位（v0.0.83）
+## 当前产品定位（v0.0.84）
 
 LFAA 是面向个人的 AI 任务平台，而不是只会对话的聊天壳。用户可以通过 **Chat 一句话** 或 **Work 无限画布** 驱动同一个 Agent Runtime；一键开服、AI 写作、AI 拆图、Minecraft 插件/模组开发等场景最终都应作为 Plugin / Capability / App Pack 进入。
 
@@ -61,12 +61,12 @@ plugin-platform + agent-runtime + workbench
 当前版本总任务：
 
 ```text
-#2.18 模型管理 Active Model / Catalog 真值修复
-version: v0.0.83
+#2.19 Provider Host 网络代理 / 系统 CA / 可诊断错误修复
+version: v0.0.84
 status: pending-user-acceptance
 ```
 
-v0.0.83 先把模型管理地基修正：Account 负责认证连接，`activeModel` 负责当前 Agent 真正使用的模型；官方模型目录快照随账户保存，Settings 重开无需先重测；多账户切换必须显式“设为当前模型”。v0.0.80 Plugin Platform P1、v0.0.81 Windows Setup 与 v0.0.82 Node ESM 修复全部保留。
+v0.0.84 先修 Provider Host 网络边界：Vite/Node Host 启动时显式启用 Node 24 环境代理与系统 CA，并在没有显式环境代理时尝试继承 Windows 当前用户系统代理；Provider 网络错误按 DNS / 超时 / 连接重置 / TLS / HTTP 认证等类别脱敏呈现。v0.0.83 的 Active Model / Catalog 模型管理事实保持不变。
 
 `#2.16` 的 ChatGPT / Codex App Server 登录闭环继续保留为 `pending-user-acceptance`，没有因为架构升级被覆盖。
 

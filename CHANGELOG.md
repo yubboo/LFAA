@@ -1,3 +1,13 @@
+## LFAA v0.0.84 — #2.19 Provider Host 网络代理 / 系统 CA / 可诊断错误修复
+
+- **状态：** pending-user-acceptance
+- 修复“浏览器能访问 Provider，但 Vite/Node Host `fetch failed`”的网络事实分裂：`LFAA-Setup.bat → 2` 启动 Web 时显式设置 `NODE_USE_ENV_PROXY=1` 与 `NODE_USE_SYSTEM_CA=1`。
+- 当用户没有显式 `HTTP(S)_PROXY` 时，Windows Setup 尝试读取当前用户 Internet Settings 的启用代理并只注入本次 Vite 子进程；停止 Web 后恢复原环境，不污染系统长期变量。
+- `NodeAiHttpJsonPort` 运行时合并 Node 默认 CA 与系统 CA；检测到代理环境时调用 Node 24 `http.setGlobalProxyFromEnv()`，绝不通过关闭 TLS 校验解决证书问题。
+- Provider 错误从单一 `fetch failed` 升级为脱敏分类：DNS、连接拒绝、连接超时、连接重置、TLS 证书、401 认证失败、403 权限不足、429 限流/额度、5xx Provider 服务异常。
+- 远端错误体、请求 Header 与 API Key 仍不返回 UI；代理 URL 只存在于当前进程环境，不进入账户 JSON、日志或浏览器 Storage。
+- **AI 验证：** 仓库 Node 108/108 + Config System 37/37 = 145/145 PASS；`node-http-json.ts` 使用 Node TypeScript loader 导入 PASS；统一 workspace preflight 全 Gate PASS。Windows 真实 Provider 网络仍需用户实机验收。
+
 ## LFAA v0.0.83 — #2.18 模型管理 Active Model / Catalog 真值修复
 
 - **状态：** pending-user-acceptance

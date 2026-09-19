@@ -11,6 +11,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
+| #2.19 | Provider Host 网络代理 / 系统 CA / 可诊断错误修复 | v0.0.84 | pending-user-acceptance |
 | #2.18 | 模型管理 Active Model / Catalog 真值修复 | v0.0.83 | pending-user-acceptance |
 | #2.17 | Node ESM Source Package 运行时导入修复 | v0.0.82 | pending-user-acceptance |
 | #20.18 | Windows Setup PowerShell 智能引号解析修复 | v0.0.81 | pending-user-acceptance |
@@ -47,6 +48,16 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
 
+
+### #2.19 Provider Host 网络代理 / 系统 CA / 可诊断错误修复
+
+- **版本：** v0.0.84
+- **状态：** pending-user-acceptance
+- **问题：** Windows 浏览器可能通过系统代理/VPN访问 Provider，但 Vite/Node Host 的 `fetch()` 默认不等于浏览器网络路径，OpenAI 探测可直接 `fetch failed`；原错误封装又丢失底层 DNS/timeout/TLS code。
+- **实现：** Setup 仅在启动 Web 子进程期间启用 Node env proxy/system CA，并在没有显式代理变量时读取当前用户 Windows Internet Settings 静态代理；Host Adapter 同时启用 Node 运行时 env proxy、系统 CA，并输出脱敏网络错误类别。
+- **安全：** 不关闭 TLS、不打印代理地址/API Key/Header/Provider 错误 body；停止 Web 后恢复原环境。
+- **AI 验证：** 仓库 Node 108/108 + Config 37/37 = 145/145 PASS；Provider Host source import 与统一 preflight PASS。
+- **验收：** 用户 Windows 实机重新测试 OpenAI/DeepSeek API Key，确认 OpenAI 不再只显示 `fetch failed`，并按真实网络/凭据得到 connected 或明确诊断。
 
 ### #2.18 模型管理 Active Model / Catalog 真值修复
 

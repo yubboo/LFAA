@@ -1,3 +1,10 @@
+## v0.0.84 / #2.19 Provider Host 网络回归
+
+- `test/ai-web-host.test.mjs`：锁定 `http.setGlobalProxyFromEnv()`、system CA 合并、401 分类、TLS 不得关闭；Windows Setup 必须启用 `NODE_USE_ENV_PROXY` / `NODE_USE_SYSTEM_CA`、读取 Internet Settings，并恢复临时环境。
+- Windows 实机：启动 Web 观察 `【网络】【Provider】`；用真实 OpenAI/DeepSeek Key 测试模型目录，结果应为连接成功或明确网络/认证类别，不能只剩 `fetch failed`。
+- 安全检查：Provider 错误 body/Header/API Key 不进入 UI/日志；不得设置 `NODE_TLS_REJECT_UNAUTHORIZED=0` 或 `rejectUnauthorized:false`。
+- 当前制作环境：仓库 Node 108/108 + Config System 37/37 = 145/145 PASS；`node-http-json.ts` Node TypeScript source import PASS；workspace preflight PASS。真实 Windows 系统代理/Provider 网络仍需实机。
+
 ## v0.0.83 / #2.18 模型管理 Active Model / Catalog 回归
 
 - Config Account Service：首个账户建立显式 Active Model；新增第二账户不得抢占；显式激活后 Snapshot/Composer 才切换；`modelCatalog` 随账户保存并在重开后可用。

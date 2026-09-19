@@ -1,3 +1,12 @@
+## LFAA v0.0.84 Release — #2.19 Provider Host 网络边界修复
+
+- **状态：** pending-user-acceptance
+- **任务：** #2.19
+- **核心：** Node 24 env proxy + system CA、Windows 当前用户静态系统代理继承、Provider 网络/HTTP 错误脱敏分层。
+- **安全：** 不关闭 TLS，不返回远端错误 body，不输出 API Key/Header/代理凭据，环境改动仅存活于 Vite 启动期间。
+- **用户实机重点：** 启动 Web 时终端应出现 `【网络】【Provider】`；OpenAI 原来的 `fetch failed` 应变为可连接或明确 DNS/timeout/TLS/代理诊断；DeepSeek 401 应显示明确认证失败。
+- **未冒充：** 制作容器不是 Windows/Node 24 Provider 网络现场，真实系统代理与真实 Key 仍需用户实机验收。
+
 ## LFAA v0.0.83 Release — #2.18 模型管理 Active Model / Catalog 真值修复
 
 - **状态：** pending-user-acceptance

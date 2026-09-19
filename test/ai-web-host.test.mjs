@@ -138,3 +138,20 @@ test("browser ChatGPT login opens synchronously, validates official HTTPS domain
   assert.doesNotMatch(source, /(?:window\.)?(?:localStorage|sessionStorage)\s*\./);
   assert.doesNotMatch(source, /account\/logout/);
 });
+
+
+test("Provider Host inherits Node proxy/system CA safely and classifies network failures", async () => {
+  const source = await read("apps/web/dev/bridges/ai/node-http-json.ts");
+  const setup = await read("scripts/windows/lfaa-setup.ps1");
+  assert.match(source, /setGlobalProxyFromEnv/);
+  assert.match(source, /getCACertificates\("system"\)/);
+  assert.match(source, /setDefaultCACertificates/);
+  assert.match(source, /UND_ERR_CONNECT_TIMEOUT/);
+  assert.match(source, /Provider 认证失败（HTTP 401）/);
+  assert.doesNotMatch(source, /NODE_TLS_REJECT_UNAUTHORIZED|rejectUnauthorized\s*:\s*false/);
+  assert.match(setup, /NODE_USE_ENV_PROXY/);
+  assert.match(setup, /NODE_USE_SYSTEM_CA/);
+  assert.ok(setup.includes("Windows\\CurrentVersion\\Internet Settings"));
+  assert.match(setup, /NO_PROXY/);
+  assert.match(setup, /Pop-LfaaProviderNetworkEnvironment/);
+});
