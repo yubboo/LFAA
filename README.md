@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.57**
+**当前包：LFAA-v0.0.58**
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
@@ -54,7 +54,7 @@ config-system
 当前治理修复任务：
 
 ```text
-#20.11 pnpm 实时环境事实与 Store 来源修复
+#20.12 PowerShell 自动变量冲突修复
 status: pending-user-acceptance
 ```
 
@@ -65,7 +65,7 @@ status: pending-user-acceptance
 status: pending-user-acceptance
 ```
 
-#20.9 的输出/路径 UX 已由用户实机验收通过；#20.10 补上真实依赖健康检测，但用户进一步验证了 pnpm Store 会随全局配置实时变化。#20.11 继续收紧 PNPM_HOME / Store 来源与实时路径事实，完成后再回到 Web-first 配置系统。#2.2 仍需用户明确验收，不能由本治理版本代替。
+#20.9 的输出/路径 UX 已由用户实机验收通过；#20.10 补上真实依赖健康检测；#20.11 加入 PNPM_HOME / Store 来源实时事实，但 Windows 实机暴露 `$home` 与 PowerShell 自动变量 `$HOME` 的冲突。#20.12 / v0.0.58 只修复该运行时错误并增加防回归，之后再回到 Web-first 配置系统。#2.2 仍需用户明确验收，不能由本治理版本代替。
 
 ## Node.js 包管理器
 

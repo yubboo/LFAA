@@ -172,3 +172,18 @@ test("dependency location output includes PNPM_HOME and Store source", () => {
   }
   assert.match(locations, /Get-PnpmEnvironmentFacts/);
 });
+
+
+test("Windows PowerShell scripts do not assign to automatic or read-only variables", () => {
+  const reserved = ["HOME", "PID", "Host", "Error", "PSHOME", "PWD", "LASTEXITCODE"];
+  const assignment = new RegExp(
+    String.raw`(^|[;{(]\s*)\$(?:${reserved.join("|")})\s*(?:=|\+=|-=|\*=|/=|\+\+|--)`,
+    "gim",
+  );
+  const files = fs.readdirSync("scripts/windows").filter((name) => name.endsWith(".ps1"));
+  assert.ok(files.length > 0, "expected Windows PowerShell scripts");
+  for (const file of files) {
+    const source = fs.readFileSync(`scripts/windows/${file}`, "utf8");
+    assert.doesNotMatch(source, assignment, `${file} assigns to a PowerShell automatic/read-only variable`);
+  }
+});

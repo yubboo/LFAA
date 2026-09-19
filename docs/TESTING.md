@@ -1,5 +1,13 @@
 # LFAA 测试与验收规范
 
+## v0.0.58 / #20.12 PowerShell 自动变量冲突修复验证
+
+- Windows 实机菜单 1 不得再出现“无法覆盖变量 HOME”；
+- `Test-PnpmHomeInPath` 不得对 `$HOME`（含大小写变体）赋值；
+- 所有 `scripts/windows/*.ps1` 扫描常见 PowerShell 自动/只读变量赋值冲突；
+- #20.11 的 PNPM_HOME、active Store、Store 来源显示与 #20.10 真实依赖健康检查必须全部回归；
+- PowerShell UTF-8 BOM 必须继续通过。
+
 ## v0.0.57 / #20.11 pnpm 实时环境事实与 Store 来源修复验证
 
 验证重点是“机器级路径每次实时读取，缓存永远不能冒充环境事实”：

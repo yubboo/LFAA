@@ -1,13 +1,37 @@
 # LFAA 发布记录
 
+## LFAA v0.0.58 Release — #20.12 PowerShell 自动变量冲突修复
+
+- **状态：** pending-user-acceptance
+- **基线：** v0.0.57
+- **用户验收：** pending
+
+### 交付内容
+
+- 修复 Setup 的 `$home` / `$HOME` PowerShell 自动变量冲突；
+- 增加 Windows PS1 自动/只读变量赋值防回归；
+- 保留实时 PNPM_HOME、active Store、Store 来源、真实依赖与 Store 健康检测。
+
+### 未修改
+
+Web Account/Auth、Config Schema / Config Storage、Web UI、PTY、Sync / GitHub / Update、Agent / Tool / Policy / Permission 执行链。
+
+### AI 验证状态
+
+dependency-setup 15/15 PASS；node-dependency-health 3/3 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；Config System TypeScript `--noEmit` PASS；治理链全部 PASS。当前制作容器无 PowerShell、Node 22.16.0、无 Cargo，因此 Windows 动态执行与完整 `release:full` 不冒充通过。
+
+### 用户实机验收重点
+
+运行菜单 1：不得再出现“无法覆盖变量 HOME”；随后必须继续显示 PNPM_HOME、pnpm Store 与 Store 来源，并进入真实依赖健康检查。
+
 > 每个版本在本文件新增一个版本章节，不再创建 `docs/releases/vX.Y.Z/RELEASE.md`。
 > 当前版本在用户验收前必须标记 `pending-user-acceptance`，验收通过后才能改为 `delivered`。
 
 ## LFAA v0.0.57 Release — #20.11 pnpm 实时环境事实与 Store 来源修复
 
-- **状态：** pending-user-acceptance
+- **状态：** superseded
 - **基线：** v0.0.56
-- **用户验收：** pending
+- **用户验收：** not-accepted；Windows 实机发现 `$home` 与 PowerShell 自动变量 `$HOME` 冲突，由 v0.0.58 修复
 
 ### 交付内容
 

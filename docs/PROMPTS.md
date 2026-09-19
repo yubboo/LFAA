@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #20.11 | pnpm 实时环境事实与 Store 来源修复 | v0.0.57 | pending-user-acceptance | pass | pending |
+| #20.12 | PowerShell 自动变量冲突修复 | v0.0.58 | pending-user-acceptance | pass | pending |
+| #20.11 | pnpm 实时环境事实与 Store 来源修复 | v0.0.57 | superseded | pass | not-accepted |
 | #20.10 | 真实依赖健康检测与 Store 状态修复 | v0.0.56 | superseded | pass | not-accepted |
 | #20.9 | 依赖提示去重与路径可见性 | v0.0.55 | delivered | pass | passed |
 | #20.8 | 按需依赖增量检测与复用 | v0.0.54 | superseded | pass | not-accepted |
@@ -35,6 +36,88 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #20.12 PowerShell 自动变量冲突修复
+
+### 主模块
+
+`project-governance / windows-setup / powershell-runtime-safety`
+
+### 背景与问题
+
+用户在 Windows 实机运行 v0.0.57 菜单 1 时，脚本在 PNPM_HOME/PATH 实时检测阶段报错“无法覆盖变量 HOME，因为该变量为只读变量或常量”。根因是 `Test-PnpmHomeInPath` 将普通局部变量命名为 `$home`；PowerShell 变量名不区分大小写，因此它与自动只读变量 `$HOME` 冲突。v0.0.57 的 pnpm 实时事实设计本身继续保留，但该实现错误导致菜单 1 无法进入后续检测。
+
+### 任务目标
+
+修复 `$HOME` 冲突，并把 PowerShell 自动/保留变量赋值纳入静态防回归；菜单 1 / 7 必须能正常进入 PNPM_HOME、active Store、Store 来源与真实依赖健康检测。
+
+### 允许修改
+
+- `scripts/windows/lfaa-setup.ps1` 中冲突局部变量命名；
+- `test/dependency-setup.test.mjs` 的 PowerShell 自动变量防回归；
+- `scripts/dev-log-check.mjs` 当前治理任务契约；
+- `DEVELOPMENT.md`、`docs/RUNTIME.md`、`docs/TESTING.md`、项目地图、Prompt、Development Log、Plan；
+- v0.0.58 产品版本事实、CHANGELOG、Release；
+- workspace package / Rust crate 产品版本一致性。
+
+### 禁止修改
+
+- v0.0.57 已建立的 pnpm Store 实时路径、配置来源、真实依赖健康语义；
+- Web Account/Auth、Config Storage、Config Schema 业务语义；
+- Web UI、PTY、Sync / GitHub / Update；
+- 自动改变用户 pnpm Store、自动 `pnpm update`、删除 `node_modules` / Store。
+
+### 状态所有权
+
+- PowerShell 用户主目录：系统自动变量 `$HOME`，脚本只读，不得覆盖；
+- PNPM_HOME 归当前进程环境变量所有；
+- pnpm Store 继续以每次实时 `pnpm store path` 为最终事实；
+- `.lfaa/state` 继续只作为依赖同步缓存，不拥有机器环境事实。
+
+### 实现约束
+
+- `Test-PnpmHomeInPath` 不得声明/赋值 `$home`，改用不会与 PowerShell 自动变量冲突的语义化局部变量；
+- Windows PowerShell 脚本新增静态防回归：不得把 `$HOME`、`$PID`、`$Host`、`$Error`、`$PSHOME`、`$PWD`、`$LASTEXITCODE` 等自动/只读变量当普通赋值目标；
+- 不改变 #20.11 的 pnpm 实时探测决策；
+- PowerShell 文件继续保持 UTF-8 with BOM。
+
+### 验收条件
+
+- Windows 实机运行菜单 1 不再出现“无法覆盖变量 HOME”；
+- 能继续显示 PNPM_HOME、pnpm Store 与 Store 来源；
+- `pnpm store path` 与菜单显示的 Store 一致；
+- 原真实依赖 / Store 健康检测继续执行；
+- 自动变量防回归测试可捕获再次出现的 `$home = ...` 等冲突赋值。
+
+### 必须测试
+
+- dependency-setup 全部回归，并新增自动变量冲突测试；
+- node-dependency-health、release gates、release environment、Config Schema 回归；
+- governance / import / dev-log / docs / comment / Windows BOM / release consistency / prompt lifecycle / UI contract。
+
+### 必须更新的文档
+
+`DEVELOPMENT.md`、`PROJECT_PLAN.md`、`docs/PROMPTS.md`、`docs/DEVELOPMENT_LOG.md`、`docs/RUNTIME.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`README.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG 编号
+
+`#20.12 PowerShell 自动变量冲突修复`
+
+### 版本目标
+
+`v0.0.58`
+
+### 当前状态
+
+`pending-user-acceptance`
+
+### AI 验证
+
+`pass` — dependency-setup 15/15、node-dependency-health 3/3、release-gates 5/5、release-environment 8/8、Config Schema 8/8、Config System TypeScript `--noEmit` 与治理链 PASS。
+
+### 用户验收
+
+`pending`
 
 ## #20.11 pnpm 实时环境事实与 Store 来源修复
 
@@ -114,7 +197,7 @@
 
 ### 当前状态
 
-`pending-user-acceptance`
+`superseded`
 
 ### AI 验证
 
@@ -122,7 +205,11 @@
 
 ### 用户验收
 
-`pending`
+`not-accepted`
+
+### 被后续修正
+
+Windows 实机发现局部变量 `$home` 与 PowerShell 自动只读变量 `$HOME` 冲突；由 #20.12 / v0.0.58 修复实现错误，#20.11 的实时 Store 设计继续保留。
 
 ## #20.10 真实依赖健康检测与 Store 状态修复
 

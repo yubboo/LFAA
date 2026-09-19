@@ -248,13 +248,14 @@ function Test-PnpmHomeInPath {
     param([string]$PnpmHome)
     if ([string]::IsNullOrWhiteSpace($PnpmHome)) { return $false }
 
-    $home = $PnpmHome.TrimEnd('\','/')
-    $bin = Join-Path $home "bin"
+    # PowerShell 变量名大小写不敏感；禁止使用 `$home`，否则会与只读自动变量 `$HOME` 冲突。
+    $normalizedPnpmHome = $PnpmHome.TrimEnd('\','/')
+    $pnpmHomeBin = Join-Path $normalizedPnpmHome "bin"
     foreach ($entry in @(([string]$env:PATH) -split ';')) {
         if ([string]::IsNullOrWhiteSpace($entry)) { continue }
         $expanded = [Environment]::ExpandEnvironmentVariables($entry.Trim().Trim('"')).TrimEnd('\','/')
-        if ($expanded.Equals($home,[System.StringComparison]::OrdinalIgnoreCase) -or
-            $expanded.Equals($bin,[System.StringComparison]::OrdinalIgnoreCase)) {
+        if ($expanded.Equals($normalizedPnpmHome,[System.StringComparison]::OrdinalIgnoreCase) -or
+            $expanded.Equals($pnpmHomeBin,[System.StringComparison]::OrdinalIgnoreCase)) {
             return $true
         }
     }

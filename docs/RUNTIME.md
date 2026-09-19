@@ -691,3 +691,8 @@ push-YYYYMMDD-HHMMSS-vX.Y.Z.log
 - 不参与版本快照和稳定工作区镜像差异判断；
 - 不会因版本同步被删除；
 - `README.md` 本身正常进入版本控制。
+
+
+### v0.0.58 PowerShell 自动变量安全
+
+Windows PowerShell 变量名大小写不敏感。Setup/Sync/GitHub/Update 等 PS1 不得把 `$HOME`、`$PID`、`$Host`、`$Error`、`$PSHOME`、`$PWD`、`$LASTEXITCODE` 等自动/只读变量作为普通赋值目标。v0.0.58 修复 `Test-PnpmHomeInPath` 中 `$home` 与 `$HOME` 冲突；pnpm Store 实时路径与来源逻辑保持 #20.11 不变。

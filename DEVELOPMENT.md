@@ -167,6 +167,8 @@ v0.0.56 起，依赖缓存指纹和 `package.json` 存在性不得再被当成�
 
 v0.0.57 起，pnpm / PNPM_HOME / Store 等机器环境必须执行“实时事实优先”：每次菜单 1 / 7 都重新读取当前 shell 与当前 pnpm runner，`pnpm store path` 必须在项目根实时执行，`.lfaa/state` 不得缓存并复用 Store 路径。LFAA 默认不在 `pnpm-workspace.yaml` 写 `storeDir`，不自动修改用户全局 Store；显示层应明确给出 Store 当前路径及其来源（项目配置 / 用户全局配置 / pnpm 默认 / 环境或其他覆盖）。
 
+v0.0.58 起，Windows PowerShell 实现还必须遵守自动变量安全：PowerShell 变量名大小写不敏感，禁止把 `$HOME`、`$PID`、`$Host`、`$Error`、`$PSHOME`、`$PWD`、`$LASTEXITCODE` 等自动/只读变量（包括仅大小写不同的写法）用作普通赋值目标；新增或修改 PS1 后必须通过对应静态防回归与 BOM 检查。
+
 `LFAA-Setup.bat → 10` 是检查中心，只负责把快速 / 完整 / 正式发布三种命令暴露为 Windows 交互入口；未来 CLI / GUI 必须复用同一底层命令，不得依赖菜单编号。
 
 正式 `release:full` 必须按顺序完成：发布环境版本检查 → `pnpm install --frozen-lockfile` → 完整项目检查 → Rust `cargo check/test --workspace`。任何一步失败，都不得宣称“完整发布门禁通过”或 `release-ready`。

@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #20.11 | pnpm 实时环境事实与 Store 来源修复 | v0.0.57 | pending-user-acceptance |
+| #20.12 | PowerShell 自动变量冲突修复 | v0.0.58 | pending-user-acceptance |
+| #20.11 | pnpm 实时环境事实与 Store 来源修复 | v0.0.57 | superseded |
 | #20.10 | 真实依赖健康检测与 Store 状态修复 | v0.0.56 | superseded |
 | #20.9 | 依赖提示去重与路径可见性 | v0.0.55 | delivered |
 | #20.8 | 按需依赖增量检测与复用 | v0.0.54 | superseded |
@@ -20,12 +21,25 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
-### #20.11 pnpm 实时环境事实与 Store 来源修复
+### #20.12 PowerShell 自动变量冲突修复
 
-- **版本：** v0.0.57
+- **版本：** v0.0.58
 - **状态：** pending-user-acceptance
 - **AI 验证：** pass
 - **用户验收：** pending
+- **主模块：** project-governance / windows-setup / powershell-runtime-safety
+- **背景：** 用户在 Windows 实机运行 v0.0.57 菜单 1 时，`Test-PnpmHomeInPath` 使用 `$home` 局部变量；PowerShell 变量名大小写不敏感，导致与只读自动变量 `$HOME` 冲突并在进入 pnpm 环境检测前直接失败。
+- **目标：** 修复变量冲突并增加自动/只读变量赋值静态门禁；完整保留 #20.11 的实时 Store / PNPM_HOME / 配置来源与 #20.10 的真实依赖健康语义。
+- **边界：** 不进入 Web Account/Auth；不修改 Config/UI/PTY/Sync/GitHub/Update，不修改 pnpm Store 策略。
+- **实现结果：** `Test-PnpmHomeInPath` 改用 `$normalizedPnpmHome` / `$pnpmHomeBin`，不再触碰 `$HOME`；dependency-setup 增加 PowerShell 自动/只读变量赋值防回归。
+- **验证：** dependency-setup 15/15、node-dependency-health 3/3、release-gates 5/5、release-environment 8/8、Config Schema 8/8、Config System TypeScript `--noEmit` 与全部 Node 治理门禁 PASS；当前容器无 PowerShell，Windows 实机仍由用户验收。
+
+### #20.11 pnpm 实时环境事实与 Store 来源修复
+
+- **版本：** v0.0.57
+- **状态：** superseded
+- **AI 验证：** pass
+- **用户验收：** not-accepted
 - **主模块：** project-governance / windows-setup / pnpm-environment-facts
 - **背景：** 用户执行 `pnpm setup` 后删除旧全局 `storeDir`，实时 `pnpm store path` 从旧项目目录 `H:\next-javaweb\.pnpm-store\v11` 恢复到当前 Windows 用户默认 Store，进一步证明机器级路径会变化，历史缓存不能成为事实。
 - **目标：** 每次运行菜单 1 / 7 都实时读取 pnpm runner、PNPM_HOME/PATH、Store 路径与 Store 配置来源；LFAA 不写死路径、不自动迁移 Store、不把 `.lfaa/state` 当环境事实。
@@ -34,6 +48,8 @@
 
 - **实现结果：** Store 路径固定从 `$ProjectRoot` 实时执行当前 pnpm runner 的 `store path`；新增 PNPM_HOME/PATH、pnpm 可执行、全局配置、全局/项目 storeDir 与来源显示；仓库不声明项目 storeDir。
 - **验证：** dependency-setup 14/14、node-dependency-health 3/3、release-gates 5/5、release-environment 8/8、Config Schema 8/8 PASS；全部 Node 治理门禁 PASS。当前制作容器无 PowerShell、Node 22.16.0 且无 Cargo，因此 Windows 实时路径与 `release:full` 不冒充通过。
+
+- **被后续修正：** Windows 实机发现 `$home` 与 PowerShell 自动变量 `$HOME` 冲突；由 #20.12 / v0.0.58 修复实现错误。
 
 ### #20.10 真实依赖健康检测与 Store 状态修复
 
@@ -147,7 +163,7 @@
 
 - **主编号：** #20
 - **名称：** 开发日志与文档规范
-- **最新变更：** #20.11
+- **最新变更：** #20.12
 - **状态：** active
 - **关键词：** 日志、文档、中文、命名、目录、索引、注释、可读性、项目地图、开发规范、发布闭环、编码门禁
 - **当前文件：** `docs/DEVELOPMENT_LOG.md`

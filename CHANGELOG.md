@@ -1,10 +1,21 @@
 # LFAA 更新日志
 
+## LFAA v0.0.58 — #20.12 PowerShell 自动变量冲突修复
+
+- **状态：** pending-user-acceptance
+- **基线：** v0.0.57
+- **任务：** #20.12
+- 修复 `Test-PnpmHomeInPath` 把 `$home` 当普通局部变量导致与 PowerShell 只读自动变量 `$HOME` 冲突的问题。
+- 新增 PowerShell 自动/只读变量赋值防回归，避免 `$HOME`、`$PID`、`$Host`、`$Error`、`$PSHOME`、`$PWD`、`$LASTEXITCODE` 等被普通代码覆盖。
+- 完整保留 #20.11 的 pnpm 实时 Store / PNPM_HOME / 配置来源，以及 #20.10 的真实依赖健康检测。
+- **未修改：** Web Account/Auth、Config Schema/Storage、Web UI、PTY、Sync/GitHub/Update 业务逻辑。
+- **AI 验证：** dependency-setup 15/15、node-dependency-health 3/3、release-gates 5/5、release-environment 8/8、Config Schema 8/8、Config System TypeScript `--noEmit` 与治理链全部 PASS。当前制作容器无 PowerShell、Node 22.16.0、无 Cargo，因此 Windows 菜单动态执行与完整 `release:full` 不冒充通过。
+
 > 单文件版本时间线。每个版本在顶部追加一节；不再创建 `docs/changelog/vX.Y.Z.md`。
 
 ## LFAA v0.0.57 — #20.11 pnpm 实时环境事实与 Store 来源修复
 
-- **状态：** pending-user-acceptance
+- **状态：** superseded
 - **基线：** v0.0.56
 - **任务：** #20.11
 - 用户实机确认旧全局 `storeDir` 被删除后，`pnpm store path` 会立即从旧项目目录切换到当前 Windows 用户默认 Store；机器路径不能由历史缓存决定。

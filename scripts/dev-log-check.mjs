@@ -24,8 +24,11 @@ for (let n = 1; n <= 21; n += 1) {
   const re = new RegExp(`(^|[^0-9])#${n}(?:\\.|\\s|\\b)`, "m");
   if (!re.test(text)) fail(`historical main task #${n} is not traceable in DEVELOPMENT_LOG.md`);
 }
-for (const token of ["#20.11", "pnpm 实时环境事实与 Store 来源修复"]) {
+for (const token of ["#20.12", "PowerShell 自动变量冲突修复"]) {
   if (!text.includes(token)) fail(`current governance task missing token: ${token}`);
+}
+for (const token of ["#20.11", "pnpm 实时环境事实与 Store 来源修复"]) {
+  if (!text.includes(token)) fail(`historical governance task missing token: ${token}`);
 }
 for (const token of ["#20.10", "真实依赖健康检测与 Store 状态修复"]) {
   if (!text.includes(token)) fail(`historical governance task missing token: ${token}`);
