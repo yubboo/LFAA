@@ -9,7 +9,8 @@ LFAA Web 本地开发与验证宿主。Web-first 表示当前先用浏览器做�
 - Vite / React 启动入口；
 - Web Router / Web Host Adapter；
 - `.lfaa` 本地开发资源桥；
-- Web 专属终端 / 浏览器宿主桥。
+- Web 专属终端 / 浏览器宿主桥；
+- `dev/bridges/ai`：AI 配置 localhost Host Adapter，Windows Secret 进入 Credential Manager。
 
 ## 不负责
 

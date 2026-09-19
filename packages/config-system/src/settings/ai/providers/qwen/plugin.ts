@@ -56,7 +56,7 @@ export const qwenProviderPlugin: AiProviderPlugin = {
       protocol: "provider-native",
       baseUrl: `https://${host}`,
       authHeader: { name: "Authorization", scheme: "Bearer" },
-      modelDiscovery: { kind: "http-list", method: "GET", url: `https://${host}/api/v1/models`, responseShape: "openai-model-list" },
+      modelDiscovery: { kind: "http-list", method: "GET", url: `https://${host}/api/v1/models`, responseShape: "qwen-model-list" },
       metadata: { region, workspaceRequired: String(rule.workspaceRequired) },
     };
   },

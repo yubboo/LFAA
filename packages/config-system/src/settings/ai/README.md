@@ -14,3 +14,7 @@ transports/
 ```
 
 本目录禁止 React / DOM / App 宿主代码。模型推理 Runtime 不属于本目录。
+
+## Web-first 当前实现
+
+`core/AiAccountService` 已通过 Host Ports 完成 API Key / Token Plan 账户闭环。Windows Web 开发宿主使用 Credential Manager；普通账户状态只保存 `credentialRef`。OpenAI ChatGPT 套餐登录仍由后续 Codex App Server Adapter 接入，不在 API Key 流程中伪装完成。

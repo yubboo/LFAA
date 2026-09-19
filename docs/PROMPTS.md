@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #2.6 | 工作台吸附反向展开动效修复 | v0.0.66 | pending-user-acceptance | pass | pending |
+| #2.7 | Web API-Key Account 真实闭环 | v0.0.67 | pending-user-acceptance | pass | pending |
+| #2.6 | 工作台吸附反向展开动效修复 | v0.0.66 | delivered | pass | passed |
 | #2.5 | 个人中心侧栏内联聚焦修复 | v0.0.65 | delivered | pass | passed |
 | #2.4 | 设置中心与个人中心交互重构 | v0.0.64 | superseded | pass | not-accepted |
 | #2.3 | 配置系统目录边界与 AI Provider 插件体系 | v0.0.63 | superseded | pass | not-accepted |
@@ -44,6 +45,92 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.7 Web API-Key Account 真实闭环
+
+### 主模块
+
+`config-system / ui / app-shell / web-host`
+
+### 背景
+
+v0.0.66 已由用户 Windows 实机验收通过。AI Provider 插件骨架与设置中心已经存在，但账号、Secret、连接测试和模型发现仍是描述层，不能作为真实业务使用。
+
+### 任务目标
+
+先把 Web 作为第一参考宿主，完成六家内置 Provider 的 API Key / Token Plan 真实纵向闭环：浏览器只负责输入与显示；Config System 拥有 Account/Auth/Model 业务；Web Host 负责 Secret 安全存储与网络请求。OpenAI ChatGPT 套餐登录保留入口但不伪装完成，后续单独接 Codex App Server。
+
+### 目录与边界
+
+- `packages/config-system/src/settings/ai/core`：Account Service、Port、Account/Probe 类型；
+- `packages/config-system/src/settings/ai/providers/<provider>`：厂商连接事实；
+- `packages/config-system/src/settings/ai/transports`：共享模型列表解析；
+- `packages/ui/src/features/settings/ai`：纯表单/ViewModel；
+- `packages/app-shell`：业务 ViewModel 与宿主 Port 编排；
+- `apps/web/src/host`：浏览器 localhost Host Client；
+- `apps/web/dev/bridges/ai`：Vite 开发宿主 Adapter。
+
+禁止 UI 直连厂商 API、禁止 Secret 写 localStorage/sessionStorage/普通 JSON、禁止 apps/web 复制 Provider 业务。
+
+### Secret 合同
+
+- Windows Web 开发宿主使用 Windows Credential Manager Generic Credential；
+- 浏览器只在首次保存/验证时把明文发往 `127.0.0.1` 同源 Host Bridge；
+- Host 保存后只返回 `credentialRef`，任何列表/日志/错误均不得返回 Secret；
+- 账户元数据可写 `.lfaa/state/ai-accounts.json`，文件中禁止出现 API Key 明文；
+- 非 Windows 开发宿主只允许内存 Secret fallback，并必须向 UI 暴露“非持久”状态，不能冒充已持久化。
+
+### Provider 范围
+
+- OpenAI API Key：真实 `GET /models`；ChatGPT 套餐入口保持 `not-yet-connected`；
+- DeepSeek API Key：真实 `/models`；
+- Kimi API Key：中国/国际真实 `/models`；
+- 千问/百炼 API Key：按 Region / Workspace 真实 `/api/v1/models`，解析 `output.models`；
+- Xiaomi MiMo：按量 `sk-` 与 Token Plan `tp-` 分离，真实 `/models`；
+- 智谱 GLM：不虚构未确认的无成本模型列表端点；允许保存真实 Key + 手工模型，状态明确为 `unverified`。
+
+### 验收条件
+
+- Web 设置页能输入 Secret、测试连接、显示模型、选择模型、保存/删除账户；
+- 保存后刷新浏览器仍能读取账户元数据与选中模型，Secret 不返回浏览器；
+- Windows 重启 Vite 后账户 Secret 仍可由 Credential Manager 读取并重新测试；
+- 错误信息经过脱敏，不能包含 Key；
+- UI / Config / Host 边界门禁继续通过；
+- ChatGPT 套餐按钮不能伪装成功，明确显示后续 Codex App Server 接入。
+
+### 必须测试
+
+- Account Service 单元测试；
+- Provider model parser / Qwen parser；
+- Web Host 静态安全契约；
+- UI/App Shell TypeScript；
+- Config System 全量回归；
+- folder-boundary / import / governance / ui-contract / config-schema；
+- Windows PS1 Hash/BOM 不回退；
+- ZIP Round-trip。
+
+### 版本目标
+
+`v0.0.67`
+
+### 实现结果
+
+- 新增 Provider 无关 `AiAccountService`、Repository / Secret Store / HTTP Host Ports；
+- Web Host 新增 localhost AI Bridge；Windows Secret 保存到 Credential Manager Generic Credential；
+- `.lfaa/state/ai-accounts.json` 只保存账户元数据与 `credentialRef`，写入前递归拒绝 Secret 明文字段；
+- OpenAI / DeepSeek / Kimi / 千问 / MiMo 可通过各自插件真实探测模型；智谱保持手工模型 + `unverified`，不伪造模型目录；
+- Web Settings 支持瞬时 Secret 输入、连接测试、模型选择、保存、重测、切模、删除；
+- OpenAI ChatGPT 套餐入口明确为后续 Codex App Server，不伪装完成；
+- Provider 错误体不直接回传 UI，Account 元数据持久化失败时回滚新写 Secret。
+
+### AI 验证结果
+
+- Config System 26/26 PASS；
+- Web Host / Secret 安全契约 6/6 PASS；
+- Settings / Workbench / Release / Dependency 回归 PASS；
+- Config System TypeScript 与 UI/App Shell 补充 TypeScript PASS；
+- folder-boundary / import / governance / docs / comment / Windows BOM / config-schema / release-gates / UI contract PASS；
+- 当前制作容器不是 Node 24 + pnpm 11.17.0 Windows 环境，因此不冒充 `release:full` / Credential Manager Windows 实机通过。
 
 ## #2.6 工作台吸附反向展开动效修复
 

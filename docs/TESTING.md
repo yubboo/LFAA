@@ -1,3 +1,13 @@
+## v0.0.67 / #2.7 Web API-Key Account 真实闭环
+
+- `packages/config-system/test/*.test.mjs`：26/26 PASS；覆盖六家 Provider、Config Schema、Account Service、Secret 引用、重测/删除/回滚、Qwen 模型解析与 ChatGPT 套餐边界；
+- `node --test test/ai-web-host.test.mjs`：6/6 PASS；锁定 Windows Credential Manager、Secret stdin、账户 JSON 无明文、同源 Host、错误脱敏、UI 不直连 Provider/浏览器存储；
+- Config System `tsc --noEmit`：PASS；UI/App Shell 使用容器临时 React 类型 Stub 的补充 TypeScript：PASS；
+- Settings/Profile/Theme、Workbench Snap、Dependency Setup、Node Dependency Health、Release Environment/Gates 全量回归；
+- folder-boundary / import / governance / docs / comment / Windows BOM / config-schema / ui-contract 全部回归；
+- Windows 实机验收：用真实 API Key 测试连接与模型列表；保存后检查 `.lfaa/state/ai-accounts.json` 不含 Secret；刷新后账户仍在；重启 Vite 后用 Credential Manager 重测；切模与删除真实生效。
+- 当前制作容器不满足正式 Windows Node24 + pnpm11.17.0 + Cargo 环境，不声称 `release:full` 与 Credential Manager 动态实机通过。
+
 ## v0.0.66 / #2.6 Workbench 吸附反向展开动效
 
 - `node --test test/workbench-snap-animation.test.mjs`：锁定 Pointer 未松手可反向释放、150ms release 状态、左右/Bottom 一致性与 reduced-motion。

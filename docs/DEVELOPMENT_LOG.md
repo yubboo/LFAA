@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #2.6 | 工作台吸附反向展开动效修复 | v0.0.66 | pending-user-acceptance |
+| #2.7 | Web API-Key Account 真实闭环 | v0.0.67 | pending-user-acceptance |
+| #2.6 | 工作台吸附反向展开动效修复 | v0.0.66 | delivered |
 | #2.5 | 个人中心侧栏内联聚焦修复 | v0.0.65 | delivered |
 | #2.4 | 设置中心与个人中心交互重构 | v0.0.64 | superseded |
 | #2.3 | 配置系统目录边界与 AI Provider 插件体系 | v0.0.63 | superseded |
@@ -29,16 +30,30 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+### #2.7 Web API-Key Account 真实闭环
+
+- **版本：** v0.0.67
+- **状态：** implementing
+- **主模块：** config-system / ui / app-shell / web-host
+- **用户决策：** v0.0.66 动效已验收，继续下一步业务开发；Web 作为首个完整参考宿主。
+- **目标：** 六家内置 Provider 的 API Key / Token Plan 真实连接、模型发现、账户元数据、Secret Host Adapter 与 Web 设置交互闭环。
+- **边界：** Config System 拥有业务；UI 只显示；Web 只做 localhost 宿主；Secret 不进普通配置/浏览器存储。ChatGPT 套餐认证后续用 Codex App Server 单独接入。
+- **实现：** `AiAccountService` + Host Ports；Windows Credential Manager Secret Adapter；JSON 元数据 Repository；Provider HTTP Adapter；Web localhost Bridge；Settings 真实账户表单与模型管理。
+- **安全：** Secret 不进账户 JSON / 浏览器 Storage；Provider 错误体不回传；写元数据失败回滚新写 Secret。
+- **AI 验证：** Config System 26/26、AI Web Host 6/6、Settings/Workbench/Dependency/Release 回归 PASS；Config System 与 UI/App Shell 补充 TypeScript PASS；仓库可执行治理门禁 PASS。
+- **用户验收：** pending；重点验证 Windows Credential Manager 持久化、真实 Provider 连接与刷新/重启后账户恢复。
+
 ### #2.6 工作台吸附反向展开动效修复
 
 - **版本：** v0.0.66
-- **状态：** pending-user-acceptance
+- **状态：** delivered
 - **主模块：** ui / workbench
 - **用户反馈：** v0.0.65 个人中心已通过；侧栏吸附后 Pointer 未松手反向拉出时，展开瞬间缺少过渡，手感顿挫。
 - **决策：** 保留 snap capture / hysteresis / Pointer Up 提交规则，只增加 150ms 的瞬时 snap-release 动效，随后恢复 1:1 跟手。
 - **边界：** 仅修改 ResizableWorkbench / workbench.css / 对应测试；不改 Settings、Provider、Web Host、Windows 工具链。
 - **实现：** 左/右/Bottom 共用 `data-snap-release`；reduced-motion 关闭动效。
 - **AI 验证：** Workbench Snap 4/4、Settings/Profile/Theme 6/6、Config System 17/17 PASS；目录/导入/Governance/UI/Schema/Docs/Comment/BOM/Release/Prompt 门禁 PASS；Workbench 补充 TypeScript PASS。
+- **用户验收：** passed；用户明确反馈“ok，丝滑了”，确认反向展开动效通过。
 
 ### #2.5 个人中心侧栏内联聚焦修复
 

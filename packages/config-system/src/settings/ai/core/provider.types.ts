@@ -42,7 +42,7 @@ export interface AiAuthMethod {
 }
 
 export type AiModelDiscovery =
-  | { kind: "http-list"; method: "GET"; url: string; responseShape: "openai-model-list" }
+  | { kind: "http-list"; method: "GET"; url: string; responseShape: "openai-model-list" | "qwen-model-list" }
   | { kind: "manual"; reason: string }
   | { kind: "codex-account"; reason: string };
 

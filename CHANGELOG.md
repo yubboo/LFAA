@@ -1,6 +1,21 @@
-## LFAA v0.0.66 — #2.6 工作台吸附反向展开动效修复
+## LFAA v0.0.67 — #2.7 Web API-Key Account 真实闭环
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.66
+- **任务：** #2.7
+- **前序验收：** v0.0.66 已由用户实机确认“丝滑”并 delivered。
+- 新增 Provider 无关 `AiAccountService`、Account Repository / Secret Store / HTTP Host Ports，Config System 拥有 Account/Auth/Model 业务。
+- Web 开发宿主新增 localhost AI Bridge；Windows Secret 进入 Credential Manager Generic Credential，`.lfaa/state/ai-accounts.json` 仅保存元数据与 `credentialRef`。
+- 设置页支持 Secret 瞬时输入、真实连接测试、模型发现、手工模型 ID、保存账户、刷新恢复、重测、切换模型与删除账户。
+- OpenAI / DeepSeek / Kimi / 千问 / MiMo 使用各自 Provider 插件真实模型发现；智谱不伪造未确认模型列表端点，保存真实 Key + 手工模型并明确 `unverified`。
+- OpenAI ChatGPT 套餐入口保留但明确待 Codex App Server，不把订阅认证伪装成 API Key。
+- Provider 远端错误体不直接返回 UI；账户元数据落盘失败会回滚新写 Secret。
+- **AI 验证：** Config System 26/26、AI Web Host/Secret 6/6、Settings/Workbench/Dependency/Release 回归 PASS；补充 TypeScript 与目录/导入/治理/Schema/UI/BOM 门禁 PASS。当前制作容器不满足 Windows Node24+pnpm11.17.0+Cargo 完整发布环境，不声称 `release:full` / Windows Credential Manager 实机 PASS。
+
+## LFAA v0.0.66 — #2.6 工作台吸附反向展开动效修复
+
+- **状态：** delivered
+- **用户验收：** passed；用户实机确认“ok，丝滑了”。
 - **任务：** #2.6
 - **范围：** `packages/ui/src/workbench` + Workbench 动效测试；不改 Provider / Config / Web Host / Windows 工具链。
 - **修复：** snap capture 反向拉出不再从 0 瞬跳到 min，新增约 150ms release 过渡；随后普通 resize 恢复 1:1 跟手。

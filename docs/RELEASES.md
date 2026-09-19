@@ -1,7 +1,19 @@
-## LFAA v0.0.66 Release — #2.6 工作台吸附反向展开动效修复
+## LFAA v0.0.67 Release — #2.7 Web API-Key Account 真实闭环
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.66
+- **任务：** #2.7
+- **主要变更：** Config System Account Service + Windows Credential Manager Secret Adapter + Web localhost Bridge + 真实 Provider 模型探测与账户/模型管理 UI。
+- **Secret：** 浏览器不持久化 Key；Windows Secret 进入 Credential Manager；账户 JSON 只保存 `credentialRef` 与公开元数据。
+- **Provider：** OpenAI / DeepSeek / Kimi / Qwen / MiMo 可真实拉模型；智谱手工模型明确 `unverified`；ChatGPT 套餐等待 Codex App Server。
+- **AI 验证：** Config System 26/26、AI Web Host 6/6、Settings/Workbench/Dependency/Release 回归与治理门禁 PASS；制作容器未执行 Windows Credential Manager 实机与完整 `release:full`。
+- **用户验收重点：** Windows 保存后刷新页面仍见账户；重启 Vite 后可用 Credential Manager 重测；Secret 不出现在 `.lfaa/state/ai-accounts.json`；真实 Key 可测试连接/模型；账户可切模/删除。
+
+## LFAA v0.0.66 Release — #2.6 工作台吸附反向展开动效修复
+
+- **状态：** delivered
 - **任务：** #2.6
+- **用户验收：** passed；用户确认反向展开已丝滑。
 - **主要变更：** 为工作台 snap capture 的反向释放增加 150ms 短过渡；动画结束后恢复直接 Pointer 跟手；左右侧栏和 Bottom Dock 使用同一规则。
 - **边界：** 不修改 Settings/Profile/Theme、AI Provider/Config、Web Host、Windows Setup/Sync/GitHub/Update。
 - **前序验收：** v0.0.65 delivered。
@@ -11,7 +23,7 @@
 
 - **状态：** delivered
 - **基线：** v0.0.64
-- **用户验收：** pending
+- **用户验收：** passed
 
 ### 交付内容
 

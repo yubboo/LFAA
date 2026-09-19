@@ -5,7 +5,7 @@
  * 不负责：Config 真值、Provider 网络请求、宿主路由实现。
  */
 import type { ThemePreference } from "../appearance/ThemeModeMenu";
-import type { AiSettingsProviderView } from "./ai/ai-settings.types";
+import type { AiSettingsAccountView, AiSettingsDraftInput, AiSettingsProbeView, AiSettingsProviderView } from "./ai/ai-settings.types";
 
 export type SettingsSectionId = "general" | "appearance" | "ai" | "permissions" | "workspace" | "developer";
 
@@ -18,4 +18,12 @@ export interface SettingsPageProps {
   aiProviders: readonly AiSettingsProviderView[];
   selectedAiProviderId: string;
   onSelectAiProvider: (providerId: string) => void;
+  aiAccounts: readonly AiSettingsAccountView[];
+  aiSecretPersistence: "os-credential-store" | "memory" | "unavailable";
+  aiHostAvailable: boolean;
+  onProbeAiAccount: (draft: AiSettingsDraftInput, secret: string) => Promise<AiSettingsProbeView>;
+  onSaveAiAccount: (draft: AiSettingsDraftInput, secret: string) => Promise<AiSettingsProbeView>;
+  onReprobeAiAccount: (accountId: string) => Promise<AiSettingsProbeView>;
+  onDeleteAiAccount: (accountId: string) => Promise<void>;
+  onSelectAiAccountModel: (accountId: string, modelId: string) => Promise<void>;
 }

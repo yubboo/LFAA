@@ -1030,7 +1030,7 @@ v0.0.41 为 Windows PowerShell 脚本补中文结构化文件头时，保存过�
 
 ## config-system
 
-- UI 修正进度：#2.5 / v0.0.65 个人中心侧栏内联聚焦与实时宽度，pending-user-acceptance。
+- 当前进度：#2.7 / v0.0.67 Web API-Key Account 真实闭环，pending-user-acceptance；Windows Secret 使用 Credential Manager，ChatGPT 套餐认证后续接 Codex App Server。
 
 > 迁移来源：`docs/modules/config-system/README.md`
 
@@ -1065,6 +1065,13 @@ LFAA 第一个正式业务模块。
 ```text
 implementing
 ```
+
+#### #2.7 Web API-Key Account
+
+- Account/Auth/Model 业务归 `config-system/src/settings/ai/core`；
+- Web Host 通过 Port 提供 JSON 元数据、Credential Manager Secret、Provider HTTP；
+- UI 只收 Secret 瞬时输入与业务结果，不直接 `fetch` Provider；
+- OpenAI/DeepSeek/Kimi/Qwen/MiMo 真实模型探测；智谱手工模型 `unverified`；ChatGPT subscription 待 Codex App Server。
 
 > 迁移来源：`docs/plans/modules/config-system/PLAN.md`
 

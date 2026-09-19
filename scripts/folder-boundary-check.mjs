@@ -24,6 +24,7 @@ const required = [
   "packages/config-system/src/settings/ai/README.md",
   "packages/config-system/src/settings/ai/core/README.md",
   "packages/config-system/src/settings/ai/providers/README.md",
+  "apps/web/dev/bridges/ai/README.md",
 ];
 
 const requiredProviderPlugins = ["openai", "deepseek", "zhipu", "kimi", "qwen", "xiaomi"]

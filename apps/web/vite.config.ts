@@ -13,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import type { IPty } from "node-pty";
+import { lfaaDevAiConfigBridge } from "./dev/bridges/ai/ai-config-bridge";
 
 // ===== 1. 项目路径和开发端口 =====
 const appRoot = fileURLToPath(new URL(".", import.meta.url));
@@ -184,7 +185,7 @@ function lfaaDevTerminalBridge(): Plugin {
 
 export default defineConfig({
   root: appRoot,
-  plugins: [lfaaDevResourceBridge(), lfaaDevTerminalBridge()],
+  plugins: [lfaaDevResourceBridge(), lfaaDevTerminalBridge(), lfaaDevAiConfigBridge(projectRoot)],
   server: {
     host: "127.0.0.1",
     port: Number.isFinite(devPort) ? devPort : 5173,

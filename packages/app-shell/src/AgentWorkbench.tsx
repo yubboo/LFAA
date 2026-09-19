@@ -38,13 +38,16 @@ import {
   ThemeModeMenu,
   UserMenu,
   resolveWorkbenchLayoutMetrics,
+  type AiSettingsAccountView,
+  type AiSettingsDraftInput,
+  type AiSettingsProbeView,
   type AiSettingsProviderView,
   type SettingsSectionId,
   type ThemePreference,
   type WorkbenchLayoutMetrics,
   type WorkbenchLayoutMode,
 } from "@lfaa/ui";
-import { builtinAiProviderPlugins } from "@lfaa/config-system";
+import { builtinAiProviderPlugins, type AiAccountDraft, type AiAccountProbeResult, type AiAccountRecord, type AiAccountSnapshot } from "@lfaa/config-system";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 import type { AgentWorkbenchProps, DevResourceItem, ResourceKind } from "./workbench.types";
 import "./agent-workbench.css";
@@ -71,6 +74,9 @@ const aiProviderViews: readonly AiSettingsProviderView[] = builtinAiProviderPlug
     label: auth.label,
     kind: auth.kind,
     ...(auth.description ? { description: auth.description } : {}),
+    ...(auth.secretLabel ? { secretLabel: auth.secretLabel } : {}),
+    available: auth.kind !== "subscription",
+    ...(auth.kind === "subscription" ? { unavailableReason: "ChatGPT 套餐将在下一步通过 Codex App Server 接入。" } : {}),
   })),
   fields: plugin.configFields.map((field) => ({
     id: field.id,
@@ -83,6 +89,39 @@ const aiProviderViews: readonly AiSettingsProviderView[] = builtinAiProviderPlug
     ...(field.help !== undefined ? { help: field.help } : {}),
   })),
 }));
+
+function mapAiAccount(record: AiAccountRecord): AiSettingsAccountView {
+  return {
+    id: record.id,
+    providerId: record.providerId,
+    displayName: record.displayName,
+    authMethodId: record.authMethodId,
+    selectedModelId: record.selectedModelId,
+    verificationStatus: record.verificationStatus,
+    lastVerifiedAt: record.lastVerifiedAt,
+  };
+}
+
+function mapAiProbe(probe: AiAccountProbeResult): AiSettingsProbeView {
+  return {
+    status: probe.status,
+    message: probe.message,
+    models: probe.models,
+    ...(probe.resolvedBaseUrl ? { resolvedBaseUrl: probe.resolvedBaseUrl } : {}),
+  };
+}
+
+function toAiAccountDraft(draft: AiSettingsDraftInput): AiAccountDraft {
+  return {
+    ...(draft.accountId ? { accountId: draft.accountId } : {}),
+    providerId: draft.providerId as AiAccountDraft["providerId"],
+    displayName: draft.displayName,
+    authMethodId: draft.authMethodId,
+    settings: draft.settings,
+    selectedModelId: draft.selectedModelId ?? null,
+  };
+}
+
 
 function initialLayoutMetrics(): WorkbenchLayoutMetrics {
   if (typeof window === "undefined") return resolveWorkbenchLayoutMetrics(1440, 900);
@@ -519,6 +558,8 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [updateNoticeOpen, setUpdateNoticeOpen] = useState(false);
   const [selectedAiProviderId, setSelectedAiProviderId] = useState(aiProviderViews[0]?.id ?? "openai");
+  const [aiSnapshot, setAiSnapshot] = useState<AiAccountSnapshot>({ accounts: [], secretPersistence: "memory" });
+  const [aiHostAvailable, setAiHostAvailable] = useState(Boolean(props.aiSettingsHost));
   // Hover Preview 与正式左 Dock 共享同一个“实际宽度”值。默认取当前响应式 initial，随后由 ResizableWorkbench 回传真实宽度。
   const [leftPaneWidth, setLeftPaneWidth] = useState(layout.left.initial);
   const [leftPreviewOpen, setLeftPreviewOpen] = useState(false);
@@ -580,6 +621,16 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     return () => window.clearTimeout(timer);
   }, [updateNoticeOpen]);
   useEffect(() => { window.localStorage.setItem(CHROME_KEY, JSON.stringify(chrome)); }, [chrome]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!props.aiSettingsHost) { setAiHostAvailable(false); return; }
+    props.aiSettingsHost.snapshot().then((snapshot) => {
+      if (cancelled) return;
+      setAiSnapshot(snapshot);
+      setAiHostAvailable(true);
+    }).catch(() => { if (!cancelled) setAiHostAvailable(false); });
+    return () => { cancelled = true; };
+  }, [props.aiSettingsHost]);
   useEffect(() => {
     if (!chrome.leftCollapsed && leftPreviewOpen) setLeftPreviewOpen(false);
   }, [chrome.leftCollapsed, leftPreviewOpen]);
@@ -649,6 +700,21 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
       onRequestUpdate={() => setUpdateNoticeOpen(true)}
     />
   );
+
+  const aiAccounts = aiSnapshot.accounts.map(mapAiAccount);
+  const requireAiHost = () => {
+    if (!props.aiSettingsHost) throw new Error("当前宿主未提供 AI 配置桥。");
+    return props.aiSettingsHost;
+  };
+  const probeAiAccount = async (draft: AiSettingsDraftInput, secret: string) => mapAiProbe(await requireAiHost().probe(toAiAccountDraft(draft), secret));
+  const saveAiAccount = async (draft: AiSettingsDraftInput, secret: string) => {
+    const result = await requireAiHost().save(toAiAccountDraft(draft), secret);
+    setAiSnapshot(result.snapshot);
+    return mapAiProbe(result.probe);
+  };
+  const reprobeAiAccount = async (accountId: string) => mapAiProbe(await requireAiHost().reprobe(accountId));
+  const deleteAiAccount = async (accountId: string) => setAiSnapshot(await requireAiHost().deleteAccount(accountId));
+  const selectAiAccountModel = async (accountId: string, modelId: string) => setAiSnapshot(await requireAiHost().selectModel(accountId, modelId));
 
   return (
     <div className="agent-theme" data-theme={resolvedTheme} data-theme-preference={themePreference} data-layout-mode={layoutMode}>
@@ -778,6 +844,14 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
             aiProviders={aiProviderViews}
             selectedAiProviderId={selectedAiProviderId}
             onSelectAiProvider={setSelectedAiProviderId}
+            aiAccounts={aiAccounts}
+            aiSecretPersistence={aiHostAvailable ? aiSnapshot.secretPersistence : "unavailable"}
+            aiHostAvailable={aiHostAvailable}
+            onProbeAiAccount={probeAiAccount}
+            onSaveAiAccount={saveAiAccount}
+            onReprobeAiAccount={reprobeAiAccount}
+            onDeleteAiAccount={deleteAiAccount}
+            onSelectAiAccountModel={selectAiAccountModel}
           />
         </div>
       ) : null}
