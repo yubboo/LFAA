@@ -9,6 +9,7 @@
  * 修改注意事项：以后改响应式尺寸优先改这里的比例/上下限；不要再在 App Shell 里直接写侧栏宽度常量。
  */
 
+import { WORKBENCH_INTERACTION_TOKENS } from "./workbench-interaction.config";
 import type { WorkbenchLayoutMode, WorkbenchPaneLimits } from "./workbench-layout.types";
 
 interface ScalarRule {
@@ -31,6 +32,7 @@ export interface WorkbenchLayoutMetrics {
   right: WorkbenchPaneLimits;
   bottom: WorkbenchPaneLimits;
   minCenterWidth: number;
+  snapCaptureRatio: number;
   snapHysteresis: number;
 }
 
@@ -63,7 +65,6 @@ export const WORKBENCH_LAYOUT_TOKENS = Object.freeze({
     initial: { ratio: 0.29, floor: 220, ceiling: 320 },
     max: { ratio: 0.58, floor: 320, ceiling: 560 },
   } satisfies PaneRuleSet,
-  snapHysteresis: { ratio: 0.018, floor: 14, ceiling: 24 },
   mobileGuard: 680,
 } as const);
 
@@ -111,7 +112,8 @@ export function resolveWorkbenchLayoutMetrics(containerWidth: number, containerH
       ? "compact"
       : "mobile";
 
-  const snapHysteresis = resolveScalar(width, WORKBENCH_LAYOUT_TOKENS.snapHysteresis);
+  const snapHysteresis = resolveScalar(width, WORKBENCH_INTERACTION_TOKENS.snap.releaseHysteresis);
+  const snapCaptureRatio = WORKBENCH_INTERACTION_TOKENS.snap.captureRatio;
 
   return {
     mode,
@@ -121,6 +123,7 @@ export function resolveWorkbenchLayoutMetrics(containerWidth: number, containerH
     right,
     bottom,
     minCenterWidth,
+    snapCaptureRatio,
     snapHysteresis,
   };
 }

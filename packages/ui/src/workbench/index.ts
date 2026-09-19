@@ -11,4 +11,5 @@
 export { ResizableWorkbench } from "./ResizableWorkbench";
 export type { ResizableWorkbenchProps, WorkbenchPaneLimits, WorkbenchLayoutMode } from "./workbench-layout.types";
 export { WORKBENCH_LAYOUT_TOKENS, resolveWorkbenchLayoutMetrics } from "./workbench-layout.config";
+export { WORKBENCH_INTERACTION_TOKENS, normalizeSnapCaptureRatio, resolveSnapCaptureThreshold } from "./workbench-interaction.config";
 export type { WorkbenchLayoutMetrics } from "./workbench-layout.config";

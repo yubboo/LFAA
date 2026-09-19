@@ -66,6 +66,7 @@ test("Settings 左栏直接复用 ResizableWorkbench，不再维护固定宽度�
   assert.match(settings, /<ResizableWorkbench/);
   assert.match(settings, /storageKey=\{SETTINGS_LAYOUT_KEY\}/);
   assert.match(settings, /leftLimits=\{layout\.left\}/);
+  assert.match(settings, /snapCaptureRatio=\{layout\.snapCaptureRatio\}/);
   assert.match(settings, /snapHysteresis=\{layout\.snapHysteresis\}/);
   assert.match(settings, /onLeftCollapsedChange=\{setSidebarCollapsed\}/);
   assert.match(settings, /resolveWorkbenchLayoutMetrics/);
@@ -84,6 +85,7 @@ test("Settings 左栏支持吸附收起并提供显式重新展开入口", () =>
 test("Settings 与主工作台共享唯一 leftPaneWidth，不各自保存宽度真值", () => {
   assert.match(shell, /const \[leftPaneWidth, setLeftPaneWidth\] = useState/);
   assert.match(shell, /<ResizableWorkbench[\s\S]*leftWidth=\{leftPaneWidth\}[\s\S]*onLeftWidthChange=\{setLeftPaneWidth\}/);
+  assert.match(shell, /snapCaptureRatio=\{layout\.snapCaptureRatio\}/);
   assert.match(shell, /<SettingsPage[\s\S]*leftPaneWidth=\{leftPaneWidth\}[\s\S]*onLeftPaneWidthChange=\{setLeftPaneWidth\}/);
   assert.match(settings, /leftWidth=\{props\.leftPaneWidth\}/);
   assert.match(settings, /onLeftWidthChange=\{props\.onLeftPaneWidthChange\}/);

@@ -8,7 +8,7 @@
  * 关联文件：ResizableWorkbench.tsx、workbench-layout.config.ts、workbench-layout.types.ts、packages/app-shell/src/agent-workbench.css。
  * 修改注意事项：
  * - 响应式结构由 data-layout-mode 决定，不再把 1240/760 断点分别硬编码在 JS 与 CSS 两处；
- * - 展开态只允许 >= 当前计算 min；到 min 后进入“收起吸附预览”，不能渲染残缺的超窄侧栏；
+ * - min 只表示正常展开态最小尺寸；Pointer 可继续进入防误触区，达到统一 capture threshold 后才进入收起吸附预览；
  * - 真正 collapsed 后 separator 失效，只能由显式按钮/快捷键重新展开。
  *
  * Desktop Grid：
@@ -48,8 +48,8 @@
   background: var(--agent-bg, #fff);
   color: var(--agent-text, #171717);
   transition:
-    grid-template-columns 240ms cubic-bezier(.22, 1, .36, 1),
-    grid-template-rows 240ms cubic-bezier(.22, 1, .36, 1);
+    grid-template-columns var(--lfaa-snap-settle-duration) cubic-bezier(.22, 1, .36, 1),
+    grid-template-rows var(--lfaa-snap-settle-duration) cubic-bezier(.22, 1, .36, 1);
 }
 
 /* ===== 2. 拖拽阶段：Pointer 必须直接跟手 ===== */
@@ -65,31 +65,31 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   transition: none;
 }
 
-/* 到 min 以后才开启很短的“磁吸收起”动画；普通 resize 不追逐 Pointer。 */
+/* 只有越过防误触区、真正达到 capture threshold 后才开启磁吸收起；普通 resize 不追逐 Pointer。 */
 .lfaa-is-resizing .lfaa-workbench[data-snap-preview="left"],
 .lfaa-is-resizing .lfaa-workbench[data-snap-preview="right"] {
-  transition: grid-template-columns 180ms cubic-bezier(.18, .9, .2, 1);
+  transition: grid-template-columns var(--lfaa-snap-capture-duration) cubic-bezier(.18, .9, .2, 1);
 }
 .lfaa-is-resizing-vertical .lfaa-workbench[data-snap-preview="bottom"] {
-  transition: grid-template-rows 180ms cubic-bezier(.18, .9, .2, 1);
+  transition: grid-template-rows var(--lfaa-snap-capture-duration) cubic-bezier(.18, .9, .2, 1);
 }
 .lfaa-is-resizing .lfaa-workbench[data-snap-preview="left"] .lfaa-workbench__pane--left,
 .lfaa-is-resizing .lfaa-workbench[data-snap-preview="right"] .lfaa-workbench__pane--right {
-  transition: opacity 160ms ease-out, transform 180ms cubic-bezier(.18, .9, .2, 1);
+  transition: opacity var(--lfaa-snap-capture-duration) ease-out, transform var(--lfaa-snap-capture-duration) cubic-bezier(.18, .9, .2, 1);
 }
 
 /* Pointer 未松手时从 snap capture 反向拉出：只给 0 -> min/当前宽度一个短 release 过渡。
- * 150ms 后 ResizableWorkbench 会清除此状态，继续拖拽立即恢复 1:1 跟手。 */
+ * 时长来自统一 interaction token；结束后继续拖拽立即恢复 1:1 跟手。 */
 .lfaa-is-resizing .lfaa-workbench[data-snap-release="left"],
 .lfaa-is-resizing .lfaa-workbench[data-snap-release="right"] {
-  transition: grid-template-columns 150ms cubic-bezier(.22, 1, .36, 1);
+  transition: grid-template-columns var(--lfaa-snap-release-duration) cubic-bezier(.22, 1, .36, 1);
 }
 .lfaa-is-resizing-vertical .lfaa-workbench[data-snap-release="bottom"] {
-  transition: grid-template-rows 150ms cubic-bezier(.22, 1, .36, 1);
+  transition: grid-template-rows var(--lfaa-snap-release-duration) cubic-bezier(.22, 1, .36, 1);
 }
 .lfaa-is-resizing .lfaa-workbench[data-snap-release="left"] .lfaa-workbench__pane--left,
 .lfaa-is-resizing .lfaa-workbench[data-snap-release="right"] .lfaa-workbench__pane--right {
-  transition: opacity 130ms ease-out, transform 150ms cubic-bezier(.22, 1, .36, 1);
+  transition: opacity var(--lfaa-snap-release-duration) ease-out, transform var(--lfaa-snap-release-duration) cubic-bezier(.22, 1, .36, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -123,8 +123,8 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   visibility: visible;
   transition:
     opacity 180ms ease-out,
-    transform 240ms cubic-bezier(.22, 1, .36, 1),
-    visibility 240ms step-end;
+    transform var(--lfaa-snap-settle-duration) cubic-bezier(.22, 1, .36, 1),
+    visibility var(--lfaa-snap-settle-duration) step-end;
 }
 
 /* ===== 4. collapsed / snap preview ===== */
@@ -196,7 +196,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   transform: translateY(0);
   border-top: 1px solid var(--agent-border, #e5e5e5);
   background: var(--agent-bg, #fff);
-  transition: opacity 180ms ease-out, transform 240ms cubic-bezier(.22, 1, .36, 1);
+  transition: opacity var(--lfaa-snap-capture-duration) ease-out, transform var(--lfaa-snap-settle-duration) cubic-bezier(.22, 1, .36, 1);
 }
 .lfaa-workbench[data-bottom-open="false"] .lfaa-workbench__bottom {
   opacity: 0;

@@ -5,7 +5,7 @@ workbench-layout.config.ts
 → Workbench 几何的单一变量源
 → ratio / floor / ceiling
 → 根据容器宽高计算 left/right/bottom limits
-→ 计算 center protection / snap hysteresis
+→ 计算 center protection / snap capture ratio / release hysteresis
 → 自动决定 Desktop / Compact / Mobile
 
 ResizableWorkbench.tsx
@@ -14,7 +14,7 @@ ResizableWorkbench.tsx
 → 动态最大宽度
 → 历史持久化宽度随容器重新 clamp
 → 左 / 右 / Bottom 到动态 min 吸附收起
-→ Pointer 按住时可从 snap capture 反向拖回 min
+→ min 后进入防误触区，达到 capture threshold 才吸附；Pointer 按住时仍可从 snap capture 反向拖回 min
 → Pointer Up 后提交 collapsed/open 受控接口
 
 workbench.css
@@ -54,8 +54,8 @@ Bottom min：136~176
 ```text
 正常拖拽
 → 到达当前动态 min
-→ snap capture / 收起预览吸到 0
-→ 不松手反向拉到 min + hysteresis
+→ min 只是正常可用下限；继续拖到 min × captureRatio 才 snap capture / 吸到 0
+→ 未达到 capture threshold 松手恢复 min；已 capture 时不松手反向拉到 min + hysteresis
 → 恢复到 min 并继续拉伸
 → Pointer Up 时若仍 snapped 才真正收起
 ```
@@ -75,3 +75,14 @@ App Shell 内容与状态：
 ## 单侧 Surface 复用
 
 `ResizableWorkbench` 的 `right` 为可选插槽。Settings 等“左导航 + 内容区”Surface 直接省略右栏，从而复用同一套左栏 resize / snap / hysteresis / snap-release / 键盘控制和持久化，不允许复制第二套侧栏算法。
+
+### 交互参数统一配置
+
+`workbench-interaction.config.ts` 是 Workbench 拖拽手感的唯一默认参数入口：
+
+- `snap.captureRatio`：默认 `0.50`，表示拖到 `minWidth × 50%` 才正式吸附；越小越难误触收起；
+- `snap.releaseHysteresis`：已吸附后反向拉出需要越过的迟滞距离；
+- `snap.captureDurationMs / releaseDurationMs / settleDurationMs`：吸附、反向释放、普通归位动画；
+- `keyboard.stepPx / fastStepPx`：键盘 Resize 步长。
+
+工作台、Settings 与后续复用 Surface 默认读取同一套参数；需要特殊手感时通过 `ResizableWorkbench` props 覆盖，不允许复制算法或在事件函数中写魔法数字。

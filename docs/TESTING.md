@@ -1,3 +1,10 @@
+## v0.0.74 / #2.14 侧栏吸附触发阈值变量化
+
+- `test/workbench-snap-animation.test.mjs`：锁住 `raw <= min` 不得直接 capture，正式触发必须走 `captureThreshold = min × snapCaptureRatio`；验证默认 ratio=0.50、左右/Bottom 共用、反向 release 继续存在。
+- `test/settings-shell.test.mjs`：验证 Settings 与 App Shell 都使用共享 `layout.snapCaptureRatio`，并继续共用唯一 leftPaneWidth。
+- 历史依赖/发布/运行时导入/AI Host 回归：当前容器已执行 64/64 PASS。
+- 用户实机：重点测试 min 后继续向内拖到半宽才吸附、未到阈值松手恢复 min、吸附后不松手反向拉出。
+
 ## v0.0.73 / #2.13 Rust Secret Broker 与官方模型能力配置
 
 - `packages/config-system/test/*.test.mjs`：30/30 PASS；覆盖官方模型目录、Provider Capability、模型配置白名单、未知字段/伪造模型拒绝与 Config Schema 回归。

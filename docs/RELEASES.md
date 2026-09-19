@@ -1,6 +1,18 @@
-## LFAA v0.0.73 Release — #2.13 Rust Secret Broker 与官方模型能力配置
+## LFAA v0.0.74 Release — #2.14 侧栏吸附触发阈值变量化
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.73
+- **任务：** #2.14
+- **主要变更：** `minWidth` 不再等于吸附触发线；默认拖到 `minWidth × 0.50` 才 capture，min 到 capture 之间是防误触临时拖拽区。
+- **统一参数：** `workbench-interaction.config.ts` 集中维护 capture ratio、release hysteresis、capture/release/settle duration、键盘 resize 步长，并写明中文调参语义。
+- **复用：** 主工作台、Settings、左右栏与 Bottom Dock 继续使用同一 `ResizableWorkbench`；默认参数一起变化，也可通过 props 单独覆盖。
+- **用户验收重点：** 拖到 min 不应立即收起；继续向内拖到约一半才磁吸；未到一半松手恢复 min；吸附后不松手反向拉出仍应丝滑。
+- **AI 验证：** 94/94 Node/Config 回归 PASS，补充 TypeScript 与全部治理门禁 PASS。
+
+## LFAA v0.0.73 Release — #2.13 Rust Secret Broker 与官方模型能力配置
+
+- **状态：** superseded
+- **用户验收：** not-accepted；业务成果由 v0.0.74 继续承载
 - **基线：** v0.0.72
 - **任务：** #2.13
 - **Secret：** 正式链路为 TypeScript Host → Rust `lfaa-secret-broker` → Windows Generic Credential；C#/PowerShell helper 已删除；Secret 只经二进制 stdin/stdout Broker 协议。

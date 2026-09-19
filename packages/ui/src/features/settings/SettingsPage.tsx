@@ -111,6 +111,7 @@ export function SettingsPage(props: SettingsPageProps) {
         leftLimits={layout.left}
         rightLimits={{ min: 0, initial: 0, max: 0 }}
         bottomLimits={layout.bottom}
+        snapCaptureRatio={layout.snapCaptureRatio}
         snapHysteresis={layout.snapHysteresis}
         minCenterWidth={layout.minCenterWidth}
         leftCollapsed={sidebarCollapsed}

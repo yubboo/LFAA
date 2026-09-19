@@ -797,7 +797,8 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
             leftLimits={layout.left}
             rightLimits={layout.right}
             bottomLimits={layout.bottom}
-            snapHysteresis={layout.snapHysteresis}
+            snapCaptureRatio={layout.snapCaptureRatio}
+        snapHysteresis={layout.snapHysteresis}
             minCenterWidth={layout.minCenterWidth}
             leftCollapsed={chrome.leftCollapsed}
             onLeftWidthChange={setLeftPaneWidth}

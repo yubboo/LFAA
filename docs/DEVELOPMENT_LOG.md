@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #2.13 | Rust Secret Broker 与官方模型能力配置 | v0.0.73 | pending-user-acceptance |
+| #2.14 | 侧栏吸附触发阈值变量化 | v0.0.74 | pending-user-acceptance |
+| #2.13 | Rust Secret Broker 与官方模型能力配置 | v0.0.73 | superseded |
 | #2.12 | Windows Credential Manager 保存链路修复 | v0.0.72 | superseded |
 | #2.11 | 工作台 / 设置左栏宽度单一事实源 | v0.0.71 | delivered |
 | #2.10 | UI Workspace 运行时导入解析修复 | v0.0.70 | superseded |
@@ -37,16 +38,28 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
 
+### #2.14 侧栏吸附触发阈值变量化
+
+- **版本：** v0.0.74
+- **状态：** pending-user-acceptance
+- **主模块：** ui / workbench
+- **用户反馈：** 当前共享侧栏达到 `minWidth` 就立即吸附收起，容易误触；期望达到最小宽度后继续向内拖到约一半距离才触发吸附，并要求拖拽参数统一变量化、中文注释清楚。
+- **决策：** `minWidth` 与 snap capture 解耦；默认 `snapCaptureRatio = 0.50`，只有临时尺寸达到 `min × ratio` 才进入捕获。capture 前允许临时低于 min 跟手，未捕获松手则恢复到 min。
+- **复用：** 左栏 / 右栏 / Bottom Dock / Settings 继续共用同一个 `ResizableWorkbench`；交互参数集中到 Workbench interaction config，允许组件级覆盖。
+- **边界：** 不改 Rust Secret、Provider、Account/Auth、Settings 业务、个人中心、主题和 Windows 工具链。
+- **AI 验证：** Workbench/Settings 新合同 17/17 PASS；仓库 Node 回归 64/64 + Config System 30/30 = 94/94 PASS；UI/App Shell/Config 补充 TypeScript 检查 PASS；governance / import / runtime import / folder / docs / comment / Windows BOM / release consistency / prompt lifecycle / config schema / release gates / UI contract 全部 PASS。
+- **用户验收：** pending；重点感受 min 后的防误触区、50% capture line 与正式吸附手感。
+
 ### #2.13 Rust Secret Broker 与官方模型能力配置
 
 - **版本：** v0.0.73
-- **状态：** pending-user-acceptance
+- **状态：** superseded
 - **主模块：** config-system / rust-secret-store / web-host / ui
 - **用户反馈：** v0.0.72 保存仍失败，错误来自 PowerShell `Add-Type` 内嵌 C#；用户明确技术栈必须保持 TypeScript + Rust，并要求各厂商模型/思考配置直接依据官方接口/文档。
 - **决策：** 删除 C# / PowerShell Credential helper；Windows Secret 迁入 Rust Broker。模型列表优先动态调用官方目录 API；模型能力通过 Provider capability resolver 绑定官方来源，未知能力不显示。
 - **边界：** UI 不拥有厂商事实；Web Host 不拥有 Secret 实现；Rust Broker 不知道 Provider；Account Core 只保存 `credentialRef + modelSettings`。
 - **AI 验证：** Config System 30/30、AI Web Host / Rust Secret 9/9、其余 Node 回归 53/53 通过；Config System TypeScript `--noEmit` 与 UI/App Shell/Web Host 语法检查通过；governance / import / runtime import / folder / docs / comment / Windows BOM / release consistency / prompt lifecycle / config schema / release gates / UI contract 全部 PASS。当前制作容器无 Cargo/pnpm/Windows，不冒充 Rust 编译、Credential Manager 或真实厂商 Key 动态实机通过。
-- **用户验收：** pending；Windows Rust Broker 保存/重启读取/删除与真实 Provider 模型目录/能力 UI。
+- **用户验收：** not-accepted；业务候选尚未完成 Windows 实机验收即由 v0.0.74 叠加共享 Workbench 交互优化，业务成果继续保留。
 
 ### #2.12 Windows Credential Manager 保存链路修复
 

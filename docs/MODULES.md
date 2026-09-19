@@ -1031,6 +1031,7 @@ v0.0.41 为 Windows PowerShell 脚本补中文结构化文件头时，保存过�
 ## config-system
 
 - 当前进度：#2.13 / v0.0.73 Rust Secret Broker 与官方模型能力配置，pending-user-acceptance；Secret 已迁入 Rust Broker，模型目录/能力由官方 API/官方文档驱动。
+- UI 交互修正：#2.14 / v0.0.74 侧栏吸附触发阈值变量化，pending-user-acceptance；Workbench/Settings 共用 capture ratio 与集中交互 token。
 
 > 迁移来源：`docs/modules/config-system/README.md`
 
@@ -1177,7 +1178,7 @@ v0.0.2+
 #### 2026-09-19 / #2.13 Rust Secret Broker 与官方模型能力配置
 
 - 当前状态：pending-user-acceptance
-- 用户版本：v0.0.73
+- 用户版本：v0.0.74
 - Secret：删除 C#/PowerShell Credential helper；Windows 通过 `crates/secret-store` Rust FFI 访问 Generic Credential，Web Host 只走二进制 stdin/stdout Broker 协议。
 - Provider：OpenAI / DeepSeek / Kimi / 千问 / Xiaomi 动态调用官方模型目录 API；智谱无已确认统一账户模型列表 API，使用官方模型概览 Catalog Adapter。
 - Capability：Provider 为已核对模型返回官方来源、上下文/输出限制与真实请求参数路径；UI 无厂商分支，Account Core 拒绝未声明字段/值。

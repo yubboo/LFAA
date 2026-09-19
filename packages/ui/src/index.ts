@@ -12,6 +12,7 @@ export { ResizableWorkbench } from "./workbench/ResizableWorkbench";
 export type { ResizableWorkbenchProps, WorkbenchPaneLimits, WorkbenchLayoutMode } from "./workbench/workbench-layout.types";
 
 export { WORKBENCH_LAYOUT_TOKENS, resolveWorkbenchLayoutMetrics } from "./workbench/workbench-layout.config";
+export { WORKBENCH_INTERACTION_TOKENS, normalizeSnapCaptureRatio, resolveSnapCaptureThreshold } from "./workbench/workbench-interaction.config";
 export type { WorkbenchLayoutMetrics } from "./workbench/workbench-layout.config";
 export { AiSettingsPage } from "./features/settings/ai/AiSettingsPage";
 export type { AiSettingsPageProps, AiSettingsProviderView, AiSettingsAuthView, AiSettingsFieldView, AiSettingsAccountView, AiSettingsDraftInput, AiSettingsProbeView, AiSettingsModelView } from "./features/settings/ai/ai-settings.types";

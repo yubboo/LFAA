@@ -1,8 +1,21 @@
 # LFAA 更新日志
 
-## LFAA v0.0.73 — #2.13 Rust Secret Broker 与官方模型能力配置
+## LFAA v0.0.74 — #2.14 侧栏吸附触发阈值变量化
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.73
+- **任务：** #2.14
+- `minWidth` 与 snap capture 正式解耦：达到最小可用宽度不会立刻吸附，默认继续拖到 `minWidth × 0.50` 才进入收起预览，降低误触。
+- `min → capture threshold` 区间允许临时继续跟手缩窄；未越过阈值就松手时回到 `minWidth`，不会提交 collapsed。
+- 左栏、右栏、Bottom Dock、Settings 继续复用同一个 `ResizableWorkbench` capture / hysteresis / release 算法。
+- 新增 `workbench-interaction.config.ts`，集中管理 `captureRatio`、release hysteresis、capture/release/settle 动画时长、键盘 Resize 步长，并提供中文注释；组件仍允许按 Surface 覆盖参数。
+- CSS 吸附/释放时长改由统一 CSS 变量注入，不再在 snap 规则中散落 150ms/180ms 魔法数字。
+- **AI 验证：** 仓库 Node 回归 64/64 + Config System 30/30 = 94/94 PASS；补充 TypeScript PASS；governance / import / runtime import / folder / docs / comment / Windows BOM / release consistency / prompt lifecycle / config schema / release gates / UI contract 全部 PASS。
+
+## LFAA v0.0.73 — #2.13 Rust Secret Broker 与官方模型能力配置
+
+- **状态：** superseded
+- **用户验收：** not-accepted；业务成果由 v0.0.74 继续承载，尚待 Windows Rust Secret / Provider 实机验收
 - **基线：** v0.0.72
 - **任务：** #2.13
 - 删除 PowerShell/C# Credential helper；`crates/secret-store` 实现 `lfaa-secret-broker`，Windows 直接通过 Rust FFI 调用 `CredWriteW / CredReadW / CredDeleteW`，写入后必须回读比对。

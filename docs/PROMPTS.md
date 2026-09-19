@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #2.13 | Rust Secret Broker 与官方模型能力配置 | v0.0.73 | pending-user-acceptance | pass | pending |
+| #2.14 | 侧栏吸附触发阈值变量化 | v0.0.74 | pending-user-acceptance | pass | pending |
+| #2.13 | Rust Secret Broker 与官方模型能力配置 | v0.0.73 | superseded | pass | not-accepted |
 | #2.12 | Windows Credential Manager 保存链路修复 | v0.0.72 | superseded | pass | not-accepted |
 | #2.11 | 工作台 / 设置左栏宽度单一事实源 | v0.0.71 | delivered | pass | passed |
 | #2.10 | UI Workspace 运行时导入解析修复 | v0.0.70 | superseded | pass | not-accepted |
@@ -51,6 +52,59 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.14 侧栏吸附触发阈值变量化
+
+### 主模块
+
+`ui / workbench`
+
+### 背景
+
+v0.0.73 保留 Rust Secret Broker 与官方模型能力候选；用户在继续体验共享 Workbench 侧栏时指出：当前侧栏一到 `minWidth` 就立刻进入 snap capture，容易误触。参考目标是在达到最小可用宽度后继续向内拖一段距离，达到明确捕获阈值后才吸附收起；同时要求拖拽参数集中变量化、写清中文注释，工作台、Settings 与后续复用 Surface 共用同一算法。
+
+### 任务目标
+
+1. `minWidth` 只表示正常展开态最小可用宽度，不再等于吸附触发线；
+2. 新增统一 `snapCaptureRatio`，默认 `0.50`：临时拖拽宽度降到 `minWidth × 50%` 后才进入 snap capture；
+3. `minWidth → capture threshold` 区间允许临时跟随 Pointer 继续缩窄；若未达到捕获阈值就松手，则恢复并提交到 `minWidth`，不得误收起；
+4. 左栏、右栏、Bottom Dock、Settings 复用同一 capture / hysteresis / release 算法；允许通过组件参数单独覆盖；
+5. 将 snap capture/release 动画时长、键盘 resize 步长等交互参数集中到 Workbench interaction 配置，并用中文注释说明调参影响，禁止散落魔法数字。
+
+### 允许修改
+
+- `packages/ui/src/workbench/**`；
+- Settings / App Shell 对共享 Workbench 参数的透传；
+- Workbench / Settings 防回归测试；
+- Prompt / Log / Plan / Testing / CHANGELOG / RELEASES / 版本事实。
+
+### 禁止修改
+
+- 禁止修改 Rust Secret Broker、Provider、Account/Auth、模型能力业务；
+- 禁止修改个人中心、主题、Windows Setup / Sync / GitHub / Update；
+- 禁止在工作台与 Settings 分别复制一套 snap 逻辑；
+- 禁止重新引入固定 px 捕获阈值作为唯一规则。
+
+### 验收条件
+
+- 拖到 `minWidth` 时不会立刻吸附；继续向内拖到默认 `minWidth × 0.50` 才进入 snap preview；
+- 未越过捕获阈值时松手，侧栏回到 `minWidth` 而不是收起；
+- 吸附后 Pointer 不松仍可按既有 hysteresis 反向丝滑拉出；
+- Settings 与主工作台行为一致，因为使用同一 ResizableWorkbench；
+- capture ratio / hysteresis / capture duration / release duration / keyboard resize step 均能从集中配置找到并有清晰中文注释。
+
+### 必须测试
+
+- snap 不再由 `raw <= min` 触发；
+- capture threshold 使用 `min × snapCaptureRatio`；
+- 左/右/Bottom 共用 capture 规则；
+- Settings / App Shell 透传共享 capture ratio；
+- 现有 snap-release、共享 leftWidth、Provider/Secret 历史回归不退化；
+- governance / import / runtime import / folder / release consistency / prompt lifecycle / UI contract。
+
+### 当前状态
+
+`pending-user-acceptance`
 
 ## #2.13 Rust Secret Broker 与官方模型能力配置
 

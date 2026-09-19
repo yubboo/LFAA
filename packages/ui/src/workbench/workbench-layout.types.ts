@@ -28,7 +28,13 @@ export interface ResizableWorkbenchProps {
   leftLimits?: WorkbenchPaneLimits;
   rightLimits?: WorkbenchPaneLimits;
   bottomLimits?: WorkbenchPaneLimits;
+  /** 吸附捕获比例：拖到 min × ratio 才正式吸附；默认来自统一 Workbench interaction config。 */
+  snapCaptureRatio?: number;
   snapHysteresis?: number;
+  /** 可按 Surface 覆盖吸附/释放动画时长；默认所有 Surface 共用统一配置。 */
+  snapCaptureDurationMs?: number;
+  snapReleaseDurationMs?: number;
+  snapSettleDurationMs?: number;
   minCenterWidth?: number;
   /** 可选受控左栏宽度；提供后由父组件成为 leftWidth 唯一事实源。 */
   leftWidth?: number;

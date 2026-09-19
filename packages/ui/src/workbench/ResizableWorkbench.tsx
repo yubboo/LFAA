@@ -7,7 +7,7 @@
  * 对外接口：ResizableWorkbench(props)，leftWidth/onLeftWidthChange 可让多个 Surface 共用同一左栏宽度事实源。
  * 关联文件：workbench-layout.types.ts、workbench.css、@lfaa/app-shell/AgentWorkbench.tsx。
  * 修改注意事项：
- * - 展开态尺寸绝不低于 min；拖到 min 即进入吸附收起预览，Pointer 不松手可反向拖回 min 并继续拉伸。
+ * - min 只表示正常展开态最小宽度；默认继续拖到 min × 0.50 才进入吸附预览，降低误触，Pointer 不松手仍可反向拉出。
  * - Pointer Up 后 separator 不允许反向展开，只能由显式按钮/快捷键恢复。
  * - 不要在本组件新增业务按钮；受控/非受控状态必须保持一致。
  *
@@ -28,6 +28,10 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
+import {
+  WORKBENCH_INTERACTION_TOKENS,
+  resolveSnapCaptureThreshold,
+} from "./workbench-interaction.config";
 import { WORKBENCH_LAYOUT_TOKENS, resolveWorkbenchLayoutMetrics } from "./workbench-layout.config";
 import type { ResizableWorkbenchProps, WorkbenchPaneLimits } from "./workbench-layout.types";
 import "./workbench.css";
@@ -49,6 +53,7 @@ interface SideDragState {
   min: number;
   max: number;
   lastRaw: number;
+  captureThreshold: number;
   snapped: boolean;
 }
 
@@ -59,6 +64,7 @@ interface BottomDragState {
   max: number;
   lastRaw: number;
   lastHeight: number;
+  captureThreshold: number;
   snapped: boolean;
 }
 
@@ -126,7 +132,11 @@ export function ResizableWorkbench({
   leftLimits = DEFAULT_LEFT,
   rightLimits = DEFAULT_RIGHT,
   bottomLimits = DEFAULT_BOTTOM,
+  snapCaptureRatio = WORKBENCH_INTERACTION_TOKENS.snap.captureRatio,
   snapHysteresis = 24,
+  snapCaptureDurationMs = WORKBENCH_INTERACTION_TOKENS.snap.captureDurationMs,
+  snapReleaseDurationMs = WORKBENCH_INTERACTION_TOKENS.snap.releaseDurationMs,
+  snapSettleDurationMs = WORKBENCH_INTERACTION_TOKENS.snap.settleDurationMs,
   minCenterWidth = 520,
   leftWidth: leftWidthProp,
   leftCollapsed: leftCollapsedProp,
@@ -252,8 +262,8 @@ export function ResizableWorkbench({
       const current = rootRef.current;
       if (current?.dataset.snapRelease === target) current.dataset.snapRelease = "none";
       snapReleaseTimerRef.current = null;
-    }, 150);
-  }, []);
+    }, snapReleaseDurationMs);
+  }, [snapReleaseDurationMs]);
 
   const cancelSnapRelease = useCallback(() => {
     if (snapReleaseTimerRef.current !== null) {
@@ -281,10 +291,11 @@ export function ResizableWorkbench({
 
   // requestAnimationFrame 合并高频 pointermove。
   // 规则：
-  // 1) 展开状态绝不允许低于 min；min 是“可用布局”的硬下限；
-  // 2) 向内拖到 min 即进入 snap capture，视觉上吸附到 0，表达“准备收起”；
-  // 3) Pointer 仍按住时，只要反向拖过 min + hysteresis，就从 0 恢复到 min 并继续正常拉伸；
-  // 4) 只有 Pointer Up 时仍处于 snapped，才真正提交 collapsed。
+  // 1) min 是“正常展开态”的最小可用宽度，不再等于吸附触发线；
+  // 2) Pointer 越过 min 后仍可继续临时缩窄，只有达到 captureThreshold（默认 min × 0.50）才进入 snap capture；
+  // 3) 未达到 captureThreshold 就松手时不会收起，而是由非拖拽过渡恢复到 min，降低误触；
+  // 4) 已 capture 后 Pointer 仍按住，只要反向拖过 min + hysteresis，就从 0 恢复到 min 并继续正常拉伸；
+  // 5) 只有 Pointer Up 时仍处于 snapped，才真正提交 collapsed。
   const flushPending = useCallback(() => {
     frameRef.current = null;
     const rawValue = pendingRef.current;
@@ -295,14 +306,15 @@ export function ResizableWorkbench({
     drag.lastRaw = raw;
 
     const wasSnapped = drag.snapped;
-    if (!drag.snapped && raw <= drag.min) drag.snapped = true;
+    if (!drag.snapped && raw <= drag.captureThreshold) drag.snapped = true;
     else if (drag.snapped && raw >= drag.min + snapHysteresis) drag.snapped = false;
 
     if (wasSnapped && !drag.snapped) beginSnapRelease(drag.side);
     else if (!wasSnapped && drag.snapped) cancelSnapRelease();
 
-    // snapped 时只预览“收起”；反向释放时用 150ms 过渡从 0 回到 min/当前 Pointer，随后恢复完全跟手。
-    const visual = drag.snapped ? 0 : clamp(raw, drag.min, drag.max);
+    // capture 前允许临时低于 min 跟随 Pointer，直到统一 captureThreshold；进入 capture 后才吸到 0。
+    // 反向释放使用统一 releaseDuration，结束后恢复完全跟手。
+    const visual = drag.snapped ? 0 : clamp(raw, drag.captureThreshold, drag.max);
     setSidePreview(drag.side, visual, drag.snapped);
   }, [beginSnapRelease, cancelSnapRelease, setSidePreview, snapHysteresis]);
 
@@ -333,6 +345,7 @@ export function ResizableWorkbench({
       min: effectiveMin,
       max: effectiveMax,
       lastRaw: current,
+      captureThreshold: resolveSnapCaptureThreshold(effectiveMin, snapCaptureRatio),
       snapped: false,
     };
 
@@ -342,7 +355,7 @@ export function ResizableWorkbench({
     root.dataset.autoSnap = "none";
     event.currentTarget.setPointerCapture(event.pointerId);
     document.body.classList.add("lfaa-is-resizing");
-  }, [cancelSnapRelease, getDynamicMax, leftCollapsed, leftLimits.min, leftWidth, rightCollapsed, rightLimits.min, rightWidth]);
+  }, [cancelSnapRelease, getDynamicMax, leftCollapsed, leftLimits.min, leftWidth, rightCollapsed, rightLimits.min, rightWidth, snapCaptureRatio]);
 
   const onSidePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = sideDragRef.current;
@@ -362,7 +375,7 @@ export function ResizableWorkbench({
       if (rawValue !== null) {
         const bounded = clamp(rawValue, 0, drag.max);
         drag.lastRaw = bounded;
-        if (!drag.snapped && bounded <= drag.min) drag.snapped = true;
+        if (!drag.snapped && bounded <= drag.captureThreshold) drag.snapped = true;
         else if (drag.snapped && bounded >= drag.min + snapHysteresis) drag.snapped = false;
       }
     }
@@ -425,6 +438,7 @@ export function ResizableWorkbench({
       max: dynamicMax,
       lastRaw: bottomHeight,
       lastHeight: bottomHeight,
+      captureThreshold: resolveSnapCaptureThreshold(bottomLimits.min, snapCaptureRatio),
       snapped: false,
     };
     cancelSnapRelease();
@@ -433,7 +447,7 @@ export function ResizableWorkbench({
     root.dataset.autoSnap = "none";
     event.currentTarget.setPointerCapture(event.pointerId);
     document.body.classList.add("lfaa-is-resizing-vertical");
-  }, [bottomHeight, bottomLimits.max, bottomLimits.min, bottomOpen, cancelSnapRelease]);
+  }, [bottomHeight, bottomLimits.max, bottomLimits.min, bottomOpen, cancelSnapRelease, snapCaptureRatio]);
 
   const onBottomPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = bottomDragRef.current;
@@ -443,15 +457,15 @@ export function ResizableWorkbench({
     drag.lastRaw = raw;
 
     const wasSnapped = drag.snapped;
-    if (!drag.snapped && raw <= drag.min) drag.snapped = true;
+    if (!drag.snapped && raw <= drag.captureThreshold) drag.snapped = true;
     else if (drag.snapped && raw >= drag.min + snapHysteresis) drag.snapped = false;
 
     if (wasSnapped && !drag.snapped) beginSnapRelease("bottom");
     else if (!wasSnapped && drag.snapped) cancelSnapRelease();
 
-    // 底部面板与左右栏一致：吸附与反向释放都提供短过渡，普通拖拽保持直接跟手。
-    const visual = drag.snapped ? 0 : clamp(raw, drag.min, drag.max);
-    drag.lastHeight = clamp(raw, drag.min, drag.max);
+    // Bottom 与左右栏一致：min 之后仍有防误触区，达到 captureThreshold 才正式吸附。
+    const visual = drag.snapped ? 0 : clamp(raw, drag.captureThreshold, drag.max);
+    drag.lastHeight = clamp(raw, drag.captureThreshold, drag.max);
     setBottomPreview(visual, drag.snapped);
   }, [beginSnapRelease, cancelSnapRelease, setBottomPreview, snapHysteresis]);
 
@@ -487,7 +501,9 @@ export function ResizableWorkbench({
     const collapsed = side === "left" ? leftCollapsed : rightCollapsed;
     // 已吸附的栏位不能从 resize separator 反向展开；使用外部显式控件或快捷键。
     if (collapsed) return;
-    const step = event.shiftKey ? 36 : 12;
+    const step = event.shiftKey
+      ? WORKBENCH_INTERACTION_TOKENS.keyboard.fastStepPx
+      : WORKBENCH_INTERACTION_TOKENS.keyboard.stepPx;
     const collapseKey = side === "left" ? "ArrowLeft" : "ArrowRight";
     const expandKey = side === "left" ? "ArrowRight" : "ArrowLeft";
     if (event.key === "Home") {
@@ -533,6 +549,10 @@ export function ResizableWorkbench({
     "--lfaa-right-column": `${rightEnabled && !rightCollapsed ? rightWidth : 0}px`,
     "--lfaa-bottom-size": `${bottomHeight}px`,
     "--lfaa-bottom-row": `${bottom && bottomOpen ? bottomHeight : 0}px`,
+    // 交互时长只从统一 token / 可选 prop 写入 CSS 变量；CSS 不再散落同义毫秒值。
+    "--lfaa-snap-capture-duration": `${snapCaptureDurationMs}ms`,
+    "--lfaa-snap-release-duration": `${snapReleaseDurationMs}ms`,
+    "--lfaa-snap-settle-duration": `${snapSettleDurationMs}ms`,
   } as CSSProperties;
 
   // ===== 8. DOM 结构 =====

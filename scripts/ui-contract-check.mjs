@@ -1,7 +1,7 @@
 /**
  * 文件：ui-contract-check.mjs
  * 作用：检查 Web 工作台最容易发生视觉/交互回归的静态 UI 契约。
- * 负责：单一 Tooltip、容器响应式计算、变量化布局、Composer 底部安全间距、三向 min 吸附收起状态机、Dock/Overlay 模式契约。
+ * 负责：单一 Tooltip、容器响应式计算、变量化布局、Composer 底部安全间距、三向 capture-threshold 吸附状态机、Dock/Overlay 模式契约。
  * 不负责：浏览器真实像素截图、Pointer 实机手感、PTY 行为测试。
  * 状态归属：无运行时状态；每次执行读取当前 App Shell 与 ResizableWorkbench 源码/CSS。
  * 对外接口：`node scripts/ui-contract-check.mjs`，成功返回 0，失败返回 1。
@@ -105,18 +105,32 @@ if (!css.includes("max(var(--agent-composer-bottom-gap), env(safe-area-inset-bot
   fail("Composer bottom spacing must use --agent-composer-bottom-gap + safe-area instead of a fixed bottom padding");
 }
 
-// 4. 三向吸附仍然必须是“到 min 吸附收起；不松手可反向解锁；松手才提交 collapsed”。
+// 4. 三向吸附必须使用防误触 capture threshold：min 只是正常可用下限，继续拖到 min × ratio 才吸附；不松手仍可反向解锁。
+const interactionConfig = read("packages/ui/src/workbench/workbench-interaction.config.ts");
 for (const token of [
-  "raw <= drag.min",
+  "raw <= drag.captureThreshold",
   "raw >= drag.min + snapHysteresis",
-  "drag.snapped ? 0 : clamp(raw, drag.min, drag.max)",
+  "drag.snapped ? 0 : clamp(raw, drag.captureThreshold, drag.max)",
+  "resolveSnapCaptureThreshold(effectiveMin, snapCaptureRatio)",
+  "resolveSnapCaptureThreshold(bottomLimits.min, snapCaptureRatio)",
   "Pointer Up",
   "onBottomOpenChange?.(false)",
 ]) {
-  if (!resizeTsx.includes(token)) fail(`missing min-snap contract: ${token}`);
+  if (!resizeTsx.includes(token)) fail(`missing capture-threshold snap contract: ${token}`);
 }
-for (const forbidden of ["function elasticSize(", "function snapCommitThreshold("]) {
-  if (resizeTsx.includes(forbidden)) fail(`legacy below-min elastic layout must not return: ${forbidden}`);
+if (resizeTsx.includes("!drag.snapped && raw <= drag.min")) {
+  fail("minWidth must not directly trigger snap capture; use captureThreshold");
+}
+for (const token of [
+  "captureRatio: 0.50",
+  "releaseHysteresis",
+  "captureDurationMs",
+  "releaseDurationMs",
+  "settleDurationMs",
+  "stepPx",
+  "fastStepPx",
+]) {
+  if (!interactionConfig.includes(token)) fail(`missing centralized Workbench interaction token: ${token}`);
 }
 if (!resizeTsx.includes('data-layout-mode={layoutMode}')) fail("ResizableWorkbench must expose layoutMode to CSS");
 if (!resizeTsx.includes('layoutMode === "desktop"')) fail("dynamic max must distinguish Dock from Overlay modes");
@@ -126,8 +140,11 @@ if (!resizeTsx.includes('setResolvedLeftWidth((value) => clamp(value, dynamicMin
 if (!/\.lfaa-is-resizing \.lfaa-workbench,[\s\S]*transition:\s*none;/.test(workbenchCss)) {
   fail("normal dragging must disable transitions so Pointer stays responsive");
 }
-if (!workbenchCss.includes('data-snap-preview="left"') || !workbenchCss.includes('180ms cubic-bezier(.18, .9, .2, 1)')) {
-  fail("snap preview must keep the short magnetic-collapse transition");
+if (!workbenchCss.includes('data-snap-preview="left"') || !workbenchCss.includes('var(--lfaa-snap-capture-duration)')) {
+  fail("snap preview must use the centralized magnetic-collapse duration variable");
+}
+if (!workbenchCss.includes('var(--lfaa-snap-release-duration)') || !workbenchCss.includes('var(--lfaa-snap-settle-duration)')) {
+  fail("snap release/settle transitions must use centralized CSS duration variables");
 }
 
 
