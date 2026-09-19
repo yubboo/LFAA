@@ -33,11 +33,14 @@
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import {
+  AiSettingsPage,
   ResizableWorkbench,
   resolveWorkbenchLayoutMetrics,
+  type AiSettingsProviderView,
   type WorkbenchLayoutMetrics,
   type WorkbenchLayoutMode,
 } from "@lfaa/ui";
+import { builtinAiProviderPlugins } from "@lfaa/config-system";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 import type { AgentWorkbenchProps, DevResourceItem, ResourceKind } from "./workbench.types";
 import "./agent-workbench.css";
@@ -53,6 +56,29 @@ type LayoutMode = WorkbenchLayoutMode;
 interface ChromeState { leftCollapsed: boolean; rightCollapsed: boolean; terminalOpen: boolean; }
 const recentRuns = ["配置系统", "Web 工作台", "热插拔测试", "模型接入规划"];
 const resourceLabels: Record<ResourceKind, string> = { skills: "Skills", experts: "Experts", plugins: "Plugins", extensions: "Extensions", mcp: "MCP" };
+
+// Config System 拥有 Provider 业务事实；App Shell 只把业务描述投影为 UI ViewModel。
+const aiProviderViews: readonly AiSettingsProviderView[] = builtinAiProviderPlugins.map((plugin) => ({
+  id: plugin.id,
+  name: plugin.displayName,
+  description: plugin.description,
+  authMethods: plugin.authMethods.map((auth) => ({
+    id: auth.id,
+    label: auth.label,
+    kind: auth.kind,
+    ...(auth.description ? { description: auth.description } : {}),
+  })),
+  fields: plugin.configFields.map((field) => ({
+    id: field.id,
+    label: field.label,
+    kind: field.kind,
+    required: field.required,
+    ...(field.defaultValue !== undefined ? { defaultValue: field.defaultValue } : {}),
+    ...(field.placeholder !== undefined ? { placeholder: field.placeholder } : {}),
+    ...(field.options !== undefined ? { options: field.options } : {}),
+    ...(field.help !== undefined ? { help: field.help } : {}),
+  })),
+}));
 
 function initialLayoutMetrics(): WorkbenchLayoutMetrics {
   if (typeof window === "undefined") return resolveWorkbenchLayoutMetrics(1440, 900);
@@ -227,7 +253,7 @@ function RightShellActions({
 
 // ===== 4. 左侧栏内容 =====
 // 这里只描述左栏“里面有什么”；左栏宽度和收起逻辑不在这里实现。
-function LeftSidebar({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme: () => void }) {
+function LeftSidebar({ theme, onToggleTheme, onOpenAiSettings }: { theme: ThemeMode; onToggleTheme: () => void; onOpenAiSettings: () => void }) {
   return (
     <aside className="agent-side agent-side--left">
       <div className="agent-brand-row">
@@ -236,7 +262,7 @@ function LeftSidebar({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme
         </button>
         <div className="agent-brand-actions">
           <button className="agent-icon-button" type="button" aria-label="搜索"><WorkbenchIcon name="search" /></button>
-          <button className="agent-icon-button" type="button" aria-label="设置"><WorkbenchIcon name="settings" /></button>
+          <button className="agent-icon-button" type="button" aria-label="设置" onClick={onOpenAiSettings}><WorkbenchIcon name="settings" /></button>
         </div>
       </div>
 
@@ -429,6 +455,8 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const layoutMode = layout.mode;
   const [theme, setTheme] = useState<ThemeMode>(initialTheme);
   const [chrome, setChrome] = useState<ChromeState>(() => initialChrome(layoutMode));
+  const [surface, setSurface] = useState<"workbench" | "ai-settings">("workbench");
+  const [selectedAiProviderId, setSelectedAiProviderId] = useState(aiProviderViews[0]?.id ?? "openai");
   // Hover Preview 与正式左 Dock 共享同一个“实际宽度”值。默认取当前响应式 initial，随后由 ResizableWorkbench 回传真实宽度。
   const [leftPaneWidth, setLeftPaneWidth] = useState(layout.left.initial);
   const [leftPreviewOpen, setLeftPreviewOpen] = useState(false);
@@ -522,6 +550,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     <LeftSidebar
       theme={theme}
       onToggleTheme={() => setTheme((value) => value === "light" ? "dark" : "light")}
+      onOpenAiSettings={() => setSurface("ai-settings")}
     />
   );
 
@@ -545,7 +574,14 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
         {/* ResizableWorkbench 只管理几何布局与拖拽；Shell 开合真值仍由本组件受控。 */}
         <ResizableWorkbench
           left={leftSidebar}
-          center={(
+          center={surface === "ai-settings" ? (
+            <AiSettingsPage
+              providers={aiProviderViews}
+              selectedProviderId={selectedAiProviderId}
+              onSelectProvider={setSelectedAiProviderId}
+              onClose={() => setSurface("workbench")}
+            />
+          ) : (
             <CenterWorkspace
               layoutMode={layoutMode}
               leftCollapsed={chrome.leftCollapsed}

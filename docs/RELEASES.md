@@ -1,6 +1,50 @@
-## LFAA v0.0.61 Release — #20.15 pnpm CMD 原生终端输出与菜单精简
+## LFAA v0.0.63 Release — #2.3 配置系统目录边界与 AI Provider 插件体系
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.62
+- **用户验收：** pending
+
+### 交付内容
+
+- 固化 App / UI / Config System / Provider 的父子级目录职责与单向依赖；
+- 新增 AI Provider Plugin 公共契约与 Registry；
+- 内置 OpenAI、DeepSeek、智谱、Kimi、千问/百炼、Xiaomi MiMo 六家配置插件；
+- 新增共享 AI 设置 UI 基线并由 App Shell 组装，Web 作为首个参考宿主；
+- 加强 folder boundary 机器门禁，阻止 Provider Endpoint/分支进入 Core/UI/App。
+
+### AI 验证状态
+
+Config System 17/17 测试 PASS；Config System TypeScript PASS；UI/App Shell 补充 TypeScript 检查 PASS；folder-boundary / import / governance / docs / comment / Windows BOM / release consistency / prompt lifecycle / config-schema / release-gates / UI contract 等可执行门禁 PASS。当前容器 Node 22.16.0 且无法联网取得项目锁定 pnpm 11.17.0，故不声称 Web 正式 build / release:full 已通过。
+
+### 用户验收重点
+
+Web 工作台设置按钮应进入共享 AI 设置页；首批六家 Provider 卡片、认证方式与公开配置字段应来自 Config System Registry；目录中不得出现第二套 App 业务 UI 或 UI 直连厂商 API。
+
+## LFAA v0.0.62 Release — #20.16 pnpm 控制台直连原生输出修复
+
+- **状态：** delivered
+- **基线：** v0.0.61
+- **用户验收：** passed
+
+### 交付内容
+
+- Windows 菜单 1 交互式 install 通过 `cmd.exe` 同控制台直接启动 `pnpm.cmd`；
+- PowerShell 不捕获、不重写、不重定向 pnpm stdout/stderr，只等待退出码；
+- 菜单 1 保持精简，中间安装过程交给 pnpm 原生 Scope / Packages / Progress / Done；
+- frozen/no-frozen 与 Store/真实健康语义不变。
+
+### AI 验证状态
+
+dependency-setup、node-dependency-health、release-gates、release-environment、Config Schema 与仓库治理门禁 PASS；当前制作容器无 Windows PowerShell，因此原生控制台动态进度以用户 Windows 实机为最终验收。
+
+### 用户实机验收重点
+
+需要同步依赖时确认 Y：`【安装】【Node】` 后应直接出现 pnpm 自身 Scope / Packages / Progress / Done；二次运行无变化时不得重复安装。
+
+## LFAA v0.0.61 Release — #20.15 pnpm CMD 原生终端输出与菜单精简
+
+- **状态：** superseded
+- **用户验收：** not-accepted；Windows 实机确认直接 pnpm.cmd 仍无 CMD 原生动态进度，由 v0.0.62 修正
 - **基线：** v0.0.60
 - **用户验收：** pending
 

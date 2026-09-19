@@ -1,8 +1,32 @@
 # LFAA 更新日志
 
-## LFAA v0.0.61 — #20.15 pnpm CMD 原生终端输出与菜单精简
+## LFAA v0.0.63 — #2.3 配置系统目录边界与 AI Provider 插件体系
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.62
+- **任务：** #2.3
+- 配置业务固定归 `packages/config-system/src/settings/ai`，共享图形 UI 固定归 `packages/ui/src/features/settings/ai`，App 仅作为宿主；目录职责写入开发规范并由 `folder-boundary-check` 自动执行。
+- 新增无厂商分支的 `AiProviderPlugin / AiProviderRegistry`；首批内置 OpenAI、DeepSeek、智谱 GLM、Kimi、千问/百炼、Xiaomi MiMo 六个 Provider 配置插件。
+- OpenAI 配置插件同时声明 API Key 与官方 Codex App Server ChatGPT 套餐认证；其他 Provider 保留各自区域、Workspace、Coding API、Token Plan 等真实差异。
+- OpenAI-compatible 共享 transport 只负责请求/模型列表协议形状，厂商 Base URL / Auth 不进入 Core。
+- 新增共享 `AiSettingsPage`，由 App Shell 将 Provider Registry 投影为纯 UI ViewModel；UI 不直接依赖 Config System、不发 Provider 网络请求、不持有 Secret。
+- Config System 17/17 单测、Config System TypeScript、UI/App Shell 补充类型检查与全部可执行治理门禁通过；当前制作容器无法联网取得 pnpm 11.17.0，因此未伪造正式 Web build / `release:full`。
+
+## LFAA v0.0.62 — #20.16 pnpm 控制台直连原生输出修复
+
+- **状态：** delivered
+- **用户验收：** passed；Windows 实机确认 pnpm 原生控制台输出恢复
+- **基线：** v0.0.61
+- **任务：** #20.16
+- 菜单 1 的交互式 pnpm install 在 Windows 改为 `cmd.exe` + `pnpm.cmd` 同控制台启动；PowerShell 不再作为 native-command 输出管道。
+- 使用 `Start-Process -NoNewWindow -Wait -PassThru`，不重定向 stdout/stderr，只读取退出码。
+- 安装前仅保留一条简短 `【安装】【Node】` 命令提示，中间过程完全由 pnpm 原生输出。
+- frozen/no-frozen、正式发布 frozen、Store 动态事实与真实依赖健康检查保持不变。
+
+## LFAA v0.0.61 — #20.15 pnpm CMD 原生终端输出与菜单精简
+
+- **状态：** superseded
+- **用户验收：** not-accepted；Windows 实机确认直接 pnpm.cmd 仍没有 CMD 原生动态进度，由 v0.0.62 修正
 - **基线：** v0.0.60
 - **任务：** #20.15
 - Windows 菜单 1 的交互式 pnpm 写操作优先调用版本匹配的 `pnpm.cmd`，与用户在 CMD 直接运行 `pnpm install` 使用同类执行链；不存在时才回退现有 runner。

@@ -11,3 +11,4 @@
 
 export * from "./config-schema.ts";
 export * from "./config-validator.ts";
+export * from "./settings/ai/index.ts";

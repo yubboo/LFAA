@@ -79,7 +79,43 @@ Windows `scripts/windows/*.ps1` 必须保持 UTF-8 with BOM。
 3. AI 自测不等于用户验收；
 4. 全程可追溯。
 
-## 6. 执行能力唯一链路
+## 6. 目录职责与依赖方向硬规则
+
+任何新功能在写 Code 前，Prompt 必须先写清“归属目录 / 允许依赖 / 禁止依赖”。禁止以“先能跑”为理由把业务逻辑临时塞进 App、UI、Vite Config 或其他最近的目录。
+
+长期职责：
+
+```text
+apps/                     可运行宿主入口；只做启动、宿主 Adapter、平台桥
+packages/ui/              可复用图形界面的唯一主目录；只做展示与交互
+packages/app-shell/       Feature / 页面编排；连接 UI 与业务公开接口
+packages/config-system/   配置设置业务唯一归属；Schema / Settings / Account / Auth / Provider 配置
+crates/                   Rust 原生能力与安全 Broker
+scripts/                  开发/治理工具；不得承载产品业务
+```
+
+AI 配置固定父子级：
+
+```text
+packages/config-system/src/settings/ai/
+├── core/
+└── providers/<provider>/
+
+packages/ui/src/features/settings/ai/
+```
+
+硬边界：
+
+- `packages/ui` 不拥有 Config / Provider / Secret 真值，不直连厂商 API；
+- `packages/config-system` 不依赖 React、DOM、`packages/ui`、`apps/*`；
+- `apps/web` 不保存可复用业务 UI，不实现 Provider 厂商逻辑；
+- Provider 配置插件只能进入 `config-system/src/settings/ai/providers/<provider>`；
+- Runtime 模型推理 Adapter 仍属于模型运行域，不能因为同一家厂商而塞进 Config UI；
+- 跨包只走公共 Export，禁止深链内部源码。
+
+目录规则由 `scripts/folder-boundary-check.mjs` 自动门禁；文档约定和机器检查必须同时存在。
+
+## 7. 执行能力唯一链路
 
 ```text
 Agent / Plugin / MCP / DSH
@@ -93,7 +129,7 @@ Agent / Plugin / MCP / DSH
 
 禁止绕过。
 
-## 7. 包管理器与开发入口
+## 8. 包管理器与开发入口
 
 Node workspace 只允许 `pnpm`。
 

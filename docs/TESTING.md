@@ -1,3 +1,21 @@
+## v0.0.63 / #2.3 配置系统目录边界与 AI Provider 插件体系验证
+
+- `packages/config-system/test/*.test.mjs`：17/17 PASS；其中 Provider Registry / 六家插件契约 9 项，Config Schema 回归 8 项；
+- `tsc -p packages/config-system/tsconfig.json --noEmit`：PASS；
+- UI/App Shell 使用本容器临时 React 类型 Stub 的补充 TypeScript 检查：PASS，仅用于发现本次跨包类型错误，不替代项目锁定 pnpm 工具链；
+- `node scripts/folder-boundary-check.mjs`：必须强制六个 Provider 子插件入口存在，并禁止 AI Core 厂商 Endpoint/分支、UI 直连网络/业务、App 包含厂商 API；
+- governance / import / dev-log / docs / comment / Windows BOM / config-schema / release-gates / UI contract / release consistency / prompt lifecycle：全部回归；
+- Web 实机验收重点：设置按钮打开共享 AI 设置页，六家 Provider 与认证/配置字段可切换；本版本不得把 Secret 明文写入 UI/localStorage/普通 Config。
+- 当前容器无法联网取得 pnpm 11.17.0，故未执行并不冒充 `pnpm run build:web` / `pnpm run release:full` PASS。
+
+## v0.0.62 / #20.16 pnpm 控制台直连原生输出修复验证
+
+- `Install-NodeDependencies` 必须把交互式 install 交给 `Invoke-PnpmConsole`；
+- Windows 原生路径必须使用 `cmd.exe` + `pnpm.cmd`、`Start-Process -NoNewWindow -Wait -PassThru`；
+- 该路径禁止 stdout/stderr 重定向、捕获与 `Out-Null`；
+- frozen/no-frozen、真实依赖、Store、菜单精简与发布 frozen 全部回归；
+- Windows 实机：确认 Y 后必须出现 pnpm 原生 Scope / Packages / Progress / Done。
+
 ## v0.0.61 / #20.15 pnpm CMD 原生终端输出与菜单精简验证
 
 - 静态契约：Windows 交互式 pnpm 写操作优先版本匹配的 `pnpm.cmd`；安装输出不得进入捕获/重定向链。

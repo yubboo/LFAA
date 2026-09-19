@@ -41,7 +41,7 @@ test("unchanged dependency path can return without pnpm install", () => {
   assert.match(install, /if \(\$plan\.NeedsInstall\)/);
   assert.match(functionBody("Show-NodeDependencyPlan"), /已就绪/);
   const decisionIndex = install.indexOf("if ($plan.NeedsInstall)");
-  const invokeIndex = install.indexOf("Invoke-Pnpm $installArguments");
+  const invokeIndex = install.indexOf("Invoke-PnpmConsole $installArguments");
   assert.ok(decisionIndex >= 0 && invokeIndex > decisionIndex, "install invocation must stay inside the NeedsInstall branch");
 });
 
@@ -184,21 +184,21 @@ test("menu 1 separates development lockfile sync from frozen local repair", () =
   assert.match(packageJson.scripts["release:full"], /pnpm install --frozen-lockfile/);
 });
 
-test("pnpm dependency writes use the Windows cmd foreground chain and preserve native output", () => {
+test("pnpm dependency writes use cmd.exe console inheritance and preserve native output", () => {
   const install = functionBody("Install-NodeDependencies");
   const foreground = functionBody("Get-PnpmForegroundRunner");
-  const invokePnpm = functionBody("Invoke-Pnpm");
-  const projectCommand = functionBody("Invoke-ProjectCommand");
+  const consoleInvoke = functionBody("Invoke-PnpmConsole");
   assert.match(install, /\$installArguments = @\("install"\)/);
+  assert.match(install, /Invoke-PnpmConsole \$installArguments/);
   assert.doesNotMatch(install, /--reporter=/);
   assert.doesNotMatch(install, /Invoke-PnpmCapture[^\n]*install/);
   assert.match(foreground, /Get-Command "pnpm\.cmd"/);
-  assert.match(foreground, /\$cmdPath --version/);
   assert.match(foreground, /NativeCmd = \$true/);
-  assert.match(invokePnpm, /Get-PnpmForegroundRunner/);
-  assert.match(invokePnpm, /Invoke-ProjectCommand/);
-  assert.match(projectCommand, /& \$FilePath @Arguments/);
-  assert.doesNotMatch(projectCommand, /2>&1|Out-Null|RedirectStandardOutput|RedirectStandardError/);
+  assert.match(consoleInvoke, /System32\\cmd\.exe/);
+  assert.match(consoleInvoke, /Start-Process/);
+  assert.match(consoleInvoke, /-NoNewWindow -Wait -PassThru/);
+  assert.match(consoleInvoke, /-WorkingDirectory \$ProjectRoot/);
+  assert.doesNotMatch(consoleInvoke, /RedirectStandardOutput|RedirectStandardError|Out-Null|2>&1/);
 });
 
 test("menu 1 keeps only compact dependency UX while menu 7 retains full diagnostics", () => {

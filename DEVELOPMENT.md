@@ -125,7 +125,88 @@ AI 的测试通过只代表 `pending-user-acceptance`，不能代表用户验收
 
 Windows `scripts/windows/*.ps1` 必须保持 UTF-8 with BOM。
 
-## 7. 边界与执行安全
+## 7. 目录职责、归属与依赖方向（硬规则）
+
+好架构优先于“先把功能塞进去”。任何新模块 / Feature / 页面 / Provider 在实现前必须先确定唯一归属；同一事实只允许一个 Owner。目录不是按“当前哪个端先开发”划分，而是按长期职责划分。
+
+### 7.1 一级目录职责
+
+| 目录 | 负责 | 严禁 |
+|---|---|---|
+| `apps/` | Web / Desktop / CLI / Server 可运行宿主、启动入口、平台 Adapter、宿主桥 | 可复用业务逻辑、Provider 厂商实现、共享业务 UI、Config 真值 |
+| `packages/` | 可跨宿主复用的 TypeScript / React 业务、协议、UI、Feature | OS 特权实现、一次性 App glue 混入业务包 |
+| `packages/ui/` | LFAA 可复用图形界面的唯一主目录；Primitive / Layout / Feature UI | Provider 网络请求、Secret 保存、数据库、Config 真值、宿主专属桥 |
+| `packages/app-shell/` | 页面 / Feature 编排；把 UI 与业务公开 API 组装起来 | Provider 内部协议、Secret 实现、OS 能力 |
+| `packages/config-system/` | 配置设置业务唯一归属：Schema、Settings、Account/Auth、AI Provider 配置、后续 Storage | React / DOM / 视觉布局、App 宿主代码、模型执行 Runtime |
+| `crates/` | Rust 原生能力、安全 Broker、OS 边界 | React/UI、产品页面 |
+| `scripts/` | 开发、治理、发布、Windows 辅助脚本 | 产品业务与运行时状态所有权 |
+
+### 7.2 UI 唯一归属
+
+可复用图形界面只能进入：
+
+```text
+packages/ui/src/primitives/
+packages/ui/src/layout/
+packages/ui/src/features/<domain>/
+```
+
+`apps/web` / `apps/desktop` 只允许宿主入口、Router、Host Adapter、平台桥。除不可复用的宿主壳以外，不得在 App 内另建第二套业务 Feature UI。Web-first 只表示“先用 Web 验证”，不表示 UI 所有权属于 Web。
+
+### 7.3 Config System / AI 配置唯一归属
+
+AI 配置业务固定为：
+
+```text
+packages/config-system/src/settings/ai/
+├── core/                       # Account/Auth/Model/SecretRef/Registry 配置领域
+├── transports/                 # 可共享的配置期协议/传输（仅确有复用时建立）
+└── providers/
+    └── <provider>/              # 每家厂商独立配置插件
+
+packages/ui/src/features/settings/ai/
+└── ...                          # 只负责 AI 设置图形界面
+```
+
+Provider 配置插件负责该厂商的配置描述、认证方式声明、配置期校验 / 模型发现契约与错误映射；不得把 React 组件放入 Provider 目录。模型实际推理 Runtime Adapter 继续属于模型运行域（例如 `model-providers`），Config System 不吞并 Runtime。
+
+### 7.4 依赖方向
+
+长期允许方向：
+
+```text
+apps/*
+  ↓
+packages/app-shell
+  ↓                 ↘
+packages/ui      业务公开 API（如 config-system）
+                     ↓
+                domain / protocol / 基础能力
+```
+
+禁止：
+
+```text
+packages/config-system → packages/ui / React / apps/*
+packages/ui            → config-system / Provider Runtime / apps/*
+业务 package           → apps/*
+Provider 配置插件       → Web/Desktop/CLI 宿主
+```
+
+UI 与业务通过公开接口、Controller / ViewModel / Props 连接；UI 不直接 `fetch` 厂商 API。宿主只做组装和平台桥，不复制业务。
+
+### 7.5 目录变更流程
+
+新增目录前必须：
+
+1. 在 Prompt 写明目录 Owner 与职责；
+2. 更新 `docs/项目结构与代码地图.md`；
+3. 重要目录新增 README，写“负责 / 不负责 / 对外接口”；
+4. 若改变长期依赖方向，先更新 `ARCHITECTURE.md`；
+5. 通过 `scripts/folder-boundary-check.mjs`；
+6. 禁止为单次任务随意新建顶级 package；能作为既有业务域子模块时必须放入父域。
+
+## 8. 边界与执行安全
 
 每次任务先明确：主模块、允许修改、禁止修改、State Owner、API / Protocol / DB / Security 是否变化。
 
@@ -143,13 +224,13 @@ Agent / Plugin / MCP / DSH
 
 禁止绕过。
 
-## 8. 包管理、版本与发布
+## 9. 包管理、版本与发布
 
 Node workspace 只允许 pnpm。版本使用 `MAJOR.MINOR.PATCH`，`lfaa.release.json` 是版本事实源。
 
 旧版本只读保留；任何修复进入新版本。ZIP 根目录必须直接是项目内容，不能再套 `lfaaXX/`。
 
-## 9. 质量门禁
+## 10. 质量门禁
 
 按改动范围执行 TypeScript / Rust / UI / Eval / 安全测试。正式发布环境固定为 Node 24.x + pnpm 11.17.0，并以根 `package.json` 的 `engines` / `packageManager` 为单一事实源。
 
@@ -179,7 +260,7 @@ v0.0.60 起，Windows 菜单 1 的交互式 `pnpm install` 必须保留 pnpm 原
 
 `pending-user-acceptance` 候选 ZIP 可以在受限制作环境生成用于用户实机验收，但必须明确记录哪些门禁真实通过、哪些因工具链/平台被阻断；不得把静态脚本通过冒充 pnpm / build / Rust 的完整发布验证。用户明确验收前仍不得写 `delivered`。
 
-## 10. Runtime / Stable Workspace
+## 11. Runtime / Stable Workspace
 
 稳定 Git 工作区固定为用户实际稳定目录（当前 Windows 工作流为 `H:\\lfaa\\lfaa`）。版本包只作为同步来源；Sync / GitHub / Update / Setup 职责严格分离。详细规则见 `docs/RUNTIME.md`。
 
@@ -187,7 +268,7 @@ v0.0.60 起，Windows 菜单 1 的交互式 `pnpm install` 必须保留 pnpm 原
 
 # 合并后的详细规范
 
-以下章节由 v0.0.49 以前 `docs/standards/*.md` 合并而来。若与上方 0-10 节冲突，以上方当前规则为准。
+以下章节由 v0.0.49 以前 `docs/standards/*.md` 合并而来。若与上方 0-11 节冲突，以上方当前规则为准。
 
 > 迁移来源：`docs/standards/PACKAGING.md`
 

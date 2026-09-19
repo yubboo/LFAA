@@ -72,6 +72,32 @@ HTTP/SSE   Electron IPC
    Agent Client
 ```
 
+## Repository / 目录分层
+
+目录必须表达长期架构职责，而不是当前先开发哪个客户端。
+
+```text
+apps/*                    宿主入口 / 平台 Adapter
+        ↓
+packages/app-shell        Feature 编排
+      ↙          ↘
+packages/ui        业务公开 API
+                   ↓
+          packages/config-system 等业务域
+```
+
+其中：
+
+```text
+packages/ui/src/features/settings/ai
+→ AI 设置的可复用图形界面
+
+packages/config-system/src/settings/ai
+→ AI 设置业务、Account/Auth、Provider 配置插件
+```
+
+Web-first 只是验证顺序。Desktop / Linux 图形宿主后续复用 `packages/ui`；CLI 复用业务 Core，不复制 React UI。Config System 不依赖 React / DOM；UI 不直连 Provider 外部 API；App 不拥有共享业务真值。
+
 ## 数据
 
 ```text
@@ -133,6 +159,10 @@ Full      完全权限
 11. Skills、Experts、Plugins、Extensions、MCP 全部是项目级不可信资源。
 12. Remote/Web 必须经过身份认证、逐资源授权和用户/项目隔离后才能访问 Runtime。
 13. LFAA 自有组件使用官方命名空间；第三方成果必须保留原作者、来源和许可证。
+14. `apps/*` 只做宿主入口 / Adapter；可复用业务 UI 必须归 `packages/ui`。
+15. Config / Account / Auth / AI Provider 配置业务必须归 `packages/config-system`，不得散落在 App / UI / Vite Config。
+16. `packages/ui` 不直连厂商 API、不持有 Secret / Config 真值；`packages/config-system` 不依赖 React / DOM / App。
+17. 新目录必须有唯一职责和明确依赖方向；目录边界由自动治理门禁保护。
 
 Policy Engine 拥有硬规则与 `Deny / Ask / AllowByPolicy` 决策；Permission Engine 拥有预设与审批生命周期。Permission 不得把 Policy 的 `Deny` 升级为 `Allow`。
 

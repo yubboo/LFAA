@@ -1162,6 +1162,18 @@ v0.0.2+
 
 ### config-system PROGRESS
 
+#### 2026-09-19 / #2.3 配置系统目录边界与 AI Provider 插件体系
+
+- 当前状态：pending-user-acceptance
+- 用户版本：v0.0.63
+- 目录 Owner：配置业务只归 `packages/config-system/src/settings/ai`；共享图形 UI 只归 `packages/ui/src/features/settings/ai`；App 只作为宿主。
+- 已完成：无厂商分支的 Provider Plugin / Registry；OpenAI、DeepSeek、智谱 GLM、Kimi、千问/百炼、Xiaomi MiMo 六家首批配置插件；共享 AI 设置 UI 基线；App Shell 组装。
+- 边界：Provider Endpoint / Auth 事实不得进入 UI / App；React / DOM 不得进入 Config System；模型推理 Runtime 不属于配置插件。
+- 自动门禁：`folder-boundary-check` + `import-path-check`；新增 Provider 只允许新增子目录并注册，不允许向 Core 添加厂商条件分支。
+- 验证：Config System 17/17 PASS；Config System TypeScript PASS；UI/App Shell 补充 TypeScript PASS；仓库 Node 治理链 PASS。当前容器不满足项目锁定 pnpm/Node 正式工具链，不冒充 Web build / release:full。
+- 下一步：用户验收目录、Provider 卡片与共享设置页后，在同一结构上继续 Web Account/Auth/Secret/真实连接闭环。
+
+
 #### 2026-09-19 / #2.2 Config Schema 基线
 
 - 当前状态：pending-user-acceptance
@@ -1434,3 +1446,9 @@ v0.0.2+
 - 配置系统业务实现：未改动
 - 基础设施：修复 Update 0/0 状态误执行远程 diff
 - 下一步：进入 `config-schema`
+#### 目录职责硬边界
+
+配置设置业务只允许在 `packages/config-system` 内形成父子域；AI 配置固定为 `src/settings/ai/core` + `src/settings/ai/providers/<provider>`。React Feature UI 固定在 `packages/ui/src/features/settings/ai`。Web/Desktop/CLI 只做宿主 Adapter；不得拥有第二套 Provider / Account / Auth / Config 逻辑。
+
+Provider 配置插件与模型推理 Runtime Adapter 分层：Config System 管配置期契约，模型运行域管推理执行。两者共享稳定 Provider ID / 公共协议时必须通过公共 Export，而不是跨目录深链。
+

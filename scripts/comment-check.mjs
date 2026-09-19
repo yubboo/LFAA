@@ -39,6 +39,7 @@ const keyFiles = [
   "apps/web/vite.config.ts",
   "scripts/governance-check.mjs",
   "scripts/import-path-check.mjs",
+  "scripts/folder-boundary-check.mjs",
   "scripts/dev-log-check.mjs",
   "scripts/docs-check.mjs",
   "scripts/check-node-pty.mjs",
@@ -64,6 +65,11 @@ const keyFiles = [
   "packages/config-system/src/config-schema.ts",
   "packages/config-system/src/config-validator.ts",
   "packages/config-system/src/index.ts",
+  "packages/config-system/src/settings/ai/core/provider.types.ts",
+  "packages/config-system/src/settings/ai/core/provider-registry.ts",
+  "packages/config-system/src/settings/ai/transports/openai-compatible.ts",
+  "packages/ui/src/features/settings/ai/AiSettingsPage.tsx",
+  "packages/ui/src/features/settings/ai/ai-settings.types.ts",
 ];
 
 const requiredFields = [
@@ -112,6 +118,10 @@ for (const relative of [
   "packages/app-shell/src/README.md",
   "packages/ui/src/workbench/README.md",
   "apps/web/src/README.md",
+  "packages/ui/src/features/README.md",
+  "packages/ui/src/features/settings/ai/README.md",
+  "packages/config-system/src/settings/ai/README.md",
+  "packages/config-system/src/settings/ai/providers/README.md",
 ]) {
   if (!fs.existsSync(path.join(root, relative))) fail(`missing readability guide: ${relative}`);
 }

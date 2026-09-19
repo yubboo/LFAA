@@ -1080,6 +1080,42 @@ function Invoke-ProjectCommand {
     if ($code -ne 0) { throw ("{0}失败，退出码：{1}" -f $Description,$code) }
 }
 
+function ConvertTo-CmdArgument {
+    param([string]$Value)
+    if ($null -eq $Value) { return '""' }
+    if ($Value -notmatch '[\s&|<>^()%!]') { return $Value }
+    return ('"{0}"' -f ($Value.Replace('"','""')))
+}
+
+function Invoke-PnpmConsole {
+    param([string[]]$Arguments,[string]$Description)
+
+    $runner = Get-PnpmForegroundRunner
+    if (-not $runner.NativeCmd) {
+        Invoke-ProjectCommand $runner.FilePath (@($runner.Prefix)+$Arguments) $Description
+        return
+    }
+
+    $cmdExe = Join-Path $env:SystemRoot 'System32\cmd.exe'
+    if (-not (Test-Path -LiteralPath $cmdExe)) { $cmdExe = 'cmd.exe' }
+
+    $argumentText = (@($Arguments | ForEach-Object { ConvertTo-CmdArgument ([string]$_) }) -join ' ')
+    $commandLine = ('""{0}" {1}"' -f $runner.FilePath,$argumentText)
+
+    Write-Host ''
+    Write-Label '【安装】' '【Node】' $Description Cyan
+
+    $process = Start-Process -FilePath $cmdExe `
+        -ArgumentList @('/d','/s','/c',$commandLine) `
+        -WorkingDirectory $ProjectRoot `
+        -NoNewWindow -Wait -PassThru
+
+    if ($null -eq $process -or $process.ExitCode -ne 0) {
+        $exitCode = if ($null -eq $process) { -1 } else { $process.ExitCode }
+        throw ('{0}失败，退出码：{1}' -f $Description,$exitCode)
+    }
+}
+
 function Invoke-Pnpm {
     param([string[]]$Arguments,[string]$Description)
     $runner = Get-PnpmForegroundRunner
@@ -1216,7 +1252,7 @@ function Install-NodeDependencies {
             $installArguments += "--frozen-lockfile"
         }
         $installDescription = ((@("pnpm") + $installArguments) -join " ")
-        Invoke-Pnpm $installArguments $installDescription
+        Invoke-PnpmConsole $installArguments $installDescription
         $changed = $true
 
         $afterSnapshot = Get-NodeDependencySnapshot

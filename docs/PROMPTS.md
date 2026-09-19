@@ -25,7 +25,9 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #20.15 | pnpm CMD 原生终端输出与菜单精简 | v0.0.61 | pending-user-acceptance | pass | pending |
+| #2.3 | 配置系统目录边界与 AI Provider 插件体系 | v0.0.63 | pending-user-acceptance | pass | pending |
+| #20.16 | pnpm 控制台直连原生输出修复 | v0.0.62 | delivered | pass | passed |
+| #20.15 | pnpm CMD 原生终端输出与菜单精简 | v0.0.61 | superseded | pass | not-accepted |
 | #20.14 | pnpm 原生安装输出恢复 | v0.0.60 | superseded | pass | not-accepted |
 | #20.13 | 开发期依赖同步与实时输出修复 | v0.0.59 | superseded | pass | not-accepted |
 | #20.12 | PowerShell 自动变量冲突修复 | v0.0.58 | superseded | pass | not-accepted |
@@ -40,7 +42,165 @@
 
 ## 当前任务 / 当前合同
 
+## #2.3 配置系统目录边界与 AI Provider 插件体系
+
+### 主模块
+
+`config-system / ui / app-shell / web-host`
+
+### 背景
+
+用户明确要求：正式进入业务逻辑后，目录必须按长期职责形成清晰父子级，不能为了当前 Web 先开发就把 UI、Provider、Account/Auth、宿主桥东一块西一块。Web 是第一参考宿主；Desktop / Linux 图形端后续复用同一 UI，CLI 复用同一业务 Core。AI 服务未来包含 OpenAI、DeepSeek、智谱、Kimi、千问、小米等真实 Provider，因此从第一版起必须插件化。
+
+### 任务目标
+
+先冻结并自动约束目录架构，再在该架构内继续 Web-first AI 配置业务。Config System 是配置业务父域，`packages/ui` 是可复用图形 UI 唯一父域，App 只做宿主。任何 Provider 新增都必须是子插件，不允许在 Web / UI 写厂商业务。
+
+### 固定目录
+
+```text
+packages/config-system/src/settings/ai/
+├── core/
+├── transports/              # 仅真实共享时使用
+└── providers/<provider>/
+
+packages/ui/src/features/settings/ai/
+
+apps/web/
+→ 只保留 Web Host / Router / 本地桥 / Adapter
+```
+
+### 允许修改
+
+- `AGENTS.md` / `DEVELOPMENT.md` / `ARCHITECTURE.md` 的目录职责与依赖规则；
+- `docs/MODULES.md` / `docs/项目结构与代码地图.md`；
+- `apps/README.md`、`packages/README.md`、`apps/web/README.md`、`packages/ui/README.md`、`packages/config-system/README.md`；
+- `packages/config-system/src/settings/ai/**`；
+- `packages/ui/src/features/settings/ai/**`；
+- `packages/app-shell` 的业务/UI 组装；
+- Web Host Adapter（不得包含 Provider 厂商业务）；
+- 自动目录边界治理脚本与测试。
+
+### 禁止修改 / 禁止放置
+
+- Provider 厂商请求 / Base URL / Auth 业务不得写进 `packages/ui`、`apps/web`、Vite Config；
+- React / DOM / 页面样式不得写进 `packages/config-system`；
+- Config / Account / Auth 真值不得由 App 或 UI 拥有；
+- 模型推理 Runtime Adapter 不并入 Config System；
+- Secret 明文不得进入普通 Config、日志、Trace、localStorage；
+- 不为每个 Provider 新建顶级 package；Provider 是 Config AI 子插件。
+
+### 状态所有权
+
+Config / Account / Auth / AI Provider 配置业务 → `@lfaa/config-system`。
+可复用图形 UI → `@lfaa/ui`。
+Feature 编排 → `@lfaa/app-shell`。
+Web 专属启动/桥接 → `@lfaa/web`。
+模型推理执行 → 模型运行域，不由 Config System 拥有。
+
+### 验收条件
+
+- 开发规范明确一级目录和关键 package 的“负责 / 不负责”；
+- AI 配置形成固定父子级，不再散落；
+- UI Feature 唯一位于 `packages/ui/src/features/settings/ai`；
+- Provider 配置插件唯一位于 `packages/config-system/src/settings/ai/providers/<provider>`；
+- App 无第二套共享业务 UI / Provider 逻辑；
+- 自动边界检查能阻止 React 进入 Config System、厂商 API 进入 UI/App、业务包反向依赖 App；
+- 后续 Provider 能通过“新增子目录 + 注册”扩展，不改核心分支；
+- 用户验收前状态保持 `pending-user-acceptance`。
+
+### 必须测试
+
+- `node scripts/folder-boundary-check.mjs`；
+- `node scripts/import-path-check.mjs`；
+- `node scripts/governance-check.mjs`；
+- Config System TypeScript / tests；
+- UI typecheck/build；
+- 相关 Provider 单元/契约测试；
+- Windows 脚本业务与 BOM 不回退。
+
+### 实现结果
+
+- `config-system/settings/ai/core` 建立无厂商分支的 Provider 契约与 Registry；
+- 首批内置 `openai / deepseek / zhipu / kimi / qwen / xiaomi` 六个配置插件；
+- `transports/openai-compatible.ts` 仅承载共享模型列表协议，不拥有厂商 URL；
+- OpenAI 同时声明 API Key 与官方 Codex App Server 的 ChatGPT 套餐认证能力；
+- Provider 真实差异（区域、Workspace、Token Plan、Coding API、模型发现方式）全部留在各自插件；
+- `packages/ui/src/features/settings/ai` 新增共享 AI 设置页，UI 不依赖 Config System、不发 Provider 请求；
+- App Shell 只把 Registry 映射为 UI ViewModel，设置按钮可进入共享 AI 设置页；
+- `folder-boundary-check` 新增强制 Provider 子目录、Core 禁止厂商 Endpoint/分支等机器门禁。
+
+### 版本目标
+
+`v0.0.63`
+
+### 当前状态
+
+`pending-user-acceptance`
+
+### AI 验证
+
+`pass`：Provider Registry / 六家插件契约、Config System 17/17 单测、Config System TypeScript、目录边界/导入/治理/文档/注释/版本/Prompt 生命周期等门禁通过；UI/App Shell 使用补充 TypeScript stub 检查通过。当前容器无法联网取得 pnpm 11.17.0，因此不伪造正式 `pnpm build` / `release:full`。
+
+### 用户验收
+
+`pending`
+
+## #20.16 pnpm 控制台直连原生输出修复
+
+> **用户验收：** passed；v0.0.62 Windows 实机确认原生 pnpm 输出已恢复。
+
+### 主模块
+
+`project-governance / windows-setup / dependency-sync-ux`
+
+### 背景与问题
+
+用户 Windows 实机验证 v0.0.61：菜单 1 已精简、依赖同步真实成功，但 `pnpm install` 从 PowerShell 直接调用 `pnpm.cmd` 时仍未显示用户在 CMD 直接执行时可见的 Scope / Packages / Progress / Done 原生动态输出。说明问题不是 reporter 参数，而是 PowerShell native-command 管道仍位于 pnpm 与控制台之间。
+
+### 任务目标
+
+Windows 菜单 1 的交互式 pnpm install 改为由 `cmd.exe` 在当前同一控制台直接启动版本匹配的 `pnpm.cmd`。PowerShell 只负责等待退出码，不捕获、不重写 stdout/stderr；菜单 1 保持精简。
+
+### 允许修改
+
+- `scripts/windows/lfaa-setup.ps1` 的交互式 pnpm install 控制台调用；
+- `test/dependency-setup.test.mjs` 的控制台继承防回归；
+- Runtime / Testing / Prompt / Log / Plan / CHANGELOG / Release；
+- v0.0.62 产品版本事实及 workspace package / Rust crate 产品版本一致性。
+
+### 禁止修改
+
+- frozen/no-frozen 分流与正式发布 frozen 语义；
+- Store 动态路径/来源、真实依赖健康、PNPM_HOME；
+- Web Account/Auth、Config Schema/Storage、Web UI、PTY、Sync/GitHub/Update。
+
+### 实现约束
+
+- Windows 原生 install 必须使用 `cmd.exe` + `pnpm.cmd` 并在当前控制台运行；
+- 使用 `Start-Process -NoNewWindow -Wait -PassThru`，不得配置 stdout/stderr 重定向；
+- PowerShell 只能读取子进程退出码，不消费 pnpm 输出；
+- 安装前只显示一条简短命令，安装中间输出完全属于 pnpm；
+- 非 Windows / 无 `pnpm.cmd` 时保留现有 runner 回退。
+
+### 验收条件
+
+- Windows 菜单 1 确认安装后出现与 CMD 手动 `pnpm install` 同类的 Scope / Packages / Progress / Done；
+- 安装完成后真实依赖检查仍通过；
+- 二次运行无变化时不重复安装；
+- 菜单 1 不恢复冗长中文说明。
+
+### 当前状态
+
+`pending-user-acceptance`
+
+### AI 验证
+
+`pass`：静态契约锁定 `cmd.exe` 同控制台继承、无 stdout/stderr 重定向，并回归真实依赖、frozen/no-frozen、Store 与治理门禁。Windows 原生动态进度仍以用户实机为最终验收。
+
 ## #20.15 pnpm CMD 原生终端输出与菜单精简
+
+> **状态补充：** Windows 实机确认直接从 PowerShell 调用 `pnpm.cmd` 仍未呈现 CMD 原生动态进度；由 #20.16 / v0.0.62 修正。
 
 ### 主模块
 

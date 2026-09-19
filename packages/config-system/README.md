@@ -4,43 +4,51 @@
 
 `packages/config-system`
 
-## 作用
+## 定位
 
-LFAA 配置系统的公开业务边界。v0.0.51 / #2.2 首先只实现 `config-schema`：版本化配置类型、默认值和运行时校验。
+LFAA **配置设置业务的唯一归属域**。UI、Web、Desktop、CLI 都只能调用这里的公开配置能力，不得各自维护第二套 Config / Account / Auth 业务。
 
 ## 当前负责
 
-- `LfaaConfig` 根配置契约；
-- Config Schema Version 单一事实源；
-- App Settings；
-- Local / Remote Runtime Mode；
-- Model Provider / Model 元数据；
-- Account Metadata 与 `credentialRef`；
-- Permission Default；
-- 默认配置；
-- 纯内存运行时校验。
+- `LfaaConfig` 根配置契约与 Config Schema Version；
+- App Settings / Runtime / Permission Default；
+- Provider / Model / Account 元数据与 `credentialRef`；
+- 默认配置与运行时校验；
+- 后续 `settings/*` 子域；
+- AI 设置业务：Account/Auth/Model/SecretRef/Provider Registry 与各厂商**配置插件**。
 
-## 当前不负责
+AI 设置固定结构：
 
-- SQLite / Drizzle / Config Storage；
-- Migration 执行器；
-- API Key / Token / Password 等 Secret 明文；
-- Rust Secret Store；
-- Config UI；
-- Agent / Tool / Policy / Permission 的执行逻辑。
+```text
+src/settings/ai/
+├── core/
+├── transports/        # 只有出现真实共享传输时才建立实现
+└── providers/
+    └── <provider>/
+```
+
+## Provider 配置插件 vs Runtime Provider
+
+本包的 Provider 插件负责“如何配置、认证方式声明、配置期校验/模型发现契约、错误映射”。
+模型实际推理/流式生成 Runtime Adapter 仍属于模型运行域（例如 `model-providers`），不能因为厂商相同就把 Runtime 塞进 Config System。
+
+## 不负责
+
+- React / DOM / 页面布局；
+- Web / Electron / CLI 宿主代码；
+- API Key / Token / Password 明文普通配置持久化；
+- Rust Secret Store 的 OS 实现；
+- Agent / Tool / Policy / Permission 执行；
+- 模型推理 Runtime。
 
 ## 对外 API
 
 统一从 `src/index.ts` 导出。包外禁止直接引用内部文件。
 
-## 状态归属
-
-Config Schema 的结构与 Schema Version 只由本包拥有。后续 Storage 只能持久化该 Schema，不得另造第二套配置结构。
-
 ## 安全边界
 
-账号配置只允许保存 `credentialRef`。真实 Secret 必须由后续 Rust Secret Broker / OS Credential Store 持有。
+普通配置只保存 `credentialRef`。真实 Secret 最终由 Rust Secret Broker / OS Credential Store 持有。
 
 ## 修改要求
 
-修改前先读取 `AGENTS.md`、`DEVELOPMENT.md`、`docs/PROMPTS.md` 的 #2 当前合同、`docs/MODULES.md` 的 config-system 章节。
+修改前读取 `AGENTS.md`、`DEVELOPMENT.md`、当前 Prompt、`docs/MODULES.md` 和 `docs/项目结构与代码地图.md`；新增 AI Provider 必须放进 `src/settings/ai/providers/<provider>`，不得散落在 App/UI。

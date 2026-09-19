@@ -42,4 +42,4 @@ windows/lfaa-update.ps1  ← LFAA-Update.bat
 | `release-consistency-check.mjs` | 检查 `lfaa.release.json` 与 package / crate / README / CHANGELOG / Release 的版本一致性。 |
 
 
-> 当前候选版本：v0.0.61（#20.15，pending-user-acceptance）。
+> 当前候选版本：v0.0.62（#20.16，pending-user-acceptance）。

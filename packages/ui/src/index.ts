@@ -13,3 +13,5 @@ export type { ResizableWorkbenchProps, WorkbenchPaneLimits, WorkbenchLayoutMode 
 
 export { WORKBENCH_LAYOUT_TOKENS, resolveWorkbenchLayoutMetrics } from "./workbench/workbench-layout.config";
 export type { WorkbenchLayoutMetrics } from "./workbench/workbench-layout.config";
+export { AiSettingsPage } from "./features/settings/ai/AiSettingsPage";
+export type { AiSettingsPageProps, AiSettingsProviderView, AiSettingsAuthView, AiSettingsFieldView } from "./features/settings/ai/ai-settings.types";

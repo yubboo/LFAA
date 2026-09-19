@@ -702,6 +702,10 @@ Windows PowerShell 变量名大小写不敏感。Setup/Sync/GitHub/Update 等 PS
 
 菜单 1 在 lockfile 落后时允许更新 `pnpm-lock.yaml`，在 lockfile 已完整但本地依赖损坏时使用 frozen 精确修复；pnpm 写操作采用 append-only reporter 实时显示进度。正式发布 `release:full` 继续 frozen。
 
+### v0.0.62 Windows pnpm 同控制台直连
+
+菜单 1 的交互式 `pnpm install` 在 Windows 不再从 PowerShell native-command 管道直接调用 `pnpm.cmd`。改为由 `cmd.exe` 在当前控制台启动版本匹配的 `pnpm.cmd`，PowerShell 通过 `Start-Process -NoNewWindow -Wait -PassThru` 只等待退出码，不配置 stdout/stderr 重定向。这样安装中间过程由 pnpm 自身控制。
+
 ### v0.0.61 Windows pnpm CMD 前台与精简输出
 
 菜单 1 的 pnpm 写操作在 Windows 优先使用版本与 `packageManager` 一致的 `pnpm.cmd`，以获得和用户直接在 CMD 执行 `pnpm install` 相同类别的原生终端输出。安装 stdout/stderr 不进入 LFAA 捕获链。

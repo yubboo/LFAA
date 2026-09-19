@@ -15,6 +15,7 @@
 - 中间工作区 / 对话区
 - 右侧工具 / `.lfaa` 资源区
 - 浅色 / 深色中性主题
+- AI 设置 Feature 组装：`@lfaa/config-system` Provider Registry → `@lfaa/ui` ViewModel；不拥有 Provider 业务事实
 
 视觉方向：Codex / ChatGPT 类生产力工具风格，但保留 LFAA 自有品牌和信息结构。
 
