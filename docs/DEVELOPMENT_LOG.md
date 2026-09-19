@@ -11,7 +11,10 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #2.15 | 侧栏最小宽度超拖吸附修正 | v0.0.75 | pending-user-acceptance |
+| #22.0 | 统一 Agent Runtime、三档权限与无限画布工作台 | v0.0.77 | pending-user-acceptance |
+| #4.3 | Sync/GitHub 统一工作区预检与可诊断失败修复 | v0.0.77 | pending-user-acceptance |
+| #2.16 | OpenAI ChatGPT 套餐 / Codex App Server 登录闭环 | v0.0.76 | pending-user-acceptance |
+| #2.15 | 侧栏最小宽度超拖吸附修正 | v0.0.75 | delivered |
 | #2.14 | 侧栏吸附触发阈值变量化 | v0.0.74 | superseded |
 | #2.13 | Rust Secret Broker 与官方模型能力配置 | v0.0.73 | superseded |
 | #2.12 | Windows Credential Manager 保存链路修复 | v0.0.72 | superseded |
@@ -39,17 +42,55 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
 
+### #22.0 统一 Agent Runtime、三档权限与无限画布工作台
+
+- **版本：** v0.0.77
+- **状态：** pending-user-acceptance
+- **主模块：** agent-runtime / app-shell / ui-workbench
+- **用户方向：** Chat 与 Work 是同一智能核心的两种交互；模型不能被壳层削弱，Tools / Skills / Experts / Commands / Sandbox / Subagents 用于增强而不是替代模型。
+- **Harness 决策：** Codex / DeepSeek Harness 优先走官方协议、CLI/App Server、ACP/SDK Adapter；LFAA 不伪造它们的内部 Agent Loop。
+- **权限决策：** 用户只见 请求审批 / 替我审批 / 完全权限；Runtime 内部把 approval/reviewer/sandbox 拆轴并原子应用。
+- **安全边界：** Full access 代表执行权限 Profile，不代表允许 Runtime 自删 Trust Core、窃取 Secret 或关闭审计。
+- **UI 决策：** Work 变为 Infinite Canvas，Canvas 只保存 viewport/节点视觉位置，Run/Session/Artifact 真值仍归 Runtime/Event Store。
+- **AI 验证：** Workbench Composer 已锁定真实 `agentRuntimeHost.startRun(...)` 端口委派；仓库 Node 78/78 + Config 33/33 = 111/111 PASS，Agent Runtime / Config TypeScript noEmit PASS，统一 Workspace Preflight 全 Gate PASS。
+
+### #4.3 Sync/GitHub 统一工作区预检与可诊断失败修复
+
+- **版本：** v0.0.77
+- **状态：** pending-user-acceptance
+- **主模块：** windows runtime scripts / governance
+- **用户实机：** v0.0.76 在 Git push 前治理检查被阻止，只显示笼统错误并要求查看日志。
+- **复现结论：** 干净 v0.0.76 包的 standalone governance 可通过；缺陷是稳定工作区诊断能力和 Sync/GitHub 预检口径没有统一。
+- **修复方向：** 新增无 node_modules 依赖的统一 workspace preflight；Sync/Push 共用；失败 gate/原始摘要直接显示在终端并保留完整日志。
+- **AI 验证：** `test/workspace-preflight.test.mjs` 覆盖精确失败 Gate、Sync/Push 共用入口与运行时日志目录占位；统一 Workspace Preflight 全 Gate PASS。
+
+### #2.16 OpenAI ChatGPT 套餐 / Codex App Server 登录闭环
+
+- **版本：** v0.0.76
+- **状态：** pending-user-acceptance
+- **主模块：** config-system / web-host / ui
+- **前序验收：** 用户在 v0.0.75 后回复“ok，下一步做什么”，#2.15 记为 delivered。
+- **恢复主线：** 回到 v0.0.73 后被 UI 手感优化暂时打断的 Config Account/Auth 主线，正式接入 OpenAI ChatGPT 套餐。
+- **架构决策：** ChatGPT OAuth / Token 真值由官方 Codex App Server 管理；Config System 只通过 Managed Auth Host Port 编排登录、账户读取与模型目录，不自行实现 OAuth。
+- **Host：** Web 开发宿主按需启动 `codex app-server`，默认 stdio JSONL，握手 `initialize → initialized`；浏览器只访问同源 localhost Bridge。
+- **持久化：** API Key 账户继续 `credentialRef → Rust Secret Broker`；ChatGPT subscription 账户 `credentialRef = null`，只保存公开元数据与模型设置。
+- **模型事实：** ChatGPT 套餐模型由 App Server `model/list` 动态提供；reasoning effort 同样来自运行时返回，不由模型名猜测。
+- **删除语义：** 删除 LFAA 项目账户只移除项目关联，不自动调用 Codex 全局 logout，避免影响其他 Codex CLI / IDE 客户端。
+- **边界：** 不改 Workbench resize/snap、Profile/Theme、Windows Setup/Sync/GitHub/Update。
+- **AI 验证：** 103/103 Node/Config 回归 PASS；Config System TypeScript noEmit PASS；governance / import / runtime import / folder / docs / comments / Windows BOM / release consistency / prompt lifecycle / config schema / release gates / UI contract 全部 PASS；Web Host 三个改动 TS 文件 `--experimental-strip-types --check` PASS。制作容器缺少项目 node_modules 且 Node 22.16.0 不满足正式 Node24，因此不冒充完整 pnpm Web build PASS。
+- **用户验收：** pending。
+
 ### #2.15 侧栏最小宽度超拖吸附修正
 
 - **版本：** v0.0.75
-- **状态：** pending-user-acceptance
+- **状态：** delivered
 - **主模块：** ui / workbench
 - **用户反馈：** v0.0.74 把防误触区做成了可见继续缩窄，导致正常 resize 被算法接管，出现“吸附展开 / 无法停在任意宽度”的错误手感。
 - **决策：** 正常宽度始终 `clamp(raw, min, max)`；到 `min` 后视觉尺寸锁定，仅用 Pointer 原始位置累计隐藏超拖；达到 `captureThreshold` 才进入收起动画。
 - **复用：** 左栏 / 右栏 / Bottom Dock / Settings 继续共用 `ResizableWorkbench` 与 `workbench-interaction.config.ts`，不复制算法。
 - **边界：** 不改 Rust Secret、Provider、Account/Auth、个人中心、主题和 Windows 工具链。
 - **AI 验证：** 仓库 Node 回归 65/65 + Config System 30/30 = 95/95 PASS；隐藏超拖纯函数行为测试 PASS；governance / import / runtime import / folder / docs / comment / Windows BOM / release consistency / prompt lifecycle / config schema / release gates / UI contract 全部 PASS。
-- **用户验收：** pending；重点验证任意宽度可停、min 后宽度不变、超拖半个 min 后才吸附。
+- **用户验收：** passed；用户在 v0.0.75 后确认“ok”并要求继续下一步。
 
 ### #2.14 侧栏吸附触发阈值变量化
 

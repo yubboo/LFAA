@@ -9,6 +9,7 @@
  * 修改注意事项：Host Client 只能暴露业务结果，不能泄漏 Vite/Node/Secret 明文存储细节。
  */
 import type { ReactNode } from "react";
+import type { AgentRuntimeHost } from "@lfaa/agent-runtime";
 import type { AiAccountDraft, AiAccountProbeResult, AiAccountSnapshot, AiModelSettingValue } from "@lfaa/config-system";
 
 export type ResourceKind = "skills" | "experts" | "plugins" | "extensions" | "mcp";
@@ -25,6 +26,7 @@ export interface AgentAiSettingsHost {
   snapshot(): Promise<AiAccountSnapshot>;
   probe(draft: AiAccountDraft, secret: string): Promise<AiAccountProbeResult>;
   save(draft: AiAccountDraft, secret: string): Promise<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>;
+  connectSubscription(draft: AiAccountDraft): Promise<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>;
   reprobe(accountId: string): Promise<AiAccountProbeResult>;
   deleteAccount(accountId: string): Promise<AiAccountSnapshot>;
   selectModel(accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiModelSettingValue>>): Promise<AiAccountSnapshot>;
@@ -35,4 +37,8 @@ export interface AgentWorkbenchProps {
   resourceBridgeStatus?: "connected" | "refreshing" | "offline";
   terminal?: ReactNode;
   aiSettingsHost?: AgentAiSettingsHost;
+  /** 统一 Agent Runtime Host；Chat / Work 共用，未提供时 UI 不伪造执行结果。 */
+  agentRuntimeHost?: AgentRuntimeHost;
+  /** Runtime 使用的工作区稳定 ID；不是本机绝对路径。 */
+  workspaceId?: string;
 }

@@ -86,7 +86,11 @@ const required = [
   "apps/desktop/tsconfig.json",
   "apps/web/tsconfig.json",
   "packages/ui/tsconfig.json",
-  "packages/agent-runtime/tsconfig.json"
+  "packages/agent-runtime/tsconfig.json",
+  "packages/agent-runtime/src/core/contracts.ts",
+  "packages/agent-runtime/src/core/permission-profiles.ts",
+  "packages/agent-runtime/src/harness/official-harnesses.ts",
+  "packages/ui/src/features/workbench/InfiniteCanvas.tsx"
 ];
 
 

@@ -1,5 +1,14 @@
 # LFAA 本机运行、同步与脚本规范
 
+## v0.0.77：稳定工作区统一 Preflight
+
+Windows `LFAA-Sync.bat` 与 `LFAA-GitHub.bat` 现在必须调用同一个 `scripts/workspace-preflight.mjs`。该入口只依赖 Node 和仓库源码，不依赖 `node_modules`，统一运行静态治理 Gate。
+
+失败输出规则：终端直接打印 `[LFAA-PREFLIGHT][FAIL] <gate>`、对应脚本与原始错误摘要；完整日志继续写入 `docs/logs/runtime/...`。用户不再需要只靠一个 `push-error-*.log` 路径猜失败原因。
+
+`docs/logs/runtime/workspace-sync/`、`github-push/`、`source-update/` 带 `.gitkeep`，避免空目录在 Git/ZIP/Sync 后消失。Sync 在镜像校验后立即执行同一 preflight，目标是让“同步成功”和“随后允许 Push”使用同一个工作区事实。
+
+
 > 记录 Sync / GitHub / Update / Setup、本机 Runtime Log、稳定工作区保护规则。实际 `.log` 仍写入 `docs/logs/runtime/*/`，但这些目录不再放 README。
 > 同步规范迁移来源：`docs/standards/WORKSPACE_SYNC.md`。
 

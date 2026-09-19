@@ -85,3 +85,49 @@ test("Vite native config chain uses explicit TypeScript extensions", async () =>
   assert.match(bridge, /from "\.\/rust-secret-store\.ts"/);
   assert.equal(tsconfig.compilerOptions.allowImportingTsExtensions, true);
 });
+
+test("Codex App Server adapter uses official JSONL account/model RPC and Windows-safe spawn", async () => {
+  const source = await read("apps/web/dev/bridges/ai/codex-app-server.ts");
+  assert.match(source, /spawn\("codex", \["app-server"\]/);
+  assert.match(source, /shell: process\.platform === "win32"/);
+  assert.match(source, /stdio: \["pipe", "pipe", "pipe"\]/);
+  assert.match(source, /request\("initialize"/);
+  assert.match(source, /notify\("initialized"/);
+  assert.match(source, /request\("account\/login\/start"/);
+  assert.match(source, /account\/login\/completed/);
+  assert.match(source, /request\("account\/login\/cancel"/);
+  assert.match(source, /request\("account\/read", \{ refreshToken: false \}\)/);
+  assert.match(source, /request\("model\/list"/);
+  assert.doesNotMatch(source, /account\/logout/);
+  assert.doesNotMatch(source, /from "node:fs/);
+  assert.doesNotMatch(source, /process\.env/);
+});
+
+test("managed ChatGPT bridge keeps subscription path separate from API-key secret path", async () => {
+  const source = await read("apps/web/dev/bridges/ai/ai-config-bridge.ts");
+  assert.match(source, /new CodexAppServerManagedAuth\(\)/);
+  assert.match(source, /managedAuth,/);
+  assert.match(source, /\/managed-login\/start/);
+  assert.match(source, /service\.startManagedLogin/);
+  assert.match(source, /service\.managedLoginStatus/);
+  assert.match(source, /service\.cancelManagedLogin/);
+  assert.match(source, /\/subscription\/accounts/);
+  assert.match(source, /service\.save\(parseDraft\(body\.draft\), null\)/);
+  assert.match(source, /server\.httpServer\?\.once\("close", \(\) => managedAuth\.dispose\(\)\)/);
+});
+
+test("browser ChatGPT login opens synchronously, validates official HTTPS domains and never stores token state", async () => {
+  const source = await read("apps/web/src/host/ai-settings-client.ts");
+  const popupIndex = source.indexOf('window.open("about:blank"');
+  const startIndex = source.indexOf('request<{ login: AiManagedLoginStart }>("/managed-login/start"');
+  assert.ok(popupIndex >= 0 && startIndex > popupIndex, "popup must be opened before the first managed-login await");
+  assert.match(source, /url\.protocol !== "https:"/);
+  assert.match(source, /url\.hostname === "chatgpt\.com"/);
+  assert.match(source, /url\.hostname === "openai\.com"/);
+  assert.match(source, /MANAGED_LOGIN_TIMEOUT_MS/);
+  assert.match(source, /loginCompleted/);
+  assert.match(source, /!loginCompleted\) await cancelManagedLogin/);
+  assert.match(source, /\/subscription\/accounts/);
+  assert.doesNotMatch(source, /(?:window\.)?(?:localStorage|sessionStorage)\s*\./);
+  assert.doesNotMatch(source, /account\/logout/);
+});

@@ -1,8 +1,37 @@
 # LFAA 更新日志
 
-## LFAA v0.0.75 — #2.15 侧栏最小宽度超拖吸附修正
+## LFAA v0.0.77 — #22.0 Agent Runtime 双入口基础 + #4.3 Windows 工作区预检修复
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.76（保留 #2.16 ChatGPT / Codex App Server 登录成果）
+- **任务：** #22.0、#4.3
+- 架构升级为 `architecture-version: 2`：Chat 与 Work 不再被视为两套智能，统一通过 `AgentRunRequest` 进入同一个 Agent Runtime；Config System 继续只拥有账号/认证/模型选择。
+- `packages/agent-runtime` 新增模型绑定、Capability、Run Host、三档 Permission Profile 与官方 Harness Registry；OpenAI Codex 只声明 `codex app-server` Bridge，DeepSeek Harness 只声明 ACP/SDK Bridge，不复制两者 Agent Loop。
+- 三档权限固定为“请求审批 / 替我审批 / 完全权限”。请求审批为 LFAA `prompt-every-capability` 前置 Gate；替我审批使用受限工作区 + Model/Official Reviewer；完全权限映射 unrestricted，但普通 Run 永远不能修改 Trust Core / Permission Policy / Secret / Audit 边界。
+- Work Surface 新增真实 Infinite Canvas：支持 pan、zoom、reset、节点拖拽和连线；Goal / Agent / Tool / Subagent / Artifact 仅为 Runtime Projection，不成为业务真值。
+- Workbench 移除硬编码模型名，读取 Config System 当前 `selectedModelId`；Runtime Host 缺失时明确显示“Runtime 未连接”并禁用发送，不使用假回复冒充模型执行。
+- Windows Sync / GitHub Push 改为共用 `scripts/workspace-preflight.mjs`；Gate 失败会直接显示具体 Gate 和原始错误摘要，并继续写日志。
+- 运行时日志目录加入 `.gitkeep`，保证 Git / ZIP / Sync 后目录事实稳定存在；修复空目录在包传输后消失导致治理事实不一致的问题。
+- **AI 验证：** 仓库 Node 78/78 + Config System 33/33 = 111/111 PASS；Agent Runtime / Config System TypeScript `--noEmit` PASS；统一 Workspace Preflight 全 Gate PASS。
+- **边界：** v0.0.77 建立 Runtime/权限/画布/官方 Harness Adapter 的长期脊柱；尚未把所有 Provider 的真实推理执行桥全部接完，因此不会把“Runtime 未连接”伪装为完成。
+
+## LFAA v0.0.76 — #2.16 OpenAI ChatGPT 套餐 / Codex App Server 登录闭环
+
+- **状态：** pending-user-acceptance
+- **基线：** v0.0.75（#2.15 已由用户确认通过）
+- **任务：** #2.16
+- Config Core 新增通用 `AiManagedAuthPort` / Host Capability 契约；ChatGPT 套餐不再伪装成 API Key 流程，Provider 只声明 `codex-app-server` 能力。
+- Web Host 新增 Codex App Server Adapter：固定启动 `codex app-server`，通过 stdio JSONL 完成 `initialize → initialized`、`account/login/start`、`account/read`、`model/list` 与登录完成通知；Windows 对 `codex.cmd` 使用 shell 解析。
+- ChatGPT OAuth / Token 生命周期继续由 Codex App Server 管理；LFAA 不读取 Codex auth 文件、不保存 access/refresh token，Subscription 账户使用 `credentialRef = null`。
+- 浏览器 Client 在用户点击时同步预开登录弹窗，只接受 OpenAI / ChatGPT HTTPS 官方域名；异常/关窗/超时会取消未完成 loginId，成功后不会反向取消已完成登录。
+- `model/list` 返回的模型与 `supportedReasoningEfforts/defaultReasoningEffort/inputModalities` 成为 Subscription 账户运行时模型能力事实；未知能力不猜测。
+- 删除 LFAA ChatGPT 项目账户只解除本地关联，不调用全局 `account/logout`；现有 API Key / Token Plan Rust Secret Broker 保存、重测、删除链路保持不变。
+- **AI 验证：** 仓库 Node 70/70 + Config System 33/33 = 103/103 PASS；Config System TypeScript noEmit PASS；全部治理门禁 PASS；Web Host 改动 TS 语法检查 PASS。完整 pnpm Web typecheck/build 因制作环境缺少项目 `node_modules`、Node 为 22.16.0（项目要求 24.x）而不冒充通过。
+
+## LFAA v0.0.75 — #2.15 侧栏最小宽度超拖吸附修正
+
+- **状态：** delivered
+- **用户验收：** passed；用户在 v0.0.75 后确认继续下一步。
 - **基线：** v0.0.74
 - **任务：** #2.15
 - 正常 resize 恢复 1:1 跟手，`minWidth..maxWidth` 任意位置均可停留；

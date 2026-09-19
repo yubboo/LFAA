@@ -32,7 +32,9 @@
  * - 响应式由 ResizeObserver + 统一布局计算器决定，不能用固定 viewport 断点硬挤三栏。
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { AGENT_PERMISSION_PROFILES, type AgentModelBinding, type AgentPermissionProfileId, type AgentRunHandle, type AgentSurfaceMode } from "@lfaa/agent-runtime";
 import {
+  InfiniteCanvas,
   ResizableWorkbench,
   SettingsPage,
   ThemeModeMenu,
@@ -44,10 +46,12 @@ import {
   type AiSettingsProviderView,
   type SettingsSectionId,
   type ThemePreference,
+  type InfiniteCanvasEdge,
+  type InfiniteCanvasNode,
   type WorkbenchLayoutMetrics,
   type WorkbenchLayoutMode,
 } from "@lfaa/ui";
-import { builtinAiProviderPlugins, type AiAccountDraft, type AiAccountProbeResult, type AiAccountRecord, type AiAccountSnapshot } from "@lfaa/config-system";
+import { builtinAiProviderPlugins, type AiAccountDraft, type AiAccountHostCapabilities, type AiAccountProbeResult, type AiAccountRecord, type AiAccountSnapshot } from "@lfaa/config-system";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 import type { AgentWorkbenchProps, DevResourceItem, ResourceKind } from "./workbench.types";
 import "./agent-workbench.css";
@@ -59,6 +63,8 @@ const THEME_KEY = "lfaa.workbench.theme.v1";
 const CHROME_KEY = "lfaa.workbench.chrome.v2";
 const LEFT_PANE_WIDTH_KEY = "lfaa.shell.left-pane-width.v1";
 const LEGACY_WORKBENCH_LAYOUT_KEY = "lfaa.workbench.layout.v5";
+const AGENT_SURFACE_KEY = "lfaa.agent.surface.v1";
+const AGENT_PERMISSION_KEY = "lfaa.agent.permission-profile.v1";
 
 type ResolvedTheme = "light" | "dark";
 type LayoutMode = WorkbenchLayoutMode;
@@ -66,31 +72,54 @@ interface ChromeState { leftCollapsed: boolean; rightCollapsed: boolean; termina
 const recentRuns = ["配置系统", "Web 工作台", "热插拔测试", "模型接入规划"];
 const resourceLabels: Record<ResourceKind, string> = { skills: "Skills", experts: "Experts", plugins: "Plugins", extensions: "Extensions", mcp: "MCP" };
 
+const INITIAL_WORK_NODES: readonly InfiniteCanvasNode[] = [
+  { id: "goal", kind: "goal", title: "一句话目标", description: "用户目标进入同一个 Agent Runtime。", status: "idle", x: 40, y: 70 },
+  { id: "agent", kind: "agent", title: "主智能体", description: "使用当前配置模型推理、规划并调度能力。", status: "idle", x: 370, y: 70 },
+  { id: "tools", kind: "tool", title: "Tools / Skills", description: "工具、技能、专家、命令与 MCP 按需装配。", status: "idle", x: 700, y: -20 },
+  { id: "subagent", kind: "agent", title: "子智能体", description: "按 Harness Provider 委派并行任务。", status: "idle", x: 700, y: 150 },
+  { id: "result", kind: "artifact", title: "最终产物", description: "文件、代码、报告与可验证结果回到同一 Run。", status: "idle", x: 1030, y: 70 },
+];
+
+const INITIAL_WORK_EDGES: readonly InfiniteCanvasEdge[] = [
+  { id: "goal-agent", from: "goal", to: "agent" },
+  { id: "agent-tools", from: "agent", to: "tools" },
+  { id: "agent-subagent", from: "agent", to: "subagent" },
+  { id: "tools-result", from: "tools", to: "result" },
+  { id: "subagent-result", from: "subagent", to: "result" },
+];
+
 // Config System 拥有 Provider 业务事实；App Shell 只把业务描述投影为 UI ViewModel。
-const aiProviderViews: readonly AiSettingsProviderView[] = builtinAiProviderPlugins.map((plugin) => ({
-  id: plugin.id,
-  name: plugin.displayName,
-  description: plugin.description,
-  authMethods: plugin.authMethods.map((auth) => ({
-    id: auth.id,
-    label: auth.label,
-    kind: auth.kind,
-    ...(auth.description ? { description: auth.description } : {}),
-    ...(auth.secretLabel ? { secretLabel: auth.secretLabel } : {}),
-    available: auth.kind !== "subscription",
-    ...(auth.kind === "subscription" ? { unavailableReason: "ChatGPT 套餐将在下一步通过 Codex App Server 接入。" } : {}),
-  })),
-  fields: plugin.configFields.map((field) => ({
-    id: field.id,
-    label: field.label,
-    kind: field.kind,
-    required: field.required,
-    ...(field.defaultValue !== undefined ? { defaultValue: field.defaultValue } : {}),
-    ...(field.placeholder !== undefined ? { placeholder: field.placeholder } : {}),
-    ...(field.options !== undefined ? { options: field.options } : {}),
-    ...(field.help !== undefined ? { help: field.help } : {}),
-  })),
-}));
+// 认证是否可用由 Auth Method 声明的 hostCapability + Host Snapshot 决定，不按 Provider/认证类型写死。
+function buildAiProviderViews(hostCapabilities: AiAccountHostCapabilities): readonly AiSettingsProviderView[] {
+  return builtinAiProviderPlugins.map((plugin) => ({
+    id: plugin.id,
+    name: plugin.displayName,
+    description: plugin.description,
+    authMethods: plugin.authMethods.map((auth) => {
+      const capability = auth.hostCapability ? hostCapabilities[auth.hostCapability] : undefined;
+      const available = auth.hostCapability ? capability?.available === true : true;
+      return {
+        id: auth.id,
+        label: auth.label,
+        kind: auth.kind,
+        ...(auth.description ? { description: auth.description } : {}),
+        ...(auth.secretLabel ? { secretLabel: auth.secretLabel } : {}),
+        available,
+        ...(!available && auth.hostCapability ? { unavailableReason: capability?.reason ?? `当前宿主缺少 ${auth.hostCapability} 能力。` } : {}),
+      };
+    }),
+    fields: plugin.configFields.map((field) => ({
+      id: field.id,
+      label: field.label,
+      kind: field.kind,
+      required: field.required,
+      ...(field.defaultValue !== undefined ? { defaultValue: field.defaultValue } : {}),
+      ...(field.placeholder !== undefined ? { placeholder: field.placeholder } : {}),
+      ...(field.options !== undefined ? { options: field.options } : {}),
+      ...(field.help !== undefined ? { help: field.help } : {}),
+    })),
+  }));
+}
 
 function mapAiAccount(record: AiAccountRecord): AiSettingsAccountView {
   return {
@@ -211,6 +240,17 @@ function initialLeftPaneWidth(limits: WorkbenchLayoutMetrics["left"]): number {
     // 历史布局损坏时回退当前响应式 initial，不阻断应用。
   }
   return limits.initial;
+}
+
+function initialAgentSurface(): AgentSurfaceMode {
+  if (typeof window === "undefined") return "chat";
+  return window.localStorage.getItem(AGENT_SURFACE_KEY) === "work" ? "work" : "chat";
+}
+
+function initialPermissionProfile(): AgentPermissionProfileId {
+  if (typeof window === "undefined") return "ask";
+  const stored = window.localStorage.getItem(AGENT_PERMISSION_KEY);
+  return stored === "approve-for-me" || stored === "full-access" ? stored : "ask";
 }
 
 function initialChrome(mode: LayoutMode): ChromeState {
@@ -362,12 +402,16 @@ function ProfileBar({
 function LeftSidebar({
   resolvedTheme,
   themePreference,
+  agentSurface,
+  onAgentSurfaceChange,
   onOpenProfile,
   onOpenThemeMenu,
   onRequestUpdate,
 }: {
   resolvedTheme: ResolvedTheme;
   themePreference: ThemePreference;
+  agentSurface: AgentSurfaceMode;
+  onAgentSurfaceChange: (surface: AgentSurfaceMode) => void;
   onOpenProfile: () => void;
   onOpenThemeMenu: () => void;
   onRequestUpdate: () => void;
@@ -385,8 +429,8 @@ function LeftSidebar({
 
       <button className="agent-new-task" type="button"><WorkbenchIcon name="new" />新建任务<span>⌘ K</span></button>
       <nav className="agent-nav" aria-label="主导航">
-        <button className="is-active" type="button"><WorkbenchIcon name="grid" />工作区</button>
-        <button type="button"><WorkbenchIcon name="spark" />智能体</button>
+        <button className={agentSurface === "chat" ? "is-active" : ""} type="button" onClick={() => onAgentSurfaceChange("chat")}><WorkbenchIcon name="spark" />聊天</button>
+        <button className={agentSurface === "work" ? "is-active" : ""} type="button" onClick={() => onAgentSurfaceChange("work")}><WorkbenchIcon name="grid" />工作</button>
         <button type="button"><WorkbenchIcon name="tools" />工具与技能</button>
         <button type="button"><WorkbenchIcon name="archive" />知识库</button>
       </nav>
@@ -415,6 +459,15 @@ function CenterWorkspace({
   leftCollapsed,
   rightCollapsed,
   terminalOpen,
+  agentSurface,
+  permissionProfileId,
+  modelLabel,
+  runtimeConnected,
+  workNodes,
+  onWorkNodesChange,
+  onAgentSurfaceChange,
+  onPermissionProfileChange,
+  onSubmitTask,
   onToggleLeft,
   onToggleRight,
   onToggleTerminal,
@@ -425,14 +478,43 @@ function CenterWorkspace({
   leftCollapsed: boolean;
   rightCollapsed: boolean;
   terminalOpen: boolean;
+  agentSurface: AgentSurfaceMode;
+  permissionProfileId: AgentPermissionProfileId;
+  modelLabel: string;
+  runtimeConnected: boolean;
+  workNodes: readonly InfiniteCanvasNode[];
+  onWorkNodesChange: (nodes: readonly InfiniteCanvasNode[]) => void;
+  onAgentSurfaceChange: (surface: AgentSurfaceMode) => void;
+  onPermissionProfileChange: (profileId: AgentPermissionProfileId) => void;
+  onSubmitTask: (input: string) => Promise<AgentRunHandle>;
   onToggleLeft: () => void;
   onToggleRight: () => void;
   onToggleTerminal: () => void;
   onLeftHoverEnter: () => void;
   onLeftHoverLeave: () => void;
 }) {
+  const [draft, setDraft] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [runNotice, setRunNotice] = useState<string | null>(null);
+
+  const submitTask = async () => {
+    const input = draft.trim();
+    if (!input || !runtimeConnected || modelLabel === "未配置模型" || submitting) return;
+    setSubmitting(true);
+    setRunNotice(null);
+    try {
+      const handle = await onSubmitTask(input);
+      setDraft("");
+      setRunNotice(`Run 已启动 · ${handle.runId}`);
+    } catch (error) {
+      setRunNotice(error instanceof Error ? error.message : "Runtime 启动失败。");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <section className="agent-center">
+    <section className="agent-center" data-agent-surface={agentSurface}>
       <header className="agent-center-header">
         <div className="agent-center-header__left">
           <ShellHeaderButton
@@ -448,10 +530,15 @@ function CenterWorkspace({
           >
             <WorkbenchIcon name="panelLeft" size={16} />
           </ShellHeaderButton>
-          <div className="agent-center-header__title"><WorkbenchIcon name="folder" size={16} /><strong>Web 工作台</strong></div>
+          <div className="agent-center-header__title"><WorkbenchIcon name="folder" size={16} /><strong>{agentSurface === "chat" ? "聊天" : "工作"}</strong></div>
+          <div className="agent-surface-switch" aria-label="核心交互模式">
+            <button className={agentSurface === "chat" ? "is-active" : ""} type="button" onClick={() => onAgentSurfaceChange("chat")}>聊天</button>
+            <button className={agentSurface === "work" ? "is-active" : ""} type="button" onClick={() => onAgentSurfaceChange("work")}>工作</button>
+          </div>
         </div>
 
         <div className="agent-center-header__right">
+          <span className={`agent-runtime-state${runtimeConnected ? " is-connected" : ""}`}>{runtimeConnected ? "Runtime 已连接" : "Runtime 未连接"}</span>
           <button className="agent-icon-button" type="button" aria-label="更多" title="更多"><WorkbenchIcon name="dots" size={16} /></button>
           <button className="agent-ghost-button" type="button">分享</button>
           {rightCollapsed || layoutMode !== "desktop" ? (
@@ -468,33 +555,40 @@ function CenterWorkspace({
         </div>
       </header>
 
-      <div className="agent-conversation">
-        <div className="agent-conversation-inner">
-          <div className="agent-user-message">把 LFAA 的工作台做成简洁、稳定、适合长时间工作的 Agent 界面。</div>
-          <article className="agent-answer">
-            <p>工作台继续采用接近 ChatGPT / Codex 的三栏结构。框架级按钮属于区域顶部 Header，而不是悬浮在正文上方：左栏按钮固定在中间 Header 左侧；右栏展开时，终端与右栏按钮进入右栏 Header；右栏收起时，它们回到中间 Header 右侧。</p>
-            <h2>当前 UI 目标</h2>
-            <ul>
-              <li>左侧承载导航、项目和最近任务；</li>
-              <li>中间保持主要工作区和对话上下文；</li>
-              <li>右侧放工具入口、运行状态和 <code>.lfaa</code> 热插拔资源；</li>
-              <li>拖到侧栏最小宽度自动吸附收起，收起后不能从分隔条反向拖开；</li>
-              <li>左栏按钮 Hover 只临时预览左栏，Click / Ctrl+B 才正式改变布局；</li>
-              <li>顶部 Header 与右栏展开/收起同步重排，不允许按钮漂在正文内容层。</li>
-            </ul>
-          </article>
+      {agentSurface === "chat" ? (
+        <div className="agent-conversation">
+          <div className="agent-conversation-inner">
+            <article className="agent-answer agent-answer--welcome">
+              <p><strong>聊天</strong>和<strong>工作</strong>共用同一个 Agent Runtime。这里适合一句话直接交代目标；模型、权限、Tools、Skills、Experts、Commands、Sandbox 与 Subagents 都不会因为切换界面而改变。</p>
+              <p>配置模型后，Runtime 会使用该账户当前选择的模型。当前界面不会用本地假回复替代真实模型执行。</p>
+            </article>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="agent-work-surface">
+          <InfiniteCanvas nodes={workNodes} edges={INITIAL_WORK_EDGES} onNodesChange={onWorkNodesChange} />
+        </div>
+      )}
+
       <div className="agent-composer-wrap">
         <div className="agent-composer">
-          <textarea aria-label="输入任务" placeholder="随心输入" rows={1} />
-          <div className="agent-composer-actions"><button className="agent-composer-icon" type="button" aria-label="添加"><WorkbenchIcon name="plus" /></button><span className="agent-permission">Ask</span><span className="agent-model">GPT-5.6 Sol</span><button className="agent-send" type="button" aria-label="发送">↑</button></div>
+          <textarea aria-label="输入任务" placeholder={agentSurface === "chat" ? "一句话交代任务" : "描述目标，Runtime 会把执行过程投影到画布"} rows={1} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitTask(); } }} />
+          <div className="agent-composer-actions">
+            <button className="agent-composer-icon" type="button" aria-label="添加"><WorkbenchIcon name="plus" /></button>
+            <label className="agent-permission-select" aria-label="权限模式">
+              <select value={permissionProfileId} onChange={(event) => onPermissionProfileChange(event.target.value as AgentPermissionProfileId)}>
+                {(Object.keys(AGENT_PERMISSION_PROFILES) as AgentPermissionProfileId[]).map((id) => <option key={id} value={id}>{AGENT_PERMISSION_PROFILES[id].label}</option>)}
+              </select>
+            </label>
+            <span className="agent-model" title="当前 Config System 选择的模型">{modelLabel}</span>
+            <button className="agent-send" type="button" aria-label="发送" disabled={!runtimeConnected || modelLabel === "未配置模型" || submitting || !draft.trim()} onClick={() => { void submitTask(); }}>{submitting ? "…" : "↑"}</button>
+          </div>
         </div>
+        {runNotice ? <div className="agent-run-notice" role="status">{runNotice}</div> : null}
       </div>
     </section>
   );
 }
-
 
 // ===== 6. 右侧资源区 =====
 // 右栏展开时，第一行是独立 Shell Header；其下 agent-right-body 才是“工具与资源”正文。
@@ -578,13 +672,16 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const [systemDark, setSystemDark] = useState(initialSystemDark);
   const resolvedTheme: ResolvedTheme = themePreference === "system" ? (systemDark ? "dark" : "light") : themePreference;
   const [chrome, setChrome] = useState<ChromeState>(() => initialChrome(layoutMode));
+  const [agentSurface, setAgentSurface] = useState<AgentSurfaceMode>(initialAgentSurface);
+  const [permissionProfileId, setPermissionProfileId] = useState<AgentPermissionProfileId>(initialPermissionProfile);
+  const [workNodes, setWorkNodes] = useState<readonly InfiniteCanvasNode[]>(INITIAL_WORK_NODES);
   const [surface, setSurface] = useState<"workbench" | "settings">("workbench");
   const [settingsSection, setSettingsSection] = useState<SettingsSectionId>("general");
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [updateNoticeOpen, setUpdateNoticeOpen] = useState(false);
-  const [selectedAiProviderId, setSelectedAiProviderId] = useState(aiProviderViews[0]?.id ?? "openai");
-  const [aiSnapshot, setAiSnapshot] = useState<AiAccountSnapshot>({ accounts: [], secretPersistence: "memory" });
+  const [selectedAiProviderId, setSelectedAiProviderId] = useState(builtinAiProviderPlugins[0]?.id ?? "openai");
+  const [aiSnapshot, setAiSnapshot] = useState<AiAccountSnapshot>({ accounts: [], secretPersistence: "memory", hostCapabilities: { "codex-app-server": { available: false, reason: "正在检查 Codex App Server…" } } });
   const [aiHostAvailable, setAiHostAvailable] = useState(Boolean(props.aiSettingsHost));
   // Hover Preview 与正式左 Dock 共享同一个“实际宽度”值。默认取当前响应式 initial，随后由 ResizableWorkbench 回传真实宽度。
   const [leftPaneWidth, setLeftPaneWidth] = useState(() => initialLeftPaneWidth(layout.left));
@@ -634,6 +731,8 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   }, [clearPreviewTimer, layoutMode]);
 
   useEffect(() => { window.localStorage.setItem(THEME_KEY, themePreference); }, [themePreference]);
+  useEffect(() => { window.localStorage.setItem(AGENT_SURFACE_KEY, agentSurface); }, [agentSurface]);
+  useEffect(() => { window.localStorage.setItem(AGENT_PERMISSION_KEY, permissionProfileId); }, [permissionProfileId]);
   useEffect(() => { window.localStorage.setItem(LEFT_PANE_WIDTH_KEY, String(leftPaneWidth)); }, [leftPaneWidth]);
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -716,6 +815,8 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     <LeftSidebar
       resolvedTheme={resolvedTheme}
       themePreference={themePreference}
+      agentSurface={agentSurface}
+      onAgentSurfaceChange={setAgentSurface}
       onOpenProfile={() => {
         setThemeMenuOpen(false);
         setProfileMenuOpen(true);
@@ -728,7 +829,33 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     />
   );
 
+  const aiProviderViews = buildAiProviderViews(aiSnapshot.hostCapabilities);
   const aiAccounts = aiSnapshot.accounts.map(mapAiAccount);
+  const activeAiAccount = aiSnapshot.accounts.find((account) => Boolean(account.selectedModelId)) ?? aiSnapshot.accounts[0];
+  const activeAiProvider = activeAiAccount ? builtinAiProviderPlugins.find((plugin) => plugin.id === activeAiAccount.providerId) : undefined;
+  const modelLabel = activeAiAccount?.selectedModelId
+    ? `${activeAiProvider?.displayName ?? activeAiAccount.providerId} · ${activeAiAccount.selectedModelId}`
+    : "未配置模型";
+  const activeModelBinding: AgentModelBinding | null = activeAiAccount?.selectedModelId
+    ? { accountId: activeAiAccount.id, providerId: activeAiAccount.providerId, modelId: activeAiAccount.selectedModelId }
+    : null;
+  const startAgentRun = async (input: string): Promise<AgentRunHandle> => {
+    if (!props.agentRuntimeHost) throw new Error("Agent Runtime Host 未连接。");
+    if (!activeModelBinding) throw new Error("请先在设置中配置并选择模型。");
+    const handle = await props.agentRuntimeHost.startRun({
+      surface: agentSurface,
+      input,
+      model: activeModelBinding,
+      permissionProfileId,
+      workspaceId: props.workspaceId ?? "lfaa",
+    });
+    setWorkNodes((nodes) => nodes.map((node) => {
+      if (node.id === "goal") return { ...node, description: input, status: "done" as const };
+      if (node.id === "agent") return { ...node, status: "running" as const };
+      return node;
+    }));
+    return handle;
+  };
   const requireAiHost = () => {
     if (!props.aiSettingsHost) throw new Error("当前宿主未提供 AI 配置桥。");
     return props.aiSettingsHost;
@@ -736,6 +863,11 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const probeAiAccount = async (draft: AiSettingsDraftInput, secret: string) => mapAiProbe(await requireAiHost().probe(toAiAccountDraft(draft), secret));
   const saveAiAccount = async (draft: AiSettingsDraftInput, secret: string) => {
     const result = await requireAiHost().save(toAiAccountDraft(draft), secret);
+    setAiSnapshot(result.snapshot);
+    return mapAiProbe(result.probe);
+  };
+  const connectAiSubscription = async (draft: AiSettingsDraftInput) => {
+    const result = await requireAiHost().connectSubscription(toAiAccountDraft(draft));
     setAiSnapshot(result.snapshot);
     return mapAiProbe(result.probe);
   };
@@ -773,6 +905,15 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
                 leftCollapsed={chrome.leftCollapsed}
                 rightCollapsed={chrome.rightCollapsed}
                 terminalOpen={chrome.terminalOpen}
+                agentSurface={agentSurface}
+                permissionProfileId={permissionProfileId}
+                modelLabel={modelLabel}
+                runtimeConnected={Boolean(props.agentRuntimeHost)}
+                workNodes={workNodes}
+                onWorkNodesChange={setWorkNodes}
+                onAgentSurfaceChange={setAgentSurface}
+                onPermissionProfileChange={setPermissionProfileId}
+                onSubmitTask={startAgentRun}
                 onToggleLeft={toggleLeft}
                 onToggleRight={toggleRight}
                 onToggleTerminal={toggleTerminal}
@@ -880,6 +1021,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
             aiHostAvailable={aiHostAvailable}
             onProbeAiAccount={probeAiAccount}
             onSaveAiAccount={saveAiAccount}
+            onConnectAiSubscription={connectAiSubscription}
             onReprobeAiAccount={reprobeAiAccount}
             onDeleteAiAccount={deleteAiAccount}
             onSelectAiAccountModel={selectAiAccountModel}

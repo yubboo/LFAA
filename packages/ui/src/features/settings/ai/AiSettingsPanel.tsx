@@ -85,7 +85,7 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
   const [modelSettings, setModelSettings] = useState<Record<string, AiSettingsModelSettingValue>>({});
   const [accountModels, setAccountModels] = useState<Record<string, readonly AiSettingsProbeView["models"][number][]>>({});
   const [accountModelSettings, setAccountModelSettings] = useState<Record<string, Record<string, AiSettingsModelSettingValue>>>({});
-  const [busy, setBusy] = useState<"probe" | "save" | "account" | null>(null);
+  const [busy, setBusy] = useState<"probe" | "save" | "connect" | "account" | null>(null);
   const [error, setError] = useState("");
 
   const activeAuth = selected ? authByProvider[selected.id] ?? selected.authMethods[0]?.id ?? "" : "";
@@ -93,6 +93,7 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
   const currentSettings = selected ? settingsByProvider[selected.id] ?? initialSettings(selected.fields) : {};
   const providerAccounts = selected ? props.accounts.filter((account) => account.providerId === selected.id) : [];
   const selectedModel = probe?.models.find((model) => model.id === selectedModelId);
+  const isSubscription = activeAuthView?.kind === "subscription";
 
   useEffect(() => {
     setProbe(null); setSelectedModelId(""); setModelSettings({}); setSecret(""); setError(""); setDisplayName(selected?.name ?? "");
@@ -137,6 +138,18 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
     finally { setBusy(null); }
   };
 
+  const connectSubscription = async () => {
+    setBusy("connect"); setError("");
+    try {
+      const result = await props.onConnectSubscription(draft());
+      setProbe(result);
+      const nextModel = result.models.find((model) => model.id === selectedModelId) ?? result.models[0];
+      setSelectedModelId(nextModel?.id ?? "");
+      setModelSettings(defaultModelSettings(nextModel));
+    } catch (value) { setError(value instanceof Error ? value.message : "ChatGPT 登录失败。"); }
+    finally { setBusy(null); }
+  };
+
   return (
     <div className="ai-settings-panel-root">
       <div className="ai-provider-grid" role="list" aria-label="AI Provider">
@@ -162,10 +175,16 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
           {error ? <div className="ai-runtime-error" role="alert">{error}</div> : null}
 
           <div className="ai-runtime-actions">
-            <button type="button" disabled={!props.hostAvailable || !activeAuthView?.available || busy !== null} onClick={() => void runProbe()}>{busy === "probe" ? "测试中…" : "测试连接 / 获取模型"}</button>
-            <button className="is-primary" type="button" disabled={!props.hostAvailable || !activeAuthView?.available || busy !== null || !secret.trim() || !selectedModelId} onClick={() => void save()}>{busy === "save" ? "保存中…" : "保存账户"}</button>
+            {isSubscription ? (
+              <button className="is-primary" type="button" disabled={!props.hostAvailable || !activeAuthView?.available || busy !== null} onClick={() => void connectSubscription()}>{busy === "connect" ? "等待 ChatGPT 登录…" : "登录 ChatGPT 并保存账户"}</button>
+            ) : (
+              <>
+                <button type="button" disabled={!props.hostAvailable || !activeAuthView?.available || busy !== null} onClick={() => void runProbe()}>{busy === "probe" ? "测试中…" : "测试连接 / 获取模型"}</button>
+                <button className="is-primary" type="button" disabled={!props.hostAvailable || !activeAuthView?.available || busy !== null || !secret.trim() || !selectedModelId} onClick={() => void save()}>{busy === "save" ? "保存中…" : "保存账户"}</button>
+              </>
+            )}
           </div>
-          <p className="ai-secret-note">凭证只发送到本机 LFAA Host；不会写入浏览器存储。{props.secretPersistence === "os-credential-store" ? " Windows 下由 Rust Secret Broker 写入 Credential Manager。" : props.secretPersistence === "memory" ? " 当前宿主仅内存保存，重启后需重新录入。" : " Host 尚未连接。"}</p>
+          <p className="ai-secret-note">{isSubscription ? "ChatGPT 登录与 Token 生命周期由 Codex App Server 管理；LFAA 不保存 Token。删除此项目账户只解除 LFAA 关联，不会退出其他 Codex 客户端。" : <>凭证只发送到本机 LFAA Host；不会写入浏览器存储。{props.secretPersistence === "os-credential-store" ? " Windows 下由 Rust Secret Broker 写入 Credential Manager。" : props.secretPersistence === "memory" ? " 当前宿主仅内存保存，重启后需重新录入。" : " Host 尚未连接。"}</>}</p>
         </div>
 
         <aside className="ai-settings-side ai-account-list">

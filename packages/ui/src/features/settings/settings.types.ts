@@ -26,6 +26,7 @@ export interface SettingsPageProps {
   aiHostAvailable: boolean;
   onProbeAiAccount: (draft: AiSettingsDraftInput, secret: string) => Promise<AiSettingsProbeView>;
   onSaveAiAccount: (draft: AiSettingsDraftInput, secret: string) => Promise<AiSettingsProbeView>;
+  onConnectAiSubscription: (draft: AiSettingsDraftInput) => Promise<AiSettingsProbeView>;
   onReprobeAiAccount: (accountId: string) => Promise<AiSettingsProbeView>;
   onDeleteAiAccount: (accountId: string) => Promise<void>;
   onSelectAiAccountModel: (accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiSettingsModelSettingValue>>) => Promise<void>;

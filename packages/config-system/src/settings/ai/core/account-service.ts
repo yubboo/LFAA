@@ -1,17 +1,25 @@
 /**
  * 文件：account-service.ts
  * 作用：实现 AI Provider 账户的真实配置业务闭环。
- * 负责：草稿校验、Secret 引用、官方模型探测、模型能力装饰、模型参数校验、账户保存/删除/重测。
- * 不负责：HTTP/Secret/文件系统具体实现、React UI、Codex OAuth 进程管理、推理 Runtime。
+ * 负责：草稿校验、Secret 引用、托管登录、官方模型探测、模型能力装饰、模型参数校验、账户保存/删除/重测。
+ * 不负责：HTTP/Secret/文件系统/Codex 进程具体实现、React UI、推理 Runtime。
  * 状态归属：AiAccountService 无内部可持久状态，状态由 Host Ports 持有。
  * 对外接口：AiAccountService。
  * 关联文件：account.types.ts、host-ports.ts、provider-registry.ts、model-settings.ts、../transports/*。
- * 修改注意事项：Secret 仅在方法栈内短暂出现；模型参数必须由 Provider 官方 Capability 契约校验。
+ * 修改注意事项：Secret 仅在方法栈内短暂出现；宿主管理登录不保存 Secret；模型参数必须由官方 Capability 契约校验。
  */
 import type { AiProviderRegistry } from "./provider-registry.ts";
-import type { AiAccountDraft, AiAccountModel, AiAccountProbeResult, AiAccountRecord, AiAccountSnapshot } from "./account.types.ts";
-import type { AiAccountHostPorts } from "./host-ports.ts";
-import type { AiModelSettingValue, AiProviderPlugin } from "./provider.types.ts";
+import type {
+  AiAccountDraft,
+  AiAccountModel,
+  AiAccountProbeResult,
+  AiAccountRecord,
+  AiAccountSnapshot,
+  AiManagedLoginStart,
+  AiManagedLoginStatus,
+} from "./account.types.ts";
+import type { AiAccountHostPorts, AiManagedAuthPort } from "./host-ports.ts";
+import type { AiAuthMethod, AiModelCapabilities, AiModelSettingValue, AiProviderPlugin } from "./provider.types.ts";
 import { defaultModelSettings, validateModelSettings } from "./model-settings.ts";
 import { buildOpenAiCompatibleModelRequest, parseOpenAiCompatibleModelList } from "../transports/openai-compatible.ts";
 import { parseQwenModelList } from "../transports/qwen-model-list.ts";
@@ -20,17 +28,22 @@ function cleanSettings(settings: Readonly<Record<string, string>>): Record<strin
   return Object.fromEntries(Object.entries(settings).map(([key, value]) => [key, value.trim()]));
 }
 
-function validateDraft(registry: AiProviderRegistry, draft: AiAccountDraft, secret: string | null): void {
+function resolveAuthMethod(registry: AiProviderRegistry, draft: AiAccountDraft): { plugin: AiProviderPlugin; auth: AiAuthMethod } {
   const plugin = registry.get(draft.providerId);
   const auth = plugin.authMethods.find((item) => item.id === draft.authMethodId);
   if (!auth) throw new Error(`${plugin.displayName} 不支持当前认证方式。`);
-  if (auth.kind === "subscription") throw new Error(`${auth.label} 需要 Codex App Server，当前版本尚未接入。`);
+  return { plugin, auth };
+}
+
+function validateDraft(registry: AiProviderRegistry, draft: AiAccountDraft, secret: string | null): { plugin: AiProviderPlugin; auth: AiAuthMethod } {
+  const { plugin, auth } = resolveAuthMethod(registry, draft);
   if (auth.secretLabel && !secret?.trim()) throw new Error(`请输入${auth.secretLabel}。`);
   if (auth.credentialPrefix && secret && !secret.startsWith(auth.credentialPrefix)) throw new Error(`${auth.secretLabel ?? "凭证"}格式与当前认证方式不匹配。`);
   for (const field of plugin.configFields) {
     const value = draft.settings[field.id]?.trim() ?? "";
     if (field.required && !value) throw new Error(`请填写${field.label}。`);
   }
+  return { plugin, auth };
 }
 
 function credentialRefFor(recordId: string, providerId: string, authMethodId: string): string {
@@ -41,12 +54,13 @@ function decorateModels(plugin: AiProviderPlugin, models: readonly AiAccountMode
   const unique = new Map<string, AiAccountModel>();
   for (const raw of models) {
     if (unique.has(raw.id)) continue;
-    const capabilities = plugin.describeModel(raw.id);
+    // 运行时官方接口（例如 Codex App Server model/list）返回的能力优先于静态文档能力。
+    const capabilities = raw.capabilities ?? plugin.describeModel(raw.id);
     unique.set(raw.id, {
       ...raw,
       ...(raw.contextWindow === undefined && capabilities?.contextWindow !== undefined ? { contextWindow: capabilities.contextWindow } : {}),
       ...(raw.maxOutputTokens === undefined && capabilities?.maxOutputTokens !== undefined ? { maxOutputTokens: capabilities.maxOutputTokens } : {}),
-      ...(discoverySource ? { discoverySource } : {}),
+      ...(raw.discoverySource ? {} : discoverySource ? { discoverySource } : {}),
       ...(capabilities ? { capabilities } : {}),
     });
   }
@@ -58,14 +72,30 @@ function ensureModelAvailable(modelId: string | null, models: readonly AiAccount
   if (!models.some((model) => model.id === modelId)) throw new Error(`模型 ${modelId} 不在当前账户的官方模型目录中。请重新测试后选择实际可用模型。`);
 }
 
-function resolveModelSettings(plugin: AiProviderPlugin, modelId: string | null, raw: Readonly<Record<string, AiModelSettingValue>> | undefined): Readonly<Record<string, AiModelSettingValue>> {
+function modelCapabilities(plugin: AiProviderPlugin, modelId: string, models: readonly AiAccountModel[]): AiModelCapabilities | null {
+  return models.find((model) => model.id === modelId)?.capabilities ?? plugin.describeModel(modelId);
+}
+
+function resolveModelSettings(
+  plugin: AiProviderPlugin,
+  modelId: string | null,
+  raw: Readonly<Record<string, AiModelSettingValue>> | undefined,
+  models: readonly AiAccountModel[],
+): Readonly<Record<string, AiModelSettingValue>> {
   if (!modelId) {
     if (raw && Object.keys(raw).length) throw new Error("尚未选择模型，不能保存模型参数。");
     return {};
   }
-  const capabilities = plugin.describeModel(modelId);
+  const capabilities = modelCapabilities(plugin, modelId, models);
   const source = raw && Object.keys(raw).length ? raw : defaultModelSettings(capabilities);
   return validateModelSettings(capabilities, source);
+}
+
+function requireManagedAuth(ports: AiAccountHostPorts, auth: AiAuthMethod): AiManagedAuthPort {
+  if (!auth.hostCapability) throw new Error(`${auth.label} 未声明可用的宿主管理认证能力。`);
+  const managedAuth = ports.managedAuth;
+  if (!managedAuth || managedAuth.kind !== auth.hostCapability) throw new Error(`当前宿主未提供 ${auth.hostCapability} 托管认证能力。`);
+  return managedAuth;
 }
 
 export class AiAccountService {
@@ -75,12 +105,43 @@ export class AiAccountService {
   constructor(registry: AiProviderRegistry, ports: AiAccountHostPorts) { this.#registry = registry; this.#ports = ports; }
 
   async snapshot(): Promise<AiAccountSnapshot> {
-    return { accounts: await this.#ports.repository.list(), secretPersistence: this.#ports.secrets.persistence };
+    const managedAuth = this.#ports.managedAuth;
+    let hostCapabilities: AiAccountSnapshot["hostCapabilities"] = {};
+    if (managedAuth) {
+      let status;
+      try { status = await managedAuth.status(); }
+      catch (error) { status = { available: false, reason: error instanceof Error ? error.message : `${managedAuth.kind} 状态检查失败。` }; }
+      hostCapabilities = { [managedAuth.kind]: status };
+    }
+    return {
+      accounts: await this.#ports.repository.list(),
+      secretPersistence: this.#ports.secrets.persistence,
+      hostCapabilities,
+    };
   }
 
-  async probe(draft: AiAccountDraft, secret: string): Promise<AiAccountProbeResult> {
-    validateDraft(this.#registry, draft, secret);
-    const plugin = this.#registry.get(draft.providerId);
+  async startManagedLogin(draft: AiAccountDraft): Promise<AiManagedLoginStart> {
+    const { auth } = validateDraft(this.#registry, draft, null);
+    if (auth.kind !== "subscription") throw new Error("当前认证方式不使用宿主管理登录。");
+    const managedAuth = requireManagedAuth(this.#ports, auth);
+    const status = await managedAuth.status();
+    if (!status.available) throw new Error(status.reason ?? `${managedAuth.kind} 当前不可用。`);
+    return managedAuth.startLogin();
+  }
+
+  async managedLoginStatus(loginId: string): Promise<AiManagedLoginStatus> {
+    if (!loginId.trim()) throw new Error("登录会话 ID 不能为空。");
+    if (!this.#ports.managedAuth) throw new Error("当前宿主未提供托管认证能力。");
+    return this.#ports.managedAuth.loginStatus(loginId.trim());
+  }
+
+  async cancelManagedLogin(loginId: string): Promise<void> {
+    if (!loginId.trim() || !this.#ports.managedAuth) return;
+    await this.#ports.managedAuth.cancelLogin(loginId.trim());
+  }
+
+  async probe(draft: AiAccountDraft, secret: string | null): Promise<AiAccountProbeResult> {
+    const { plugin, auth } = validateDraft(this.#registry, draft, secret);
     const connection = plugin.resolveConnection({ authMethodId: draft.authMethodId, settings: cleanSettings(draft.settings) });
 
     if (connection.modelDiscovery.kind === "manual") {
@@ -91,8 +152,13 @@ export class AiAccountService {
       const models = decorateModels(plugin, connection.modelDiscovery.models, connection.modelDiscovery.source);
       return { status: "unverified", message: `${connection.modelDiscovery.reason} 已载入 ${models.length} 个官方目录模型。`, models, ...(connection.baseUrl ? { resolvedBaseUrl: connection.baseUrl } : {}) };
     }
-    if (connection.modelDiscovery.kind === "codex-account") throw new Error("ChatGPT 套餐认证将在 Codex App Server 子任务中接入。");
+    if (connection.modelDiscovery.kind === "codex-account") {
+      const managedAuth = requireManagedAuth(this.#ports, auth);
+      const probe = await managedAuth.probe();
+      return { ...probe, models: decorateModels(plugin, probe.models) };
+    }
     if (!connection.authHeader) throw new Error("Provider 未声明模型发现鉴权方式。");
+    if (!secret?.trim()) throw new Error(`${auth.secretLabel ?? "凭证"}不能为空。`);
 
     const request = buildOpenAiCompatibleModelRequest(connection.modelDiscovery.url, connection.authHeader, secret.trim());
     const payload = await this.#ports.http.requestJson(request);
@@ -101,18 +167,21 @@ export class AiAccountService {
     return { status: "connected", message: `连接成功，官方模型目录返回 ${models.length} 个模型。`, models, ...(connection.baseUrl ? { resolvedBaseUrl: connection.baseUrl } : {}) };
   }
 
-  async save(draft: AiAccountDraft, secret: string): Promise<{ account: AiAccountRecord; probe: AiAccountProbeResult }> {
-    const plugin = this.#registry.get(draft.providerId);
+  async save(draft: AiAccountDraft, secret: string | null): Promise<{ account: AiAccountRecord; probe: AiAccountProbeResult }> {
+    const { plugin, auth } = validateDraft(this.#registry, draft, secret);
     const probe = await this.probe(draft, secret);
     const existing = draft.accountId ? (await this.#ports.repository.list()).find((item) => item.id === draft.accountId) : undefined;
     const id = existing?.id ?? this.#ports.createId();
-    const credentialRef = existing?.credentialRef ?? credentialRefFor(id, draft.providerId, draft.authMethodId);
+    const usesManagedAuth = auth.kind === "subscription";
+    const credentialRef = usesManagedAuth ? null : existing?.credentialRef ?? credentialRefFor(id, draft.providerId, draft.authMethodId);
     const now = this.#ports.now();
-    const previousSecret = existing ? await this.#ports.secrets.get(credentialRef) : null;
+    const previousCredentialRef = existing?.credentialRef ?? null;
+    const previousSecret = previousCredentialRef ? await this.#ports.secrets.get(previousCredentialRef) : null;
     const selectedModelId = draft.selectedModelId?.trim() || probe.models[0]?.id || null;
     ensureModelAvailable(selectedModelId, probe.models);
-    const modelSettings = resolveModelSettings(plugin, selectedModelId, draft.modelSettings);
-    await this.#ports.secrets.put(credentialRef, secret.trim());
+    const modelSettings = resolveModelSettings(plugin, selectedModelId, draft.modelSettings, probe.models);
+
+    if (credentialRef) await this.#ports.secrets.put(credentialRef, secret?.trim() ?? "");
     const account: AiAccountRecord = {
       id,
       providerId: draft.providerId,
@@ -129,9 +198,12 @@ export class AiAccountService {
     };
     try {
       await this.#ports.repository.put(account);
+      if (usesManagedAuth && previousCredentialRef) await this.#ports.secrets.delete(previousCredentialRef);
     } catch (error) {
-      if (previousSecret === null) await this.#ports.secrets.delete(credentialRef).catch(() => undefined);
-      else await this.#ports.secrets.put(credentialRef, previousSecret).catch(() => undefined);
+      if (credentialRef) {
+        if (previousSecret === null) await this.#ports.secrets.delete(credentialRef).catch(() => undefined);
+        else await this.#ports.secrets.put(credentialRef, previousSecret).catch(() => undefined);
+      }
       throw error;
     }
     return { account, probe };
@@ -140,8 +212,8 @@ export class AiAccountService {
   async reprobe(accountId: string): Promise<AiAccountProbeResult> {
     const account = (await this.#ports.repository.list()).find((item) => item.id === accountId);
     if (!account) throw new Error("账户不存在。");
-    const secret = await this.#ports.secrets.get(account.credentialRef);
-    if (!secret) throw new Error("账户凭证不存在，请重新录入。");
+    const secret = account.credentialRef ? await this.#ports.secrets.get(account.credentialRef) : null;
+    if (account.credentialRef && !secret) throw new Error("账户凭证不存在，请重新录入。");
     try {
       const probe = await this.probe({ accountId: account.id, providerId: account.providerId, displayName: account.displayName, authMethodId: account.authMethodId, settings: account.settings, selectedModelId: account.selectedModelId, modelSettings: account.modelSettings }, secret);
       const now = this.#ports.now();
@@ -157,13 +229,13 @@ export class AiAccountService {
     const accounts = await this.#ports.repository.list();
     const account = accounts.find((item) => item.id === accountId);
     if (!account) throw new Error("账户不存在。");
-    const secret = await this.#ports.secrets.get(account.credentialRef);
-    if (!secret) throw new Error("账户凭证不存在，请重新录入。");
+    const secret = account.credentialRef ? await this.#ports.secrets.get(account.credentialRef) : null;
+    if (account.credentialRef && !secret) throw new Error("账户凭证不存在，请重新录入。");
     const probe = await this.probe({ providerId: account.providerId, displayName: account.displayName, authMethodId: account.authMethodId, settings: account.settings, selectedModelId: modelId }, secret);
     const selectedModelId = modelId.trim() || null;
     ensureModelAvailable(selectedModelId, probe.models);
     const plugin = this.#registry.get(account.providerId);
-    const resolvedSettings = resolveModelSettings(plugin, selectedModelId, modelSettings);
+    const resolvedSettings = resolveModelSettings(plugin, selectedModelId, modelSettings, probe.models);
     await this.#ports.repository.put({ ...account, selectedModelId, modelSettings: resolvedSettings, verificationStatus: probe.status, lastVerifiedAt: probe.status === "connected" ? this.#ports.now() : account.lastVerifiedAt, updatedAt: this.#ports.now() });
   }
 
@@ -172,6 +244,8 @@ export class AiAccountService {
     const account = accounts.find((item) => item.id === accountId);
     if (!account) return;
     await this.#ports.repository.delete(accountId);
+    // 宿主管理登录属于 Codex 全局认证状态；删除 LFAA 项目账户只能解除关联，不能全局 logout。
+    if (!account.credentialRef) return;
     try { await this.#ports.secrets.delete(account.credentialRef); }
     catch (error) { await this.#ports.repository.put(account).catch(() => undefined); throw error; }
   }

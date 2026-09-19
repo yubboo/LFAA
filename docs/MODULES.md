@@ -1,5 +1,18 @@
 # LFAA 模块、计划与进度
 
+## v0.0.77 当前模块升级
+
+### Agent Runtime / Workbench
+
+`packages/agent-runtime` 成为 Chat / Work 共用的运行时公共契约层，当前已落 Model Binding、Capability Descriptor、Run Host、三档 Permission Profile、Codex / DeepSeek Harness 官方 Bridge Registry。后续真实 Tool Runtime、Session/Event、Harness Host Adapter 都必须接在这条脊柱上，禁止重新在 UI 里造第二套 Agent。
+
+`packages/ui/src/features/workbench` 新增 Infinite Canvas；`packages/app-shell` 只负责 Surface 编排与 Projection。Config System 继续负责账号/认证/模型选择，不提升为执行 Runtime。
+
+### Windows Runtime Scripts
+
+`workspace-preflight.mjs` 是 Sync / GitHub 唯一静态预检入口。PowerShell 只负责调用、呈现和记录结果，不再各自复制一套 Gate 列表。
+
+
 > 模块职责、模块 Plan、模块 Progress 统一维护在本文件。新增模块时新增一个长期章节，不再创建 `modules/plans/progress` 三套目录。
 
 ## project-foundation
@@ -1030,8 +1043,9 @@ v0.0.41 为 Windows PowerShell 脚本补中文结构化文件头时，保存过�
 
 ## config-system
 
-- 当前进度：#2.13 / v0.0.73 Rust Secret Broker 与官方模型能力配置，pending-user-acceptance；Secret 已迁入 Rust Broker，模型目录/能力由官方 API/官方文档驱动。
-- UI 交互修正：#2.15 / v0.0.75 侧栏最小宽度超拖吸附修正，pending-user-acceptance；视觉宽度到 min 后锁定，隐藏超拖达到阈值才 capture，Workbench/Settings 共用同一 Interaction Config。
+- 当前进度：#2.16 / v0.0.76 OpenAI ChatGPT 套餐 / Codex App Server 登录闭环，pending-user-acceptance；ChatGPT 托管认证归 Codex App Server，Config Core 通过 Managed Auth Port 编排。
+- Secret 基线：v0.0.73 Rust Secret Broker 与官方模型能力成果保留；API Key / Token Plan 仍通过 Rust Secret Broker。
+- UI 交互：#2.15 / v0.0.75 已由用户验收通过；视觉宽度到 min 后锁定，隐藏超拖达到阈值才 capture。
 
 > 迁移来源：`docs/modules/config-system/README.md`
 
@@ -1174,6 +1188,17 @@ v0.0.2+
 > 迁移来源：`docs/progress/modules/config-system/PROGRESS.md`
 
 ### config-system PROGRESS
+
+#### 2026-09-19 / #2.16 OpenAI ChatGPT 套餐 / Codex App Server 登录闭环
+
+- 当前状态：pending-user-acceptance
+- 用户版本：v0.0.76
+- Core：新增通用 Managed Auth Host Port；Subscription 账户不写 Secret，`credentialRef = null`，API Key / Token Plan 继续复用 Rust Secret Broker。
+- Host：新增 `codex-app-server.ts`，固定 `codex app-server` + stdio JSONL，完成 initialize/initialized、ChatGPT login、account/read、model/list；Windows 兼容 `codex.cmd`。
+- Browser/UI：用户点击时同步预开登录窗，只接受 OpenAI/ChatGPT HTTPS 域名；Provider hostCapability + Host Snapshot 决定可用性，UI 无 Provider 网络业务分支。
+- 安全：不读 Codex auth 文件、不保存 ChatGPT Token；删除 LFAA 项目账户不调用全局 logout。
+- 验证：仓库 Node 70/70 + Config System 33/33 = 103/103 PASS；Config System TypeScript noEmit PASS；全部治理门禁 PASS；Web Host 改动 TS 语法检查 PASS；完整 pnpm Web build 留给 Node24 + pnpm11.17.0 + 依赖齐全环境。
+- 下一步：用户 Windows 实机完成 ChatGPT 登录、模型目录、刷新/删除边界验收；通过后 #2.16 才转 delivered。
 
 #### 2026-09-19 / #2.13 Rust Secret Broker 与官方模型能力配置
 

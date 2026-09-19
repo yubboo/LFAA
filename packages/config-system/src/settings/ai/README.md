@@ -17,4 +17,4 @@ transports/
 
 ## Web-first 当前实现
 
-`core/AiAccountService` 已通过 Host Ports 完成 API Key / Token Plan 账户闭环。Windows Web 开发宿主使用 Credential Manager；普通账户状态只保存 `credentialRef`。OpenAI ChatGPT 套餐登录仍由后续 Codex App Server Adapter 接入，不在 API Key 流程中伪装完成。
+`core/AiAccountService` 已通过 Host Ports 完成 API Key / Token Plan 与宿主管理 Subscription 的统一账户闭环。普通 API Key / Token Plan 只保存 `credentialRef` 并继续通过 Rust Secret Broker；OpenAI ChatGPT 套餐通过通用 `AiManagedAuthPort` 接入 Codex App Server，账户使用 `credentialRef = null`，Config System 不读取或保存 ChatGPT Token。

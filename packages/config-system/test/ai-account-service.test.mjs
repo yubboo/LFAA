@@ -20,6 +20,41 @@ function harness(response = { data: [{ id: "gpt-6-astra", owned_by: "openai" }, 
   return { service, get accounts() { return accounts; }, secrets, requests };
 }
 
+
+function managedHarness() {
+  let accounts = [];
+  const secretCalls = { put: 0, get: 0, delete: 0 };
+  const managedCalls = { start: 0, status: 0, probe: 0, cancel: 0 };
+  const runtimeSource = { kind: "runtime-model-api", label: "Codex App Server model/list", url: "https://developers.openai.com/codex/app-server#list-models", checkedAt: "2026-09-19" };
+  const runtimeCapability = {
+    source: runtimeSource,
+    inputModalities: ["text", "image"],
+    settings: [{ id: "reasoningEffort", label: "思考强度", kind: "select", requestPath: "reasoningEffort", defaultValue: "app-server-only", options: [{ value: "app-server-only", label: "app-server-only" }] }],
+  };
+  const service = new AiAccountService(new AiProviderRegistry(builtinAiProviderPlugins), {
+    repository: { async list() { return accounts; }, async put(record) { accounts = [...accounts.filter((item) => item.id !== record.id), record]; }, async delete(id) { accounts = accounts.filter((item) => item.id !== id); } },
+    secrets: {
+      persistence: "os-credential-store",
+      async put() { secretCalls.put += 1; },
+      async get() { secretCalls.get += 1; return null; },
+      async delete() { secretCalls.delete += 1; },
+    },
+    http: { async requestJson() { throw new Error("subscription must not use provider HTTP"); } },
+    managedAuth: {
+      kind: "codex-app-server",
+      async status() { managedCalls.status += 1; return { available: true }; },
+      async startLogin() { managedCalls.start += 1; return { loginId: "login-12345678", authUrl: "https://chatgpt.com/auth" }; },
+      async loginStatus() { return { state: "succeeded" }; },
+      async cancelLogin() { managedCalls.cancel += 1; },
+      async probe() { managedCalls.probe += 1; return { status: "connected", message: "ChatGPT connected", models: [{ id: "gpt-5.6-sol", name: "GPT-5.6 Sol", discoverySource: runtimeSource, capabilities: runtimeCapability }] }; },
+    },
+    createId() { return "account-managed-0001"; },
+    now() { return "2026-09-19T04:00:00.000Z"; },
+  });
+  return { service, get accounts() { return accounts; }, secretCalls, managedCalls };
+}
+
+const chatGptDraft = { providerId: "openai", displayName: "ChatGPT 套餐", authMethodId: "chatgpt", settings: {}, selectedModelId: "gpt-5.6-sol", modelSettings: { reasoningEffort: "app-server-only" } };
 const baseDraft = { providerId: "openai", displayName: "OpenAI 主账户", authMethodId: "api-key", settings: {}, selectedModelId: "gpt-6-astra", modelSettings: { reasoningEffort: "high", maxOutputTokens: 64000 } };
 
 test("OpenAI probe uses runtime model list and decorates official capability", async () => {
@@ -91,9 +126,42 @@ test("Zhipu uses official documentation catalog instead of arbitrary manual mode
   assert.equal(h.requests.length, 0);
 });
 
-test("ChatGPT subscription cannot masquerade as API key flow", async () => {
+test("ChatGPT subscription requires managed auth instead of masquerading as API key flow", async () => {
   const h = harness();
-  await assert.rejects(() => h.service.probe({ providerId: "openai", displayName: "ChatGPT", authMethodId: "chatgpt", settings: {}, selectedModelId: null, modelSettings: {} }, ""), /Codex App Server/);
+  await assert.rejects(() => h.service.probe({ providerId: "openai", displayName: "ChatGPT", authMethodId: "chatgpt", settings: {}, selectedModelId: null, modelSettings: {} }, null), /codex-app-server/);
+  assert.equal(h.requests.length, 0);
+});
+
+test("managed ChatGPT login is delegated to Codex App Server capability", async () => {
+  const h = managedHarness();
+  const snapshot = await h.service.snapshot();
+  assert.equal(snapshot.hostCapabilities["codex-app-server"].available, true);
+  const login = await h.service.startManagedLogin(chatGptDraft);
+  assert.equal(login.loginId, "login-12345678");
+  assert.equal(h.managedCalls.start, 1);
+  assert.equal(h.secretCalls.put, 0);
+});
+
+test("managed subscription save persists no credentialRef and trusts runtime model capabilities", async () => {
+  const h = managedHarness();
+  const result = await h.service.save(chatGptDraft, null);
+  assert.equal(result.account.credentialRef, null);
+  assert.deepEqual(result.account.modelSettings, { reasoningEffort: "app-server-only" });
+  assert.equal(result.probe.models[0].capabilities.source.label, "Codex App Server model/list");
+  assert.equal(h.secretCalls.put, 0);
+  assert.equal(h.secretCalls.get, 0);
+  assert.equal(h.managedCalls.probe, 1);
+});
+
+test("managed subscription reprobe/select/delete never touches Secret Store or global auth", async () => {
+  const h = managedHarness();
+  const saved = await h.service.save(chatGptDraft, null);
+  await h.service.reprobe(saved.account.id);
+  await h.service.selectModel(saved.account.id, "gpt-5.6-sol", { reasoningEffort: "app-server-only" });
+  await h.service.delete(saved.account.id);
+  assert.equal(h.accounts.length, 0);
+  assert.deepEqual(h.secretCalls, { put: 0, get: 0, delete: 0 });
+  assert.equal(h.managedCalls.cancel, 0);
 });
 
 test("Qwen parser reads official output.models shape", () => {

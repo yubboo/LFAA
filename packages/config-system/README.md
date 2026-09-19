@@ -17,6 +17,7 @@ LFAA **配置设置业务的唯一归属域**。UI、Web、Desktop、CLI 都只�
 - 后续 `settings/*` 子域；
 - AI 设置业务：Account/Auth/Model/SecretRef/Provider Registry 与各厂商**配置插件**。
 - 模型目录与 Model Capability：模型 ID 优先来自官方运行时目录 API；高级参数必须来自 Provider 官方资料并由 Core 白名单校验。
+- Managed Auth：宿主管理认证通过通用 Host Port 接入；ChatGPT 套餐由 Codex App Server 持有认证真值，Config 账户允许 `credentialRef = null`。
 
 AI 设置固定结构：
 
@@ -48,7 +49,7 @@ src/settings/ai/
 
 ## 安全边界
 
-普通配置只保存 `credentialRef`。真实 Secret 最终由 Rust Secret Broker / OS Credential Store 持有。
+普通 API Key / Token 配置只保存 `credentialRef`。真实 Secret 最终由 Rust Secret Broker / OS Credential Store 持有；Codex App Server 托管的 Subscription 不伪造 Secret 引用，使用 `credentialRef = null`。
 
 ## 修改要求
 

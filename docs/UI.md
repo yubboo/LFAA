@@ -1,3 +1,26 @@
+## v0.0.77：Chat / Work 双核心入口与 Infinite Canvas
+
+- 左侧主导航以“聊天 / 工作”为两个第一等入口，不再把工作台等同于聊天页。
+- Chat 与 Work 只改变交互表现，不改变 `AgentRunRequest`、模型、权限 Profile、能力目录或 Runtime。
+- Work 中心区使用 `packages/ui/src/features/workbench/InfiniteCanvas.tsx`；支持 pan、zoom、reset、节点拖拽与连线。
+- Canvas 节点只投影 Runtime 实体，不能在 React local state 中保存唯一业务事实。
+- Composer 共用三档权限：请求审批 / 替我审批 / 完全权限；模型标签来自 Config System 当前 `selectedModelId`。
+- Runtime Host 缺失时发送按钮必须禁用并显示“Runtime 未连接”；禁止用静态字符串冒充模型回复。
+
+## ChatGPT 套餐登录 UI（v0.0.76）
+
+OpenAI `ChatGPT 套餐` 是 Host 托管认证，不是 API Key 表单的变体。UI 只根据 Provider Auth Method 的 `hostCapability` 与 Host Snapshot 决定是否可用，不允许写 `if (provider === "openai")` 之类厂商业务分支。
+
+```text
+Provider 声明 hostCapability
+→ App Shell 读取 hostCapabilities["codex-app-server"]
+→ UI 显示「登录 ChatGPT 并保存账户」
+→ Web Host/Codex App Server 完成登录与 model/list
+→ UI 展示 Probe / Model Capability
+```
+
+Subscription 不显示 Secret 输入，不保存 Token。删除项目账户的文案必须明确“只解除 LFAA 关联，不退出其他 Codex 客户端”。API Key / Token Plan 保持原有 Secret + 测试连接 + 选模 + 保存流程。
+
 ## Settings / Workbench 共享左栏宽度（v0.0.71）
 
 主工作台与独立 Settings Surface 不仅复用同一 `ResizableWorkbench` 算法，还必须共享同一个 `leftPaneWidth` 状态。App Shell 是该宽度唯一事实源：

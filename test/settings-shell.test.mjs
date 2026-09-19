@@ -95,3 +95,24 @@ test("Settings 与主工作台共享唯一 leftPaneWidth，不各自保存宽度
 test("ResizableWorkbench 支持单侧 Surface，避免 Settings 伪造右栏", () => {
   assert.match(workbenchTypes, /right\?: ReactNode/);
 });
+
+test("ChatGPT 套餐可用性由 Provider hostCapability + Host Snapshot 驱动，不在 UI 写 Provider 特判", () => {
+  assert.match(shell, /buildAiProviderViews\(hostCapabilities/);
+  assert.match(shell, /auth\.hostCapability \? hostCapabilities\[auth\.hostCapability\]/);
+  assert.doesNotMatch(shell, /auth\.kind\s*!==\s*"subscription"/);
+  assert.doesNotMatch(shell, /auth\.hostCapability === "codex-app-server"/);
+  assert.match(shell, /connectAiSubscription/);
+  assert.match(settings, /onConnectAiSubscription/);
+  assert.match(aiPanel, /props\.onConnectSubscription\(draft\(\)\)/);
+  assert.match(aiPanel, /登录 ChatGPT 并保存账户/);
+  assert.match(aiPanel, /LFAA 不保存 Token/);
+  assert.match(aiPanel, /不会退出其他 Codex 客户端/);
+});
+
+test("原 API Key 保存门槛保持不变，Subscription 不渲染 Secret 输入依赖", () => {
+  assert.match(aiPanel, /!secret\.trim\(\) \|\| !selectedModelId/);
+  assert.match(aiPanel, /isSubscription \? \(/);
+  assert.match(aiPanel, /activeAuthView\?\.secretLabel/);
+  assert.doesNotMatch(aiPanel, /fetch\s*\(/);
+  assert.doesNotMatch(aiPanel, /https?:\/\//);
+});

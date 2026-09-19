@@ -24,3 +24,6 @@ export { SettingsPage } from "./features/settings/SettingsPage";
 export type { SettingsPageProps, SettingsSectionId } from "./features/settings/settings.types";
 export { AiSettingsPanel } from "./features/settings/ai/AiSettingsPanel";
 export type { AiSettingsPanelProps } from "./features/settings/ai/AiSettingsPanel";
+
+export { InfiniteCanvas } from "./features/workbench/InfiniteCanvas";
+export type { InfiniteCanvasEdge, InfiniteCanvasNode, InfiniteCanvasNodeKind, InfiniteCanvasProps } from "./features/workbench/infinite-canvas.types";

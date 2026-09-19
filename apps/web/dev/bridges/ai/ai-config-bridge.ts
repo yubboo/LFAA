@@ -1,11 +1,11 @@
 /**
  * 文件：ai-config-bridge.ts
  * 作用：Vite Web 开发宿主的 AI 设置 localhost Bridge。
- * 负责：把浏览器同源请求映射到 Config System Account Service，并返回脱敏 JSON。
+ * 负责：把浏览器同源请求映射到 Config System Account Service，挂接 Codex App Server 托管认证，并返回脱敏 JSON。
  * 不负责：Provider 业务、UI、Secret 文件持久化、生产 Server API。
  * 状态归属：Vite 进程持有 Account Service 与非 Windows 内存 Secret fallback。
  * 对外接口：lfaaDevAiConfigBridge(projectRoot)。
- * 关联文件：account-state-repository.ts、rust-secret-store.ts、node-http-json.ts、apps/web/src/host/ai-settings-client.ts。
+ * 关联文件：account-state-repository.ts、rust-secret-store.ts、node-http-json.ts、codex-app-server.ts、apps/web/src/host/ai-settings-client.ts。
  * 修改注意事项：只绑定 Vite localhost；任何响应不得返回 Secret；请求体大小必须受限。
  */
 import { randomUUID } from "node:crypto";
@@ -15,6 +15,7 @@ import { AiAccountService, AiProviderRegistry, builtinAiProviderPlugins, type Ai
 import { JsonAiAccountRepository } from "./account-state-repository.ts";
 import { NodeAiHttpJsonPort } from "./node-http-json.ts";
 import { createWebDevSecretStore } from "./rust-secret-store.ts";
+import { CodexAppServerManagedAuth } from "./codex-app-server.ts";
 
 const MAX_BODY = 32 * 1024;
 
@@ -83,10 +84,12 @@ function ensureSameOrigin(request: IncomingMessage): boolean {
 
 export function lfaaDevAiConfigBridge(projectRoot: string): Plugin {
   const registry = new AiProviderRegistry(builtinAiProviderPlugins);
+  const managedAuth = new CodexAppServerManagedAuth();
   const service = new AiAccountService(registry, {
     repository: new JsonAiAccountRepository(projectRoot),
     secrets: createWebDevSecretStore(projectRoot),
     http: new NodeAiHttpJsonPort(),
+    managedAuth,
     createId: randomUUID,
     now: () => new Date().toISOString(),
   });
@@ -95,6 +98,7 @@ export function lfaaDevAiConfigBridge(projectRoot: string): Plugin {
     name: "lfaa-dev-ai-config-bridge",
     apply: "serve",
     configureServer(server: ViteDevServer) {
+      server.httpServer?.once("close", () => managedAuth.dispose());
       server.middlewares.use("/__lfaa/dev/ai", async (request, response, next) => {
         if (!request.url) return next();
         if (!ensureSameOrigin(request)) return sendJson(response, 403, { ok: false, error: "拒绝非本地来源请求。" });
@@ -107,6 +111,23 @@ export function lfaaDevAiConfigBridge(projectRoot: string): Plugin {
             const body = await readJson(request);
             const secret = typeof body.secret === "string" ? body.secret : "";
             return sendJson(response, 200, { ok: true, probe: await service.probe(parseDraft(body.draft), secret) });
+          }
+          if (request.method === "POST" && pathname === "/managed-login/start") {
+            const body = await readJson(request);
+            return sendJson(response, 200, { ok: true, login: await service.startManagedLogin(parseDraft(body.draft)) });
+          }
+          const managedLoginMatch = pathname.match(/^\/managed-login\/([A-Za-z0-9._-]{8,160})$/);
+          if (managedLoginMatch && request.method === "GET") {
+            return sendJson(response, 200, { ok: true, status: await service.managedLoginStatus(managedLoginMatch[1]) });
+          }
+          if (managedLoginMatch && request.method === "DELETE") {
+            await service.cancelManagedLogin(managedLoginMatch[1]);
+            return sendJson(response, 200, { ok: true });
+          }
+          if (request.method === "POST" && pathname === "/subscription/accounts") {
+            const body = await readJson(request);
+            const result = await service.save(parseDraft(body.draft), null);
+            return sendJson(response, 200, { ok: true, ...result, snapshot: await service.snapshot() });
           }
           if (request.method === "POST" && pathname === "/accounts") {
             const body = await readJson(request);

@@ -81,7 +81,7 @@ function Stop-Lfaa {
             $lines.Add("Time: " + (Get-Date -Format "yyyy-MM-dd HH:mm:ss"))
             $lines.Add("Message: " + $Message)
             $lines.Add("")
-            $lines.Add("Raw Git Output:")
+            $lines.Add("Raw Technical Output:")
 
             foreach ($line in $TechnicalOutput) {
                 $lines.Add([string]$line)
@@ -546,30 +546,39 @@ Write-Host "============================================================" -Foreg
 Write-Host " LFAA 一键提交并推送" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor DarkCyan
 
-# 治理检查
-$governance = Join-Path $WorkspaceRoot "scripts\governance-check.mjs"
+# 统一工作区预检：Sync 与 GitHub 共用同一 Gate 列表，且不依赖 node_modules。
+$workspacePreflight = Join-Path $WorkspaceRoot "scripts\workspace-preflight.mjs"
 
-if ((Get-Command node -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath $governance)) {
-    Write-Label "【检查】" "【治理】" "推送前运行项目治理检查..." Cyan
-
-    $oldPreference = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    try {
-        $governanceOutput = @(
-            & node "scripts\governance-check.mjs" 2>&1 | ForEach-Object { [string]$_ }
-        )
-        $governanceCode = $LASTEXITCODE
-    }
-    finally {
-        $ErrorActionPreference = $oldPreference
-    }
-
-    if ($governanceCode -ne 0) {
-        Stop-Lfaa -Message "项目治理检查未通过，已阻止推送。" -TechnicalOutput $governanceOutput
-    }
-
-    Write-Label "【检查】" "【通过】" "项目治理检查通过。" Green
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    Stop-Lfaa -Message "未检测到 Node，无法执行推送前工作区预检。"
 }
+if (-not (Test-Path -LiteralPath $workspacePreflight)) {
+    Stop-Lfaa -Message "稳定工作区缺少 scripts\workspace-preflight.mjs；请先用当前版本包重新执行 LFAA-Sync.bat。"
+}
+
+Write-Label "【检查】" "【工作区预检】" "推送前运行统一静态治理 Gate..." Cyan
+$oldPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+try {
+    $preflightOutput = @(
+        & node "scripts\workspace-preflight.mjs" 2>&1 | ForEach-Object { [string]$_ }
+    )
+    $preflightCode = $LASTEXITCODE
+}
+finally {
+    $ErrorActionPreference = $oldPreference
+}
+
+if ($preflightCode -ne 0) {
+    Write-Host ""
+    Write-Label "【诊断】" "【失败详情】" "以下就是阻止推送的真实原因：" Yellow
+    foreach ($line in $preflightOutput) {
+        Write-Host ("  " + [string]$line) -ForegroundColor DarkYellow
+    }
+    Stop-Lfaa -Message "工作区预检未通过，已阻止推送。" -TechnicalOutput $preflightOutput
+}
+
+Write-Label "【检查】" "【通过】" "统一工作区预检通过。" Green
 
 # Git identity
 $nameResult = Invoke-GitRaw -GitArgs @("config", "user.name")

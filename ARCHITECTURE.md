@@ -6,7 +6,7 @@
 ## 当前架构版本
 
 ```text
-architecture-version: 1
+architecture-version: 2
 status: active
 product: Little Fish AI Agent
 short-name: LFAA
@@ -15,6 +15,51 @@ short-name: LFAA
 详细架构已合并在本文件下方。
 
 人类代码导航：`docs/项目结构与代码地图.md`
+
+## 产品交互：两个 Surface，一个智能核心
+
+```text
+Chat Surface ─┐
+              ├─ AgentRunRequest ──> Agent Runtime ──> Harness / Capabilities / Policy / Execution
+Work Surface ─┘
+     │
+     └─ Infinite Canvas = Runtime Event / Entity 的 UI Projection，不是第二套 Agent
+```
+
+- **Chat**：用一句话 / 多轮对话描述目标；
+- **Work**：用无限画布查看和组织 Goal、Main Agent、Subagent、Tool/Skill、App、Artifact；
+- 两者必须共享同一模型绑定、Session/Run、权限快照、能力目录和执行后端；不得分别实现“聊天智能”和“画布智能”。
+- Config System 只拥有账号、认证、当前模型选择；Agent Runtime 才拥有执行事实。UI 未连接真实 Runtime 时必须明确显示未连接，禁止生成本地假模型回复。
+
+## Agent Harness Bridge
+
+LFAA 采用 Adapter/Bridge 方式接官方 Harness，不复制成熟 Harness 的内部 Agent Loop：
+
+```text
+Agent Runtime
+├─ Official Harness Registry
+│  ├─ OpenAI Codex -> codex app-server
+│  └─ DeepSeek Harness -> ACP / SDK
+├─ Capability Registry
+│  ├─ Tools / Commands / Browser / Computer / Filesystem / Process
+│  ├─ Skills / Experts / MCP / Plugins
+│  └─ Main Agent / Subagents
+└─ Permission Snapshot -> Policy / Permission -> Rust Execution Re-validation
+```
+
+Harness 是否真正可用必须由宿主 Probe / Adapter 证明；只登记名称不等于已连接。模型本身负责推理，Harness/Skills/Tools/Subagents 为模型提供行动能力，禁止用壳层重新实现低配“伪智能”。
+
+## 三档权限与 Trust Core
+
+用户只看到三档权限，Runtime 内部仍保持审批、Reviewer、Sandbox 为独立事实，并在每个 Run 开始时固化成不可变快照：
+
+| 用户模式 | LFAA 前置审批 | Reviewer | Sandbox / 执行范围 |
+|---|---|---|---|
+| 请求审批 | 每次 capability 调用 / 执行步骤先请求用户 Yes / No | user | workspace |
+| 替我审批 | Reviewer 自动判断；需要升级时再请求用户 | model reviewer / official auto-review | workspace |
+| 完全权限 | 不逐次弹审批 | disabled / native non-interactive | 当前 OS 用户权限内 unrestricted |
+
+`完全权限` 只扩大任务执行范围，不赋予普通 Run 修改 Permission Policy、Secret Broker、审计、Trust Core 的能力。“自主进化”允许在可审计范围内修改代码、Skills、工作流和 Agent 配置，但改变信任根必须进入明确的开发/更新流程。
 
 ## 核心架构
 

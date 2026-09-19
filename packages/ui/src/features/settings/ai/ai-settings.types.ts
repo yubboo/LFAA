@@ -63,6 +63,7 @@ export interface AiSettingsPageProps {
   onSelectProvider(id: string): void;
   onProbe(draft: AiSettingsDraftInput, secret: string): Promise<AiSettingsProbeView>;
   onSave(draft: AiSettingsDraftInput, secret: string): Promise<AiSettingsProbeView>;
+  onConnectSubscription(draft: AiSettingsDraftInput): Promise<AiSettingsProbeView>;
   onReprobe(accountId: string): Promise<AiSettingsProbeView>;
   onDeleteAccount(accountId: string): Promise<void>;
   onSelectAccountModel(accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiSettingsModelSettingValue>>): Promise<void>;

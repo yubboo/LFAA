@@ -12,6 +12,8 @@
 export type AiProviderId = "openai" | "deepseek" | "zhipu" | "kimi" | "qwen" | "xiaomi";
 export type AiProviderProtocol = "openai-compatible" | "codex-app-server" | "provider-native";
 export type AiAuthKind = "api-key" | "subscription" | "token-plan";
+/** 宿主可提供的托管认证能力 ID；新增能力只扩展此联合类型，不在 UI/Core 写厂商分支。 */
+export type AiHostCapabilityId = "codex-app-server";
 export type AiConfigFieldKind = "text" | "select";
 export type AiModelSettingValue = string | number | boolean;
 export type AiModelSettingKind = "select" | "boolean" | "integer";
@@ -39,7 +41,7 @@ export interface AiAuthMethod {
   secretLabel?: string;
   credentialPrefix?: string;
   protocol: AiProviderProtocol;
-  hostCapability?: "codex-app-server";
+  hostCapability?: AiHostCapabilityId;
   description?: string;
 }
 

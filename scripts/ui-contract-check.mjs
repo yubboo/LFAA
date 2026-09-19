@@ -172,4 +172,21 @@ if (/--agent-left-preview-width\s*:\s*clamp\(/.test(css)) {
   fail("Hover Preview must not own an independent clamp width; bind it to the real left pane width");
 }
 
+// 6. Chat / Work 必须共用同一 Agent Runtime，Work 是真实无限画布 Projection，模型名不得写死。
+const canvasTsx = read("packages/ui/src/features/workbench/InfiniteCanvas.tsx");
+for (const token of [
+  'agentSurface === "chat"',
+  'onAgentSurfaceChange("work")',
+  'AGENT_PERMISSION_PROFILES',
+  'runtimeConnected={Boolean(props.agentRuntimeHost)}',
+  'selectedModelId',
+  '<InfiniteCanvas',
+]) {
+  if (!tsx.includes(token)) fail(`missing Chat/Work shared runtime contract: ${token}`);
+}
+if (tsx.includes("GPT-5.6 Sol")) fail("Workbench must display the configured model, not a hard-coded model name");
+for (const token of ["beginPan", "beginNodeDrag", "onWheel", "onNodesChange?.(next)", "<svg"]) {
+  if (!canvasTsx.includes(token)) fail(`missing Infinite Canvas interaction contract: ${token}`);
+}
+
 console.log("LFAA UI contract check passed.");

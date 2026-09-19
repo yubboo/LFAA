@@ -25,7 +25,10 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #2.15 | 侧栏最小宽度超拖吸附修正 | v0.0.75 | pending-user-acceptance | pass | pending |
+| #22.0 | 统一 Agent Runtime、三档权限与无限画布工作台 | v0.0.77 | pending-user-acceptance | pass | pending |
+| #4.3 | Sync/GitHub 统一工作区预检与可诊断失败修复 | v0.0.77 | pending-user-acceptance | pass | pending |
+| #2.16 | OpenAI ChatGPT 套餐 / Codex App Server 登录闭环 | v0.0.76 | pending-user-acceptance | pass | pending |
+| #2.15 | 侧栏最小宽度超拖吸附修正 | v0.0.75 | delivered | pass | passed |
 | #2.14 | 侧栏吸附触发阈值变量化 | v0.0.74 | superseded | pass | not-accepted |
 | #2.13 | Rust Secret Broker 与官方模型能力配置 | v0.0.73 | superseded | pass | not-accepted |
 | #2.12 | Windows Credential Manager 保存链路修复 | v0.0.72 | superseded | pass | not-accepted |
@@ -53,6 +56,244 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #22.0 统一 Agent Runtime、三档权限与无限画布工作台
+
+### 主模块
+
+`agent-runtime / app-shell / ui-workbench / runtime-adapters`
+
+### 背景
+
+用户明确 LFAA 的核心不是“聊天壳”或“工作台壳”，而是配置好的顶级大模型及其完整 Agent Harness 能力。Chat 与 Work 只是同一智能核心的两种入口：Chat 用一句话/对话驱动任务，Work 用无限画布组织同一任务、工具、子智能体、产物与状态。模型能力不能因为进入 LFAA 而被阉割；Tools / Skills / Experts / Commands / Sandbox / Subagents / Computer capabilities 应作为可组合能力增强模型。官方 Codex 与 DeepSeek Harness 是优先兼容/调用的成功 Runtime，不重新伪造其协议和内部能力。
+
+### 任务目标
+
+1. `packages/agent-runtime` 从空壳升级为统一 Runtime 公共契约，定义 Model、Tool、Skill、Expert、Command、Sandbox、Subagent、Harness Bridge、Run/Session Surface 等能力；
+2. 用户只看到三档权限：`请求审批 / 替我审批 / 完全权限`，内部拆成 approval reviewer、sandbox、execution scope 三个不可混淆的轴；
+3. `请求审批` 对每次 capability 调用 / 执行步骤逐次请求用户 Yes / No；`替我审批` 使用受限 sandbox + 自动风险审查/官方 reviewer；`完全权限` 显式请求 unrestricted profile，但仍不得绕过 Secret 隔离、OS 身份边界和 LFAA Trust Core；
+4. Codex Adapter 只映射官方 App Server/CLI 能力；DeepSeek Harness Adapter 只映射官方 DSH/ACP/SDK 能力，不复制其内部 Agent Loop；
+5. App Shell 增加 `Chat / Work` 两大 Surface，二者共享模型选择、权限 Profile、Run/Session 与能力注册，不复制 Agent 智能；
+6. Work Surface 使用可平移、缩放、节点拖拽、连线的 Infinite Canvas；节点是 Run/Agent/Tool/Artifact/App 等 Runtime 实体的 UI Projection，不成为业务真值；
+7. Composer 不再硬编码 `GPT-5.6 Sol`，优先显示 Config System 已配置账户的当前模型；没有可用模型时明确显示“未配置模型”，不伪装可执行；
+8. “自主进化”只允许修改任务产物、代码、Skills、工作流和可审计的 Agent 配置；普通 Run 禁止自行修改 Permission Policy、Secret 边界、Trust Core 或关闭审计。
+
+### 状态所有权
+
+- Config System：账户、认证、模型选择配置；
+- Agent Runtime：Session/Run、能力目录、权限 Profile 的运行时快照、Harness 路由；
+- Policy/Permission：实际 Allow/Ask/Deny 与审批生命周期；
+- Rust Execution：最终 OS/FS/Process/Sandbox/Secret re-validation；
+- App Shell：Chat/Work UI Surface 选择；
+- Infinite Canvas：仅拥有 viewport 与节点视觉位置等 UI Projection 状态。
+
+### 允许修改
+
+- `packages/agent-runtime/**`；
+- `packages/app-shell/**`；
+- `packages/ui/src/features/workbench/**` 与公共 export；
+- 必要的 Web Host 类型契约；
+- 架构、模块、UI、测试、代码地图、版本文档。
+
+### 禁止修改
+
+- 禁止自行复刻 Codex / DSH 私有协议或伪造“兼容成功”；
+- 禁止模型绕过 Tool Runtime / Policy / Permission / Rust Broker 直接调用 OS；
+- 禁止把 Secret 明文注入模型上下文、Canvas 节点或 Session Event；
+- 禁止把 Chat 和 Work 实现成两套 Agent Runtime；
+- 禁止 Full access 自动关闭审计、修改 Trust Core、绕过 OS 用户权限；
+- 禁止 Canvas 成为 Run/Session/Artifact 的第二事实源。
+
+### 验收条件
+
+- Chat / Work 可切换且共享同一已配置模型显示和三档权限；
+- Work 无限画布支持 pan / zoom / reset / 节点拖拽 / 连线渲染，布局不依赖固定 viewport；
+- 权限 Profile 有单一映射函数，可明确映射 Codex 的 reviewer / approval / sandbox 组合；
+- 官方 Harness 能力以 Adapter/Bridge 注册，不进入 UI 特判；
+- 未接 Runtime Host 时 UI 不伪装任务已执行；
+- #2.15 侧栏 resize/snap、Settings、#2.16 Config 能力不回退。
+
+### 必须测试
+
+- Agent Runtime 权限 preset 与 Codex 映射纯函数；
+- Capability/Harness Registry 不重复注册、未知 Provider 不猜测；
+- Infinite Canvas 静态合同与无硬编码模型回归；
+- App Shell Chat/Work 共享模型/权限状态；
+- 现有 Workbench Snap / Settings / Config / Runtime import 回归；
+- 全治理门禁。
+
+### 必须更新文档
+
+`ARCHITECTURE.md`、`PROJECT_PLAN.md`、`docs/MODULES.md`、`docs/UI.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG 编号
+
+`LFAA v0.0.77 — #22.0 统一 Agent Runtime、三档权限与无限画布工作台`
+
+### 版本目标
+
+`v0.0.77`
+
+### 当前状态
+
+`implementing`
+
+### AI 验证
+
+`pending`
+
+### 用户验收
+
+`pending`
+
+## #4.3 Sync/GitHub 统一工作区预检与可诊断失败修复
+
+### 主模块
+
+`windows-runtime-scripts / governance`
+
+### 背景
+
+v0.0.76 Windows 实机运行 `LFAA-GitHub.bat → 一键推送` 时，在 `H:\lfaa\lfaa` 的推送前治理检查处被阻止，但终端只显示“项目治理检查未通过”，真实失败项仅写入深层日志。干净 v0.0.76 发布包中的 standalone governance 本身可通过，说明当前脚本缺少“稳定工作区事实诊断 + Sync/GitHub 同一预检链”的产品化能力。
+
+### 任务目标
+
+1. 新增一个不依赖 pnpm/node_modules 的统一 `workspace-preflight`，顺序执行所有 Git/Sync 前应执行的静态治理 gate；
+2. Sync 成功前与 Git push 前必须调用同一个 preflight，避免两边口径不同；
+3. 失败时终端直接打印失败 gate、原始错误摘要、工作区与 Node 版本，不要求用户先打开日志猜原因；
+4. 日志继续保留完整技术输出；
+5. 不因为缺少 node_modules 阻止纯 Git 推送，也不把 Node24 release-environment 检查混入工作区静态 preflight；
+6. Git 历史、origin、`.git` 保护与 safe rebase/push 语义保持不变。
+
+### 允许修改
+
+`scripts/windows/lfaa-sync.ps1`、`scripts/windows/lfaa-github.ps1`、`scripts/workspace-preflight.mjs`、相关 Node 测试与 Runtime 文档。
+
+### 禁止修改
+
+- 禁止强推、自动丢弃用户本地修改、自动删除 `.git`；
+- 禁止为了“能推”而跳过失败 gate；
+- 禁止要求 node_modules 才能执行静态预检；
+- 禁止隐藏失败原因只留日志路径。
+
+### 验收条件
+
+- Sync 与 Git push 显示同一预检 gate 名称；
+- 某 gate 失败时终端可直接看到原因；
+- 干净版本包 preflight PASS；
+- `.git`、runtime logs、Secret/local env 的同步保护不回退。
+
+### 必须测试
+
+- workspace-preflight PASS / artificial fail 行为；
+- 两个 PowerShell 脚本都调用统一 preflight；
+- Windows BOM 门禁；
+- 既有 Sync/GitHub 静态合同。
+
+### CHANGELOG 编号
+
+`LFAA v0.0.77 — #4.3 Sync/GitHub 统一工作区预检与可诊断失败修复`
+
+### 版本目标
+
+`v0.0.77`
+
+### 当前状态
+
+`implementing`
+
+### AI 验证
+
+`pending`
+
+### 用户验收
+
+`pending`
+
+## #2.16 OpenAI ChatGPT 套餐 / Codex App Server 登录闭环
+
+### 主模块
+
+`config-system / web-host / ui`
+
+### 背景
+
+v0.0.75 已由用户确认继续，#2.15 侧栏最小宽度超拖吸附修正视为验收通过。此前 Config System 主线在 v0.0.73 已完成 Rust Secret Broker、Provider 官方模型目录与模型能力契约，但 OpenAI 的 ChatGPT 套餐认证仍只是占位入口。根据 OpenAI 当前官方 Codex App Server 协议，ChatGPT 托管登录应由 `codex app-server` 负责 OAuth / Token 持久化与刷新，客户端通过 `account/login/start`、`account/read`、`model/list` 等 JSON-RPC 方法读取状态与模型，不应由 LFAA 自行实现或保存 ChatGPT Token。
+
+### 任务目标
+
+1. 新增 Web Host 的 Codex App Server Adapter：按需启动本机 `codex app-server`，使用默认 stdio JSONL 传输，完成 `initialize → initialized` 握手并管理请求/通知生命周期；
+2. Config System 新增“宿主管理认证”端口，使 `subscription` 认证仍由 Account Core 编排，而不是把 ChatGPT 业务写进 Vite / React；
+3. ChatGPT 登录使用官方 `account/login/start(type=chatgpt)` 浏览器流程，LFAA 只接收 `loginId / authUrl / completed` 状态，不接触 access token / refresh token；
+4. 登录成功后用 `account/read` 校验当前 ChatGPT 账户，并用 `model/list` 获取该账户真实可用模型、默认推理强度与支持的 reasoning efforts；
+5. ChatGPT 套餐账户落盘时不得伪造 `credentialRef`；其凭证所有权属于 Codex App Server，LFAA 只保存非 Secret 账户元数据、认证方式、模型选择与模型配置；
+6. API Key / Token Plan 继续走 Rust Secret Broker，不因 ChatGPT 登录改写既有 Secret 链路；
+7. UI 对 ChatGPT 套餐显示“登录并连接”流程；浏览器打开官方登录页后等待 Host 完成，不把 URL/Token 写入 localStorage/sessionStorage；
+8. 删除 LFAA 中的 ChatGPT 账户只取消本项目关联，不自动执行 Codex 全局 `account/logout`，避免影响用户其他 Codex 客户端。
+
+### 归属目录 / 允许依赖
+
+- `packages/config-system/src/settings/ai/core/**`：Managed Auth 契约与 Account Core 业务编排；
+- `packages/config-system/src/settings/ai/providers/openai/**`：OpenAI ChatGPT 认证能力描述，不实现进程；
+- `apps/web/dev/bridges/ai/**`：Codex App Server Node Host Adapter、localhost 路由；
+- `apps/web/src/host/**`：浏览器 Host Client 与打开登录页/等待完成；
+- `packages/app-shell/**`：把 Host 能力和 Config 结果映射为 UI ViewModel；
+- `packages/ui/src/features/settings/ai/**`：只负责登录按钮、状态和模型展示。
+
+允许依赖方向保持：`apps/web → app-shell/config-system`，`app-shell → ui + config-system public API`；Config System 不依赖 Node / DOM / React。
+
+### 禁止修改
+
+- 禁止自行实现 OpenAI OAuth、解析/保存 ChatGPT access token / refresh token；
+- 禁止把 ChatGPT Token 写入 `.lfaa`、账户 JSON、浏览器 Storage、argv、env 或日志；
+- 禁止 UI / Vite Bridge 写 Provider 业务分支；
+- 禁止为了本任务修改 Workbench resize/snap、Profile/Theme、Windows Setup/Sync/GitHub/Update；
+- 禁止自动执行 `account/logout` 作为“删除 LFAA 账户”的副作用；
+- 禁止引入第二套 OpenAI 模型能力硬编码覆盖 Codex `model/list` 返回的运行时事实。
+
+### 验收条件
+
+- 本机存在可用 Codex CLI 时，ChatGPT 套餐入口可发起官方登录并在完成后保存为 LFAA 账户；
+- 本机没有 Codex CLI / app-server 时，Settings 明确显示不可用原因，不伪装成功；
+- 登录完成后 `account/read` 必须为 ChatGPT 账户，`model/list` 返回模型后才允许保存；
+- ChatGPT 账户 `credentialRef = null`，账户 JSON 不出现 accessToken / refreshToken / authUrl / userCode 等敏感或临时认证字段；
+- ChatGPT 模型的 reasoning 选项来自 App Server `model/list.supportedReasoningEfforts`；未知字段不猜测；
+- API Key 账户仍使用 Rust Secret Broker，保存/重测/删除行为不回退；
+- 删除 LFAA ChatGPT 账户不调用全局 `account/logout`；
+- Settings / Workbench #2.15 行为保持不变。
+
+### 必须测试
+
+- Config Core：API Key 与 subscription 分流、managed auth 无 Secret 保存、模型能力映射、删除不触发全局 logout；
+- Web Host：`codex app-server` stdio JSONL、initialize/initialized、request id、login completed 通知、model/list、无 Token 持久化；
+- Browser Client：同步预开登录窗口、登录 URL 只用于导航、轮询完成、不得写 Storage；
+- UI：subscription 不要求 Secret，按钮/状态与普通 API Key 流程分离；
+- 历史回归：Rust Secret、Provider、Settings、Workbench Snap、runtime import；
+- governance / folder / import / docs / comments / Windows BOM / release consistency / prompt lifecycle / UI contract / TypeScript。
+
+### 必须更新文档
+
+`PROJECT_PLAN.md`、`docs/MODULES.md`、`docs/UI.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG 编号
+
+`LFAA v0.0.76 — #2.16 OpenAI ChatGPT 套餐 / Codex App Server 登录闭环`
+
+### 版本目标
+
+`v0.0.76`
+
+### 当前状态
+
+`pending-user-acceptance`
+
+### AI 验证
+
+`pass`
+
+### 用户验收
+
+`pending`
 
 ## #2.15 侧栏最小宽度超拖吸附修正
 
@@ -104,7 +345,11 @@ v0.0.74 虽然把 `minWidth` 与 capture threshold 解耦，但错误地让侧�
 
 ### 当前状态
 
-`pending-user-acceptance`
+`delivered`
+
+### 用户验收
+
+`passed；用户在 v0.0.75 后回复“ok，下一步做什么”，按本项目连续验收语义确认 #2.15 通过。`
 
 ## #2.14 侧栏吸附触发阈值变量化
 

@@ -1,6 +1,30 @@
-## LFAA v0.0.75 Release — #2.15 侧栏最小宽度超拖吸附修正
+## LFAA v0.0.77 Release — #22.0 Agent Runtime 双入口基础 + #4.3 Windows 工作区预检
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.76
+- **架构：** architecture-version 2；Chat / Work 共用一个 Agent Runtime，Work 为 Infinite Canvas Projection。
+- **权限：** 请求审批 / 替我审批 / 完全权限；审批、Reviewer、Sandbox 作为独立事实原子映射，普通 Run 不可修改 Trust Core。
+- **Harness：** Codex 通过官方 `codex app-server` Bridge；DeepSeek Harness 通过官方 ACP/SDK Bridge；本版本建立 Registry/契约，不把“仅登记”冒充真实 Host 已连接。
+- **Windows：** Sync / GitHub 共用 workspace preflight；失败直接显示 Gate 和摘要；Runtime Log 目录可稳定随 Git/ZIP 保留。
+- **用户验收重点：** v77 Sync 后再 Push；观察失败详情是否直接显示。Web 中检查 Chat/Work、Infinite Canvas、Configured Model 与 Runtime 未连接提示。
+
+## LFAA v0.0.76 Release — #2.16 OpenAI ChatGPT 套餐 / Codex App Server 登录闭环
+
+- **状态：** pending-user-acceptance
+- **基线：** v0.0.75；#2.15 已由用户确认通过。
+- **任务：** #2.16
+- **认证边界：** ChatGPT 套餐交给官方 Codex App Server 管理 OAuth / Token；LFAA 只持有 loginId 短期状态、非 Secret 账户元数据与模型选择，账户记录 `credentialRef = null`。
+- **Host：** `codex app-server` stdio JSONL + initialize/initialized；支持 browser ChatGPT login、account/read、model/list、cancel；Windows 兼容 npm 全局 `codex.cmd`。
+- **模型能力：** Subscription 的模型 ID、输入模态和 reasoning effort 来自当前 App Server `model/list`，优先于 Provider 静态能力，不按模型名猜测。
+- **安全语义：** 不读取 `~/.codex/auth.json`，不把 ChatGPT Token 写入 `.lfaa`/浏览器 Storage/argv/env/log；删除 LFAA 项目账户不触发 Codex 全局 logout。
+- **兼容回归：** API Key / Token Plan 继续通过 Rust Secret Broker；Settings/Workbench v0.0.75 snap 手感保持不变。
+- **AI 验证：** 103/103 Node/Config 回归 PASS；Config System TypeScript noEmit PASS；governance / import / runtime import / folder / docs / comments / Windows BOM / release consistency / prompt lifecycle / config schema / release gates / UI contract 全部 PASS；Web Host 改动 TS 语法检查 PASS。制作容器无项目依赖且 Node 版本不满足正式 Node24，因此不声称完整 pnpm Web build 或 Windows Codex 实机通过。
+- **用户验收重点：** Windows 安装可用 Codex CLI 后，打开 Settings → AI 服务 → OpenAI → ChatGPT 套餐，点击登录；完成官方网页登录后应自动保存账户并显示 `model/list` 模型；刷新/删除本地账户不得泄露 Token或退出其他 Codex 客户端。
+
+## LFAA v0.0.75 Release — #2.15 侧栏最小宽度超拖吸附修正
+
+- **状态：** delivered
+- **用户验收：** passed；用户在 v0.0.75 后确认继续下一步。
 - **基线：** v0.0.74
 - **任务：** #2.15
 - **主要变更：** `minWidth` 之后视觉宽度保持不变；Pointer 继续向内超拖只用于判断 capture，默认超拖半个 `minWidth` 才收起。

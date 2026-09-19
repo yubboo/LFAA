@@ -1,3 +1,28 @@
+## v0.0.77 / #22.0 + #4.3 Agent Runtime / Infinite Canvas / Workspace Preflight
+
+- `test/agent-runtime-contract.test.mjs`：三档权限、Codex 原子权限映射、Trust Core 不可被普通 Run 修改、官方 Harness Registry、Chat/Work 单一 `AgentRunRequest`。
+- `test/infinite-canvas-contract.test.mjs`：无限画布 pan / zoom / reset / node drag / SVG edge，Workbench 双 Surface、Configured Model、Runtime 未连接不伪造执行。
+- `test/workspace-preflight.test.mjs`：失败 Gate 必须直接可见；Sync / GitHub 必须共用 `scripts/workspace-preflight.mjs`；运行时日志目录必须有可追踪占位文件。
+- `scripts/ui-contract-check.mjs`：新增 Chat/Work 共用 Runtime、InfiniteCanvas、禁止硬编码模型名静态 Gate。
+- `packages/agent-runtime` 与 `packages/config-system` 使用当前容器全局 TypeScript 执行 `tsc --noEmit`：PASS。
+- 仓库 `node --test test/*.test.mjs`：78/78 PASS；Config System：33/33 PASS；合计 111/111 PASS。
+- `scripts/workspace-preflight.mjs`：governance / import-path / runtime-import / folder-boundary / dev-log / docs / comments / Windows encoding / release consistency / prompt lifecycle / config schema / release gates / UI contract 全部 PASS。
+- Workbench 合同额外锁定 `agentRuntimeHost.startRun(...)`：Chat / Work Composer 都构造同一个 `AgentRunRequest`，携带当前 Surface、Configured Model、Permission Profile 与 workspace；未注入真实 Host 时仍不得伪造执行。
+- 当前制作容器为 Node 22.16.0，而项目正式要求 Node 24.x 且包内不带 `node_modules`；因此不把正式 `pnpm` Web build / release:full 冒充为 PASS。
+- Windows 实机验收：先运行 `LFAA-Sync.bat`；同步完成必须已经跑统一 preflight。再运行 `LFAA-GitHub.bat → 1`，若 Gate 失败，当前窗口必须直接打印 Gate 名称和原始摘要，不得只显示日志路径。
+- UI 实机验收：Chat / Work 可切换；Work 可平移、缩放、复位、拖动节点；模型标签来自已配置账户；当前尚未安装/接入真实 Agent Runtime Host 时明确显示“Runtime 未连接”。
+
+## v0.0.76 / #2.16 OpenAI ChatGPT 套餐 / Codex App Server 登录闭环
+
+- `packages/config-system/test/*.test.mjs`：33/33 PASS；新增 Managed Auth Host Port、Subscription 无 Secret/无 `credentialRef`、运行时模型能力优先、重测/选模/删除不碰 Secret Store 或全局认证，同时 API Key 流程继续回归。
+- `test/ai-web-host.test.mjs`：12/12 PASS；锁定固定 `codex app-server`、Windows `codex.cmd` shell 解析、stdio JSONL、initialize/initialized、login start/completed/cancel、account/read、model/list、Bridge Subscription 路由、官方 HTTPS 登录域名与浏览器 Storage 禁令。
+- `test/settings-shell.test.mjs`：12/12 PASS；锁定 Provider `hostCapability` + Host Snapshot 可用性、ChatGPT 登录按钮与 Token 边界，并确认普通 API Key 仍要求 `secret.trim()` + model。
+- 仓库 `node --test test/*.test.mjs`：70/70 PASS；与 Config System 合计 103/103 PASS。
+- Config System 使用当前容器全局 TypeScript 执行 `tsc -p packages/config-system/tsconfig.json --noEmit`：PASS；Web Host 本次 3 个 `.ts` 改动使用 Node type stripping 语法检查：PASS。
+- governance / import / runtime import / folder / docs / comments / Windows BOM / release consistency / prompt lifecycle / config schema / release gates / UI contract：全部 PASS。
+- 正式 `pnpm run quality:quick/build:web` 需要项目锁定 Node 24.x + pnpm 11.17.0 + `node_modules`；制作容器为 Node 22.16.0 且包内未带依赖、无法联网安装，因此此项明确保留为用户/正式环境验证，不以替代工具冒充 PASS。
+- Windows 实机：确认本机 `codex` 可运行；点击 ChatGPT 登录能打开官方网页；登录完成后账户自动保存并显示模型；`.lfaa/state/ai-accounts.json` 的该账户必须 `credentialRef: null`，不得含 accessToken/refreshToken/authUrl；删除 LFAA 账户后其他 Codex 客户端登录状态应保持。
+
 ## v0.0.75 / #2.15 侧栏最小宽度超拖吸附修正
 
 - `test/workbench-snap-animation.test.mjs`：锁定 capture 前视觉必须 `clamp(raw, min, max)`，禁止 `captureThreshold` 控制视觉宽度；capture 仍由隐藏 Pointer 超拖阈值触发。

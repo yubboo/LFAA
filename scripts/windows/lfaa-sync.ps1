@@ -377,7 +377,8 @@ function Save-SyncLog {
         [string]$WorkspaceRoot,
         $Plan,
         [string]$Version,
-        [string]$Status
+        [string]$Status,
+        [string[]]$TechnicalOutput = @()
     )
 
     $logDir = Join-Path $WorkspaceRoot "docs\logs\runtime\workspace-sync"
@@ -404,6 +405,12 @@ function Save-SyncLog {
     foreach ($item in $Plan.Adds) { $lines.Add("[ADD] " + $item.Relative) }
     foreach ($item in $Plan.Mods) { $lines.Add("[MOD] " + $item.Relative) }
     foreach ($item in $Plan.Dels) { $lines.Add("[DEL] " + $item.Relative) }
+
+    if ($TechnicalOutput.Count -gt 0) {
+        $lines.Add("")
+        $lines.Add("Technical Output:")
+        foreach ($line in $TechnicalOutput) { $lines.Add([string]$line) }
+    }
 
     [System.IO.File]::WriteAllLines($logFile, $lines, (New-Object System.Text.UTF8Encoding($true)))
     return $logFile
@@ -628,36 +635,41 @@ if (-not (Verify-Mirror $ProjectRoot $TargetRoot)) {
 
 Write-Label "【校验】" "【通过】" "版本包项目文件与稳定工作区完全一致（保护项除外）。" Green
 
-# Governance check - capture raw output, only show Chinese result.
-$governance = Join-Path $TargetRoot "scripts\governance-check.mjs"
-if ((Get-Command node -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath $governance)) {
+# 统一工作区预检：与 GitHub Push 完全共用同一个 Node 入口，避免 Sync 通过而 Push 才暴露另一套 Gate。
+$workspacePreflight = Join-Path $TargetRoot "scripts\workspace-preflight.mjs"
+if ((Get-Command node -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath $workspacePreflight)) {
     Write-Host ""
-    Write-Label "【检查】" "【治理】" "运行 LFAA 项目治理检查..." Cyan
+    Write-Label "【检查】" "【工作区预检】" "运行统一静态治理 Gate..." Cyan
 
     Push-Location $TargetRoot
     try {
         $oldPreference = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
-        $governanceOutput = @(
-            & node "scripts\governance-check.mjs" 2>&1 | ForEach-Object { [string]$_ }
+        $preflightOutput = @(
+            & node "scripts\workspace-preflight.mjs" 2>&1 | ForEach-Object { [string]$_ }
         )
-        $governanceCode = $LASTEXITCODE
+        $preflightCode = $LASTEXITCODE
         $ErrorActionPreference = $oldPreference
     }
     finally {
         Pop-Location
     }
 
-    if ($governanceCode -ne 0) {
-        $logFile = Save-SyncLog $TargetRoot $plan $version "GOVERNANCE_FAILED"
+    if ($preflightCode -ne 0) {
+        Write-Host ""
+        Write-Label "【诊断】" "【失败详情】" "以下就是同步后未通过的真实原因：" Yellow
+        foreach ($line in $preflightOutput) {
+            Write-Host ("  " + [string]$line) -ForegroundColor DarkYellow
+        }
+        $logFile = Save-SyncLog $TargetRoot $plan $version "PREFLIGHT_FAILED" $preflightOutput
         Write-Label "【日志】" "【路径】" $logFile DarkYellow
-        Stop-Lfaa "项目治理检查失败。"
+        Stop-Lfaa "工作区预检失败；请按上方具体 Gate/文件处理。"
     }
 
-    Write-Label "【检查】" "【通过】" "项目治理检查通过。" Green
+    Write-Label "【检查】" "【通过】" "统一工作区预检通过。" Green
 }
 else {
-    Write-Label "【检查】" "【跳过】" "未检测到 Node 或治理脚本，跳过自动检查。" DarkYellow
+    Write-Label "【检查】" "【跳过】" "未检测到 Node 或 workspace-preflight；无法执行统一工作区预检。" DarkYellow
 }
 
 $logFile = Save-SyncLog $TargetRoot $plan $version "SUCCESS"
