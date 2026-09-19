@@ -723,7 +723,7 @@ if ($fetchResult.ExitCode -eq 0) {
     $remoteSyncReady = $true
     Write-Label "【远程】" "【已连接】" "已获取 origin/main。" Green
 }
-elseif ($fetchText -match "(?i)couldn['’]t find remote ref|remote ref .+ not found|fatal:\s+couldn['’]t find remote ref") {
+elseif ($fetchText -match "(?i)couldn['\u2019]t find remote ref|remote ref .+ not found|fatal:\s+couldn['\u2019]t find remote ref") {
     Write-Label "【远程】" "【首次推送】" "远程 main 尚不存在，将直接创建。" DarkYellow
 }
 else {

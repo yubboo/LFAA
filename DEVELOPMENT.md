@@ -297,6 +297,8 @@ v0.0.57 起，pnpm / PNPM_HOME / Store 等机器环境必须执行“实时事�
 
 v0.0.58 起，Windows PowerShell 实现还必须遵守自动变量安全：PowerShell 变量名大小写不敏感，禁止把 `$HOME`、`$PID`、`$Host`、`$Error`、`$PSHOME`、`$PWD`、`$LASTEXITCODE` 等自动/只读变量（包括仅大小写不同的写法）用作普通赋值目标；新增或修改 PS1 后必须通过对应静态防回归与 BOM 检查。
 
+v0.0.81 起，Windows PowerShell 脚本同时禁止 U+2018/U+2019/U+201C/U+201D 智能引号。PowerShell 会把它们参与语法解析，可能把中文提示拆成额外位置参数；用户文案强调统一使用 `「」`，正则需要 Unicode 撇号时使用 `\u2019`。`windows-script-encoding-check.mjs` 必须机器阻断该类字符。
+
 v0.0.59 起，菜单 1 的开发期依赖同步与正式发布 frozen 安装必须分离：lockfile 落后时允许本地 `pnpm install --no-frozen-lockfile` 更新锁文件；lockfile 已完整但本地依赖损坏时使用 frozen 精确修复；正式 `release:full` 始终保持 `--frozen-lockfile`。所有交互式 pnpm 写操作必须输出稳定的实时进度。
 
 v0.0.60 起，Windows 菜单 1 的交互式 `pnpm install` 必须保留 pnpm 原生前台 reporter：不得强制 `--reporter=append-only` / `ndjson` / `silent`，不得捕获或重写安装 stdout/stderr。LFAA 只解释执行原因与结果，中间解析、复用、下载、链接、脚本日志由 pnpm 原样显示。

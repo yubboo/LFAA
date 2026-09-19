@@ -1,3 +1,9 @@
+## v0.0.81：Windows Setup PowerShell 字符串语法安全
+
+Windows PowerShell 会把 `“ ” ‘ ’` 这类智能引号视作可参与语法解析的引号。用户可见中文文案不得在 `.ps1` 中使用这些字符；需要中文强调时统一使用 `「」`。需要在正则中匹配 Unicode 撇号时使用 `\u2019`，不得直接嵌入弯撇号。
+
+`node scripts/windows-script-encoding-check.mjs` 现在同时负责 UTF-8 BOM、严格 UTF-8 与智能引号语法安全，避免参数位置被提示文本意外拆分。
+
 ## v0.0.80：独立 Plugin Profile + Unicode 成品发布门禁
 
 用户插件依赖固定进入 `.lfaa/state/plugin-profile`，不得修改 LFAA 根 `package.json/pnpm-lock.yaml`。Profile 包管理由一个 Node Host 承担：inspect → lock → snapshot → pnpm → validate → commit；失败/取消恢复 Profile manifest/lock。pnpm build script 只按待审批的精确包名放行。

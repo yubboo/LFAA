@@ -269,7 +269,7 @@ function Assert-SourcePackageIntegrity {
 
     # 来源版本包必须在任何 diff / delete 计划生成前先证明自己完整。
     # 这里复用与 Git Push 相同的静态 preflight；它不依赖 node_modules，
-    # 可以阻止“发布 ZIP 漏掉隐藏目录 -> Sync 把稳定工作区对应文件删掉”的破坏性链路。
+    # 可以阻止「发布 ZIP 漏掉隐藏目录 -> Sync 把稳定工作区对应文件删掉」的破坏性链路。
     $preflightRelative = "scripts\workspace-preflight.mjs"
     $preflight = Join-Path $Root $preflightRelative
     if (-not (Test-Path -LiteralPath $preflight)) {

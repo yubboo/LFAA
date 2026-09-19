@@ -17,10 +17,13 @@ pending-user-acceptance
 当前版本总任务：
 
 ```text
-#22.2 Plugin Profile 生命周期与项目骨架收敛
-version: v0.0.80
+#20.18 Windows Setup PowerShell 智能引号解析修复
+version: v0.0.81
 status: pending-user-acceptance
 ```
+
+
+v0.0.81 是 v0.0.80 的 Windows 实机阻断修复。用户运行 `LFAA-Setup.bat → 1` 时，PowerShell 将提示文本中的中文弯引号 `“新增”` 参与语法解析，使 `新增。` 被错误绑定到 `Write-Label` 的 `ConsoleColor` 参数。修复原则：PowerShell 脚本禁止 U+2018/U+2019/U+201C/U+201D 智能引号；用户文案需要强调时使用 `「」`，正则匹配 Unicode 撇号时使用 `\u2019` 转义。该规则进入 Windows 脚本治理 Gate。
 
 v0.0.80 以用户提供的 DeepSeek Harness 源码包为主要工程参考，重点借鉴 capability seam、profile/bundle、PluginManager 共享事务、HMR 生命周期、credentials 引用和“抽象必须有当前 Consumer”的维护原则；不复制其产品实现。
 

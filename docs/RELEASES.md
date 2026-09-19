@@ -1,3 +1,13 @@
+## LFAA v0.0.81 Release — #20.18 Windows Setup PowerShell 智能引号解析修复
+
+- **状态：** pending-user-acceptance
+- **用户实机阻断：** `LFAA-Setup.bat → 1` 在依赖状态显示后因 `ConsoleColor` 参数转换失败停止，未进入 pnpm 安装。
+- **根因：** PowerShell 把中文弯引号当作语法引号；`“新增”` 拆坏 `Write-Label` 位置参数绑定。
+- **修复：** 所有 Windows PS1 清除 U+2018/U+2019/U+201C/U+201D；文案改用 `「」`，Unicode 撇号正则改用 `\u2019`。
+- **门禁：** `windows-script-encoding-check.mjs` 同时检查 BOM、严格 UTF-8 与智能引号语法安全；`dependency-setup.test.mjs` 锁定该问题。
+- **边界：** 不改 Plugin Platform / Agent Runtime / Rust Secret / 依赖决策语义，仅修 Windows Setup 解析阻断。
+- **AI 验证：** 仓库 Node 102/102 + Config 33/33 = 135/135 PASS；workspace preflight 全 PASS；Windows PowerShell 动态执行仍由用户实机验收。
+
 ## LFAA v0.0.80 Release — #22.2 Plugin Profile 生命周期与项目骨架收敛
 
 - **状态：** pending-user-acceptance

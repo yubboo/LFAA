@@ -1,3 +1,10 @@
+## v0.0.81 / #20.18 Windows PowerShell 智能引号解析回归
+
+- `test/dependency-setup.test.mjs`：所有 `scripts/windows/*.ps1` 禁止 U+2018/U+2019/U+201C/U+201D；`Show-NodeDependencyPlan` 必须使用 `「新增」`。
+- `scripts/windows-script-encoding-check.mjs`：继续要求 UTF-8 BOM，并新增智能引号语法安全 Gate。
+- 用户 Windows 实机：`LFAA-Setup.bat → 1` 必须能越过依赖摘要进入确认/安装或健康返回，不得再出现 `ConsoleColor` 参数转换错误。
+- 当前静态/Node 结果：仓库 102/102 PASS；Config 33/33 PASS；workspace preflight 全 PASS。
+
 ## v0.0.80 / #22.2 Plugin Profile、骨架与发布成品
 
 - `test/package-architecture.test.mjs`：锁定真实 workspace、layer/role、依赖方向、无环、无占位 crate/package。

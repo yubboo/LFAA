@@ -690,7 +690,7 @@ if ($ahead -eq 0 -and $behind -eq 0) {
     exit 0
 }
 
-# 本地纯领先时，远程没有“需要拉取”的新提交。
+# 本地纯领先时，远程没有「需要拉取」的新提交。
 if ($ahead -gt 0 -and $behind -eq 0 -and $UpdateMode -ne "force") {
     Write-Host ""
     Write-Label "【远程变化】" "【无新提交】" "远程没有比本地更新的 Commit。" Green

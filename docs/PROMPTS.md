@@ -25,6 +25,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #20.18 | Windows Setup PowerShell 智能引号解析修复 | v0.0.81 | pending-user-acceptance | pass | pending |
 | #22.2 | Plugin Profile 生命周期与项目骨架收敛 | v0.0.80 | pending-user-acceptance | pass | pending |
 | #4.4 | 发布包隐藏资源完整性与同步前来源预检 | v0.0.79 | pending-user-acceptance | pass | pending |
 | #22.1 | Plugin Platform / Capability Contract / App Pack 总架构 | v0.0.78 | pending-user-acceptance | pass | pending |
@@ -61,6 +62,32 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #20.18 Windows Setup PowerShell 智能引号解析修复
+
+### 用户目标
+
+修复 v0.0.80 `LFAA-Setup.bat → 1` 在依赖检测摘要阶段把中文 `“新增”` 错误解析为 `ConsoleColor` 参数、导致菜单直接失败的问题；同时把同类 PowerShell 智能引号风险做成长期机器门禁。
+
+### 允许修改
+
+- `scripts/windows/*.ps1` 的字符串/正则安全；
+- `windows-script-encoding-check.mjs`；
+- 依赖菜单静态回归；
+- 当前版本/测试/运行时文档。
+
+### 禁止修改
+
+- 不改变依赖健康判断、pnpm install 决策与 Store 策略；
+- 不改变 Plugin Platform / Agent Runtime / Secret 架构；
+- 不把 PowerShell 用户文案迁入另一套脚本实现。
+
+### 验收条件
+
+- 所有 Windows PS1 不含 U+2018/U+2019/U+201C/U+201D；
+- 治理 Gate 对再次出现智能引号直接失败；
+- Setup 依赖基线文案使用 `「新增」`；
+- Windows 实机菜单 1 能继续进入确认/安装或健康返回，不再出现 `ConsoleColor` 转换错误。
 
 ## #22.2 Plugin Profile 生命周期与项目骨架收敛
 

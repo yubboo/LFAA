@@ -1,3 +1,13 @@
+## LFAA v0.0.81 — #20.18 Windows Setup PowerShell 智能引号解析修复
+
+- **状态：** pending-user-acceptance
+- 修复 v0.0.80 Windows `LFAA-Setup.bat → 1` 在首次/缺失依赖基线提示阶段报 `ConsoleColor` 参数转换失败的问题。
+- **根因：** Windows PowerShell 会把 U+2018/U+2019/U+201C/U+201D 智能引号参与字符串语法解析；提示文案 `“新增”` 使 `新增。` 被错误绑定为 `Write-Label` 的 `Color` 位置参数。
+- `lfaa-setup.ps1` 改用 `「新增」`；其他 PowerShell 脚本中的智能引号同步清零，Git 错误正则用 `\u2019` 表达 Unicode 撇号。
+- `windows-script-encoding-check.mjs` 从“BOM/UTF-8 检查”升级为“BOM + UTF-8 + PowerShell 智能引号语法安全”门禁；新增回归测试，后续 `.ps1` 再出现智能引号会直接阻断治理。
+- v0.0.80 的 Plugin Profile、项目骨架、Credentials 与 Unicode ZIP 成果保持不变。
+- **AI 验证：** 仓库 Node 102/102 + Config System 33/33 = 135/135 PASS；统一 workspace preflight 全 Gate PASS。当前制作环境无 PowerShell，不把静态解析门禁冒充 Windows 动态执行 PASS。
+
 ## LFAA v0.0.80 — #22.2 Plugin Profile 生命周期与项目骨架收敛
 
 - **状态：** pending-user-acceptance

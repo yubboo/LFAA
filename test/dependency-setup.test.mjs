@@ -227,6 +227,19 @@ test("Windows PowerShell scripts do not assign to automatic or read-only variabl
   }
 });
 
+
+
+test("Windows PowerShell scripts avoid smart quotes that PowerShell parses as syntax", () => {
+  const smartQuote = /[\u2018\u2019\u201c\u201d]/u;
+  const files = fs.readdirSync("scripts/windows").filter((name) => name.endsWith(".ps1"));
+  assert.ok(files.length > 0, "expected Windows PowerShell scripts");
+  for (const file of files) {
+    const source = fs.readFileSync(`scripts/windows/${file}`, "utf8");
+    assert.doesNotMatch(source, smartQuote, `${file} contains a PowerShell smart quote that can split positional arguments`);
+  }
+  assert.match(functionBody("Show-NodeDependencyPlan"), /误报为「新增」/);
+});
+
 test("dependency cache or fingerprint changes never force install when real health is complete", () => {
   const plan = functionBody("Get-NodeDependencyPlan");
   assert.match(plan, /\$needsInstall = \(\$healthReasons\.Count -gt 0\)/);
@@ -241,5 +254,5 @@ test("first local dependency baseline never reports every existing dependency as
   const show = functionBody("Show-NodeDependencyPlan");
   assert.match(plan, /if \(\$null -eq \$nodeState\) \{\s*Compare-NodeDependencyInventory @\(\) @\(\)/s);
   assert.doesNotMatch(plan, /if \(\$null -eq \$nodeState\)[\s\S]{0,180}Compare-NodeDependencyInventory @\(\) \$snapshot\.Inventory/);
-  assert.match(show, /尚无本机依赖基线；不会把全部现有依赖误报为“新增”。/);
+  assert.match(show, /尚无本机依赖基线；不会把全部现有依赖误报为「新增」。/);
 });

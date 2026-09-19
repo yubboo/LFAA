@@ -993,7 +993,7 @@ function Get-NodeDependencyPlan {
         Compare-NodeDependencyInventory @($nodeState.inventory) $snapshot.Inventory
     }
 
-    # 只有“当前依赖真实不可用”才需要 pnpm install。
+    # 只有「当前依赖真实不可用」才需要 pnpm install。
     # dependency-state 只是本机加速缓存，不能因为缓存缺失/指纹变化就强制重装。
     if (-not $installState.Complete) { $healthReasons.Add("本地直接依赖缺失或版本不匹配") }
     if (-not $runtimeHealth.Complete) { $healthReasons.Add("项目依赖真实解析/加载失败") }
@@ -1054,7 +1054,7 @@ function Show-NodeDependencyPlan {
             Write-Label "【差异】" "【依赖】" ("新增 {0} | 删除 {1} | 变更 {2}" -f $Plan.Diff.Added.Count,$Plan.Diff.Removed.Count,$Plan.Diff.Changed.Count) Cyan
         }
         else {
-            Write-Label "【基线】" "【状态】" "尚无本机依赖基线；不会把全部现有依赖误报为“新增”。" DarkCyan
+            Write-Label "【基线】" "【状态】" "尚无本机依赖基线；不会把全部现有依赖误报为「新增」。" DarkCyan
         }
     }
 

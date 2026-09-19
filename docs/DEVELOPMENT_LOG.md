@@ -11,6 +11,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
+| #20.18 | Windows Setup PowerShell 智能引号解析修复 | v0.0.81 | pending-user-acceptance |
 | #22.2 | Plugin Profile 生命周期与项目骨架收敛 | v0.0.80 | pending-user-acceptance |
 | #4.4 | 发布包隐藏资源完整性与同步前来源预检 | v0.0.79 | pending-user-acceptance |
 | #22.0 | 统一 Agent Runtime、三档权限与无限画布工作台 | v0.0.77 | pending-user-acceptance |
@@ -43,6 +44,18 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+
+
+### #20.18 Windows Setup PowerShell 智能引号解析修复
+
+- **版本：** v0.0.81
+- **状态：** pending-user-acceptance
+- **用户实机：** v0.0.80 菜单 1 输出 `本地缺失 | lockfile 待同步` 后，PowerShell 报无法把 `新增。` 转成 `System.ConsoleColor`。
+- **根因：** `Show-NodeDependencyPlan` 中文文案使用 `“新增”`；PowerShell 将智能引号参与字符串解析，破坏 `Write-Label` 位置参数绑定。
+- **修复：** 文案改 `「新增」`；所有 PS1 智能引号清零；Git regex 中 Unicode 撇号改 `\u2019`。
+- **门禁：** Windows script encoding Gate 新增智能引号阻断，dependency setup 回归锁定。
+- **边界：** 依赖检测与 Plugin P1 逻辑不变，只修 Windows 解析阻断。
+- **AI 验证：** 102/102 仓库 Node + 33/33 Config = 135/135 PASS；workspace preflight 全 Gate PASS；当前制作环境无 Windows PowerShell。
 
 
 ### #22.2 Plugin Profile 生命周期与项目骨架收敛
