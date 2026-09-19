@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.51**
+**当前包：LFAA-v0.0.53**
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
@@ -51,18 +51,21 @@ v0.0.50 起，Prompt、开发日志、版本记录不再“一次任务一个 Ma
 config-system
 ```
 
-当前子任务：
+当前治理修复任务：
+
+```text
+#20.7 Setup 菜单与发布门禁解耦
+status: pending-user-acceptance
+```
+
+配置系统最近业务任务：
 
 ```text
 #2.2 config-schema
 status: pending-user-acceptance
 ```
 
-用户验收通过后的下一步：
-
-```text
-config-storage
-```
+#20.7 验收完成后回到配置系统；#2.2 仍需用户明确验收，不能由本治理版本代替。
 
 ## Node.js 包管理器
 
@@ -153,14 +156,14 @@ LFAA 只采用一套简单规则：
 → node_modules / Cargo.lock / target / .lfaa / rust-toolchain.toml
 ```
 
-运行：
+需要准备环境时运行：
 
 ```text
 LFAA-Setup.bat
-→ 1 一键依赖
+→ 1 按需依赖
 ```
 
-已经存在的工具直接复用，缺失的自动补齐。
+菜单 1 不是每次开发的必经步骤。Node/pnpm/Rust/Cargo 和项目依赖已经可用时可以直接启动、构建或检查；只有首次配置、依赖变化或环境损坏时再使用。Node 24.x 仍是项目要求；pnpm 缺失或版本不匹配时 Setup 可通过 Corepack 准备项目锁定的 pnpm 11.17.0。
 
 
 ## Setup 菜单行为
@@ -172,6 +175,18 @@ LFAA-Setup.bat
 0
 → 退出
 ```
+
+需要检查时使用：
+
+```text
+LFAA-Setup.bat
+→ 10 检查中心
+   ├─ 快速检查：quality:quick
+   ├─ 完整检查：quality:full
+   └─ 正式发布：release:full
+```
+
+日常开发通常选择快速检查；阶段完成可跑完整检查；只有准备正式发布时才需要最重的 `release:full`。这些命令都可以脱离 Windows 菜单直接调用，未来 CLI / GUI 复用同一能力。
 
 Web 本地开发启动使用快速端口检测，不再逐个等待 5173-5199 网络超时。
 
@@ -196,7 +211,7 @@ v0.0.32 起，Web 开发工作台底部使用真实 PTY：
 xterm.js → Vite local bridge → node-pty → PowerShell / Shell
 ```
 
-首次同步本版本后先运行菜单 1 安装新增依赖。
+首次需要真实终端依赖时，可运行菜单 1【按需依赖】或直接用项目 pnpm 命令安装依赖；已安装则无需重复执行。
 
 
 ## 原生依赖安全策略

@@ -1,11 +1,11 @@
 ﻿# 文件：lfaa-setup.ps1
-# 作用：提供 LFAA 项目依赖、项目级资源和开发质量检查菜单。
-# 负责：Node/pnpm/Rust/Cargo 环境检测、项目依赖、Web 启动、质量检查。
+# 作用：提供 LFAA 项目按需依赖、项目级资源和分层开发质量检查菜单。
+# 负责：Node/pnpm/Rust/Cargo 环境检测与按需准备、项目依赖、Web 启动、分层质量检查。
 # 不负责：Git 推送、版本包同步、业务运行时权限决策。
 # 状态归属：工具链事实来自当前电脑，项目依赖事实来自当前项目目录。
 # 对外接口：由根目录 LFAA-Setup.bat 调用。
 # 关联文件：LFAA-Setup.bat、package.json、rust-toolchain.toml、scripts/check-node-pty.mjs。
-# 修改注意事项：只允许 pnpm；Rustup 使用官方来源与校验；菜单完成后按既定规则返回主菜单。
+# 修改注意事项：只允许 pnpm；Rustup 使用官方来源与校验；菜单编号只是 Windows 入口，不得作为未来 CLI/GUI 协议。
 
 
 $ErrorActionPreference = "Stop"
@@ -155,12 +155,12 @@ function Get-PnpmRunner {
     throw "未检测到可用的 pnpm 或 corepack。"
 }
 
-function Assert-NodeToolchain {
+function Assert-NodeVersion {
     $required = Get-RequiredToolchainInfo
     $nodeVersion = Get-NodeVersionValue
 
     if ([string]::IsNullOrWhiteSpace($nodeVersion)) {
-        throw "未检测到可用的 Node.js。"
+        throw "未检测到可用的 Node.js。请先安装项目要求的 Node.js 24.x。"
     }
 
     $majorText = ($nodeVersion -split "\.")[0]
@@ -173,6 +173,46 @@ function Assert-NodeToolchain {
         throw ("当前 Node.js 为 {0}，项目要求 Node.js 24.x。" -f $nodeVersion)
     }
 
+    return [PSCustomObject]@{
+        NodeVersion = $nodeVersion
+        NodeSource = (Get-CommandSource "node")
+    }
+}
+
+function Ensure-ProjectPnpm {
+    $required = Get-RequiredToolchainInfo
+    [void](Assert-NodeVersion)
+
+    try {
+        $runner = Get-PnpmRunner
+        if ([string]::IsNullOrWhiteSpace($required.PnpmVersion) -or $runner.Version -eq $required.PnpmVersion) {
+            return $runner
+        }
+    }
+    catch {
+        # 缺失或版本不匹配时，下面统一尝试 Corepack 准备项目锁定版本。
+    }
+
+    if ([string]::IsNullOrWhiteSpace($required.PnpmVersion)) {
+        throw "package.json 未锁定 packageManager: pnpm@<version>，无法准备 pnpm。"
+    }
+    if (-not (Test-CommandAvailable "corepack")) {
+        throw ("未检测到 Corepack，无法自动准备 pnpm {0}。请先修复 Node.js 24.x 安装后重试。" -f $required.PnpmVersion)
+    }
+
+    Write-Label "【补齐】" "【pnpm】" ("通过 Corepack 准备项目锁定版本 pnpm@{0}。" -f $required.PnpmVersion) Yellow
+    Invoke-ProjectCommand "corepack" @("prepare",("pnpm@{0}" -f $required.PnpmVersion),"--activate") "准备项目锁定 pnpm"
+
+    $runner = Get-PnpmRunner
+    if ($runner.Version -ne $required.PnpmVersion) {
+        throw ("Corepack 准备后 pnpm 仍为 {0}，项目要求 {1}。" -f $runner.Version,$required.PnpmVersion)
+    }
+    return $runner
+}
+
+function Assert-NodeToolchain {
+    $required = Get-RequiredToolchainInfo
+    $node = Assert-NodeVersion
     $runner = Get-PnpmRunner
 
     if (-not [string]::IsNullOrWhiteSpace($required.PnpmVersion) -and
@@ -181,8 +221,8 @@ function Assert-NodeToolchain {
     }
 
     return [PSCustomObject]@{
-        NodeVersion = $nodeVersion
-        NodeSource = (Get-CommandSource "node")
+        NodeVersion = $node.NodeVersion
+        NodeSource = $node.NodeSource
         PnpmVersion = $runner.Version
         PnpmSource = $runner.Source
     }
@@ -344,6 +384,7 @@ function Test-NodePtyRuntime {
 }
 
 function Install-NodeDependencies {
+    [void](Ensure-ProjectPnpm)
     $toolchain = Assert-NodeToolchain
     $summary = Get-NodeDependencySummary
 
@@ -658,7 +699,7 @@ function Test-RustDependencyDeclarations {
 function Install-RustDependencies {
     $cargoPath = Get-CargoCommandPath
     if ([string]::IsNullOrWhiteSpace($cargoPath)) {
-        throw "未检测到 Cargo。请选择菜单 1 进行一键准备，或先安装 Rust 工具链。"
+        throw "未检测到 Cargo。需要 Rust 功能时可运行菜单 1【按需依赖】，或自行准备项目要求的 Rust 工具链。"
     }
 
     $lockFile = Join-Path $ProjectRoot "Cargo.lock"
@@ -877,7 +918,7 @@ function Assert-WebDevelopmentDependencies {
     }
 
     if ($missing.Count -gt 0) {
-        throw "Web 开发依赖未完整安装。请先运行菜单 1【一键依赖】，再启动 Web。"
+        throw "Web 开发依赖未完整安装。可运行菜单 1【按需依赖】准备依赖，或直接使用项目 pnpm 命令完成安装后重试。"
     }
 }
 
@@ -893,7 +934,7 @@ function Get-WebViteCommandPath {
         }
     }
 
-    throw "未找到本地 Vite。请先运行菜单 1【一键依赖】准备项目依赖。"
+    throw "未找到本地 Vite。可运行菜单 1【按需依赖】准备项目依赖，或自行使用项目 pnpm 安装后重试。"
 }
 
 function Invoke-WebViteForeground {
@@ -1027,6 +1068,49 @@ function Test-RustDependencyToolchain {
     return -not [string]::IsNullOrWhiteSpace((Get-CargoCommandPath))
 }
 
+function Invoke-CheckCenter {
+    Write-Host ""
+    Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
+    Write-Host " LFAA 检查中心" -ForegroundColor Cyan
+    Write-Host "------------------------------------------------------------" -ForegroundColor DarkCyan
+    Write-Host ""
+    Write-Label "【1】" "【快速检查】" "governance + typecheck + test；不安装依赖、不构建、不要求 Rust。" Green
+    Write-Label "【2】" "【完整检查】" "快速检查 + build；不隐式安装依赖、不执行 Rust 发布检查。" Cyan
+    Write-Label "【3】" "【正式发布】" "release:full：环境版本 + frozen install + 完整检查 + Rust；仅正式发布前按需执行。" Yellow
+    Write-Label "【0】" "【返回】" "不执行检查，返回主菜单。" DarkGray
+
+    $checkChoice = (Read-Host "【请选择】【0-3】").Trim()
+    switch ($checkChoice) {
+        "0" {
+            Write-Label "【返回】" "【检查中心】" "未执行检查。" DarkGray
+            return
+        }
+        "1" {
+            Invoke-PnpmScript "quality:quick"
+            Write-Label "【完成】" "【快速检查】" "快速检查通过。" Green
+            return
+        }
+        "2" {
+            Invoke-PnpmScript "quality:full"
+            Write-Label "【完成】" "【完整检查】" "完整项目检查通过。" Green
+            return
+        }
+        "3" {
+            if (-not (Confirm-WriteOperation "正式发布检查会按 lockfile 冻结安装依赖，并执行 Rust 发布检查；只有准备正式发布时才需要运行。")) {
+                Write-Label "【取消】" "【正式发布】" "用户已取消，本次未执行发布检查。" Yellow
+                return
+            }
+            [void](Ensure-ProjectPnpm)
+            Invoke-PnpmScript "release:full"
+            Write-Label "【完成】" "【正式发布】" "完整发布门禁通过。" Green
+            return
+        }
+        default {
+            throw "无效检查选项，请输入 0 到 3。"
+        }
+    }
+}
+
 function Show-SetupMenu {
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor DarkCyan
@@ -1034,7 +1118,7 @@ function Show-SetupMenu {
     Write-Host " 作者：二鱼" -ForegroundColor DarkCyan
     Write-Host "============================================================" -ForegroundColor DarkCyan
     Write-Host ""
-    Write-Label "【1】" "【一键依赖】" "检查开发环境、自动补齐缺失工具、安装项目依赖并初始化 .lfaa。" Green
+    Write-Label "【1】" "【按需依赖】" "首次配置、依赖变化或环境损坏时使用；环境已就绪可跳过，不是每次开发都必须执行。" Green
     Write-Label "【2】" "【启动 Web】" "启动 Vite Web 开发服务器，并启用 .lfaa 本地热插拔监听。" Green
     Write-Label "【3】" "【启动桌面】" "启动 Electron Desktop 开发模式；未配置时明确提示。" Green
     Write-Label "【4】" "【构建 Web】" "执行 Web production build。" Cyan
@@ -1043,7 +1127,7 @@ function Show-SetupMenu {
     Write-Label "【7】" "【环境检查】" "查看项目根、Node/pnpm、Rust/Cargo 和依赖状态。" Cyan
     Write-Label "【8】" "【项目资源】" "初始化当前项目 .lfaa 缺失目录。" Magenta
     Write-Label "【9】" "【治理检查】" "运行治理、导入边界、开发日志和 docs 结构检查。" Yellow
-    Write-Label "【10】" "【完整检查】" "运行项目严格质量检查；未配置项必须失败，不假绿。" Yellow
+    Write-Label "【10】" "【检查中心】" "按需选择快速检查、完整检查或正式发布检查；日常开发无需每次跑最重门禁。" Yellow
     Write-Label "【0】" "【退出】" "不执行任何操作。" DarkGray
 }
 if (-not (Test-Path (Join-Path $ProjectRoot "lfaa.release.json"))) {
@@ -1072,12 +1156,16 @@ while ($true) {
     try {
         switch ($choice) {
             "1" {
-                if (-not (Test-NodeDependencyToolchain)) {
+                try {
+                    [void](Assert-NodeVersion)
+                }
+                catch {
                     Show-Environment
-                    throw "未检测到可用的 Node + pnpm/corepack 工具链。Node.js 是 LFAA 当前开发的基础前置条件。"
+                    throw
                 }
 
                 Write-Host ""
+                [void](Ensure-ProjectPnpm)
                 $nodeToolchain = Assert-NodeToolchain
                 $nodeSummary = Get-NodeDependencySummary
 
@@ -1097,9 +1185,9 @@ while ($true) {
                     Write-Label "【预检】" "【Rust/Cargo】" "缺失；确认后自动使用 Rust 官方安装器补齐。" Yellow
                 }
 
-                if (-not (Confirm-WriteOperation "将检查并补齐开发环境；已安装的工具直接复用，缺失的自动安装。")) {
+                if (-not (Confirm-WriteOperation "按需检查并补齐开发环境；这不是每次开发的必经步骤，已安装工具会直接复用。")) {
                     Write-Host ""
-                    Write-Label "【取消】" "【一键依赖】" "用户已取消，本次未修改环境。" Yellow
+                    Write-Label "【取消】" "【按需依赖】" "用户已取消，本次未修改环境。" Yellow
                     $menuMessage = "已取消，按任意键返回主菜单。"
                     break
                 }
@@ -1177,23 +1265,8 @@ while ($true) {
             }
 
             "10" {
-                Invoke-PnpmScript "governance:check"
-                Invoke-PnpmScript "typecheck:web"
-                Invoke-PnpmScript "build:web"
-
-                Invoke-PnpmScript "typecheck"
-                Invoke-PnpmScript "test"
-                Invoke-PnpmScript "build"
-
-                $cargoPath = Get-CargoCommandPath
-                if ([string]::IsNullOrWhiteSpace($cargoPath)) {
-                    throw "完整检查需要 Rust/Cargo；当前未检测到 Cargo。"
-                }
-
-                Invoke-ProjectCommand $cargoPath @("check","--workspace") "运行 Rust cargo check"
-                Invoke-ProjectCommand $cargoPath @("test","--workspace") "运行 Rust cargo test"
-
-                $menuMessage = "完整检查完成，按任意键返回主菜单。"
+                Invoke-CheckCenter
+                $menuMessage = "检查中心操作结束，按任意键返回主菜单。"
             }
 
             default {

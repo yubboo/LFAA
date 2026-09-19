@@ -14,7 +14,15 @@ config-system
 implementing
 ```
 
-当前实现任务：
+当前治理修复任务：
+
+```text
+#20.7 Setup 菜单与发布门禁解耦
+version: v0.0.53
+status: pending-user-acceptance
+```
+
+配置系统最近业务任务：
 
 ```text
 #2.2 Config Schema 基线
@@ -24,7 +32,7 @@ status: pending-user-acceptance
 
 `project-foundation` 已建立可交付骨架。`#16` 和 `#17` 属于 Config Schema 前置治理/工具链修复，不改变当前主业务模块。
 
-用户已明确要求按照开发规范进入配置系统。#21 Web 工作台历史/实机验收状态保留，不再阻塞业务顺序；当前已完成 `config-schema` 基线并等待用户验收，验收通过后进入 `config-storage`。
+用户已明确要求按照开发规范进入配置系统。#21 Web 工作台历史/实机验收状态保留，不再阻塞业务顺序；当前 `config-schema` 基线仍等待用户验收；用户要求先修复发布环境 / 质量门禁设计，因此 #20.6 曾引入硬门禁；用户随后明确指出菜单 1 / 10 不能成为过于绝对的流程入口，v0.0.52 未被接受。当前插入 #20.7：保留质量严格性，但把菜单编号降级为 Windows 便捷 Adapter，并拆分快速 / 完整 / 正式发布检查。#20.7 用户验收后再回到 `config-system`；不得把本治理任务当成 #2.2 的用户验收。
 
 ## 模块顺序
 

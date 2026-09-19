@@ -2,6 +2,39 @@
 
 > 单文件版本时间线。每个版本在顶部追加一节；不再创建 `docs/changelog/vX.Y.Z.md`。
 
+## LFAA v0.0.53 — #20.7 Setup 菜单与发布门禁解耦
+
+- **状态：** pending-user-acceptance
+- **基线：** v0.0.52
+- **任务：** #20.7
+- 用户未接受 v0.0.52 把菜单 1 / 10 绑定得过重的设计，因此本版本不覆盖旧包，改为新的递增修正。
+- `LFAA-Setup.bat → 1` 改为“按需依赖”：首次配置、依赖变化或环境损坏时使用；环境已就绪时可跳过。
+- `LFAA-Setup.bat → 10` 改为“检查中心”，提供快速检查 / 完整检查 / 正式发布三档，不再进入菜单 10 就直接执行 frozen install + Rust。
+- 新增 `quality:quick`（governance + typecheck + test）与 `quality:full`（quick + build）；两者均不隐式安装依赖，也不要求 Rust 发布检查。
+- `release:full` 保留正式发布严格语义：环境检查 + frozen install + `release:verify`；`release:verify` 复用 `quality:full` 后执行 Rust。
+- 明确 PS1 负责 Windows 环境写操作，MJS 只负责跨平台项目检查；菜单编号不得成为未来 CLI / GUI API。
+- 候选 ZIP 与完整发布验证分离：pending-user-acceptance 候选包可在受限制作环境生成，但未真实通过 `release:full` 时不得声称 release-ready。
+- **未修改：** Config Schema、Config Storage、Web UI、PTY、Sync/GitHub/Update、Agent/Tool/Permission 业务语义。
+- **AI 验证：** 分层门禁 5/5、发布环境 8/8、Config Schema 8/8；governance/import/dev-log/docs/comment/Windows BOM/release consistency/config-schema/release-gates/UI contract 全部 PASS；Config System TypeScript 补充检查 PASS。当前容器 Node 22.16.0、无 pnpm 11.17.0 / Cargo，因此正式环境与 Rust 门禁按设计阻断，不声称 `release:full` PASS。
+
+## LFAA v0.0.52 — #20.6 发布环境与质量门禁闭环
+
+- **状态：** superseded
+- **基线：** v0.0.51
+- **任务：** #20.6
+- **用户验收：** not-accepted；其“菜单 1 / 10 过重绑定”由 #20.7 / v0.0.53 修正。
+- 修复 Setup 在 pnpm 缺失 / 版本不匹配时提前退出的问题：Node 24.x 可用时优先通过 Corepack 准备根 `package.json` 锁定的 pnpm 11.17.0。
+- `scripts/pnpm-only.mjs` 从“只检查是不是 pnpm”升级为“精确检查 pnpm 版本与 packageManager / engines.pnpm 一致”。
+- 新增 `release-environment-check.mjs`、8 个环境门禁测试、`release-rust-check.mjs` 与 `release-gates-check.mjs`。
+- 根 `typecheck / test / build` 不再调用固定失败占位入口，改为聚合当前真实 Web / Config System 检查。
+- 新增统一 `release:verify`，覆盖环境、governance、TypeScript、tests、build、Rust；新增 `release:full`，先执行环境检查和 `pnpm install --frozen-lockfile` 再进入 `release:verify`。
+- `LFAA-Setup.bat → 10` 改为“发布检查”：准备锁定 pnpm → frozen install → 统一 `release:verify`，不再维护第二套重复检查链。
+- **未修改：** Config Schema 业务语义、Config Storage、Web UI 行为、PTY、Sync / GitHub / Update、Agent / Tool / Permission 执行链、Agent Protocol、Database Schema Version。
+- **AI 验证：** 环境门禁 8/8、Config Schema 8/8、Config System TypeScript noEmit、import/dev-log/docs/comment/Windows BOM/config-schema/release-gates/UI contract 全部 PASS。当前制作容器为 Node 22.16.0、无 pnpm 11.17.0、无 Cargo 且无法联网准备工具链，`release:environment` / `release:rust` 均按设计拒绝，因此没有伪造 `release:full` PASS。
+- **自举规则：** v0.0.52 用于首次引入这套硬门禁；从下一递增版本开始，生成正式 ZIP 前必须真实通过 `pnpm run release:full`。
+- **后续修正：** 上述“生成每个候选 ZIP 前必须 release:full”规则未被用户接受；#20.7 / v0.0.53 改为候选包可披露阻断项，只有宣称完整发布验证 / release-ready 时才要求真实 `release:full` PASS。
+
+
 ## LFAA v0.0.51 — #2.2 Config Schema 基线
 
 - **状态：** pending-user-acceptance

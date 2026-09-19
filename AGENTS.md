@@ -107,3 +107,5 @@ LFAA-Update.bat
 ```
 
 四者职责不得混用；详细规则看 `docs/RUNTIME.md`。
+
+`LFAA-Setup.bat` 的菜单编号只是 Windows 便捷入口，不是开发协议：环境已就绪可跳过依赖准备；质量能力以根 `quality:*` / `release:*` 命令为长期入口，未来 CLI / GUI 复用能力而不是复用菜单编号。

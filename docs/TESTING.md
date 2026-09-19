@@ -1,5 +1,44 @@
 # LFAA 测试与验收规范
 
+## v0.0.53 / #20.7 Setup 菜单与发布门禁解耦验证
+
+验证重点是“严格结果、不绑死入口”：
+
+- `test/release-gates.test.mjs`：5/5 PASS；确认 quick 不 install/build/Rust，full 只增加 build，release:full 才拥有环境 + frozen install + Rust；并确认 Setup 的 1 为按需依赖、10 为三档检查中心；
+- `test/release-environment.test.mjs`：8/8 PASS；
+- Config Schema 回归：8/8 PASS；
+- `scripts/release-gates-check.mjs`、`scripts/config-schema-check.mjs`：PASS；
+- `scripts/windows/lfaa-setup.ps1` BOM：PASS；
+- governance / import / dev-log / docs / comment / Windows BOM / release consistency / config-schema / release-gates / UI contract：全部 PASS；
+- Config System 使用当前容器全局 TypeScript 5.8.3 的补充 `--noEmit`：PASS；该结果不替代项目锁定 pnpm/TypeScript 工具链；
+- 当前制作容器仍不满足 Node 24 / pnpm 11.17.0 / Cargo，因此 `release:environment` 与 Rust 发布检查按设计 FAIL；没有伪造 `release:full` 成功结果。
+
+最终候选 ZIP 仍需执行根目录、Unicode 路径、文件 Hash 与 PowerShell BOM Round-trip；结果由本次交付说明记录。
+
+## v0.0.52 / #20.6 发布环境与质量门禁闭环验证
+
+本版本验证重点不是新增业务功能，而是保证“不满足正式工具链时一定失败、满足时只有一条统一发布链”。
+
+已执行：
+
+- `test/release-environment.test.mjs`：8/8 PASS；覆盖 Node 24 正确 / Node 22 拒绝、pnpm 11.17.0 正确 / 错版本拒绝、lockfile 缺失拒绝、packageManager 与 engines 漂移拒绝，以及 preinstall 对正确/错误包管理器版本的行为；
+- `packages/config-system/test/*.test.mjs`：8/8 PASS，确认本治理任务未破坏 Config Schema；
+- `tsc -p packages/config-system/tsconfig.json --noEmit`：PASS（当前容器全局 TypeScript 5.8.3，仅作为补充检查，不冒充项目锁定 pnpm 工具链）；
+- import / dev-log / docs / comment / Windows BOM / config-schema / release-gates / UI contract：PASS；
+- 当前容器执行 `node scripts/release-environment-check.mjs`：按设计 FAIL，明确指出 Node 22.16.0 不满足 Node 24.x；
+- 当前容器执行 `node scripts/release-rust-check.mjs`：按设计 FAIL，明确指出 Cargo 不存在；
+- Corepack 尝试准备 `pnpm@11.17.0` 时因当前容器不能访问 npm registry 而失败，因此没有伪造 `pnpm install --frozen-lockfile` / Web build / `release:full` 成功结果。
+
+### v0.0.52 自举规则
+
+本版本本身用于把正式发布门禁固化进仓库，因此记录上述环境阻断事实并交由用户验收。从 **v0.0.52 之后的下一递增版本开始**，正式 `LFAA-vX.Y.Z.zip` 生成前必须在满足 Node 24.x + pnpm 11.17.0 + Rust/Cargo 的环境真实执行：
+
+```text
+pnpm run release:full
+```
+
+只有该命令完整通过，才允许记录“完整发布门禁 PASS”。
+
 ## v0.0.51 / #2.2 Config Schema 基线验证
 
 - TypeScript `--noEmit`：PASS；

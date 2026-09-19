@@ -3,6 +3,67 @@
 > 每个版本在本文件新增一个版本章节，不再创建 `docs/releases/vX.Y.Z/RELEASE.md`。
 > 当前版本在用户验收前必须标记 `pending-user-acceptance`，验收通过后才能改为 `delivered`。
 
+## LFAA v0.0.53 Release — #20.7 Setup 菜单与发布门禁解耦
+
+- **状态：** pending-user-acceptance
+- **基线：** v0.0.52
+- **用户验收：** pending
+
+### 交付内容
+
+- Setup 菜单 1 从“流程前置”调整为按需依赖准备；
+- Setup 菜单 10 改为快速 / 完整 / 正式发布三档检查中心；
+- 新增 `quality:quick` / `quality:full`；
+- `release:full` 保留正式发布严格环境、frozen install 与 Rust 验证；
+- Windows 系统环境动作继续由 PS1 负责，跨平台质量检查继续由 package scripts / MJS 负责；
+- 候选包与完整 release-ready 验证分离，未跑通 `release:full` 时必须如实披露。
+
+### 未修改
+
+Config Schema / Config Storage、Web UI、PTY、Sync / GitHub / Update、Agent / Tool / Policy / Permission 执行链、独立 Schema / Protocol 版本。
+
+### AI 验证状态
+
+分层门禁契约 5/5 PASS；发布环境 8/8 PASS；Config Schema 8/8 PASS；governance / import / dev-log / docs / comment / Windows BOM / release consistency / config-schema / release-gates / UI contract 全部 PASS；Config System TypeScript 补充检查 PASS。当前制作容器仍不满足 Node 24 / pnpm 11.17.0 / Cargo，因此正式环境与 Rust 门禁按设计阻断；本版本是 `pending-user-acceptance` 候选包，不声称 `release:full` 已通过或 release-ready。
+
+## LFAA v0.0.52 Release — #20.6 发布环境与质量门禁闭环
+
+- **状态：** superseded
+- **基线：** v0.0.51
+- **用户验收：** not-accepted；菜单 1 / 10 的过重绑定由 v0.0.53 修正。
+
+### 交付内容
+
+- Node 24.x / pnpm 11.17.0 / lockfile 正式发布环境门禁；
+- pnpm preinstall 精确版本校验；
+- Setup Corepack 锁定 pnpm 自动准备；
+- 真实根级 typecheck / test / build 聚合；
+- `release:verify` / `release:full` 唯一发布质量链；
+- frozen lockfile 发布安装；
+- Rust workspace check/test 发布门禁；
+- 8 个发布环境单元测试与静态防回归门禁。
+
+### 未修改
+
+- Config Schema 业务语义与 Schema Version 1；
+- Config Storage / SQLite / Drizzle / Migration；
+- Web UI 业务交互与布局；
+- PTY / node-pty 业务实现；
+- Sync / GitHub / Update；
+- Agent / Tool / Policy / Permission 执行链；
+- Agent Protocol / Database Schema Version。
+
+### AI 验证状态
+
+发布环境测试 8/8 PASS；Config Schema 8/8 PASS；Config System TypeScript noEmit PASS；import / dev-log / docs / comment / Windows BOM / config-schema / release-gates / UI contract PASS。当前制作容器是 Node 22.16.0，缺少 pnpm 11.17.0 与 Cargo，且网络策略阻止 Corepack 从 npm registry 下载，因此环境 / Rust 门禁按设计明确失败；本记录不声称 `pnpm run release:full` 已通过。
+
+### 自举说明
+
+本版本用于把“没有正确工具链就不得假绿”的规则第一次固化为代码。v0.0.52 交由用户验收；从下一递增版本开始，正式 ZIP 打包前必须在满足项目工具链的机器真实通过 `pnpm run release:full`。
+
+该“所有候选 ZIP 都必须先通过 release:full”的绝对规则未被用户接受，已由 #20.7 / v0.0.53 调整为“候选包如实披露阻断；只有完整发布验证 / release-ready 才要求 release:full PASS”。
+
+
 ## LFAA v0.0.51 Release — #2.2 Config Schema 基线
 
 - **状态：** pending-user-acceptance

@@ -429,6 +429,37 @@ UTF-8 中文文件名
 
 发布 ZIP 生成后也必须重新读取 ZIP 文件名清单，确认中文路径保持 Unicode 语义。
 
+### 20. Setup 与分层质量入口
+
+根 `package.json` 是 Node/pnpm 工具链版本唯一事实源：
+
+```text
+Node 24.x
+pnpm 11.17.0
+```
+
+`LFAA-Setup.bat` 的菜单编号只是 Windows Adapter，不是开发 / CLI 协议。
+
+`1 按需依赖` 仅在以下情况使用：首次配置、依赖声明变化、工具链损坏或用户主动希望自动准备环境。环境和依赖已经可用时，可以直接启动 Web、构建或运行检查，不要求先执行菜单 1。Node 部分仍由 PowerShell 负责：确认 Node 24.x；pnpm 缺失或版本不匹配时可通过 Corepack 准备 `packageManager` 锁定版本；失败不得降级 npm / yarn / bun。
+
+`10 检查中心` 只提供三种分层入口：
+
+```text
+快速检查  → pnpm run quality:quick
+完整检查  → pnpm run quality:full
+正式发布  → pnpm run release:full
+```
+
+语义固定为：
+
+- `quality:quick`：governance + typecheck + test；不安装依赖、不 build、不要求 Rust；
+- `quality:full`：quick + build；不隐式安装依赖、不执行 Rust 发布检查；
+- `release:full`：发布环境版本检查 + `pnpm install --frozen-lockfile` + 完整检查 + Rust check/test。
+
+未来 CLI / GUI 直接调用上述能力，不重新实现菜单 1 / 10。Windows 安装、PATH、Corepack、Rust 官方安装等系统行为继续留在 `scripts/windows/*.ps1`；MJS 只负责跨平台项目级检查 / 静态门禁，不承载 Windows 安装动作。
+
+候选版本在 `pending-user-acceptance` 阶段可以在受限制作环境打包供实机验收，但必须披露未执行 / 被阻断门禁；只有受支持环境真实 `release:full` PASS 后，才能声明完整发布验证通过。
+
 ### 14. Windows PowerShell 脚本编码契约
 
 根入口：

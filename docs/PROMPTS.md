@@ -25,10 +25,203 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #20.7 | Setup 菜单与发布门禁解耦 | v0.0.53 | pending-user-acceptance | pass | pending |
+| #20.6 | 发布环境与质量门禁闭环 | v0.0.52 | superseded | pass | not-accepted |
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance | pass | pending |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #20.7 Setup 菜单与发布门禁解耦
+
+### 主模块
+
+`project-governance / windows-setup / quality-gates`
+
+### 任务目标
+
+修正 v0.0.52 把 `LFAA-Setup.bat` 菜单 1 / 10 绑定得过重、过绝对的问题。菜单编号只应是 Windows 便捷入口，不应成为开发流程或未来 CLI 的架构事实。保留严格的质量判断，但把“环境准备、快速检查、完整检查、正式发布验证”拆成可独立调用的能力；开发者环境已就绪时可以跳过菜单 1，日常开发也不必每次执行最重的发布验证。
+
+### 允许修改
+
+- `scripts/windows/lfaa-setup.ps1` 的菜单 1 / 10 文案、分层入口和调用关系；
+- 根 `package.json` 的 `quality:*` / `release:*` 聚合脚本；
+- 发布门禁静态检查与对应测试；
+- `DEVELOPMENT.md`、`docs/RUNTIME.md`、`docs/TESTING.md`、项目地图、Prompt、Development Log、Plan；
+- v0.0.53 产品版本事实、CHANGELOG、Release；
+- workspace package / Rust crate 的产品版本一致性。
+
+### 禁止修改
+
+- Config Schema / Config Storage 业务语义；
+- Web 工作台 UI、PTY / node-pty 业务实现；
+- Sync / GitHub / Update 行为；
+- Agent / Tool / Policy / Permission 执行链；
+- Agent Protocol / Config Schema Version / Database Schema Version；
+- 用菜单编号定义未来 CLI / GUI API。
+
+### 状态所有权
+
+跨平台质量能力以根 `package.json` 脚本为调用入口；Windows 系统环境准备与交互归 `scripts/windows/*.ps1`；`LFAA-Setup.bat` 和菜单编号只是 Windows Adapter，不拥有业务状态，也不是未来 CLI 协议。产品版本仍以 `lfaa.release.json` 为唯一事实源。
+
+### 实现约束
+
+- 菜单 1 改为“按需依赖准备”：仅在首次环境准备、依赖变化或环境损坏时使用；环境已就绪时可直接启动 Web / 构建 / 检查；
+- 菜单 1 的 Windows 环境准备逻辑继续留在 PowerShell，不把下载、PATH、Corepack、Rust 安装行为迁入 MJS；
+- 菜单 10 改为“检查中心”，至少提供：快速检查、完整项目检查、正式发布检查、返回主菜单；
+- 快速检查不得做 `pnpm install`、不得要求 Rust，面向高频开发反馈；
+- 完整项目检查覆盖 governance + typecheck + test + build，但不隐式安装依赖；
+- 正式发布检查才执行冻结依赖安装、正式环境版本检查与 Rust check/test；
+- 所有 `quality:*` / `release:*` 命令都必须可以脱离菜单直接在 CLI 调用；
+- 禁止规定“必须先点 1 再点 10”或把菜单编号写成发布协议；
+- 正式候选 ZIP 在 `pending-user-acceptance` 阶段允许在受限制作环境生成，但必须真实记录未执行/被阻断的门禁；只有 `release:full` 在受支持环境真实通过后，才允许写“完整发布门禁通过 / release-ready”；
+- 用户明确验收前仍不得写 `delivered`。
+
+### 安全约束
+
+- 项目依赖仍只允许 pnpm；不允许自动降级 npm / yarn / bun；
+- 正式发布检查仍使用 `pnpm install --frozen-lockfile`，不得静默修改 lockfile；
+- 快速/完整检查不得借“修复环境”之名修改用户系统；
+- Windows 环境写操作必须经过现有 PowerShell 明确交互，不得转移到 MJS 隐式执行。
+
+### 验收条件
+
+- Setup 主菜单明确说明 1 是按需入口，不是开发前强制步骤；
+- Setup 菜单 10 进入分层检查中心，而不是直接执行最重发布链；
+- 快速检查、完整项目检查、正式发布检查三种语义明确且可分别从 CLI 调用；
+- `release:full` 继续作为“完整发布验证”命令，但不再被写成生成每个 pending 验收候选 ZIP 的绝对前置条件；
+- PS1 负责 Windows 环境动作，MJS 仅保留跨平台项目级检查 / 静态门禁；
+- v0.0.52 保留为未被用户接受的历史版本，不覆盖；
+- Windows PowerShell 保持 UTF-8 with BOM。
+
+### 必须测试
+
+- PowerShell 菜单静态契约：1 为按需依赖，10 为检查中心且存在 3 个分层选项；
+- `quality:quick` 不包含 install / Rust；
+- `quality:full` 覆盖 governance / typecheck / test / build 且不包含 install；
+- `release:full` 覆盖环境检查、frozen install、完整项目检查、Rust；
+- 发布环境单测与 Config Schema 单测回归；
+- governance / import / dev-log / docs / comment / Windows BOM / release consistency / prompt lifecycle / UI contract；
+- 当前受限容器无法满足 Node 24 / pnpm / Cargo 时，必须记录阻断，不得伪造 `release:full` 通过。
+
+### 必须更新的文档
+
+`DEVELOPMENT.md`、`PROJECT_PLAN.md`、`docs/PROMPTS.md`、`docs/DEVELOPMENT_LOG.md`、`docs/RUNTIME.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`README.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG 编号
+
+`#20.7 Setup 菜单与发布门禁解耦`
+
+### 版本目标
+
+`v0.0.53`
+
+### 当前状态
+
+`pending-user-acceptance`
+
+### AI 验证
+
+`pass`
+
+### 用户验收
+
+`pending`
+
+## #20.6 发布环境与质量门禁闭环
+
+### 主模块
+
+`project-governance / toolchain / release-gates`
+
+### 任务目标
+
+修复 v0.0.51 暴露出的发布流程缺口：项目虽然声明 Node 24.x + pnpm 11.17.0，但 Setup 在缺少正确 pnpm 时会提前退出，根级 `typecheck / test / build` 仍是占位失败命令，导致“完整检查”无法真正成为正式发布硬门禁。本任务把工具链版本、依赖锁定安装、真实质量聚合和 Rust 检查收敛成可执行发布闭环。
+
+### 允许修改
+
+- `LFAA-Setup.bat` 与 `scripts/windows/lfaa-setup.ps1` 的开发环境 / 完整检查逻辑；
+- `scripts/pnpm-only.mjs` 与新增发布环境、Rust、发布质量门禁脚本；
+- 根 `package.json` 的真实 `typecheck / test / build / release:*` 脚本；
+- 开发规范、Runtime / Testing / Code Map / Prompt / Development Log；
+- v0.0.52 产品版本事实、CHANGELOG、Release；
+- workspace package / Rust crate 的产品版本一致性。
+
+### 禁止修改
+
+- Config Schema 业务结构与校验语义；
+- Config Storage / SQLite / Drizzle / Migration；
+- Web 工作台 UI 交互和视觉行为；
+- Agent / Tool / Policy / Permission 执行链；
+- PTY / node-pty 业务实现；
+- Sync / GitHub / Update 行为；
+- Agent Protocol / Config Schema Version / Database Schema Version。
+
+### 状态所有权
+
+工具链要求以根 `package.json` 的 `engines` + `packageManager` 为单一事实源；产品版本仍以 `lfaa.release.json` 为事实源。Setup 只负责准备本机开发环境和调用门禁，不得修改业务真值。
+
+### 实现约束
+
+- Node 必须为 24.x；pnpm 必须精确为 11.17.0；
+- `pnpm-only.mjs` 除限制包管理器外，还必须拒绝错误 pnpm 版本；
+- Setup 在已有 Node 24 且 pnpm 不匹配 / 缺失时，必须优先通过 Corepack 准备 `pnpm@11.17.0`；准备失败必须明确失败，不得降级到其他包管理器；
+- 发布依赖安装必须使用 `pnpm install --frozen-lockfile`，禁止发布门禁修改 lockfile；
+- 根 `typecheck / test / build` 必须调用当前已实现模块的真实命令，不再调用“假成功/固定失败”的占位入口；
+- 发布完整检查必须覆盖环境、frozen install、governance、TypeScript、单测、Web build、Rust check/test；
+- 所有失败返回非零退出码，禁止“打印通过但实际未执行”。
+
+### 安全约束
+
+- 不自动使用 npm / npx / yarn / bun 管理项目依赖；
+- Corepack 只能准备根 `package.json` 锁定的 pnpm 版本；
+- 不下载或执行项目未声明的业务依赖；
+- 环境准备与发布验证不得静默修改 Config / Secret / 用户业务数据。
+
+### 验收条件
+
+- 错误 Node 主版本被环境门禁拒绝；
+- 错误 pnpm 版本被 preinstall / 发布环境门禁拒绝；
+- 缺少精确 pnpm 时 Setup 会尝试 Corepack 准备锁定版本；
+- frozen lockfile 安装失败时正式发布检查失败；
+- 根 `typecheck / test / build` 全部为真实聚合命令；
+- `release:verify` 覆盖 governance、TypeScript、tests、build、Rust；
+- Setup“完整检查”先做 frozen install，再执行统一 `release:verify`；
+- Windows PowerShell 继续 UTF-8 with BOM；
+- 用户明确验收前状态保持 `pending-user-acceptance`。
+
+### 必须测试
+
+- 发布环境脚本在当前非 Node 24 环境必须正确失败；
+- 对环境检测核心逻辑做可注入单元测试，覆盖 Node / pnpm 正确和错误版本；
+- `pnpm-only.mjs` 版本门禁静态 / 行为测试；
+- Setup PowerShell 语法与 BOM；
+- `node scripts/governance-check.mjs` 及全部现有 Node 门禁；
+- 在满足 Node 24 + pnpm 11.17.0 的环境运行 `pnpm install --frozen-lockfile` + `pnpm run release:verify`；若当前执行容器无法满足，正式发布包不得伪造该结果，且 Release 必须记录阻塞事实。
+
+### 必须更新的文档
+
+`DEVELOPMENT.md`、`PROJECT_PLAN.md`、`docs/PROMPTS.md`、`docs/DEVELOPMENT_LOG.md`、`docs/TESTING.md`、`docs/RUNTIME.md`、`docs/项目结构与代码地图.md`、`README.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG 编号
+
+`#20.6 发布环境与质量门禁闭环`
+
+### 版本目标
+
+`v0.0.52`
+
+### 当前状态
+
+`superseded`
+
+### AI 验证
+
+`pass`
+
+### 用户验收
+
+`not-accepted`
 
 ## #2.2 Config Schema 基线
 

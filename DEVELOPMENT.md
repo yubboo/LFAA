@@ -151,9 +151,23 @@ Node workspace 只允许 pnpm。版本使用 `MAJOR.MINOR.PATCH`，`lfaa.release
 
 ## 9. 质量门禁
 
-按改动范围执行 TypeScript / Rust / UI / Eval / 安全测试；发布前至少执行 `pnpm run governance:check` 和相关专项验证。
+按改动范围执行 TypeScript / Rust / UI / Eval / 安全测试。正式发布环境固定为 Node 24.x + pnpm 11.17.0，并以根 `package.json` 的 `engines` / `packageManager` 为单一事实源。
 
-任何门禁失败都不能称为完成版。
+质量检查分三层，菜单编号不是架构协议：
+
+```text
+pnpm run quality:quick   # governance + typecheck + test；日常高频，不安装依赖、不要求 Rust
+pnpm run quality:full    # quick + build；阶段完成使用，不隐式安装依赖
+pnpm run release:full    # 正式发布验证：环境 + frozen install + full + Rust
+```
+
+`LFAA-Setup.bat → 1` 只是 Windows 的按需依赖准备入口：首次配置、依赖变化、环境损坏时使用；环境已经就绪时可以直接开发、构建或检查，禁止规定“开发前必须先点 1”。
+
+`LFAA-Setup.bat → 10` 是检查中心，只负责把快速 / 完整 / 正式发布三种命令暴露为 Windows 交互入口；未来 CLI / GUI 必须复用同一底层命令，不得依赖菜单编号。
+
+正式 `release:full` 必须按顺序完成：发布环境版本检查 → `pnpm install --frozen-lockfile` → 完整项目检查 → Rust `cargo check/test --workspace`。任何一步失败，都不得宣称“完整发布门禁通过”或 `release-ready`。
+
+`pending-user-acceptance` 候选 ZIP 可以在受限制作环境生成用于用户实机验收，但必须明确记录哪些门禁真实通过、哪些因工具链/平台被阻断；不得把静态脚本通过冒充 pnpm / build / Rust 的完整发布验证。用户明确验收前仍不得写 `delivered`。
 
 ## 10. Runtime / Stable Workspace
 

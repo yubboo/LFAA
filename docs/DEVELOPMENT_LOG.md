@@ -11,8 +11,41 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
+| #20.7 | Setup 菜单与发布门禁解耦 | v0.0.53 | pending-user-acceptance |
+| #20.6 | 发布环境与质量门禁闭环 | v0.0.52 | superseded |
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
+
+### #20.7 Setup 菜单与发布门禁解耦
+
+- **版本：** v0.0.53
+- **状态：** pending-user-acceptance
+- **AI 验证：** pass
+- **用户验收：** pending
+- **主模块：** project-governance / windows-setup / quality-gates
+- **背景：** 用户指出 v0.0.52 把 Setup 菜单 1 / 10 设计得过于绝对；如果以后增加 CLI，会被菜单编号反向绑定，日常开发也会被迫执行过重流程。
+- **目标：** 把菜单编号降级为 Windows Adapter；1 只做按需环境/依赖准备，10 改成分层检查中心；快速、完整、正式发布验证均可直接从命令行独立调用。
+- **边界：** 不修改 Config Schema、UI、PTY、Sync/GitHub/Update、Agent/Tool/Permission 业务逻辑；Windows 系统准备继续由 PS1 负责，MJS 不接管安装行为。
+- **候选包规则：** `pending-user-acceptance` 候选 ZIP 可以在受限制作环境生成，但必须披露被阻断门禁；只有真实 `release:full` PASS 才能声称完整发布验证通过。
+- **结果：** 菜单 1 已降级为按需依赖；菜单 10 已改为快速 / 完整 / 正式发布三档检查中心；quality/release 命令可脱离菜单直接调用。
+- **验证：** 分层门禁契约 5/5、发布环境 8/8、Config Schema 8/8；governance / import / dev-log / docs / comment / Windows BOM / release consistency / config-schema / release-gates / UI contract 全部 PASS；Config System 全局 TypeScript 补充检查 PASS。
+- **环境限制：** 当前制作容器 Node 22.16.0、无 pnpm 11.17.0、无 Cargo，因此 `release:environment` 与 Rust 发布检查按设计阻断，不声称 `release:full` PASS。
+
+### #20.6 发布环境与质量门禁闭环
+
+- **版本：** v0.0.52
+- **状态：** superseded
+- **AI 验证：** pass
+- **用户验收：** not-accepted
+- **主模块：** project-governance / toolchain / release-gates
+- **背景：** v0.0.51 暴露出“声明了 Node/pnpm 版本，但当前制作环境缺少锁定 pnpm；Setup 又不能真正补齐；根级质量命令仍是占位”的闭环缺口。
+- **目标：** 让 Node 24.x、pnpm 11.17.0、frozen install、governance、typecheck、test、build、Rust check/test 成为统一可失败的正式发布门禁。
+- **边界：** 不修改 Config Schema 语义、UI、PTY、Sync/GitHub/Update、Agent/Tool/Permission 业务逻辑。
+- **结果：** Setup 可通过 Corepack 准备项目锁定 pnpm；preinstall 精确校验 pnpm 版本；根 typecheck/test/build 改为真实聚合；新增 release:environment / release:verify / release:full 与 Rust 发布门禁。
+- **验证：** 发布环境单测 8/8 PASS；Config Schema 8/8 PASS；导入、docs、开发日志、注释、Windows BOM、Config Schema、发布门禁契约、UI 契约均 PASS；Config System TypeScript noEmit PASS。
+- **被后续修正：** 用户未接受“菜单 1 / 10 作为过重强制入口”的设计；#20.7 / v0.0.53 重新解耦菜单与底层质量能力。
+- **自举限制：** 当前制作容器为 Node 22.16.0、无 pnpm 11.17.0、无 Cargo 且不能从 npm registry 下载，因此 `release:environment` / `release:rust` 均按设计明确失败；未伪造 `release:full` 通过。v0.0.52 是引入这套硬门禁的自举版本，从下一递增版本起生成正式 ZIP 前必须真实通过 `pnpm run release:full`。
+- **用户验收：** not-accepted。
 
 ### #20.5 文档体系单文件时间线重构
 
@@ -46,7 +79,7 @@
 
 - **主编号：** #20
 - **名称：** 开发日志与文档规范
-- **最新变更：** #20.5
+- **最新变更：** #20.7
 - **状态：** active
 - **关键词：** 日志、文档、中文、命名、目录、索引、注释、可读性、项目地图、开发规范、发布闭环、编码门禁
 - **当前文件：** `docs/DEVELOPMENT_LOG.md`
@@ -143,7 +176,8 @@ v0.0.42 发布时必须满足：
 | #20.2 | superseded | `archive/0020-02-中文命名与文档整理.md` |
 | #20.3 | superseded | `archive/0020-03-代码可读性与项目地图.md` |
 | #20.4 | superseded | `active/0020-开发日志与文档规范.md` |
-| #20.5 | active | `active/0020-开发日志与文档规范.md` |
+| #20.5 | pending-user-acceptance | `active/0020-开发日志与文档规范.md` |
+| #20.6 | active | 当前单文件时间线 |
 
 > 迁移来源：`docs/logs/development/active/0002-配置系统.md`
 
