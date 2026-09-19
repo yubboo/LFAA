@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #2.5 | 个人中心侧栏内联聚焦修复 | v0.0.65 | pending-user-acceptance | pass | pending |
+| #2.6 | 工作台吸附反向展开动效修复 | v0.0.66 | pending-user-acceptance | pass | pending |
+| #2.5 | 个人中心侧栏内联聚焦修复 | v0.0.65 | delivered | pass | passed |
 | #2.4 | 设置中心与个人中心交互重构 | v0.0.64 | superseded | pass | not-accepted |
 | #2.3 | 配置系统目录边界与 AI Provider 插件体系 | v0.0.63 | superseded | pass | not-accepted |
 | #20.16 | pnpm 控制台直连原生输出修复 | v0.0.62 | delivered | pass | passed |
@@ -43,6 +44,75 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.6 工作台吸附反向展开动效修复
+
+### 主模块
+
+`ui / workbench`
+
+### 背景
+
+用户已明确验收 v0.0.65 的个人中心侧栏内联聚焦效果。随后实机拖拽发现工作台侧栏在 Pointer 未松手、已进入 snap capture 后反向拉出时，`0 → min` 缺少释放过渡，视觉上瞬间跳开，造成顿挫。
+
+### 任务目标
+
+保持既有吸附状态机不变，只修复吸附态反向展开的动效连续性：吸附收起与反向释放都应有短过渡；release 动画结束后立即恢复普通 resize 的 1:1 Pointer 跟手。
+
+### 允许修改
+
+- `packages/ui/src/workbench/ResizableWorkbench.tsx`；
+- `packages/ui/src/workbench/workbench.css`；
+- Workbench 吸附动画防回归测试；
+- Prompt / Log / Plan / CHANGELOG / RELEASES / 版本事实。
+
+### 禁止修改
+
+- snap min / hysteresis / Pointer Up 提交 collapsed 的业务规则；
+- Settings / Profile / Theme；
+- AI Provider / Config System；
+- `apps/web/src`；
+- Windows Setup / Sync / GitHub / Update。
+
+### 交互合同
+
+- Pointer 不松手时，进入 snap capture 后必须仍可反向拖出；
+- snap capture 收起继续使用短磁吸动画；
+- 从 snap capture 反向释放时必须提供约 150ms 的 release 过渡，避免 `0 → min` 瞬跳；
+- release 窗口结束后普通拖拽必须恢复直接跟手，禁止长期 transition 追逐 Pointer；
+- 左栏、右栏、底部面板使用同一规则；
+- `prefers-reduced-motion: reduce` 时关闭该动效。
+
+### 验收条件
+
+- 左栏吸附后鼠标不松、反向拉出时展开连续，无明显顿挫；
+- 继续拖拽时不出现明显延迟或“橡皮筋追鼠标”；
+- 左/右/底部 resize 行为和原 snap 规则不回退。
+
+### 必须测试
+
+- Workbench snap animation 4/4；
+- Settings/Profile/Theme 回归；
+- UI/App Shell TypeScript；
+- folder-boundary / import / governance / ui-contract；
+- Config System 17/17；
+- Windows PS1 Hash/BOM 不回退。
+
+### 版本目标
+
+`v0.0.66`
+
+### 实现结果
+
+- 新增瞬时 `data-snap-release` 状态；
+- snap capture 反向释放时使用 150ms `cubic-bezier(.22, 1, .36, 1)` 过渡；
+- 150ms 后自动清除 release 状态，恢复普通 resize 无 transition 的直接跟手；
+- 左/右侧栏和 Bottom Dock 共用同一 release 语义；
+- 增加 reduced-motion 降级和 Workbench 动效防回归测试。
+
+### AI 验证
+
+- Workbench Snap Animation 4/4 PASS；Settings/Profile/Theme 6/6 PASS；Config System 17/17 PASS；folder-boundary / import-path / governance / ui-contract / config-schema / docs / comment / Windows BOM / release consistency / prompt lifecycle / release-gates 全部 PASS；Workbench 补充 TypeScript 检查 PASS。当前制作容器没有项目依赖，因此不伪造正式 Web build；最终拖拽手感仍以用户 Windows 实机验收为准。
 
 ## #2.5 个人中心侧栏内联聚焦修复
 
@@ -102,6 +172,10 @@
 ### 版本目标
 
 `v0.0.65`
+
+### 用户验收
+
+`passed / delivered`：用户实机确认个人中心宽度、聚焦整体与模糊范围符合预期。
 
 ### 实现结果
 

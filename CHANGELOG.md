@@ -1,10 +1,21 @@
+## LFAA v0.0.66 — #2.6 工作台吸附反向展开动效修复
+
+- **状态：** pending-user-acceptance
+- **任务：** #2.6
+- **范围：** `packages/ui/src/workbench` + Workbench 动效测试；不改 Provider / Config / Web Host / Windows 工具链。
+- **修复：** snap capture 反向拉出不再从 0 瞬跳到 min，新增约 150ms release 过渡；随后普通 resize 恢复 1:1 跟手。
+- **一致性：** 左栏、右栏、Bottom Dock 共用 release 规则，并支持 reduced-motion 降级。
+- **前序验收：** v0.0.65 已由用户 Windows 实机确认通过并标记 delivered。
+- **AI 验证：** Workbench Snap 4/4、Settings/Profile/Theme 6/6、Config System 17/17，治理链全部 PASS；制作容器未执行正式 Web build。
+
 # LFAA 更新日志
 
 ## LFAA v0.0.65 — #2.5 个人中心侧栏内联聚焦修复
 
-- **状态：** pending-user-acceptance
+- **状态：** delivered
 - **基线：** v0.0.64
 - **任务：** #2.5
+- **用户验收：** passed；用户实机明确反馈“OK，非常好”。
 - v0.0.64 的独立 Settings Surface 与三态主题保留；个人中心几何按用户实机反馈继续修正。
 - 个人菜单不再使用固定宽度；由 `ResizableWorkbench` 当前 leftWidth 通过 `--agent-left-live-width` 实时决定。
 - 菜单与底部用户条复用同一个 `ProfileBar` 并组成单一聚焦容器，宽度与左栏 content box 一致。

@@ -1,6 +1,15 @@
-## LFAA v0.0.65 Release — #2.5 个人中心侧栏内联聚焦修复
+## LFAA v0.0.66 Release — #2.6 工作台吸附反向展开动效修复
 
 - **状态：** pending-user-acceptance
+- **任务：** #2.6
+- **主要变更：** 为工作台 snap capture 的反向释放增加 150ms 短过渡；动画结束后恢复直接 Pointer 跟手；左右侧栏和 Bottom Dock 使用同一规则。
+- **边界：** 不修改 Settings/Profile/Theme、AI Provider/Config、Web Host、Windows Setup/Sync/GitHub/Update。
+- **前序验收：** v0.0.65 delivered。
+- **AI 验证：** Workbench Snap 4/4、Settings/Profile/Theme 6/6、Config System 17/17；治理/目录/版本/Prompt/BOM 全部 PASS。制作容器未执行正式 Web build；用户 Windows 实机拖拽手感为最终验收。
+
+## LFAA v0.0.65 Release — #2.5 个人中心侧栏内联聚焦修复
+
+- **状态：** delivered
 - **基线：** v0.0.64
 - **用户验收：** pending
 

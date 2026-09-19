@@ -155,6 +155,7 @@ export function ResizableWorkbench({
   }, [leftWidth, onLeftWidthChange]);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const snapReleaseTimerRef = useRef<number | null>(null);
   const sideDragRef = useRef<SideDragState | null>(null);
   const bottomDragRef = useRef<BottomDragState | null>(null);
   const frameRef = useRef<number | null>(null);
@@ -232,6 +233,32 @@ export function ResizableWorkbench({
   }, [bottomHeight, leftCollapsed, leftWidth, rightCollapsed, rightWidth, storageKey]);
 
   // ===== 4. 左右栏 Pointer 拖拽与吸附预览 =====
+  // snap capture 反向释放时保留一个极短的过渡窗口：0 -> min 不再瞬间跳开；
+  // 窗口结束后立即恢复普通 resize 的 1:1 跟手，避免持续动画追逐 Pointer。
+  const beginSnapRelease = useCallback((target: "left" | "right" | "bottom") => {
+    const root = rootRef.current;
+    if (!root) return;
+    if (snapReleaseTimerRef.current !== null) window.clearTimeout(snapReleaseTimerRef.current);
+    root.dataset.snapRelease = target;
+    snapReleaseTimerRef.current = window.setTimeout(() => {
+      const current = rootRef.current;
+      if (current?.dataset.snapRelease === target) current.dataset.snapRelease = "none";
+      snapReleaseTimerRef.current = null;
+    }, 150);
+  }, []);
+
+  const cancelSnapRelease = useCallback(() => {
+    if (snapReleaseTimerRef.current !== null) {
+      window.clearTimeout(snapReleaseTimerRef.current);
+      snapReleaseTimerRef.current = null;
+    }
+    if (rootRef.current) rootRef.current.dataset.snapRelease = "none";
+  }, []);
+
+  useEffect(() => () => {
+    if (snapReleaseTimerRef.current !== null) window.clearTimeout(snapReleaseTimerRef.current);
+  }, []);
+
   // 拖动过程中直接写 CSS 变量，避免每个 pointermove 都触发 React render。
   const setSidePreview = useCallback((side: "left" | "right", visualSize: number, snapped: boolean) => {
     const root = rootRef.current;
@@ -259,13 +286,17 @@ export function ResizableWorkbench({
     const raw = clamp(rawValue, 0, drag.max);
     drag.lastRaw = raw;
 
+    const wasSnapped = drag.snapped;
     if (!drag.snapped && raw <= drag.min) drag.snapped = true;
     else if (drag.snapped && raw >= drag.min + snapHysteresis) drag.snapped = false;
 
-    // snapped 时只预览“收起”，非 snapped 时至少保持 min，禁止出现不可用的超窄展开态。
+    if (wasSnapped && !drag.snapped) beginSnapRelease(drag.side);
+    else if (!wasSnapped && drag.snapped) cancelSnapRelease();
+
+    // snapped 时只预览“收起”；反向释放时用 150ms 过渡从 0 回到 min/当前 Pointer，随后恢复完全跟手。
     const visual = drag.snapped ? 0 : clamp(raw, drag.min, drag.max);
     setSidePreview(drag.side, visual, drag.snapped);
-  }, [setSidePreview, snapHysteresis]);
+  }, [beginSnapRelease, cancelSnapRelease, setSidePreview, snapHysteresis]);
 
   const schedule = useCallback((value: number) => {
     pendingRef.current = value;
@@ -297,12 +328,13 @@ export function ResizableWorkbench({
       snapped: false,
     };
 
+    cancelSnapRelease();
     root.dataset.dragging = side;
     root.dataset.snapPreview = "none";
     root.dataset.autoSnap = "none";
     event.currentTarget.setPointerCapture(event.pointerId);
     document.body.classList.add("lfaa-is-resizing");
-  }, [getDynamicMax, leftCollapsed, leftLimits.min, leftWidth, rightCollapsed, rightLimits.min, rightWidth]);
+  }, [cancelSnapRelease, getDynamicMax, leftCollapsed, leftLimits.min, leftWidth, rightCollapsed, rightLimits.min, rightWidth]);
 
   const onSidePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = sideDragRef.current;
@@ -387,12 +419,13 @@ export function ResizableWorkbench({
       lastHeight: bottomHeight,
       snapped: false,
     };
+    cancelSnapRelease();
     root.dataset.dragging = "bottom";
     root.dataset.snapPreview = "none";
     root.dataset.autoSnap = "none";
     event.currentTarget.setPointerCapture(event.pointerId);
     document.body.classList.add("lfaa-is-resizing-vertical");
-  }, [bottomHeight, bottomLimits.max, bottomLimits.min, bottomOpen]);
+  }, [bottomHeight, bottomLimits.max, bottomLimits.min, bottomOpen, cancelSnapRelease]);
 
   const onBottomPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = bottomDragRef.current;
@@ -401,14 +434,18 @@ export function ResizableWorkbench({
     const raw = clamp(drag.rectBottom - event.clientY, 0, drag.max);
     drag.lastRaw = raw;
 
+    const wasSnapped = drag.snapped;
     if (!drag.snapped && raw <= drag.min) drag.snapped = true;
     else if (drag.snapped && raw >= drag.min + snapHysteresis) drag.snapped = false;
 
-    // 底部面板与左右栏一致：展开态不小于 min；到 min 后只进入“收起吸附预览”。
+    if (wasSnapped && !drag.snapped) beginSnapRelease("bottom");
+    else if (!wasSnapped && drag.snapped) cancelSnapRelease();
+
+    // 底部面板与左右栏一致：吸附与反向释放都提供短过渡，普通拖拽保持直接跟手。
     const visual = drag.snapped ? 0 : clamp(raw, drag.min, drag.max);
     drag.lastHeight = clamp(raw, drag.min, drag.max);
     setBottomPreview(visual, drag.snapped);
-  }, [setBottomPreview, snapHysteresis]);
+  }, [beginSnapRelease, cancelSnapRelease, setBottomPreview, snapHysteresis]);
 
   const finishBottomDrag = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = bottomDragRef.current;
@@ -500,6 +537,7 @@ export function ResizableWorkbench({
       data-bottom-open={Boolean(bottom && bottomOpen)}
       data-dragging="none"
       data-snap-preview="none"
+      data-snap-release="none"
       data-auto-snap="none"
       data-layout-mode={layoutMode}
     >

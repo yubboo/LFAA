@@ -78,6 +78,28 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   transition: opacity 160ms ease-out, transform 180ms cubic-bezier(.18, .9, .2, 1);
 }
 
+/* Pointer 未松手时从 snap capture 反向拉出：只给 0 -> min/当前宽度一个短 release 过渡。
+ * 150ms 后 ResizableWorkbench 会清除此状态，继续拖拽立即恢复 1:1 跟手。 */
+.lfaa-is-resizing .lfaa-workbench[data-snap-release="left"],
+.lfaa-is-resizing .lfaa-workbench[data-snap-release="right"] {
+  transition: grid-template-columns 150ms cubic-bezier(.22, 1, .36, 1);
+}
+.lfaa-is-resizing-vertical .lfaa-workbench[data-snap-release="bottom"] {
+  transition: grid-template-rows 150ms cubic-bezier(.22, 1, .36, 1);
+}
+.lfaa-is-resizing .lfaa-workbench[data-snap-release="left"] .lfaa-workbench__pane--left,
+.lfaa-is-resizing .lfaa-workbench[data-snap-release="right"] .lfaa-workbench__pane--right {
+  transition: opacity 130ms ease-out, transform 150ms cubic-bezier(.22, 1, .36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lfaa-workbench,
+  .lfaa-workbench__pane,
+  .lfaa-workbench__bottom {
+    transition-duration: 0ms !important;
+  }
+}
+
 /* ===== 3. 通用区域定位 ===== */
 .lfaa-workbench__pane,
 .lfaa-workbench__center,

@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #2.5 | 个人中心侧栏内联聚焦修复 | v0.0.65 | pending-user-acceptance |
+| #2.6 | 工作台吸附反向展开动效修复 | v0.0.66 | pending-user-acceptance |
+| #2.5 | 个人中心侧栏内联聚焦修复 | v0.0.65 | delivered |
 | #2.4 | 设置中心与个人中心交互重构 | v0.0.64 | superseded |
 | #2.3 | 配置系统目录边界与 AI Provider 插件体系 | v0.0.63 | superseded |
 | #20.16 | pnpm 控制台直连原生输出修复 | v0.0.62 | delivered |
@@ -28,10 +29,21 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+### #2.6 工作台吸附反向展开动效修复
+
+- **版本：** v0.0.66
+- **状态：** pending-user-acceptance
+- **主模块：** ui / workbench
+- **用户反馈：** v0.0.65 个人中心已通过；侧栏吸附后 Pointer 未松手反向拉出时，展开瞬间缺少过渡，手感顿挫。
+- **决策：** 保留 snap capture / hysteresis / Pointer Up 提交规则，只增加 150ms 的瞬时 snap-release 动效，随后恢复 1:1 跟手。
+- **边界：** 仅修改 ResizableWorkbench / workbench.css / 对应测试；不改 Settings、Provider、Web Host、Windows 工具链。
+- **实现：** 左/右/Bottom 共用 `data-snap-release`；reduced-motion 关闭动效。
+- **AI 验证：** Workbench Snap 4/4、Settings/Profile/Theme 6/6、Config System 17/17 PASS；目录/导入/Governance/UI/Schema/Docs/Comment/BOM/Release/Prompt 门禁 PASS；Workbench 补充 TypeScript PASS。
+
 ### #2.5 个人中心侧栏内联聚焦修复
 
 - **版本：** v0.0.65
-- **状态：** pending-user-acceptance
+- **状态：** delivered
 - **主模块：** ui / app-shell
 - **用户反馈：** v0.0.64 个人菜单超出左栏宽度，菜单与底部用户条不是同一个聚焦整体；模糊应作用于该整体之外的所有区域。
 - **决策：** 个人中心采用左栏实时 `leftWidth` 作为唯一几何事实；聚焦层复制/复用底部 Profile Bar，与菜单组成同宽整体，Backdrop 只位于其下方。
@@ -39,6 +51,7 @@
 - **验收重点：** 左栏内联、动态宽度、整体清晰、其余模糊、resize 后重新打开立即跟随。
 - **实现：** 复用 `ProfileBar`；`agent-profile-focus-shell` 使用实时 `--agent-left-live-width`，菜单与用户条同容器；Backdrop 仅模糊其余工作台。
 - **AI 验证：** Settings/Profile/Theme 6/6、Config System 17/17、目录/导入/UI/Schema/Docs/Comment/BOM 门禁 PASS。
+- **用户验收：** passed；用户明确反馈“OK，非常好”，确认个人中心侧栏内联聚焦修复通过。
 
 ### #2.4 设置中心与个人中心交互重构
 

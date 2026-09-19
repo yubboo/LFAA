@@ -1,3 +1,8 @@
+## v0.0.66 / #2.6 Workbench 吸附反向展开动效
+
+- `node --test test/workbench-snap-animation.test.mjs`：锁定 Pointer 未松手可反向释放、150ms release 状态、左右/Bottom 一致性与 reduced-motion。
+- 用户实机重点：吸附收起后不松鼠标反向拉出，观察 `0 -> min` 是否连续，且继续拖拽是否立即恢复跟手。
+
 ## v0.0.64 / #2.4 Settings 与个人中心 UI
 
 - `node --test test/settings-shell.test.mjs`：独立 Settings Surface、模糊聚焦个人菜单、三态主题、更新/主题顺序、AI Settings 分类 5 项静态契约；

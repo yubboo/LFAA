@@ -1,3 +1,7 @@
+## Workbench Snap Release 动效（v0.0.66）
+
+工作台侧栏 / Bottom Dock 的 resize 保持“普通拖拽直接跟手、到 min 进入 snap capture、Pointer 未松手可反向拉出”的状态机。反向退出 snap capture 时仅启用约 150ms 的 `snap-release` 过渡，随后立即恢复无 transition 的 Pointer 跟手；不得把 transition 长期挂在 resize 状态。
+
 # LFAA UI 当前规范
 
 > 本文件只描述当前 UI 事实与交互约束；历史 UI 变化看 `DEVELOPMENT_LOG.md` / `PROMPTS.md` / `CHANGELOG.md`。
