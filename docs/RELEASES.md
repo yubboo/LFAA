@@ -1,10 +1,31 @@
+## LFAA v0.0.59 Release — #20.13 开发期依赖同步与实时输出修复
+
+- **状态：** pending-user-acceptance
+- **基线：** v0.0.58
+- **用户验收：** pending
+
+### 交付内容
+
+- lockfile 落后时菜单 1 使用开发期同步模式，允许更新 `pnpm-lock.yaml`；
+- lockfile 已完整但本地安装损坏时继续 frozen 精确修复；
+- pnpm 写操作使用稳定逐行 reporter 并显示实际执行命令；
+- 正式发布 frozen 门禁保持不变。
+
+### AI 验证状态
+
+dependency-setup 17/17 PASS；node-dependency-health 3/3 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；版本一致性与 Windows BOM 门禁 PASS。当前制作容器仍无 PowerShell / pnpm 11.17.0 / Cargo，不冒充 Windows 实机安装与完整 `release:full`。
+
+### 用户实机验收重点
+
+在当前“pnpm-lock.yaml 尚未覆盖当前外部依赖”场景确认同步后，应立即看到 pnpm 真实进度；完成后再次运行菜单 1，lockfile 应已覆盖声明且不再重复同步。
+
 # LFAA 发布记录
 
 ## LFAA v0.0.58 Release — #20.12 PowerShell 自动变量冲突修复
 
-- **状态：** pending-user-acceptance
+- **状态：** superseded
 - **基线：** v0.0.57
-- **用户验收：** pending
+- **用户验收：** not-accepted；依赖同步阶段发现 frozen 模式与实时输出问题，由 v0.0.59 修复
 
 ### 交付内容
 

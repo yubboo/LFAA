@@ -1162,7 +1162,21 @@ function Install-NodeDependencies {
             return [PSCustomObject]@{ Changed = $false; Cancelled = $true; ProjectHealthy = $plan.RuntimeHealth.Complete; StoreHealthy = $plan.StoreHealth.Healthy }
         }
 
-        Invoke-Pnpm @("install","--frozen-lockfile") "按当前 workspace 与 lockfile 增量同步 pnpm 依赖"
+        $installArguments = @("install","--reporter=append-only")
+        $installDescription = "按当前 lockfile 修复/同步本地 pnpm 依赖"
+        if (-not $plan.LockCoverage.Complete) {
+            # 开发期依赖声明已经领先于 lockfile 时，必须允许 pnpm 更新 lockfile；
+            # 正式发布仍由 release:full 使用 --frozen-lockfile，不能把两种语义混在一起。
+            $installArguments += "--no-frozen-lockfile"
+            $installDescription = "同步当前 workspace 依赖并更新 pnpm-lock.yaml"
+            Write-Label "【模式】" "【pnpm】" "开发期同步：lockfile 落后，允许按当前声明更新 pnpm-lock.yaml；不会执行依赖升级命令。" DarkCyan
+        }
+        else {
+            $installArguments += "--frozen-lockfile"
+            Write-Label "【模式】" "【pnpm】" "精确修复：lockfile 已完整，保持锁文件不变。" DarkCyan
+        }
+        Write-Label "【执行】" "【pnpm】" ((@("pnpm") + $installArguments) -join " ") Gray
+        Invoke-Pnpm $installArguments $installDescription
         $changed = $true
 
         $afterSnapshot = Get-NodeDependencySnapshot

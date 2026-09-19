@@ -169,6 +169,8 @@ v0.0.57 起，pnpm / PNPM_HOME / Store 等机器环境必须执行“实时事�
 
 v0.0.58 起，Windows PowerShell 实现还必须遵守自动变量安全：PowerShell 变量名大小写不敏感，禁止把 `$HOME`、`$PID`、`$Host`、`$Error`、`$PSHOME`、`$PWD`、`$LASTEXITCODE` 等自动/只读变量（包括仅大小写不同的写法）用作普通赋值目标；新增或修改 PS1 后必须通过对应静态防回归与 BOM 检查。
 
+v0.0.59 起，菜单 1 的开发期依赖同步与正式发布 frozen 安装必须分离：lockfile 落后时允许本地 `pnpm install --no-frozen-lockfile` 更新锁文件；lockfile 已完整但本地依赖损坏时使用 frozen 精确修复；正式 `release:full` 始终保持 `--frozen-lockfile`。所有交互式 pnpm 写操作必须输出稳定的实时进度。
+
 `LFAA-Setup.bat → 10` 是检查中心，只负责把快速 / 完整 / 正式发布三种命令暴露为 Windows 交互入口；未来 CLI / GUI 必须复用同一底层命令，不得依赖菜单编号。
 
 正式 `release:full` 必须按顺序完成：发布环境版本检查 → `pnpm install --frozen-lockfile` → 完整项目检查 → Rust `cargo check/test --workspace`。任何一步失败，都不得宣称“完整发布门禁通过”或 `release-ready`。

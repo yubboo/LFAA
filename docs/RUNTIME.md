@@ -696,3 +696,8 @@ push-YYYYMMDD-HHMMSS-vX.Y.Z.log
 ### v0.0.58 PowerShell 自动变量安全
 
 Windows PowerShell 变量名大小写不敏感。Setup/Sync/GitHub/Update 等 PS1 不得把 `$HOME`、`$PID`、`$Host`、`$Error`、`$PSHOME`、`$PWD`、`$LASTEXITCODE` 等自动/只读变量作为普通赋值目标。v0.0.58 修复 `Test-PnpmHomeInPath` 中 `$home` 与 `$HOME` 冲突；pnpm Store 实时路径与来源逻辑保持 #20.11 不变。
+
+
+### v0.0.59 开发期依赖同步与发布 frozen 分离
+
+菜单 1 在 lockfile 落后时允许更新 `pnpm-lock.yaml`，在 lockfile 已完整但本地依赖损坏时使用 frozen 精确修复；pnpm 写操作采用 append-only reporter 实时显示进度。正式发布 `release:full` 继续 frozen。

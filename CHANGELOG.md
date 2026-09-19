@@ -1,8 +1,19 @@
 # LFAA 更新日志
 
-## LFAA v0.0.58 — #20.12 PowerShell 自动变量冲突修复
+## LFAA v0.0.59 — #20.13 开发期依赖同步与实时输出修复
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.58
+- **任务：** #20.13
+- 修复菜单 1 在明确检测到 lockfile 落后后仍调用 `pnpm install --frozen-lockfile` 的逻辑矛盾。
+- lockfile 落后时改用 `pnpm install --no-frozen-lockfile --reporter=append-only`，允许开发期同步当前声明并更新 `pnpm-lock.yaml`。
+- lockfile 已完整但本地依赖损坏时继续使用 `--frozen-lockfile` 精确修复，避免无故改锁文件。
+- pnpm 写操作显示实际命令并使用 append-only reporter，避免确认后只有一行执行提示造成假卡死。
+- 正式发布 `release:full` 继续 frozen，不因本地开发同步放宽。
+
+## LFAA v0.0.58 — #20.12 PowerShell 自动变量冲突修复
+
+- **状态：** superseded
 - **基线：** v0.0.57
 - **任务：** #20.12
 - 修复 `Test-PnpmHomeInPath` 把 `$home` 当普通局部变量导致与 PowerShell 只读自动变量 `$HOME` 冲突的问题。

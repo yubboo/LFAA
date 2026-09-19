@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #20.12 | PowerShell 自动变量冲突修复 | v0.0.58 | pending-user-acceptance |
+| #20.13 | 开发期依赖同步与实时输出修复 | v0.0.59 | pending-user-acceptance |
+| #20.12 | PowerShell 自动变量冲突修复 | v0.0.58 | superseded |
 | #20.11 | pnpm 实时环境事实与 Store 来源修复 | v0.0.57 | superseded |
 | #20.10 | 真实依赖健康检测与 Store 状态修复 | v0.0.56 | superseded |
 | #20.9 | 依赖提示去重与路径可见性 | v0.0.55 | delivered |
@@ -21,18 +22,31 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
-### #20.12 PowerShell 自动变量冲突修复
+### #20.13 开发期依赖同步与实时输出修复
 
-- **版本：** v0.0.58
+- **版本：** v0.0.59
 - **状态：** pending-user-acceptance
 - **AI 验证：** pass
 - **用户验收：** pending
+- **主模块：** project-governance / windows-setup / dependency-sync
+- **背景：** v0.0.58 已能真实发现 lockfile 落后，但随后错误使用 `pnpm install --frozen-lockfile`；开发期需要更新 lockfile 与正式发布 frozen 校验被混淆。同时 pnpm 安装输出不够明确，用户确认后呈现“卡住”体验。
+- **目标：** lockfile 落后时允许本地同步更新；仅本地安装损坏时 frozen 精确修复；所有写操作稳定实时输出 pnpm 进度。
+- **边界：** 不进入 Web Account/Auth；不改实时 Store/PNPM_HOME/来源逻辑；不放宽 `release:full` frozen 规则。
+
+### #20.12 PowerShell 自动变量冲突修复
+
+- **版本：** v0.0.58
+- **状态：** superseded
+- **AI 验证：** pass
+- **用户验收：** not-accepted
 - **主模块：** project-governance / windows-setup / powershell-runtime-safety
 - **背景：** 用户在 Windows 实机运行 v0.0.57 菜单 1 时，`Test-PnpmHomeInPath` 使用 `$home` 局部变量；PowerShell 变量名大小写不敏感，导致与只读自动变量 `$HOME` 冲突并在进入 pnpm 环境检测前直接失败。
 - **目标：** 修复变量冲突并增加自动/只读变量赋值静态门禁；完整保留 #20.11 的实时 Store / PNPM_HOME / 配置来源与 #20.10 的真实依赖健康语义。
 - **边界：** 不进入 Web Account/Auth；不修改 Config/UI/PTY/Sync/GitHub/Update，不修改 pnpm Store 策略。
 - **实现结果：** `Test-PnpmHomeInPath` 改用 `$normalizedPnpmHome` / `$pnpmHomeBin`，不再触碰 `$HOME`；dependency-setup 增加 PowerShell 自动/只读变量赋值防回归。
 - **验证：** dependency-setup 15/15、node-dependency-health 3/3、release-gates 5/5、release-environment 8/8、Config Schema 8/8、Config System TypeScript `--noEmit` 与全部 Node 治理门禁 PASS；当前容器无 PowerShell，Windows 实机仍由用户验收。
+
+- **被后续修正：** 实机继续进入依赖同步后发现开发期 lockfile 落后却使用 frozen install，并缺少稳定实时输出；由 #20.13 / v0.0.59 修复。
 
 ### #20.11 pnpm 实时环境事实与 Store 来源修复
 
@@ -163,7 +177,7 @@
 
 - **主编号：** #20
 - **名称：** 开发日志与文档规范
-- **最新变更：** #20.12
+- **最新变更：** #20.13
 - **状态：** active
 - **关键词：** 日志、文档、中文、命名、目录、索引、注释、可读性、项目地图、开发规范、发布闭环、编码门禁
 - **当前文件：** `docs/DEVELOPMENT_LOG.md`

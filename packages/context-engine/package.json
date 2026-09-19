@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/context-engine",
   "private": true,
-  "version": "0.0.58",
+  "version": "0.0.59",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼"

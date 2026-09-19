@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #20.12 | PowerShell 自动变量冲突修复 | v0.0.58 | pending-user-acceptance | pass | pending |
+| #20.13 | 开发期依赖同步与实时输出修复 | v0.0.59 | pending-user-acceptance | pass | pending |
+| #20.12 | PowerShell 自动变量冲突修复 | v0.0.58 | superseded | pass | not-accepted |
 | #20.11 | pnpm 实时环境事实与 Store 来源修复 | v0.0.57 | superseded | pass | not-accepted |
 | #20.10 | 真实依赖健康检测与 Store 状态修复 | v0.0.56 | superseded | pass | not-accepted |
 | #20.9 | 依赖提示去重与路径可见性 | v0.0.55 | delivered | pass | passed |
@@ -36,6 +37,61 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #20.13 开发期依赖同步与实时输出修复
+
+### 主模块
+
+`project-governance / windows-setup / dependency-sync`
+
+### 背景与问题
+
+用户在 Windows 实机运行 v0.0.58 菜单 1，脚本已经正确发现 `pnpm-lock.yaml` 尚未覆盖当前外部依赖，但随后却调用 `pnpm install --frozen-lockfile`。该组合逻辑矛盾：开发期声明发生变化时需要允许 pnpm 更新 lockfile，而 frozen 模式明确禁止修改 lockfile。用户确认写操作后界面只停留在“按当前 workspace 与 lockfile 增量同步 pnpm 依赖”，缺少稳定的实时 pnpm 输出，也无法判断正在解析、下载、执行安装脚本还是已经失败。
+
+### 任务目标
+
+把“开发期同步”和“发布期 frozen 校验”彻底分离：lockfile 落后时菜单 1 使用可更新 lockfile 的本地同步；lockfile 已完整但本地安装损坏时继续使用 frozen 精确修复。所有 pnpm 写操作必须以稳定逐行 reporter 直接透传进度，不能出现无输出假卡死。
+
+### 允许修改
+
+- `scripts/windows/lfaa-setup.ps1` 的 Node 依赖同步分支与实时输出；
+- `test/dependency-setup.test.mjs` 的模式选择与 reporter 防回归；
+- 当前治理/Runtime/Testing/Prompt/Log/Plan/CHANGELOG/Release；
+- v0.0.59 产品版本事实及 workspace package / Rust crate 产品版本一致性。
+
+### 禁止修改
+
+- 正式发布 `release:full` 的 `pnpm install --frozen-lockfile`；
+- pnpm Store 动态路径、PNPM_HOME、Store 来源与真实健康检查；
+- Web Account/Auth、Config Schema/Storage、Web UI、PTY、Sync/GitHub/Update。
+
+### 实现约束
+
+- `LockCoverage.Complete = false` 时，本地菜单 1 使用 `pnpm install --no-frozen-lockfile`，允许只为当前声明同步 lockfile；
+- lockfile 已覆盖声明但 node_modules / 真实解析损坏时使用 `pnpm install --frozen-lockfile`，不得无故改 lockfile；
+- 两种路径都追加稳定逐行 reporter，实时显示解析/复用/下载/安装输出；
+- 菜单 1 不执行 `pnpm update`、不清空 node_modules / Store；
+- 发布门禁继续 frozen，不因本任务放宽。
+
+### 验收条件
+
+- 当前 v0.0.58 所示“lockfile 未覆盖外部依赖”场景不再调用 frozen install；
+- 用户确认后立即出现真实 pnpm 输出，不再只停在一行执行提示；
+- 同步完成后 lockfile 覆盖、真实 resolve 与 Store 检查重新通过；
+- lockfile 已完整但本地缺包时仍走 frozen 精确修复；
+- 正式发布 frozen 语义不变。
+
+### 当前状态
+
+`pending-user-acceptance`
+
+### AI 验证
+
+`pass` — dependency-setup 17/17、node-dependency-health 3/3、release-gates 5/5、release-environment 8/8、Config Schema 8/8 与版本/Windows BOM 门禁 PASS。
+
+### 用户验收
+
+`pending`
 
 ## #20.12 PowerShell 自动变量冲突修复
 

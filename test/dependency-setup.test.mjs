@@ -41,7 +41,7 @@ test("unchanged dependency path can return without pnpm install", () => {
   assert.match(install, /if \(\$plan\.NeedsInstall\)/);
   assert.match(functionBody("Show-NodeDependencyPlan"), /无需 pnpm install/);
   const decisionIndex = install.indexOf("if ($plan.NeedsInstall)");
-  const invokeIndex = install.indexOf('Invoke-Pnpm @("install","--frozen-lockfile")');
+  const invokeIndex = install.indexOf("Invoke-Pnpm $installArguments");
   assert.ok(decisionIndex >= 0 && invokeIndex > decisionIndex, "install invocation must stay inside the NeedsInstall branch");
 });
 
@@ -173,6 +173,23 @@ test("dependency location output includes PNPM_HOME and Store source", () => {
   assert.match(locations, /Get-PnpmEnvironmentFacts/);
 });
 
+
+test("menu 1 separates development lockfile sync from frozen local repair", () => {
+  const install = functionBody("Install-NodeDependencies");
+  assert.match(install, /if \(-not \$plan\.LockCoverage\.Complete\)/);
+  assert.match(install, /--no-frozen-lockfile/);
+  assert.match(install, /--frozen-lockfile/);
+  assert.match(install, /更新 pnpm-lock\.yaml/);
+  assert.match(install, /lockfile 已完整/);
+  assert.match(packageJson.scripts["release:full"], /pnpm install --frozen-lockfile/);
+});
+
+test("pnpm dependency writes use append-only reporter so progress stays visible", () => {
+  const install = functionBody("Install-NodeDependencies");
+  assert.match(install, /--reporter=append-only/);
+  assert.match(install, /Write-Label "【执行】" "【pnpm】"/);
+  assert.doesNotMatch(install, /Invoke-PnpmCapture[^\n]*install/);
+});
 
 test("Windows PowerShell scripts do not assign to automatic or read-only variables", () => {
   const reserved = ["HOME", "PID", "Host", "Error", "PSHOME", "PWD", "LASTEXITCODE"];

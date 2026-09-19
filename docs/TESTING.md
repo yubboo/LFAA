@@ -1,3 +1,8 @@
+## v0.0.59 / #20.13 开发期依赖同步与实时输出修复验证
+
+- dependency-setup 必须覆盖 lockfile 落后使用 `--no-frozen-lockfile`、lockfile 完整修复使用 `--frozen-lockfile`、append-only reporter 与发布 frozen 不变。
+- Windows 实机：在 lockfile 未覆盖声明时确认同步，必须立即看到 pnpm 实时输出；成功后再次运行菜单 1 不应重复安装。
+
 # LFAA 测试与验收规范
 
 ## v0.0.58 / #20.12 PowerShell 自动变量冲突修复验证
