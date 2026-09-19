@@ -1,8 +1,20 @@
 # LFAA 更新日志
 
-## LFAA v0.0.71 — #2.11 工作台 / 设置左栏宽度单一事实源
+## LFAA v0.0.72 — #2.12 Windows Credential Manager 保存链路修复
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.71
+- **任务：** #2.12
+- v0.0.71 左栏宽度同步已由用户实机确认通过并 delivered；随后真实 DeepSeek 保存测试暴露 Windows Credential Manager Secret Adapter 失败。
+- Windows Secret Adapter 改为稳定 `windows-credential-manager.ps1` helper，通过 `-File` 启动，Secret 仍只经 stdin 传递。
+- Generic Credential 写入后立即 `CredReadW` 回读校验；回读失败或内容不一致会删除刚写入凭证并拒绝账户元数据落盘。
+- Windows 失败返回操作阶段与 Win32 错误码，不再只显示泛化“操作失败”；不回显 Secret。
+- **边界：** 不改 Provider / 模型发现 / Settings / Workbench / Windows Setup-Sync-GitHub-Update。
+
+## LFAA v0.0.71 — #2.11 工作台 / 设置左栏宽度单一事实源
+
+- **状态：** delivered
+- **用户验收：** passed；用户实机确认“好的，都优化好了”
 - **基线：** v0.0.70
 - **任务：** #2.11
 - `AgentWorkbench.leftPaneWidth` 升级为主工作台、Settings 与 Profile 共用的唯一左栏宽度事实源。

@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #2.11 | 工作台 / 设置左栏宽度单一事实源 | v0.0.71 | pending-user-acceptance | pass | pending |
+| #2.12 | Windows Credential Manager 保存链路修复 | v0.0.72 | pending-user-acceptance | pass | pending |
+| #2.11 | 工作台 / 设置左栏宽度单一事实源 | v0.0.71 | delivered | pass | passed |
 | #2.10 | UI Workspace 运行时导入解析修复 | v0.0.70 | superseded | pass | not-accepted |
 | #2.9 | 设置中心共享可伸缩侧栏 | v0.0.69 | superseded | pass | not-accepted |
 | #2.8 | Vite Native Config 兼容修复 | v0.0.68 | superseded | pass | not-accepted |
@@ -49,6 +50,50 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.12 Windows Credential Manager 保存链路修复
+
+### 主模块
+
+`config-system / web-host / windows-secret-adapter`
+
+### 背景
+
+v0.0.71 Windows 实机已确认工作台 / Settings 左栏宽度同步通过；随后用户使用真实 DeepSeek API Key 测试账户闭环，Provider 连接与模型发现成功，但点击“保存账户”时报“Windows Credential Manager 操作失败”。故障集中在 Web Host 的 Windows Secret Adapter，不能继续进入 ChatGPT 套餐登录等下一业务。
+
+### 任务目标
+
+修复 Windows Credential Manager Generic Credential 的写入 / 读取 / 删除宿主链路：Secret 仍只通过 stdin 进入 Windows Host，不进入命令行、日志、普通 JSON 或浏览器 Storage；写入后必须即时读回校验，只有回读与原 Secret 一致才允许账户元数据落盘。
+
+### 允许修改
+
+- `apps/web/dev/bridges/ai/windows-credential-manager.ts`；
+- 同目录 Windows Credential Manager helper；
+- `ai-config-bridge.ts` 的 Host Adapter 初始化参数；
+- AI Web Host / Secret 防回归测试；
+- Prompt / Log / Plan / Testing / CHANGELOG / RELEASES / 版本事实。
+
+### 禁止修改
+
+- Provider 网络协议、模型发现与 API Key 规则；
+- Account Service 的业务语义（除非为 Secret Adapter 错误契约做最小兼容）；
+- Settings / Workbench / Profile / Theme / 左栏宽度逻辑；
+- Windows Setup / Sync / GitHub / Update；
+- 不允许使用 `cmdkey /pass:<secret>`、命令行参数、环境变量或普通文件保存明文 Secret；
+- 不允许以“内存 fallback 成功”冒充 Windows 持久化成功。
+
+### 验收条件
+
+- DeepSeek 等已通过连接测试的真实 Key 点击保存后能写入 Windows Credential Manager；
+- `put` 后立即 `get` 回读必须与原 Secret 完全一致，否则保存失败且不得写账户元数据；
+- Windows native 失败时 UI 返回不含 Secret 的阶段 + Win32 错误码 / 可诊断信息，不再只显示泛化“操作失败”；
+- Secret 继续只走 stdin；PowerShell 使用稳定 helper 文件执行，不把 Secret 或 helper 源码拼进命令行；
+- `.lfaa/state/ai-accounts.json` 仍只包含 `credentialRef` 与公开元数据；
+- Provider / UI / 已验收 Workbench 行为回归。
+
+### 当前状态
+
+`pending-user-acceptance`
 
 ## #2.11 工作台 / 设置左栏宽度单一事实源
 
@@ -91,7 +136,7 @@ v0.0.70 已让 Settings 与工作台复用同一个 `ResizableWorkbench`，但�
 
 ### 当前状态
 
-`pending-user-acceptance`
+`delivered`
 
 ## #2.10 UI Workspace 运行时导入解析修复
 

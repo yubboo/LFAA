@@ -6,7 +6,8 @@
 
 - `ai-config-bridge.ts`：Vite localhost 路由与脱敏 JSON；
 - `account-state-repository.ts`：`.lfaa/state/ai-accounts.json` 账户元数据；
-- `windows-credential-manager.ts`：Windows Credential Manager Generic Credential；
+- `windows-credential-manager.ts`：Windows Credential Manager Host Port；
+- `windows-credential-manager.ps1`：Win32 Generic Credential helper，负责写入 / 回读验证 / 读取 / 删除；
 - `node-http-json.ts`：宿主侧 Provider HTTP JSON 请求。
 
 ## 不负责
@@ -18,4 +19,4 @@
 
 ## Secret 规则
 
-浏览器 Secret 只通过 localhost 请求体短暂进入 Host。Windows 下进入 Credential Manager；账户状态 JSON 只允许 `credentialRef`。Provider 远端错误体不直接返回 UI，避免回显请求或凭证信息。
+浏览器 Secret 只通过 localhost 请求体短暂进入 Host。Windows 下进入 Credential Manager；`put` 只有在写入后即时回读一致时才算成功；账户状态 JSON 只允许 `credentialRef`。Provider 远端错误体不直接返回 UI，避免回显请求或凭证信息。

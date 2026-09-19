@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/account-manager",
   "private": true,
-  "version": "0.0.71",
+  "version": "0.0.72",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼"

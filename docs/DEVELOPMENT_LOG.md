@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #2.11 | 工作台 / 设置左栏宽度单一事实源 | v0.0.71 | pending-user-acceptance |
+| #2.12 | Windows Credential Manager 保存链路修复 | v0.0.72 | pending-user-acceptance |
+| #2.11 | 工作台 / 设置左栏宽度单一事实源 | v0.0.71 | delivered |
 | #2.10 | UI Workspace 运行时导入解析修复 | v0.0.70 | superseded |
 | #2.9 | 设置中心共享可伸缩侧栏 | v0.0.69 | superseded |
 | #2.8 | Vite Native Config 兼容修复 | v0.0.68 | superseded |
@@ -34,10 +35,23 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+
+### #2.12 Windows Credential Manager 保存链路修复
+
+- **版本：** v0.0.72
+- **状态：** pending-user-acceptance
+- **主模块：** config-system / web-host / windows-secret-adapter
+- **用户验收前置：** v0.0.71 工作台 / Settings 左栏同宽已由用户实机确认“都优化好了”，记为 delivered。
+- **实机缺陷：** DeepSeek 连接与模型发现成功，但保存账户时报 Windows Credential Manager 操作失败。
+- **决策：** Windows Secret Adapter 改为稳定 helper 文件 + stdin payload；Generic Credential 写入后必须 read-back 验证；失败返回 stage / Win32 code，不泄露 Secret。
+- **边界：** 不改 Provider、Account 业务语义、Settings/Workbench、Windows Setup/Sync/GitHub/Update。
+- **AI 验证：** AI Web Host 10/10、Config System 26/26 与现有仓库 Node 回归通过；Windows helper 静态安全/回读/错误码合同已锁定。
+- **用户验收：** pending；真实 Windows 保存、刷新、重启 Vite 后重测、删除凭证。
+
 ### #2.11 工作台 / 设置左栏宽度单一事实源
 
 - **版本：** v0.0.71
-- **状态：** pending-user-acceptance
+- **状态：** delivered
 - **主模块：** ui / app-shell
 - **用户反馈：** v0.0.70 Settings 已正常运行且可伸缩，但进入 Settings 后左栏宽度没有继承主工作台当前宽度，视觉上仍不是同一个侧栏。
 - **根因：** 工作台与 Settings 虽复用同一 `ResizableWorkbench`，却仍各自持久化/拥有 `leftWidth`。
@@ -45,7 +59,7 @@
 - **兼容：** 首次升级读取旧 `lfaa.workbench.layout.v5.leftWidth` 作为迁移值，之后写入 `lfaa.shell.left-pane-width.v1`。
 - **边界：** 不改 snap/release 算法，不改 AI Account/Auth/Secret/Provider，不改 Windows 工具链。
 - **AI 验证：** Settings + Workbench 新共享宽度合同通过，整仓门禁待最终收口。
-- **用户验收：** pending；工作台拉伸后进 Settings 必须同宽，Settings 再拉伸后返回工作台也必须同宽。
+- **用户验收：** passed；用户实机确认“好的，都优化好了”。
 
 ### #2.10 UI Workspace 运行时导入解析修复
 

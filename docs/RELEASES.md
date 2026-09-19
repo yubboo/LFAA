@@ -1,6 +1,16 @@
-## LFAA v0.0.71 Release — #2.11 工作台 / 设置左栏宽度单一事实源
+## LFAA v0.0.72 Release — #2.12 Windows Credential Manager 保存链路修复
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.71
+- **任务：** #2.12
+- **主要变更：** Windows Secret Host Adapter 使用稳定 PowerShell helper；Generic Credential 写入后即时回读验证；失败返回 stage + Win32 code。
+- **安全：** Secret 只经 stdin；不进命令行、环境变量、普通文件、账户 JSON 或浏览器 Storage。
+- **用户验收重点：** 真实 API Key 保存成功；刷新/重启 Vite 后可重测；删除账户同步删除 Credential；若失败需显示可诊断 Win32 code 且不泄露 Key。
+
+## LFAA v0.0.71 Release — #2.11 工作台 / 设置左栏宽度单一事实源
+
+- **状态：** delivered
+- **用户验收：** passed
 - **基线：** v0.0.70
 - **任务：** #2.11
 - **主要变更：** App Shell 统一拥有 `leftPaneWidth`；主工作台与独立 Settings Surface 通过 `ResizableWorkbench.leftWidth` 共用同一宽度事实源。

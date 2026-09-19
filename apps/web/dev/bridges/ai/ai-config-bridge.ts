@@ -78,7 +78,7 @@ export function lfaaDevAiConfigBridge(projectRoot: string): Plugin {
   const registry = new AiProviderRegistry(builtinAiProviderPlugins);
   const service = new AiAccountService(registry, {
     repository: new JsonAiAccountRepository(projectRoot),
-    secrets: createWebDevSecretStore(),
+    secrets: createWebDevSecretStore(projectRoot),
     http: new NodeAiHttpJsonPort(),
     createId: randomUUID,
     now: () => new Date().toISOString(),
