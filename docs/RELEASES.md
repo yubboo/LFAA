@@ -1,3 +1,13 @@
+## LFAA v0.0.86 Release — #21.20 Composer 统一模型运行时控制器 / Popover 闪烁修复
+
+- **状态：** pending-user-acceptance
+- 统一模型/强度 Runtime Control Card；强力推理、模型切换、默认重置和可拖拽 reasoning slider 同卡完成。
+- 修复并记录 Popover flicker / layout flash；单卡 stable shell 不再切换两个独立浮层。
+- 新增共享 `useDismissibleLayer`，统一空白点击/Escape 关闭行为。
+- 权限 Popover 收窄并继续保留三模式解释/风险态。
+- 强力推理仅选择 Capability 公开最高档；不伪造 Provider 超限参数。
+- **AI 验证：** Node 115/115 + Config 39/39 = 154/154 PASS；UI Gate / TypeScript Parser / workspace preflight PASS。
+
 ## LFAA v0.0.85 Release — #21.19 Composer ModelQuickSwitch
 
 - **状态：** pending-user-acceptance

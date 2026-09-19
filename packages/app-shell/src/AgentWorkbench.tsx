@@ -36,6 +36,7 @@ import { AGENT_PERMISSION_PROFILES, type AgentModelBinding, type AgentPermission
 import {
   InfiniteCanvas,
   ResizableWorkbench,
+  useDismissibleLayer,
   SettingsPage,
   ThemeModeMenu,
   UserMenu,
@@ -504,11 +505,12 @@ function LeftSidebar({
   onRequestUpdate: () => void;
 }) {
   const [brandMenuOpen, setBrandMenuOpen] = useState(false);
+  const brandMenuRef = useDismissibleLayer<HTMLDivElement>({ open: brandMenuOpen, onDismiss: () => setBrandMenuOpen(false) });
 
   return (
     <aside className="agent-side agent-side--left">
       <div className="agent-brand-row">
-        <div className="agent-brand-switcher">
+        <div className="agent-brand-switcher" ref={brandMenuRef}>
           <button className="agent-brand" type="button" aria-label="切换聊天或工作" aria-expanded={brandMenuOpen} onClick={() => setBrandMenuOpen((value) => !value)}>
             <span className="agent-brand__mark">L</span><strong>LFAA</strong><WorkbenchIcon name="chevron" size={15} />
           </button>
@@ -605,21 +607,24 @@ function CenterWorkspace({
   const [runNotice, setRunNotice] = useState<string | null>(null);
   const [permissionMenuOpen, setPermissionMenuOpen] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
-  const [modelMenuOpen, setModelMenuOpen] = useState(false);
-  const [reasoningMenuOpen, setReasoningMenuOpen] = useState(false);
+  const [runtimeControlOpen, setRuntimeControlOpen] = useState(false);
+  const [runtimeModelPickerOpen, setRuntimeModelPickerOpen] = useState(false);
+  const [reasoningPreviewIndex, setReasoningPreviewIndex] = useState<number | null>(null);
+  const [reasoningDragging, setReasoningDragging] = useState(false);
+  const [reasoningBoostEnabled, setReasoningBoostEnabled] = useState(false);
   const [modelControlBusy, setModelControlBusy] = useState(false);
+  const reasoningTrackRef = useRef<HTMLDivElement | null>(null);
+  const reasoningPointerIdRef = useRef<number | null>(null);
+  const boostRestoreValueRef = useRef<AiModelSettingValue | undefined>(undefined);
+  const addMenuRef = useDismissibleLayer<HTMLDivElement>({ open: addMenuOpen, onDismiss: () => setAddMenuOpen(false) });
+  const permissionMenuRef = useDismissibleLayer<HTMLDivElement>({ open: permissionMenuOpen, onDismiss: () => setPermissionMenuOpen(false) });
+  const runtimeControlRef = useDismissibleLayer<HTMLDivElement>({ open: runtimeControlOpen, onDismiss: () => { setRuntimeControlOpen(false); setRuntimeModelPickerOpen(false); setReasoningPreviewIndex(null); setReasoningDragging(false); } });
 
   useEffect(() => {
-    const closeComposerMenus = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setAddMenuOpen(false);
-      setPermissionMenuOpen(false);
-      setModelMenuOpen(false);
-      setReasoningMenuOpen(false);
-    };
-    window.addEventListener("keydown", closeComposerMenus);
-    return () => window.removeEventListener("keydown", closeComposerMenus);
-  }, []);
+    setReasoningBoostEnabled(false);
+    boostRestoreValueRef.current = undefined;
+    setReasoningPreviewIndex(null);
+  }, [activeReasoning?.modelId]);
 
   const submitTask = async () => {
     const input = draft.trim();
@@ -637,19 +642,76 @@ function CenterWorkspace({
     }
   };
 
-  const runModelControl = async (action: () => Promise<void>, close: "model" | "reasoning" | null = null) => {
+  const runModelControl = async (action: () => Promise<void>) => {
     if (modelControlBusy) return;
     setModelControlBusy(true);
     setRunNotice(null);
     try {
       await action();
-      if (close === "model") setModelMenuOpen(false);
-      if (close === "reasoning") setReasoningMenuOpen(false);
     } catch (error) {
       setRunNotice(error instanceof Error ? error.message : "模型切换失败。");
     } finally {
       setModelControlBusy(false);
     }
+  };
+
+  const reasoningOptions = activeReasoning?.field.kind === "select" ? activeReasoning.field.options ?? [] : [];
+  const defaultReasoningIndex = (() => {
+    if (!reasoningOptions.length) return 0;
+    const declared = activeReasoning?.field.defaultValue;
+    const declaredIndex = reasoningOptions.findIndex((option) => option.value === declared);
+    if (declaredIndex >= 0) return declaredIndex;
+    const mediumIndex = reasoningOptions.findIndex((option) => option.value === "medium");
+    if (mediumIndex >= 0) return mediumIndex;
+    return Math.floor((reasoningOptions.length - 1) / 2);
+  })();
+  const committedReasoningIndex = (() => {
+    if (!reasoningOptions.length) return 0;
+    const index = reasoningOptions.findIndex((option) => option.value === activeReasoning?.value);
+    return index >= 0 ? index : defaultReasoningIndex;
+  })();
+  const visibleReasoningIndex = reasoningPreviewIndex ?? committedReasoningIndex;
+  const strongestReasoningIndex = Math.max(0, reasoningOptions.length - 1);
+  const reasoningProgress = reasoningOptions.length <= 1 ? 0 : (visibleReasoningIndex / (reasoningOptions.length - 1)) * 100;
+  const visibleReasoningOption = reasoningOptions[visibleReasoningIndex];
+  const boostActive = reasoningBoostEnabled && reasoningOptions.length > 0;
+
+  const commitReasoningIndex = async (index: number) => {
+    if (!activeReasoning || !reasoningOptions.length || modelControlBusy) return;
+    const safeIndex = Math.max(0, Math.min(reasoningOptions.length - 1, index));
+    const option = reasoningOptions[safeIndex];
+    if (!option) return;
+    setReasoningPreviewIndex(safeIndex);
+    await runModelControl(() => onQuickUpdateModelSetting(activeReasoning.field.id, option.value));
+    setReasoningPreviewIndex(null);
+  };
+
+  const reasoningIndexAtClientX = (clientX: number): number => {
+    const track = reasoningTrackRef.current;
+    if (!track || reasoningOptions.length <= 1) return 0;
+    const rect = track.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+    return Math.round(ratio * (reasoningOptions.length - 1));
+  };
+
+  const toggleReasoningBoost = () => {
+    if (!activeReasoning || !reasoningOptions.length || modelControlBusy) return;
+    if (boostActive) {
+      setReasoningBoostEnabled(false);
+      const restoreValue = boostRestoreValueRef.current ?? activeReasoning.field.defaultValue ?? reasoningOptions[defaultReasoningIndex]?.value;
+      const restoreIndex = reasoningOptions.findIndex((option) => option.value === restoreValue);
+      void commitReasoningIndex(restoreIndex >= 0 ? restoreIndex : defaultReasoningIndex);
+      return;
+    }
+    boostRestoreValueRef.current = reasoningOptions[committedReasoningIndex]?.value;
+    setReasoningBoostEnabled(true);
+    void commitReasoningIndex(strongestReasoningIndex);
+  };
+
+  const resetReasoning = () => {
+    setReasoningBoostEnabled(false);
+    boostRestoreValueRef.current = undefined;
+    void commitReasoningIndex(defaultReasoningIndex);
   };
 
   return (
@@ -710,8 +772,8 @@ function CenterWorkspace({
         <div className="agent-composer">
           <textarea aria-label="输入任务" placeholder={agentSurface === "chat" ? "一句话交代任务" : "描述目标，Runtime 会把执行过程投影到画布"} rows={1} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitTask(); } }} />
           <div className="agent-composer-actions">
-            <div className="agent-composer-menu-anchor">
-              <button className="agent-composer-icon" type="button" aria-label="添加能力或附件" aria-expanded={addMenuOpen} onClick={() => { setAddMenuOpen((value) => !value); setPermissionMenuOpen(false); setModelMenuOpen(false); setReasoningMenuOpen(false); }}><WorkbenchIcon name="plus" /></button>
+            <div className="agent-composer-menu-anchor" ref={addMenuRef}>
+              <button className="agent-composer-icon" type="button" aria-label="添加能力或附件" aria-expanded={addMenuOpen} onClick={() => { setAddMenuOpen((value) => !value); setPermissionMenuOpen(false); setRuntimeControlOpen(false); setRuntimeModelPickerOpen(false); }}><WorkbenchIcon name="plus" /></button>
               {addMenuOpen ? (
                 <div className="agent-composer-popover agent-composer-popover--add" role="menu">
                   {[
@@ -727,10 +789,11 @@ function CenterWorkspace({
                 </div>
               ) : null}
             </div>
-            <div className="agent-composer-menu-anchor">
-              <button className="agent-permission-button" data-permission-profile={permissionProfileId} type="button" aria-label="权限模式" aria-expanded={permissionMenuOpen} onClick={() => { setPermissionMenuOpen((value) => !value); setAddMenuOpen(false); setModelMenuOpen(false); setReasoningMenuOpen(false); }}>
-                <WorkbenchIcon name={permissionProfileId === "full-access" ? "shield" : permissionProfileId === "approve-for-me" ? "spark" : "review"} size={16} />
-                <span>{AGENT_PERMISSION_PROFILES[permissionProfileId].label}</span><WorkbenchIcon name="chevron" size={14} />
+
+            <div className="agent-composer-menu-anchor" ref={permissionMenuRef}>
+              <button className="agent-permission-button" data-permission-profile={permissionProfileId} type="button" aria-label="权限模式" aria-expanded={permissionMenuOpen} onClick={() => { setPermissionMenuOpen((value) => !value); setAddMenuOpen(false); setRuntimeControlOpen(false); setRuntimeModelPickerOpen(false); }}>
+                <WorkbenchIcon name={permissionProfileId === "full-access" ? "shield" : permissionProfileId === "approve-for-me" ? "spark" : "review"} size={15} />
+                <span>{AGENT_PERMISSION_PROFILES[permissionProfileId].label}</span><WorkbenchIcon name="chevron" size={12} />
               </button>
               {permissionMenuOpen ? (
                 <div className="agent-composer-popover agent-permission-menu" role="menu" aria-label="权限模式">
@@ -739,7 +802,7 @@ function CenterWorkspace({
                     const profile = AGENT_PERMISSION_PROFILES[id];
                     return (
                       <button className={id === permissionProfileId ? "is-active" : ""} data-permission-profile={id} key={id} type="button" role="menuitemradio" aria-checked={id === permissionProfileId} onClick={() => { onPermissionProfileChange(id); setPermissionMenuOpen(false); }}>
-                        <span className="agent-permission-menu__icon"><WorkbenchIcon name={id === "full-access" ? "shield" : id === "approve-for-me" ? "spark" : "review"} size={17} /></span>
+                        <span className="agent-permission-menu__icon"><WorkbenchIcon name={id === "full-access" ? "shield" : id === "approve-for-me" ? "spark" : "review"} size={16} /></span>
                         <span><strong>{profile.label}</strong><small>{profile.description}</small></span>
                         <span className="agent-permission-menu__check">{id === permissionProfileId ? "✓" : ""}</span>
                       </button>
@@ -748,98 +811,142 @@ function CenterWorkspace({
                 </div>
               ) : null}
             </div>
-            <div className="agent-composer-menu-anchor agent-model-anchor">
-              <div className="agent-model-control" data-configured={quickModels.length > 0 ? "true" : "false"}>
-                <button
-                  className="agent-model-button"
-                  type="button"
-                  aria-label={quickModels.length === 0 ? "配置模型" : "切换模型"}
-                  aria-expanded={modelMenuOpen}
-                  title={quickModels.length === 0 ? "首次配置模型" : "切换当前模型"}
-                  onClick={() => {
-                    setAddMenuOpen(false);
-                    setPermissionMenuOpen(false);
-                    setReasoningMenuOpen(false);
-                    if (quickModels.length === 0) { onOpenAiSettings(); return; }
-                    setModelMenuOpen((value) => !value);
-                  }}
-                >
-                  <span>{modelLabel === "未配置模型" ? "选择模型" : modelLabel.split(" · ")[0]}</span>
-                  <WorkbenchIcon name="chevron" size={13} />
-                </button>
-                {activeReasoning?.field.kind === "select" && activeReasoning.field.options?.length ? (
-                  <button
-                    className="agent-reasoning-button"
-                    type="button"
-                    aria-label="选择思考强度"
-                    aria-expanded={reasoningMenuOpen}
-                    title="选择思考强度"
-                    onClick={() => {
-                      setAddMenuOpen(false);
-                      setPermissionMenuOpen(false);
-                      setModelMenuOpen(false);
-                      setReasoningMenuOpen((value) => !value);
-                    }}
-                  >
-                    <span>{formatReasoningEffort(activeReasoning.value) ?? "默认"}</span>
-                    <WorkbenchIcon name="chevron" size={12} />
-                  </button>
-                ) : null}
-              </div>
 
-              {modelMenuOpen ? (
-                <div className="agent-composer-popover agent-model-menu" role="menu" aria-label="选择模型">
-                  <div className="agent-model-menu__header"><strong>选择模型</strong><span>切换立即作用于 Chat 与 Work 的下一次 Run</span></div>
-                  <div className="agent-model-menu__list">
-                    {quickModels.map((model) => (
-                      <button
-                        key={`${model.accountId}:${model.modelId}`}
-                        className={model.active ? "is-active" : ""}
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={model.active}
-                        disabled={model.unavailable || modelControlBusy}
-                        onClick={() => { void runModelControl(() => onQuickSelectModel(model.accountId, model.modelId), "model"); }}
-                      >
-                        <span className="agent-model-menu__main"><strong>{model.modelName ?? model.modelId}</strong><small>{model.accountName} · {model.providerId}{model.unavailable ? " · 需重测" : ""}</small></span>
-                        <span className="agent-model-menu__check">{model.active ? "✓" : ""}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="agent-model-menu__footer">
-                    <button type="button" onClick={() => { setModelMenuOpen(false); onOpenAiSettings(); }}><WorkbenchIcon name="settings" size={15} /><span><strong>管理模型</strong><small>新增账户、认证、刷新模型目录与高级参数</small></span></button>
-                  </div>
-                </div>
-              ) : null}
+            <div className="agent-composer-menu-anchor agent-runtime-control-anchor" ref={runtimeControlRef}>
+              <button
+                className={`agent-runtime-control-trigger${boostActive ? " is-boosted" : ""}`}
+                type="button"
+                aria-label={quickModels.length === 0 ? "配置模型" : "模型与思考强度"}
+                aria-expanded={runtimeControlOpen}
+                title={quickModels.length === 0 ? "首次配置模型" : "模型与思考强度"}
+                onClick={() => {
+                  setAddMenuOpen(false);
+                  setPermissionMenuOpen(false);
+                  if (quickModels.length === 0) { onOpenAiSettings(); return; }
+                  setRuntimeControlOpen((value) => !value);
+                  setRuntimeModelPickerOpen(false);
+                  setReasoningPreviewIndex(null);
+                }}
+              >
+                {boostActive ? <WorkbenchIcon name="bolt" size={13} /> : null}
+                <span className="agent-runtime-control-trigger__model">{modelLabel === "未配置模型" ? "选择模型" : modelLabel.split(" · ")[0]}</span>
+                {reasoningOptions.length ? <span className="agent-runtime-control-trigger__effort">{formatReasoningOption(visibleReasoningOption?.value ?? "", visibleReasoningOption?.label) || "默认"}</span> : null}
+                <WorkbenchIcon name="chevron" size={12} />
+              </button>
 
-              {reasoningMenuOpen && activeReasoning?.field.kind === "select" && activeReasoning.field.options?.length ? (
-                <div className="agent-composer-popover agent-reasoning-menu" role="menu" aria-label="思考强度">
-                  <div className="agent-reasoning-menu__header">
-                    <span><WorkbenchIcon name="spark" size={16} /></span>
-                    <div><strong>{formatReasoningEffort(activeReasoning.value) ?? "默认"}</strong><small>{activeReasoning.modelId}</small></div>
+              {runtimeControlOpen ? (
+                <section className={`agent-composer-popover agent-runtime-control-card${boostActive ? " is-boosted" : ""}`} role="dialog" aria-label="模型与思考强度">
+                  <div className="agent-runtime-control-card__toolbar">
+                    <button
+                      className={`agent-runtime-control-card__icon${boostActive ? " is-active" : ""}`}
+                      type="button"
+                      aria-pressed={boostActive}
+                      aria-label="强力推理"
+                      data-tooltip="强力推理 · 用量可能更高"
+                      disabled={!reasoningOptions.length || modelControlBusy}
+                      onClick={toggleReasoningBoost}
+                    ><WorkbenchIcon name="bolt" size={17} /></button>
+
+                    <button
+                      className="agent-runtime-control-card__model"
+                      type="button"
+                      aria-expanded={runtimeModelPickerOpen}
+                      aria-label="切换模型"
+                      onClick={() => setRuntimeModelPickerOpen((value) => !value)}
+                    >
+                      <strong>{reasoningOptions.length ? (formatReasoningOption(visibleReasoningOption?.value ?? "", visibleReasoningOption?.label) || "默认") : "模型"}<WorkbenchIcon name="chevron" size={12} /></strong>
+                      <small>{modelLabel === "未配置模型" ? "选择模型" : modelLabel.split(" · ")[0]}</small>
+                    </button>
+
+                    <button className="agent-runtime-control-card__icon" type="button" aria-label="重置思考强度" data-tooltip="重置为默认" disabled={!reasoningOptions.length || modelControlBusy} onClick={resetReasoning}><WorkbenchIcon name="refresh" size={17} /></button>
                   </div>
-                  <div className="agent-reasoning-track" role="radiogroup" aria-label={activeReasoning.field.label}>
-                    {activeReasoning.field.options.map((option) => {
-                      const selected = option.value === activeReasoning.value;
-                      return (
+
+                  {runtimeModelPickerOpen ? (
+                    <div className="agent-runtime-model-picker is-open" role="menu" aria-label="选择模型">
+                    <div className="agent-runtime-model-picker__label">选择模型</div>
+                    <div className="agent-runtime-model-picker__list">
+                      {quickModels.map((model) => (
                         <button
-                          key={option.value}
-                          className={selected ? "is-active" : ""}
+                          key={`${model.accountId}:${model.modelId}`}
+                          className={model.active ? "is-active" : ""}
                           type="button"
-                          role="radio"
-                          aria-checked={selected}
-                          disabled={modelControlBusy}
-                          title={option.label}
-                          onClick={() => { void runModelControl(() => onQuickUpdateModelSetting(activeReasoning.field.id, option.value)); }}
+                          role="menuitemradio"
+                          aria-checked={model.active}
+                          disabled={model.unavailable || modelControlBusy}
+                          onClick={() => {
+                            void runModelControl(async () => {
+                              await onQuickSelectModel(model.accountId, model.modelId);
+                              setRuntimeModelPickerOpen(false);
+                              setReasoningPreviewIndex(null);
+                              setReasoningBoostEnabled(false);
+                              boostRestoreValueRef.current = undefined;
+                            });
+                          }}
                         >
-                          <span className="agent-reasoning-track__dot" />
-                          <small>{formatReasoningOption(option.value, option.label)}</small>
+                          <span><strong>{model.modelName ?? model.modelId}</strong><small>{model.accountName} · {model.providerId}{model.unavailable ? " · 需重测" : ""}</small></span>
+                          <i aria-hidden="true">{model.active ? "✓" : ""}</i>
                         </button>
-                      );
-                    })}
+                      ))}
+                    </div>
+                    <button className="agent-runtime-model-picker__manage" type="button" onClick={() => { setRuntimeControlOpen(false); setRuntimeModelPickerOpen(false); onOpenAiSettings(); }}><WorkbenchIcon name="settings" size={14} /><span>管理模型</span></button>
                   </div>
-                  {activeReasoning.field.help ? <p className="agent-reasoning-menu__help">{activeReasoning.field.help}</p> : null}
-                </div>
+
+                  ) : null}
+
+                  {reasoningOptions.length ? (
+                    <div className="agent-reasoning-slider-shell">
+                      <div
+                        ref={reasoningTrackRef}
+                        className={`agent-reasoning-slider${reasoningDragging ? " is-dragging" : ""}${boostActive ? " is-boosted" : ""}`}
+                        role="slider"
+                        tabIndex={0}
+                        aria-label={activeReasoning?.field.label ?? "思考强度"}
+                        aria-valuemin={0}
+                        aria-valuemax={Math.max(0, reasoningOptions.length - 1)}
+                        aria-valuenow={visibleReasoningIndex}
+                        aria-valuetext={formatReasoningOption(visibleReasoningOption?.value ?? "", visibleReasoningOption?.label)}
+                        style={{ "--agent-reasoning-progress": `${reasoningProgress}%` } as CSSProperties}
+                        onPointerDown={(event) => {
+                          if (modelControlBusy) return;
+                          setReasoningBoostEnabled(false);
+                          reasoningPointerIdRef.current = event.pointerId;
+                          event.currentTarget.setPointerCapture(event.pointerId);
+                          setReasoningDragging(true);
+                          setReasoningPreviewIndex(reasoningIndexAtClientX(event.clientX));
+                        }}
+                        onPointerMove={(event) => {
+                          if (reasoningPointerIdRef.current !== event.pointerId) return;
+                          setReasoningPreviewIndex(reasoningIndexAtClientX(event.clientX));
+                        }}
+                        onPointerUp={(event) => {
+                          if (reasoningPointerIdRef.current !== event.pointerId) return;
+                          const nextIndex = reasoningIndexAtClientX(event.clientX);
+                          reasoningPointerIdRef.current = null;
+                          setReasoningDragging(false);
+                          void commitReasoningIndex(nextIndex);
+                        }}
+                        onPointerCancel={() => { reasoningPointerIdRef.current = null; setReasoningDragging(false); setReasoningPreviewIndex(null); }}
+                        onKeyDown={(event) => {
+                          let nextIndex: number | null = null;
+                          if (event.key === "ArrowLeft" || event.key === "ArrowDown") nextIndex = Math.max(0, visibleReasoningIndex - 1);
+                          if (event.key === "ArrowRight" || event.key === "ArrowUp") nextIndex = Math.min(reasoningOptions.length - 1, visibleReasoningIndex + 1);
+                          if (event.key === "Home") nextIndex = 0;
+                          if (event.key === "End") nextIndex = reasoningOptions.length - 1;
+                          if (nextIndex === null) return;
+                          event.preventDefault();
+                          setReasoningBoostEnabled(false);
+                          void commitReasoningIndex(nextIndex);
+                        }}
+                      >
+                        <span className="agent-reasoning-slider__rail" aria-hidden="true" />
+                        <span className="agent-reasoning-slider__fill" aria-hidden="true" />
+                        {reasoningOptions.map((option, index) => <i key={option.value} className={`agent-reasoning-slider__mark${index <= visibleReasoningIndex ? " is-filled" : ""}`} style={{ left: `${reasoningOptions.length <= 1 ? 0 : (index / (reasoningOptions.length - 1)) * 100}%` }} aria-hidden="true" />)}
+                        {boostActive ? <span className="agent-reasoning-slider__particles" aria-hidden="true">{Array.from({ length: 7 }, (_, index) => <i key={index} />)}</span> : null}
+                        <span className="agent-reasoning-slider__thumb" aria-hidden="true" />
+                      </div>
+                    </div>
+                  ) : <div className="agent-runtime-control-card__unsupported">当前模型没有公开可调的思考强度。</div>}
+                </section>
               ) : null}
             </div>
             <button className="agent-send" type="button" aria-label="发送" disabled={!runtimeConnected || modelLabel === "未配置模型" || submitting || !draft.trim()} onClick={() => { void submitTask(); }}>{submitting ? "…" : "↑"}</button>

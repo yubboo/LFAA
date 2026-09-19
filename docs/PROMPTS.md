@@ -25,6 +25,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #21.20 | Composer 统一模型运行时控制器 / Popover 闪烁修复 | v0.0.86 | pending-user-acceptance | pass | pending |
 | #21.19 | Composer 模型 / 思考强度原地快切 | v0.0.85 | pending-user-acceptance | pass | pending |
 | #2.19 | Provider Host 网络代理 / 系统 CA / 可诊断错误修复 | v0.0.84 | pending-user-acceptance | pass | pending |
 | #2.18 | 模型管理 Active Model / Catalog 真值修复 | v0.0.83 | pending-user-acceptance | pass | pending |
@@ -66,6 +67,38 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #21.20 Composer 统一模型运行时控制器 / Popover 闪烁修复
+
+### 用户目标
+
+Composer 右下角的模型、思考强度和强力推理必须是一个整体运行时控制器：点击后出现一张稳定悬浮卡片；顶部三键分别控制强力推理、模型切换、重置；下方强度条支持点击和拖拽。点击卡片外空白处必须关闭。三种权限菜单同样使用紧凑悬浮交互。严禁再次出现点击/切换时某块区域瞬间闪白或跳动的 `Popover flicker / layout flash`。
+
+### 允许修改
+
+- App Shell Composer 的模型/推理/权限交互与对应 CSS；
+- `@lfaa/ui` 增加可复用 outside-dismiss Primitive；
+- Workbench 通用图标；
+- UI/模型快切/共享关闭行为的测试与门禁；
+- UI/开发/发布文档。
+
+### 禁止修改
+
+- 不创建第二份 Active Model / reasoning 业务真值；
+- “强力推理”不得发送厂商 Capability 未声明的超限参数，只能选择当前模型公开支持的最高档；
+- 不用频繁 mount/unmount 两个相邻 Popover 模拟一个整体控件；
+- 不在各业务组件复制 document outside-click 监听；
+- 不允许粒子特效参与布局计算或造成性能抖动；
+- 不牺牲键盘可访问性和 reduced-motion。
+
+### 验收
+
+- 已配置模型时 Composer 只有一个模型运行时入口；打开后是一张卡片，不发生闪屏/闪白/位置跳变。
+- 顶部左键可进入/退出强力推理，中间可切模型，右键可恢复模型默认 reasoning 档。
+- 强度轨道可点击、拖动、方向键/Home/End 调整，提交值仍经 Config System 校验。
+- 强力推理打开后出现轻量粒子/流星效果，关闭或系统 reduced-motion 时停止。
+- 点击卡片外空白处或按 Escape 关闭；LFAA 模式、添加、权限、模型控制复用同一个 `useDismissibleLayer`。
+- 权限卡保持三种模式，但宽度/留白明显收紧，不再占据大块工作区。
 
 ## #21.19 Composer 模型 / 思考强度原地快切
 

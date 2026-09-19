@@ -1,3 +1,14 @@
+## LFAA v0.0.86 — #21.20 Composer 统一模型运行时控制器 / Popover 闪烁修复
+
+- **状态：** pending-user-acceptance
+- 把 v0.0.85 的“模型 Popover + 思考强度 Popover”合并成一个稳定 `Runtime Control` 卡片：底部 Composer 只保留一个入口，打开后顶部固定为“强力推理 / 模型切换 / 重置”，下方同一条推理强度轨道可点击、拖拽和键盘调整。
+- “强力推理”严格映射到当前模型 Capability 已公开的最高 reasoning 档位，不发送厂商未声明的超限参数；启用后轨道出现 GPU 友好的流星粒子效果，并提供 `prefers-reduced-motion` 降级。
+- 记录并修复 `Popover flicker / layout flash`：删除 `modelMenuOpen + reasoningMenuOpen` 双浮层互斥 mount/unmount，统一为单卡 shell；卡片 `position:absolute + contain:layout paint + translateZ(0)`，切模时不参与 Composer 文档流重排。
+- 新增共享 `@lfaa/ui/useDismissibleLayer`，统一 `pointerdown capture + composedPath + Escape` 的点击空白关闭行为；LFAA 模式菜单、添加菜单、权限菜单、模型运行时卡片全部复用，禁止后续业务模块各写一套 outside-click。
+- 权限菜单宽度从近 31rem 收紧到 22rem，并同步压缩行高/间距；三种权限仍保留说明、选中态和完全权限风险色。
+- 新增统一运行时控制静态回归与 Dismissible Layer 契约回归；UI Gate 禁止模型/强度再次拆回两个 Popover。
+- **AI 验证：** 仓库 Node 115/115 + Config System 39/39 = 154/154 PASS；AgentWorkbench / WorkbenchIcon / useDismissibleLayer TypeScript Parser PASS；统一 workspace preflight 全 Gate PASS。Windows 浏览器像素级/拖拽手感仍需用户实机验收。
+
 ## LFAA v0.0.85 — #21.19 Composer 模型 / 思考强度原地快切
 
 - **状态：** pending-user-acceptance

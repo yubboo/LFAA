@@ -1,3 +1,7 @@
+## v0.0.86：Composer Runtime Control 执行边界
+
+Composer 的“强力推理”是最高公开 reasoning 档的快捷入口，不是新增 Provider 参数；实际 Run 仍只携带 Config System 已校验的 `AgentModelBinding.settings`。Slider 拖拽过程中只维护 UI preview，Pointer Up / 键盘离散操作才提交 `setActiveModel`，避免每个 Pointer Move 写入 Host。模型切换继续使用缓存 `modelCatalog`，不重新请求 Provider。
+
 ## v0.0.85：模型配置与运行时快切边界
 
 Settings 负责账户认证、Secret 引用、Provider 连接、官方模型目录刷新与高级模型配置；Composer 只负责消费已经持久化的 `activeModel + modelCatalog` 做日常模型/思考强度切换。日常切换不得重新访问 Provider，也不得接触 Secret。

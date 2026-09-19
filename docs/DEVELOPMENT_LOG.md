@@ -11,6 +11,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
+| #21.20 | Composer 统一模型运行时控制器 / Popover 闪烁修复 | v0.0.86 | pending-user-acceptance |
 | #21.19 | Composer 模型 / 思考强度原地快切 | v0.0.85 | pending-user-acceptance |
 | #2.19 | Provider Host 网络代理 / 系统 CA / 可诊断错误修复 | v0.0.84 | pending-user-acceptance |
 | #2.18 | 模型管理 Active Model / Catalog 真值修复 | v0.0.83 | pending-user-acceptance |
@@ -50,6 +51,17 @@
 
 
 
+
+### #21.20 Composer 统一模型运行时控制器 / Popover 闪烁修复
+
+- **版本：** v0.0.86
+- **状态：** pending-user-acceptance
+- **用户反馈：** v0.0.85 仍把模型/强度拆成两个控件，视觉与 Codex 的整体 Runtime Control 不一致；浮层切换存在局部闪烁，权限卡过宽，也没有统一的点击空白关闭行为。
+- **缺陷命名：** 记录为 `Popover flicker / layout flash（悬浮层闪烁 / 布局闪屏）`。主要风险源包括互斥浮层反复 mount/unmount、焦点与 click 顺序竞争、anchor 重算以及浮层宽高参与父级布局。
+- **实现：** 单一 Runtime Control Card + 三键工具栏 + Pointer/Keyboard reasoning slider；强力推理映射最高官方档，粒子只做 transform/opacity；模型列表作为同一卡片的内部 panel。
+- **复用：** 新增 `useDismissibleLayer`，以 document `pointerdown` capture + `composedPath` + Escape 统一处理 outside dismiss；品牌、添加、权限、Runtime Control 均复用。
+- **视觉：** Runtime Card 使用 absolute + `contain: layout paint` + compositor layer 隔离；权限菜单收窄为 22rem。
+- **验收：** Windows 浏览器实机确认无闪烁、轨道拖拽连续、空白关闭可靠、权限卡宽度合适、Chat/Work 共用结果。
 
 ### #21.19 Composer 模型 / 思考强度原地快切
 

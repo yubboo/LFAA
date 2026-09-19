@@ -1,3 +1,7 @@
+## v0.0.86 App Shell / UI：统一 Runtime Control / Dismissible Layer
+
+`packages/app-shell` 继续只做运行时控制的 UI Projection；Active Model 与模型 settings 真值仍归 `@lfaa/config-system`。v0.0.86 删除模型/强度双 Popover，改为单一 Runtime Control Card。`packages/ui/src/primitives/useDismissibleLayer.ts` 成为小型 Popover/Menu 的唯一 outside-dismiss Primitive，业务模块禁止复制 document pointer/click 监听。强力推理只选择当前模型 Capability 的最高公开 reasoning 档，粒子效果属于 presentation，不进入模型业务协议。
+
 ## v0.0.85 App Shell / Config：ModelQuickSwitch 边界
 
 `packages/app-shell` 拥有 Composer 的交互投影，但不拥有模型业务真值；可选模型来自 `AiAccountSnapshot.accounts[].modelCatalog`，当前模型来自 `activeModel`。`packages/config-system` 新增缓存目录快速激活方法；`apps/web` 只桥接该业务动作。思考强度来自当前模型官方 Capability 的 `reasoningEffort` select 字段，并随 `AgentModelBinding.settings` 进入 Runtime。

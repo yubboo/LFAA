@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.85**
+**当前包：LFAA-v0.0.86**
 
 ## 当前产品定位（v0.0.84）
 
@@ -61,12 +61,12 @@ plugin-platform + agent-runtime + workbench
 当前版本总任务：
 
 ```text
-#21.19 Composer 模型 / 思考强度原地快切
-version: v0.0.85
+#21.20 Composer 统一模型运行时控制器 / Popover 闪烁修复
+version: v0.0.86
 status: pending-user-acceptance
 ```
 
-v0.0.85 将模型“配置”和“使用”分层：第一次没有模型时从 Composer 进入 `设置 → AI 与模型`；配置完成后，Chat / Work 输入区右下角直接原地切换模型与当前模型官方支持的思考强度，`管理模型` 退居 Popover 次级入口。快速切换直接写回 Config System Active Model，并把已校验模型参数带入下一次 Agent Run。
+v0.0.86 在 v0.0.85 基础上把模型与思考强度收成一个稳定的 Composer Runtime Control：顶部三键控制强力推理、模型和重置，下方轨道支持点击/拖拽；浮层使用共享 outside-dismiss Primitive，并把 Popover flicker / layout flash 纳入 UI 禁止回归。v0.0.85 的 Active Model / 缓存目录 / settings Run 绑定继续作为数据底座。
 
 `#2.16` 的 ChatGPT / Codex App Server 登录闭环继续保留为 `pending-user-acceptance`，没有因为架构升级被覆盖。
 

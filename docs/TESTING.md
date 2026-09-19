@@ -1,3 +1,11 @@
+## v0.0.86 / #21.20 Runtime Control / Dismissible Popover 回归
+
+- `test/model-quick-switch-contract.test.mjs`：统一 Runtime Control、禁止双 Popover、拖拽/键盘 Slider、最高档强力推理、粒子 reduced-motion、布局隔离。
+- `test/dismissible-layer-contract.test.mjs`：共享 pointerdown capture / composedPath / Escape 行为；品牌、添加、权限、Runtime Control 至少四处复用。
+- `scripts/ui-contract-check.mjs`：禁止 `modelMenuOpen/reasoningMenuOpen` 回归，强制 Runtime Control + `contain:layout paint` + reduced-motion。
+- TypeScript Parser：AgentWorkbench / WorkbenchIcon / useDismissibleLayer / UI index 语法必须通过。
+- 用户实机：重点观察快速连续打开/关闭、模型切换、拖轨道时是否出现局部闪屏；这类问题属于 Popover flicker / layout flash，发现即不通过。
+
 ## v0.0.85 / #21.19 Composer ModelQuickSwitch 回归
 
 - `test/model-quick-switch-contract.test.mjs`：锁定 Composer 原地模型 Popover、思考强度 Popover、首次零模型才进入 Settings，以及 AgentRun 携带已校验 model settings。

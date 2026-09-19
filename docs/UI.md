@@ -444,3 +444,34 @@ AI Provider UI 只能作为 Settings 的“AI 服务”分类内容存在；Prov
 - 模型列表、当前 Active Model、思考强度均来自 Config System Snapshot/官方 Capability；UI 不维护第二份模型真值。
 - 思考强度只有当前模型声明 `reasoningEffort` select Capability 时显示；切换后的 settings 必须进入下一次 Agent Run。
 - `管理模型` 保留为 Popover 次级入口，负责新增账户、认证、刷新目录和高级参数。
+
+## Composer Runtime Control（v0.0.86）
+
+模型与推理强度是一个整体 Runtime Control，不再拆成两个相邻 Popover。Composer 只显示一个紧凑入口；打开后同一张稳定悬浮卡片包含：
+
+- 左：强力推理。含义是选择当前模型 Capability 公开的最高 reasoning 档，可能增加模型用量；不得构造厂商未声明的“超频参数”。
+- 中：当前强度 + 当前模型。点击打开卡片内部模型列表，不跳 Settings。
+- 右：重置。恢复该模型声明的 defaultValue；无 defaultValue 时按中间档规则回退。
+- 下：reasoning slider。必须支持 pointer 点击、拖拽、方向键、Home/End；拖动时只更新 UI preview，Pointer Up 后才提交 Config System，避免连续写 Host。
+- 强力推理效果：允许粒子/流星视觉，但只能使用 transform/opacity 等 compositor-friendly 动画；`prefers-reduced-motion` 必须停用。
+
+### Popover flicker / layout flash 禁止项
+
+`Popover flicker / layout flash` 指点击或切换浮层时，局部区域瞬间闪白、闪黑、跳位或尺寸抖动。LFAA 把它视为 UI 回归，不接受“功能能点”作为通过。
+
+防线：
+
+1. 一个视觉整体只保留一个稳定 shell，禁止通过两个互斥 Popover 反复 mount/unmount 模拟同一控件。
+2. 浮层必须脱离文档流；Runtime Control 使用 absolute positioning + `contain: layout paint`，不得推动 Composer 重新布局。
+3. outside dismiss 统一使用 `@lfaa/ui/useDismissibleLayer` 的 pointerdown capture；禁止每个组件自写 click/focus 竞态。
+4. 模型列表打开只改变卡片内部 panel；模型切换后 Runtime Control 本体保持挂载。
+5. 视觉动画优先 transform/opacity；需要布局属性动画时必须证明不会造成闪烁。
+
+### Dismissible Layer
+
+小型 Popover / Menu 默认复用 `useDismissibleLayer`：点击 layer 外任意位置或按 Escape 即关闭。当前应用于 LFAA 模式菜单、Composer 添加菜单、权限菜单、模型 Runtime Control。个人中心/主题这类全屏聚焦 Overlay 可以继续使用显式 Backdrop，但不能再复制 document outside-click 逻辑。
+
+### 权限卡
+
+三档权限仍为“请求审批 / 替我审批 / 完全权限”，但卡片必须紧凑，默认宽度上限 22rem；完全权限保留风险色。权限选择同样支持点击空白处关闭。
+
