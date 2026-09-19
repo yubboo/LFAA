@@ -701,3 +701,7 @@ Windows PowerShell 变量名大小写不敏感。Setup/Sync/GitHub/Update 等 PS
 ### v0.0.59 开发期依赖同步与发布 frozen 分离
 
 菜单 1 在 lockfile 落后时允许更新 `pnpm-lock.yaml`，在 lockfile 已完整但本地依赖损坏时使用 frozen 精确修复；pnpm 写操作采用 append-only reporter 实时显示进度。正式发布 `release:full` 继续 frozen。
+
+### v0.0.60 pnpm 原生前台输出
+
+Windows 实机证明强制 append-only reporter 并未恢复用户熟悉的安装过程可见性。菜单 1 的交互式 `pnpm install` 因此不再传任何 `--reporter=*`，由 pnpm 根据当前终端使用原生 reporter；LFAA 不捕获、不重定向、不模拟 stdout/stderr。#20.13 的 frozen / no-frozen 分流和正式发布 frozen 规则保持不变。

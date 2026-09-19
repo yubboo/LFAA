@@ -1,8 +1,29 @@
-## LFAA v0.0.59 Release — #20.13 开发期依赖同步与实时输出修复
+## LFAA v0.0.60 Release — #20.14 pnpm 原生安装输出恢复
 
 - **状态：** pending-user-acceptance
-- **基线：** v0.0.58
+- **基线：** v0.0.59
 - **用户验收：** pending
+
+### 交付内容
+
+- 菜单 1 交互式 pnpm install 恢复 pnpm 原生终端 reporter；
+- LFAA 不捕获、不重写、不模拟安装 stdout/stderr；
+- #20.13 的开发期 / frozen 分流保持不变；
+- 正式发布 frozen 与实时 Store / PNPM_HOME / 真实依赖健康语义保持不变。
+
+### AI 验证状态
+
+dependency-setup 静态契约、node-dependency-health、release-gates、release-environment、Config Schema 与仓库治理门禁 PASS；当前制作容器无 Windows PowerShell，因此 pnpm 原生 TTY 输出仍以用户 Windows 实机为最终验收。
+
+### 用户实机验收重点
+
+在当前 lockfile 落后场景确认 Y 后，LFAA 显示执行模式/命令后应直接出现 pnpm 自身的 Scope / Progress / reused / downloaded / added 等安装信息；完成后第二次运行菜单 1 应无需再次安装。
+
+## LFAA v0.0.59 Release — #20.13 开发期依赖同步与实时输出修复
+
+- **状态：** superseded
+- **基线：** v0.0.58
+- **用户验收：** not-accepted；append-only reporter 在 Windows 实机仍无原生安装信息，由 v0.0.60 修正
 
 ### 交付内容
 

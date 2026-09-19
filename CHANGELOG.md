@@ -1,8 +1,20 @@
 # LFAA 更新日志
 
-## LFAA v0.0.59 — #20.13 开发期依赖同步与实时输出修复
+## LFAA v0.0.60 — #20.14 pnpm 原生安装输出恢复
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.59
+- **任务：** #20.14
+- 撤销菜单 1 交互式 `pnpm install` 强制 `--reporter=append-only`，恢复 pnpm 原生终端 reporter。
+- 保留 #20.13 的开发期 `--no-frozen-lockfile` / 精确修复 `--frozen-lockfile` 分流。
+- `Invoke-Pnpm` 继续以前台直接进程运行，安装 stdout/stderr 不捕获、不重定向、不由 LFAA 模拟进度。
+- LFAA 只在安装前显示模式与命令，安装过程中的 Scope / Progress / reused / downloaded / added 等由 pnpm 自身输出。
+- 正式发布 frozen、Store 实时路径/来源、真实依赖健康检测均保持不变。
+
+## LFAA v0.0.59 — #20.13 开发期依赖同步与实时输出修复
+
+- **状态：** superseded
+- **用户验收：** not-accepted；append-only reporter 在 Windows 实机仍无原生安装信息，由 v0.0.60 修正
 - **基线：** v0.0.58
 - **任务：** #20.13
 - 修复菜单 1 在明确检测到 lockfile 落后后仍调用 `pnpm install --frozen-lockfile` 的逻辑矛盾。

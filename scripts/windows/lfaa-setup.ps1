@@ -1162,7 +1162,7 @@ function Install-NodeDependencies {
             return [PSCustomObject]@{ Changed = $false; Cancelled = $true; ProjectHealthy = $plan.RuntimeHealth.Complete; StoreHealthy = $plan.StoreHealth.Healthy }
         }
 
-        $installArguments = @("install","--reporter=append-only")
+        $installArguments = @("install")
         $installDescription = "按当前 lockfile 修复/同步本地 pnpm 依赖"
         if (-not $plan.LockCoverage.Complete) {
             # 开发期依赖声明已经领先于 lockfile 时，必须允许 pnpm 更新 lockfile；
@@ -1176,6 +1176,7 @@ function Install-NodeDependencies {
             Write-Label "【模式】" "【pnpm】" "精确修复：lockfile 已完整，保持锁文件不变。" DarkCyan
         }
         Write-Label "【执行】" "【pnpm】" ((@("pnpm") + $installArguments) -join " ") Gray
+        Write-Label "【日志】" "【pnpm 原生输出】" "以下内容由 pnpm 直接输出；LFAA 不捕获、不重写、不伪造安装进度。" DarkCyan
         Invoke-Pnpm $installArguments $installDescription
         $changed = $true
 

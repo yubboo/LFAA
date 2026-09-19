@@ -1,3 +1,10 @@
+## v0.0.60 / #20.14 pnpm 原生安装输出恢复验证
+
+- dependency-setup 必须确认菜单 1 的交互式 install 不包含任何 `--reporter=*`；
+- `Invoke-Pnpm -> Invoke-ProjectCommand` 必须前台直接调用当前 pnpm runner，不能捕获/重定向 install stdout/stderr；
+- #20.13 的 lockfile 落后 `--no-frozen-lockfile`、lockfile 完整修复 `--frozen-lockfile` 与正式发布 frozen 全部回归；
+- Windows 实机：确认 Y 后必须直接出现 pnpm 原生终端安装信息；安装成功后二次运行菜单 1 不应重复安装。
+
 ## v0.0.59 / #20.13 开发期依赖同步与实时输出修复验证
 
 - dependency-setup 必须覆盖 lockfile 落后使用 `--no-frozen-lockfile`、lockfile 完整修复使用 `--frozen-lockfile`、append-only reporter 与发布 frozen 不变。

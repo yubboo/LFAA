@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.59**
+**当前包：LFAA-v0.0.60**
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
@@ -54,7 +54,7 @@ config-system
 当前治理修复任务：
 
 ```text
-#20.13 开发期依赖同步与实时输出修复
+#20.14 pnpm 原生安装输出恢复
 status: pending-user-acceptance
 ```
 
@@ -65,7 +65,7 @@ status: pending-user-acceptance
 status: pending-user-acceptance
 ```
 
-#20.9 的输出/路径 UX 已由用户实机验收通过；#20.10～#20.12 逐步补齐真实依赖、实时 pnpm 环境和 PowerShell 运行安全。v0.0.58 实机继续发现开发期 lockfile 落后却使用 frozen install 且安装进度不可见；#20.13 / v0.0.59 分离开发期同步与发布 frozen 校验，并稳定透传 pnpm 进度。之后再回到 Web-first 配置系统。#2.2 仍需用户明确验收。
+#20.9 的输出/路径 UX 已由用户实机验收通过；#20.10～#20.12 逐步补齐真实依赖、实时 pnpm 环境和 PowerShell 运行安全。v0.0.58 实机继续发现开发期 lockfile 落后却使用 frozen install；#20.13 / v0.0.59 已分离开发期同步与发布 frozen 校验，但强制 append-only reporter 在 Windows 实机仍造成安装阶段无可见原生进度。当前 #20.14 / v0.0.60 恢复 pnpm 原生前台输出，不再由 LFAA 指定 reporter。实机通过后再回到 Web-first 配置系统。#2.2 仍需用户明确验收。
 
 ## Node.js 包管理器
 

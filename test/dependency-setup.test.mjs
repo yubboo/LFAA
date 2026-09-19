@@ -184,11 +184,17 @@ test("menu 1 separates development lockfile sync from frozen local repair", () =
   assert.match(packageJson.scripts["release:full"], /pnpm install --frozen-lockfile/);
 });
 
-test("pnpm dependency writes use append-only reporter so progress stays visible", () => {
+test("pnpm dependency writes preserve pnpm native foreground output", () => {
   const install = functionBody("Install-NodeDependencies");
-  assert.match(install, /--reporter=append-only/);
-  assert.match(install, /Write-Label "【执行】" "【pnpm】"/);
+  const invokePnpm = functionBody("Invoke-Pnpm");
+  const projectCommand = functionBody("Invoke-ProjectCommand");
+  assert.match(install, /\$installArguments = @\("install"\)/);
+  assert.doesNotMatch(install, /--reporter=/);
+  assert.match(install, /【pnpm 原生输出】/);
   assert.doesNotMatch(install, /Invoke-PnpmCapture[^\n]*install/);
+  assert.match(invokePnpm, /Invoke-ProjectCommand/);
+  assert.match(projectCommand, /& \$FilePath @Arguments/);
+  assert.doesNotMatch(projectCommand, /2>&1|Out-Null|RedirectStandardOutput|RedirectStandardError/);
 });
 
 test("Windows PowerShell scripts do not assign to automatic or read-only variables", () => {

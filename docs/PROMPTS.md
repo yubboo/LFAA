@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #20.13 | 开发期依赖同步与实时输出修复 | v0.0.59 | pending-user-acceptance | pass | pending |
+| #20.14 | pnpm 原生安装输出恢复 | v0.0.60 | pending-user-acceptance | pass | pending |
+| #20.13 | 开发期依赖同步与实时输出修复 | v0.0.59 | superseded | pass | not-accepted |
 | #20.12 | PowerShell 自动变量冲突修复 | v0.0.58 | superseded | pass | not-accepted |
 | #20.11 | pnpm 实时环境事实与 Store 来源修复 | v0.0.57 | superseded | pass | not-accepted |
 | #20.10 | 真实依赖健康检测与 Store 状态修复 | v0.0.56 | superseded | pass | not-accepted |
@@ -38,7 +39,61 @@
 
 ## 当前任务 / 当前合同
 
+## #20.14 pnpm 原生安装输出恢复
+
+### 主模块
+
+`project-governance / windows-setup / dependency-sync-ux`
+
+### 背景与问题
+
+用户在 Windows 实机运行 v0.0.59 菜单 1，开发期 lockfile 同步模式已经正确切换为 `--no-frozen-lockfile`，但确认后仍只看到 LFAA 的“执行命令”提示，pnpm 自身的 Scope / Progress / reused / downloaded / added 等原生安装信息没有出现。检查实现确认 v0.0.59 为了“稳定逐行输出”强制增加了 `--reporter=append-only`，这改变了原生终端 reporter 行为，并未满足用户对真实安装过程可见性的要求。
+
+### 任务目标
+
+撤销菜单 1 对 pnpm reporter 的强制控制。开发期同步仍保持 #20.13 的 frozen / no-frozen 分流，但 `pnpm install` 必须以前台原生命令运行，stdout/stderr 不捕获、不重写、不伪造。
+
+### 允许修改
+
+- `scripts/windows/lfaa-setup.ps1` 的交互式 pnpm install 参数与日志说明；
+- `test/dependency-setup.test.mjs` 的原生前台输出防回归；
+- 当前治理/Runtime/Testing/Prompt/Log/Plan/CHANGELOG/Release；
+- v0.0.60 产品版本事实及 workspace package / Rust crate 产品版本一致性。
+
+### 禁止修改
+
+- #20.13 已确定的 lockfile 落后 `--no-frozen-lockfile` 与本地损坏 `--frozen-lockfile` 分流；
+- 正式发布 `release:full` frozen 语义；
+- pnpm Store 动态路径、PNPM_HOME、Store 来源、真实依赖/Store 健康检查；
+- Web Account/Auth、Config Schema/Storage、Web UI、PTY、Sync/GitHub/Update。
+
+### 实现约束
+
+- 菜单 1 的交互式 `pnpm install` 不传 `--reporter=*`；
+- `Invoke-Pnpm -> Invoke-ProjectCommand` 必须前台直接调用当前 pnpm runner；
+- 安装 stdout/stderr 不进入 `Invoke-PnpmCapture`、不重定向到文件/Null、不由 LFAA 模拟进度；
+- LFAA 可以在安装前显示执行原因/命令，在安装后显示结果，但中间日志归 pnpm 自身；
+- 正式发布与非交互探针可以保持各自原有行为，本任务不扩散到其他命令。
+
+### 验收条件
+
+- 当前 v0.0.59 同一场景确认 Y 后，立即进入 pnpm 原生前台安装输出；
+- lockfile 落后时仍允许更新 `pnpm-lock.yaml`；
+- lockfile 已完整的修复仍 frozen；
+- 同步结束后二次运行菜单 1 不重复安装；
+- 发布 frozen、Store/环境事实与业务代码无回归。
+
+### 当前状态
+
+`pending-user-acceptance`
+
+### AI 验证
+
+`pass`：静态契约确认交互式 install 不再包含任何 `--reporter=*`，并继续通过 dependency setup、真实依赖健康、发布分层/环境、Config Schema 与仓库治理门禁。Windows 原生 pnpm UI 仍以用户实机为最终验收。
+
 ## #20.13 开发期依赖同步与实时输出修复
+
+> **状态补充：** Windows 实机确认强制 append-only reporter 仍缺少原生安装信息，本任务由 #20.14 / v0.0.60 继续修正。
 
 ### 主模块
 

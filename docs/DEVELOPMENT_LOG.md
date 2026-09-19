@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #20.13 | 开发期依赖同步与实时输出修复 | v0.0.59 | pending-user-acceptance |
+| #20.14 | pnpm 原生安装输出恢复 | v0.0.60 | pending-user-acceptance |
+| #20.13 | 开发期依赖同步与实时输出修复 | v0.0.59 | superseded |
 | #20.12 | PowerShell 自动变量冲突修复 | v0.0.58 | superseded |
 | #20.11 | pnpm 实时环境事实与 Store 来源修复 | v0.0.57 | superseded |
 | #20.10 | 真实依赖健康检测与 Store 状态修复 | v0.0.56 | superseded |
@@ -22,16 +23,28 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
-### #20.13 开发期依赖同步与实时输出修复
+### #20.14 pnpm 原生安装输出恢复
 
-- **版本：** v0.0.59
+- **版本：** v0.0.60
 - **状态：** pending-user-acceptance
 - **AI 验证：** pass
 - **用户验收：** pending
+- **主模块：** project-governance / windows-setup / dependency-sync-ux
+- **背景：** v0.0.59 已纠正 frozen / no-frozen 分流，但 Windows 实机确认强制 `--reporter=append-only` 后 pnpm 原生安装信息仍不可见，确认后继续呈现无输出等待。
+- **目标：** 恢复 pnpm 原生前台 reporter；LFAA 不捕获、不重写、不模拟交互式 install 的 stdout/stderr。
+- **边界：** 不改 #20.13 的 lockfile 分流、不改正式发布 frozen、不改 Store/PNPM_HOME/真实健康检测，不进入 Web Account/Auth。
+
+### #20.13 开发期依赖同步与实时输出修复
+
+- **版本：** v0.0.59
+- **状态：** superseded
+- **AI 验证：** pass
+- **用户验收：** not-accepted
 - **主模块：** project-governance / windows-setup / dependency-sync
 - **背景：** v0.0.58 已能真实发现 lockfile 落后，但随后错误使用 `pnpm install --frozen-lockfile`；开发期需要更新 lockfile 与正式发布 frozen 校验被混淆。同时 pnpm 安装输出不够明确，用户确认后呈现“卡住”体验。
 - **目标：** lockfile 落后时允许本地同步更新；仅本地安装损坏时 frozen 精确修复；所有写操作稳定实时输出 pnpm 进度。
 - **边界：** 不进入 Web Account/Auth；不改实时 Store/PNPM_HOME/来源逻辑；不放宽 `release:full` frozen 规则。
+- **被后续修正：** Windows 实机确认 append-only reporter 仍未恢复 pnpm 原生安装信息，由 #20.14 / v0.0.60 修正。
 
 ### #20.12 PowerShell 自动变量冲突修复
 

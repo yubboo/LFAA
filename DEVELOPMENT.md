@@ -171,6 +171,8 @@ v0.0.58 起，Windows PowerShell 实现还必须遵守自动变量安全：Power
 
 v0.0.59 起，菜单 1 的开发期依赖同步与正式发布 frozen 安装必须分离：lockfile 落后时允许本地 `pnpm install --no-frozen-lockfile` 更新锁文件；lockfile 已完整但本地依赖损坏时使用 frozen 精确修复；正式 `release:full` 始终保持 `--frozen-lockfile`。所有交互式 pnpm 写操作必须输出稳定的实时进度。
 
+v0.0.60 起，Windows 菜单 1 的交互式 `pnpm install` 必须保留 pnpm 原生前台 reporter：不得强制 `--reporter=append-only` / `ndjson` / `silent`，不得捕获或重写安装 stdout/stderr。LFAA 只解释执行原因与结果，中间解析、复用、下载、链接、脚本日志由 pnpm 原样显示。
+
 `LFAA-Setup.bat → 10` 是检查中心，只负责把快速 / 完整 / 正式发布三种命令暴露为 Windows 交互入口；未来 CLI / GUI 必须复用同一底层命令，不得依赖菜单编号。
 
 正式 `release:full` 必须按顺序完成：发布环境版本检查 → `pnpm install --frozen-lockfile` → 完整项目检查 → Rust `cargo check/test --workspace`。任何一步失败，都不得宣称“完整发布门禁通过”或 `release-ready`。
