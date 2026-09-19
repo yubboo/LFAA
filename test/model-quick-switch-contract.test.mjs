@@ -38,7 +38,7 @@ test("reasoning slider supports click-drag keyboard control through shared ui-co
 });
 
 test("runtime control shell is isolated from composer layout to prevent popover layout flash", () => {
-  assert.match(css, /\.agent-runtime-control-card\{[^}]*contain:layout paint/s);
+  assert.match(css, /\.agent-runtime-control-card\{[^}]*contain:layout style/s);
   assert.match(css, /transform:translateZ\(0\)/);
   assert.match(css, /position:absolute/); // inherited composer popover anchor must remain out of document flow
 });

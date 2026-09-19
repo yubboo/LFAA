@@ -28,6 +28,10 @@ const sharedSliderCss = read("packages/ui/src/ui-controls/discrete-slider.css");
 const sharedEffectCss = read("packages/ui/src/ui-effects/effects.css");
 const sharedEffectRegistry = read("packages/ui/src/ui-effects/registry.ts");
 const sharedExtensionRegistry = read("packages/ui/src/ui-extension/registry.ts");
+const animatedDisclosure = read("packages/ui/src/ui-motion/AnimatedDisclosure.tsx");
+const shortcutHook = read("packages/ui/src/ui-shortcuts/useShortcut.ts");
+const dampedResize = read("packages/ui/src/ui-resize/damped-motion.ts");
+const overlayLayers = read("packages/ui/src/ui-overlay/layers.css");
 
 // 1. Shell Tooltip 只能有一个来源。
 const start = tsx.indexOf("function ShellHeaderButton(");
@@ -247,7 +251,7 @@ for (const token of [
   ".agent-work-surface__title",
   ".agent-runtime-control-trigger",
   ".agent-runtime-control-card",
-  "contain:layout paint",
+  "contain:layout style",
 ]) {
   if (!css.includes(token)) fail(`missing unified runtime-control UI style contract: ${token}`);
 }
@@ -272,3 +276,20 @@ for (const forbidden of ["packages/ui/src/effects", "packages/ui/src/overlay", "
 }
 
 console.log("LFAA UI contract check passed.");
+
+
+// 11. v0.0.88：模型卡必须稳定展开/收起，快捷键/层级/阻尼 Resize 进入共享 ui-xxx。
+for (const token of [
+  "AnimatedDisclosure",
+  'useShortcut({ key: "m", ctrl: true, shift: true }',
+  'useShortcut({ key: "p", ctrl: true, shift: true }',
+  "Ctrl+Shift+M",
+  "agent-runtime-control-trigger__tooltip",
+]) {
+  if (!tsx.includes(token)) fail(`missing v0.0.88 runtime-control interaction: ${token}`);
+}
+if (!animatedDisclosure.includes("grid-template-rows") && !read("packages/ui/src/ui-motion/animated-disclosure.css").includes("grid-template-rows")) fail("AnimatedDisclosure must animate stable mounted height");
+if (!shortcutHook.includes('window.addEventListener("keydown"')) fail("shared shortcut hook missing keydown registry");
+if (!dampedResize.includes("stepDampedValue") || !resizeTsx.includes("stepDampedValue")) fail("ResizableWorkbench must consume shared damped resize primitive");
+for (const token of ["--lfaa-layer-popover", "--lfaa-layer-tooltip", "--lfaa-layer-modal"]) if (!overlayLayers.includes(token)) fail(`missing overlay layer token ${token}`);
+if (!css.includes("var(--lfaa-layer-tooltip")) fail("tooltips must consume centralized overlay layer tokens");

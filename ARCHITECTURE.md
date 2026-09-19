@@ -2,6 +2,12 @@
 
 > 本文件只描述当前有效架构；历史变化统一通过 `docs/DEVELOPMENT_LOG.md` 追溯。
 
+## v0.0.88 交互运行时补充
+
+- Web 开发态 Chat 通过 `apps/web/dev/bridges/agent` 注入 `AgentRuntimeHost`，API Provider 文本回复通过 Runtime Event 投影到 Chat Timeline；该 bridge 是开发态 smoke runtime，不替代正式 Harness Adapter。
+- UI 共享运动学继续归 `packages/ui/src/ui-xxx`：`ui-motion` 管展开/收起，`ui-shortcuts` 管全局快捷键，`ui-resize` 管帧率无关阻尼，`ui-overlay` 管统一层级。
+- Workbench Resize 的产品阈值与视觉运动分离：业务规则仍由 captureRatio 等配置决定，视觉跟随由通用阻尼 Primitive 决定，避免每个 Surface 重写手感。
+
 ## 当前架构版本
 
 ```text

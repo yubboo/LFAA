@@ -3,6 +3,12 @@
 > **当前唯一有效开发规范。**
 > 用户说“按照开发规范开发 / 按照开发要求做”时，AI 必须把本文件当执行合同，而不是建议。
 
+## UI Motion / Shortcut / Resize 复用规则（v0.0.88）
+
+- 业务组件不得自行实现第二套通用展开动画、全局快捷键、阻尼 resize 或 overlay z-index；统一消费 `packages/ui/src/ui-motion`、`ui-shortcuts`、`ui-resize`、`ui-overlay`。
+- Resize 的产品规则（min/max、captureRatio、释放阈值）与视觉运动参数（timeConstant/epsilon）必须分离；修改手感优先调共享参数，不在每个 Surface 写魔法数。
+- Web 开发态 Chat 结果必须来自真实 Provider/Harness；禁止为了 UI 演示生成本地伪回复。Secret 只允许在 Host 内按 credentialRef 临时读取。
+
 ## 0. 唯一开发顺序
 
 ```text

@@ -1,3 +1,4 @@
+import "./ui-overlay/layers.css";
 /**
  * 文件：index.ts
  * 作用：@lfaa/ui 的公开导出入口。
@@ -8,30 +9,37 @@
  * 关联文件：workbench/ResizableWorkbench.tsx、workbench/workbench-layout.types.ts、workbench/workbench-layout.config.ts。
  * 修改注意事项：只导出稳定公共 API，内部实现细节不要直接暴露。
  */
-export { ResizableWorkbench } from "./workbench/ResizableWorkbench";
-export type { ResizableWorkbenchProps, WorkbenchPaneLimits, WorkbenchLayoutMode } from "./workbench/workbench-layout.types";
+export { ResizableWorkbench } from "./workbench/ResizableWorkbench.tsx";
+export type { ResizableWorkbenchProps, WorkbenchPaneLimits, WorkbenchLayoutMode } from "./workbench/workbench-layout.types.ts";
 
-export { WORKBENCH_LAYOUT_TOKENS, resolveWorkbenchLayoutMetrics } from "./workbench/workbench-layout.config";
-export { WORKBENCH_INTERACTION_TOKENS, normalizeSnapCaptureRatio, resolveSnapCaptureThreshold } from "./workbench/workbench-interaction.config";
-export type { WorkbenchLayoutMetrics } from "./workbench/workbench-layout.config";
-export { AiSettingsPage } from "./features/settings/ai/AiSettingsPage";
-export type { AiSettingsPageProps, AiSettingsProviderView, AiSettingsAuthView, AiSettingsFieldView, AiSettingsAccountView, AiSettingsDraftInput, AiSettingsProbeView, AiSettingsModelView } from "./features/settings/ai/ai-settings.types";
-export { UserMenu } from "./features/account/UserMenu";
-export type { UserMenuProps } from "./features/account/UserMenu";
-export { ThemeModeMenu } from "./features/appearance/ThemeModeMenu";
-export { useDismissibleLayer } from "./ui-overlay/useDismissibleLayer";
-export type { DismissibleLayerOptions } from "./ui-overlay/useDismissibleLayer";
-export { DiscreteSlider } from "./ui-controls/DiscreteSlider";
-export type { DiscreteSliderProps, DiscreteSliderStep } from "./ui-controls/DiscreteSlider";
-export { UiEffectHost, UiEffectRegistry, builtinUiEffectRegistry } from "./ui-effects/index";
-export type { UiEffectDefinition, UiEffectRegistration, UiEffectRendererKind } from "./ui-effects/index";
-export { UiExtensionRegistry } from "./ui-extension/registry";
-export type { UiExtensionContribution, UiExtensionKind } from "./ui-extension/contracts";
-export type { ThemeModeMenuProps, ThemePreference } from "./features/appearance/ThemeModeMenu";
-export { SettingsPage } from "./features/settings/SettingsPage";
-export type { SettingsPageProps, SettingsSectionId, PluginSettingsInstalledView, PluginSettingsInspectionView, PluginSettingsInstallResultView, PluginSettingsPanelProps } from "./features/settings/settings.types";
-export { AiSettingsPanel } from "./features/settings/ai/AiSettingsPanel";
-export type { AiSettingsPanelProps } from "./features/settings/ai/AiSettingsPanel";
+export { WORKBENCH_LAYOUT_TOKENS, resolveWorkbenchLayoutMetrics } from "./workbench/workbench-layout.config.ts";
+export { WORKBENCH_INTERACTION_TOKENS, normalizeSnapCaptureRatio, resolveSnapCaptureThreshold } from "./workbench/workbench-interaction.config.ts";
+export type { WorkbenchLayoutMetrics } from "./workbench/workbench-layout.config.ts";
+export { AiSettingsPage } from "./features/settings/ai/AiSettingsPage.tsx";
+export type { AiSettingsPageProps, AiSettingsProviderView, AiSettingsAuthView, AiSettingsFieldView, AiSettingsAccountView, AiSettingsDraftInput, AiSettingsProbeView, AiSettingsModelView } from "./features/settings/ai/ai-settings.types.ts";
+export { UserMenu } from "./features/account/UserMenu.tsx";
+export type { UserMenuProps } from "./features/account/UserMenu.tsx";
+export { ThemeModeMenu } from "./features/appearance/ThemeModeMenu.tsx";
+export { useDismissibleLayer } from "./ui-overlay/useDismissibleLayer.ts";
+export type { DismissibleLayerOptions } from "./ui-overlay/useDismissibleLayer.ts";
+export { DiscreteSlider } from "./ui-controls/DiscreteSlider.tsx";
+export type { DiscreteSliderProps, DiscreteSliderStep } from "./ui-controls/DiscreteSlider.tsx";
+export { UiEffectHost, UiEffectRegistry, builtinUiEffectRegistry } from "./ui-effects/index.ts";
+export type { UiEffectDefinition, UiEffectRegistration, UiEffectRendererKind } from "./ui-effects/index.ts";
+export { UiExtensionRegistry } from "./ui-extension/registry.ts";
+export type { UiExtensionContribution, UiExtensionKind } from "./ui-extension/contracts.ts";
+export type { ThemeModeMenuProps, ThemePreference } from "./features/appearance/ThemeModeMenu.tsx";
+export { SettingsPage } from "./features/settings/SettingsPage.tsx";
+export type { SettingsPageProps, SettingsSectionId, PluginSettingsInstalledView, PluginSettingsInspectionView, PluginSettingsInstallResultView, PluginSettingsPanelProps } from "./features/settings/settings.types.ts";
+export { AiSettingsPanel } from "./features/settings/ai/AiSettingsPanel.tsx";
+export type { AiSettingsPanelProps } from "./features/settings/ai/AiSettingsPanel.tsx";
 
-export { InfiniteCanvas } from "./features/workbench/InfiniteCanvas";
-export type { InfiniteCanvasEdge, InfiniteCanvasNode, InfiniteCanvasNodeKind, InfiniteCanvasProps } from "./features/workbench/infinite-canvas.types";
+export { InfiniteCanvas } from "./features/workbench/InfiniteCanvas.tsx";
+export type { InfiniteCanvasEdge, InfiniteCanvasNode, InfiniteCanvasNodeKind, InfiniteCanvasProps } from "./features/workbench/infinite-canvas.types.ts";
+
+export { AnimatedDisclosure } from "./ui-motion/index.ts";
+export type { AnimatedDisclosureProps } from "./ui-motion/AnimatedDisclosure.tsx";
+export { useShortcut } from "./ui-shortcuts/index.ts";
+export type { ShortcutSpec } from "./ui-shortcuts/useShortcut.ts";
+export { stepDampedValue, DEFAULT_DAMPED_RESIZE_MOTION } from "./ui-resize/index.ts";
+export { UI_LAYER } from "./ui-overlay/layers.ts";

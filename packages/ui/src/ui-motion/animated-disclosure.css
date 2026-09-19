@@ -1,0 +1,28 @@
+.lfaa-animated-disclosure {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-.2rem);
+  transition:
+    grid-template-rows 280ms cubic-bezier(.22,1,.36,1),
+    opacity 180ms ease,
+    transform 280ms cubic-bezier(.22,1,.36,1);
+  pointer-events: none;
+}
+.lfaa-animated-disclosure.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.lfaa-animated-disclosure__clip { min-height: 0; overflow: hidden; }
+.lfaa-animated-disclosure__content {
+  opacity: .2;
+  transform: translateY(-.25rem) scale(.995);
+  transform-origin: top center;
+  transition: opacity 180ms ease 25ms, transform 260ms cubic-bezier(.22,1,.36,1) 15ms;
+}
+.lfaa-animated-disclosure.is-open .lfaa-animated-disclosure__content { opacity: 1; transform: translateY(0) scale(1); }
+@media (prefers-reduced-motion: reduce) {
+  .lfaa-animated-disclosure,.lfaa-animated-disclosure__content { transition-duration: 0ms !important; }
+}

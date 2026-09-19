@@ -1,3 +1,10 @@
+## v0.0.88 UI / Runtime 新模块
+
+- `packages/ui/src/ui-motion`：AnimatedDisclosure。
+- `packages/ui/src/ui-shortcuts`：useShortcut。
+- `packages/ui/src/ui-resize`：阻尼 Resize 原语。
+- `apps/web/dev/bridges/agent`：Web 开发态 Agent Runtime Adapter。
+
 ## v0.0.87 UI：ui-xxx 共享模块与插件贡献 seam
 
 `packages/ui` 继续是图形 UI 唯一主域。新增共享能力固定进入 `src/ui-overlay / ui-controls / ui-effects / ui-extension`；既有 `layout/workbench/features` 不迁移。`ui-overlay/ui-controls` 属于稳定 UI Kernel/SDK；`ui-effects/ui-extension` 提供 Registry seam，让具有独立生命周期的 Effect/Renderer/Panel/Action 后续通过 Plugin/App Pack 注册。

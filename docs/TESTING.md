@@ -1,3 +1,7 @@
+## v0.0.88 / #22.3 Chat Runtime + Motion 回归
+
+重点实机：模型已配置后发送按钮可用并产生真实回复；连续打开/关闭模型卡不应闪屏；Ctrl+Shift+M / Ctrl+Shift+P 生效；Tooltip 不被卡片裁剪；左右栏正常拉伸具阻尼且 min 后超拖 50% 的防误触吸附规则不变。
+
 ## v0.0.87 / #21.21 UI Shared Module / Registry 回归
 
 必须覆盖：

@@ -32,14 +32,16 @@
  * - 响应式由 ResizeObserver + 统一布局计算器决定，不能用固定 viewport 断点硬挤三栏。
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { AGENT_PERMISSION_PROFILES, type AgentModelBinding, type AgentPermissionProfileId, type AgentRunHandle, type AgentSurfaceMode } from "@lfaa/agent-runtime";
+import { AGENT_PERMISSION_PROFILES, type AgentModelBinding, type AgentPermissionProfileId, type AgentRunHandle, type AgentRuntimeEvent, type AgentSurfaceMode } from "@lfaa/agent-runtime";
 import {
   InfiniteCanvas,
   ResizableWorkbench,
   DiscreteSlider,
+  AnimatedDisclosure,
   UiEffectHost,
   builtinUiEffectRegistry,
   useDismissibleLayer,
+  useShortcut,
   SettingsPage,
   ThemeModeMenu,
   UserMenu,
@@ -184,6 +186,13 @@ interface ActiveReasoningControl {
   field: AiModelSettingField;
   value: AiModelSettingValue | undefined;
   modelId: string;
+}
+
+interface ChatProjectionMessage {
+  id: string;
+  role: "user" | "assistant" | "error";
+  text: string;
+  runId?: string;
 }
 
 function formatReasoningOption(value: AiModelSettingValue, label?: string): string {
@@ -569,6 +578,7 @@ function CenterWorkspace({
   quickModels,
   activeReasoning,
   runtimeConnected,
+  chatMessages,
   workNodes,
   onWorkNodesChange,
   onPermissionProfileChange,
@@ -592,6 +602,7 @@ function CenterWorkspace({
   quickModels: readonly QuickModelOption[];
   activeReasoning: ActiveReasoningControl | null;
   runtimeConnected: boolean;
+  chatMessages: readonly ChatProjectionMessage[];
   workNodes: readonly InfiniteCanvasNode[];
   onWorkNodesChange: (nodes: readonly InfiniteCanvasNode[]) => void;
   onPermissionProfileChange: (profileId: AgentPermissionProfileId) => void;
@@ -625,6 +636,22 @@ function CenterWorkspace({
     boostRestoreValueRef.current = undefined;
     setReasoningPreviewIndex(null);
   }, [activeReasoning?.modelId]);
+
+  // Composer 运行时快捷键统一走 @lfaa/ui/ui-shortcuts，避免每个功能重复监听 window.keydown。
+  useShortcut({ key: "m", ctrl: true, shift: true }, () => {
+    setAddMenuOpen(false);
+    setPermissionMenuOpen(false);
+    if (quickModels.length === 0) { onOpenAiSettings(); return; }
+    setRuntimeControlOpen((value) => !value);
+    setRuntimeModelPickerOpen(false);
+    setReasoningPreviewIndex(null);
+  });
+  useShortcut({ key: "p", ctrl: true, shift: true }, () => {
+    setAddMenuOpen(false);
+    setRuntimeControlOpen(false);
+    setRuntimeModelPickerOpen(false);
+    setPermissionMenuOpen((value) => !value);
+  });
 
   const submitTask = async () => {
     const input = draft.trim();
@@ -748,10 +775,21 @@ function CenterWorkspace({
       {agentSurface === "chat" ? (
         <div className="agent-conversation">
           <div className="agent-conversation-inner">
-            <article className="agent-answer agent-answer--welcome">
-              <h1>聊天</h1>
-              <p>直接说你想完成什么。模型、Skills、Experts、Tools、MCP、Subagents 与权限都由同一个 Agent Runtime 统一调度。</p>
-            </article>
+            {chatMessages.length === 0 ? (
+              <article className="agent-answer agent-answer--welcome">
+                <h1>聊天</h1>
+                <p>直接说你想完成什么。当前开发态已经接通真实模型对话；Tools / Skills / MCP 会在 P2 Invocation 接入同一条 Run。</p>
+              </article>
+            ) : (
+              <div className="agent-chat-timeline" role="log" aria-live="polite">
+                {chatMessages.map((message) => (
+                  <article key={message.id} className={`agent-chat-message agent-chat-message--${message.role}`}>
+                    <div className="agent-chat-message__role">{message.role === "user" ? "你" : message.role === "assistant" ? "LFAA" : "运行错误"}</div>
+                    <div className="agent-chat-message__body">{message.text}</div>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -784,7 +822,7 @@ function CenterWorkspace({
             </div>
 
             <div className="agent-composer-menu-anchor" ref={permissionMenuRef}>
-              <button className="agent-permission-button" data-permission-profile={permissionProfileId} type="button" aria-label="权限模式" aria-expanded={permissionMenuOpen} onClick={() => { setPermissionMenuOpen((value) => !value); setAddMenuOpen(false); setRuntimeControlOpen(false); setRuntimeModelPickerOpen(false); }}>
+              <button className="agent-permission-button" data-permission-profile={permissionProfileId} type="button" aria-label="权限模式" aria-expanded={permissionMenuOpen} title="权限模式 · Ctrl+Shift+P" onClick={() => { setPermissionMenuOpen((value) => !value); setAddMenuOpen(false); setRuntimeControlOpen(false); setRuntimeModelPickerOpen(false); }}>
                 <WorkbenchIcon name={permissionProfileId === "full-access" ? "shield" : permissionProfileId === "approve-for-me" ? "spark" : "review"} size={15} />
                 <span>{AGENT_PERMISSION_PROFILES[permissionProfileId].label}</span><WorkbenchIcon name="chevron" size={12} />
               </button>
@@ -811,7 +849,7 @@ function CenterWorkspace({
                 type="button"
                 aria-label={quickModels.length === 0 ? "配置模型" : "模型与思考强度"}
                 aria-expanded={runtimeControlOpen}
-                title={quickModels.length === 0 ? "首次配置模型" : "模型与思考强度"}
+                title={quickModels.length === 0 ? "首次配置模型" : "模型与思考强度 · Ctrl+Shift+M"}
                 onClick={() => {
                   setAddMenuOpen(false);
                   setPermissionMenuOpen(false);
@@ -825,6 +863,7 @@ function CenterWorkspace({
                 <span className="agent-runtime-control-trigger__model">{modelLabel === "未配置模型" ? "选择模型" : modelLabel.split(" · ")[0]}</span>
                 {reasoningOptions.length ? <span className="agent-runtime-control-trigger__effort">{formatReasoningOption(visibleReasoningOption?.value ?? "", visibleReasoningOption?.label) || "默认"}</span> : null}
                 <WorkbenchIcon name="chevron" size={12} />
+                {quickModels.length > 0 ? <span className="agent-runtime-control-trigger__tooltip">模型与思考强度 <kbd>Ctrl+Shift+M</kbd></span> : null}
               </button>
 
               {runtimeControlOpen ? (
@@ -841,7 +880,7 @@ function CenterWorkspace({
                     ><WorkbenchIcon name="bolt" size={17} /></button>
 
                     <button
-                      className="agent-runtime-control-card__model"
+                      className={`agent-runtime-control-card__model${runtimeModelPickerOpen ? " is-open" : ""}`}
                       type="button"
                       aria-expanded={runtimeModelPickerOpen}
                       aria-label="切换模型"
@@ -854,37 +893,36 @@ function CenterWorkspace({
                     <button className="agent-runtime-control-card__icon" type="button" aria-label="重置思考强度" data-tooltip="重置为默认" disabled={!reasoningOptions.length || modelControlBusy} onClick={resetReasoning}><WorkbenchIcon name="refresh" size={17} /></button>
                   </div>
 
-                  {runtimeModelPickerOpen ? (
-                    <div className="agent-runtime-model-picker is-open" role="menu" aria-label="选择模型">
-                    <div className="agent-runtime-model-picker__label">选择模型</div>
-                    <div className="agent-runtime-model-picker__list">
-                      {quickModels.map((model) => (
-                        <button
-                          key={`${model.accountId}:${model.modelId}`}
-                          className={model.active ? "is-active" : ""}
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked={model.active}
-                          disabled={model.unavailable || modelControlBusy}
-                          onClick={() => {
-                            void runModelControl(async () => {
-                              await onQuickSelectModel(model.accountId, model.modelId);
-                              setRuntimeModelPickerOpen(false);
-                              setReasoningPreviewIndex(null);
-                              setReasoningBoostEnabled(false);
-                              boostRestoreValueRef.current = undefined;
-                            });
-                          }}
-                        >
-                          <span><strong>{model.modelName ?? model.modelId}</strong><small>{model.accountName} · {model.providerId}{model.unavailable ? " · 需重测" : ""}</small></span>
-                          <i aria-hidden="true">{model.active ? "✓" : ""}</i>
-                        </button>
-                      ))}
+                  <AnimatedDisclosure open={runtimeModelPickerOpen} className="agent-runtime-model-picker-disclosure">
+                    <div className="agent-runtime-model-picker" role="menu" aria-label="选择模型">
+                      <div className="agent-runtime-model-picker__label">选择模型</div>
+                      <div className="agent-runtime-model-picker__list">
+                        {quickModels.map((model) => (
+                          <button
+                            key={`${model.accountId}:${model.modelId}`}
+                            className={model.active ? "is-active" : ""}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={model.active}
+                            disabled={model.unavailable || modelControlBusy}
+                            onClick={() => {
+                              void runModelControl(async () => {
+                                await onQuickSelectModel(model.accountId, model.modelId);
+                                setRuntimeModelPickerOpen(false);
+                                setReasoningPreviewIndex(null);
+                                setReasoningBoostEnabled(false);
+                                boostRestoreValueRef.current = undefined;
+                              });
+                            }}
+                          >
+                            <span><strong>{model.modelName ?? model.modelId}</strong><small>{model.accountName} · {model.providerId}{model.unavailable ? " · 需重测" : ""}</small></span>
+                            <i aria-hidden="true">{model.active ? "✓" : ""}</i>
+                          </button>
+                        ))}
+                      </div>
+                      <button className="agent-runtime-model-picker__manage" type="button" onClick={() => { setRuntimeControlOpen(false); setRuntimeModelPickerOpen(false); onOpenAiSettings(); }}><WorkbenchIcon name="settings" size={14} /><span>管理模型</span></button>
                     </div>
-                    <button className="agent-runtime-model-picker__manage" type="button" onClick={() => { setRuntimeControlOpen(false); setRuntimeModelPickerOpen(false); onOpenAiSettings(); }}><WorkbenchIcon name="settings" size={14} /><span>管理模型</span></button>
-                  </div>
-
-                  ) : null}
+                  </AnimatedDisclosure>
 
                   {reasoningOptions.length ? (
                     <div className="agent-reasoning-slider-shell">
@@ -1007,6 +1045,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const [aiHostAvailable, setAiHostAvailable] = useState(Boolean(props.aiSettingsHost));
   const [pluginSnapshot, setPluginSnapshot] = useState<PluginManagerSnapshot>({ installed: [], registry: { generation: 0, plugins: new Map(), capabilities: new Map() } });
   const [pluginHostAvailable, setPluginHostAvailable] = useState(Boolean(props.pluginSettingsHost));
+  const [chatMessages, setChatMessages] = useState<readonly ChatProjectionMessage[]>([]);
   // Hover Preview 与正式左 Dock 共享同一个“实际宽度”值。默认取当前响应式 initial，随后由 ResizableWorkbench 回传真实宽度。
   const [leftPaneWidth, setLeftPaneWidth] = useState(() => initialLeftPaneWidth(layout.left));
   const [leftPreviewOpen, setLeftPreviewOpen] = useState(false);
@@ -1091,6 +1130,18 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     }).catch(() => { if (!cancelled) setPluginHostAvailable(false); });
     return () => { cancelled = true; };
   }, [props.pluginSettingsHost]);
+  useEffect(() => {
+    if (!props.agentRuntimeHost) return;
+    return props.agentRuntimeHost.subscribe((event: AgentRuntimeEvent) => {
+      if (event.type === "assistant.completed") {
+        setChatMessages((messages) => [...messages, { id: `${event.runId}:assistant`, role: "assistant", text: event.text, runId: event.runId }]);
+      } else if (event.type === "run.failed") {
+        setChatMessages((messages) => [...messages, { id: `${event.runId}:error`, role: "error", text: event.error, runId: event.runId }]);
+      } else if (event.type === "run.cancelled") {
+        setChatMessages((messages) => [...messages, { id: `${event.runId}:cancelled`, role: "error", text: "本次 Run 已取消。", runId: event.runId }]);
+      }
+    });
+  }, [props.agentRuntimeHost]);
   useEffect(() => {
     if (!chrome.leftCollapsed && leftPreviewOpen) setLeftPreviewOpen(false);
   }, [chrome.leftCollapsed, leftPreviewOpen]);
@@ -1203,6 +1254,9 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const startAgentRun = async (input: string): Promise<AgentRunHandle> => {
     if (!props.agentRuntimeHost) throw new Error("Agent Runtime Host 未连接。");
     if (!activeModelBinding) throw new Error("请先在设置中配置并选择模型。");
+    if (agentSurface === "chat") {
+      setChatMessages((messages) => [...messages, { id: `user:${Date.now()}:${messages.length}`, role: "user", text: input }]);
+    }
     const handle = await props.agentRuntimeHost.startRun({
       surface: agentSurface,
       input,
@@ -1296,6 +1350,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
                 quickModels={quickModels}
                 activeReasoning={activeReasoning}
                 runtimeConnected={Boolean(props.agentRuntimeHost)}
+                chatMessages={chatMessages}
                 workNodes={workNodes}
                 onWorkNodesChange={setWorkNodes}
                 onPermissionProfileChange={setPermissionProfileId}

@@ -1,3 +1,11 @@
+## LFAA v0.0.88 Release — #22.3 Real Chat Run / UI Motion
+
+- real Web development Chat Run bridge for configured API accounts;
+- AgentRuntimeEvent projection to Chat timeline;
+- stable AnimatedDisclosure model picker;
+- Ctrl+Shift+M model runtime control and Ctrl+Shift+P permission control;
+- centralized overlay layers and reusable damped resize primitive.
+
 ## LFAA v0.0.87 Release — #21.21 UI Shared Modules / Extension Registry
 
 - **状态：** pending-user-acceptance

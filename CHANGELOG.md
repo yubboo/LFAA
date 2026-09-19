@@ -1,3 +1,22 @@
+## LFAA v0.0.88 — #22.3 真实 Chat Run / UI Motion 与阻尼 Resize 基础
+
+### 修复
+- 已配置模型后 Composer 不再因为缺少 `agentRuntimeHost` 永久禁用发送；Web 开发宿主新增真实模型 Run bridge 与多轮内存会话。
+- Runtime Control 增加 `Ctrl+Shift+M`，权限增加 `Ctrl+Shift+P`；模型列表改为稳定挂载的 AnimatedDisclosure，减少切换时闪烁和瞬时跳高。
+- Overlay/Tooltip 层级改用共享 layer token，Runtime Card 不再使用会裁剪 tooltip 的 paint containment。
+- Workbench Resize 使用 `ui-resize` 指数阻尼追随 Pointer；吸附阈值仍保持“到最小宽后继续超拖 50% 才 capture”。
+
+### 新增共享 UI
+- `packages/ui/src/ui-motion`：稳定展开/收起。
+- `packages/ui/src/ui-shortcuts`：统一页面快捷键。
+- `packages/ui/src/ui-resize`：帧率无关阻尼运动学。
+- `packages/ui/src/ui-overlay/layers.*`：统一 Overlay 层级。
+
+### Runtime 边界
+- 新增 `AgentRuntimeEvent` / `subscribe()` 投影契约。
+- Web 开发态直连 API Provider 只用于先打通真实文本 Chat；ChatGPT/Codex 套餐仍应由官方 Harness Adapter 承担，Tools/Skills/MCP 不在本版本伪装完成。
+- **AI 验证：** 仓库 Node 124/124 + Config System 39/39 = 163/163 PASS；17/17 本次 TS/TSX 语法 transpile PASS；统一 workspace preflight 全 Gate PASS。
+
 ## LFAA v0.0.87 — #21.21 UI 共享模块 / Effect & Extension Registry 收敛
 
 - **状态：** pending-user-acceptance

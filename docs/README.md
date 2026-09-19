@@ -53,4 +53,4 @@ docs/logs/runtime/source-update/
 这些是本机运行数据目录，不再放 Markdown README。
 
 
-> 当前候选版本：v0.0.87（#21.21，pending-user-acceptance）；共享 UI `ui-xxx` 模块与 Effect/Extension Registry 等待实机确认不引入 v0.0.86 交互回归；v0.0.84 Provider Host 网络修复与 #2.16 ChatGPT/Codex 登录继续保留各自实机验收。
+> 当前候选版本：v0.0.88（#22.3，pending-user-acceptance）；真实 Chat Run、共享 Motion/Shortcut/Resize 与 Overlay 层级等待 Windows 实机验收。

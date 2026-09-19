@@ -17,12 +17,12 @@ pending-user-acceptance
 当前版本总任务：
 
 ```text
-#21.21 UI 共享模块 / Effect & Extension Registry 收敛
-version: v0.0.87
+#22.3 真实 Chat Run / UI Motion 与阻尼 Resize 基础
+version: v0.0.88
 status: pending-user-acceptance
 ```
 
-v0.0.87 在 v0.0.86 交互成果上继续做维护性收敛：共享 UI 能力统一进入 `packages/ui/src/ui-xxx/`；outside-dismiss、离散 Slider、Effect Registry 与 UI Extension Registry 成为复用层。App Shell 只组合，不再拥有通用 Pointer/粒子实现。UI Primitive 保持稳定不可卸载，Effect/Renderer/Panel 等具有独立生命周期的 UI Contribution 后续通过插件 Registry 安装/卸载。完成该边界后再进入 Plugin Platform P2 Capability Invocation。
+v0.0.88 先把当前用户可见的“模型已配置但无法发送”修成真实 Web 开发态 Chat Run：浏览器只发 Run 请求，本地 Host 按 `credentialRef` 从 Secret Broker 取凭据并调用当前 API Provider，结果通过统一 `AgentRuntimeEvent` 投影回 Chat；该链只负责模型对话，Tools/Skills/MCP 仍留给 P2 Invocation。UI 同时新增 `ui-motion / ui-shortcuts / ui-resize`，统一模型卡展开、快捷键和侧栏阻尼 Resize；Overlay 层级改用 `ui-overlay` token，避免 tooltip/popover 被局部 stacking context 截断。
 
 v0.0.80 以用户提供的 DeepSeek Harness 源码包为主要工程参考，重点借鉴 capability seam、profile/bundle、PluginManager 共享事务、HMR 生命周期、credentials 引用和“抽象必须有当前 Consumer”的维护原则；不复制其产品实现。
 

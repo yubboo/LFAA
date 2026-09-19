@@ -12,11 +12,11 @@ const effectHost = readFileSync(new URL("packages/ui/src/ui-effects/UiEffectHost
 const extensionRegistry = readFileSync(new URL("packages/ui/src/ui-extension/registry.ts", root), "utf8");
 
 test("shared UI infrastructure stays under packages/ui/src/ui-xxx", () => {
-  for (const folder of ["ui-overlay", "ui-controls", "ui-effects", "ui-extension"]) {
+  for (const folder of ["ui-overlay", "ui-controls", "ui-effects", "ui-extension", "ui-motion", "ui-shortcuts", "ui-resize"]) {
     assert.equal(existsSync(new URL(`packages/ui/src/${folder}/`, root)), true, `${folder} missing`);
   }
   assert.equal(existsSync(new URL("packages/ui/src/primitives/useDismissibleLayer.ts", root)), false);
-  for (const token of ["DiscreteSlider", "UiEffectHost", "UiEffectRegistry", "UiExtensionRegistry"]) assert.match(uiIndex, new RegExp(token));
+  for (const token of ["DiscreteSlider", "UiEffectHost", "UiEffectRegistry", "UiExtensionRegistry", "AnimatedDisclosure", "useShortcut", "stepDampedValue"]) assert.match(uiIndex, new RegExp(token));
 });
 
 test("model runtime control consumes reusable slider/effect modules instead of embedding them", () => {

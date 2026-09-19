@@ -11,6 +11,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
+| #22.3 | 真实 Chat Run / UI Motion 与阻尼 Resize 基础 | v0.0.88 | pending-user-acceptance |
 | #21.21 | UI 共享模块 / Effect & Extension Registry 收敛 | v0.0.87 | pending-user-acceptance |
 | #21.20 | Composer 统一模型运行时控制器 / Popover 闪烁修复 | v0.0.86 | pending-user-acceptance |
 | #21.19 | Composer 模型 / 思考强度原地快切 | v0.0.85 | pending-user-acceptance |
@@ -52,6 +53,17 @@
 
 
 
+
+
+### #22.3 真实 Chat Run / UI Motion 与阻尼 Resize 基础
+
+- **版本：** v0.0.88
+- **状态：** pending-user-acceptance
+- **问题：** 模型已配置但 Composer 仍因 Runtime Host 未接而无法发送；模型卡切换过快、层级 tooltip 被裁剪；侧栏 resize 手感偏硬。
+- **实现：** 新增 Web 开发态 Agent Runtime Bridge + Runtime Event Projection；新增 `ui-motion / ui-shortcuts / ui-resize / overlay layer tokens`；模型 picker 使用稳定 Disclosure；侧栏使用帧率无关阻尼。
+- **边界：** 当前 Chat bridge 是真实 API 文本对话 smoke runtime，不把 P2 Tools/Skills/MCP 伪装为已完成；Secret 仍只在 Host 内按 credentialRef 获取。
+- **AI 验证：** 仓库 Node 124/124 + Config System 39/39 = 163/163 PASS；17/17 本次 TS/TSX 语法 transpile PASS；统一 workspace preflight 全 Gate PASS。
+- **验收：** Windows 实机真实回复、快捷键、popover 层级、展开动画、侧栏阻尼和吸附阈值。
 
 ### #21.21 UI 共享模块 / Effect & Extension Registry 收敛
 

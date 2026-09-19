@@ -9,6 +9,7 @@
  * 修改注意事项：事件名或 payload 改动必须两端同时修改，否则运行期消息会失配。
  */
 import "vite/types/customEvent";
+import type { AgentRuntimeEvent } from "@lfaa/agent-runtime";
 
 declare module "vite/types/customEvent" {
   interface CustomEventMap {
@@ -20,5 +21,6 @@ declare module "vite/types/customEvent" {
     "lfaa:terminal:ready": { clientId: string; shell: string };
     "lfaa:terminal:exit": { clientId: string; exitCode: number };
     "lfaa:terminal:error": { clientId: string; message: string };
+    "lfaa:agent-runtime-event": AgentRuntimeEvent;
   }
 }

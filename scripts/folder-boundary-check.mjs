@@ -26,6 +26,7 @@ const required = [
   "packages/config-system/src/settings/ai/providers/README.md",
   "apps/web/dev/bridges/ai/README.md",
   "apps/web/dev/bridges/plugins/README.md",
+  "apps/web/dev/bridges/agent/README.md",
   "packages/credentials/README.md",
   "packages/plugin-host-node/README.md",
 ];

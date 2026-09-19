@@ -25,6 +25,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #22.3 | 真实 Chat Run / UI Motion 与阻尼 Resize 基础 | v0.0.88 | pending-user-acceptance | pass | pending |
 | #21.21 | UI 共享模块 / Effect & Extension Registry 收敛 | v0.0.87 | pending-user-acceptance | pass | pending |
 | #21.20 | Composer 统一模型运行时控制器 / Popover 闪烁修复 | v0.0.86 | pending-user-acceptance | pass | pending |
 | #21.19 | Composer 模型 / 思考强度原地快切 | v0.0.85 | pending-user-acceptance | pass | pending |
@@ -68,6 +69,58 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #22.3 真实 Chat Run / UI Motion 与阻尼 Resize 基础
+
+### 用户目标
+
+模型已经配置完成后，Chat 输入框必须真正可以发送并得到 Provider 的真实回复；不得继续停留在只构造 Run Request 的假入口。同时将快捷键、浮层层级、模型控制卡展开/收起动画和工作台拖拽/吸附阻尼抽成 `packages/ui/src/ui-xxx` 共用能力。模型控制卡展开/恢复要有连续、柔和但不过慢的过渡；侧栏继续保留“达到最小宽后还需额外超拖 50% 最小宽才吸附”的既有交互。
+
+### 允许修改
+
+- `packages/agent-runtime/**`：补最小 Run Event/订阅契约。
+- `apps/web/dev/bridges/agent/**`、`apps/web/src/host/**`、`apps/web/vite.config.ts`：接入 Web 开发态真实模型 Run Bridge。
+- `packages/app-shell/**`：Chat Timeline、发送状态、共享 UI 能力接线。
+- `packages/ui/src/ui-motion/**`：稳定挂载的展开/收起 Motion。
+- `packages/ui/src/ui-shortcuts/**`：共享快捷键 Hook。
+- `packages/ui/src/ui-resize/**`：阻尼尺寸跟随 Primitive。
+- `packages/ui/src/ui-overlay/**`：统一 Layer Token。
+- `packages/ui/src/workbench/**`：只允许消费共享 Resize Primitive，不重复实现阻尼算法。
+- 对应测试、治理、版本与架构文档。
+
+### 禁止修改 / 边界
+
+- 不把 Provider Secret 返回浏览器；API Key 只允许在 Node Host 内按 `credentialRef` 临时读取。
+- 不伪造本地 AI 回复；Chat 结果必须来自真实 Provider 调用，失败则明确显示失败。
+- 本任务只闭环 API Key / OpenAI-compatible 开发态文本对话；ChatGPT/Codex 套餐仍由官方 Harness Adapter 承担，不伪装已完成。
+- 本任务不宣称 Tool / Skill / MCP / Subagent 已进入真实执行链；它们留给 Capability Invocation P2。
+- 不破坏 #2.15 已验收的最小宽超拖 50% 才吸附规则。
+- UI 共用能力继续遵守 `packages/ui/src/ui-xxx`，业务组件禁止重新复制 outside-click、slider、阻尼或 layer 常量。
+
+### 验收条件
+
+1. 配置有效 API 模型后，Chat 输入可发送；用户消息进入 Timeline，Provider 返回后出现 Assistant 消息。
+2. Provider/网络失败以错误消息显示，不产生伪回复；Secret 不进入浏览器响应、日志或 Timeline。
+3. `Ctrl+Shift+M` 打开/关闭模型运行时控制；`Ctrl+Shift+P` 打开/关闭权限菜单，Tooltip 显示快捷键。
+4. 模型列表在同一张 Runtime Control Card 内平滑展开/收起，不通过双 Popover 反复 mount/unmount；空白点击/Esc 仍可关闭。
+5. Tooltip / Popover 层级由 `ui-overlay` 统一 Layer Token 管理，不被 Runtime Card 裁剪。
+6. Workbench 侧栏尺寸跟随使用共享阻尼算法，视觉跟随连续；达到最小宽后只有继续超拖 `0.50 * minWidth` 才进入吸附捕获。
+7. 新增 UI 共用模块必须有 README、公开出口和契约测试。
+
+### 必须测试
+
+- `test/chat-runtime-contract.test.mjs`
+- `test/ui-interaction-motion.test.mjs`
+- `test/workbench-snap-animation.test.mjs`
+- `test/model-quick-switch-contract.test.mjs`
+- `test/ui-shared-module-contract.test.mjs`
+- `node scripts/ui-contract-check.mjs`
+- 全仓 Node 回归 + Config System 回归 + `workspace-preflight`。
+- 最终 ZIP UTF-8 / `.lfaa` round-trip 后重新执行 `workspace-preflight`。
+
+### 状态
+
+`pending-user-acceptance`
 
 ## #21.21 UI 共享模块 / Effect & Extension Registry 收敛
 

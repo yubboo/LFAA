@@ -48,8 +48,8 @@
   background: var(--agent-bg, #fff);
   color: var(--agent-text, #171717);
   transition:
-    grid-template-columns var(--lfaa-snap-settle-duration) cubic-bezier(.22, 1, .36, 1),
-    grid-template-rows var(--lfaa-snap-settle-duration) cubic-bezier(.22, 1, .36, 1);
+    grid-template-columns var(--lfaa-snap-settle-duration) cubic-bezier(.16, .82, .24, 1),
+    grid-template-rows var(--lfaa-snap-settle-duration) cubic-bezier(.16, .82, .24, 1);
 }
 
 /* ===== 2. 拖拽阶段：Pointer 必须直接跟手 ===== */
@@ -68,28 +68,28 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 /* 只有越过防误触区、真正达到 capture threshold 后才开启磁吸收起；普通 resize 不追逐 Pointer。 */
 .lfaa-is-resizing .lfaa-workbench[data-snap-preview="left"],
 .lfaa-is-resizing .lfaa-workbench[data-snap-preview="right"] {
-  transition: grid-template-columns var(--lfaa-snap-capture-duration) cubic-bezier(.18, .9, .2, 1);
+  transition: grid-template-columns var(--lfaa-snap-capture-duration) cubic-bezier(.16, .82, .24, 1);
 }
 .lfaa-is-resizing-vertical .lfaa-workbench[data-snap-preview="bottom"] {
-  transition: grid-template-rows var(--lfaa-snap-capture-duration) cubic-bezier(.18, .9, .2, 1);
+  transition: grid-template-rows var(--lfaa-snap-capture-duration) cubic-bezier(.16, .82, .24, 1);
 }
 .lfaa-is-resizing .lfaa-workbench[data-snap-preview="left"] .lfaa-workbench__pane--left,
 .lfaa-is-resizing .lfaa-workbench[data-snap-preview="right"] .lfaa-workbench__pane--right {
-  transition: opacity var(--lfaa-snap-capture-duration) ease-out, transform var(--lfaa-snap-capture-duration) cubic-bezier(.18, .9, .2, 1);
+  transition: opacity var(--lfaa-snap-capture-duration) ease-out, transform var(--lfaa-snap-capture-duration) cubic-bezier(.16, .82, .24, 1);
 }
 
 /* Pointer 未松手时从 snap capture 反向拉出：只给 0 -> min/当前宽度一个短 release 过渡。
  * 时长来自统一 interaction token；结束后继续拖拽立即恢复 1:1 跟手。 */
 .lfaa-is-resizing .lfaa-workbench[data-snap-release="left"],
 .lfaa-is-resizing .lfaa-workbench[data-snap-release="right"] {
-  transition: grid-template-columns var(--lfaa-snap-release-duration) cubic-bezier(.22, 1, .36, 1);
+  transition: grid-template-columns var(--lfaa-snap-release-duration) cubic-bezier(.16, .82, .24, 1);
 }
 .lfaa-is-resizing-vertical .lfaa-workbench[data-snap-release="bottom"] {
-  transition: grid-template-rows var(--lfaa-snap-release-duration) cubic-bezier(.22, 1, .36, 1);
+  transition: grid-template-rows var(--lfaa-snap-release-duration) cubic-bezier(.16, .82, .24, 1);
 }
 .lfaa-is-resizing .lfaa-workbench[data-snap-release="left"] .lfaa-workbench__pane--left,
 .lfaa-is-resizing .lfaa-workbench[data-snap-release="right"] .lfaa-workbench__pane--right {
-  transition: opacity var(--lfaa-snap-release-duration) ease-out, transform var(--lfaa-snap-release-duration) cubic-bezier(.22, 1, .36, 1);
+  transition: opacity var(--lfaa-snap-release-duration) ease-out, transform var(--lfaa-snap-release-duration) cubic-bezier(.16, .82, .24, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -123,7 +123,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   visibility: visible;
   transition:
     opacity 180ms ease-out,
-    transform var(--lfaa-snap-settle-duration) cubic-bezier(.22, 1, .36, 1),
+    transform var(--lfaa-snap-settle-duration) cubic-bezier(.16, .82, .24, 1),
     visibility var(--lfaa-snap-settle-duration) step-end;
 }
 
@@ -196,7 +196,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   transform: translateY(0);
   border-top: 1px solid var(--agent-border, #e5e5e5);
   background: var(--agent-bg, #fff);
-  transition: opacity var(--lfaa-snap-capture-duration) ease-out, transform var(--lfaa-snap-settle-duration) cubic-bezier(.22, 1, .36, 1);
+  transition: opacity var(--lfaa-snap-capture-duration) ease-out, transform var(--lfaa-snap-settle-duration) cubic-bezier(.16, .82, .24, 1);
 }
 .lfaa-workbench[data-bottom-open="false"] .lfaa-workbench__bottom {
   opacity: 0;

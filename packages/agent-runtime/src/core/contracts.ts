@@ -40,6 +40,14 @@ export interface AgentRunHandle {
   readonly sessionId: string;
 }
 
+export type AgentRuntimeEvent =
+  | { readonly type: "run.started"; readonly runId: string; readonly sessionId: string }
+  | { readonly type: "assistant.completed"; readonly runId: string; readonly sessionId: string; readonly text: string }
+  | { readonly type: "run.failed"; readonly runId: string; readonly sessionId: string; readonly error: string }
+  | { readonly type: "run.cancelled"; readonly runId: string; readonly sessionId: string };
+
+export type AgentRuntimeEventListener = (event: AgentRuntimeEvent) => void;
+
 /**
  * App Shell 只依赖这个端口，不知道 Codex/DSH/某模型 SDK 的实现细节。
  * 未提供 Host 时 UI 必须显示“Runtime 未连接”，禁止本地伪造模型回复。
@@ -47,4 +55,6 @@ export interface AgentRunHandle {
 export interface AgentRuntimeHost {
   startRun(request: AgentRunRequest): Promise<AgentRunHandle>;
   cancelRun(runId: string): Promise<void>;
+  /** Runtime 事件是 Chat / Work Projection 的唯一执行结果入口；UI 不自己伪造模型回复。 */
+  subscribe(listener: AgentRuntimeEventListener): () => void;
 }

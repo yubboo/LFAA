@@ -1,3 +1,7 @@
+## v0.0.88 UI Motion / Shortcut / Resize 共享边界
+
+共享交互继续统一放在 `packages/ui/src/ui-xxx`：`ui-motion` 负责稳定展开收起，`ui-shortcuts` 负责页面快捷键，`ui-resize` 负责阻尼 resize 运动学，`ui-overlay` 负责 outside-dismiss 与 layer tokens。业务组件只组合这些 Primitive。`Popover flicker / layout flash` 继续作为禁止回归项。
+
 ## UI 共享模块与插件贡献边界（v0.0.87）
 
 共享 UI 新能力统一放在 `packages/ui/src/ui-xxx/`：

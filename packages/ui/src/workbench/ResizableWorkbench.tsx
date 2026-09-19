@@ -33,9 +33,10 @@ import {
   WORKBENCH_INTERACTION_TOKENS,
   resolveSnapCaptureThreshold,
   resolveSnapDragFrame,
-} from "./workbench-interaction.config";
-import { WORKBENCH_LAYOUT_TOKENS, resolveWorkbenchLayoutMetrics } from "./workbench-layout.config";
-import type { ResizableWorkbenchProps, WorkbenchPaneLimits } from "./workbench-layout.types";
+} from "./workbench-interaction.config.ts";
+import { WORKBENCH_LAYOUT_TOKENS, resolveWorkbenchLayoutMetrics } from "./workbench-layout.config.ts";
+import { stepDampedValue } from "../ui-resize/damped-motion.ts";
+import type { ResizableWorkbenchProps, WorkbenchPaneLimits } from "./workbench-layout.types.ts";
 import "./workbench.css";
 
 // ===== 1. 内部持久化 / 拖拽状态 =====
@@ -57,6 +58,8 @@ interface SideDragState {
   lastRaw: number;
   captureThreshold: number;
   snapped: boolean;
+  visualSize: number;
+  lastFrameAt: number;
 }
 
 interface BottomDragState {
@@ -68,6 +71,8 @@ interface BottomDragState {
   lastHeight: number;
   captureThreshold: number;
   snapped: boolean;
+  visualSize: number;
+  lastFrameAt: number;
 }
 
 // ===== 2. 默认布局参数与通用辅助函数 =====
@@ -320,7 +325,14 @@ export function ResizableWorkbench({
     else if (frame.capturedThisFrame) cancelSnapRelease();
 
     // capture 前视觉尺寸永远不低于 min；Pointer 超拖只参与 frame 的捕获判断。
-    setSidePreview(drag.side, frame.visualSize, frame.snapped);
+    // 视觉尺寸通过 ui-resize 的时间阻尼追随目标，减少高频 Pointer 造成的“快、硬、卡点”感。
+    const now = performance.now();
+    drag.visualSize = stepDampedValue(drag.visualSize, frame.visualSize, now - drag.lastFrameAt);
+    drag.lastFrameAt = now;
+    setSidePreview(drag.side, drag.visualSize, frame.snapped);
+    if (Math.abs(drag.visualSize - frame.visualSize) > .35 && frameRef.current === null) {
+      frameRef.current = window.requestAnimationFrame(flushPending);
+    }
   }, [beginSnapRelease, cancelSnapRelease, setSidePreview, snapHysteresis]);
 
   const schedule = useCallback((value: number) => {
@@ -352,6 +364,8 @@ export function ResizableWorkbench({
       lastRaw: current,
       captureThreshold: resolveSnapCaptureThreshold(effectiveMin, snapCaptureRatio),
       snapped: false,
+      visualSize: current,
+      lastFrameAt: performance.now(),
     };
 
     cancelSnapRelease();
@@ -451,6 +465,8 @@ export function ResizableWorkbench({
       lastHeight: bottomHeight,
       captureThreshold: resolveSnapCaptureThreshold(bottomLimits.min, snapCaptureRatio),
       snapped: false,
+      visualSize: bottomHeight,
+      lastFrameAt: performance.now(),
     };
     cancelSnapRelease();
     root.dataset.dragging = "bottom";
@@ -479,8 +495,11 @@ export function ResizableWorkbench({
     else if (frame.capturedThisFrame) cancelSnapRelease();
 
     // Bottom 与左右栏一致：越过 min 后视觉高度固定在 min，只累计隐藏超拖。
+    const now = performance.now();
+    drag.visualSize = stepDampedValue(drag.visualSize, frame.visualSize, now - drag.lastFrameAt);
+    drag.lastFrameAt = now;
     drag.lastHeight = frame.visualSize || drag.min;
-    setBottomPreview(frame.visualSize, frame.snapped);
+    setBottomPreview(drag.visualSize, frame.snapped);
   }, [beginSnapRelease, cancelSnapRelease, setBottomPreview, snapHysteresis]);
 
   const finishBottomDrag = useCallback((event: PointerEvent<HTMLDivElement>) => {

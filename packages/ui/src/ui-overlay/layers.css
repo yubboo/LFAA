@@ -1,0 +1,9 @@
+:root {
+  --lfaa-layer-base: 0;
+  --lfaa-layer-dock: 80;
+  --lfaa-layer-header: 140;
+  --lfaa-layer-popover: 520;
+  --lfaa-layer-tooltip: 620;
+  --lfaa-layer-modal: 720;
+  --lfaa-layer-toast: 820;
+}

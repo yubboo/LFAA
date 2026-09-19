@@ -1,3 +1,7 @@
+## v0.0.88 Web 开发态真实 Chat Run
+
+Web 开发宿主新增最小 `AgentRuntimeHost`：Run 在 localhost Host 中读取账户元数据与 `credentialRef`，Secret 由 Credential Store 获取且不返回浏览器；API Provider 文本回复通过 `AgentRuntimeEvent` 投影到 Chat。该桥只验证真实模型对话链，P2 Capability Invocation、工具调用、正式 Session/Event Store 尚未宣称完成。
+
 ## v0.0.87：UI Extension 生命周期边界
 
 UI 插件贡献与 Runtime Capability 使用同一类“owner + generation”思路，但 UI Kernel 本身不是可卸载插件。`ui-effects/ui-extension` Registry 负责安装/卸载后的 contribution 可见性；普通插件不得直接持有 DOM 引用跨 generation 存活。未来 Plugin Runtime 接 UI Contribution 时必须通过 Adapter/Registry，不允许直接向 App Shell 注入任意 JS。
