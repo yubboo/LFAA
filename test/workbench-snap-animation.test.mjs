@@ -7,29 +7,54 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
+import path from "node:path";
 
 const workbench = fs.readFileSync("packages/ui/src/workbench/ResizableWorkbench.tsx", "utf8");
 const css = fs.readFileSync("packages/ui/src/workbench/workbench.css", "utf8");
 const interaction = fs.readFileSync("packages/ui/src/workbench/workbench-interaction.config.ts", "utf8");
 const layout = fs.readFileSync("packages/ui/src/workbench/workbench-layout.config.ts", "utf8");
 
-test("snap capture 不再在 min 立即触发，而是使用 capture threshold", () => {
-  assert.doesNotMatch(workbench, /!drag\.snapped && raw <= drag\.min/);
-  assert.match(workbench, /!drag\.snapped && raw <= drag\.captureThreshold/);
+test("snap capture 使用隐藏超拖阈值，视觉宽度在 min 后保持不变", () => {
+  assert.match(workbench, /resolveSnapDragFrame\(\{/);
   assert.match(workbench, /resolveSnapCaptureThreshold\(effectiveMin, snapCaptureRatio\)/);
-  assert.match(workbench, /clamp\(raw, drag\.captureThreshold, drag\.max\)/);
+  assert.match(interaction, /visualSize: snapped \? 0 : Math\.min\(safeMax, Math\.max\(safeMin, rawSize\)\)/);
+  assert.doesNotMatch(workbench, /clamp\(raw, drag\.captureThreshold, drag\.max\)/);
+});
+
+test("隐藏超拖行为按真实纯函数执行：min 后视觉锁定，阈值才 capture", () => {
+  const moduleUrl = pathToFileURL(path.resolve("packages/ui/src/workbench/workbench-interaction.config.ts")).href;
+  const script = `
+    const m = await import(${JSON.stringify(moduleUrl)});
+    const threshold = m.resolveSnapCaptureThreshold(220, 0.50);
+    const inputs = [300, 220, 170, 111, 110];
+    const frames = inputs.map((rawSize) => m.resolveSnapDragFrame({
+      rawSize, minSize: 220, maxSize: 420, captureThreshold: threshold, snapped: false, releaseHysteresis: 24,
+    }));
+    process.stdout.write(JSON.stringify({ threshold, frames }));
+  `;
+  const output = execFileSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "--eval", script], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  const { threshold, frames } = JSON.parse(output);
+  assert.equal(threshold, 110);
+  assert.deepEqual(frames.map((item) => item.visualSize), [300, 220, 220, 220, 0]);
+  assert.deepEqual(frames.map((item) => item.snapped), [false, false, false, false, true]);
 });
 
 test("默认 captureRatio 为 0.50 且集中配置有中文说明", () => {
   assert.match(interaction, /captureRatio:\s*0\.50/);
   assert.match(interaction, /minWidth × captureRatio/);
-  assert.match(interaction, /默认 0\.50 = 到最小宽度的一半才吸附/);
+  assert.match(interaction, /继续向内拖半个 minWidth 的距离后才吸附/);
   assert.match(layout, /snapCaptureRatio/);
 });
 
 test("snap capture 保持 Pointer 不松手可反向释放", () => {
-  assert.match(workbench, /drag\.snapped && raw >= drag\.min \+ snapHysteresis/);
-  assert.match(workbench, /wasSnapped && !drag\.snapped/);
+  assert.match(interaction, /rawSize >= safeMin \+ Math\.max\(0, input\.releaseHysteresis\)/);
+  assert.match(interaction, /releasedThisFrame: input\.snapped && !snapped/);
+  assert.match(workbench, /frame\.releasedThisFrame/);
   assert.match(workbench, /beginSnapRelease\(drag\.side\)/);
 });
 
@@ -44,8 +69,9 @@ test("反向拉出只启用短暂 release 动画，不永久给拖拽加 transit
 });
 
 test("左栏、右栏与底部复用同一 capture / 反向释放规则", () => {
-  assert.ok((workbench.match(/raw <= drag\.captureThreshold/g) ?? []).length >= 2);
+  assert.ok((workbench.match(/resolveSnapDragFrame\(\{/g) ?? []).length >= 3);
   assert.match(workbench, /resolveSnapCaptureThreshold\(bottomLimits\.min, snapCaptureRatio\)/);
+  assert.match(workbench, /drag\.lastHeight = frame\.visualSize \|\| drag\.min/);
   assert.match(css, /data-snap-release="right"/);
   assert.match(css, /data-snap-release="bottom"/);
   assert.match(workbench, /beginSnapRelease\("bottom"\)/);

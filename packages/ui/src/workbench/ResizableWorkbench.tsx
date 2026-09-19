@@ -7,7 +7,8 @@
  * 对外接口：ResizableWorkbench(props)，leftWidth/onLeftWidthChange 可让多个 Surface 共用同一左栏宽度事实源。
  * 关联文件：workbench-layout.types.ts、workbench.css、@lfaa/app-shell/AgentWorkbench.tsx。
  * 修改注意事项：
- * - min 只表示正常展开态最小宽度；默认继续拖到 min × 0.50 才进入吸附预览，降低误触，Pointer 不松手仍可反向拉出。
+ * - min 表示视觉展开态最小宽度；Pointer 越过 min 后视觉宽度保持 min，只累计“超拖距离”。
+ * - 默认超拖达到 min 的 50% 才进入吸附预览，降低误触；Pointer 不松手仍可反向拉出。
  * - Pointer Up 后 separator 不允许反向展开，只能由显式按钮/快捷键恢复。
  * - 不要在本组件新增业务按钮；受控/非受控状态必须保持一致。
  *
@@ -31,6 +32,7 @@ import {
 import {
   WORKBENCH_INTERACTION_TOKENS,
   resolveSnapCaptureThreshold,
+  resolveSnapDragFrame,
 } from "./workbench-interaction.config";
 import { WORKBENCH_LAYOUT_TOKENS, resolveWorkbenchLayoutMetrics } from "./workbench-layout.config";
 import type { ResizableWorkbenchProps, WorkbenchPaneLimits } from "./workbench-layout.types";
@@ -292,30 +294,33 @@ export function ResizableWorkbench({
   // requestAnimationFrame 合并高频 pointermove。
   // 规则：
   // 1) min 是“正常展开态”的最小可用宽度，不再等于吸附触发线；
-  // 2) Pointer 越过 min 后仍可继续临时缩窄，只有达到 captureThreshold（默认 min × 0.50）才进入 snap capture；
-  // 3) 未达到 captureThreshold 就松手时不会收起，而是由非拖拽过渡恢复到 min，降低误触；
-  // 4) 已 capture 后 Pointer 仍按住，只要反向拖过 min + hysteresis，就从 0 恢复到 min 并继续正常拉伸；
-  // 5) 只有 Pointer Up 时仍处于 snapped，才真正提交 collapsed。
+  // 2) Pointer 越过 min 后，视觉宽度固定在 min；只继续累计“隐藏超拖距离”；
+  // 3) 只有 Pointer 的虚拟尺寸达到 captureThreshold（默认 min × 0.50）才进入 snap capture；
+  // 4) 未达到 captureThreshold 就松手时保持 min，不会收起，降低误触；
+  // 5) 已 capture 后 Pointer 仍按住，只要反向拖过 min + hysteresis，就从 0 恢复到 min 并继续正常拉伸；
+  // 6) 只有 Pointer Up 时仍处于 snapped，才真正提交 collapsed。
   const flushPending = useCallback(() => {
     frameRef.current = null;
     const rawValue = pendingRef.current;
     const drag = sideDragRef.current;
     if (rawValue === null || drag === null) return;
 
-    const raw = clamp(rawValue, 0, drag.max);
-    drag.lastRaw = raw;
+    const frame = resolveSnapDragFrame({
+      rawSize: rawValue,
+      minSize: drag.min,
+      maxSize: drag.max,
+      captureThreshold: drag.captureThreshold,
+      snapped: drag.snapped,
+      releaseHysteresis: snapHysteresis,
+    });
+    drag.lastRaw = frame.rawSize;
+    drag.snapped = frame.snapped;
 
-    const wasSnapped = drag.snapped;
-    if (!drag.snapped && raw <= drag.captureThreshold) drag.snapped = true;
-    else if (drag.snapped && raw >= drag.min + snapHysteresis) drag.snapped = false;
+    if (frame.releasedThisFrame) beginSnapRelease(drag.side);
+    else if (frame.capturedThisFrame) cancelSnapRelease();
 
-    if (wasSnapped && !drag.snapped) beginSnapRelease(drag.side);
-    else if (!wasSnapped && drag.snapped) cancelSnapRelease();
-
-    // capture 前允许临时低于 min 跟随 Pointer，直到统一 captureThreshold；进入 capture 后才吸到 0。
-    // 反向释放使用统一 releaseDuration，结束后恢复完全跟手。
-    const visual = drag.snapped ? 0 : clamp(raw, drag.captureThreshold, drag.max);
-    setSidePreview(drag.side, visual, drag.snapped);
+    // capture 前视觉尺寸永远不低于 min；Pointer 超拖只参与 frame 的捕获判断。
+    setSidePreview(drag.side, frame.visualSize, frame.snapped);
   }, [beginSnapRelease, cancelSnapRelease, setSidePreview, snapHysteresis]);
 
   const schedule = useCallback((value: number) => {
@@ -373,10 +378,16 @@ export function ResizableWorkbench({
       frameRef.current = null;
       const rawValue = pendingRef.current;
       if (rawValue !== null) {
-        const bounded = clamp(rawValue, 0, drag.max);
-        drag.lastRaw = bounded;
-        if (!drag.snapped && bounded <= drag.captureThreshold) drag.snapped = true;
-        else if (drag.snapped && bounded >= drag.min + snapHysteresis) drag.snapped = false;
+        const frame = resolveSnapDragFrame({
+          rawSize: rawValue,
+          minSize: drag.min,
+          maxSize: drag.max,
+          captureThreshold: drag.captureThreshold,
+          snapped: drag.snapped,
+          releaseHysteresis: snapHysteresis,
+        });
+        drag.lastRaw = frame.rawSize;
+        drag.snapped = frame.snapped;
       }
     }
 
@@ -453,20 +464,23 @@ export function ResizableWorkbench({
     const drag = bottomDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
 
-    const raw = clamp(drag.rectBottom - event.clientY, 0, drag.max);
-    drag.lastRaw = raw;
+    const frame = resolveSnapDragFrame({
+      rawSize: drag.rectBottom - event.clientY,
+      minSize: drag.min,
+      maxSize: drag.max,
+      captureThreshold: drag.captureThreshold,
+      snapped: drag.snapped,
+      releaseHysteresis: snapHysteresis,
+    });
+    drag.lastRaw = frame.rawSize;
+    drag.snapped = frame.snapped;
 
-    const wasSnapped = drag.snapped;
-    if (!drag.snapped && raw <= drag.captureThreshold) drag.snapped = true;
-    else if (drag.snapped && raw >= drag.min + snapHysteresis) drag.snapped = false;
+    if (frame.releasedThisFrame) beginSnapRelease("bottom");
+    else if (frame.capturedThisFrame) cancelSnapRelease();
 
-    if (wasSnapped && !drag.snapped) beginSnapRelease("bottom");
-    else if (!wasSnapped && drag.snapped) cancelSnapRelease();
-
-    // Bottom 与左右栏一致：min 之后仍有防误触区，达到 captureThreshold 才正式吸附。
-    const visual = drag.snapped ? 0 : clamp(raw, drag.captureThreshold, drag.max);
-    drag.lastHeight = clamp(raw, drag.captureThreshold, drag.max);
-    setBottomPreview(visual, drag.snapped);
+    // Bottom 与左右栏一致：越过 min 后视觉高度固定在 min，只累计隐藏超拖。
+    drag.lastHeight = frame.visualSize || drag.min;
+    setBottomPreview(frame.visualSize, frame.snapped);
   }, [beginSnapRelease, cancelSnapRelease, setBottomPreview, snapHysteresis]);
 
   const finishBottomDrag = useCallback((event: PointerEvent<HTMLDivElement>) => {

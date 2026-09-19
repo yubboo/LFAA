@@ -1,3 +1,11 @@
+## v0.0.75 / #2.15 侧栏最小宽度超拖吸附修正
+
+- `test/workbench-snap-animation.test.mjs`：锁定 capture 前视觉必须 `clamp(raw, min, max)`，禁止 `captureThreshold` 控制视觉宽度；capture 仍由隐藏 Pointer 超拖阈值触发。
+- `scripts/ui-contract-check.mjs`：禁止恢复 `raw <= min` 直接吸附，也禁止恢复 `clamp(raw, captureThreshold, max)` 的可见缩窄。
+- `resolveSnapDragFrame` 行为测试：300→300、220(min)→220、170→220、111→220、110(capture)→0/snapped；验证隐藏超拖不改变视觉宽度。
+- 当前制作环境：仓库 Node 回归 65/65 + Config System 30/30 = 95/95 PASS；治理链全部 PASS。
+- 用户实机：正常区间任意宽度可停；到 min 后继续向内拖时栏宽保持 min；超拖约半个 min 后才吸附；阈值前松手保持 min；capture 后不松手反向释放仍丝滑。
+
 ## v0.0.74 / #2.14 侧栏吸附触发阈值变量化
 
 - `test/workbench-snap-animation.test.mjs`：锁住 `raw <= min` 不得直接 capture，正式触发必须走 `captureThreshold = min × snapCaptureRatio`；验证默认 ratio=0.50、左右/Bottom 共用、反向 release 继续存在。

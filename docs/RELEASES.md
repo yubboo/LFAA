@@ -1,6 +1,17 @@
-## LFAA v0.0.74 Release — #2.14 侧栏吸附触发阈值变量化
+## LFAA v0.0.75 Release — #2.15 侧栏最小宽度超拖吸附修正
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.74
+- **任务：** #2.15
+- **主要变更：** `minWidth` 之后视觉宽度保持不变；Pointer 继续向内超拖只用于判断 capture，默认超拖半个 `minWidth` 才收起。
+- **正常 Resize：** `minWidth..maxWidth` 继续 1:1 跟手并可停在任意位置，不再出现自动计算宽度 / 吸附展开感。
+- **复用：** 主工作台、Settings、左右栏与 Bottom Dock 继续共用同一 `ResizableWorkbench` 与 Interaction Config。
+- **用户验收重点：** 任意宽度可停；到 min 后继续拖但视觉不变；约半个 min 超拖后才吸附；阈值前松手保持 min；反向 release 仍丝滑。
+
+## LFAA v0.0.74 Release — #2.14 侧栏吸附触发阈值变量化
+
+- **状态：** superseded
+- **用户验收：** not-accepted；实机发现防误触区错误地继续视觉缩窄，由 v0.0.75 修正
 - **基线：** v0.0.73
 - **任务：** #2.14
 - **主要变更：** `minWidth` 不再等于吸附触发线；默认拖到 `minWidth × 0.50` 才 capture，min 到 capture 之间是防误触临时拖拽区。

@@ -105,12 +105,13 @@ if (!css.includes("max(var(--agent-composer-bottom-gap), env(safe-area-inset-bot
   fail("Composer bottom spacing must use --agent-composer-bottom-gap + safe-area instead of a fixed bottom padding");
 }
 
-// 4. 三向吸附必须使用防误触 capture threshold：min 只是正常可用下限，继续拖到 min × ratio 才吸附；不松手仍可反向解锁。
+// 4. 三向吸附必须使用“隐藏超拖” capture threshold：视觉尺寸到 min 后保持 min，Pointer 继续向内超拖到阈值才吸附；不松手仍可反向解锁。
 const interactionConfig = read("packages/ui/src/workbench/workbench-interaction.config.ts");
 for (const token of [
-  "raw <= drag.captureThreshold",
-  "raw >= drag.min + snapHysteresis",
-  "drag.snapped ? 0 : clamp(raw, drag.captureThreshold, drag.max)",
+  "resolveSnapDragFrame({",
+  "frame.visualSize",
+  "frame.capturedThisFrame",
+  "frame.releasedThisFrame",
   "resolveSnapCaptureThreshold(effectiveMin, snapCaptureRatio)",
   "resolveSnapCaptureThreshold(bottomLimits.min, snapCaptureRatio)",
   "Pointer Up",
@@ -118,8 +119,19 @@ for (const token of [
 ]) {
   if (!resizeTsx.includes(token)) fail(`missing capture-threshold snap contract: ${token}`);
 }
+for (const token of [
+  "rawSize <= input.captureThreshold",
+  "rawSize >= safeMin + Math.max(0, input.releaseHysteresis)",
+  "visualSize: snapped ? 0 : Math.min(safeMax, Math.max(safeMin, rawSize))",
+]) {
+  if (!interactionConfig.includes(token)) fail(`missing centralized snap-frame contract: ${token}`);
+}
 if (resizeTsx.includes("!drag.snapped && raw <= drag.min")) {
   fail("minWidth must not directly trigger snap capture; use captureThreshold");
+}
+
+if (resizeTsx.includes("clamp(raw, drag.captureThreshold, drag.max)")) {
+  fail("pre-capture visual size must stay at minWidth; captureThreshold is pointer-only, not visual width");
 }
 for (const token of [
   "captureRatio: 0.50",

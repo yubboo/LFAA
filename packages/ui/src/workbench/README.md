@@ -80,7 +80,7 @@ App Shell 内容与状态：
 
 `workbench-interaction.config.ts` 是 Workbench 拖拽手感的唯一默认参数入口：
 
-- `snap.captureRatio`：默认 `0.50`，表示拖到 `minWidth × 50%` 才正式吸附；越小越难误触收起；
+- `snap.captureRatio`：默认 `0.50`。侧栏到 `minWidth` 后视觉宽度保持不变，Pointer 继续向内超拖；只有虚拟尺寸到 `minWidth × 50%`（等价于再超拖半个 `minWidth`）才正式吸附；
 - `snap.releaseHysteresis`：已吸附后反向拉出需要越过的迟滞距离；
 - `snap.captureDurationMs / releaseDurationMs / settleDurationMs`：吸附、反向释放、普通归位动画；
 - `keyboard.stepPx / fastStepPx`：键盘 Resize 步长。

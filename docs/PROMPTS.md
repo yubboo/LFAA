@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #2.14 | 侧栏吸附触发阈值变量化 | v0.0.74 | pending-user-acceptance | pass | pending |
+| #2.15 | 侧栏最小宽度超拖吸附修正 | v0.0.75 | pending-user-acceptance | pass | pending |
+| #2.14 | 侧栏吸附触发阈值变量化 | v0.0.74 | superseded | pass | not-accepted |
 | #2.13 | Rust Secret Broker 与官方模型能力配置 | v0.0.73 | superseded | pass | not-accepted |
 | #2.12 | Windows Credential Manager 保存链路修复 | v0.0.72 | superseded | pass | not-accepted |
 | #2.11 | 工作台 / 设置左栏宽度单一事实源 | v0.0.71 | delivered | pass | passed |
@@ -52,6 +53,58 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.15 侧栏最小宽度超拖吸附修正
+
+### 主模块
+
+`ui / workbench`
+
+### 背景
+
+v0.0.74 虽然把 `minWidth` 与 capture threshold 解耦，但错误地让侧栏在 `minWidth → captureThreshold` 区间继续视觉缩窄，导致正常 resize 手感被算法接管，出现“像吸附展开、不能停在任意宽度”的回归。用户明确要求复刻目标交互：侧栏到最小宽度后视觉尺寸立即锁定，不再变窄；Pointer 继续向收起方向超拖，只有超拖约半个 `minWidth` 后才触发吸附收起。
+
+### 任务目标
+
+1. 正常 resize 区间保持 Pointer 1:1 跟手，可停在 `minWidth..maxWidth` 任意位置；
+2. 到达 `minWidth` 后，视觉宽度固定为 `minWidth`，不得继续随 Pointer 变窄；
+3. Pointer 继续向内移动只累计隐藏超拖距离，默认超拖达到 `minWidth × 50%` 才进入 snap capture；
+4. 未达到 capture 阈值就松手，宽度保持 `minWidth`，不得自动收起或自动展开；
+5. 已 capture 后 Pointer 不松手仍沿用已验收的 hysteresis + release 动画反向拉出；
+6. 左栏、右栏、Bottom Dock、Settings 继续共用同一实现与集中变量，不复制算法。
+
+### 允许修改
+
+- `packages/ui/src/workbench/**`；
+- Workbench / Settings 防回归测试与 UI contract；
+- Prompt / Log / Plan / Testing / CHANGELOG / RELEASES / 版本事实。
+
+### 禁止修改
+
+- 禁止修改 Rust Secret Broker、Provider、Account/Auth、模型能力业务；
+- 禁止修改个人中心、主题、Windows Setup / Sync / GitHub / Update；
+- 禁止让 capture threshold 直接控制视觉宽度；
+- 禁止新增散落魔法数字或复制第二套 snap 算法。
+
+### 验收条件
+
+- 正常拖动到任意宽度后松手，宽度保持该位置，不出现自动吸附展开；
+- 到 `minWidth` 后继续向内拖，侧栏视觉宽度保持不变；
+- 继续超拖约半个 `minWidth` 后才触发收起吸附；
+- 阈值前松手保持 `minWidth`；capture 后不松手反向拉出仍丝滑；
+- Settings / 主工作台 / 右栏 / Bottom Dock 共用同一逻辑。
+
+### 必须测试
+
+- capture 前视觉尺寸必须 `clamp(raw, min, max)`，禁止使用 `captureThreshold` 作为视觉下限；
+- capture 仍由 `raw <= captureThreshold` 触发，不得回退 `raw <= min`；
+- 左/右/Bottom 共用隐藏超拖规则；
+- snap-release、共享 leftWidth、Provider/Secret 历史回归不退化；
+- governance / import / runtime import / folder / release consistency / prompt lifecycle / UI contract。
+
+### 当前状态
+
+`pending-user-acceptance`
 
 ## #2.14 侧栏吸附触发阈值变量化
 

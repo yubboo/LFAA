@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #2.14 | 侧栏吸附触发阈值变量化 | v0.0.74 | pending-user-acceptance |
+| #2.15 | 侧栏最小宽度超拖吸附修正 | v0.0.75 | pending-user-acceptance |
+| #2.14 | 侧栏吸附触发阈值变量化 | v0.0.74 | superseded |
 | #2.13 | Rust Secret Broker 与官方模型能力配置 | v0.0.73 | superseded |
 | #2.12 | Windows Credential Manager 保存链路修复 | v0.0.72 | superseded |
 | #2.11 | 工作台 / 设置左栏宽度单一事实源 | v0.0.71 | delivered |
@@ -38,17 +39,29 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
 
+### #2.15 侧栏最小宽度超拖吸附修正
+
+- **版本：** v0.0.75
+- **状态：** pending-user-acceptance
+- **主模块：** ui / workbench
+- **用户反馈：** v0.0.74 把防误触区做成了可见继续缩窄，导致正常 resize 被算法接管，出现“吸附展开 / 无法停在任意宽度”的错误手感。
+- **决策：** 正常宽度始终 `clamp(raw, min, max)`；到 `min` 后视觉尺寸锁定，仅用 Pointer 原始位置累计隐藏超拖；达到 `captureThreshold` 才进入收起动画。
+- **复用：** 左栏 / 右栏 / Bottom Dock / Settings 继续共用 `ResizableWorkbench` 与 `workbench-interaction.config.ts`，不复制算法。
+- **边界：** 不改 Rust Secret、Provider、Account/Auth、个人中心、主题和 Windows 工具链。
+- **AI 验证：** 仓库 Node 回归 65/65 + Config System 30/30 = 95/95 PASS；隐藏超拖纯函数行为测试 PASS；governance / import / runtime import / folder / docs / comment / Windows BOM / release consistency / prompt lifecycle / config schema / release gates / UI contract 全部 PASS。
+- **用户验收：** pending；重点验证任意宽度可停、min 后宽度不变、超拖半个 min 后才吸附。
+
 ### #2.14 侧栏吸附触发阈值变量化
 
 - **版本：** v0.0.74
-- **状态：** pending-user-acceptance
+- **状态：** superseded
 - **主模块：** ui / workbench
 - **用户反馈：** 当前共享侧栏达到 `minWidth` 就立即吸附收起，容易误触；期望达到最小宽度后继续向内拖到约一半距离才触发吸附，并要求拖拽参数统一变量化、中文注释清楚。
 - **决策：** `minWidth` 与 snap capture 解耦；默认 `snapCaptureRatio = 0.50`，只有临时尺寸达到 `min × ratio` 才进入捕获。capture 前允许临时低于 min 跟手，未捕获松手则恢复到 min。
 - **复用：** 左栏 / 右栏 / Bottom Dock / Settings 继续共用同一个 `ResizableWorkbench`；交互参数集中到 Workbench interaction config，允许组件级覆盖。
 - **边界：** 不改 Rust Secret、Provider、Account/Auth、Settings 业务、个人中心、主题和 Windows 工具链。
 - **AI 验证：** Workbench/Settings 新合同 17/17 PASS；仓库 Node 回归 64/64 + Config System 30/30 = 94/94 PASS；UI/App Shell/Config 补充 TypeScript 检查 PASS；governance / import / runtime import / folder / docs / comment / Windows BOM / release consistency / prompt lifecycle / config schema / release gates / UI contract 全部 PASS。
-- **用户验收：** pending；重点感受 min 后的防误触区、50% capture line 与正式吸附手感。
+- **用户验收：** not-accepted；实机反馈 capture 前继续视觉缩窄，导致正常 resize 手感错误，由 #2.15 / v0.0.75 修正。
 
 ### #2.13 Rust Secret Broker 与官方模型能力配置
 

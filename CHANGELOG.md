@@ -1,8 +1,21 @@
 # LFAA 更新日志
 
-## LFAA v0.0.74 — #2.14 侧栏吸附触发阈值变量化
+## LFAA v0.0.75 — #2.15 侧栏最小宽度超拖吸附修正
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.74
+- **任务：** #2.15
+- 正常 resize 恢复 1:1 跟手，`minWidth..maxWidth` 任意位置均可停留；
+- 到 `minWidth` 后视觉宽度锁定，不再继续随 Pointer 变窄；
+- Pointer 继续向内只累计隐藏超拖，默认超拖半个 `minWidth` 后才进入 snap capture；
+- 阈值前松手保持 `minWidth`，不自动收起、不自动展开；
+- 左栏 / 右栏 / Bottom Dock / Settings 继续共用同一 `ResizableWorkbench` 与集中交互变量；
+- 不修改 Rust Secret、Provider、Account/Auth、个人中心、主题与 Windows 工具链。
+
+## LFAA v0.0.74 — #2.14 侧栏吸附触发阈值变量化
+
+- **状态：** superseded
+- **用户验收：** not-accepted；capture 前继续视觉缩窄导致正常 resize 回归，由 v0.0.75 修正
 - **基线：** v0.0.73
 - **任务：** #2.14
 - `minWidth` 与 snap capture 正式解耦：达到最小可用宽度不会立刻吸附，默认继续拖到 `minWidth × 0.50` 才进入收起预览，降低误触。
