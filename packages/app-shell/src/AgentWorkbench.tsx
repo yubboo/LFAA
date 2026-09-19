@@ -133,6 +133,7 @@ function mapAiAccount(record: AiAccountRecord): AiSettingsAccountView {
     authMethodId: record.authMethodId,
     selectedModelId: record.selectedModelId,
     modelSettings: record.modelSettings,
+    modelCatalog: record.modelCatalog,
     verificationStatus: record.verificationStatus,
     lastVerifiedAt: record.lastVerifiedAt,
   };
@@ -143,6 +144,7 @@ function mapAiProbe(probe: AiAccountProbeResult): AiSettingsProbeView {
     status: probe.status,
     message: probe.message,
     models: probe.models,
+    ...(probe.manualModelEntry === true ? { manualModelEntry: true } : {}),
     ...(probe.resolvedBaseUrl ? { resolvedBaseUrl: probe.resolvedBaseUrl } : {}),
   };
 }
@@ -779,7 +781,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [updateNoticeOpen, setUpdateNoticeOpen] = useState(false);
   const [selectedAiProviderId, setSelectedAiProviderId] = useState(builtinAiProviderPlugins[0]?.id ?? "openai");
-  const [aiSnapshot, setAiSnapshot] = useState<AiAccountSnapshot>({ accounts: [], secretPersistence: "memory", hostCapabilities: { "codex-app-server": { available: false, reason: "正在检查 Codex App Server…" } } });
+  const [aiSnapshot, setAiSnapshot] = useState<AiAccountSnapshot>({ accounts: [], activeModel: null, secretPersistence: "memory", hostCapabilities: { "codex-app-server": { available: false, reason: "正在检查 Codex App Server…" } } });
   const [aiHostAvailable, setAiHostAvailable] = useState(Boolean(props.aiSettingsHost));
   const [pluginSnapshot, setPluginSnapshot] = useState<PluginManagerSnapshot>({ installed: [], registry: { generation: 0, plugins: new Map(), capabilities: new Map() } });
   const [pluginHostAvailable, setPluginHostAvailable] = useState(Boolean(props.pluginSettingsHost));
@@ -941,13 +943,15 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
 
   const aiProviderViews = buildAiProviderViews(aiSnapshot.hostCapabilities);
   const aiAccounts = aiSnapshot.accounts.map(mapAiAccount);
-  const activeAiAccount = aiSnapshot.accounts.find((account) => Boolean(account.selectedModelId)) ?? aiSnapshot.accounts[0];
+  const activeAiAccount = aiSnapshot.activeModel
+    ? aiSnapshot.accounts.find((account) => account.id === aiSnapshot.activeModel?.accountId)
+    : undefined;
   const reasoningEffortLabel = formatReasoningEffort(activeAiAccount?.modelSettings.reasoningEffort);
-  const modelLabel = activeAiAccount?.selectedModelId
-    ? `${activeAiAccount.selectedModelId}${reasoningEffortLabel ? ` · ${reasoningEffortLabel}` : ""}`
+  const modelLabel = aiSnapshot.activeModel
+    ? `${aiSnapshot.activeModel.modelId}${reasoningEffortLabel ? ` · ${reasoningEffortLabel}` : ""}`
     : "未配置模型";
-  const activeModelBinding: AgentModelBinding | null = activeAiAccount?.selectedModelId
-    ? { accountId: activeAiAccount.id, providerId: activeAiAccount.providerId, modelId: activeAiAccount.selectedModelId }
+  const activeModelBinding: AgentModelBinding | null = aiSnapshot.activeModel
+    ? { accountId: aiSnapshot.activeModel.accountId, providerId: aiSnapshot.activeModel.providerId, modelId: aiSnapshot.activeModel.modelId }
     : null;
   const startAgentRun = async (input: string): Promise<AgentRunHandle> => {
     if (!props.agentRuntimeHost) throw new Error("Agent Runtime Host 未连接。");
@@ -981,9 +985,14 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     setAiSnapshot(result.snapshot);
     return mapAiProbe(result.probe);
   };
-  const reprobeAiAccount = async (accountId: string) => mapAiProbe(await requireAiHost().reprobe(accountId));
+  const reprobeAiAccount = async (accountId: string) => {
+    const result = await requireAiHost().reprobe(accountId);
+    setAiSnapshot(result.snapshot);
+    return mapAiProbe(result.probe);
+  };
   const deleteAiAccount = async (accountId: string) => setAiSnapshot(await requireAiHost().deleteAccount(accountId));
   const selectAiAccountModel = async (accountId: string, modelId: string, modelSettings: Readonly<Record<string, string | number | boolean>>) => setAiSnapshot(await requireAiHost().selectModel(accountId, modelId, modelSettings));
+  const activateAiAccountModel = async (accountId: string) => setAiSnapshot(await requireAiHost().activateModel(accountId));
   const requirePluginHost = () => {
     if (!props.pluginSettingsHost) throw new Error("当前宿主未提供 Plugin Manager 桥。");
     return props.pluginSettingsHost;
@@ -1140,6 +1149,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
             selectedAiProviderId={selectedAiProviderId}
             onSelectAiProvider={setSelectedAiProviderId}
             aiAccounts={aiAccounts}
+            activeAiModel={aiSnapshot.activeModel}
             aiSecretPersistence={aiHostAvailable ? aiSnapshot.secretPersistence : "unavailable"}
             aiHostAvailable={aiHostAvailable}
             onProbeAiAccount={probeAiAccount}
@@ -1148,6 +1158,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
             onReprobeAiAccount={reprobeAiAccount}
             onDeleteAiAccount={deleteAiAccount}
             onSelectAiAccountModel={selectAiAccountModel}
+            onActivateAiAccountModel={activateAiAccountModel}
             pluginSettings={{
               hostAvailable: pluginHostAvailable,
               registryGeneration: pluginSnapshot.registry.generation,

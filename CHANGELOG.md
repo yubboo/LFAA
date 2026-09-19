@@ -1,3 +1,15 @@
+## LFAA v0.0.83 — #2.18 模型管理 Active Model / Catalog 真值修复
+
+- **状态：** pending-user-acceptance
+- 修复模型管理把“账户认证”和“当前 Agent 使用哪个模型”混在 `account.selectedModelId` 里的结构问题；新增显式 `activeModel = accountId + providerId + modelId`，Composer/Agent Runtime 不再按账户数组顺序猜当前模型。
+- 账户保存最近一次官方模型目录 `modelCatalog`（只含公开模型元数据）；Settings 重新打开后可直接显示模型和模型参数，不再要求先点一次“重测”才能配置。
+- 新增“设为当前模型”：保存第二个 Provider/账户不会偷偷抢占当前模型；只有用户显式激活，Chat/Work 的模型绑定才切换。
+- 重测现在返回并刷新统一 Snapshot；模型从官方目录消失时会清除该账户失效选择，并同步修正 Active Model，不保留悬空绑定。
+- Web 开发账户状态升级到 v2 `{ accounts, activeModel }`，兼容读取 v1；JSON 继续递归拒绝 API Key/Token/Password/Secret 明文字段。
+- Qwen 等需要 Workspace ID 的连接不再用不可执行的 manual 状态掩盖缺失参数；缺必要连接参数时直接给出可操作错误。
+- Account/Active Model/Secret 写入补充事务回滚：Active Model 持久化或 Secret 删除失败时恢复账户、绑定与 Secret，避免半成功状态。
+- **AI 验证：** 仓库 Node 107/107 + Config System 37/37 = 144/144 PASS；Config System TypeScript `--noEmit` PASS；本次 UI/App Shell/Web Host 改动 TS/TSX 语法检查 PASS。正式 Windows Credential Manager 与真实 Provider Key/ChatGPT 登录仍需用户实机验收，不以制作容器替代。
+
 ## LFAA v0.0.82 — #2.17 Node ESM Source Package 运行时导入修复
 
 - **状态：** pending-user-acceptance

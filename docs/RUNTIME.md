@@ -1,3 +1,9 @@
+## v0.0.83：账户认证与当前 Agent 模型分离
+
+AI Account 只拥有认证连接、Provider 设置、该账户默认模型及最近一次官方 `modelCatalog`；全局当前执行模型由独立 `activeModel = { accountId, providerId, modelId }` 持久化。Chat / Work / Agent Runtime 只能读取 `activeModel`，禁止再次用账户数组顺序、第一条 selectedModel 或 UI 临时状态推断当前模型。
+
+`modelCatalog` 只允许保存官方 API / 官方运行时 / 官方文档 Catalog 返回的公开模型元数据，不保存 Secret。API Key / Token 仍只通过 `credentialRef → @lfaa/credentials → Rust Secret Broker` 获取。账户元数据、Active Model 与 Secret 的多步写操作必须补偿回滚，任何一步失败不得留下半成功绑定。
+
 ## v0.0.82：Node Source ESM 导入边界
 
 LFAA 的 foundation/domain/runtime/host-adapter workspace package 可能被 Vite Config 或 Node Host 直接从 TypeScript source export 执行。此路径遵守 Node ESM 解析规则：相对 import/export 必须写真实扩展名（如 `./registry.ts`），不能依赖 Vite 浏览器 bundle 自动补全。`runtime-import-resolution-check.mjs` 负责阻断无扩展名与不存在目标。

@@ -28,9 +28,10 @@ export interface AgentAiSettingsHost {
   probe(draft: AiAccountDraft, secret: string): Promise<AiAccountProbeResult>;
   save(draft: AiAccountDraft, secret: string): Promise<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>;
   connectSubscription(draft: AiAccountDraft): Promise<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>;
-  reprobe(accountId: string): Promise<AiAccountProbeResult>;
+  reprobe(accountId: string): Promise<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>;
   deleteAccount(accountId: string): Promise<AiAccountSnapshot>;
   selectModel(accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiModelSettingValue>>): Promise<AiAccountSnapshot>;
+  activateModel(accountId: string): Promise<AiAccountSnapshot>;
 }
 
 

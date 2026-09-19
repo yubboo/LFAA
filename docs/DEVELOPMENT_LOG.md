@@ -11,6 +11,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
+| #2.18 | 模型管理 Active Model / Catalog 真值修复 | v0.0.83 | pending-user-acceptance |
 | #2.17 | Node ESM Source Package 运行时导入修复 | v0.0.82 | pending-user-acceptance |
 | #20.18 | Windows Setup PowerShell 智能引号解析修复 | v0.0.81 | pending-user-acceptance |
 | #22.2 | Plugin Profile 生命周期与项目骨架收敛 | v0.0.80 | pending-user-acceptance |
@@ -45,6 +46,18 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+
+
+### #2.18 模型管理 Active Model / Catalog 真值修复
+
+- **版本：** v0.0.83
+- **状态：** pending-user-acceptance
+- **用户反馈：** 模型管理看起来无法稳定配置；需要在继续 Plugin P2 前先确认 Config → Settings → Composer 的模型事实链。
+- **根因：** v0.0.82 把账户认证与全局当前模型混在 `account.selectedModelId`；Composer 依赖账户数组顺序推断模型；账户 Snapshot 又不携带模型目录，重开 Settings 必须先重测。
+- **修复：** 新增 `AiActiveModelBinding` 唯一当前模型事实；账户持久化 `modelCatalog`；Settings 显式“设为当前模型”；reprobe 刷新 Snapshot；Composer 只读 `activeModel`。
+- **安全/一致性：** Secret 继续只经 credentialRef/Rust Broker；账户、Active Model、Secret 的多步持久化增加回滚。
+- **AI 验证：** 107/107 仓库 Node + 37/37 Config = 144/144 PASS；Config System TypeScript noEmit + 本次 TS/TSX 语法检查 PASS。
+- **后续：** 用户实机验收通过后，进入 P2 Capability Invocation Pipeline，而不是继续扩大 Config System。
 
 
 ### #2.17 Node ESM Source Package 运行时导入修复

@@ -135,11 +135,12 @@ export function lfaaDevAiConfigBridge(projectRoot: string): Plugin {
             const result = await service.save(parseDraft(body.draft), secret);
             return sendJson(response, 200, { ok: true, ...result, snapshot: await service.snapshot() });
           }
-          const match = pathname.match(/^\/accounts\/([A-Za-z0-9-]{8,80})(?:\/(probe|model))?$/);
+          const match = pathname.match(/^\/accounts\/([A-Za-z0-9-]{8,80})(?:\/(probe|model|active))?$/);
           const accountId = match?.[1];
           const action = match?.[2];
           if (accountId && request.method === "POST" && action === "probe") {
-            return sendJson(response, 200, { ok: true, probe: await service.reprobe(accountId) });
+            const probe = await service.reprobe(accountId);
+            return sendJson(response, 200, { ok: true, probe, snapshot: await service.snapshot() });
           }
           if (accountId && request.method === "POST" && action === "model") {
             const body = await readJson(request);
@@ -151,6 +152,10 @@ export function lfaaDevAiConfigBridge(projectRoot: string): Plugin {
               }
             }
             await service.selectModel(accountId, body.modelId, modelSettings);
+            return sendJson(response, 200, { ok: true, snapshot: await service.snapshot() });
+          }
+          if (accountId && request.method === "POST" && action === "active") {
+            await service.activateModel(accountId);
             return sendJson(response, 200, { ok: true, snapshot: await service.snapshot() });
           }
           if (accountId && request.method === "DELETE" && !action) {

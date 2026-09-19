@@ -35,11 +35,14 @@ test("Rust Secret broker keeps secret out of argv env logs and files", async () 
   assert.doesNotMatch(source, /console\.(?:log|error).*secret/i);
 });
 
-test("account metadata repository rejects plaintext secret field names and migrates modelSettings", async () => {
+test("account metadata repository rejects plaintext secret fields and migrates model/account state", async () => {
   const source = await read("apps/web/dev/bridges/ai/account-state-repository.ts");
   assert.match(source, /assertNoPlaintextSecret/);
   assert.match(source, /ai-accounts\.json/);
   assert.match(source, /modelSettings: account\.modelSettings \?\? \{\}/);
+  assert.match(source, /modelCatalog: Array\.isArray\(account\.modelCatalog\)/);
+  assert.match(source, /version: 2/);
+  assert.match(source, /activeModel/);
   assert.doesNotMatch(source, /credentialRef\s*:\s*secret/);
 });
 
@@ -48,6 +51,8 @@ test("browser AI client never uses browser storage for credentials", async () =>
   assert.doesNotMatch(source, /(?:window\.)?(?:localStorage|sessionStorage)\s*\./);
   assert.match(source, /\/__lfaa\/dev\/ai/);
   assert.match(source, /modelSettings/);
+  assert.match(source, /activeModel/);
+  assert.match(source, /activateModel/);
 });
 
 test("Vite bridge enforces local origin and redacts common key prefixes", async () => {
@@ -64,7 +69,9 @@ test("UI renders official model capabilities without Provider network logic", as
   assert.match(panel, /ModelCapabilityEditor/);
   assert.match(panel, /模型 ID 来源/);
   assert.match(panel, /requestPath/);
-  assert.doesNotMatch(panel, /模型 ID（可选）/);
+  assert.match(panel, /当前 Agent 模型/);
+  assert.match(panel, /设为当前模型/);
+  assert.match(panel, /account\.modelCatalog/);
   assert.doesNotMatch(panel, /fetch\s*\(/);
   assert.doesNotMatch(panel, /(?:window\.)?(?:localStorage|sessionStorage)\s*\./);
 });

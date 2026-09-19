@@ -1,3 +1,9 @@
+## v0.0.83 Config System：Account / Model Selection 边界收敛
+
+`@lfaa/config-system` 明确分离两个事实：`AiAccountRecord` 负责“如何连接/认证某 Provider”，`AiActiveModelBinding` 负责“当前 Agent 真正使用哪个账户/模型”。账户内 `selectedModelId` 是该账户默认选择，不再承担全局当前模型职责。
+
+账户同时保存最近一次已验证/官方来源的 `modelCatalog` 快照，Settings 重开可直接呈现模型与 Capability；重测负责刷新目录。`packages/app-shell` 只把 Config Snapshot 投影给 Chat/Work，不能自行从 accounts 推导当前模型。
+
 ## v0.0.80 真实模块骨架 / Plugin Profile P1
 
 当前 workspace 不再预创建未来模块。9 个 Node 项目按 foundation/runtime/domain/presentation/composition/host-adapter/host 分层，1 个 Rust crate 作为当前唯一真实 Native Kernel 实现。新增模块必须有当前 Consumer。

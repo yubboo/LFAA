@@ -53,7 +53,7 @@ export const qwenProviderPlugin: AiProviderPlugin = {
     const rule = REGIONS[region];
     if (!rule) throw new Error(`未知百炼区域：${region}`);
     const workspace = (settings.workspaceId || "").trim();
-    if (rule.workspaceRequired && !workspace) return { providerId: "qwen", authMethodId, protocol: "provider-native", authHeader: { name: "Authorization", scheme: "Bearer" }, modelDiscovery: { kind: "manual", reason: `${rule.label} 的官方模型列表 API 需要 Workspace ID。` }, metadata: { region, workspaceRequired: "true" } };
+    if (rule.workspaceRequired && !workspace) throw new Error(`${rule.label} 需要 Workspace ID，填写后才能验证连接并获取实际可用模型。`);
     const host = rule.modelHost.replace("{workspace}", workspace);
     const url = `https://${host}/api/v1/models`;
     return { providerId: "qwen", authMethodId, protocol: "provider-native", baseUrl: `https://${host}`, authHeader: { name: "Authorization", scheme: "Bearer" }, modelDiscovery: { kind: "http-list", method: "GET", url, responseShape: "qwen-model-list", source: { kind: "runtime-model-api", label: "百炼 GET /api/v1/models", url, checkedAt: CHECKED_AT } }, metadata: { region, workspaceRequired: String(rule.workspaceRequired) } };

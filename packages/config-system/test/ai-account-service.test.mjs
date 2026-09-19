@@ -7,22 +7,30 @@ import { parseQwenModelList } from "../src/settings/ai/transports/qwen-model-lis
 
 function harness(response = { data: [{ id: "gpt-6-astra", owned_by: "openai" }, { id: "gpt-5.6-sol" }] }) {
   let accounts = [];
+  let activeModel = null;
   const secrets = new Map();
   const requests = [];
   let seq = 0;
   const service = new AiAccountService(new AiProviderRegistry(builtinAiProviderPlugins), {
-    repository: { async list() { return accounts; }, async put(record) { accounts = [...accounts.filter((item) => item.id !== record.id), record]; }, async delete(id) { accounts = accounts.filter((item) => item.id !== id); } },
+    repository: {
+      async list() { return accounts; },
+      async put(record) { accounts = [...accounts.filter((item) => item.id !== record.id), record]; },
+      async delete(id) { accounts = accounts.filter((item) => item.id !== id); },
+      async getActiveModel() { return activeModel; },
+      async setActiveModel(binding) { activeModel = binding; },
+    },
     secrets: { persistence: "os-credential-store", async put(ref, value) { secrets.set(ref, value); }, async get(ref) { return secrets.get(ref) ?? null; }, async delete(ref) { secrets.delete(ref); } },
     http: { async requestJson(request) { requests.push(request); return response; } },
     createId() { seq += 1; return `account-000${seq}`; },
     now() { return "2026-09-19T04:00:00.000Z"; },
   });
-  return { service, get accounts() { return accounts; }, secrets, requests };
+  return { service, get accounts() { return accounts; }, get activeModel() { return activeModel; }, secrets, requests };
 }
 
 
 function managedHarness() {
   let accounts = [];
+  let activeModel = null;
   const secretCalls = { put: 0, get: 0, delete: 0 };
   const managedCalls = { start: 0, status: 0, probe: 0, cancel: 0 };
   const runtimeSource = { kind: "runtime-model-api", label: "Codex App Server model/list", url: "https://developers.openai.com/codex/app-server#list-models", checkedAt: "2026-09-19" };
@@ -32,7 +40,13 @@ function managedHarness() {
     settings: [{ id: "reasoningEffort", label: "思考强度", kind: "select", requestPath: "reasoningEffort", defaultValue: "app-server-only", options: [{ value: "app-server-only", label: "app-server-only" }] }],
   };
   const service = new AiAccountService(new AiProviderRegistry(builtinAiProviderPlugins), {
-    repository: { async list() { return accounts; }, async put(record) { accounts = [...accounts.filter((item) => item.id !== record.id), record]; }, async delete(id) { accounts = accounts.filter((item) => item.id !== id); } },
+    repository: {
+      async list() { return accounts; },
+      async put(record) { accounts = [...accounts.filter((item) => item.id !== record.id), record]; },
+      async delete(id) { accounts = accounts.filter((item) => item.id !== id); },
+      async getActiveModel() { return activeModel; },
+      async setActiveModel(binding) { activeModel = binding; },
+    },
     secrets: {
       persistence: "os-credential-store",
       async put() { secretCalls.put += 1; },
@@ -51,7 +65,7 @@ function managedHarness() {
     createId() { return "account-managed-0001"; },
     now() { return "2026-09-19T04:00:00.000Z"; },
   });
-  return { service, get accounts() { return accounts; }, secretCalls, managedCalls };
+  return { service, get accounts() { return accounts; }, get activeModel() { return activeModel; }, secretCalls, managedCalls };
 }
 
 const chatGptDraft = { providerId: "openai", displayName: "ChatGPT 套餐", authMethodId: "chatgpt", settings: {}, selectedModelId: "gpt-5.6-sol", modelSettings: { reasoningEffort: "app-server-only" } };
@@ -81,6 +95,24 @@ test("save stores credentialRef and validated model settings only", async () => 
   assert.equal(JSON.stringify(h.accounts).includes("sk-test-secret"), false);
   assert.deepEqual(h.accounts[0].modelSettings, { reasoningEffort: "high", maxOutputTokens: 64000 });
   assert.equal(h.secrets.get(result.account.credentialRef), "sk-test-secret");
+});
+
+test("first saved account becomes explicit active model and keeps a model catalog snapshot", async () => {
+  const h = harness();
+  const saved = await h.service.save(baseDraft, "sk-test-secret");
+  assert.equal(saved.account.modelCatalog.length, 2);
+  assert.deepEqual(h.activeModel, { accountId: saved.account.id, providerId: "openai", modelId: "gpt-6-astra" });
+  const snapshot = await h.service.snapshot();
+  assert.deepEqual(snapshot.activeModel, h.activeModel);
+});
+
+test("saving another account does not steal active model; activation is explicit", async () => {
+  const h = harness();
+  const first = await h.service.save(baseDraft, "sk-test-secret");
+  const second = await h.service.save({ ...baseDraft, displayName: "OpenAI 第二账户", selectedModelId: "gpt-5.6-sol", modelSettings: { reasoningEffort: "none", maxOutputTokens: 32000 } }, "sk-second-secret");
+  assert.equal(h.activeModel.accountId, first.account.id);
+  await h.service.activateModel(second.account.id);
+  assert.deepEqual(h.activeModel, { accountId: second.account.id, providerId: "openai", modelId: "gpt-5.6-sol" });
 });
 
 test("unsupported model setting is rejected by core even if UI sends it", async () => {
@@ -179,4 +211,55 @@ test("save rolls back newly written Secret when metadata persistence fails", asy
   });
   await assert.rejects(() => service.save(baseDraft, "sk-test-secret"), /metadata-write-failed/);
   assert.equal(secrets.size, 0);
+});
+
+test("save rolls back account, active model, and Secret when active binding persistence fails", async () => {
+  let accounts = [];
+  const secrets = new Map();
+  const service = new AiAccountService(new AiProviderRegistry(builtinAiProviderPlugins), {
+    repository: {
+      async list() { return accounts; },
+      async put(record) { accounts = [...accounts.filter((item) => item.id !== record.id), record]; },
+      async delete(id) { accounts = accounts.filter((item) => item.id !== id); },
+      async getActiveModel() { return null; },
+      async setActiveModel() { throw new Error("active-write-failed"); },
+    },
+    secrets: { persistence: "os-credential-store", async put(ref, value) { secrets.set(ref, value); }, async get(ref) { return secrets.get(ref) ?? null; }, async delete(ref) { secrets.delete(ref); } },
+    http: { async requestJson() { return { data: [{ id: "gpt-6-astra" }] }; } },
+    createId() { return "account-active-rollback"; }, now() { return "2026-09-19T04:00:00.000Z"; },
+  });
+  await assert.rejects(() => service.save(baseDraft, "sk-test-secret"), /active-write-failed/);
+  assert.equal(accounts.length, 0);
+  assert.equal(secrets.size, 0);
+});
+
+test("delete restores account, active model, and Secret when Secret deletion fails", async () => {
+  let accounts = [];
+  let activeModel = null;
+  const secrets = new Map();
+  let failDelete = false;
+  const service = new AiAccountService(new AiProviderRegistry(builtinAiProviderPlugins), {
+    repository: {
+      async list() { return accounts; },
+      async put(record) { accounts = [...accounts.filter((item) => item.id !== record.id), record]; },
+      async delete(id) { accounts = accounts.filter((item) => item.id !== id); },
+      async getActiveModel() { return activeModel; },
+      async setActiveModel(binding) { activeModel = binding; },
+    },
+    secrets: {
+      persistence: "os-credential-store",
+      async put(ref, value) { secrets.set(ref, value); },
+      async get(ref) { return secrets.get(ref) ?? null; },
+      async delete(ref) { if (failDelete) throw new Error("secret-delete-failed"); secrets.delete(ref); },
+    },
+    http: { async requestJson() { return { data: [{ id: "gpt-6-astra" }] }; } },
+    createId() { return "account-delete-rollback"; }, now() { return "2026-09-19T04:00:00.000Z"; },
+  });
+  const saved = await service.save(baseDraft, "sk-test-secret");
+  const activeBefore = activeModel;
+  failDelete = true;
+  await assert.rejects(() => service.delete(saved.account.id), /secret-delete-failed/);
+  assert.equal(accounts.length, 1);
+  assert.deepEqual(activeModel, activeBefore);
+  assert.equal(secrets.get(saved.account.credentialRef), "sk-test-secret");
 });

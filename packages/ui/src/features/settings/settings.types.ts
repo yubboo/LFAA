@@ -22,6 +22,7 @@ export interface SettingsPageProps {
   selectedAiProviderId: string;
   onSelectAiProvider: (providerId: string) => void;
   aiAccounts: readonly AiSettingsAccountView[];
+  activeAiModel: { accountId: string; providerId: string; modelId: string } | null;
   aiSecretPersistence: "os-credential-store" | "memory" | "unavailable";
   aiHostAvailable: boolean;
   onProbeAiAccount: (draft: AiSettingsDraftInput, secret: string) => Promise<AiSettingsProbeView>;
@@ -30,6 +31,7 @@ export interface SettingsPageProps {
   onReprobeAiAccount: (accountId: string) => Promise<AiSettingsProbeView>;
   onDeleteAiAccount: (accountId: string) => Promise<void>;
   onSelectAiAccountModel: (accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiSettingsModelSettingValue>>) => Promise<void>;
+  onActivateAiAccountModel: (accountId: string) => Promise<void>;
   pluginSettings: PluginSettingsPanelProps;
 }
 

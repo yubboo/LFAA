@@ -17,3 +17,11 @@
 .ai-model-settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.65rem}.ai-request-path{margin-left:.45rem;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:400;opacity:.62}
 .ai-model-source{display:flex;gap:1rem;flex-wrap:wrap;font-size:.72rem;color:var(--agent-text-muted,#777)}.ai-model-note,.ai-model-capability__empty{margin:0;font-size:.76rem;line-height:1.5;color:var(--agent-text-muted,#777)}
 .ai-account-card .ai-model-capability{padding:.65rem}.ai-account-card .ai-model-settings-grid{grid-template-columns:1fr}
+
+/* v0.0.83：显式 Active Model 与账户模型目录缓存。 */
+.ai-active-model-summary{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem;padding:.875rem 1rem;border:1px solid var(--agent-border,#dedbd4);border-radius:.75rem;background:var(--agent-elevated,#fff)}
+.ai-active-model-summary>div{display:grid;gap:.15rem}.ai-active-model-summary small,.ai-active-model-summary span{color:var(--agent-muted,#777)}
+.ai-active-model-summary strong{font-size:1rem}.ai-model-select input{border:1px solid var(--agent-border,#d7d4cc);border-radius:.625rem;padding:.625rem;background:var(--agent-bg,#fff);color:inherit}
+.ai-account-card.is-active-model{border-top-color:var(--agent-text,#555)}.ai-active-model-badge{display:inline-block;margin-left:.4rem;padding:.12rem .35rem;border-radius:999px;background:var(--agent-text,#262626);color:var(--agent-bg,#fff);font-size:.62rem;font-style:normal;font-weight:600;vertical-align:middle}
+.ai-account-actions button.is-primary{background:var(--agent-text,#262626);color:var(--agent-bg,#fff);border-color:var(--agent-text,#262626)}
+@media(max-width:620px){.ai-active-model-summary{align-items:flex-start;flex-direction:column}}

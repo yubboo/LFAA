@@ -20,7 +20,7 @@ const SETTINGS_LAYOUT_KEY = "lfaa.settings.layout.v1";
 const navigation: readonly { id: SettingsSectionId; label: string; group: "个人" | "配置" | "开发"; glyph: string }[] = [
   { id: "general", label: "常规", group: "个人", glyph: "○" },
   { id: "appearance", label: "外观", group: "个人", glyph: "◐" },
-  { id: "ai", label: "AI 服务", group: "配置", glyph: "✦" },
+  { id: "ai", label: "AI 与模型", group: "配置", glyph: "✦" },
   { id: "plugins", label: "插件与能力", group: "配置", glyph: "⊞" },
   { id: "permissions", label: "权限", group: "配置", glyph: "◇" },
   { id: "workspace", label: "项目与存储", group: "配置", glyph: "□" },
@@ -82,7 +82,7 @@ export function SettingsPage(props: SettingsPageProps) {
 
   let content;
   if (props.activeSection === "appearance") content = <AppearancePanel value={props.themePreference} onChange={props.onThemePreferenceChange} />;
-  else if (props.activeSection === "ai") content = <section className="lfaa-settings-content lfaa-settings-content--ai"><header><h1>AI 服务</h1><p>管理 Provider、认证方式和模型配置入口。</p></header><AiSettingsPanel providers={props.aiProviders} selectedProviderId={props.selectedAiProviderId} accounts={props.aiAccounts} secretPersistence={props.aiSecretPersistence} hostAvailable={props.aiHostAvailable} onSelectProvider={props.onSelectAiProvider} onProbe={props.onProbeAiAccount} onSave={props.onSaveAiAccount} onConnectSubscription={props.onConnectAiSubscription} onReprobe={props.onReprobeAiAccount} onDeleteAccount={props.onDeleteAiAccount} onSelectAccountModel={props.onSelectAiAccountModel} /></section>;
+  else if (props.activeSection === "ai") content = <section className="lfaa-settings-content lfaa-settings-content--ai"><header><h1>AI 与模型</h1><p>管理 Provider 账户、模型目录、模型参数与当前 Agent 模型。</p></header><AiSettingsPanel providers={props.aiProviders} selectedProviderId={props.selectedAiProviderId} accounts={props.aiAccounts} activeModel={props.activeAiModel} secretPersistence={props.aiSecretPersistence} hostAvailable={props.aiHostAvailable} onSelectProvider={props.onSelectAiProvider} onProbe={props.onProbeAiAccount} onSave={props.onSaveAiAccount} onConnectSubscription={props.onConnectAiSubscription} onReprobe={props.onReprobeAiAccount} onDeleteAccount={props.onDeleteAiAccount} onSelectAccountModel={props.onSelectAiAccountModel} onActivateAccountModel={props.onActivateAiAccountModel} /></section>;
   else if (props.activeSection === "plugins") content = <section className="lfaa-settings-content lfaa-settings-content--plugins"><header><h1>插件与能力</h1><p>通过独立 Profile 安装、检查和热切 Capability；第三方可执行代码不会直接进入 Web 主进程。</p></header><PluginSettingsPanel {...props.pluginSettings} /></section>;
   else if (props.activeSection === "permissions") content = <PlaceholderPanel title="权限" description="配置默认权限策略与后续 Ask / Auto / Full 行为。" />;
   else if (props.activeSection === "workspace") content = <PlaceholderPanel title="项目与存储" description="管理项目目录、配置存储与本地数据位置。" />;

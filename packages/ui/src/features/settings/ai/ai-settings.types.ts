@@ -49,6 +49,7 @@ export interface AiSettingsModelView {
 export interface AiSettingsAccountView {
   id: string; providerId: string; displayName: string; authMethodId: string; selectedModelId: string | null;
   modelSettings: Readonly<Record<string, AiSettingsModelSettingValue>>;
+  modelCatalog: readonly AiSettingsModelView[];
   verificationStatus: "connected" | "unverified" | "error"; lastVerifiedAt: string | null;
 }
 export interface AiSettingsDraftInput {
@@ -56,9 +57,10 @@ export interface AiSettingsDraftInput {
   settings: Readonly<Record<string, string>>; selectedModelId?: string | null;
   modelSettings?: Readonly<Record<string, AiSettingsModelSettingValue>>;
 }
-export interface AiSettingsProbeView { status: "connected" | "unverified"; message: string; models: readonly AiSettingsModelView[]; resolvedBaseUrl?: string; }
+export interface AiSettingsProbeView { status: "connected" | "unverified"; message: string; models: readonly AiSettingsModelView[]; manualModelEntry?: boolean; resolvedBaseUrl?: string; }
 export interface AiSettingsPageProps {
   providers: readonly AiSettingsProviderView[]; selectedProviderId: string; accounts: readonly AiSettingsAccountView[];
+  activeModel: { accountId: string; providerId: string; modelId: string } | null;
   secretPersistence: "os-credential-store" | "memory" | "unavailable"; hostAvailable: boolean;
   onSelectProvider(id: string): void;
   onProbe(draft: AiSettingsDraftInput, secret: string): Promise<AiSettingsProbeView>;
@@ -67,5 +69,6 @@ export interface AiSettingsPageProps {
   onReprobe(accountId: string): Promise<AiSettingsProbeView>;
   onDeleteAccount(accountId: string): Promise<void>;
   onSelectAccountModel(accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiSettingsModelSettingValue>>): Promise<void>;
+  onActivateAccountModel(accountId: string): Promise<void>;
   onClose(): void;
 }

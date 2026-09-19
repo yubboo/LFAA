@@ -12,6 +12,7 @@ import type { CredentialStorePort } from "@lfaa/credentials";
 import type {
   AiAccountProbeResult,
   AiAccountRecord,
+  AiActiveModelBinding,
   AiHostCapabilityStatus,
   AiManagedLoginStart,
   AiManagedLoginStatus,
@@ -23,6 +24,9 @@ export interface AiAccountRepositoryPort {
   list(): Promise<readonly AiAccountRecord[]>;
   put(record: AiAccountRecord): Promise<void>;
   delete(id: string): Promise<void>;
+  /** 旧 Host 可暂时不实现；Core 会回退到第一个有效账户，但正式 Host 必须持久化。 */
+  getActiveModel?(): Promise<AiActiveModelBinding | null>;
+  setActiveModel?(binding: AiActiveModelBinding | null): Promise<void>;
 }
 
 export type AiSecretStorePort = CredentialStorePort;

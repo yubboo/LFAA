@@ -1,3 +1,13 @@
+## LFAA v0.0.83 Release — #2.18 模型管理 Active Model / Catalog 真值修复
+
+- **状态：** pending-user-acceptance
+- **问题：** v0.0.82 没有全局当前模型真值，Composer 从账户数组中找“第一个选过模型的账户”；多 Provider/多账户时设置页切模不一定改变 Chat/Work。保存账户的模型目录也没有进入 Snapshot，重开 Settings 后必须先重测才有模型可配。
+- **修复：** Config System 新增显式 `activeModel`；账户保存 `modelCatalog`；Settings 支持“设为当前模型”；重测刷新统一 Snapshot；Composer 只消费 `activeModel`。
+- **安全：** `modelCatalog` 只保存官方公开模型元数据，Secret 仍只以 `credentialRef` 关联 Rust Secret Broker；账户状态 v2 继续拒绝明文 Secret 字段。
+- **一致性：** Account metadata、Active Model 与 Secret 关键写操作增加补偿回滚，避免持久化中途失败留下半状态。
+- **边界：** 本版修复“当前模型与账户模型目录”基础，不把完整 Model Router / Fallback / 多模型工作流提前塞进 Config System；后续 P2 仍由 Agent Runtime 消费这个稳定模型绑定。
+- **AI 验证：** 仓库 Node 107/107 + Config System 37/37 = 144/144 PASS；Config System TypeScript noEmit PASS；本次 TS/TSX 语法检查 PASS。
+
 ## LFAA v0.0.82 Release — #2.17 Node ESM Source Package 运行时导入修复
 
 - **状态：** pending-user-acceptance

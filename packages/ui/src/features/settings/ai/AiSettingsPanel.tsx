@@ -83,7 +83,6 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
   const [probe, setProbe] = useState<AiSettingsProbeView | null>(null);
   const [selectedModelId, setSelectedModelId] = useState("");
   const [modelSettings, setModelSettings] = useState<Record<string, AiSettingsModelSettingValue>>({});
-  const [accountModels, setAccountModels] = useState<Record<string, readonly AiSettingsProbeView["models"][number][]>>({});
   const [accountModelSettings, setAccountModelSettings] = useState<Record<string, Record<string, AiSettingsModelSettingValue>>>({});
   const [busy, setBusy] = useState<"probe" | "save" | "connect" | "account" | null>(null);
   const [error, setError] = useState("");
@@ -94,6 +93,7 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
   const providerAccounts = selected ? props.accounts.filter((account) => account.providerId === selected.id) : [];
   const selectedModel = probe?.models.find((model) => model.id === selectedModelId);
   const isSubscription = activeAuthView?.kind === "subscription";
+  const activeAccount = props.activeModel ? props.accounts.find((account) => account.id === props.activeModel?.accountId) : undefined;
 
   useEffect(() => {
     setProbe(null); setSelectedModelId(""); setModelSettings({}); setSecret(""); setError(""); setDisplayName(selected?.name ?? "");
@@ -152,6 +152,10 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
 
   return (
     <div className="ai-settings-panel-root">
+      <div className="ai-active-model-summary">
+        <div><small>当前 Agent 模型</small><strong>{props.activeModel ? props.activeModel.modelId : "尚未选择"}</strong></div>
+        <span>{activeAccount ? `${activeAccount.displayName} · ${activeAccount.providerId}` : "保存账户后可设为当前模型"}</span>
+      </div>
       <div className="ai-provider-grid" role="list" aria-label="AI Provider">
         {props.providers.map((provider) => <button key={provider.id} type="button" role="listitem" className={`ai-provider-card${provider.id === selected.id ? " is-active" : ""}`} onClick={() => props.onSelectProvider(provider.id)}><span className="ai-provider-mark">{provider.name.slice(0, 1).toUpperCase()}</span><span><strong>{provider.name}</strong><small>{provider.description}</small></span></button>)}
       </div>
@@ -171,6 +175,7 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
 
           {probe ? <div className={`ai-runtime-notice ${probe.status === "connected" ? "is-ok" : "is-warn"}`}><strong>{probe.status === "connected" ? "连接成功" : "官方目录"}</strong><span>{probe.message}</span>{probe.resolvedBaseUrl ? <small>{probe.resolvedBaseUrl}</small> : null}</div> : null}
           {probe?.models.length ? <label className="ai-model-select"><span>官方模型</span><select value={selectedModelId} onChange={(event) => { const model = probe.models.find((item) => item.id === event.target.value); setSelectedModelId(event.target.value); setModelSettings(defaultModelSettings(model)); }}>{probe.models.map((model) => <option key={model.id} value={model.id}>{model.name ? `${model.name} · ${model.id}` : model.id}</option>)}</select><small>{selectedModel?.discoverySource ? `模型 ID 来源：${selectedModel.discoverySource.label}` : "模型 ID 来自 Provider 官方目录。"}</small></label> : null}
+          {probe?.manualModelEntry ? <label className="ai-model-select"><span>模型 ID</span><input type="text" value={selectedModelId} onChange={(event) => { setSelectedModelId(event.target.value.trim()); setModelSettings({}); }} placeholder="输入 Provider 官方模型 ID" /><small>当前 Provider 无可查询模型目录；保存时 Core 仍会重新校验连接配置。</small></label> : null}
           <ModelCapabilityEditor model={selectedModel} values={modelSettings} onChange={setModelSettings} />
           {error ? <div className="ai-runtime-error" role="alert">{error}</div> : null}
 
@@ -190,17 +195,20 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
         <aside className="ai-settings-side ai-account-list">
           <div className="ai-account-list__head"><h3>已保存账户</h3><span>{providerAccounts.length}</span></div>
           {providerAccounts.length === 0 ? <p className="ai-account-empty">当前 Provider 还没有保存账户。</p> : providerAccounts.map((account) => {
-            const models = accountModels[account.id] ?? [];
+            const models = account.modelCatalog;
             const model = models.find((item) => item.id === account.selectedModelId);
             const values = accountModelSettings[account.id] ?? { ...account.modelSettings };
-            return <article className="ai-account-card" key={account.id}>
-              <div><strong>{account.displayName}</strong><small>{account.verificationStatus === "connected" ? "已验证" : "未自动验证"}{account.selectedModelId ? ` · ${account.selectedModelId}` : ""}</small></div>
+            const isActive = props.activeModel?.accountId === account.id && props.activeModel.modelId === account.selectedModelId;
+            return <article className={`ai-account-card${isActive ? " is-active-model" : ""}`} key={account.id}>
+              <div><strong>{account.displayName}{isActive ? <em className="ai-active-model-badge">当前模型</em> : null}</strong><small>{account.verificationStatus === "connected" ? "已验证" : account.verificationStatus === "error" ? "验证失败" : "未自动验证"}{account.selectedModelId ? ` · ${account.selectedModelId}` : ""}</small></div>
               {models.length ? <label className="ai-account-model"><span>当前模型</span><select value={account.selectedModelId ?? ""} onChange={async (event) => { const modelId = event.target.value; const nextModel = models.find((item) => item.id === modelId); const nextSettings = defaultModelSettings(nextModel); setAccountModelSettings((current) => ({ ...current, [account.id]: nextSettings })); setBusy("account"); setError(""); try { await props.onSelectAccountModel(account.id, modelId, nextSettings); } catch (value) { setError(value instanceof Error ? value.message : "模型切换失败。"); } finally { setBusy(null); } }}><option value="">未选择</option>{models.map((item) => <option key={item.id} value={item.id}>{item.name ? `${item.name} · ${item.id}` : item.id}</option>)}</select></label> : null}
               {model ? <ModelCapabilityEditor model={model} values={values} onChange={(next) => setAccountModelSettings((current) => ({ ...current, [account.id]: next }))} /> : null}
+              {!models.length ? <p className="ai-account-empty">该账户还没有模型目录快照；点击“重测”刷新。</p> : null}
               <div className="ai-account-actions">
                 {model?.capabilities?.settings.length ? <button type="button" disabled={busy !== null} onClick={async () => { setBusy("account"); setError(""); try { await props.onSelectAccountModel(account.id, model.id, values); } catch (value) { setError(value instanceof Error ? value.message : "模型配置保存失败。"); } finally { setBusy(null); } }}>保存模型配置</button> : null}
-                <button type="button" disabled={busy !== null} onClick={async () => { setBusy("account"); setError(""); try { const result = await props.onReprobe(account.id); setProbe(result); setAccountModels((current) => ({ ...current, [account.id]: result.models })); const currentModel = result.models.find((item) => item.id === account.selectedModelId) ?? result.models[0]; setSelectedModelId(currentModel?.id ?? ""); setAccountModelSettings((current) => ({ ...current, [account.id]: Object.keys(account.modelSettings).length ? { ...account.modelSettings } : defaultModelSettings(currentModel) })); } catch (value) { setError(value instanceof Error ? value.message : "重新测试失败。"); } finally { setBusy(null); } }}>重测</button>
-                <button type="button" disabled={busy !== null} onClick={async () => { setBusy("account"); setError(""); try { await props.onDeleteAccount(account.id); setAccountModels((current) => { const next = { ...current }; delete next[account.id]; return next; }); } catch (value) { setError(value instanceof Error ? value.message : "删除账户失败。"); } finally { setBusy(null); } }}>删除</button>
+                {account.selectedModelId && !isActive ? <button className="is-primary" type="button" disabled={busy !== null} onClick={async () => { setBusy("account"); setError(""); try { await props.onActivateAccountModel(account.id); } catch (value) { setError(value instanceof Error ? value.message : "设置当前模型失败。"); } finally { setBusy(null); } }}>设为当前模型</button> : null}
+                <button type="button" disabled={busy !== null} onClick={async () => { setBusy("account"); setError(""); try { const result = await props.onReprobe(account.id); setProbe(result); const currentModel = result.models.find((item) => item.id === account.selectedModelId) ?? result.models[0]; setSelectedModelId(currentModel?.id ?? ""); setAccountModelSettings((current) => ({ ...current, [account.id]: Object.keys(account.modelSettings).length ? { ...account.modelSettings } : defaultModelSettings(currentModel) })); } catch (value) { setError(value instanceof Error ? value.message : "重新测试失败。"); } finally { setBusy(null); } }}>重测</button>
+                <button type="button" disabled={busy !== null} onClick={async () => { setBusy("account"); setError(""); try { await props.onDeleteAccount(account.id); setAccountModelSettings((current) => { const next = { ...current }; delete next[account.id]; return next; }); } catch (value) { setError(value instanceof Error ? value.message : "删除账户失败。"); } finally { setBusy(null); } }}>删除</button>
               </div>
             </article>;
           })}

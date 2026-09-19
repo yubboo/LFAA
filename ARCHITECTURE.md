@@ -82,6 +82,22 @@ Spec
 
 `@lfaa/credentials` 只定义 `credentialRef` 与 `CredentialStorePort`；配置、Plugin Manifest、日志和 Agent Context 默认只接触引用/元数据。Windows 真实 Secret 继续由 Rust Secret Broker → Credential Manager 持久化。插件只声明 `credentials[]`，不得携带 Secret 值；`host-mediated` 是默认推荐方式，只有外部程序技术上必须读取 Secret 时才允许未来通过 `isolated-process` 在受控进程生命周期内临时注入。
 
+## Model Configuration：Account 与 Active Model 是两个事实
+
+模型配置不能把“如何认证 Provider”和“当前 Agent 真正用哪个模型”混在同一字段里。`AiAccountRecord` 拥有认证方式、`credentialRef`、Provider settings、账户默认 `selectedModelId`、模型参数与最近一次官方 `modelCatalog`；`AiActiveModelBinding` 单独拥有全局 `{ accountId, providerId, modelId }`。
+
+```text
+Provider Account / credentialRef
+        ↓
+modelCatalog + selectedModelId
+        ↓ explicit activate
+AiActiveModelBinding
+        ↓
+Chat / Work / AgentRunRequest
+```
+
+App Shell / UI 不允许通过账户数组顺序、第一条 `selectedModelId` 或临时 UI state 推断当前模型。模型目录快照只保存公开元数据；Secret 仍停留在 Credential seam。完整多模型 Router / Fallback 属于后续 `model-routing`，不得反向把 Config System 变成执行 Runtime。
+
 ## 产品定位：个人 AI 平台，不是单一聊天应用
 
 LFAA 的长期目标是让用户通过一句话或无限画布完成真实任务。游戏一键开服、AI 写作、AI 拆图、Minecraft 插件/模组开发等都应作为可安装/可组合能力进入同一个平台，而不是为每个场景维护第二套应用核心。

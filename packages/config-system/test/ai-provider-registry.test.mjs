@@ -56,8 +56,7 @@ test("Kimi 模型能力按官方模型分别配置，不跨模型猜参数", () 
 
 test("千问官方模型列表与 Qwen3.8 reasoning_effort 契约", () => {
   const plugin = builtinAiProviderPlugins.find((item) => item.id === "qwen");
-  const missing = plugin.resolveConnection({ authMethodId: "api-key", settings: { region: "cn-beijing" } });
-  assert.equal(missing.modelDiscovery.kind, "manual");
+  assert.throws(() => plugin.resolveConnection({ authMethodId: "api-key", settings: { region: "cn-beijing" } }), /Workspace ID/);
   const ready = plugin.resolveConnection({ authMethodId: "api-key", settings: { region: "cn-beijing", workspaceId: "ws123" } });
   assert.equal(ready.modelDiscovery.url, "https://ws123.cn-beijing.maas.aliyuncs.com/api/v1/models");
   const hybrid = plugin.describeModel("qwen3.8-max");

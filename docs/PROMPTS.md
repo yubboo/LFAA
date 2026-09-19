@@ -25,6 +25,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #2.18 | 模型管理 Active Model / Catalog 真值修复 | v0.0.83 | pending-user-acceptance | pass | pending |
 | #2.17 | Node ESM Source Package 运行时导入修复 | v0.0.82 | pending-user-acceptance | pass | pending |
 | #20.18 | Windows Setup PowerShell 智能引号解析修复 | v0.0.81 | pending-user-acceptance | pass | pending |
 | #22.2 | Plugin Profile 生命周期与项目骨架收敛 | v0.0.80 | pending-user-acceptance | pass | pending |
@@ -63,6 +64,34 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.18 模型管理 Active Model / Catalog 真值修复
+
+### 用户目标
+
+修复模型管理无法稳定配置的问题：账户认证、账户默认模型和当前 Agent 模型必须是清楚的独立事实；保存/刷新后模型目录仍可配置，多 Provider/多账户切换不能依赖数组顺序。
+
+### 允许修改
+
+- Config System Account / Active Model / modelCatalog 契约与服务；
+- Web Host 账户状态 Repository / Bridge / Client；
+- Settings AI 模型管理 UI 与 App Shell 模型投影；
+- 对应测试、运行时、模块、版本文档。
+
+### 禁止修改
+
+- 不把 API Key / Token 写入 JSON、浏览器 Storage、日志、argv/env；
+- 不把完整 Model Router / Fallback 提前塞进 Config System；
+- 不重新用 accounts 顺序猜当前模型；
+- 不因配置修复修改 Frozen Rust Kernel 业务边界。
+
+### 验收条件
+
+- Snapshot 有显式 activeModel，Composer 只消费它；
+- modelCatalog 可持久化并在 Settings 重开后直接显示；
+- 第二账户不会自动抢占当前模型，显式激活才切换；
+- Secret 仍只有 credentialRef，关键持久化失败可回滚；
+- Windows 实机真实 Provider 保存/刷新/切换链路通过。
 
 ## #2.17 Node ESM Source Package 运行时导入修复
 

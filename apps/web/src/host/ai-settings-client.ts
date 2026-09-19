@@ -63,6 +63,7 @@ export const webAiSettingsHost: AgentAiSettingsHost = {
     const payload = await request<AiAccountSnapshot>("/accounts");
     return {
       accounts: payload.accounts,
+      activeModel: payload.activeModel,
       secretPersistence: payload.secretPersistence,
       hostCapabilities: payload.hostCapabilities,
     };
@@ -120,8 +121,8 @@ export const webAiSettingsHost: AgentAiSettingsHost = {
     }
   },
   async reprobe(accountId: string) {
-    const payload = await request<{ probe: AiAccountProbeResult }>(`/accounts/${encodeURIComponent(accountId)}/probe`, { method: "POST", body: "{}" });
-    return payload.probe;
+    const payload = await request<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>(`/accounts/${encodeURIComponent(accountId)}/probe`, { method: "POST", body: "{}" });
+    return { probe: payload.probe, snapshot: payload.snapshot };
   },
   async deleteAccount(accountId: string) {
     const payload = await request<{ snapshot: AiAccountSnapshot }>(`/accounts/${encodeURIComponent(accountId)}`, { method: "DELETE" });
@@ -129,6 +130,10 @@ export const webAiSettingsHost: AgentAiSettingsHost = {
   },
   async selectModel(accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiModelSettingValue>>) {
     const payload = await request<{ snapshot: AiAccountSnapshot }>(`/accounts/${encodeURIComponent(accountId)}/model`, { method: "POST", body: JSON.stringify({ modelId, modelSettings }) });
+    return payload.snapshot;
+  },
+  async activateModel(accountId: string) {
+    const payload = await request<{ snapshot: AiAccountSnapshot }>(`/accounts/${encodeURIComponent(accountId)}/active`, { method: "POST", body: "{}" });
     return payload.snapshot;
   },
 };

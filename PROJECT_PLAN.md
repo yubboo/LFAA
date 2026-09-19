@@ -17,12 +17,12 @@ pending-user-acceptance
 当前版本总任务：
 
 ```text
-#2.17 Node ESM Source Package 运行时导入修复
-version: v0.0.82
+#2.18 模型管理 Active Model / Catalog 真值修复
+version: v0.0.83
 status: pending-user-acceptance
 ```
 
-v0.0.82 是 v0.0.81 的 Web/Vite 启动阻断修复。Node 24 在 Vite config/Host 侧直接执行 workspace TypeScript ESM 源码时不会为相对 import 自动补 `.ts`；因此 Node 可执行层必须使用显式文件扩展名，并由 runtime-import Gate 机器检查。
+v0.0.83 先修正模型管理事实边界：Account 只负责认证/连接与账户默认模型，`activeModel` 是 Chat/Work/Agent Runtime 的唯一当前模型真值；账户保存最近官方 `modelCatalog`，Settings 重开可直接配置模型。这个地基通过 Windows 实机后，再进入 Plugin Platform P2 Capability Invocation。
 
 v0.0.80 以用户提供的 DeepSeek Harness 源码包为主要工程参考，重点借鉴 capability seam、profile/bundle、PluginManager 共享事务、HMR 生命周期、credentials 引用和“抽象必须有当前 Consumer”的维护原则；不复制其产品实现。
 
@@ -107,6 +107,30 @@ P5  Personal Agent Profile
 P6  Distribution & Compatibility
     插件签名/来源、依赖、升级、兼容矩阵、回滚与社区分发
 ```
+
+### v0.0.83 通过后的近期顺序
+
+```text
+A. P2 Capability Invocation Contract
+   invoke / stream / result / error / cancel / artifact
+   ↓
+B. Policy + Permission Pipeline
+   三档权限真正包住每次能力调用，副作用进入 Host/Rust 二次校验
+   ↓
+C. 第一条真实 Official Harness Run
+   先把 Chat/Work → Agent Runtime → 官方 Harness → Event/Artifact 跑通
+   ↓
+D. Plugin Capability 真执行
+   已安装 Skill/Tool/Expert 从“可发现”进入“可调用”，第三方 executable 仍走隔离 Host
+   ↓
+E. MCP / DeepSeek Harness / Codex 能力适配扩展
+   统一公共协议 + 保留平台 extensions
+   ↓
+F. 第一个端到端 App Pack
+   用“一键开服”验证：一句话/画布 → 规划 → 安装/配置 → 启动 → 验证 → 产物/状态
+```
+
+模型 Router、Fallback、多模型协作不会抢在 P2 前面；Config System 在 v0.0.83 后只维护稳定 Account / Credential / Active Model 事实，执行选择策略归后续 model-routing / Agent Runtime。
 
 每个阶段都必须满足两个反向检查：**新增场景是否可以不改 Core？接入强 Harness 是否完整保留原生能力？** 任一答案为“否”时，先修接口，不允许用厂商/场景特判绕过去。
 

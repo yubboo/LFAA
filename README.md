@@ -3,9 +3,9 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.82**
+**当前包：LFAA-v0.0.83**
 
-## 当前产品定位（v0.0.82）
+## 当前产品定位（v0.0.83）
 
 LFAA 是面向个人的 AI 任务平台，而不是只会对话的聊天壳。用户可以通过 **Chat 一句话** 或 **Work 无限画布** 驱动同一个 Agent Runtime；一键开服、AI 写作、AI 拆图、Minecraft 插件/模组开发等场景最终都应作为 Plugin / Capability / App Pack 进入。
 
@@ -61,12 +61,12 @@ plugin-platform + agent-runtime + workbench
 当前版本总任务：
 
 ```text
-#2.17 Node ESM Source Package 运行时导入修复
-version: v0.0.82
+#2.18 模型管理 Active Model / Catalog 真值修复
+version: v0.0.83
 status: pending-user-acceptance
 ```
 
-v0.0.82 修复 Node 24 / Vite Config 直接加载 workspace TypeScript ESM 源码时，无扩展名相对 import 导致 `ERR_MODULE_NOT_FOUND` 的阻断，并把 Node source ESM 显式扩展名纳入运行时导入门禁。v0.0.80 Plugin Platform P1 与 v0.0.81 Windows Setup 修复全部保留。
+v0.0.83 先把模型管理地基修正：Account 负责认证连接，`activeModel` 负责当前 Agent 真正使用的模型；官方模型目录快照随账户保存，Settings 重开无需先重测；多账户切换必须显式“设为当前模型”。v0.0.80 Plugin Platform P1、v0.0.81 Windows Setup 与 v0.0.82 Node ESM 修复全部保留。
 
 `#2.16` 的 ChatGPT / Codex App Server 登录闭环继续保留为 `pending-user-acceptance`，没有因为架构升级被覆盖。
 

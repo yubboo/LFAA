@@ -1,7 +1,7 @@
 /**
  * 文件：account-service.ts
- * 作用：实现 AI Provider 账户的真实配置业务闭环。
- * 负责：草稿校验、Secret 引用、托管登录、官方模型探测、模型能力装饰、模型参数校验、账户保存/删除/重测。
+ * 作用：实现 AI Provider 账户与“当前模型”选择的真实配置业务闭环。
+ * 负责：草稿校验、Secret 引用、托管登录、官方模型探测、模型目录快照、模型参数校验、账户保存/删除/重测、显式 Active Model。
  * 不负责：HTTP/Secret/文件系统/Codex 进程具体实现、React UI、推理 Runtime。
  * 状态归属：AiAccountService 无内部可持久状态，状态由 Host Ports 持有。
  * 对外接口：AiAccountService。
@@ -15,6 +15,7 @@ import type {
   AiAccountProbeResult,
   AiAccountRecord,
   AiAccountSnapshot,
+  AiActiveModelBinding,
   AiManagedLoginStart,
   AiManagedLoginStatus,
 } from "./account.types.ts";
@@ -55,7 +56,6 @@ function decorateModels(plugin: AiProviderPlugin, models: readonly AiAccountMode
   const unique = new Map<string, AiAccountModel>();
   for (const raw of models) {
     if (unique.has(raw.id)) continue;
-    // 运行时官方接口（例如 Codex App Server model/list）返回的能力优先于静态文档能力。
     const capabilities = raw.capabilities ?? plugin.describeModel(raw.id);
     unique.set(raw.id, {
       ...raw,
@@ -99,11 +99,31 @@ function requireManagedAuth(ports: AiAccountHostPorts, auth: AiAuthMethod): AiMa
   return managedAuth;
 }
 
+function bindingFor(account: AiAccountRecord | undefined): AiActiveModelBinding | null {
+  if (!account?.selectedModelId) return null;
+  return { accountId: account.id, providerId: account.providerId, modelId: account.selectedModelId };
+}
+
+function bindingMatchesAccount(binding: AiActiveModelBinding | null, account: AiAccountRecord | undefined): boolean {
+  return Boolean(binding && account && account.id === binding.accountId && account.providerId === binding.providerId && account.selectedModelId === binding.modelId);
+}
+
 export class AiAccountService {
   readonly #registry: AiProviderRegistry;
   readonly #ports: AiAccountHostPorts;
 
   constructor(registry: AiProviderRegistry, ports: AiAccountHostPorts) { this.#registry = registry; this.#ports = ports; }
+
+  async #activeModel(accounts: readonly AiAccountRecord[]): Promise<AiActiveModelBinding | null> {
+    const stored = await this.#ports.repository.getActiveModel?.() ?? null;
+    const storedAccount = stored ? accounts.find((item) => item.id === stored.accountId) : undefined;
+    if (bindingMatchesAccount(stored, storedAccount)) return stored;
+    return bindingFor(accounts.find((item) => Boolean(item.selectedModelId)));
+  }
+
+  async #persistActive(binding: AiActiveModelBinding | null): Promise<void> {
+    await this.#ports.repository.setActiveModel?.(binding);
+  }
 
   async snapshot(): Promise<AiAccountSnapshot> {
     const managedAuth = this.#ports.managedAuth;
@@ -114,8 +134,10 @@ export class AiAccountService {
       catch (error) { status = { available: false, reason: error instanceof Error ? error.message : `${managedAuth.kind} 状态检查失败。` }; }
       hostCapabilities = { [managedAuth.kind]: status };
     }
+    const accounts = await this.#ports.repository.list();
     return {
-      accounts: await this.#ports.repository.list(),
+      accounts,
+      activeModel: await this.#activeModel(accounts),
       secretPersistence: this.#ports.secrets.persistence,
       hostCapabilities,
     };
@@ -147,7 +169,7 @@ export class AiAccountService {
 
     if (connection.modelDiscovery.kind === "manual") {
       const models = draft.selectedModelId ? decorateModels(plugin, [{ id: draft.selectedModelId }]) : [];
-      return { status: "unverified", message: connection.modelDiscovery.reason, models, ...(connection.baseUrl ? { resolvedBaseUrl: connection.baseUrl } : {}) };
+      return { status: "unverified", message: connection.modelDiscovery.reason, models, manualModelEntry: true, ...(connection.baseUrl ? { resolvedBaseUrl: connection.baseUrl } : {}) };
     }
     if (connection.modelDiscovery.kind === "official-catalog") {
       const models = decorateModels(plugin, connection.modelDiscovery.models, connection.modelDiscovery.source);
@@ -171,13 +193,25 @@ export class AiAccountService {
   async save(draft: AiAccountDraft, secret: string | null): Promise<{ account: AiAccountRecord; probe: AiAccountProbeResult }> {
     const { plugin, auth } = validateDraft(this.#registry, draft, secret);
     const probe = await this.probe(draft, secret);
-    const existing = draft.accountId ? (await this.#ports.repository.list()).find((item) => item.id === draft.accountId) : undefined;
+    const beforeAccounts = await this.#ports.repository.list();
+    const existing = draft.accountId ? beforeAccounts.find((item) => item.id === draft.accountId) : undefined;
     const id = existing?.id ?? this.#ports.createId();
     const usesManagedAuth = auth.kind === "subscription";
-    const credentialRef = usesManagedAuth ? null : existing?.credentialRef ?? credentialRefFor(id, draft.providerId, draft.authMethodId);
+    const canReuseCredentialRef = Boolean(
+      existing?.credentialRef
+      && existing.providerId === draft.providerId
+      && existing.authMethodId === draft.authMethodId,
+    );
+    const credentialRef = usesManagedAuth
+      ? null
+      : canReuseCredentialRef
+        ? existing?.credentialRef ?? null
+        : credentialRefFor(id, draft.providerId, draft.authMethodId);
     const now = this.#ports.now();
     const previousCredentialRef = existing?.credentialRef ?? null;
     const previousSecret = previousCredentialRef ? await this.#ports.secrets.get(previousCredentialRef) : null;
+    const targetSecretBefore = credentialRef ? await this.#ports.secrets.get(credentialRef) : null;
+    const activeBefore = await this.#activeModel(beforeAccounts);
     const selectedModelId = draft.selectedModelId?.trim() || probe.models[0]?.id || null;
     ensureModelAvailable(selectedModelId, probe.models);
     const modelSettings = resolveModelSettings(plugin, selectedModelId, draft.modelSettings, probe.models);
@@ -192,6 +226,7 @@ export class AiAccountService {
       settings: cleanSettings(draft.settings),
       selectedModelId,
       modelSettings,
+      modelCatalog: probe.models,
       verificationStatus: probe.status,
       lastVerifiedAt: probe.status === "connected" ? now : null,
       createdAt: existing?.createdAt ?? now,
@@ -199,11 +234,18 @@ export class AiAccountService {
     };
     try {
       await this.#ports.repository.put(account);
-      if (usesManagedAuth && previousCredentialRef) await this.#ports.secrets.delete(previousCredentialRef);
+      if (!activeBefore || activeBefore.accountId === account.id) await this.#persistActive(bindingFor(account));
+      if (previousCredentialRef && previousCredentialRef !== credentialRef) await this.#ports.secrets.delete(previousCredentialRef);
     } catch (error) {
+      if (existing) await this.#ports.repository.put(existing).catch(() => undefined);
+      else await this.#ports.repository.delete(id).catch(() => undefined);
+      await this.#persistActive(activeBefore).catch(() => undefined);
       if (credentialRef) {
-        if (previousSecret === null) await this.#ports.secrets.delete(credentialRef).catch(() => undefined);
-        else await this.#ports.secrets.put(credentialRef, previousSecret).catch(() => undefined);
+        if (targetSecretBefore === null) await this.#ports.secrets.delete(credentialRef).catch(() => undefined);
+        else await this.#ports.secrets.put(credentialRef, targetSecretBefore).catch(() => undefined);
+      }
+      if (previousCredentialRef && previousCredentialRef !== credentialRef && previousSecret !== null) {
+        await this.#ports.secrets.put(previousCredentialRef, previousSecret).catch(() => undefined);
       }
       throw error;
     }
@@ -211,19 +253,39 @@ export class AiAccountService {
   }
 
   async reprobe(accountId: string): Promise<AiAccountProbeResult> {
-    const account = (await this.#ports.repository.list()).find((item) => item.id === accountId);
+    const accounts = await this.#ports.repository.list();
+    const account = accounts.find((item) => item.id === accountId);
     if (!account) throw new Error("账户不存在。");
     const secret = account.credentialRef ? await this.#ports.secrets.get(account.credentialRef) : null;
     if (account.credentialRef && !secret) throw new Error("账户凭证不存在，请重新录入。");
+    let probe: AiAccountProbeResult;
     try {
-      const probe = await this.probe({ accountId: account.id, providerId: account.providerId, displayName: account.displayName, authMethodId: account.authMethodId, settings: account.settings, selectedModelId: account.selectedModelId, modelSettings: account.modelSettings }, secret);
-      const now = this.#ports.now();
-      await this.#ports.repository.put({ ...account, verificationStatus: probe.status, lastVerifiedAt: probe.status === "connected" ? now : account.lastVerifiedAt, updatedAt: now });
-      return probe;
+      probe = await this.probe({ accountId: account.id, providerId: account.providerId, displayName: account.displayName, authMethodId: account.authMethodId, settings: account.settings, selectedModelId: account.selectedModelId, modelSettings: account.modelSettings }, secret);
     } catch (error) {
       await this.#ports.repository.put({ ...account, verificationStatus: "error", updatedAt: this.#ports.now() }).catch(() => undefined);
       throw error;
     }
+    const now = this.#ports.now();
+    const selectedStillAvailable = !account.selectedModelId || probe.models.length === 0 || probe.models.some((item) => item.id === account.selectedModelId);
+    const updated: AiAccountRecord = {
+      ...account,
+      selectedModelId: selectedStillAvailable ? account.selectedModelId : null,
+      modelSettings: selectedStillAvailable ? account.modelSettings : {},
+      modelCatalog: probe.models,
+      verificationStatus: probe.status,
+      lastVerifiedAt: probe.status === "connected" ? now : account.lastVerifiedAt,
+      updatedAt: now,
+    };
+    const activeBefore = await this.#activeModel(accounts);
+    try {
+      await this.#ports.repository.put(updated);
+      if (activeBefore?.accountId === account.id) await this.#persistActive(bindingFor(updated));
+    } catch (error) {
+      await this.#ports.repository.put(account).catch(() => undefined);
+      await this.#persistActive(activeBefore).catch(() => undefined);
+      throw error;
+    }
+    return probe;
   }
 
   async selectModel(accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiModelSettingValue>> = {}): Promise<void> {
@@ -237,17 +299,57 @@ export class AiAccountService {
     ensureModelAvailable(selectedModelId, probe.models);
     const plugin = this.#registry.get(account.providerId);
     const resolvedSettings = resolveModelSettings(plugin, selectedModelId, modelSettings, probe.models);
-    await this.#ports.repository.put({ ...account, selectedModelId, modelSettings: resolvedSettings, verificationStatus: probe.status, lastVerifiedAt: probe.status === "connected" ? this.#ports.now() : account.lastVerifiedAt, updatedAt: this.#ports.now() });
+    const updated: AiAccountRecord = {
+      ...account,
+      selectedModelId,
+      modelSettings: resolvedSettings,
+      modelCatalog: probe.models,
+      verificationStatus: probe.status,
+      lastVerifiedAt: probe.status === "connected" ? this.#ports.now() : account.lastVerifiedAt,
+      updatedAt: this.#ports.now(),
+    };
+    const activeBefore = await this.#activeModel(accounts);
+    try {
+      await this.#ports.repository.put(updated);
+      if (!activeBefore || activeBefore.accountId === account.id) await this.#persistActive(bindingFor(updated));
+    } catch (error) {
+      await this.#ports.repository.put(account).catch(() => undefined);
+      await this.#persistActive(activeBefore).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async activateModel(accountId: string): Promise<void> {
+    const accounts = await this.#ports.repository.list();
+    const account = accounts.find((item) => item.id === accountId);
+    if (!account) throw new Error("账户不存在。");
+    const binding = bindingFor(account);
+    if (!binding) throw new Error("请先为该账户选择模型。");
+    await this.#persistActive(binding);
   }
 
   async delete(accountId: string): Promise<void> {
     const accounts = await this.#ports.repository.list();
     const account = accounts.find((item) => item.id === accountId);
     if (!account) return;
-    await this.#ports.repository.delete(accountId);
-    // 宿主管理登录属于 Codex 全局认证状态；删除 LFAA 项目账户只能解除关联，不能全局 logout。
-    if (!account.credentialRef) return;
-    try { await this.#ports.secrets.delete(account.credentialRef); }
-    catch (error) { await this.#ports.repository.put(account).catch(() => undefined); throw error; }
+    const active = await this.#activeModel(accounts);
+    const remaining = accounts.filter((item) => item.id !== accountId);
+    const nextActive = active?.accountId === accountId
+      ? bindingFor(remaining.find((item) => Boolean(item.selectedModelId)))
+      : active;
+    const previousSecret = account.credentialRef ? await this.#ports.secrets.get(account.credentialRef) : null;
+    try {
+      await this.#ports.repository.delete(accountId);
+      await this.#persistActive(nextActive);
+      // 宿主管理登录属于 Codex 全局认证状态；删除 LFAA 项目账户只能解除关联，不能全局 logout。
+      if (account.credentialRef) await this.#ports.secrets.delete(account.credentialRef);
+    } catch (error) {
+      await this.#ports.repository.put(account).catch(() => undefined);
+      await this.#persistActive(active).catch(() => undefined);
+      if (account.credentialRef && previousSecret !== null) {
+        await this.#ports.secrets.put(account.credentialRef, previousSecret).catch(() => undefined);
+      }
+      throw error;
+    }
   }
 }

@@ -1,3 +1,12 @@
+## v0.0.83 / #2.18 模型管理 Active Model / Catalog 回归
+
+- Config Account Service：首个账户建立显式 Active Model；新增第二账户不得抢占；显式激活后 Snapshot/Composer 才切换；`modelCatalog` 随账户保存并在重开后可用。
+- Account/Secret 一致性：metadata 写入失败、Active Model 写入失败、Secret 删除失败都必须补偿回滚，不得残留半状态。
+- Web Host：账户状态文件 v1→v2 迁移、`activeModel` API、reprobe 返回 Snapshot、账户 JSON 无 Secret 明文。
+- Settings/App Shell：模型管理读取 `account.modelCatalog`，显示“当前 Agent 模型 / 设为当前模型”，Composer 只从 `aiSnapshot.activeModel` 建立 AgentModelBinding，禁止恢复“找第一条 selectedModelId”的数组顺序推断。
+- Windows 实机：保存真实 Provider 账户 → 模型目录即时可见 → 刷新 Settings 仍可见 → 新增第二账户不抢占 → 点“设为当前模型”后 Composer 标签切换 → 重启 Web 后 Active Model 继续保持；`.lfaa/state/ai-accounts.json` 不得包含 API Key/Token。
+- 当前制作环境：仓库 Node 107/107 + Config 37/37 = 144/144 PASS；Config System TypeScript noEmit PASS；相关 TS/TSX 语法检查 PASS。真实 Windows Secret Store / Provider 网络仍保留实机验收。
+
 ## v0.0.82 / #2.17 Node ESM Source Package 运行时导入回归
 
 - `test/runtime-import-resolution.test.mjs`：锁定 `plugin-runtime` 与 `plugin-sdk` 的显式 `.ts` 相对导入。

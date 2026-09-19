@@ -53,4 +53,4 @@ docs/logs/runtime/source-update/
 这些是本机运行数据目录，不再放 Markdown README。
 
 
-> 当前候选版本：v0.0.82（#2.17，pending-user-acceptance）；#2.16 ChatGPT/Codex 登录仍等待独立 Windows 实机验收。
+> 当前候选版本：v0.0.83（#2.18，pending-user-acceptance）；模型管理先完成 Active Model / Catalog 真值修复，#2.16 ChatGPT/Codex 登录仍等待独立 Windows 实机验收。

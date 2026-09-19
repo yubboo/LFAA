@@ -53,8 +53,8 @@ test("左下角保留用户按钮，并列更新和主题入口", () => {
   assert.ok(refresh >= 0 && theme > refresh, "更新入口必须位于主题入口左侧");
 });
 
-test("Settings 左侧导航包含 AI 服务，AI 内容仍由 ViewModel 驱动", () => {
-  assert.match(settings, /AI 服务/);
+test("Settings 左侧导航包含 AI 与模型，AI 内容仍由 ViewModel 驱动", () => {
+  assert.match(settings, /AI 与模型/);
   assert.match(settings, /AiSettingsPanel/);
   assert.match(settings, /返回应用/);
   assert.doesNotMatch(aiPanel, /https?:\/\//);
@@ -115,4 +115,13 @@ test("原 API Key 保存门槛保持不变，Subscription 不渲染 Secret 输�
   assert.match(aiPanel, /activeAuthView\?\.secretLabel/);
   assert.doesNotMatch(aiPanel, /fetch\s*\(/);
   assert.doesNotMatch(aiPanel, /https?:\/\//);
+});
+
+
+test("模型管理使用显式 activeModel，不再按账户数组顺序猜当前模型", () => {
+  assert.match(shell, /aiSnapshot\.activeModel/);
+  assert.doesNotMatch(shell, /accounts\.find\(\(account\) => Boolean\(account\.selectedModelId\)\)/);
+  assert.match(settings, /activeAiModel/);
+  assert.match(aiPanel, /设为当前模型/);
+  assert.match(aiPanel, /account\.modelCatalog/);
 });
