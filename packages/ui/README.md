@@ -40,3 +40,12 @@ UI 通过 Props / Controller / ViewModel 接收业务能力，不直接导入业
 
 Workbench 导航：`src/workbench/README.md`。
 Feature UI 导航：`src/features/README.md`。
+
+## v0.0.64 共享 Feature
+
+- `src/features/account`：个人中心菜单 UI；
+- `src/features/appearance`：主题模式 UI；
+- `src/features/settings`：独立设置中心；
+- `src/features/settings/ai`：AI Provider 配置内容。
+
+这些目录只拥有图形交互，不拥有 Config/Account/Auth/Update 业务真值。

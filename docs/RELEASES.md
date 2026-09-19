@@ -1,8 +1,30 @@
-## LFAA v0.0.63 Release — #2.3 配置系统目录边界与 AI Provider 插件体系
+## LFAA v0.0.64 Release — #2.4 设置中心与个人中心交互重构
 
 - **状态：** pending-user-acceptance
-- **基线：** v0.0.62
+- **基线：** v0.0.63
 - **用户验收：** pending
+
+### 交付内容
+
+- 独立 Settings Surface：左侧设置导航/搜索 + 右侧内容，设置不再占用工作台中间栏；
+- 个人中心弹层增加全工作台背景模糊/压暗聚焦；
+- 左下角更新与主题入口并列，主题支持 system/light/dark 三态；
+- AI Provider 设置作为 Settings“AI 服务”分类嵌入，保留 v0.0.63 Provider Registry 与六家插件；
+- 新增 Settings/Profile/Theme 5 项防回归测试并纳入根测试。
+
+### AI 验证状态
+
+Settings/Profile/Theme 5/5 PASS；Config System 17/17 PASS；UI/App Shell 补充 TypeScript PASS；folder-boundary / import / ui-contract / config-schema 与仓库可执行治理门禁 PASS。当前容器无项目锁定 pnpm 11.17.0，不声称正式 Web build / release:full 已通过。
+
+### 用户验收重点
+
+点击左下角用户按钮后，背景应轻度模糊/压暗且菜单保持清晰；设置应进入独立界面；左下角更新在主题左侧；主题菜单可选跟随系统/浅色/深色；Settings 左侧“AI 服务”应进入六家 Provider 配置。
+
+## LFAA v0.0.63 Release — #2.3 配置系统目录边界与 AI Provider 插件体系
+
+- **状态：** superseded
+- **基线：** v0.0.62
+- **用户验收：** not-accepted；Provider/目录架构保留，设置与个人中心 UI 由 v0.0.64 修正
 
 ### 交付内容
 

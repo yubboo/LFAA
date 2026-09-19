@@ -1,0 +1,9 @@
+/**
+ * 文件：user-menu.css
+ * 作用：个人中心弹出菜单视觉。
+ * 负责：卡片、账户摘要、动作行；背景模糊由宿主 Overlay 负责。
+ */
+.lfaa-user-menu{width:min(18rem,calc(100vw - 1rem));padding:.5rem;border:1px solid var(--agent-border,#dedede);border-radius:.875rem;background:color-mix(in srgb,var(--agent-elevated,#fff) 96%,transparent);box-shadow:0 1rem 3rem rgba(0,0,0,.24);color:var(--agent-text,#171717);backdrop-filter:blur(18px)}
+.lfaa-user-menu__profile{display:grid;grid-template-columns:2.25rem minmax(0,1fr);gap:.625rem;align-items:center;padding:.5rem .5625rem}.lfaa-user-menu__profile>span:last-child{min-width:0;display:grid;gap:.125rem}.lfaa-user-menu__profile strong,.lfaa-user-menu__profile small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lfaa-user-menu__profile strong{font-size:.8125rem}.lfaa-user-menu__profile small{font-size:.6875rem;color:var(--agent-muted,#737373)}
+.lfaa-user-menu__avatar{display:grid;place-items:center;width:2.25rem;height:2.25rem;border-radius:50%;background:var(--agent-active,#e7e7e8);font-size:.75rem;font-weight:700}.lfaa-user-menu__divider{height:1px;margin:.375rem;background:var(--agent-border,#e5e5e5)}
+.lfaa-user-menu button{width:100%;min-height:2.375rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:0 .625rem;border:0;border-radius:.625rem;background:transparent;color:inherit;cursor:pointer;text-align:left}.lfaa-user-menu button:hover,.lfaa-user-menu button:focus-visible{background:var(--agent-hover,#ededee);outline:none}.lfaa-user-menu kbd{border:0;background:transparent;color:var(--agent-subtle,#8a8a8a);font-size:.6875rem}

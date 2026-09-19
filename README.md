@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.63**
+**当前包：LFAA-v0.0.64**
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
@@ -54,7 +54,7 @@ config-system
 当前治理修复任务：
 
 ```text
-#2.3 配置系统目录边界与 AI Provider 插件体系
+#2.4 设置中心与个人中心交互重构
 status: pending-user-acceptance
 ```
 
@@ -65,7 +65,7 @@ status: pending-user-acceptance
 status: pending-user-acceptance
 ```
 
-#20.16 / v0.0.62 已由用户 Windows 实机验收通过。当前进入 #2.3 / v0.0.63：配置系统按长期父子级冻结 AI Provider 插件架构，首批内置 OpenAI、DeepSeek、智谱、Kimi、千问/百炼、Xiaomi MiMo；共享图形界面统一归 `packages/ui/src/features/settings/ai`，Web 只作为第一参考宿主。当前版本仍为 pending-user-acceptance。
+#20.16 / v0.0.62 已由用户 Windows 实机验收通过。#2.3 / v0.0.63 的 Provider 目录与插件架构保留，但用户指出设置/个人中心交互不符合目标体验，因此由 #2.4 / v0.0.64 修正：设置中心改为独立 Surface，左下角个人中心增加聚焦式模糊背景菜单，主题支持 system/light/dark 三态，更新与主题入口并列；AI Provider 设置作为 Settings 分类复用原 Registry。当前版本仍为 pending-user-acceptance。
 
 ## Node.js 包管理器
 

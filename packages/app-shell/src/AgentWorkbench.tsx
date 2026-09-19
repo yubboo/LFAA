@@ -33,10 +33,14 @@
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import {
-  AiSettingsPage,
   ResizableWorkbench,
+  SettingsPage,
+  ThemeModeMenu,
+  UserMenu,
   resolveWorkbenchLayoutMetrics,
   type AiSettingsProviderView,
+  type SettingsSectionId,
+  type ThemePreference,
   type WorkbenchLayoutMetrics,
   type WorkbenchLayoutMode,
 } from "@lfaa/ui";
@@ -51,7 +55,7 @@ import "./agent-workbench.css";
 const THEME_KEY = "lfaa.workbench.theme.v1";
 const CHROME_KEY = "lfaa.workbench.chrome.v2";
 
-type ThemeMode = "light" | "dark";
+type ResolvedTheme = "light" | "dark";
 type LayoutMode = WorkbenchLayoutMode;
 interface ChromeState { leftCollapsed: boolean; rightCollapsed: boolean; terminalOpen: boolean; }
 const recentRuns = ["配置系统", "Web 工作台", "热插拔测试", "模型接入规划"];
@@ -132,11 +136,16 @@ function useWorkbenchLayoutMetrics(containerRef: RefObject<HTMLDivElement | null
 
 // ===== 2. 本地初始状态 =====
 // Theme 和 Chrome 只读取浏览器 localStorage，不参与业务配置系统。
-function initialTheme(): ThemeMode {
-  if (typeof window === "undefined") return "light";
+function initialThemePreference(): ThemePreference {
+  if (typeof window === "undefined") return "system";
   const stored = window.localStorage.getItem(THEME_KEY);
-  if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  if (stored === "system" || stored === "light" || stored === "dark") return stored;
+  return "system";
+}
+
+function initialSystemDark(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
 function initialChrome(mode: LayoutMode): ChromeState {
@@ -253,7 +262,22 @@ function RightShellActions({
 
 // ===== 4. 左侧栏内容 =====
 // 这里只描述左栏“里面有什么”；左栏宽度和收起逻辑不在这里实现。
-function LeftSidebar({ theme, onToggleTheme, onOpenAiSettings }: { theme: ThemeMode; onToggleTheme: () => void; onOpenAiSettings: () => void }) {
+function LeftSidebar({
+  resolvedTheme,
+  themePreference,
+  onOpenProfile,
+  onOpenThemeMenu,
+  onRequestUpdate,
+}: {
+  resolvedTheme: ResolvedTheme;
+  themePreference: ThemePreference;
+  onOpenProfile: () => void;
+  onOpenThemeMenu: () => void;
+  onRequestUpdate: () => void;
+}) {
+  const themeLabel = themePreference === "system" ? "跟随系统" : themePreference === "dark" ? "深色" : "浅色";
+  const themeIcon = themePreference === "system" ? "monitor" : resolvedTheme === "dark" ? "moon" : "sun";
+
   return (
     <aside className="agent-side agent-side--left">
       <div className="agent-brand-row">
@@ -262,7 +286,6 @@ function LeftSidebar({ theme, onToggleTheme, onOpenAiSettings }: { theme: ThemeM
         </button>
         <div className="agent-brand-actions">
           <button className="agent-icon-button" type="button" aria-label="搜索"><WorkbenchIcon name="search" /></button>
-          <button className="agent-icon-button" type="button" aria-label="设置" onClick={onOpenAiSettings}><WorkbenchIcon name="settings" /></button>
         </div>
       </div>
 
@@ -277,9 +300,16 @@ function LeftSidebar({ theme, onToggleTheme, onOpenAiSettings }: { theme: ThemeM
       <div className="agent-projects"><button type="button"><WorkbenchIcon name="folder" />lfaa</button></div>
       <div className="agent-section-title agent-section-title--recent"><span>最近</span></div>
       <div className="agent-history">{recentRuns.map((item, index) => <button type="button" key={item} className={index === 1 ? "is-current" : ""}>{item}</button>)}</div>
+
       <div className="agent-profile">
-        <button className="agent-profile-main" type="button"><span className="agent-avatar">二</span><span><strong>二鱼</strong><small>本地工作区</small></span></button>
-        <button className="agent-icon-button" type="button" onClick={onToggleTheme} aria-label={theme === "light" ? "切换深色主题" : "切换浅色主题"}><WorkbenchIcon name={theme === "light" ? "moon" : "sun"} /></button>
+        <button className="agent-profile-main" type="button" onClick={onOpenProfile} aria-haspopup="dialog">
+          <span className="agent-avatar">二</span>
+          <span><strong>二鱼</strong><small>本地工作区</small></span>
+        </button>
+        <div className="agent-profile-actions">
+          <button className="agent-icon-button" type="button" onClick={onRequestUpdate} aria-label="检查更新" title="检查更新"><WorkbenchIcon name="refresh" /></button>
+          <button className="agent-icon-button" type="button" onClick={onOpenThemeMenu} aria-label={`主题：${themeLabel}`} title={`主题：${themeLabel}`}><WorkbenchIcon name={themeIcon} /></button>
+        </div>
       </div>
     </aside>
   );
@@ -453,9 +483,15 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const layout = useWorkbenchLayoutMetrics(stageRef);
   const layoutMode = layout.mode;
-  const [theme, setTheme] = useState<ThemeMode>(initialTheme);
+  const [themePreference, setThemePreference] = useState<ThemePreference>(initialThemePreference);
+  const [systemDark, setSystemDark] = useState(initialSystemDark);
+  const resolvedTheme: ResolvedTheme = themePreference === "system" ? (systemDark ? "dark" : "light") : themePreference;
   const [chrome, setChrome] = useState<ChromeState>(() => initialChrome(layoutMode));
-  const [surface, setSurface] = useState<"workbench" | "ai-settings">("workbench");
+  const [surface, setSurface] = useState<"workbench" | "settings">("workbench");
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionId>("general");
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const [updateNoticeOpen, setUpdateNoticeOpen] = useState(false);
   const [selectedAiProviderId, setSelectedAiProviderId] = useState(aiProviderViews[0]?.id ?? "openai");
   // Hover Preview 与正式左 Dock 共享同一个“实际宽度”值。默认取当前响应式 initial，随后由 ResizableWorkbench 回传真实宽度。
   const [leftPaneWidth, setLeftPaneWidth] = useState(layout.left.initial);
@@ -504,7 +540,19 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     }
   }, [clearPreviewTimer, layoutMode]);
 
-  useEffect(() => { window.localStorage.setItem(THEME_KEY, theme); }, [theme]);
+  useEffect(() => { window.localStorage.setItem(THEME_KEY, themePreference); }, [themePreference]);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (event: MediaQueryListEvent) => setSystemDark(event.matches);
+    setSystemDark(media.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+  useEffect(() => {
+    if (!updateNoticeOpen) return;
+    const timer = window.setTimeout(() => setUpdateNoticeOpen(false), 2600);
+    return () => window.clearTimeout(timer);
+  }, [updateNoticeOpen]);
   useEffect(() => { window.localStorage.setItem(CHROME_KEY, JSON.stringify(chrome)); }, [chrome]);
   useEffect(() => {
     if (!chrome.leftCollapsed && leftPreviewOpen) setLeftPreviewOpen(false);
@@ -515,6 +563,20 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   // 输入框或 contentEditable 聚焦时不抢占用户文本快捷键。
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setProfileMenuOpen(false);
+        setThemeMenuOpen(false);
+        return;
+      }
+      if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key === ",") {
+        event.preventDefault();
+        setProfileMenuOpen(false);
+        setThemeMenuOpen(false);
+        setSettingsSection("general");
+        setSurface("settings");
+        return;
+      }
+
       const target = event.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
@@ -548,82 +610,138 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   // 二者不会同时可交互，避免维护两套左栏内容。
   const leftSidebar = (
     <LeftSidebar
-      theme={theme}
-      onToggleTheme={() => setTheme((value) => value === "light" ? "dark" : "light")}
-      onOpenAiSettings={() => setSurface("ai-settings")}
+      resolvedTheme={resolvedTheme}
+      themePreference={themePreference}
+      onOpenProfile={() => {
+        setThemeMenuOpen(false);
+        setProfileMenuOpen(true);
+      }}
+      onOpenThemeMenu={() => {
+        setProfileMenuOpen(false);
+        setThemeMenuOpen(true);
+      }}
+      onRequestUpdate={() => setUpdateNoticeOpen(true)}
     />
   );
 
   return (
-    <div className="agent-theme" data-theme={theme} data-layout-mode={layoutMode}>
+    <div className="agent-theme" data-theme={resolvedTheme} data-theme-preference={themePreference} data-layout-mode={layoutMode}>
       <div
         ref={stageRef}
-        className="agent-workbench-stage"
+        className={`agent-workbench-stage${surface === "settings" ? " is-suspended" : ""}`}
+        aria-hidden={surface === "settings"}
         style={{ "--agent-left-preview-width": `${leftPaneWidth}px` } as CSSProperties}
       >
-        {/* 左栏收起后才挂载临时预览层；正常展开时由 ResizableWorkbench 渲染正式左栏。 */}
-        {chrome.leftCollapsed ? (
-          <div
-            className={`agent-left-hover-preview${leftPreviewOpen ? " is-visible" : ""}`}
-            onMouseEnter={openLeftPreview}
-            onMouseLeave={() => closeLeftPreview(120)}
-          >
-            {leftSidebar}
-          </div>
-        ) : null}
-        {/* ResizableWorkbench 只管理几何布局与拖拽；Shell 开合真值仍由本组件受控。 */}
-        <ResizableWorkbench
-          left={leftSidebar}
-          center={surface === "ai-settings" ? (
-            <AiSettingsPage
-              providers={aiProviderViews}
-              selectedProviderId={selectedAiProviderId}
-              onSelectProvider={setSelectedAiProviderId}
-              onClose={() => setSurface("workbench")}
-            />
-          ) : (
-            <CenterWorkspace
-              layoutMode={layoutMode}
-              leftCollapsed={chrome.leftCollapsed}
-              rightCollapsed={chrome.rightCollapsed}
-              terminalOpen={chrome.terminalOpen}
-              onToggleLeft={toggleLeft}
-              onToggleRight={toggleRight}
-              onToggleTerminal={toggleTerminal}
-              onLeftHoverEnter={openLeftPreview}
-              onLeftHoverLeave={() => closeLeftPreview(120)}
-            />
-          )}
-          right={(
-            <RightSidebar
-              {...props}
-              layoutMode={layoutMode}
-              terminalOpen={chrome.terminalOpen}
-              rightCollapsed={chrome.rightCollapsed}
-              onToggleTerminal={toggleTerminal}
-              onToggleRight={toggleRight}
-            />
-          )}
-          bottom={<BottomTerminal terminal={props.terminal} onClose={() => setChrome((value) => ({ ...value, terminalOpen: false }))} />}
-          bottomOpen={chrome.terminalOpen}
-          layoutMode={layoutMode}
-          leftLimits={layout.left}
-          rightLimits={layout.right}
-          bottomLimits={layout.bottom}
-          snapHysteresis={layout.snapHysteresis}
-          minCenterWidth={layout.minCenterWidth}
-          leftCollapsed={chrome.leftCollapsed}
-          onLeftWidthChange={setLeftPaneWidth}
-          rightCollapsed={chrome.rightCollapsed}
-          onLeftCollapsedChange={(leftCollapsed) => {
-            clearPreviewTimer();
-            setLeftPreviewOpen(false);
-            setChrome((value) => value.leftCollapsed === leftCollapsed ? value : { ...value, leftCollapsed });
-          }}
-          onRightCollapsedChange={(rightCollapsed) => setChrome((value) => value.rightCollapsed === rightCollapsed ? value : { ...value, rightCollapsed })}
-          onBottomOpenChange={(terminalOpen) => setChrome((value) => value.terminalOpen === terminalOpen ? value : { ...value, terminalOpen })}
-        />
+          {/* 左栏收起后才挂载临时预览层；正常展开时由 ResizableWorkbench 渲染正式左栏。 */}
+          {chrome.leftCollapsed ? (
+            <div
+              className={`agent-left-hover-preview${leftPreviewOpen ? " is-visible" : ""}`}
+              onMouseEnter={openLeftPreview}
+              onMouseLeave={() => closeLeftPreview(120)}
+            >
+              {leftSidebar}
+            </div>
+          ) : null}
+          {/* ResizableWorkbench 只管理几何布局与拖拽；Shell 开合真值仍由本组件受控。 */}
+          <ResizableWorkbench
+            left={leftSidebar}
+            center={(
+              <CenterWorkspace
+                layoutMode={layoutMode}
+                leftCollapsed={chrome.leftCollapsed}
+                rightCollapsed={chrome.rightCollapsed}
+                terminalOpen={chrome.terminalOpen}
+                onToggleLeft={toggleLeft}
+                onToggleRight={toggleRight}
+                onToggleTerminal={toggleTerminal}
+                onLeftHoverEnter={openLeftPreview}
+                onLeftHoverLeave={() => closeLeftPreview(120)}
+              />
+            )}
+            right={(
+              <RightSidebar
+                {...props}
+                layoutMode={layoutMode}
+                terminalOpen={chrome.terminalOpen}
+                rightCollapsed={chrome.rightCollapsed}
+                onToggleTerminal={toggleTerminal}
+                onToggleRight={toggleRight}
+              />
+            )}
+            bottom={<BottomTerminal terminal={props.terminal} onClose={() => setChrome((value) => ({ ...value, terminalOpen: false }))} />}
+            bottomOpen={chrome.terminalOpen}
+            layoutMode={layoutMode}
+            leftLimits={layout.left}
+            rightLimits={layout.right}
+            bottomLimits={layout.bottom}
+            snapHysteresis={layout.snapHysteresis}
+            minCenterWidth={layout.minCenterWidth}
+            leftCollapsed={chrome.leftCollapsed}
+            onLeftWidthChange={setLeftPaneWidth}
+            rightCollapsed={chrome.rightCollapsed}
+            onLeftCollapsedChange={(leftCollapsed) => {
+              clearPreviewTimer();
+              setLeftPreviewOpen(false);
+              setChrome((value) => value.leftCollapsed === leftCollapsed ? value : { ...value, leftCollapsed });
+            }}
+            onRightCollapsedChange={(rightCollapsed) => setChrome((value) => value.rightCollapsed === rightCollapsed ? value : { ...value, rightCollapsed })}
+            onBottomOpenChange={(terminalOpen) => setChrome((value) => value.terminalOpen === terminalOpen ? value : { ...value, terminalOpen })}
+          />
+
+          {profileMenuOpen ? (
+            <div className="agent-profile-overlay">
+              <button className="agent-profile-backdrop" type="button" aria-label="关闭个人中心" onClick={() => setProfileMenuOpen(false)} />
+              <div className="agent-profile-menu-anchor">
+                <UserMenu
+                  displayName="二鱼"
+                  subtitle="本地工作区"
+                  onOpenSettings={() => {
+                    setProfileMenuOpen(false);
+                    setSettingsSection("general");
+                    setSurface("settings");
+                  }}
+                  onRequestUpdate={() => {
+                    setProfileMenuOpen(false);
+                    setUpdateNoticeOpen(true);
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {themeMenuOpen ? (
+            <div className="agent-theme-menu-layer">
+              <button className="agent-theme-menu-backdrop" type="button" aria-label="关闭主题菜单" onClick={() => setThemeMenuOpen(false)} />
+              <div className="agent-theme-menu-anchor">
+                <ThemeModeMenu
+                  value={themePreference}
+                  onChange={(value) => {
+                    setThemePreference(value);
+                    setThemeMenuOpen(false);
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
       </div>
+
+      {surface === "settings" ? (
+        <div className="agent-settings-layer">
+          <SettingsPage
+            activeSection={settingsSection}
+            onSectionChange={setSettingsSection}
+            onClose={() => setSurface("workbench")}
+            themePreference={themePreference}
+            onThemePreferenceChange={setThemePreference}
+            aiProviders={aiProviderViews}
+            selectedAiProviderId={selectedAiProviderId}
+            onSelectAiProvider={setSelectedAiProviderId}
+          />
+        </div>
+      ) : null}
+
+      {updateNoticeOpen ? <div className="agent-update-toast" role="status">当前 Web 开发宿主未接入自动更新；正式更新仍由 Update Adapter / LFAA-Update 管理。</div> : null}
     </div>
   );
+
 }

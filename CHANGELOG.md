@@ -1,8 +1,22 @@
 # LFAA 更新日志
 
-## LFAA v0.0.63 — #2.3 配置系统目录边界与 AI Provider 插件体系
+## LFAA v0.0.64 — #2.4 设置中心与个人中心交互重构
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.63
+- **任务：** #2.4
+- v0.0.63 的 Provider/目录架构保留，但其设置 UI 验收未通过，本版本不覆盖旧包，独立递增修正。
+- 设置从工作台 center pane 中移出，改为共享 `SettingsPage` 独立 Surface：左侧设置分类与搜索，右侧内容区，支持返回应用。
+- AI Provider 配置改为 `AiSettingsPanel`，作为 Settings 的“AI 服务”分类复用；Provider Registry/六家插件业务未改。
+- 左下角个人中心改为聚焦式弹层；打开时工作台背景轻度模糊 + 压暗，菜单本身保持清晰。
+- 左下角增加更新入口并位于主题入口左侧；主题升级为 `跟随系统 / 浅色 / 深色` 三态并监听系统主题变化。
+- `Ctrl+,` 可打开设置；Esc 优先关闭个人/主题菜单。
+- 新增 Settings/Profile/Theme 静态契约 5/5，并纳入根测试；Config System 17/17 与目录边界回归通过。
+
+## LFAA v0.0.63 — #2.3 配置系统目录边界与 AI Provider 插件体系
+
+- **状态：** superseded
+- **用户验收：** not-accepted；Provider/目录架构保留，设置与个人中心 UI 由 v0.0.64 修正
 - **基线：** v0.0.62
 - **任务：** #2.3
 - 配置业务固定归 `packages/config-system/src/settings/ai`，共享图形 UI 固定归 `packages/ui/src/features/settings/ai`，App 仅作为宿主；目录职责写入开发规范并由 `folder-boundary-check` 自动执行。

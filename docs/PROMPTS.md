@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #2.3 | 配置系统目录边界与 AI Provider 插件体系 | v0.0.63 | pending-user-acceptance | pass | pending |
+| #2.4 | 设置中心与个人中心交互重构 | v0.0.64 | pending-user-acceptance | pass | pending |
+| #2.3 | 配置系统目录边界与 AI Provider 插件体系 | v0.0.63 | superseded | pass | not-accepted |
 | #20.16 | pnpm 控制台直连原生输出修复 | v0.0.62 | delivered | pass | passed |
 | #20.15 | pnpm CMD 原生终端输出与菜单精简 | v0.0.61 | superseded | pass | not-accepted |
 | #20.14 | pnpm 原生安装输出恢复 | v0.0.60 | superseded | pass | not-accepted |
@@ -41,6 +42,95 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.4 设置中心与个人中心交互重构
+
+### 主模块
+
+`ui / app-shell / config-system-ai-ui`
+
+### 背景
+
+用户验收 v0.0.63 时确认 Provider 目录与插件结构方向正确，但指出设置入口和个人中心交互没有按参考产品的独立设置体验实现：AI 设置被塞进工作区中心区域；左下角个人中心缺少聚焦式弹层；主题只有明/暗两态；更新入口与主题入口布局不符合预期。
+
+### 任务目标
+
+在不改动 AI Provider 业务边界的前提下，重构共享 Shell UI：个人中心使用带背景模糊/压暗的焦点菜单；主题支持 `system / light / dark` 三态；更新入口位于主题入口左侧；设置进入独立全屏 Settings Surface，并采用左侧分类导航 + 右侧内容区；AI Provider 设置作为 Settings 的一个分类嵌入，不再替换工作区 center pane。
+
+### 允许修改
+
+- `packages/ui/src/features/settings/**`；
+- `packages/ui/src/features/account/**` 或等价共享账户菜单 UI；
+- `packages/app-shell/src/AgentWorkbench.tsx`、`WorkbenchIcon.tsx`、`agent-workbench.css`；
+- `packages/app-shell/src/workbench.types.ts`（仅 UI 宿主回调契约）；
+- UI 相关 README / UI 文档 / 目录边界测试；
+- Prompt / Log / Plan / CHANGELOG / RELEASES / 版本事实。
+
+### 禁止修改
+
+- `packages/config-system/src/settings/ai/providers/**` 厂商业务语义；
+- Config Schema / Secret / Storage 业务；
+- `apps/web` 厂商逻辑；
+- Windows Setup / Sync / GitHub / Update 脚本；
+- PTY、Agent Runtime、Tool Runtime、Permission Engine；
+- 不把 Settings 业务真值塞进 UI；UI 只持有交互状态。
+
+### 交互合同
+
+- 左下角用户按钮打开个人菜单；菜单打开时，工作台其余区域必须出现轻度模糊 + 压暗遮罩，菜单保持清晰；
+- 个人菜单至少提供设置入口；不得伪造套餐用量、云账户余额或登录态；
+- 左下角主题按钮保持原位附近，左侧新增更新入口，两个小按钮保留可辨识间距；
+- 主题为 `跟随系统 / 浅色 / 深色` 三态；`system` 需监听系统主题变化并实时更新；
+- 设置按钮进入独立 Settings Surface，工作台三栏/终端/右侧资源不应继续显示在其后作为设置布局；
+- Settings Surface 采用左侧设置导航 + 右侧内容区；必须有“返回应用”；
+- AI 服务作为 Settings 分类，复用 v0.0.63 的 Provider Registry/ViewModel，不把 Provider 业务复制进 Settings UI；
+- `Ctrl+,` 可进入设置；Esc 优先关闭个人菜单/主题菜单，设置页由返回操作退出。
+
+### 验收条件
+
+- 用户菜单视觉聚焦明显，背景模糊但不影响菜单本身；
+- 三态主题切换在 Web 实机可见，并能持久化 preference；
+- 设置页为独立界面，不再局限于 center pane；
+- AI 设置在 Settings 左侧分类中可进入；
+- v0.0.63 六家 Provider 结构和目录门禁无回退；
+- Desktop/Linux 后续可直接复用 Settings / Account Menu UI；
+- 用户验收前状态保持 `pending-user-acceptance`。
+
+### 必须测试
+
+- App Shell / UI TypeScript；
+- Settings/Theme/Profile 交互契约静态测试；
+- `node scripts/folder-boundary-check.mjs`；
+- `node scripts/import-path-check.mjs`；
+- `node scripts/governance-check.mjs`；
+- Config System 17/17 回归；
+- Windows PS1 Hash/BOM 不回退。
+
+### 版本目标
+
+`v0.0.64`
+
+### 实现结果
+
+- 新增共享 `SettingsPage`：独立设置 Surface，左侧分类导航 + 搜索，右侧内容区；
+- AI Provider 页面改为 `AiSettingsPanel` 嵌入 Settings 的“AI 服务”分类，不再替换工作台 center pane；
+- 新增共享 `UserMenu`，App Shell 使用 backdrop blur + dim Overlay 聚焦个人菜单；
+- 左下角 Footer 调整为用户按钮 + 更新 + 主题；更新位于主题左侧；
+- 主题升级为 `system / light / dark` 三态，并监听 `prefers-color-scheme` 实时变化；
+- `Ctrl+,` 进入设置；Esc 关闭个人菜单/主题菜单；
+- 新增 `test/settings-shell.test.mjs` 5 项防回归，并纳入根 `test`。
+
+### 当前状态
+
+`pending-user-acceptance`
+
+### AI 验证
+
+`pass`：Settings/Profile/Theme 契约 5/5、Config System 17/17、UI/App Shell TypeScript、folder/import/ui-contract/config-schema 等门禁通过。当前容器无项目锁定 pnpm 11.17.0，不伪造正式 Web build / release:full。
+
+### 用户验收
+
+`pending`
 
 ## #2.3 配置系统目录边界与 AI Provider 插件体系
 
@@ -136,7 +226,7 @@ Web 专属启动/桥接 → `@lfaa/web`。
 
 ### 当前状态
 
-`pending-user-acceptance`
+`superseded`
 
 ### AI 验证
 
@@ -144,7 +234,7 @@ Web 专属启动/桥接 → `@lfaa/web`。
 
 ### 用户验收
 
-`pending`
+`not-accepted`：Provider/目录架构保留，但设置中心与个人中心 UI 交互未通过；由 #2.4 / v0.0.64 修正。
 
 ## #20.16 pnpm 控制台直连原生输出修复
 

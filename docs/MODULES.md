@@ -1162,9 +1162,20 @@ v0.0.2+
 
 ### config-system PROGRESS
 
-#### 2026-09-19 / #2.3 配置系统目录边界与 AI Provider 插件体系
+#### 2026-09-19 / #2.4 设置中心与个人中心交互重构
 
 - 当前状态：pending-user-acceptance
+- 用户版本：v0.0.64
+- UI Owner：共享 Settings / Account Menu / Theme UI 全部归 `packages/ui`；App Shell 只负责交互状态与组装。
+- 已完成：独立 Settings Surface、个人中心聚焦弹层、system/light/dark 三态主题、更新/主题底部并列、AI Provider 设置嵌入 Settings 分类。
+- 未改动：Config Provider 业务、Secret/Storage、Windows 工具链、模型 Runtime。
+- 验证：Settings/Profile/Theme 5/5、Config System 17/17、补充 TypeScript 与目录边界门禁 PASS。
+- 下一步：用户验收 UI 后，在同一 Settings/Provider 架构上进入 Account/Auth/Secret/真实连接闭环。
+
+
+#### 2026-09-19 / #2.3 配置系统目录边界与 AI Provider 插件体系
+
+- 当前状态：superseded
 - 用户版本：v0.0.63
 - 目录 Owner：配置业务只归 `packages/config-system/src/settings/ai`；共享图形 UI 只归 `packages/ui/src/features/settings/ai`；App 只作为宿主。
 - 已完成：无厂商分支的 Provider Plugin / Registry；OpenAI、DeepSeek、智谱 GLM、Kimi、千问/百炼、Xiaomi MiMo 六家首批配置插件；共享 AI 设置 UI 基线；App Shell 组装。

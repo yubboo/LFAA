@@ -1,3 +1,10 @@
+## v0.0.64 / #2.4 Settings 与个人中心 UI
+
+- `node --test test/settings-shell.test.mjs`：独立 Settings Surface、模糊聚焦个人菜单、三态主题、更新/主题顺序、AI Settings 分类 5 项静态契约；
+- UI/App Shell 补充 TypeScript `--noEmit`；
+- Config System 17/17 Provider/Schema 回归；
+- folder/import/ui-contract/config-schema/governance 与 Windows BOM 回归。
+
 ## v0.0.63 / #2.3 配置系统目录边界与 AI Provider 插件体系验证
 
 - `packages/config-system/test/*.test.mjs`：17/17 PASS；其中 Provider Registry / 六家插件契约 9 项，Config Schema 回归 8 项；

@@ -365,3 +365,20 @@ max(var(--agent-composer-bottom-gap), env(safe-area-inset-bottom))
 ```
 
 以后若调整 Composer 垂直位置，只修改该 Token；禁止在 `.agent-composer`、`.agent-composer-wrap` 或不同断点中再复制第二套 bottom margin / padding。
+## 15. Settings / 个人中心交互（v0.0.64）
+
+设置不属于工作台 Center 内容。共享交互固定为：
+
+```text
+左下角用户按钮
+→ UserMenu（背景 blur + dim，菜单保持清晰）
+→ 设置
+→ 独立 Settings Surface
+   ├─ 左侧：返回应用 / 搜索 / 分类导航
+   └─ 右侧：当前设置内容
+```
+
+主题偏好固定为 `system / light / dark` 三态；`system` 必须监听系统 `prefers-color-scheme` 变化。左下角 Footer 的小工具顺序固定为“更新 → 主题”，用户按钮保持独立主入口。
+
+AI Provider UI 只能作为 Settings 的“AI 服务”分类内容存在；Provider 业务仍归 Config System，不允许 Settings UI 直接发厂商请求。
+

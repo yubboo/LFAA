@@ -15,3 +15,11 @@ export { WORKBENCH_LAYOUT_TOKENS, resolveWorkbenchLayoutMetrics } from "./workbe
 export type { WorkbenchLayoutMetrics } from "./workbench/workbench-layout.config";
 export { AiSettingsPage } from "./features/settings/ai/AiSettingsPage";
 export type { AiSettingsPageProps, AiSettingsProviderView, AiSettingsAuthView, AiSettingsFieldView } from "./features/settings/ai/ai-settings.types";
+export { UserMenu } from "./features/account/UserMenu";
+export type { UserMenuProps } from "./features/account/UserMenu";
+export { ThemeModeMenu } from "./features/appearance/ThemeModeMenu";
+export type { ThemeModeMenuProps, ThemePreference } from "./features/appearance/ThemeModeMenu";
+export { SettingsPage } from "./features/settings/SettingsPage";
+export type { SettingsPageProps, SettingsSectionId } from "./features/settings/settings.types";
+export { AiSettingsPanel } from "./features/settings/ai/AiSettingsPanel";
+export type { AiSettingsPanelProps } from "./features/settings/ai/AiSettingsPanel";

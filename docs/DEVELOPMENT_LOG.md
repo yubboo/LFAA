@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #2.3 | 配置系统目录边界与 AI Provider 插件体系 | v0.0.63 | pending-user-acceptance |
+| #2.4 | 设置中心与个人中心交互重构 | v0.0.64 | pending-user-acceptance |
+| #2.3 | 配置系统目录边界与 AI Provider 插件体系 | v0.0.63 | superseded |
 | #20.16 | pnpm 控制台直连原生输出修复 | v0.0.62 | delivered |
 | #20.15 | pnpm CMD 原生终端输出与菜单精简 | v0.0.61 | superseded |
 | #20.14 | pnpm 原生安装输出恢复 | v0.0.60 | superseded |
@@ -26,10 +27,22 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+### #2.4 设置中心与个人中心交互重构
+
+- **版本：** v0.0.64
+- **状态：** pending-user-acceptance
+- **主模块：** ui / app-shell / config-system-ai-ui
+- **用户反馈：** v0.0.63 Provider 架构可接受，但设置页仍错误地嵌在中间工作区；个人中心与主题入口布局不符合参考交互。
+- **决策：** Settings 作为独立 Surface；用户菜单打开时背景模糊/压暗；主题改为 system/light/dark 三态；更新入口与主题入口并列；AI Provider 设置成为 Settings 子分类。
+- **边界：** UI/交互仅改 `packages/ui` 与 `packages/app-shell`；不修改 Provider 业务、Secret/Storage、Windows 工具链。
+- **验收重点：** 独立设置页、个人菜单聚焦效果、三态主题、AI 设置分类化、旧 Provider 架构回归。
+- **实现：** Settings 独立 Surface、UserMenu 模糊聚焦层、system/light/dark 三态主题、更新/主题底部并列、AI Settings Panel 嵌入分类。
+- **AI 验证：** Settings/Profile/Theme 5/5、Config System 17/17、补充 TypeScript 与目录/导入/UI 门禁 PASS。
+
 ### #2.3 配置系统目录边界与 AI Provider 插件体系
 
 - **版本：** v0.0.63
-- **状态：** pending-user-acceptance
+- **状态：** superseded
 - **主模块：** config-system / ui / app-shell / web-host
 - **用户决策：** 文件夹结构必须按长期职责清晰分层；业务、UI、宿主、Provider 不得因当前开发方便而散落。Web-first 只是验证顺序，后续 Desktop/Linux 图形端复用 UI，CLI 复用 Core。
 - **架构决策：** `packages/config-system/src/settings/ai` 为 AI 配置父域；Provider 每家一个子插件；`packages/ui/src/features/settings/ai` 为共享 AI 设置 UI 唯一位置；`apps/web` 只做宿主。
@@ -39,6 +52,7 @@
 - **UI：** `packages/ui/src/features/settings/ai` 增加共享设置页；App Shell 只负责 Registry → ViewModel 组装和工作台/设置页切换。
 - **Provider 事实：** OpenAI API/ChatGPT Codex、DeepSeek、智谱标准/Coding、Kimi 中国/国际、百炼区域/Workspace、MiMo 按量/Token Plan 分别由插件描述，不在 Core/UI 写厂商分支。
 - **门禁：** folder-boundary 强制六家插件入口存在，并禁止 AI Core 厂商 Endpoint/分支、UI 直连业务/网络、App 厂商 Endpoint。
+- **用户验收：** not-accepted；Provider/目录架构保留，设置与个人中心交互由 #2.4 / v0.0.64 修正。
 - **AI 验证：** Config System 17/17 测试 PASS；Config System TypeScript PASS；UI/App Shell 补充 TypeScript 检查 PASS；治理链 PASS。当前容器不能联网取得 pnpm 11.17.0，未伪造正式 Web build / release:full。
 
 ### #20.16 pnpm 控制台直连原生输出修复

@@ -22,3 +22,7 @@
 Vite 特有的 `.lfaa` 开发桥接不放在本包，保持 App Shell 与运行环境解耦。
 
 源码导航：`packages/app-shell/src/README.md`。
+
+## v0.0.64 Shell 交互
+
+App Shell 负责 Settings / UserMenu / ThemeMenu 的打开关闭和主题 preference；共享 UI 本身位于 `@lfaa/ui`。设置使用独立 Surface，不再塞入 ResizableWorkbench center pane。
