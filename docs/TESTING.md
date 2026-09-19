@@ -1,3 +1,10 @@
+## v0.0.71 / #2.11 工作台 / 设置左栏宽度单一事实源
+
+- `test/settings-shell.test.mjs`：锁定 App Shell 的单一 `leftPaneWidth` 同时注入主 Workbench 与 Settings；Settings 禁止独立宽度 state；
+- `test/workbench-snap-animation.test.mjs`：锁定 `ResizableWorkbench` 受控 `leftWidth` 契约，原 snap/release 行为继续回归；
+- Windows/Web 实机验收：先在工作台把左栏拖到明显宽度，进入 Settings 必须第一帧同宽；再在 Settings 调整宽度，返回工作台必须保持同宽；
+- 首次升级应保留旧版本保存的工作台宽度，通过 `lfaa.workbench.layout.v5.leftWidth → lfaa.shell.left-pane-width.v1` 迁移。
+
 ## v0.0.68 / #2.8 Vite Native Config 兼容修复
 
 - `node --test test/ai-web-host.test.mjs`：7/7 PASS；新增 Vite config/dev bridge 本地 ESM import 必须显式 `.ts`，并锁定 `allowImportingTsExtensions: true`；

@@ -1,8 +1,21 @@
 # LFAA 更新日志
 
-## LFAA v0.0.70 — #2.10 UI Workspace 运行时导入解析修复
+## LFAA v0.0.71 — #2.11 工作台 / 设置左栏宽度单一事实源
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.70
+- **任务：** #2.11
+- `AgentWorkbench.leftPaneWidth` 升级为主工作台、Settings 与 Profile 共用的唯一左栏宽度事实源。
+- `ResizableWorkbench` 新增受控 `leftWidth`；非受控模式继续兼容原有使用方式。
+- 工作台拉伸后的宽度进入 Settings 立即继承；Settings 内再次拉伸后返回工作台保持相同宽度。
+- 新增 `lfaa.shell.left-pane-width.v1` 共享持久化，并从旧 `lfaa.workbench.layout.v5.leftWidth` 一次性迁移历史宽度。
+- **边界：** 不修改 snap/hysteresis/release 算法，不修改 Account/Auth/Secret/Provider，不修改 Windows 工具链。
+
+
+## LFAA v0.0.70 — #2.10 UI Workspace 运行时导入解析修复
+
+- **状态：** superseded
+- **用户验收：** not-accepted；运行时导入修复保留，但 Settings / Workbench leftWidth 未共享，由 v0.0.71 修正
 - **基线：** v0.0.69
 - **任务：** #2.10
 - 修复 Settings 使用 `@/workbench/*` tsconfig-only alias 导致 Vite Web 宿主运行时无法解析的问题。

@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #2.10 | UI Workspace 运行时导入解析修复 | v0.0.70 | pending-user-acceptance |
+| #2.11 | 工作台 / 设置左栏宽度单一事实源 | v0.0.71 | pending-user-acceptance |
+| #2.10 | UI Workspace 运行时导入解析修复 | v0.0.70 | superseded |
 | #2.9 | 设置中心共享可伸缩侧栏 | v0.0.69 | superseded |
 | #2.8 | Vite Native Config 兼容修复 | v0.0.68 | superseded |
 | #2.7 | Web API-Key Account 真实闭环 | v0.0.67 | superseded |
@@ -33,10 +34,23 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+### #2.11 工作台 / 设置左栏宽度单一事实源
+
+- **版本：** v0.0.71
+- **状态：** pending-user-acceptance
+- **主模块：** ui / app-shell
+- **用户反馈：** v0.0.70 Settings 已正常运行且可伸缩，但进入 Settings 后左栏宽度没有继承主工作台当前宽度，视觉上仍不是同一个侧栏。
+- **根因：** 工作台与 Settings 虽复用同一 `ResizableWorkbench`，却仍各自持久化/拥有 `leftWidth`。
+- **决策：** App Shell 的 `leftPaneWidth` 成为工作台 / Settings / Profile 的唯一宽度事实源；`ResizableWorkbench` 增加受控 `leftWidth`。
+- **兼容：** 首次升级读取旧 `lfaa.workbench.layout.v5.leftWidth` 作为迁移值，之后写入 `lfaa.shell.left-pane-width.v1`。
+- **边界：** 不改 snap/release 算法，不改 AI Account/Auth/Secret/Provider，不改 Windows 工具链。
+- **AI 验证：** Settings + Workbench 新共享宽度合同通过，整仓门禁待最终收口。
+- **用户验收：** pending；工作台拉伸后进 Settings 必须同宽，Settings 再拉伸后返回工作台也必须同宽。
+
 ### #2.10 UI Workspace 运行时导入解析修复
 
 - **版本：** v0.0.70
-- **状态：** pending-user-acceptance
+- **状态：** superseded
 - **主模块：** ui / project-governance / web-host-validation
 - **用户反馈：** v0.0.69 Windows 实机启动 Web 时，Vite 无法解析 `packages/ui` Settings 中的 `@/workbench/...`；说明补充 TypeScript 检查没有覆盖真实宿主运行时解析。
 - **根因：** `@/*` 只定义在 `packages/ui/tsconfig.json`，Vite Web 宿主没有该 alias；可复用 package 把私有 TypeScript alias 当成公共运行时解析事实。

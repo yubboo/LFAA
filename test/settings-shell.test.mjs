@@ -80,6 +80,16 @@ test("Settings 左栏支持吸附收起并提供显式重新展开入口", () =>
   assert.match(settings, /setSidebarCollapsed\(false\)/);
 });
 
+
+test("Settings 与主工作台共享唯一 leftPaneWidth，不各自保存宽度真值", () => {
+  assert.match(shell, /const \[leftPaneWidth, setLeftPaneWidth\] = useState/);
+  assert.match(shell, /<ResizableWorkbench[\s\S]*leftWidth=\{leftPaneWidth\}[\s\S]*onLeftWidthChange=\{setLeftPaneWidth\}/);
+  assert.match(shell, /<SettingsPage[\s\S]*leftPaneWidth=\{leftPaneWidth\}[\s\S]*onLeftPaneWidthChange=\{setLeftPaneWidth\}/);
+  assert.match(settings, /leftWidth=\{props\.leftPaneWidth\}/);
+  assert.match(settings, /onLeftWidthChange=\{props\.onLeftPaneWidthChange\}/);
+  assert.doesNotMatch(settings, /useState\([^\n]*leftWidth/);
+});
+
 test("ResizableWorkbench 支持单侧 Surface，避免 Settings 伪造右栏", () => {
   assert.match(workbenchTypes, /right\?: ReactNode/);
 });

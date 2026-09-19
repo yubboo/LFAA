@@ -13,6 +13,9 @@ export interface SettingsPageProps {
   activeSection: SettingsSectionId;
   onSectionChange: (section: SettingsSectionId) => void;
   onClose: () => void;
+  /** 与主工作台共享的实时左栏宽度。 */
+  leftPaneWidth: number;
+  onLeftPaneWidthChange: (width: number) => void;
   themePreference: ThemePreference;
   onThemePreferenceChange: (value: ThemePreference) => void;
   aiProviders: readonly AiSettingsProviderView[];

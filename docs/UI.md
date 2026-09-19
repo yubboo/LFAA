@@ -1,3 +1,14 @@
+## Settings / Workbench 共享左栏宽度（v0.0.71）
+
+主工作台与独立 Settings Surface 不仅复用同一 `ResizableWorkbench` 算法，还必须共享同一个 `leftPaneWidth` 状态。App Shell 是该宽度唯一事实源：
+
+```text
+工作台 resize → leftPaneWidth → Settings
+Settings resize → leftPaneWidth → 返回工作台
+```
+
+禁止 Settings 再维护第二套 `leftWidth` state 或把 `lfaa.settings.layout.*` 当作宽度事实源。响应式 min/max clamp、snap、hysteresis 与 release 动画继续由 `ResizableWorkbench` 统一执行。
+
 ## Workbench Snap Release 动效（v0.0.66）
 
 工作台侧栏 / Bottom Dock 的 resize 保持“普通拖拽直接跟手、到 min 进入 snap capture、Pointer 未松手可反向拉出”的状态机。反向退出 snap capture 时仅启用约 150ms 的 `snap-release` 过渡，随后立即恢复无 transition 的 Pointer 跟手；不得把 transition 长期挂在 resize 状态。

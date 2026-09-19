@@ -3,7 +3,7 @@
  * 作用：LFAA 共享工作台壳，把左栏、中间工作区、右栏和底部终端组织成一个可交互页面。
  * 负责：工作台壳状态、主题状态、左右栏开合、终端开合、左栏 Hover 预览、快捷键、各区域内容编排。
  * 不负责：分隔条拖拽算法、PTY 创建、Vite 资源扫描、Agent 业务执行。
- * 状态归属：本文件拥有 Shell UI 状态（theme / leftCollapsed / rightCollapsed / terminalOpen / leftPreviewOpen）以及用于 Preview 投影的 leftPaneWidth；真实几何宽度仍由 ResizableWorkbench 拥有并回传。
+ * 状态归属：本文件拥有 Shell UI 状态，并把 leftPaneWidth 作为工作台 / Settings / Profile 共用的唯一左栏宽度事实源；具体拖拽算法仍由 ResizableWorkbench 负责。
  * 对外接口：AgentWorkbench(props)。
  * 关联文件：agent-workbench.css、workbench.types.ts、@lfaa/ui/ResizableWorkbench、apps/web/src/App.tsx。
  * 修改注意事项：框架级开合状态只保留一个 Owner；布局拖拽交给 @lfaa/ui；Web 专有桥接不能写入共享 App Shell。
@@ -57,6 +57,8 @@ import "./agent-workbench.css";
 // 所有比例、上下限和 Mode 计算集中在 @lfaa/ui/workbench-layout.config.ts。
 const THEME_KEY = "lfaa.workbench.theme.v1";
 const CHROME_KEY = "lfaa.workbench.chrome.v2";
+const LEFT_PANE_WIDTH_KEY = "lfaa.shell.left-pane-width.v1";
+const LEGACY_WORKBENCH_LAYOUT_KEY = "lfaa.workbench.layout.v5";
 
 type ResolvedTheme = "light" | "dark";
 type LayoutMode = WorkbenchLayoutMode;
@@ -185,6 +187,28 @@ function initialThemePreference(): ThemePreference {
 function initialSystemDark(): boolean {
   if (typeof window === "undefined") return false;
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function initialLeftPaneWidth(limits: WorkbenchLayoutMetrics["left"]): number {
+  const clampWidth = (value: number) => Math.min(limits.max, Math.max(limits.min, value));
+  if (typeof window === "undefined") return limits.initial;
+
+  const shared = Number(window.localStorage.getItem(LEFT_PANE_WIDTH_KEY));
+  if (Number.isFinite(shared) && shared > 0) return clampWidth(shared);
+
+  // v0.0.70 及更早版本由 ResizableWorkbench 把宽度放在工作台布局记录里；
+  // 首次升级时只迁移一次，之后统一使用 Shell 级共享宽度键。
+  try {
+    const legacyRaw = window.localStorage.getItem(LEGACY_WORKBENCH_LAYOUT_KEY);
+    if (legacyRaw) {
+      const legacy = JSON.parse(legacyRaw) as { leftWidth?: unknown };
+      const legacyWidth = Number(legacy.leftWidth);
+      if (Number.isFinite(legacyWidth) && legacyWidth > 0) return clampWidth(legacyWidth);
+    }
+  } catch {
+    // 历史布局损坏时回退当前响应式 initial，不阻断应用。
+  }
+  return limits.initial;
 }
 
 function initialChrome(mode: LayoutMode): ChromeState {
@@ -561,7 +585,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const [aiSnapshot, setAiSnapshot] = useState<AiAccountSnapshot>({ accounts: [], secretPersistence: "memory" });
   const [aiHostAvailable, setAiHostAvailable] = useState(Boolean(props.aiSettingsHost));
   // Hover Preview 与正式左 Dock 共享同一个“实际宽度”值。默认取当前响应式 initial，随后由 ResizableWorkbench 回传真实宽度。
-  const [leftPaneWidth, setLeftPaneWidth] = useState(layout.left.initial);
+  const [leftPaneWidth, setLeftPaneWidth] = useState(() => initialLeftPaneWidth(layout.left));
   const [leftPreviewOpen, setLeftPreviewOpen] = useState(false);
   const previewCloseTimerRef = useRef<number | null>(null);
   const appliedLayoutModeRef = useRef<LayoutMode | null>(layoutMode);
@@ -608,6 +632,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   }, [clearPreviewTimer, layoutMode]);
 
   useEffect(() => { window.localStorage.setItem(THEME_KEY, themePreference); }, [themePreference]);
+  useEffect(() => { window.localStorage.setItem(LEFT_PANE_WIDTH_KEY, String(leftPaneWidth)); }, [leftPaneWidth]);
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = (event: MediaQueryListEvent) => setSystemDark(event.matches);
@@ -766,6 +791,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
             bottom={<BottomTerminal terminal={props.terminal} onClose={() => setChrome((value) => ({ ...value, terminalOpen: false }))} />}
             bottomOpen={chrome.terminalOpen}
             layoutMode={layoutMode}
+            leftWidth={leftPaneWidth}
             leftLimits={layout.left}
             rightLimits={layout.right}
             bottomLimits={layout.bottom}
@@ -839,6 +865,8 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
             activeSection={settingsSection}
             onSectionChange={setSettingsSection}
             onClose={() => setSurface("workbench")}
+            leftPaneWidth={leftPaneWidth}
+            onLeftPaneWidthChange={setLeftPaneWidth}
             themePreference={themePreference}
             onThemePreferenceChange={setThemePreference}
             aiProviders={aiProviderViews}

@@ -36,3 +36,10 @@ test("减少动态效果偏好会关闭过渡", () => {
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(css, /transition-duration: 0ms !important/);
 });
+
+
+test("ResizableWorkbench 支持受控 leftWidth，供多个 Surface 共用宽度事实源", () => {
+  assert.match(workbench, /leftWidth: leftWidthProp/);
+  assert.match(workbench, /const leftWidth = leftWidthProp \?\? internalLeftWidth/);
+  assert.match(workbench, /setResolvedLeftWidth/);
+});

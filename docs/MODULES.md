@@ -1036,6 +1036,8 @@ v0.0.41 为 Windows PowerShell 脚本补中文结构化文件头时，保存过�
 
 ### config-system
 
+> v0.0.71：设置中心继续复用共享 UI Workbench，并与主工作台统一 leftPaneWidth；此项属于 UI/Shell 几何，不改变 Config System 业务真值。
+
 #### 作用
 
 LFAA 第一个正式业务模块。

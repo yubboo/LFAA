@@ -120,8 +120,8 @@ for (const forbidden of ["function elasticSize(", "function snapCommitThreshold(
 }
 if (!resizeTsx.includes('data-layout-mode={layoutMode}')) fail("ResizableWorkbench must expose layoutMode to CSS");
 if (!resizeTsx.includes('layoutMode === "desktop"')) fail("dynamic max must distinguish Dock from Overlay modes");
-if (!resizeTsx.includes('setLeftWidth((value) => clamp(value, dynamicMin, dynamicMax))')) {
-  fail("persisted left width must be re-clamped when container becomes narrower");
+if (!resizeTsx.includes('setResolvedLeftWidth((value) => clamp(value, dynamicMin, dynamicMax))')) {
+  fail("shared/persisted left width must be re-clamped when container becomes narrower");
 }
 if (!/\.lfaa-is-resizing \.lfaa-workbench,[\s\S]*transition:\s*none;/.test(workbenchCss)) {
   fail("normal dragging must disable transitions so Pointer stays responsive");

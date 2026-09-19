@@ -3,10 +3,10 @@
  * 作用：LFAA 可复用独立设置中心。
  * 负责：设置左侧导航、搜索、右侧分类内容，以及复用 ResizableWorkbench 的左栏拉伸/吸附/收起能力。
  * 不负责：Config/Secret 真值、厂商网络请求、宿主路由实现。
- * 状态归属：导航搜索、设置左栏 collapsed 与响应式几何属于本 Surface；当前分类与业务 ViewModel 由外部受控。
+ * 状态归属：导航搜索与设置左栏 collapsed 属于本 Surface；左栏宽度与主工作台共享，由 App Shell 作为唯一事实源。
  * 对外接口：SettingsPage。
  * 关联文件：settings.types.ts、settings.css、@lfaa/ui/workbench、ai/AiSettingsPanel.tsx。
- * 修改注意事项：设置左栏禁止再写固定 grid 宽度；必须复用 ResizableWorkbench，与工作台共用吸附/反向释放/持久化规则。
+ * 修改注意事项：设置左栏禁止再写固定宽度或独立宽度状态；必须复用 ResizableWorkbench，并使用 Shell 注入的共享 leftPaneWidth。
  */
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ResizableWorkbench, resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "@lfaa/ui/workbench";
@@ -107,6 +107,7 @@ export function SettingsPage(props: SettingsPageProps) {
         storageKey={SETTINGS_LAYOUT_KEY}
         left={sidebar}
         center={main}
+        leftWidth={props.leftPaneWidth}
         leftLimits={layout.left}
         rightLimits={{ min: 0, initial: 0, max: 0 }}
         bottomLimits={layout.bottom}
@@ -116,6 +117,7 @@ export function SettingsPage(props: SettingsPageProps) {
         rightCollapsed
         bottomOpen={false}
         layoutMode={layout.mode === "mobile" ? "compact" : layout.mode}
+        onLeftWidthChange={props.onLeftPaneWidthChange}
         onLeftCollapsedChange={setSidebarCollapsed}
       />
     </div>

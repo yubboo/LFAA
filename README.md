@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.70**
+**当前包：LFAA-v0.0.71**
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
@@ -54,7 +54,7 @@ config-system
 当前配置系统业务任务：
 
 ```text
-#2.10 UI Workspace 运行时导入解析修复
+#2.11 工作台 / 设置左栏宽度单一事实源
 status: pending-user-acceptance
 ```
 
@@ -65,7 +65,7 @@ status: pending-user-acceptance
 status: pending-user-acceptance
 ```
 
-#20.16 / v0.0.62、#2.5 / v0.0.65、#2.6 / v0.0.66 均已由用户实机验收通过。v0.0.67 的六家 AI Provider Web Account/Auth/Secret 闭环与 v0.0.68 的 Vite Native Config 兼容修复继续保留。v0.0.69 已完成 Settings 与 Workbench 的共享侧栏几何，但实机暴露 tsconfig-only `@/` alias 无法被 Web Vite 运行时解析。当前 v0.0.70 改为 `@lfaa/ui/workbench` 公共 Subpath Export，并新增运行时导入解析门禁；共享 resize / snap / 反向 release / 持久化行为保持不变。OpenAI ChatGPT 套餐登录仍等待独立 Codex App Server 子任务。
+#20.16 / v0.0.62、#2.5 / v0.0.65、#2.6 / v0.0.66 均已由用户实机验收通过。v0.0.67 的六家 AI Provider Web Account/Auth/Secret 闭环与 v0.0.68 的 Vite Native Config 兼容修复继续保留。v0.0.69 已完成 Settings 与 Workbench 的共享侧栏几何，但实机暴露 tsconfig-only `@/` alias 无法被 Web Vite 运行时解析。当前 v0.0.70 改为 `@lfaa/ui/workbench` 公共 Subpath Export，并新增运行时导入解析门禁；共享 resize / snap / 反向 release / 持久化行为保持不变。 v0.0.70 实机已能正常进入 Settings，但继续暴露工作台与 Settings 仍各自保存 leftWidth 的细节差异；v0.0.71 将 Shell `leftPaneWidth` 升级为两者共享的唯一宽度事实源，进入 Settings 与返回工作台均保持同宽。OpenAI ChatGPT 套餐登录仍等待独立 Codex App Server 子任务。
 
 ## Node.js 包管理器
 

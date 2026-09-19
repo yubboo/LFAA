@@ -1,6 +1,17 @@
-## LFAA v0.0.70 Release — #2.10 UI Workspace 运行时导入解析修复
+## LFAA v0.0.71 Release — #2.11 工作台 / 设置左栏宽度单一事实源
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.70
+- **任务：** #2.11
+- **主要变更：** App Shell 统一拥有 `leftPaneWidth`；主工作台与独立 Settings Surface 通过 `ResizableWorkbench.leftWidth` 共用同一宽度事实源。
+- **兼容迁移：** 首次升级从 `lfaa.workbench.layout.v5.leftWidth` 迁移到 `lfaa.shell.left-pane-width.v1`，不丢失用户历史宽度。
+- **边界：** 不修改吸附/反向 release 动画、AI Account/Auth/Secret/Provider、Web Host 与 Windows 工具链。
+- **用户验收重点：** 工作台调宽后进入 Settings 必须同宽；Settings 调宽后返回工作台仍同宽。
+
+## LFAA v0.0.70 Release — #2.10 UI Workspace 运行时导入解析修复
+
+- **状态：** superseded
+- **用户验收：** not-accepted；运行时解析修复保留，候选包由 v0.0.71 继续修正共享宽度
 - **基线：** v0.0.69
 - **任务：** #2.10
 - **主要变更：** `@lfaa/ui/workbench` 公共 Subpath Export 替代 Settings 的 `@/workbench/*` tsconfig-only alias；新增 workspace runtime import resolution 门禁。

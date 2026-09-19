@@ -3,8 +3,8 @@
  * 作用：提供左栏 / 中间区 / 右栏 / 底部面板的纯布局容器，并实现拖拽缩放与吸附收起。
  * 负责：尺寸状态、Pointer 拖拽、吸附迟滞、动态最大宽度、键盘 Resize、布局持久化。
  * 不负责：侧栏里面显示什么、Shell 按钮放在哪里、终端内容、业务状态。
- * 状态归属：本组件拥有几何尺寸；栏位开合可由父组件受控，受控时父组件是 collapsed/open 的事实源。
- * 对外接口：ResizableWorkbench(props)，其中 onLeftWidthChange 用于把真实左栏宽度同步给 Shell 的 Hover Preview。
+ * 状态归属：默认由本组件拥有几何尺寸；leftWidth 与栏位开合均可由父组件受控，受控时父组件是对应事实源。
+ * 对外接口：ResizableWorkbench(props)，leftWidth/onLeftWidthChange 可让多个 Surface 共用同一左栏宽度事实源。
  * 关联文件：workbench-layout.types.ts、workbench.css、@lfaa/app-shell/AgentWorkbench.tsx。
  * 修改注意事项：
  * - 展开态尺寸绝不低于 min；拖到 min 即进入吸附收起预览，Pointer 不松手可反向拖回 min 并继续拉伸。
@@ -128,6 +128,7 @@ export function ResizableWorkbench({
   bottomLimits = DEFAULT_BOTTOM,
   snapHysteresis = 24,
   minCenterWidth = 520,
+  leftWidth: leftWidthProp,
   leftCollapsed: leftCollapsedProp,
   rightCollapsed: rightCollapsedProp,
   bottomOpen = false,
@@ -142,18 +143,22 @@ export function ResizableWorkbench({
     () => loadState(storageKey, leftLimits, rightLimits, bottomLimits),
     [bottomLimits, leftLimits, rightLimits, storageKey],
   );
-  const [leftWidth, setLeftWidth] = useState(initial.leftWidth);
+  const [internalLeftWidth, setInternalLeftWidth] = useState(initial.leftWidth);
   const [rightWidth, setRightWidth] = useState(initial.rightWidth);
   const [bottomHeight, setBottomHeight] = useState(initial.bottomHeight);
   const [internalLeftCollapsed, setInternalLeftCollapsed] = useState(initial.leftCollapsed);
   const [internalRightCollapsed, setInternalRightCollapsed] = useState(initial.rightCollapsed);
+  const leftWidth = leftWidthProp ?? internalLeftWidth;
   const leftCollapsed = leftCollapsedProp ?? internalLeftCollapsed;
   const rightCollapsed = rightCollapsedProp ?? internalRightCollapsed;
 
-  // 将左栏实际宽度回传给 Shell。Hover Preview 不再维护独立宽度，保证预览与点击展开完全一致。
-  useEffect(() => {
-    onLeftWidthChange?.(leftWidth);
-  }, [leftWidth, onLeftWidthChange]);
+  // 受控模式下父组件拥有 leftWidth；非受控模式下组件自己保存。
+  // 工作台与 Settings 可以因此共享同一个左栏宽度事实源，而不是各存一份。
+  const setResolvedLeftWidth = useCallback((next: number | ((value: number) => number)) => {
+    const resolved = typeof next === "function" ? next(leftWidth) : next;
+    if (leftWidthProp === undefined) setInternalLeftWidth(resolved);
+    onLeftWidthChange?.(resolved);
+  }, [leftWidth, leftWidthProp, onLeftWidthChange]);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const snapReleaseTimerRef = useRef<number | null>(null);
@@ -198,8 +203,8 @@ export function ResizableWorkbench({
   // 响应式计算结果变化时，把历史持久化尺寸重新夹进当前容器允许的范围。
   // 这一步很重要：用户在大屏保存的 340px 侧栏，切到小窗后不能继续拿 340px 挤压主区。
   useEffect(() => {
-    setLeftWidth((value) => clamp(value, leftLimits.min, leftLimits.max));
-  }, [leftLimits.max, leftLimits.min]);
+    setResolvedLeftWidth((value) => clamp(value, leftLimits.min, leftLimits.max));
+  }, [leftLimits.max, leftLimits.min, setResolvedLeftWidth]);
 
   useEffect(() => {
     setRightWidth((value) => clamp(value, rightLimits.min, rightLimits.max));
@@ -214,8 +219,8 @@ export function ResizableWorkbench({
   useEffect(() => {
     const dynamicMax = getDynamicMax("left");
     const dynamicMin = Math.min(leftLimits.min, dynamicMax);
-    setLeftWidth((value) => clamp(value, dynamicMin, dynamicMax));
-  }, [getDynamicMax, leftLimits.min]);
+    setResolvedLeftWidth((value) => clamp(value, dynamicMin, dynamicMax));
+  }, [getDynamicMax, leftLimits.min, setResolvedLeftWidth]);
 
   useEffect(() => {
     if (layoutMode !== "desktop") return;
@@ -373,7 +378,7 @@ export function ResizableWorkbench({
         const finalWidth = clamp(drag.lastRaw, drag.min, drag.max);
         root?.style.setProperty("--lfaa-left-column", `${finalWidth}px`);
         root?.style.setProperty("--lfaa-left-size", `${finalWidth}px`);
-        setLeftWidth(finalWidth);
+        setResolvedLeftWidth(finalWidth);
         setResolvedLeftCollapsed(false);
       }
     } else if (drag.snapped) {
@@ -397,7 +402,7 @@ export function ResizableWorkbench({
       });
     }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-  }, [setResolvedLeftCollapsed, setResolvedRightCollapsed, snapHysteresis]);
+  }, [setResolvedLeftCollapsed, setResolvedLeftWidth, setResolvedRightCollapsed, snapHysteresis]);
 
   const setBottomPreview = useCallback((visualHeight: number, snapped: boolean) => {
     const root = rootRef.current;
@@ -496,7 +501,7 @@ export function ResizableWorkbench({
       if (side === "left") {
         const max = Math.max(leftLimits.min, getDynamicMax("left"));
         setResolvedLeftCollapsed(false);
-        setLeftWidth((value) => clamp(Math.max(value, leftLimits.initial), leftLimits.min, max));
+        setResolvedLeftWidth((value) => clamp(Math.max(value, leftLimits.initial), leftLimits.min, max));
       } else {
         const max = Math.max(rightLimits.min, getDynamicMax("right"));
         setResolvedRightCollapsed(false);
@@ -509,13 +514,13 @@ export function ResizableWorkbench({
     if (side === "left") {
       const max = Math.max(leftLimits.min, getDynamicMax("left"));
       setResolvedLeftCollapsed(false);
-      setLeftWidth((value) => clamp(value + (event.key === expandKey ? step : -step), leftLimits.min, max));
+      setResolvedLeftWidth((value) => clamp(value + (event.key === expandKey ? step : -step), leftLimits.min, max));
     } else {
       const max = Math.max(rightLimits.min, getDynamicMax("right"));
       setResolvedRightCollapsed(false);
       setRightWidth((value) => clamp(value + (event.key === expandKey ? step : -step), rightLimits.min, max));
     }
-  }, [getDynamicMax, leftCollapsed, leftLimits.initial, leftLimits.min, rightCollapsed, rightLimits.initial, rightLimits.min, setResolvedLeftCollapsed, setResolvedRightCollapsed]);
+  }, [getDynamicMax, leftCollapsed, leftLimits.initial, leftLimits.min, rightCollapsed, rightLimits.initial, rightLimits.min, setResolvedLeftCollapsed, setResolvedLeftWidth, setResolvedRightCollapsed]);
 
   // ===== 7. CSS Grid 变量输出 =====
   // collapsed/open 最终只转换成列宽 / 行高变量，视觉动画由 workbench.css 完成。

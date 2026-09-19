@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #2.10 | UI Workspace 运行时导入解析修复 | v0.0.70 | pending-user-acceptance | pass | pending |
+| #2.11 | 工作台 / 设置左栏宽度单一事实源 | v0.0.71 | pending-user-acceptance | pass | pending |
+| #2.10 | UI Workspace 运行时导入解析修复 | v0.0.70 | superseded | pass | not-accepted |
 | #2.9 | 设置中心共享可伸缩侧栏 | v0.0.69 | superseded | pass | not-accepted |
 | #2.8 | Vite Native Config 兼容修复 | v0.0.68 | superseded | pass | not-accepted |
 | #2.7 | Web API-Key Account 真实闭环 | v0.0.67 | superseded | pass | not-accepted |
@@ -49,7 +50,52 @@
 
 ## 当前任务 / 当前合同
 
+## #2.11 工作台 / 设置左栏宽度单一事实源
+
+### 主模块
+
+`ui / app-shell`
+
+### 背景
+
+v0.0.70 已让 Settings 与工作台复用同一个 `ResizableWorkbench`，但两个 Surface 仍各自保存 `leftWidth`：工作台调整后的宽度进入 Settings 时不一定一致，Settings 内再次调整也不会成为返回工作台后的同一宽度。用户明确要求两者视觉上与行为上都属于同一左侧栏能力，宽度必须随实际拉伸保持一致。
+
+### 任务目标
+
+把 `AgentWorkbench.leftPaneWidth` 升级为工作台、Settings、Profile 共用的唯一左栏宽度事实源。`ResizableWorkbench` 新增受控 `leftWidth` 契约；工作台与 Settings 都通过同一个值渲染和回写。
+
+### 允许修改
+
+- `packages/ui/src/workbench` 的受控 `leftWidth` 契约；
+- `packages/ui/src/features/settings` 的共享宽度注入；
+- `packages/app-shell/src/AgentWorkbench.tsx` 的共享宽度状态与一次性历史宽度迁移；
+- Settings / Workbench 防回归测试；
+- Prompt / Log / Plan / UI / Testing / CHANGELOG / RELEASES / 版本事实。
+
+### 禁止修改
+
+- resize / snap / hysteresis / 反向 release 动画算法；
+- AI Account/Auth/Secret/Provider；
+- Profile / Theme / UserMenu 交互；
+- Web Host Bridge 与 Windows Setup / Sync / GitHub / Update；
+- 不得新增 Settings 自己的第二套宽度 state 或固定宽度。
+
+### 验收条件
+
+- 工作台左栏当前为 N px 时，进入 Settings 第一帧左栏也为同一 N px（受当前容器 min/max 约束时按同一几何规则 clamp）；
+- Settings 内拖动左栏后，返回工作台继续保持该宽度；
+- 两个 Surface 都通过同一个 `leftPaneWidth / setLeftPaneWidth`；
+- `ResizableWorkbench` 支持受控 `leftWidth`，非受控用法继续兼容；
+- 首次升级可迁移 v0.0.70 及更早 `lfaa.workbench.layout.v5.leftWidth`，后续统一持久化到 Shell 共享宽度键；
+- 原 Settings resize/snap/release、运行时 import、Account/Auth/Secret/Provider 与 Windows 工具链全部回归。
+
+### 当前状态
+
+`pending-user-acceptance`
+
 ## #2.10 UI Workspace 运行时导入解析修复
+
+> v0.0.70 运行时 Export 修复保留；候选包因 Settings 与主工作台 leftWidth 尚未共享而由 v0.0.71 继续修正。
 
 ### 主模块
 
@@ -90,7 +136,7 @@ v0.0.69 将 Settings 左栏改为共享 `ResizableWorkbench`，但为了绕开�
 
 ### 当前状态
 
-`pending-user-acceptance`
+`superseded`
 
 ## #2.9 设置中心共享可伸缩侧栏
 

@@ -30,6 +30,8 @@ export interface ResizableWorkbenchProps {
   bottomLimits?: WorkbenchPaneLimits;
   snapHysteresis?: number;
   minCenterWidth?: number;
+  /** 可选受控左栏宽度；提供后由父组件成为 leftWidth 唯一事实源。 */
+  leftWidth?: number;
   leftCollapsed?: boolean;
   rightCollapsed?: boolean;
   bottomOpen?: boolean;
