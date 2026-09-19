@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #20.14 | pnpm 原生安装输出恢复 | v0.0.60 | pending-user-acceptance |
+| #20.15 | pnpm CMD 原生终端输出与菜单精简 | v0.0.61 | pending-user-acceptance |
+| #20.14 | pnpm 原生安装输出恢复 | v0.0.60 | superseded |
 | #20.13 | 开发期依赖同步与实时输出修复 | v0.0.59 | superseded |
 | #20.12 | PowerShell 自动变量冲突修复 | v0.0.58 | superseded |
 | #20.11 | pnpm 实时环境事实与 Store 来源修复 | v0.0.57 | superseded |
@@ -23,7 +24,20 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+### #20.15 pnpm CMD 原生终端输出与菜单精简
+
+- **版本：** v0.0.61
+- **状态：** pending-user-acceptance
+- **AI 验证：** pass
+- **用户验收：** pending
+- **主模块：** project-governance / windows-setup / dependency-sync-ux
+- **背景：** v0.0.60 实机仍看不到与 CMD 直接 `pnpm install` 相同的 pnpm 原生进度；同时菜单 1 中文解释堆叠过多。
+- **目标：** Windows 交互式 pnpm 写操作优先走 `pnpm.cmd`；菜单 1 只保留关键环境、关键依赖路径、简短状态、必要确认与最终结果，详细环境信息归菜单 7。
+- **边界：** 不改 frozen/no-frozen 分流、正式发布 frozen、Store 动态事实与真实健康检测；不进入 Web Account/Auth。
+
 ### #20.14 pnpm 原生安装输出恢复
+
+- **被后续修正：** Windows 实机仍无 CMD 同类 pnpm 原生进度，且菜单提示过多；由 #20.15 / v0.0.61 修正。
 
 - **版本：** v0.0.60
 - **状态：** pending-user-acceptance

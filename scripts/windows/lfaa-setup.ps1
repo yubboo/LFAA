@@ -155,6 +155,49 @@ function Get-PnpmRunner {
     throw "未检测到可用的 pnpm 或 corepack。"
 }
 
+function Get-PnpmForegroundRunner {
+    $required = Get-RequiredToolchainInfo
+
+    # Windows 交互式写操作优先 pnpm.cmd。它与用户在 CMD 直接执行 pnpm install 使用同类控制台链路。
+    $pnpmCmd = Get-Command "pnpm.cmd" -ErrorAction SilentlyContinue
+    if ($null -ne $pnpmCmd) {
+        $cmdPath = if ($pnpmCmd.Path) { [string]$pnpmCmd.Path } else { [string]$pnpmCmd.Source }
+        if (-not [string]::IsNullOrWhiteSpace($cmdPath)) {
+            $old = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            try {
+                $output = @(& $cmdPath --version 2>&1 | ForEach-Object { [string]$_ })
+                $code = $LASTEXITCODE
+            }
+            finally {
+                $ErrorActionPreference = $old
+            }
+
+            $version = (($output -join "").Trim())
+            if ($code -eq 0 -and (-not [string]::IsNullOrWhiteSpace($version)) -and
+                ([string]::IsNullOrWhiteSpace($required.PnpmVersion) -or $version -eq $required.PnpmVersion)) {
+                return [PSCustomObject]@{
+                    FilePath = $cmdPath
+                    Prefix = @()
+                    Version = $version
+                    Source = $cmdPath
+                    NativeCmd = $true
+                }
+            }
+        }
+    }
+
+    # 非 Windows / 无 pnpm.cmd 时保持现有 runner，功能不能因 UI 优化而失效。
+    $runner = Get-PnpmRunner
+    return [PSCustomObject]@{
+        FilePath = $runner.FilePath
+        Prefix = @($runner.Prefix)
+        Version = $runner.Version
+        Source = $runner.Source
+        NativeCmd = $false
+    }
+}
+
 function Invoke-PnpmCapture {
     param([string[]]$Arguments)
 
@@ -478,6 +521,17 @@ function Show-DependencyLocations {
     Write-Label "【位置】" "【Cargo Git 缓存】" (Join-LfaaLocation $cargoHome "git") DarkCyan
     Write-Label "【位置】" "【Rust 工具链】" (Join-LfaaLocation $rustupHome "toolchains") DarkCyan
     Write-Label "【位置】" "【Rust 锁文件】" $cargoLockText DarkCyan
+}
+
+function Show-DependencyLocationsCompact {
+    $cargoHome = Get-CargoHomePath
+    $rustupHome = Get-RustupHomePath
+    $pnpmFacts = Get-PnpmEnvironmentFacts
+
+    Write-Label "【路径】" "【Node】" (Join-Path $ProjectRoot "node_modules") DarkCyan
+    Write-Label "【路径】" "【pnpm Store】" $pnpmFacts.StorePath DarkCyan
+    Write-Label "【路径】" "【Cargo】" (Join-LfaaLocation $cargoHome "registry") DarkCyan
+    Write-Label "【路径】" "【Rust】" (Join-LfaaLocation $rustupHome "toolchains") DarkCyan
 }
 
 function Assert-NodeVersion {
@@ -972,43 +1026,29 @@ function Show-NodeDependencyPlan {
     param([object]$Plan)
 
     if (-not $Plan.NeedsInstall) {
-        if ($Plan.CanAdopt) {
-            Write-Label "【检测】" "【项目依赖】" ("真实解析通过 {0}/{1} 项；首次建立增量基线，无需 pnpm install。" -f $Plan.RuntimeHealth.Resolved,$Plan.RuntimeHealth.Checked) Green
-        }
-        else {
-            Write-Label "【检测】" "【项目依赖】" ("声明未变化，真实解析通过 {0}/{1} 项；无需 pnpm install。" -f $Plan.RuntimeHealth.Resolved,$Plan.RuntimeHealth.Checked) Green
-        }
+        Write-Label "【依赖】" "【Node】" ("已就绪 | 真实解析 {0}/{1}" -f $Plan.RuntimeHealth.Resolved,$Plan.RuntimeHealth.Checked) Green
     }
     else {
-        foreach ($reason in $Plan.Reasons) {
-            Write-Label "【变化】" "【Node 依赖】" $reason Yellow
-        }
+        $flags = New-Object System.Collections.Generic.List[string]
+        if (-not $Plan.InstallState.Complete) { $flags.Add("本地缺失") }
+        if (-not $Plan.RuntimeHealth.Complete) { $flags.Add("解析失败") }
+        if (-not $Plan.LockCoverage.Complete) { $flags.Add("lockfile 待同步") }
+        if ($null -ne $Plan.PreviousState -and [string]$Plan.PreviousState.fingerprint -ne $Plan.Snapshot.Fingerprint) { $flags.Add("声明已变化") }
+        if ($flags.Count -eq 0) { $flags.Add("需要同步") }
 
-        $diff = $Plan.Diff
-        Write-Label "【差异】" "【依赖声明】" ("新增 {0} | 删除 {1} | 版本变化 {2}" -f $diff.Added.Count,$diff.Removed.Count,$diff.Changed.Count) Cyan
-        foreach ($line in @($diff.Added | Select-Object -First 5)) { Write-Label "【新增】" "【依赖】" $line Green }
-        foreach ($line in @($diff.Changed | Select-Object -First 5)) { Write-Label "【变更】" "【依赖】" $line Yellow }
-        foreach ($line in @($diff.Removed | Select-Object -First 5)) { Write-Label "【删除】" "【依赖】" $line DarkYellow }
-
-        if ($Plan.InstallState.Issues.Count -gt 0) {
-            Write-Label "【缺失】" "【本地依赖】" ((@($Plan.InstallState.Issues | Select-Object -First 5)) -join "；") Yellow
-        }
-        if ($Plan.RuntimeHealth.Issues.Count -gt 0) {
-            Write-Label "【失败】" "【真实解析】" ((@($Plan.RuntimeHealth.Issues | Select-Object -First 5)) -join "；") Yellow
-        }
-        if ($Plan.LockCoverage.Missing.Count -gt 0) {
-            Write-Label "【锁文件】" "【待同步】" ((@($Plan.LockCoverage.Missing | Select-Object -First 8)) -join "、") Yellow
-        }
+        Write-Label "【依赖】" "【Node】" (($flags -join " | ")) Yellow
+        Write-Label "【差异】" "【依赖】" ("新增 {0} | 删除 {1} | 变更 {2}" -f $Plan.Diff.Added.Count,$Plan.Diff.Removed.Count,$Plan.Diff.Changed.Count) Cyan
     }
 
-    if ($Plan.StoreHealth.Healthy) {
-        Write-Label "【检测】" "【pnpm Store】" ("{0} | 来源：{1}" -f $Plan.StoreHealth.Reason,$Plan.StoreHealth.Source) Green
-    }
-    else {
-        Write-Label "【警告】" "【pnpm Store】" ("{0} | {1} | 来源：{2}" -f $Plan.StoreHealth.Reason,$Plan.StoreHealth.Path,$Plan.StoreHealth.Source) Yellow
-        if (-not $Plan.NeedsInstall -and $Plan.RuntimeHealth.Complete) {
-            Write-Label "【说明】" "【项目状态】" "当前 node_modules 真实解析仍可用，但 pnpm Store 缓存缺失/不完整；后续离线修复或新安装可能需要重新下载。" DarkYellow
+    if (-not $Plan.StoreHealth.Healthy) {
+        $storeText = switch ($Plan.StoreHealth.Probe) {
+            "missing" { "目录不存在"; break }
+            "empty" { "目录为空"; break }
+            "path-unavailable" { "路径不可读"; break }
+            "offline-fetch-failed" { "缓存不完整"; break }
+            default { "状态异常" }
         }
+        Write-Label "【缓存】" "【pnpm Store】" $storeText Yellow
     }
 }
 
@@ -1042,8 +1082,14 @@ function Invoke-ProjectCommand {
 
 function Invoke-Pnpm {
     param([string[]]$Arguments,[string]$Description)
-    $runner = Get-PnpmRunner
+    $runner = Get-PnpmForegroundRunner
     Invoke-ProjectCommand $runner.FilePath (@($runner.Prefix)+$Arguments) $Description
+}
+
+function Confirm-SimpleOperation {
+    param([string]$Text)
+    Write-Host ""
+    return (Read-Host ("【确认】{0} [Y/N]" -f $Text)) -match "^(?i:y|yes)$"
 }
 
 function Confirm-WriteOperation {
@@ -1156,27 +1202,20 @@ function Install-NodeDependencies {
     $cancelled = $false
 
     if ($plan.NeedsInstall) {
-        Write-Label "【说明】" "【增量同步】" "pnpm 会复用已有 node_modules 与内容寻址 Store；本脚本不会清空后重装，也不会自动升级已锁定依赖版本。" DarkCyan
-        if (-not (Confirm-WriteOperation "检测到项目依赖声明变化、真实解析失败或本地缺失。是否同步当前项目锁定依赖？选择 No 将保持现状，但当前项目版本可能无法正常运行。")) {
-            Write-Label "【跳过】" "【Node 依赖】" "用户选择不修改项目依赖；本次未执行 pnpm install。" Yellow
+        if (-not (Confirm-SimpleOperation "同步 Node 依赖？")) {
+            Write-Label "【跳过】" "【Node】" "未修改" Yellow
             return [PSCustomObject]@{ Changed = $false; Cancelled = $true; ProjectHealthy = $plan.RuntimeHealth.Complete; StoreHealthy = $plan.StoreHealth.Healthy }
         }
 
         $installArguments = @("install")
-        $installDescription = "按当前 lockfile 修复/同步本地 pnpm 依赖"
         if (-not $plan.LockCoverage.Complete) {
-            # 开发期依赖声明已经领先于 lockfile 时，必须允许 pnpm 更新 lockfile；
-            # 正式发布仍由 release:full 使用 --frozen-lockfile，不能把两种语义混在一起。
+            # 开发期依赖声明已经领先于 lockfile 时允许更新 lockfile；正式发布仍 frozen。
             $installArguments += "--no-frozen-lockfile"
-            $installDescription = "同步当前 workspace 依赖并更新 pnpm-lock.yaml"
-            Write-Label "【模式】" "【pnpm】" "开发期同步：lockfile 落后，允许按当前声明更新 pnpm-lock.yaml；不会执行依赖升级命令。" DarkCyan
         }
         else {
             $installArguments += "--frozen-lockfile"
-            Write-Label "【模式】" "【pnpm】" "精确修复：lockfile 已完整，保持锁文件不变。" DarkCyan
         }
-        Write-Label "【执行】" "【pnpm】" ((@("pnpm") + $installArguments) -join " ") Gray
-        Write-Label "【日志】" "【pnpm 原生输出】" "以下内容由 pnpm 直接输出；LFAA 不捕获、不重写、不伪造安装进度。" DarkCyan
+        $installDescription = ((@("pnpm") + $installArguments) -join " ")
         Invoke-Pnpm $installArguments $installDescription
         $changed = $true
 
@@ -1195,13 +1234,11 @@ function Install-NodeDependencies {
         }
 
         Save-NodeDependencyState
-        Write-Label "【完成】" "【Node 依赖】" "项目依赖已同步并通过真实解析检查。" Green
 
         $plan = Get-NodeDependencyPlan
     }
     elseif ($plan.CanAdopt -or $null -eq $plan.PreviousState) {
         Save-NodeDependencyState
-        Write-Label "【状态】" "【依赖基线】" "已记录当前真实健康状态；状态缓存不会替代下次真实检查。" DarkCyan
     }
 
     $storeResult = Repair-PnpmStore $plan
@@ -1638,7 +1675,6 @@ function Install-RustDependencies {
             throw "检测到 Rust 外部依赖，但仓库缺少 Cargo.lock。为避免本机生成未受控锁文件，已停止；请先由开发版本提交 Cargo.lock。"
         }
 
-        Write-Label "【Rust】" "【依赖】" "当前 Cargo workspace 尚未声明外部 crate；无需执行 cargo fetch。" Green
         return [PSCustomObject]@{ Changed = $false; Cancelled = $false }
     }
 
@@ -1647,7 +1683,6 @@ function Install-RustDependencies {
     $rustState = if ($null -ne $state) { $state.rust } else { $null }
 
     if ($null -ne $rustState -and [string]$rustState.lockHash -eq $lockHash) {
-        Write-Label "【检测】" "【Rust 依赖】" "Cargo.lock 未变化；跳过 cargo fetch。" Green
         return [PSCustomObject]@{ Changed = $false; Cancelled = $false }
     }
 
@@ -1739,7 +1774,7 @@ function Invoke-PnpmForeground {
         [string]$Description
     )
 
-    $runner = Get-PnpmRunner
+    $runner = Get-PnpmForegroundRunner
     $code = 0
 
     Write-Host ""
@@ -2069,17 +2104,17 @@ function Show-SetupMenu {
     Write-Host " 作者：二鱼" -ForegroundColor DarkCyan
     Write-Host "============================================================" -ForegroundColor DarkCyan
     Write-Host ""
-    Write-Label "【1】" "【按需依赖】" "首次配置、依赖变化或环境损坏时使用；环境已就绪可跳过，不是每次开发都必须执行。" Green
-    Write-Label "【2】" "【启动 Web】" "启动 Vite Web 开发服务器，并启用 .lfaa 本地热插拔监听。" Green
-    Write-Label "【3】" "【启动桌面】" "启动 Electron Desktop 开发模式；未配置时明确提示。" Green
-    Write-Label "【4】" "【构建 Web】" "执行 Web production build。" Cyan
-    Write-Label "【5】" "【构建桌面】" "执行 Desktop production build；未配置时明确提示。" Cyan
-    Write-Label "【6】" "【构建发布】" "构建 Web + Desktop 并生成本地发布产物；不自动上传远程。" Magenta
-    Write-Label "【7】" "【环境检查】" "查看项目根、Node/pnpm、Rust/Cargo、依赖状态与实际路径。" Cyan
-    Write-Label "【8】" "【项目资源】" "初始化当前项目 .lfaa 缺失目录。" Magenta
-    Write-Label "【9】" "【治理检查】" "运行治理、导入边界、开发日志和 docs 结构检查。" Yellow
-    Write-Label "【10】" "【检查中心】" "按需选择快速检查、完整检查或正式发布检查；日常开发无需每次跑最重门禁。" Yellow
-    Write-Label "【0】" "【退出】" "不执行任何操作。" DarkGray
+    Write-Label "【1】" "【按需依赖】" "检测并补齐依赖" Green
+    Write-Label "【2】" "【启动 Web】" "Vite 开发服务器" Green
+    Write-Label "【3】" "【启动桌面】" "Electron 开发模式" Green
+    Write-Label "【4】" "【构建 Web】" "production build" Cyan
+    Write-Label "【5】" "【构建桌面】" "production build" Cyan
+    Write-Label "【6】" "【构建发布】" "生成本地发布产物" Magenta
+    Write-Label "【7】" "【环境检查】" "完整环境与路径" Cyan
+    Write-Label "【8】" "【项目资源】" "初始化 .lfaa" Magenta
+    Write-Label "【9】" "【治理检查】" "项目治理" Yellow
+    Write-Label "【10】" "【检查中心】" "快速 / 完整 / 发布" Yellow
+    Write-Label "【0】" "【退出】" "" DarkGray
 }
 if (-not (Test-Path (Join-Path $ProjectRoot "lfaa.release.json"))) {
     Stop-Lfaa "脚本所在目录不是有效的 LFAA 项目根。"
@@ -2119,22 +2154,19 @@ while ($true) {
                 [void](Ensure-ProjectPnpm)
                 $nodeToolchain = Assert-NodeToolchain
                 $nodeSummary = Get-NodeDependencySummary
+                $rustReadiness = Get-RustToolchainReadiness
 
-                Write-Label "【环境】" "【Node】" ("{0} | {1}" -f $nodeToolchain.NodeVersion,$nodeToolchain.NodeSource) Green
-                Write-Label "【环境】" "【pnpm】" ("{0} | {1}" -f $nodeToolchain.PnpmVersion,$nodeToolchain.PnpmSource) Green
-                Write-Label "【项目】" "【workspace】" ("{0} 个项目 | 外部 Node 依赖 {1} 个" -f $nodeSummary.WorkspaceProjects,$nodeSummary.ExternalDependencies) Cyan
-                Show-DependencyLocations
+                $rustText = if ($rustReadiness.Ready) { $rustReadiness.Channel } else { "未就绪" }
+                Write-Label "【环境】" "【版本】" ("Node {0} | pnpm {1} | Rust {2}" -f $nodeToolchain.NodeVersion,$nodeToolchain.PnpmVersion,$rustText) Green
+                Write-Label "【项目】" "【workspace】" ("{0} | 外部依赖 {1}" -f $nodeSummary.WorkspaceProjects,$nodeSummary.ExternalDependencies) Cyan
+                Show-DependencyLocationsCompact
 
                 $nodeResult = Install-NodeDependencies
 
-                $rustReadiness = Get-RustToolchainReadiness
                 $cargoReady = $rustReadiness.Ready
                 $rustSkipped = $false
 
-                if ($rustReadiness.Ready) {
-                    Write-Label "【状态】" "【Rust/Cargo】" ("{0} 已就绪；无需安装工具链。" -f $rustReadiness.Channel) Green
-                }
-                else {
+                if (-not $rustReadiness.Ready) {
                     Write-Label "【状态】" "【Rust/Cargo】" $rustReadiness.Reason Yellow
                     if (Confirm-WriteOperation "Rust 工具链尚未满足当前项目要求。是否按 rust-toolchain.toml 补齐缺失工具链/组件？") {
                         $cargoReady = Install-RustToolchainIfMissing
@@ -2158,27 +2190,27 @@ while ($true) {
                 Write-Host ""
                 $rustChanged = ($null -ne $rustDependencyResult -and $rustDependencyResult.Changed) -or (-not $rustReadiness.Ready -and $cargoReady)
                 if ($nodeResult.Cancelled -or $rustSkipped) {
-                    Write-Label "【保留现状】" "【按需依赖】" "已完成真实检测；用户取消的修复项保持现状。" Yellow
+                    Write-Label "【完成】" "【依赖】" "保留现状" Yellow
                     $menuMessage = "按任意键返回主菜单。"
                 }
                 elseif (-not $nodeResult.ProjectHealthy) {
-                    Write-Label "【未就绪】" "【按需依赖】" "项目 Node 依赖真实解析未通过，请查看上方原因。" Yellow
+                    Write-Label "【完成】" "【依赖】" "Node 未就绪" Yellow
                     $menuMessage = "按任意键返回主菜单。"
                 }
                 elseif (-not $nodeResult.StoreHealthy) {
-                    Write-Label "【部分就绪】" "【按需依赖】" "项目 Node 依赖当前可用，但 pnpm Store 缓存未恢复；不能标记为全部依赖就绪。" Yellow
+                    Write-Label "【完成】" "【依赖】" "Node 可用；pnpm Store 待修复" Yellow
                     $menuMessage = "按任意键返回主菜单。"
                 }
                 elseif (-not $cargoReady) {
-                    Write-Label "【部分完成】" "【按需依赖】" "Node 项目依赖与 pnpm Store 已确认；Rust 环境尚未完成，请查看上方原因。" Yellow
+                    Write-Label "【完成】" "【依赖】" "Node 已就绪；Rust 未就绪" Yellow
                     $menuMessage = "按任意键返回主菜单。"
                 }
                 elseif ($nodeResult.Changed -or $rustChanged) {
-                    Write-Label "【完成】" "【按需依赖】" "所需依赖/缓存同步完成，并通过真实健康检查。" Green
+                    Write-Label "【完成】" "【依赖】" "已同步并通过检查" Green
                     $menuMessage = "按任意键返回主菜单。"
                 }
                 else {
-                    Write-Label "【完成】" "【按需依赖】" "项目依赖、pnpm Store 与 Rust 环境均已真实确认；无需下载或安装。" Green
+                    Write-Label "【完成】" "【依赖】" "已就绪，无需操作" Green
                     $menuMessage = "按任意键返回主菜单。"
                 }
             }

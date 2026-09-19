@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #20.14 | pnpm 原生安装输出恢复 | v0.0.60 | pending-user-acceptance | pass | pending |
+| #20.15 | pnpm CMD 原生终端输出与菜单精简 | v0.0.61 | pending-user-acceptance | pass | pending |
+| #20.14 | pnpm 原生安装输出恢复 | v0.0.60 | superseded | pass | not-accepted |
 | #20.13 | 开发期依赖同步与实时输出修复 | v0.0.59 | superseded | pass | not-accepted |
 | #20.12 | PowerShell 自动变量冲突修复 | v0.0.58 | superseded | pass | not-accepted |
 | #20.11 | pnpm 实时环境事实与 Store 来源修复 | v0.0.57 | superseded | pass | not-accepted |
@@ -39,7 +40,62 @@
 
 ## 当前任务 / 当前合同
 
+## #20.15 pnpm CMD 原生终端输出与菜单精简
+
+### 主模块
+
+`project-governance / windows-setup / dependency-sync-ux`
+
+### 背景与问题
+
+用户在 Windows 实机验证 v0.0.60：依赖真实检测、Store 动态路径、frozen/no-frozen 分流均能继续执行，但菜单 1 内调用 pnpm 后仍看不到用户在 CMD 直接执行 `pnpm install` 时的原生 Scope / Progress / Packages / reused / downloaded / added 输出。同时菜单 1 累积了过多中文说明、实现细节和重复状态，影响可读性。
+
+### 任务目标
+
+Windows 交互式 pnpm 写操作优先使用与 CMD 相同的 `pnpm.cmd` 执行链，并保留原生控制台输出。菜单 1 收敛为“关键环境 + 关键路径 + 简短状态 + 必要确认 + 原生命令输出 + 最终结果”，详细环境事实继续由菜单 7 提供。
+
+### 允许修改
+
+- `scripts/windows/lfaa-setup.ps1` 的交互式 pnpm runner 与菜单 1 输出；
+- `test/dependency-setup.test.mjs` 的 `pnpm.cmd` 与精简输出防回归；
+- 当前 Runtime / Testing / Prompt / Log / Plan / CHANGELOG / Release；
+- v0.0.61 产品版本事实及 workspace package / Rust crate 产品版本一致性。
+
+### 禁止修改
+
+- #20.13 的 lockfile 落后 `--no-frozen-lockfile` / 本地修复 `--frozen-lockfile` 分流；
+- 正式发布 `release:full` frozen 语义；
+- pnpm Store 动态路径、Store 来源、PNPM_HOME、真实依赖/Store 健康检查；
+- Web Account/Auth、Config Schema/Storage、Web UI、PTY、Sync/GitHub/Update。
+
+### 实现约束
+
+- Windows 交互式 pnpm 写操作优先发现并校验 `pnpm.cmd`，版本必须与项目 `packageManager` 一致；不存在时才回退现有 runner；
+- 安装过程不得捕获、重定向或模拟 pnpm stdout/stderr；
+- 菜单 1 默认只显示 Node/pnpm/Rust 版本、node_modules / pnpm Store / Cargo / Rust toolchains 四类关键路径、依赖状态摘要与必要确认；
+- PNPM_HOME、全局配置、lockfile、状态缓存、Store 来源等详细信息保留在菜单 7，异常时菜单 1 可按需显示；
+- 不打印前五个新增/缺失依赖等大段明细，安装细节交给 pnpm 原生输出；
+- 不新增“假进度条”。
+
+### 验收条件
+
+- 在 Windows 菜单 1 需要安装时，确认后出现与 CMD 直接 `pnpm install` 同类的 pnpm 原生 Scope / Progress / Packages / Done 输出；
+- 正常无变化时菜单 1 输出显著短于 v0.0.60；
+- 用户仍能直接看到 Node 依赖、pnpm Store、Cargo 缓存、Rust 工具链的真实位置；
+- 菜单 7 继续提供完整环境详情；
+- 二次运行无变化时不重复安装。
+
+### 当前状态
+
+`pending-user-acceptance`
+
+### AI 验证
+
+`pass`：静态契约锁定 Windows 交互式 pnpm 优先 `pnpm.cmd`、禁止捕获安装输出，并验证菜单 1 精简而菜单 7 保留完整路径事实。Windows 原生 pnpm TTY 仍以用户实机为最终验收。
+
 ## #20.14 pnpm 原生安装输出恢复
+
+> **状态补充：** Windows 实机确认 v0.0.60 仍未呈现与 CMD 直接执行一致的 pnpm 原生进度，且菜单提示过多；由 #20.15 / v0.0.61 继续修正。
 
 ### 主模块
 

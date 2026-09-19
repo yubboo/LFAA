@@ -702,6 +702,12 @@ Windows PowerShell 变量名大小写不敏感。Setup/Sync/GitHub/Update 等 PS
 
 菜单 1 在 lockfile 落后时允许更新 `pnpm-lock.yaml`，在 lockfile 已完整但本地依赖损坏时使用 frozen 精确修复；pnpm 写操作采用 append-only reporter 实时显示进度。正式发布 `release:full` 继续 frozen。
 
+### v0.0.61 Windows pnpm CMD 前台与精简输出
+
+菜单 1 的 pnpm 写操作在 Windows 优先使用版本与 `packageManager` 一致的 `pnpm.cmd`，以获得和用户直接在 CMD 执行 `pnpm install` 相同类别的原生终端输出。安装 stdout/stderr 不进入 LFAA 捕获链。
+
+菜单 1 只显示关键环境、node_modules / pnpm Store / Cargo / Rust toolchains 四类路径、状态摘要和必要确认；PNPM_HOME、全局配置、Store 来源、lockfile、状态缓存等完整诊断放在菜单 7。异常详情只在失败时展开。
+
 ### v0.0.60 pnpm 原生前台输出
 
 Windows 实机证明强制 append-only reporter 并未恢复用户熟悉的安装过程可见性。菜单 1 的交互式 `pnpm install` 因此不再传任何 `--reporter=*`，由 pnpm 根据当前终端使用原生 reporter；LFAA 不捕获、不重定向、不模拟 stdout/stderr。#20.13 的 frozen / no-frozen 分流和正式发布 frozen 规则保持不变。

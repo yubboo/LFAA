@@ -1,8 +1,20 @@
 # LFAA 更新日志
 
-## LFAA v0.0.60 — #20.14 pnpm 原生安装输出恢复
+## LFAA v0.0.61 — #20.15 pnpm CMD 原生终端输出与菜单精简
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.60
+- **任务：** #20.15
+- Windows 菜单 1 的交互式 pnpm 写操作优先调用版本匹配的 `pnpm.cmd`，与用户在 CMD 直接运行 `pnpm install` 使用同类执行链；不存在时才回退现有 runner。
+- pnpm 安装 stdout/stderr 继续直连当前终端，不捕获、不重定向、不模拟进度。
+- 菜单 1 删除大段中文实现说明、前五个依赖明细、重复执行说明；默认只显示关键环境、四类依赖路径、简短状态、必要确认与最终结果。
+- 菜单 7 保留 PNPM_HOME、全局配置、Store 来源、lockfile、状态缓存等完整诊断信息。
+- frozen/no-frozen 分流、正式发布 frozen、Store 动态事实与真实依赖健康检查保持不变。
+
+## LFAA v0.0.60 — #20.14 pnpm 原生安装输出恢复
+
+- **状态：** superseded
+- **用户验收：** not-accepted；Windows 实机仍无 CMD 同类 pnpm 原生进度且提示过多，由 v0.0.61 修正
 - **基线：** v0.0.59
 - **任务：** #20.14
 - 撤销菜单 1 交互式 `pnpm install` 强制 `--reporter=append-only`，恢复 pnpm 原生终端 reporter。

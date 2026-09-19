@@ -39,7 +39,7 @@ test("unchanged dependency path can return without pnpm install", () => {
   assert.match(plan, /NeedsInstall/);
   assert.match(plan, /CanAdopt/);
   assert.match(install, /if \(\$plan\.NeedsInstall\)/);
-  assert.match(functionBody("Show-NodeDependencyPlan"), /无需 pnpm install/);
+  assert.match(functionBody("Show-NodeDependencyPlan"), /已就绪/);
   const decisionIndex = install.indexOf("if ($plan.NeedsInstall)");
   const invokeIndex = install.indexOf("Invoke-Pnpm $installArguments");
   assert.ok(decisionIndex >= 0 && invokeIndex > decisionIndex, "install invocation must stay inside the NeedsInstall branch");
@@ -50,9 +50,9 @@ test("dependency changes are summarized and confirmed before writing", () => {
   const show = functionBody("Show-NodeDependencyPlan");
   const install = functionBody("Install-NodeDependencies");
   for (const token of ["Added", "Removed", "Changed"]) assert.ok(compare.includes(token));
-  for (const token of ["新增", "删除", "版本变化"]) assert.ok(show.includes(token));
-  assert.match(install, /Confirm-WriteOperation/);
-  assert.match(install, /当前项目锁定依赖/);
+  for (const token of ["新增", "删除", "变更"]) assert.ok(show.includes(token));
+  assert.match(install, /Confirm-SimpleOperation/);
+  assert.match(install, /同步 Node 依赖/);
 });
 
 test("menu 1 never auto-updates packages or clears pnpm caches", () => {
@@ -77,8 +77,8 @@ test("Rust toolchain and Cargo fetch are reused when unchanged", () => {
   assert.match(readiness, /component list --toolchain \$channel --installed/);
   assert.match(ensure, /跳过 rustup toolchain install/);
   assert.match(deps, /lockHash/);
-  assert.match(deps, /跳过 cargo fetch/);
-  assert.match(deps, /尚未声明外部 crate；无需执行 cargo fetch/);
+  assert.match(deps, /if \(-not \(Test-Path -LiteralPath \$lockFile\)\)/);
+  assert.match(deps, /if \(\$null -ne \$rustState -and \[string\]\$rustState\.lockHash -eq \$lockHash\)/);
 });
 
 test("menu 1 shows dependency locations from runtime paths", () => {
@@ -101,7 +101,7 @@ test("menu 1 avoids duplicate precheck and duplicate completion summaries", () =
   assert.doesNotMatch(setup, /【预检】" "【workspace】/);
   assert.doesNotMatch(setup, /【完成】" "【Node\/pnpm】/);
   assert.doesNotMatch(setup, /【完成】" "【Rust\/Cargo】/);
-  assert.match(setup, /【完成】" "【按需依赖】/);
+  assert.match(setup, /【完成】" "【依赖】/);
 });
 
 test("unchanged path requires real Node resolution before it may skip install", () => {
@@ -126,7 +126,7 @@ test("pnpm Store is a real health signal and missing cache cannot report all-rea
   assert.match(fetcher, /--offline/);
   assert.match(fetcher, /GetTempPath/);
   assert.match(repair, /Invoke-PnpmStoreLockfileFetch/);
-  assert.match(setup, /项目 Node 依赖当前可用，但 pnpm Store 缓存未恢复/);
+  assert.match(setup, /Node 可用；pnpm Store 待修复/);
   assert.doesNotMatch(repair, /update|store\s+prune/i);
 });
 
@@ -179,22 +179,38 @@ test("menu 1 separates development lockfile sync from frozen local repair", () =
   assert.match(install, /if \(-not \$plan\.LockCoverage\.Complete\)/);
   assert.match(install, /--no-frozen-lockfile/);
   assert.match(install, /--frozen-lockfile/);
-  assert.match(install, /更新 pnpm-lock\.yaml/);
-  assert.match(install, /lockfile 已完整/);
+  assert.match(install, /依赖声明已经领先于 lockfile 时允许更新 lockfile/);
+  assert.match(install, /else \{/);
   assert.match(packageJson.scripts["release:full"], /pnpm install --frozen-lockfile/);
 });
 
-test("pnpm dependency writes preserve pnpm native foreground output", () => {
+test("pnpm dependency writes use the Windows cmd foreground chain and preserve native output", () => {
   const install = functionBody("Install-NodeDependencies");
+  const foreground = functionBody("Get-PnpmForegroundRunner");
   const invokePnpm = functionBody("Invoke-Pnpm");
   const projectCommand = functionBody("Invoke-ProjectCommand");
   assert.match(install, /\$installArguments = @\("install"\)/);
   assert.doesNotMatch(install, /--reporter=/);
-  assert.match(install, /【pnpm 原生输出】/);
   assert.doesNotMatch(install, /Invoke-PnpmCapture[^\n]*install/);
+  assert.match(foreground, /Get-Command "pnpm\.cmd"/);
+  assert.match(foreground, /\$cmdPath --version/);
+  assert.match(foreground, /NativeCmd = \$true/);
+  assert.match(invokePnpm, /Get-PnpmForegroundRunner/);
   assert.match(invokePnpm, /Invoke-ProjectCommand/);
   assert.match(projectCommand, /& \$FilePath @Arguments/);
   assert.doesNotMatch(projectCommand, /2>&1|Out-Null|RedirectStandardOutput|RedirectStandardError/);
+});
+
+test("menu 1 keeps only compact dependency UX while menu 7 retains full diagnostics", () => {
+  const compact = functionBody("Show-DependencyLocationsCompact");
+  const full = functionBody("Show-DependencyLocations");
+  const plan = functionBody("Show-NodeDependencyPlan");
+  for (const token of ["Node", "pnpm Store", "Cargo", "Rust"]) assert.ok(compact.includes(token));
+  for (const token of ["PNPM_HOME", "pnpm 全局配置", "Node 锁文件", "依赖状态缓存", "pnpm Store"]) assert.ok(full.includes(token));
+  assert.doesNotMatch(plan, /【新增】|【变更】|【删除】|【锁文件】|【失败】|【缺失】/);
+  assert.doesNotMatch(setup, /【说明】" "【增量同步】/);
+  assert.doesNotMatch(setup, /【日志】" "【pnpm 原生输出】/);
+  assert.match(setup, /Show-DependencyLocationsCompact/);
 });
 
 test("Windows PowerShell scripts do not assign to automatic or read-only variables", () => {

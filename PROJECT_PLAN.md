@@ -17,8 +17,8 @@ implementing
 当前治理修复任务：
 
 ```text
-#20.14 pnpm 原生安装输出恢复
-version: v0.0.60
+#20.15 pnpm CMD 原生终端输出与菜单精简
+version: v0.0.61
 status: pending-user-acceptance
 ```
 
@@ -32,7 +32,7 @@ status: pending-user-acceptance
 
 `project-foundation` 已建立可交付骨架。`#16` 和 `#17` 属于 Config Schema 前置治理/工具链修复，不改变当前主业务模块。
 
-用户已明确要求按照开发规范进入配置系统。#21 Web 工作台历史/实机验收状态保留，不再阻塞业务顺序；当前 `config-schema` 基线仍等待用户验收。#20.9 的提示去重与路径展示已由用户 Windows 实机确认通过。随后用户主动删除 `pnpm store path` 指向的 Store，发现菜单 1 仍误报“全部依赖已就绪”，暴露 #20.8 只做浅层 manifest/指纹检查的真实健康缺口。用户随后通过 `pnpm setup` + 删除全局 `storeDir` 验证了 Store 路径会随机器配置实时变化，且要求 LFAA 不让用户自行判断机器级路径。#20.10 / v0.0.56 因尚未覆盖 Store 来源与 PNPM_HOME/PATH 实时事实，被 #20.11 / v0.0.57 取代。用户实机运行 v0.0.57 时发现 PowerShell `$home` 与只读自动变量 `$HOME` 冲突，#20.11 的实时环境设计因此无法进入后续执行。v0.0.58 已修复 `$HOME` 冲突并继续进入依赖同步，但实机进一步发现 lockfile 落后时仍错误调用 frozen install，且写操作缺少稳定实时进度。当前 #20.13 / v0.0.59 已分离开发期同步与发布期 frozen 校验，但 Windows 实机确认 `--reporter=append-only` 并没有恢复用户熟悉的 pnpm 原生进度，安装阶段仍呈现无输出等待。#20.14 / v0.0.60 因此撤销自定义 reporter，恢复前台原生 pnpm 输出；实机通过后再回到 Web-first 的 Config System Account/Auth 纵向闭环。不得把本治理任务当成 #2.2 的用户验收。
+用户已明确要求按照开发规范进入配置系统。#21 Web 工作台历史/实机验收状态保留，不再阻塞业务顺序；当前 `config-schema` 基线仍等待用户验收。#20.9 的提示去重与路径展示已由用户 Windows 实机确认通过。随后用户主动删除 `pnpm store path` 指向的 Store，发现菜单 1 仍误报“全部依赖已就绪”，暴露 #20.8 只做浅层 manifest/指纹检查的真实健康缺口。用户随后通过 `pnpm setup` + 删除全局 `storeDir` 验证了 Store 路径会随机器配置实时变化，且要求 LFAA 不让用户自行判断机器级路径。#20.10 / v0.0.56 因尚未覆盖 Store 来源与 PNPM_HOME/PATH 实时事实，被 #20.11 / v0.0.57 取代。用户实机运行 v0.0.57 时发现 PowerShell `$home` 与只读自动变量 `$HOME` 冲突，#20.11 的实时环境设计因此无法进入后续执行。v0.0.58 已修复 `$HOME` 冲突并继续进入依赖同步，但实机进一步发现 lockfile 落后时仍错误调用 frozen install，且写操作缺少稳定实时进度。当前 #20.13 / v0.0.59 已分离开发期同步与发布期 frozen 校验，但 Windows 实机确认 `--reporter=append-only` 并没有恢复用户熟悉的 pnpm 原生进度，安装阶段仍呈现无输出等待。#20.14 / v0.0.60 撤销自定义 reporter 后，Windows 实机仍未呈现与 CMD 直接 `pnpm install` 一致的 Scope / Progress / Packages 原生输出，同时菜单 1 中文解释过多。当前 #20.15 / v0.0.61 改为 Windows 交互式写操作优先使用 `pnpm.cmd`，并将菜单 1 收敛为关键环境、关键路径、状态、必要确认和最终结果；菜单 7 继续承载完整环境详情。实机通过后再回到 Web-first 的 Config System Account/Auth 纵向闭环。不得把本治理任务当成 #2.2 的用户验收。
 
 ## 模块顺序
 

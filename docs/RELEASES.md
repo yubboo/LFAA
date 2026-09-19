@@ -1,6 +1,28 @@
-## LFAA v0.0.60 Release — #20.14 pnpm 原生安装输出恢复
+## LFAA v0.0.61 Release — #20.15 pnpm CMD 原生终端输出与菜单精简
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.60
+- **用户验收：** pending
+
+### 交付内容
+
+- Windows 交互式 pnpm 写操作优先 `pnpm.cmd`，安装日志由 pnpm 原生终端直接输出；
+- 菜单 1 精简为关键环境、关键依赖位置、状态摘要、必要确认和最终结果；
+- 菜单 7 继续保留完整 PNPM_HOME / Store 来源 / lockfile / 状态缓存诊断；
+- frozen/no-frozen 与正式发布 frozen 语义不变。
+
+### AI 验证状态
+
+dependency-setup、node-dependency-health、release-gates、release-environment、Config Schema 与仓库治理门禁 PASS；当前制作容器无 Windows PowerShell，因此 `pnpm.cmd` 原生 TTY 以用户 Windows 实机为最终验收。
+
+### 用户实机验收重点
+
+需要同步依赖时确认 Y：应直接出现 pnpm 自身的 Scope / Progress / Packages / Done；正常无变化时菜单 1 输出应明显精简，并继续显示 node_modules、pnpm Store、Cargo 缓存、Rust toolchains 的真实位置。
+
+## LFAA v0.0.60 Release — #20.14 pnpm 原生安装输出恢复
+
+- **状态：** superseded
+- **用户验收：** not-accepted；Windows 实机仍无 CMD 同类 pnpm 原生进度且提示过多，由 v0.0.61 修正
 - **基线：** v0.0.59
 - **用户验收：** pending
 

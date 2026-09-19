@@ -1,3 +1,10 @@
+## v0.0.61 / #20.15 pnpm CMD 原生终端输出与菜单精简验证
+
+- 静态契约：Windows 交互式 pnpm 写操作优先版本匹配的 `pnpm.cmd`；安装输出不得进入捕获/重定向链。
+- 菜单 1：默认仅输出关键环境、node_modules / pnpm Store / Cargo / Rust toolchains 四类路径、状态摘要和必要确认；不得恢复大段依赖明细与实现说明。
+- 菜单 7：完整 PNPM_HOME / 全局配置 / Store 来源 / lockfile / 状态缓存诊断保留。
+- Windows 实机：需要安装时确认 Y 后必须出现 pnpm 原生 Scope / Progress / Packages / Done；第二次无变化时不得重复安装。
+
 ## v0.0.60 / #20.14 pnpm 原生安装输出恢复验证
 
 - dependency-setup 必须确认菜单 1 的交互式 install 不包含任何 `--reporter=*`；

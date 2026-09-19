@@ -44,7 +44,8 @@ test("release:full owns environment + frozen install + release verification", ()
 
 test("Windows Setup treats menu 1 as optional dependency preparation", () => {
   assert.match(setup, /【1】" "【按需依赖】/);
-  assert.match(setup, /不是每次开发都必须执行/);
+  assert.match(setup, /检测并补齐依赖/);
+  assert.match(setup, /if \(\$plan\.NeedsInstall\)/);
 });
 
 test("Windows Setup menu 10 is a layered check center", () => {

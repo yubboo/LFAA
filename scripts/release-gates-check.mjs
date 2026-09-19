@@ -64,18 +64,20 @@ for (const token of [
 for (const token of [
   "Get-NodeDependencyPlan",
   "dependency-state.json",
-  "无需 pnpm install",
+  "if ($plan.NeedsInstall)",
   "Compare-NodeDependencyInventory",
   "Get-RustToolchainReadiness",
-  "跳过 rustup toolchain install",
-  "跳过 cargo fetch",
+  "toolchain list",
+  "lockHash",
   "Show-DependencyLocations",
+  "Show-DependencyLocationsCompact",
   "Get-PnpmStorePath",
   "Get-PnpmEnvironmentFacts",
+  "Get-PnpmForegroundRunner",
+  "pnpm.cmd",
   "PNPM_HOME",
   "用户全局配置",
   "pnpm 默认",
-  "pnpm 虚拟仓库",
   "Cargo 缓存",
   "Rust 工具链",
   "Test-NodeDependencyRuntimeHealth",
@@ -83,7 +85,6 @@ for (const token of [
   "Repair-PnpmStore",
   "node-dependency-health-check.mjs",
   "fetch","--frozen-lockfile","--ignore-scripts",
-  "项目 Node 依赖当前可用，但 pnpm Store 缓存未恢复",
 ]) {
   if (!setup.includes(token)) fail(`Windows Setup missing incremental dependency token: ${token}`);
 }

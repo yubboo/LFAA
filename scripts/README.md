@@ -40,3 +40,6 @@ windows/lfaa-update.ps1  ← LFAA-Update.bat
 |---|---|
 | `windows-script-encoding-check.mjs` | 检查 Windows PowerShell `.ps1` 必须 UTF-8 with BOM，并核对 BAT launcher。 |
 | `release-consistency-check.mjs` | 检查 `lfaa.release.json` 与 package / crate / README / CHANGELOG / Release 的版本一致性。 |
+
+
+> 当前候选版本：v0.0.61（#20.15，pending-user-acceptance）。

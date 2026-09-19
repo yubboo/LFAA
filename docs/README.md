@@ -51,3 +51,6 @@ docs/logs/runtime/source-update/
 ```
 
 这些是本机运行数据目录，不再放 Markdown README。
+
+
+> 当前候选版本：v0.0.61（#20.15，pending-user-acceptance）。
