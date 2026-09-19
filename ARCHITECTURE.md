@@ -345,6 +345,8 @@ packages/config-system/src/settings/ai
 
 Web-first 只是验证顺序。Desktop / Linux 图形宿主后续复用 `packages/ui`；CLI 复用业务 Core，不复制 React UI。Config System 不依赖 React / DOM；UI 不直连 Provider 外部 API；App 不拥有共享业务真值。
 
+`packages/ui` 内部共享基础统一使用 `ui-xxx` 子域：`ui-overlay`（浮层生命周期）、`ui-controls`（通用交互控件）、`ui-effects`（声明式 Effect Registry）、`ui-extension`（UI Contribution Registry）。UI Primitive/Control 属于稳定 Kernel；Effect/Renderer/Panel/Action 等具有独立生命周期的贡献可由 Plugin/App Pack 注册。Feature 通过公共 API/Registry 消费，不直接 import 可卸载插件，也不允许第三方插件直接修改 document/body。Registry 采用 owner-scoped cleanup + generation，使启用/卸载可以局部演进而不污染 App Shell。
+
 ## 数据
 
 ```text

@@ -1,3 +1,12 @@
+## LFAA v0.0.87 Release — #21.21 UI Shared Modules / Extension Registry
+
+- **状态：** pending-user-acceptance
+- 共享 UI 基础/交互/特效/扩展统一进入 `packages/ui/src/ui-xxx/`。
+- `useDismissibleLayer` 迁入 `ui-overlay`；推理 Slider 抽为 `ui-controls/DiscreteSlider`。
+- 强力推理流星效果由 `ui-effects` 的声明式 Effect Registry 承载，App Shell 只按 effect id 调用。
+- 新增 `ui-extension` Registry，为 future effect/slot/renderer/panel/action 插件贡献提供 owner-scoped unload + generation。
+- UI Kernel 基础能力不可卸载；具有独立生命周期的 UI Contribution 可插件化；普通插件禁止直接操作 LFAA DOM。
+
 ## LFAA v0.0.86 Release — #21.20 Composer 统一模型运行时控制器 / Popover 闪烁修复
 
 - **状态：** pending-user-acceptance

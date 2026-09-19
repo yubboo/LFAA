@@ -23,6 +23,11 @@ const css = read("packages/app-shell/src/agent-workbench.css");
 const layoutConfig = read("packages/ui/src/workbench/workbench-layout.config.ts");
 const resizeTsx = read("packages/ui/src/workbench/ResizableWorkbench.tsx");
 const workbenchCss = read("packages/ui/src/workbench/workbench.css");
+const sharedSliderTsx = read("packages/ui/src/ui-controls/DiscreteSlider.tsx");
+const sharedSliderCss = read("packages/ui/src/ui-controls/discrete-slider.css");
+const sharedEffectCss = read("packages/ui/src/ui-effects/effects.css");
+const sharedEffectRegistry = read("packages/ui/src/ui-effects/registry.ts");
+const sharedExtensionRegistry = read("packages/ui/src/ui-extension/registry.ts");
 
 // 1. Shell Tooltip 只能有一个来源。
 const start = tsx.indexOf("function ShellHeaderButton(");
@@ -215,7 +220,9 @@ for (const token of [
   "agent-runtime-control-trigger",
   "agent-runtime-control-card",
   "agent-runtime-model-picker",
-  "agent-reasoning-slider",
+  "DiscreteSlider",
+  "UiEffectHost",
+  "builtinUiEffectRegistry",
   "toggleReasoningBoost",
   "resetReasoning",
   "useDismissibleLayer",
@@ -240,11 +247,28 @@ for (const token of [
   ".agent-work-surface__title",
   ".agent-runtime-control-trigger",
   ".agent-runtime-control-card",
-  ".agent-reasoning-slider",
   "contain:layout paint",
-  "prefers-reduced-motion",
 ]) {
   if (!css.includes(token)) fail(`missing unified runtime-control UI style contract: ${token}`);
+}
+
+// 8. v0.0.87：共享 UI 基础/效果/扩展统一进入 packages/ui/src/ui-xxx；业务层只能消费，不得复制。
+for (const token of ["setPointerCapture", "onPointerMove", "onPointerUp", 'role="slider"', "ArrowLeft", "ArrowRight", "Home", "End"]) {
+  if (!sharedSliderTsx.includes(token)) fail(`missing shared ui-controls slider contract: ${token}`);
+}
+for (const token of [".lfaa-discrete-slider", "--lfaa-slider-progress", "prefers-reduced-motion"]) {
+  if (!sharedSliderCss.includes(token)) fail(`missing shared ui-controls CSS contract: ${token}`);
+}
+for (const token of ["lfaa-ui-meteor", "prefers-reduced-motion"]) {
+  if (!sharedEffectCss.includes(token)) fail(`missing shared ui-effects CSS contract: ${token}`);
+}
+for (const source of [sharedEffectRegistry, sharedExtensionRegistry]) {
+  if (!source.includes("unregisterOwner") || !source.includes("#generation")) fail("UI registries must support owner-scoped unload + generation");
+}
+if (tsx.includes("setPointerCapture") || tsx.includes("agent-reasoning-slider__particles")) fail("App Shell must consume shared ui-controls/ui-effects instead of reimplementing slider/effect internals");
+if (css.includes("agent-reasoning-meteor") || css.includes("agent-reasoning-slider__thumb")) fail("shared slider/effect CSS must not leak back into App Shell");
+for (const forbidden of ["packages/ui/src/effects", "packages/ui/src/overlay", "packages/ui/src/controls", "packages/ui/src/extension"]) {
+  if (fs.existsSync(path.join(root, forbidden))) fail(`shared UI infrastructure must use ui-xxx folders: ${forbidden}`);
 }
 
 console.log("LFAA UI contract check passed.");

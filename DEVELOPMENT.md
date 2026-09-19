@@ -135,7 +135,7 @@ Windows `scripts/windows/*.ps1` 必须保持 UTF-8 with BOM。
 |---|---|---|
 | `apps/` | Web / Desktop / CLI / Server 可运行宿主、启动入口、平台 Adapter、宿主桥 | 可复用业务逻辑、Provider 厂商实现、共享业务 UI、Config 真值 |
 | `packages/` | 可跨宿主复用的 TypeScript / React 业务、协议、UI、Feature | OS 特权实现、一次性 App glue 混入业务包 |
-| `packages/ui/` | LFAA 可复用图形界面的唯一主目录；Primitive / Layout / Feature UI | Provider 网络请求、Secret 保存、数据库、Config 真值、宿主专属桥 |
+| `packages/ui/` | LFAA 可复用图形界面的唯一主目录；ui-xxx 共享模块 / Layout / Feature UI | Provider 网络请求、Secret 保存、数据库、Config 真值、宿主专属桥 |
 | `packages/app-shell/` | 页面 / Feature 编排；把 UI 与业务公开 API 组装起来 | Provider 内部协议、Secret 实现、OS 能力 |
 | `packages/config-system/` | 配置设置业务唯一归属：Schema、Settings、Account/Auth、AI Provider 配置、后续 Storage | React / DOM / 视觉布局、App 宿主代码、模型执行 Runtime |
 | `crates/` | Rust 原生能力、安全 Broker、OS 边界 | React/UI、产品页面 |
@@ -143,13 +143,19 @@ Windows `scripts/windows/*.ps1` 必须保持 UTF-8 with BOM。
 
 ### 7.2 UI 唯一归属
 
-可复用图形界面只能进入：
+可复用图形界面只能进入 `packages/ui`。新增共享基础/交互/特效/扩展模块必须采用 `ui-xxx`：
 
 ```text
-packages/ui/src/primitives/
+packages/ui/src/ui-overlay/
+packages/ui/src/ui-controls/
+packages/ui/src/ui-effects/
+packages/ui/src/ui-extension/
 packages/ui/src/layout/
+packages/ui/src/workbench/
 packages/ui/src/features/<domain>/
 ```
+
+既有 `layout/workbench/features` 不因本规则强制搬家。`ui-overlay/ui-controls` 是稳定 UI Kernel/SDK，不做成用户可卸载插件；`ui-effects/ui-extension` 提供 Registry seam，具有独立安装生命周期的 Effect/Renderer/Panel/Action 才插件化。普通插件不得直接操作 DOM；业务 Feature 不得复制 outside-click、Slider Pointer 算法、通用特效实现。
 
 `apps/web` / `apps/desktop` 只允许宿主入口、Router、Host Adapter、平台桥。除不可复用的宿主壳以外，不得在 App 内另建第二套业务 Feature UI。Web-first 只表示“先用 Web 验证”，不表示 UI 所有权属于 Web。
 

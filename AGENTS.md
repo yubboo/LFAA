@@ -106,6 +106,9 @@ packages/ui/src/features/settings/ai/
 
 硬边界：
 
+- `packages/ui` 内新增共享 UI 基础/交互/特效/扩展必须放 `src/ui-xxx/`；既有 `layout/workbench/features` 保持；
+- UI Kernel 基础件不可卸载；Effect/Renderer/Panel/Action 等独立生命周期能力才通过 Registry 插件化；
+- 普通插件不得直接操作 LFAA DOM，业务组件不得复制 shared outside-dismiss / Slider Pointer / Effect 实现；
 - `packages/ui` 不拥有 Config / Provider / Secret 真值，不直连厂商 API；
 - `packages/config-system` 不依赖 React、DOM、`packages/ui`、`apps/*`；
 - `apps/web` 不保存可复用业务 UI，不实现 Provider 厂商逻辑；

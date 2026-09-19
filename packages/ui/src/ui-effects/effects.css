@@ -1,0 +1,4 @@
+.lfaa-ui-effect{position:absolute;z-index:4;left:.2rem;top:50%;width:max(.5rem,calc(var(--lfaa-slider-progress,50%) - .1rem));height:.75rem;transform:translateY(-50%);overflow:hidden;border-radius:999px;pointer-events:none}
+.lfaa-ui-effect--meteor i{--lfaa-effect-index:0;position:absolute;left:-12%;top:calc(20% + (var(--lfaa-effect-index) * 9%));width:calc(.13rem + (var(--lfaa-effect-index) % 3) * .05rem);height:.08rem;border-radius:999px;background:rgba(255,255,255,.84);box-shadow:0 0 .4rem rgba(255,255,255,.75);opacity:0;animation:lfaa-ui-meteor var(--lfaa-effect-duration,1150ms) linear infinite;animation-delay:calc(var(--lfaa-effect-index) * 130ms)}
+@keyframes lfaa-ui-meteor{0%{transform:translateX(0) scaleX(.7);opacity:0}16%{opacity:.9}78%{opacity:.55}100%{transform:translateX(18rem) scaleX(1.9);opacity:0}}
+@media (prefers-reduced-motion:reduce){.lfaa-ui-effect--meteor i{animation:none;display:none}}

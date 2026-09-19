@@ -11,6 +11,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
+| #21.21 | UI 共享模块 / Effect & Extension Registry 收敛 | v0.0.87 | pending-user-acceptance |
 | #21.20 | Composer 统一模型运行时控制器 / Popover 闪烁修复 | v0.0.86 | pending-user-acceptance |
 | #21.19 | Composer 模型 / 思考强度原地快切 | v0.0.85 | pending-user-acceptance |
 | #2.19 | Provider Host 网络代理 / 系统 CA / 可诊断错误修复 | v0.0.84 | pending-user-acceptance |
@@ -50,6 +51,17 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
 
+
+
+### #21.21 UI 共享模块 / Effect & Extension Registry 收敛
+
+- **版本：** v0.0.87
+- **状态：** pending-user-acceptance
+- **用户目标：** UI 共用能力继续集中在 `packages/ui`，内部用 `ui-xxx` 分组；可复用特效/扩展以后可以由插件安装、卸载和复用，但 UI 地基不能为了“一切皆插件”而变成可拔掉的依赖。
+- **实现：** `ui-overlay` 接管 outside-dismiss；`ui-controls` 新增通用离散 Slider；`ui-effects` 提供声明式 effect + owner/generation Registry；`ui-extension` 提供 effect/slot/renderer/panel/action contribution Registry。
+- **安全边界：** 普通 UI 插件只能提交受控 Contribution，不允许直接操作 LFAA DOM；未来自定义可执行 Renderer 必须进入受控 UI Extension Host。
+- **维护边界：** App Shell 只组合共享 UI API；Pointer Capture、拖拽算法、粒子实现不允许复制回业务组件。既有 `layout/workbench/features` 不搬家。
+- **验收：** v0.0.86 视觉/手感不退化；Slider/特效行为保持；UI Gate 能阻止重复实现与错误目录回流。
 
 
 ### #21.20 Composer 统一模型运行时控制器 / Popover 闪烁修复

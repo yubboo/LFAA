@@ -1,3 +1,13 @@
+## LFAA v0.0.87 — #21.21 UI 共享模块 / Effect & Extension Registry 收敛
+
+- **状态：** pending-user-acceptance
+- 固定 UI 共享目录规则：所有新共享 UI 基础/交互/特效/扩展能力统一进入 `packages/ui/src/ui-xxx/`；既有 `layout/workbench/features` 保持不动，禁止在 `packages/` 顶层再散落 `effects/overlay/motion` 等第二套 UI 域。
+- 将 `useDismissibleLayer` 从旧 `primitives/` 迁入 `ui-overlay/`；新增 `ui-controls/DiscreteSlider`，把点击/拖拽/Pointer Capture/键盘档位控制从 App Shell 抽成通用控件。
+- 新增 `ui-effects` 声明式 Effect Registry + `UiEffectHost`；强力推理流星效果改由 `reasoning-overdrive` effect id 调用，不再在模型业务组件内写粒子实现。
+- 新增 `ui-extension` contribution Registry，预留 effect/slot/renderer/panel/action 统一贡献模型；Registry 支持 owner-scoped unregister + generation，便于未来插件启用/卸载后原子切换。
+- UI 插件边界明确：共享 Primitive/Control 属于稳定 UI Kernel，不作为用户插件卸载；Effect Pack/Renderer/Panel 等独立生命周期能力可插件化。普通插件不得直接操作 LFAA DOM。
+- App Shell 只消费 `DiscreteSlider + UiEffectHost`，不再持有 Slider Pointer 算法或粒子 CSS；新增 UI Shared Module Gate，禁止重复实现回流。
+
 ## LFAA v0.0.86 — #21.20 Composer 统一模型运行时控制器 / Popover 闪烁修复
 
 - **状态：** pending-user-acceptance

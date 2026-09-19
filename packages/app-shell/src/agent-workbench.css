@@ -453,21 +453,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-runtime-model-picker__manage{grid-template-columns:1.1rem minmax(0,1fr)!important;align-items:center!important;margin-top:.25rem;padding:.45rem .48rem!important;border-top:1px solid var(--agent-border)!important;border-radius:.45rem!important;font-size:.68rem}
 
 .agent-reasoning-slider-shell{padding:.5rem .12rem .08rem}
-.agent-reasoning-slider{--agent-reasoning-progress:50%;position:relative;height:2.15rem;display:flex;align-items:center;touch-action:none;cursor:pointer;outline:none;user-select:none}
-.agent-reasoning-slider:focus-visible{filter:drop-shadow(0 0 0.25rem color-mix(in srgb,#e55298 25%,transparent))}
-.agent-reasoning-slider__rail,.agent-reasoning-slider__fill{position:absolute;left:.12rem;right:.12rem;top:50%;height:.82rem;transform:translateY(-50%);border-radius:999px}
-.agent-reasoning-slider__rail{background:color-mix(in srgb,var(--agent-text) 13%,var(--agent-bubble));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--agent-border) 68%,transparent)}
-.agent-reasoning-slider__fill{right:auto;width:calc(var(--agent-reasoning-progress) - .02rem);background:linear-gradient(90deg,#ee6aa8,#db4b91);transition:width .1s ease}
-.agent-reasoning-slider.is-dragging .agent-reasoning-slider__fill{transition:none}
-.agent-reasoning-slider__mark{position:absolute;z-index:3;top:50%;width:.28rem;height:.28rem;margin-left:-.14rem;margin-top:-.14rem;border-radius:50%;background:color-mix(in srgb,var(--agent-text) 24%,transparent);pointer-events:none}
-.agent-reasoning-slider__mark.is-filled{background:color-mix(in srgb,#fff 60%,transparent)}
-.agent-reasoning-slider__thumb{position:absolute;z-index:5;top:50%;left:var(--agent-reasoning-progress);width:1.55rem;height:1.55rem;transform:translate(-50%,-50%);border:1px solid color-mix(in srgb,var(--agent-border) 82%,transparent);border-radius:50%;background:var(--agent-elevated);box-shadow:0 .16rem .55rem rgba(0,0,0,.2);pointer-events:none;transition:left .1s ease,transform .1s ease}
-.agent-reasoning-slider.is-dragging .agent-reasoning-slider__thumb{transition:none;transform:translate(-50%,-50%) scale(1.05)}
-.agent-reasoning-slider__particles{position:absolute;z-index:4;left:.2rem;top:50%;width:max(.5rem,calc(var(--agent-reasoning-progress) - .1rem));height:.75rem;transform:translateY(-50%);overflow:hidden;border-radius:999px;pointer-events:none}
-.agent-reasoning-slider__particles i{position:absolute;left:-12%;top:50%;width:.22rem;height:.08rem;border-radius:999px;background:rgba(255,255,255,.84);box-shadow:0 0 .4rem rgba(255,255,255,.75);opacity:0;animation:agent-reasoning-meteor 1.15s linear infinite}
-.agent-reasoning-slider__particles i:nth-child(2){animation-delay:.16s;top:28%;width:.16rem}.agent-reasoning-slider__particles i:nth-child(3){animation-delay:.33s;top:68%;width:.28rem}.agent-reasoning-slider__particles i:nth-child(4){animation-delay:.51s;top:40%;width:.18rem}.agent-reasoning-slider__particles i:nth-child(5){animation-delay:.67s;top:73%;width:.14rem}.agent-reasoning-slider__particles i:nth-child(6){animation-delay:.82s;top:22%;width:.24rem}.agent-reasoning-slider__particles i:nth-child(7){animation-delay:1s;top:56%;width:.17rem}
-@keyframes agent-reasoning-meteor{0%{transform:translateX(0) scaleX(.7);opacity:0}16%{opacity:.9}78%{opacity:.55}100%{transform:translateX(18rem) scaleX(1.9);opacity:0}}
 .agent-runtime-control-card__unsupported{padding:.45rem .2rem .12rem;color:var(--agent-muted);font-size:.62rem;text-align:center}
-@media (prefers-reduced-motion:reduce){.agent-runtime-model-picker,.agent-reasoning-slider__fill,.agent-reasoning-slider__thumb{transition:none}.agent-reasoning-slider__particles i{animation:none;display:none}}
+@media (prefers-reduced-motion:reduce){.agent-runtime-model-picker{transition:none}}
 .agent-theme[data-layout-mode="mobile"] .agent-runtime-control-anchor{margin-left:auto}.agent-theme[data-layout-mode="mobile"] .agent-runtime-control-trigger{max-width:11rem}.agent-theme[data-layout-mode="mobile"] .agent-runtime-control-card{position:fixed;left:.75rem;right:.75rem;bottom:4.7rem;width:auto;min-width:0}
 

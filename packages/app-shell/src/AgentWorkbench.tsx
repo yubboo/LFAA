@@ -36,6 +36,9 @@ import { AGENT_PERMISSION_PROFILES, type AgentModelBinding, type AgentPermission
 import {
   InfiniteCanvas,
   ResizableWorkbench,
+  DiscreteSlider,
+  UiEffectHost,
+  builtinUiEffectRegistry,
   useDismissibleLayer,
   SettingsPage,
   ThemeModeMenu,
@@ -610,15 +613,12 @@ function CenterWorkspace({
   const [runtimeControlOpen, setRuntimeControlOpen] = useState(false);
   const [runtimeModelPickerOpen, setRuntimeModelPickerOpen] = useState(false);
   const [reasoningPreviewIndex, setReasoningPreviewIndex] = useState<number | null>(null);
-  const [reasoningDragging, setReasoningDragging] = useState(false);
   const [reasoningBoostEnabled, setReasoningBoostEnabled] = useState(false);
   const [modelControlBusy, setModelControlBusy] = useState(false);
-  const reasoningTrackRef = useRef<HTMLDivElement | null>(null);
-  const reasoningPointerIdRef = useRef<number | null>(null);
   const boostRestoreValueRef = useRef<AiModelSettingValue | undefined>(undefined);
   const addMenuRef = useDismissibleLayer<HTMLDivElement>({ open: addMenuOpen, onDismiss: () => setAddMenuOpen(false) });
   const permissionMenuRef = useDismissibleLayer<HTMLDivElement>({ open: permissionMenuOpen, onDismiss: () => setPermissionMenuOpen(false) });
-  const runtimeControlRef = useDismissibleLayer<HTMLDivElement>({ open: runtimeControlOpen, onDismiss: () => { setRuntimeControlOpen(false); setRuntimeModelPickerOpen(false); setReasoningPreviewIndex(null); setReasoningDragging(false); } });
+  const runtimeControlRef = useDismissibleLayer<HTMLDivElement>({ open: runtimeControlOpen, onDismiss: () => { setRuntimeControlOpen(false); setRuntimeModelPickerOpen(false); setReasoningPreviewIndex(null); } });
 
   useEffect(() => {
     setReasoningBoostEnabled(false);
@@ -672,7 +672,6 @@ function CenterWorkspace({
   })();
   const visibleReasoningIndex = reasoningPreviewIndex ?? committedReasoningIndex;
   const strongestReasoningIndex = Math.max(0, reasoningOptions.length - 1);
-  const reasoningProgress = reasoningOptions.length <= 1 ? 0 : (visibleReasoningIndex / (reasoningOptions.length - 1)) * 100;
   const visibleReasoningOption = reasoningOptions[visibleReasoningIndex];
   const boostActive = reasoningBoostEnabled && reasoningOptions.length > 0;
 
@@ -686,13 +685,7 @@ function CenterWorkspace({
     setReasoningPreviewIndex(null);
   };
 
-  const reasoningIndexAtClientX = (clientX: number): number => {
-    const track = reasoningTrackRef.current;
-    if (!track || reasoningOptions.length <= 1) return 0;
-    const rect = track.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
-    return Math.round(ratio * (reasoningOptions.length - 1));
-  };
+
 
   const toggleReasoningBoost = () => {
     if (!activeReasoning || !reasoningOptions.length || modelControlBusy) return;
@@ -895,55 +888,16 @@ function CenterWorkspace({
 
                   {reasoningOptions.length ? (
                     <div className="agent-reasoning-slider-shell">
-                      <div
-                        ref={reasoningTrackRef}
-                        className={`agent-reasoning-slider${reasoningDragging ? " is-dragging" : ""}${boostActive ? " is-boosted" : ""}`}
-                        role="slider"
-                        tabIndex={0}
-                        aria-label={activeReasoning?.field.label ?? "思考强度"}
-                        aria-valuemin={0}
-                        aria-valuemax={Math.max(0, reasoningOptions.length - 1)}
-                        aria-valuenow={visibleReasoningIndex}
-                        aria-valuetext={formatReasoningOption(visibleReasoningOption?.value ?? "", visibleReasoningOption?.label)}
-                        style={{ "--agent-reasoning-progress": `${reasoningProgress}%` } as CSSProperties}
-                        onPointerDown={(event) => {
-                          if (modelControlBusy) return;
-                          setReasoningBoostEnabled(false);
-                          reasoningPointerIdRef.current = event.pointerId;
-                          event.currentTarget.setPointerCapture(event.pointerId);
-                          setReasoningDragging(true);
-                          setReasoningPreviewIndex(reasoningIndexAtClientX(event.clientX));
-                        }}
-                        onPointerMove={(event) => {
-                          if (reasoningPointerIdRef.current !== event.pointerId) return;
-                          setReasoningPreviewIndex(reasoningIndexAtClientX(event.clientX));
-                        }}
-                        onPointerUp={(event) => {
-                          if (reasoningPointerIdRef.current !== event.pointerId) return;
-                          const nextIndex = reasoningIndexAtClientX(event.clientX);
-                          reasoningPointerIdRef.current = null;
-                          setReasoningDragging(false);
-                          void commitReasoningIndex(nextIndex);
-                        }}
-                        onPointerCancel={() => { reasoningPointerIdRef.current = null; setReasoningDragging(false); setReasoningPreviewIndex(null); }}
-                        onKeyDown={(event) => {
-                          let nextIndex: number | null = null;
-                          if (event.key === "ArrowLeft" || event.key === "ArrowDown") nextIndex = Math.max(0, visibleReasoningIndex - 1);
-                          if (event.key === "ArrowRight" || event.key === "ArrowUp") nextIndex = Math.min(reasoningOptions.length - 1, visibleReasoningIndex + 1);
-                          if (event.key === "Home") nextIndex = 0;
-                          if (event.key === "End") nextIndex = reasoningOptions.length - 1;
-                          if (nextIndex === null) return;
-                          event.preventDefault();
-                          setReasoningBoostEnabled(false);
-                          void commitReasoningIndex(nextIndex);
-                        }}
-                      >
-                        <span className="agent-reasoning-slider__rail" aria-hidden="true" />
-                        <span className="agent-reasoning-slider__fill" aria-hidden="true" />
-                        {reasoningOptions.map((option, index) => <i key={option.value} className={`agent-reasoning-slider__mark${index <= visibleReasoningIndex ? " is-filled" : ""}`} style={{ left: `${reasoningOptions.length <= 1 ? 0 : (index / (reasoningOptions.length - 1)) * 100}%` }} aria-hidden="true" />)}
-                        {boostActive ? <span className="agent-reasoning-slider__particles" aria-hidden="true">{Array.from({ length: 7 }, (_, index) => <i key={index} />)}</span> : null}
-                        <span className="agent-reasoning-slider__thumb" aria-hidden="true" />
-                      </div>
+                      <DiscreteSlider
+                        ariaLabel={activeReasoning?.field.label ?? "思考强度"}
+                        steps={reasoningOptions.map((option) => ({ id: String(option.value), label: formatReasoningOption(option.value, option.label) }))}
+                        valueIndex={visibleReasoningIndex}
+                        disabled={modelControlBusy}
+                        onPreview={setReasoningPreviewIndex}
+                        onInteractionStart={() => setReasoningBoostEnabled(false)}
+                        onCommit={(index) => { void commitReasoningIndex(index); }}
+                        effect={boostActive ? <UiEffectHost registry={builtinUiEffectRegistry} effectId="reasoning-overdrive" /> : null}
+                      />
                     </div>
                   ) : <div className="agent-runtime-control-card__unsupported">当前模型没有公开可调的思考强度。</div>}
                 </section>

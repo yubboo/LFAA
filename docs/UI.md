@@ -1,3 +1,18 @@
+## UI 共享模块与插件贡献边界（v0.0.87）
+
+共享 UI 新能力统一放在 `packages/ui/src/ui-xxx/`：
+
+```text
+ui-overlay/    outside dismiss / Escape / 后续 focus/portal
+ui-controls/   Slider、Menu、Tooltip 等可复用交互控件
+ui-effects/    声明式特效与 Effect Registry
+ui-extension/  effect/slot/renderer/panel/action contribution Registry
+```
+
+既有 `layout/workbench/features` 保持不动。基础 Primitive/Control 是 UI Kernel，不做成可卸载插件；具有独立生命周期的 Effect Pack、Renderer、Panel 等可走插件 Contribution。业务 Feature 只能通过 Registry / 公共组件调用，不直接 import 可卸载插件，更不能直接修改 `document/body`。
+
+Effect/Extension 必须支持 owner-scoped cleanup + generation。卸载插件后新 generation 不再暴露其 contribution；运行中的旧 generation 按运行时策略完成，不做中途硬拔。特效必须优先 `transform/opacity`，支持 `prefers-reduced-motion`，并在卸载/隐藏时释放资源。
+
 ## v0.0.80：设置中心「插件与能力」
 
 Settings 新增 Plugin Manager Surface：输入 registry 包名、绝对路径、Git 地址或 tarball 后必须先“检查”，显示包身份、Plugin API、能力数、系统权限与 credential requirement；确认后才允许安装。安装完成默认禁用，用户再显式“立即启用”。已安装插件支持启用/禁用/移除。

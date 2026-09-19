@@ -1,6 +1,12 @@
+## v0.0.87 UI：ui-xxx 共享模块与插件贡献 seam
+
+`packages/ui` 继续是图形 UI 唯一主域。新增共享能力固定进入 `src/ui-overlay / ui-controls / ui-effects / ui-extension`；既有 `layout/workbench/features` 不迁移。`ui-overlay/ui-controls` 属于稳定 UI Kernel/SDK；`ui-effects/ui-extension` 提供 Registry seam，让具有独立生命周期的 Effect/Renderer/Panel/Action 后续通过 Plugin/App Pack 注册。
+
+`packages/app-shell` 只消费公共 UI API：模型推理 Slider 不再持有 Pointer Capture 算法，强力推理不再持有粒子 CSS。普通插件不得深链 App Shell 或直接操作 DOM。
+
 ## v0.0.86 App Shell / UI：统一 Runtime Control / Dismissible Layer
 
-`packages/app-shell` 继续只做运行时控制的 UI Projection；Active Model 与模型 settings 真值仍归 `@lfaa/config-system`。v0.0.86 删除模型/强度双 Popover，改为单一 Runtime Control Card。`packages/ui/src/primitives/useDismissibleLayer.ts` 成为小型 Popover/Menu 的唯一 outside-dismiss Primitive，业务模块禁止复制 document pointer/click 监听。强力推理只选择当前模型 Capability 的最高公开 reasoning 档，粒子效果属于 presentation，不进入模型业务协议。
+`packages/app-shell` 继续只做运行时控制的 UI Projection；Active Model 与模型 settings 真值仍归 `@lfaa/config-system`。v0.0.86 删除模型/强度双 Popover，改为单一 Runtime Control Card。`useDismissibleLayer` 成为小型 Popover/Menu 的唯一 outside-dismiss Primitive（v0.0.87 起位于 `packages/ui/src/ui-overlay/`），业务模块禁止复制 document pointer/click 监听。强力推理只选择当前模型 Capability 的最高公开 reasoning 档，粒子效果属于 presentation，不进入模型业务协议。
 
 ## v0.0.85 App Shell / Config：ModelQuickSwitch 边界
 

@@ -25,6 +25,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #21.21 | UI 共享模块 / Effect & Extension Registry 收敛 | v0.0.87 | pending-user-acceptance | pass | pending |
 | #21.20 | Composer 统一模型运行时控制器 / Popover 闪烁修复 | v0.0.86 | pending-user-acceptance | pass | pending |
 | #21.19 | Composer 模型 / 思考强度原地快切 | v0.0.85 | pending-user-acceptance | pass | pending |
 | #2.19 | Provider Host 网络代理 / 系统 CA / 可诊断错误修复 | v0.0.84 | pending-user-acceptance | pass | pending |
@@ -67,6 +68,32 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #21.21 UI 共享模块 / Effect & Extension Registry 收敛
+
+### 用户目标
+
+所有 UI 复用能力继续归 `packages/ui`，新增共享模块用 `ui-xxx` 命名；通用交互不要在业务组件重复写。具有独立安装/卸载生命周期的 Effect/Renderer/Panel 等 UI 能力允许插件化，基础 UI Kernel 不允许被卸载。
+
+### 允许修改
+
+- `packages/ui/src/ui-xxx` 共享模块与公开 exports；
+- App Shell 对共享 Slider/Effect 的消费；
+- UI 架构/测试/治理门禁。
+
+### 禁止修改
+
+- 不改变 Config/Agent Runtime 模型业务真值；
+- 不允许普通插件直接操作 document/body；
+- 不为了目录重构搬动既有 `layout/workbench/features`；
+- 不把 UI Primitive 做成必须安装才能启动的插件。
+
+### 验收
+
+- outside-dismiss、Slider、Effect 都存在唯一共享 Owner；
+- App Shell 不再实现 Pointer slider/粒子细节；
+- Effect/Extension Registry 支持 owner 卸载 + generation；
+- v0.0.86 Runtime Control 行为保持不变。
 
 ## #21.20 Composer 统一模型运行时控制器 / Popover 闪烁修复
 

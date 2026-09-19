@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.86**
+**当前包：LFAA-v0.0.87**
 
 ## 当前产品定位（v0.0.84）
 
@@ -61,12 +61,12 @@ plugin-platform + agent-runtime + workbench
 当前版本总任务：
 
 ```text
-#21.20 Composer 统一模型运行时控制器 / Popover 闪烁修复
-version: v0.0.86
+#21.21 UI 共享模块 / Effect & Extension Registry 收敛
+version: v0.0.87
 status: pending-user-acceptance
 ```
 
-v0.0.86 在 v0.0.85 基础上把模型与思考强度收成一个稳定的 Composer Runtime Control：顶部三键控制强力推理、模型和重置，下方轨道支持点击/拖拽；浮层使用共享 outside-dismiss Primitive，并把 Popover flicker / layout flash 纳入 UI 禁止回归。v0.0.85 的 Active Model / 缓存目录 / settings Run 绑定继续作为数据底座。
+v0.0.87 把 v0.0.86 已验证方向进一步抽成共享 UI 架构：`packages/ui/src/ui-overlay / ui-controls / ui-effects / ui-extension` 统一承载可复用交互与扩展 seam。Composer 的 Slider 与强力推理特效改为调用共享模块；未来 Effect Pack / Renderer / Panel 等可通过 Registry 贡献并按 owner 卸载，UI Kernel 基础件保持稳定。
 
 `#2.16` 的 ChatGPT / Codex App Server 登录闭环继续保留为 `pending-user-acceptance`，没有因为架构升级被覆盖。
 

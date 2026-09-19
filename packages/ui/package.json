@@ -1,11 +1,15 @@
 {
   "name": "@lfaa/ui",
   "private": true,
-  "version": "0.0.86",
+  "version": "0.0.87",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./workbench": "./src/workbench/index.ts"
+    "./workbench": "./src/workbench/index.ts",
+    "./ui-overlay": "./src/ui-overlay/index.ts",
+    "./ui-controls": "./src/ui-controls/index.ts",
+    "./ui-effects": "./src/ui-effects/index.ts",
+    "./ui-extension": "./src/ui-extension/index.ts"
   },
   "author": "二鱼",
   "peerDependencies": {

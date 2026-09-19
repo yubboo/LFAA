@@ -1,3 +1,7 @@
+## v0.0.87：UI Extension 生命周期边界
+
+UI 插件贡献与 Runtime Capability 使用同一类“owner + generation”思路，但 UI Kernel 本身不是可卸载插件。`ui-effects/ui-extension` Registry 负责安装/卸载后的 contribution 可见性；普通插件不得直接持有 DOM 引用跨 generation 存活。未来 Plugin Runtime 接 UI Contribution 时必须通过 Adapter/Registry，不允许直接向 App Shell 注入任意 JS。
+
 ## v0.0.86：Composer Runtime Control 执行边界
 
 Composer 的“强力推理”是最高公开 reasoning 档的快捷入口，不是新增 Provider 参数；实际 Run 仍只携带 Config System 已校验的 `AgentModelBinding.settings`。Slider 拖拽过程中只维护 UI preview，Pointer Up / 键盘离散操作才提交 `setActiveModel`，避免每个 Pointer Move 写入 Host。模型切换继续使用缓存 `modelCatalog`，不重新请求 Provider。

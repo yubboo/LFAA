@@ -19,8 +19,14 @@ export type { AiSettingsPageProps, AiSettingsProviderView, AiSettingsAuthView, A
 export { UserMenu } from "./features/account/UserMenu";
 export type { UserMenuProps } from "./features/account/UserMenu";
 export { ThemeModeMenu } from "./features/appearance/ThemeModeMenu";
-export { useDismissibleLayer } from "./primitives/useDismissibleLayer";
-export type { DismissibleLayerOptions } from "./primitives/useDismissibleLayer";
+export { useDismissibleLayer } from "./ui-overlay/useDismissibleLayer";
+export type { DismissibleLayerOptions } from "./ui-overlay/useDismissibleLayer";
+export { DiscreteSlider } from "./ui-controls/DiscreteSlider";
+export type { DiscreteSliderProps, DiscreteSliderStep } from "./ui-controls/DiscreteSlider";
+export { UiEffectHost, UiEffectRegistry, builtinUiEffectRegistry } from "./ui-effects/index";
+export type { UiEffectDefinition, UiEffectRegistration, UiEffectRendererKind } from "./ui-effects/index";
+export { UiExtensionRegistry } from "./ui-extension/registry";
+export type { UiExtensionContribution, UiExtensionKind } from "./ui-extension/contracts";
 export type { ThemeModeMenuProps, ThemePreference } from "./features/appearance/ThemeModeMenu";
 export { SettingsPage } from "./features/settings/SettingsPage";
 export type { SettingsPageProps, SettingsSectionId, PluginSettingsInstalledView, PluginSettingsInspectionView, PluginSettingsInstallResultView, PluginSettingsPanelProps } from "./features/settings/settings.types";

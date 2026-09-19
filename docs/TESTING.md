@@ -1,3 +1,13 @@
+## v0.0.87 / #21.21 UI Shared Module / Registry 回归
+
+必须覆盖：
+
+- `packages/ui/src/ui-overlay/ui-controls/ui-effects/ui-extension` 存在，旧 `primitives/useDismissibleLayer` 不得回归；
+- `DiscreteSlider` 自己拥有 Pointer Capture、click/drag、方向键、Home/End；App Shell 不得复制这些实现；
+- `UiEffectRegistry` / `UiExtensionRegistry` 必须提供 owner-scoped `unregisterOwner()` 与 generation；
+- 强力推理只通过 `UiEffectHost + reasoning-overdrive` 调用共享 Effect；App Shell 不得保留粒子 CSS；
+- UI Contract Gate 阻止错误目录与重复实现回流。
+
 ## v0.0.86 / #21.20 Runtime Control / Dismissible Popover 回归
 
 - `test/model-quick-switch-contract.test.mjs`：统一 Runtime Control、禁止双 Popover、拖拽/键盘 Slider、最高档强力推理、粒子 reduced-motion、布局隔离。

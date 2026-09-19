@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 
 const workbench = readFileSync(new URL("../packages/app-shell/src/AgentWorkbench.tsx", import.meta.url), "utf8");
 const css = readFileSync(new URL("../packages/app-shell/src/agent-workbench.css", import.meta.url), "utf8");
+const slider = readFileSync(new URL("../packages/ui/src/ui-controls/DiscreteSlider.tsx", import.meta.url), "utf8");
+const effectCss = readFileSync(new URL("../packages/ui/src/ui-effects/effects.css", import.meta.url), "utf8");
 const service = readFileSync(new URL("../packages/config-system/src/settings/ai/core/account-service.ts", import.meta.url), "utf8");
 const bridge = readFileSync(new URL("../apps/web/dev/bridges/ai/ai-config-bridge.ts", import.meta.url), "utf8");
 const runtime = readFileSync(new URL("../packages/agent-runtime/src/core/contracts.ts", import.meta.url), "utf8");
@@ -14,7 +16,7 @@ test("composer owns one integrated runtime model control instead of split popove
     "agent-runtime-control-card",
     "agent-runtime-control-card__toolbar",
     "agent-runtime-model-picker",
-    "agent-reasoning-slider",
+    "DiscreteSlider",
     "toggleReasoningBoost",
     "resetReasoning",
     "onQuickSelectModel",
@@ -26,19 +28,13 @@ test("composer owns one integrated runtime model control instead of split popove
   assert.doesNotMatch(workbench, /agent-model-menu|agent-reasoning-menu/);
 });
 
-test("reasoning slider supports click-drag keyboard control and strongest-mode particles", () => {
-  for (const token of [
-    "setPointerCapture",
-    "onPointerMove",
-    "onPointerUp",
-    'role="slider"',
-    "ArrowLeft",
-    "ArrowRight",
-    "strongestReasoningIndex",
-    "agent-reasoning-slider__particles",
-  ]) assert.match(workbench, new RegExp(token));
-  assert.match(css, /agent-reasoning-meteor/);
-  assert.match(css, /prefers-reduced-motion/);
+test("reasoning slider supports click-drag keyboard control through shared ui-controls and ui-effects", () => {
+  assert.match(workbench, /strongestReasoningIndex/);
+  assert.match(workbench, /<DiscreteSlider/);
+  assert.match(workbench, /<UiEffectHost/);
+  for (const token of ["setPointerCapture", "onPointerMove", "onPointerUp", 'role="slider"', "ArrowLeft", "ArrowRight", "Home", "End"]) assert.match(slider, new RegExp(token));
+  assert.match(effectCss, /lfaa-ui-meteor/);
+  assert.match(effectCss, /prefers-reduced-motion/);
 });
 
 test("runtime control shell is isolated from composer layout to prevent popover layout flash", () => {
