@@ -1,3 +1,34 @@
+## LFAA v0.0.80 Release — #22.2 Plugin Profile 生命周期与项目骨架收敛
+
+- **状态：** pending-user-acceptance
+- **架构：** architecture-version 4；真实模块优先，禁止无 Consumer 占位 workspace。
+- **Plugin P1：** 独立 Profile、Inspect → Transaction Install → Rollback/Cancel → Disabled → Explicit Enable → Registry Generation。
+- **安全：** Secret 通过 `credentialRef` / Rust Secret Broker；第三方 executable code 不直接进入 Web 主进程；build scripts 按包名审批。
+- **维护：** package layer/role + dependency direction/cycle + folder/language gates；Rust workspace 当前只保留真实 Secret Store。
+- **发布：** Unicode-safe ZIP + exact `docs/项目结构与代码地图.md` + `.lfaa` hidden skeleton + round-trip extracted workspace-preflight。
+- **用户验收重点：** 80 Sync 来源预检应通过；设置中心“插件与能力”应出现；可直接用 `H:\lfaa\lfaa\test\fixtures\lfaa-plugin-basic` 这个无脚本离线 fixture 验证 inspect → install → 默认禁用 → enable → remove。build approval 另用真实需要构建脚本的插件验收。
+- **AI 验证：** 133/133 Node/Config 回归 PASS；6 个非 React 核心 package 定向 TypeScript noEmit PASS；最终 ZIP exact 中文 entry 使用 UTF-8 flag，round-trip 解压后完整 workspace-preflight PASS。制作容器无 pnpm/Rust/Windows，相关正式动态验证留给实机。
+
+## LFAA v0.0.79 Release — #4.4 发布包完整性与 Sync Fail-safe
+
+- **状态：** pending-user-acceptance
+- **基线：** v0.0.78 的 Plugin Platform / Agent Runtime / Chat+Work / Dependency Idempotency 代码保持不变。
+- **根因：** v0.0.78 源工作树包含 `.lfaa` 项目资源，但发布 ZIP 漏掉隐藏目录；Sync 因此错误地把稳定工作区资源骨架当成应删除文件。
+- **修复：** Sync 在 diff/delete 之前先验证 Source Package；来源不完整时零写入失败。
+- **本机状态：** 修复 `.lfaa/cache|state|tmp|logs` 的保护正则，防止 dependency-state 等本机状态再次被错误删除。
+- **成品要求：** ZIP 必须携带 `.lfaa/README.md`、`manifest.json`、`lock.json`、skills/experts/plugins/extensions/mcp README。
+- **用户验收重点：** 解压 v0.0.79 后执行 Sync，来源预检应先 PASS；同步后工作区预检应继续 PASS，不应再出现 `.lfaa/* Missing`。
+- **AI 验证：** 123/123 Node/Config 回归 PASS；成品 ZIP 解压后 8 个 `.lfaa` 必需文件存在且统一 workspace preflight 全 PASS。
+
+## LFAA v0.0.78 Release — Plugin-first 平台基线
+
+- **状态：** pending-user-acceptance
+- **任务：** #22.1 / #21.18 / #20.17
+- **核心：** Capability/Plugin/App Pack 协议、generation Registry、语言所有权门禁、Codex 风格 Chat/Work 交互、Windows 依赖同步幂等修复。
+- **用户实机重点：** v0.0.77 → v0.0.78 因新增两个 workspace-only 依赖引用，第一次菜单 1 可能合理同步一次 lockfile（无新增外部 npm 包）；完成后再次运行菜单 1，在依赖声明未变化且真实依赖完整时必须直接显示已就绪，不应重复要求 `pnpm install`。左上角 LFAA 菜单与三档权限 Popover 的视觉/交互仍需 Windows 浏览器验收。
+- **未冒充：** 制作容器不是 Windows 且 Node 版本不满足正式 Node 24 发布环境，因此不声称 Windows PowerShell 或正式 release:full 已通过。
+- **AI 验证：** 仓库 Node 88/88 + Config System 33/33 = 121/121 PASS；Plugin/Agent Runtime 定向 TypeScript、Workbench TSX 语法、全部治理 Gate 与统一 Workspace Preflight PASS。制作容器不满足正式 Node24 + pnpm + Windows PowerShell 环境，不冒充完整 Web build / release:full / Windows 动态执行通过。
+
 ## LFAA v0.0.77 Release — #22.0 Agent Runtime 双入口基础 + #4.3 Windows 工作区预检
 
 - **状态：** pending-user-acceptance

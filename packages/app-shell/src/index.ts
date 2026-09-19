@@ -9,4 +9,4 @@
  * 修改注意事项：跨 workspace 依赖必须从本入口导入，不允许深链 src/internal。
  */
 export { AgentWorkbench } from "./AgentWorkbench";
-export type { AgentWorkbenchProps, AgentAiSettingsHost, DevResourceItem, ResourceKind } from "./workbench.types";
+export type { AgentWorkbenchProps, AgentAiSettingsHost, AgentPluginSettingsHost, DevResourceItem, ResourceKind } from "./workbench.types";

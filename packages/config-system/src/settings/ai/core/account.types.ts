@@ -8,10 +8,11 @@
  * 关联文件：account-service.ts、host-ports.ts、provider.types.ts、model-settings.ts。
  * 修改注意事项：任何可持久化结构都禁止加入 apiKey/token/password/secret 明文字段；托管认证不得暴露 Token。
  */
+import type { CredentialPersistence } from "@lfaa/credentials";
 import type { AiHostCapabilityId, AiModelCapabilities, AiModelCapabilitySource, AiModelSettingValue, AiProviderId } from "./provider.types.ts";
 
 export type AiAccountVerificationStatus = "connected" | "unverified" | "error";
-export type AiSecretPersistence = "os-credential-store" | "memory";
+export type AiSecretPersistence = Exclude<CredentialPersistence, "unavailable">;
 
 export interface AiHostCapabilityStatus {
   available: boolean;

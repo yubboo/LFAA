@@ -3,7 +3,14 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.77**
+**当前包：LFAA-v0.0.80**
+
+## 当前产品定位（v0.0.80）
+
+LFAA 是面向个人的 AI 任务平台，而不是只会对话的聊天壳。用户可以通过 **Chat 一句话** 或 **Work 无限画布** 驱动同一个 Agent Runtime；一键开服、AI 写作、AI 拆图、Minecraft 插件/模组开发等场景最终都应作为 Plugin / Capability / App Pack 进入。
+
+长期技术边界：**TypeScript 主产品/Agent 平面 + 稳定 Rust Native Kernel + 极少量按需 Python Runtime**。外部 Codex、DeepSeek Harness、MCP 等成熟生态优先通过官方 Runtime/协议 Adapter 接入；LFAA 统一发现、权限、事件和 UI，但不复制低配 Agent Loop，也不削掉上游高级能力。
+
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
@@ -37,7 +44,7 @@ v0.0.50 起，Prompt、开发日志、版本记录不再“一次任务一个 Ma
 - Memory：可控、可追溯的记忆与知识
 - Plugins：原生插件、MCP、DeepSeek Harness/Cordis 兼容
 - Model Platform：多模型、多账号、本地模型、官方允许的认证方式
-- Permission：请求审批 / 自动审批 / 完全权限
+- Permission：请求审批 / 替我审批 / 完全权限
 - Knowledge：本地知识库与 Hybrid Retrieval
 - Desktop + Web：共用 React UI 与 Agent Protocol
 
@@ -48,16 +55,18 @@ v0.0.50 起，Prompt、开发日志、版本记录不再“一次任务一个 Ma
 当前主业务模块：
 
 ```text
-agent-runtime + workbench
+plugin-platform + agent-runtime + workbench
 ```
 
-当前架构升级任务：
+当前版本总任务：
 
 ```text
-#22.0 统一 Agent Runtime、三档权限与无限画布工作台
-#4.3 Sync/GitHub 统一工作区预检与可诊断失败修复
+#22.2 Plugin Profile 生命周期与项目骨架收敛
+version: v0.0.80
 status: pending-user-acceptance
 ```
+
+v0.0.80 以 DeepSeek Harness 的 Profile / Bundle / Capability Seam / Plugin Manager 为参考，完成第一轮“少而真实”的仓库骨架收敛：Node workspace 只保留当前有实现和 Consumer 的模块，Rust workspace 只保留真实工作的 Secret Store；插件安装进入独立本地 Profile，采用 Inspect → Transaction → Rollback → Enable 流程，不污染 LFAA 主依赖。v0.0.79 的 Unicode ZIP 路径问题同时进入发布成品 round-trip 门禁。
 
 `#2.16` 的 ChatGPT / Codex App Server 登录闭环继续保留为 `pending-user-acceptance`，没有因为架构升级被覆盖。
 

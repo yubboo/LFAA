@@ -1,8 +1,12 @@
 {
   "name": "@lfaa/plugin-sdk",
   "private": true,
-  "version": "0.0.77",
+  "version": "0.0.80",
   "type": "module",
   "exports": "./src/index.ts",
-  "author": "二鱼"
+  "author": "二鱼",
+  "lfaa": {
+    "layer": "foundation",
+    "role": "plugin-contract"
+  }
 }

@@ -145,3 +145,26 @@ LFAA-Update.bat
 四者职责不得混用；详细规则看 `docs/RUNTIME.md`。
 
 `LFAA-Setup.bat` 的菜单编号只是 Windows 便捷入口，不是开发协议：环境已就绪可跳过依赖准备；质量能力以根 `quality:*` / `release:*` 命令为长期入口，未来 CLI / GUI 复用能力而不是复用菜单编号。
+
+
+## 9. Plugin-first 与语言所有权硬规则
+
+新增产品能力默认顺序：
+
+```text
+Plugin / Skill / Tool / Expert / Workflow / Adapter / App Pack
+→ 只有稳定机制无法表达时才修改 Core
+```
+
+- `@lfaa/plugin-sdk` 是 Plugin Manifest / Capability Contract 的唯一协议 Owner；
+- `@lfaa/plugin-runtime` 是运行时 Plugin / Capability generation Registry 的唯一状态 Owner；
+- Agent Runtime 必须复用 Plugin SDK 的 Capability 词汇，禁止复制第二套；
+- 外部 Codex / DeepSeek Harness / MCP / 未来平台通过 Adapter 接入，优先调用官方 Runtime/协议，不仿造低配实现；
+- Common Contract 之外的平台高级能力放入 namespaced `extensions`，禁止统一时削平；
+- App Pack 只是能力组合，不得自建 Agent Loop / Permission / Session / Tool Runtime；
+- TypeScript 是 Product & Agent Plane；Rust 是稳定 Native Kernel；Python 仅 Optional Runtime；
+- 新需求默认不得修改 Rust，除非确实新增 OS/native primitive、安全修复或已证明的性能瓶颈。
+
+机器门禁：`scripts/language-ownership-check.mjs` + `scripts/folder-boundary-check.mjs` + `scripts/package-architecture-check.mjs`。
+
+新增 package/crate 默认拒绝；只有“真实实现 + 当前 Consumer + 明确 layer/role”才进入 workspace。Service Definition / Provider / Consumer / Composition 不得反向穿透。用户插件依赖只能进入 `.lfaa/state/plugin-profile`，不得写入 LFAA 根 package/lock。第三方可执行插件不得直接 import 到 Web/Electron 主进程；Secret 只能声明 credential requirement，不得进入 Manifest/日志/argv/env。

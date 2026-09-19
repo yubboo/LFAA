@@ -189,4 +189,33 @@ for (const token of ["beginPan", "beginNodeDrag", "onWheel", "onNodesChange?.(ne
   if (!canvasTsx.includes(token)) fail(`missing Infinite Canvas interaction contract: ${token}`);
 }
 
+// 7. v0.0.78：Chat / Work 从左上角 LFAA 菜单切换；Composer 使用 Codex 风格可解释 Popover，不允许退回开发占位 select。
+for (const token of [
+  "agent-brand-switcher",
+  "agent-brand-menu",
+  "一句话直接完成任务",
+  "无限画布组织和执行任务",
+  "agent-permission-button",
+  "agent-permission-menu",
+  "profile.description",
+  "onOpenAiSettings",
+  "agent-composer-popover--add",
+  "工具与技能",
+  "浏览器",
+]) {
+  if (!tsx.includes(token)) fail(`missing v0.0.78 Codex-like interaction contract: ${token}`);
+}
+if (/<select[^>]*value=\{permissionProfileId\}/.test(tsx)) {
+  fail("permission profiles must use the explanatory popover, not a native select");
+}
+if (/className=["']agent-surface-switch["']/.test(tsx)) {
+  fail("Chat/Work duplicate center switch must not return; use the top-left LFAA switcher");
+}
+if (!/<button className="agent-model"[^>]*onClick=\{onOpenAiSettings\}/.test(tsx)) {
+  fail("configured model label must remain clickable and open AI settings");
+}
+for (const token of [".agent-brand-menu", ".agent-permission-menu", ".agent-composer-popover", ".agent-answer--welcome", ".agent-work-surface__title"]) {
+  if (!css.includes(token)) fail(`missing v0.0.78 UI style contract: ${token}`);
+}
+
 console.log("LFAA UI contract check passed.");

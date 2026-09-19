@@ -1,4 +1,43 @@
+## v0.0.80：独立 Plugin Profile + Unicode 成品发布门禁
+
+用户插件依赖固定进入 `.lfaa/state/plugin-profile`，不得修改 LFAA 根 `package.json/pnpm-lock.yaml`。Profile 包管理由一个 Node Host 承担：inspect → lock → snapshot → pnpm → validate → commit；失败/取消恢复 Profile manifest/lock。pnpm build script 只按待审批的精确包名放行。
+
+Web 写操作只接受当前 localhost 同源请求；Plugin Manager API 不接收 Secret。安装日志写 `.lfaa/logs/plugin-manager` 并先脱敏。
+
+v0.0.79 交付包曾把 `docs/项目结构与代码地图.md` 编成乱码路径。v0.0.80 发布要求不是“源码 preflight 通过就算完”：必须对最终 ZIP 检查 exact Unicode entry，解压到新目录后确认 `.lfaa` 隐藏骨架与中文文件，再从该解压根运行 `workspace-preflight.mjs`。
+
+## v0.0.79：Sync 来源包先验完整性
+
+稳定工作区同步现在使用 fail-safe 顺序：
+
+```text
+路径编码检查
+→ Source Package workspace-preflight
+→ dependency fingerprint / lockfile preservation
+→ diff plan
+→ 用户确认
+→ apply
+→ SHA-256 mirror verify
+→ Target workspace-preflight
+```
+
+Source Preflight 失败时不得生成具有删除语义的可信执行链，更不得修改目标。此规则专门防止发布 ZIP 漏隐藏目录或其他治理必需文件时伤到长期稳定工作区。
+
+另外，`.lfaa/cache|state|tmp|logs` 属于本机运行状态，Sync 的保护匹配必须使用 literal-dot `^\.lfaa/`；不得用会匹配反斜杠的 `^\\.lfaa/`。
+
 # LFAA 本机运行、同步与脚本规范
+
+## v0.0.78：依赖同步幂等与稳定工作区 Lockfile 保护
+
+`LFAA-Sync.bat` 不再把版本包里的 `pnpm-lock.yaml` 无条件覆盖到稳定工作区。Sync 会先计算源版本与目标工作区的 **dependency declaration fingerprint**（workspace + 各 package manifest 的 dependency sections）：
+
+- 声明完全一致，且目标 lockfile 不比来源更短：保护稳定工作区已有 `pnpm-lock.yaml`，避免每个版本都把已经由本机 pnpm 生成好的 lockfile 覆盖回骨架版本。
+- 声明真实变化：解除保护，让新版本 lockfile/Setup 正常进入一次依赖同步。
+- 产品版本号变化本身不属于依赖变化，不得触发安装。
+
+`LFAA-Setup.bat → 1` 同时把 `.lfaa/state/dependency-state.json` 降级为缓存：只有本地直接依赖缺失/版本不匹配、真实模块解析失败、或 lockfile coverage 不完整时才 `NeedsInstall`。首次没有本机基线时只建立基线，不再把现有依赖全部误报为“新增 N”。
+
+因此从 v0.0.77 升到 v0.0.78 **可能合理发生一次** lockfile 同步：本版本新增了 `agent-runtime → plugin-sdk` 与 `plugin-runtime → plugin-sdk` 两个 workspace-only 依赖，但没有新增外部 npm 包。完成这一轮后，只要依赖声明未变化，后续普通版本同步不应重复要求 pnpm install。
 
 ## v0.0.77：稳定工作区统一 Preflight
 

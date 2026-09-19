@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/ui",
   "private": true,
-  "version": "0.0.77",
+  "version": "0.0.80",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -10,5 +10,9 @@
   "author": "二鱼",
   "peerDependencies": {
     "react": "19.3.0"
+  },
+  "lfaa": {
+    "layer": "presentation",
+    "role": "shared-ui"
   }
 }

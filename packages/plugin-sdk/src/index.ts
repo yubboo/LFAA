@@ -1,8 +1,26 @@
 /**
  * 模块：@lfaa/plugin-sdk
- * 作用：第三方插件公共 SDK 与权限声明。
- *
- * v0.0.1 状态：
- * 仅建立公开入口与模块边界，不提前实现业务。
+ * 作用：LFAA Native Plugin、外部生态 Adapter 与 App Pack 的公共 SDK。
+ * 负责：只导出稳定插件/能力协议，不拥有运行时注册状态。
+ * 不负责：执行 Tool、加载进程、修改权限、访问 OS。
  */
-export {};
+export { LFAA_PLUGIN_API_VERSION } from "./contracts";
+export type {
+  LfaaAppPackComposition,
+  LfaaAppPackDescriptor,
+  LfaaCapabilityDescriptor,
+  LfaaCapabilityEffect,
+  LfaaCapabilityKind,
+  LfaaCapabilitySource,
+  LfaaExtensionBag,
+  LfaaCredentialExposure,
+  LfaaCredentialKind,
+  LfaaCredentialRequirement,
+  LfaaExternalAdapter,
+  LfaaPermissionRequirement,
+  LfaaPluginManifest,
+  LfaaPluginRequirement,
+  LfaaSurface,
+  PluginJsonPrimitive,
+  PluginJsonValue,
+} from "./contracts";

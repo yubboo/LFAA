@@ -20,6 +20,7 @@ import type {
 } from "./account.types.ts";
 import type { AiAccountHostPorts, AiManagedAuthPort } from "./host-ports.ts";
 import type { AiAuthMethod, AiModelCapabilities, AiModelSettingValue, AiProviderPlugin } from "./provider.types.ts";
+import { createCredentialRef } from "@lfaa/credentials";
 import { defaultModelSettings, validateModelSettings } from "./model-settings.ts";
 import { buildOpenAiCompatibleModelRequest, parseOpenAiCompatibleModelList } from "../transports/openai-compatible.ts";
 import { parseQwenModelList } from "../transports/qwen-model-list.ts";
@@ -47,7 +48,7 @@ function validateDraft(registry: AiProviderRegistry, draft: AiAccountDraft, secr
 }
 
 function credentialRefFor(recordId: string, providerId: string, authMethodId: string): string {
-  return `lfaa-ai:${providerId}:${recordId}:${authMethodId}`;
+  return createCredentialRef("lfaa-ai", providerId, recordId, authMethodId);
 }
 
 function decorateModels(plugin: AiProviderPlugin, models: readonly AiAccountModel[], discoverySource?: AiAccountModel["discoverySource"]): readonly AiAccountModel[] {

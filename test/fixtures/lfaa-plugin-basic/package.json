@@ -1,0 +1,29 @@
+{
+  "name": "@lfaa-test/basic-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LFAA Plugin Manager offline acceptance fixture",
+  "lfaa": {
+    "plugin": {
+      "schemaVersion": 1,
+      "pluginApiVersion": 2,
+      "pluginId": "test/basic-plugin",
+      "pluginVersion": "1.0.0",
+      "displayName": "LFAA 基础测试插件",
+      "description": "只用于验证插件安装、启停与 generation；不包含可执行代码或 Secret。",
+      "author": "二鱼",
+      "capabilities": [
+        {
+          "id": "test/basic-plugin/skill",
+          "kind": "skill",
+          "version": "1.0.0",
+          "displayName": "基础测试 Skill",
+          "description": "用于验证 Capability Registry 的描述型测试能力。",
+          "source": "project",
+          "effect": "compose",
+          "surfaces": ["chat", "work"]
+        }
+      ]
+    }
+  }
+}

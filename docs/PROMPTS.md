@@ -25,6 +25,11 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #22.2 | Plugin Profile 生命周期与项目骨架收敛 | v0.0.80 | pending-user-acceptance | pass | pending |
+| #4.4 | 发布包隐藏资源完整性与同步前来源预检 | v0.0.79 | pending-user-acceptance | pass | pending |
+| #22.1 | Plugin Platform / Capability Contract / App Pack 总架构 | v0.0.78 | pending-user-acceptance | pass | pending |
+| #21.18 | Chat / Work Codex 风格交互收敛 | v0.0.78 | pending-user-acceptance | pass | pending |
+| #20.17 | 依赖同步幂等与 lockfile 保留修复 | v0.0.78 | pending-user-acceptance | pass | pending |
 | #22.0 | 统一 Agent Runtime、三档权限与无限画布工作台 | v0.0.77 | pending-user-acceptance | pass | pending |
 | #4.3 | Sync/GitHub 统一工作区预检与可诊断失败修复 | v0.0.77 | pending-user-acceptance | pass | pending |
 | #2.16 | OpenAI ChatGPT 套餐 / Codex App Server 登录闭环 | v0.0.76 | pending-user-acceptance | pass | pending |
@@ -56,6 +61,84 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #22.2 Plugin Profile 生命周期与项目骨架收敛
+
+### 用户目标
+
+在继续扩展“一切皆插件”之前，先审阅 DeepSeek Harness 源码并收紧 LFAA 整体骨架，使插件安装、文件夹边界、性能、安全和后续维护具备稳定可针对性修改的 seam；插件安装方式借鉴 DSH Profile/PluginManager，而不是手工复制文件。
+
+### 允许修改
+
+- workspace/package/crate 骨架与依赖方向 Gate；
+- Plugin SDK / Runtime / Node Host / Settings Plugin Manager；
+- 通用 Credentials seam 与现有 AI Secret Host Port 适配；
+- Web 开发 Host bridge；
+- v0.0.79 Unicode 发布包完整性门禁；
+- 当前架构、测试、运行时和发布文档。
+
+### 禁止修改
+
+- 不重写 Codex / DeepSeek Harness Agent Loop；
+- 不把用户插件加入 LFAA 根 package/lock；
+- 不让第三方插件直接 import 进浏览器/Electron 高权限主进程；
+- 不把 API Key / Token 写入 Manifest、`.lfaa` JSON、日志、argv/env；
+- 不为未来规划创建无 Consumer 的空 package/crate；
+- 不把未实现的 executable hot reload 写成已完成。
+
+### 验收条件
+
+1. workspace 只保留真实模块，并有机器化 layer/role/依赖方向/无环门禁；
+2. Plugin Profile 独立于根 workspace，安装先 inspect，失败/取消回滚，新插件默认 disabled，build script 精确审批；
+3. Settings 有“插件与能力”入口，可检查/安装/启停/移除，所有入口共享 PluginManager；
+4. Plugin Manifest 只能声明 credential requirement，Secret 继续走 Rust Secret Broker/OS Credential Store；
+5. 79 的中文路径问题在最终 ZIP entry + round-trip 解压后被验证；
+6. 最终成品解压根再次通过 workspace-preflight；
+7. 当前制作环境无法完成的 Node24/pnpm/Windows 动态测试必须明确标注 blocked，禁止冒充 PASS。
+
+### 必须测试
+
+- package architecture / folder boundary / language ownership；
+- plugin platform + plugin manager UI contract；
+- release Unicode/hidden path source gate + 成品 ZIP round-trip；
+- 全仓 Node 可执行静态回归 + Config System 回归；
+- workspace-preflight。
+
+
+## #4.4 发布包隐藏资源完整性与同步前来源预检
+
+### 背景
+
+v0.0.78 源工作树包含 `.lfaa/README.md`、`manifest.json`、`lock.json` 与 skills/experts/plugins/extensions/mcp 骨架，但交付 ZIP 漏掉隐藏目录。Windows Sync 因来源包中看不到这些文件，把稳定工作区对应文件列为 DEL 并执行删除；同步后的 Governance 随即要求这些文件存在，因此失败。
+
+### 目标
+
+1. 修复发布包，确保 `.lfaa` 项目资源骨架随 ZIP 交付；
+2. Sync 在生成 diff/delete plan 之前先对来源版本包运行统一静态 preflight；
+3. 来源包预检失败时明确显示“稳定工作区尚未被修改”，禁止任何新增/修改/删除；
+4. 继续复用同一个 `scripts/workspace-preflight.mjs`，不为 Source/Target 各维护一套 Gate；
+5. 保持 `.lfaa/cache|state|tmp|logs` 为本机运行状态保护项，项目资源骨架仍可被正常版本升级。
+
+### 禁止修改
+
+- 不回退 v0.0.78 Plugin Platform / Capability Contract；
+- 不改变 Agent Runtime、Config、UI、Rust Native Kernel 业务语义；
+- 不把 `.lfaa` 整目录粗暴设成永不更新的保护目录；
+- 不通过放宽 Governance 来掩盖坏包。
+
+### 验收条件
+
+- 新 ZIP 解压后 8 个 `.lfaa` 必需文件全部存在；
+- 对缺 `.lfaa` 的坏包运行 Sync 时，在 diff/delete 前失败；
+- 好包 Sync 后 Governance 不再报 `.lfaa/*` Missing；
+- `.lfaa/state/dependency-state.json` 等本机状态不得再被镜像删除；
+- 来源预检与目标工作区预检继续共用同一 Node Gate。
+
+### 必须测试
+
+- `test/workspace-sync-idempotency.test.mjs` 锁定 Source Preflight 在 `Get-SyncPlan` 与任何 destructive apply 之前；
+- 统一 workspace preflight 与全部治理 Gate；
+- 发布 ZIP 解压后再运行 workspace preflight，确认隐藏目录确实进入成品包。
 
 ## #22.0 统一 Agent Runtime、三档权限与无限画布工作台
 
@@ -4645,3 +4728,35 @@ ResizableWorkbench.leftWidth
 ### 当前状态
 
 `active / pending-windows-visual-test`
+
+## #22.1 Plugin Platform / Capability Contract / App Pack 总架构
+
+- **版本：** v0.0.78
+- **主模块：** plugin-sdk / plugin-runtime / agent-runtime / architecture-governance
+- **目标：** 把“一切皆插件”从口头原则升级为长期可执行架构。LFAA Core 只保留稳定机制，具体 Tool / Skill / Expert / Agent / Workflow / UI Extension / App Pack 通过统一 Capability Contract 注册；外部 Codex / DeepSeek Harness / MCP 等通过 Adapter 接入，并保留平台专有扩展能力。
+- **状态所有权：** `@lfaa/plugin-sdk` 拥有协议；`@lfaa/plugin-runtime` 拥有运行时 Registry generation；Agent Runtime 只消费 Snapshot，不复制第二套 Capability 词汇。
+- **允许修改：** ARCHITECTURE / DEVELOPMENT / AGENTS / Project Plan、plugin-sdk、plugin-runtime、agent-runtime 公共契约、治理/测试/代码地图。
+- **禁止修改：** Rust Native primitive 业务实现、Provider Secret、真实 Harness Agent Loop。
+- **硬约束：** Common Contract + namespaced extensions；App Pack 只组合能力；运行中的 Run 固定 Registry generation；新业务默认 Plugin-first；TS/Rust/Python 不得重复实现同一领域事实。
+- **验收：** Plugin Manifest / Capability / App Pack / External Adapter 契约存在；Registry 支持 register/unregister/snapshot/generation；Agent Runtime 复用 Plugin SDK 类型；language ownership gate 生效。
+- **用户验收：** pending。
+
+## #21.18 Chat / Work Codex 风格交互收敛
+
+- **版本：** v0.0.78
+- **主模块：** app-shell / ui-workbench
+- **目标：** 根据用户提供的 Codex UI 参考修正 v0.0.77 开发占位感：左上角 LFAA 负责 Chat/Work 切换；权限采用 Codex 风格说明菜单；Composer 的添加/权限/模型控件都可点击；中间 Surface 视觉重心居中。
+- **允许修改：** AgentWorkbench / workbench CSS / UI Contract / UI 文档。
+- **禁止修改：** Agent Runtime 真值、Config Secret、Rust Native、PTY。
+- **验收：** 不使用原生 select 作为三档权限主交互；LFAA Brand 可切换 Chat/Work；模型按钮能进入 AI 设置；添加入口有可见交互反馈；不硬编码模型名。
+- **用户验收：** pending。
+
+## #20.17 依赖同步幂等与 lockfile 保留修复
+
+- **版本：** v0.0.78
+- **主模块：** Windows Setup / Sync
+- **背景：** 用户稳定工作区已安装依赖，但每次版本同步后菜单 1 又显示“新增依赖 / lockfile 待同步”；实际 `pnpm install` 输出 `Already up to date / downloaded 0 / added 0`。
+- **根因约束：** dependency-state 缓存缺失/指纹变化本身不能等于“需要安装”；版本包 lockfile 在依赖声明未变化时也不能无意义覆盖稳定工作区已经由 pnpm 生成的更完整 lockfile。
+- **实现：** Setup 只在真实缺包、真实解析失败或 lockfile 确实不完整时安装；首次基线不再把全部现有依赖显示为“新增”。Sync 比较依赖声明指纹，相同且目标 lockfile 不弱于来源时保留目标 lockfile。
+- **禁止：** 自动升级依赖、清 Store、删除 node_modules、隐藏真正的依赖变化。
+- **用户验收：** pending Windows 实机。

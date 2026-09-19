@@ -11,6 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
+| #22.2 | Plugin Profile 生命周期与项目骨架收敛 | v0.0.80 | pending-user-acceptance |
+| #4.4 | 发布包隐藏资源完整性与同步前来源预检 | v0.0.79 | pending-user-acceptance |
 | #22.0 | 统一 Agent Runtime、三档权限与无限画布工作台 | v0.0.77 | pending-user-acceptance |
 | #4.3 | Sync/GitHub 统一工作区预检与可诊断失败修复 | v0.0.77 | pending-user-acceptance |
 | #2.16 | OpenAI ChatGPT 套餐 / Codex App Server 登录闭环 | v0.0.76 | pending-user-acceptance |
@@ -41,6 +43,33 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+
+
+### #22.2 Plugin Profile 生命周期与项目骨架收敛
+
+- **版本：** v0.0.80
+- **状态：** pending-user-acceptance
+- **源码审阅：** 直接审阅用户提供的 DeepSeek Harness 源码，重点采用 Service Definition / Provider / Consumer seam、Profile 包管理、PluginManager 单事务、失败回滚、build-script 精确审批、安装后启用、Credentials 引用与 HMR/disposal 原则。
+- **骨架收敛：** Node workspace 收为 9 个真实项目；Cargo workspace 收为 1 个真实 `secret-store`。删除无 Consumer 的 `export {}` / `module_name()` 占位，不再用空目录表达路线图。
+- **机器边界：** 新增 `lfaa.layer/role`、依赖方向、循环与空壳门禁；现有 folder/language gates 同步收紧。
+- **插件生命周期：** 新增独立 `.lfaa/state/plugin-profile`，支持 registry/绝对路径/Git/tarball inspect；事务 pnpm 安装、取消、失败回滚、build script 精确批准、安装后默认禁用、显式 enable 后 generation 发布。
+- **Settings：** 新增“插件与能力”管理面，Web bridge/未来 CLI/Agent 必须共享一个 PluginManager，而不是复制安装逻辑。
+- **Secret：** 抽出 `@lfaa/credentials`；Plugin 只声明 credential requirement，明文继续归 Rust Secret Broker/OS Credential Store，Plugin Manager 不提供 Secret API。
+- **热插拔边界：** 本版只保证 Manifest/Capability/enablement generation 热切换；第三方 executable plugin 不直接 import 进主进程，隔离执行留到后续 invocation/executable hosting。
+- **发布修复：** v0.0.79 中文 `docs/项目结构与代码地图.md` ZIP entry 乱码被识别为发布器问题；v0.0.80 增加源路径 Gate，并要求最终 ZIP 使用 Unicode-safe 归档 + round-trip 解压后再次 preflight。
+- **AI 验证：** 101/101 仓库 Node + 33/33 Config = 134/134 PASS；Credentials/Plugin SDK/Plugin Runtime/Agent Runtime/Config/Plugin Host TypeScript noEmit PASS；源码与成品 round-trip preflight 全 PASS；正式 Node24/pnpm Web build、Cargo/Windows 插件动态安装未在当前容器冒充通过。
+
+### #4.4 发布包隐藏资源完整性与同步前来源预检
+
+- **版本：** v0.0.79
+- **状态：** pending-user-acceptance
+- **用户实机：** v0.0.78 Sync 将 `.lfaa/README.md`、manifest/lock 与资源 README 列为删除项；同步完成后的统一 Governance 立即因这些文件缺失失败。
+- **根因：** v0.0.78 原始工作树实际包含上述 8 个文件，交付 ZIP 打包时漏掉隐藏目录 `.lfaa`；Sync 只验证路径编码和 release metadata，没有在生成删除计划前验证来源包完整性。
+- **修复：** `lfaa-sync.ps1` 新增 `Assert-SourcePackageIntegrity`，在依赖 fingerprint、diff 和 delete plan 之前复用 `workspace-preflight.mjs` 验证来源包；失败时保证目标尚未修改。
+- **附加修复：** 修正 `Test-ProtectedPath` 的 `.lfaa/(cache|state|tmp|logs)` literal-dot 正则；v0.0.78 的双反斜杠在 PowerShell regex 中实际匹配反斜杠，导致本机 dependency-state 保护失效。
+- **发布：** v0.0.79 ZIP 使用包含 dot-directories 的递归归档方式，并在解压后的成品根再次运行 workspace preflight。
+- **边界：** `.lfaa/cache|state|tmp|logs` 继续保护；`.lfaa` 项目骨架不是本机状态，正常版本可以更新，不能用“整目录保护”掩盖坏发布包。
+- **AI 验证：** 仓库 Node 90/90 + Config System 33/33 = 123/123 PASS；源码与成品 ZIP 解压根的统一 workspace preflight 均全 Gate PASS；成品 ZIP 已确认包含 8 个 `.lfaa` 必需文件。
 
 ### #22.0 统一 Agent Runtime、三档权限与无限画布工作台
 
@@ -4140,3 +4169,27 @@ v0.0.47 正式左栏由动态 `leftWidth` 控制，但 Hover Preview 仍在 `age
 | #21.0 - #21.14 | superseded / delivered | `archive/` 对应历史文件 |
 | #21.15 | superseded | `archive/0021-15-容器响应式与布局变量化.md` |
 | #21.16 | superseded | `archive/0021-16-Hover与点击左栏宽度统一.md` |
+
+## #22.1 / #21.18 / #20.17 — v0.0.78 Plugin-first 总架构、Workbench UI 与依赖幂等
+
+### 架构结论
+
+LFAA 的 Core 不再以“不断新增场景功能”为扩展方式，而固定为 Agent Runtime + Plugin/Capability Registry + Permission/Policy + Event/Artifact + Native Broker 等稳定机制。具体场景通过 App Pack 组合。新增 `LfaaPluginManifest`、`LfaaCapabilityDescriptor`、`LfaaAppPackDescriptor`、`LfaaExternalAdapter`；`PluginRegistry` 采用 generation snapshot，运行中的 Run 不随热插拔中途换代。
+
+TypeScript 是持续变化的 Product & Agent Plane；Rust 收敛成尽量冻结的 Native Kernel；Python 仅未来 Optional Runtime。新增 `language-ownership-check.mjs` 作为机器门禁，防止三种语言逐渐形成三套 Agent/Permission/Session/Tool 业务。
+
+### UI
+
+左栏不再重复放置 Chat/Work 两个导航按钮；左上角 `LFAA` 品牌按钮提供 Chat/Work 菜单。Composer 删除浏览器原生权限 select，改为三档带说明的 Popover；模型标签改成可点击按钮并进入 AI 设置；`+` 打开能力/附件菜单。Chat 空状态居中，Work 保留 Infinite Canvas 并增加居中的 Surface 标识。
+
+### Windows 依赖修复
+
+确认用户日志中 pnpm 实际 `downloaded 0 / added 0`，说明重复流程主要是状态/lockfile 问题而非每版新增外部依赖。Setup 现在把 dependency-state 当缓存，不再因缓存缺失或指纹变化本身触发 install；首次基线也不再显示“新增 N”。Sync 新增依赖声明指纹：依赖声明未变化、且稳定工作区 `pnpm-lock.yaml` 不比版本包弱时，保留目标 lockfile，防止每次同步回退到发布包旧 lockfile。
+
+### 验证状态
+
+- 仓库 Node 回归：88/88 PASS；Config System：33/33 PASS；合计 121/121 PASS。
+- `plugin-sdk + plugin-runtime + agent-runtime` 定向 TypeScript `--noEmit`：PASS；Plugin SDK 独立 TypeScript：PASS；Workbench 本次 TSX 变更语法检查：PASS。
+- governance / import-path / runtime-import / folder-boundary / language-ownership / dev-log / docs / comments / Windows encoding / release consistency / prompt lifecycle / config schema / release gates / UI contract：全部 PASS；统一 `workspace-preflight` 也包含 language-ownership 并 PASS。
+- 当前制作容器为 Node 22.16.0，未安装项目 `node_modules`，且不能运行 Windows PowerShell；因此不冒充项目锁定 Node 24.x + pnpm 11.17.0 下的完整 Web build / `release:full` 或 Windows 动态脚本实机 PASS。
+- Windows 实机仍需验收：v0.0.77 → v0.0.78 因新增 2 个 workspace-only 引用可合法同步依赖一次（无新增外部 npm 包）；完成后再次运行菜单 1，在依赖声明未变化且实际安装健康时必须跳过 `pnpm install`。

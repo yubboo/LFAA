@@ -1,8 +1,0 @@
-{
-  "name": "@lfaa/tool-sdk",
-  "private": true,
-  "version": "0.0.77",
-  "type": "module",
-  "exports": "./src/index.ts",
-  "author": "二鱼"
-}

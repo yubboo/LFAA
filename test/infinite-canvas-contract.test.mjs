@@ -26,5 +26,6 @@ test("workbench exposes Chat and Work as two surfaces on one permission/model/ru
   assert.match(shell, /model: activeModelBinding/);
   assert.match(shell, /selectedModelId/);
   assert.doesNotMatch(shell, /GPT-5\.6 Sol/);
-  assert.match(shell, /当前界面不会用本地假回复替代真实模型执行/);
+  assert.match(shell, /Agent Runtime Host 未连接/);
+  assert.match(shell, /Runtime 未连接/);
 });

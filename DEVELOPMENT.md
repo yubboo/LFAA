@@ -206,6 +206,53 @@ UI 与业务通过公开接口、Controller / ViewModel / Props 连接；UI 不�
 5. 通过 `scripts/folder-boundary-check.mjs`；
 6. 禁止为单次任务随意新建顶级 package；能作为既有业务域子模块时必须放入父域。
 
+
+## 7.6 Plugin-first / App Pack / 外部生态接入
+
+LFAA 的默认扩展单位不是“修改 Core”，而是 Capability。任何新需求先按以下顺序判断：
+
+```text
+Plugin → Skill/Tool/Expert/Workflow → Adapter → App Pack → Core change
+```
+
+- `packages/plugin-sdk`：唯一公共 Manifest / Capability / App Pack / External Adapter 协议；
+- `packages/plugin-runtime`：唯一运行时 Registry Owner，采用 generation snapshot；
+- 外部平台能力通过薄 Adapter 翻译为 LFAA Contract，不复制上游 Agent Loop；
+- 公共协议采用 Common Contract + namespaced extensions，上游高级字段必须可保留；
+- App Pack 只组合能力，不拥有第二套 Agent Runtime；
+- `.lfaa/` 项目资源经过校验后生成新 Registry generation，运行中的 Run 固定旧 generation。
+
+### 7.7 语言所有权
+
+```text
+TypeScript = Product & Agent Plane
+Rust       = Frozen Native Kernel
+Python     = Optional Runtime
+```
+
+新产品功能默认不得修改 Rust。只有新增长期 native primitive、安全修复、OS 适配或有基准证明的性能瓶颈才允许进入 `crates/`。Python 产品代码未来只能进入明确的 `runtimes/python/`；不得在 `apps/` / `packages/` 中形成第三套 Agent/权限/Session/Tool 业务。
+
+门禁：`pnpm run language-ownership:check`。
+
+## 7.7 真实模块 / Capability Seam / Plugin Profile 硬规则
+
+从 v0.0.80 起，LFAA 不再用“未来可能需要”的空 workspace 表达架构。新增 Node package / Rust crate 必须同时满足：
+
+1. 有当前真实 Owner；
+2. 有当前真实 Consumer；
+3. 有可执行实现，不得只有 `export {}` / `module_name()`；
+4. `package.json#lfaa.layer/role` 明确；
+5. 依赖方向通过 `scripts/package-architecture-check.mjs`，且无环；
+6. 若只是规划，写入 `PROJECT_PLAN.md / docs/MODULES.md`，不要创建目录。
+
+能力设计优先沿 **Service Definition → Provider → Consumer → Composition** 分离：契约包不依赖宿主实现；Provider 不依赖 UI；面向模型的 Tool/Skill 只消费能力接口；App Pack 只组合。
+
+插件安装必须使用独立 `.lfaa/state/plugin-profile`，禁止把用户插件加入 LFAA 根依赖。Web / CLI / Agent 安装入口必须共享一个 `PluginManager` 事务；流程必须先 Inspect，再安装；失败/取消回滚 Manifest/Lock；新插件默认 disabled；build script 精确审批。
+
+第三方插件不得通过 Web/Electron 主进程任意 `import()` 获得宿主全部权限。Manifest/Capability 可以 generation 热切换；可执行第三方代码未来只能进入隔离 Worker/子进程/Sandbox，并继续通过 Policy/Permission/Native Broker 执行副作用。
+
+Secret 统一走 `@lfaa/credentials` 引用 seam。Plugin Manifest / JSON / `.lfaa` / Git / log / argv / env 禁止持久化明文 API Key/Token；需要 Secret 的能力只声明 requirement，真正值由受控 Host 按操作绑定。
+
 ## 8. 边界与执行安全
 
 每次任务先明确：主模块、允许修改、禁止修改、State Owner、API / Protocol / DB / Security 是否变化。

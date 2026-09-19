@@ -1,3 +1,37 @@
+## LFAA v0.0.80 — #22.2 Plugin Profile 生命周期与项目骨架收敛
+
+- **状态：** pending-user-acceptance
+- 审阅 DeepSeek Harness 源码并将 LFAA 骨架从“提前占位”收敛为“真实 Owner + 真实 Consumer”：Node workspace 9 个项目，Cargo workspace 1 个真实 Secret crate。
+- 新增 package layer/role、依赖方向、无环、空壳 package/crate 机器门禁。
+- 新增独立 Plugin Profile 与统一 PluginManager：registry/path/git/tarball inspect、pnpm 事务安装、取消/回滚、精确 build-script 审批、安装后默认 disabled、显式 enable 后发布 Registry generation。
+- Settings 新增“插件与能力”；Web/未来 CLI/Agent 只调用同一 PluginManager，不维护第二套安装器。
+- 新增 `@lfaa/credentials` 通用 seam；插件 Manifest 只声明 credential requirement，Secret 不得写入插件配置/日志/argv/env。
+- executable plugin 本版不进主进程热加载；Manifest/Capability generation 可热切换，未来执行代码必须先经过隔离 Host/Sandbox。
+- 修复发布流程认知：v0.0.79 中文代码地图 ZIP entry 被错误编码；v0.0.80 增加 Unicode/隐藏路径 Gate，并以最终 ZIP round-trip + 解压根 preflight 作为成品验收。
+- **AI 验证：** 仓库 Node 101/101 + Config System 33/33 = 134/134 PASS；Credentials / Plugin SDK / Plugin Runtime / Agent Runtime / Config / Plugin Host 定向 TypeScript noEmit PASS；源码与 Unicode-safe ZIP round-trip 解压根 `workspace-preflight` 全 PASS。正式 Node24+pnpm Web build、Cargo/Windows Credential Manager 与真实 Windows 插件安装仍需实机，不冒充通过。
+
+## LFAA v0.0.79 — #4.4 发布包隐藏资源完整性与同步前来源预检
+
+- **状态：** pending-user-acceptance
+- 修复 v0.0.78 交付 ZIP 漏掉隐藏 `.lfaa/` 项目资源骨架的问题；不是用户工作区自身损坏。
+- Sync 新增来源包完整性预检：在 `Get-SyncPlan`、删除计划和任何文件写入之前运行统一 `workspace-preflight.mjs`。
+- 来源包不完整时终端直接说明“稳定工作区尚未被修改”，禁止继续同步，避免坏包删除稳定工作区的治理必需文件。
+- `.lfaa/cache|state|tmp|logs` 仍是本机运行状态保护项；`.lfaa/README.md`、manifest/lock 和资源 README 仍是项目级可升级骨架。
+- 同时修正 Sync 的 `.lfaa` 保护正则：v0.0.78 使用了错误的双反斜杠，导致 `.lfaa/state/dependency-state.json` 也被误列为删除；v0.0.79 使用 literal-dot 匹配，确保本机 cache/state/tmp/logs 真正保留。
+- 发布验证新增“成品 ZIP 解压 → 检查 8 个 `.lfaa` 必需文件 → 对解压根运行 workspace preflight”的实际交付检查。
+- **AI 验证：** 仓库 Node 90/90 + Config System 33/33 = 123/123 PASS；源码根与成品 ZIP round-trip 根的 workspace preflight 全 Gate PASS。
+
+## LFAA v0.0.78 — #22.1 Plugin Platform + #21.18 Workbench UI + #20.17 依赖幂等
+
+- **状态：** pending-user-acceptance
+- Plugin SDK 成为 Plugin Manifest / Capability / App Pack / External Adapter 唯一公共协议，Agent Runtime 复用同一 Capability 类型；Plugin Runtime 新增 generation-based Registry。
+- 架构升级为 TypeScript Product & Agent Plane + Frozen Rust Native Kernel + Optional Python Runtime，并加入机器化 language ownership gate。
+- App Pack 明确为能力组合，不拥有第二套 Agent Runtime；外部生态采用 Common Contract + namespaced extensions，保留 Codex / DeepSeek Harness 等平台高级能力。
+- Workbench 按 Codex 参考收敛：左上角 LFAA 切换聊天/工作；三档权限改为带说明 Popover；添加与模型按钮均可点击；Chat 视觉重心居中，Work 保留真实 Infinite Canvas。
+- Windows Setup 不再因 dependency-state 缓存缺失/指纹变化本身强制安装；首次基线不再误报全部依赖“新增”。Sync 在依赖声明未变化时保留稳定工作区更完整的 `pnpm-lock.yaml`，避免每次同步后重复执行无意义的 `pnpm install`。
+- **AI 验证：** 仓库 Node 88/88 + Config System 33/33 = 121/121 PASS；Plugin/Agent Runtime 定向 TypeScript、Workbench TSX 语法、全部治理 Gate 与统一 Workspace Preflight PASS。正式 Node24/pnpm Web build 与 Windows PowerShell 动态执行仍保留为正式环境/用户实机验收。
+- **边界：** 不新增外部 npm 依赖；Rust Native primitive 未因本版本普通产品功能扩张；真实 Codex/DSH Run Adapter 仍属于后续执行闭环。
+
 # LFAA 更新日志
 
 ## LFAA v0.0.77 — #22.0 Agent Runtime 双入口基础 + #4.3 Windows 工作区预检修复

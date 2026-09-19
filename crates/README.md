@@ -1,23 +1,7 @@
-# crates：Rust 原生系统能力
+# crates
 
-> `crates/` 放必须靠原生层访问 OS 的能力。React / Model / Plugin 不允许直接绕过权限链调用这里。
+Rust 是 LFAA 的 **Frozen Native Kernel**，不是第二套业务层。
 
-```text
-native-core          原生能力总入口
-native-protocol      TS/Rust 协议
-fs-broker            文件系统
-process-broker       进程
-pty-broker           Terminal / PTY
-sandbox              隔离
-secret-store         Rust Secret Broker / OS Credential Store（Windows Generic Credential）
-workspace-security   路径和项目安全
-file-watcher         文件监听
-```
+当前 Cargo workspace 只保留 `lfaa-secret-store`：Windows 使用 Credential Manager 保存 Secret，并通过受控 stdin/stdout Broker 提供给宿主。其它 Native primitive（Process / PTY / Sandbox / OS）只有在 TypeScript/现有宿主无法安全表达且存在真实 Consumer 时才新增。
 
-完整执行链：
-
-```text
-Tool Runtime → Policy → Permission → Rust Broker → OS
-```
-
-详细说明：`ARCHITECTURE.md` 和 `docs/项目结构与代码地图.md`。
+禁止为了“以后可能需要”创建空壳 crate；禁止让 Rust 认识 OpenAI、DeepSeek、Codex、Minecraft、Workbench 等厂商或产品场景业务名。

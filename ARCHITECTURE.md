@@ -1,12 +1,11 @@
 # LFAA 当前架构
 
-> 本文件只描述当前有效架构。
 > 本文件只描述当前有效架构；历史变化统一通过 `docs/DEVELOPMENT_LOG.md` 追溯。
 
 ## 当前架构版本
 
 ```text
-architecture-version: 2
+architecture-version: 4
 status: active
 product: Little Fish AI Agent
 short-name: LFAA
@@ -15,6 +14,217 @@ short-name: LFAA
 详细架构已合并在本文件下方。
 
 人类代码导航：`docs/项目结构与代码地图.md`
+
+
+## v0.0.80 当前物理骨架：少而真实，不用占位包假装模块化
+
+LFAA 采用 **Service Definition / Provider / Consumer / Composition** 的角色分离，但只有存在真实实现与当前 Consumer 时才创建 workspace package。规划中的模块只留在文档，不允许用 `export {}` 或 `module_name()` 占位。
+
+当前 Node workspace 只有 9 个真实项目：
+
+```text
+foundation
+├─ @lfaa/plugin-sdk       Plugin / Capability / App Pack 公共契约
+└─ @lfaa/credentials      credentialRef / CredentialStorePort
+
+runtime
+├─ @lfaa/plugin-runtime   Registry + PluginManager 生命周期
+└─ @lfaa/agent-runtime    Chat / Work 共用 Agent Run 契约
+
+domain
+└─ @lfaa/config-system    Provider / Account / Model 配置
+
+presentation
+└─ @lfaa/ui               React UI / Settings / Workbench
+
+composition
+└─ @lfaa/app-shell        产品 Surface 与 Host/ViewModel 装配
+
+host-adapter
+└─ @lfaa/plugin-host-node 独立 Plugin Profile + pnpm 事务宿主
+
+host
+└─ @lfaa/web              当前唯一可运行 Web 开发宿主
+```
+
+Cargo workspace 当前只保留 `lfaa-secret-store`。Rust 是 Frozen Native Kernel，不提前创建 FS / Process / PTY / Sandbox 空 crate；只有出现真实、不可由现有宿主安全表达的 native primitive 和 Consumer 时才新增。
+
+`scripts/package-architecture-check.mjs` 强制 `package.json#lfaa.layer/role`、依赖方向、无环、真实源码和非占位 Rust 实现。新增模块默认必须证明：**谁拥有它、谁消费它、为什么现有 seam 不能表达它。**
+
+## Plugin Profile：安装依赖与 LFAA 主 workspace 彻底分离
+
+插件包管理不修改根 `package.json` / `pnpm-lock.yaml`，而使用本机状态目录：
+
+```text
+.lfaa/state/plugin-profile/
+├─ package.json
+├─ pnpm-lock.yaml
+├─ pnpm-workspace.yaml
+└─ node_modules/
+```
+
+安装生命周期固定为：
+
+```text
+Spec
+→ Inspect（registry / absolute path / git / tarball）
+→ Manifest + Capability + Permission + Credential Requirement
+→ Transactional pnpm install
+→ Validate installed identity
+→ Commit disabled
+→ explicit Enable
+→ Registry next generation
+```
+
+失败/取消恢复 Profile `package.json + pnpm-lock.yaml`；`pnpm 11` build script 必须按精确包名审批后重试。Web、未来 CLI 和 Agent“一句话安装”只能调用同一个 `PluginManager`，禁止各自实现安装器。已加载的第三方可执行代码不承诺任意 HMR；当前热插拔只对 Manifest / Capability generation 生效，未来 executable plugin 必须进入隔离 Worker/子进程/Sandbox。
+
+## Credentials：插件与模型配置共享同一个 Secret seam
+
+`@lfaa/credentials` 只定义 `credentialRef` 与 `CredentialStorePort`；配置、Plugin Manifest、日志和 Agent Context 默认只接触引用/元数据。Windows 真实 Secret 继续由 Rust Secret Broker → Credential Manager 持久化。插件只声明 `credentials[]`，不得携带 Secret 值；`host-mediated` 是默认推荐方式，只有外部程序技术上必须读取 Secret 时才允许未来通过 `isolated-process` 在受控进程生命周期内临时注入。
+
+## 产品定位：个人 AI 平台，不是单一聊天应用
+
+LFAA 的长期目标是让用户通过一句话或无限画布完成真实任务。游戏一键开服、AI 写作、AI 拆图、Minecraft 插件/模组开发等都应作为可安装/可组合能力进入同一个平台，而不是为每个场景维护第二套应用核心。
+
+```text
+User Goal
+├─ Chat: 一句话
+└─ Work: 无限画布
+        ↓
+   Agent Runtime
+        ↓
+Capability Registry
+├─ Model / Official Harness
+├─ Tools / Skills / Experts
+├─ MCP / Commands / Workflows
+├─ Subagents / Agents
+├─ UI / Workbench Extensions
+└─ App Packs
+        ↓
+Policy / Permission
+        ↓
+Rust Native Kernel
+        ↓
+OS / External Apps / Network
+```
+
+## Plugin Platform：一切皆能力，App 是组合
+
+### Core 只拥有稳定机制
+
+Core 只允许拥有：
+
+- Agent Run / Session / Event 协议；
+- Plugin / Capability Registry；
+- Policy / Permission；
+- Harness / External Adapter Contract；
+- Artifact / Workbench Projection Contract；
+- Rust Native Broker Contract。
+
+具体业务默认不得进入 Core。新增功能必须先回答：能否作为 Plugin / Skill / Tool / Expert / Workflow / Adapter / App Pack 实现？只有稳定机制无法表达时才允许修改 Core。
+
+### Capability Contract 是唯一公共词汇
+
+`@lfaa/plugin-sdk` 拥有唯一 Capability / Plugin Manifest 协议；`@lfaa/agent-runtime` 复用该词汇，不允许再维护第二套 Capability Descriptor。
+
+```text
+External Ecosystem
+      ↓
+Adapter / Provider
+      ↓
+LfaaPluginManifest + LfaaCapabilityDescriptor
+      ↓
+PluginRegistry (generation snapshot)
+      ↓
+Agent Runtime / Chat / Work / App Pack
+```
+
+统一协议必须采用 **Common Contract + Namespaced Extensions**。公共字段保证 LFAA 能发现、授权、展示和组合能力；Codex / DeepSeek Harness / MCP / 未来平台的高级字段进入命名空间 `extensions`，禁止为了最低共同能力而静默丢失。
+
+### App Pack 不是第二套 Runtime
+
+```text
+App Pack = Manifest
+         + Capability IDs
+         + Skills / Experts
+         + Workflows
+         + Workbench Nodes
+         + UI Extensions
+```
+
+“一键开服”“AI 写作”“AI 拆图”“Minecraft 插件开发”等最终都应该是 App Pack。App Pack 只能组合能力，不能复制 Agent Loop、Permission、Session、Tool Runtime。
+
+### Registry 使用 generation 快照
+
+Plugin/Capability 热插拔遵循：
+
+```text
+Discover → Validate → Build Next Generation → Atomic Publish
+```
+
+每个运行中的 Run 固定使用启动时的 Registry generation；资源更新只影响后续 Run，避免任务中途能力集合变化。
+
+### 描述协议与执行协议必须分离
+
+Manifest / Capability Descriptor 只回答“有什么、需要什么权限、支持哪些 Surface”，不得在注册阶段产生系统副作用。真正执行必须走独立 Invocation Pipeline：
+
+```text
+Capability Descriptor
+      ↓ discover/select
+Invocation Request
+      ↓
+Tool / Skill / Harness Runtime Adapter
+      ↓
+Policy → Permission → Rust Native re-validation（存在 OS 副作用时）
+      ↓
+Stream/Event/Artifact Result
+```
+
+这样未来能接入新的平台协议，而不必改变 Registry；也避免 Plugin Manager 自己演化成第二个 Tool Runtime。
+
+### 外部生态兼容不是“全部 in-process”
+
+- 协议天然兼容（如 MCP）：直接协议 Adapter；
+- 官方 Harness/SDK（如 Codex App Server、DeepSeek Harness ACP/SDK）：优先 out-of-process / official client bridge；
+- 外部平台专有插件：通过 Compatibility Adapter 转为 LFAA Manifest/Capability；
+- 未提供稳定接口的第三方实现不得通过私有文件格式猜测或复制源码伪装兼容。
+
+目标是 **薄适配、无损能力、Core 零厂商特判**，不是强行让所有第三方插件二进制在 LFAA 进程内运行。
+
+## 语言所有权：TypeScript-first + Frozen Rust Native Kernel
+
+LFAA 不维护“TS 一套业务 + Rust 一套业务”。语言按职责而不是按代码比例分工：
+
+```text
+TypeScript Product & Agent Plane（持续迭代）
+├─ UI / Electron / Web
+├─ Agent orchestration / Session projection
+├─ Plugin / Capability / App Pack
+├─ Skills / Experts / Tools / MCP
+├─ Providers / Harness Adapters
+└─ Workbench / Infinite Canvas
+
+Rust Frozen Native Kernel（稳定、少改）
+├─ filesystem primitive
+├─ process / PTY primitive
+├─ secret store
+├─ sandbox / workspace security
+└─ native OS capability
+
+Python Optional Runtime（极少量、按需）
+└─ 数据/科学计算、Python-only Skill、ML/Notebook 类任务
+```
+
+硬规则：
+
+1. 新产品功能默认只修改 TypeScript；
+2. Rust 不知道 OpenAI、DeepSeek、Minecraft、Writing、Workbench 等业务概念；
+3. Rust 只新增长期稳定的 native primitive，成熟后应允许连续多个版本零修改；
+4. Python 不作为第三套主业务栈，只能在明确的 Optional Runtime 中按需加载；
+5. 同一领域事实只有一个 Owner，禁止三种语言重复实现 Agent Loop / Permission / Session / Tool Registry；
+6. TypeScript 可以请求高权限能力，但实际 OS 副作用仍必须经过 Rust Broker 的 canonical path / capability / scope 再校验。
+
+这些边界由 `scripts/language-ownership-check.mjs` 自动治理。
 
 ## 产品交互：两个 Surface，一个智能核心
 
@@ -63,57 +273,33 @@ Harness 是否真正可用必须由宿主 Probe / Adapter 证明；只登记名�
 
 ## 核心架构
 
+当前物理依赖只表达已经存在的实现：
+
 ```text
-React UI
-↓
-Feature / Application
-↓
-Agent Client
-↓
-Agent Protocol
-↓
-TypeScript Agent Runtime
-├── Context Engine
-├── Event Store
-├── Job Engine
-├── Model Platform
-├── Tool Runtime
-├── Skills
-├── MCP
-├── Plugins
-├── DSH Compatibility
-├── Subagents
-└── Verifier
-        ↓
-Typed Capability / Tool Runtime
-        ↓
-Policy Engine
-        ↓
-Permission Engine
-        ↓
-Rust Native Core
-├── Filesystem Broker
-├── Process Broker
-├── PTY Broker
-├── Sandbox
-├── Secret Store
-└── Workspace Security
-        ↓
-OS
+@lfaa/web (Host)
+├─ @lfaa/app-shell (Composition)
+│  ├─ @lfaa/ui (Presentation)
+│  ├─ @lfaa/config-system (Domain) → @lfaa/credentials
+│  ├─ @lfaa/agent-runtime (Runtime) → @lfaa/plugin-sdk
+│  └─ @lfaa/plugin-runtime (Runtime) → @lfaa/plugin-sdk
+├─ @lfaa/plugin-host-node (Host Adapter)
+│  ├─ @lfaa/plugin-runtime
+│  ├─ @lfaa/plugin-sdk
+│  └─ @lfaa/credentials
+└─ Rust lfaa-secret-store（只通过 Host Bridge 提供 Secret primitive）
 ```
+
+规划中的 Tool Runtime、MCP、Subagent、Session、Process/PTY/Sandbox 等，不在拥有真实实现和 Consumer 前创建空 workspace。它们必须沿现有 Capability / Host Port seam 增长，而不是提前占目录。
 
 ## UI / Desktop / Web
 
+当前唯一真实宿主是 `apps/web`（React + TypeScript + Vite）。Desktop / CLI / Server 只保留路线图，不在拥有真实启动入口前进入 workspace。未来 Electron/CLI/Server 必须复用同一公开 package/Host Port，不复制产品业务 Core。
+
 ```text
-React + TypeScript + Vite
-        │
-  ┌─────┴─────┐
-  ▼           ▼
-Web        Electron Desktop
-  │           │
-HTTP/SSE   Electron IPC
-  └─────┬─────┘
-        ▼
+React UI → app-shell → public contracts
+                    ↘ Web Host adapters / local bridges
+```
+
    Agent Client
 ```
 

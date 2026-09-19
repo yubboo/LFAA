@@ -68,6 +68,10 @@ $ProtectedRootFiles = @(
     ".env.test.local"
 )
 
+# 当版本包与稳定工作区的依赖声明完全相同时，保留目标工作区已经由 pnpm 生成的有效 lockfile。
+# 这避免每次版本同步都用发布包中的旧 lockfile 覆盖本机有效 lockfile，从而触发无意义的 pnpm install。
+$script:PreserveTargetPnpmLock = $false
+
 function Write-Label {
     param(
         [Parameter(Mandatory = $true)][string]$Left,
@@ -214,6 +218,10 @@ function Test-ProtectedPath {
         return $false
     }
 
+    if ($script:PreserveTargetPnpmLock -and $rel -ieq "pnpm-lock.yaml") {
+        return $true
+    }
+
     # Runtime workspace-sync logs live under docs for visibility, but they are
     # local execution artifacts: keep them out of mirror diff/delete checks.
     if ($rel -imatch "^docs/logs/runtime/workspace-sync/.+\.log$") {
@@ -233,7 +241,7 @@ function Test-ProtectedPath {
         return $true
     }
 
-    if ($rel -imatch "^\\.lfaa/(cache|state|tmp|logs)(/|$)") { return $true }
+    if ($rel -imatch "^\.lfaa/(cache|state|tmp|logs)(/|$)") { return $true }
 
     $segments = $rel.Split("/")
 
@@ -252,6 +260,119 @@ function Test-ProtectedPath {
     }
 
     return $false
+}
+
+
+
+function Assert-SourcePackageIntegrity {
+    param([string]$Root)
+
+    # 来源版本包必须在任何 diff / delete 计划生成前先证明自己完整。
+    # 这里复用与 Git Push 相同的静态 preflight；它不依赖 node_modules，
+    # 可以阻止“发布 ZIP 漏掉隐藏目录 -> Sync 把稳定工作区对应文件删掉”的破坏性链路。
+    $preflightRelative = "scripts\workspace-preflight.mjs"
+    $preflight = Join-Path $Root $preflightRelative
+    if (-not (Test-Path -LiteralPath $preflight)) {
+        Stop-Lfaa "源版本包缺少 $preflightRelative；已在修改稳定工作区之前停止同步。"
+    }
+
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+        Stop-Lfaa "同步前需要 Node.js 执行源版本包完整性预检；当前未检测到 node。"
+    }
+
+    Write-Label "【检查】" "【来源预检】" "正在验证版本包完整性；通过前不会修改稳定工作区..." Cyan
+
+    Push-Location $Root
+    try {
+        $oldPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+            $sourcePreflightOutput = @(
+                & node "scripts\workspace-preflight.mjs" "--root" $Root 2>&1 | ForEach-Object { [string]$_ }
+            )
+            $sourcePreflightCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $oldPreference
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    if ($sourcePreflightCode -ne 0) {
+        Write-Host ""
+        Write-Label "【诊断】" "【来源包失败】" "版本包自身不完整或治理不通过；稳定工作区尚未被修改。" Yellow
+        foreach ($line in $sourcePreflightOutput) {
+            Write-Host ("  " + [string]$line) -ForegroundColor DarkYellow
+        }
+        Stop-Lfaa "源版本包预检失败。请换用完整发布包，不要继续同步当前目录。"
+    }
+
+    Write-Label "【检查】" "【来源通过】" "版本包完整性预检通过。" Green
+}
+
+function Get-Sha256Text {
+    param([string]$Text)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+        return (($sha.ComputeHash($bytes) | ForEach-Object { $_.ToString("x2") }) -join "")
+    }
+    finally { $sha.Dispose() }
+}
+
+function Get-DependencyDeclarationFingerprint {
+    param([string]$Root)
+    if (-not (Test-Path -LiteralPath $Root)) { return "missing" }
+
+    $lines = New-Object System.Collections.Generic.List[string]
+    $workspace = Join-Path $Root "pnpm-workspace.yaml"
+    if (Test-Path -LiteralPath $workspace) {
+        $workspaceText = (Get-Content -LiteralPath $workspace -Raw) -replace "`r`n","`n"
+        $lines.Add("workspace=" + $workspaceText)
+    }
+
+    $packageFiles = New-Object System.Collections.Generic.List[string]
+    $rootManifest = Join-Path $Root "package.json"
+    if (Test-Path -LiteralPath $rootManifest) { $packageFiles.Add($rootManifest) }
+    foreach ($top in @("apps","packages")) {
+        $dir = Join-Path $Root $top
+        if (-not (Test-Path -LiteralPath $dir)) { continue }
+        Get-ChildItem -LiteralPath $dir -Recurse -Filter package.json -File -ErrorAction SilentlyContinue | Where-Object {
+            $_.FullName -notmatch "[\\/](node_modules|dist|target)[\\/]"
+        } | ForEach-Object { $packageFiles.Add($_.FullName) }
+    }
+
+    foreach ($file in @($packageFiles | Sort-Object -Unique)) {
+        try { $data = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json }
+        catch { continue }
+        $relative = Get-RelativePath $Root $file
+        foreach ($section in @("dependencies","devDependencies","optionalDependencies","peerDependencies")) {
+            $block = $data.$section
+            if ($null -eq $block) { continue }
+            foreach ($prop in @($block.PSObject.Properties | Sort-Object Name)) {
+                $lines.Add(("{0}|{1}|{2}|{3}" -f $relative,$section,[string]$prop.Name,[string]$prop.Value))
+            }
+        }
+    }
+    return (Get-Sha256Text ($lines -join "`n"))
+}
+
+function Should-PreserveTargetPnpmLock {
+    param([string]$SourceRoot,[string]$DestinationRoot)
+    $targetLock = Join-Path $DestinationRoot "pnpm-lock.yaml"
+    $sourceLock = Join-Path $SourceRoot "pnpm-lock.yaml"
+    if (-not (Test-Path -LiteralPath $targetLock) -or -not (Test-Path -LiteralPath $sourceLock)) { return $false }
+
+    $sourceFingerprint = Get-DependencyDeclarationFingerprint $SourceRoot
+    $targetFingerprint = Get-DependencyDeclarationFingerprint $DestinationRoot
+    if ($sourceFingerprint -ne $targetFingerprint) { return $false }
+
+    # 如果来源 lockfile 明显更完整，则允许版本包升级目标 lockfile；否则保留本机有效版本。
+    $sourceLength = (Get-Item -LiteralPath $sourceLock).Length
+    $targetLength = (Get-Item -LiteralPath $targetLock).Length
+    return ($targetLength -ge $sourceLength)
 }
 
 function Get-FileMap {
@@ -508,6 +629,12 @@ if ($SyncMenuMode -eq "config") {
 Write-Host ""
 Write-Label "【检查】" "【路径编码】" "正在检查源版本包中文文件名..." Cyan
 Assert-SourcePathEncoding $ProjectRoot
+Assert-SourcePackageIntegrity $ProjectRoot
+
+$script:PreserveTargetPnpmLock = Should-PreserveTargetPnpmLock -SourceRoot $ProjectRoot -DestinationRoot $TargetRoot
+if ($script:PreserveTargetPnpmLock) {
+    Write-Label "【依赖】" "【Lockfile】" "依赖声明未变化，保留稳定工作区现有 pnpm-lock.yaml；本次同步不会触发无意义的依赖重建。" Green
+}
 
 $plan = Get-SyncPlan $ProjectRoot $TargetRoot
 Show-Plan $plan

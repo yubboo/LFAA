@@ -9,9 +9,22 @@
  * 修改注意事项：只登记有官方公开入口的 Harness；“支持”必须由 Host capability probe 证明。
  */
 
-import type { AgentCapabilityKind } from "../core/contracts";
-
 export type OfficialHarnessId = "openai-codex" | "deepseek-harness";
+
+/**
+ * Harness seam 描述上游 Runtime 暴露的能力面，不等同于 LFAA Plugin Capability kind。
+ * 例如 filesystem/process/sandbox 是 Harness 执行面，真正注册给 Agent 的对象仍由 Adapter 转为 Tool/Skill 等公共 Capability。
+ */
+export type OfficialHarnessCapabilitySeam =
+  | "tool"
+  | "skill"
+  | "command"
+  | "sandbox"
+  | "subagent"
+  | "browser"
+  | "filesystem"
+  | "process"
+  | "mcp";
 
 export interface OfficialHarnessDescriptor {
   readonly id: OfficialHarnessId;
@@ -19,7 +32,7 @@ export interface OfficialHarnessDescriptor {
   readonly vendor: "OpenAI" | "DeepSeek";
   readonly bridge: "app-server" | "acp-or-sdk";
   readonly officialEntry: string;
-  readonly capabilityKinds: readonly AgentCapabilityKind[];
+  readonly capabilityKinds: readonly OfficialHarnessCapabilitySeam[];
 }
 
 export const OFFICIAL_HARNESSES: Readonly<Record<OfficialHarnessId, OfficialHarnessDescriptor>> = {

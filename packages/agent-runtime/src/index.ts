@@ -31,4 +31,12 @@ export {
   createHarnessRegistry,
   resolveOfficialHarness,
 } from "./harness/official-harnesses";
-export type { OfficialHarnessDescriptor, OfficialHarnessId } from "./harness/official-harnesses";
+export type { OfficialHarnessCapabilitySeam, OfficialHarnessDescriptor, OfficialHarnessId } from "./harness/official-harnesses";
+
+export type {
+  LfaaAppPackDescriptor,
+  LfaaCapabilityDescriptor,
+  LfaaCapabilityKind,
+  LfaaExternalAdapter,
+  LfaaPluginManifest,
+} from "@lfaa/plugin-sdk";

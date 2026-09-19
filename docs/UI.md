@@ -1,3 +1,18 @@
+## v0.0.80：设置中心「插件与能力」
+
+Settings 新增 Plugin Manager Surface：输入 registry 包名、绝对路径、Git 地址或 tarball 后必须先“检查”，显示包身份、Plugin API、能力数、系统权限与 credential requirement；确认后才允许安装。安装完成默认禁用，用户再显式“立即启用”。已安装插件支持启用/禁用/移除。
+
+UI 不运行 pnpm、不 import 第三方插件代码、不读取 Secret。宿主未连接时明确显示不可用，禁止伪造成功。遇到 pnpm build-script 阻止时，界面只提供“允许这些精确包并重试”，不提供全局放开脚本。
+
+## v0.0.78：Codex 风格 Chat / Work 交互收敛
+
+- 左上角 `LFAA` 是 Chat / Work 的唯一模式切换入口；中间 Header 不再复制第二套 Chat / Work 开关。
+- Chat 空状态与 Work 模式标题在中间工作区居中表达；Work 仍是同一 Agent Runtime 的 Infinite Canvas Projection，不是第二套智能。
+- Composer 权限不再使用原生 `<select>`。三档权限使用 Codex 风格解释型 Popover：`请求审批 / 替我审批 / 完全权限`，每项同时显示真实语义说明。
+- `+`、权限、模型入口必须可点击；模型按钮打开 AI 设置，`+` 菜单只暴露 Runtime/Capability Registry 可以承接的入口，禁止用静态假能力冒充已经接通。
+- 模型标签继续来自 Config System 当前 `selectedModelId`；Runtime 未连接时仍明确显示并禁止伪造模型回复。
+- v0.0.78 的视觉原则是继承既有 LFAA token / Codex 式低噪声控件，不再使用开发占位式 Select、重复切换器和过量卡片。
+
 ## v0.0.77：Chat / Work 双核心入口与 Infinite Canvas
 
 - 左侧主导航以“聊天 / 工作”为两个第一等入口，不再把工作台等同于聊天页。

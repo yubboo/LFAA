@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AgentWorkbench, type DevResourceItem } from "@lfaa/app-shell";
 import { LocalTerminal } from "./LocalTerminal";
 import { webAiSettingsHost } from "./host/ai-settings-client";
+import { webPluginSettingsHost } from "./host/plugin-settings-client";
 
 // Vite 资源桥只返回资源元数据，不返回文件正文。
 interface ResourceResponse { resources: DevResourceItem[]; }
@@ -46,5 +47,5 @@ export function App() {
     return () => import.meta.hot?.off("lfaa:resources-changed", handler);
   }, [refresh]);
 
-  return <AgentWorkbench resources={resources} resourceBridgeStatus={status} terminal={<LocalTerminal />} aiSettingsHost={webAiSettingsHost} />;
+  return <AgentWorkbench resources={resources} resourceBridgeStatus={status} terminal={<LocalTerminal />} aiSettingsHost={webAiSettingsHost} pluginSettingsHost={webPluginSettingsHost} />;
 }

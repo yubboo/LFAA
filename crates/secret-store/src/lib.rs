@@ -305,7 +305,7 @@ mod tests {
 
     #[test]
     fn parses_binary_put_request_without_json() {
-        let target = b"lfaa-ai:deepseek:account-1:api-key";
+        let target = b"lfaa-ai:provider-x:account-1:api-key";
         let secret = b"secret-value";
         let mut request = Vec::new();
         request.extend_from_slice(REQUEST_MAGIC);
@@ -316,7 +316,7 @@ mod tests {
         request.extend_from_slice(secret);
         let parsed = parse_request(&request).expect("request must parse");
         assert_eq!(parsed.action, Action::Put);
-        assert_eq!(parsed.target, "lfaa-ai:deepseek:account-1:api-key");
+        assert_eq!(parsed.target, "lfaa-ai:provider-x:account-1:api-key");
         assert_eq!(parsed.secret, secret);
     }
 }

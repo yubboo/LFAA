@@ -226,3 +226,20 @@ test("Windows PowerShell scripts do not assign to automatic or read-only variabl
     assert.doesNotMatch(source, assignment, `${file} assigns to a PowerShell automatic/read-only variable`);
   }
 });
+
+test("dependency cache or fingerprint changes never force install when real health is complete", () => {
+  const plan = functionBody("Get-NodeDependencyPlan");
+  assert.match(plan, /\$needsInstall = \(\$healthReasons\.Count -gt 0\)/);
+  assert.match(plan, /\$metadataChanged = \(\$null -ne \$nodeState -and \[string\]\$nodeState\.fingerprint -ne \$snapshot\.Fingerprint\)/);
+  assert.match(plan, /\$canAdopt = \(-not \$needsInstall\) -and \(\$null -eq \$nodeState -or \$metadataChanged\)/);
+  assert.doesNotMatch(plan, /NeedsInstall\s*=\s*\$metadataChanged/);
+  assert.doesNotMatch(plan, /\$needsInstall\s*=.*(?:Fingerprint|metadataChanged)/i);
+});
+
+test("first local dependency baseline never reports every existing dependency as newly added", () => {
+  const plan = functionBody("Get-NodeDependencyPlan");
+  const show = functionBody("Show-NodeDependencyPlan");
+  assert.match(plan, /if \(\$null -eq \$nodeState\) \{\s*Compare-NodeDependencyInventory @\(\) @\(\)/s);
+  assert.doesNotMatch(plan, /if \(\$null -eq \$nodeState\)[\s\S]{0,180}Compare-NodeDependencyInventory @\(\) \$snapshot\.Inventory/);
+  assert.match(show, /尚无本机依赖基线；不会把全部现有依赖误报为“新增”。/);
+});

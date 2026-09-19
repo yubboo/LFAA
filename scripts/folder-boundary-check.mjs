@@ -25,6 +25,9 @@ const required = [
   "packages/config-system/src/settings/ai/core/README.md",
   "packages/config-system/src/settings/ai/providers/README.md",
   "apps/web/dev/bridges/ai/README.md",
+  "apps/web/dev/bridges/plugins/README.md",
+  "packages/credentials/README.md",
+  "packages/plugin-host-node/README.md",
 ];
 
 const requiredProviderPlugins = ["openai", "deepseek", "zhipu", "kimi", "qwen", "xiaomi"]
@@ -119,6 +122,8 @@ walk("packages/ui/src", (relative, text) => {
       spec.startsWith("@lfaa/config-system") ||
       spec.startsWith("@lfaa/model-providers") ||
       spec.startsWith("@lfaa/account-manager") ||
+      spec.startsWith("@lfaa/plugin-runtime") ||
+      spec.startsWith("@lfaa/plugin-host-node") ||
       spec.startsWith("apps/") ||
       spec.startsWith("node:")
     ) {
@@ -135,6 +140,33 @@ const providerEndpointPattern = /(?:api\.openai\.com|api\.deepseek\.com|open\.bi
 walk("apps/web", (relative, text) => {
   if (providerEndpointPattern.test(text)) {
     failures.push(`${relative}: Web Host 禁止直接包含 Provider 外部 API 端点；厂商逻辑必须进入 config-system Provider 插件。`);
+  }
+});
+
+// Foundation 契约必须保持纯净：Credential/Plugin SDK 不能拥有 Node/DOM/网络/包管理器。
+for (const area of ["packages/credentials/src", "packages/plugin-sdk/src"]) {
+  walk(area, (relative, text) => {
+    for (const spec of imports(text)) {
+      if (spec.startsWith("node:") || spec.startsWith("@lfaa/")) failures.push(`${relative}: foundation contract 禁止依赖实现 ${spec}。`);
+    }
+    if (/\b(?:window|document|fetch)\s*[.(]/.test(text)) failures.push(`${relative}: foundation contract 禁止绑定 DOM/网络运行时。`);
+  });
+}
+
+// Plugin Runtime 只拥有生命周期与 Registry，禁止自己变成 Node/pnpm Host。
+walk("packages/plugin-runtime/src", (relative, text) => {
+  for (const spec of imports(text)) {
+    if (spec.startsWith("node:") || spec === "@lfaa/plugin-host-node") failures.push(`${relative}: plugin-runtime 禁止依赖 Node Host 实现 ${spec}。`);
+  }
+  if (/\b(?:spawn|exec|pnpm)\s*\(/.test(text)) failures.push(`${relative}: plugin-runtime 禁止直接执行包管理器/子进程。`);
+});
+
+// Node Plugin Host 是底层 Adapter，不得反向依赖 React/App Shell/Config 业务。
+walk("packages/plugin-host-node/src", (relative, text) => {
+  for (const spec of imports(text)) {
+    if (spec === "react" || spec.startsWith("@lfaa/ui") || spec.startsWith("@lfaa/app-shell") || spec.startsWith("@lfaa/config-system")) {
+      failures.push(`${relative}: plugin-host-node 禁止反向依赖产品/UI ${spec}。`);
+    }
   }
 });
 

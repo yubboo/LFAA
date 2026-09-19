@@ -985,32 +985,35 @@ function Get-NodeDependencyPlan {
     $storeHealth = Get-PnpmStoreHealth $snapshot.Inventory
     $state = Read-DependencyState
     $nodeState = if ($null -ne $state) { $state.node } else { $null }
-    $reasons = New-Object System.Collections.Generic.List[string]
-    $diff = Compare-NodeDependencyInventory @() $snapshot.Inventory
-
-    if ($null -eq $nodeState) {
-        if (-not $installState.Complete) { $reasons.Add("本地直接依赖尚未完整安装") }
-        if (-not $runtimeHealth.Complete) { $reasons.Add("项目依赖真实解析/加载失败") }
-        if (-not $lockCoverage.Complete) { $reasons.Add("pnpm-lock.yaml 尚未覆盖当前外部依赖") }
+    $healthReasons = New-Object System.Collections.Generic.List[string]
+    $diff = if ($null -eq $nodeState) {
+        Compare-NodeDependencyInventory @() @()
     }
     else {
-        $diff = Compare-NodeDependencyInventory @($nodeState.inventory) $snapshot.Inventory
-        if ([string]$nodeState.fingerprint -ne $snapshot.Fingerprint) {
-            $reasons.Add("依赖声明或锁文件发生变化")
-        }
-        if (-not $installState.Complete) { $reasons.Add("本地直接依赖缺失或版本不匹配") }
-        if (-not $runtimeHealth.Complete) { $reasons.Add("项目依赖真实解析/加载失败") }
-        if (-not $lockCoverage.Complete) { $reasons.Add("pnpm-lock.yaml 与当前依赖声明不完整") }
+        Compare-NodeDependencyInventory @($nodeState.inventory) $snapshot.Inventory
     }
 
-    $canAdopt = ($null -eq $nodeState -and $installState.Complete -and $runtimeHealth.Complete -and $lockCoverage.Complete)
-    $needsInstall = (-not $canAdopt) -and ($reasons.Count -gt 0)
-    $needsStoreRepair = -not $storeHealth.Healthy
+    # 只有“当前依赖真实不可用”才需要 pnpm install。
+    # dependency-state 只是本机加速缓存，不能因为缓存缺失/指纹变化就强制重装。
+    if (-not $installState.Complete) { $healthReasons.Add("本地直接依赖缺失或版本不匹配") }
+    if (-not $runtimeHealth.Complete) { $healthReasons.Add("项目依赖真实解析/加载失败") }
+    if (-not $lockCoverage.Complete) { $healthReasons.Add("pnpm-lock.yaml 与当前依赖声明不完整") }
+
+    $metadataChanged = ($null -ne $nodeState -and [string]$nodeState.fingerprint -ne $snapshot.Fingerprint)
+    $needsInstall = ($healthReasons.Count -gt 0)
+    $canAdopt = (-not $needsInstall) -and ($null -eq $nodeState -or $metadataChanged)
+
+    $reasons = New-Object System.Collections.Generic.List[string]
+    foreach ($reason in $healthReasons) { $reasons.Add($reason) }
+    if ($metadataChanged -and -not $needsInstall) {
+        $reasons.Add("依赖声明/锁文件事实变化，但当前安装已完整；只更新本机基线，不重新安装")
+    }
 
     return [PSCustomObject]@{
         NeedsInstall = $needsInstall
-        NeedsStoreRepair = $needsStoreRepair
+        NeedsStoreRepair = (-not $storeHealth.Healthy)
         CanAdopt = $canAdopt
+        MetadataChanged = $metadataChanged
         Snapshot = $snapshot
         InstallState = $installState
         RuntimeHealth = $runtimeHealth
@@ -1026,18 +1029,33 @@ function Show-NodeDependencyPlan {
     param([object]$Plan)
 
     if (-not $Plan.NeedsInstall) {
-        Write-Label "【依赖】" "【Node】" ("已就绪 | 真实解析 {0}/{1}" -f $Plan.RuntimeHealth.Resolved,$Plan.RuntimeHealth.Checked) Green
+        $suffix = ""
+        if ($null -eq $Plan.PreviousState) {
+            $suffix = " | 首次建立本机基线，不安装"
+        }
+        elseif ($Plan.MetadataChanged) {
+            $suffix = " | 事实变化但当前安装有效，不重装"
+        }
+        Write-Label "【依赖】" "【Node】" (("已就绪 | 真实解析 {0}/{1}" -f $Plan.RuntimeHealth.Resolved,$Plan.RuntimeHealth.Checked) + $suffix) Green
+
+        if ($null -ne $Plan.PreviousState -and ($Plan.Diff.Added.Count + $Plan.Diff.Removed.Count + $Plan.Diff.Changed.Count) -gt 0) {
+            Write-Label "【差异】" "【声明】" ("新增 {0} | 删除 {1} | 变更 {2}（当前依赖已满足，无需安装）" -f $Plan.Diff.Added.Count,$Plan.Diff.Removed.Count,$Plan.Diff.Changed.Count) DarkCyan
+        }
     }
     else {
         $flags = New-Object System.Collections.Generic.List[string]
         if (-not $Plan.InstallState.Complete) { $flags.Add("本地缺失") }
         if (-not $Plan.RuntimeHealth.Complete) { $flags.Add("解析失败") }
         if (-not $Plan.LockCoverage.Complete) { $flags.Add("lockfile 待同步") }
-        if ($null -ne $Plan.PreviousState -and [string]$Plan.PreviousState.fingerprint -ne $Plan.Snapshot.Fingerprint) { $flags.Add("声明已变化") }
         if ($flags.Count -eq 0) { $flags.Add("需要同步") }
 
         Write-Label "【依赖】" "【Node】" (($flags -join " | ")) Yellow
-        Write-Label "【差异】" "【依赖】" ("新增 {0} | 删除 {1} | 变更 {2}" -f $Plan.Diff.Added.Count,$Plan.Diff.Removed.Count,$Plan.Diff.Changed.Count) Cyan
+        if ($null -ne $Plan.PreviousState) {
+            Write-Label "【差异】" "【依赖】" ("新增 {0} | 删除 {1} | 变更 {2}" -f $Plan.Diff.Added.Count,$Plan.Diff.Removed.Count,$Plan.Diff.Changed.Count) Cyan
+        }
+        else {
+            Write-Label "【基线】" "【状态】" "尚无本机依赖基线；不会把全部现有依赖误报为“新增”。" DarkCyan
+        }
     }
 
     if (-not $Plan.StoreHealth.Healthy) {

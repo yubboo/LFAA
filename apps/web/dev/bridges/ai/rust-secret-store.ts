@@ -5,11 +5,11 @@
  * 不负责：Win32 API、Provider 网络、账户元数据、React UI、普通文件 Secret 持久化。
  * 状态归属：Secret 真值属于 Rust Broker 背后的 OS Credential Store；本文件仅缓存 Broker 可执行路径 Promise。
  * 对外接口：createWebDevSecretStore(projectRoot)。
- * 关联文件：crates/secret-store、ai-config-bridge.ts、@lfaa/config-system AiSecretStorePort。
+ * 关联文件：crates/secret-store、ai-config-bridge.ts、@lfaa/credentials CredentialStorePort。
  * 修改注意事项：Secret 只能进入 Broker stdin；禁止 argv/env/log/file；构建日志不得拼接 Secret。
  */
 import { spawn } from "node:child_process";
-import type { AiSecretStorePort } from "@lfaa/config-system";
+import type { CredentialStorePort } from "@lfaa/credentials";
 
 const REQUEST_MAGIC = Buffer.from("LFS1", "ascii");
 const RESPONSE_MAGIC = Buffer.from("LFR1", "ascii");
@@ -133,7 +133,7 @@ async function invokeBroker(projectRoot: string, action: keyof typeof ACTION, cr
   });
 }
 
-class RustCredentialStore implements AiSecretStorePort {
+class RustCredentialStore implements CredentialStorePort {
   readonly persistence = "os-credential-store" as const;
   readonly #projectRoot: string;
   constructor(projectRoot: string) { this.#projectRoot = projectRoot; }
@@ -142,7 +142,7 @@ class RustCredentialStore implements AiSecretStorePort {
   async delete(credentialRef: string) { await invokeBroker(this.#projectRoot, "delete", credentialRef); }
 }
 
-class MemoryCredentialStore implements AiSecretStorePort {
+class MemoryCredentialStore implements CredentialStorePort {
   readonly persistence = "memory" as const;
   readonly #values = new Map<string, string>();
   async put(credentialRef: string, secret: string) { this.#values.set(credentialRef, secret); }
@@ -150,6 +150,6 @@ class MemoryCredentialStore implements AiSecretStorePort {
   async delete(credentialRef: string) { this.#values.delete(credentialRef); }
 }
 
-export function createWebDevSecretStore(projectRoot: string): AiSecretStorePort {
+export function createWebDevSecretStore(projectRoot: string): CredentialStorePort {
   return process.platform === "win32" ? new RustCredentialStore(projectRoot) : new MemoryCredentialStore();
 }

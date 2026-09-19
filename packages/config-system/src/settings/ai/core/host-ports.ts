@@ -8,13 +8,13 @@
  * 关联文件：account-service.ts、account.types.ts。
  * 修改注意事项：Host Port 只能表达能力，不得泄漏 Vite/Electron/Node 专有类型；托管认证不得返回 Token。
  */
+import type { CredentialStorePort } from "@lfaa/credentials";
 import type {
   AiAccountProbeResult,
   AiAccountRecord,
   AiHostCapabilityStatus,
   AiManagedLoginStart,
   AiManagedLoginStatus,
-  AiSecretPersistence,
 } from "./account.types.ts";
 import type { AiHostCapabilityId } from "./provider.types.ts";
 import type { AiHttpRequestDescriptor } from "../transports/openai-compatible.ts";
@@ -25,12 +25,7 @@ export interface AiAccountRepositoryPort {
   delete(id: string): Promise<void>;
 }
 
-export interface AiSecretStorePort {
-  readonly persistence: AiSecretPersistence;
-  put(credentialRef: string, secret: string): Promise<void>;
-  get(credentialRef: string): Promise<string | null>;
-  delete(credentialRef: string): Promise<void>;
-}
+export type AiSecretStorePort = CredentialStorePort;
 
 export interface AiHttpJsonPort {
   requestJson(request: AiHttpRequestDescriptor): Promise<unknown>;

@@ -7,7 +7,7 @@
 import type { ThemePreference } from "../appearance/ThemeModeMenu";
 import type { AiSettingsAccountView, AiSettingsDraftInput, AiSettingsModelSettingValue, AiSettingsProbeView, AiSettingsProviderView } from "./ai/ai-settings.types";
 
-export type SettingsSectionId = "general" | "appearance" | "ai" | "permissions" | "workspace" | "developer";
+export type SettingsSectionId = "general" | "appearance" | "ai" | "plugins" | "permissions" | "workspace" | "developer";
 
 export interface SettingsPageProps {
   activeSection: SettingsSectionId;
@@ -30,4 +30,52 @@ export interface SettingsPageProps {
   onReprobeAiAccount: (accountId: string) => Promise<AiSettingsProbeView>;
   onDeleteAiAccount: (accountId: string) => Promise<void>;
   onSelectAiAccountModel: (accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiSettingsModelSettingValue>>) => Promise<void>;
+  pluginSettings: PluginSettingsPanelProps;
+}
+
+export interface PluginSettingsCapabilityView {
+  readonly id: string;
+  readonly kind: string;
+  readonly displayName: string;
+}
+
+export interface PluginSettingsCredentialView {
+  readonly id: string;
+  readonly displayName: string;
+  readonly exposure: "host-mediated" | "isolated-process";
+}
+
+export interface PluginSettingsInstalledView {
+  readonly packageName: string;
+  readonly packageVersion: string;
+  readonly pluginId: string;
+  readonly displayName: string;
+  readonly description?: string;
+  readonly enabled: boolean;
+  readonly capabilities: readonly PluginSettingsCapabilityView[];
+  readonly credentials: readonly PluginSettingsCredentialView[];
+}
+
+export type PluginSettingsInspectionView =
+  | ({ readonly status: "accepted"; readonly sourceKind: string; readonly spec: string; readonly pluginApiVersion: number; readonly permissions: readonly string[] } & PluginSettingsInstalledView)
+  | { readonly status: "refused"; readonly spec: string; readonly reason: string };
+
+export interface PluginSettingsInstallResultView {
+  readonly status: "installed" | "failed" | "cancelled";
+  readonly packageName?: string;
+  readonly bundleDisplayName?: string;
+  readonly failureKind?: string;
+  readonly diagnostic?: string;
+  readonly pendingBuilds?: readonly string[];
+}
+
+export interface PluginSettingsPanelProps {
+  readonly hostAvailable: boolean;
+  readonly registryGeneration: number;
+  readonly installed: readonly PluginSettingsInstalledView[];
+  onInspectPlugin(spec: string): Promise<PluginSettingsInspectionView>;
+  onInstallPlugin(spec: string, requestId: string, approvedBuilds?: readonly string[]): Promise<PluginSettingsInstallResultView>;
+  onSetPluginEnabled(packageName: string, enabled: boolean): Promise<void>;
+  onRemovePlugin(packageName: string): Promise<void>;
+  onCancelPlugin(requestId: string): Promise<void>;
 }

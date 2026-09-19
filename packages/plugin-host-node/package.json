@@ -1,0 +1,17 @@
+{
+  "name": "@lfaa/plugin-host-node",
+  "private": true,
+  "version": "0.0.80",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "lfaa": {
+    "layer": "host-adapter",
+    "role": "node-plugin-package-host"
+  },
+  "dependencies": {
+    "@lfaa/plugin-runtime": "workspace:*",
+    "@lfaa/plugin-sdk": "workspace:*",
+    "@lfaa/credentials": "workspace:*"
+  }
+}

@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/web",
   "private": true,
-  "version": "0.0.77",
+  "version": "0.0.80",
   "type": "module",
   "author": "二鱼",
   "scripts": {
@@ -16,7 +16,11 @@
     "react-dom": "19.3.0",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/xterm": "6.0.0",
-    "@lfaa/config-system": "workspace:*"
+    "@lfaa/config-system": "workspace:*",
+    "@lfaa/credentials": "workspace:*",
+    "@lfaa/plugin-runtime": "workspace:*",
+    "@lfaa/plugin-host-node": "workspace:*",
+    "@lfaa/plugin-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "26.4.1",
@@ -25,5 +29,9 @@
     "typescript": "7.0.2",
     "vite": "8.2.2",
     "node-pty": "1.1.0"
+  },
+  "lfaa": {
+    "layer": "host",
+    "role": "web-development-host"
   }
 }

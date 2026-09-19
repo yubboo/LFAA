@@ -1,8 +1,0 @@
-{
-  "name": "@lfaa/deepseek-harness-compat",
-  "private": true,
-  "version": "0.0.77",
-  "type": "module",
-  "exports": "./src/index.ts",
-  "author": "二鱼"
-}

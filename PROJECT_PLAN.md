@@ -5,7 +5,7 @@
 ## 当前主开发模块
 
 ```text
-agent-runtime + workbench
+plugin-platform + agent-runtime + workbench
 ```
 
 当前状态：
@@ -14,24 +14,101 @@ agent-runtime + workbench
 pending-user-acceptance
 ```
 
-
-当前架构升级任务：
+当前版本总任务：
 
 ```text
-#22.0 统一 Agent Runtime、三档权限与无限画布工作台
-version: v0.0.77
+#22.2 Plugin Profile 生命周期与项目骨架收敛
+version: v0.0.80
 status: pending-user-acceptance
 ```
 
-同版本 Windows 工具链修复：
+v0.0.80 以用户提供的 DeepSeek Harness 源码包为主要工程参考，重点借鉴 capability seam、profile/bundle、PluginManager 共享事务、HMR 生命周期、credentials 引用和“抽象必须有当前 Consumer”的维护原则；不复制其产品实现。
+
+### v0.0.80 当前目标
 
 ```text
-#4.3 Sync/GitHub 统一工作区预检与可诊断失败修复
-version: v0.0.77
-status: pending-user-acceptance
+P1a  仓库骨架去占位：只保留真实 package/crate
+P1b  package layer/role + dependency direction/cycle Gate
+P1c  独立 Plugin Profile + inspect/install/rollback/cancel/build approval
+P1d  Settings「插件与能力」管理面
+P1e  credentials seam：插件只声明 credential requirement
+P1f  v0.0.79 Unicode ZIP 路径问题纳入成品 round-trip
 ```
 
-该升级不推翻既有 Config System：配置层继续负责账号/模型事实；运行层开始承接模型执行、Harness、Tool/Skill/Subagent 与权限快照。#2.16 v0.0.76 的 ChatGPT/Codex 登录成果继续保留，待 Windows 实机后再单独验收。
+当前热插拔边界：Manifest / Capability / enablement 使用 generation 切换；第三方 executable code 尚未进入进程内热加载，后续必须先完成隔离执行 Host。
+
+### 长期产品目标
+
+LFAA 不定位为单一 AI Chat / Code App，而是个人 AI 平台：用户通过一句话或无限画布驱动同一个 Agent Runtime；“一键开服、AI 写作、AI 拆图、Minecraft 插件/模组开发”等通过 Plugin / Capability / App Pack 组合进入，不把场景业务硬编码进 Core。
+
+### 长期技术边界
+
+```text
+TypeScript = Product & Agent Plane（主）
+Rust       = Frozen Native Kernel（稳定少改）
+Python     = Optional Runtime（极少量按需）
+```
+
+外部成熟生态优先通过官方协议/Runtime Adapter 接入。LFAA 统一发现、权限、事件与 UI，但必须保留平台专有扩展能力，禁止因为统一接口把顶级 Harness 削弱。
+
+### Plugin Platform 长期实施路线
+
+目标不是让 Core 认识所有未来平台，而是把“插座”稳定下来。能力接入统一走：
+
+```text
+External Ecosystem / LFAA Plugin
+        ↓
+Protocol or Thin Adapter
+        ↓
+Plugin Manifest + Capability Descriptor
+        ↓
+Generation Registry
+        ↓
+Agent Runtime Discovery / Selection
+        ↓
+Tool / Skill / Expert / Workflow Invocation
+        ↓
+Policy / Permission / Native Broker
+        ↓
+Event + Artifact → Chat / Work
+```
+
+兼容等级固定为：
+
+1. **LFAA Native Plugin**：直接实现 Plugin SDK；
+2. **标准协议能力**：例如 MCP，协议兼容即可直接注册；
+3. **官方 Harness / SDK**：Codex App Server、DeepSeek Harness ACP/SDK 等通过薄 Runtime Adapter，无需复制内部 Agent Loop；
+4. **平台专有插件生态**：只在存在稳定官方 API/SDK 时做 Compatibility Adapter；不为了“零转换”把第三方私有运行时塞进 Core。
+
+阶段路线：
+
+```text
+P0  Contract Foundation       v0.0.78
+    Plugin Manifest / Capability / App Pack / Adapter / generation Registry
+
+P1  Discovery & Lifecycle      v0.0.80 起
+    独立 Plugin Profile；registry/path/git/tarball inspect；事务安装/回滚/取消；
+    enable/disable + generation；后续再扩展分发发现与隔离 executable hosting
+
+P2  Invocation Pipeline
+    Capability Invoke / Result / Error / Stream / Cancel + Policy/Permission
+
+P3  Ecosystem Adapters
+    MCP → Codex → DeepSeek Harness → Skills/Experts 等正式适配器
+
+P4  App Pack Runtime
+    一键开服 / 写作 / 图像 / Minecraft 开发作为能力组合，不改 Core
+
+P5  Personal Agent Profile
+    用户自己的模型、Skills、Experts、Tools、Apps、Workflow、权限偏好组合
+
+P6  Distribution & Compatibility
+    插件签名/来源、依赖、升级、兼容矩阵、回滚与社区分发
+```
+
+每个阶段都必须满足两个反向检查：**新增场景是否可以不改 Core？接入强 Harness 是否完整保留原生能力？** 任一答案为“否”时，先修接口，不允许用厂商/场景特判绕过去。
+
+上一版本基线：#22.0 / #4.3 v0.0.77 保留；#2.16 v0.0.76 ChatGPT/Codex 登录成果继续作为 Config/认证前置能力。
 
 最近完成的治理修复：
 

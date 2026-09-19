@@ -1,3 +1,32 @@
+## v0.0.80 / #22.2 Plugin Profile、骨架与发布成品
+
+- `test/package-architecture.test.mjs`：锁定真实 workspace、layer/role、依赖方向、无环、无占位 crate/package。
+- `test/plugin-platform-contract.test.mjs`：锁定 Manifest/Capability/Credential requirement、Registry generation、Plugin Profile 安装事务边界。
+- `test/plugin-manager-ui-contract.test.mjs`：锁定 Settings 插件管理面与 Web bridge 共享单一 PluginManager。
+- `test/fixtures/lfaa-plugin-basic`：无 install script / 无外部依赖的离线验收包，用于 Windows 实机验证 Plugin Profile 主链。
+- `test/release-path-encoding.test.mjs`：锁定源码树 exact 中文代码地图 + `.lfaa` 隐藏骨架，拒绝已知 mojibake 路径。
+- 最终发布必须额外执行 ZIP round-trip：检查 ZIP entry → 解压 → exact path → workspace-preflight；静态源码测试不能替代该成品检查。
+- 当前容器为 Node 22 且无项目 pnpm/node_modules；不得把正式 Node24 + pnpm typecheck/build 或 Windows 插件安装动态验证写成已通过。
+- **本版已执行：** 仓库 Node 101/101 PASS；Config System 33/33 PASS；6 个非 React 核心 package 定向 TypeScript noEmit PASS；源码 preflight PASS；Unicode-safe ZIP round-trip exact path + 解压根 preflight PASS。
+
+## v0.0.79 / #4.4 发布包完整性与 Source Preflight
+
+- `workspace-sync-idempotency.test.mjs` 新增 Source Package Preflight 顺序契约：必须先于 `Get-SyncPlan` 和任何 destructive apply。
+- 成品发布必须执行 ZIP round-trip：解压后确认 8 个 `.lfaa` 必需文件存在，再从解压根运行 `node scripts/workspace-preflight.mjs`。
+- Source Preflight 与 Target Preflight 必须继续复用同一个 `scripts/workspace-preflight.mjs`，禁止复制 Gate 列表。
+
+## v0.0.78 / #22.1 + #21.18 + #20.17 Plugin Platform / UI / Dependency Idempotency
+
+- `test/plugin-platform-contract.test.mjs`：锁定 Plugin SDK 唯一 Capability 词汇、Manifest/App Pack/External Adapter、generation-based Registry，以及 Agent Runtime 复用 Plugin SDK 而不复制第二套 Capability 类型。
+- `scripts/language-ownership-check.mjs`：锁定 TypeScript Product & Agent Plane、Frozen Rust Native Kernel、Optional Python Runtime；禁止 `apps/` / `packages/` 混入 Rust/Python 产品实现，也禁止 `crates/` 混入 TS/Python 业务实现。
+- `test/dependency-setup.test.mjs`：锁定 dependency-state 只是缓存；指纹/基线变化本身不得触发 install；首次基线不得把所有依赖误报为新增。
+- `test/workspace-sync-idempotency.test.mjs`：锁定依赖声明 fingerprint 与稳定工作区 `pnpm-lock.yaml` 保护；真实依赖声明变化必须优先解除保护。
+- `scripts/ui-contract-check.mjs`：锁定左上角 LFAA 唯一 Chat/Work 切换、Codex 风格权限说明 Popover、可点击模型设置、可点击 Capability 添加入口，禁止原生权限 `<select>` 与中间重复 Surface Switch 回归。
+- 仓库 `node --test test/*.test.mjs`：88/88 PASS；Config System：33/33 PASS；合计 121/121 PASS。
+- `plugin-sdk + plugin-runtime + agent-runtime` 定向 TypeScript `--noEmit`、Plugin SDK 独立 TypeScript、Workbench TSX 语法检查：PASS。
+- governance / import-path / runtime-import / folder-boundary / language-ownership / dev-log / docs / comments / Windows encoding / release consistency / prompt lifecycle / config schema / release gates / UI contract，以及统一 `workspace-preflight`：全部 PASS。
+- 正式 Web build / `release:full` 仍要求项目锁定 Node 24.x + pnpm 11.17.0；当前制作容器不满足时不得用静态测试冒充正式发布环境 PASS。
+
 ## v0.0.77 / #22.0 + #4.3 Agent Runtime / Infinite Canvas / Workspace Preflight
 
 - `test/agent-runtime-contract.test.mjs`：三档权限、Codex 原子权限映射、Trust Core 不可被普通 Run 修改、官方 Harness Registry、Chat/Work 单一 `AgentRunRequest`。

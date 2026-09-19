@@ -1,8 +1,15 @@
 {
   "name": "@lfaa/agent-runtime",
   "private": true,
-  "version": "0.0.77",
+  "version": "0.0.80",
   "type": "module",
   "exports": "./src/index.ts",
-  "author": "二鱼"
+  "author": "二鱼",
+  "dependencies": {
+    "@lfaa/plugin-sdk": "workspace:*"
+  },
+  "lfaa": {
+    "layer": "runtime",
+    "role": "agent-runtime-contract"
+  }
 }

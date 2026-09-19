@@ -21,6 +21,7 @@ const gates = [
   ["import-path", "scripts/import-path-check.mjs"],
   ["runtime-import", "scripts/runtime-import-resolution-check.mjs"],
   ["folder-boundary", "scripts/folder-boundary-check.mjs"],
+  ["language-ownership", "scripts/language-ownership-check.mjs"],
   ["development-log", "scripts/dev-log-check.mjs"],
   ["docs", "scripts/docs-check.mjs"],
   ["comments", "scripts/comment-check.mjs"],

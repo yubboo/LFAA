@@ -1,13 +1,5 @@
 [workspace]
 resolver = "2"
 members = [
-  "crates/native-core",
-  "crates/fs-broker",
-  "crates/process-broker",
-  "crates/pty-broker",
-  "crates/sandbox",
-  "crates/secret-store",
-  "crates/workspace-security",
-  "crates/file-watcher",
-  "crates/native-protocol"
+  "crates/secret-store"
 ]

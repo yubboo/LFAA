@@ -1,4 +1,37 @@
+## v0.0.80 真实模块骨架 / Plugin Profile P1
+
+当前 workspace 不再预创建未来模块。9 个 Node 项目按 foundation/runtime/domain/presentation/composition/host-adapter/host 分层，1 个 Rust crate 作为当前唯一真实 Native Kernel 实现。新增模块必须有当前 Consumer。
+
+Plugin 平台从 P0 Contract 进入 P1 Lifecycle：`plugin-sdk` 定义 Manifest/Capability/Credential requirement；`plugin-runtime` 拥有 Registry generation 与统一 PluginManager；`plugin-host-node` 拥有独立本地 Profile 与 pnpm 事务；`ui` 只呈现；`app-shell` 只做映射/装配；`apps/web` 提供同源本地 bridge。
+
+`@lfaa/credentials` 是 Config 与未来 Plugin 共用的 Secret Service Definition，真实 Windows Provider 仍由 Rust Secret Broker 承担。
+
 # LFAA 模块、计划与进度
+
+## v0.0.78 Plugin Platform 基线
+
+### Plugin SDK / Capability Contract
+
+`packages/plugin-sdk` 现在拥有唯一的 `LfaaPluginManifest / LfaaCapabilityDescriptor / LfaaAppPackDescriptor / LfaaExternalAdapter` 公共协议。Capability 覆盖 Tool、Skill、Expert、Agent、Subagent Provider、Command、Workflow、MCP、Model Provider、Harness Adapter、Workbench Node、Artifact Renderer、UI Extension 与 App Pack。
+
+统一采用 `Common Contract + namespaced extensions`：LFAA 公共层负责发现、权限、展示、组合；Codex / DeepSeek Harness / MCP / 未来生态的高级字段必须通过 `extensions` 无损保留。
+
+### Plugin Runtime
+
+`packages/plugin-runtime` 是 Plugin / Capability 注册事实的唯一 Owner，使用 generation snapshot：新资源先校验，再构建下一 generation，最后原子发布；运行中的 Run 固定启动时 generation。Registry 不执行 Tool，不拥有 OS 权限。
+
+### App Pack
+
+App Pack 是能力组合而不是第二套应用核心。游戏开服、写作、拆图、Minecraft 插件/Mod 等产品场景应通过 Manifest + Capability IDs + Skills/Experts/Workflow/Workbench Extensions 组合。
+
+### Language Ownership
+
+TypeScript 持续迭代产品/Agent 平面；Rust 只保留稳定 Native primitive 和安全边界；Python 仅未来 Optional Runtime。`language-ownership-check.mjs` 防止 apps/packages 混入 Rust/Python 产品实现，或 crates 反向承载 TS/Python Agent 业务。
+
+### v0.0.78 Windows 依赖同步
+
+稳定工作区 Sync 在“依赖声明未变化且目标 lockfile 不比来源更弱”时保留目标 `pnpm-lock.yaml`，避免版本包旧 lockfile 每次覆盖本机由 pnpm 生成的有效 lockfile。Setup 也不再因为 dependency-state 缓存缺失/指纹变化本身强制 `pnpm install`；只有真实缺包、解析失败或 lockfile 确实不完整才安装。
+
 
 ## v0.0.77 当前模块升级
 

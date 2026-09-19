@@ -9,6 +9,7 @@
  * 修改注意事项：Chat 与 Work 禁止新增不同的执行请求类型；二者只通过 surface 区分入口。
  */
 
+import type { LfaaCapabilityDescriptor, LfaaCapabilityKind } from "@lfaa/plugin-sdk";
 import type { AgentPermissionProfileId } from "./permission-profiles";
 
 export type AgentSurfaceMode = "chat" | "work";
@@ -19,27 +20,8 @@ export interface AgentModelBinding {
   readonly modelId: string;
 }
 
-export type AgentCapabilityKind =
-  | "tool"
-  | "skill"
-  | "expert"
-  | "command"
-  | "sandbox"
-  | "subagent"
-  | "browser"
-  | "computer"
-  | "filesystem"
-  | "process"
-  | "mcp";
-
-export interface AgentCapabilityDescriptor {
-  readonly id: string;
-  readonly kind: AgentCapabilityKind;
-  readonly label: string;
-  readonly source: "lfaa" | "project" | "official-harness";
-  readonly providerId?: string;
-  readonly effect: "read" | "write" | "execute" | "external";
-}
+export type AgentCapabilityKind = LfaaCapabilityKind;
+export type AgentCapabilityDescriptor = LfaaCapabilityDescriptor;
 
 export interface AgentRunRequest {
   readonly surface: AgentSurfaceMode;
