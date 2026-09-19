@@ -5,8 +5,8 @@
  * 不负责：pnpm/文件系统具体实现、React UI、执行第三方插件代码。
  */
 import type { LfaaPluginManifest } from "@lfaa/plugin-sdk";
-import { PluginRegistry, type PluginRegistrySnapshot } from "./registry";
-import { parsePluginInstallSpec, type ParsedPluginInstallSpec } from "./install-spec";
+import { PluginRegistry, type PluginRegistrySnapshot } from "./registry.ts";
+import { parsePluginInstallSpec, type ParsedPluginInstallSpec } from "./install-spec.ts";
 
 export type PluginInstallSourceKind = ParsedPluginInstallSpec["kind"];
 export type PluginInspectProblem =

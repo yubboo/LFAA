@@ -1,6 +1,6 @@
 [package]
 name = "lfaa-secret-store"
-version = "0.0.81"
+version = "0.0.82"
 authors = ["二鱼"]
 edition = "2021"
 

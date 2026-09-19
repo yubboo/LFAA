@@ -3,9 +3,9 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.81**
+**当前包：LFAA-v0.0.82**
 
-## 当前产品定位（v0.0.81）
+## 当前产品定位（v0.0.82）
 
 LFAA 是面向个人的 AI 任务平台，而不是只会对话的聊天壳。用户可以通过 **Chat 一句话** 或 **Work 无限画布** 驱动同一个 Agent Runtime；一键开服、AI 写作、AI 拆图、Minecraft 插件/模组开发等场景最终都应作为 Plugin / Capability / App Pack 进入。
 
@@ -61,12 +61,12 @@ plugin-platform + agent-runtime + workbench
 当前版本总任务：
 
 ```text
-#20.18 Windows Setup PowerShell 智能引号解析修复
-version: v0.0.81
+#2.17 Node ESM Source Package 运行时导入修复
+version: v0.0.82
 status: pending-user-acceptance
 ```
 
-v0.0.81 是 v0.0.80 的 Windows Setup 阻断修复：修正 PowerShell 将中文弯引号当作语法引号、导致依赖提示文本被错绑为 `ConsoleColor` 参数的问题；并把智能引号禁令加入 Windows 脚本治理 Gate。v0.0.80 的 Plugin Profile、骨架收敛与安全边界全部保留。
+v0.0.82 修复 Node 24 / Vite Config 直接加载 workspace TypeScript ESM 源码时，无扩展名相对 import 导致 `ERR_MODULE_NOT_FOUND` 的阻断，并把 Node source ESM 显式扩展名纳入运行时导入门禁。v0.0.80 Plugin Platform P1 与 v0.0.81 Windows Setup 修复全部保留。
 
 `#2.16` 的 ChatGPT / Codex App Server 登录闭环继续保留为 `pending-user-acceptance`，没有因为架构升级被覆盖。
 

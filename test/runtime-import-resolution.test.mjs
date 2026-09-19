@@ -41,3 +41,24 @@ test("从真实 Settings importer 位置可解析 @lfaa/ui/workbench", () => {
   const resolved = resolver.resolve("@lfaa/ui/workbench");
   assert.equal(path.normalize(resolved), path.normalize(path.join(root, "packages/ui/src/workbench/index.ts")));
 });
+
+test("Node/Vite Host 直接加载的 plugin-runtime 使用显式 .ts 相对导入", () => {
+  const source = fs.readFileSync(path.join(root, "packages/plugin-runtime/src/index.ts"), "utf8");
+  assert.match(source, /from\s+["']\.\/registry\.ts["']/);
+  assert.match(source, /from\s+["']\.\/install-spec\.ts["']/);
+  assert.match(source, /from\s+["']\.\/lifecycle\.ts["']/);
+  assert.doesNotMatch(source, /from\s+["']\.\/(?:registry|install-spec|lifecycle)["']/);
+});
+
+test("plugin-sdk 的 source export 可被 Node TypeScript ESM 解析", () => {
+  const source = fs.readFileSync(path.join(root, "packages/plugin-sdk/src/index.ts"), "utf8");
+  assert.match(source, /from\s+["']\.\/contracts\.ts["']/);
+  assert.doesNotMatch(source, /from\s+["']\.\/contracts["']/);
+});
+
+test("runtime import Gate 会检查 Node source ESM 扩展名", () => {
+  const gate = fs.readFileSync(path.join(root, "scripts/runtime-import-resolution-check.mjs"), "utf8");
+  assert.match(gate, /nodeSourceLayers/);
+  assert.match(gate, /显式扩展名/);
+  assert.match(gate, /apps\/web\/vite\.config\.ts/);
+});

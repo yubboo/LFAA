@@ -12,12 +12,12 @@ export type {
   AgentRunRequest,
   AgentRuntimeHost,
   AgentSurfaceMode,
-} from "./core/contracts";
+} from "./core/contracts.ts";
 export {
   AGENT_PERMISSION_PROFILES,
   resolvePermissionProfile,
   toCodexPermissionSettings,
-} from "./core/permission-profiles";
+} from "./core/permission-profiles.ts";
 export type {
   AgentPermissionProfile,
   AgentPermissionProfileId,
@@ -25,13 +25,13 @@ export type {
   CodexPermissionSettings,
   SandboxScope,
   ToolApprovalMode,
-} from "./core/permission-profiles";
+} from "./core/permission-profiles.ts";
 export {
   OFFICIAL_HARNESSES,
   createHarnessRegistry,
   resolveOfficialHarness,
-} from "./harness/official-harnesses";
-export type { OfficialHarnessCapabilitySeam, OfficialHarnessDescriptor, OfficialHarnessId } from "./harness/official-harnesses";
+} from "./harness/official-harnesses.ts";
+export type { OfficialHarnessCapabilitySeam, OfficialHarnessDescriptor, OfficialHarnessId } from "./harness/official-harnesses.ts";
 
 export type {
   LfaaAppPackDescriptor,

@@ -1,8 +1,8 @@
 {
   "productName": "Little Fish AI Agent",
   "shortName": "LFAA",
-  "displayVersion": "0.0.81",
-  "releaseSequence": 81,
+  "displayVersion": "0.0.82",
+  "releaseSequence": 82,
   "architectureVersion": 4,
   "agentProtocolVersion": 1,
   "pluginApiVersion": 2,

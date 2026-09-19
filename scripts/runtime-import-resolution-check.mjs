@@ -1,12 +1,12 @@
 /**
  * 文件：runtime-import-resolution-check.mjs
  * 作用：验证 workspace package 的公共导入在真实 package exports 层可解析，避免“TypeScript 通过、Vite 运行时失败”。
- * 负责：扫描 packages/apps 的 @lfaa/* import；验证目标 workspace package、exports 子路径和目标文件真实存在；拒绝 packages 内 tsconfig-only @/ alias。
+ * 负责：扫描 packages/apps 的 @lfaa/* import；验证目标 workspace package、exports 子路径和目标文件真实存在；拒绝 packages 内 tsconfig-only @/ alias；并检查会被 Node/Vite Config 直接执行的 TypeScript ESM 源码必须使用显式相对文件扩展名。
  * 不负责：启动 Vite、TypeScript 类型正确性、第三方 npm package 解析。
  * 状态归属：无运行时状态；每次读取当前 workspace package.json 与源码。
  * 对外接口：`node scripts/runtime-import-resolution-check.mjs`。
  * 关联文件：scripts/import-path-check.mjs、workspace package.json、DEVELOPMENT.md。
- * 修改注意事项：新增 workspace 公共子路径时必须同时写入 package exports；不得通过宿主 alias 掩盖 package 自身解析缺口。
+ * 修改注意事项：新增 workspace 公共子路径时必须同时写入 package exports；不得通过宿主 alias 掩盖 package 自身解析缺口；foundation/domain/runtime/host-adapter 源码与 apps/web/dev Host 源码的相对 ESM import 必须写 .ts/.tsx/.js 等真实扩展名。
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -67,6 +67,52 @@ function importsFrom(text) {
   return specs;
 }
 
+
+const nodeSourceLayers = new Set(["foundation", "domain", "runtime", "host-adapter"]);
+
+function owningWorkspace(relative) {
+  const absolute = path.join(root, relative);
+  let best = null;
+  for (const item of workspacePackages.values()) {
+    const prefix = `${item.dir}${path.sep}`;
+    if (absolute.startsWith(prefix) && (!best || item.dir.length > best.dir.length)) best = item;
+  }
+  return best;
+}
+
+function isNodeExecutedSource(relative) {
+  if (relative === "apps/web/vite.config.ts" || relative.startsWith("apps/web/dev/")) return true;
+  const owner = owningWorkspace(relative);
+  return owner ? nodeSourceLayers.has(owner.pkg.lfaa?.layer) : false;
+}
+
+function relativeImportHasExplicitExtension(spec) {
+  const clean = spec.split(/[?#]/, 1)[0];
+  const basename = path.posix.basename(clean);
+  return /\.[A-Za-z0-9]+$/.test(basename);
+}
+
+function resolveRelativeImport(importerRelative, spec) {
+  const clean = spec.split(/[?#]/, 1)[0];
+  return path.resolve(path.dirname(path.join(root, importerRelative)), clean);
+}
+
+function checkNodeErasableTypeScript(relative, text) {
+  if (relative.endsWith(".tsx")) {
+    failures.push(`${relative}: Node 直接执行的 source package 禁止 TSX/JSX；请把 UI 留在 presentation/composition。`);
+  }
+  const rules = [
+    [/\b(?:const\s+)?enum\s+[A-Za-z_$]/, "enum/const enum"],
+    [/\b(?:namespace|module)\s+[A-Za-z_$]/, "namespace/module"],
+    [/\bimport\s+[A-Za-z_$][\w$]*\s*=\s*require\s*\(/, "import = require"],
+    [/\bexport\s*=\s*/, "export ="],
+    [/^\s*@(?:[A-Za-z_$]|\()/m, "decorator"],
+    [/constructor\s*\([^)]*\b(?:public|private|protected|readonly)\s+[A-Za-z_$][\w$]*\s*[?:]/s, "constructor parameter property"],
+  ];
+  for (const [pattern, label] of rules) {
+    if (pattern.test(text)) failures.push(`${relative}: Node source runtime 只允许可擦除 TypeScript 语法，禁止 ${label}。`);
+  }
+}
 function walk(base) {
   const start = path.join(root, base);
   if (!fs.existsSync(start)) return;
@@ -80,9 +126,21 @@ function walk(base) {
       if (!extensions.has(path.extname(entry.name))) continue;
       const relative = path.relative(root, full).replaceAll("\\", "/");
       const text = fs.readFileSync(full, "utf8");
+      if (isNodeExecutedSource(relative)) checkNodeErasableTypeScript(relative, text);
       for (const spec of importsFrom(text)) {
         if (relative.startsWith("packages/") && spec.startsWith("@/")) {
           failures.push(`${relative}: package 源码使用仅 tsconfig 可见的 alias ${spec}。`);
+          continue;
+        }
+        if ((spec.startsWith("./") || spec.startsWith("../")) && isNodeExecutedSource(relative)) {
+          if (!relativeImportHasExplicitExtension(spec)) {
+            failures.push(`${relative}: Node 直接执行的 TypeScript ESM 相对导入必须写显式扩展名：${spec}`);
+            continue;
+          }
+          const resolvedRelative = resolveRelativeImport(relative, spec);
+          if (!fs.existsSync(resolvedRelative)) {
+            failures.push(`${relative}: 相对 ESM 导入目标不存在：${spec}`);
+          }
           continue;
         }
         if (!spec.startsWith("@lfaa/")) continue;

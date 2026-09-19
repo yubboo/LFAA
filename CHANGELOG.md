@@ -1,3 +1,13 @@
+## LFAA v0.0.82 — #2.17 Node ESM Source Package 运行时导入修复
+
+- **状态：** pending-user-acceptance
+- 修复 v0.0.81 `LFAA-Setup.bat → 2` 启动 Vite 时，Node 24 直接加载 `@lfaa/plugin-runtime` 源码包并因 `./registry` 无显式扩展名触发 `ERR_MODULE_NOT_FOUND`。
+- `plugin-runtime`、`plugin-sdk` 与同类 Node Runtime `agent-runtime` 的相对 TypeScript ESM import/export 改为显式 `.ts`；不等待下一个包继续暴雷。
+- `runtime-import-resolution-check.mjs` 扩展为双层门禁：除 workspace exports 可解析外，`foundation/domain/runtime/host-adapter` 与 `apps/web/dev`/`vite.config.ts` 这些会被 Node/Vite Config 直接执行的源码，禁止无扩展名相对 ESM 导入，并验证目标文件存在。
+- 新增运行时导入回归，锁定 `plugin-runtime → registry/install-spec/lifecycle` 与 `plugin-sdk → contracts` 显式扩展名。
+- v0.0.80 Plugin Profile、骨架收敛、Credentials 安全边界和 v0.0.81 PowerShell 修复保持不变。
+- **AI 验证：** 仓库 Node 106/106 + Config System 33/33 = 139/139 PASS；6 个 Node source runtime package 使用 Node 原生 TypeScript loader 动态 import PASS；workspace preflight 全 Gate PASS。当前制作环境仍不是 Node 24/Windows，不冒充真实 Vite dev server 动态启动 PASS。
+
 ## LFAA v0.0.81 — #20.18 Windows Setup PowerShell 智能引号解析修复
 
 - **状态：** pending-user-acceptance

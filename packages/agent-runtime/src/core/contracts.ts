@@ -10,7 +10,7 @@
  */
 
 import type { LfaaCapabilityDescriptor, LfaaCapabilityKind } from "@lfaa/plugin-sdk";
-import type { AgentPermissionProfileId } from "./permission-profiles";
+import type { AgentPermissionProfileId } from "./permission-profiles.ts";
 
 export type AgentSurfaceMode = "chat" | "work";
 

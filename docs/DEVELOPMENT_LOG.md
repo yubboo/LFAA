@@ -11,6 +11,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
+| #2.17 | Node ESM Source Package 运行时导入修复 | v0.0.82 | pending-user-acceptance |
 | #20.18 | Windows Setup PowerShell 智能引号解析修复 | v0.0.81 | pending-user-acceptance |
 | #22.2 | Plugin Profile 生命周期与项目骨架收敛 | v0.0.80 | pending-user-acceptance |
 | #4.4 | 发布包隐藏资源完整性与同步前来源预检 | v0.0.79 | pending-user-acceptance |
@@ -44,6 +45,17 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+
+
+### #2.17 Node ESM Source Package 运行时导入修复
+
+- **版本：** v0.0.82
+- **状态：** pending-user-acceptance
+- **用户实机：** v0.0.81 菜单 2 启动 Vite 时，Node 24 无法解析 `packages/plugin-runtime/src/registry`。
+- **根因：** `@lfaa/plugin-runtime` 的 package export 指向 TypeScript source，Vite config Host 由 Node ESM 直接执行；内部 `./registry`/`./lifecycle` 等无扩展名相对导入在 Node ESM 下不合法。
+- **修复：** plugin-runtime、plugin-sdk、agent-runtime 的 Node Runtime 源码相对导入改显式 `.ts`；runtime-import Gate 新增 Node-source ESM 扩展名和目标存在性检查。
+- **边界：** 不改 Plugin P1、Credentials、Rust Secret 或 Windows Setup 语义。
+- **AI 验证：** 106/106 仓库 Node + 33/33 Config = 139/139 PASS；Node source runtime 动态 import PASS；workspace preflight 全 Gate PASS。
 
 
 ### #20.18 Windows Setup PowerShell 智能引号解析修复

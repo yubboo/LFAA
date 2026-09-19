@@ -1,3 +1,7 @@
+## v0.0.82：Node Source ESM 导入边界
+
+LFAA 的 foundation/domain/runtime/host-adapter workspace package 可能被 Vite Config 或 Node Host 直接从 TypeScript source export 执行。此路径遵守 Node ESM 解析规则：相对 import/export 必须写真实扩展名（如 `./registry.ts`），不能依赖 Vite 浏览器 bundle 自动补全。`runtime-import-resolution-check.mjs` 负责阻断无扩展名与不存在目标。
+
 ## v0.0.81：Windows Setup PowerShell 字符串语法安全
 
 Windows PowerShell 会把 `“ ” ‘ ’` 这类智能引号视作可参与语法解析的引号。用户可见中文文案不得在 `.ps1` 中使用这些字符；需要中文强调时统一使用 `「」`。需要在正则中匹配 Unicode 撇号时使用 `\u2019`，不得直接嵌入弯撇号。

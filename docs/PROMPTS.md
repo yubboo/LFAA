@@ -25,6 +25,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #2.17 | Node ESM Source Package 运行时导入修复 | v0.0.82 | pending-user-acceptance | pass | pending |
 | #20.18 | Windows Setup PowerShell 智能引号解析修复 | v0.0.81 | pending-user-acceptance | pass | pending |
 | #22.2 | Plugin Profile 生命周期与项目骨架收敛 | v0.0.80 | pending-user-acceptance | pass | pending |
 | #4.4 | 发布包隐藏资源完整性与同步前来源预检 | v0.0.79 | pending-user-acceptance | pass | pending |
@@ -62,6 +63,30 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.17 Node ESM Source Package 运行时导入修复
+
+### 用户目标
+
+修复 v0.0.81 `LFAA-Setup.bat → 2` 启动 Web 时的 `ERR_MODULE_NOT_FOUND`，并阻止 Node/Vite Config 直接执行的 workspace TypeScript ESM 源码再次出现无扩展名相对 import。
+
+### 允许修改
+
+- Node Runtime workspace package 的相对 ESM specifier；
+- runtime import resolution Gate 与回归测试；
+- 当前版本/测试/运行时文档。
+
+### 禁止修改
+
+- 不改变 PluginManager 安装事务/权限/Secret 语义；
+- 不为修导入问题重新引入 alias；
+- 不把 presentation/composition 的 Vite bundle 规则误当成 Node Host 规则。
+
+### 验收条件
+
+- Node source runtime 的相对 import 使用显式扩展名并指向真实文件；
+- `runtime-import-resolution-check.mjs` 能机器阻断同类回归；
+- Windows `LFAA-Setup.bat → 2` 不再停在 `plugin-runtime/src/registry` 模块解析错误。
 
 ## #20.18 Windows Setup PowerShell 智能引号解析修复
 

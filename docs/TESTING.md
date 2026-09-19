@@ -1,3 +1,10 @@
+## v0.0.82 / #2.17 Node ESM Source Package 运行时导入回归
+
+- `test/runtime-import-resolution.test.mjs`：锁定 `plugin-runtime` 与 `plugin-sdk` 的显式 `.ts` 相对导入。
+- `scripts/runtime-import-resolution-check.mjs`：除 workspace public exports 外，新增 Node/Vite Config 直接执行源码的相对 ESM 扩展名与目标存在性检查。
+- 用户 Windows 实机：`LFAA-Setup.bat → 2` 必须越过 Vite config 加载，不得再出现 `plugin-runtime/src/registry` `ERR_MODULE_NOT_FOUND`。
+- 当前静态/Node 结果：仓库 106/106 PASS；Config 33/33 PASS；Node source runtime 动态 import PASS；workspace preflight 全 PASS。
+
 ## v0.0.81 / #20.18 Windows PowerShell 智能引号解析回归
 
 - `test/dependency-setup.test.mjs`：所有 `scripts/windows/*.ps1` 禁止 U+2018/U+2019/U+201C/U+201D；`Show-NodeDependencyPlan` 必须使用 `「新增」`。

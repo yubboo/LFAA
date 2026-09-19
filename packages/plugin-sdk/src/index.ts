@@ -4,7 +4,7 @@
  * 负责：只导出稳定插件/能力协议，不拥有运行时注册状态。
  * 不负责：执行 Tool、加载进程、修改权限、访问 OS。
  */
-export { LFAA_PLUGIN_API_VERSION } from "./contracts";
+export { LFAA_PLUGIN_API_VERSION } from "./contracts.ts";
 export type {
   LfaaAppPackComposition,
   LfaaAppPackDescriptor,
@@ -23,4 +23,4 @@ export type {
   LfaaSurface,
   PluginJsonPrimitive,
   PluginJsonValue,
-} from "./contracts";
+} from "./contracts.ts";

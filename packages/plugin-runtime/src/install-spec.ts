@@ -23,9 +23,14 @@ function isAbsolutePath(value: string): boolean {
 }
 
 export class InvalidPluginInstallSpecError extends Error {
-  constructor(readonly spec: string, readonly reason: string) {
+  readonly spec: string;
+  readonly reason: string;
+
+  constructor(spec: string, reason: string) {
     super(reason);
     this.name = "InvalidPluginInstallSpecError";
+    this.spec = spec;
+    this.reason = reason;
   }
 }
 
