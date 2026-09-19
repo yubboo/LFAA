@@ -458,6 +458,8 @@ v0.0.54 起，菜单 1 使用本机 `.lfaa/state/dependency-state.json` 保存�
 
 菜单 1 不负责“追逐网上最新版本”，禁止自动 `pnpm update`、删除 `node_modules`、清空 pnpm store 或 Cargo cache。项目新版本已经改变 lockfile / 依赖声明时，这是该项目版本需要的依赖变化；用户仍可拒绝本次写操作，但需要接受当前项目可能无法正常运行。pnpm 安装时保留既有 store/node_modules，由 pnpm 自身复用已存在内容，仅补齐真实缺失/变化部分。Rust 同样先检查固定 toolchain + rustfmt + clippy；已完整时跳过 rustup 安装；无外部 crate 时跳过 `cargo fetch`，有 `Cargo.lock` 时只在首次或 lock hash 变化后 fetch。
 
+v0.0.55 起，菜单 1 不再先后重复打印“预检/检测”两组 Node、pnpm、workspace，也不在结尾分别重复 Node 与 Rust 完成状态。输出固定为一次环境摘要、一次依赖状态、一次关键路径区、一个最终总结果。路径必须从当前机器动态解析：项目 `node_modules`、`node_modules/.pnpm`、`pnpm-lock.yaml`、`.lfaa/state/dependency-state.json`；pnpm Store 通过 `pnpm store path` 获取；Cargo registry/git 缓存来自 `CARGO_HOME`（或用户默认 `.cargo`）；Rust 工具链来自 `RUSTUP_HOME/toolchains`。菜单 7 环境检查复用同一位置展示。
+
 `10 检查中心` 只提供三种分层入口：
 
 ```text

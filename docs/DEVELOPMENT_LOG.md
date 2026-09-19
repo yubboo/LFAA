@@ -11,18 +11,32 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #20.8 | 按需依赖增量检测与复用 | v0.0.54 | pending-user-acceptance |
+| #20.9 | 依赖提示去重与路径可见性 | v0.0.55 | pending-user-acceptance |
+| #20.8 | 按需依赖增量检测与复用 | v0.0.54 | superseded |
 | #20.7 | Setup 菜单与发布门禁解耦 | v0.0.53 | superseded |
 | #20.6 | 发布环境与质量门禁闭环 | v0.0.52 | superseded |
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
-### #20.8 按需依赖增量检测与复用
+### #20.9 依赖提示去重与路径可见性
 
-- **版本：** v0.0.54
+- **版本：** v0.0.55
 - **状态：** pending-user-acceptance
 - **AI 验证：** pass
 - **用户验收：** pending
+- **主模块：** project-governance / windows-setup / dependency-ux
+- **背景：** 用户 Windows 实机验证 #20.8 后确认依赖已能正确跳过，但发现菜单 1 先打印预检，再由安装函数重复打印 Node/pnpm/workspace，结尾又分别打印 Node 与 Rust 完成状态；同时没有直接告诉用户依赖实际位于哪里。
+- **目标：** 保持增量依赖逻辑不变，只压缩重复信息，并把 Node/pnpm/Rust/Cargo 的关键真实路径直接展示。
+- **路径事实：** pnpm Store 使用运行时 `pnpm store path`；项目 Node 依赖、虚拟仓库、锁文件、依赖状态缓存、Cargo registry/git、Rust toolchains 与 Cargo.lock 使用当前项目/用户环境动态计算，禁止写死用户目录。
+- **边界：** 不修改 Config、UI、PTY、Sync/GitHub/Update、Agent/Tool/Permission 业务逻辑；不改变 #20.8 的依赖安装触发条件。
+- **验证：** dependency-setup 8/8、release-gates 5/5、release-environment 8/8、Config Schema 8/8；governance/import/dev-log/docs/comment/Windows BOM/release consistency/prompt lifecycle/config-schema/release-gates/UI contract 全部 PASS；Config System TypeScript `--noEmit` PASS。当前容器没有 PowerShell、Node 为 22.16.0 且无 Cargo，因此 Windows 动态 UI 与 `release:full` 不冒充通过。
+
+### #20.8 按需依赖增量检测与复用
+
+- **版本：** v0.0.54
+- **状态：** superseded
+- **AI 验证：** pass
+- **用户验收：** not-accepted
 - **主模块：** project-governance / windows-setup / dependency-state
 - **背景：** 用户实机发现菜单 1 虽名为“按需依赖”，但每次执行仍无条件运行 `pnpm install`，导致重复解析/联网/安装体验；Rust 路径也会重复确认 toolchain。
 - **目标：** 让菜单 1 先做本地状态判定；依赖不变且完整时零安装直接通过，只有声明/锁文件/实际目录变化时才提示并同步。
@@ -32,7 +46,7 @@
 
 - **实现结果：** Node 依赖使用 manifests + lockfile + workspace 配置生成本机指纹；unchanged 且直接依赖完整时跳过 install；变化时展示新增/删除/版本变化并询问；Rust 工具链与 Cargo fetch 同样具备复用路径。
 - **验证：** 增量依赖 6/6、release-gates 5/5、release-environment 8/8、Config Schema 8/8；治理/文档/BOM/版本/Prompt/UI 门禁全部 PASS；Config System TypeScript `--noEmit` PASS。当前容器不满足 Node 24/Cargo，因此正式 release 门禁按设计阻断。
-- **用户验收重点：** Windows 同一项目连续两次执行菜单 1，第二次应零安装返回；依赖真实变化时应出现 Yes/No。
+- **用户验收结果：** 增量跳过行为已在实机输出中体现；展示层仍有重复提示且缺少依赖路径，因此由 #20.9 / v0.0.55 继续修正。
 
 ### #20.7 Setup 菜单与发布门禁解耦
 

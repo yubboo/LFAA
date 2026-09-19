@@ -25,13 +25,88 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #20.8 | 按需依赖增量检测与复用 | v0.0.54 | pending-user-acceptance | pass | pending |
+| #20.9 | 依赖提示去重与路径可见性 | v0.0.55 | pending-user-acceptance | pass | pending |
+| #20.8 | 按需依赖增量检测与复用 | v0.0.54 | superseded | pass | not-accepted |
 | #20.7 | Setup 菜单与发布门禁解耦 | v0.0.53 | superseded | pass | not-accepted |
 | #20.6 | 发布环境与质量门禁闭环 | v0.0.52 | superseded | pass | not-accepted |
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance | pass | pending |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #20.9 依赖提示去重与路径可见性
+
+### 主模块
+
+`project-governance / windows-setup / dependency-ux`
+
+### 任务目标
+
+修正 v0.0.54 菜单 1 在“预检 → 检测 → 完成”之间重复输出 Node/pnpm/workspace 与 Node/Rust 完成状态的问题，并让用户能够直接看到项目依赖、pnpm Store、lockfile、Cargo 缓存和 Rust 工具链的实际位置。保持 #20.8 的增量安装语义不变：本任务只优化可读性与路径可见性，不改变何时安装依赖。
+
+### 允许修改
+
+- `scripts/windows/lfaa-setup.ps1` 的菜单 1 / 菜单 7 输出组织、依赖路径探测与最终摘要；
+- `test/dependency-setup.test.mjs`、`scripts/release-gates-check.mjs` 的防回归契约；
+- `DEVELOPMENT.md`、`docs/RUNTIME.md`、`docs/TESTING.md`、项目地图、Prompt、Development Log、Plan；
+- v0.0.55 产品版本事实、CHANGELOG、Release；
+- workspace package / Rust crate 的产品版本一致性。
+
+### 禁止修改
+
+- #20.8 已确定的依赖指纹、增量安装、Yes/No 同步语义；
+- Config Schema / Config Storage、Web UI、PTY、Sync / GitHub / Update；
+- Agent / Tool / Policy / Permission 执行链；
+- Agent Protocol / Config Schema Version / Database Schema Version；
+- 为显示路径而创建、删除或迁移真实依赖目录。
+
+### 输出约束
+
+- Node / pnpm / workspace 环境摘要只显示一次，禁止“预检”和“检测”重复打印同一事实；
+- unchanged 路径保留一次 Node 依赖状态和一次 Rust/Cargo 状态，结尾只保留一个 `【完成】【按需依赖】` 总结；
+- 菜单 1 与菜单 7必须显示：项目 `node_modules`、`node_modules/.pnpm`、真实 `pnpm store path`、`pnpm-lock.yaml`、`.lfaa/state/dependency-state.json`、Cargo registry/git 缓存、Rust toolchains、Cargo.lock 状态；
+- `pnpm Store` 必须运行时读取，不能写死用户名、盘符或固定 AppData 路径；
+- 路径展示只读，不允许触发 update/prune/删除缓存；
+- PowerShell 保持 UTF-8 with BOM。
+
+### 验收条件
+
+- 用户再次执行菜单 1 时，不再连续看到两组 Node/pnpm/workspace；
+- unchanged 情况结尾不再分别重复 `Node/pnpm 完成` 与 `Rust/Cargo 完成`；
+- 用户能从菜单 1 直接知道 Node 依赖、pnpm Store、锁文件、Cargo 缓存和 Rust 工具链在哪里；
+- 菜单 7 环境检查同样能显示上述路径；
+- v0.0.54 的增量检测、零安装、Yes/No 与禁止自动升级行为全部保持。
+
+### 必须测试
+
+- 依赖增量原 6 项测试全部回归；
+- 新增路径可见性与提示去重测试；
+- release gates、release environment、Config Schema 回归；
+- governance / import / dev-log / docs / comment / Windows BOM / release consistency / prompt lifecycle / UI contract。
+
+### 必须更新的文档
+
+`DEVELOPMENT.md`、`PROJECT_PLAN.md`、`docs/PROMPTS.md`、`docs/DEVELOPMENT_LOG.md`、`docs/RUNTIME.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`README.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG 编号
+
+`#20.9 依赖提示去重与路径可见性`
+
+### 版本目标
+
+`v0.0.55`
+
+### 当前状态
+
+`pending-user-acceptance`
+
+### AI 验证
+
+`pass`
+
+### 用户验收
+
+`pending`
 
 ## #20.8 按需依赖增量检测与复用
 
@@ -120,7 +195,7 @@
 
 ### 当前状态
 
-`pending-user-acceptance`
+`superseded`
 
 ### AI 验证
 
@@ -128,7 +203,11 @@
 
 ### 用户验收
 
-`pending`
+`not-accepted`
+
+### 被后续修正
+
+用户实机确认增量安装已正确跳过，但指出菜单 1 输出重复且缺少依赖实际路径；由 #20.9 / v0.0.55 修正展示层。
 
 ## #20.7 Setup 菜单与发布门禁解耦
 

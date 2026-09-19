@@ -72,10 +72,18 @@ for (const token of [
   "Get-RustToolchainReadiness",
   "跳过 rustup toolchain install",
   "跳过 cargo fetch",
+  "Show-DependencyLocations",
+  "Get-PnpmStorePath",
+  "pnpm 虚拟仓库",
+  "Cargo 缓存",
+  "Rust 工具链",
 ]) {
   if (!setup.includes(token)) fail(`Windows Setup missing incremental dependency token: ${token}`);
 }
 if (/pnpm\s+update|@\("update"\)|store\s+prune/i.test(setup)) {
   fail("Windows Setup must not auto-update dependencies or prune the pnpm store");
+}
+for (const duplicateToken of ['【预检】" "【Node】', '【预检】" "【pnpm】', '【预检】" "【workspace】']) {
+  if (setup.includes(duplicateToken)) fail(`Windows Setup menu 1 must not repeat precheck output: ${duplicateToken}`);
 }
 console.log("LFAA release gates check passed.");

@@ -155,6 +155,56 @@ function Get-PnpmRunner {
     throw "未检测到可用的 pnpm 或 corepack。"
 }
 
+function Get-PnpmStorePath {
+    try {
+        $runner = Get-PnpmRunner
+        $arguments = @($runner.Prefix) + @("store","path")
+        $old = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+            $output = @(& $runner.FilePath @arguments 2>&1 | ForEach-Object { [string]$_ })
+            $code = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $old
+        }
+
+        if ($code -eq 0) {
+            $value = @($output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1)
+            if ($value.Count -gt 0) { return $value[0].Trim() }
+        }
+    }
+    catch {}
+
+    return "无法读取"
+}
+
+function Join-LfaaLocation {
+    param([string]$Base,[string]$Child)
+    if ([string]::IsNullOrWhiteSpace($Base) -or $Base -eq "未确定" -or $Base -eq "无法读取") {
+        return $Base
+    }
+    return (Join-Path $Base $Child)
+}
+
+function Show-DependencyLocations {
+    $cargoHome = Get-CargoHomePath
+    $rustupHome = Get-RustupHomePath
+    $cargoLock = Join-Path $ProjectRoot "Cargo.lock"
+    $cargoLockText = if (Test-Path -LiteralPath $cargoLock) { $cargoLock } else { "未创建（当前无外部 crate 时正常）" }
+
+    Write-Host ""
+    Write-Label "【位置】" "【Node 依赖】" (Join-Path $ProjectRoot "node_modules") DarkCyan
+    Write-Label "【位置】" "【pnpm 虚拟仓库】" (Join-Path $ProjectRoot "node_modules\.pnpm") DarkCyan
+    Write-Label "【位置】" "【pnpm Store】" (Get-PnpmStorePath) DarkCyan
+    Write-Label "【位置】" "【Node 锁文件】" (Join-Path $ProjectRoot "pnpm-lock.yaml") DarkCyan
+    Write-Label "【位置】" "【依赖状态缓存】" (Get-DependencyStatePath) DarkCyan
+    Write-Label "【位置】" "【Cargo 缓存】" (Join-LfaaLocation $cargoHome "registry") DarkCyan
+    Write-Label "【位置】" "【Cargo Git 缓存】" (Join-LfaaLocation $cargoHome "git") DarkCyan
+    Write-Label "【位置】" "【Rust 工具链】" (Join-LfaaLocation $rustupHome "toolchains") DarkCyan
+    Write-Label "【位置】" "【Rust 锁文件】" $cargoLockText DarkCyan
+}
+
 function Assert-NodeVersion {
     $required = Get-RequiredToolchainInfo
     $nodeVersion = Get-NodeVersionValue
@@ -679,8 +729,6 @@ function Show-Environment {
     Write-Label "【环境】" "【cargo】" (Get-CommandVersion "cargo") Gray
     Write-Label "【环境】" "【rustc】" (Get-CommandVersion "rustc") Gray
     Write-Label "【项目】" "【Rust 版本】" (Get-ProjectRustChannel) Cyan
-    Write-Label "【环境】" "【CARGO_HOME】" (Get-CargoHomePath) Gray
-    Write-Label "【环境】" "【RUSTUP_HOME】" (Get-RustupHomePath) Gray
 
     $summary = Get-NodeDependencySummary
     Write-Label "【项目】" "【workspace】" ("{0} 个 Node workspace 项目" -f $summary.WorkspaceProjects) Cyan
@@ -690,6 +738,7 @@ function Show-Environment {
         Write-Label "【说明】" "【node_modules】" "当前项目尚未声明第三方 Node 包；目录很小是正常现象。" DarkCyan
     }
 
+    Show-DependencyLocations
     Write-Label "【规则】" "【包管理器】" "Node.js workspace 只允许 pnpm。" Green
 }
 
@@ -718,13 +767,9 @@ function Test-NodePtyRuntime {
 
 function Install-NodeDependencies {
     [void](Ensure-ProjectPnpm)
-    $toolchain = Assert-NodeToolchain
-    $summary = Get-NodeDependencySummary
+    [void](Assert-NodeToolchain)
     $plan = Get-NodeDependencyPlan
 
-    Write-Label "【检测】" "【Node】" ("{0} | {1}" -f $toolchain.NodeVersion,$toolchain.NodeSource) Green
-    Write-Label "【检测】" "【pnpm】" ("{0} | {1}" -f $toolchain.PnpmVersion,$toolchain.PnpmSource) Green
-    Write-Label "【检测】" "【workspace】" ("{0} 个项目 | 外部 Node 依赖 {1} 个" -f $summary.WorkspaceProjects,$summary.ExternalDependencies) Green
     Show-NodeDependencyPlan $plan
 
     if (-not $plan.NeedsInstall) {
@@ -1621,7 +1666,7 @@ function Show-SetupMenu {
     Write-Label "【4】" "【构建 Web】" "执行 Web production build。" Cyan
     Write-Label "【5】" "【构建桌面】" "执行 Desktop production build；未配置时明确提示。" Cyan
     Write-Label "【6】" "【构建发布】" "构建 Web + Desktop 并生成本地发布产物；不自动上传远程。" Magenta
-    Write-Label "【7】" "【环境检查】" "查看项目根、Node/pnpm、Rust/Cargo 和依赖状态。" Cyan
+    Write-Label "【7】" "【环境检查】" "查看项目根、Node/pnpm、Rust/Cargo、依赖状态与实际路径。" Cyan
     Write-Label "【8】" "【项目资源】" "初始化当前项目 .lfaa 缺失目录。" Magenta
     Write-Label "【9】" "【治理检查】" "运行治理、导入边界、开发日志和 docs 结构检查。" Yellow
     Write-Label "【10】" "【检查中心】" "按需选择快速检查、完整检查或正式发布检查；日常开发无需每次跑最重门禁。" Yellow
@@ -1666,9 +1711,10 @@ while ($true) {
                 $nodeToolchain = Assert-NodeToolchain
                 $nodeSummary = Get-NodeDependencySummary
 
-                Write-Label "【预检】" "【Node】" ("{0} | {1}" -f $nodeToolchain.NodeVersion,$nodeToolchain.NodeSource) Green
-                Write-Label "【预检】" "【pnpm】" ("{0} | {1}" -f $nodeToolchain.PnpmVersion,$nodeToolchain.PnpmSource) Green
-                Write-Label "【预检】" "【workspace】" ("{0} 个项目 | 外部 Node 依赖 {1} 个" -f $nodeSummary.WorkspaceProjects,$nodeSummary.ExternalDependencies) Green
+                Write-Label "【环境】" "【Node】" ("{0} | {1}" -f $nodeToolchain.NodeVersion,$nodeToolchain.NodeSource) Green
+                Write-Label "【环境】" "【pnpm】" ("{0} | {1}" -f $nodeToolchain.PnpmVersion,$nodeToolchain.PnpmSource) Green
+                Write-Label "【项目】" "【workspace】" ("{0} 个项目 | 外部 Node 依赖 {1} 个" -f $nodeSummary.WorkspaceProjects,$nodeSummary.ExternalDependencies) Cyan
+                Show-DependencyLocations
 
                 $nodeResult = Install-NodeDependencies
 
@@ -1677,10 +1723,10 @@ while ($true) {
                 $rustSkipped = $false
 
                 if ($rustReadiness.Ready) {
-                    Write-Label "【检测】" "【Rust/Cargo】" ("{0} 已就绪；跳过 Rust 工具链安装。" -f $rustReadiness.Channel) Green
+                    Write-Label "【状态】" "【Rust/Cargo】" ("{0} 已就绪；无需安装工具链。" -f $rustReadiness.Channel) Green
                 }
                 else {
-                    Write-Label "【检测】" "【Rust/Cargo】" $rustReadiness.Reason Yellow
+                    Write-Label "【状态】" "【Rust/Cargo】" $rustReadiness.Reason Yellow
                     if (Confirm-WriteOperation "Rust 工具链尚未满足当前项目要求。是否按 rust-toolchain.toml 补齐缺失工具链/组件？") {
                         $cargoReady = Install-RustToolchainIfMissing
                     }
@@ -1690,6 +1736,7 @@ while ($true) {
                     }
                 }
 
+                $rustDependencyResult = $null
                 if ($cargoReady) {
                     $rustDependencyResult = Install-RustDependencies
                 }
@@ -1700,24 +1747,22 @@ while ($true) {
                 Initialize-ProjectResources
 
                 Write-Host ""
-                if (-not $nodeResult.Cancelled) {
-                    Write-Label "【完成】" "【Node/pnpm】" "项目 Node 依赖状态已确认。" Green
+                $rustChanged = ($null -ne $rustDependencyResult -and $rustDependencyResult.Changed) -or (-not $rustReadiness.Ready -and $cargoReady)
+                if ($nodeResult.Cancelled -or $rustSkipped) {
+                    Write-Label "【保留现状】" "【按需依赖】" "已完成检测；用户取消的依赖项保持现状。" Yellow
+                    $menuMessage = "按任意键返回主菜单。"
+                }
+                elseif (-not $cargoReady) {
+                    Write-Label "【部分完成】" "【按需依赖】" "Node 依赖已确认；Rust 环境尚未完成，请查看上方原因。" Yellow
+                    $menuMessage = "按任意键返回主菜单。"
+                }
+                elseif ($nodeResult.Changed -or $rustChanged) {
+                    Write-Label "【完成】" "【按需依赖】" "所需依赖同步完成。" Green
+                    $menuMessage = "按任意键返回主菜单。"
                 }
                 else {
-                    Write-Label "【保留现状】" "【Node/pnpm】" "检测到变化但用户未同步；再次运行菜单 1 可重新处理。" Yellow
-                }
-
-                if ($cargoReady) {
-                    Write-Label "【完成】" "【Rust/Cargo】" "Rust 工具链与当前 Rust 依赖状态已确认。" Green
-                    $menuMessage = "按需依赖检查完成，按任意键返回主菜单。"
-                }
-                elseif ($rustSkipped) {
-                    Write-Label "【保留现状】" "【Rust/Cargo】" "用户选择暂不补齐 Rust 环境。" Yellow
-                    $menuMessage = "依赖检查完成（Rust 保持现状），按任意键返回主菜单。"
-                }
-                else {
-                    Write-Label "【部分完成】" "【Rust/Cargo】" "Rust 自动准备未完成，请查看上方具体原因。" Yellow
-                    $menuMessage = "依赖部分完成，按任意键返回主菜单。"
+                    Write-Label "【完成】" "【按需依赖】" "当前依赖均已就绪，无需下载或安装。" Green
+                    $menuMessage = "按任意键返回主菜单。"
                 }
             }
 

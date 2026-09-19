@@ -1,5 +1,20 @@
 # LFAA 测试与验收规范
 
+## v0.0.55 / #20.9 依赖提示去重与路径可见性验证
+
+验证重点是“同一事实只提示一次，并能直接看到依赖在哪里”：
+
+- `test/dependency-setup.test.mjs` 保留 #20.8 原 6 项契约，并新增路径可见性、重复提示禁止两项测试；
+- 菜单 1 不允许再出现 Node/pnpm/workspace 的 `【预检】` 三行，也不允许结尾恢复独立 `Node/pnpm` 与 `Rust/Cargo` 两条完成摘要；
+- `Show-DependencyLocations` 必须覆盖 Node `node_modules`、pnpm 虚拟仓库、运行时 pnpm Store、Node lockfile、本机状态缓存、Cargo registry/git、Rust toolchains、Cargo.lock；
+- `pnpm Store` 必须由 `pnpm store path` 动态读取，禁止固定盘符/用户名；
+- 菜单 7 环境检查复用同一位置函数；
+- release gates / environment、Config Schema、Windows BOM 与治理链继续回归。
+
+Windows 实机验收重点：菜单 1 在 unchanged 状态下应表现为“一组环境信息 + 路径 + Node/Rust 状态 + 一个总完成提示”，不再重复；所有路径应与当前机器真实目录一致。
+
+已执行结果：dependency-setup 8/8 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；仓库 Node 治理链全部 PASS；Config System TypeScript `--noEmit` PASS。当前容器无 PowerShell，Windows 动态菜单仍由用户实机验收；当前 Node 22.16.0 / 无 Cargo，不声称 `release:full` PASS。
+
 ## v0.0.54 / #20.8 按需依赖增量检测与复用验证
 
 验证重点是“依赖不变就不安装，真实变化才提示同步”：

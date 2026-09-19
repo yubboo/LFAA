@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.54**
+**当前包：LFAA-v0.0.55**
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
@@ -54,7 +54,7 @@ config-system
 当前治理修复任务：
 
 ```text
-#20.8 按需依赖增量检测与复用
+#20.9 依赖提示去重与路径可见性
 status: pending-user-acceptance
 ```
 
@@ -65,7 +65,7 @@ status: pending-user-acceptance
 status: pending-user-acceptance
 ```
 
-#20.8 验收完成后回到配置系统；#2.2 仍需用户明确验收，不能由本治理版本代替。
+#20.9 验收完成后回到配置系统；#2.2 仍需用户明确验收，不能由本治理版本代替。
 
 ## Node.js 包管理器
 
@@ -163,7 +163,7 @@ LFAA-Setup.bat
 → 1 按需依赖
 ```
 
-菜单 1 不是每次开发的必经步骤。v0.0.54 起它会先比较本机依赖指纹：依赖声明、lockfile 和实际安装状态都未变化时直接显示“已就绪”，不会再次执行 `pnpm install` / `cargo fetch` / `rustup toolchain install`。只有首次配置、依赖新增/删除/版本变化、lockfile 变化、依赖缺失或工具链损坏时才提示是否同步。纯产品版本递增不会触发依赖重装。Node 24.x 仍是项目要求；pnpm 缺失或版本不匹配时 Setup 可通过 Corepack 准备项目锁定的 pnpm 11.17.0。菜单 1 不自动追逐上游最新版本，也不会自动执行依赖升级。
+菜单 1 不是每次开发的必经步骤。v0.0.54 起它会先比较本机依赖指纹：依赖声明、lockfile 和实际安装状态都未变化时直接显示“已就绪”，不会再次执行 `pnpm install` / `cargo fetch` / `rustup toolchain install`。只有首次配置、依赖新增/删除/版本变化、lockfile 变化、依赖缺失或工具链损坏时才提示是否同步。纯产品版本递增不会触发依赖重装。v0.0.55 起进一步去掉重复预检/完成提示，并直接显示项目 `node_modules`、pnpm 虚拟仓库、真实 pnpm Store、Node/Rust 锁文件、Cargo 缓存和 Rust toolchains 路径。Node 24.x 仍是项目要求；pnpm 缺失或版本不匹配时 Setup 可通过 Corepack 准备项目锁定的 pnpm 11.17.0。菜单 1 不自动追逐上游最新版本，也不会自动执行依赖升级。
 
 
 ## Setup 菜单行为

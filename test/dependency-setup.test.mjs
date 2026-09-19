@@ -80,3 +80,24 @@ test("Rust toolchain and Cargo fetch are reused when unchanged", () => {
   assert.match(deps, /跳过 cargo fetch/);
   assert.match(deps, /尚未声明外部 crate；无需执行 cargo fetch/);
 });
+
+test("menu 1 shows dependency locations from runtime paths", () => {
+  const locations = functionBody("Show-DependencyLocations");
+  const storePath = functionBody("Get-PnpmStorePath");
+  for (const token of ["Node 依赖", "pnpm 虚拟仓库", "pnpm Store", "Node 锁文件", "依赖状态缓存", "Cargo 缓存", "Cargo Git 缓存", "Rust 工具链", "Rust 锁文件"]) {
+    assert.ok(locations.includes(token), `missing dependency location label: ${token}`);
+  }
+  assert.match(locations, /node_modules\\\.pnpm/);
+  assert.match(locations, /pnpm-lock\.yaml/);
+  assert.match(storePath, /store","path/);
+  assert.match(storePath, /Get-PnpmRunner/);
+});
+
+test("menu 1 avoids duplicate precheck and duplicate completion summaries", () => {
+  assert.doesNotMatch(setup, /【预检】" "【Node】/);
+  assert.doesNotMatch(setup, /【预检】" "【pnpm】/);
+  assert.doesNotMatch(setup, /【预检】" "【workspace】/);
+  assert.doesNotMatch(setup, /【完成】" "【Node\/pnpm】/);
+  assert.doesNotMatch(setup, /【完成】" "【Rust\/Cargo】/);
+  assert.match(setup, /【完成】" "【按需依赖】/);
+});

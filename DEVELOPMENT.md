@@ -161,7 +161,7 @@ pnpm run quality:full    # quick + build；阶段完成使用，不隐式安装�
 pnpm run release:full    # 正式发布验证：环境 + frozen install + full + Rust
 ```
 
-`LFAA-Setup.bat → 1` 只是 Windows 的按需依赖准备入口：首次配置、依赖变化、环境损坏时使用；环境已经就绪时可以直接开发、构建或检查，禁止规定“开发前必须先点 1”。菜单 1 必须先检测依赖指纹与本地安装完整性，unchanged 时零安装返回；产品版本号本身不得进入依赖指纹。检测到项目锁定依赖变化时先显示新增 / 删除 / 版本变化摘要并由用户确认，禁止自动执行 `pnpm update` 或清空 pnpm/Cargo 缓存。
+`LFAA-Setup.bat → 1` 只是 Windows 的按需依赖准备入口：首次配置、依赖变化、环境损坏时使用；环境已经就绪时可以直接开发、构建或检查，禁止规定“开发前必须先点 1”。菜单 1 必须先检测依赖指纹与本地安装完整性，unchanged 时零安装返回；产品版本号本身不得进入依赖指纹。检测到项目锁定依赖变化时先显示新增 / 删除 / 版本变化摘要并由用户确认，禁止自动执行 `pnpm update` 或清空 pnpm/Cargo 缓存。 输出层同样属于长期 UX 契约：Node/pnpm/workspace 相同事实只显示一次，结尾使用单一按需依赖总摘要；菜单 1 / 7 必须动态显示 `node_modules`、pnpm Store、lockfile、Cargo 缓存与 Rust toolchains 实际路径，禁止写死用户目录。
 
 `LFAA-Setup.bat → 10` 是检查中心，只负责把快速 / 完整 / 正式发布三种命令暴露为 Windows 交互入口；未来 CLI / GUI 必须复用同一底层命令，不得依赖菜单编号。
 

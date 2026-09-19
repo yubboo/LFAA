@@ -1,7 +1,7 @@
 /**
  * 文件：dev-log-check.mjs
  * 作用：检查单文件 Development Log 的编号历史、当前任务和状态字段。
- * 负责：docs/DEVELOPMENT_LOG.md 的主编号可追溯性、#20.8 当前治理任务、禁止旧 active/archive 日志目录回归。
+ * 负责：docs/DEVELOPMENT_LOG.md 的主编号可追溯性、#20.9 当前治理任务、禁止旧 active/archive 日志目录回归。
  * 不负责：判断业务结论正确性、Runtime Log、用户是否真的完成验收。
  * 状态归属：无运行时状态；直接读取当前工作树。
  * 对外接口：`node scripts/dev-log-check.mjs`。
@@ -24,8 +24,11 @@ for (let n = 1; n <= 21; n += 1) {
   const re = new RegExp(`(^|[^0-9])#${n}(?:\\.|\\s|\\b)`, "m");
   if (!re.test(text)) fail(`historical main task #${n} is not traceable in DEVELOPMENT_LOG.md`);
 }
-for (const token of ["#20.8", "按需依赖增量检测与复用"]) {
+for (const token of ["#20.9", "依赖提示去重与路径可见性"]) {
   if (!text.includes(token)) fail(`current governance task missing token: ${token}`);
+}
+for (const token of ["#20.8", "按需依赖增量检测与复用"]) {
+  if (!text.includes(token)) fail(`historical governance task missing token: ${token}`);
 }
 for (const token of ["#20.7", "Setup 菜单与发布门禁解耦"]) {
   if (!text.includes(token)) fail(`historical governance task missing token: ${token}`);

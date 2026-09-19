@@ -2,9 +2,23 @@
 
 > 单文件版本时间线。每个版本在顶部追加一节；不再创建 `docs/changelog/vX.Y.Z.md`。
 
-## LFAA v0.0.54 — #20.8 按需依赖增量检测与复用
+## LFAA v0.0.55 — #20.9 依赖提示去重与路径可见性
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.54
+- **任务：** #20.9
+- 用户实机确认 #20.8 的 unchanged 依赖路径已经能跳过安装，但指出菜单 1 的 Node/pnpm/workspace 与最终完成信息存在重复，并缺少依赖真实位置。
+- 删除菜单 1 的重复“预检 → 检测”环境输出；Node/pnpm/workspace 只打印一次。
+- unchanged 结尾从 Node/pnpm、Rust/Cargo 两条重复完成提示收敛为单一 `【完成】【按需依赖】` 摘要。
+- 新增统一依赖路径展示：项目 node_modules、pnpm 虚拟仓库、真实 pnpm Store、Node lockfile、本机状态缓存、Cargo registry/git 缓存、Rust toolchains 与 Cargo.lock。
+- `pnpm Store` 通过本机 `pnpm store path` 动态读取，不写死用户目录；菜单 7 环境检查复用同一路径展示。
+- #20.8 的依赖指纹、零安装、差异提示、Yes/No、禁止自动 update/prune 语义保持不变。
+- **未修改：** Config Schema/Storage、Web UI、PTY、Sync/GitHub/Update、Agent/Tool/Policy/Permission 业务语义。
+- **AI 验证：** dependency-setup 8/8、release-gates 5/5、release-environment 8/8、Config Schema 8/8；全部 Node 治理门禁 PASS；Config System TypeScript `--noEmit` PASS；PowerShell 动态交互待 Windows 实机验收。
+
+## LFAA v0.0.54 — #20.8 按需依赖增量检测与复用
+
+- **状态：** superseded
 - **基线：** v0.0.53
 - **任务：** #20.8
 - 用户实机发现 v0.0.53 菜单 1 虽已是“按需入口”，但每次执行仍会无条件调用依赖安装；本版本新增真正的依赖状态检测，不覆盖旧包。
@@ -16,7 +30,7 @@
 - 新增 `test/dependency-setup.test.mjs` 并把增量依赖契约并入 release-gates 防回归。
 - **AI 验证：** 增量依赖 6/6、release-gates 5/5、release-environment 8/8、Config Schema 8/8；governance/import/dev-log/docs/comment/Windows BOM/release consistency/prompt lifecycle/config-schema/UI contract 全部 PASS；Config System TypeScript `--noEmit` PASS。当前容器 Node 22.16.0 且无 Cargo，正式环境/Rust 门禁按设计阻断，不声称 `release:full` PASS。
 - **未修改：** Config Schema/Storage、Web UI、PTY、Sync/GitHub/Update、Agent/Tool/Policy/Permission 业务语义。
-- **用户验收重点：** 同一项目首次同步成功后，再次选择菜单 1 应零安装返回；真实依赖变化时应先显示差异并可 Yes/No。
+- **用户验收：** not-accepted；增量跳过已实机体现，但输出重复与路径不可见由 #20.9 / v0.0.55 修正。
 
 ## LFAA v0.0.53 — #20.7 Setup 菜单与发布门禁解耦
 

@@ -3,11 +3,38 @@
 > 每个版本在本文件新增一个版本章节，不再创建 `docs/releases/vX.Y.Z/RELEASE.md`。
 > 当前版本在用户验收前必须标记 `pending-user-acceptance`，验收通过后才能改为 `delivered`。
 
-## LFAA v0.0.54 Release — #20.8 按需依赖增量检测与复用
+## LFAA v0.0.55 Release — #20.9 依赖提示去重与路径可见性
 
 - **状态：** pending-user-acceptance
-- **基线：** v0.0.53
+- **基线：** v0.0.54
 - **用户验收：** pending
+
+### 交付内容
+
+- 菜单 1 的 Node / pnpm / workspace 环境事实只显示一次；
+- unchanged 路径结尾只保留一个按需依赖总摘要；
+- 新增 Node/pnpm/Rust/Cargo 关键依赖位置展示；
+- pnpm Store 使用 `pnpm store path` 动态获取；
+- 菜单 7 环境检查复用相同位置展示；
+- #20.8 增量依赖语义保持不变。
+
+### 未修改
+
+Config Schema / Config Storage、Web UI、PTY、Sync / GitHub / Update、Agent / Tool / Policy / Permission 执行链、独立 Schema / Protocol 版本。
+
+### AI 验证状态
+
+dependency-setup 8/8 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；governance / import / dev-log / docs / comment / Windows BOM / release consistency / prompt lifecycle / config-schema / release-gates / UI contract 全部 PASS；Config System TypeScript `--noEmit` PASS。当前制作容器无 PowerShell，无法冒充 Windows 动态界面实测；Node 22.16.0 / 无 Cargo 也继续阻断完整 `release:full`。
+
+### 用户实机验收重点
+
+在依赖已完整的 Windows 项目运行菜单 1，确认没有两组 Node/pnpm/workspace，没有两个独立完成摘要；显示出的 pnpm Store、node_modules、Cargo/Rust 路径应与本机实际位置一致。
+
+## LFAA v0.0.54 Release — #20.8 按需依赖增量检测与复用
+
+- **状态：** superseded
+- **基线：** v0.0.53
+- **用户验收：** not-accepted；增量跳过已实机体现，展示层问题由 v0.0.55 修正
 
 ### 交付内容
 
