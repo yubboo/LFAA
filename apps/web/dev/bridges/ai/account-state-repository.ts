@@ -39,7 +39,7 @@ export class JsonAiAccountRepository implements AiAccountRepositoryPort {
       const parsed = JSON.parse(await readFile(this.#file, "utf8")) as AccountStateFile;
       if (parsed.version !== 1 || !Array.isArray(parsed.accounts)) throw new Error("AI 账户状态文件格式无效。");
       assertNoPlaintextSecret(parsed);
-      return parsed.accounts;
+      return parsed.accounts.map((account) => ({ ...account, modelSettings: account.modelSettings ?? {} }));
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code === "ENOENT") return [];

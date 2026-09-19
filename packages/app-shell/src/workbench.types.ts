@@ -9,7 +9,7 @@
  * 修改注意事项：Host Client 只能暴露业务结果，不能泄漏 Vite/Node/Secret 明文存储细节。
  */
 import type { ReactNode } from "react";
-import type { AiAccountDraft, AiAccountProbeResult, AiAccountSnapshot } from "@lfaa/config-system";
+import type { AiAccountDraft, AiAccountProbeResult, AiAccountSnapshot, AiModelSettingValue } from "@lfaa/config-system";
 
 export type ResourceKind = "skills" | "experts" | "plugins" | "extensions" | "mcp";
 
@@ -27,7 +27,7 @@ export interface AgentAiSettingsHost {
   save(draft: AiAccountDraft, secret: string): Promise<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>;
   reprobe(accountId: string): Promise<AiAccountProbeResult>;
   deleteAccount(accountId: string): Promise<AiAccountSnapshot>;
-  selectModel(accountId: string, modelId: string): Promise<AiAccountSnapshot>;
+  selectModel(accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiModelSettingValue>>): Promise<AiAccountSnapshot>;
 }
 
 export interface AgentWorkbenchProps {

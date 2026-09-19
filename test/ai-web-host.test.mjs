@@ -4,56 +4,50 @@ import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("Windows Secret adapter uses a stable Credential Manager helper and stdin only", async () => {
-  const source = await read("apps/web/dev/bridges/ai/windows-credential-manager.ts");
-  const helper = await read("apps/web/dev/bridges/ai/windows-credential-manager.ps1");
-  assert.match(source, /"-File"/);
-  assert.match(source, /windows-credential-manager\.ps1/);
-  assert.match(source, /child\.stdin\.end\(JSON\.stringify\(payload\), "utf8"\)/);
-  assert.doesNotMatch(source, /"-Command"/);
-  assert.doesNotMatch(source, /cmdkey/i);
-  assert.doesNotMatch(source, /writeFile\([^\n]*secret/i);
-  assert.match(helper, /CredWriteW/);
-  assert.match(helper, /CredReadW/);
-  assert.match(helper, /CredDeleteW/);
+test("Web Secret adapter uses Rust broker binary protocol and never PowerShell/C#", async () => {
+  const source = await read("apps/web/dev/bridges/ai/rust-secret-store.ts");
+  const rust = await read("crates/secret-store/src/lib.rs");
+  assert.match(source, /lfaa-secret-broker/);
+  assert.match(source, /child\.stdin\.end\(request\)/);
+  assert.match(source, /REQUEST_MAGIC/);
+  assert.doesNotMatch(source, /powershell|cmdkey|Add-Type|-Command/i);
+  assert.match(rust, /CredWriteW/);
+  assert.match(rust, /CredReadW/);
+  assert.match(rust, /CredDeleteW/);
+  assert.doesNotMatch(rust, /Add-Type|System\.Runtime\.InteropServices|PowerShell/i);
 });
 
-test("Windows Credential helper verifies writes by reading them back", async () => {
-  const helper = await read("apps/web/dev/bridges/ai/windows-credential-manager.ps1");
-  assert.match(helper, /WriteLocalMachine/);
-  assert.match(helper, /PersistLocalMachine = 2/);
-  assert.match(helper, /verify-read/);
-  assert.match(helper, /verify-content/);
-  assert.match(helper, /\$verified -cne \$secret/);
-  assert.match(helper, /valueBase64/);
+test("Rust Secret broker verifies Windows writes by reading them back", async () => {
+  const rust = await read("crates/secret-store/src/lib.rs");
+  assert.match(rust, /CRED_PERSIST_LOCAL_MACHINE/);
+  assert.match(rust, /write_raw\(target, secret\)/);
+  assert.match(rust, /read\(target, Stage::VerifyRead\)/);
+  assert.match(rust, /Stage::VerifyContent/);
+  assert.match(rust, /Ok\(Some\(value\)\) if value == secret => Ok\(\(\)\)/);
 });
 
-test("Windows Credential helper reports stage and Win32 code without secret diagnostics", async () => {
-  const source = await read("apps/web/dev/bridges/ai/windows-credential-manager.ts");
-  const helper = await read("apps/web/dev/bridges/ai/windows-credential-manager.ps1");
-  assert.match(source, /Win32 \${result\.code}/);
-  assert.match(source, /STAGE_LABELS/);
-  assert.match(helper, /Get-Win32Message/);
-  assert.match(helper, /stage = 'write'; code = \$writeCode/);
-  assert.doesNotMatch(helper, /Write-Host.*secret/i);
+test("Rust Secret broker keeps secret out of argv env logs and files", async () => {
+  const source = await read("apps/web/dev/bridges/ai/rust-secret-store.ts");
+  assert.match(source, /spawn\(executable, \[\]/);
+  assert.match(source, /stdio: \["pipe", "pipe", "pipe"\]/);
+  assert.doesNotMatch(source, /env:\s*\{[^}]*secret/is);
+  assert.doesNotMatch(source, /writeFile|appendFile/);
+  assert.doesNotMatch(source, /console\.(?:log|error).*secret/i);
 });
 
-test("Windows Credential helper is UTF-8 BOM encoded for Windows PowerShell", async () => {
-  const bytes = await readFile(new URL("../apps/web/dev/bridges/ai/windows-credential-manager.ps1", import.meta.url));
-  assert.deepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
-});
-
-test("account metadata repository rejects plaintext secret field names", async () => {
+test("account metadata repository rejects plaintext secret field names and migrates modelSettings", async () => {
   const source = await read("apps/web/dev/bridges/ai/account-state-repository.ts");
   assert.match(source, /assertNoPlaintextSecret/);
   assert.match(source, /ai-accounts\.json/);
+  assert.match(source, /modelSettings: account\.modelSettings \?\? \{\}/);
   assert.doesNotMatch(source, /credentialRef\s*:\s*secret/);
 });
 
-test("browser AI client never uses localStorage or sessionStorage for credentials", async () => {
+test("browser AI client never uses browser storage for credentials", async () => {
   const source = await read("apps/web/src/host/ai-settings-client.ts");
   assert.doesNotMatch(source, /(?:window\.)?(?:localStorage|sessionStorage)\s*\./);
   assert.match(source, /\/__lfaa\/dev\/ai/);
+  assert.match(source, /modelSettings/);
 });
 
 test("Vite bridge enforces local origin and redacts common key prefixes", async () => {
@@ -61,24 +55,25 @@ test("Vite bridge enforces local origin and redacts common key prefixes", async 
   assert.match(source, /ensureSameOrigin/);
   assert.match(source, /\[REDACTED\]/);
   assert.match(source, /MAX_BODY/);
+  assert.match(source, /createWebDevSecretStore\(projectRoot\)/);
 });
 
-test("UI renders password input and leaves Provider network calls to host", async () => {
+test("UI renders official model capabilities without Provider network logic", async () => {
   const panel = await read("packages/ui/src/features/settings/ai/AiSettingsPanel.tsx");
   assert.match(panel, /type="password"/);
+  assert.match(panel, /ModelCapabilityEditor/);
+  assert.match(panel, /模型 ID 来源/);
+  assert.match(panel, /requestPath/);
+  assert.doesNotMatch(panel, /模型 ID（可选）/);
   assert.doesNotMatch(panel, /fetch\s*\(/);
   assert.doesNotMatch(panel, /(?:window\.)?(?:localStorage|sessionStorage)\s*\./);
-  assert.match(panel, /模型 ID（可选）/);
-  assert.match(panel, /onSelectAccountModel/);
 });
-
 
 test("Provider HTTP adapter never forwards remote error body to UI", async () => {
   const source = await read("apps/web/dev/bridges/ai/node-http-json.ts");
   assert.match(source, /Provider 返回 HTTP/);
   assert.doesNotMatch(source, /body\.error|body\.message|candidate/);
 });
-
 
 test("Vite native config chain uses explicit TypeScript extensions", async () => {
   const viteConfig = await read("apps/web/vite.config.ts");
@@ -87,7 +82,6 @@ test("Vite native config chain uses explicit TypeScript extensions", async () =>
   assert.match(viteConfig, /from "\.\/dev\/bridges\/ai\/ai-config-bridge\.ts"/);
   assert.match(bridge, /from "\.\/account-state-repository\.ts"/);
   assert.match(bridge, /from "\.\/node-http-json\.ts"/);
-  assert.match(bridge, /from "\.\/windows-credential-manager\.ts"/);
-  assert.match(bridge, /createWebDevSecretStore\(projectRoot\)/);
+  assert.match(bridge, /from "\.\/rust-secret-store\.ts"/);
   assert.equal(tsconfig.compilerOptions.allowImportingTsExtensions, true);
 });

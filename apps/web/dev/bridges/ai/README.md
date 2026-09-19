@@ -6,17 +6,17 @@
 
 - `ai-config-bridge.ts`：Vite localhost 路由与脱敏 JSON；
 - `account-state-repository.ts`：`.lfaa/state/ai-accounts.json` 账户元数据；
-- `windows-credential-manager.ts`：Windows Credential Manager Host Port；
-- `windows-credential-manager.ps1`：Win32 Generic Credential helper，负责写入 / 回读验证 / 读取 / 删除；
+- `rust-secret-store.ts`：构建/调用 `lfaa-secret-broker`，Secret 只通过二进制 stdin 传输；
 - `node-http-json.ts`：宿主侧 Provider HTTP JSON 请求。
 
 ## 不负责
 
-- Provider Base URL / 认证业务（归 `packages/config-system/src/settings/ai/providers`）；
+- Provider Base URL / 模型能力 / 认证业务（归 `packages/config-system/src/settings/ai/providers`）；
 - React UI（归 `packages/ui`）；
+- Win32 Credential API（归 `crates/secret-store`）；
 - 模型推理 Runtime；
-- 最终 SQLite Config Storage / Rust Secret Broker。
+- 最终 SQLite Config Storage。
 
 ## Secret 规则
 
-浏览器 Secret 只通过 localhost 请求体短暂进入 Host。Windows 下进入 Credential Manager；`put` 只有在写入后即时回读一致时才算成功；账户状态 JSON 只允许 `credentialRef`。Provider 远端错误体不直接返回 UI，避免回显请求或凭证信息。
+浏览器 Secret 只通过 localhost 请求体短暂进入 Host。Windows 下由 Rust Secret Broker 调用 Credential Manager；Secret 不进入 argv、环境变量、日志或普通文件。账户状态 JSON 只允许 `credentialRef`。Provider 远端错误体不直接返回 UI。

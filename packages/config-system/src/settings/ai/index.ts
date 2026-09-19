@@ -10,6 +10,7 @@
  */
 export * from "./core/provider.types.ts";
 export * from "./core/provider-registry.ts";
+export * from "./core/model-settings.ts";
 export * from "./transports/openai-compatible.ts";
 export * from "./providers/index.ts";
 

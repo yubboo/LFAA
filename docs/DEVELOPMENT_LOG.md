@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #2.12 | Windows Credential Manager 保存链路修复 | v0.0.72 | pending-user-acceptance |
+| #2.13 | Rust Secret Broker 与官方模型能力配置 | v0.0.73 | pending-user-acceptance |
+| #2.12 | Windows Credential Manager 保存链路修复 | v0.0.72 | superseded |
 | #2.11 | 工作台 / 设置左栏宽度单一事实源 | v0.0.71 | delivered |
 | #2.10 | UI Workspace 运行时导入解析修复 | v0.0.70 | superseded |
 | #2.9 | 设置中心共享可伸缩侧栏 | v0.0.69 | superseded |
@@ -36,17 +37,28 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
 
+### #2.13 Rust Secret Broker 与官方模型能力配置
+
+- **版本：** v0.0.73
+- **状态：** pending-user-acceptance
+- **主模块：** config-system / rust-secret-store / web-host / ui
+- **用户反馈：** v0.0.72 保存仍失败，错误来自 PowerShell `Add-Type` 内嵌 C#；用户明确技术栈必须保持 TypeScript + Rust，并要求各厂商模型/思考配置直接依据官方接口/文档。
+- **决策：** 删除 C# / PowerShell Credential helper；Windows Secret 迁入 Rust Broker。模型列表优先动态调用官方目录 API；模型能力通过 Provider capability resolver 绑定官方来源，未知能力不显示。
+- **边界：** UI 不拥有厂商事实；Web Host 不拥有 Secret 实现；Rust Broker 不知道 Provider；Account Core 只保存 `credentialRef + modelSettings`。
+- **AI 验证：** Config System 30/30、AI Web Host / Rust Secret 9/9、其余 Node 回归 53/53 通过；Config System TypeScript `--noEmit` 与 UI/App Shell/Web Host 语法检查通过；governance / import / runtime import / folder / docs / comment / Windows BOM / release consistency / prompt lifecycle / config schema / release gates / UI contract 全部 PASS。当前制作容器无 Cargo/pnpm/Windows，不冒充 Rust 编译、Credential Manager 或真实厂商 Key 动态实机通过。
+- **用户验收：** pending；Windows Rust Broker 保存/重启读取/删除与真实 Provider 模型目录/能力 UI。
+
 ### #2.12 Windows Credential Manager 保存链路修复
 
 - **版本：** v0.0.72
-- **状态：** pending-user-acceptance
+- **状态：** superseded
 - **主模块：** config-system / web-host / windows-secret-adapter
 - **用户验收前置：** v0.0.71 工作台 / Settings 左栏同宽已由用户实机确认“都优化好了”，记为 delivered。
 - **实机缺陷：** DeepSeek 连接与模型发现成功，但保存账户时报 Windows Credential Manager 操作失败。
 - **决策：** Windows Secret Adapter 改为稳定 helper 文件 + stdin payload；Generic Credential 写入后必须 read-back 验证；失败返回 stage / Win32 code，不泄露 Secret。
 - **边界：** 不改 Provider、Account 业务语义、Settings/Workbench、Windows Setup/Sync/GitHub/Update。
 - **AI 验证：** AI Web Host 10/10、Config System 26/26 与现有仓库 Node 回归通过；Windows helper 静态安全/回读/错误码合同已锁定。
-- **用户验收：** pending；真实 Windows 保存、刷新、重启 Vite 后重测、删除凭证。
+- **用户验收：** not-accepted；Windows 实机出现 PowerShell Add-Type / C# FILETIME 冲突，并由 #2.13 迁移到 Rust Secret Broker。
 
 ### #2.11 工作台 / 设置左栏宽度单一事实源
 

@@ -5,7 +5,7 @@
  * 不负责：Provider 业务、UI、Secret 文件持久化、生产 Server API。
  * 状态归属：Vite 进程持有 Account Service 与非 Windows 内存 Secret fallback。
  * 对外接口：lfaaDevAiConfigBridge(projectRoot)。
- * 关联文件：account-state-repository.ts、windows-credential-manager.ts、node-http-json.ts、apps/web/src/host/ai-settings-client.ts。
+ * 关联文件：account-state-repository.ts、rust-secret-store.ts、node-http-json.ts、apps/web/src/host/ai-settings-client.ts。
  * 修改注意事项：只绑定 Vite localhost；任何响应不得返回 Secret；请求体大小必须受限。
  */
 import { randomUUID } from "node:crypto";
@@ -14,7 +14,7 @@ import type { Plugin, ViteDevServer } from "vite";
 import { AiAccountService, AiProviderRegistry, builtinAiProviderPlugins, type AiAccountDraft } from "@lfaa/config-system";
 import { JsonAiAccountRepository } from "./account-state-repository.ts";
 import { NodeAiHttpJsonPort } from "./node-http-json.ts";
-import { createWebDevSecretStore } from "./windows-credential-manager.ts";
+import { createWebDevSecretStore } from "./rust-secret-store.ts";
 
 const MAX_BODY = 32 * 1024;
 
@@ -55,6 +55,12 @@ function parseDraft(value: unknown): AiAccountDraft {
   if (raw.settings && typeof raw.settings === "object" && !Array.isArray(raw.settings)) {
     for (const [key, item] of Object.entries(raw.settings as Record<string, unknown>)) if (typeof item === "string") settings[key] = item;
   }
+  const modelSettings: Record<string, string | number | boolean> = {};
+  if (raw.modelSettings && typeof raw.modelSettings === "object" && !Array.isArray(raw.modelSettings)) {
+    for (const [key, item] of Object.entries(raw.modelSettings as Record<string, unknown>)) {
+      if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") modelSettings[key] = item;
+    }
+  }
   return {
     ...(typeof raw.accountId === "string" ? { accountId: raw.accountId } : {}),
     providerId: raw.providerId as AiAccountDraft["providerId"],
@@ -62,6 +68,7 @@ function parseDraft(value: unknown): AiAccountDraft {
     authMethodId: raw.authMethodId,
     settings,
     selectedModelId: typeof raw.selectedModelId === "string" ? raw.selectedModelId : null,
+    modelSettings,
   };
 }
 
@@ -116,7 +123,13 @@ export function lfaaDevAiConfigBridge(projectRoot: string): Plugin {
           if (accountId && request.method === "POST" && action === "model") {
             const body = await readJson(request);
             if (typeof body.modelId !== "string") throw new Error("模型 ID 无效。");
-            await service.selectModel(accountId, body.modelId);
+            const modelSettings: Record<string, string | number | boolean> = {};
+            if (body.modelSettings && typeof body.modelSettings === "object" && !Array.isArray(body.modelSettings)) {
+              for (const [key, value] of Object.entries(body.modelSettings as Record<string, unknown>)) {
+                if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") modelSettings[key] = value;
+              }
+            }
+            await service.selectModel(accountId, body.modelId, modelSettings);
             return sendJson(response, 200, { ok: true, snapshot: await service.snapshot() });
           }
           if (accountId && request.method === "DELETE" && !action) {

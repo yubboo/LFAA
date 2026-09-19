@@ -16,6 +16,7 @@ LFAA **配置设置业务的唯一归属域**。UI、Web、Desktop、CLI 都只�
 - 默认配置与运行时校验；
 - 后续 `settings/*` 子域；
 - AI 设置业务：Account/Auth/Model/SecretRef/Provider Registry 与各厂商**配置插件**。
+- 模型目录与 Model Capability：模型 ID 优先来自官方运行时目录 API；高级参数必须来自 Provider 官方资料并由 Core 白名单校验。
 
 AI 设置固定结构：
 

@@ -99,6 +99,7 @@ function mapAiAccount(record: AiAccountRecord): AiSettingsAccountView {
     displayName: record.displayName,
     authMethodId: record.authMethodId,
     selectedModelId: record.selectedModelId,
+    modelSettings: record.modelSettings,
     verificationStatus: record.verificationStatus,
     lastVerifiedAt: record.lastVerifiedAt,
   };
@@ -121,6 +122,7 @@ function toAiAccountDraft(draft: AiSettingsDraftInput): AiAccountDraft {
     authMethodId: draft.authMethodId,
     settings: draft.settings,
     selectedModelId: draft.selectedModelId ?? null,
+    modelSettings: draft.modelSettings ?? {},
   };
 }
 
@@ -739,7 +741,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   };
   const reprobeAiAccount = async (accountId: string) => mapAiProbe(await requireAiHost().reprobe(accountId));
   const deleteAiAccount = async (accountId: string) => setAiSnapshot(await requireAiHost().deleteAccount(accountId));
-  const selectAiAccountModel = async (accountId: string, modelId: string) => setAiSnapshot(await requireAiHost().selectModel(accountId, modelId));
+  const selectAiAccountModel = async (accountId: string, modelId: string, modelSettings: Readonly<Record<string, string | number | boolean>>) => setAiSnapshot(await requireAiHost().selectModel(accountId, modelId, modelSettings));
 
   return (
     <div className="agent-theme" data-theme={resolvedTheme} data-theme-preference={themePreference} data-layout-mode={layoutMode}>

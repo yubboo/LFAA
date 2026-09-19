@@ -9,7 +9,7 @@ fs-broker            文件系统
 process-broker       进程
 pty-broker           Terminal / PTY
 sandbox              隔离
-secret-store         Secret / Credential Store
+secret-store         Rust Secret Broker / OS Credential Store（Windows Generic Credential）
 workspace-security   路径和项目安全
 file-watcher         文件监听
 ```

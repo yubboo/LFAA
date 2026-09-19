@@ -1,8 +1,21 @@
 # LFAA 更新日志
 
-## LFAA v0.0.72 — #2.12 Windows Credential Manager 保存链路修复
+## LFAA v0.0.73 — #2.13 Rust Secret Broker 与官方模型能力配置
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.72
+- **任务：** #2.13
+- 删除 PowerShell/C# Credential helper；`crates/secret-store` 实现 `lfaa-secret-broker`，Windows 直接通过 Rust FFI 调用 `CredWriteW / CredReadW / CredDeleteW`，写入后必须回读比对。
+- Web Host 通过 stdin/stdout 二进制协议调用 Rust Broker；Secret 不进入 argv、环境变量、日志、普通文件或账户 JSON。
+- Provider 模型目录升级为官方来源：OpenAI / DeepSeek / Kimi / 千问 / Xiaomi 使用官方模型列表 API；智谱在未确认统一账户模型列表 API 时使用带官方来源的 Catalog Adapter，不伪造 endpoint。
+- 新增模型 Capability 契约与 Core 校验：UI 只展示官方确认的思考模式/思考强度/输出限制等参数；未知或不支持参数不能保存。
+- 移除任意手工模型 ID 作为主流程；保存模型必须存在于本次官方模型目录结果或官方 Catalog。
+- **AI 验证：** Config System 30/30、AI Web Host / Rust Secret 9/9、Config System TypeScript `--noEmit` PASS；制作容器无 Cargo/pnpm/Windows，不声称 Rust 编译、Credential Manager 实机或真实厂商 Key 已动态通过。
+
+## LFAA v0.0.72 — #2.12 Windows Credential Manager 保存链路修复
+
+- **状态：** superseded
+- **用户验收：** not-accepted；Windows 实机 PowerShell Add-Type/C# FILETIME 冲突，已由 v0.0.73 Rust Secret Broker 取代
 - **基线：** v0.0.71
 - **任务：** #2.12
 - v0.0.71 左栏宽度同步已由用户实机确认通过并 delivered；随后真实 DeepSeek 保存测试暴露 Windows Credential Manager Secret Adapter 失败。

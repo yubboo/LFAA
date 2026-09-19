@@ -1,3 +1,13 @@
+## v0.0.73 / #2.13 Rust Secret Broker 与官方模型能力配置
+
+- `packages/config-system/test/*.test.mjs`：30/30 PASS；覆盖官方模型目录、Provider Capability、模型配置白名单、未知字段/伪造模型拒绝与 Config Schema 回归。
+- `node --test test/ai-web-host.test.mjs`：9/9 PASS；锁定 Rust Broker、`CredWriteW / CredReadW / CredDeleteW`、写后回读、Secret 不进 argv/env/file/log、UI 不直连 Provider。
+- `tsc -p packages/config-system/tsconfig.json --noEmit`：PASS。
+- Rust Broker 必须使用 stdin/stdout 二进制协议；仓库不得保留正式 C#/PowerShell Credential helper。
+- Windows 实机验收：真实 Key 测试连接 → 选择官方模型 → 保存 → 刷新 → 重启 Vite 重测 → 删除；Credential Manager 中凭证应存在/删除，`.lfaa/state/ai-accounts.json` 只允许 `credentialRef`。
+- 模型验收：运行时模型列表必须来自厂商官方模型 API；智谱无已确认统一列表 API 时只用官方文档 Catalog；Capability 控件必须显示来源与核对日期，未确认能力不得展示。
+- 当前制作容器无 Cargo/pnpm/Windows，不声称 Rust 编译、Windows Credential Manager 或真实厂商 API 动态实机 PASS。
+
 ## v0.0.71 / #2.11 工作台 / 设置左栏宽度单一事实源
 
 - `test/settings-shell.test.mjs`：锁定 App Shell 的单一 `leftPaneWidth` 同时注入主 Workbench 与 Settings；Settings 禁止独立宽度 state；

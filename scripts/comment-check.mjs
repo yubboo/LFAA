@@ -71,14 +71,17 @@ const keyFiles = [
   "packages/config-system/src/settings/ai/core/account-service.ts",
   "packages/config-system/src/settings/ai/core/account.types.ts",
   "packages/config-system/src/settings/ai/core/host-ports.ts",
+  "packages/config-system/src/settings/ai/core/model-settings.ts",
   "packages/config-system/src/settings/ai/transports/openai-compatible.ts",
+  "crates/secret-store/src/lib.rs",
+  "crates/secret-store/src/bin/lfaa-secret-broker.rs",
   "packages/ui/src/features/settings/ai/AiSettingsPage.tsx",
   "packages/ui/src/features/settings/ai/AiSettingsPanel.tsx",
   "apps/web/src/host/ai-settings-client.ts",
   "apps/web/dev/bridges/ai/ai-config-bridge.ts",
   "apps/web/dev/bridges/ai/account-state-repository.ts",
   "apps/web/dev/bridges/ai/node-http-json.ts",
-  "apps/web/dev/bridges/ai/windows-credential-manager.ts",
+  "apps/web/dev/bridges/ai/rust-secret-store.ts",
   "packages/ui/src/features/settings/ai/ai-settings.types.ts",
 ];
 

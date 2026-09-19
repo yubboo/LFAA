@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #2.12 | Windows Credential Manager 保存链路修复 | v0.0.72 | pending-user-acceptance | pass | pending |
+| #2.13 | Rust Secret Broker 与官方模型能力配置 | v0.0.73 | pending-user-acceptance | pass | pending |
+| #2.12 | Windows Credential Manager 保存链路修复 | v0.0.72 | superseded | pass | not-accepted |
 | #2.11 | 工作台 / 设置左栏宽度单一事实源 | v0.0.71 | delivered | pass | passed |
 | #2.10 | UI Workspace 运行时导入解析修复 | v0.0.70 | superseded | pass | not-accepted |
 | #2.9 | 设置中心共享可伸缩侧栏 | v0.0.69 | superseded | pass | not-accepted |
@@ -50,6 +51,62 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.13 Rust Secret Broker 与官方模型能力配置
+
+### 主模块
+
+`config-system / rust-secret-store / web-host / ui`
+
+### 背景
+
+v0.0.72 Windows 实机继续暴露 Credential helper 的 C# `FILETIME` 命名冲突。用户明确要求 LFAA 技术栈保持 TypeScript + Rust，不接受 PowerShell 内嵌 C# 作为长期 Secret Broker。同时用户要求 AI 配置必须直接对接各厂商官方接口：模型 ID 来自官方模型目录，思考模式/思考强度/模型参数必须只展示官方真实支持的能力，不能伪造。
+
+### 任务目标
+
+1. 删除 Windows Credential Manager 的 C#/PowerShell helper，实现 `lfaa-secret-store` Rust Broker；Windows 通过 Rust FFI 调用 Generic Credential，Web Host 仅通过 stdin/stdout 二进制协议与 Broker 通信。
+2. Provider 模型发现继续优先使用官方模型列表 API，返回账户当前可用的全部模型 ID，不以 LFAA 内置白名单替代官方结果。
+3. 新增模型能力描述契约：思考开关、推理强度、上下文/输出上限等只允许来自厂商官方 API/官方文档；能力项记录官方来源。官方 `/models` 不返回能力元数据时，Provider 可以用官方文档规则补充，但禁止猜测。
+4. Account 保存模型配置时必须经过 Provider 能力校验；UI 只展示选中模型真实支持的配置项。
+
+### 允许修改
+
+- `crates/secret-store/**`；
+- `apps/web/dev/bridges/ai` 的 Rust Secret Broker Adapter；
+- `packages/config-system/src/settings/ai/core` 的模型能力/账户配置契约；
+- 六家 `providers/<provider>` 与共享 transport；
+- `packages/ui/src/features/settings/ai` 与 App Shell ViewModel；
+- 对应测试、治理、Prompt / Log / Plan / Testing / CHANGELOG / RELEASES / 版本事实。
+
+### 禁止修改
+
+- 禁止继续使用 C# `Add-Type`、`cmdkey /pass:`、Secret 命令行参数、Secret 环境变量或普通文件持久化；
+- 禁止为了“全模型”伪造厂商不存在的模型列表端点；
+- 禁止根据模型名字臆测思考强度/上下文；无官方依据的配置项不显示；
+- 禁止 Provider 业务进入 UI / apps/web；
+- 禁止修改已验收 Workbench / Settings / Profile / Theme / Windows Setup / Sync / GitHub / Update。
+
+### 验收条件
+
+- Windows 保存 Secret 走 Rust Broker，`put → read-back → compare` 通过后才允许账户元数据落盘；C# / Credential PowerShell helper 从仓库删除；
+- Secret 不进入命令行、环境变量、日志、URL、普通 JSON；账户 JSON 继续只存 `credentialRef`；
+- OpenAI / DeepSeek / Kimi / 千问 / Xiaomi 使用各自官方模型目录 API 获取模型 ID；智谱在没有已确认统一列表 API 时不得伪造 endpoint，使用带官方来源的 Catalog Adapter；
+- 选中模型后，UI 显示该模型官方支持的推理/思考设置；未知模型仍可选择，但不显示未确认参数；
+- 保存的模型配置必须通过 Provider 能力白名单校验，不能保存厂商/模型不支持的字段或值；
+- 现有 Account/Auth/Settings/Workbench 全量回归。
+
+### 必须测试
+
+- Rust Broker 二进制协议、Windows FFI 静态契约、无 C#/PS1 helper；
+- Secret Adapter 不向 argv/env/file 传 Secret；
+- Provider 动态模型发现与能力解析；
+- 模型配置非法字段/非法 effort 拒绝；
+- UI 仅渲染 capabilities 中声明的控制项；
+- governance / folder / import / runtime imports / Windows BOM / release consistency / prompt lifecycle。
+
+### 当前状态
+
+`pending-user-acceptance`
 
 ## #2.12 Windows Credential Manager 保存链路修复
 

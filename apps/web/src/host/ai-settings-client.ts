@@ -9,7 +9,7 @@
  * 修改注意事项：Secret 只允许出现在请求体内存中，禁止 console/localStorage/sessionStorage/URL。
  */
 import type { AgentAiSettingsHost } from "@lfaa/app-shell";
-import type { AiAccountDraft, AiAccountProbeResult, AiAccountSnapshot } from "@lfaa/config-system";
+import type { AiAccountDraft, AiAccountProbeResult, AiAccountSnapshot, AiModelSettingValue } from "@lfaa/config-system";
 
 const BASE = "/__lfaa/dev/ai";
 
@@ -45,8 +45,8 @@ export const webAiSettingsHost: AgentAiSettingsHost = {
     const payload = await request<{ snapshot: AiAccountSnapshot }>(`/accounts/${encodeURIComponent(accountId)}`, { method: "DELETE" });
     return payload.snapshot;
   },
-  async selectModel(accountId: string, modelId: string) {
-    const payload = await request<{ snapshot: AiAccountSnapshot }>(`/accounts/${encodeURIComponent(accountId)}/model`, { method: "POST", body: JSON.stringify({ modelId }) });
+  async selectModel(accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiModelSettingValue>>) {
+    const payload = await request<{ snapshot: AiAccountSnapshot }>(`/accounts/${encodeURIComponent(accountId)}/model`, { method: "POST", body: JSON.stringify({ modelId, modelSettings }) });
     return payload.snapshot;
   },
 };

@@ -1,6 +1,18 @@
-## LFAA v0.0.72 Release — #2.12 Windows Credential Manager 保存链路修复
+## LFAA v0.0.73 Release — #2.13 Rust Secret Broker 与官方模型能力配置
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.72
+- **任务：** #2.13
+- **Secret：** 正式链路为 TypeScript Host → Rust `lfaa-secret-broker` → Windows Generic Credential；C#/PowerShell helper 已删除；Secret 只经二进制 stdin/stdout Broker 协议。
+- **模型目录：** OpenAI / DeepSeek / Kimi / 千问 / Xiaomi 优先使用各自官方运行时模型目录 API；智谱使用带官方来源与核对日期的 Catalog Adapter，不伪造模型列表 API。
+- **模型能力：** Provider `describeModel()` 只暴露官方资料确认的思考/推理/上下文/输出配置；Account Core 在保存前再次校验字段和值。
+- **AI 验证：** Config System 30/30、AI Web Host / Rust Secret 9/9、Config System TypeScript noEmit PASS；其余治理门禁随候选包收口。
+- **用户验收重点：** Windows 保存/刷新/重启/删除 Secret；真实 Provider Key 拉取账户模型；模型能力控件与官方能力一致；普通 JSON/日志不出现 Secret。
+
+## LFAA v0.0.72 Release — #2.12 Windows Credential Manager 保存链路修复
+
+- **状态：** superseded
+- **用户验收：** not-accepted；Windows 实机 PowerShell Add-Type/C# FILETIME 冲突，已由 v0.0.73 Rust Secret Broker 取代
 - **基线：** v0.0.71
 - **任务：** #2.12
 - **主要变更：** Windows Secret Host Adapter 使用稳定 PowerShell helper；Generic Credential 写入后即时回读验证；失败返回 stage + Win32 code。

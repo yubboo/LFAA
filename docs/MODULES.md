@@ -1030,13 +1030,13 @@ v0.0.41 为 Windows PowerShell 脚本补中文结构化文件头时，保存过�
 
 ## config-system
 
-- 当前进度：#2.8 / v0.0.68 Vite Native Config 兼容修复，pending-user-acceptance；#2.7 Account/Auth/Secret 业务成果保留，当前只修 Web Host 的 native config import 兼容。
+- 当前进度：#2.13 / v0.0.73 Rust Secret Broker 与官方模型能力配置，pending-user-acceptance；Secret 已迁入 Rust Broker，模型目录/能力由官方 API/官方文档驱动。
 
 > 迁移来源：`docs/modules/config-system/README.md`
 
 ### config-system
 
-> v0.0.71：设置中心继续复用共享 UI Workbench，并与主工作台统一 leftPaneWidth；此项属于 UI/Shell 几何，不改变 Config System 业务真值。
+> v0.0.73：Account/Provider 业务继续归 Config System；Secret OS 实现迁入 Rust Broker；模型能力只接受官方 API/官方文档事实。
 
 #### 作用
 
@@ -1073,7 +1073,8 @@ implementing
 - Account/Auth/Model 业务归 `config-system/src/settings/ai/core`；
 - Web Host 通过 Port 提供 JSON 元数据、Credential Manager Secret、Provider HTTP；
 - UI 只收 Secret 瞬时输入与业务结果，不直接 `fetch` Provider；
-- OpenAI/DeepSeek/Kimi/Qwen/MiMo 真实模型探测；智谱手工模型 `unverified`；ChatGPT subscription 待 Codex App Server。
+- OpenAI/DeepSeek/Kimi/Qwen/MiMo 使用官方模型目录 API；智谱使用官方文档 Catalog Adapter，不再允许任意手工模型 ID；ChatGPT subscription 待 Codex App Server。
+- 选中模型的思考/推理/输出等设置由 Provider Capability 声明，并在 Account Core 保存前再次校验。
 
 > 迁移来源：`docs/plans/modules/config-system/PLAN.md`
 
@@ -1172,6 +1173,17 @@ v0.0.2+
 > 迁移来源：`docs/progress/modules/config-system/PROGRESS.md`
 
 ### config-system PROGRESS
+
+#### 2026-09-19 / #2.13 Rust Secret Broker 与官方模型能力配置
+
+- 当前状态：pending-user-acceptance
+- 用户版本：v0.0.73
+- Secret：删除 C#/PowerShell Credential helper；Windows 通过 `crates/secret-store` Rust FFI 访问 Generic Credential，Web Host 只走二进制 stdin/stdout Broker 协议。
+- Provider：OpenAI / DeepSeek / Kimi / 千问 / Xiaomi 动态调用官方模型目录 API；智谱无已确认统一账户模型列表 API，使用官方模型概览 Catalog Adapter。
+- Capability：Provider 为已核对模型返回官方来源、上下文/输出限制与真实请求参数路径；UI 无厂商分支，Account Core 拒绝未声明字段/值。
+- 验证：Config System 30/30、AI Web Host/Rust Secret 9/9、Config System TypeScript noEmit PASS；Windows/Cargo/真实 Key 动态验收由用户实机完成。
+- 下一步：用户验收通过后继续 ChatGPT/Codex App Server 登录或 config-storage，按当前优先级选择。
+
 
 #### 2026-09-19 / #2.10 UI Workspace 运行时导入解析修复
 
