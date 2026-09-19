@@ -1,6 +1,17 @@
-## LFAA v0.0.67 Release — #2.7 Web API-Key Account 真实闭环
+## LFAA v0.0.68 Release — #2.8 Vite Native Config 兼容修复
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.67
+- **任务：** #2.8
+- **主要变更：** Vite config 及 AI dev bridge 的本地 ESM import 显式补齐 `.ts`；Web noEmit tsconfig 开启 `allowImportingTsExtensions`。
+- **边界：** 不改 Account/Auth/Provider/Secret 业务，不改 Settings/Workbench，不改 Windows 工具链；不隐藏 Vite warning。
+- **AI 验证：** AI Web Host 静态契约新增 native import 规则，其余治理/业务回归必须保持通过。
+- **用户验收重点：** Windows 菜单 2 启动 Web 后，相关 `configLoader: native` extensionless import warning 消失。
+
+## LFAA v0.0.67 Release — #2.7 Web API-Key Account 真实闭环
+
+- **状态：** superseded
+- **用户验收：** not-accepted；Windows 实机出现 Vite native config extensionless import warning，由 v0.0.68 修正
 - **基线：** v0.0.66
 - **任务：** #2.7
 - **主要变更：** Config System Account Service + Windows Credential Manager Secret Adapter + Web localhost Bridge + 真实 Provider 模型探测与账户/模型管理 UI。

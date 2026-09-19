@@ -47,3 +47,15 @@ test("Provider HTTP adapter never forwards remote error body to UI", async () =>
   assert.match(source, /Provider 返回 HTTP/);
   assert.doesNotMatch(source, /body\.error|body\.message|candidate/);
 });
+
+
+test("Vite native config chain uses explicit TypeScript extensions", async () => {
+  const viteConfig = await read("apps/web/vite.config.ts");
+  const bridge = await read("apps/web/dev/bridges/ai/ai-config-bridge.ts");
+  const tsconfig = JSON.parse(await read("apps/web/tsconfig.json"));
+  assert.match(viteConfig, /from "\.\/dev\/bridges\/ai\/ai-config-bridge\.ts"/);
+  assert.match(bridge, /from "\.\/account-state-repository\.ts"/);
+  assert.match(bridge, /from "\.\/node-http-json\.ts"/);
+  assert.match(bridge, /from "\.\/windows-credential-manager\.ts"/);
+  assert.equal(tsconfig.compilerOptions.allowImportingTsExtensions, true);
+});

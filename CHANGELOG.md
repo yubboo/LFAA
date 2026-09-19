@@ -1,6 +1,17 @@
-## LFAA v0.0.67 — #2.7 Web API-Key Account 真实闭环
+## LFAA v0.0.68 — #2.8 Vite Native Config 兼容修复
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.67
+- **任务：** #2.8
+- Vite config 导入 AI dev bridge 改为显式 `.ts` 扩展名；Bridge 内三个本地实现依赖同样显式 `.ts`。
+- Web `noEmit` TypeScript 配置启用 `allowImportingTsExtensions`。
+- 新增静态防回归，禁止未来再次在 Vite config 依赖链省略本地 TypeScript 扩展名。
+- 不使用 `VITE_CONFIG_NATIVE_IGNORE_WARNING` 掩盖兼容问题；Account/Auth/Provider/Secret/UI/Windows 工具链业务不变。
+
+## LFAA v0.0.67 — #2.7 Web API-Key Account 真实闭环
+
+- **状态：** superseded
+- **用户验收：** not-accepted；Windows 实机启动出现 Vite native config extensionless import warning，由 v0.0.68 修正
 - **基线：** v0.0.66
 - **任务：** #2.7
 - **前序验收：** v0.0.66 已由用户实机确认“丝滑”并 delivered。

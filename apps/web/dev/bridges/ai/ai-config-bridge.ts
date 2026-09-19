@@ -12,9 +12,9 @@ import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin, ViteDevServer } from "vite";
 import { AiAccountService, AiProviderRegistry, builtinAiProviderPlugins, type AiAccountDraft } from "@lfaa/config-system";
-import { JsonAiAccountRepository } from "./account-state-repository";
-import { NodeAiHttpJsonPort } from "./node-http-json";
-import { createWebDevSecretStore } from "./windows-credential-manager";
+import { JsonAiAccountRepository } from "./account-state-repository.ts";
+import { NodeAiHttpJsonPort } from "./node-http-json.ts";
+import { createWebDevSecretStore } from "./windows-credential-manager.ts";
 
 const MAX_BODY = 32 * 1024;
 

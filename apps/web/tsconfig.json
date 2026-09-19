@@ -3,13 +3,30 @@
   "compilerOptions": {
     "baseUrl": ".",
     "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["vite/client", "node"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "vite/client",
+      "node"
+    ],
     "noEmit": true,
     "paths": {
-      "@/*": ["src/*"]
-    }
+      "@/*": [
+        "src/*"
+      ]
+    },
+    "allowImportingTsExtensions": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
-  "exclude": ["dist", "node_modules"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "vite.config.ts"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
 }

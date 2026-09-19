@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #2.7 | Web API-Key Account 真实闭环 | v0.0.67 | pending-user-acceptance | pass | pending |
+| #2.8 | Vite Native Config 兼容修复 | v0.0.68 | pending-user-acceptance | pass | pending |
+| #2.7 | Web API-Key Account 真实闭环 | v0.0.67 | superseded | pass | not-accepted |
 | #2.6 | 工作台吸附反向展开动效修复 | v0.0.66 | delivered | pass | passed |
 | #2.5 | 个人中心侧栏内联聚焦修复 | v0.0.65 | delivered | pass | passed |
 | #2.4 | 设置中心与个人中心交互重构 | v0.0.64 | superseded | pass | not-accepted |
@@ -45,6 +46,48 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.8 Vite Native Config 兼容修复
+
+### 主模块
+
+`web-host / project-governance`
+
+### 背景
+
+v0.0.67 在 Windows 实机启动 Web 时 Vite 8.2.2 提示 native config loader 兼容警告：Vite config 及其本地 dev bridge 使用了省略 `.ts` 扩展名的相对 ESM import。当前仍能启动，但未来 `configLoader: native` 成为默认时会产生兼容风险。
+
+### 任务目标
+
+显式补齐 Vite config 依赖链中的本地 `.ts` 扩展名，并让 Web TypeScript `noEmit` 配置允许导入 TypeScript 扩展名；禁止通过环境变量隐藏 warning。
+
+### 允许修改
+
+- `apps/web/vite.config.ts`；
+- `apps/web/dev/bridges/ai/*.ts` 中属于 Vite config 依赖链的本地 import；
+- `apps/web/tsconfig.json`；
+- AI Web Host 静态契约测试；
+- Prompt / Log / Plan / Testing / CHANGELOG / RELEASES / 版本事实。
+
+### 禁止修改
+
+- Account/Auth/Secret/Provider 业务语义；
+- Settings / Workbench / Profile / Theme；
+- Windows Setup / Sync / GitHub / Update；
+- 不得使用 `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` 掩盖问题。
+
+### 验收条件
+
+- `vite.config.ts` 导入 AI Bridge 时显式 `.ts`；
+- AI Bridge 的三个本地实现依赖显式 `.ts`；
+- Web tsconfig 开启 `allowImportingTsExtensions` 且继续 `noEmit`；
+- 静态测试锁定上述规则；
+- Windows 实机再次启动 Web 时不再出现本任务所针对的 native config loader warning；
+- `Re-optimizing dependencies because lockfile has changed` 仅在 lockfile 确实变化时可出现，不视为错误。
+
+### 当前状态
+
+`pending-user-acceptance`
 
 ## #2.7 Web API-Key Account 真实闭环
 

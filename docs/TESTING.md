@@ -1,3 +1,10 @@
+## v0.0.68 / #2.8 Vite Native Config 兼容修复
+
+- `node --test test/ai-web-host.test.mjs`：7/7 PASS；新增 Vite config/dev bridge 本地 ESM import 必须显式 `.ts`，并锁定 `allowImportingTsExtensions: true`；
+- 禁止以 `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` 作为修复；
+- Windows 实机验收：菜单 2 启动 Web 后，不再出现本任务对应的 `configLoader: native` extensionless import warning；
+- `Re-optimizing dependencies because lockfile has changed` 若发生在真实 lockfile 变化后属于 Vite 正常行为。
+
 ## v0.0.67 / #2.7 Web API-Key Account 真实闭环
 
 - `packages/config-system/test/*.test.mjs`：26/26 PASS；覆盖六家 Provider、Config Schema、Account Service、Secret 引用、重测/删除/回滚、Qwen 模型解析与 ChatGPT 套餐边界；

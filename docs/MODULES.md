@@ -1030,7 +1030,7 @@ v0.0.41 为 Windows PowerShell 脚本补中文结构化文件头时，保存过�
 
 ## config-system
 
-- 当前进度：#2.7 / v0.0.67 Web API-Key Account 真实闭环，pending-user-acceptance；Windows Secret 使用 Credential Manager，ChatGPT 套餐认证后续接 Codex App Server。
+- 当前进度：#2.8 / v0.0.68 Vite Native Config 兼容修复，pending-user-acceptance；#2.7 Account/Auth/Secret 业务成果保留，当前只修 Web Host 的 native config import 兼容。
 
 > 迁移来源：`docs/modules/config-system/README.md`
 

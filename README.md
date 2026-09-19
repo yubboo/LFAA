@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.67**
+**当前包：LFAA-v0.0.68**
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
@@ -54,7 +54,7 @@ config-system
 当前配置系统业务任务：
 
 ```text
-#2.7 Web API-Key Account 真实闭环
+#2.8 Vite Native Config 兼容修复
 status: pending-user-acceptance
 ```
 
@@ -65,7 +65,7 @@ status: pending-user-acceptance
 status: pending-user-acceptance
 ```
 
-#20.16 / v0.0.62、#2.5 / v0.0.65、#2.6 / v0.0.66 均已由用户实机验收通过。当前 v0.0.67 把既有六家 AI Provider 插件接入真实 Web Account/Auth/Secret 闭环：Windows Secret 使用 Credential Manager，普通状态只保存 `credentialRef`；支持连接测试、模型发现/手工模型、保存、重测、切模与删除。OpenAI ChatGPT 套餐登录仍等待独立 Codex App Server 子任务，不在 API Key 流程里伪装完成。
+#20.16 / v0.0.62、#2.5 / v0.0.65、#2.6 / v0.0.66 均已由用户实机验收通过。v0.0.67 已完成六家 AI Provider 的 Web Account/Auth/Secret 真实闭环，但 Windows 实机启动暴露 Vite native config extensionless import 兼容 warning。当前 v0.0.68 仅修该 Web Host 兼容问题：本地 ESM import 显式 `.ts`，不改变 Account/Auth/Provider/Secret 业务。OpenAI ChatGPT 套餐登录仍等待独立 Codex App Server 子任务。
 
 ## Node.js 包管理器
 

@@ -13,7 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import type { IPty } from "node-pty";
-import { lfaaDevAiConfigBridge } from "./dev/bridges/ai/ai-config-bridge";
+import { lfaaDevAiConfigBridge } from "./dev/bridges/ai/ai-config-bridge.ts";
 
 // ===== 1. 项目路径和开发端口 =====
 const appRoot = fileURLToPath(new URL(".", import.meta.url));

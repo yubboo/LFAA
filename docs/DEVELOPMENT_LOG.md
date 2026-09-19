@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #2.7 | Web API-Key Account 真实闭环 | v0.0.67 | pending-user-acceptance |
+| #2.8 | Vite Native Config 兼容修复 | v0.0.68 | pending-user-acceptance |
+| #2.7 | Web API-Key Account 真实闭环 | v0.0.67 | superseded |
 | #2.6 | 工作台吸附反向展开动效修复 | v0.0.66 | delivered |
 | #2.5 | 个人中心侧栏内联聚焦修复 | v0.0.65 | delivered |
 | #2.4 | 设置中心与个人中心交互重构 | v0.0.64 | superseded |
@@ -30,10 +31,21 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+### #2.8 Vite Native Config 兼容修复
+
+- **版本：** v0.0.68
+- **状态：** pending-user-acceptance
+- **主模块：** web-host / project-governance
+- **用户反馈：** v0.0.67 Web 可启动，但 Vite 8.2.2 明确警告 Vite config/dev bridge 的 extensionless ESM import 不兼容未来 native config loader。
+- **决策：** 不屏蔽 warning，显式补齐 `.ts` 扩展名，并在 Web `noEmit` tsconfig 启用 `allowImportingTsExtensions`。
+- **边界：** 不改 Account/Auth/Provider/Secret 业务，不改 UI/Workbench，不改 Windows 工具链。
+- **AI 验证：** AI Web Host 静态契约新增 native import 检查；治理、版本与现有业务回归必须继续通过。
+- **用户验收：** pending；重点为 Windows 重新启动 Web 后相关 native config warning 消失。
+
 ### #2.7 Web API-Key Account 真实闭环
 
 - **版本：** v0.0.67
-- **状态：** implementing
+- **状态：** superseded
 - **主模块：** config-system / ui / app-shell / web-host
 - **用户决策：** v0.0.66 动效已验收，继续下一步业务开发；Web 作为首个完整参考宿主。
 - **目标：** 六家内置 Provider 的 API Key / Token Plan 真实连接、模型发现、账户元数据、Secret Host Adapter 与 Web 设置交互闭环。
@@ -41,7 +53,7 @@
 - **实现：** `AiAccountService` + Host Ports；Windows Credential Manager Secret Adapter；JSON 元数据 Repository；Provider HTTP Adapter；Web localhost Bridge；Settings 真实账户表单与模型管理。
 - **安全：** Secret 不进账户 JSON / 浏览器 Storage；Provider 错误体不回传；写元数据失败回滚新写 Secret。
 - **AI 验证：** Config System 26/26、AI Web Host 6/6、Settings/Workbench/Dependency/Release 回归 PASS；Config System 与 UI/App Shell 补充 TypeScript PASS；仓库可执行治理门禁 PASS。
-- **用户验收：** pending；重点验证 Windows Credential Manager 持久化、真实 Provider 连接与刷新/重启后账户恢复。
+- **用户验收：** not-accepted；业务成果保留，但 Web 启动出现 Vite native config 兼容 warning，由 #2.8 / v0.0.68 修正。
 
 ### #2.6 工作台吸附反向展开动效修复
 
