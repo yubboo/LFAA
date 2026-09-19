@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #2.8 | Vite Native Config 兼容修复 | v0.0.68 | pending-user-acceptance | pass | pending |
+| #2.9 | 设置中心共享可伸缩侧栏 | v0.0.69 | pending-user-acceptance | pass | pending |
+| #2.8 | Vite Native Config 兼容修复 | v0.0.68 | superseded | pass | not-accepted |
 | #2.7 | Web API-Key Account 真实闭环 | v0.0.67 | superseded | pass | not-accepted |
 | #2.6 | 工作台吸附反向展开动效修复 | v0.0.66 | delivered | pass | passed |
 | #2.5 | 个人中心侧栏内联聚焦修复 | v0.0.65 | delivered | pass | passed |
@@ -46,6 +47,50 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.9 设置中心共享可伸缩侧栏
+
+### 主模块
+
+`ui / app-shell`
+
+### 背景
+
+v0.0.68 的独立 Settings Surface 已可用，但左侧设置导航仍使用固定 CSS 宽度，与工作台左栏不是同一套几何能力。用户明确要求所有左侧导航统一复用同一套可拉伸、可吸附收起、Pointer 未松手可反向拉出、带短 release 动效和尺寸持久化的能力，避免每个页面各写一套。
+
+### 任务目标
+
+让 Settings 左栏直接复用 `ResizableWorkbench` 的左栏能力，并扩展该布局组件支持“单侧 Surface”：没有右栏时不渲染伪右栏/伪 separator。设置侧栏尺寸必须由同一响应式几何计算器实时计算，禁止固定 `17rem / 12rem`。
+
+### 允许修改
+
+- `packages/ui/src/workbench/ResizableWorkbench.tsx` 与类型/CSS，仅用于支持单侧 Surface；
+- `packages/ui/src/features/settings/SettingsPage.tsx` / `settings.css`；
+- Settings/Workbench 防回归测试；
+- UI/Workbench README、Prompt / Log / Plan / Testing / CHANGELOG / RELEASES / 版本事实。
+
+### 禁止修改
+
+- AI Account/Auth/Secret/Provider 业务；
+- UserMenu/Profile/Theme 已验收行为；
+- Web Host Bridge；
+- Windows Setup / Sync / GitHub / Update；
+- 不得为 Settings 再实现一套独立 Pointer resize/snap 算法。
+
+### 验收条件
+
+- Settings 左栏使用 `ResizableWorkbench`；
+- 左栏宽度随 Settings 容器实时计算并可拖拽；
+- 拖到 min 可吸附收起，Pointer 未松手反向拖过 hysteresis 可平滑拉回；
+- 收起后提供显式“展开设置导航”入口；
+- 设置侧栏尺寸持久化到独立 storage key，不污染主工作台布局；
+- 无右栏时不出现额外右侧 separator；
+- `settings.css` 不再包含固定 `17rem / 12rem` 侧栏布局；
+- 原 Workbench Snap、Settings/Profile、Config System 与 Web Host 回归继续通过。
+
+### 当前状态
+
+`pending-user-acceptance`
 
 ## #2.8 Vite Native Config 兼容修复
 

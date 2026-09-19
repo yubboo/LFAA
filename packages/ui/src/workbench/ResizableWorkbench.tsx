@@ -137,6 +137,7 @@ export function ResizableWorkbench({
   onRightCollapsedChange,
   onBottomOpenChange,
 }: ResizableWorkbenchProps) {
+  const rightEnabled = right !== undefined && right !== null;
   const initial = useMemo(
     () => loadState(storageKey, leftLimits, rightLimits, bottomLimits),
     [bottomLimits, leftLimits, rightLimits, storageKey],
@@ -183,14 +184,16 @@ export function ResizableWorkbench({
     const rect = root.getBoundingClientRect();
     const otherWidth = layoutMode === "desktop"
       ? side === "left"
-        ? (rightCollapsed ? 0 : rightWidth)
+        ? (!rightEnabled || rightCollapsed ? 0 : rightWidth)
         : (leftCollapsed ? 0 : leftWidth)
       : 0;
     const staticMax = side === "left" ? leftLimits.max : rightLimits.max;
-    const handleBudget = layoutMode === "desktop" ? HANDLE_WIDTH * 2 : HANDLE_WIDTH;
+    const handleBudget = layoutMode === "desktop"
+      ? HANDLE_WIDTH + (rightEnabled ? HANDLE_WIDTH : 0)
+      : HANDLE_WIDTH;
     const available = Math.max(0, rect.width - otherWidth - minCenterWidth - handleBudget);
     return Math.max(0, Math.min(staticMax, available > 0 ? available : staticMax));
-  }, [layoutMode, leftCollapsed, leftLimits.max, leftWidth, minCenterWidth, rightCollapsed, rightLimits.max, rightWidth]);
+  }, [layoutMode, leftCollapsed, leftLimits.max, leftWidth, minCenterWidth, rightCollapsed, rightEnabled, rightLimits.max, rightWidth]);
 
   // 响应式计算结果变化时，把历史持久化尺寸重新夹进当前容器允许的范围。
   // 这一步很重要：用户在大屏保存的 340px 侧栏，切到小窗后不能继续拿 340px 挤压主区。
@@ -518,9 +521,11 @@ export function ResizableWorkbench({
   // collapsed/open 最终只转换成列宽 / 行高变量，视觉动画由 workbench.css 完成。
   const style = {
     "--lfaa-left-size": `${leftWidth}px`,
+    "--lfaa-left-handle-width": `${HANDLE_WIDTH}px`,
+    "--lfaa-right-handle-width": `${rightEnabled ? HANDLE_WIDTH : 0}px`,
     "--lfaa-right-size": `${rightWidth}px`,
     "--lfaa-left-column": `${leftCollapsed ? 0 : leftWidth}px`,
-    "--lfaa-right-column": `${rightCollapsed ? 0 : rightWidth}px`,
+    "--lfaa-right-column": `${rightEnabled && !rightCollapsed ? rightWidth : 0}px`,
     "--lfaa-bottom-size": `${bottomHeight}px`,
     "--lfaa-bottom-row": `${bottom && bottomOpen ? bottomHeight : 0}px`,
   } as CSSProperties;
@@ -561,24 +566,27 @@ export function ResizableWorkbench({
 
       <main className="lfaa-workbench__center">{center}</main>
 
-      <div
-        className="lfaa-workbench__handle lfaa-workbench__handle--right"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="调整右侧栏宽度"
-        aria-valuemin={rightLimits.min}
-        aria-valuemax={rightLimits.max}
-        aria-valuenow={rightCollapsed ? 0 : rightWidth}
-        tabIndex={rightCollapsed ? -1 : 0}
-        aria-disabled={rightCollapsed}
-        onPointerDown={(event) => onSidePointerDown(event, "right")}
-        onPointerMove={onSidePointerMove}
-        onPointerUp={finishSideDrag}
-        onPointerCancel={finishSideDrag}
-        onKeyDown={(event) => keyboardResize(event, "right")}
-      />
-
-      <aside className="lfaa-workbench__pane lfaa-workbench__pane--right" aria-label="右侧工具与资源">{right}</aside>
+      {rightEnabled ? (
+        <>
+          <div
+            className="lfaa-workbench__handle lfaa-workbench__handle--right"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="调整右侧栏宽度"
+            aria-valuemin={rightLimits.min}
+            aria-valuemax={rightLimits.max}
+            aria-valuenow={rightCollapsed ? 0 : rightWidth}
+            tabIndex={rightCollapsed ? -1 : 0}
+            aria-disabled={rightCollapsed}
+            onPointerDown={(event) => onSidePointerDown(event, "right")}
+            onPointerMove={onSidePointerMove}
+            onPointerUp={finishSideDrag}
+            onPointerCancel={finishSideDrag}
+            onKeyDown={(event) => keyboardResize(event, "right")}
+          />
+          <aside className="lfaa-workbench__pane lfaa-workbench__pane--right" aria-label="右侧工具与资源">{right}</aside>
+        </>
+      ) : null}
 
       {bottom ? (
         <section className="lfaa-workbench__bottom" aria-label="底部面板">

@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #2.8 | Vite Native Config 兼容修复 | v0.0.68 | pending-user-acceptance |
+| #2.9 | 设置中心共享可伸缩侧栏 | v0.0.69 | pending-user-acceptance |
+| #2.8 | Vite Native Config 兼容修复 | v0.0.68 | superseded |
 | #2.7 | Web API-Key Account 真实闭环 | v0.0.67 | superseded |
 | #2.6 | 工作台吸附反向展开动效修复 | v0.0.66 | delivered |
 | #2.5 | 个人中心侧栏内联聚焦修复 | v0.0.65 | delivered |
@@ -31,16 +32,28 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+### #2.9 设置中心共享可伸缩侧栏
+
+- **版本：** v0.0.69
+- **状态：** pending-user-acceptance
+- **主模块：** ui / app-shell
+- **用户反馈：** Settings 左栏与工作台左栏不是同一套布局能力；固定宽度导致整体感不一致，且后续维护会形成重复实现。
+- **决策：** Settings 直接复用 `ResizableWorkbench` 左栏；共享同一响应式尺寸、snap capture、hysteresis、反向 release 动效、键盘 resize 与持久化。
+- **实现：** `ResizableWorkbench` 支持可选右栏；Settings 使用独立 storage key 与实时 `resolveWorkbenchLayoutMetrics + ResizeObserver`，收起后提供显式展开入口。
+- **边界：** 不改 AI Provider/Account/Secret，不改个人中心/主题，不改 Web Host/Windows 工具链。
+- **AI 验证：** Settings Shell 新增共享侧栏契约；Workbench Snap 原回归必须继续通过。
+- **用户验收：** pending；重点为设置左栏拖拽、吸附、反向拉出、收起/展开和宽度自适应手感。
+
 ### #2.8 Vite Native Config 兼容修复
 
 - **版本：** v0.0.68
-- **状态：** pending-user-acceptance
+- **状态：** superseded
 - **主模块：** web-host / project-governance
 - **用户反馈：** v0.0.67 Web 可启动，但 Vite 8.2.2 明确警告 Vite config/dev bridge 的 extensionless ESM import 不兼容未来 native config loader。
 - **决策：** 不屏蔽 warning，显式补齐 `.ts` 扩展名，并在 Web `noEmit` tsconfig 启用 `allowImportingTsExtensions`。
 - **边界：** 不改 Account/Auth/Provider/Secret 业务，不改 UI/Workbench，不改 Windows 工具链。
 - **AI 验证：** AI Web Host 静态契约新增 native import 检查；治理、版本与现有业务回归必须继续通过。
-- **用户验收：** pending；重点为 Windows 重新启动 Web 后相关 native config warning 消失。
+- **用户验收：** not-accepted；兼容修复成果保留，同一实机验收阶段继续发现 Settings 左栏未复用共享 resize/snap 几何，由 #2.9 / v0.0.69 修正。
 
 ### #2.7 Web API-Key Account 真实闭环
 

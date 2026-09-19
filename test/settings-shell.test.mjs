@@ -13,6 +13,8 @@ const shellCss = fs.readFileSync("packages/app-shell/src/agent-workbench.css", "
 const settings = fs.readFileSync("packages/ui/src/features/settings/SettingsPage.tsx", "utf8");
 const aiPanel = fs.readFileSync("packages/ui/src/features/settings/ai/AiSettingsPanel.tsx", "utf8");
 const themeMenu = fs.readFileSync("packages/ui/src/features/appearance/ThemeModeMenu.tsx", "utf8");
+const settingsCss = fs.readFileSync("packages/ui/src/features/settings/settings.css", "utf8");
+const workbenchTypes = fs.readFileSync("packages/ui/src/workbench/workbench-layout.types.ts", "utf8");
 
  test("Settings 是独立 Surface，不再替换 workbench center", () => {
   assert.match(shell, /surface === "settings"/);
@@ -57,4 +59,27 @@ test("Settings 左侧导航包含 AI 服务，AI 内容仍由 ViewModel 驱动",
   assert.match(settings, /返回应用/);
   assert.doesNotMatch(aiPanel, /https?:\/\//);
   assert.doesNotMatch(aiPanel, /fetch\s*\(/);
+});
+
+
+test("Settings 左栏直接复用 ResizableWorkbench，不再维护固定宽度布局", () => {
+  assert.match(settings, /<ResizableWorkbench/);
+  assert.match(settings, /storageKey=\{SETTINGS_LAYOUT_KEY\}/);
+  assert.match(settings, /leftLimits=\{layout\.left\}/);
+  assert.match(settings, /snapHysteresis=\{layout\.snapHysteresis\}/);
+  assert.match(settings, /onLeftCollapsedChange=\{setSidebarCollapsed\}/);
+  assert.match(settings, /resolveWorkbenchLayoutMetrics/);
+  assert.match(settings, /ResizeObserver/);
+  assert.doesNotMatch(settingsCss, /grid-template-columns:17rem/);
+  assert.doesNotMatch(settingsCss, /grid-template-columns:12rem/);
+});
+
+test("Settings 左栏支持吸附收起并提供显式重新展开入口", () => {
+  assert.match(settings, /sidebarCollapsed/);
+  assert.match(settings, /展开设置导航/);
+  assert.match(settings, /setSidebarCollapsed\(false\)/);
+});
+
+test("ResizableWorkbench 支持单侧 Surface，避免 Settings 伪造右栏", () => {
+  assert.match(workbenchTypes, /right\?: ReactNode/);
 });

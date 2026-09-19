@@ -462,3 +462,10 @@ Desktop / Compact：
 - tool 已完成但下一步未执行
 - runtime 重启
 - UI reload
+
+
+## #2.9 设置中心共享可伸缩侧栏
+
+- `node --test test/settings-shell.test.mjs`：检查 Settings 直接复用 ResizableWorkbench、无固定侧栏宽度、支持收起/展开与单侧 Surface；
+- `node --test test/workbench-snap-animation.test.mjs`：保证共享 snap capture / hysteresis / 反向 release 动效没有回归；
+- 用户实机：拖动 Settings 左栏改变宽度；拖到最小吸附收起；Pointer 不松手反向拉出；松手收起后点击展开按钮恢复；关闭重开设置后宽度持久化。

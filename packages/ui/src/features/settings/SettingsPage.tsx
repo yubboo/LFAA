@@ -1,16 +1,21 @@
 /**
  * 文件：SettingsPage.tsx
  * 作用：LFAA 可复用独立设置中心。
- * 负责：设置左侧导航、搜索、右侧分类内容与 AI 设置嵌入。
- * 不负责：工作台三栏布局、Config/Secret 真值、厂商网络请求。
- * 状态归属：仅拥有导航搜索输入；当前分类与业务 ViewModel 由外部受控。
+ * 负责：设置左侧导航、搜索、右侧分类内容，以及复用 ResizableWorkbench 的左栏拉伸/吸附/收起能力。
+ * 不负责：Config/Secret 真值、厂商网络请求、宿主路由实现。
+ * 状态归属：导航搜索、设置左栏 collapsed 与响应式几何属于本 Surface；当前分类与业务 ViewModel 由外部受控。
  * 对外接口：SettingsPage。
- * 关联文件：settings.types.ts、settings.css、ai/AiSettingsPanel.tsx。
+ * 关联文件：settings.types.ts、settings.css、../../workbench/ResizableWorkbench.tsx、ai/AiSettingsPanel.tsx。
+ * 修改注意事项：设置左栏禁止再写固定 grid 宽度；必须复用 ResizableWorkbench，与工作台共用吸附/反向释放/持久化规则。
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { ResizableWorkbench } from "@/workbench/ResizableWorkbench";
+import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "@/workbench/workbench-layout.config";
 import { AiSettingsPanel } from "./ai/AiSettingsPanel";
 import type { SettingsPageProps, SettingsSectionId } from "./settings.types";
 import "./settings.css";
+
+const SETTINGS_LAYOUT_KEY = "lfaa.settings.layout.v1";
 
 const navigation: readonly { id: SettingsSectionId; label: string; group: "个人" | "配置" | "开发"; glyph: string }[] = [
   { id: "general", label: "常规", group: "个人", glyph: "○" },
@@ -20,6 +25,31 @@ const navigation: readonly { id: SettingsSectionId; label: string; group: "个�
   { id: "workspace", label: "项目与存储", group: "配置", glyph: "□" },
   { id: "developer", label: "开发者", group: "开发", glyph: "⌘" },
 ];
+
+function initialSettingsMetrics(): WorkbenchLayoutMetrics {
+  if (typeof window === "undefined") return resolveWorkbenchLayoutMetrics(1280, 800);
+  return resolveWorkbenchLayoutMetrics(window.innerWidth, window.innerHeight);
+}
+
+/** 设置中心与工作台复用同一个响应式几何计算器，容器变化时重新计算 min/initial/max。 */
+function useSettingsLayoutMetrics(ref: RefObject<HTMLDivElement | null>): WorkbenchLayoutMetrics {
+  const [metrics, setMetrics] = useState<WorkbenchLayoutMetrics>(initialSettingsMetrics);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const update = () => {
+      const rect = element.getBoundingClientRect();
+      setMetrics(resolveWorkbenchLayoutMetrics(rect.width, rect.height));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return metrics;
+}
 
 function GeneralPanel() {
   return <section className="lfaa-settings-content"><header><h1>常规</h1><p>管理 LFAA 的基础工作区体验。</p></header><div className="lfaa-settings-card"><div><strong>设置显示方式</strong><small>设置中心使用独立界面，不占用工作台中间区域。</small></div><span>独立页面</span></div><div className="lfaa-settings-card"><div><strong>界面语言</strong><small>当前开发参考语言。</small></div><span>简体中文</span></div></section>;
@@ -40,6 +70,9 @@ function PlaceholderPanel({ title, description }: { title: string; description: 
 
 export function SettingsPage(props: SettingsPageProps) {
   const [query, setQuery] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const layout = useSettingsLayoutMetrics(rootRef);
   const groups = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     const filtered = normalized ? navigation.filter((item) => item.label.toLocaleLowerCase().includes(normalized)) : navigation;
@@ -54,14 +87,38 @@ export function SettingsPage(props: SettingsPageProps) {
   else if (props.activeSection === "developer") content = <PlaceholderPanel title="开发者" description="集中放置开发模式、诊断与高级工具设置。" />;
   else content = <GeneralPanel />;
 
+  const sidebar = (
+    <div className="lfaa-settings-sidebar">
+      <button className="lfaa-settings-back" type="button" onClick={props.onClose}>← <span>返回应用</span></button>
+      <label className="lfaa-settings-search"><span aria-hidden="true">⌕</span><input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="搜索设置…" aria-label="搜索设置" /></label>
+      <nav aria-label="设置分类">{groups.map(({group,items})=><section key={group}><h2>{group}</h2>{items.map((item)=><button type="button" key={item.id} className={props.activeSection===item.id?"is-active":""} onClick={()=>props.onSectionChange(item.id)}><span aria-hidden="true">{item.glyph}</span><strong>{item.label}</strong></button>)}</section>)}</nav>
+    </div>
+  );
+
+  const main = (
+    <div className="lfaa-settings-main">
+      {sidebarCollapsed ? <button className="lfaa-settings-sidebar-open" type="button" onClick={() => setSidebarCollapsed(false)} aria-label="展开设置导航" title="展开设置导航">☰</button> : null}
+      {content}
+    </div>
+  );
+
   return (
-    <main className="lfaa-settings-page" aria-label="设置中心">
-      <aside className="lfaa-settings-sidebar">
-        <button className="lfaa-settings-back" type="button" onClick={props.onClose}>← <span>返回应用</span></button>
-        <label className="lfaa-settings-search"><span aria-hidden="true">⌕</span><input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="搜索设置…" aria-label="搜索设置" /></label>
-        <nav aria-label="设置分类">{groups.map(({group,items})=><section key={group}><h2>{group}</h2>{items.map((item)=><button type="button" key={item.id} className={props.activeSection===item.id?"is-active":""} onClick={()=>props.onSectionChange(item.id)}><span aria-hidden="true">{item.glyph}</span><strong>{item.label}</strong></button>)}</section>)}</nav>
-      </aside>
-      <div className="lfaa-settings-main">{content}</div>
-    </main>
+    <div ref={rootRef} className="lfaa-settings-page" aria-label="设置中心">
+      <ResizableWorkbench
+        storageKey={SETTINGS_LAYOUT_KEY}
+        left={sidebar}
+        center={main}
+        leftLimits={layout.left}
+        rightLimits={{ min: 0, initial: 0, max: 0 }}
+        bottomLimits={layout.bottom}
+        snapHysteresis={layout.snapHysteresis}
+        minCenterWidth={layout.minCenterWidth}
+        leftCollapsed={sidebarCollapsed}
+        rightCollapsed
+        bottomOpen={false}
+        layoutMode={layout.mode === "mobile" ? "compact" : layout.mode}
+        onLeftCollapsedChange={setSidebarCollapsed}
+      />
+    </div>
   );
 }

@@ -21,7 +21,8 @@ export interface WorkbenchPaneLimits {
 export interface ResizableWorkbenchProps {
   left: ReactNode;
   center: ReactNode;
-  right: ReactNode;
+  /** 可选右栏；省略时不渲染右栏与右侧 separator，供 Settings 等单侧导航 Surface 复用同一几何能力。 */
+  right?: ReactNode;
   bottom?: ReactNode;
   storageKey?: string;
   leftLimits?: WorkbenchPaneLimits;

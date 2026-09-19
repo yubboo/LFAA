@@ -35,9 +35,9 @@
   display: grid;
   grid-template-columns:
     var(--lfaa-left-column)
-    var(--lfaa-handle-width)
+    var(--lfaa-left-handle-width, var(--lfaa-handle-width))
     minmax(0, 1fr)
-    var(--lfaa-handle-width)
+    var(--lfaa-right-handle-width, var(--lfaa-handle-width))
     var(--lfaa-right-column);
   grid-template-rows: minmax(0, 1fr) var(--lfaa-bottom-row);
   width: 100%;
@@ -238,7 +238,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
  */
 .lfaa-workbench[data-layout-mode="compact"] {
   position: relative;
-  grid-template-columns: var(--lfaa-left-column) var(--lfaa-handle-width) minmax(0, 1fr);
+  grid-template-columns: var(--lfaa-left-column) var(--lfaa-left-handle-width, var(--lfaa-handle-width)) minmax(0, 1fr);
 }
 .lfaa-workbench[data-layout-mode="compact"] .lfaa-workbench__center { grid-column: 3; }
 .lfaa-workbench[data-layout-mode="compact"] .lfaa-workbench__bottom { grid-column: 3; }

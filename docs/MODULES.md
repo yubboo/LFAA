@@ -1472,3 +1472,8 @@ v0.0.2+
 
 Provider 配置插件与模型推理 Runtime Adapter 分层：Config System 管配置期契约，模型运行域管推理执行。两者共享稳定 Provider ID / 公共协议时必须通过公共 Export，而不是跨目录深链。
 
+
+
+### #2.9 UI 几何配套
+
+Settings 作为 config-system 的图形入口，左侧导航几何统一复用 `@lfaa/ui/ResizableWorkbench`；配置业务仍归 config-system，UI 只负责导航/显示，不产生第二套业务或 resize 真值。

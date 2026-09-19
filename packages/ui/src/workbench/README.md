@@ -71,3 +71,7 @@ App Shell 内容与状态：
 ## v0.0.48 左栏宽度回传
 
 `ResizableWorkbench` 通过 `onLeftWidthChange` 把当前真实左栏宽度交给 App Shell。该回调用于保证 Hover Preview 和正式 Dock 共用一个几何事实源，不允许 Preview 再维护独立 clamp 宽度。
+
+## 单侧 Surface 复用
+
+`ResizableWorkbench` 的 `right` 为可选插槽。Settings 等“左导航 + 内容区”Surface 直接省略右栏，从而复用同一套左栏 resize / snap / hysteresis / snap-release / 键盘控制和持久化，不允许复制第二套侧栏算法。

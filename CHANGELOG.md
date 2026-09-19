@@ -1,6 +1,16 @@
-## LFAA v0.0.68 — #2.8 Vite Native Config 兼容修复
+## LFAA v0.0.69 — #2.9 设置中心共享可伸缩侧栏
 
 - **状态：** pending-user-acceptance
+- **任务：** #2.9
+- Settings 左栏直接复用 `ResizableWorkbench`，删除固定 `17rem / 12rem` 侧栏宽度；
+- 设置中心与工作台共享响应式尺寸、拖拽、吸附、Pointer 未松手反向释放、短过渡和布局持久化；
+- `ResizableWorkbench` 支持单侧 Surface：没有右栏时不渲染右栏和右 separator；
+- Settings 收起后提供显式“展开设置导航”入口；
+- 不修改 AI Account/Auth/Secret/Provider、Profile/Theme、Web Host 与 Windows 工具链。
+
+## LFAA v0.0.68 — #2.8 Vite Native Config 兼容修复
+
+- **状态：** superseded
 - **基线：** v0.0.67
 - **任务：** #2.8
 - Vite config 导入 AI dev bridge 改为显式 `.ts` 扩展名；Bridge 内三个本地实现依赖同样显式 `.ts`。

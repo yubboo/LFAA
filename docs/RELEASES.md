@@ -1,6 +1,14 @@
-## LFAA v0.0.68 Release — #2.8 Vite Native Config 兼容修复
+## LFAA v0.0.69 Release — #2.9 设置中心共享可伸缩侧栏
 
 - **状态：** pending-user-acceptance
+- **任务：** #2.9
+- **范围：** `packages/ui` Settings + ResizableWorkbench 单侧复用能力；
+- **验收：** 设置左栏可拉伸、可吸附收起、Pointer 未松手可反向拉出，收起后可显式展开；宽度随容器实时计算且独立持久化；
+- **边界：** 不改变 AI Account/Auth/Secret/Provider 业务，不改 Web Host 与 Windows 工具链。
+
+## LFAA v0.0.68 Release — #2.8 Vite Native Config 兼容修复
+
+- **状态：** superseded
 - **基线：** v0.0.67
 - **任务：** #2.8
 - **主要变更：** Vite config 及 AI dev bridge 的本地 ESM import 显式补齐 `.ts`；Web noEmit tsconfig 开启 `allowImportingTsExtensions`。
