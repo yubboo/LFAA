@@ -263,3 +263,21 @@ test("delete restores account, active model, and Secret when Secret deletion fai
   assert.deepEqual(activeModel, activeBefore);
   assert.equal(secrets.get(saved.account.credentialRef), "sk-test-secret");
 });
+
+test("setActiveModel switches from cached catalog without another Provider request", async () => {
+  const h = harness();
+  const saved = await h.service.save(baseDraft, "sk-test-secret");
+  const requestsAfterSave = h.requests.length;
+  await h.service.setActiveModel(saved.account.id, "gpt-5.6-sol", { reasoningEffort: "none", maxOutputTokens: 32000 });
+  assert.equal(h.requests.length, requestsAfterSave);
+  assert.equal(h.accounts[0].selectedModelId, "gpt-5.6-sol");
+  assert.deepEqual(h.accounts[0].modelSettings, { reasoningEffort: "none", maxOutputTokens: 32000 });
+  assert.deepEqual(h.activeModel, { accountId: saved.account.id, providerId: "openai", modelId: "gpt-5.6-sol" });
+});
+
+test("setActiveModel preserves current settings when selecting the already active model", async () => {
+  const h = harness();
+  const saved = await h.service.save(baseDraft, "sk-test-secret");
+  await h.service.setActiveModel(saved.account.id, "gpt-6-astra");
+  assert.deepEqual(h.accounts[0].modelSettings, { reasoningEffort: "high", maxOutputTokens: 64000 });
+});

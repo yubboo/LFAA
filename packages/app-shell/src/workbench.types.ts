@@ -31,6 +31,8 @@ export interface AgentAiSettingsHost {
   reprobe(accountId: string): Promise<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>;
   deleteAccount(accountId: string): Promise<AiAccountSnapshot>;
   selectModel(accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiModelSettingValue>>): Promise<AiAccountSnapshot>;
+  /** Composer 日常切换使用缓存模型目录，不重新访问 Provider。 */
+  setActiveModel(accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiModelSettingValue>>): Promise<AiAccountSnapshot>;
   activateModel(accountId: string): Promise<AiAccountSnapshot>;
 }
 

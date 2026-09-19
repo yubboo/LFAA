@@ -1,3 +1,13 @@
+## LFAA v0.0.85 Release — #21.19 Composer ModelQuickSwitch
+
+- **状态：** pending-user-acceptance
+- **交互：** 已配置模型后，Composer 右下角模型/思考强度改为原地 Popover；不再把每次点击都跳转到 Settings。
+- **首次配置：** `modelCatalog` 为空时才进入 `设置 → AI 与模型`；已有目录但尚未激活模型时可直接从当前页面选择。
+- **真值：** Quick Switch 只消费 Config System `activeModel`、账户 `modelCatalog` 与官方 Capability，不维护第二份模型列表。
+- **运行时：** `AgentModelBinding.settings` 携带已校验模型参数，确保快速调整的思考强度进入下一次统一 Agent Run。
+- **性能：** 日常切模走缓存模型目录，不重新请求 Provider；刷新官方目录仍由 Settings 的测试/重测流程负责。
+- **安全：** Quick Switch 不接触 API Key；verification error 账户 UI/Core 双层拒绝激活。
+
 ## LFAA v0.0.84 Release — #2.19 Provider Host 网络边界修复
 
 - **状态：** pending-user-acceptance

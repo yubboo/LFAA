@@ -1,3 +1,14 @@
+## LFAA v0.0.85 — #21.19 Composer 模型 / 思考强度原地快切
+
+- **状态：** pending-user-acceptance
+- 修复 Composer 的模型按钮把“日常切换”错误当成“进入设置”的交互：已有模型目录时，点击模型在当前输入区弹出 Quick Switch，不离开 Chat / Work。
+- 只有完全没有可用模型目录时，模型按钮才进入 `设置 → AI 与模型` 完成首次配置；已配置后“管理模型”仅作为 Popover 次级入口。
+- 模型列表直接消费 Config System `activeModel + account.modelCatalog`；切换模型与思考强度通过新增 `setActiveModel` 使用缓存的官方目录校验并事务持久化，不为每次点击重新请求 Provider。
+- 思考强度按当前模型官方 Capability 动态展示可用档位；修改保留同模型其他已校验参数，不接受 Capability 未声明的值。
+- `AgentModelBinding` 新增已校验 `settings`，Composer 选择的 reasoning/model 参数会随下一次 Chat / Work Run 进入统一 Agent Runtime，不做“只改 UI、不影响执行”的假交互。
+- 错误账户在 Quick Switch 中标记为“需重测”且不可切入；Core 同样拒绝对 verification error 账户进行快速激活，不能只依赖 UI。
+- **AI 验证：** 仓库 Node 111/111 + Config System 39/39 = 150/150 PASS；新增 ModelQuickSwitch 契约回归；本次 TS/TSX 使用 TypeScript Parser 语法检查 PASS；统一 workspace preflight 全 Gate PASS。正式 Node 24 + Vite 浏览器交互仍需用户 Windows 实机验收。
+
 ## LFAA v0.0.84 — #2.19 Provider Host 网络代理 / 系统 CA / 可诊断错误修复
 
 - **状态：** pending-user-acceptance

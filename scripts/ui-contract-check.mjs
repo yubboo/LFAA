@@ -211,10 +211,13 @@ if (/<select[^>]*value=\{permissionProfileId\}/.test(tsx)) {
 if (/className=["']agent-surface-switch["']/.test(tsx)) {
   fail("Chat/Work duplicate center switch must not return; use the top-left LFAA switcher");
 }
-if (!/<button className="agent-model"[^>]*onClick=\{onOpenAiSettings\}/.test(tsx)) {
-  fail("configured model label must remain clickable and open AI settings");
+for (const token of ["agent-model-control", "agent-model-menu", "agent-reasoning-menu", "onQuickSelectModel", "onQuickUpdateModelSetting", "quickModels.length === 0", "管理模型"]) {
+  if (!tsx.includes(token)) fail(`missing v0.0.85 in-place model quick switch contract: ${token}`);
 }
-for (const token of [".agent-brand-menu", ".agent-permission-menu", ".agent-composer-popover", ".agent-answer--welcome", ".agent-work-surface__title"]) {
+if (!tsx.includes('if (quickModels.length === 0) { onOpenAiSettings(); return; }')) {
+  fail("AI settings navigation must be first-use fallback, not the normal model switching path");
+}
+for (const token of [".agent-brand-menu", ".agent-permission-menu", ".agent-composer-popover", ".agent-answer--welcome", ".agent-work-surface__title", ".agent-model-control", ".agent-model-menu", ".agent-reasoning-menu"]) {
   if (!css.includes(token)) fail(`missing v0.0.78 UI style contract: ${token}`);
 }
 

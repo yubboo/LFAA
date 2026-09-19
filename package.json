@@ -1,13 +1,13 @@
 {
   "name": "lfaa",
   "private": true,
-  "version": "0.0.84",
+  "version": "0.0.85",
   "description": "Little Fish AI Agent monorepo",
   "scripts": {
     "preinstall": "node scripts/pnpm-only.mjs",
     "governance:check": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs && node scripts/runtime-import-resolution-check.mjs && node scripts/folder-boundary-check.mjs && node scripts/language-ownership-check.mjs && node scripts/package-architecture-check.mjs && node scripts/dev-log-check.mjs && node scripts/docs-check.mjs && node scripts/comment-check.mjs && node scripts/windows-script-encoding-check.mjs && node scripts/release-consistency-check.mjs && node scripts/prompt-lifecycle-check.mjs && node scripts/config-schema-check.mjs && node scripts/release-gates-check.mjs && node scripts/ui-contract-check.mjs",
     "release:name": "node scripts/release-name.mjs",
-    "test": "pnpm run test:release-environment && pnpm run test:release-gates && pnpm run test:dependency-setup && pnpm run test:workspace-sync && pnpm run test:release-path-encoding && pnpm run test:node-dependency-health && pnpm run test:settings-shell && pnpm run test:workbench-snap && pnpm run test:config-system && pnpm run test:ai-web-host && pnpm run test:runtime-imports && pnpm run test:node-source-runtime && pnpm run test:package-architecture && pnpm run test:plugin-platform && pnpm run test:plugin-manager-ui",
+    "test": "pnpm run test:release-environment && pnpm run test:release-gates && pnpm run test:dependency-setup && pnpm run test:workspace-sync && pnpm run test:release-path-encoding && pnpm run test:node-dependency-health && pnpm run test:settings-shell && pnpm run test:workbench-snap && pnpm run test:config-system && pnpm run test:ai-web-host && pnpm run test:runtime-imports && pnpm run test:node-source-runtime && pnpm run test:package-architecture && pnpm run test:plugin-platform && pnpm run test:plugin-manager-ui && pnpm run test:model-quick-switch",
     "typecheck": "pnpm run typecheck:web && pnpm run typecheck:config-system",
     "build": "pnpm run build:web",
     "imports:check": "node scripts/import-path-check.mjs",
@@ -47,7 +47,8 @@
     "test:package-architecture": "node --test test/package-architecture.test.mjs",
     "test:plugin-manager-ui": "node --test test/plugin-manager-ui-contract.test.mjs",
     "test:release-path-encoding": "node --test test/release-path-encoding.test.mjs",
-    "test:node-source-runtime": "node --test test/node-source-runtime.test.mjs"
+    "test:node-source-runtime": "node --test test/node-source-runtime.test.mjs",
+    "test:model-quick-switch": "node --test test/model-quick-switch-contract.test.mjs"
   },
   "author": "二鱼",
   "packageManager": "pnpm@11.17.0",

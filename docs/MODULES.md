@@ -1,3 +1,7 @@
+## v0.0.85 App Shell / Config：ModelQuickSwitch 边界
+
+`packages/app-shell` 拥有 Composer 的交互投影，但不拥有模型业务真值；可选模型来自 `AiAccountSnapshot.accounts[].modelCatalog`，当前模型来自 `activeModel`。`packages/config-system` 新增缓存目录快速激活方法；`apps/web` 只桥接该业务动作。思考强度来自当前模型官方 Capability 的 `reasoningEffort` select 字段，并随 `AgentModelBinding.settings` 进入 Runtime。
+
 ## v0.0.84 Web Host：Provider Network Adapter 边界
 
 `apps/web/dev/bridges/ai/node-http-json.ts` 是 Web 开发宿主当前唯一 Provider HTTP JSON Adapter。它负责 Node 网络初始化、超时、TLS/代理兼容和脱敏错误分类；Provider URL/Header 仍由 `@lfaa/config-system` Provider plugin 决定，Secret 仍由 Credentials/Rust Broker 持有。Windows Setup 只负责启动期网络环境适配，不拥有 Provider 业务。

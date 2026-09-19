@@ -18,6 +18,8 @@ export interface AgentModelBinding {
   readonly accountId: string;
   readonly providerId: string;
   readonly modelId: string;
+  /** Config System 已按官方 Capability 校验过的模型运行参数，例如 reasoningEffort。 */
+  readonly settings?: Readonly<Record<string, string | number | boolean>>;
 }
 
 export type AgentCapabilityKind = LfaaCapabilityKind;

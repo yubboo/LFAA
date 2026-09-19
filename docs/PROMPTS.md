@@ -25,6 +25,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #21.19 | Composer 模型 / 思考强度原地快切 | v0.0.85 | pending-user-acceptance | pass | pending |
 | #2.19 | Provider Host 网络代理 / 系统 CA / 可诊断错误修复 | v0.0.84 | pending-user-acceptance | pass | pending |
 | #2.18 | 模型管理 Active Model / Catalog 真值修复 | v0.0.83 | pending-user-acceptance | pass | pending |
 | #2.17 | Node ESM Source Package 运行时导入修复 | v0.0.82 | pending-user-acceptance | pass | pending |
@@ -65,6 +66,36 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #21.19 Composer 模型 / 思考强度原地快切
+
+### 用户目标
+
+模型已经配置后，Chat / Work 输入区右下角必须像 Codex 一样原地交互：点击模型直接弹出可用模型列表，点击思考强度直接调整当前模型支持的档位；只有第一次完全没有可用模型时才进入 `设置 → AI 与模型`。
+
+### 允许修改
+
+- App Shell Composer 的模型/思考强度交互；
+- Config System 的“基于缓存官方目录快速激活模型”业务方法；
+- Web AI Settings Host/Bridge 对应接口；
+- AgentModelBinding，使已校验模型 settings 真正进入下一次 Run；
+- 对应 UI/Config/Runtime 测试和文档。
+
+### 禁止修改
+
+- 不新增第二份模型列表或 UI 私有 Active Model；
+- 不让每次日常切模都重新请求 Provider；
+- 不在 Quick Switch 中读取/显示 API Key；
+- 不把 Settings 的账户认证职责搬进 Composer；
+- 不做只改标签、不影响下一次 Agent Run 的假思考强度。
+
+### 验收
+
+- 已有 `modelCatalog` 时点击模型不跳 Settings；模型列表原地弹出并可切换。
+- 当前模型声明 reasoningEffort 时可原地选择官方支持档位；切换后刷新仍保持。
+- 零模型目录时才进入 AI 与模型完成首次配置。
+- `管理模型` 是 Popover 次级入口。
+- Chat / Work 共用同一 Active Model 与 settings。
 
 ## #2.19 Provider Host 网络代理 / 系统 CA / 可诊断错误修复
 

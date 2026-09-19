@@ -17,12 +17,12 @@ pending-user-acceptance
 当前版本总任务：
 
 ```text
-#2.19 Provider Host 网络代理 / 系统 CA / 可诊断错误修复
-version: v0.0.84
+#21.19 Composer 模型 / 思考强度原地快切
+version: v0.0.85
 status: pending-user-acceptance
 ```
 
-v0.0.84 先修正 Provider Host 的网络边界：浏览器网络可用不等于 Node Host 可用，Web Host 必须显式继承环境/Windows 系统代理并使用系统受信 CA；错误必须分层诊断且不能泄露凭据。模型管理 Active Model / Catalog 结构继续沿用 v0.0.83，网络链实机通过后再进入 Plugin Platform P2 Capability Invocation。
+v0.0.85 收口模型的“配置”和“使用”边界：Settings 只负责账户/认证/模型目录/高级管理；Chat 与 Work 的 Composer 使用同一个 ModelQuickSwitch 日常切换模型与官方支持的思考强度。只有首次没有任何可用模型目录时才进入 Settings。该交互直接写回 Config System `activeModel`，并把已校验模型 settings 带入下一次 Agent Run。完成实机验收后进入 Plugin Platform P2 Capability Invocation。
 
 v0.0.80 以用户提供的 DeepSeek Harness 源码包为主要工程参考，重点借鉴 capability seam、profile/bundle、PluginManager 共享事务、HMR 生命周期、credentials 引用和“抽象必须有当前 Consumer”的维护原则；不复制其产品实现。
 
@@ -108,7 +108,7 @@ P6  Distribution & Compatibility
     插件签名/来源、依赖、升级、兼容矩阵、回滚与社区分发
 ```
 
-### v0.0.84 通过后的近期顺序
+### v0.0.85 通过后的近期顺序
 
 ```text
 A. P2 Capability Invocation Contract

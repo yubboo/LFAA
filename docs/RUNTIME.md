@@ -1,3 +1,9 @@
+## v0.0.85：模型配置与运行时快切边界
+
+Settings 负责账户认证、Secret 引用、Provider 连接、官方模型目录刷新与高级模型配置；Composer 只负责消费已经持久化的 `activeModel + modelCatalog` 做日常模型/思考强度切换。日常切换不得重新访问 Provider，也不得接触 Secret。
+
+`AiAccountService.setActiveModel` 使用缓存的官方目录完成 Core 级校验和原子持久化；`AgentModelBinding.settings` 把已校验模型参数带入下一次 Chat/Work Run。刷新官方目录仍由 Settings 的 probe/reprobe/selectModel 路径承担。
+
 ## v0.0.84：Provider Host 网络事实
 
 浏览器网络与 Node/Vite Host 网络是不同进程事实。Web 开发宿主启动时启用 Node 24 环境代理与系统 CA；若没有显式 `HTTP_PROXY/HTTPS_PROXY`，Windows Setup 可把当前用户已启用的静态 Internet Settings 代理临时映射到 Vite 子进程。该映射只在 Web 进程生命周期内存在，停止后恢复原环境。

@@ -435,3 +435,12 @@ max(var(--agent-composer-bottom-gap), env(safe-area-inset-bottom))
 
 AI Provider UI 只能作为 Settings 的“AI 服务”分类内容存在；Provider 业务仍归 Config System，不允许 Settings UI 直接发厂商请求。
 
+
+
+## Composer ModelQuickSwitch（v0.0.85）
+
+- 模型日常切换属于 Composer 原地交互，不属于 Settings 页面导航。
+- `modelCatalog` 为空时模型按钮才作为首次配置入口；已有模型后点击必须打开本地 Popover。
+- 模型列表、当前 Active Model、思考强度均来自 Config System Snapshot/官方 Capability；UI 不维护第二份模型真值。
+- 思考强度只有当前模型声明 `reasoningEffort` select Capability 时显示；切换后的 settings 必须进入下一次 Agent Run。
+- `管理模型` 保留为 Popover 次级入口，负责新增账户、认证、刷新目录和高级参数。

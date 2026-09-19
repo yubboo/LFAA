@@ -552,3 +552,8 @@ Dot-prefixed directories do not change filesystem API semantics and therefore do
 - 跨 Feature / 子域共享稳定能力时，优先通过 package `exports` / Subpath Export 暴露，例如 `@lfaa/ui/workbench`。
 - `apps/*` 可以使用宿主明确配置并由运行时打包器验证过的 alias；不得把 App alias 反向当成 package 公共事实。
 - TypeScript 类型检查不能替代真实运行时解析门禁；workspace 公共 import 必须同时通过 `runtime-import-resolution-check.mjs`。
+
+
+## ModelQuickSwitch runtime boundary
+
+模型“配置”和“使用”必须分层：Settings/Config System 拥有 Account、认证、Secret 引用、官方 modelCatalog 与 Active Model；Composer 只做基于这些事实的原地快切。日常切换使用缓存官方目录，不重新探测 Provider；官方目录刷新继续属于 Settings。模型参数经 Config System Capability 校验后通过 `AgentModelBinding.settings` 进入统一 Agent Run，禁止出现 UI 强度变化但 Runtime 不消费的第二状态。

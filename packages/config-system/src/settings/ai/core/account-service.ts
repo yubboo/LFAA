@@ -319,6 +319,47 @@ export class AiAccountService {
     }
   }
 
+  /**
+   * 使用已缓存的官方模型目录即时切换当前模型，不重新访问 Provider。
+   * Composer 的日常模型/思考强度切换走这里；Settings 的“重测/重新选择”仍可使用 selectModel 做在线校验。
+   */
+  async setActiveModel(
+    accountId: string,
+    modelId: string,
+    modelSettings: Readonly<Record<string, AiModelSettingValue>> = {},
+  ): Promise<void> {
+    const accounts = await this.#ports.repository.list();
+    const account = accounts.find((item) => item.id === accountId);
+    if (!account) throw new Error("账户不存在。");
+    if (account.verificationStatus === "error") throw new Error("该账户当前验证失败，请先到 AI 与模型中重测连接。");
+    const selectedModelId = modelId.trim();
+    if (!selectedModelId) throw new Error("请选择模型。");
+    if (account.modelCatalog.length === 0) throw new Error("该账户还没有可用模型目录，请先到 AI 与模型中测试连接。");
+    ensureModelAvailable(selectedModelId, account.modelCatalog);
+    const plugin = this.#registry.get(account.providerId);
+    const sourceSettings = Object.keys(modelSettings).length
+      ? modelSettings
+      : account.selectedModelId === selectedModelId
+        ? account.modelSettings
+        : undefined;
+    const resolvedSettings = resolveModelSettings(plugin, selectedModelId, sourceSettings, account.modelCatalog);
+    const updated: AiAccountRecord = {
+      ...account,
+      selectedModelId,
+      modelSettings: resolvedSettings,
+      updatedAt: this.#ports.now(),
+    };
+    const activeBefore = await this.#activeModel(accounts);
+    try {
+      await this.#ports.repository.put(updated);
+      await this.#persistActive(bindingFor(updated));
+    } catch (error) {
+      await this.#ports.repository.put(account).catch(() => undefined);
+      await this.#persistActive(activeBefore).catch(() => undefined);
+      throw error;
+    }
+  }
+
   async activateModel(accountId: string): Promise<void> {
     const accounts = await this.#ports.repository.list();
     const account = accounts.find((item) => item.id === accountId);

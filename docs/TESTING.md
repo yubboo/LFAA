@@ -1,3 +1,11 @@
+## v0.0.85 / #21.19 Composer ModelQuickSwitch 回归
+
+- `test/model-quick-switch-contract.test.mjs`：锁定 Composer 原地模型 Popover、思考强度 Popover、首次零模型才进入 Settings，以及 AgentRun 携带已校验 model settings。
+- Config Account Service：`setActiveModel` 必须只使用已缓存官方 `modelCatalog`，不得调用 Provider probe；切同一模型时保留已有参数，切新模型按官方 Capability 默认值/输入值校验。
+- Windows 实机：配置至少一个可用模型后返回 Chat，点击模型应原地弹出；切模型/强度后不离开页面，刷新后保持；Chat/Work 显示同一结果。
+- 首次配置：`modelCatalog` 为空时模型按钮才进入 `设置 → AI 与模型`；之后 `管理模型` 只作为 Popover 次级入口。
+- 当前制作环境：仓库 Node 111/111 PASS；Config System 39/39 PASS；TS/TSX Parser 语法检查 PASS。正式 Node 24 + Vite 浏览器交互仍需实机。
+
 ## v0.0.84 / #2.19 Provider Host 网络回归
 
 - `test/ai-web-host.test.mjs`：锁定 `http.setGlobalProxyFromEnv()`、system CA 合并、401 分类、TLS 不得关闭；Windows Setup 必须启用 `NODE_USE_ENV_PROXY` / `NODE_USE_SYSTEM_CA`、读取 Internet Settings，并恢复临时环境。

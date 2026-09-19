@@ -11,6 +11,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
+| #21.19 | Composer 模型 / 思考强度原地快切 | v0.0.85 | pending-user-acceptance |
 | #2.19 | Provider Host 网络代理 / 系统 CA / 可诊断错误修复 | v0.0.84 | pending-user-acceptance |
 | #2.18 | 模型管理 Active Model / Catalog 真值修复 | v0.0.83 | pending-user-acceptance |
 | #2.17 | Node ESM Source Package 运行时导入修复 | v0.0.82 | pending-user-acceptance |
@@ -48,6 +49,18 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
 
+
+
+### #21.19 Composer 模型 / 思考强度原地快切
+
+- **版本：** v0.0.85
+- **状态：** pending-user-acceptance
+- **用户反馈：** Composer 右下角模型按钮仍然跳转 Settings；期望 Codex 式原地可交互模型列表与思考强度，只有第一次未配置时才进入模型管理。
+- **实现：** 新增 Composer `ModelQuickSwitch`：模型列表/思考强度两个就地 Popover；已有模型时不离开 Chat/Work；模型目录为空才进入 Settings；管理模型保留次级入口。
+- **业务链：** Config System 新增 `setActiveModel`，使用缓存官方 `modelCatalog` 校验并原子更新账户默认模型 + Active Model，不为日常切换重新调用 Provider；Settings 的 select/reprobe 继续负责在线刷新。
+- **执行一致性：** `AgentModelBinding.settings` 携带官方 Capability 已校验参数，避免思考强度成为仅 UI 状态。
+- **安全/性能：** Quick Switch 不读取 Secret；verification error 账户 Core/UI 双层拒绝；常规切换零 Provider 网络请求。
+- **验收：** 已配置模型后点击 Composer 模型应原地弹层；可切模型和强度；刷新页面后保持；只有零模型目录时才跳 AI 与模型；Chat/Work 共用结果。
 
 ### #2.19 Provider Host 网络代理 / 系统 CA / 可诊断错误修复
 

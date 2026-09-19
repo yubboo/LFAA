@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.84**
+**当前包：LFAA-v0.0.85**
 
 ## 当前产品定位（v0.0.84）
 
@@ -61,12 +61,12 @@ plugin-platform + agent-runtime + workbench
 当前版本总任务：
 
 ```text
-#2.19 Provider Host 网络代理 / 系统 CA / 可诊断错误修复
-version: v0.0.84
+#21.19 Composer 模型 / 思考强度原地快切
+version: v0.0.85
 status: pending-user-acceptance
 ```
 
-v0.0.84 先修 Provider Host 网络边界：Vite/Node Host 启动时显式启用 Node 24 环境代理与系统 CA，并在没有显式环境代理时尝试继承 Windows 当前用户系统代理；Provider 网络错误按 DNS / 超时 / 连接重置 / TLS / HTTP 认证等类别脱敏呈现。v0.0.83 的 Active Model / Catalog 模型管理事实保持不变。
+v0.0.85 将模型“配置”和“使用”分层：第一次没有模型时从 Composer 进入 `设置 → AI 与模型`；配置完成后，Chat / Work 输入区右下角直接原地切换模型与当前模型官方支持的思考强度，`管理模型` 退居 Popover 次级入口。快速切换直接写回 Config System Active Model，并把已校验模型参数带入下一次 Agent Run。
 
 `#2.16` 的 ChatGPT / Codex App Server 登录闭环继续保留为 `pending-user-acceptance`，没有因为架构升级被覆盖。
 

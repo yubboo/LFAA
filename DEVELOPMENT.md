@@ -1850,3 +1850,11 @@ DEVELOPMENT.md
 - 跨 Feature / 子域共享稳定能力时，优先通过 package `exports` / Subpath Export 暴露，例如 `@lfaa/ui/workbench`。
 - `apps/*` 可以使用宿主明确配置并由运行时打包器验证过的 alias；不得把 App alias 反向当成 package 公共事实。
 - TypeScript 类型检查不能替代真实运行时解析门禁；workspace 公共 import 必须同时通过 `runtime-import-resolution-check.mjs`。
+
+
+### Composer 模型快切规则
+
+- 已有官方/官方运行时 `modelCatalog` 后，模型切换必须在 Composer 原地完成；不得把日常切换重新做成 Settings 页面跳转。
+- Quick Switch 只能消费 Config System Snapshot；禁止在 UI 维护第二份 Active Model、模型目录或 Secret。
+- 快速切换不得触发 Provider 网络请求；模型目录刷新/认证重测由 Settings 负责。
+- 思考强度等参数必须来自当前模型声明的 Capability，并随 AgentRun 进入 Runtime。

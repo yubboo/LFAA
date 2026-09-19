@@ -54,7 +54,16 @@ import {
   type WorkbenchLayoutMetrics,
   type WorkbenchLayoutMode,
 } from "@lfaa/ui";
-import { builtinAiProviderPlugins, type AiAccountDraft, type AiAccountHostCapabilities, type AiAccountProbeResult, type AiAccountRecord, type AiAccountSnapshot } from "@lfaa/config-system";
+import {
+  builtinAiProviderPlugins,
+  type AiAccountDraft,
+  type AiAccountHostCapabilities,
+  type AiAccountProbeResult,
+  type AiAccountRecord,
+  type AiAccountSnapshot,
+  type AiModelSettingField,
+  type AiModelSettingValue,
+} from "@lfaa/config-system";
 import type { InstalledPluginBundle, PluginInstallOutcome, PluginManagerSnapshot, PluginSpecInspection } from "@lfaa/plugin-runtime";
 import { WorkbenchIcon } from "./WorkbenchIcon";
 import type { AgentWorkbenchProps, DevResourceItem, ResourceKind } from "./workbench.types";
@@ -155,6 +164,27 @@ function formatReasoningEffort(value: unknown): string | null {
     none: "关", disabled: "关", enabled: "开", low: "低", medium: "中", high: "高", xhigh: "极高", max: "最大",
   };
   return labels[value] ?? value;
+}
+
+interface QuickModelOption {
+  accountId: string;
+  providerId: string;
+  accountName: string;
+  modelId: string;
+  modelName?: string;
+  active: boolean;
+  unavailable: boolean;
+}
+
+interface ActiveReasoningControl {
+  field: AiModelSettingField;
+  value: AiModelSettingValue | undefined;
+  modelId: string;
+}
+
+function formatReasoningOption(value: AiModelSettingValue, label?: string): string {
+  if (typeof value === "string") return formatReasoningEffort(value) ?? label ?? value;
+  return label ?? String(value);
 }
 
 function toAiAccountDraft(draft: AiSettingsDraftInput): AiAccountDraft {
@@ -531,11 +561,15 @@ function CenterWorkspace({
   agentSurface,
   permissionProfileId,
   modelLabel,
+  quickModels,
+  activeReasoning,
   runtimeConnected,
   workNodes,
   onWorkNodesChange,
   onPermissionProfileChange,
   onSubmitTask,
+  onQuickSelectModel,
+  onQuickUpdateModelSetting,
   onOpenAiSettings,
   onToggleLeft,
   onToggleRight,
@@ -550,11 +584,15 @@ function CenterWorkspace({
   agentSurface: AgentSurfaceMode;
   permissionProfileId: AgentPermissionProfileId;
   modelLabel: string;
+  quickModels: readonly QuickModelOption[];
+  activeReasoning: ActiveReasoningControl | null;
   runtimeConnected: boolean;
   workNodes: readonly InfiniteCanvasNode[];
   onWorkNodesChange: (nodes: readonly InfiniteCanvasNode[]) => void;
   onPermissionProfileChange: (profileId: AgentPermissionProfileId) => void;
   onSubmitTask: (input: string) => Promise<AgentRunHandle>;
+  onQuickSelectModel: (accountId: string, modelId: string) => Promise<void>;
+  onQuickUpdateModelSetting: (fieldId: string, value: AiModelSettingValue) => Promise<void>;
   onOpenAiSettings: () => void;
   onToggleLeft: () => void;
   onToggleRight: () => void;
@@ -567,6 +605,21 @@ function CenterWorkspace({
   const [runNotice, setRunNotice] = useState<string | null>(null);
   const [permissionMenuOpen, setPermissionMenuOpen] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [reasoningMenuOpen, setReasoningMenuOpen] = useState(false);
+  const [modelControlBusy, setModelControlBusy] = useState(false);
+
+  useEffect(() => {
+    const closeComposerMenus = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setAddMenuOpen(false);
+      setPermissionMenuOpen(false);
+      setModelMenuOpen(false);
+      setReasoningMenuOpen(false);
+    };
+    window.addEventListener("keydown", closeComposerMenus);
+    return () => window.removeEventListener("keydown", closeComposerMenus);
+  }, []);
 
   const submitTask = async () => {
     const input = draft.trim();
@@ -581,6 +634,21 @@ function CenterWorkspace({
       setRunNotice(error instanceof Error ? error.message : "Runtime 启动失败。");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const runModelControl = async (action: () => Promise<void>, close: "model" | "reasoning" | null = null) => {
+    if (modelControlBusy) return;
+    setModelControlBusy(true);
+    setRunNotice(null);
+    try {
+      await action();
+      if (close === "model") setModelMenuOpen(false);
+      if (close === "reasoning") setReasoningMenuOpen(false);
+    } catch (error) {
+      setRunNotice(error instanceof Error ? error.message : "模型切换失败。");
+    } finally {
+      setModelControlBusy(false);
     }
   };
 
@@ -643,7 +711,7 @@ function CenterWorkspace({
           <textarea aria-label="输入任务" placeholder={agentSurface === "chat" ? "一句话交代任务" : "描述目标，Runtime 会把执行过程投影到画布"} rows={1} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitTask(); } }} />
           <div className="agent-composer-actions">
             <div className="agent-composer-menu-anchor">
-              <button className="agent-composer-icon" type="button" aria-label="添加能力或附件" aria-expanded={addMenuOpen} onClick={() => { setAddMenuOpen((value) => !value); setPermissionMenuOpen(false); }}><WorkbenchIcon name="plus" /></button>
+              <button className="agent-composer-icon" type="button" aria-label="添加能力或附件" aria-expanded={addMenuOpen} onClick={() => { setAddMenuOpen((value) => !value); setPermissionMenuOpen(false); setModelMenuOpen(false); setReasoningMenuOpen(false); }}><WorkbenchIcon name="plus" /></button>
               {addMenuOpen ? (
                 <div className="agent-composer-popover agent-composer-popover--add" role="menu">
                   {[
@@ -660,7 +728,7 @@ function CenterWorkspace({
               ) : null}
             </div>
             <div className="agent-composer-menu-anchor">
-              <button className="agent-permission-button" data-permission-profile={permissionProfileId} type="button" aria-label="权限模式" aria-expanded={permissionMenuOpen} onClick={() => { setPermissionMenuOpen((value) => !value); setAddMenuOpen(false); }}>
+              <button className="agent-permission-button" data-permission-profile={permissionProfileId} type="button" aria-label="权限模式" aria-expanded={permissionMenuOpen} onClick={() => { setPermissionMenuOpen((value) => !value); setAddMenuOpen(false); setModelMenuOpen(false); setReasoningMenuOpen(false); }}>
                 <WorkbenchIcon name={permissionProfileId === "full-access" ? "shield" : permissionProfileId === "approve-for-me" ? "spark" : "review"} size={16} />
                 <span>{AGENT_PERMISSION_PROFILES[permissionProfileId].label}</span><WorkbenchIcon name="chevron" size={14} />
               </button>
@@ -680,7 +748,100 @@ function CenterWorkspace({
                 </div>
               ) : null}
             </div>
-            <button className="agent-model" type="button" title="打开模型与思考强度设置" onClick={onOpenAiSettings}>{modelLabel}<WorkbenchIcon name="chevron" size={13} /></button>
+            <div className="agent-composer-menu-anchor agent-model-anchor">
+              <div className="agent-model-control" data-configured={quickModels.length > 0 ? "true" : "false"}>
+                <button
+                  className="agent-model-button"
+                  type="button"
+                  aria-label={quickModels.length === 0 ? "配置模型" : "切换模型"}
+                  aria-expanded={modelMenuOpen}
+                  title={quickModels.length === 0 ? "首次配置模型" : "切换当前模型"}
+                  onClick={() => {
+                    setAddMenuOpen(false);
+                    setPermissionMenuOpen(false);
+                    setReasoningMenuOpen(false);
+                    if (quickModels.length === 0) { onOpenAiSettings(); return; }
+                    setModelMenuOpen((value) => !value);
+                  }}
+                >
+                  <span>{modelLabel === "未配置模型" ? "选择模型" : modelLabel.split(" · ")[0]}</span>
+                  <WorkbenchIcon name="chevron" size={13} />
+                </button>
+                {activeReasoning?.field.kind === "select" && activeReasoning.field.options?.length ? (
+                  <button
+                    className="agent-reasoning-button"
+                    type="button"
+                    aria-label="选择思考强度"
+                    aria-expanded={reasoningMenuOpen}
+                    title="选择思考强度"
+                    onClick={() => {
+                      setAddMenuOpen(false);
+                      setPermissionMenuOpen(false);
+                      setModelMenuOpen(false);
+                      setReasoningMenuOpen((value) => !value);
+                    }}
+                  >
+                    <span>{formatReasoningEffort(activeReasoning.value) ?? "默认"}</span>
+                    <WorkbenchIcon name="chevron" size={12} />
+                  </button>
+                ) : null}
+              </div>
+
+              {modelMenuOpen ? (
+                <div className="agent-composer-popover agent-model-menu" role="menu" aria-label="选择模型">
+                  <div className="agent-model-menu__header"><strong>选择模型</strong><span>切换立即作用于 Chat 与 Work 的下一次 Run</span></div>
+                  <div className="agent-model-menu__list">
+                    {quickModels.map((model) => (
+                      <button
+                        key={`${model.accountId}:${model.modelId}`}
+                        className={model.active ? "is-active" : ""}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={model.active}
+                        disabled={model.unavailable || modelControlBusy}
+                        onClick={() => { void runModelControl(() => onQuickSelectModel(model.accountId, model.modelId), "model"); }}
+                      >
+                        <span className="agent-model-menu__main"><strong>{model.modelName ?? model.modelId}</strong><small>{model.accountName} · {model.providerId}{model.unavailable ? " · 需重测" : ""}</small></span>
+                        <span className="agent-model-menu__check">{model.active ? "✓" : ""}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="agent-model-menu__footer">
+                    <button type="button" onClick={() => { setModelMenuOpen(false); onOpenAiSettings(); }}><WorkbenchIcon name="settings" size={15} /><span><strong>管理模型</strong><small>新增账户、认证、刷新模型目录与高级参数</small></span></button>
+                  </div>
+                </div>
+              ) : null}
+
+              {reasoningMenuOpen && activeReasoning?.field.kind === "select" && activeReasoning.field.options?.length ? (
+                <div className="agent-composer-popover agent-reasoning-menu" role="menu" aria-label="思考强度">
+                  <div className="agent-reasoning-menu__header">
+                    <span><WorkbenchIcon name="spark" size={16} /></span>
+                    <div><strong>{formatReasoningEffort(activeReasoning.value) ?? "默认"}</strong><small>{activeReasoning.modelId}</small></div>
+                  </div>
+                  <div className="agent-reasoning-track" role="radiogroup" aria-label={activeReasoning.field.label}>
+                    {activeReasoning.field.options.map((option) => {
+                      const selected = option.value === activeReasoning.value;
+                      return (
+                        <button
+                          key={option.value}
+                          className={selected ? "is-active" : ""}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          disabled={modelControlBusy}
+                          title={option.label}
+                          onClick={() => { void runModelControl(() => onQuickUpdateModelSetting(activeReasoning.field.id, option.value)); }}
+                        >
+                          <span className="agent-reasoning-track__dot" />
+                          <small>{formatReasoningOption(option.value, option.label)}</small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {activeReasoning.field.help ? <p className="agent-reasoning-menu__help">{activeReasoning.field.help}</p> : null}
+                </div>
+              ) : null}
+            </div>
             <button className="agent-send" type="button" aria-label="发送" disabled={!runtimeConnected || modelLabel === "未配置模型" || submitting || !draft.trim()} onClick={() => { void submitTask(); }}>{submitting ? "…" : "↑"}</button>
           </div>
         </div>
@@ -946,12 +1107,37 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const activeAiAccount = aiSnapshot.activeModel
     ? aiSnapshot.accounts.find((account) => account.id === aiSnapshot.activeModel?.accountId)
     : undefined;
-  const reasoningEffortLabel = formatReasoningEffort(activeAiAccount?.modelSettings.reasoningEffort);
+  const activeCatalogModel = aiSnapshot.activeModel
+    ? activeAiAccount?.modelCatalog.find((model) => model.id === aiSnapshot.activeModel?.modelId)
+    : undefined;
+  const activeReasoningField = activeCatalogModel?.capabilities?.settings.find((field) => field.id === "reasoningEffort" && field.kind === "select") ?? null;
+  const activeReasoning: ActiveReasoningControl | null = aiSnapshot.activeModel && activeReasoningField
+    ? {
+        field: activeReasoningField,
+        value: activeAiAccount?.modelSettings[activeReasoningField.id] ?? activeReasoningField.defaultValue,
+        modelId: aiSnapshot.activeModel.modelId,
+      }
+    : null;
+  const reasoningEffortLabel = formatReasoningEffort(activeReasoning?.value);
   const modelLabel = aiSnapshot.activeModel
-    ? `${aiSnapshot.activeModel.modelId}${reasoningEffortLabel ? ` · ${reasoningEffortLabel}` : ""}`
+    ? `${activeCatalogModel?.name ?? aiSnapshot.activeModel.modelId}${reasoningEffortLabel ? ` · ${reasoningEffortLabel}` : ""}`
     : "未配置模型";
+  const quickModels: readonly QuickModelOption[] = aiSnapshot.accounts.flatMap((account) => account.modelCatalog.map((model) => ({
+    accountId: account.id,
+    providerId: account.providerId,
+    accountName: account.displayName,
+    modelId: model.id,
+    ...(model.name ? { modelName: model.name } : {}),
+    active: aiSnapshot.activeModel?.accountId === account.id && aiSnapshot.activeModel.modelId === model.id,
+    unavailable: account.verificationStatus === "error",
+  }))).sort((left, right) => Number(right.active) - Number(left.active) || left.accountName.localeCompare(right.accountName, "zh-CN") || left.modelId.localeCompare(right.modelId, "en"));
   const activeModelBinding: AgentModelBinding | null = aiSnapshot.activeModel
-    ? { accountId: aiSnapshot.activeModel.accountId, providerId: aiSnapshot.activeModel.providerId, modelId: aiSnapshot.activeModel.modelId }
+    ? {
+        accountId: aiSnapshot.activeModel.accountId,
+        providerId: aiSnapshot.activeModel.providerId,
+        modelId: aiSnapshot.activeModel.modelId,
+        settings: activeAiAccount?.modelSettings ?? {},
+      }
     : null;
   const startAgentRun = async (input: string): Promise<AgentRunHandle> => {
     if (!props.agentRuntimeHost) throw new Error("Agent Runtime Host 未连接。");
@@ -992,6 +1178,12 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   };
   const deleteAiAccount = async (accountId: string) => setAiSnapshot(await requireAiHost().deleteAccount(accountId));
   const selectAiAccountModel = async (accountId: string, modelId: string, modelSettings: Readonly<Record<string, string | number | boolean>>) => setAiSnapshot(await requireAiHost().selectModel(accountId, modelId, modelSettings));
+  const quickSelectAiModel = async (accountId: string, modelId: string) => setAiSnapshot(await requireAiHost().setActiveModel(accountId, modelId, {}));
+  const quickUpdateAiModelSetting = async (fieldId: string, value: AiModelSettingValue) => {
+    if (!aiSnapshot.activeModel || !activeAiAccount) throw new Error("当前没有可调整的模型。");
+    const nextSettings = { ...activeAiAccount.modelSettings, [fieldId]: value };
+    setAiSnapshot(await requireAiHost().setActiveModel(activeAiAccount.id, aiSnapshot.activeModel.modelId, nextSettings));
+  };
   const activateAiAccountModel = async (accountId: string) => setAiSnapshot(await requireAiHost().activateModel(accountId));
   const requirePluginHost = () => {
     if (!props.pluginSettingsHost) throw new Error("当前宿主未提供 Plugin Manager 桥。");
@@ -1040,11 +1232,15 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
                 agentSurface={agentSurface}
                 permissionProfileId={permissionProfileId}
                 modelLabel={modelLabel}
+                quickModels={quickModels}
+                activeReasoning={activeReasoning}
                 runtimeConnected={Boolean(props.agentRuntimeHost)}
                 workNodes={workNodes}
                 onWorkNodesChange={setWorkNodes}
                 onPermissionProfileChange={setPermissionProfileId}
                 onSubmitTask={startAgentRun}
+                onQuickSelectModel={quickSelectAiModel}
+                onQuickUpdateModelSetting={quickUpdateAiModelSetting}
                 onOpenAiSettings={() => { setSettingsSection("ai"); setSurface("settings"); }}
                 onToggleLeft={toggleLeft}
                 onToggleRight={toggleRight}

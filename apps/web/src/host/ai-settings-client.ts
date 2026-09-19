@@ -132,6 +132,10 @@ export const webAiSettingsHost: AgentAiSettingsHost = {
     const payload = await request<{ snapshot: AiAccountSnapshot }>(`/accounts/${encodeURIComponent(accountId)}/model`, { method: "POST", body: JSON.stringify({ modelId, modelSettings }) });
     return payload.snapshot;
   },
+  async setActiveModel(accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiModelSettingValue>>) {
+    const payload = await request<{ snapshot: AiAccountSnapshot }>(`/accounts/${encodeURIComponent(accountId)}/active-model`, { method: "POST", body: JSON.stringify({ modelId, modelSettings }) });
+    return payload.snapshot;
+  },
   async activateModel(accountId: string) {
     const payload = await request<{ snapshot: AiAccountSnapshot }>(`/accounts/${encodeURIComponent(accountId)}/active`, { method: "POST", body: "{}" });
     return payload.snapshot;

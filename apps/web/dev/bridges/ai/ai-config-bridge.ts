@@ -135,7 +135,7 @@ export function lfaaDevAiConfigBridge(projectRoot: string): Plugin {
             const result = await service.save(parseDraft(body.draft), secret);
             return sendJson(response, 200, { ok: true, ...result, snapshot: await service.snapshot() });
           }
-          const match = pathname.match(/^\/accounts\/([A-Za-z0-9-]{8,80})(?:\/(probe|model|active))?$/);
+          const match = pathname.match(/^\/accounts\/([A-Za-z0-9-]{8,80})(?:\/(probe|model|active-model|active))?$/);
           const accountId = match?.[1];
           const action = match?.[2];
           if (accountId && request.method === "POST" && action === "probe") {
@@ -152,6 +152,18 @@ export function lfaaDevAiConfigBridge(projectRoot: string): Plugin {
               }
             }
             await service.selectModel(accountId, body.modelId, modelSettings);
+            return sendJson(response, 200, { ok: true, snapshot: await service.snapshot() });
+          }
+          if (accountId && request.method === "POST" && action === "active-model") {
+            const body = await readJson(request);
+            if (typeof body.modelId !== "string") throw new Error("模型 ID 无效。");
+            const modelSettings: Record<string, string | number | boolean> = {};
+            if (body.modelSettings && typeof body.modelSettings === "object" && !Array.isArray(body.modelSettings)) {
+              for (const [key, value] of Object.entries(body.modelSettings as Record<string, unknown>)) {
+                if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") modelSettings[key] = value;
+              }
+            }
+            await service.setActiveModel(accountId, body.modelId, modelSettings);
             return sendJson(response, 200, { ok: true, snapshot: await service.snapshot() });
           }
           if (accountId && request.method === "POST" && action === "active") {
