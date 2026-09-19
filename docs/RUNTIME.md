@@ -460,6 +460,18 @@ v0.0.54 起，菜单 1 使用本机 `.lfaa/state/dependency-state.json` 保存�
 
 v0.0.55 起，菜单 1 不再先后重复打印“预检/检测”两组 Node、pnpm、workspace，也不在结尾分别重复 Node 与 Rust 完成状态。输出固定为一次环境摘要、一次依赖状态、一次关键路径区、一个最终总结果。路径必须从当前机器动态解析：项目 `node_modules`、`node_modules/.pnpm`、`pnpm-lock.yaml`、`.lfaa/state/dependency-state.json`；pnpm Store 通过 `pnpm store path` 获取；Cargo registry/git 缓存来自 `CARGO_HOME`（或用户默认 `.cargo`）；Rust 工具链来自 `RUSTUP_HOME/toolchains`。菜单 7 环境检查复用同一位置展示。
 
+v0.0.56 起，菜单 1 的 Node 状态分为三层：
+
+```text
+声明层：package.json / pnpm-lock / workspace 指纹
+项目层：各 workspace 外部依赖真实 Node resolve + 关键入口/原生模块加载
+Store 层：pnpm store path 的真实目录/内容/状态
+```
+
+`.lfaa/state/dependency-state.json` 只帮助判断声明是否变化，不能让项目层或 Store 层直接通过。Store 被删除/清空时必须报告缓存缺失；如果项目 node_modules 因 pnpm 硬链接仍能真实运行，则显示“项目依赖可用，但 Store 缓存缺失”，用户可选择按当前 lockfile 恢复缓存。恢复只补当前锁定内容，不升级依赖。项目层真实解析失败时才进入项目依赖同步分支，安装后必须重新执行真实健康检查。
+
+v0.0.57 起，机器环境路径再增加“来源与实时性”约束：`Get-PnpmStorePath` 必须在 `$ProjectRoot` 每次执行当前 pnpm runner 的 `store path`；PNPM_HOME、pnpm executable、全局 config 文件、全局/项目 `storeDir` 只用于解释来源，不能替代最终 active Store。仓库自己的 `pnpm-workspace.yaml` 不声明 `storeDir`，默认尊重 pnpm 用户/机器环境。状态缓存不得保存并回放旧 Store 路径。
+
 `10 检查中心` 只提供三种分层入口：
 
 ```text

@@ -38,11 +38,11 @@ test("unchanged dependency path can return without pnpm install", () => {
   const install = functionBody("Install-NodeDependencies");
   assert.match(plan, /NeedsInstall/);
   assert.match(plan, /CanAdopt/);
-  assert.match(install, /if \(-not \$plan\.NeedsInstall\)/);
-  assert.match(functionBody("Show-NodeDependencyPlan"), /跳过 pnpm install/);
-  const skipIndex = install.indexOf("if (-not $plan.NeedsInstall)");
-  const invokeIndex = install.indexOf('Invoke-Pnpm @("install")');
-  assert.ok(skipIndex >= 0 && invokeIndex > skipIndex, "skip branch must be evaluated before install invocation");
+  assert.match(install, /if \(\$plan\.NeedsInstall\)/);
+  assert.match(functionBody("Show-NodeDependencyPlan"), /无需 pnpm install/);
+  const decisionIndex = install.indexOf("if ($plan.NeedsInstall)");
+  const invokeIndex = install.indexOf('Invoke-Pnpm @("install","--frozen-lockfile")');
+  assert.ok(decisionIndex >= 0 && invokeIndex > decisionIndex, "install invocation must stay inside the NeedsInstall branch");
 });
 
 test("dependency changes are summarized and confirmed before writing", () => {
@@ -89,8 +89,10 @@ test("menu 1 shows dependency locations from runtime paths", () => {
   }
   assert.match(locations, /node_modules\\\.pnpm/);
   assert.match(locations, /pnpm-lock\.yaml/);
-  assert.match(storePath, /store","path/);
-  assert.match(storePath, /Get-PnpmRunner/);
+  assert.match(storePath, /Get-PnpmEnvironmentFacts/);
+  const facts = functionBody("Get-PnpmEnvironmentFacts");
+  assert.match(facts, /Invoke-PnpmCapture @\("store","path"\)/);
+  assert.match(facts, /StorePath/);
 });
 
 test("menu 1 avoids duplicate precheck and duplicate completion summaries", () => {
@@ -100,4 +102,73 @@ test("menu 1 avoids duplicate precheck and duplicate completion summaries", () =
   assert.doesNotMatch(setup, /【完成】" "【Node\/pnpm】/);
   assert.doesNotMatch(setup, /【完成】" "【Rust\/Cargo】/);
   assert.match(setup, /【完成】" "【按需依赖】/);
+});
+
+test("unchanged path requires real Node resolution before it may skip install", () => {
+  const plan = functionBody("Get-NodeDependencyPlan");
+  const runtime = functionBody("Test-NodeDependencyRuntimeHealth");
+  assert.match(plan, /Test-NodeDependencyRuntimeHealth/);
+  assert.match(plan, /RuntimeHealth/);
+  assert.match(plan, /项目依赖真实解析\/加载失败/);
+  assert.match(runtime, /node-dependency-health-check\.mjs/);
+  assert.match(runtime, /--json/);
+});
+
+test("pnpm Store is a real health signal and missing cache cannot report all-ready", () => {
+  const store = functionBody("Get-PnpmStoreHealth");
+  const repair = functionBody("Repair-PnpmStore");
+  assert.match(store, /Get-PnpmEnvironmentFacts/);
+  assert.match(store, /Test-Path/);
+  assert.match(store, /目录不存在/);
+  assert.match(store, /目录为空/);
+  const fetcher = functionBody("Invoke-PnpmStoreLockfileFetch");
+  assert.match(fetcher, /fetch","--frozen-lockfile","--ignore-scripts/);
+  assert.match(fetcher, /--offline/);
+  assert.match(fetcher, /GetTempPath/);
+  assert.match(repair, /Invoke-PnpmStoreLockfileFetch/);
+  assert.match(setup, /项目 Node 依赖当前可用，但 pnpm Store 缓存未恢复/);
+  assert.doesNotMatch(repair, /update|store\s+prune/i);
+});
+
+test("dependency state cache is never sufficient for real health", () => {
+  const plan = functionBody("Get-NodeDependencyPlan");
+  const install = functionBody("Install-NodeDependencies");
+  assert.match(plan, /RuntimeHealth/);
+  assert.match(plan, /StoreHealth/);
+  assert.match(install, /finalRuntime/);
+  assert.match(install, /finalStore/);
+  assert.match(install, /ProjectHealthy/);
+  assert.match(install, /StoreHealthy/);
+});
+
+
+test("pnpm machine facts are read live and never replayed from dependency cache", () => {
+  const capture = functionBody("Invoke-PnpmCapture");
+  const facts = functionBody("Get-PnpmEnvironmentFacts");
+  const storePath = functionBody("Get-PnpmStorePath");
+  assert.match(capture, /Push-Location \$ProjectRoot/);
+  assert.match(facts, /Invoke-PnpmCapture @\("store","path"\)/);
+  assert.match(facts, /PNPM_HOME/);
+  assert.match(facts, /globalconfig/);
+  assert.match(facts, /storeDir/);
+  assert.match(storePath, /每次都向当前 pnpm 实时查询/);
+  assert.doesNotMatch(storePath, /Read-DependencyState|dependency-state\.json/);
+});
+
+test("pnpm Store source is explained without forcing a project store", () => {
+  const facts = functionBody("Get-PnpmEnvironmentFacts");
+  const workspace = fs.readFileSync("pnpm-workspace.yaml", "utf8");
+  for (const token of ["项目配置", "用户全局配置", "pnpm 默认", "环境变量", "Get-ProjectPnpmStoreDir"]) {
+    assert.ok(facts.includes(token), `missing Store source label: ${token}`);
+  }
+  assert.doesNotMatch(workspace, /^\s*storeDir\s*:/m);
+  assert.doesNotMatch(workspace, /^\s*store-dir\s*:/m);
+});
+
+test("dependency location output includes PNPM_HOME and Store source", () => {
+  const locations = functionBody("Show-DependencyLocations");
+  for (const token of ["pnpm 可执行", "PNPM_HOME", "pnpm 全局配置", "【来源】", "pnpm Store"]) {
+    assert.ok(locations.includes(token), `missing runtime pnpm fact: ${token}`);
+  }
+  assert.match(locations, /Get-PnpmEnvironmentFacts/);
 });

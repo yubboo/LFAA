@@ -12,6 +12,7 @@
 | `docs-check.mjs` | docs 固定长期文档结构，阻止碎片 Markdown 回归。 |
 | `comment-check.mjs` | 关键代码中文文件头 / CSS 分区注释。 |
 | `check-node-pty.mjs` | node-pty 实际加载检查。 |
+| `node-dependency-health-check.mjs` | 从各 workspace importer 真实解析外部 Node 依赖，防止残留 package.json/旧缓存造成假健康。 |
 | `pnpm-only.mjs` | 强制 pnpm，并拒绝与项目锁定版本不一致的 pnpm。 |
 | `quality-not-configured.mjs` | 历史占位失败入口；根级真实质量命令已不再依赖它。 |
 | `release-name.mjs` | 发布名。 |

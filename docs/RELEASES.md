@@ -3,11 +3,70 @@
 > 每个版本在本文件新增一个版本章节，不再创建 `docs/releases/vX.Y.Z/RELEASE.md`。
 > 当前版本在用户验收前必须标记 `pending-user-acceptance`，验收通过后才能改为 `delivered`。
 
-## LFAA v0.0.55 Release — #20.9 依赖提示去重与路径可见性
+## LFAA v0.0.57 Release — #20.11 pnpm 实时环境事实与 Store 来源修复
 
 - **状态：** pending-user-acceptance
-- **基线：** v0.0.54
+- **基线：** v0.0.56
 - **用户验收：** pending
+
+### 交付内容
+
+- 菜单 1 / 7 每次实时读取 pnpm executable、PNPM_HOME、active Store 与配置来源；
+- active Store 永远来自当前项目根执行的 `pnpm store path`，不读取历史状态缓存；
+- Store 来源显示环境变量 / 项目配置 / 用户全局配置 / pnpm 默认；
+- 仓库不声明项目级 `storeDir`，不自动改用户全局 Store、不迁移缓存目录；
+- v0.0.56 的真实依赖解析与 Store 健康探针完整保留。
+
+### 未修改
+
+Web Account/Auth、Config Schema / Config Storage、Web UI、PTY、Sync / GitHub / Update、Agent / Tool / Policy / Permission 执行链。
+
+### AI 验证状态
+
+dependency-setup 14/14 PASS；node-dependency-health 3/3 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；治理链全部 PASS。当前制作容器无 PowerShell、Node 22.16.0、无 Cargo，因此 Windows 实时 pnpm 环境与完整 `release:full` 仍需实机/受支持环境验证。
+
+### 用户实机验收重点
+
+1. 在 CMD 执行 `pnpm store path`，再运行菜单 1；菜单显示的 active Store 必须完全一致；
+2. 当前无项目/全局显式 `storeDir` 时，来源应显示 pnpm 默认；
+3. 后续若修改全局 `storeDir`，无需删除 `.lfaa/state`，重跑菜单 1 必须立即显示新路径；
+4. Store 被删除时仍必须触发 v0.0.56 的真实 Store 健康警告/修复逻辑。
+
+## LFAA v0.0.56 Release — #20.10 真实依赖健康检测与 Store 状态修复
+
+- **状态：** superseded
+- **基线：** v0.0.55
+- **用户验收：** not-accepted；由 v0.0.57 补齐实时机器环境与 Store 来源
+
+### 交付内容
+
+- Node 依赖从各 workspace importer 做真实 resolve，不再只检查 package.json 外壳；
+- node-pty 在 unchanged 路径也会进入真实加载检查；
+- pnpm Store 分离为独立健康状态：目录缺失/为空、lockfile 离线 fetch 探针失败均不能标记健康；
+- Store 缺失但项目当前仍可解析时明确显示降级状态；
+- 用户可按当前 lockfile 恢复 Store 缺失缓存，不自动升级依赖；
+- 安装/修复后必须再次做真实项目依赖和 Store 检查。
+
+### 未修改
+
+Web Account/Auth、Config Schema / Config Storage、Web UI、Sync / GitHub / Update、Agent / Tool / Policy / Permission 执行链。
+
+### AI 验证状态
+
+node-dependency-health 3/3 PASS；dependency-setup 11/11 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；Config System TypeScript `--noEmit` PASS；governance/import/dev-log/docs/comment/Windows BOM/release consistency/prompt lifecycle/config-schema/release-gates/UI contract 全部 PASS。当前制作容器 Node 22.16.0、无 Cargo、无 PowerShell，因此 Windows 菜单动态 Store 删除/恢复与完整 `release:full` 不冒充通过。
+
+### 用户实机验收重点
+
+1. 完整环境先运行菜单 1，应显示“项目依赖真实解析通过”与“pnpm Store 覆盖当前 lockfile”；
+2. 删除菜单显示的 `pnpm Store` 后再次运行菜单 1，必须报告 Store 缺失/为空，不能再显示全部依赖就绪；
+3. 若项目 node_modules 仍可运行，应显示“项目当前可用，但 Store 缓存缺失”；
+4. 选择恢复后只补当前 lockfile 缺失缓存，再次运行应恢复健康状态。
+
+## LFAA v0.0.55 Release — #20.9 依赖提示去重与路径可见性
+
+- **状态：** delivered
+- **基线：** v0.0.54
+- **用户验收：** passed
 
 ### 交付内容
 

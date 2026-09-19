@@ -163,6 +163,10 @@ pnpm run release:full    # 正式发布验证：环境 + frozen install + full +
 
 `LFAA-Setup.bat → 1` 只是 Windows 的按需依赖准备入口：首次配置、依赖变化、环境损坏时使用；环境已经就绪时可以直接开发、构建或检查，禁止规定“开发前必须先点 1”。菜单 1 必须先检测依赖指纹与本地安装完整性，unchanged 时零安装返回；产品版本号本身不得进入依赖指纹。检测到项目锁定依赖变化时先显示新增 / 删除 / 版本变化摘要并由用户确认，禁止自动执行 `pnpm update` 或清空 pnpm/Cargo 缓存。 输出层同样属于长期 UX 契约：Node/pnpm/workspace 相同事实只显示一次，结尾使用单一按需依赖总摘要；菜单 1 / 7 必须动态显示 `node_modules`、pnpm Store、lockfile、Cargo 缓存与 Rust toolchains 实际路径，禁止写死用户目录。
 
+v0.0.56 起，依赖缓存指纹和 `package.json` 存在性不得再被当成“真实依赖健康”。菜单 1 在 unchanged 快速返回前必须同时验证：项目外部依赖能从各自 workspace importer 真实解析、关键原生模块可真实加载、`pnpm store path` 的 Store 状态真实可见。Store 缺失/为空但当前 node_modules 仍能解析时，必须明确区分“项目当前可用”和“Store 缓存缺失”，不得输出“当前依赖均已就绪”。Store 修复只允许按 lockfile 补齐缺失缓存，不允许 update。
+
+v0.0.57 起，pnpm / PNPM_HOME / Store 等机器环境必须执行“实时事实优先”：每次菜单 1 / 7 都重新读取当前 shell 与当前 pnpm runner，`pnpm store path` 必须在项目根实时执行，`.lfaa/state` 不得缓存并复用 Store 路径。LFAA 默认不在 `pnpm-workspace.yaml` 写 `storeDir`，不自动修改用户全局 Store；显示层应明确给出 Store 当前路径及其来源（项目配置 / 用户全局配置 / pnpm 默认 / 环境或其他覆盖）。
+
 `LFAA-Setup.bat → 10` 是检查中心，只负责把快速 / 完整 / 正式发布三种命令暴露为 Windows 交互入口；未来 CLI / GUI 必须复用同一底层命令，不得依赖菜单编号。
 
 正式 `release:full` 必须按顺序完成：发布环境版本检查 → `pnpm install --frozen-lockfile` → 完整项目检查 → Rust `cargo check/test --workspace`。任何一步失败，都不得宣称“完整发布门禁通过”或 `release-ready`。

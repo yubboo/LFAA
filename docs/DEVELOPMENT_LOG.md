@@ -11,25 +11,60 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #20.9 | 依赖提示去重与路径可见性 | v0.0.55 | pending-user-acceptance |
+| #20.11 | pnpm 实时环境事实与 Store 来源修复 | v0.0.57 | pending-user-acceptance |
+| #20.10 | 真实依赖健康检测与 Store 状态修复 | v0.0.56 | superseded |
+| #20.9 | 依赖提示去重与路径可见性 | v0.0.55 | delivered |
 | #20.8 | 按需依赖增量检测与复用 | v0.0.54 | superseded |
 | #20.7 | Setup 菜单与发布门禁解耦 | v0.0.53 | superseded |
 | #20.6 | 发布环境与质量门禁闭环 | v0.0.52 | superseded |
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
-### #20.9 依赖提示去重与路径可见性
+### #20.11 pnpm 实时环境事实与 Store 来源修复
 
-- **版本：** v0.0.55
+- **版本：** v0.0.57
 - **状态：** pending-user-acceptance
 - **AI 验证：** pass
 - **用户验收：** pending
+- **主模块：** project-governance / windows-setup / pnpm-environment-facts
+- **背景：** 用户执行 `pnpm setup` 后删除旧全局 `storeDir`，实时 `pnpm store path` 从旧项目目录 `H:\next-javaweb\.pnpm-store\v11` 恢复到当前 Windows 用户默认 Store，进一步证明机器级路径会变化，历史缓存不能成为事实。
+- **目标：** 每次运行菜单 1 / 7 都实时读取 pnpm runner、PNPM_HOME/PATH、Store 路径与 Store 配置来源；LFAA 不写死路径、不自动迁移 Store、不把 `.lfaa/state` 当环境事实。
+- **默认策略：** 仓库不设置项目级 `storeDir`，尊重 pnpm 当前用户/机器环境；`pnpm store path` 是最终路径事实。
+- **边界：** 本任务只修 Windows 环境事实与显示，不进入 Web Account/Auth，不改 Config/UI/PTY/Sync/GitHub/Update。
+
+- **实现结果：** Store 路径固定从 `$ProjectRoot` 实时执行当前 pnpm runner 的 `store path`；新增 PNPM_HOME/PATH、pnpm 可执行、全局配置、全局/项目 storeDir 与来源显示；仓库不声明项目 storeDir。
+- **验证：** dependency-setup 14/14、node-dependency-health 3/3、release-gates 5/5、release-environment 8/8、Config Schema 8/8 PASS；全部 Node 治理门禁 PASS。当前制作容器无 PowerShell、Node 22.16.0 且无 Cargo，因此 Windows 实时路径与 `release:full` 不冒充通过。
+
+### #20.10 真实依赖健康检测与 Store 状态修复
+
+- **版本：** v0.0.56
+- **状态：** superseded
+- **AI 验证：** pass
+- **用户验收：** not-accepted
+- **主模块：** project-governance / windows-setup / dependency-health
+- **背景：** 用户在 Windows 实机删除 `pnpm store path` 指向的 Store 后再次执行菜单 1，v0.0.55 仍错误显示依赖全部就绪。定位后确认旧逻辑只看 manifests / lockfile 指纹 / `package.json` 存在性，没有检查 Store，也没有在 unchanged 路径做真实 Node 解析和原生模块加载。
+- **目标：** 把“声明未变化”“项目当前真实可用”“Store 缓存健康”拆成三种独立事实；缓存状态不得代替真实检测。
+- **设计：** 跨平台项目级真实解析由 Node 检查器负责，Windows PS1 负责调用、Store 路径/状态、修复确认和 pnpm 写操作；Store 丢失但 node_modules 仍可用时准确显示降级状态，不误报全部就绪。
+- **边界：** 不进入 Web Account/Auth；不修改 Config/UI/PTY/Sync/GitHub/Update；不自动 update、不删缓存、不把 Store 缺失等同于项目必然不可运行。
+- **实现结果：** 新增 `scripts/node-dependency-health-check.mjs`，从各 workspace importer 真实解析外部依赖，并对 `node-pty` 执行实际加载；菜单 1 新增 `Get-PnpmStoreHealth`，对 Store 不存在/为空直接失败，并通过临时目录的 `pnpm fetch --offline --frozen-lockfile --ignore-scripts` 验证当前 lockfile 所需缓存是否真实可用。
+- **修复语义：** 项目真实可用性与 Store 缓存健康分离；Store 缺失但 node_modules 仍可解析时显示“项目当前可用、Store 缓存缺失”，用户可按 lockfile 选择恢复，不自动升级。
+- **验证：** node-dependency-health 3/3、dependency-setup 11/11、release-gates 5/5、release-environment 8/8、Config Schema 8/8、Config System TypeScript `--noEmit` 与全部 Node 治理门禁 PASS；当前容器 Node 22.16.0、无 Cargo、无 PowerShell，因此 `release:full` 与 Windows 动态 Store 删除/恢复不冒充通过。
+
+- **被后续修正：** 用户进一步验证 PNPM_HOME / 全局 storeDir 改动会实时改变 active Store；由 #20.11 / v0.0.57 收紧机器环境事实与来源识别。
+
+### #20.9 依赖提示去重与路径可见性
+
+- **版本：** v0.0.55
+- **状态：** delivered
+- **AI 验证：** pass
+- **用户验收：** passed
 - **主模块：** project-governance / windows-setup / dependency-ux
 - **背景：** 用户 Windows 实机验证 #20.8 后确认依赖已能正确跳过，但发现菜单 1 先打印预检，再由安装函数重复打印 Node/pnpm/workspace，结尾又分别打印 Node 与 Rust 完成状态；同时没有直接告诉用户依赖实际位于哪里。
 - **目标：** 保持增量依赖逻辑不变，只压缩重复信息，并把 Node/pnpm/Rust/Cargo 的关键真实路径直接展示。
 - **路径事实：** pnpm Store 使用运行时 `pnpm store path`；项目 Node 依赖、虚拟仓库、锁文件、依赖状态缓存、Cargo registry/git、Rust toolchains 与 Cargo.lock 使用当前项目/用户环境动态计算，禁止写死用户目录。
 - **边界：** 不修改 Config、UI、PTY、Sync/GitHub/Update、Agent/Tool/Permission 业务逻辑；不改变 #20.8 的依赖安装触发条件。
 - **验证：** dependency-setup 8/8、release-gates 5/5、release-environment 8/8、Config Schema 8/8；governance/import/dev-log/docs/comment/Windows BOM/release consistency/prompt lifecycle/config-schema/release-gates/UI contract 全部 PASS；Config System TypeScript `--noEmit` PASS。当前容器没有 PowerShell、Node 为 22.16.0 且无 Cargo，因此 Windows 动态 UI 与 `release:full` 不冒充通过。
+- **用户验收结果：** 菜单输出去重与真实路径展示经 Windows 实机确认通过；随后发现的依赖健康误判属于底层 #20.8 检测缺口，由 #20.10 / v0.0.56 单独修复。
 
 ### #20.8 按需依赖增量检测与复用
 
@@ -112,7 +147,7 @@
 
 - **主编号：** #20
 - **名称：** 开发日志与文档规范
-- **最新变更：** #20.8
+- **最新变更：** #20.11
 - **状态：** active
 - **关键词：** 日志、文档、中文、命名、目录、索引、注释、可读性、项目地图、开发规范、发布闭环、编码门禁
 - **当前文件：** `docs/DEVELOPMENT_LOG.md`

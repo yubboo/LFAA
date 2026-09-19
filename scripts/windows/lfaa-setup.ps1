@@ -1,10 +1,10 @@
 ﻿# 文件：lfaa-setup.ps1
 # 作用：提供 LFAA 项目按需依赖、项目级资源和分层开发质量检查菜单。
-# 负责：Node/pnpm/Rust/Cargo 环境检测与按需准备、项目依赖、Web 启动、分层质量检查。
+# 负责：Node/pnpm/PNPM_HOME/Store/Rust/Cargo 实时环境检测与按需准备、项目依赖、Web 启动、分层质量检查。
 # 不负责：Git 推送、版本包同步、业务运行时权限决策。
-# 状态归属：工具链事实来自当前电脑，项目依赖事实来自当前项目目录。
+# 状态归属：工具链与 pnpm Store 事实每次来自当前电脑实时探测，项目依赖事实来自当前项目目录；本机缓存不得覆盖环境事实。
 # 对外接口：由根目录 LFAA-Setup.bat 调用。
-# 关联文件：LFAA-Setup.bat、package.json、rust-toolchain.toml、scripts/check-node-pty.mjs。
+# 关联文件：LFAA-Setup.bat、package.json、rust-toolchain.toml、scripts/check-node-pty.mjs、scripts/node-dependency-health-check.mjs。
 # 修改注意事项：只允许 pnpm；Rustup 使用官方来源与校验；菜单编号只是 Windows 入口，不得作为未来 CLI/GUI 协议。
 
 
@@ -155,28 +155,288 @@ function Get-PnpmRunner {
     throw "未检测到可用的 pnpm 或 corepack。"
 }
 
-function Get-PnpmStorePath {
+function Invoke-PnpmCapture {
+    param([string[]]$Arguments)
+
     try {
         $runner = Get-PnpmRunner
-        $arguments = @($runner.Prefix) + @("store","path")
+        $allArguments = @($runner.Prefix) + @($Arguments)
         $old = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
+        Push-Location $ProjectRoot
+        try {
+            $output = @(& $runner.FilePath @allArguments 2>&1 | ForEach-Object { [string]$_ })
+            $code = $LASTEXITCODE
+        }
+        finally {
+            Pop-Location
+            $ErrorActionPreference = $old
+        }
+
+        return [PSCustomObject]@{
+            Success = ($code -eq 0)
+            Output = @($output)
+            Runner = $runner
+        }
+    }
+    catch {
+        return [PSCustomObject]@{
+            Success = $false
+            Output = @([string]$_.Exception.Message)
+            Runner = $null
+        }
+    }
+}
+
+function Get-PnpmConfigValue {
+    param(
+        [string]$Key,
+        [ValidateSet("global","project")][string]$Location = "global"
+    )
+
+    $result = Invoke-PnpmCapture @("config","get",("--location={0}" -f $Location),$Key)
+    if (-not $result.Success) { return $null }
+
+    $value = @($result.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1)
+    if ($value.Count -eq 0) { return $null }
+
+    $text = $value[0].Trim()
+    if ([string]::IsNullOrWhiteSpace($text) -or $text -in @("null","undefined","false")) { return $null }
+    return $text
+}
+
+function Get-ExplicitStoreDirFromYaml {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+
+    foreach ($line in Get-Content -LiteralPath $Path) {
+        $match = [regex]::Match($line, '^\s*storeDir\s*:\s*["'']?([^"''#]+)["'']?\s*(?:#.*)?$')
+        if ($match.Success) {
+            $value = $match.Groups[1].Value.Trim()
+            if (-not [string]::IsNullOrWhiteSpace($value)) { return $value }
+        }
+    }
+    return $null
+}
+
+function Get-GlobalPnpmStoreDir {
+    param([string]$GlobalConfigPath)
+    return (Get-ExplicitStoreDirFromYaml $GlobalConfigPath)
+}
+
+function Get-ProjectPnpmStoreDir {
+    return (Get-ExplicitStoreDirFromYaml (Join-Path $ProjectRoot "pnpm-workspace.yaml"))
+}
+
+function Get-PnpmStoreEnvironmentOverride {
+    # pnpm 支持环境变量配置。这里只用于解释来源；最终 active Store 永远以 `pnpm store path` 为准。
+    $candidates = @(
+        "NPM_CONFIG_STORE_DIR",
+        "npm_config_store_dir",
+        "PNPM_STORE_DIR"
+    )
+    foreach ($name in $candidates) {
+        $item = Get-Item ("Env:{0}" -f $name) -ErrorAction SilentlyContinue
+        if ($null -ne $item -and -not [string]::IsNullOrWhiteSpace([string]$item.Value)) {
+            return [PSCustomObject]@{ Name = $name; Value = [string]$item.Value }
+        }
+    }
+    return $null
+}
+
+function Test-PnpmHomeInPath {
+    param([string]$PnpmHome)
+    if ([string]::IsNullOrWhiteSpace($PnpmHome)) { return $false }
+
+    $home = $PnpmHome.TrimEnd('\','/')
+    $bin = Join-Path $home "bin"
+    foreach ($entry in @(([string]$env:PATH) -split ';')) {
+        if ([string]::IsNullOrWhiteSpace($entry)) { continue }
+        $expanded = [Environment]::ExpandEnvironmentVariables($entry.Trim().Trim('"')).TrimEnd('\','/')
+        if ($expanded.Equals($home,[System.StringComparison]::OrdinalIgnoreCase) -or
+            $expanded.Equals($bin,[System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Get-PnpmEnvironmentFacts {
+    $runner = $null
+    try { $runner = Get-PnpmRunner } catch {}
+
+    $storeResult = Invoke-PnpmCapture @("store","path")
+    $storePath = "无法读取"
+    if ($storeResult.Success) {
+        $value = @($storeResult.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1)
+        if ($value.Count -gt 0) { $storePath = $value[0].Trim() }
+    }
+
+    $globalConfig = Get-PnpmConfigValue "globalconfig" "global"
+    $globalStoreDir = Get-GlobalPnpmStoreDir $globalConfig
+    $projectStoreDir = Get-ProjectPnpmStoreDir
+    $envStore = Get-PnpmStoreEnvironmentOverride
+
+    $source = "pnpm 默认（未发现显式 storeDir）"
+    if ($null -ne $envStore) {
+        $source = ("环境变量 {0}" -f $envStore.Name)
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($projectStoreDir)) {
+        $source = "项目配置"
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($globalStoreDir)) {
+        $source = "用户全局配置"
+    }
+    elseif ($storePath -eq "无法读取") {
+        $source = "无法判定"
+    }
+
+    $pnpmHome = [string]$env:PNPM_HOME
+    $pnpmPathReady = Test-PnpmHomeInPath $pnpmHome
+
+    return [PSCustomObject]@{
+        PnpmVersion = if ($null -ne $runner) { [string]$runner.Version } else { "未安装" }
+        PnpmSource = if ($null -ne $runner) { [string]$runner.Source } else { "未安装" }
+        PnpmHome = if ([string]::IsNullOrWhiteSpace($pnpmHome)) { "未设置" } else { $pnpmHome }
+        PnpmHomeInPath = $pnpmPathReady
+        StorePath = $storePath
+        StoreSource = $source
+        GlobalConfig = if ([string]::IsNullOrWhiteSpace($globalConfig)) { "无法读取" } else { $globalConfig }
+        GlobalStoreDir = $globalStoreDir
+        ProjectStoreDir = $projectStoreDir
+        EnvironmentStore = $envStore
+    }
+}
+
+function Get-PnpmStorePath {
+    # 每次都向当前 pnpm 实时查询；禁止从 .lfaa/state 或上一次输出复用旧路径。
+    return (Get-PnpmEnvironmentFacts).StorePath
+}
+
+function Invoke-PnpmStoreLockfileFetch {
+    param(
+        [string]$StorePath,
+        [switch]$Offline
+    )
+
+    $lockFile = Join-Path $ProjectRoot "pnpm-lock.yaml"
+    if (-not (Test-Path -LiteralPath $lockFile)) {
+        return [PSCustomObject]@{ Success = $false; Output = @("缺少 pnpm-lock.yaml") }
+    }
+
+    $probeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lfaa-pnpm-store-probe-" + [Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $probeRoot -Force | Out-Null
+    try {
+        Copy-Item -LiteralPath $lockFile -Destination (Join-Path $probeRoot "pnpm-lock.yaml") -Force
+        # fetch 本身以 lockfile 为事实源；复制 package.json 只为了让 Corepack 在临时目录继续识别项目锁定 pnpm 版本。
+        Copy-Item -LiteralPath (Join-Path $ProjectRoot "package.json") -Destination (Join-Path $probeRoot "package.json") -Force
+        $patches = Join-Path $ProjectRoot "patches"
+        if (Test-Path -LiteralPath $patches -PathType Container) {
+            Copy-Item -LiteralPath $patches -Destination (Join-Path $probeRoot "patches") -Recurse -Force
+        }
+
+        $storeBase = $StorePath
+        $leaf = Split-Path -Leaf $StorePath
+        if ($leaf -match '^v\d+$') { $storeBase = Split-Path -Parent $StorePath }
+
+        $runner = Get-PnpmRunner
+        $arguments = @($runner.Prefix) + @("--store-dir",$storeBase,"fetch","--frozen-lockfile","--ignore-scripts")
+        if ($Offline) { $arguments += "--offline" }
+
+        $old = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        Push-Location $probeRoot
         try {
             $output = @(& $runner.FilePath @arguments 2>&1 | ForEach-Object { [string]$_ })
             $code = $LASTEXITCODE
         }
         finally {
+            Pop-Location
             $ErrorActionPreference = $old
         }
 
-        if ($code -eq 0) {
-            $value = @($output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1)
-            if ($value.Count -gt 0) { return $value[0].Trim() }
+        return [PSCustomObject]@{
+            Success = ($code -eq 0)
+            Output = @($output)
         }
     }
-    catch {}
+    finally {
+        Remove-Item -LiteralPath $probeRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
 
-    return "无法读取"
+function Get-PnpmStoreHealth {
+    param([object[]]$Inventory = @())
+
+    $externalCount = @($Inventory | Where-Object {
+        $_.Section -in @("dependencies","devDependencies","optionalDependencies") -and
+        -not ([string]$_.Version).StartsWith("workspace:")
+    }).Count
+
+    $pnpmFacts = Get-PnpmEnvironmentFacts
+    $storePath = $pnpmFacts.StorePath
+    if ($externalCount -eq 0) {
+        return [PSCustomObject]@{
+            Healthy = $true
+            Path = $storePath
+            Source = $pnpmFacts.StoreSource
+            Reason = "当前项目无外部 Node 依赖，无需 pnpm Store 内容。"
+            Probe = "not-required"
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($storePath) -or $storePath -eq "无法读取") {
+        return [PSCustomObject]@{
+            Healthy = $false
+            Path = $storePath
+            Source = $pnpmFacts.StoreSource
+            Reason = "无法读取 pnpm Store 路径。"
+            Probe = "path-unavailable"
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $storePath -PathType Container)) {
+        return [PSCustomObject]@{
+            Healthy = $false
+            Path = $storePath
+            Source = $pnpmFacts.StoreSource
+            Reason = "pnpm Store 目录不存在。"
+            Probe = "missing"
+        }
+    }
+
+    $firstEntry = Get-ChildItem -LiteralPath $storePath -Force -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $firstEntry) {
+        return [PSCustomObject]@{
+            Healthy = $false
+            Path = $storePath
+            Source = $pnpmFacts.StoreSource
+            Reason = "pnpm Store 目录为空。"
+            Probe = "empty"
+        }
+    }
+
+    # 临时目录内执行离线 fetch：不访问 registry、不触碰项目 node_modules，真实验证当前 lockfile 所需缓存。
+    $probe = Invoke-PnpmStoreLockfileFetch -StorePath $storePath -Offline
+    if (-not $probe.Success) {
+        $detail = @($probe.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 3) -join " | "
+        if ([string]::IsNullOrWhiteSpace($detail)) { $detail = "离线 lockfile 探针失败" }
+        return [PSCustomObject]@{
+            Healthy = $false
+            Path = $storePath
+            Source = $pnpmFacts.StoreSource
+            Reason = ("pnpm Store 缺少当前 lockfile 所需内容或状态异常：{0}" -f $detail)
+            Probe = "offline-fetch-failed"
+        }
+    }
+
+    return [PSCustomObject]@{
+        Healthy = $true
+        Path = $storePath
+        Source = $pnpmFacts.StoreSource
+        Reason = "pnpm Store 已覆盖当前 lockfile 所需内容。"
+        Probe = "offline-fetch-pass"
+    }
 }
 
 function Join-LfaaLocation {
@@ -192,11 +452,25 @@ function Show-DependencyLocations {
     $rustupHome = Get-RustupHomePath
     $cargoLock = Join-Path $ProjectRoot "Cargo.lock"
     $cargoLockText = if (Test-Path -LiteralPath $cargoLock) { $cargoLock } else { "未创建（当前无外部 crate 时正常）" }
+    $pnpmFacts = Get-PnpmEnvironmentFacts
+    $pnpmHomeStatus = if ($pnpmFacts.PnpmHome -eq "未设置") {
+        "未设置（当前 pnpm 可用时不强制修改）"
+    }
+    elseif ($pnpmFacts.PnpmHomeInPath) {
+        ("{0} | PATH 已生效" -f $pnpmFacts.PnpmHome)
+    }
+    else {
+        ("{0} | 当前 PATH 未发现 PNPM_HOME/PNPM_HOME\bin" -f $pnpmFacts.PnpmHome)
+    }
 
     Write-Host ""
     Write-Label "【位置】" "【Node 依赖】" (Join-Path $ProjectRoot "node_modules") DarkCyan
     Write-Label "【位置】" "【pnpm 虚拟仓库】" (Join-Path $ProjectRoot "node_modules\.pnpm") DarkCyan
-    Write-Label "【位置】" "【pnpm Store】" (Get-PnpmStorePath) DarkCyan
+    Write-Label "【位置】" "【pnpm 可执行】" $pnpmFacts.PnpmSource DarkCyan
+    Write-Label "【环境】" "【PNPM_HOME】" $pnpmHomeStatus DarkCyan
+    Write-Label "【位置】" "【pnpm 全局配置】" $pnpmFacts.GlobalConfig DarkCyan
+    Write-Label "【位置】" "【pnpm Store】" $pnpmFacts.StorePath DarkCyan
+    Write-Label "【来源】" "【pnpm Store】" $pnpmFacts.StoreSource DarkCyan
     Write-Label "【位置】" "【Node 锁文件】" (Join-Path $ProjectRoot "pnpm-lock.yaml") DarkCyan
     Write-Label "【位置】" "【依赖状态缓存】" (Get-DependencyStatePath) DarkCyan
     Write-Label "【位置】" "【Cargo 缓存】" (Join-LfaaLocation $cargoHome "registry") DarkCyan
@@ -532,6 +806,58 @@ function Test-NodeDependencyInstallState {
     }
 }
 
+function Test-NodeDependencyRuntimeHealth {
+    $script = Join-Path $ProjectRoot "scripts\node-dependency-health-check.mjs"
+    if (-not (Test-Path -LiteralPath $script)) {
+        return [PSCustomObject]@{
+            Complete = $false
+            Issues = @("缺少 scripts/node-dependency-health-check.mjs")
+            Checked = 0
+            Resolved = 0
+        }
+    }
+
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    Push-Location $ProjectRoot
+    try {
+        $output = @(& node $script --project-root $ProjectRoot --json 2>&1 | ForEach-Object { [string]$_ })
+        $code = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+        $ErrorActionPreference = $old
+    }
+
+    $jsonLine = @($output | Where-Object { $_.TrimStart().StartsWith("{") } | Select-Object -Last 1)
+    if ($jsonLine.Count -eq 0) {
+        return [PSCustomObject]@{
+            Complete = $false
+            Issues = @("真实依赖检查器未返回可解析结果：" + (($output | Select-Object -Last 3) -join " | "))
+            Checked = 0
+            Resolved = 0
+        }
+    }
+
+    try {
+        $result = $jsonLine[0] | ConvertFrom-Json
+        return [PSCustomObject]@{
+            Complete = ([bool]$result.complete -and $code -eq 0)
+            Issues = @($result.issues)
+            Checked = [int]$result.checked
+            Resolved = [int]$result.resolved
+        }
+    }
+    catch {
+        return [PSCustomObject]@{
+            Complete = $false
+            Issues = @("真实依赖检查结果 JSON 无法解析")
+            Checked = 0
+            Resolved = 0
+        }
+    }
+}
+
 function Test-PnpmLockCoverage {
     param([object[]]$Inventory)
 
@@ -599,14 +925,17 @@ function Compare-NodeDependencyInventory {
 function Get-NodeDependencyPlan {
     $snapshot = Get-NodeDependencySnapshot
     $installState = Test-NodeDependencyInstallState $snapshot.Inventory
+    $runtimeHealth = Test-NodeDependencyRuntimeHealth
     $lockCoverage = Test-PnpmLockCoverage $snapshot.Inventory
+    $storeHealth = Get-PnpmStoreHealth $snapshot.Inventory
     $state = Read-DependencyState
     $nodeState = if ($null -ne $state) { $state.node } else { $null }
     $reasons = New-Object System.Collections.Generic.List[string]
     $diff = Compare-NodeDependencyInventory @() $snapshot.Inventory
 
     if ($null -eq $nodeState) {
-        if (-not $installState.Complete) { $reasons.Add("本地依赖尚未完整安装") }
+        if (-not $installState.Complete) { $reasons.Add("本地直接依赖尚未完整安装") }
+        if (-not $runtimeHealth.Complete) { $reasons.Add("项目依赖真实解析/加载失败") }
         if (-not $lockCoverage.Complete) { $reasons.Add("pnpm-lock.yaml 尚未覆盖当前外部依赖") }
     }
     else {
@@ -615,17 +944,22 @@ function Get-NodeDependencyPlan {
             $reasons.Add("依赖声明或锁文件发生变化")
         }
         if (-not $installState.Complete) { $reasons.Add("本地直接依赖缺失或版本不匹配") }
+        if (-not $runtimeHealth.Complete) { $reasons.Add("项目依赖真实解析/加载失败") }
         if (-not $lockCoverage.Complete) { $reasons.Add("pnpm-lock.yaml 与当前依赖声明不完整") }
     }
 
-    $canAdopt = ($null -eq $nodeState -and $installState.Complete -and $lockCoverage.Complete)
+    $canAdopt = ($null -eq $nodeState -and $installState.Complete -and $runtimeHealth.Complete -and $lockCoverage.Complete)
     $needsInstall = (-not $canAdopt) -and ($reasons.Count -gt 0)
+    $needsStoreRepair = -not $storeHealth.Healthy
 
     return [PSCustomObject]@{
         NeedsInstall = $needsInstall
+        NeedsStoreRepair = $needsStoreRepair
         CanAdopt = $canAdopt
         Snapshot = $snapshot
         InstallState = $installState
+        RuntimeHealth = $runtimeHealth
+        StoreHealth = $storeHealth
         LockCoverage = $lockCoverage
         PreviousState = $nodeState
         Diff = $diff
@@ -638,29 +972,42 @@ function Show-NodeDependencyPlan {
 
     if (-not $Plan.NeedsInstall) {
         if ($Plan.CanAdopt) {
-            Write-Label "【检测】" "【Node 依赖】" "本地依赖完整；首次建立增量检测基线，不执行 pnpm install。" Green
+            Write-Label "【检测】" "【项目依赖】" ("真实解析通过 {0}/{1} 项；首次建立增量基线，无需 pnpm install。" -f $Plan.RuntimeHealth.Resolved,$Plan.RuntimeHealth.Checked) Green
         }
         else {
-            Write-Label "【检测】" "【Node 依赖】" "依赖声明、锁文件和本地安装状态均未变化；跳过 pnpm install。" Green
+            Write-Label "【检测】" "【项目依赖】" ("声明未变化，真实解析通过 {0}/{1} 项；无需 pnpm install。" -f $Plan.RuntimeHealth.Resolved,$Plan.RuntimeHealth.Checked) Green
         }
-        return
+    }
+    else {
+        foreach ($reason in $Plan.Reasons) {
+            Write-Label "【变化】" "【Node 依赖】" $reason Yellow
+        }
+
+        $diff = $Plan.Diff
+        Write-Label "【差异】" "【依赖声明】" ("新增 {0} | 删除 {1} | 版本变化 {2}" -f $diff.Added.Count,$diff.Removed.Count,$diff.Changed.Count) Cyan
+        foreach ($line in @($diff.Added | Select-Object -First 5)) { Write-Label "【新增】" "【依赖】" $line Green }
+        foreach ($line in @($diff.Changed | Select-Object -First 5)) { Write-Label "【变更】" "【依赖】" $line Yellow }
+        foreach ($line in @($diff.Removed | Select-Object -First 5)) { Write-Label "【删除】" "【依赖】" $line DarkYellow }
+
+        if ($Plan.InstallState.Issues.Count -gt 0) {
+            Write-Label "【缺失】" "【本地依赖】" ((@($Plan.InstallState.Issues | Select-Object -First 5)) -join "；") Yellow
+        }
+        if ($Plan.RuntimeHealth.Issues.Count -gt 0) {
+            Write-Label "【失败】" "【真实解析】" ((@($Plan.RuntimeHealth.Issues | Select-Object -First 5)) -join "；") Yellow
+        }
+        if ($Plan.LockCoverage.Missing.Count -gt 0) {
+            Write-Label "【锁文件】" "【待同步】" ((@($Plan.LockCoverage.Missing | Select-Object -First 8)) -join "、") Yellow
+        }
     }
 
-    foreach ($reason in $Plan.Reasons) {
-        Write-Label "【变化】" "【Node 依赖】" $reason Yellow
+    if ($Plan.StoreHealth.Healthy) {
+        Write-Label "【检测】" "【pnpm Store】" ("{0} | 来源：{1}" -f $Plan.StoreHealth.Reason,$Plan.StoreHealth.Source) Green
     }
-
-    $diff = $Plan.Diff
-    Write-Label "【差异】" "【依赖声明】" ("新增 {0} | 删除 {1} | 版本变化 {2}" -f $diff.Added.Count,$diff.Removed.Count,$diff.Changed.Count) Cyan
-    foreach ($line in @($diff.Added | Select-Object -First 5)) { Write-Label "【新增】" "【依赖】" $line Green }
-    foreach ($line in @($diff.Changed | Select-Object -First 5)) { Write-Label "【变更】" "【依赖】" $line Yellow }
-    foreach ($line in @($diff.Removed | Select-Object -First 5)) { Write-Label "【删除】" "【依赖】" $line DarkYellow }
-
-    if ($Plan.InstallState.Issues.Count -gt 0) {
-        Write-Label "【缺失】" "【本地依赖】" ((@($Plan.InstallState.Issues | Select-Object -First 5)) -join "；") Yellow
-    }
-    if ($Plan.LockCoverage.Missing.Count -gt 0) {
-        Write-Label "【锁文件】" "【待同步】" ((@($Plan.LockCoverage.Missing | Select-Object -First 8)) -join "、") Yellow
+    else {
+        Write-Label "【警告】" "【pnpm Store】" ("{0} | {1} | 来源：{2}" -f $Plan.StoreHealth.Reason,$Plan.StoreHealth.Path,$Plan.StoreHealth.Source) Yellow
+        if (-not $Plan.NeedsInstall -and $Plan.RuntimeHealth.Complete) {
+            Write-Label "【说明】" "【项目状态】" "当前 node_modules 真实解析仍可用，但 pnpm Store 缓存缺失/不完整；后续离线修复或新安装可能需要重新下载。" DarkYellow
+        }
     }
 }
 
@@ -765,6 +1112,38 @@ function Test-NodePtyRuntime {
     return ($code -eq 0)
 }
 
+function Repair-PnpmStore {
+    param([object]$Plan)
+
+    if (-not $Plan.NeedsStoreRepair) {
+        return [PSCustomObject]@{ Changed = $false; Cancelled = $false; Healthy = $true }
+    }
+
+    if (-not (Confirm-WriteOperation "pnpm Store 缓存缺失或不完整。是否按当前 pnpm-lock.yaml 补齐缺失缓存？不会更新依赖版本。")) {
+        Write-Label "【跳过】" "【pnpm Store】" "用户选择不恢复 Store；当前项目若仍能解析可以继续使用，但后续安装/离线修复可能需要联网。" Yellow
+        return [PSCustomObject]@{ Changed = $false; Cancelled = $true; Healthy = $false }
+    }
+
+    $storePath = Get-PnpmStorePath
+    if ([string]::IsNullOrWhiteSpace($storePath) -or $storePath -eq "无法读取") {
+        throw "无法读取 pnpm Store 路径，不能执行缓存修复。"
+    }
+
+    # 在线 fetch 也只在临时目录工作：按 lockfile 补 Store，不修改项目 node_modules。
+    $repair = Invoke-PnpmStoreLockfileFetch -StorePath $storePath
+    if (-not $repair.Success) {
+        $detail = @($repair.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 5) -join " | "
+        throw ("pnpm Store 缓存恢复失败：{0}" -f $detail)
+    }
+
+    $after = Get-PnpmStoreHealth $Plan.Snapshot.Inventory
+    if (-not $after.Healthy) {
+        throw ("pnpm Store 修复后仍未通过真实检查：{0}" -f $after.Reason)
+    }
+    Write-Label "【完成】" "【pnpm Store】" "当前 lockfile 所需缓存已恢复；项目 node_modules 未被重建。" Green
+    return [PSCustomObject]@{ Changed = $true; Cancelled = $false; Healthy = $true }
+}
+
 function Install-NodeDependencies {
     [void](Ensure-ProjectPnpm)
     [void](Assert-NodeToolchain)
@@ -772,45 +1151,59 @@ function Install-NodeDependencies {
 
     Show-NodeDependencyPlan $plan
 
-    if (-not $plan.NeedsInstall) {
-        if ($plan.CanAdopt -or $null -eq $plan.PreviousState) {
-            Save-NodeDependencyState
-            Write-Label "【状态】" "【依赖基线】" "已记录当前成功安装状态；后续依赖不变时会直接跳过安装。" DarkCyan
+    $changed = $false
+    $cancelled = $false
+
+    if ($plan.NeedsInstall) {
+        Write-Label "【说明】" "【增量同步】" "pnpm 会复用已有 node_modules 与内容寻址 Store；本脚本不会清空后重装，也不会自动升级已锁定依赖版本。" DarkCyan
+        if (-not (Confirm-WriteOperation "检测到项目依赖声明变化、真实解析失败或本地缺失。是否同步当前项目锁定依赖？选择 No 将保持现状，但当前项目版本可能无法正常运行。")) {
+            Write-Label "【跳过】" "【Node 依赖】" "用户选择不修改项目依赖；本次未执行 pnpm install。" Yellow
+            return [PSCustomObject]@{ Changed = $false; Cancelled = $true; ProjectHealthy = $plan.RuntimeHealth.Complete; StoreHealthy = $plan.StoreHealth.Healthy }
         }
-        return [PSCustomObject]@{ Changed = $false; Cancelled = $false }
-    }
 
-    Write-Label "【说明】" "【增量同步】" "pnpm 会复用已有 node_modules 与全局内容寻址 store；本脚本不会清空后重装，也不会自动升级已锁定依赖版本。" DarkCyan
-    if (-not (Confirm-WriteOperation "检测到项目依赖变化或本地缺失。是否同步当前项目锁定依赖？选择 No 将保持现状，但当前项目版本可能无法正常运行。")) {
-        Write-Label "【跳过】" "【Node 依赖】" "用户选择不修改依赖；本次未执行 pnpm install。" Yellow
-        return [PSCustomObject]@{ Changed = $false; Cancelled = $true }
-    }
+        Invoke-Pnpm @("install","--frozen-lockfile") "按当前 workspace 与 lockfile 增量同步 pnpm 依赖"
+        $changed = $true
 
-    Invoke-Pnpm @("install") "按当前 workspace 声明增量同步 pnpm 依赖"
-
-    $afterSnapshot = Get-NodeDependencySnapshot
-    $afterInstallState = Test-NodeDependencyInstallState $afterSnapshot.Inventory
-    $afterLockCoverage = Test-PnpmLockCoverage $afterSnapshot.Inventory
-    if (-not $afterInstallState.Complete) {
-        throw ("pnpm install 完成后本地依赖仍不完整：{0}" -f ($afterInstallState.Issues -join "；"))
-    }
-    if (-not $afterLockCoverage.Complete) {
-        throw ("pnpm install 完成后 lockfile 仍未覆盖当前依赖：{0}" -f ($afterLockCoverage.Missing -join "、"))
-    }
-
-    Save-NodeDependencyState
-    Write-Label "【完成】" "【Node 依赖】" "依赖已同步并记录本机指纹；下次未变化时将直接跳过安装。" Green
-
-    $nodePtyPackage = Join-Path $ProjectRoot "apps\web\node_modules\node-pty\package.json"
-    if (Test-Path -LiteralPath $nodePtyPackage) {
-        Write-Label "【校验】" "【node-pty】" "检测真实终端原生模块是否可加载。" Cyan
-        if (-not (Test-NodePtyRuntime)) {
-            throw "node-pty 已安装但原生模块无法加载。请查看上方构建日志；这通常表示原生构建未完成，而不是普通 JS 依赖缺失。"
+        $afterSnapshot = Get-NodeDependencySnapshot
+        $afterInstallState = Test-NodeDependencyInstallState $afterSnapshot.Inventory
+        $afterRuntimeHealth = Test-NodeDependencyRuntimeHealth
+        $afterLockCoverage = Test-PnpmLockCoverage $afterSnapshot.Inventory
+        if (-not $afterInstallState.Complete) {
+            throw ("pnpm install 完成后本地依赖仍不完整：{0}" -f ($afterInstallState.Issues -join "；"))
         }
-        Write-Label "【通过】" "【node-pty】" "真实终端原生模块可用。" Green
+        if (-not $afterRuntimeHealth.Complete) {
+            throw ("pnpm install 完成后真实依赖解析/加载仍失败：{0}" -f ($afterRuntimeHealth.Issues -join "；"))
+        }
+        if (-not $afterLockCoverage.Complete) {
+            throw ("pnpm install 完成后 lockfile 仍未覆盖当前依赖：{0}" -f ($afterLockCoverage.Missing -join "、"))
+        }
+
+        Save-NodeDependencyState
+        Write-Label "【完成】" "【Node 依赖】" "项目依赖已同步并通过真实解析检查。" Green
+
+        $plan = Get-NodeDependencyPlan
+    }
+    elseif ($plan.CanAdopt -or $null -eq $plan.PreviousState) {
+        Save-NodeDependencyState
+        Write-Label "【状态】" "【依赖基线】" "已记录当前真实健康状态；状态缓存不会替代下次真实检查。" DarkCyan
     }
 
-    return [PSCustomObject]@{ Changed = $true; Cancelled = $false }
+    $storeResult = Repair-PnpmStore $plan
+    if ($storeResult.Changed) { $changed = $true }
+    if ($storeResult.Cancelled) { $cancelled = $true }
+
+    $finalRuntime = Test-NodeDependencyRuntimeHealth
+    $finalStore = Get-PnpmStoreHealth $plan.Snapshot.Inventory
+    if (-not $finalRuntime.Complete) {
+        throw ("最终真实依赖检查失败：{0}" -f ($finalRuntime.Issues -join "；"))
+    }
+
+    return [PSCustomObject]@{
+        Changed = $changed
+        Cancelled = $cancelled
+        ProjectHealthy = $finalRuntime.Complete
+        StoreHealthy = $finalStore.Healthy
+    }
 }
 
 
@@ -1749,19 +2142,27 @@ while ($true) {
                 Write-Host ""
                 $rustChanged = ($null -ne $rustDependencyResult -and $rustDependencyResult.Changed) -or (-not $rustReadiness.Ready -and $cargoReady)
                 if ($nodeResult.Cancelled -or $rustSkipped) {
-                    Write-Label "【保留现状】" "【按需依赖】" "已完成检测；用户取消的依赖项保持现状。" Yellow
+                    Write-Label "【保留现状】" "【按需依赖】" "已完成真实检测；用户取消的修复项保持现状。" Yellow
+                    $menuMessage = "按任意键返回主菜单。"
+                }
+                elseif (-not $nodeResult.ProjectHealthy) {
+                    Write-Label "【未就绪】" "【按需依赖】" "项目 Node 依赖真实解析未通过，请查看上方原因。" Yellow
+                    $menuMessage = "按任意键返回主菜单。"
+                }
+                elseif (-not $nodeResult.StoreHealthy) {
+                    Write-Label "【部分就绪】" "【按需依赖】" "项目 Node 依赖当前可用，但 pnpm Store 缓存未恢复；不能标记为全部依赖就绪。" Yellow
                     $menuMessage = "按任意键返回主菜单。"
                 }
                 elseif (-not $cargoReady) {
-                    Write-Label "【部分完成】" "【按需依赖】" "Node 依赖已确认；Rust 环境尚未完成，请查看上方原因。" Yellow
+                    Write-Label "【部分完成】" "【按需依赖】" "Node 项目依赖与 pnpm Store 已确认；Rust 环境尚未完成，请查看上方原因。" Yellow
                     $menuMessage = "按任意键返回主菜单。"
                 }
                 elseif ($nodeResult.Changed -or $rustChanged) {
-                    Write-Label "【完成】" "【按需依赖】" "所需依赖同步完成。" Green
+                    Write-Label "【完成】" "【按需依赖】" "所需依赖/缓存同步完成，并通过真实健康检查。" Green
                     $menuMessage = "按任意键返回主菜单。"
                 }
                 else {
-                    Write-Label "【完成】" "【按需依赖】" "当前依赖均已就绪，无需下载或安装。" Green
+                    Write-Label "【完成】" "【按需依赖】" "项目依赖、pnpm Store 与 Rust 环境均已真实确认；无需下载或安装。" Green
                     $menuMessage = "按任意键返回主菜单。"
                 }
             }

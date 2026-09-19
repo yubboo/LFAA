@@ -25,7 +25,9 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #20.9 | 依赖提示去重与路径可见性 | v0.0.55 | pending-user-acceptance | pass | pending |
+| #20.11 | pnpm 实时环境事实与 Store 来源修复 | v0.0.57 | pending-user-acceptance | pass | pending |
+| #20.10 | 真实依赖健康检测与 Store 状态修复 | v0.0.56 | superseded | pass | not-accepted |
+| #20.9 | 依赖提示去重与路径可见性 | v0.0.55 | delivered | pass | passed |
 | #20.8 | 按需依赖增量检测与复用 | v0.0.54 | superseded | pass | not-accepted |
 | #20.7 | Setup 菜单与发布门禁解耦 | v0.0.53 | superseded | pass | not-accepted |
 | #20.6 | 发布环境与质量门禁闭环 | v0.0.52 | superseded | pass | not-accepted |
@@ -33,6 +35,183 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #20.11 pnpm 实时环境事实与 Store 来源修复
+
+### 主模块
+
+`project-governance / windows-setup / pnpm-environment-facts`
+
+### 背景与问题
+
+用户确认 v0.0.56 之后又发现环境事实边界仍需收紧：旧机器曾把 pnpm Store 全局配置到 `H:\next-javaweb\.pnpm-store`，执行 `pnpm setup` 并删除全局 `storeDir` 后，`pnpm store path` 立即恢复到当前 Windows 用户的默认 Store。LFAA 必须把“当前 pnpm 实时返回值”作为唯一有效 Store 路径，不能把历史缓存、旧项目目录或上一次检测结果当作下一次运行的环境真相。
+
+### 任务目标
+
+让菜单 1 / 7 每次运行都重新探测 Node、pnpm、PNPM_HOME、PATH、pnpm Store 与配置来源；Store 路径和来源变化必须立即反映。默认策略为尊重 pnpm 当前用户级环境，不为 LFAA 自动写入项目级 `storeDir`，也不擅自修改用户全局 Store。
+
+### 允许修改
+
+- `scripts/windows/lfaa-setup.ps1` 的 pnpm 实时环境事实读取、Store 来源识别、路径展示与健康检查；
+- `test/dependency-setup.test.mjs`、`scripts/release-gates-check.mjs` 的静态防回归契约；
+- `DEVELOPMENT.md`、`docs/RUNTIME.md`、`docs/TESTING.md`、项目地图、Prompt、Development Log、Plan；
+- v0.0.57 产品版本事实、CHANGELOG、Release；
+- workspace package / Rust crate 的产品版本一致性。
+
+### 禁止修改
+
+- Web Account/Auth、Config Storage、Config Schema 业务语义；
+- Web UI、PTY、Sync / GitHub / Update；
+- 自动改写用户全局 `storeDir`、自动迁移 pnpm Store、自动创建项目级 Store；
+- 把 `.lfaa/state/dependency-state.json` 中的历史 Store 路径当作实时事实；
+- 自动 `pnpm update`、清空 Store、删除 `node_modules`。
+
+### 状态所有权
+
+- pnpm 可执行文件：当前 shell `Get-Command pnpm` / Corepack 实际 runner；
+- PNPM_HOME：当前进程环境变量与 PATH 实际状态；
+- pnpm Store：每次从当前项目根运行 `pnpm store path` 获得；
+- Store 配置来源：当前项目 `pnpm-workspace.yaml`、pnpm 全局 `config.yaml` 与当前环境覆盖共同判断；
+- 项目依赖健康：v0.0.56 的真实 Node resolve / 原生模块加载 / Store lockfile 探针；
+- `.lfaa/state`：只允许记录最近成功同步状态，不得覆盖上述实时环境事实。
+
+### 实现约束
+
+- `Get-PnpmStorePath` 每次调用都必须真实执行当前 pnpm runner，且工作目录固定为 `$ProjectRoot`；禁止读取状态缓存返回旧路径；
+- 新增 pnpm 环境事实对象时必须至少包含 `PNPM_HOME`、pnpm 可执行源、Store 当前路径、全局配置文件、全局 `storeDir`、项目 `storeDir`、Store 来源；
+- LFAA 仓库自己的 `pnpm-workspace.yaml` 不得声明 `storeDir`；默认采用 pnpm 用户/机器环境当前结果；
+- 若项目级存在 `storeDir`，必须明确显示“项目配置”；若全局存在则显示“用户全局配置”；二者均无显式值时显示“pnpm 默认”；
+- 环境变量覆盖无法可靠归因时显示“环境/其他覆盖”，但仍以 `pnpm store path` 为最终路径；
+- `pnpm setup` 只在 PNPM_HOME / PATH 缺失且确有需要时提示/执行，已就绪时不得重复 setup；
+- PowerShell 保持 UTF-8 with BOM。
+
+### 验收条件
+
+- 用户从旧全局 Store 配置切回默认后，菜单 1 立即显示新的 `C:\Users\<用户>\AppData\Local\pnpm\store\v11`（实际路径以本机 `pnpm store path` 为准），不得继续显示旧 `H:\next-javaweb...`；
+- 菜单 1 / 7 显示 Store 来源为项目配置 / 用户全局配置 / pnpm 默认 / 环境或其他覆盖之一；
+- 修改全局 `storeDir` 后无需删除 `.lfaa/state`，下次运行即显示新路径；
+- 项目仓库中没有 LFAA 强加的 `storeDir`；
+- v0.0.56 的真实依赖健康与 Store 缺失检测继续生效。
+
+### 必须测试
+
+- dependency-setup 原有测试全部回归；
+- 新增“Store 路径每次调用 pnpm 获取、不读缓存”“Store 来源识别”“仓库不声明项目 storeDir”“PNPM_HOME/PATH 只读显示”静态契约；
+- node-dependency-health、release gates、release environment、Config Schema 回归；
+- governance / import / dev-log / docs / comment / Windows BOM / release consistency / prompt lifecycle / UI contract。
+
+### 必须更新的文档
+
+`DEVELOPMENT.md`、`PROJECT_PLAN.md`、`docs/PROMPTS.md`、`docs/DEVELOPMENT_LOG.md`、`docs/RUNTIME.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`README.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG 编号
+
+`#20.11 pnpm 实时环境事实与 Store 来源修复`
+
+### 版本目标
+
+`v0.0.57`
+
+### 当前状态
+
+`pending-user-acceptance`
+
+### AI 验证
+
+`pass`
+
+### 用户验收
+
+`pending`
+
+## #20.10 真实依赖健康检测与 Store 状态修复
+
+### 主模块
+
+`project-governance / windows-setup / dependency-health`
+
+### 背景与问题
+
+用户在 Windows 实机中删除 `pnpm store path` 指向的 Store 后再次运行菜单 1，v0.0.55 仍显示“依赖声明、锁文件和本地安装状态均未变化；跳过 pnpm install”，最终还显示“当前依赖均已就绪”。根因是旧实现只检查依赖指纹、`node_modules/.modules.yaml` 和直接依赖 `package.json`，没有把真实 Node 解析/关键运行时可用性和 pnpm Store 健康拆开验证。
+
+### 任务目标
+
+把菜单 1 从“文件存在性检查”升级为真实依赖健康检查：依赖声明、项目真实可解析性、pnpm Store 缓存三层事实独立检测和展示。缓存指纹只能用于判断“声明是否变化”，不得再作为“本机依赖真实可用”的证据。
+
+### 允许修改
+
+- `scripts/windows/lfaa-setup.ps1` 的 Node 依赖计划、Store 健康、修复提示与 unchanged 路径真实验证；
+- 新增跨平台只读项目级依赖健康检查脚本与对应 Node 单测；
+- `test/dependency-setup.test.mjs`、`scripts/release-gates-check.mjs` 的防回归契约；
+- `DEVELOPMENT.md`、`docs/RUNTIME.md`、`docs/TESTING.md`、项目地图、Prompt、Development Log、Plan；
+- v0.0.56 产品版本事实、CHANGELOG、Release；
+- workspace package / Rust crate 的产品版本一致性。
+
+### 禁止修改
+
+- Web Account/Auth、Config Storage、Config Schema 业务语义；
+- Web UI、PTY 业务功能、Sync / GitHub / Update；
+- Agent / Tool / Policy / Permission 执行链；
+- 自动 `pnpm update`、自动删除 `node_modules` / pnpm Store、静默升级锁定版本；
+- 把 pnpm Store 缺失错误描述成“项目一定无法运行”。
+
+### 状态所有权
+
+- 依赖声明真相：workspace `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`；
+- 项目当前真实可用性：当前项目目录中的真实 Node 模块解析、关键入口和原生模块加载结果；
+- pnpm Store 状态：运行时 `pnpm store path` 指向的真实目录与 pnpm Store 检查结果；
+- `.lfaa/state/dependency-state.json` 仍仅为最近成功同步的缓存，不得决定依赖健康。
+
+### 实现约束
+
+- `Test-NodeDependencyInstallState` 的 manifest 检查只能作为浅层证据，跳过安装前必须额外通过真实依赖解析检查；
+- 新增跨平台依赖健康检查时，必须从各 workspace 的真实 importer 位置解析外部依赖，不能只搜索字符串或读取旧状态缓存；
+- `node-pty` 等原生关键模块在 unchanged 路径也必须执行既有真实加载检查，不能只在安装后检查；
+- pnpm Store 必须区分“路径不存在/为空/状态异常”和“健康”；Store 缺失时必须明确提示；
+- Store 缺失但项目实际解析仍通过时，显示“项目当前可用，但 Store 缓存缺失/不完整”，不得声称“全部依赖均已就绪”；
+- 用户选择修复 Store 时，只按当前 lockfile 补齐缺失缓存，优先使用 pnpm 的 lockfile fetch 能力；不得 `pnpm update`；
+- 项目真实解析失败时进入依赖同步分支；同步完成后必须再次执行真实解析和 Store 状态检查再写成功缓存；
+- PowerShell 保持 UTF-8 with BOM。
+
+### 验收条件
+
+- 删除 `pnpm store path` 指向的 Store 后运行菜单 1，必须检测到 Store 缺失/为空，不得输出“当前依赖均已就绪”；
+- 如果 node_modules 仍真实可解析，必须准确区分“项目当前可用”和“Store 缓存缺失”；
+- 用户确认修复后，只恢复当前 lockfile 所需缓存，不升级依赖版本；
+- 删除/损坏某个依赖的真实入口文件但保留其 `package.json` 时，真实健康检查必须失败，不能被 manifest 存在性骗过；
+- unchanged + 项目真实解析通过 + Store 健康时，仍保持零安装快速返回；
+- v0.0.55 的提示去重与路径展示保持。
+
+### 必须测试
+
+- 新增真实依赖健康检查单测：健康 fixture 通过；只保留 package.json 但删除真实入口时失败；
+- dependency-setup 原 8 项全部回归，并增加 Store/真实解析门禁；
+- release gates、release environment、Config Schema 回归；
+- governance / import / dev-log / docs / comment / Windows BOM / release consistency / prompt lifecycle / UI contract。
+
+### 必须更新的文档
+
+`DEVELOPMENT.md`、`PROJECT_PLAN.md`、`docs/PROMPTS.md`、`docs/DEVELOPMENT_LOG.md`、`docs/RUNTIME.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`README.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG 编号
+
+`#20.10 真实依赖健康检测与 Store 状态修复`
+
+### 版本目标
+
+`v0.0.56`
+
+### 当前状态
+
+`superseded`
+
+### AI 验证
+
+`pass`
+
+### 用户验收
+
+`not-accepted`
 
 ## #20.9 依赖提示去重与路径可见性
 
@@ -98,7 +277,7 @@
 
 ### 当前状态
 
-`pending-user-acceptance`
+`delivered`
 
 ### AI 验证
 
@@ -106,7 +285,7 @@
 
 ### 用户验收
 
-`pending`
+`passed`
 
 ## #20.8 按需依赖增量检测与复用
 

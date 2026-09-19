@@ -1,5 +1,36 @@
 # LFAA 测试与验收规范
 
+## v0.0.57 / #20.11 pnpm 实时环境事实与 Store 来源修复验证
+
+验证重点是“机器级路径每次实时读取，缓存永远不能冒充环境事实”：
+
+- `Get-PnpmStorePath` 必须每次调用当前 pnpm runner，并固定从项目根执行 `pnpm store path`；
+- Store 路径不得来自 `.lfaa/state`、固定盘符、固定用户名或旧项目目录；
+- 菜单 1 / 7 必须展示 pnpm executable、PNPM_HOME、全局配置文件、active Store 路径与 Store 来源；
+- 仓库 `pnpm-workspace.yaml` 不允许出现 `storeDir`；
+- 全局/项目 `storeDir` 均不存在时来源显示为 pnpm 默认；若存在项目配置则显示项目配置，存在全局配置则显示用户全局配置；
+- v0.0.56 的真实 Node resolve、Store 缺失/为空、offline lockfile probe 全部回归。
+
+Windows 实机重点：先确认 `pnpm store path` 当前返回值，再执行菜单 1；二者必须完全一致。之后修改/删除全局 `storeDir`，无需删除 `.lfaa/state`，重新运行菜单 1 必须立即显示新的 active Store。
+
+已执行：dependency-setup 14/14 PASS；node-dependency-health 3/3 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；Node 治理链全部 PASS。当前容器没有 PowerShell，Windows 动态来源显示仍由用户实机验收。
+
+## v0.0.56 / #20.10 真实依赖健康检测与 Store 状态修复验证
+
+验证重点是“不再用缓存和 package.json 外壳冒充真实依赖健康”：
+
+- 新增跨平台 Node 依赖健康检查测试，健康 fixture 必须通过；保留 package manifest 但删除真实入口文件时必须失败；
+- `Get-NodeDependencyPlan` 在 unchanged 快速返回前必须消费真实解析结果，不能只看 fingerprint / `.modules.yaml` / package.json；
+- `Get-PnpmStoreHealth` 必须检查 `pnpm store path` 对应真实路径，目录不存在或为空时状态不得为 Healthy；
+- Store 缺失但项目真实解析通过时必须显示降级状态，不得输出“当前依赖均已就绪”；
+- Store 修复使用 lockfile 定向 fetch / 同步，不允许 `pnpm update` 或清空 node_modules；
+- node-pty 真实加载检查在 unchanged 路径同样执行；
+- v0.0.55 的路径展示与提示去重、v0.0.54 的零安装/Yes-No 语义全部回归。
+
+Windows 实机重点：先在完整环境运行菜单 1；再删除 `pnpm store path` 显示的 Store 后重跑，必须出现 Store 缺失/为空提示。若项目依赖仍能解析，应显示“项目当前可用但缓存缺失”；选择修复后再次运行应恢复为全部健康。
+
+已执行：node-dependency-health 3/3 PASS；dependency-setup 11/11 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；Config System TypeScript `--noEmit` PASS；治理链全部 PASS。当前容器 Node 22.16.0、无 Cargo、无 PowerShell，因此 Windows PowerShell 动态 Store 删除/恢复仍必须由用户实机验收，且不声称 `release:full` PASS。
+
 ## v0.0.55 / #20.9 依赖提示去重与路径可见性验证
 
 验证重点是“同一事实只提示一次，并能直接看到依赖在哪里”：

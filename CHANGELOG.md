@@ -2,9 +2,38 @@
 
 > 单文件版本时间线。每个版本在顶部追加一节；不再创建 `docs/changelog/vX.Y.Z.md`。
 
-## LFAA v0.0.55 — #20.9 依赖提示去重与路径可见性
+## LFAA v0.0.57 — #20.11 pnpm 实时环境事实与 Store 来源修复
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.56
+- **任务：** #20.11
+- 用户实机确认旧全局 `storeDir` 被删除后，`pnpm store path` 会立即从旧项目目录切换到当前 Windows 用户默认 Store；机器路径不能由历史缓存决定。
+- `Get-PnpmStorePath` 改为每次从 `$ProjectRoot` 调用当前 pnpm runner，实时取得 active Store；禁止从 `.lfaa/state` 回放旧路径。
+- 新增 pnpm 环境事实：pnpm executable、PNPM_HOME/PATH 状态、全局 config 路径、全局/项目 `storeDir`、active Store 与 Store 来源。
+- Store 来源区分环境变量 / 项目配置 / 用户全局配置 / pnpm 默认；来源识别失败不覆盖 active Store 事实。
+- LFAA 自身 `pnpm-workspace.yaml` 禁止声明 `storeDir`，默认尊重用户/机器 pnpm 配置；不会自动迁移或修改用户全局 Store。
+- 保留 v0.0.56 的真实 Node resolve、node-pty 加载、Store 缺失/为空和 lockfile 离线 fetch 健康检查。
+- **未修改：** Web Account/Auth、Config Schema/Storage、Web UI、PTY、Sync/GitHub/Update、Agent/Tool/Policy/Permission 业务语义。
+- **AI 验证：** dependency-setup 14/14、node-dependency-health 3/3、release-gates 5/5、release-environment 8/8、Config Schema 8/8；治理门禁全部 PASS。当前容器无 PowerShell、Node 22.16.0、无 Cargo，因此 Windows 动态 UI 与完整 `release:full` 不冒充通过。
+
+## LFAA v0.0.56 — #20.10 真实依赖健康检测与 Store 状态修复
+
+- **状态：** superseded
+- **基线：** v0.0.55
+- **用户验收：** not-accepted；环境路径实时性与 Store 来源由 v0.0.57 继续修正
+- **任务：** #20.10
+- 用户 Windows 实机删除 `pnpm store path` 指向的 Store 后，v0.0.55 仍误报“当前依赖均已就绪”；定位确认旧逻辑只检查依赖指纹、`.modules.yaml` 与直接依赖 `package.json`。
+- 新增跨平台 `node-dependency-health-check.mjs`：从每个 workspace importer 真实解析外部依赖；仅残留 package.json、真实入口缺失时会失败；`node-pty` 额外验证原生模块可加载并提供 `pty.spawn`。
+- 菜单 1 新增 pnpm Store 真实健康层：路径不存在/为空直接报告；非空时使用临时目录执行 `pnpm fetch --offline --frozen-lockfile --ignore-scripts`，验证当前 lockfile 所需内容是否确实可从当前 Store 取得。
+- “项目依赖可用”与“pnpm Store 健康”分开显示；Store 丢失但 node_modules 仍可真实解析时，不再误报全部就绪。
+- Store 修复需用户确认，仅执行当前 lockfile 的 `pnpm fetch --frozen-lockfile --ignore-scripts` 补齐缺失缓存，不执行 `pnpm update`、不清空 node_modules/Store。
+- 项目依赖同步改为 `pnpm install --frozen-lockfile`，安装后必须再次通过 manifest、真实解析、lockfile 和 Store 检测。
+- **未修改：** Web Account/Auth、Config Schema/Storage、Web UI、Sync/GitHub/Update、Agent/Tool/Policy/Permission 业务语义。
+- **AI 验证：** node-dependency-health 3/3、dependency-setup 11/11、release-gates 5/5、release-environment 8/8、Config Schema 8/8；Config System TypeScript `--noEmit` PASS；governance/import/dev-log/docs/comment/Windows BOM/release consistency/prompt lifecycle/config-schema/release-gates/UI contract 全部 PASS。当前容器 Node 22.16.0、无 Cargo、无 PowerShell，因此 Windows Store 删除/恢复动态行为与 `release:full` 不冒充通过。
+
+## LFAA v0.0.55 — #20.9 依赖提示去重与路径可见性
+
+- **状态：** delivered
 - **基线：** v0.0.54
 - **任务：** #20.9
 - 用户实机确认 #20.8 的 unchanged 依赖路径已经能跳过安装，但指出菜单 1 的 Node/pnpm/workspace 与最终完成信息存在重复，并缺少依赖真实位置。
@@ -15,6 +44,7 @@
 - #20.8 的依赖指纹、零安装、差异提示、Yes/No、禁止自动 update/prune 语义保持不变。
 - **未修改：** Config Schema/Storage、Web UI、PTY、Sync/GitHub/Update、Agent/Tool/Policy/Permission 业务语义。
 - **AI 验证：** dependency-setup 8/8、release-gates 5/5、release-environment 8/8、Config Schema 8/8；全部 Node 治理门禁 PASS；Config System TypeScript `--noEmit` PASS；PowerShell 动态交互待 Windows 实机验收。
+- **用户验收：** passed；菜单提示去重与依赖路径展示经 Windows 实机确认通过。随后发现的真实依赖健康误判由 #20.10 / v0.0.56 修复。
 
 ## LFAA v0.0.54 — #20.8 按需依赖增量检测与复用
 

@@ -50,6 +50,8 @@ const required = [
   "test/release-environment.test.mjs",
   "test/release-gates.test.mjs",
   "test/dependency-setup.test.mjs",
+  "test/node-dependency-health.test.mjs",
+  "scripts/node-dependency-health-check.mjs",
   "packages/config-system/README.md",
   "packages/config-system/src/index.ts",
   "scripts/check-node-pty.mjs",
