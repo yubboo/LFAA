@@ -1,6 +1,15 @@
-## LFAA v0.0.69 Release — #2.9 设置中心共享可伸缩侧栏
+## LFAA v0.0.70 Release — #2.10 UI Workspace 运行时导入解析修复
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.69
+- **任务：** #2.10
+- **主要变更：** `@lfaa/ui/workbench` 公共 Subpath Export 替代 Settings 的 `@/workbench/*` tsconfig-only alias；新增 workspace runtime import resolution 门禁。
+- **用户验收重点：** Windows 菜单 2 启动 Web 不再出现 `Failed to resolve import "@/workbench/..."`，Settings 左栏共享 resize/snap/release 行为保持正常。
+
+## LFAA v0.0.69 Release — #2.9 设置中心共享可伸缩侧栏
+
+- **状态：** superseded
+- **用户验收：** not-accepted；Vite 实机运行时无法解析 `@/workbench/*`，由 v0.0.70 修复。
 - **任务：** #2.9
 - **范围：** `packages/ui` Settings + ResizableWorkbench 单侧复用能力；
 - **验收：** 设置左栏可拉伸、可吸附收起、Pointer 未松手可反向拉出，收起后可显式展开；宽度随容器实时计算且独立持久化；

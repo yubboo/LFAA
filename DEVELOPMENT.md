@@ -1191,21 +1191,24 @@ import { type SidebarItem } from "./left-sidebar.types";
 import { SidebarItem } from "./SidebarItem";
 ```
 
-#### 1.2 当前 App / Package 内跨目录
+#### 1.2 当前 App 内跨目录
 
-使用：
+App 宿主可以使用自己明确配置、并由实际 bundler/runtime 验证过的：
 
 ```text
 @/
 ```
 
-`@/` 永远表示**当前 workspace 的 `src/`**。
-
-示例：
+在 App 中，`@/` 表示该 App 的 `src/`。例如：
 
 ```ts
 import { useNavigationStore } from "@/features/navigation/navigation.store";
-import { createSession } from "@/services/session.service";
+```
+
+**可复用 `packages/*` 源码不得依赖 `@/` 作为运行时公共事实。** Package 内跨 Feature / 子域复用稳定能力时，必须通过本 package 的公共 Export/Subpath Export，例如：
+
+```ts
+import { ResizableWorkbench } from "@lfaa/ui/workbench";
 ```
 
 #### 1.3 跨 LFAA Workspace Package
@@ -1242,7 +1245,7 @@ import x from "../../../../something";
 
 - `./`：允许；
 - 单层 `../`：仅限同一 Feature/模块内部确有必要时；
-- `../../` 及更深：禁止，改用 `@/` 或 `@lfaa/*`。
+- `../../` 及更深：禁止；App 使用已验证的宿主 alias，Package 跨 Feature 使用本 package 公共 Subpath Export，跨 package 使用 `@lfaa/*`。
 
 ---
 
@@ -1269,47 +1272,24 @@ import { x } from "@lfaa/domain";
 
 ---
 
-### 4. `@/` 配置
+### 4. `@/` 配置与边界
 
-每一个 TypeScript App / Package 自己拥有 `tsconfig.json`：
+App 可以在自己的 `tsconfig` + Vite/Electron/Node bundler 中共同配置 `@/* -> src/*`，但必须由真实运行时验证。
 
-```json
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
-  }
-}
-```
+仓库历史 package `tsconfig` 可能仍含 `@/*` 声明；这**不代表 package 源码允许依赖它**。可复用 package 的公共导入必须通过 `package.json#exports` / Subpath Export，防止被 Web/Desktop/CLI/Linux 不同宿主解析方式绑死。
 
-特殊深度目录按实际路径调整 `extends`。
+### 5. TypeScript 检查不能替代运行时解析
 
-`@/` 不在根 `tsconfig.base.json` 中统一指向某个目录，因为每个 workspace 的 `@/` 都必须指向自己的 `src/`。
-
----
-
-### 5. 构建工具必须同步识别
-
-仅 TypeScript 能识别别名还不够。
-
-以后启用真实构建工具时必须保证：
+仅 `tsc` 能识别别名不够。必须同时保证 package Export/宿主 bundler 可解析：
 
 ```text
 TypeScript
-Vite
-Vitest
-Electron build
-Node bundle
++ package exports
++ Vite / Electron / Node bundle
++ runtime-import-resolution-check
 ```
 
-对 `@/` 的解释一致。
-
-如果某个运行环境不能解析 `@/`，不得临时退回 `../../../`；应该修复该 workspace 的构建配置。
-
----
+如果可复用 package 的跨 Feature import 无法被宿主解析，不得给某个 App 临时补私有 alias；应该把稳定能力提升为 package 公共 Export/Subpath Export。
 
 ### 6. Rust 不使用 `@/`
 
@@ -1813,3 +1793,11 @@ DEVELOPMENT.md
 不存在的编号不补造。
 
 当前真实历史从 #1 开始，因此不创建虚假 #0。
+
+
+## 可复用 Package 运行时导入规则
+
+- `packages/*` 属于可复用模块，禁止依赖仅由本 package `tsconfig.paths` 定义、宿主未必认识的 `@/` 等私有 alias。
+- 跨 Feature / 子域共享稳定能力时，优先通过 package `exports` / Subpath Export 暴露，例如 `@lfaa/ui/workbench`。
+- `apps/*` 可以使用宿主明确配置并由运行时打包器验证过的 alias；不得把 App alias 反向当成 package 公共事实。
+- TypeScript 类型检查不能替代真实运行时解析门禁；workspace 公共 import 必须同时通过 `runtime-import-resolution-check.mjs`。

@@ -1,13 +1,13 @@
 {
   "name": "lfaa",
   "private": true,
-  "version": "0.0.69",
+  "version": "0.0.70",
   "description": "Little Fish AI Agent monorepo",
   "scripts": {
     "preinstall": "node scripts/pnpm-only.mjs",
-    "governance:check": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs && node scripts/folder-boundary-check.mjs && node scripts/dev-log-check.mjs && node scripts/docs-check.mjs && node scripts/comment-check.mjs && node scripts/windows-script-encoding-check.mjs && node scripts/release-consistency-check.mjs && node scripts/prompt-lifecycle-check.mjs && node scripts/config-schema-check.mjs && node scripts/release-gates-check.mjs && node scripts/ui-contract-check.mjs",
+    "governance:check": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs && node scripts/runtime-import-resolution-check.mjs && node scripts/folder-boundary-check.mjs && node scripts/dev-log-check.mjs && node scripts/docs-check.mjs && node scripts/comment-check.mjs && node scripts/windows-script-encoding-check.mjs && node scripts/release-consistency-check.mjs && node scripts/prompt-lifecycle-check.mjs && node scripts/config-schema-check.mjs && node scripts/release-gates-check.mjs && node scripts/ui-contract-check.mjs",
     "release:name": "node scripts/release-name.mjs",
-    "test": "pnpm run test:release-environment && pnpm run test:release-gates && pnpm run test:dependency-setup && pnpm run test:node-dependency-health && pnpm run test:settings-shell && pnpm run test:workbench-snap && pnpm run test:config-system && pnpm run test:ai-web-host",
+    "test": "pnpm run test:release-environment && pnpm run test:release-gates && pnpm run test:dependency-setup && pnpm run test:node-dependency-health && pnpm run test:settings-shell && pnpm run test:workbench-snap && pnpm run test:config-system && pnpm run test:ai-web-host && pnpm run test:runtime-imports",
     "typecheck": "pnpm run typecheck:web && pnpm run typecheck:config-system",
     "build": "pnpm run build:web",
     "imports:check": "node scripts/import-path-check.mjs",
@@ -37,7 +37,9 @@
     "folders:check": "node scripts/folder-boundary-check.mjs",
     "test:settings-shell": "node --test test/settings-shell.test.mjs",
     "test:workbench-snap": "node --test test/workbench-snap-animation.test.mjs",
-    "test:ai-web-host": "node --test test/ai-web-host.test.mjs"
+    "test:ai-web-host": "node --test test/ai-web-host.test.mjs",
+    "runtime-imports:check": "node scripts/runtime-import-resolution-check.mjs",
+    "test:runtime-imports": "node --test test/runtime-import-resolution.test.mjs"
   },
   "author": "二鱼",
   "packageManager": "pnpm@11.17.0",

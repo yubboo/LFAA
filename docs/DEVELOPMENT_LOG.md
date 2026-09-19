@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #2.9 | 设置中心共享可伸缩侧栏 | v0.0.69 | pending-user-acceptance |
+| #2.10 | UI Workspace 运行时导入解析修复 | v0.0.70 | pending-user-acceptance |
+| #2.9 | 设置中心共享可伸缩侧栏 | v0.0.69 | superseded |
 | #2.8 | Vite Native Config 兼容修复 | v0.0.68 | superseded |
 | #2.7 | Web API-Key Account 真实闭环 | v0.0.67 | superseded |
 | #2.6 | 工作台吸附反向展开动效修复 | v0.0.66 | delivered |
@@ -32,17 +33,29 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+### #2.10 UI Workspace 运行时导入解析修复
+
+- **版本：** v0.0.70
+- **状态：** pending-user-acceptance
+- **主模块：** ui / project-governance / web-host-validation
+- **用户反馈：** v0.0.69 Windows 实机启动 Web 时，Vite 无法解析 `packages/ui` Settings 中的 `@/workbench/...`；说明补充 TypeScript 检查没有覆盖真实宿主运行时解析。
+- **根因：** `@/*` 只定义在 `packages/ui/tsconfig.json`，Vite Web 宿主没有该 alias；可复用 package 把私有 TypeScript alias 当成公共运行时解析事实。
+- **决策：** Workbench 暴露 `@lfaa/ui/workbench` 公共 Subpath Export；Settings 只通过该入口复用。packages 源码禁止依赖 tsconfig-only `@/`。
+- **门禁：** 新增 `runtime-import-resolution-check.mjs` 与 4 项运行时 Export/Resolver 测试；所有 `@lfaa/*/<subpath>` 必须在目标 package exports 中公开且目标存在。
+- **边界：** 不修改共享侧栏交互语义、不改 Account/Auth/Secret/Provider、不改 Windows 工具链。
+- **用户验收：** pending；Windows 菜单 2 启动 Web 后不得再出现 `@/workbench` import-analysis 错误。
+
 ### #2.9 设置中心共享可伸缩侧栏
 
 - **版本：** v0.0.69
-- **状态：** pending-user-acceptance
+- **状态：** superseded
 - **主模块：** ui / app-shell
 - **用户反馈：** Settings 左栏与工作台左栏不是同一套布局能力；固定宽度导致整体感不一致，且后续维护会形成重复实现。
 - **决策：** Settings 直接复用 `ResizableWorkbench` 左栏；共享同一响应式尺寸、snap capture、hysteresis、反向 release 动效、键盘 resize 与持久化。
 - **实现：** `ResizableWorkbench` 支持可选右栏；Settings 使用独立 storage key 与实时 `resolveWorkbenchLayoutMetrics + ResizeObserver`，收起后提供显式展开入口。
 - **边界：** 不改 AI Provider/Account/Secret，不改个人中心/主题，不改 Web Host/Windows 工具链。
 - **AI 验证：** Settings Shell 新增共享侧栏契约；Workbench Snap 原回归必须继续通过。
-- **用户验收：** pending；重点为设置左栏拖拽、吸附、反向拉出、收起/展开和宽度自适应手感。
+- **用户验收：** not-accepted；共享侧栏代码成果保留，但 Web 实机因 `@/workbench/*` 运行时无法解析而无法进入 UI 验收，由 #2.10 修正。
 
 ### #2.8 Vite Native Config 兼容修复
 

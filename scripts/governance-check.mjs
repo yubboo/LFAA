@@ -5,7 +5,7 @@
  * 不负责：业务单元测试、TypeScript/Rust 编译、UI 视觉验证。
  * 状态归属：无运行时状态；直接读取当前工作树配置。
  * 对外接口：`node scripts/governance-check.mjs`。
- * 关联文件：DEVELOPMENT.md、docs/README.md、docs/PROMPTS.md、docs/DEVELOPMENT_LOG.md、package.json、scripts/comment-check.mjs、scripts/windows-script-encoding-check.mjs、scripts/release-consistency-check.mjs、scripts/prompt-lifecycle-check.mjs、scripts/release-gates-check.mjs、scripts/ui-contract-check.mjs、scripts/folder-boundary-check.mjs。
+ * 关联文件：DEVELOPMENT.md、docs/README.md、docs/PROMPTS.md、docs/DEVELOPMENT_LOG.md、package.json、scripts/comment-check.mjs、scripts/windows-script-encoding-check.mjs、scripts/release-consistency-check.mjs、scripts/prompt-lifecycle-check.mjs、scripts/release-gates-check.mjs、scripts/ui-contract-check.mjs、scripts/folder-boundary-check.mjs、scripts/runtime-import-resolution-check.mjs。
  * 修改注意事项：新增真正的硬规则时才进入本文件；不要把一次性业务测试塞进治理检查。
  */
 import fs from "node:fs";

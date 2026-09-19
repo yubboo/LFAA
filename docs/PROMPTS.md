@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #2.9 | 设置中心共享可伸缩侧栏 | v0.0.69 | pending-user-acceptance | pass | pending |
+| #2.10 | UI Workspace 运行时导入解析修复 | v0.0.70 | pending-user-acceptance | pass | pending |
+| #2.9 | 设置中心共享可伸缩侧栏 | v0.0.69 | superseded | pass | not-accepted |
 | #2.8 | Vite Native Config 兼容修复 | v0.0.68 | superseded | pass | not-accepted |
 | #2.7 | Web API-Key Account 真实闭环 | v0.0.67 | superseded | pass | not-accepted |
 | #2.6 | 工作台吸附反向展开动效修复 | v0.0.66 | delivered | pass | passed |
@@ -47,6 +48,49 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.10 UI Workspace 运行时导入解析修复
+
+### 主模块
+
+`ui / project-governance / web-host-validation`
+
+### 背景
+
+v0.0.69 将 Settings 左栏改为共享 `ResizableWorkbench`，但为了绕开深层相对路径使用了 `packages/ui/tsconfig.json` 中的 `@/*` 私有 alias。补充 TypeScript 检查能解析该 alias，而真实 Web 宿主 Vite 没有同一 alias，Windows 实机启动因此出现 `Failed to resolve import "@/workbench/..."`。这是“类型检查通过但运行时解析失败”的验证漏洞。
+
+### 任务目标
+
+把 Workbench 复用能力暴露为 `@lfaa/ui/workbench` 稳定公共子入口，让 Settings 通过 package `exports` 解析；同时增加运行时导入解析门禁，禁止可复用 `packages/*` 依赖宿主未声明的 tsconfig-only alias。
+
+### 允许修改
+
+- `packages/ui/package.json` 与 `packages/ui/src/workbench/index.ts`；
+- `packages/ui/src/features/settings/SettingsPage.tsx` 的导入方式；
+- import/runtime resolution 治理脚本与测试；
+- Prompt / Log / Plan / Testing / CHANGELOG / RELEASES / 版本事实。
+
+### 禁止修改
+
+- Settings 左栏 resize/snap/release 业务行为；
+- AI Account/Auth/Secret/Provider；
+- UserMenu/Profile/Theme；
+- Windows Setup / Sync / GitHub / Update；
+- 不得通过给 Web 宿主临时增加 `@` alias 掩盖 package 自身 Export 缺口。
+
+### 验收条件
+
+- Settings 不再出现 `@/workbench/...`；
+- `@lfaa/ui/workbench` 在 `packages/ui/package.json` 的 `exports` 中公开，目标文件真实存在；
+- 从 Settings 真实 importer 位置使用 Node package resolver 可解析 `@lfaa/ui/workbench`；
+- `packages/*` 源码出现 `@/` tsconfig-only alias 时治理失败；
+- workspace `@lfaa/*/<subpath>` 未公开或目标不存在时治理失败；
+- Windows 实机菜单 2 启动 Web 后不再出现本任务对应的 Vite import-analysis 错误；
+- Settings 共享侧栏行为与 v0.0.69 保持一致。
+
+### 当前状态
+
+`pending-user-acceptance`
 
 ## #2.9 设置中心共享可伸缩侧栏
 
@@ -90,7 +134,7 @@ v0.0.68 的独立 Settings Surface 已可用，但左侧设置导航仍使用固
 
 ### 当前状态
 
-`pending-user-acceptance`
+`superseded`
 
 ## #2.8 Vite Native Config 兼容修复
 

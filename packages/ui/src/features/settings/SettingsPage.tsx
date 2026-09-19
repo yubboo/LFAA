@@ -5,12 +5,11 @@
  * 不负责：Config/Secret 真值、厂商网络请求、宿主路由实现。
  * 状态归属：导航搜索、设置左栏 collapsed 与响应式几何属于本 Surface；当前分类与业务 ViewModel 由外部受控。
  * 对外接口：SettingsPage。
- * 关联文件：settings.types.ts、settings.css、../../workbench/ResizableWorkbench.tsx、ai/AiSettingsPanel.tsx。
+ * 关联文件：settings.types.ts、settings.css、@lfaa/ui/workbench、ai/AiSettingsPanel.tsx。
  * 修改注意事项：设置左栏禁止再写固定 grid 宽度；必须复用 ResizableWorkbench，与工作台共用吸附/反向释放/持久化规则。
  */
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { ResizableWorkbench } from "@/workbench/ResizableWorkbench";
-import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "@/workbench/workbench-layout.config";
+import { ResizableWorkbench, resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "@lfaa/ui/workbench";
 import { AiSettingsPanel } from "./ai/AiSettingsPanel";
 import type { SettingsPageProps, SettingsSectionId } from "./settings.types";
 import "./settings.css";

@@ -1171,6 +1171,17 @@ v0.0.2+
 
 ### config-system PROGRESS
 
+#### 2026-09-19 / #2.10 UI Workspace 运行时导入解析修复
+
+- 当前状态：pending-user-acceptance
+- 用户版本：v0.0.70
+- 根因：Settings 使用 `packages/ui` 的 tsconfig-only `@/workbench/*` alias，TypeScript 可解析但 Web Vite 宿主运行时不可解析。
+- 修复：新增 `@lfaa/ui/workbench` 公共 Subpath Export；Settings 通过 package exports 复用 Workbench。
+- 治理：packages 源码禁止 `@/` 私有 alias；新增 workspace runtime import resolution 检查与真实 importer resolver 回归。
+- 边界：共享侧栏 resize/snap/release 业务语义不变；AI Account/Auth/Secret/Provider 与 Windows 工具链不改。
+- 下一步：Windows 实机确认菜单 2 可启动且 Settings 左栏正常后，继续 ChatGPT/Codex App Server 登录子任务。
+
+
 #### 2026-09-19 / #2.4 设置中心与个人中心交互重构
 
 - 当前状态：pending-user-acceptance
@@ -1474,6 +1485,6 @@ Provider 配置插件与模型推理 Runtime Adapter 分层：Config System 管�
 
 
 
-### #2.9 UI 几何配套
+### #2.9 / #2.10 UI 几何与运行时公共入口
 
-Settings 作为 config-system 的图形入口，左侧导航几何统一复用 `@lfaa/ui/ResizableWorkbench`；配置业务仍归 config-system，UI 只负责导航/显示，不产生第二套业务或 resize 真值。
+Settings 作为 config-system 的图形入口，左侧导航几何统一复用 `@lfaa/ui/workbench` 公共 Subpath Export；配置业务仍归 config-system，UI 只负责导航/显示，不产生第二套业务或 resize 真值。可复用 UI package 禁止依赖仅由 tsconfig 声明的 `@/` 私有 alias。

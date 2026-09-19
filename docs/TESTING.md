@@ -469,3 +469,9 @@ Desktop / Compact：
 - `node --test test/settings-shell.test.mjs`：检查 Settings 直接复用 ResizableWorkbench、无固定侧栏宽度、支持收起/展开与单侧 Surface；
 - `node --test test/workbench-snap-animation.test.mjs`：保证共享 snap capture / hysteresis / 反向 release 动效没有回归；
 - 用户实机：拖动 Settings 左栏改变宽度；拖到最小吸附收起；Pointer 不松手反向拉出；松手收起后点击展开按钮恢复；关闭重开设置后宽度持久化。
+
+## v0.0.70 / #2.10 UI Workspace 运行时导入解析
+
+- `node --test test/runtime-import-resolution.test.mjs`：验证 Settings 使用 `@lfaa/ui/workbench`、package exports 目标存在、从真实 Settings importer scope 可由 Node package resolver 解析。
+- `node scripts/runtime-import-resolution-check.mjs`：扫描 workspace `@lfaa/*` 公共子路径与 packages 私有 alias，防止 TypeScript-only 假通过。
+- Windows 用户验收：菜单 2 启动 Vite，确认不再出现 `@/workbench` import-analysis 错误，并实测 Settings 左栏 resize/snap/release。

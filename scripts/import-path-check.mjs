@@ -1,8 +1,8 @@
 /**
  * 文件：import-path-check.mjs
  * 作用：检查 TypeScript/TSX 导入路径是否符合 LFAA 模块边界。
- * 负责：阻止深层相对导入和跨 package 内部深链。
- * 不负责：TypeScript 类型检查、运行时依赖解析、Rust import。
+ * 负责：阻止深层相对导入、跨 package 内部深链，以及可复用 package 依赖宿主无法解析的 tsconfig-only alias。
+ * 不负责：TypeScript 类型检查、Rust import；@lfaa package subpath 的 exports 运行时解析由 runtime-import-resolution-check.mjs 负责。
  * 状态归属：无运行时状态。
  * 对外接口：`node scripts/import-path-check.mjs`。
  * 关联文件：DEVELOPMENT.md、ARCHITECTURE.md。
@@ -53,11 +53,19 @@ function walk(dir) {
     }
 
     for (const spec of specs) {
+      if (relative.startsWith("packages/") && spec.startsWith("@/")) {
+        violations.push({
+          file: relative,
+          spec,
+          reason: "可复用 packages 禁止依赖 tsconfig-only @/ alias；请使用 package 公共 Export/Subpath Export。"
+        });
+      }
+
       if (/^(?:\.\.\/){2,}/.test(spec)) {
         violations.push({
           file: relative,
           spec,
-          reason: "禁止 ../../ 及更深相对导入；当前 workspace 内请使用 @/，跨 package 请使用 @lfaa/*。"
+          reason: "禁止 ../../ 及更深相对导入；跨 Feature/子域请通过当前 package 公共子入口或 @lfaa/* Export 复用。"
         });
       }
 

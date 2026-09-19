@@ -8,6 +8,7 @@
 |---|---|
 | `governance-check.mjs` | 项目治理和关键约束。 |
 | `import-path-check.mjs` | 导入路径边界。 |
+| `runtime-import-resolution-check.mjs` | Workspace 公共 Export / Subpath Export 运行时解析门禁。 |
 | `dev-log-check.mjs` | 单文件开发日志编号与当前任务状态。 |
 | `docs-check.mjs` | docs 固定长期文档结构，阻止碎片 Markdown 回归。 |
 | `comment-check.mjs` | 关键代码中文文件头 / CSS 分区注释。 |

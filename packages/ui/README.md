@@ -49,3 +49,8 @@ Feature UI 导航：`src/features/README.md`。
 - `src/features/settings/ai`：AI Provider 配置内容。
 
 这些目录只拥有图形交互，不拥有 Config/Account/Auth/Update 业务真值。
+
+## 公共子入口
+
+- `@lfaa/ui`：稳定共享 UI 公共入口；
+- `@lfaa/ui/workbench`：共享 Workbench/SidePane 几何、Resize、Snap、布局指标公共入口；Settings 等跨 Feature 复用必须走该子入口，不得依赖 `@/` tsconfig-only alias。

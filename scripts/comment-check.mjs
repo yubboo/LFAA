@@ -39,6 +39,7 @@ const keyFiles = [
   "apps/web/vite.config.ts",
   "scripts/governance-check.mjs",
   "scripts/import-path-check.mjs",
+  "scripts/runtime-import-resolution-check.mjs",
   "scripts/folder-boundary-check.mjs",
   "scripts/dev-log-check.mjs",
   "scripts/docs-check.mjs",

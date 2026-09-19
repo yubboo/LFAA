@@ -154,7 +154,7 @@ Full      完全权限
 6. Event Store 是 Durable Run 的事实源。
 7. Parent/Child Agent 只通过协议通信。
 8. 当前架构与历史架构物理隔离。
-9. TypeScript 深层相对导入 `../../` 及以上禁止，跨目录使用 `@/`，跨 Package 使用 `@lfaa/*`。
+9. TypeScript 深层相对导入 `../../` 及以上禁止；App 跨目录可使用经宿主运行时验证的 alias；可复用 Package 跨 Feature 使用 package Export/Subpath Export；跨 Package 使用 `@lfaa/*`。
 10. Rust Broker 必须重新校验 canonical path、capability 和资源范围。
 11. Skills、Experts、Plugins、Extensions、MCP 全部是项目级不可信资源。
 12. Remote/Web 必须经过身份认证、逐资源授权和用户/项目隔离后才能访问 Runtime。
@@ -254,9 +254,10 @@ Event Store 是事实源。
 #### 6. Import Path Boundary
 
 ```text
-同目录     → ./
-workspace  → @/
-跨 package → @lfaa/*
+同一小模块          → ./ / 单层 ../
+App 跨目录           → 宿主已验证 alias
+Package 跨 Feature   → 本 package Export/Subpath Export
+跨 package           → @lfaa/* 公共 Export
 ```
 
 #### 7. Project Resource Boundary
@@ -296,3 +297,11 @@ File Watcher
 New runs use the latest generation. In-flight runs remain pinned to the generation they started with.
 
 Dot-prefixed directories do not change filesystem API semantics and therefore do not block Electron/Node/Rust hot-plug support.
+
+
+## 可复用 Package 运行时导入规则
+
+- `packages/*` 属于可复用模块，禁止依赖仅由本 package `tsconfig.paths` 定义、宿主未必认识的 `@/` 等私有 alias。
+- 跨 Feature / 子域共享稳定能力时，优先通过 package `exports` / Subpath Export 暴露，例如 `@lfaa/ui/workbench`。
+- `apps/*` 可以使用宿主明确配置并由运行时打包器验证过的 alias；不得把 App alias 反向当成 package 公共事实。
+- TypeScript 类型检查不能替代真实运行时解析门禁；workspace 公共 import 必须同时通过 `runtime-import-resolution-check.mjs`。

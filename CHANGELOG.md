@@ -1,6 +1,20 @@
-## LFAA v0.0.69 — #2.9 设置中心共享可伸缩侧栏
+# LFAA 更新日志
+
+## LFAA v0.0.70 — #2.10 UI Workspace 运行时导入解析修复
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.69
+- **任务：** #2.10
+- 修复 Settings 使用 `@/workbench/*` tsconfig-only alias 导致 Vite Web 宿主运行时无法解析的问题。
+- `packages/ui` 新增 `@lfaa/ui/workbench` 公共 Subpath Export；Settings 通过稳定 package Export 复用 ResizableWorkbench 与布局计算器。
+- 新增 runtime import resolution 治理：packages 禁止 `@/` 私有 alias，workspace `@lfaa/*/<subpath>` 必须在目标 package exports 中公开且目标存在。
+- 新增真实 importer resolver 回归，直接从 `SettingsPage.tsx` 所在 package scope 解析 `@lfaa/ui/workbench`。
+- **边界：** 不改变 Settings resize/snap/release 行为，不修改 AI Account/Auth/Secret/Provider，不修改 Windows Setup/Sync/GitHub/Update。
+
+## LFAA v0.0.69 — #2.9 设置中心共享可伸缩侧栏
+
+- **状态：** superseded
+- **用户验收：** not-accepted；Windows 实机 Vite 无法解析 `@/workbench/*`，由 v0.0.70 修复。
 - **任务：** #2.9
 - Settings 左栏直接复用 `ResizableWorkbench`，删除固定 `17rem / 12rem` 侧栏宽度；
 - 设置中心与工作台共享响应式尺寸、拖拽、吸附、Pointer 未松手反向释放、短过渡和布局持久化；
@@ -44,7 +58,6 @@
 - **前序验收：** v0.0.65 已由用户 Windows 实机确认通过并标记 delivered。
 - **AI 验证：** Workbench Snap 4/4、Settings/Profile/Theme 6/6、Config System 17/17，治理链全部 PASS；制作容器未执行正式 Web build。
 
-# LFAA 更新日志
 
 ## LFAA v0.0.65 — #2.5 个人中心侧栏内联聚焦修复
 

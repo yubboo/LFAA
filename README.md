@@ -3,7 +3,7 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.69**
+**当前包：LFAA-v0.0.70**
 
 > 一个属于用户、与大模型厂商解耦的 AI Agent 平台，通过工作区、技能、工具、记忆和插件构建不同领域的专业智能体。
 
@@ -54,7 +54,7 @@ config-system
 当前配置系统业务任务：
 
 ```text
-#2.9 设置中心共享可伸缩侧栏
+#2.10 UI Workspace 运行时导入解析修复
 status: pending-user-acceptance
 ```
 
@@ -65,7 +65,7 @@ status: pending-user-acceptance
 status: pending-user-acceptance
 ```
 
-#20.16 / v0.0.62、#2.5 / v0.0.65、#2.6 / v0.0.66 均已由用户实机验收通过。v0.0.67 的六家 AI Provider Web Account/Auth/Secret 闭环与 v0.0.68 的 Vite Native Config 兼容修复继续保留。当前 v0.0.69 统一 Settings 与 Workbench 的左侧导航几何：设置左栏直接复用 ResizableWorkbench 的 resize / snap / 反向 release / 持久化，不再维护固定宽度。OpenAI ChatGPT 套餐登录仍等待独立 Codex App Server 子任务。
+#20.16 / v0.0.62、#2.5 / v0.0.65、#2.6 / v0.0.66 均已由用户实机验收通过。v0.0.67 的六家 AI Provider Web Account/Auth/Secret 闭环与 v0.0.68 的 Vite Native Config 兼容修复继续保留。v0.0.69 已完成 Settings 与 Workbench 的共享侧栏几何，但实机暴露 tsconfig-only `@/` alias 无法被 Web Vite 运行时解析。当前 v0.0.70 改为 `@lfaa/ui/workbench` 公共 Subpath Export，并新增运行时导入解析门禁；共享 resize / snap / 反向 release / 持久化行为保持不变。OpenAI ChatGPT 套餐登录仍等待独立 Codex App Server 子任务。
 
 ## Node.js 包管理器
 
