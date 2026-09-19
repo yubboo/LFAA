@@ -11,17 +11,35 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #20.7 | Setup 菜单与发布门禁解耦 | v0.0.53 | pending-user-acceptance |
+| #20.8 | 按需依赖增量检测与复用 | v0.0.54 | pending-user-acceptance |
+| #20.7 | Setup 菜单与发布门禁解耦 | v0.0.53 | superseded |
 | #20.6 | 发布环境与质量门禁闭环 | v0.0.52 | superseded |
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
-### #20.7 Setup 菜单与发布门禁解耦
+### #20.8 按需依赖增量检测与复用
 
-- **版本：** v0.0.53
+- **版本：** v0.0.54
 - **状态：** pending-user-acceptance
 - **AI 验证：** pass
 - **用户验收：** pending
+- **主模块：** project-governance / windows-setup / dependency-state
+- **背景：** 用户实机发现菜单 1 虽名为“按需依赖”，但每次执行仍无条件运行 `pnpm install`，导致重复解析/联网/安装体验；Rust 路径也会重复确认 toolchain。
+- **目标：** 让菜单 1 先做本地状态判定；依赖不变且完整时零安装直接通过，只有声明/锁文件/实际目录变化时才提示并同步。
+- **状态缓存：** `.lfaa/state/dependency-state.json` 只记录最近一次成功同步指纹；依赖真相仍由 manifests / lockfiles / toolchain 文件拥有。
+- **升级边界：** 菜单 1 不执行 `pnpm update`，不追逐上游最新版本；项目版本锁定依赖发生变化时展示差异并由用户决定是否同步。
+- **边界：** 不修改 Config、UI、PTY、Sync/GitHub/Update、Agent/Tool/Permission 业务逻辑。
+
+- **实现结果：** Node 依赖使用 manifests + lockfile + workspace 配置生成本机指纹；unchanged 且直接依赖完整时跳过 install；变化时展示新增/删除/版本变化并询问；Rust 工具链与 Cargo fetch 同样具备复用路径。
+- **验证：** 增量依赖 6/6、release-gates 5/5、release-environment 8/8、Config Schema 8/8；治理/文档/BOM/版本/Prompt/UI 门禁全部 PASS；Config System TypeScript `--noEmit` PASS。当前容器不满足 Node 24/Cargo，因此正式 release 门禁按设计阻断。
+- **用户验收重点：** Windows 同一项目连续两次执行菜单 1，第二次应零安装返回；依赖真实变化时应出现 Yes/No。
+
+### #20.7 Setup 菜单与发布门禁解耦
+
+- **版本：** v0.0.53
+- **状态：** superseded
+- **AI 验证：** pass
+- **用户验收：** not-accepted
 - **主模块：** project-governance / windows-setup / quality-gates
 - **背景：** 用户指出 v0.0.52 把 Setup 菜单 1 / 10 设计得过于绝对；如果以后增加 CLI，会被菜单编号反向绑定，日常开发也会被迫执行过重流程。
 - **目标：** 把菜单编号降级为 Windows Adapter；1 只做按需环境/依赖准备，10 改成分层检查中心；快速、完整、正式发布验证均可直接从命令行独立调用。
@@ -30,6 +48,7 @@
 - **结果：** 菜单 1 已降级为按需依赖；菜单 10 已改为快速 / 完整 / 正式发布三档检查中心；quality/release 命令可脱离菜单直接调用。
 - **验证：** 分层门禁契约 5/5、发布环境 8/8、Config Schema 8/8；governance / import / dev-log / docs / comment / Windows BOM / release consistency / config-schema / release-gates / UI contract 全部 PASS；Config System 全局 TypeScript 补充检查 PASS。
 - **环境限制：** 当前制作容器 Node 22.16.0、无 pnpm 11.17.0、无 Cargo，因此 `release:environment` 与 Rust 发布检查按设计阻断，不声称 `release:full` PASS。
+- **被后续修正：** 用户实机发现菜单 1 仍会每次无条件调用依赖安装；由 #20.8 / v0.0.54 增加真实增量检测与复用。
 
 ### #20.6 发布环境与质量门禁闭环
 
@@ -79,7 +98,7 @@
 
 - **主编号：** #20
 - **名称：** 开发日志与文档规范
-- **最新变更：** #20.7
+- **最新变更：** #20.8
 - **状态：** active
 - **关键词：** 日志、文档、中文、命名、目录、索引、注释、可读性、项目地图、开发规范、发布闭环、编码门禁
 - **当前文件：** `docs/DEVELOPMENT_LOG.md`

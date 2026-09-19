@@ -58,6 +58,7 @@ const keyFiles = [
   "scripts/release-environment-check.mjs",
   "scripts/release-rust-check.mjs",
   "scripts/release-gates-check.mjs",
+  "test/dependency-setup.test.mjs",
   "packages/config-system/src/config-schema.ts",
   "packages/config-system/src/config-validator.ts",
   "packages/config-system/src/index.ts",

@@ -440,7 +440,23 @@ pnpm 11.17.0
 
 `LFAA-Setup.bat` 的菜单编号只是 Windows Adapter，不是开发 / CLI 协议。
 
-`1 按需依赖` 仅在以下情况使用：首次配置、依赖声明变化、工具链损坏或用户主动希望自动准备环境。环境和依赖已经可用时，可以直接启动 Web、构建或运行检查，不要求先执行菜单 1。Node 部分仍由 PowerShell 负责：确认 Node 24.x；pnpm 缺失或版本不匹配时可通过 Corepack 准备 `packageManager` 锁定版本；失败不得降级 npm / yarn / bun。
+`1 按需依赖` 仅在以下情况使用：首次配置、依赖声明变化、工具链损坏或用户主动希望检查环境。环境和依赖已经可用时，可以直接启动 Web、构建或运行检查，不要求先执行菜单 1。Node 部分仍由 PowerShell 负责：确认 Node 24.x；pnpm 缺失或版本不匹配时可通过 Corepack 准备 `packageManager` 锁定版本；失败不得降级 npm / yarn / bun。
+
+v0.0.54 起，菜单 1 使用本机 `.lfaa/state/dependency-state.json` 保存“最近一次成功同步”的依赖指纹。该文件只是一份可删除缓存，真正事实仍是 workspace `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`Cargo.lock` 与 `rust-toolchain.toml`。Node 指纹不包含 LFAA 产品版本，因此只改 `0.0.x` 产品版本不会触发重装。
+
+检测顺序固定为：
+
+```text
+工具链是否可用
+→ 依赖声明 / lockfile 指纹是否变化
+→ 本地直接依赖是否缺失或精确版本不匹配
+→ unchanged：直接通过，不执行 pnpm install
+→ changed/missing：显示新增 / 删除 / 版本变化摘要
+→ 用户 Yes：同步当前项目锁定依赖并刷新本机状态
+→ 用户 No：保持现状，不修改依赖
+```
+
+菜单 1 不负责“追逐网上最新版本”，禁止自动 `pnpm update`、删除 `node_modules`、清空 pnpm store 或 Cargo cache。项目新版本已经改变 lockfile / 依赖声明时，这是该项目版本需要的依赖变化；用户仍可拒绝本次写操作，但需要接受当前项目可能无法正常运行。pnpm 安装时保留既有 store/node_modules，由 pnpm 自身复用已存在内容，仅补齐真实缺失/变化部分。Rust 同样先检查固定 toolchain + rustfmt + clippy；已完整时跳过 rustup 安装；无外部 crate 时跳过 `cargo fetch`，有 `Cargo.lock` 时只在首次或 lock hash 变化后 fetch。
 
 `10 检查中心` 只提供三种分层入口：
 

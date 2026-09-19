@@ -2,11 +2,28 @@
 
 > 单文件版本时间线。每个版本在顶部追加一节；不再创建 `docs/changelog/vX.Y.Z.md`。
 
-## LFAA v0.0.53 — #20.7 Setup 菜单与发布门禁解耦
+## LFAA v0.0.54 — #20.8 按需依赖增量检测与复用
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.53
+- **任务：** #20.8
+- 用户实机发现 v0.0.53 菜单 1 虽已是“按需入口”，但每次执行仍会无条件调用依赖安装；本版本新增真正的依赖状态检测，不覆盖旧包。
+- Node 依赖指纹只由 `packageManager`、workspace 依赖声明、`pnpm-lock.yaml`、`pnpm-workspace.yaml` 构成，不包含 LFAA 产品版本；纯版本递增不会触发重装。
+- 新增 `.lfaa/state/dependency-state.json` 本机缓存，记录最近一次成功同步指纹；该目录保持 Git ignore，缓存可删除，不能反向覆盖依赖真相。
+- 菜单 1 在 unchanged + 本地依赖完整时直接跳过 `pnpm install`；首次/变化/缺失时才展示新增、删除、版本变化、lockfile 或本地缺失摘要，并询问用户是否同步。
+- 不自动更新依赖版本、不清空 node_modules / pnpm store；同步时复用 pnpm 现有内容寻址缓存。
+- Rust 增加 toolchain + rustfmt + clippy 就绪检测；已完整时跳过 rustup 安装；无外部 crate 时跳过 Cargo fetch，Cargo.lock 未变化且已同步时也跳过 fetch。
+- 新增 `test/dependency-setup.test.mjs` 并把增量依赖契约并入 release-gates 防回归。
+- **AI 验证：** 增量依赖 6/6、release-gates 5/5、release-environment 8/8、Config Schema 8/8；governance/import/dev-log/docs/comment/Windows BOM/release consistency/prompt lifecycle/config-schema/UI contract 全部 PASS；Config System TypeScript `--noEmit` PASS。当前容器 Node 22.16.0 且无 Cargo，正式环境/Rust 门禁按设计阻断，不声称 `release:full` PASS。
+- **未修改：** Config Schema/Storage、Web UI、PTY、Sync/GitHub/Update、Agent/Tool/Policy/Permission 业务语义。
+- **用户验收重点：** 同一项目首次同步成功后，再次选择菜单 1 应零安装返回；真实依赖变化时应先显示差异并可 Yes/No。
+
+## LFAA v0.0.53 — #20.7 Setup 菜单与发布门禁解耦
+
+- **状态：** superseded
 - **基线：** v0.0.52
 - **任务：** #20.7
+- **用户验收：** not-accepted；菜单 1 仍无条件执行依赖安装，由 #20.8 / v0.0.54 修正。
 - 用户未接受 v0.0.52 把菜单 1 / 10 绑定得过重的设计，因此本版本不覆盖旧包，改为新的递增修正。
 - `LFAA-Setup.bat → 1` 改为“按需依赖”：首次配置、依赖变化或环境损坏时使用；环境已就绪时可跳过。
 - `LFAA-Setup.bat → 10` 改为“检查中心”，提供快速检查 / 完整检查 / 正式发布三档，不再进入菜单 10 就直接执行 frozen install + Rust。

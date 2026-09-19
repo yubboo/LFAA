@@ -3,11 +3,40 @@
 > 每个版本在本文件新增一个版本章节，不再创建 `docs/releases/vX.Y.Z/RELEASE.md`。
 > 当前版本在用户验收前必须标记 `pending-user-acceptance`，验收通过后才能改为 `delivered`。
 
-## LFAA v0.0.53 Release — #20.7 Setup 菜单与发布门禁解耦
+## LFAA v0.0.54 Release — #20.8 按需依赖增量检测与复用
 
 - **状态：** pending-user-acceptance
-- **基线：** v0.0.52
+- **基线：** v0.0.53
 - **用户验收：** pending
+
+### 交付内容
+
+- 菜单 1 增加本机依赖指纹与安装完整性检测；
+- unchanged 路径不再执行 `pnpm install`；
+- 依赖声明 / lockfile / 本地缺失变化时才显示差异并询问是否同步；
+- 依赖指纹不包含产品版本，避免普通 LFAA 版本递增触发重装；
+- 本机缓存存放在 `.lfaa/state/dependency-state.json`，Git ignore，依赖真相仍归 manifests / lockfiles；
+- 禁止菜单 1 自动升级上游依赖、清空 pnpm store 或 node_modules；
+- Rust toolchain / rustfmt / clippy 与 Cargo fetch 增加 unchanged 复用路径；
+- 新增增量依赖 6 项静态单测及 release-gates 防回归。
+
+### 未修改
+
+Config Schema / Config Storage、Web UI、PTY、Sync / GitHub / Update、Agent / Tool / Policy / Permission 执行链、独立 Schema / Protocol 版本。
+
+### AI 验证状态
+
+增量依赖契约 6/6 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；governance / import / dev-log / docs / comment / Windows BOM / release consistency / prompt lifecycle / config-schema / UI contract 全部 PASS；Config System TypeScript 补充 `--noEmit` PASS。当前制作容器 Node 22.16.0 且无 Cargo，`release:environment` / `release:rust` 按设计 FAIL，因此本候选包不声称 `release:full` 已通过。
+
+### 用户实机验收重点
+
+同一项目目录第一次完成依赖同步后，再次执行菜单 1 应直接报告已就绪，不出现 pnpm install / cargo fetch / rustup toolchain install；若后续项目版本真的新增、删除或改动依赖，应先展示差异并询问 Yes/No。
+
+## LFAA v0.0.53 Release — #20.7 Setup 菜单与发布门禁解耦
+
+- **状态：** superseded
+- **基线：** v0.0.52
+- **用户验收：** not-accepted；菜单 1 的无条件依赖安装由 v0.0.54 修正
 
 ### 交付内容
 

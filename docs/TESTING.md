@@ -1,5 +1,19 @@
 # LFAA 测试与验收规范
 
+## v0.0.54 / #20.8 按需依赖增量检测与复用验证
+
+验证重点是“依赖不变就不安装，真实变化才提示同步”：
+
+- `test/dependency-setup.test.mjs`：依赖指纹不读取产品版本；unchanged 路径在 `Invoke-Pnpm install` 前直接返回；新增 / 删除 / 版本变化具备摘要；禁止自动升级与 store 清理；本机状态位于被忽略的 `.lfaa/state/`；Rust toolchain / Cargo fetch 具备复用门禁；
+- `test/release-gates.test.mjs`、`test/release-environment.test.mjs` 与 Config Schema 单测继续回归；
+- `scripts/release-gates-check.mjs` 必须锁定增量依赖关键 token，防止菜单 1 回退为无条件 install；
+- Windows PowerShell 必须保持 UTF-8 with BOM；
+- 当前 Linux 制作容器无法执行 Windows PowerShell 交互，因此 PS1 动态行为仍需用户 Windows 实机验收：第一次真实同步后，第二次再选菜单 1 应直接报告依赖已就绪，不再下载。
+
+已执行结果：增量依赖 6/6 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；governance / import / dev-log / docs / comment / Windows BOM / release consistency / prompt lifecycle / config-schema / UI contract 全部 PASS；Config System TypeScript `--noEmit` PASS。当前容器 Node 22.16.0 且无 Cargo，正式发布环境/Rust 门禁按设计拒绝，未伪造 `release:full` 成功。
+
+实机重点：先在依赖已完整的同一项目目录连续执行两次菜单 1；第二次不得出现 pnpm install / cargo fetch / rustup toolchain install。随后使用真正改变依赖声明/lockfile 的新版本时，应显示差异并询问 Yes/No。
+
 ## v0.0.53 / #20.7 Setup 菜单与发布门禁解耦验证
 
 验证重点是“严格结果、不绑死入口”：

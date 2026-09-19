@@ -25,12 +25,110 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #20.7 | Setup 菜单与发布门禁解耦 | v0.0.53 | pending-user-acceptance | pass | pending |
+| #20.8 | 按需依赖增量检测与复用 | v0.0.54 | pending-user-acceptance | pass | pending |
+| #20.7 | Setup 菜单与发布门禁解耦 | v0.0.53 | superseded | pass | not-accepted |
 | #20.6 | 发布环境与质量门禁闭环 | v0.0.52 | superseded | pass | not-accepted |
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance | pass | pending |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #20.8 按需依赖增量检测与复用
+
+### 主模块
+
+`project-governance / windows-setup / dependency-state`
+
+### 任务目标
+
+修复 v0.0.53 菜单 1 每次执行都会再次调用依赖安装的问题。菜单 1 必须先判断“工具链是否可用、项目依赖声明/锁文件是否变化、本地直接依赖是否缺失”；如果状态未变化且依赖完整，直接返回“已就绪”，不得再次执行 `pnpm install` / Cargo 下载。只有首次准备、依赖新增/删除/版本变化、锁文件变化、依赖目录缺失或工具链损坏时，才进入写操作。
+
+### 允许修改
+
+- `scripts/windows/lfaa-setup.ps1` 的菜单 1 依赖检测、状态缓存、增量同步与 Rust 工具链复用逻辑；
+- `test/` 与 `scripts/release-gates-check.mjs` 中针对按需依赖的防回归契约；
+- `DEVELOPMENT.md`、`docs/RUNTIME.md`、`docs/TESTING.md`、项目地图、Prompt、Development Log、Plan；
+- v0.0.54 产品版本事实、CHANGELOG、Release；
+- workspace package / Rust crate 的产品版本一致性。
+
+### 禁止修改
+
+- Config Schema / Config Storage 业务语义；
+- Web 工作台 UI、PTY / node-pty 业务实现；
+- Sync / GitHub / Update 行为；
+- Agent / Tool / Policy / Permission 执行链；
+- Agent Protocol / Config Schema Version / Database Schema Version；
+- 自动执行 `pnpm update`、自动追逐上游最新版本或删除 pnpm 全局 store。
+
+### 状态所有权
+
+依赖真相仍来自 `package.json` / workspace manifests / `pnpm-lock.yaml` / `Cargo.lock` / `rust-toolchain.toml`；`.lfaa/state/dependency-state.json` 只保存本机“最近一次成功同步”的指纹缓存，可随时删除并重新建立，不得反向覆盖依赖声明。该状态目录已被 `.gitignore` 忽略，不进入正式版本事实。
+
+### 实现约束
+
+- 菜单 1 先检测后决定，不允许无条件执行 `pnpm install`；
+- Node 指纹只包含包管理器事实、依赖声明和 lockfile，不包含 LFAA 产品版本号，避免纯版本递增触发无意义安装；
+- 指纹一致且直接依赖完整时，显示“依赖已就绪”，不运行安装命令；
+- 指纹变化时必须区分新增 / 删除 / 版本变化 / lockfile 变化并展示摘要，再由用户 Y/Yes 确认是否同步；
+- 同步完成后重新计算真实指纹并写入 `.lfaa/state/dependency-state.json`；
+- `pnpm install` 只负责把当前项目声明同步到本地；不得自动执行 `pnpm update`；pnpm store 与现有 `node_modules` 必须复用，不主动清空；
+- 项目新版本明确改变锁定依赖时属于该项目版本所需依赖，用户可以取消本次写操作，但必须提示取消后当前版本可能无法运行；
+- “上游出现更高版本”不属于菜单 1 自动更新范围；未来如提供更新检查，必须是独立显式操作并由用户确认；
+- Rust 已存在正确 toolchain + rustfmt + clippy 时不得重复 `rustup toolchain install`；无外部 crate 时不得执行 `cargo fetch`；有 `Cargo.lock` 时只有 lockfile 指纹变化或首次同步才 fetch；
+- Windows 安装与状态逻辑继续由 PS1 负责，MJS 只做静态/跨平台测试。
+
+### 安全约束
+
+- 只允许 pnpm，不降级 npm / yarn / bun；
+- 不自动删除 node_modules / pnpm store / Cargo cache；
+- 不静默升级依赖版本；
+- 本机状态文件不得包含 Token、API Key、Secret 或用户业务数据；
+- 任何依赖写操作必须在变更摘要后由用户确认。
+
+### 验收条件
+
+- 连续两次运行菜单 1：第一次成功同步后，第二次在依赖未变化时不得再次调用 `pnpm install`；
+- 仅产品版本从 v0.0.53 → v0.0.54、依赖声明与锁文件不变时，不应触发 Node 依赖重装；
+- 新增依赖 / 改版本 / 删除依赖 / lockfile 变化时，菜单 1 能检测并提示，再按用户确认同步；
+- 缺失直接依赖或 node_modules 状态损坏时，即使指纹相同也必须修复；
+- Rust 工具链已完整时不重复安装；无 Rust 外部依赖时不 fetch；
+- 1 仍然只是按需入口，不变回开发前强制步骤；
+- Windows PowerShell 保持 UTF-8 with BOM。
+
+### 必须测试
+
+- 依赖指纹不包含产品版本字段；
+- unchanged 状态路径必须跳过 `pnpm install`；
+- changed/missing 状态路径才进入同步；
+- 依赖差异摘要覆盖新增 / 删除 / 版本变化；
+- 禁止 `pnpm update` 与主动 store 清理的静态回归；
+- Rust 重复安装 / fetch 防回归静态契约；
+- 原 release environment、release gates、Config Schema 单测回归；
+- governance / import / dev-log / docs / comment / Windows BOM / release consistency / prompt lifecycle / UI contract。
+
+### 必须更新的文档
+
+`DEVELOPMENT.md`、`PROJECT_PLAN.md`、`docs/PROMPTS.md`、`docs/DEVELOPMENT_LOG.md`、`docs/RUNTIME.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`README.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG 编号
+
+`#20.8 按需依赖增量检测与复用`
+
+### 版本目标
+
+`v0.0.54`
+
+### 当前状态
+
+`pending-user-acceptance`
+
+### AI 验证
+
+`pass`
+
+### 用户验收
+
+`pending`
 
 ## #20.7 Setup 菜单与发布门禁解耦
 
@@ -118,7 +216,7 @@
 
 ### 当前状态
 
-`pending-user-acceptance`
+`superseded`
 
 ### AI 验证
 
@@ -126,7 +224,7 @@
 
 ### 用户验收
 
-`pending`
+`not-accepted`
 
 ## #20.6 发布环境与质量门禁闭环
 

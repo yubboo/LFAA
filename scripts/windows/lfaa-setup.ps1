@@ -295,6 +295,339 @@ function Get-NodeDependencySummary {
     }
 }
 
+function Get-DependencyStatePath {
+    return (Join-Path $ProjectRoot ".lfaa\state\dependency-state.json")
+}
+
+function Get-Sha256Text {
+    param([string]$Text)
+
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+        return (($sha.ComputeHash($bytes) | ForEach-Object { $_.ToString("x2") }) -join "")
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+function Get-FileSha256Value {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return "missing" }
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Get-ProjectRelativePath {
+    param([string]$Path)
+    $full = [System.IO.Path]::GetFullPath($Path)
+    if ($full.StartsWith($ProjectRoot,[System.StringComparison]::OrdinalIgnoreCase)) {
+        $relative = $full.Substring($ProjectRoot.Length) -replace '^[\\/]+',''
+        return ($relative -replace '\\','/')
+    }
+    return ($full -replace '\\','/')
+}
+
+function Get-NodeDependencyInventory {
+    $items = New-Object System.Collections.Generic.List[object]
+
+    foreach ($file in (Get-WorkspacePackageFiles | Sort-Object)) {
+        $data = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+        $packagePath = Get-ProjectRelativePath $file
+
+        foreach ($section in @("dependencies","devDependencies","optionalDependencies","peerDependencies")) {
+            $block = $data.$section
+            if ($null -eq $block) { continue }
+
+            foreach ($prop in @($block.PSObject.Properties | Sort-Object Name)) {
+                $items.Add([PSCustomObject]@{
+                    PackagePath = $packagePath
+                    Section = $section
+                    Name = [string]$prop.Name
+                    Version = [string]$prop.Value
+                })
+            }
+        }
+    }
+
+    return @($items | Sort-Object PackagePath,Section,Name)
+}
+
+function Get-NodeDependencySnapshot {
+    $rootPackageFile = Join-Path $ProjectRoot "package.json"
+    $rootPackage = Get-Content -LiteralPath $rootPackageFile -Raw | ConvertFrom-Json
+    $lockFile = Join-Path $ProjectRoot "pnpm-lock.yaml"
+    $workspaceFile = Join-Path $ProjectRoot "pnpm-workspace.yaml"
+    $inventory = @(Get-NodeDependencyInventory)
+
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add("packageManager=" + [string]$rootPackage.packageManager)
+    $lockHash = Get-FileSha256Value $lockFile
+    $workspaceHash = Get-FileSha256Value $workspaceFile
+    $lines.Add("lock=" + $lockHash)
+    $lines.Add("workspace=" + $workspaceHash)
+
+    if ($null -ne $rootPackage.pnpm) {
+        $lines.Add("pnpmConfig=" + ($rootPackage.pnpm | ConvertTo-Json -Depth 16 -Compress))
+    }
+
+    foreach ($item in $inventory) {
+        $lines.Add(("dep={0}|{1}|{2}|{3}" -f $item.PackagePath,$item.Section,$item.Name,$item.Version))
+    }
+
+    return [PSCustomObject]@{
+        Fingerprint = Get-Sha256Text ($lines -join "`n")
+        PackageManager = [string]$rootPackage.packageManager
+        LockHash = $lockHash
+        WorkspaceHash = $workspaceHash
+        Inventory = $inventory
+    }
+}
+
+function Read-DependencyState {
+    $path = Get-DependencyStatePath
+    if (-not (Test-Path -LiteralPath $path)) { return $null }
+
+    try {
+        $state = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        if ($null -eq $state -or [int]$state.schemaVersion -ne 1) {
+            Write-Label "【状态】" "【依赖缓存】" "本机依赖状态版本无法识别，将重新检测。" Yellow
+            return $null
+        }
+        return $state
+    }
+    catch {
+        Write-Label "【状态】" "【依赖缓存】" "本机依赖状态文件损坏，将忽略并重新检测。" Yellow
+        return $null
+    }
+}
+
+function Write-DependencyState {
+    param(
+        [object]$NodeState = $null,
+        [object]$RustState = $null,
+        [switch]$PreserveNode,
+        [switch]$PreserveRust
+    )
+
+    $old = Read-DependencyState
+    if ($PreserveNode -and $null -ne $old) { $NodeState = $old.node }
+    if ($PreserveRust -and $null -ne $old) { $RustState = $old.rust }
+
+    $path = Get-DependencyStatePath
+    $dir = Split-Path -Parent $path
+    if (-not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+
+    $payload = [PSCustomObject]@{
+        schemaVersion = 1
+        node = $NodeState
+        rust = $RustState
+    }
+    [System.IO.File]::WriteAllText($path,($payload | ConvertTo-Json -Depth 16),$Utf8NoBom)
+}
+
+function Get-DependencyPackageJsonPath {
+    param([string]$PackagePath,[string]$DependencyName)
+
+    $manifestPath = Join-Path $ProjectRoot ($PackagePath -replace '/','\')
+    $packageDir = Split-Path -Parent $manifestPath
+    if ([string]::IsNullOrWhiteSpace($packageDir)) { $packageDir = $ProjectRoot }
+
+    $dependencyDir = Join-Path $packageDir "node_modules"
+    foreach ($part in ($DependencyName -split '/')) {
+        if ([string]::IsNullOrWhiteSpace($part)) { continue }
+        $dependencyDir = Join-Path $dependencyDir $part
+    }
+    return (Join-Path $dependencyDir "package.json")
+}
+
+function Test-NodeDependencyInstallState {
+    param([object[]]$Inventory)
+
+    $issues = New-Object System.Collections.Generic.List[string]
+    $modulesFile = Join-Path $ProjectRoot "node_modules\.modules.yaml"
+    if (-not (Test-Path -LiteralPath $modulesFile)) {
+        $issues.Add("根 node_modules/.modules.yaml 缺失")
+    }
+
+    foreach ($item in $Inventory) {
+        if ($item.Section -notin @("dependencies","devDependencies")) { continue }
+
+        $dependencyManifest = Get-DependencyPackageJsonPath $item.PackagePath $item.Name
+        if (-not (Test-Path -LiteralPath $dependencyManifest)) {
+            $issues.Add(("{0}: 缺少 {1}" -f $item.PackagePath,$item.Name))
+            continue
+        }
+
+        $expected = [string]$item.Version
+        if ($expected.StartsWith("workspace:")) { continue }
+        if ($expected -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') { continue }
+
+        try {
+            $installed = Get-Content -LiteralPath $dependencyManifest -Raw | ConvertFrom-Json
+            if ([string]$installed.version -ne $expected) {
+                $issues.Add(("{0}: {1} 需要 {2}，当前 {3}" -f $item.PackagePath,$item.Name,$expected,[string]$installed.version))
+            }
+        }
+        catch {
+            $issues.Add(("{0}: 无法读取 {1} 已安装版本" -f $item.PackagePath,$item.Name))
+        }
+    }
+
+    return [PSCustomObject]@{
+        Complete = ($issues.Count -eq 0)
+        Issues = @($issues)
+    }
+}
+
+function Test-PnpmLockCoverage {
+    param([object[]]$Inventory)
+
+    $lockFile = Join-Path $ProjectRoot "pnpm-lock.yaml"
+    if (-not (Test-Path -LiteralPath $lockFile)) {
+        return [PSCustomObject]@{ Complete = $false; Missing = @("pnpm-lock.yaml") }
+    }
+
+    $text = Get-Content -LiteralPath $lockFile -Raw
+    $missing = New-Object System.Collections.Generic.List[string]
+    $seen = New-Object System.Collections.Generic.HashSet[string]
+
+    foreach ($item in $Inventory) {
+        if ($item.Section -notin @("dependencies","devDependencies","optionalDependencies")) { continue }
+        if ([string]$item.Version -like "workspace:*") { continue }
+        if (-not $seen.Add([string]$item.Name)) { continue }
+
+        $name = [string]$item.Name
+        if (-not $text.Contains($name)) { $missing.Add($name) }
+    }
+
+    return [PSCustomObject]@{
+        Complete = ($missing.Count -eq 0)
+        Missing = @($missing)
+    }
+}
+
+function Compare-NodeDependencyInventory {
+    param([object[]]$OldInventory,[object[]]$NewInventory)
+
+    $oldMap = @{}
+    $newMap = @{}
+    foreach ($item in @($OldInventory)) {
+        $oldMap[("{0}|{1}|{2}" -f $item.PackagePath,$item.Section,$item.Name)] = [string]$item.Version
+    }
+    foreach ($item in @($NewInventory)) {
+        $newMap[("{0}|{1}|{2}" -f $item.PackagePath,$item.Section,$item.Name)] = [string]$item.Version
+    }
+
+    $added = New-Object System.Collections.Generic.List[string]
+    $removed = New-Object System.Collections.Generic.List[string]
+    $changed = New-Object System.Collections.Generic.List[string]
+
+    foreach ($key in @($newMap.Keys | Sort-Object)) {
+        if (-not $oldMap.ContainsKey($key)) {
+            $added.Add(("{0} -> {1}" -f $key,$newMap[$key]))
+        }
+        elseif ($oldMap[$key] -ne $newMap[$key]) {
+            $changed.Add(("{0}: {1} -> {2}" -f $key,$oldMap[$key],$newMap[$key]))
+        }
+    }
+    foreach ($key in @($oldMap.Keys | Sort-Object)) {
+        if (-not $newMap.ContainsKey($key)) {
+            $removed.Add(("{0} <- {1}" -f $key,$oldMap[$key]))
+        }
+    }
+
+    return [PSCustomObject]@{
+        Added = @($added)
+        Removed = @($removed)
+        Changed = @($changed)
+    }
+}
+
+function Get-NodeDependencyPlan {
+    $snapshot = Get-NodeDependencySnapshot
+    $installState = Test-NodeDependencyInstallState $snapshot.Inventory
+    $lockCoverage = Test-PnpmLockCoverage $snapshot.Inventory
+    $state = Read-DependencyState
+    $nodeState = if ($null -ne $state) { $state.node } else { $null }
+    $reasons = New-Object System.Collections.Generic.List[string]
+    $diff = Compare-NodeDependencyInventory @() $snapshot.Inventory
+
+    if ($null -eq $nodeState) {
+        if (-not $installState.Complete) { $reasons.Add("本地依赖尚未完整安装") }
+        if (-not $lockCoverage.Complete) { $reasons.Add("pnpm-lock.yaml 尚未覆盖当前外部依赖") }
+    }
+    else {
+        $diff = Compare-NodeDependencyInventory @($nodeState.inventory) $snapshot.Inventory
+        if ([string]$nodeState.fingerprint -ne $snapshot.Fingerprint) {
+            $reasons.Add("依赖声明或锁文件发生变化")
+        }
+        if (-not $installState.Complete) { $reasons.Add("本地直接依赖缺失或版本不匹配") }
+        if (-not $lockCoverage.Complete) { $reasons.Add("pnpm-lock.yaml 与当前依赖声明不完整") }
+    }
+
+    $canAdopt = ($null -eq $nodeState -and $installState.Complete -and $lockCoverage.Complete)
+    $needsInstall = (-not $canAdopt) -and ($reasons.Count -gt 0)
+
+    return [PSCustomObject]@{
+        NeedsInstall = $needsInstall
+        CanAdopt = $canAdopt
+        Snapshot = $snapshot
+        InstallState = $installState
+        LockCoverage = $lockCoverage
+        PreviousState = $nodeState
+        Diff = $diff
+        Reasons = @($reasons)
+    }
+}
+
+function Show-NodeDependencyPlan {
+    param([object]$Plan)
+
+    if (-not $Plan.NeedsInstall) {
+        if ($Plan.CanAdopt) {
+            Write-Label "【检测】" "【Node 依赖】" "本地依赖完整；首次建立增量检测基线，不执行 pnpm install。" Green
+        }
+        else {
+            Write-Label "【检测】" "【Node 依赖】" "依赖声明、锁文件和本地安装状态均未变化；跳过 pnpm install。" Green
+        }
+        return
+    }
+
+    foreach ($reason in $Plan.Reasons) {
+        Write-Label "【变化】" "【Node 依赖】" $reason Yellow
+    }
+
+    $diff = $Plan.Diff
+    Write-Label "【差异】" "【依赖声明】" ("新增 {0} | 删除 {1} | 版本变化 {2}" -f $diff.Added.Count,$diff.Removed.Count,$diff.Changed.Count) Cyan
+    foreach ($line in @($diff.Added | Select-Object -First 5)) { Write-Label "【新增】" "【依赖】" $line Green }
+    foreach ($line in @($diff.Changed | Select-Object -First 5)) { Write-Label "【变更】" "【依赖】" $line Yellow }
+    foreach ($line in @($diff.Removed | Select-Object -First 5)) { Write-Label "【删除】" "【依赖】" $line DarkYellow }
+
+    if ($Plan.InstallState.Issues.Count -gt 0) {
+        Write-Label "【缺失】" "【本地依赖】" ((@($Plan.InstallState.Issues | Select-Object -First 5)) -join "；") Yellow
+    }
+    if ($Plan.LockCoverage.Missing.Count -gt 0) {
+        Write-Label "【锁文件】" "【待同步】" ((@($Plan.LockCoverage.Missing | Select-Object -First 8)) -join "、") Yellow
+    }
+}
+
+function Save-NodeDependencyState {
+    $snapshot = Get-NodeDependencySnapshot
+    $nodeState = [PSCustomObject]@{
+        fingerprint = $snapshot.Fingerprint
+        packageManager = $snapshot.PackageManager
+        lockHash = $snapshot.LockHash
+        workspaceHash = $snapshot.WorkspaceHash
+        inventory = @($snapshot.Inventory)
+        syncedAt = [DateTime]::UtcNow.ToString("o")
+    }
+    Write-DependencyState -NodeState $nodeState -PreserveRust
+}
+
+
 function Invoke-ProjectCommand {
     param([string]$FilePath,[string[]]$Arguments,[string]$Description)
     Write-Host ""
@@ -387,20 +720,41 @@ function Install-NodeDependencies {
     [void](Ensure-ProjectPnpm)
     $toolchain = Assert-NodeToolchain
     $summary = Get-NodeDependencySummary
+    $plan = Get-NodeDependencyPlan
 
     Write-Label "【检测】" "【Node】" ("{0} | {1}" -f $toolchain.NodeVersion,$toolchain.NodeSource) Green
     Write-Label "【检测】" "【pnpm】" ("{0} | {1}" -f $toolchain.PnpmVersion,$toolchain.PnpmSource) Green
     Write-Label "【检测】" "【workspace】" ("{0} 个项目 | 外部 Node 依赖 {1} 个" -f $summary.WorkspaceProjects,$summary.ExternalDependencies) Green
+    Show-NodeDependencyPlan $plan
 
-    if ($summary.ExternalDependencies -eq 0) {
-        Write-Label "【说明】" "【Node 依赖】" "当前 package.json 尚未声明第三方 Node 包，因此不会出现大型 node_modules。" DarkCyan
+    if (-not $plan.NeedsInstall) {
+        if ($plan.CanAdopt -or $null -eq $plan.PreviousState) {
+            Save-NodeDependencyState
+            Write-Label "【状态】" "【依赖基线】" "已记录当前成功安装状态；后续依赖不变时会直接跳过安装。" DarkCyan
+        }
+        return [PSCustomObject]@{ Changed = $false; Cancelled = $false }
     }
 
-    $args = @("install")
+    Write-Label "【说明】" "【增量同步】" "pnpm 会复用已有 node_modules 与全局内容寻址 store；本脚本不会清空后重装，也不会自动升级已锁定依赖版本。" DarkCyan
+    if (-not (Confirm-WriteOperation "检测到项目依赖变化或本地缺失。是否同步当前项目锁定依赖？选择 No 将保持现状，但当前项目版本可能无法正常运行。")) {
+        Write-Label "【跳过】" "【Node 依赖】" "用户选择不修改依赖；本次未执行 pnpm install。" Yellow
+        return [PSCustomObject]@{ Changed = $false; Cancelled = $true }
+    }
 
-    Invoke-Pnpm $args "校验、安装并同步 pnpm workspace 项目依赖"
+    Invoke-Pnpm @("install") "按当前 workspace 声明增量同步 pnpm 依赖"
 
-    Write-Label "【校验】" "【Node 依赖】" "pnpm install 已完成；缺失依赖会安装，已存在依赖会复用，依赖声明变化时同步 lockfile。" Green
+    $afterSnapshot = Get-NodeDependencySnapshot
+    $afterInstallState = Test-NodeDependencyInstallState $afterSnapshot.Inventory
+    $afterLockCoverage = Test-PnpmLockCoverage $afterSnapshot.Inventory
+    if (-not $afterInstallState.Complete) {
+        throw ("pnpm install 完成后本地依赖仍不完整：{0}" -f ($afterInstallState.Issues -join "；"))
+    }
+    if (-not $afterLockCoverage.Complete) {
+        throw ("pnpm install 完成后 lockfile 仍未覆盖当前依赖：{0}" -f ($afterLockCoverage.Missing -join "、"))
+    }
+
+    Save-NodeDependencyState
+    Write-Label "【完成】" "【Node 依赖】" "依赖已同步并记录本机指纹；下次未变化时将直接跳过安装。" Green
 
     $nodePtyPackage = Join-Path $ProjectRoot "apps\web\node_modules\node-pty\package.json"
     if (Test-Path -LiteralPath $nodePtyPackage) {
@@ -410,6 +764,8 @@ function Install-NodeDependencies {
         }
         Write-Label "【通过】" "【node-pty】" "真实终端原生模块可用。" Green
     }
+
+    return [PSCustomObject]@{ Changed = $true; Cancelled = $false }
 }
 
 
@@ -589,14 +945,127 @@ function Invoke-OfficialRustupInstaller {
     }
 }
 
+function Get-RustToolchainReadiness {
+    Add-CargoBinToCurrentPath
+    $channel = Get-ProjectRustChannel
+    $rustupPath = Get-RustupCommandPath
+    $cargoPath = Get-CargoCommandPath
+
+    if ([string]::IsNullOrWhiteSpace($rustupPath)) {
+        return [PSCustomObject]@{
+            Ready = $false
+            Channel = $channel
+            RustupPath = $null
+            CargoPath = $cargoPath
+            Reason = "rustup 未安装"
+        }
+    }
+
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $toolchains = @(& $rustupPath toolchain list 2>&1 | ForEach-Object { [string]$_ })
+        $toolchainCode = $LASTEXITCODE
+    }
+    finally { $ErrorActionPreference = $old }
+
+    if ($toolchainCode -ne 0) {
+        return [PSCustomObject]@{
+            Ready = $false
+            Channel = $channel
+            RustupPath = $rustupPath
+            CargoPath = $cargoPath
+            Reason = "无法读取 rustup toolchain list"
+        }
+    }
+
+    $channelPattern = "^" + [regex]::Escape($channel) + "(?:-|\s|$)"
+    $channelReady = $false
+    foreach ($line in $toolchains) {
+        if ($line -match $channelPattern) { $channelReady = $true; break }
+    }
+    if (-not $channelReady) {
+        return [PSCustomObject]@{
+            Ready = $false
+            Channel = $channel
+            RustupPath = $rustupPath
+            CargoPath = $cargoPath
+            Reason = ("项目 Rust {0} 尚未安装" -f $channel)
+        }
+    }
+
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $components = @(& $rustupPath component list --toolchain $channel --installed 2>&1 | ForEach-Object { [string]$_ })
+        $componentCode = $LASTEXITCODE
+    }
+    finally { $ErrorActionPreference = $old }
+
+    if ($componentCode -ne 0) {
+        return [PSCustomObject]@{
+            Ready = $false
+            Channel = $channel
+            RustupPath = $rustupPath
+            CargoPath = $cargoPath
+            Reason = "无法读取已安装 Rust 组件"
+        }
+    }
+
+    $hasRustfmt = $false
+    $hasClippy = $false
+    foreach ($line in $components) {
+        if ($line -match '^rustfmt(?:-|$)') { $hasRustfmt = $true }
+        if ($line -match '^clippy(?:-|$)') { $hasClippy = $true }
+    }
+
+    if (-not $hasRustfmt -or -not $hasClippy) {
+        $missing = @()
+        if (-not $hasRustfmt) { $missing += "rustfmt" }
+        if (-not $hasClippy) { $missing += "clippy" }
+        return [PSCustomObject]@{
+            Ready = $false
+            Channel = $channel
+            RustupPath = $rustupPath
+            CargoPath = $cargoPath
+            Reason = ("缺少 Rust 组件：{0}" -f ($missing -join "、"))
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($cargoPath)) {
+        return [PSCustomObject]@{
+            Ready = $false
+            Channel = $channel
+            RustupPath = $rustupPath
+            CargoPath = $cargoPath
+            Reason = "项目 Rust 工具链存在，但当前会话未找到 Cargo"
+        }
+    }
+
+    return [PSCustomObject]@{
+        Ready = $true
+        Channel = $channel
+        RustupPath = $rustupPath
+        CargoPath = $cargoPath
+        Reason = "已就绪"
+    }
+}
+
 function Ensure-ProjectRustToolchain {
+    $readiness = Get-RustToolchainReadiness
+    if ($readiness.Ready) {
+        Write-Label "【检测】" "【Rust】" ("{0} + rustfmt + clippy 已就绪；跳过 rustup toolchain install。" -f $readiness.Channel) Green
+        return $true
+    }
+
     $rustupPath = Get-RustupCommandPath
     if ([string]::IsNullOrWhiteSpace($rustupPath)) { return $false }
 
     $channel = Get-ProjectRustChannel
     Add-CargoBinToCurrentPath
 
-    Write-Label "【Rust】" "【版本】" ("项目要求 Rust {0}，正在确认。" -f $channel) Cyan
+    Write-Label "【Rust】" "【需要同步】" $readiness.Reason Yellow
+    Write-Label "【Rust】" "【版本】" ("项目要求 Rust {0}，开始补齐缺失工具链/组件。" -f $channel) Cyan
     Write-Label "【说明】" "【官方输出】" "后续 info: 英文为 Rust 官方 rustup 原始日志，保留原文便于排错。" DarkCyan
 
     $oldPreference = $ErrorActionPreference
@@ -609,6 +1078,13 @@ function Ensure-ProjectRustToolchain {
 
     if ($toolchainCode -ne 0) {
         Write-Label "【未完成】" "【Rust 项目版本】" ("无法准备项目要求的 Rust {0}。" -f $channel) Yellow
+        return $false
+    }
+
+    Add-CargoBinToCurrentPath
+    $after = Get-RustToolchainReadiness
+    if (-not $after.Ready) {
+        Write-Label "【未完成】" "【Rust 项目版本】" $after.Reason Yellow
         return $false
     }
 
@@ -703,17 +1179,38 @@ function Install-RustDependencies {
     }
 
     $lockFile = Join-Path $ProjectRoot "Cargo.lock"
-
     if (-not (Test-Path -LiteralPath $lockFile)) {
         if (Test-RustDependencyDeclarations) {
             throw "检测到 Rust 外部依赖，但仓库缺少 Cargo.lock。为避免本机生成未受控锁文件，已停止；请先由开发版本提交 Cargo.lock。"
         }
 
-        Write-Label "【Rust】" "【依赖】" "当前 Cargo workspace 尚未声明外部 crate，无需下载 Rust 依赖。" Green
-        return
+        Write-Label "【Rust】" "【依赖】" "当前 Cargo workspace 尚未声明外部 crate；无需执行 cargo fetch。" Green
+        return [PSCustomObject]@{ Changed = $false; Cancelled = $false }
     }
 
-    Invoke-ProjectCommand $cargoPath @("fetch","--locked") "下载 Rust/Cargo 项目依赖"
+    $lockHash = Get-FileSha256Value $lockFile
+    $state = Read-DependencyState
+    $rustState = if ($null -ne $state) { $state.rust } else { $null }
+
+    if ($null -ne $rustState -and [string]$rustState.lockHash -eq $lockHash) {
+        Write-Label "【检测】" "【Rust 依赖】" "Cargo.lock 未变化；跳过 cargo fetch。" Green
+        return [PSCustomObject]@{ Changed = $false; Cancelled = $false }
+    }
+
+    if (-not (Confirm-WriteOperation "检测到 Cargo.lock 首次同步或发生变化。是否获取当前项目锁定的 Rust 依赖？")) {
+        Write-Label "【跳过】" "【Rust 依赖】" "用户选择不修改 Rust 依赖缓存；本次未执行 cargo fetch。" Yellow
+        return [PSCustomObject]@{ Changed = $false; Cancelled = $true }
+    }
+
+    Invoke-ProjectCommand $cargoPath @("fetch","--locked") "按 Cargo.lock 获取缺失/变化的 Rust 依赖"
+    $rustState = [PSCustomObject]@{
+        lockHash = $lockHash
+        channel = Get-ProjectRustChannel
+        syncedAt = [DateTime]::UtcNow.ToString("o")
+    }
+    Write-DependencyState -RustState $rustState -PreserveNode
+    Write-Label "【完成】" "【Rust 依赖】" "Cargo 依赖已同步；Cargo.lock 不变时后续会跳过 fetch。" Green
+    return [PSCustomObject]@{ Changed = $true; Cancelled = $false }
 }
 
 function Initialize-ProjectResources {
@@ -1173,46 +1670,53 @@ while ($true) {
                 Write-Label "【预检】" "【pnpm】" ("{0} | {1}" -f $nodeToolchain.PnpmVersion,$nodeToolchain.PnpmSource) Green
                 Write-Label "【预检】" "【workspace】" ("{0} 个项目 | 外部 Node 依赖 {1} 个" -f $nodeSummary.WorkspaceProjects,$nodeSummary.ExternalDependencies) Green
 
-                if ($nodeSummary.ExternalDependencies -eq 0) {
-                    Write-Label "【说明】" "【node_modules】" "当前没有第三方 Node 包需要安装；目录很小是正常的。" DarkCyan
-                }
+                $nodeResult = Install-NodeDependencies
 
-                $cargoReadyBefore = Test-RustDependencyToolchain
-                if ($cargoReadyBefore) {
-                    Write-Label "【预检】" "【Rust/Cargo】" ("可用 | {0}" -f (Get-CargoCommandPath)) Green
+                $rustReadiness = Get-RustToolchainReadiness
+                $cargoReady = $rustReadiness.Ready
+                $rustSkipped = $false
+
+                if ($rustReadiness.Ready) {
+                    Write-Label "【检测】" "【Rust/Cargo】" ("{0} 已就绪；跳过 Rust 工具链安装。" -f $rustReadiness.Channel) Green
                 }
                 else {
-                    Write-Label "【预检】" "【Rust/Cargo】" "缺失；确认后自动使用 Rust 官方安装器补齐。" Yellow
+                    Write-Label "【检测】" "【Rust/Cargo】" $rustReadiness.Reason Yellow
+                    if (Confirm-WriteOperation "Rust 工具链尚未满足当前项目要求。是否按 rust-toolchain.toml 补齐缺失工具链/组件？") {
+                        $cargoReady = Install-RustToolchainIfMissing
+                    }
+                    else {
+                        $rustSkipped = $true
+                        Write-Label "【跳过】" "【Rust/Cargo】" "用户选择暂不修改 Rust 环境。" Yellow
+                    }
                 }
 
-                if (-not (Confirm-WriteOperation "按需检查并补齐开发环境；这不是每次开发的必经步骤，已安装工具会直接复用。")) {
-                    Write-Host ""
-                    Write-Label "【取消】" "【按需依赖】" "用户已取消，本次未修改环境。" Yellow
-                    $menuMessage = "已取消，按任意键返回主菜单。"
-                    break
-                }
-
-                Install-NodeDependencies
-
-                $cargoReady = Install-RustToolchainIfMissing
                 if ($cargoReady) {
-                    Install-RustDependencies
+                    $rustDependencyResult = Install-RustDependencies
                 }
                 else {
-                    Write-Label "【待补齐】" "【Rust/Cargo】" "Rust 环境尚未完成；Node/pnpm 环境已经准备好。" Yellow
+                    Write-Label "【待补齐】" "【Rust/Cargo】" "Rust 环境尚未完成；Node/pnpm 依赖检测不受影响。" Yellow
                 }
 
                 Initialize-ProjectResources
 
                 Write-Host ""
-                Write-Label "【完成】" "【Node/pnpm】" "项目 Node 依赖已确认。" Green
-
-                if ($cargoReady) {
-                    Write-Label "【完成】" "【Rust/Cargo】" "Rust 工具链和当前已声明 Rust 依赖已确认。" Green
-                    $menuMessage = "依赖准备完成，按任意键返回主菜单。"
+                if (-not $nodeResult.Cancelled) {
+                    Write-Label "【完成】" "【Node/pnpm】" "项目 Node 依赖状态已确认。" Green
                 }
                 else {
-                    Write-Label "【部分完成】" "【Rust/Cargo】" "Rust 自动安装未完成，请查看上方具体原因。" Yellow
+                    Write-Label "【保留现状】" "【Node/pnpm】" "检测到变化但用户未同步；再次运行菜单 1 可重新处理。" Yellow
+                }
+
+                if ($cargoReady) {
+                    Write-Label "【完成】" "【Rust/Cargo】" "Rust 工具链与当前 Rust 依赖状态已确认。" Green
+                    $menuMessage = "按需依赖检查完成，按任意键返回主菜单。"
+                }
+                elseif ($rustSkipped) {
+                    Write-Label "【保留现状】" "【Rust/Cargo】" "用户选择暂不补齐 Rust 环境。" Yellow
+                    $menuMessage = "依赖检查完成（Rust 保持现状），按任意键返回主菜单。"
+                }
+                else {
+                    Write-Label "【部分完成】" "【Rust/Cargo】" "Rust 自动准备未完成，请查看上方具体原因。" Yellow
                     $menuMessage = "依赖部分完成，按任意键返回主菜单。"
                 }
             }

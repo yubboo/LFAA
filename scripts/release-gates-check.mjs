@@ -27,7 +27,7 @@ if (pkg.engines?.pnpm !== "11.17.0") fail("engines.pnpm must remain 11.17.0");
 if (pkg.engines?.node !== ">=24.0.0 <25") fail("engines.node must remain >=24.0.0 <25");
 
 requireScript("typecheck", ["typecheck:web", "typecheck:config-system"]);
-requireScript("test", ["test:release-environment", "test:release-gates", "test:config-system"]);
+requireScript("test", ["test:release-environment", "test:release-gates", "test:dependency-setup", "test:config-system"]);
 requireScript("build", ["build:web"]);
 requireScript("quality:quick", ["governance:check", "typecheck", "test"]);
 requireScript("quality:full", ["quality:quick", "build"]);
@@ -63,5 +63,19 @@ for (const token of [
 }
 if (setup.includes('Invoke-Pnpm @("install","--frozen-lockfile")')) {
   fail("Windows Setup must not duplicate the frozen-install release chain; call release:full instead");
+}
+for (const token of [
+  "Get-NodeDependencyPlan",
+  "dependency-state.json",
+  "跳过 pnpm install",
+  "Compare-NodeDependencyInventory",
+  "Get-RustToolchainReadiness",
+  "跳过 rustup toolchain install",
+  "跳过 cargo fetch",
+]) {
+  if (!setup.includes(token)) fail(`Windows Setup missing incremental dependency token: ${token}`);
+}
+if (/pnpm\s+update|@\("update"\)|store\s+prune/i.test(setup)) {
+  fail("Windows Setup must not auto-update dependencies or prune the pnpm store");
 }
 console.log("LFAA release gates check passed.");
