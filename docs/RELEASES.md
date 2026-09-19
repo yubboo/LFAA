@@ -1,8 +1,29 @@
-## LFAA v0.0.64 Release — #2.4 设置中心与个人中心交互重构
+## LFAA v0.0.65 Release — #2.5 个人中心侧栏内联聚焦修复
 
 - **状态：** pending-user-acceptance
-- **基线：** v0.0.63
+- **基线：** v0.0.64
 - **用户验收：** pending
+
+### 交付内容
+
+- 个人中心菜单严格约束在左侧栏内部，宽度读取实时 leftWidth；
+- 菜单 + 底部用户条组成同一个清晰聚焦整体，并复用同一个 ProfileBar；
+- 聚焦整体之外的工作台全部 blur/dim，整体自身不受 backdrop blur；
+- 去除 UserMenu 固定 18rem/viewport 宽度，左栏 resize 后自动跟随。
+
+### AI 验证状态
+
+Settings/Profile/Theme 6/6 PASS；Config System 17/17 PASS；folder-boundary / import / ui-contract / config-schema / docs / comment / Windows BOM 等可执行门禁 PASS。当前制作容器无项目锁定 pnpm 11.17.0，不声称正式 Web build / release:full 已通过。
+
+### 用户验收重点
+
+打开左下角个人中心：菜单不得越过左栏；菜单与用户条应同宽且视觉连续；除该整体外其余页面均应模糊/压暗；拖拽改变左栏宽度后重新打开，菜单宽度应立即跟随。
+
+## LFAA v0.0.64 Release — #2.4 设置中心与个人中心交互重构
+
+- **状态：** superseded
+- **基线：** v0.0.63
+- **用户验收：** not-accepted；设置中心/三态主题保留，个人中心几何由 v0.0.65 修正
 
 ### 交付内容
 

@@ -337,5 +337,35 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-terminal-unavailable { padding: 1rem; color: var(--agent-muted); font-size: .75rem; }
 
 /* ===== 11. 左下角个人中心 / 主题 / 更新 ===== */
-.agent-profile-actions{display:flex;align-items:center;gap:.25rem;flex:0 0 auto}.agent-profile-overlay,.agent-theme-menu-layer{position:absolute;inset:0;z-index:500}.agent-profile-backdrop,.agent-theme-menu-backdrop{position:absolute;inset:0;width:100%;height:100%;border:0;padding:0;cursor:default}.agent-profile-backdrop{background:rgba(0,0,0,.12);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}.agent-theme[data-theme="dark"] .agent-profile-backdrop{background:rgba(0,0,0,.24)}.agent-profile-menu-anchor{position:absolute;z-index:2;left:.5rem;bottom:3.35rem}.agent-theme-menu-layer{z-index:490}.agent-theme-menu-backdrop{background:transparent}.agent-theme-menu-anchor{position:absolute;z-index:2;left:.5rem;bottom:3.35rem}.agent-update-toast{position:absolute;z-index:600;left:50%;bottom:1rem;transform:translateX(-50%);max-width:min(34rem,calc(100% - 2rem));padding:.625rem .875rem;border:1px solid var(--agent-border);border-radius:.75rem;background:var(--agent-elevated);box-shadow:var(--agent-shadow);color:var(--agent-muted);font-size:.75rem;text-align:center}.agent-theme[data-layout-mode="mobile"] .agent-profile-menu-anchor,.agent-theme[data-layout-mode="mobile"] .agent-theme-menu-anchor{left:.375rem;bottom:3.125rem}
+.agent-profile-actions{display:flex;align-items:center;gap:.25rem;flex:0 0 auto}
+.agent-profile-overlay,.agent-theme-menu-layer{position:absolute;inset:0;z-index:500}
+.agent-profile-backdrop,.agent-theme-menu-backdrop{position:absolute;inset:0;width:100%;height:100%;border:0;padding:0;cursor:default}
+.agent-profile-backdrop{background:rgba(0,0,0,.10);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.agent-theme[data-theme="dark"] .agent-profile-backdrop{background:rgba(0,0,0,.22)}
+/* 个人中心的唯一几何事实来自 ResizableWorkbench 实时 leftWidth。
+ * 外层 left / width 精确对应左栏 content box，禁止固定 rem 或 viewport 估算。 */
+.agent-profile-focus-shell{
+  position:absolute;
+  z-index:2;
+  left:.625rem;
+  bottom:.625rem;
+  width:calc(var(--agent-left-live-width,15rem) - 1.25rem);
+  max-width:calc(100% - 1.25rem);
+  min-width:0;
+  overflow:hidden;
+  border:1px solid var(--agent-border);
+  border-radius:.875rem;
+  background:color-mix(in srgb,var(--agent-elevated) 97%,transparent);
+  box-shadow:0 1rem 3rem rgba(0,0,0,.24);
+  color:var(--agent-text);
+}
+.agent-profile-focus-shell .lfaa-user-menu{border:0;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.agent-profile-focus-shell .agent-profile{margin-top:0;padding:.375rem;border-top:1px solid var(--agent-border);background:transparent}
+.agent-profile-focus-shell .agent-profile-main{padding:.3125rem}
+.agent-theme-menu-layer{z-index:490}
+.agent-theme-menu-backdrop{background:transparent}
+.agent-theme-menu-anchor{position:absolute;z-index:2;left:.5rem;bottom:3.35rem}
+.agent-update-toast{position:absolute;z-index:600;left:50%;bottom:1rem;transform:translateX(-50%);max-width:min(34rem,calc(100% - 2rem));padding:.625rem .875rem;border:1px solid var(--agent-border);border-radius:.75rem;background:var(--agent-elevated);box-shadow:var(--agent-shadow);color:var(--agent-muted);font-size:.75rem;text-align:center}
+.agent-theme[data-layout-mode="mobile"] .agent-profile-focus-shell{left:.625rem;bottom:.625rem;width:calc(var(--agent-left-live-width,15rem) - 1.25rem)}
+.agent-theme[data-layout-mode="mobile"] .agent-theme-menu-anchor{left:.375rem;bottom:3.125rem}
 .agent-workbench-stage.is-suspended{pointer-events:none}.agent-settings-layer{position:absolute;inset:0;z-index:450;background:var(--agent-bg)}

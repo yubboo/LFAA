@@ -1030,6 +1030,8 @@ v0.0.41 为 Windows PowerShell 脚本补中文结构化文件头时，保存过�
 
 ## config-system
 
+- UI 修正进度：#2.5 / v0.0.65 个人中心侧栏内联聚焦与实时宽度，pending-user-acceptance。
+
 > 迁移来源：`docs/modules/config-system/README.md`
 
 ### config-system

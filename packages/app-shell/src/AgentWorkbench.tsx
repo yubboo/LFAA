@@ -261,8 +261,9 @@ function RightShellActions({
 }
 
 // ===== 4. 左侧栏内容 =====
-// 这里只描述左栏“里面有什么”；左栏宽度和收起逻辑不在这里实现。
-function LeftSidebar({
+// ProfileBar 同时用于正常左栏与个人中心聚焦层。
+// 聚焦层复用同一组件，避免为了“保持清晰”复制一套不同尺寸/按钮的 Footer。
+function ProfileBar({
   resolvedTheme,
   themePreference,
   onOpenProfile,
@@ -278,6 +279,34 @@ function LeftSidebar({
   const themeLabel = themePreference === "system" ? "跟随系统" : themePreference === "dark" ? "深色" : "浅色";
   const themeIcon = themePreference === "system" ? "monitor" : resolvedTheme === "dark" ? "moon" : "sun";
 
+  return (
+    <div className="agent-profile">
+      <button className="agent-profile-main" type="button" onClick={onOpenProfile} aria-haspopup="dialog">
+        <span className="agent-avatar">二</span>
+        <span><strong>二鱼</strong><small>本地工作区</small></span>
+      </button>
+      <div className="agent-profile-actions">
+        <button className="agent-icon-button" type="button" onClick={onRequestUpdate} aria-label="检查更新" title="检查更新"><WorkbenchIcon name="refresh" /></button>
+        <button className="agent-icon-button" type="button" onClick={onOpenThemeMenu} aria-label={`主题：${themeLabel}`} title={`主题：${themeLabel}`}><WorkbenchIcon name={themeIcon} /></button>
+      </div>
+    </div>
+  );
+}
+
+// 这里只描述左栏“里面有什么”；左栏宽度和收起逻辑不在这里实现。
+function LeftSidebar({
+  resolvedTheme,
+  themePreference,
+  onOpenProfile,
+  onOpenThemeMenu,
+  onRequestUpdate,
+}: {
+  resolvedTheme: ResolvedTheme;
+  themePreference: ThemePreference;
+  onOpenProfile: () => void;
+  onOpenThemeMenu: () => void;
+  onRequestUpdate: () => void;
+}) {
   return (
     <aside className="agent-side agent-side--left">
       <div className="agent-brand-row">
@@ -301,16 +330,13 @@ function LeftSidebar({
       <div className="agent-section-title agent-section-title--recent"><span>最近</span></div>
       <div className="agent-history">{recentRuns.map((item, index) => <button type="button" key={item} className={index === 1 ? "is-current" : ""}>{item}</button>)}</div>
 
-      <div className="agent-profile">
-        <button className="agent-profile-main" type="button" onClick={onOpenProfile} aria-haspopup="dialog">
-          <span className="agent-avatar">二</span>
-          <span><strong>二鱼</strong><small>本地工作区</small></span>
-        </button>
-        <div className="agent-profile-actions">
-          <button className="agent-icon-button" type="button" onClick={onRequestUpdate} aria-label="检查更新" title="检查更新"><WorkbenchIcon name="refresh" /></button>
-          <button className="agent-icon-button" type="button" onClick={onOpenThemeMenu} aria-label={`主题：${themeLabel}`} title={`主题：${themeLabel}`}><WorkbenchIcon name={themeIcon} /></button>
-        </div>
-      </div>
+      <ProfileBar
+        resolvedTheme={resolvedTheme}
+        themePreference={themePreference}
+        onOpenProfile={onOpenProfile}
+        onOpenThemeMenu={onOpenThemeMenu}
+        onRequestUpdate={onRequestUpdate}
+      />
     </aside>
   );
 }
@@ -630,7 +656,10 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
         ref={stageRef}
         className={`agent-workbench-stage${surface === "settings" ? " is-suspended" : ""}`}
         aria-hidden={surface === "settings"}
-        style={{ "--agent-left-preview-width": `${leftPaneWidth}px` } as CSSProperties}
+        style={{
+          "--agent-left-preview-width": `${leftPaneWidth}px`,
+          "--agent-left-live-width": `${leftPaneWidth}px`,
+        } as CSSProperties}
       >
           {/* 左栏收起后才挂载临时预览层；正常展开时由 ResizableWorkbench 渲染正式左栏。 */}
           {chrome.leftCollapsed ? (
@@ -691,7 +720,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
           {profileMenuOpen ? (
             <div className="agent-profile-overlay">
               <button className="agent-profile-backdrop" type="button" aria-label="关闭个人中心" onClick={() => setProfileMenuOpen(false)} />
-              <div className="agent-profile-menu-anchor">
+              <div className="agent-profile-focus-shell">
                 <UserMenu
                   displayName="二鱼"
                   subtitle="本地工作区"
@@ -699,6 +728,19 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
                     setProfileMenuOpen(false);
                     setSettingsSection("general");
                     setSurface("settings");
+                  }}
+                  onRequestUpdate={() => {
+                    setProfileMenuOpen(false);
+                    setUpdateNoticeOpen(true);
+                  }}
+                />
+                <ProfileBar
+                  resolvedTheme={resolvedTheme}
+                  themePreference={themePreference}
+                  onOpenProfile={() => setProfileMenuOpen(false)}
+                  onOpenThemeMenu={() => {
+                    setProfileMenuOpen(false);
+                    setThemeMenuOpen(true);
                   }}
                   onRequestUpdate={() => {
                     setProfileMenuOpen(false);

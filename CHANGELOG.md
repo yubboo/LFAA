@@ -1,8 +1,21 @@
 # LFAA 更新日志
 
-## LFAA v0.0.64 — #2.4 设置中心与个人中心交互重构
+## LFAA v0.0.65 — #2.5 个人中心侧栏内联聚焦修复
 
 - **状态：** pending-user-acceptance
+- **基线：** v0.0.64
+- **任务：** #2.5
+- v0.0.64 的独立 Settings Surface 与三态主题保留；个人中心几何按用户实机反馈继续修正。
+- 个人菜单不再使用固定宽度；由 `ResizableWorkbench` 当前 leftWidth 通过 `--agent-left-live-width` 实时决定。
+- 菜单与底部用户条复用同一个 `ProfileBar` 并组成单一聚焦容器，宽度与左栏 content box 一致。
+- 聚焦容器保持清晰，其余工作台统一 blur/dim；左栏 resize 后再次打开自动使用最新宽度。
+- Settings/Profile/Theme 6/6、Config System 17/17 与目录/导入/UI/Schema/治理门禁通过。
+
+
+## LFAA v0.0.64 — #2.4 设置中心与个人中心交互重构
+
+- **状态：** superseded
+- **用户验收：** not-accepted；设置中心/三态主题保留，个人中心几何由 v0.0.65 修正
 - **基线：** v0.0.63
 - **任务：** #2.4
 - v0.0.63 的 Provider/目录架构保留，但其设置 UI 验收未通过，本版本不覆盖旧包，独立递增修正。

@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #2.4 | 设置中心与个人中心交互重构 | v0.0.64 | pending-user-acceptance |
+| #2.5 | 个人中心侧栏内联聚焦修复 | v0.0.65 | pending-user-acceptance |
+| #2.4 | 设置中心与个人中心交互重构 | v0.0.64 | superseded |
 | #2.3 | 配置系统目录边界与 AI Provider 插件体系 | v0.0.63 | superseded |
 | #20.16 | pnpm 控制台直连原生输出修复 | v0.0.62 | delivered |
 | #20.15 | pnpm CMD 原生终端输出与菜单精简 | v0.0.61 | superseded |
@@ -27,11 +28,24 @@
 | #2.2 | Config Schema 基线 | v0.0.51 | pending-user-acceptance |
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
+### #2.5 个人中心侧栏内联聚焦修复
+
+- **版本：** v0.0.65
+- **状态：** pending-user-acceptance
+- **主模块：** ui / app-shell
+- **用户反馈：** v0.0.64 个人菜单超出左栏宽度，菜单与底部用户条不是同一个聚焦整体；模糊应作用于该整体之外的所有区域。
+- **决策：** 个人中心采用左栏实时 `leftWidth` 作为唯一几何事实；聚焦层复制/复用底部 Profile Bar，与菜单组成同宽整体，Backdrop 只位于其下方。
+- **边界：** 仅修改共享 UI/App Shell；不改 Settings、Provider、Config、Web Host、Windows 工具链。
+- **验收重点：** 左栏内联、动态宽度、整体清晰、其余模糊、resize 后重新打开立即跟随。
+- **实现：** 复用 `ProfileBar`；`agent-profile-focus-shell` 使用实时 `--agent-left-live-width`，菜单与用户条同容器；Backdrop 仅模糊其余工作台。
+- **AI 验证：** Settings/Profile/Theme 6/6、Config System 17/17、目录/导入/UI/Schema/Docs/Comment/BOM 门禁 PASS。
+
 ### #2.4 设置中心与个人中心交互重构
 
 - **版本：** v0.0.64
-- **状态：** pending-user-acceptance
+- **状态：** superseded
 - **主模块：** ui / app-shell / config-system-ai-ui
+- **用户验收：** not-accepted；Settings/主题成果保留，个人中心几何由 #2.5 / v0.0.65 修正。
 - **用户反馈：** v0.0.63 Provider 架构可接受，但设置页仍错误地嵌在中间工作区；个人中心与主题入口布局不符合参考交互。
 - **决策：** Settings 作为独立 Surface；用户菜单打开时背景模糊/压暗；主题改为 system/light/dark 三态；更新入口与主题入口并列；AI Provider 设置成为 Settings 子分类。
 - **边界：** UI/交互仅改 `packages/ui` 与 `packages/app-shell`；不修改 Provider 业务、Secret/Storage、Windows 工具链。

@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #2.4 | 设置中心与个人中心交互重构 | v0.0.64 | pending-user-acceptance | pass | pending |
+| #2.5 | 个人中心侧栏内联聚焦修复 | v0.0.65 | pending-user-acceptance | pass | pending |
+| #2.4 | 设置中心与个人中心交互重构 | v0.0.64 | superseded | pass | not-accepted |
 | #2.3 | 配置系统目录边界与 AI Provider 插件体系 | v0.0.63 | superseded | pass | not-accepted |
 | #20.16 | pnpm 控制台直连原生输出修复 | v0.0.62 | delivered | pass | passed |
 | #20.15 | pnpm CMD 原生终端输出与菜单精简 | v0.0.61 | superseded | pass | not-accepted |
@@ -42,6 +43,81 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #2.5 个人中心侧栏内联聚焦修复
+
+### 主模块
+
+`ui / app-shell`
+
+### 背景
+
+用户实机验收 v0.0.64 后确认设置中心、三态主题方向可继续，但个人中心聚焦层仍不符合参考交互：弹出菜单宽度超出左侧栏，菜单与底部用户条没有形成一个整体，背景模糊范围也没有准确排除这一整体。
+
+### 任务目标
+
+把个人中心菜单改为严格受左侧栏实时宽度约束的聚焦整体：菜单与底部用户条在同一几何容器中，宽度随 ResizableWorkbench 当前 leftWidth 自动变化；该整体始终保持清晰，其余工作台区域统一轻度模糊/压暗。
+
+### 允许修改
+
+- `packages/ui/src/features/account/**`；
+- `packages/app-shell/src/AgentWorkbench.tsx`、`agent-workbench.css`；
+- Settings/Profile 相关 UI 静态测试；
+- Prompt / Log / Plan / CHANGELOG / RELEASES / 版本事实。
+
+### 禁止修改
+
+- Settings Surface、三态主题业务语义；
+- AI Provider Registry / Provider 插件 / Config Core；
+- `apps/web/src`；
+- Windows Setup / Sync / GitHub / Update；
+- PTY、Agent Runtime、Tool Runtime、Permission Engine。
+
+### 交互合同
+
+- 个人菜单宽度禁止使用固定 `18rem` 或 viewport 估算，必须取当前左栏实时宽度；
+- 菜单左右边界必须落在左侧栏内部 padding 范围，不得越过左栏 separator；
+- 菜单与底部用户条构成同一个清晰聚焦整体，几何宽度一致；
+- 聚焦整体之外的工作台全部轻度模糊/压暗，包括左栏其它区域；
+- 聚焦整体自身不得受到 backdrop blur；
+- 左栏拖拽改变宽度后，再打开个人中心时必须立即使用最新宽度；
+- 关闭个人中心后恢复原工作台，不改变左栏尺寸。
+
+### 验收条件
+
+- Desktop 实机视觉与参考交互一致：菜单完全位于左栏内部；
+- 菜单+用户条清晰，其余页面统一模糊/压暗；
+- 左栏 resize 后菜单宽度自动跟随；
+- 不回退 v0.0.64 的独立 Settings Surface 与三态主题。
+
+### 必须测试
+
+- UI/App Shell TypeScript；
+- Settings/Profile/Theme 静态契约；
+- 新增侧栏实时宽度与聚焦整体防回归；
+- folder-boundary / import / governance / ui-contract；
+- Config System 17/17 回归；
+- Windows PS1 Hash/BOM 不回退。
+
+### 版本目标
+
+`v0.0.65`
+
+### 实现结果
+
+- `ProfileBar` 抽成共享 Footer 组件，正常左栏与聚焦层复用同一份用户条/更新/主题结构；
+- 聚焦层改为 `agent-profile-focus-shell`，菜单与用户条在同一个连续容器内；
+- 聚焦容器宽度使用 `ResizableWorkbench` 回传的实时 `leftPaneWidth`，通过 `--agent-left-live-width` 计算，禁止固定 18rem / viewport 猜测；
+- 聚焦容器左右边界使用与 `.agent-side--left` 一致的 `.625rem` padding，确保不越过左栏 separator；
+- 全工作台 backdrop blur/dim 位于聚焦容器下方，菜单+用户条保持清晰，其余区域全部模糊/压暗；
+- `UserMenu` 自身改为 `width:100%`，几何完全由宿主左栏决定。
+
+### AI 验证
+
+- Settings/Profile/Theme 6/6 PASS；
+- Config System 17/17 PASS；
+- folder-boundary / import-path / ui-contract / config-schema / comment / docs / Windows BOM PASS；
+- 当前制作容器没有项目锁定 pnpm 11.17.0，因此不伪造正式 Web build / release:full；最终视觉仍由用户 Windows Web 实机验收。
 
 ## #2.4 设置中心与个人中心交互重构
 

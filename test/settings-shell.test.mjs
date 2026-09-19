@@ -20,10 +20,21 @@ const themeMenu = fs.readFileSync("packages/ui/src/features/appearance/ThemeMode
   assert.doesNotMatch(shell, /center=\{surface ===/);
 });
 
-test("个人中心使用独立聚焦遮罩与模糊背景", () => {
+test("个人中心使用侧栏内联聚焦整体与模糊背景", () => {
   assert.match(shell, /agent-profile-overlay/);
   assert.match(shell, /agent-profile-backdrop/);
-  assert.match(shellCss, /backdrop-filter:blur\(3px\)/);
+  assert.match(shell, /agent-profile-focus-shell/);
+  assert.match(shell, /--agent-left-live-width/);
+  assert.match(shellCss, /backdrop-filter:blur\(4px\)/);
+  assert.match(shellCss, /width:calc\(var\(--agent-left-live-width,15rem\) - 1\.25rem\)/);
+  assert.match(shellCss, /agent-profile-focus-shell \.agent-profile/);
+});
+
+test("个人菜单禁止固定宽度并复用底部 ProfileBar", () => {
+  const userMenuCss = fs.readFileSync("packages/ui/src/features/account/user-menu.css", "utf8");
+  assert.doesNotMatch(userMenuCss, /18rem/);
+  assert.match(userMenuCss, /width:100%/);
+  assert.ok((shell.match(/<ProfileBar/g) ?? []).length >= 2, "正常侧栏与聚焦层必须复用同一个 ProfileBar");
 });
 
 test("主题支持 system light dark 并监听系统主题", () => {
