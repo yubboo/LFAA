@@ -1,3 +1,7 @@
+## v0.0.89 Agent Execution Hint
+
+`AgentRunRequest.executionHints.reasoningBoost` 是 Agent 级提示，不属于 `AgentModelBinding.settings`。Config System 仍是 Provider reasoning 参数唯一真值；Web 开发 Host 只能按 Host 能力解释该 Hint。本版 API 开发 Host 通过临时 system instruction 请求更充分的检查，不向 Provider body 注入 Capability 未声明的 reasoning 字段，也不把该 instruction 写回持久会话历史。
+
 ## v0.0.88 Web 开发态真实 Chat Run
 
 Web 开发宿主新增最小 `AgentRuntimeHost`：Run 在 localhost Host 中读取账户元数据与 `credentialRef`，Secret 由 Credential Store 获取且不返回浏览器；API Provider 文本回复通过 `AgentRuntimeEvent` 投影到 Chat。该桥只验证真实模型对话链，P2 Capability Invocation、工具调用、正式 Session/Event Store 尚未宣称完成。

@@ -10,7 +10,7 @@ const app = readFileSync(new URL("apps/web/src/App.tsx", root), "utf8");
 const workbench = readFileSync(new URL("packages/app-shell/src/AgentWorkbench.tsx", root), "utf8");
 const vite = readFileSync(new URL("apps/web/vite.config.ts", root), "utf8");
 
- test("web development host exposes a real model chat runtime instead of leaving Composer disabled", () => {
+test("web development host exposes a real model chat runtime instead of leaving Composer disabled", () => {
   assert.equal(existsSync(bridgePath), true);
   const bridge = readFileSync(bridgePath, "utf8");
   assert.match(bridge, /createWebDevSecretStore/);
@@ -31,4 +31,16 @@ test("AgentRuntimeHost projects results through runtime events", () => {
   assert.match(workbench, /agent-chat-timeline/);
   assert.match(workbench, /assistant\.completed/);
   assert.match(workbench, /runtimeConnected=\{Boolean\(props\.agentRuntimeHost\)\}/);
+});
+
+test("strong reasoning travels as an Agent execution hint without inventing a provider reasoning field", () => {
+  const bridge = readFileSync(bridgePath, "utf8");
+  assert.match(contracts, /interface AgentExecutionHints/);
+  assert.match(contracts, /executionHints\?: AgentExecutionHints/);
+  assert.match(workbench, /executionHints\?: AgentExecutionHints/);
+  assert.match(workbench, /reasoningBoost: boostActive/);
+  assert.match(bridge, /executionHints\?\.reasoningBoost|rawHints[\s\S]*reasoningBoost/);
+  assert.match(bridge, /REASONING_BOOST_INSTRUCTION/);
+  assert.match(bridge, /role: "system"/);
+  assert.doesNotMatch(bridge, /reasoning_effort\s*:\s*request\.executionHints|reasoning\s*:\s*request\.executionHints/);
 });

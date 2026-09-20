@@ -62,6 +62,16 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
   --agent-status-warn: #b7862f;
   --agent-status-off: #999;
 
+  /* 推理视觉 Token：后续设置中心只覆盖这一组公共变量，不直接改组件 CSS。 */
+  --lfaa-reasoning-standard-color-1: #ffc1dc;
+  --lfaa-reasoning-standard-color-2: #f578ad;
+  --lfaa-reasoning-standard-color-3: #ea5a9d;
+  --lfaa-reasoning-standard-color-4: #df4b92;
+  --lfaa-reasoning-extreme-color-1: #ffc1dc;
+  --lfaa-reasoning-extreme-color-2: #f05aa6;
+  --lfaa-reasoning-extreme-color-3: #9b5cff;
+  --lfaa-reasoning-extreme-color-4: #5d2ecb;
+
   /* 布局 Token：同一尺寸只有一个来源。 */
   --agent-shell-header-h: 3rem;
   --agent-control-size: 2rem;
@@ -263,9 +273,9 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 /* ===== 7. 对话正文 ===== */
 .agent-conversation { min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--agent-strong-border) transparent; }
 .agent-conversation-inner {
-  width: min(var(--agent-content-max), calc(100% - var(--agent-page-gutter) * 2));
-  margin: 0 auto;
-  padding: clamp(1.375rem, 4vh, 2.375rem) 0 1.75rem;
+  width: 100%;
+  margin: 0;
+  padding: clamp(1.375rem, 4vh, 2.375rem) var(--agent-page-gutter) 1.75rem;
 }
 .agent-user-message { width: fit-content; max-width: min(76%, 38.75rem); margin-left: auto; padding: .6875rem .9375rem; border-radius: 1.125rem; background: var(--agent-bubble); border: 1px solid color-mix(in srgb,var(--agent-border) 72%,transparent); font-size: .8125rem; line-height: 1.55; }
 .agent-answer { margin-top: 1.75rem; font-size: .875rem; line-height: 1.75; }
@@ -429,15 +439,16 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-runtime-control-trigger__tooltip kbd{padding:.12rem .34rem;border-radius:.35rem;background:#595959;color:#eee;font:inherit;font-size:.62rem}
 .agent-runtime-control-trigger:hover .agent-runtime-control-trigger__tooltip,.agent-runtime-control-trigger:focus-visible .agent-runtime-control-trigger__tooltip{opacity:1;visibility:visible;transform:translateY(0)}
 
-.agent-runtime-control-card{right:0;left:auto;width:min(21rem,calc(100vw - 2rem));padding:.58rem .62rem .66rem;contain:layout style;transform:translateZ(0);backface-visibility:hidden;isolation:isolate;overflow:visible;will-change:transform}
-.agent-runtime-control-card__toolbar{display:grid;grid-template-columns:2.25rem minmax(0,1fr) 2.25rem;align-items:center;gap:.28rem;min-height:3.5rem}
-.agent-runtime-control-card__icon{position:relative;width:2.25rem!important;height:2.25rem;display:grid!important;place-items:center!important;padding:0!important;border:0;border-radius:.62rem;background:transparent;color:var(--agent-muted);cursor:pointer}
+.agent-runtime-control-card{right:0;left:auto;width:min(21rem,calc(100vw - 2rem));padding:.58rem .62rem .66rem;contain:layout style;isolation:isolate;overflow:visible}
+.agent-runtime-control-card__toolbar{display:grid;grid-template-columns:2.25rem minmax(0,1fr) 2.25rem;align-items:center;justify-items:center;gap:.28rem;min-height:3.5rem}
+.agent-runtime-control-card__icon{position:relative;width:2.25rem!important;height:2.25rem;display:grid!important;place-items:center!important;justify-self:center;align-self:center;padding:0!important;border:0;border-radius:.62rem;background:transparent;color:var(--agent-muted);cursor:pointer;line-height:0}
+.agent-runtime-control-card__icon svg{display:block}
 .agent-runtime-control-card__icon:hover,.agent-runtime-control-card__icon:focus-visible{background:var(--agent-hover);color:var(--agent-text);outline:none}
 .agent-runtime-control-card__icon:disabled{opacity:.38;cursor:not-allowed}
 .agent-runtime-control-card__icon.is-active{color:#e55298;background:color-mix(in srgb,#e55298 10%,transparent)}
 .agent-runtime-control-card__icon[data-tooltip]::after{content:attr(data-tooltip);position:absolute;z-index:var(--lfaa-layer-tooltip,620);left:50%;top:calc(100% + .34rem);transform:translate(-50%,-.15rem);width:max-content;max-width:12rem;padding:.38rem .5rem;border-radius:.5rem;background:#1f1f1f;color:#fff;font-size:.58rem;font-weight:560;line-height:1.25;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .1s ease,transform .1s ease;box-shadow:0 .35rem 1rem rgba(0,0,0,.2)}
 .agent-runtime-control-card__icon[data-tooltip]:hover::after,.agent-runtime-control-card__icon[data-tooltip]:focus-visible::after{opacity:1;transform:translate(-50%,0)}
-.agent-runtime-control-card__model{min-width:0!important;width:auto!important;display:grid!important;grid-template-columns:1fr!important;place-items:center!important;gap:.05rem!important;padding:.25rem .45rem!important;border:0!important;border-radius:.65rem!important;background:transparent!important;text-align:center!important}
+.agent-runtime-control-card__model{min-width:0!important;width:100%!important;display:grid!important;grid-template-columns:1fr!important;place-items:center!important;justify-self:stretch;gap:.05rem!important;padding:.25rem .45rem!important;border:0!important;border-radius:.65rem!important;background:transparent!important;text-align:center!important}
 .agent-runtime-control-card__model:hover,.agent-runtime-control-card__model:focus-visible{background:var(--agent-hover)!important;outline:none}
 .agent-runtime-control-card__model strong{display:flex;align-items:center;justify-content:center;gap:.18rem;color:#d64d8f;font-size:.84rem;font-weight:660}
 .agent-runtime-control-card__model strong svg{transition:transform 260ms cubic-bezier(.16,.82,.24,1)}
@@ -457,14 +468,33 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 .agent-runtime-model-picker__list button:disabled{opacity:.45;cursor:not-allowed}
 .agent-runtime-model-picker__manage{grid-template-columns:1.1rem minmax(0,1fr)!important;align-items:center!important;margin-top:.25rem;padding:.45rem .48rem!important;border-top:1px solid var(--agent-border)!important;border-radius:.45rem!important;font-size:.68rem}
 
-.agent-reasoning-slider-shell{padding:.5rem .12rem .08rem}
+.agent-reasoning-slider-shell{
+  min-height:2.25rem;
+  padding:.5rem .12rem .08rem;
+  --lfaa-slider-accent-1:var(--lfaa-reasoning-standard-color-1);
+  --lfaa-slider-accent-2:var(--lfaa-reasoning-standard-color-2);
+  --lfaa-slider-accent-3:var(--lfaa-reasoning-standard-color-3);
+  --lfaa-slider-accent-4:var(--lfaa-reasoning-standard-color-4);
+}
+.agent-reasoning-slider-shell[data-reasoning-stage="extreme"]{
+  --lfaa-slider-accent-1:var(--lfaa-reasoning-extreme-color-1);
+  --lfaa-slider-accent-2:var(--lfaa-reasoning-extreme-color-2);
+  --lfaa-slider-accent-3:var(--lfaa-reasoning-extreme-color-3);
+  --lfaa-slider-accent-4:var(--lfaa-reasoning-extreme-color-4);
+}
 .agent-runtime-control-card__unsupported{padding:.45rem .2rem .12rem;color:var(--agent-muted);font-size:.62rem;text-align:center}
 
 .agent-theme[data-layout-mode="mobile"] .agent-runtime-control-anchor{margin-left:auto}.agent-theme[data-layout-mode="mobile"] .agent-runtime-control-trigger{max-width:11rem}.agent-theme[data-layout-mode="mobile"] .agent-runtime-control-card{position:fixed;left:.75rem;right:.75rem;bottom:4.7rem;width:auto;min-width:0}
 
 
 /* ===== Chat Runtime Projection ===== */
-.agent-chat-timeline{width:min(52rem,100%);margin:auto;display:grid;gap:1.15rem;padding:1.5rem 0 2.25rem}
+.agent-chat-timeline{
+  width:min(var(--agent-composer-max),100%);
+  margin:0 auto;
+  display:grid;
+  gap:1.15rem;
+  padding:1.5rem 0 2.25rem;
+}
 .agent-chat-message{display:grid;gap:.35rem;max-width:88%}
 .agent-chat-message--user{justify-self:end}
 .agent-chat-message--assistant,.agent-chat-message--error{justify-self:start}

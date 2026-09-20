@@ -1,4 +1,57 @@
-.lfaa-ui-effect{position:absolute;z-index:4;left:.2rem;top:50%;width:max(.5rem,calc(var(--lfaa-slider-progress,50%) - .1rem));height:.75rem;transform:translateY(-50%);overflow:hidden;border-radius:999px;pointer-events:none}
-.lfaa-ui-effect--meteor i{--lfaa-effect-index:0;position:absolute;left:-12%;top:calc(20% + (var(--lfaa-effect-index) * 9%));width:calc(.13rem + (var(--lfaa-effect-index) % 3) * .05rem);height:.08rem;border-radius:999px;background:rgba(255,255,255,.84);box-shadow:0 0 .4rem rgba(255,255,255,.75);opacity:0;animation:lfaa-ui-meteor var(--lfaa-effect-duration,1150ms) linear infinite;animation-delay:calc(var(--lfaa-effect-index) * 130ms)}
-@keyframes lfaa-ui-meteor{0%{transform:translateX(0) scaleX(.7);opacity:0}16%{opacity:.9}78%{opacity:.55}100%{transform:translateX(18rem) scaleX(1.9);opacity:0}}
-@media (prefers-reduced-motion:reduce){.lfaa-ui-effect--meteor i{animation:none;display:none}}
+.lfaa-ui-effect {
+  position: absolute;
+  z-index: 4;
+  left: .2rem;
+  top: 50%;
+  width: max(.5rem, calc(var(--lfaa-slider-visual-progress, var(--lfaa-slider-progress, 50%)) - .08rem));
+  height: .78rem;
+  transform: translateY(-50%);
+  overflow: clip;
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+  contain: strict;
+}
+.lfaa-ui-effect[data-active="true"] { opacity: 1; }
+.lfaa-ui-effect--meteor i {
+  --lfaa-effect-index: 0;
+  position: absolute;
+  left: -16%;
+  top: calc(12% + (var(--lfaa-effect-index) % 6) * 13%);
+  width: calc(.12rem + (var(--lfaa-effect-index) % 3) * .045rem);
+  height: .075rem;
+  border-radius: 999px;
+  background: var(--lfaa-effect-color-2, var(--lfaa-slider-accent-2, #f578ad));
+  box-shadow: 0 0 .35rem color-mix(in srgb, var(--lfaa-effect-color-2, #f578ad) 68%, transparent);
+  opacity: 0;
+  transform: translate3d(0,0,0) scaleX(.72);
+  will-change: transform, opacity;
+  animation: lfaa-ui-meteor var(--lfaa-effect-duration, 1280ms) cubic-bezier(.18,.72,.32,1) infinite;
+  animation-delay: calc(var(--lfaa-effect-index) * -137ms);
+}
+.lfaa-ui-effect--meteor i:nth-child(4n+1) { background: var(--lfaa-effect-color-1, #ffb7d3); }
+.lfaa-ui-effect--meteor i:nth-child(4n+2) { background: var(--lfaa-effect-color-2, #f578ad); }
+.lfaa-ui-effect--meteor i:nth-child(4n+3) { background: var(--lfaa-effect-color-3, #ea5a9d); }
+.lfaa-ui-effect--meteor i:nth-child(4n)   { background: var(--lfaa-effect-color-4, #df4b92); }
+.lfaa-ui-effect[data-variant="extreme"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--lfaa-effect-color-1, #ffc1dc) 30%, transparent),
+    color-mix(in srgb, var(--lfaa-effect-color-2, #f05aa6) 25%, transparent) 38%,
+    color-mix(in srgb, var(--lfaa-effect-color-3, #9b5cff) 24%, transparent) 70%,
+    color-mix(in srgb, var(--lfaa-effect-color-4, #5d2ecb) 22%, transparent));
+  opacity: .85;
+}
+@keyframes lfaa-ui-meteor {
+  0%   { transform: translate3d(-.6rem,0,0) scaleX(.7); opacity: 0; }
+  14%  { opacity: .95; }
+  58%  { opacity: .72; }
+  100% { transform: translate3d(18rem,0,0) scaleX(1.75); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lfaa-ui-effect { transition: none; }
+  .lfaa-ui-effect--meteor i { animation: none; display: none; }
+}

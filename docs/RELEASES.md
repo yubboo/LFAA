@@ -1,3 +1,16 @@
+## LFAA v0.0.89 Release — #22.4 Chat Alignment / Six-stage Reasoning / Particle Stability
+
+- **状态：** pending-user-acceptance
+- Chat 消息与 Composer 共基线：user → right，assistant/error → left。
+- Reasoning UI 固定六档且只映射官方非关闭 Capability option。
+- Strong Reasoning 独立为 Agent Run Hint；Extreme 默认开启但可显式关闭。
+- Slider 使用连续 Pointer visual progress、白色 Thumb、grab/grabbing 与平滑 settle。
+- Effect Host 常驻：普通粉色流星，Extreme 淡粉→粉→紫→深紫。
+- Runtime Card 移除整卡强制 GPU promotion，降低闪白/闪屏风险。
+- AI 静态/契约验证：#22.4 聚焦 20/20 PASS；除制作容器依赖解析项外的仓库 Node 129/129 PASS；UI Contract / Config Schema / Release Gates / workspace-preflight 全 Gate PASS；ZIP Unicode / `.lfaa` round-trip 后 preflight 再次 PASS。
+- 制作容器为 Node 22，且无 pnpm/node_modules；因此 Node 24 workspace 动态运行测试未伪装为已执行。
+- Windows 像素级/实际拖拽手感仍需用户实机验收。
+
 ## LFAA v0.0.88 Release — #22.3 Real Chat Run / UI Motion
 
 - real Web development Chat Run bridge for configured API accounts;

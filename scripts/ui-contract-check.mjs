@@ -27,6 +27,7 @@ const sharedSliderTsx = read("packages/ui/src/ui-controls/DiscreteSlider.tsx");
 const sharedSliderCss = read("packages/ui/src/ui-controls/discrete-slider.css");
 const sharedEffectCss = read("packages/ui/src/ui-effects/effects.css");
 const sharedEffectRegistry = read("packages/ui/src/ui-effects/registry.ts");
+const sharedEffectHost = read("packages/ui/src/ui-effects/UiEffectHost.tsx");
 const sharedExtensionRegistry = read("packages/ui/src/ui-extension/registry.ts");
 const animatedDisclosure = read("packages/ui/src/ui-motion/AnimatedDisclosure.tsx");
 const shortcutHook = read("packages/ui/src/ui-shortcuts/useShortcut.ts");
@@ -273,6 +274,32 @@ if (tsx.includes("setPointerCapture") || tsx.includes("agent-reasoning-slider__p
 if (css.includes("agent-reasoning-meteor") || css.includes("agent-reasoning-slider__thumb")) fail("shared slider/effect CSS must not leak back into App Shell");
 for (const forbidden of ["packages/ui/src/effects", "packages/ui/src/overlay", "packages/ui/src/controls", "packages/ui/src/extension"]) {
   if (fs.existsSync(path.join(root, forbidden))) fail(`shared UI infrastructure must use ui-xxx folders: ${forbidden}`);
+}
+
+
+// 12. v0.0.89：Chat/Composer 共基线；reasoning 固定六档；强力推理正交；Slider 常驻粒子层避免整卡闪烁。
+const reasoningControl = read("packages/app-shell/src/reasoning-control.ts");
+for (const label of ["极低", "低", "中", "高", "极高", "极限"]) {
+  if (!reasoningControl.includes(`label: "${label}"`)) fail(`missing v0.0.89 reasoning stage: ${label}`);
+}
+for (const token of ["isReasoningDisabledValue", "providerOption.value", "reasoningBoostPreference", "reasoningBoost: boostActive"]) {
+  if (!(reasoningControl + tsx).includes(token)) fail(`missing v0.0.89 reasoning contract: ${token}`);
+}
+const boostToggle = tsx.match(/const toggleReasoningBoost = \(\) => \{[\s\S]*?\n  \};/);
+if (!boostToggle || /commitReasoningIndex|onQuickUpdateModelSetting/.test(boostToggle[0])) fail("strong reasoning must remain orthogonal to Provider reasoning stage");
+if (!css.includes("width:min(var(--agent-composer-max),100%)")) fail("chat timeline must share Composer horizontal geometry");
+if (/\.agent-runtime-control-card\{[^}]*translateZ\(0\)/s.test(css) || /\.agent-runtime-control-card\{[^}]*will-change:transform/s.test(css)) fail("runtime card must not force full-card GPU promotion");
+for (const token of ["--lfaa-slider-visual-progress", "style.setProperty", "setPointerCapture", "releasePointerCapture"]) {
+  if (!sharedSliderTsx.includes(token)) fail(`missing v0.0.89 smooth slider contract: ${token}`);
+}
+for (const token of ["cursor: grab", "cursor: grabbing", "background: #fff"]) {
+  if (!sharedSliderCss.includes(token)) fail(`missing v0.0.89 slider affordance: ${token}`);
+}
+for (const token of ["data-active", "data-variant", "--lfaa-effect-color-4", "translate3d"]) {
+  if (!(sharedEffectHost + sharedEffectCss).includes(token)) fail(`missing v0.0.89 particle stability contract: ${token}`);
+}
+for (const token of ["--lfaa-reasoning-standard-color-1", "--lfaa-reasoning-extreme-color-4"]) {
+  if (!(css + read("packages/ui/src/ui-effects/index.ts")).includes(token)) fail(`missing v0.0.89 customizable reasoning palette token: ${token}`);
 }
 
 console.log("LFAA UI contract check passed.");

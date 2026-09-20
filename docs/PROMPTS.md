@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #22.3 | 真实 Chat Run / UI Motion 与阻尼 Resize 基础 | v0.0.88 | pending-user-acceptance | pass | pending |
+| #22.4 | Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复 | v0.0.89 | pending-user-acceptance | pass | pending |
+| #22.3 | 真实 Chat Run / UI Motion 与阻尼 Resize 基础 | v0.0.88 | superseded | pass | not-accepted |
 | #21.21 | UI 共享模块 / Effect & Extension Registry 收敛 | v0.0.87 | pending-user-acceptance | pass | pending |
 | #21.20 | Composer 统一模型运行时控制器 / Popover 闪烁修复 | v0.0.86 | pending-user-acceptance | pass | pending |
 | #21.19 | Composer 模型 / 思考强度原地快切 | v0.0.85 | pending-user-acceptance | pass | pending |
@@ -69,6 +70,84 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #22.4 Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复
+
+### 用户目标 / 背景
+
+v0.0.88 实机反馈确认未通过：Chat Timeline 的用户/AI 消息没有与 Composer 共用左右基线；Runtime Control 的强力推理图标与卡片几何存在对齐问题；reasoning slider 缺少符合参考体验的连续拖拽与白色 Thumb 跟手感，粒子/流星效果不够动态，且 Slider 区域会带动整张悬浮卡片出现闪烁/闪屏。当前“强力推理 = 直接切最高 reasoning 档”的语义也不符合产品需求。
+
+本轮必须在不伪造 Provider 能力的前提下，把 UI 统一成固定六档视觉等级：`极低 / 低 / 中 / 高 / 极高 / 极限`。六档是 LFAA 的显示/交互刻度，实际提交值必须映射到当前模型官方 Capability 已声明的非关闭 reasoning 值；不得向 Provider 发送不存在的档位。强力推理改为与档位正交的独立 Run Hint：任何档位都可开/关；切换档位不得自动关闭或切换强力推理；进入“极限”时若用户没有显式关闭过，则默认开启强力推理，但“强力推理”本身不得再把档位强制改成极限。
+
+### 主模块 / 状态所有权
+
+- `packages/app-shell`：拥有 Composer Runtime Control 的交互投影、六档视觉等级到 Provider Capability 的映射、当前会话的强力推理 UI 状态；不拥有 Provider Capability 真值。
+- `packages/ui/src/ui-controls`：拥有通用离散 Slider 的 Pointer/Keyboard、白色 Thumb、拖拽 Preview 与平滑视觉过渡；不得包含模型语义。
+- `packages/ui/src/ui-effects`：拥有粒子/流星 Renderer、颜色 Token/Palette 与动画；不得参与业务布局或 Provider 参数。
+- `packages/agent-runtime`：如需让强力推理真实进入 Run，只允许新增通用 `reasoningBoost`/execution hint 契约；不得冒充 Provider setting。
+- `apps/web/dev/bridges/agent`：只消费 Runtime Hint，并以不泄露 Secret、不发送未声明 Provider 参数的方式影响开发态真实 Run。
+
+### 允许修改
+
+- `packages/app-shell/src/AgentWorkbench.tsx`、`reasoning-control.*`（如拆分）、`agent-workbench.css`；
+- `packages/ui/src/ui-controls/**`：Slider Motion / Thumb / CSS Variables；
+- `packages/ui/src/ui-effects/**`：粒子 Renderer、Palette、CSS Variables；
+- `packages/agent-runtime/**` 与 `apps/web/dev/bridges/agent/**`：仅限独立强力推理 Run Hint 的真实接线；
+- `test/model-quick-switch-contract.test.mjs`、`test/ui-shared-module-contract.test.mjs`、`test/ui-interaction-motion.test.mjs`、`test/chat-runtime-contract.test.mjs`、`scripts/ui-contract-check.mjs`；
+- 当前事实文档、版本元数据、CHANGELOG / RELEASES。
+
+### 禁止修改 / 安全边界
+
+- 禁止把 `极低/低/中/高/极高/极限` 六个 UI 名称直接当作 Provider 参数发送；只允许映射到当前模型官方 Capability 已声明值。
+- 禁止重新引入“关闭思考”作为 Runtime Control Slider 档位；Provider Capability 内若存在 `none/disabled/off`，只在本控件映射时排除，不篡改 Provider 原始 Catalog。
+- 禁止强力推理按钮自动把 Slider 改到最高档；禁止拖 Slider 自动关闭强力推理。
+- 禁止粒子组件读写业务 State、测量/改变卡片尺寸，禁止每帧 React State 更新；动画只使用 CSS transform/opacity/background-position 等 compositor-friendly 路径。
+- 禁止通过 `key` 重建 Runtime Card、在 Pointer Move 时 mount/unmount 整个 Effect/Popover、或用 `contain: paint` 裁剪 Tooltip。
+- 不修改 #2.15 已验收的侧栏隐藏超拖 50% 吸附规则。
+
+### 实现约束
+
+1. Chat Timeline 与 Composer 使用同一个水平几何 Token；用户消息容器右边缘与 Composer 右边缘对齐，AI/错误消息左边缘与 Composer 左边缘对齐，Compact/Mobile 同样成立。
+2. 六档视觉等级由单一常量表定义，标签、Index、默认极限行为、主题色全部变量化；后续 Settings 可以只覆盖 CSS Custom Properties / Palette 而不改算法。
+3. Provider reasoning 只取官方 Capability 的“非关闭选项”，按强度顺序归一映射到六个 UI index；同一 Provider 值允许被相邻 UI 档复用，保证绝不构造未声明值。
+4. 强力推理作为独立 Boolean 状态进入下一次 Agent Run；极限只负责“默认建议开启”，不能形成不可关闭的耦合。用户显式关闭后停留极限仍保持关闭，直到用户再次开启或模型切换/重置策略明确触发。
+5. Slider Pointer Move 只更新本地 Preview；Thumb 使用 transform/left 的稳定过渡，按下时可短暂放大，释放时有轻微阻尼式 settle；必须显示 `cursor: grab/grabbing` 和可见白色 Thumb。
+6. 粒子层常驻 Slider 内部，使用 `data-active/data-variant` 或 CSS variable 控制透明度/动画，不因每次拖动反复 mount/unmount；普通档使用粉色粒子，极限使用淡粉→粉→紫→深紫渐变粒子。
+7. Runtime Card 本体不得因 Slider Preview 更新发生布局尺寸变化；去除会诱发整卡合成层闪烁的无必要 GPU/contain 组合，仅对真正动画子层做 compositor hint。
+
+### 验收条件
+
+1. Chat 中用户消息右边缘与输入框右边缘同基线；AI/错误消息左边缘与输入框左边缘同基线。
+2. Runtime Card 顶部左/中/右三列视觉居中；强力推理 Bolt 不偏移。
+3. Slider 始终只有六档：极低、低、中、高、极高、极限；不显示“关”。
+4. 强力推理可以在六个档位任意开启/关闭；点击强力推理不改变当前档位；拖拽档位不关闭强力推理。
+5. 首次进入极限档默认开启强力推理；用户在极限显式关闭后不会被拖拽/重渲染强制重新打开。
+6. Slider 有清晰白色 Thumb，Pointer 光标为 grab/grabbing，拖动连续，不出现跳点、瞬移或卡片闪白。
+7. 普通档粒子为粉色；极限档粒子轨迹为淡粉→粉→紫→深紫渐变，并能持续动态流动；reduced-motion 下停用动画。
+8. 快速拖拽、Hover、打开模型列表、切模型、开关强力推理 30 次，Runtime Card 不闪屏、不闪白、不抖动，不因 Effect DOM 反复挂载产生布局变化。
+9. Agent Run 只携带官方 Capability 允许的 reasoning 值；独立强力推理 Hint 不进入 Provider model settings 白名单。
+
+### 必须测试
+
+- `node --test test/model-quick-switch-contract.test.mjs`
+- `node --test test/ui-shared-module-contract.test.mjs`
+- `node --test test/ui-interaction-motion.test.mjs`
+- `node --test test/chat-runtime-contract.test.mjs`
+- `node scripts/ui-contract-check.mjs`
+- 全仓 Node 测试 + Config System 回归 + `node scripts/workspace-preflight.mjs`
+- 最终 ZIP Unicode / `.lfaa` round-trip 后再次 `workspace-preflight`
+
+### 必须更新文档
+
+`PROJECT_PLAN.md`、`docs/DEVELOPMENT_LOG.md`、`docs/UI.md`、`docs/MODULES.md`、`docs/TESTING.md`、`ARCHITECTURE.md`（若 Runtime Hint 契约变化）、`docs/项目结构与代码地图.md`（若新增源码文件）、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG / 版本
+
+- CHANGELOG 编号：`#22.4`
+- 目标版本：`v0.0.89`
+- 当前状态：`pending-user-acceptance`
+- AI 验证：`pass`
+- 用户验收：`pending`
 
 ## #22.3 真实 Chat Run / UI Motion 与阻尼 Resize 基础
 

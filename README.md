@@ -3,9 +3,9 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.88**
+**当前包：LFAA-v0.0.89**
 
-## 当前产品定位（v0.0.84）
+## 当前产品定位（v0.0.89）
 
 LFAA 是面向个人的 AI 任务平台，而不是只会对话的聊天壳。用户可以通过 **Chat 一句话** 或 **Work 无限画布** 驱动同一个 Agent Runtime；一键开服、AI 写作、AI 拆图、Minecraft 插件/模组开发等场景最终都应作为 Plugin / Capability / App Pack 进入。
 
@@ -61,11 +61,11 @@ plugin-platform + agent-runtime + workbench
 当前版本总任务：
 
 ```text
-#22.3 真实 Chat Run / UI Motion 与阻尼 Resize 基础
-version: v0.0.88
+#22.4 Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复
+version: v0.0.89
 status: pending-user-acceptance
 
-v0.0.88 把“可配置模型但 Composer 不能发送”的缺口补成开发态真实模型对话闭环，并继续收敛交互基础设施：`ui-motion / ui-shortcuts / ui-resize / ui-overlay` 统一承载平滑展开、快捷键、阻尼 Resize 与层级 token。模型卡内部切换改为稳定挂载的渐进展开；Ctrl+Shift+M / Ctrl+Shift+P 可直接打开模型与权限控制；Workbench 侧栏保留 min 后继续超拖半程才吸附的规则，但视觉尺寸通过帧率无关阻尼追随 Pointer，减少快、硬、顿挫。
+v0.0.89 以 v0.0.88 实机反馈为输入：Chat 消息与 Composer 共用左右基线；Runtime reasoning 固定六档但只映射官方 Capability 值；强力推理改为独立 Run Hint；Slider 使用白色 Thumb、连续 Pointer 跟手与常驻流星粒子，极限档使用淡粉→粉→紫→深紫；Runtime Card 移除整卡强制 GPU promotion 以降低闪白/闪屏。
 
 #21.21 UI 共享模块 / Effect & Extension Registry 收敛
 version: v0.0.87

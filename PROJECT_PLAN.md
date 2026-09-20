@@ -11,18 +11,18 @@ plugin-platform + agent-runtime + workbench
 当前状态：
 
 ```text
-pending-user-acceptance
+testing
 ```
 
 当前版本总任务：
 
 ```text
-#22.3 真实 Chat Run / UI Motion 与阻尼 Resize 基础
-version: v0.0.88
+#22.4 Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复
+version: v0.0.89
 status: pending-user-acceptance
 ```
 
-v0.0.88 先把当前用户可见的“模型已配置但无法发送”修成真实 Web 开发态 Chat Run：浏览器只发 Run 请求，本地 Host 按 `credentialRef` 从 Secret Broker 取凭据并调用当前 API Provider，结果通过统一 `AgentRuntimeEvent` 投影回 Chat；该链只负责模型对话，Tools/Skills/MCP 仍留给 P2 Invocation。UI 同时新增 `ui-motion / ui-shortcuts / ui-resize`，统一模型卡展开、快捷键和侧栏阻尼 Resize；Overlay 层级改用 `ui-overlay` token，避免 tooltip/popover 被局部 stacking context 截断。
+v0.0.89 先处理 v0.0.88 实机未通过的 UI/交互问题：Chat Timeline 与 Composer 共享同一左右基线；Runtime Control 固定六档 `极低/低/中/高/极高/极限`，但只映射到当前模型官方 Capability 已声明的非关闭 reasoning 值；强力推理改为与档位正交的 Run Hint，极限只默认建议开启而不是强制耦合。Slider Motion/Thumb 继续归 `ui-controls`，粉色/粉紫流星粒子与 Palette 归 `ui-effects`，并优先消除 Pointer Preview 引起的整卡闪烁/闪白。
 
 v0.0.80 以用户提供的 DeepSeek Harness 源码包为主要工程参考，重点借鉴 capability seam、profile/bundle、PluginManager 共享事务、HMR 生命周期、credentials 引用和“抽象必须有当前 Consumer”的维护原则；不复制其产品实现。
 

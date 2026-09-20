@@ -25,11 +25,18 @@ export interface AgentModelBinding {
 export type AgentCapabilityKind = LfaaCapabilityKind;
 export type AgentCapabilityDescriptor = LfaaCapabilityDescriptor;
 
+/** Agent 级执行提示，不属于 Provider model settings；Host/Harness 可以按自身能力解释。 */
+export interface AgentExecutionHints {
+  /** 请求更充分的规划/校验，但不得被翻译成 Provider 未声明的 reasoning 参数。 */
+  readonly reasoningBoost?: boolean;
+}
+
 export interface AgentRunRequest {
   readonly surface: AgentSurfaceMode;
   readonly input: string;
   readonly model: AgentModelBinding;
   readonly permissionProfileId: AgentPermissionProfileId;
+  readonly executionHints?: AgentExecutionHints;
   /** 省略时由 Runtime Capability Registry 装配该工作区/模型的默认能力；UI 不自行挑选低配能力集。 */
   readonly capabilityIds?: readonly string[];
   readonly workspaceId: string;

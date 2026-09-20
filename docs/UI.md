@@ -1,3 +1,12 @@
+## v0.0.89 Chat 对齐 / 六档推理 / 稳定粒子交互
+
+- Chat Timeline 与 Composer 共用 `--agent-page-gutter + --agent-composer-max`：用户消息右边缘对齐 Composer 右边缘，AI/错误消息左边缘对齐 Composer 左边缘。
+- Runtime Control 只显示 `极低 / 低 / 中 / 高 / 极高 / 极限` 六个 LFAA 视觉档位；Provider 的 `none/off/disabled` 不进入 Slider。六档只能映射到 Config System 官方 Capability 已声明的非关闭值，禁止构造 Provider 不支持的档位。
+- “强力推理”是独立 Agent Run Hint，不再等于“切到最高档”。任意档位可开关；极限在 `auto` 策略下默认开启，但用户显式关闭后必须保持关闭。
+- `DiscreteSlider` 负责白色 Thumb、`grab/grabbing`、连续 Pointer 跟手与离散 commit；Pointer Move 的连续位置只写 `--lfaa-slider-visual-progress`，避免每像素触发业务 React 重渲染。
+- `UiEffectHost` 稳定常驻，通过 `data-active/data-variant` 切换；普通档粉色流星，极限为淡粉→粉→紫→深紫。Palette 与 Slider Accent 使用变量，供未来设置中心覆盖。
+- Runtime Card 本体禁止 `translateZ(0) + will-change: transform` 这类整卡强制合成；只对粒子等真正动画子层做 compositor hint，降低 Windows/Edge 整卡闪白风险。
+
 ## v0.0.88 UI Motion / Shortcut / Resize 共享边界
 
 共享交互继续统一放在 `packages/ui/src/ui-xxx`：`ui-motion` 负责稳定展开收起，`ui-shortcuts` 负责页面快捷键，`ui-resize` 负责阻尼 resize 运动学，`ui-overlay` 负责 outside-dismiss 与 layer tokens。业务组件只组合这些 Primitive。`Popover flicker / layout flash` 继续作为禁止回归项。

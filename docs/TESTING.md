@@ -1,3 +1,9 @@
+## v0.0.89 / #22.4 Chat Alignment + Reasoning Control 回归
+
+自动门禁必须锁定：六个非关闭 UI 档位；六档只提交官方 Capability option；强力推理 toggle 不调用 `commitReasoningIndex`；Agent Run Hint 与 Provider settings 分离；Chat/Composer 共用水平几何；Slider 用 DOM CSS variable 连续跟手、白色 Thumb、grab/grabbing；Effect Host 常驻并支持 standard/extreme Palette；Runtime Card 不再整卡 `translateZ(0)` / `will-change: transform`。
+
+Windows 实机重点：连续 30 次打开/关闭卡片、开关强力推理、拖拽六档、展开模型列表和切模型，观察是否还有闪白/闪屏；用户消息右对齐输入框，AI 左对齐输入框；普通档粉色流星、极限粉→紫流星；极限默认开强力推理但手动关闭后不自动弹回。
+
 ## v0.0.88 / #22.3 Chat Runtime + Motion 回归
 
 重点实机：模型已配置后发送按钮可用并产生真实回复；连续打开/关闭模型卡不应闪屏；Ctrl+Shift+M / Ctrl+Shift+P 生效；Tooltip 不被卡片裁剪；左右栏正常拉伸具阻尼且 min 后超拖 50% 的防误触吸附规则不变。

@@ -1,3 +1,11 @@
+## v0.0.89 推理控制职责收敛
+
+- `packages/app-shell/src/reasoning-control.ts`：纯函数六档 UI → 官方 Provider reasoning option 映射；只消费 Config System Capability，不拥有 Provider 真值。
+- `packages/ui/src/ui-controls/DiscreteSlider.tsx`：共享连续拖拽/白色 Thumb/键盘/settle，不包含模型语义。
+- `packages/ui/src/ui-effects/`：共享流星粒子、standard/extreme Palette 与稳定挂载 Host。
+- `packages/agent-runtime`：新增 `AgentExecutionHints.reasoningBoost`，与 `AgentModelBinding.settings` 分离。
+- `apps/web/dev/bridges/agent`：开发态把 `reasoningBoost` 解释为额外审慎校验的 system instruction；绝不把它伪装成 Provider 未声明的 reasoning setting。
+
 ## v0.0.88 UI / Runtime 新模块
 
 - `packages/ui/src/ui-motion`：AnimatedDisclosure。

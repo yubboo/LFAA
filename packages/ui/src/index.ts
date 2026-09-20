@@ -25,7 +25,7 @@ export type { DismissibleLayerOptions } from "./ui-overlay/useDismissibleLayer.t
 export { DiscreteSlider } from "./ui-controls/DiscreteSlider.tsx";
 export type { DiscreteSliderProps, DiscreteSliderStep } from "./ui-controls/DiscreteSlider.tsx";
 export { UiEffectHost, UiEffectRegistry, builtinUiEffectRegistry } from "./ui-effects/index.ts";
-export type { UiEffectDefinition, UiEffectRegistration, UiEffectRendererKind } from "./ui-effects/index.ts";
+export type { UiEffectDefinition, UiEffectRegistration, UiEffectRendererKind, UiEffectVariant } from "./ui-effects/index.ts";
 export { UiExtensionRegistry } from "./ui-extension/registry.ts";
 export type { UiExtensionContribution, UiExtensionKind } from "./ui-extension/contracts.ts";
 export type { ThemeModeMenuProps, ThemePreference } from "./features/appearance/ThemeModeMenu.tsx";

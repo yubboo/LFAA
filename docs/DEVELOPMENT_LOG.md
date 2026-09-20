@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #22.3 | 真实 Chat Run / UI Motion 与阻尼 Resize 基础 | v0.0.88 | pending-user-acceptance |
+| #22.4 | Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复 | v0.0.89 | pending-user-acceptance |
+| #22.3 | 真实 Chat Run / UI Motion 与阻尼 Resize 基础 | v0.0.88 | superseded |
 | #21.21 | UI 共享模块 / Effect & Extension Registry 收敛 | v0.0.87 | pending-user-acceptance |
 | #21.20 | Composer 统一模型运行时控制器 / Popover 闪烁修复 | v0.0.86 | pending-user-acceptance |
 | #21.19 | Composer 模型 / 思考强度原地快切 | v0.0.85 | pending-user-acceptance |
@@ -55,10 +56,24 @@
 
 
 
+### #22.4 Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复
+
+- **版本：** v0.0.89
+- **状态：** pending-user-acceptance
+- **用户反馈：** v0.0.88 的 Chat 消息基线与 Composer 不一致；Runtime Card 顶部图标/模型区域有对齐问题；推理 Slider 拖拽僵硬、白色 Thumb/抓取反馈不稳定；粒子缺少持续流星感；Slider/Effect 更新时整张悬浮卡片存在闪白/闪屏。
+- **语义修正：** Runtime Control 固定显示 `极低 / 低 / 中 / 高 / 极高 / 极限` 六档，不再把 Provider 的 `none/disabled` 作为 UI 档位；六档只映射到官方 Capability 已声明的非关闭值。强力推理与档位解耦为独立 Run Hint，不再强制选择最高档。
+- **实现边界：** Slider Motion/Thumb 归 `ui-controls`；粒子/渐变 Palette 归 `ui-effects`；App Shell 只投影六档与 Capability 映射；Provider Catalog/Secret 不改。
+- **验收重点：** 对话左右基线、六档标签、极限默认强力推理但可显式关闭、任意档可独立强力推理、拖拽 grab/grabbing + 白色 Thumb、普通粉粒子/极限粉紫渐变粒子、Runtime Card 30 次交互无闪屏。
+- **AI 验证：** pass。#22.4 聚焦回归 20/20 PASS；除制作容器依赖解析项 `node-source-runtime.test.mjs` 外的仓库 Node 静态/契约测试 129/129 PASS；UI / Config Schema / Release Gates 均 PASS；修改 TS/TSX 语法 transpile PASS。统一 `workspace-preflight` 全 Gate PASS；候选 ZIP Unicode / `.lfaa` round-trip 后再次 `workspace-preflight` 全 Gate PASS。制作容器为 Node 22、无 pnpm/node_modules，因此不声称 Node 24 + workspace 动态运行套件已执行。
+- **用户验收：** pending。
+
+
+
+
 ### #22.3 真实 Chat Run / UI Motion 与阻尼 Resize 基础
 
 - **版本：** v0.0.88
-- **状态：** pending-user-acceptance
+- **状态：** superseded（v0.0.89 / #22.4 继续修复实机未通过项）
 - **问题：** 模型已配置但 Composer 仍因 Runtime Host 未接而无法发送；模型卡切换过快、层级 tooltip 被裁剪；侧栏 resize 手感偏硬。
 - **实现：** 新增 Web 开发态 Agent Runtime Bridge + Runtime Event Projection；新增 `ui-motion / ui-shortcuts / ui-resize / overlay layer tokens`；模型 picker 使用稳定 Disclosure；侧栏使用帧率无关阻尼。
 - **边界：** 当前 Chat bridge 是真实 API 文本对话 smoke runtime，不把 P2 Tools/Skills/MCP 伪装为已完成；Secret 仍只在 Host 内按 credentialRef 获取。

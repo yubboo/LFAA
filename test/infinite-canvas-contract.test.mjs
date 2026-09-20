@@ -23,7 +23,8 @@ test("workbench exposes Chat and Work as two surfaces on one permission/model/ru
   assert.match(shell, /props\.agentRuntimeHost\.startRun\(\{/);
   assert.match(shell, /surface: agentSurface/);
   assert.match(shell, /permissionProfileId,/);
-  assert.match(shell, /model: activeModelBinding/);
+  assert.match(shell, /const runModelBinding: AgentModelBinding/);
+  assert.match(shell, /model: runModelBinding/);
   assert.match(shell, /selectedModelId/);
   assert.doesNotMatch(shell, /GPT-5\.6 Sol/);
   assert.match(shell, /Agent Runtime Host 未连接/);

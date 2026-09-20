@@ -53,4 +53,4 @@ docs/logs/runtime/source-update/
 这些是本机运行数据目录，不再放 Markdown README。
 
 
-> 当前候选版本：v0.0.88（#22.3，pending-user-acceptance）；真实 Chat Run、共享 Motion/Shortcut/Resize 与 Overlay 层级等待 Windows 实机验收。
+> 当前候选版本：v0.0.89（#22.4，pending-user-acceptance）；Chat/Composer 对齐、六档推理、独立强力推理、连续 Slider 与粒子稳定性等待 Windows 实机验收。

@@ -1,3 +1,21 @@
+## v0.0.89 Reasoning Control / Execution Hint 边界
+
+```text
+Config System official Capability options
+        ↓ (filter OFF only for this UI projection)
+reasoning-control.ts: six visual stages → existing Provider values
+        ↓
+AgentModelBinding.settings  = official Provider settings only
+
+Strong Reasoning toggle
+        ↓
+AgentRunRequest.executionHints.reasoningBoost
+        ↓
+Host/Harness-specific interpretation
+```
+
+六档是 LFAA UI 刻度，不是新的 Provider 协议。强力推理与 Provider reasoning 档位正交；不得因为按钮开启就把 Provider setting 强制写到最高档，也不得把 UI 的 `极限` 字符串直接发送给 Provider。
+
 # LFAA 当前架构
 
 > 本文件只描述当前有效架构；历史变化统一通过 `docs/DEVELOPMENT_LOG.md` 追溯。

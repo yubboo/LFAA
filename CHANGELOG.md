@@ -1,3 +1,15 @@
+## LFAA v0.0.89 — #22.4 Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复
+
+- **状态：** pending-user-acceptance（AI 自动验证通过，等待 Windows 实机用户验收）。
+- Chat Timeline 与 Composer 改用同一水平几何：用户消息右基线、AI/错误消息左基线分别与输入框两侧对齐。
+- Runtime reasoning 固定为 `极低 / 低 / 中 / 高 / 极高 / 极限`；过滤 UI 中的关闭档，但实际值只复用官方 Capability 已声明 option，绝不伪造 Provider 参数。
+- “强力推理”从“强制最高档”改为独立 `AgentExecutionHints.reasoningBoost`；任意档可开关，极限自动默认开但允许显式关闭。
+- `DiscreteSlider` 改为 Pointer 连续跟手 + 白色 Thumb + grab/grabbing + 220ms settle；连续像素进度直接写 CSS variable，减少业务组件重渲染。
+- `UiEffectHost` 稳定常驻；普通档粉色流星，极限淡粉→粉→紫→深紫；Palette/Accent 变量化，预留 Settings 自定义。
+- 移除 Runtime Card 整卡 `translateZ(0)` / `will-change: transform`，保留局部粒子 compositor 动画，针对 Windows/Edge 悬浮卡闪白/闪屏根因降噪。
+- 新增 #22.4 reasoning / drag / effect / chat runtime 静态回归与 UI Contract Gate。
+- **AI 验证：** #22.4 聚焦 20/20 PASS；除制作容器缺少 workspace 依赖而无法执行的 `node-source-runtime.test.mjs` 外，仓库 Node 静态/契约测试 129/129 PASS；UI Contract、Config Schema、Release Gates 与统一 `workspace-preflight` 全 Gate PASS；候选 ZIP Unicode / `.lfaa` round-trip 后 preflight 再次 PASS；制作容器为 Node 22 且无 pnpm/node_modules，不冒充 Node 24 全量动态验证。
+
 ## LFAA v0.0.88 — #22.3 真实 Chat Run / UI Motion 与阻尼 Resize 基础
 
 ### 修复

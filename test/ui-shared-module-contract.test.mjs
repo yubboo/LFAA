@@ -36,3 +36,10 @@ test("UI effect and extension registries support owner-scoped uninstall with gen
   }
   assert.match(effectHost, /effect\.renderer === "meteor-trail"/);
 });
+
+test("reasoning effect host stays mounted and switches standard/extreme palettes declaratively", () => {
+  assert.match(effectHost, /data-active=\{active \? "true" : "false"\}/);
+  assert.match(effectHost, /data-variant=\{variant\}/);
+  assert.doesNotMatch(effectHost, /if \(!active\) return null/);
+  assert.match(workbench, /effect=\{<UiEffectHost[^>]*active[^>]*variant=/s);
+});

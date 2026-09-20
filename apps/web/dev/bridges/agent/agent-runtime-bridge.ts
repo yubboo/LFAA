@@ -23,6 +23,10 @@ const MAX_BODY_BYTES = 64 * 1024;
 const MAX_HISTORY_MESSAGES = 24;
 
 type ConversationMessage = { role: "user" | "assistant"; content: string };
+type ProviderMessage = { role: "system" | "user" | "assistant"; content: string };
+
+const REASONING_BOOST_INSTRUCTION =
+  "Use a more deliberate verification pass before answering. Keep internal reasoning private and return only the final answer.";
 
 function sendJson(response: ServerResponse, status: number, body: unknown): void {
   response.statusCode = status;
@@ -80,11 +84,16 @@ function parseRunRequest(value: unknown): AgentRunRequest {
       if (["string", "number", "boolean"].includes(typeof item)) settings[key] = item as string | number | boolean;
     }
   }
+  const rawHints = raw.executionHints;
+  const executionHints = rawHints && typeof rawHints === "object" && !Array.isArray(rawHints)
+    ? { reasoningBoost: (rawHints as Record<string, unknown>).reasoningBoost === true }
+    : undefined;
   return {
     surface: raw.surface,
     input: raw.input.trim(),
     model: { accountId: m.accountId, providerId: m.providerId, modelId: m.modelId, settings },
     permissionProfileId: typeof raw.permissionProfileId === "string" ? raw.permissionProfileId as AgentRunRequest["permissionProfileId"] : "ask",
+    ...(executionHints ? { executionHints } : {}),
     workspaceId: typeof raw.workspaceId === "string" && raw.workspaceId ? raw.workspaceId : "lfaa",
   };
 }
@@ -148,14 +157,18 @@ async function providerCall(options: {
   const capability = provider.describeModel(options.request.model.modelId);
   const settings = options.request.model.settings ?? {};
 
+  const providerHistory: readonly ProviderMessage[] = options.request.executionHints?.reasoningBoost
+    ? [{ role: "system", content: REASONING_BOOST_INSTRUCTION }, ...options.history]
+    : options.history;
+
   let url: string;
   const body: Record<string, unknown> = { model: options.request.model.modelId };
   if (options.account.providerId === "openai") {
     url = `${connection.baseUrl.replace(/\/$/, "")}/responses`;
-    body.input = options.history.map((message) => ({ role: message.role, content: message.content }));
+    body.input = providerHistory.map((message) => ({ role: message.role, content: message.content }));
   } else {
     url = `${connection.baseUrl.replace(/\/$/, "")}/chat/completions`;
-    body.messages = options.history;
+    body.messages = providerHistory;
   }
   for (const field of capability?.settings ?? []) {
     const value = settings[field.id];
