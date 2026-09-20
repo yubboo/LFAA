@@ -1,0 +1,365 @@
+/**
+ * 文件：RuntimeControl.module.css
+ * 作用：RuntimeControl 子模块局部静态视觉。
+ * 负责：触发器、单卡 Popover、Toolbar、ModelPicker、Reasoning Slider 容器的静态布局/颜色/hover/focus。
+ * 不负责：reasoning 档位语义、拖拽几何算法、粒子运动、React 状态、兄弟区域视觉。
+ * 修改注意事项：动态 Pointer / Canvas / 阻尼逻辑必须留在 TypeScript/shared primitive；不得新增 @keyframes 粒子动画。
+ */
+
+.anchor {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.trigger {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: .32rem;
+  height: 2.05rem;
+  max-width: min(24rem,42vw);
+  padding: 0 .68rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--agent-bubble);
+  color: var(--agent-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: .74rem;
+  white-space: nowrap;
+}
+
+.trigger:hover,
+.trigger:focus-visible {
+  background: var(--agent-hover);
+  outline: none;
+}
+
+.triggerBoosted { color: var(--agent-runtime-accent); }
+
+.triggerModel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 580;
+}
+
+.triggerEffort {
+  color: var(--agent-muted);
+  font-size: .68rem;
+}
+
+.triggerBoosted .triggerEffort { color: inherit; }
+
+.triggerTooltip {
+  position: absolute;
+  z-index: var(--lfaa-layer-tooltip,620);
+  right: 0;
+  bottom: calc(100% + .5rem);
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  width: max-content;
+  max-width: 18rem;
+  padding: .42rem .58rem;
+  border-radius: .58rem;
+  background: #202020;
+  color: #fff;
+  box-shadow: 0 .55rem 1.5rem rgba(0,0,0,.22);
+  font-size: .68rem;
+  line-height: 1;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(.2rem);
+  transition: opacity 130ms ease, transform 180ms cubic-bezier(.16,.82,.24,1), visibility 130ms linear;
+}
+
+.triggerTooltip kbd {
+  padding: .12rem .34rem;
+  border-radius: .35rem;
+  background: #595959;
+  color: #eee;
+  font: inherit;
+  font-size: .62rem;
+}
+
+.trigger:hover .triggerTooltip,
+.trigger:focus-visible .triggerTooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.card {
+  position: absolute;
+  z-index: var(--lfaa-layer-popover,520);
+  right: 0;
+  bottom: calc(100% + .48rem);
+  left: auto;
+  width: min(21rem,calc(100vw - 2rem));
+  min-width: 20rem;
+  padding: .58rem .62rem .66rem;
+  border: 1px solid var(--agent-border);
+  border-radius: 1rem;
+  background: var(--agent-elevated);
+  box-shadow: 0 1.2rem 3rem rgba(0,0,0,.22);
+  contain: layout style;
+  isolation: isolate;
+  overflow: visible;
+}
+
+/* 语义标记：保留独立类，未来主题可消费；本版不改变 v0.0.93 视觉。 */
+.cardBoosted { --lfaa-runtime-boosted: 1; }
+
+.toolbar {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0,1fr) 2.25rem;
+  align-items: center;
+  justify-items: center;
+  gap: .28rem;
+  min-height: 3.5rem;
+}
+
+.iconButton {
+  position: relative;
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  align-self: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: .62rem;
+  background: transparent;
+  color: var(--agent-muted);
+  cursor: pointer;
+  line-height: 0;
+}
+
+.iconButton svg { display: block; }
+
+.iconButton:hover,
+.iconButton:focus-visible {
+  background: var(--agent-hover);
+  color: var(--agent-text);
+  outline: none;
+}
+
+.iconButton:disabled {
+  opacity: .38;
+  cursor: not-allowed;
+}
+
+.iconButtonActive {
+  color: var(--agent-runtime-accent-active);
+  background: color-mix(in srgb,var(--agent-runtime-accent-active) 10%,transparent);
+}
+
+.iconButton[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: var(--lfaa-layer-tooltip,620);
+  left: 50%;
+  top: calc(100% + .34rem);
+  transform: translate(-50%,-.15rem);
+  width: max-content;
+  max-width: 12rem;
+  padding: .38rem .5rem;
+  border-radius: .5rem;
+  background: #1f1f1f;
+  color: #fff;
+  font-size: .58rem;
+  font-weight: 560;
+  line-height: 1.25;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .1s ease,transform .1s ease;
+  box-shadow: 0 .35rem 1rem rgba(0,0,0,.2);
+}
+
+.iconButton[data-tooltip]:hover::after,
+.iconButton[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%,0);
+}
+
+.modelButton {
+  display: grid;
+  grid-template-columns: 1fr;
+  place-items: center;
+  justify-self: stretch;
+  gap: .05rem;
+  width: 100%;
+  min-width: 0;
+  padding: .25rem .45rem;
+  border: 0;
+  border-radius: .65rem;
+  background: transparent;
+  text-align: center;
+  cursor: pointer;
+}
+
+.modelButton:hover,
+.modelButton:focus-visible {
+  background: var(--agent-hover);
+  outline: none;
+}
+
+.modelButton strong {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .18rem;
+  color: var(--agent-runtime-accent);
+  font-size: .84rem;
+  font-weight: 660;
+}
+
+.modelButton strong svg { transition: transform 260ms cubic-bezier(.16,.82,.24,1); }
+.modelButtonOpen strong svg { transform: rotate(180deg); }
+
+.modelButton small {
+  display: block;
+  max-width: 13rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--agent-muted);
+  font-size: .7rem;
+}
+
+
+.modelPickerDisclosure { margin-top: .12rem; }
+
+.modelPicker {
+  padding-top: .34rem;
+  border-top: 1px solid var(--agent-border);
+}
+
+.modelPickerLabel {
+  padding: .2rem .48rem .28rem;
+  color: var(--agent-subtle);
+  font-size: .6rem;
+  text-transform: none;
+}
+
+.modelPickerList {
+  max-height: min(15rem,36vh);
+  overflow: auto;
+}
+
+.modelPickerList button,
+.modelPickerManage {
+  width: 100%;
+  display: grid;
+  border: 0;
+  border-radius: .52rem;
+  background: transparent;
+  color: var(--agent-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.modelPickerList button {
+  grid-template-columns: minmax(0,1fr) 1rem;
+  align-items: center;
+  gap: .45rem;
+  padding: .5rem .48rem;
+}
+
+.modelPickerList button:hover,
+.modelPickerList button:focus-visible,
+.modelPickerActive {
+  background: var(--agent-hover);
+  outline: none;
+}
+
+.modelPickerList button > span {
+  min-width: 0;
+  display: grid;
+  gap: .08rem;
+}
+
+.modelPickerList button strong {
+  font-size: .72rem;
+  font-weight: 640;
+}
+
+.modelPickerList button small {
+  color: var(--agent-muted);
+  font-size: .58rem;
+  line-height: 1.45;
+}
+
+.modelPickerList button i {
+  font-style: normal;
+  text-align: center;
+  font-size: .72rem;
+}
+
+.modelPickerList button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.modelPickerManage {
+  grid-template-columns: 1.1rem minmax(0,1fr);
+  align-items: center;
+  gap: .5rem;
+  margin-top: .25rem;
+  padding: .45rem .48rem;
+  border-top: 1px solid var(--agent-border);
+  border-radius: .45rem;
+  font-size: .68rem;
+}
+
+.modelPickerManage > span {
+  min-width: 0;
+  display: grid;
+  gap: .12rem;
+}
+
+.modelPickerManage:hover,
+.modelPickerManage:focus-visible {
+  background: var(--agent-hover);
+  outline: none;
+}
+
+.reasoningSliderShell {
+  min-height: 2.25rem;
+  padding: .5rem .12rem .08rem;
+  --lfaa-slider-accent-1: var(--lfaa-reasoning-standard-color-1);
+  --lfaa-slider-accent-2: var(--lfaa-reasoning-standard-color-2);
+  --lfaa-slider-accent-3: var(--lfaa-reasoning-standard-color-3);
+  --lfaa-slider-accent-4: var(--lfaa-reasoning-standard-color-4);
+}
+
+.reasoningSliderShell[data-reasoning-stage="extreme"] {
+  --lfaa-slider-accent-1: var(--lfaa-reasoning-extreme-color-1);
+  --lfaa-slider-accent-2: var(--lfaa-reasoning-extreme-color-2);
+  --lfaa-slider-accent-3: var(--lfaa-reasoning-extreme-color-3);
+  --lfaa-slider-accent-4: var(--lfaa-reasoning-extreme-color-4);
+}
+
+.unsupported {
+  padding: .45rem .2rem .12rem;
+  color: var(--agent-muted);
+  font-size: .62rem;
+  text-align: center;
+}
+
+.anchor[data-layout-mode="mobile"] { margin-left: auto; }
+.anchor[data-layout-mode="mobile"] .trigger { max-width: 11rem; }
+.anchor[data-layout-mode="mobile"] .card {
+  position: fixed;
+  left: .75rem;
+  right: .75rem;
+  bottom: 4.7rem;
+  width: auto;
+  min-width: 0;
+}

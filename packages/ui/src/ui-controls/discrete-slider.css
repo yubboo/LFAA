@@ -1,18 +1,14 @@
-/*
- * Discrete Slider 几何只有一套：外层负责 Pointer Capture，__geometry 负责 rail / fill / mark / effect / thumb 的共同坐标系。
- * 首末档永远位于 geometry 的 0% / 100%，因此 thumb、mark 与 rail 端点严格一致。
- */
 .lfaa-discrete-slider {
   --lfaa-slider-progress: 50%;
   --lfaa-slider-visual-progress: var(--lfaa-slider-progress);
-  --lfaa-slider-edge-inset: .78rem;
-  --lfaa-slider-rail-height: .82rem;
   --lfaa-slider-accent-1: #ffb7d3;
   --lfaa-slider-accent-2: #f578ad;
   --lfaa-slider-accent-3: #ea5a9d;
   --lfaa-slider-accent-4: #df4b92;
   position: relative;
   height: 2.25rem;
+  display: flex;
+  align-items: center;
   touch-action: none;
   cursor: grab;
   outline: none;
@@ -21,33 +17,25 @@
 .lfaa-discrete-slider:focus-visible { filter: drop-shadow(0 0 .25rem color-mix(in srgb,var(--lfaa-slider-accent-3) 25%,transparent)); }
 .lfaa-discrete-slider.is-dragging { cursor: grabbing; }
 .lfaa-discrete-slider.is-disabled { opacity: .45; cursor: not-allowed; }
-
-.lfaa-discrete-slider__geometry {
-  position: absolute;
-  inset: 0 var(--lfaa-slider-edge-inset);
-  pointer-events: none;
-}
 .lfaa-discrete-slider__rail,
-.lfaa-discrete-slider__fill,
-.lfaa-discrete-slider__effect-clip {
+.lfaa-discrete-slider__fill {
   position: absolute;
-  left: 0;
+  left: .12rem;
   top: 50%;
-  height: var(--lfaa-slider-rail-height);
+  height: .82rem;
   transform: translateY(-50%);
   border-radius: 999px;
 }
 .lfaa-discrete-slider__rail {
-  z-index: 1;
-  right: 0;
+  right: .12rem;
   background: color-mix(in srgb,currentColor 13%,transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb,currentColor 10%,transparent);
   opacity: .72;
 }
 .lfaa-discrete-slider__fill {
-  z-index: 2;
-  width: var(--lfaa-slider-visual-progress);
-  min-width: 0;
+  right: auto;
+  width: calc(var(--lfaa-slider-visual-progress) - .02rem);
+  min-width: .16rem;
   background: linear-gradient(90deg,var(--lfaa-slider-accent-1),var(--lfaa-slider-accent-2) 38%,var(--lfaa-slider-accent-3));
   transition: width 220ms cubic-bezier(.16,.82,.24,1);
 }
@@ -55,15 +43,6 @@
   background: linear-gradient(90deg,var(--lfaa-slider-accent-1) 0%,var(--lfaa-slider-accent-2) 34%,var(--lfaa-slider-accent-3) 68%,var(--lfaa-slider-accent-4) 100%);
 }
 .lfaa-discrete-slider.is-dragging .lfaa-discrete-slider__fill { transition: none; }
-
-/* Effect 只能活在 rail 胶囊内部；Canvas 自身不再承担外部布局裁剪。 */
-.lfaa-discrete-slider__effect-clip {
-  z-index: 4;
-  right: 0;
-  overflow: hidden;
-  contain: paint;
-}
-
 .lfaa-discrete-slider__mark {
   position: absolute;
   z-index: 5;
@@ -78,7 +57,6 @@
   pointer-events: none;
 }
 .lfaa-discrete-slider__mark.is-filled { background: rgba(255,255,255,.68); }
-
 .lfaa-discrete-slider__thumb {
   position: absolute;
   z-index: 7;

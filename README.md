@@ -1,11 +1,19 @@
+# LFAA v0.0.94 — Workbench 全域模块化基线
+
+**当前包：LFAA-v0.0.94**
+
+v0.0.94 / #21.23 将整个 Workbench 按 DeepSeek Harness 同方向的工程边界重构：`AgentWorkbench` 只保留 Composition Root；Shell、Left、Center(Header / Conversation / Composer / RuntimeControl)、Right、Terminal、Settings、Session、Shared 各自拥有明确 Owner、公共 `index.ts` 和局部 `*.module.css`。`agent-workbench.css` 已收敛为全局 reset，不再用 `.agent-*` 跨模块控制区域 UI。
+
+本轮是**等价模块迁移**：冻结 v0.0.93 用户可见行为，不顺手修改 Reasoning Slider/粒子/Resize/Motion/Provider/Runtime 语义。动态拖拽、阻尼、Slider geometry、Canvas Effect 继续由 TypeScript 与 `@lfaa/ui` 共享 Primitive 持有。
+
 # Little Fish AI Agent
 
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.92**
+**当前包：LFAA-v0.0.94**
 
-## 当前产品定位（v0.0.92）
+## 当前产品定位（v0.0.94）
 
 LFAA 是面向个人的 AI 任务平台，而不是只会对话的聊天壳。用户可以通过 **Chat 一句话** 或 **Work 无限画布** 驱动同一个 Agent Runtime；一键开服、AI 写作、AI 拆图、Minecraft 插件/模组开发等场景最终都应作为 Plugin / Capability / App Pack 进入。
 
@@ -61,12 +69,11 @@ plugin-platform + agent-runtime + workbench
 当前版本总任务：
 
 ```text
-#22.7 Reasoning Slider 几何与星光粒子修正
-#20.19 Unicode ZIP 归档与 Sync 来源诊断修复（沿用）
-version: v0.0.92
-status: implementing
+#21.23 Workbench 全域模块化 / DeepSeek Harness 风格边界
+version: v0.0.94
+status: pending-user-acceptance
 
-v0.0.92 继续修复 Runtime reasoning 的实机问题：Provider Catalog 仍真实保留 `none/off/disabled`，但“思考强度”Slider 只显示有效非关闭 reasoning 档；闪电/重置 icon-only button 修正通用 Popover 双列 grid 导致的偏左；Slider 的 rail/mark/thumb/Pointer 统一到同一 geometry；Canvas 被严格裁剪在 rail 胶囊内部，并改为图六参考的细小星点、光尘与少量四向星芒，不再绘制箭头/长尾短线。v0.0.91 的 reasoning 串行提交与 Unicode ZIP 修复继续保留。
+v0.0.94 在 v0.0.93 父子区域基线上继续完成**全域模块化**：Shell / Left / Center(Header / Conversation / Composer / RuntimeControl) / Right / Terminal / Settings / Session / Shared 都有唯一 Owner、公共入口与局部 CSS Module；`AgentWorkbench` 只做 Composition Root，`agent-workbench.css` 只保留 reset。共享 Slider/Canvas/Resize/Motion 算法保持 v0.0.93 行为不变。
 
 #21.21 UI 共享模块 / Effect & Extension Registry 收敛
 version: v0.0.87

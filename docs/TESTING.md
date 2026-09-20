@@ -1,15 +1,27 @@
-## v0.0.92 / #22.7 Reasoning Slider 几何与星光粒子回归
+## v0.0.94 / #21.23 全域模块化回归
 
-自动门禁必须锁定：
+本轮新增/扩展模块边界门禁，检查：
 
-- Config Provider 源码仍可真实包含 `none`；`reasoning-control.ts` 只在 Runtime projection 过滤 `none/off/disabled/...` 关闭 sentinel，剩余 option 不排序、不补档。
-- `DiscreteSlider` 必须存在 `geometryRef`，Pointer ratio 读取 `geometry.getBoundingClientRect()`；rail/mark/thumb/effect 均位于 `__geometry`。
-- `__effect-clip` 必须 `overflow:hidden` 并与 rail 共用胶囊几何，Canvas 不得越出轨道。
-- `ParticleStreamCanvas` 必须有 `drawSparkle` / point `arc` / twinkle，不得出现 `lineTo/stroke/const tail` 方向尾线。
-- Runtime icon-only button 必须覆盖通用 Popover 双列 grid 为 `grid-template-columns:1fr`。
-- 强力推理仍然正交，不调用 `commitReasoningIndex`；reasoning 保存仍用串行队列，不触发 `modelControlBusy`。
+- `AgentWorkbench.tsx` 保持薄 Composition Root；
+- Shell / Left / Center(Header/Conversation/Composer/RuntimeControl) / Right / Terminal / Settings / Session / Shared 均存在公开 `index.ts` 边界；
+- `agent-workbench.css` 为 reset-only，模块 CSS 禁止 `:global` 与 legacy `.agent-*`；
+- sibling/ancestor feature 不允许深链 import；
+- 既有 Chat/Work、Settings、Quick Model、Reasoning、Dismissible Layer、Infinite Canvas、Resize/Snap 合同按真实 Owner 文件继续回归；
+- `packages/ui/src/ui-controls`、`ui-effects`、`ui-resize`、`ui-motion` 相对 v0.0.93 零 diff。
 
-Windows 实机重点：DeepSeek `none/low/high/max` 应显示 low/high/max；按钮图标居中；首末档 thumb 中心落在 rail 两端；开启闪电后只在粉色填充 rail 内看到细小星点/闪烁星芒，关闭立即停止；连续拖拽松手不闪。
+当前制作环境结果：聚焦模块/行为测试 45/45 PASS；全仓 Node 合同测试 140 项中 139 项 PASS，唯一 `node-source-runtime.test.mjs` 因 Node 22.16.0 且没有 pnpm workspace `node_modules` 无法解析 `@lfaa/credentials`，属于已记录环境限制；Workbench TS/TSX 语法 transpile 50/50 PASS；`scripts/ui-contract-check.mjs` PASS。
+
+## v0.0.93 / #21.22 Workbench 模块边界回归
+
+必须验证：
+
+- `test/workbench-module-boundary.test.mjs`：四个大区域 + Center/Composer 子模块真实存在，`AgentWorkbench` 不得重新吸收区域 JSX；
+- `model-quick-switch-contract` / `ui-shared-module-contract` / `ui-interaction-motion` 跟随新模块物理路径检查原有行为合同；
+- `packages/app-shell/src/agent-workbench.css` 与 v0.0.91 字节级不变；
+- `packages/ui/src/ui-controls`、`ui-effects`、`ui-resize` 与 v0.0.91 零 diff；
+- UI Contract / Folder Boundary / Workspace Preflight 必须通过。
+
+本轮用户验收重点不是新视觉，而是确认模块重构没有让已有功能消失或回退。
 
 ## v0.0.91 / #22.6 + #20.19 回归
 

@@ -5,6 +5,8 @@ import { existsSync, readFileSync } from "node:fs";
 const root = new URL("../", import.meta.url);
 const uiIndex = readFileSync(new URL("packages/ui/src/index.ts", root), "utf8");
 const workbench = readFileSync(new URL("packages/app-shell/src/AgentWorkbench.tsx", root), "utf8");
+const runtimeControl = readFileSync(new URL("packages/app-shell/src/workbench/center/composer/runtime-control/RuntimeControl.tsx", root), "utf8");
+const reasoningRow = readFileSync(new URL("packages/app-shell/src/workbench/center/composer/runtime-control/ReasoningControlRow.tsx", root), "utf8");
 const workbenchCss = readFileSync(new URL("packages/app-shell/src/agent-workbench.css", root), "utf8");
 const slider = readFileSync(new URL("packages/ui/src/ui-controls/DiscreteSlider.tsx", root), "utf8");
 const effectRegistry = readFileSync(new URL("packages/ui/src/ui-effects/registry.ts", root), "utf8");
@@ -21,10 +23,10 @@ test("shared UI infrastructure stays under packages/ui/src/ui-xxx", () => {
 });
 
 test("model runtime control consumes reusable slider/effect modules instead of embedding them", () => {
-  assert.match(workbench, /<DiscreteSlider/);
-  assert.match(workbench, /<UiEffectHost registry=\{builtinUiEffectRegistry\} effectId="reasoning-overdrive"/);
-  assert.doesNotMatch(workbench, /setPointerCapture/);
-  assert.doesNotMatch(workbench, /agent-reasoning-slider__particles/);
+  assert.match(reasoningRow, /<DiscreteSlider/);
+  assert.match(reasoningRow, /<UiEffectHost[\s\S]*?registry=\{builtinUiEffectRegistry\}[\s\S]*?effectId="reasoning-overdrive"/);
+  assert.doesNotMatch(runtimeControl + reasoningRow, /setPointerCapture/);
+  assert.doesNotMatch(runtimeControl + reasoningRow, /agent-reasoning-slider__particles/);
   assert.doesNotMatch(workbenchCss, /agent-reasoning-meteor|agent-reasoning-slider__thumb|agent-reasoning-slider__particles/);
   for (const token of ["setPointerCapture", "onPointerMove", "onPointerUp", 'role="slider"', "ArrowLeft", "ArrowRight", "Home", "End"]) assert.match(slider, new RegExp(token));
 });
@@ -45,5 +47,7 @@ test("reasoning effect host uses one stable Canvas renderer with declarative act
   assert.match(particleCanvas, /data-variant=\{variant\}/);
   assert.match(particleCanvas, /requestAnimationFrame/);
   assert.doesNotMatch(particleCanvas, /useState\(/);
-  assert.match(workbench, /effect=\{<UiEffectHost[^>]*active=\{boostActive\}[^>]*variant=/s);
+  assert.match(reasoningRow, /effect=\{\([\s\S]*?<UiEffectHost/);
+  assert.match(reasoningRow, /active=\{boostActive\}/);
+  assert.match(reasoningRow, /variant=\{highestReasoningActive \? "extreme" : "standard"\}/);
 });

@@ -1,0 +1,7 @@
+/** Bottom Terminal 局部静态样式。 */
+.root { width:100%; height:100%; display:grid; grid-template-rows:2.375rem minmax(0,1fr); background:var(--agent-bg); }
+.header { display:flex; align-items:center; justify-content:space-between; padding:0 .5rem 0 .8125rem; border-bottom:1px solid var(--agent-border); background:var(--agent-sidebar); }
+.tab { display:flex; align-items:center; gap:.5rem; height:100%; }
+.tab strong { font-size:.6875rem; font-weight:600; }
+.content { min-width:0; min-height:0; overflow:hidden; background:var(--agent-bg); }
+.unavailable { padding:1rem; color:var(--agent-muted); font-size:.75rem; }

@@ -1,0 +1,24 @@
+.scroll { min-height:0; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--agent-strong-border) transparent; }
+.inner { width:100%; min-height:100%; margin:0; padding:clamp(1.375rem,4vh,2.375rem) var(--agent-page-gutter) 1.75rem; display:flex; flex-direction:column; }
+.answer { margin-top:1.75rem; font-size:.875rem; line-height:1.75; }
+.answer p { margin:0 0 1.125rem; }
+.answer h2 { margin:1.5rem 0 .625rem; font-size:.9375rem; font-weight:650; }
+.answer ul { margin:0; padding-left:1.375rem; }
+.answer li { margin:.4375rem 0; }
+.answer code { padding:.0625rem .25rem; border-radius:.3125rem; background:var(--agent-hover); font-size:.92em; }
+.welcome { max-width:38rem; margin:auto; text-align:center; align-self:center; margin-top:clamp(2rem,8vh,5rem); }
+.welcome h1 { margin:0 0 .55rem; font-size:clamp(1.65rem,3vw,2.35rem); font-weight:620; letter-spacing:-.035em; }
+.welcome p { max-width:35rem; margin:0 auto; color:var(--agent-muted); font-size:.8rem; line-height:1.7; }
+.timeline { width:min(var(--agent-composer-max),100%); margin:0 auto; display:grid; gap:1.15rem; padding:1.5rem 0 2.25rem; }
+.message { display:grid; gap:.35rem; max-width:88%; }
+.user { justify-self:end; }
+.assistant,.error { justify-self:start; }
+.role { color:var(--agent-subtle); font-size:.62rem; font-weight:650; }
+.body { white-space:pre-wrap; overflow-wrap:anywhere; padding:.72rem .86rem; border-radius:1rem; font-size:.82rem; line-height:1.65; background:var(--agent-hover); color:var(--agent-text); }
+.user .body { background:var(--agent-bubble); }
+.error .body { border:1px solid color-mix(in srgb,#d84b4b 28%,var(--agent-border)); background:color-mix(in srgb,#d84b4b 8%,var(--agent-elevated)); color:#b13a3a; }
+.workSurface { position:relative; min-width:0; min-height:0; overflow:hidden; }
+.workTitle { position:absolute; z-index:8; top:1rem; left:50%; transform:translateX(-50%); display:flex; align-items:baseline; gap:.5rem; padding:.42rem .7rem; border:1px solid var(--agent-border); border-radius:999px; background:color-mix(in srgb,var(--agent-elevated) 88%,transparent); backdrop-filter:blur(.7rem); pointer-events:none; }
+.workTitle strong { font-size:.78rem; }
+.workTitle span { color:var(--agent-muted); font-size:.64rem; }
+.scroll[data-layout-mode="mobile"] .answer { font-size:.8125rem; line-height:1.65; }

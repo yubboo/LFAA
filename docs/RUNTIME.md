@@ -1,8 +1,6 @@
-## v0.0.92 Runtime Reasoning Effective-Strength Projection
+## v0.0.94 App Shell Runtime 状态 Owner
 
-Provider/模型 Capability 仍是唯一能力真值，Catalog 不因 Composer 展示需求被改写。Runtime Control 的“思考强度”只消费其中的有效非关闭 option：`none/off/disabled` 代表“关闭推理”配置语义，不属于强度档；过滤后剩余 option 数量、顺序、label、value 原样进入 Slider。过滤后为 0 档时不显示 reasoning Slider，也不启用强力推理控制。
-
-Slider 与 Canvas 只改变 UI Projection，不改变实际 Provider 请求边界：选中档仍提交原始 `providerOption.value`；`reasoningBoost` 仍是独立 Agent Execution Hint。
+Workbench 的 Runtime 状态从根组件拆到唯一 Owner：`workbench/session/useAgentSessionController.ts` 管 Chat/Work surface、permission、消息/画布投影、Agent Runtime subscription 与 `startRun`；`workbench/settings/useAiSettingsController.ts` 管账户/模型 Capability 与 active model binding；Composer/RuntimeControl 只通过显式 contract 消费这些结果。该迁移不改变 Agent Runtime/Provider/Config System 的协议或行为。
 
 ## v0.0.91 Unicode Release Archive / Sync Source Guard
 

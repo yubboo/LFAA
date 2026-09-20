@@ -25,8 +25,10 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #22.7 | Reasoning Slider 几何与星光粒子修正 | v0.0.92 | pending-user-acceptance | pass | pending |
-| #22.6 | Canvas 粒子渲染与 reasoning 提交闪烁修复 | v0.0.91 | superseded | pass | not-accepted |
+| #21.23 | Workbench 全域模块化 / DeepSeek Harness 风格边界 | v0.0.94 | pending-user-acceptance | pass | pending |
+| #21.22 | Workbench 父子模块边界重构 | v0.0.93 | pending-user-acceptance | pass | pending |
+| #22.7 | Reasoning Slider 几何与粒子修复尝试 | v0.0.92 | superseded | pass | not-accepted |
+| #22.6 | Canvas 粒子渲染与 reasoning 提交闪烁修复 | v0.0.91 | pending-user-acceptance | pass | pending |
 | #20.19 | Unicode ZIP 归档与 Sync 来源诊断修复 | v0.0.91 | pending-user-acceptance | pass | pending |
 | #22.5 | Provider 实际推理档位动态投影修正 | v0.0.90 | superseded | pass | not-accepted |
 | #22.4 | Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复 | v0.0.89 | superseded | pass | not-accepted |
@@ -75,83 +77,239 @@
 
 ## 当前任务 / 当前合同
 
-## #22.7 Reasoning Slider 几何与星光粒子修正
+## #21.23 Workbench 全域模块化 / DeepSeek Harness 风格边界
 
 ### 用户目标 / 背景
 
-v0.0.91 实机反馈未通过：Runtime Control 仍把 Provider Capability 中的 `none/off/disabled` 作为“思考强度”滑条的一档，导致已选择模型时出现“关闭思考”；顶部闪电 / 重置按钮中的 SVG 因通用 Popover button grid 规则残留而发生视觉偏左；Slider 的 rail、mark、thumb 分别使用不同坐标系，最高档刻度超出轨道终点；Canvas 虽已稳定运行，但铺满整个 Slider 容器，粒子可见区域没有被轨道胶囊裁剪，且当前长尾线段更像箭头/短横线，不符合用户提供的图六星光粒子参考。
+用户明确纠正：不能只把 RuntimeControl 单独模块化，必须把整个 Workbench 按 DeepSeek Harness 的工程方式一次性建立长期模块边界。左侧栏、中央区、右侧栏、底部终端都是独立大模块；中央区继续拆 Header / Conversation / Composer；Composer 再拆 Permission / Add Menu / RuntimeControl；Shell Overlay、Settings Surface、AI/Plugin Host Controller、Agent Session Controller、Theme/Chrome Controller 也必须有唯一 Owner。后续修改任意一块，不得要求编辑兄弟模块或共享大 CSS。
 
-本轮继续使用单 Canvas 2D + `requestAnimationFrame`，但把渲染区域严格收进 Slider rail 内，并把粒子形态重做为“细小光点 + 少量四向星芒 + 亮度脉冲”，不再绘制方向尾线。Reasoning Runtime Slider 只展示 Provider 已声明的**可执行推理强度**：Provider Catalog 可以保留 `none/off/disabled` 作为配置能力，但该 sentinel 不属于强度档位，不进入 Runtime Slider；最低档就是 Provider 返回的最低非关闭 reasoning option。
+本轮从 **v0.0.93** 建立 **v0.0.94**，只做等价模块迁移与边界治理，冻结用户可见布局、尺寸、颜色、行为和共享 Slider/Canvas/Resize/Motion 算法。参考 DeepSeek Harness 的 `ui-* package / component + service/controller + *.module.css + index.ts` 思路，但不复制其业务实现。
 
-### 主模块 / 状态所有权
+### 目标模块树
 
-- `packages/config-system`：继续拥有 Provider 原始 Capability 真值；本轮不删除、不改写 Catalog 中的 `none/off/disabled`。
-- `packages/app-shell/src/reasoning-control.ts`：拥有 Runtime Slider 的“可执行 reasoning option 投影”规则；只过滤关闭 sentinel，其余 option 数量、顺序、label、value 保持一一对应。
-- `packages/ui/src/ui-controls`：拥有 Slider rail / mark / thumb / Pointer 的统一几何坐标系。
-- `packages/ui/src/ui-effects`：拥有轨道内 Canvas 星光 Renderer、裁剪、Palette、rAF 生命周期；不拥有业务开关。
-- `packages/app-shell` CSS：只负责 Runtime Card 顶部三列布局与业务 Surface Token，不复制 Slider/Effect 算法。
+```text
+AgentWorkbench.tsx                         # 只保留 Composition Root
+workbench/
+├─ shell/                                 # Shell 状态/布局/快捷键/Overlay
+│  ├─ WorkbenchShell.tsx
+│  ├─ useWorkbenchChromeController.ts
+│  ├─ useWorkbenchThemeController.ts
+│  ├─ WorkbenchOverlays.tsx
+│  ├─ *.module.css
+│  └─ index.ts
+├─ left/                                  # 左栏完整模块
+│  ├─ LeftSidebarRegion.tsx
+│  ├─ ProfileBar.tsx
+│  ├─ LeftSidebar.module.css
+│  └─ index.ts
+├─ center/                                # 中央父模块
+│  ├─ CenterWorkspaceRegion.tsx
+│  ├─ header/
+│  ├─ conversation/
+│  └─ composer/
+│     ├─ ComposerRegion.tsx
+│     ├─ PermissionControl.tsx
+│     ├─ AddCapabilityMenu.tsx
+│     ├─ runtime-control/
+│     ├─ *.module.css
+│     └─ index.ts
+├─ right/                                 # 右栏完整模块
+│  ├─ RightSidebarRegion.tsx
+│  ├─ RightSidebar.module.css
+│  └─ index.ts
+├─ terminal/                              # 终端完整模块
+│  ├─ BottomTerminalRegion.tsx
+│  ├─ BottomTerminal.module.css
+│  └─ index.ts
+├─ settings/                              # Settings Surface + Host Controller
+│  ├─ SettingsSurface.tsx
+│  ├─ useAiSettingsController.ts
+│  ├─ usePluginSettingsController.ts
+│  ├─ settings-view-models.ts
+│  ├─ SettingsSurface.module.css
+│  └─ index.ts
+├─ session/                               # Chat/Work Run 状态 Owner
+│  ├─ useAgentSessionController.ts
+│  └─ index.ts
+└─ shared/                                # 仅真正跨模块 Primitive
+   ├─ IconButton.tsx
+   ├─ IconButton.module.css
+   └─ index.ts
+```
+
+### 状态所有权
+
+- `shell/*`：theme / layout mode / chrome / leftPaneWidth / Hover Preview / Shell shortcuts / profile-theme-update overlays。
+- `session/*`：agentSurface / permission profile / chat projection / work nodes / Agent Run event subscription。
+- `settings/*`：AI Account snapshot / Provider ViewModel / Plugin snapshot / Settings surface section。
+- `left/*`：brand menu 等左栏局部状态。
+- `center/conversation/*`：消息与 Work Canvas 展示，不拥有 Composer 状态。
+- `center/composer/*`：draft/add menu/permission menu 等输入区域局部状态。
+- `center/composer/runtime-control/*`：模型快切、reasoning preview/commit queue、boost。
+- `right/*`、`terminal/*`：只消费父级显式 Props，不读取其他区域私有 State。
+
+### CSS 所有权硬规则
+
+1. 每个 UI 模块必须拥有自己的 `*.module.css`；静态布局/字体/背景/边框/hover/focus 只写入自己的 Module。
+2. `agent-workbench.css` 在本轮结束后不得继续包含 Left/Center/Conversation/Composer/RuntimeControl/Right/Terminal/Overlay 的业务选择器；只允许保留真正全局 reset/token（若仍需要）。
+3. 禁止通过 `:global(.agent-xxx)` 伪装 CSS Module。
+4. 动态几何/拖拽/阻尼/粒子保持 TypeScript/共享 Primitive Owner；CSS Module 不新增第二套算法。
+5. 模块禁止匹配兄弟模块 class；父模块只能控制自己的根布局。
 
 ### 允许修改
 
-- `packages/app-shell/src/reasoning-control.ts`、`AgentWorkbench.tsx`、`agent-workbench.css`；
-- `packages/ui/src/ui-controls/**`；
-- `packages/ui/src/ui-effects/**`；
-- reasoning / UI interaction / contract 测试；
-- 当前事实文档、版本元数据、CHANGELOG / RELEASES。
+- `packages/app-shell/src/AgentWorkbench.tsx`（仅收敛 Composition Root）；
+- `packages/app-shell/src/workbench/**` 全域等价模块迁移；
+- `packages/app-shell/src/agent-workbench.css`（只做删除/收敛到全局 token/reset）；
+- `packages/app-shell/src/css-modules.d.ts`；
+- workbench module boundary / UI contract / import contract 测试；
+- 当前事实文档、版本元数据、CHANGELOG、RELEASES。
 
-### 禁止修改 / 安全边界
+### 禁止修改 / 行为冻结
 
-- 禁止修改 Provider 原始 Catalog 来“删除 none”；Config System 仍必须真实记录厂商能力。
-- 禁止固定六档、补档、排序、重命名 Provider 的有效 reasoning option；过滤关闭 sentinel 后剩余档位必须严格保持 Provider 原顺序。
-- 禁止强力推理按钮改写 Provider reasoning 档位；`reasoningBoost` 继续正交。
-- 禁止退回多个 DOM 粒子 + CSS keyframes；禁止逐帧 React State。
-- 禁止为了修按钮位置写每个截图分辨率的魔法 margin；必须修正通用 grid 几何根因。
-- 禁止让 Canvas/星光溢出 rail 胶囊边界。
-
-### 实现约束
-
-1. Runtime Slider 先从 `reasoningEffort.options` 过滤关闭 sentinel：字符串 value 规范化后匹配 `none/off/disabled/disable/false/no/0`，以及明确表达关闭的 label；过滤只发生在 Runtime projection，不修改 Provider Capability。
-2. 若过滤后 0 档：不显示 reasoning Slider / 强力推理 / reset；若 1/N 档：按真实 option 渲染。
-3. Slider 定义单一 `--lfaa-slider-edge-inset`，rail 起终点、fill、mark、thumb 都使用 `edge + usableWidth * ratio`；Pointer 命中直接读取 rail 的 `getBoundingClientRect()`，最高档不得超出 rail。
-4. Effect 增加 rail 内 clip host：与 rail 完全同几何、`overflow:hidden;border-radius:999px`；Canvas 只覆盖该 host。
-5. Canvas 粒子只绘制圆点 / 微光点 / 少量四向星芒；不绘制 tail、arrow、方向短横线。粒子以缓慢水平漂移 + 不同相位闪烁，视觉参考用户图六。
-6. standard 使用粉色系；最高有效 reasoning 档 extreme 使用淡粉→粉→紫→深紫。颜色继续由 CSS Token 提供，但运动/闪烁由 Canvas 绘制。
-7. Runtime Card 顶部 icon button 必须覆盖通用 `.agent-composer-popover button` 的双列 grid，显式 `grid-template-columns:1fr`，保证闪电与 refresh 在各自同尺寸按钮盒内几何居中。
+- 禁止改变 `packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**` 行为与视觉参数；
+- 禁止改变 Provider Capability、Config System、Agent Runtime、Plugin Runtime、Rust、Windows Sync/GitHub/Setup/Update 业务；
+- 禁止改变现有尺寸、颜色、文案、ARIA、快捷键、resize/snap、chat 对齐、reasoning/boost 语义；
+- 禁止顺手修 #22.x 的视觉问题；本轮只做等价模块迁移；
+- 禁止新增跨模块全局 CSS；
+- 禁止父模块深链 import 子模块内部文件，统一走各模块 `index.ts`。
 
 ### 验收条件
 
-1. DeepSeek 等 Capability 为 `none/low/high/max` 时 Runtime Slider 显示 `low/high/max`，不再出现“关闭思考”；Provider Catalog 本身仍保留 `none`。
-2. 其他模型返回 `low/medium/high`、`minimal/low/medium/high/xhigh` 等时，Runtime Slider 数量与有效档位完全一致；无有效 reasoning 档时不显示 Slider。
-3. 闪电和重置按钮在同尺寸盒内视觉居中，左右三列对称，不再偏左。
-4. Slider 首档/末档 thumb 中心与 rail 两端严格一致；最后一个 mark 不再跑到 rail 外。
-5. 粒子只存在于填充 rail 内部；任意时刻都不越过胶囊上下/左右边界。
-6. 粒子是细小星点、闪烁光尘、少量星芒，不出现箭头/短横线/拖尾。
-7. 开启强力推理后持续运动；关闭立即停止；拖拽/松手/切档不闪屏、不闪白。
-8. #22.6 已修好的 reasoning 串行提交、Canvas/rAF、Chat 对齐、动态 Provider capability 不回退。
+1. `AgentWorkbench.tsx` 只做模块总装配，不再持有 AI/Plugin 映射函数、Run 事件细节、Overlay DOM、Left/Center/Right/Terminal DOM。
+2. Left / Center(Header/Conversation/Composer/RuntimeControl) / Right / Terminal / Shell Overlay / Settings / Session 全部拥有独立目录、公共入口和样式 Owner。
+3. Workbench 区域样式全部迁出共享大 CSS；不存在一个改动会通过全局 `.agent-*` selector 影响兄弟模块的路径。
+4. 父子 import 只能走 `index.ts` 公共入口；兄弟模块不能深链。
+5. v0.0.93 的用户可见行为保持等价；共享 UI primitive 目录零行为改动。
+6. 自动门禁能阻止重新向 AgentWorkbench/全局 CSS 堆回区域实现。
+7. workspace preflight、最终 ZIP Unicode round-trip 全部通过。
 
 ### 必须测试
 
-- 新增 Runtime projection 关闭 sentinel 过滤测试（Catalog 不变、Runtime steps 过滤）；
-- 新增 Slider unified geometry / rail clip / no-tail star particle 合同测试；
-- `node --test test/model-quick-switch-contract.test.mjs`；
-- `node --test test/ui-interaction-motion.test.mjs`；
-- `node --test test/ui-shared-module-contract.test.mjs`；
-- `node scripts/ui-contract-check.mjs`；
-- 全仓可执行 Node 静态/契约测试；
+- 扩展 `test/workbench-module-boundary.test.mjs`：检查所有大/小模块目录、`index.ts`、`*.module.css`、禁止深链和 AgentWorkbench 膨胀；
+- `scripts/ui-contract-check.mjs`：禁止 `agent-workbench.css` 回归区域 selector；
+- 既有 model quick switch / chat runtime / workbench snap / dismissible layer / shared UI tests 全部回归；
+- `packages/ui/src/ui-controls|ui-effects|ui-resize|ui-motion` 与 v0.0.93 做零改动 diff；
 - `node scripts/workspace-preflight.mjs`；
-- 最终 ZIP 使用 `scripts/release-archive.mjs` 生成，Unicode / `.lfaa` round-trip 后再次 preflight。
-
-### 必须更新文档
-
-`DEVELOPMENT.md`、`ARCHITECTURE.md`、`PROJECT_PLAN.md`、`docs/DEVELOPMENT_LOG.md`、`docs/MODULES.md`、`docs/UI.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+- 最终 ZIP fresh extract 后再次 preflight。
 
 ### CHANGELOG / 版本
 
-- CHANGELOG 编号：`#22.7`
-- 目标版本：`v0.0.92`
+- CHANGELOG 编号：`#21.23`
+- 目标版本：`v0.0.94`
 - 当前状态：`pending-user-acceptance`
 - AI 验证：`pass`
 - 用户验收：`pending`
+
+## #21.22 Workbench 父子模块边界重构
+
+### 用户目标 / 背景
+
+v0.0.92 用户验收失败暴露出结构性问题：`packages/app-shell/src/AgentWorkbench.tsx` 同时包含左侧栏、中间 Header、Chat/Work 主区、Composer、Runtime Control、右侧资源栏、底部终端和 Shell 总装配。局部修复容易扩大修改面并造成已通过功能回归。用户明确要求工作台按“父模块 → 大区域子模块 → 区域内部小模块”组织，修改某个子模块时不得顺带影响兄弟模块。
+
+本轮**从 v0.0.91 重新建立 v0.0.93 基线**，不继承 v0.0.92 的业务代码。目标只做模块边界重构与防回归门禁，保持 v0.0.91 的 UI/行为/CSS 语义不变。Reasoning Slider 的视觉修复另开后续子任务，只允许在对应 Composer/RuntimeControl 子模块内完成。
+
+### 主模块 / 状态所有权
+
+```text
+AgentWorkbench（根父模块 / Composition Root）
+├─ LeftSidebarRegion（左侧栏大模块）
+│  ├─ BrandSwitcher
+│  └─ ProfileBar
+├─ CenterWorkspaceRegion（中间区大模块）
+│  ├─ CenterHeader
+│  ├─ ConversationRegion
+│  │  ├─ ChatTimeline
+│  │  └─ WorkCanvas
+│  └─ ComposerRegion（输入框大子模块）
+│     ├─ AddCapabilityMenu
+│     ├─ PermissionControl
+│     └─ RuntimeControl（模型 / reasoning / 强力推理）
+├─ RightSidebarRegion（右侧栏大模块）
+└─ BottomTerminalRegion（底部终端大模块）
+```
+
+- `AgentWorkbench`：只拥有跨区域 Shell 状态、业务 Snapshot、Host/Runtime 装配和区域间回调；不得再直接写区域内部 JSX。
+- 各 Region：只拥有自己区域的局部 UI 状态；通过明确 Props/Callback 与父模块通信，禁止直接读取兄弟模块内部状态。
+- `ComposerRegion`：拥有输入草稿、Add/Permission/Runtime Control 的局部交互；Chat Timeline 不得依赖 Composer 内部 State。
+- `RuntimeControl`：后续 reasoning 修复唯一允许落点；不允许因此修改 Left/Right/Terminal/Conversation。
+- `packages/ui`：继续拥有真正共享 Primitive（Slider、Effect、Resize、Overlay），本轮不改变其行为。
+
+### 允许修改
+
+- `packages/app-shell/src/AgentWorkbench.tsx`：收敛为 Composition Root；
+- 新增 `packages/app-shell/src/workbench/**` 父子模块文件与本目录 README；
+- `packages/app-shell/src/workbench.types.ts`：仅提取区域共享 ViewModel 类型；
+- `packages/app-shell/src/README.md`、架构/模块/UI/测试/代码地图文档；
+- 新增模块边界防回归测试。
+
+### 禁止修改 / 行为冻结
+
+1. **禁止继承 v0.0.92 业务改动**；基线必须是 v0.0.91。
+2. 本任务禁止改变 Runtime reasoning 档位过滤、强力推理语义、粒子算法、Slider Pointer 算法。
+3. 禁止改变现有 CSS selector、尺寸、颜色、动画参数、布局数值；本任务不做视觉设计。
+4. 禁止改变 Chat Timeline 与 Composer 的左右对齐行为。
+5. 禁止改变左右栏/底部终端 Resize、Snap、快捷键、Hover Preview。
+6. 禁止修改 `packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`。
+7. 禁止把业务逻辑移入 `apps/web` 或 `packages/ui`。
+8. 子模块不得跨层 import 另一个兄弟模块的内部文件；共享契约进入 `workbench/contracts.ts` 或公共父级。
+
+### 实现约束
+
+1. 迁移必须是“代码等价移动”：保留原 DOM className、ARIA、回调时序与 localStorage key。
+2. 每个大模块文件必须写结构化中文文件头：负责 / 不负责 / 状态归属 / 对外接口 / 子模块 / 修改注意事项。
+3. `AgentWorkbench.tsx` 中不得再声明 `LeftSidebar/CenterWorkspace/RightSidebar/BottomTerminal` 实现。
+4. 中间区必须进一步拆为 Header、Conversation、Composer；Composer 内 Runtime Control 必须是独立子模块。
+5. 模块间只通过 typed Props/Callback；不得用 DOM query、全局变量或共享 mutable singleton 串状态。
+6. CSS 本轮保持原文件不动，避免“结构重构 + 视觉重构”同时发生；后续如拆 CSS 必须单独任务并保持 selector namespace。
+7. 新增自动检查：大区域组件必须位于规定目录；`AgentWorkbench.tsx` 行数/区域实现标记不得回退成单文件巨石；RuntimeControl 修改 allowlist 可在后续任务单独启用。
+
+### 验收条件
+
+1. 左侧栏、中间区、右侧栏、底部终端成为四个独立大模块。
+2. 中间区的 Conversation 与 Composer 独立；Composer 中 Runtime Control 独立。
+3. `AgentWorkbench.tsx` 只做父级状态与装配，不再包含区域内部 JSX。
+4. v0.0.91 的现有 CSS class、快捷键、Resize/Snap、Chat/Composer 对齐、模型切换与 reasoning 行为不发生语义变化。
+5. 后续修改 RuntimeControl 时，代码层面不需要编辑 LeftSidebar/RightSidebar/BottomTerminal/Conversation 文件。
+6. 模块边界检查、现有 UI contract、workspace preflight 全部通过。
+
+### 必须测试
+
+- 新增 `test/workbench-module-boundary.test.mjs`；
+- `node --test test/ui-interaction-motion.test.mjs`；
+- `node --test test/ui-shared-module-contract.test.mjs`；
+- `node --test test/model-quick-switch-contract.test.mjs`；
+- `node scripts/ui-contract-check.mjs`；
+- `node scripts/folder-boundary-check.mjs`；
+- `node scripts/workspace-preflight.mjs`；
+- 对 v0.0.91 → v0.0.93 做文件级 diff，确认 `packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**` 零改动。
+
+### AI 验证结果
+
+- Workbench/既有行为聚焦回归：45/45 PASS。
+- 全仓 Node 合同测试：140 项中 139 项 PASS；唯一 `node-source-runtime.test.mjs` 受当前 Node 22.16.0 + 无 pnpm workspace `node_modules` 环境阻断。
+- 本轮 15 个 TS/TSX 语法 transpile：PASS。
+- `agent-workbench.css`、`ui-controls`、`ui-effects`、`ui-resize` 相对 v0.0.91：零改动。
+- `workspace-preflight`：全 Gate PASS。
+- Unicode ZIP 候选包 fresh round-trip：359 entries；中文 canonical entry UTF-8 bit 11 / `0x800`；`.lfaa/` 保留；解压后 preflight 再次 PASS。
+
+### 必须更新文档
+
+`PROJECT_PLAN.md`、`docs/DEVELOPMENT_LOG.md`、`ARCHITECTURE.md`、`docs/MODULES.md`、`docs/UI.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`packages/app-shell/src/README.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG / 版本
+
+- CHANGELOG 编号：`#21.22`
+- 目标版本：`v0.0.93`
+- 当前状态：`pending-user-acceptance`
+- AI 验证：`pass`
+- 用户验收：`pending`
+
+## #22.7 Reasoning Slider 几何与粒子修复尝试（v0.0.92，已否决）
+
+- 状态：`superseded` / `not-accepted`。
+- 用户验收结论：局部修复扩大修改面，出现未要求功能消失与既有问题回归。
+- 处理：v0.0.93 不继承 v0.0.92 业务代码，重新从 v0.0.91 建基线；Reasoning 修复必须等父子模块边界建立后，只修改 RuntimeControl 子模块。
 
 ## #22.6 Canvas 粒子渲染与 reasoning 提交闪烁修复
 

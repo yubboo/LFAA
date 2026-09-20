@@ -1,7 +1,37 @@
+## #21.23 Workbench 全域模块化 / DeepSeek Harness 风格边界 — v0.0.94
+
+- **状态：** pending-user-acceptance。
+- **用户纠正：** 不接受“只模块化 RuntimeControl”；要求整个 Workbench 的 Left / Center / Right / Terminal 及 Center 内 Header / Conversation / Composer / RuntimeControl、Shell Overlay、Settings/Host Controller、Session Controller 都建立父子级模块 Owner。
+- **基线：** v0.0.93；冻结视觉与行为，只迁移 Owner/文件边界/CSS Module。
+- **参考原则：** DeepSeek Harness 的组件/服务/CSS Module/公共入口分层；不复制业务实现。
+- **门禁方向：** AgentWorkbench 收敛为 Composition Root；区域 CSS 不再进入共享 `agent-workbench.css`；每个模块只能通过 `index.ts` 暴露公共接口；共享 UI Primitive 零改动。
+
 # LFAA 开发日志时间线
 
 > 这是唯一 Development Log。需求、设计、架构、行为、规则发生变化时，在对应主编号下追加 `#NN.x + 名称`。
 > 不再使用 active/archive 文件夹；当前与历史由条目里的 `状态` 字段区分。
+
+- **实现结果：** Workbench 已全域拆分为 Shell / Left / Center(Header / Conversation / Composer / RuntimeControl) / Right / Terminal / Settings / Session / Shared；`AgentWorkbench` 仅保留 Composition Root，区域样式全部迁入 CSS Module，`agent-workbench.css` reset-only。
+- **边界补强：** Center 子树通过窄 `center-dependencies.ts` 接收祖先公共依赖，消除 `../../` 深链；WorkbenchIcon 真正实现归 `workbench/shared`，根入口仅兼容 re-export。
+- **AI 验证：** 聚焦模块/既有行为合同 45/45 PASS；UI contract PASS；Workbench TS/TSX syntax transpile 50/50 PASS；`ui-controls/ui-effects/ui-resize/ui-motion` 相对 v0.0.93 零 diff。全仓 Node 140 项中 139 项 PASS，唯一 Node source runtime 项受 Node 22.16.0 + 无 workspace `node_modules` 环境限制。
+- **发布归档验证：** 最终 ZIP 431 entries；`docs/项目结构与代码地图.md` UTF-8 flag=`0x800`；`.lfaa/` 保留；fresh extract 后 `workspace-preflight` 全 Gate PASS。
+- **当前状态：** `pending-user-acceptance`；用户验收 `pending`。
+
+## #21.22 Workbench 父子模块边界重构 — v0.0.93
+
+- 状态：pending-user-acceptance。
+- 基线：严格从用户仍可追溯的 v0.0.91 解包建立；v0.0.92 用户验收失败，不继承其业务代码。
+- 用户新增架构要求：左侧栏 / 中间区 / 右侧栏 / 底部终端必须是独立大模块；中间区继续拆 Conversation / Composer；Composer 内 RuntimeControl 再作为独立子模块，形成父子级边界。
+- 本轮行为冻结：只做等价代码迁移与模块契约，不修改 UI 数值、Reasoning/Particle/Slider/Resize 行为。
+- 防回归策略：新增模块边界测试，并对 v0.0.91 → v0.0.93 的共享 UI Primitive 做零改动 diff 检查。
+- AI 验证：pass。Workbench/既有行为聚焦回归 45/45 PASS；全仓 Node 合同测试 140 项中 139 项 PASS，唯一 Node Source Runtime 受 Node 22 + 无 workspace node_modules 环境阻断；15 个本轮 TS/TSX 语法检查 PASS；v0.0.91 共享 CSS/Slider/Effect/Resize 零改动；统一 preflight 与候选 ZIP fresh round-trip preflight 全 PASS。
+- 用户验收：pending。
+
+## #22.7 Reasoning Slider 几何与粒子修复尝试 — v0.0.92
+
+- 状态：superseded / not-accepted。
+- 用户反馈：出现未要求功能消失与既有功能回归。
+- 结论：该版本不作为后续基线；下一版回到 v0.0.91 后先建立模块边界。
 
 ## 状态约定
 
@@ -11,8 +41,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #22.7 | Reasoning Slider 几何与星光粒子修正 | v0.0.92 | pending-user-acceptance |
-| #22.6 | Canvas 粒子渲染与 reasoning 提交闪烁修复 | v0.0.91 | superseded |
+| #21.22 | Workbench 父子模块边界重构 | v0.0.93 | pending-user-acceptance |
+| #22.6 | Canvas 粒子渲染与 reasoning 提交闪烁修复 | v0.0.91 | pending-user-acceptance |
 | #20.19 | Unicode ZIP 归档与 Sync 来源诊断修复 | v0.0.91 | pending-user-acceptance |
 | #22.5 | Provider 实际推理档位动态投影修正 | v0.0.90 | superseded |
 | #22.4 | Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复 | v0.0.89 | superseded |
@@ -57,17 +87,6 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
 
-
-### #22.7 Reasoning Slider 几何与星光粒子修正
-
-- **版本：** v0.0.92
-- **状态：** pending-user-acceptance
-- **用户实机反馈：** v0.0.91 仍显示“关闭思考”；顶部闪电/重置图标视觉偏左；Slider 最右档点位越出 rail；Canvas 粒子越出轨道，且长尾线段像箭头，不符合图六的星光粒子参考。
-- **根因定位：** Runtime projection 把 Provider `none/off` 配置 option 原样当成强度档；通用 `.agent-composer-popover button` 的 `grid-template-columns:1.35rem minmax(0,1fr)` 仍作用于 icon-only button，使唯一 SVG 落入第一列而非按钮中心；Slider rail inset 与 mark/thumb 百分比坐标不一致；Canvas 挂在 Slider 全盒并绘制 tail line。
-- **修复合同：** Provider Catalog 真值不改；Runtime Slider 仅过滤关闭 sentinel，剩余有效 reasoning option 一一对应。Slider rail/mark/thumb/Pointer 使用单一可用轨道几何；Effect 放入 rail clip host；Canvas 改为圆点 + 四向星芒 + twinkle，不再绘制 tail。
-- **允许/禁止/验收/测试：** 以 `docs/PROMPTS.md` #22.7 为唯一合同。
-- **AI 验证：** #22.7 聚焦 24/24 PASS；全仓可执行 Node 静态/契约测试 138/138 PASS；本轮 TS/TSX syntax transpile 4/4 PASS。`node-source-runtime.test.mjs` 与 Config System 动态测试受当前 Node 22.16.0 + 缺 workspace `node_modules` 阻断，无法解析 `@lfaa/credentials`，不冒充 Node 24 / pnpm workspace 验证；治理 Gate 与 workspace-preflight 已 PASS；成品 ZIP round-trip 在归档后再次复验。
-- **用户验收：** pending。
 
 ### #22.6 Canvas 粒子渲染与 reasoning 提交闪烁修复
 

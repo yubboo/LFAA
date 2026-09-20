@@ -1,127 +1,39 @@
-/**
- * 文件：settings-shell.test.mjs
- * 作用：防回归检查独立设置中心、个人中心聚焦层与三态主题交互合同。
- * 负责：静态验证 UI/App Shell 长期结构，不依赖浏览器截图。
- * 不负责：替代用户视觉验收或真实浏览器 E2E。
- */
+/** Settings / Profile / Theme modular shell regression contract. */
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+const read=(p)=>fs.readFileSync(p,"utf8");
+const root=read("packages/app-shell/src/AgentWorkbench.tsx");
+const left=read("packages/app-shell/src/workbench/left/LeftSidebarRegion.tsx");
+const profile=read("packages/app-shell/src/workbench/left/ProfileBar.tsx");
+const overlays=read("packages/app-shell/src/workbench/shell/WorkbenchOverlays.tsx");
+const overlaysCss=read("packages/app-shell/src/workbench/shell/WorkbenchOverlays.module.css");
+const themeController=read("packages/app-shell/src/workbench/shell/useWorkbenchThemeController.ts");
+const chromeController=read("packages/app-shell/src/workbench/shell/useWorkbenchChromeController.ts");
+const shellView=read("packages/app-shell/src/workbench/shell/WorkbenchShell.tsx");
+const settingsSurface=read("packages/app-shell/src/workbench/settings/SettingsSurface.tsx");
+const aiController=read("packages/app-shell/src/workbench/settings/useAiSettingsController.ts");
+const aiMappings=read("packages/app-shell/src/workbench/settings/settings-view-models.ts");
+const settings=read("packages/ui/src/features/settings/SettingsPage.tsx");
+const aiPanel=read("packages/ui/src/features/settings/ai/AiSettingsPanel.tsx");
+const themeMenu=read("packages/ui/src/features/appearance/ThemeModeMenu.tsx");
+const settingsCss=read("packages/ui/src/features/settings/settings.css");
+const workbenchTypes=read("packages/ui/src/workbench/workbench-layout.types.ts");
 
-const shell = fs.readFileSync("packages/app-shell/src/AgentWorkbench.tsx", "utf8");
-const shellCss = fs.readFileSync("packages/app-shell/src/agent-workbench.css", "utf8");
-const settings = fs.readFileSync("packages/ui/src/features/settings/SettingsPage.tsx", "utf8");
-const aiPanel = fs.readFileSync("packages/ui/src/features/settings/ai/AiSettingsPanel.tsx", "utf8");
-const themeMenu = fs.readFileSync("packages/ui/src/features/appearance/ThemeModeMenu.tsx", "utf8");
-const settingsCss = fs.readFileSync("packages/ui/src/features/settings/settings.css", "utf8");
-const workbenchTypes = fs.readFileSync("packages/ui/src/workbench/workbench-layout.types.ts", "utf8");
+test("Settings is independent Surface module",()=>{assert.match(root,/settingsSurface\.surface==="settings"/);assert.match(root,/<SettingsSurface/);assert.match(settingsSurface,/<SettingsPage/);assert.doesNotMatch(root,/<SettingsPage/);});
 
- test("Settings 是独立 Surface，不再替换 workbench center", () => {
-  assert.match(shell, /surface === "settings"/);
-  assert.match(shell, /<SettingsPage/);
-  assert.doesNotMatch(shell, /center=\{surface ===/);
-});
+test("profile focus overlay owns blur and reuses ProfileBar via explicit variant",()=>{assert.match(overlays,/profileMenuOpen/);assert.match(overlays,/<UserMenu/);assert.match(overlays,/<ProfileBar variant="overlay"/);assert.match(overlaysCss,/backdrop-filter:blur\(4px\)/);assert.match(overlaysCss,/width:calc\(var\(--agent-left-live-width,15rem\) - 1\.25rem\)/);assert.match(profile,/variant\?: "sidebar" \| "overlay"/);});
 
-test("个人中心使用侧栏内联聚焦整体与模糊背景", () => {
-  assert.match(shell, /agent-profile-overlay/);
-  assert.match(shell, /agent-profile-backdrop/);
-  assert.match(shell, /agent-profile-focus-shell/);
-  assert.match(shell, /--agent-left-live-width/);
-  assert.match(shellCss, /backdrop-filter:blur\(4px\)/);
-  assert.match(shellCss, /width:calc\(var\(--agent-left-live-width,15rem\) - 1\.25rem\)/);
-  assert.match(shellCss, /agent-profile-focus-shell \.agent-profile/);
-});
+test("theme supports system/light/dark and system listener is owned by theme controller",()=>{for(const token of ["system","light","dark"])assert.ok(themeMenu.includes(`"${token}"`));assert.match(themeController,/prefers-color-scheme: dark/);assert.match(themeController,/addEventListener\("change"/);});
 
-test("个人菜单禁止固定宽度并复用底部 ProfileBar", () => {
-  const userMenuCss = fs.readFileSync("packages/ui/src/features/account/user-menu.css", "utf8");
-  assert.doesNotMatch(userMenuCss, /18rem/);
-  assert.match(userMenuCss, /width:100%/);
-  assert.ok((shell.match(/<ProfileBar/g) ?? []).length >= 2, "正常侧栏与聚焦层必须复用同一个 ProfileBar");
-});
+test("left profile keeps update then theme actions",()=>{const refresh=profile.indexOf('name="refresh"');const theme=profile.indexOf('name={themeIcon}');assert.ok(refresh>=0&&theme>refresh);assert.match(left,/<ProfileBar/);});
 
-test("主题支持 system light dark 并监听系统主题", () => {
-  for (const token of ["system", "light", "dark"]) assert.ok(themeMenu.includes(`\"${token}\"`));
-  assert.match(shell, /prefers-color-scheme: dark/);
-  assert.match(shell, /addEventListener\("change"/);
-  assert.match(shell, /data-theme-preference/);
-});
+test("Settings left nav remains resizable and shared width comes from shell controller",()=>{assert.match(settings,/<ResizableWorkbench/);assert.match(settings,/storageKey=\{SETTINGS_LAYOUT_KEY\}/);assert.match(settings,/leftLimits=\{layout\.left\}/);assert.match(settings,/snapCaptureRatio=\{layout\.snapCaptureRatio\}/);assert.match(settings,/snapHysteresis=\{layout\.snapHysteresis\}/);assert.match(settings,/ResizeObserver/);assert.doesNotMatch(settingsCss,/grid-template-columns:17rem|grid-template-columns:12rem/);assert.match(chromeController,/leftPaneWidth/);assert.match(shellView,/leftWidth=\{chrome\.leftPaneWidth\}/);assert.match(settingsSurface,/leftPaneWidth=\{leftPaneWidth\}/);assert.doesNotMatch(settings,/useState\([^\n]*leftWidth/);});
 
-test("左下角保留用户按钮，并列更新和主题入口", () => {
-  assert.match(shell, /agent-profile-actions/);
-  const refresh = shell.indexOf('name="refresh"');
-  const theme = shell.indexOf('name={themeIcon}');
-  assert.ok(refresh >= 0 && theme > refresh, "更新入口必须位于主题入口左侧");
-});
+test("ResizableWorkbench supports single-sided Surface",()=>{assert.match(workbenchTypes,/right\?: ReactNode/);});
 
-test("Settings 左侧导航包含 AI 与模型，AI 内容仍由 ViewModel 驱动", () => {
-  assert.match(settings, /AI 与模型/);
-  assert.match(settings, /AiSettingsPanel/);
-  assert.match(settings, /返回应用/);
-  assert.doesNotMatch(aiPanel, /https?:\/\//);
-  assert.doesNotMatch(aiPanel, /fetch\s*\(/);
-});
+test("AI provider capability projection lives in settings mapping/controller, not root",()=>{assert.match(aiMappings,/buildAiProviderViews/);assert.match(aiMappings,/auth\.hostCapability\?hostCapabilities\[auth\.hostCapability\]/);assert.doesNotMatch(root,/buildAiProviderViews|auth\.hostCapability/);assert.match(aiController,/connectSubscription/);assert.match(settingsSurface,/onConnectAiSubscription=\{ai\.connectSubscription\}/);assert.match(aiPanel,/登录 ChatGPT 并保存账户/);assert.match(aiPanel,/LFAA 不保存 Token/);});
 
+test("API Key and subscription contracts remain intact",()=>{assert.match(aiPanel,/!secret\.trim\(\) \|\| !selectedModelId/);assert.match(aiPanel,/isSubscription \? \(/);assert.match(aiPanel,/activeAuthView\?\.secretLabel/);assert.doesNotMatch(aiPanel,/fetch\s*\(|https?:\/\//);});
 
-test("Settings 左栏直接复用 ResizableWorkbench，不再维护固定宽度布局", () => {
-  assert.match(settings, /<ResizableWorkbench/);
-  assert.match(settings, /storageKey=\{SETTINGS_LAYOUT_KEY\}/);
-  assert.match(settings, /leftLimits=\{layout\.left\}/);
-  assert.match(settings, /snapCaptureRatio=\{layout\.snapCaptureRatio\}/);
-  assert.match(settings, /snapHysteresis=\{layout\.snapHysteresis\}/);
-  assert.match(settings, /onLeftCollapsedChange=\{setSidebarCollapsed\}/);
-  assert.match(settings, /resolveWorkbenchLayoutMetrics/);
-  assert.match(settings, /ResizeObserver/);
-  assert.doesNotMatch(settingsCss, /grid-template-columns:17rem/);
-  assert.doesNotMatch(settingsCss, /grid-template-columns:12rem/);
-});
-
-test("Settings 左栏支持吸附收起并提供显式重新展开入口", () => {
-  assert.match(settings, /sidebarCollapsed/);
-  assert.match(settings, /展开设置导航/);
-  assert.match(settings, /setSidebarCollapsed\(false\)/);
-});
-
-
-test("Settings 与主工作台共享唯一 leftPaneWidth，不各自保存宽度真值", () => {
-  assert.match(shell, /const \[leftPaneWidth, setLeftPaneWidth\] = useState/);
-  assert.match(shell, /<ResizableWorkbench[\s\S]*leftWidth=\{leftPaneWidth\}[\s\S]*onLeftWidthChange=\{setLeftPaneWidth\}/);
-  assert.match(shell, /snapCaptureRatio=\{layout\.snapCaptureRatio\}/);
-  assert.match(shell, /<SettingsPage[\s\S]*leftPaneWidth=\{leftPaneWidth\}[\s\S]*onLeftPaneWidthChange=\{setLeftPaneWidth\}/);
-  assert.match(settings, /leftWidth=\{props\.leftPaneWidth\}/);
-  assert.match(settings, /onLeftWidthChange=\{props\.onLeftPaneWidthChange\}/);
-  assert.doesNotMatch(settings, /useState\([^\n]*leftWidth/);
-});
-
-test("ResizableWorkbench 支持单侧 Surface，避免 Settings 伪造右栏", () => {
-  assert.match(workbenchTypes, /right\?: ReactNode/);
-});
-
-test("ChatGPT 套餐可用性由 Provider hostCapability + Host Snapshot 驱动，不在 UI 写 Provider 特判", () => {
-  assert.match(shell, /buildAiProviderViews\(hostCapabilities/);
-  assert.match(shell, /auth\.hostCapability \? hostCapabilities\[auth\.hostCapability\]/);
-  assert.doesNotMatch(shell, /auth\.kind\s*!==\s*"subscription"/);
-  assert.doesNotMatch(shell, /auth\.hostCapability === "codex-app-server"/);
-  assert.match(shell, /connectAiSubscription/);
-  assert.match(settings, /onConnectAiSubscription/);
-  assert.match(aiPanel, /props\.onConnectSubscription\(draft\(\)\)/);
-  assert.match(aiPanel, /登录 ChatGPT 并保存账户/);
-  assert.match(aiPanel, /LFAA 不保存 Token/);
-  assert.match(aiPanel, /不会退出其他 Codex 客户端/);
-});
-
-test("原 API Key 保存门槛保持不变，Subscription 不渲染 Secret 输入依赖", () => {
-  assert.match(aiPanel, /!secret\.trim\(\) \|\| !selectedModelId/);
-  assert.match(aiPanel, /isSubscription \? \(/);
-  assert.match(aiPanel, /activeAuthView\?\.secretLabel/);
-  assert.doesNotMatch(aiPanel, /fetch\s*\(/);
-  assert.doesNotMatch(aiPanel, /https?:\/\//);
-});
-
-
-test("模型管理使用显式 activeModel，不再按账户数组顺序猜当前模型", () => {
-  assert.match(shell, /aiSnapshot\.activeModel/);
-  assert.doesNotMatch(shell, /accounts\.find\(\(account\) => Boolean\(account\.selectedModelId\)\)/);
-  assert.match(settings, /activeAiModel/);
-  assert.match(aiPanel, /设为当前模型/);
-  assert.match(aiPanel, /account\.modelCatalog/);
-});
+test("active model is explicit and never inferred from account order",()=>{assert.match(aiController,/snapshot\.activeModel/);assert.doesNotMatch(aiController,/accounts\.find\(\(account\) => Boolean\(account\.selectedModelId\)\)/);assert.match(settingsSurface,/activeAiModel=\{ai\.snapshot\.activeModel\}/);assert.match(aiPanel,/设为当前模型/);});

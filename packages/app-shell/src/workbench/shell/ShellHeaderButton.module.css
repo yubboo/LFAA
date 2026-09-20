@@ -1,0 +1,50 @@
+.button {
+  position: relative;
+  width: var(--agent-control-size);
+  height: var(--agent-control-size);
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: .5rem;
+  background: transparent;
+  color: var(--agent-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.button:hover,
+.button:focus-visible { background: var(--agent-hover); color: var(--agent-text); outline: none; }
+.active { color: var(--agent-text); }
+.tooltip {
+  position: absolute;
+  z-index: var(--lfaa-layer-tooltip, 620);
+  top: calc(100% + .5625rem);
+  display: flex;
+  align-items: center;
+  gap: .5625rem;
+  width: max-content;
+  max-width: min(18.75rem, calc(100vw - 1.5rem));
+  padding: .4375rem .625rem;
+  border-radius: .5625rem;
+  background: #202020;
+  color: #fff;
+  box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.22);
+  font-size: .75rem;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 120ms ease, transform 150ms cubic-bezier(.22,1,.36,1), visibility 120ms linear;
+}
+.center { left: 50%; transform: translate(-50%,-.25rem); }
+.start { left: 0; transform: translate(0,-.25rem); }
+.end { right: 0; transform: translate(0,-.25rem); }
+.tooltip kbd { padding: .125rem .375rem; border: 0; border-radius: .375rem; background: #5a5a5a; color: #eaeaea; font: inherit; font-size: .6875rem; white-space: nowrap; }
+.button:hover .tooltip,
+.button:focus-visible .tooltip { opacity: 1; visibility: visible; }
+.button:hover .center,
+.button:focus-visible .center { transform: translate(-50%,0); }
+.button:hover .start,
+.button:focus-visible .start,
+.button:hover .end,
+.button:focus-visible .end { transform: translate(0,0); }

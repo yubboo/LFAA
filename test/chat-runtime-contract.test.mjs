@@ -1,46 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync,existsSync } from "node:fs";
+const root=new URL("../",import.meta.url);const read=(p)=>readFileSync(new URL(p,root),"utf8");
+const contracts=read("packages/agent-runtime/src/core/contracts.ts");
+const bridgePath=new URL("apps/web/dev/bridges/agent/agent-runtime-bridge.ts",root);
+const client=read("apps/web/src/host/agent-runtime-client.ts");const app=read("apps/web/src/App.tsx");const workbench=read("packages/app-shell/src/AgentWorkbench.tsx");const conversation=read("packages/app-shell/src/workbench/center/conversation/ConversationRegion.tsx");const session=read("packages/app-shell/src/workbench/session/useAgentSessionController.ts");const composer=read("packages/app-shell/src/workbench/center/composer/ComposerRegion.tsx");const runtimeController=read("packages/app-shell/src/workbench/center/composer/runtime-control/useRuntimeControlController.ts");const runtimeSurface=[workbench,conversation,session,composer,runtimeController].join("\n");const vite=read("apps/web/vite.config.ts");
 
-const root = new URL("../", import.meta.url);
-const contracts = readFileSync(new URL("packages/agent-runtime/src/core/contracts.ts", root), "utf8");
-const bridgePath = new URL("apps/web/dev/bridges/agent/agent-runtime-bridge.ts", root);
-const client = readFileSync(new URL("apps/web/src/host/agent-runtime-client.ts", root), "utf8");
-const app = readFileSync(new URL("apps/web/src/App.tsx", root), "utf8");
-const workbench = readFileSync(new URL("packages/app-shell/src/AgentWorkbench.tsx", root), "utf8");
-const vite = readFileSync(new URL("apps/web/vite.config.ts", root), "utf8");
+test("web development host exposes real model chat runtime",()=>{assert.equal(existsSync(bridgePath),true);const bridge=readFileSync(bridgePath,"utf8");for(const token of ["createWebDevSecretStore","credentialRef","/chat/completions","/responses","MAX_HISTORY_MESSAGES","assistant.completed"])assert.match(bridge,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));assert.doesNotMatch(bridge,/console\.log\([^\n]*(?:credential|secret|Authorization)/i);assert.match(vite,/lfaaDevAgentRuntimeBridge\(projectRoot\)/);assert.match(app,/agentRuntimeHost=\{webAgentRuntimeHost\}/);});
 
-test("web development host exposes a real model chat runtime instead of leaving Composer disabled", () => {
-  assert.equal(existsSync(bridgePath), true);
-  const bridge = readFileSync(bridgePath, "utf8");
-  assert.match(bridge, /createWebDevSecretStore/);
-  assert.match(bridge, /credentialRef/);
-  assert.match(bridge, /\/chat\/completions/);
-  assert.match(bridge, /\/responses/);
-  assert.match(bridge, /MAX_HISTORY_MESSAGES/);
-  assert.match(bridge, /assistant\.completed/);
-  assert.doesNotMatch(bridge, /console\.log\([^\n]*(?:credential|secret|Authorization)/i);
-  assert.match(vite, /lfaaDevAgentRuntimeBridge\(projectRoot\)/);
-  assert.match(app, /agentRuntimeHost=\{webAgentRuntimeHost\}/);
-});
+test("AgentRuntimeHost projects results through session controller events",()=>{assert.match(contracts,/AgentRuntimeEvent/);assert.match(contracts,/subscribe\(listener: AgentRuntimeEventListener\)/);assert.match(client,/lfaa:agent-runtime-event/);assert.match(conversation,/styles\.timeline/);assert.match(session,/assistant\.completed/);assert.match(session,/runtimeConnected:Boolean\(runtimeHost\)/);assert.match(workbench,/runtimeConnected=\{session\.runtimeConnected\}/);});
 
-test("AgentRuntimeHost projects results through runtime events", () => {
-  assert.match(contracts, /AgentRuntimeEvent/);
-  assert.match(contracts, /subscribe\(listener: AgentRuntimeEventListener\)/);
-  assert.match(client, /lfaa:agent-runtime-event/);
-  assert.match(workbench, /agent-chat-timeline/);
-  assert.match(workbench, /assistant\.completed/);
-  assert.match(workbench, /runtimeConnected=\{Boolean\(props\.agentRuntimeHost\)\}/);
-});
-
-test("strong reasoning travels as an Agent execution hint without inventing a provider reasoning field", () => {
-  const bridge = readFileSync(bridgePath, "utf8");
-  assert.match(contracts, /interface AgentExecutionHints/);
-  assert.match(contracts, /executionHints\?: AgentExecutionHints/);
-  assert.match(workbench, /executionHints\?: AgentExecutionHints/);
-  assert.match(workbench, /reasoningBoost: boostActive/);
-  assert.match(bridge, /executionHints\?\.reasoningBoost|rawHints[\s\S]*reasoningBoost/);
-  assert.match(bridge, /REASONING_BOOST_INSTRUCTION/);
-  assert.match(bridge, /role: "system"/);
-  assert.doesNotMatch(bridge, /reasoning_effort\s*:\s*request\.executionHints|reasoning\s*:\s*request\.executionHints/);
-});
+test("strong reasoning travels as execution hint without inventing provider field",()=>{const bridge=readFileSync(bridgePath,"utf8");assert.match(contracts,/interface AgentExecutionHints/);assert.match(contracts,/executionHints\?: AgentExecutionHints/);assert.match(composer,/executionHints/);assert.match(runtimeController,/reasoningBoost: boostActive/);assert.match(bridge,/executionHints\?\.reasoningBoost|rawHints[\s\S]*reasoningBoost/);assert.match(bridge,/REASONING_BOOST_INSTRUCTION/);assert.match(bridge,/role: "system"/);assert.doesNotMatch(bridge,/reasoning_effort\s*:\s*request\.executionHints|reasoning\s*:\s*request\.executionHints/);});

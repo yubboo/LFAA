@@ -1,9 +1,28 @@
-## v0.0.92 Reasoning Runtime Projection / Slider Geometry 职责收敛
+## v0.0.94 / #21.23 Workbench 全域模块 Owner
 
-- `packages/app-shell/src/reasoning-control.ts`：Provider Capability → Runtime 有效推理强度。只过滤明确关闭 sentinel；Catalog 原值不改，剩余 option 不排序、不补档、不改名。
-- `packages/ui/src/ui-controls/DiscreteSlider.tsx`：`__geometry` 统一 rail / mark / thumb / effect 的 0~100% 坐标与 Pointer rect，解决最高档越过 rail 的双坐标问题。
-- `packages/ui/src/ui-effects/ParticleStreamCanvas.tsx`：单 Canvas/rAF 保留，但 Renderer 只画星点/星芒/twinkle；实际边界由 Slider `__effect-clip` 胶囊裁剪。
-- `packages/app-shell/src/agent-workbench.css`：Runtime Card 只负责 toolbar 三列与 palette token；icon-only button 显式单格 grid，避免通用 Popover 双列规则把 SVG 推到左侧。
+- `AgentWorkbench.tsx`：Composition Root，只总装配。
+- `workbench/shell/`：Theme、Chrome、LayoutMode、左右/底部面板装配、快捷键、Overlay。
+- `workbench/left/`：左侧栏与 ProfileBar；局部 brand menu 自己拥有。
+- `workbench/center/header/`：中央 Header。
+- `workbench/center/conversation/`：Chat Timeline / Work Canvas。
+- `workbench/center/composer/`：draft、submit、Add/Permission 菜单协调。
+- `workbench/center/composer/runtime-control/`：模型快切、reasoning preview/commit queue、boost。
+- `workbench/right/`：右侧资源栏。
+- `workbench/terminal/`：底部终端。
+- `workbench/settings/`：Settings Surface、AI/Plugin snapshot/controller/view model。
+- `workbench/session/`：Chat/Work surface、permission、Run event subscription/startRun。
+- `workbench/shared/`：仅 Workbench 内真正跨模块的 Icon/Button 等小 Primitive。
+
+每个 UI 模块只拥有自己的 CSS Module；共享动态算法继续来自 `@lfaa/ui`。本版状态 `pending-user-acceptance`，只做等价模块迁移。
+
+## v0.0.93 / #21.22 Workbench 父子模块
+
+- **父模块：** `packages/app-shell/src/AgentWorkbench.tsx` 只做 Composition Root。
+- **四个大模块：** `left/LeftSidebarRegion`、`center/CenterWorkspaceRegion`、`right/RightSidebarRegion`、`terminal/BottomTerminalRegion`。
+- **Center 子模块：** `CenterHeader`、`ConversationRegion`、`ComposerRegion`。
+- **Composer 子模块：** `RuntimeControl`；模型/reasoning/强力推理的后续修改不得顺带编辑 Left/Right/Terminal/Conversation。
+- **共享 Primitive：** Slider/Effect/Resize/Overlay 继续只归 `@lfaa/ui`。
+- **状态：** pending-user-acceptance；v0.0.93 只做等价迁移和边界门禁，不做视觉重构。
 
 ## v0.0.91 UI Effect Renderer / Release Archive 职责收敛
 

@@ -1,348 +1,121 @@
 /**
  * 文件：ui-contract-check.mjs
- * 作用：检查 Web 工作台最容易发生视觉/交互回归的静态 UI 契约。
- * 负责：单一 Tooltip、容器响应式计算、变量化布局、Composer 底部安全间距、三向 capture-threshold 吸附状态机、Dock/Overlay 模式契约。
- * 不负责：浏览器真实像素截图、Pointer 实机手感、PTY 行为测试。
- * 状态归属：无运行时状态；每次执行读取当前 App Shell 与 ResizableWorkbench 源码/CSS。
+ * 作用：检查 LFAA Workbench/UI 的静态交互与模块边界契约。
+ * 负责：全域模块化、Shell 快捷键、响应式布局、Resize/Snap、Chat/Work、RuntimeControl、共享 Slider/Effect 等源码级 Gate。
+ * 不负责：浏览器像素截图、真实 Provider 请求、TypeScript 完整 workspace 编译或用户主观视觉验收。
+ * 状态归属：无运行时状态；每次执行直接读取当前工作树源码。
  * 对外接口：`node scripts/ui-contract-check.mjs`，成功返回 0，失败返回 1。
- * 关联文件：AgentWorkbench.tsx、agent-workbench.css、workbench-layout.config.ts、ResizableWorkbench.tsx、workbench.css、docs/UI.md、docs/TESTING.md。
- * 修改注意事项：UI 交互事实变化时，先更新规范/测试，再同步更新此门禁；禁止删检查绕过回归。
+ * 关联文件：packages/app-shell/src/workbench/**、packages/ui/src/ui-*、test/workbench-module-boundary.test.mjs、scripts/workspace-preflight.mjs。
+ * 修改注意事项：模块迁移时应让 Gate 跟随真实 Owner，不能为了通过测试要求实现重新堆回根组件或全局 CSS。
  */
 import fs from "node:fs";
 import path from "node:path";
+const root=process.cwd();const read=(relative)=>fs.readFileSync(path.join(root,relative),"utf8");const fail=(message)=>{console.error(`LFAA UI contract check failed: ${message}`);process.exit(1);};
+const rootTsx=read("packages/app-shell/src/AgentWorkbench.tsx");
+const chrome=read("packages/app-shell/src/workbench/shell/useWorkbenchChromeController.ts");
+const shell=read("packages/app-shell/src/workbench/shell/WorkbenchShell.tsx");
+const shellCss=read("packages/app-shell/src/workbench/shell/WorkbenchShell.module.css");
+const shellButton=read("packages/app-shell/src/workbench/shell/ShellHeaderButton.tsx");
+const rightShellActions=read("packages/app-shell/src/workbench/shell/RightShellActions.tsx");
+const shellButtonCss=read("packages/app-shell/src/workbench/shell/ShellHeaderButton.module.css");
+const themeCss=read("packages/app-shell/src/workbench/shell/WorkbenchTheme.module.css");
+const left=read("packages/app-shell/src/workbench/left/LeftSidebarRegion.tsx");
+const center=read("packages/app-shell/src/workbench/center/CenterWorkspaceRegion.tsx");
+const header=read("packages/app-shell/src/workbench/center/header/CenterHeader.tsx");
+const conversation=read("packages/app-shell/src/workbench/center/conversation/ConversationRegion.tsx");
+const conversationCss=read("packages/app-shell/src/workbench/center/conversation/Conversation.module.css");
+const composer=read("packages/app-shell/src/workbench/center/composer/ComposerRegion.tsx");
+const composerCss=read("packages/app-shell/src/workbench/center/composer/Composer.module.css");
+const addMenu=read("packages/app-shell/src/workbench/center/composer/AddCapabilityMenu.tsx");
+const permission=read("packages/app-shell/src/workbench/center/composer/PermissionControl.tsx");
+const runtimeView=read("packages/app-shell/src/workbench/center/composer/runtime-control/RuntimeControl.tsx");
+const runtimeRow=read("packages/app-shell/src/workbench/center/composer/runtime-control/ReasoningControlRow.tsx");
+const runtimeController=read("packages/app-shell/src/workbench/center/composer/runtime-control/useRuntimeControlController.ts");
+const runtimePicker=read("packages/app-shell/src/workbench/center/composer/runtime-control/RuntimeModelPicker.tsx");
+const runtimeCss=read("packages/app-shell/src/workbench/center/composer/runtime-control/RuntimeControl.module.css");
+const session=read("packages/app-shell/src/workbench/session/useAgentSessionController.ts");
+const globalCss=read("packages/app-shell/src/agent-workbench.css");
+const allApp=[rootTsx,chrome,shell,shellButton,rightShellActions,left,center,header,conversation,composer,addMenu,permission,runtimeView,runtimeRow,runtimeController,runtimePicker,session].join("\n");
+const layoutConfig=read("packages/ui/src/workbench/workbench-layout.config.ts");const resizeTsx=read("packages/ui/src/workbench/ResizableWorkbench.tsx");const workbenchCss=read("packages/ui/src/workbench/workbench.css");const interactionConfig=read("packages/ui/src/workbench/workbench-interaction.config.ts");
+const sharedSliderTsx=read("packages/ui/src/ui-controls/DiscreteSlider.tsx");const sharedSliderCss=read("packages/ui/src/ui-controls/discrete-slider.css");const sharedEffectCss=read("packages/ui/src/ui-effects/effects.css");const sharedEffectHost=read("packages/ui/src/ui-effects/UiEffectHost.tsx");const particleCanvas=read("packages/ui/src/ui-effects/ParticleStreamCanvas.tsx");const sharedEffectRegistry=read("packages/ui/src/ui-effects/registry.ts");const sharedExtensionRegistry=read("packages/ui/src/ui-extension/registry.ts");const animatedDisclosure=read("packages/ui/src/ui-motion/AnimatedDisclosure.tsx");const shortcutHook=read("packages/ui/src/ui-shortcuts/useShortcut.ts");const damped=read("packages/ui/src/ui-resize/damped-motion.ts");const layers=read("packages/ui/src/ui-overlay/layers.css");
 
-const root = process.cwd();
-const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
-const fail = (message) => {
-  console.error(`LFAA UI contract check failed: ${message}`);
-  process.exit(1);
-};
+// 0. 全域模块化边界。
+if(rootTsx.split(/\r?\n/).length>160)fail("AgentWorkbench must stay a thin Composition Root");
+for(const token of ["buildAiProviderViews","ResizeObserver","<SettingsPage","<UserMenu",'className="agent-'])if(rootTsx.includes(token))fail(`AgentWorkbench absorbed module implementation: ${token}`);
+if(/^\s*\.agent-/m.test(globalCss))fail("agent-workbench.css must remain reset-only; region selectors belong to CSS Modules");
+const moduleCssFiles=[];const walkCss=(dir)=>{for(const entry of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())walkCss(file);else if(entry.name.endsWith(".module.css"))moduleCssFiles.push(file);}};walkCss(path.join(root,"packages/app-shell/src/workbench"));
+for(const file of moduleCssFiles){const source=fs.readFileSync(file,"utf8");if(source.includes(":global("))fail(`${path.relative(root,file)} must not use :global escape`);if(/\.agent-[\w-]+/.test(source))fail(`${path.relative(root,file)} reaches a legacy global agent class`);}
+for(const moduleIndex of ["left/index.ts","center/index.ts","center/header/index.ts","center/conversation/index.ts","center/composer/index.ts","center/composer/runtime-control/index.ts","right/index.ts","terminal/index.ts","shell/index.ts","settings/index.ts","session/index.ts","shared/index.ts"])if(!fs.existsSync(path.join(root,"packages/app-shell/src/workbench",moduleIndex)))fail(`missing public module boundary ${moduleIndex}`);
 
-const tsx = read("packages/app-shell/src/AgentWorkbench.tsx");
-const css = read("packages/app-shell/src/agent-workbench.css");
-const layoutConfig = read("packages/ui/src/workbench/workbench-layout.config.ts");
-const resizeTsx = read("packages/ui/src/workbench/ResizableWorkbench.tsx");
-const workbenchCss = read("packages/ui/src/workbench/workbench.css");
-const sharedSliderTsx = read("packages/ui/src/ui-controls/DiscreteSlider.tsx");
-const sharedSliderCss = read("packages/ui/src/ui-controls/discrete-slider.css");
-const sharedEffectCss = read("packages/ui/src/ui-effects/effects.css");
-const sharedEffectRegistry = read("packages/ui/src/ui-effects/registry.ts");
-const sharedEffectHost = read("packages/ui/src/ui-effects/UiEffectHost.tsx");
-const particleStreamCanvas = read("packages/ui/src/ui-effects/ParticleStreamCanvas.tsx");
-const sharedExtensionRegistry = read("packages/ui/src/ui-extension/registry.ts");
-const animatedDisclosure = read("packages/ui/src/ui-motion/AnimatedDisclosure.tsx");
-const shortcutHook = read("packages/ui/src/ui-shortcuts/useShortcut.ts");
-const dampedResize = read("packages/ui/src/ui-resize/damped-motion.ts");
-const overlayLayers = read("packages/ui/src/ui-overlay/layers.css");
+// 1. Shell Tooltip / shortcuts。
+if(/\btitle\s*=/.test(shellButton))fail("ShellHeaderButton must not combine native title with custom tooltip");
+if(!shellButton.includes("aria-label="))fail("ShellHeaderButton must keep aria-label");
+if(!shellButton.includes('tooltipAlign?: "start" | "center" | "end"'))fail("edge-aware tooltip alignment missing");
+if(!/pointer-events:\s*none/.test(shellButtonCss))fail("Shell tooltip must ignore pointer events");
+for(const shortcut of ["Ctrl+B","Ctrl+J","Ctrl+Alt+B"])if(!allApp.includes(`shortcut="${shortcut}"`))fail(`missing Shell shortcut ${shortcut}`);
 
-// 1. Shell Tooltip 只能有一个来源。
-const start = tsx.indexOf("function ShellHeaderButton(");
-const end = tsx.indexOf("// 右侧 Shell Actions", start);
-if (start < 0 || end < 0) fail("ShellHeaderButton implementation block not found");
-const shellButton = tsx.slice(start, end);
-if (!shellButton.includes("agent-shell-tooltip")) fail("ShellHeaderButton must keep the custom Tooltip");
-if (/\btitle\s*=/.test(shellButton)) fail("ShellHeaderButton must not use native title together with custom Tooltip");
-if (!shellButton.includes("aria-label=")) fail("ShellHeaderButton must keep aria-label for accessibility");
-if (!shellButton.includes('tooltipAlign?: "start" | "center" | "end"')) fail("ShellHeaderButton must support edge-aware Tooltip alignment");
-const tooltipRule = css.match(/\.agent-shell-tooltip\s*\{[^}]*\}/s)?.[0] ?? "";
-if (!tooltipRule) fail(".agent-shell-tooltip CSS rule not found");
-if (!/pointer-events\s*:\s*none\s*;/.test(tooltipRule)) fail("Tooltip must use pointer-events:none");
-for (const selector of ["agent-shell-tooltip--start", "agent-shell-tooltip--end"]) {
-  if (!css.includes(selector)) fail(`missing edge-aware Tooltip rule ${selector}`);
-}
-for (const shortcut of ["Ctrl+B", "Ctrl+J", "Ctrl+Alt+B"]) {
-  if (!tsx.includes(`shortcut="${shortcut}"`)) fail(`missing Shell Header shortcut ${shortcut}`);
-}
+// 2. 容器响应式与唯一几何事实源。
+for(const token of ["resolveWorkbenchLayoutMetrics","ResizeObserver","stageRef","leftLimits={layout.left}","rightLimits={layout.right}","bottomLimits={layout.bottom}","minCenterWidth={layout.minCenterWidth}"])if(!(chrome+shell).includes(token))fail(`missing responsive contract ${token}`);
+if(/window\.innerWidth\s*</.test(chrome+shell))fail("fixed window width breakpoints must not return");
+for(const token of ["WORKBENCH_LAYOUT_TOKENS","ratio:","floor:","ceiling:","desktopNeed","compactNeed","resolveWorkbenchLayoutMetrics"])if(!layoutConfig.includes(token))fail(`missing layout token ${token}`);
+for(const token of ['data-layout-mode="compact"','data-layout-mode="mobile"',"--lfaa-overlay-right-width","clamp(15rem, 34%, 20rem)","container-type: inline-size"])if(!workbenchCss.includes(token))fail(`missing workbench responsive CSS ${token}`);
+if(/88vw|56vw|420px/.test(workbenchCss))fail("legacy drawer sizing returned");
 
-// 2. 响应式必须以容器测量 + 单一计算器为事实源，不再同时维护 window 断点与 CSS media 断点。
-for (const token of [
-  "resolveWorkbenchLayoutMetrics",
-  "new ResizeObserver(update)",
-  "containerRef.current",
-  "layoutMode={layoutMode}",
-  "leftLimits={layout.left}",
-  "rightLimits={layout.right}",
-  "bottomLimits={layout.bottom}",
-  "minCenterWidth={layout.minCenterWidth}",
-]) {
-  if (!tsx.includes(token)) fail(`missing container-responsive contract: ${token}`);
-}
-if (/window\.innerWidth\s*</.test(tsx)) fail("fixed window.innerWidth breakpoints must not return");
-if (/const\s+(LEFT|RIGHT|BOTTOM)_LIMITS\s*=/.test(tsx)) fail("App Shell must not own hard-coded pane limits");
+// 3. 主题 Token 与 Composer 安全区。
+for(const token of ["--agent-shell-header-h","--agent-content-max","--agent-composer-max","--agent-composer-bottom-gap","--agent-page-gutter",'data-layout-mode="compact"','data-layout-mode="mobile"'])if(!themeCss.includes(token))fail(`missing theme token ${token}`);
+if(!composerCss.includes("max(var(--agent-composer-bottom-gap), env(safe-area-inset-bottom))"))fail("Composer safe-area bottom contract missing");
 
-for (const token of [
-  "WORKBENCH_LAYOUT_TOKENS",
-  "ratio:",
-  "floor:",
-  "ceiling:",
-  "desktopNeed",
-  "compactNeed",
-  "resolveWorkbenchLayoutMetrics",
-]) {
-  if (!layoutConfig.includes(token)) fail(`missing calculated layout token: ${token}`);
-}
+// 4. 三向吸附 / 阻尼算法保持共享 UI Owner。
+for(const token of ["resolveSnapDragFrame({","frame.visualSize","frame.capturedThisFrame","frame.releasedThisFrame","resolveSnapCaptureThreshold(effectiveMin, snapCaptureRatio)","onBottomOpenChange?.(false)"])if(!resizeTsx.includes(token))fail(`missing snap contract ${token}`);
+for(const token of ["rawSize <= input.captureThreshold","rawSize >= safeMin + Math.max(0, input.releaseHysteresis)","visualSize: snapped ? 0 : Math.min(safeMax, Math.max(safeMin, rawSize))"])if(!interactionConfig.includes(token))fail(`missing centralized snap state ${token}`);
+if(resizeTsx.includes("!drag.snapped && raw <= drag.min"))fail("min size must not directly trigger snap");
+if(!damped.includes("stepDampedValue")||!resizeTsx.includes("stepDampedValue"))fail("shared damping owner missing");
 
-for (const token of [
-  'data-layout-mode="compact"',
-  'data-layout-mode="mobile"',
-  "--lfaa-overlay-right-width",
-  "clamp(15rem, 34%, 20rem)",
-  "container-type: inline-size",
-]) {
-  if (!workbenchCss.includes(token)) fail(`missing variable-based responsive CSS contract: ${token}`);
-}
-if (/88vw|56vw|420px/.test(workbenchCss)) fail("legacy fixed/near-fullscreen drawer sizing must not return");
-if (/\@media\s*\(max-width:\s*1239px\)|\@media\s*\(max-width:\s*759px\)/.test(workbenchCss + css)) {
-  fail("legacy layout breakpoints must not return; use data-layout-mode + variables");
-}
+// 5. Hover Preview 与正式 Left 共用宽度。
+for(const token of ["leftPaneWidth","onLeftWidthChange={chrome.setLeftPaneWidth}",'"--agent-left-preview-width"'])if(!(chrome+shell).includes(token))fail(`missing shared left width ${token}`);
+if(!shellCss.includes("var(--agent-left-preview-width"))fail("preview must consume shared left width variable");
 
-// 3. App Shell 视觉尺寸必须使用设计变量 / rem / clamp，而不是继续复制 48px / 760px 结构常量。
-for (const token of [
-  "--agent-shell-header-h",
-  "--agent-content-max",
-  "--agent-composer-max",
-  "--agent-composer-bottom-gap",
-  "--agent-page-gutter",
-  "clamp(",
-  'data-layout-mode="compact"',
-  'data-layout-mode="mobile"',
-]) {
-  if (!css.includes(token)) fail(`missing App Shell design token: ${token}`);
-}
-if (/grid-template-rows:\s*48px/.test(css) || /height:\s*48px/.test(css)) {
-  fail("48px header magic number must not return; use --agent-shell-header-h");
-}
-if (!css.includes("max(var(--agent-composer-bottom-gap), env(safe-area-inset-bottom))")) {
-  fail("Composer bottom spacing must use --agent-composer-bottom-gap + safe-area instead of a fixed bottom padding");
-}
+// 6. Chat/Work 共用 Session/Runtime。
+for(const token of ['agentSurface==="chat"','setAgentSurface','permissionProfileId','<InfiniteCanvas','assistant.completed','runtimeConnected:Boolean(runtimeHost)'])if(!allApp.includes(token))fail(`missing shared Chat/Work runtime ${token}`);
+if(allApp.includes("GPT-5.6 Sol"))fail("Workbench must not hard-code a model name");
 
-// 4. 三向吸附必须使用“隐藏超拖” capture threshold：视觉尺寸到 min 后保持 min，Pointer 继续向内超拖到阈值才吸附；不松手仍可反向解锁。
-const interactionConfig = read("packages/ui/src/workbench/workbench-interaction.config.ts");
-for (const token of [
-  "resolveSnapDragFrame({",
-  "frame.visualSize",
-  "frame.capturedThisFrame",
-  "frame.releasedThisFrame",
-  "resolveSnapCaptureThreshold(effectiveMin, snapCaptureRatio)",
-  "resolveSnapCaptureThreshold(bottomLimits.min, snapCaptureRatio)",
-  "Pointer Up",
-  "onBottomOpenChange?.(false)",
-]) {
-  if (!resizeTsx.includes(token)) fail(`missing capture-threshold snap contract: ${token}`);
-}
-for (const token of [
-  "rawSize <= input.captureThreshold",
-  "rawSize >= safeMin + Math.max(0, input.releaseHysteresis)",
-  "visualSize: snapped ? 0 : Math.min(safeMax, Math.max(safeMin, rawSize))",
-]) {
-  if (!interactionConfig.includes(token)) fail(`missing centralized snap-frame contract: ${token}`);
-}
-if (resizeTsx.includes("!drag.snapped && raw <= drag.min")) {
-  fail("minWidth must not directly trigger snap capture; use captureThreshold");
-}
+// 7. 左上切换、Permission、Add Menu、RuntimeControl 各自模块化但行为不丢失。
+for(const token of ["一句话直接完成任务","无限画布组织和执行任务","AGENT_PERMISSION_PROFILES","profile.description","工具与技能","浏览器","<RuntimeControl"])if(!allApp.includes(token))fail(`missing Workbench interaction ${token}`);
+if(/<select[^>]*value=\{permissionProfileId\}/.test(allApp))fail("permission must remain explanatory popover");
+for(const token of ["RuntimeModelPicker","ReasoningControlRow","toggleReasoningBoost","resetReasoning","useDismissibleLayer","onQuickSelectModel","onQuickUpdateModelSetting","quickModels.length === 0","管理模型"])if(!(runtimeView+runtimeRow+runtimeController+runtimePicker+composer).includes(token))fail(`missing RuntimeControl contract ${token}`);
+if((runtimeView+runtimeController).includes("modelMenuOpen")||(runtimeView+runtimeController).includes("reasoningMenuOpen"))fail("split runtime popovers must not return");
+if(!runtimeCss.includes("contain: layout style"))fail("runtime card containment contract missing");
 
-if (resizeTsx.includes("clamp(raw, drag.captureThreshold, drag.max)")) {
-  fail("pre-capture visual size must stay at minWidth; captureThreshold is pointer-only, not visual width");
-}
-for (const token of [
-  "captureRatio: 0.50",
-  "releaseHysteresis",
-  "captureDurationMs",
-  "releaseDurationMs",
-  "settleDurationMs",
-  "stepPx",
-  "fastStepPx",
-]) {
-  if (!interactionConfig.includes(token)) fail(`missing centralized Workbench interaction token: ${token}`);
-}
-if (!resizeTsx.includes('data-layout-mode={layoutMode}')) fail("ResizableWorkbench must expose layoutMode to CSS");
-if (!resizeTsx.includes('layoutMode === "desktop"')) fail("dynamic max must distinguish Dock from Overlay modes");
-if (!resizeTsx.includes('setResolvedLeftWidth((value) => clamp(value, dynamicMin, dynamicMax))')) {
-  fail("shared/persisted left width must be re-clamped when container becomes narrower");
-}
-if (!/\.lfaa-is-resizing \.lfaa-workbench,[\s\S]*transition:\s*none;/.test(workbenchCss)) {
-  fail("normal dragging must disable transitions so Pointer stays responsive");
-}
-if (!workbenchCss.includes('data-snap-preview="left"') || !workbenchCss.includes('var(--lfaa-snap-capture-duration)')) {
-  fail("snap preview must use the centralized magnetic-collapse duration variable");
-}
-if (!workbenchCss.includes('var(--lfaa-snap-release-duration)') || !workbenchCss.includes('var(--lfaa-snap-settle-duration)')) {
-  fail("snap release/settle transitions must use centralized CSS duration variables");
-}
+// 8. Shared UI internals remain outside App Shell。
+for(const token of ["setPointerCapture","onPointerMove","onPointerUp",'role="slider"',"ArrowLeft","ArrowRight","Home","End"])if(!sharedSliderTsx.includes(token))fail(`shared slider missing ${token}`);
+for(const token of [".lfaa-discrete-slider","--lfaa-slider-progress","prefers-reduced-motion"])if(!sharedSliderCss.includes(token))fail(`slider CSS missing ${token}`);
+for(const token of ["requestAnimationFrame","ResizeObserver","devicePixelRatio","prefers-reduced-motion"])if(!particleCanvas.includes(token))fail(`particle Canvas missing ${token}`);
+if(/@keyframes|animation:/.test(sharedEffectCss))fail("reasoning particle motion must not return to CSS animation");
+for(const source of [sharedEffectRegistry,sharedExtensionRegistry])if(!source.includes("unregisterOwner")||!source.includes("#generation"))fail("UI registry unload/generation missing");
+if(allApp.includes("setPointerCapture")||allApp.includes("agent-reasoning-slider__particles"))fail("App Shell reimplemented shared slider/effect internals");
 
+// 9. 动态 reasoning + 强力推理正交 + no-flash queue。
+const reasoningControl=read("packages/app-shell/src/reasoning-control.ts");
+for(const token of ["resolveReasoningStages","return options.map","label: providerOption.label","providerOption.value"])if(!reasoningControl.includes(token))fail(`reasoning capability contract missing ${token}`);
+for(const forbidden of ["REASONING_UI_STAGES","semanticRank","isReasoningDisabledValue","DISABLED_REASONING_VALUES"])if(reasoningControl.includes(forbidden))fail(`reasoning stages must not be synthesized/filtered: ${forbidden}`);
+if(!runtimeRow.includes("steps={reasoningStages.map"))fail("Slider steps must come from Provider capability");
+if(!runtimeController.includes("Math.min(reasoningStages.length - 1, index)"))fail("dynamic reasoning clamp missing");
+const boostToggle=runtimeController.match(/const toggleReasoningBoost = \(\) => \{[\s\S]*?\n  \};/);if(!boostToggle||/commitReasoningIndex|onQuickUpdateModelSetting/.test(boostToggle[0]))fail("strong reasoning must stay orthogonal");
+if(!conversationCss.includes("width:min(var(--agent-composer-max),100%)"))fail("conversation/composer horizontal baseline diverged");
+if(/translateZ\(0\)|will-change:\s*transform/.test(runtimeCss))fail("Runtime card must not force full-card GPU promotion");
+for(const token of ["--lfaa-slider-visual-progress","style.setProperty","setPointerCapture","releasePointerCapture"])if(!sharedSliderTsx.includes(token))fail(`smooth slider contract missing ${token}`);
+if(!sharedEffectHost.includes("ParticleStreamCanvas")&&!sharedEffectHost.includes("particle-stream-canvas"))fail("Canvas Effect Host missing");
+if(!runtimeRow.includes("active={boostActive}"))fail("particle renderer must activate only with boost");
+const commit=runtimeController.match(/const commitReasoningIndex = \(index: number\) => \{[\s\S]*?\n  \};/);if(!commit||!commit[0].includes("reasoningCommitQueueRef")||/setModelControlBusy/.test(commit[0]))fail("reasoning commit queue/no-flash contract broken");
+for(const token of ["--lfaa-reasoning-standard-color-1","--lfaa-reasoning-extreme-color-4"])if(!themeCss.includes(token))fail(`reasoning palette token missing ${token}`);
 
-// 5. 左栏 Hover Preview 与点击展开必须共享同一实际宽度，禁止维护第二套 preview clamp。
-for (const token of [
-  "onLeftWidthChange",
-  "setLeftPaneWidth",
-  '"--agent-left-preview-width": `${leftPaneWidth}px`',
-]) {
-  if (!tsx.includes(token) && !resizeTsx.includes(token)) fail(`missing shared left preview width contract: ${token}`);
-}
-if (/--agent-left-preview-width\s*:\s*clamp\(/.test(css)) {
-  fail("Hover Preview must not own an independent clamp width; bind it to the real left pane width");
-}
-
-// 6. Chat / Work 必须共用同一 Agent Runtime，Work 是真实无限画布 Projection，模型名不得写死。
-const canvasTsx = read("packages/ui/src/features/workbench/InfiniteCanvas.tsx");
-for (const token of [
-  'agentSurface === "chat"',
-  'onAgentSurfaceChange("work")',
-  'AGENT_PERMISSION_PROFILES',
-  'runtimeConnected={Boolean(props.agentRuntimeHost)}',
-  'selectedModelId',
-  '<InfiniteCanvas',
-]) {
-  if (!tsx.includes(token)) fail(`missing Chat/Work shared runtime contract: ${token}`);
-}
-if (tsx.includes("GPT-5.6 Sol")) fail("Workbench must display the configured model, not a hard-coded model name");
-for (const token of ["beginPan", "beginNodeDrag", "onWheel", "onNodesChange?.(next)", "<svg"]) {
-  if (!canvasTsx.includes(token)) fail(`missing Infinite Canvas interaction contract: ${token}`);
-}
-
-// 7. v0.0.78：Chat / Work 从左上角 LFAA 菜单切换；Composer 使用 Codex 风格可解释 Popover，不允许退回开发占位 select。
-for (const token of [
-  "agent-brand-switcher",
-  "agent-brand-menu",
-  "一句话直接完成任务",
-  "无限画布组织和执行任务",
-  "agent-permission-button",
-  "agent-permission-menu",
-  "profile.description",
-  "onOpenAiSettings",
-  "agent-composer-popover--add",
-  "工具与技能",
-  "浏览器",
-]) {
-  if (!tsx.includes(token)) fail(`missing v0.0.78 Codex-like interaction contract: ${token}`);
-}
-if (/<select[^>]*value=\{permissionProfileId\}/.test(tsx)) {
-  fail("permission profiles must use the explanatory popover, not a native select");
-}
-if (/className=["']agent-surface-switch["']/.test(tsx)) {
-  fail("Chat/Work duplicate center switch must not return; use the top-left LFAA switcher");
-}
-for (const token of [
-  "agent-runtime-control-trigger",
-  "agent-runtime-control-card",
-  "agent-runtime-model-picker",
-  "DiscreteSlider",
-  "UiEffectHost",
-  "builtinUiEffectRegistry",
-  "toggleReasoningBoost",
-  "resetReasoning",
-  "useDismissibleLayer",
-  "onQuickSelectModel",
-  "onQuickUpdateModelSetting",
-  "quickModels.length === 0",
-  "管理模型",
-]) {
-  if (!tsx.includes(token)) fail(`missing v0.0.86 unified runtime control contract: ${token}`);
-}
-if (tsx.includes("modelMenuOpen") || tsx.includes("reasoningMenuOpen")) {
-  fail("model/reasoning controls must not return to split popover state; keep one stable runtime-control card");
-}
-if (!tsx.includes('if (quickModels.length === 0) { onOpenAiSettings(); return; }')) {
-  fail("AI settings navigation must be first-use fallback, not the normal model switching path");
-}
-for (const token of [
-  ".agent-brand-menu",
-  ".agent-permission-menu",
-  ".agent-composer-popover",
-  ".agent-answer--welcome",
-  ".agent-work-surface__title",
-  ".agent-runtime-control-trigger",
-  ".agent-runtime-control-card",
-  "contain:layout style",
-]) {
-  if (!css.includes(token)) fail(`missing unified runtime-control UI style contract: ${token}`);
-}
-
-// 8. v0.0.87：共享 UI 基础/效果/扩展统一进入 packages/ui/src/ui-xxx；业务层只能消费，不得复制。
-for (const token of ["setPointerCapture", "onPointerMove", "onPointerUp", 'role="slider"', "ArrowLeft", "ArrowRight", "Home", "End"]) {
-  if (!sharedSliderTsx.includes(token)) fail(`missing shared ui-controls slider contract: ${token}`);
-}
-for (const token of [".lfaa-discrete-slider", "--lfaa-slider-progress", "prefers-reduced-motion"]) {
-  if (!sharedSliderCss.includes(token)) fail(`missing shared ui-controls CSS contract: ${token}`);
-}
-for (const token of ["lfaa-ui-effect--particle-stream", "pointer-events: none"]) {
-  if (!sharedEffectCss.includes(token)) fail(`missing shared ui-effects CSS contract: ${token}`);
-}
-for (const token of ["requestAnimationFrame", "ResizeObserver", "devicePixelRatio", "prefers-reduced-motion"]) {
-  if (!particleStreamCanvas.includes(token)) fail(`missing Canvas particle renderer contract: ${token}`);
-}
-if (/@keyframes|animation:/.test(sharedEffectCss)) fail("reasoning particle motion must not return to CSS keyframes/animation");
-for (const source of [sharedEffectRegistry, sharedExtensionRegistry]) {
-  if (!source.includes("unregisterOwner") || !source.includes("#generation")) fail("UI registries must support owner-scoped unload + generation");
-}
-if (tsx.includes("setPointerCapture") || tsx.includes("agent-reasoning-slider__particles")) fail("App Shell must consume shared ui-controls/ui-effects instead of reimplementing slider/effect internals");
-if (css.includes("agent-reasoning-meteor") || css.includes("agent-reasoning-slider__thumb")) fail("shared slider/effect CSS must not leak back into App Shell");
-for (const forbidden of ["packages/ui/src/effects", "packages/ui/src/overlay", "packages/ui/src/controls", "packages/ui/src/extension"]) {
-  if (fs.existsSync(path.join(root, forbidden))) fail(`shared UI infrastructure must use ui-xxx folders: ${forbidden}`);
-}
-
-
-// 12. v0.0.92：Runtime Slider 只投影 Provider 的有效推理强度；关闭 sentinel 留在 Catalog、不混入强度档；强力推理正交。
-const reasoningControl = read("packages/app-shell/src/reasoning-control.ts");
-for (const token of ["resolveReasoningStages", "runtimeReasoningOptions(options).map", "DISABLED_REASONING_VALUES", "label: providerOption.label", "providerOption.value", "reasoningBoostPreference", "reasoningBoost: boostActive"]) {
-  if (!(reasoningControl + tsx).includes(token)) fail(`missing v0.0.92 reasoning contract: ${token}`);
-}
-for (const forbidden of ["REASONING_UI_STAGES", "semanticRank"]) {
-  if (reasoningControl.includes(forbidden)) fail(`v0.0.92 must not synthesize Provider reasoning stages: ${forbidden}`);
-}
-for (const syntheticLabel of ["极低", "极高", "极限"]) {
-  if (reasoningControl.includes(`label: "${syntheticLabel}"`)) fail(`v0.0.92 must not hard-code synthetic reasoning label: ${syntheticLabel}`);
-}
-if (!reasoningControl.includes('"none", "off", "disabled"')) fail("v0.0.92 runtime reasoning projection must exclude explicit disabled sentinels");
-if (!tsx.includes("steps={reasoningStages.map")) fail("reasoning slider steps must come from current Provider capability options");
-if (!tsx.includes("Math.min(reasoningStages.length - 1, index)")) fail("reasoning commit must clamp to dynamic Provider stage count");
-const boostToggle = tsx.match(/const toggleReasoningBoost = \(\) => \{[\s\S]*?\n  \};/);
-if (!boostToggle || /commitReasoningIndex|onQuickUpdateModelSetting/.test(boostToggle[0])) fail("strong reasoning must remain orthogonal to Provider reasoning stage");
-if (!css.includes("width:min(var(--agent-composer-max),100%)")) fail("chat timeline must share Composer horizontal geometry");
-if (/\.agent-runtime-control-card\{[^}]*translateZ\(0\)/s.test(css) || /\.agent-runtime-control-card\{[^}]*will-change:transform/s.test(css)) fail("runtime card must not force full-card GPU promotion");
-for (const token of ["--lfaa-slider-visual-progress", "style.setProperty", "setPointerCapture", "releasePointerCapture"]) {
-  if (!sharedSliderTsx.includes(token)) fail(`missing v0.0.90 smooth slider contract: ${token}`);
-}
-for (const token of ["cursor: grab", "cursor: grabbing", "background: #fff"]) {
-  if (!sharedSliderCss.includes(token)) fail(`missing v0.0.90 slider affordance: ${token}`);
-}
-for (const token of ["geometryRef", "lfaa-discrete-slider__effect-clip"]) {
-  if (!sharedSliderTsx.includes(token)) fail(`missing v0.0.92 unified slider geometry: ${token}`);
-}
-for (const token of ["--lfaa-slider-edge-inset", "lfaa-discrete-slider__geometry", "overflow: hidden"]) {
-  if (!sharedSliderCss.includes(token)) fail(`missing v0.0.92 slider rail clip contract: ${token}`);
-}
-if (!/agent-runtime-control-card__icon\{[^}]*grid-template-columns:1fr!important/s.test(css)) fail("runtime icon-only buttons must override generic popover two-column grid");
-for (const token of ["particle-stream-canvas", "ParticleStreamCanvas"]) {
-  if (!sharedEffectHost.includes(token)) fail(`missing v0.0.91 Canvas effect host contract: ${token}`);
-}
-for (const token of ["data-active", "data-variant", "createLinearGradient", "readSliderProgressRatio", "drawSparkle", "quadraticCurveTo"]) {
-  if (!particleStreamCanvas.includes(token)) fail(`missing v0.0.92 Canvas star particle contract: ${token}`);
-}
-if (/context\.lineTo\(|context\.stroke\(|const tail/.test(particleStreamCanvas)) fail("reasoning Canvas must not render arrow/tail line particles");
-if (!tsx.includes('active={boostActive}')) fail("reasoning particle renderer must only activate with strong reasoning");
-const reasoningCommit = tsx.match(/const commitReasoningIndex = \(index: number\) => \{[\s\S]*?\n  \};/);
-if (!reasoningCommit || !reasoningCommit[0].includes("reasoningCommitQueueRef")) fail("reasoning commits must use the serialized optimistic queue");
-if (/runModelControl|setModelControlBusy/.test(reasoningCommit[0])) fail("reasoning commit must not trigger modelControlBusy disabled flash");
-for (const token of ["--lfaa-reasoning-standard-color-1", "--lfaa-reasoning-extreme-color-4"]) {
-  if (!(css + read("packages/ui/src/ui-effects/index.ts")).includes(token)) fail(`missing v0.0.90 customizable reasoning palette token: ${token}`);
-}
+// 10. Disclosure / shortcuts / overlay layer tokens。
+if(!runtimePicker.includes("AnimatedDisclosure"))fail("Runtime model picker must use AnimatedDisclosure");
+if(!runtimeView.includes("Ctrl+Shift+M"))fail("RuntimeControl shortcut label missing Ctrl+Shift+M");
+if(!permission.includes("Ctrl+Shift+P"))fail("PermissionControl shortcut label missing Ctrl+Shift+P");
+if(!shortcutHook.includes('window.addEventListener("keydown"'))fail("shared shortcut registry missing");
+for(const token of ["--lfaa-layer-popover","--lfaa-layer-tooltip","--lfaa-layer-modal"])if(!layers.includes(token))fail(`overlay layer token missing ${token}`);
+if(!runtimeCss.includes("var(--lfaa-layer-tooltip"))fail("Runtime tooltip must consume shared layer token");
+if(!animatedDisclosure.includes("lfaa-animated-disclosure"))fail("AnimatedDisclosure stable host missing");
 
 console.log("LFAA UI contract check passed.");
-
-
-// 11. v0.0.88：模型卡必须稳定展开/收起，快捷键/层级/阻尼 Resize 进入共享 ui-xxx。
-for (const token of [
-  "AnimatedDisclosure",
-  'useShortcut({ key: "m", ctrl: true, shift: true }',
-  'useShortcut({ key: "p", ctrl: true, shift: true }',
-  "Ctrl+Shift+M",
-  "agent-runtime-control-trigger__tooltip",
-]) {
-  if (!tsx.includes(token)) fail(`missing v0.0.88 runtime-control interaction: ${token}`);
-}
-if (!animatedDisclosure.includes("grid-template-rows") && !read("packages/ui/src/ui-motion/animated-disclosure.css").includes("grid-template-rows")) fail("AnimatedDisclosure must animate stable mounted height");
-if (!shortcutHook.includes('window.addEventListener("keydown"')) fail("shared shortcut hook missing keydown registry");
-if (!dampedResize.includes("stepDampedValue") || !resizeTsx.includes("stepDampedValue")) fail("ResizableWorkbench must consume shared damped resize primitive");
-for (const token of ["--lfaa-layer-popover", "--lfaa-layer-tooltip", "--lfaa-layer-modal"]) if (!overlayLayers.includes(token)) fail(`missing overlay layer token ${token}`);
-if (!css.includes("var(--lfaa-layer-tooltip")) fail("tooltips must consume centralized overlay layer tokens");

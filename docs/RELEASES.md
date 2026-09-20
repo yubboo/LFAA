@@ -1,13 +1,22 @@
-## LFAA v0.0.92 Release — #22.7 Reasoning Slider Geometry / Star Particles
+## LFAA v0.0.94 Release — #21.23 Workbench 全域模块化 / DeepSeek Harness 风格边界
+
+- 从 v0.0.93 建立，目标不是只拆 RuntimeControl，而是把整个 Workbench 建成长期父子 Owner：Shell / Left / Center(Header / Conversation / Composer / RuntimeControl) / Right / Terminal / Settings / Session / Shared。
+- `AgentWorkbench.tsx` 收敛为薄 Composition Root；区域 DOM、Overlay、AI/Plugin ViewModel、Agent Run subscription 均回到各自 Owner。
+- 每个 UI 模块使用局部 `*.module.css`；`agent-workbench.css` 收敛为 reset-only，禁止跨模块 `.agent-*` 与 `:global` 逃逸。
+- 共享动态 UI 算法不重写：`ui-controls/ui-effects/ui-resize/ui-motion` 相对 v0.0.93 零 diff；本版不顺手改变 Reasoning/粒子/Resize/Motion/Provider 行为。
+- 自动验证：模块/既有行为聚焦测试 45/45 PASS；全仓 Node 140 项中 139 项 PASS（唯一 Node source runtime 项受 Node 22.16.0 + 无 workspace node_modules 环境阻断）；Workbench TS/TSX 语法 50/50 PASS；UI contract PASS。最终用户验收前状态保持 `pending-user-acceptance`。
+- 最终发布 ZIP 431 entries；`docs/项目结构与代码地图.md` UTF-8 flag=`0x800`；`.lfaa/` 保留；fresh round-trip 后再次 `workspace-preflight` 全 Gate PASS。
+
+## LFAA v0.0.93 Release — #21.22 Workbench Parent/Child Module Boundaries
 
 - **状态：** pending-user-acceptance
-- Runtime reasoning strength 不再把 Provider 的 `none/off/disabled` 关闭 sentinel 当成最低档；Catalog 真值不变，Runtime 只投影真实可执行强度。
-- 闪电 / 重置 icon-only button 覆盖通用双列 popover grid，使用同尺寸单格 grid 居中。
-- Slider rail / fill / mark / thumb / Pointer / Effect 统一到一个 geometry；最后一档与 rail 终点严格共点。
-- Canvas Effect 进入 rail capsule clip host；删除方向尾线，改为点状星光、闪烁光尘、少量四向星芒。standard 粉色，最高有效档淡粉→粉→紫→深紫。
-- 保留 v0.0.91 的 Canvas 2D / rAF、reasoning 串行保存、松手不触发 disabled opacity 的稳定性修复。
-- **AI 验证：** #22.7 聚焦 24/24 PASS；全仓可执行 Node 静态/契约 138/138 PASS；本轮 TS/TSX syntax transpile 4/4 PASS。Node 22.16.0 + 缺 workspace `node_modules` 无法替代项目要求的 Node 24 / pnpm 动态 source runtime 与 Config System 测试；治理 Gate 与 workspace-preflight 全部 PASS；Unicode ZIP fresh round-trip 在成品归档后再次复验。
-- **Windows 实机重点：** DeepSeek 等带 `none` 的模型不应再显示“关闭思考”；闪电/重置居中；最高点不越轨；粒子只在轨道内，视觉为星点闪烁而非箭头/短线；拖拽松手无闪白。
+- v0.0.93 从 v0.0.91 重新建立，不继承未通过用户验收的 v0.0.92 业务改动。
+- `AgentWorkbench` 只保留跨区域 Shell 状态与 Composition；Left / Center / Right / BottomTerminal 成为独立大模块。
+- Center 继续拆成 Header / Conversation / Composer；Composer 内 RuntimeControl 独立，后续模型/reasoning/强力推理修复不得跨改兄弟区域。
+- 子模块通过 typed Props/Callback 通信；禁止用 DOM query、全局可变单例或兄弟内部 import 串状态。
+- 本轮冻结视觉和行为：`agent-workbench.css` 与共享 Slider/Effect/Resize Primitive 相对 v0.0.91 零改动，不在架构重构中顺手调整 reasoning/粒子/拖拽。
+- 新增 Workbench 模块边界自动回归；旧合同测试改为追踪真实 Owner 文件。
+- **AI 验证：** Workbench/既有行为聚焦回归 45/45 PASS；全仓 Node 合同测试 140 项中 139 项 PASS；唯一 Node Source Runtime 项受当前 Node 22.16.0 + 无 workspace `node_modules` 环境阻断。15 个本轮 TS/TSX 语法 transpile PASS；workspace-preflight 全 Gate PASS；v0.0.91 共享 CSS/Slider/Effect/Resize 零改动；Unicode ZIP 候选包 359 entries、`docs/项目结构与代码地图.md` UTF-8 flag `0x800`、`.lfaa/` 存在，fresh round-trip preflight 再次 PASS。
 
 ## LFAA v0.0.91 Release — #22.6 Canvas Reasoning Effect / #20.19 Unicode Archive
 

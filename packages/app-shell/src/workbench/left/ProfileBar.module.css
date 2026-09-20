@@ -1,0 +1,11 @@
+.root { margin-top:auto; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:.3125rem; padding:.5rem .125rem 0; border-top:1px solid var(--agent-border); }
+.main { min-width:0; display:grid; grid-template-columns:1.875rem minmax(0,1fr); align-items:center; gap:.5625rem; border:0; background:transparent; border-radius:.5625rem; padding:.3125rem; text-align:left; cursor:pointer; }
+.main:hover { background:var(--agent-hover); }
+.avatar { width:1.875rem; height:1.875rem; display:grid; place-items:center; border-radius:50%; background:var(--agent-active); font-size:.6875rem; font-weight:650; }
+.text { min-width:0; display:grid; gap:.0625rem; }
+.root strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.75rem; font-weight:600; }
+.root small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--agent-muted); font-size:.625rem; }
+.actions { display:flex; align-items:center; gap:.25rem; flex:0 0 auto; }
+
+.overlay { margin-top:0; padding:.375rem; border-top:1px solid var(--agent-border); background:transparent; }
+.overlay .main { padding:.3125rem; }

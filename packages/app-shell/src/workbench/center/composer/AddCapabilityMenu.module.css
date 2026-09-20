@@ -1,0 +1,10 @@
+.anchor { position:relative; display:flex; align-items:center; }
+.icon { width:2.1rem; height:2.1rem; display:grid; place-items:center; border:0; border-radius:50%; background:transparent; color:var(--agent-muted); cursor:pointer; }
+.icon:hover { background:var(--agent-hover); color:var(--agent-text); }
+.popover { position:absolute; z-index:var(--lfaa-layer-popover,520); left:0; bottom:calc(100% + .48rem); min-width:20rem; padding:.45rem; border:1px solid var(--agent-border); border-radius:1rem; background:var(--agent-elevated); box-shadow:0 1.2rem 3rem rgba(0,0,0,.22); }
+.popover button { width:100%; display:grid; grid-template-columns:1.35rem minmax(0,1fr); gap:.5rem; padding:.56rem .58rem; border:0; border-radius:.52rem; background:transparent; color:var(--agent-text); text-align:left; cursor:pointer; }
+.popover button:hover { background:var(--agent-hover); }
+.popover button>span { min-width:0; display:grid; gap:.12rem; }
+.popover strong { font-size:.7rem; font-weight:640; }
+.popover small { color:var(--agent-muted); font-size:.59rem; line-height:1.45; }
+.anchor[data-layout-mode="mobile"] .popover { position:fixed; left:.75rem; right:.75rem; bottom:4.7rem; width:auto; min-width:0; }

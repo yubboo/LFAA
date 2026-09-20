@@ -9,8 +9,8 @@ builtinUiEffectRegistry.register("@lfaa/ui", {
   id: "reasoning-overdrive",
   title: "强力推理流星",
   renderer: "particle-stream-canvas",
-  particleCount: 18,
-  durationMs: 2100,
+  particleCount: 16,
+  durationMs: 1480,
   reducedMotion: "disable",
   // Canvas Renderer 在运行时解析可继承 CSS Token；Settings/Theme 未来只覆盖 Token，不需要改动画算法。
   palette: [

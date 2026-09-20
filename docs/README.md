@@ -53,4 +53,4 @@ docs/logs/runtime/source-update/
 这些是本机运行数据目录，不再放 Markdown README。
 
 
-> 当前候选版本：v0.0.92（#22.7，implementing；#20.19 修复沿用）；Runtime reasoning 关闭 sentinel、Slider 几何、顶部图标与轨道内星光粒子正在按新合同收敛。
+> 当前候选版本：v0.0.93（#21.22，pending-user-acceptance）；Workbench 已按父子级拆分为 Left / Center / Right / BottomTerminal，大模块内继续拆子模块；本版行为冻结，等待用户验收模块化基线。

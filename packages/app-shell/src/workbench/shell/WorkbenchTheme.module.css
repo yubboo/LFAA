@@ -1,0 +1,87 @@
+/** Workbench 根主题与设计 Token。只定义继承变量，不匹配任何子模块 class。 */
+.theme {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+
+  --agent-bg: #fff;
+  --agent-sidebar: #f7f7f8;
+  --agent-elevated: #fff;
+  --agent-bubble: #f4f4f4;
+  --agent-hover: #ededee;
+  --agent-active: #e7e7e8;
+  --agent-text: #171717;
+  --agent-muted: #737373;
+  --agent-subtle: #a3a3a3;
+  --agent-border: #e5e5e5;
+  --agent-strong-border: #d4d4d4;
+  --agent-shadow: 0 .5rem 1.75rem rgba(0,0,0,.08);
+  --agent-status-ok: #2f8f58;
+  --agent-status-warn: #b7862f;
+  --agent-status-off: #999;
+  --agent-risk: #d85f13;
+  --agent-runtime-accent: #d64d8f;
+  --agent-runtime-accent-active: #e55298;
+
+  --lfaa-reasoning-standard-color-1: #ffc1dc;
+  --lfaa-reasoning-standard-color-2: #f578ad;
+  --lfaa-reasoning-standard-color-3: #ea5a9d;
+  --lfaa-reasoning-standard-color-4: #df4b92;
+  --lfaa-reasoning-extreme-color-1: #ffc1dc;
+  --lfaa-reasoning-extreme-color-2: #f05aa6;
+  --lfaa-reasoning-extreme-color-3: #9b5cff;
+  --lfaa-reasoning-extreme-color-4: #5d2ecb;
+
+  --agent-shell-header-h: 3rem;
+  --agent-control-size: 2rem;
+  --agent-small-control-size: 1.875rem;
+  --agent-page-gutter: clamp(.875rem, 2vw, 1.5rem);
+  --agent-content-max: 48rem;
+  --agent-composer-max: 70rem;
+  --agent-composer-bottom-gap: clamp(1rem, 2.4vh, 1.75rem);
+  --agent-radius-md: .625rem;
+  --agent-radius-lg: 1.125rem;
+
+  color: var(--agent-text);
+  background: var(--agent-bg);
+  color-scheme: light;
+}
+
+.theme[data-theme="dark"] {
+  --agent-bg: #1f1f1f;
+  --agent-sidebar: #171717;
+  --agent-elevated: #1f1f1f;
+  --agent-bubble: #2f2f2f;
+  --agent-hover: #2d2d2d;
+  --agent-active: #343434;
+  --agent-text: #f5f5f5;
+  --agent-muted: #a3a3a3;
+  --agent-subtle: #737373;
+  --agent-border: #343434;
+  --agent-strong-border: #454545;
+  --agent-shadow: 0 .625rem 2rem rgba(0,0,0,.28);
+  --agent-status-ok: #67b88a;
+  --agent-status-warn: #d2aa5b;
+  --agent-status-off: #777;
+  --agent-risk: #ff7a1a;
+  --agent-runtime-accent: #ff80bd;
+  --agent-runtime-accent-active: #ff80bd;
+  color-scheme: dark;
+}
+
+.theme[data-layout-mode="compact"] {
+  --agent-page-gutter: clamp(.75rem, 1.7vw, 1.125rem);
+  --agent-content-max: 45rem;
+  --agent-composer-max: 60rem;
+  --agent-composer-bottom-gap: clamp(.875rem, 1.8vh, 1.375rem);
+}
+
+.theme[data-layout-mode="mobile"] {
+  --agent-shell-header-h: 2.875rem;
+  --agent-control-size: 1.875rem;
+  --agent-page-gutter: .625rem;
+  --agent-content-max: 100%;
+  --agent-composer-max: 100%;
+  --agent-composer-bottom-gap: .75rem;
+}

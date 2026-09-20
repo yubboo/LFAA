@@ -1,11 +1,26 @@
-## v0.0.92 Reasoning Slider 几何 / 星光粒子
+## v0.0.94 Workbench 局部样式与父子 UI 边界
 
-- Runtime“思考强度”不是推理开关：Provider Capability 可以包含 `none/off/disabled`，但这些关闭 sentinel 不进入 Slider；最低档始终是当前模型公开的最低**有效推理强度**。其余档位严格保持 Provider label/value/顺序。
-- Runtime Card 顶部闪电 / 中央模型 / 重置为对称三列；两侧 icon-only button 强制 `grid-template-columns:1fr`，避免通用 Popover button 两列布局让 SVG 偏左。
-- `DiscreteSlider.__geometry` 是唯一轨道坐标系：rail、fill、mark、thumb、Effect 都以其 0%/100% 为首末端，Pointer 也按该 rect 算 ratio；最高档 mark/thumb 不得超过 rail。
-- 粒子只存在于 rail 胶囊内部。`__effect-clip` 与 rail 同高同宽并裁剪 Canvas；Canvas 只绘制当前填充区。
-- 图六视觉参考：粒子为细小圆点、白/粉微光点、少量四向星芒；每个粒子有独立亮度脉冲并缓慢水平漂移，不允许箭头、短横线、拖尾。最高有效档继续使用淡粉→粉→紫→深紫。
-- v0.0.91 的 rAF、reduced-motion、reasoning 串行提交和松手不 disabled 规则继续有效。
+v0.0.94 把 Workbench UI 从“区域实现 + 全局大 CSS”迁移为模块局部样式：Left、Center Header、Conversation、Composer、AddCapability、Permission、RuntimeControl、Right、Terminal、Settings、Shell/Overlay 都有自己的 `*.module.css`。`agent-workbench.css` 只保留 reset；模块 CSS 禁止 `:global(.agent-*)` 和兄弟 class 匹配。
+
+TS/TSX 继续拥有动态行为：状态、Capability、拖拽/阻尼/坐标、Canvas Effect 及共享 Resize/Slider 算法不转移到 CSS。父模块需要视觉变体时通过明确 Prop / `data-*` contract 传递，而不是越级选择子模块内部 class。本版冻结 v0.0.93 的用户可见视觉与交互，不在模块化任务里顺手修 Reasoning 视觉。
+
+## v0.0.93 Workbench 父子 UI 边界
+
+Workbench UI 按区域建立长期父子关系：
+
+```text
+Shell
+├─ Left Sidebar
+├─ Center
+│  ├─ Header
+│  ├─ Conversation / Work Surface
+│  └─ Composer
+│     └─ Runtime Control
+├─ Right Sidebar
+└─ Bottom Terminal
+```
+
+本版只移动代码归属，不修改现有 className/CSS 视觉合同。Chat Timeline 与 Composer 的左右基准、左右栏/终端 Resize/Snap、Runtime Control 的 v0.0.91 交互均保持原语义。以后任何视觉/交互修复默认只进入对应子模块；需要修改共享 Slider/Effect/Resize 时必须在 Prompt 中显式声明。
 
 ## v0.0.91 Reasoning Canvas 粒子与无闪烁提交
 

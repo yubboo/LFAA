@@ -3,16 +3,16 @@
 > **当前唯一有效开发规范。**
 > 用户说“按照开发规范开发 / 按照开发要求做”时，AI 必须把本文件当执行合同，而不是建议。
 
-## UI Motion / Shortcut / Resize / Reasoning / Release Archive 复用规则（v0.0.92）
+## UI Motion / Shortcut / Resize / Reasoning / Release Archive / Workbench 模块复用规则（v0.0.93）
 
 - 业务组件不得自行实现第二套通用展开动画、全局快捷键、阻尼 resize 或 overlay z-index；统一消费 `packages/ui/src/ui-motion`、`ui-shortcuts`、`ui-resize`、`ui-overlay`。
 - Resize 的产品规则（min/max、captureRatio、释放阈值）与视觉运动参数（timeConstant/epsilon）必须分离；修改手感优先调共享参数，不在每个 Surface 写魔法数。
 - Web 开发态 Chat 结果必须来自真实 Provider/Harness；禁止为了 UI 演示生成本地伪回复。Secret 只允许在 Host 内按 credentialRef 临时读取。
-- Runtime reasoning 的有效强度数量、顺序、label、value 必须来自当前模型 Capability 的 `reasoningEffort.options`；App Shell 只允许过滤明确表达“关闭推理”的 sentinel（如 `none/off/disabled`），其余 option 必须一对一保留，不得固定六档、补档、排序、改名或按模型名猜档。Provider Catalog 真值本身不得被 UI 过滤规则改写；过滤后没有有效强度时不显示 Slider。
+- Runtime reasoning 的档位数量、顺序、label、value 必须直接来自当前模型 Capability 的 `reasoningEffort.options`；App Shell 只能一对一投影，不得固定六档、补档、过滤真实 option 或按模型名猜档。模型没有该能力时不显示 Slider。
 - 强力推理属于与 Provider reasoning 正交的 Agent Run Hint，不得伪装成未声明的 Provider 参数，也不得为了开启 Hint 强制切换 Provider 档位。
 - 高频 Pointer 动画禁止每像素更新业务 React State；Slider 跟手优先局部 CSS variable，粒子/流星这类连续绘制效果使用单 Canvas 2D + `requestAnimationFrame`，不得用多个 DOM 粒子 + CSS 帧动画制造重排/合成层闪烁；整张 Popover 禁止长期开 `will-change/translateZ(0)`。
-- Slider 的 rail / fill / marks / thumb / effect / Pointer 命中必须共享单一 geometry 坐标系；连续粒子必须由 rail clip host 裁剪。Reasoning 星光粒子只允许点/星芒/twinkle，不用方向尾线模拟“粒子”。
 - 正式发布 ZIP 必须由 `scripts/release-archive.mjs` 生成或通过同等字节级校验：Unicode entry 必须设置 ZIP UTF-8 filename flag（bit 11），并在最终归档中 exact 存在 `docs/项目结构与代码地图.md`。
+- Workbench 页面必须遵守父子级区域边界：`AgentWorkbench` 只做 Composition Root；Left / Center / Right / BottomTerminal 为独立大模块；Center 再拆 Header / Conversation / Composer；Composer 的 Runtime Control 独立。局部修复默认只允许修改对应子模块和明确共享 Primitive，禁止顺手编辑兄弟区域。
 
 ## 0. 唯一开发顺序
 

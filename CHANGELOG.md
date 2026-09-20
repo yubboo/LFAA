@@ -1,12 +1,26 @@
-## LFAA v0.0.92 — #22.7 Reasoning Slider 几何与星光粒子修正
+## LFAA v0.0.94 — #21.23 Workbench 全域模块化 / DeepSeek Harness 风格边界
 
-- **状态：** pending-user-acceptance（AI 自动验证通过，等待 Windows 实机用户验收）。
-- **Runtime reasoning 真值：** Provider Catalog 继续真实保留厂商声明的 `none/off/disabled` 等关闭能力；Runtime “思考强度” Slider 只过滤明确关闭 sentinel，剩余有效档位数量、顺序、label、value 与当前模型 Capability 一一对应。最低档不再由 LFAA 人工生成“关闭思考”。
-- **顶部按钮居中：** 修复通用 `.agent-composer-popover button` 双列 grid 继续作用于 icon-only button 的根因；闪电 / 重置按钮显式使用单格 grid 与同尺寸按钮盒，SVG 回到几何中心。
-- **Slider 单一几何：** rail、fill、mark、thumb、Pointer 命中与 Effect 共用同一个 `__geometry` 坐标系；首末档中心严格落在 rail 0% / 100%，修复最高档刻度与轨道终点错位。
-- **轨道内星光粒子：** Effect Host 被收进与 rail 完全同尺寸的胶囊 clip host；Canvas 仅绘制细小圆点、微光尘和少量四向星芒，删除方向 tail/短横线。standard 为粉色星光；最高有效档为淡粉→粉→紫→深紫。
-- **稳定性：** 延续 v0.0.91 的单 Canvas 2D + `requestAnimationFrame`、reasoning 乐观 UI + 串行持久化；粒子不使用 DOM keyframes，不逐帧触发 React State，拖拽松手不再复用模型 busy 导致半透明闪烁。
-- **AI 验证：** #22.7 聚焦 reasoning/UI 回归 24/24 PASS；除环境限定项外全仓 Node 静态/契约测试 138/138 PASS；4 个本轮 TS/TSX 文件 TypeScript syntax transpile PASS。制作环境为 Node 22.16.0 且无 workspace `node_modules`，`node-source-runtime.test.mjs` 与 Config System 动态测试因无法解析 `@lfaa/credentials` 被环境阻断，不冒充项目要求的 Node 24 + pnpm workspace 验证。治理 Gate 与 workspace-preflight 全部 PASS；最终 ZIP 仍需 fresh round-trip 再复验。
+- **全域而非局部：** 不再只拆 RuntimeControl；Shell、Left、Center Header、Conversation、Composer、RuntimeControl、Right、Terminal、Settings、Session、Shared 全部建立长期 Owner 与公共入口。
+- **Composition Root：** `AgentWorkbench.tsx` 只创建 Controller 和连接大模块，不再持有区域 JSX、AI/Plugin ViewModel、Run event 细节或 Overlay DOM。
+- **CSS Module 隔离：** Workbench 区域样式全部迁到局部 `*.module.css`；`agent-workbench.css` 只剩 reset；禁止 `:global(.agent-*)`、兄弟 class 匹配和全局业务 selector。
+- **状态所有权：** shell/theme/chrome/overlays、settings AI/Plugin、session Chat/Work Run、各区域局部 UI 状态分别回到自己的 Controller/模块；兄弟模块只经 typed Props/Callback 连接。
+- **行为冻结：** v0.0.93 用户可见行为保持等价；`packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**` 相对 v0.0.93 零 diff，不在本轮顺手修改 Reasoning/粒子/Resize/Motion。
+- **门禁：** 扩展 Workbench module boundary、UI contract 与既有行为合同测试，防止实现重新堆回根组件/全局 CSS或通过深链 import 破坏边界。
+- **验证：** 聚焦测试 45/45 PASS；全仓 Node 140 项中 139 项 PASS，唯一 `node-source-runtime` 受制作环境 Node 22.16.0 + 无 workspace `node_modules` 阻断；Workbench TS/TSX syntax transpile 50/50 PASS；UI contract PASS。
+
+- **发布归档：** 最终 ZIP 431 entries；中文路径 UTF-8 flag=`0x800`；`.lfaa/` 保留；fresh extract 后 preflight 全 Gate PASS。
+- **当前状态：** `pending-user-acceptance`；AI 验证 `pass`；用户验收 `pending`。
+
+## LFAA v0.0.93 — #21.22 Workbench 父子模块边界重构
+
+- **状态：** pending-user-acceptance（AI 自动验证通过，等待用户实机验收）。
+- **基线回退：** v0.0.93 严格从 v0.0.91 建立，不继承用户已否决的 v0.0.92 业务实现；本轮不继续混做 Reasoning Slider 视觉修复。
+- **父子模块：** `AgentWorkbench` 收敛为 Composition Root；左侧栏、中央工作区、右侧栏、底部终端拆为独立 Region；中央区再拆 `CenterHeader / ConversationRegion / ComposerRegion`，Composer 内把 `RuntimeControl` 独立成唯一模型/reasoning/强力推理子模块。
+- **状态边界：** Shell 只拥有跨区域状态与 Host/Runtime 装配；区域局部状态留在对应 Region；兄弟模块只经 typed Props/Callback 通信，不使用 DOM query / 全局 mutable singleton 串状态。
+- **行为冻结：** `agent-workbench.css`、`packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**` 与 v0.0.91 字节级/文件级保持零改动；Reasoning、粒子、Slider Pointer、Resize/Snap、Chat/Composer 对齐语义本轮不调整。
+- **防回归：** 新增 `test/workbench-module-boundary.test.mjs`；既有静态合同测试改为读取新的模块 Owner，而不是错误要求所有实现仍堆在 `AgentWorkbench.tsx`。
+- **AI 验证：** Workbench/既有行为聚焦回归 45/45 PASS；全仓 Node 合同测试 140 项中 139 项 PASS，唯一 `node-source-runtime.test.mjs` 因当前制作环境 Node 22.16.0 且无 pnpm workspace `node_modules`，无法解析 `@lfaa/credentials`，属于已记录环境限制，不冒充 Node 24 动态验证。15 个本轮 TS/TSX 文件语法 transpile PASS；统一 workspace-preflight 全 Gate PASS；v0.0.91 对比确认 `agent-workbench.css`、`ui-controls`、`ui-effects`、`ui-resize` 零改动；Unicode ZIP 候选包 fresh round-trip 后再次 preflight PASS。
+- **下一步边界：** 用户确认该父子模块基线后，Reasoning UI 修复只允许进入 `workbench/center/RuntimeControl.tsx` 及明确共享 Primitive，不得修改 Left / Right / Terminal / Conversation。
 
 ## LFAA v0.0.91 — #22.6 Canvas 粒子渲染 / #20.19 Unicode ZIP 归档修复
 

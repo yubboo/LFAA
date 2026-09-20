@@ -2,16 +2,23 @@
 
 ```text
 AgentWorkbench.tsx
-→ 工作台 Shell 总装配
-→ 左栏 / 中间 / 右栏 / 底部终端
-→ Shell 状态、快捷键、左栏 Hover 预览
-→ Desktop / Compact / Mobile LayoutMode
-→ 决定 Shell Actions 在 Center Header 还是 Right Header
+→ Composition Root：Shell 状态 / Host / Snapshot / 区域装配
+
+workbench/
+├─ left/LeftSidebarRegion.tsx
+│  └─ ProfileBar.tsx
+├─ center/CenterWorkspaceRegion.tsx
+│  ├─ CenterHeader.tsx
+│  ├─ ConversationRegion.tsx
+│  └─ ComposerRegion.tsx
+│     └─ RuntimeControl.tsx
+├─ right/RightSidebarRegion.tsx
+├─ terminal/BottomTerminalRegion.tsx
+├─ shell/ShellHeaderButton.tsx + RightShellActions.tsx
+└─ contracts.ts
 
 agent-workbench.css
-→ 上述各内容盒子的视觉样式
-→ Header / Tooltip / Drawer 内容 / Composer / Terminal 外壳
-→ 不管 separator 的拖拽数学
+→ 当前工作台视觉合同；#21.22 结构重构期间保持不变
 
 WorkbenchIcon.tsx
 → 工作台 SVG 图标库
@@ -44,7 +51,7 @@ Compact  = 左 Dock + 右 Overlay
 Mobile   = 中间主区全宽 + 左右 Overlay
 ```
 
-`AgentWorkbench.tsx` 负责 Shell 状态、按钮归属和容器测量。
+`AgentWorkbench.tsx` 只负责 Shell 跨区域状态、按钮归属和容器测量；区域内部 UI 进入 `workbench/*`。
 
 真正的比例 / floor / ceiling / min / max / snap hysteresis 在：
 

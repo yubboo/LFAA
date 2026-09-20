@@ -1,10 +1,46 @@
-## v0.0.92 Runtime Reasoning Projection / Slider Geometry / Star Effect 边界
+## v0.0.94 / #21.23 Workbench 全域模块化架构
 
-- Config System 继续保存 Provider 原始 `reasoningEffort.options`，包括厂商真实存在的 `none/off/disabled`；UI 不修改 Catalog。`packages/app-shell/src/reasoning-control.ts` 只为 Runtime“思考强度”投影过滤关闭 sentinel，剩余有效 option 保持 Provider 原数量、顺序、label、value。
-- `DiscreteSlider` 的外层只处理 Pointer Capture；`__geometry` 是 rail / fill / mark / thumb / effect 的唯一坐标系。Pointer ratio 直接读取 `geometry.getBoundingClientRect()`，首末档固定落在 rail 的 0% / 100%。
-- `__effect-clip` 与 rail 同几何且 `overflow:hidden + border-radius:999px`；`ParticleStreamCanvas` 只在该 host 内绘制，业务层不能通过 margin/transform 修补粒子越界。
-- Canvas 粒子形态改为圆点、微光点与少量四向星芒，运动采用水平漂移 + 独立 twinkle 相位；禁止绘制 tail/arrow line。standard 为粉色，最高有效 reasoning 档 extreme 为淡粉→粉→紫→深紫。
-- Runtime Card 顶部 icon-only button 必须显式覆盖通用 Popover button 的双列 grid 为单格 grid；布局问题优先修共享选择器冲突，不写截图分辨率补丁。
+`AgentWorkbench.tsx` 现在是薄 Composition Root，只创建/连接 Controller 与公开模块。Workbench 的长期 Owner 树为：
+
+```text
+AgentWorkbench
+├─ shell/      # theme / chrome / resize assembly / shortcuts / overlays
+├─ left/       # left sidebar + profile
+├─ center/
+│  ├─ header/
+│  ├─ conversation/
+│  └─ composer/
+│     └─ runtime-control/
+├─ right/
+├─ terminal/
+├─ settings/   # Settings Surface + AI/Plugin controllers/view models
+├─ session/    # Chat/Work Run + Runtime events
+└─ shared/     # 仅 Workbench 内真正跨模块的小 Primitive
+```
+
+边界规则：父子/兄弟只经 typed Props、Callback 或公开 Controller contract 通信；子模块从各自 `index.ts` 暴露；禁止深链兄弟内部文件、DOM query、跨模块 mutable singleton。区域 CSS 全部使用局部 `*.module.css`，禁止 `:global(.agent-*)`；`agent-workbench.css` 只保留 reset。动态 Slider/Canvas/Resize/Motion 算法仍归 `@lfaa/ui`，本轮对 `ui-controls/ui-effects/ui-resize/ui-motion` 与 v0.0.93 保持零 diff。
+
+## v0.0.93 Workbench 父子模块边界
+
+```text
+AgentWorkbench (Composition Root)
+├─ workbench/left/LeftSidebarRegion
+│  └─ ProfileBar
+├─ workbench/center/CenterWorkspaceRegion
+│  ├─ CenterHeader
+│  ├─ ConversationRegion
+│  └─ ComposerRegion
+│     └─ RuntimeControl
+├─ workbench/right/RightSidebarRegion
+└─ workbench/terminal/BottomTerminalRegion
+```
+
+- `AgentWorkbench.tsx` 只拥有跨区域 Shell/Host/业务 Snapshot 装配，不再直接实现区域内部 JSX。
+- 左 / 中 / 右 / 底部终端是四个兄弟大模块；兄弟模块不得深链 import 对方内部文件，也不得通过 DOM query/全局 mutable state 互相控制。
+- Center 只是 Header / Conversation / Composer 的父模块；Conversation 与 Composer 独立，用户/AI Timeline 不读取 Composer 私有状态。
+- Composer 的 RuntimeControl 独立拥有 reasoning/model UI 局部状态与提交队列实现；后续 reasoning 修复首先限制在该子模块和明确共享的 `@lfaa/ui` Primitive。
+- `packages/ui` 仍拥有 Slider / Effect / Resize / Overlay 等通用算法；App Shell 只组合，不复制。
+- #21.22 从 v0.0.91 干净基线重构，v0.0.92 用户验收失败版本不作为代码基线；本版 CSS/共享 UI Primitive 行为冻结。
 
 ## v0.0.91 Canvas Effect / Reasoning Commit / Release Archive 边界
 

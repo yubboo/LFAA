@@ -1,3 +1,9 @@
+#21.23 Workbench 全域模块化 / DeepSeek Harness 风格边界
+version: v0.0.94
+status: pending-user-acceptance
+
+v0.0.94 不再采用“先只迁 RuntimeControl”的局部策略。整个 Workbench UI 必须一次建立长期父子 Owner：Shell / Left / Center(Header/Conversation/Composer/RuntimeControl) / Right / Terminal / Settings / Session，各模块拥有 TS 状态边界、公共 index.ts 与局部 CSS Module；AgentWorkbench 只做 Composition Root。用户可见行为与 v0.0.93 冻结，Reasoning 视觉修复继续留给后续独立任务。
+
 # LFAA 项目主计划
 
 > 本文件只保存当前开发顺序和主模块状态。
@@ -17,13 +23,12 @@ pending-user-acceptance
 当前版本总任务：
 
 ```text
-#22.7 Reasoning Slider 几何与星光粒子修正
-#20.19 Unicode ZIP 归档与 Sync 来源诊断修复（沿用）
-version: v0.0.92
+#21.22 Workbench 父子模块边界重构
+version: v0.0.93
 status: pending-user-acceptance
 ```
 
-v0.0.92 针对 v0.0.91 实机未通过项继续修复：Provider 原始 Capability 继续真实保留 `none/off/disabled` 配置能力，但 Runtime “思考强度” Slider 只投影有效非关闭 reasoning 档；顶部 icon-only button 清除通用双列 grid 干扰；Slider rail/mark/thumb/Pointer 统一坐标；Canvas 收进 rail clip host，并把长尾流线重做为图六参考的星光点 / 微光尘 / 少量星芒。#22.6 的 Canvas/rAF 与 reasoning 串行提交修复继续保留。
+v0.0.93 从 v0.0.91 重新建立基线，不继承用户已否决的 v0.0.92 业务改动。当前先把工作台拆成稳定父子模块：AgentWorkbench 只做 Composition Root；Left / Center / Right / BottomTerminal 为四个大模块；Center 再拆 Header / Conversation / Composer；Composer 内 RuntimeControl 独立。此版本行为冻结，不同时修改 reasoning 粒子/Slider/Resize 视觉与算法。后续 Reasoning 修复只允许落在 RuntimeControl 子模块及其明确共享 Primitive。
 
 v0.0.80 以用户提供的 DeepSeek Harness 源码包为主要工程参考，重点借鉴 capability seam、profile/bundle、PluginManager 共享事务、HMR 生命周期、credentials 引用和“抽象必须有当前 Consumer”的维护原则；不复制其产品实现。
 

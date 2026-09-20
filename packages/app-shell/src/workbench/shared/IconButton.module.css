@@ -1,0 +1,18 @@
+.button {
+  width: var(--agent-small-control-size);
+  height: var(--agent-small-control-size);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: .5rem;
+  background: transparent;
+  color: var(--agent-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.button:hover,
+.button:focus-visible {
+  background: var(--agent-hover);
+  color: var(--agent-text);
+  outline: none;
+}

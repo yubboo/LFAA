@@ -1,0 +1,1 @@
+export { BottomTerminalRegion } from "./BottomTerminalRegion";

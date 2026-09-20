@@ -4,7 +4,11 @@ import { readFileSync } from "node:fs";
 
 const hook = readFileSync(new URL("../packages/ui/src/ui-overlay/useDismissibleLayer.ts", import.meta.url), "utf8");
 const uiIndex = readFileSync(new URL("../packages/ui/src/index.ts", import.meta.url), "utf8");
-const workbench = readFileSync(new URL("../packages/app-shell/src/AgentWorkbench.tsx", import.meta.url), "utf8");
+const leftSidebar = readFileSync(new URL("../packages/app-shell/src/workbench/left/LeftSidebarRegion.tsx", import.meta.url), "utf8");
+const addMenu = readFileSync(new URL("../packages/app-shell/src/workbench/center/composer/AddCapabilityMenu.tsx", import.meta.url), "utf8");
+const permissionControl = readFileSync(new URL("../packages/app-shell/src/workbench/center/composer/PermissionControl.tsx", import.meta.url), "utf8");
+const runtimeControl = readFileSync(new URL("../packages/app-shell/src/workbench/center/composer/runtime-control/RuntimeControl.tsx", import.meta.url), "utf8");
+const workbenchPopoverModules = [leftSidebar, addMenu, permissionControl, runtimeControl].join("\n");
 
 test("shared ui-overlay dismissible layer owns outside-pointer and Escape behavior", () => {
   assert.match(hook, /document\.addEventListener\("pointerdown", onPointerDown, true\)/);
@@ -15,9 +19,11 @@ test("shared ui-overlay dismissible layer owns outside-pointer and Escape behavi
 });
 
 test("brand, add, permission and runtime-control popovers reuse the shared dismiss behavior", () => {
-  const uses = workbench.match(/useDismissibleLayer</g) ?? [];
+  const uses = workbenchPopoverModules.match(/useDismissibleLayer</g) ?? [];
   assert.ok(uses.length >= 4, `expected >=4 shared dismiss layers, got ${uses.length}`);
-  for (const token of ["brandMenuRef", "addMenuRef", "permissionMenuRef", "runtimeControlRef"]) {
-    assert.match(workbench, new RegExp(token));
+  for (const token of ["brandMenuRef", "useDismissibleLayer<HTMLDivElement>", "runtimeControlRef"]) {
+    assert.match(workbenchPopoverModules, new RegExp(token));
   }
+  assert.match(addMenu, /useDismissibleLayer<HTMLDivElement>/);
+  assert.match(permissionControl, /useDismissibleLayer<HTMLDivElement>/);
 });
