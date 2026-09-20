@@ -1,4 +1,4 @@
-# LFAA Agent / Contributor Guide — v0.1.1
+# LFAA Agent / Contributor Guide — v0.1.2
 
 本文件给 AI Agent 和开发者提供最短路径的当前约束。**先遵守当前代码与本文件，再参考历史记录。**
 
@@ -79,8 +79,10 @@ Chat/Work 是 **Workspace Mode**，不是两个独立产品核心。
 - `@lfaa/config-system` 管配置，不等于模型运行 Provider；
 - OpenAI-compatible 一次调用归 `@lfaa/llm-openai-compatible`；
 - Run/Session 生命周期归 Agent Runtime/Controller；
-- Codex App Server 归 `packages/harness/`；
+- Codex App Server 归 `packages/harness/`；v0.1.2 已承担 ChatGPT 套餐的 managed auth + read-only text runtime；
 - Tool/Skill/MCP 未实现前不要建空壳假装完成。
+- Codex subscription runtime 必须按 Provider `connection.protocol` 路由，禁止再用 `credentialRef` 猜认证协议；ChatGPT OAuth Token 只能留在官方 Codex App Server。
+- 审批 UI 未接入前，Codex Text Runtime 必须保持 read-only，并拒绝命令/文件修改审批请求。
 
 ## Secret
 
@@ -142,7 +144,7 @@ pnpm run quality:full
 
 当前真相：代码 + 自动门禁 + `ARCHITECTURE.md` / `DEVELOPMENT.md` / 本文件。
 
-`CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md`、`docs/PROMPTS.md` 是历史账本。旧条目里出现 `.lfaa`、`crates/`、`apps/web/dev` 等路径时，只解释当时版本，不用于指导 v0.1.1 开发。
+`CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md`、`docs/PROMPTS.md` 是历史账本。旧条目里出现 `.lfaa`、`crates/`、`apps/web/dev` 等路径时，只解释当时版本，不用于指导 v0.1.2 开发。
 
 ## TSConfig 继承边界
 

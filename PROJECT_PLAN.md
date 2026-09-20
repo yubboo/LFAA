@@ -1,22 +1,24 @@
-# LFAA Project Plan — current after v0.1.1
+# LFAA Project Plan — current after v0.1.2
 
 ## 当前里程碑
 
-**v0.1.1 / TSConfig Root Inheritance Hotfix**
+**v0.1.2 / Codex App Server Chat Runtime**
 
-目标：修复 capability-family 迁移后 workspace `tsconfig.json` 仍沿用旧单层 package 相对深度的问题，让 Vite/TypeScript 在真正启动前就能验证工程配置继承。业务源码依赖规则保持不变。
+目标：让已经通过 ChatGPT/Codex 套餐完成登录与 `model/list` 的模型真正进入聊天执行链；保持 v0.1.1 Harness、TSConfig、依赖健康与 Sync 治理不回退。
 
 本版新增：
 
-- 新增根级 `tsconfig.base.client.json`，集中 React/DOM/JSX 客户端配置；
-- `apps/*` 通过 `../../tsconfig.base.client.json` 继承根配置；
-- `packages/client/*` 通过 `../../../tsconfig.base.client.json` 继承根配置；
-- 其余 `packages/<family>/<package>` 通过 `../../../tsconfig.base.json` 继承根配置；
-- 删除没有真实运行时共同解析支持的私有 `@/*` TypeScript-only alias；
-- 新增 `tsconfig-reference-check`，并接入 governance / workspace-preflight；
-- 新增 TSConfig 回归测试，锁住错误相对深度和 alias 回流。
+- `@lfaa/codex-app-server` 从 Managed Auth / Model Catalog Adapter 升级为共享 `CodexAppServerHost`，同时提供 Managed Auth 与 Text Runtime；
+- Text Runtime 使用官方 App Server `thread/start` / `turn/start`，按 Workspace + Account + Model 复用多轮 Thread；
+- 接收 `item/agentMessage/delta` 流式文本，并以 `item/completed` / `turn/completed` 收敛最终消息；
+- Browser Run 取消映射为 `turn/interrupt`，并保留 timeout / process failure 收敛；
+- `agent-controller` 改为依据 Config System 的 `connection.protocol` 路由 `codex-app-server` 与 `openai-compatible`，不再用 `credentialRef` 猜 Runtime；
+- `bundle/web-app` 统一持有一个 Codex App Server Host，Settings 与 Chat 共用进程；
+- Workspace 支持 `assistant.delta`，流式 delta 与最终 `assistant.completed` 写入同一 assistant message；
+- LFAA 不读取或复制 Codex OAuth Token；审批 UI 尚未接入前，Codex Text Runtime 强制 read-only，并拒绝命令、文件写入、权限提升与 MCP elicitation 请求；
+- 新增 Codex Runtime 行为回归，锁定 Thread 复用、Turn、delta、最终消息、reasoning effort 与 interrupt。
 
-既有 v0.1.0 Harness / Sync / Workspace 依赖健康修复全部保留，不重做现有业务。
+**AI 验证：** pass。仓库级 Node 合同测试 175/175 PASS；Config System 39/39 PASS；Codex Runtime 行为测试 2/2 PASS；所有 workspace tsconfig 均通过真实 `tsc --showConfig`；统一静态治理与 workspace preflight 通过。真实 Windows Codex CLI + ChatGPT 账户端到端仍由用户验收。
 
 ## 当前冻结行为
 

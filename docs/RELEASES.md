@@ -1,4 +1,16 @@
-# LFAA Releases — current policy v0.1.1
+# LFAA Releases — current policy v0.1.2
+
+## v0.1.2 — Codex App Server Chat Runtime
+
+- ChatGPT/Codex 套餐不再停在登录与 `model/list`，新增官方 `thread/start` / `turn/start` 文本 Runtime；
+- 支持 `item/agentMessage/delta` 流式回复、最终 `assistant.completed` 与 `turn/interrupt` 取消；
+- `agent-controller` 按 Provider `connection.protocol` 路由，不再通过 `credentialRef` 猜协议；
+- 设置页 Managed Auth 与 Chat Runtime 共享一个 `CodexAppServerHost`；
+- LFAA 不读取/保存 Codex OAuth Token；审批 UI 未接入前强制 read-only 并拒绝写入/执行类 server request；
+- 新增 Codex Runtime 行为回归测试，并更新 Chat streaming contract。
+- AI 验证：仓库级 Node 合同测试 175/175 PASS；Config System 39/39 PASS；Codex Runtime 行为测试 2/2 PASS；统一静态治理 / workspace preflight PASS；真实 Windows Codex CLI + ChatGPT 账户端到端保留给用户验收。
+
+**当前任务：#22.9 · ChatGPT/Codex 套餐 Text Runtime · v0.1.2 · pending-user-acceptance · AI=pass · 用户验收=pending**
 
 ## v0.1.1 — TSConfig 根配置继承 / Vite 启动修复
 
@@ -28,8 +40,8 @@
 ## 当前版本
 
 ```text
-displayVersion: 0.1.1
-releaseSequence: 101
+displayVersion: 0.1.2
+releaseSequence: 102
 architectureVersion: 5
 ```
 

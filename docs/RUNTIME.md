@@ -1,4 +1,6 @@
-# LFAA Runtime — v0.1.1
+# LFAA Runtime — v0.1.2
+
+> v0.1.2 Codex Runtime：ChatGPT/Codex 套餐从 managed auth + `model/list` 延伸到 `thread/start` / `turn/start` / `item/agentMessage/delta` / `turn/completed` / `turn/interrupt`。设置与 Agent Runtime 共享同一个 App Server Host；LFAA 不持有 OAuth Token。当前强制 read-only，审批 UI 未接入前拒绝写入/执行类 server request。
 
 > v0.1.1 TSConfig 修复：Client workspace 继承根级 `tsconfig.base.client.json`，Runtime/Node/Core workspace 继承 `tsconfig.base.json`；业务源码跨 package 仍只使用 `@lfaa/*`。`tsconfig-reference-check` 在 Vite 启动前验证所有 extends。
 
@@ -40,23 +42,37 @@ Bundle 是 Host Composition Owner。
 
 ## 4. Agent text chat
 
+Runtime 先由 Config System 的 Provider connection 决定协议：
+
 ```text
 Composer
 → AgentRuntimeHost.startRun
 → client-connection HTTP
 → agent-controller
-→ account repository
-→ credential reference → Native Secret Store
-→ llm-openai-compatible
-→ Provider HTTP
-→ AgentRuntimeEvent over HMR
-→ workspace Session Controller
-→ ChatMessageViewModel
+→ AiProviderRegistry.resolveConnection
+├─ openai-compatible
+│   → credentialRef → Native Secret Store
+│   → llm-openai-compatible → Provider HTTP
+└─ codex-app-server
+    → shared CodexAppServerTextRuntime
+    → thread/start（按 LFAA sessionKey 复用 thread）
+    → turn/start（model / cwd / effort / readOnly sandbox）
+    → item/agentMessage/delta
+    → assistant.delta over HMR
+    → item/completed + turn/completed
+    → assistant.completed
+
+Browser cancel
+→ DELETE Run
+→ AbortController
+→ turn/interrupt
 ```
 
-当前 agent-controller 只保存开发态内存多轮历史，最多保留有限消息；这不是正式 Session Store。正式 Session/Event Store 后续在 Runtime 内核阶段实现。
+OpenAI-compatible 路径当前仍保留有限开发态内存历史；Codex 路径由官方 App Server Thread 保存多轮上下文。`assistant.completed` 是最终权威文本，Workspace 会用它覆盖同一 Run 已累积的 delta，而不是生成第二条回复。
 
-Strong Reasoning 当前只作为 `AgentExecutionHints.reasoningBoost`，LLM Adapter 增加安全 system instruction，不制造 Provider 未声明参数。
+Strong Reasoning 对 OpenAI-compatible 仍使用 `AgentExecutionHints.reasoningBoost`；Codex 模型自身的 reasoning setting 通过模型目录映射为官方 `turn/start.effort`。
+
+当前 Codex Text Runtime 为 **read-only**：审批/权限产品 UI 尚未接线前，不允许把“请求审批/完全访问”等 UI Profile 误当成 Codex 写入授权。
 
 ## 5. AI Settings
 

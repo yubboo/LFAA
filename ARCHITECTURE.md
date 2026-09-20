@@ -1,4 +1,4 @@
-# LFAA Architecture — v0.1.1 Current Truth
+# LFAA Architecture — v0.1.2 Current Truth
 
 > 本文件描述 **当前** LFAA 架构。旧版本的平铺 `packages/*`、`apps/web/dev/bridges/*`、`crates/` 与仓库级 `.lfaa/` 只允许出现在历史记录中，不再是当前设计。
 
@@ -108,6 +108,11 @@ Secret 明文禁止进入 JSON 状态、插件 Manifest、Git、日志、argv、
 - `@lfaa/codex-app-server`：官方 Codex App Server JSONL/RPC Adapter。
 
 外部 Harness 以 Adapter 接入，不复制上游内部 Agent Loop。
+
+
+#### Codex App Server Runtime（v0.1.2）
+
+`@lfaa/codex-app-server` 现在同时提供 Managed Auth 与 read-only Text Runtime。Web Bundle 为两条链共享一个 `CodexAppServerHost`；Agent Controller 根据 Config System 的 `connection.protocol` 在 `codex-app-server` 与 `openai-compatible` 之间路由，不再通过是否存在 `credentialRef` 猜 Runtime。Codex thread/turn、流式 delta 与 interrupt 都归 Harness Adapter；OAuth Token 仍完全归官方 App Server。
 
 ### `packages/api/`
 

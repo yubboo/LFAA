@@ -52,8 +52,24 @@ export function useWorkspaceSessionController({ runtimeHost, workspaceId, active
   useEffect(() => {
     if (!runtimeHost) return;
     return runtimeHost.subscribe((event: AgentRuntimeEvent) => {
-      if (event.type === "assistant.completed") {
-        setChatMessages((messages) => [...messages, { id: `${event.runId}:assistant`, role: "assistant", text: event.text, runId: event.runId }]);
+      if (event.type === "assistant.delta") {
+        setChatMessages((messages) => {
+          const id = `${event.runId}:assistant`;
+          const index = messages.findIndex((message) => message.id === id);
+          if (index < 0) return [...messages, { id, role: "assistant", text: event.delta, runId: event.runId }];
+          const next = [...messages];
+          next[index] = { ...next[index]!, text: `${next[index]!.text}${event.delta}` };
+          return next;
+        });
+      } else if (event.type === "assistant.completed") {
+        setChatMessages((messages) => {
+          const id = `${event.runId}:assistant`;
+          const index = messages.findIndex((message) => message.id === id);
+          if (index < 0) return [...messages, { id, role: "assistant", text: event.text, runId: event.runId }];
+          const next = [...messages];
+          next[index] = { ...next[index]!, text: event.text };
+          return next;
+        });
       } else if (event.type === "run.failed") {
         setChatMessages((messages) => [...messages, { id: `${event.runId}:error`, role: "error", text: event.error, runId: event.runId }]);
       } else if (event.type === "run.cancelled") {

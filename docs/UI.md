@@ -1,4 +1,4 @@
-# LFAA UI Architecture — v0.1.1
+# LFAA UI Architecture — v0.1.2
 
 UI 视觉和交互保持 v0.0.98 已验证行为，本版本主要改变代码 Owner，不重新设计 Workbench。
 
@@ -83,3 +83,10 @@ v0.1.1 不改变已有 animation/snap/resize 阻尼、触发阈值和模型菜�
 - Shell/Settings/Composer 产品装配 → `client/app-shell`
 - Web mount/Host injection → `client/web`
 - 某独立 Web-only feature 只有在有真实边界时才新增 package
+
+
+## v0.1.2 Chat 流式消息
+
+Workspace Session Controller 现在接收 `assistant.delta`，同一个 `runId` 始终更新同一条 assistant message；`assistant.completed` 到达后用最终权威文本覆盖。这样 Codex App Server 的流式文本不会生成重复气泡。
+
+当前 Composer 的权限 Profile UI 不等于 Codex 写权限：在正式审批 UI 接入前，Codex Text Runtime 强制 read-only。UI 不得显示“已获得写权限”这类与真实 Runtime 不一致的状态。

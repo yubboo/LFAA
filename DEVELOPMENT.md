@@ -1,4 +1,4 @@
-# LFAA Development Standard — v0.1.1
+# LFAA Development Standard — v0.1.2
 
 本文件是当前开发规范。历史版本的设计过程请看 `CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md` 和 `docs/PROMPTS.md`；历史内容不得覆盖本文件。
 
@@ -293,3 +293,13 @@ LFAA 区分“业务源码依赖”和“仓库工程配置继承”：
 - 禁止恢复仅 TypeScript 可见、但 Vite/Node 未共同解析的私有 `@/*` paths alias。跨 package 的稳定别名只使用真实 workspace package 名 `@lfaa/*`。
 - `scripts/tsconfig-reference-check.mjs` 是该规则的机器 Gate；目录迁移后必须先通过它，再允许进入 Vite/TypeScript 启动链。
 
+
+
+## Codex Runtime 开发规则（v0.1.2）
+
+1. ChatGPT/Codex 套餐认证只通过官方 App Server RPC；禁止读取/复制 OAuth Token 或 Codex 私有认证文件。
+2. Agent Controller 必须按 `AiProviderRegistry.resolveConnection(...).protocol` 路由 Runtime，不能用 `credentialRef` 是否存在来猜协议。
+3. `thread/start` / `turn/start` / delta / completed / interrupt 属于 `@lfaa/codex-app-server`；Controller 只转换 LFAA Run/Event。
+4. `assistant.delta` 是增量投影，`assistant.completed` 是最终权威文本。
+5. 审批 UI 未完成前 Codex Text Runtime 固定 read-only；命令、文件改写、权限提升、MCP elicitation 的 server request 必须安全拒绝。
+6. 新增 Codex RPC 生命周期必须补 Fake Client 行为测试；不能只增加静态字符串断言。

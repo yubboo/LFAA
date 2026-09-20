@@ -1,15 +1,20 @@
 /**
  * 文件：agent-runtime-bridge.ts
- * 作用：Web 开发宿主的最小真实 Agent Runtime Bridge，让已配置 API 模型可以完成多轮文本对话。
- * 负责：Run 生命周期、账户/Secret 解析、开发态内存会话、Vite Runtime Event，并委托 LLM Adapter 完成模型调用。
- * 不负责：Provider 协议细节、Tool/Skill/MCP 调用、正式 Session Store、ChatGPT/Codex 套餐 Runtime、生产 Server。
- * 安全：Secret 只在 Node Host 内存中按 credentialRef 读取；响应/错误不得包含凭据。
+ * 作用：Web 开发宿主的 Agent Runtime HTTP Controller，让当前模型绑定通过对应 Runtime Adapter 完成真实对话。
+ * 负责：Run 生命周期、账户/协议解析、API Key Secret 读取、Codex/OpenAI-compatible Runtime 路由、Vite Runtime Event。
+ * 不负责：Provider 协议细节、Codex JSONL 细节、Tool/Skill/MCP、正式 Session Store、生产 Server。
+ * 状态归属：Controller 持有运行中 AbortController；OpenAI-compatible 暂存开发态历史；Codex 多轮线程归 Codex Runtime。
+ * 对外接口：lfaaDevAgentRuntimeBridge(projectRoot, { codexRuntime? })。
+ * 关联文件：@lfaa/codex-app-server、@lfaa/llm-openai-compatible、packages/client/connection。
+ * 修改注意事项：必须先由 Config System 解析 protocol 再选择 Runtime；禁止用 credentialRef 是否为空猜认证方式。
  */
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin, ViteDevServer } from "vite";
 import type { AgentRunRequest, AgentRuntimeEvent } from "@lfaa/agent-runtime";
+import { CodexAppServerHost, type CodexAppServerTextRuntime } from "@lfaa/codex-app-server";
 import { JsonAiAccountRepository } from "@lfaa/config-host-node";
+import { AiProviderRegistry, builtinAiProviderPlugins } from "@lfaa/config-system";
 import { createWebDevSecretStore } from "@lfaa/credentials-native";
 import { callOpenAiCompatibleTextModel, type LlmConversationMessage } from "@lfaa/llm-openai-compatible";
 
@@ -57,6 +62,7 @@ function safeMessage(error: unknown): string {
   return message
     .replace(/(?:sk|tp)-[A-Za-z0-9_-]{6,}/g, "[REDACTED]")
     .replace(/Bearer\s+[A-Za-z0-9._~-]{6,}/gi, "Bearer [REDACTED]")
+    .replace(/eyJ[A-Za-z0-9._-]{20,}/g, "[REDACTED]")
     .slice(0, 420);
 }
 
@@ -89,9 +95,12 @@ function parseRunRequest(value: unknown): AgentRunRequest {
   };
 }
 
-export function lfaaDevAgentRuntimeBridge(projectRoot: string): Plugin {
+export function lfaaDevAgentRuntimeBridge(projectRoot: string, options: { codexRuntime?: CodexAppServerTextRuntime } = {}): Plugin {
   const repository = new JsonAiAccountRepository(projectRoot);
   const secrets = createWebDevSecretStore(projectRoot);
+  const providerRegistry = new AiProviderRegistry(builtinAiProviderPlugins);
+  const ownedCodexHost = options.codexRuntime ? null : new CodexAppServerHost();
+  const codexRuntime = options.codexRuntime ?? ownedCodexHost!.textRuntime;
   const running = new Map<string, { abort: AbortController; sessionId: string }>();
   const conversations = new Map<string, ConversationMessage[]>();
 
@@ -117,9 +126,8 @@ export function lfaaDevAgentRuntimeBridge(projectRoot: string): Plugin {
             const accounts = await repository.list();
             const account = accounts.find((item) => item.id === runRequest.model.accountId);
             if (!account || account.providerId !== runRequest.model.providerId) throw new Error("当前模型账户不存在或 Provider 不匹配。");
-            if (!account.credentialRef) throw new Error("当前模型认证方式没有可供开发态直接调用的 API 凭据。");
-            const credential = await secrets.get(account.credentialRef);
-            if (!credential) throw new Error("当前账户凭据不存在，请回到模型管理重新认证。");
+            const provider = providerRegistry.get(account.providerId);
+            const connection = provider.resolveConnection({ authMethodId: account.authMethodId, settings: account.settings });
 
             const runId = randomUUID();
             const sessionId = `web-${runRequest.workspaceId}`;
@@ -129,16 +137,37 @@ export function lfaaDevAgentRuntimeBridge(projectRoot: string): Plugin {
 
             queueMicrotask(async () => {
               emit(server, { type: "run.started", runId, sessionId });
-              const key = `${runRequest.workspaceId}:${account.id}:${runRequest.model.modelId}`;
-              const previous = conversations.get(key) ?? [];
-              const history = [...previous, { role: "user" as const, content: runRequest.input }].slice(-MAX_HISTORY_MESSAGES);
               try {
-                const text = await callOpenAiCompatibleTextModel({ account, request: runRequest, credential, history, signal: abort.signal });
-                const nextConversation: ConversationMessage[] = [...history, { role: "assistant", content: text }];
-                conversations.set(key, nextConversation.slice(-MAX_HISTORY_MESSAGES));
-                emit(server, { type: "assistant.completed", runId, sessionId, text });
+                if (connection.protocol === "codex-app-server") {
+                  const reasoningEffort = typeof runRequest.model.settings?.reasoningEffort === "string"
+                    ? runRequest.model.settings.reasoningEffort
+                    : undefined;
+                  const result = await codexRuntime.runText({
+                    sessionKey: `${runRequest.workspaceId}:${account.id}:${runRequest.model.modelId}`,
+                    modelId: runRequest.model.modelId,
+                    input: runRequest.input,
+                    cwd: projectRoot,
+                    ...(reasoningEffort ? { reasoningEffort } : {}),
+                    signal: abort.signal,
+                    onTextDelta: (delta) => emit(server, { type: "assistant.delta", runId, sessionId, delta }),
+                  });
+                  emit(server, { type: "assistant.completed", runId, sessionId, text: result.text });
+                } else if (connection.protocol === "openai-compatible") {
+                  if (!account.credentialRef) throw new Error("当前 API 认证方式缺少凭据引用，请回到模型管理重新认证。");
+                  const credential = await secrets.get(account.credentialRef);
+                  if (!credential) throw new Error("当前账户凭据不存在，请回到模型管理重新认证。");
+                  const key = `${runRequest.workspaceId}:${account.id}:${runRequest.model.modelId}`;
+                  const previous = conversations.get(key) ?? [];
+                  const history = [...previous, { role: "user" as const, content: runRequest.input }].slice(-MAX_HISTORY_MESSAGES);
+                  const text = await callOpenAiCompatibleTextModel({ account, request: runRequest, credential, history, signal: abort.signal });
+                  const nextConversation: ConversationMessage[] = [...history, { role: "assistant", content: text }];
+                  conversations.set(key, nextConversation.slice(-MAX_HISTORY_MESSAGES));
+                  emit(server, { type: "assistant.completed", runId, sessionId, text });
+                } else {
+                  throw new Error(`当前 Provider Runtime 尚未接入：${connection.protocol}`);
+                }
               } catch (error) {
-                if (abort.signal.aborted) emit(server, { type: "run.cancelled", runId, sessionId });
+                if (abort.signal.aborted || (error instanceof Error && error.name === "AbortError")) emit(server, { type: "run.cancelled", runId, sessionId });
                 else emit(server, { type: "run.failed", runId, sessionId, error: safeMessage(error) });
               } finally {
                 running.delete(runId);
@@ -160,6 +189,7 @@ export function lfaaDevAgentRuntimeBridge(projectRoot: string): Plugin {
       server.httpServer?.once("close", () => {
         for (const run of running.values()) run.abort.abort();
         running.clear();
+        if (ownedCodexHost) ownedCodexHost.dispose();
       });
     },
   };

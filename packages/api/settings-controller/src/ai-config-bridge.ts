@@ -3,18 +3,24 @@
  * 作用：Vite Web 开发宿主的 AI 设置 localhost Bridge。
  * 负责：把浏览器同源请求映射到 Config System Account Service，挂接 Codex App Server 托管认证，并返回脱敏 JSON。
  * 不负责：Provider 业务、UI、Secret 文件持久化、生产 Server API。
- * 状态归属：Vite 进程持有 Account Service 与非 Windows 内存 Secret fallback。
- * 对外接口：lfaaDevAiConfigBridge(projectRoot)。
+ * 状态归属：Vite 进程持有 Account Service；Codex Host 可由 Web Bundle 注入并与 Agent Runtime 共用。
+ * 对外接口：lfaaDevAiConfigBridge(projectRoot, { managedAuth? })。
  * 关联文件：account-state-repository.ts、rust-secret-store.ts、node-http-json.ts、codex-app-server.ts、packages/client/connection/src/ai-settings-client.ts。
  * 修改注意事项：只绑定 Vite localhost；任何响应不得返回 Secret；请求体大小必须受限。
  */
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin, ViteDevServer } from "vite";
-import { AiAccountService, AiProviderRegistry, builtinAiProviderPlugins, type AiAccountDraft } from "@lfaa/config-system";
+import {
+  AiAccountService,
+  AiProviderRegistry,
+  builtinAiProviderPlugins,
+  type AiAccountDraft,
+  type AiManagedAuthPort,
+} from "@lfaa/config-system";
 import { JsonAiAccountRepository, NodeAiHttpJsonPort } from "@lfaa/config-host-node";
 import { createWebDevSecretStore } from "@lfaa/credentials-native";
-import { CodexAppServerManagedAuth } from "@lfaa/codex-app-server";
+import { CodexAppServerHost } from "@lfaa/codex-app-server";
 
 const MAX_BODY = 32 * 1024;
 
@@ -81,9 +87,10 @@ function ensureSameOrigin(request: IncomingMessage): boolean {
   } catch { return false; }
 }
 
-export function lfaaDevAiConfigBridge(projectRoot: string): Plugin {
+export function lfaaDevAiConfigBridge(projectRoot: string, options: { managedAuth?: AiManagedAuthPort } = {}): Plugin {
   const registry = new AiProviderRegistry(builtinAiProviderPlugins);
-  const managedAuth = new CodexAppServerManagedAuth();
+  const ownedCodexHost = options.managedAuth ? null : new CodexAppServerHost();
+  const managedAuth = options.managedAuth ?? ownedCodexHost!.managedAuth;
   const service = new AiAccountService(registry, {
     repository: new JsonAiAccountRepository(projectRoot),
     secrets: createWebDevSecretStore(projectRoot),
@@ -97,7 +104,7 @@ export function lfaaDevAiConfigBridge(projectRoot: string): Plugin {
     name: "lfaa-dev-ai-config-bridge",
     apply: "serve",
     configureServer(server: ViteDevServer) {
-      server.httpServer?.once("close", () => managedAuth.dispose());
+      if (ownedCodexHost) server.httpServer?.once("close", () => ownedCodexHost.dispose());
       server.middlewares.use("/__lfaa/dev/ai", async (request, response, next) => {
         if (!request.url) return next();
         if (!ensureSameOrigin(request)) return sendJson(response, 403, { ok: false, error: "拒绝非本地来源请求。" });

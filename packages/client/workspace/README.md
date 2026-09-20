@@ -10,3 +10,7 @@ src/
 ```
 
 边界：本包可以组合 `@lfaa/agent-runtime`、`@lfaa/config-system`、`@lfaa/ui`，但不得拥有 Shell/Settings/Host Bridge，也不得复制 InfiniteCanvas Pointer/Effect/Resize 通用算法。
+
+## v0.1.2 Chat 流式投影
+
+Shared Session Controller 消费 `assistant.delta` 逐步更新同一个 assistant ViewModel，并在 `assistant.completed` 到达时用最终权威文本覆盖，避免流式消息重复。

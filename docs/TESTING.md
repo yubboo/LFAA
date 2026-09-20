@@ -1,4 +1,20 @@
-# LFAA Testing & Gates — v0.1.1
+# LFAA Testing & Gates — v0.1.2
+
+
+## v0.1.2 Codex App Server Chat Runtime 回归
+
+本版新增 `test/codex-app-server-runtime.test.mjs`，用 Fake Client 执行真正的 Runtime 状态机而不是只做源码字符串断言，锁定：
+
+1. 一个 LFAA sessionKey 只创建一个 Codex Thread，多轮 Turn 复用 thread；
+2. `turn/start` 使用当前 model 与官方 `effort`；
+3. `item/agentMessage/delta` 按顺序流入 Chat；
+4. `item/completed` / `turn/completed` 收敛最终文本；
+5. AbortSignal 必须转成 `turn/interrupt`；
+6. Codex 套餐分支不得要求 `credentialRef` 或读取 LFAA Secret；
+7. Web Bundle 必须让设置页 managed auth 与 Agent text runtime 共享一个 Codex Host；
+8. 当前 Text Runtime 必须保持 read-only，审批 server request 默认拒绝。
+
+真实 Codex CLI + ChatGPT 账户仍需要在用户 Node 24 / Windows 开发环境做运行验收；制作环境若没有 `codex` 命令，不得把 Fake Client 测试冒充真实账户 E2E。
 
 ## v0.1.1 TSConfig / Vite 启动回归
 

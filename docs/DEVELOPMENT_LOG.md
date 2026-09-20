@@ -1,3 +1,15 @@
+# v0.1.2 / #22.9 ChatGPT/Codex 套餐 Text Runtime
+
+**当前任务：ChatGPT/Codex 套餐真实聊天执行链 · v0.1.2 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- **实机问题：** 设置页显示 ChatGPT 已连接、`model/list` 正常、Composer 当前模型可选，但发送消息只有用户气泡，没有模型回复。
+- **根因：** v0.1.1 的 Codex Adapter 只负责 Managed Auth / Account / Model Catalog；Agent Controller 对套餐账户仍没有 thread/turn Runtime。
+- **实现：** Harness Adapter 新增 Text Runtime；Controller 按 Provider protocol 路由；Bundle 共享 Codex Host；Workspace 接收流式 `assistant.delta`。
+- **安全：** OAuth Token 继续只归官方 App Server；当前 read-only；审批/写入类 server request 默认拒绝。
+- **测试：** Fake Client 锁定多轮 Thread、Turn、流式 delta、完成与 interrupt；仓库级 Node 合同测试 175/175 PASS；Config System 39/39 PASS；Codex Runtime 行为测试 2/2 PASS；统一静态治理 / workspace preflight PASS。真实 Codex CLI E2E 由用户标准 Windows 环境验收。
+- **AI 验证：** pass。
+- **状态：** pending-user-acceptance。
+
 # v0.1.1 / #21.29 TSConfig 根配置继承 / Vite 启动修复
 
 **当前任务：Harness capability-family 迁移后 TSConfig 配置路径回归修复 · v0.1.1 · pending-user-acceptance · AI=pass · 用户验收=pending**

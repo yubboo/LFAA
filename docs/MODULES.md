@@ -1,4 +1,4 @@
-# LFAA Modules — v0.1.1 Current Ownership
+# LFAA Modules — v0.1.2 Current Ownership
 
 本文件只描述当前模块 Owner。旧版本细节请到 DEVELOPMENT_LOG/CHANGELOG 查历史。
 
@@ -21,8 +21,8 @@
 | plugin | `@lfaa/plugin-sdk` | Plugin/capability contracts |
 | plugin | `@lfaa/plugin-runtime` | Registry generation / lifecycle |
 | plugin | `@lfaa/plugin-host-node` | Inspect/install/rollback/pnpm host |
-| harness | `@lfaa/codex-app-server` | Official Codex App Server adapter |
-| api | `@lfaa/agent-controller` | Agent Run local Host controller |
+| harness | `@lfaa/codex-app-server` | Official Codex App Server managed auth + read-only thread/turn text runtime |
+| api | `@lfaa/agent-controller` | Agent Run local Host controller；按 Provider protocol 路由 OpenAI-compatible / Codex Runtime |
 | api | `@lfaa/settings-controller` | AI Settings local Host controller |
 | api | `@lfaa/plugin-controller` | Plugin Manager local Host controller |
 | terminal | `@lfaa/terminal-vite` | PTY + Vite terminal adapter |
@@ -107,3 +107,17 @@ Web UI/Controller 消费 Runtime/Host，不允许 Plugin Runtime 自己执行 pn
 ## Runtime Home
 
 运行状态属于用户 Home，而不是 repo package。统一路径 Owner 为 `@lfaa/home-paths`。任何新持久化模块都应该消费这个 seam，而不是自行拼 `~/.lfaa`、项目 `.lfaa` 或随机 AppData 路径。
+
+
+## Codex Runtime 归属（v0.1.2）
+
+```text
+config-system
+  └─ resolveConnection().protocol
+         ├─ openai-compatible → llm/openai-compatible
+         └─ codex-app-server  → harness/codex-app-server
+                                  ├─ managedAuth
+                                  └─ textRuntime
+```
+
+`agent-controller` 只做协议路由和 Run/Event 映射；Codex threadId/turnId、JSONL、流式 delta、interrupt 归 Harness Adapter。

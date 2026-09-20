@@ -22,3 +22,7 @@
 Chat 与 Work 只在 `AgentRunRequest.workspaceMode` 上区分入口，模型、能力、权限、Session/Run 必须共用同一 Runtime。Infinite Canvas 是 Work Mode 的 Renderer/Interaction 层，不是 Runtime 或 Event Store 的第二事实源。
 
 `Full access` 只放宽执行 Profile，不允许普通 Run 修改 Trust Core、Secret 边界或关闭审计。
+
+## v0.1.2 流式消息契约
+
+`AgentRuntimeEvent` 新增 `assistant.delta`，用于把 Harness/Provider 的增量文本投影到同一条 Chat assistant message；`assistant.completed` 仍是最终权威文本。Runtime 契约不包含 Codex 私有 thread/turn 细节。

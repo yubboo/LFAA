@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/bundle-web-app",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -10,10 +10,12 @@
   "author": "二鱼",
   "dependencies": {
     "@lfaa/agent-controller": "workspace:*",
+    "@lfaa/codex-app-server": "workspace:*",
     "@lfaa/host-vite": "workspace:*",
     "@lfaa/plugin-controller": "workspace:*",
     "@lfaa/settings-controller": "workspace:*",
-    "@lfaa/terminal-vite": "workspace:*"
+    "@lfaa/terminal-vite": "workspace:*",
+    "vite": "8.2.2"
   },
   "lfaa": {
     "layer": "bundle",

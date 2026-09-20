@@ -49,6 +49,7 @@ export interface AgentRunHandle {
 
 export type AgentRuntimeEvent =
   | { readonly type: "run.started"; readonly runId: string; readonly sessionId: string }
+  | { readonly type: "assistant.delta"; readonly runId: string; readonly sessionId: string; readonly delta: string }
   | { readonly type: "assistant.completed"; readonly runId: string; readonly sessionId: string; readonly text: string }
   | { readonly type: "run.failed"; readonly runId: string; readonly sessionId: string; readonly error: string }
   | { readonly type: "run.cancelled"; readonly runId: string; readonly sessionId: string };

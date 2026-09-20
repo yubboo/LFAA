@@ -31,7 +31,7 @@ test("apps/web is a thin product entry and Host business is composed from packag
   const bundle = read("packages/bundle/web-app/src/vite.ts");
   assert.match(vite, /@lfaa\/bundle-web-app\/vite/);
   assert.match(bundle, /createLfaaDevTerminalBridge\(options\.projectRoot\)/);
-  assert.match(bundle, /lfaaDevAgentRuntimeBridge\(options\.projectRoot\)/);
+  assert.match(bundle, /lfaaDevAgentRuntimeBridge\(options\.projectRoot, \{ codexRuntime: codexHost\.textRuntime \}\)/);
   assert.doesNotMatch(vite, /node-pty|spawn\(|readdirSync|WebSocketServer|PluginManager/);
 });
 

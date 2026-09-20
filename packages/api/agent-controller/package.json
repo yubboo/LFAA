@@ -1,13 +1,15 @@
 {
   "name": "@lfaa/agent-controller",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼",
   "dependencies": {
     "@lfaa/agent-runtime": "workspace:*",
+    "@lfaa/codex-app-server": "workspace:*",
     "@lfaa/config-host-node": "workspace:*",
+    "@lfaa/config-system": "workspace:*",
     "@lfaa/credentials-native": "workspace:*",
     "@lfaa/llm-openai-compatible": "workspace:*",
     "vite": "8.2.2"

@@ -49,9 +49,15 @@ importers:
       '@lfaa/agent-runtime':
         specifier: workspace:*
         version: link:../../core/agent-runtime
+      '@lfaa/codex-app-server':
+        specifier: workspace:*
+        version: link:../../harness/codex-app-server
       '@lfaa/config-host-node':
         specifier: workspace:*
         version: link:../../settings/config-host-node
+      '@lfaa/config-system':
+        specifier: workspace:*
+        version: link:../../settings/config-system
       '@lfaa/credentials-native':
         specifier: workspace:*
         version: link:../../credentials/credentials-native
@@ -94,6 +100,9 @@ importers:
       '@lfaa/agent-controller':
         specifier: workspace:*
         version: link:../../api/agent-controller
+      '@lfaa/codex-app-server':
+        specifier: workspace:*
+        version: link:../../harness/codex-app-server
       '@lfaa/host-vite':
         specifier: workspace:*
         version: link:../../host/vite
@@ -106,6 +115,9 @@ importers:
       '@lfaa/terminal-vite':
         specifier: workspace:*
         version: link:../../terminal/terminal-vite
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.4.1)
   packages/client/app-shell:
     dependencies:
       '@lfaa/agent-runtime':

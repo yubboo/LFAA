@@ -1,8 +1,8 @@
-# LFAA v0.1.1 — TSConfig 根配置继承 / Vite 启动修复
+# LFAA v0.1.2 — Codex App Server Chat Runtime
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.1.1**。 本版在 v0.1.0 Harness 架构基础上修复 capability-family 迁移遗留的 TypeScript 配置继承路径，并新增 TSConfig 继承 Gate。按项目版本规范，`v0.0.99` 之后必须进位到 `v0.1.0`；此前生成的 `v0.0.100` / `v0.0.101` 仅属于误标构建，不进入正式版本序列。本版本承接 v0.0.99 的 Harness 化重构，并合并 Workspace Sync 目录迁移修复与 Workspace 依赖健康检测修复。
+当前包：**LFAA-v0.1.2**。本版在 v0.1.1 Harness/TSConfig 基线之上，正式补齐 ChatGPT/Codex 套餐从“登录 + model/list”到“thread/start + turn/start + 流式回复 + turn/interrupt”的文本对话 Runtime。设置页与 Agent Runtime 共享同一个 Codex App Server Host；LFAA 不读取 Codex OAuth Token。审批 UI 尚未接入前，Codex 文本 Runtime 强制只读。
 
 > 当前真相以本 README、`ARCHITECTURE.md`、`DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
 
@@ -81,7 +81,7 @@ agent/config/plugin/terminal/llm adapters
 
 ## 现有能力保持
 
-v0.1.1 的目标是在 v0.1.0 Harness 架构与依赖健康修复基础上，修复 capability-family 迁移遗留的 TSConfig 继承断链，并补上可执行 Gate；不重做产品、不改变既有业务行为。以下既有能力继续保留：
+v0.1.2 的目标是让已经配置好的 ChatGPT/Codex 套餐模型真正进入聊天执行链，同时保持 v0.1.1 的 Harness、TSConfig、依赖与同步治理不回退。以下既有能力继续保留：
 
 - Chat / Work 同一 Workspace 双模式；
 - Work Infinite Canvas 与已有交互、布局持久化；
@@ -93,6 +93,24 @@ v0.1.1 的目标是在 v0.1.0 Harness 架构与依赖健康修复基础上，修
 - Local Terminal；
 - Windows Setup / Sync / GitHub / Update 工具；
 - 现有架构门禁和 contract tests。
+
+
+## v0.1.2 Codex 套餐对话链
+
+```text
+Composer
+→ AgentRuntimeHost
+→ agent-controller
+→ Provider connection.protocol = codex-app-server
+→ @lfaa/codex-app-server
+→ thread/start / turn/start
+→ item/agentMessage/delta
+→ assistant.delta
+→ Workspace Chat
+→ assistant.completed
+```
+
+ChatGPT 套餐认证仍完全由官方 Codex App Server 管理。LFAA 不要求 `credentialRef`、不读取 `~/.codex/auth.json`，也不复制 OAuth Token。当前版本在审批 UI 完成前固定使用 read-only sandbox，并拒绝 App Server 发起的写入/执行审批请求。
 
 ## Runtime Home
 

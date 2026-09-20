@@ -1,3 +1,11 @@
+# v0.1.2 Prompt / Requirement Note — ChatGPT/Codex 套餐 Text Runtime
+
+- **用户问题：** 模型已经通过 ChatGPT/Codex 套餐配置完成，但发送消息无法得到模型回复。
+- **确认：** 配置/登录/model-list 已完成，缺的是套餐账户的真实 thread/turn 执行链。
+- **要求：** 继续沿 Harness 架构实现；业务留在 `packages/`；不破坏 API Key Runtime、UI、Plugin、Secret、Terminal；全部当前文档同步。
+- **安全边界：** 不读取 Codex OAuth Token；审批 UI 未接入前只开放 read-only Text Runtime。
+- **版本：** v0.1.2；**状态：** pending-user-acceptance；**AI：** pass；**用户验收：** pending。
+
 # v0.1.1 Prompt / Requirement Note — TSConfig 根配置继承修复
 
 - **用户纠正：** 不要把业务源码 alias 规则与工程配置继承混为一谈。业务源码跨 package 继续使用 `@lfaa/*`；`tsconfig extends` 可按 DeepSeek Harness 的 Monorepo 方式相对继承根级配置。
@@ -50,6 +58,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #22.9 | ChatGPT/Codex 套餐 Text Runtime | v0.1.2 | pending-user-acceptance | pass | pending |
 | #21.29 | TSConfig 根配置继承 / Vite 启动修复 | v0.1.1 | pending-user-acceptance | pass | pending |
 | #20.20 | Workspace 依赖健康检测 / 自动按需同步修复 | v0.1.0 | pending-user-acceptance | pass | pending |
 | #21.28 | Harness capability-family 仓库架构重构 / Sync 目录迁移热修复 | v0.1.0 | pending-user-acceptance | pass | pending |
@@ -111,6 +120,14 @@
 
 ## 当前任务 / 当前合同
 
+
+
+## #22.9 ChatGPT/Codex 套餐 Text Runtime
+
+- **版本：** v0.1.2；**状态：** pending-user-acceptance。
+- **允许修改：** `packages/harness/codex-app-server`、`packages/api/agent-controller`、`packages/api/settings-controller`、`packages/bundle/web-app`、Agent Runtime event contract、Workspace Session Controller、对应 tests/docs/version metadata。
+- **禁止修改：** Work Canvas、Workbench Resize/Motion、Plugin Runtime、Terminal、Secret Store 实现、OpenAI-compatible 网络协议既有语义。
+- **验收：** 套餐账户可真实 text turn、多轮复用、流式 delta、取消；API Key 路径不回退；OAuth Token 不进入 LFAA；Codex 写权限在审批 UI 接入前保持 read-only。
 
 ## #21.29 TSConfig 根配置继承 / Vite 启动修复
 

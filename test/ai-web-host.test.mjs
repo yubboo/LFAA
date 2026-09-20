@@ -112,17 +112,22 @@ test("Codex App Server adapter uses official JSONL account/model RPC and Windows
   assert.doesNotMatch(source, /process\.env/);
 });
 
-test("managed ChatGPT bridge keeps subscription path separate from API-key secret path", async () => {
+test("managed ChatGPT bridge keeps subscription auth shared with Codex text runtime and separate from API-key secrets", async () => {
   const source = await read("packages/api/settings-controller/src/ai-config-bridge.ts");
-  assert.match(source, /new CodexAppServerManagedAuth\(\)/);
-  assert.match(source, /managedAuth,/);
+  const bundle = await read("packages/bundle/web-app/src/vite.ts");
+  assert.match(source, /options: \{ managedAuth\?: AiManagedAuthPort \}/);
+  assert.match(source, /new CodexAppServerHost\(\)/);
+  assert.match(source, /const managedAuth = options\.managedAuth \?\?/);
   assert.match(source, /\/managed-login\/start/);
   assert.match(source, /service\.startManagedLogin/);
   assert.match(source, /service\.managedLoginStatus/);
   assert.match(source, /service\.cancelManagedLogin/);
   assert.match(source, /\/subscription\/accounts/);
   assert.match(source, /service\.save\(parseDraft\(body\.draft\), null\)/);
-  assert.match(source, /server\.httpServer\?\.once\("close", \(\) => managedAuth\.dispose\(\)\)/);
+  assert.match(bundle, /const codexHost = new CodexAppServerHost\(\)/);
+  assert.match(bundle, /managedAuth: codexHost\.managedAuth/);
+  assert.match(bundle, /codexRuntime: codexHost\.textRuntime/);
+  assert.match(bundle, /codexLifecyclePlugin\(codexHost\)/);
 });
 
 test("browser ChatGPT login opens synchronously, validates official HTTPS domains and never stores token state", async () => {

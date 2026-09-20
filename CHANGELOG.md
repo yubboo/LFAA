@@ -1,3 +1,17 @@
+# v0.1.2 Codex App Server Chat Runtime
+
+**当前任务：#22.9 · ChatGPT/Codex 套餐 Text Runtime · v0.1.2 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- 补齐 ChatGPT/Codex 套餐从 managed auth + `model/list` 到 `thread/start` / `turn/start` 的真实文本执行链。
+- `@lfaa/codex-app-server` 新增多轮 Thread 复用、`item/agentMessage/delta` 流式文本、`item/completed` 最终消息、`turn/completed` 状态收敛与 `turn/interrupt` 取消。
+- `agent-controller` 改为通过 Config System 的 `connection.protocol` 路由 `codex-app-server` / `openai-compatible`，不再把是否存在 `credentialRef` 当作 Runtime 类型判断。
+- `bundle/web-app` 让 Settings Managed Auth 与 Agent Text Runtime 共享同一个 `CodexAppServerHost`，避免重复 App Server 子进程。
+- Workspace 新增 `assistant.delta` 投影，同一 Run 的流式 delta 与最终 `assistant.completed` 始终落到同一条 assistant message。
+- 安全边界：LFAA 不读取/保存 Codex OAuth Token；审批 UI 未完成前 Text Runtime 强制 read-only，并安全拒绝命令执行、文件修改、权限与 MCP elicitation server request。
+- 新增 `test/codex-app-server-runtime.test.mjs` 行为测试；真实 Windows/Codex CLI/ChatGPT 账户仍待用户环境验收。
+- **AI 验证：** pass；仓库级 Node 合同测试 175/175 PASS，Config System 39/39 PASS，Codex Runtime 行为测试 2/2 PASS，统一静态治理 / workspace preflight PASS。真实 Windows Codex CLI + ChatGPT 账户端到端仍待用户验收。
+- **状态：** pending-user-acceptance。
+
 # v0.1.1 TSConfig 根配置继承 / Vite 启动修复
 
 **当前任务：#21.29 · Harness capability-family 迁移后 TSConfig 配置路径回归修复 · v0.1.1 · pending-user-acceptance · AI=pass · 用户验收=pending**
