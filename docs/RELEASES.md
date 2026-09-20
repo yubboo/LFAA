@@ -1,25 +1,48 @@
-# LFAA Releases — current policy v0.0.100
+# LFAA Releases — current policy v0.1.0
 
-**当前任务：#21.28 · v0.0.100 · pending-user-acceptance · AI=pass · 用户验收=pending**
+## v0.1.0 — Harness 架构收口 / Sync 与依赖健康修复
 
+- 承接 v0.0.99 的 capability-family / packages-first / thin-app / Runtime Home / native 架构；
+- 修复退役 workspace 只剩 `node_modules` / `target` 等缓存时 Sync 无法清理、`current-fact` 误判旧 Owner 回流的问题；
+- 修复依赖健康检查仍只扫描旧单层 `packages/*`，导致“workspace 25，但只真实解析 10/10”的假健康；
+- 当前扫描以 `pnpm-workspace.yaml` 为唯一 workspace 来源，当前仓库共 25 个 importer；
+- lockfile 检查升级为 importer + section + specifier 精确覆盖；
+- 菜单 1 在真实缺依赖时自动执行 `pnpm install`，Web 启动复用同一 readiness；
+- 新增版本策略 Gate，禁止 `0.0.100` 这类非法显示版本。
+
+**当前任务：#20.20 + #21.28 hotfix · v0.1.0 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+> **版本纠正：** LFAA 版本每一段都限制为 `0-99`。因此 `v0.0.99` 后必须进入 `v0.1.0`。此前生成的 `v0.0.100` / `v0.0.101` 为误标构建，不属于正式发布序列；对应修复统一纳入 v0.1.0。
 
 ## 当前版本
 
 ```text
-displayVersion: 0.0.100
-releaseSequence: 99
+displayVersion: 0.1.0
+releaseSequence: 100
 architectureVersion: 5
 ```
 
-`lfaa.release.json` 是版本元数据 Owner。根 package、workspace packages 和 Native crate 版本应保持一致。
+`lfaa.release.json` 是版本元数据 Owner。根 package、workspace packages 和 Native crate 版本必须保持一致。`releaseSequence` 是独立内部发布序号，不等于 displayVersion 的 patch 位。
 
-## v0.0.100 发布重点
+## 版本进位规范
 
-- 修复 v0.0.99 大规模目录迁移后，旧 workspace 目录只剩 `node_modules` / `target` 等本地缓存时无法被 Sync 清理的问题；
-- `current-fact` 只把仍含项目文件的旧 Owner 视为架构回流，不再把缓存空壳误判为失败；
-- Sync 对明确退役的 workspace root 增加安全清理：仅在确认没有项目文件时，才连同孤立缓存一起移除；
-- 新增回归测试锁定“旧 package 已迁走 + 旧目录只剩本地缓存”的同步场景；
-- v0.0.99 已完成的 packages-first / thin app / bundle / Runtime Home / native 架构保持不变。
+LFAA 使用三段显示版本 `major.minor.patch`，但项目约定每一段都只允许 `0-99`：
+
+```text
+0.0.98 → 0.0.99
+0.0.99 → 0.1.0
+0.1.99 → 0.2.0
+0.99.99 → 1.0.0
+```
+
+禁止：
+
+```text
+0.0.100
+0.100.0
+```
+
+`scripts/version-policy.mjs` 与 `release-consistency-check.mjs` 负责机器校验；开发者不得手工绕过该 Gate。
 
 ## Release gates
 

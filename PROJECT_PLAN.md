@@ -1,12 +1,22 @@
-# LFAA Project Plan — current after v0.0.100
+# LFAA Project Plan — current after v0.1.0
 
 ## 当前里程碑
 
-**v0.0.100 / Harness Architecture Phase 1 Sync Hotfix**
+**v0.1.0 / Workspace Dependency Health Hotfix**
 
-目标：把 v0.0.98 已有产品能力迁入 packages-first Harness 拓扑，在不改变现有主要 UI/模型/插件/Secret/Terminal 行为的前提下，清理 App 业务和仓库运行状态。
+目标：承接 v0.0.99 capability-family 迁移，修复后续 Sync 目录迁移边界与 Windows Setup 旧依赖扫描问题；在不改变 UI/模型/插件/Secret/Terminal 业务行为的前提下，让菜单 1 与启动/构建入口共享同一依赖事实。
 
-已落地：
+本版新增：
+
+- Node 依赖检查器直接读取 `pnpm-workspace.yaml`，覆盖全部 25 个 importer；
+- 依赖健康区分 workspace 链接与外部依赖真实解析；
+- `pnpm-lock.yaml` 改为 importer + dependency specifier 精确覆盖检查；
+- 菜单 1 检测到真实缺依赖后自动执行 pnpm install；
+- Web 启动不再硬编码旧 `apps/web/node_modules/@xterm` / `node-pty` 所有权；
+- 新增 capability-family 深层 workspace、新依赖缺失和 importer lockfile 不一致回归测试；
+- 增加版本进位 Gate，锁定 `0.0.99 → 0.1.0`，禁止 `0.0.100`。
+
+既有 Harness Phase 1 保持：
 
 - `packages/<family>/<package>` capability family 拓扑；
 - `apps/web` 薄入口；

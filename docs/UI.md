@@ -1,4 +1,4 @@
-# LFAA UI Architecture — v0.0.100
+# LFAA UI Architecture — v0.1.0
 
 UI 视觉和交互保持 v0.0.98 已验证行为，本版本主要改变代码 Owner，不重新设计 Workbench。
 
@@ -64,7 +64,7 @@ Plugin 管理视图通过 Browser Host client 调 Plugin Controller。
 
 ## 3. Motion / resize / snap
 
-v0.0.100 不改变已有 animation/snap/resize 阻尼、触发阈值和模型菜单体验。架构迁移不能因为移动文件而重置已调好的参数。
+v0.1.0 不改变已有 animation/snap/resize 阻尼、触发阈值和模型菜单体验。架构迁移不能因为移动文件而重置已调好的参数。
 
 可复用交互参数继续集中到已有 config/token/logic Owner，不在 View 内复制 magic numbers。
 

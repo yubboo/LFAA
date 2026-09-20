@@ -1,12 +1,33 @@
-# v0.0.100 Workspace Sync 目录迁移热修复
+# v0.1.0 Harness 架构收口 / Sync 与依赖健康修复
 
-**当前任务：#21.28 hotfix · v0.0.100 · pending-user-acceptance · AI=pass · 用户验收=pending**
+**当前任务：#20.20 + #21.28 hotfix · v0.1.0 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+> **版本纠正：** LFAA 开发规范规定每个版本位范围为 `0-99`，因此 `v0.0.99` 的下一合法版本必须是 `v0.1.0`。此前 AI 生成的 `v0.0.100` / `v0.0.101` 为错误标签，仅用于问题追溯，不属于正式发布序列；其中代码改动统一归并到本 `v0.1.0`。
+
+### Workspace 依赖健康检测
+
+- 修复 Harness capability-family 迁移后 `node-dependency-health-check.mjs` 仍按旧单层 `packages/<package>` 扫描，导致实机“workspace 25，但真实解析只有 10/10”的假健康。
+- 依赖检查器改为读取 `pnpm-workspace.yaml` 并发现全部 importer；当前仓库扫描 25 个 workspace、45 条 workspace 声明与 26 条外部依赖声明。
+- 新增 importer 级 `pnpm-lock.yaml` 覆盖检查，避免依赖名在其他 importer 出现就被误判为当前 package 已锁定。
+- Web 启动检查移除旧 `apps/web/node_modules/@xterm/*` / `node-pty` 硬编码，复用菜单 1 同一 readiness。
+- 菜单 1 被用户主动选择后，检测到真实缺依赖会自动同步 Node 依赖；仍禁止自动升级、store prune 或无差异重复安装。
+- 新增深层 capability-family workspace、新依赖缺失、lockfile importer 缺失、旧 runtime entry 损坏等回归测试。
+
+### Workspace Sync 目录迁移修复
 
 - 修复 v0.0.99 Harness 化迁移后，稳定工作区中的旧 package 目录因残留 `node_modules` 等保护缓存而无法成为“空目录”，导致 `current-fact` 错误报告 `旧物理 Owner 回流`。
 - Sync 新增退役 workspace root 安全清理：只有确认目录中不存在项目文件、仅剩受保护缓存时，才整体移除旧目录；存在真实文件时不静默删除。
-- `current-fact` 同步调整为检查“旧 Owner 是否仍含项目内容”，不再因为缓存空壳目录本身存在就失败。
+- `current-fact` 改为检查“旧 Owner 是否仍含项目内容”，不再因为缓存空壳目录本身存在就失败。
 - 新增 Workspace Sync 回归测试，锁定目录迁移 + 孤立缓存场景。
-- v0.0.99 的 packages-first、thin app、bundle、Runtime Home、native 结构和业务行为保持不变。
+
+### 版本治理
+
+- 新增 `scripts/version-policy.mjs`，明确版本各分段只能为 `0-99`。
+- `scripts/release-consistency-check.mjs` 现在会拒绝 `0.0.100`、`0.100.0` 等非法版本。
+- 新增版本进位回归测试：`0.0.99 → 0.1.0`，`0.99.99 → 1.0.0`。
+- `releaseSequence` 继续作为独立内部发布序号，本版本保持 `100`，不与显示版本位混用。
+
+- **AI 验证：** 既有依赖修复合同测试 166/166 PASS；本版新增版本策略测试后重新执行统一 preflight / 合同测试。制作环境若无法联网取得 pnpm，仍不得冒充用户 Windows Node 24/pnpm 11.17.0 的真实依赖下载。
 
 # v0.0.99 Harness 化仓库架构
 

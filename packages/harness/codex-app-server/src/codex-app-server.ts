@@ -34,7 +34,7 @@ const MODEL_SOURCE = {
   checkedAt: CHECKED_AT,
 } as const;
 /** App Server initialize 元数据集中定义，避免 name/title/version 散落在握手逻辑。 */
-const APP_SERVER_CLIENT_INFO = { name: "lfaa_web_dev", title: "Little Fish AI Agent", version: "0.0.99" } as const;
+const APP_SERVER_CLIENT_INFO = { name: "lfaa_web_dev", title: "Little Fish AI Agent", version: "0.1.0" } as const;
 
 type RpcId = number;
 type JsonRecord = Record<string, unknown>;

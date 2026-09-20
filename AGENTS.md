@@ -1,4 +1,4 @@
-# LFAA Agent / Contributor Guide — v0.0.100
+# LFAA Agent / Contributor Guide — v0.1.0
 
 本文件给 AI Agent 和开发者提供最短路径的当前约束。**先遵守当前代码与本文件，再参考历史记录。**
 
@@ -122,6 +122,10 @@ LFAA_HOME
 - 更新 lockfile/workspace；
 - 不通过“关闭门禁”让迁移假绿。
 
+## 版本规范
+
+显示版本每一段只允许 `0-99`。`0.0.99` 的下一版必须是 `0.1.0`，禁止创建 `0.0.100`。版本事实以 `lfaa.release.json` 为准，发布前必须通过 `release-consistency-check` / `version-policy` Gate。`releaseSequence` 只是独立内部序号。
+
 ## 质量命令
 
 ```text
@@ -138,4 +142,4 @@ pnpm run quality:full
 
 当前真相：代码 + 自动门禁 + `ARCHITECTURE.md` / `DEVELOPMENT.md` / 本文件。
 
-`CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md`、`docs/PROMPTS.md` 是历史账本。旧条目里出现 `.lfaa`、`crates/`、`apps/web/dev` 等路径时，只解释当时版本，不用于指导 v0.0.100 开发。
+`CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md`、`docs/PROMPTS.md` 是历史账本。旧条目里出现 `.lfaa`、`crates/`、`apps/web/dev` 等路径时，只解释当时版本，不用于指导 v0.1.0 开发。

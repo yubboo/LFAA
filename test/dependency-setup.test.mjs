@@ -45,14 +45,15 @@ test("unchanged dependency path can return without pnpm install", () => {
   assert.ok(decisionIndex >= 0 && invokeIndex > decisionIndex, "install invocation must stay inside the NeedsInstall branch");
 });
 
-test("dependency changes are summarized and confirmed before writing", () => {
+test("dependency changes are summarized and menu 1 automatically synchronizes declared Node dependencies", () => {
   const compare = functionBody("Compare-NodeDependencyInventory");
   const show = functionBody("Show-NodeDependencyPlan");
   const install = functionBody("Install-NodeDependencies");
   for (const token of ["Added", "Removed", "Changed"]) assert.ok(compare.includes(token));
-  for (const token of ["新增", "删除", "变更"]) assert.ok(show.includes(token));
-  assert.match(install, /Confirm-SimpleOperation/);
-  assert.match(install, /同步 Node 依赖/);
+  for (const token of ["新增", "删除", "变更", "workspace", "外部依赖"]) assert.ok(show.includes(token));
+  assert.match(install, /菜单 1 已代表用户授权/);
+  assert.match(install, /自动同步当前项目声明的依赖/);
+  assert.doesNotMatch(install, /Confirm-SimpleOperation/);
 });
 
 test("menu 1 never auto-updates packages or clears pnpm caches", () => {
@@ -110,14 +111,28 @@ test("menu 1 avoids duplicate precheck and duplicate completion summaries", () =
   assert.match(setup, /【完成】" "【依赖】/);
 });
 
-test("unchanged path requires real Node resolution before it may skip install", () => {
+test("unchanged path requires the shared full-workspace readiness check before it may skip install", () => {
+  const readiness = functionBody("Get-NodeDependencyReadiness");
   const plan = functionBody("Get-NodeDependencyPlan");
   const runtime = functionBody("Test-NodeDependencyRuntimeHealth");
-  assert.match(plan, /Test-NodeDependencyRuntimeHealth/);
+  assert.match(readiness, /Test-NodeDependencyRuntimeHealth/);
+  assert.match(readiness, /Test-PnpmLockCoverage/);
+  assert.match(readiness, /项目全部 workspace 依赖真实解析\/加载失败/);
+  assert.match(plan, /Get-NodeDependencyReadiness/);
   assert.match(plan, /RuntimeHealth/);
-  assert.match(plan, /项目依赖真实解析\/加载失败/);
   assert.match(runtime, /node-dependency-health-check\.mjs/);
+  assert.match(runtime, /WorkspaceChecked/);
+  assert.match(runtime, /ExternalChecked/);
+  assert.match(runtime, /LockComplete/);
   assert.match(runtime, /--json/);
+});
+
+test("Web startup reuses dependency readiness instead of hard-coding old importer ownership", () => {
+  const web = functionBody("Assert-WebDevelopmentDependencies");
+  assert.match(web, /Get-NodeDependencyReadiness/);
+  assert.match(web, /全部 workspace/);
+  assert.doesNotMatch(web, /apps\web\node_modules\@xterm/);
+  assert.doesNotMatch(web, /apps\web\node_modules\node-pty/);
 });
 
 test("pnpm Store is a real health signal and missing cache cannot report all-ready", () => {
@@ -213,7 +228,7 @@ test("menu 1 keeps only compact dependency UX while menu 7 retains full diagnost
   const plan = functionBody("Show-NodeDependencyPlan");
   for (const token of ["Node", "pnpm Store", "Cargo", "Rust"]) assert.ok(compact.includes(token));
   for (const token of ["PNPM_HOME", "pnpm 全局配置", "Node 锁文件", "依赖状态缓存", "pnpm Store"]) assert.ok(full.includes(token));
-  assert.doesNotMatch(plan, /【新增】|【变更】|【删除】|【锁文件】|【失败】|【缺失】/);
+  assert.doesNotMatch(plan, /【锁文件】|【失败】|【缺失】/);
   assert.doesNotMatch(setup, /【说明】" "【增量同步】/);
   assert.doesNotMatch(setup, /【日志】" "【pnpm 原生输出】/);
   assert.match(setup, /Show-DependencyLocationsCompact/);

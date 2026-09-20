@@ -1,4 +1,4 @@
-# LFAA Development Standard — v0.0.100
+# LFAA Development Standard — v0.1.0
 
 本文件是当前开发规范。历史版本的设计过程请看 `CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md` 和 `docs/PROMPTS.md`；历史内容不得覆盖本文件。
 
@@ -13,7 +13,7 @@ LFAA 不是“一个 React App 加若干工具函数”，而是一个 packages-
 - Rust：`rust-toolchain.toml`
 - Package manager：仅 pnpm
 
-Windows 优先使用 `LFAA-Setup.bat`。Setup 依赖检测以真实安装/解析结果为准，dependency-state 只是加速缓存。
+Windows 优先使用 `LFAA-Setup.bat`。Setup 依赖检测以 `pnpm-workspace.yaml` 声明的全部 workspace importer 为范围，以真实安装/解析 + importer 级 lockfile 覆盖为准；dependency-state 只用于显示依赖声明差异和加速基线，不能决定“已就绪”。菜单 1 被用户选择后，如检测到真实缺依赖，会自动同步当前声明的 Node 依赖。
 
 ## 3. 仓库规则
 
@@ -259,6 +259,21 @@ pnpm run build
 新文档事实优先。历史文档允许保留旧路径来说明当时发生了什么，但必须在顶部标注历史属性；不要把历史路径全局替换成新路径，从而伪造过去。
 
 ## 18. Release / Sync
+
+### 18.1 版本进位规则
+
+LFAA 显示版本固定为 `major.minor.patch`，每一段只能是 `0-99`。patch 到 99 后必须向 minor 进位；minor 与 patch 同时到 99 后向 major 进位：
+
+```text
+0.0.98 → 0.0.99
+0.0.99 → 0.1.0
+0.1.99 → 0.2.0
+0.99.99 → 1.0.0
+```
+
+因此 `0.0.100`、`0.100.0` 都是非法版本。`scripts/version-policy.mjs` 与 release consistency Gate 必须阻止此类版本进入发布包。`releaseSequence` 是独立内部序号，不参与显示版本进位。
+
+### 18.2 Release / Sync 规则
 
 - `lfaa.release.json` 是版本元数据 Owner；
 - package/Cargo 版本与其保持一致；

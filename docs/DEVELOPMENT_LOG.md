@@ -1,8 +1,14 @@
-# v0.0.100 Sync Hotfix — #21.28
+# v0.1.0 / #20.20 + #21.28 hotfix — 依赖健康与 Sync 迁移修复
 
-- 根因：v0.0.99 同步删除旧 package 文件后，旧目录中的 `node_modules` 属于保护项，导致目录无法被普通空目录清理删除；`current-fact` 又把目录存在本身当成旧 Owner 回流。
-- 修复：增加退役 workspace root 的“仅缓存安全清理”，并让 current-fact 忽略 cache-only legacy shell。
-- 回归：`test/workspace-sync-idempotency.test.mjs` 增加退役 package cache shell 契约。
+> **版本纠正：** `v0.0.99` 之后应直接进入 `v0.1.0`。此前生成的 `v0.0.100` / `v0.0.101` 是错误标签，其实现记录统一归并到本版本；错误标签只保留在本说明中用于追溯。
+
+- **实机问题 1：** Harness 目录迁移后，旧 package 目录仅剩 `node_modules` 时 Sync 镜像校验通过，但 `current-fact` 把缓存空壳误判为旧 Owner 回流。
+- **修复 1：** Sync 可安全清理“仅剩依赖/构建缓存”的退役 workspace root；存在真实项目文件则拒绝静默删除。
+- **实机问题 2：** workspace=25，但菜单 1 只报告“真实解析 10/10 已就绪”；菜单 2 又因旧 `apps/web/node_modules` xterm/node-pty 硬编码拒绝启动。
+- **根因 2：** Node 健康检查器仍按迁移前的一层 packages 目录枚举，漏掉 `packages/<family>/<package>`；Web 前置检查维护了第二套依赖事实；lockfile 检查只做全局包名字符串包含。
+- **修复 2：** 扫描器直接解析 `pnpm-workspace.yaml` glob；验证 workspace:* 直接链接、外部依赖真实 resolve、node-pty 原生加载和 importer 级 lockfile specifier；PowerShell 菜单 1 与 Web 启动统一复用同一 readiness。
+- **版本治理：** 新增版本策略 Gate，版本分段范围固定 `0-99`；`0.0.99 → 0.1.0`，禁止再次生成 `0.0.100`。
+- **状态：** pending-user-acceptance。
 
 # v0.0.99 Harness Architecture Phase 1
 

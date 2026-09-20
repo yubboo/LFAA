@@ -1,8 +1,13 @@
-# v0.0.100 Prompt / Requirement Note — Workspace Sync 目录迁移热修复
+# v0.1.0 Prompt / Requirement Note — Sync / 依赖健康 / 版本进位修复
 
-> **文档属性：历史需求账本。** 当前架构仍以代码、`ARCHITECTURE.md`、`DEVELOPMENT.md` 为主；本条记录 v0.0.99 Harness 化迁移后的同步修复需求。
+> **文档属性：历史需求账本。** 当前实现仍以代码、`ARCHITECTURE.md`、`DEVELOPMENT.md` 为主。
+> **版本纠正：** `v0.0.99` 后下一合法版本为 `v0.1.0`；此前 AI 生成的 `v0.0.100` / `v0.0.101` 是误标构建，其需求与实现统一归并到本版本。
 
-本轮核心需求：修复稳定工作区同步后 `current-fact` 因旧 package 目录只剩 `node_modules` 等保护缓存而误判“旧物理 Owner 回流”的问题；不得关闭 Gate 或破坏缓存保护原则；仅在退役 workspace 不含真实项目文件时清理缓存空壳；保持 v0.0.99 业务、UI 与 Harness 架构不变，并补充回归测试。
+本轮合并三个修复合同：
+
+1. 修复退役 workspace 仅剩 `node_modules` 等缓存时 Sync 无法清理、`current-fact` 误报旧 Owner 回流的问题；
+2. 修复菜单 1【按需依赖】无法真实识别 capability-family 架构中新 workspace / 新依赖，而菜单 2【启动 Web】又使用另一套旧硬编码依赖判断的问题；
+3. 把版本进位规则升级为机器 Gate：每个版本位只允许 `0-99`，`0.0.99` 的下一版本必须是 `0.1.0`。
 
 # v0.0.99 Prompt / Requirement Note — Harness 化重构
 
@@ -37,7 +42,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #21.28 | Harness capability-family 仓库架构重构 / Sync 目录迁移热修复 | v0.0.100 | pending-user-acceptance | pass | pending |
+| #20.20 | Workspace 依赖健康检测 / 自动按需同步修复 | v0.1.0 | pending-user-acceptance | pass | pending |
+| #21.28 | Harness capability-family 仓库架构重构 / Sync 目录迁移热修复 | v0.1.0 | pending-user-acceptance | pass | pending |
 | #21.28 | Harness capability-family 仓库架构重构 | v0.0.99 | pending-user-acceptance | pass | pending |
 | #21.27 | 全仓审计问题修复与发布门禁闭环 | v0.0.98 | pending-user-acceptance | pass | pending |
 | #21.26 | 全项目术语与架构一致性维护 | v0.0.97 | pending-user-acceptance | pass | pending |
@@ -95,6 +101,14 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #20.20 Workspace 依赖健康检测 / 自动按需同步修复
+
+- **版本：** v0.1.0；**状态：** pending-user-acceptance。
+- **问题：** v0.0.99 已迁为 `packages/<family>/<package>`；后续 Sync 热修复完成后，Node 健康检查仍扫描旧单层 packages，Web 启动又硬编码旧 importer 的 xterm/node-pty 路径，导致菜单 1 与菜单 2 互相矛盾。
+- **允许修改：** Node dependency health checker、Windows Setup 依赖 readiness、依赖相关 tests/docs/version。
+- **禁止修改：** Chat/Work、Workbench UI、Provider 业务、Plugin Runtime、Secret、Terminal 协议与 Harness package Owner。
+- **验收：** 全部 workspace importer 被发现；新增 package dependency / lockfile importer 不一致 / workspace link 缺失必定触发 NeedsInstall；菜单 1 自动同步；菜单 2 复用同一 readiness；无变化时仍跳过 pnpm install。
 
 ## #21.27 全仓审计问题修复与发布门禁闭环
 

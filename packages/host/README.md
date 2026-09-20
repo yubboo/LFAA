@@ -1,6 +1,6 @@
 # packages/host
 
-LFAA v0.0.100 capability family。这里按长期 Owner 聚合相关 package；family 本身不是运行时 package，也不因为规划就创建空实现。
+LFAA v0.1.0 capability family。这里按长期 Owner 聚合相关 package；family 本身不是运行时 package，也不因为规划就创建空实现。
 
 当前 package：
 

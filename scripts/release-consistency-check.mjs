@@ -10,6 +10,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { validateLfaaVersion } from "./version-policy.mjs";
 
 const root = process.cwd();
 const fail = (message) => {
@@ -20,7 +21,11 @@ const readJson = (relative) => JSON.parse(fs.readFileSync(path.join(root, relati
 const readText = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 const release = readJson("lfaa.release.json");
 const version = String(release.displayVersion ?? "").trim();
-if (!/^\d+\.\d+\.\d+$/.test(version)) fail(`invalid displayVersion: ${version || "<empty>"}`);
+try {
+  validateLfaaVersion(version);
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error));
+}
 
 const packageFiles = ["package.json"];
 for (const base of ["apps", "packages"]) {

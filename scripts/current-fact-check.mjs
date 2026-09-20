@@ -1,6 +1,6 @@
 /**
  * 文件：current-fact-check.mjs
- * 作用：阻止当前事实文档回退到 v0.0.100 前的平铺 package、App 业务或仓库级 Runtime 目录。
+ * 作用：阻止当前事实文档回退到 Harness capability-family 迁移前的平铺 package、App 业务或仓库级 Runtime 目录。
  * 负责：核对当前版本、Harness capability-family 主骨架、薄 App、Runtime Home 与主要 UI Owner。
  * 不负责：改写历史日志、TypeScript 编译、Vite 构建或用户验收。
  * 状态归属：无状态；只读取工作区文件。

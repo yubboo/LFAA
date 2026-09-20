@@ -13,7 +13,7 @@
 | `docs-check.mjs` | docs 固定长期文档结构，阻止碎片 Markdown 回归。 |
 | `comment-check.mjs` | 关键代码中文文件头 / CSS 分区注释。 |
 | `check-node-pty.mjs` | node-pty 实际加载检查。 |
-| `node-dependency-health-check.mjs` | 从各 workspace importer 真实解析外部 Node 依赖，防止残留 package.json/旧缓存造成假健康。 |
+| `node-dependency-health-check.mjs` | 从 pnpm-workspace.yaml 发现全部 importer，校验 workspace 链接、外部 Node 依赖真实解析与 importer 级 lockfile 覆盖，防止 capability-family 深层 package 漏检。 |
 | `pnpm-only.mjs` | 强制 pnpm，并拒绝与项目锁定版本不一致的 pnpm。 |
 | `quality-not-configured.mjs` | 历史占位失败入口；根级真实质量命令已不再依赖它。 |
 | `release-name.mjs` | 发布名。 |
@@ -44,3 +44,8 @@ windows/lfaa-update.ps1  ← LFAA-Update.bat
 
 
 > 当前候选版本：v0.0.62（#20.16，pending-user-acceptance）。
+
+## 版本策略
+
+- `version-policy.mjs`：LFAA 显示版本格式与 0-99 进位规则的唯一代码 Owner；`0.0.99` 后返回 `0.1.0`，并拒绝 `0.0.100`。
+- `release-consistency-check.mjs`：读取 `lfaa.release.json` 后调用版本策略，并核对所有 package/Cargo/文档版本一致性。

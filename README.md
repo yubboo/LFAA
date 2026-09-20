@@ -1,8 +1,8 @@
-# LFAA v0.0.100 — Harness 化仓库架构
+# LFAA v0.1.0 — Harness 化仓库架构 / Workspace 依赖健康修复
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.0.100**。本版本是 v0.0.99 Harness 化迁移后的同步热修复；v0.0.99 已完成第一阶段 Harness 化重构：业务能力归入 `packages/<capability-family>/<package>`，`apps/web` 收敛为薄产品入口，原生能力归入 `native/`，源码仓库不再保存项目级 `.lfaa/` 运行状态。
+当前包：**LFAA-v0.1.0**。按项目版本规范，`v0.0.99` 之后必须进位到 `v0.1.0`；此前生成的 `v0.0.100` / `v0.0.101` 仅属于误标构建，不进入正式版本序列。本版本承接 v0.0.99 的 Harness 化重构，并合并 Workspace Sync 目录迁移修复与 Workspace 依赖健康检测修复。
 
 > 当前真相以本 README、`ARCHITECTURE.md`、`DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
 
@@ -81,7 +81,7 @@ agent/config/plugin/terminal/llm adapters
 
 ## 现有能力保持
 
-v0.0.100 的目标是修复目录迁移后的 Workspace Sync 边界问题，不重做产品、不改变 v0.0.99 的 Harness 架构。以下既有能力继续保留：
+v0.1.0 的目标是在 v0.0.99 Harness 架构上完成 Sync 目录迁移与依赖健康事实源修复，不重做产品、不改变既有业务行为。以下既有能力继续保留：
 
 - Chat / Work 同一 Workspace 双模式；
 - Work Infinite Canvas 与已有交互、布局持久化；
@@ -131,7 +131,7 @@ pnpm run build
 pnpm run quality:full
 ```
 
-仓库只允许 pnpm。依赖未变化时 Setup 不应重复安装；机器 pnpm/Store 事实每次实时读取，不从运行状态缓存反推环境。
+仓库只允许 pnpm。菜单 1【按需依赖】以 `pnpm-workspace.yaml` 的全部 importer 为唯一扫描范围，同时校验 package.json 声明、对应 lockfile importer、直接 node_modules/workspace 链接、外部包真实 resolve 与 node-pty 原生加载；发现新增/变更/缺失后自动执行需要的 `pnpm install`。依赖未变化且真实健康时不得重复安装；机器 pnpm/Store 事实每次实时读取，不从运行状态缓存反推环境。
 
 ## 开发前必读
 

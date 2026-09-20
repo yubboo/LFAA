@@ -879,6 +879,12 @@ function Test-NodeDependencyRuntimeHealth {
             Issues = @("缺少 scripts/node-dependency-health-check.mjs")
             Checked = 0
             Resolved = 0
+            WorkspaceChecked = 0
+            WorkspaceResolved = 0
+            ExternalChecked = 0
+            ExternalResolved = 0
+            LockComplete = $false
+            LockIssues = @("无法验证 lockfile")
         }
     }
 
@@ -901,16 +907,28 @@ function Test-NodeDependencyRuntimeHealth {
             Issues = @("真实依赖检查器未返回可解析结果：" + (($output | Select-Object -Last 3) -join " | "))
             Checked = 0
             Resolved = 0
+            WorkspaceChecked = 0
+            WorkspaceResolved = 0
+            ExternalChecked = 0
+            ExternalResolved = 0
+            LockComplete = $false
+            LockIssues = @("无法验证 lockfile")
         }
     }
 
     try {
         $result = $jsonLine[0] | ConvertFrom-Json
         return [PSCustomObject]@{
-            Complete = ([bool]$result.complete -and $code -eq 0)
-            Issues = @($result.issues)
+            Complete = [bool]$result.runtimeComplete
+            Issues = @($result.runtimeIssues)
             Checked = [int]$result.checked
             Resolved = [int]$result.resolved
+            WorkspaceChecked = [int]$result.workspaceChecked
+            WorkspaceResolved = [int]$result.workspaceResolved
+            ExternalChecked = [int]$result.externalChecked
+            ExternalResolved = [int]$result.externalResolved
+            LockComplete = [bool]$result.lockComplete
+            LockIssues = @($result.lockIssues)
         }
     }
     catch {
@@ -919,34 +937,46 @@ function Test-NodeDependencyRuntimeHealth {
             Issues = @("真实依赖检查结果 JSON 无法解析")
             Checked = 0
             Resolved = 0
+            WorkspaceChecked = 0
+            WorkspaceResolved = 0
+            ExternalChecked = 0
+            ExternalResolved = 0
+            LockComplete = $false
+            LockIssues = @("无法验证 lockfile")
         }
     }
 }
 
 function Test-PnpmLockCoverage {
-    param([object[]]$Inventory)
+    param([object]$RuntimeHealth)
 
-    $lockFile = Join-Path $ProjectRoot "pnpm-lock.yaml"
-    if (-not (Test-Path -LiteralPath $lockFile)) {
-        return [PSCustomObject]@{ Complete = $false; Missing = @("pnpm-lock.yaml") }
+    if ($null -eq $RuntimeHealth) {
+        $RuntimeHealth = Test-NodeDependencyRuntimeHealth
     }
-
-    $text = Get-Content -LiteralPath $lockFile -Raw
-    $missing = New-Object System.Collections.Generic.List[string]
-    $seen = New-Object System.Collections.Generic.HashSet[string]
-
-    foreach ($item in $Inventory) {
-        if ($item.Section -notin @("dependencies","devDependencies","optionalDependencies")) { continue }
-        if ([string]$item.Version -like "workspace:*") { continue }
-        if (-not $seen.Add([string]$item.Name)) { continue }
-
-        $name = [string]$item.Name
-        if (-not $text.Contains($name)) { $missing.Add($name) }
+    return [PSCustomObject]@{
+        Complete = [bool]$RuntimeHealth.LockComplete
+        Missing = @($RuntimeHealth.LockIssues)
     }
+}
+
+function Get-NodeDependencyReadiness {
+    $snapshot = Get-NodeDependencySnapshot
+    $installState = Test-NodeDependencyInstallState $snapshot.Inventory
+    $runtimeHealth = Test-NodeDependencyRuntimeHealth
+    $lockCoverage = Test-PnpmLockCoverage $runtimeHealth
+    $healthReasons = New-Object System.Collections.Generic.List[string]
+
+    if (-not $installState.Complete) { $healthReasons.Add("本地直接依赖或 workspace 链接缺失/版本不匹配") }
+    if (-not $runtimeHealth.Complete) { $healthReasons.Add("项目全部 workspace 依赖真实解析/加载失败") }
+    if (-not $lockCoverage.Complete) { $healthReasons.Add("pnpm-lock.yaml importer 与当前依赖声明不一致") }
 
     return [PSCustomObject]@{
-        Complete = ($missing.Count -eq 0)
-        Missing = @($missing)
+        Complete = ($healthReasons.Count -eq 0)
+        Snapshot = $snapshot
+        InstallState = $installState
+        RuntimeHealth = $runtimeHealth
+        LockCoverage = $lockCoverage
+        Reasons = @($healthReasons)
     }
 }
 
@@ -988,14 +1018,16 @@ function Compare-NodeDependencyInventory {
 }
 
 function Get-NodeDependencyPlan {
-    $snapshot = Get-NodeDependencySnapshot
-    $installState = Test-NodeDependencyInstallState $snapshot.Inventory
-    $runtimeHealth = Test-NodeDependencyRuntimeHealth
-    $lockCoverage = Test-PnpmLockCoverage $snapshot.Inventory
+    $readiness = Get-NodeDependencyReadiness
+    $snapshot = $readiness.Snapshot
+    $installState = $readiness.InstallState
+    $runtimeHealth = $readiness.RuntimeHealth
+    $lockCoverage = $readiness.LockCoverage
     $storeHealth = Get-PnpmStoreHealth $snapshot.Inventory
     $state = Read-DependencyState
     $nodeState = if ($null -ne $state) { $state.node } else { $null }
     $healthReasons = New-Object System.Collections.Generic.List[string]
+    foreach ($reason in @($readiness.Reasons)) { $healthReasons.Add([string]$reason) }
     $diff = if ($null -eq $nodeState) {
         Compare-NodeDependencyInventory @() @()
     }
@@ -1005,9 +1037,6 @@ function Get-NodeDependencyPlan {
 
     # 只有「当前依赖真实不可用」才需要 pnpm install。
     # dependency-state 只是本机加速缓存，不能因为缓存缺失/指纹变化就强制重装。
-    if (-not $installState.Complete) { $healthReasons.Add("本地直接依赖缺失或版本不匹配") }
-    if (-not $runtimeHealth.Complete) { $healthReasons.Add("项目依赖真实解析/加载失败") }
-    if (-not $lockCoverage.Complete) { $healthReasons.Add("pnpm-lock.yaml 与当前依赖声明不完整") }
 
     $metadataChanged = ($null -ne $nodeState -and [string]$nodeState.fingerprint -ne $snapshot.Fingerprint)
     $needsInstall = ($healthReasons.Count -gt 0)
@@ -1046,7 +1075,7 @@ function Show-NodeDependencyPlan {
         elseif ($Plan.MetadataChanged) {
             $suffix = " | 事实变化但当前安装有效，不重装"
         }
-        Write-Label "【依赖】" "【Node】" (("已就绪 | 真实解析 {0}/{1}" -f $Plan.RuntimeHealth.Resolved,$Plan.RuntimeHealth.Checked) + $suffix) Green
+        Write-Label "【依赖】" "【Node】" (("已就绪 | workspace {0}/{1} | 外部 {2}/{3}" -f $Plan.RuntimeHealth.WorkspaceResolved,$Plan.RuntimeHealth.WorkspaceChecked,$Plan.RuntimeHealth.ExternalResolved,$Plan.RuntimeHealth.ExternalChecked) + $suffix) Green
 
         if ($null -ne $Plan.PreviousState -and ($Plan.Diff.Added.Count + $Plan.Diff.Removed.Count + $Plan.Diff.Changed.Count) -gt 0) {
             Write-Label "【差异】" "【声明】" ("新增 {0} | 删除 {1} | 变更 {2}（当前依赖已满足，无需安装）" -f $Plan.Diff.Added.Count,$Plan.Diff.Removed.Count,$Plan.Diff.Changed.Count) DarkCyan
@@ -1060,8 +1089,12 @@ function Show-NodeDependencyPlan {
         if ($flags.Count -eq 0) { $flags.Add("需要同步") }
 
         Write-Label "【依赖】" "【Node】" (($flags -join " | ")) Yellow
+        Write-Label "【扫描】" "【workspace】" ("链接/声明 {0}/{1} | 外部依赖 {2}/{3}" -f $Plan.RuntimeHealth.WorkspaceResolved,$Plan.RuntimeHealth.WorkspaceChecked,$Plan.RuntimeHealth.ExternalResolved,$Plan.RuntimeHealth.ExternalChecked) DarkCyan
         if ($null -ne $Plan.PreviousState) {
             Write-Label "【差异】" "【依赖】" ("新增 {0} | 删除 {1} | 变更 {2}" -f $Plan.Diff.Added.Count,$Plan.Diff.Removed.Count,$Plan.Diff.Changed.Count) Cyan
+            foreach ($item in @($Plan.Diff.Added | Select-Object -First 5)) { Write-Label "【新增】" "【依赖】" ([string]$item) DarkCyan }
+            foreach ($item in @($Plan.Diff.Changed | Select-Object -First 5)) { Write-Label "【变更】" "【依赖】" ([string]$item) DarkCyan }
+            foreach ($item in @($Plan.Diff.Removed | Select-Object -First 5)) { Write-Label "【删除】" "【依赖】" ([string]$item) DarkCyan }
         }
         else {
             Write-Label "【基线】" "【状态】" "尚无本机依赖基线；不会把全部现有依赖误报为「新增」。" DarkCyan
@@ -1266,10 +1299,7 @@ function Install-NodeDependencies {
     $cancelled = $false
 
     if ($plan.NeedsInstall) {
-        if (-not (Confirm-SimpleOperation "同步 Node 依赖？")) {
-            Write-Label "【跳过】" "【Node】" "未修改" Yellow
-            return [PSCustomObject]@{ Changed = $false; Cancelled = $true; ProjectHealthy = $plan.RuntimeHealth.Complete; StoreHealthy = $plan.StoreHealth.Healthy }
-        }
+        Write-Label "【处理】" "【Node】" "检测到依赖事实未就绪；菜单 1 已代表用户授权，将自动同步当前项目声明的依赖。" Cyan
 
         $installArguments = @("install")
         if (-not $plan.LockCoverage.Complete) {
@@ -1286,7 +1316,7 @@ function Install-NodeDependencies {
         $afterSnapshot = Get-NodeDependencySnapshot
         $afterInstallState = Test-NodeDependencyInstallState $afterSnapshot.Inventory
         $afterRuntimeHealth = Test-NodeDependencyRuntimeHealth
-        $afterLockCoverage = Test-PnpmLockCoverage $afterSnapshot.Inventory
+        $afterLockCoverage = Test-PnpmLockCoverage $afterRuntimeHealth
         if (-not $afterInstallState.Complete) {
             throw ("pnpm install 完成后本地依赖仍不完整：{0}" -f ($afterInstallState.Issues -join "；"))
         }
@@ -1954,23 +1984,16 @@ function Resolve-LfaaWebDevPort {
 }
 
 function Assert-WebDevelopmentDependencies {
-    $required = @(
-        "apps\web\node_modules\vite\package.json",
-        "apps\web\node_modules\@xterm\xterm\package.json",
-        "apps\web\node_modules\@xterm\addon-fit\package.json",
-        "apps\web\node_modules\node-pty\package.json"
-    )
+    $readiness = Get-NodeDependencyReadiness
+    if ($readiness.Complete) { return }
 
-    $missing = @()
-    foreach ($relative in $required) {
-        if (-not (Test-Path -LiteralPath (Join-Path $ProjectRoot $relative))) {
-            $missing += $relative
-        }
-    }
+    $details = New-Object System.Collections.Generic.List[string]
+    foreach ($reason in @($readiness.Reasons)) { $details.Add([string]$reason) }
+    foreach ($issue in @($readiness.InstallState.Issues | Select-Object -First 3)) { $details.Add([string]$issue) }
+    foreach ($issue in @($readiness.RuntimeHealth.Issues | Select-Object -First 3)) { $details.Add([string]$issue) }
 
-    if ($missing.Count -gt 0) {
-        throw "Web 开发依赖未完整安装。可运行菜单 1【按需依赖】准备依赖，或直接使用项目 pnpm 命令完成安装后重试。"
-    }
+    $detailText = if ($details.Count -gt 0) { " 原因：" + (($details | Select-Object -Unique) -join "；") } else { "" }
+    throw ("Web 开发依赖未完整安装。菜单 1【按需依赖】会依据当前全部 workspace 的 package.json + pnpm-lock.yaml + node_modules 真实状态自动检测并补齐。" + $detailText)
 }
 
 function Get-WebViteCommandPath {
