@@ -1,3 +1,14 @@
+## LFAA v0.0.95 Release — #21.24 + merge #22.8
+
+- 结构来自 v0.0.94，用户 v0.0.93 只作为 #22.8 Infinite Canvas 功能补丁源，不回滚 v0.0.94 其他模块化实现。
+- Workbench 产品模块内部以 `view / logic / styles / contracts / index.ts` 明确职责；不需要的层不建立空目录。
+- `@lfaa/ui` 明确为共享 UI Kit；`@lfaa/app-shell` 明确为产品 UI。
+- `apps/web/src` 为浏览器 bundle，`apps/web/dev` 为 Vite dev-server/Node Host；Resource/PTy 详细 bridge 已从 `vite.config.ts` 下沉。
+- Work Canvas 布局由 `center/conversation/work-canvas/logic` 按 workspaceId 持久化，只保存 node x/y 与 viewport；Agent Session 不拥有 Canvas 几何。
+- 行为冻结核对：相对 v0.0.94 的 Reasoning/Particle/Resize/Motion、Config/Agent/Plugin/Credentials/Rust/Windows scripts 零 diff；用户 v0.0.93 InfiniteCanvas 核心文件字节一致。
+- 自动验证：聚焦 63/63 PASS；全仓 Node 151 项中 150 项 PASS，唯一 Node source runtime 项受 Node 22.16.0 + 无 workspace node_modules 环境阻断；其余静态/治理 Gate PASS。
+- 状态：`pending-user-acceptance`；AI 验证 `pass`；用户验收 `pending`。发布 ZIP 483 entries；中文代码地图 exact entry UTF-8 flag=`0x800`；`.lfaa/` 保留；fresh extract 后 `workspace-preflight` 全 Gate PASS。
+
 ## LFAA v0.0.94 Release — #21.23 Workbench 全域模块化 / DeepSeek Harness 风格边界
 
 - 从 v0.0.93 建立，目标不是只拆 RuntimeControl，而是把整个 Workbench 建成长期父子 Owner：Shell / Left / Center(Header / Conversation / Composer / RuntimeControl) / Right / Terminal / Settings / Session / Shared。

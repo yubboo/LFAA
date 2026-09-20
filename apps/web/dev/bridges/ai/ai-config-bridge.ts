@@ -5,7 +5,7 @@
  * 不负责：Provider 业务、UI、Secret 文件持久化、生产 Server API。
  * 状态归属：Vite 进程持有 Account Service 与非 Windows 内存 Secret fallback。
  * 对外接口：lfaaDevAiConfigBridge(projectRoot)。
- * 关联文件：account-state-repository.ts、rust-secret-store.ts、node-http-json.ts、codex-app-server.ts、apps/web/src/host/ai-settings-client.ts。
+ * 关联文件：account-state-repository.ts、rust-secret-store.ts、node-http-json.ts、codex-app-server.ts、apps/web/src/host-clients/ai-settings-client.ts。
  * 修改注意事项：只绑定 Vite localhost；任何响应不得返回 Secret；请求体大小必须受限。
  */
 import { randomUUID } from "node:crypto";

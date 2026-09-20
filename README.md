@@ -1,19 +1,19 @@
-# LFAA v0.0.94 — Workbench 全域模块化基线
+# LFAA v0.0.95 — 模块内职责分层 + v0.0.93 无限画布合并
 
-**当前包：LFAA-v0.0.94**
+**当前包：LFAA-v0.0.95**
 
-v0.0.94 / #21.23 将整个 Workbench 按 DeepSeek Harness 同方向的工程边界重构：`AgentWorkbench` 只保留 Composition Root；Shell、Left、Center(Header / Conversation / Composer / RuntimeControl)、Right、Terminal、Settings、Session、Shared 各自拥有明确 Owner、公共 `index.ts` 和局部 `*.module.css`。`agent-workbench.css` 已收敛为全局 reset，不再用 `.agent-*` 跨模块控制区域 UI。
+v0.0.95 以 v0.0.94 的全域父子模块为结构基线，并合并用户在 v0.0.93 完成的 #22.8 Infinite Canvas 布局持久化/选中置顶修复。Workbench 产品模块进一步按需拆成 `view / logic / styles / contracts`；`@lfaa/ui` 明确为共享 UI Kit，而 `@lfaa/app-shell` 是 LFAA 产品界面 Owner。
 
-本轮是**等价模块迁移**：冻结 v0.0.93 用户可见行为，不顺手修改 Reasoning Slider/粒子/Resize/Motion/Provider/Runtime 语义。动态拖拽、阻尼、Slider geometry、Canvas Effect 继续由 TypeScript 与 `@lfaa/ui` 共享 Primitive 持有。
+Web 运行环境也进一步分清：`apps/web/src` 只进入浏览器 bundle；`apps/web/dev` 是 Vite dev-server/Node Host bridge；`vite.config.ts` 只组合 bridge，不继续堆 Resource/PTy 详细实现。本轮冻结 Reasoning/粒子/Resize/Snap/Provider/Agent Runtime 行为。
 
 # Little Fish AI Agent
 
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.94**
+**当前包：LFAA-v0.0.95**
 
-## 当前产品定位（v0.0.94）
+## 当前产品定位（v0.0.95）
 
 LFAA 是面向个人的 AI 任务平台，而不是只会对话的聊天壳。用户可以通过 **Chat 一句话** 或 **Work 无限画布** 驱动同一个 Agent Runtime；一键开服、AI 写作、AI 拆图、Minecraft 插件/模组开发等场景最终都应作为 Plugin / Capability / App Pack 进入。
 
@@ -69,15 +69,11 @@ plugin-platform + agent-runtime + workbench
 当前版本总任务：
 
 ```text
-#21.23 Workbench 全域模块化 / DeepSeek Harness 风格边界
-version: v0.0.94
+#21.24 Workbench 模块内职责分层 / v0.0.93 无限画布合并
+version: v0.0.95
 status: pending-user-acceptance
 
-v0.0.94 在 v0.0.93 父子区域基线上继续完成**全域模块化**：Shell / Left / Center(Header / Conversation / Composer / RuntimeControl) / Right / Terminal / Settings / Session / Shared 都有唯一 Owner、公共入口与局部 CSS Module；`AgentWorkbench` 只做 Composition Root，`agent-workbench.css` 只保留 reset。共享 Slider/Canvas/Resize/Motion 算法保持 v0.0.93 行为不变。
-
-#21.21 UI 共享模块 / Effect & Extension Registry 收敛
-version: v0.0.87
-status: pending-user-acceptance
+v0.0.95 保留 v0.0.94 的全域父子 Owner，并把产品模块内部职责继续拆成 view / logic / styles / contracts。用户 v0.0.93 的 #22.8 Infinite Canvas 修复只作为 Work Canvas 功能补丁合并：按 workspaceId 保存节点 id→x/y 与 viewport，低频 commit，选中节点置顶；业务 Run/Session 真值不进入浏览器布局存储。
 ```
 
 v0.0.87 把 v0.0.86 已验证方向进一步抽成共享 UI 架构：`packages/ui/src/ui-overlay / ui-controls / ui-effects / ui-extension` 统一承载可复用交互与扩展 seam。Composer 的 Slider 与强力推理特效改为调用共享模块；未来 Effect Pack / Renderer / Panel 等可通过 Registry 贡献并按 owner 卸载，UI Kernel 基础件保持稳定。

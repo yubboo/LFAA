@@ -1,3 +1,19 @@
+### #21.24 Workbench 模块内职责分层 / v0.0.93 无限画布合并
+
+- **版本：** v0.0.95
+- **状态：** pending-user-acceptance
+- **结构基线：** v0.0.94。
+- **补丁源：** 用户上传 v0.0.93 的 #22.8；仅移植 Infinite Canvas 持久化/选中层级，不回滚 v0.0.94 其他实现。
+- **架构目标：** 模块内部按实际职责拆 View / Logic / Styles / Contracts；`@lfaa/ui` 明确是共享 UI Kit，`app-shell` 是产品 UI；`apps/web/dev` 保留 Node dev-server 边界但把 Vite 详细桥接实现从 config 下沉。
+- **唯一合同：** `docs/PROMPTS.md` #21.24 与 #22.8。
+- **AI 验证：** pass。
+- **用户验收：** pending。
+- **实现结果：** 在 v0.0.94 全域父子 Owner 上完成模块内部 `view/logic/styles/contracts` 职责分层；Web 浏览器 `src` 与 Node dev-server `dev` 的运行环境边界写实；Resource/PTy bridge 从 `vite.config.ts` 下沉。
+- **#22.8 合并：** 用户 v0.0.93 的 InfiniteCanvas 三个核心文件按字节 exact 合并；Work Canvas 持久化 Owner 下沉到 `center/conversation/work-canvas/logic`，只保存 node x/y 与 viewport，Session 不拥有视觉坐标。
+- **行为冻结核对：** 相对 v0.0.94，`ui-controls/ui-effects/ui-resize/ui-motion`、config-system、agent-runtime、plugin SDK/runtime/host、credentials、Rust secret-store、Windows scripts 全部零 diff。
+- **自动验证：** 聚焦模块/Canvas/既有行为 63/63 PASS；全仓 Node 151 项中 150 项 PASS，唯一 `node-source-runtime.test.mjs` 因当前 Node 22.16.0 + 无 workspace node_modules 无法解析 `@lfaa/credentials`；属于已记录制作环境限制。
+- **发布归档验证：** release archive 483 entries；`docs/项目结构与代码地图.md` exact 存在且 UTF-8 flag=`0x800`；`.lfaa/` 保留；fresh extract 后 `workspace-preflight` 全 Gate PASS。
+
 ## #21.23 Workbench 全域模块化 / DeepSeek Harness 风格边界 — v0.0.94
 
 - **状态：** pending-user-acceptance。
@@ -41,6 +57,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
+| #21.24 | Workbench 模块内职责分层 / v0.0.93 无限画布合并 | v0.0.95 | pending-user-acceptance |
+| #22.8 | 无限画布布局持久化与选中层级修复 | v0.0.93 → merged v0.0.95 | pending-user-acceptance |
 | #21.22 | Workbench 父子模块边界重构 | v0.0.93 | pending-user-acceptance |
 | #22.6 | Canvas 粒子渲染与 reasoning 提交闪烁修复 | v0.0.91 | pending-user-acceptance |
 | #20.19 | Unicode ZIP 归档与 Sync 来源诊断修复 | v0.0.91 | pending-user-acceptance |

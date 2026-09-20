@@ -1,2 +1,2 @@
-export { LeftSidebarRegion } from "./LeftSidebarRegion";
-export { ProfileBar } from "./ProfileBar";
+export { LeftSidebarRegion } from "./view/LeftSidebarRegion";
+export { ProfileBar } from "./view/ProfileBar";

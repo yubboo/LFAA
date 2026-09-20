@@ -1,3 +1,9 @@
+#21.24 Workbench 模块内职责分层 / v0.0.93 无限画布合并
+version: v0.0.95
+status: pending-user-acceptance
+
+v0.0.95 以 v0.0.94 为结构基线，只移植用户 v0.0.93 的 #22.8 Infinite Canvas 修复，同时把 Workbench 模块内部职责整理为清晰的 view / logic / styles / contracts，并把 Web dev-server Bridge 从 vite.config 详细实现中拆回 `apps/web/dev/bridges`。`@lfaa/ui` 保持共享 UI Kit 身份，不与 app-shell 产品 UI 重复。Reasoning/Particle/Resize/Snap/Provider/Runtime 行为冻结。
+
 #21.23 Workbench 全域模块化 / DeepSeek Harness 风格边界
 version: v0.0.94
 status: pending-user-acceptance
@@ -23,12 +29,12 @@ pending-user-acceptance
 当前版本总任务：
 
 ```text
-#21.22 Workbench 父子模块边界重构
-version: v0.0.93
+#21.24 Workbench 模块内职责分层 / v0.0.93 无限画布合并
+version: v0.0.95
 status: pending-user-acceptance
 ```
 
-v0.0.93 从 v0.0.91 重新建立基线，不继承用户已否决的 v0.0.92 业务改动。当前先把工作台拆成稳定父子模块：AgentWorkbench 只做 Composition Root；Left / Center / Right / BottomTerminal 为四个大模块；Center 再拆 Header / Conversation / Composer；Composer 内 RuntimeControl 独立。此版本行为冻结，不同时修改 reasoning 粒子/Slider/Resize 视觉与算法。后续 Reasoning 修复只允许落在 RuntimeControl 子模块及其明确共享 Primitive。
+v0.0.95 以 v0.0.94 全域父子模块为结构基线，进一步把产品模块内部职责写实为 view / logic / styles / contracts；同时只合并用户 v0.0.93 的 #22.8 Infinite Canvas 布局持久化与选中置顶。Reasoning/Particle/Resize/Snap/Provider/Runtime 与 Windows 运维逻辑全部冻结。
 
 v0.0.80 以用户提供的 DeepSeek Harness 源码包为主要工程参考，重点借鉴 capability seam、profile/bundle、PluginManager 共享事务、HMR 生命周期、credentials 引用和“抽象必须有当前 Consumer”的维护原则；不复制其产品实现。
 

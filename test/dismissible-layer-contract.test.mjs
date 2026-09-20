@@ -4,10 +4,10 @@ import { readFileSync } from "node:fs";
 
 const hook = readFileSync(new URL("../packages/ui/src/ui-overlay/useDismissibleLayer.ts", import.meta.url), "utf8");
 const uiIndex = readFileSync(new URL("../packages/ui/src/index.ts", import.meta.url), "utf8");
-const leftSidebar = readFileSync(new URL("../packages/app-shell/src/workbench/left/LeftSidebarRegion.tsx", import.meta.url), "utf8");
-const addMenu = readFileSync(new URL("../packages/app-shell/src/workbench/center/composer/AddCapabilityMenu.tsx", import.meta.url), "utf8");
-const permissionControl = readFileSync(new URL("../packages/app-shell/src/workbench/center/composer/PermissionControl.tsx", import.meta.url), "utf8");
-const runtimeControl = readFileSync(new URL("../packages/app-shell/src/workbench/center/composer/runtime-control/RuntimeControl.tsx", import.meta.url), "utf8");
+const leftSidebar = readFileSync(new URL("../packages/app-shell/src/workbench/left/view/LeftSidebarRegion.tsx", import.meta.url), "utf8");
+const addMenu = readFileSync(new URL("../packages/app-shell/src/workbench/center/composer/view/AddCapabilityMenu.tsx", import.meta.url), "utf8");
+const permissionControl = readFileSync(new URL("../packages/app-shell/src/workbench/center/composer/view/PermissionControl.tsx", import.meta.url), "utf8");
+const runtimeControl = readFileSync(new URL("../packages/app-shell/src/workbench/center/composer/runtime-control/view/RuntimeControl.tsx", import.meta.url), "utf8");
 const workbenchPopoverModules = [leftSidebar, addMenu, permissionControl, runtimeControl].join("\n");
 
 test("shared ui-overlay dismissible layer owns outside-pointer and Escape behavior", () => {

@@ -1,1 +1,1 @@
-export { CenterHeader } from "./CenterHeader";
+export { CenterHeader } from "./view/CenterHeader";

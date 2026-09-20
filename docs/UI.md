@@ -1,3 +1,13 @@
+## v0.0.95 产品 UI / UI Kit / Work Canvas 当前边界
+
+- 产品界面（Left/Conversation/Composer/RuntimeControl/Settings）归 `@lfaa/app-shell`；每个模块的 View 与局部 CSS Module 共属该产品模块。
+- `@lfaa/ui` 是共享 UI Kit，不是产品页面仓库。它可以用 TS/TSX 实现 Slider、Pointer、Canvas、ARIA 等通用交互，但不能知道 DeepSeek、强力推理、用户消息等 LFAA 业务语义。
+- 产品模块样式进入本模块 `styles/*.module.css`；全局 CSS 只允许 reset / font / root token / document 基础规则，禁止跨模块业务 selector。
+- Work Surface 使用 `WorkCanvasRegion → @lfaa/ui InfiniteCanvas`。InfiniteCanvas 保持高频 pan/zoom/node drag；App Shell Work Canvas Controller 只接收低频 commit 并保存节点坐标与 viewport。
+- 选中/拖动节点视觉上必须位于普通节点之前，edge 始终位于节点之后；节点自由重叠，不自动重排。
+
+本轮不改变 Reasoning Slider、强力推理粒子、Resize/Snap 视觉和行为。
+
 ## v0.0.94 Workbench 局部样式与父子 UI 边界
 
 v0.0.94 把 Workbench UI 从“区域实现 + 全局大 CSS”迁移为模块局部样式：Left、Center Header、Conversation、Composer、AddCapability、Permission、RuntimeControl、Right、Terminal、Settings、Shell/Overlay 都有自己的 `*.module.css`。`agent-workbench.css` 只保留 reset；模块 CSS 禁止 `:global(.agent-*)` 和兄弟 class 匹配。

@@ -1,1 +1,1 @@
-export { RightSidebarRegion, type RightSidebarRegionProps } from "./RightSidebarRegion";
+export { RightSidebarRegion, type RightSidebarRegionProps } from "./view/RightSidebarRegion";

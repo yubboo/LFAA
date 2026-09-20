@@ -1,1 +1,1 @@
-export { ComposerRegion } from "./ComposerRegion";
+export { ComposerRegion } from "./view/ComposerRegion";

@@ -95,7 +95,7 @@ const required = [
   "packages/plugin-host-node/src/index.ts",
   "apps/web/dev/bridges/plugins/README.md",
   "apps/web/dev/bridges/plugins/plugin-manager-bridge.ts",
-  "apps/web/src/host/plugin-settings-client.ts",
+  "apps/web/src/host-clients/plugin-settings-client.ts",
   "packages/ui/src/features/settings/plugins/PluginSettingsPanel.tsx",
   "apps/web/tsconfig.json",
   "packages/ui/tsconfig.json",

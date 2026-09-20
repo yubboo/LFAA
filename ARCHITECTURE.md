@@ -1,3 +1,24 @@
+## v0.0.95 / #21.24 模块内职责分层 + #22.8 Infinite Canvas 合并
+
+LFAA 当前把“产品 UI”与“共享 UI Kit”分为两层：`@lfaa/app-shell` 拥有 Left / Center / Conversation / Composer / RuntimeControl / Settings 等产品语义；`@lfaa/ui` 只拥有可复用的控件、布局、Motion、Effect、Resize、InfiniteCanvas Projection。UI Kit 中使用 TS/TSX 是正常的 DOM/ARIA/Pointer/Canvas 实现，不代表它拥有产品业务状态。
+
+Workbench 产品模块内部按需采用统一职责层：
+
+```text
+<module>/
+├─ view/       # TSX 与子 View 组合
+├─ logic/      # Controller / Hook / 局部状态协调
+├─ styles/     # 仅本模块 CSS Module
+├─ contracts/  # 跨模块边界类型/Port
+└─ index.ts    # 唯一公共出口
+```
+
+模块不需要某层时不创建空目录。Sibling/Ancestor 不允许深链内部实现。 深层子模块需要祖先共享契约时使用 `packages/app-shell/package.json#imports` 中受控的 package-private `#workbench/* / #center/contracts / #composer/contracts` 别名，避免 `../../` 深链，同时不把内部契约暴露成跨 package public export。
+
+Web Runtime 边界：`apps/web/src` 是浏览器 bundle；`apps/web/dev` 是 Vite dev-server/Node Host。`vite.config.ts` 只组合 `agent / ai / plugins / resources / terminal` bridge；Resource 与 PTY 详细实现已经下沉 `dev/bridges/*`。
+
+#22.8 Work Canvas 视觉布局 Owner 现在位于 `workbench/center/conversation/work-canvas/logic`：只按 workspaceId 保存节点 `id→x/y` 与 viewport `{x,y,scale}`，高频 Pointer 仍留在 `@lfaa/ui` InfiniteCanvas；Session 只拥有 Run/Chat/Surface/Permission/lastRunInput，不拥有 Canvas 坐标。
+
 ## v0.0.94 / #21.23 Workbench 全域模块化架构
 
 `AgentWorkbench.tsx` 现在是薄 Composition Root，只创建/连接 Controller 与公开模块。Workbench 的长期 Owner 树为：

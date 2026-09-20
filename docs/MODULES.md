@@ -1,3 +1,14 @@
+## v0.0.95 / #21.24 模块内职责分层 + Work Canvas Owner
+
+- `@lfaa/app-shell`：LFAA 产品 UI 唯一 Owner；Workbench 模块按需采用 `view / logic / styles / contracts / index.ts`。
+- `@lfaa/ui`：UI Kit / Design System / Shared Interaction Engine；只提供通用 UI 积木与交互算法，不拥有 Provider/Config/Session 产品真值。
+- `workbench/center/conversation/work-canvas/`：Work Canvas 产品视觉布局 Owner；`logic` 负责 workspace-scoped node positions / viewport 持久化，`view` 只投影 `InfiniteCanvas`。
+- `workbench/session/logic`：只负责 Chat/Work Run、Runtime event、permission、surface 和 `lastRunInput`，不拥有 Canvas 几何。
+- `apps/web/src`：浏览器运行时；`apps/web/dev`：Vite dev-server/Node Host runtime；二者按运行环境隔离。
+- 本轮 Reasoning/Particle/Resize/Snap/Provider/Agent Runtime 行为冻结。
+
+状态：`pending-user-acceptance`。
+
 ## v0.0.94 / #21.23 Workbench 全域模块 Owner
 
 - `AgentWorkbench.tsx`：Composition Root，只总装配。

@@ -1,42 +1,95 @@
 /**
  * 文件：infinite-canvas-contract.test.mjs
- * 作用：检查 Work 无限画布是真交互 Projection，且 Chat/Work 不复制智能核心。
- * v0.0.94：按模块 Owner 读取 contracts，而不是假设实现继续堆在 Composition Root。
+ * 作用：锁定 #22.8 Work 无限画布低频布局持久化与选中层级，同时保证 Runtime 业务真值不下沉 UI。
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const canvas = fs.readFileSync("packages/ui/src/features/workbench/InfiniteCanvas.tsx", "utf8");
-const shell = fs.readFileSync("packages/app-shell/src/AgentWorkbench.tsx", "utf8");
-const leftSidebar = fs.readFileSync("packages/app-shell/src/workbench/left/LeftSidebarRegion.tsx", "utf8");
-const centerWorkspace = fs.readFileSync("packages/app-shell/src/workbench/center/CenterWorkspaceRegion.tsx", "utf8");
-const centerHeader = fs.readFileSync("packages/app-shell/src/workbench/center/header/CenterHeader.tsx", "utf8");
-const conversationRegion = fs.readFileSync("packages/app-shell/src/workbench/center/conversation/ConversationRegion.tsx", "utf8");
-const composerRegion = fs.readFileSync("packages/app-shell/src/workbench/center/composer/ComposerRegion.tsx", "utf8");
-const runtimeControl = fs.readFileSync("packages/app-shell/src/workbench/center/composer/runtime-control/RuntimeControl.tsx", "utf8");
-const permissionControl = fs.readFileSync("packages/app-shell/src/workbench/center/composer/PermissionControl.tsx", "utf8");
-const session = fs.readFileSync("packages/app-shell/src/workbench/session/useAgentSessionController.ts", "utf8");
-const aiSettings = fs.readFileSync("packages/app-shell/src/workbench/settings/useAiSettingsController.ts", "utf8");
-const settingsViewModels = fs.readFileSync("packages/app-shell/src/workbench/settings/settings-view-models.ts", "utf8");
-const workbenchSurface = [shell, leftSidebar, centerWorkspace, centerHeader, conversationRegion, composerRegion, permissionControl, runtimeControl, session, aiSettings, settingsViewModels].join("\n");
+const read = (path) => fs.readFileSync(path, "utf8");
+const canvas = read("packages/ui/src/features/workbench/InfiniteCanvas.tsx");
+const canvasTypes = read("packages/ui/src/features/workbench/infinite-canvas.types.ts");
+const canvasCss = read("packages/ui/src/features/workbench/infinite-canvas.css");
+const shell = read("packages/app-shell/src/AgentWorkbench.tsx");
+const left = read("packages/app-shell/src/workbench/left/view/LeftSidebarRegion.tsx");
+const center = read("packages/app-shell/src/workbench/center/view/CenterWorkspaceRegion.tsx");
+const header = read("packages/app-shell/src/workbench/center/header/view/CenterHeader.tsx");
+const conversation = read("packages/app-shell/src/workbench/center/conversation/view/ConversationRegion.tsx");
+const workCanvasView = read("packages/app-shell/src/workbench/center/conversation/work-canvas/view/WorkCanvasRegion.tsx");
+const workCanvasController = read("packages/app-shell/src/workbench/center/conversation/work-canvas/logic/useWorkCanvasController.ts");
+const workCanvasLayout = read("packages/app-shell/src/workbench/center/conversation/work-canvas/logic/work-canvas-layout.ts");
+const session = read("packages/app-shell/src/workbench/session/logic/useAgentSessionController.ts");
+const composer = read("packages/app-shell/src/workbench/center/composer/view/ComposerRegion.tsx");
+const runtimeController = read("packages/app-shell/src/workbench/center/composer/runtime-control/logic/useRuntimeControlController.ts");
+const settingsViewModels = read("packages/app-shell/src/workbench/settings/logic/settings-view-models.ts");
+const workbenchSurface = [shell, left, center, header, conversation, session, composer, runtimeController, settingsViewModels].join("\n");
 
 test("infinite canvas supports pan zoom reset node drag and edge projection", () => {
-  for (const token of ["beginPan", "beginNodeDrag", "onWheel", "applyScale", "setViewport({ x: 80, y: 72, scale: 1 })", "<svg", "onNodesChange?.(next)"]) {
+  for (const token of ["beginPan", "beginNodeDrag", "onWheel", "applyScale", "resetViewport", "<svg", "onNodesChange?.(next)"]) {
     assert.match(canvas, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
 });
 
-test("workbench exposes Chat and Work as two surfaces on one permission/model/runtime contract", () => {
-  assert.match(workbenchSurface, /agentSurface===?\s*"chat"/);
+test("InfiniteCanvas exposes low-frequency commit seams without owning persistence", () => {
+  for (const token of ["InfiniteCanvasViewport", "initialViewport", "onViewportCommit", "onNodesCommit"]) {
+    assert.match(canvasTypes + canvas, new RegExp(token));
+  }
+  assert.match(canvas, /VIEWPORT_WHEEL_SETTLE_MS/);
+  assert.match(canvas, /scheduleViewportCommit/);
+  assert.match(canvas, /onViewportCommit\?\.\(viewportRef\.current\)/);
+  assert.match(canvas, /onNodesCommit\?\.\(lastDraggedNodesRef\.current \?\? nodes\)/);
+  assert.doesNotMatch(canvas, /(?:window\.)?(?:localStorage|sessionStorage)\s*\./);
+});
+
+test("WorkCanvas module owns workspace-scoped visual layout and persists only x/y plus viewport", () => {
+  for (const token of [
+    'WORK_CANVAS_LAYOUT_KEY_PREFIX = "lfaa.workbench.canvas-layout.v1"',
+    "WORK_CANVAS_LAYOUT_VERSION = 1",
+    "encodeURIComponent(stableWorkspaceId)",
+    "readWorkCanvasLayout",
+    "mergeWorkCanvasNodePositions",
+    "writeWorkCanvasLayout",
+    "WORK_CANVAS_PERSIST_DEBOUNCE_MS",
+  ]) assert.match(workCanvasLayout + workCanvasController, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+
+  assert.match(workCanvasLayout, /nodePositions\[node\.id\]/);
+  assert.match(workCanvasLayout, /\[node\.id, \{ x: node\.x, y: node\.y \}\]/);
+  assert.doesNotMatch(workCanvasLayout, /nodePositions[\s\S]{0,180}(?:title|description|status|kind)\s*:/);
+  assert.match(workCanvasLayout, /rawViewport\.scale >= INFINITE_CANVAS_SCALE_RANGE\.min/);
+  assert.match(workCanvasLayout, /rawViewport\.scale <= INFINITE_CANVAS_SCALE_RANGE\.max/);
+  assert.match(workCanvasController, /resolveWorkCanvasLayoutKey\(workspaceId\)/);
+  assert.match(workCanvasController, /setTimeout\([\s\S]*WORK_CANVAS_PERSIST_DEBOUNCE_MS/);
+  assert.match(workCanvasController, /onNodesCommit/);
+  assert.match(workCanvasController, /onViewportCommit/);
+  assert.match(workCanvasView, /initialViewport=\{controller\.initialViewport\}/);
+  assert.match(workCanvasView, /onNodesCommit=\{controller\.onNodesCommit\}/);
+  assert.match(workCanvasView, /onViewportCommit=\{controller\.onViewportCommit\}/);
+});
+
+test("Canvas layout is not Agent Session business state", () => {
+  assert.doesNotMatch(session, /InfiniteCanvas|WORK_CANVAS_LAYOUT_KEY_PREFIX|nodePositions|workNodes|canvas-layout/);
+  assert.match(session, /lastRunInput/);
+  assert.match(workCanvasController, /lastRunInput/);
+  assert.match(conversation, /<WorkCanvasRegion workspaceId=\{workspaceId\} lastRunInput=\{lastRunInput\}/);
+});
+
+test("selected canvas node is lifted above siblings while edges remain behind nodes", () => {
+  assert.match(canvasCss, /\.lfaa-infinite-canvas__edges\{[^}]*z-index:0/);
+  assert.match(canvasCss, /\.lfaa-infinite-canvas__node\{[^}]*z-index:10/);
+  assert.match(canvasCss, /\.lfaa-infinite-canvas__node\.is-selected\{[^}]*z-index:20/);
+  assert.match(canvas, /setSelectedNodeId\(node\.id\)/);
+  assert.match(canvas, /onFocus=\{\(\) => setSelectedNodeId\(node\.id\)\}/);
+});
+
+test("Workbench still exposes Chat and Work on one model/permission/runtime contract", () => {
+  assert.match(workbenchSurface, /agentSurface===?\s*"chat"|agentSurface === "chat"/);
   assert.match(workbenchSurface, /onAgentSurfaceChange\("work"\)/);
-  assert.match(workbenchSurface, /AGENT_PERMISSION_PROFILES/);
-  assert.match(workbenchSurface, /runtimeConnected:Boolean\(runtimeHost\)/);
+  assert.match(workbenchSurface, /runtimeConnected:\s*Boolean\(runtimeHost\)/);
   assert.match(workbenchSurface, /runtimeHost\.startRun\(\{/);
-  assert.match(workbenchSurface, /surface:agentSurface/);
+  assert.match(workbenchSurface, /surface:\s*agentSurface/);
   assert.match(workbenchSurface, /permissionProfileId/);
-  assert.match(workbenchSurface, /runModelBinding:AgentModelBinding/);
-  assert.match(workbenchSurface, /model:runModelBinding/);
+  assert.match(workbenchSurface, /runModelBinding:\s*AgentModelBinding/);
+  assert.match(workbenchSurface, /model:\s*runModelBinding/);
   assert.match(workbenchSurface, /selectedModelId/);
   assert.doesNotMatch(workbenchSurface, /GPT-5\.6 Sol/);
   assert.match(workbenchSurface, /Agent Runtime Host 未连接/);

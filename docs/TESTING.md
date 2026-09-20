@@ -1,3 +1,17 @@
+## v0.0.95 / #21.24 + #22.8 模块职责与 Infinite Canvas 回归
+
+必须锁定：
+
+- Workbench 每个产品模块经 `index.ts` 暴露，根层不混放 View/Controller/CSS；内部 `view/logic/styles/contracts` 按实际职责存在。
+- `packages/ui` 只作为 UI Kit，`packages/app-shell` 保留产品语义；禁止产品模块深链兄弟内部实现。
+- `apps/web/src` 浏览器端与 `apps/web/dev` Node dev-server 端分离；`vite.config.ts` 只组合 bridge，PTY/Resource 详细实现不得回流 config。
+- InfiniteCanvas 高频 Pointer 不直接 localStorage；WorkCanvas Controller 只持久化 node `id→x/y` 与 viewport；workspaceId 隔离；Session 不持有 Canvas layout。
+- selected/dragging node 置顶，edge 在后；刷新恢复布局且新增/删除节点按 id 容错合并。
+- Reasoning/Particle/Resize/Snap 禁止区与 v0.0.94 保持零功能改动。
+- 最终发布 ZIP 必须 fresh extract，中文代码地图 entry 的 UTF-8 bit 11 正常，`.lfaa` 保留，并从解压根 `workspace-preflight` PASS。
+
+当前制作环境结果：聚焦 63/63 PASS；全仓 Node 151 项中 150 项 PASS。唯一失败是 `node-source-runtime.test.mjs`：当前容器 Node 22.16.0 且未安装 pnpm workspace `node_modules`，Native TypeScript Loader 无法解析 `@lfaa/credentials`；不得将其写成正式 Node 24 workspace 动态验证通过。
+
 ## v0.0.94 / #21.23 全域模块化回归
 
 本轮新增/扩展模块边界门禁，检查：

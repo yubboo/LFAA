@@ -1,1 +1,1 @@
-export { CenterWorkspaceRegion, type CenterWorkspaceRegionProps } from "./CenterWorkspaceRegion";
+export { CenterWorkspaceRegion, type CenterWorkspaceRegionProps } from "./view/CenterWorkspaceRegion";

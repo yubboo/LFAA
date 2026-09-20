@@ -1,1 +1,1 @@
-export { ConversationRegion } from "./ConversationRegion";
+export { ConversationRegion } from "./view/ConversationRegion";

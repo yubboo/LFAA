@@ -2,15 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const read=(path)=>readFileSync(new URL(`../${path}`,import.meta.url),"utf8");
-const composer=read("packages/app-shell/src/workbench/center/composer/ComposerRegion.tsx");
-const runtimeView=read("packages/app-shell/src/workbench/center/composer/runtime-control/RuntimeControl.tsx");
-const runtimeRow=read("packages/app-shell/src/workbench/center/composer/runtime-control/ReasoningControlRow.tsx");
-const runtimeController=read("packages/app-shell/src/workbench/center/composer/runtime-control/useRuntimeControlController.ts");
-const runtimePicker=read("packages/app-shell/src/workbench/center/composer/runtime-control/RuntimeModelPicker.tsx");
+const composer=read("packages/app-shell/src/workbench/center/composer/view/ComposerRegion.tsx");
+const runtimeView=read("packages/app-shell/src/workbench/center/composer/runtime-control/view/RuntimeControl.tsx");
+const runtimeRow=read("packages/app-shell/src/workbench/center/composer/runtime-control/view/ReasoningControlRow.tsx");
+const runtimeController=read("packages/app-shell/src/workbench/center/composer/runtime-control/logic/useRuntimeControlController.ts");
+const runtimePicker=read("packages/app-shell/src/workbench/center/composer/runtime-control/view/RuntimeModelPicker.tsx");
 const runtimeSurface=`${composer}\n${runtimeView}\n${runtimeRow}\n${runtimeController}\n${runtimePicker}`;
-const runtimeCss=read("packages/app-shell/src/workbench/center/composer/runtime-control/RuntimeControl.module.css");
-const conversationCss=read("packages/app-shell/src/workbench/center/conversation/Conversation.module.css");
-const themeCss=read("packages/app-shell/src/workbench/shell/WorkbenchTheme.module.css");
+const runtimeCss=read("packages/app-shell/src/workbench/center/composer/runtime-control/styles/RuntimeControl.module.css");
+const conversationCss=read("packages/app-shell/src/workbench/center/conversation/styles/Conversation.module.css");
+const themeCss=read("packages/app-shell/src/workbench/shell/styles/WorkbenchTheme.module.css");
 const slider=read("packages/ui/src/ui-controls/DiscreteSlider.tsx");
 const sliderCss=read("packages/ui/src/ui-controls/discrete-slider.css");
 const effectHost=read("packages/ui/src/ui-effects/UiEffectHost.tsx");
@@ -21,13 +21,13 @@ const service=read("packages/config-system/src/settings/ai/core/account-service.
 const bridge=read("apps/web/dev/bridges/ai/ai-config-bridge.ts");
 const runtime=read("packages/agent-runtime/src/core/contracts.ts");
 const codexAppServer=read("apps/web/dev/bridges/ai/codex-app-server.ts");
-const aiController=read("packages/app-shell/src/workbench/settings/useAiSettingsController.ts");
-const sessionController=read("packages/app-shell/src/workbench/session/useAgentSessionController.ts");
+const aiController=read("packages/app-shell/src/workbench/settings/logic/useAiSettingsController.ts");
+const sessionController=read("packages/app-shell/src/workbench/session/logic/useAgentSessionController.ts");
 
 test("Composer owns one modular RuntimeControl instead of split popovers",()=>{
   for(const token of ["<RuntimeControl","RuntimeModelPicker","ReasoningControlRow","toggleReasoningBoost","resetReasoning","onQuickSelectModel","onQuickUpdateModelSetting","quickModels.length === 0","管理模型"]) assert.match(runtimeSurface,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
   assert.doesNotMatch(runtimeSurface,/modelMenuOpen|reasoningMenuOpen|agent-model-menu|agent-reasoning-menu/);
-  assert.match(composer,/from "\.\/runtime-control"/);
+  assert.match(composer,/from "\.\.\/runtime-control"/);
 });
 
 test("reasoning UI mirrors current Provider capability options one-to-one",()=>{
@@ -93,4 +93,4 @@ test("reasoning palette stays in root theme tokens",()=>{for(const token of ["--
 
 test("quick switch uses cached catalog instead of re-probing Provider",()=>{const method=service.match(/async setActiveModel\([\s\S]*?\n  async activateModel/);assert.ok(method);assert.match(method[0],/account\.modelCatalog/);assert.doesNotMatch(method[0],/this\.probe\(/);assert.match(bridge,/active-model/);});
 
-test("agent run model binding carries validated runtime settings through settings -> session",()=>{assert.match(runtime,/readonly settings\?: Readonly<Record<string, string \| number \| boolean>>/);assert.match(aiController,/settings:activeAccount\?\.modelSettings\?\?\{\}/);assert.match(sessionController,/settings:\{\.\.\.\(activeModelBinding\.settings\?\?\{\}\),\.\.\.modelSettingOverrides\}/);});
+test("agent run model binding carries validated runtime settings through settings -> session",()=>{assert.match(runtime,/readonly settings\?: Readonly<Record<string, string \| number \| boolean>>/);assert.match(aiController,/settings:activeAccount\?\.modelSettings\?\?\{\}/);assert.match(sessionController,/settings:\s*\{\s*\.\.\.\(activeModelBinding\.settings\s*\?\?\s*\{\}\),\s*\.\.\.modelSettingOverrides\s*\}/);});

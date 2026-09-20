@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/app-shell",
   "private": true,
-  "version": "0.0.94",
+  "version": "0.0.95",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼",
@@ -17,5 +17,14 @@
   "lfaa": {
     "layer": "composition",
     "role": "product-composition"
+  },
+  "imports": {
+    "#workbench/contracts": "./src/workbench/contracts.ts",
+    "#workbench/shared": "./src/workbench/shared/index.ts",
+    "#workbench/shell": "./src/workbench/shell/index.ts",
+    "#workbench/left": "./src/workbench/left/index.ts",
+    "#workbench/reasoning-control": "./src/workbench/reasoning-control.ts",
+    "#center/contracts": "./src/workbench/center/contracts/center-dependencies.ts",
+    "#composer/contracts": "./src/workbench/center/composer/contracts/runtime-control-dependencies.ts"
   }
 }

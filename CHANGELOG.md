@@ -1,3 +1,17 @@
+## LFAA v0.0.95 — #21.24 模块内职责分层 + merge #22.8 Infinite Canvas
+
+- **结构基线：** 以 v0.0.94 全域父子模块为基线，不回滚其 Left/Center/Right/Terminal/Settings/Session Owner。
+- **模块内职责：** Workbench 产品模块按实际需要拆为 `view / logic / styles / contracts`，根目录只保留 README/index 等边界文件；`AgentWorkbench` 继续保持薄 Composition Root。
+- **UI Kit 边界：** `@lfaa/ui` 明确为 UI Kit / Design System / Shared Interaction Engine；LFAA 产品语义继续只在 `@lfaa/app-shell`。TS/TSX 仅用于通用 DOM/ARIA/Pointer/Canvas UI 行为，不把 Provider/Session 产品真值下沉 UI Kit。
+- **Web Runtime 边界：** 浏览器 Host Client 迁到 `apps/web/src/host-clients`；Terminal 浏览器 View/Styles 局部化；Resource/PTy 详细实现迁到 `apps/web/dev/bridges/resources|terminal`；`vite.config.ts` 只做 bridge 组合。
+- **合并用户 #22.8：** 从用户上传 v0.0.93 仅移植 Infinite Canvas 布局持久化/选中层级合同。Work Canvas 产品模块按 workspaceId 保存 node `id→x/y` 与 viewport，低频 commit；高频 Pointer 留在 `@lfaa/ui`，Session 不拥有视觉坐标。
+- **选中层级：** selected/dragging node 置于普通节点之前，edge 继续位于 node 之后；不引入自动布局或强制重排。
+- **行为冻结：** Runtime Reasoning/强力推理/Slider/Particle、`ui-controls/ui-effects/ui-resize/ui-motion`、Provider/Config/Agent Runtime、Resize/Snap、Windows Sync/GitHub/Setup/Update 业务逻辑不在本轮修改。
+- **行为冻结核对：** 相对 v0.0.94，`packages/ui/src/ui-controls|ui-effects|ui-resize|ui-motion`、Config System、Agent Runtime、Plugin SDK/Runtime/Host、Credentials、Rust Secret Store、Windows scripts 均为零 diff；InfiniteCanvas 三个核心文件与用户 v0.0.93 上传包字节一致。
+- **验证：** 聚焦模块/Canvas/既有行为 63/63 PASS；全仓 Node 151 项中 150 项 PASS，唯一 `node-source-runtime.test.mjs` 受当前 Node 22.16.0 + 无 workspace `node_modules` 环境阻断。UI/Folder/Package/Runtime Import/Comment/Governance Gate PASS。
+- **当前状态：** `pending-user-acceptance`；AI 验证 `pass`；用户验收 `pending`。
+- **发布归档：** release archive 483 entries；中文代码地图 exact entry UTF-8 flag=`0x800`；`.lfaa/` 保留；fresh extract 后 preflight 全 Gate PASS。
+
 ## LFAA v0.0.94 — #21.23 Workbench 全域模块化 / DeepSeek Harness 风格边界
 
 - **全域而非局部：** 不再只拆 RuntimeControl；Shell、Left、Center Header、Conversation、Composer、RuntimeControl、Right、Terminal、Settings、Session、Shared 全部建立长期 Owner 与公共入口。

@@ -72,8 +72,8 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
       activeReasoning={ai.activeReasoning}
       runtimeConnected={session.runtimeConnected}
       chatMessages={session.chatMessages}
-      workNodes={session.workNodes}
-      onWorkNodesChange={session.setWorkNodes}
+      workspaceId={props.workspaceId}
+      lastRunInput={session.lastRunInput}
       onPermissionProfileChange={session.setPermissionProfileId}
       onSubmitTask={session.startAgentRun}
       onQuickSelectModel={ai.quickSelectModel}

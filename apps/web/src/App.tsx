@@ -10,10 +10,10 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { AgentWorkbench, type DevResourceItem } from "@lfaa/app-shell";
-import { LocalTerminal } from "./LocalTerminal";
-import { webAiSettingsHost } from "./host/ai-settings-client";
-import { webPluginSettingsHost } from "./host/plugin-settings-client";
-import { webAgentRuntimeHost } from "./host/agent-runtime-client";
+import { LocalTerminal } from "./terminal/view/LocalTerminal";
+import { webAiSettingsHost } from "./host-clients/ai-settings-client";
+import { webPluginSettingsHost } from "./host-clients/plugin-settings-client";
+import { webAgentRuntimeHost } from "./host-clients/agent-runtime-client";
 
 // Vite 资源桥只返回资源元数据，不返回文件正文。
 interface ResourceResponse { resources: DevResourceItem[]; }

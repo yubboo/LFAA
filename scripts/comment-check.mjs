@@ -33,10 +33,14 @@ const keyFiles = [
   "packages/ui/src/workbench/workbench.css",
   "apps/web/src/main.tsx",
   "apps/web/src/App.tsx",
-  "apps/web/src/LocalTerminal.tsx",
-  "apps/web/src/vite-custom-events.d.ts",
-  "apps/web/src/local-terminal.css",
+  "apps/web/src/terminal/view/LocalTerminal.tsx",
+  "apps/web/src/contracts/vite-custom-events.d.ts",
+  "apps/web/src/terminal/styles/LocalTerminal.module.css",
   "apps/web/vite.config.ts",
+  "apps/web/dev/bridges/resources/resource-bridge.ts",
+  "apps/web/dev/bridges/terminal/terminal-bridge.ts",
+  "packages/app-shell/src/workbench/center/conversation/work-canvas/logic/work-canvas-layout.ts",
+  "packages/app-shell/src/workbench/center/conversation/work-canvas/logic/useWorkCanvasController.ts",
   "scripts/governance-check.mjs",
   "scripts/import-path-check.mjs",
   "scripts/runtime-import-resolution-check.mjs",
@@ -77,7 +81,7 @@ const keyFiles = [
   "crates/secret-store/src/bin/lfaa-secret-broker.rs",
   "packages/ui/src/features/settings/ai/AiSettingsPage.tsx",
   "packages/ui/src/features/settings/ai/AiSettingsPanel.tsx",
-  "apps/web/src/host/ai-settings-client.ts",
+  "apps/web/src/host-clients/ai-settings-client.ts",
   "apps/web/dev/bridges/ai/ai-config-bridge.ts",
   "apps/web/dev/bridges/ai/account-state-repository.ts",
   "apps/web/dev/bridges/ai/node-http-json.ts",
@@ -111,7 +115,7 @@ for (const relative of keyFiles) {
 const cssRequirements = new Map([
   ["packages/app-shell/src/agent-workbench.css", ["盒子结构：", "===== 1.", "===== 6.", "===== 10."]],
   ["packages/ui/src/workbench/workbench.css", ["Grid：", "===== 1.", "===== 5.", "===== 6."]],
-  ["apps/web/src/local-terminal.css", ["===== 1.", "===== 2.", "===== 3."]],
+  ["apps/web/src/terminal/styles/LocalTerminal.module.css", ["===== 1.", "===== 2.", "===== 3."]],
 ]);
 
 for (const [relative, markers] of cssRequirements) {

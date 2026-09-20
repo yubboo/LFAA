@@ -5,7 +5,7 @@
  * 不负责：UI 布局、Secret 实现、Provider HTTP、宿主持久化细节。
  * 状态归属：类型契约，无运行时状态。
  * 对外接口：AgentWorkbenchProps、AgentAiSettingsHost、DevResourceItem、ResourceKind。
- * 关联文件：AgentWorkbench.tsx、apps/web/src/App.tsx、apps/web/src/host/ai-settings-client.ts。
+ * 关联文件：AgentWorkbench.tsx、apps/web/src/App.tsx、apps/web/src/host-clients/ai-settings-client.ts。
  * 修改注意事项：Host Client 只能暴露业务结果，不能泄漏 Vite/Node/Secret 明文存储细节。
  */
 import type { ReactNode } from "react";

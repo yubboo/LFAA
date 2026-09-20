@@ -1,1 +1,1 @@
-export { BottomTerminalRegion } from "./BottomTerminalRegion";
+export { BottomTerminalRegion } from "./view/BottomTerminalRegion";

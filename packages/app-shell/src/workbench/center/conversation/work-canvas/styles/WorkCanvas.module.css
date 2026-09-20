@@ -1,0 +1,4 @@
+.root { position:relative; min-width:0; min-height:0; overflow:hidden; }
+.title { position:absolute; z-index:8; top:1rem; left:50%; transform:translateX(-50%); display:flex; align-items:baseline; gap:.5rem; padding:.42rem .7rem; border:1px solid var(--agent-border); border-radius:999px; background:color-mix(in srgb,var(--agent-elevated) 88%,transparent); backdrop-filter:blur(.7rem); pointer-events:none; }
+.title strong { font-size:.78rem; }
+.title span { color:var(--agent-muted); font-size:.64rem; }

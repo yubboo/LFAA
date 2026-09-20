@@ -1,3 +1,9 @@
+## v0.0.95 Web Runtime / Work Canvas 状态 Owner
+
+`apps/web/src` 是浏览器 bundle：React App、host client、xterm view。`apps/web/dev` 是 Vite dev-server/Node Host：Agent/AI/Plugin/Resource/PTY bridge。二者必须通过协议/事件通信；浏览器代码不得直接 import `node:fs`、`node-pty` 或 Rust Host 实现。`vite.config.ts` 只组合 bridge。
+
+Work Canvas 布局不是 Agent Session 真值。节点坐标与 viewport 只由 `app-shell/workbench/center/conversation/work-canvas/logic` 按 workspaceId 保存；Session 继续拥有 Run/Chat/permission/surface，Agent Runtime 与 Provider 不读取浏览器视觉布局。
+
 ## v0.0.94 App Shell Runtime 状态 Owner
 
 Workbench 的 Runtime 状态从根组件拆到唯一 Owner：`workbench/session/useAgentSessionController.ts` 管 Chat/Work surface、permission、消息/画布投影、Agent Runtime subscription 与 `startRun`；`workbench/settings/useAiSettingsController.ts` 管账户/模型 Capability 与 active model binding；Composer/RuntimeControl 只通过显式 contract 消费这些结果。该迁移不改变 Agent Runtime/Provider/Config System 的协议或行为。

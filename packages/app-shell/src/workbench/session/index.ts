@@ -1,1 +1,1 @@
-export { useAgentSessionController, type AgentSessionController } from "./useAgentSessionController";
+export { useAgentSessionController, type AgentSessionController } from "./logic/useAgentSessionController";

@@ -47,7 +47,7 @@ test("account metadata repository rejects plaintext secret fields and migrates m
 });
 
 test("browser AI client never uses browser storage for credentials", async () => {
-  const source = await read("apps/web/src/host/ai-settings-client.ts");
+  const source = await read("apps/web/src/host-clients/ai-settings-client.ts");
   assert.doesNotMatch(source, /(?:window\.)?(?:localStorage|sessionStorage)\s*\./);
   assert.match(source, /\/__lfaa\/dev\/ai/);
   assert.match(source, /modelSettings/);
@@ -124,7 +124,7 @@ test("managed ChatGPT bridge keeps subscription path separate from API-key secre
 });
 
 test("browser ChatGPT login opens synchronously, validates official HTTPS domains and never stores token state", async () => {
-  const source = await read("apps/web/src/host/ai-settings-client.ts");
+  const source = await read("apps/web/src/host-clients/ai-settings-client.ts");
   const popupIndex = source.indexOf('window.open("about:blank"');
   const startIndex = source.indexOf('request<{ login: AiManagedLoginStart }>("/managed-login/start"');
   assert.ok(popupIndex >= 0 && startIndex > popupIndex, "popup must be opened before the first managed-login await");

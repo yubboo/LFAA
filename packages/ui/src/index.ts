@@ -34,8 +34,8 @@ export type { SettingsPageProps, SettingsSectionId, PluginSettingsInstalledView,
 export { AiSettingsPanel } from "./features/settings/ai/AiSettingsPanel.tsx";
 export type { AiSettingsPanelProps } from "./features/settings/ai/AiSettingsPanel.tsx";
 
-export { InfiniteCanvas } from "./features/workbench/InfiniteCanvas.tsx";
-export type { InfiniteCanvasEdge, InfiniteCanvasNode, InfiniteCanvasNodeKind, InfiniteCanvasProps } from "./features/workbench/infinite-canvas.types.ts";
+export { InfiniteCanvas, INFINITE_CANVAS_DEFAULT_VIEWPORT, INFINITE_CANVAS_SCALE_RANGE } from "./features/workbench/InfiniteCanvas.tsx";
+export type { InfiniteCanvasEdge, InfiniteCanvasNode, InfiniteCanvasNodeKind, InfiniteCanvasProps, InfiniteCanvasViewport } from "./features/workbench/infinite-canvas.types.ts";
 
 export { AnimatedDisclosure } from "./ui-motion/index.ts";
 export type { AnimatedDisclosureProps } from "./ui-motion/AnimatedDisclosure.tsx";

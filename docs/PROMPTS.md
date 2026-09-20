@@ -25,6 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #21.24 | Workbench 模块内职责分层 / v0.0.93 无限画布合并 | v0.0.95 | pending-user-acceptance | pass | pending |
+| #22.8 | 无限画布布局持久化与选中层级修复 | v0.0.93 → merged v0.0.95 | pending-user-acceptance | pass | pending |
 | #21.23 | Workbench 全域模块化 / DeepSeek Harness 风格边界 | v0.0.94 | pending-user-acceptance | pass | pending |
 | #21.22 | Workbench 父子模块边界重构 | v0.0.93 | pending-user-acceptance | pass | pending |
 | #22.7 | Reasoning Slider 几何与粒子修复尝试 | v0.0.92 | superseded | pass | not-accepted |
@@ -76,6 +78,154 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #21.24 Workbench 模块内职责分层 / v0.0.93 无限画布合并
+
+### 用户目标 / 背景
+
+用户确认 v0.0.94 的“全域模块 Owner”方向正确，但进一步要求工程结构必须像 DeepSeek Harness 一样清楚：模块是父子级边界，模块内部还要能一眼区分 View / Logic / Styles / Contracts，不能把 Controller、TSX、CSS 混在同一层，也不能把 `packages/ui` 与产品业务 UI 混为一谈。同时用户提供了自己修过的 v0.0.93，其中 #22.8 Infinite Canvas 已完成布局持久化与选中置顶，要求与 v0.0.94 模块化基线合并后生成新包。
+
+### 基线与合并策略
+
+- **结构基线：** v0.0.94；保留其 Workbench 全域父子模块与行为。
+- **功能补丁源：** 用户上传的 v0.0.93，仅移植 #22.8 Infinite Canvas 合同/行为，不回滚 v0.0.94 的模块化代码，也不复制 v0.0.93 的其他旧实现。
+- **目标版本：** v0.0.95。
+
+### 架构决定
+
+1. `packages/ui` 保持包名 `@lfaa/ui`，明确定位为 **UI Kit / Design System / Shared Interaction Engine**：通用控件、布局、Motion、Effect、InfiniteCanvas Projection 等可复用界面能力；它使用 TS/TSX 是正常的，因为 UI 组件需要 DOM/ARIA/Pointer/Props 行为。它不得拥有 Provider/Config/Session 产品真值。
+2. `packages/app-shell` 是 **LFAA 产品 UI 组合层**。Workbench 每个大模块继续有独立 Owner，并在模块内部按需使用 `view/`、`logic/`、`styles/`、`contracts/` 子目录；不为了形式创建空目录。
+3. `apps/web/src` 是浏览器 bundle；`apps/web/dev` 是 Vite dev-server/Node 进程专用代码，因此继续独立于 `src`。但 `vite.config.ts` 只做组合，Resource/PTy 等开发桥逻辑必须下沉 `dev/bridges/*`。浏览器侧调用 Host 的客户端目录命名为 `src/host-clients/`，避免与 Node Host 实现混淆。
+4. Work Canvas 视觉布局不属于 Agent Session 真值。#22.8 的 workspace-scoped 节点位置/viewport 持久化归 `center/conversation/work-canvas/logic`；Session 只拥有 Run/Chat/Surface/Permission 等业务状态。
+
+### 允许修改
+
+- `packages/app-shell/src/workbench/**` 的等价目录整理、公共 index、内部 import；
+- `packages/ui/src/features/workbench/InfiniteCanvas*` 与导出（仅合并用户 v0.0.93 #22.8）；
+- `apps/web/src/host/**` → `src/host-clients/**` 的语义重命名与引用；
+- `apps/web/dev/bridges/resources/**`、`terminal/**`，把 `vite.config.ts` 的开发桥实现下沉；
+- 与上述结构/Canvas 对应的测试、治理、项目地图、UI/Architecture/Testing/Runtime 文档；
+- 版本与发布文档。
+
+### 禁止修改
+
+- Runtime Reasoning/强力推理/Slider/Particle 的行为与视觉；
+- `packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**`；
+- Provider Capability、Config/Secret、Agent Runtime Protocol、Plugin Runtime、Rust Native；
+- Workbench Resize/Snap 算法；
+- Sync/GitHub/Setup/Update 业务逻辑。
+
+### 不可回退行为
+
+- v0.0.94 的 Left/Center/Right/Terminal/Settings/Session 父子模块边界；
+- v0.0.94 的 CSS Module 隔离与 Composition Root；
+- v0.0.93 #22.8 的 Work Canvas：按 workspaceId 保存节点 `id→x/y` 与 viewport、低频 commit、选中节点置顶、edges 在后、UI 不直接拥有 localStorage key；
+- v0.0.91+ Unicode ZIP / `.lfaa` 成品完整性。
+
+### 验收条件
+
+1. Workbench 大模块仍全部独立；模块内部的 View / Logic / Styles / Contracts 通过目录和 index 能清楚辨识，根组件不重新变胖。
+2. `packages/ui` 文档明确为共享 UI Kit，不与 app-shell 产品模块重复；业务语义不得下沉 UI Kit。
+3. `apps/web/dev` 只含 dev-server Node 代码；`vite.config.ts` 不再直接承载 Resource/PTY 详细实现；浏览器 Host Client 位于 `src/host-clients`。
+4. Work Canvas 刷新恢复节点位置与 viewport；workspaceId 隔离；PointerMove 不直接写 localStorage；选中/拖动节点置顶且 edge 在后。
+5. `useAgentSessionController` 不再拥有 Work Canvas 节点视觉坐标。
+6. Reasoning/Particle/Resize/Snap 等禁止区与 v0.0.94 保持零功能改动。
+7. 最终 ZIP 可 fresh extract，中文代码地图 UTF-8 flag 正常，`.lfaa` 保留，解压根 preflight PASS。
+
+### 必须测试
+
+- `test/infinite-canvas-contract.test.mjs`；
+- Workbench module boundary / UI shared / interaction motion / chat runtime / settings shell / model quick switch 等既有回归；
+- 新增/扩展 Architecture Layer Contract：App Shell 模块内分层、Session 不拥有 Canvas Layout、Vite config 只组合 bridge；
+- `scripts/ui-contract-check.mjs`；
+- `scripts/workspace-preflight.mjs`；
+- 可执行全仓 Node 静态/契约测试；
+- 最终 ZIP fresh round-trip + preflight。
+
+### 当前状态
+
+`pending-user-acceptance`
+
+- CHANGELOG 编号：`#21.24 + merge #22.8`
+- 目标版本：`v0.0.95`
+- AI 验证：`pass`
+- 用户验收：`pending`
+
+## #22.8 无限画布布局持久化与选中层级修复
+
+### 用户目标 / 背景
+
+v0.0.92 Windows 实机反馈暴露 Work 无限画布的两个基础交互缺陷：用户手动拖动节点、平移或缩放画布后，刷新页面会恢复默认位置，无法把用户自定义排版作为稳定工作区状态；多个节点发生重叠时，即使用户已经选中下层节点，选中节点仍可能被后绘制节点遮挡，破坏“当前对象应在最前”的直接操作语义。用户同时提供截图要求保留节点可自由摆放、允许重叠，但被选中/拖动的节点必须即时提升到前层。
+
+本轮不引入自动布局器，也不把节点业务真值写入浏览器存储。只持久化 Work Surface 的**视觉布局事实**：节点 `id -> {x,y}` 与 viewport `{x,y,scale}`。业务标题、描述、状态、Run/Session/Event 仍由 Agent Runtime / App Shell 当前数据源决定；恢复时只把已保存坐标按 `id` 合并到当前节点定义，新增节点继续使用当前默认位置，已删除节点的旧坐标自然忽略。
+
+### 主模块 / 状态所有权
+
+- `packages/ui/src/features/workbench/InfiniteCanvas.tsx`：继续拥有高频 pan/zoom/drag 交互；新增 viewport 初始值与低频 commit 回调，不直接访问 localStorage，不拥有工作区持久化 Key。
+- `packages/ui/src/features/workbench/infinite-canvas.types.ts`：拥有 `InfiniteCanvasViewport` 与 viewport commit 公共 UI Contract。
+- `packages/app-shell/src/AgentWorkbench.tsx`：拥有当前 Work Surface 视觉布局偏好持久化；按 workspaceId 使用版本化 localStorage key，保存节点坐标与 viewport，加载时做有限数值校验并与当前节点模板合并。
+- `packages/ui/src/features/workbench/infinite-canvas.css`：拥有节点堆叠视觉规则；普通节点在基础层，选中/拖动节点必须提升到节点层最前，边线始终位于节点后方。
+
+### 允许修改
+
+- `packages/ui/src/features/workbench/InfiniteCanvas.tsx`、`infinite-canvas.types.ts`、`infinite-canvas.css`；
+- `packages/app-shell/src/AgentWorkbench.tsx`（仅 Work Canvas 视觉布局持久化与传参）；
+- Infinite Canvas / UI contract / interaction 测试；
+- 当前事实文档、版本元数据、CHANGELOG / RELEASES。
+
+### 禁止修改 / 安全边界
+
+- 禁止把 Run/Session/Artifact/模型回复等业务真值塞进 localStorage；只保存节点 `x/y` 与 viewport `x/y/scale`。
+- 禁止让 `packages/ui` 自己拼 workspace localStorage key；持久化 Owner 在 App Shell，UI 只暴露初始值与 commit 回调。
+- 禁止在 PointerMove 每像素写 localStorage；节点拖动只更新视觉 state，持久化必须 debounce/commit；viewport 只在 pan 结束、缩放控制、wheel settle 后提交。
+- 禁止引入自动避让或强制重排；用户允许节点自由重叠，自定义排版必须原样恢复。
+- 禁止用 DOM 顺序重排破坏 edges/node identity；选中层级使用稳定 z-index/active state，不改变节点业务数组顺序。
+- 禁止回退 #22.7 的 reasoning / star particle / Unicode ZIP 修复。
+
+### 实现约束
+
+1. 新增版本化持久化结构 `WorkCanvasLayoutSnapshot v1`，至少包含 `viewport` 与 `nodePositions`；key 必须按 workspaceId 隔离，避免不同项目共用一套坐标。
+2. 读取持久化数据时必须容错：JSON 失败、版本不匹配、NaN/Infinity、scale 超界都回退安全默认；节点只接受有限数值坐标。
+3. 初始化节点时按 id 合并已保存 `x/y`，不保存或覆盖 `title/description/status/kind`；运行时状态更新必须保留当前坐标。
+4. `InfiniteCanvas` 内部继续本地持有 viewport，避免 pan 每像素让整个 App Shell 重渲染；通过 `initialViewport` 初始化，通过 `onViewportCommit` 在低频时机通知上层保存。
+5. Wheel pan/zoom 使用短 settle timer 合并提交；Pointer pan 在 PointerUp/Cancel 提交；缩放按钮与“复位”立即提交。复位应回到产品默认 viewport 并覆盖此前保存值。
+6. 节点坐标持久化由 App Shell 对 `workNodes` 做短 debounce，仅序列化 `{id,x,y}`；刷新后应恢复到最后一次稳定位置。
+7. 节点选中/开始拖动时必须获得最高节点 z-index；未选中节点保持基础层，edges 固定在节点后。选中节点即使 DOM 顺序较早，也不能被后续节点遮挡。
+8. 选中层级只影响视觉，不改变 edges 连接、节点 id、业务状态或数组排序。
+
+### 验收条件
+
+1. 任意拖动 1 个或多个 Work 节点，刷新页面后节点恢复到用户最后摆放的位置，不回默认模板。
+2. 任意平移/缩放画布，刷新后 viewport 恢复到最后稳定位置与比例；点击“复位”后刷新仍保持默认 viewport。
+3. 不同 `workspaceId` 使用独立布局，A 项目的排版不污染 B 项目。
+4. 新增/删除节点时，保存数据按 id 合并：已有节点恢复坐标，新节点使用当前代码默认坐标，旧节点残留坐标不产生幽灵节点。
+5. 两个或更多节点重叠时，点击/拖动哪个节点，哪个节点立即显示在最前；即使它在 DOM 数组中更早，也不被其他节点盖住。
+6. edges 始终在节点后方，不覆盖节点文本；选择层级不改变连线数据。
+7. PointerMove 不直接写 localStorage；连续拖动/滚轮不会造成同步存储写放大或明显卡顿。
+8. #22.7 的 reasoning 动态档位、Slider 几何、轨道内星光粒子与发布包 Unicode 修复不回退。
+
+### 必须测试
+
+- 扩展 `test/infinite-canvas-contract.test.mjs`：viewport initial/commit、selected z-index、edges behind nodes；
+- 新增/扩展 App Shell contract：workspace-scoped localStorage key、v1 layout snapshot、节点 id 坐标合并、只保存 x/y、不保存业务字段、debounce；
+- `node --test test/infinite-canvas-contract.test.mjs`；
+- `node --test test/ui-interaction-motion.test.mjs`；
+- `node scripts/ui-contract-check.mjs`；
+- 全仓可执行 Node 静态/契约测试；
+- `node scripts/workspace-preflight.mjs`；
+- 最终 ZIP 继续使用 `scripts/release-archive.mjs`，Unicode / `.lfaa` fresh round-trip 后再次 preflight。
+
+### 必须更新文档
+
+`DEVELOPMENT.md`、`ARCHITECTURE.md`、`PROJECT_PLAN.md`、`docs/DEVELOPMENT_LOG.md`、`docs/MODULES.md`、`docs/UI.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG / 版本
+
+- CHANGELOG 编号：`#22.8`
+- 目标版本：`v0.0.93`
+- 当前状态：`pending-user-acceptance`
+- AI 验证：`pass`（Infinite Canvas 聚焦 5/5 PASS；UI 交互回归 21/21 PASS；全仓除当前环境限定的 `node-source-runtime.test.mjs` 外 141/141 PASS；本轮 TS/TSX syntax transpile 5/5 PASS；workspace-preflight PASS；最终 ZIP fresh round-trip 后再次 preflight PASS）
+- 用户验收：`pending`
 
 ## #21.23 Workbench 全域模块化 / DeepSeek Harness 风格边界
 

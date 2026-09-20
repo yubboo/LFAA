@@ -87,8 +87,8 @@ Windows `scripts/windows/*.ps1` 必须保持 UTF-8 with BOM。
 
 ```text
 apps/                     可运行宿主入口；只做启动、宿主 Adapter、平台桥
-packages/ui/              可复用图形界面的唯一主目录；只做展示与交互
-packages/app-shell/       Feature / 页面编排；连接 UI 与业务公开接口
+packages/ui/              UI Kit / Design System / Shared Interaction Engine；通用控件、布局、Motion、Effect、Canvas Projection，不拥有产品业务真值
+packages/app-shell/       LFAA 产品 UI / Feature 编排；业务模块按父子 Owner 组织，内部按需拆 view / logic / styles / contracts
 packages/config-system/   配置设置业务唯一归属；Schema / Settings / Account / Auth / Provider 配置
 crates/                   Rust 原生能力与安全 Broker
 scripts/                  开发/治理工具；不得承载产品业务
@@ -106,11 +106,12 @@ packages/ui/src/features/settings/ai/
 
 硬边界：
 
-- `packages/ui` 内新增共享 UI 基础/交互/特效/扩展必须放 `src/ui-xxx/`；既有 `layout/workbench/features` 保持；
+- `packages/ui` 是共享 UI Kit，不是“所有产品界面”的目录；新增通用 UI 基础/交互/特效/扩展进入 `src/ui-xxx/`，既有 `layout/workbench/features` 保持；
 - UI Kernel 基础件不可卸载；Effect/Renderer/Panel/Action 等独立生命周期能力才通过 Registry 插件化；
 - 普通插件不得直接操作 LFAA DOM，业务组件不得复制 shared outside-dismiss / Slider Pointer / Effect 实现；
 - `packages/ui` 不拥有 Config / Provider / Secret 真值，不直连厂商 API；
 - `packages/config-system` 不依赖 React、DOM、`packages/ui`、`apps/*`；
+- `apps/web/src` 只进入浏览器 bundle；`apps/web/dev` 只允许 Vite dev-server / Node Host bridge；二者不得混用运行时 API；
 - `apps/web` 不保存可复用业务 UI，不实现 Provider 厂商逻辑；
 - Provider 配置插件只能进入 `config-system/src/settings/ai/providers/<provider>`；
 - Runtime 模型推理 Adapter 仍属于模型运行域，不能因为同一家厂商而塞进 Config UI；
