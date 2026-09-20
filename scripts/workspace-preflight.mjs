@@ -22,6 +22,7 @@ const gates = [
   ["runtime-import", "scripts/runtime-import-resolution-check.mjs"],
   ["folder-boundary", "scripts/folder-boundary-check.mjs"],
   ["language-ownership", "scripts/language-ownership-check.mjs"],
+  ["tsconfig-reference", "scripts/tsconfig-reference-check.mjs"],
   ["development-log", "scripts/dev-log-check.mjs"],
   ["docs", "scripts/docs-check.mjs"],
   ["current-fact", "scripts/current-fact-check.mjs"],

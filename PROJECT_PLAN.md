@@ -1,33 +1,22 @@
-# LFAA Project Plan — current after v0.1.0
+# LFAA Project Plan — current after v0.1.1
 
 ## 当前里程碑
 
-**v0.1.0 / Workspace Dependency Health Hotfix**
+**v0.1.1 / TSConfig Root Inheritance Hotfix**
 
-目标：承接 v0.0.99 capability-family 迁移，修复后续 Sync 目录迁移边界与 Windows Setup 旧依赖扫描问题；在不改变 UI/模型/插件/Secret/Terminal 业务行为的前提下，让菜单 1 与启动/构建入口共享同一依赖事实。
+目标：修复 capability-family 迁移后 workspace `tsconfig.json` 仍沿用旧单层 package 相对深度的问题，让 Vite/TypeScript 在真正启动前就能验证工程配置继承。业务源码依赖规则保持不变。
 
 本版新增：
 
-- Node 依赖检查器直接读取 `pnpm-workspace.yaml`，覆盖全部 25 个 importer；
-- 依赖健康区分 workspace 链接与外部依赖真实解析；
-- `pnpm-lock.yaml` 改为 importer + dependency specifier 精确覆盖检查；
-- 菜单 1 检测到真实缺依赖后自动执行 pnpm install；
-- Web 启动不再硬编码旧 `apps/web/node_modules/@xterm` / `node-pty` 所有权；
-- 新增 capability-family 深层 workspace、新依赖缺失和 importer lockfile 不一致回归测试；
-- 增加版本进位 Gate，锁定 `0.0.99 → 0.1.0`，禁止 `0.0.100`。
+- 新增根级 `tsconfig.base.client.json`，集中 React/DOM/JSX 客户端配置；
+- `apps/*` 通过 `../../tsconfig.base.client.json` 继承根配置；
+- `packages/client/*` 通过 `../../../tsconfig.base.client.json` 继承根配置；
+- 其余 `packages/<family>/<package>` 通过 `../../../tsconfig.base.json` 继承根配置；
+- 删除没有真实运行时共同解析支持的私有 `@/*` TypeScript-only alias；
+- 新增 `tsconfig-reference-check`，并接入 governance / workspace-preflight；
+- 新增 TSConfig 回归测试，锁住错误相对深度和 alias 回流。
 
-既有 Harness Phase 1 保持：
-
-- `packages/<family>/<package>` capability family 拓扑；
-- `apps/web` 薄入口；
-- `client-web` / `client-connection` / `ui-terminal` 下沉；
-- Agent/Settings/Plugin Controllers 下沉；
-- Web Host Bundle；
-- OpenAI-compatible LLM Adapter；
-- Runtime Home 路径 seam；
-- `crates/secret-store` → `native/secret-store`；
-- 仓库级 `.lfaa/` 取消，旧状态兼容迁移；
-- 路径/架构/同步/文档门禁随新结构更新。
+既有 v0.1.0 Harness / Sync / Workspace 依赖健康修复全部保留，不重做现有业务。
 
 ## 当前冻结行为
 

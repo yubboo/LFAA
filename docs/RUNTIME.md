@@ -1,4 +1,6 @@
-# LFAA Runtime — v0.1.0
+# LFAA Runtime — v0.1.1
+
+> v0.1.1 TSConfig 修复：Client workspace 继承根级 `tsconfig.base.client.json`，Runtime/Node/Core workspace 继承 `tsconfig.base.json`；业务源码跨 package 仍只使用 `@lfaa/*`。`tsconfig-reference-check` 在 Vite 启动前验证所有 extends。
 
 > v0.1.0 依赖健康修复：Setup / Web 启动统一通过 `pnpm-workspace.yaml` 的全部 importer 判断 Node 依赖健康；新增依赖、workspace link 缺失、外部依赖无法真实解析或 importer lockfile 不一致都会进入菜单 1 的自动同步分支。
 > v0.1.0 同批 Sync 迁移修复：目录迁移后若旧 workspace root 只剩依赖/构建缓存，可安全清理；真实项目文件仍会阻止删除并交由 Gate 报告。

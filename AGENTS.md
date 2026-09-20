@@ -1,4 +1,4 @@
-# LFAA Agent / Contributor Guide — v0.1.0
+# LFAA Agent / Contributor Guide — v0.1.1
 
 本文件给 AI Agent 和开发者提供最短路径的当前约束。**先遵守当前代码与本文件，再参考历史记录。**
 
@@ -142,4 +142,8 @@ pnpm run quality:full
 
 当前真相：代码 + 自动门禁 + `ARCHITECTURE.md` / `DEVELOPMENT.md` / 本文件。
 
-`CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md`、`docs/PROMPTS.md` 是历史账本。旧条目里出现 `.lfaa`、`crates/`、`apps/web/dev` 等路径时，只解释当时版本，不用于指导 v0.1.0 开发。
+`CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md`、`docs/PROMPTS.md` 是历史账本。旧条目里出现 `.lfaa`、`crates/`、`apps/web/dev` 等路径时，只解释当时版本，不用于指导 v0.1.1 开发。
+
+## TSConfig 继承边界
+
+业务源码跨 package 仍必须走 `@lfaa/*`。`apps/*` 与 `packages/<family>/<package>` 的 `tsconfig extends` 可以像 DeepSeek Harness 一样相对指向根级 `tsconfig.base*.json`；这种 `../` 仅属于工程配置继承，不得用于业务源码跨包引用。Client 包继承 `tsconfig.base.client.json`，其余包继承 `tsconfig.base.json`。所有迁移必须通过 `scripts/tsconfig-reference-check.mjs`。

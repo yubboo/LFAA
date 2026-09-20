@@ -1,4 +1,4 @@
-# LFAA Development Standard — v0.1.0
+# LFAA Development Standard — v0.1.1
 
 本文件是当前开发规范。历史版本的设计过程请看 `CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md` 和 `docs/PROMPTS.md`；历史内容不得覆盖本文件。
 
@@ -280,3 +280,16 @@ LFAA 显示版本固定为 `major.minor.patch`，每一段只能是 `0-99`。pat
 - Unicode ZIP 由 `scripts/release-archive.mjs` 产生并反向验证；
 - Sync 先 source preflight，再生成 diff；
 - v0.0.99 起，Sync 在删除旧项目 `.lfaa` 前只迁移已知本机运行状态，不保留旧目录作为新架构资源根。
+
+## TypeScript 工程配置继承规则
+
+LFAA 区分“业务源码依赖”和“仓库工程配置继承”：
+
+- 跨 package 业务源码必须通过公开 `@lfaa/*` API；禁止 `../../other-package/src`、`../../../other-package/src` 形式的跨包源码引用。
+- package 内部允许短距离 `./` / `../` 相对 import。
+- `apps/*/tsconfig.json` 允许使用 `../../tsconfig.base*.json` 继承仓库根配置。
+- `packages/<family>/<package>/tsconfig.json` 允许使用 `../../../tsconfig.base*.json` 继承仓库根配置；这里的 `../` 只表达 Monorepo 工程配置 Owner，不属于业务依赖。
+- Client/React/DOM workspace 统一继承 `tsconfig.base.client.json`；Runtime/Node/Core workspace 继承 `tsconfig.base.json`。
+- 禁止恢复仅 TypeScript 可见、但 Vite/Node 未共同解析的私有 `@/*` paths alias。跨 package 的稳定别名只使用真实 workspace package 名 `@lfaa/*`。
+- `scripts/tsconfig-reference-check.mjs` 是该规则的机器 Gate；目录迁移后必须先通过它，再允许进入 Vite/TypeScript 启动链。
+

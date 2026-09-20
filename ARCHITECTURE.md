@@ -1,4 +1,4 @@
-# LFAA Architecture — v0.1.0 Current Truth
+# LFAA Architecture — v0.1.1 Current Truth
 
 > 本文件描述 **当前** LFAA 架构。旧版本的平铺 `packages/*`、`apps/web/dev/bridges/*`、`crates/` 与仓库级 `.lfaa/` 只允许出现在历史记录中，不再是当前设计。
 

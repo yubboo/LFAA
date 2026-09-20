@@ -1,3 +1,15 @@
+# v0.1.1 TSConfig 根配置继承 / Vite 启动修复
+
+**当前任务：#21.29 · Harness capability-family 迁移后 TSConfig 配置路径回归修复 · v0.1.1 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- 修复 `packages/<family>/<package>/tsconfig.json` 迁移后仍使用旧 `../../tsconfig.base.json`，导致 Vite dependency scan 报 `packages/tsconfig.base.json` 不存在。
+- 采用与 DeepSeek Harness 一致的根级工程配置继承：两层 package 使用 `../../../tsconfig.base*.json`；`apps/web` 保持 `../../`。
+- 新增 `tsconfig.base.client.json`，集中 React/DOM/JSX 客户端配置；Runtime/Node/Core 继续继承 `tsconfig.base.json`。
+- 移除未被源码使用的 `@/*` 私有 TypeScript paths alias；跨 package 业务依赖继续强制使用真实 `@lfaa/*` workspace API。
+- 新增 `scripts/tsconfig-reference-check.mjs` 与回归测试，并接入 governance / workspace-preflight，防止目录迁移后到 Vite 启动阶段才暴露配置断链。
+- **AI 验证：** workspace-preflight 全 Gate PASS；仓库级合同测试 172/172 PASS；Config System package tests 39/39 PASS；10/10 workspace tsconfig 均通过 `tsc --showConfig` 真实配置加载。
+- **状态：** pending-user-acceptance。
+
 # v0.1.0 Harness 架构收口 / Sync 与依赖健康修复
 
 **当前任务：#20.20 + #21.28 hotfix · v0.1.0 · pending-user-acceptance · AI=pass · 用户验收=pending**

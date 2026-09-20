@@ -1,6 +1,17 @@
-# LFAA Releases — current policy v0.1.0
+# LFAA Releases — current policy v0.1.1
 
-## v0.1.0 — Harness 架构收口 / Sync 与依赖健康修复
+## v0.1.1 — TSConfig 根配置继承 / Vite 启动修复
+
+- 修复 capability-family 迁移后的 tsconfig extends 深度错误；
+- 新增 `tsconfig.base.client.json` 作为 Client 工程配置 Owner；
+- 移除无运行时共同解析支持的 `@/*` 私有 paths alias；
+- 新增 `tsconfig-reference-check` 并接入 governance / workspace preflight；
+- 业务源码跨 package 仍只允许 `@lfaa/*` 公共 API。
+
+**当前任务：#21.29 · TSConfig / Vite 启动修复 · v0.1.1 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+### v0.1.0 — Harness 架构收口 / Sync 与依赖健康修复
+
 
 - 承接 v0.0.99 的 capability-family / packages-first / thin-app / Runtime Home / native 架构；
 - 修复退役 workspace 只剩 `node_modules` / `target` 等缓存时 Sync 无法清理、`current-fact` 误判旧 Owner 回流的问题；
@@ -17,8 +28,8 @@
 ## 当前版本
 
 ```text
-displayVersion: 0.1.0
-releaseSequence: 100
+displayVersion: 0.1.1
+releaseSequence: 101
 architectureVersion: 5
 ```
 

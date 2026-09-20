@@ -1,3 +1,11 @@
+# v0.1.1 Prompt / Requirement Note — TSConfig 根配置继承修复
+
+- **用户纠正：** 不要把业务源码 alias 规则与工程配置继承混为一谈。业务源码跨 package 继续使用 `@lfaa/*`；`tsconfig extends` 可按 DeepSeek Harness 的 Monorepo 方式相对继承根级配置。
+- **实机问题：** Vite dependency scan 报 `Failed to load tsconfig '../../packages/tsconfig.base.json'`。
+- **根因：** capability-family 迁移后两层 package 的 tsconfig 仍沿用旧单层 package 的 `../../tsconfig.base.json`。
+- **修复要求：** 修复全部同类 tsconfig；新增 client base；清理无运行时支持的 `@/*` 私有 alias；新增可执行 Gate，防止回归。
+- **版本：** v0.1.1；**状态：** pending-user-acceptance；**AI：** pass；**用户验收：** pending。
+
 # v0.1.0 Prompt / Requirement Note — Sync / 依赖健康 / 版本进位修复
 
 > **文档属性：历史需求账本。** 当前实现仍以代码、`ARCHITECTURE.md`、`DEVELOPMENT.md` 为主。
@@ -42,6 +50,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #21.29 | TSConfig 根配置继承 / Vite 启动修复 | v0.1.1 | pending-user-acceptance | pass | pending |
 | #20.20 | Workspace 依赖健康检测 / 自动按需同步修复 | v0.1.0 | pending-user-acceptance | pass | pending |
 | #21.28 | Harness capability-family 仓库架构重构 / Sync 目录迁移热修复 | v0.1.0 | pending-user-acceptance | pass | pending |
 | #21.28 | Harness capability-family 仓库架构重构 | v0.0.99 | pending-user-acceptance | pass | pending |
@@ -101,6 +110,15 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+
+## #21.29 TSConfig 根配置继承 / Vite 启动修复
+
+- **版本：** v0.1.1；**状态：** pending-user-acceptance。
+- **问题：** capability-family 迁移后，两层 package 的 `tsconfig.json` 仍使用旧单层目录的 `../../tsconfig.base.json`，Vite dependency scan 因而尝试读取不存在的 `packages/tsconfig.base.json`。
+- **允许修改：** 根级 TypeScript base 配置、workspace tsconfig extends、TSConfig Gate / tests / 当前文档 / 版本元数据。
+- **禁止修改：** Chat/Work、Workbench 动效、Provider 业务、Plugin Runtime、Secret、Terminal 协议、Agent Runtime 行为。
+- **验收：** `apps/web` 能解析根 client base；两层 package 的 extends 真实存在；私有 `@/*` TypeScript-only alias 不回流；workspace-preflight 在 Vite 启动前捕获错误 extends。
 
 ## #20.20 Workspace 依赖健康检测 / 自动按需同步修复
 

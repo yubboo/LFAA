@@ -49,3 +49,5 @@ windows/lfaa-update.ps1  ← LFAA-Update.bat
 
 - `version-policy.mjs`：LFAA 显示版本格式与 0-99 进位规则的唯一代码 Owner；`0.0.99` 后返回 `0.1.0`，并拒绝 `0.0.100`。
 - `release-consistency-check.mjs`：读取 `lfaa.release.json` 后调用版本策略，并核对所有 package/Cargo/文档版本一致性。
+
+- `tsconfig-reference-check.mjs`：校验 apps / capability-family packages 的 `tsconfig extends` 能真实指向根级 base，并阻止私有 `@/*` paths alias 回流。

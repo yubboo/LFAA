@@ -1,8 +1,8 @@
-# LFAA v0.1.0 — Harness 化仓库架构 / Workspace 依赖健康修复
+# LFAA v0.1.1 — TSConfig 根配置继承 / Vite 启动修复
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.1.0**。按项目版本规范，`v0.0.99` 之后必须进位到 `v0.1.0`；此前生成的 `v0.0.100` / `v0.0.101` 仅属于误标构建，不进入正式版本序列。本版本承接 v0.0.99 的 Harness 化重构，并合并 Workspace Sync 目录迁移修复与 Workspace 依赖健康检测修复。
+当前包：**LFAA-v0.1.1**。 本版在 v0.1.0 Harness 架构基础上修复 capability-family 迁移遗留的 TypeScript 配置继承路径，并新增 TSConfig 继承 Gate。按项目版本规范，`v0.0.99` 之后必须进位到 `v0.1.0`；此前生成的 `v0.0.100` / `v0.0.101` 仅属于误标构建，不进入正式版本序列。本版本承接 v0.0.99 的 Harness 化重构，并合并 Workspace Sync 目录迁移修复与 Workspace 依赖健康检测修复。
 
 > 当前真相以本 README、`ARCHITECTURE.md`、`DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
 
@@ -81,7 +81,7 @@ agent/config/plugin/terminal/llm adapters
 
 ## 现有能力保持
 
-v0.1.0 的目标是在 v0.0.99 Harness 架构上完成 Sync 目录迁移与依赖健康事实源修复，不重做产品、不改变既有业务行为。以下既有能力继续保留：
+v0.1.1 的目标是在 v0.1.0 Harness 架构与依赖健康修复基础上，修复 capability-family 迁移遗留的 TSConfig 继承断链，并补上可执行 Gate；不重做产品、不改变既有业务行为。以下既有能力继续保留：
 
 - Chat / Work 同一 Workspace 双模式；
 - Work Infinite Canvas 与已有交互、布局持久化；

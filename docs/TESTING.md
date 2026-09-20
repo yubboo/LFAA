@@ -1,4 +1,19 @@
-# LFAA Testing & Gates — v0.1.0
+# LFAA Testing & Gates — v0.1.1
+
+## v0.1.1 TSConfig / Vite 启动回归
+
+本版必须锁定：
+
+1. `apps/*/tsconfig.json` 的根级 Client 配置继承能真实解析；
+2. `packages/client/*/tsconfig.json` 统一继承 `../../../tsconfig.base.client.json`；
+3. 其他两层 capability package 统一继承 `../../../tsconfig.base.json`；
+4. 目录迁移后旧 `../../tsconfig.base.json` 必须由 Gate 直接失败；
+5. 不允许恢复仅 TypeScript 可见的 `@/*` 私有 paths alias；
+6. 业务源码跨 package 仍只能通过公开 `@lfaa/*` API。
+
+对应测试：`test/tsconfig-reference.test.mjs`；静态 Gate：`scripts/tsconfig-reference-check.mjs`。
+
+本版 AI 验证：仓库级合同 172/172 PASS；Config System 39/39 PASS；当前 10 个 workspace tsconfig 通过 `tsc --showConfig`。制作环境 Node 22 使用实验性 type stripping 执行 TS package tests；用户标准环境仍以 Node 24 / pnpm 11.17.0 为最终运行环境。
 
 ## v0.1.0 Workspace 依赖健康回归
 
@@ -38,6 +53,7 @@ import-path-check
 runtime-import-resolution-check
 folder-boundary-check
 language-ownership-check
+tsconfig-reference-check
 package-architecture-check
 dev-log-check
 docs-check
