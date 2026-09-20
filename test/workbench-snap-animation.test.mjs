@@ -11,10 +11,10 @@ import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 
-const workbench = fs.readFileSync("packages/ui/src/workbench/ResizableWorkbench.tsx", "utf8");
-const css = fs.readFileSync("packages/ui/src/workbench/workbench.css", "utf8");
-const interaction = fs.readFileSync("packages/ui/src/workbench/workbench-interaction.config.ts", "utf8");
-const layout = fs.readFileSync("packages/ui/src/workbench/workbench-layout.config.ts", "utf8");
+const workbench = fs.readFileSync("packages/client/ui/src/workbench/ResizableWorkbench.tsx", "utf8");
+const css = fs.readFileSync("packages/client/ui/src/workbench/workbench.css", "utf8");
+const interaction = fs.readFileSync("packages/client/ui/src/workbench/workbench-interaction.config.ts", "utf8");
+const layout = fs.readFileSync("packages/client/ui/src/workbench/workbench-layout.config.ts", "utf8");
 
 test("snap capture 使用隐藏超拖阈值，视觉宽度在 min 后保持不变", () => {
   assert.match(workbench, /resolveSnapDragFrame\(\{/);
@@ -24,7 +24,7 @@ test("snap capture 使用隐藏超拖阈值，视觉宽度在 min 后保持不�
 });
 
 test("隐藏超拖行为按真实纯函数执行：min 后视觉锁定，阈值才 capture", () => {
-  const moduleUrl = pathToFileURL(path.resolve("packages/ui/src/workbench/workbench-interaction.config.ts")).href;
+  const moduleUrl = pathToFileURL(path.resolve("packages/client/ui/src/workbench/workbench-interaction.config.ts")).href;
   const script = `
     const m = await import(${JSON.stringify(moduleUrl)});
     const threshold = m.resolveSnapCaptureThreshold(220, 0.50);

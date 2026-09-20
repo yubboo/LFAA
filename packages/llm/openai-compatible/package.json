@@ -1,0 +1,16 @@
+{
+  "name": "@lfaa/llm-openai-compatible",
+  "private": true,
+  "version": "0.0.100",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "dependencies": {
+    "@lfaa/agent-runtime": "workspace:*",
+    "@lfaa/config-system": "workspace:*"
+  },
+  "lfaa": {
+    "layer": "host-adapter",
+    "role": "openai-compatible-llm-provider-adapter"
+  }
+}

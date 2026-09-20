@@ -1,5 +1,5 @@
-# apps
+# apps — Product Entries Only
 
-`apps/` 只放可启动的宿主入口。当前只有 `apps/web` 是真实应用；Desktop / CLI / Server 在拥有真实运行入口前不进入 workspace。
+`apps/` 只承载最终产品启动入口，不是业务目录。
 
-长期规则：App 可以装配 `packages/*` 和宿主 Adapter，但不得拥有第二套可复用业务 Core。未来新增 App 必须先证明它不是 UI/业务占位目录。
+当前只有 `apps/web`：浏览器入口使用 `@lfaa/client-web`，Vite Host 配置使用 `@lfaa/bundle-web-app`。Agent/AI/Plugin/Terminal/Secret/Provider 业务必须位于 `packages/`。

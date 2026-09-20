@@ -1,3 +1,23 @@
+# v0.0.100 Sync Hotfix — #21.28
+
+- 根因：v0.0.99 同步删除旧 package 文件后，旧目录中的 `node_modules` 属于保护项，导致目录无法被普通空目录清理删除；`current-fact` 又把目录存在本身当成旧 Owner 回流。
+- 修复：增加退役 workspace root 的“仅缓存安全清理”，并让 current-fact 忽略 cache-only legacy shell。
+- 回归：`test/workspace-sync-idempotency.test.mjs` 增加退役 package cache shell 契约。
+
+# v0.0.99 Harness Architecture Phase 1
+
+**当前任务：#21.28 · v0.0.99 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+
+> **当前真相提示：** 本文是历史实施日志。v0.0.99 之后的当前路径请看 `ARCHITECTURE.md` 与 `docs/项目结构与代码地图.md`；下方旧条目中的旧路径保持原样以便追溯。
+
+- 以 LFAA v0.0.98 实际代码为基线，对照 DeepSeek Harness 源码的 capability-family / bundle / thin-app 思路做渐进迁移，不重写现有产品 UI。
+- 现有 `@lfaa/*` 逻辑包名保持，物理路径迁为 `packages/<family>/<package>`，降低业务 import 冲击。
+- `apps/web/dev/bridges`、host-clients、LocalTerminal、App composition 按真实 Owner 下沉 packages；App 只启动 Client/Bundle。
+- 删除 repository `.lfaa`；运行状态改为 LFAA_HOME，并保留旧 state 兼容迁移。
+- Agent Controller 中 Provider HTTP 协议进一步拆到 `@lfaa/llm-openai-compatible`。
+- Rust Secret Store 迁入 `native/`；同步更新 Cargo workspace、Windows scripts、契约测试、架构门禁和文档。
+
 ### #21.26 全项目术语与架构一致性维护
 
 - **版本：** v0.0.97
@@ -208,7 +228,7 @@
 
 - **版本：** v0.0.87
 - **状态：** pending-user-acceptance
-- **用户目标：** UI 共用能力继续集中在 `packages/ui`，内部用 `ui-xxx` 分组；可复用特效/扩展以后可以由插件安装、卸载和复用，但 UI 地基不能为了“一切皆插件”而变成可拔掉的依赖。
+- **用户目标：** UI 共用能力继续集中在 `packages/client/ui`，内部用 `ui-xxx` 分组；可复用特效/扩展以后可以由插件安装、卸载和复用，但 UI 地基不能为了“一切皆插件”而变成可拔掉的依赖。
 - **实现：** `ui-overlay` 接管 outside-dismiss；`ui-controls` 新增通用离散 Slider；`ui-effects` 提供声明式 effect + owner/generation Registry；`ui-extension` 提供 effect/slot/renderer/panel/action contribution Registry。
 - **安全边界：** 普通 UI 插件只能提交受控 Contribution，不允许直接操作 LFAA DOM；未来自定义可执行 Renderer 必须进入受控 UI Extension Host。
 - **维护边界：** App Shell 只组合共享 UI API；Pointer Capture、拖拽算法、粒子实现不允许复制回业务组件。既有 `layout/workbench/features` 不搬家。
@@ -263,7 +283,7 @@
 
 - **版本：** v0.0.82
 - **状态：** pending-user-acceptance
-- **用户实机：** v0.0.81 菜单 2 启动 Vite 时，Node 24 无法解析 `packages/plugin-runtime/src/registry`。
+- **用户实机：** v0.0.81 菜单 2 启动 Vite 时，Node 24 无法解析 `packages/plugin/plugin-runtime/src/registry`。
 - **根因：** `@lfaa/plugin-runtime` 的 package export 指向 TypeScript source，Vite config Host 由 Node ESM 直接执行；内部 `./registry`/`./lifecycle` 等无扩展名相对导入在 Node ESM 下不合法。
 - **修复：** plugin-runtime、plugin-sdk、agent-runtime 的 Node Runtime 源码相对导入改显式 `.ts`；runtime-import Gate 新增 Node-source ESM 扩展名和目标存在性检查。
 - **边界：** 不改 Plugin P1、Credentials、Rust Secret 或 Windows Setup 语义。
@@ -411,8 +431,8 @@
 - **版本：** v0.0.70
 - **状态：** superseded
 - **主模块：** ui / project-governance / web-host-validation
-- **用户反馈：** v0.0.69 Windows 实机启动 Web 时，Vite 无法解析 `packages/ui` Settings 中的 `@/workbench/...`；说明补充 TypeScript 检查没有覆盖真实宿主运行时解析。
-- **根因：** `@/*` 只定义在 `packages/ui/tsconfig.json`，Vite Web 宿主没有该 alias；可复用 package 把私有 TypeScript alias 当成公共运行时解析事实。
+- **用户反馈：** v0.0.69 Windows 实机启动 Web 时，Vite 无法解析 `packages/client/ui` Settings 中的 `@/workbench/...`；说明补充 TypeScript 检查没有覆盖真实宿主运行时解析。
+- **根因：** `@/*` 只定义在 `packages/client/ui/tsconfig.json`，Vite Web 宿主没有该 alias；可复用 package 把私有 TypeScript alias 当成公共运行时解析事实。
 - **决策：** Workbench 暴露 `@lfaa/ui/workbench` 公共 Subpath Export；Settings 只通过该入口复用。packages 源码禁止依赖 tsconfig-only `@/`。
 - **门禁：** 新增 `runtime-import-resolution-check.mjs` 与 4 项运行时 Export/Resolver 测试；所有 `@lfaa/*/<subpath>` 必须在目标 package exports 中公开且目标存在。
 - **边界：** 不修改共享侧栏交互语义、不改 Account/Auth/Secret/Provider、不改 Windows 工具链。
@@ -487,7 +507,7 @@
 - **用户验收：** not-accepted；Settings/主题成果保留，个人中心几何由 #2.5 / v0.0.65 修正。
 - **用户反馈：** v0.0.63 Provider 架构可接受，但设置页仍错误地嵌在中间工作区；个人中心与主题入口布局不符合参考交互。
 - **决策：** Settings 作为独立 Surface；用户菜单打开时背景模糊/压暗；主题改为 system/light/dark 三态；更新入口与主题入口并列；AI Provider 设置成为 Settings 子分类。
-- **边界：** UI/交互仅改 `packages/ui` 与 `packages/app-shell`；不修改 Provider 业务、Secret/Storage、Windows 工具链。
+- **边界：** UI/交互仅改 `packages/client/ui` 与 `packages/client/app-shell`；不修改 Provider 业务、Secret/Storage、Windows 工具链。
 - **验收重点：** 独立设置页、个人菜单聚焦效果、三态主题、AI 设置分类化、旧 Provider 架构回归。
 - **实现：** Settings 独立 Surface、UserMenu 模糊聚焦层、system/light/dark 三态主题、更新/主题底部并列、AI Settings Panel 嵌入分类。
 - **AI 验证：** Settings/Profile/Theme 5/5、Config System 17/17、补充 TypeScript 与目录/导入/UI 门禁 PASS。
@@ -498,11 +518,11 @@
 - **状态：** superseded
 - **主模块：** config-system / ui / app-shell / web-host
 - **用户决策：** 文件夹结构必须按长期职责清晰分层；业务、UI、宿主、Provider 不得因当前开发方便而散落。Web-first 只是验证顺序，后续 Desktop/Linux 图形端复用 UI，CLI 复用 Core。
-- **架构决策：** `packages/config-system/src/settings/ai` 为 AI 配置父域；Provider 每家一个子插件；`packages/ui/src/features/settings/ai` 为共享 AI 设置 UI 唯一位置；`apps/web` 只做宿主。
+- **架构决策：** `packages/settings/config-system/src/settings/ai` 为 AI 配置父域；Provider 每家一个子插件；`packages/client/ui/src/features/settings/ai` 为共享 AI 设置 UI 唯一位置；`apps/web` 只做宿主。
 - **维护原则：** 单一 Owner、单向依赖、公共 Export、重要目录 README、自动边界门禁。修改一个 Feature 时，不应因为目录耦合触碰无关功能。
 - **运行期区分：** Provider 的“配置插件”归 Config System；模型实际推理 Adapter 归模型运行域，避免配置与执行耦合。
 - **实现：** 建立 Provider 公共契约、Registry 与共享 OpenAI-compatible 模型列表 transport；首批六家 Provider 插件全部落入固定子目录。
-- **UI：** `packages/ui/src/features/settings/ai` 增加共享设置页；App Shell 只负责 Registry → ViewModel 组装和工作台/设置页切换。
+- **UI：** `packages/client/ui/src/features/settings/ai` 增加共享设置页；App Shell 只负责 Registry → ViewModel 组装和工作台/设置页切换。
 - **Provider 事实：** OpenAI API/ChatGPT Codex、DeepSeek、智谱标准/Coding、Kimi 中国/国际、百炼区域/Workspace、MiMo 按量/Token Plan 分别由插件描述，不在 Core/UI 写厂商分支。
 - **门禁：** folder-boundary 强制六家插件入口存在，并禁止 AI Core 厂商 Endpoint/分支、UI 直连业务/网络、App 厂商 Endpoint。
 - **用户验收：** not-accepted；Provider/目录架构保留，设置与个人中心交互由 #2.4 / v0.0.64 修正。
@@ -856,7 +876,7 @@ v0.0.42 发布时必须满足：
 
 - 不改变配置系统最终职责；
 - 只调整近期开发顺序；
-- UI 壳实现放在 `packages/ui`、`packages/app-shell`、`apps/web`；
+- UI 壳实现放在 `packages/client/ui`、`packages/client/app-shell`、`apps/web`；
 - 配置事实状态仍不由 UI 持有；
 - Web Vite 开发桥接只用于本地 `.lfaa` 资源列表验证。
 
@@ -866,8 +886,8 @@ v0.0.42 发布时必须满足：
 - `docs/plans/modules/config-system/PLAN.md`
 - `docs/prompts/active/0002-配置系统.md`
 - `docs/prompts/active/0021-Web工作台UI.md`
-- `packages/ui`
-- `packages/app-shell`
+- `packages/client/ui`
+- `packages/client/app-shell`
 - `apps/web`
 
 ### 验证结果
@@ -1134,7 +1154,7 @@ Composer 不再使用固定 `.5rem` 底部 padding，而是读取单一设计变
 
 ### 影响范围
 
-- `packages/app-shell/src/agent-workbench.css`
+- `packages/client/app-shell/src/agent-workbench.css`
 - `scripts/ui-contract-check.mjs`
 - UI Layout / Web UI Test / Prompt / Plan / Progress / Changelog / Release / Version
 
@@ -2993,7 +3013,7 @@ docs/standards/NAMING.md
 
 1. 新增 `docs/项目结构与代码地图.md`；
 2. 新增 `apps/README.md`、`packages/README.md`、`crates/README.md`、`scripts/README.md`；
-3. 新增 `packages/app-shell/src/README.md`、`packages/ui/src/workbench/README.md`，重写 `apps/web/src/README.md`；
+3. 新增 `packages/client/app-shell/src/README.md`、`packages/client/ui/src/workbench/README.md`，重写 `apps/web/src/README.md`；
 4. `AgentWorkbench.tsx`、`ResizableWorkbench.tsx`、`LocalTerminal.tsx`、`vite.config.ts` 等关键实现补完整中文文件头和算法边界注释；
 5. `agent-workbench.css`、`workbench.css`、`local-terminal.css` 补盒子结构和分区注释；
 6. Setup / Sync / GitHub / Update PowerShell 和根 BAT 补人类可读职责说明；
@@ -3081,8 +3101,8 @@ docs/standards/NAMING.md
 
 ### 影响范围
 
-- `packages/ui`
-- `packages/app-shell`
+- `packages/client/ui`
+- `packages/client/app-shell`
 - `apps/web`
 - `docs/standards/UI_LAYOUT.md`
 - `PROJECT_PLAN.md`
@@ -3231,9 +3251,9 @@ Web 工作台视觉改为接近 Codex / ChatGPT 的简洁生产力工具风格�
 
 ### 影响范围
 
-- `packages/ui/src/workbench/*`
-- `packages/app-shell/src/*`
-- `apps/web/src/App.tsx`
+- `packages/client/ui/src/workbench/*`
+- `packages/client/app-shell/src/*`
+- `packages/client/web/src/App.tsx`
 - `docs/standards/UI_LAYOUT.md`
 - `docs/testing/WEB_UI_TEST.md`
 - `docs/prompts/active/0021-Web工作台UI.md`
@@ -3307,10 +3327,10 @@ min + 24px
 
 ### 影响范围
 
-- `packages/ui/src/workbench/ResizableWorkbench.tsx`
-- `packages/ui/src/workbench/workbench-layout.types.ts`
-- `packages/ui/src/workbench/workbench.css`
-- `packages/app-shell/src/AgentWorkbench.tsx`
+- `packages/client/ui/src/workbench/ResizableWorkbench.tsx`
+- `packages/client/ui/src/workbench/workbench-layout.types.ts`
+- `packages/client/ui/src/workbench/workbench.css`
+- `packages/client/app-shell/src/AgentWorkbench.tsx`
 - `docs/standards/UI_LAYOUT.md`
 - `docs/testing/WEB_UI_TEST.md`
 - `docs/prompts/active/0021-Web工作台UI.md`
@@ -3543,11 +3563,11 @@ Web 工作台三栏交互继续向 ChatGPT / Codex 的日常使用方式靠拢�
 
 ### 影响范围
 
-- `packages/ui/src/workbench/ResizableWorkbench.tsx`
-- `packages/ui/src/workbench/workbench.css`
-- `packages/app-shell/src/AgentWorkbench.tsx`
-- `packages/app-shell/src/WorkbenchIcon.tsx`
-- `packages/app-shell/src/agent-workbench.css`
+- `packages/client/ui/src/workbench/ResizableWorkbench.tsx`
+- `packages/client/ui/src/workbench/workbench.css`
+- `packages/client/app-shell/src/AgentWorkbench.tsx`
+- `packages/client/app-shell/src/WorkbenchIcon.tsx`
+- `packages/client/app-shell/src/agent-workbench.css`
 - `docs/standards/UI_LAYOUT.md`
 - `docs/testing/WEB_UI_TEST.md`
 
@@ -3694,17 +3714,17 @@ v0.0.38 曾把 Shell Actions 放在全宽 Web Chrome 中。该布局已由 #21.1
 
 ### 影响范围
 
-- `packages/ui/src/workbench/ResizableWorkbench.tsx`
-- `packages/ui/src/workbench/workbench-layout.types.ts`
-- `packages/ui/src/workbench/workbench.css`
-- `packages/app-shell/src/AgentWorkbench.tsx`
-- `packages/app-shell/src/workbench.types.ts`
-- `packages/app-shell/src/WorkbenchIcon.tsx`
-- `packages/app-shell/src/agent-workbench.css`
+- `packages/client/ui/src/workbench/ResizableWorkbench.tsx`
+- `packages/client/ui/src/workbench/workbench-layout.types.ts`
+- `packages/client/ui/src/workbench/workbench.css`
+- `packages/client/app-shell/src/AgentWorkbench.tsx`
+- `packages/client/app-shell/src/workbench.types.ts`
+- `packages/client/app-shell/src/WorkbenchIcon.tsx`
+- `packages/client/app-shell/src/agent-workbench.css`
 - `apps/web/src/LocalTerminal.tsx`
 - `apps/web/src/local-terminal.css`
 - `apps/web/src/vite-custom-events.d.ts`
-- `apps/web/src/App.tsx`
+- `packages/client/web/src/App.tsx`
 - `apps/web/vite.config.ts`
 - `docs/standards/UI_LAYOUT.md`
 
@@ -3799,8 +3819,8 @@ v0.0.43 根据用户实机截图纠正 #21.10 的定位模型：
 
 ### 影响范围
 
-- `packages/app-shell/src/AgentWorkbench.tsx`
-- `packages/app-shell/src/agent-workbench.css`
+- `packages/client/app-shell/src/AgentWorkbench.tsx`
+- `packages/client/app-shell/src/agent-workbench.css`
 - `docs/standards/UI_LAYOUT.md`
 - `docs/testing/WEB_UI_TEST.md`
 
@@ -3887,7 +3907,7 @@ v0.0.44 根据用户实机照片修复三处重复 Tooltip：
 
 ### 影响范围
 
-- `packages/app-shell/src/AgentWorkbench.tsx`
+- `packages/client/app-shell/src/AgentWorkbench.tsx`
 - `scripts/ui-contract-check.mjs`
 - `scripts/governance-check.mjs`
 - `scripts/comment-check.mjs`
@@ -3984,10 +4004,10 @@ Mobile <760
 
 ### 影响范围
 
-- `packages/app-shell/src/AgentWorkbench.tsx`
-- `packages/app-shell/src/agent-workbench.css`
-- `packages/ui/src/workbench/ResizableWorkbench.tsx`
-- `packages/ui/src/workbench/workbench.css`
+- `packages/client/app-shell/src/AgentWorkbench.tsx`
+- `packages/client/app-shell/src/agent-workbench.css`
+- `packages/client/ui/src/workbench/ResizableWorkbench.tsx`
+- `packages/client/ui/src/workbench/workbench.css`
 - `scripts/ui-contract-check.mjs`
 - `docs/standards/UI_LAYOUT.md`
 - `docs/testing/WEB_UI_TEST.md`
@@ -4081,10 +4101,10 @@ v0.0.46 修正 v0.0.45 对“吸附”的理解错误：**展开态不再允许�
 
 ### 影响范围
 
-- `packages/app-shell/src/AgentWorkbench.tsx`
-- `packages/app-shell/src/agent-workbench.css`
-- `packages/ui/src/workbench/ResizableWorkbench.tsx`
-- `packages/ui/src/workbench/workbench.css`
+- `packages/client/app-shell/src/AgentWorkbench.tsx`
+- `packages/client/app-shell/src/agent-workbench.css`
+- `packages/client/ui/src/workbench/ResizableWorkbench.tsx`
+- `packages/client/ui/src/workbench/workbench.css`
 - `scripts/ui-contract-check.mjs`
 - `docs/standards/UI_LAYOUT.md`
 - `docs/testing/WEB_UI_TEST.md`
@@ -4160,7 +4180,7 @@ v0.0.47 不再使用 `1240 / 760` 这类固定 viewport 断点，也不再由 Ap
 
 新增统一布局计算器：
 
-`packages/ui/src/workbench/workbench-layout.config.ts`
+`packages/client/ui/src/workbench/workbench-layout.config.ts`
 
 它集中保存：
 
@@ -4257,13 +4277,13 @@ Overlay 宽度使用 CSS 变量 + `clamp()` / 百分比，不再使用旧的 `42
 
 ### 影响范围
 
-- `packages/ui/src/workbench/workbench-layout.config.ts`（新增）
-- `packages/ui/src/workbench/workbench-layout.types.ts`
-- `packages/ui/src/workbench/ResizableWorkbench.tsx`
-- `packages/ui/src/workbench/workbench.css`
-- `packages/ui/src/index.ts`
-- `packages/app-shell/src/AgentWorkbench.tsx`
-- `packages/app-shell/src/agent-workbench.css`
+- `packages/client/ui/src/workbench/workbench-layout.config.ts`（新增）
+- `packages/client/ui/src/workbench/workbench-layout.types.ts`
+- `packages/client/ui/src/workbench/ResizableWorkbench.tsx`
+- `packages/client/ui/src/workbench/workbench.css`
+- `packages/client/ui/src/index.ts`
+- `packages/client/app-shell/src/AgentWorkbench.tsx`
+- `packages/client/app-shell/src/agent-workbench.css`
 - `scripts/ui-contract-check.mjs`
 - 当前 UI / Test / Code Map / Prompt / Plan / Progress / Changelog / Release 文档
 
@@ -4379,10 +4399,10 @@ v0.0.47 正式左栏由动态 `leftWidth` 控制，但 Hover Preview 仍在 `age
 
 ### 影响范围
 
-- `packages/ui/src/workbench/ResizableWorkbench.tsx`
-- `packages/ui/src/workbench/workbench-layout.types.ts`
-- `packages/app-shell/src/AgentWorkbench.tsx`
-- `packages/app-shell/src/agent-workbench.css`
+- `packages/client/ui/src/workbench/ResizableWorkbench.tsx`
+- `packages/client/ui/src/workbench/workbench-layout.types.ts`
+- `packages/client/app-shell/src/AgentWorkbench.tsx`
+- `packages/client/app-shell/src/agent-workbench.css`
 - `scripts/ui-contract-check.mjs`
 - 当前 UI / Test / Code Map / Prompt / Plan / Progress / Changelog / Release 文档
 

@@ -1,0 +1,22 @@
+{
+  "name": "@lfaa/bundle-web-app",
+  "private": true,
+  "version": "0.0.100",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./vite": "./src/vite.ts"
+  },
+  "author": "二鱼",
+  "dependencies": {
+    "@lfaa/agent-controller": "workspace:*",
+    "@lfaa/host-vite": "workspace:*",
+    "@lfaa/plugin-controller": "workspace:*",
+    "@lfaa/settings-controller": "workspace:*",
+    "@lfaa/terminal-vite": "workspace:*"
+  },
+  "lfaa": {
+    "layer": "bundle",
+    "role": "web-host-bundle"
+  }
+}

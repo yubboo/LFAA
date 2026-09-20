@@ -1,0 +1,19 @@
+{
+  "name": "@lfaa/agent-controller",
+  "private": true,
+  "version": "0.0.100",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "dependencies": {
+    "@lfaa/agent-runtime": "workspace:*",
+    "@lfaa/config-host-node": "workspace:*",
+    "@lfaa/credentials-native": "workspace:*",
+    "@lfaa/llm-openai-compatible": "workspace:*",
+    "vite": "8.2.2"
+  },
+  "lfaa": {
+    "layer": "host",
+    "role": "agent-runtime-http-controller"
+  }
+}

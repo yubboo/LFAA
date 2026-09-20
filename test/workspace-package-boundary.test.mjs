@@ -10,16 +10,16 @@ import path from "node:path";
 const root = process.cwd();
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 const exists = (relative) => fs.existsSync(path.join(root, relative));
-const workspaceRoot = "packages/workspace/src";
+const workspaceRoot = "packages/client/workspace/src";
 
 test("workspace is one real parent package with chat work shared children", () => {
-  assert.equal(exists("packages/workspace/package.json"), true);
+  assert.equal(exists("packages/client/workspace/package.json"), true);
   assert.equal(exists(`${workspaceRoot}/chat/index.ts`), true);
   assert.equal(exists(`${workspaceRoot}/work/index.ts`), true);
   assert.equal(exists(`${workspaceRoot}/shared/index.ts`), true);
   assert.equal(exists("packages/chat-workspace"), false);
   assert.equal(exists("packages/work-workspace"), false);
-  const manifest = JSON.parse(read("packages/workspace/package.json"));
+  const manifest = JSON.parse(read("packages/client/workspace/package.json"));
   assert.equal(manifest.name, "@lfaa/workspace");
   assert.equal(manifest.lfaa?.role, "workspace-feature-composition");
 });

@@ -1,0 +1,17 @@
+{
+  "name": "@lfaa/plugin-controller",
+  "private": true,
+  "version": "0.0.100",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "dependencies": {
+    "@lfaa/plugin-host-node": "workspace:*",
+    "@lfaa/plugin-runtime": "workspace:*",
+    "vite": "8.2.2"
+  },
+  "lfaa": {
+    "layer": "host",
+    "role": "plugin-manager-http-controller"
+  }
+}

@@ -62,9 +62,15 @@ test("menu 1 never auto-updates packages or clears pnpm caches", () => {
   assert.equal(packageJson.packageManager, "pnpm@11.17.0");
 });
 
-test("local dependency state is cache-only and gitignored", () => {
-  assert.match(setup, /\.lfaa\\state\\dependency-state\.json/);
-  assert.match(gitignore, /^\.lfaa\/state\/$/m);
+test("local dependency state lives in user LFAA_HOME instead of the source repository", () => {
+  const homeResolver = functionBody("Get-LfaaRuntimeHome");
+  const statePath = functionBody("Get-DependencyStatePath");
+  assert.match(homeResolver, /LFAA_HOME/);
+  assert.match(homeResolver, /LOCALAPPDATA/);
+  assert.match(statePath, /Get-LfaaRuntimeHome/);
+  assert.match(statePath, /state\\dependency-state\.json/);
+  assert.doesNotMatch(statePath, /ProjectRoot|\.lfaa/);
+  assert.doesNotMatch(gitignore, /^\.lfaa\//m);
   const stateWriter = functionBody("Write-DependencyState");
   assert.doesNotMatch(stateWriter, /api.?key|token|secret|password/i);
 });

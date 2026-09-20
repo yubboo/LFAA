@@ -5,7 +5,7 @@
  * 不负责：替代 TypeScript typecheck、运行时单元测试、Storage/Migration 测试或用户验收。
  * 状态归属：无运行时状态；直接读取 @lfaa/config-system 当前源码。
  * 对外接口：node scripts/config-schema-check.mjs。
- * 关联文件：packages/config-system/src/config-schema.ts、config-validator.ts、index.ts、package.json。
+ * 关联文件：packages/settings/config-system/src/config-schema.ts、config-validator.ts、index.ts、package.json。
  * 修改注意事项：只能强化 Config Schema 硬边界，不得通过弱化正则让 Secret 明文字段通过。
  */
 import fs from "node:fs";
@@ -18,14 +18,14 @@ const fail = (message) => {
 };
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-const packagePath = "packages/config-system/package.json";
-if (!fs.existsSync(path.join(root, packagePath))) fail("missing packages/config-system");
+const packagePath = "packages/settings/config-system/package.json";
+if (!fs.existsSync(path.join(root, packagePath))) fail("missing packages/settings/config-system");
 const pkg = JSON.parse(read(packagePath));
 if (pkg.name !== "@lfaa/config-system" || pkg.author !== "二鱼") fail("package identity must be @lfaa/config-system / 二鱼");
 
-const schema = read("packages/config-system/src/config-schema.ts");
-const validator = read("packages/config-system/src/config-validator.ts");
-const index = read("packages/config-system/src/index.ts");
+const schema = read("packages/settings/config-system/src/config-schema.ts");
+const validator = read("packages/settings/config-system/src/config-validator.ts");
+const index = read("packages/settings/config-system/src/index.ts");
 const combined = `${schema}\n${validator}`;
 
 const versionDeclarations = schema.match(/export const CONFIG_SCHEMA_VERSION\s*=\s*1\b/g) ?? [];

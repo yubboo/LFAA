@@ -39,9 +39,9 @@ for (const relative of [...new Set(packageFiles)]) {
   if (data.version !== version) fail(`${relative} version ${data.version} != ${version}`);
 }
 
-for (const entry of fs.readdirSync(path.join(root, "crates"), { withFileTypes: true })) {
+for (const entry of fs.readdirSync(path.join(root, "native"), { withFileTypes: true })) {
   if (!entry.isDirectory()) continue;
-  const relative = `crates/${entry.name}/Cargo.toml`;
+  const relative = `native/${entry.name}/Cargo.toml`;
   const absolute = path.join(root, relative);
   if (!fs.existsSync(absolute)) continue;
   const match = readText(relative).match(/^version\s*=\s*"([^"]+)"/m);

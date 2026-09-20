@@ -20,10 +20,6 @@ docs/logs/runtime/github-push/*.log
 
 # Local source update runtime logs
 docs/logs/runtime/source-update/*.log
-.lfaa/cache/
-.lfaa/state/
-.lfaa/tmp/
-.lfaa/logs/
 
 # Legacy runtime log path kept ignored for compatibility
 docs/logs/workspace-sync/*.log

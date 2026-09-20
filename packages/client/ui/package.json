@@ -1,0 +1,25 @@
+{
+  "name": "@lfaa/ui",
+  "private": true,
+  "version": "0.0.100",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./workbench": "./src/workbench/index.ts",
+    "./ui-overlay": "./src/ui-overlay/index.ts",
+    "./ui-controls": "./src/ui-controls/index.ts",
+    "./ui-effects": "./src/ui-effects/index.ts",
+    "./ui-extension": "./src/ui-extension/index.ts",
+    "./ui-motion": "./src/ui-motion/index.ts",
+    "./ui-shortcuts": "./src/ui-shortcuts/index.ts",
+    "./ui-resize": "./src/ui-resize/index.ts"
+  },
+  "author": "二鱼",
+  "peerDependencies": {
+    "react": "19.3.0"
+  },
+  "lfaa": {
+    "layer": "presentation",
+    "role": "shared-ui"
+  }
+}

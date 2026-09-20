@@ -1,0 +1,15 @@
+{
+  "name": "@lfaa/plugin-runtime",
+  "private": true,
+  "version": "0.0.100",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "dependencies": {
+    "@lfaa/plugin-sdk": "workspace:*"
+  },
+  "lfaa": {
+    "layer": "runtime",
+    "role": "plugin-registry-and-lifecycle"
+  }
+}

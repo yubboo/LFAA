@@ -1,0 +1,15 @@
+{
+  "name": "@lfaa/codex-app-server",
+  "private": true,
+  "version": "0.0.100",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "dependencies": {
+    "@lfaa/config-system": "workspace:*"
+  },
+  "lfaa": {
+    "layer": "host-adapter",
+    "role": "official-codex-app-server-adapter"
+  }
+}

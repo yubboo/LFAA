@@ -1,0 +1,23 @@
+/**
+ * 文件：LocalTerminal.module.css
+ * 作用：Web 浏览器端 xterm 终端组件的局部视觉样式。
+ * 负责：终端宿主尺寸、xterm 第三方 DOM 局部适配、连接状态角标。
+ * 不负责：Workbench Dock 几何、PTY 生命周期、终端命令、主题状态管理。
+ * 状态归属：无业务状态；只消费 Agent Theme CSS Token 与 data-state。
+ * 对外接口：LocalTerminal.tsx CSS Module class。
+ * 关联文件：../view/LocalTerminal.tsx、packages/terminal/terminal-vite/src/terminal-bridge.ts。
+ * 修改注意事项：只允许 :global 适配 xterm 第三方 class，禁止影响 Workbench 其他模块。
+ */
+
+/* ===== 1. 组件根盒子 ===== */
+.root { position:relative; width:100%; height:100%; min-width:0; min-height:0; background:var(--agent-bg,#1f1f1f); }
+
+/* ===== 2. xterm 第三方宿主 ===== */
+.host { position:absolute; inset:7px 8px 7px 10px; min-width:0; min-height:0; }
+.host :global(.xterm) { height:100%; padding:0; }
+.host :global(.xterm-viewport) { background:transparent !important; scrollbar-width:thin; scrollbar-color:var(--agent-strong-border,#454545) transparent; }
+
+/* ===== 3. 本地桥状态角标 ===== */
+.state { position:absolute; z-index:4; top:7px; right:9px; padding:2px 6px; border-radius:999px; background:color-mix(in srgb,var(--agent-sidebar,#171717) 90%,transparent); color:var(--agent-subtle,#737373); font-size:9px; text-transform:uppercase; letter-spacing:.06em; pointer-events:none; opacity:.75; }
+.state[data-state="ready"] { color:var(--agent-status-ok,#67b88a); }
+.state[data-state="error"], .state[data-state="offline"] { color:#c97979; }

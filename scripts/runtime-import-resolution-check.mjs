@@ -6,7 +6,7 @@
  * 状态归属：无运行时状态；每次读取当前 workspace package.json 与源码。
  * 对外接口：`node scripts/runtime-import-resolution-check.mjs`。
  * 关联文件：scripts/import-path-check.mjs、workspace package.json、DEVELOPMENT.md。
- * 修改注意事项：新增 workspace 公共子路径时必须同时写入 package exports；不得通过宿主 alias 掩盖 package 自身解析缺口；foundation/domain/runtime/host-adapter 源码与 apps/web/dev Host 源码的相对 ESM import 必须写 .ts/.tsx/.js 等真实扩展名。
+ * 修改注意事项：新增 workspace 公共子路径时必须同时写入 package exports；不得通过宿主 alias 掩盖 package 自身解析缺口；foundation/domain/runtime/host-adapter/host/bundle 中由 Node/Vite Host 直接执行的源码，以及 apps/web/vite.config.ts，相对 ESM import 必须写 .ts/.tsx/.js 等真实扩展名。
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -68,7 +68,7 @@ function importsFrom(text) {
 }
 
 
-const nodeSourceLayers = new Set(["foundation", "domain", "runtime", "host-adapter"]);
+const nodeSourceLayers = new Set(["foundation", "domain", "runtime", "host-adapter", "bundle"]);
 
 function owningWorkspace(relative) {
   const absolute = path.join(root, relative);
@@ -81,9 +81,11 @@ function owningWorkspace(relative) {
 }
 
 function isNodeExecutedSource(relative) {
-  if (relative === "apps/web/vite.config.ts" || relative.startsWith("apps/web/dev/")) return true;
+  if (relative === "apps/web/vite.config.ts") return true;
   const owner = owningWorkspace(relative);
-  return owner ? nodeSourceLayers.has(owner.pkg.lfaa?.layer) : false;
+  if (!owner) return false;
+  if (nodeSourceLayers.has(owner.pkg.lfaa?.layer)) return true;
+  return owner.pkg.lfaa?.layer === "host" && owner.pkg.lfaa?.role !== "web-client-composition";
 }
 
 function relativeImportHasExplicitExtension(spec) {

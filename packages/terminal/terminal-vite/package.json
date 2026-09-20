@@ -1,0 +1,16 @@
+{
+  "name": "@lfaa/terminal-vite",
+  "private": true,
+  "version": "0.0.100",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "dependencies": {
+    "node-pty": "1.1.0",
+    "vite": "8.2.2"
+  },
+  "lfaa": {
+    "layer": "host-adapter",
+    "role": "vite-terminal-host-adapter"
+  }
+}

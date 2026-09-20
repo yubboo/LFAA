@@ -7,21 +7,21 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const read = (path) => fs.readFileSync(path, "utf8");
-const canvas = read("packages/ui/src/features/workbench/InfiniteCanvas.tsx");
-const canvasTypes = read("packages/ui/src/features/workbench/infinite-canvas.types.ts");
-const canvasCss = read("packages/ui/src/features/workbench/infinite-canvas.css");
-const shell = read("packages/app-shell/src/AgentWorkbench.tsx");
-const left = read("packages/app-shell/src/workbench/left/view/LeftSidebarRegion.tsx");
-const center = read("packages/app-shell/src/workbench/center/view/CenterWorkspaceRegion.tsx");
-const header = read("packages/app-shell/src/workbench/center/header/view/CenterHeader.tsx");
-const chat = read("packages/workspace/src/chat/view/ChatWorkspace.tsx");
-const workCanvasView = read("packages/workspace/src/work/view/WorkWorkspace.tsx");
-const workCanvasController = read("packages/workspace/src/work/logic/useWorkCanvasController.ts");
-const workCanvasLayout = read("packages/workspace/src/work/logic/work-canvas-layout.ts");
-const session = read("packages/workspace/src/shared/logic/useWorkspaceSessionController.ts");
-const composer = read("packages/app-shell/src/workbench/center/composer/view/ComposerRegion.tsx");
-const runtimeController = read("packages/app-shell/src/workbench/center/composer/runtime-control/logic/useRuntimeControlController.ts");
-const settingsViewModels = read("packages/app-shell/src/workbench/settings/logic/settings-view-models.ts");
+const canvas = read("packages/client/ui/src/features/workbench/InfiniteCanvas.tsx");
+const canvasTypes = read("packages/client/ui/src/features/workbench/infinite-canvas.types.ts");
+const canvasCss = read("packages/client/ui/src/features/workbench/infinite-canvas.css");
+const shell = read("packages/client/app-shell/src/AgentWorkbench.tsx");
+const left = read("packages/client/app-shell/src/workbench/left/view/LeftSidebarRegion.tsx");
+const center = read("packages/client/app-shell/src/workbench/center/view/CenterWorkspaceRegion.tsx");
+const header = read("packages/client/app-shell/src/workbench/center/header/view/CenterHeader.tsx");
+const chat = read("packages/client/workspace/src/chat/view/ChatWorkspace.tsx");
+const workCanvasView = read("packages/client/workspace/src/work/view/WorkWorkspace.tsx");
+const workCanvasController = read("packages/client/workspace/src/work/logic/useWorkCanvasController.ts");
+const workCanvasLayout = read("packages/client/workspace/src/work/logic/work-canvas-layout.ts");
+const session = read("packages/client/workspace/src/shared/logic/useWorkspaceSessionController.ts");
+const composer = read("packages/client/app-shell/src/workbench/center/composer/view/ComposerRegion.tsx");
+const runtimeController = read("packages/client/app-shell/src/workbench/center/composer/runtime-control/logic/useRuntimeControlController.ts");
+const settingsViewModels = read("packages/client/app-shell/src/workbench/settings/logic/settings-view-models.ts");
 const workbenchSurface = [shell, left, center, header, chat, workCanvasView, session, composer, runtimeController, settingsViewModels].join("\n");
 
 test("infinite canvas supports pan zoom reset node drag and edge rendering", () => {

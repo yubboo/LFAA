@@ -1,699 +1,82 @@
-## v0.0.98 / #21.27 审计问题修复回归
+# LFAA Testing & Gates — v0.0.100
 
-- 在 Node 24 / pnpm 11.17.0 环境实际运行 `pnpm run quality:full`：必须经过治理检查、Web/Config TypeScript、全部 Node 测试和 Vite 生产构建；`workspace-preflight` 只验证无需依赖的静态边界。
-- Node source runtime 测试从真实 Host Consumer `apps/web/` 解析 workspace packages，不要求仓库根部声明无关依赖。
-- 产品 Settings/Page/Plugin/UserMenu 位于 App Shell；AI 配置图形面板按固定规则留在 UI 包；文档当前事实路径通过 `scripts/current-fact-check.mjs` 核对。
-- 发布归档必须按 Unicode ZIP 和 fresh extract preflight 验证；AI 自测通过后仍只标记 pending-user-acceptance。
-- 本次结果：`quality:full` 全部通过；Node source runtime `1/1 PASS`；Web `tsc --noEmit`、Config System TypeScript、Vite production build 均通过；v0.0.98 ZIP 673 entries，fresh extract `workspace-preflight` 全 Gate PASS。
+## 原则
 
-## v0.0.97 / #21.26 全项目维护回归
+架构重构必须靠现有测试护航，不能先关 Gate 再宣称迁移成功。
 
-本版本必须证明“专业术语与契约命名修正不改变行为”：
+## 主要层级
 
-- Workspace boundary：唯一 `packages/workspace`，内部继续是 `chat/work/shared`，禁止回退为平级 Chat/Work package；
-- Terminology contract：`AgentWorkspaceMode / workspaceMode / ChatMessageViewModel` 是当前合同；禁止 `AgentSurfaceMode / AgentRunRequest.surface / ChatProjectionMessage` 回流；
-- Legacy preference migration：必须先读 `lfaa.workspace.mode.v1`，不存在时兼容读取 v0.0.96 的 `lfaa.agent.surface.v1`，新写入只使用新 key；
-- Agent Runtime public API：Workspace/App Shell/Web Host 已使用的 `AgentExecutionHints / AgentRuntimeEvent / AgentRuntimeEventListener` 必须从公共入口导出；
-- Infinite Canvas：pan/zoom/drag/selection/edge/低频 layout commit 行为冻结，只允许注释/文档把错误的 Projection 名称修正为 Renderer/Interaction；
-- Current-fact docs：README / Architecture / Plan / Modules / UI / Runtime / Code Map 不得继续把 Chat/Work 正式称为“投影”；
-- Frozen source diff：Reasoning/Particle/Resize/Motion、Config、Plugin、Credentials、Rust、Windows scripts 不随维护版本改变。
-
-最终发布仍必须做 Unicode ZIP exact entry + `.lfaa` + fresh extract `workspace-preflight`。
-
-## v0.0.95 / #21.24 + #22.8 模块职责与 Infinite Canvas 回归
-
-必须锁定：
-
-- Workbench 每个产品模块经 `index.ts` 暴露，根层不混放 View/Controller/CSS；内部 `view/logic/styles/contracts` 按实际职责存在。
-- `packages/ui` 只作为 UI Kit，`packages/app-shell` 保留产品语义；禁止产品模块深链兄弟内部实现。
-- `apps/web/src` 浏览器端与 `apps/web/dev` Node dev-server 端分离；`vite.config.ts` 只组合 bridge，PTY/Resource 详细实现不得回流 config。
-- InfiniteCanvas 高频 Pointer 不直接 localStorage；WorkCanvas Controller 只持久化 node `id→x/y` 与 viewport；workspaceId 隔离；Session 不持有 Canvas layout。
-- selected/dragging node 置顶，edge 在后；刷新恢复布局且新增/删除节点按 id 容错合并。
-- Reasoning/Particle/Resize/Snap 禁止区与 v0.0.94 保持零功能改动。
-- 最终发布 ZIP 必须 fresh extract，中文代码地图 entry 的 UTF-8 bit 11 正常，`.lfaa` 保留，并从解压根 `workspace-preflight` PASS。
-
-当前制作环境结果：聚焦 63/63 PASS；全仓 Node 151 项中 150 项 PASS。唯一失败是 `node-source-runtime.test.mjs`：当前容器 Node 22.16.0 且未安装 pnpm workspace `node_modules`，Native TypeScript Loader 无法解析 `@lfaa/credentials`；不得将其写成正式 Node 24 workspace 动态验证通过。
-
-## v0.0.94 / #21.23 全域模块化回归
-
-本轮新增/扩展模块边界门禁，检查：
-
-- `AgentWorkbench.tsx` 保持薄 Composition Root；
-- Shell / Left / Center(Header/Conversation/Composer/RuntimeControl) / Right / Terminal / Settings / Session / Shared 均存在公开 `index.ts` 边界；
-- `agent-workbench.css` 为 reset-only，模块 CSS 禁止 `:global` 与 legacy `.agent-*`；
-- sibling/ancestor feature 不允许深链 import；
-- 既有 Chat/Work、Settings、Quick Model、Reasoning、Dismissible Layer、Infinite Canvas、Resize/Snap 合同按真实 Owner 文件继续回归；
-- `packages/ui/src/ui-controls`、`ui-effects`、`ui-resize`、`ui-motion` 相对 v0.0.93 零 diff。
-
-当前制作环境结果：聚焦模块/行为测试 45/45 PASS；全仓 Node 合同测试 140 项中 139 项 PASS，唯一 `node-source-runtime.test.mjs` 因 Node 22.16.0 且没有 pnpm workspace `node_modules` 无法解析 `@lfaa/credentials`，属于已记录环境限制；Workbench TS/TSX 语法 transpile 50/50 PASS；`scripts/ui-contract-check.mjs` PASS。
-
-## v0.0.93 / #21.22 Workbench 模块边界回归
-
-必须验证：
-
-- `test/workbench-module-boundary.test.mjs`：四个大区域 + Center/Composer 子模块真实存在，`AgentWorkbench` 不得重新吸收区域 JSX；
-- `model-quick-switch-contract` / `ui-shared-module-contract` / `ui-interaction-motion` 跟随新模块物理路径检查原有行为合同；
-- `packages/app-shell/src/agent-workbench.css` 与 v0.0.91 字节级不变；
-- `packages/ui/src/ui-controls`、`ui-effects`、`ui-resize` 与 v0.0.91 零 diff；
-- UI Contract / Folder Boundary / Workspace Preflight 必须通过。
-
-本轮用户验收重点不是新视觉，而是确认模块重构没有让已有功能消失或回退。
-
-## v0.0.91 / #22.6 + #20.19 回归
-
-本轮新增两类必须回归：
-
-- Canvas Effect：`ParticleStreamCanvas` 必须含 `requestAnimationFrame / ResizeObserver / devicePixelRatio / prefers-reduced-motion`，不得含逐帧 React State；`effects.css` 不得出现粒子 `animation`/帧动画；App Shell 必须 `active={boostActive}`。
-- Reasoning 提交：`commitReasoningIndex` 必须使用 `reasoningCommitQueueRef` 串行持久化，不得调用 `runModelControl` / `setModelControlBusy`；Slider PointerUp 不再产生 preview(next) → commit → preview(null) 双重业务更新。
-- Release ZIP：`release-archive.test.mjs` 必须验证 exact 中文 entry 的 ZIP UTF-8 bit；`release-path-encoding` 与 `workspace-sync-idempotency` 锁定 canonical Unicode 来源阻断。
-- 最终成品必须使用 `scripts/release-archive.mjs` 生成，再解压到全新目录运行 `node scripts/workspace-preflight.mjs`。
-
-## v0.0.90 / #22.5 Provider Dynamic Reasoning Projection 回归
-
-自动门禁必须锁定：Runtime reasoning steps 只来自当前模型 `reasoningEffort.options`；禁止固定六档、semantic rank、补档和全局 off 过滤；0/1/3/5 档都必须安全；强力推理 toggle 不调用 `commitReasoningIndex`；Run 只提交 `providerOption.value`；Chat/Composer 共用水平几何；#22.4 的 Slider 白色 Thumb、grab/grabbing、常驻 Effect Host 与 Runtime Card 防闪屏约束继续保留。
-
-Windows 实机重点：分别切换“无 reasoning capability / 少量档位 / 多档位”的真实模型，观察 Slider 数量是否立即与当前模型官方 Capability 一致；Provider 有 `none/关闭思考` 时保留，没有时不得生成；连续 30 次切模型、拖档、开关强力推理，不能残留上一模型档位、越界、闪白或闪屏。用户消息右对齐输入框、AI 左对齐输入框继续验收。
-
-## v0.0.88 / #22.3 Chat Runtime + Motion 回归
-
-重点实机：模型已配置后发送按钮可用并产生真实回复；连续打开/关闭模型卡不应闪屏；Ctrl+Shift+M / Ctrl+Shift+P 生效；Tooltip 不被卡片裁剪；左右栏正常拉伸具阻尼且 min 后超拖 50% 的防误触吸附规则不变。
-
-## v0.0.87 / #21.21 UI Shared Module / Registry 回归
-
-必须覆盖：
-
-- `packages/ui/src/ui-overlay/ui-controls/ui-effects/ui-extension` 存在，旧 `primitives/useDismissibleLayer` 不得回归；
-- `DiscreteSlider` 自己拥有 Pointer Capture、click/drag、方向键、Home/End；App Shell 不得复制这些实现；
-- `UiEffectRegistry` / `UiExtensionRegistry` 必须提供 owner-scoped `unregisterOwner()` 与 generation；
-- 强力推理只通过 `UiEffectHost + reasoning-overdrive` 调用共享 Effect；App Shell 不得保留粒子 CSS；
-- UI Contract Gate 阻止错误目录与重复实现回流。
-
-## v0.0.86 / #21.20 Runtime Control / Dismissible Popover 回归
-
-- `test/model-quick-switch-contract.test.mjs`：统一 Runtime Control、禁止双 Popover、拖拽/键盘 Slider、最高档强力推理、粒子 reduced-motion、布局隔离。
-- `test/dismissible-layer-contract.test.mjs`：共享 pointerdown capture / composedPath / Escape 行为；品牌、添加、权限、Runtime Control 至少四处复用。
-- `scripts/ui-contract-check.mjs`：禁止 `modelMenuOpen/reasoningMenuOpen` 回归，强制 Runtime Control + `contain:layout paint` + reduced-motion。
-- TypeScript Parser：AgentWorkbench / WorkbenchIcon / useDismissibleLayer / UI index 语法必须通过。
-- 用户实机：重点观察快速连续打开/关闭、模型切换、拖轨道时是否出现局部闪屏；这类问题属于 Popover flicker / layout flash，发现即不通过。
-
-## v0.0.85 / #21.19 Composer ModelQuickSwitch 回归
-
-- `test/model-quick-switch-contract.test.mjs`：锁定 Composer 原地模型 Popover、思考强度 Popover、首次零模型才进入 Settings，以及 AgentRun 携带已校验 model settings。
-- Config Account Service：`setActiveModel` 必须只使用已缓存官方 `modelCatalog`，不得调用 Provider probe；切同一模型时保留已有参数，切新模型按官方 Capability 默认值/输入值校验。
-- Windows 实机：配置至少一个可用模型后返回 Chat，点击模型应原地弹出；切模型/强度后不离开页面，刷新后保持；Chat/Work 显示同一结果。
-- 首次配置：`modelCatalog` 为空时模型按钮才进入 `设置 → AI 与模型`；之后 `管理模型` 只作为 Popover 次级入口。
-- 当前制作环境：仓库 Node 111/111 PASS；Config System 39/39 PASS；TS/TSX Parser 语法检查 PASS。正式 Node 24 + Vite 浏览器交互仍需实机。
-
-## v0.0.84 / #2.19 Provider Host 网络回归
-
-- `test/ai-web-host.test.mjs`：锁定 `http.setGlobalProxyFromEnv()`、system CA 合并、401 分类、TLS 不得关闭；Windows Setup 必须启用 `NODE_USE_ENV_PROXY` / `NODE_USE_SYSTEM_CA`、读取 Internet Settings，并恢复临时环境。
-- Windows 实机：启动 Web 观察 `【网络】【Provider】`；用真实 OpenAI/DeepSeek Key 测试模型目录，结果应为连接成功或明确网络/认证类别，不能只剩 `fetch failed`。
-- 安全检查：Provider 错误 body/Header/API Key 不进入 UI/日志；不得设置 `NODE_TLS_REJECT_UNAUTHORIZED=0` 或 `rejectUnauthorized:false`。
-- 当前制作环境：仓库 Node 108/108 + Config System 37/37 = 145/145 PASS；`node-http-json.ts` Node TypeScript source import PASS；workspace preflight PASS。真实 Windows 系统代理/Provider 网络仍需实机。
-
-## v0.0.83 / #2.18 模型管理 Active Model / Catalog 回归
-
-- Config Account Service：首个账户建立显式 Active Model；新增第二账户不得抢占；显式激活后 Snapshot/Composer 才切换；`modelCatalog` 随账户保存并在重开后可用。
-- Account/Secret 一致性：metadata 写入失败、Active Model 写入失败、Secret 删除失败都必须补偿回滚，不得残留半状态。
-- Web Host：账户状态文件 v1→v2 迁移、`activeModel` API、reprobe 返回 Snapshot、账户 JSON 无 Secret 明文。
-- Settings/App Shell：模型管理读取 `account.modelCatalog`，显示“当前 Agent 模型 / 设为当前模型”，Composer 只从 `aiSnapshot.activeModel` 建立 AgentModelBinding，禁止恢复“找第一条 selectedModelId”的数组顺序推断。
-- Windows 实机：保存真实 Provider 账户 → 模型目录即时可见 → 刷新 Settings 仍可见 → 新增第二账户不抢占 → 点“设为当前模型”后 Composer 标签切换 → 重启 Web 后 Active Model 继续保持；`.lfaa/state/ai-accounts.json` 不得包含 API Key/Token。
-- 当前制作环境：仓库 Node 107/107 + Config 37/37 = 144/144 PASS；Config System TypeScript noEmit PASS；相关 TS/TSX 语法检查 PASS。真实 Windows Secret Store / Provider 网络仍保留实机验收。
-
-## v0.0.82 / #2.17 Node ESM Source Package 运行时导入回归
-
-- `test/runtime-import-resolution.test.mjs`：锁定 `plugin-runtime` 与 `plugin-sdk` 的显式 `.ts` 相对导入。
-- `scripts/runtime-import-resolution-check.mjs`：除 workspace public exports 外，新增 Node/Vite Config 直接执行源码的相对 ESM 扩展名与目标存在性检查。
-- 用户 Windows 实机：`LFAA-Setup.bat → 2` 必须越过 Vite config 加载，不得再出现 `plugin-runtime/src/registry` `ERR_MODULE_NOT_FOUND`。
-- 当前静态/Node 结果：仓库 106/106 PASS；Config 33/33 PASS；Node source runtime 动态 import PASS；workspace preflight 全 PASS。
-
-## v0.0.81 / #20.18 Windows PowerShell 智能引号解析回归
-
-- `test/dependency-setup.test.mjs`：所有 `scripts/windows/*.ps1` 禁止 U+2018/U+2019/U+201C/U+201D；`Show-NodeDependencyPlan` 必须使用 `「新增」`。
-- `scripts/windows-script-encoding-check.mjs`：继续要求 UTF-8 BOM，并新增智能引号语法安全 Gate。
-- 用户 Windows 实机：`LFAA-Setup.bat → 1` 必须能越过依赖摘要进入确认/安装或健康返回，不得再出现 `ConsoleColor` 参数转换错误。
-- 当前静态/Node 结果：仓库 102/102 PASS；Config 33/33 PASS；workspace preflight 全 PASS。
-
-## v0.0.80 / #22.2 Plugin Profile、骨架与发布成品
-
-- `test/package-architecture.test.mjs`：锁定真实 workspace、layer/role、依赖方向、无环、无占位 crate/package。
-- `test/plugin-platform-contract.test.mjs`：锁定 Manifest/Capability/Credential requirement、Registry generation、Plugin Profile 安装事务边界。
-- `test/plugin-manager-ui-contract.test.mjs`：锁定 Settings 插件管理面与 Web bridge 共享单一 PluginManager。
-- `test/fixtures/lfaa-plugin-basic`：无 install script / 无外部依赖的离线验收包，用于 Windows 实机验证 Plugin Profile 主链。
-- `test/release-path-encoding.test.mjs`：锁定源码树 exact 中文代码地图 + `.lfaa` 隐藏骨架，拒绝已知 mojibake 路径。
-- 最终发布必须额外执行 ZIP round-trip：检查 ZIP entry → 解压 → exact path → workspace-preflight；静态源码测试不能替代该成品检查。
-- 当前容器为 Node 22 且无项目 pnpm/node_modules；不得把正式 Node24 + pnpm typecheck/build 或 Windows 插件安装动态验证写成已通过。
-- **本版已执行：** 仓库 Node 101/101 PASS；Config System 33/33 PASS；6 个非 React 核心 package 定向 TypeScript noEmit PASS；源码 preflight PASS；Unicode-safe ZIP round-trip exact path + 解压根 preflight PASS。
-
-## v0.0.79 / #4.4 发布包完整性与 Source Preflight
-
-- `workspace-sync-idempotency.test.mjs` 新增 Source Package Preflight 顺序契约：必须先于 `Get-SyncPlan` 和任何 destructive apply。
-- 成品发布必须执行 ZIP round-trip：解压后确认 8 个 `.lfaa` 必需文件存在，再从解压根运行 `node scripts/workspace-preflight.mjs`。
-- Source Preflight 与 Target Preflight 必须继续复用同一个 `scripts/workspace-preflight.mjs`，禁止复制 Gate 列表。
-
-## v0.0.78 / #22.1 + #21.18 + #20.17 Plugin Platform / UI / Dependency Idempotency
-
-- `test/plugin-platform-contract.test.mjs`：锁定 Plugin SDK 唯一 Capability 词汇、Manifest/App Pack/External Adapter、generation-based Registry，以及 Agent Runtime 复用 Plugin SDK 而不复制第二套 Capability 类型。
-- `scripts/language-ownership-check.mjs`：锁定 TypeScript Product & Agent Plane、Frozen Rust Native Kernel、Optional Python Runtime；禁止 `apps/` / `packages/` 混入 Rust/Python 产品实现，也禁止 `crates/` 混入 TS/Python 业务实现。
-- `test/dependency-setup.test.mjs`：锁定 dependency-state 只是缓存；指纹/基线变化本身不得触发 install；首次基线不得把所有依赖误报为新增。
-- `test/workspace-sync-idempotency.test.mjs`：锁定依赖声明 fingerprint 与稳定工作区 `pnpm-lock.yaml` 保护；真实依赖声明变化必须优先解除保护。
-- `scripts/ui-contract-check.mjs`：锁定左上角 LFAA 唯一 Chat/Work 切换、Codex 风格权限说明 Popover、可点击模型设置、可点击 Capability 添加入口，禁止原生权限 `<select>` 与中间重复 Surface Switch 回归。
-- 仓库 `node --test test/*.test.mjs`：88/88 PASS；Config System：33/33 PASS；合计 121/121 PASS。
-- `plugin-sdk + plugin-runtime + agent-runtime` 定向 TypeScript `--noEmit`、Plugin SDK 独立 TypeScript、Workbench TSX 语法检查：PASS。
-- governance / import-path / runtime-import / folder-boundary / language-ownership / dev-log / docs / comments / Windows encoding / release consistency / prompt lifecycle / config schema / release gates / UI contract，以及统一 `workspace-preflight`：全部 PASS。
-- 正式 Web build / `release:full` 仍要求项目锁定 Node 24.x + pnpm 11.17.0；当前制作容器不满足时不得用静态测试冒充正式发布环境 PASS。
-
-## v0.0.77 / #22.0 + #4.3 Agent Runtime / Infinite Canvas / Workspace Preflight
-
-- `test/agent-runtime-contract.test.mjs`：三档权限、Codex 原子权限映射、Trust Core 不可被普通 Run 修改、官方 Harness Registry、Chat/Work 单一 `AgentRunRequest`。
-- `test/infinite-canvas-contract.test.mjs`：无限画布 pan / zoom / reset / node drag / SVG edge，Workbench 双 Surface、Configured Model、Runtime 未连接不伪造执行。
-- `test/workspace-preflight.test.mjs`：失败 Gate 必须直接可见；Sync / GitHub 必须共用 `scripts/workspace-preflight.mjs`；运行时日志目录必须有可追踪占位文件。
-- `scripts/ui-contract-check.mjs`：新增 Chat/Work 共用 Runtime、InfiniteCanvas、禁止硬编码模型名静态 Gate。
-- `packages/agent-runtime` 与 `packages/config-system` 使用当前容器全局 TypeScript 执行 `tsc --noEmit`：PASS。
-- 仓库 `node --test test/*.test.mjs`：78/78 PASS；Config System：33/33 PASS；合计 111/111 PASS。
-- `scripts/workspace-preflight.mjs`：governance / import-path / runtime-import / folder-boundary / dev-log / docs / comments / Windows encoding / release consistency / prompt lifecycle / config schema / release gates / UI contract 全部 PASS。
-- Workbench 合同额外锁定 `agentRuntimeHost.startRun(...)`：Chat / Work Composer 都构造同一个 `AgentRunRequest`，携带当前 Surface、Configured Model、Permission Profile 与 workspace；未注入真实 Host 时仍不得伪造执行。
-- 当前制作容器为 Node 22.16.0，而项目正式要求 Node 24.x 且包内不带 `node_modules`；因此不把正式 `pnpm` Web build / release:full 冒充为 PASS。
-- Windows 实机验收：先运行 `LFAA-Sync.bat`；同步完成必须已经跑统一 preflight。再运行 `LFAA-GitHub.bat → 1`，若 Gate 失败，当前窗口必须直接打印 Gate 名称和原始摘要，不得只显示日志路径。
-- UI 实机验收：Chat / Work 可切换；Work 可平移、缩放、复位、拖动节点；模型标签来自已配置账户；当前尚未安装/接入真实 Agent Runtime Host 时明确显示“Runtime 未连接”。
-
-## v0.0.76 / #2.16 OpenAI ChatGPT 套餐 / Codex App Server 登录闭环
-
-- `packages/config-system/test/*.test.mjs`：33/33 PASS；新增 Managed Auth Host Port、Subscription 无 Secret/无 `credentialRef`、运行时模型能力优先、重测/选模/删除不碰 Secret Store 或全局认证，同时 API Key 流程继续回归。
-- `test/ai-web-host.test.mjs`：12/12 PASS；锁定固定 `codex app-server`、Windows `codex.cmd` shell 解析、stdio JSONL、initialize/initialized、login start/completed/cancel、account/read、model/list、Bridge Subscription 路由、官方 HTTPS 登录域名与浏览器 Storage 禁令。
-- `test/settings-shell.test.mjs`：12/12 PASS；锁定 Provider `hostCapability` + Host Snapshot 可用性、ChatGPT 登录按钮与 Token 边界，并确认普通 API Key 仍要求 `secret.trim()` + model。
-- 仓库 `node --test test/*.test.mjs`：70/70 PASS；与 Config System 合计 103/103 PASS。
-- Config System 使用当前容器全局 TypeScript 执行 `tsc -p packages/config-system/tsconfig.json --noEmit`：PASS；Web Host 本次 3 个 `.ts` 改动使用 Node type stripping 语法检查：PASS。
-- governance / import / runtime import / folder / docs / comments / Windows BOM / release consistency / prompt lifecycle / config schema / release gates / UI contract：全部 PASS。
-- 正式 `pnpm run quality:quick/build:web` 需要项目锁定 Node 24.x + pnpm 11.17.0 + `node_modules`；制作容器为 Node 22.16.0 且包内未带依赖、无法联网安装，因此此项明确保留为用户/正式环境验证，不以替代工具冒充 PASS。
-- Windows 实机：确认本机 `codex` 可运行；点击 ChatGPT 登录能打开官方网页；登录完成后账户自动保存并显示模型；`.lfaa/state/ai-accounts.json` 的该账户必须 `credentialRef: null`，不得含 accessToken/refreshToken/authUrl；删除 LFAA 账户后其他 Codex 客户端登录状态应保持。
-
-## v0.0.75 / #2.15 侧栏最小宽度超拖吸附修正
-
-- `test/workbench-snap-animation.test.mjs`：锁定 capture 前视觉必须 `clamp(raw, min, max)`，禁止 `captureThreshold` 控制视觉宽度；capture 仍由隐藏 Pointer 超拖阈值触发。
-- `scripts/ui-contract-check.mjs`：禁止恢复 `raw <= min` 直接吸附，也禁止恢复 `clamp(raw, captureThreshold, max)` 的可见缩窄。
-- `resolveSnapDragFrame` 行为测试：300→300、220(min)→220、170→220、111→220、110(capture)→0/snapped；验证隐藏超拖不改变视觉宽度。
-- 当前制作环境：仓库 Node 回归 65/65 + Config System 30/30 = 95/95 PASS；治理链全部 PASS。
-- 用户实机：正常区间任意宽度可停；到 min 后继续向内拖时栏宽保持 min；超拖约半个 min 后才吸附；阈值前松手保持 min；capture 后不松手反向释放仍丝滑。
-
-## v0.0.74 / #2.14 侧栏吸附触发阈值变量化
-
-- `test/workbench-snap-animation.test.mjs`：锁住 `raw <= min` 不得直接 capture，正式触发必须走 `captureThreshold = min × snapCaptureRatio`；验证默认 ratio=0.50、左右/Bottom 共用、反向 release 继续存在。
-- `test/settings-shell.test.mjs`：验证 Settings 与 App Shell 都使用共享 `layout.snapCaptureRatio`，并继续共用唯一 leftPaneWidth。
-- 历史依赖/发布/运行时导入/AI Host 回归：当前容器已执行 64/64 PASS。
-- 用户实机：重点测试 min 后继续向内拖到半宽才吸附、未到阈值松手恢复 min、吸附后不松手反向拉出。
-
-## v0.0.73 / #2.13 Rust Secret Broker 与官方模型能力配置
-
-- `packages/config-system/test/*.test.mjs`：30/30 PASS；覆盖官方模型目录、Provider Capability、模型配置白名单、未知字段/伪造模型拒绝与 Config Schema 回归。
-- `node --test test/ai-web-host.test.mjs`：9/9 PASS；锁定 Rust Broker、`CredWriteW / CredReadW / CredDeleteW`、写后回读、Secret 不进 argv/env/file/log、UI 不直连 Provider。
-- `tsc -p packages/config-system/tsconfig.json --noEmit`：PASS。
-- Rust Broker 必须使用 stdin/stdout 二进制协议；仓库不得保留正式 C#/PowerShell Credential helper。
-- Windows 实机验收：真实 Key 测试连接 → 选择官方模型 → 保存 → 刷新 → 重启 Vite 重测 → 删除；Credential Manager 中凭证应存在/删除，`.lfaa/state/ai-accounts.json` 只允许 `credentialRef`。
-- 模型验收：运行时模型列表必须来自厂商官方模型 API；智谱无已确认统一列表 API 时只用官方文档 Catalog；Capability 控件必须显示来源与核对日期，未确认能力不得展示。
-- 当前制作容器无 Cargo/pnpm/Windows，不声称 Rust 编译、Windows Credential Manager 或真实厂商 API 动态实机 PASS。
-
-## v0.0.71 / #2.11 工作台 / 设置左栏宽度单一事实源
-
-- `test/settings-shell.test.mjs`：锁定 App Shell 的单一 `leftPaneWidth` 同时注入主 Workbench 与 Settings；Settings 禁止独立宽度 state；
-- `test/workbench-snap-animation.test.mjs`：锁定 `ResizableWorkbench` 受控 `leftWidth` 契约，原 snap/release 行为继续回归；
-- Windows/Web 实机验收：先在工作台把左栏拖到明显宽度，进入 Settings 必须第一帧同宽；再在 Settings 调整宽度，返回工作台必须保持同宽；
-- 首次升级应保留旧版本保存的工作台宽度，通过 `lfaa.workbench.layout.v5.leftWidth → lfaa.shell.left-pane-width.v1` 迁移。
-
-## v0.0.68 / #2.8 Vite Native Config 兼容修复
-
-- `node --test test/ai-web-host.test.mjs`：7/7 PASS；新增 Vite config/dev bridge 本地 ESM import 必须显式 `.ts`，并锁定 `allowImportingTsExtensions: true`；
-- 禁止以 `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` 作为修复；
-- Windows 实机验收：菜单 2 启动 Web 后，不再出现本任务对应的 `configLoader: native` extensionless import warning；
-- `Re-optimizing dependencies because lockfile has changed` 若发生在真实 lockfile 变化后属于 Vite 正常行为。
-
-## v0.0.67 / #2.7 Web API-Key Account 真实闭环
-
-- `packages/config-system/test/*.test.mjs`：26/26 PASS；覆盖六家 Provider、Config Schema、Account Service、Secret 引用、重测/删除/回滚、Qwen 模型解析与 ChatGPT 套餐边界；
-- `node --test test/ai-web-host.test.mjs`：6/6 PASS；锁定 Windows Credential Manager、Secret stdin、账户 JSON 无明文、同源 Host、错误脱敏、UI 不直连 Provider/浏览器存储；
-- Config System `tsc --noEmit`：PASS；UI/App Shell 使用容器临时 React 类型 Stub 的补充 TypeScript：PASS；
-- Settings/Profile/Theme、Workbench Snap、Dependency Setup、Node Dependency Health、Release Environment/Gates 全量回归；
-- folder-boundary / import / governance / docs / comment / Windows BOM / config-schema / ui-contract 全部回归；
-- Windows 实机验收：用真实 API Key 测试连接与模型列表；保存后检查 `.lfaa/state/ai-accounts.json` 不含 Secret；刷新后账户仍在；重启 Vite 后用 Credential Manager 重测；切模与删除真实生效。
-- 当前制作容器不满足正式 Windows Node24 + pnpm11.17.0 + Cargo 环境，不声称 `release:full` 与 Credential Manager 动态实机通过。
-
-## v0.0.66 / #2.6 Workbench 吸附反向展开动效
-
-- `node --test test/workbench-snap-animation.test.mjs`：锁定 Pointer 未松手可反向释放、150ms release 状态、左右/Bottom 一致性与 reduced-motion。
-- 用户实机重点：吸附收起后不松鼠标反向拉出，观察 `0 -> min` 是否连续，且继续拖拽是否立即恢复跟手。
-
-## v0.0.64 / #2.4 Settings 与个人中心 UI
-
-- `node --test test/settings-shell.test.mjs`：独立 Settings Surface、模糊聚焦个人菜单、三态主题、更新/主题顺序、AI Settings 分类 5 项静态契约；
-- UI/App Shell 补充 TypeScript `--noEmit`；
-- Config System 17/17 Provider/Schema 回归；
-- folder/import/ui-contract/config-schema/governance 与 Windows BOM 回归。
-
-## v0.0.63 / #2.3 配置系统目录边界与 AI Provider 插件体系验证
-
-- `packages/config-system/test/*.test.mjs`：17/17 PASS；其中 Provider Registry / 六家插件契约 9 项，Config Schema 回归 8 项；
-- `tsc -p packages/config-system/tsconfig.json --noEmit`：PASS；
-- UI/App Shell 使用本容器临时 React 类型 Stub 的补充 TypeScript 检查：PASS，仅用于发现本次跨包类型错误，不替代项目锁定 pnpm 工具链；
-- `node scripts/folder-boundary-check.mjs`：必须强制六个 Provider 子插件入口存在，并禁止 AI Core 厂商 Endpoint/分支、UI 直连网络/业务、App 包含厂商 API；
-- governance / import / dev-log / docs / comment / Windows BOM / config-schema / release-gates / UI contract / release consistency / prompt lifecycle：全部回归；
-- Web 实机验收重点：设置按钮打开共享 AI 设置页，六家 Provider 与认证/配置字段可切换；本版本不得把 Secret 明文写入 UI/localStorage/普通 Config。
-- 当前容器无法联网取得 pnpm 11.17.0，故未执行并不冒充 `pnpm run build:web` / `pnpm run release:full` PASS。
-
-## v0.0.62 / #20.16 pnpm 控制台直连原生输出修复验证
-
-- `Install-NodeDependencies` 必须把交互式 install 交给 `Invoke-PnpmConsole`；
-- Windows 原生路径必须使用 `cmd.exe` + `pnpm.cmd`、`Start-Process -NoNewWindow -Wait -PassThru`；
-- 该路径禁止 stdout/stderr 重定向、捕获与 `Out-Null`；
-- frozen/no-frozen、真实依赖、Store、菜单精简与发布 frozen 全部回归；
-- Windows 实机：确认 Y 后必须出现 pnpm 原生 Scope / Packages / Progress / Done。
-
-## v0.0.61 / #20.15 pnpm CMD 原生终端输出与菜单精简验证
-
-- 静态契约：Windows 交互式 pnpm 写操作优先版本匹配的 `pnpm.cmd`；安装输出不得进入捕获/重定向链。
-- 菜单 1：默认仅输出关键环境、node_modules / pnpm Store / Cargo / Rust toolchains 四类路径、状态摘要和必要确认；不得恢复大段依赖明细与实现说明。
-- 菜单 7：完整 PNPM_HOME / 全局配置 / Store 来源 / lockfile / 状态缓存诊断保留。
-- Windows 实机：需要安装时确认 Y 后必须出现 pnpm 原生 Scope / Progress / Packages / Done；第二次无变化时不得重复安装。
-
-## v0.0.60 / #20.14 pnpm 原生安装输出恢复验证
-
-- dependency-setup 必须确认菜单 1 的交互式 install 不包含任何 `--reporter=*`；
-- `Invoke-Pnpm -> Invoke-ProjectCommand` 必须前台直接调用当前 pnpm runner，不能捕获/重定向 install stdout/stderr；
-- #20.13 的 lockfile 落后 `--no-frozen-lockfile`、lockfile 完整修复 `--frozen-lockfile` 与正式发布 frozen 全部回归；
-- Windows 实机：确认 Y 后必须直接出现 pnpm 原生终端安装信息；安装成功后二次运行菜单 1 不应重复安装。
-
-## v0.0.59 / #20.13 开发期依赖同步与实时输出修复验证
-
-- dependency-setup 必须覆盖 lockfile 落后使用 `--no-frozen-lockfile`、lockfile 完整修复使用 `--frozen-lockfile`、append-only reporter 与发布 frozen 不变。
-- Windows 实机：在 lockfile 未覆盖声明时确认同步，必须立即看到 pnpm 实时输出；成功后再次运行菜单 1 不应重复安装。
-
-# LFAA 测试与验收规范
-
-## v0.0.58 / #20.12 PowerShell 自动变量冲突修复验证
-
-- Windows 实机菜单 1 不得再出现“无法覆盖变量 HOME”；
-- `Test-PnpmHomeInPath` 不得对 `$HOME`（含大小写变体）赋值；
-- 所有 `scripts/windows/*.ps1` 扫描常见 PowerShell 自动/只读变量赋值冲突；
-- #20.11 的 PNPM_HOME、active Store、Store 来源显示与 #20.10 真实依赖健康检查必须全部回归；
-- PowerShell UTF-8 BOM 必须继续通过。
-
-## v0.0.57 / #20.11 pnpm 实时环境事实与 Store 来源修复验证
-
-验证重点是“机器级路径每次实时读取，缓存永远不能冒充环境事实”：
-
-- `Get-PnpmStorePath` 必须每次调用当前 pnpm runner，并固定从项目根执行 `pnpm store path`；
-- Store 路径不得来自 `.lfaa/state`、固定盘符、固定用户名或旧项目目录；
-- 菜单 1 / 7 必须展示 pnpm executable、PNPM_HOME、全局配置文件、active Store 路径与 Store 来源；
-- 仓库 `pnpm-workspace.yaml` 不允许出现 `storeDir`；
-- 全局/项目 `storeDir` 均不存在时来源显示为 pnpm 默认；若存在项目配置则显示项目配置，存在全局配置则显示用户全局配置；
-- v0.0.56 的真实 Node resolve、Store 缺失/为空、offline lockfile probe 全部回归。
-
-Windows 实机重点：先确认 `pnpm store path` 当前返回值，再执行菜单 1；二者必须完全一致。之后修改/删除全局 `storeDir`，无需删除 `.lfaa/state`，重新运行菜单 1 必须立即显示新的 active Store。
-
-已执行：dependency-setup 14/14 PASS；node-dependency-health 3/3 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；Node 治理链全部 PASS。当前容器没有 PowerShell，Windows 动态来源显示仍由用户实机验收。
-
-## v0.0.56 / #20.10 真实依赖健康检测与 Store 状态修复验证
-
-验证重点是“不再用缓存和 package.json 外壳冒充真实依赖健康”：
-
-- 新增跨平台 Node 依赖健康检查测试，健康 fixture 必须通过；保留 package manifest 但删除真实入口文件时必须失败；
-- `Get-NodeDependencyPlan` 在 unchanged 快速返回前必须消费真实解析结果，不能只看 fingerprint / `.modules.yaml` / package.json；
-- `Get-PnpmStoreHealth` 必须检查 `pnpm store path` 对应真实路径，目录不存在或为空时状态不得为 Healthy；
-- Store 缺失但项目真实解析通过时必须显示降级状态，不得输出“当前依赖均已就绪”；
-- Store 修复使用 lockfile 定向 fetch / 同步，不允许 `pnpm update` 或清空 node_modules；
-- node-pty 真实加载检查在 unchanged 路径同样执行；
-- v0.0.55 的路径展示与提示去重、v0.0.54 的零安装/Yes-No 语义全部回归。
-
-Windows 实机重点：先在完整环境运行菜单 1；再删除 `pnpm store path` 显示的 Store 后重跑，必须出现 Store 缺失/为空提示。若项目依赖仍能解析，应显示“项目当前可用但缓存缺失”；选择修复后再次运行应恢复为全部健康。
-
-已执行：node-dependency-health 3/3 PASS；dependency-setup 11/11 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；Config System TypeScript `--noEmit` PASS；治理链全部 PASS。当前容器 Node 22.16.0、无 Cargo、无 PowerShell，因此 Windows PowerShell 动态 Store 删除/恢复仍必须由用户实机验收，且不声称 `release:full` PASS。
-
-## v0.0.55 / #20.9 依赖提示去重与路径可见性验证
-
-验证重点是“同一事实只提示一次，并能直接看到依赖在哪里”：
-
-- `test/dependency-setup.test.mjs` 保留 #20.8 原 6 项契约，并新增路径可见性、重复提示禁止两项测试；
-- 菜单 1 不允许再出现 Node/pnpm/workspace 的 `【预检】` 三行，也不允许结尾恢复独立 `Node/pnpm` 与 `Rust/Cargo` 两条完成摘要；
-- `Show-DependencyLocations` 必须覆盖 Node `node_modules`、pnpm 虚拟仓库、运行时 pnpm Store、Node lockfile、本机状态缓存、Cargo registry/git、Rust toolchains、Cargo.lock；
-- `pnpm Store` 必须由 `pnpm store path` 动态读取，禁止固定盘符/用户名；
-- 菜单 7 环境检查复用同一位置函数；
-- release gates / environment、Config Schema、Windows BOM 与治理链继续回归。
-
-Windows 实机验收重点：菜单 1 在 unchanged 状态下应表现为“一组环境信息 + 路径 + Node/Rust 状态 + 一个总完成提示”，不再重复；所有路径应与当前机器真实目录一致。
-
-已执行结果：dependency-setup 8/8 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；仓库 Node 治理链全部 PASS；Config System TypeScript `--noEmit` PASS。当前容器无 PowerShell，Windows 动态菜单仍由用户实机验收；当前 Node 22.16.0 / 无 Cargo，不声称 `release:full` PASS。
-
-## v0.0.54 / #20.8 按需依赖增量检测与复用验证
-
-验证重点是“依赖不变就不安装，真实变化才提示同步”：
-
-- `test/dependency-setup.test.mjs`：依赖指纹不读取产品版本；unchanged 路径在 `Invoke-Pnpm install` 前直接返回；新增 / 删除 / 版本变化具备摘要；禁止自动升级与 store 清理；本机状态位于被忽略的 `.lfaa/state/`；Rust toolchain / Cargo fetch 具备复用门禁；
-- `test/release-gates.test.mjs`、`test/release-environment.test.mjs` 与 Config Schema 单测继续回归；
-- `scripts/release-gates-check.mjs` 必须锁定增量依赖关键 token，防止菜单 1 回退为无条件 install；
-- Windows PowerShell 必须保持 UTF-8 with BOM；
-- 当前 Linux 制作容器无法执行 Windows PowerShell 交互，因此 PS1 动态行为仍需用户 Windows 实机验收：第一次真实同步后，第二次再选菜单 1 应直接报告依赖已就绪，不再下载。
-
-已执行结果：增量依赖 6/6 PASS；release-gates 5/5 PASS；release-environment 8/8 PASS；Config Schema 8/8 PASS；governance / import / dev-log / docs / comment / Windows BOM / release consistency / prompt lifecycle / config-schema / UI contract 全部 PASS；Config System TypeScript `--noEmit` PASS。当前容器 Node 22.16.0 且无 Cargo，正式发布环境/Rust 门禁按设计拒绝，未伪造 `release:full` 成功。
-
-实机重点：先在依赖已完整的同一项目目录连续执行两次菜单 1；第二次不得出现 pnpm install / cargo fetch / rustup toolchain install。随后使用真正改变依赖声明/lockfile 的新版本时，应显示差异并询问 Yes/No。
-
-## v0.0.53 / #20.7 Setup 菜单与发布门禁解耦验证
-
-验证重点是“严格结果、不绑死入口”：
-
-- `test/release-gates.test.mjs`：5/5 PASS；确认 quick 不 install/build/Rust，full 只增加 build，release:full 才拥有环境 + frozen install + Rust；并确认 Setup 的 1 为按需依赖、10 为三档检查中心；
-- `test/release-environment.test.mjs`：8/8 PASS；
-- Config Schema 回归：8/8 PASS；
-- `scripts/release-gates-check.mjs`、`scripts/config-schema-check.mjs`：PASS；
-- `scripts/windows/lfaa-setup.ps1` BOM：PASS；
-- governance / import / dev-log / docs / comment / Windows BOM / release consistency / config-schema / release-gates / UI contract：全部 PASS；
-- Config System 使用当前容器全局 TypeScript 5.8.3 的补充 `--noEmit`：PASS；该结果不替代项目锁定 pnpm/TypeScript 工具链；
-- 当前制作容器仍不满足 Node 24 / pnpm 11.17.0 / Cargo，因此 `release:environment` 与 Rust 发布检查按设计 FAIL；没有伪造 `release:full` 成功结果。
-
-最终候选 ZIP 仍需执行根目录、Unicode 路径、文件 Hash 与 PowerShell BOM Round-trip；结果由本次交付说明记录。
-
-## v0.0.52 / #20.6 发布环境与质量门禁闭环验证
-
-本版本验证重点不是新增业务功能，而是保证“不满足正式工具链时一定失败、满足时只有一条统一发布链”。
-
-已执行：
-
-- `test/release-environment.test.mjs`：8/8 PASS；覆盖 Node 24 正确 / Node 22 拒绝、pnpm 11.17.0 正确 / 错版本拒绝、lockfile 缺失拒绝、packageManager 与 engines 漂移拒绝，以及 preinstall 对正确/错误包管理器版本的行为；
-- `packages/config-system/test/*.test.mjs`：8/8 PASS，确认本治理任务未破坏 Config Schema；
-- `tsc -p packages/config-system/tsconfig.json --noEmit`：PASS（当前容器全局 TypeScript 5.8.3，仅作为补充检查，不冒充项目锁定 pnpm 工具链）；
-- import / dev-log / docs / comment / Windows BOM / config-schema / release-gates / UI contract：PASS；
-- 当前容器执行 `node scripts/release-environment-check.mjs`：按设计 FAIL，明确指出 Node 22.16.0 不满足 Node 24.x；
-- 当前容器执行 `node scripts/release-rust-check.mjs`：按设计 FAIL，明确指出 Cargo 不存在；
-- Corepack 尝试准备 `pnpm@11.17.0` 时因当前容器不能访问 npm registry 而失败，因此没有伪造 `pnpm install --frozen-lockfile` / Web build / `release:full` 成功结果。
-
-### v0.0.52 自举规则
-
-本版本本身用于把正式发布门禁固化进仓库，因此记录上述环境阻断事实并交由用户验收。从 **v0.0.52 之后的下一递增版本开始**，正式 `LFAA-vX.Y.Z.zip` 生成前必须在满足 Node 24.x + pnpm 11.17.0 + Rust/Cargo 的环境真实执行：
+### Governance/static gates
 
 ```text
-pnpm run release:full
+governance-check
+import-path-check
+runtime-import-resolution-check
+folder-boundary-check
+language-ownership-check
+package-architecture-check
+dev-log-check
+docs-check
+current-fact-check
+comment-check
+windows-script-encoding-check
+release-consistency-check
+prompt-lifecycle-check
+config-schema-check
+release-gates-check
+ui-contract-check
 ```
 
-只有该命令完整通过，才允许记录“完整发布门禁 PASS”。
+### Contract tests
 
-## v0.0.51 / #2.2 Config Schema 基线验证
+仓库 `test/*.test.mjs` 锁定：
 
-- TypeScript `--noEmit`：PASS；
-- Config Schema 单元测试：8/8 PASS；
-- `scripts/config-schema-check.mjs`：PASS；
-- `governance:check` 所含 10 个实际 Node 门禁逐项执行：全部 PASS；
-- Windows PowerShell BOM：PASS，且 v0.0.50 → v0.0.51 四个 `.ps1` SHA-256 完全一致；
-- 性能：100 Provider + 100 Account + 100 Model，1000 次纯内存校验，P95 约 0.61ms，低于 10ms 预算；
-- 当前执行环境无法联网取得项目锁定的 pnpm 11.17.0，因此没有伪造 `pnpm run governance:check` 包装命令执行结果；用户环境仍应通过 `LFAA-Setup.bat` 后执行一次正式 pnpm 入口复验。
+- Workspace/App Shell/UI 边界；
+- Web App 薄入口；
+- Config/Secret/Provider；
+- Plugin platform；
+- Runtime import；
+- Agent chat runtime；
+- Windows dependency/setup/sync；
+- Unicode release archive；
+- motion/resize/snap 等 UI 契约。
 
+### Package tests
 
-> 所有测试策略、Web UI 验收矩阵和 Definition of Done 测试要求统一维护在本文件。
+例如 `@lfaa/config-system` 自身测试。
 
-## v0.0.51 / #2.2 Config Schema 基线
-
-本版本只验收 Config Schema，不把 Storage / Migration / UI 测试提前算入通过。
-
-必须执行：
+### Type/build
 
 ```text
-pnpm --filter @lfaa/config-system exec tsc -p tsconfig.json --noEmit
-pnpm --filter @lfaa/config-system test
-node scripts/config-schema-check.mjs
-pnpm run governance:check
+pnpm run typecheck
+pnpm run build
 ```
 
-核心用例：默认配置通过；错误 Schema Version 拒绝；Provider / Model / Account 重复 ID 拒绝；悬空 Provider / Account 引用拒绝；Model 与 Account Provider 不一致拒绝；remote mode 缺 Endpoint 或非 http/https 拒绝；API Key / Token / Secret / Password 等明文字段拒绝；`credentialRef` 合法引用通过。
+发布目标：`pnpm run quality:full` + Rust release checks。
 
-性能边界：校验为纯内存 O(n)，Provider / Model / Account 各 100 项时目标 P95 < 10ms；不得进行磁盘、数据库、网络或进程 I/O。
+## v0.0.100 必须锁住的契约
 
+本热修复新增 Sync 契约：当旧 workspace Owner 已从源码退役、目录中只剩 `node_modules` / `target` / `dist` / `.cache` 等本地缓存时，同步必须能够安全清理该退役目录；如果仍有真实项目文件，则不得静默删除。
 
-> 迁移来源：`docs/testing/WEB_UI_TEST.md`
 
-## Web 工作台本地测试
+1. `apps/web` 没有 `dev/bridges`、`host-clients`、Terminal business；
+2. App 只依赖 `@lfaa/client-web` / `@lfaa/bundle-web-app`；
+3. workspace 使用 `packages/*/*`；
+4. 根 `.lfaa` 不存在；
+5. Runtime state 使用 LFAA_HOME；
+6. Native workspace 使用 `native/*`；
+7. `@lfaa/*` 稳定包名仍可被依赖图解析；
+8. LLM Provider HTTP 不回流 Agent Controller/App；
+9. release ZIP 保持中文路径 UTF-8 flag。
 
-### v0.0.49 / #21.17 Composer 底部安全间距重点
+## 环境声明
 
-本版本在 v0.0.48 基础上只验证 Composer 垂直落点：
+本仓库要求 Node 24/pnpm 11.17.0。若某交付制作环境只有 Node 22 且无可用 pnpm/node_modules：
 
-1. 1600x900 / 1280x800 等桌面尺寸下，输入框下方留白明显比 v0.0.48 舒适；
-2. Composer 不贴窗口底边，也不能悬得过高；
-3. Compact 下底部留白应自动减小；
-4. Mobile 下保持较小留白并尊重 safe-area；
-5. 打开 Bottom Terminal 后，Composer 与终端上沿之间仍保持自然距离；
-6. 不允许出现横向溢出或对话区被异常压缩。
+- 可以运行纯 Node built-in 静态 Gate/contract tests；
+- 不得声称 workspace TypeScript typecheck/build 已完成；
+- 应在用户正常 Setup 环境再次执行 `quality:full`。
 
-### v0.0.47 / #21.15 容器响应式与布局变量化重点
+## 修改测试的原则
 
-本版本优先验证：
-
-1. 小窗口不再同时被固定 280 / 360 侧栏挤压；
-2. LayoutMode 根据 Workbench 容器实际可用宽度计算，而不是 window 固定断点；
-3. 1024 左右可在空间允许时保持合理双 Dock；
-4. 950 / 820 / 760 左右自动进入左 Dock + 右 Overlay；
-5. 更窄容器进入双 Overlay；
-6. 大屏保存的侧栏宽度切到小窗后自动重新 clamp；
-7. 左 / 右 / Bottom 到动态 min 后吸附收起；
-8. Pointer 不松手时仍能从 snap preview 反向拖回；
-9. CSS 变量 / clamp / calc 不产生横向溢出；
-10. Tooltip / Header / Composer 保持可用。
-
-### 前置
-
-```text
-Node 24.x
-pnpm 11.17.0
-```
-
-### 启动
-
-```text
-LFAA-Setup.bat
-→ 2 启动 Web
-```
-
-浏览器：
-
-```text
-http://127.0.0.1:5173
-```
-
-### 1. 响应式矩阵
-
-依次把“浏览器内容区 / 工作台容器”调到接近：
-
-```text
-1600x900
-1280x800
-1100x800
-1024x768
-950x800
-820x900
-760x900
-680x800
-640x800
-390x844
-```
-
-不要只看浏览器外框像素；最终以页面内容区实际宽度为准。
-
-#### 期望
-
-- 1600 / 1280 / 1100 / 1024：通常能进入 Desktop 双 Dock；
-- 950 / 820 / 760 / 680：通常为 Compact（左 Dock + 右 Overlay）；
-- 640 / 390：Mobile（双 Overlay）；
-- 实际 Mode 由计算公式决定，边界附近允许因容器高度/宽度计算产生少量差异。
-
-### 2. Desktop 双 Dock
-
-1. 左 / 中 / 右三栏均参与布局；
-2. 左 / 右默认宽度随容器变化，不是固定 300 / 400；
-3. 中央区不得被压成细条；
-4. Right Header 与 Center Header 底边连续；
-5. 收起右栏后 Shell Actions 回到 Center Header；
-6. 页面无水平滚动。
-
-### 3. Compact：左 Dock + 右 Overlay
-
-1. 左栏参与布局；
-2. 右栏打开后覆盖在主区右侧，但不改变 Center 宽度；
-3. 右 Overlay 大约为容器 34%，并受 15rem~20rem clamp 约束；
-4. Overlay 从 Header 下方开始；
-5. 终端 / 右栏按钮始终在 Center Header；
-6. 关闭右 Overlay 后中央区几何不能跳动；
-7. 从 1280 缩到 900 时，历史左栏宽度不能原样过大保留。
-
-### 4. Mobile：双 Overlay
-
-1. Center 占满可用宽度；
-2. 左右栏默认收起；
-3. 点击左栏 / 右栏按钮分别出现 Overlay；
-4. Overlay 不参与 Center 几何；
-5. Header 核心三个控制入口保留；
-6. Tooltip 可隐藏；
-7. Composer 不超出页面；
-8. 不产生整页横向滚动。
-
-### 5. 动态侧栏最小宽度
-
-不要用“必须正好 280 / 360”验收。
-
-当前公式输出大致：
-
-```text
-左 min：196~232
-右 min：228~288
-Bottom min：136~176
-```
-
-验证：
-
-- 左栏在 min 时导航文字仍可读；
-- 右栏在 min 时“审查 / 终端 / 浏览器 / 文件 + 快捷键”仍可正常排布；
-- 如果容器不足以让右栏 Dock 后保持可用 Center，应切 Compact，而不是继续缩 Center。
-
-### 6. 左侧 Resize / Snap
-
-Desktop / Compact：
-
-1. 向内拖左 separator；
-2. 到本次动态 min 后进入 snap preview，视觉吸到 0；
-3. 不松手，反向拖；
-4. 超过 `min + snapHysteresis` 后恢复到 min；
-5. 继续向外正常拉宽；
-6. 再拖到 min 并松手，正式 collapsed；
-7. collapsed 后 separator 不能拉开；
-8. 用按钮 / `Ctrl+B` 恢复。
-
-### 7. 右侧 Resize / Snap
-
-仅 Desktop Dock：
-
-步骤同左侧。Compact / Mobile 的右栏是 Overlay，不显示右 resize separator。
-
-正式收起后用按钮 / `Ctrl+Alt+B` 恢复。
-
-### 8. Bottom Resize / Snap
-
-1. 打开 Terminal Dock；
-2. 向下拖；
-3. 到动态 bottom min 后 snap preview 收到 0；
-4. 不松手向上反拖，超过 hysteresis 后恢复；
-5. 松手确认收起后底边不能直接拉出；
-6. 用 Header / `Ctrl+J` / 右栏“终端”入口恢复。
-
-### 9. Tooltip
-
-Desktop / Compact：
-
-- 只出现一层自定义 Tooltip；
-- 左栏提示向右展开；
-- 终端 / 右栏提示向左展开；
-- `Ctrl+B / Ctrl+J / Ctrl+Alt+B` 正确；
-- 等待数秒不能再出现浏览器原生 `title`；
-- Tooltip 不拦截 Click。
-
-### 10. 左栏 Hover Preview
-
-Desktop / Compact：
-
-1. 正式 collapsed 左栏；
-2. Hover 左栏按钮；
-3. Preview 淡入但不改变 `leftCollapsed`；
-4. 鼠标移动到 Preview 不闪退；
-5. 离开后淡出；
-6. Click / `Ctrl+B` 才正式展开。
-
-### 11. 动画手感
-
-慢速拖拽确认：
-
-- 普通 Resize 直接跟手；
-- 没到 min 前无 Grid transition 追鼠标；
-- 到 min 才有短磁吸收起；
-- 反向解锁不会卡住；
-- 正式开合使用 ease-out；
-- Drawer 打开 / 关闭不会推挤 Center。
-
-### 12. 基础设施回归
-
-保持原有验收：
-
-- xterm + node-pty 可交互；
-- Resize 后 FitAddon 正常；
-- `.lfaa` 资源热刷新；
-- Sync / GitHub / Setup / Update 行为不变化；
-- Windows PowerShell BOM 保留。
-
-### 12. Hover / Click 左栏宽度一致性
-
-1. 记录正式左栏宽度；2. 收起；3. Hover 左栏按钮；4. Preview 宽度应与记录一致；5. 点击展开，宽度不得跳变；6. 手动 resize 后重复一次；7. 缩窄窗口触发 clamp 后再重复一次。
-
-### 13. Composer 底部留白验收
-
-分别测试 Desktop / Compact / Mobile：
-
-- Composer Wrap 实际底部留白来自 `--agent-composer-bottom-gap`；
-- Desktop 约为 1rem~1.75rem，随可用高度变化；
-- Compact 比 Desktop 更紧凑；
-- Mobile 不小于 `.75rem`，有 safe area 时取更大值；
-- 不存在额外 `margin-bottom` / `transform: translateY()` 叠加位移；
-- 缩放窗口时留白变化连续，不突然跳动。
-
-> 迁移来源：`docs/testing/TEST_STRATEGY.md`
-
-## LFAA 测试策略
-
-### TypeScript
-
-- Unit
-- Integration
-- Protocol contract
-- Fake Model
-- Event replay
-
-### React
-
-- Component
-- Feature
-- Web E2E
-- Desktop smoke E2E
-
-### Rust
-
-- Unit
-- Broker integration
-- Path boundary
-- Process cancellation
-- Secret redaction
-
-### Agent
-
-- Fixture
-- Repeated run
-- Verifier
-- Cost
-- Latency
-- Pass rate
-- Regression baseline
-
-### Durable Run
-
-必须覆盖：
-
-- model stream 中断
-- tool 执行中断
-- tool 已完成但下一步未执行
-- runtime 重启
-- UI reload
-
-
-## #2.9 设置中心共享可伸缩侧栏
-
-- `node --test test/settings-shell.test.mjs`：检查 Settings 直接复用 ResizableWorkbench、无固定侧栏宽度、支持收起/展开与单侧 Surface；
-- `node --test test/workbench-snap-animation.test.mjs`：保证共享 snap capture / hysteresis / 反向 release 动效没有回归；
-- 用户实机：拖动 Settings 左栏改变宽度；拖到最小吸附收起；Pointer 不松手反向拉出；松手收起后点击展开按钮恢复；关闭重开设置后宽度持久化。
-
-## v0.0.70 / #2.10 UI Workspace 运行时导入解析
-
-- `node --test test/runtime-import-resolution.test.mjs`：验证 Settings 使用 `@lfaa/ui/workbench`、package exports 目标存在、从真实 Settings importer scope 可由 Node package resolver 解析。
-- `node scripts/runtime-import-resolution-check.mjs`：扫描 workspace `@lfaa/*` 公共子路径与 packages 私有 alias，防止 TypeScript-only 假通过。
-- Windows 用户验收：菜单 2 启动 Vite，确认不再出现 `@/workbench` import-analysis 错误，并实测 Settings 左栏 resize/snap/release。
+路径迁移时应把旧测试改成**新架构长期契约**，而不是简单删除断言。例如“`.lfaa` 必须存在”应改成“repo `.lfaa` 必须不存在且旧 state 迁移到 LFAA_HOME”。

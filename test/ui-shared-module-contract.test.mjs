@@ -3,22 +3,22 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
 const root = new URL("../", import.meta.url);
-const uiIndex = readFileSync(new URL("packages/ui/src/index.ts", root), "utf8");
-const workbench = readFileSync(new URL("packages/app-shell/src/AgentWorkbench.tsx", root), "utf8");
-const runtimeControl = readFileSync(new URL("packages/app-shell/src/workbench/center/composer/runtime-control/view/RuntimeControl.tsx", root), "utf8");
-const reasoningRow = readFileSync(new URL("packages/app-shell/src/workbench/center/composer/runtime-control/view/ReasoningControlRow.tsx", root), "utf8");
-const workbenchCss = readFileSync(new URL("packages/app-shell/src/agent-workbench.css", root), "utf8");
-const slider = readFileSync(new URL("packages/ui/src/ui-controls/DiscreteSlider.tsx", root), "utf8");
-const effectRegistry = readFileSync(new URL("packages/ui/src/ui-effects/registry.ts", root), "utf8");
-const effectHost = readFileSync(new URL("packages/ui/src/ui-effects/UiEffectHost.tsx", root), "utf8");
-const particleCanvas = readFileSync(new URL("packages/ui/src/ui-effects/ParticleStreamCanvas.tsx", root), "utf8");
-const extensionRegistry = readFileSync(new URL("packages/ui/src/ui-extension/registry.ts", root), "utf8");
+const uiIndex = readFileSync(new URL("packages/client/ui/src/index.ts", root), "utf8");
+const workbench = readFileSync(new URL("packages/client/app-shell/src/AgentWorkbench.tsx", root), "utf8");
+const runtimeControl = readFileSync(new URL("packages/client/app-shell/src/workbench/center/composer/runtime-control/view/RuntimeControl.tsx", root), "utf8");
+const reasoningRow = readFileSync(new URL("packages/client/app-shell/src/workbench/center/composer/runtime-control/view/ReasoningControlRow.tsx", root), "utf8");
+const workbenchCss = readFileSync(new URL("packages/client/app-shell/src/agent-workbench.css", root), "utf8");
+const slider = readFileSync(new URL("packages/client/ui/src/ui-controls/DiscreteSlider.tsx", root), "utf8");
+const effectRegistry = readFileSync(new URL("packages/client/ui/src/ui-effects/registry.ts", root), "utf8");
+const effectHost = readFileSync(new URL("packages/client/ui/src/ui-effects/UiEffectHost.tsx", root), "utf8");
+const particleCanvas = readFileSync(new URL("packages/client/ui/src/ui-effects/ParticleStreamCanvas.tsx", root), "utf8");
+const extensionRegistry = readFileSync(new URL("packages/client/ui/src/ui-extension/registry.ts", root), "utf8");
 
-test("shared UI infrastructure stays under packages/ui/src/ui-xxx", () => {
+test("shared UI infrastructure stays under packages/client/ui/src/ui-xxx", () => {
   for (const folder of ["ui-overlay", "ui-controls", "ui-effects", "ui-extension", "ui-motion", "ui-shortcuts", "ui-resize"]) {
-    assert.equal(existsSync(new URL(`packages/ui/src/${folder}/`, root)), true, `${folder} missing`);
+    assert.equal(existsSync(new URL(`packages/client/ui/src/${folder}/`, root)), true, `${folder} missing`);
   }
-  assert.equal(existsSync(new URL("packages/ui/src/primitives/useDismissibleLayer.ts", root)), false);
+  assert.equal(existsSync(new URL("packages/client/ui/src/primitives/useDismissibleLayer.ts", root)), false);
   for (const token of ["DiscreteSlider", "UiEffectHost", "UiEffectRegistry", "UiExtensionRegistry", "AnimatedDisclosure", "useShortcut", "stepDampedValue"]) assert.match(uiIndex, new RegExp(token));
 });
 

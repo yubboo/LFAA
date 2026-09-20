@@ -1,0 +1,19 @@
+{
+  "name": "@lfaa/settings-controller",
+  "private": true,
+  "version": "0.0.100",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "dependencies": {
+    "@lfaa/codex-app-server": "workspace:*",
+    "@lfaa/config-host-node": "workspace:*",
+    "@lfaa/config-system": "workspace:*",
+    "@lfaa/credentials-native": "workspace:*",
+    "vite": "8.2.2"
+  },
+  "lfaa": {
+    "layer": "host",
+    "role": "settings-http-controller"
+  }
+}

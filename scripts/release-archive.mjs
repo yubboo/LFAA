@@ -73,7 +73,7 @@ export function collectReleaseEntries(root, outputPath) {
       if (shouldExclude(relative, outputRelative)) continue;
       const absolute = path.join(absoluteDir, child.name);
       if (child.isDirectory()) {
-        // 显式写目录 entry，保证 .lfaa 与空日志目录在 Windows 解压后仍存在。
+        // 显式写目录 entry，保证空日志目录等必要空目录在 Windows 解压后仍存在。
         const stat = fs.statSync(absolute);
         entries.push({ name: normalizeArchivePath(relative, true), data: Buffer.alloc(0), mtime: stat.mtime, directory: true });
         walk(absolute, relative);

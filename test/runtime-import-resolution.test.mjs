@@ -5,7 +5,7 @@
  * 不负责：启动 Vite dev server、视觉验收、业务测试。
  * 状态归属：无运行时状态。
  * 对外接口：`node --test test/runtime-import-resolution.test.mjs`。
- * 关联文件：packages/ui/package.json、packages/app-shell/src/workbench/settings/view/SettingsPage.tsx、scripts/runtime-import-resolution-check.mjs。
+ * 关联文件：packages/client/ui/package.json、packages/client/app-shell/src/workbench/settings/view/SettingsPage.tsx、scripts/runtime-import-resolution-check.mjs。
  * 修改注意事项：若更换公共子入口，必须同步 package exports 与运行时解析门禁，禁止恢复 tsconfig-only @/ alias。
  */
 import assert from "node:assert/strict";
@@ -16,8 +16,8 @@ import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
 const root = process.cwd();
-const settingsFile = path.join(root, "packages/app-shell/src/workbench/settings/view/SettingsPage.tsx");
-const uiPackageFile = path.join(root, "packages/ui/package.json");
+const settingsFile = path.join(root, "packages/client/app-shell/src/workbench/settings/view/SettingsPage.tsx");
+const uiPackageFile = path.join(root, "packages/client/ui/package.json");
 
 test("Settings 通过 @lfaa/ui/workbench 公共子入口复用布局", () => {
   const source = fs.readFileSync(settingsFile, "utf8");
@@ -28,22 +28,22 @@ test("Settings 通过 @lfaa/ui/workbench 公共子入口复用布局", () => {
 test("@lfaa/ui/workbench 在 package exports 中公开且目标存在", () => {
   const pkg = JSON.parse(fs.readFileSync(uiPackageFile, "utf8"));
   assert.equal(pkg.exports["./workbench"], "./src/workbench/index.ts");
-  assert.equal(fs.existsSync(path.join(root, "packages/ui/src/workbench/index.ts")), true);
+  assert.equal(fs.existsSync(path.join(root, "packages/client/ui/src/workbench/index.ts")), true);
 });
 
 test("@lfaa/ui 不再声明 @/* 私有 paths alias", () => {
-  const tsconfig = JSON.parse(fs.readFileSync(path.join(root, "packages/ui/tsconfig.json"), "utf8"));
+  const tsconfig = JSON.parse(fs.readFileSync(path.join(root, "packages/client/ui/tsconfig.json"), "utf8"));
   assert.equal(tsconfig.compilerOptions?.paths?.["@/*"], undefined);
 });
 
 test("从真实 Settings importer 位置可解析 @lfaa/ui/workbench", () => {
   const resolver = createRequire(pathToFileURL(settingsFile));
   const resolved = resolver.resolve("@lfaa/ui/workbench");
-  assert.equal(path.normalize(resolved), path.normalize(path.join(root, "packages/ui/src/workbench/index.ts")));
+  assert.equal(path.normalize(resolved), path.normalize(path.join(root, "packages/client/ui/src/workbench/index.ts")));
 });
 
 test("Node/Vite Host 直接加载的 plugin-runtime 使用显式 .ts 相对导入", () => {
-  const source = fs.readFileSync(path.join(root, "packages/plugin-runtime/src/index.ts"), "utf8");
+  const source = fs.readFileSync(path.join(root, "packages/plugin/plugin-runtime/src/index.ts"), "utf8");
   assert.match(source, /from\s+["']\.\/registry\.ts["']/);
   assert.match(source, /from\s+["']\.\/install-spec\.ts["']/);
   assert.match(source, /from\s+["']\.\/lifecycle\.ts["']/);
@@ -51,7 +51,7 @@ test("Node/Vite Host 直接加载的 plugin-runtime 使用显式 .ts 相对导�
 });
 
 test("plugin-sdk 的 source export 可被 Node TypeScript ESM 解析", () => {
-  const source = fs.readFileSync(path.join(root, "packages/plugin-sdk/src/index.ts"), "utf8");
+  const source = fs.readFileSync(path.join(root, "packages/plugin/plugin-sdk/src/index.ts"), "utf8");
   assert.match(source, /from\s+["']\.\/contracts\.ts["']/);
   assert.doesNotMatch(source, /from\s+["']\.\/contracts["']/);
 });

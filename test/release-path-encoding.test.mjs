@@ -1,7 +1,7 @@
 /**
  * 文件：release-path-encoding.test.mjs
- * 作用：锁定发布包中最容易被错误归档器破坏的 Unicode/隐藏路径事实。
- * 负责：源码树必须存在中文代码地图与 .lfaa 隐藏骨架；路径名不得出现常见 mojibake/替换字符。
+ * 作用：锁定发布包中最容易被错误归档器破坏的 Unicode 路径与 Harness 主骨架事实。
+ * 负责：源码树必须存在中文代码地图、capability-family 主骨架；仓库不得重新出现项目级 .lfaa。
  * 不负责：直接解析 ZIP；正式打包仍必须执行 ZIP round-trip 再在解压根运行 workspace-preflight。
  */
 import assert from "node:assert/strict";
@@ -12,14 +12,11 @@ import test from "node:test";
 const root = process.cwd();
 const required = [
   "docs/项目结构与代码地图.md",
-  ".lfaa/README.md",
-  ".lfaa/manifest.json",
-  ".lfaa/lock.json",
-  ".lfaa/skills/README.md",
-  ".lfaa/experts/README.md",
-  ".lfaa/plugins/README.md",
-  ".lfaa/extensions/README.md",
-  ".lfaa/mcp/README.md",
+  "packages/core/agent-runtime/package.json",
+  "packages/client/web/package.json",
+  "packages/bundle/web-app/package.json",
+  "packages/util/home-paths/package.json",
+  "native/secret-store/Cargo.toml",
 ];
 
 function walk(relative = "") {
@@ -31,8 +28,9 @@ function walk(relative = "") {
   });
 }
 
-test("release-critical Unicode and hidden paths exist exactly", () => {
+test("release-critical Unicode and Harness paths exist exactly", () => {
   for (const relative of required) assert.equal(fs.existsSync(path.join(root, relative)), true, relative);
+  assert.equal(fs.existsSync(path.join(root, ".lfaa")), false, "repository-local .lfaa must stay removed");
 });
 
 test("repository paths contain no known mojibake markers", () => {

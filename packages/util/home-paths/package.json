@@ -1,0 +1,12 @@
+{
+  "name": "@lfaa/home-paths",
+  "private": true,
+  "version": "0.0.100",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "lfaa": {
+    "layer": "foundation",
+    "role": "runtime-home-paths"
+  }
+}

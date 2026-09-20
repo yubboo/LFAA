@@ -71,6 +71,24 @@ $ProtectedRootFiles = @(
     ".env.test.local"
 )
 
+# 目录迁移后，旧 workspace 可能只剩 node_modules/target 等保护缓存。
+# 这些路径不再是源码 Owner，允许在确认没有项目文件后整体清理，避免旧架构空壳卡住 current-fact Gate。
+$RetiredWorkspaceRoots = @(
+    "apps/web/dev",
+    "apps/web/src/host-clients",
+    "apps/web/src/terminal",
+    "crates/secret-store",
+    "packages/agent-runtime",
+    "packages/app-shell",
+    "packages/config-system",
+    "packages/credentials",
+    "packages/plugin-host-node",
+    "packages/plugin-runtime",
+    "packages/plugin-sdk",
+    "packages/ui",
+    "packages/workspace"
+)
+
 # 当版本包与稳定工作区的依赖声明完全相同时，保留目标工作区已经由 pnpm 生成的有效 lockfile。
 # 这避免每次版本同步都用发布包中的旧 lockfile 覆盖本机有效 lockfile，从而触发无意义的 pnpm install。
 $script:PreserveTargetPnpmLock = $false
@@ -270,8 +288,6 @@ function Test-ProtectedPath {
         return $true
     }
 
-    if ($rel -imatch "^\.lfaa/(cache|state|tmp|logs)(/|$)") { return $true }
-
     $segments = $rel.Split("/")
 
     foreach ($segment in $segments) {
@@ -292,6 +308,72 @@ function Test-ProtectedPath {
 }
 
 
+
+
+function Remove-RetiredWorkspaceShells {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceRoot,
+        [Parameter(Mandatory = $true)][string]$DestinationRoot
+    )
+
+    foreach ($relative in $RetiredWorkspaceRoots) {
+        $sourcePath = Join-Path $SourceRoot ($relative -replace "/", "\")
+        $targetPath = Join-Path $DestinationRoot ($relative -replace "/", "\")
+
+        if (Test-Path -LiteralPath $sourcePath) { continue }
+        if (-not (Test-Path -LiteralPath $targetPath)) { continue }
+
+        $projectOwned = @(
+            Get-ChildItem -LiteralPath $targetPath -Recurse -Force -ErrorAction SilentlyContinue | Where-Object {
+                $itemRelative = Get-RelativePath $DestinationRoot $_.FullName
+                -not (Test-ProtectedPath $itemRelative)
+            } | Select-Object -First 1
+        )
+
+        if ($projectOwned.Count -eq 0) {
+            Remove-Item -LiteralPath $targetPath -Recurse -Force
+            Write-Label "【清理】" "【退役目录】" ("{0}（仅剩本地缓存）" -f $relative) DarkGray
+        }
+    }
+}
+
+function Get-LfaaRuntimeHome {
+    if (-not [string]::IsNullOrWhiteSpace($env:LFAA_HOME)) {
+        return [System.IO.Path]::GetFullPath($env:LFAA_HOME)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        return (Join-Path $env:LOCALAPPDATA "LFAA")
+    }
+    return (Join-Path $env:USERPROFILE "AppData\Local\LFAA")
+}
+
+function Migrate-LegacyRuntimeState {
+    param([string]$WorkspaceRoot)
+
+    $legacyState = Join-Path $WorkspaceRoot ".lfaa\state"
+    if (-not (Test-Path -LiteralPath $legacyState)) { return }
+
+    $runtimeHome = Get-LfaaRuntimeHome
+    $stateRoot = Join-Path $runtimeHome "state"
+    $pluginRoot = Join-Path $runtimeHome "plugins\profile"
+    New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
+
+    $legacyAccounts = Join-Path $legacyState "ai-accounts.json"
+    $accountsTarget = Join-Path $stateRoot "ai-accounts.json"
+    if ((Test-Path -LiteralPath $legacyAccounts) -and -not (Test-Path -LiteralPath $accountsTarget)) {
+        Copy-Item -LiteralPath $legacyAccounts -Destination $accountsTarget -Force
+        Write-Label "【迁移】" "【AI 状态】" ("已迁移到 {0}" -f $accountsTarget) Green
+    }
+
+    $legacyProfile = Join-Path $legacyState "plugin-profile"
+    if ((Test-Path -LiteralPath $legacyProfile) -and -not (Test-Path -LiteralPath $pluginRoot)) {
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $pluginRoot) | Out-Null
+        Copy-Item -LiteralPath $legacyProfile -Destination $pluginRoot -Recurse -Force
+        Write-Label "【迁移】" "【插件状态】" ("已迁移到 {0}" -f $pluginRoot) Green
+    }
+
+    Write-Label "【运行数据】" "【LFAA_HOME】" $runtimeHome Cyan
+}
 
 function Assert-SourcePackageIntegrity {
     param([string]$Root)
@@ -651,6 +733,7 @@ if ($SyncMenuMode -eq "config") {
     Write-Label "【保护】" "【日志】" "docs/logs/runtime/*/*.log 保留为本机运行记录。" Green
     Write-Label "【保护】" "【Secret】" ".env / .env.local 等本机环境文件不会删除。" Green
     Write-Label "【保护】" "【缓存】" "node_modules、target、dist、coverage、.cache、.tmp 不参与镜像删除。" Green
+    Write-Label "【迁移】" "【旧运行数据】" "执行同步时会先把旧项目 .lfaa/state 的账户/插件状态迁入用户 LFAA_HOME，再删除旧源码目录。" Cyan
     Wait-LfaaClose -Success $true
     exit 0
 }
@@ -732,6 +815,9 @@ if (-not (Test-Path -LiteralPath $TargetRoot)) {
     Write-Label "【创建】" "【目标目录】" $TargetRoot Green
 }
 
+# v0.0.99 起源码仓库不再保存 .lfaa；同步删除旧目录前先把仍有价值的本机状态迁入用户运行时 Home。
+Migrate-LegacyRuntimeState $TargetRoot
+
 Write-Host ""
 Write-Label "【同步】" "【进行中】" "开始应用文件变化..." Cyan
 
@@ -779,6 +865,9 @@ if (Test-Path -LiteralPath $TargetRoot) {
             }
         }
 }
+
+# 普通空目录清理无法处理「旧包只剩 node_modules」的场景；这里专门清理已退役 workspace 的缓存空壳。
+Remove-RetiredWorkspaceShells -SourceRoot $ProjectRoot -DestinationRoot $TargetRoot
 
 Write-Host ""
 Write-Label "【校验】" "【进行中】" "开始逐文件 SHA-256 镜像校验..." Cyan

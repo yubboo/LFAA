@@ -10,8 +10,8 @@ import { pathToFileURL } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
 
-const permissionUrl = pathToFileURL(path.resolve("packages/agent-runtime/src/core/permission-profiles.ts")).href;
-const harnessUrl = pathToFileURL(path.resolve("packages/agent-runtime/src/harness/official-harnesses.ts")).href;
+const permissionUrl = pathToFileURL(path.resolve("packages/core/agent-runtime/src/core/permission-profiles.ts")).href;
+const harnessUrl = pathToFileURL(path.resolve("packages/core/agent-runtime/src/harness/official-harnesses.ts")).href;
 
 function runTs(script) {
   return execFileSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "--eval", script], {
@@ -53,7 +53,7 @@ test("official harness registry names only official bridge entry points", () => 
 });
 
 test("Chat and Work share one AgentRunRequest workspaceMode discriminator", () => {
-  const source = fs.readFileSync("packages/agent-runtime/src/core/contracts.ts", "utf8");
+  const source = fs.readFileSync("packages/core/agent-runtime/src/core/contracts.ts", "utf8");
   assert.match(source, /export type AgentWorkspaceMode = "chat" \| "work"/);
   assert.match(source, /export interface AgentRunRequest/);
   assert.match(source, /readonly workspaceMode: AgentWorkspaceMode/);

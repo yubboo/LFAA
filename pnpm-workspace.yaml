@@ -1,9 +1,9 @@
 packages:
   - "apps/*"
-  - "packages/*"
+  - "packages/*/*"
 
 # Native dependencies with install/build scripts must be reviewed and pinned.
-# node-pty is required by the local real terminal bridge.
+# node-pty is required by the local real terminal host adapter.
 strictDepBuilds: true
 allowBuilds:
   "node-pty@1.1.0": true

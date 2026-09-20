@@ -353,7 +353,7 @@ function Get-PnpmEnvironmentFacts {
 }
 
 function Get-PnpmStorePath {
-    # 每次都向当前 pnpm 实时查询；禁止从 .lfaa/state 或上一次输出复用旧路径。
+    # 每次都向当前 pnpm 实时查询；禁止从运行时 Home 缓存或上一次输出复用旧路径。
     return (Get-PnpmEnvironmentFacts).StorePath
 }
 
@@ -674,8 +674,18 @@ function Get-NodeDependencySummary {
     }
 }
 
+function Get-LfaaRuntimeHome {
+    if (-not [string]::IsNullOrWhiteSpace($env:LFAA_HOME)) {
+        return [System.IO.Path]::GetFullPath($env:LFAA_HOME)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        return (Join-Path $env:LOCALAPPDATA "LFAA")
+    }
+    return (Join-Path $env:USERPROFILE "AppData\Local\LFAA")
+}
+
 function Get-DependencyStatePath {
-    return (Join-Path $ProjectRoot ".lfaa\state\dependency-state.json")
+    return (Join-Path (Get-LfaaRuntimeHome) "state\dependency-state.json")
 }
 
 function Get-Sha256Text {
@@ -1756,15 +1766,16 @@ function Install-RustDependencies {
     return [PSCustomObject]@{ Changed = $true; Cancelled = $false }
 }
 
-function Initialize-ProjectResources {
-    $root = Join-Path $ProjectRoot ".lfaa"
-    foreach ($d in @("skills","experts","plugins","extensions","mcp","cache","state","tmp","logs")) {
+function Initialize-LfaaRuntimeHome {
+    $root = Get-LfaaRuntimeHome
+    foreach ($d in @("state","plugins","cache","tmp","logs")) {
         $p = Join-Path $root $d
-        if (-not (Test-Path $p)) {
+        if (-not (Test-Path -LiteralPath $p)) {
             New-Item -ItemType Directory -Path $p -Force | Out-Null
-            Write-Label "【创建】" "【项目】" (".lfaa/{0}" -f $d) Green
+            Write-Label "【创建】" "【运行数据】" (Join-Path $root $d) Green
         }
     }
+    Write-Label "【位置】" "【LFAA_HOME】" $root Cyan
 }
 
 function Invoke-GovernanceChecks {
@@ -2162,7 +2173,7 @@ function Start-WebDevelopment {
     $webRoot = Join-Path $ProjectRoot "apps\web"
 
     Write-Label "【启动】" "【Web】" ("Vite：{0}" -f $url) Green
-    Write-Label "【热插拔】" "【监听】" ".lfaa/skills、experts、plugins、extensions、mcp" Cyan
+    Write-Label "【架构】" "【Harness】" "业务能力由 packages/*/* 与 Web Bundle 组装；源码仓库不承载运行时资源目录。" Cyan
     Write-Label "【提示】" "【停止】" "按 Ctrl+C 停止 Web；停止后会返回主菜单。" DarkGray
 
     Invoke-WebViteForeground $viteCommand $webRoot $resolved.Port
@@ -2281,7 +2292,7 @@ function Show-SetupMenu {
     Write-Label "【5】" "【构建桌面】" "production build" Cyan
     Write-Label "【6】" "【构建发布】" "生成本地发布产物" Magenta
     Write-Label "【7】" "【环境检查】" "完整环境与路径" Cyan
-    Write-Label "【8】" "【项目资源】" "初始化 .lfaa" Magenta
+    Write-Label "【8】" "【运行数据】" "初始化 / 查看 LFAA_HOME" Magenta
     Write-Label "【9】" "【治理检查】" "项目治理" Yellow
     Write-Label "【10】" "【检查中心】" "快速 / 完整 / 发布" Yellow
     Write-Label "【0】" "【退出】" "" DarkGray
@@ -2355,7 +2366,7 @@ while ($true) {
                     Write-Label "【待补齐】" "【Rust/Cargo】" "Rust 环境尚未完成；Node/pnpm 依赖检测不受影响。" Yellow
                 }
 
-                Initialize-ProjectResources
+                Initialize-LfaaRuntimeHome
 
                 Write-Host ""
                 $rustChanged = ($null -ne $rustDependencyResult -and $rustDependencyResult.Changed) -or (-not $rustReadiness.Ready -and $cargoReady)
@@ -2416,15 +2427,15 @@ while ($true) {
             }
 
             "8" {
-                if (-not (Confirm-WriteOperation "将在当前项目创建缺失的 .lfaa 目录。")) {
+                if (-not (Confirm-WriteOperation "将在用户运行时目录创建缺失的 LFAA_HOME 子目录；不会修改源码仓库。")) {
                     Write-Host ""
-                    Write-Label "【取消】" "【项目资源】" "用户已取消，本次未修改项目资源。" Yellow
+                    Write-Label "【取消】" "【运行数据】" "用户已取消，本次未修改运行时目录。" Yellow
                     $menuMessage = "已取消，按任意键返回主菜单。"
                     break
                 }
 
-                Initialize-ProjectResources
-                $menuMessage = "项目资源检查完成，按任意键返回主菜单。"
+                Initialize-LfaaRuntimeHome
+                $menuMessage = "运行时目录检查完成，按任意键返回主菜单。"
             }
 
             "9" {

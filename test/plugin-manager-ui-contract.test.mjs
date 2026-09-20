@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const settings = fs.readFileSync("packages/app-shell/src/workbench/settings/view/SettingsPage.tsx", "utf8");
-const panel = fs.readFileSync("packages/app-shell/src/workbench/settings/view/PluginSettingsPanel.tsx", "utf8");
-const bridge = fs.readFileSync("apps/web/dev/bridges/plugins/plugin-manager-bridge.ts", "utf8");
+const settings = fs.readFileSync("packages/client/app-shell/src/workbench/settings/view/SettingsPage.tsx", "utf8");
+const panel = fs.readFileSync("packages/client/app-shell/src/workbench/settings/view/PluginSettingsPanel.tsx", "utf8");
+const bridge = fs.readFileSync("packages/api/plugin-controller/src/plugin-manager-bridge.ts", "utf8");
 
 test("settings exposes one plugin-and-capability management surface", () => {
   assert.match(settings, /插件与能力/);

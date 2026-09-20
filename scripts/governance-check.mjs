@@ -34,7 +34,7 @@ const required = [
   "docs/RUNTIME.md",
   "apps/README.md",
   "packages/README.md",
-  "crates/README.md",
+  "native/README.md",
   "scripts/README.md",
   "scripts/docs-check.mjs",
   "scripts/dev-log-check.mjs",
@@ -52,25 +52,17 @@ const required = [
   "test/dependency-setup.test.mjs",
   "test/node-dependency-health.test.mjs",
   "test/ai-web-host.test.mjs",
-  "apps/web/dev/bridges/ai/README.md",
-  "apps/web/dev/bridges/ai/ai-config-bridge.ts",
-  "apps/web/dev/bridges/ai/rust-secret-store.ts",
-  "crates/secret-store/src/lib.rs",
-  "crates/secret-store/src/bin/lfaa-secret-broker.rs",
-  "packages/config-system/src/settings/ai/core/account-service.ts",
-  "packages/config-system/src/settings/ai/core/model-settings.ts",
+  "packages/api/settings-controller/README.md",
+  "packages/api/settings-controller/src/ai-config-bridge.ts",
+  "packages/credentials/credentials-native/src/rust-secret-store.ts",
+  "native/secret-store/src/lib.rs",
+  "native/secret-store/src/bin/lfaa-secret-broker.rs",
+  "packages/settings/config-system/src/settings/ai/core/account-service.ts",
+  "packages/settings/config-system/src/settings/ai/core/model-settings.ts",
   "scripts/node-dependency-health-check.mjs",
-  "packages/config-system/README.md",
-  "packages/config-system/src/index.ts",
+  "packages/settings/config-system/README.md",
+  "packages/settings/config-system/src/index.ts",
   "scripts/check-node-pty.mjs",
-  ".lfaa/README.md",
-  ".lfaa/manifest.json",
-  ".lfaa/lock.json",
-  ".lfaa/skills/README.md",
-  ".lfaa/experts/README.md",
-  ".lfaa/plugins/README.md",
-  ".lfaa/extensions/README.md",
-  ".lfaa/mcp/README.md",
   "LFAA-Sync.bat",
   "LFAA-GitHub.bat",
   "LFAA-Update.bat",
@@ -90,25 +82,30 @@ const required = [
   "test/release-path-encoding.test.mjs",
   "scripts/release-archive.mjs",
   "test/release-archive.test.mjs",
-  "packages/credentials/src/index.ts",
-  "packages/plugin-runtime/src/lifecycle.ts",
-  "packages/plugin-runtime/src/install-spec.ts",
-  "packages/plugin-host-node/src/index.ts",
-  "apps/web/dev/bridges/plugins/README.md",
-  "apps/web/dev/bridges/plugins/plugin-manager-bridge.ts",
-  "apps/web/src/host-clients/plugin-settings-client.ts",
-  "packages/app-shell/src/workbench/settings/view/PluginSettingsPanel.tsx",
+  "packages/credentials/credentials/src/index.ts",
+  "packages/plugin/plugin-runtime/src/lifecycle.ts",
+  "packages/plugin/plugin-runtime/src/install-spec.ts",
+  "packages/plugin/plugin-host-node/src/index.ts",
+  "packages/api/plugin-controller/README.md",
+  "packages/api/plugin-controller/src/plugin-manager-bridge.ts",
+  "packages/client/connection/src/plugin-settings-client.ts",
+  "packages/client/app-shell/src/workbench/settings/view/PluginSettingsPanel.tsx",
   "apps/web/tsconfig.json",
-  "packages/ui/tsconfig.json",
-  "packages/workspace/package.json",
-  "packages/workspace/README.md",
-  "packages/workspace/src/index.ts",
+  "packages/client/ui/tsconfig.json",
+  "packages/client/workspace/package.json",
+  "packages/client/workspace/README.md",
+  "packages/client/workspace/src/index.ts",
   "test/workspace-package-boundary.test.mjs",
-  "packages/agent-runtime/tsconfig.json",
-  "packages/agent-runtime/src/core/contracts.ts",
-  "packages/agent-runtime/src/core/permission-profiles.ts",
-  "packages/agent-runtime/src/harness/official-harnesses.ts",
-  "packages/ui/src/features/workbench/InfiniteCanvas.tsx"
+  "packages/core/agent-runtime/tsconfig.json",
+  "packages/core/agent-runtime/src/core/contracts.ts",
+  "packages/core/agent-runtime/src/core/permission-profiles.ts",
+  "packages/core/agent-runtime/src/harness/official-harnesses.ts",
+  "packages/client/ui/src/features/workbench/InfiniteCanvas.tsx",
+  "packages/client/web/src/App.tsx",
+  "packages/client/connection/src/index.ts",
+  "packages/client/ui-terminal/src/index.ts",
+  "packages/bundle/web-app/src/vite.ts",
+  "packages/util/home-paths/src/index.ts"
 ];
 
 
@@ -147,12 +144,9 @@ for (const name of ["lfaa-sync.ps1", "lfaa-github.ps1", "lfaa-setup.ps1", "lfaa-
 }
 
 
-for (const legacyResourceRoot of ["skills", "plugins"]) {
+for (const legacyResourceRoot of ["skills", "plugins", ".lfaa"]) {
   if (fs.existsSync(path.join(root, legacyResourceRoot))) {
-    console.error(
-      `LFAA governance check failed: root /${legacyResourceRoot} is forbidden. ` +
-      `Project resources must use .lfaa/${legacyResourceRoot}.`
-    );
+    console.error(`LFAA governance check failed: repository-local ${legacyResourceRoot} is forbidden; runtime data and installable capabilities must have a packages/* owner or live under the user runtime Home.`);
     process.exit(1);
   }
 }
@@ -244,14 +238,6 @@ for (const relative of ["docs/RELEASES.md", "docs/PROMPTS.md", "docs/DEVELOPMENT
   }
 }
 
-for (const resourceFile of [".lfaa/manifest.json", ".lfaa/lock.json"]) {
-  const resourceData = JSON.parse(fs.readFileSync(path.join(root, resourceFile), "utf8"));
-  if (resourceData.scope !== "project" || !Array.isArray(resourceData.resources)) {
-    console.error(`LFAA governance check failed: ${resourceFile} must be project-scoped.`);
-    process.exit(1);
-  }
-}
-
 function listFiles(directory, targetName) {
   const results = [];
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -274,7 +260,7 @@ for (const packageRoot of ["apps", "packages"]) {
   }
 }
 
-for (const cargoFile of listFiles(path.join(root, "crates"), "Cargo.toml")) {
+for (const cargoFile of listFiles(path.join(root, "native"), "Cargo.toml")) {
   const text = fs.readFileSync(cargoFile, "utf8");
   const relative = path.relative(root, cargoFile).replaceAll("\\", "/");
   if (!/^name\s*=\s*"lfaa-[^"]+"/m.test(text) || !/^authors\s*=\s*\["二鱼"\]/m.test(text)) {

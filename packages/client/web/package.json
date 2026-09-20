@@ -1,0 +1,19 @@
+{
+  "name": "@lfaa/client-web",
+  "private": true,
+  "version": "0.0.100",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "dependencies": {
+    "@lfaa/app-shell": "workspace:*",
+    "@lfaa/client-connection": "workspace:*",
+    "@lfaa/ui-terminal": "workspace:*",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "lfaa": {
+    "layer": "host",
+    "role": "web-client-composition"
+  }
+}

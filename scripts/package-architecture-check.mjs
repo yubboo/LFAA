@@ -18,6 +18,8 @@ const allowedTargets = new Map([
   ["composition", new Set(["foundation", "runtime", "domain", "presentation"])],
   ["host-adapter", new Set(["foundation", "runtime", "domain"])],
   ["host", new Set(["foundation", "runtime", "domain", "presentation", "composition", "host-adapter"])],
+  ["bundle", new Set(["foundation", "runtime", "domain", "presentation", "composition", "host-adapter", "host"])],
+  ["app", new Set(["foundation", "runtime", "domain", "presentation", "composition", "host-adapter", "host", "bundle"])],
 ]);
 
 function walkForPackageJson(dir, result = []) {
@@ -109,7 +111,7 @@ for (const name of graph.keys()) visit(name);
 
 // Rust 的定位是 Frozen Native Kernel。禁止只声明 module_name() 的空壳 crate 进入 Cargo workspace。
 const cargoRoot = fs.readFileSync(path.join(root, "Cargo.toml"), "utf8");
-const memberMatches = [...cargoRoot.matchAll(/"(crates\/[^"]+)"/g)].map((match) => match[1]);
+const memberMatches = [...cargoRoot.matchAll(/"(native\/[^"]+)"/g)].map((match) => match[1]);
 for (const member of memberMatches) {
   const srcDir = path.join(root, member, "src");
   if (!fs.existsSync(srcDir)) throw new Error(`${member}: Cargo workspace member 缺少 src。`);
@@ -129,4 +131,4 @@ for (const member of memberMatches) {
   }
 }
 
-console.log(`LFAA package architecture check passed. Node workspaces=${manifests.length}, Cargo crates=${memberMatches.length}.`);
+console.log(`LFAA package architecture check passed. Node workspaces=${manifests.length}, Native crates=${memberMatches.length}.`);

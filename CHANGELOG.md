@@ -1,3 +1,28 @@
+# v0.0.100 Workspace Sync 目录迁移热修复
+
+**当前任务：#21.28 hotfix · v0.0.100 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- 修复 v0.0.99 Harness 化迁移后，稳定工作区中的旧 package 目录因残留 `node_modules` 等保护缓存而无法成为“空目录”，导致 `current-fact` 错误报告 `旧物理 Owner 回流`。
+- Sync 新增退役 workspace root 安全清理：只有确认目录中不存在项目文件、仅剩受保护缓存时，才整体移除旧目录；存在真实文件时不静默删除。
+- `current-fact` 同步调整为检查“旧 Owner 是否仍含项目内容”，不再因为缓存空壳目录本身存在就失败。
+- 新增 Workspace Sync 回归测试，锁定目录迁移 + 孤立缓存场景。
+- v0.0.99 的 packages-first、thin app、bundle、Runtime Home、native 结构和业务行为保持不变。
+
+# v0.0.99 Harness 化仓库架构
+
+**当前任务：#21.28 · v0.0.99 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+
+> 当前架构真相见 `ARCHITECTURE.md` / `DEVELOPMENT.md`。以下旧版本条目中的 `.lfaa/`、`crates/`、`apps/web/dev` 和旧 packages 路径是历史记录，不再代表当前结构。
+
+- **packages-first：** 原 9 个平铺 workspace 包按 `core/plugin/settings/credentials/client` capability family 归位，公开 `@lfaa/*` 包名保持稳定；新增 api/bundle/host/llm/harness/terminal/util 等真实能力包。
+- **App 变薄：** `apps/web` 只保留产品入口与 Vite build config；App.tsx、browser host clients、Terminal UI、Node bridges 全部下沉 `packages/`。
+- **Host Bundle：** `@lfaa/bundle-web-app` 集中组合 Vite Host、Agent/Settings/Plugin Controller 与 Terminal Adapter。
+- **LLM Owner：** OpenAI-compatible `/responses` / `/chat/completions` 细节从 Agent Controller 抽到 `packages/llm/openai-compatible`。
+- **运行状态：** 仓库级 `.lfaa/` 删除；AI account、plugin profile、dependency state 等转为用户 `LFAA_HOME`，Sync/Host 只保留旧状态迁移兼容。
+- **Native：** `crates/secret-store` 迁为 `native/secret-store`，Rust 仍保持 Frozen Native Kernel。
+- **治理：** workspace glob、package architecture、folder/language ownership、release/sync/path contract tests 和全部当前长期文档同步到新结构。
+
 ## LFAA v0.0.98 — #21.27 全仓审计问题修复与发布门禁闭环
 
 - 修复 Vite 生产构建中的 CSS 注释解析错误与 TypeScript 7 `baseUrl` 配置错误，并修复被配置错误遮住的严格类型问题。
@@ -40,7 +65,7 @@
 - **合并用户 #22.8：** 从用户上传 v0.0.93 仅移植 Infinite Canvas 布局持久化/选中层级合同。Work Canvas 产品模块按 workspaceId 保存 node `id→x/y` 与 viewport，低频 commit；高频 Pointer 留在 `@lfaa/ui`，Session 不拥有视觉坐标。
 - **选中层级：** selected/dragging node 置于普通节点之前，edge 继续位于 node 之后；不引入自动布局或强制重排。
 - **行为冻结：** Runtime Reasoning/强力推理/Slider/Particle、`ui-controls/ui-effects/ui-resize/ui-motion`、Provider/Config/Agent Runtime、Resize/Snap、Windows Sync/GitHub/Setup/Update 业务逻辑不在本轮修改。
-- **行为冻结核对：** 相对 v0.0.94，`packages/ui/src/ui-controls|ui-effects|ui-resize|ui-motion`、Config System、Agent Runtime、Plugin SDK/Runtime/Host、Credentials、Rust Secret Store、Windows scripts 均为零 diff；InfiniteCanvas 三个核心文件与用户 v0.0.93 上传包字节一致。
+- **行为冻结核对：** 相对 v0.0.94，`packages/client/ui/src/ui-controls|ui-effects|ui-resize|ui-motion`、Config System、Agent Runtime、Plugin SDK/Runtime/Host、Credentials、Rust Secret Store、Windows scripts 均为零 diff；InfiniteCanvas 三个核心文件与用户 v0.0.93 上传包字节一致。
 - **验证：** 聚焦模块/Canvas/既有行为 63/63 PASS；全仓 Node 151 项中 150 项 PASS，唯一 `node-source-runtime.test.mjs` 受当前 Node 22.16.0 + 无 workspace `node_modules` 环境阻断。UI/Folder/Package/Runtime Import/Comment/Governance Gate PASS。
 - **当前状态：** `pending-user-acceptance`；AI 验证 `pass`；用户验收 `pending`。
 - **发布归档：** release archive 483 entries；中文代码地图 exact entry UTF-8 flag=`0x800`；`.lfaa/` 保留；fresh extract 后 preflight 全 Gate PASS。
@@ -51,7 +76,7 @@
 - **Composition Root：** `AgentWorkbench.tsx` 只创建 Controller 和连接大模块，不再持有区域 JSX、AI/Plugin ViewModel、Run event 细节或 Overlay DOM。
 - **CSS Module 隔离：** Workbench 区域样式全部迁到局部 `*.module.css`；`agent-workbench.css` 只剩 reset；禁止 `:global(.agent-*)`、兄弟 class 匹配和全局业务 selector。
 - **状态所有权：** shell/theme/chrome/overlays、settings AI/Plugin、session Chat/Work Run、各区域局部 UI 状态分别回到自己的 Controller/模块；兄弟模块只经 typed Props/Callback 连接。
-- **行为冻结：** v0.0.93 用户可见行为保持等价；`packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**` 相对 v0.0.93 零 diff，不在本轮顺手修改 Reasoning/粒子/Resize/Motion。
+- **行为冻结：** v0.0.93 用户可见行为保持等价；`packages/client/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**` 相对 v0.0.93 零 diff，不在本轮顺手修改 Reasoning/粒子/Resize/Motion。
 - **门禁：** 扩展 Workbench module boundary、UI contract 与既有行为合同测试，防止实现重新堆回根组件/全局 CSS或通过深链 import 破坏边界。
 - **验证：** 聚焦测试 45/45 PASS；全仓 Node 140 项中 139 项 PASS，唯一 `node-source-runtime` 受制作环境 Node 22.16.0 + 无 workspace `node_modules` 阻断；Workbench TS/TSX syntax transpile 50/50 PASS；UI contract PASS。
 
@@ -64,7 +89,7 @@
 - **基线回退：** v0.0.93 严格从 v0.0.91 建立，不继承用户已否决的 v0.0.92 业务实现；本轮不继续混做 Reasoning Slider 视觉修复。
 - **父子模块：** `AgentWorkbench` 收敛为 Composition Root；左侧栏、中央工作区、右侧栏、底部终端拆为独立 Region；中央区再拆 `CenterHeader / ConversationRegion / ComposerRegion`，Composer 内把 `RuntimeControl` 独立成唯一模型/reasoning/强力推理子模块。
 - **状态边界：** Shell 只拥有跨区域状态与 Host/Runtime 装配；区域局部状态留在对应 Region；兄弟模块只经 typed Props/Callback 通信，不使用 DOM query / 全局 mutable singleton 串状态。
-- **行为冻结：** `agent-workbench.css`、`packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**` 与 v0.0.91 字节级/文件级保持零改动；Reasoning、粒子、Slider Pointer、Resize/Snap、Chat/Composer 对齐语义本轮不调整。
+- **行为冻结：** `agent-workbench.css`、`packages/client/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**` 与 v0.0.91 字节级/文件级保持零改动；Reasoning、粒子、Slider Pointer、Resize/Snap、Chat/Composer 对齐语义本轮不调整。
 - **防回归：** 新增 `test/workbench-module-boundary.test.mjs`；既有静态合同测试改为读取新的模块 Owner，而不是错误要求所有实现仍堆在 `AgentWorkbench.tsx`。
 - **AI 验证：** Workbench/既有行为聚焦回归 45/45 PASS；全仓 Node 合同测试 140 项中 139 项 PASS，唯一 `node-source-runtime.test.mjs` 因当前制作环境 Node 22.16.0 且无 pnpm workspace `node_modules`，无法解析 `@lfaa/credentials`，属于已记录环境限制，不冒充 Node 24 动态验证。15 个本轮 TS/TSX 文件语法 transpile PASS；统一 workspace-preflight 全 Gate PASS；v0.0.91 对比确认 `agent-workbench.css`、`ui-controls`、`ui-effects`、`ui-resize` 零改动；Unicode ZIP 候选包 fresh round-trip 后再次 preflight PASS。
 - **下一步边界：** 用户确认该父子模块基线后，Reasoning UI 修复只允许进入 `workbench/center/RuntimeControl.tsx` 及明确共享 Primitive，不得修改 Left / Right / Terminal / Conversation。
@@ -113,10 +138,10 @@
 - Workbench Resize 使用 `ui-resize` 指数阻尼追随 Pointer；吸附阈值仍保持“到最小宽后继续超拖 50% 才 capture”。
 
 ### 新增共享 UI
-- `packages/ui/src/ui-motion`：稳定展开/收起。
-- `packages/ui/src/ui-shortcuts`：统一页面快捷键。
-- `packages/ui/src/ui-resize`：帧率无关阻尼运动学。
-- `packages/ui/src/ui-overlay/layers.*`：统一 Overlay 层级。
+- `packages/client/ui/src/ui-motion`：稳定展开/收起。
+- `packages/client/ui/src/ui-shortcuts`：统一页面快捷键。
+- `packages/client/ui/src/ui-resize`：帧率无关阻尼运动学。
+- `packages/client/ui/src/ui-overlay/layers.*`：统一 Overlay 层级。
 
 ### Runtime 边界
 - 新增 `AgentRuntimeEvent` / `subscribe()` 投影契约。
@@ -126,7 +151,7 @@
 ## LFAA v0.0.87 — #21.21 UI 共享模块 / Effect & Extension Registry 收敛
 
 - **状态：** pending-user-acceptance
-- 固定 UI 共享目录规则：所有新共享 UI 基础/交互/特效/扩展能力统一进入 `packages/ui/src/ui-xxx/`；既有 `layout/workbench/features` 保持不动，禁止在 `packages/` 顶层再散落 `effects/overlay/motion` 等第二套 UI 域。
+- 固定 UI 共享目录规则：所有新共享 UI 基础/交互/特效/扩展能力统一进入 `packages/client/ui/src/ui-xxx/`；既有 `layout/workbench/features` 保持不动，禁止在 `packages/` 顶层再散落 `effects/overlay/motion` 等第二套 UI 域。
 - 将 `useDismissibleLayer` 从旧 `primitives/` 迁入 `ui-overlay/`；新增 `ui-controls/DiscreteSlider`，把点击/拖拽/Pointer Capture/键盘档位控制从 App Shell 抽成通用控件。
 - 新增 `ui-effects` 声明式 Effect Registry + `UiEffectHost`；强力推理流星效果改由 `reasoning-overdrive` effect id 调用，不再在模型业务组件内写粒子实现。
 - 新增 `ui-extension` contribution Registry，预留 effect/slot/renderer/panel/action 统一贡献模型；Registry 支持 owner-scoped unregister + generation，便于未来插件启用/卸载后原子切换。
@@ -239,7 +264,7 @@
 - **基线：** v0.0.76（保留 #2.16 ChatGPT / Codex App Server 登录成果）
 - **任务：** #22.0、#4.3
 - 架构升级为 `architecture-version: 2`：Chat 与 Work 不再被视为两套智能，统一通过 `AgentRunRequest` 进入同一个 Agent Runtime；Config System 继续只拥有账号/认证/模型选择。
-- `packages/agent-runtime` 新增模型绑定、Capability、Run Host、三档 Permission Profile 与官方 Harness Registry；OpenAI Codex 只声明 `codex app-server` Bridge，DeepSeek Harness 只声明 ACP/SDK Bridge，不复制两者 Agent Loop。
+- `packages/core/agent-runtime` 新增模型绑定、Capability、Run Host、三档 Permission Profile 与官方 Harness Registry；OpenAI Codex 只声明 `codex app-server` Bridge，DeepSeek Harness 只声明 ACP/SDK Bridge，不复制两者 Agent Loop。
 - 三档权限固定为“请求审批 / 替我审批 / 完全权限”。请求审批为 LFAA `prompt-every-capability` 前置 Gate；替我审批使用受限工作区 + Model/Official Reviewer；完全权限映射 unrestricted，但普通 Run 永远不能修改 Trust Core / Permission Policy / Secret / Audit 边界。
 - Work Surface 新增真实 Infinite Canvas：支持 pan、zoom、reset、节点拖拽和连线；Goal / Agent / Tool / Subagent / Artifact 仅为 Runtime Projection，不成为业务真值。
 - Workbench 移除硬编码模型名，读取 Config System 当前 `selectedModelId`；Runtime Host 缺失时明确显示“Runtime 未连接”并禁用发送，不使用假回复冒充模型执行。
@@ -293,7 +318,7 @@
 - **用户验收：** not-accepted；业务成果由 v0.0.74 继续承载，尚待 Windows Rust Secret / Provider 实机验收
 - **基线：** v0.0.72
 - **任务：** #2.13
-- 删除 PowerShell/C# Credential helper；`crates/secret-store` 实现 `lfaa-secret-broker`，Windows 直接通过 Rust FFI 调用 `CredWriteW / CredReadW / CredDeleteW`，写入后必须回读比对。
+- 删除 PowerShell/C# Credential helper；`native/secret-store` 实现 `lfaa-secret-broker`，Windows 直接通过 Rust FFI 调用 `CredWriteW / CredReadW / CredDeleteW`，写入后必须回读比对。
 - Web Host 通过 stdin/stdout 二进制协议调用 Rust Broker；Secret 不进入 argv、环境变量、日志、普通文件或账户 JSON。
 - Provider 模型目录升级为官方来源：OpenAI / DeepSeek / Kimi / 千问 / Xiaomi 使用官方模型列表 API；智谱在未确认统一账户模型列表 API 时使用带官方来源的 Catalog Adapter，不伪造 endpoint。
 - 新增模型 Capability 契约与 Core 校验：UI 只展示官方确认的思考模式/思考强度/输出限制等参数；未知或不支持参数不能保存。
@@ -332,7 +357,7 @@
 - **基线：** v0.0.69
 - **任务：** #2.10
 - 修复 Settings 使用 `@/workbench/*` tsconfig-only alias 导致 Vite Web 宿主运行时无法解析的问题。
-- `packages/ui` 新增 `@lfaa/ui/workbench` 公共 Subpath Export；Settings 通过稳定 package Export 复用 ResizableWorkbench 与布局计算器。
+- `packages/client/ui` 新增 `@lfaa/ui/workbench` 公共 Subpath Export；Settings 通过稳定 package Export 复用 ResizableWorkbench 与布局计算器。
 - 新增 runtime import resolution 治理：packages 禁止 `@/` 私有 alias，workspace `@lfaa/*/<subpath>` 必须在目标 package exports 中公开且目标存在。
 - 新增真实 importer resolver 回归，直接从 `SettingsPage.tsx` 所在 package scope 解析 `@lfaa/ui/workbench`。
 - **边界：** 不改变 Settings resize/snap/release 行为，不修改 AI Account/Auth/Secret/Provider，不修改 Windows Setup/Sync/GitHub/Update。
@@ -378,7 +403,7 @@
 - **状态：** delivered
 - **用户验收：** passed；用户实机确认“ok，丝滑了”。
 - **任务：** #2.6
-- **范围：** `packages/ui/src/workbench` + Workbench 动效测试；不改 Provider / Config / Web Host / Windows 工具链。
+- **范围：** `packages/client/ui/src/workbench` + Workbench 动效测试；不改 Provider / Config / Web Host / Windows 工具链。
 - **修复：** snap capture 反向拉出不再从 0 瞬跳到 min，新增约 150ms release 过渡；随后普通 resize 恢复 1:1 跟手。
 - **一致性：** 左栏、右栏、Bottom Dock 共用 release 规则，并支持 reduced-motion 降级。
 - **前序验收：** v0.0.65 已由用户 Windows 实机确认通过并标记 delivered。
@@ -418,7 +443,7 @@
 - **用户验收：** not-accepted；Provider/目录架构保留，设置与个人中心 UI 由 v0.0.64 修正
 - **基线：** v0.0.62
 - **任务：** #2.3
-- 配置业务固定归 `packages/config-system/src/settings/ai`，共享图形 UI 固定归 `packages/ui/src/features/settings/ai`，App 仅作为宿主；目录职责写入开发规范并由 `folder-boundary-check` 自动执行。
+- 配置业务固定归 `packages/settings/config-system/src/settings/ai`，共享图形 UI 固定归 `packages/client/ui/src/features/settings/ai`，App 仅作为宿主；目录职责写入开发规范并由 `folder-boundary-check` 自动执行。
 - 新增无厂商分支的 `AiProviderPlugin / AiProviderRegistry`；首批内置 OpenAI、DeepSeek、智谱 GLM、Kimi、千问/百炼、Xiaomi MiMo 六个 Provider 配置插件。
 - OpenAI 配置插件同时声明 API Key 与官方 Codex App Server ChatGPT 套餐认证；其他 Provider 保留各自区域、Workspace、Coding API、Token Plan 等真实差异。
 - OpenAI-compatible 共享 transport 只负责请求/模型列表协议形状，厂商 Base URL / Auth 不进入 Core。
@@ -717,7 +742,7 @@ Windows 实机缩小浏览器后暴露两个问题：
 
 新增：
 
-`packages/ui/src/workbench/workbench-layout.config.ts`
+`packages/client/ui/src/workbench/workbench-layout.config.ts`
 
 几何配置集中为：
 
@@ -1227,12 +1252,12 @@ scripts/release-consistency-check.mjs
 
 当前重点覆盖：
 
-- `packages/app-shell/src/AgentWorkbench.tsx`
-- `packages/app-shell/src/WorkbenchIcon.tsx`
-- `packages/app-shell/src/workbench.types.ts`
-- `packages/ui/src/workbench/ResizableWorkbench.tsx`
-- `packages/ui/src/workbench/workbench-layout.types.ts`
-- `apps/web/src/App.tsx`
+- `packages/client/app-shell/src/AgentWorkbench.tsx`
+- `packages/client/app-shell/src/WorkbenchIcon.tsx`
+- `packages/client/app-shell/src/workbench.types.ts`
+- `packages/client/ui/src/workbench/ResizableWorkbench.tsx`
+- `packages/client/ui/src/workbench/workbench-layout.types.ts`
+- `packages/client/web/src/App.tsx`
 - `apps/web/src/LocalTerminal.tsx`
 - `apps/web/src/vite-custom-events.d.ts`
 - `apps/web/vite.config.ts`
@@ -1252,8 +1277,8 @@ scripts/release-consistency-check.mjs
 三个关键 CSS：
 
 ```text
-packages/app-shell/src/agent-workbench.css
-packages/ui/src/workbench/workbench.css
+packages/client/app-shell/src/agent-workbench.css
+packages/client/ui/src/workbench/workbench.css
 apps/web/src/local-terminal.css
 ```
 

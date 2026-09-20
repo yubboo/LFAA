@@ -10,7 +10,7 @@ import path from "node:path";
 const root = process.cwd();
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 const exists = (relative) => fs.existsSync(path.join(root, relative));
-const appShellRoot = "packages/app-shell/src/workbench";
+const appShellRoot = "packages/client/app-shell/src/workbench";
 
 const modules = [
   ["left", `${appShellRoot}/left/index.ts`, `${appShellRoot}/left/styles/LeftSidebar.module.css`],
@@ -49,7 +49,7 @@ test("module roots do not mix TSX controllers styles after responsibility split"
 });
 
 test("AgentWorkbench remains a thin composition root and consumes workspace public API", () => {
-  const source = read("packages/app-shell/src/AgentWorkbench.tsx");
+  const source = read("packages/client/app-shell/src/AgentWorkbench.tsx");
   assert.ok(source.split(/\r?\n/).length <= 160, "AgentWorkbench grew back into a monolith");
   for (const forbidden of ["buildAiProviderViews", "mapPluginInspection", "ResizeObserver", "agentRuntimeHost.subscribe", "<SettingsPage", "<UserMenu", "<ThemeModeMenu", 'className="agent-']) {
     assert.equal(source.includes(forbidden), false, `composition root owns forbidden implementation: ${forbidden}`);

@@ -8,14 +8,14 @@ import fs from "node:fs";
 
 const read = (path) => fs.readFileSync(path, "utf8");
 
-const runtimeContracts = read("packages/agent-runtime/src/core/contracts.ts");
-const runtimeEntry = read("packages/agent-runtime/src/index.ts");
-const workspaceTypes = read("packages/workspace/src/shared/contracts/workspace.types.ts");
-const workspaceSession = read("packages/workspace/src/shared/logic/useWorkspaceSessionController.ts");
-const workspaceReadme = read("packages/workspace/README.md");
-const uiReadme = read("packages/ui/README.md");
+const runtimeContracts = read("packages/core/agent-runtime/src/core/contracts.ts");
+const runtimeEntry = read("packages/core/agent-runtime/src/index.ts");
+const workspaceTypes = read("packages/client/workspace/src/shared/contracts/workspace.types.ts");
+const workspaceSession = read("packages/client/workspace/src/shared/logic/useWorkspaceSessionController.ts");
+const workspaceReadme = read("packages/client/workspace/README.md");
+const uiReadme = read("packages/client/ui/README.md");
 const architecture = read("ARCHITECTURE.md");
-const infiniteCanvas = read("packages/ui/src/features/workbench/InfiniteCanvas.tsx");
+const infiniteCanvas = read("packages/client/ui/src/features/workbench/InfiniteCanvas.tsx");
 
 test("Chat and Work use Workspace Mode terminology in runtime and workspace contracts", () => {
   assert.match(runtimeContracts, /export type AgentWorkspaceMode = "chat" \| "work"/);

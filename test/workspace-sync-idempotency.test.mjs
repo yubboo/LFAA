@@ -73,9 +73,38 @@ test("source path encoding check requires canonical Unicode paths before claimin
   assert.ok(encoding.indexOf("$missingCanonical.Count -gt 0") < encoding.indexOf("源版本包文件名编码正常"));
 });
 
-test("local .lfaa runtime state remains protected from mirror deletion", () => {
+test("legacy project runtime state migrates to user LFAA_HOME before old .lfaa is deleted", () => {
   const protectedPath = functionBody("Test-ProtectedPath");
-  const expected = String.raw`if ($rel -imatch "^\.lfaa/(cache|state|tmp|logs)(/|$)") { return $true }`;
-  assert.ok(protectedPath.includes(expected), ".lfaa local runtime directories must use a literal-dot regex");
-  assert.ok(!protectedPath.includes(String.raw`"^\\.lfaa/(cache|state|tmp|logs)(/|$)"`), "double-backslash regex would match a backslash, not the .lfaa directory");
+  const migration = functionBody("Migrate-LegacyRuntimeState");
+  assert.doesNotMatch(protectedPath, /\.lfaa\/\(cache\|state\|tmp\|logs\)/);
+  assert.match(migration, /\.lfaa\\state/);
+  assert.match(migration, /ai-accounts\.json/);
+  assert.match(migration, /plugin-profile/);
+  assert.match(migration, /Get-LfaaRuntimeHome/);
+  assert.ok(sync.indexOf("Migrate-LegacyRuntimeState $TargetRoot") < sync.indexOf('Write-Label "【同步】" "【进行中】" "开始应用文件变化..."'));
+});
+
+test("retired workspace shells can remove orphan dependency caches after package moves", () => {
+  const cleanup = functionBody("Remove-RetiredWorkspaceShells");
+  assert.match(sync, /\$RetiredWorkspaceRoots = @\(/);
+  for (const legacy of ["packages/agent-runtime", "packages/app-shell", "packages/ui", "packages/workspace"]) {
+    assert.ok(sync.includes(`\"${legacy}\"`), `missing retired workspace root ${legacy}`);
+  }
+  assert.match(cleanup, /Test-ProtectedPath \$itemRelative/);
+  assert.match(cleanup, /Remove-Item -LiteralPath \$targetPath -Recurse -Force/);
+  assert.match(cleanup, /仅剩本地缓存/);
+  assert.ok(
+    sync.indexOf("Remove-RetiredWorkspaceShells -SourceRoot $ProjectRoot -DestinationRoot $TargetRoot") <
+      sync.indexOf('Write-Label "【校验】" "【进行中】" "开始逐文件 SHA-256 镜像校验..."'),
+    "retired workspace cleanup must happen before final mirror verification",
+  );
+});
+
+test("current-fact ignores cache-only legacy package shells but still guards project content", () => {
+  const currentFact = fs.readFileSync("scripts/current-fact-check.mjs", "utf8");
+  assert.match(currentFact, /ignoredLegacyShellSegments/);
+  assert.match(currentFact, /legacyOwnerHasProjectContent/);
+  assert.match(currentFact, /node_modules/);
+  assert.match(currentFact, /旧物理 Owner 回流/);
+  assert.doesNotMatch(currentFact, /if \(exists\(legacy\)\) fail\(`旧物理 Owner 回流/);
 });

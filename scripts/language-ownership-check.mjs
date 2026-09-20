@@ -37,9 +37,9 @@ for (const area of ["apps", "packages"]) {
 }
 
 // Rust 是稳定 Native Kernel，只允许 Rust/Cargo/文档类文件；不能反向承载 TS/Python Agent 业务。
-walk("crates", (relative) => {
+walk("native", (relative) => {
   if (/\.(?:ts|tsx|js|jsx|mjs|cjs|py)$/i.test(relative)) {
-    failures.push(`${relative}: crates 只属于 Rust Native Kernel，禁止混入 TypeScript/Python 产品实现。`);
+    failures.push(`${relative}: native 只属于 Rust Native Kernel，禁止混入 TypeScript/Python 产品实现。`);
     return;
   }
   if (/\.rs$/i.test(relative)) {

@@ -1,34 +1,9 @@
-# Web Host
+# @lfaa/web
 
-## 作用
+LFAA Web 产品薄入口。
 
-LFAA Web 本地开发与验证宿主。Web-first 表示当前先用浏览器做业务验收，不表示共享 UI / 业务属于 Web。
+- `src/main.ts`：启动 `@lfaa/client-web`；
+- `vite.config.ts`：把产品级路径/端口交给 `@lfaa/bundle-web-app`；
+- 不包含 Agent/AI/Plugin/Terminal 业务。
 
-## 负责
-
-- Vite / React 启动入口；
-- Web Router / Web Host Adapter；
-- `.lfaa` 本地开发资源桥；
-- Web 专属终端 / 浏览器宿主桥；
-- `dev/bridges/ai`：AI 配置 localhost Host Adapter，Windows Secret 进入 Credential Manager。
-
-## 不负责
-
-- 可复用业务 Feature UI（归 `packages/ui`）；
-- Config / Account / Auth / Provider 业务（归 `packages/config-system`）；
-- Provider 厂商 API 实现；
-- Secret 真值。
-
-## 本地启动
-
-```text
-LFAA-Setup.bat → 2 启动 Web
-```
-
-或：
-
-```text
-pnpm --filter @lfaa/web dev
-```
-
-源码导航：`apps/web/src/README.md`。
+如这里再次出现 `dev/bridges` 或 Host business，视为架构回退。

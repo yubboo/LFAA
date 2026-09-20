@@ -1,3 +1,15 @@
+# v0.0.100 Prompt / Requirement Note — Workspace Sync 目录迁移热修复
+
+> **文档属性：历史需求账本。** 当前架构仍以代码、`ARCHITECTURE.md`、`DEVELOPMENT.md` 为主；本条记录 v0.0.99 Harness 化迁移后的同步修复需求。
+
+本轮核心需求：修复稳定工作区同步后 `current-fact` 因旧 package 目录只剩 `node_modules` 等保护缓存而误判“旧物理 Owner 回流”的问题；不得关闭 Gate 或破坏缓存保护原则；仅在退役 workspace 不含真实项目文件时清理缓存空壳；保持 v0.0.99 业务、UI 与 Harness 架构不变，并补充回归测试。
+
+# v0.0.99 Prompt / Requirement Note — Harness 化重构
+
+> **文档属性：历史需求账本。** 当前架构必须以代码、`ARCHITECTURE.md`、`DEVELOPMENT.md` 为主；本文件旧 Prompt 中的旧路径不能作为当前实现要求。
+
+本轮核心需求：以用户提供的 LFAA v0.0.98 与 DeepSeek Harness 源码为依据，把 LFAA 往 packages-first Harness 架构迁移；删除源码仓库 `.lfaa/`；业务全部归 `packages/`；`apps/web` 像 DeepSeek Harness 一样变成薄入口；不得破坏已完成的 UI、Chat/Work、Provider、Plugin、Secret、Terminal 与 Windows 工具；全部当前文档同步更新，新文档事实优先，旧记录仅作历史参考。
+
 # LFAA 开发 Prompt 时间线
 
 > 这是唯一 Prompt 记录文件。新任务不再创建独立 Prompt Markdown；在本文件顶部的“当前任务”区域新增 `#编号 + 功能名称` 条目。
@@ -25,6 +37,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #21.28 | Harness capability-family 仓库架构重构 / Sync 目录迁移热修复 | v0.0.100 | pending-user-acceptance | pass | pending |
+| #21.28 | Harness capability-family 仓库架构重构 | v0.0.99 | pending-user-acceptance | pass | pending |
 | #21.27 | 全仓审计问题修复与发布门禁闭环 | v0.0.98 | pending-user-acceptance | pass | pending |
 | #21.26 | 全项目术语与架构一致性维护 | v0.0.97 | pending-user-acceptance | pass | pending |
 | #21.25 | Workspace 领域聚合 / Chat-Work 双投影父子架构 | v0.0.96 | pending-user-acceptance | pass | pending |
@@ -92,17 +106,17 @@
 
 ### 目录归属、依赖与边界
 
-- **允许修改：** `packages/app-shell/src/workbench/{settings,shell}/**` 中产品 Settings/Plugin/UserMenu View 与样式；`packages/ui/src/features/{settings,account}/**` 的等价迁出和公开入口；相关 `ui`/`app-shell` README 与 API；`apps/web/tsconfig.json`、现有 package tsconfig；`packages/app-shell/src/agent-workbench.css` 注释；`test/**` 与 `scripts/**` 的对应门禁；当前事实文档、版本元数据和历史时间线新增条目。移除 `baseUrl` 后发现 TypeScript 7 原先遮蔽的严格类型错误，因此额外允许只为类型正确性编辑 `apps/web/dev/bridges/ai/{ai-config-bridge,codex-app-server,rust-secret-store}.ts`、`packages/app-shell/src/{AgentWorkbench.tsx,workbench/center/**,workbench/settings/logic/useAiSettingsController.ts}`、`packages/workspace/src/work/view/WorkWorkspace.tsx`、`packages/plugin-host-node/src/index.ts`、`packages/ui/src/ui-effects/ParticleStreamCanvas.tsx`；这些文件禁止改变业务分支、参数值或渲染结果。
+- **允许修改：** `packages/client/app-shell/src/workbench/{settings,shell}/**` 中产品 Settings/Plugin/UserMenu View 与样式；`packages/client/ui/src/features/{settings,account}/**` 的等价迁出和公开入口；相关 `ui`/`app-shell` README 与 API；`apps/web/tsconfig.json`、现有 package tsconfig；`packages/client/app-shell/src/agent-workbench.css` 注释；`test/**` 与 `scripts/**` 的对应门禁；当前事实文档、版本元数据和历史时间线新增条目。移除 `baseUrl` 后发现 TypeScript 7 原先遮蔽的严格类型错误，因此额外允许只为类型正确性编辑 `apps/web/dev/bridges/ai/{ai-config-bridge,codex-app-server,rust-secret-store}.ts`、`packages/client/app-shell/src/{AgentWorkbench.tsx,workbench/center/**,workbench/settings/logic/useAiSettingsController.ts}`、`packages/client/workspace/src/work/view/WorkWorkspace.tsx`、`packages/plugin/plugin-host-node/src/index.ts`、`packages/client/ui/src/ui-effects/ParticleStreamCanvas.tsx`；这些文件禁止改变业务分支、参数值或渲染结果。
 - **允许依赖：** `app-shell → @lfaa/ui` 的通用 ResizableWorkbench/ThemeModeMenu 等公共 API；`app-shell → config-system` 只经既有公开 API；Node source 测试从真实 Consumer 目录解析 workspace 包。
 - **禁止依赖：** `@lfaa/ui → app-shell/config-system/apps`；跨包深链内部源码；`apps/web/src → apps/web/dev`；新增 package/crate 或空壳目录。
-- **状态归属：** Settings 页面导航与 Plugin 页面局部表单状态随 View 迁入 App Shell；`packages/ui/src/features/settings/ai/` 是 AGENTS.md 明确规定的 AI 配置图形界面位置，保留只接收 Props 的 `AiSettingsPanel` 与其瞬时表单状态；配置/Secret 真值仍归 Config System/Host；共享 UI Primitive 状态不迁移；Plugin Profile/Workspace Session 不改。
+- **状态归属：** Settings 页面导航与 Plugin 页面局部表单状态随 View 迁入 App Shell；`packages/client/ui/src/features/settings/ai/` 是 AGENTS.md 明确规定的 AI 配置图形界面位置，保留只接收 Props 的 `AiSettingsPanel` 与其瞬时表单状态；配置/Secret 真值仍归 Config System/Host；共享 UI Primitive 状态不迁移；Plugin Profile/Workspace Session 不改。
 - **冻结：** Workspace Chat/Work、InfiniteCanvas、Reasoning/Slider/Particle/Resize、Provider/Secret、Plugin Host/Runtime、Rust、Windows 运维行为。
 
 ### 验收条件与必须测试
 
 1. `pnpm run governance:check`、`pnpm run typecheck`、`pnpm test`、`pnpm run build`、`pnpm run quality:full` 在 Node 24/pnpm 11.17.0 下通过；CSS 与 TS 错误不得通过关闭压缩或降级 TypeScript 绕过。
 2. Node source runtime 测试真实加载 Host 所依赖的 workspace package，不要求根 package 增加无关依赖；`@lfaa/ui` 不再拥有 Settings 页面导航、Plugin 管理页面或 UserMenu 产品外壳，AI 配置图形界面继续按 AGENTS.md 固定留在 `ui/features/settings/ai` 且不拥有业务真值；Settings/个人中心的用户可见行为保持。
-3. 当前事实文档只指向 `packages/workspace/src/{chat,work,shared}` 和现有 App Shell 模块；旧版本记录保留在历史时间线。门禁增加实际构建/类型检查覆盖和文档路径/归属防回归检查，不把静态 preflight 冒充完整发布验证。
+3. 当前事实文档只指向 `packages/client/workspace/src/{chat,work,shared}` 和现有 App Shell 模块；旧版本记录保留在历史时间线。门禁增加实际构建/类型检查覆盖和文档路径/归属防回归检查，不把静态 preflight 冒充完整发布验证。
 4. 最终 ZIP 使用现有归档器生成，验证 Unicode entry、`.lfaa`、fresh extract preflight；更新 CHANGELOG/RELEASES，交付状态为 pending-user-acceptance。
 
 ### 必须更新的文档与版本
@@ -133,17 +147,17 @@
 
 ### 允许修改
 
-- `packages/agent-runtime/**`：只做 Chat/Work 模式契约的专业命名迁移；
-- `packages/workspace/**`：Workspace mode / ViewModel 命名、兼容旧 localStorage key 的一次迁移；
-- `packages/app-shell/**`：随公共契约做等价接线与 `data-workspace-mode` 命名；
-- `apps/web/src/host-clients/agent-runtime-client.ts`、`apps/web/dev/bridges/agent/**`：随 Run request 字段等价迁移；
+- `packages/core/agent-runtime/**`：只做 Chat/Work 模式契约的专业命名迁移；
+- `packages/client/workspace/**`：Workspace mode / ViewModel 命名、兼容旧 localStorage key 的一次迁移；
+- `packages/client/app-shell/**`：随公共契约做等价接线与 `data-workspace-mode` 命名；
+- `packages/client/connection/src/agent-runtime-client.ts`、`apps/web/dev/bridges/agent/**`：随 Run request 字段等价迁移；
 - 相关测试与架构门禁；
 - 当前事实文档、README、包 README、版本/发布元数据；
 - 历史时间线只追加本条记录，不重写旧版本历史。
 
 ### 禁止修改
 
-- `packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**` 的行为；
+- `packages/client/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**` 的行为；
 - InfiniteCanvas pan/zoom/drag/selection/edge 算法；
 - Config/Provider/Secret/Reasoning/Strong Reasoning 业务；
 - Plugin Registry / Plugin Host 行为；
@@ -213,7 +227,7 @@ AgentRunRequest.workspaceMode
 
 ### 架构决定
 
-1. 新增真实 workspace package：`packages/workspace` / `@lfaa/workspace`。它必须有当前 Consumer（`@lfaa/app-shell`）和真实实现，不允许占位。
+1. 新增真实 workspace package：`packages/client/workspace` / `@lfaa/workspace`。它必须有当前 Consumer（`@lfaa/app-shell`）和真实实现，不允许占位。
 2. `@lfaa/workspace` 是 **Workspace Feature Composition**：内部按父子关系组织 `chat/`、`work/`、`shared/`，拥有 Chat/Work 两种 Surface 的产品投影、共享 Session Controller 与 Work Canvas 产品布局状态。
 3. `@lfaa/app-shell` 收敛为产品外壳/装配：Shell、Left、Center Chrome、Composer、Right、Terminal、Settings 保留；不再同时拥有 Chat Timeline、Work Canvas 和 Workspace Session 的内部实现。
 4. 当前 `center/conversation` 语义被拆正：Center 直接根据当前 Surface 从 `@lfaa/workspace` 公共入口组合 `ChatWorkspace` 或 `WorkWorkspace`；不再使用一个叫 Conversation 的模块同时包 Chat 与 Work。
@@ -225,9 +239,9 @@ AgentRunRequest.workspaceMode
 
 ### 允许修改
 
-- 新增 `packages/workspace/**`；
-- 从 `packages/app-shell/src/workbench/center/conversation/**` 与 `workbench/session/**` 做等价迁移并删除旧 Owner；
-- `packages/app-shell/src/AgentWorkbench.tsx`、`workbench/center/**`、Workbench 公共 contracts/index/package manifest 的必要接线；
+- 新增 `packages/client/workspace/**`；
+- 从 `packages/client/app-shell/src/workbench/center/conversation/**` 与 `workbench/session/**` 做等价迁移并删除旧 Owner；
+- `packages/client/app-shell/src/AgentWorkbench.tsx`、`workbench/center/**`、Workbench 公共 contracts/index/package manifest 的必要接线；
 - package architecture / module boundary / UI contract / Chat Runtime / Infinite Canvas 测试，使门禁跟随新 Owner；
 - `AGENTS.md`、`DEVELOPMENT.md`、`ARCHITECTURE.md`、`PROJECT_PLAN.md`、`docs/MODULES.md`、`docs/UI.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`；
 - 版本、CHANGELOG、RELEASES 与发布元数据。
@@ -235,7 +249,7 @@ AgentRunRequest.workspaceMode
 ### 禁止修改
 
 - Runtime Reasoning / 强力推理 / Slider / Particle 视觉与算法；
-- `packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**`、InfiniteCanvas Pointer 算法；
+- `packages/client/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**`、InfiniteCanvas Pointer 算法；
 - Provider Capability、Config/Secret 业务、Agent Runtime Protocol、Plugin Runtime、Rust Native；
 - Workbench Resize/Snap、Windows Sync/GitHub/Setup/Update 行为；
 - 为未来功能提前创建没有当前 Consumer 的 package/crate。
@@ -274,8 +288,8 @@ AgentRunRequest.workspaceMode
 
 ### 验收条件
 
-1. `packages/workspace` 是真实 package，内部只有一个 Workspace 父领域，下面明确出现 `chat/`、`work/`、`shared/`；不新增 `chat-workspace`、`work-workspace` 两个平级 package。
-2. `packages/app-shell` 不再存在 `workbench/center/conversation/**` 和 `workbench/session/**` 旧 Owner；AgentWorkbench 仍是薄 Composition Root。
+1. `packages/client/workspace` 是真实 package，内部只有一个 Workspace 父领域，下面明确出现 `chat/`、`work/`、`shared/`；不新增 `chat-workspace`、`work-workspace` 两个平级 package。
+2. `packages/client/app-shell` 不再存在 `workbench/center/conversation/**` 和 `workbench/session/**` 旧 Owner；AgentWorkbench 仍是薄 Composition Root。
 3. Center 只通过 `@lfaa/workspace` 公共 export 使用 Chat/Work，不深链 Workspace 内部目录。
 4. Chat/Work 共用 Session Controller；代码中不存在第二套 `startRun` / Runtime event subscription。
 5. Work Canvas 持久化和 Infinite Canvas 交互行为与 v0.0.95 等价。
@@ -314,7 +328,7 @@ AgentRunRequest.workspaceMode
 
 ### 用户目标 / 背景
 
-用户确认 v0.0.94 的“全域模块 Owner”方向正确，但进一步要求工程结构必须像 DeepSeek Harness 一样清楚：模块是父子级边界，模块内部还要能一眼区分 View / Logic / Styles / Contracts，不能把 Controller、TSX、CSS 混在同一层，也不能把 `packages/ui` 与产品业务 UI 混为一谈。同时用户提供了自己修过的 v0.0.93，其中 #22.8 Infinite Canvas 已完成布局持久化与选中置顶，要求与 v0.0.94 模块化基线合并后生成新包。
+用户确认 v0.0.94 的“全域模块 Owner”方向正确，但进一步要求工程结构必须像 DeepSeek Harness 一样清楚：模块是父子级边界，模块内部还要能一眼区分 View / Logic / Styles / Contracts，不能把 Controller、TSX、CSS 混在同一层，也不能把 `packages/client/ui` 与产品业务 UI 混为一谈。同时用户提供了自己修过的 v0.0.93，其中 #22.8 Infinite Canvas 已完成布局持久化与选中置顶，要求与 v0.0.94 模块化基线合并后生成新包。
 
 ### 基线与合并策略
 
@@ -324,15 +338,15 @@ AgentRunRequest.workspaceMode
 
 ### 架构决定
 
-1. `packages/ui` 保持包名 `@lfaa/ui`，明确定位为 **UI Kit / Design System / Shared Interaction Engine**：通用控件、布局、Motion、Effect、InfiniteCanvas Projection 等可复用界面能力；它使用 TS/TSX 是正常的，因为 UI 组件需要 DOM/ARIA/Pointer/Props 行为。它不得拥有 Provider/Config/Session 产品真值。
-2. `packages/app-shell` 是 **LFAA 产品 UI 组合层**。Workbench 每个大模块继续有独立 Owner，并在模块内部按需使用 `view/`、`logic/`、`styles/`、`contracts/` 子目录；不为了形式创建空目录。
+1. `packages/client/ui` 保持包名 `@lfaa/ui`，明确定位为 **UI Kit / Design System / Shared Interaction Engine**：通用控件、布局、Motion、Effect、InfiniteCanvas Projection 等可复用界面能力；它使用 TS/TSX 是正常的，因为 UI 组件需要 DOM/ARIA/Pointer/Props 行为。它不得拥有 Provider/Config/Session 产品真值。
+2. `packages/client/app-shell` 是 **LFAA 产品 UI 组合层**。Workbench 每个大模块继续有独立 Owner，并在模块内部按需使用 `view/`、`logic/`、`styles/`、`contracts/` 子目录；不为了形式创建空目录。
 3. `apps/web/src` 是浏览器 bundle；`apps/web/dev` 是 Vite dev-server/Node 进程专用代码，因此继续独立于 `src`。但 `vite.config.ts` 只做组合，Resource/PTy 等开发桥逻辑必须下沉 `dev/bridges/*`。浏览器侧调用 Host 的客户端目录命名为 `src/host-clients/`，避免与 Node Host 实现混淆。
 4. Work Canvas 视觉布局不属于 Agent Session 真值。#22.8 的 workspace-scoped 节点位置/viewport 持久化归 `center/conversation/work-canvas/logic`；Session 只拥有 Run/Chat/Surface/Permission 等业务状态。
 
 ### 允许修改
 
-- `packages/app-shell/src/workbench/**` 的等价目录整理、公共 index、内部 import；
-- `packages/ui/src/features/workbench/InfiniteCanvas*` 与导出（仅合并用户 v0.0.93 #22.8）；
+- `packages/client/app-shell/src/workbench/**` 的等价目录整理、公共 index、内部 import；
+- `packages/client/ui/src/features/workbench/InfiniteCanvas*` 与导出（仅合并用户 v0.0.93 #22.8）；
 - `apps/web/src/host/**` → `src/host-clients/**` 的语义重命名与引用；
 - `apps/web/dev/bridges/resources/**`、`terminal/**`，把 `vite.config.ts` 的开发桥实现下沉；
 - 与上述结构/Canvas 对应的测试、治理、项目地图、UI/Architecture/Testing/Runtime 文档；
@@ -341,7 +355,7 @@ AgentRunRequest.workspaceMode
 ### 禁止修改
 
 - Runtime Reasoning/强力推理/Slider/Particle 的行为与视觉；
-- `packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**`；
+- `packages/client/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**`；
 - Provider Capability、Config/Secret、Agent Runtime Protocol、Plugin Runtime、Rust Native；
 - Workbench Resize/Snap 算法；
 - Sync/GitHub/Setup/Update 业务逻辑。
@@ -356,7 +370,7 @@ AgentRunRequest.workspaceMode
 ### 验收条件
 
 1. Workbench 大模块仍全部独立；模块内部的 View / Logic / Styles / Contracts 通过目录和 index 能清楚辨识，根组件不重新变胖。
-2. `packages/ui` 文档明确为共享 UI Kit，不与 app-shell 产品模块重复；业务语义不得下沉 UI Kit。
+2. `packages/client/ui` 文档明确为共享 UI Kit，不与 app-shell 产品模块重复；业务语义不得下沉 UI Kit。
 3. `apps/web/dev` 只含 dev-server Node 代码；`vite.config.ts` 不再直接承载 Resource/PTY 详细实现；浏览器 Host Client 位于 `src/host-clients`。
 4. Work Canvas 刷新恢复节点位置与 viewport；workspaceId 隔离；PointerMove 不直接写 localStorage；选中/拖动节点置顶且 edge 在后。
 5. `useAgentSessionController` 不再拥有 Work Canvas 节点视觉坐标。
@@ -392,22 +406,22 @@ v0.0.92 Windows 实机反馈暴露 Work 无限画布的两个基础交互缺陷�
 
 ### 主模块 / 状态所有权
 
-- `packages/ui/src/features/workbench/InfiniteCanvas.tsx`：继续拥有高频 pan/zoom/drag 交互；新增 viewport 初始值与低频 commit 回调，不直接访问 localStorage，不拥有工作区持久化 Key。
-- `packages/ui/src/features/workbench/infinite-canvas.types.ts`：拥有 `InfiniteCanvasViewport` 与 viewport commit 公共 UI Contract。
-- `packages/app-shell/src/AgentWorkbench.tsx`：拥有当前 Work Surface 视觉布局偏好持久化；按 workspaceId 使用版本化 localStorage key，保存节点坐标与 viewport，加载时做有限数值校验并与当前节点模板合并。
-- `packages/ui/src/features/workbench/infinite-canvas.css`：拥有节点堆叠视觉规则；普通节点在基础层，选中/拖动节点必须提升到节点层最前，边线始终位于节点后方。
+- `packages/client/ui/src/features/workbench/InfiniteCanvas.tsx`：继续拥有高频 pan/zoom/drag 交互；新增 viewport 初始值与低频 commit 回调，不直接访问 localStorage，不拥有工作区持久化 Key。
+- `packages/client/ui/src/features/workbench/infinite-canvas.types.ts`：拥有 `InfiniteCanvasViewport` 与 viewport commit 公共 UI Contract。
+- `packages/client/app-shell/src/AgentWorkbench.tsx`：拥有当前 Work Surface 视觉布局偏好持久化；按 workspaceId 使用版本化 localStorage key，保存节点坐标与 viewport，加载时做有限数值校验并与当前节点模板合并。
+- `packages/client/ui/src/features/workbench/infinite-canvas.css`：拥有节点堆叠视觉规则；普通节点在基础层，选中/拖动节点必须提升到节点层最前，边线始终位于节点后方。
 
 ### 允许修改
 
-- `packages/ui/src/features/workbench/InfiniteCanvas.tsx`、`infinite-canvas.types.ts`、`infinite-canvas.css`；
-- `packages/app-shell/src/AgentWorkbench.tsx`（仅 Work Canvas 视觉布局持久化与传参）；
+- `packages/client/ui/src/features/workbench/InfiniteCanvas.tsx`、`infinite-canvas.types.ts`、`infinite-canvas.css`；
+- `packages/client/app-shell/src/AgentWorkbench.tsx`（仅 Work Canvas 视觉布局持久化与传参）；
 - Infinite Canvas / UI contract / interaction 测试；
 - 当前事实文档、版本元数据、CHANGELOG / RELEASES。
 
 ### 禁止修改 / 安全边界
 
 - 禁止把 Run/Session/Artifact/模型回复等业务真值塞进 localStorage；只保存节点 `x/y` 与 viewport `x/y/scale`。
-- 禁止让 `packages/ui` 自己拼 workspace localStorage key；持久化 Owner 在 App Shell，UI 只暴露初始值与 commit 回调。
+- 禁止让 `packages/client/ui` 自己拼 workspace localStorage key；持久化 Owner 在 App Shell，UI 只暴露初始值与 commit 回调。
 - 禁止在 PointerMove 每像素写 localStorage；节点拖动只更新视觉 state，持久化必须 debounce/commit；viewport 只在 pan 结束、缩放控制、wheel settle 后提交。
 - 禁止引入自动避让或强制重排；用户允许节点自由重叠，自定义排版必须原样恢复。
 - 禁止用 DOM 顺序重排破坏 edges/node identity；选中层级使用稳定 z-index/active state，不改变节点业务数组顺序。
@@ -539,16 +553,16 @@ workbench/
 
 ### 允许修改
 
-- `packages/app-shell/src/AgentWorkbench.tsx`（仅收敛 Composition Root）；
-- `packages/app-shell/src/workbench/**` 全域等价模块迁移；
-- `packages/app-shell/src/agent-workbench.css`（只做删除/收敛到全局 token/reset）；
-- `packages/app-shell/src/css-modules.d.ts`；
+- `packages/client/app-shell/src/AgentWorkbench.tsx`（仅收敛 Composition Root）；
+- `packages/client/app-shell/src/workbench/**` 全域等价模块迁移；
+- `packages/client/app-shell/src/agent-workbench.css`（只做删除/收敛到全局 token/reset）；
+- `packages/client/app-shell/src/css-modules.d.ts`；
 - workbench module boundary / UI contract / import contract 测试；
 - 当前事实文档、版本元数据、CHANGELOG、RELEASES。
 
 ### 禁止修改 / 行为冻结
 
-- 禁止改变 `packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**` 行为与视觉参数；
+- 禁止改变 `packages/client/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**` 行为与视觉参数；
 - 禁止改变 Provider Capability、Config System、Agent Runtime、Plugin Runtime、Rust、Windows Sync/GitHub/Setup/Update 业务；
 - 禁止改变现有尺寸、颜色、文案、ARIA、快捷键、resize/snap、chat 对齐、reasoning/boost 语义；
 - 禁止顺手修 #22.x 的视觉问题；本轮只做等价模块迁移；
@@ -570,7 +584,7 @@ workbench/
 - 扩展 `test/workbench-module-boundary.test.mjs`：检查所有大/小模块目录、`index.ts`、`*.module.css`、禁止深链和 AgentWorkbench 膨胀；
 - `scripts/ui-contract-check.mjs`：禁止 `agent-workbench.css` 回归区域 selector；
 - 既有 model quick switch / chat runtime / workbench snap / dismissible layer / shared UI tests 全部回归；
-- `packages/ui/src/ui-controls|ui-effects|ui-resize|ui-motion` 与 v0.0.93 做零改动 diff；
+- `packages/client/ui/src/ui-controls|ui-effects|ui-resize|ui-motion` 与 v0.0.93 做零改动 diff；
 - `node scripts/workspace-preflight.mjs`；
 - 最终 ZIP fresh extract 后再次 preflight。
 
@@ -586,7 +600,7 @@ workbench/
 
 ### 用户目标 / 背景
 
-v0.0.92 用户验收失败暴露出结构性问题：`packages/app-shell/src/AgentWorkbench.tsx` 同时包含左侧栏、中间 Header、Chat/Work 主区、Composer、Runtime Control、右侧资源栏、底部终端和 Shell 总装配。局部修复容易扩大修改面并造成已通过功能回归。用户明确要求工作台按“父模块 → 大区域子模块 → 区域内部小模块”组织，修改某个子模块时不得顺带影响兄弟模块。
+v0.0.92 用户验收失败暴露出结构性问题：`packages/client/app-shell/src/AgentWorkbench.tsx` 同时包含左侧栏、中间 Header、Chat/Work 主区、Composer、Runtime Control、右侧资源栏、底部终端和 Shell 总装配。局部修复容易扩大修改面并造成已通过功能回归。用户明确要求工作台按“父模块 → 大区域子模块 → 区域内部小模块”组织，修改某个子模块时不得顺带影响兄弟模块。
 
 本轮**从 v0.0.91 重新建立 v0.0.93 基线**，不继承 v0.0.92 的业务代码。目标只做模块边界重构与防回归门禁，保持 v0.0.91 的 UI/行为/CSS 语义不变。Reasoning Slider 的视觉修复另开后续子任务，只允许在对应 Composer/RuntimeControl 子模块内完成。
 
@@ -614,14 +628,14 @@ AgentWorkbench（根父模块 / Composition Root）
 - 各 Region：只拥有自己区域的局部 UI 状态；通过明确 Props/Callback 与父模块通信，禁止直接读取兄弟模块内部状态。
 - `ComposerRegion`：拥有输入草稿、Add/Permission/Runtime Control 的局部交互；Chat Timeline 不得依赖 Composer 内部 State。
 - `RuntimeControl`：后续 reasoning 修复唯一允许落点；不允许因此修改 Left/Right/Terminal/Conversation。
-- `packages/ui`：继续拥有真正共享 Primitive（Slider、Effect、Resize、Overlay），本轮不改变其行为。
+- `packages/client/ui`：继续拥有真正共享 Primitive（Slider、Effect、Resize、Overlay），本轮不改变其行为。
 
 ### 允许修改
 
-- `packages/app-shell/src/AgentWorkbench.tsx`：收敛为 Composition Root；
-- 新增 `packages/app-shell/src/workbench/**` 父子模块文件与本目录 README；
-- `packages/app-shell/src/workbench.types.ts`：仅提取区域共享 ViewModel 类型；
-- `packages/app-shell/src/README.md`、架构/模块/UI/测试/代码地图文档；
+- `packages/client/app-shell/src/AgentWorkbench.tsx`：收敛为 Composition Root；
+- 新增 `packages/client/app-shell/src/workbench/**` 父子模块文件与本目录 README；
+- `packages/client/app-shell/src/workbench.types.ts`：仅提取区域共享 ViewModel 类型；
+- `packages/client/app-shell/src/README.md`、架构/模块/UI/测试/代码地图文档；
 - 新增模块边界防回归测试。
 
 ### 禁止修改 / 行为冻结
@@ -631,8 +645,8 @@ AgentWorkbench（根父模块 / Composition Root）
 3. 禁止改变现有 CSS selector、尺寸、颜色、动画参数、布局数值；本任务不做视觉设计。
 4. 禁止改变 Chat Timeline 与 Composer 的左右对齐行为。
 5. 禁止改变左右栏/底部终端 Resize、Snap、快捷键、Hover Preview。
-6. 禁止修改 `packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`。
-7. 禁止把业务逻辑移入 `apps/web` 或 `packages/ui`。
+6. 禁止修改 `packages/client/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`。
+7. 禁止把业务逻辑移入 `apps/web` 或 `packages/client/ui`。
 8. 子模块不得跨层 import 另一个兄弟模块的内部文件；共享契约进入 `workbench/contracts.ts` 或公共父级。
 
 ### 实现约束
@@ -663,7 +677,7 @@ AgentWorkbench（根父模块 / Composition Root）
 - `node scripts/ui-contract-check.mjs`；
 - `node scripts/folder-boundary-check.mjs`；
 - `node scripts/workspace-preflight.mjs`；
-- 对 v0.0.91 → v0.0.93 做文件级 diff，确认 `packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**` 零改动。
+- 对 v0.0.91 → v0.0.93 做文件级 diff，确认 `packages/client/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**` 零改动。
 
 ### AI 验证结果
 
@@ -676,7 +690,7 @@ AgentWorkbench（根父模块 / Composition Root）
 
 ### 必须更新文档
 
-`PROJECT_PLAN.md`、`docs/DEVELOPMENT_LOG.md`、`ARCHITECTURE.md`、`docs/MODULES.md`、`docs/UI.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`packages/app-shell/src/README.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+`PROJECT_PLAN.md`、`docs/DEVELOPMENT_LOG.md`、`ARCHITECTURE.md`、`docs/MODULES.md`、`docs/UI.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`packages/client/app-shell/src/README.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
 
 ### CHANGELOG / 版本
 
@@ -702,15 +716,15 @@ v0.0.90 实机反馈未通过：reasoning Slider 拖拽松手后仍会出现明�
 
 ### 主模块 / 状态所有权
 
-- `packages/ui/src/ui-effects`：拥有 Canvas 粒子 Renderer、Palette 解析、rAF 生命周期、DPR/ResizeObserver、reduced-motion。
-- `packages/ui/src/ui-controls`：拥有 Slider Pointer/Keyboard、visual progress 与 settle；不拥有业务保存 busy。
-- `packages/app-shell`：拥有 reasoning 业务选择、强力推理 Hint 与 Provider setting 的异步提交队列。
-- `packages/config-system`：继续拥有 Provider Capability 真值，本轮不改档位来源。
+- `packages/client/ui/src/ui-effects`：拥有 Canvas 粒子 Renderer、Palette 解析、rAF 生命周期、DPR/ResizeObserver、reduced-motion。
+- `packages/client/ui/src/ui-controls`：拥有 Slider Pointer/Keyboard、visual progress 与 settle；不拥有业务保存 busy。
+- `packages/client/app-shell`：拥有 reasoning 业务选择、强力推理 Hint 与 Provider setting 的异步提交队列。
+- `packages/settings/config-system`：继续拥有 Provider Capability 真值，本轮不改档位来源。
 
 ### 允许修改
 
-- `packages/ui/src/ui-effects/**`、`packages/ui/src/ui-controls/**`；
-- `packages/app-shell/src/AgentWorkbench.tsx`、相关 CSS；
+- `packages/client/ui/src/ui-effects/**`、`packages/client/ui/src/ui-controls/**`；
+- `packages/client/app-shell/src/AgentWorkbench.tsx`、相关 CSS；
 - UI/交互契约测试与文档、版本元数据、CHANGELOG / RELEASES。
 
 ### 禁止修改 / 安全边界
@@ -834,15 +848,15 @@ v0.0.89 的“固定六档 UI，再映射到 Provider 官方值”仍然不符�
 
 ### 主模块 / 状态所有权
 
-- `packages/config-system`：继续拥有当前模型 Capability 与 `reasoningEffort.options` 真值；本任务不复制第二份 Provider 能力表。
-- `packages/app-shell`：只把 `activeReasoning.field.options` **一对一**投影成 Runtime Slider steps，并提交被选中的原始 `option.value`。
-- `packages/ui/src/ui-controls`：继续只负责任意 steps 数量的 Pointer/Keyboard Slider，不拥有模型档位。
-- `packages/ui/src/ui-effects`：只消费“当前是否位于 Provider 最高官方档”的视觉 variant，不定义档位数量或名称。
-- `packages/agent-runtime`：`reasoningBoost` 继续是与 Provider reasoning 正交的 Agent Run Hint。
+- `packages/settings/config-system`：继续拥有当前模型 Capability 与 `reasoningEffort.options` 真值；本任务不复制第二份 Provider 能力表。
+- `packages/client/app-shell`：只把 `activeReasoning.field.options` **一对一**投影成 Runtime Slider steps，并提交被选中的原始 `option.value`。
+- `packages/client/ui/src/ui-controls`：继续只负责任意 steps 数量的 Pointer/Keyboard Slider，不拥有模型档位。
+- `packages/client/ui/src/ui-effects`：只消费“当前是否位于 Provider 最高官方档”的视觉 variant，不定义档位数量或名称。
+- `packages/core/agent-runtime`：`reasoningBoost` 继续是与 Provider reasoning 正交的 Agent Run Hint。
 
 ### 允许修改
 
-- `packages/app-shell/src/reasoning-control.ts`、`AgentWorkbench.tsx`；
+- `packages/client/app-shell/src/reasoning-control.ts`、`AgentWorkbench.tsx`；
 - 与 Runtime reasoning 动态档位有关的测试 / UI Contract；
 - 当前事实文档、版本元数据、CHANGELOG / RELEASES。
 
@@ -909,18 +923,18 @@ v0.0.88 实机反馈确认未通过：Chat Timeline 的用户/AI 消息没有与
 
 ### 主模块 / 状态所有权
 
-- `packages/app-shell`：拥有 Composer Runtime Control 的交互投影、六档视觉等级到 Provider Capability 的映射、当前会话的强力推理 UI 状态；不拥有 Provider Capability 真值。
-- `packages/ui/src/ui-controls`：拥有通用离散 Slider 的 Pointer/Keyboard、白色 Thumb、拖拽 Preview 与平滑视觉过渡；不得包含模型语义。
-- `packages/ui/src/ui-effects`：拥有粒子/流星 Renderer、颜色 Token/Palette 与动画；不得参与业务布局或 Provider 参数。
-- `packages/agent-runtime`：如需让强力推理真实进入 Run，只允许新增通用 `reasoningBoost`/execution hint 契约；不得冒充 Provider setting。
+- `packages/client/app-shell`：拥有 Composer Runtime Control 的交互投影、六档视觉等级到 Provider Capability 的映射、当前会话的强力推理 UI 状态；不拥有 Provider Capability 真值。
+- `packages/client/ui/src/ui-controls`：拥有通用离散 Slider 的 Pointer/Keyboard、白色 Thumb、拖拽 Preview 与平滑视觉过渡；不得包含模型语义。
+- `packages/client/ui/src/ui-effects`：拥有粒子/流星 Renderer、颜色 Token/Palette 与动画；不得参与业务布局或 Provider 参数。
+- `packages/core/agent-runtime`：如需让强力推理真实进入 Run，只允许新增通用 `reasoningBoost`/execution hint 契约；不得冒充 Provider setting。
 - `apps/web/dev/bridges/agent`：只消费 Runtime Hint，并以不泄露 Secret、不发送未声明 Provider 参数的方式影响开发态真实 Run。
 
 ### 允许修改
 
-- `packages/app-shell/src/AgentWorkbench.tsx`、`reasoning-control.*`（如拆分）、`agent-workbench.css`；
-- `packages/ui/src/ui-controls/**`：Slider Motion / Thumb / CSS Variables；
-- `packages/ui/src/ui-effects/**`：粒子 Renderer、Palette、CSS Variables；
-- `packages/agent-runtime/**` 与 `apps/web/dev/bridges/agent/**`：仅限独立强力推理 Run Hint 的真实接线；
+- `packages/client/app-shell/src/AgentWorkbench.tsx`、`reasoning-control.*`（如拆分）、`agent-workbench.css`；
+- `packages/client/ui/src/ui-controls/**`：Slider Motion / Thumb / CSS Variables；
+- `packages/client/ui/src/ui-effects/**`：粒子 Renderer、Palette、CSS Variables；
+- `packages/core/agent-runtime/**` 与 `apps/web/dev/bridges/agent/**`：仅限独立强力推理 Run Hint 的真实接线；
 - `test/model-quick-switch-contract.test.mjs`、`test/ui-shared-module-contract.test.mjs`、`test/ui-interaction-motion.test.mjs`、`test/chat-runtime-contract.test.mjs`、`scripts/ui-contract-check.mjs`；
 - 当前事实文档、版本元数据、CHANGELOG / RELEASES。
 
@@ -981,18 +995,18 @@ v0.0.88 实机反馈确认未通过：Chat Timeline 的用户/AI 消息没有与
 
 ### 用户目标
 
-模型已经配置完成后，Chat 输入框必须真正可以发送并得到 Provider 的真实回复；不得继续停留在只构造 Run Request 的假入口。同时将快捷键、浮层层级、模型控制卡展开/收起动画和工作台拖拽/吸附阻尼抽成 `packages/ui/src/ui-xxx` 共用能力。模型控制卡展开/恢复要有连续、柔和但不过慢的过渡；侧栏继续保留“达到最小宽后还需额外超拖 50% 最小宽才吸附”的既有交互。
+模型已经配置完成后，Chat 输入框必须真正可以发送并得到 Provider 的真实回复；不得继续停留在只构造 Run Request 的假入口。同时将快捷键、浮层层级、模型控制卡展开/收起动画和工作台拖拽/吸附阻尼抽成 `packages/client/ui/src/ui-xxx` 共用能力。模型控制卡展开/恢复要有连续、柔和但不过慢的过渡；侧栏继续保留“达到最小宽后还需额外超拖 50% 最小宽才吸附”的既有交互。
 
 ### 允许修改
 
-- `packages/agent-runtime/**`：补最小 Run Event/订阅契约。
+- `packages/core/agent-runtime/**`：补最小 Run Event/订阅契约。
 - `apps/web/dev/bridges/agent/**`、`apps/web/src/host/**`、`apps/web/vite.config.ts`：接入 Web 开发态真实模型 Run Bridge。
-- `packages/app-shell/**`：Chat Timeline、发送状态、共享 UI 能力接线。
-- `packages/ui/src/ui-motion/**`：稳定挂载的展开/收起 Motion。
-- `packages/ui/src/ui-shortcuts/**`：共享快捷键 Hook。
-- `packages/ui/src/ui-resize/**`：阻尼尺寸跟随 Primitive。
-- `packages/ui/src/ui-overlay/**`：统一 Layer Token。
-- `packages/ui/src/workbench/**`：只允许消费共享 Resize Primitive，不重复实现阻尼算法。
+- `packages/client/app-shell/**`：Chat Timeline、发送状态、共享 UI 能力接线。
+- `packages/client/ui/src/ui-motion/**`：稳定挂载的展开/收起 Motion。
+- `packages/client/ui/src/ui-shortcuts/**`：共享快捷键 Hook。
+- `packages/client/ui/src/ui-resize/**`：阻尼尺寸跟随 Primitive。
+- `packages/client/ui/src/ui-overlay/**`：统一 Layer Token。
+- `packages/client/ui/src/workbench/**`：只允许消费共享 Resize Primitive，不重复实现阻尼算法。
 - 对应测试、治理、版本与架构文档。
 
 ### 禁止修改 / 边界
@@ -1002,7 +1016,7 @@ v0.0.88 实机反馈确认未通过：Chat Timeline 的用户/AI 消息没有与
 - 本任务只闭环 API Key / OpenAI-compatible 开发态文本对话；ChatGPT/Codex 套餐仍由官方 Harness Adapter 承担，不伪装已完成。
 - 本任务不宣称 Tool / Skill / MCP / Subagent 已进入真实执行链；它们留给 Capability Invocation P2。
 - 不破坏 #2.15 已验收的最小宽超拖 50% 才吸附规则。
-- UI 共用能力继续遵守 `packages/ui/src/ui-xxx`，业务组件禁止重新复制 outside-click、slider、阻尼或 layer 常量。
+- UI 共用能力继续遵守 `packages/client/ui/src/ui-xxx`，业务组件禁止重新复制 outside-click、slider、阻尼或 layer 常量。
 
 ### 验收条件
 
@@ -1033,11 +1047,11 @@ v0.0.88 实机反馈确认未通过：Chat Timeline 的用户/AI 消息没有与
 
 ### 用户目标
 
-所有 UI 复用能力继续归 `packages/ui`，新增共享模块用 `ui-xxx` 命名；通用交互不要在业务组件重复写。具有独立安装/卸载生命周期的 Effect/Renderer/Panel 等 UI 能力允许插件化，基础 UI Kernel 不允许被卸载。
+所有 UI 复用能力继续归 `packages/client/ui`，新增共享模块用 `ui-xxx` 命名；通用交互不要在业务组件重复写。具有独立安装/卸载生命周期的 Effect/Renderer/Panel 等 UI 能力允许插件化，基础 UI Kernel 不允许被卸载。
 
 ### 允许修改
 
-- `packages/ui/src/ui-xxx` 共享模块与公开 exports；
+- `packages/client/ui/src/ui-xxx` 共享模块与公开 exports；
 - App Shell 对共享 Slider/Effect 的消费；
 - UI 架构/测试/治理门禁。
 
@@ -1314,7 +1328,7 @@ v0.0.78 源工作树包含 `.lfaa/README.md`、`manifest.json`、`lock.json` 与
 
 ### 任务目标
 
-1. `packages/agent-runtime` 从空壳升级为统一 Runtime 公共契约，定义 Model、Tool、Skill、Expert、Command、Sandbox、Subagent、Harness Bridge、Run/Session Surface 等能力；
+1. `packages/core/agent-runtime` 从空壳升级为统一 Runtime 公共契约，定义 Model、Tool、Skill、Expert、Command、Sandbox、Subagent、Harness Bridge、Run/Session Surface 等能力；
 2. 用户只看到三档权限：`请求审批 / 替我审批 / 完全权限`，内部拆成 approval reviewer、sandbox、execution scope 三个不可混淆的轴；
 3. `请求审批` 对每次 capability 调用 / 执行步骤逐次请求用户 Yes / No；`替我审批` 使用受限 sandbox + 自动风险审查/官方 reviewer；`完全权限` 显式请求 unrestricted profile，但仍不得绕过 Secret 隔离、OS 身份边界和 LFAA Trust Core；
 4. Codex Adapter 只映射官方 App Server/CLI 能力；DeepSeek Harness Adapter 只映射官方 DSH/ACP/SDK 能力，不复制其内部 Agent Loop；
@@ -1334,9 +1348,9 @@ v0.0.78 源工作树包含 `.lfaa/README.md`、`manifest.json`、`lock.json` 与
 
 ### 允许修改
 
-- `packages/agent-runtime/**`；
-- `packages/app-shell/**`；
-- `packages/ui/src/features/workbench/**` 与公共 export；
+- `packages/core/agent-runtime/**`；
+- `packages/client/app-shell/**`；
+- `packages/client/ui/src/features/workbench/**` 与公共 export；
 - 必要的 Web Host 类型契约；
 - 架构、模块、UI、测试、代码地图、版本文档。
 
@@ -1478,12 +1492,12 @@ v0.0.75 已由用户确认继续，#2.15 侧栏最小宽度超拖吸附修正视
 
 ### 归属目录 / 允许依赖
 
-- `packages/config-system/src/settings/ai/core/**`：Managed Auth 契约与 Account Core 业务编排；
-- `packages/config-system/src/settings/ai/providers/openai/**`：OpenAI ChatGPT 认证能力描述，不实现进程；
+- `packages/settings/config-system/src/settings/ai/core/**`：Managed Auth 契约与 Account Core 业务编排；
+- `packages/settings/config-system/src/settings/ai/providers/openai/**`：OpenAI ChatGPT 认证能力描述，不实现进程；
 - `apps/web/dev/bridges/ai/**`：Codex App Server Node Host Adapter、localhost 路由；
 - `apps/web/src/host/**`：浏览器 Host Client 与打开登录页/等待完成；
-- `packages/app-shell/**`：把 Host 能力和 Config 结果映射为 UI ViewModel；
-- `packages/ui/src/features/settings/ai/**`：只负责登录按钮、状态和模型展示。
+- `packages/client/app-shell/**`：把 Host 能力和 Config 结果映射为 UI ViewModel；
+- `packages/client/ui/src/features/settings/ai/**`：只负责登录按钮、状态和模型展示。
 
 允许依赖方向保持：`apps/web → app-shell/config-system`，`app-shell → ui + config-system public API`；Config System 不依赖 Node / DOM / React。
 
@@ -1561,7 +1575,7 @@ v0.0.74 虽然把 `minWidth` 与 capture threshold 解耦，但错误地让侧�
 
 ### 允许修改
 
-- `packages/ui/src/workbench/**`；
+- `packages/client/ui/src/workbench/**`；
 - Workbench / Settings 防回归测试与 UI contract；
 - Prompt / Log / Plan / Testing / CHANGELOG / RELEASES / 版本事实。
 
@@ -1616,7 +1630,7 @@ v0.0.73 保留 Rust Secret Broker 与官方模型能力候选；用户在继续�
 
 ### 允许修改
 
-- `packages/ui/src/workbench/**`；
+- `packages/client/ui/src/workbench/**`；
 - Settings / App Shell 对共享 Workbench 参数的透传；
 - Workbench / Settings 防回归测试；
 - Prompt / Log / Plan / Testing / CHANGELOG / RELEASES / 版本事实。
@@ -1668,11 +1682,11 @@ v0.0.72 Windows 实机继续暴露 Credential helper 的 C# `FILETIME` 命名冲
 
 ### 允许修改
 
-- `crates/secret-store/**`；
+- `native/secret-store/**`；
 - `apps/web/dev/bridges/ai` 的 Rust Secret Broker Adapter；
-- `packages/config-system/src/settings/ai/core` 的模型能力/账户配置契约；
+- `packages/settings/config-system/src/settings/ai/core` 的模型能力/账户配置契约；
 - 六家 `providers/<provider>` 与共享 transport；
-- `packages/ui/src/features/settings/ai` 与 App Shell ViewModel；
+- `packages/client/ui/src/features/settings/ai` 与 App Shell ViewModel；
 - 对应测试、治理、Prompt / Log / Plan / Testing / CHANGELOG / RELEASES / 版本事实。
 
 ### 禁止修改
@@ -1765,9 +1779,9 @@ v0.0.70 已让 Settings 与工作台复用同一个 `ResizableWorkbench`，但�
 
 ### 允许修改
 
-- `packages/ui/src/workbench` 的受控 `leftWidth` 契约；
-- `packages/ui/src/features/settings` 的共享宽度注入；
-- `packages/app-shell/src/AgentWorkbench.tsx` 的共享宽度状态与一次性历史宽度迁移；
+- `packages/client/ui/src/workbench` 的受控 `leftWidth` 契约；
+- `packages/client/ui/src/features/settings` 的共享宽度注入；
+- `packages/client/app-shell/src/AgentWorkbench.tsx` 的共享宽度状态与一次性历史宽度迁移；
 - Settings / Workbench 防回归测试；
 - Prompt / Log / Plan / UI / Testing / CHANGELOG / RELEASES / 版本事实。
 
@@ -1802,7 +1816,7 @@ v0.0.70 已让 Settings 与工作台复用同一个 `ResizableWorkbench`，但�
 
 ### 背景
 
-v0.0.69 将 Settings 左栏改为共享 `ResizableWorkbench`，但为了绕开深层相对路径使用了 `packages/ui/tsconfig.json` 中的 `@/*` 私有 alias。补充 TypeScript 检查能解析该 alias，而真实 Web 宿主 Vite 没有同一 alias，Windows 实机启动因此出现 `Failed to resolve import "@/workbench/..."`。这是“类型检查通过但运行时解析失败”的验证漏洞。
+v0.0.69 将 Settings 左栏改为共享 `ResizableWorkbench`，但为了绕开深层相对路径使用了 `packages/client/ui/tsconfig.json` 中的 `@/*` 私有 alias。补充 TypeScript 检查能解析该 alias，而真实 Web 宿主 Vite 没有同一 alias，Windows 实机启动因此出现 `Failed to resolve import "@/workbench/..."`。这是“类型检查通过但运行时解析失败”的验证漏洞。
 
 ### 任务目标
 
@@ -1810,8 +1824,8 @@ v0.0.69 将 Settings 左栏改为共享 `ResizableWorkbench`，但为了绕开�
 
 ### 允许修改
 
-- `packages/ui/package.json` 与 `packages/ui/src/workbench/index.ts`；
-- `packages/ui/src/features/settings/SettingsPage.tsx` 的导入方式；
+- `packages/client/ui/package.json` 与 `packages/client/ui/src/workbench/index.ts`；
+- `packages/client/ui/src/features/settings/SettingsPage.tsx` 的导入方式；
 - import/runtime resolution 治理脚本与测试；
 - Prompt / Log / Plan / Testing / CHANGELOG / RELEASES / 版本事实。
 
@@ -1826,7 +1840,7 @@ v0.0.69 将 Settings 左栏改为共享 `ResizableWorkbench`，但为了绕开�
 ### 验收条件
 
 - Settings 不再出现 `@/workbench/...`；
-- `@lfaa/ui/workbench` 在 `packages/ui/package.json` 的 `exports` 中公开，目标文件真实存在；
+- `@lfaa/ui/workbench` 在 `packages/client/ui/package.json` 的 `exports` 中公开，目标文件真实存在；
 - 从 Settings 真实 importer 位置使用 Node package resolver 可解析 `@lfaa/ui/workbench`；
 - `packages/*` 源码出现 `@/` tsconfig-only alias 时治理失败；
 - workspace `@lfaa/*/<subpath>` 未公开或目标不存在时治理失败；
@@ -1853,8 +1867,8 @@ v0.0.68 的独立 Settings Surface 已可用，但左侧设置导航仍使用固
 
 ### 允许修改
 
-- `packages/ui/src/workbench/ResizableWorkbench.tsx` 与类型/CSS，仅用于支持单侧 Surface；
-- `packages/ui/src/features/settings/SettingsPage.tsx` / `settings.css`；
+- `packages/client/ui/src/workbench/ResizableWorkbench.tsx` 与类型/CSS，仅用于支持单侧 Surface；
+- `packages/client/ui/src/features/settings/SettingsPage.tsx` / `settings.css`；
 - Settings/Workbench 防回归测试；
 - UI/Workbench README、Prompt / Log / Plan / Testing / CHANGELOG / RELEASES / 版本事实。
 
@@ -1939,11 +1953,11 @@ v0.0.66 已由用户 Windows 实机验收通过。AI Provider 插件骨架与设
 
 ### 目录与边界
 
-- `packages/config-system/src/settings/ai/core`：Account Service、Port、Account/Probe 类型；
-- `packages/config-system/src/settings/ai/providers/<provider>`：厂商连接事实；
-- `packages/config-system/src/settings/ai/transports`：共享模型列表解析；
-- `packages/ui/src/features/settings/ai`：纯表单/ViewModel；
-- `packages/app-shell`：业务 ViewModel 与宿主 Port 编排；
+- `packages/settings/config-system/src/settings/ai/core`：Account Service、Port、Account/Probe 类型；
+- `packages/settings/config-system/src/settings/ai/providers/<provider>`：厂商连接事实；
+- `packages/settings/config-system/src/settings/ai/transports`：共享模型列表解析；
+- `packages/client/ui/src/features/settings/ai`：纯表单/ViewModel；
+- `packages/client/app-shell`：业务 ViewModel 与宿主 Port 编排；
 - `apps/web/src/host`：浏览器 localhost Host Client；
 - `apps/web/dev/bridges/ai`：Vite 开发宿主 Adapter。
 
@@ -2025,8 +2039,8 @@ v0.0.66 已由用户 Windows 实机验收通过。AI Provider 插件骨架与设
 
 ### 允许修改
 
-- `packages/ui/src/workbench/ResizableWorkbench.tsx`；
-- `packages/ui/src/workbench/workbench.css`；
+- `packages/client/ui/src/workbench/ResizableWorkbench.tsx`；
+- `packages/client/ui/src/workbench/workbench.css`；
 - Workbench 吸附动画防回归测试；
 - Prompt / Log / Plan / CHANGELOG / RELEASES / 版本事实。
 
@@ -2094,8 +2108,8 @@ v0.0.66 已由用户 Windows 实机验收通过。AI Provider 插件骨架与设
 
 ### 允许修改
 
-- `packages/ui/src/features/account/**`；
-- `packages/app-shell/src/AgentWorkbench.tsx`、`agent-workbench.css`；
+- `packages/client/ui/src/features/account/**`；
+- `packages/client/app-shell/src/AgentWorkbench.tsx`、`agent-workbench.css`；
 - Settings/Profile 相关 UI 静态测试；
 - Prompt / Log / Plan / CHANGELOG / RELEASES / 版本事实。
 
@@ -2173,16 +2187,16 @@ v0.0.66 已由用户 Windows 实机验收通过。AI Provider 插件骨架与设
 
 ### 允许修改
 
-- `packages/ui/src/features/settings/**`；
-- `packages/ui/src/features/account/**` 或等价共享账户菜单 UI；
-- `packages/app-shell/src/AgentWorkbench.tsx`、`WorkbenchIcon.tsx`、`agent-workbench.css`；
-- `packages/app-shell/src/workbench.types.ts`（仅 UI 宿主回调契约）；
+- `packages/client/ui/src/features/settings/**`；
+- `packages/client/ui/src/features/account/**` 或等价共享账户菜单 UI；
+- `packages/client/app-shell/src/AgentWorkbench.tsx`、`WorkbenchIcon.tsx`、`agent-workbench.css`；
+- `packages/client/app-shell/src/workbench.types.ts`（仅 UI 宿主回调契约）；
 - UI 相关 README / UI 文档 / 目录边界测试；
 - Prompt / Log / Plan / CHANGELOG / RELEASES / 版本事实。
 
 ### 禁止修改
 
-- `packages/config-system/src/settings/ai/providers/**` 厂商业务语义；
+- `packages/settings/config-system/src/settings/ai/providers/**` 厂商业务语义；
 - Config Schema / Secret / Storage 业务；
 - `apps/web` 厂商逻辑；
 - Windows Setup / Sync / GitHub / Update 脚本；
@@ -2258,17 +2272,17 @@ v0.0.66 已由用户 Windows 实机验收通过。AI Provider 插件骨架与设
 
 ### 任务目标
 
-先冻结并自动约束目录架构，再在该架构内继续 Web-first AI 配置业务。Config System 是配置业务父域，`packages/ui` 是可复用图形 UI 唯一父域，App 只做宿主。任何 Provider 新增都必须是子插件，不允许在 Web / UI 写厂商业务。
+先冻结并自动约束目录架构，再在该架构内继续 Web-first AI 配置业务。Config System 是配置业务父域，`packages/client/ui` 是可复用图形 UI 唯一父域，App 只做宿主。任何 Provider 新增都必须是子插件，不允许在 Web / UI 写厂商业务。
 
 ### 固定目录
 
 ```text
-packages/config-system/src/settings/ai/
+packages/settings/config-system/src/settings/ai/
 ├── core/
 ├── transports/              # 仅真实共享时使用
 └── providers/<provider>/
 
-packages/ui/src/features/settings/ai/
+packages/client/ui/src/features/settings/ai/
 
 apps/web/
 → 只保留 Web Host / Router / 本地桥 / Adapter
@@ -2278,17 +2292,17 @@ apps/web/
 
 - `AGENTS.md` / `DEVELOPMENT.md` / `ARCHITECTURE.md` 的目录职责与依赖规则；
 - `docs/MODULES.md` / `docs/项目结构与代码地图.md`；
-- `apps/README.md`、`packages/README.md`、`apps/web/README.md`、`packages/ui/README.md`、`packages/config-system/README.md`；
-- `packages/config-system/src/settings/ai/**`；
-- `packages/ui/src/features/settings/ai/**`；
-- `packages/app-shell` 的业务/UI 组装；
+- `apps/README.md`、`packages/README.md`、`apps/web/README.md`、`packages/client/ui/README.md`、`packages/settings/config-system/README.md`；
+- `packages/settings/config-system/src/settings/ai/**`；
+- `packages/client/ui/src/features/settings/ai/**`；
+- `packages/client/app-shell` 的业务/UI 组装；
 - Web Host Adapter（不得包含 Provider 厂商业务）；
 - 自动目录边界治理脚本与测试。
 
 ### 禁止修改 / 禁止放置
 
-- Provider 厂商请求 / Base URL / Auth 业务不得写进 `packages/ui`、`apps/web`、Vite Config；
-- React / DOM / 页面样式不得写进 `packages/config-system`；
+- Provider 厂商请求 / Base URL / Auth 业务不得写进 `packages/client/ui`、`apps/web`、Vite Config；
+- React / DOM / 页面样式不得写进 `packages/settings/config-system`；
 - Config / Account / Auth 真值不得由 App 或 UI 拥有；
 - 模型推理 Runtime Adapter 不并入 Config System；
 - Secret 明文不得进入普通 Config、日志、Trace、localStorage；
@@ -2306,8 +2320,8 @@ Web 专属启动/桥接 → `@lfaa/web`。
 
 - 开发规范明确一级目录和关键 package 的“负责 / 不负责”；
 - AI 配置形成固定父子级，不再散落；
-- UI Feature 唯一位于 `packages/ui/src/features/settings/ai`；
-- Provider 配置插件唯一位于 `packages/config-system/src/settings/ai/providers/<provider>`；
+- UI Feature 唯一位于 `packages/client/ui/src/features/settings/ai`；
+- Provider 配置插件唯一位于 `packages/settings/config-system/src/settings/ai/providers/<provider>`；
 - App 无第二套共享业务 UI / Provider 逻辑；
 - 自动边界检查能阻止 React 进入 Config System、厂商 API 进入 UI/App、业务包反向依赖 App；
 - 后续 Provider 能通过“新增子目录 + 注册”扩展，不改核心分支；
@@ -2330,7 +2344,7 @@ Web 专属启动/桥接 → `@lfaa/web`。
 - `transports/openai-compatible.ts` 仅承载共享模型列表协议，不拥有厂商 URL；
 - OpenAI 同时声明 API Key 与官方 Codex App Server 的 ChatGPT 套餐认证能力；
 - Provider 真实差异（区域、Workspace、Token Plan、Coding API、模型发现方式）全部留在各自插件；
-- `packages/ui/src/features/settings/ai` 新增共享 AI 设置页，UI 不依赖 Config System、不发 Provider 请求；
+- `packages/client/ui/src/features/settings/ai` 新增共享 AI 设置页，UI 不依赖 Config System、不发 Provider 请求；
 - App Shell 只把 Registry 映射为 UI ViewModel，设置按钮可进入共享 AI 设置页；
 - `folder-boundary-check` 新增强制 Provider 子目录、Core 禁止厂商 Endpoint/分支等机器门禁。
 
@@ -3209,7 +3223,7 @@ Windows 实机发现局部变量 `$home` 与 PowerShell 自动只读变量 `$HOM
 
 ### 允许修改
 
-- `packages/config-system/**`；
+- `packages/settings/config-system/**`；
 - Config Schema 专项门禁与根 package 脚本；
 - Config System 的 Plan / Progress / Prompt / Development Log / Testing / Code Map；
 - v0.0.51 版本事实、CHANGELOG、Release；
@@ -3542,7 +3556,7 @@ Schema 唯一；Storage 可迁移；Model/Account/Permission 清晰分层；UI �
 
 ### 允许修改
 
-- `packages/app-shell/src/agent-workbench.css`；
+- `packages/client/app-shell/src/agent-workbench.css`；
 - `scripts/ui-contract-check.mjs`；
 - 当前 UI 文档、测试、Plan / Progress / Development Log / Changelog / Release / Version。
 
@@ -5238,8 +5252,8 @@ PowerShell / 系统 Shell
 
 ### 允许修改
 
-- `packages/ui`
-- `packages/app-shell`
+- `packages/client/ui`
+- `packages/client/app-shell`
 - `apps/web`
 - Vite 开发桥接
 - UI / Security / Testing / Readability 文档
@@ -5359,8 +5373,8 @@ Center / Right Header 必须同高并形成连续顶部结构。
 
 ### 允许修改
 
-- `packages/app-shell`
-- 必要时 `packages/ui`
+- `packages/client/app-shell`
+- 必要时 `packages/client/ui`
 - `apps/web`
 - UI / Testing / Readability 文档
 
@@ -5444,13 +5458,13 @@ Tooltip 必须 `pointer-events:none`，不得抢鼠标 Hover / Click。
 
 ### 允许修改
 
-- `packages/app-shell/src/AgentWorkbench.tsx`
+- `packages/client/app-shell/src/AgentWorkbench.tsx`
 - UI 契约门禁脚本
 - UI / Testing / Development Log / Changelog / Release 文档
 
 ### 禁止修改
 
-- `packages/ui` 拖拽吸附算法（本次无必要）
+- `packages/client/ui` 拖拽吸附算法（本次无必要）
 - Agent Loop / Tool Runtime / Permission Engine
 - Config Storage / Secret Store
 - GitHub / Sync / Setup / Update 业务逻辑
@@ -5546,10 +5560,10 @@ Pointer Up 完成收起后，separator 禁止重新展开，只能通过显式�
 
 ### 允许修改
 
-- `packages/app-shell/src/AgentWorkbench.tsx`
-- `packages/app-shell/src/agent-workbench.css`
-- `packages/ui/src/workbench/ResizableWorkbench.tsx`
-- `packages/ui/src/workbench/workbench.css`
+- `packages/client/app-shell/src/AgentWorkbench.tsx`
+- `packages/client/app-shell/src/agent-workbench.css`
+- `packages/client/ui/src/workbench/ResizableWorkbench.tsx`
+- `packages/client/ui/src/workbench/workbench.css`
 - UI 契约门禁
 - UI / Testing / Development Log / Plan / Progress / Changelog / Release 文档
 
@@ -5667,10 +5681,10 @@ Ctrl+Alt+B   右栏
 
 ### 允许修改
 
-- `packages/app-shell/src/AgentWorkbench.tsx`
-- `packages/app-shell/src/agent-workbench.css`
-- `packages/ui/src/workbench/ResizableWorkbench.tsx`
-- `packages/ui/src/workbench/workbench.css`
+- `packages/client/app-shell/src/AgentWorkbench.tsx`
+- `packages/client/app-shell/src/agent-workbench.css`
+- `packages/client/ui/src/workbench/ResizableWorkbench.tsx`
+- `packages/client/ui/src/workbench/workbench.css`
 - `scripts/ui-contract-check.mjs`
 - UI / Testing / Development Log / Plan / Progress / Changelog / Release / Code Map
 
@@ -5723,7 +5737,7 @@ BOTTOM_LIMITS
 统一使用：
 
 ```text
-packages/ui/src/workbench/workbench-layout.config.ts
+packages/client/ui/src/workbench/workbench-layout.config.ts
 ```
 
 其中必须集中维护：

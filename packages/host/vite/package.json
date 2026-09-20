@@ -1,0 +1,15 @@
+{
+  "name": "@lfaa/host-vite",
+  "private": true,
+  "version": "0.0.100",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "dependencies": {
+    "vite": "8.2.2"
+  },
+  "lfaa": {
+    "layer": "host-adapter",
+    "role": "vite-host-adapter"
+  }
+}
