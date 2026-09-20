@@ -9,7 +9,7 @@ const runtimeController=read("packages/app-shell/src/workbench/center/composer/r
 const runtimePicker=read("packages/app-shell/src/workbench/center/composer/runtime-control/view/RuntimeModelPicker.tsx");
 const runtimeSurface=`${composer}\n${runtimeView}\n${runtimeRow}\n${runtimeController}\n${runtimePicker}`;
 const runtimeCss=read("packages/app-shell/src/workbench/center/composer/runtime-control/styles/RuntimeControl.module.css");
-const conversationCss=read("packages/app-shell/src/workbench/center/conversation/styles/Conversation.module.css");
+const conversationCss=read("packages/workspace/src/chat/styles/ChatWorkspace.module.css");
 const themeCss=read("packages/app-shell/src/workbench/shell/styles/WorkbenchTheme.module.css");
 const slider=read("packages/ui/src/ui-controls/DiscreteSlider.tsx");
 const sliderCss=read("packages/ui/src/ui-controls/discrete-slider.css");
@@ -22,7 +22,7 @@ const bridge=read("apps/web/dev/bridges/ai/ai-config-bridge.ts");
 const runtime=read("packages/agent-runtime/src/core/contracts.ts");
 const codexAppServer=read("apps/web/dev/bridges/ai/codex-app-server.ts");
 const aiController=read("packages/app-shell/src/workbench/settings/logic/useAiSettingsController.ts");
-const sessionController=read("packages/app-shell/src/workbench/session/logic/useAgentSessionController.ts");
+const sessionController=read("packages/workspace/src/shared/logic/useWorkspaceSessionController.ts");
 
 test("Composer owns one modular RuntimeControl instead of split popovers",()=>{
   for(const token of ["<RuntimeControl","RuntimeModelPicker","ReasoningControlRow","toggleReasoningBoost","resetReasoning","onQuickSelectModel","onQuickUpdateModelSetting","quickModels.length === 0","管理模型"]) assert.match(runtimeSurface,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));

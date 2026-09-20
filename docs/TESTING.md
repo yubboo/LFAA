@@ -1,3 +1,18 @@
+## v0.0.96 / #21.25 Workspace 聚合回归
+
+本版本必须证明“移动 Owner 不改变行为”：
+
+- `workspace-package-boundary`：存在唯一 `packages/workspace`，内部是 `chat/work/shared`，禁止 `chat-workspace/work-workspace` 平级包及未来空壳 package；
+- Workbench boundary：App Shell 不再拥有旧 `center/conversation` / `workbench/session`，只能从 `@lfaa/workspace` 公共入口组合；
+- Chat Runtime：Session Controller 仍只调用同一 `AgentRuntimeHost.startRun`；
+- Infinite Canvas：Work 的 layout controller 迁移后仍保持 v0.0.95 workspaceId 持久化和 Canvas Projection 合同；
+- Package architecture：只允许 `product-composition → workspace-feature-composition` 的明确组合依赖，不放开泛化 composition 循环；
+- Frozen source diff：Reasoning/Particle/Resize/Motion、Config/Agent Runtime/Plugin/Rust/Windows scripts 不允许随本轮架构整理改变。
+
+最终发布必须做 Unicode ZIP exact entry + `.lfaa` + fresh extract `workspace-preflight`。
+
+本轮 AI 验证结果：聚焦 #21.25/Canvas/Chat/Reasoning 38/38 PASS；全仓 Node `test/*.test.mjs` 153 项中 152 项 PASS，唯一失败为制作环境 Node 22.16.0 + 无 workspace `node_modules` 导致 `@lfaa/credentials` 无法解析的既有 `node-source-runtime.test.mjs`；29/29 本轮 TS/TSX syntax transpile PASS；候选归档 491 entries、中文代码地图 UTF-8 flag=`0x800`、`.lfaa/` 存在，fresh extract `workspace-preflight` 全 Gate PASS。
+
 ## v0.0.95 / #21.24 + #22.8 模块职责与 Infinite Canvas 回归
 
 必须锁定：

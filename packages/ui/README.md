@@ -1,6 +1,6 @@
 # @lfaa/ui — UI Kit / Design System / Shared Interaction Engine
 
-`packages/ui` **不是 LFAA 所有产品页面的目录**。它提供跨产品模块复用的界面积木和交互算法；具体 LeftSidebar、Conversation、Composer、RuntimeControl、Settings 等产品 UI 归 `@lfaa/app-shell`。
+`packages/ui` **不是 LFAA 所有产品页面的目录**。它提供跨产品模块复用的界面积木和交互算法；具体 Chat/Work 投影归 `@lfaa/workspace`；Shell、Left/Right、Composer、RuntimeControl、Settings 等产品外壳归 `@lfaa/app-shell`。
 
 TS/TSX 在 UI Kit 中是合理的：Button/Slider/Canvas 等组件需要 DOM、ARIA、Pointer/Keyboard、Props、Canvas renderer 等行为；这里允许的是**通用 UI 行为**，不允许 Provider/Session/业务状态。
 
@@ -23,7 +23,7 @@ packages/ui/src/
 
 ## 不负责
 
-- Left/Right/Conversation/Composer/RuntimeControl/Settings 等 LFAA 产品页面；
+- Chat/Work Workspace 产品投影；Shell/Left/Right/Composer/RuntimeControl/Settings 等 LFAA 产品页面；
 - Config / Account / Auth / Provider 业务真值；
 - Agent Session / Run 真值；
 - Provider 外部 API 请求；

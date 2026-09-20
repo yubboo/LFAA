@@ -1,3 +1,15 @@
+## LFAA v0.0.96 — #21.25 Workspace 领域聚合 / Chat-Work 双投影父子架构
+
+- **Workspace 父领域：** 新增真实 `@lfaa/workspace`，内部按 `chat / work / shared` 组织；Chat 与 Work 不再被当作两个平级 package/Runtime。
+- **Owner 迁移：** Chat Timeline、Work Canvas 产品布局/持久化、共用 Session Controller 从 `@lfaa/app-shell` 迁入 Workspace；App Shell Center 只通过公共入口装配 `Header → Workspace → Composer`。
+- **单一执行核心：** Chat/Work 继续使用同一 `AgentRuntimeHost.startRun`、permission 与 runtime event projection，不创建第二套 Chat/Work Runtime。
+- **防过度拆包：** 正式增加“父 package=领域、子目录=职责”规则；只有独立生命周期/部署、跨领域复用或多个真实 Consumer 才拆平级 package；本版不创建未来 project/canvas/workflow/task/asset/model/tool/storage 空壳。
+- **Infinite Canvas 保持：** v0.0.95 的 workspaceId node x/y + viewport 持久化、低频 commit、selected/dragging 置顶、edge behind nodes 不回退；通用 Pointer/Zoom/Drag 继续属于 `@lfaa/ui`。
+- **行为冻结：** Reasoning/Strong Reasoning/Particle、Slider、Resize/Motion、Provider/Config、Agent Runtime Protocol、Plugin、Rust Native、Windows Sync/GitHub/Setup/Update source 与 v0.0.95 保持零业务 diff。
+- **验证：** 聚焦架构/Canvas/Chat/Reasoning 38/38 PASS；全仓 Node 153 项中 152 项 PASS，唯一 `node-source-runtime.test.mjs` 受当前 Node 22.16.0 + 无 workspace `node_modules` 环境阻断；本轮 TS/TSX syntax 29/29 PASS。
+- **当前状态：** `pending-user-acceptance`；AI 验证 `pass`；用户验收 `pending`。
+- **发布归档：** 491 entries；`docs/项目结构与代码地图.md` exact entry UTF-8 flag=`0x800`；`.lfaa/` 保留；fresh extract 后 `workspace-preflight` 全 Gate PASS。
+
 ## LFAA v0.0.95 — #21.24 模块内职责分层 + merge #22.8 Infinite Canvas
 
 - **结构基线：** 以 v0.0.94 全域父子模块为基线，不回滚其 Left/Center/Right/Terminal/Settings/Session Owner。

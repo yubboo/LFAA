@@ -84,8 +84,12 @@ for (const item of manifests) {
       const target = byName.get(depName);
       if (!target) continue;
       graph.get(item.name).add(depName);
-      if (!allowedTargets.get(item.layer).has(target.layer)) {
-        throw new Error(`${item.relative}: ${item.layer} 层不得依赖 ${target.layer} 层（${depName}）。`);
+      const workspaceFeatureComposition = item.layer === "composition"
+        && item.role === "product-composition"
+        && target.layer === "composition"
+        && target.role === "workspace-feature-composition";
+      if (!allowedTargets.get(item.layer).has(target.layer) && !workspaceFeatureComposition) {
+        throw new Error(`${item.relative}: ${item.layer}/${item.role} 不得依赖 ${target.layer}/${target.role}（${depName}）。`);
       }
     }
   }

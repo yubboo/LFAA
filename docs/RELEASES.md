@@ -1,3 +1,14 @@
+## LFAA v0.0.96 Release — #21.25 Workspace 领域聚合 / Chat-Work 双投影父子架构
+
+- 新增 `@lfaa/workspace` 作为 Workspace 父领域，内部 `chat / work / shared`；App Shell 是产品外壳，UI 是共享 UI Kit。
+- Chat Timeline、Work Canvas 产品布局状态和 Chat/Work 共用 Session Controller 已迁移到 Workspace；Center 只从 Workspace 公共 API 组合 Chat/Work。
+- 保持单一 Agent Runtime：Chat/Work 都调用同一 `AgentRuntimeHost.startRun`，没有分叉 Runtime 或重复 event subscription。
+- 架构规范新增防过度设计：同一领域先父包聚合，只有真实独立生命周期/部署/复用/多个 Consumer 才升格新 package；未来规划不预创建空壳。
+- v0.0.95 Infinite Canvas 行为与 Reasoning/Particle/Resize/Provider/Runtime/Windows 运维 source 均冻结。
+- 自动验证：聚焦 38/38 PASS；全仓 Node 153 项中 152 项 PASS，唯一 Node source runtime 项受 Node 22.16.0 + 缺 workspace node_modules 环境阻断；TS/TSX syntax 29/29 PASS。
+- 状态：`pending-user-acceptance`；AI 验证 `pass`；用户验收 `pending`。
+- 发布归档验证：491 entries；中文代码地图 exact entry UTF-8 flag=`0x800`；`.lfaa/` 保留；fresh extract 后 `workspace-preflight` 全 Gate PASS。
+
 ## LFAA v0.0.95 Release — #21.24 + merge #22.8
 
 - 结构来自 v0.0.94，用户 v0.0.93 只作为 #22.8 Infinite Canvas 功能补丁源，不回滚 v0.0.94 其他模块化实现。

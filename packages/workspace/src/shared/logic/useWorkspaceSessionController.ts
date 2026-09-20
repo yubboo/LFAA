@@ -1,8 +1,12 @@
 /**
- * 文件：useAgentSessionController.ts
- * 作用：Chat/Work Run 业务状态唯一 Owner。
+ * 文件：useWorkspaceSessionController.ts
+ * 作用：Workspace / Chat+Work 共用 Run 业务状态唯一 Owner。
  * 负责：surface、permission、chat projection、Runtime event subscription、startRun、最近一次 Run 输入投影。
  * 不负责：Work Canvas 节点坐标/viewport、模型账户配置、Composer draft、Shell chrome、UI 布局。
+ * 状态归属：Workspace Session；Chat 与 Work 共用一套 AgentRuntimeHost / permission / model binding。
+ * 对外接口：useWorkspaceSessionController({ runtimeHost, workspaceId, activeModelBinding })。
+ * 关联文件：workspace.types.ts、@lfaa/agent-runtime、@lfaa/app-shell AgentWorkbench。
+ * 修改注意事项：不得拆成 Chat/Work 两套 startRun；Canvas 视觉布局不得提升进 Session。
  */
 import { useEffect, useState } from "react";
 import type {
@@ -15,7 +19,7 @@ import type {
   AgentSurfaceMode,
 } from "@lfaa/agent-runtime";
 import type { AiModelSettingValue } from "@lfaa/config-system";
-import type { ChatProjectionMessage } from "#workbench/contracts";
+import type { ChatProjectionMessage } from "../contracts/workspace.types";
 
 const AGENT_SURFACE_KEY = "lfaa.agent.surface.v1";
 const AGENT_PERMISSION_KEY = "lfaa.agent.permission-profile.v1";
@@ -31,7 +35,7 @@ function initialPermissionProfile(): AgentPermissionProfileId {
   return stored === "approve-for-me" || stored === "full-access" ? stored : "ask";
 }
 
-export function useAgentSessionController({ runtimeHost, workspaceId, activeModelBinding }: {
+export function useWorkspaceSessionController({ runtimeHost, workspaceId, activeModelBinding }: {
   runtimeHost: AgentRuntimeHost | undefined;
   workspaceId: string | undefined;
   activeModelBinding: AgentModelBinding | null;
@@ -93,4 +97,4 @@ export function useAgentSessionController({ runtimeHost, workspaceId, activeMode
   };
 }
 
-export type AgentSessionController = ReturnType<typeof useAgentSessionController>;
+export type WorkspaceSessionController = ReturnType<typeof useWorkspaceSessionController>;

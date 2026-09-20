@@ -1,4 +1,4 @@
-/** #21.24 App Shell / Web host responsibility-layer contract. */
+/** #21.25 App Shell / Workspace / Web host responsibility-layer contract. */
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -8,11 +8,13 @@ const root = process.cwd();
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 const exists = (relative) => fs.existsSync(path.join(root, relative));
 
-test("packages/ui is shared UI Kit while product semantics stay in app-shell", () => {
+test("packages/ui is shared UI Kit while Workspace product semantics stay in workspace/app-shell", () => {
   const packageReadme = read("packages/ui/README.md");
   const appReadme = read("packages/app-shell/src/README.md");
+  const workspaceReadme = read("packages/workspace/README.md");
   assert.match(packageReadme, /UI Kit|Design System|共享|通用/i);
   assert.match(appReadme, /产品|Workbench|组合/i);
+  assert.match(workspaceReadme, /Workspace|Chat|Work|父领域/i);
   const uiIndex = read("packages/ui/src/index.ts");
   assert.match(uiIndex, /InfiniteCanvas|DiscreteSlider|UiEffectHost/);
   assert.doesNotMatch(uiIndex, /DeepSeek|OpenAI|RuntimeControl|AgentSession/);
@@ -39,9 +41,9 @@ test("browser LocalTerminal has local view/styles and does not own PTY creation"
 });
 
 test("WorkCanvas persistence belongs to work-canvas logic, not Session or shared UI", () => {
-  const controller = read("packages/app-shell/src/workbench/center/conversation/work-canvas/logic/useWorkCanvasController.ts");
-  const layout = read("packages/app-shell/src/workbench/center/conversation/work-canvas/logic/work-canvas-layout.ts");
-  const session = read("packages/app-shell/src/workbench/session/logic/useAgentSessionController.ts");
+  const controller = read("packages/workspace/src/work/logic/useWorkCanvasController.ts");
+  const layout = read("packages/workspace/src/work/logic/work-canvas-layout.ts");
+  const session = read("packages/workspace/src/shared/logic/useWorkspaceSessionController.ts");
   const canvas = read("packages/ui/src/features/workbench/InfiniteCanvas.tsx");
   assert.match(controller + layout, /WORK_CANVAS_LAYOUT_KEY_PREFIX|resolveWorkCanvasLayoutKey/);
   assert.doesNotMatch(session, /WORK_CANVAS_LAYOUT_KEY_PREFIX|workNodes|nodePositions|canvas-layout/);

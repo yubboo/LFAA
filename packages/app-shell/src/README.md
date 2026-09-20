@@ -1,6 +1,6 @@
-# app-shell/src 代码导航（v0.0.95）
+# app-shell/src 代码导航（v0.0.96）
 
-`@lfaa/app-shell` 是 **LFAA 产品 UI / Feature 编排层**。它使用 `@lfaa/ui` 的通用 UI Kit，但 Left、Conversation、Composer、RuntimeControl、Settings 等产品语义只属于这里。
+`@lfaa/app-shell` 是 **LFAA 产品 Shell / Chrome / Composition 层**。它使用 `@lfaa/ui` 的通用 UI Kit，并装配 `@lfaa/workspace` 的 Chat/Work 产品投影；不再重复拥有 Workspace Session、Chat Timeline 或 Work Canvas 产品状态。
 
 ## 总结构
 
@@ -11,36 +11,26 @@ workbench/
 ├─ shell/                          # 外壳 / Theme / Overlay / Shortcut
 ├─ left/                           # 左侧栏
 ├─ center/
-│  ├─ header/
-│  ├─ conversation/
-│  │  └─ work-canvas/              # Work Surface 视觉布局 Owner
-│  └─ composer/
-│     └─ runtime-control/
+│  ├─ header/                      # Center Chrome
+│  └─ composer/                    # 输入区 / Runtime Control
 ├─ right/
 ├─ terminal/
 ├─ settings/
-├─ session/                        # Agent Run / Chat / Work 业务会话
 └─ shared/                         # 只限 Workbench 内真实复用的小 Primitive
+
+@lfaa/workspace                    # 通过公共 API 装配
+├─ chat/                           # Chat projection
+├─ work/                           # Work / Canvas projection
+└─ shared/                         # 共用 Workspace Session
 ```
 
 ## 模块内部职责
 
-按需使用以下目录，不需要时不创建空层：
+按需使用 `view / logic / styles / contracts / index.ts`；不需要的层不创建空目录。兄弟模块不得深链内部文件，跨边界只通过公共入口和 typed Props/Callback/Controller contract。
 
-```text
-<module>/
-├─ view/       # TSX / DOM / 子 View 组合
-├─ logic/      # Controller / Hook / 局部状态协调
-├─ styles/     # 仅该模块 *.module.css
-├─ contracts/  # Props / ViewModel / Port / 类型边界
-└─ index.ts    # 唯一公共出口
-```
+## Workspace 边界
 
-兄弟模块不得深链内部文件；跨边界只通过 `index.ts` 与 typed Props/Callback/Controller contract。
-
-## Work Canvas
-
-`center/conversation/work-canvas` 是视觉布局唯一 Owner。它只保存 node `id→x/y` 与 viewport；Agent Session 不保存视觉坐标。高频 pan/zoom/drag 算法仍由 `@lfaa/ui` 的 `InfiniteCanvas` 拥有。
+Center 只做 `Header → Workspace(Chat/Work) → Composer` 装配。Chat/Work Surface 和共用 Agent Session 属于 `@lfaa/workspace`；Composer/RuntimeControl 属于 App Shell。Work 的节点布局持久化属于 Workspace Work 子模块，高频 InfiniteCanvas Pointer/Zoom/Drag 算法仍属于 `@lfaa/ui`。
 
 ## 响应式 / Resize
 

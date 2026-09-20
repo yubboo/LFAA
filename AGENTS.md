@@ -88,7 +88,8 @@ Windows `scripts/windows/*.ps1` 必须保持 UTF-8 with BOM。
 ```text
 apps/                     可运行宿主入口；只做启动、宿主 Adapter、平台桥
 packages/ui/              UI Kit / Design System / Shared Interaction Engine；通用控件、布局、Motion、Effect、Canvas Projection，不拥有产品业务真值
-packages/app-shell/       LFAA 产品 UI / Feature 编排；业务模块按父子 Owner 组织，内部按需拆 view / logic / styles / contracts
+packages/workspace/       Workspace 产品领域；Chat / Work 是同一父领域下的两种投影，共用 Session/Run 核心
+packages/app-shell/       LFAA 产品 Shell / Chrome / Composition；负责 Shell、导航、Composer、Settings 等外壳装配，不重复拥有 Workspace 内部实现
 packages/config-system/   配置设置业务唯一归属；Schema / Settings / Account / Auth / Provider 配置
 crates/                   Rust 原生能力与安全 Broker
 scripts/                  开发/治理工具；不得承载产品业务
@@ -106,6 +107,8 @@ packages/ui/src/features/settings/ai/
 
 硬边界：
 
+- **领域优先于拆包：** 同一领域的模式/core/renderer/runtime 优先先放在一个父 package 内用子目录分层；只有出现独立发布/生命周期、部署边界、跨领域真实复用或多个真实 Consumer 时才拆成独立 package；禁止为了“看起来模块化”提前创建空壳包；
+- `packages/workspace` 的父子结构固定为 `chat/ + work/ + shared/`；Chat/Work 不允许重新拆成 `chat-workspace` / `work-workspace` 两个平级 package；
 - `packages/ui` 是共享 UI Kit，不是“所有产品界面”的目录；新增通用 UI 基础/交互/特效/扩展进入 `src/ui-xxx/`，既有 `layout/workbench/features` 保持；
 - UI Kernel 基础件不可卸载；Effect/Renderer/Panel/Action 等独立生命周期能力才通过 Registry 插件化；
 - 普通插件不得直接操作 LFAA DOM，业务组件不得复制 shared outside-dismiss / Slider Pointer / Effect 实现；

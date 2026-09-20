@@ -1,3 +1,28 @@
+## v0.0.96 / #21.25 Workspace 父领域聚合与防过度拆包
+
+LFAA 的产品顶层正式收敛为 **同一套执行核心上的两种 Workspace 投影**：Chat 是线性“一句话解决问题”，Work 是无限画布上的可视化自动执行/监督。二者不是两套 Runtime，也不再规划成两个平级 package。
+
+当前真实物理边界：
+
+```text
+@lfaa/app-shell                    # 产品 Shell / Chrome / Composer / Settings / 区域装配
+└─ consumes @lfaa/workspace
+
+@lfaa/workspace                    # Workspace 父领域
+├─ chat/                           # Chat 线性投影
+├─ work/                           # Work / Infinite Canvas 产品投影与布局状态
+└─ shared/                         # Chat/Work 共用 Session Controller / contract
+
+@lfaa/ui                           # UI Kit / Interaction Engine
+└─ InfiniteCanvas / Slider / Effect / Resize 等通用 Primitive
+```
+
+依赖方向：`app-shell → workspace → agent-runtime/config-system/ui`。`workspace` 禁止反向依赖 `app-shell` 或 Host；Chat/Work 继续调用同一个 `AgentRuntimeHost.startRun`，共享 permission、runtime event projection 与 `lastRunInput`。Work 的 node x/y + viewport 仍只是 Workspace 产品布局状态，高频 Pointer/Zoom/Drag 算法继续属于 `@lfaa/ui`。
+
+长期拆分原则由“平铺 package”改为“**父目录表示领域，子目录表示领域内部职责**”。例如未来 Canvas/Workflow 若进入真实实现，优先形成 `canvas/{core,renderer,interaction}`、`workflow/{core,compiler,runtime}`，而不是默认创建大量 `canvas-core/canvas-renderer/workflow-core/workflow-runtime` 平级包。只有独立生命周期/发布、部署边界、跨领域复用或多个真实 Consumer 形成后才允许升格独立 package。当前没有 Consumer 的 `project/canvas/workflow/task/asset/model/tool/storage` 不创建占位包。
+
+战略上，未来 Project/Agent/Workflow/Task/Asset/Model/Tool/Storage 会成为 Chat 与 Work 共用底座；但本版本只建立已经真实存在的 Workspace 聚合，不把远期设计伪装成已实现代码。
+
 ## v0.0.95 / #21.24 模块内职责分层 + #22.8 Infinite Canvas 合并
 
 LFAA 当前把“产品 UI”与“共享 UI Kit”分为两层：`@lfaa/app-shell` 拥有 Left / Center / Conversation / Composer / RuntimeControl / Settings 等产品语义；`@lfaa/ui` 只拥有可复用的控件、布局、Motion、Effect、Resize、InfiniteCanvas Projection。UI Kit 中使用 TS/TSX 是正常的 DOM/ARIA/Pointer/Canvas 实现，不代表它拥有产品业务状态。

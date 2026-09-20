@@ -29,6 +29,7 @@ const required = [
   "apps/web/dev/bridges/agent/README.md",
   "packages/credentials/README.md",
   "packages/plugin-host-node/README.md",
+  "packages/workspace/README.md",
 ];
 
 const requiredProviderPlugins = ["openai", "deepseek", "zhipu", "kimi", "qwen", "xiaomi"]
@@ -168,6 +169,18 @@ walk("packages/plugin-host-node/src", (relative, text) => {
     if (spec === "react" || spec.startsWith("@lfaa/ui") || spec.startsWith("@lfaa/app-shell") || spec.startsWith("@lfaa/config-system")) {
       failures.push(`${relative}: plugin-host-node 禁止反向依赖产品/UI ${spec}。`);
     }
+  }
+});
+
+// Workspace 是 Chat / Work 的产品 Feature Composition；可以消费 Runtime/Domain/UI Kit，但不得反向依赖 App Shell 或宿主。
+walk("packages/workspace/src", (relative, text) => {
+  for (const spec of imports(text)) {
+    if (spec.startsWith("@lfaa/app-shell") || spec.startsWith("@lfaa/web") || spec.startsWith("apps/") || spec.startsWith("node:")) {
+      failures.push(`${relative}: workspace 禁止反向依赖产品外壳/宿主 ${spec}。`);
+    }
+  }
+  if (/\bfetch\s*\(/.test(text) || /\bXMLHttpRequest\b/.test(text)) {
+    failures.push(`${relative}: workspace 禁止直接访问 Provider/网络；应通过 Agent Runtime / Host Contract。`);
   }
 });
 

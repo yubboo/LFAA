@@ -3,9 +3,9 @@
  * 作用：LFAA Workbench Composition Root。
  * 负责：只创建各模块 Controller，并通过模块公共入口完成父子装配。
  * 不负责：Left/Center/Right/Terminal DOM、AI/Plugin ViewModel 映射、Agent Run 事件细节、Overlay DOM、区域 CSS。
- * 状态归属：Theme/Chrome/Overlay→workbench/shell；Settings→workbench/settings；Chat/Work Run→workbench/session；区域私有状态→各自模块。
+ * 状态归属：Theme/Chrome/Overlay→workbench/shell；Settings→workbench/settings；Chat/Work Run→@lfaa/workspace shared session；区域私有状态→各自模块。
  * 对外接口：AgentWorkbench(props)。
- * 关联文件：workbench/shell、workbench/left、workbench/center、workbench/right、workbench/terminal、workbench/settings、workbench/session。
+ * 关联文件：workbench/shell、workbench/left、workbench/center、workbench/right、workbench/terminal、workbench/settings、@lfaa/workspace。
  * 修改注意事项：禁止把区域实现重新堆回本文件；所有模块只从各目录 index.ts 公共入口导入。
  */
 import type { AgentWorkbenchProps } from "./workbench.types";
@@ -28,7 +28,7 @@ import {
   usePluginSettingsController,
   useSettingsSurfaceController,
 } from "./workbench/settings";
-import { useAgentSessionController } from "./workbench/session";
+import { useWorkspaceSessionController } from "@lfaa/workspace";
 import "./agent-workbench.css";
 
 export function AgentWorkbench(props:AgentWorkbenchProps){
@@ -38,7 +38,7 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
   const settingsSurface=useSettingsSurfaceController();
   const ai=useAiSettingsController(props.aiSettingsHost);
   const plugins=usePluginSettingsController(props.pluginSettingsHost);
-  const session=useAgentSessionController({runtimeHost:props.agentRuntimeHost,workspaceId:props.workspaceId,activeModelBinding:ai.activeModelBinding});
+  const session=useWorkspaceSessionController({runtimeHost:props.agentRuntimeHost,workspaceId:props.workspaceId,activeModelBinding:ai.activeModelBinding});
 
   useWorkbenchShellShortcuts({
     onEscape:overlays.closeMenus,

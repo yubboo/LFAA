@@ -1,3 +1,11 @@
+## v0.0.96 Workspace / App Shell / UI Kit 当前边界
+
+- `@lfaa/workspace` 拥有 Chat 与 Work 两种产品 Surface：`chat/` 负责线性消息投影，`work/` 负责无限画布产品投影和低频布局持久化；`shared/` 负责二者共用 Session。
+- `@lfaa/app-shell` 拥有 Shell、Left/Right、Center Chrome、Composer/RuntimeControl、Terminal、Settings，并通过 `@lfaa/workspace` 公共入口装配 Chat/Work。
+- `@lfaa/ui` 继续只拥有通用 Slider、InfiniteCanvas、Effect、Resize、Motion 等 Primitive。Workspace 不能复制这些算法，UI Kit 也不能拥有 Project/Run/Provider 产品真值。
+- Center 的父子顺序现在是 `Header → Workspace(Chat|Work) → Composer`；原 `center/conversation` 与 `workbench/session` Owner 已移除，避免一个 Conversation 模块同时承担 Chat 与 Work。
+- v0.0.95 Infinite Canvas 的 workspaceId 节点 x/y + viewport 持久化、selected/dragging 置顶、edge behind nodes 语义保持不变。
+
 ## v0.0.95 产品 UI / UI Kit / Work Canvas 当前边界
 
 - 产品界面（Left/Conversation/Composer/RuntimeControl/Settings）归 `@lfaa/app-shell`；每个模块的 View 与局部 CSS Module 共属该产品模块。

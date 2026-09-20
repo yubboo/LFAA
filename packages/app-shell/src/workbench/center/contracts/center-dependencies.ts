@@ -7,4 +7,4 @@ export { IconButton, WorkbenchIcon } from "#workbench/shared";
 export { RightShellActions, ShellHeaderButton } from "#workbench/shell";
 export { resolveReasoningStages, resolveReasoningStageIndex } from "#workbench/reasoning-control";
 export type { ReasoningStageBinding } from "#workbench/reasoning-control";
-export type { ActiveReasoningControl, ChatProjectionMessage, LayoutMode, QuickModelOption } from "#workbench/contracts";
+export type { ActiveReasoningControl, LayoutMode, QuickModelOption } from "#workbench/contracts";

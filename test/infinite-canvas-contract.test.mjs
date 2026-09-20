@@ -14,15 +14,15 @@ const shell = read("packages/app-shell/src/AgentWorkbench.tsx");
 const left = read("packages/app-shell/src/workbench/left/view/LeftSidebarRegion.tsx");
 const center = read("packages/app-shell/src/workbench/center/view/CenterWorkspaceRegion.tsx");
 const header = read("packages/app-shell/src/workbench/center/header/view/CenterHeader.tsx");
-const conversation = read("packages/app-shell/src/workbench/center/conversation/view/ConversationRegion.tsx");
-const workCanvasView = read("packages/app-shell/src/workbench/center/conversation/work-canvas/view/WorkCanvasRegion.tsx");
-const workCanvasController = read("packages/app-shell/src/workbench/center/conversation/work-canvas/logic/useWorkCanvasController.ts");
-const workCanvasLayout = read("packages/app-shell/src/workbench/center/conversation/work-canvas/logic/work-canvas-layout.ts");
-const session = read("packages/app-shell/src/workbench/session/logic/useAgentSessionController.ts");
+const chat = read("packages/workspace/src/chat/view/ChatWorkspace.tsx");
+const workCanvasView = read("packages/workspace/src/work/view/WorkWorkspace.tsx");
+const workCanvasController = read("packages/workspace/src/work/logic/useWorkCanvasController.ts");
+const workCanvasLayout = read("packages/workspace/src/work/logic/work-canvas-layout.ts");
+const session = read("packages/workspace/src/shared/logic/useWorkspaceSessionController.ts");
 const composer = read("packages/app-shell/src/workbench/center/composer/view/ComposerRegion.tsx");
 const runtimeController = read("packages/app-shell/src/workbench/center/composer/runtime-control/logic/useRuntimeControlController.ts");
 const settingsViewModels = read("packages/app-shell/src/workbench/settings/logic/settings-view-models.ts");
-const workbenchSurface = [shell, left, center, header, conversation, session, composer, runtimeController, settingsViewModels].join("\n");
+const workbenchSurface = [shell, left, center, header, chat, workCanvasView, session, composer, runtimeController, settingsViewModels].join("\n");
 
 test("infinite canvas supports pan zoom reset node drag and edge projection", () => {
   for (const token of ["beginPan", "beginNodeDrag", "onWheel", "applyScale", "resetViewport", "<svg", "onNodesChange?.(next)"]) {
@@ -70,7 +70,7 @@ test("Canvas layout is not Agent Session business state", () => {
   assert.doesNotMatch(session, /InfiniteCanvas|WORK_CANVAS_LAYOUT_KEY_PREFIX|nodePositions|workNodes|canvas-layout/);
   assert.match(session, /lastRunInput/);
   assert.match(workCanvasController, /lastRunInput/);
-  assert.match(conversation, /<WorkCanvasRegion workspaceId=\{workspaceId\} lastRunInput=\{lastRunInput\}/);
+  assert.match(center, /<WorkWorkspace workspaceId=\{props\.workspaceId\} lastRunInput=\{props\.lastRunInput\} \/>/);
 });
 
 test("selected canvas node is lifted above siblings while edges remain behind nodes", () => {

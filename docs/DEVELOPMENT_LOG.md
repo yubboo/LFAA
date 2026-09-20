@@ -1,3 +1,22 @@
+### #21.25 Workspace 领域聚合 / Chat-Work 双投影父子架构
+
+- **版本：** v0.0.96
+- **状态：** pending-user-acceptance
+- **基线：** v0.0.95。
+- **用户架构纠正：** 同一领域不应为了“模块化”横向拆成大量平级 package；Workspace 是父领域，Chat 与 Work 是其内部两种模式。过度拆包会增加合同、依赖、重复代码和维护成本。
+- **实现边界：** 本轮只新增有真实 Consumer 的 `@lfaa/workspace`；等价迁移 Chat/Work Projection、Work Canvas 产品布局 Owner 与共享 Session Controller。未来 project/canvas/workflow/task/asset 等 package 不预创建。
+- **行为冻结：** InfiniteCanvas Pointer/视觉、Reasoning/Particle、Resize/Snap、Provider/Config、Agent Runtime Protocol、Plugin/Rust、Windows 运维全部冻结。
+- **唯一合同：** `docs/PROMPTS.md` #21.25。
+- **AI 验证：** pass。
+- **发布候选验证：** `scripts/release-archive.mjs` 生成 491-entry Unicode ZIP；`docs/项目结构与代码地图.md` flag=`0x800`，`.lfaa/` 保留；fresh extract 后 `workspace-preflight` 全 Gate PASS。
+- **用户验收：** pending。
+- **实现结果：** 新增真实 `@lfaa/workspace`，内部按 `chat / work / shared` 聚合；Chat Timeline、Work Canvas 产品布局 Owner、共用 Session Controller 从 App Shell 迁入 Workspace。App Shell Center 收敛为 `Header → Workspace → Composer` 装配。
+- **防过度设计：** 包规范新增“父 package=领域、子目录=职责”；禁止把 Chat/Work 或未来 core/renderer/runtime 默认横向拆成大量平级包，没有真实 Consumer 的未来域不预创建。
+- **行为冻结核对：** 相对 v0.0.95，`ui-controls/ui-effects/ui-resize/ui-motion`、InfiniteCanvas 三个核心文件、Config System、Agent Runtime、Plugin SDK/Runtime/Host、Credentials、Rust source、Windows scripts 均零 diff。
+- **自动验证：** #21.25 聚焦架构/Canvas/Chat/Reasoning 回归 38/38 PASS；全仓 Node 静态/合同测试 153 项中 152 项 PASS，唯一 `node-source-runtime.test.mjs` 因当前 Node 22.16.0 且无 workspace `node_modules` 无法解析 `@lfaa/credentials`；29/29 本轮 TS/TSX syntax transpile PASS。
+- **发布候选验证：** `scripts/release-archive.mjs` 生成 491-entry Unicode ZIP；`docs/项目结构与代码地图.md` flag=`0x800`，`.lfaa/` 保留；fresh extract 后 `workspace-preflight` 全 Gate PASS。
+- **用户验收：** pending。
+
 ### #21.24 Workbench 模块内职责分层 / v0.0.93 无限画布合并
 
 - **版本：** v0.0.95

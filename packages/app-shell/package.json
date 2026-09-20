@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/app-shell",
   "private": true,
-  "version": "0.0.95",
+  "version": "0.0.96",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼",
@@ -9,7 +9,8 @@
     "@lfaa/config-system": "workspace:*",
     "@lfaa/ui": "workspace:*",
     "@lfaa/agent-runtime": "workspace:*",
-    "@lfaa/plugin-runtime": "workspace:*"
+    "@lfaa/plugin-runtime": "workspace:*",
+    "@lfaa/workspace": "workspace:*"
   },
   "peerDependencies": {
     "react": "19.3.0"

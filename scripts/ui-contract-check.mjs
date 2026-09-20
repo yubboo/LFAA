@@ -5,7 +5,7 @@
  * 不负责：浏览器像素截图、真实 Provider 请求、TypeScript 完整 workspace 编译或用户主观视觉验收。
  * 状态归属：无运行时状态；每次执行直接读取当前工作树源码。
  * 对外接口：`node scripts/ui-contract-check.mjs`，成功返回 0，失败返回 1。
- * 关联文件：packages/app-shell/src/workbench/**、packages/ui/src/ui-*、test/workbench-module-boundary.test.mjs、scripts/workspace-preflight.mjs。
+ * 关联文件：packages/app-shell/src/workbench/**、packages/workspace/src/**、packages/ui/src/ui-*、test/workbench-module-boundary.test.mjs、scripts/workspace-preflight.mjs。
  * 修改注意事项：模块迁移时应让 Gate 跟随真实 Owner，不能为了通过测试要求实现重新堆回根组件或全局 CSS。
  */
 import fs from "node:fs";
@@ -22,9 +22,9 @@ const themeCss=read("packages/app-shell/src/workbench/shell/styles/WorkbenchThem
 const left=read("packages/app-shell/src/workbench/left/view/LeftSidebarRegion.tsx");
 const center=read("packages/app-shell/src/workbench/center/view/CenterWorkspaceRegion.tsx");
 const header=read("packages/app-shell/src/workbench/center/header/view/CenterHeader.tsx");
-const conversation=read("packages/app-shell/src/workbench/center/conversation/view/ConversationRegion.tsx");
-const workCanvas=read("packages/app-shell/src/workbench/center/conversation/work-canvas/view/WorkCanvasRegion.tsx");
-const conversationCss=read("packages/app-shell/src/workbench/center/conversation/styles/Conversation.module.css");
+const chatWorkspace=read("packages/workspace/src/chat/view/ChatWorkspace.tsx");
+const workCanvas=read("packages/workspace/src/work/view/WorkWorkspace.tsx");
+const conversationCss=read("packages/workspace/src/chat/styles/ChatWorkspace.module.css");
 const composer=read("packages/app-shell/src/workbench/center/composer/view/ComposerRegion.tsx");
 const composerCss=read("packages/app-shell/src/workbench/center/composer/styles/Composer.module.css");
 const addMenu=read("packages/app-shell/src/workbench/center/composer/view/AddCapabilityMenu.tsx");
@@ -34,9 +34,9 @@ const runtimeRow=read("packages/app-shell/src/workbench/center/composer/runtime-
 const runtimeController=read("packages/app-shell/src/workbench/center/composer/runtime-control/logic/useRuntimeControlController.ts");
 const runtimePicker=read("packages/app-shell/src/workbench/center/composer/runtime-control/view/RuntimeModelPicker.tsx");
 const runtimeCss=read("packages/app-shell/src/workbench/center/composer/runtime-control/styles/RuntimeControl.module.css");
-const session=read("packages/app-shell/src/workbench/session/logic/useAgentSessionController.ts");
+const session=read("packages/workspace/src/shared/logic/useWorkspaceSessionController.ts");
 const globalCss=read("packages/app-shell/src/agent-workbench.css");
-const allApp=[rootTsx,chrome,shell,shellButton,rightShellActions,left,center,header,conversation,workCanvas,composer,addMenu,permission,runtimeView,runtimeRow,runtimeController,runtimePicker,session].join("\n");
+const allApp=[rootTsx,chrome,shell,shellButton,rightShellActions,left,center,header,chatWorkspace,workCanvas,composer,addMenu,permission,runtimeView,runtimeRow,runtimeController,runtimePicker,session].join("\n");
 const layoutConfig=read("packages/ui/src/workbench/workbench-layout.config.ts");const resizeTsx=read("packages/ui/src/workbench/ResizableWorkbench.tsx");const workbenchCss=read("packages/ui/src/workbench/workbench.css");const interactionConfig=read("packages/ui/src/workbench/workbench-interaction.config.ts");
 const sharedSliderTsx=read("packages/ui/src/ui-controls/DiscreteSlider.tsx");const sharedSliderCss=read("packages/ui/src/ui-controls/discrete-slider.css");const sharedEffectCss=read("packages/ui/src/ui-effects/effects.css");const sharedEffectHost=read("packages/ui/src/ui-effects/UiEffectHost.tsx");const particleCanvas=read("packages/ui/src/ui-effects/ParticleStreamCanvas.tsx");const sharedEffectRegistry=read("packages/ui/src/ui-effects/registry.ts");const sharedExtensionRegistry=read("packages/ui/src/ui-extension/registry.ts");const animatedDisclosure=read("packages/ui/src/ui-motion/AnimatedDisclosure.tsx");const shortcutHook=read("packages/ui/src/ui-shortcuts/useShortcut.ts");const damped=read("packages/ui/src/ui-resize/damped-motion.ts");const layers=read("packages/ui/src/ui-overlay/layers.css");
 
@@ -44,9 +44,11 @@ const sharedSliderTsx=read("packages/ui/src/ui-controls/DiscreteSlider.tsx");con
 if(rootTsx.split(/\r?\n/).length>160)fail("AgentWorkbench must stay a thin Composition Root");
 for(const token of ["buildAiProviderViews","ResizeObserver","<SettingsPage","<UserMenu",'className="agent-'])if(rootTsx.includes(token))fail(`AgentWorkbench absorbed module implementation: ${token}`);
 if(/^\s*\.agent-/m.test(globalCss))fail("agent-workbench.css must remain reset-only; region selectors belong to CSS Modules");
-const moduleCssFiles=[];const walkCss=(dir)=>{for(const entry of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())walkCss(file);else if(entry.name.endsWith(".module.css"))moduleCssFiles.push(file);}};walkCss(path.join(root,"packages/app-shell/src/workbench"));
+const moduleCssFiles=[];const walkCss=(dir)=>{for(const entry of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())walkCss(file);else if(entry.name.endsWith(".module.css"))moduleCssFiles.push(file);}};for(const cssRoot of ["packages/app-shell/src/workbench","packages/workspace/src"])walkCss(path.join(root,cssRoot));
 for(const file of moduleCssFiles){const source=fs.readFileSync(file,"utf8");if(source.includes(":global("))fail(`${path.relative(root,file)} must not use :global escape`);if(/\.agent-[\w-]+/.test(source))fail(`${path.relative(root,file)} reaches a legacy global agent class`);}
-for(const moduleIndex of ["left/index.ts","center/index.ts","center/header/index.ts","center/conversation/index.ts","center/conversation/work-canvas/index.ts","center/composer/index.ts","center/composer/runtime-control/index.ts","right/index.ts","terminal/index.ts","shell/index.ts","settings/index.ts","session/index.ts","shared/index.ts"])if(!fs.existsSync(path.join(root,"packages/app-shell/src/workbench",moduleIndex)))fail(`missing public module boundary ${moduleIndex}`);
+for(const moduleIndex of ["left/index.ts","center/index.ts","center/header/index.ts","center/composer/index.ts","center/composer/runtime-control/index.ts","right/index.ts","terminal/index.ts","shell/index.ts","settings/index.ts","shared/index.ts"])if(!fs.existsSync(path.join(root,"packages/app-shell/src/workbench",moduleIndex)))fail(`missing public module boundary ${moduleIndex}`);
+for(const moduleIndex of ["chat/index.ts","work/index.ts","shared/index.ts"])if(!fs.existsSync(path.join(root,"packages/workspace/src",moduleIndex)))fail(`missing workspace public module boundary ${moduleIndex}`);
+if(fs.existsSync(path.join(root,"packages/app-shell/src/workbench/center/conversation"))||fs.existsSync(path.join(root,"packages/app-shell/src/workbench/session")))fail("Chat/Work/Session must stay under @lfaa/workspace, not app-shell legacy owners");
 
 // 1. Shell Tooltip / shortcuts。
 if(/\btitle\s*=/.test(shellButton))fail("ShellHeaderButton must not combine native title with custom tooltip");

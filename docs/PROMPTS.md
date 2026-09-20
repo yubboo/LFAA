@@ -25,6 +25,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #21.25 | Workspace 领域聚合 / Chat-Work 双投影父子架构 | v0.0.96 | pending-user-acceptance | pass | pending |
 | #21.24 | Workbench 模块内职责分层 / v0.0.93 无限画布合并 | v0.0.95 | pending-user-acceptance | pass | pending |
 | #22.8 | 无限画布布局持久化与选中层级修复 | v0.0.93 → merged v0.0.95 | pending-user-acceptance | pass | pending |
 | #21.23 | Workbench 全域模块化 / DeepSeek Harness 风格边界 | v0.0.94 | pending-user-acceptance | pass | pending |
@@ -78,6 +79,119 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #21.25 Workspace 领域聚合 / Chat-Work 双投影父子架构
+
+### 用户目标 / 背景
+
+用户进一步确认 LFAA 的长期产品模型：**Chat 与 Work 不是两套独立产品，而是同一个 Workspace/Project/Agent 核心之上的两种工作方式**。Chat 负责线性“一句话解决问题”，Work 负责可视化无限画布中的自动化执行、用户监督与对话辅助。此前按 `chat-workspace / work-workspace / canvas-core / canvas-renderer` 横向铺开独立 package 的规划存在过度拆分风险，会增加跨包依赖、重复合同与维护成本。
+
+本轮只把当前已经存在、已经被产品实际消费的 Workspace 能力做真实父子聚合；**禁止为了未来规划创建 canvas/workflow/project/task/asset 等空壳 package**。遵守“父目录表示领域、子目录表示领域内部职责”的原则。
+
+### 基线 / 目标版本
+
+- **代码基线：** v0.0.95。
+- **保留功能：** v0.0.95 的 Workbench 模块化、用户 v0.0.93 合入的 Infinite Canvas 持久化/选中置顶，以及既有 Chat/Work Run 行为全部冻结。
+- **目标版本：** v0.0.96。
+
+### 架构决定
+
+1. 新增真实 workspace package：`packages/workspace` / `@lfaa/workspace`。它必须有当前 Consumer（`@lfaa/app-shell`）和真实实现，不允许占位。
+2. `@lfaa/workspace` 是 **Workspace Feature Composition**：内部按父子关系组织 `chat/`、`work/`、`shared/`，拥有 Chat/Work 两种 Surface 的产品投影、共享 Session Controller 与 Work Canvas 产品布局状态。
+3. `@lfaa/app-shell` 收敛为产品外壳/装配：Shell、Left、Center Chrome、Composer、Right、Terminal、Settings 保留；不再同时拥有 Chat Timeline、Work Canvas 和 Workspace Session 的内部实现。
+4. 当前 `center/conversation` 语义被拆正：Center 直接根据当前 Surface 从 `@lfaa/workspace` 公共入口组合 `ChatWorkspace` 或 `WorkWorkspace`；不再使用一个叫 Conversation 的模块同时包 Chat 与 Work。
+5. Work Canvas 的 `workspaceId → node x/y + viewport` 持久化、`lastRunInput` UI Projection 迁入 `workspace/work/`，保持 v0.0.95 行为语义等价；`@lfaa/ui` InfiniteCanvas 仍只是通用 UI Projection，不拥有产品持久化真值。
+6. Chat/Work Run、permission、Runtime event projection 迁入 `workspace/shared/logic`，继续只调用同一个 `AgentRuntimeHost.startRun`；不得创建第二套 Chat Runtime 或 Work Runtime。
+7. 包组织原则写入长期规范：**同一领域的 core/renderer/runtime/子模式优先先在一个父 package 内分层，只有存在独立生命周期、跨领域复用、部署边界或真实多个 Consumer 时才拆独立 package。**
+8. 不在本轮创建 `project/ canvas/ workflow/ task/ asset/ model/ tool/ storage` 等未来 package；只在 Architecture/Plan 记录方向，等真实实现 + Consumer 出现再建立。
+9. `@lfaa/ui` 包名本轮不改，继续作为 UI Kit / Shared Interaction Engine；避免把 Workspace 迁移与 UI 包重命名混在同一版本。
+
+### 允许修改
+
+- 新增 `packages/workspace/**`；
+- 从 `packages/app-shell/src/workbench/center/conversation/**` 与 `workbench/session/**` 做等价迁移并删除旧 Owner；
+- `packages/app-shell/src/AgentWorkbench.tsx`、`workbench/center/**`、Workbench 公共 contracts/index/package manifest 的必要接线；
+- package architecture / module boundary / UI contract / Chat Runtime / Infinite Canvas 测试，使门禁跟随新 Owner；
+- `AGENTS.md`、`DEVELOPMENT.md`、`ARCHITECTURE.md`、`PROJECT_PLAN.md`、`docs/MODULES.md`、`docs/UI.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`；
+- 版本、CHANGELOG、RELEASES 与发布元数据。
+
+### 禁止修改
+
+- Runtime Reasoning / 强力推理 / Slider / Particle 视觉与算法；
+- `packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**`、InfiniteCanvas Pointer 算法；
+- Provider Capability、Config/Secret 业务、Agent Runtime Protocol、Plugin Runtime、Rust Native；
+- Workbench Resize/Snap、Windows Sync/GitHub/Setup/Update 行为；
+- 为未来功能提前创建没有当前 Consumer 的 package/crate。
+
+### 状态所有权
+
+```text
+@lfaa/app-shell
+├─ Shell / Left / Center Chrome / Composer / Right / Terminal / Settings
+└─ 只装配 Workspace 公共 API
+
+@lfaa/workspace
+├─ shared/
+│  ├─ contracts/   ChatProjection / Workspace View contract
+│  └─ logic/       Chat/Work 共用 Session Controller
+├─ chat/
+│  ├─ view/
+│  └─ styles/
+└─ work/
+   ├─ view/
+   ├─ logic/
+   ├─ styles/
+   └─ contracts/
+        ↓
+@lfaa/ui InfiniteCanvas（通用交互/渲染）
+        ↓
+@lfaa/agent-runtime（同一 Run 协议）
+```
+
+### 不可回退行为
+
+- Chat 用户消息保持右对齐 Composer 右基线；AI/Error 保持左对齐 Composer 左基线。
+- Chat / Work 仍使用同一个当前模型、permissionProfile、AgentRuntimeHost 和 `startRun` 契约。
+- Work Canvas workspaceId 隔离、节点位置与 viewport 持久化、低频 commit、selected node z-index、edges behind nodes 不回退。
+- Reasoning / Strong Reasoning / Particle / Resize / Snap / Unicode ZIP / Sync 行为全部冻结。
+
+### 验收条件
+
+1. `packages/workspace` 是真实 package，内部只有一个 Workspace 父领域，下面明确出现 `chat/`、`work/`、`shared/`；不新增 `chat-workspace`、`work-workspace` 两个平级 package。
+2. `packages/app-shell` 不再存在 `workbench/center/conversation/**` 和 `workbench/session/**` 旧 Owner；AgentWorkbench 仍是薄 Composition Root。
+3. Center 只通过 `@lfaa/workspace` 公共 export 使用 Chat/Work，不深链 Workspace 内部目录。
+4. Chat/Work 共用 Session Controller；代码中不存在第二套 `startRun` / Runtime event subscription。
+5. Work Canvas 持久化和 Infinite Canvas 交互行为与 v0.0.95 等价。
+6. package architecture Gate 明确允许 `product-composition → workspace-feature-composition`，同时保留无环检查，禁止任意深链跨包内部源码。
+7. 文档把“父 package=领域，子目录=职责；不为未来规划预创建独立 package”写成长期规则。
+8. 最终 ZIP fresh extract 后 Unicode path、`.lfaa` 与 workspace-preflight 全通过。
+
+### 必须测试
+
+- `test/workspace-package-boundary.test.mjs`（新增）；
+- `test/workbench-module-boundary.test.mjs`；
+- `test/infinite-canvas-contract.test.mjs`；
+- `test/chat-runtime-contract.test.mjs`；
+- `test/model-quick-switch-contract.test.mjs`；
+- `scripts/package-architecture-check.mjs` / `test/package-architecture.test.mjs`；
+- `scripts/ui-contract-check.mjs`；
+- 既有 UI shared / interaction motion / settings / release/sync 回归；
+- 可执行全仓 Node 静态/契约测试；
+- `node scripts/workspace-preflight.mjs`；
+- 最终 ZIP fresh round-trip + preflight。
+
+### 必须更新文档
+
+`AGENTS.md`、`DEVELOPMENT.md`、`ARCHITECTURE.md`、`PROJECT_PLAN.md`、`docs/DEVELOPMENT_LOG.md`、`docs/MODULES.md`、`docs/UI.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### 当前状态
+
+`pending-user-acceptance`
+
+- CHANGELOG 编号：`#21.25`
+- 目标版本：`v0.0.96`
+- AI 验证：`pass`
+- 用户验收：`pending`
 
 ## #21.24 Workbench 模块内职责分层 / v0.0.93 无限画布合并
 

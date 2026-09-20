@@ -1,17 +1,17 @@
 /**
  * 文件：CenterWorkspaceRegion.tsx
  * 作用：工作台中央大模块的唯一装配点。
- * 负责：按 Header → Conversation → Composer 的父子顺序装配中央子模块，只传递显式 Props/Callback。
+ * 负责：按 Header → Workspace(Chat/Work) → Composer 的父子顺序装配中央区域，只传递显式 Props/Callback。
  * 不负责：左/右栏、终端、Settings、Shell 状态、Composer/RuntimeControl 私有状态。
  * 状态归属：本文件不拥有业务状态；展示状态由子模块持有，跨区域事实由上层 Controller 提供。
  * 对外接口：CenterWorkspaceRegion。
- * 修改注意事项：禁止深链导入子模块内部文件；只能通过 header/conversation/composer 的 index.ts 使用公共 API。
+ * 修改注意事项：禁止深链导入子模块内部文件；只能通过 header/composer 的 index.ts 与 @lfaa/workspace 公共入口使用子模块 API。
  */
 import type { AgentExecutionHints, AgentPermissionProfileId, AgentRunHandle, AgentSurfaceMode } from "@lfaa/agent-runtime";
 import type { AiModelSettingValue } from "@lfaa/config-system";
-import type { ActiveReasoningControl, ChatProjectionMessage, LayoutMode, QuickModelOption } from "#workbench/contracts";
+import type { ActiveReasoningControl, LayoutMode, QuickModelOption } from "#workbench/contracts";
+import { ChatWorkspace, WorkWorkspace, type ChatProjectionMessage } from "@lfaa/workspace";
 import { ComposerRegion } from "../composer";
-import { ConversationRegion } from "../conversation";
 import { CenterHeader } from "../header";
 import styles from "../styles/CenterWorkspace.module.css";
 
@@ -57,13 +57,11 @@ export function CenterWorkspaceRegion(props: CenterWorkspaceRegionProps) {
         onLeftHoverEnter={props.onLeftHoverEnter}
         onLeftHoverLeave={props.onLeftHoverLeave}
       />
-      <ConversationRegion
-        agentSurface={props.agentSurface}
-        layoutMode={props.layoutMode}
-        chatMessages={props.chatMessages}
-        workspaceId={props.workspaceId}
-        lastRunInput={props.lastRunInput}
-      />
+      {props.agentSurface === "work" ? (
+        <WorkWorkspace workspaceId={props.workspaceId} lastRunInput={props.lastRunInput} />
+      ) : (
+        <ChatWorkspace layoutMode={props.layoutMode} messages={props.chatMessages} />
+      )}
       <ComposerRegion
         layoutMode={props.layoutMode}
         agentSurface={props.agentSurface}

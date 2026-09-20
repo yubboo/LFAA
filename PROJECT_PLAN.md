@@ -1,5 +1,11 @@
-#21.24 Workbench 模块内职责分层 / v0.0.93 无限画布合并
-version: v0.0.95
+#21.25 Workspace 领域聚合 / Chat-Work 双投影父子架构
+version: v0.0.96
+status: pending-user-acceptance
+
+v0.0.96 从 v0.0.95 建立，不新增一批未来空 package；只创建当前真实被 App Shell 消费的 `@lfaa/workspace`，把 Chat / Work / 共用 Session 收进同一个 Workspace 父领域。App Shell 继续拥有产品 Shell/Chrome/Composer/Settings；`@lfaa/ui` 继续是通用 UI Kit。Infinite Canvas、Reasoning、Resize、Provider、Runtime、Windows 运维行为冻结。
+
+#21.25 Workspace 领域聚合 / Chat-Work 双投影父子架构
+version: v0.0.96
 status: pending-user-acceptance
 
 v0.0.95 以 v0.0.94 为结构基线，只移植用户 v0.0.93 的 #22.8 Infinite Canvas 修复，同时把 Workbench 模块内部职责整理为清晰的 view / logic / styles / contracts，并把 Web dev-server Bridge 从 vite.config 详细实现中拆回 `apps/web/dev/bridges`。`@lfaa/ui` 保持共享 UI Kit 身份，不与 app-shell 产品 UI 重复。Reasoning/Particle/Resize/Snap/Provider/Runtime 行为冻结。
@@ -17,7 +23,7 @@ v0.0.94 不再采用“先只迁 RuntimeControl”的局部策略。整个 Workb
 ## 当前主开发模块
 
 ```text
-plugin-platform + agent-runtime + workbench
+plugin-platform + agent-runtime + workspace + workbench
 ```
 
 当前状态：
@@ -34,7 +40,7 @@ version: v0.0.95
 status: pending-user-acceptance
 ```
 
-v0.0.95 以 v0.0.94 全域父子模块为结构基线，进一步把产品模块内部职责写实为 view / logic / styles / contracts；同时只合并用户 v0.0.93 的 #22.8 Infinite Canvas 布局持久化与选中置顶。Reasoning/Particle/Resize/Snap/Provider/Runtime 与 Windows 运维逻辑全部冻结。
+v0.0.96 在 v0.0.95 基线上新增真实 `@lfaa/workspace` 父领域，把 Chat / Work / 共用 Session 聚合为 `chat / work / shared`，App Shell 收敛为产品 Shell/Chrome/Composer/Settings 装配。长期规则改为“领域父包 + 内部职责子目录”，只有独立生命周期/部署、跨领域复用或多个真实 Consumer 时才拆新 package；未来域不提前建空壳。Infinite Canvas、Reasoning/Particle/Resize/Snap/Provider/Runtime 与 Windows 运维逻辑全部冻结。
 
 v0.0.80 以用户提供的 DeepSeek Harness 源码包为主要工程参考，重点借鉴 capability seam、profile/bundle、PluginManager 共享事务、HMR 生命周期、credentials 引用和“抽象必须有当前 Consumer”的维护原则；不复制其产品实现。
 
