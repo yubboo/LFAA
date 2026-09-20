@@ -25,7 +25,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #22.6 | Canvas 粒子渲染与 reasoning 提交闪烁修复 | v0.0.91 | pending-user-acceptance | pass | pending |
+| #22.7 | Reasoning Slider 几何与星光粒子修正 | v0.0.92 | pending-user-acceptance | pass | pending |
+| #22.6 | Canvas 粒子渲染与 reasoning 提交闪烁修复 | v0.0.91 | superseded | pass | not-accepted |
 | #20.19 | Unicode ZIP 归档与 Sync 来源诊断修复 | v0.0.91 | pending-user-acceptance | pass | pending |
 | #22.5 | Provider 实际推理档位动态投影修正 | v0.0.90 | superseded | pass | not-accepted |
 | #22.4 | Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复 | v0.0.89 | superseded | pass | not-accepted |
@@ -73,6 +74,84 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #22.7 Reasoning Slider 几何与星光粒子修正
+
+### 用户目标 / 背景
+
+v0.0.91 实机反馈未通过：Runtime Control 仍把 Provider Capability 中的 `none/off/disabled` 作为“思考强度”滑条的一档，导致已选择模型时出现“关闭思考”；顶部闪电 / 重置按钮中的 SVG 因通用 Popover button grid 规则残留而发生视觉偏左；Slider 的 rail、mark、thumb 分别使用不同坐标系，最高档刻度超出轨道终点；Canvas 虽已稳定运行，但铺满整个 Slider 容器，粒子可见区域没有被轨道胶囊裁剪，且当前长尾线段更像箭头/短横线，不符合用户提供的图六星光粒子参考。
+
+本轮继续使用单 Canvas 2D + `requestAnimationFrame`，但把渲染区域严格收进 Slider rail 内，并把粒子形态重做为“细小光点 + 少量四向星芒 + 亮度脉冲”，不再绘制方向尾线。Reasoning Runtime Slider 只展示 Provider 已声明的**可执行推理强度**：Provider Catalog 可以保留 `none/off/disabled` 作为配置能力，但该 sentinel 不属于强度档位，不进入 Runtime Slider；最低档就是 Provider 返回的最低非关闭 reasoning option。
+
+### 主模块 / 状态所有权
+
+- `packages/config-system`：继续拥有 Provider 原始 Capability 真值；本轮不删除、不改写 Catalog 中的 `none/off/disabled`。
+- `packages/app-shell/src/reasoning-control.ts`：拥有 Runtime Slider 的“可执行 reasoning option 投影”规则；只过滤关闭 sentinel，其余 option 数量、顺序、label、value 保持一一对应。
+- `packages/ui/src/ui-controls`：拥有 Slider rail / mark / thumb / Pointer 的统一几何坐标系。
+- `packages/ui/src/ui-effects`：拥有轨道内 Canvas 星光 Renderer、裁剪、Palette、rAF 生命周期；不拥有业务开关。
+- `packages/app-shell` CSS：只负责 Runtime Card 顶部三列布局与业务 Surface Token，不复制 Slider/Effect 算法。
+
+### 允许修改
+
+- `packages/app-shell/src/reasoning-control.ts`、`AgentWorkbench.tsx`、`agent-workbench.css`；
+- `packages/ui/src/ui-controls/**`；
+- `packages/ui/src/ui-effects/**`；
+- reasoning / UI interaction / contract 测试；
+- 当前事实文档、版本元数据、CHANGELOG / RELEASES。
+
+### 禁止修改 / 安全边界
+
+- 禁止修改 Provider 原始 Catalog 来“删除 none”；Config System 仍必须真实记录厂商能力。
+- 禁止固定六档、补档、排序、重命名 Provider 的有效 reasoning option；过滤关闭 sentinel 后剩余档位必须严格保持 Provider 原顺序。
+- 禁止强力推理按钮改写 Provider reasoning 档位；`reasoningBoost` 继续正交。
+- 禁止退回多个 DOM 粒子 + CSS keyframes；禁止逐帧 React State。
+- 禁止为了修按钮位置写每个截图分辨率的魔法 margin；必须修正通用 grid 几何根因。
+- 禁止让 Canvas/星光溢出 rail 胶囊边界。
+
+### 实现约束
+
+1. Runtime Slider 先从 `reasoningEffort.options` 过滤关闭 sentinel：字符串 value 规范化后匹配 `none/off/disabled/disable/false/no/0`，以及明确表达关闭的 label；过滤只发生在 Runtime projection，不修改 Provider Capability。
+2. 若过滤后 0 档：不显示 reasoning Slider / 强力推理 / reset；若 1/N 档：按真实 option 渲染。
+3. Slider 定义单一 `--lfaa-slider-edge-inset`，rail 起终点、fill、mark、thumb 都使用 `edge + usableWidth * ratio`；Pointer 命中直接读取 rail 的 `getBoundingClientRect()`，最高档不得超出 rail。
+4. Effect 增加 rail 内 clip host：与 rail 完全同几何、`overflow:hidden;border-radius:999px`；Canvas 只覆盖该 host。
+5. Canvas 粒子只绘制圆点 / 微光点 / 少量四向星芒；不绘制 tail、arrow、方向短横线。粒子以缓慢水平漂移 + 不同相位闪烁，视觉参考用户图六。
+6. standard 使用粉色系；最高有效 reasoning 档 extreme 使用淡粉→粉→紫→深紫。颜色继续由 CSS Token 提供，但运动/闪烁由 Canvas 绘制。
+7. Runtime Card 顶部 icon button 必须覆盖通用 `.agent-composer-popover button` 的双列 grid，显式 `grid-template-columns:1fr`，保证闪电与 refresh 在各自同尺寸按钮盒内几何居中。
+
+### 验收条件
+
+1. DeepSeek 等 Capability 为 `none/low/high/max` 时 Runtime Slider 显示 `low/high/max`，不再出现“关闭思考”；Provider Catalog 本身仍保留 `none`。
+2. 其他模型返回 `low/medium/high`、`minimal/low/medium/high/xhigh` 等时，Runtime Slider 数量与有效档位完全一致；无有效 reasoning 档时不显示 Slider。
+3. 闪电和重置按钮在同尺寸盒内视觉居中，左右三列对称，不再偏左。
+4. Slider 首档/末档 thumb 中心与 rail 两端严格一致；最后一个 mark 不再跑到 rail 外。
+5. 粒子只存在于填充 rail 内部；任意时刻都不越过胶囊上下/左右边界。
+6. 粒子是细小星点、闪烁光尘、少量星芒，不出现箭头/短横线/拖尾。
+7. 开启强力推理后持续运动；关闭立即停止；拖拽/松手/切档不闪屏、不闪白。
+8. #22.6 已修好的 reasoning 串行提交、Canvas/rAF、Chat 对齐、动态 Provider capability 不回退。
+
+### 必须测试
+
+- 新增 Runtime projection 关闭 sentinel 过滤测试（Catalog 不变、Runtime steps 过滤）；
+- 新增 Slider unified geometry / rail clip / no-tail star particle 合同测试；
+- `node --test test/model-quick-switch-contract.test.mjs`；
+- `node --test test/ui-interaction-motion.test.mjs`；
+- `node --test test/ui-shared-module-contract.test.mjs`；
+- `node scripts/ui-contract-check.mjs`；
+- 全仓可执行 Node 静态/契约测试；
+- `node scripts/workspace-preflight.mjs`；
+- 最终 ZIP 使用 `scripts/release-archive.mjs` 生成，Unicode / `.lfaa` round-trip 后再次 preflight。
+
+### 必须更新文档
+
+`DEVELOPMENT.md`、`ARCHITECTURE.md`、`PROJECT_PLAN.md`、`docs/DEVELOPMENT_LOG.md`、`docs/MODULES.md`、`docs/UI.md`、`docs/TESTING.md`、`docs/项目结构与代码地图.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG / 版本
+
+- CHANGELOG 编号：`#22.7`
+- 目标版本：`v0.0.92`
+- 当前状态：`pending-user-acceptance`
+- AI 验证：`pass`
+- 用户验收：`pending`
 
 ## #22.6 Canvas 粒子渲染与 reasoning 提交闪烁修复
 

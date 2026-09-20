@@ -33,12 +33,14 @@ test("composer owns one integrated runtime model control instead of split popove
   assert.doesNotMatch(workbench, /agent-model-menu|agent-reasoning-menu/);
 });
 
-test("reasoning UI mirrors the current Provider capability options one-to-one", () => {
-  assert.match(reasoningControl, /return options\.map\(\(providerOption, index\) =>/);
+test("reasoning UI keeps Provider strengths one-to-one while excluding only explicit disabled sentinels", () => {
+  assert.match(reasoningControl, /runtimeReasoningOptions\(options\)\.map\(\(providerOption, index\) =>/);
+  assert.match(reasoningControl, /DISABLED_REASONING_VALUES/);
+  assert.match(reasoningControl, /options\.filter\(\(option\) => !isDisabledReasoningOption\(option\)\)/);
   assert.match(reasoningControl, /label: providerOption\.label/);
   assert.match(reasoningControl, /providerOption,/);
   assert.match(reasoningControl, /findIndex\(\(option\) => option\.value === value\)/);
-  assert.doesNotMatch(reasoningControl, /REASONING_UI_STAGES|semanticRank|isReasoningDisabledValue|DISABLED_REASONING_VALUES/);
+  assert.doesNotMatch(reasoningControl, /REASONING_UI_STAGES|semanticRank/);
   for (const synthetic of ["极低", "极高", "极限"]) assert.doesNotMatch(reasoningControl, new RegExp(`label: \"${synthetic}\"`));
   assert.match(workbench, /steps=\{reasoningStages\.map\(\(stage\) => \(\{ id: stage\.id, label: stage\.label \}\)\)\}/);
   assert.match(workbench, /const reasoningStages = resolveReasoningStages\(providerReasoningOptions\)/);
@@ -48,13 +50,12 @@ test("reasoning UI mirrors the current Provider capability options one-to-one", 
   assert.match(workbench, /runModelBinding:[\s\S]*settings: \{ \.\.\.\(activeModelBinding\.settings \?\? \{\}\), \.\.\.modelSettingOverrides \}/);
 });
 
-test("reasoning capability can expose zero, one, three or five steps without synthetic padding", () => {
+test("reasoning capability can expose zero, one or many effective strengths without synthetic padding", () => {
   assert.match(workbench, /\{reasoningStages\.length \? \(/);
-  assert.match(workbench, /disabled=\{!reasoningStages\.length \|\| modelControlBusy\}/);
   assert.match(workbench, /Math\.min\(reasoningStages\.length - 1, index\)/);
   assert.doesNotMatch(workbench, /Math\.min\(5,|REASONING_UI_STAGES\.length/);
-  assert.doesNotMatch(reasoningControl, /filter\(/);
-  assert.match(reasoningControl, /不过滤 none\/off/);
+  assert.match(reasoningControl, /"none", "off", "disabled"/);
+  assert.match(reasoningControl, /Provider Capability/);
 });
 
 test("ChatGPT subscription reasoning levels come from live model/list capability data", () => {
@@ -76,17 +77,22 @@ test("strong reasoning is an orthogonal run hint and never forces the reasoning 
   assert.match(runtime, /readonly executionHints\?: AgentExecutionHints/);
 });
 
-test("reasoning slider has smooth pointer drag, visible white thumb and Canvas particle stream", () => {
+test("reasoning slider has unified rail geometry, centered toolbar icons and clipped star particles", () => {
   assert.match(workbench, /<DiscreteSlider/);
   assert.match(workbench, /variant=\{highestReasoningActive \? "extreme" : "standard"\}/);
   assert.match(workbench, /<UiEffectHost[^>]*active=\{boostActive\}[^>]*variant=/s);
-  for (const token of ["setPointerCapture", "hasPointerCapture", "releasePointerCapture", "onPointerMove", "onPointerUp", 'role="slider"', "ArrowLeft", "ArrowRight", "Home", "End", "--lfaa-slider-visual-progress", "style.setProperty"]) assert.match(slider, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  for (const token of ["setPointerCapture", "hasPointerCapture", "releasePointerCapture", "onPointerMove", "onPointerUp", 'role="slider"', "ArrowLeft", "ArrowRight", "Home", "End", "--lfaa-slider-visual-progress", "style.setProperty", "geometryRef", "lfaa-discrete-slider__effect-clip"]) assert.match(slider, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(sliderCss, /cursor: grab/);
   assert.match(sliderCss, /cursor: grabbing/);
   assert.match(sliderCss, /background: #fff/);
   assert.match(sliderCss, /220ms cubic-bezier/);
+  assert.match(sliderCss, /--lfaa-slider-edge-inset/);
+  assert.match(sliderCss, /lfaa-discrete-slider__geometry/);
+  assert.match(sliderCss, /lfaa-discrete-slider__effect-clip[^{]*\{[^}]*overflow: hidden/s);
+  assert.match(css, /agent-runtime-control-card__icon\{[^}]*grid-template-columns:1fr!important/s);
   assert.match(effectHost, /particle-stream-canvas/);
-  for (const token of ["requestAnimationFrame", "ResizeObserver", "devicePixelRatio", "readSliderProgressRatio", "createLinearGradient", "prefers-reduced-motion"]) assert.match(particleCanvas, new RegExp(token));
+  for (const token of ["requestAnimationFrame", "ResizeObserver", "devicePixelRatio", "readSliderProgressRatio", "createLinearGradient", "prefers-reduced-motion", "drawSparkle", "quadraticCurveTo"]) assert.match(particleCanvas, new RegExp(token));
+  assert.doesNotMatch(particleCanvas, /lineTo\(|context\.stroke\(|tail/);
   assert.doesNotMatch(particleCanvas, /useState\(/);
   assert.doesNotMatch(effectCss, /@keyframes|animation:/);
   assert.match(effectCss, /lfaa-ui-effect--particle-stream/);

@@ -1,3 +1,10 @@
+## v0.0.92 Reasoning Runtime Projection / Slider Geometry 职责收敛
+
+- `packages/app-shell/src/reasoning-control.ts`：Provider Capability → Runtime 有效推理强度。只过滤明确关闭 sentinel；Catalog 原值不改，剩余 option 不排序、不补档、不改名。
+- `packages/ui/src/ui-controls/DiscreteSlider.tsx`：`__geometry` 统一 rail / mark / thumb / effect 的 0~100% 坐标与 Pointer rect，解决最高档越过 rail 的双坐标问题。
+- `packages/ui/src/ui-effects/ParticleStreamCanvas.tsx`：单 Canvas/rAF 保留，但 Renderer 只画星点/星芒/twinkle；实际边界由 Slider `__effect-clip` 胶囊裁剪。
+- `packages/app-shell/src/agent-workbench.css`：Runtime Card 只负责 toolbar 三列与 palette token；icon-only button 显式单格 grid，避免通用 Popover 双列规则把 SVG 推到左侧。
+
 ## v0.0.91 UI Effect Renderer / Release Archive 职责收敛
 
 `packages/ui/src/ui-effects` 现在明确拆成 Registry/Host 与 Canvas Renderer：`UiEffectHost` 不做逐帧动画，`ParticleStreamCanvas` 是当前 reasoning-overdrive 的唯一绘制实现。`packages/app-shell` 只拥有 boost/variant 业务投影与 reasoning setting 串行保存。

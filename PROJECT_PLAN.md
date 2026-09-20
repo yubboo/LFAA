@@ -17,13 +17,13 @@ pending-user-acceptance
 当前版本总任务：
 
 ```text
-#22.6 Canvas 粒子渲染与 reasoning 提交闪烁修复
-#20.19 Unicode ZIP 归档与 Sync 来源诊断修复
-version: v0.0.91
+#22.7 Reasoning Slider 几何与星光粒子修正
+#20.19 Unicode ZIP 归档与 Sync 来源诊断修复（沿用）
+version: v0.0.92
 status: pending-user-acceptance
 ```
 
-v0.0.91 对 v0.0.90 的两项实机失败做根因修复：Runtime reasoning 粒子从 DOM + CSS Keyframes 迁移到单 Canvas 2D / requestAnimationFrame，强力推理状态才启动动画；reasoning setting 保存与模型切换 busy 解耦，避免 PointerUp 后 disabled opacity 闪烁。发布链新增显式 UTF-8 filename flag 的 ZIP 归档器，并让 Sync 在 canonical Unicode 必需路径缺失时于 preflight 前直接阻断。#22.5 的 Provider Capability 动态档位规则继续保留。
+v0.0.92 针对 v0.0.91 实机未通过项继续修复：Provider 原始 Capability 继续真实保留 `none/off/disabled` 配置能力，但 Runtime “思考强度” Slider 只投影有效非关闭 reasoning 档；顶部 icon-only button 清除通用双列 grid 干扰；Slider rail/mark/thumb/Pointer 统一坐标；Canvas 收进 rail clip host，并把长尾流线重做为图六参考的星光点 / 微光尘 / 少量星芒。#22.6 的 Canvas/rAF 与 reasoning 串行提交修复继续保留。
 
 v0.0.80 以用户提供的 DeepSeek Harness 源码包为主要工程参考，重点借鉴 capability seam、profile/bundle、PluginManager 共享事务、HMR 生命周期、credentials 引用和“抽象必须有当前 Consumer”的维护原则；不复制其产品实现。
 

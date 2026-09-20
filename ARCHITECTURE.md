@@ -1,3 +1,11 @@
+## v0.0.92 Runtime Reasoning Projection / Slider Geometry / Star Effect 边界
+
+- Config System 继续保存 Provider 原始 `reasoningEffort.options`，包括厂商真实存在的 `none/off/disabled`；UI 不修改 Catalog。`packages/app-shell/src/reasoning-control.ts` 只为 Runtime“思考强度”投影过滤关闭 sentinel，剩余有效 option 保持 Provider 原数量、顺序、label、value。
+- `DiscreteSlider` 的外层只处理 Pointer Capture；`__geometry` 是 rail / fill / mark / thumb / effect 的唯一坐标系。Pointer ratio 直接读取 `geometry.getBoundingClientRect()`，首末档固定落在 rail 的 0% / 100%。
+- `__effect-clip` 与 rail 同几何且 `overflow:hidden + border-radius:999px`；`ParticleStreamCanvas` 只在该 host 内绘制，业务层不能通过 margin/transform 修补粒子越界。
+- Canvas 粒子形态改为圆点、微光点与少量四向星芒，运动采用水平漂移 + 独立 twinkle 相位；禁止绘制 tail/arrow line。standard 为粉色，最高有效 reasoning 档 extreme 为淡粉→粉→紫→深紫。
+- Runtime Card 顶部 icon-only button 必须显式覆盖通用 Popover button 的双列 grid 为单格 grid；布局问题优先修共享选择器冲突，不写截图分辨率补丁。
+
 ## v0.0.91 Canvas Effect / Reasoning Commit / Release Archive 边界
 
 - `packages/ui/src/ui-effects/ParticleStreamCanvas.tsx` 是强力推理连续粒子效果的 Renderer Owner：单 `<canvas>`、Canvas 2D、`requestAnimationFrame`、`ResizeObserver`、DPR 与 reduced-motion；不得逐帧写 React State，也不得退回多个 DOM 粒子 + CSS 帧动画。

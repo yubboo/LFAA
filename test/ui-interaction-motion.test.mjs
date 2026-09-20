@@ -58,3 +58,20 @@ test("v0.0.91 dynamic reasoning drag avoids disabled flash and card GPU promotio
   assert.match(particleCanvas, /requestAnimationFrame/);
   assert.doesNotMatch(effectCss, /@keyframes|animation:/);
 });
+
+
+test("v0.0.92 reasoning slider shares one rail geometry and Canvas draws clipped star points without tails", () => {
+  const slider = readFileSync(new URL("packages/ui/src/ui-controls/DiscreteSlider.tsx", root), "utf8");
+  const sliderCss = readFileSync(new URL("packages/ui/src/ui-controls/discrete-slider.css", root), "utf8");
+  const particleCanvas = readFileSync(new URL("packages/ui/src/ui-effects/ParticleStreamCanvas.tsx", root), "utf8");
+  assert.match(slider, /geometryRef/);
+  assert.match(slider, /geometry\.getBoundingClientRect\(\)/);
+  assert.match(slider, /lfaa-discrete-slider__effect-clip/);
+  assert.match(sliderCss, /--lfaa-slider-edge-inset/);
+  assert.match(sliderCss, /lfaa-discrete-slider__geometry/);
+  assert.match(sliderCss, /lfaa-discrete-slider__effect-clip[^{]*\{[^}]*overflow: hidden/s);
+  assert.match(particleCanvas, /drawSparkle/);
+  assert.match(particleCanvas, /context\.arc\(/);
+  assert.doesNotMatch(particleCanvas, /context\.lineTo\(|context\.stroke\(|const tail/);
+  assert.match(css, /agent-runtime-control-card__icon\{[^}]*grid-template-columns:1fr!important/s);
+});

@@ -1,3 +1,16 @@
+## v0.0.92 / #22.7 Reasoning Slider 几何与星光粒子回归
+
+自动门禁必须锁定：
+
+- Config Provider 源码仍可真实包含 `none`；`reasoning-control.ts` 只在 Runtime projection 过滤 `none/off/disabled/...` 关闭 sentinel，剩余 option 不排序、不补档。
+- `DiscreteSlider` 必须存在 `geometryRef`，Pointer ratio 读取 `geometry.getBoundingClientRect()`；rail/mark/thumb/effect 均位于 `__geometry`。
+- `__effect-clip` 必须 `overflow:hidden` 并与 rail 共用胶囊几何，Canvas 不得越出轨道。
+- `ParticleStreamCanvas` 必须有 `drawSparkle` / point `arc` / twinkle，不得出现 `lineTo/stroke/const tail` 方向尾线。
+- Runtime icon-only button 必须覆盖通用 Popover 双列 grid 为 `grid-template-columns:1fr`。
+- 强力推理仍然正交，不调用 `commitReasoningIndex`；reasoning 保存仍用串行队列，不触发 `modelControlBusy`。
+
+Windows 实机重点：DeepSeek `none/low/high/max` 应显示 low/high/max；按钮图标居中；首末档 thumb 中心落在 rail 两端；开启闪电后只在粉色填充 rail 内看到细小星点/闪烁星芒，关闭立即停止；连续拖拽松手不闪。
+
 ## v0.0.91 / #22.6 + #20.19 回归
 
 本轮新增两类必须回归：

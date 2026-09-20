@@ -1,3 +1,14 @@
+## LFAA v0.0.92 Release — #22.7 Reasoning Slider Geometry / Star Particles
+
+- **状态：** pending-user-acceptance
+- Runtime reasoning strength 不再把 Provider 的 `none/off/disabled` 关闭 sentinel 当成最低档；Catalog 真值不变，Runtime 只投影真实可执行强度。
+- 闪电 / 重置 icon-only button 覆盖通用双列 popover grid，使用同尺寸单格 grid 居中。
+- Slider rail / fill / mark / thumb / Pointer / Effect 统一到一个 geometry；最后一档与 rail 终点严格共点。
+- Canvas Effect 进入 rail capsule clip host；删除方向尾线，改为点状星光、闪烁光尘、少量四向星芒。standard 粉色，最高有效档淡粉→粉→紫→深紫。
+- 保留 v0.0.91 的 Canvas 2D / rAF、reasoning 串行保存、松手不触发 disabled opacity 的稳定性修复。
+- **AI 验证：** #22.7 聚焦 24/24 PASS；全仓可执行 Node 静态/契约 138/138 PASS；本轮 TS/TSX syntax transpile 4/4 PASS。Node 22.16.0 + 缺 workspace `node_modules` 无法替代项目要求的 Node 24 / pnpm 动态 source runtime 与 Config System 测试；治理 Gate 与 workspace-preflight 全部 PASS；Unicode ZIP fresh round-trip 在成品归档后再次复验。
+- **Windows 实机重点：** DeepSeek 等带 `none` 的模型不应再显示“关闭思考”；闪电/重置居中；最高点不越轨；粒子只在轨道内，视觉为星点闪烁而非箭头/短线；拖拽松手无闪白。
+
 ## LFAA v0.0.91 Release — #22.6 Canvas Reasoning Effect / #20.19 Unicode Archive
 
 - **状态：** pending-user-acceptance

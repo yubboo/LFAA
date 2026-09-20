@@ -1,3 +1,13 @@
+## LFAA v0.0.92 — #22.7 Reasoning Slider 几何与星光粒子修正
+
+- **状态：** pending-user-acceptance（AI 自动验证通过，等待 Windows 实机用户验收）。
+- **Runtime reasoning 真值：** Provider Catalog 继续真实保留厂商声明的 `none/off/disabled` 等关闭能力；Runtime “思考强度” Slider 只过滤明确关闭 sentinel，剩余有效档位数量、顺序、label、value 与当前模型 Capability 一一对应。最低档不再由 LFAA 人工生成“关闭思考”。
+- **顶部按钮居中：** 修复通用 `.agent-composer-popover button` 双列 grid 继续作用于 icon-only button 的根因；闪电 / 重置按钮显式使用单格 grid 与同尺寸按钮盒，SVG 回到几何中心。
+- **Slider 单一几何：** rail、fill、mark、thumb、Pointer 命中与 Effect 共用同一个 `__geometry` 坐标系；首末档中心严格落在 rail 0% / 100%，修复最高档刻度与轨道终点错位。
+- **轨道内星光粒子：** Effect Host 被收进与 rail 完全同尺寸的胶囊 clip host；Canvas 仅绘制细小圆点、微光尘和少量四向星芒，删除方向 tail/短横线。standard 为粉色星光；最高有效档为淡粉→粉→紫→深紫。
+- **稳定性：** 延续 v0.0.91 的单 Canvas 2D + `requestAnimationFrame`、reasoning 乐观 UI + 串行持久化；粒子不使用 DOM keyframes，不逐帧触发 React State，拖拽松手不再复用模型 busy 导致半透明闪烁。
+- **AI 验证：** #22.7 聚焦 reasoning/UI 回归 24/24 PASS；除环境限定项外全仓 Node 静态/契约测试 138/138 PASS；4 个本轮 TS/TSX 文件 TypeScript syntax transpile PASS。制作环境为 Node 22.16.0 且无 workspace `node_modules`，`node-source-runtime.test.mjs` 与 Config System 动态测试因无法解析 `@lfaa/credentials` 被环境阻断，不冒充项目要求的 Node 24 + pnpm workspace 验证。治理 Gate 与 workspace-preflight 全部 PASS；最终 ZIP 仍需 fresh round-trip 再复验。
+
 ## LFAA v0.0.91 — #22.6 Canvas 粒子渲染 / #20.19 Unicode ZIP 归档修复
 
 - **状态：** pending-user-acceptance（AI 自动验证通过，等待 Windows 实机用户验收）。

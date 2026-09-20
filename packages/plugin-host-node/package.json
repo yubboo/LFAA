@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/plugin-host-node",
   "private": true,
-  "version": "0.0.91",
+  "version": "0.0.92",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼",

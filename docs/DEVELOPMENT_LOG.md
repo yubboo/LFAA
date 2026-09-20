@@ -11,7 +11,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #22.6 | Canvas 粒子渲染与 reasoning 提交闪烁修复 | v0.0.91 | pending-user-acceptance |
+| #22.7 | Reasoning Slider 几何与星光粒子修正 | v0.0.92 | pending-user-acceptance |
+| #22.6 | Canvas 粒子渲染与 reasoning 提交闪烁修复 | v0.0.91 | superseded |
 | #20.19 | Unicode ZIP 归档与 Sync 来源诊断修复 | v0.0.91 | pending-user-acceptance |
 | #22.5 | Provider 实际推理档位动态投影修正 | v0.0.90 | superseded |
 | #22.4 | Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复 | v0.0.89 | superseded |
@@ -56,6 +57,17 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance |
 
 
+
+### #22.7 Reasoning Slider 几何与星光粒子修正
+
+- **版本：** v0.0.92
+- **状态：** pending-user-acceptance
+- **用户实机反馈：** v0.0.91 仍显示“关闭思考”；顶部闪电/重置图标视觉偏左；Slider 最右档点位越出 rail；Canvas 粒子越出轨道，且长尾线段像箭头，不符合图六的星光粒子参考。
+- **根因定位：** Runtime projection 把 Provider `none/off` 配置 option 原样当成强度档；通用 `.agent-composer-popover button` 的 `grid-template-columns:1.35rem minmax(0,1fr)` 仍作用于 icon-only button，使唯一 SVG 落入第一列而非按钮中心；Slider rail inset 与 mark/thumb 百分比坐标不一致；Canvas 挂在 Slider 全盒并绘制 tail line。
+- **修复合同：** Provider Catalog 真值不改；Runtime Slider 仅过滤关闭 sentinel，剩余有效 reasoning option 一一对应。Slider rail/mark/thumb/Pointer 使用单一可用轨道几何；Effect 放入 rail clip host；Canvas 改为圆点 + 四向星芒 + twinkle，不再绘制 tail。
+- **允许/禁止/验收/测试：** 以 `docs/PROMPTS.md` #22.7 为唯一合同。
+- **AI 验证：** #22.7 聚焦 24/24 PASS；全仓可执行 Node 静态/契约测试 138/138 PASS；本轮 TS/TSX syntax transpile 4/4 PASS。`node-source-runtime.test.mjs` 与 Config System 动态测试受当前 Node 22.16.0 + 缺 workspace `node_modules` 阻断，无法解析 `@lfaa/credentials`，不冒充 Node 24 / pnpm workspace 验证；治理 Gate 与 workspace-preflight 已 PASS；成品 ZIP round-trip 在归档后再次复验。
+- **用户验收：** pending。
 
 ### #22.6 Canvas 粒子渲染与 reasoning 提交闪烁修复
 

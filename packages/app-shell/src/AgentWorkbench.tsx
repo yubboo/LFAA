@@ -885,15 +885,17 @@ function CenterWorkspace({
               {runtimeControlOpen ? (
                 <section className={`agent-composer-popover agent-runtime-control-card${boostActive ? " is-boosted" : ""}`} role="dialog" aria-label="模型与思考强度">
                   <div className="agent-runtime-control-card__toolbar">
-                    <button
-                      className={`agent-runtime-control-card__icon${boostActive ? " is-active" : ""}`}
-                      type="button"
-                      aria-pressed={boostActive}
-                      aria-label="强力推理"
-                      data-tooltip="强力推理 · 用量可能更高"
-                      disabled={!reasoningStages.length || modelControlBusy}
-                      onClick={toggleReasoningBoost}
-                    ><WorkbenchIcon name="bolt" size={17} /></button>
+                    {reasoningStages.length ? (
+                      <button
+                        className={`agent-runtime-control-card__icon${boostActive ? " is-active" : ""}`}
+                        type="button"
+                        aria-pressed={boostActive}
+                        aria-label="强力推理"
+                        data-tooltip="强力推理 · 用量可能更高"
+                        disabled={modelControlBusy}
+                        onClick={toggleReasoningBoost}
+                      ><WorkbenchIcon name="bolt" size={17} /></button>
+                    ) : <span className="agent-runtime-control-card__icon-spacer" aria-hidden="true" />}
 
                     <button
                       className={`agent-runtime-control-card__model${runtimeModelPickerOpen ? " is-open" : ""}`}
@@ -906,7 +908,7 @@ function CenterWorkspace({
                       <small>{modelLabel === "未配置模型" ? "选择模型" : modelLabel.split(" · ")[0]}</small>
                     </button>
 
-                    <button className="agent-runtime-control-card__icon" type="button" aria-label="重置思考强度" data-tooltip="重置为默认" disabled={!reasoningStages.length || modelControlBusy} onClick={resetReasoning}><WorkbenchIcon name="refresh" size={17} /></button>
+                    {reasoningStages.length ? <button className="agent-runtime-control-card__icon" type="button" aria-label="重置思考强度" data-tooltip="重置为默认" disabled={modelControlBusy} onClick={resetReasoning}><WorkbenchIcon name="refresh" size={17} /></button> : <span className="agent-runtime-control-card__icon-spacer" aria-hidden="true" />}
                   </div>
 
                   <AnimatedDisclosure open={runtimeModelPickerOpen} className="agent-runtime-model-picker-disclosure">

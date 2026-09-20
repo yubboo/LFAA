@@ -1,3 +1,12 @@
+## v0.0.92 Reasoning Slider 几何 / 星光粒子
+
+- Runtime“思考强度”不是推理开关：Provider Capability 可以包含 `none/off/disabled`，但这些关闭 sentinel 不进入 Slider；最低档始终是当前模型公开的最低**有效推理强度**。其余档位严格保持 Provider label/value/顺序。
+- Runtime Card 顶部闪电 / 中央模型 / 重置为对称三列；两侧 icon-only button 强制 `grid-template-columns:1fr`，避免通用 Popover button 两列布局让 SVG 偏左。
+- `DiscreteSlider.__geometry` 是唯一轨道坐标系：rail、fill、mark、thumb、Effect 都以其 0%/100% 为首末端，Pointer 也按该 rect 算 ratio；最高档 mark/thumb 不得超过 rail。
+- 粒子只存在于 rail 胶囊内部。`__effect-clip` 与 rail 同高同宽并裁剪 Canvas；Canvas 只绘制当前填充区。
+- 图六视觉参考：粒子为细小圆点、白/粉微光点、少量四向星芒；每个粒子有独立亮度脉冲并缓慢水平漂移，不允许箭头、短横线、拖尾。最高有效档继续使用淡粉→粉→紫→深紫。
+- v0.0.91 的 rAF、reduced-motion、reasoning 串行提交和松手不 disabled 规则继续有效。
+
 ## v0.0.91 Reasoning Canvas 粒子与无闪烁提交
 
 - 强力推理视觉由 `UiEffectHost → ParticleStreamCanvas` 渲染：Effect DOM 常驻为一个 Canvas，粒子运动使用 Canvas 2D + `requestAnimationFrame`，CSS 只负责 Canvas 的绝对定位/尺寸，不再承担粒子 keyframe 动画。

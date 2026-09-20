@@ -282,17 +282,18 @@ for (const forbidden of ["packages/ui/src/effects", "packages/ui/src/overlay", "
 }
 
 
-// 12. v0.0.90：Chat/Composer 共基线保持；reasoning 必须一对一消费当前模型 Capability；强力推理正交；Slider/粒子稳定性不回退。
+// 12. v0.0.92：Runtime Slider 只投影 Provider 的有效推理强度；关闭 sentinel 留在 Catalog、不混入强度档；强力推理正交。
 const reasoningControl = read("packages/app-shell/src/reasoning-control.ts");
-for (const token of ["resolveReasoningStages", "return options.map", "label: providerOption.label", "providerOption.value", "reasoningBoostPreference", "reasoningBoost: boostActive"]) {
-  if (!(reasoningControl + tsx).includes(token)) fail(`missing v0.0.90 reasoning contract: ${token}`);
+for (const token of ["resolveReasoningStages", "runtimeReasoningOptions(options).map", "DISABLED_REASONING_VALUES", "label: providerOption.label", "providerOption.value", "reasoningBoostPreference", "reasoningBoost: boostActive"]) {
+  if (!(reasoningControl + tsx).includes(token)) fail(`missing v0.0.92 reasoning contract: ${token}`);
 }
-for (const forbidden of ["REASONING_UI_STAGES", "semanticRank", "isReasoningDisabledValue", "DISABLED_REASONING_VALUES"]) {
-  if (reasoningControl.includes(forbidden)) fail(`v0.0.90 must not synthesize/filter Provider reasoning stages: ${forbidden}`);
+for (const forbidden of ["REASONING_UI_STAGES", "semanticRank"]) {
+  if (reasoningControl.includes(forbidden)) fail(`v0.0.92 must not synthesize Provider reasoning stages: ${forbidden}`);
 }
 for (const syntheticLabel of ["极低", "极高", "极限"]) {
-  if (reasoningControl.includes(`label: "${syntheticLabel}"`)) fail(`v0.0.90 must not hard-code synthetic reasoning label: ${syntheticLabel}`);
+  if (reasoningControl.includes(`label: "${syntheticLabel}"`)) fail(`v0.0.92 must not hard-code synthetic reasoning label: ${syntheticLabel}`);
 }
+if (!reasoningControl.includes('"none", "off", "disabled"')) fail("v0.0.92 runtime reasoning projection must exclude explicit disabled sentinels");
 if (!tsx.includes("steps={reasoningStages.map")) fail("reasoning slider steps must come from current Provider capability options");
 if (!tsx.includes("Math.min(reasoningStages.length - 1, index)")) fail("reasoning commit must clamp to dynamic Provider stage count");
 const boostToggle = tsx.match(/const toggleReasoningBoost = \(\) => \{[\s\S]*?\n  \};/);
@@ -305,12 +306,20 @@ for (const token of ["--lfaa-slider-visual-progress", "style.setProperty", "setP
 for (const token of ["cursor: grab", "cursor: grabbing", "background: #fff"]) {
   if (!sharedSliderCss.includes(token)) fail(`missing v0.0.90 slider affordance: ${token}`);
 }
+for (const token of ["geometryRef", "lfaa-discrete-slider__effect-clip"]) {
+  if (!sharedSliderTsx.includes(token)) fail(`missing v0.0.92 unified slider geometry: ${token}`);
+}
+for (const token of ["--lfaa-slider-edge-inset", "lfaa-discrete-slider__geometry", "overflow: hidden"]) {
+  if (!sharedSliderCss.includes(token)) fail(`missing v0.0.92 slider rail clip contract: ${token}`);
+}
+if (!/agent-runtime-control-card__icon\{[^}]*grid-template-columns:1fr!important/s.test(css)) fail("runtime icon-only buttons must override generic popover two-column grid");
 for (const token of ["particle-stream-canvas", "ParticleStreamCanvas"]) {
   if (!sharedEffectHost.includes(token)) fail(`missing v0.0.91 Canvas effect host contract: ${token}`);
 }
-for (const token of ["data-active", "data-variant", "createLinearGradient", "readSliderProgressRatio"]) {
-  if (!particleStreamCanvas.includes(token)) fail(`missing v0.0.91 Canvas particle contract: ${token}`);
+for (const token of ["data-active", "data-variant", "createLinearGradient", "readSliderProgressRatio", "drawSparkle", "quadraticCurveTo"]) {
+  if (!particleStreamCanvas.includes(token)) fail(`missing v0.0.92 Canvas star particle contract: ${token}`);
 }
+if (/context\.lineTo\(|context\.stroke\(|const tail/.test(particleStreamCanvas)) fail("reasoning Canvas must not render arrow/tail line particles");
 if (!tsx.includes('active={boostActive}')) fail("reasoning particle renderer must only activate with strong reasoning");
 const reasoningCommit = tsx.match(/const commitReasoningIndex = \(index: number\) => \{[\s\S]*?\n  \};/);
 if (!reasoningCommit || !reasoningCommit[0].includes("reasoningCommitQueueRef")) fail("reasoning commits must use the serialized optimistic queue");

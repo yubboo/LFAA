@@ -1,10 +1,10 @@
 /**
  * 文件：DiscreteSlider.tsx
  * 作用：共享离散档位 Slider，供模型推理强度、质量档位、速度档位等 UI 复用。
- * 负责：连续 Pointer 跟手、离散 preview/commit、Pointer Capture、键盘 Home/End/方向键、白色 Thumb settle 动画。
+ * 负责：连续 Pointer 跟手、离散 preview/commit、Pointer Capture、键盘 Home/End/方向键、白色 Thumb settle 动画、统一 rail 几何。
  * 不负责：业务持久化、模型语义、特效定义。
  * 状态归属：只拥有 pointerId / dragging / DOM visual-progress 临时交互态；业务 value 由调用方持有。
- * 修改注意事项：Pointer Move 的连续像素位置直接写 CSS variable，避免每一像素都触发父业务 React 重渲染；PointerUp 只提交一次，不额外制造 preview(next) → preview(null) 双重业务渲染。
+ * 修改注意事项：rail / fill / mark / thumb / effect 必须共享同一个 geometry 容器；Pointer 命中读取该容器 rect，禁止再分别维护起终点偏移。
  */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import "./discrete-slider.css";
@@ -39,7 +39,8 @@ export function DiscreteSlider({
   onCommit,
   onInteractionStart,
 }: DiscreteSliderProps) {
-  const trackRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const geometryRef = useRef<HTMLSpanElement | null>(null);
   const pointerIdRef = useRef<number | null>(null);
   const previewIndexRef = useRef<number | null>(null);
   const settleTimerRef = useRef<number | null>(null);
@@ -53,9 +54,9 @@ export function DiscreteSlider({
   }, []);
 
   const ratioAtClientX = (clientX: number) => {
-    const track = trackRef.current;
-    if (!track || steps.length <= 1) return 0;
-    const rect = track.getBoundingClientRect();
+    const geometry = geometryRef.current;
+    if (!geometry || steps.length <= 1) return 0;
+    const rect = geometry.getBoundingClientRect();
     return Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
   };
 
@@ -63,14 +64,14 @@ export function DiscreteSlider({
   const progressAtIndex = (index: number) => steps.length <= 1 ? 0 : (index / (steps.length - 1)) * 100;
 
   const writeVisualProgress = (percent: number) => {
-    trackRef.current?.style.setProperty("--lfaa-slider-visual-progress", `${Math.max(0, Math.min(100, percent))}%`);
+    rootRef.current?.style.setProperty("--lfaa-slider-visual-progress", `${Math.max(0, Math.min(100, percent))}%`);
   };
 
   const settleVisualProgress = (index: number) => {
     writeVisualProgress(progressAtIndex(index));
     if (settleTimerRef.current !== null) window.clearTimeout(settleTimerRef.current);
     settleTimerRef.current = window.setTimeout(() => {
-      trackRef.current?.style.removeProperty("--lfaa-slider-visual-progress");
+      rootRef.current?.style.removeProperty("--lfaa-slider-visual-progress");
       settleTimerRef.current = null;
     }, SETTLE_MS + 40);
   };
@@ -84,8 +85,6 @@ export function DiscreteSlider({
   const commit = (index: number) => {
     if (disabled || !steps.length) return;
     const next = Math.max(0, Math.min(steps.length - 1, index));
-    // 拖拽期间 preview 已经反映当前离散档；松手只做一次业务 commit，
-    // 随后清除 preview 让父层回到 committed value，避免 PointerUp 额外闪两次。
     onCommit(next);
     previewIndexRef.current = null;
     onPreview?.(null);
@@ -142,7 +141,7 @@ export function DiscreteSlider({
 
   return (
     <div
-      ref={trackRef}
+      ref={rootRef}
       className={`lfaa-discrete-slider${dragging ? " is-dragging" : ""}${disabled ? " is-disabled" : ""}`}
       data-variant={variant}
       role="slider"
@@ -160,18 +159,19 @@ export function DiscreteSlider({
       onPointerCancel={(event) => finishPointer(event, true)}
       onKeyDown={onKeyDown}
     >
-      <span className="lfaa-discrete-slider__rail" aria-hidden="true" />
-      <span className="lfaa-discrete-slider__fill" aria-hidden="true" />
-      {steps.map((step, index) => (
-        <i
-          key={step.id}
-          className={`lfaa-discrete-slider__mark${index <= safeIndex ? " is-filled" : ""}`}
-          style={{ left: `${steps.length <= 1 ? 0 : (index / (steps.length - 1)) * 100}%` }}
-          aria-hidden="true"
-        />
-      ))}
-      {effect}
-      <span className="lfaa-discrete-slider__thumb" aria-hidden="true" />
+      <span ref={geometryRef} className="lfaa-discrete-slider__geometry" aria-hidden="true">
+        <span className="lfaa-discrete-slider__rail" />
+        <span className="lfaa-discrete-slider__fill" />
+        <span className="lfaa-discrete-slider__effect-clip">{effect}</span>
+        {steps.map((step, index) => (
+          <i
+            key={step.id}
+            className={`lfaa-discrete-slider__mark${index <= safeIndex ? " is-filled" : ""}`}
+            style={{ left: `${steps.length <= 1 ? 0 : (index / (steps.length - 1)) * 100}%` }}
+          />
+        ))}
+        <span className="lfaa-discrete-slider__thumb" />
+      </span>
     </div>
   );
 }

@@ -441,7 +441,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 
 .agent-runtime-control-card{right:0;left:auto;width:min(21rem,calc(100vw - 2rem));padding:.58rem .62rem .66rem;contain:layout style;isolation:isolate;overflow:visible}
 .agent-runtime-control-card__toolbar{display:grid;grid-template-columns:2.25rem minmax(0,1fr) 2.25rem;align-items:center;justify-items:center;gap:.28rem;min-height:3.5rem}
-.agent-runtime-control-card__icon{position:relative;width:2.25rem!important;height:2.25rem;display:grid!important;place-items:center!important;justify-self:center;align-self:center;padding:0!important;border:0;border-radius:.62rem;background:transparent;color:var(--agent-muted);cursor:pointer;line-height:0}
+.agent-runtime-control-card__icon{position:relative;width:2.25rem!important;height:2.25rem;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:1fr!important;place-items:center!important;justify-self:center;align-self:center;padding:0!important;border:0;border-radius:.62rem;background:transparent;color:var(--agent-muted);cursor:pointer;line-height:0}
+.agent-runtime-control-card__icon-spacer{width:2.25rem;height:2.25rem;display:block}
 .agent-runtime-control-card__icon svg{display:block}
 .agent-runtime-control-card__icon:hover,.agent-runtime-control-card__icon:focus-visible{background:var(--agent-hover);color:var(--agent-text);outline:none}
 .agent-runtime-control-card__icon:disabled{opacity:.38;cursor:not-allowed}

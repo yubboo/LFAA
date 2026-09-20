@@ -1,3 +1,9 @@
+## v0.0.92 Runtime Reasoning Effective-Strength Projection
+
+Provider/模型 Capability 仍是唯一能力真值，Catalog 不因 Composer 展示需求被改写。Runtime Control 的“思考强度”只消费其中的有效非关闭 option：`none/off/disabled` 代表“关闭推理”配置语义，不属于强度档；过滤后剩余 option 数量、顺序、label、value 原样进入 Slider。过滤后为 0 档时不显示 reasoning Slider，也不启用强力推理控制。
+
+Slider 与 Canvas 只改变 UI Projection，不改变实际 Provider 请求边界：选中档仍提交原始 `providerOption.value`；`reasoningBoost` 仍是独立 Agent Execution Hint。
+
 ## v0.0.91 Unicode Release Archive / Sync Source Guard
 
 `v0.0.90` 成品 ZIP 的中文 entry 字节虽然是 UTF-8，但未设置 ZIP UTF-8 filename flag（General Purpose Bit 11）。Windows 解压后 canonical `docs/项目结构与代码地图.md` 丢失，`workspace-preflight` 因 governance 缺文件而正确阻断；稳定工作区在失败前没有被修改。

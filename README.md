@@ -3,9 +3,9 @@
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.91**
+**当前包：LFAA-v0.0.92**
 
-## 当前产品定位（v0.0.91）
+## 当前产品定位（v0.0.92）
 
 LFAA 是面向个人的 AI 任务平台，而不是只会对话的聊天壳。用户可以通过 **Chat 一句话** 或 **Work 无限画布** 驱动同一个 Agent Runtime；一键开服、AI 写作、AI 拆图、Minecraft 插件/模组开发等场景最终都应作为 Plugin / Capability / App Pack 进入。
 
@@ -61,12 +61,12 @@ plugin-platform + agent-runtime + workbench
 当前版本总任务：
 
 ```text
-#22.6 Canvas 粒子渲染与 reasoning 提交闪烁修复
-#20.19 Unicode ZIP 归档与 Sync 来源诊断修复
-version: v0.0.91
-status: pending-user-acceptance
+#22.7 Reasoning Slider 几何与星光粒子修正
+#20.19 Unicode ZIP 归档与 Sync 来源诊断修复（沿用）
+version: v0.0.92
+status: implementing
 
-v0.0.91 修复 v0.0.90 的两项实机失败：强力推理粒子改为单 Canvas 2D + requestAnimationFrame，只有 reasoningBoost 生效时启动；reasoning 档位提交不再复用模型切换 busy，避免 PointerUp 后 Slider 半透明闪一下。发布 ZIP 改为显式 UTF-8 filename flag 的内建归档器，Windows 解压必须真实保留 `docs/项目结构与代码地图.md`；Sync 在 canonical Unicode 路径缺失时于 diff 前直接阻断。#22.5 的 Provider 动态 Capability 档位规则继续保持。
+v0.0.92 继续修复 Runtime reasoning 的实机问题：Provider Catalog 仍真实保留 `none/off/disabled`，但“思考强度”Slider 只显示有效非关闭 reasoning 档；闪电/重置 icon-only button 修正通用 Popover 双列 grid 导致的偏左；Slider 的 rail/mark/thumb/Pointer 统一到同一 geometry；Canvas 被严格裁剪在 rail 胶囊内部，并改为图六参考的细小星点、光尘与少量四向星芒，不再绘制箭头/长尾短线。v0.0.91 的 reasoning 串行提交与 Unicode ZIP 修复继续保留。
 
 #21.21 UI 共享模块 / Effect & Extension Registry 收敛
 version: v0.0.87
