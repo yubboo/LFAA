@@ -1,5 +1,5 @@
 /** UI Effect 是声明式贡献，不允许普通插件直接操作 document/body。 */
-export type UiEffectRendererKind = "meteor-trail";
+export type UiEffectRendererKind = "particle-stream-canvas";
 export type UiEffectVariant = "standard" | "extreme";
 
 export interface UiEffectDefinition {

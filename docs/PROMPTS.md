@@ -25,7 +25,10 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #22.4 | Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复 | v0.0.89 | pending-user-acceptance | pass | pending |
+| #22.6 | Canvas 粒子渲染与 reasoning 提交闪烁修复 | v0.0.91 | pending-user-acceptance | pass | pending |
+| #20.19 | Unicode ZIP 归档与 Sync 来源诊断修复 | v0.0.91 | pending-user-acceptance | pass | pending |
+| #22.5 | Provider 实际推理档位动态投影修正 | v0.0.90 | superseded | pass | not-accepted |
+| #22.4 | Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复 | v0.0.89 | superseded | pass | not-accepted |
 | #22.3 | 真实 Chat Run / UI Motion 与阻尼 Resize 基础 | v0.0.88 | superseded | pass | not-accepted |
 | #21.21 | UI 共享模块 / Effect & Extension Registry 收敛 | v0.0.87 | pending-user-acceptance | pass | pending |
 | #21.20 | Composer 统一模型运行时控制器 / Popover 闪烁修复 | v0.0.86 | pending-user-acceptance | pass | pending |
@@ -70,6 +73,213 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #22.6 Canvas 粒子渲染与 reasoning 提交闪烁修复
+
+### 用户目标 / 背景
+
+v0.0.90 实机反馈未通过：reasoning Slider 拖拽松手后仍会出现明显闪烁；点击“强力推理”闪电按钮后没有可见动态粒子。用户同时要求评估是否继续使用 CSS Keyframes，优先选择更稳定、不会被 React 重渲染 / Windows 合成层切换影响的渲染方式。
+
+本轮将粒子运动从“多个 DOM `<i>` + CSS `@keyframes`”迁移为**单 Canvas 2D + requestAnimationFrame**。CSS 只保留 Canvas 的定位/尺寸，不再承担粒子运动算法。Reasoning 设置提交改为乐观 UI + 串行持久化队列，不再在 PointerUp 时把整条 Slider 置为 disabled，从源头消除“松手瞬间 opacity 下降再恢复”的闪烁。
+
+### 主模块 / 状态所有权
+
+- `packages/ui/src/ui-effects`：拥有 Canvas 粒子 Renderer、Palette 解析、rAF 生命周期、DPR/ResizeObserver、reduced-motion。
+- `packages/ui/src/ui-controls`：拥有 Slider Pointer/Keyboard、visual progress 与 settle；不拥有业务保存 busy。
+- `packages/app-shell`：拥有 reasoning 业务选择、强力推理 Hint 与 Provider setting 的异步提交队列。
+- `packages/config-system`：继续拥有 Provider Capability 真值，本轮不改档位来源。
+
+### 允许修改
+
+- `packages/ui/src/ui-effects/**`、`packages/ui/src/ui-controls/**`；
+- `packages/app-shell/src/AgentWorkbench.tsx`、相关 CSS；
+- UI/交互契约测试与文档、版本元数据、CHANGELOG / RELEASES。
+
+### 禁止修改 / 安全边界
+
+- 禁止用 React State 做逐帧粒子动画；禁止每帧触发父业务组件重渲染。
+- 禁止重新使用多个 DOM 粒子 + CSS `@keyframes` 作为主动画实现。
+- 禁止在 reasoning setting 保存期间把整条 Slider opacity 降低造成提交闪烁。
+- 禁止强力推理开关修改 Provider reasoning 档位；`reasoningBoost` 继续正交。
+- 禁止改变 #22.5 的动态 Capability 档位规则。
+
+### 实现约束
+
+1. Effect Host 常驻为单个 `<canvas>`；`active=false` 时取消 rAF 并清屏，`active=true` 时启动。
+2. Canvas 只绘制当前 Slider 已填充区；拖拽中的连续进度直接读取 Slider 局部 CSS variable，不经过 React State。
+3. standard 使用粉色 Palette；最高官方档 extreme 使用淡粉 → 粉 → 紫 → 深紫的水平渐变。Palette 仍通过可覆盖 CSS Token 解析，后续设置中心可改色。
+4. 使用 `ResizeObserver + devicePixelRatio` 保证清晰度；`prefers-reduced-motion: reduce` 时停止粒子。
+5. Slider 提交采用本地立即选中 + Promise 串行队列写 Provider setting；模型切换 busy 与 reasoning setting 保存 busy 分离。
+6. PointerUp 不再制造额外 preview(next) → preview(null) 双重业务渲染；settle 仅负责视觉位置。
+
+### 验收条件
+
+1. 点击闪电开启强力推理后，Slider 填充区立即出现持续运动粒子；关闭后立即清空并停止动画。
+2. 普通档粒子为粉色系；最高官方档粒子沿轨道呈淡粉→粉→紫→深紫。
+3. 连续拖拽后松手，Slider / 卡片不再因 disabled opacity 或 Effect DOM 重建产生闪烁。
+4. 快速连续选择不同 reasoning 档时 Provider setting 按用户提交顺序串行保存，不因异步完成顺序倒写。
+5. 模型 Capability 动态档位与强力推理解耦规则不回退。
+
+### 必须测试
+
+- `node --test test/ui-interaction-motion.test.mjs`
+- `node --test test/ui-shared-module-contract.test.mjs`
+- `node --test test/model-quick-switch-contract.test.mjs`
+- `node scripts/ui-contract-check.mjs`
+- 新增 Canvas Effect / active gate / no CSS keyframes / no reasoning disabled-flash 契约测试
+- 全仓可执行 Node 静态/契约测试 + `node scripts/workspace-preflight.mjs`
+
+### 必须更新文档
+
+`DEVELOPMENT.md`、`PROJECT_PLAN.md`、`docs/DEVELOPMENT_LOG.md`、`docs/UI.md`、`docs/MODULES.md`、`docs/TESTING.md`、`ARCHITECTURE.md`、`docs/项目结构与代码地图.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG / 版本
+
+- CHANGELOG 编号：`#22.6`
+- 目标版本：`v0.0.91`
+- 当前状态：`pending-user-acceptance`
+- AI 验证：`pass`
+- 用户验收：`pending`
+
+## #20.19 Unicode ZIP 归档与 Sync 来源诊断修复
+
+### 用户目标 / 背景
+
+v0.0.90 在 Windows `LFAA-Sync.bat` 来源预检中失败，报告缺少 `docs/项目结构与代码地图.md`。复核最终 ZIP 发现归档器把 UTF-8 文件名字节写入 ZIP，却没有设置 ZIP General Purpose Bit 11（UTF-8 filename flag）；Linux `unzip` 可按本地启发式显示中文，但 Windows 解压后 canonical Unicode 路径丢失，导致治理 Gate 正确阻止同步。稳定工作区没有被修改，但发布包本身错误。
+
+本轮必须修复**归档生成链路**而不是放宽治理检查，同时让 Sync 在 canonical Unicode 必需路径缺失时更早给出“来源包/解压编码损坏”诊断。
+
+### 主模块 / 状态所有权
+
+- `scripts/release-archive.mjs`：发布 ZIP 生成与 ZIP UTF-8 entry 事实 Owner。
+- `scripts/windows/lfaa-sync.ps1`：只做来源目录编码/完整性 fail-safe，不负责修复坏包。
+- `scripts/governance-check.mjs` / `workspace-preflight.mjs`：继续要求 canonical `docs/项目结构与代码地图.md`，禁止降级。
+
+### 允许修改
+
+- 新增 `scripts/release-archive.mjs` 与归档测试；
+- `scripts/windows/lfaa-sync.ps1` 来源路径诊断；
+- 根 package scripts / governance required list；
+- 发布/同步文档、版本元数据、CHANGELOG / RELEASES。
+
+### 禁止修改 / 安全边界
+
+- 禁止把 `docs/项目结构与代码地图.md` 改成 ASCII 别名来绕过问题。
+- 禁止删除 governance 对 canonical 中文路径的要求。
+- 禁止 Sync 在来源 preflight 未通过时生成删除计划或修改稳定工作区。
+- 禁止依赖平台默认 ZIP 编码行为；归档器必须显式写 UTF-8 filename flag。
+
+### 实现约束
+
+1. Release ZIP entry 名称统一 UTF-8 编码，并在 local header / central directory 设置 bit 11。
+2. ZIP 根直接是项目内容；保留 `.lfaa/` 隐藏目录和空目录占位，排除 `.git/node_modules/dist/target`。
+3. 打包后程序化校验：必须存在 exact `docs/项目结构与代码地图.md` entry，且该 entry UTF-8 flag 为真。
+4. Sync 的“路径编码正常”只能在 canonical Unicode 必需路径存在且没有 mojibake 后输出；缺失时在运行 workspace-preflight 之前停止并给出明确修复提示。
+5. Windows PS1 保持 UTF-8 with BOM。
+
+### 验收条件
+
+1. 新 ZIP 在 Windows 解压后真实存在 `docs/项目结构与代码地图.md`。
+2. Python/Node 读取 ZIP central directory 时该 entry 的 UTF-8 bit=1。
+3. 从最终 ZIP 新目录解压后 `node scripts/workspace-preflight.mjs` PASS。
+4. Sync 对缺失 canonical Unicode 文件的坏来源包在 diff 前停止，并明确指出来源包/解压编码问题。
+5. 目标稳定工作区在来源失败时保持零修改。
+
+### 必须测试
+
+- `node --test test/release-archive.test.mjs`
+- `node --test test/release-path-encoding.test.mjs`
+- `node --test test/workspace-sync-idempotency.test.mjs`
+- `node scripts/windows-script-encoding-check.mjs`
+- `node scripts/workspace-preflight.mjs`
+- 使用 `scripts/release-archive.mjs` 生成 v0.0.91 ZIP → 读取 central directory 验证 UTF-8 flag → 新目录 round-trip → 再次 preflight。
+
+### 必须更新文档
+
+`DEVELOPMENT.md`、`PROJECT_PLAN.md`、`docs/DEVELOPMENT_LOG.md`、`docs/RUNTIME.md`、`docs/TESTING.md`、`ARCHITECTURE.md`、`docs/项目结构与代码地图.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG / 版本
+
+- CHANGELOG 编号：`#20.19`
+- 目标版本：`v0.0.91`
+- 当前状态：`pending-user-acceptance`
+- AI 验证：`pass`
+- 用户验收：`pending`
+
+## #22.5 Provider 实际推理档位动态投影修正
+
+### 用户目标 / 背景
+
+v0.0.89 的“固定六档 UI，再映射到 Provider 官方值”仍然不符合产品真实语义。用户明确修正：推理档位数量不能由 LFAA 固定，更不能把少量 Provider 档位复制成六个视觉档。Runtime Control 必须以**当前实际模型的官方 Capability**为唯一事实源：厂商/账户当前返回几档就显示几档；当前模型完全没有推理强度能力就不显示推理 Slider。
+
+例如 ChatGPT/Codex 套餐优先使用当前 `model/list.supportedReasoningEfforts`；API Provider 使用 Config System 已经由官方运行时接口/官方文档确认并写入当前模型 Capability 的 `reasoningEffort.options`。LFAA 不猜模型名、不补档、不删档、不把 `none/off` 全局过滤掉；只有 Provider 没有返回该选项时 UI 才没有该选项。
+
+### 主模块 / 状态所有权
+
+- `packages/config-system`：继续拥有当前模型 Capability 与 `reasoningEffort.options` 真值；本任务不复制第二份 Provider 能力表。
+- `packages/app-shell`：只把 `activeReasoning.field.options` **一对一**投影成 Runtime Slider steps，并提交被选中的原始 `option.value`。
+- `packages/ui/src/ui-controls`：继续只负责任意 steps 数量的 Pointer/Keyboard Slider，不拥有模型档位。
+- `packages/ui/src/ui-effects`：只消费“当前是否位于 Provider 最高官方档”的视觉 variant，不定义档位数量或名称。
+- `packages/agent-runtime`：`reasoningBoost` 继续是与 Provider reasoning 正交的 Agent Run Hint。
+
+### 允许修改
+
+- `packages/app-shell/src/reasoning-control.ts`、`AgentWorkbench.tsx`；
+- 与 Runtime reasoning 动态档位有关的测试 / UI Contract；
+- 当前事实文档、版本元数据、CHANGELOG / RELEASES。
+
+### 禁止修改 / 安全边界
+
+- 禁止固定 `极低/低/中/高/极高/极限` 六个档位。
+- 禁止把 Provider 的 2/3/4/5 档重复映射成 6 档；Slider step 数必须与当前 `reasoningEffort.options.length` 一致。
+- 禁止通过模型名称猜档位；只允许消费当前模型 Capability。
+- 禁止全局过滤 `none/disabled/off`；如果 Provider 官方 Capability 明确列出它，它就是一个真实 option，应原样保留。
+- 禁止模型没有 `reasoningEffort` 时生成默认档、占位档或假的 Slider。
+- 禁止强力推理切换时改写当前 Provider reasoning option；每一个真实 Provider 档位都允许独立开/关 `reasoningBoost`。
+- 不回退 #22.4 已完成的 Chat 左右基线、Slider 拖拽、白色 Thumb、粒子稳定挂载和闪屏修复。
+
+### 实现约束
+
+1. `resolveReasoningStages(options)` 必须保持 Provider option 的数量、顺序、label、value 一一对应，不做 semantic rank、插值、补齐或复用。
+2. 当前值反推 index 只能做 `option.value === activeReasoning.value` 的精确匹配；默认值同理。
+3. Runtime Slider `steps` 直接来自动态 stages；0 档时整个 Slider/重置/强力推理入口按“无 reasoning capability”语义隐藏或禁用，不制造假档。
+4. 最高官方档仅作为 LFAA 的视觉/默认强力推理触发位置：不重命名 Provider label，不改变提交值；强力推理仍可在任意真实档位手动开关。
+5. 模型切换必须重新读取该模型 Capability 并重建 steps；从 5 档模型切到 3 档/0 档时不得保留旧档位 DOM 或越界 index。
+6. ChatGPT/Codex 套餐的 `supportedReasoningEfforts` 继续由 App Server 实时目录进入 Capability；API Provider 继续走已验证 Capability，不增加 UI 侧厂商分支。
+
+### 验收条件
+
+1. Provider 报 5 档，UI 就 5 档；报 3 档就 3 档；报 1 档就 1 档；没有 `reasoningEffort` 就没有 reasoning Slider。
+2. 每个 step 的 label/value 与 Capability option 一对一，不再出现 LFAA 自造 `极低/极高/极限`。
+3. Provider 明确提供 `none/关闭思考` 时 UI 保留；Provider 没提供时 UI 不生成“关闭思考”。
+4. 切换不同模型后档位数量即时匹配新模型真实 Capability，不残留上一模型的 steps。
+5. 选择任一档只提交该 option 的原始 `value`；Run 不出现未声明 Provider 参数。
+6. 强力推理在每个真实档位均可独立开/关，不强制跳最高档。
+7. 最高官方档继续使用 extreme 粒子视觉；普通档使用 standard；不改 Provider label。
+8. #22.4 的对话对齐、拖拽平滑、白色 Thumb、悬浮卡不闪屏规则全部不回退。
+
+### 必须测试
+
+- `node --test test/model-quick-switch-contract.test.mjs`
+- `node --test test/ui-shared-module-contract.test.mjs`
+- `node --test test/ui-interaction-motion.test.mjs`
+- `node --test test/chat-runtime-contract.test.mjs`
+- `node scripts/ui-contract-check.mjs`
+- 新增/更新动态 0/1/3/5 档与 `none` 保留契约测试
+- 全仓可执行 Node 静态/契约测试 + `node scripts/workspace-preflight.mjs`
+- 最终 ZIP Unicode / `.lfaa` round-trip 后再次 `workspace-preflight`
+
+### 必须更新文档
+
+`DEVELOPMENT.md`、`PROJECT_PLAN.md`、`docs/DEVELOPMENT_LOG.md`、`docs/UI.md`、`docs/MODULES.md`、`docs/TESTING.md`、`ARCHITECTURE.md`、`docs/项目结构与代码地图.md`、`CHANGELOG.md`、`docs/RELEASES.md`。
+
+### CHANGELOG / 版本
+
+- CHANGELOG 编号：`#22.5`
+- 目标版本：`v0.0.90`
+- 当前状态：`pending-user-acceptance`
+- AI 验证：`pass`
+- 用户验收：`pending`
 
 ## #22.4 Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复
 

@@ -1,6 +1,29 @@
-## LFAA v0.0.89 — #22.4 Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复
+## LFAA v0.0.91 — #22.6 Canvas 粒子渲染 / #20.19 Unicode ZIP 归档修复
 
 - **状态：** pending-user-acceptance（AI 自动验证通过，等待 Windows 实机用户验收）。
+- **粒子 Renderer：** 强力推理效果从多个 DOM `<i>` + CSS 帧动画迁移为单 `<canvas>` + Canvas 2D + `requestAnimationFrame`；`ResizeObserver` 与 `devicePixelRatio` 负责尺寸/清晰度，`prefers-reduced-motion` 时停止。
+- **真实激活条件：** Effect `active` 现在严格绑定 `boostActive`；普通 reasoning 档点击闪电后启动粒子，关闭后取消 rAF 并清屏。最高官方档仍只切换 extreme 视觉/auto boost，不改 Provider label/value。
+- **颜色：** standard 继续使用粉色系；extreme 使用淡粉→粉→紫→深紫的水平 Canvas Gradient。颜色仍解析 `--lfaa-reasoning-*-color-*` Token，后续 Settings 可直接覆盖。
+- **松手闪烁根因修复：** reasoning setting commit 不再复用 `modelControlBusy`，因此 PointerUp 不会把 Slider 临时变成 `.is-disabled{opacity:.45}`；改为乐观本地选择 + `reasoningCommitQueueRef` 串行持久化。
+- **Slider 渲染减噪：** PointerUp 取消额外的 `preview(next) → commit → preview(null)` 双重业务更新；连续像素仍只写局部 CSS variable。
+- **发布包根因修复：** v0.0.90 ZIP 的中文文件名字节是 UTF-8，但 ZIP General Purpose Bit 11 未设置，Windows 解压后 canonical `docs/项目结构与代码地图.md` 丢失。v0.0.91 新增 `scripts/release-archive.mjs`，Local Header / Central Directory 均显式写 UTF-8 filename flag。
+- **Sync Fail-safe：** `lfaa-sync.ps1` 在输出「路径编码正常」前先验证 canonical Unicode 必需路径；缺失时在 workspace-preflight / diff / 目标写入之前直接阻断并给出归档/解压编码诊断。稳定工作区保护规则不放宽。
+- **AI 验证：** Canvas/Reasoning/Archive/Sync 聚焦回归 30/30 PASS；全仓 Node 测试 135 项中 134 项可执行并 PASS，唯一 `node-source-runtime.test.mjs` 因制作容器 Node 22.16.0 且无 workspace `node_modules` 无法解析 `@lfaa/credentials`，不冒充 Node 24 + pnpm workspace 动态验证。UI Contract、Windows Script Encoding、Release Consistency、Prompt Lifecycle、workspace-preflight 均通过；候选 ZIP 已用新归档器验证 Central Directory UTF-8 bit + fresh round-trip preflight。
+
+## LFAA v0.0.90 — #22.5 Provider 实际推理档位动态投影修正
+
+- **状态：** pending-user-acceptance（AI 自动验证通过，等待 Windows 实机用户验收）。
+- 修正 v0.0.89 的固定六档抽象：Runtime reasoning steps 现在与当前模型 `reasoningEffort.options` 数量、顺序、label、value 一一对应，不再做 semantic rank、补档或相邻档复用。
+- Provider 报 5/3/1 档就显示 5/3/1 档；模型没有 `reasoningEffort` 时不显示 Slider。
+- 不再全局过滤 `none/off/disabled`：Provider 官方 Capability 有该 option 就保留，没有就不生成。
+- ChatGPT/Codex 套餐继续从实时 `model/list.supportedReasoningEfforts` 进入 Capability；App Shell 不按 Provider/模型名写分支。
+- 强力推理继续作为独立 `AgentExecutionHints.reasoningBoost`；每个真实 Provider 档位都可手动开关，不会强制切换档位。最高官方档只承担 extreme 粒子视觉/auto Hint 位置，不重命名 Provider label。
+- #22.4 的 Chat 左右基线、白色 Thumb、grab/grabbing、常驻流星 Effect Host 与 Runtime Card 防闪屏修复全部保留。
+- **AI 验证：** #22.5 聚焦 reasoning 回归 10/10 PASS；全仓可执行 Node 静态/契约测试 131/131 PASS；UI Contract PASS。制作环境为 Node 22.16.0，依赖 Node 24 TypeScript source loader / pnpm workspace 的 Config System 动态测试在本环境不可执行，不冒充通过。
+
+## LFAA v0.0.89 — #22.4 Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复
+
+- **状态：** superseded（用户指出固定六档抽象不符合真实 Provider Capability；由 v0.0.90 / #22.5 修正）。
 - Chat Timeline 与 Composer 改用同一水平几何：用户消息右基线、AI/错误消息左基线分别与输入框两侧对齐。
 - Runtime reasoning 固定为 `极低 / 低 / 中 / 高 / 极高 / 极限`；过滤 UI 中的关闭档，但实际值只复用官方 Capability 已声明 option，绝不伪造 Provider 参数。
 - “强力推理”从“强制最高档”改为独立 `AgentExecutionHints.reasoningBoost`；任意档可开关，极限自动默认开但允许显式关闭。

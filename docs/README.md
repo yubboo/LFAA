@@ -53,4 +53,4 @@ docs/logs/runtime/source-update/
 这些是本机运行数据目录，不再放 Markdown README。
 
 
-> 当前候选版本：v0.0.89（#22.4，pending-user-acceptance）；Chat/Composer 对齐、六档推理、独立强力推理、连续 Slider 与粒子稳定性等待 Windows 实机验收。
+> 当前候选版本：v0.0.91（#22.6 + #20.19，pending-user-acceptance）；Reasoning 粒子改为 Canvas 2D/rAF，提交闪烁与 Windows Unicode ZIP 归档问题已修复，等待实机用户验收。

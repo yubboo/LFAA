@@ -1,10 +1,16 @@
-## v0.0.89 推理控制职责收敛
+## v0.0.91 UI Effect Renderer / Release Archive 职责收敛
 
-- `packages/app-shell/src/reasoning-control.ts`：纯函数六档 UI → 官方 Provider reasoning option 映射；只消费 Config System Capability，不拥有 Provider 真值。
-- `packages/ui/src/ui-controls/DiscreteSlider.tsx`：共享连续拖拽/白色 Thumb/键盘/settle，不包含模型语义。
-- `packages/ui/src/ui-effects/`：共享流星粒子、standard/extreme Palette 与稳定挂载 Host。
-- `packages/agent-runtime`：新增 `AgentExecutionHints.reasoningBoost`，与 `AgentModelBinding.settings` 分离。
-- `apps/web/dev/bridges/agent`：开发态把 `reasoningBoost` 解释为额外审慎校验的 system instruction；绝不把它伪装成 Provider 未声明的 reasoning setting。
+`packages/ui/src/ui-effects` 现在明确拆成 Registry/Host 与 Canvas Renderer：`UiEffectHost` 不做逐帧动画，`ParticleStreamCanvas` 是当前 reasoning-overdrive 的唯一绘制实现。`packages/app-shell` 只拥有 boost/variant 业务投影与 reasoning setting 串行保存。
+
+发布工具新增 `scripts/release-archive.mjs`，负责 ZIP UTF-8 entry 字节规范；Sync 继续只负责稳定工作区来源校验与镜像同步，不承担归档生成。
+
+## v0.0.90 推理控制职责收敛
+
+- `packages/app-shell/src/reasoning-control.ts`：纯函数把当前模型 `reasoningEffort.options` 一对一投影为 Runtime steps；不固定档位、不排序、不补齐、不过滤 `none/off`，不拥有 Provider 真值。
+- `packages/ui/src/ui-controls/DiscreteSlider.tsx`：共享任意 step 数量的连续拖拽/白色 Thumb/键盘/settle，不包含模型语义。
+- `packages/ui/src/ui-effects/`：共享流星粒子、standard/extreme Palette 与稳定挂载 Host；只接收“当前是否最高官方档”的视觉 variant。
+- `packages/agent-runtime`：`AgentExecutionHints.reasoningBoost` 与 `AgentModelBinding.settings` 分离，每个真实 Provider 档位都可独立开/关。
+- `apps/web/dev/bridges/agent`：开发态只解释 `reasoningBoost` Hint；绝不把它伪装成 Provider 未声明的 reasoning setting。
 
 ## v0.0.88 UI / Runtime 新模块
 

@@ -8,11 +8,11 @@ export const builtinUiEffectRegistry = new UiEffectRegistry();
 builtinUiEffectRegistry.register("@lfaa/ui", {
   id: "reasoning-overdrive",
   title: "强力推理流星",
-  renderer: "meteor-trail",
-  particleCount: 10,
-  durationMs: 1280,
+  renderer: "particle-stream-canvas",
+  particleCount: 16,
+  durationMs: 1480,
   reducedMotion: "disable",
-  // 使用可继承 CSS Token + fallback；Settings/Theme 未来只覆盖 Token，不需要改 Renderer/Registry。
+  // Canvas Renderer 在运行时解析可继承 CSS Token；Settings/Theme 未来只覆盖 Token，不需要改动画算法。
   palette: [
     "var(--lfaa-reasoning-standard-color-1, #ffc1dc)",
     "var(--lfaa-reasoning-standard-color-2, #f578ad)",

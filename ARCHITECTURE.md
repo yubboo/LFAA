@@ -1,20 +1,28 @@
-## v0.0.89 Reasoning Control / Execution Hint 边界
+## v0.0.91 Canvas Effect / Reasoning Commit / Release Archive 边界
+
+- `packages/ui/src/ui-effects/ParticleStreamCanvas.tsx` 是强力推理连续粒子效果的 Renderer Owner：单 `<canvas>`、Canvas 2D、`requestAnimationFrame`、`ResizeObserver`、DPR 与 reduced-motion；不得逐帧写 React State，也不得退回多个 DOM 粒子 + CSS 帧动画。
+- `UiEffectHost` 只做 Registry → Renderer 分派；App Shell 只传 `active={boostActive}` 与 standard/extreme variant。Palette 仍由可继承 CSS Token 提供，Canvas 在绘制时解析 Token，后续 Settings 改色不需要改动画算法。
+- Reasoning Provider setting 采用 App Shell 乐观选择 + 串行 Promise 队列。它与 `modelControlBusy` 分离：模型切换仍可锁控件，但 reasoning 保存不得让 Slider 进入 disabled opacity，从而避免 PointerUp 闪烁。模型切换前必须等待既有 reasoning 队列落盘。
+- `scripts/release-archive.mjs` 是发布 ZIP 字节格式 Owner：entry 名统一 UTF-8，Local Header / Central Directory 均设置 General Purpose Bit 11；`scripts/windows/lfaa-sync.ps1` 只验证来源目录 canonical Unicode 路径和 preflight，绝不修复坏包或放宽 governance。
+
+## v0.0.90 Reasoning Control / Execution Hint 边界
 
 ```text
-Config System official Capability options
-        ↓ (filter OFF only for this UI projection)
-reasoning-control.ts: six visual stages → existing Provider values
+Current model official Capability
+reasoningEffort.options (0 / 1 / N)
+        ↓ exact count / order / label / value
+reasoning-control.ts: Provider options → Runtime Slider steps 1:1
         ↓
-AgentModelBinding.settings  = official Provider settings only
+AgentModelBinding.settings = selected official Provider value only
 
 Strong Reasoning toggle
-        ↓
+        ↓ orthogonal
 AgentRunRequest.executionHints.reasoningBoost
         ↓
 Host/Harness-specific interpretation
 ```
 
-六档是 LFAA UI 刻度，不是新的 Provider 协议。强力推理与 Provider reasoning 档位正交；不得因为按钮开启就把 Provider setting 强制写到最高档，也不得把 UI 的 `极限` 字符串直接发送给 Provider。
+LFAA 不再拥有固定六档 reasoning taxonomy。当前模型 Capability 返回几档，Runtime Control 就显示几档；没有 `reasoningEffort` 就没有 Slider。`none/off` 是否存在也由 Provider Capability 决定，UI 不全局过滤。最高官方 option 只用于 extreme 视觉/默认 Hint 位置，不重命名、不改写 Provider value。强力推理始终与 Provider reasoning option 正交。
 
 # LFAA 当前架构
 

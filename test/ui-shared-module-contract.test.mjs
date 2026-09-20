@@ -9,6 +9,7 @@ const workbenchCss = readFileSync(new URL("packages/app-shell/src/agent-workbenc
 const slider = readFileSync(new URL("packages/ui/src/ui-controls/DiscreteSlider.tsx", root), "utf8");
 const effectRegistry = readFileSync(new URL("packages/ui/src/ui-effects/registry.ts", root), "utf8");
 const effectHost = readFileSync(new URL("packages/ui/src/ui-effects/UiEffectHost.tsx", root), "utf8");
+const particleCanvas = readFileSync(new URL("packages/ui/src/ui-effects/ParticleStreamCanvas.tsx", root), "utf8");
 const extensionRegistry = readFileSync(new URL("packages/ui/src/ui-extension/registry.ts", root), "utf8");
 
 test("shared UI infrastructure stays under packages/ui/src/ui-xxx", () => {
@@ -34,12 +35,15 @@ test("UI effect and extension registries support owner-scoped uninstall with gen
     assert.match(source, /unregisterOwner/);
     assert.match(source, /this\.#generation \+= 1/);
   }
-  assert.match(effectHost, /effect\.renderer === "meteor-trail"/);
+  assert.match(effectHost, /effect\.renderer === "particle-stream-canvas"/);
 });
 
-test("reasoning effect host stays mounted and switches standard/extreme palettes declaratively", () => {
-  assert.match(effectHost, /data-active=\{active \? "true" : "false"\}/);
-  assert.match(effectHost, /data-variant=\{variant\}/);
+test("reasoning effect host uses one stable Canvas renderer with declarative active/variant inputs", () => {
+  assert.match(effectHost, /<ParticleStreamCanvas effect=\{effect\} active=\{active\} variant=\{variant\}/);
   assert.doesNotMatch(effectHost, /if \(!active\) return null/);
-  assert.match(workbench, /effect=\{<UiEffectHost[^>]*active[^>]*variant=/s);
+  assert.match(particleCanvas, /<canvas[^>]*data-active=\{active \? "true" : "false"\}/s);
+  assert.match(particleCanvas, /data-variant=\{variant\}/);
+  assert.match(particleCanvas, /requestAnimationFrame/);
+  assert.doesNotMatch(particleCanvas, /useState\(/);
+  assert.match(workbench, /effect=\{<UiEffectHost[^>]*active=\{boostActive\}[^>]*variant=/s);
 });

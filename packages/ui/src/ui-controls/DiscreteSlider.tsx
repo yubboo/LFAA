@@ -4,7 +4,7 @@
  * 负责：连续 Pointer 跟手、离散 preview/commit、Pointer Capture、键盘 Home/End/方向键、白色 Thumb settle 动画。
  * 不负责：业务持久化、模型语义、特效定义。
  * 状态归属：只拥有 pointerId / dragging / DOM visual-progress 临时交互态；业务 value 由调用方持有。
- * 修改注意事项：Pointer Move 的连续像素位置直接写 CSS variable，避免每一像素都触发父业务 React 重渲染；业务 preview 只在离散 index 改变时通知。
+ * 修改注意事项：Pointer Move 的连续像素位置直接写 CSS variable，避免每一像素都触发父业务 React 重渲染；PointerUp 只提交一次，不额外制造 preview(next) → preview(null) 双重业务渲染。
  */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import "./discrete-slider.css";
@@ -84,8 +84,8 @@ export function DiscreteSlider({
   const commit = (index: number) => {
     if (disabled || !steps.length) return;
     const next = Math.max(0, Math.min(steps.length - 1, index));
-    previewIndexRef.current = next;
-    onPreview?.(next);
+    // 拖拽期间 preview 已经反映当前离散档；松手只做一次业务 commit，
+    // 随后清除 preview 让父层回到 committed value，避免 PointerUp 额外闪两次。
     onCommit(next);
     previewIndexRef.current = null;
     onPreview?.(null);

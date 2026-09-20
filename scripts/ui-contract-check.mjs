@@ -28,6 +28,7 @@ const sharedSliderCss = read("packages/ui/src/ui-controls/discrete-slider.css");
 const sharedEffectCss = read("packages/ui/src/ui-effects/effects.css");
 const sharedEffectRegistry = read("packages/ui/src/ui-effects/registry.ts");
 const sharedEffectHost = read("packages/ui/src/ui-effects/UiEffectHost.tsx");
+const particleStreamCanvas = read("packages/ui/src/ui-effects/ParticleStreamCanvas.tsx");
 const sharedExtensionRegistry = read("packages/ui/src/ui-extension/registry.ts");
 const animatedDisclosure = read("packages/ui/src/ui-motion/AnimatedDisclosure.tsx");
 const shortcutHook = read("packages/ui/src/ui-shortcuts/useShortcut.ts");
@@ -264,9 +265,13 @@ for (const token of ["setPointerCapture", "onPointerMove", "onPointerUp", 'role=
 for (const token of [".lfaa-discrete-slider", "--lfaa-slider-progress", "prefers-reduced-motion"]) {
   if (!sharedSliderCss.includes(token)) fail(`missing shared ui-controls CSS contract: ${token}`);
 }
-for (const token of ["lfaa-ui-meteor", "prefers-reduced-motion"]) {
+for (const token of ["lfaa-ui-effect--particle-stream", "pointer-events: none"]) {
   if (!sharedEffectCss.includes(token)) fail(`missing shared ui-effects CSS contract: ${token}`);
 }
+for (const token of ["requestAnimationFrame", "ResizeObserver", "devicePixelRatio", "prefers-reduced-motion"]) {
+  if (!particleStreamCanvas.includes(token)) fail(`missing Canvas particle renderer contract: ${token}`);
+}
+if (/@keyframes|animation:/.test(sharedEffectCss)) fail("reasoning particle motion must not return to CSS keyframes/animation");
 for (const source of [sharedEffectRegistry, sharedExtensionRegistry]) {
   if (!source.includes("unregisterOwner") || !source.includes("#generation")) fail("UI registries must support owner-scoped unload + generation");
 }
@@ -277,29 +282,41 @@ for (const forbidden of ["packages/ui/src/effects", "packages/ui/src/overlay", "
 }
 
 
-// 12. v0.0.89：Chat/Composer 共基线；reasoning 固定六档；强力推理正交；Slider 常驻粒子层避免整卡闪烁。
+// 12. v0.0.90：Chat/Composer 共基线保持；reasoning 必须一对一消费当前模型 Capability；强力推理正交；Slider/粒子稳定性不回退。
 const reasoningControl = read("packages/app-shell/src/reasoning-control.ts");
-for (const label of ["极低", "低", "中", "高", "极高", "极限"]) {
-  if (!reasoningControl.includes(`label: "${label}"`)) fail(`missing v0.0.89 reasoning stage: ${label}`);
+for (const token of ["resolveReasoningStages", "return options.map", "label: providerOption.label", "providerOption.value", "reasoningBoostPreference", "reasoningBoost: boostActive"]) {
+  if (!(reasoningControl + tsx).includes(token)) fail(`missing v0.0.90 reasoning contract: ${token}`);
 }
-for (const token of ["isReasoningDisabledValue", "providerOption.value", "reasoningBoostPreference", "reasoningBoost: boostActive"]) {
-  if (!(reasoningControl + tsx).includes(token)) fail(`missing v0.0.89 reasoning contract: ${token}`);
+for (const forbidden of ["REASONING_UI_STAGES", "semanticRank", "isReasoningDisabledValue", "DISABLED_REASONING_VALUES"]) {
+  if (reasoningControl.includes(forbidden)) fail(`v0.0.90 must not synthesize/filter Provider reasoning stages: ${forbidden}`);
 }
+for (const syntheticLabel of ["极低", "极高", "极限"]) {
+  if (reasoningControl.includes(`label: "${syntheticLabel}"`)) fail(`v0.0.90 must not hard-code synthetic reasoning label: ${syntheticLabel}`);
+}
+if (!tsx.includes("steps={reasoningStages.map")) fail("reasoning slider steps must come from current Provider capability options");
+if (!tsx.includes("Math.min(reasoningStages.length - 1, index)")) fail("reasoning commit must clamp to dynamic Provider stage count");
 const boostToggle = tsx.match(/const toggleReasoningBoost = \(\) => \{[\s\S]*?\n  \};/);
 if (!boostToggle || /commitReasoningIndex|onQuickUpdateModelSetting/.test(boostToggle[0])) fail("strong reasoning must remain orthogonal to Provider reasoning stage");
 if (!css.includes("width:min(var(--agent-composer-max),100%)")) fail("chat timeline must share Composer horizontal geometry");
 if (/\.agent-runtime-control-card\{[^}]*translateZ\(0\)/s.test(css) || /\.agent-runtime-control-card\{[^}]*will-change:transform/s.test(css)) fail("runtime card must not force full-card GPU promotion");
 for (const token of ["--lfaa-slider-visual-progress", "style.setProperty", "setPointerCapture", "releasePointerCapture"]) {
-  if (!sharedSliderTsx.includes(token)) fail(`missing v0.0.89 smooth slider contract: ${token}`);
+  if (!sharedSliderTsx.includes(token)) fail(`missing v0.0.90 smooth slider contract: ${token}`);
 }
 for (const token of ["cursor: grab", "cursor: grabbing", "background: #fff"]) {
-  if (!sharedSliderCss.includes(token)) fail(`missing v0.0.89 slider affordance: ${token}`);
+  if (!sharedSliderCss.includes(token)) fail(`missing v0.0.90 slider affordance: ${token}`);
 }
-for (const token of ["data-active", "data-variant", "--lfaa-effect-color-4", "translate3d"]) {
-  if (!(sharedEffectHost + sharedEffectCss).includes(token)) fail(`missing v0.0.89 particle stability contract: ${token}`);
+for (const token of ["particle-stream-canvas", "ParticleStreamCanvas"]) {
+  if (!sharedEffectHost.includes(token)) fail(`missing v0.0.91 Canvas effect host contract: ${token}`);
 }
+for (const token of ["data-active", "data-variant", "createLinearGradient", "readSliderProgressRatio"]) {
+  if (!particleStreamCanvas.includes(token)) fail(`missing v0.0.91 Canvas particle contract: ${token}`);
+}
+if (!tsx.includes('active={boostActive}')) fail("reasoning particle renderer must only activate with strong reasoning");
+const reasoningCommit = tsx.match(/const commitReasoningIndex = \(index: number\) => \{[\s\S]*?\n  \};/);
+if (!reasoningCommit || !reasoningCommit[0].includes("reasoningCommitQueueRef")) fail("reasoning commits must use the serialized optimistic queue");
+if (/runModelControl|setModelControlBusy/.test(reasoningCommit[0])) fail("reasoning commit must not trigger modelControlBusy disabled flash");
 for (const token of ["--lfaa-reasoning-standard-color-1", "--lfaa-reasoning-extreme-color-4"]) {
-  if (!(css + read("packages/ui/src/ui-effects/index.ts")).includes(token)) fail(`missing v0.0.89 customizable reasoning palette token: ${token}`);
+  if (!(css + read("packages/ui/src/ui-effects/index.ts")).includes(token)) fail(`missing v0.0.90 customizable reasoning palette token: ${token}`);
 }
 
 console.log("LFAA UI contract check passed.");

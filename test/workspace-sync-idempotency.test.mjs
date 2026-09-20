@@ -63,6 +63,16 @@ test("source package preflight runs before diff planning and any destructive syn
   assert.match(integrity, /源版本包预检失败/);
 });
 
+test("source path encoding check requires canonical Unicode paths before claiming success", () => {
+  const encoding = functionBody("Assert-SourcePathEncoding");
+  assert.match(sync, /\$RequiredUnicodeSourcePaths = @\(/);
+  assert.match(sync, /docs\/项目结构与代码地图\.md/);
+  assert.match(encoding, /\$missingCanonical/);
+  assert.match(encoding, /ZIP 文件名 UTF-8 标记缺失/);
+  assert.match(encoding, /源版本包 Unicode 路径不完整/);
+  assert.ok(encoding.indexOf("$missingCanonical.Count -gt 0") < encoding.indexOf("源版本包文件名编码正常"));
+});
+
 test("local .lfaa runtime state remains protected from mirror deletion", () => {
   const protectedPath = functionBody("Test-ProtectedPath");
   const expected = String.raw`if ($rel -imatch "^\.lfaa/(cache|state|tmp|logs)(/|$)") { return $true }`;

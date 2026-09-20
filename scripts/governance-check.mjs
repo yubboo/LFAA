@@ -87,6 +87,8 @@ const required = [
   "test/package-architecture.test.mjs",
   "test/plugin-manager-ui-contract.test.mjs",
   "test/release-path-encoding.test.mjs",
+  "scripts/release-archive.mjs",
+  "test/release-archive.test.mjs",
   "packages/credentials/src/index.ts",
   "packages/plugin-runtime/src/lifecycle.ts",
   "packages/plugin-runtime/src/install-spec.ts",

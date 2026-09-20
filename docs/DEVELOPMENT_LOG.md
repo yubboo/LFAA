@@ -11,7 +11,10 @@
 
 | 任务 | 功能名称 | 版本 | 状态 |
 |---|---|---|---|
-| #22.4 | Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复 | v0.0.89 | pending-user-acceptance |
+| #22.6 | Canvas 粒子渲染与 reasoning 提交闪烁修复 | v0.0.91 | pending-user-acceptance |
+| #20.19 | Unicode ZIP 归档与 Sync 来源诊断修复 | v0.0.91 | pending-user-acceptance |
+| #22.5 | Provider 实际推理档位动态投影修正 | v0.0.90 | superseded |
+| #22.4 | Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复 | v0.0.89 | superseded |
 | #22.3 | 真实 Chat Run / UI Motion 与阻尼 Resize 基础 | v0.0.88 | superseded |
 | #21.21 | UI 共享模块 / Effect & Extension Registry 收敛 | v0.0.87 | pending-user-acceptance |
 | #21.20 | Composer 统一模型运行时控制器 / Popover 闪烁修复 | v0.0.86 | pending-user-acceptance |
@@ -54,12 +57,47 @@
 
 
 
+### #22.6 Canvas 粒子渲染与 reasoning 提交闪烁修复
 
+- **版本：** v0.0.91
+- **状态：** pending-user-acceptance
+- **用户实机反馈：** v0.0.90 的 DOM + CSS Keyframes 粒子几乎不可见；强力推理开启后没有动态粒子；reasoning Slider 拖拽松手仍会闪烁。
+- **闪烁根因：** reasoning commit 复用了模型切换 `modelControlBusy`，PointerUp 后 Slider 临时进入 `.is-disabled { opacity: .45 }` 再恢复；同时旧 Effect 用 DOM 粒子/CSS 动画，状态与业务渲染耦合过紧。
+- **实现：** 粒子主渲染迁移到单 Canvas 2D + `requestAnimationFrame`，用 `ResizeObserver` / DPR 保持清晰；CSS 只保留 Canvas 几何。Effect `active` 严格绑定 `boostActive`，关闭时取消 rAF 并清屏。
+- **提交链路：** reasoning 采用乐观本地选择 + `reasoningCommitQueueRef` 串行持久化，不再触发模型切换 busy；PointerUp 移除额外 preview(next) 业务更新。
+- **能力边界：** Provider reasoning 档位仍完全来自 #22.5 的当前模型 Capability；强力推理与档位正交，最高官方档只决定 extreme 视觉/默认 Hint。
+- **AI 验证：** pass。聚焦 Canvas/Reasoning/Sync/Archive 回归 30/30 PASS；全仓 Node 测试 135 项中 134 PASS，唯一未通过 `node-source-runtime.test.mjs` 是制作容器 Node 22.16.0 且无 workspace `node_modules`，无法解析 `@lfaa/credentials`，不属于本轮逻辑回归；UI Contract / Windows Script Encoding / Release Consistency PASS。
+- **用户验收：** pending。Windows 实机重点验证：反复拖拽松手无半透明闪烁；任意真实 reasoning 档开启闪电后立即出现持续粒子；关闭后立即停止。
+
+### #20.19 Unicode ZIP 归档与 Sync 来源诊断修复
+
+- **版本：** v0.0.91
+- **状态：** pending-user-acceptance
+- **用户实机阻断：** v0.0.90 来源包在 `LFAA-Sync.bat` 来源预检中缺少 canonical `docs/项目结构与代码地图.md`；稳定工作区因 fail-safe 未被修改。
+- **根因：** v0.0.90 ZIP entry 名称实际写入 UTF-8 bytes，但 Local Header / Central Directory 未设置 ZIP General Purpose Bit 11，Windows 解压按旧编码解释后破坏中文路径。
+- **实现：** 新增 `scripts/release-archive.mjs`，显式 UTF-8 entry + bit 11，保留 `.lfaa/` 与目录项；成品创建后反向解析 Central Directory，要求 exact 中文路径且 UTF-8 flag=true。
+- **Sync 保护：** `lfaa-sync.ps1` 在“路径编码正常”与 workspace-preflight 之前先检查 canonical Unicode 必需路径；缺失立即停止，不进入 diff/写入，也不放宽 governance。
+- **AI 验证：** pass。Archive/Unicode/Sync 聚焦测试 PASS；Windows PowerShell BOM/智能引号 Gate PASS；候选 ZIP 已由新归档器生成，Central Directory 中 canonical 中文 entry 的 UTF-8 bit=1、`.lfaa/` 存在、无 mojibake，fresh round-trip 后 workspace-preflight 全 Gate PASS。
+- **用户验收：** pending。
+
+
+
+
+### #22.5 Provider 实际推理档位动态投影修正
+
+- **版本：** v0.0.90
+- **状态：** superseded（v0.0.91 / #22.6 继续修复实机未通过的粒子与闪烁）
+- **用户修正：** v0.0.89 将 reasoning 固定成六个 LFAA 视觉档仍然是错误抽象。档位必须来自当前模型真实 Capability；Provider 返回几档就显示几档，模型没有 `reasoningEffort` 就不显示 Slider。
+- **真值链路：** ChatGPT/Codex 套餐 `model/list.supportedReasoningEfforts` → Config System `AiModelCapabilities.settings[].options` → App Shell 动态 steps；API Provider 同样只消费其当前模型已核实 Capability。
+- **实现边界：** App Shell 不再做 semantic rank / 六档归一 / disabled 过滤；只保留 exact option projection 与 index lookup。`ui-controls` 继续支持任意 steps 数量；`reasoningBoost` 继续独立。
+- **回归边界：** #22.4 的 Chat 基线、稳定 Popover、拖拽 Thumb、Effect Host 与闪屏修复必须保留。
+- **AI 验证：** pass。#22.5 聚焦 reasoning 回归 10/10 PASS；全仓可执行 Node 静态/契约测试（排除需要 Node 24 TS source loader/workspace 依赖的动态项）131/131 PASS；UI Contract PASS。制作容器为 Node 22.16.0，Config System 动态 `.ts` 测试因运行时不支持 TypeScript source import 未执行成功，因此不冒充 Node 24 + pnpm workspace 动态验证已完成。
+- **用户验收：** pending。
 
 ### #22.4 Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复
 
 - **版本：** v0.0.89
-- **状态：** pending-user-acceptance
+- **状态：** superseded（v0.0.90 / #22.5 修正固定六档；v0.0.91 / #22.6 继续修复粒子/闪烁）
 - **用户反馈：** v0.0.88 的 Chat 消息基线与 Composer 不一致；Runtime Card 顶部图标/模型区域有对齐问题；推理 Slider 拖拽僵硬、白色 Thumb/抓取反馈不稳定；粒子缺少持续流星感；Slider/Effect 更新时整张悬浮卡片存在闪白/闪屏。
 - **语义修正：** Runtime Control 固定显示 `极低 / 低 / 中 / 高 / 极高 / 极限` 六档，不再把 Provider 的 `none/disabled` 作为 UI 档位；六档只映射到官方 Capability 已声明的非关闭值。强力推理与档位解耦为独立 Run Hint，不再强制选择最高档。
 - **实现边界：** Slider Motion/Thumb 归 `ui-controls`；粒子/渐变 Palette 归 `ui-effects`；App Shell 只投影六档与 Capability 映射；Provider Catalog/Secret 不改。
@@ -572,6 +610,17 @@
 
 
 > 迁移来源：`docs/logs/development/active/0020-开发日志与文档规范.md`
+
+## #22.6 / #20.19 — v0.0.91 Canvas 粒子与 Unicode 发布归档修复
+
+- **版本：** v0.0.91
+- **状态：** implementing
+- **用户反馈：** v0.0.90 reasoning Slider 松手仍闪烁，强力推理没有动态粒子；Windows Sync 来源预检缺少 canonical 中文代码地图。
+- **已定位根因：** reasoning commit 复用 `modelControlBusy` 导致 PointerUp 后 Slider 进入 `.is-disabled{opacity:.45}` 再恢复；粒子仍是 DOM + CSS Keyframes 且 `effect active` 没与 boost 状态绑定。发布 ZIP 的中文 entry 使用 UTF-8 bytes 但未设置 ZIP bit 11，Windows 解压后 canonical Unicode 路径丢失。
+- **计划：** #22.6 改为单 Canvas 2D/rAF 粒子 + reasoning 乐观串行提交；#20.19 新增显式 UTF-8 ZIP 归档器并加强 Sync canonical Unicode 来源检查。
+- **允许/禁止/验收/测试：** 以 `docs/PROMPTS.md` #22.6 与 #20.19 为唯一合同。
+- **AI 验证：** pending。
+- **用户验收：** pending。
 
 ## #20 开发日志与文档规范
 

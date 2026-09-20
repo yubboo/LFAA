@@ -1,3 +1,18 @@
+## v0.0.91 Unicode Release Archive / Sync Source Guard
+
+`v0.0.90` 成品 ZIP 的中文 entry 字节虽然是 UTF-8，但未设置 ZIP UTF-8 filename flag（General Purpose Bit 11）。Windows 解压后 canonical `docs/项目结构与代码地图.md` 丢失，`workspace-preflight` 因 governance 缺文件而正确阻断；稳定工作区在失败前没有被修改。
+
+从 v0.0.91 起：
+
+1. 发布 ZIP 使用 `node scripts/release-archive.mjs --output <path>` 生成；Local Header 与 Central Directory 的所有 entry 都显式设置 bit 11。
+2. 归档生成后程序化读取 Central Directory，必须 exact 找到 `docs/项目结构与代码地图.md` 且 `utf8=true`；同时保留 `.lfaa/` 与空目录 entry。
+3. `LFAA-Sync.bat` 在来源 preflight 之前先验证 canonical Unicode 必需路径。缺失时直接报告“ZIP 文件名 UTF-8 标记缺失或解压损坏”，不再先显示“文件名编码正常”。
+4. 来源路径编码/完整性任一失败，都必须发生在 diff 计划和任何目标写入之前。
+
+## v0.0.90 Provider 动态 Reasoning Projection
+
+Composer 不拥有 reasoning 档位表。当前模型 `reasoningEffort.options` 已经由 Config System 从官方运行时接口/官方文档形成 Capability，App Shell 只按原数量、顺序、label、value 投影到 Slider；0 档时不显示 Slider。切模型只消费新的缓存 Capability，不在 UI 侧按厂商/模型名猜档位。`reasoningBoost` 继续是独立 Agent Execution Hint，不修改 Provider setting。
+
 ## v0.0.89 Agent Execution Hint
 
 `AgentRunRequest.executionHints.reasoningBoost` 是 Agent 级提示，不属于 `AgentModelBinding.settings`。Config System 仍是 Provider reasoning 参数唯一真值；Web 开发 Host 只能按 Host 能力解释该 Hint。本版 API 开发 Host 通过临时 system instruction 请求更充分的检查，不向 Provider body 注入 Capability 未声明的 reasoning 字段，也不把该 instruction 写回持久会话历史。

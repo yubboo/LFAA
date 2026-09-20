@@ -11,18 +11,19 @@ plugin-platform + agent-runtime + workbench
 当前状态：
 
 ```text
-testing
+pending-user-acceptance
 ```
 
 当前版本总任务：
 
 ```text
-#22.4 Chat 对齐 / 六档推理控制 / 粒子拖拽稳定性修复
-version: v0.0.89
+#22.6 Canvas 粒子渲染与 reasoning 提交闪烁修复
+#20.19 Unicode ZIP 归档与 Sync 来源诊断修复
+version: v0.0.91
 status: pending-user-acceptance
 ```
 
-v0.0.89 先处理 v0.0.88 实机未通过的 UI/交互问题：Chat Timeline 与 Composer 共享同一左右基线；Runtime Control 固定六档 `极低/低/中/高/极高/极限`，但只映射到当前模型官方 Capability 已声明的非关闭 reasoning 值；强力推理改为与档位正交的 Run Hint，极限只默认建议开启而不是强制耦合。Slider Motion/Thumb 继续归 `ui-controls`，粉色/粉紫流星粒子与 Palette 归 `ui-effects`，并优先消除 Pointer Preview 引起的整卡闪烁/闪白。
+v0.0.91 对 v0.0.90 的两项实机失败做根因修复：Runtime reasoning 粒子从 DOM + CSS Keyframes 迁移到单 Canvas 2D / requestAnimationFrame，强力推理状态才启动动画；reasoning setting 保存与模型切换 busy 解耦，避免 PointerUp 后 disabled opacity 闪烁。发布链新增显式 UTF-8 filename flag 的 ZIP 归档器，并让 Sync 在 canonical Unicode 必需路径缺失时于 preflight 前直接阻断。#22.5 的 Provider Capability 动态档位规则继续保留。
 
 v0.0.80 以用户提供的 DeepSeek Harness 源码包为主要工程参考，重点借鉴 capability seam、profile/bundle、PluginManager 共享事务、HMR 生命周期、credentials 引用和“抽象必须有当前 Consumer”的维护原则；不复制其产品实现。
 

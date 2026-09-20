@@ -1,6 +1,29 @@
-## LFAA v0.0.89 Release — #22.4 Chat Alignment / Six-stage Reasoning / Particle Stability
+## LFAA v0.0.91 Release — #22.6 Canvas Reasoning Effect / #20.19 Unicode Archive
 
 - **状态：** pending-user-acceptance
+- Strong Reasoning 粒子改为单 Canvas 2D / requestAnimationFrame；CSS 只保留稳定图层几何，不再负责粒子运动。
+- Effect 仅在 `boostActive` 时运行；standard 粉色、最高官方档 extreme 淡粉→粉→紫→深紫，并继续读取可配置颜色 Token。
+- Reasoning 档位保存改为乐观 UI + 串行 Promise 队列，不再触发模型切换 busy，修复拖拽松手后 Slider 半透明闪烁。
+- Provider reasoning 档位仍完全来自当前模型 Capability；#22.5 的 0/1/3/5/任意档动态投影规则不回退。
+- 新增 `scripts/release-archive.mjs`：所有 ZIP entry 使用 UTF-8 名称并显式设置 bit 11；成品必须 exact 包含 `docs/项目结构与代码地图.md`。
+- Sync 在 canonical Unicode 文件缺失时于 diff 之前停止；来源失败仍保持稳定工作区零修改。
+- **AI 验证：** 聚焦回归 30/30 PASS；全仓 Node 测试 135 项中 134 项可执行并 PASS，`node-source-runtime.test.mjs` 受当前 Node 22.16.0 + 缺 workspace `node_modules` 环境阻断；UI Contract、Unicode archive test、Sync contract、Windows BOM/智能引号 Gate、统一 workspace-preflight 与候选 ZIP round-trip 均通过。
+- **Windows 实机重点：** 反复拖拽 reasoning 后松手不应闪；任意真实档点击闪电应立即看到动态粒子；解压 v0.0.91 后 Sync 的来源路径编码和来源 preflight 应直接 PASS。
+
+## LFAA v0.0.90 Release — #22.5 Provider Dynamic Reasoning Projection
+
+- **状态：** pending-user-acceptance
+- Runtime reasoning Slider 不再固定六档，直接一对一消费当前模型 `reasoningEffort.options`。
+- Provider 返回几档就显示几档；没有 reasoning capability 就不显示 Slider；Provider 明确提供 `none/off` 时原样保留。
+- ChatGPT/Codex 套餐继续使用实时 `model/list.supportedReasoningEfforts`，API Provider 继续使用 Config System 已核实 Capability；UI 不猜模型能力。
+- Strong Reasoning 继续是与 Provider setting 正交的 Agent Run Hint；最高官方档只切换 extreme 视觉，不改 label/value。
+- 保留 v0.0.89 的 Chat 对齐、连续拖拽、白色 Thumb、粒子稳定挂载和 Runtime Card 防闪屏修复。
+- **AI 验证：** reasoning 聚焦 10/10 PASS；可执行 Node 静态/契约测试 131/131 PASS；UI Contract PASS。Node 22 制作环境不能替代项目要求的 Node 24 + pnpm workspace 动态 Config System 测试。
+- Windows 实机重点：切换 0/少档/多档真实模型时 steps 数量必须立即匹配当前 Capability，且不能残留上一模型档位。
+
+## LFAA v0.0.89 Release — #22.4 Chat Alignment / Six-stage Reasoning / Particle Stability
+
+- **状态：** superseded by v0.0.90 / #22.5
 - Chat 消息与 Composer 共基线：user → right，assistant/error → left。
 - Reasoning UI 固定六档且只映射官方非关闭 Capability option。
 - Strong Reasoning 独立为 Agent Run Hint；Extreme 默认开启但可显式关闭。

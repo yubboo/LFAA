@@ -72,7 +72,7 @@ import {
 } from "@lfaa/config-system";
 import type { InstalledPluginBundle, PluginInstallOutcome, PluginManagerSnapshot, PluginSpecInspection } from "@lfaa/plugin-runtime";
 import { WorkbenchIcon } from "./WorkbenchIcon";
-import { REASONING_EXTREME_STAGE_INDEX, REASONING_UI_STAGES, resolveReasoningStageIndex, resolveReasoningStageMap } from "./reasoning-control";
+import { resolveReasoningStageIndex, resolveReasoningStages } from "./reasoning-control";
 import type { AgentWorkbenchProps, DevResourceItem, ResourceKind } from "./workbench.types";
 import "./agent-workbench.css";
 
@@ -627,6 +627,8 @@ function CenterWorkspace({
   });
   const [reasoningBoostPreference, setReasoningBoostPreference] = useState<"auto" | "on" | "off">("auto");
   const [modelControlBusy, setModelControlBusy] = useState(false);
+  const reasoningCommitQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const reasoningCommitRevisionRef = useRef(0);
   const addMenuRef = useDismissibleLayer<HTMLDivElement>({ open: addMenuOpen, onDismiss: () => setAddMenuOpen(false) });
   const permissionMenuRef = useDismissibleLayer<HTMLDivElement>({ open: permissionMenuOpen, onDismiss: () => setPermissionMenuOpen(false) });
   const runtimeControlRef = useDismissibleLayer<HTMLDivElement>({ open: runtimeControlOpen, onDismiss: () => { setRuntimeControlOpen(false); setRuntimeModelPickerOpen(false); setReasoningPreviewIndex(null); } });
@@ -638,18 +640,13 @@ function CenterWorkspace({
     setReasoningPreviewIndex(null);
   }, [activeReasoning?.modelKey]);
 
-  // Host/Settings 回写 Provider value 时，若当前六档仍映射到同一官方值则保留用户选择；
-  // 只有外部真正切到另一 Provider value 时才回落到该值最接近的 UI 档位。
+  // Host/Settings 回写 Provider value 时按当前模型 Capability 做精确 index 同步；
+  // Provider 返回几档就显示几档，不保留上一模型或上一 Capability 的虚拟档位。
   useEffect(() => {
     const options = activeReasoning?.field.kind === "select" ? activeReasoning.field.options ?? [] : [];
-    const stageMap = resolveReasoningStageMap(options);
-    if (!stageMap.length) { setSelectedReasoningStageIndex(0); return; }
-    setSelectedReasoningStageIndex((current) => {
-      const currentBinding = stageMap[Math.max(0, Math.min(stageMap.length - 1, current))];
-      return currentBinding?.providerOption.value === activeReasoning?.value
-        ? current
-        : resolveReasoningStageIndex(options, activeReasoning?.value);
-    });
+    const stages = resolveReasoningStages(options);
+    if (!stages.length) { setSelectedReasoningStageIndex(0); return; }
+    setSelectedReasoningStageIndex(resolveReasoningStageIndex(options, activeReasoning?.value));
   }, [activeReasoning?.value, activeReasoning?.field.options]);
 
   // Composer 运行时快捷键统一走 @lfaa/ui/ui-shortcuts，避免每个功能重复监听 window.keydown。
@@ -674,7 +671,7 @@ function CenterWorkspace({
     setSubmitting(true);
     setRunNotice(null);
     try {
-      const reasoningBinding = reasoningStageMap[committedReasoningIndex];
+      const reasoningBinding = reasoningStages[committedReasoningIndex];
       const runtimeModelSettingOverrides = activeReasoning && reasoningBinding
         ? { [activeReasoning.field.id]: reasoningBinding.providerOption.value }
         : undefined;
@@ -693,6 +690,8 @@ function CenterWorkspace({
     setModelControlBusy(true);
     setRunNotice(null);
     try {
+      // 切模型前先让已提交的 reasoning setting 队列落盘，避免旧模型写入与新模型切换交错。
+      await reasoningCommitQueueRef.current.catch(() => undefined);
       await action();
     } catch (error) {
       setRunNotice(error instanceof Error ? error.message : "模型切换失败。");
@@ -702,30 +701,46 @@ function CenterWorkspace({
   };
 
   const providerReasoningOptions = activeReasoning?.field.kind === "select" ? activeReasoning.field.options ?? [] : [];
-  const reasoningStageMap = resolveReasoningStageMap(providerReasoningOptions);
+  const reasoningStages = resolveReasoningStages(providerReasoningOptions);
   const defaultReasoningStageIndex = resolveReasoningStageIndex(providerReasoningOptions, activeReasoning?.field.defaultValue);
-  const committedReasoningIndex = Math.max(0, Math.min(REASONING_UI_STAGES.length - 1, selectedReasoningStageIndex));
-  const visibleReasoningIndex = Math.max(0, Math.min(REASONING_UI_STAGES.length - 1, reasoningPreviewIndex ?? committedReasoningIndex));
-  const visibleReasoningStage = REASONING_UI_STAGES[visibleReasoningIndex];
-  const extremeReasoningActive = visibleReasoningIndex === REASONING_EXTREME_STAGE_INDEX;
-  const boostActive = reasoningStageMap.length > 0 && (
-    reasoningBoostPreference === "on" || (reasoningBoostPreference === "auto" && extremeReasoningActive)
+  const lastReasoningIndex = Math.max(0, reasoningStages.length - 1);
+  const committedReasoningIndex = Math.max(0, Math.min(lastReasoningIndex, selectedReasoningStageIndex));
+  const visibleReasoningIndex = Math.max(0, Math.min(lastReasoningIndex, reasoningPreviewIndex ?? committedReasoningIndex));
+  const visibleReasoningStage = reasoningStages[visibleReasoningIndex];
+  // Provider Capability 的最后一项只承担“最高官方档”的视觉角色，不会被重命名或改写 value。
+  const highestReasoningActive = reasoningStages.length > 0 && visibleReasoningIndex === lastReasoningIndex;
+  const boostActive = reasoningStages.length > 0 && (
+    reasoningBoostPreference === "on" || (reasoningBoostPreference === "auto" && highestReasoningActive)
   );
 
-  const commitReasoningIndex = async (index: number) => {
-    if (!activeReasoning || !reasoningStageMap.length || modelControlBusy) return;
-    const safeIndex = Math.max(0, Math.min(REASONING_UI_STAGES.length - 1, index));
-    const binding = reasoningStageMap[safeIndex];
+  const commitReasoningIndex = (index: number) => {
+    if (!activeReasoning || !reasoningStages.length || modelControlBusy) return;
+    const safeIndex = Math.max(0, Math.min(reasoningStages.length - 1, index));
+    const binding = reasoningStages[safeIndex];
     if (!binding) return;
-    // 先固定六档 UI，避免多个 UI 档映射同一 Provider 值后在 Host 回写时视觉跳回。
+
+    // reasoning 档位采用乐观 UI：PointerUp 立即保持选中，不再复用 modelControlBusy
+    // 把整条 Slider 变成 disabled/半透明。真实 Provider setting 在后台按提交顺序串行写入。
     setSelectedReasoningStageIndex(safeIndex);
-    setReasoningPreviewIndex(safeIndex);
-    await runModelControl(() => onQuickUpdateModelSetting(activeReasoning.field.id, binding.providerOption.value));
     setReasoningPreviewIndex(null);
+    setRunNotice(null);
+
+    const revision = ++reasoningCommitRevisionRef.current;
+    const fieldId = activeReasoning.field.id;
+    const providerValue = binding.providerOption.value;
+    const fallbackIndex = resolveReasoningStageIndex(providerReasoningOptions, activeReasoning.value);
+    const write = reasoningCommitQueueRef.current
+      .catch(() => undefined)
+      .then(() => onQuickUpdateModelSetting(fieldId, providerValue));
+
+    reasoningCommitQueueRef.current = write.catch((error) => {
+      if (reasoningCommitRevisionRef.current === revision) setSelectedReasoningStageIndex(fallbackIndex);
+      setRunNotice(error instanceof Error ? error.message : "思考强度保存失败。");
+    });
   };
 
   const toggleReasoningBoost = () => {
-    if (!activeReasoning || !reasoningStageMap.length || modelControlBusy) return;
+    if (!activeReasoning || !reasoningStages.length || modelControlBusy) return;
     // 强力推理是独立 Run Hint，绝不再修改 Provider reasoning 档位。
     setReasoningBoostPreference(boostActive ? "off" : "on");
   };
@@ -862,7 +877,7 @@ function CenterWorkspace({
               >
                 {boostActive ? <WorkbenchIcon name="bolt" size={13} /> : null}
                 <span className="agent-runtime-control-trigger__model">{modelLabel === "未配置模型" ? "选择模型" : modelLabel.split(" · ")[0]}</span>
-                {reasoningStageMap.length ? <span className="agent-runtime-control-trigger__effort">{visibleReasoningStage?.label ?? "默认"}</span> : null}
+                {reasoningStages.length ? <span className="agent-runtime-control-trigger__effort">{visibleReasoningStage?.label ?? "默认"}</span> : null}
                 <WorkbenchIcon name="chevron" size={12} />
                 {quickModels.length > 0 ? <span className="agent-runtime-control-trigger__tooltip">模型与思考强度 <kbd>Ctrl+Shift+M</kbd></span> : null}
               </button>
@@ -876,7 +891,7 @@ function CenterWorkspace({
                       aria-pressed={boostActive}
                       aria-label="强力推理"
                       data-tooltip="强力推理 · 用量可能更高"
-                      disabled={!reasoningStageMap.length || modelControlBusy}
+                      disabled={!reasoningStages.length || modelControlBusy}
                       onClick={toggleReasoningBoost}
                     ><WorkbenchIcon name="bolt" size={17} /></button>
 
@@ -887,11 +902,11 @@ function CenterWorkspace({
                       aria-label="切换模型"
                       onClick={() => setRuntimeModelPickerOpen((value) => !value)}
                     >
-                      <strong>{reasoningStageMap.length ? (visibleReasoningStage?.label ?? "默认") : "模型"}<WorkbenchIcon name="chevron" size={12} /></strong>
+                      <strong>{reasoningStages.length ? (visibleReasoningStage?.label ?? "默认") : "模型"}<WorkbenchIcon name="chevron" size={12} /></strong>
                       <small>{modelLabel === "未配置模型" ? "选择模型" : modelLabel.split(" · ")[0]}</small>
                     </button>
 
-                    <button className="agent-runtime-control-card__icon" type="button" aria-label="重置思考强度" data-tooltip="重置为默认" disabled={!reasoningStageMap.length || modelControlBusy} onClick={resetReasoning}><WorkbenchIcon name="refresh" size={17} /></button>
+                    <button className="agent-runtime-control-card__icon" type="button" aria-label="重置思考强度" data-tooltip="重置为默认" disabled={!reasoningStages.length || modelControlBusy} onClick={resetReasoning}><WorkbenchIcon name="refresh" size={17} /></button>
                   </div>
 
                   <AnimatedDisclosure open={runtimeModelPickerOpen} className="agent-runtime-model-picker-disclosure">
@@ -924,17 +939,17 @@ function CenterWorkspace({
                     </div>
                   </AnimatedDisclosure>
 
-                  {reasoningStageMap.length ? (
-                    <div className="agent-reasoning-slider-shell" data-reasoning-stage={visibleReasoningStage?.id ?? "low"}>
+                  {reasoningStages.length ? (
+                    <div className="agent-reasoning-slider-shell" data-reasoning-stage={highestReasoningActive ? "extreme" : "standard"}>
                       <DiscreteSlider
                         ariaLabel={activeReasoning?.field.label ?? "思考强度"}
-                        steps={REASONING_UI_STAGES.map((stage) => ({ id: stage.id, label: stage.label }))}
+                        steps={reasoningStages.map((stage) => ({ id: stage.id, label: stage.label }))}
                         valueIndex={visibleReasoningIndex}
                         disabled={modelControlBusy}
-                        variant={extremeReasoningActive ? "extreme" : "standard"}
+                        variant={highestReasoningActive ? "extreme" : "standard"}
                         onPreview={setReasoningPreviewIndex}
-                        onCommit={(index) => { void commitReasoningIndex(index); }}
-                        effect={<UiEffectHost registry={builtinUiEffectRegistry} effectId="reasoning-overdrive" active variant={extremeReasoningActive ? "extreme" : "standard"} />}
+                        onCommit={commitReasoningIndex}
+                        effect={<UiEffectHost registry={builtinUiEffectRegistry} effectId="reasoning-overdrive" active={boostActive} variant={highestReasoningActive ? "extreme" : "standard"} />}
                       />
                     </div>
                   ) : <div className="agent-runtime-control-card__unsupported">当前模型没有公开可调的思考强度。</div>}

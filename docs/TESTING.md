@@ -1,8 +1,17 @@
-## v0.0.89 / #22.4 Chat Alignment + Reasoning Control 回归
+## v0.0.91 / #22.6 + #20.19 回归
 
-自动门禁必须锁定：六个非关闭 UI 档位；六档只提交官方 Capability option；强力推理 toggle 不调用 `commitReasoningIndex`；Agent Run Hint 与 Provider settings 分离；Chat/Composer 共用水平几何；Slider 用 DOM CSS variable 连续跟手、白色 Thumb、grab/grabbing；Effect Host 常驻并支持 standard/extreme Palette；Runtime Card 不再整卡 `translateZ(0)` / `will-change: transform`。
+本轮新增两类必须回归：
 
-Windows 实机重点：连续 30 次打开/关闭卡片、开关强力推理、拖拽六档、展开模型列表和切模型，观察是否还有闪白/闪屏；用户消息右对齐输入框，AI 左对齐输入框；普通档粉色流星、极限粉→紫流星；极限默认开强力推理但手动关闭后不自动弹回。
+- Canvas Effect：`ParticleStreamCanvas` 必须含 `requestAnimationFrame / ResizeObserver / devicePixelRatio / prefers-reduced-motion`，不得含逐帧 React State；`effects.css` 不得出现粒子 `animation`/帧动画；App Shell 必须 `active={boostActive}`。
+- Reasoning 提交：`commitReasoningIndex` 必须使用 `reasoningCommitQueueRef` 串行持久化，不得调用 `runModelControl` / `setModelControlBusy`；Slider PointerUp 不再产生 preview(next) → commit → preview(null) 双重业务更新。
+- Release ZIP：`release-archive.test.mjs` 必须验证 exact 中文 entry 的 ZIP UTF-8 bit；`release-path-encoding` 与 `workspace-sync-idempotency` 锁定 canonical Unicode 来源阻断。
+- 最终成品必须使用 `scripts/release-archive.mjs` 生成，再解压到全新目录运行 `node scripts/workspace-preflight.mjs`。
+
+## v0.0.90 / #22.5 Provider Dynamic Reasoning Projection 回归
+
+自动门禁必须锁定：Runtime reasoning steps 只来自当前模型 `reasoningEffort.options`；禁止固定六档、semantic rank、补档和全局 off 过滤；0/1/3/5 档都必须安全；强力推理 toggle 不调用 `commitReasoningIndex`；Run 只提交 `providerOption.value`；Chat/Composer 共用水平几何；#22.4 的 Slider 白色 Thumb、grab/grabbing、常驻 Effect Host 与 Runtime Card 防闪屏约束继续保留。
+
+Windows 实机重点：分别切换“无 reasoning capability / 少量档位 / 多档位”的真实模型，观察 Slider 数量是否立即与当前模型官方 Capability 一致；Provider 有 `none/关闭思考` 时保留，没有时不得生成；连续 30 次切模型、拖档、开关强力推理，不能残留上一模型档位、越界、闪白或闪屏。用户消息右对齐输入框、AI 左对齐输入框继续验收。
 
 ## v0.0.88 / #22.3 Chat Runtime + Motion 回归
 

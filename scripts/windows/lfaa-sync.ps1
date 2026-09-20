@@ -19,6 +19,9 @@ $Utf8Strict = New-Object System.Text.UTF8Encoding($false, $true)
 $Cp437 = [System.Text.Encoding]::GetEncoding(437)
 $Cp936 = [System.Text.Encoding]::GetEncoding(936)
 $LegacyPathEncodings = @($Cp437, $Cp936)
+$RequiredUnicodeSourcePaths = @(
+    "docs/项目结构与代码地图.md"
+)
 [Console]::OutputEncoding = $Utf8NoBom
 $OutputEncoding = $Utf8NoBom
 try { & chcp.com 65001 | Out-Null } catch {}
@@ -164,6 +167,32 @@ function Get-RecoveredUnicodeName {
 
 function Assert-SourcePathEncoding {
     param([string]$Root)
+
+    # 先验证 canonical Unicode 必需路径真实存在。
+    # 只有「没有缺失 + 没有可恢复的 mojibake」时，才允许输出「文件名编码正常」。
+    $missingCanonical = @()
+    foreach ($relative in $RequiredUnicodeSourcePaths) {
+        $full = Join-Path $Root ($relative -replace "/", "\")
+        if (-not (Test-Path -LiteralPath $full)) {
+            $missingCanonical += $relative
+        }
+    }
+
+    if ($missingCanonical.Count -gt 0) {
+        Write-Host ""
+        Write-Label "【错误】" "【路径编码】" "源版本包缺少必须的 Unicode 路径；常见原因是 ZIP 文件名 UTF-8 标记缺失或解压工具破坏了中文文件名。" Red
+        foreach ($relative in $missingCanonical) {
+            Write-Host ("  缺少: {0}" -f $relative) -ForegroundColor Red
+        }
+        $docsRoot = Join-Path $Root "docs"
+        if (Test-Path -LiteralPath $docsRoot) {
+            $nearby = @(Get-ChildItem -LiteralPath $docsRoot -Force -File | Select-Object -ExpandProperty Name)
+            if ($nearby.Count -gt 0) {
+                Write-Label "【诊断】" "【docs 文件】" ((($nearby | Select-Object -First 20) -join ", ")) DarkYellow
+            }
+        }
+        Stop-Lfaa "源版本包 Unicode 路径不完整。请重新获取由 LFAA release archive 生成的完整发布包，并重新解压后再同步。"
+    }
 
     $issues = New-Object System.Collections.ArrayList
     $seen = @{}

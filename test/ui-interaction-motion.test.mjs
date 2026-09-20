@@ -40,9 +40,11 @@ test("workbench resize consumes reusable frame-rate independent damping", () => 
   assert.match(resize, /drag\.visualSize/);
 });
 
-test("v0.0.89 reasoning drag is compositor-friendly and card does not force a flashing GPU layer", () => {
+test("v0.0.91 dynamic reasoning drag avoids disabled flash and card GPU promotion", () => {
   const slider = readFileSync(new URL("packages/ui/src/ui-controls/DiscreteSlider.tsx", root), "utf8");
   const sliderCss = readFileSync(new URL("packages/ui/src/ui-controls/discrete-slider.css", root), "utf8");
+  const particleCanvas = readFileSync(new URL("packages/ui/src/ui-effects/ParticleStreamCanvas.tsx", root), "utf8");
+  const effectCss = readFileSync(new URL("packages/ui/src/ui-effects/effects.css", root), "utf8");
   assert.match(slider, /--lfaa-slider-visual-progress/);
   assert.match(slider, /style\.setProperty/);
   assert.match(slider, /previewIndexRef/);
@@ -51,4 +53,8 @@ test("v0.0.89 reasoning drag is compositor-friendly and card does not force a fl
   assert.match(sliderCss, /background: #fff/);
   assert.doesNotMatch(css, /\.agent-runtime-control-card\{[^}]*translateZ\(0\)/s);
   assert.doesNotMatch(css, /\.agent-runtime-control-card\{[^}]*will-change:transform/s);
+  assert.match(workbench, /reasoningCommitQueueRef/);
+  assert.match(workbench, /active=\{boostActive\}/);
+  assert.match(particleCanvas, /requestAnimationFrame/);
+  assert.doesNotMatch(effectCss, /@keyframes|animation:/);
 });
