@@ -5,7 +5,7 @@
  * 不负责：启动 Vite dev server、视觉验收、业务测试。
  * 状态归属：无运行时状态。
  * 对外接口：`node --test test/runtime-import-resolution.test.mjs`。
- * 关联文件：packages/ui/package.json、packages/ui/src/features/settings/SettingsPage.tsx、scripts/runtime-import-resolution-check.mjs。
+ * 关联文件：packages/ui/package.json、packages/app-shell/src/workbench/settings/view/SettingsPage.tsx、scripts/runtime-import-resolution-check.mjs。
  * 修改注意事项：若更换公共子入口，必须同步 package exports 与运行时解析门禁，禁止恢复 tsconfig-only @/ alias。
  */
 import assert from "node:assert/strict";
@@ -16,7 +16,7 @@ import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
 const root = process.cwd();
-const settingsFile = path.join(root, "packages/ui/src/features/settings/SettingsPage.tsx");
+const settingsFile = path.join(root, "packages/app-shell/src/workbench/settings/view/SettingsPage.tsx");
 const uiPackageFile = path.join(root, "packages/ui/package.json");
 
 test("Settings 通过 @lfaa/ui/workbench 公共子入口复用布局", () => {

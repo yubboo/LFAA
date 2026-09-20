@@ -1,11 +1,11 @@
 {
   "name": "lfaa",
   "private": true,
-  "version": "0.0.97",
+  "version": "0.0.98",
   "description": "Little Fish AI Agent monorepo",
   "scripts": {
     "preinstall": "node scripts/pnpm-only.mjs",
-    "governance:check": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs && node scripts/runtime-import-resolution-check.mjs && node scripts/folder-boundary-check.mjs && node scripts/language-ownership-check.mjs && node scripts/package-architecture-check.mjs && node scripts/dev-log-check.mjs && node scripts/docs-check.mjs && node scripts/comment-check.mjs && node scripts/windows-script-encoding-check.mjs && node scripts/release-consistency-check.mjs && node scripts/prompt-lifecycle-check.mjs && node scripts/config-schema-check.mjs && node scripts/release-gates-check.mjs && node scripts/ui-contract-check.mjs",
+    "governance:check": "node scripts/governance-check.mjs && node scripts/import-path-check.mjs && node scripts/runtime-import-resolution-check.mjs && node scripts/folder-boundary-check.mjs && node scripts/language-ownership-check.mjs && node scripts/package-architecture-check.mjs && node scripts/dev-log-check.mjs && node scripts/docs-check.mjs && node scripts/current-fact-check.mjs && node scripts/comment-check.mjs && node scripts/windows-script-encoding-check.mjs && node scripts/release-consistency-check.mjs && node scripts/prompt-lifecycle-check.mjs && node scripts/config-schema-check.mjs && node scripts/release-gates-check.mjs && node scripts/ui-contract-check.mjs",
     "release:name": "node scripts/release-name.mjs",
     "test": "pnpm run test:release-environment && pnpm run test:release-gates && pnpm run test:dependency-setup && pnpm run test:workspace-sync && pnpm run test:release-path-encoding && pnpm run test:release-archive && pnpm run test:node-dependency-health && pnpm run test:settings-shell && pnpm run test:workspace-boundary && pnpm run test:workbench-snap && pnpm run test:config-system && pnpm run test:ai-web-host && pnpm run test:runtime-imports && pnpm run test:node-source-runtime && pnpm run test:package-architecture && pnpm run test:plugin-platform && pnpm run test:plugin-manager-ui && pnpm run test:model-quick-switch && pnpm run test:dismissible-layer && pnpm run test:ui-shared-modules && pnpm run test:ui-interaction-motion && pnpm run test:chat-runtime",
     "typecheck": "pnpm run typecheck:web && pnpm run typecheck:config-system",

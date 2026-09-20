@@ -1,19 +1,19 @@
-# LFAA v0.0.97 — 全项目术语与架构一致性维护
+# LFAA v0.0.98 — 全仓审计问题修复与发布门禁闭环
 
-**当前包：LFAA-v0.0.97**
+**当前包：LFAA-v0.0.98**
 
-v0.0.97 以 v0.0.96 的 Workspace 父领域结构为基线做维护，不扩展功能面。Chat 与 Work 的正式术语统一为 **Workspace Mode（工作模式）**；`Surface` 只用于真实 UI 承载面，`ViewModel` 用于 UI 数据形状，`Renderer / Interaction Primitive` 用于 InfiniteCanvas 等共享 UI 能力，`Projection` 仅保留给真正的 Read Model / Event 派生语义。
+v0.0.98 以 v0.0.97 为基线修复构建、类型检查、Node source 测试、当前 Owner 文档与 UI Kit 产品页面归属，不扩展功能面。Chat 与 Work 继续是同一 Workspace 的两种工作模式。
 
-本版同时修正 Agent Runtime / Workspace / App Shell / Web Bridge 的契约命名，补齐 Agent Runtime 公共 type export，清理当前事实文档漂移，并增加术语防回归测试。Infinite Canvas、Reasoning、Provider、Plugin、Rust、Windows 运维行为全部冻结。
+Settings 导航、Plugin 管理页与 UserMenu 由 App Shell 拥有，AI 配置图形面板继续按固定目录规则位于 UI 包。Infinite Canvas、Reasoning、Provider、Plugin、Rust、Windows 运维行为保持。
 
 # Little Fish AI Agent
 
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.97**
+**当前包：LFAA-v0.0.98**
 
-## 当前产品定位（v0.0.97）
+## 当前产品定位（v0.0.98）
 
 LFAA 是面向个人的 AI 任务平台，而不是只会对话的聊天壳。用户可以通过 **Chat 一句话** 或 **Work 无限画布** 驱动同一个 Agent Runtime；一键开服、AI 写作、AI 拆图、Minecraft 插件/模组开发等场景最终都应作为 Plugin / Capability / App Pack 进入。
 
@@ -69,8 +69,8 @@ plugin-platform + agent-runtime + workspace + workbench
 当前版本总任务：
 
 ```text
-#21.26 全项目术语与架构一致性维护
-version: v0.0.97
+#21.27 全仓审计问题修复与发布门禁闭环
+version: v0.0.98
 status: pending-user-acceptance
 
 Workspace 是父领域：Chat 与 Work 是同一核心上的两种 Workspace Mode；App Shell 只装配公开 API。Agent Run 使用 `workspaceMode`，Chat UI 数据使用 `ChatMessageViewModel`；v0.0.96 的 Infinite Canvas 持久化/选中置顶、Reasoning/Resize/Provider/Plugin/Rust/Windows 运维行为保持冻结。

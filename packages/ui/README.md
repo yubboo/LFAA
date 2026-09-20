@@ -16,7 +16,7 @@ packages/ui/src/
 ├─ ui-resize/        阻尼/resize primitive
 ├─ layout/           通用布局
 ├─ workbench/        通用工作台几何 / Resize / Snap
-└─ features/         仅可复用、无产品真值的 Feature UI（如 InfiniteCanvas Renderer/Interaction）
+└─ features/         InfiniteCanvas Renderer/Interaction 与固定归属的 AI 配置图形面板
 ```
 
 每个 Primitive 可拥有自己的 TS/TSX 与局部样式。CSS 只描述该 Primitive 的视觉；几何、Pointer、Canvas、ARIA 等需要可测试逻辑时由 TS 持有。

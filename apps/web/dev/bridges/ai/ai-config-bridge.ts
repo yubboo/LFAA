@@ -118,10 +118,10 @@ export function lfaaDevAiConfigBridge(projectRoot: string): Plugin {
           }
           const managedLoginMatch = pathname.match(/^\/managed-login\/([A-Za-z0-9._-]{8,160})$/);
           if (managedLoginMatch && request.method === "GET") {
-            return sendJson(response, 200, { ok: true, status: await service.managedLoginStatus(managedLoginMatch[1]) });
+             return sendJson(response, 200, { ok: true, status: await service.managedLoginStatus(managedLoginMatch[1]!) });
           }
           if (managedLoginMatch && request.method === "DELETE") {
-            await service.cancelManagedLogin(managedLoginMatch[1]);
+             await service.cancelManagedLogin(managedLoginMatch[1]!);
             return sendJson(response, 200, { ok: true });
           }
           if (request.method === "POST" && pathname === "/subscription/accounts") {

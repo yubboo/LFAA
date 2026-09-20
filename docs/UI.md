@@ -1,4 +1,6 @@
-## v0.0.97 Workspace / App Shell / UI Kit 当前边界
+## v0.0.98 Workspace / App Shell / UI Kit 当前边界
+
+Settings 导航和插件管理页由 `packages/app-shell/src/workbench/settings/` 拥有，个人菜单由 `packages/app-shell/src/workbench/shell/` 拥有；`packages/ui/src/features/settings/ai/` 只提供按 AGENTS.md 固定的 AI 配置图形面板。迁移保持原有 CSS class、左栏几何和用户交互。
 
 - `@lfaa/workspace` 拥有 Chat Mode 与 Work Mode：`chat/` 负责线性消息 View，`work/` 负责 Infinite Canvas 产品 View 和低频布局持久化，`shared/` 负责共用 Session。
 - `@lfaa/app-shell` 拥有 Shell、Left/Right、Center Chrome、Composer/RuntimeControl、Terminal、Settings，并通过 `@lfaa/workspace` 公共入口装配当前 Workspace Mode。
@@ -14,7 +16,7 @@
 - 产品界面（Left/Conversation/Composer/RuntimeControl/Settings）归 `@lfaa/app-shell`；每个模块的 View 与局部 CSS Module 共属该产品模块。
 - `@lfaa/ui` 是共享 UI Kit，不是产品页面仓库。它可以用 TS/TSX 实现 Slider、Pointer、Canvas、ARIA 等通用交互，但不能知道 DeepSeek、强力推理、用户消息等 LFAA 业务语义。
 - 产品模块样式进入本模块 `styles/*.module.css`；全局 CSS 只允许 reset / font / root token / document 基础规则，禁止跨模块业务 selector。
-- Work Surface 使用 `WorkCanvasRegion → @lfaa/ui InfiniteCanvas`。InfiniteCanvas 保持高频 pan/zoom/node drag；App Shell Work Canvas Controller 只接收低频 commit 并保存节点坐标与 viewport。
+- Work Mode 使用 `@lfaa/workspace` 的 `WorkWorkspace → @lfaa/ui InfiniteCanvas`。InfiniteCanvas 保持高频 pan/zoom/node drag；Workspace Work Controller 只接收低频 commit 并保存节点坐标与 viewport。
 - 选中/拖动节点视觉上必须位于普通节点之前，edge 始终位于节点之后；节点自由重叠，不自动重排。
 
 本轮不改变 Reasoning Slider、强力推理粒子、Resize/Snap 视觉和行为。
@@ -556,4 +558,3 @@ AI Provider UI 只能作为 Settings 的“AI 服务”分类内容存在；Prov
 ### 权限卡
 
 三档权限仍为“请求审批 / 替我审批 / 完全权限”，但卡片必须紧凑，默认宽度上限 22rem；完全权限保留风险色。权限选择同样支持点击空白处关闭。
-

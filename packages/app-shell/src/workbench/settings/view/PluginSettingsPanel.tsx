@@ -3,6 +3,10 @@
  * 作用：LFAA 设置中心的“插件与能力”管理界面。
  * 负责：DSH 风格 inspect → 确认 → 事务安装 → 启用，以及已安装插件启停/移除。
  * 不负责：pnpm、Profile 文件、第三方代码 import、Secret 读取、权限绕过。
+ * 状态归属：安装输入与确认状态仅在本 View；Plugin Profile 真值由 Host/PluginManager 持有。
+ * 对外接口：PluginSettingsPanel。
+ * 关联文件：../contracts/settings.types.ts、../logic/usePluginSettingsController.ts、SettingsPage.tsx。
+ * 修改注意事项：这里不执行插件代码，也不把依赖写入 LFAA 根 workspace。
  */
 import { useMemo, useState } from "react";
 import type {
@@ -10,7 +14,7 @@ import type {
   PluginSettingsInspectionView,
   PluginSettingsInstallResultView,
   PluginSettingsPanelProps,
-} from "../settings.types";
+} from "../contracts/settings.types";
 
 function CapabilitySummary({ plugin }: { plugin: Pick<PluginSettingsInstalledView, "capabilities" | "credentials"> }) {
   const grouped = useMemo(() => {

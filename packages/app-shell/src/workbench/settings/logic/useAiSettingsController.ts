@@ -11,7 +11,7 @@ const EMPTY_SNAPSHOT:AiAccountSnapshot={accounts:[],activeModel:null,secretPersi
 function formatReasoningEffort(value:unknown):string|null { if(typeof value!=="string"||!value.trim()) return null; const labels:Readonly<Record<string,string>>={none:"关",disabled:"关",enabled:"开",low:"低",medium:"中",high:"高",xhigh:"极高",max:"最大"}; return labels[value]??value; }
 
 export function useAiSettingsController(host:AgentAiSettingsHost|undefined) {
-  const [selectedProviderId,setSelectedProviderId]=useState(builtinAiProviderPlugins[0]?.id??"openai");
+  const [selectedProviderId,setSelectedProviderId]=useState<string>(builtinAiProviderPlugins[0]?.id??"openai");
   const [snapshot,setSnapshot]=useState<AiAccountSnapshot>(EMPTY_SNAPSHOT);
   const [hostAvailable,setHostAvailable]=useState(Boolean(host));
   useEffect(()=>{ let cancelled=false; if(!host){setHostAvailable(false);return;} host.snapshot().then((next)=>{if(cancelled)return;setSnapshot(next);setHostAvailable(true);}).catch(()=>{if(!cancelled)setHostAvailable(false);}); return()=>{cancelled=true;}; },[host]);

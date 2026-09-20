@@ -1,3 +1,9 @@
+## v0.0.98 / #21.27 当前架构与归属
+
+当前真实路径：`packages/workspace/src/chat/`、`packages/workspace/src/work/logic/`、`packages/workspace/src/shared/logic/`。Settings 页面导航与 Plugin 管理视图由 `packages/app-shell/src/workbench/settings/` 拥有，个人菜单由 `packages/app-shell/src/workbench/shell/` 拥有；AI 配置图形面板按 AGENTS.md 固定在 `packages/ui/src/features/settings/ai/`，只消费 Props，不拥有 Config/Secret 真值。`@lfaa/ui` 的其他职责仍为通用 UI Kit。
+
+以下旧版本标题仅记录形成当前架构的背景；涉及旧物理路径时，以上当前路径及 `docs/项目结构与代码地图.md` 为准。
+
 ## v0.0.97 / #21.26 Workspace 专业术语与架构一致性
 
 LFAA 的产品顶层是 **一个 Workspace 父领域 + 两种 Workspace Mode**：
@@ -66,7 +72,7 @@ Workbench 产品模块内部按需采用统一职责层：
 
 Web Runtime 边界：`apps/web/src` 是浏览器 bundle；`apps/web/dev` 是 Vite dev-server/Node Host。`vite.config.ts` 只组合 `agent / ai / plugins / resources / terminal` bridge；Resource 与 PTY 详细实现已经下沉 `dev/bridges/*`。
 
-#22.8 Work Canvas 视觉布局 Owner 现在位于 `workbench/center/conversation/work-canvas/logic`：只按 workspaceId 保存节点 `id→x/y` 与 viewport `{x,y,scale}`，高频 Pointer 仍留在 `@lfaa/ui` InfiniteCanvas；Session 只拥有 Run/Chat/Surface/Permission/lastRunInput，不拥有 Canvas 坐标。
+#22.8 Work Canvas 视觉布局 Owner 现位于 `packages/workspace/src/work/logic/`：只按 workspaceId 保存节点 `id→x/y` 与 viewport `{x,y,scale}`，高频 Pointer 仍留在 `@lfaa/ui` InfiniteCanvas；`packages/workspace/src/shared/logic/` 拥有共用 Session/Run，不拥有 Canvas 坐标。
 
 ## v0.0.94 / #21.23 Workbench 全域模块化架构
 
@@ -140,7 +146,7 @@ LFAA 不再拥有固定六档 reasoning taxonomy。当前模型 Capability 返�
 
 # LFAA 当前架构
 
-> 本文件只描述当前有效架构；历史变化统一通过 `docs/DEVELOPMENT_LOG.md` 追溯。
+> 本文件顶部给出当前有效路径与归属；下方版本段落是形成过程的背景，历史变化以 `docs/DEVELOPMENT_LOG.md` 为准。
 
 ## v0.0.88 交互运行时补充
 
@@ -166,7 +172,7 @@ short-name: LFAA
 
 LFAA 采用 **Service Definition / Provider / Consumer / Composition** 的角色分离，但只有存在真实实现与当前 Consumer 时才创建 workspace package。规划中的模块只留在文档，不允许用 `export {}` 或 `module_name()` 占位。
 
-当前 Node workspace 只有 9 个真实项目：
+当前 Node workspace 有 10 个真实项目：
 
 ```text
 foundation
@@ -180,11 +186,14 @@ runtime
 domain
 └─ @lfaa/config-system    Provider / Account / Model 配置
 
+workspace
+└─ @lfaa/workspace        Chat / Work 工作模式与共用 Session
+
 presentation
-└─ @lfaa/ui               React UI / Settings / Workbench
+└─ @lfaa/ui               通用 UI Kit / AI 配置图形面板 / Workbench Primitive
 
 composition
-└─ @lfaa/app-shell        产品 Surface 与 Host/ViewModel 装配
+└─ @lfaa/app-shell        产品 Settings / Shell / Host/ViewModel 装配
 
 host-adapter
 └─ @lfaa/plugin-host-node 独立 Plugin Profile + pnpm 事务宿主

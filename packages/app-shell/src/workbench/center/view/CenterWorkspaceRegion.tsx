@@ -27,7 +27,7 @@ export interface CenterWorkspaceRegionProps {
   activeReasoning: ActiveReasoningControl | null;
   runtimeConnected: boolean;
   chatMessages: readonly ChatMessageViewModel[];
-  workspaceId?: string;
+  workspaceId: string | undefined;
   lastRunInput: string | null;
   onPermissionProfileChange: (profileId: AgentPermissionProfileId) => void;
   onSubmitTask: (input: string, executionHints?: AgentExecutionHints, modelSettingOverrides?: Readonly<Record<string, AiModelSettingValue>>) => Promise<AgentRunHandle>;

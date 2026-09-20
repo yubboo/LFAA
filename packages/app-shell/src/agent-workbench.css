@@ -5,7 +5,7 @@
  * 不负责：任何 Workbench 区域、业务组件、Overlay、RuntimeControl 的样式。
  * 状态归属：无运行时状态；仅提供浏览器全局静态 reset。
  * 对外接口：由 AgentWorkbench.tsx 一次导入，对 App Shell 文档根生效。
- * 关联文件：AgentWorkbench.tsx、workbench/**/\*.module.css。
+ * 关联文件：AgentWorkbench.tsx、各 Workbench 子模块的 CSS Module。
  * 修改注意事项：禁止新增 `.agent-*` / 模块业务 selector；区域视觉必须进入对应 `*.module.css`。
  *
  * 盒子结构：这里只定义文档根/通用 HTML 元素 reset，不定义任何 Workbench 区域盒子。

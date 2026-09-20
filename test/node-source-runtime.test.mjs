@@ -6,6 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 test("Node source runtime packages can be imported by the native TypeScript loader", () => {
@@ -18,7 +19,7 @@ test("Node source runtime packages can be imported by the native TypeScript load
     "@lfaa/plugin-host-node",
   ].map((name) => `await import(${JSON.stringify(name)});`).join("\n");
   const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "--eval", code], {
-    cwd: process.cwd(),
+    cwd: fileURLToPath(new URL("../apps/web/", import.meta.url)),
     encoding: "utf8",
   });
   assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);

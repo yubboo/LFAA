@@ -1,6 +1,6 @@
 /** Settings 页面显隐与 active section 的唯一 Owner。 */
 import { useCallback,useState } from "react";
-import type { SettingsSectionId } from "@lfaa/ui";
+import type { SettingsSectionId } from "../contracts/settings.types";
 export function useSettingsSurfaceController(){
   const [surface,setSurface]=useState<"workbench"|"settings">("workbench");
   const [settingsSection,setSettingsSection]=useState<SettingsSectionId>("general");

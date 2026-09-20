@@ -1,3 +1,11 @@
+## v0.0.98 / #21.27 审计问题修复回归
+
+- 在 Node 24 / pnpm 11.17.0 环境实际运行 `pnpm run quality:full`：必须经过治理检查、Web/Config TypeScript、全部 Node 测试和 Vite 生产构建；`workspace-preflight` 只验证无需依赖的静态边界。
+- Node source runtime 测试从真实 Host Consumer `apps/web/` 解析 workspace packages，不要求仓库根部声明无关依赖。
+- 产品 Settings/Page/Plugin/UserMenu 位于 App Shell；AI 配置图形面板按固定规则留在 UI 包；文档当前事实路径通过 `scripts/current-fact-check.mjs` 核对。
+- 发布归档必须按 Unicode ZIP 和 fresh extract preflight 验证；AI 自测通过后仍只标记 pending-user-acceptance。
+- 本次结果：`quality:full` 全部通过；Node source runtime `1/1 PASS`；Web `tsc --noEmit`、Config System TypeScript、Vite production build 均通过；v0.0.98 ZIP 673 entries，fresh extract `workspace-preflight` 全 Gate PASS。
+
 ## v0.0.97 / #21.26 全项目维护回归
 
 本版本必须证明“专业术语与契约命名修正不改变行为”：

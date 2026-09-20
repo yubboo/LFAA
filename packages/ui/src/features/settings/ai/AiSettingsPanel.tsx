@@ -5,7 +5,7 @@
  * 不负责：厂商 HTTP、Secret 持久化、credentialRef、Provider 业务判断。
  * 状态归属：只拥有未保存表单、本次探测结果与临时模型配置；账户真值由外部 Props 注入。
  * 对外接口：AiSettingsPanel。
- * 关联文件：ai-settings.types.ts、ai-settings.css、../SettingsPage.tsx。
+ * 关联文件：ai-settings.types.ts、ai-settings.css、packages/app-shell/src/workbench/settings/view/SettingsPage.tsx。
  * 修改注意事项：模型 ID 与配置字段必须来自 Host 的官方 Capability；禁止 UI 写厂商模型白名单或参数分支。
  */
 import { useEffect, useMemo, useState } from "react";

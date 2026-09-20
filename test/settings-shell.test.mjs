@@ -14,10 +14,10 @@ const shellView=read("packages/app-shell/src/workbench/shell/view/WorkbenchShell
 const settingsSurface=read("packages/app-shell/src/workbench/settings/view/SettingsSurface.tsx");
 const aiController=read("packages/app-shell/src/workbench/settings/logic/useAiSettingsController.ts");
 const aiMappings=read("packages/app-shell/src/workbench/settings/logic/settings-view-models.ts");
-const settings=read("packages/ui/src/features/settings/SettingsPage.tsx");
+const settings=read("packages/app-shell/src/workbench/settings/view/SettingsPage.tsx");
 const aiPanel=read("packages/ui/src/features/settings/ai/AiSettingsPanel.tsx");
 const themeMenu=read("packages/ui/src/features/appearance/ThemeModeMenu.tsx");
-const settingsCss=read("packages/ui/src/features/settings/settings.css");
+const settingsCss=read("packages/app-shell/src/workbench/settings/styles/settings.css");
 const workbenchTypes=read("packages/ui/src/workbench/workbench-layout.types.ts");
 
 test("Settings is independent Surface module",()=>{assert.match(root,/settingsSurface\.surface==="settings"/);assert.match(root,/<SettingsSurface/);assert.match(settingsSurface,/<SettingsPage/);assert.doesNotMatch(root,/<SettingsPage/);});

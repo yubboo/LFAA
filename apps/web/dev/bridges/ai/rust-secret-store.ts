@@ -43,8 +43,8 @@ function buildRequest(action: keyof typeof ACTION, credentialRef: string, secret
 
 function parseResponse(buffer: Buffer): { status: number; stage: number; code: number; payload: Buffer } {
   if (buffer.length < 14 || !buffer.subarray(0, 4).equals(RESPONSE_MAGIC)) throw new Error("Rust Secret Broker 返回了无效响应。");
-  const status = buffer[4];
-  const stage = buffer[5];
+   const status = buffer[4]!;
+   const stage = buffer[5]!;
   const code = buffer.readUInt32LE(6);
   const length = buffer.readUInt32LE(10);
   if (14 + length !== buffer.length) throw new Error("Rust Secret Broker 响应长度无效。");

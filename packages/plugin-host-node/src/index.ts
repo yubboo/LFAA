@@ -301,8 +301,8 @@ export class NodePluginPackageHost implements PluginPackageHostPort {
     let child: ChildProcessWithoutNullStreams | undefined;
     let timedOut = false;
     let cancelled = false;
-    let stdout = Buffer.alloc(0);
-    let stderr = Buffer.alloc(0);
+    let stdout: Buffer = Buffer.alloc(0);
+    let stderr: Buffer = Buffer.alloc(0);
     const controller = new AbortController();
     const timer = setTimeout(() => { timedOut = true; controller.abort(); }, options.timeoutMs);
     const onExternalAbort = () => { cancelled = true; controller.abort(); };

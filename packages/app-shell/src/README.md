@@ -1,4 +1,4 @@
-# app-shell/src 代码导航（v0.0.97）
+# app-shell/src 代码导航（v0.0.98）
 
 `@lfaa/app-shell` 是 **LFAA 产品 Shell / Chrome / Composition 层**。它使用 `@lfaa/ui` 的通用 UI Kit，并装配 `@lfaa/workspace` 的 Chat/Work 工作模式；不再重复拥有 Workspace Session、Chat Timeline 或 Work Canvas 产品状态。
 

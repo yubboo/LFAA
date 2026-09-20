@@ -129,20 +129,20 @@ class CodexAppServerClient {
   }
 
   async #start(): Promise<void> {
-    const process = spawn("codex", ["app-server"], {
+     const childProcess = spawn("codex", ["app-server"], {
       windowsHide: true,
       // Windows 的 npm 全局 bin 是 codex.cmd；Node raw spawn 不会解析 .cmd，需交给系统 shell。
       // 命令与参数均为固定常量，没有拼接用户输入。
       shell: process.platform === "win32",
       stdio: ["pipe", "pipe", "pipe"],
     });
-    this.#process = process;
+     this.#process = childProcess;
     // stderr 只排空，不拼进错误，避免未来 CLI 日志把任何认证信息带回应用层。
-    process.stderr.resume();
-    this.#reader = readline.createInterface({ input: process.stdout });
+     childProcess.stderr.resume();
+     this.#reader = readline.createInterface({ input: childProcess.stdout });
     this.#reader.on("line", (line) => this.#onLine(line));
-    process.once("error", (error) => this.#onProcessFailure(new Error(error.message.includes("ENOENT") ? "未找到 Codex CLI。请先安装 Codex CLI，并确认 codex 命令已加入 PATH。" : `Codex App Server 启动失败：${error.message}`)));
-    process.once("exit", (code, signal) => this.#onProcessFailure(new Error(`Codex App Server 已退出（code=${code ?? "null"}, signal=${signal ?? "null"}）。`)));
+     childProcess.once("error", (error) => this.#onProcessFailure(new Error(error.message.includes("ENOENT") ? "未找到 Codex CLI。请先安装 Codex CLI，并确认 codex 命令已加入 PATH。" : `Codex App Server 启动失败：${error.message}`)));
+     childProcess.once("exit", (code, signal) => this.#onProcessFailure(new Error(`Codex App Server 已退出（code=${code ?? "null"}, signal=${signal ?? "null"}）。`)));
 
     try {
       await this.request("initialize", {

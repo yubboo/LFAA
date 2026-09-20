@@ -1,5 +1,6 @@
 /** Shell Profile / Theme / Update Overlay 视图。状态由 useWorkbenchOverlayController 提供。 */
-import { ThemeModeMenu,UserMenu,type ThemePreference } from "@lfaa/ui";
+import { ThemeModeMenu,type ThemePreference } from "@lfaa/ui";
+import { UserMenu } from "./UserMenu";
 import { ProfileBar } from "#workbench/left";
 import type { LayoutMode,ResolvedTheme } from "#workbench/contracts";
 import type { WorkbenchOverlayController } from "../logic/useWorkbenchOverlayController";

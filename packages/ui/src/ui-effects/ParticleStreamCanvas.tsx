@@ -27,14 +27,15 @@ function parseCssVarExpression(value: string) {
 function resolveCssColor(element: HTMLElement, value: string, fallback: string) {
   const parsed = parseCssVarExpression(value);
   if (!parsed) return value || fallback;
-  const resolved = getComputedStyle(element).getPropertyValue(parsed.token).trim();
+  const resolved = getComputedStyle(element).getPropertyValue(parsed.token!).trim();
   return resolved || parsed.fallback || fallback;
 }
 
 function resolvePalette(element: HTMLElement, effect: UiEffectDefinition, variant: UiEffectVariant) {
   const defaults = variant === "extreme" ? DEFAULT_EXTREME : DEFAULT_STANDARD;
   const source = variant === "extreme" ? (effect.extremePalette ?? effect.palette) : effect.palette;
-  return defaults.map((fallback, index) => resolveCssColor(element, source?.[index] ?? fallback, fallback));
+  const color = (index: 0 | 1 | 2 | 3) => resolveCssColor(element, source?.[index] ?? defaults[index], defaults[index]);
+  return [color(0), color(1), color(2), color(3)] as const;
 }
 
 function readSliderProgressRatio(canvas: HTMLCanvasElement) {

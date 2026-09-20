@@ -1,11 +1,14 @@
 /**
  * 文件：settings.types.ts
- * 作用：定义共享 Settings Surface 的纯 UI 契约。
- * 负责：设置分类、主题偏好、AI ViewModel 注入类型。
+ * 作用：定义 App Shell Settings Surface 的产品 UI 契约。
+ * 负责：设置分类、主题偏好、AI/Plugin ViewModel 注入类型。
  * 不负责：Config 真值、Provider 网络请求、宿主路由实现。
+ * 状态归属：无运行时状态；只定义类型。
+ * 对外接口：SettingsPageProps、SettingsSectionId、PluginSettingsPanelProps。
+ * 关联文件：../view/SettingsPage.tsx、../view/PluginSettingsPanel.tsx。
+ * 修改注意事项：Provider 业务类型只通过公开 ViewModel 接入，不深链内部源码。
  */
-import type { ThemePreference } from "../appearance/ThemeModeMenu";
-import type { AiSettingsAccountView, AiSettingsDraftInput, AiSettingsModelSettingValue, AiSettingsProbeView, AiSettingsProviderView } from "./ai/ai-settings.types";
+import type { ThemePreference, AiSettingsAccountView, AiSettingsDraftInput, AiSettingsModelSettingValue, AiSettingsProbeView, AiSettingsProviderView } from "@lfaa/ui";
 
 export type SettingsSectionId = "general" | "appearance" | "ai" | "plugins" | "permissions" | "workspace" | "developer";
 

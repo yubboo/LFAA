@@ -53,4 +53,4 @@ docs/logs/runtime/source-update/
 这些是本机运行数据目录，不再放 Markdown README。
 
 
-> 当前候选版本：v0.0.93（#21.22，pending-user-acceptance）；Workbench 已按父子级拆分为 Left / Center / Right / BottomTerminal，大模块内继续拆子模块；本版行为冻结，等待用户验收模块化基线。
+> 当前候选版本：v0.0.98（#21.27，pending-user-acceptance）；当前 Owner 导航以 `ARCHITECTURE.md` 顶部和 `项目结构与代码地图.md` 顶部为准。

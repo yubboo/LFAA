@@ -1,3 +1,11 @@
+## LFAA v0.0.98 — #21.27 全仓审计问题修复与发布门禁闭环
+
+- 修复 Vite 生产构建中的 CSS 注释解析错误与 TypeScript 7 `baseUrl` 配置错误，并修复被配置错误遮住的严格类型问题。
+- Node source runtime 测试改从真实 Web Host Consumer 解析 workspace package；不向仓库根添加虚假依赖。
+- Settings 导航、Plugin 管理页和 UserMenu 产品 View 迁至 App Shell；AI 配置图形面板继续位于 AGENTS.md 固定目录；样式和交互保持等价。
+- 当前事实文档改用真实 Workspace/App Shell Owner，并新增 `current-fact-check` 静态门禁；完整发布质量仍由真实 typecheck/test/build 验证。
+- 状态：`pending-user-acceptance`；AI 验证 `pass`；用户验收 `pending`。
+
 ## LFAA v0.0.97 — #21.26 全项目术语与架构一致性维护
 
 - **专业术语统一：** Chat / Work 正式定义为 Workspace 的两种 `Workspace Mode`；`Surface` 仅用于真实 UI 承载面，`ViewModel` 用于 UI 数据，`Renderer / Interaction Primitive` 用于 InfiniteCanvas 等共享交互能力，`Projection` 仅保留给真正的派生 Read Model 语义。

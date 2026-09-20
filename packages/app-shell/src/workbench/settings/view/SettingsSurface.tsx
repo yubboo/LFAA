@@ -1,5 +1,7 @@
 /** Settings 页面壳。Host/controller 数据通过 props 注入，不读取 Workbench 兄弟模块状态。 */
-import { SettingsPage, type SettingsSectionId, type ThemePreference } from "@lfaa/ui";
+import type { ThemePreference } from "@lfaa/ui";
+import type { SettingsSectionId } from "../contracts/settings.types";
+import { SettingsPage } from "./SettingsPage";
 import type { AiSettingsController } from "../logic/useAiSettingsController";
 import type { PluginSettingsController } from "../logic/usePluginSettingsController";
 import styles from "../styles/SettingsSurface.module.css";

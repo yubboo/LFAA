@@ -1,3 +1,9 @@
+## v0.0.98 Workspace Mode / Runtime 当前契约
+
+`packages/workspace/src/work/logic/` 保存 Work Canvas 低频视觉布局，`packages/workspace/src/shared/logic/` 拥有 Chat/Work 共用 Session/Run；Web 开发宿主仍由 `apps/web/dev/bridges/` 提供。`workspace-preflight` 是无需依赖的静态预检；发布质量以 `pnpm run quality:full` 的真实类型检查、测试和构建结果为准。
+
+下方版本段落保留运行规范的形成背景；旧 Owner 路径不得用作当前开发导航。
+
 ## v0.0.97 Workspace Mode / Runtime 契约
 
 Chat 与 Work 是 Workspace 的两种工作模式，不是两套 Runtime。`packages/workspace/src/shared/logic/useWorkspaceSessionController.ts` 是当前 Chat/Work Session 状态 Owner：持有 `workspaceMode`、permission、Chat ViewModel、Runtime event subscription、`startRun` 与 `lastRunInput`；Work Canvas 节点坐标/viewport 继续只属于 `workspace/work/logic`。
@@ -22,11 +28,11 @@ Web 开发态 `apps/web/dev/bridges/agent` 只负责解析同一 `workspaceMode`
 
 `apps/web/src` 是浏览器 bundle：React App、host client、xterm view。`apps/web/dev` 是 Vite dev-server/Node Host：Agent/AI/Plugin/Resource/PTY bridge。二者必须通过协议/事件通信；浏览器代码不得直接 import `node:fs`、`node-pty` 或 Rust Host 实现。`vite.config.ts` 只组合 bridge。
 
-Work Canvas 布局不是 Agent Session 真值。节点坐标与 viewport 只由 `app-shell/workbench/center/conversation/work-canvas/logic` 按 workspaceId 保存；Session 继续拥有 Run/Chat/permission/surface，Agent Runtime 与 Provider 不读取浏览器视觉布局。
+Work Canvas 布局不是 Agent Session 真值。节点坐标与 viewport 只由 `packages/workspace/src/work/logic/` 按 workspaceId 保存；`packages/workspace/src/shared/logic/` 继续拥有 Run/Chat/permission/workspaceMode，Agent Runtime 与 Provider 不读取浏览器视觉布局。
 
 ## v0.0.94 App Shell Runtime 状态 Owner
 
-Workbench 的 Runtime 状态从根组件拆到唯一 Owner：`workbench/session/useAgentSessionController.ts` 管 Chat/Work surface、permission、消息/画布投影、Agent Runtime subscription 与 `startRun`；`workbench/settings/useAiSettingsController.ts` 管账户/模型 Capability 与 active model binding；Composer/RuntimeControl 只通过显式 contract 消费这些结果。该迁移不改变 Agent Runtime/Provider/Config System 的协议或行为。
+Workbench 的 Runtime 状态由 `packages/workspace/src/shared/logic/useWorkspaceSessionController.ts` 管 Chat/Work workspaceMode、permission、消息视图、Agent Runtime subscription 与 `startRun`；`packages/app-shell/src/workbench/settings/logic/useAiSettingsController.ts` 管账户/模型 Capability 与 active model binding；Composer/RuntimeControl 只通过显式 contract 消费这些结果。
 
 ## v0.0.91 Unicode Release Archive / Sync Source Guard
 

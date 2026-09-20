@@ -14,7 +14,7 @@ import { useWorkCanvasController } from "../logic/useWorkCanvasController";
 import styles from "../styles/WorkWorkspace.module.css";
 
 export function WorkWorkspace({ workspaceId, lastRunInput }: {
-  workspaceId?: string;
+  workspaceId: string | undefined;
   lastRunInput: string | null;
 }) {
   const controller = useWorkCanvasController({ workspaceId, lastRunInput });

@@ -24,6 +24,7 @@ const gates = [
   ["language-ownership", "scripts/language-ownership-check.mjs"],
   ["development-log", "scripts/dev-log-check.mjs"],
   ["docs", "scripts/docs-check.mjs"],
+  ["current-fact", "scripts/current-fact-check.mjs"],
   ["comments", "scripts/comment-check.mjs"],
   ["windows-encoding", "scripts/windows-script-encoding-check.mjs"],
   ["release-consistency", "scripts/release-consistency-check.mjs"],

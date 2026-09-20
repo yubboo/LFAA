@@ -1,3 +1,9 @@
+## v0.0.98 Workspace / Settings 领域当前事实
+
+当前 Node workspace 为 10 个真实项目。`packages/workspace/src/work/logic/` 拥有 Work Canvas 布局，`packages/workspace/src/shared/logic/` 拥有共用 Session/Run。`packages/app-shell/src/workbench/settings/` 拥有 Settings 导航、Plugin 管理及其 ViewModel/Controller；`packages/app-shell/src/workbench/shell/` 拥有 UserMenu。`packages/ui/src/features/settings/ai/` 按固定目录规则提供无业务真值的 AI 配置图形面板。
+
+下方版本段落保留实施背景；当前 Owner 以上述目录及代码地图为准。
+
 ## v0.0.97 Workspace 领域当前事实
 
 当前 Node workspace 保持 10 个真实项目；本轮不新增 package。`@lfaa/workspace` 是 Workspace 父领域的 Feature Composition，内部按真实职责聚合两种工作模式与共享 Session：
@@ -28,8 +34,8 @@
 
 - `@lfaa/app-shell`：LFAA 产品 UI 唯一 Owner；Workbench 模块按需采用 `view / logic / styles / contracts / index.ts`。
 - `@lfaa/ui`：UI Kit / Design System / Shared Interaction Engine；只提供通用 UI 积木与交互算法，不拥有 Provider/Config/Session 产品真值。
-- `workbench/center/conversation/work-canvas/`：Work Canvas 产品视觉布局 Owner；`logic` 负责 workspace-scoped node positions / viewport 持久化，`view` 只投影 `InfiniteCanvas`。
-- `workbench/session/logic`：只负责 Chat/Work Run、Runtime event、permission、surface 和 `lastRunInput`，不拥有 Canvas 几何。
+- `packages/workspace/src/work/`：Work Canvas 产品视觉布局 Owner；`logic` 负责 workspace-scoped node positions / viewport 持久化，`view` 使用 `InfiniteCanvas`。
+- `packages/workspace/src/shared/logic/`：只负责 Chat/Work Run、Runtime event、permission、workspaceMode 和 `lastRunInput`，不拥有 Canvas 几何。
 - `apps/web/src`：浏览器运行时；`apps/web/dev`：Vite dev-server/Node Host runtime；二者按运行环境隔离。
 - 本轮 Reasoning/Particle/Resize/Snap/Provider/Agent Runtime 行为冻结。
 
@@ -47,7 +53,7 @@
 - `workbench/right/`：右侧资源栏。
 - `workbench/terminal/`：底部终端。
 - `workbench/settings/`：Settings Surface、AI/Plugin snapshot/controller/view model。
-- `workbench/session/`：Chat/Work surface、permission、Run event subscription/startRun。
+- `packages/workspace/src/shared/logic/`：Chat/Work workspaceMode、permission、Run event subscription/startRun。
 - `workbench/shared/`：仅 Workbench 内真正跨模块的 Icon/Button 等小 Primitive。
 
 每个 UI 模块只拥有自己的 CSS Module；共享动态算法继续来自 `@lfaa/ui`。本版状态 `pending-user-acceptance`，只做等价模块迁移。

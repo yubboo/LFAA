@@ -1,19 +1,19 @@
 /**
  * 文件：SettingsPage.tsx
- * 作用：LFAA 可复用独立设置中心。
+ * 作用：LFAA 产品设置中心。
  * 负责：设置左侧导航、搜索、右侧分类内容，以及复用 ResizableWorkbench 的左栏拉伸/吸附/收起能力。
  * 不负责：Config/Secret 真值、厂商网络请求、宿主路由实现。
  * 状态归属：导航搜索与设置左栏 collapsed 属于本 Surface；左栏宽度与主工作台共享，由 App Shell 作为唯一事实源。
  * 对外接口：SettingsPage。
- * 关联文件：settings.types.ts、settings.css、@lfaa/ui/workbench、ai/AiSettingsPanel.tsx。
+ * 关联文件：../contracts/settings.types.ts、../styles/settings.css、@lfaa/ui/workbench、@lfaa/ui AiSettingsPanel。
  * 修改注意事项：设置左栏禁止再写固定宽度或独立宽度状态；必须复用 ResizableWorkbench，并使用 Shell 注入的共享 leftPaneWidth。
  */
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ResizableWorkbench, resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "@lfaa/ui/workbench";
-import { AiSettingsPanel } from "./ai/AiSettingsPanel";
-import { PluginSettingsPanel } from "./plugins/PluginSettingsPanel";
-import type { SettingsPageProps, SettingsSectionId } from "./settings.types";
-import "./settings.css";
+import { AiSettingsPanel } from "@lfaa/ui";
+import { PluginSettingsPanel } from "./PluginSettingsPanel";
+import type { SettingsPageProps, SettingsSectionId } from "../contracts/settings.types";
+import "../styles/settings.css";
 
 const SETTINGS_LAYOUT_KEY = "lfaa.settings.layout.v1";
 

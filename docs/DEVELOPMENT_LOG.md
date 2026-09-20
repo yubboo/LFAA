@@ -4441,3 +4441,11 @@ TypeScript 是持续变化的 Product & Agent Plane；Rust 收敛成尽量冻结
 - governance / import-path / runtime-import / folder-boundary / language-ownership / dev-log / docs / comments / Windows encoding / release consistency / prompt lifecycle / config schema / release gates / UI contract：全部 PASS；统一 `workspace-preflight` 也包含 language-ownership 并 PASS。
 - 当前制作容器为 Node 22.16.0，未安装项目 `node_modules`，且不能运行 Windows PowerShell；因此不冒充项目锁定 Node 24.x + pnpm 11.17.0 下的完整 Web build / `release:full` 或 Windows 动态脚本实机 PASS。
 - Windows 实机仍需验收：v0.0.77 → v0.0.78 因新增 2 个 workspace-only 引用可合法同步依赖一次（无新增外部 npm 包）；完成后再次运行菜单 1，在依赖声明未变化且实际安装健康时必须跳过 `pnpm install`。
+### #21.27 全仓审计问题修复与发布门禁闭环
+
+- **版本：** v0.0.98；**状态：** pending-user-acceptance；**AI 验证：** pass；**用户验收：** pending。
+- **基线：** v0.0.97；**合同：** `docs/PROMPTS.md` #21.27。
+- **审计复现：** Node 24.16.0 / pnpm 11.17.0 下，静态治理 PASS，但 Web build 因 CSS 注释失败，TypeScript 7 因 `baseUrl` 失败；158 项 Node 测试中根目录 workspace 导入测试 1 项失败；当前事实文档旧路径与 UI Kit 产品 UI 归属矛盾仍在。
+- **执行边界：** 等价迁移与门禁修复；不改变 Workspace、Provider、Plugin、Rust、Windows 运维与既有 UI 行为。
+- **类型检查追加发现：** TypeScript 7 配置修复后暴露原先未运行到的 `noUncheckedIndexedAccess`、`exactOptionalPropertyTypes`、Node Buffer 泛型与局部变量遮蔽错误；只做类型安全写法修正，不改变业务分支或参数。
+- **最终验证：** `quality:full`、当前事实/目录/包架构门禁、Unicode ZIP 归档与 fresh extract `workspace-preflight` 均通过；v0.0.98 ZIP 共 673 entries，`.lfaa/` 保留。

@@ -1,8 +1,8 @@
-#21.26 全项目术语与架构一致性维护
-version: v0.0.97
+#21.27 全仓审计问题修复与发布门禁闭环
+version: v0.0.98
 status: pending-user-acceptance
 
-v0.0.97 以 v0.0.96 为基线做全项目维护：Workspace 继续是父领域，Chat / Work 的正式术语统一为两种 Workspace Mode；`Projection` 仅保留给真正的 Read Model/Event 派生语义。同步修正 Agent Runtime / Workspace / App Shell / Web Bridge 的契约命名、当前事实文档漂移与回归门禁，不新增未来空壳 package，不改变 Infinite Canvas、Reasoning、Provider、Plugin、Rust 或 Windows 运维行为。
+v0.0.98 以 v0.0.97 为基线修复实际质量阻断：CSS 构建、TypeScript 7 配置、Node source runtime 测试定位；同步清理当前事实文档旧 Owner、Settings/UserMenu 的 UI Kit 越界，并补强真实编译/构建与文档边界门禁。行为保持等价，不新增 package/crate。
 
 # LFAA 项目主计划
 
@@ -23,12 +23,12 @@ pending-user-acceptance
 当前版本总任务：
 
 ```text
-#21.26 全项目术语与架构一致性维护
-version: v0.0.97
+#21.27 全仓审计问题修复与发布门禁闭环
+version: v0.0.98
 status: pending-user-acceptance
 ```
 
-v0.0.97 不扩展功能面，集中修正 Workspace/Agent/UI 的专业术语和当前事实一致性：Chat/Work = Workspace Mode；UI Surface 只用于真实承载面；ViewModel 用于 UI 数据；InfiniteCanvas 属于 Renderer/Interaction Primitive；Projection 只保留给真正的派生 Read Model。v0.0.96 的父领域结构、Infinite Canvas、Reasoning/Particle/Resize/Snap/Provider/Runtime 与 Windows 运维逻辑全部冻结。
+v0.0.98 不扩展功能面，修复真实构建、类型检查、Node source 测试与当前 Owner 文档；Settings/Page/Plugin/UserMenu 产品外壳归 App Shell，AI 配置图形面板按固定目录保留在 UI Kit。Workspace、Infinite Canvas、Reasoning/Particle/Resize/Snap、Provider、Plugin、Rust、Windows 运维行为冻结。
 
 v0.0.80 以用户提供的 DeepSeek Harness 源码包为主要工程参考，重点借鉴 capability seam、profile/bundle、PluginManager 共享事务、HMR 生命周期、credentials 引用和“抽象必须有当前 Consumer”的维护原则；不复制其产品实现。
 

@@ -17,7 +17,7 @@ export function RuntimeModelPicker({ open, quickModels, controller, onManage }: 
   onManage: () => void;
 }) {
   return (
-    <AnimatedDisclosure open={open} className={styles.modelPickerDisclosure}>
+    <AnimatedDisclosure open={open} className={styles.modelPickerDisclosure ?? ""}>
       <div className={styles.modelPicker} role="menu" aria-label="选择模型">
         <div className={styles.modelPickerLabel}>选择模型</div>
         <div className={styles.modelPickerList}>

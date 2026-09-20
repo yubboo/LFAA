@@ -1,3 +1,9 @@
+## LFAA v0.0.98 Release — #21.27 全仓审计问题修复与发布门禁闭环
+
+- 基线 v0.0.97；修复构建、类型检查、Node source runtime 测试、当前事实文档与 UI Kit 产品页面归属。
+- AI 配置图形面板按 AGENTS.md 保留在 `packages/ui/src/features/settings/ai/`；Settings/Page/Plugin/UserMenu 产品 View 归 App Shell。
+- 发布验证与 ZIP round-trip：已完成；归档 673 entries，`docs/项目结构与代码地图.md` 使用 ZIP UTF-8 flag，`.lfaa/` 保留，fresh extract 后 `workspace-preflight` 全 Gate PASS。状态 `pending-user-acceptance`；AI 验证 `pass`；用户验收 `pending`。
+
 ## LFAA v0.0.97 Release — #21.26 全项目术语与架构一致性维护
 
 - 以 v0.0.96 为基线做维护，不扩展产品功能面；Workspace 继续是父领域，Chat / Work 是两种 Workspace Mode。

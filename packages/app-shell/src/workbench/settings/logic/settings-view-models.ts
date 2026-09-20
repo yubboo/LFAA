@@ -13,10 +13,8 @@ import type {
   AiSettingsDraftInput,
   AiSettingsProbeView,
   AiSettingsProviderView,
-  PluginSettingsInstalledView,
-  PluginSettingsInspectionView,
-  PluginSettingsInstallResultView,
 } from "@lfaa/ui";
+import type { PluginSettingsInstalledView, PluginSettingsInspectionView, PluginSettingsInstallResultView } from "../contracts/settings.types";
 import type { InstalledPluginBundle, PluginInstallOutcome, PluginSpecInspection } from "@lfaa/plugin-runtime";
 
 export function buildAiProviderViews(hostCapabilities:AiAccountHostCapabilities):readonly AiSettingsProviderView[] {

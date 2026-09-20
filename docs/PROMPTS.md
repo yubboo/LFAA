@@ -25,6 +25,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #21.27 | 全仓审计问题修复与发布门禁闭环 | v0.0.98 | pending-user-acceptance | pass | pending |
 | #21.26 | 全项目术语与架构一致性维护 | v0.0.97 | pending-user-acceptance | pass | pending |
 | #21.25 | Workspace 领域聚合 / Chat-Work 双投影父子架构 | v0.0.96 | pending-user-acceptance | pass | pending |
 | #21.24 | Workbench 模块内职责分层 / v0.0.93 无限画布合并 | v0.0.95 | pending-user-acceptance | pass | pending |
@@ -80,6 +81,33 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #21.27 全仓审计问题修复与发布门禁闭环
+
+### 目标与基线
+
+- **基线：** v0.0.97；**目标版本：** v0.0.98；**状态：** pending-user-acceptance。
+- 修复审计复现的 Web CSS 构建失败、TypeScript 7 配置失败、Node source runtime 测试导入位置错误、当前事实文档旧 Owner、`@lfaa/ui` 的 LFAA Settings/UserMenu 产品 UI 越界，以及仅靠源码文本合同测试遗漏实际编译/构建的问题。
+- 只做等价迁移和门禁补强；不新增产品功能、不改视觉/交互/Provider/Agent/Plugin 执行行为。用户验收前状态不得为 delivered。
+
+### 目录归属、依赖与边界
+
+- **允许修改：** `packages/app-shell/src/workbench/{settings,shell}/**` 中产品 Settings/Plugin/UserMenu View 与样式；`packages/ui/src/features/{settings,account}/**` 的等价迁出和公开入口；相关 `ui`/`app-shell` README 与 API；`apps/web/tsconfig.json`、现有 package tsconfig；`packages/app-shell/src/agent-workbench.css` 注释；`test/**` 与 `scripts/**` 的对应门禁；当前事实文档、版本元数据和历史时间线新增条目。移除 `baseUrl` 后发现 TypeScript 7 原先遮蔽的严格类型错误，因此额外允许只为类型正确性编辑 `apps/web/dev/bridges/ai/{ai-config-bridge,codex-app-server,rust-secret-store}.ts`、`packages/app-shell/src/{AgentWorkbench.tsx,workbench/center/**,workbench/settings/logic/useAiSettingsController.ts}`、`packages/workspace/src/work/view/WorkWorkspace.tsx`、`packages/plugin-host-node/src/index.ts`、`packages/ui/src/ui-effects/ParticleStreamCanvas.tsx`；这些文件禁止改变业务分支、参数值或渲染结果。
+- **允许依赖：** `app-shell → @lfaa/ui` 的通用 ResizableWorkbench/ThemeModeMenu 等公共 API；`app-shell → config-system` 只经既有公开 API；Node source 测试从真实 Consumer 目录解析 workspace 包。
+- **禁止依赖：** `@lfaa/ui → app-shell/config-system/apps`；跨包深链内部源码；`apps/web/src → apps/web/dev`；新增 package/crate 或空壳目录。
+- **状态归属：** Settings 页面导航与 Plugin 页面局部表单状态随 View 迁入 App Shell；`packages/ui/src/features/settings/ai/` 是 AGENTS.md 明确规定的 AI 配置图形界面位置，保留只接收 Props 的 `AiSettingsPanel` 与其瞬时表单状态；配置/Secret 真值仍归 Config System/Host；共享 UI Primitive 状态不迁移；Plugin Profile/Workspace Session 不改。
+- **冻结：** Workspace Chat/Work、InfiniteCanvas、Reasoning/Slider/Particle/Resize、Provider/Secret、Plugin Host/Runtime、Rust、Windows 运维行为。
+
+### 验收条件与必须测试
+
+1. `pnpm run governance:check`、`pnpm run typecheck`、`pnpm test`、`pnpm run build`、`pnpm run quality:full` 在 Node 24/pnpm 11.17.0 下通过；CSS 与 TS 错误不得通过关闭压缩或降级 TypeScript 绕过。
+2. Node source runtime 测试真实加载 Host 所依赖的 workspace package，不要求根 package 增加无关依赖；`@lfaa/ui` 不再拥有 Settings 页面导航、Plugin 管理页面或 UserMenu 产品外壳，AI 配置图形界面继续按 AGENTS.md 固定留在 `ui/features/settings/ai` 且不拥有业务真值；Settings/个人中心的用户可见行为保持。
+3. 当前事实文档只指向 `packages/workspace/src/{chat,work,shared}` 和现有 App Shell 模块；旧版本记录保留在历史时间线。门禁增加实际构建/类型检查覆盖和文档路径/归属防回归检查，不把静态 preflight 冒充完整发布验证。
+4. 最终 ZIP 使用现有归档器生成，验证 Unicode entry、`.lfaa`、fresh extract preflight；更新 CHANGELOG/RELEASES，交付状态为 pending-user-acceptance。
+
+### 必须更新的文档与版本
+
+`PROJECT_PLAN.md`、`docs/DEVELOPMENT_LOG.md`、`ARCHITECTURE.md`、`docs/MODULES.md`、`docs/UI.md`、`docs/TESTING.md`、`docs/RUNTIME.md`、`docs/项目结构与代码地图.md`、相关 README、`CHANGELOG.md`、`docs/RELEASES.md`；根/包/发布元数据递增至 v0.0.98。
 
 ## #21.26 全项目术语与架构一致性维护
 

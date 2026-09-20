@@ -5,7 +5,7 @@
  * 不负责：Config System 类型复用、厂商网络请求、Secret 持久化、Host 实现。
  * 状态归属：类型契约，无运行时状态。
  * 对外接口：AiSettingsProviderView、AiSettingsPageProps 等。
- * 关联文件：AiSettingsPanel.tsx、SettingsPage.tsx。
+ * 关联文件：AiSettingsPanel.tsx、packages/app-shell/src/workbench/settings/view/SettingsPage.tsx。
  * 修改注意事项：Secret 只允许作为瞬时用户输入传给回调；模型参数只渲染 Host 提供的官方 Capability。
  */
 export type AiSettingsModelSettingValue = string | number | boolean;

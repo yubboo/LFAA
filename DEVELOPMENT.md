@@ -3,7 +3,7 @@
 > **当前唯一有效开发规范。**
 > 用户说“按照开发规范开发 / 按照开发要求做”时，AI 必须把本文件当执行合同，而不是建议。
 
-## Workspace / UI / Motion / Release 架构硬规则（v0.0.97）
+## Workspace / UI / Motion / Release 架构硬规则（v0.0.98）
 
 - 业务组件不得自行实现第二套通用展开动画、全局快捷键、阻尼 resize 或 overlay z-index；统一消费 `packages/ui/src/ui-motion`、`ui-shortcuts`、`ui-resize`、`ui-overlay`。
 - Resize 的产品规则（min/max、captureRatio、释放阈值）与视觉运动参数（timeConstant/epsilon）必须分离；修改手感优先调共享参数，不在每个 Surface 写魔法数。

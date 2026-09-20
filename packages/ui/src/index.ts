@@ -16,9 +16,7 @@ export { WORKBENCH_LAYOUT_TOKENS, resolveWorkbenchLayoutMetrics } from "./workbe
 export { WORKBENCH_INTERACTION_TOKENS, normalizeSnapCaptureRatio, resolveSnapCaptureThreshold } from "./workbench/workbench-interaction.config.ts";
 export type { WorkbenchLayoutMetrics } from "./workbench/workbench-layout.config.ts";
 export { AiSettingsPage } from "./features/settings/ai/AiSettingsPage.tsx";
-export type { AiSettingsPageProps, AiSettingsProviderView, AiSettingsAuthView, AiSettingsFieldView, AiSettingsAccountView, AiSettingsDraftInput, AiSettingsProbeView, AiSettingsModelView } from "./features/settings/ai/ai-settings.types.ts";
-export { UserMenu } from "./features/account/UserMenu.tsx";
-export type { UserMenuProps } from "./features/account/UserMenu.tsx";
+export type { AiSettingsPageProps, AiSettingsProviderView, AiSettingsAuthView, AiSettingsFieldView, AiSettingsAccountView, AiSettingsDraftInput, AiSettingsProbeView, AiSettingsModelView, AiSettingsModelSettingValue } from "./features/settings/ai/ai-settings.types.ts";
 export { ThemeModeMenu } from "./features/appearance/ThemeModeMenu.tsx";
 export { useDismissibleLayer } from "./ui-overlay/useDismissibleLayer.ts";
 export type { DismissibleLayerOptions } from "./ui-overlay/useDismissibleLayer.ts";
@@ -29,8 +27,6 @@ export type { UiEffectDefinition, UiEffectRegistration, UiEffectRendererKind, Ui
 export { UiExtensionRegistry } from "./ui-extension/registry.ts";
 export type { UiExtensionContribution, UiExtensionKind } from "./ui-extension/contracts.ts";
 export type { ThemeModeMenuProps, ThemePreference } from "./features/appearance/ThemeModeMenu.tsx";
-export { SettingsPage } from "./features/settings/SettingsPage.tsx";
-export type { SettingsPageProps, SettingsSectionId, PluginSettingsInstalledView, PluginSettingsInspectionView, PluginSettingsInstallResultView, PluginSettingsPanelProps } from "./features/settings/settings.types.ts";
 export { AiSettingsPanel } from "./features/settings/ai/AiSettingsPanel.tsx";
 export type { AiSettingsPanelProps } from "./features/settings/ai/AiSettingsPanel.tsx";
 
