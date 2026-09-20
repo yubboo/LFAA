@@ -87,8 +87,8 @@ Windows `scripts/windows/*.ps1` 必须保持 UTF-8 with BOM。
 
 ```text
 apps/                     可运行宿主入口；只做启动、宿主 Adapter、平台桥
-packages/ui/              UI Kit / Design System / Shared Interaction Engine；通用控件、布局、Motion、Effect、Canvas Projection，不拥有产品业务真值
-packages/workspace/       Workspace 产品领域；Chat / Work 是同一父领域下的两种投影，共用 Session/Run 核心
+packages/ui/              UI Kit / Design System / Shared Interaction Engine；通用控件、布局、Motion、Effect、Canvas Renderer/Interaction，不拥有产品业务真值
+packages/workspace/       Workspace 产品领域；Chat / Work 是同一父领域下的两种工作模式，共用 Session/Run 核心
 packages/app-shell/       LFAA 产品 Shell / Chrome / Composition；负责 Shell、导航、Composer、Settings 等外壳装配，不重复拥有 Workspace 内部实现
 packages/config-system/   配置设置业务唯一归属；Schema / Settings / Account / Auth / Provider 配置
 crates/                   Rust 原生能力与安全 Broker

@@ -1,6 +1,6 @@
 /**
  * 文件：reasoning-control.ts
- * 作用：把当前模型官方 Capability 的 reasoningEffort options 一对一投影成 Runtime Control steps。
+ * 作用：把当前模型官方 Capability 的 reasoningEffort options 一对一映射成 Runtime Control steps。
  * 负责：保持 Provider option 的数量、顺序、label、value 原样对应；按真实 Provider value 查找当前/默认 index。
  * 不负责：补齐固定档位、过滤关闭项、猜测模型能力、保存模型配置、React 状态、粒子动画或实际模型请求。
  * 状态归属：纯函数，无运行时状态；Provider Capability 真值仍由 @lfaa/config-system 拥有。

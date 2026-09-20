@@ -1,12 +1,12 @@
 /**
  * 文件：InfiniteCanvas.tsx
  * 作用：提供 Work Surface 的无限画布交互层。
- * 负责：pan、zoom、reset、节点拖拽、连线投影、选中层级与低频布局 commit seam。
+ * 负责：pan、zoom、reset、节点拖拽、连线渲染、选中层级与低频布局 commit seam。
  * 不负责：执行 Agent、保存 Run/Session、调用模型、决定权限、拼持久化 key 或直接访问 localStorage。
  * 状态归属：组件内部拥有高频 viewport/drag 视觉状态；长期布局持久化由调用方通过 commit 回调负责。
  * 对外接口：InfiniteCanvas(props)、INFINITE_CANVAS_DEFAULT_VIEWPORT、INFINITE_CANVAS_SCALE_RANGE。
  * 关联文件：infinite-canvas.types.ts、infinite-canvas.css、@lfaa/app-shell/AgentWorkbench.tsx。
- * 修改注意事项：Canvas 只能做 Projection；PointerMove 期间禁止把 viewport 提升为 App Shell 受控状态。
+ * 修改注意事项：Canvas 只负责通用渲染与交互；PointerMove 期间禁止把 viewport 提升为 App Shell 受控状态。
  */
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from "react";
 import type { InfiniteCanvasEdge, InfiniteCanvasNode, InfiniteCanvasProps, InfiniteCanvasViewport } from "./infinite-canvas.types";

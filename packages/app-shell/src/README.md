@@ -1,6 +1,6 @@
-# app-shell/src 代码导航（v0.0.96）
+# app-shell/src 代码导航（v0.0.97）
 
-`@lfaa/app-shell` 是 **LFAA 产品 Shell / Chrome / Composition 层**。它使用 `@lfaa/ui` 的通用 UI Kit，并装配 `@lfaa/workspace` 的 Chat/Work 产品投影；不再重复拥有 Workspace Session、Chat Timeline 或 Work Canvas 产品状态。
+`@lfaa/app-shell` 是 **LFAA 产品 Shell / Chrome / Composition 层**。它使用 `@lfaa/ui` 的通用 UI Kit，并装配 `@lfaa/workspace` 的 Chat/Work 工作模式；不再重复拥有 Workspace Session、Chat Timeline 或 Work Canvas 产品状态。
 
 ## 总结构
 
@@ -19,8 +19,8 @@ workbench/
 └─ shared/                         # 只限 Workbench 内真实复用的小 Primitive
 
 @lfaa/workspace                    # 通过公共 API 装配
-├─ chat/                           # Chat projection
-├─ work/                           # Work / Canvas projection
+├─ chat/                           # Chat Mode
+├─ work/                           # Work Mode / Canvas View
 └─ shared/                         # 共用 Workspace Session
 ```
 

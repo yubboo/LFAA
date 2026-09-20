@@ -1,3 +1,16 @@
+## LFAA v0.0.97 — #21.26 全项目术语与架构一致性维护
+
+- **专业术语统一：** Chat / Work 正式定义为 Workspace 的两种 `Workspace Mode`；`Surface` 仅用于真实 UI 承载面，`ViewModel` 用于 UI 数据，`Renderer / Interaction Primitive` 用于 InfiniteCanvas 等共享交互能力，`Projection` 仅保留给真正的派生 Read Model 语义。
+- **Agent 契约维护：** `AgentSurfaceMode` → `AgentWorkspaceMode`，`AgentRunRequest.surface` → `workspaceMode`，`ChatProjectionMessage` → `ChatMessageViewModel`；Agent Protocol version 从 1 升至 2，App Shell / Web Bridge 同步迁移。
+- **兼容读取：** Workspace Mode 新 key 为 `lfaa.workspace.mode.v1`；v0.0.96 的 `lfaa.agent.surface.v1` 仅作为只读 fallback，新版本不再写旧 key。
+- **公共 API 修复：** `@lfaa/agent-runtime` 补齐 Workspace / Web Host 已消费但此前未从公共入口导出的 `AgentExecutionHints / AgentRuntimeEvent / AgentRuntimeEventListener / AgentWorkspaceMode` 类型。
+- **架构维护：** 当前事实文档统一 Workspace/Mode/ViewModel/Renderer 术语；继续坚持“父 package = 领域、子目录 = 领域职责”，不为未来规划预建空壳 package。
+- **行为冻结：** Reasoning/Particle/Resize/Motion、Config/Provider、Plugin、Credentials、Rust、Windows scripts 不改；56 个冻结文件相对 v0.0.96 hash 零 diff；InfiniteCanvas 核心仅注释术语调整，CSS exact 一致。
+- **验证：** 聚焦回归 64/64 PASS；全仓 Node 158 项中 157 项 PASS，唯一 `node-source-runtime.test.mjs` 受当前 Node 22.16.0 + 无 workspace `node_modules` 环境阻断；修改 TS/TSX syntax transpile 22/22 PASS；UI Contract PASS。
+- **当前状态：** `pending-user-acceptance`；AI 验证 `pass`；用户验收 `pending`。
+- **发布归档验证：** release archive 492 entries；`docs/项目结构与代码地图.md` exact entry 的 UTF-8 flag=`0x800`；`.lfaa/` 保留；fresh extract 后 `workspace-preflight` 全 Gate PASS。
+
+
 ## LFAA v0.0.96 — #21.25 Workspace 领域聚合 / Chat-Work 双投影父子架构
 
 - **Workspace 父领域：** 新增真实 `@lfaa/workspace`，内部按 `chat / work / shared` 组织；Chat 与 Work 不再被当作两个平级 package/Runtime。

@@ -1,4 +1,4 @@
-/** AI Settings/Model projection 的唯一 App-Shell 状态 Owner。 */
+/** AI Settings / Model ViewModel 映射的唯一 App-Shell 状态 Owner。 */
 import { useEffect,useMemo,useState } from "react";
 import type { AgentModelBinding } from "@lfaa/agent-runtime";
 import { builtinAiProviderPlugins, type AiAccountSnapshot, type AiModelSettingValue } from "@lfaa/config-system";

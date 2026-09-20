@@ -1,6 +1,6 @@
 # RuntimeControl 模块
 
-Composer 下的独立子模块，负责模型快切、模型 Capability 投影、reasoning preview/commit queue 和强力推理 UI。
+Composer 下的独立子模块，负责模型快切、模型 Capability → UI ViewModel 映射、reasoning preview/commit queue 和强力推理 UI。
 
 ```text
 RuntimeControl.tsx              # View / Popover 装配

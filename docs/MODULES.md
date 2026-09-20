@@ -1,21 +1,28 @@
-## v0.0.96 Workspace 领域聚合当前事实
+## v0.0.97 Workspace 领域当前事实
 
-当前 Node workspace 增加为 10 个，其中新增的 `@lfaa/workspace` 是有真实 Consumer 的 Workspace Feature Composition，不是规划占位。
+当前 Node workspace 保持 10 个真实项目；本轮不新增 package。`@lfaa/workspace` 是 Workspace 父领域的 Feature Composition，内部按真实职责聚合两种工作模式与共享 Session：
 
 ```text
 @lfaa/app-shell
-└─ product Shell / Chrome / Composer / Settings
+└─ Product Shell / Chrome / Composer / Settings
    └─ consumes @lfaa/workspace public API
 
 @lfaa/workspace
-├─ chat/      Chat 线性投影
-├─ work/      Work / Infinite Canvas 产品投影、布局持久化
+├─ chat/      Chat Mode：线性消息视图
+├─ work/      Work Mode：Infinite Canvas 产品视图、布局持久化
 └─ shared/    Chat/Work 共用 Session Controller / contract
+
+@lfaa/agent-runtime
+└─ one AgentRunRequest { workspaceMode, ... }
 ```
 
-`@lfaa/ui` 继续是 UI Kit / Interaction Engine；InfiniteCanvas 的高频 Pointer/Zoom/Drag 属于 UI Kit，Work 的 workspaceId 布局事实属于 Workspace。`@lfaa/agent-runtime` 仍是 Chat/Work 唯一 Run Protocol；本轮没有建立第二套 Runtime。
+`@lfaa/ui` 继续是 UI Kit / Interaction Engine；InfiniteCanvas 是通用 Renderer/Interaction Primitive，高频 Pointer/Zoom/Drag 属于 UI Kit，Work 的 workspaceId 布局事实属于 Workspace。`@lfaa/agent-runtime` 仍是 Chat/Work 唯一 Run Protocol。
+
+专业术语固定：Chat/Work = Workspace Mode；UI 承载区域才叫 Surface；UI 数据叫 ViewModel；InfiniteCanvas 叫 Renderer/Interaction；Projection 只用于真正的派生 Read Model 过程。
 
 **防过度拆包：** 同一领域默认在一个父 package 下按子目录分层。只有真实的独立生命周期/部署、跨领域复用或多个 Consumer 才升格独立 package。没有 Consumer 的 `project/canvas/workflow/task/asset/model/tool/storage` 只保留规划，不建空目录。
+
+状态：`pending-user-acceptance`（#21.26 / v0.0.97）。
 
 ## v0.0.95 / #21.24 模块内职责分层 + Work Canvas Owner
 

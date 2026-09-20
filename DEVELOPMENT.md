@@ -3,7 +3,7 @@
 > **当前唯一有效开发规范。**
 > 用户说“按照开发规范开发 / 按照开发要求做”时，AI 必须把本文件当执行合同，而不是建议。
 
-## Workspace / UI / Motion / Release 架构硬规则（v0.0.96）
+## Workspace / UI / Motion / Release 架构硬规则（v0.0.97）
 
 - 业务组件不得自行实现第二套通用展开动画、全局快捷键、阻尼 resize 或 overlay z-index；统一消费 `packages/ui/src/ui-motion`、`ui-shortcuts`、`ui-resize`、`ui-overlay`。
 - Resize 的产品规则（min/max、captureRatio、释放阈值）与视觉运动参数（timeConstant/epsilon）必须分离；修改手感优先调共享参数，不在每个 Surface 写魔法数。
@@ -12,9 +12,9 @@
 - 强力推理属于与 Provider reasoning 正交的 Agent Run Hint，不得伪装成未声明的 Provider 参数，也不得为了开启 Hint 强制切换 Provider 档位。
 - 高频 Pointer 动画禁止每像素更新业务 React State；Slider 跟手优先局部 CSS variable，粒子/流星这类连续绘制效果使用单 Canvas 2D + `requestAnimationFrame`，不得用多个 DOM 粒子 + CSS 帧动画制造重排/合成层闪烁；整张 Popover 禁止长期开 `will-change/translateZ(0)`。
 - 正式发布 ZIP 必须由 `scripts/release-archive.mjs` 生成或通过同等字节级校验：Unicode entry 必须设置 ZIP UTF-8 filename flag（bit 11），并在最终归档中 exact 存在 `docs/项目结构与代码地图.md`。
-- Workbench 页面必须遵守父子级区域边界：`AgentWorkbench` 只做 Composition Root；Left / Center / Right / BottomTerminal 为独立大模块；Center 负责 Header / Workspace Projection / Composer；Composer 的 Runtime Control 独立。局部修复默认只允许修改对应子模块和明确共享 Primitive，禁止顺手编辑兄弟区域。
+- Workbench 页面必须遵守父子级区域边界：`AgentWorkbench` 只做 Composition Root；Left / Center / Right / BottomTerminal 为独立大模块；Center 负责 Header / Workspace Mode View / Composer；Composer 的 Runtime Control 独立。局部修复默认只允许修改对应子模块和明确共享 Primitive，禁止顺手编辑兄弟区域。
 - Workbench 产品模块内部按实际职责使用 `view/`、`logic/`、`styles/`、`contracts/`；禁止为了形式创建空目录。View 只组合 UI/Props，Logic 拥有该模块 Controller/状态协调，Styles 只含局部 CSS Module，Contracts 只放跨该模块边界所需类型/Port。
-- `packages/ui` 定位为 UI Kit / Design System / Shared Interaction Engine；TS/TSX 可实现 DOM/ARIA/Pointer/Canvas 等通用 UI 行为，但不得承载 LFAA 产品业务语义。`packages/workspace` 拥有 Chat/Work 产品投影与共享 Workspace Session；`packages/app-shell` 拥有 Shell/Left/Center Chrome/Composer/RuntimeControl/Right/Terminal/Settings 等产品外壳。
+- `packages/ui` 定位为 UI Kit / Design System / Shared Interaction Engine；TS/TSX 可实现 DOM/ARIA/Pointer/Canvas 等通用 UI 行为，但不得承载 LFAA 产品业务语义。`packages/workspace` 拥有 Chat/Work 两种工作模式与共享 Workspace Session；`packages/app-shell` 拥有 Shell/Left/Center Chrome/Composer/RuntimeControl/Right/Terminal/Settings 等产品外壳。
 - `apps/web/src` 与 `apps/web/dev` 按运行环境分离：前者进入浏览器 bundle，后者仅运行于 Vite dev-server/Node Host。`vite.config.ts` 只负责 bridge 组合，资源/PTY/AI/Agent/Plugin 的详细 Host 实现进入 `dev/bridges/*`。
 - **防过度设计：** 父目录表示领域，子目录表示该领域内部职责。`workspace → chat/work/shared` 是默认模式；不要把同一领域的每个 core/renderer/runtime/模式都升格为平级 package。只有独立生命周期、独立部署、跨领域复用或多个真实 Consumer 成立时才拆包。未来 `project/canvas/workflow/task/asset/model/tool/storage` 等规划不得提前创建空壳。
 
@@ -150,7 +150,7 @@ Windows `scripts/windows/*.ps1` 必须保持 UTF-8 with BOM。
 |---|---|---|
 | `apps/` | Web / Desktop / CLI / Server 可运行宿主、启动入口、平台 Adapter、宿主桥 | 可复用业务逻辑、Provider 厂商实现、共享业务 UI、Config 真值 |
 | `packages/` | 可跨宿主复用的 TypeScript / React 业务、协议、UI、Feature | OS 特权实现、一次性 App glue 混入业务包 |
-| `packages/ui/` | UI Kit / Design System / Shared Interaction Engine；通用控件、布局、Motion、Effect、Canvas Projection 与可复用 Feature UI | LFAA 产品页面 Owner、Provider 网络请求、Secret、Config/Session 产品真值、宿主专属桥 |
+| `packages/ui/` | UI Kit / Design System / Shared Interaction Engine；通用控件、布局、Motion、Effect、Canvas Renderer/Interaction 与可复用 Feature UI | LFAA 产品页面 Owner、Provider 网络请求、Secret、Config/Session 产品真值、宿主专属桥 |
 | `packages/app-shell/` | LFAA 产品 UI / Feature 编排；父子模块拥有自己的 view / logic / styles / contracts，并通过公开 API 组装业务 | Provider 内部协议、Secret 实现、OS 能力、跨模块全局 CSS |
 | `packages/config-system/` | 配置设置业务唯一归属：Schema、Settings、Account/Auth、AI Provider 配置、后续 Storage | React / DOM / 视觉布局、App 宿主代码、模型执行 Runtime |
 | `crates/` | Rust 原生能力、安全 Broker、OS 边界 | React/UI、产品页面 |

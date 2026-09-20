@@ -52,8 +52,8 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
     <LeftSidebarRegion
       resolvedTheme={theme.resolvedTheme}
       themePreference={theme.themePreference}
-      agentSurface={session.agentSurface}
-      onAgentSurfaceChange={session.setAgentSurface}
+      workspaceMode={session.workspaceMode}
+      onWorkspaceModeChange={session.setWorkspaceMode}
       onOpenProfile={overlays.openProfile}
       onOpenThemeMenu={overlays.openThemeMenu}
       onRequestUpdate={overlays.requestUpdate}
@@ -65,7 +65,7 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
       leftCollapsed={chrome.chrome.leftCollapsed}
       rightCollapsed={chrome.chrome.rightCollapsed}
       terminalOpen={chrome.chrome.terminalOpen}
-      agentSurface={session.agentSurface}
+      workspaceMode={session.workspaceMode}
       permissionProfileId={session.permissionProfileId}
       modelLabel={ai.modelLabel}
       quickModels={ai.quickModels}

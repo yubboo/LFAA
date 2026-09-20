@@ -7,10 +7,10 @@
  * 对外接口：CenterWorkspaceRegion。
  * 修改注意事项：禁止深链导入子模块内部文件；只能通过 header/composer 的 index.ts 与 @lfaa/workspace 公共入口使用子模块 API。
  */
-import type { AgentExecutionHints, AgentPermissionProfileId, AgentRunHandle, AgentSurfaceMode } from "@lfaa/agent-runtime";
+import type { AgentExecutionHints, AgentPermissionProfileId, AgentRunHandle, AgentWorkspaceMode } from "@lfaa/agent-runtime";
 import type { AiModelSettingValue } from "@lfaa/config-system";
 import type { ActiveReasoningControl, LayoutMode, QuickModelOption } from "#workbench/contracts";
-import { ChatWorkspace, WorkWorkspace, type ChatProjectionMessage } from "@lfaa/workspace";
+import { ChatWorkspace, WorkWorkspace, type ChatMessageViewModel } from "@lfaa/workspace";
 import { ComposerRegion } from "../composer";
 import { CenterHeader } from "../header";
 import styles from "../styles/CenterWorkspace.module.css";
@@ -20,13 +20,13 @@ export interface CenterWorkspaceRegionProps {
   leftCollapsed: boolean;
   rightCollapsed: boolean;
   terminalOpen: boolean;
-  agentSurface: AgentSurfaceMode;
+  workspaceMode: AgentWorkspaceMode;
   permissionProfileId: AgentPermissionProfileId;
   modelLabel: string;
   quickModels: readonly QuickModelOption[];
   activeReasoning: ActiveReasoningControl | null;
   runtimeConnected: boolean;
-  chatMessages: readonly ChatProjectionMessage[];
+  chatMessages: readonly ChatMessageViewModel[];
   workspaceId?: string;
   lastRunInput: string | null;
   onPermissionProfileChange: (profileId: AgentPermissionProfileId) => void;
@@ -43,13 +43,13 @@ export interface CenterWorkspaceRegionProps {
 
 export function CenterWorkspaceRegion(props: CenterWorkspaceRegionProps) {
   return (
-    <section className={styles.root} data-agent-surface={props.agentSurface} data-ui="center-workspace">
+    <section className={styles.root} data-workspace-mode={props.workspaceMode} data-ui="center-workspace">
       <CenterHeader
         layoutMode={props.layoutMode}
         leftCollapsed={props.leftCollapsed}
         rightCollapsed={props.rightCollapsed}
         terminalOpen={props.terminalOpen}
-        agentSurface={props.agentSurface}
+        workspaceMode={props.workspaceMode}
         runtimeConnected={props.runtimeConnected}
         onToggleLeft={props.onToggleLeft}
         onToggleRight={props.onToggleRight}
@@ -57,14 +57,14 @@ export function CenterWorkspaceRegion(props: CenterWorkspaceRegionProps) {
         onLeftHoverEnter={props.onLeftHoverEnter}
         onLeftHoverLeave={props.onLeftHoverLeave}
       />
-      {props.agentSurface === "work" ? (
+      {props.workspaceMode === "work" ? (
         <WorkWorkspace workspaceId={props.workspaceId} lastRunInput={props.lastRunInput} />
       ) : (
         <ChatWorkspace layoutMode={props.layoutMode} messages={props.chatMessages} />
       )}
       <ComposerRegion
         layoutMode={props.layoutMode}
-        agentSurface={props.agentSurface}
+        workspaceMode={props.workspaceMode}
         permissionProfileId={props.permissionProfileId}
         modelLabel={props.modelLabel}
         quickModels={props.quickModels}

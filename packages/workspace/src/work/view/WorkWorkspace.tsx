@@ -1,6 +1,6 @@
 /**
  * 文件：WorkWorkspace.tsx
- * 作用：Workspace / Work 模式的无限画布产品投影。
+ * 作用：Workspace / Work 模式的无限画布工作视图。
  * 负责：装配 Work Canvas Controller 与 @lfaa/ui InfiniteCanvas。
  * 不负责：Chat Timeline、Composer、Agent Run、Canvas Pointer 算法。
  * 状态归属：节点/viewport 视觉布局由 work/logic 拥有；Run 真值由 shared Session 提供。

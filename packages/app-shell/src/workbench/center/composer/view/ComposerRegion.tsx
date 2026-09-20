@@ -3,7 +3,7 @@
  * Permission / Add / RuntimeControl 各自拥有自己的 DOM、样式和内部状态。
  */
 import { useState } from "react";
-import type { AgentExecutionHints, AgentPermissionProfileId, AgentRunHandle, AgentSurfaceMode } from "@lfaa/agent-runtime";
+import type { AgentExecutionHints, AgentPermissionProfileId, AgentRunHandle, AgentWorkspaceMode } from "@lfaa/agent-runtime";
 import type { AiModelSettingValue } from "@lfaa/config-system";
 import { useShortcut } from "@lfaa/ui";
 import type { ActiveReasoningControl, LayoutMode, QuickModelOption } from "#center/contracts";
@@ -12,9 +12,9 @@ import { PermissionControl } from "./PermissionControl";
 import { RuntimeControl, useRuntimeControlController } from "../runtime-control";
 import styles from "../styles/Composer.module.css";
 
-export function ComposerRegion({ layoutMode, agentSurface, permissionProfileId, modelLabel, quickModels, activeReasoning, runtimeConnected, onPermissionProfileChange, onSubmitTask, onQuickSelectModel, onQuickUpdateModelSetting, onOpenAiSettings }: {
+export function ComposerRegion({ layoutMode, workspaceMode, permissionProfileId, modelLabel, quickModels, activeReasoning, runtimeConnected, onPermissionProfileChange, onSubmitTask, onQuickSelectModel, onQuickUpdateModelSetting, onOpenAiSettings }: {
   layoutMode: LayoutMode;
-  agentSurface: AgentSurfaceMode;
+  workspaceMode: AgentWorkspaceMode;
   permissionProfileId: AgentPermissionProfileId;
   modelLabel: string;
   quickModels: readonly QuickModelOption[];
@@ -54,9 +54,9 @@ export function ComposerRegion({ layoutMode, agentSurface, permissionProfileId, 
     finally{setSubmitting(false);}
   };
 
-  return <div className={styles.wrap} data-layout-mode={layoutMode} data-agent-surface={agentSurface} data-ui="composer">
+  return <div className={styles.wrap} data-layout-mode={layoutMode} data-workspace-mode={workspaceMode} data-ui="composer">
     <div className={styles.composer}>
-      <textarea aria-label="输入任务" placeholder={agentSurface==="chat"?"一句话交代任务":"描述目标，Runtime 会把执行过程投影到画布"} rows={1} value={draft} onChange={(event)=>setDraft(event.target.value)} onKeyDown={(event)=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();void submitTask();}}}/>
+      <textarea aria-label="输入任务" placeholder={workspaceMode==="chat"?"一句话交代任务":"描述目标，运行过程和结果会在画布中呈现"} rows={1} value={draft} onChange={(event)=>setDraft(event.target.value)} onKeyDown={(event)=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();void submitTask();}}}/>
       <div className={styles.actions}>
         <AddCapabilityMenu open={addMenuOpen} layoutMode={layoutMode} onOpenChange={openAdd} onChoose={(label)=>setRunNotice(`${label}入口已就绪；实际能力由 Runtime/Host 提供。`)}/>
         <PermissionControl open={permissionMenuOpen} layoutMode={layoutMode} value={permissionProfileId} onOpenChange={openPermission} onChange={onPermissionProfileChange}/>

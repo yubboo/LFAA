@@ -24,7 +24,7 @@ const runtimeController = read("packages/app-shell/src/workbench/center/composer
 const settingsViewModels = read("packages/app-shell/src/workbench/settings/logic/settings-view-models.ts");
 const workbenchSurface = [shell, left, center, header, chat, workCanvasView, session, composer, runtimeController, settingsViewModels].join("\n");
 
-test("infinite canvas supports pan zoom reset node drag and edge projection", () => {
+test("infinite canvas supports pan zoom reset node drag and edge rendering", () => {
   for (const token of ["beginPan", "beginNodeDrag", "onWheel", "applyScale", "resetViewport", "<svg", "onNodesChange?.(next)"]) {
     assert.match(canvas, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
@@ -82,11 +82,11 @@ test("selected canvas node is lifted above siblings while edges remain behind no
 });
 
 test("Workbench still exposes Chat and Work on one model/permission/runtime contract", () => {
-  assert.match(workbenchSurface, /agentSurface===?\s*"chat"|agentSurface === "chat"/);
-  assert.match(workbenchSurface, /onAgentSurfaceChange\("work"\)/);
+  assert.match(workbenchSurface, /workspaceMode===?\s*"chat"|workspaceMode === "chat"/);
+  assert.match(workbenchSurface, /onWorkspaceModeChange\("work"\)/);
   assert.match(workbenchSurface, /runtimeConnected:\s*Boolean\(runtimeHost\)/);
   assert.match(workbenchSurface, /runtimeHost\.startRun\(\{/);
-  assert.match(workbenchSurface, /surface:\s*agentSurface/);
+  assert.match(workbenchSurface, /workspaceMode,?/);
   assert.match(workbenchSurface, /permissionProfileId/);
   assert.match(workbenchSurface, /runModelBinding:\s*AgentModelBinding/);
   assert.match(workbenchSurface, /model:\s*runModelBinding/);

@@ -1,3 +1,23 @@
+## v0.0.97 Workspace Mode / Runtime 契约
+
+Chat 与 Work 是 Workspace 的两种工作模式，不是两套 Runtime。`packages/workspace/src/shared/logic/useWorkspaceSessionController.ts` 是当前 Chat/Work Session 状态 Owner：持有 `workspaceMode`、permission、Chat ViewModel、Runtime event subscription、`startRun` 与 `lastRunInput`；Work Canvas 节点坐标/viewport 继续只属于 `workspace/work/logic`。
+
+Run 请求统一为：
+
+```text
+AgentRunRequest
+├─ workspaceMode: "chat" | "work"
+├─ input
+├─ model
+├─ permissionProfileId
+├─ executionHints?
+└─ workspaceId
+```
+
+本地 Workspace Mode 偏好新 key 为 `lfaa.workspace.mode.v1`。从 v0.0.96 升级到 v0.0.97 时如果新 key 不存在，会只读兼容 `lfaa.agent.surface.v1`；后续写入只使用新 key，避免长期维护两套真值。
+
+Web 开发态 `apps/web/dev/bridges/agent` 只负责解析同一 `workspaceMode` 契约并产生 Runtime Event；Browser client 只传递公共 `AgentRunRequest`。Settings Surface、Plugin `surfaces` 等真正 UI Surface 语义不受此迁移影响。
+
 ## v0.0.95 Web Runtime / Work Canvas 状态 Owner
 
 `apps/web/src` 是浏览器 bundle：React App、host client、xterm view。`apps/web/dev` 是 Vite dev-server/Node Host：Agent/AI/Plugin/Resource/PTY bridge。二者必须通过协议/事件通信；浏览器代码不得直接 import `node:fs`、`node-pty` 或 Rust Host 实现。`vite.config.ts` 只组合 bridge。

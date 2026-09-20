@@ -1,18 +1,18 @@
 /**
  * 文件：contracts.ts
  * 作用：定义 Chat / Work 共用的 Agent Runtime 最小公共协议。
- * 负责：Run 输入、模型绑定、能力描述、Surface 与 UI Projection 基本类型。
+ * 负责：Run 输入、模型绑定、能力描述、Workspace Mode 与 UI ViewModel 基本类型。
  * 不负责：具体模型 SDK、Harness 进程、工具执行、数据库持久化。
- * 状态归属：Session/Run 真值未来归 Runtime/Event Store；UI 只能持有 Projection。
+ * 状态归属：Session/Run 真值未来归 Runtime/Event Store；UI 只能持有派生 ViewModel。
  * 对外接口：AgentRunRequest、AgentModelBinding、AgentCapabilityDescriptor 等。
  * 关联文件：permission-profiles.ts、harness/official-harnesses.ts、packages/app-shell。
- * 修改注意事项：Chat 与 Work 禁止新增不同的执行请求类型；二者只通过 surface 区分入口。
+ * 修改注意事项：Chat 与 Work 禁止新增不同的执行请求类型；二者只通过 workspaceMode 区分入口。
  */
 
 import type { LfaaCapabilityDescriptor, LfaaCapabilityKind } from "@lfaa/plugin-sdk";
 import type { AgentPermissionProfileId } from "./permission-profiles.ts";
 
-export type AgentSurfaceMode = "chat" | "work";
+export type AgentWorkspaceMode = "chat" | "work";
 
 export interface AgentModelBinding {
   readonly accountId: string;
@@ -32,7 +32,7 @@ export interface AgentExecutionHints {
 }
 
 export interface AgentRunRequest {
-  readonly surface: AgentSurfaceMode;
+  readonly workspaceMode: AgentWorkspaceMode;
   readonly input: string;
   readonly model: AgentModelBinding;
   readonly permissionProfileId: AgentPermissionProfileId;
@@ -62,6 +62,6 @@ export type AgentRuntimeEventListener = (event: AgentRuntimeEvent) => void;
 export interface AgentRuntimeHost {
   startRun(request: AgentRunRequest): Promise<AgentRunHandle>;
   cancelRun(runId: string): Promise<void>;
-  /** Runtime 事件是 Chat / Work Projection 的唯一执行结果入口；UI 不自己伪造模型回复。 */
+  /** Runtime 事件是 Chat / Work 派生 ViewModel 的唯一执行结果来源；UI 不自己伪造模型回复。 */
   subscribe(listener: AgentRuntimeEventListener): () => void;
 }

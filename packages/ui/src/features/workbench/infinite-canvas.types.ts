@@ -1,6 +1,6 @@
 /**
  * 文件：infinite-canvas.types.ts
- * 作用：定义 Infinite Canvas 纯 UI Projection 类型。
+ * 作用：定义 Infinite Canvas 通用 Renderer / Interaction 类型。
  * 负责：节点、连线、视口与组件 Props。
  * 不负责：Run/Session/Artifact 业务真值，也不决定持久化介质或 workspace key。
  */

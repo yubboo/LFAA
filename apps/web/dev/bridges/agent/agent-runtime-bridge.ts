@@ -76,7 +76,7 @@ function parseRunRequest(value: unknown): AgentRunRequest {
   if (!model || typeof model !== "object") throw new Error("Run 缺少模型绑定。");
   const m = model as Record<string, unknown>;
   if (typeof raw.input !== "string" || !raw.input.trim()) throw new Error("Run 输入为空。");
-  if (raw.surface !== "chat" && raw.surface !== "work") throw new Error("Run surface 无效。");
+  if (raw.workspaceMode !== "chat" && raw.workspaceMode !== "work") throw new Error("Run workspaceMode 无效。");
   if (typeof m.accountId !== "string" || typeof m.providerId !== "string" || typeof m.modelId !== "string") throw new Error("Run 模型绑定无效。");
   const settings: Record<string, string | number | boolean> = {};
   if (m.settings && typeof m.settings === "object" && !Array.isArray(m.settings)) {
@@ -89,7 +89,7 @@ function parseRunRequest(value: unknown): AgentRunRequest {
     ? { reasoningBoost: (rawHints as Record<string, unknown>).reasoningBoost === true }
     : undefined;
   return {
-    surface: raw.surface,
+    workspaceMode: raw.workspaceMode,
     input: raw.input.trim(),
     model: { accountId: m.accountId, providerId: m.providerId, modelId: m.modelId, settings },
     permissionProfileId: typeof raw.permissionProfileId === "string" ? raw.permissionProfileId as AgentRunRequest["permissionProfileId"] : "ask",

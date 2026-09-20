@@ -1,6 +1,6 @@
 /**
  * 文件：work-canvas.model.ts
- * 作用：定义 Work Canvas 的静态 Projection 模板。
+ * 作用：定义 Work Canvas 的初始视图模型模板。
  * 负责：节点/连线默认定义；这些定义包含默认坐标，但不拥有持久化状态。
  * 不负责：Run/Session 真值、localStorage、Pointer 交互。
  */

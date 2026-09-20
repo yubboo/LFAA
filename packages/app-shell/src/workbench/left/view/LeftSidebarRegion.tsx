@@ -2,7 +2,7 @@
  * 左侧栏完整模块。局部 brand menu 状态只在本模块；宽度/收起/Preview 归 Shell。
  */
 import { useState } from "react";
-import type { AgentSurfaceMode } from "@lfaa/agent-runtime";
+import type { AgentWorkspaceMode } from "@lfaa/agent-runtime";
 import { useDismissibleLayer, type ThemePreference } from "@lfaa/ui";
 import { WorkbenchIcon } from "#workbench/shared";
 import type { ResolvedTheme } from "#workbench/contracts";
@@ -12,11 +12,11 @@ import styles from "../styles/LeftSidebar.module.css";
 
 const recentRuns = ["配置系统", "Web 工作台", "热插拔测试", "模型接入规划"];
 
-export function LeftSidebarRegion({ resolvedTheme, themePreference, agentSurface, onAgentSurfaceChange, onOpenProfile, onOpenThemeMenu, onRequestUpdate }: {
+export function LeftSidebarRegion({ resolvedTheme, themePreference, workspaceMode, onWorkspaceModeChange, onOpenProfile, onOpenThemeMenu, onRequestUpdate }: {
   resolvedTheme: ResolvedTheme;
   themePreference: ThemePreference;
-  agentSurface: AgentSurfaceMode;
-  onAgentSurfaceChange: (surface: AgentSurfaceMode) => void;
+  workspaceMode: AgentWorkspaceMode;
+  onWorkspaceModeChange: (mode: AgentWorkspaceMode) => void;
   onOpenProfile: () => void;
   onOpenThemeMenu: () => void;
   onRequestUpdate: () => void;
@@ -31,8 +31,8 @@ export function LeftSidebarRegion({ resolvedTheme, themePreference, agentSurface
             <span className={styles.brandMark}>L</span><strong>LFAA</strong><WorkbenchIcon name="chevron" size={15} />
           </button>
           {brandMenuOpen ? <div className={styles.brandMenu} role="menu" aria-label="LFAA 模式">
-            <button className={agentSurface === "chat" ? styles.active : ""} type="button" role="menuitem" onClick={() => { onAgentSurfaceChange("chat"); setBrandMenuOpen(false); }}><span><WorkbenchIcon name="spark" size={17} /><strong>聊天</strong></span><small>一句话直接完成任务</small></button>
-            <button className={agentSurface === "work" ? styles.active : ""} type="button" role="menuitem" onClick={() => { onAgentSurfaceChange("work"); setBrandMenuOpen(false); }}><span><WorkbenchIcon name="grid" size={17} /><strong>工作</strong></span><small>无限画布组织和执行任务</small></button>
+            <button className={workspaceMode === "chat" ? styles.active : ""} type="button" role="menuitem" onClick={() => { onWorkspaceModeChange("chat"); setBrandMenuOpen(false); }}><span><WorkbenchIcon name="spark" size={17} /><strong>聊天</strong></span><small>一句话直接完成任务</small></button>
+            <button className={workspaceMode === "work" ? styles.active : ""} type="button" role="menuitem" onClick={() => { onWorkspaceModeChange("work"); setBrandMenuOpen(false); }}><span><WorkbenchIcon name="grid" size={17} /><strong>工作</strong></span><small>无限画布组织和执行任务</small></button>
           </div> : null}
         </div>
         <div className={styles.brandActions}><IconButton type="button" aria-label="搜索"><WorkbenchIcon name="search" /></IconButton></div>

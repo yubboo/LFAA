@@ -25,6 +25,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #21.26 | 全项目术语与架构一致性维护 | v0.0.97 | pending-user-acceptance | pass | pending |
 | #21.25 | Workspace 领域聚合 / Chat-Work 双投影父子架构 | v0.0.96 | pending-user-acceptance | pass | pending |
 | #21.24 | Workbench 模块内职责分层 / v0.0.93 无限画布合并 | v0.0.95 | pending-user-acceptance | pass | pending |
 | #22.8 | 无限画布布局持久化与选中层级修复 | v0.0.93 → merged v0.0.95 | pending-user-acceptance | pass | pending |
@@ -79,6 +80,94 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #21.26 全项目术语与架构一致性维护
+
+### 用户目标 / 背景
+
+用户要求对整个项目做一次维护，并明确要求架构术语专业、职责清楚、避免过度设计。上一版已经把 `Workspace → chat/work/shared` 父子关系落地，但当前事实文档、源码类型名和注释中仍混用 `Projection / Surface / Mode`，`PROJECT_PLAN.md` 还存在重复/过期当前任务描述。该类语义漂移会直接增加未来 AI/开发者的理解成本。
+
+本轮是**行为冻结的架构维护版本**：统一 Workspace 术语、修正公开/内部契约命名、清理当前事实文档漂移、强化防回归门禁；不新增产品功能，不改变 Provider/Reasoning/Canvas Pointer/Resize/Plugin/Rust/Windows 运维行为。
+
+### 基线 / 目标版本
+
+- **代码基线：** v0.0.96。
+- **目标版本：** v0.0.97。
+- **发布状态：** 完成 AI 验证后只能进入 `pending-user-acceptance`。
+
+### 专业术语决定
+
+1. `Workspace` 是父领域；`Chat` / `Work` 的正式称呼是 **Workspace Mode / 工作模式**。
+2. `Surface` 只表示实际 UI 承载面/扩展目标（例如 Settings Surface、Plugin UI Surface），不再作为 Chat/Work 的主领域名称。
+3. `ViewModel` 表示 UI 直接消费的数据形状；Chat 消息 UI 契约使用 `ChatMessageViewModel`。
+4. `Renderer` / `Interaction Primitive` 表示 InfiniteCanvas 等通用 UI 渲染与交互能力。
+5. `Projection` 只在真正的派生 Read Model / Event → ViewModel 映射语义中使用；不得再把 Chat/Work 模式、InfiniteCanvas Renderer 本身称为 Projection。
+
+### 允许修改
+
+- `packages/agent-runtime/**`：只做 Chat/Work 模式契约的专业命名迁移；
+- `packages/workspace/**`：Workspace mode / ViewModel 命名、兼容旧 localStorage key 的一次迁移；
+- `packages/app-shell/**`：随公共契约做等价接线与 `data-workspace-mode` 命名；
+- `apps/web/src/host-clients/agent-runtime-client.ts`、`apps/web/dev/bridges/agent/**`：随 Run request 字段等价迁移；
+- 相关测试与架构门禁；
+- 当前事实文档、README、包 README、版本/发布元数据；
+- 历史时间线只追加本条记录，不重写旧版本历史。
+
+### 禁止修改
+
+- `packages/ui/src/ui-controls/**`、`ui-effects/**`、`ui-resize/**`、`ui-motion/**` 的行为；
+- InfiniteCanvas pan/zoom/drag/selection/edge 算法；
+- Config/Provider/Secret/Reasoning/Strong Reasoning 业务；
+- Plugin Registry / Plugin Host 行为；
+- Rust Native、Windows Setup/Sync/GitHub/Update 逻辑；
+- 新建未来 `project/canvas/workflow/task/asset/model/tool/storage` 空壳 package。
+
+### 状态所有权 / 兼容要求
+
+```text
+Workspace
+├─ Chat Mode
+├─ Work Mode
+└─ shared Session Controller
+        ↓
+AgentRunRequest.workspaceMode
+        ↓
+同一个 Agent Runtime Host
+```
+
+- `AgentSurfaceMode` → `AgentWorkspaceMode`；`AgentRunRequest.surface` → `workspaceMode`。
+- Workspace 本地持久化 key 使用 `lfaa.workspace.mode.v1`；读取时必须兼容 v0.0.96 的 `lfaa.agent.surface.v1`，避免升级后丢失用户模式偏好。
+- `ChatProjectionMessage` → `ChatMessageViewModel`，只改语义命名，不改字段/渲染行为。
+- Plugin SDK 的 `surfaces`、Settings Surface 等真正 UI Surface 语义保持不动。
+
+### 验收条件
+
+1. 当前事实源不再把 Chat/Work 正式称为“投影”，统一为 Workspace 的两种工作模式。
+2. Agent Runtime / Workspace / App Shell / Web Bridge 的 Chat/Work mode 字段命名一致，不保留 `AgentSurfaceMode` / `request.surface` 旧契约。
+3. v0.0.96 的 workspace mode 偏好可通过 legacy key 自动读取。
+4. InfiniteCanvas 当前行为与 v0.0.96 完全冻结；仅允许注释/文档从 Projection 修正为 Renderer/Interaction。
+5. `PROJECT_PLAN.md` 当前任务不再重复或指向 v0.0.95/#21.24。
+6. 新门禁能阻止 `ChatProjectionMessage`、`AgentSurfaceMode`、`AgentRunRequest.surface` 等旧专业术语回流。
+7. workspace-preflight、聚焦回归、可执行全仓 Node 测试、发布 ZIP round-trip 通过；环境限制必须如实记录。
+
+### 必须测试
+
+- `test/workspace-package-boundary.test.mjs`；
+- `test/agent-runtime-contract.test.mjs`；
+- `test/chat-runtime-contract.test.mjs`；
+- `test/infinite-canvas-contract.test.mjs`；
+- `test/workbench-module-boundary.test.mjs` / `test/workbench-architecture-layer.test.mjs`；
+- 新增或扩展 Workspace terminology contract；
+- `node scripts/workspace-preflight.mjs`；
+- 可执行的 `node --test test/*.test.mjs`；
+- 最终 ZIP fresh extract + preflight。
+
+### 当前状态
+
+- **状态：** pending-user-acceptance
+- **AI 验证：** pass
+- **用户验收：** pending
+
 
 ## #21.25 Workspace 领域聚合 / Chat-Work 双投影父子架构
 

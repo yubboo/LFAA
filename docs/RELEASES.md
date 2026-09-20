@@ -1,3 +1,16 @@
+## LFAA v0.0.97 Release — #21.26 全项目术语与架构一致性维护
+
+- 以 v0.0.96 为基线做维护，不扩展产品功能面；Workspace 继续是父领域，Chat / Work 是两种 Workspace Mode。
+- Agent Runtime / Workspace / App Shell / Web Bridge 统一使用 `AgentWorkspaceMode / workspaceMode / ChatMessageViewModel`；Agent Protocol version 更新为 2。
+- Workspace Mode 本地偏好迁移到 `lfaa.workspace.mode.v1`，仅只读兼容旧 `lfaa.agent.surface.v1`。
+- 修复 `@lfaa/agent-runtime` 公共入口遗漏类型导出，避免 package consumer 使用未公开合同。
+- 专业术语门禁新增：Surface / ViewModel / Renderer / Projection 各自使用真实行业语义；禁止旧 Chat/Work “Projection/Surface”合同回流。
+- 不新增未来空壳 package；Reasoning/Particle/Resize/Provider/Plugin/Rust/Windows 运维行为冻结。
+- 自动验证：聚焦 64/64 PASS；全仓 Node 158 项中 157 项 PASS，唯一 Node source runtime 项受 Node 22.16.0 + 无 workspace node_modules 环境阻断；修改 TS/TSX syntax transpile 22/22 PASS；UI Contract PASS。
+- 状态：`pending-user-acceptance`；AI 验证 `pass`；用户验收 `pending`。
+- 发布归档验证：492 entries；`docs/项目结构与代码地图.md` exact entry UTF-8 flag=`0x800`；`.lfaa/` 保留；fresh extract 后 `workspace-preflight` 全 Gate PASS。
+
+
 ## LFAA v0.0.96 Release — #21.25 Workspace 领域聚合 / Chat-Work 双投影父子架构
 
 - 新增 `@lfaa/workspace` 作为 Workspace 父领域，内部 `chat / work / shared`；App Shell 是产品外壳，UI 是共享 UI Kit。

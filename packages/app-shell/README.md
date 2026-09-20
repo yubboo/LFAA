@@ -12,7 +12,7 @@
 
 - `AgentWorkbench`
 - 左侧导航 / 会话区
-- 中间 Shell / Header / Composer，并装配 `@lfaa/workspace` 的 Chat/Work 投影
+- 中间 Shell / Header / Composer，并装配 `@lfaa/workspace` 的 Chat/Work 工作模式
 - 右侧工具 / `.lfaa` 资源区
 - 浅色 / 深色中性主题
 - AI 设置 Feature 组装：`@lfaa/config-system` Provider Registry → `@lfaa/ui` ViewModel；不拥有 Provider 业务事实

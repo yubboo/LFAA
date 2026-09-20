@@ -1,7 +1,7 @@
 /**
  * 文件：useWorkspaceSessionController.ts
  * 作用：Workspace / Chat+Work 共用 Run 业务状态唯一 Owner。
- * 负责：surface、permission、chat projection、Runtime event subscription、startRun、最近一次 Run 输入投影。
+ * 负责：workspaceMode、permission、Chat ViewModel、Runtime event subscription、startRun、最近一次 Run 输入。
  * 不负责：Work Canvas 节点坐标/viewport、模型账户配置、Composer draft、Shell chrome、UI 布局。
  * 状态归属：Workspace Session；Chat 与 Work 共用一套 AgentRuntimeHost / permission / model binding。
  * 对外接口：useWorkspaceSessionController({ runtimeHost, workspaceId, activeModelBinding })。
@@ -16,17 +16,19 @@ import type {
   AgentRunHandle,
   AgentRuntimeEvent,
   AgentRuntimeHost,
-  AgentSurfaceMode,
+  AgentWorkspaceMode,
 } from "@lfaa/agent-runtime";
 import type { AiModelSettingValue } from "@lfaa/config-system";
-import type { ChatProjectionMessage } from "../contracts/workspace.types";
+import type { ChatMessageViewModel } from "../contracts/workspace.types";
 
-const AGENT_SURFACE_KEY = "lfaa.agent.surface.v1";
+const WORKSPACE_MODE_KEY = "lfaa.workspace.mode.v1";
+const LEGACY_AGENT_SURFACE_KEY = "lfaa.agent.surface.v1";
 const AGENT_PERMISSION_KEY = "lfaa.agent.permission-profile.v1";
 
-function initialAgentSurface(): AgentSurfaceMode {
+function initialWorkspaceMode(): AgentWorkspaceMode {
   if (typeof window === "undefined") return "chat";
-  return window.localStorage.getItem(AGENT_SURFACE_KEY) === "work" ? "work" : "chat";
+  const stored = window.localStorage.getItem(WORKSPACE_MODE_KEY) ?? window.localStorage.getItem(LEGACY_AGENT_SURFACE_KEY);
+  return stored === "work" ? "work" : "chat";
 }
 
 function initialPermissionProfile(): AgentPermissionProfileId {
@@ -40,12 +42,12 @@ export function useWorkspaceSessionController({ runtimeHost, workspaceId, active
   workspaceId: string | undefined;
   activeModelBinding: AgentModelBinding | null;
 }) {
-  const [agentSurface, setAgentSurface] = useState<AgentSurfaceMode>(initialAgentSurface);
+  const [workspaceMode, setWorkspaceMode] = useState<AgentWorkspaceMode>(initialWorkspaceMode);
   const [permissionProfileId, setPermissionProfileId] = useState<AgentPermissionProfileId>(initialPermissionProfile);
-  const [chatMessages, setChatMessages] = useState<readonly ChatProjectionMessage[]>([]);
+  const [chatMessages, setChatMessages] = useState<readonly ChatMessageViewModel[]>([]);
   const [lastRunInput, setLastRunInput] = useState<string | null>(null);
 
-  useEffect(() => { window.localStorage.setItem(AGENT_SURFACE_KEY, agentSurface); }, [agentSurface]);
+  useEffect(() => { window.localStorage.setItem(WORKSPACE_MODE_KEY, workspaceMode); }, [workspaceMode]);
   useEffect(() => { window.localStorage.setItem(AGENT_PERMISSION_KEY, permissionProfileId); }, [permissionProfileId]);
   useEffect(() => {
     if (!runtimeHost) return;
@@ -70,11 +72,11 @@ export function useWorkspaceSessionController({ runtimeHost, workspaceId, active
     const runModelBinding: AgentModelBinding = modelSettingOverrides
       ? { ...activeModelBinding, settings: { ...(activeModelBinding.settings ?? {}), ...modelSettingOverrides } }
       : activeModelBinding;
-    if (agentSurface === "chat") {
+    if (workspaceMode === "chat") {
       setChatMessages((messages) => [...messages, { id: `user:${Date.now()}:${messages.length}`, role: "user", text: input }]);
     }
     const handle = await runtimeHost.startRun({
-      surface: agentSurface,
+      workspaceMode,
       input,
       model: runModelBinding,
       permissionProfileId,
@@ -86,8 +88,8 @@ export function useWorkspaceSessionController({ runtimeHost, workspaceId, active
   };
 
   return {
-    agentSurface,
-    setAgentSurface,
+    workspaceMode,
+    setWorkspaceMode,
     permissionProfileId,
     setPermissionProfileId,
     chatMessages,

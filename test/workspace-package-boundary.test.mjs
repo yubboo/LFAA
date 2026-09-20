@@ -1,5 +1,5 @@
 /**
- * #21.25 Workspace 父领域边界门禁。
+ * #21.26 Workspace 父领域与专业术语边界门禁。
  * 锁定：一个 @lfaa/workspace package 内部聚合 chat/work/shared；不回退成 chat-workspace/work-workspace 平级包。
  */
 import test from "node:test";
@@ -47,7 +47,9 @@ test("workspace session is the single Chat Work run owner and canvas layout stay
   const canvas = read(`${workspaceRoot}/work/logic/useWorkCanvasController.ts`);
   assert.match(session, /runtimeHost\.startRun\(\{/);
   assert.match(session, /assistant\.completed/);
-  assert.match(session, /surface:\s*agentSurface/);
+  assert.match(session, /workspaceMode,?/);
+  assert.match(session, /WORKSPACE_MODE_KEY = "lfaa\.workspace\.mode\.v1"/);
+  assert.match(session, /LEGACY_AGENT_SURFACE_KEY = "lfaa\.agent\.surface\.v1"/);
   assert.doesNotMatch(session, /InfiniteCanvas|WORK_CANVAS_LAYOUT_KEY_PREFIX|nodePositions|canvas-layout/);
   assert.match(canvas, /resolveWorkCanvasLayoutKey\(workspaceId\)/);
   assert.match(canvas, /lastRunInput/);

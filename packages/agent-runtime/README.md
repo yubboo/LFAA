@@ -19,6 +19,6 @@
 
 ## 核心原则
 
-Chat 与 Work 只是在 `AgentRunRequest.surface` 上不同，模型、能力、权限、Session/Run 必须共用同一 Runtime。Infinite Canvas 只是 Runtime/Event Store 的 Projection，不是第二事实源。
+Chat 与 Work 只在 `AgentRunRequest.workspaceMode` 上区分入口，模型、能力、权限、Session/Run 必须共用同一 Runtime。Infinite Canvas 是 Work Mode 的 Renderer/Interaction 层，不是 Runtime 或 Event Store 的第二事实源。
 
 `Full access` 只放宽执行 Profile，不允许普通 Run 修改 Trust Core、Secret 边界或关闭审计。

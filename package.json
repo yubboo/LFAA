@@ -1,7 +1,7 @@
 {
   "name": "lfaa",
   "private": true,
-  "version": "0.0.96",
+  "version": "0.0.97",
   "description": "Little Fish AI Agent monorepo",
   "scripts": {
     "preinstall": "node scripts/pnpm-only.mjs",
@@ -55,7 +55,7 @@
     "test:chat-runtime": "node --test test/chat-runtime-contract.test.mjs",
     "release:archive": "node scripts/release-archive.mjs",
     "test:release-archive": "node --test test/release-archive.test.mjs",
-    "test:workspace-boundary": "node --test test/workspace-package-boundary.test.mjs test/workbench-module-boundary.test.mjs test/workbench-architecture-layer.test.mjs"
+    "test:workspace-boundary": "node --test test/workspace-package-boundary.test.mjs test/workbench-module-boundary.test.mjs test/workbench-architecture-layer.test.mjs test/workspace-terminology.test.mjs"
   },
   "author": "二鱼",
   "packageManager": "pnpm@11.17.0",

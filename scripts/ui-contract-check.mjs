@@ -79,7 +79,7 @@ for(const token of ["leftPaneWidth","onLeftWidthChange={chrome.setLeftPaneWidth}
 if(!shellCss.includes("var(--agent-left-preview-width"))fail("preview must consume shared left width variable");
 
 // 6. Chat/Work 共用 Session/Runtime。
-for(const token of ['agentSurface==="chat"','setAgentSurface','permissionProfileId','<InfiniteCanvas','assistant.completed'])if(!allApp.includes(token))fail(`missing shared Chat/Work runtime ${token}`);
+for(const token of ['workspaceMode === "chat"','setWorkspaceMode','permissionProfileId','<InfiniteCanvas','assistant.completed'])if(!allApp.includes(token))fail(`missing shared Chat/Work runtime ${token}`);
 if(!/runtimeConnected:\s*Boolean\(runtimeHost\)/.test(allApp))fail('missing shared Chat/Work runtime runtimeConnected');
 if(allApp.includes("GPT-5.6 Sol"))fail("Workbench must not hard-code a model name");
 

@@ -1,7 +1,7 @@
 /**
  * 文件：ReasoningControlRow.tsx
  * 作用：RuntimeControl 内 reasoning Slider + Effect 的子模块。
- * 负责：把当前模型真实 reasoning stages 投影到共享 DiscreteSlider，并把 boost 状态传给共享 Effect Host。
+ * 负责：把当前模型真实 reasoning stages 映射到共享 DiscreteSlider，并把 boost 状态传给共享 Effect Host。
  * 不负责：档位推导、Provider 保存、Slider Pointer 算法、Canvas 粒子算法。
  */
 import { DiscreteSlider, UiEffectHost, builtinUiEffectRegistry } from "@lfaa/ui";

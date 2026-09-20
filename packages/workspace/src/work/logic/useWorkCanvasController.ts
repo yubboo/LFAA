@@ -1,9 +1,9 @@
 /**
  * 文件：useWorkCanvasController.ts
  * 作用：Work Canvas 视觉布局状态唯一 Owner。
- * 负责：节点坐标、workspace-scoped layout、viewport commit、最近 Run 输入的 UI Projection。
+ * 负责：节点坐标、workspace-scoped layout、viewport commit、最近 Run 输入驱动的画布视图状态同步。
  * 不负责：Agent Run 生命周期、模型、权限、InfiniteCanvas Pointer 高频状态。
- * 状态归属：Work Canvas 产品模块；Session 只提供 lastRunInput 业务投影。
+ * 状态归属：Work Canvas 产品模块；Session 只提供 lastRunInput。
  * 对外接口：useWorkCanvasController({ workspaceId, lastRunInput })。
  * 关联文件：work-canvas-layout.ts、WorkWorkspace.tsx、@lfaa/ui InfiniteCanvas。
  * 修改注意事项：PointerMove 只更新视觉 state；持久化必须 debounce 或低频 commit。

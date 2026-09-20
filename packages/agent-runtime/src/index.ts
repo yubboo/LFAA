@@ -7,11 +7,14 @@
 export type {
   AgentCapabilityDescriptor,
   AgentCapabilityKind,
+  AgentExecutionHints,
   AgentModelBinding,
   AgentRunHandle,
   AgentRunRequest,
+  AgentRuntimeEvent,
+  AgentRuntimeEventListener,
   AgentRuntimeHost,
-  AgentSurfaceMode,
+  AgentWorkspaceMode,
 } from "./core/contracts.ts";
 export {
   AGENT_PERMISSION_PROFILES,

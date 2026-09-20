@@ -52,10 +52,10 @@ test("official harness registry names only official bridge entry points", () => 
   assert.equal(list.find((item) => item.id === "deepseek-harness")?.bridge, "acp-or-sdk");
 });
 
-test("Chat and Work share one AgentRunRequest surface discriminator", () => {
+test("Chat and Work share one AgentRunRequest workspaceMode discriminator", () => {
   const source = fs.readFileSync("packages/agent-runtime/src/core/contracts.ts", "utf8");
-  assert.match(source, /export type AgentSurfaceMode = "chat" \| "work"/);
+  assert.match(source, /export type AgentWorkspaceMode = "chat" \| "work"/);
   assert.match(source, /export interface AgentRunRequest/);
-  assert.match(source, /readonly surface: AgentSurfaceMode/);
+  assert.match(source, /readonly workspaceMode: AgentWorkspaceMode/);
   assert.doesNotMatch(source, /ChatRunRequest|WorkRunRequest/);
 });

@@ -1,10 +1,13 @@
-## v0.0.96 Workspace / App Shell / UI Kit 当前边界
+## v0.0.97 Workspace / App Shell / UI Kit 当前边界
 
-- `@lfaa/workspace` 拥有 Chat 与 Work 两种产品 Surface：`chat/` 负责线性消息投影，`work/` 负责无限画布产品投影和低频布局持久化；`shared/` 负责二者共用 Session。
-- `@lfaa/app-shell` 拥有 Shell、Left/Right、Center Chrome、Composer/RuntimeControl、Terminal、Settings，并通过 `@lfaa/workspace` 公共入口装配 Chat/Work。
-- `@lfaa/ui` 继续只拥有通用 Slider、InfiniteCanvas、Effect、Resize、Motion 等 Primitive。Workspace 不能复制这些算法，UI Kit 也不能拥有 Project/Run/Provider 产品真值。
-- Center 的父子顺序现在是 `Header → Workspace(Chat|Work) → Composer`；原 `center/conversation` 与 `workbench/session` Owner 已移除，避免一个 Conversation 模块同时承担 Chat 与 Work。
-- v0.0.95 Infinite Canvas 的 workspaceId 节点 x/y + viewport 持久化、selected/dragging 置顶、edge behind nodes 语义保持不变。
+- `@lfaa/workspace` 拥有 Chat Mode 与 Work Mode：`chat/` 负责线性消息 View，`work/` 负责 Infinite Canvas 产品 View 和低频布局持久化，`shared/` 负责共用 Session。
+- `@lfaa/app-shell` 拥有 Shell、Left/Right、Center Chrome、Composer/RuntimeControl、Terminal、Settings，并通过 `@lfaa/workspace` 公共入口装配当前 Workspace Mode。
+- `@lfaa/ui` 只拥有通用 Slider、InfiniteCanvas Renderer/Interaction、Effect、Resize、Motion 等 Primitive。Workspace 不能复制这些算法，UI Kit 也不能拥有 Project/Run/Provider 产品真值。
+- Center 父子顺序是 `Header → Workspace Mode View → Composer`。Chat/Work 不是两套 Runtime，也不叫两种 Projection。
+- `ChatMessageViewModel` 是 Chat UI 数据合同；真实 Run/Session 状态仍来自 Agent Runtime / Workspace Session。
+- v0.0.95/96 Infinite Canvas 的 workspaceId 节点 x/y + viewport 持久化、selected/dragging 置顶、edge behind nodes 语义保持不变。
+
+术语：`Surface` 继续用于 Settings Surface、插件 UI Surface 等真实 UI 承载面；`Projection` 只用于真正的 Event/Domain → Read Model 派生，不用于命名 Chat/Work 或 InfiniteCanvas。
 
 ## v0.0.95 产品 UI / UI Kit / Work Canvas 当前边界
 
@@ -86,7 +89,7 @@ UI 不运行 pnpm、不 import 第三方插件代码、不读取 Secret。宿主
 ## v0.0.78：Codex 风格 Chat / Work 交互收敛
 
 - 左上角 `LFAA` 是 Chat / Work 的唯一模式切换入口；中间 Header 不再复制第二套 Chat / Work 开关。
-- Chat 空状态与 Work 模式标题在中间工作区居中表达；Work 仍是同一 Agent Runtime 的 Infinite Canvas Projection，不是第二套智能。
+- Chat 空状态与 Work 模式标题在中间工作区居中表达；Work 仍是同一 Agent Runtime 的 Infinite Canvas Renderer / Interaction View，不是第二套智能。
 - Composer 权限不再使用原生 `<select>`。三档权限使用 Codex 风格解释型 Popover：`请求审批 / 替我审批 / 完全权限`，每项同时显示真实语义说明。
 - `+`、权限、模型入口必须可点击；模型按钮打开 AI 设置，`+` 菜单只暴露 Runtime/Capability Registry 可以承接的入口，禁止用静态假能力冒充已经接通。
 - 模型标签继续来自 Config System 当前 `selectedModelId`；Runtime 未连接时仍明确显示并禁止伪造模型回复。

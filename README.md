@@ -1,19 +1,19 @@
-# LFAA v0.0.96 — Workspace 父领域聚合 / Chat-Work 双投影
+# LFAA v0.0.97 — 全项目术语与架构一致性维护
 
-**当前包：LFAA-v0.0.96**
+**当前包：LFAA-v0.0.97**
 
-v0.0.96 在 v0.0.95 的模块化与 Infinite Canvas 修复基础上，把产品语义进一步收敛：`Workspace` 是父领域，`Chat` 与 `Work` 是同一 Agent/Project 核心之上的两种投影，不再把二者规划成两个平级 package。新增真实 `@lfaa/workspace`，内部按 `chat / work / shared` 组织；`@lfaa/app-shell` 收敛为产品 Shell/Chrome/Composer/Settings 装配；`@lfaa/ui` 继续只提供通用 UI Kit 与 InfiniteCanvas/Slider/Effect/Resize 等 Primitive。
+v0.0.97 以 v0.0.96 的 Workspace 父领域结构为基线做维护，不扩展功能面。Chat 与 Work 的正式术语统一为 **Workspace Mode（工作模式）**；`Surface` 只用于真实 UI 承载面，`ViewModel` 用于 UI 数据形状，`Renderer / Interaction Primitive` 用于 InfiniteCanvas 等共享 UI 能力，`Projection` 仅保留给真正的 Read Model / Event 派生语义。
 
-本版同时把“防过度拆包”写入架构规范：同一领域优先在一个父 package 内分层，只有独立生命周期/部署、跨领域复用或多个真实 Consumer 成立时才拆独立 package；不为未来功能提前建立空壳。
+本版同时修正 Agent Runtime / Workspace / App Shell / Web Bridge 的契约命名，补齐 Agent Runtime 公共 type export，清理当前事实文档漂移，并增加术语防回归测试。Infinite Canvas、Reasoning、Provider、Plugin、Rust、Windows 运维行为全部冻结。
 
 # Little Fish AI Agent
 
 **中文名称：小鱼 AI 智能体**  
 **简称：LFAA**  
 **作者：二鱼**  
-**当前包：LFAA-v0.0.96**
+**当前包：LFAA-v0.0.97**
 
-## 当前产品定位（v0.0.96）
+## 当前产品定位（v0.0.97）
 
 LFAA 是面向个人的 AI 任务平台，而不是只会对话的聊天壳。用户可以通过 **Chat 一句话** 或 **Work 无限画布** 驱动同一个 Agent Runtime；一键开服、AI 写作、AI 拆图、Minecraft 插件/模组开发等场景最终都应作为 Plugin / Capability / App Pack 进入。
 
@@ -63,17 +63,17 @@ v0.0.50 起，Prompt、开发日志、版本记录不再“一次任务一个 Ma
 当前主业务模块：
 
 ```text
-plugin-platform + agent-runtime + workbench
+plugin-platform + agent-runtime + workspace + workbench
 ```
 
 当前版本总任务：
 
 ```text
-#21.25 Workspace 领域聚合 / Chat-Work 双投影父子架构
-version: v0.0.96
+#21.26 全项目术语与架构一致性维护
+version: v0.0.97
 status: pending-user-acceptance
 
-Workspace 是父领域：Chat 与 Work 在 @lfaa/workspace 内共享 Session/Run 核心；App Shell 只装配公开 API。v0.0.95 的 Infinite Canvas 持久化/选中置顶、Reasoning/Resize/Provider/Agent Runtime 行为保持冻结，不在架构重构中顺手改动。
+Workspace 是父领域：Chat 与 Work 是同一核心上的两种 Workspace Mode；App Shell 只装配公开 API。Agent Run 使用 `workspaceMode`，Chat UI 数据使用 `ChatMessageViewModel`；v0.0.96 的 Infinite Canvas 持久化/选中置顶、Reasoning/Resize/Provider/Plugin/Rust/Windows 运维行为保持冻结。
 ```
 
 v0.0.87 把 v0.0.86 已验证方向进一步抽成共享 UI 架构：`packages/ui/src/ui-overlay / ui-controls / ui-effects / ui-extension` 统一承载可复用交互与扩展 seam。Composer 的 Slider 与强力推理特效改为调用共享模块；未来 Effect Pack / Renderer / Panel 等可通过 Registry 贡献并按 owner 卸载，UI Kernel 基础件保持稳定。
