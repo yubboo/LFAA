@@ -1,4 +1,12 @@
-# LFAA Modules — v0.1.16 Current Ownership
+# LFAA Modules — v0.1.17 Current Ownership
+
+## v0.1.17 Tooling Ownership
+
+- `scripts/cargo-lock-consistency-check.mjs`：Cargo workspace member ↔ Cargo.lock 静态一致性 Owner；
+- `scripts/windows/lfaa-setup.ps1`：Windows Rust 工具链与锁定依赖缓存同步；
+- `scripts/release-rust-check.mjs`：真实 Cargo check/test 发布 Gate，必须 `--locked`。
+
+产品 capability family ownership 无变化。
 
 ## v0.1.16 Smart Home / Identity Client Ownership
 

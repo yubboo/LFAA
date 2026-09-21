@@ -1,8 +1,8 @@
-# LFAA 文档索引 — v0.1.16
+# LFAA 文档索引 — v0.1.17
 
-**当前候选版本：v0.1.16**
+**当前候选版本：v0.1.17**
 
-当前 v0.1.16 是 Smart Home / Identity Visual System 版本：登录、First Run 注册与登录后第一屏统一视觉与 Motion；自然语言入口仅无损 handoff 到现有 Workbench，不伪造 Intent Router；App Pack Runtime + AI Writing 路线不变。
+当前 v0.1.17 是 Windows Cargo Lock / 菜单 1 热修复：修复 v0.1.16 Cargo.toml/Cargo.lock 版本漂移，新增来源静态 Gate，并在无 Rust 外部 crate 时跳过无意义 fetch。Smart Home / Identity UI 行为不变，App Pack Runtime + AI Writing 路线不变。
 
 本目录固定保留 12 份长期 Markdown。**当前事实与历史事实严格分层，不允许“一任务一个 Markdown”。**
 
@@ -29,7 +29,7 @@
 | `DEVELOPMENT_LOG.md` | 每个版本/任务实施过程与验证历史 |
 | `PROMPTS.md` | 需求/Prompt 生命周期与历史输入 |
 
-历史账本中出现的 `.lfaa/`、`crates/`、`apps/web/dev`、旧 package 路径只说明旧版本当时的事实，不再指导 v0.1.16 开发。
+历史账本中出现的 `.lfaa/`、`crates/`、`apps/web/dev`、旧 package 路径只说明旧版本当时的事实，不再指导 v0.1.17 开发。
 
 ## 文档更新规则
 

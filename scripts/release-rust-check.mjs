@@ -18,8 +18,8 @@ function runCargo(args, label) {
 }
 
 try {
-  runCargo(["check", "--workspace"], "Rust cargo check --workspace");
-  runCargo(["test", "--workspace"], "Rust cargo test --workspace");
+  runCargo(["check", "--workspace", "--locked"], "Rust cargo check --workspace --locked");
+  runCargo(["test", "--workspace", "--locked"], "Rust cargo test --workspace --locked");
   console.log("[LFAA] Rust 发布检查通过。");
 } catch (error) {
   console.error(`[LFAA] Rust 发布检查失败：${error instanceof Error ? error.message : String(error)}`);

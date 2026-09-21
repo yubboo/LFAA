@@ -1,4 +1,11 @@
-# LFAA Agent / Contributor Guide — v0.1.16
+# LFAA Agent / Contributor Guide — v0.1.17
+
+## v0.1.17 Cargo Lock / Setup 不可破坏原则
+
+1. `Cargo.lock` 是正式发布事实，必须与 root Cargo workspace member 的 package name/version 一致；版本升级不得只改 `Cargo.toml`。
+2. Windows 菜单 1 只负责获取已锁定的 Rust 外部依赖；禁止通过去掉 `--locked` 静默改写正式锁文件。
+3. 当前 Rust workspace 没有外部 crate 时，菜单 1 必须跳过 `cargo fetch`，但仍需验证 Cargo.lock 一致性并记录本机同步指纹。
+4. `release-rust-check` 的 check/test 必须使用 `--locked`；`workspace-preflight` 必须包含无需 Cargo 的静态 Cargo lock Gate。
 
 本文件给 AI Agent 和开发者提供最短路径的当前约束。**先遵守当前代码与本文件，再参考历史记录。**
 

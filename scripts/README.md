@@ -42,9 +42,10 @@ windows/lfaa-update.ps1  ← LFAA-Update.bat
 |---|---|
 | `windows-script-encoding-check.mjs` | 检查 Windows PowerShell `.ps1` 必须 UTF-8 with BOM，并核对 BAT launcher。 |
 | `release-consistency-check.mjs` | 检查 `lfaa.release.json` 与 package / crate / README / CHANGELOG / Release 的版本一致性。 |
+| `cargo-lock-consistency-check.mjs` | 静态检查 Cargo workspace member name/version 与 Cargo.lock 一致，供 Setup/Preflight/Release 复用。 |
 
 
-> 当前候选版本：v0.1.16（#22.22，pending-user-acceptance）。
+> 当前候选版本：v0.1.17（#20.21，pending-user-acceptance）。
 
 ## 版本策略
 

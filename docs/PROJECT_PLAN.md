@@ -1,10 +1,19 @@
-# LFAA Project Plan — current v0.1.16
+# LFAA Project Plan — current v0.1.17
 
 ## 当前里程碑
 
-**v0.1.16 / #22.22 Smart Home / Identity Visual System（implementation complete · pending-user-acceptance）**
+**v0.1.17 / #20.21 Windows Cargo Lock Consistency / Menu 1 Hotfix（implementation complete · pending-user-acceptance）**
 
-本版先完成进入产品前的体验闭环，不提前实现 App Pack Runtime：
+本版只修依赖/发布治理，不改变 v0.1.16 Smart Home 产品行为：
+
+- 修复 Cargo.toml 已升级但 Cargo.lock workspace crate 仍停留旧版本的问题；
+- 菜单 1 先验证正式 Cargo.lock，一致时才继续依赖同步；
+- 当前 Rust workspace 无外部 crate 时跳过 `cargo fetch`；
+- preflight/release Gate 新增 Cargo lock 漂移防回归，Rust check/test 强制 `--locked`。
+
+**v0.1.16 / #22.22 Smart Home / Identity Visual System 继续 pending-user-acceptance。** 下一阶段顺序不变，仍为 App Pack Runtime + Intent Router → AI Writing V1。
+
+### v0.1.16 Smart Home 已完成的产品入口
 
 - 登录与 First Run 注册页统一到新的 LFAA neutral visual language；
 - 登录后第一屏升级为 Smart Home，支持自然语言主入口与手动入口并存；

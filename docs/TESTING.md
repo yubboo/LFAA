@@ -1,4 +1,11 @@
-# LFAA Testing & Gates — v0.1.16
+# LFAA Testing & Gates — v0.1.17
+
+## v0.1.17 Cargo Lock / Setup 回归
+
+- `test/cargo-lock-consistency.test.mjs`：当前 workspace crate name/version 必须出现在 Cargo.lock，旧版本 lock 必须失败；
+- `test/dependency-setup.test.mjs`：菜单 1 保留 `cargo fetch --locked`，无外部 crate 必须跳过 fetch，且 Rust manifest 扫描不得再依赖历史 `crates/` 路径；
+- `scripts/release-rust-check.mjs`：`cargo check/test --workspace --locked`，禁止发布检查悄悄更新锁文件；
+- `workspace-preflight`：新增 `cargo-lock` 静态 Gate，Sync 前即可拦截同类无效来源包。
 
 ## v0.1.16 Smart Home / Identity UI 回归
 

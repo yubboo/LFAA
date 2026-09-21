@@ -1,4 +1,11 @@
-# LFAA Development Standard — v0.1.16
+# LFAA Development Standard — v0.1.17
+
+## v0.1.17 Rust Lock / Windows Setup 开发规范
+
+- 产品版本递增时，Rust workspace member 的 `Cargo.toml` 与 `Cargo.lock` 必须在同一变更内同步；禁止把 Cargo.lock 留给用户机器修复。
+- `LFAA-Setup.bat` 菜单 1 是依赖缓存同步入口，不是 lockfile 生成器：合法锁文件使用 `cargo fetch --locked`，无外部 crate 直接跳过 fetch。
+- `scripts/cargo-lock-consistency-check.mjs` 提供无需 Rust/Cargo 的来源静态门禁；真实发布 Rust check/test 继续用 Cargo 且必须加 `--locked`。
+- Cargo 锁文件不一致属于来源包/同步问题，必须在发布或 Sync 来源预检阶段失败，不应等到用户确认写操作后才出现 Cargo 101。
 
 ## v0.1.16 Smart Home / Identity Surface 开发规范
 

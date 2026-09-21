@@ -1,4 +1,8 @@
-# LFAA Runtime — v0.1.16
+# LFAA Runtime — v0.1.17
+
+## v0.1.17 Setup / Rust Dependency Runtime
+
+菜单 1 的 Rust 路径现在是：`Cargo.lock 静态一致性 → 本机 lockHash 状态 → 无外部 crate 则跳过 fetch / 有外部 crate 才确认 → cargo fetch --locked`。该流程不修改正式 Cargo.lock。产品 Runtime 无变化。
 
 ## v0.1.16 Smart Home Runtime Boundary
 

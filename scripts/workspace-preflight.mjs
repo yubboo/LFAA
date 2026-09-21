@@ -30,6 +30,7 @@ const gates = [
   ["comments", "scripts/comment-check.mjs"],
   ["windows-encoding", "scripts/windows-script-encoding-check.mjs"],
   ["release-consistency", "scripts/release-consistency-check.mjs"],
+  ["cargo-lock", "scripts/cargo-lock-consistency-check.mjs"],
   ["prompt-lifecycle", "scripts/prompt-lifecycle-check.mjs"],
   ["config-schema", "scripts/config-schema-check.mjs"],
   ["release-gates", "scripts/release-gates-check.mjs"],

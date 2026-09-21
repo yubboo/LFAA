@@ -1,3 +1,12 @@
+# v0.1.17 Prompt / Requirement Note — Windows Cargo Lock Consistency / Menu 1 Hotfix
+
+- **基线 / 目标：** v0.1.16 → v0.1.17；任务 #20.21；状态 pending-user-acceptance；AI 验证 pass（Cargo lock contract + dependency setup contracts + static gates）；用户验收 pending。
+- **用户问题：** Windows `LFAA-Setup.bat` 菜单 1【按需依赖】在检测到 Cargo.lock 首次同步/变化后执行 `cargo fetch --locked`，Cargo 报 `cannot update the lock file ... because --locked was passed` 并退出 101。
+- **根因：** v0.1.16 发布包的 `native/secret-store/Cargo.toml` 已为 0.1.16，但 `Cargo.lock` 内 workspace crate 仍为 0.1.15；现有 release consistency/preflight 只检查 Cargo.toml 与产品版本，没有核对 Cargo.lock workspace member 版本，因此无效候选包未被拦截。
+- **允许修改：** Windows Setup Rust 依赖检测、Cargo lock 一致性静态 Gate、release Rust gate、相关测试、Cargo.lock、版本/发布账本与当前开发/测试文档。
+- **禁止修改：** Smart Home / Login / First Run UI、Identity/Session/Agent/Provider/Plugin Runtime、Node 依赖语义、Rust Secret Store 业务实现；禁止通过去掉 `--locked` 让稳定工作区静默改写发布锁文件。
+- **验收：** v0.1.17 的 Cargo.toml/Cargo.lock workspace member 版本一致；菜单 1 在合法锁文件下继续 `cargo fetch --locked`，锁文件不一致时在 fetch 前给出明确“源码/同步包无效”诊断；release/preflight 能静态拦截同类漂移；Rust release check 使用 `--locked`；相关合同测试、workspace-preflight 与 fresh-extract preflight 通过。
+
 # v0.1.16 Prompt / Requirement Note — Smart Home / Identity Visual System
 
 - **基线 / 目标：** v0.1.15 → v0.1.16；任务 #22.22；状态 pending-user-acceptance；AI 验证 pass（UI/Identity source contracts + static governance；标准 Node24/pnpm 完整质量门禁仍待用户环境）；用户验收 pending。
@@ -157,6 +166,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #20.21 | Windows Cargo Lock Consistency / Menu 1 Hotfix | v0.1.17 | pending-user-acceptance | pass | pending |
 | #22.22 | Smart Home / Identity Visual System | v0.1.16 | pending-user-acceptance | pass | pending |
 | #22.21 | Development Standard / Root Layout Governance | v0.1.15 | pending-user-acceptance | pass | pending |
 | #22.20 | Release Governance / Prompt Ledger Hotfix | v0.1.14 | pending-user-acceptance | pass | pending |
@@ -230,6 +240,14 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #20.21 Windows Cargo Lock Consistency / Menu 1 Hotfix
+
+- **版本：** v0.1.17；**状态：** pending-user-acceptance。
+- **允许修改：** `scripts/windows/lfaa-setup.ps1` 的 Rust dependency path、Cargo lock 一致性 Gate/release check、相关 tests/docs/version metadata 与 `Cargo.lock`。
+- **禁止修改：** 产品 Runtime/UI/Identity/Session/Provider/Plugin 业务；不得把稳定工作区的 `cargo fetch --locked` 改成可静默重写 Cargo.lock 的非 locked 模式。
+- **锁文件合同：** 仓库发布的 Cargo.lock 必须与 root Cargo workspace member 的 package name/version 一致；菜单 1 只下载当前锁定依赖，不拥有生成/修复正式锁文件的权限。
+- **验收：** 同类 manifest/lock 版本漂移会在 preflight/release Gate 阶段失败；有效发布包在 Windows 菜单 1 首次依赖同步时不再触发 lock update 错误。
 
 ## #22.22 Smart Home / Identity Visual System
 

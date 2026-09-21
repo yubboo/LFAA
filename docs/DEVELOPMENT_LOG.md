@@ -1,3 +1,13 @@
+# v0.1.17 · #20.21 Windows Cargo Lock Consistency / Menu 1 Hotfix
+
+**当前任务：v0.1.17 · pending-user-acceptance · AI=pass（Cargo lock + dependency setup 39/39、Windows encoding、static gates） · 用户验收=pending**
+
+- 用户 Windows 实机在菜单 1 复现 `cargo fetch --locked` 退出 101。审计确认 v0.1.16 的 Rust manifest 已升级到 0.1.16，但 Cargo.lock workspace crate 仍为 0.1.15。
+- 按开发规范先登记 `docs/PROMPTS.md` #20.21，再修改 Setup/Gate；产品 Runtime/UI 未改。
+- 新增无 Cargo 静态 lock consistency Gate，并接入 governance/workspace-preflight/release consistency；旧 lock 版本合同测试会直接失败。
+- Setup 先验证正式锁文件；无外部 crate 时不再执行 fetch。Rust dependency 扫描从历史 `crates/` 路径改为当前仓库 manifests。
+- release Rust check 强制 `--locked`，防止发布检查通过修改 lockfile 掩盖发布包错误。
+
 # v0.1.16 · #22.22 Smart Home / Identity Visual System
 
 **当前任务：v0.1.16 · pending-user-acceptance · AI=pass（Smart Home/Identity contracts + static governance；Node24/pnpm full quality 待标准环境） · 用户验收=pending**

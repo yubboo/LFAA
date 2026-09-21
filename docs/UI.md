@@ -1,4 +1,8 @@
-# LFAA UI Architecture — v0.1.16
+# LFAA UI Architecture — v0.1.17
+
+## v0.1.17 UI Freeze
+
+本版没有 UI 改动。v0.1.16 Smart Home / Login / First Run 视觉与 Motion 保持原样，继续等待用户视觉验收。
 
 ## v0.1.16 Smart Home / Identity Visual System
 

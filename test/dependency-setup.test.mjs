@@ -277,3 +277,21 @@ test("first local dependency baseline never reports every existing dependency as
   assert.doesNotMatch(plan, /if \(\$null -eq \$nodeState\)[\s\S]{0,180}Compare-NodeDependencyInventory @\(\) \$snapshot\.Inventory/);
   assert.match(show, /尚无本机依赖基线；不会把全部现有依赖误报为「新增」。/);
 });
+
+test("Rust dependency sync validates committed lock and skips cargo fetch when there are no external crates", () => {
+  const declarations = functionBody("Test-RustDependencyDeclarations");
+  const deps = functionBody("Install-RustDependencies");
+  assert.match(declarations, /Get-ChildItem -LiteralPath \$ProjectRoot/);
+  assert.doesNotMatch(declarations, /Join-Path \$ProjectRoot "crates"/);
+  assert.match(deps, /cargo-lock-consistency-check\.mjs/);
+  assert.match(deps, /Test-RustDependencyDeclarations/);
+  assert.match(deps, /没有外部 crate/);
+  assert.match(deps, /fetch","--locked/);
+  assert.doesNotMatch(deps, /fetch"\)/);
+});
+
+test("Rust release check refuses to update Cargo.lock", () => {
+  const releaseRust = fs.readFileSync("scripts/release-rust-check.mjs", "utf8");
+  assert.match(releaseRust, /\["check", "--workspace", "--locked"\]/);
+  assert.match(releaseRust, /\["test", "--workspace", "--locked"\]/);
+});

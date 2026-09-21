@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { validateLfaaVersion } from "./version-policy.mjs";
+import { validateCargoLockConsistency } from "./cargo-lock-consistency-check.mjs";
 
 const root = process.cwd();
 const fail = (message) => {
@@ -51,6 +52,12 @@ for (const entry of fs.readdirSync(path.join(root, "native"), { withFileTypes: t
   if (!fs.existsSync(absolute)) continue;
   const match = readText(relative).match(/^version\s*=\s*"([^"]+)"/m);
   if (!match || match[1] !== version) fail(`${relative} version ${match?.[1] ?? "<missing>"} != ${version}`);
+}
+
+try {
+  validateCargoLockConsistency(root);
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error));
 }
 
 if (!readText("README.md").includes(`LFAA-v${version}`)) fail("README.md does not identify the current package version");

@@ -1,13 +1,20 @@
-# LFAA v0.1.16 — Smart Home / Identity Visual System
+# LFAA v0.1.17 — Windows Cargo Lock / Setup Hotfix
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.1.16**。本版在不改 Identity Host、Agent Runtime、Session、Provider 与 Plugin 生命周期的前提下，重做登录 / First Run 注册 / 登录后第一屏：新增统一 Smart Home、自然语言主入口、手动工作区入口与统一 Motion 视觉系统。Smart Home 输入只负责把原始任务带入现有 Workbench，不用关键词规则冒充 AI Intent Router；真正的 App Pack 智能路由继续由下一阶段 Registry + Router 接管。
+当前包：**LFAA-v0.1.17**。本版是依赖/发布治理热修复：修复 v0.1.16 中 Rust crate 已升级而 Cargo.lock 仍停在旧版本的问题；Windows 菜单 1 现在先验证正式 Cargo.lock，当前没有外部 Rust crate 时直接跳过 cargo fetch；发布/来源预检会提前拦截同类漂移。v0.1.16 Smart Home / Login / First Run 产品行为保持不变。
 
 > 当前真相以本 README、`docs/ARCHITECTURE.md`、`docs/DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
 
 
 
+
+## v0.1.17 Windows Cargo Lock / Setup Hotfix
+
+- `native/secret-store/Cargo.toml` 与 `Cargo.lock` workspace crate 版本同步；
+- 新增无需 Cargo 的 `cargo-lock-consistency-check`，进入 governance / workspace-preflight；
+- Windows 菜单 1 保留 `cargo fetch --locked` 安全语义，但无外部 crate 时不再提示/执行 fetch；
+- Rust release check 改为 `cargo check/test --workspace --locked`，发布检查不能偷偷刷新锁文件。
 
 ## v0.1.16 Smart Home / Identity Visual System
 

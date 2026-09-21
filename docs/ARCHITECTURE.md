@@ -1,4 +1,8 @@
-# LFAA Architecture — v0.1.16 Current Truth
+# LFAA Architecture — v0.1.17 Current Truth
+
+## 0.0 v0.1.17 Cargo Lock / Setup Boundary
+
+本版不改变产品架构。Rust 依赖真值继续由 `Cargo.toml + Cargo.lock + rust-toolchain.toml` 拥有；Windows Setup 只同步锁定依赖，不生成正式锁文件。`workspace-preflight` 增加静态 Cargo workspace member name/version ↔ Cargo.lock 一致性检查。
 
 ## 0.0 v0.1.16 Smart Home / Identity Surface Boundary
 

@@ -1742,15 +1742,22 @@ function Install-RustToolchainIfMissing {
 }
 
 function Test-RustDependencyDeclarations {
-    $cargoFiles = Get-ChildItem -LiteralPath (Join-Path $ProjectRoot "crates") `
-        -Filter "Cargo.toml" -File -Recurse -ErrorAction SilentlyContinue
+    # Rust 物理 Owner 已从历史 crates/ 迁到 native/；这里扫描当前仓库 Cargo manifests，
+    # 但排除 node_modules/target/.git，避免旧路径假阴性或构建产物干扰。
+    $cargoFiles = Get-ChildItem -LiteralPath $ProjectRoot -Filter "Cargo.toml" -File -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '[\\/](?:node_modules|target|\.git)[\\/]' }
 
     foreach ($file in $cargoFiles) {
         $text = Get-Content -LiteralPath $file.FullName -Raw
+        $sections = [regex]::Matches(
+            $text,
+            '(?ms)^\[(?:(?:dev-|build-)?dependencies(?:\.[^\]]+)?|target\.[^\]]+\.dependencies)\]\s*(.*?)(?=^\[|\z)'
+        )
 
-        if ($text -match '(?m)^\[(?:dev-|build-)?dependencies(?:\.[^\]]+)?\]\s*$' -or
-            $text -match '(?m)^\[target\.[^\]]+\.dependencies\]\s*$') {
-            return $true
+        foreach ($section in $sections) {
+            if ($section.Groups[1].Value -match '(?m)^\s*[A-Za-z0-9_.-]+\s*=') {
+                return $true
+            }
         }
     }
 
@@ -1772,11 +1779,31 @@ function Install-RustDependencies {
         return [PSCustomObject]@{ Changed = $false; Cancelled = $false }
     }
 
+    # 先静态验证正式锁文件与 workspace member 的 name/version 一致。
+    # 菜单 1 只负责获取锁定依赖，不拥有修复/生成正式 Cargo.lock 的权限。
+    try {
+        Invoke-ProjectCommand "node" @("scripts/cargo-lock-consistency-check.mjs") "验证 Cargo.lock 与 Rust workspace 一致性"
+    }
+    catch {
+        throw ("Cargo.lock 与 Rust workspace 不一致；当前源码/同步包无效，菜单 1 不会自动改写正式锁文件。请先同步修复版本。原始错误：{0}" -f $_.Exception.Message)
+    }
+
     $lockHash = Get-FileSha256Value $lockFile
     $state = Read-DependencyState
     $rustState = if ($null -ne $state) { $state.rust } else { $null }
 
     if ($null -ne $rustState -and [string]$rustState.lockHash -eq $lockHash) {
+        return [PSCustomObject]@{ Changed = $false; Cancelled = $false }
+    }
+
+    if (-not (Test-RustDependencyDeclarations)) {
+        $rustState = [PSCustomObject]@{
+            lockHash = $lockHash
+            channel = Get-ProjectRustChannel
+            syncedAt = [DateTime]::UtcNow.ToString("o")
+        }
+        Write-DependencyState -RustState $rustState -PreserveNode
+        Write-Label "【跳过】" "【Rust 依赖】" "当前 Rust workspace 没有外部 crate；无需执行 cargo fetch。" Green
         return [PSCustomObject]@{ Changed = $false; Cancelled = $false }
     }
 

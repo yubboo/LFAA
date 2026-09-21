@@ -1,3 +1,12 @@
+# v0.1.17 Windows Cargo Lock Consistency / Menu 1 Hotfix
+
+**当前任务：#20.21 · v0.1.17 · pending-user-acceptance · AI=pass（Cargo lock + dependency setup 39/39、Windows encoding、static preflight） · 用户验收=pending**
+
+- 修复 v0.1.16 Rust workspace manifest / Cargo.lock 版本漂移导致 Windows 菜单 1 `cargo fetch --locked` 退出 101。
+- Cargo lock 一致性成为无需 Rust 的来源预检；无外部 crate 时菜单 1 跳过 fetch。
+- 正式 Rust release check 使用 `--locked`，不允许检查过程自动更新锁文件。
+- Smart Home / Identity UI 与产品 Runtime 没有变化，仍沿用 v0.1.16 等待视觉验收。
+
 # v0.1.16 Smart Home / Identity Visual System
 
 **当前任务：#22.22 · v0.1.16 · pending-user-acceptance · AI=pass（Smart Home/Identity contracts + static governance；Node24/pnpm full quality 待标准环境） · 用户验收=pending**

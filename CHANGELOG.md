@@ -1,3 +1,13 @@
+# v0.1.17 Windows Cargo Lock Consistency / Menu 1 Hotfix
+
+**当前任务：#20.21 · v0.1.17 · pending-user-acceptance · AI=pass（Cargo lock + dependency setup 39/39、Windows encoding、static preflight） · 用户验收=pending**
+
+- 修复 v0.1.16 发布包中 `native/secret-store/Cargo.toml=0.1.16`、`Cargo.lock=0.1.15` 的 workspace crate 版本漂移；v0.1.17 两者同步。
+- 新增 `scripts/cargo-lock-consistency-check.mjs` 与合同测试，workspace-preflight/governance/release consistency 会在用户 Sync 前拦截同类无效来源包。
+- Windows 菜单 1 在 Rust 路径先验证正式 Cargo.lock；当前 workspace 没有外部 crate 时记录 lockHash 后直接跳过 `cargo fetch`，不再弹出无意义的 Rust 依赖写操作。
+- 保留 `cargo fetch --locked` 安全语义；`release-rust-check` 改为 `cargo check/test --workspace --locked`，禁止发布检查静默更新锁文件。
+- 修正 Rust dependency declaration 扫描仍指向历史 `crates/` 的旧路径，改为扫描当前仓库 Cargo manifests 并排除构建/依赖目录。
+
 # v0.1.16 Smart Home / Identity Visual System
 
 **当前任务：#22.22 · v0.1.16 · pending-user-acceptance · AI=pass（Smart Home/Identity contracts + static governance；Node24/pnpm full quality 待标准环境） · 用户验收=pending**
