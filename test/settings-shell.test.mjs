@@ -32,7 +32,7 @@ test("Settings left nav remains resizable and shared width comes from shell cont
 
 test("ResizableWorkbench supports single-sided Surface",()=>{assert.match(workbenchTypes,/right\?: ReactNode/);});
 
-test("AI provider capability mapping lives in settings mapping/controller, not root",()=>{assert.match(aiMappings,/buildAiProviderViews/);assert.match(aiMappings,/auth\.hostCapability\?hostCapabilities\[auth\.hostCapability\]/);assert.doesNotMatch(root,/buildAiProviderViews|auth\.hostCapability/);assert.match(aiController,/connectSubscription/);assert.match(settingsSurface,/onConnectAiSubscription=\{ai\.connectSubscription\}/);assert.match(aiPanel,/登录 ChatGPT 并保存账户/);assert.match(aiPanel,/LFAA 不保存 Token/);});
+test("AI provider capability mapping lives in settings mapping/controller, not root",()=>{assert.match(aiMappings,/buildAiProviderViews/);assert.match(aiMappings,/auth\.hostCapability\?hostCapabilities\[auth\.hostCapability\]/);assert.doesNotMatch(root,/buildAiProviderViews|auth\.hostCapability/);assert.match(aiController,/connectSubscription/);assert.match(settingsSurface,/onConnectAiSubscription=\{ai\.connectSubscription\}/);assert.match(aiPanel,/登录 ChatGPT 并保存账户/);assert.match(aiPanel,/LFAA.*不读取或保存 OAuth Token/);});
 
 test("API Key and subscription contracts remain intact",()=>{assert.match(aiPanel,/!secret\.trim\(\) \|\| !selectedModelId/);assert.match(aiPanel,/isSubscription \? \(/);assert.match(aiPanel,/activeAuthView\?\.secretLabel/);assert.doesNotMatch(aiPanel,/fetch\s*\(|https?:\/\//);});
 

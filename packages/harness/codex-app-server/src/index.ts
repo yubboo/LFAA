@@ -5,3 +5,11 @@ export {
   type CodexTextRunInput,
   type CodexTextRunResult,
 } from "./codex-app-server.ts";
+
+export {
+  ensureOfficialOpenAiRuntime,
+  officialOpenAiRuntimeCapability,
+  OFFICIAL_OPENAI_RUNTIME_FACTS,
+  type OfficialOpenAiRuntime,
+  type OfficialOpenAiRuntimeCapability,
+} from "./openai-official-runtime.ts";

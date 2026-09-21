@@ -26,6 +26,12 @@ test("Rust Secret broker verifies Windows writes by reading them back", async ()
   assert.match(rust, /Ok\(Some\(value\)\) if value == secret => Ok\(\(\)\)/);
 });
 
+test("Windows Secret Broker is prewarmed so first Provider save does not own the Cargo cold start", async () => {
+  const source = await read("packages/credentials/credentials-native/src/rust-secret-store.ts");
+  assert.match(source, /void buildBroker\(projectRoot\)\.catch/);
+  assert.match(source, /return new RustCredentialStore\(projectRoot\)/);
+});
+
 test("Rust Secret broker keeps secret out of argv env logs and files", async () => {
   const source = await read("packages/credentials/credentials-native/src/rust-secret-store.ts");
   assert.match(source, /spawn\(executable, \[\]/);
@@ -95,21 +101,35 @@ test("Web product entry delegates native host assembly to packages", async () =>
   assert.equal(tsconfig.compilerOptions.allowImportingTsExtensions, true);
 });
 
-test("Codex App Server adapter uses official JSONL account/model RPC and Windows-safe spawn", async () => {
+test("ChatGPT subscription uses an LFAA-managed OpenAI official App Server component instead of a user-installed CLI", async () => {
   const source = await read("packages/harness/codex-app-server/src/codex-app-server.ts");
-  assert.match(source, /spawn\("codex", \["app-server"\]/);
-  assert.match(source, /shell: process\.platform === "win32"/);
+  const runtime = await read("packages/harness/codex-app-server/src/openai-official-runtime.ts");
+  assert.match(source, /ensureOfficialOpenAiRuntime\(\)/);
+  assert.match(source, /spawn\(officialRuntime\.executable, \[\.\.\.officialRuntime\.launchArgs\]/);
+  assert.match(source, /shell: false/);
+  assert.match(source, /CODEX_HOME: officialRuntime\.codexHome/);
+  assert.doesNotMatch(source, /spawn\("codex"/);
+  assert.doesNotMatch(source, /请先安装 Codex CLI|codex 命令已加入 PATH/);
+  assert.match(runtime, /resolveLfaaHome/);
+  assert.match(runtime, /runtimes", "openai-chatgpt/);
+  assert.match(runtime, /codex-app-server-x86_64-pc-windows-msvc\.exe/);
+  assert.match(runtime, /sha256/);
+  assert.match(runtime, /releases\.openai\.com\/codex\/releases/);
+  assert.match(runtime, /OFFICIAL_RUNTIME_RELEASE = "0\.154\.0"/);
+  assert.match(runtime, /component: "app-server"/);
+  assert.doesNotMatch(runtime, /npm install -g|pnpm add -g|spawn\("codex"/);
   assert.match(source, /stdio: \["pipe", "pipe", "pipe"\]/);
   assert.match(source, /request\("initialize"/);
   assert.match(source, /notify\("initialized"/);
   assert.match(source, /request\("account\/login\/start"/);
+  assert.match(source, /type: "chatgpt"/);
   assert.match(source, /account\/login\/completed/);
   assert.match(source, /request\("account\/login\/cancel"/);
   assert.match(source, /request\("account\/read", \{ refreshToken: false \}\)/);
   assert.match(source, /request\("model\/list"/);
   assert.doesNotMatch(source, /account\/logout/);
   assert.doesNotMatch(source, /from "node:fs/);
-  assert.doesNotMatch(source, /process\.env/);
+  assert.match(source, /process\.env/);
 });
 
 test("managed ChatGPT bridge keeps subscription auth shared with Codex text runtime and separate from API-key secrets", async () => {
@@ -139,6 +159,7 @@ test("browser ChatGPT login opens synchronously, validates official HTTPS domain
   assert.match(source, /url\.hostname === "chatgpt\.com"/);
   assert.match(source, /url\.hostname === "openai\.com"/);
   assert.match(source, /MANAGED_LOGIN_TIMEOUT_MS/);
+  assert.match(source, /正在准备 OpenAI 官方登录/);
   assert.match(source, /loginCompleted/);
   assert.match(source, /!loginCompleted\) await cancelManagedLogin/);
   assert.match(source, /\/subscription\/accounts/);
@@ -183,4 +204,30 @@ test("official usage surfaces never fabricate Provider balance and expose real H
   assert.match(panel, /刷新额度/);
   assert.match(panel, /官方未提供/);
   assert.doesNotMatch(panel, /Math\.random|估算余额|虚拟额度/);
+});
+
+
+test("AI settings save reuses a recent verified probe and official usage has loading/error/timeout terminal states", async () => {
+  const bridge = await read("packages/api/settings-controller/src/ai-config-bridge.ts");
+  const controller = await read("packages/client/app-shell/src/workbench/settings/logic/useAiSettingsController.ts");
+  const client = await read("packages/client/connection/src/ai-settings-client.ts");
+  const panel = await read("packages/client/ui/src/features/settings/ai/AiSettingsPanel.tsx");
+  assert.match(bridge, /VERIFIED_PROBE_TTL_MS/);
+  assert.match(bridge, /probeFingerprint/);
+  assert.match(bridge, /takeProbe\(draft, secret\)/);
+  assert.match(controller, /state: "loading"/);
+  assert.match(controller, /state: "error"/);
+  assert.match(client, /USAGE_REQUEST_TIMEOUT_MS/);
+  assert.match(client, /官方余额 \/ 额度读取超时/);
+  assert.match(panel, /读取失败/);
+  assert.match(panel, /尚未读取官方状态/);
+  assert.match(panel, /保存本地配置/);
+});
+
+test("left mode switch popover can escape the resizable left pane clipping context", async () => {
+  const workbenchCss = await read("packages/client/ui/src/workbench/workbench.css");
+  const leftCss = await read("packages/client/app-shell/src/workbench/left/styles/LeftSidebar.module.css");
+  assert.match(workbenchCss, /\.lfaa-workbench__pane--left[\s\S]*overflow: visible/);
+  assert.match(workbenchCss, /\.lfaa-workbench__pane--left[\s\S]*z-index: 70/);
+  assert.match(leftCss, /--lfaa-layer-popover/);
 });

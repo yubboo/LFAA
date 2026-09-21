@@ -171,7 +171,14 @@ export function lfaaDevAgentRuntimeBridge(projectRoot: string, options: { codexR
           if (!credential) throw new Error("当前账户凭据不存在，请回到模型管理重新认证。");
           const previous = conversations.get(sessionKey) ?? [];
           const history = [...previous, { role: "user" as const, content: input }].slice(-MAX_HISTORY_MESSAGES);
-          const text = await callOpenAiCompatibleTextModel({ account, request: runRequest, credential, history, signal: abort.signal });
+          const text = await callOpenAiCompatibleTextModel({
+            account,
+            request: runRequest,
+            credential,
+            history,
+            signal: abort.signal,
+            onTextDelta: (delta) => emit(server, { type: "assistant.delta", runId, sessionId, delta }),
+          });
           const nextConversation: ConversationMessage[] = [...history, { role: "assistant", content: text }];
           conversations.set(sessionKey, nextConversation.slice(-MAX_HISTORY_MESSAGES));
           emit(server, { type: "assistant.completed", runId, sessionId, text });

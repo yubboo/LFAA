@@ -1,4 +1,4 @@
-# LFAA Development Standard — v0.1.6
+# LFAA Development Standard — v0.1.7
 
 本文件是当前开发规范。历史版本的设计过程请看 `CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md` 和 `docs/PROMPTS.md`；历史内容不得覆盖本文件。
 
@@ -19,6 +19,8 @@ Windows 优先使用 `LFAA-Setup.bat`。Setup 依赖检测以 `pnpm-workspace.ya
 
 所有 Provider 余额/额度/速率限制必须可追溯到官方 API 或官方 Runtime。无官方稳定接口时应返回“不可用/官方未提供”，不得生成百分比、余额或“无限”标签。OpenAI ChatGPT 标准 Chat 与 Codex/Work 的额度语义必须分开；仅 `account/rateLimits/read` / `account/usage/read` 得到的数据只能标记为 Codex/Work。
 
+ChatGPT 套餐接入必须保持产品层无外部 CLI 前置：允许使用 OpenAI 官方 App Server 作为嵌入协议，但运行组件必须由 LFAA 按需管理在 `LFAA_HOME`；禁止要求用户自行执行 `npm install -g @openai/codex` 或把 `codex` 加入 PATH。LFAA 不能读取官方组件的 OAuth/Token 文件。
+
 ## 2.2 Agent 交互模式开发规范
 
 - Chat Agent 与 Work Agent 必须共享同一 `AgentRunRequest` / `AgentRuntimeHost` / Session Controller；禁止复制 Runtime、工具集、权限或模型路由。
@@ -27,6 +29,14 @@ Windows 优先使用 `LFAA-Setup.bat`。Setup 依赖检测以 `pnpm-workspace.ya
 - Manual 只属于 Client Workspace Mode，不得加入 `AgentWorkspaceMode`；Manual 无模型也必须可进入，并复用 InfiniteCanvas/Terminal/Tool Registry 的真实实现。
 - 未注册的工具必须 disabled/明确“待接入”，禁止 UI 假装可执行。
 
+
+## 2.3 Provider Runtime / Streaming / Usage 规范
+
+- “测试连接 / 获取模型”是远端 Probe；用户随后保存时，如果 Provider/认证/连接设置/Secret 未变化，允许复用短期 Host Probe，禁止无意义重复访问同一官方模型目录。
+- Provider Runtime 支持官方流式协议时必须真实流式；OpenAI Responses / Chat Completions SSE 都归一成 `assistant.delta`，最终用 `assistant.completed` 收敛。
+- Usage/Quota 不参与账户保存事务。官方额度读取必须可超时、可失败、可重试，并把错误显示为终态；禁止 spinner 永久等待。
+- ChatGPT 套餐的用户体验只能描述为 OpenAI 官方账户/套餐登录；禁止要求全局安装 Codex CLI。若内部使用官方 App Server 组件，必须放入 `LFAA_HOME`、固定来源/版本并校验官方资产。
+- 内部 Adapter 名称可以保留协议事实（例如 codex-app-server），但产品文案不得把实现组件当作用户必须理解或安装的客户端。
 
 ## 3. 仓库规则
 

@@ -67,6 +67,9 @@ export interface AiSettingsAccountView {
   modelCatalog: readonly AiSettingsModelView[];
   verificationStatus: "connected" | "unverified" | "error"; lastVerifiedAt: string | null;
   usage?: AiSettingsUsageView;
+  /** 额度请求状态必须有终态，禁止用 usage===undefined 永久冒充 loading。 */
+  usageState?: "idle" | "loading" | "ready" | "error";
+  usageError?: string;
 }
 export interface AiSettingsDraftInput {
   accountId?: string; providerId: string; displayName: string; authMethodId: string;

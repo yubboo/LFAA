@@ -27,7 +27,7 @@
 .brand strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.8125rem; font-weight:600; }
 .brandMark { width:1.25rem; height:1.25rem; flex:0 0 auto; display:grid; place-items:center; border-radius:.375rem; background:var(--agent-text); color:var(--agent-bg); font-size:.6875rem; font-weight:700; }
 .brandActions { display:flex; align-items:center; gap:.125rem; flex:0 0 auto; }
-.brandMenu { position:absolute; z-index:360; top:calc(100% + .4rem); left:0; width:min(20rem,calc(100vw - 2rem)); padding:.45rem; border:1px solid var(--agent-border); border-radius:.95rem; background:var(--agent-elevated); box-shadow:0 .85rem 2.4rem rgba(0,0,0,.16); }
+.brandMenu { position:absolute; z-index:var(--lfaa-layer-popover, 520); top:calc(100% + .4rem); left:0; width:min(20rem,calc(100vw - 2rem)); padding:.45rem; border:1px solid var(--agent-border); border-radius:.95rem; background:var(--agent-elevated); box-shadow:0 .85rem 2.4rem rgba(0,0,0,.16); }
 .brandMenu button { display:grid; width:100%; gap:.16rem; padding:.72rem .75rem; border:0; border-radius:.7rem; background:transparent; color:var(--agent-text); text-align:left; cursor:pointer; }
 .brandMenu button:hover,.brandMenu button.active { background:var(--agent-hover); }
 .brandMenu button>span { display:flex; align-items:center; gap:.5rem; }

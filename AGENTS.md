@@ -1,15 +1,18 @@
-# LFAA Agent / Contributor Guide — v0.1.6
+# LFAA Agent / Contributor Guide — v0.1.7
 
 本文件给 AI Agent 和开发者提供最短路径的当前约束。**先遵守当前代码与本文件，再参考历史记录。**
 
 
-## v0.1.6 不可破坏的模式原则
+## v0.1.7 不可破坏的模式 / Provider 原则
 
 1. Chat Agent 与 Work Agent **只能有一套 Agent Core / AgentRunRequest / Session Controller / Runtime Host**。
 2. 二者能力、智力、性能、工具、权限、自动化与最终交付质量必须同构；`workspaceMode` 只描述交互表现层。
 3. Chat 的人工干预是对话/插话；Work 的人工干预是无限画布编辑 + 对话继续。
 4. Manual 是无模型手动模式：不得进入 Agent Runtime，但必须复用 Work Canvas 和真实 Tool/Terminal 基础设施。
 5. Provider 官方免费、套餐包含、按量 API、Coding Plan 等 entitlement 原样映射；禁止 LFAA 自造余额、免费/收费规则。
+6. ChatGPT 套餐属于 OpenAI Provider 的官方订阅认证方式；产品不得要求用户安装全局 Codex CLI。内部可使用由 LFAA 管理的官方 App Server 组件，但不得把实现细节冒充用户依赖。
+7. 支持流式的 Provider 必须通过统一 `assistant.delta` 实时投影；禁止为了省实现而退回“等待完整 JSON 后一次性回答”。
+8. Usage/Quota 是附加状态：失败或超时必须进入明确终态，不能阻塞账户保存，也不能永久显示“正在读取”。
 
 ## 先读
 
@@ -87,6 +90,7 @@ Chat/Work 是 **Workspace Mode**，不是两个独立产品核心。
 
 - `@lfaa/config-system` 管配置，不等于模型运行 Provider；
 - OpenAI-compatible 一次调用归 `@lfaa/llm-openai-compatible`；
+- ChatGPT 套餐通过 OpenAI 官方 App Server 协议接入；官方运行组件由 LFAA 按需隔离在 `LFAA_HOME`，禁止把“用户必须全局安装 Codex CLI”重新作为产品前置条件；
 - Run/Session 生命周期归 Agent Runtime/Controller；
 - Codex App Server 归 `packages/harness/`；v0.1.2 已承担 ChatGPT 套餐的 managed auth + read-only text runtime；
 - Tool/Skill/MCP 未实现前不要建空壳假装完成。

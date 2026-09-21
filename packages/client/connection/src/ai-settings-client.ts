@@ -25,16 +25,28 @@ const MANAGED_LOGIN_POLL_MS = 800;
 const MANAGED_LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 const LOGIN_POPUP_NAME = "lfaa_chatgpt_login";
 const LOGIN_POPUP_FEATURES = "popup,width=560,height=760";
+/** 官方额度是附加状态；浏览器端再加一道终止线，避免 Host/代理异常时卡住 UI。 */
+const USAGE_REQUEST_TIMEOUT_MS = 22_000;
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, {
-    ...init,
-    cache: "no-store",
-    headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
-  });
-  const payload = await response.json() as { ok: boolean; error?: string } & T;
-  if (!response.ok || !payload.ok) throw new Error(payload.error || `AI Host 请求失败：${response.status}`);
-  return payload;
+async function request<T>(path: string, init?: RequestInit, timeoutMs?: number): Promise<T> {
+  const controller = timeoutMs ? new AbortController() : null;
+  const timer = controller ? window.setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const response = await fetch(`${BASE}${path}`, {
+      ...init,
+      cache: "no-store",
+      headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
+      ...(controller ? { signal: controller.signal } : {}),
+    });
+    const payload = await response.json() as { ok: boolean; error?: string } & T;
+    if (!response.ok || !payload.ok) throw new Error(payload.error || `AI Host 请求失败：${response.status}`);
+    return payload;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error("官方余额 / 额度读取超时，请检查网络后重试。");
+    throw error;
+  } finally {
+    if (timer !== null) window.clearTimeout(timer);
+  }
 }
 
 function sleep(milliseconds: number): Promise<void> {
@@ -80,7 +92,11 @@ export const webAiSettingsHost = {
     // 必须在首次 await 前创建窗口，否则浏览器会把异步 window.open 识别成非用户手势而拦截。
     const popup = window.open("about:blank", LOGIN_POPUP_NAME, LOGIN_POPUP_FEATURES);
     if (!popup) throw new Error("浏览器阻止了 ChatGPT 登录弹窗。请允许本站弹窗后重试。");
-    try { popup.opener = null; } catch { /* 某些浏览器不允许重写 opener，不影响固定官方域名校验。 */ }
+    try {
+      popup.opener = null;
+      popup.document.title = "LFAA · OpenAI 登录";
+      popup.document.body.innerHTML = '<main style="font-family:system-ui;padding:32px;color:#222"><h2 style="font-size:18px">正在准备 OpenAI 官方登录…</h2><p style="color:#666;line-height:1.6">首次使用可能需要下载并校验 OpenAI 官方账户运行组件。准备完成后会自动跳转到 ChatGPT 官方登录页面。</p></main>';
+    } catch { /* 某些浏览器不允许修改 about:blank opener/document，不影响固定官方域名校验。 */ }
 
     let loginId: string | null = null;
     let loginCompleted = false;
@@ -91,7 +107,7 @@ export const webAiSettingsHost = {
       });
       loginId = started.login.loginId;
       if (!isAllowedLoginUrl(started.login.authUrl)) {
-        throw new Error("Codex App Server 返回的登录地址不在 OpenAI / ChatGPT 官方域名内，已停止打开。");
+        throw new Error("OpenAI 官方登录服务返回的地址不在 OpenAI / ChatGPT 官方域名内，已停止打开。");
       }
       if (popup.closed) throw new Error("ChatGPT 登录窗口已关闭，登录已取消。");
       popup.location.replace(started.login.authUrl);
@@ -121,7 +137,7 @@ export const webAiSettingsHost = {
     }
   },
   async usage(accountId: string) {
-    const payload = await request<{ usage: AiAccountUsageSnapshot }>(`/accounts/${encodeURIComponent(accountId)}/usage`);
+    const payload = await request<{ usage: AiAccountUsageSnapshot }>(`/accounts/${encodeURIComponent(accountId)}/usage`, undefined, USAGE_REQUEST_TIMEOUT_MS);
     return payload.usage;
   },
   async reprobe(accountId: string) {

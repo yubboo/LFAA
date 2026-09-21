@@ -1,12 +1,12 @@
-# LFAA v0.1.6 — 单一 Agent Core / Chat·Work·Manual 三种交互模式
+# LFAA v0.1.7 — Provider 真实可用性 / 流式回复 / 官方订阅登录修复
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.1.6**。本版以 v0.1.4 为能力基线，把产品交互统一为“一套 Agent Core、三种模式”：Chat Agent 与 Work Agent 拥有完全相同的模型、工具、权限、自动化、质量与交付能力，只是人工干预的表现层不同；Manual 模式不需要模型，复用同一无限画布和真实工具基础设施，关闭模型驱动与自动规划。官方 Provider 的认证、免费/套餐/API 计量仍以官方事实为准，LFAA 不自行制造额度。
+当前包：**LFAA-v0.1.7**。本版继续保持“一套 Agent Core、Chat / Work 两种 Agent 表现层 + Manual 手动模式”，重点修复 Provider 使用链：ChatGPT 套餐由 LFAA 按需准备 OpenAI 官方账户运行组件，用户无需安装 Codex CLI；API Key 保存复用刚完成的官方连接 Probe，避免重复模型目录请求；官方余额/额度拥有 loading / ready / error / timeout 终态；OpenAI-compatible Provider 改为真实 SSE 流式输出。官方 Provider 的认证、免费/套餐/API 计量仍以官方事实为准，LFAA 不自行制造额度。
 
 > 当前真相以本 README、`ARCHITECTURE.md`、`DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
 
-## v0.1.6 当前产品模型
+## v0.1.7 当前产品模型
 
 ```text
                      LFAA Agent Core
@@ -23,6 +23,16 @@
 - **Work Agent**：与 Chat 完全同核；AI 和用户通过无限画布协同，用户可直接编辑画布节点再继续对话干预。
 - **Manual**：不创建 `AgentRunRequest`，没有模型也可进入；用户直接操作无限画布、Terminal 和已注册真实工具。
 - **Provider**：认证方式、免费/订阅/API/Coding Plan、Usage/Quota 均以厂商官方公开能力为准；官方免费或套餐包含的能力在 LFAA 不附加额度。
+- **ChatGPT 套餐**：LFAA 按需把 OpenAI 官方 App Server 运行组件准备到 `LFAA_HOME/runtimes/openai-chatgpt`，不要求用户全局安装 Codex CLI；OAuth / Token 仍只由官方组件管理，LFAA 不读取 Secret。
+
+
+### v0.1.7 Provider 运行可靠性
+
+- **ChatGPT 套餐登录**：产品层只显示 OpenAI 官方 ChatGPT 套餐登录；Windows 由 LFAA 在 `LFAA_HOME` 按需准备并校验 OpenAI 官方 App Server 独立组件，不要求全局 `codex` / Codex CLI。
+- **API 保存**：显式“测试连接 / 获取模型”成功后，保存复用短期 Host Probe，不再重复请求同一官方模型目录；未测试时保存仍会做真实官方校验。
+- **官方 Usage**：余额/额度是附加状态，不阻塞账户配置；读取必须在 ready / error / timeout 中收敛，官方没有接口时显示“官方未提供”。
+- **流式回复**：支持 SSE 的 OpenAI-compatible Provider 使用 `assistant.delta` 边到边输出，最终再以 `assistant.completed` 收敛；Chat/Work 消费同一 Runtime Event。
+- **模式菜单**：左侧 Mode Popover 允许跨 Pane 显示，不再被父容器 `overflow` 裁切。
 
 ## 产品定位
 

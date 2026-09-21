@@ -97,6 +97,16 @@ test("save stores credentialRef and validated model settings only", async () => 
   assert.equal(h.secrets.get(result.account.credentialRef), "sk-test-secret");
 });
 
+test("save can reuse a host-verified probe without repeating Provider model discovery", async () => {
+  const h = harness();
+  const verified = await h.service.probe(baseDraft, "sk-test-secret");
+  assert.equal(h.requests.length, 1);
+  const saveDraft = { ...baseDraft, selectedModelId: "gpt-5.6-sol", modelSettings: { reasoningEffort: "none", maxOutputTokens: 32000 } };
+  const result = await h.service.save(saveDraft, "sk-test-secret", verified);
+  assert.equal(h.requests.length, 1);
+  assert.equal(result.account.selectedModelId, "gpt-5.6-sol");
+});
+
 test("first saved account becomes explicit active model and keeps a model catalog snapshot", async () => {
   const h = harness();
   const saved = await h.service.save(baseDraft, "sk-test-secret");

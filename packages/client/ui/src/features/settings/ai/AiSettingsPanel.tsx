@@ -81,8 +81,10 @@ function formatReset(unixSeconds: number | undefined): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toLocaleString();
 }
 
-function UsagePanel({ usage, selectedModelId }: { usage: import("./ai-settings.types").AiSettingsUsageView | undefined; selectedModelId: string | null }) {
-  if (!usage) return <div className="ai-usage-card is-loading"><strong>余额 / 额度</strong><small>正在读取 Provider 官方状态…</small></div>;
+function UsagePanel({ usage, usageState = "idle", usageError, selectedModelId }: { usage: import("./ai-settings.types").AiSettingsUsageView | undefined; usageState?: "idle" | "loading" | "ready" | "error"; usageError?: string; selectedModelId: string | null }) {
+  if (usageState === "loading") return <div className="ai-usage-card is-loading"><strong>余额 / 额度</strong><small>正在读取 Provider 官方状态…</small></div>;
+  if (usageState === "error") return <div className="ai-usage-card is-unavailable"><strong>余额 / 额度</strong><small>读取失败：{usageError || "官方接口暂时不可用。"}</small><p className="ai-usage-message">可点击“刷新额度”重试；模型账户本身仍可继续使用。</p></div>;
+  if (!usage) return <div className="ai-usage-card is-unavailable"><strong>余额 / 额度</strong><small>尚未读取官方状态。</small></div>;
   const scopeLabel = usage.scope === "codex-work" ? "Codex / Work" : usage.scope === "provider-plan" ? "套餐" : "API";
   const modelQuota = selectedModelId ? usage.modelQuotas?.find((item) => item.model === selectedModelId) : undefined;
   return (
@@ -212,15 +214,15 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
 
           <div className="ai-runtime-actions">
             {isSubscription ? (
-              <button className="is-primary" type="button" disabled={!props.hostAvailable || !activeAuthView?.available || busy !== null} onClick={() => void connectSubscription()}>{busy === "connect" ? "等待 ChatGPT 登录…" : "登录 ChatGPT 并保存账户"}</button>
+              <button className="is-primary" type="button" disabled={!props.hostAvailable || !activeAuthView?.available || busy !== null} onClick={() => void connectSubscription()}>{busy === "connect" ? "正在准备 / 等待 OpenAI 登录…" : "登录 ChatGPT 并保存账户"}</button>
             ) : (
               <>
                 <button type="button" disabled={!props.hostAvailable || !activeAuthView?.available || busy !== null} onClick={() => void runProbe()}>{busy === "probe" ? "测试中…" : "测试连接 / 获取模型"}</button>
-                <button className="is-primary" type="button" disabled={!props.hostAvailable || !activeAuthView?.available || busy !== null || !secret.trim() || !selectedModelId} onClick={() => void save()}>{busy === "save" ? "保存中…" : "保存账户"}</button>
+                <button className="is-primary" type="button" disabled={!props.hostAvailable || !activeAuthView?.available || busy !== null || !secret.trim() || !selectedModelId} onClick={() => void save()}>{busy === "save" ? "保存本地配置…" : "保存账户"}</button>
               </>
             )}
           </div>
-          <p className="ai-secret-note">{isSubscription ? "ChatGPT 登录与 Token 生命周期由 Codex App Server 管理；LFAA 不保存 Token。删除此项目账户只解除 LFAA 关联，不会退出其他 Codex 客户端。" : <>凭证只发送到本机 LFAA Host；不会写入浏览器存储。{props.secretPersistence === "os-credential-store" ? " Windows 下由 Rust Secret Broker 写入 Credential Manager。" : props.secretPersistence === "memory" ? " 当前宿主仅内存保存，重启后需重新录入。" : " Host 尚未连接。"}</>}</p>
+          <p className="ai-secret-note">{isSubscription ? "ChatGPT 登录与 Token 生命周期由 OpenAI 官方运行组件管理；LFAA 按需准备该组件，不要求单独安装 CLI，也不读取或保存 OAuth Token。删除此项目账户只解除 LFAA 关联。" : <>凭证只发送到本机 LFAA Host；不会写入浏览器存储。{props.secretPersistence === "os-credential-store" ? " Windows 下由 Rust Secret Broker 写入 Credential Manager。" : props.secretPersistence === "memory" ? " 当前宿主仅内存保存，重启后需重新录入。" : " Host 尚未连接。"}</>}</p>
         </div>
 
         <aside className="ai-settings-side ai-account-list">
@@ -234,7 +236,7 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
               <div><strong>{account.displayName}{isActive ? <em className="ai-active-model-badge">当前模型</em> : null}</strong><small>{account.verificationStatus === "connected" ? "已验证" : account.verificationStatus === "error" ? "验证失败" : "未自动验证"}{account.selectedModelId ? ` · ${account.selectedModelId}` : ""}</small></div>
               {models.length ? <label className="ai-account-model"><span>当前模型</span><select value={account.selectedModelId ?? ""} onChange={async (event) => { const modelId = event.target.value; const nextModel = models.find((item) => item.id === modelId); const nextSettings = defaultModelSettings(nextModel); setAccountModelSettings((current) => ({ ...current, [account.id]: nextSettings })); setBusy("account"); setError(""); try { await props.onSelectAccountModel(account.id, modelId, nextSettings); } catch (value) { setError(value instanceof Error ? value.message : "模型切换失败。"); } finally { setBusy(null); } }}><option value="">未选择</option>{models.map((item) => <option key={item.id} value={item.id}>{item.name ? `${item.name} · ${item.id}` : item.id}</option>)}</select></label> : null}
               {model ? <ModelCapabilityEditor model={model} values={values} onChange={(next) => setAccountModelSettings((current) => ({ ...current, [account.id]: next }))} /> : null}
-              <UsagePanel usage={account.usage} selectedModelId={account.selectedModelId} />
+              <UsagePanel usage={account.usage} usageState={account.usageState} usageError={account.usageError} selectedModelId={account.selectedModelId} />
               {!models.length ? <p className="ai-account-empty">该账户还没有模型目录快照；点击“重测”刷新。</p> : null}
               <div className="ai-account-actions">
                 {model?.capabilities?.settings.length ? <button type="button" disabled={busy !== null} onClick={async () => { setBusy("account"); setError(""); try { await props.onSelectAccountModel(account.id, model.id, values); } catch (value) { setError(value instanceof Error ? value.message : "模型配置保存失败。"); } finally { setBusy(null); } }}>保存模型配置</button> : null}

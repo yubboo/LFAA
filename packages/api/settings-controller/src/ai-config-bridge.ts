@@ -8,7 +8,7 @@
  * 关联文件：account-state-repository.ts、rust-secret-store.ts、node-http-json.ts、codex-app-server.ts、packages/client/connection/src/ai-settings-client.ts。
  * 修改注意事项：只绑定 Vite localhost；任何响应不得返回 Secret；请求体大小必须受限。
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin, ViteDevServer } from "vite";
 import {
@@ -23,6 +23,8 @@ import { createWebDevSecretStore } from "@lfaa/credentials-native";
 import { CodexAppServerHost } from "@lfaa/codex-app-server";
 
 const MAX_BODY = 32 * 1024;
+/** 显式 Probe 成功后的短期复用窗口；只用于避免“测试连接→保存”重复打官方网络。 */
+const VERIFIED_PROBE_TTL_MS = 5 * 60_000;
 
 function sendJson(response: ServerResponse, status: number, body: unknown) {
   response.statusCode = status;
@@ -87,6 +89,19 @@ function ensureSameOrigin(request: IncomingMessage): boolean {
   } catch { return false; }
 }
 
+function probeFingerprint(draft: AiAccountDraft, secret: string): string {
+  // Probe 的远端事实只取决于 Provider / 认证 / 连接设置 / Secret；
+  // 用户在 Probe 后选择模型或调整 reasoning 不应让保存再次访问同一官方模型目录。
+  return createHash("sha256")
+    .update(JSON.stringify({
+      providerId: draft.providerId,
+      authMethodId: draft.authMethodId,
+      settings: draft.settings,
+      secret,
+    }))
+    .digest("hex");
+}
+
 export function lfaaDevAiConfigBridge(projectRoot: string, options: { managedAuth?: AiManagedAuthPort } = {}): Plugin {
   const registry = new AiProviderRegistry(builtinAiProviderPlugins);
   const ownedCodexHost = options.managedAuth ? null : new CodexAppServerHost();
@@ -99,6 +114,17 @@ export function lfaaDevAiConfigBridge(projectRoot: string, options: { managedAut
     createId: randomUUID,
     now: () => new Date().toISOString(),
   });
+  const verifiedProbes = new Map<string, { probe: Awaited<ReturnType<AiAccountService["probe"]>>; expiresAt: number }>();
+
+  const rememberProbe = (draft: AiAccountDraft, secret: string, probe: Awaited<ReturnType<AiAccountService["probe"]>>) => {
+    verifiedProbes.set(probeFingerprint(draft, secret), { probe, expiresAt: Date.now() + VERIFIED_PROBE_TTL_MS });
+  };
+  const takeProbe = (draft: AiAccountDraft, secret: string) => {
+    const key = probeFingerprint(draft, secret);
+    const cached = verifiedProbes.get(key);
+    verifiedProbes.delete(key);
+    return cached && cached.expiresAt >= Date.now() ? cached.probe : undefined;
+  };
 
   return {
     name: "lfaa-dev-ai-config-bridge",
@@ -116,7 +142,10 @@ export function lfaaDevAiConfigBridge(projectRoot: string, options: { managedAut
           if (request.method === "POST" && pathname === "/probe") {
             const body = await readJson(request);
             const secret = typeof body.secret === "string" ? body.secret : "";
-            return sendJson(response, 200, { ok: true, probe: await service.probe(parseDraft(body.draft), secret) });
+            const draft = parseDraft(body.draft);
+            const probe = await service.probe(draft, secret);
+            rememberProbe(draft, secret, probe);
+            return sendJson(response, 200, { ok: true, probe });
           }
           if (request.method === "POST" && pathname === "/managed-login/start") {
             const body = await readJson(request);
@@ -138,7 +167,8 @@ export function lfaaDevAiConfigBridge(projectRoot: string, options: { managedAut
           if (request.method === "POST" && pathname === "/accounts") {
             const body = await readJson(request);
             const secret = typeof body.secret === "string" ? body.secret : "";
-            const result = await service.save(parseDraft(body.draft), secret);
+            const draft = parseDraft(body.draft);
+            const result = await service.save(draft, secret, takeProbe(draft, secret));
             return sendJson(response, 200, { ok: true, ...result, snapshot: await service.snapshot() });
           }
           const match = pathname.match(/^\/accounts\/([A-Za-z0-9-]{8,80})(?:\/(probe|model|active-model|active|usage))?$/);

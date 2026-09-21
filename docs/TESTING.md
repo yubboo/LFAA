@@ -1,4 +1,25 @@
-# LFAA Testing & Gates — v0.1.6
+# LFAA Testing & Gates — v0.1.7
+
+## v0.1.7 Provider 可靠性回归
+
+必须覆盖：
+
+1. OpenAI-compatible Chat Completions SSE 会逐 delta 回调并收敛最终文本；
+2. OpenAI Responses `response.output_text.delta` 走同一 Runtime Event 合同；
+3. Probe 成功后 Save 可复用 Verified Probe，不重复访问官方模型目录；
+4. Usage 失败/超时进入 error 终态，不永久显示 loading；
+5. ChatGPT 套餐产品路径不要求全局 Codex CLI；Windows 官方 App Server 固定资产来源/SHA-256 受合同测试约束；
+6. 左侧 Mode Popover 不被 Pane overflow 裁切；
+7. Windows Secret Broker 启动后预热不能阻塞 Host，真实保存仍保留失败重试；
+8. ChatGPT 套餐首次登录在准备官方组件期间必须立即给出可见状态，并只跳转 OpenAI / ChatGPT 官方 HTTPS 登录地址。
+
+
+## v0.1.6 三模式与 OpenAI 官方 Runtime 回归
+
+- `test/workspace-mode-unification.test.mjs`：锁定 Chat/Work 同一个 Agent Core、统一干预、Manual 无模型边界和 Work Canvas 上下文回流。
+- `test/ai-web-host.test.mjs`：锁定 ChatGPT 套餐使用 LFAA_HOME 中的 OpenAI 官方 daemon runtime，禁止恢复全局 `codex`/PATH 前置。
+- 真实 ChatGPT 套餐 OAuth 与官方 runtime 下载/启动仍需要用户 Windows 环境验收；静态/Fake Client 测试不能冒充真实账户 E2E。
+
 
 ## v0.1.6 单核三模式回归
 

@@ -1,4 +1,13 @@
-# LFAA UI Architecture — v0.1.6
+# LFAA UI Architecture — v0.1.7
+
+## v0.1.7 Settings / Streaming / Layering
+
+- Provider 设置把 Probe、Save、Usage 拆成独立状态；保存不等待 Usage，Usage 必须 ready/error 收敛。
+- 支持流式的 Runtime 通过 `assistant.delta` 更新同一 assistant message，Chat/Work 都不得整段延迟后一次性替换。
+- 左侧模式 Popover 所在 Pane 允许可控 overflow，并使用共享 popover layer token；Center/Right 继续保持裁切边界。
+- ChatGPT 套餐 UI 只呈现 OpenAI 官方登录/套餐语义，不要求用户理解或安装内部运行组件。
+- ChatGPT 套餐首次登录如果需要准备官方组件，预先打开的登录窗口必须立即显示“正在准备 OpenAI 官方登录”，准备完成后再自动跳转官方域名，禁止主界面无反馈等待。
+
 
 ## v0.1.6 三种交互模式
 

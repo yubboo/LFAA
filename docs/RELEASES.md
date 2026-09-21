@@ -1,4 +1,15 @@
-# LFAA Releases — current policy v0.1.6
+# LFAA Releases — current policy v0.1.7
+
+## v0.1.7 — #22.13 Provider 官方登录 / Usage 终态 / 真流式回复
+
+- 状态：`pending-user-acceptance`；AI 验证：`pass`；用户验收：`pending`。
+- ChatGPT 套餐保持 OpenAI 官方账户认证；Windows 由 LFAA 管理固定官方 App Server 独立组件，不要求全局 Codex CLI/PATH。
+- API Key Probe 成功后保存复用短期 Verified Probe，避免重复远端模型目录请求。
+- Usage 改为独立异步状态并具有 timeout/error 终态，失败不阻塞模型账户使用。
+- OpenAI Responses / OpenAI-compatible Chat Completions 改为真实 SSE streaming，通过统一 `assistant.delta` 驱动 Chat/Work。
+- 左侧模式弹层修复 overflow/stacking context 裁切。
+- 新增真实 SSE 行为测试；源码树验证：Node 188/188 PASS、Config System 42/42 PASS、SSE 行为 2/2 PASS、10/10 tsconfig `tsc --showConfig` PASS；759-entry Unicode ZIP fresh extract `workspace-preflight` PASS。
+
 
 ## v0.1.6 — #22.12 单一 Agent Core / Chat·Work·Manual
 
@@ -8,6 +19,7 @@
 - Work 无限画布节点支持人工编辑，Agent 输出回投同一画布；用户和 AI 围绕同一 Workspace Context 协作。
 - 新增 Manual：无模型也可进入，复用 InfiniteCanvas、Terminal 与真实 Tool 基础设施；Manual 不创建 Agent Run。
 - Provider entitlement 原则冻结：官方免费/套餐/API/Coding Plan 的可用性和额度原样映射，LFAA 不添加自有模型额度。
+- ChatGPT 套餐不再要求用户安装全局 Codex CLI：LFAA 按需使用 OpenAI 官方 installer 的 daemon-only 模式，把固定版本官方 App Server 隔离到 `LFAA_HOME`，并继续通过官方 OAuth / account / model / usage / thread / turn RPC。
 - AI 验证：Node 合同测试 183/183 PASS；Config System 41/41 PASS；TypeScript/TSX 语法转译 165/165 PASS；workspace preflight 全 Gate PASS。
 
 ## v0.1.4 — #22.11 官方余额额度与 Chat/Work 模式边界
@@ -66,8 +78,8 @@
 ## 当前版本
 
 ```text
-displayVersion: 0.1.6
-releaseSequence: 106
+displayVersion: 0.1.7
+releaseSequence: 107
 architectureVersion: 6
 agentProtocolVersion: 3
 ```

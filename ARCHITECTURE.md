@@ -1,4 +1,4 @@
-# LFAA Architecture — v0.1.6 Current Truth
+# LFAA Architecture — v0.1.7 Current Truth
 
 > 本文件描述 **当前** LFAA 架构。旧版本的平铺 `packages/*`、`apps/web/dev/bridges/*`、`crates/` 与仓库级 `.lfaa/` 只允许出现在历史记录中，不再是当前设计。
 
@@ -39,6 +39,18 @@ Chat Agent 与 Work Agent **不是能力等级**。它们共享同一个 `AgentR
 - Manual：Workbench 第三种模式，不进入 `AgentRunRequest`，不要求模型；复用 Work Canvas 与真实工具基础设施，由用户完全手动操作。
 
 禁止建立 `ChatRuntime` / `WorkRuntime` 两套核心，禁止把复杂任务从“弱 Chat”升级到“强 Work”；复杂任务在 Chat 中同样由同一个 Agent Core 全自动完成。
+
+ChatGPT 套餐是 Provider 认证/Runtime 能力，不是外部客户端依赖：LFAA 通过 OpenAI 官方 App Server RPC 使用 `account/login/start`、`account/read`、`model/list`、thread/turn 等能力，并按需把官方 daemon runtime 隔离在 `LFAA_HOME/runtimes/openai-chatgpt`。用户不需要把 `codex` 安装到全局 PATH；LFAA 也不读取官方 runtime 的认证文件。
+
+## 1.2 v0.1.7 Provider Runtime / Settings 状态边界
+
+Provider 接入固定拆成四个独立事实：`Authentication`、`Model Discovery`、`Runtime`、`Usage/Entitlement`。设置页“连接成功”只代表认证/模型目录 Probe 成功，不得冒充 Runtime 或 Usage 已可用。
+
+- API Key Provider：`probe → save` 可复用 Host 内短期验证结果，避免保存时再次访问同一官方模型目录；Secret 不进入缓存 key 明文。
+- ChatGPT 套餐：通过 OpenAI 官方账户/App Server 协议完成 OAuth、model/account/usage 与 thread/turn；LFAA 自行在 Runtime Home 管理固定官方组件，用户无需全局 Codex CLI。
+- Usage：独立异步加载并拥有 `idle/loading/ready/error`；Provider 网络和 Browser Host 都有超时边界。
+- Text Runtime：OpenAI-compatible Provider 优先 SSE；所有增量转换为统一 `AgentRuntimeEvent.assistant.delta`，Chat/Work 不分叉流式协议。
+- UI 层级：Popover/Mode menu 的显示属于 Client UI 责任，不能被 Pane 的裁剪规则破坏。
 
 ## 2. 仓库层级
 
@@ -117,7 +129,7 @@ Secret 明文禁止进入 JSON 状态、插件 Manifest、Git、日志、argv、
 
 ### `packages/harness/`
 
-- `@lfaa/codex-app-server`：官方 Codex App Server JSONL/RPC Adapter。
+- `@lfaa/codex-app-server`：OpenAI 官方 App Server JSONL/RPC Adapter；运行组件由 LFAA 按需管理在 Runtime Home。
 
 外部 Harness 以 Adapter 接入，不复制上游内部 Agent Loop。
 

@@ -1,3 +1,14 @@
+# v0.1.7 Provider 官方登录 / Usage 终态 / 真流式回复
+
+**当前任务：#22.13 · v0.1.7 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- ChatGPT 套餐继续走 OpenAI 官方账户/App Server 协议；Windows 由 LFAA 在 `LFAA_HOME` 按需准备固定 OpenAI 官方 App Server 独立资产并校验 SHA-256，不再把全局 Codex CLI/PATH 当产品依赖。
+- API Key `probe → save` 新增 Host 级 Verified Probe 复用；连接设置和 Secret 未变化时保存不再重复访问官方 `/models`。
+- 官方 Usage UI 改为 `idle/loading/ready/error`，Browser 额外设置 22 秒终止线；失败/超时不阻塞账户保存与模型使用。
+- OpenAI-compatible Runtime 改为真实 SSE：OpenAI Responses `response.output_text.delta` 与 Chat Completions `choices[].delta.content` 都实时发出 `assistant.delta`，最终再收敛 `assistant.completed`。
+- 左侧 Chat/Work/Manual 模式菜单修复 Pane overflow / stacking context 裁切。
+- 新增真实 SSE 行为回归与 Provider 设置合同。AI 验证：仓库级 Node 188/188 PASS；Config System 42/42 PASS；SSE 行为 2/2 PASS；10/10 tsconfig `tsc --showConfig` PASS；759-entry Unicode ZIP provisional/final archive 均通过 fresh extract `workspace-preflight`。
+
 # v0.1.6 单一 Agent Core / Chat·Work·Manual 三模式
 
 **当前任务：#22.12 · v0.1.6 · pending-user-acceptance · AI=pass · 用户验收=pending**
@@ -9,7 +20,7 @@
 - 新增 Manual：无需模型即可使用无限画布和真实 Terminal/Tool 基础设施，不创建 Agent Run。
 - Workbench Left/Header/Composer/Right Surface 支持 Chat/Work/Manual 三模式；未注册 Review/Browser/File Tool 不再伪装可点击。
 - Provider 官方事实原则继续冻结：官方免费/套餐/API/Coding Plan 的 entitlement 原样呈现，LFAA 不添加模型使用额度。
-- v0.1.5 的全局 Codex CLI 产品依赖方向被否决，不作为本版基线。
+- v0.1.5 的全局 Codex CLI 产品依赖方向被否决；v0.1.6 改为在 `LFAA_HOME` 中按需准备 OpenAI 官方 daemon runtime，用户无需安装/配置全局 `codex`，官方 OAuth/Token 仍由该组件独占管理。
 - **AI 验证：** pass；仓库级 Node 合同测试 183/183 PASS，Config System 41/41 PASS，TypeScript/TSX 语法转译 165/165 PASS，workspace preflight 全 Gate PASS。
 - **状态：** pending-user-acceptance。
 

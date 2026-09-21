@@ -221,6 +221,9 @@ importers:
       '@lfaa/config-system':
         specifier: workspace:*
         version: link:../../settings/config-system
+      '@lfaa/home-paths':
+        specifier: workspace:*
+        version: link:../../util/home-paths
   packages/host/vite:
     dependencies:
       vite:

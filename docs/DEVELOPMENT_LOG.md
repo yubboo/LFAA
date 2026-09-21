@@ -1,3 +1,15 @@
+# v0.1.7 / #22.13 Provider 官方登录 / Usage 终态 / 真流式回复
+
+**当前任务：v0.1.7 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- 以用户实机 v0.1.6 回归为事实：套餐登录、模式弹层、保存延迟、Usage 卡住、API 一次性回复必须一起修。
+- ChatGPT 套餐产品层不要求全局 Codex CLI；Windows 由 LFAA 管理 OpenAI 官方 App Server 独立组件，官方 OAuth/Token 仍归官方组件。
+- API Provider Probe 成功后，保存复用短期 Host 验证结果，避免重复调用官方模型目录。
+- Usage 从账户快照中解耦，独立进入 `idle/loading/ready/error`；Provider Host 15 秒网络超时，Browser 22 秒终止线。
+- OpenAI-compatible Runtime 改为真实 SSE streaming；Chat Completions / Responses delta 都进入统一 `assistant.delta`。
+- 左侧模式菜单由 Left Pane 放开可控 overflow，并继续使用共享 popover layer token。
+- AI 验证：仓库级 Node 合同测试 188/188 PASS；Config System 42/42 PASS；SSE 行为 2/2 PASS；10/10 tsconfig `tsc --showConfig` PASS；workspace preflight 全 Gate PASS；759-entry Unicode ZIP fresh extract preflight PASS。
+
 # v0.1.6 / #22.12 单一 Agent Core / Chat·Work·Manual 三模式
 
 **当前任务：v0.1.6 · pending-user-acceptance · AI=pass · 用户验收=pending**
@@ -8,7 +20,7 @@
 - 新增 Manual：无模型可进入，复用 Work Canvas、Local Terminal 与真实 Tool 注册基础设施；Manual 不进入 `AgentWorkspaceMode`。
 - Left/Header/Composer/Right Surface 改为三模式表现，未注册工具显式 disabled。
 - Provider Entitlement 原则写入当前开发规范：官方免费/套餐/API/Coding Plan 原样呈现，LFAA 不制造额度。
-- v0.1.5 的“用户必须安装全局 Codex CLI”产品方向不作为本版基线；后续 ChatGPT 套餐继续按官方可嵌入认证/Runtime 能力管理。
+- v0.1.5 的“用户必须安装全局 Codex CLI”产品方向不作为本版基线；v0.1.6 已改为 LFAA 在 `LFAA_HOME` 按需准备 OpenAI 官方 daemon runtime，用户无需维护 `codex` PATH；认证/模型/额度/执行仍全部走官方 App Server RPC。
 - AI 验证：Node 合同测试 183/183 PASS；Config System 41/41 PASS；TypeScript/TSX 语法转译 165/165 PASS；workspace preflight 全 Gate PASS。
 
 # v0.1.4 / #22.11 官方余额额度与 Chat/Work 模式边界

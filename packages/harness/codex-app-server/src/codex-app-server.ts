@@ -10,6 +10,7 @@
  */
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import readline from "node:readline";
+import { ensureOfficialOpenAiRuntime, officialOpenAiRuntimeCapability } from "./openai-official-runtime.ts";
 import type {
   AiAccountModel,
   AiAccountProbeResult,
@@ -31,12 +32,12 @@ const CHECKED_AT = "2026-09-20";
 const MODEL_LIST_DOC = "https://developers.openai.com/codex/app-server#list-models";
 const MODEL_SOURCE = {
   kind: "runtime-model-api",
-  label: "Codex App Server model/list",
+  label: "OpenAI 官方 ChatGPT 模型目录",
   url: MODEL_LIST_DOC,
   checkedAt: CHECKED_AT,
 } as const;
 /** App Server initialize 元数据集中定义，避免 name/title/version 散落在握手逻辑。 */
-const APP_SERVER_CLIENT_INFO = { name: "lfaa_web_dev", title: "Little Fish AI Agent", version: "0.1.4" } as const;
+const APP_SERVER_CLIENT_INFO = { name: "lfaa_web_dev", title: "Little Fish AI Agent", version: "0.1.7" } as const;
 
 export interface CodexTextRunInput {
   readonly sessionKey: string;
@@ -78,8 +79,8 @@ function safeText(value: unknown, fallback: string): string {
 }
 
 function safeRpcError(value: unknown): Error {
-  if (!isRecord(value)) return new Error("Codex App Server 请求失败。");
-  return new Error(safeText(value.message, "Codex App Server 请求失败。"));
+  if (!isRecord(value)) return new Error("OpenAI 官方账户服务请求失败。");
+  return new Error(safeText(value.message, "OpenAI 官方账户服务请求失败。"));
 }
 
 function stringField(value: JsonRecord, key: string): string | null {
@@ -126,7 +127,7 @@ function mapModel(value: unknown): AiAccountModel | null {
     requestPath: "effort",
     ...(defaultReasoningEffort && reasoningOptions.some((option) => option.value === defaultReasoningEffort) ? { defaultValue: defaultReasoningEffort } : {}),
     options: reasoningOptions,
-    help: "来自当前 Codex App Server model/list；运行时通过 turn/start.effort 应用。",
+    help: "来自 OpenAI 官方账户运行接口；运行时通过 turn/start.effort 应用。",
   }] : [];
   const capabilities: AiModelCapabilities = {
     source: MODEL_SOURCE,
@@ -151,6 +152,7 @@ class CodexAppServerClient {
   #pending = new Map<RpcId, PendingRequest>();
   #loginStatuses = new Map<string, AiManagedLoginStatus>();
   #notifications = new Set<NotificationListener>();
+  #stderrTail = "";
 
   get generation(): number { return this.#generation; }
 
@@ -163,20 +165,29 @@ class CodexAppServerClient {
   }
 
   async #start(): Promise<void> {
-    const childProcess = spawn("codex", ["app-server"], {
+    // ChatGPT 套餐的官方运行组件由 LFAA 按需准备到 LFAA_HOME；用户无需全局安装 Codex CLI。
+    // LFAA 只启动 OpenAI 官方 App Server，并通过 CODEX_HOME 让官方组件自行管理 OAuth / Token 生命周期。
+    const officialRuntime = await ensureOfficialOpenAiRuntime();
+    const childProcess = spawn(officialRuntime.executable, [...officialRuntime.launchArgs], {
       windowsHide: true,
-      // Windows 的 npm 全局 bin 是 codex.cmd；Node raw spawn 不会解析 .cmd，需交给系统 shell。
-      // 命令与参数均为固定常量，没有拼接用户输入。
-      shell: process.platform === "win32",
+      shell: false,
       stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env, CODEX_HOME: officialRuntime.codexHome },
     });
     this.#process = childProcess;
-    // stderr 只排空，不拼进错误，避免未来 CLI 日志把任何认证信息带回应用层。
-    childProcess.stderr.resume();
+    this.#stderrTail = "";
+    childProcess.stderr.setEncoding("utf8");
+    childProcess.stderr.on("data", (chunk: string) => {
+      // 只保留短尾部用于诊断，并在最终错误中统一脱敏；不写日志、不持久化。
+      this.#stderrTail = `${this.#stderrTail}${chunk}`.slice(-1_500);
+    });
     this.#reader = readline.createInterface({ input: childProcess.stdout });
     this.#reader.on("line", (line) => this.#onLine(line));
-    childProcess.once("error", (error) => this.#onProcessFailure(new Error(error.message.includes("ENOENT") ? "未找到 Codex CLI。请先安装 Codex CLI，并确认 codex 命令已加入 PATH。" : `Codex App Server 启动失败：${error.message}`)));
-    childProcess.once("exit", (code, signal) => this.#onProcessFailure(new Error(`Codex App Server 已退出（code=${code ?? "null"}, signal=${signal ?? "null"}）。`)));
+    childProcess.once("error", (error) => this.#onProcessFailure(new Error(`OpenAI 官方 ChatGPT 账户服务启动失败：${error.message}`)));
+    childProcess.once("exit", (code, signal) => {
+      const diagnostic = safeText(this.#stderrTail, "");
+      this.#onProcessFailure(new Error(`OpenAI 官方 ChatGPT 账户服务已退出（code=${code ?? "null"}, signal=${signal ?? "null"}）。${diagnostic ? ` ${diagnostic}` : ""}`));
+    });
 
     try {
       await this.request("initialize", { clientInfo: APP_SERVER_CLIENT_INFO }, INITIALIZE_TIMEOUT_MS);
@@ -250,6 +261,7 @@ class CodexAppServerClient {
     }
     this.#reader?.close();
     this.#reader = null;
+    this.#stderrTail = "";
     this.#process = null;
     for (const listener of this.#notifications) listener("__process/failure", { error: error.message });
   }
@@ -258,12 +270,12 @@ class CodexAppServerClient {
     // initialize 本身负责启动阶段，因此只有其他请求才递归确保已启动。
     if (method !== "initialize") await this.ensureStarted();
     const process = this.#process;
-    if (!process?.stdin.writable) throw new Error("Codex App Server 当前不可写。");
+    if (!process?.stdin.writable) throw new Error("OpenAI 官方账户服务当前不可写。");
     const id = ++this.#requestId;
     const response = new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.#pending.delete(id);
-        reject(new Error(`Codex App Server 请求超时：${method}`));
+        reject(new Error(`OpenAI 官方账户服务请求超时：${method}`));
       }, timeoutMs);
       this.#pending.set(id, { resolve, reject, timer });
     });
@@ -299,7 +311,7 @@ class CodexAppServerClient {
   }
 
   loginStatus(loginId: string): AiManagedLoginStatus {
-    return this.#loginStatuses.get(loginId) ?? { state: "failed", error: "登录会话不存在或 Codex App Server 已重启。" };
+    return this.#loginStatuses.get(loginId) ?? { state: "failed", error: "登录会话不存在或 OpenAI 官方账户服务已重启。" };
   }
 
   markLoginFailed(loginId: string, error: string): void {
@@ -311,9 +323,10 @@ class CodexAppServerClient {
     this.#process = null;
     this.#reader?.close();
     this.#reader = null;
+    this.#stderrTail = "";
     for (const pending of this.#pending.values()) {
       clearTimeout(pending.timer);
-      pending.reject(new Error("Codex App Server 已关闭。"));
+      pending.reject(new Error("OpenAI 官方账户服务已关闭。"));
     }
     this.#pending.clear();
     this.#notifications.clear();
@@ -336,12 +349,10 @@ export class CodexAppServerManagedAuth implements AiManagedAuthPort {
   }
 
   async status(): Promise<AiHostCapabilityStatus> {
-    try {
-      await this.#client.ensureStarted();
-      return { available: true };
-    } catch (error) {
-      return { available: false, reason: error instanceof Error ? error.message : "Codex App Server 不可用。" };
-    }
+    const capability = officialOpenAiRuntimeCapability();
+    if (!capability.available) return { available: false, reason: capability.reason ?? "OpenAI 官方运行组件在当前平台不可用。" };
+    // 状态探测不提前下载运行组件；用户首次发起 ChatGPT 登录 / Runtime 时再按需准备。
+    return { available: true };
   }
 
   async startLogin(): Promise<AiManagedLoginStart> {
@@ -350,10 +361,10 @@ export class CodexAppServerManagedAuth implements AiManagedAuthPort {
       useHostedLoginSuccessPage: true,
       appBrand: "chatgpt",
     });
-    if (!isRecord(result) || result.type !== "chatgpt") throw new Error("Codex App Server 返回了未知 ChatGPT 登录响应。");
+    if (!isRecord(result) || result.type !== "chatgpt") throw new Error("OpenAI 官方账户服务返回了未知 ChatGPT 登录响应。");
     const loginId = stringField(result, "loginId");
     const authUrl = stringField(result, "authUrl");
-    if (!loginId || !authUrl) throw new Error("Codex App Server 未返回 loginId / authUrl。");
+    if (!loginId || !authUrl) throw new Error("OpenAI 官方账户服务未返回 loginId / authUrl。");
     this.#client.setLoginPending(loginId);
     return { loginId, authUrl };
   }
@@ -370,9 +381,9 @@ export class CodexAppServerManagedAuth implements AiManagedAuthPort {
 
   async probe(): Promise<AiAccountProbeResult> {
     const accountResult = await this.#client.request("account/read", { refreshToken: false });
-    if (!isRecord(accountResult)) throw new Error("Codex App Server account/read 响应无效。");
+    if (!isRecord(accountResult)) throw new Error("OpenAI 官方账户服务 account/read 响应无效。");
     const account = isRecord(accountResult.account) ? accountResult.account : null;
-    if (!account || account.type !== "chatgpt") throw new Error("Codex 当前未登录 ChatGPT 套餐账户。请先完成 ChatGPT 登录。");
+    if (!account || account.type !== "chatgpt") throw new Error("当前 OpenAI 官方运行组件尚未登录 ChatGPT 套餐账户。请先完成 ChatGPT 登录。");
 
     const models: AiAccountModel[] = [];
     let cursor: string | null = null;
@@ -382,7 +393,7 @@ export class CodexAppServerManagedAuth implements AiManagedAuthPort {
         includeHidden: false,
         ...(cursor ? { cursor } : {}),
       });
-      if (!isRecord(result) || !Array.isArray(result.data)) throw new Error("Codex App Server model/list 响应无效。");
+      if (!isRecord(result) || !Array.isArray(result.data)) throw new Error("OpenAI 官方账户服务 model/list 响应无效。");
       for (const item of result.data) {
         const model = mapModel(item);
         if (model) models.push(model);
@@ -397,16 +408,16 @@ export class CodexAppServerManagedAuth implements AiManagedAuthPort {
     const identity = [email, planType].filter(Boolean).join(" · ");
     return {
       status: "connected",
-      message: `ChatGPT 已连接${identity ? `（${identity}）` : ""}，Codex App Server 返回 ${models.length} 个可用模型。`,
+      message: `ChatGPT 已连接${identity ? `（${identity}）` : ""}，OpenAI 官方模型目录返回 ${models.length} 个可用模型。`,
       models,
     };
   }
 
   async usage(): Promise<AiAccountUsageSnapshot> {
     const accountResult = await this.#client.request("account/read", { refreshToken: false });
-    if (!isRecord(accountResult)) throw new Error("Codex App Server account/read 响应无效。");
+    if (!isRecord(accountResult)) throw new Error("OpenAI 官方账户服务 account/read 响应无效。");
     const account = isRecord(accountResult.account) ? accountResult.account : null;
-    if (!account || account.type !== "chatgpt") throw new Error("Codex 当前未登录 ChatGPT 套餐账户。");
+    if (!account || account.type !== "chatgpt") throw new Error("OpenAI 官方账户服务当前未登录 ChatGPT 套餐账户。");
 
     const [limitsRaw, usageRaw] = await Promise.all([
       this.#client.request("account/rateLimits/read", {}),
@@ -450,7 +461,7 @@ export class CodexAppServerManagedAuth implements AiManagedAuthPort {
       scope: "codex-work",
       source: {
         kind: "official-runtime",
-        label: "Codex App Server account/rateLimits/read + account/usage/read",
+        label: "OpenAI 官方 ChatGPT 账户用量接口",
         url: "https://developers.openai.com/codex/app-server",
         checkedAt: "2026-09-21",
       },
@@ -606,7 +617,7 @@ export class CodexAppServerTextRuntime {
       if (method === "__process/failure") {
         if (!settled) {
           settled = true;
-          rejectCompletion(new Error(safeText(params.error, "Codex App Server 已退出。")));
+          rejectCompletion(new Error(safeText(params.error, "OpenAI 官方账户服务已退出。")));
         }
         return;
       }

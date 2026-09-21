@@ -151,5 +151,9 @@ class MemoryCredentialStore implements CredentialStorePort {
 }
 
 export function createWebDevSecretStore(projectRoot: string): CredentialStorePort {
-  return process.platform === "win32" ? new RustCredentialStore(projectRoot) : new MemoryCredentialStore();
+  if (process.platform !== "win32") return new MemoryCredentialStore();
+  // Web Host 启动后立即后台预热 Rust Secret Broker。首次 API Key 保存不应同时承担 Cargo 冷启动；
+  // 预热失败不会伪装成功，真正 put/get 时仍会复用/重试 buildBroker 并返回真实错误。
+  void buildBroker(projectRoot).catch(() => undefined);
+  return new RustCredentialStore(projectRoot);
 }

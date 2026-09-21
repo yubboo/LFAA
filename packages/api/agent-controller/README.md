@@ -10,7 +10,7 @@ Provider connection.protocol
 └─ codex-app-server  → @lfaa/codex-app-server Text Runtime
 ```
 
-## v0.1.6 Intervention
+## v0.1.7 Intervention
 
 `POST /runs/:runId/interventions` 是 Chat/Work 共用人工干预入口。支持原生 steer 的 Runtime 在当前 Run 注入（Codex 使用 `turn/steer`）；其他 Provider 由 Host 中断旧请求并以同一 Session/模型/权限续跑。Work 可把 Canvas 编辑内容作为 `workspaceContext` 一起传入。
 

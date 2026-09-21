@@ -192,9 +192,15 @@ export class AiAccountService {
     return { status: "connected", message: `连接成功，官方模型目录返回 ${models.length} 个模型。`, models, ...(connection.baseUrl ? { resolvedBaseUrl: connection.baseUrl } : {}) };
   }
 
-  async save(draft: AiAccountDraft, secret: string | null): Promise<{ account: AiAccountRecord; probe: AiAccountProbeResult }> {
+  async save(
+    draft: AiAccountDraft,
+    secret: string | null,
+    verifiedProbe?: AiAccountProbeResult,
+  ): Promise<{ account: AiAccountRecord; probe: AiAccountProbeResult }> {
     const { plugin, auth } = validateDraft(this.#registry, draft, secret);
-    const probe = await this.probe(draft, secret);
+    // 显式“测试连接”后的保存可以复用宿主内存中的短期已验证 Probe，避免同一官方模型目录连续请求两次。
+    // 缓存必须由 Host 端基于完整 Draft + Secret 指纹命中，Core 不信任浏览器回传的 Probe。
+    const probe = verifiedProbe ?? await this.probe(draft, secret);
     const beforeAccounts = await this.#ports.repository.list();
     const existing = draft.accountId ? beforeAccounts.find((item) => item.id === draft.accountId) : undefined;
     const id = existing?.id ?? this.#ports.createId();

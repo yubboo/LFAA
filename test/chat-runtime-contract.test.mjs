@@ -48,8 +48,17 @@ test("web development host routes each configured Provider to its owned text run
     "callOpenAiCompatibleTextModel",
   ]) assert.match(bridge, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
-  for (const token of ["/chat/completions", "/responses", "REASONING_BOOST_INSTRUCTION", 'role: "system"'])
-    assert.match(llm, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  for (const token of [
+    "/chat/completions",
+    "/responses",
+    "REASONING_BOOST_INSTRUCTION",
+    'role: "system"',
+    "stream: true",
+    "text/event-stream",
+    "response.output_text.delta",
+    "choices[0].delta",
+    "onTextDelta",
+  ]) assert.match(llm, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
   for (const token of ["thread/start", "turn/start", "item/agentMessage/delta", "turn/completed", "turn/interrupt"])
     assert.match(codex, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -95,7 +104,12 @@ test("Codex subscription runtime never requires LFAA to read or persist ChatGPT 
   const codex = readFileSync(codexPath, "utf8");
   const codexBranch = bridge.slice(bridge.indexOf('protocol === "codex-app-server"'), bridge.indexOf('protocol === "openai-compatible"'));
   assert.doesNotMatch(codexBranch, /secrets\.get|credentialRef/);
-  assert.doesNotMatch(codex, /from "node:fs"|process\.env|readFileSync|readFile\(/);
+  assert.doesNotMatch(codex, /from "node:fs"|readFileSync|readFile\(/);
+  const executableCodex = codex
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "");
+  assert.doesNotMatch(executableCodex, /auth\.json|credentials\.json|OAuth.*Token.*read/i);
+  assert.match(codex, /CODEX_HOME: officialRuntime\.codexHome/);
   assert.match(codex, /approvalPolicy: "never"/);
   assert.match(codex, /sandboxPolicy: \{ type: "readOnly"/);
 });

@@ -1,4 +1,4 @@
-# LFAA Modules — v0.1.6 Current Ownership
+# LFAA Modules — v0.1.7 Current Ownership
 
 本文件只描述当前模块 Owner。旧版本细节请到 DEVELOPMENT_LOG/CHANGELOG 查历史。
 
@@ -15,13 +15,13 @@
 | client | `@lfaa/ui-terminal` | Terminal UI |
 | settings | `@lfaa/config-system` | AI Config Domain + 官方 Usage/Quota 规范化 |
 | settings | `@lfaa/config-host-node` | Node persistence / HTTP host ports |
-| llm | `@lfaa/llm-openai-compatible` | Provider runtime HTTP adapter |
+| llm | `@lfaa/llm-openai-compatible` | Provider Runtime HTTP/SSE Adapter；真实增量归一为 `assistant.delta` |
 | credentials | `@lfaa/credentials` | Credential Service Definition |
 | credentials | `@lfaa/credentials-native` | Native Secret Broker Adapter |
 | plugin | `@lfaa/plugin-sdk` | Plugin/capability contracts |
 | plugin | `@lfaa/plugin-runtime` | Registry generation / lifecycle |
 | plugin | `@lfaa/plugin-host-node` | Inspect/install/rollback/pnpm host |
-| harness | `@lfaa/codex-app-server` | Official Codex App Server managed auth + read-only thread/turn text runtime |
+| harness | `@lfaa/codex-app-server` | OpenAI 官方 ChatGPT 账户/App Server Adapter：managed auth + usage + read-only thread/turn；运行组件归 LFAA_HOME 管理，不要求全局 CLI |
 | api | `@lfaa/agent-controller` | Agent Run local Host controller；按 Provider protocol 路由 OpenAI-compatible / Codex Runtime |
 | api | `@lfaa/settings-controller` | AI Settings local Host controller |
 | api | `@lfaa/plugin-controller` | Plugin Manager local Host controller |

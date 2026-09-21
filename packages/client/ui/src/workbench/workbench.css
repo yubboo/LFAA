@@ -109,7 +109,14 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   overflow: hidden;
 }
 
-.lfaa-workbench__pane--left { grid-column: 1; grid-row: 1 / 3; }
+/* 左侧模式切换属于跨 Pane Popover；父 Pane 必须允许其越过列边界。
+ * 仅 Left 放开 overflow，Center/Right 仍保持裁剪，避免业务内容溢出。 */
+.lfaa-workbench__pane--left {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  overflow: visible;
+  z-index: 70;
+}
 .lfaa-workbench__handle--left { grid-column: 2; grid-row: 1 / 3; }
 .lfaa-workbench__center { grid-column: 3; grid-row: 1; }
 .lfaa-workbench__handle--right { grid-column: 4; grid-row: 1; }

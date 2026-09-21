@@ -1,24 +1,23 @@
-# LFAA Project Plan — current after v0.1.4
+# LFAA Project Plan — current v0.1.7
 
 ## 当前里程碑
 
-**v0.1.6 / 单一 Agent Core、双 Agent 表现层与 Manual 手动模式（pending-user-acceptance）**
+**v0.1.7 / Provider 官方登录、保存响应、Usage 终态与真实流式回复（pending-user-acceptance）**
 
-目标：Chat Agent / Work Agent 保持完全同核、同工具、同模型、同权限、同自动化质量和同交付标准，只把人工干预方式做成两种表现层；新增无模型可用的 Manual 手动模式。
+目标：保持 v0.1.6 的单一 Agent Core / Chat·Work·Manual 模型不变，只修真实 Provider 使用链和 UI 回归。配置“连接成功”必须与 Runtime/Usage 状态解耦，支持流式的 Provider 必须边生成边显示。
 
 本版：
 
-- `AgentWorkspaceMode` 仍只有 `chat | work`，Manual 明确留在 Client Workspace 层；
-- Chat/Work 共用同一个 `startRun` / `interveneRun` / Agent Runtime Host；
-- Chat 运行中可用对话继续插话；支持 native steer 的 Runtime 直接注入，不支持时由 Host 统一续跑；
-- Work 无限画布节点允许用户编辑，编辑结果形成 `workspaceContext` 进入同一个 Agent Core；Agent 输出回投同一 Work Canvas；
-- Manual 无模型也可进入，复用无限画布与真实 Terminal/Tool 基础设施，不启动模型和自动规划；
-- 左侧导航、Header、Composer、Right Tool Surface 随 Chat/Work/Manual 改变表现，但不能改变底层能力等级；
-- Provider entitlement 继续遵循“官方是什么，LFAA 就是什么”：官方免费/套餐包含不附加 LFAA 额度；API/Plan 用量只显示官方事实。
+- ChatGPT 套餐继续使用 OpenAI 官方账户/App Server 协议，但产品层不要求用户安装 Codex CLI；Windows 由 LFAA 在 `LFAA_HOME` 按需下载固定 OpenAI 官方 App Server 独立资产并校验 SHA-256；
+- API Key 的“测试连接→保存”复用短期 Host Verified Probe，避免保存时重复 `/models`；
+- Usage UI 改为 `idle / loading / ready / error`，API Provider 后端 15 秒网络超时，Browser 端再提供 22 秒终止线；失败不阻塞账户/模型配置；
+- OpenAI Responses SSE 与 OpenAI-compatible Chat Completions SSE 都实时产生 `assistant.delta`；新增行为测试防止退回一次性 JSON；
+- 左侧模式弹层修复 stacking/overflow 裁切；Chat/Work/Manual 的核心能力边界不变；
+- Provider entitlement 继续执行“官方是什么，LFAA 就是什么”；无官方余额接口明确 unavailable，不估算。
 
-**AI 验证：** pass。仓库级 Node 合同测试 183/183 PASS；Config System 41/41 PASS；TypeScript/TSX 语法转译 165/165 PASS；统一 workspace preflight 全 Gate PASS。用户验收 pending。
+**AI 验证：** pass。仓库级 Node 合同测试 188/188 PASS；Config System 42/42 PASS；SSE 行为测试 2/2 PASS；10/10 workspace tsconfig 通过 `tsc --showConfig`；统一 workspace preflight 全 Gate PASS；759-entry Unicode ZIP fresh extract preflight PASS。真实 Windows Provider / ChatGPT 套餐登录仍由用户验收。
 
-**后续：** 在同一 `AgentRuntimeEvent` 上继续建设 Run Timeline、reasoning summary、tool/file/command activity 与真正流式 Provider 输出；不为 Chat/Work 分叉事件系统。
+**后续：** 在同一 `AgentRuntimeEvent` 上继续建设 Run Timeline、reasoning summary、tool/file/command activity；不为 Chat/Work 分叉事件系统。
 
 **上一里程碑：v0.1.3 / 全量质量门禁与 Codex 取消竞态修复**
 

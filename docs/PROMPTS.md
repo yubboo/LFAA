@@ -1,9 +1,18 @@
+# v0.1.7 Prompt / Requirement Note — Provider 官方登录、保存响应、Usage 终态与真实流式回复
+
+- **基线 / 目标：** v0.1.6 → v0.1.7；任务 #22.13；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。
+- **实机回归：** ChatGPT 套餐仍出现官方账户服务退出；左上角 Chat/Work/Manual 模式菜单被 Pane 裁切；API 测试成功后保存响应过慢；官方余额/额度长期停在“正在读取”；API Provider 回答仍一次性出现。
+- **核心要求：** 不改变 Chat/Work 同一 Agent Core 与 Manual 设计；ChatGPT 套餐必须是 OpenAI 官方登录体验，禁止要求用户安装全局 Codex CLI；Provider 支持官方流式协议时必须真实流式。
+- **实现：** Windows 按需准备 OpenAI 官方 App Server 独立资产并校验 SHA-256；Probe/Save 复用短期 Host Verified Probe；Usage 拆成 loading/ready/error + timeout；OpenAI Responses/Chat Completions SSE 统一映射 `assistant.delta`；修复左 Pane overflow/Popover layer。
+- **禁止：** 伪造余额、把 Usage 失败当模型不可用、把 Chat/Work 分成两套 Runtime、读取/保存 ChatGPT OAuth Token、恢复全局 Codex CLI 前置。
+
 # v0.1.6 Prompt / Requirement Note — 单一 Agent Core / Chat·Work·Manual 三模式
 
 - **基线 / 目标：** v0.1.4 能力基线 → v0.1.6；任务 #22.12；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。v0.1.5 为错误产品方向，不作为开发基线。
 - **核心要求：** Chat Agent 与 Work Agent 能力、智力、性能、工具、权限、自动化质量和最终交付完全一致，只允许表现层/人工干预方式不同。Chat 用对话/插话；Work 用无限画布人工编辑 + 对话继续。
 - **Manual：** 新增完全手动模式；无模型也能进入，复用无限画布和真实 Terminal/Tool 基础设施；禁止创建 Agent Run 或伪造自动化结果。
 - **Provider 原则：** 厂商官方免费/套餐/API/Coding Plan 的认证、Runtime 与 Entitlement 原样映射；LFAA 不把官方免费能力改成自有额度，也不伪造官方未提供的 quota。
+- **ChatGPT 套餐特殊边界：** 产品只呈现 OpenAI 官方套餐登录；LFAA 可在自身 Runtime Home 按需托管 OpenAI 官方 App Server daemon，但禁止要求用户全局安装 Codex CLI/PATH，也禁止读取官方 OAuth/Token 文件。
 - **实现约束：** 一个 `AgentRunRequest`、一个 Session Controller、一个 Runtime Host；Work 的用户画布编辑通过 `workspaceContext` 回到同一 Agent Core；运行中干预统一走 `interveneRun`。
 
 # v0.1.4 Prompt / Requirement Note — 官方余额额度与 Chat/Work 模式边界
@@ -80,6 +89,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #22.13 | Provider 官方登录 / Usage 终态 / 真流式回复 | v0.1.7 | pending-user-acceptance | pass | pending |
 | #22.12 | 单一 Agent Core / Chat·Work·Manual 三模式 | v0.1.6 | pending-user-acceptance | pass | pending |
 | #22.11 | 官方余额额度与 Chat/Work 模式边界 | v0.1.4 | pending-user-acceptance | pass | pending |
 | #22.10 | 全量质量门禁与 Codex 取消竞态修复 | v0.1.3 | pending-user-acceptance | pass | pending |
