@@ -1,11 +1,29 @@
-# LFAA v0.1.14 — Release Governance Hotfix / AI Writing Track
+# LFAA v0.1.16 — Smart Home / Identity Visual System
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.1.14**。这是 v0.1.13 的发布治理热修复：补齐遗漏的当前 Prompt 合同与任务索引，并用治理链重新验证候选包。v0.1.13 已完成的仓库结构收口、发布日志排除和 AI Writing 路线锁定保持不变；Identity / Project / Session / Chat / Work / Manual 产品行为不变。
+当前包：**LFAA-v0.1.16**。本版在不改 Identity Host、Agent Runtime、Session、Provider 与 Plugin 生命周期的前提下，重做登录 / First Run 注册 / 登录后第一屏：新增统一 Smart Home、自然语言主入口、手动工作区入口与统一 Motion 视觉系统。Smart Home 输入只负责把原始任务带入现有 Workbench，不用关键词规则冒充 AI Intent Router；真正的 App Pack 智能路由继续由下一阶段 Registry + Router 接管。
 
-> 当前真相以本 README、`ARCHITECTURE.md`、`DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
+> 当前真相以本 README、`docs/ARCHITECTURE.md`、`docs/DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
 
+
+
+
+## v0.1.16 Smart Home / Identity Visual System
+
+- 登录后第一屏从静态 App Hub 升级为 **Smart Home**：自然语言主入口 + 手动入口同时存在；
+- Smart Home 的自然语言任务原样带入现有 Workbench Composer，不自动启动第二套 Runtime；
+- AI 写作 / AI 漫剧 / Minecraft / Steam Server 在真实 App Pack 接入前继续 disabled，用户界面只显示“即将开放”，不暴露开发术语；
+- 登录页与 First Run 注册页共用新的 LFAA neutral visual language、柔和进入/悬停动效与 `prefers-reduced-motion` 降级；
+- “注册”仍只对应未初始化实例的 First Run 超级管理员创建；实例初始化后匿名注册永久关闭。
+
+## v0.1.15 Development Standard / Root Layout Governance
+
+- `docs/ARCHITECTURE.md`：当前架构真相；
+- `docs/DEVELOPMENT.md`：开发规范与强制工作流；
+- `docs/PROJECT_PLAN.md`：当前里程碑与下一阶段；
+- 根目录 Markdown 只保留 `README.md / AGENTS.md / CHANGELOG.md / NOTICE.md`；
+- `scripts/root-layout-check.mjs` 同时进入 governance 与 workspace preflight，防止长期文档、临时 Markdown、ZIP/LOG/TMP 再次堆回根目录。
 
 ## v0.1.14 Release Governance Hotfix
 
@@ -15,7 +33,7 @@
 
 当前目录与内核协议保持稳定；下一阶段先完成 App Pack Runtime，再进入 AI Writing V1。
 
-## v0.1.12 Identity → App Hub → Workspace
+## v0.1.12 Identity → Smart Home / App Entry → Workspace
 
 ```text
 App Boot
@@ -24,9 +42,9 @@ Identity Gate
   ├─ First Run → create Super Admin
   └─ Login → AuthSession
   ↓
-App Hub
-  ↓
-App Pack / Core Workspace
+Smart Home
+  ├─ 自然语言入口 → Core Workspace（当前）
+  └─ 手动入口 → App Pack / Core Workspace
   ↓
 Project → Session → Chat | Work | Manual
 ```
@@ -34,7 +52,7 @@ Project → Session → Chat | Work | Manual
 - **Identity 是实例级钥匙**：本地账号只用于进入和使用当前 LFAA 实例，不等同于模型 Provider 账号。
 - **API 第二层门禁**：UI 登录之外，Host HTTP API 仍校验 AuthSession；用户/角色管理再校验 Permission。
 - **角色不是授权真值**：Role 只是 Permission 集合，后续 Tool/MCP/Agent 执行还必须与 App Pack / Project / Capability / Host Policy 相交。
-- **App Hub 是入口层**：Chat / Work / Manual / Infinite Canvas 仍是 LFAA Core 能力，不复制到每个业务入口。
+- **Smart Home 是日常入口层**：Chat / Work / Manual / Infinite Canvas 仍是 LFAA Core 能力；未来 App Hub 专注 App Pack 发现/安装/管理，Smart Home 消费 Registry/Intent Router。
 
 ## v0.1.11 项目 / 会话状态模型
 
@@ -139,8 +157,10 @@ LFAA/
 │  ├─ credentials/               # Credential seam + Native Adapter
 │  ├─ harness/                   # 官方外部 Harness Adapter
 │  ├─ host/                      # Host 技术适配
+│  ├─ identity/                  # Local Identity / RBAC
 │  ├─ llm/                       # 模型协议 Adapter
 │  ├─ plugin/                    # Plugin SDK / Runtime / Host
+│  ├─ session/                   # Project / Session Domain + Host
 │  ├─ settings/                  # Config Domain / Node Host
 │  ├─ terminal/                  # Terminal Host 能力
 │  └─ util/                      # 跨能力基础工具
@@ -263,8 +283,8 @@ pnpm run quality:full
 按以下顺序：
 
 1. `AGENTS.md` — AI/开发者快速约束；
-2. `ARCHITECTURE.md` — 当前架构真相；
-3. `DEVELOPMENT.md` — 开发规范与门禁；
+2. `docs/ARCHITECTURE.md` — 当前架构真相；
+3. `docs/DEVELOPMENT.md` — 开发规范与门禁；
 4. `docs/项目结构与代码地图.md` — 物理路径与 Owner；
 5. `docs/MODULES.md` / `docs/RUNTIME.md` — 模块和运行链路。
 
@@ -275,7 +295,7 @@ pnpm run quality:full
 ```text
 当前代码 / package.json / 自动门禁
     ↓
-ARCHITECTURE.md + DEVELOPMENT.md + AGENTS.md
+docs/ARCHITECTURE.md + docs/DEVELOPMENT.md + AGENTS.md
     ↓
 docs/ 当前长期文档
     ↓

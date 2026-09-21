@@ -5,7 +5,7 @@
  * 不负责：启动 Vite、TypeScript 类型正确性、第三方 npm package 解析。
  * 状态归属：无运行时状态；每次读取当前 workspace package.json 与源码。
  * 对外接口：`node scripts/runtime-import-resolution-check.mjs`。
- * 关联文件：scripts/import-path-check.mjs、workspace package.json、DEVELOPMENT.md。
+ * 关联文件：scripts/import-path-check.mjs、workspace package.json、docs/DEVELOPMENT.md。
  * 修改注意事项：新增 workspace 公共子路径时必须同时写入 package exports；不得通过宿主 alias 掩盖 package 自身解析缺口；foundation/domain/runtime/host-adapter/host/bundle 中由 Node/Vite Host 直接执行的源码，以及 apps/web/vite.config.ts，相对 ESM import 必须写 .ts/.tsx/.js 等真实扩展名。
  */
 import fs from "node:fs";

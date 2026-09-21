@@ -1,4 +1,23 @@
-# LFAA Runtime — v0.1.14
+# LFAA Runtime — v0.1.16
+
+## v0.1.16 Smart Home Runtime Boundary
+
+本版不改 Agent/Session/Provider/Plugin/Identity Host Runtime。唯一新增运行链是纯 Client handoff：
+
+```text
+Smart Home draft
+  → client-web temporary navigation state
+  → AgentWorkbench.initialComposerDraft
+  → CenterWorkspaceRegion
+  → ComposerRegion local draft
+```
+
+该链不会自动 `startRun`，不会写 Session，也不会按关键词决定 App；用户仍由现有 Composer/Runtime 正常提交。First Run 注册继续只调用现有 `initializeSuperAdmin`，初始化后匿名注册关闭。
+
+## v0.1.15 Runtime Freeze
+
+本版不改变 Browser/Host/Agent/Session/Provider/Plugin Runtime；仅同步开发规范与根目录路径。
+
 
 ## v0.1.14 Runtime 冻结范围
 
@@ -10,7 +29,7 @@ v0.1.14 仅修发布治理；Agent/Session/Provider/Identity/Plugin Runtime 与 
 
 ## v0.1.12 Identity Runtime
 
-启动时 Browser 先请求 Identity `bootstrap`；未初始化进入 First Run，已初始化则用 HttpOnly Cookie 恢复 `AuthSession`。登录成功后才挂载 App Hub/Workbench。`packages/api/identity-controller` 在其他 `/__lfaa/dev/*` HTTP Controller 之前注册，因此 UI 门禁之外还有 Host 侧登录校验。身份数据写入 `LFAA_HOME/state/identity/`，不进入源码仓库。
+启动时 Browser 先请求 Identity `bootstrap`；未初始化进入 First Run，已初始化则用 HttpOnly Cookie 恢复 `AuthSession`。登录成功后才挂载 Smart Home/Workbench。`packages/api/identity-controller` 在其他 `/__lfaa/dev/*` HTTP Controller 之前注册，因此 UI 门禁之外还有 Host 侧登录校验。身份数据写入 `LFAA_HOME/state/identity/`，不进入源码仓库。
 
 > 当前 Vite WebSocket 仍属于开发宿主传输；正式安全 Host 还需要把 Terminal/Runtime WS 也纳入同一身份握手/Policy Gate，不能把 HTTP Gate 描述成完整远程安全边界。
 

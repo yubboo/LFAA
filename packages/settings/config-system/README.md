@@ -53,4 +53,4 @@ src/settings/ai/
 
 ## 修改要求
 
-修改前读取 `AGENTS.md`、`DEVELOPMENT.md`、当前 Prompt、`docs/MODULES.md` 和 `docs/项目结构与代码地图.md`；新增 AI Provider 必须放进 `src/settings/ai/providers/<provider>`，不得散落在 App/UI。
+修改前读取 `AGENTS.md`、`docs/DEVELOPMENT.md`、当前 Prompt、`docs/MODULES.md` 和 `docs/项目结构与代码地图.md`；新增 AI Provider 必须放进 `src/settings/ai/providers/<provider>`，不得散落在 App/UI。

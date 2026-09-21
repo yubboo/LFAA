@@ -1,3 +1,20 @@
+# v0.1.16 Smart Home / Identity Visual System
+
+**当前任务：#22.22 · v0.1.16 · pending-user-acceptance · AI=pass（Smart Home/Identity contracts + static governance；Node24/pnpm full quality 待标准环境） · 用户验收=pending**
+
+- 登录 / First Run / Smart Home 重做为同一套 LFAA 产品视觉与 Motion。
+- Smart Home 同时支持自然语言任务入口与手动进入；当前自然语言任务只无损 handoff 到现有 Workbench，不伪造关键词 Intent Router。
+- First Run 保持唯一匿名注册入口；未实现 App Pack 保持 disabled。
+- 下一阶段继续 App Pack Runtime + 真实 Intent Router → AI Writing V1。
+
+# v0.1.15 Development Standard / Root Layout Governance
+
+**当前任务：#22.21 · v0.1.15 · pending-user-acceptance · AI=pass（governance + root-layout + fresh-extract preflight） · 用户验收=pending**
+
+- 根目录长期文档收口到 `docs/`；根级 Markdown 固定为 README / AGENTS / CHANGELOG / NOTICE。
+- 开发流程升级为 Prompt-first + docs/current-fact 同步 + Gate-first；root-layout 成为来源预检的一部分。
+- 仅做治理/文档/路径迁移，不改变产品运行行为；下一阶段继续 App Pack Runtime → AI Writing V1。
+
 # v0.1.14 Release Governance / Prompt Ledger Hotfix
 
 **当前任务：#22.20 · v0.1.14 · pending-user-acceptance · AI=pass（Prompt lifecycle + governance + fresh-extract preflight） · 用户验收=pending**
@@ -29,7 +46,7 @@
 - Workbench Profile 改用真实登录用户，并提供应用中心/退出登录。
 - 新增 Identity 行为与产品边界测试；当前执行环境为 Node 22 且无 pnpm 11.17.0，因此完整 Node24/pnpm quality:full 尚未冒充通过。
 
-# LFAA Releases — current policy v0.1.14
+# LFAA Releases — current policy v0.1.16
 
 ## v0.1.11 — #22.17 Project + Session Persistence / Runtime Event Isolation
 

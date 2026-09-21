@@ -5,7 +5,7 @@
  * 不负责：TypeScript 类型检查、业务源码 import 解析、替代 tsc/vite。
  * 状态归属：无状态；仓库根级 tsconfig.base*.json 是工程配置唯一 Owner。
  * 对外接口：node scripts/tsconfig-reference-check.mjs。
- * 关联文件：tsconfig.base.json、tsconfig.base.client.json、DEVELOPMENT.md、scripts/workspace-preflight.mjs。
+ * 关联文件：tsconfig.base.json、tsconfig.base.client.json、docs/DEVELOPMENT.md、scripts/workspace-preflight.mjs。
  * 修改注意事项：源码跨 package 仍必须走 @lfaa/*；这里允许的 ../ 只用于工程配置继承，不得扩展成业务源码跨包相对 import。
  */
 import fs from "node:fs";

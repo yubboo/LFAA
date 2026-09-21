@@ -5,7 +5,7 @@
  * 不负责：执行 PowerShell 业务逻辑、检查脚本运行结果、检查 BAT 中文显示效果。
  * 状态归属：无运行时状态；每次直接读取当前工作树字节。
  * 对外接口：`node scripts/windows-script-encoding-check.mjs`。
- * 关联文件：scripts/windows/*.ps1、LFAA-*.bat、DEVELOPMENT.md、docs/RUNTIME.md。
+ * 关联文件：scripts/windows/*.ps1、LFAA-*.bat、docs/DEVELOPMENT.md、docs/RUNTIME.md。
  * 修改注意事项：Windows PowerShell 5.1 对无 BOM UTF-8 脚本兼容性不可靠；智能引号也会参与语法解析；禁止删除 BOM 或在 .ps1 中写 U+2018/U+2019/U+201C/U+201D。
  */
 import fs from "node:fs";

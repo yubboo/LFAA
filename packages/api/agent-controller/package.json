@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/agent-controller",
   "private": true,
-  "version": "0.1.14",
+  "version": "0.1.16",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼",

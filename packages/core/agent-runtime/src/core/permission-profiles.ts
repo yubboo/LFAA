@@ -5,7 +5,7 @@
  * 不负责：实际审批 UI、风险分类、OS 沙箱实现、Secret 授权。
  * 状态归属：纯配置事实；Run 启动时由 Agent Runtime 固化为不可变快照。
  * 对外接口：AGENT_PERMISSION_PROFILES、resolvePermissionProfile、toCodexPermissionSettings。
- * 关联文件：ARCHITECTURE.md、packages/client/app-shell/src/AgentWorkbench.tsx。
+ * 关联文件：docs/ARCHITECTURE.md、packages/client/app-shell/src/AgentWorkbench.tsx。
  * 修改注意事项：approval / reviewer / sandbox 必须原子更新，禁止只切换一个字段造成 UI 与真实权限漂移。
  */
 

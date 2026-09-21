@@ -1,3 +1,23 @@
+# v0.1.16 Smart Home / Identity Visual System
+
+**当前任务：#22.22 · v0.1.16 · pending-user-acceptance · AI=pass（Smart Home/Identity contracts + static governance；Node24/pnpm full quality 待标准环境） · 用户验收=pending**
+
+- 登录 / First Run 注册 / Smart Home 统一到新的 LFAA neutral visual language，增加柔和 page-enter / hover / press / focus 动效与 reduced-motion 降级。
+- 登录后的第一屏升级为 Smart Home：自然语言主入口与手动入口并存；未实现 App Pack 继续 disabled，产品文案不再暴露“App Pack 待接入”等开发术语。
+- Smart Home 自然语言任务通过 `initialComposerDraft` 最小 Props 链无损带入现有 Workbench Composer，不自动启动 Run，不用关键词规则伪造 Intent Router。
+- First Run 继续是唯一匿名注册入口；Identity Host、RBAC、AuthSession、Provider/Session/Plugin Runtime 行为保持不变。
+- 新增 Smart Home / Identity UI contract test，并同步当前 UI/架构/开发规范/代码地图。
+
+# v0.1.15 Development Standard / Root Layout Governance
+
+**当前任务：#22.21 · v0.1.15 · pending-user-acceptance · AI=pass（governance + root-layout + fresh-extract preflight） · 用户验收=pending**
+
+- 将长期 `ARCHITECTURE / DEVELOPMENT / PROJECT_PLAN` 从根目录统一迁入 `docs/`，根目录 Markdown 收敛为 README / AGENTS / CHANGELOG / NOTICE。
+- `AGENTS.md` 与 `docs/DEVELOPMENT.md` 新增强制开发顺序，禁止先实现后补 Prompt/文档。
+- 新增 `scripts/root-layout-check.mjs` 与 `test/root-layout.test.mjs`，并接入 governance / workspace-preflight。
+- 同步当前代码注释、package README、文档索引和路径契约；修正 `scripts/README.md` 的旧候选版本漂移。
+- 产品 Runtime / UI / Provider / Session / Plugin / Identity 行为冻结；下一业务阶段仍为 App Pack Runtime → AI Writing V1。
+
 # v0.1.14 Release Governance / Prompt Ledger Hotfix
 
 **当前任务：#22.20 · v0.1.14 · pending-user-acceptance · AI=pass（Prompt lifecycle + governance + fresh-extract preflight） · 用户验收=pending**

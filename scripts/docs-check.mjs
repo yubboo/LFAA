@@ -1,11 +1,11 @@
 /**
  * 文件：docs-check.mjs
- * 作用：保证 docs 使用少量固定长期文档，而不是重新膨胀为“一任务一个 Markdown”。
+ * 作用：保证 docs 使用固定长期文档中心，而不是重新膨胀为“一任务一个 Markdown”。
  * 负责：固定文档存在性、Markdown 数量上限、禁止旧 active/archive/version-folder 文档结构、Runtime Log 目录存在性。
  * 不负责：判断文档事实是否正确、业务测试、用户验收。
  * 状态归属：无运行时状态；直接读取当前工作树。
  * 对外接口：`node scripts/docs-check.mjs`。
- * 关联文件：docs/README.md、DEVELOPMENT.md、docs/PROMPTS.md、docs/DEVELOPMENT_LOG.md。
+ * 关联文件：docs/README.md、docs/DEVELOPMENT.md、docs/PROMPTS.md、docs/DEVELOPMENT_LOG.md。
  * 修改注意事项：新增长期文档必须先说明独立职责；禁止为单次任务或单个版本新增 Markdown。
  */
 import fs from "node:fs";
@@ -20,6 +20,9 @@ const fail = (message) => {
 
 const requiredMarkdown = new Set([
   "README.md",
+  "ARCHITECTURE.md",
+  "DEVELOPMENT.md",
+  "PROJECT_PLAN.md",
   "项目结构与代码地图.md",
   "PROMPTS.md",
   "DEVELOPMENT_LOG.md",

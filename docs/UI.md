@@ -1,4 +1,13 @@
-# LFAA UI Architecture — v0.1.14
+# LFAA UI Architecture — v0.1.16
+
+## v0.1.16 Smart Home / Identity Visual System
+
+登录 / First Run / Smart Home 现在使用同一套 neutral product language：暖灰白底、细边界、轻量玻璃层、统一圆角/阴影和共享 motion timing。普通 hover、press、focus 与 page enter 使用柔和过渡，同时在 `prefers-reduced-motion` 下关闭非必要移动。
+
+产品启动 UI 顺序更新为 `Identity Gate → Smart Home → Workbench`。First Run 视觉上是“创建 LFAA 账户”，但仍只调用 `initializeSuperAdmin`；实例初始化后匿名注册不再出现。
+
+Smart Home 顶部自然语言输入是主入口，手动入口同时保留。当前没有真实 Intent Router，因此输入只把原始任务带入 Workbench Composer，不自动提交 Run、不按关键词假路由。AI Writing / AI 漫剧 / Minecraft / Steam Server 在真实 App Pack 接入前保持 disabled；不展示伪造“最近工作”。
+
 
 ## v0.1.14 UI 冻结范围
 
@@ -8,9 +17,9 @@ v0.1.14 无 UI 变更，只修候选包 Prompt/发布治理。
 
 本版不重做 Workbench、Chat/Work/Manual、Resize/Motion 或 App Hub 视觉。下一阶段 App Hub 的业务入口应由真实 App Pack Catalog 驱动，再接 AI Writing。
 
-## v0.1.12 Identity Gate / App Hub
+## v0.1.12 Identity Gate / App Entry
 
-产品启动 UI 顺序固定为 `Identity Gate → App Hub → Workbench`。第一次使用显示“初始化 LFAA”并创建超级管理员；后续显示本地登录。登录后的 App Hub 采用居中介绍 + 分类入口展台，业务入口只是“门”；Chat / Work / Manual / Infinite Canvas 仍属于 LFAA Core。未接入真实 App Pack 的卡片必须 disabled。Workbench 左下角 Profile 和个人菜单使用真实登录用户，并提供“应用中心 / 退出登录”。
+历史 v0.1.12 首次建立 `Identity Gate → App Entry → Workbench`。v0.1.16 将该第一屏升级为 Smart Home；Chat / Work / Manual / Infinite Canvas 仍属于 LFAA Core，未接入真实 App Pack 的卡片继续 disabled。Workbench 左下角 Profile 和个人菜单使用真实登录用户，并可返回智能首页 / 退出登录。
 
 设置中心“用户与权限”显示用户、角色、Permission，并支持超级管理员创建普通用户/自定义角色、禁用用户；前端禁用只是 UX，Host 必须再次校验。
 

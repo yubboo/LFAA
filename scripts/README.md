@@ -11,6 +11,7 @@
 | `runtime-import-resolution-check.mjs` | Workspace 公共 Export / Subpath Export 运行时解析门禁。 |
 | `dev-log-check.mjs` | 单文件开发日志编号与当前任务状态。 |
 | `docs-check.mjs` | docs 固定长期文档结构，阻止碎片 Markdown 回归。 |
+| `root-layout-check.mjs` | 根目录 Markdown / 长期文档归位 / 临时 ZIP·LOG·TMP 防回归。 |
 | `comment-check.mjs` | 关键代码中文文件头 / CSS 分区注释。 |
 | `check-node-pty.mjs` | node-pty 实际加载检查。 |
 | `node-dependency-health-check.mjs` | 从 pnpm-workspace.yaml 发现全部 importer，校验 workspace 链接、外部 Node 依赖真实解析与 importer 级 lockfile 覆盖，防止 capability-family 深层 package 漏检。 |
@@ -43,7 +44,7 @@ windows/lfaa-update.ps1  ← LFAA-Update.bat
 | `release-consistency-check.mjs` | 检查 `lfaa.release.json` 与 package / crate / README / CHANGELOG / Release 的版本一致性。 |
 
 
-> 当前候选版本：v0.0.62（#20.16，pending-user-acceptance）。
+> 当前候选版本：v0.1.16（#22.22，pending-user-acceptance）。
 
 ## 版本策略
 

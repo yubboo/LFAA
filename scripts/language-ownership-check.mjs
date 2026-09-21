@@ -3,7 +3,7 @@
  * 作用：防止 LFAA 演变成 TypeScript / Rust / Python 三套重复业务实现。
  * 负责：检查 Product Plane、Frozen Rust Native Kernel 与未来 Python Optional Runtime 的物理目录边界。
  * 不负责：判断某段算法应该用什么语言、编译代码、扫描第三方依赖。
- * 修改注意事项：新增语言 Runtime 必须先更新 ARCHITECTURE.md，再扩展本门禁；不得为单次功能临时放宽。
+ * 修改注意事项：新增语言 Runtime 必须先更新 docs/ARCHITECTURE.md，再扩展本门禁；不得为单次功能临时放宽。
  */
 import fs from "node:fs";
 import path from "node:path";

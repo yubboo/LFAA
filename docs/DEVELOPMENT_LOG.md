@@ -1,3 +1,23 @@
+# v0.1.16 · #22.22 Smart Home / Identity Visual System
+
+**当前任务：v0.1.16 · pending-user-acceptance · AI=pass（Smart Home/Identity contracts + static governance；Node24/pnpm full quality 待标准环境） · 用户验收=pending**
+
+- 用户要求在 App Pack Runtime / AI Writing 前先把首页、登录和注册体验做到统一、灵活、有动画，并支持“直接告诉 AI 想做什么”与“手动进入”并存。
+- 按 v0.1.15 强制流程先登记 `docs/PROMPTS.md` #22.22，再实现；未改 Identity Host / Agent Runtime / Session / Provider / Plugin lifecycle。
+- Smart Home 不伪造 Intent Router：当前只把原始自然语言 draft 带到同一 Workbench Composer；真实 App 智能路由留给 Registry + Router。
+- First Run 视觉升级为注册页，但安全语义不变：初始化完成后匿名注册永久关闭。
+- 新增共享产品 Surface Motion token 与聚焦 UI contract test；最终发布仍需 governance / preflight / fresh extract 验证。
+
+# v0.1.15 · #22.21 Development Standard / Root Layout Governance
+
+**当前任务：v0.1.15 · pending-user-acceptance · AI=pass（路径治理 + 静态 Gate + fresh-extract preflight） · 用户验收=pending**
+
+- 用户明确要求以后不能每次靠提醒才补开发规范/文档，并要求整理根目录。
+- 审计确认长期架构、开发规范、项目计划散落根目录，同时 `docs/` 已承担文档中心职责；`scripts/README.md` 还保留 v0.0.62 当前候选描述，说明当前事实发生漂移。
+- 将三份长期开发文档迁入 `docs/`，不保留根级兼容镜像；所有当前代码/测试/README 引用迁移到新路径。
+- 新增 root-layout Gate，进入 governance 与 workspace-preflight，后续根级临时 Markdown / ZIP / LOG / TMP 或旧文档回流都会直接失败。
+- 没有修改产品 Runtime 或 capability package 拓扑；AI Writing 路线继续冻结。
+
 # v0.1.14 · #22.20 Release Governance / Prompt Ledger Hotfix
 
 **当前任务：v0.1.14 · pending-user-acceptance · AI=pass（Prompt lifecycle + governance + fresh-extract preflight） · 用户验收=pending**

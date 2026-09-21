@@ -1,11 +1,14 @@
 # app-shell/src 代码导航（v0.0.98）
 
-`@lfaa/app-shell` 是 **LFAA 产品 Shell / Chrome / Composition 层**。它使用 `@lfaa/ui` 的通用 UI Kit，并装配 `@lfaa/workspace` 的 Chat/Work 工作模式；不再重复拥有 Workspace Session、Chat Timeline 或 Work Canvas 产品状态。
+`@lfaa/app-shell` 是 **LFAA 产品入口 / Shell / Chrome / Composition 层**。它使用 `@lfaa/ui` 的通用 UI Kit，并装配 `@lfaa/workspace` 的 Chat/Work 工作模式；不再重复拥有 Workspace Session、Chat Timeline 或 Work Canvas 产品状态。
 
 ## 总结构
 
 ```text
-AgentWorkbench.tsx                 # Composition Root，只连接 Controller 与公共模块
+product-surface.css               # Login / First Run / Smart Home 共用视觉与 Motion token
+identity/                          # Identity Gate 的 Client 表现层
+app-hub/                           # Smart Home（公开名 LfaaAppHub 暂保兼容）
+AgentWorkbench.tsx                 # Workbench Composition Root，只连接 Controller 与公共模块
 agent-workbench.css                # 仅 reset / 最小全局基础
 workbench/
 ├─ shell/                          # 外壳 / Theme / Overlay / Shortcut

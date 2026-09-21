@@ -5,7 +5,7 @@
  * 不负责：TypeScript 类型检查、Provider 业务正确性、UI 视觉验收、运行时网络测试。
  * 状态归属：无运行时状态；每次直接扫描当前工作树。
  * 对外接口：`node scripts/folder-boundary-check.mjs`。
- * 关联文件：DEVELOPMENT.md、ARCHITECTURE.md、docs/项目结构与代码地图.md、packages/client/ui/README.md、packages/settings/config-system/README.md。
+ * 关联文件：docs/DEVELOPMENT.md、docs/ARCHITECTURE.md、docs/项目结构与代码地图.md、packages/client/ui/README.md、packages/settings/config-system/README.md。
  * 修改注意事项：新增长期目录或改变依赖方向时，必须先更新开发规范和架构文档，再修改本门禁；不得为了单次任务放宽边界。
  */
 import fs from "node:fs";

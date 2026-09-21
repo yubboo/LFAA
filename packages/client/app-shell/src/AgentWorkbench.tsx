@@ -95,6 +95,7 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
       activeReasoning={ai.activeReasoning}
       runtimeConnected={session.runtimeConnected}
       automationReady={session.automationReady}
+      {...(props.initialComposerDraft ? { initialComposerDraft: props.initialComposerDraft } : {})}
       chatMessages={session.chatMessages}
       workspaceId={props.workspaceId}
       lastRunInput={session.lastRunInput}

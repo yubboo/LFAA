@@ -1,12 +1,50 @@
-# LFAA Architecture — v0.1.14 Current Truth
+# LFAA Architecture — v0.1.16 Current Truth
 
-## 0.0 v0.1.14 Release Integrity Boundary
+## 0.0 v0.1.16 Smart Home / Identity Surface Boundary
+
+登录后第一屏现在是 **Smart Home**，不是静态业务目录。Smart Home 同时提供“描述目标”和“手动进入”两条路径，但它仍属于 Client Composition，不拥有 Agent/Session/App Pack 真值。
+
+```text
+Identity Gate
+  ├─ First Run → initializeSuperAdmin（仅未初始化实例）
+  └─ Login → AuthSession
+        ↓
+     Smart Home
+       ├─ Natural-language draft → existing AgentWorkbench Composer
+       └─ Manual entry → available Workspace / future App Pack
+        ↓
+Project → Session → Chat | Work | Manual
+```
+
+当前没有真实 Intent Router 时，Smart Home 禁止通过关键词 `if/else` 猜目标 App；自然语言 draft 只经 `AgentWorkbench → CenterWorkspaceRegion → ComposerRegion` 最小 Props 链进入同一 Workbench。未来 `Plugin Registry → App Pack Catalog → Intent Router` 完成后，由 Smart Home 消费其决策，不创建第二套 Router/Runtime。
+
+Login / First Run / Smart Home 的视觉与 Motion token 归 `packages/client/app-shell/src/product-surface.css`；Identity 认证事实仍完全归 `packages/identity/*` 与 `packages/api/identity-controller`。
+
+## 0.0.1 v0.1.15 Repository Documentation Boundary
+
+当前仓库把长期文档集中到 `docs/`，根目录只保留项目入口、发布历史、法律说明、Windows 稳定入口和工具链配置。`docs/ARCHITECTURE.md`、`docs/DEVELOPMENT.md`、`docs/PROJECT_PLAN.md` 是长期当前事实，不再在根目录保留镜像副本。
+
+```text
+LFAA/
+├─ README.md / AGENTS.md / CHANGELOG.md / NOTICE.md
+├─ LFAA-*.bat + build/toolchain config
+├─ apps/ packages/ native/ scripts/ test/ evals/
+└─ docs/
+   ├─ ARCHITECTURE.md
+   ├─ DEVELOPMENT.md
+   ├─ PROJECT_PLAN.md
+   └─ 其他固定长期文档与历史账本
+```
+
+该边界由 `docs-check` + `root-layout-check` + `current-fact-check` 共同约束；它只整理文档 Owner，不改变 Runtime、package ownership 或产品行为。
+
+## 0.1 v0.1.14 Release Integrity Boundary
 
 发布包只有在当前版本 Prompt 合同、任务索引、版本元数据和 fresh-extract preflight 一致通过时才是有效候选。v0.1.14 不改变 Runtime 或 package ownership；它只修复 v0.1.13 的发布治理遗漏。
 
-## 0.1 v0.1.12 Instance Identity / App Hub Boundary
+## 0.1 v0.1.12 Instance Identity / App Entry Boundary
 
-LFAA 最外层现在先经过本地实例 Identity Gate，再进入 App Hub。Identity 不绑定云端账户：第一次启动创建唯一 First Run `super_admin`，后续只有有效 `AuthSession` 才能进入工作台或访问本地 Host HTTP API。
+LFAA 最外层先经过本地实例 Identity Gate，再进入 Smart Home / App Entry。Identity 不绑定云端账户：第一次启动创建唯一 First Run `super_admin`，后续只有有效 `AuthSession` 才能进入工作台或访问本地 Host HTTP API。
 
 ```text
 LFAA Instance
@@ -14,18 +52,18 @@ LFAA Instance
        ├─ User → Role → Permission
        └─ AuthSession
             ↓
-          App Hub
-            ↓
-     App Pack / Core Workspace
+        Smart Home
+          ├─ Core Workspace
+          └─ future App Pack
             ↓
         Project → Session
             ↓
        Chat | Work | Manual
 ```
 
-当前真实 Owner：`packages/identity/identity` 定义领域契约，`packages/identity/identity-host-node` 保存 `LFAA_HOME/state/identity`，`packages/api/identity-controller` 提供 First Run/Login/User/Role API 并作为其他本地 Host HTTP API 的统一登录门禁。Client 的 Identity Gate / App Hub 属于 `packages/client/app-shell`，`packages/client/web` 只做组合。
+当前真实 Owner：`packages/identity/identity` 定义领域契约，`packages/identity/identity-host-node` 保存 `LFAA_HOME/state/identity`，`packages/api/identity-controller` 提供 First Run/Login/User/Role API 并作为其他本地 Host HTTP API 的统一登录门禁。Client 的 Identity Gate / Smart Home（组件名 `LfaaAppHub` 暂保 API 兼容）属于 `packages/client/app-shell`，`packages/client/web` 只做组合。
 
-App Hub 当前只允许进入已有的通用工作台；AI 写作、AI 漫剧、Minecraft、Steam Server 作为未来 App Pack 入口可见但 disabled，直到真实 Capability/Consumer 接入。后续 App Pack Runtime 必须基于现有 `@lfaa/plugin-sdk` `app-pack` / Capability 组合，不另建 Domain Runtime。
+Smart Home 当前只允许真正进入已有的通用工作台；AI 写作、AI 漫剧、Minecraft、Steam Server 作为未来 App Pack 入口可见但 disabled，直到真实 Capability/Consumer 接入。未来 App Hub 专注 App Pack Catalog/安装管理；后续 App Pack Runtime 必须基于现有 `@lfaa/plugin-sdk` `app-pack` / Capability 组合，不另建 Domain Runtime。
 
 ## 0.1 v0.1.11 Project + Session Persistence / Interaction Surfaces
 
@@ -422,8 +460,8 @@ Consumer 不应直接依赖不必要的具体 Provider。Bundle/App 只做装配
 
 当前架构修改必须同步：
 
-- `ARCHITECTURE.md`
-- `DEVELOPMENT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/DEVELOPMENT.md`
 - `AGENTS.md`
 - `docs/项目结构与代码地图.md`
 - 对应 `packages/<family>/README.md` / package README

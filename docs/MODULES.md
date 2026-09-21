@@ -1,4 +1,17 @@
-# LFAA Modules — v0.1.14 Current Ownership
+# LFAA Modules — v0.1.16 Current Ownership
+
+## v0.1.16 Smart Home / Identity Client Ownership
+
+- `packages/client/app-shell/src/identity`：First Run / Login Client Surface，不拥有身份真值；
+- `packages/client/app-shell/src/app-hub`：Smart Home（公开组件名暂保 `LfaaAppHub`）；
+- `packages/client/app-shell/src/product-surface.css`：两者共享的产品视觉/Motion token；
+- `packages/client/web/src/App.tsx`：Smart Home ↔ Workbench 页面级临时导航与 initial draft handoff；
+- 真实 Intent Router / App Pack Catalog 仍未落地，不属于本版 Client UI。
+
+## v0.1.15 Documentation Governance
+
+本版仅迁移长期文档 Owner 与治理 Gate；capability family / package 职责不变。
+
 
 ## v0.1.14 Ownership Freeze
 
@@ -15,7 +28,7 @@ v0.1.14 不新增或迁移 Owner，只修发布治理。
 - `packages/api/identity-controller`：同源 Identity API + `/__lfaa/dev/*` AuthSession Gate；
 - `packages/client/connection/identity-client.ts`：浏览器 Adapter，不持久化 Token；
 - `packages/client/app-shell/src/identity`：First Run / Login UI；
-- `packages/client/app-shell/src/app-hub`：登录后的应用展台。
+- `packages/client/app-shell/src/app-hub`：登录后的 Smart Home / App Entry。
 
 ## v0.1.11 Project / Session capability family
 

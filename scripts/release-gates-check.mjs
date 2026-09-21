@@ -27,7 +27,7 @@ if (pkg.engines?.pnpm !== "11.17.0") fail("engines.pnpm must remain 11.17.0");
 if (pkg.engines?.node !== ">=24.0.0 <25") fail("engines.node must remain >=24.0.0 <25");
 
 requireScript("typecheck", ["typecheck:web", "typecheck:config-system"]);
-requireScript("test", ["test:release-environment", "test:release-gates", "test:dependency-setup", "test:node-dependency-health", "test:settings-shell", "test:config-system"]);
+requireScript("test", ["test:release-environment", "test:release-gates", "test:root-layout", "test:dependency-setup", "test:node-dependency-health", "test:settings-shell", "test:config-system"]);
 requireScript("build", ["build:web"]);
 requireScript("quality:quick", ["governance:check", "typecheck", "test"]);
 requireScript("quality:full", ["quality:quick", "build"]);

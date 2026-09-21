@@ -5,7 +5,7 @@
  * 不负责：改写历史日志、TypeScript 编译、Vite 构建或用户验收。
  * 状态归属：无状态；只读取工作区文件。
  * 对外接口：node scripts/current-fact-check.mjs。
- * 关联文件：ARCHITECTURE.md、DEVELOPMENT.md、docs/MODULES.md、docs/RUNTIME.md、docs/UI.md、docs/项目结构与代码地图.md。
+ * 关联文件：docs/ARCHITECTURE.md、docs/DEVELOPMENT.md、docs/MODULES.md、docs/RUNTIME.md、docs/UI.md、docs/项目结构与代码地图.md。
  * 修改注意事项：只约束“当前真相文档”；CHANGELOG/DEVELOPMENT_LOG/PROMPTS 的历史路径不得因此被伪造重写。
  */
 import fs from "node:fs";
@@ -20,9 +20,9 @@ const fail = (message) => { console.error(`LFAA current fact check failed: ${mes
 const currentDocs = [
   "README.md",
   "AGENTS.md",
-  "ARCHITECTURE.md",
-  "DEVELOPMENT.md",
-  "PROJECT_PLAN.md",
+  "docs/ARCHITECTURE.md",
+  "docs/DEVELOPMENT.md",
+  "docs/PROJECT_PLAN.md",
   "docs/README.md",
   "docs/MODULES.md",
   "docs/RUNTIME.md",
@@ -36,7 +36,7 @@ for (const relative of currentDocs) {
   if (!source.slice(0, 2400).includes(version)) fail(`${relative} 开头未标识当前版本 ${version}`);
 }
 
-const architecture = read("ARCHITECTURE.md");
+const architecture = read("docs/ARCHITECTURE.md");
 for (const token of [
   "packages/<capability-family>/<package>",
   "apps/web/src/main.ts",
@@ -46,7 +46,17 @@ for (const token of [
   "packages/client/app-shell",
   "LFAA_HOME",
   "native/secret-store",
-]) if (!architecture.includes(token)) fail(`ARCHITECTURE.md 缺少当前事实 ${token}`);
+]) if (!architecture.includes(token)) fail(`docs/ARCHITECTURE.md 缺少当前事实 ${token}`);
+
+
+for (const [relative, tokens] of [
+  ["README.md", ["identity/", "session/"]],
+  ["AGENTS.md", ["identity/", "session/"]],
+  ["docs/项目结构与代码地图.md", ["packages/identity/", "packages/session/"]],
+]) {
+  const source = read(relative);
+  for (const token of tokens) if (!source.includes(token)) fail(`${relative} 缺少当前 capability family: ${token}`);
+}
 
 const map = read("docs/项目结构与代码地图.md");
 for (const target of [

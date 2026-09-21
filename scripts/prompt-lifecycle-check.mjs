@@ -5,8 +5,8 @@
  * 不负责：证明文件物理创建时间先于代码、替代用户真实验收、判断业务功能正确性。
  * 状态归属：无运行时状态；以 lfaa.release.json 和固定时间线文档为事实源。
  * 对外接口：`node scripts/prompt-lifecycle-check.mjs`。
- * 关联文件：DEVELOPMENT.md、docs/PROMPTS.md、docs/DEVELOPMENT_LOG.md、CHANGELOG.md、docs/RELEASES.md。
- * 修改注意事项：新增状态必须先更新 DEVELOPMENT.md；不得通过放宽检查绕过用户验收。
+ * 关联文件：docs/DEVELOPMENT.md、docs/PROMPTS.md、docs/DEVELOPMENT_LOG.md、CHANGELOG.md、docs/RELEASES.md。
+ * 修改注意事项：新增状态必须先更新 docs/DEVELOPMENT.md；不得通过放宽检查绕过用户验收。
  */
 import fs from "node:fs";
 import path from "node:path";

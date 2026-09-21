@@ -1,3 +1,22 @@
+# v0.1.16 Prompt / Requirement Note — Smart Home / Identity Visual System
+
+- **基线 / 目标：** v0.1.15 → v0.1.16；任务 #22.22；状态 pending-user-acceptance；AI 验证 pass（UI/Identity source contracts + static governance；标准 Node24/pnpm 完整质量门禁仍待用户环境）；用户验收 pending。
+- **用户要求：** 在进入 App Pack Runtime / AI Writing 前，先把登录、First Run 注册与登录后第一屏做成统一、高质量、带柔和动效的 LFAA 产品入口；首页同时支持“直接告诉 AI 想做什么”与“手动进入应用/工作台”两条路径。
+- **产品原则：** Smart Home 是登录后的智能总入口，App Hub 后续回归“发现/安装/管理 App Pack”；本版不伪造尚未接入的 App Pack，也不使用关键词 if/else 冒充 AI Intent Router。未有真实 Router 时，智能输入允许把用户原始任务无损带入现有通用 Workbench，未来由 App Pack Registry + Intent Router 接管。
+- **Identity 边界：** “注册”只对应未初始化实例的 First Run 超级管理员创建；初始化完成后继续禁止匿名注册。视觉上可使用注册页语言，但不得破坏 v0.1.12 Identity 安全合同。
+- **允许修改：** `packages/client/app-shell/src/{app-hub,identity}/**`、必要的 App Shell 公共 UI/Motion token、`packages/client/web/src/App.tsx` 的临时导航/初始任务传递、`AgentWorkbench → CenterWorkspaceRegion → ComposerRegion` 仅用于首帧 draft 注入的最小 Props 链、与本功能直接相关的合同测试和 UI/架构/计划/代码地图/README、版本与发布账本。
+- **禁止修改：** Identity Host/RBAC/密码与 Cookie 语义、Agent Runtime、Session 持久化、Provider/OAuth/Streaming、Plugin install lifecycle、App Pack Runtime 实现、Workbench Resize/Canvas 业务；禁止新增第二套 Runtime 或用假数据冒充最近项目/真实 App Pack。
+- **验收：** 登录页、First Run 注册页、Smart Home 与参考效果同一视觉系统；响应式可用；动效尊重 `prefers-reduced-motion`；Smart Home 可手动进入可用工作台，并可提交自然语言任务后带着原始文本进入 Workbench；不可用 App Pack 明确但不使用开发术语污染主界面；相关 UI contract + workspace-preflight + fresh-extract preflight 通过。
+
+# v0.1.15 Prompt / Requirement Note — Development Standard / Root Layout Governance
+
+- **基线 / 目标：** v0.1.14 → v0.1.15；任务 #22.21；状态 pending-user-acceptance；AI 验证 pass（治理/路径/归档聚焦验证）；用户验收 pending。
+- **用户要求：** 后续开发必须严格按项目开发规范执行，不能每次靠用户提醒补文档；同时整理根目录，降低长期开发与维护成本。
+- **根因：** 现有规范虽然存在，但未把“先读规范/先登记合同/再实现”作为显式当前规则；长期架构/开发/计划文档仍散落根目录；根目录没有独立机器 Gate；`scripts/README.md` 等当前说明存在版本漂移。
+- **允许修改：** 开发规范、长期文档位置与引用、根目录治理 Gate / contract test、workspace preflight/governance 接线、版本/发布账本、package manifest 版本。
+- **禁止修改：** Chat/Work/Manual、Session、Provider、OAuth、Streaming、Plugin lifecycle、Identity/RBAC、AI Writing 产品实现、package capability ownership；不得借整理根目录重写 Runtime。
+- **验收：** 根目录只保留规定入口 Markdown；`ARCHITECTURE/DEVELOPMENT/PROJECT_PLAN` 统一归 `docs/`；所有当前引用和 Gate 使用新路径；root-layout/docs/current-fact/prompt/release/preflight 通过；最终 ZIP fresh extract 再验证。
+
 # v0.1.14 Prompt / Requirement Note — Release Governance / Prompt Ledger Hotfix
 
 - **基线 / 目标：** 无效候选 v0.1.13 → v0.1.14；任务 #22.20；状态 pending-user-acceptance；AI 验证 pass（governance + prompt lifecycle + release consistency + fresh-extract preflight）；用户验收 pending。
@@ -138,6 +157,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #22.22 | Smart Home / Identity Visual System | v0.1.16 | pending-user-acceptance | pass | pending |
+| #22.21 | Development Standard / Root Layout Governance | v0.1.15 | pending-user-acceptance | pass | pending |
 | #22.20 | Release Governance / Prompt Ledger Hotfix | v0.1.14 | pending-user-acceptance | pass | pending |
 | #22.18 | Local Identity Gate / App Hub / User RBAC | v0.1.12 | pending-user-acceptance | pass | pending |
 | #22.17 | Project + Session Persistence / Runtime Event Isolation | v0.1.11 | pending-user-acceptance | pass | pending |
@@ -209,6 +230,24 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #22.22 Smart Home / Identity Visual System
+
+- **版本：** v0.1.16；**状态：** pending-user-acceptance。
+- **允许修改：** App Shell 的 `app-hub` / `identity` 视图和样式、Web Client 的页面级临时导航与初始任务 handoff，以及 `AgentWorkbench → CenterWorkspaceRegion → ComposerRegion` 仅用于 initial draft 的最小 Props 传递；对应 UI contract/tests/docs/version metadata。
+- **禁止修改：** Identity/RBAC Host 安全语义、Agent/Session/Provider/Plugin Runtime、Workbench Resize/Canvas 行为；不得开放初始化后的匿名注册。
+- **Smart Home 合同：** 首页同时提供自然语言主入口与手动入口。当前没有真实 Intent Router/App Pack Registry 时，不做关键词假路由；自然语言任务必须原样携带到已可用通用 Workbench，由现有 Agent Runtime 接管。
+- **视觉合同：** Login / First Run / Smart Home 共用 LFAA neutral visual language、统一 motion timing/interaction feedback，并支持 reduced-motion；不可用业务卡允许展示但必须 disabled。
+- **验收：** 三屏视觉和交互完成、移动/窄屏不崩；Smart Home 输入/快捷动作/手动工作台可用；相关 contract 与 preflight 通过；候选 ZIP fresh extract 再验证。
+
+## #22.21 Development Standard / Root Layout Governance
+
+- **版本：** v0.1.15；**状态：** pending-user-acceptance。
+- **允许修改：** `AGENTS.md`、`docs/{ARCHITECTURE,DEVELOPMENT,PROJECT_PLAN,README,TESTING,项目结构与代码地图}.md`、当前路径引用、治理/测试脚本、版本与发布账本。
+- **禁止修改：** 产品 Runtime、UI 行为、Provider/Session/Plugin/Identity 业务语义以及 packages capability ownership。
+- **文档合同：** 当前长期开发文档只在 `docs/` 保留单一事实源；根目录不保留兼容镜像。历史账本旧路径不回写。
+- **开发合同：** 后续任务必须按“读规范 → 先登记 Prompt 合同 → 实现 → 同步当前事实 → Gate/测试 → 发布账本 → ZIP → fresh extract preflight”顺序执行。
+- **验收：** root-layout / docs / current-fact / prompt lifecycle / release consistency / workspace-preflight 全部通过；发布 ZIP 不含根级临时产物。
 
 ## #22.20 Release Governance / Prompt Ledger Hotfix
 

@@ -82,6 +82,8 @@ export interface AgentWorkbenchProps {
   workspaceId?: string;
   /** Identity 用户/角色管理 Host；设置页只通过此端口访问身份域。 */
   identitySettingsHost?: AgentIdentitySettingsHost;
+  /** Smart Home 进入 Workbench 时的一次性 Composer 初始草稿；只属于 UI handoff，不自动启动 Run。 */
+  initialComposerDraft?: string;
   /** 当前已通过 Identity Gate 的用户投影；只给 Shell 展示，不承担授权。 */
   identity?: AgentIdentityProjection;
   /** 返回登录后的 App Hub。 */

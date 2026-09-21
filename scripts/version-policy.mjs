@@ -5,7 +5,7 @@
  * 不负责：修改文件、决定 releaseSequence、生成发布包。
  * 状态归属：无状态；版本事实仍归 lfaa.release.json。
  * 对外接口：validateLfaaVersion / nextLfaaVersion。
- * 关联文件：lfaa.release.json、release-consistency-check.mjs、DEVELOPMENT.md、docs/RELEASES.md。
+ * 关联文件：lfaa.release.json、release-consistency-check.mjs、docs/DEVELOPMENT.md、docs/RELEASES.md。
  * 修改注意事项：版本进位规范变化时必须同步开发规范、发布文档与单元测试。
  */
 

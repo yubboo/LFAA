@@ -1,6 +1,25 @@
-# LFAA Agent / Contributor Guide — v0.1.14
+# LFAA Agent / Contributor Guide — v0.1.16
 
 本文件给 AI Agent 和开发者提供最短路径的当前约束。**先遵守当前代码与本文件，再参考历史记录。**
+
+## v0.1.16 Smart Home / Identity UI 不可破坏原则
+
+1. 登录后的第一屏是 Smart Home：必须同时保留自然语言主入口与手动入口；不得强迫所有用户先经过 AI 判断。
+2. 没有真实 Intent Router / App Pack Registry 时，禁止用关键词 `if/else` 冒充“智能路由”；自然语言任务只允许无损 handoff 到现有通用 Workbench。
+3. First Run 是唯一匿名注册入口；实例初始化后不得为了 UI 方便重新开放注册。
+4. 未接入真实 Capability/Consumer 的 App Pack 必须 disabled；用户界面不得把 `App Pack 待接入`、Registry generation 等开发术语当产品文案。
+5. Login / First Run / Smart Home 共用 `packages/client/app-shell/src/product-surface.css` Motion/视觉 token，并支持 `prefers-reduced-motion`。
+6. Smart Home 不是第二套 Session/Agent Runtime；长期 Project/Session/Run 真值仍归现有 Owner。
+
+## v0.1.15 开发规范 / 根目录不可破坏原则
+
+1. **任何开发任务开始前**必须先读：`AGENTS.md` → `docs/DEVELOPMENT.md` → `docs/ARCHITECTURE.md` → `docs/PROJECT_PLAN.md` → 当前 `docs/PROMPTS.md` 合同 → 目标 package README；禁止先改代码再补合同。
+2. 当前任务必须先在 `docs/PROMPTS.md` 登记 Prompt 条目、当前任务索引与允许/禁止修改边界；没有当前合同不得进入实现阶段。
+3. 修改 Owner / 路径 / 架构时，必须在同一版本同步当前事实文档、对应 package/group README、contract/path Gate 和历史账本；不得只改代码。
+4. 根目录 Markdown 只允许 `README.md`、`AGENTS.md`、`CHANGELOG.md`、`NOTICE.md`。架构、开发规范、项目计划统一属于 `docs/`。
+5. 根目录不得出现候选 ZIP、`.log`、`.tmp` 或一次性任务 Markdown；发布 ZIP 输出必须位于仓库外。
+6. 交付前至少执行 `workspace-preflight`；标准 Node 24 + pnpm 11.17.0 环境还必须执行规定的 quality/release Gate。最终 ZIP 必须 fresh extract 后再次 preflight。
+7. Gate 失败时修实现/文档，禁止通过删除断言、放宽规则或伪造版本字符串让结果“变绿”。
 
 ## v0.1.14 发布治理不可破坏原则
 
@@ -24,7 +43,7 @@
 3. Workbench 只能在有效 AuthSession 后挂载；所有 `/__lfaa/dev/*` Host HTTP API 默认先经过 Identity Gate。
 4. User → Role → Permission；Role 只是 Permission 集合，禁止在业务代码中用 `if (role === ...)` 代替最终授权。
 5. `AuthSession` 与 Workspace `Session` 是两类对象，命名、持久化和生命周期不得混用。
-6. 登录后的第一屏是 App Hub；未有真实 App Pack / Consumer 的业务入口必须 disabled，禁止用通用 Workbench 冒充。
+6. 登录后的第一屏现为 Smart Home；未有真实 App Pack / Consumer 的业务入口必须 disabled，禁止用通用 Workbench 冒充某个已实现业务 App。
 7. Chat / Work / Manual / Infinite Canvas 仍是系统能力；未来 App Pack 只组合能力并建立边界，不复制第二套 Runtime。
 
 ## v0.1.11 不可破坏的模式 / Provider 原则
@@ -47,8 +66,8 @@
 
 ## 先读
 
-1. `ARCHITECTURE.md`
-2. `DEVELOPMENT.md`
+1. `docs/ARCHITECTURE.md`
+2. `docs/DEVELOPMENT.md`
 3. `docs/项目结构与代码地图.md`
 4. 你要修改的 capability family / package README
 
@@ -66,8 +85,10 @@ packages/                TypeScript 业务 / Harness 主体
   credentials/            Credential seam / Native Adapter
   harness/                官方外部 Harness Adapter
   host/                   Vite 等 Host 技术适配
+  identity/               Local Identity / RBAC
   llm/                    模型协议 Adapter
   plugin/                 Plugin SDK / Runtime / Host
+  session/                Project / Session Domain + Host
   settings/               Config Domain / Host
   terminal/               Terminal Host 能力
   util/                   基础工具
@@ -186,7 +207,7 @@ pnpm run quality:full
 
 ## 文档新旧优先级
 
-当前真相：代码 + 自动门禁 + `ARCHITECTURE.md` / `DEVELOPMENT.md` / 本文件。
+当前真相：代码 + 自动门禁 + `docs/ARCHITECTURE.md` / `docs/DEVELOPMENT.md` / 本文件。
 
 `CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md`、`docs/PROMPTS.md` 是历史账本。旧条目里出现 `.lfaa`、`crates/`、`apps/web/dev` 等路径时，只解释当时版本，不用于指导 v0.1.4 开发。
 

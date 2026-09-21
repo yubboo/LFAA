@@ -5,7 +5,7 @@
  * 不负责：TypeScript 类型检查、Rust import；@lfaa package subpath 的 exports 运行时解析由 runtime-import-resolution-check.mjs 负责。
  * 状态归属：无运行时状态。
  * 对外接口：`node scripts/import-path-check.mjs`。
- * 关联文件：DEVELOPMENT.md、ARCHITECTURE.md。
+ * 关联文件：docs/DEVELOPMENT.md、docs/ARCHITECTURE.md。
  * 修改注意事项：规则变化必须先更新对应 Standards，再调整检查器。
  */
 import fs from "node:fs";

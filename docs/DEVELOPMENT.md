@@ -1,4 +1,43 @@
-# LFAA Development Standard — v0.1.14
+# LFAA Development Standard — v0.1.16
+
+## v0.1.16 Smart Home / Identity Surface 开发规范
+
+- Smart Home 属于 `@lfaa/app-shell` 产品入口层；它可以持有临时输入与导航状态，但不得拥有 Project/Session/Agent Run 长期真值。
+- 自然语言入口在真实 Intent Router 接入前只做 **lossless handoff**：`Smart Home draft → AgentWorkbench initialComposerDraft → Composer draft`，不得自动调用 `startRun`，不得按关键词猜业务 App。
+- 手动入口永远保留；真实可用入口可直接打开，未接入 App Pack 的入口保持 disabled。
+- Login / First Run 只改表现层，不改 Identity Host 安全语义；First Run 初始化后仍永久关闭匿名注册。
+- 产品入口动效统一使用共享 token，普通 hover/press/enter 有柔和阻尼感，且必须尊重 `prefers-reduced-motion`。
+- 不为“最近工作”等视觉模块伪造数据；只有接入真实 Session/Project consumer 后才能展示。
+
+## v0.1.15 强制开发工作流
+
+任何人或 AI Agent 修改 LFAA，都按以下顺序执行；顺序本身属于开发规范：
+
+```text
+读取当前规范/Owner
+→ 在 docs/PROMPTS.md 先登记当前合同
+→ 明确允许/禁止修改 + 验收 + 必须测试
+→ 只修改合同范围内代码/文档
+→ 同步当前事实文档与 package README
+→ 执行 governance / contract tests / type/build（环境允许时）
+→ 更新 CHANGELOG + DEVELOPMENT_LOG + RELEASES
+→ 生成候选 ZIP
+→ fresh extract → workspace-preflight
+→ 才允许交付用户验收
+```
+
+禁止：先写代码后补 Prompt、只更新版本号不更新当前事实、把历史账本当当前规范、通过关闭 Gate 获得绿色结果。
+
+### 根目录职责
+
+仓库根目录只承载“打开仓库就必须看见”的入口与工具链配置。Markdown 固定为：
+
+- `README.md`：产品/仓库入口；
+- `AGENTS.md`：Agent/Contributor 最短约束；
+- `CHANGELOG.md`：追加式发布历史；
+- `NOTICE.md`：法律/署名说明。
+
+长期架构、开发规范和项目计划统一在：`docs/ARCHITECTURE.md`、`docs/DEVELOPMENT.md`、`docs/PROJECT_PLAN.md`。根目录布局由 `scripts/root-layout-check.mjs` 锁定；不得为了单次任务新增根级 Markdown、ZIP、LOG 或 TMP。
 
 ## v0.1.14 Release / Prompt 生命周期规范
 
@@ -22,7 +61,7 @@
 - `AuthSession` 与 Workspace `Session` 必须分离；前者回答“谁在使用实例”，后者回答“在哪个 Project 里进行哪次工作会话”。
 - 所有本地 Host HTTP API 默认要求有效 AuthSession；细粒度 Tool/Agent/Plugin 权限仍必须在对应 Owner 再校验。
 - User / Role / Permission 归 Identity Owner；Role 只是权限集合，业务模块不得硬编码角色名作为最终授权。
-- App Hub 在登录后挂载；无真实实现的 App Pack 入口必须 disabled。
+- Smart Home 在登录后挂载；无真实实现的 App Pack 入口必须 disabled；未来 App Hub 负责应用发现/管理。
 - Identity 不拥有 Provider Credential；OpenAI/DeepSeek API Key/OAuth 继续归 Credentials/Provider Owner。
 
 ## v0.1.11 Project / Session / Navigation 开发规范

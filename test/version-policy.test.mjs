@@ -6,7 +6,7 @@
  * 状态归属：无状态。
  * 对外接口：Node test runner。
  * 关联文件：scripts/version-policy.mjs、scripts/release-consistency-check.mjs。
- * 修改注意事项：版本规范变更必须先更新 DEVELOPMENT.md / docs/RELEASES.md，再同步本测试。
+ * 修改注意事项：版本规范变更必须先更新 docs/DEVELOPMENT.md / docs/RELEASES.md，再同步本测试。
  */
 import assert from "node:assert/strict";
 import test from "node:test";

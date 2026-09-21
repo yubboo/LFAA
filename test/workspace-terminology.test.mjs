@@ -14,7 +14,7 @@ const workspaceTypes = read("packages/client/workspace/src/shared/contracts/work
 const workspaceSession = read("packages/client/workspace/src/shared/logic/useWorkspaceSessionController.ts");
 const workspaceReadme = read("packages/client/workspace/README.md");
 const uiReadme = read("packages/client/ui/README.md");
-const architecture = read("ARCHITECTURE.md");
+const architecture = read("docs/ARCHITECTURE.md");
 const infiniteCanvas = read("packages/client/ui/src/features/workbench/InfiniteCanvas.tsx");
 
 test("Chat and Work use Agent Workspace Mode while Manual is a Workbench-only mode", () => {

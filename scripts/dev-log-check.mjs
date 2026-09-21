@@ -5,7 +5,7 @@
  * 不负责：判断业务结论正确性、Runtime Log、用户是否真的完成验收。
  * 状态归属：无运行时状态；直接读取当前工作树。
  * 对外接口：`node scripts/dev-log-check.mjs`。
- * 关联文件：docs/DEVELOPMENT_LOG.md、docs/PROMPTS.md、DEVELOPMENT.md。
+ * 关联文件：docs/DEVELOPMENT_LOG.md、docs/PROMPTS.md、docs/DEVELOPMENT.md。
  * 修改注意事项：日志继续在一个文件内追加；不要恢复“一条日志一个 Markdown”。
  */
 import fs from "node:fs";

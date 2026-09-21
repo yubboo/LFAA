@@ -30,8 +30,8 @@ LFAA Native Plugin 的生命周期与能力注册。
 
 修改本模块前先读取：
 
-- `/DEVELOPMENT.md`
-- `/ARCHITECTURE.md`
+- `/docs/DEVELOPMENT.md`
+- `/docs/ARCHITECTURE.md`
 - 本 README
 - 对应 Module PLAN / PROGRESS
 - 当前 Active Prompt

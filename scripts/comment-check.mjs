@@ -5,7 +5,7 @@
  * 不负责：判断注释内容是否绝对正确、TypeScript 编译、CSS 视觉测试。
  * 状态归属：无运行时状态；每次执行直接读取当前工作树。
  * 对外接口：`node scripts/comment-check.mjs`，成功返回 0，失败返回 1。
- * 关联文件：DEVELOPMENT.md、docs/项目结构与代码地图.md、scripts/governance-check.mjs、package.json。
+ * 关联文件：docs/DEVELOPMENT.md、docs/项目结构与代码地图.md、scripts/governance-check.mjs、package.json。
  * 修改注意事项：新增关键实现文件时必须把它加入本检查或定义清晰的自动发现规则。
  */
 

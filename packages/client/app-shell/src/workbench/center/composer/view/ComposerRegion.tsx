@@ -19,7 +19,7 @@ import { PermissionControl } from "./PermissionControl";
 import { RuntimeControl, useRuntimeControlController } from "../runtime-control";
 import styles from "../styles/Composer.module.css";
 
-export function ComposerRegion({ layoutMode, workspaceMode, permissionProfileId, modelLabel, quickModels, activeReasoning, runtimeConnected, automationReady, onPermissionProfileChange, onSubmitTask, onQuickSelectModel, onQuickUpdateModelSetting, onOpenAiSettings, onToggleTerminal }: {
+export function ComposerRegion({ layoutMode, workspaceMode, permissionProfileId, modelLabel, quickModels, activeReasoning, runtimeConnected, automationReady, initialDraft, onPermissionProfileChange, onSubmitTask, onQuickSelectModel, onQuickUpdateModelSetting, onOpenAiSettings, onToggleTerminal }: {
   layoutMode: LayoutMode;
   workspaceMode: WorkspaceMode;
   permissionProfileId: AgentPermissionProfileId;
@@ -28,6 +28,7 @@ export function ComposerRegion({ layoutMode, workspaceMode, permissionProfileId,
   activeReasoning: ActiveReasoningControl | null;
   runtimeConnected: boolean;
   automationReady: boolean;
+  initialDraft?: string;
   onPermissionProfileChange: (profileId: AgentPermissionProfileId) => void;
   onSubmitTask: (input: string, executionHints?: AgentExecutionHints, modelSettingOverrides?: Readonly<Record<string, AiModelSettingValue>>) => Promise<AgentRunHandle>;
   onQuickSelectModel: (accountId: string, modelId: string) => Promise<void>;
@@ -35,7 +36,7 @@ export function ComposerRegion({ layoutMode, workspaceMode, permissionProfileId,
   onOpenAiSettings: () => void;
   onToggleTerminal: () => void;
 }) {
-  const [draft,setDraft]=useState("");
+  const [draft,setDraft]=useState(initialDraft ?? "");
   const [submitting,setSubmitting]=useState(false);
   const [runNotice,setRunNotice]=useState<string|null>(null);
   const [permissionMenuOpen,setPermissionMenuOpen]=useState(false);
@@ -79,7 +80,7 @@ export function ComposerRegion({ layoutMode, workspaceMode, permissionProfileId,
 
   return <div className={styles.wrap} data-layout-mode={layoutMode} data-workspace-mode={workspaceMode} data-ui="composer">
     <div className={styles.composer}>
-      <textarea aria-label="输入任务" placeholder={workspaceMode==="chat"?"一句话交代任务，Agent 会自动完成并交付":"描述目标；Agent 会在无限画布中执行，你可以随时调整画布或继续对话干预"} rows={1} value={draft} onChange={(event)=>setDraft(event.target.value)} onKeyDown={(event)=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();void submitTask();}}}/>
+      <textarea aria-label="输入任务" autoFocus={Boolean(initialDraft)} placeholder={workspaceMode==="chat"?"一句话交代任务，Agent 会自动完成并交付":"描述目标；Agent 会在无限画布中执行，你可以随时调整画布或继续对话干预"} rows={1} value={draft} onChange={(event)=>setDraft(event.target.value)} onKeyDown={(event)=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();void submitTask();}}}/>
       <div className={styles.actions}>
         <AddCapabilityMenu open={addMenuOpen} layoutMode={layoutMode} onOpenChange={openAdd} onChoose={(label)=>setRunNotice(`${label}入口已就绪；实际能力由统一 Runtime/Host 提供。`)}/>
         <PermissionControl open={permissionMenuOpen} layoutMode={layoutMode} value={permissionProfileId} onOpenChange={openPermission} onChange={onPermissionProfileChange}/>

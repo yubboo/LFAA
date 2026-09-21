@@ -6,4 +6,4 @@ LFAA v0.1.0 capability family。这里按长期 Owner 聚合相关 package；fam
 
 - `web-app`
 
-通用规则：业务实现归 package；跨 package 只通过公开 `@lfaa/*` 接口；新增 package 必须有真实实现、当前 Consumer 与明确 Owner。详细职责见根 `ARCHITECTURE.md` 和 `docs/MODULES.md`。
+通用规则：业务实现归 package；跨 package 只通过公开 `@lfaa/*` 接口；新增 package 必须有真实实现、当前 Consumer 与明确 Owner。详细职责见 `docs/ARCHITECTURE.md` 和 `docs/MODULES.md`。

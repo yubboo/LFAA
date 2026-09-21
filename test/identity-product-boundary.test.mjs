@@ -7,7 +7,7 @@ const read = (file) => fs.readFileSync(file, "utf8");
 test("web product mounts Identity Gate before App Hub and Workbench", () => {
   const source = read("packages/client/web/src/App.tsx");
   assert.match(source, /<LfaaIdentityGate host=\{webIdentityHost\}>/);
-  assert.match(source, /<LfaaAppHub /);
+  assert.match(source, /<LfaaAppHub\b/);
   assert.match(source, /<AgentWorkbench/);
   assert.ok(source.indexOf("<LfaaIdentityGate") < source.indexOf("<AgentWorkbench"));
 });

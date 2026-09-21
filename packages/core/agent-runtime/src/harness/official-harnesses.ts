@@ -5,7 +5,7 @@
  * 不负责：复制 Harness 内部 Agent Loop、私有协议或进程实现。
  * 状态归属：静态兼容目录；真实可用性由宿主 Adapter 探测。
  * 对外接口：OFFICIAL_HARNESSES、resolveOfficialHarness、createHarnessRegistry。
- * 关联文件：packages/core/agent-runtime/src/core/contracts.ts、ARCHITECTURE.md。
+ * 关联文件：packages/core/agent-runtime/src/core/contracts.ts、docs/ARCHITECTURE.md。
  * 修改注意事项：只登记有官方公开入口的 Harness；“支持”必须由 Host capability probe 证明。
  */
 

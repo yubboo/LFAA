@@ -1,4 +1,19 @@
-# LFAA Testing & Gates — v0.1.14
+# LFAA Testing & Gates — v0.1.16
+
+## v0.1.16 Smart Home / Identity UI 回归
+
+- `test/smart-home-identity-ui-contract.test.mjs` 锁定自然语言 + 手动双入口、无关键词假路由、First Run 唯一匿名注册、共享 Motion token / reduced-motion。
+- `test/identity-product-boundary.test.mjs` 继续锁定 Identity Gate 在 Smart Home/Workbench 之前，以及未实现 App Pack 必须 disabled。
+- initial draft handoff 必须只进入现有 Composer，本版 `client-web` 不得直接调用 `startRun` / `submitAgentInput`。
+- 浏览器实机验收重点：Login、First Run、Smart Home 大屏/窄屏视觉；Home 输入 → Workbench 草稿保留；手动进入；返回首页；动效无僵硬跳变。
+
+## v0.1.15 Development / Root Layout Governance
+
+- `scripts/root-layout-check.mjs` 锁定根目录 Markdown 入口与长期文档归位；
+- `test/root-layout.test.mjs` 验证旧根文档、临时 Markdown、ZIP/LOG/TMP 会被拒绝；
+- `workspace-preflight` 必须包含 `root-layout` Gate；Sync/GitHub/Release Archive 继续复用同一来源预检；
+- 文档路径迁移必须更新真实 Consumer 测试，禁止保留根 `ARCHITECTURE.md / DEVELOPMENT.md / PROJECT_PLAN.md` 镜像来兼容旧引用。
+
 
 ## v0.1.14 Release Governance 回归
 
@@ -8,9 +23,9 @@
 
 `test/release-archive.test.mjs` 除 Unicode path 与必要空目录外，还必须锁定本机 `.log` 不进入发布 ZIP。package/folder/docs/current-fact 门禁继续保护现有两层 packages 拓扑。
 
-## v0.1.12 Identity / App Hub 回归
+## v0.1.12 Identity / App Entry 回归
 
-`test/identity-repository-behavior.test.mjs` 锁定 First Run 只能一次、super_admin、登录/登出、Token 失效、密码/Token 不进入公共快照；`test/identity-product-boundary.test.mjs` 锁定 Identity Gate 在 App Hub/Workbench 之前、Identity Host Bridge 在其他本地 Controller 之前、未实现 App Pack 不伪装可用。浏览器验收必须覆盖“首次初始化 → 自动进入 Hub → Workbench → 退出 → 重新登录”。
+`test/identity-repository-behavior.test.mjs` 锁定 First Run 只能一次、super_admin、登录/登出、Token 失效、密码/Token 不进入公共快照；`test/identity-product-boundary.test.mjs` 锁定 Identity Gate 在 Smart Home/Workbench 之前、Identity Host Bridge 在其他本地 Controller 之前、未实现 App Pack 不伪装可用。浏览器验收必须覆盖“首次初始化 → 自动进入 Smart Home → Workbench → 退出 → 重新登录”。
 
 ## v0.1.11 Project / Session / Refresh 回归
 
@@ -153,6 +168,7 @@ tsconfig-reference-check
 package-architecture-check
 dev-log-check
 docs-check
+root-layout-check
 current-fact-check
 comment-check
 windows-script-encoding-check

@@ -1,17 +1,17 @@
-# LFAA Project Plan — current v0.1.14
+# LFAA Project Plan — current v0.1.16
 
 ## 当前里程碑
 
-**v0.1.14 / #22.20 Release Governance / Prompt Ledger Hotfix（implementation complete · pending-user-acceptance）**
+**v0.1.16 / #22.22 Smart Home / Identity Visual System（implementation complete · pending-user-acceptance）**
 
-v0.1.13 候选包在用户执行稳定工作区 Sync 时被来源预检正确拦截：`docs/PROMPTS.md` 未包含当前版本 `v0.1.13`，因此 governance / prompt lifecycle 不完整。v0.1.14 只修复这条发布治理链，并保持 v0.1.13 的架构与产品路线不变。
+本版先完成进入产品前的体验闭环，不提前实现 App Pack Runtime：
 
-本版维护：
-
-- 补齐当前 Prompt / Requirement Note、任务索引与当前合同；
-- 版本元数据递增到 v0.1.14，不覆盖已经对外给出的 v0.1.13；
-- 候选 ZIP 必须 fresh extract 后重新运行治理/预检；
-- 不修改 Runtime/UI/Session/Provider/Plugin/Identity 产品行为。
+- 登录与 First Run 注册页统一到新的 LFAA neutral visual language；
+- 登录后第一屏升级为 Smart Home，支持自然语言主入口与手动入口并存；
+- 自然语言输入当前只无损带入现有 Workbench Composer，不用关键词规则冒充 AI Router；
+- 未实现 App Pack 保持 disabled，不伪造最近项目/Session 数据；
+- 共享 Motion token 支持柔和 enter/hover/press，并尊重 reduced-motion；
+- v0.1.15 的强制开发规范与根目录 Gate 保持不变。
 
 ### v0.1.13 已锁定的 Repository / Product Track 基线
 
@@ -28,7 +28,7 @@ v0.1.13 已完成：
 
 本阶段不主动重做：
 
-- Workbench 视觉布局与 Resize/Motion；
+- Workbench 三栏布局与 Resize/Canvas Motion（本版只增加产品入口 Motion）；
 - Chat / Work / Manual 三模式语义；
 - Project / Session 持久化；
 - Provider / Account / OAuth / Streaming 已有链路；
@@ -40,11 +40,11 @@ v0.1.13 已完成：
 
 ## 下一阶段顺序
 
-### Phase A — App Pack Runtime 闭环
+### Phase A — App Pack Runtime + Intent Router 闭环
 
-完成 `Plugin Registry → App Pack Catalog → Identity Permission → Project App Pack Ownership → Agent Capability Scope` 单向链路。App Hub 不再把业务入口写死成产品真值；Core 通用工作台作为内建入口保留。
+完成 `Plugin Registry → App Pack Catalog → Identity Permission → Project App Pack Ownership → Agent Capability Scope` 单向链路，并在其上提供真实 Intent Router contract。Smart Home 不再把业务入口写死成产品真值；Core 通用工作台作为内建 fallback 保留。
 
-验收标准：安装/启用一个合法 App Pack 后，App Hub 能发现它；禁用/卸载后入口消失；Project 保存所属 App Pack；Agent Run 的 capability scope 由 Host 从 App Pack + 权限解析，Client 不能伪造。
+验收标准：安装/启用一个合法 App Pack 后 Smart Home / App Hub 能发现它；禁用/卸载后入口消失；Project 保存所属 App Pack；Agent Run 的 capability scope 由 Host 从 App Pack + 权限解析，Client 不能伪造；Smart Home 的自然语言入口只消费 Router 返回的结构化决策，不在 UI 复制关键词规则。
 
 ### Phase B — AI Writing V1（第一个完整纵向能力）
 

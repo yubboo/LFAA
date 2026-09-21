@@ -1,0 +1,43 @@
+:root {
+  --lfaa-product-bg: #f7f7f4;
+  --lfaa-product-surface: rgba(255, 255, 255, 0.82);
+  --lfaa-product-surface-strong: #ffffff;
+  --lfaa-product-ink: #181816;
+  --lfaa-product-muted: #777772;
+  --lfaa-product-faint: #aaa9a3;
+  --lfaa-product-line: rgba(28, 28, 25, 0.09);
+  --lfaa-product-line-strong: rgba(28, 28, 25, 0.16);
+  --lfaa-product-shadow: 0 24px 70px rgba(35, 34, 28, 0.08);
+  --lfaa-product-shadow-soft: 0 12px 36px rgba(35, 34, 28, 0.055);
+  --lfaa-product-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --lfaa-product-ease-soft: cubic-bezier(0.2, 0.75, 0.2, 1);
+  --lfaa-product-fast: 160ms;
+  --lfaa-product-normal: 280ms;
+  --lfaa-product-slow: 520ms;
+}
+
+@keyframes lfaa-product-rise {
+  from { opacity: 0; transform: translate3d(0, 16px, 0) scale(0.985); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes lfaa-product-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes lfaa-product-drift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -10px, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --lfaa-product-fast: 1ms;
+    --lfaa-product-normal: 1ms;
+    --lfaa-product-slow: 1ms;
+  }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+  }
+}

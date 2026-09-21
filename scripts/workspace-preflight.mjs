@@ -25,6 +25,7 @@ const gates = [
   ["tsconfig-reference", "scripts/tsconfig-reference-check.mjs"],
   ["development-log", "scripts/dev-log-check.mjs"],
   ["docs", "scripts/docs-check.mjs"],
+  ["root-layout", "scripts/root-layout-check.mjs"],
   ["current-fact", "scripts/current-fact-check.mjs"],
   ["comments", "scripts/comment-check.mjs"],
   ["windows-encoding", "scripts/windows-script-encoding-check.mjs"],

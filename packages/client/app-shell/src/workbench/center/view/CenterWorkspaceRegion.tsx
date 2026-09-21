@@ -30,6 +30,7 @@ export interface CenterWorkspaceRegionProps {
   activeReasoning: ActiveReasoningControl | null;
   runtimeConnected: boolean;
   automationReady: boolean;
+  initialComposerDraft?: string;
   chatMessages: readonly ChatMessageViewModel[];
   workspaceId: string | undefined;
   lastRunInput: string | null;
@@ -80,6 +81,7 @@ export function CenterWorkspaceRegion(props: CenterWorkspaceRegionProps) {
         activeReasoning={props.activeReasoning}
         runtimeConnected={props.runtimeConnected}
         automationReady={props.automationReady}
+        {...(props.initialComposerDraft ? { initialDraft: props.initialComposerDraft } : {})}
         onPermissionProfileChange={props.onPermissionProfileChange}
         onSubmitTask={props.onSubmitTask}
         onQuickSelectModel={props.onQuickSelectModel}
