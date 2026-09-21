@@ -44,3 +44,5 @@
 .devNote { margin-top:auto; padding:.6875rem; border-top:1px solid var(--agent-border); color:var(--agent-muted); }
 .devNote strong { color:var(--agent-text); font-size:.625rem; }
 .devNote p { margin:.25rem 0 0; font-size:.5625rem; line-height:1.5; }
+.toolList button:disabled { opacity:.45; cursor:not-allowed; }
+.toolList button:disabled:hover { background:transparent; }

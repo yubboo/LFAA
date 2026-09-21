@@ -40,8 +40,8 @@ test("web development host routes each configured Provider to its owned text run
   for (const token of [
     "AiProviderRegistry",
     "resolveConnection",
-    'connection.protocol === "codex-app-server"',
-    'connection.protocol === "openai-compatible"',
+    'protocol === "codex-app-server"',
+    'protocol === "openai-compatible"',
     "codexRuntime.runText",
     "assistant.delta",
     "assistant.completed",
@@ -65,12 +65,15 @@ test("AgentRuntimeHost maps streaming and completed runtime events into one Chat
   assert.match(contracts, /AgentRuntimeEvent/);
   assert.match(contracts, /assistant\.delta/);
   assert.match(contracts, /subscribe\(listener: AgentRuntimeEventListener\)/);
+  assert.match(contracts, /interveneRun\(runId: string, request: AgentInterventionRequest\)/);
   assert.match(client, /lfaa:agent-runtime-event/);
+  assert.match(client, /\/interventions/);
   assert.match(chat, /styles\.timeline/);
   assert.match(session, /event\.type === "assistant\.delta"/);
   assert.match(session, /event\.type === "assistant\.completed"/);
   assert.match(session, /text: `\$\{next\[index\]!\.text\}\$\{event\.delta\}`/);
   assert.match(session, /runtimeConnected:\s*Boolean\(runtimeHost\)/);
+  assert.match(session, /submitAgentInput/);
   assert.match(workbench, /runtimeConnected=\{session\.runtimeConnected\}/);
 });
 
@@ -90,7 +93,7 @@ test("strong reasoning travels as execution hint without inventing provider fiel
 test("Codex subscription runtime never requires LFAA to read or persist ChatGPT OAuth tokens", () => {
   const bridge = readFileSync(bridgePath, "utf8");
   const codex = readFileSync(codexPath, "utf8");
-  const codexBranch = bridge.slice(bridge.indexOf('connection.protocol === "codex-app-server"'), bridge.indexOf('connection.protocol === "openai-compatible"'));
+  const codexBranch = bridge.slice(bridge.indexOf('protocol === "codex-app-server"'), bridge.indexOf('protocol === "openai-compatible"'));
   assert.doesNotMatch(codexBranch, /secrets\.get|credentialRef/);
   assert.doesNotMatch(codex, /from "node:fs"|process\.env|readFileSync|readFile\(/);
   assert.match(codex, /approvalPolicy: "never"/);

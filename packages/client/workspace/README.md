@@ -1,16 +1,17 @@
 # @lfaa/workspace
 
-LFAA 的 Workspace Feature Composition。Workspace 是父领域，`chat/` 与 `work/` 是同一个 Agent/Project 核心的两种 **Workspace Mode（工作模式）**，不拆成两个平级 package。
+LFAA 的 Workspace 产品域与 Workspace Mode Owner。**Chat Agent / Work Agent 共用一套 Agent Core；Manual 是无模型手动表现层。**
 
 ```text
 src/
-├─ chat/      # Chat Mode：线性对话工作模式
-├─ work/      # Work Mode：无限画布工作模式与产品布局状态
-└─ shared/    # Chat/Work 共用 Session Controller 与最小契约
+├─ chat/      # conversation-first Agent；通过对话/插话人工干预
+├─ work/      # canvas-first Agent；无限画布、人工编辑与 workspaceContext
+├─ manual/    # 无模型手动；复用 Work Canvas 与真实工具
+└─ shared/    # Chat/Work 唯一 Session Controller / Run / intervention
 ```
 
-边界：本包可以组合 `@lfaa/agent-runtime`、`@lfaa/config-system`、`@lfaa/ui`，但不得拥有 Shell/Settings/Host Bridge，也不得复制 InfiniteCanvas Pointer/Effect/Resize 通用算法。
+边界：本包可以组合 `@lfaa/agent-runtime`、`@lfaa/config-system`、`@lfaa/ui`，但不得拥有 Shell/Settings/Host Bridge，也不得复制 Agent Runtime。
 
-## v0.1.2 Chat 流式投影
+## v0.1.6 人工干预
 
-Shared Session Controller 消费 `assistant.delta` 逐步更新同一个 assistant ViewModel，并在 `assistant.completed` 到达时用最终权威文本覆盖，避免流式消息重复。
+Chat/Work 都通过 `AgentRuntimeHost.interveneRun` 干预当前 Run。Chat 只提交对话输入；Work 还把用户编辑后的 Canvas 内容投影为 `workspaceContext`。支持原生 steer 的 Runtime 直接注入；不支持时由 Host 统一续跑。Manual 不调用模型。

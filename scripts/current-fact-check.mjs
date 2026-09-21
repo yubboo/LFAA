@@ -63,6 +63,7 @@ for (const relative of [
   "packages/client/connection/src/agent-runtime-client.ts",
   "packages/client/app-shell/src/workbench/settings/view/SettingsPage.tsx",
   "packages/client/workspace/src/work/logic/useWorkCanvasController.ts",
+  "packages/client/workspace/src/manual/view/ManualWorkspace.tsx",
   "packages/bundle/web-app/src/vite.ts",
   "packages/llm/openai-compatible/src/index.ts",
   "native/secret-store/src/lib.rs",

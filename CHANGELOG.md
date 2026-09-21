@@ -1,10 +1,17 @@
-# v0.1.5 / #22.12 — Codex Windows Host 启动与诊断修复
+# v0.1.6 单一 Agent Core / Chat·Work·Manual 三模式
 
-- 修复 Windows + Node 24 下 `spawn(..., { shell: true })` 触发 `DEP0190`，并可能把 npm `codex.cmd` 启动失败折叠成单纯 `code=1` 的问题。
-- Codex App Server 在 Windows 改为显式 `cmd.exe /d /s /v:off /c codex app-server`，`shell:false`，且先用 `where.exe codex` 验证当前 LFAA 启动终端的 PATH 可解析 Codex CLI。
-- App Server stderr 改为仅保留有限尾部、脱敏后用于启动失败诊断；不再把认证 Token/Secret 写入日志或 UI。
-- 保持 v0.1.4 的官方 Usage、Chat/Work 导航与账户持久化语义不变；App Server 失败不会删除 `LFAA_HOME/state/ai-accounts.json`。
-- 状态：pending-user-acceptance；AI 验证：pass（219/219 Node 合同测试、聚焦 Codex Host/Runtime 测试与 workspace-preflight）；真实 Windows Codex CLI 端到端待用户验收。
+**当前任务：#22.12 · v0.1.6 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- Chat Agent / Work Agent 固定为同一 Agent Core 的两种表现层；同模型、同工具、同权限、同自动化、同质量与同交付标准。
+- 新增 `AgentRuntimeHost.interveneRun` 人工干预契约；Chat 以对话插话，Work 以对话 + Canvas `workspaceContext` 干预。
+- Codex 类 Runtime 支持 `turn/steer` 时直接注入当前 Run；不支持原生 steer 的 Provider 由 Host 统一中断并在同一 Session 续跑。
+- Work 无限画布节点支持用户编辑；编辑内容参与后续同核 Agent 输入；Agent 输出回投 Work Canvas。
+- 新增 Manual：无需模型即可使用无限画布和真实 Terminal/Tool 基础设施，不创建 Agent Run。
+- Workbench Left/Header/Composer/Right Surface 支持 Chat/Work/Manual 三模式；未注册 Review/Browser/File Tool 不再伪装可点击。
+- Provider 官方事实原则继续冻结：官方免费/套餐/API/Coding Plan 的 entitlement 原样呈现，LFAA 不添加模型使用额度。
+- v0.1.5 的全局 Codex CLI 产品依赖方向被否决，不作为本版基线。
+- **AI 验证：** pass；仓库级 Node 合同测试 183/183 PASS，Config System 41/41 PASS，TypeScript/TSX 语法转译 165/165 PASS，workspace preflight 全 Gate PASS。
+- **状态：** pending-user-acceptance。
 
 # v0.1.4 / #22.11 — 官方余额额度与 Chat/Work 模式边界
 

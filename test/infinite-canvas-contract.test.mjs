@@ -70,7 +70,7 @@ test("Canvas layout is not Agent Session business state", () => {
   assert.doesNotMatch(session, /InfiniteCanvas|WORK_CANVAS_LAYOUT_KEY_PREFIX|nodePositions|workNodes|canvas-layout/);
   assert.match(session, /lastRunInput/);
   assert.match(workCanvasController, /lastRunInput/);
-  assert.match(center, /<WorkWorkspace workspaceId=\{props\.workspaceId\} lastRunInput=\{props\.lastRunInput\} \/>/);
+  assert.match(center, /<WorkWorkspace[\s\S]*workspaceId=\{props\.workspaceId\}[\s\S]*lastRunInput=\{props\.lastRunInput\}[\s\S]*lastRunOutput=\{props\.lastAssistantText\}[\s\S]*onContextChange=\{props\.onWorkContextChange\}/);
 });
 
 test("selected canvas node is lifted above siblings while edges remain behind nodes", () => {
@@ -81,11 +81,13 @@ test("selected canvas node is lifted above siblings while edges remain behind no
   assert.match(canvas, /onFocus=\{\(\) => setSelectedNodeId\(node\.id\)\}/);
 });
 
-test("Workbench still exposes Chat and Work on one model/permission/runtime contract", () => {
+test("Workbench exposes Chat and Work on one Agent contract and Manual on the same canvas/tool foundation", () => {
   assert.match(workbenchSurface, /workspaceMode===?\s*"chat"|workspaceMode === "chat"/);
-  assert.match(workbenchSurface, /onWorkspaceModeChange\("work"\)/);
+  assert.match(workbenchSurface, /chooseMode\("work"\)/);
+  assert.match(workbenchSurface, /chooseMode\("manual"\)/);
   assert.match(workbenchSurface, /runtimeConnected:\s*Boolean\(runtimeHost\)/);
   assert.match(workbenchSurface, /runtimeHost\.startRun\(\{/);
+  assert.match(workbenchSurface, /workspaceMode === "manual"/);
   assert.match(workbenchSurface, /workspaceMode,?/);
   assert.match(workbenchSurface, /permissionProfileId/);
   assert.match(workbenchSurface, /runModelBinding:\s*AgentModelBinding/);

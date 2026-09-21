@@ -1,11 +1,6 @@
-# LFAA Development Standard — v0.1.5
+# LFAA Development Standard — v0.1.6
 
 本文件是当前开发规范。历史版本的设计过程请看 `CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md` 和 `docs/PROMPTS.md`；历史内容不得覆盖本文件。
-
-## Codex / Windows 子进程规则
-
-Windows npm `.cmd` 工具不得使用 `spawn(command, args, { shell: true })`；固定可信命令使用显式 `cmd.exe` 包装且 `shell:false`，动态参数必须经过独立安全策略。启动失败允许返回有限、脱敏 stderr，但不得泄露认证材料。
-
 
 ## 1. 开发目标
 
@@ -23,6 +18,15 @@ Windows 优先使用 `LFAA-Setup.bat`。Setup 依赖检测以 `pnpm-workspace.ya
 ## 2.1 官方状态数据
 
 所有 Provider 余额/额度/速率限制必须可追溯到官方 API 或官方 Runtime。无官方稳定接口时应返回“不可用/官方未提供”，不得生成百分比、余额或“无限”标签。OpenAI ChatGPT 标准 Chat 与 Codex/Work 的额度语义必须分开；仅 `account/rateLimits/read` / `account/usage/read` 得到的数据只能标记为 Codex/Work。
+
+## 2.2 Agent 交互模式开发规范
+
+- Chat Agent 与 Work Agent 必须共享同一 `AgentRunRequest` / `AgentRuntimeHost` / Session Controller；禁止复制 Runtime、工具集、权限或模型路由。
+- `workspaceMode = chat|work` 只能改变 View/人工干预呈现，不得改变模型智力、性能等级、工具能力或交付质量。
+- Chat 干预使用 `interveneRun` 对话/插话；Work 干预通过同一 `interveneRun` 并附加用户编辑后的 `workspaceContext`。
+- Manual 只属于 Client Workspace Mode，不得加入 `AgentWorkspaceMode`；Manual 无模型也必须可进入，并复用 InfiniteCanvas/Terminal/Tool Registry 的真实实现。
+- 未注册的工具必须 disabled/明确“待接入”，禁止 UI 假装可执行。
+
 
 ## 3. 仓库规则
 
@@ -145,11 +149,12 @@ Browser ↔ Host 只通过协议/事件通信。浏览器包不得 import Node H
 
 ## 8. Workspace / UI
 
-正式术语：Workspace → Chat Mode / Work Mode。
+正式术语：Workspace → Chat Agent Mode / Work Agent Mode / Manual Mode。Chat/Work 同核，Manual 无模型手动。
 
 - Session/Run 共用逻辑：`packages/client/workspace/src/shared/logic/`
-- Chat：`workspace/src/chat/`
-- Work/Canvas 产品布局：`workspace/src/work/`
+- Chat：`workspace/src/chat/`（对话式干预）
+- Work/Canvas 产品布局：`workspace/src/work/`（画布式干预与上下文）
+- Manual：`workspace/src/manual/`（复用 Work Canvas/真实工具，不进入 Agent Runtime）
 - 通用 Pointer/Zoom/Overlay/Resize/Effect：`client/ui`
 - Product Shell/Composer/Settings：`client/app-shell`
 

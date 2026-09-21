@@ -17,10 +17,12 @@ const uiReadme = read("packages/client/ui/README.md");
 const architecture = read("ARCHITECTURE.md");
 const infiniteCanvas = read("packages/client/ui/src/features/workbench/InfiniteCanvas.tsx");
 
-test("Chat and Work use Workspace Mode terminology in runtime and workspace contracts", () => {
+test("Chat and Work use Agent Workspace Mode while Manual is a Workbench-only mode", () => {
   assert.match(runtimeContracts, /export type AgentWorkspaceMode = "chat" \| "work"/);
   assert.match(runtimeContracts, /readonly workspaceMode: AgentWorkspaceMode/);
   assert.match(runtimeEntry, /AgentWorkspaceMode/);
+  assert.match(workspaceTypes, /AgentWorkspaceMode \| "manual"/);
+  assert.doesNotMatch(runtimeContracts, /AgentWorkspaceMode = [^\n]*manual/);
   assert.doesNotMatch(runtimeContracts + runtimeEntry, /AgentSurfaceMode|readonly surface:\s*Agent/);
   assert.match(workspaceSession, /workspaceMode/);
   assert.doesNotMatch(workspaceSession, /\bagentSurface\b|\bsetAgentSurface\b/);

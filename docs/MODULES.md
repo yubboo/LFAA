@@ -1,4 +1,4 @@
-# LFAA Modules — v0.1.5 Current Ownership
+# LFAA Modules — v0.1.6 Current Ownership
 
 本文件只描述当前模块 Owner。旧版本细节请到 DEVELOPMENT_LOG/CHANGELOG 查历史。
 
@@ -10,7 +10,7 @@
 | client | `@lfaa/client-web` | Web Client Composition / mount |
 | client | `@lfaa/client-connection` | Browser ↔ Local Host clients |
 | client | `@lfaa/app-shell` | Workbench / Composer / Settings / Shell |
-| client | `@lfaa/workspace` | Chat + Work Workspace 产品域 |
+| client | `@lfaa/workspace` | Chat Agent + Work Agent + Manual Workspace 产品域；Chat/Work 同核，Manual 无模型 |
 | client | `@lfaa/ui` | Shared UI Kit / Interaction primitives |
 | client | `@lfaa/ui-terminal` | Terminal UI |
 | settings | `@lfaa/config-system` | AI Config Domain + 官方 Usage/Quota 规范化 |
@@ -54,12 +54,13 @@ Capability family 是 Owner，`lfaa.layer` 是机器检查的依赖方向；不�
 ```text
 workspace/
 ├─ shared/contracts
-├─ shared/logic
+├─ shared/logic       # Chat/Work 共用 Agent Session/干预
 ├─ chat/view + styles
-└─ work/contracts + logic + view + styles
+├─ work/contracts + logic + view + styles
+└─ manual/view + styles  # 无模型，复用 Work Canvas/Tool
 ```
 
-`shared/logic` 拥有 Chat/Work 共用 Session/Run controller。Work Canvas x/y/viewport 属于 Work 产品布局状态；高频 pointer/zoom/drag renderer 归 UI Kit。
+`shared/logic` 拥有 Chat/Work 共用 Session/Run controller 与 `interveneRun`；Work Canvas x/y/viewport/用户编辑内容属于 Work 产品状态，并可投影为 `workspaceContext` 给同一 Agent Core。Manual 复用同一 Canvas controller，但不启动 Agent Run；高频 pointer/zoom/drag renderer 归 UI Kit。
 
 ## App Shell
 

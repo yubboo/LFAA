@@ -1,10 +1,10 @@
-# v0.1.5 Prompt / Requirement Note — Codex Windows Host 启动与诊断修复
+# v0.1.6 Prompt / Requirement Note — 单一 Agent Core / Chat·Work·Manual 三模式
 
-- **实机问题：** v0.1.4 设置页 ChatGPT 套餐显示 `Codex App Server 已退出（code=1, signal=null）`，终端同时出现 Node 24 `DEP0190`；登录按钮不可用。
-- **根因：** Windows 使用 `spawn("codex", ["app-server"], { shell: true })` 启动 npm `codex.cmd`；Node 24 明确警告 `shell + args`，且 shell 失败只剩 code=1，原实现还丢弃 stderr，无法诊断。
-- **要求：** 以 v0.1.4 为基线，仅修 Codex Host Windows 启动和错误诊断；不得改动 v0.1.4 官方 Usage、Chat/Work 导航、账户/Secret 语义。
-- **实现边界：** Windows 显式 `cmd.exe` + `shell:false`；启动前验证 PATH；stderr 只保留有限尾部并脱敏；账户元数据继续归 LFAA_HOME，Host 失败不得删除账户。
-- **版本：** v0.1.5；**状态：** pending-user-acceptance；**AI：** pass；**用户验收：** pending。
+- **基线 / 目标：** v0.1.4 能力基线 → v0.1.6；任务 #22.12；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。v0.1.5 为错误产品方向，不作为开发基线。
+- **核心要求：** Chat Agent 与 Work Agent 能力、智力、性能、工具、权限、自动化质量和最终交付完全一致，只允许表现层/人工干预方式不同。Chat 用对话/插话；Work 用无限画布人工编辑 + 对话继续。
+- **Manual：** 新增完全手动模式；无模型也能进入，复用无限画布和真实 Terminal/Tool 基础设施；禁止创建 Agent Run 或伪造自动化结果。
+- **Provider 原则：** 厂商官方免费/套餐/API/Coding Plan 的认证、Runtime 与 Entitlement 原样映射；LFAA 不把官方免费能力改成自有额度，也不伪造官方未提供的 quota。
+- **实现约束：** 一个 `AgentRunRequest`、一个 Session Controller、一个 Runtime Host；Work 的用户画布编辑通过 `workspaceContext` 回到同一 Agent Core；运行中干预统一走 `interveneRun`。
 
 # v0.1.4 Prompt / Requirement Note — 官方余额额度与 Chat/Work 模式边界
 
@@ -80,7 +80,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
-| #22.12 | Codex Windows Host 启动与诊断修复 | v0.1.5 | pending-user-acceptance | pass | pending |
+| #22.12 | 单一 Agent Core / Chat·Work·Manual 三模式 | v0.1.6 | pending-user-acceptance | pass | pending |
 | #22.11 | 官方余额额度与 Chat/Work 模式边界 | v0.1.4 | pending-user-acceptance | pass | pending |
 | #22.10 | 全量质量门禁与 Codex 取消竞态修复 | v0.1.3 | pending-user-acceptance | pass | pending |
 | #22.9 | ChatGPT/Codex 套餐 Text Runtime | v0.1.2 | pending-user-acceptance | pass | pending |

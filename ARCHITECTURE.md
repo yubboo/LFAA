@@ -1,4 +1,4 @@
-# LFAA Architecture — v0.1.5 Current Truth
+# LFAA Architecture — v0.1.6 Current Truth
 
 > 本文件描述 **当前** LFAA 架构。旧版本的平铺 `packages/*`、`apps/web/dev/bridges/*`、`crates/` 与仓库级 `.lfaa/` 只允许出现在历史记录中，不再是当前设计。
 
@@ -28,11 +28,17 @@ App Entry
 6. 新 package 必须有真实实现、真实 Consumer 和清晰 Owner；
 7. 迁移优先保持公开 package name 与业务行为稳定。
 
-## 1.1 Usage 与模式边界
+## 1.1 Provider 与交互模式边界
 
-Provider 配置成功只表示认证/目录可用；余额与额度是独立事实链。`@lfaa/config-system` 定义 Usage Snapshot，Provider Adapter 声明官方 discovery，Host 执行真实请求，Client 只渲染返回值。ChatGPT 套餐通过 Codex App Server 暴露的 rate limit / usage 属于 **Codex / Work**，不等价于标准 ChatGPT Chat 消息额度。
+Provider 配置、Runtime 可用性、官方 Usage/Quota 是三个独立事实维度。认证方式可能是 API Key、OAuth/订阅、Workspace 或 Coding Plan；是否免费、套餐包含、按量计费、限额与重置时间只接受官方公开接口/Runtime 返回值，LFAA 不推算、不新增自己的模型额度。
 
-Chat 与 Work 共享 Workspace/Agent Runtime，但产品导航分开：Chat 面向轻量对话、知识与能力入口；Work 面向工作区、任务/运行、文件、终端和变更审查。后续 Chat 的“困难任务自动升级到 Work Runtime”必须由 Runtime Router 决定，不能靠 UI 假装切模式。
+Chat Agent 与 Work Agent **不是能力等级**。它们共享同一个 `AgentRunRequest`、Agent Runtime、Provider、Tool/MCP/Skill、Permission、Session/Run 与交付标准：
+
+- Chat Agent：conversation-first；用户用对话/插话干预同一个运行。
+- Work Agent：canvas-first；用户通过无限画布直接编辑执行上下文，也可继续对话/插话。
+- Manual：Workbench 第三种模式，不进入 `AgentRunRequest`，不要求模型；复用 Work Canvas 与真实工具基础设施，由用户完全手动操作。
+
+禁止建立 `ChatRuntime` / `WorkRuntime` 两套核心，禁止把复杂任务从“弱 Chat”升级到“强 Work”；复杂任务在 Chat 中同样由同一个 Agent Core 全自动完成。
 
 ## 2. 仓库层级
 
@@ -216,15 +222,17 @@ Chat Timeline
 
 ```text
 Workspace
-├─ Chat Mode
-└─ Work Mode
+├─ Chat Agent Mode
+├─ Work Agent Mode
+└─ Manual Mode
 ```
 
-两种 Mode 使用同一 Agent Runtime/Model/Permission/Session/Run 语义。
+Chat/Work 两种 Agent Mode 使用同一 Agent Runtime/Model/Permission/Session/Run 语义；Manual 不启动 Agent Run，但复用 Canvas/Tool 基础设施。
 
-- `workspace/shared`：共同 Session/Run controller；
-- `workspace/chat`：线性消息投影；
-- `workspace/work`：Work/Infinite Canvas 产品布局状态；
+- `workspace/shared`：Chat/Work 共同 Session/Run controller 与人工干预入口；
+- `workspace/chat`：对话式 Agent 投影与插话入口；
+- `workspace/work`：Work/Infinite Canvas 产品布局、用户可编辑上下文与 Agent 输出投影；
+- `workspace/manual`：无模型手动画布/工具模式，复用 Work Canvas，不创建 Agent Run；
 - `ui`：Pointer/Zoom/Drag/Resize/Overlay/Effect 等通用 primitive；
 - `app-shell`：Workbench、Composer、Settings 与产品装配。
 
@@ -232,7 +240,7 @@ Workspace
 
 当前术语必须保持明确：
 
-- **Workspace Mode**：Chat / Work 两种用户工作方式；
+- **Workspace Mode**：Chat Agent / Work Agent / Manual 三种用户交互方式；其中只有 Chat/Work 进入 Agent Core；
 - **Surface**：真实 UI 承载面或插件贡献目标，例如 Settings Surface；
 - **ViewModel**：UI 直接消费的派生数据；
 - **Renderer / Interaction Primitive**：Canvas、Resize、Effect 等通用渲染/交互能力；

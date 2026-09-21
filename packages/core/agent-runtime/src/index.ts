@@ -8,6 +8,8 @@ export type {
   AgentCapabilityDescriptor,
   AgentCapabilityKind,
   AgentExecutionHints,
+  AgentInterventionDisposition,
+  AgentInterventionRequest,
   AgentModelBinding,
   AgentRunHandle,
   AgentRunRequest,

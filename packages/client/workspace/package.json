@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/workspace",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.1.6",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼",
@@ -18,6 +18,7 @@
     "role": "workspace-feature-composition"
   },
   "imports": {
-    "#workspace/contracts": "./src/shared/contracts/workspace.types.ts"
+    "#workspace/contracts": "./src/shared/contracts/workspace.types.ts",
+    "#workspace/work": "./src/work/index.ts"
   }
 }

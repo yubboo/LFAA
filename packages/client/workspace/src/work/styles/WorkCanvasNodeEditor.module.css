@@ -1,0 +1,13 @@
+.root { position:absolute; z-index:18; right:1rem; top:1rem; width:min(20rem,calc(100% - 2rem)); display:flex; flex-direction:column; gap:.72rem; padding:.85rem; border:1px solid var(--agent-border); border-radius:1rem; background:color-mix(in srgb,var(--agent-elevated) 96%,transparent); box-shadow:0 .8rem 2.5rem rgba(0,0,0,.13); backdrop-filter:blur(14px); }
+.root header { display:flex; align-items:center; justify-content:space-between; gap:.7rem; }
+.root header > div { display:flex; flex-direction:column; gap:.12rem; min-width:0; }
+.root header strong { font-size:.78rem; }
+.root header span,.root p { color:var(--agent-muted); font-size:.64rem; line-height:1.45; }
+.root header button { width:1.8rem; height:1.8rem; border:0; border-radius:.55rem; background:transparent; color:var(--agent-muted); cursor:pointer; }
+.root label { display:flex; flex-direction:column; gap:.35rem; color:var(--agent-muted); font-size:.66rem; }
+.root input,.root textarea { width:100%; box-sizing:border-box; border:1px solid var(--agent-border); border-radius:.65rem; background:var(--agent-bg); color:var(--agent-text); padding:.58rem .65rem; font:inherit; resize:vertical; outline:none; }
+.root input:focus,.root textarea:focus { border-color:var(--agent-strong-border); }
+.root footer { display:flex; justify-content:flex-end; }
+.root footer button { min-height:2rem; padding:0 .8rem; border:1px solid var(--agent-strong-border); border-radius:.62rem; background:var(--agent-text); color:var(--agent-bg); cursor:pointer; }
+.root footer button:disabled { opacity:.45; cursor:not-allowed; }
+.root p { margin:0; }

@@ -84,7 +84,7 @@ if(!/runtimeConnected:\s*Boolean\(runtimeHost\)/.test(allApp))fail('missing shar
 if(allApp.includes("GPT-5.6 Sol"))fail("Workbench must not hard-code a model name");
 
 // 7. 左上切换、Permission、Add Menu、RuntimeControl 各自模块化但行为不丢失。
-for(const token of ["一句话直接完成任务","无限画布组织和执行任务","AGENT_PERMISSION_PROFILES","profile.description","工具与技能","浏览器","<RuntimeControl"])if(!allApp.includes(token))fail(`missing Workbench interaction ${token}`);
+for(const token of ["一句话交代任务","无限画布中执行","聊天 Agent","画布 Agent","手动模式","AGENT_PERMISSION_PROFILES","profile.description","工具与技能","浏览器","<RuntimeControl"])if(!allApp.includes(token))fail(`missing Workbench interaction ${token}`);
 if(/<select[^>]*value=\{permissionProfileId\}/.test(allApp))fail("permission must remain explanatory popover");
 for(const token of ["RuntimeModelPicker","ReasoningControlRow","toggleReasoningBoost","resetReasoning","useDismissibleLayer","onQuickSelectModel","onQuickUpdateModelSetting","quickModels.length === 0","管理模型"])if(!(runtimeView+runtimeRow+runtimeController+runtimePicker+composer).includes(token))fail(`missing RuntimeControl contract ${token}`);
 if((runtimeView+runtimeController).includes("modelMenuOpen")||(runtimeView+runtimeController).includes("reasoningMenuOpen"))fail("split runtime popovers must not return");

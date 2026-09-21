@@ -6,4 +6,5 @@
  */
 export * from "./chat";
 export * from "./work";
+export * from "./manual";
 export * from "./shared";

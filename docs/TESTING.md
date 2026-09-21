@@ -1,11 +1,13 @@
-# LFAA Testing & Gates — v0.1.5
+# LFAA Testing & Gates — v0.1.6
 
-## v0.1.5 Codex Windows Host 启动回归
+## v0.1.6 单核三模式回归
 
-- `ai-web-host.test.mjs` 锁定 Windows 使用显式 `cmd.exe` 包装且源码中不存在 `shell:true`。
-- 锁定 `where.exe codex` PATH 检测与脱敏 stderr 诊断。
-- 真实 Windows `codex --version` / `codex app-server` 仍属于用户环境端到端验收。
-
+- `workspace-mode-unification.test.mjs` 锁定 Chat/Work 只有一套 Agent Core / startRun / interveneRun；
+- Manual 必须存在于 Client Workspace Mode，但禁止进入 `AgentWorkspaceMode` / `AgentRunRequest`；
+- Work Canvas 人工编辑必须生成 `workspaceContext` 回到同一 Agent Core，Agent 输出必须能回投画布；
+- Chat 运行中插话必须走同一 `interveneRun`，支持 native steer 的 Runtime 不创建第二套聊天引擎；
+- Manual 可无模型进入并复用 InfiniteCanvas/Terminal；未注册 Review/Browser/File Tool 必须 disabled，不得伪造可用；
+- 当前 Provider Usage 回归继续要求“官方有则真实显示、官方无则明确未知/未提供”，禁止 LFAA 推算额度。
 
 ## v0.1.4 官方 Usage / 模式导航回归
 

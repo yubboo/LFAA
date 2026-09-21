@@ -1,10 +1,12 @@
-# LFAA UI Architecture — v0.1.5
+# LFAA UI Architecture — v0.1.6
 
-## v0.1.5 模式导航与官方 Usage
+## v0.1.6 三种交互模式
 
-Chat 左栏面向对话：新建对话、工具与技能、知识库、最近对话。Work 左栏面向开发工作：新建工作、工作区、任务与运行、文件、终端、变更与审查、项目与最近工作。
+Chat Agent 与 Work Agent 的视觉/干预方式不同，但能力完全相同：Chat 是 conversation-first，运行中用户通过对话插话；Work 是 canvas-first，用户可直接修改无限画布节点并把画布上下文送回同一个 Agent Core。Manual 是第三种完全手动模式，不要求配置模型，复用 Work Canvas 与真实 Terminal/Tool 基础能力。
 
-AI Settings 的余额/额度卡只展示 Host 返回的官方 Usage Snapshot；`Codex / Work`、`API`、`套餐` scope 必须显式标注，官方无数据时显示“官方未提供”。
+左侧导航、Center Header、Composer 和 Right Tool Surface 允许随模式改变**表现**；不得据此选择不同模型能力等级或复制 Agent Runtime。
+
+AI Settings 的余额/额度卡仍只展示 Host 返回的官方 Usage Snapshot；认证、Runtime Ready 与 Usage/Quota 是独立状态，官方无指标时显示“官方未提供”。
 
 
 UI 视觉和交互保持 v0.0.98 已验证行为，本版本主要改变代码 Owner，不重新设计 Workbench。
@@ -41,11 +43,12 @@ ui-terminal 由 client-web 组合进入需要的 Surface
 
 ```text
 Workspace
-├─ Chat Mode
-└─ Work Mode
+├─ Chat Agent Mode
+├─ Work Agent Mode
+└─ Manual Mode
 ```
 
-Chat 与 Work 共用 Session/Run controller。Work 保存 Canvas 的产品布局状态；Canvas pointer engine 仍属于 UI Kit。
+Chat 与 Work 共用 Session/Run controller 与干预入口。Work 保存 Canvas 布局/可编辑内容并投影 `workspaceContext`；Manual 复用 Canvas 但不启动 Agent Run；Canvas pointer engine 仍属于 UI Kit。
 
 ### `@lfaa/app-shell`
 

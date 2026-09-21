@@ -1,10 +1,28 @@
-# LFAA v0.1.5 — Codex Windows Host 启动与诊断修复
+# LFAA v0.1.6 — 单一 Agent Core / Chat·Work·Manual 三种交互模式
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.1.5**。本版以 v0.1.4 为基线修复 Windows/Node 24 下 Codex App Server 的启动方式：不再使用会触发 `DEP0190` 的 `shell + args`，改为显式 `cmd.exe` 包装固定 `codex app-server` 命令，并在启动失败时返回受限、脱敏后的官方 CLI stderr 诊断。v0.1.4 的官方余额/额度与 Chat/Work 模式边界保持不变。
+当前包：**LFAA-v0.1.6**。本版以 v0.1.4 为能力基线，把产品交互统一为“一套 Agent Core、三种模式”：Chat Agent 与 Work Agent 拥有完全相同的模型、工具、权限、自动化、质量与交付能力，只是人工干预的表现层不同；Manual 模式不需要模型，复用同一无限画布和真实工具基础设施，关闭模型驱动与自动规划。官方 Provider 的认证、免费/套餐/API 计量仍以官方事实为准，LFAA 不自行制造额度。
 
 > 当前真相以本 README、`ARCHITECTURE.md`、`DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
+
+## v0.1.6 当前产品模型
+
+```text
+                     LFAA Agent Core
+                           │
+          ┌────────────────┼────────────────┐
+          │                │                │
+     Chat Agent        Work Agent        Manual
+     对话式干预         无限画布干预         无模型手动
+          │                │                │
+          └──────── 同一 Tool / MCP / Skill / Canvas 基础能力 ────────┘
+```
+
+- **Chat Agent**：全自动 Agent。用户通过对话、插话、继续指令进行人工干预；不因界面是聊天就降低能力。
+- **Work Agent**：与 Chat 完全同核；AI 和用户通过无限画布协同，用户可直接编辑画布节点再继续对话干预。
+- **Manual**：不创建 `AgentRunRequest`，没有模型也可进入；用户直接操作无限画布、Terminal 和已注册真实工具。
+- **Provider**：认证方式、免费/订阅/API/Coding Plan、Usage/Quota 均以厂商官方公开能力为准；官方免费或套餐包含的能力在 LFAA 不附加额度。
 
 ## 产品定位
 
@@ -83,7 +101,7 @@ agent/config/plugin/terminal/llm adapters
 
 v0.1.2 的目标是让已经配置好的 ChatGPT/Codex 套餐模型真正进入聊天执行链，同时保持 v0.1.1 的 Harness、TSConfig、依赖与同步治理不回退。以下既有能力继续保留：
 
-- Chat / Work 同一 Workspace 双模式；
+- Chat Agent / Work Agent 同一 Agent Core、同能力双表现层；Manual 为无模型手动第三模式；
 - Work Infinite Canvas 与已有交互、布局持久化；
 - Composer、模型快捷切换、Reasoning Boost、Resize/Snap/动画；
 - AI Provider / Account / Model Settings；

@@ -1,0 +1,7 @@
+.root { position:relative; min-width:0; min-height:0; height:100%; overflow:hidden; background:var(--agent-bg); }
+.banner { position:absolute; z-index:12; top:1rem; left:50%; transform:translateX(-50%); width:min(46rem,calc(100% - 2rem)); display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.72rem .85rem; border:1px solid var(--agent-border); border-radius:.9rem; background:color-mix(in srgb,var(--agent-elevated) 94%,transparent); box-shadow:0 .45rem 1.5rem rgba(0,0,0,.08); backdrop-filter:blur(12px); }
+.banner > div { min-width:0; display:flex; flex-direction:column; gap:.16rem; }
+.banner strong { font-size:.78rem; color:var(--agent-text); }
+.banner span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.68rem; color:var(--agent-muted); }
+.banner button { flex:0 0 auto; height:2rem; padding:0 .72rem; border:1px solid var(--agent-strong-border); border-radius:.62rem; background:var(--agent-elevated); color:var(--agent-text); cursor:pointer; }
+.banner button[data-active="true"] { background:var(--agent-hover); }

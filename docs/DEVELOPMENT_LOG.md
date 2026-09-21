@@ -1,12 +1,15 @@
-# v0.1.5 / #22.12 Codex Windows Host 启动与诊断修复
+# v0.1.6 / #22.12 单一 Agent Core / Chat·Work·Manual 三模式
 
-**当前任务：v0.1.5 · pending-user-acceptance · AI=pass · 用户验收=pending**
+**当前任务：v0.1.6 · pending-user-acceptance · AI=pass · 用户验收=pending**
 
-- **实机复现：** Node 24 启动 Web 后出现 `DEP0190`；AI 设置页 Codex App Server `code=1`，ChatGPT 套餐登录入口被禁用。
-- **定位：** `@lfaa/codex-app-server` 在 Windows 使用 `shell:true + args` 运行 npm `codex.cmd`，且 stderr 被直接丢弃。
-- **修复：** 改为显式 `cmd.exe /d /s /v:off /c codex app-server` + `shell:false`；`where.exe codex` 检查 PATH；保留 4 KiB stderr 尾部并脱敏后用于错误诊断。
-- **保持：** v0.1.4 Usage、Chat/Work 导航、LFAA_HOME 账户持久化与 OAuth 安全边界不变。
-- **AI 验证：** 219/219 Node 合同测试 PASS；Codex Host/Runtime 聚焦测试 PASS；workspace-preflight PASS。真实 Windows Codex CLI 仍待用户验收。
+- Chat Agent 与 Work Agent 继续共用 `@lfaa/agent-runtime`、同一 Session Controller、模型绑定、权限和 Tool 能力；`workspaceMode` 不再表达强弱等级。
+- 新增统一 `interveneRun`：Chat 运行中通过对话插话；Work 通过同一入口携带人工编辑后的 `workspaceContext`。
+- Work Canvas 新增节点内容人工编辑，并把同一个 Agent Run 的最终输出回投 Canvas；Canvas 不成为第二套 Runtime。
+- 新增 Manual：无模型可进入，复用 Work Canvas、Local Terminal 与真实 Tool 注册基础设施；Manual 不进入 `AgentWorkspaceMode`。
+- Left/Header/Composer/Right Surface 改为三模式表现，未注册工具显式 disabled。
+- Provider Entitlement 原则写入当前开发规范：官方免费/套餐/API/Coding Plan 原样呈现，LFAA 不制造额度。
+- v0.1.5 的“用户必须安装全局 Codex CLI”产品方向不作为本版基线；后续 ChatGPT 套餐继续按官方可嵌入认证/Runtime 能力管理。
+- AI 验证：Node 合同测试 183/183 PASS；Config System 41/41 PASS；TypeScript/TSX 语法转译 165/165 PASS；workspace preflight 全 Gate PASS。
 
 # v0.1.4 / #22.11 官方余额额度与 Chat/Work 模式边界
 

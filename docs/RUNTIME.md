@@ -1,8 +1,8 @@
-# LFAA Runtime — v0.1.5
+# LFAA Runtime — v0.1.6
 
-> v0.1.5 Codex Host 启动：Windows 显式通过 `cmd.exe` 执行固定 `codex app-server`，禁止 Node `shell:true + args`；Host 启动失败只暴露有限、脱敏的 stderr 诊断。账户元数据与 Host 进程生命周期继续分离。
+> v0.1.6 Interaction Runtime：Chat Agent 与 Work Agent 共用同一个 Agent Core / Session Controller / `AgentRuntimeHost`。运行中人工干预统一进入 `interveneRun`：Chat 用对话插话；Work 还可把用户编辑后的无限画布投影成 `workspaceContext`。Manual 完全不创建 Agent Run，只复用 Canvas/Terminal/已注册 Tool 基础设施。
 
-> v0.1.5 Usage Runtime：账户配置与余额/额度分开验证。Config System 声明官方 usage discovery；Settings Host 实际请求官方端点；Client 只渲染 `AiAccountUsageSnapshot`。Codex App Server 的 usage/rate-limit 明确属于 Codex/Work，不表示标准 ChatGPT Chat 消息额度。
+> v0.1.4 Usage Runtime：账户配置与余额/额度分开验证。Config System 声明官方 usage discovery；Settings Host 实际请求官方端点；Client 只渲染 `AiAccountUsageSnapshot`。Codex App Server 的 usage/rate-limit 明确属于 Codex/Work，不表示标准 ChatGPT Chat 消息额度。
 
 
 > v0.1.3 修复 Codex Turn 在 `turn/start` 响应前取消时的未处理 Promise 拒绝；Run 对外仍以 `AbortError` 收敛，并在获得 Turn ID 后发送 `turn/interrupt`。
@@ -47,7 +47,7 @@ apps/web/vite.config.ts
 
 Bundle 是 Host Composition Owner。
 
-## 4. Agent text chat
+## 4. Unified Agent Run（Chat / Work 同核）
 
 Runtime 先由 Config System 的 Provider connection 决定协议：
 
@@ -73,6 +73,16 @@ Browser cancel
 → DELETE Run
 → AbortController
 → turn/interrupt
+
+Chat / Work 人工干预
+→ AgentRuntimeHost.interveneRun
+├─ Runtime 支持 steer → 原 Run 注入（如 Codex turn/steer）
+└─ Runtime 不支持 steer → Host 中断旧请求并在同一 Session 续跑
+
+Work Canvas 用户编辑
+→ workspaceContext
+→ 同一个 AgentRunRequest / intervention
+→ 同一个 Agent Core
 ```
 
 OpenAI-compatible 路径当前仍保留有限开发态内存历史；Codex 路径由官方 App Server Thread 保存多轮上下文。`assistant.completed` 是最终权威文本，Workspace 会用它覆盖同一 Run 已累积的 delta，而不是生成第二条回复。
@@ -80,6 +90,11 @@ OpenAI-compatible 路径当前仍保留有限开发态内存历史；Codex 路�
 Strong Reasoning 对 OpenAI-compatible 仍使用 `AgentExecutionHints.reasoningBoost`；Codex 模型自身的 reasoning setting 通过模型目录映射为官方 `turn/start.effort`。
 
 当前 Codex Text Runtime 为 **read-only**：审批/权限产品 UI 尚未接线前，不允许把“请求审批/完全访问”等 UI Profile 误当成 Codex 写入授权。
+
+## 4.1 Manual Runtime 边界
+
+Manual 是 Client/Workbench 交互模式，不属于 `AgentWorkspaceMode`。它不解析模型、不消费 Provider quota、不启动 Agent Run；用户仍可使用 Infinite Canvas、Local Terminal 和 Runtime Registry 中真正注册的工具。未实现的 Tool 必须 disabled，禁止用假结果模拟自动化。
+
 
 ## 5. AI Settings
 

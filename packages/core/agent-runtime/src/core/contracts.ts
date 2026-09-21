@@ -12,6 +12,10 @@
 import type { LfaaCapabilityDescriptor, LfaaCapabilityKind } from "@lfaa/plugin-sdk";
 import type { AgentPermissionProfileId } from "./permission-profiles.ts";
 
+/**
+ * Chat / Work 是同一个 Agent Core 的两种表现层。
+ * 该类型只能进入 AgentRunRequest；Manual 不属于 Agent 自动化运行。
+ */
 export type AgentWorkspaceMode = "chat" | "work";
 
 export interface AgentModelBinding {
@@ -32,6 +36,10 @@ export interface AgentExecutionHints {
 }
 
 export interface AgentRunRequest {
+  /**
+   * 仅描述用户当前的交互表现层，不得用它选择“低配 Chat Runtime / 高配 Work Runtime”。
+   * Chat 与 Work 必须共享同一套 Agent Core、工具、权限、模型与交付质量。
+   */
   readonly workspaceMode: AgentWorkspaceMode;
   readonly input: string;
   readonly model: AgentModelBinding;
@@ -40,6 +48,17 @@ export interface AgentRunRequest {
   /** 省略时由 Runtime Capability Registry 装配该工作区/模型的默认能力；UI 不自行挑选低配能力集。 */
   readonly capabilityIds?: readonly string[];
   readonly workspaceId: string;
+  /** 表现层提供给同一 Agent Core 的用户可编辑工作上下文；不得决定 Runtime 能力等级。 */
+  readonly workspaceContext?: string;
+}
+
+
+export type AgentInterventionDisposition = "steered" | "restarted";
+
+export interface AgentInterventionRequest {
+  readonly input: string;
+  /** Work 画布等表现层的人工编辑上下文；Chat 通常省略。 */
+  readonly workspaceContext?: string;
 }
 
 export interface AgentRunHandle {
@@ -49,6 +68,7 @@ export interface AgentRunHandle {
 
 export type AgentRuntimeEvent =
   | { readonly type: "run.started"; readonly runId: string; readonly sessionId: string }
+  | { readonly type: "run.intervention.accepted"; readonly runId: string; readonly sessionId: string; readonly input: string; readonly disposition: AgentInterventionDisposition }
   | { readonly type: "assistant.delta"; readonly runId: string; readonly sessionId: string; readonly delta: string }
   | { readonly type: "assistant.completed"; readonly runId: string; readonly sessionId: string; readonly text: string }
   | { readonly type: "run.failed"; readonly runId: string; readonly sessionId: string; readonly error: string }
@@ -62,6 +82,11 @@ export type AgentRuntimeEventListener = (event: AgentRuntimeEvent) => void;
  */
 export interface AgentRuntimeHost {
   startRun(request: AgentRunRequest): Promise<AgentRunHandle>;
+  /**
+   * 用户在当前 Agent Run 进行中追加干预。支持原生 steer 的 Runtime 直接注入；
+   * 不支持的 Provider 由 Host 中断旧请求并以同一 Session 重启，不在 UI 复制第二套逻辑。
+   */
+  interveneRun(runId: string, request: AgentInterventionRequest): Promise<{ readonly handle: AgentRunHandle; readonly disposition: AgentInterventionDisposition }>;
   cancelRun(runId: string): Promise<void>;
   /** Runtime 事件是 Chat / Work 派生 ViewModel 的唯一执行结果来源；UI 不自己伪造模型回复。 */
   subscribe(listener: AgentRuntimeEventListener): () => void;

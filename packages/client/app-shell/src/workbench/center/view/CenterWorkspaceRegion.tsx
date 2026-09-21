@@ -1,16 +1,17 @@
 /**
  * 文件：CenterWorkspaceRegion.tsx
  * 作用：工作台中央大模块的唯一装配点。
- * 负责：按 Header → Workspace(Chat/Work) → Composer 的父子顺序装配中央区域，只传递显式 Props/Callback。
- * 不负责：左/右栏、终端、Settings、Shell 状态、Composer/RuntimeControl 私有状态。
- * 状态归属：本文件不拥有业务状态；展示状态由子模块持有，跨区域事实由上层 Controller 提供。
+ * 负责：按 Header → Workspace(Chat/Work/Manual) → Control Bar 的父子顺序装配中央区域。
+ * 不负责：左/右栏、终端实现、Settings、Shell 状态、具体 Agent/Tool Runtime。
+ * 状态归属：本文件不拥有业务状态；跨区域事实由上层 Controller 提供。
  * 对外接口：CenterWorkspaceRegion。
- * 修改注意事项：禁止深链导入子模块内部文件；只能通过 header/composer 的 index.ts 与 @lfaa/workspace 公共入口使用子模块 API。
+ * 关联文件：header/composer、@lfaa/workspace。
+ * 修改注意事项：Chat/Work 只切换表现层，必须共享同一 onSubmitTask；Manual 不启动 Agent Run。
  */
-import type { AgentExecutionHints, AgentPermissionProfileId, AgentRunHandle, AgentWorkspaceMode } from "@lfaa/agent-runtime";
+import type { AgentExecutionHints, AgentPermissionProfileId, AgentRunHandle } from "@lfaa/agent-runtime";
 import type { AiModelSettingValue } from "@lfaa/config-system";
 import type { ActiveReasoningControl, LayoutMode, QuickModelOption } from "#workbench/contracts";
-import { ChatWorkspace, WorkWorkspace, type ChatMessageViewModel } from "@lfaa/workspace";
+import { ChatWorkspace, ManualWorkspace, WorkWorkspace, type ChatMessageViewModel, type WorkspaceMode } from "@lfaa/workspace";
 import { ComposerRegion } from "../composer";
 import { CenterHeader } from "../header";
 import styles from "../styles/CenterWorkspace.module.css";
@@ -20,15 +21,17 @@ export interface CenterWorkspaceRegionProps {
   leftCollapsed: boolean;
   rightCollapsed: boolean;
   terminalOpen: boolean;
-  workspaceMode: AgentWorkspaceMode;
+  workspaceMode: WorkspaceMode;
   permissionProfileId: AgentPermissionProfileId;
   modelLabel: string;
   quickModels: readonly QuickModelOption[];
   activeReasoning: ActiveReasoningControl | null;
   runtimeConnected: boolean;
+  automationReady: boolean;
   chatMessages: readonly ChatMessageViewModel[];
   workspaceId: string | undefined;
   lastRunInput: string | null;
+  lastAssistantText: string | null;
   onPermissionProfileChange: (profileId: AgentPermissionProfileId) => void;
   onSubmitTask: (input: string, executionHints?: AgentExecutionHints, modelSettingOverrides?: Readonly<Record<string, AiModelSettingValue>>) => Promise<AgentRunHandle>;
   onQuickSelectModel: (accountId: string, modelId: string) => Promise<void>;
@@ -39,6 +42,7 @@ export interface CenterWorkspaceRegionProps {
   onToggleTerminal: () => void;
   onLeftHoverEnter: () => void;
   onLeftHoverLeave: () => void;
+  onWorkContextChange: (context: string) => void;
 }
 
 export function CenterWorkspaceRegion(props: CenterWorkspaceRegionProps) {
@@ -58,7 +62,9 @@ export function CenterWorkspaceRegion(props: CenterWorkspaceRegionProps) {
         onLeftHoverLeave={props.onLeftHoverLeave}
       />
       {props.workspaceMode === "work" ? (
-        <WorkWorkspace workspaceId={props.workspaceId} lastRunInput={props.lastRunInput} />
+        <WorkWorkspace workspaceId={props.workspaceId} lastRunInput={props.lastRunInput} lastRunOutput={props.lastAssistantText} onContextChange={props.onWorkContextChange} />
+      ) : props.workspaceMode === "manual" ? (
+        <ManualWorkspace workspaceId={props.workspaceId} terminalOpen={props.terminalOpen} onToggleTerminal={props.onToggleTerminal} />
       ) : (
         <ChatWorkspace layoutMode={props.layoutMode} messages={props.chatMessages} />
       )}
@@ -70,11 +76,13 @@ export function CenterWorkspaceRegion(props: CenterWorkspaceRegionProps) {
         quickModels={props.quickModels}
         activeReasoning={props.activeReasoning}
         runtimeConnected={props.runtimeConnected}
+        automationReady={props.automationReady}
         onPermissionProfileChange={props.onPermissionProfileChange}
         onSubmitTask={props.onSubmitTask}
         onQuickSelectModel={props.onQuickSelectModel}
         onQuickUpdateModelSetting={props.onQuickUpdateModelSetting}
         onOpenAiSettings={props.onOpenAiSettings}
+        onToggleTerminal={props.onToggleTerminal}
       />
     </section>
   );

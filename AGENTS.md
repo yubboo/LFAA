@@ -1,6 +1,15 @@
-# LFAA Agent / Contributor Guide — v0.1.5
+# LFAA Agent / Contributor Guide — v0.1.6
 
 本文件给 AI Agent 和开发者提供最短路径的当前约束。**先遵守当前代码与本文件，再参考历史记录。**
+
+
+## v0.1.6 不可破坏的模式原则
+
+1. Chat Agent 与 Work Agent **只能有一套 Agent Core / AgentRunRequest / Session Controller / Runtime Host**。
+2. 二者能力、智力、性能、工具、权限、自动化与最终交付质量必须同构；`workspaceMode` 只描述交互表现层。
+3. Chat 的人工干预是对话/插话；Work 的人工干预是无限画布编辑 + 对话继续。
+4. Manual 是无模型手动模式：不得进入 Agent Runtime，但必须复用 Work Canvas 和真实 Tool/Terminal 基础设施。
+5. Provider 官方免费、套餐包含、按量 API、Coding Plan 等 entitlement 原样映射；禁止 LFAA 自造余额、免费/收费规则。
 
 ## 先读
 
@@ -144,7 +153,7 @@ pnpm run quality:full
 
 当前真相：代码 + 自动门禁 + `ARCHITECTURE.md` / `DEVELOPMENT.md` / 本文件。
 
-`CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md`、`docs/PROMPTS.md` 是历史账本。旧条目里出现 `.lfaa`、`crates/`、`apps/web/dev` 等路径时，只解释当时版本，不用于指导 v0.1.5 开发。
+`CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md`、`docs/PROMPTS.md` 是历史账本。旧条目里出现 `.lfaa`、`crates/`、`apps/web/dev` 等路径时，只解释当时版本，不用于指导 v0.1.4 开发。
 
 ## TSConfig 继承边界
 

@@ -1,12 +1,14 @@
-# LFAA Releases — current policy v0.1.5
+# LFAA Releases — current policy v0.1.6
 
-## v0.1.5 — #22.12 Codex Windows Host 启动与诊断修复
+## v0.1.6 — #22.12 单一 Agent Core / Chat·Work·Manual
 
-- Windows Codex App Server 改为显式 `cmd.exe /d /s /v:off /c codex app-server`，不再使用触发 Node 24 `DEP0190` 的 `shell + args`。
-- 启动前验证 `where.exe codex`；失败时返回受限、脱敏 stderr，便于区分 PATH、CLI 版本、App Server 自身错误。
-- v0.1.4 官方 Usage / Chat-Work 语义保持不变。
-- 状态：`pending-user-acceptance`；AI 验证 `pass`；真实 Windows Codex CLI 端到端待用户验收。
-
+- 状态：`pending-user-acceptance`；AI 验证：`pass`；用户验收：`pending`。
+- Chat Agent / Work Agent 继续共享同一 Agent Runtime、模型、工具、权限与交付质量；`workspaceMode` 只描述表现层。
+- 新增运行中 `interveneRun`：Chat 通过对话插话，Work 通过同一入口附带人工编辑后的 `workspaceContext`；Codex 类 Runtime 可使用原生 steer，其他 Provider 由 Host 统一续跑。
+- Work 无限画布节点支持人工编辑，Agent 输出回投同一画布；用户和 AI 围绕同一 Workspace Context 协作。
+- 新增 Manual：无模型也可进入，复用 InfiniteCanvas、Terminal 与真实 Tool 基础设施；Manual 不创建 Agent Run。
+- Provider entitlement 原则冻结：官方免费/套餐/API/Coding Plan 的可用性和额度原样映射，LFAA 不添加自有模型额度。
+- AI 验证：Node 合同测试 183/183 PASS；Config System 41/41 PASS；TypeScript/TSX 语法转译 165/165 PASS；workspace preflight 全 Gate PASS。
 
 ## v0.1.4 — #22.11 官方余额额度与 Chat/Work 模式边界
 
@@ -64,9 +66,10 @@
 ## 当前版本
 
 ```text
-displayVersion: 0.1.5
-releaseSequence: 103
-architectureVersion: 5
+displayVersion: 0.1.6
+releaseSequence: 106
+architectureVersion: 6
+agentProtocolVersion: 3
 ```
 
 `lfaa.release.json` 是版本元数据 Owner。根 package、workspace packages 和 Native crate 版本必须保持一致。`releaseSequence` 是独立内部发布序号，不等于 displayVersion 的 patch 位。

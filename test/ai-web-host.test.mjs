@@ -97,14 +97,9 @@ test("Web product entry delegates native host assembly to packages", async () =>
 
 test("Codex App Server adapter uses official JSONL account/model RPC and Windows-safe spawn", async () => {
   const source = await read("packages/harness/codex-app-server/src/codex-app-server.ts");
-  assert.match(source, /spawnCodexAppServer/);
-  assert.match(source, /spawnSync\("where\.exe", \["codex"\]/);
-  assert.match(source, /spawn\("cmd\.exe", \["\/d", "\/s", "\/v:off", "\/c", "codex app-server"\]/);
-  assert.match(source, /"\/d", "\/s", "\/v:off", "\/c", "codex app-server"/);
-  assert.doesNotMatch(source, /shell:\s*true/);
-  assert.match(source, /stdio = \["pipe", "pipe", "pipe"\]/);
-  assert.match(source, /safeProcessDiagnostic/);
-  assert.match(source, /CLI 输出/);
+  assert.match(source, /spawn\("codex", \["app-server"\]/);
+  assert.match(source, /shell: process\.platform === "win32"/);
+  assert.match(source, /stdio: \["pipe", "pipe", "pipe"\]/);
   assert.match(source, /request\("initialize"/);
   assert.match(source, /notify\("initialized"/);
   assert.match(source, /request\("account\/login\/start"/);

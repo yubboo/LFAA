@@ -54,6 +54,7 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
       themePreference={theme.themePreference}
       workspaceMode={session.workspaceMode}
       onWorkspaceModeChange={session.setWorkspaceMode}
+      onToggleTerminal={chrome.toggleTerminal}
       onOpenProfile={overlays.openProfile}
       onOpenThemeMenu={overlays.openThemeMenu}
       onRequestUpdate={overlays.requestUpdate}
@@ -71,11 +72,13 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
       quickModels={ai.quickModels}
       activeReasoning={ai.activeReasoning}
       runtimeConnected={session.runtimeConnected}
+      automationReady={session.automationReady}
       chatMessages={session.chatMessages}
       workspaceId={props.workspaceId}
       lastRunInput={session.lastRunInput}
+      lastAssistantText={session.lastAssistantText}
       onPermissionProfileChange={session.setPermissionProfileId}
-      onSubmitTask={session.startAgentRun}
+      onSubmitTask={session.submitAgentInput}
       onQuickSelectModel={ai.quickSelectModel}
       onQuickUpdateModelSetting={ai.quickUpdateModelSetting}
       onOpenAiSettings={()=>settingsSurface.openSettings("ai")}
@@ -84,6 +87,7 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
       onToggleTerminal={chrome.toggleTerminal}
       onLeftHoverEnter={chrome.openLeftPreview}
       onLeftHoverLeave={()=>chrome.closeLeftPreview(120)}
+      onWorkContextChange={session.setWorkContext}
     />
   );
   const right=(
@@ -91,6 +95,7 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
       {...(props.resources ? { resources: props.resources } : {})}
       {...(props.resourceBridgeStatus ? { resourceBridgeStatus: props.resourceBridgeStatus } : {})}
       layoutMode={chrome.layoutMode}
+      workspaceMode={session.workspaceMode}
       terminalOpen={chrome.chrome.terminalOpen}
       rightCollapsed={chrome.chrome.rightCollapsed}
       onToggleTerminal={chrome.toggleTerminal}

@@ -40,10 +40,10 @@ test("active model is explicit and never inferred from account order",()=>{asser
 
 test("Chat and Work own distinct left navigation surfaces",()=>{
   assert.match(left,/workspaceMode === "chat"/);
-  assert.match(left,/aria-label="聊天导航"/);
+  assert.match(left,/aria-label="聊天 Agent 导航"/);
   assert.match(left,/新建对话/);
   assert.match(left,/知识库/);
-  assert.match(left,/aria-label="工作区导航"/);
+  assert.match(left,/aria-label="画布 Agent 导航"/);
   assert.match(left,/新建工作/);
   assert.match(left,/任务与运行/);
   assert.match(left,/文件/);

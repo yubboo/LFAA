@@ -8,6 +8,14 @@
  * 关联文件：ChatWorkspace.tsx、useWorkspaceSessionController.ts。
  * 修改注意事项：只提升 Chat/Work 都需要的稳定契约，禁止把子模块私有 State 变成全局类型。
  */
+import type { AgentWorkspaceMode } from "@lfaa/agent-runtime";
+
+/**
+ * Workbench 的三种用户工作方式。
+ * Chat / Work 都是 Agent 自动化，只是交互表现不同；Manual 完全不启动模型。
+ */
+export type WorkspaceMode = AgentWorkspaceMode | "manual";
+
 export interface ChatMessageViewModel {
   id: string;
   role: "user" | "assistant" | "error";
