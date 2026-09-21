@@ -18,6 +18,7 @@ class FakeCodexClient {
   calls = [];
   turnNumber = 0;
   completeTurns = true;
+  turnStartGate = null;
 
   async ensureStarted() {}
 
@@ -35,6 +36,7 @@ class FakeCodexClient {
     if (method === "thread/start") return { thread: { id: "thr_test" } };
     if (method === "turn/start") {
       const turnId = `turn_${++this.turnNumber}`;
+      if (this.turnStartGate) await this.turnStartGate;
       if (this.completeTurns) {
         queueMicrotask(() => {
           this.emit("item/agentMessage/delta", { threadId: params.threadId, turnId, itemId: "msg_1", delta: "你" });
@@ -100,6 +102,30 @@ test("Codex text runtime converts AbortSignal into turn/interrupt", async () => 
   });
   await new Promise((resolve) => setImmediate(resolve));
   abort.abort();
+  await assert.rejects(running, (error) => error?.name === "AbortError");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(client.calls.some((call) => call.method === "turn/interrupt" && call.params.turnId === "turn_1"), true);
+});
+
+test("Codex cancellation before turn/start responds does not leave an unhandled rejection", async () => {
+  const client = new FakeCodexClient();
+  client.completeTurns = false;
+  let releaseTurnStart;
+  client.turnStartGate = new Promise((resolve) => { releaseTurnStart = resolve; });
+  const runtime = new CodexAppServerTextRuntime(client);
+  const abort = new AbortController();
+  const running = runtime.runText({
+    sessionKey: "delayed-turn-start",
+    modelId: "gpt-5.6-luna",
+    input: "等待取消",
+    cwd: "/tmp/lfaa",
+    signal: abort.signal,
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(client.calls.some((call) => call.method === "turn/start"), true);
+  abort.abort();
+  await new Promise((resolve) => setImmediate(resolve));
+  releaseTurnStart();
   await assert.rejects(running, (error) => error?.name === "AbortError");
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(client.calls.some((call) => call.method === "turn/interrupt" && call.params.turnId === "turn_1"), true);

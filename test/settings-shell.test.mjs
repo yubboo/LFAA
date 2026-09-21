@@ -37,3 +37,16 @@ test("AI provider capability mapping lives in settings mapping/controller, not r
 test("API Key and subscription contracts remain intact",()=>{assert.match(aiPanel,/!secret\.trim\(\) \|\| !selectedModelId/);assert.match(aiPanel,/isSubscription \? \(/);assert.match(aiPanel,/activeAuthView\?\.secretLabel/);assert.doesNotMatch(aiPanel,/fetch\s*\(|https?:\/\//);});
 
 test("active model is explicit and never inferred from account order",()=>{assert.match(aiController,/snapshot\.activeModel/);assert.doesNotMatch(aiController,/accounts\.find\(\(account\) => Boolean\(account\.selectedModelId\)\)/);assert.match(settingsSurface,/activeAiModel=\{ai\.snapshot\.activeModel\}/);assert.match(aiPanel,/设为当前模型/);});
+
+test("Chat and Work own distinct left navigation surfaces",()=>{
+  assert.match(left,/workspaceMode === "chat"/);
+  assert.match(left,/aria-label="聊天导航"/);
+  assert.match(left,/新建对话/);
+  assert.match(left,/知识库/);
+  assert.match(left,/aria-label="工作区导航"/);
+  assert.match(left,/新建工作/);
+  assert.match(left,/任务与运行/);
+  assert.match(left,/文件/);
+  assert.match(left,/终端/);
+  assert.match(left,/变更与审查/);
+});

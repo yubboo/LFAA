@@ -1,4 +1,20 @@
-# LFAA Releases — current policy v0.1.2
+# LFAA Releases — current policy v0.1.4
+
+## v0.1.4 — #22.11 官方余额额度与 Chat/Work 模式边界
+
+- 新增统一 `AiAccountUsageSnapshot`；Provider 只能接官方余额/额度/usage/rate-limit 数据。
+- ChatGPT 套餐使用 Codex App Server `account/rateLimits/read` / `account/usage/read`，只标记为 Codex/Work，不冒充标准 ChatGPT Chat 额度。
+- DeepSeek 接官方 `/user/balance`；阿里云在具备 Workspace ID 时接官方 `/api/v1/quotas`。
+- 官方未提供稳定普通账户接口的 Provider 明确显示“官方未提供”，禁止估算。
+- Chat/Work 左侧导航按模式分流。
+- 状态：`pending-user-acceptance`；真实 Provider 端到端额度值仍由用户实机账户验收。
+
+
+## v0.1.3 — #22.10 全量质量门禁与 Codex 取消竞态修复
+
+- 修复 Web TypeScript 严格可选参数错误、旧 Node source importer 测试与 Codex 提前取消的未处理拒绝。
+- 发布验证：`pnpm run quality:full` 全链通过；Rust check/test 通过（2/2）；Web 开发入口 200；Unicode ZIP 745 entries，fresh extract `workspace-preflight` 全 Gate PASS。
+- 状态：`pending-user-acceptance`；AI 验证 `pass`；用户验收 `pending`。
 
 ## v0.1.2 — Codex App Server Chat Runtime
 
@@ -40,8 +56,8 @@
 ## 当前版本
 
 ```text
-displayVersion: 0.1.2
-releaseSequence: 102
+displayVersion: 0.1.4
+releaseSequence: 103
 architectureVersion: 5
 ```
 

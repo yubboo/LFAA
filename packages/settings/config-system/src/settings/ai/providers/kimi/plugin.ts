@@ -12,6 +12,7 @@ import type { AiModelCapabilities, AiProviderPlugin } from "../provider-contract
 
 const BASES: Record<string, string> = { china: "https://api.moonshot.cn/v1", international: "https://api.moonshot.ai/v1" };
 const CHECKED_AT = "2026-09-19";
+const USAGE_SOURCE = { kind: "official-docs", label: "Kimi 官方开放平台", url: "https://platform.kimi.com/docs", checkedAt: "2026-09-21" } as const;
 const THINKING_SOURCE = { kind: "official-docs", label: "Kimi 思考模型", url: "https://platform.kimi.com/docs/guide/use-thinking-models", checkedAt: CHECKED_AT } as const;
 
 function describeModel(modelId: string): AiModelCapabilities | null {
@@ -45,7 +46,7 @@ export const kimiProviderPlugin: AiProviderPlugin = {
     const region = settings.region || "china";
     const baseUrl = BASES[region];
     if (!baseUrl) throw new Error(`未知 Kimi 区域：${region}`);
-    return { providerId: "kimi", authMethodId, protocol: "openai-compatible", baseUrl, authHeader: { name: "Authorization", scheme: "Bearer" }, modelDiscovery: { kind: "http-list", method: "GET", url: `${baseUrl}/models`, responseShape: "openai-model-list", source: { kind: "runtime-model-api", label: "Kimi GET /v1/models", url: `${baseUrl}/models`, checkedAt: CHECKED_AT } }, metadata: { region } };
+    return { providerId: "kimi", authMethodId, protocol: "openai-compatible", baseUrl, authHeader: { name: "Authorization", scheme: "Bearer" }, modelDiscovery: { kind: "http-list", method: "GET", url: `${baseUrl}/models`, responseShape: "openai-model-list", source: { kind: "runtime-model-api", label: "Kimi GET /v1/models", url: `${baseUrl}/models`, checkedAt: CHECKED_AT } }, usageDiscovery: { kind: "official-unavailable", source: USAGE_SOURCE, reason: "当前未找到可由普通 Kimi API Key 直接读取余额/剩余额度的稳定官方账户端点；LFAA 不展示估算余额。" }, metadata: { region } };
   },
   describeModel,
 };

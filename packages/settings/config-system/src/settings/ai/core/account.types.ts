@@ -14,6 +14,64 @@ import type { AiHostCapabilityId, AiModelCapabilities, AiModelCapabilitySource, 
 export type AiAccountVerificationStatus = "connected" | "unverified" | "error";
 export type AiSecretPersistence = Exclude<CredentialPersistence, "unavailable">;
 
+
+export interface AiOfficialUsageSource {
+  kind: "official-runtime" | "official-api" | "official-docs";
+  label: string;
+  url: string;
+  checkedAt: string;
+}
+
+export interface AiBalanceEntry {
+  currency: string;
+  total: string;
+  granted?: string;
+  toppedUp?: string;
+}
+
+export interface AiRateLimitWindow {
+  id: string;
+  label?: string;
+  usedPercent: number;
+  windowDurationMins?: number;
+  resetsAt?: number;
+  planType?: string;
+}
+
+export interface AiModelQuotaEntry {
+  model: string;
+  requestLimit?: number;
+  requestLimitPeriodSec?: number;
+  tokenLimit?: number;
+  tokenLimitPeriodSec?: number;
+  tokenField?: string;
+  workspaceRequestLimit?: number;
+  workspaceTokenLimit?: number;
+}
+
+export interface AiTokenUsageSummary {
+  lifetimeTokens?: number | null;
+  peakDailyTokens?: number | null;
+  longestRunningTurnSec?: number | null;
+  currentStreakDays?: number | null;
+  longestStreakDays?: number | null;
+}
+
+export interface AiAccountUsageSnapshot {
+  status: "available" | "unavailable";
+  /** 真实计量域：ChatGPT 标准聊天与 Codex/Work 必须分开，禁止混成一个“套餐余额”。 */
+  scope: "codex-work" | "api" | "provider-plan";
+  source: AiOfficialUsageSource;
+  checkedAt: string;
+  message: string;
+  planType?: string;
+  balances?: readonly AiBalanceEntry[];
+  rateLimits?: readonly AiRateLimitWindow[];
+  modelQuotas?: readonly AiModelQuotaEntry[];
+  tokenUsage?: AiTokenUsageSummary;
+  resetCreditsAvailable?: number | null;
+}
+
 export interface AiHostCapabilityStatus {
   available: boolean;
   reason?: string;

@@ -37,8 +37,8 @@ export function createLfaaWebViteConfig(options: LfaaWebViteConfigOptions) {
   const codexHost = new CodexAppServerHost();
   return createLfaaViteHostConfig({
     appRoot: options.appRoot,
-    devPort: options.devPort,
-    previewPort: options.previewPort,
+    ...(options.devPort !== undefined ? { devPort: options.devPort } : {}),
+    ...(options.previewPort !== undefined ? { previewPort: options.previewPort } : {}),
     plugins: [
       createLfaaDevTerminalBridge(options.projectRoot),
       lfaaDevAiConfigBridge(options.projectRoot, { managedAuth: codexHost.managedAuth }),

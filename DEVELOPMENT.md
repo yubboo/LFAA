@@ -1,4 +1,4 @@
-# LFAA Development Standard — v0.1.2
+# LFAA Development Standard — v0.1.4
 
 本文件是当前开发规范。历史版本的设计过程请看 `CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md` 和 `docs/PROMPTS.md`；历史内容不得覆盖本文件。
 
@@ -14,6 +14,10 @@ LFAA 不是“一个 React App 加若干工具函数”，而是一个 packages-
 - Package manager：仅 pnpm
 
 Windows 优先使用 `LFAA-Setup.bat`。Setup 依赖检测以 `pnpm-workspace.yaml` 声明的全部 workspace importer 为范围，以真实安装/解析 + importer 级 lockfile 覆盖为准；dependency-state 只用于显示依赖声明差异和加速基线，不能决定“已就绪”。菜单 1 被用户选择后，如检测到真实缺依赖，会自动同步当前声明的 Node 依赖。
+
+## 2.1 官方状态数据
+
+所有 Provider 余额/额度/速率限制必须可追溯到官方 API 或官方 Runtime。无官方稳定接口时应返回“不可用/官方未提供”，不得生成百分比、余额或“无限”标签。OpenAI ChatGPT 标准 Chat 与 Codex/Work 的额度语义必须分开；仅 `account/rateLimits/read` / `account/usage/read` 得到的数据只能标记为 Codex/Work。
 
 ## 3. 仓库规则
 

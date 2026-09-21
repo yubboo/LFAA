@@ -37,12 +37,32 @@ export function LeftSidebarRegion({ resolvedTheme, themePreference, workspaceMod
         </div>
         <div className={styles.brandActions}><IconButton type="button" aria-label="搜索"><WorkbenchIcon name="search" /></IconButton></div>
       </div>
-      <button className={styles.newTask} type="button"><WorkbenchIcon name="new" />新建任务<span>⌘ K</span></button>
-      <nav className={styles.nav} aria-label="主导航"><button type="button"><WorkbenchIcon name="tools" />工具与技能</button><button type="button"><WorkbenchIcon name="archive" />知识库</button></nav>
-      <div className={styles.sectionTitle}><span>项目</span><button type="button" aria-label="新建项目"><WorkbenchIcon name="plus" size={15} /></button></div>
-      <div className={styles.projects}><button type="button"><WorkbenchIcon name="folder" />lfaa</button></div>
-      <div className={`${styles.sectionTitle} ${styles.recentTitle}`}><span>最近</span></div>
-      <div className={styles.history}>{recentRuns.map((item,index)=><button type="button" key={item} className={index===1?styles.current:""}>{item}</button>)}</div>
+      {workspaceMode === "chat" ? (
+        <>
+          <button className={styles.newTask} type="button"><WorkbenchIcon name="new" />新建对话<span>⌘ K</span></button>
+          <nav className={styles.nav} aria-label="聊天导航">
+            <button type="button"><WorkbenchIcon name="tools" />工具与技能</button>
+            <button type="button"><WorkbenchIcon name="archive" />知识库</button>
+          </nav>
+          <div className={`${styles.sectionTitle} ${styles.recentTitle}`}><span>最近对话</span></div>
+          <div className={styles.history}>{recentRuns.map((item,index)=><button type="button" key={item} className={index===1?styles.current:""}>{item}</button>)}</div>
+        </>
+      ) : (
+        <>
+          <button className={styles.newTask} type="button"><WorkbenchIcon name="new" />新建工作<span>⌘ K</span></button>
+          <nav className={styles.nav} aria-label="工作区导航">
+            <button type="button"><WorkbenchIcon name="grid" />工作区</button>
+            <button type="button"><WorkbenchIcon name="tools" />任务与运行</button>
+            <button type="button"><WorkbenchIcon name="folder" />文件</button>
+            <button type="button"><WorkbenchIcon name="terminal" />终端</button>
+            <button type="button"><WorkbenchIcon name="archive" />变更与审查</button>
+          </nav>
+          <div className={styles.sectionTitle}><span>项目</span><button type="button" aria-label="新建项目"><WorkbenchIcon name="plus" size={15} /></button></div>
+          <div className={styles.projects}><button type="button"><WorkbenchIcon name="folder" />lfaa</button></div>
+          <div className={`${styles.sectionTitle} ${styles.recentTitle}`}><span>最近工作</span></div>
+          <div className={styles.history}>{recentRuns.map((item,index)=><button type="button" key={item} className={index===1?styles.current:""}>{item}</button>)}</div>
+        </>
+      )}
       <ProfileBar resolvedTheme={resolvedTheme} themePreference={themePreference} onOpenProfile={onOpenProfile} onOpenThemeMenu={onOpenThemeMenu} onRequestUpdate={onRequestUpdate} />
     </aside>
   );

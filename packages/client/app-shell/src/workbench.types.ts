@@ -11,7 +11,7 @@
 import type { ReactNode } from "react";
 import type { AgentRuntimeHost } from "@lfaa/agent-runtime";
 import type { PluginInstallOutcome, PluginManagerSnapshot, PluginSpecInspection } from "@lfaa/plugin-runtime";
-import type { AiAccountDraft, AiAccountProbeResult, AiAccountSnapshot, AiModelSettingValue } from "@lfaa/config-system";
+import type { AiAccountDraft, AiAccountProbeResult, AiAccountSnapshot, AiAccountUsageSnapshot, AiModelSettingValue } from "@lfaa/config-system";
 
 export type ResourceKind = "skills" | "experts" | "plugins" | "extensions" | "mcp";
 
@@ -28,6 +28,7 @@ export interface AgentAiSettingsHost {
   probe(draft: AiAccountDraft, secret: string): Promise<AiAccountProbeResult>;
   save(draft: AiAccountDraft, secret: string): Promise<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>;
   connectSubscription(draft: AiAccountDraft): Promise<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>;
+  usage(accountId: string): Promise<AiAccountUsageSnapshot>;
   reprobe(accountId: string): Promise<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>;
   deleteAccount(accountId: string): Promise<AiAccountSnapshot>;
   selectModel(accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiModelSettingValue>>): Promise<AiAccountSnapshot>;

@@ -1,4 +1,4 @@
-# LFAA Modules — v0.1.2 Current Ownership
+# LFAA Modules — v0.1.4 Current Ownership
 
 本文件只描述当前模块 Owner。旧版本细节请到 DEVELOPMENT_LOG/CHANGELOG 查历史。
 
@@ -13,7 +13,7 @@
 | client | `@lfaa/workspace` | Chat + Work Workspace 产品域 |
 | client | `@lfaa/ui` | Shared UI Kit / Interaction primitives |
 | client | `@lfaa/ui-terminal` | Terminal UI |
-| settings | `@lfaa/config-system` | AI Config Domain |
+| settings | `@lfaa/config-system` | AI Config Domain + 官方 Usage/Quota 规范化 |
 | settings | `@lfaa/config-host-node` | Node persistence / HTTP host ports |
 | llm | `@lfaa/llm-openai-compatible` | Provider runtime HTTP adapter |
 | credentials | `@lfaa/credentials` | Credential Service Definition |

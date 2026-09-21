@@ -13,6 +13,7 @@ import type { AiModelCapabilities, AiProviderPlugin } from "../provider-contract
 const BASE = "https://api.deepseek.com";
 const CHECKED_AT = "2026-09-19";
 const RUNTIME_SOURCE = { kind: "runtime-model-api", label: "DeepSeek GET /models", url: `${BASE}/models`, checkedAt: CHECKED_AT } as const;
+const BALANCE_SOURCE = { kind: "official-docs", label: "DeepSeek GET /user/balance", url: "https://api-docs.deepseek.com/api/get-user-balance/", checkedAt: CHECKED_AT } as const;
 const THINKING_SOURCE = { kind: "official-docs", label: "DeepSeek Thinking Mode", url: "https://api-docs.deepseek.com/guides/thinking_mode/", checkedAt: CHECKED_AT } as const;
 
 function describeModel(modelId: string): AiModelCapabilities | null {
@@ -47,7 +48,7 @@ export const deepSeekProviderPlugin: AiProviderPlugin = {
   configFields: [],
   resolveConnection({ authMethodId }) {
     if (authMethodId !== "api-key") throw new Error(`DeepSeek 不支持认证方式：${authMethodId}`);
-    return { providerId: "deepseek", authMethodId, protocol: "openai-compatible", baseUrl: BASE, authHeader: { name: "Authorization", scheme: "Bearer" }, modelDiscovery: { kind: "http-list", method: "GET", url: `${BASE}/models`, responseShape: "openai-model-list", source: RUNTIME_SOURCE } };
+    return { providerId: "deepseek", authMethodId, protocol: "openai-compatible", baseUrl: BASE, authHeader: { name: "Authorization", scheme: "Bearer" }, modelDiscovery: { kind: "http-list", method: "GET", url: `${BASE}/models`, responseShape: "openai-model-list", source: RUNTIME_SOURCE }, usageDiscovery: { kind: "http-json", method: "GET", url: `${BASE}/user/balance`, responseShape: "deepseek-balance", source: BALANCE_SOURCE } };
   },
   describeModel,
 };

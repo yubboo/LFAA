@@ -1,4 +1,9 @@
-# LFAA Runtime — v0.1.2
+# LFAA Runtime — v0.1.4
+
+> v0.1.4 Usage Runtime：账户配置与余额/额度分开验证。Config System 声明官方 usage discovery；Settings Host 实际请求官方端点；Client 只渲染 `AiAccountUsageSnapshot`。Codex App Server 的 usage/rate-limit 明确属于 Codex/Work，不表示标准 ChatGPT Chat 消息额度。
+
+
+> v0.1.3 修复 Codex Turn 在 `turn/start` 响应前取消时的未处理 Promise 拒绝；Run 对外仍以 `AbortError` 收敛，并在获得 Turn ID 后发送 `turn/interrupt`。
 
 > v0.1.2 Codex Runtime：ChatGPT/Codex 套餐从 managed auth + `model/list` 延伸到 `thread/start` / `turn/start` / `item/agentMessage/delta` / `turn/completed` / `turn/interrupt`。设置与 Agent Runtime 共享同一个 App Server Host；LFAA 不持有 OAuth Token。当前强制 read-only，审批 UI 未接入前拒绝写入/执行类 server request。
 

@@ -162,3 +162,25 @@ test("Provider Host inherits Node proxy/system CA safely and classifies network 
   assert.match(setup, /NO_PROXY/);
   assert.match(setup, /Pop-LfaaProviderNetworkEnvironment/);
 });
+
+test("official usage surfaces never fabricate Provider balance and expose real Host routes", async () => {
+  const codex = await read("packages/harness/codex-app-server/src/codex-app-server.ts");
+  const bridge = await read("packages/api/settings-controller/src/ai-config-bridge.ts");
+  const deepseek = await read("packages/settings/config-system/src/settings/ai/providers/deepseek/plugin.ts");
+  const qwen = await read("packages/settings/config-system/src/settings/ai/providers/qwen/plugin.ts");
+  const openai = await read("packages/settings/config-system/src/settings/ai/providers/openai/plugin.ts");
+  const panel = await read("packages/client/ui/src/features/settings/ai/AiSettingsPanel.tsx");
+  assert.match(codex, /account\/rateLimits\/read/);
+  assert.match(codex, /account\/usage\/read/);
+  assert.match(codex, /scope: "codex-work"/);
+  assert.match(bridge, /usage/);
+  assert.match(deepseek, /\/user\/balance/);
+  assert.match(qwen, /\/api\/v1\/quotas/);
+  assert.match(qwen, /Workspace ID/);
+  assert.match(openai, /标准 ChatGPT Chat 消息额度/);
+  assert.match(openai, /official-unavailable/);
+  assert.match(panel, /官方余额 \/ 额度/);
+  assert.match(panel, /刷新额度/);
+  assert.match(panel, /官方未提供/);
+  assert.doesNotMatch(panel, /Math\.random|估算余额|虚拟额度/);
+});

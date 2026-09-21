@@ -12,6 +12,7 @@ import type {
   AiAccountDraft,
   AiAccountProbeResult,
   AiAccountSnapshot,
+  AiAccountUsageSnapshot,
   AiManagedLoginStart,
   AiManagedLoginStatus,
   AiModelSettingValue,
@@ -118,6 +119,10 @@ export const webAiSettingsHost = {
     } finally {
       if (!popup.closed) popup.close();
     }
+  },
+  async usage(accountId: string) {
+    const payload = await request<{ usage: AiAccountUsageSnapshot }>(`/accounts/${encodeURIComponent(accountId)}/usage`);
+    return payload.usage;
   },
   async reprobe(accountId: string) {
     const payload = await request<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>(`/accounts/${encodeURIComponent(accountId)}/probe`, { method: "POST", body: "{}" });

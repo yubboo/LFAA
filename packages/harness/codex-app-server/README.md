@@ -12,6 +12,7 @@
 - `item/completed` 最终 Agent Message；
 - `turn/completed` 收敛 Turn 状态；
 - Browser cancel 通过 `turn/interrupt` 取消正在运行的 Turn；
+- `turn/start` 响应前取消也安全处理 Promise 拒绝，待 Turn ID 到达后再发出 `turn/interrupt`；
 - Web Bundle 内共享一个 `CodexAppServerHost`，认证与 Text Runtime 不重复启动子进程。
 
 ## 当前安全边界

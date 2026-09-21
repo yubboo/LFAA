@@ -13,6 +13,7 @@ import readline from "node:readline";
 import type {
   AiAccountModel,
   AiAccountProbeResult,
+  AiAccountUsageSnapshot,
   AiHostCapabilityStatus,
   AiManagedAuthPort,
   AiManagedLoginStart,
@@ -35,7 +36,7 @@ const MODEL_SOURCE = {
   checkedAt: CHECKED_AT,
 } as const;
 /** App Server initialize 元数据集中定义，避免 name/title/version 散落在握手逻辑。 */
-const APP_SERVER_CLIENT_INFO = { name: "lfaa_web_dev", title: "Little Fish AI Agent", version: "0.1.2" } as const;
+const APP_SERVER_CLIENT_INFO = { name: "lfaa_web_dev", title: "Little Fish AI Agent", version: "0.1.4" } as const;
 
 export interface CodexTextRunInput {
   readonly sessionKey: string;
@@ -87,6 +88,10 @@ function stringField(value: JsonRecord, key: string): string | null {
 
 function nestedRecord(value: JsonRecord, key: string): JsonRecord | null {
   return isRecord(value[key]) ? value[key] as JsonRecord : null;
+}
+
+function numberField(value: JsonRecord, key: string): number | null {
+  return typeof value[key] === "number" && Number.isFinite(value[key]) ? value[key] as number : null;
 }
 
 function parseReasoningOptions(value: unknown): readonly AiModelSettingOption[] {
@@ -397,6 +402,67 @@ export class CodexAppServerManagedAuth implements AiManagedAuthPort {
     };
   }
 
+  async usage(): Promise<AiAccountUsageSnapshot> {
+    const accountResult = await this.#client.request("account/read", { refreshToken: false });
+    if (!isRecord(accountResult)) throw new Error("Codex App Server account/read 响应无效。");
+    const account = isRecord(accountResult.account) ? accountResult.account : null;
+    if (!account || account.type !== "chatgpt") throw new Error("Codex 当前未登录 ChatGPT 套餐账户。");
+
+    const [limitsRaw, usageRaw] = await Promise.all([
+      this.#client.request("account/rateLimits/read", {}),
+      this.#client.request("account/usage/read", {}).catch(() => null),
+    ]);
+    const limitsResult = isRecord(limitsRaw) ? limitsRaw : {};
+    const byId = isRecord(limitsResult.rateLimitsByLimitId) ? limitsResult.rateLimitsByLimitId : null;
+    const fallback = isRecord(limitsResult.rateLimits) ? limitsResult.rateLimits : null;
+    const buckets: JsonRecord[] = byId
+      ? Object.values(byId).filter(isRecord)
+      : fallback ? [fallback] : [];
+    const rateLimits = buckets.flatMap((bucket) => {
+      const primary = nestedRecord(bucket, "primary");
+      const usedPercent = primary ? numberField(primary, "usedPercent") : null;
+      if (usedPercent === null) return [];
+      const limitId = stringField(bucket, "limitId") ?? "codex";
+      const limitName = stringField(bucket, "limitName");
+      const planType = stringField(bucket, "planType") ?? stringField(account, "planType");
+      return [{
+        id: limitId,
+        ...(limitName ? { label: limitName } : {}),
+        usedPercent,
+        ...(numberField(primary!, "windowDurationMins") !== null ? { windowDurationMins: numberField(primary!, "windowDurationMins")! } : {}),
+        ...(numberField(primary!, "resetsAt") !== null ? { resetsAt: numberField(primary!, "resetsAt")! } : {}),
+        ...(planType ? { planType } : {}),
+      }];
+    });
+    const resetCredits = isRecord(limitsResult.rateLimitResetCredits) ? limitsResult.rateLimitResetCredits : null;
+    const usageResult = isRecord(usageRaw) ? usageRaw : {};
+    const summary = isRecord(usageResult.summary) ? usageResult.summary : null;
+    const tokenUsage = summary ? {
+      lifetimeTokens: numberField(summary, "lifetimeTokens"),
+      peakDailyTokens: numberField(summary, "peakDailyTokens"),
+      longestRunningTurnSec: numberField(summary, "longestRunningTurnSec"),
+      currentStreakDays: numberField(summary, "currentStreakDays"),
+      longestStreakDays: numberField(summary, "longestStreakDays"),
+    } : undefined;
+    const planType = stringField(account, "planType") ?? undefined;
+    return {
+      status: "available",
+      scope: "codex-work",
+      source: {
+        kind: "official-runtime",
+        label: "Codex App Server account/rateLimits/read + account/usage/read",
+        url: "https://developers.openai.com/codex/app-server",
+        checkedAt: "2026-09-21",
+      },
+      checkedAt: new Date().toISOString(),
+      message: "官方返回的是 Codex / ChatGPT Work 计量域；它与标准 ChatGPT Chat 的消息额度分开，LFAA 不会把两者合并。",
+      ...(planType ? { planType } : {}),
+      rateLimits,
+      ...(tokenUsage ? { tokenUsage } : {}),
+      ...(resetCredits && numberField(resetCredits, "availableCount") !== null ? { resetCreditsAvailable: numberField(resetCredits, "availableCount")! } : {}),
+    };
+  }
+
   dispose(): void { if (this.#ownsClient) this.#client.dispose(); }
 }
 
@@ -470,6 +536,8 @@ export class CodexAppServerTextRuntime {
       resolveCompletion = resolve;
       rejectCompletion = reject;
     });
+    // turn/start 尚未返回时也可能收到取消；立即登记拒绝处理，最终仍由下方 await 传播错误。
+    void completion.catch(() => undefined);
 
     const finish = (turnId: string, status: string, error: string | null) => {
       if (settled) return;

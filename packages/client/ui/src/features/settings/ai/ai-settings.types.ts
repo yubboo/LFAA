@@ -46,11 +46,27 @@ export interface AiSettingsModelView {
   discoverySource?: { kind: "runtime-model-api" | "official-docs"; label: string; url: string; checkedAt: string };
   capabilities?: AiSettingsModelCapabilityView;
 }
+
+export interface AiSettingsUsageView {
+  status: "available" | "unavailable";
+  scope: "codex-work" | "api" | "provider-plan";
+  source: { kind: "official-runtime" | "official-api" | "official-docs"; label: string; url: string; checkedAt: string };
+  checkedAt: string;
+  message: string;
+  planType?: string;
+  balances?: readonly { currency: string; total: string; granted?: string; toppedUp?: string }[];
+  rateLimits?: readonly { id: string; label?: string; usedPercent: number; windowDurationMins?: number; resetsAt?: number; planType?: string }[];
+  modelQuotas?: readonly { model: string; requestLimit?: number; requestLimitPeriodSec?: number; tokenLimit?: number; tokenLimitPeriodSec?: number; tokenField?: string; workspaceRequestLimit?: number; workspaceTokenLimit?: number }[];
+  tokenUsage?: { lifetimeTokens?: number | null; peakDailyTokens?: number | null; longestRunningTurnSec?: number | null; currentStreakDays?: number | null; longestStreakDays?: number | null };
+  resetCreditsAvailable?: number | null;
+}
+
 export interface AiSettingsAccountView {
   id: string; providerId: string; displayName: string; authMethodId: string; selectedModelId: string | null;
   modelSettings: Readonly<Record<string, AiSettingsModelSettingValue>>;
   modelCatalog: readonly AiSettingsModelView[];
   verificationStatus: "connected" | "unverified" | "error"; lastVerifiedAt: string | null;
+  usage?: AiSettingsUsageView;
 }
 export interface AiSettingsDraftInput {
   accountId?: string; providerId: string; displayName: string; authMethodId: string;
@@ -66,6 +82,7 @@ export interface AiSettingsPageProps {
   onProbe(draft: AiSettingsDraftInput, secret: string): Promise<AiSettingsProbeView>;
   onSave(draft: AiSettingsDraftInput, secret: string): Promise<AiSettingsProbeView>;
   onConnectSubscription(draft: AiSettingsDraftInput): Promise<AiSettingsProbeView>;
+  onRefreshUsage(accountId: string): Promise<void>;
   onReprobe(accountId: string): Promise<AiSettingsProbeView>;
   onDeleteAccount(accountId: string): Promise<void>;
   onSelectAccountModel(accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiSettingsModelSettingValue>>): Promise<void>;

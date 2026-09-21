@@ -12,6 +12,7 @@ import type { AiModelCapabilities, AiProviderCatalogModel, AiProviderPlugin } fr
 
 const BASES: Record<string, string> = { standard: "https://open.bigmodel.cn/api/paas/v4", coding: "https://open.bigmodel.cn/api/coding/paas/v4" };
 const CHECKED_AT = "2026-09-19";
+const USAGE_SOURCE = { kind: "official-docs", label: "智谱 BigModel 官方文档", url: "https://docs.bigmodel.cn", checkedAt: "2026-09-21" } as const;
 const OVERVIEW_URL = "https://docs.bigmodel.cn/cn/guide/start/model-overview";
 const CATALOG_SOURCE = { kind: "official-docs", label: "智谱官方模型概览", url: OVERVIEW_URL, checkedAt: CHECKED_AT } as const;
 const GLM53_SOURCE = { kind: "official-docs", label: "智谱 GLM-5.3", url: "https://docs.bigmodel.cn/cn/guide/models/text/glm-5.3", checkedAt: CHECKED_AT } as const;
@@ -51,7 +52,7 @@ export const zhipuProviderPlugin: AiProviderPlugin = {
     const endpoint = settings.endpoint || "standard";
     const baseUrl = BASES[endpoint];
     if (!baseUrl) throw new Error(`未知智谱接口类型：${endpoint}`);
-    return { providerId: "zhipu", authMethodId, protocol: "openai-compatible", baseUrl, authHeader: { name: "Authorization", scheme: "Bearer" }, modelDiscovery: { kind: "official-catalog", models: CATALOG, source: CATALOG_SOURCE, reason: "智谱当前官方文档公开模型目录；未发现统一账户 /models API，因此不伪造运行时端点。" }, metadata: { endpoint } };
+    return { providerId: "zhipu", authMethodId, protocol: "openai-compatible", baseUrl, authHeader: { name: "Authorization", scheme: "Bearer" }, modelDiscovery: { kind: "official-catalog", models: CATALOG, source: CATALOG_SOURCE, reason: "智谱当前官方文档公开模型目录；未发现统一账户 /models API，因此不伪造运行时端点。" }, usageDiscovery: { kind: "official-unavailable", source: USAGE_SOURCE, reason: "当前未找到可由普通 BigModel API Key 直接读取现金余额/资源包剩余量的稳定官方端点；LFAA 不从价格或调用记录反推余额。" }, metadata: { endpoint } };
   },
   describeModel,
 };

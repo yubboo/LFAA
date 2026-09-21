@@ -1,4 +1,11 @@
-# LFAA UI Architecture — v0.1.2
+# LFAA UI Architecture — v0.1.4
+
+## v0.1.4 模式导航与官方 Usage
+
+Chat 左栏面向对话：新建对话、工具与技能、知识库、最近对话。Work 左栏面向开发工作：新建工作、工作区、任务与运行、文件、终端、变更与审查、项目与最近工作。
+
+AI Settings 的余额/额度卡只展示 Host 返回的官方 Usage Snapshot；`Codex / Work`、`API`、`套餐` scope 必须显式标注，官方无数据时显示“官方未提供”。
+
 
 UI 视觉和交互保持 v0.0.98 已验证行为，本版本主要改变代码 Owner，不重新设计 Workbench。
 

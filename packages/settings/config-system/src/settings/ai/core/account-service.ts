@@ -14,6 +14,7 @@ import type {
   AiAccountModel,
   AiAccountProbeResult,
   AiAccountRecord,
+  AiAccountUsageSnapshot,
   AiAccountSnapshot,
   AiActiveModelBinding,
   AiManagedLoginStart,
@@ -25,6 +26,7 @@ import { createCredentialRef } from "@lfaa/credentials";
 import { defaultModelSettings, validateModelSettings } from "./model-settings.ts";
 import { buildOpenAiCompatibleModelRequest, parseOpenAiCompatibleModelList } from "../transports/openai-compatible.ts";
 import { parseQwenModelList } from "../transports/qwen-model-list.ts";
+import { parseDeepSeekBalance, parseQwenModelQuotas } from "./account-usage.ts";
 
 function cleanSettings(settings: Readonly<Record<string, string>>): Record<string, string> {
   return Object.fromEntries(Object.entries(settings).map(([key, value]) => [key, value.trim()]));
@@ -367,6 +369,44 @@ export class AiAccountService {
     const binding = bindingFor(account);
     if (!binding) throw new Error("请先为该账户选择模型。");
     await this.#persistActive(binding);
+  }
+
+
+  async usage(accountId: string): Promise<AiAccountUsageSnapshot> {
+    const accounts = await this.#ports.repository.list();
+    const account = accounts.find((item) => item.id === accountId);
+    if (!account) throw new Error("账户不存在。");
+    const plugin = this.#registry.get(account.providerId);
+    const auth = plugin.authMethods.find((item) => item.id === account.authMethodId);
+    if (!auth) throw new Error("账户认证方式已失效，请重新配置。");
+    const connection = plugin.resolveConnection({ authMethodId: account.authMethodId, settings: account.settings });
+    const discovery = connection.usageDiscovery;
+    const checkedAt = this.#ports.now();
+
+    if (!discovery) {
+      return {
+        status: "unavailable",
+        scope: "api",
+        source: { kind: "official-docs", label: `${plugin.displayName} 官方文档`, url: "", checkedAt: checkedAt.slice(0, 10) },
+        checkedAt,
+        message: "当前 Provider 尚未声明可由 LFAA 安全调用的官方余额/额度接口；不会显示估算数据。",
+      };
+    }
+    if (discovery.kind === "official-unavailable") {
+      return { status: "unavailable", scope: auth.kind === "token-plan" ? "provider-plan" : "api", source: { ...discovery.source, kind: "official-docs" }, checkedAt, message: discovery.reason };
+    }
+    if (discovery.kind === "managed-account") {
+      const managedAuth = requireManagedAuth(this.#ports, auth);
+      return managedAuth.usage();
+    }
+    if (!connection.authHeader) throw new Error("Provider 未声明额度查询鉴权方式。");
+    if (!account.credentialRef) throw new Error("账户没有可用于官方额度查询的凭据引用。");
+    const secret = await this.#ports.secrets.get(account.credentialRef);
+    if (!secret) throw new Error("账户凭据不存在，请重新录入。");
+    const request = buildOpenAiCompatibleModelRequest(discovery.url, connection.authHeader, secret);
+    const payload = await this.#ports.http.requestJson(request);
+    if (discovery.responseShape === "deepseek-balance") return parseDeepSeekBalance(payload, discovery.source, checkedAt);
+    return parseQwenModelQuotas(payload, discovery.source, checkedAt);
   }
 
   async delete(accountId: string): Promise<void> {

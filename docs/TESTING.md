@@ -1,4 +1,20 @@
-# LFAA Testing & Gates — v0.1.2
+# LFAA Testing & Gates — v0.1.4
+
+## v0.1.4 官方 Usage / 模式导航回归
+
+- Config System 纯函数测试锁定 DeepSeek `/user/balance` 与 Model Studio `/api/v1/quotas` 字段映射；
+- 静态契约锁定 Codex `account/rateLimits/read` / `account/usage/read`、Settings usage route 与 UI “官方未提供”语义；
+- Work 模式必须拥有工作区/任务与运行/文件/终端/变更与审查导航，Chat 模式保持新建对话/工具与技能/知识库。
+- 禁止任何 `Math.random`、价格换算或本地 token 推算被用于余额/额度展示。
+
+
+## v0.1.3 质量门禁修复回归
+
+- `quality:full` 必须真实经过 Web/Config TypeScript、全仓 Node 测试与 Vite 生产构建；Bundle 可选端口满足 `exactOptionalPropertyTypes`。
+- `node-source-runtime` 从 `apps/web` 这个真实 Consumer 加载 `@lfaa/bundle-web-app/vite`，覆盖 Host Bundle 的 Node source 依赖链。
+- Codex Fake Client 延迟 `turn/start` 响应时取消 Run：不得产生未处理 Promise 拒绝，最终以 `AbortError` 结束，并在获得 Turn ID 后发出 `turn/interrupt`。
+- 发布前执行 Rust check/test、Web 开发启动和归档 fresh extract preflight。
+- 本次复测：`pnpm run quality:full` 全链通过（Codex 行为 3/3）、Rust 2/2 通过；Web 开发入口返回 200；Unicode ZIP 745 entries 且 fresh extract preflight 全 Gate PASS。
 
 
 ## v0.1.2 Codex App Server Chat Runtime 回归

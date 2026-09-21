@@ -1,4 +1,4 @@
-# LFAA Architecture — v0.1.2 Current Truth
+# LFAA Architecture — v0.1.4 Current Truth
 
 > 本文件描述 **当前** LFAA 架构。旧版本的平铺 `packages/*`、`apps/web/dev/bridges/*`、`crates/` 与仓库级 `.lfaa/` 只允许出现在历史记录中，不再是当前设计。
 
@@ -27,6 +27,12 @@ App Entry
 5. **Service Definition / Provider / Consumer / Composition 单向依赖**；
 6. 新 package 必须有真实实现、真实 Consumer 和清晰 Owner；
 7. 迁移优先保持公开 package name 与业务行为稳定。
+
+## 1.1 Usage 与模式边界
+
+Provider 配置成功只表示认证/目录可用；余额与额度是独立事实链。`@lfaa/config-system` 定义 Usage Snapshot，Provider Adapter 声明官方 discovery，Host 执行真实请求，Client 只渲染返回值。ChatGPT 套餐通过 Codex App Server 暴露的 rate limit / usage 属于 **Codex / Work**，不等价于标准 ChatGPT Chat 消息额度。
+
+Chat 与 Work 共享 Workspace/Agent Runtime，但产品导航分开：Chat 面向轻量对话、知识与能力入口；Work 面向工作区、任务/运行、文件、终端和变更审查。后续 Chat 的“困难任务自动升级到 Work Runtime”必须由 Runtime Router 决定，不能靠 UI 假装切模式。
 
 ## 2. 仓库层级
 

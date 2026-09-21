@@ -1,3 +1,17 @@
+# v0.1.4 Prompt / Requirement Note — 官方余额额度与 Chat/Work 模式边界
+
+- **基线 / 目标：** 用户提供 v0.1.3 → v0.1.4；任务 #22.11；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。
+- **需求：** 所有余额/额度必须来自官方真实数据；ChatGPT Chat 与 Codex/Work 用量分开；Chat 简单任务轻量执行、困难任务后续可自动升级 Work；Work 面向完整开发；切换 Work 后左侧菜单变为工作区相关导航。
+- **实现边界：** 本版落官方 Usage/Quota 事实链与 Chat/Work 导航；Chat 自动升级和完整 Run Timeline 继续由 Runtime Event/Router 后续实现，禁止 UI 假装完成。
+
+# v0.1.3 Prompt / Requirement Note — 全量质量门禁与 Codex 取消竞态修复
+
+- **用户要求：** 修复 v0.1.2 全仓复查中复现的三个问题。
+- **基线 / 目标：** v0.1.2 → v0.1.3；任务 #22.10；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。
+- **允许修改：** Web Bundle 的可选端口传参、Node source runtime 测试的真实 Host importer、Codex Text Runtime 的取消 Promise 生命周期及其 Fake Client 行为测试；版本元数据、当前说明文档与发布账本同步更新。
+- **禁止修改：** Provider/Secret/Plugin/Terminal/Workspace 产品行为、UI 视觉、Codex OAuth 存储边界、read-only 审批策略；不新增 package 或依赖。
+- **验收：** `pnpm run quality:full`、`pnpm run release:rust`、真实 Host Bundle Node source import、Codex 延迟 `turn/start` 取消回归均通过；Web 开发入口可启动；归档后 fresh extract 预检通过。状态最终为 pending-user-acceptance，用户验收前不得 delivered。
+
 # v0.1.2 Prompt / Requirement Note — ChatGPT/Codex 套餐 Text Runtime
 
 - **用户问题：** 模型已经通过 ChatGPT/Codex 套餐配置完成，但发送消息无法得到模型回复。
@@ -58,6 +72,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #22.11 | 官方余额额度与 Chat/Work 模式边界 | v0.1.4 | pending-user-acceptance | pass | pending |
+| #22.10 | 全量质量门禁与 Codex 取消竞态修复 | v0.1.3 | pending-user-acceptance | pass | pending |
 | #22.9 | ChatGPT/Codex 套餐 Text Runtime | v0.1.2 | pending-user-acceptance | pass | pending |
 | #21.29 | TSConfig 根配置继承 / Vite 启动修复 | v0.1.1 | pending-user-acceptance | pass | pending |
 | #20.20 | Workspace 依赖健康检测 / 自动按需同步修复 | v0.1.0 | pending-user-acceptance | pass | pending |

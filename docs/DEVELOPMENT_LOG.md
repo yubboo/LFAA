@@ -1,3 +1,17 @@
+# v0.1.4 / #22.11 官方余额额度与 Chat/Work 模式边界
+
+**当前任务：v0.1.4 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+以用户修复后的 v0.1.3 为基线。新增 Provider 官方 Usage 事实链与模式导航分流；严禁把 Codex/Work rate limits 误标成标准 ChatGPT Chat 额度，也不为无官方接口 Provider 估算余额。
+
+# v0.1.3 / #22.10 全量质量门禁与 Codex 取消竞态修复
+
+**当前任务：v0.1.3 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- **审计复现：** v0.1.2 在 Node 24.16.0 / pnpm 11.17.0 下 `quality:full` 被 Bundle 可选端口的 TypeScript 错误阻断；`pnpm test` 的 Node source 测试仍从旧 Web importer 直接加载已迁出的包；Codex 取消发生于延迟 `turn/start` 响应前时产生未处理 Promise 拒绝。
+- **合同：** `docs/PROMPTS.md` #22.10；只修这三处及对应回归，保持现有产品与安全边界。
+- **验证：** `pnpm run typecheck`、`pnpm test`、`pnpm run build`、`pnpm run release:rust` 均通过；Codex 延迟 `turn/start` 取消回归通过；Web 开发入口在 5189 端口返回 200。完整 `quality:full` 与发布归档见本版 Release 条目。
+
 # v0.1.2 / #22.9 ChatGPT/Codex 套餐 Text Runtime
 
 **当前任务：ChatGPT/Codex 套餐真实聊天执行链 · v0.1.2 · pending-user-acceptance · AI=pass · 用户验收=pending**

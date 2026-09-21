@@ -17,4 +17,5 @@ export * from "./providers/index.ts";
 export * from "./core/account.types.ts";
 export * from "./core/host-ports.ts";
 export * from "./core/account-service.ts";
+export * from "./core/account-usage.ts";
 export * from "./transports/qwen-model-list.ts";

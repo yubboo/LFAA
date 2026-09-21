@@ -74,6 +74,37 @@ function ModelCapabilityEditor({ model, values, onChange }: { model: AiSettingsM
   );
 }
 
+
+function formatReset(unixSeconds: number | undefined): string | null {
+  if (!unixSeconds) return null;
+  const date = new Date(unixSeconds * 1000);
+  return Number.isNaN(date.getTime()) ? null : date.toLocaleString();
+}
+
+function UsagePanel({ usage, selectedModelId }: { usage: import("./ai-settings.types").AiSettingsUsageView | undefined; selectedModelId: string | null }) {
+  if (!usage) return <div className="ai-usage-card is-loading"><strong>余额 / 额度</strong><small>正在读取 Provider 官方状态…</small></div>;
+  const scopeLabel = usage.scope === "codex-work" ? "Codex / Work" : usage.scope === "provider-plan" ? "套餐" : "API";
+  const modelQuota = selectedModelId ? usage.modelQuotas?.find((item) => item.model === selectedModelId) : undefined;
+  return (
+    <section className={`ai-usage-card ${usage.status === "available" ? "is-ok" : "is-unavailable"}`} aria-label="官方余额与额度">
+      <div className="ai-usage-card__head">
+        <div><strong>官方余额 / 额度</strong><small>{scopeLabel}{usage.planType ? ` · ${usage.planType}` : ""}</small></div>
+        <span>{usage.status === "available" ? "实时" : "官方未提供"}</span>
+      </div>
+      {usage.balances?.length ? <div className="ai-usage-balances">{usage.balances.map((balance) => <div key={balance.currency}><b>{balance.total} {balance.currency}</b><small>{balance.toppedUp !== undefined ? `充值 ${balance.toppedUp}` : ""}{balance.granted !== undefined ? ` · 赠金 ${balance.granted}` : ""}</small></div>)}</div> : null}
+      {usage.rateLimits?.length ? <div className="ai-usage-limits">{usage.rateLimits.map((limit) => {
+        const reset = formatReset(limit.resetsAt);
+        return <div key={limit.id}><span>{limit.label || limit.id}</span><b>{Math.max(0, Math.min(100, limit.usedPercent)).toFixed(0)}% 已用</b>{reset ? <small>重置：{reset}</small> : null}</div>;
+      })}</div> : null}
+      {modelQuota ? <div className="ai-usage-quota"><span>{modelQuota.model}</span>{modelQuota.requestLimit !== undefined ? <small>请求上限 {modelQuota.requestLimit}/{modelQuota.requestLimitPeriodSec ?? "?"}s</small> : null}{modelQuota.tokenLimit !== undefined ? <small>Token 上限 {modelQuota.tokenLimit}/{modelQuota.tokenLimitPeriodSec ?? "?"}s</small> : null}</div> : null}
+      {usage.tokenUsage?.lifetimeTokens !== undefined && usage.tokenUsage.lifetimeTokens !== null ? <p className="ai-usage-token">累计 Token 活动：{usage.tokenUsage.lifetimeTokens.toLocaleString()}</p> : null}
+      {usage.resetCreditsAvailable !== undefined && usage.resetCreditsAvailable !== null ? <p className="ai-usage-token">可用额度重置：{usage.resetCreditsAvailable}</p> : null}
+      <p className="ai-usage-message">{usage.message}</p>
+      <div className="ai-model-source"><span>来源：{usage.source.label}</span><span>核对：{usage.source.checkedAt}</span></div>
+    </section>
+  );
+}
+
 export function AiSettingsPanel(props: AiSettingsPanelProps) {
   const selected = useMemo(() => props.providers.find((item) => item.id === props.selectedProviderId) ?? props.providers[0], [props.providers, props.selectedProviderId]);
   const [authByProvider, setAuthByProvider] = useState<Record<string, string>>({});
@@ -203,10 +234,12 @@ export function AiSettingsPanel(props: AiSettingsPanelProps) {
               <div><strong>{account.displayName}{isActive ? <em className="ai-active-model-badge">当前模型</em> : null}</strong><small>{account.verificationStatus === "connected" ? "已验证" : account.verificationStatus === "error" ? "验证失败" : "未自动验证"}{account.selectedModelId ? ` · ${account.selectedModelId}` : ""}</small></div>
               {models.length ? <label className="ai-account-model"><span>当前模型</span><select value={account.selectedModelId ?? ""} onChange={async (event) => { const modelId = event.target.value; const nextModel = models.find((item) => item.id === modelId); const nextSettings = defaultModelSettings(nextModel); setAccountModelSettings((current) => ({ ...current, [account.id]: nextSettings })); setBusy("account"); setError(""); try { await props.onSelectAccountModel(account.id, modelId, nextSettings); } catch (value) { setError(value instanceof Error ? value.message : "模型切换失败。"); } finally { setBusy(null); } }}><option value="">未选择</option>{models.map((item) => <option key={item.id} value={item.id}>{item.name ? `${item.name} · ${item.id}` : item.id}</option>)}</select></label> : null}
               {model ? <ModelCapabilityEditor model={model} values={values} onChange={(next) => setAccountModelSettings((current) => ({ ...current, [account.id]: next }))} /> : null}
+              <UsagePanel usage={account.usage} selectedModelId={account.selectedModelId} />
               {!models.length ? <p className="ai-account-empty">该账户还没有模型目录快照；点击“重测”刷新。</p> : null}
               <div className="ai-account-actions">
                 {model?.capabilities?.settings.length ? <button type="button" disabled={busy !== null} onClick={async () => { setBusy("account"); setError(""); try { await props.onSelectAccountModel(account.id, model.id, values); } catch (value) { setError(value instanceof Error ? value.message : "模型配置保存失败。"); } finally { setBusy(null); } }}>保存模型配置</button> : null}
                 {account.selectedModelId && !isActive ? <button className="is-primary" type="button" disabled={busy !== null} onClick={async () => { setBusy("account"); setError(""); try { await props.onActivateAccountModel(account.id); } catch (value) { setError(value instanceof Error ? value.message : "设置当前模型失败。"); } finally { setBusy(null); } }}>设为当前模型</button> : null}
+                <button type="button" disabled={busy !== null} onClick={async () => { setBusy("account"); setError(""); try { await props.onRefreshUsage(account.id); } catch (value) { setError(value instanceof Error ? value.message : "额度刷新失败。"); } finally { setBusy(null); } }}>刷新额度</button>
                 <button type="button" disabled={busy !== null} onClick={async () => { setBusy("account"); setError(""); try { const result = await props.onReprobe(account.id); setProbe(result); const currentModel = result.models.find((item) => item.id === account.selectedModelId) ?? result.models[0]; setSelectedModelId(currentModel?.id ?? ""); setAccountModelSettings((current) => ({ ...current, [account.id]: Object.keys(account.modelSettings).length ? { ...account.modelSettings } : defaultModelSettings(currentModel) })); } catch (value) { setError(value instanceof Error ? value.message : "重新测试失败。"); } finally { setBusy(null); } }}>重测</button>
                 <button type="button" disabled={busy !== null} onClick={async () => { setBusy("account"); setError(""); try { await props.onDeleteAccount(account.id); setAccountModelSettings((current) => { const next = { ...current }; delete next[account.id]; return next; }); } catch (value) { setError(value instanceof Error ? value.message : "删除账户失败。"); } finally { setBusy(null); } }}>删除</button>
               </div>

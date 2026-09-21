@@ -11,6 +11,7 @@
 import type { CredentialStorePort } from "@lfaa/credentials";
 import type {
   AiAccountProbeResult,
+  AiAccountUsageSnapshot,
   AiAccountRecord,
   AiActiveModelBinding,
   AiHostCapabilityStatus,
@@ -48,6 +49,7 @@ export interface AiManagedAuthPort {
   loginStatus(loginId: string): Promise<AiManagedLoginStatus>;
   cancelLogin(loginId: string): Promise<void>;
   probe(): Promise<AiAccountProbeResult>;
+  usage(): Promise<AiAccountUsageSnapshot>;
 }
 
 export interface AiAccountHostPorts {

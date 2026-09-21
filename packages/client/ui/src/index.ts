@@ -16,7 +16,7 @@ export { WORKBENCH_LAYOUT_TOKENS, resolveWorkbenchLayoutMetrics } from "./workbe
 export { WORKBENCH_INTERACTION_TOKENS, normalizeSnapCaptureRatio, resolveSnapCaptureThreshold } from "./workbench/workbench-interaction.config.ts";
 export type { WorkbenchLayoutMetrics } from "./workbench/workbench-layout.config.ts";
 export { AiSettingsPage } from "./features/settings/ai/AiSettingsPage.tsx";
-export type { AiSettingsPageProps, AiSettingsProviderView, AiSettingsAuthView, AiSettingsFieldView, AiSettingsAccountView, AiSettingsDraftInput, AiSettingsProbeView, AiSettingsModelView, AiSettingsModelSettingValue } from "./features/settings/ai/ai-settings.types.ts";
+export type { AiSettingsPageProps, AiSettingsProviderView, AiSettingsAuthView, AiSettingsFieldView, AiSettingsAccountView, AiSettingsDraftInput, AiSettingsProbeView, AiSettingsModelView, AiSettingsModelSettingValue, AiSettingsUsageView } from "./features/settings/ai/ai-settings.types.ts";
 export { ThemeModeMenu } from "./features/appearance/ThemeModeMenu.tsx";
 export { useDismissibleLayer } from "./ui-overlay/useDismissibleLayer.ts";
 export type { DismissibleLayerOptions } from "./ui-overlay/useDismissibleLayer.ts";

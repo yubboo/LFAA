@@ -6,6 +6,7 @@ import type {
   AiAccountHostCapabilities,
   AiAccountProbeResult,
   AiAccountRecord,
+  AiAccountUsageSnapshot,
 } from "@lfaa/config-system";
 import { builtinAiProviderPlugins } from "@lfaa/config-system";
 import type {
@@ -28,7 +29,18 @@ export function buildAiProviderViews(hostCapabilities:AiAccountHostCapabilities)
     fields:plugin.configFields.map((field)=>({ id:field.id,label:field.label,kind:field.kind,required:field.required,...(field.defaultValue!==undefined?{defaultValue:field.defaultValue}:{}),...(field.placeholder!==undefined?{placeholder:field.placeholder}:{}),...(field.options!==undefined?{options:field.options}:{}),...(field.help!==undefined?{help:field.help}:{}) })),
   }));
 }
-export function mapAiAccount(record:AiAccountRecord):AiSettingsAccountView { return { id:record.id,providerId:record.providerId,displayName:record.displayName,authMethodId:record.authMethodId,selectedModelId:record.selectedModelId,modelSettings:record.modelSettings,modelCatalog:record.modelCatalog,verificationStatus:record.verificationStatus,lastVerifiedAt:record.lastVerifiedAt }; }
+export function mapAiUsage(usage:AiAccountUsageSnapshot):import("@lfaa/ui").AiSettingsUsageView {
+  return {
+    status:usage.status,scope:usage.scope,source:usage.source,checkedAt:usage.checkedAt,message:usage.message,
+    ...(usage.planType?{planType:usage.planType}:{}),
+    ...(usage.balances?{balances:usage.balances}:{}),
+    ...(usage.rateLimits?{rateLimits:usage.rateLimits}:{}),
+    ...(usage.modelQuotas?{modelQuotas:usage.modelQuotas}:{}),
+    ...(usage.tokenUsage?{tokenUsage:usage.tokenUsage}:{}),
+    ...(usage.resetCreditsAvailable!==undefined?{resetCreditsAvailable:usage.resetCreditsAvailable}:{}),
+  };
+}
+export function mapAiAccount(record:AiAccountRecord,usage?:AiAccountUsageSnapshot):AiSettingsAccountView { return { id:record.id,providerId:record.providerId,displayName:record.displayName,authMethodId:record.authMethodId,selectedModelId:record.selectedModelId,modelSettings:record.modelSettings,modelCatalog:record.modelCatalog,verificationStatus:record.verificationStatus,lastVerifiedAt:record.lastVerifiedAt,...(usage?{usage:mapAiUsage(usage)}:{}) }; }
 export function mapAiProbe(probe:AiAccountProbeResult):AiSettingsProbeView { return { status:probe.status,message:probe.message,models:probe.models,...(probe.manualModelEntry===true?{manualModelEntry:true}:{}),...(probe.resolvedBaseUrl?{resolvedBaseUrl:probe.resolvedBaseUrl}:{}) }; }
 export function toAiAccountDraft(draft:AiSettingsDraftInput):AiAccountDraft { return { ...(draft.accountId?{accountId:draft.accountId}:{}),providerId:draft.providerId as AiAccountDraft["providerId"],displayName:draft.displayName,authMethodId:draft.authMethodId,settings:draft.settings,selectedModelId:draft.selectedModelId??null,modelSettings:draft.modelSettings??{} }; }
 export function mapInstalledPlugin(bundle:InstalledPluginBundle):PluginSettingsInstalledView { return { packageName:bundle.packageName,packageVersion:bundle.packageVersion,pluginId:bundle.manifest.pluginId,displayName:bundle.manifest.displayName,...(bundle.manifest.description?{description:bundle.manifest.description}:{}),enabled:bundle.enabled,capabilities:bundle.manifest.capabilities.map((capability)=>({id:capability.id,kind:capability.kind,displayName:capability.displayName})),credentials:(bundle.manifest.credentials??[]).map((credential)=>({id:credential.id,displayName:credential.displayName,exposure:credential.exposure})) }; }

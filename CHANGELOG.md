@@ -1,3 +1,19 @@
+# v0.1.4 / #22.11 — 官方余额额度与 Chat/Work 模式边界
+
+- 新增官方 Usage Snapshot：DeepSeek 余额、Model Studio Workspace 配额、Codex/Work rate limits 与 token activity。
+- ChatGPT 标准 Chat 与 Codex/Work 计量语义分开；没有官方稳定接口的 Provider 不估算。
+- Settings 增加“官方余额 / 额度”与刷新入口；Chat/Work 左侧导航分流。
+- 基线：用户提供 v0.1.3。状态：pending-user-acceptance；AI 验证：pass；用户验收：pending。
+
+# v0.1.3 全量质量门禁与 Codex 取消竞态修复
+
+**当前任务：#22.10 · v0.1.3 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- 修复 Web Bundle 可选端口向 Vite Host 传入显式 `undefined` 导致的 TypeScript 7 `exactOptionalPropertyTypes` 失败。
+- Node source runtime 测试改从当前 Web Host Bundle 公共入口验证实际 Node 依赖链。
+- Codex `turn/start` 响应前取消时立即处理内部 Promise 拒绝，继续在获得 Turn ID 后发出 interrupt；新增延迟响应行为回归。
+- 验证：`quality:full`、Rust check/test、Web 开发启动、745-entry Unicode ZIP 与 fresh extract preflight 均通过。
+
 # v0.1.2 Codex App Server Chat Runtime
 
 **当前任务：#22.9 · ChatGPT/Codex 套餐 Text Runtime · v0.1.2 · pending-user-acceptance · AI=pass · 用户验收=pending**

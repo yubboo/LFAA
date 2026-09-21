@@ -1,8 +1,29 @@
-# LFAA Project Plan — current after v0.1.2
+# LFAA Project Plan — current after v0.1.4
 
 ## 当前里程碑
 
-**v0.1.2 / Codex App Server Chat Runtime**
+**v0.1.4 / 官方余额额度与 Chat/Work 导航边界（pending-user-acceptance）**
+
+目标：所有已配置 Provider 的“余额/额度”只展示官方可验证事实；ChatGPT 标准 Chat 与 Codex/Work 的用量语义分开；Chat/Work 左侧导航按工作模式切换。
+
+本版：
+
+- DeepSeek：官方 `/user/balance`；
+- 阿里云 Model Studio：具备 Workspace ID 的区域使用官方 `/api/v1/quotas`；
+- ChatGPT/Codex 套餐：官方 Codex App Server `account/rateLimits/read` + `account/usage/read`，明确标记为 Codex/Work；
+- OpenAI 普通 API Key、Kimi、智谱、小米 MiMo：当前未确认有可由普通模型凭证稳定读取的官方余额接口，因此显示“官方未提供”，不估算；
+- Settings 增加官方 Usage Snapshot 与手动刷新；
+- Chat/Work 左侧菜单分流。
+
+**AI 验证：** pass。Config System 41/41、仓库级 Node 合同 178/178、官方 Usage/模式导航专项通过；统一治理与归档验证继续在打包前执行。用户验收 pending。
+
+**后续：** Chat 模式困难任务自动升级到真正 Work/Codex Runtime，以及统一 Run Timeline / reasoning summary / tool activity，继续按 Agent Runtime Event 建设，不在本版伪造。
+
+**上一里程碑：v0.1.3 / 全量质量门禁与 Codex 取消竞态修复**
+
+该版本修复 TypeScript 可选端口、旧 Node source importer 与 Codex 提前取消竞态；其历史验证结果见 `CHANGELOG.md` / `docs/RELEASES.md`。
+
+**再上一里程碑：v0.1.2 / Codex App Server Chat Runtime**
 
 目标：让已经通过 ChatGPT/Codex 套餐完成登录与 `model/list` 的模型真正进入聊天执行链；保持 v0.1.1 Harness、TSConfig、依赖健康与 Sync 治理不回退。
 

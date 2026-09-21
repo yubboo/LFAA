@@ -141,9 +141,12 @@ export function lfaaDevAiConfigBridge(projectRoot: string, options: { managedAut
             const result = await service.save(parseDraft(body.draft), secret);
             return sendJson(response, 200, { ok: true, ...result, snapshot: await service.snapshot() });
           }
-          const match = pathname.match(/^\/accounts\/([A-Za-z0-9-]{8,80})(?:\/(probe|model|active-model|active))?$/);
+          const match = pathname.match(/^\/accounts\/([A-Za-z0-9-]{8,80})(?:\/(probe|model|active-model|active|usage))?$/);
           const accountId = match?.[1];
           const action = match?.[2];
+          if (accountId && request.method === "GET" && action === "usage") {
+            return sendJson(response, 200, { ok: true, usage: await service.usage(accountId) });
+          }
           if (accountId && request.method === "POST" && action === "probe") {
             const probe = await service.reprobe(accountId);
             return sendJson(response, 200, { ok: true, probe, snapshot: await service.snapshot() });

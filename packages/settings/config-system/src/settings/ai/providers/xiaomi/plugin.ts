@@ -12,6 +12,7 @@ import type { AiModelCapabilities, AiProviderPlugin } from "../provider-contract
 
 const TOKEN_PLAN_BASES: Record<string, string> = { cn: "https://token-plan-cn.xiaomimimo.com/v1", sgp: "https://token-plan-sgp.xiaomimimo.com/v1", ams: "https://token-plan-ams.xiaomimimo.com/v1" };
 const CHECKED_AT = "2026-09-19";
+const USAGE_SOURCE = { kind: "official-docs", label: "Xiaomi MiMo 官方平台", url: "https://platform.xiaomimimo.com/docs", checkedAt: "2026-09-21" } as const;
 const RESPONSES_SOURCE = { kind: "official-docs", label: "Xiaomi MiMo Responses API", url: "https://mimo.mi.com/docs/zh-CN/api/chat/responses", checkedAt: CHECKED_AT } as const;
 
 function describeModel(modelId: string): AiModelCapabilities | null {
@@ -44,7 +45,7 @@ export const xiaomiProviderPlugin: AiProviderPlugin = {
     const baseUrl = authMethodId === "api-key" ? "https://api.xiaomimimo.com/v1" : TOKEN_PLAN_BASES[settings.tokenPlanRegion || "cn"];
     if (!baseUrl) throw new Error(`未知 MiMo Token Plan 区域：${settings.tokenPlanRegion}`);
     const url = `${baseUrl}/models`;
-    return { providerId: "xiaomi", authMethodId, protocol: "openai-compatible", baseUrl, authHeader: { name: "api-key" }, modelDiscovery: { kind: "http-list", method: "GET", url, responseShape: "openai-model-list", source: { kind: "runtime-model-api", label: "Xiaomi MiMo GET /v1/models", url, checkedAt: CHECKED_AT } }, metadata: { billingMode: authMethodId } };
+    return { providerId: "xiaomi", authMethodId, protocol: "openai-compatible", baseUrl, authHeader: { name: "api-key" }, modelDiscovery: { kind: "http-list", method: "GET", url, responseShape: "openai-model-list", source: { kind: "runtime-model-api", label: "Xiaomi MiMo GET /v1/models", url, checkedAt: CHECKED_AT } }, usageDiscovery: { kind: "official-unavailable", source: USAGE_SOURCE, reason: "MiMo 官方公开 Token Plan/Credits 权益，但当前未确认普通 API/Token Plan Key 可调用的稳定用量查询端点；LFAA 不伪造 Credits 百分比。" }, metadata: { billingMode: authMethodId } };
   },
   describeModel,
 };

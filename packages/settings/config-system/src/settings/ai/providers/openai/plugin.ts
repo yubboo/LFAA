@@ -14,6 +14,8 @@ const OPENAI_API_BASE = "https://api.openai.com/v1";
 const CHECKED_AT = "2026-09-19";
 const DOCS_MODELS = "https://developers.openai.com/api/docs/models";
 const RUNTIME_SOURCE = { kind: "runtime-model-api", label: "OpenAI GET /v1/models", url: `${OPENAI_API_BASE}/models`, checkedAt: CHECKED_AT } as const;
+const CODEX_USAGE_SOURCE = { kind: "official-docs", label: "Codex App Server account/rateLimits/read + account/usage/read", url: "https://developers.openai.com/codex/app-server", checkedAt: "2026-09-21" } as const;
+const API_USAGE_SOURCE = { kind: "official-docs", label: "OpenAI API usage/billing", url: "https://platform.openai.com/usage", checkedAt: "2026-09-21" } as const;
 const DOCS_SOURCE = { kind: "official-docs", label: "OpenAI Models", url: DOCS_MODELS, checkedAt: CHECKED_AT } as const;
 
 function reasoningCapabilities(modelId: string): AiModelCapabilities | null {
@@ -57,9 +59,9 @@ export const openAiProviderPlugin: AiProviderPlugin = {
   ],
   configFields: [],
   resolveConnection({ authMethodId }) {
-    if (authMethodId === "chatgpt") return { providerId: "openai", authMethodId, protocol: "codex-app-server", modelDiscovery: { kind: "codex-account", reason: "模型与套餐权限由 Codex/ChatGPT 账户上下文提供。" } };
+    if (authMethodId === "chatgpt") return { providerId: "openai", authMethodId, protocol: "codex-app-server", modelDiscovery: { kind: "codex-account", reason: "模型与套餐权限由 Codex/ChatGPT 账户上下文提供。" }, usageDiscovery: { kind: "managed-account", source: CODEX_USAGE_SOURCE, reason: "Codex App Server 提供真实 Codex/Work 速率限制与 Token 活动；这不是标准 ChatGPT Chat 消息额度。" } };
     if (authMethodId !== "api-key") throw new Error(`OpenAI 不支持认证方式：${authMethodId}`);
-    return { providerId: "openai", authMethodId, protocol: "openai-compatible", baseUrl: OPENAI_API_BASE, authHeader: { name: "Authorization", scheme: "Bearer" }, modelDiscovery: { kind: "http-list", method: "GET", url: `${OPENAI_API_BASE}/models`, responseShape: "openai-model-list", source: RUNTIME_SOURCE } };
+    return { providerId: "openai", authMethodId, protocol: "openai-compatible", baseUrl: OPENAI_API_BASE, authHeader: { name: "Authorization", scheme: "Bearer" }, modelDiscovery: { kind: "http-list", method: "GET", url: `${OPENAI_API_BASE}/models`, responseShape: "openai-model-list", source: RUNTIME_SOURCE }, usageDiscovery: { kind: "official-unavailable", source: API_USAGE_SOURCE, reason: "标准 OpenAI API Key 不提供可直接读取账户余额的稳定官方端点；组织用量/费用接口需要单独的 Admin 权限，LFAA 不会拿普通模型 Key 猜余额。" } };
   },
   describeModel: reasoningCapabilities,
 };

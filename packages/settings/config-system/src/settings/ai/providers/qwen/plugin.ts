@@ -10,16 +10,17 @@
  */
 import type { AiModelCapabilities, AiProviderPlugin } from "../provider-contract.ts";
 
-interface RegionRule { label: string; modelHost: string; workspaceRequired: boolean; }
+interface RegionRule { label: string; modelHost: string; workspaceRequired: boolean; quotaRegion?: string; }
 const REGIONS: Record<string, RegionRule> = {
-  "cn-beijing": { label: "中国（北京）", modelHost: "{workspace}.cn-beijing.maas.aliyuncs.com", workspaceRequired: true },
-  "ap-southeast-1": { label: "新加坡", modelHost: "dashscope-intl.aliyuncs.com", workspaceRequired: false },
-  "cn-hongkong": { label: "中国（香港）", modelHost: "cn-hongkong.dashscope.aliyuncs.com", workspaceRequired: false },
-  "eu-central-1": { label: "德国（法兰克福）", modelHost: "{workspace}.eu-central-1.maas.aliyuncs.com", workspaceRequired: true },
+  "cn-beijing": { label: "中国（北京）", modelHost: "{workspace}.cn-beijing.maas.aliyuncs.com", workspaceRequired: true, quotaRegion: "cn-beijing" },
+  "ap-southeast-1": { label: "新加坡", modelHost: "dashscope-intl.aliyuncs.com", workspaceRequired: false, quotaRegion: "ap-southeast-1" },
+  "cn-hongkong": { label: "中国（香港）", modelHost: "cn-hongkong.dashscope.aliyuncs.com", workspaceRequired: false, quotaRegion: "cn-hongkong" },
+  "eu-central-1": { label: "德国（法兰克福）", modelHost: "{workspace}.eu-central-1.maas.aliyuncs.com", workspaceRequired: true, quotaRegion: "eu-central-1" },
   "ap-northeast-1": { label: "日本（东京）", modelHost: "{workspace}.ap-northeast-1.maas.aliyuncs.com", workspaceRequired: true },
-  "us-east-1": { label: "美国（弗吉尼亚）", modelHost: "{workspace}.us-east-1.maas.aliyuncs.com", workspaceRequired: true },
+  "us-east-1": { label: "美国（弗吉尼亚）", modelHost: "{workspace}.us-east-1.maas.aliyuncs.com", workspaceRequired: true, quotaRegion: "us-east-1" },
 };
 const CHECKED_AT = "2026-09-19";
+const QUOTA_SOURCE = { kind: "official-docs", label: "阿里云 Model Studio GET /api/v1/quotas", url: "https://help.aliyun.com/en/model-studio/list-quotas", checkedAt: "2026-09-21" } as const;
 const THINKING_SOURCE = { kind: "official-docs", label: "阿里云百炼 Qwen 深度思考", url: "https://help.aliyun.com/zh/model-studio/deep-thinking", checkedAt: CHECKED_AT } as const;
 
 function describeModel(modelId: string): AiModelCapabilities | null {
@@ -56,7 +57,10 @@ export const qwenProviderPlugin: AiProviderPlugin = {
     if (rule.workspaceRequired && !workspace) throw new Error(`${rule.label} 需要 Workspace ID，填写后才能验证连接并获取实际可用模型。`);
     const host = rule.modelHost.replace("{workspace}", workspace);
     const url = `https://${host}/api/v1/models`;
-    return { providerId: "qwen", authMethodId, protocol: "provider-native", baseUrl: `https://${host}`, authHeader: { name: "Authorization", scheme: "Bearer" }, modelDiscovery: { kind: "http-list", method: "GET", url, responseShape: "qwen-model-list", source: { kind: "runtime-model-api", label: "百炼 GET /api/v1/models", url, checkedAt: CHECKED_AT } }, metadata: { region, workspaceRequired: String(rule.workspaceRequired) } };
+    const usageDiscovery = workspace && rule.quotaRegion
+      ? { kind: "http-json" as const, method: "GET" as const, url: `https://${workspace}.${rule.quotaRegion}.maas.aliyuncs.com/api/v1/quotas?page_no=1&page_size=100`, responseShape: "qwen-model-quotas" as const, source: QUOTA_SOURCE }
+      : { kind: "official-unavailable" as const, source: QUOTA_SOURCE, reason: "阿里云官方配额 API 需要 Workspace ID；当前连接可以使用模型，但未提供可验证的 Workspace 级额度数据。" };
+    return { providerId: "qwen", authMethodId, protocol: "provider-native", baseUrl: `https://${host}`, authHeader: { name: "Authorization", scheme: "Bearer" }, modelDiscovery: { kind: "http-list", method: "GET", url, responseShape: "qwen-model-list", source: { kind: "runtime-model-api", label: "百炼 GET /api/v1/models", url, checkedAt: CHECKED_AT } }, usageDiscovery, metadata: { region, workspaceRequired: String(rule.workspaceRequired) } };
   },
   describeModel,
 };

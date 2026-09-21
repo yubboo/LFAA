@@ -1,8 +1,8 @@
-# LFAA v0.1.2 — Codex App Server Chat Runtime
+# LFAA v0.1.4 — 官方余额/额度与 Chat/Work 模式边界
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.1.2**。本版在 v0.1.1 Harness/TSConfig 基线之上，正式补齐 ChatGPT/Codex 套餐从“登录 + model/list”到“thread/start + turn/start + 流式回复 + turn/interrupt”的文本对话 Runtime。设置页与 Agent Runtime 共享同一个 Codex App Server Host；LFAA 不读取 Codex OAuth Token。审批 UI 尚未接入前，Codex 文本 Runtime 强制只读。
+当前包：**LFAA-v0.1.4**。本版以 v0.1.3 为基线新增“官方余额/额度”只读事实链，并正式分开 ChatGPT 标准 Chat 与 Codex/Work 的计量语义：Codex App Server 只展示其官方 `account/rateLimits/read` / `account/usage/read`；DeepSeek 使用官方 `/user/balance`；阿里云 Model Studio 在具备 Workspace ID 时使用官方 `/api/v1/quotas`。官方没有稳定可调用指标的 Provider 明确显示“官方未提供”，禁止估算。Chat / Work 左侧导航也开始按模式切换。
 
 > 当前真相以本 README、`ARCHITECTURE.md`、`DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
 

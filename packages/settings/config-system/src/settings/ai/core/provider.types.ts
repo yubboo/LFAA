@@ -96,6 +96,12 @@ export type AiModelDiscovery =
   | { kind: "manual"; reason: string }
   | { kind: "codex-account"; reason: string };
 
+
+export type AiUsageDiscovery =
+  | { kind: "managed-account"; source: AiModelCapabilitySource; reason: string }
+  | { kind: "http-json"; method: "GET"; url: string; responseShape: "deepseek-balance" | "qwen-model-quotas"; source: AiModelCapabilitySource }
+  | { kind: "official-unavailable"; source: AiModelCapabilitySource; reason: string };
+
 export interface AiResolvedConnection {
   providerId: AiProviderId;
   authMethodId: string;
@@ -104,6 +110,7 @@ export interface AiResolvedConnection {
   authHeader?: { name: string; scheme?: string };
   modelDiscovery: AiModelDiscovery;
   metadata?: Readonly<Record<string, string>>;
+  usageDiscovery?: AiUsageDiscovery;
 }
 
 export interface AiProviderResolveInput {
