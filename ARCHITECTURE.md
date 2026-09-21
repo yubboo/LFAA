@@ -1,4 +1,27 @@
-# LFAA Architecture — v0.1.11 Current Truth
+# LFAA Architecture — v0.1.12 Current Truth
+
+## 0.1 v0.1.12 Instance Identity / App Hub Boundary
+
+LFAA 最外层现在先经过本地实例 Identity Gate，再进入 App Hub。Identity 不绑定云端账户：第一次启动创建唯一 First Run `super_admin`，后续只有有效 `AuthSession` 才能进入工作台或访问本地 Host HTTP API。
+
+```text
+LFAA Instance
+  └─ Identity Gate
+       ├─ User → Role → Permission
+       └─ AuthSession
+            ↓
+          App Hub
+            ↓
+     App Pack / Core Workspace
+            ↓
+        Project → Session
+            ↓
+       Chat | Work | Manual
+```
+
+当前真实 Owner：`packages/identity/identity` 定义领域契约，`packages/identity/identity-host-node` 保存 `LFAA_HOME/state/identity`，`packages/api/identity-controller` 提供 First Run/Login/User/Role API 并作为其他本地 Host HTTP API 的统一登录门禁。Client 的 Identity Gate / App Hub 属于 `packages/client/app-shell`，`packages/client/web` 只做组合。
+
+App Hub 当前只允许进入已有的通用工作台；AI 写作、AI 漫剧、Minecraft、Steam Server 作为未来 App Pack 入口可见但 disabled，直到真实 Capability/Consumer 接入。后续 App Pack Runtime 必须基于现有 `@lfaa/plugin-sdk` `app-pack` / Capability 组合，不另建 Domain Runtime。
 
 ## 0.1 v0.1.11 Project + Session Persistence / Interaction Surfaces
 

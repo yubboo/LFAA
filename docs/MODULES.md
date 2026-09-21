@@ -1,4 +1,13 @@
-# LFAA Modules — v0.1.11 Current Ownership
+# LFAA Modules — v0.1.12 Current Ownership
+
+## v0.1.12 Identity capability family
+
+- `packages/identity/identity`：User / Role / Permission / AuthSession / First Run Domain Contract；
+- `packages/identity/identity-host-node`：`LFAA_HOME/state/identity` 本地 Provider，scrypt + token hash；
+- `packages/api/identity-controller`：同源 Identity API + `/__lfaa/dev/*` AuthSession Gate；
+- `packages/client/connection/identity-client.ts`：浏览器 Adapter，不持久化 Token；
+- `packages/client/app-shell/src/identity`：First Run / Login UI；
+- `packages/client/app-shell/src/app-hub`：登录后的应用展台。
 
 ## v0.1.11 Project / Session capability family
 
@@ -15,6 +24,9 @@
 
 | Family | Package | 当前职责 |
 |---|---|---|
+| identity | `@lfaa/identity` | 实例 User / Role / Permission / AuthSession 领域契约 |
+| identity | `@lfaa/identity-host-node` | 本地身份状态、密码散列、AuthSession Provider |
+| api | `@lfaa/identity-controller` | First Run/Login/User/Role HTTP + 全局 Host API Auth Gate |
 | core | `@lfaa/agent-runtime` | Agent Run/Permission/Harness 公共契约；Run Timeline 统一事件定义 |
 | client | `@lfaa/client-web` | Web Client Composition / mount |
 | client | `@lfaa/client-connection` | Browser ↔ Local Host clients |

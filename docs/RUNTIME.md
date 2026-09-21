@@ -1,4 +1,10 @@
-# LFAA Runtime — v0.1.11
+# LFAA Runtime — v0.1.12
+
+## v0.1.12 Identity Runtime
+
+启动时 Browser 先请求 Identity `bootstrap`；未初始化进入 First Run，已初始化则用 HttpOnly Cookie 恢复 `AuthSession`。登录成功后才挂载 App Hub/Workbench。`packages/api/identity-controller` 在其他 `/__lfaa/dev/*` HTTP Controller 之前注册，因此 UI 门禁之外还有 Host 侧登录校验。身份数据写入 `LFAA_HOME/state/identity/`，不进入源码仓库。
+
+> 当前 Vite WebSocket 仍属于开发宿主传输；正式安全 Host 还需要把 Terminal/Runtime WS 也纳入同一身份握手/Policy Gate，不能把 HTTP Gate 描述成完整远程安全边界。
 
 ## v0.1.11 Project / Session Runtime
 

@@ -5,9 +5,11 @@ import type { ResolvedTheme } from "#workbench/contracts";
 import { IconButton } from "#workbench/shared";
 import styles from "../styles/ProfileBar.module.css";
 
-export function ProfileBar({ resolvedTheme, themePreference, onOpenProfile, onOpenThemeMenu, onRequestUpdate, variant = "sidebar" }: {
+export function ProfileBar({ resolvedTheme, themePreference, displayName, subtitle, onOpenProfile, onOpenThemeMenu, onRequestUpdate, variant = "sidebar" }: {
   resolvedTheme: ResolvedTheme;
   themePreference: ThemePreference;
+  displayName: string;
+  subtitle: string;
   onOpenProfile: () => void;
   onOpenThemeMenu: () => void;
   onRequestUpdate: () => void;
@@ -18,7 +20,7 @@ export function ProfileBar({ resolvedTheme, themePreference, onOpenProfile, onOp
   return (
     <div className={`${styles.root}${variant === "overlay" ? ` ${styles.overlay}` : ""}`} data-ui="profile-bar">
       <button className={styles.main} type="button" onClick={onOpenProfile} aria-haspopup="dialog">
-        <span className={styles.avatar}>二</span><span className={styles.text}><strong>二鱼</strong><small>本地工作区</small></span>
+        <span className={styles.avatar}>{displayName.slice(0, 1).toUpperCase()}</span><span className={styles.text}><strong>{displayName}</strong><small>{subtitle}</small></span>
       </button>
       <div className={styles.actions}>
         <IconButton type="button" onClick={onRequestUpdate} aria-label="检查更新" title="检查更新"><WorkbenchIcon name="refresh" /></IconButton>

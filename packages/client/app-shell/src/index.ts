@@ -9,4 +9,9 @@
  * 修改注意事项：跨 workspace 依赖必须从本入口导入，不允许深链 src/internal。
  */
 export { AgentWorkbench } from "./AgentWorkbench";
-export type { AgentWorkbenchProps, AgentAiSettingsHost, AgentPluginSettingsHost, DevResourceItem, ResourceKind } from "./workbench.types";
+export type { AgentWorkbenchProps, AgentAiSettingsHost, AgentPluginSettingsHost, AgentIdentitySettingsHost, AgentIdentityProjection, DevResourceItem, ResourceKind } from "./workbench.types";
+
+export { LfaaIdentityGate } from "./identity";
+export type { IdentityClientHost } from "./identity";
+export { LfaaAppHub } from "./app-hub";
+export type { AppHubEntry } from "./app-hub";

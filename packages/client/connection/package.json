@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/client-connection",
   "private": true,
-  "version": "0.1.11",
+  "version": "0.1.12",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼",
@@ -11,7 +11,8 @@
     "@lfaa/plugin-runtime": "workspace:*",
     "@lfaa/plugin-sdk": "workspace:*",
     "vite": "8.2.2",
-    "@lfaa/session": "workspace:*"
+    "@lfaa/session": "workspace:*",
+    "@lfaa/identity": "workspace:*"
   },
   "lfaa": {
     "layer": "host-adapter",

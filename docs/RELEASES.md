@@ -1,4 +1,16 @@
-# LFAA Releases — current policy v0.1.11
+# v0.1.12 Local Identity Gate / App Hub / User RBAC
+
+**当前任务：#22.18 · v0.1.12 · pending-user-acceptance · AI=pass（静态门禁 + Identity 聚焦回归） · 用户验收=pending**
+
+- 新增实例级本地 Identity：First Run 只能创建一次超级管理员，之后必须登录才能进入 LFAA。
+- `@lfaa/identity-host-node` 使用 scrypt 保存密码散列，AuthSession 仅保存 token hash；浏览器只使用 HttpOnly SameSite Cookie。
+- `@lfaa/identity-controller` 在其他 `/__lfaa/dev/*` HTTP Controller 前注册，形成 UI 登录之外的 Host API 第二层门禁。
+- 设置中心新增“用户与权限”：用户创建/禁用、系统/自定义角色、Permission 列表与自定义角色创建/删除。
+- 登录后新增 App Hub 大展台；当前通用工作台可用，AI 写作/AI 漫剧/Minecraft/Steam Server 在真实 App Pack 接入前明确 disabled。
+- Workbench Profile 改用真实登录用户，并提供应用中心/退出登录。
+- 新增 Identity 行为与产品边界测试；当前执行环境为 Node 22 且无 pnpm 11.17.0，因此完整 Node24/pnpm quality:full 尚未冒充通过。
+
+# LFAA Releases — current policy v0.1.12
 
 ## v0.1.11 — #22.17 Project + Session Persistence / Runtime Event Isolation
 

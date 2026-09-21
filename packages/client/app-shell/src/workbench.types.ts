@@ -13,6 +13,7 @@ import type { AgentRuntimeHost } from "@lfaa/agent-runtime";
 import type { PluginInstallOutcome, PluginManagerSnapshot, PluginSpecInspection } from "@lfaa/plugin-runtime";
 import type { AiAccountDraft, AiAccountProbeResult, AiAccountSnapshot, AiAccountUsageSnapshot, AiModelSettingValue } from "@lfaa/config-system";
 import type { WorkspaceSessionHost } from "@lfaa/session";
+import type { CreateIdentityRoleInput, CreateIdentityUserInput, LfaaIdentitySnapshot, UpdateIdentityRoleInput, UpdateIdentityUserInput } from "@lfaa/identity";
 
 export type ResourceKind = "skills" | "experts" | "plugins" | "extensions" | "mcp";
 
@@ -48,6 +49,24 @@ export interface AgentPluginSettingsHost {
   cancel(requestId: string): Promise<void>;
 }
 
+
+
+export interface AgentIdentitySettingsHost {
+  snapshot(): Promise<LfaaIdentitySnapshot>;
+  createUser(input: CreateIdentityUserInput): Promise<LfaaIdentitySnapshot>;
+  updateUser(userId: string, input: UpdateIdentityUserInput): Promise<LfaaIdentitySnapshot>;
+  createRole(input: CreateIdentityRoleInput): Promise<LfaaIdentitySnapshot>;
+  updateRole(roleId: string, input: UpdateIdentityRoleInput): Promise<LfaaIdentitySnapshot>;
+  deleteRole(roleId: string): Promise<LfaaIdentitySnapshot>;
+}
+
+export interface AgentIdentityProjection {
+  readonly displayName: string;
+  readonly subtitle: string;
+  /** 仅用于 UI 可见性投影；Host 仍是授权真值。 */
+  readonly permissions: readonly string[];
+}
+
 export interface AgentWorkbenchProps {
   resources?: readonly DevResourceItem[];
   resourceBridgeStatus?: "connected" | "refreshing" | "offline";
@@ -61,4 +80,12 @@ export interface AgentWorkbenchProps {
   sessionHost?: WorkspaceSessionHost;
   /** Runtime 使用的工作区稳定 ID；不是本机绝对路径。 */
   workspaceId?: string;
+  /** Identity 用户/角色管理 Host；设置页只通过此端口访问身份域。 */
+  identitySettingsHost?: AgentIdentitySettingsHost;
+  /** 当前已通过 Identity Gate 的用户投影；只给 Shell 展示，不承担授权。 */
+  identity?: AgentIdentityProjection;
+  /** 返回登录后的 App Hub。 */
+  onOpenAppHub?: () => void;
+  /** 退出当前 AuthSession。 */
+  onLogout?: () => void;
 }

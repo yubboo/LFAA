@@ -1,4 +1,14 @@
-# LFAA Development Standard — v0.1.11
+# LFAA Development Standard — v0.1.12
+
+## v0.1.12 Identity / Access 开发规范
+
+- First Run 只允许在未初始化实例创建第一个 `super_admin`；初始化后不提供匿名注册。
+- Password 只能在 Host 使用强 KDF 保存散列；Auth Token 明文只能存在于 HttpOnly Cookie / 短生命周期内存，禁止 localStorage/sessionStorage/URL/log。
+- `AuthSession` 与 Workspace `Session` 必须分离；前者回答“谁在使用实例”，后者回答“在哪个 Project 里进行哪次工作会话”。
+- 所有本地 Host HTTP API 默认要求有效 AuthSession；细粒度 Tool/Agent/Plugin 权限仍必须在对应 Owner 再校验。
+- User / Role / Permission 归 Identity Owner；Role 只是权限集合，业务模块不得硬编码角色名作为最终授权。
+- App Hub 在登录后挂载；无真实实现的 App Pack 入口必须 disabled。
+- Identity 不拥有 Provider Credential；OpenAI/DeepSeek API Key/OAuth 继续归 Credentials/Provider Owner。
 
 ## v0.1.11 Project / Session / Navigation 开发规范
 

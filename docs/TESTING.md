@@ -1,4 +1,8 @@
-# LFAA Testing & Gates — v0.1.11
+# LFAA Testing & Gates — v0.1.12
+
+## v0.1.12 Identity / App Hub 回归
+
+`test/identity-repository-behavior.test.mjs` 锁定 First Run 只能一次、super_admin、登录/登出、Token 失效、密码/Token 不进入公共快照；`test/identity-product-boundary.test.mjs` 锁定 Identity Gate 在 App Hub/Workbench 之前、Identity Host Bridge 在其他本地 Controller 之前、未实现 App Pack 不伪装可用。浏览器验收必须覆盖“首次初始化 → 自动进入 Hub → Workbench → 退出 → 重新登录”。
 
 ## v0.1.11 Project / Session / Refresh 回归
 

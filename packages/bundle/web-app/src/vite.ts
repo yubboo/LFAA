@@ -10,6 +10,7 @@
  */
 import type { Plugin, ViteDevServer } from "vite";
 import { lfaaDevAgentRuntimeBridge } from "@lfaa/agent-controller";
+import { lfaaDevIdentityBridge } from "@lfaa/identity-controller";
 import { CodexAppServerHost } from "@lfaa/codex-app-server";
 import { lfaaDevPluginManagerBridge } from "@lfaa/plugin-controller";
 import { lfaaDevSessionBridge } from "@lfaa/session-controller";
@@ -41,6 +42,8 @@ export function createLfaaWebViteConfig(options: LfaaWebViteConfigOptions) {
     ...(options.devPort !== undefined ? { devPort: options.devPort } : {}),
     ...(options.previewPort !== undefined ? { previewPort: options.previewPort } : {}),
     plugins: [
+      // Identity 必须第一个注册：First Run/Login 自己放行，其余 /__lfaa/dev/* API 先经过 AuthSession Gate。
+      lfaaDevIdentityBridge(),
       createLfaaDevTerminalBridge(options.projectRoot),
       lfaaDevAiConfigBridge(options.projectRoot, { managedAuth: codexHost.managedAuth }),
       lfaaDevPluginManagerBridge(options.projectRoot),

@@ -1,10 +1,32 @@
-# LFAA v0.1.11 — 真实项目 / 会话持久化与模式隔离
+# LFAA v0.1.12 — 本地 Identity Gate / App Hub / 用户与权限
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.1.11**。本版修复 v0.1.10 的实机回归：Session Host 未接入时不再静默恢复默认；项目、活动项目、展开、置顶、会话置顶、最近记录、mode、messages、Work Context 与 Run Timeline 都写入 `LFAA_HOME/state/sessions/`。每个 Run 携带正式 Session ID，事件不会跨项目或会话串流；Chat 与 Work 共用同一 Agent Core，但中央交互面、输入上下文与恢复状态严格按 mode/session 路由。
+当前包：**LFAA-v0.1.12**。本版在 v0.1.11 的 Project / Session 真值之上新增实例级本地 Identity Boundary：第一次启动必须创建唯一 First Run 超级管理员，之后必须登录才能进入 App Hub 与工作台；所有 `/__lfaa/dev/*` Host HTTP API 默认先经过 AuthSession Gate。设置中心新增真实用户、Role 与 Permission 管理；登录后的第一屏升级为 App Hub，大展台先展示核心工作台与未来 App Pack 入口，未接入真实能力的入口保持 disabled，不伪装可用。
 
 > 当前真相以本 README、`ARCHITECTURE.md`、`DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
+
+
+## v0.1.12 Identity → App Hub → Workspace
+
+```text
+App Boot
+  ↓
+Identity Gate
+  ├─ First Run → create Super Admin
+  └─ Login → AuthSession
+  ↓
+App Hub
+  ↓
+App Pack / Core Workspace
+  ↓
+Project → Session → Chat | Work | Manual
+```
+
+- **Identity 是实例级钥匙**：本地账号只用于进入和使用当前 LFAA 实例，不等同于模型 Provider 账号。
+- **API 第二层门禁**：UI 登录之外，Host HTTP API 仍校验 AuthSession；用户/角色管理再校验 Permission。
+- **角色不是授权真值**：Role 只是 Permission 集合，后续 Tool/MCP/Agent 执行还必须与 App Pack / Project / Capability / Host Policy 相交。
+- **App Hub 是入口层**：Chat / Work / Manual / Infinite Canvas 仍是 LFAA Core 能力，不复制到每个业务入口。
 
 ## v0.1.11 项目 / 会话状态模型
 

@@ -9,6 +9,7 @@
  * 修改注意事项：Provider 业务类型只通过公开 ViewModel 接入，不深链内部源码。
  */
 import type { ThemePreference, AiSettingsAccountView, AiSettingsDraftInput, AiSettingsModelSettingValue, AiSettingsProbeView, AiSettingsProviderView } from "@lfaa/ui";
+import type { LfaaIdentitySnapshot } from "@lfaa/identity";
 
 export type SettingsSectionId = "general" | "appearance" | "ai" | "plugins" | "permissions" | "workspace" | "developer";
 
@@ -37,6 +38,19 @@ export interface SettingsPageProps {
   onSelectAiAccountModel: (accountId: string, modelId: string, modelSettings: Readonly<Record<string, AiSettingsModelSettingValue>>) => Promise<void>;
   onActivateAiAccountModel: (accountId: string) => Promise<void>;
   pluginSettings: PluginSettingsPanelProps;
+  identitySettings: IdentitySettingsPanelProps;
+  /** 仅控制 UI 可见性；Host 仍必须独立鉴权。 */
+  showIdentitySettings: boolean;
+}
+
+export interface IdentitySettingsPanelProps {
+  readonly hostAvailable: boolean;
+  readonly error: string;
+  readonly snapshot: LfaaIdentitySnapshot;
+  onCreateUser(input: { username: string; displayName?: string; password: string; roleIds?: readonly string[] }): Promise<unknown>;
+  onUpdateUser(userId: string, input: { displayName?: string; disabled?: boolean; roleIds?: readonly string[] }): Promise<unknown>;
+  onCreateRole(input: { id: string; name: string; description?: string; permissions: readonly string[] }): Promise<unknown>;
+  onDeleteRole(roleId: string): Promise<unknown>;
 }
 
 export interface PluginSettingsCapabilityView {

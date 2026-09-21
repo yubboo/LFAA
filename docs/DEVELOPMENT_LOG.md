@@ -1,3 +1,13 @@
+# v0.1.12 / #22.18 — Local Identity Gate / App Hub / User RBAC
+
+**当前任务：v0.1.12 · pending-user-acceptance · AI=pass（静态门禁 + Identity 聚焦回归） · 用户验收=pending**
+
+- 以 v0.1.11 新架构为基线，不恢复旧 `.lfaa` 或旧 Domain 包。
+- 新增 Identity capability family 与 Host API Gate；First Run / Login / User / Role / Permission 落地。
+- Client 启动顺序改为 Identity Gate → App Hub → Workbench；未实现 App Pack 保持 disabled。
+- Settings 接入用户与权限管理，Workbench Profile 使用真实身份。
+- Identity 聚焦测试通过；完整 Node24 + pnpm 11.17.0 发布门禁需在标准环境执行。
+
 # v0.1.11 / #22.17 Project + Session Persistence / Runtime Event Isolation
 
 **当前任务：v0.1.11 · pending-user-acceptance · AI=pass · 用户验收=pending**

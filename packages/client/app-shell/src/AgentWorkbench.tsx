@@ -26,9 +26,11 @@ import {
   SettingsSurface,
   useAiSettingsController,
   usePluginSettingsController,
+  useIdentitySettingsController,
   useSettingsSurfaceController,
 } from "./workbench/settings";
 import { useWorkspaceSessionController } from "@lfaa/workspace";
+import { hasPermission, LFAA_IDENTITY_PERMISSIONS } from "@lfaa/identity";
 import "./agent-workbench.css";
 
 export function AgentWorkbench(props:AgentWorkbenchProps){
@@ -38,7 +40,10 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
   const settingsSurface=useSettingsSurfaceController();
   const ai=useAiSettingsController(props.aiSettingsHost);
   const plugins=usePluginSettingsController(props.pluginSettingsHost);
+  const canViewIdentitySettings=Boolean(props.identity && hasPermission(props.identity.permissions,LFAA_IDENTITY_PERMISSIONS.usersRead) && hasPermission(props.identity.permissions,LFAA_IDENTITY_PERMISSIONS.rolesRead));
+  const identitySettings=useIdentitySettingsController(props.identitySettingsHost,canViewIdentitySettings);
   const session=useWorkspaceSessionController({runtimeHost:props.agentRuntimeHost,sessionHost:props.sessionHost,workspaceId:props.workspaceId,activeModelBinding:ai.activeModelBinding});
+  const identityDisplay=props.identity ?? {displayName:"LFAA 用户",subtitle:"本地实例",permissions:[]};
 
   useWorkbenchShellShortcuts({
     onEscape:overlays.closeMenus,
@@ -52,6 +57,8 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
     <LeftSidebarRegion
       resolvedTheme={theme.resolvedTheme}
       themePreference={theme.themePreference}
+      profileDisplayName={identityDisplay.displayName}
+      profileSubtitle={identityDisplay.subtitle}
       workspaceMode={session.workspaceMode}
       onWorkspaceModeChange={session.setWorkspaceMode}
       recentSessions={session.recentSessions}
@@ -124,15 +131,19 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
       layoutMode={chrome.layoutMode}
       resolvedTheme={theme.resolvedTheme}
       themePreference={theme.themePreference}
+      displayName={identityDisplay.displayName}
+      subtitle={identityDisplay.subtitle}
       onThemePreferenceChange={theme.setThemePreference}
       onOpenSettings={()=>settingsSurface.openSettings("general")}
+      {...(props.onOpenAppHub ? { onOpenAppHub: props.onOpenAppHub } : {})}
+      {...(props.onLogout ? { onLogout: props.onLogout } : {})}
     />
   );
 
   return (
     <WorkbenchRoot resolvedTheme={theme.resolvedTheme} themePreference={theme.themePreference} layoutMode={chrome.layoutMode}>
       <WorkbenchShell chrome={chrome} suspended={settingsSurface.surface==="settings"} left={left} center={center} right={right} bottom={bottom} overlays={overlayViews}/>
-      {settingsSurface.surface==="settings"?<SettingsSurface activeSection={settingsSurface.settingsSection} onSectionChange={settingsSurface.setSettingsSection} onClose={settingsSurface.closeSettings} leftPaneWidth={chrome.leftPaneWidth} onLeftPaneWidthChange={chrome.setLeftPaneWidth} themePreference={theme.themePreference} onThemePreferenceChange={theme.setThemePreference} ai={ai} plugins={plugins}/>:null}
+      {settingsSurface.surface==="settings"?<SettingsSurface activeSection={settingsSurface.settingsSection} onSectionChange={settingsSurface.setSettingsSection} onClose={settingsSurface.closeSettings} leftPaneWidth={chrome.leftPaneWidth} onLeftPaneWidthChange={chrome.setLeftPaneWidth} themePreference={theme.themePreference} onThemePreferenceChange={theme.setThemePreference} ai={ai} plugins={plugins} identity={identitySettings} showIdentitySettings={canViewIdentitySettings}/>:null}
     </WorkbenchRoot>
   );
 }

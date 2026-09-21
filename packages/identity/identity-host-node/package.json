@@ -1,0 +1,16 @@
+{
+  "name": "@lfaa/identity-host-node",
+  "private": true,
+  "version": "0.1.12",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "dependencies": {
+    "@lfaa/home-paths": "workspace:*",
+    "@lfaa/identity": "workspace:*"
+  },
+  "lfaa": {
+    "layer": "host-adapter",
+    "role": "instance-identity-node-provider"
+  }
+}

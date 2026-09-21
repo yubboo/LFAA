@@ -17,9 +17,11 @@ import type { ResolvedTheme } from "#workbench/contracts";
 import { ProfileBar } from "./ProfileBar";
 import styles from "../styles/LeftSidebar.module.css";
 
-export function LeftSidebarRegion({ resolvedTheme, themePreference, workspaceMode, projects, activeProjectId, recentSessions, pinnedSessions, activeSessionId, sessionError, onWorkspaceModeChange, onCreateSession, onSelectSession, onToggleSessionPinned, onCreateProject, onSelectProject, onUpdateProject, onDeleteProject, onOpenToolsAndSkills, onOpenProfile, onOpenThemeMenu, onRequestUpdate }: {
+export function LeftSidebarRegion({ resolvedTheme, themePreference, profileDisplayName, profileSubtitle, workspaceMode, projects, activeProjectId, recentSessions, pinnedSessions, activeSessionId, sessionError, onWorkspaceModeChange, onCreateSession, onSelectSession, onToggleSessionPinned, onCreateProject, onSelectProject, onUpdateProject, onDeleteProject, onOpenToolsAndSkills, onOpenProfile, onOpenThemeMenu, onRequestUpdate }: {
   resolvedTheme: ResolvedTheme;
   themePreference: ThemePreference;
+  profileDisplayName: string;
+  profileSubtitle: string;
   workspaceMode: WorkspaceMode;
   projects: readonly WorkspaceProjectRecord[];
   activeProjectId: string;
@@ -107,7 +109,7 @@ export function LeftSidebarRegion({ resolvedTheme, themePreference, workspaceMod
           <div className={styles.historyRow} key={item.id}><button type="button" className={item.id === activeSessionId ? styles.current : ""} onClick={() => onSelectSession(item.id)} title={item.preview || item.title}>{item.title}</button><button type="button" className={styles.rowAction} aria-label={`${item.pinned ? "取消置顶" : "置顶"}${item.title}`} onClick={() => onToggleSessionPinned(item.id)}>{item.pinned ? "★" : "☆"}</button></div>
         )) : <div className={styles.emptyHistory}>{sessionError ? `会话存储不可用：${sessionError}` : "还没有会话"}</div>}
       </div>
-      <ProfileBar resolvedTheme={resolvedTheme} themePreference={themePreference} onOpenProfile={onOpenProfile} onOpenThemeMenu={onOpenThemeMenu} onRequestUpdate={onRequestUpdate} />
+      <ProfileBar resolvedTheme={resolvedTheme} themePreference={themePreference} displayName={profileDisplayName} subtitle={profileSubtitle} onOpenProfile={onOpenProfile} onOpenThemeMenu={onOpenThemeMenu} onRequestUpdate={onRequestUpdate} />
     </aside>
   );
 }

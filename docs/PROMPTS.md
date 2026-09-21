@@ -1,3 +1,11 @@
+# v0.1.12 Prompt / Requirement Note — Local Identity Gate / App Hub / Access Boundary
+
+- **基线 / 目标：** v0.1.11 → v0.1.12；任务 #22.18；状态 pending-user-acceptance；AI 验证 pass（当前可用环境的静态门禁 + Identity 聚焦回归）；用户验收 pending。
+- **用户需求：** LFAA 第一次启动必须创建本地超级管理员；之后未登录不得进入软件。账号只服务当前 LFAA 实例，不绑定云账户、套餐或 Provider；登录成功后进入 App Hub 大展台，再进入 AI 写作、AI 漫剧、Minecraft、Steam 等 App Pack。
+- **安全边界：** UI 门禁之外，Host HTTP API 必须再次校验 AuthSession；Role 只是 Permission 集合，敏感操作继续由 Host 做授权真值。Provider API Key 仍归 Credentials，不得与登录身份混用。
+- **架构约束：** 沿用 v0.1.11 monorepo、Project/Session、Chat/Work/Manual、InfiniteCanvas 与单一 Agent Runtime；新增 Identity owner 有真实持久化、Host Consumer 与 Web Consumer；App Pack 是业务入口边界，不恢复旧 `.lfaa/` 或泛化 Domain 包。
+- **当前限制：** Vite dev WebSocket 的 Terminal / Runtime event 通道尚未接入与 HTTP 同等级的 AuthSession 握手，完成前不得宣称全链路访问边界已封闭。
+
 # v0.1.11 Prompt / Requirement Note — Project + Session Persistence / Runtime Event Isolation
 
 - **基线 / 目标：** v0.1.10 → v0.1.11；任务 #22.17；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。
@@ -121,6 +129,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #22.18 | Local Identity Gate / App Hub / User RBAC | v0.1.12 | pending-user-acceptance | pass | pending |
 | #22.17 | Project + Session Persistence / Runtime Event Isolation | v0.1.11 | pending-user-acceptance | pass | pending |
 | #22.16 | Session Persistence / Stable Navigation / Dual Mode Switch | v0.1.10 | pending-user-acceptance | pass | pending |
 | #22.15 | 实时 Agent Run Timeline / Streaming Activity | v0.1.9 | pending-user-acceptance | pass | pending |
@@ -191,12 +200,13 @@
 
 ## 当前任务 / 当前合同
 
-## #22.17 Project + Session Persistence / Runtime Event Isolation
+## #22.18 Local Identity Gate / App Hub / User RBAC
 
-- **版本：** v0.1.11；**状态：** pending-user-acceptance。
-- **允许修改：** Project/Session Domain 与 Node Host、Session HTTP/Client、Workspace Controller、左栏项目/会话交互、Chat Run disclosure、Agent Runtime session 路由、对应测试/文档/版本元数据。
-- **禁止修改：** Provider 认证和额度语义、Plugin/Secret/Terminal 协议、Chat/Work 共用同一 Agent Core 的能力边界；禁止引入 C#。
-- **验收：** Project/Session/置顶/展开/active 状态和消息跨刷新、重启恢复；Chat 与 Work 中央表现和提交行为按 mode 分流；Runtime 事件按 Session 隔离；真实阶段与工具活动可展开；完整门禁和 fresh extract 通过。
+- **版本：** v0.1.12；**状态：** pending-user-acceptance。
+- **允许修改：** Identity Domain/Node Host、Identity HTTP/Client、First Run/Login/App Hub、Settings 用户/角色/Permission、Workbench 当前用户投影、Bundle 中 Identity Gate 装配、对应测试/文档/版本元数据。
+- **禁止修改：** v0.1.11 Project/Session 真值、Chat/Work 单一 Agent Core、Manual 不进 Agent Runtime、Provider Credential 语义、Infinite Canvas 核心行为；禁止恢复旧 `.lfaa/` 或预建泛化 Domain 包。
+- **安全合同：** First Run 根账户唯一且不可复制；密码只保存 scrypt 派生散列，Auth Token 只保存 hash 并通过 HttpOnly SameSite Cookie 使用；禁用用户立即失效旧 AuthSession；所有 `/__lfaa/dev/*` HTTP API 在初始化后默认要求 AuthSession。
+- **验收：** First Run → Super Admin → App Hub → Workbench 闭环；登录前 Host HTTP API 不可用；用户/角色/Permission 可真实管理；未实现 App Pack 不伪装可用；v0.1.11 Workspace 契约不回退。Vite dev WebSocket 仍列为下一安全门禁，不在本版宣称全链路封闭。
 
 
 

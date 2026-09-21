@@ -1,7 +1,17 @@
-# LFAA Agent / Contributor Guide — v0.1.11
+# LFAA Agent / Contributor Guide — v0.1.12
 
 本文件给 AI Agent 和开发者提供最短路径的当前约束。**先遵守当前代码与本文件，再参考历史记录。**
 
+
+## v0.1.12 不可破坏的 Identity / App Hub 原则
+
+1. LFAA 第一次启动必须通过 First Run 创建唯一超级管理员；初始化完成后禁止重新开放匿名注册。
+2. Identity 账号是本地实例访问控制，不得和 OpenAI/DeepSeek 等 Provider Credential、套餐、Billing 混为一体。
+3. Workbench 只能在有效 AuthSession 后挂载；所有 `/__lfaa/dev/*` Host HTTP API 默认先经过 Identity Gate。
+4. User → Role → Permission；Role 只是 Permission 集合，禁止在业务代码中用 `if (role === ...)` 代替最终授权。
+5. `AuthSession` 与 Workspace `Session` 是两类对象，命名、持久化和生命周期不得混用。
+6. 登录后的第一屏是 App Hub；未有真实 App Pack / Consumer 的业务入口必须 disabled，禁止用通用 Workbench 冒充。
+7. Chat / Work / Manual / Infinite Canvas 仍是系统能力；未来 App Pack 只组合能力并建立边界，不复制第二套 Runtime。
 
 ## v0.1.11 不可破坏的模式 / Provider 原则
 

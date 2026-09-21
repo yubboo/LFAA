@@ -1,0 +1,17 @@
+{
+  "name": "@lfaa/identity-controller",
+  "private": true,
+  "version": "0.1.12",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "dependencies": {
+    "@lfaa/identity": "workspace:*",
+    "@lfaa/identity-host-node": "workspace:*",
+    "vite": "8.2.2"
+  },
+  "lfaa": {
+    "layer": "host",
+    "role": "instance-identity-http-controller"
+  }
+}

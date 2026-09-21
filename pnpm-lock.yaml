@@ -67,6 +67,17 @@ importers:
       vite:
         specifier: 8.2.2
         version: 8.2.2(@types/node@26.4.1)
+  packages/api/identity-controller:
+    dependencies:
+      '@lfaa/identity':
+        specifier: workspace:*
+        version: link:../../identity/identity
+      '@lfaa/identity-host-node':
+        specifier: workspace:*
+        version: link:../../identity/identity-host-node
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.4.1)
   packages/api/plugin-controller:
     dependencies:
       '@lfaa/plugin-host-node':
@@ -117,6 +128,9 @@ importers:
       '@lfaa/host-vite':
         specifier: workspace:*
         version: link:../../host/vite
+      '@lfaa/identity-controller':
+        specifier: workspace:*
+        version: link:../../api/identity-controller
       '@lfaa/plugin-controller':
         specifier: workspace:*
         version: link:../../api/plugin-controller
@@ -140,6 +154,9 @@ importers:
       '@lfaa/config-system':
         specifier: workspace:*
         version: link:../../settings/config-system
+      '@lfaa/identity':
+        specifier: workspace:*
+        version: link:../../identity/identity
       '@lfaa/plugin-runtime':
         specifier: workspace:*
         version: link:../../plugin/plugin-runtime
@@ -163,6 +180,9 @@ importers:
       '@lfaa/config-system':
         specifier: workspace:*
         version: link:../../settings/config-system
+      '@lfaa/identity':
+        specifier: workspace:*
+        version: link:../../identity/identity
       '@lfaa/plugin-runtime':
         specifier: workspace:*
         version: link:../../plugin/plugin-runtime
@@ -252,6 +272,15 @@ importers:
       vite:
         specifier: 8.2.2
         version: 8.2.2(@types/node@26.4.1)
+  packages/identity/identity: {}
+  packages/identity/identity-host-node:
+    dependencies:
+      '@lfaa/home-paths':
+        specifier: workspace:*
+        version: link:../../util/home-paths
+      '@lfaa/identity':
+        specifier: workspace:*
+        version: link:../identity
   packages/llm/openai-compatible:
     dependencies:
       '@lfaa/agent-runtime':

@@ -1,18 +1,35 @@
 /**
  * 文件：packages/client/web/src/App.tsx
  * 作用：LFAA Web Client Composition。
- * 负责：把 Workbench、Web Host Clients 与本地终端 UI 组合成 Web 产品。
- * 不负责：Vite Host、Provider HTTP、PTY 生命周期、运行时持久化。
- * 状态归属：无独立持久状态；产品状态由各 capability package 拥有。
+ * 负责：按 Identity Gate → App Hub → AgentWorkbench 顺序组合产品，并注入 Web Host Clients / 本地终端。
+ * 不负责：身份持久化、Vite Host、Provider HTTP、PTY 生命周期、App Pack Runtime、业务权限判定。
+ * 状态归属：只持有当前展示 Hub/Workbench 的临时导航状态；长期状态由 capability package 拥有。
  * 对外接口：App()。
  * 关联文件：web-entry.tsx、@lfaa/app-shell、@lfaa/client-connection、@lfaa/ui-terminal。
- * 修改注意事项：只做 Client Composition，不把 Host/Provider 业务回流到 React 根。
+ * 修改注意事项：必须先通过 Identity Gate 才能挂载 Workbench；未实现 App Pack 禁止伪装成可用入口。
  */
-import { AgentWorkbench } from "@lfaa/app-shell";
-import { webAgentRuntimeHost, webAiSettingsHost, webPluginSettingsHost, webWorkspaceSessionHost } from "@lfaa/client-connection";
+import { useState } from "react";
+import { AgentWorkbench, LfaaAppHub, LfaaIdentityGate, type AppHubEntry } from "@lfaa/app-shell";
+import { webAgentRuntimeHost, webAiSettingsHost, webIdentityHost, webPluginSettingsHost, webWorkspaceSessionHost } from "@lfaa/client-connection";
 import { LocalTerminal } from "@lfaa/ui-terminal";
 
+const APP_HUB_ENTRIES: readonly AppHubEntry[] = [
+  { id: "lfaa/general", title: "LFAA 通用工作台", description: "进入现有 Chat / Work / Manual 工作台。", category: "工作台", glyph: "L", available: true, badge: "可用" },
+  { id: "lfaa/ai-writing", title: "AI 写作", description: "长篇创作、人物、世界观、章节与文档画布。", category: "AI 创作", glyph: "文", available: false, badge: "App Pack 待接入" },
+  { id: "lfaa/ai-comic", title: "AI 漫剧", description: "剧本、角色、分镜、图像、声音与视频工作流。", category: "AI 创作", glyph: "漫", available: false, badge: "App Pack 待接入" },
+  { id: "lfaa/minecraft", title: "Minecraft", description: "独立游戏服务器创建、配置、运行、备份与运维。", category: "游戏与服务器", glyph: "MC", available: false, badge: "App Pack 待接入" },
+  { id: "lfaa/steam-server", title: "Steam Server", description: "Steam 游戏专用服务器安装、更新与运行管理。", category: "游戏与服务器", glyph: "ST", available: false, badge: "App Pack 待接入" },
+];
+
 export function App() {
+  return <LfaaIdentityGate host={webIdentityHost}>{(identity, logout) => <AuthenticatedProduct identity={identity} logout={logout} />}</LfaaIdentityGate>;
+}
+
+function AuthenticatedProduct({ identity, logout }: { identity: Awaited<ReturnType<typeof webIdentityHost.me>>; logout: () => Promise<void> }) {
+  const [surface, setSurface] = useState<"hub" | "workbench">("hub");
+  if (surface === "hub") {
+    return <LfaaAppHub identity={identity} entries={APP_HUB_ENTRIES} onEnter={(entry) => { if (entry.available) setSurface("workbench"); }} onLogout={() => void logout()} />;
+  }
   return (
     <AgentWorkbench
       resources={[]}
@@ -22,6 +39,10 @@ export function App() {
       pluginSettingsHost={webPluginSettingsHost}
       agentRuntimeHost={webAgentRuntimeHost}
       sessionHost={webWorkspaceSessionHost}
+      identitySettingsHost={webIdentityHost}
+      identity={{ displayName: identity.user.displayName, subtitle: identity.roles.map((role) => role.name).join(" · ") || identity.user.username, permissions: identity.permissions }}
+      onOpenAppHub={() => setSurface("hub")}
+      onLogout={() => void logout()}
     />
   );
 }

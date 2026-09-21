@@ -1,4 +1,10 @@
-# LFAA UI Architecture — v0.1.11
+# LFAA UI Architecture — v0.1.12
+
+## v0.1.12 Identity Gate / App Hub
+
+产品启动 UI 顺序固定为 `Identity Gate → App Hub → Workbench`。第一次使用显示“初始化 LFAA”并创建超级管理员；后续显示本地登录。登录后的 App Hub 采用居中介绍 + 分类入口展台，业务入口只是“门”；Chat / Work / Manual / Infinite Canvas 仍属于 LFAA Core。未接入真实 App Pack 的卡片必须 disabled。Workbench 左下角 Profile 和个人菜单使用真实登录用户，并提供“应用中心 / 退出登录”。
+
+设置中心“用户与权限”显示用户、角色、Permission，并支持超级管理员创建普通用户/自定义角色、禁用用户；前端禁用只是 UX，Host 必须再次校验。
 
 ## v0.1.11 真实左栏与模式切换
 
