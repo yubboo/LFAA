@@ -1,3 +1,11 @@
+# v0.1.5 / #22.12 — Codex Windows Host 启动与诊断修复
+
+- 修复 Windows + Node 24 下 `spawn(..., { shell: true })` 触发 `DEP0190`，并可能把 npm `codex.cmd` 启动失败折叠成单纯 `code=1` 的问题。
+- Codex App Server 在 Windows 改为显式 `cmd.exe /d /s /v:off /c codex app-server`，`shell:false`，且先用 `where.exe codex` 验证当前 LFAA 启动终端的 PATH 可解析 Codex CLI。
+- App Server stderr 改为仅保留有限尾部、脱敏后用于启动失败诊断；不再把认证 Token/Secret 写入日志或 UI。
+- 保持 v0.1.4 的官方 Usage、Chat/Work 导航与账户持久化语义不变；App Server 失败不会删除 `LFAA_HOME/state/ai-accounts.json`。
+- 状态：pending-user-acceptance；AI 验证：pass（219/219 Node 合同测试、聚焦 Codex Host/Runtime 测试与 workspace-preflight）；真实 Windows Codex CLI 端到端待用户验收。
+
 # v0.1.4 / #22.11 — 官方余额额度与 Chat/Work 模式边界
 
 - 新增官方 Usage Snapshot：DeepSeek 余额、Model Studio Workspace 配额、Codex/Work rate limits 与 token activity。

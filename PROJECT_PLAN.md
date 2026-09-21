@@ -1,45 +1,24 @@
-# LFAA Project Plan — current after v0.1.4
+# LFAA Project Plan — current after v0.1.5
 
 ## 当前里程碑
 
-**v0.1.4 / 官方余额额度与 Chat/Work 导航边界（pending-user-acceptance）**
+**v0.1.5 / Codex Windows Host 启动与诊断修复（pending-user-acceptance）**
 
-目标：所有已配置 Provider 的“余额/额度”只展示官方可验证事实；ChatGPT 标准 Chat 与 Codex/Work 的用量语义分开；Chat/Work 左侧导航按工作模式切换。
+目标：修复 v0.1.4 实机出现的 `DEP0190` 与 `Codex App Server 已退出（code=1）`，恢复 ChatGPT/Codex 套餐配置入口，并让启动失败能返回受限、脱敏后的真实 CLI 诊断。
 
 本版：
 
-- DeepSeek：官方 `/user/balance`；
-- 阿里云 Model Studio：具备 Workspace ID 的区域使用官方 `/api/v1/quotas`；
-- ChatGPT/Codex 套餐：官方 Codex App Server `account/rateLimits/read` + `account/usage/read`，明确标记为 Codex/Work；
-- OpenAI 普通 API Key、Kimi、智谱、小米 MiMo：当前未确认有可由普通模型凭证稳定读取的官方余额接口，因此显示“官方未提供”，不估算；
-- Settings 增加官方 Usage Snapshot 与手动刷新；
-- Chat/Work 左侧菜单分流。
+- Windows Codex Host 不再使用 Node `shell:true + args`；
+- 使用显式 `cmd.exe` 包装固定 `codex app-server` 命令，并先验证 `where.exe codex`；
+- 捕获有限 stderr 尾部并脱敏后写入错误消息，避免只有 `code=1` 无原因；
+- v0.1.4 Usage / Chat-Work 逻辑保持不变；
+- 账户元数据仍只归 `LFAA_HOME/state/ai-accounts.json`，Codex 进程失败不能删除账户。
 
-**AI 验证：** pass。Config System 41/41、仓库级 Node 合同 178/178、官方 Usage/模式导航专项通过；统一治理与归档验证继续在打包前执行。用户验收 pending。
+**AI 验证：** pass。219/219 Node 合同测试、Codex Host/Runtime 聚焦回归与 workspace-preflight 通过；真实 Windows Codex CLI + ChatGPT 登录仍由用户实机验收。
 
-**后续：** Chat 模式困难任务自动升级到真正 Work/Codex Runtime，以及统一 Run Timeline / reasoning summary / tool activity，继续按 Agent Runtime Event 建设，不在本版伪造。
+**上一里程碑：v0.1.4 / 官方余额额度与 Chat/Work 模式边界**
 
-**上一里程碑：v0.1.3 / 全量质量门禁与 Codex 取消竞态修复**
-
-该版本修复 TypeScript 可选端口、旧 Node source importer 与 Codex 提前取消竞态；其历史验证结果见 `CHANGELOG.md` / `docs/RELEASES.md`。
-
-**再上一里程碑：v0.1.2 / Codex App Server Chat Runtime**
-
-目标：让已经通过 ChatGPT/Codex 套餐完成登录与 `model/list` 的模型真正进入聊天执行链；保持 v0.1.1 Harness、TSConfig、依赖健康与 Sync 治理不回退。
-
-本版新增：
-
-- `@lfaa/codex-app-server` 从 Managed Auth / Model Catalog Adapter 升级为共享 `CodexAppServerHost`，同时提供 Managed Auth 与 Text Runtime；
-- Text Runtime 使用官方 App Server `thread/start` / `turn/start`，按 Workspace + Account + Model 复用多轮 Thread；
-- 接收 `item/agentMessage/delta` 流式文本，并以 `item/completed` / `turn/completed` 收敛最终消息；
-- Browser Run 取消映射为 `turn/interrupt`，并保留 timeout / process failure 收敛；
-- `agent-controller` 改为依据 Config System 的 `connection.protocol` 路由 `codex-app-server` 与 `openai-compatible`，不再用 `credentialRef` 猜 Runtime；
-- `bundle/web-app` 统一持有一个 Codex App Server Host，Settings 与 Chat 共用进程；
-- Workspace 支持 `assistant.delta`，流式 delta 与最终 `assistant.completed` 写入同一 assistant message；
-- LFAA 不读取或复制 Codex OAuth Token；审批 UI 尚未接入前，Codex Text Runtime 强制 read-only，并拒绝命令、文件写入、权限提升与 MCP elicitation 请求；
-- 新增 Codex Runtime 行为回归，锁定 Thread 复用、Turn、delta、最终消息、reasoning effort 与 interrupt。
-
-**AI 验证：** pass。仓库级 Node 合同测试 175/175 PASS；Config System 39/39 PASS；Codex Runtime 行为测试 2/2 PASS；所有 workspace tsconfig 均通过真实 `tsc --showConfig`；统一静态治理与 workspace preflight 通过。真实 Windows Codex CLI + ChatGPT 账户端到端仍由用户验收。
+该版本新增官方 Usage Snapshot 与 Chat/Work 左侧导航分流；其历史验证结果见 `CHANGELOG.md` / `docs/RELEASES.md`。
 
 ## 当前冻结行为
 

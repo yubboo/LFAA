@@ -1,4 +1,11 @@
-# LFAA Testing & Gates — v0.1.4
+# LFAA Testing & Gates — v0.1.5
+
+## v0.1.5 Codex Windows Host 启动回归
+
+- `ai-web-host.test.mjs` 锁定 Windows 使用显式 `cmd.exe` 包装且源码中不存在 `shell:true`。
+- 锁定 `where.exe codex` PATH 检测与脱敏 stderr 诊断。
+- 真实 Windows `codex --version` / `codex app-server` 仍属于用户环境端到端验收。
+
 
 ## v0.1.4 官方 Usage / 模式导航回归
 

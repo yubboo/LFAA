@@ -1,3 +1,11 @@
+# v0.1.5 Prompt / Requirement Note — Codex Windows Host 启动与诊断修复
+
+- **实机问题：** v0.1.4 设置页 ChatGPT 套餐显示 `Codex App Server 已退出（code=1, signal=null）`，终端同时出现 Node 24 `DEP0190`；登录按钮不可用。
+- **根因：** Windows 使用 `spawn("codex", ["app-server"], { shell: true })` 启动 npm `codex.cmd`；Node 24 明确警告 `shell + args`，且 shell 失败只剩 code=1，原实现还丢弃 stderr，无法诊断。
+- **要求：** 以 v0.1.4 为基线，仅修 Codex Host Windows 启动和错误诊断；不得改动 v0.1.4 官方 Usage、Chat/Work 导航、账户/Secret 语义。
+- **实现边界：** Windows 显式 `cmd.exe` + `shell:false`；启动前验证 PATH；stderr 只保留有限尾部并脱敏；账户元数据继续归 LFAA_HOME，Host 失败不得删除账户。
+- **版本：** v0.1.5；**状态：** pending-user-acceptance；**AI：** pass；**用户验收：** pending。
+
 # v0.1.4 Prompt / Requirement Note — 官方余额额度与 Chat/Work 模式边界
 
 - **基线 / 目标：** 用户提供 v0.1.3 → v0.1.4；任务 #22.11；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。
@@ -72,6 +80,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #22.12 | Codex Windows Host 启动与诊断修复 | v0.1.5 | pending-user-acceptance | pass | pending |
 | #22.11 | 官方余额额度与 Chat/Work 模式边界 | v0.1.4 | pending-user-acceptance | pass | pending |
 | #22.10 | 全量质量门禁与 Codex 取消竞态修复 | v0.1.3 | pending-user-acceptance | pass | pending |
 | #22.9 | ChatGPT/Codex 套餐 Text Runtime | v0.1.2 | pending-user-acceptance | pass | pending |

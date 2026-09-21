@@ -1,6 +1,8 @@
-# LFAA Runtime — v0.1.4
+# LFAA Runtime — v0.1.5
 
-> v0.1.4 Usage Runtime：账户配置与余额/额度分开验证。Config System 声明官方 usage discovery；Settings Host 实际请求官方端点；Client 只渲染 `AiAccountUsageSnapshot`。Codex App Server 的 usage/rate-limit 明确属于 Codex/Work，不表示标准 ChatGPT Chat 消息额度。
+> v0.1.5 Codex Host 启动：Windows 显式通过 `cmd.exe` 执行固定 `codex app-server`，禁止 Node `shell:true + args`；Host 启动失败只暴露有限、脱敏的 stderr 诊断。账户元数据与 Host 进程生命周期继续分离。
+
+> v0.1.5 Usage Runtime：账户配置与余额/额度分开验证。Config System 声明官方 usage discovery；Settings Host 实际请求官方端点；Client 只渲染 `AiAccountUsageSnapshot`。Codex App Server 的 usage/rate-limit 明确属于 Codex/Work，不表示标准 ChatGPT Chat 消息额度。
 
 
 > v0.1.3 修复 Codex Turn 在 `turn/start` 响应前取消时的未处理 Promise 拒绝；Run 对外仍以 `AbortError` 收敛，并在获得 Turn ID 后发送 `turn/interrupt`。

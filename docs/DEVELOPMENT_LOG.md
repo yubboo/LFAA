@@ -1,3 +1,13 @@
+# v0.1.5 / #22.12 Codex Windows Host 启动与诊断修复
+
+**当前任务：v0.1.5 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- **实机复现：** Node 24 启动 Web 后出现 `DEP0190`；AI 设置页 Codex App Server `code=1`，ChatGPT 套餐登录入口被禁用。
+- **定位：** `@lfaa/codex-app-server` 在 Windows 使用 `shell:true + args` 运行 npm `codex.cmd`，且 stderr 被直接丢弃。
+- **修复：** 改为显式 `cmd.exe /d /s /v:off /c codex app-server` + `shell:false`；`where.exe codex` 检查 PATH；保留 4 KiB stderr 尾部并脱敏后用于错误诊断。
+- **保持：** v0.1.4 Usage、Chat/Work 导航、LFAA_HOME 账户持久化与 OAuth 安全边界不变。
+- **AI 验证：** 219/219 Node 合同测试 PASS；Codex Host/Runtime 聚焦测试 PASS；workspace-preflight PASS。真实 Windows Codex CLI 仍待用户验收。
+
 # v0.1.4 / #22.11 官方余额额度与 Chat/Work 模式边界
 
 **当前任务：v0.1.4 · pending-user-acceptance · AI=pass · 用户验收=pending**

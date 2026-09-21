@@ -1,4 +1,12 @@
-# LFAA Releases — current policy v0.1.4
+# LFAA Releases — current policy v0.1.5
+
+## v0.1.5 — #22.12 Codex Windows Host 启动与诊断修复
+
+- Windows Codex App Server 改为显式 `cmd.exe /d /s /v:off /c codex app-server`，不再使用触发 Node 24 `DEP0190` 的 `shell + args`。
+- 启动前验证 `where.exe codex`；失败时返回受限、脱敏 stderr，便于区分 PATH、CLI 版本、App Server 自身错误。
+- v0.1.4 官方 Usage / Chat-Work 语义保持不变。
+- 状态：`pending-user-acceptance`；AI 验证 `pass`；真实 Windows Codex CLI 端到端待用户验收。
+
 
 ## v0.1.4 — #22.11 官方余额额度与 Chat/Work 模式边界
 
@@ -56,7 +64,7 @@
 ## 当前版本
 
 ```text
-displayVersion: 0.1.4
+displayVersion: 0.1.5
 releaseSequence: 103
 architectureVersion: 5
 ```

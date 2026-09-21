@@ -1,6 +1,6 @@
-# LFAA UI Architecture — v0.1.4
+# LFAA UI Architecture — v0.1.5
 
-## v0.1.4 模式导航与官方 Usage
+## v0.1.5 模式导航与官方 Usage
 
 Chat 左栏面向对话：新建对话、工具与技能、知识库、最近对话。Work 左栏面向开发工作：新建工作、工作区、任务与运行、文件、终端、变更与审查、项目与最近工作。
 

@@ -1,6 +1,11 @@
-# LFAA Development Standard — v0.1.4
+# LFAA Development Standard — v0.1.5
 
 本文件是当前开发规范。历史版本的设计过程请看 `CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md` 和 `docs/PROMPTS.md`；历史内容不得覆盖本文件。
+
+## Codex / Windows 子进程规则
+
+Windows npm `.cmd` 工具不得使用 `spawn(command, args, { shell: true })`；固定可信命令使用显式 `cmd.exe` 包装且 `shell:false`，动态参数必须经过独立安全策略。启动失败允许返回有限、脱敏 stderr，但不得泄露认证材料。
+
 
 ## 1. 开发目标
 

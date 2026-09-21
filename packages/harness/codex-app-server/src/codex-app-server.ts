@@ -8,7 +8,7 @@
  * 关联文件：packages/api/settings-controller、packages/api/agent-controller、packages/bundle/web-app。
  * 修改注意事项：只能调用官方 App Server RPC；禁止读取 ~/.codex/auth.json；审批 UI 未接入前 Text Runtime 必须保持 readOnly。
  */
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
 import readline from "node:readline";
 import type {
   AiAccountModel,
@@ -36,7 +36,7 @@ const MODEL_SOURCE = {
   checkedAt: CHECKED_AT,
 } as const;
 /** App Server initialize 元数据集中定义，避免 name/title/version 散落在握手逻辑。 */
-const APP_SERVER_CLIENT_INFO = { name: "lfaa_web_dev", title: "Little Fish AI Agent", version: "0.1.4" } as const;
+const APP_SERVER_CLIENT_INFO = { name: "lfaa_web_dev", title: "Little Fish AI Agent", version: "0.1.5" } as const;
 
 export interface CodexTextRunInput {
   readonly sessionKey: string;
@@ -75,6 +75,40 @@ function safeText(value: unknown, fallback: string): string {
     .replace(/eyJ[A-Za-z0-9._-]{20,}/g, "[REDACTED]")
     .replace(/(?:sk|tp)-[A-Za-z0-9_-]{6,}/g, "[REDACTED]")
     .slice(0, 420);
+}
+
+
+const MAX_STDERR_TAIL = 4 * 1024;
+
+function codexCliNotFoundMessage(): string {
+  return "未找到 Codex CLI。请确认 `codex --version` 能在当前 LFAA 启动终端中执行；Windows npm 全局安装必须让 codex.cmd 所在目录进入 PATH。";
+}
+
+function assertCodexCliAvailableOnWindows(): void {
+  if (process.platform !== "win32") return;
+  const result = spawnSync("where.exe", ["codex"], { windowsHide: true, encoding: "utf8", shell: false });
+  if (result.status !== 0 || !result.stdout.trim()) throw new Error(codexCliNotFoundMessage());
+}
+
+function spawnCodexAppServer(): ChildProcessWithoutNullStreams {
+  const stdio = ["pipe", "pipe", "pipe"] as const;
+  if (process.platform !== "win32") {
+    return spawn("codex", ["app-server"], { windowsHide: true, shell: false, stdio });
+  }
+  // npm 在 Windows 通常提供 codex.cmd。不要使用 Node 的 shell 模式配合独立 args：Node 24 会触发 DEP0190，
+  // 且 shell 失败只会表现为 code=1。显式使用 cmd.exe 包装固定命令，动态用户输入不会进入命令行。
+  assertCodexCliAvailableOnWindows();
+  return spawn("cmd.exe", ["/d", "/s", "/v:off", "/c", "codex app-server"], {
+    windowsHide: true,
+    shell: false,
+    stdio,
+  });
+}
+
+function safeProcessDiagnostic(stderr: string): string | null {
+  const compact = stderr.replace(/\r?\n+/g, " · ").replace(/\s+/g, " ").trim();
+  if (!compact) return null;
+  return safeText(compact, "");
 }
 
 function safeRpcError(value: unknown): Error {
@@ -151,6 +185,7 @@ class CodexAppServerClient {
   #pending = new Map<RpcId, PendingRequest>();
   #loginStatuses = new Map<string, AiManagedLoginStatus>();
   #notifications = new Set<NotificationListener>();
+  #stderrTail = "";
 
   get generation(): number { return this.#generation; }
 
@@ -163,20 +198,28 @@ class CodexAppServerClient {
   }
 
   async #start(): Promise<void> {
-    const childProcess = spawn("codex", ["app-server"], {
-      windowsHide: true,
-      // Windows 的 npm 全局 bin 是 codex.cmd；Node raw spawn 不会解析 .cmd，需交给系统 shell。
-      // 命令与参数均为固定常量，没有拼接用户输入。
-      shell: process.platform === "win32",
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    let childProcess: ChildProcessWithoutNullStreams;
+    try { childProcess = spawnCodexAppServer(); }
+    catch (error) { throw error instanceof Error ? error : new Error("Codex App Server 启动失败。"); }
     this.#process = childProcess;
-    // stderr 只排空，不拼进错误，避免未来 CLI 日志把任何认证信息带回应用层。
-    childProcess.stderr.resume();
+    this.#stderrTail = "";
+    childProcess.stderr.setEncoding("utf8");
+    childProcess.stderr.on("data", (chunk: string) => {
+      this.#stderrTail = `${this.#stderrTail}${chunk}`.slice(-MAX_STDERR_TAIL);
+    });
     this.#reader = readline.createInterface({ input: childProcess.stdout });
     this.#reader.on("line", (line) => this.#onLine(line));
-    childProcess.once("error", (error) => this.#onProcessFailure(new Error(error.message.includes("ENOENT") ? "未找到 Codex CLI。请先安装 Codex CLI，并确认 codex 命令已加入 PATH。" : `Codex App Server 启动失败：${error.message}`)));
-    childProcess.once("exit", (code, signal) => this.#onProcessFailure(new Error(`Codex App Server 已退出（code=${code ?? "null"}, signal=${signal ?? "null"}）。`)));
+    childProcess.once("error", (error) => {
+      if (this.#process !== childProcess) return;
+      const message = error.message.includes("ENOENT") ? codexCliNotFoundMessage() : `Codex App Server 启动失败：${safeText(error.message, "未知错误")}`;
+      this.#onProcessFailure(new Error(message));
+    });
+    childProcess.once("exit", (code, signal) => {
+      if (this.#process !== childProcess) return;
+      const diagnostic = safeProcessDiagnostic(this.#stderrTail);
+      const suffix = diagnostic ? ` CLI 输出：${diagnostic}` : " 可先在同一终端执行 `codex --version` 与 `codex app-server` 查看 CLI 自身错误。";
+      this.#onProcessFailure(new Error(`Codex App Server 已退出（code=${code ?? "null"}, signal=${signal ?? "null"}）。${suffix}`));
+    });
 
     try {
       await this.request("initialize", { clientInfo: APP_SERVER_CLIENT_INFO }, INITIALIZE_TIMEOUT_MS);
@@ -251,6 +294,7 @@ class CodexAppServerClient {
     this.#reader?.close();
     this.#reader = null;
     this.#process = null;
+    this.#stderrTail = "";
     for (const listener of this.#notifications) listener("__process/failure", { error: error.message });
   }
 
@@ -311,6 +355,7 @@ class CodexAppServerClient {
     this.#process = null;
     this.#reader?.close();
     this.#reader = null;
+    this.#stderrTail = "";
     for (const pending of this.#pending.values()) {
       clearTimeout(pending.timer);
       pending.reject(new Error("Codex App Server 已关闭。"));

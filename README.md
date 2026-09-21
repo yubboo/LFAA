@@ -1,8 +1,8 @@
-# LFAA v0.1.4 — 官方余额/额度与 Chat/Work 模式边界
+# LFAA v0.1.5 — Codex Windows Host 启动与诊断修复
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.1.4**。本版以 v0.1.3 为基线新增“官方余额/额度”只读事实链，并正式分开 ChatGPT 标准 Chat 与 Codex/Work 的计量语义：Codex App Server 只展示其官方 `account/rateLimits/read` / `account/usage/read`；DeepSeek 使用官方 `/user/balance`；阿里云 Model Studio 在具备 Workspace ID 时使用官方 `/api/v1/quotas`。官方没有稳定可调用指标的 Provider 明确显示“官方未提供”，禁止估算。Chat / Work 左侧导航也开始按模式切换。
+当前包：**LFAA-v0.1.5**。本版以 v0.1.4 为基线修复 Windows/Node 24 下 Codex App Server 的启动方式：不再使用会触发 `DEP0190` 的 `shell + args`，改为显式 `cmd.exe` 包装固定 `codex app-server` 命令，并在启动失败时返回受限、脱敏后的官方 CLI stderr 诊断。v0.1.4 的官方余额/额度与 Chat/Work 模式边界保持不变。
 
 > 当前真相以本 README、`ARCHITECTURE.md`、`DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
 
