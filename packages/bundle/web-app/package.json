@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/bundle-web-app",
   "private": true,
-  "version": "0.1.9",
+  "version": "0.1.11",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -15,7 +15,8 @@
     "@lfaa/plugin-controller": "workspace:*",
     "@lfaa/settings-controller": "workspace:*",
     "@lfaa/terminal-vite": "workspace:*",
-    "vite": "8.2.2"
+    "vite": "8.2.2",
+    "@lfaa/session-controller": "workspace:*"
   },
   "lfaa": {
     "layer": "bundle",

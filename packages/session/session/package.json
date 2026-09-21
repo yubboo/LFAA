@@ -1,0 +1,12 @@
+{
+  "name": "@lfaa/session",
+  "private": true,
+  "version": "0.1.11",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "lfaa": {
+    "layer": "domain",
+    "role": "workspace-session-domain"
+  }
+}

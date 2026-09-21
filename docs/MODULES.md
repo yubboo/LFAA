@@ -1,4 +1,13 @@
-# LFAA Modules — v0.1.9 Current Ownership
+# LFAA Modules — v0.1.11 Current Ownership
+
+## v0.1.11 Project / Session capability family
+
+- `packages/session/session`：Project + Session Domain / Host Contract；
+- `packages/session/session-host-node`：`LFAA_HOME/state/sessions` JSON Provider、v1→v2 迁移与原子串行写；
+- `packages/api/session-controller`：同源 Web Host Controller；
+- `packages/client/connection/session-client.ts`：浏览器 Adapter；
+- `packages/client/workspace/shared`：把 Session + AgentRuntimeEvent 投影到 Chat/Work/Manual。
+
 
 本文件只描述当前模块 Owner。旧版本细节请到 DEVELOPMENT_LOG/CHANGELOG 查历史。
 
@@ -32,7 +41,7 @@
 | app | `@lfaa/web` | Thin Web product entry |
 
 
-## v0.1.9 Run Timeline Owner
+## v0.1.10 Run Timeline Owner
 
 ```text
 core/agent-runtime           # 统一 phase/reasoning-summary/plan/activity/assistant/run events

@@ -66,11 +66,11 @@ test("WorkCanvas module owns workspace-scoped visual layout and persists only x/
   assert.match(workCanvasView, /onViewportCommit=\{controller\.onViewportCommit\}/);
 });
 
-test("Canvas layout is not Agent Session business state", () => {
+test("Canvas layout remains WorkCanvas-owned while its persistence key follows the active session", () => {
   assert.doesNotMatch(session, /InfiniteCanvas|WORK_CANVAS_LAYOUT_KEY_PREFIX|nodePositions|workNodes|canvas-layout/);
   assert.match(session, /lastRunInput/);
   assert.match(workCanvasController, /lastRunInput/);
-  assert.match(center, /<WorkWorkspace[\s\S]*workspaceId=\{props\.workspaceId\}[\s\S]*lastRunInput=\{props\.lastRunInput\}[\s\S]*lastRunOutput=\{props\.lastAssistantText\}[\s\S]*onContextChange=\{props\.onWorkContextChange\}/);
+  assert.match(center, /<WorkWorkspace[\s\S]*workspaceId=\{props\.sessionId \?\? props\.workspaceId\}[\s\S]*lastRunInput=\{props\.lastRunInput\}[\s\S]*lastRunOutput=\{props\.lastAssistantText\}[\s\S]*onContextChange=\{props\.onWorkContextChange\}/);
 });
 
 test("selected canvas node is lifted above siblings while edges remain behind nodes", () => {

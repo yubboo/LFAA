@@ -1,3 +1,26 @@
+# v0.1.11 / #22.17 Project + Session Persistence / Runtime Event Isolation
+
+**当前任务：v0.1.11 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- 以用户上传截图和实机 5173 API 探测复现：Session endpoint 返回 HTML，UI 静默回到默认；项目 UI 是禁用占位。
+- Session index 升级 v2，新增 projects、activeProjectId、project pinned/expanded 与 session pinned，并保留 v1 migration。
+- Node Repository 的 index 变更串行化，临时文件名使用 UUID，避免并发保存丢更新或冲突。
+- Client Host 校验 JSON content-type；Session Controller 管理 Project + Session 两级恢复。
+- AgentRunRequest 增加 sessionId；Host conversation key 与 Client event filter 都按 Session 隔离。
+- DeepSeek Harness 参考点：append-only Session Event 作为真值、Client Projection 派生 UI、工具/阶段事件与最终回答分离。
+- 新增真实磁盘行为测试；独立 5174 浏览器完成项目创建/置顶/折叠/Work 切换/刷新恢复回归。
+
+# v0.1.10 / #22.16 Session Persistence / Stable Navigation / Dual Mode Switch
+
+**当前任务：v0.1.10 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- 把 Chat messages / Run Timeline 从 React 内存升级为 `@lfaa/session` 长期状态；Node Provider 写入 `LFAA_HOME/state/sessions/`。
+- Session Controller 负责 snapshot/create/load/save/set-active/delete，同源 Browser Client 负责 transport。
+- Work/Manual Canvas 使用当前 Session ID 作为持久化 key；最近会话可恢复对应表现层。
+- 左栏固定导航；中央 Header 增加第二个 mode switch；两个入口共享一份 mode state。
+- Timeline 视觉从满宽双横线调整为紧凑可展开行，保留真实活动明细。
+- AI 验证：Node 合同 193/193、Config System 42/42、27 个 Node workspace / 1 个 Native crate、10/10 tsconfig 与最终 777-entry Unicode ZIP fresh extract 静态门禁均 PASS。
+
 # v0.1.9 / #22.15 实时 Agent Run Timeline / Streaming Activity
 
 **当前任务：v0.1.9 · pending-user-acceptance · AI=pass · 用户验收=pending**

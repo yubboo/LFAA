@@ -33,6 +33,7 @@ export interface AgentRunProcessViewModel {
   completedAt?: number;
   reasoningSummary: string;
   plan: string;
+  phases: readonly { phase: AgentRunPhase; label: string; at: number }[];
   activities: readonly AgentRunActivityViewModel[];
 }
 

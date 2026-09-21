@@ -74,11 +74,11 @@ function RunProcessCard({ process }: { process: AgentRunProcessViewModel }) {
     return () => window.clearInterval(timer);
   }, [process.status]);
   const elapsed = Math.max(0, (process.completedAt ?? now) - process.startedAt);
-  const hasDetails = Boolean(process.reasoningSummary || process.plan || process.activities.length);
+  const hasDetails = process.phases.length > 0 || Boolean(process.reasoningSummary || process.plan || process.activities.length);
   const title = process.status === "running"
-    ? `已处理 ${formatDuration(elapsed)}`
+    ? `思考了 ${formatDuration(elapsed)}`
     : process.status === "completed"
-      ? `用时 ${formatDuration(elapsed)}`
+      ? `思考了 ${formatDuration(elapsed)}`
       : process.status === "cancelled"
         ? `已停止 · ${formatDuration(elapsed)}`
         : `运行失败 · ${formatDuration(elapsed)}`;
@@ -88,8 +88,6 @@ function RunProcessCard({ process }: { process: AgentRunProcessViewModel }) {
     <section className={styles.runProcess} data-status={process.status} data-phase={process.phase}>
       <button type="button" className={styles.runProcessHeader} onClick={() => hasDetails && setOpen((value) => !value)} disabled={!hasDetails} aria-expanded={hasDetails ? open : undefined}>
         <span className={styles.runTime}>{title}</span>
-        <span className={styles.runDivider} />
-        <span className={styles.runLabel}>{process.label}</span>
         {hasDetails ? <span className={styles.chevron}>{open ? "⌃" : "⌄"}</span> : null}
       </button>
 
@@ -100,8 +98,13 @@ function RunProcessCard({ process }: { process: AgentRunProcessViewModel }) {
         </div>
       ) : null}
 
+      {open ? <div className={styles.phaseLabel}>{process.label}</div> : null}
+
       {open ? (
         <div className={styles.runDetails}>
+          <div className={styles.phases} aria-label="执行阶段">
+            {process.phases.map((item, index) => <div key={`${item.at}:${index}`}><span>{index + 1}</span><strong>{item.label}</strong><time>{new Date(item.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time></div>)}
+          </div>
           {process.reasoningSummary ? (
             <details className={styles.reasoning} open={process.status === "running"}>
               <summary>思考摘要</summary>

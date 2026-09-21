@@ -27,12 +27,21 @@ const codex = read("packages/harness/codex-app-server/src/codex-app-server.ts");
 test("Chat and Work are presentation modes over one Agent Core", () => {
   assert.match(contracts, /export type AgentWorkspaceMode = "chat" \| "work"/);
   assert.match(contracts, /readonly workspaceMode: AgentWorkspaceMode/);
+  assert.match(contracts, /readonly sessionId: string/);
   assert.doesNotMatch(contracts, /ChatRuntime|WorkRuntime|ChatRunRequest|WorkRunRequest/);
   assert.match(session, /runtimeHost\.startRun\(\{/);
+  assert.match(session, /event\.sessionId !== sessionId/);
   assert.match(session, /submitAgentInput/);
   assert.match(left, /聊天 Agent/);
   assert.match(left, /画布 Agent/);
   assert.match(left, /同一套 Agent Core/);
+  assert.doesNotMatch(left, /workspaceMode === "chat" \? \(/);
+  assert.match(center, /onWorkspaceModeChange/);
+  const header = read("packages/client/app-shell/src/workbench/center/header/view/CenterHeader.tsx");
+  assert.match(header, /role="tablist"/);
+  assert.match(header, />聊天</);
+  assert.match(header, />工作</);
+  assert.match(header, />手动</);
 });
 
 test("Chat intervention is routed through the same Agent Runtime instead of a second chat engine", () => {

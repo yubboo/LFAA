@@ -1,0 +1,16 @@
+{
+  "name": "@lfaa/session-host-node",
+  "private": true,
+  "version": "0.1.11",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "dependencies": {
+    "@lfaa/home-paths": "workspace:*",
+    "@lfaa/session": "workspace:*"
+  },
+  "lfaa": {
+    "layer": "host-adapter",
+    "role": "node-session-persistence"
+  }
+}

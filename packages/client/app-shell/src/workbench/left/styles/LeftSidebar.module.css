@@ -37,7 +37,7 @@
 .newTask:hover { background:var(--agent-hover); }
 .newTask span { flex:0 0 auto; color:var(--agent-subtle); font-size:.625rem; }
 .nav { display:grid; gap:.125rem; padding:.25rem 0 .75rem; border-bottom:1px solid var(--agent-border); }
-.nav button,.projects button,.history button { min-width:0; border:0; background:transparent; color:var(--agent-muted); cursor:pointer; }
+.nav button,.projects button,.history button,.pinnedList button { min-width:0; border:0; background:transparent; color:var(--agent-muted); cursor:pointer; }
 .nav button { display:flex; align-items:center; gap:.5625rem; padding:.5rem .625rem; border-radius:.5rem; text-align:left; }
 .nav button:hover,.nav button.active { background:var(--agent-hover); color:var(--agent-text); }
 .nav button.active { font-weight:550; }
@@ -45,9 +45,31 @@
 .sectionTitle button { width:1.5rem; height:1.5rem; display:grid; place-items:center; border:0; border-radius:.375rem; background:transparent; color:inherit; cursor:pointer; }
 .sectionTitle button:hover { background:var(--agent-hover); color:var(--agent-text); }
 .recentTitle { padding-top:1.0625rem; }
-.projects,.history { display:grid; gap:.125rem; min-height:0; }
-.projects button { display:flex; align-items:center; gap:.5rem; padding:.5rem .625rem; border-radius:.5rem; text-align:left; }
+.projects,.history,.pinnedList { display:grid; gap:.125rem; min-height:0; }
+.pinnedList button { display:flex; align-items:center; gap:.5rem; padding:.45rem .625rem; border-radius:.5rem; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.projectGroup { display:grid; gap:.1rem; }
+.projectGroup[data-active="true"]>.projectRow { background:var(--agent-hover); border-radius:.5rem; }
+.projectRow { display:grid; grid-template-columns:1.45rem minmax(0,1fr) 1.45rem 1.45rem 1.45rem; align-items:center; }
+.projects .projectRow button { padding:.38rem .2rem; border-radius:.4rem; }
+.projects .projectButton { display:flex; align-items:center; gap:.45rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; color:var(--agent-text); }
+.projects .expandButton { transform:rotate(-90deg); transition:transform .12s ease; }
+.projects .expandButton[aria-expanded="true"] { transform:rotate(0); }
+.projects .rowAction,.history .rowAction { color:var(--agent-subtle); text-align:center; }
+.projects .rowAction:hover,.history .rowAction:hover { color:var(--agent-text); }
+.projects .rowAction:disabled { opacity:.3; cursor:not-allowed; }
+.projectSessions { display:grid; gap:.08rem; padding-left:1.7rem; }
+.projectSessions button { padding:.35rem .45rem !important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }
+.projectForm { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:.25rem; padding:.25rem .35rem .45rem; }
+.projectForm input { min-width:0; padding:.42rem .5rem; border:1px solid var(--agent-border); border-radius:.45rem; background:var(--agent-elevated); color:var(--agent-text); }
+.projectForm button { border:0; border-radius:.4rem; padding:0 .45rem; background:var(--agent-hover); color:var(--agent-text); cursor:pointer; font-size:.65rem; }
+.projectForm button:disabled { opacity:.4; cursor:not-allowed; }
 .history { overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--agent-strong-border) transparent; }
-.history button { padding:.5rem .625rem; border-radius:.5rem; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.projects button:hover,.history button:hover,.history button.current { background:var(--agent-hover); color:var(--agent-text); }
+.historyRow { display:grid; grid-template-columns:minmax(0,1fr) 1.6rem; align-items:center; }
+.historyRow>button:first-child { padding:.5rem .625rem; border-radius:.5rem; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.historyRow>.rowAction { padding:.35rem .1rem; border-radius:.4rem; }
+.projects button:hover,.history button:hover,.history button.current,.pinnedList button:hover,.pinnedList button.current { background:var(--agent-hover); color:var(--agent-text); }
 .history button.current { font-weight:520; }
+.nav button:disabled,.sectionTitle button:disabled { opacity:.42; cursor:not-allowed; }
+.nav button:disabled:hover,.sectionTitle button:disabled:hover { background:transparent; color:var(--agent-muted); }
+.currentProject { cursor:default !important; color:var(--agent-text) !important; }
+.emptyHistory { padding:.55rem .625rem; color:var(--agent-subtle); font-size:.68rem; }

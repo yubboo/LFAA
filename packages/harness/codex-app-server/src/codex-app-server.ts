@@ -555,9 +555,9 @@ function activityFromItem(item: JsonRecord): Omit<Extract<CodexTextRuntimeEvent,
     return { id, kind: "mcp", title: server ? `${server} / ${tool}` : tool };
   }
   if (type === "dynamicToolCall") return { id, kind: "tool", title: compactText(item.tool, 220) ?? "调用工具" };
-  if (type === "imageView") return { id, kind: "tool", title: "查看图片", ...(compactText(item.path, 220) ? { detail: compactText(item.path, 220) } : {}) };
-  if (type === "enteredReviewMode") return { id, kind: "review", title: "进入审查", ...(compactText(item.review, 240) ? { detail: compactText(item.review, 240) } : {}) };
-  if (type === "exitedReviewMode") return { id, kind: "review", title: "完成审查", ...(compactText(item.review, 240) ? { detail: compactText(item.review, 240) } : {}) };
+  if (type === "imageView") { const detail = compactText(item.path, 220); return { id, kind: "tool", title: "查看图片", ...(detail ? { detail } : {}) }; }
+  if (type === "enteredReviewMode") { const detail = compactText(item.review, 240); return { id, kind: "review", title: "进入审查", ...(detail ? { detail } : {}) }; }
+  if (type === "exitedReviewMode") { const detail = compactText(item.review, 240); return { id, kind: "review", title: "完成审查", ...(detail ? { detail } : {}) }; }
   if (type === "contextCompaction") return { id, kind: "system", title: "压缩上下文" };
   return null;
 }

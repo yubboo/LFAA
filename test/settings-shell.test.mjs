@@ -38,15 +38,14 @@ test("API Key and subscription contracts remain intact",()=>{assert.match(aiPane
 
 test("active model is explicit and never inferred from account order",()=>{assert.match(aiController,/snapshot\.activeModel/);assert.doesNotMatch(aiController,/accounts\.find\(\(account\) => Boolean\(account\.selectedModelId\)\)/);assert.match(settingsSurface,/activeAiModel=\{ai\.snapshot\.activeModel\}/);assert.match(aiPanel,/设为当前模型/);});
 
-test("Chat and Work own distinct left navigation surfaces",()=>{
-  assert.match(left,/workspaceMode === "chat"/);
-  assert.match(left,/aria-label="聊天 Agent 导航"/);
-  assert.match(left,/新建对话/);
+test("left navigation is stable across Chat Work and Manual while the center owns mode presentation",()=>{
+  assert.match(left,/aria-label="LFAA 主导航"/);
+  assert.match(left,/新建任务/);
+  assert.match(left,/工具与技能/);
   assert.match(left,/知识库/);
-  assert.match(left,/aria-label="画布 Agent 导航"/);
-  assert.match(left,/新建工作/);
-  assert.match(left,/任务与运行/);
-  assert.match(left,/文件/);
-  assert.match(left,/终端/);
-  assert.match(left,/变更与审查/);
+  assert.match(left,/最近/);
+  assert.match(left,/recentSessions\.map/);
+  assert.match(left,/onSelectSession/);
+  assert.doesNotMatch(left,/aria-label="聊天 Agent 导航"|aria-label="画布 Agent 导航"/);
+  assert.doesNotMatch(left,/workspaceMode === "chat"[\s\S]{0,220}(?:新建对话|新建工作)/);
 });

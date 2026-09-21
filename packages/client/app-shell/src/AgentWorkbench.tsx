@@ -38,7 +38,7 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
   const settingsSurface=useSettingsSurfaceController();
   const ai=useAiSettingsController(props.aiSettingsHost);
   const plugins=usePluginSettingsController(props.pluginSettingsHost);
-  const session=useWorkspaceSessionController({runtimeHost:props.agentRuntimeHost,workspaceId:props.workspaceId,activeModelBinding:ai.activeModelBinding});
+  const session=useWorkspaceSessionController({runtimeHost:props.agentRuntimeHost,sessionHost:props.sessionHost,workspaceId:props.workspaceId,activeModelBinding:ai.activeModelBinding});
 
   useWorkbenchShellShortcuts({
     onEscape:overlays.closeMenus,
@@ -54,7 +54,20 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
       themePreference={theme.themePreference}
       workspaceMode={session.workspaceMode}
       onWorkspaceModeChange={session.setWorkspaceMode}
-      onToggleTerminal={chrome.toggleTerminal}
+      recentSessions={session.recentSessions}
+      pinnedSessions={session.pinnedSessions}
+      activeSessionId={session.sessionId}
+      projects={session.projects}
+      activeProjectId={session.activeProjectId}
+      sessionError={session.sessionError}
+      onCreateSession={()=>void session.createSession()}
+      onSelectSession={(sessionId)=>void session.selectSession(sessionId)}
+      onToggleSessionPinned={(sessionId)=>void session.toggleSessionPinned(sessionId)}
+      onCreateProject={(name)=>void session.createProject(name)}
+      onSelectProject={(projectId)=>void session.selectProject(projectId)}
+      onUpdateProject={(projectId,input)=>void session.updateProject(projectId,input)}
+      onDeleteProject={(projectId)=>void session.deleteProject(projectId)}
+      onOpenToolsAndSkills={()=>settingsSurface.openSettings("plugins")}
       onOpenProfile={overlays.openProfile}
       onOpenThemeMenu={overlays.openThemeMenu}
       onRequestUpdate={overlays.requestUpdate}
@@ -67,6 +80,8 @@ export function AgentWorkbench(props:AgentWorkbenchProps){
       rightCollapsed={chrome.chrome.rightCollapsed}
       terminalOpen={chrome.chrome.terminalOpen}
       workspaceMode={session.workspaceMode}
+      onWorkspaceModeChange={session.setWorkspaceMode}
+      sessionId={session.sessionId}
       permissionProfileId={session.permissionProfileId}
       modelLabel={ai.modelLabel}
       quickModels={ai.quickModels}

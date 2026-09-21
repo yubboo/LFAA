@@ -200,7 +200,7 @@ test("workspace dependency links are verified against the declared workspace own
 test("current LFAA repository dependency scanner sees every workspace importer after capability-family migration", () => {
   const root = process.cwd();
   const files = listWorkspacePackageFiles(root).map((file) => path.relative(root, file).replaceAll(path.sep, "/"));
-  assert.equal(files.length, 25);
+  assert.equal(files.length, 28);
   assert.ok(files.includes("apps/web/package.json"));
   assert.ok(files.includes("packages/core/agent-runtime/package.json"));
   assert.ok(files.includes("packages/client/ui-terminal/package.json"));

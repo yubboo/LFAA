@@ -22,6 +22,8 @@ export interface CenterWorkspaceRegionProps {
   rightCollapsed: boolean;
   terminalOpen: boolean;
   workspaceMode: WorkspaceMode;
+  onWorkspaceModeChange: (mode: WorkspaceMode) => void;
+  sessionId: string | null;
   permissionProfileId: AgentPermissionProfileId;
   modelLabel: string;
   quickModels: readonly QuickModelOption[];
@@ -54,6 +56,7 @@ export function CenterWorkspaceRegion(props: CenterWorkspaceRegionProps) {
         rightCollapsed={props.rightCollapsed}
         terminalOpen={props.terminalOpen}
         workspaceMode={props.workspaceMode}
+        onWorkspaceModeChange={props.onWorkspaceModeChange}
         runtimeConnected={props.runtimeConnected}
         onToggleLeft={props.onToggleLeft}
         onToggleRight={props.onToggleRight}
@@ -62,9 +65,9 @@ export function CenterWorkspaceRegion(props: CenterWorkspaceRegionProps) {
         onLeftHoverLeave={props.onLeftHoverLeave}
       />
       {props.workspaceMode === "work" ? (
-        <WorkWorkspace workspaceId={props.workspaceId} lastRunInput={props.lastRunInput} lastRunOutput={props.lastAssistantText} onContextChange={props.onWorkContextChange} />
+        <WorkWorkspace workspaceId={props.sessionId ?? props.workspaceId} lastRunInput={props.lastRunInput} lastRunOutput={props.lastAssistantText} onContextChange={props.onWorkContextChange} />
       ) : props.workspaceMode === "manual" ? (
-        <ManualWorkspace workspaceId={props.workspaceId} terminalOpen={props.terminalOpen} onToggleTerminal={props.onToggleTerminal} />
+        <ManualWorkspace workspaceId={props.sessionId ?? props.workspaceId} terminalOpen={props.terminalOpen} onToggleTerminal={props.onToggleTerminal} />
       ) : (
         <ChatWorkspace layoutMode={props.layoutMode} messages={props.chatMessages} />
       )}

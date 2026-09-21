@@ -15,8 +15,10 @@ test("release archive writes exact Unicode path with ZIP UTF-8 flag", () => {
   try {
     fs.mkdirSync(path.join(root, "docs"), { recursive: true });
     fs.mkdirSync(path.join(root, "packages", "empty-family"), { recursive: true });
+    fs.mkdirSync(path.join(root, ".test-runtime-home", "state"), { recursive: true });
     fs.writeFileSync(path.join(root, "lfaa.release.json"), '{"displayVersion":"0.0.0"}', "utf8");
     fs.writeFileSync(path.join(root, "docs", "项目结构与代码地图.md"), "ok", "utf8");
+    fs.writeFileSync(path.join(root, ".test-runtime-home", "state", "session.json"), "test-only", "utf8");
 
     createReleaseArchive({ root, output });
     const entries = readCentralDirectoryEntries(output);
@@ -24,6 +26,7 @@ test("release archive writes exact Unicode path with ZIP UTF-8 flag", () => {
     assert.ok(unicode);
     assert.equal(unicode.utf8, true);
     assert.ok(entries.some((entry) => entry.name === "packages/empty-family/"));
+    assert.equal(entries.some((entry) => entry.name.startsWith(".test-runtime-home/")), false);
     assert.equal(entries.some((entry) => /Θí╣|τ¢«|�/u.test(entry.name)), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

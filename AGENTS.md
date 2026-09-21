@@ -1,9 +1,9 @@
-# LFAA Agent / Contributor Guide — v0.1.9
+# LFAA Agent / Contributor Guide — v0.1.11
 
 本文件给 AI Agent 和开发者提供最短路径的当前约束。**先遵守当前代码与本文件，再参考历史记录。**
 
 
-## v0.1.9 不可破坏的模式 / Provider 原则
+## v0.1.11 不可破坏的模式 / Provider 原则
 
 - ChatGPT 套餐 OAuth 的窗口不是认证 Owner；禁止因 popup.closed 直接判失败，必须以官方 App Server 登录/account 状态为准。
 
@@ -18,6 +18,8 @@
 9. `AgentRuntimeEvent` 是 Chat/Work 运行过程的唯一 UI 真值：Run Timeline 只能渲染 Runtime 真正发出的 phase/reasoning-summary/plan/activity/assistant 事件，禁止用定时器或静态文案伪造执行过程。
 10. 只允许展示 Provider 官方可展示的 reasoning summary；原始隐藏 reasoning / chain-of-thought 禁止进入 Client ViewModel、日志和持久化。
 11. 支持 streaming 的 Provider 必须保持真正 delta 路径；Run Timeline 与最终回答必须同时可增量更新，禁止回退到完成后一次性替换。
+12. 项目 / active project / expanded / pinned 与 Session / messages / mode / Run Timeline 都属于 `@lfaa/session` 长期真值；左栏不得硬编码项目或静默吞掉 Host 错误。
+13. 每个 `AgentRunRequest` 必须携带正式 `sessionId`；Client 只消费当前 Session 的 Runtime Event，禁止跨 Session/Project 串流。
 
 ## 先读
 

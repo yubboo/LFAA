@@ -1,6 +1,13 @@
-# LFAA UI Architecture — v0.1.9
+# LFAA UI Architecture — v0.1.11
 
-## v0.1.9 Agent Run Timeline
+## v0.1.11 真实左栏与模式切换
+
+左栏固定承担新建任务、工具与技能、置顶、项目与最近 Session。项目支持创建、切换、展开、置顶、重命名、删除；会话支持切换与置顶，全部来自 Host 真值。左上角品牌菜单与中央顶部 segmented switch 同步切换同一个 `workspaceMode`；中央内容区才切换 Chat Timeline、Work Infinite Canvas 或 Manual Workspace。
+
+Run Timeline 使用紧凑 `思考了 X 秒 ⌄` 入口；展开后显示真实 reasoning summary / plan / activity，最终 Assistant answer 独立流式显示。
+
+
+## v0.1.10 Agent Run Timeline
 
 Chat 的 Run Process Card 不是 loading placeholder，而是 `AgentRuntimeEvent` 的实时投影：
 
@@ -14,7 +21,7 @@ Chat 的 Run Process Card 不是 loading placeholder，而是 `AgentRuntimeEvent
 交互参考 DeepSeek Harness 的 TurnStatus / ReasoningRow / Tool activity 事件组织，但不复制其视觉；LFAA 继续使用自己的 Workbench 和 Chat 样式。Work 后续用同一事件模型投影到无限画布，不创建第二套 Timeline Runtime。
 
 
-## v0.1.9 Settings / Streaming / Layering
+## v0.1.10 Settings / Streaming / Layering
 
 - ChatGPT 套餐登录弹窗关闭只代表 UI 关闭；Settings 不显示“登录失败”，除非官方登录状态真正 failed/timeout。
 

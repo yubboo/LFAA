@@ -1,6 +1,11 @@
-# LFAA Testing & Gates — v0.1.9
+# LFAA Testing & Gates — v0.1.11
 
-## v0.1.9 Agent Run Timeline / Streaming Activity 回归
+## v0.1.11 Project / Session / Refresh 回归
+
+`test/session-persistence.test.mjs` 锁定架构契约；`test/session-repository-behavior.test.mjs` 使用真实临时磁盘锁定 Repository 重启后 Project/Session/置顶/展开/mode/messages/workContext 恢复和 v1 索引迁移。浏览器回归必须执行“创建项目→置顶→折叠→切换 Work→刷新”。
+
+
+## v0.1.10 Agent Run Timeline / Streaming Activity 回归
 
 必须锁定：
 
@@ -15,7 +20,7 @@
 
 对应重点测试：`test/chat-runtime-contract.test.mjs`、`test/codex-app-server-runtime.test.mjs`、`test/openai-compatible-streaming.test.mjs`。
 
-## v0.1.9 Provider 可靠性回归
+## v0.1.10 Provider 可靠性回归
 
 新增必须锁定：ChatGPT Hosted Success Page 关闭后不得立即 cancel；必须先检查官方 completion/account 状态，并允许 account/read / account/updated 兜底确认。
 

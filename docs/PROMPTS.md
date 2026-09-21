@@ -1,3 +1,18 @@
+# v0.1.11 Prompt / Requirement Note — Project + Session Persistence / Runtime Event Isolation
+
+- **基线 / 目标：** v0.1.10 → v0.1.11；任务 #22.17；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。
+- **用户需求：** 工作模式不得再触发聊天表现；项目/会话/置顶必须真实交互；刷新恢复全部状态；项目支持创建/切换/展开/置顶；思考过程展示实时阶段和工具；生成递增版本包。
+- **架构约束：** 沿用 TS + Rust；Chat/Work 共用 Agent Core，但 Project、Session、mode、Runtime Event 路由明确分层；不引入 C#。
+- **验收：** Project/Session 真持久化、Host 失败可见、sessionId 事件隔离、Chat/Work 中央 Surface 分流、Run phase/activity 可展开、全量门禁与独立浏览器刷新回归通过。
+
+# v0.1.10 Prompt / Requirement Note — Session Persistence / Stable Navigation / Dual Mode Switch
+
+- **基线 / 目标：** v0.1.9 → v0.1.10；任务 #22.16；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。
+- **用户需求：** 修正 Timeline 布局，保留可展开真实 activity；F5 后对话/工作状态不能消失；左栏最近与菜单必须真实可用；左栏不再随 mode 变化；左上角与中央顶部都提供 mode switch，并控制同一核心状态。
+- **架构约束：** Chat/Work/Manual 继续共用一个 Agent Core 和一个 Session Domain；长期会话不得用 localStorage 假持久化；模式变化只改变中央 Interaction Surface。
+- **验收：** active/recent Session 可持久化恢复；最近列表真实可点击；Work/Manual Canvas 按 Session 隔离恢复；Run Timeline 紧凑可展开；合同测试/preflight/fresh extract 通过。
+- **AI 验证：** Node 合同 193/193、Config System 42/42、27 个 Node workspace / 1 个 Native crate、10/10 tsconfig、777-entry Unicode ZIP fresh extract 静态门禁 PASS；真实浏览器交互仍待用户验收。
+
 # v0.1.9 Prompt / Requirement Note — 实时 Agent Run Timeline / Streaming Activity
 
 - **基线 / 目标：** v0.1.8 → v0.1.9；任务 #22.15；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。
@@ -106,6 +121,8 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #22.17 | Project + Session Persistence / Runtime Event Isolation | v0.1.11 | pending-user-acceptance | pass | pending |
+| #22.16 | Session Persistence / Stable Navigation / Dual Mode Switch | v0.1.10 | pending-user-acceptance | pass | pending |
 | #22.15 | 实时 Agent Run Timeline / Streaming Activity | v0.1.9 | pending-user-acceptance | pass | pending |
 | #22.14 | ChatGPT 套餐 OAuth 完成态 / 窗口关闭竞态修复 | v0.1.8 | pending-user-acceptance | pass | pending |
 | #22.13 | Provider 官方登录 / Usage 终态 / 真流式回复 | v0.1.7 | pending-user-acceptance | pass | pending |
@@ -173,6 +190,13 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #22.17 Project + Session Persistence / Runtime Event Isolation
+
+- **版本：** v0.1.11；**状态：** pending-user-acceptance。
+- **允许修改：** Project/Session Domain 与 Node Host、Session HTTP/Client、Workspace Controller、左栏项目/会话交互、Chat Run disclosure、Agent Runtime session 路由、对应测试/文档/版本元数据。
+- **禁止修改：** Provider 认证和额度语义、Plugin/Secret/Terminal 协议、Chat/Work 共用同一 Agent Core 的能力边界；禁止引入 C#。
+- **验收：** Project/Session/置顶/展开/active 状态和消息跨刷新、重启恢复；Chat 与 Work 中央表现和提交行为按 mode 分流；Runtime 事件按 Session 隔离；真实阶段与工具活动可展开；完整门禁和 fresh extract 通过。
 
 
 

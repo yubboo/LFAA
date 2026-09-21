@@ -1,4 +1,24 @@
-# LFAA Architecture — v0.1.9 Current Truth
+# LFAA Architecture — v0.1.11 Current Truth
+
+## 0.1 v0.1.11 Project + Session Persistence / Interaction Surfaces
+
+`@lfaa/session` 是 Chat / Work / Manual 共用的长期 Session Domain；`@lfaa/session-host-node` 把它持久化到 `LFAA_HOME/state/sessions/`，`@lfaa/session-controller` 只负责 Web Host transport。Chat/Work/Manual 不拥有各自数据库。
+
+```text
+Session Core
+├─ projects / active project / pinned / expanded
+├─ messages / Run Timeline
+├─ active session / recent sessions
+├─ mode: chat | work | manual
+└─ work context
+       ↓
+Chat UI | Work Canvas | Manual Workspace
+```
+
+左栏是稳定产品导航，不随 mode 重建。左上角模式菜单与中央 segmented switch 共享同一个 `workspaceMode`；切换 mode 只改变中央表现层。
+
+`AgentRunRequest.sessionId` 是 Runtime Event 的路由键，`workspaceId` 是项目键；二者禁止混用。Client 只把事件投影到当前 Session，OpenAI-compatible conversation cache 也按 Project + Session 隔离。
+
 
 > 本文件描述 **当前** LFAA 架构。旧版本的平铺 `packages/*`、`apps/web/dev/bridges/*`、`crates/` 与仓库级 `.lfaa/` 只允许出现在历史记录中，不再是当前设计。
 
@@ -72,7 +92,7 @@ Chat Agent 与 Work Agent **不是能力等级**。它们共享同一个 `AgentR
 
 ChatGPT 套餐是 Provider 认证/Runtime 能力，不是外部客户端依赖：LFAA 通过 OpenAI 官方 App Server RPC 使用 `account/login/start`、`account/read`、`model/list`、thread/turn 等能力，并按需把官方 daemon runtime 隔离在 `LFAA_HOME/runtimes/openai-chatgpt`。用户不需要把 `codex` 安装到全局 PATH；LFAA 也不读取官方 runtime 的认证文件。
 
-## 1.2 v0.1.9 Provider Runtime / Settings 状态边界
+## 1.2 v0.1.10 Provider Runtime / Settings 状态边界
 
 ChatGPT OAuth 的浏览器窗口不是状态 Owner：`packages/client/connection` 只编排窗口与轮询；`packages/harness/codex-app-server` 以官方 `account/login/completed` / `account/updated` / `account/read` 作为认证事实源。
 

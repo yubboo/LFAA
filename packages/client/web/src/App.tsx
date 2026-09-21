@@ -9,7 +9,7 @@
  * 修改注意事项：只做 Client Composition，不把 Host/Provider 业务回流到 React 根。
  */
 import { AgentWorkbench } from "@lfaa/app-shell";
-import { webAgentRuntimeHost, webAiSettingsHost, webPluginSettingsHost } from "@lfaa/client-connection";
+import { webAgentRuntimeHost, webAiSettingsHost, webPluginSettingsHost, webWorkspaceSessionHost } from "@lfaa/client-connection";
 import { LocalTerminal } from "@lfaa/ui-terminal";
 
 export function App() {
@@ -21,6 +21,7 @@ export function App() {
       aiSettingsHost={webAiSettingsHost}
       pluginSettingsHost={webPluginSettingsHost}
       agentRuntimeHost={webAgentRuntimeHost}
+      sessionHost={webWorkspaceSessionHost}
     />
   );
 }

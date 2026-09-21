@@ -1,4 +1,24 @@
-# LFAA Releases — current policy v0.1.9
+# LFAA Releases — current policy v0.1.11
+
+## v0.1.11 — #22.17 Project + Session Persistence / Runtime Event Isolation
+
+- 状态：`pending-user-acceptance`；AI 验证：`pass`；用户验收：`pending`。
+- 修复 Session API 返回 HTML 时前端静默恢复默认：非 JSON Host 响应现在显示明确错误。
+- 新增持久 Project Index：创建、切换、展开、置顶、重命名、删除与 active project 均为真实状态。
+- Session 增加置顶；Project → Session → messages/Run Timeline/mode/workContext 跨刷新恢复。
+- `AgentRunRequest.sessionId` 与 Project `workspaceId` 分离；Runtime 事件、模型 conversation cache 按 Session 隔离。
+- Run disclosure 记录真实 phase history，并继续展示 reasoning summary / plan / activity / output。
+- 新增真实磁盘 Repository 重启/migration 测试，并完成独立浏览器刷新回归。
+
+## v0.1.10 — #22.16 Session Persistence / Stable Navigation / Dual Mode Switch
+
+- 状态：`pending-user-acceptance`；AI 验证：`pass`；用户验收：`pending`。
+- 新增统一 `@lfaa/session`、Node Persistence Provider 与 Session HTTP Controller；对话/Run Timeline/最近会话写入 `LFAA_HOME/state/sessions/`。
+- F5 恢复 active Session、messages、mode、work context；旧 running Run 恢复为明确中断状态。
+- 左栏跨 Chat/Work/Manual 保持稳定；最近记录来自真实 Session，删除硬编码假历史。
+- 左上角与中央顶部两个 mode switch 控制同一 `workspaceMode`；切换只改变中央 Interaction Surface。
+- Run Timeline 调整为紧凑 `思考了 X 秒 ⌄`；展开查看真实 reasoning/plan/activity；Assistant answer 继续真流式。
+- AI 验证：Node 合同 193/193、Config System 42/42、Package Architecture 27 Node workspaces / 1 Native crate、10/10 tsconfig 与当前治理门禁均 PASS；最终 777-entry Unicode ZIP fresh extract 的 current-fact / release / prompt / package / tsconfig / docs / UI contract 均 PASS。
 
 ## v0.1.9 — #22.15 实时 Agent Run Timeline / Streaming Activity
 
@@ -90,8 +110,8 @@
 ## 当前版本
 
 ```text
-displayVersion: 0.1.9
-releaseSequence: 109
+displayVersion: 0.1.11
+releaseSequence: 111
 architectureVersion: 6
 agentProtocolVersion: 3
 ```

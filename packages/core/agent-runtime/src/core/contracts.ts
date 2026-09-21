@@ -40,6 +40,8 @@ export interface AgentRunRequest {
   readonly permissionProfileId: AgentPermissionProfileId;
   readonly executionHints?: AgentExecutionHints;
   readonly capabilityIds?: readonly string[];
+  /** 当前持久会话 ID；Runtime Event 必须以它路由，禁止跨会话串流。 */
+  readonly sessionId: string;
   readonly workspaceId: string;
   /** Work 画布等表现层提供给同一 Agent Core 的可编辑上下文。 */
   readonly workspaceContext?: string;

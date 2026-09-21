@@ -1,0 +1,17 @@
+{
+  "name": "@lfaa/session-controller",
+  "private": true,
+  "version": "0.1.11",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "author": "二鱼",
+  "dependencies": {
+    "@lfaa/session": "workspace:*",
+    "@lfaa/session-host-node": "workspace:*",
+    "vite": "8.2.2"
+  },
+  "lfaa": {
+    "layer": "host",
+    "role": "workspace-session-http-controller"
+  }
+}

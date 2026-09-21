@@ -87,7 +87,7 @@ test("AgentRuntimeHost maps real runtime events into one streaming Chat timeline
   assert.match(client, /lfaa:agent-runtime-event/);
   assert.match(client, /\/interventions/);
   assert.match(chat, /RunProcessCard/);
-  assert.match(chat, /已处理/);
+  assert.match(chat, /思考了/);
   assert.match(chat, /思考摘要/);
   assert.match(session, /event\.type === "reasoning\.summary\.delta"/);
   assert.match(session, /event\.type === "activity\.started"/);
@@ -97,6 +97,15 @@ test("AgentRuntimeHost maps real runtime events into one streaming Chat timeline
   assert.match(session, /runtimeConnected:\s*Boolean\(runtimeHost\)/);
   assert.match(session, /submitAgentInput/);
   assert.match(workbench, /runtimeConnected=\{session\.runtimeConnected\}/);
+});
+
+test("runtime conversation and client projection are isolated by persisted Session id", () => {
+  const bridge = readFileSync(bridgePath, "utf8");
+  assert.match(contracts, /readonly sessionId: string/);
+  assert.match(bridge, /runRequest\.sessionId/);
+  assert.match(bridge, /runRequest\.workspaceId[\s\S]*runRequest\.sessionId/);
+  assert.match(session, /event\.sessionId !== sessionId/);
+  assert.match(session, /sessionId,[\s\S]*workspaceId: activeProjectId/);
 });
 
 test("strong reasoning travels as execution hint without inventing provider field", () => {

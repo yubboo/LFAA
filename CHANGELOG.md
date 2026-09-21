@@ -1,3 +1,25 @@
+# v0.1.11 Project + Session Persistence / Runtime Event Isolation
+
+**当前任务：#22.17 · v0.1.11 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- 根因：运行中的 5173 对 Session API 返回 HTML，Client JSON 解析失败但错误未在左栏展示；项目仍是硬编码 `lfaa` 且创建按钮禁用；Runtime 以 project/workspace ID 复用 conversation，未使用正式 Session ID 路由。
+- 实现真实 Project Index 与 Session Index，持久化 active/pinned/expanded/recent/mode/messages/Run Timeline/workContext，并迁移 v1 索引。
+- 左栏接通创建、切换、展开、置顶、重命名、删除、会话切换与会话置顶；Host 错误显式显示。
+- Chat/Work 保持同一 Agent Core，但中央 Surface 和 Runtime Event 以 mode + sessionId 分流；事件不会跨会话串入。
+- “思考了 X 秒”始终可展开真实 phase history；Provider 有 summary/tool/command/output 时继续增量追加。
+- 修复发布包原有 TypeScript exactOptionalPropertyTypes 错误及 SSE 行为测试导入错误。
+
+# v0.1.10 Session Persistence / Stable Navigation / Dual Mode Switch
+
+**当前任务：#22.16 · v0.1.10 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- 用户实机指出：Run Timeline 布局过宽、刷新后对话全部丢失、左侧历史/菜单仍是不可用演示状态，并要求左栏保持稳定，同时在左上角与中央顶部提供同一模式切换。
+- 新增 `@lfaa/session`、`@lfaa/session-host-node`、`@lfaa/session-controller`，Session 长期状态写入 `LFAA_HOME/state/sessions/`；Chat/Work/Manual 共用一套 Session。
+- 删除硬编码 `recentRuns`，左栏最近记录来自真实 Session，可新建并恢复；未实现入口显式 disabled。
+- 中央 Header 新增 Chat/Work/Manual segmented switch，与左上角品牌菜单绑定同一 `workspaceMode`；左栏不随 mode 变化。
+- Run Timeline 改为紧凑 `思考了 X 秒 ⌄`，展开查看真实 reasoning summary / plan / activity，最终 Assistant 文本保持 streaming。
+- AI 验证：Node 合同 193/193、Config System 42/42、Package Architecture 27 Node workspaces / 1 Native crate、10/10 tsconfig 与当前治理门禁均 PASS；最终 777-entry Unicode ZIP fresh extract 的 current-fact / release / prompt / package / tsconfig / docs / UI contract 均 PASS。
+
 # v0.1.9 实时 Agent Run Timeline / Streaming Activity
 
 **当前任务：#22.15 · v0.1.9 · pending-user-acceptance · AI=pass · 用户验收=pending**

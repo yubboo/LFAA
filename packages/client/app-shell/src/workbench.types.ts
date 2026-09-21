@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import type { AgentRuntimeHost } from "@lfaa/agent-runtime";
 import type { PluginInstallOutcome, PluginManagerSnapshot, PluginSpecInspection } from "@lfaa/plugin-runtime";
 import type { AiAccountDraft, AiAccountProbeResult, AiAccountSnapshot, AiAccountUsageSnapshot, AiModelSettingValue } from "@lfaa/config-system";
+import type { WorkspaceSessionHost } from "@lfaa/session";
 
 export type ResourceKind = "skills" | "experts" | "plugins" | "extensions" | "mcp";
 
@@ -56,6 +57,8 @@ export interface AgentWorkbenchProps {
   pluginSettingsHost?: AgentPluginSettingsHost;
   /** 统一 Agent Runtime Host；Chat / Work 共用，未提供时 UI 不伪造执行结果。 */
   agentRuntimeHost?: AgentRuntimeHost;
+  /** Chat / Work / Manual 共用的正式 Session Host；负责刷新恢复与最近会话。 */
+  sessionHost?: WorkspaceSessionHost;
   /** Runtime 使用的工作区稳定 ID；不是本机绝对路径。 */
   workspaceId?: string;
 }

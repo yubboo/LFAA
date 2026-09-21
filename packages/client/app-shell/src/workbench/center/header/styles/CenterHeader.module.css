@@ -16,3 +16,11 @@
 .root[data-layout-mode="mobile"] .title { padding-inline:.125rem; }
 .root[data-layout-mode="mobile"] .title strong { max-width:min(32vw,7rem); }
 .root[data-layout-mode="mobile"] .moreButton,.root[data-layout-mode="mobile"] .ghostButton,.root[data-layout-mode="mobile"] .divider,.root[data-layout-mode="mobile"] .runtimeState { display:none; }
+.modeSwitch { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; align-items:center; gap:.125rem; padding:.1875rem; border:1px solid var(--agent-border); border-radius:999px; background:var(--agent-hover); box-shadow:0 1px 0 rgba(0,0,0,.02); }
+.modeSwitch button { min-width:4.8rem; height:1.85rem; padding:0 .8rem; border:0; border-radius:999px; background:transparent; color:var(--agent-muted); font-size:.72rem; cursor:pointer; transition:background .16s ease,color .16s ease,box-shadow .16s ease; }
+.modeSwitch button:hover { color:var(--agent-text); }
+.modeSwitch button[data-active="true"] { background:var(--agent-elevated); color:var(--agent-text); box-shadow:0 .12rem .45rem rgba(0,0,0,.09); font-weight:600; }
+.root[data-layout-mode="compact"] .modeSwitch button { min-width:4rem; padding:0 .55rem; }
+.root[data-layout-mode="mobile"] .modeSwitch { position:static; transform:none; margin-left:auto; }
+.root[data-layout-mode="mobile"] .modeSwitch button { min-width:3.2rem; height:1.7rem; padding:0 .45rem; font-size:.66rem; }
+.root[data-layout-mode="mobile"] .title { display:none; }

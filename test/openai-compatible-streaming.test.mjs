@@ -10,7 +10,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { callOpenAiCompatibleTextModel } from "@lfaa/llm-openai-compatible";
+import { callOpenAiCompatibleTextModel } from "../packages/llm/openai-compatible/src/index.ts";
 
 const account = {
   id: "deepseek-account",
@@ -33,6 +33,7 @@ const request = {
   input: "你好",
   model: { accountId: account.id, providerId: "deepseek", modelId: "deepseek-flash", settings: { reasoningEffort: "high" } },
   permissionProfileId: "request-approval",
+  sessionId: "session-test-0001",
   workspaceId: "workspace:test",
 };
 

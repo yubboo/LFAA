@@ -1,24 +1,33 @@
-# LFAA Project Plan — current v0.1.9
+# LFAA Project Plan — current v0.1.11
 
 ## 当前里程碑
 
-**v0.1.9 / #22.15 实时 Agent Run Timeline / Streaming Activity（pending-user-acceptance）**
+**v0.1.11 / #22.17 Project + Session Persistence / Runtime Event Isolation（pending-user-acceptance）**
 
-目标：以用户上传的 DeepSeek Harness 源码为实现参考，完成 LFAA 自己的真实运行过程投影。Chat/Work 继续共用同一 Agent Core；用户提交任务后不能静默等待最终答案，而应立即看到真实 Run 状态、已处理时间、可展开 reasoning summary/plan/tool/command/file/search/MCP activity，并让最终 Assistant answer 继续真实流式输出。
+目标：修复 v0.1.10 实机暴露的静默空状态、静态项目与 Session/Runtime 路由混用。刷新必须恢复项目、会话、置顶、展开、消息、Run Timeline 与模式；Chat / Work 中央行为按 mode 解耦，同时继续共享一个 Agent Core。
 
-本版：
+本版新增：
 
-- `@lfaa/agent-runtime` 扩展统一 Run Timeline 事件：phase、官方 reasoning summary、plan、activity lifecycle、assistant streaming、run terminal state；
-- `@lfaa/codex-app-server` 映射官方 `turn/started`、`item/reasoning/summaryTextDelta`、`item/plan/delta`、`item/started/completed`、`item/commandExecution/outputDelta` 等事件；明确不映射原始隐藏 reasoning text；
-- `@lfaa/agent-controller` 把 Codex 原生事件和 OpenAI-compatible streaming 统一成 Agent Runtime Event；
-- `@lfaa/workspace` 新增 Run Process ViewModel 与可展开 Timeline；运行中显示“已处理 X 秒”，完成后显示“用时 X 秒”；
-- Assistant 最终文本与过程 Timeline 分离；`assistant.delta` 持续更新同一条答案，禁止等待完成后一次性输出；
-- Chat / Work 继续消费同一 Runtime Event；Manual 不启动 Agent，不受本次事件协议影响；
-- UI 只展示真实 Runtime activity 和官方可展示 reasoning summary，不伪造思考步骤，不泄露隐藏 chain-of-thought。
+- Project Index：创建、切换、展开、置顶、重命名、删除与 active project 全部持久化；
+- Session Index：最近与置顶真实可点击，消息/mode/work context/Run Timeline 跨刷新恢复；
+- `AgentRunRequest.sessionId`：事件和模型 conversation 按 Session 隔离，禁止跨项目/会话串流；
+- Host 握手错误可见：非 JSON/未接入不再显示为空历史；
+- Run Timeline 记录真实 phase history，即使 Provider 没有 reasoning summary 也可展开查看阶段；
+- 真实磁盘行为测试与浏览器刷新回归覆盖。
 
-**AI 验证：** pass。源码树 Node 合同测试 190/190 PASS；Config System 42/42 PASS；Timeline/Codex/SSE 聚焦回归 16/16 PASS；10/10 workspace tsconfig 通过 `tsc --showConfig`；静态治理 Gate 全 PASS；759-entry Unicode ZIP fresh extract 静态 preflight 全 PASS。真实 Provider 端到端视觉/节奏仍由用户验收。
+v0.1.10 已完成的基础能力继续保留：
 
-**后续：** 把同一 `AgentRuntimeEvent` 更深地投影到 Work 无限画布节点/边和审批 UI；Session 持久化仍是独立后续能力，不能用 localStorage 临时替代。
+- 新增真实 `@lfaa/session`、`@lfaa/session-host-node` 与 `@lfaa/session-controller`；Session 写入 `LFAA_HOME/state/sessions/`，不使用 repository `.lfaa`，也不以 localStorage 代替对话持久化；
+- Chat / Work / Manual 共用一个 Session Domain；消息、Run Timeline、mode、work context、最近记录与 active session 统一持久化；
+- 刷新后恢复最后 Session；刷新前仍在 running 的 Run 明确收敛为“上次运行已中断”，禁止假装继续运行；
+- 左栏删除硬编码 `recentRuns`，改为真实最近 Session，可新建、点击恢复；左栏结构不再随 mode 改变；未实现入口明确 disabled；
+- 左上角品牌菜单继续切换 mode；中央 Header 新增 Chat / Work / Manual segmented switch，两者绑定同一 `workspaceMode`；只有中央表现层随模式变化；
+- Chat Run Timeline 改为紧凑“思考了 X 秒 ⌄”布局；点击后展开 reasoning summary、plan、command/file/search/MCP/tool activity；最终回答继续独立真实流式输出；
+- Work / Manual Canvas 以当前 Session ID 作为画布持久化 key，切换最近 Session 时恢复对应画布。
+
+**AI 验证：** pass；Node 合同测试 193/193、Config System 42/42、27 个 Node workspace / 1 个 Native crate 架构检查、10/10 workspace tsconfig 真实加载及当前治理门禁均通过。最终 777-entry Unicode ZIP fresh extract 静态门禁也通过；真实浏览器刷新恢复、左栏交互与视觉节奏仍由用户验收。
+
+**后续：** Session Store 当前为 JSON Provider；数据量达到需要数据库时，在 `@lfaa/session-host-node` 后替换 SQLite Provider，不改变上层 Session Contract。
 
 ## 当前冻结行为
 

@@ -1,4 +1,17 @@
-# LFAA Development Standard — v0.1.9
+# LFAA Development Standard — v0.1.11
+
+## v0.1.11 Project / Session / Navigation 开发规范
+
+- Chat / Work / Manual 必须共用 `@lfaa/session`；禁止重新出现 `chatSessions` / `workSessions` 两套持久层。
+- Conversation、Run Timeline、最近会话不得只存在 React `useState` 或 localStorage；长期真值写入 `LFAA_HOME` Session Host。
+- localStorage 只允许保存轻量 UI preference；不得作为聊天记录、Run history 的数据库。
+- 左侧导航跨 mode 保持稳定；mode 变化只改变中央 Interaction Surface。
+- 左上角 mode menu 与中央 mode switch 必须绑定同一个 mode state。
+- Timeline 展开内容只能来自真实 Runtime Event；最终答案继续使用真实 `assistant.delta`。
+- 项目创建、切换、展开与置顶必须通过 Session Host 持久化；不得用静态 `lfaa` 项目占位。
+- Runtime Event 必须按 `sessionId` 过滤；Project ID 只负责项目归属和工作区上下文。
+- Host transport 返回 HTML/非 JSON 时必须显示明确连接错误，禁止降级成空历史。
+
 
 本文件是当前开发规范。历史版本的设计过程请看 `CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md` 和 `docs/PROMPTS.md`；历史内容不得覆盖本文件。
 

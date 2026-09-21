@@ -12,6 +12,7 @@ import type { Plugin, ViteDevServer } from "vite";
 import { lfaaDevAgentRuntimeBridge } from "@lfaa/agent-controller";
 import { CodexAppServerHost } from "@lfaa/codex-app-server";
 import { lfaaDevPluginManagerBridge } from "@lfaa/plugin-controller";
+import { lfaaDevSessionBridge } from "@lfaa/session-controller";
 import { lfaaDevAiConfigBridge } from "@lfaa/settings-controller";
 import { createLfaaDevTerminalBridge } from "@lfaa/terminal-vite";
 import { createLfaaViteHostConfig } from "@lfaa/host-vite";
@@ -43,6 +44,7 @@ export function createLfaaWebViteConfig(options: LfaaWebViteConfigOptions) {
       createLfaaDevTerminalBridge(options.projectRoot),
       lfaaDevAiConfigBridge(options.projectRoot, { managedAuth: codexHost.managedAuth }),
       lfaaDevPluginManagerBridge(options.projectRoot),
+      lfaaDevSessionBridge(),
       lfaaDevAgentRuntimeBridge(options.projectRoot, { codexRuntime: codexHost.textRuntime }),
       codexLifecyclePlugin(codexHost),
     ],

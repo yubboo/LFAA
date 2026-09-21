@@ -1,12 +1,29 @@
-# LFAA v0.1.9 — 实时 Agent Run Timeline / Streaming Activity
+# LFAA v0.1.11 — 真实项目 / 会话持久化与模式隔离
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.1.9**。本版以用户提供的 DeepSeek Harness 源码为实现参考，把“模型正在做什么”从静默等待升级为统一 **Agent Run Timeline**：Run 启动后立即显示真实阶段与已处理时长；可展开查看 Provider/Runtime 实际发出的 reasoning summary、plan、command、file、search、MCP/tool activity；最终 Assistant 文本继续通过统一 `assistant.delta` 边生成边显示。Chat / Work 仍共用同一 Agent Core，Manual 仍不启动模型。UI 不生成假的思考过程，也不展示模型不可见的原始隐藏思维链。
+当前包：**LFAA-v0.1.11**。本版修复 v0.1.10 的实机回归：Session Host 未接入时不再静默恢复默认；项目、活动项目、展开、置顶、会话置顶、最近记录、mode、messages、Work Context 与 Run Timeline 都写入 `LFAA_HOME/state/sessions/`。每个 Run 携带正式 Session ID，事件不会跨项目或会话串流；Chat 与 Work 共用同一 Agent Core，但中央交互面、输入上下文与恢复状态严格按 mode/session 路由。
 
 > 当前真相以本 README、`ARCHITECTURE.md`、`DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
 
-## v0.1.9 当前产品模型
+## v0.1.11 项目 / 会话状态模型
+
+```text
+Project Index (active / pinned / expanded)
+  └─ Session Index (active / pinned / recent)
+       └─ Session Record (mode / messages / Run Timeline / workContext)
+            └─ AgentRuntimeEvent(sessionId) → Chat Timeline | Work Canvas
+```
+
+浏览器只保存主题、布局等轻量偏好；项目、会话和对话历史的真值在 Node Session Host。Session Host 返回非 JSON 或不可用时，左栏会显示明确错误，不再伪装成“还没有会话”。
+
+## v0.1.10 Session Persistence / Stable Navigation
+
+本版把会话从 React 临时内存升级为正式 Session capability：Chat / Work / Manual 共用 `@lfaa/session`，Node Host 持久化到 `LFAA_HOME/state/sessions/`。刷新页面会恢复最近会话、当前会话、对话、Run Timeline、mode 与 Work Context；运行中的旧 Run 则明确标记为“上次运行已中断”。
+
+左侧导航现在跨模式稳定，不再因为 Chat / Work / Manual 重建菜单；“最近”来自真实 Session Index。左上角品牌菜单与中央 Header segmented switch 同步控制同一个 mode，中间区域才切换对话、无限画布或手动工作区。Run Timeline 采用紧凑 `思考了 X 秒 ⌄` 布局，展开后查看真实 activity，最终回答保持真实 streaming。
+
+## v0.1.10 当前产品模型
 
 ```text
                      LFAA Agent Core
@@ -27,7 +44,7 @@
 
 
 
-### v0.1.9 实时 Agent Run Timeline
+### v0.1.10 实时 Agent Run Timeline
 
 ```text
 用户提交任务
@@ -56,7 +73,7 @@ assistant.completed + run.completed
 - **隐私/能力边界**：只显示 Provider 官方提供、允许客户端展示的 reasoning summary；原始隐藏 chain-of-thought 不进入 Workspace ViewModel。
 - **最终答案独立流式**：过程 Timeline 与 Assistant answer 是两块 UI；答案仍使用真实 `assistant.delta`，不是等待完成后一次性替换。
 
-### v0.1.9 Provider 运行可靠性
+### v0.1.10 Provider 运行可靠性
 
 - **ChatGPT 登录真值**：官方 OAuth 成功与否只依据 App Server `account/login/completed`、`account/updated` 与 `account/read`；浏览器成功页被用户关闭不再被当成登录失败，并保留 30 秒官方确认宽限期。
 

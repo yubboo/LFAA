@@ -82,6 +82,7 @@ function parseRunRequest(value: unknown): AgentRunRequest {
   if (!model || typeof model !== "object") throw new Error("Run 缺少模型绑定。");
   const m = model as Record<string, unknown>;
   if (typeof raw.input !== "string" || !raw.input.trim()) throw new Error("Run 输入为空。");
+  if (typeof raw.sessionId !== "string" || !/^[A-Za-z0-9-]{8,80}$/u.test(raw.sessionId)) throw new Error("Run sessionId 无效。");
   if (raw.workspaceMode !== "chat" && raw.workspaceMode !== "work") throw new Error("Run workspaceMode 无效；Manual 不允许进入 Agent Runtime。");
   if (typeof m.accountId !== "string" || typeof m.providerId !== "string" || typeof m.modelId !== "string") throw new Error("Run 模型绑定无效。");
   const settings: Record<string, string | number | boolean> = {};
@@ -101,6 +102,7 @@ function parseRunRequest(value: unknown): AgentRunRequest {
     model: { accountId: m.accountId, providerId: m.providerId, modelId: m.modelId, settings },
     permissionProfileId: typeof raw.permissionProfileId === "string" ? raw.permissionProfileId as AgentRunRequest["permissionProfileId"] : "ask",
     ...(executionHints ? { executionHints } : {}),
+    sessionId: raw.sessionId,
     workspaceId: typeof raw.workspaceId === "string" && raw.workspaceId ? raw.workspaceId : "lfaa",
     ...(workspaceContext ? { workspaceContext } : {}),
   };
@@ -148,8 +150,8 @@ export function lfaaDevAgentRuntimeBridge(projectRoot: string, options: { codexR
     const connection = provider.resolveConnection({ authMethodId: account.authMethodId, settings: account.settings });
     const protocol = connection.protocol;
     const runId = randomUUID();
-    const sessionId = `web-${runRequest.workspaceId}`;
-    const sessionKey = `${runRequest.workspaceId}:${account.id}:${runRequest.model.modelId}`;
+    const sessionId = runRequest.sessionId;
+    const sessionKey = `${runRequest.workspaceId}:${runRequest.sessionId}:${account.id}:${runRequest.model.modelId}`;
     const abort = new AbortController();
     const startedAt = Date.now();
     running.set(runId, { abort, sessionId, request: runRequest, protocol, sessionKey, startedAt });

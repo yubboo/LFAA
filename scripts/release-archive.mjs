@@ -14,7 +14,7 @@ const UTF8_FLAG = 0x0800;
 const METHOD_STORE = 0;
 const VERSION_NEEDED = 20;
 const VERSION_MADE_BY_UNIX = (3 << 8) | VERSION_NEEDED;
-const EXCLUDED_DIR_NAMES = new Set([".git", "node_modules", "dist", "target"]);
+const EXCLUDED_DIR_NAMES = new Set([".git", ".test-runtime-home", "node_modules", "dist", "target"]);
 const REQUIRED_UNICODE_ENTRY = "docs/项目结构与代码地图.md";
 
 const CRC32_TABLE = (() => {
