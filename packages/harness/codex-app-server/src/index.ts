@@ -3,6 +3,8 @@ export {
   CodexAppServerManagedAuth,
   CodexAppServerTextRuntime,
   type CodexTextRunInput,
+  type CodexTextRuntimeEvent,
+  type CodexTextRuntimeActivityKind,
   type CodexTextRunResult,
 } from "./codex-app-server.ts";
 

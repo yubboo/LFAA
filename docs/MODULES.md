@@ -1,4 +1,4 @@
-# LFAA Modules — v0.1.8 Current Ownership
+# LFAA Modules — v0.1.9 Current Ownership
 
 本文件只描述当前模块 Owner。旧版本细节请到 DEVELOPMENT_LOG/CHANGELOG 查历史。
 
@@ -6,11 +6,11 @@
 
 | Family | Package | 当前职责 |
 |---|---|---|
-| core | `@lfaa/agent-runtime` | Agent Run/Permission/Harness 公共契约 |
+| core | `@lfaa/agent-runtime` | Agent Run/Permission/Harness 公共契约；Run Timeline 统一事件定义 |
 | client | `@lfaa/client-web` | Web Client Composition / mount |
 | client | `@lfaa/client-connection` | Browser ↔ Local Host clients |
 | client | `@lfaa/app-shell` | Workbench / Composer / Settings / Shell |
-| client | `@lfaa/workspace` | Chat Agent + Work Agent + Manual Workspace 产品域；Chat/Work 同核，Manual 无模型 |
+| client | `@lfaa/workspace` | Chat Agent + Work Agent + Manual Workspace 产品域；Chat/Work 同核；统一 Run Event → Timeline/Answer 投影；Manual 无模型 |
 | client | `@lfaa/ui` | Shared UI Kit / Interaction primitives |
 | client | `@lfaa/ui-terminal` | Terminal UI |
 | settings | `@lfaa/config-system` | AI Config Domain + 官方 Usage/Quota 规范化 |
@@ -21,7 +21,7 @@
 | plugin | `@lfaa/plugin-sdk` | Plugin/capability contracts |
 | plugin | `@lfaa/plugin-runtime` | Registry generation / lifecycle |
 | plugin | `@lfaa/plugin-host-node` | Inspect/install/rollback/pnpm host |
-| harness | `@lfaa/codex-app-server` | OpenAI 官方 ChatGPT 账户/App Server Adapter：managed auth + usage + read-only thread/turn；运行组件归 LFAA_HOME 管理，不要求全局 CLI |
+| harness | `@lfaa/codex-app-server` | OpenAI 官方 ChatGPT 账户/App Server Adapter：managed auth + usage + read-only thread/turn + 官方 reasoning/plan/activity 增量事件；运行组件归 LFAA_HOME 管理，不要求全局 CLI |
 | api | `@lfaa/agent-controller` | Agent Run local Host controller；按 Provider protocol 路由 OpenAI-compatible / Codex Runtime |
 | api | `@lfaa/settings-controller` | AI Settings local Host controller |
 | api | `@lfaa/plugin-controller` | Plugin Manager local Host controller |
@@ -30,6 +30,19 @@
 | bundle | `@lfaa/bundle-web-app` | Web Host capability assembly |
 | util | `@lfaa/home-paths` | Runtime Home resolution |
 | app | `@lfaa/web` | Thin Web product entry |
+
+
+## v0.1.9 Run Timeline Owner
+
+```text
+core/agent-runtime           # 统一 phase/reasoning-summary/plan/activity/assistant/run events
+harness/codex-app-server    # 官方 Codex/App Server event → runtime event source
+api/agent-controller        # Provider event normalization / run lifecycle
+client/workspace/shared     # Event → RunProcessViewModel + AssistantMessage
+client/workspace/chat       # elapsed/disclosure/activity/final answer rendering
+```
+
+Timeline 数据必须从 Runtime 向 Client 单向投影；UI 不能反向猜测 Provider 正在做什么。
 
 ## Core dependency intent
 

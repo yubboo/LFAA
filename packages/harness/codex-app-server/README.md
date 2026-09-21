@@ -9,11 +9,16 @@
 - `thread/start` 创建并按 LFAA Session 复用 Codex Thread；
 - `turn/start` 发起文本 Turn，并把模型设置映射到官方 `effort` 字段；
 - `item/agentMessage/delta` 流式文本；
+- `item/reasoning/summaryTextDelta` 官方可展示思考摘要；
+- `item/plan/delta` / `turn/plan/updated` 计划增量；
+- command/file/search/MCP/tool item lifecycle 与 command output delta；
 - `item/completed` 最终 Agent Message；
 - `turn/completed` 收敛 Turn 状态；
 - Browser cancel 通过 `turn/interrupt` 取消正在运行的 Turn；
 - `turn/start` 响应前取消也安全处理 Promise 拒绝，待 Turn ID 到达后再发出 `turn/interrupt`；
 - Web Bundle 内共享一个 `CodexAppServerHost`，认证与 Text Runtime 不重复启动子进程。
+
+> `item/reasoning/textDelta` 等原始隐藏 reasoning 不进入 LFAA Client；只转发官方可展示的 reasoning summary。
 
 ## 当前安全边界
 

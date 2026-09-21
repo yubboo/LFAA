@@ -1,9 +1,9 @@
-# LFAA Agent / Contributor Guide — v0.1.8
+# LFAA Agent / Contributor Guide — v0.1.9
 
 本文件给 AI Agent 和开发者提供最短路径的当前约束。**先遵守当前代码与本文件，再参考历史记录。**
 
 
-## v0.1.8 不可破坏的模式 / Provider 原则
+## v0.1.9 不可破坏的模式 / Provider 原则
 
 - ChatGPT 套餐 OAuth 的窗口不是认证 Owner；禁止因 popup.closed 直接判失败，必须以官方 App Server 登录/account 状态为准。
 
@@ -15,6 +15,9 @@
 6. ChatGPT 套餐属于 OpenAI Provider 的官方订阅认证方式；产品不得要求用户安装全局 Codex CLI。内部可使用由 LFAA 管理的官方 App Server 组件，但不得把实现细节冒充用户依赖。
 7. 支持流式的 Provider 必须通过统一 `assistant.delta` 实时投影；禁止为了省实现而退回“等待完整 JSON 后一次性回答”。
 8. Usage/Quota 是附加状态：失败或超时必须进入明确终态，不能阻塞账户保存，也不能永久显示“正在读取”。
+9. `AgentRuntimeEvent` 是 Chat/Work 运行过程的唯一 UI 真值：Run Timeline 只能渲染 Runtime 真正发出的 phase/reasoning-summary/plan/activity/assistant 事件，禁止用定时器或静态文案伪造执行过程。
+10. 只允许展示 Provider 官方可展示的 reasoning summary；原始隐藏 reasoning / chain-of-thought 禁止进入 Client ViewModel、日志和持久化。
+11. 支持 streaming 的 Provider 必须保持真正 delta 路径；Run Timeline 与最终回答必须同时可增量更新，禁止回退到完成后一次性替换。
 
 ## 先读
 

@@ -1,12 +1,15 @@
-# LFAA Releases — current policy v0.1.8
+# LFAA Releases — current policy v0.1.9
 
-## v0.1.8 — #22.14 ChatGPT 套餐 OAuth 完成态竞态修复
+## v0.1.9 — #22.15 实时 Agent Run Timeline / Streaming Activity
 
 - 状态：`pending-user-acceptance`；AI 验证：`pass`；用户验收：`pending`。
-- 官方 OAuth 成功与否只依据 OpenAI App Server 的 `account/login/completed`、`account/updated` 与 `account/read`。
-- ChatGPT Hosted Success Page 被用户关闭不再触发立即失败；Browser Client 提供 30 秒官方确认宽限期。
-- Host 在 managed login pending 时使用 `account/read` 兜底确认套餐账户；仍不读取或保存 OAuth Token。
-- 回归测试锁定 popup 生命周期与认证状态解耦，并验证 official account/read fallback。
+- 参考用户提供的 DeepSeek Harness 源码事件组织，把 Run/Reasoning/Tool/Answer 从静默等待改为真实增量 Timeline。
+- `@lfaa/agent-runtime` 新增 phase、reasoning summary、plan、activity lifecycle 与 run terminal events；UI 以该事件流为唯一过程真值。
+- Codex App Server 官方 reasoning summary / plan / command/file/search/MCP activity 映射到统一事件；原始隐藏 reasoning 不进入 UI。
+- Chat Run Process Card 实时计时、可展开过程；Assistant 最终答案继续通过 `assistant.delta` 真流式输出。
+- Chat/Work 保持同一 Agent Core；Manual 不启动模型。
+- 用户验收前保持 pending-user-acceptance；真实 Provider 视觉/节奏仍需用户实机验证。
+- AI 验证：Node 合同 190/190 PASS；Config System 42/42 PASS；Timeline/Codex/SSE 聚焦回归 16/16 PASS；10/10 tsconfig 可加载；759-entry Unicode ZIP fresh extract 静态 preflight PASS。
 
 
 ## v0.1.7 — #22.13 Provider 官方登录 / Usage 终态 / 真流式回复
@@ -87,8 +90,8 @@
 ## 当前版本
 
 ```text
-displayVersion: 0.1.8
-releaseSequence: 108
+displayVersion: 0.1.9
+releaseSequence: 109
 architectureVersion: 6
 agentProtocolVersion: 3
 ```

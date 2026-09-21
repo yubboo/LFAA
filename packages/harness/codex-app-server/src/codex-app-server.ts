@@ -37,7 +37,17 @@ const MODEL_SOURCE = {
   checkedAt: CHECKED_AT,
 } as const;
 /** App Server initialize 元数据集中定义，避免 name/title/version 散落在握手逻辑。 */
-const APP_SERVER_CLIENT_INFO = { name: "lfaa_web_dev", title: "Little Fish AI Agent", version: "0.1.8" } as const;
+const APP_SERVER_CLIENT_INFO = { name: "lfaa_web_dev", title: "Little Fish AI Agent", version: "0.1.9" } as const;
+
+export type CodexTextRuntimeActivityKind = "command" | "file" | "search" | "mcp" | "tool" | "review" | "system";
+
+export type CodexTextRuntimeEvent =
+  | { readonly type: "turn.started"; readonly turnId?: string }
+  | { readonly type: "reasoning.summary.delta"; readonly itemId?: string; readonly delta: string }
+  | { readonly type: "plan.updated"; readonly text: string }
+  | { readonly type: "activity.started"; readonly id: string; readonly kind: CodexTextRuntimeActivityKind; readonly title: string; readonly detail?: string }
+  | { readonly type: "activity.output.delta"; readonly id: string; readonly delta: string }
+  | { readonly type: "activity.completed"; readonly id: string; readonly kind: CodexTextRuntimeActivityKind; readonly title: string; readonly detail?: string; readonly status: "completed" | "failed" | "declined" | "interrupted" };
 
 export interface CodexTextRunInput {
   readonly sessionKey: string;
@@ -47,6 +57,8 @@ export interface CodexTextRunInput {
   readonly reasoningEffort?: string;
   readonly signal: AbortSignal;
   readonly onTextDelta?: (delta: string) => void;
+  /** 只上报官方可展示的过程事件；不暴露原始隐藏 reasoning text。 */
+  readonly onRuntimeEvent?: (event: CodexTextRuntimeEvent) => void;
 }
 
 export interface CodexTextRunResult {
@@ -513,6 +525,51 @@ function turnErrorMessage(turn: JsonRecord): string | null {
   return error ? safeText(error.message, "Codex Turn 执行失败。") : null;
 }
 
+function itemId(item: JsonRecord): string | null {
+  return stringField(item, "id");
+}
+
+function compactText(value: unknown, max = 240): string | undefined {
+  if (typeof value === "string" && value.trim()) return value.trim().slice(0, max);
+  return undefined;
+}
+
+function activityFromItem(item: JsonRecord): Omit<Extract<CodexTextRuntimeEvent, { type: "activity.started" }>, "type"> | null {
+  const id = itemId(item);
+  const type = stringField(item, "type");
+  if (!id || !type) return null;
+  if (type === "commandExecution") {
+    const command = compactText(item.command, 320) ?? "执行命令";
+    const cwd = compactText(item.cwd, 180);
+    return { id, kind: "command", title: command, ...(cwd ? { detail: cwd } : {}) };
+  }
+  if (type === "fileChange") {
+    const changes = Array.isArray(item.changes) ? item.changes : [];
+    const paths = changes.flatMap((change) => isRecord(change) && typeof change.path === "string" ? [change.path] : []).slice(0, 5);
+    return { id, kind: "file", title: changes.length ? `处理 ${changes.length} 个文件变更` : "处理文件变更", ...(paths.length ? { detail: paths.join(" · ") } : {}) };
+  }
+  if (type === "webSearch") return { id, kind: "search", title: compactText(item.query, 260) ?? "网页搜索" };
+  if (type === "mcpToolCall") {
+    const server = compactText(item.server, 100);
+    const tool = compactText(item.tool, 140) ?? "MCP 工具";
+    return { id, kind: "mcp", title: server ? `${server} / ${tool}` : tool };
+  }
+  if (type === "dynamicToolCall") return { id, kind: "tool", title: compactText(item.tool, 220) ?? "调用工具" };
+  if (type === "imageView") return { id, kind: "tool", title: "查看图片", ...(compactText(item.path, 220) ? { detail: compactText(item.path, 220) } : {}) };
+  if (type === "enteredReviewMode") return { id, kind: "review", title: "进入审查", ...(compactText(item.review, 240) ? { detail: compactText(item.review, 240) } : {}) };
+  if (type === "exitedReviewMode") return { id, kind: "review", title: "完成审查", ...(compactText(item.review, 240) ? { detail: compactText(item.review, 240) } : {}) };
+  if (type === "contextCompaction") return { id, kind: "system", title: "压缩上下文" };
+  return null;
+}
+
+function completedActivityStatus(item: JsonRecord): "completed" | "failed" | "declined" | "interrupted" {
+  const status = stringField(item, "status")?.toLowerCase();
+  if (status === "failed") return "failed";
+  if (status === "declined") return "declined";
+  if (status === "interrupted" || status === "cancelled") return "interrupted";
+  return "completed";
+}
+
 export class CodexAppServerTextRuntime {
   readonly #client: CodexAppServerClient;
   readonly #threads = new Map<string, RuntimeThread>();
@@ -612,6 +669,56 @@ export class CodexAppServerTextRuntime {
       if (eventThreadId && eventThreadId !== threadId) return;
       if (expectedTurnId && eventTurnId && eventTurnId !== expectedTurnId) return;
 
+      if (method === "turn/started") {
+        const turn = nestedRecord(params, "turn");
+        options.onRuntimeEvent?.({ type: "turn.started", ...(turn && stringField(turn, "id") ? { turnId: stringField(turn, "id")! } : {}) });
+        return;
+      }
+
+      if (method === "item/reasoning/summaryTextDelta") {
+        const delta = stringField(params, "delta");
+        if (!delta) return;
+        const itemIdValue = stringField(params, "itemId");
+        options.onRuntimeEvent?.({ type: "reasoning.summary.delta", ...(itemIdValue ? { itemId: itemIdValue } : {}), delta });
+        return;
+      }
+
+      if (method === "item/plan/delta") {
+        const delta = stringField(params, "delta");
+        if (delta) options.onRuntimeEvent?.({ type: "plan.updated", text: delta });
+        return;
+      }
+
+      if (method === "turn/plan/updated") {
+        const plan = Array.isArray(params.plan) ? params.plan : [];
+        const lines = plan.flatMap((entry) => {
+          if (!isRecord(entry)) return [];
+          const step = compactText(entry.step, 260);
+          if (!step) return [];
+          const status = compactText(entry.status, 40);
+          return [`${status ? `[${status}] ` : ""}${step}`];
+        });
+        const explanation = compactText(params.explanation, 320);
+        const text = [explanation, ...lines].filter(Boolean).join("\n");
+        if (text) options.onRuntimeEvent?.({ type: "plan.updated", text });
+        return;
+      }
+
+      if (method === "item/started") {
+        const item = nestedRecord(params, "item");
+        if (!item) return;
+        const activity = activityFromItem(item);
+        if (activity) options.onRuntimeEvent?.({ type: "activity.started", ...activity });
+        return;
+      }
+
+      if (method === "item/commandExecution/outputDelta") {
+        const itemIdValue = stringField(params, "itemId");
+        const delta = stringField(params, "delta");
+        if (itemIdValue && delta) options.onRuntimeEvent?.({ type: "activity.output.delta", id: itemIdValue, delta });
+        return;
+      }
+
       if (method === "item/agentMessage/delta") {
         const delta = stringField(params, "delta");
         if (!delta) return;
@@ -622,11 +729,17 @@ export class CodexAppServerTextRuntime {
 
       if (method === "item/completed") {
         const item = nestedRecord(params, "item");
-        if (!item || stringField(item, "type") !== "agentMessage") return;
-        const text = stringField(item, "text");
-        if (!text) return;
-        if (stringField(item, "phase") === "final_answer") finalAnswer = text;
-        else completedMessages.push(text);
+        if (!item) return;
+        const itemType = stringField(item, "type");
+        if (itemType === "agentMessage") {
+          const text = stringField(item, "text");
+          if (!text) return;
+          if (stringField(item, "phase") === "final_answer") finalAnswer = text;
+          else completedMessages.push(text);
+          return;
+        }
+        const activity = activityFromItem(item);
+        if (activity) options.onRuntimeEvent?.({ type: "activity.completed", ...activity, status: completedActivityStatus(item) });
         return;
       }
 

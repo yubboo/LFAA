@@ -17,3 +17,7 @@
 Manual 不属于 Agent Runtime：它是 Client Workbench 的无模型手动模式，复用 Canvas/Tool 基础设施，不创建 `AgentRunRequest`。
 
 `AgentRuntimeEvent` 的执行结果是 UI 唯一真值；UI 禁止自行伪造模型或工具结果。
+
+## v0.1.9 Run Timeline Event Contract
+
+`AgentRuntimeEvent` 统一描述 Run phase、官方 reasoning summary、plan、activity lifecycle、Assistant streaming 与 run terminal state。它是 Chat/Work 运行过程的唯一 UI 真值。原始隐藏 chain-of-thought 不属于协议。

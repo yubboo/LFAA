@@ -1,46 +1,24 @@
-# LFAA Project Plan — current v0.1.8
+# LFAA Project Plan — current v0.1.9
 
 ## 当前里程碑
 
-**v0.1.8 / ChatGPT 套餐 OAuth 完成态与关闭窗口竞态修复（pending-user-acceptance）**
+**v0.1.9 / #22.15 实时 Agent Run Timeline / Streaming Activity（pending-user-acceptance）**
 
-目标：保持 v0.1.7 的 Provider/Streaming/Usage 行为不变，修复 OpenAI 官方 ChatGPT OAuth 已成功但用户关闭成功页后被 LFAA 误判为取消的竞态。认证真值必须来自官方账户事件 / account 状态，而不是浏览器窗口生命周期。
+目标：以用户上传的 DeepSeek Harness 源码为实现参考，完成 LFAA 自己的真实运行过程投影。Chat/Work 继续共用同一 Agent Core；用户提交任务后不能静默等待最终答案，而应立即看到真实 Run 状态、已处理时间、可展开 reasoning summary/plan/tool/command/file/search/MCP activity，并让最终 Assistant answer 继续真实流式输出。
 
 本版：
 
-- ChatGPT 套餐继续使用 OpenAI 官方账户/App Server 协议，但产品层不要求用户安装 Codex CLI；Windows 由 LFAA 在 `LFAA_HOME` 按需下载固定 OpenAI 官方 App Server 独立资产并校验 SHA-256；
-- ChatGPT 浏览器成功页允许关闭；Client 先轮询官方登录状态，窗口关闭只开启 30 秒确认宽限期；Host 在 pending 时用 `account/read` 兜底，`account/updated(authMode=chatgpt)` 也可确认成功；
-- API Key 的“测试连接→保存”复用短期 Host Verified Probe，避免保存时重复 `/models`；
-- Usage UI 改为 `idle / loading / ready / error`，API Provider 后端 15 秒网络超时，Browser 端再提供 22 秒终止线；失败不阻塞账户/模型配置；
-- OpenAI Responses SSE 与 OpenAI-compatible Chat Completions SSE 都实时产生 `assistant.delta`；新增行为测试防止退回一次性 JSON；
-- 左侧模式弹层修复 stacking/overflow 裁切；Chat/Work/Manual 的核心能力边界不变；
-- Provider entitlement 继续执行“官方是什么，LFAA 就是什么”；无官方余额接口明确 unavailable，不估算。
+- `@lfaa/agent-runtime` 扩展统一 Run Timeline 事件：phase、官方 reasoning summary、plan、activity lifecycle、assistant streaming、run terminal state；
+- `@lfaa/codex-app-server` 映射官方 `turn/started`、`item/reasoning/summaryTextDelta`、`item/plan/delta`、`item/started/completed`、`item/commandExecution/outputDelta` 等事件；明确不映射原始隐藏 reasoning text；
+- `@lfaa/agent-controller` 把 Codex 原生事件和 OpenAI-compatible streaming 统一成 Agent Runtime Event；
+- `@lfaa/workspace` 新增 Run Process ViewModel 与可展开 Timeline；运行中显示“已处理 X 秒”，完成后显示“用时 X 秒”；
+- Assistant 最终文本与过程 Timeline 分离；`assistant.delta` 持续更新同一条答案，禁止等待完成后一次性输出；
+- Chat / Work 继续消费同一 Runtime Event；Manual 不启动 Agent，不受本次事件协议影响；
+- UI 只展示真实 Runtime activity 和官方可展示 reasoning summary，不伪造思考步骤，不泄露隐藏 chain-of-thought。
 
-**AI 验证：** pass。仓库级 Node 合同测试 188/188 PASS；Config System 42/42 PASS；SSE 行为测试 2/2 PASS；10/10 workspace tsconfig 通过 `tsc --showConfig`；统一 workspace preflight 全 Gate PASS；759-entry Unicode ZIP fresh extract preflight PASS。真实 Windows Provider / ChatGPT 套餐登录仍由用户验收。
+**AI 验证：** pass。源码树 Node 合同测试 190/190 PASS；Config System 42/42 PASS；Timeline/Codex/SSE 聚焦回归 16/16 PASS；10/10 workspace tsconfig 通过 `tsc --showConfig`；静态治理 Gate 全 PASS；759-entry Unicode ZIP fresh extract 静态 preflight 全 PASS。真实 Provider 端到端视觉/节奏仍由用户验收。
 
-**后续：** 在同一 `AgentRuntimeEvent` 上继续建设 Run Timeline、reasoning summary、tool/file/command activity；不为 Chat/Work 分叉事件系统。
-
-**上一里程碑：v0.1.3 / 全量质量门禁与 Codex 取消竞态修复**
-
-该版本修复 TypeScript 可选端口、旧 Node source importer 与 Codex 提前取消竞态；其历史验证结果见 `CHANGELOG.md` / `docs/RELEASES.md`。
-
-**再上一里程碑：v0.1.2 / Codex App Server Chat Runtime**
-
-目标：让已经通过 ChatGPT/Codex 套餐完成登录与 `model/list` 的模型真正进入聊天执行链；保持 v0.1.1 Harness、TSConfig、依赖健康与 Sync 治理不回退。
-
-本版新增：
-
-- `@lfaa/codex-app-server` 从 Managed Auth / Model Catalog Adapter 升级为共享 `CodexAppServerHost`，同时提供 Managed Auth 与 Text Runtime；
-- Text Runtime 使用官方 App Server `thread/start` / `turn/start`，按 Workspace + Account + Model 复用多轮 Thread；
-- 接收 `item/agentMessage/delta` 流式文本，并以 `item/completed` / `turn/completed` 收敛最终消息；
-- Browser Run 取消映射为 `turn/interrupt`，并保留 timeout / process failure 收敛；
-- `agent-controller` 改为依据 Config System 的 `connection.protocol` 路由 `codex-app-server` 与 `openai-compatible`，不再用 `credentialRef` 猜 Runtime；
-- `bundle/web-app` 统一持有一个 Codex App Server Host，Settings 与 Chat 共用进程；
-- Workspace 支持 `assistant.delta`，流式 delta 与最终 `assistant.completed` 写入同一 assistant message；
-- LFAA 不读取或复制 Codex OAuth Token；审批 UI 尚未接入前，Codex Text Runtime 强制 read-only，并拒绝命令、文件写入、权限提升与 MCP elicitation 请求；
-- 新增 Codex Runtime 行为回归，锁定 Thread 复用、Turn、delta、最终消息、reasoning effort 与 interrupt。
-
-**AI 验证：** pass。仓库级 Node 合同测试 175/175 PASS；Config System 39/39 PASS；Codex Runtime 行为测试 2/2 PASS；所有 workspace tsconfig 均通过真实 `tsc --showConfig`；统一静态治理与 workspace preflight 通过。真实 Windows Codex CLI + ChatGPT 账户端到端仍由用户验收。
+**后续：** 把同一 `AgentRuntimeEvent` 更深地投影到 Work 无限画布节点/边和审批 UI；Session 持久化仍是独立后续能力，不能用 localStorage 临时替代。
 
 ## 当前冻结行为
 

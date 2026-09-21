@@ -1,3 +1,12 @@
+# v0.1.9 Prompt / Requirement Note — 实时 Agent Run Timeline / Streaming Activity
+
+- **基线 / 目标：** v0.1.8 → v0.1.9；任务 #22.15；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。
+- **用户需求：** 按用户上传的 DeepSeek Harness 源码来做运行过程体验；用户提交任务后立即显示正在思考/已处理时间，可展开查看 Agent 真正做了什么，最终结果必须动态真实流式输出，不能静默后一次性给答案。
+- **核心边界：** Runtime Event 是唯一真值；允许显示官方 reasoning summary、plan、tool/command/file/search/MCP activity；禁止伪造步骤，禁止泄露原始隐藏 chain-of-thought。
+- **架构约束：** Chat/Work 继续共用一个 Agent Core/Session/Runtime；Manual 不启动模型；DeepSeek Harness 只作为事件组织参考，不复制其产品视觉或拆出第二套 Runtime。
+- **验收：** Codex/Provider 原生事件能统一投影、elapsed 真计时、过程可展开、Assistant delta 真流式、完整合同测试/preflight/fresh extract 通过。
+- **AI 验证：** Node 合同 190/190、Config System 42/42、Timeline/Codex/SSE 聚焦 16/16、10/10 tsconfig、759-entry Unicode ZIP fresh extract 静态 preflight PASS；真实 Provider 视觉/节奏由用户验收。
+
 # v0.1.8 Prompt / Requirement Note — ChatGPT 套餐 OAuth 完成态竞态修复
 
 - **基线 / 目标：** v0.1.7 → v0.1.8；任务 #22.14；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。
@@ -97,6 +106,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #22.15 | 实时 Agent Run Timeline / Streaming Activity | v0.1.9 | pending-user-acceptance | pass | pending |
 | #22.14 | ChatGPT 套餐 OAuth 完成态 / 窗口关闭竞态修复 | v0.1.8 | pending-user-acceptance | pass | pending |
 | #22.13 | Provider 官方登录 / Usage 终态 / 真流式回复 | v0.1.7 | pending-user-acceptance | pass | pending |
 | #22.12 | 单一 Agent Core / Chat·Work·Manual 三模式 | v0.1.6 | pending-user-acceptance | pass | pending |

@@ -1,6 +1,21 @@
-# LFAA Testing & Gates — v0.1.8
+# LFAA Testing & Gates — v0.1.9
 
-## v0.1.8 Provider 可靠性回归
+## v0.1.9 Agent Run Timeline / Streaming Activity 回归
+
+必须锁定：
+
+1. `run.started` 包含稳定 `startedAt`，Timeline elapsed 来自真实 Run 起点；
+2. `reasoning.summary.delta` 只能接收官方可展示 summary，不能把原始 `reasoning/textDelta` 映射到 UI；
+3. Codex `item/plan/delta` / `turn/plan/updated` 能进入 `plan.updated`；
+4. command/file/search/MCP/tool 等 item 生命周期归一为 `activity.started/output.delta/completed`；
+5. `assistant.delta` 仍然逐 delta 更新最终答案，Run Timeline 不能阻塞 answer streaming；
+6. Run terminal state 必须是 completed/failed/cancelled 之一，过程不能静默消失；
+7. Chat/Work 继续共用同一 `AgentRuntimeEvent`，禁止为了 Timeline 复制第二套 Work Runtime；
+8. UI 只展示 Runtime 已发出的活动，不允许静态假步骤。
+
+对应重点测试：`test/chat-runtime-contract.test.mjs`、`test/codex-app-server-runtime.test.mjs`、`test/openai-compatible-streaming.test.mjs`。
+
+## v0.1.9 Provider 可靠性回归
 
 新增必须锁定：ChatGPT Hosted Success Page 关闭后不得立即 cancel；必须先检查官方 completion/account 状态，并允许 account/read / account/updated 兜底确认。
 

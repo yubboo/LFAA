@@ -1,4 +1,4 @@
-# LFAA Architecture — v0.1.8 Current Truth
+# LFAA Architecture — v0.1.9 Current Truth
 
 > 本文件描述 **当前** LFAA 架构。旧版本的平铺 `packages/*`、`apps/web/dev/bridges/*`、`crates/` 与仓库级 `.lfaa/` 只允许出现在历史记录中，不再是当前设计。
 
@@ -28,6 +28,36 @@ App Entry
 6. 新 package 必须有真实实现、真实 Consumer 和清晰 Owner；
 7. 迁移优先保持公开 package name 与业务行为稳定。
 
+## 1.1 Agent Run Timeline / Event Projection
+
+DeepSeek Harness 源码用于本版事件组织参考：Session/Runtime 先产生 reasoning/text/tool 等真实增量，再由 Client 投影成对话中的 Turn Status、Reasoning disclosure 与 Tool activity。LFAA 保留自己的视觉与单一 Agent Core，但采用同样的“**Runtime Event → Client Projection → UI**”单向结构。
+
+```text
+Provider / Harness Runtime
+       ↓
+@lfaa/agent-runtime AgentRuntimeEvent
+       ├─ run.started / run.phase.changed
+       ├─ reasoning.summary.delta
+       ├─ plan.updated
+       ├─ activity.started / output.delta / completed
+       ├─ assistant.delta / completed
+       └─ run.completed / failed / cancelled
+       ↓
+@lfaa/workspace shared Session Controller
+       ↓
+RunProcessViewModel + Assistant Message
+       ↓
+Chat / Work presentation
+```
+
+约束：
+
+- Agent Controller / Harness Adapter 负责把 Provider 原生事件归一化，UI 不认识 Codex/DeepSeek/OpenAI 私有事件名；
+- `reasoning.summary.delta` 只承载官方可展示摘要，不承载原始隐藏 reasoning；
+- `activity.*` 表示模型、命令、文件、搜索、MCP、Tool 等真实运行活动；
+- `assistant.delta` 始终独立于 Timeline，最终交付文本边生成边显示；
+- Chat / Work 消费同一事件契约，不允许为了不同表现层复制 Runtime。
+
 ## 1.1 Provider 与交互模式边界
 
 Provider 配置、Runtime 可用性、官方 Usage/Quota 是三个独立事实维度。认证方式可能是 API Key、OAuth/订阅、Workspace 或 Coding Plan；是否免费、套餐包含、按量计费、限额与重置时间只接受官方公开接口/Runtime 返回值，LFAA 不推算、不新增自己的模型额度。
@@ -42,7 +72,7 @@ Chat Agent 与 Work Agent **不是能力等级**。它们共享同一个 `AgentR
 
 ChatGPT 套餐是 Provider 认证/Runtime 能力，不是外部客户端依赖：LFAA 通过 OpenAI 官方 App Server RPC 使用 `account/login/start`、`account/read`、`model/list`、thread/turn 等能力，并按需把官方 daemon runtime 隔离在 `LFAA_HOME/runtimes/openai-chatgpt`。用户不需要把 `codex` 安装到全局 PATH；LFAA 也不读取官方 runtime 的认证文件。
 
-## 1.2 v0.1.8 Provider Runtime / Settings 状态边界
+## 1.2 v0.1.9 Provider Runtime / Settings 状态边界
 
 ChatGPT OAuth 的浏览器窗口不是状态 Owner：`packages/client/connection` 只编排窗口与轮询；`packages/harness/codex-app-server` 以官方 `account/login/completed` / `account/updated` / `account/read` 作为认证事实源。
 

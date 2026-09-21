@@ -1,3 +1,14 @@
+# v0.1.9 实时 Agent Run Timeline / Streaming Activity
+
+**当前任务：#22.15 · v0.1.9 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- 用户要求以其上传的 DeepSeek Harness 源码为真实参考，不能再用静默等待 + 最终一次性回答；应显示“正在思考 / 已处理 X 秒”，可展开真实 Agent activity，并让最终答案继续流式。
+- 对照 DeepSeek Harness 的 Session/Event Stream、TurnStatus、ReasoningRow、Tool activity 后，LFAA 采用 `Runtime Event → Workspace Projection → UI` 单向事件模型，不复制其视觉。
+- `AgentRuntimeEvent` 扩展 phase、官方 reasoning summary、plan、activity lifecycle、assistant streaming 与 run terminal state。
+- Codex/App Server 映射官方 reasoning summary、plan、command/file/search/MCP 等事件；原始隐藏 reasoning 不进入 UI。
+- Chat/Work 仍共享同一个 Agent Core；Manual 无模型边界不变。
+- AI 验证：Node 合同 190/190、Config System 42/42、Timeline/Codex/SSE 聚焦 16/16、10/10 tsconfig、759-entry Unicode ZIP fresh extract 静态 preflight 均 PASS。
+
 # v0.1.8 ChatGPT 套餐 OAuth 完成态 / 窗口关闭竞态修复
 
 **当前任务：#22.14 · v0.1.8 · pending-user-acceptance · AI=pass · 用户验收=pending**

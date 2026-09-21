@@ -1,3 +1,13 @@
+# v0.1.9 / #22.15 实时 Agent Run Timeline / Streaming Activity
+
+**当前任务：v0.1.9 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- 以用户上传的 DeepSeek Harness 源码为参考，定位其真实结构：Session `assistant/chunk` 区分 text/reasoning/tool delta；Client Chat 通过 TurnStatus/ReasoningRow/Tool rows 投影真实事件。
+- LFAA 对应扩展 `@lfaa/agent-runtime` 事件协议，并让 Codex/App Server、OpenAI-compatible Runtime 归一进入同一事件流。
+- Workspace Session Controller 新增 Run Process ViewModel；Chat 显示 elapsed、可展开 summary/plan/activity，Assistant answer 继续真实 delta streaming。
+- 不展示隐藏 chain-of-thought；只显示 Provider 官方允许展示的 reasoning summary 和实际工具/命令/文件活动。
+- AI 验证：Node 合同 190/190、Config System 42/42、Timeline/Codex/SSE 聚焦 16/16、10/10 tsconfig、759-entry Unicode ZIP fresh extract 静态 preflight 均 PASS。
+
 # v0.1.8 / #22.14 ChatGPT 套餐 OAuth 完成态竞态修复
 
 **当前任务：v0.1.8 · pending-user-acceptance · AI=pass · 用户验收=pending**

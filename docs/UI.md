@@ -1,6 +1,20 @@
-# LFAA UI Architecture — v0.1.8
+# LFAA UI Architecture — v0.1.9
 
-## v0.1.8 Settings / Streaming / Layering
+## v0.1.9 Agent Run Timeline
+
+Chat 的 Run Process Card 不是 loading placeholder，而是 `AgentRuntimeEvent` 的实时投影：
+
+- 运行中：显示“已处理 X 秒”与当前 phase；
+- 可展开：显示官方 reasoning summary、plan 和真实 activity；
+- Activity：command/file/search/MCP/tool/model/review 等拥有 running/completed/failed 状态，支持真实 output 增量；
+- 最终回答：独立 Assistant message，通过 `assistant.delta` 边到边显示；
+- 完成：显示“用时 X 秒”，保留过程供回看；
+- 不显示 Provider 的原始隐藏 reasoning，只显示官方可公开 summary。
+
+交互参考 DeepSeek Harness 的 TurnStatus / ReasoningRow / Tool activity 事件组织，但不复制其视觉；LFAA 继续使用自己的 Workbench 和 Chat 样式。Work 后续用同一事件模型投影到无限画布，不创建第二套 Timeline Runtime。
+
+
+## v0.1.9 Settings / Streaming / Layering
 
 - ChatGPT 套餐登录弹窗关闭只代表 UI 关闭；Settings 不显示“登录失败”，除非官方登录状态真正 failed/timeout。
 

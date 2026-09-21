@@ -1,14 +1,27 @@
-# LFAA Runtime — v0.1.8
+# LFAA Runtime — v0.1.9
 
-> v0.1.8 ChatGPT Login State：浏览器弹窗仅是 OAuth UI，不是认证真值。Client 先读取 managed-login 官方状态；弹窗关闭进入 30 秒确认宽限期。Host 同时消费 `account/login/completed`、`account/updated(authMode=chatgpt)`，并在 pending 时用 `account/read` 兜底确认。
+> v0.1.9 Agent Run Timeline：Provider/Harness 的真实运行事件统一进入 `AgentRuntimeEvent`。Run 启动后立即产生 `run.started + run.phase.changed`；官方可展示 reasoning summary 进入 `reasoning.summary.delta`；plan 进入 `plan.updated`；command/file/search/MCP/tool 进入 `activity.*`；最终回答使用 `assistant.delta` 真流式，并由 `assistant.completed + run.completed` 收敛。Client 不伪造活动，也不显示原始隐藏 chain-of-thought。
 
-> v0.1.8 Provider Runtime：OpenAI-compatible API 调用优先使用 SSE，OpenAI Responses `response.output_text.delta` 与 Chat Completions `choices[].delta.content` 都映射为统一 `assistant.delta`；最终文本仍由 `assistant.completed` 收敛。
+```text
+Runtime
+  → run.started(startedAt)
+  → run.phase.changed(thinking|acting|responding|waiting)
+  → reasoning.summary.delta / plan.updated
+  → activity.started / activity.output.delta / activity.completed
+  → assistant.delta × N
+  → assistant.completed
+  → run.completed | failed | cancelled
+```
 
-> v0.1.8 OpenAI Subscription Host：Windows 由 LFAA 在 `LFAA_HOME` 按需准备固定 OpenAI 官方 App Server 独立资产并校验 SHA-256，不要求用户全局安装 Codex CLI；官方 OAuth/Token 仍只归官方组件。
+> v0.1.9 ChatGPT Login State：浏览器弹窗仅是 OAuth UI，不是认证真值。Client 先读取 managed-login 官方状态；弹窗关闭进入 30 秒确认宽限期。Host 同时消费 `account/login/completed`、`account/updated(authMode=chatgpt)`，并在 pending 时用 `account/read` 兜底确认。
 
-> v0.1.8 首次配置延迟：Windows Secret Broker 在 Host 启动后后台预热编译；Provider “测试连接 → 保存”复用短期 Verified Probe，因此保存事务不再重复模型目录请求，也不会把官方 Usage 读取绑进保存关键路径。
+> v0.1.9 Provider Runtime：OpenAI-compatible API 调用优先使用 SSE，OpenAI Responses `response.output_text.delta` 与 Chat Completions `choices[].delta.content` 都映射为统一 `assistant.delta`；最终文本仍由 `assistant.completed` 收敛。
 
-> v0.1.8 Usage：Provider API Host 有网络超时，Browser Usage Client 有额外终止线；Usage 失败进入 error，不阻塞账户、模型和 Runtime。
+> v0.1.9 OpenAI Subscription Host：Windows 由 LFAA 在 `LFAA_HOME` 按需准备固定 OpenAI 官方 App Server 独立资产并校验 SHA-256，不要求用户全局安装 Codex CLI；官方 OAuth/Token 仍只归官方组件。
+
+> v0.1.9 首次配置延迟：Windows Secret Broker 在 Host 启动后后台预热编译；Provider “测试连接 → 保存”复用短期 Verified Probe，因此保存事务不再重复模型目录请求，也不会把官方 Usage 读取绑进保存关键路径。
+
+> v0.1.9 Usage：Provider API Host 有网络超时，Browser Usage Client 有额外终止线；Usage 失败进入 error，不阻塞账户、模型和 Runtime。
 
 > v0.1.6 Interaction Runtime：Chat Agent 与 Work Agent 共用同一个 Agent Core / Session Controller / `AgentRuntimeHost`。运行中人工干预统一进入 `interveneRun`：Chat 用对话插话；Work 还可把用户编辑后的无限画布投影成 `workspaceContext`。Manual 完全不创建 Agent Run，只复用 Canvas/Terminal/已注册 Tool 基础设施。
 

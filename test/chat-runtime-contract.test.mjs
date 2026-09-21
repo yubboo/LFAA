@@ -60,7 +60,7 @@ test("web development host routes each configured Provider to its owned text run
     "onTextDelta",
   ]) assert.match(llm, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
-  for (const token of ["thread/start", "turn/start", "item/agentMessage/delta", "turn/completed", "turn/interrupt"])
+  for (const token of ["thread/start", "turn/start", "item/agentMessage/delta", "item/reasoning/summaryTextDelta", "item/commandExecution/outputDelta", "turn/plan/updated", "turn/completed", "turn/interrupt"])
     assert.match(codex, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
   assert.doesNotMatch(bridge, /console\.log\([^\n]*(?:credential|secret|Authorization)/i);
@@ -70,17 +70,30 @@ test("web development host routes each configured Provider to its owned text run
   assert.match(app, /agentRuntimeHost=\{webAgentRuntimeHost\}/);
 });
 
-test("AgentRuntimeHost maps streaming and completed runtime events into one Chat assistant message", () => {
+test("AgentRuntimeHost maps real runtime events into one streaming Chat timeline", () => {
   assert.match(contracts, /AgentRuntimeEvent/);
-  assert.match(contracts, /assistant\.delta/);
+  for (const token of [
+    "run.phase.changed",
+    "reasoning.summary.delta",
+    "plan.updated",
+    "activity.started",
+    "activity.output.delta",
+    "activity.completed",
+    "assistant.delta",
+    "run.completed",
+  ]) assert.match(contracts, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(contracts, /subscribe\(listener: AgentRuntimeEventListener\)/);
   assert.match(contracts, /interveneRun\(runId: string, request: AgentInterventionRequest\)/);
   assert.match(client, /lfaa:agent-runtime-event/);
   assert.match(client, /\/interventions/);
-  assert.match(chat, /styles\.timeline/);
+  assert.match(chat, /RunProcessCard/);
+  assert.match(chat, /已处理/);
+  assert.match(chat, /思考摘要/);
+  assert.match(session, /event\.type === "reasoning\.summary\.delta"/);
+  assert.match(session, /event\.type === "activity\.started"/);
   assert.match(session, /event\.type === "assistant\.delta"/);
-  assert.match(session, /event\.type === "assistant\.completed"/);
-  assert.match(session, /text: `\$\{next\[index\]!\.text\}\$\{event\.delta\}`/);
+  assert.match(session, /event\.type === "run\.completed"/);
+  assert.match(session, /text: `\$\{current\.text\}\$\{event\.delta\}`/);
   assert.match(session, /runtimeConnected:\s*Boolean\(runtimeHost\)/);
   assert.match(session, /submitAgentInput/);
   assert.match(workbench, /runtimeConnected=\{session\.runtimeConnected\}/);

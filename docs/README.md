@@ -1,8 +1,8 @@
-# LFAA 文档索引 — v0.1.8
+# LFAA 文档索引 — v0.1.9
 
-**当前候选版本：v0.1.8**
+**当前候选版本：v0.1.9**
 
-当前 v0.1.8 重点：修复 ChatGPT 官方 OAuth 成功页关闭后的误取消竞态；继续保持套餐登录不依赖全局 Codex CLI、Probe/Save 去重、Usage 明确终态、OpenAI-compatible SSE 真流式与模式弹层层级修复。
+当前 v0.1.9 重点：真实 Agent Run Timeline。Runtime Event 是过程唯一真值；UI 实时显示 elapsed、官方 reasoning summary、plan、tool/command/file/search/MCP activity，并让最终 Assistant answer 继续真实 delta streaming。DeepSeek Harness 源码只作为事件组织参考，LFAA 保持自己的单一 Agent Core 与视觉。
 
 
 本目录只保留 9 份长期文档。**当前事实与历史事实严格分层。**
@@ -27,7 +27,7 @@
 | `DEVELOPMENT_LOG.md` | 每个版本/任务实施过程与验证历史 |
 | `PROMPTS.md` | 需求/Prompt 生命周期与历史输入 |
 
-历史账本中出现的 `.lfaa/`、`crates/`、`apps/web/dev`、旧 package 路径只说明旧版本当时的事实，不再指导 v0.1.4 开发。
+历史账本中出现的 `.lfaa/`、`crates/`、`apps/web/dev`、旧 package 路径只说明旧版本当时的事实，不再指导 v0.1.9 开发。
 
 ## 文档更新规则
 

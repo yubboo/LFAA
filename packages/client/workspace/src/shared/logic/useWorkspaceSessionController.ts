@@ -1,12 +1,12 @@
 /**
  * 文件：useWorkspaceSessionController.ts
- * 作用：Workspace / Chat+Work+Manual 共用业务状态唯一 Owner。
- * 负责：Workspace Mode、权限、Chat ViewModel、Runtime event subscription、Agent Run、Manual 模式守卫与最近一次 Run 输入。
- * 不负责：Work/Manual Canvas 节点坐标、模型账户配置、Composer draft、Shell chrome、具体 Tool Host。
- * 状态归属：Workspace Session；Chat 与 Work 共用一套 AgentRuntimeHost / permission / model binding；Manual 不启动 Agent Run。
+ * 作用：Chat / Work 共用的 Workspace Session Controller。
+ * 负责：三种表现模式、权限、统一 Agent Run、人工干预、Run Timeline 事件投影与 Chat 消息派生。
+ * 不负责：Provider 协议、Tool 执行实现、Canvas Pointer 状态、正式 Session 持久化。
+ * 状态归属：Agent 运行真值来自 AgentRuntimeEvent；本 Hook 只维护当前客户端投影。
  * 对外接口：useWorkspaceSessionController({ runtimeHost, workspaceId, activeModelBinding })。
  * 关联文件：workspace.types.ts、@lfaa/agent-runtime、@lfaa/app-shell AgentWorkbench。
- * 修改注意事项：Chat/Work 禁止拆成两套 startRun；Manual 禁止伪造模型结果或复制 Runtime。
+ * 修改注意事项：Chat/Work 禁止拆成两套 startRun；Run Timeline 只能由真实 Runtime Event 驱动，禁止 UI 伪造工具/推理结果。
  */
 import { useEffect, useState } from "react";
 import type {
@@ -14,12 +14,13 @@ import type {
   AgentModelBinding,
   AgentPermissionProfileId,
   AgentRunHandle,
+  AgentRuntimeActivity,
   AgentRuntimeEvent,
   AgentRuntimeHost,
   AgentWorkspaceMode,
 } from "@lfaa/agent-runtime";
 import type { AiModelSettingValue } from "@lfaa/config-system";
-import type { ChatMessageViewModel, WorkspaceMode } from "../contracts/workspace.types";
+import type { AgentRunActivityViewModel, AgentRunProcessViewModel, ChatMessageViewModel, WorkspaceMode } from "../contracts/workspace.types";
 
 const WORKSPACE_MODE_KEY = "lfaa.workspace.mode.v1";
 const LEGACY_AGENT_SURFACE_KEY = "lfaa.agent.surface.v1";
@@ -42,6 +43,63 @@ function requireAgentMode(mode: WorkspaceMode): AgentWorkspaceMode {
   return mode;
 }
 
+function processMessage(runId: string, startedAt: number): ChatMessageViewModel {
+  return {
+    id: `${runId}:run`,
+    role: "run",
+    runId,
+    process: {
+      runId,
+      phase: "starting",
+      label: "正在启动",
+      status: "running",
+      startedAt,
+      reasoningSummary: "",
+      plan: "",
+      activities: [],
+    },
+  };
+}
+
+function activityView(activity: AgentRuntimeActivity, previous?: AgentRunActivityViewModel): AgentRunActivityViewModel {
+  return {
+    id: activity.id,
+    kind: activity.kind,
+    title: activity.title,
+    ...(activity.detail ? { detail: activity.detail } : previous?.detail ? { detail: previous.detail } : {}),
+    status: activity.status,
+    output: previous?.output ?? "",
+    ...(activity.startedAt !== undefined ? { startedAt: activity.startedAt } : previous?.startedAt !== undefined ? { startedAt: previous.startedAt } : {}),
+    ...(activity.completedAt !== undefined ? { completedAt: activity.completedAt } : previous?.completedAt !== undefined ? { completedAt: previous.completedAt } : {}),
+  };
+}
+
+function updateRunMessage(messages: readonly ChatMessageViewModel[], runId: string, update: (process: AgentRunProcessViewModel) => AgentRunProcessViewModel): readonly ChatMessageViewModel[] {
+  const index = messages.findIndex((message) => message.role === "run" && message.runId === runId);
+  if (index < 0) return messages;
+  const current = messages[index]!;
+  if (current.role !== "run" || !current.process) return messages;
+  const next = [...messages];
+  next[index] = { ...current, process: update(current.process) };
+  return next;
+}
+
+function upsertActivity(items: readonly AgentRunActivityViewModel[], activity: AgentRuntimeActivity): readonly AgentRunActivityViewModel[] {
+  const index = items.findIndex((item) => item.id === activity.id);
+  if (index < 0) return [...items, activityView(activity)];
+  const next = [...items];
+  next[index] = activityView(activity, next[index]);
+  return next;
+}
+
+function appendActivityOutput(items: readonly AgentRunActivityViewModel[], activityId: string, delta: string): readonly AgentRunActivityViewModel[] {
+  const index = items.findIndex((item) => item.id === activityId);
+  if (index < 0) return items;
+  const next = [...items];
+  next[index] = { ...next[index]!, output: `${next[index]!.output}${delta}`.slice(-8_000) };
+  return next;
+}
+
 export function useWorkspaceSessionController({ runtimeHost, workspaceId, activeModelBinding }: {
   runtimeHost: AgentRuntimeHost | undefined;
   workspaceId: string | undefined;
@@ -62,19 +120,34 @@ export function useWorkspaceSessionController({ runtimeHost, workspaceId, active
     return runtimeHost.subscribe((event: AgentRuntimeEvent) => {
       if (event.type === "run.started") {
         setActiveRunId(event.runId);
+        setChatMessages((messages) => messages.some((message) => message.role === "run" && message.runId === event.runId)
+          ? messages
+          : [...messages, processMessage(event.runId, event.startedAt)]);
+      } else if (event.type === "run.phase.changed") {
+        setChatMessages((messages) => updateRunMessage(messages, event.runId, (process) => ({ ...process, phase: event.phase, label: event.label ?? process.label })));
       } else if (event.type === "run.intervention.accepted") {
         if (workspaceMode === "chat") {
           setChatMessages((messages) => [...messages, { id: `user:intervention:${Date.now()}:${messages.length}`, role: "user", text: event.input, runId: event.runId }]);
         }
         setActiveRunId(event.runId);
+      } else if (event.type === "reasoning.summary.delta") {
+        setChatMessages((messages) => updateRunMessage(messages, event.runId, (process) => ({ ...process, reasoningSummary: `${process.reasoningSummary}${event.delta}` })));
+      } else if (event.type === "plan.updated") {
+        setChatMessages((messages) => updateRunMessage(messages, event.runId, (process) => ({ ...process, plan: event.text })));
+      } else if (event.type === "activity.started" || event.type === "activity.completed") {
+        setChatMessages((messages) => updateRunMessage(messages, event.runId, (process) => ({ ...process, activities: upsertActivity(process.activities, event.activity) })));
+      } else if (event.type === "activity.output.delta") {
+        setChatMessages((messages) => updateRunMessage(messages, event.runId, (process) => ({ ...process, activities: appendActivityOutput(process.activities, event.activityId, event.delta) })));
       } else if (event.type === "assistant.delta") {
         setLastAssistantText((current) => `${current ?? ""}${event.delta}`);
         setChatMessages((messages) => {
           const id = `${event.runId}:assistant`;
           const index = messages.findIndex((message) => message.id === id);
           if (index < 0) return [...messages, { id, role: "assistant", text: event.delta, runId: event.runId }];
+          const current = messages[index]!;
+          if (current.role !== "assistant") return messages;
           const next = [...messages];
-          next[index] = { ...next[index]!, text: `${next[index]!.text}${event.delta}` };
+          next[index] = { ...current, text: `${current.text}${event.delta}` };
           return next;
         });
       } else if (event.type === "assistant.completed") {
@@ -83,17 +156,27 @@ export function useWorkspaceSessionController({ runtimeHost, workspaceId, active
           const id = `${event.runId}:assistant`;
           const index = messages.findIndex((message) => message.id === id);
           if (index < 0) return [...messages, { id, role: "assistant", text: event.text, runId: event.runId }];
+          const current = messages[index]!;
+          if (current.role !== "assistant") return messages;
           const next = [...messages];
-          next[index] = { ...next[index]!, text: event.text };
+          next[index] = { ...current, text: event.text };
           return next;
         });
+      } else if (event.type === "run.completed") {
         setActiveRunId((current) => current === event.runId ? null : current);
+        setChatMessages((messages) => updateRunMessage(messages, event.runId, (process) => ({ ...process, status: "completed", label: "已完成", completedAt: event.completedAt })));
       } else if (event.type === "run.failed") {
         setActiveRunId((current) => current === event.runId ? null : current);
-        setChatMessages((messages) => [...messages, { id: `${event.runId}:error`, role: "error", text: event.error, runId: event.runId }]);
+        setChatMessages((messages) => [
+          ...updateRunMessage(messages, event.runId, (process) => ({ ...process, status: "failed", label: "运行失败", completedAt: event.completedAt })),
+          { id: `${event.runId}:error`, role: "error", text: event.error, runId: event.runId },
+        ]);
       } else if (event.type === "run.cancelled") {
         setActiveRunId((current) => current === event.runId ? null : current);
-        setChatMessages((messages) => [...messages, { id: `${event.runId}:cancelled`, role: "error", text: "本次 Run 已取消。", runId: event.runId }]);
+        setChatMessages((messages) => [
+          ...updateRunMessage(messages, event.runId, (process) => ({ ...process, status: "cancelled", label: "已停止", completedAt: event.completedAt })),
+          { id: `${event.runId}:cancelled`, role: "error", text: "本次 Run 已取消。", runId: event.runId },
+        ]);
       }
     });
   }, [runtimeHost, workspaceMode]);
@@ -138,9 +221,6 @@ export function useWorkspaceSessionController({ runtimeHost, workspaceId, active
     if (result.disposition === "restarted") setLastAssistantText(null);
     setLastRunInput(input);
     setActiveRunId(result.handle.runId);
-    // Chat 用户消息由 run.intervention.accepted 事件统一写入，避免客户端重复插入。
-    // Work 的干预仍通过同一 Composer 发送，但表现层由画布负责。
-    void agentMode;
     return result.handle;
   };
 

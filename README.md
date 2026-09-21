@@ -1,12 +1,12 @@
-# LFAA v0.1.8 — ChatGPT 套餐登录状态机修复 / Provider 真实可用性
+# LFAA v0.1.9 — 实时 Agent Run Timeline / Streaming Activity
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.1.8**。本版继续保持“一套 Agent Core、Chat / Work 两种 Agent 表现层 + Manual 手动模式”，重点修复 Provider 使用链：ChatGPT 套餐由 LFAA 按需准备 OpenAI 官方账户运行组件，用户无需安装 Codex CLI；API Key 保存复用刚完成的官方连接 Probe，避免重复模型目录请求；官方余额/额度拥有 loading / ready / error / timeout 终态；OpenAI-compatible Provider 改为真实 SSE 流式输出。官方 Provider 的认证、免费/套餐/API 计量仍以官方事实为准，LFAA 不自行制造额度。
+当前包：**LFAA-v0.1.9**。本版以用户提供的 DeepSeek Harness 源码为实现参考，把“模型正在做什么”从静默等待升级为统一 **Agent Run Timeline**：Run 启动后立即显示真实阶段与已处理时长；可展开查看 Provider/Runtime 实际发出的 reasoning summary、plan、command、file、search、MCP/tool activity；最终 Assistant 文本继续通过统一 `assistant.delta` 边生成边显示。Chat / Work 仍共用同一 Agent Core，Manual 仍不启动模型。UI 不生成假的思考过程，也不展示模型不可见的原始隐藏思维链。
 
 > 当前真相以本 README、`ARCHITECTURE.md`、`DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
 
-## v0.1.8 当前产品模型
+## v0.1.9 当前产品模型
 
 ```text
                      LFAA Agent Core
@@ -26,7 +26,37 @@
 - **ChatGPT 套餐**：LFAA 按需把 OpenAI 官方 App Server 运行组件准备到 `LFAA_HOME/runtimes/openai-chatgpt`，不要求用户全局安装 Codex CLI；OAuth / Token 仍只由官方组件管理，LFAA 不读取 Secret。
 
 
-### v0.1.8 Provider 运行可靠性
+
+### v0.1.9 实时 Agent Run Timeline
+
+```text
+用户提交任务
+    ↓
+run.started / startedAt
+    ↓
+run.phase.changed = thinking
+    ↓
+┌─────────────────────────────────────┐
+│ 已处理 9 秒                         │
+│ 正在思考                            │
+│  ⌄ 思考摘要（仅官方可展示 summary） │
+│  ✓ 计划更新                         │
+│  ✓ 读取 / 搜索 / MCP / Tool        │
+│  … command output                   │
+└─────────────────────────────────────┘
+    ↓
+assistant.delta × N  → 最终回答实时出现
+    ↓
+assistant.completed + run.completed
+```
+
+- **真实事件驱动**：Timeline 只消费 `AgentRuntimeEvent`，禁止 UI 根据定时器虚构“思考/工具执行”。
+- **真实计时**：`run.started.startedAt` 是 Run 时钟起点；运行时显示“已处理 X 秒”，终态显示“用时 X 秒”。
+- **可展开过程**：`reasoning.summary.delta`、`plan.updated`、`activity.started/output/completed` 分别投影为可展开过程。
+- **隐私/能力边界**：只显示 Provider 官方提供、允许客户端展示的 reasoning summary；原始隐藏 chain-of-thought 不进入 Workspace ViewModel。
+- **最终答案独立流式**：过程 Timeline 与 Assistant answer 是两块 UI；答案仍使用真实 `assistant.delta`，不是等待完成后一次性替换。
+
+### v0.1.9 Provider 运行可靠性
 
 - **ChatGPT 登录真值**：官方 OAuth 成功与否只依据 App Server `account/login/completed`、`account/updated` 与 `account/read`；浏览器成功页被用户关闭不再被当成登录失败，并保留 30 秒官方确认宽限期。
 

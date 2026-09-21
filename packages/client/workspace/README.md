@@ -12,6 +12,10 @@ src/
 
 边界：本包可以组合 `@lfaa/agent-runtime`、`@lfaa/config-system`、`@lfaa/ui`，但不得拥有 Shell/Settings/Host Bridge，也不得复制 Agent Runtime。
 
-## v0.1.8 人工干预
+## v0.1.9 人工干预
 
 Chat/Work 都通过 `AgentRuntimeHost.interveneRun` 干预当前 Run。Chat 只提交对话输入；Work 还把用户编辑后的 Canvas 内容投影为 `workspaceContext`。支持原生 steer 的 Runtime 直接注入；不支持时由 Host 统一续跑。Manual 不调用模型。
+
+## v0.1.9 Run Timeline
+
+`shared/logic/useWorkspaceSessionController.ts` 把统一 `AgentRuntimeEvent` 投影为 `RunProcessViewModel` 与 Assistant message。Chat 的 Process Card 实时显示 elapsed、官方 reasoning summary、plan、activity；最终 answer 使用同一 Run 的 `assistant.delta` 增量更新。UI 不伪造 Provider 未发出的步骤。

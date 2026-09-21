@@ -6,12 +6,16 @@
  */
 export type {
   AgentCapabilityDescriptor,
+  AgentActivityKind,
+  AgentActivityStatus,
   AgentCapabilityKind,
   AgentExecutionHints,
   AgentInterventionDisposition,
   AgentInterventionRequest,
   AgentModelBinding,
   AgentRunHandle,
+  AgentRunPhase,
+  AgentRuntimeActivity,
   AgentRunRequest,
   AgentRuntimeEvent,
   AgentRuntimeEventListener,

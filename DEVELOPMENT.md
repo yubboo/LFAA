@@ -1,4 +1,4 @@
-# LFAA Development Standard — v0.1.8
+# LFAA Development Standard — v0.1.9
 
 本文件是当前开发规范。历史版本的设计过程请看 `CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md` 和 `docs/PROMPTS.md`；历史内容不得覆盖本文件。
 
@@ -22,6 +22,16 @@ LFAA 不是“一个 React App 加若干工具函数”，而是一个 packages-
 - Package manager：仅 pnpm
 
 Windows 优先使用 `LFAA-Setup.bat`。Setup 依赖检测以 `pnpm-workspace.yaml` 声明的全部 workspace importer 为范围，以真实安装/解析 + importer 级 lockfile 覆盖为准；dependency-state 只用于显示依赖声明差异和加速基线，不能决定“已就绪”。菜单 1 被用户选择后，如检测到真实缺依赖，会自动同步当前声明的 Node 依赖。
+
+## 2.1 Agent Run Timeline / Streaming 开发规范
+
+- `AgentRuntimeEvent` 是运行过程唯一事实源；Client 不得通过 `setTimeout`、静态步骤列表或猜测 Provider 行为伪造“正在思考/正在运行工具”。
+- Run 启动必须带稳定 `startedAt`；计时只负责表现 elapsed，不得反过来创造 Runtime 状态。
+- Provider 有官方 reasoning summary 时映射 `reasoning.summary.delta`；原始隐藏 reasoning / chain-of-thought 不映射、不记录、不持久化。
+- 计划进入 `plan.updated`；命令/文件/搜索/MCP/Tool 等进入 `activity.started → activity.output.delta → activity.completed`。
+- 最终回答使用 `assistant.delta` 实时追加，再由 `assistant.completed` 收敛。支持流式的 Provider 禁止为了实现方便退回完整 JSON 一次性输出。
+- Chat / Work 的 Timeline 数据来自同一 Session Controller；Work 可选择画布式投影，不能复制第二套 Agent Runtime。
+- Provider 不提供某种事件时允许缺省，UI 必须忠实显示已有事件，不得补造。
 
 ## 2.1 官方状态数据
 

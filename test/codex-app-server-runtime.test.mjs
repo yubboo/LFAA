@@ -132,6 +132,46 @@ test("Codex cancellation before turn/start responds does not leave an unhandled 
 });
 
 
+test("Codex text runtime forwards official reasoning summary and activity lifecycle", async () => {
+  const client = new FakeCodexClient();
+  client.request = async function(method, params = {}) {
+    this.calls.push({ method, params });
+    if (method === "thread/start") return { thread: { id: "thr_test" } };
+    if (method === "turn/start") {
+      const turnId = `turn_${++this.turnNumber}`;
+      queueMicrotask(() => {
+        this.emit("turn/started", { threadId: params.threadId, turn: { id: turnId, status: "inProgress" } });
+        this.emit("item/reasoning/summaryTextDelta", { threadId: params.threadId, turnId, itemId: "reason_1", delta: "检查项目结构" });
+        this.emit("item/started", { threadId: params.threadId, turnId, item: { type: "commandExecution", id: "cmd_1", command: "git status --short", cwd: "/tmp/lfaa", status: "inProgress" } });
+        this.emit("item/commandExecution/outputDelta", { threadId: params.threadId, turnId, itemId: "cmd_1", delta: " M file.ts\n" });
+        this.emit("item/completed", { threadId: params.threadId, turnId, item: { type: "commandExecution", id: "cmd_1", command: "git status --short", cwd: "/tmp/lfaa", status: "completed" } });
+        this.emit("item/agentMessage/delta", { threadId: params.threadId, turnId, itemId: "msg_1", delta: "完成" });
+        this.emit("item/completed", { threadId: params.threadId, turnId, item: { type: "agentMessage", id: "msg_1", text: "完成", phase: "final_answer" } });
+        this.emit("turn/completed", { turn: { id: turnId, status: "completed", items: [], error: null } });
+      });
+      return { turn: { id: turnId, status: "inProgress", items: [], error: null } };
+    }
+    throw new Error(`unexpected method: ${method}`);
+  };
+  const runtime = new CodexAppServerTextRuntime(client);
+  const events = [];
+  const result = await runtime.runText({
+    sessionKey: "timeline-session",
+    modelId: "gpt-5.6-luna",
+    input: "检查",
+    cwd: "/tmp/lfaa",
+    signal: new AbortController().signal,
+    onRuntimeEvent: (event) => events.push(event),
+  });
+
+  assert.equal(result.text, "完成");
+  assert.equal(events.some((event) => event.type === "turn.started"), true);
+  assert.equal(events.some((event) => event.type === "reasoning.summary.delta" && event.delta === "检查项目结构"), true);
+  assert.equal(events.some((event) => event.type === "activity.started" && event.kind === "command" && event.id === "cmd_1"), true);
+  assert.equal(events.some((event) => event.type === "activity.output.delta" && event.id === "cmd_1"), true);
+  assert.equal(events.some((event) => event.type === "activity.completed" && event.id === "cmd_1" && event.status === "completed"), true);
+});
+
 test("managed ChatGPT login status falls back to official account/read instead of popup lifetime", async () => {
   const fake = {
     async ensureStarted() {},

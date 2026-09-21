@@ -10,8 +10,12 @@ Provider connection.protocol
 └─ codex-app-server  → @lfaa/codex-app-server Text Runtime
 ```
 
-## v0.1.8 Intervention
+## v0.1.9 Intervention
 
 `POST /runs/:runId/interventions` 是 Chat/Work 共用人工干预入口。支持原生 steer 的 Runtime 在当前 Run 注入（Codex 使用 `turn/steer`）；其他 Provider 由 Host 中断旧请求并以同一 Session/模型/权限续跑。Work 可把 Canvas 编辑内容作为 `workspaceContext` 一起传入。
 
 Controller 只拥有 Run HTTP 生命周期、AbortController、协议路由和开发态会话；Provider HTTP、Harness thread/turn、Secret、UI 都属于各自 capability package。
+
+## v0.1.9 Runtime Event Normalization
+
+Controller 将 OpenAI-compatible SSE 与 Codex/App Server 原生事件归一成 `AgentRuntimeEvent`。Provider 私有事件不得直接泄漏到 Workspace；Timeline 与最终回答均消费统一协议。

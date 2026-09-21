@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin, ViteDevServer } from "vite";
 import type { AgentRunHandle, AgentRunRequest, AgentRuntimeEvent } from "@lfaa/agent-runtime";
-import { CodexAppServerHost, type CodexAppServerTextRuntime } from "@lfaa/codex-app-server";
+import { CodexAppServerHost, type CodexAppServerTextRuntime, type CodexTextRuntimeEvent } from "@lfaa/codex-app-server";
 import { JsonAiAccountRepository } from "@lfaa/config-host-node";
 import { AiProviderRegistry, builtinAiProviderPlugins } from "@lfaa/config-system";
 import { createWebDevSecretStore } from "@lfaa/credentials-native";
@@ -30,6 +30,7 @@ interface RunningRun {
   readonly request: AgentRunRequest;
   readonly protocol: RuntimeProtocol;
   readonly sessionKey: string;
+  readonly startedAt: number;
 }
 
 function sendJson(response: ServerResponse, status: number, body: unknown): void {
@@ -121,6 +122,11 @@ function runtimeInput(input: string, workspaceContext?: string): string {
     : input;
 }
 
+function activityStatusFromCodex(status: Extract<CodexTextRuntimeEvent, { type: "activity.completed" }>["status"]): "completed" | "failed" | "declined" | "interrupted" {
+  return status;
+}
+
+
 export function lfaaDevAgentRuntimeBridge(projectRoot: string, options: { codexRuntime?: CodexAppServerTextRuntime } = {}): Plugin {
   const repository = new JsonAiAccountRepository(projectRoot);
   const secrets = createWebDevSecretStore(projectRoot);
@@ -145,11 +151,32 @@ export function lfaaDevAgentRuntimeBridge(projectRoot: string, options: { codexR
     const sessionId = `web-${runRequest.workspaceId}`;
     const sessionKey = `${runRequest.workspaceId}:${account.id}:${runRequest.model.modelId}`;
     const abort = new AbortController();
-    running.set(runId, { abort, sessionId, request: runRequest, protocol, sessionKey });
+    const startedAt = Date.now();
+    running.set(runId, { abort, sessionId, request: runRequest, protocol, sessionKey, startedAt });
     const input = runtimeInput(runRequest.input, runRequest.workspaceContext);
 
     queueMicrotask(async () => {
-      emit(server, { type: "run.started", runId, sessionId });
+      emit(server, { type: "run.started", runId, sessionId, startedAt });
+      emit(server, { type: "run.phase.changed", runId, sessionId, phase: "thinking", label: "正在思考" });
+      const modelActivityId = `${runId}:model`;
+      let firstTextDelta = true;
+      if (protocol === "openai-compatible") {
+        emit(server, {
+          type: "activity.started", runId, sessionId,
+          activity: { id: modelActivityId, kind: "model", title: `请求模型 ${runRequest.model.modelId}`, status: "running", startedAt },
+        });
+      }
+      const emitFirstResponse = () => {
+        if (!firstTextDelta) return;
+        firstTextDelta = false;
+        emit(server, { type: "run.phase.changed", runId, sessionId, phase: "responding", label: "正在生成回答" });
+        if (protocol === "openai-compatible") {
+          emit(server, {
+            type: "activity.completed", runId, sessionId,
+            activity: { id: modelActivityId, kind: "model", title: `模型 ${runRequest.model.modelId} 已开始响应`, status: "completed", startedAt, completedAt: Date.now() },
+          });
+        }
+      };
       try {
         if (protocol === "codex-app-server") {
           const reasoningEffort = typeof runRequest.model.settings?.reasoningEffort === "string"
@@ -162,9 +189,53 @@ export function lfaaDevAgentRuntimeBridge(projectRoot: string, options: { codexR
             cwd: projectRoot,
             ...(reasoningEffort ? { reasoningEffort } : {}),
             signal: abort.signal,
-            onTextDelta: (delta) => emit(server, { type: "assistant.delta", runId, sessionId, delta }),
+            onTextDelta: (delta) => {
+              emitFirstResponse();
+              emit(server, { type: "assistant.delta", runId, sessionId, delta });
+            },
+            onRuntimeEvent: (runtimeEvent) => {
+              if (runtimeEvent.type === "turn.started") {
+                emit(server, { type: "run.phase.changed", runId, sessionId, phase: "thinking", label: "正在思考" });
+                return;
+              }
+              if (runtimeEvent.type === "reasoning.summary.delta") {
+                emit(server, { type: "reasoning.summary.delta", runId, sessionId, delta: runtimeEvent.delta });
+                return;
+              }
+              if (runtimeEvent.type === "plan.updated") {
+                emit(server, { type: "run.phase.changed", runId, sessionId, phase: "acting", label: "正在规划" });
+                emit(server, { type: "plan.updated", runId, sessionId, text: runtimeEvent.text });
+                return;
+              }
+              if (runtimeEvent.type === "activity.started") {
+                emit(server, { type: "run.phase.changed", runId, sessionId, phase: "acting", label: "正在执行" });
+                emit(server, {
+                  type: "activity.started", runId, sessionId,
+                  activity: {
+                    id: runtimeEvent.id,
+                    kind: runtimeEvent.kind,
+                    title: runtimeEvent.title,
+                    ...(runtimeEvent.detail ? { detail: runtimeEvent.detail } : {}),
+                    status: "running",
+                    startedAt: Date.now(),
+                  },
+                });
+                return;
+              }
+              if (runtimeEvent.type === "activity.output.delta") {
+                emit(server, { type: "activity.output.delta", runId, sessionId, activityId: runtimeEvent.id, delta: runtimeEvent.delta });
+                return;
+              }
+              if (runtimeEvent.type === "activity.completed") {
+                emit(server, {
+                  type: "activity.completed", runId, sessionId,
+                  activity: { id: runtimeEvent.id, kind: runtimeEvent.kind, title: runtimeEvent.title, ...(runtimeEvent.detail ? { detail: runtimeEvent.detail } : {}), status: activityStatusFromCodex(runtimeEvent.status), completedAt: Date.now() },
+                });
+              }
+            },
           });
           emit(server, { type: "assistant.completed", runId, sessionId, text: result.text });
+          emit(server, { type: "run.completed", runId, sessionId, completedAt: Date.now() });
         } else if (protocol === "openai-compatible") {
           if (!account.credentialRef) throw new Error("当前 API 认证方式缺少凭据引用，请回到模型管理重新认证。");
           const credential = await secrets.get(account.credentialRef);
@@ -177,17 +248,22 @@ export function lfaaDevAgentRuntimeBridge(projectRoot: string, options: { codexR
             credential,
             history,
             signal: abort.signal,
-            onTextDelta: (delta) => emit(server, { type: "assistant.delta", runId, sessionId, delta }),
+            onTextDelta: (delta) => {
+              emitFirstResponse();
+              emit(server, { type: "assistant.delta", runId, sessionId, delta });
+            },
           });
           const nextConversation: ConversationMessage[] = [...history, { role: "assistant", content: text }];
           conversations.set(sessionKey, nextConversation.slice(-MAX_HISTORY_MESSAGES));
+          if (firstTextDelta) emitFirstResponse();
           emit(server, { type: "assistant.completed", runId, sessionId, text });
+          emit(server, { type: "run.completed", runId, sessionId, completedAt: Date.now() });
         } else {
           throw new Error(`当前 Provider Runtime 尚未接入：${protocol}`);
         }
       } catch (error) {
-        if (abort.signal.aborted || (error instanceof Error && error.name === "AbortError")) emit(server, { type: "run.cancelled", runId, sessionId });
-        else emit(server, { type: "run.failed", runId, sessionId, error: safeMessage(error) });
+        if (abort.signal.aborted || (error instanceof Error && error.name === "AbortError")) emit(server, { type: "run.cancelled", runId, sessionId, completedAt: Date.now() });
+        else emit(server, { type: "run.failed", runId, sessionId, error: safeMessage(error), completedAt: Date.now() });
       } finally {
         running.delete(runId);
       }
