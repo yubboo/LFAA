@@ -1,4 +1,13 @@
-# LFAA Releases — current policy v0.1.7
+# LFAA Releases — current policy v0.1.8
+
+## v0.1.8 — #22.14 ChatGPT 套餐 OAuth 完成态竞态修复
+
+- 状态：`pending-user-acceptance`；AI 验证：`pass`；用户验收：`pending`。
+- 官方 OAuth 成功与否只依据 OpenAI App Server 的 `account/login/completed`、`account/updated` 与 `account/read`。
+- ChatGPT Hosted Success Page 被用户关闭不再触发立即失败；Browser Client 提供 30 秒官方确认宽限期。
+- Host 在 managed login pending 时使用 `account/read` 兜底确认套餐账户；仍不读取或保存 OAuth Token。
+- 回归测试锁定 popup 生命周期与认证状态解耦，并验证 official account/read fallback。
+
 
 ## v0.1.7 — #22.13 Provider 官方登录 / Usage 终态 / 真流式回复
 
@@ -78,8 +87,8 @@
 ## 当前版本
 
 ```text
-displayVersion: 0.1.7
-releaseSequence: 107
+displayVersion: 0.1.8
+releaseSequence: 108
 architectureVersion: 6
 agentProtocolVersion: 3
 ```

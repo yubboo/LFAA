@@ -1,6 +1,8 @@
-# LFAA UI Architecture — v0.1.7
+# LFAA UI Architecture — v0.1.8
 
-## v0.1.7 Settings / Streaming / Layering
+## v0.1.8 Settings / Streaming / Layering
+
+- ChatGPT 套餐登录弹窗关闭只代表 UI 关闭；Settings 不显示“登录失败”，除非官方登录状态真正 failed/timeout。
 
 - Provider 设置把 Probe、Save、Usage 拆成独立状态；保存不等待 Usage，Usage 必须 ready/error 收敛。
 - 支持流式的 Runtime 通过 `assistant.delta` 更新同一 assistant message，Chat/Work 都不得整段延迟后一次性替换。

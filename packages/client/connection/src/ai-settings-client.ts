@@ -23,6 +23,8 @@ const BASE = "/__lfaa/dev/ai";
 const MANAGED_LOGIN_POLL_MS = 800;
 /** 单次浏览器登录最多等待 5 分钟，超时主动取消 App Server 登录会话。 */
 const MANAGED_LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
+/** 官方成功页允许用户主动关闭；关闭弹窗不是认证失败，给 App Server 通知/account-read 留出确认窗口。 */
+const MANAGED_LOGIN_CLOSED_GRACE_MS = 30_000;
 const LOGIN_POPUP_NAME = "lfaa_chatgpt_login";
 const LOGIN_POPUP_FEATURES = "popup,width=560,height=760";
 /** 官方额度是附加状态；浏览器端再加一道终止线，避免 Host/代理异常时卡住 UI。 */
@@ -100,6 +102,16 @@ export const webAiSettingsHost = {
 
     let loginId: string | null = null;
     let loginCompleted = false;
+    let popupClosedAt: number | null = null;
+    const finalizeSubscription = async () => {
+      const result = await request<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>("/subscription/accounts", {
+        method: "POST",
+        body: JSON.stringify({ draft }),
+      });
+      loginCompleted = true;
+      if (!popup.closed) popup.close();
+      return { probe: result.probe, snapshot: result.snapshot };
+    };
     try {
       const started = await request<{ login: AiManagedLoginStart }>("/managed-login/start", {
         method: "POST",
@@ -109,23 +121,26 @@ export const webAiSettingsHost = {
       if (!isAllowedLoginUrl(started.login.authUrl)) {
         throw new Error("OpenAI 官方登录服务返回的地址不在 OpenAI / ChatGPT 官方域名内，已停止打开。");
       }
-      if (popup.closed) throw new Error("ChatGPT 登录窗口已关闭，登录已取消。");
+      if (popup.closed) throw new Error("ChatGPT 登录窗口在官方页面打开前已被关闭，请重新发起登录。");
       popup.location.replace(started.login.authUrl);
 
       const deadline = Date.now() + MANAGED_LOGIN_TIMEOUT_MS;
       while (Date.now() < deadline) {
-        if (popup.closed) throw new Error("ChatGPT 登录窗口已关闭，登录已取消。");
+        // 官方认证结果必须先于浏览器窗口生命周期判断：Hosted Success Page 本来就允许用户关闭窗口。
         const payload = await request<{ status: AiManagedLoginStatus }>(`/managed-login/${encodeURIComponent(loginId)}`);
-        if (payload.status.state === "succeeded") {
-          loginCompleted = true;
-          popup.close();
-          const result = await request<{ probe: AiAccountProbeResult; snapshot: AiAccountSnapshot }>("/subscription/accounts", {
-            method: "POST",
-            body: JSON.stringify({ draft }),
-          });
-          return { probe: result.probe, snapshot: result.snapshot };
-        }
+        if (payload.status.state === "succeeded") return finalizeSubscription();
         if (payload.status.state === "failed") throw new Error(payload.status.error);
+
+        if (popup.closed) {
+          popupClosedAt ??= Date.now();
+          if (Date.now() - popupClosedAt >= MANAGED_LOGIN_CLOSED_GRACE_MS) {
+            // completion 通知极端情况下可能延迟/丢失；最后用官方 account/read 驱动的保存探测确认一次。
+            try { return await finalizeSubscription(); }
+            catch { throw new Error("ChatGPT 登录窗口已关闭，但 OpenAI 官方账户状态在等待期内仍未确认成功。请重新发起登录。"); }
+          }
+        } else {
+          popupClosedAt = null;
+        }
         await sleep(MANAGED_LOGIN_POLL_MS);
       }
       throw new Error("ChatGPT 登录等待超时，请重新发起登录。");

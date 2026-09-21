@@ -1,8 +1,8 @@
-# LFAA 文档索引 — v0.1.7
+# LFAA 文档索引 — v0.1.8
 
-**当前候选版本：v0.1.7**
+**当前候选版本：v0.1.8**
 
-当前 v0.1.7 重点：OpenAI 官方 ChatGPT 套餐登录不依赖全局 Codex CLI、Provider Probe/Save 去重、Usage 明确终态、OpenAI-compatible SSE 真流式、模式弹层层级修复。
+当前 v0.1.8 重点：修复 ChatGPT 官方 OAuth 成功页关闭后的误取消竞态；继续保持套餐登录不依赖全局 Codex CLI、Probe/Save 去重、Usage 明确终态、OpenAI-compatible SSE 真流式与模式弹层层级修复。
 
 
 本目录只保留 9 份长期文档。**当前事实与历史事实严格分层。**

@@ -1,4 +1,4 @@
-# LFAA Architecture — v0.1.7 Current Truth
+# LFAA Architecture — v0.1.8 Current Truth
 
 > 本文件描述 **当前** LFAA 架构。旧版本的平铺 `packages/*`、`apps/web/dev/bridges/*`、`crates/` 与仓库级 `.lfaa/` 只允许出现在历史记录中，不再是当前设计。
 
@@ -42,7 +42,9 @@ Chat Agent 与 Work Agent **不是能力等级**。它们共享同一个 `AgentR
 
 ChatGPT 套餐是 Provider 认证/Runtime 能力，不是外部客户端依赖：LFAA 通过 OpenAI 官方 App Server RPC 使用 `account/login/start`、`account/read`、`model/list`、thread/turn 等能力，并按需把官方 daemon runtime 隔离在 `LFAA_HOME/runtimes/openai-chatgpt`。用户不需要把 `codex` 安装到全局 PATH；LFAA 也不读取官方 runtime 的认证文件。
 
-## 1.2 v0.1.7 Provider Runtime / Settings 状态边界
+## 1.2 v0.1.8 Provider Runtime / Settings 状态边界
+
+ChatGPT OAuth 的浏览器窗口不是状态 Owner：`packages/client/connection` 只编排窗口与轮询；`packages/harness/codex-app-server` 以官方 `account/login/completed` / `account/updated` / `account/read` 作为认证事实源。
 
 Provider 接入固定拆成四个独立事实：`Authentication`、`Model Discovery`、`Runtime`、`Usage/Entitlement`。设置页“连接成功”只代表认证/模型目录 Probe 成功，不得冒充 Runtime 或 Usage 已可用。
 

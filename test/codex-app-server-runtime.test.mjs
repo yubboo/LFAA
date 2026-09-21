@@ -10,7 +10,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CodexAppServerTextRuntime } from "../packages/harness/codex-app-server/src/codex-app-server.ts";
+import { CodexAppServerManagedAuth, CodexAppServerTextRuntime } from "../packages/harness/codex-app-server/src/codex-app-server.ts";
 
 class FakeCodexClient {
   generation = 1;
@@ -129,4 +129,23 @@ test("Codex cancellation before turn/start responds does not leave an unhandled 
   await assert.rejects(running, (error) => error?.name === "AbortError");
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(client.calls.some((call) => call.method === "turn/interrupt" && call.params.turnId === "turn_1"), true);
+});
+
+
+test("managed ChatGPT login status falls back to official account/read instead of popup lifetime", async () => {
+  const fake = {
+    async ensureStarted() {},
+    loginStatus() { return { state: "pending" }; },
+    async request(method) {
+      assert.equal(method, "account/read");
+      return { account: { type: "chatgpt", email: "user@example.com", planType: "plus" } };
+    },
+    markLoginSucceeded(loginId) { this.succeeded = loginId; },
+    dispose() {},
+    succeeded: null,
+  };
+  const auth = new CodexAppServerManagedAuth(fake);
+  const status = await auth.loginStatus("login-12345678");
+  assert.deepEqual(status, { state: "succeeded" });
+  assert.equal(fake.succeeded, "login-12345678");
 });

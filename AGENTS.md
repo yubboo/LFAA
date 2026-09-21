@@ -1,9 +1,11 @@
-# LFAA Agent / Contributor Guide — v0.1.7
+# LFAA Agent / Contributor Guide — v0.1.8
 
 本文件给 AI Agent 和开发者提供最短路径的当前约束。**先遵守当前代码与本文件，再参考历史记录。**
 
 
-## v0.1.7 不可破坏的模式 / Provider 原则
+## v0.1.8 不可破坏的模式 / Provider 原则
+
+- ChatGPT 套餐 OAuth 的窗口不是认证 Owner；禁止因 popup.closed 直接判失败，必须以官方 App Server 登录/account 状态为准。
 
 1. Chat Agent 与 Work Agent **只能有一套 Agent Core / AgentRunRequest / Session Controller / Runtime Host**。
 2. 二者能力、智力、性能、工具、权限、自动化与最终交付质量必须同构；`workspaceMode` 只描述交互表现层。

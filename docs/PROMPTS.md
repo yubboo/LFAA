@@ -1,3 +1,11 @@
+# v0.1.8 Prompt / Requirement Note — ChatGPT 套餐 OAuth 完成态竞态修复
+
+- **基线 / 目标：** v0.1.7 → v0.1.8；任务 #22.14；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。
+- **实机回归：** OpenAI 官方页面显示登录成功并提示可关闭，但关闭窗口后 LFAA 误报“登录已取消”。
+- **根因：** Client 把 `popup.closed` 当认证失败真值，抢在官方 `account/login/completed` / `account/updated` / `account/read` 前结束流程。
+- **要求：** 浏览器窗口只属于交互层；认证成功/失败必须以 OpenAI 官方 App Server 账户状态为准。关闭成功页后继续短期等待，官方已成功则保存套餐账户；仅官方失败、显式取消或超时才失败。
+- **禁止：** 读取 OAuth Token、把窗口关闭等同 logout/cancel、为了修复而改 Chat/Work/Manual 单核模式或 Provider 额度规则。
+
 # v0.1.7 Prompt / Requirement Note — Provider 官方登录、保存响应、Usage 终态与真实流式回复
 
 - **基线 / 目标：** v0.1.6 → v0.1.7；任务 #22.13；状态 pending-user-acceptance；AI 验证 pass；用户验收 pending。
@@ -89,6 +97,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #22.14 | ChatGPT 套餐 OAuth 完成态 / 窗口关闭竞态修复 | v0.1.8 | pending-user-acceptance | pass | pending |
 | #22.13 | Provider 官方登录 / Usage 终态 / 真流式回复 | v0.1.7 | pending-user-acceptance | pass | pending |
 | #22.12 | 单一 Agent Core / Chat·Work·Manual 三模式 | v0.1.6 | pending-user-acceptance | pass | pending |
 | #22.11 | 官方余额额度与 Chat/Work 模式边界 | v0.1.4 | pending-user-acceptance | pass | pending |

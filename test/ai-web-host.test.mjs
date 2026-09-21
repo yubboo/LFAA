@@ -54,6 +54,7 @@ test("account metadata repository rejects plaintext secret fields and migrates m
 
 test("browser AI client never uses browser storage for credentials", async () => {
   const source = await read("packages/client/connection/src/ai-settings-client.ts");
+  const codex = await read("packages/harness/codex-app-server/src/codex-app-server.ts");
   assert.doesNotMatch(source, /(?:window\.)?(?:localStorage|sessionStorage)\s*\./);
   assert.match(source, /\/__lfaa\/dev\/ai/);
   assert.match(source, /modelSettings/);
@@ -152,6 +153,7 @@ test("managed ChatGPT bridge keeps subscription auth shared with Codex text runt
 
 test("browser ChatGPT login opens synchronously, validates official HTTPS domains and never stores token state", async () => {
   const source = await read("packages/client/connection/src/ai-settings-client.ts");
+  const codex = await read("packages/harness/codex-app-server/src/codex-app-server.ts");
   const popupIndex = source.indexOf('window.open("about:blank"');
   const startIndex = source.indexOf('request<{ login: AiManagedLoginStart }>("/managed-login/start"');
   assert.ok(popupIndex >= 0 && startIndex > popupIndex, "popup must be opened before the first managed-login await");
@@ -159,10 +161,17 @@ test("browser ChatGPT login opens synchronously, validates official HTTPS domain
   assert.match(source, /url\.hostname === "chatgpt\.com"/);
   assert.match(source, /url\.hostname === "openai\.com"/);
   assert.match(source, /MANAGED_LOGIN_TIMEOUT_MS/);
+  assert.match(source, /MANAGED_LOGIN_CLOSED_GRACE_MS/);
   assert.match(source, /正在准备 OpenAI 官方登录/);
   assert.match(source, /loginCompleted/);
   assert.match(source, /!loginCompleted\) await cancelManagedLogin/);
+  assert.match(source, /官方认证结果必须先于浏览器窗口生命周期判断/);
+  assert.doesNotMatch(source, /if \(popup\.closed\) throw new Error\("ChatGPT 登录窗口已关闭，登录已取消/);
   assert.match(source, /\/subscription\/accounts/);
+  assert.match(codex, /message\.method === "account\/updated"/);
+  assert.match(codex, /stringField\(params, "authMode"\) === "chatgpt"/);
+  assert.match(codex, /this\.#client\.request\("account\/read", \{ refreshToken: false \}\)/);
+  assert.match(codex, /markLoginSucceeded\(loginId\)/);
   assert.doesNotMatch(source, /(?:window\.)?(?:localStorage|sessionStorage)\s*\./);
   assert.doesNotMatch(source, /account\/logout/);
 });

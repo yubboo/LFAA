@@ -37,7 +37,7 @@ const MODEL_SOURCE = {
   checkedAt: CHECKED_AT,
 } as const;
 /** App Server initialize 元数据集中定义，避免 name/title/version 散落在握手逻辑。 */
-const APP_SERVER_CLIENT_INFO = { name: "lfaa_web_dev", title: "Little Fish AI Agent", version: "0.1.7" } as const;
+const APP_SERVER_CLIENT_INFO = { name: "lfaa_web_dev", title: "Little Fish AI Agent", version: "0.1.8" } as const;
 
 export interface CodexTextRunInput {
   readonly sessionKey: string;
@@ -231,6 +231,12 @@ class CodexAppServerClient {
         else this.#loginStatuses.set(loginId, { state: "failed", error: safeText(params.error, "ChatGPT 登录未完成。") });
       }
     }
+    if (message.method === "account/updated" && stringField(params, "authMode") === "chatgpt") {
+      // OpenAI 官方会在 ChatGPT 登录成功后发布 account/updated；它是 completion 之外的第二个官方成功信号。
+      for (const [loginId, status] of this.#loginStatuses) {
+        if (status.state === "pending") this.#loginStatuses.set(loginId, { state: "succeeded" });
+      }
+    }
     for (const listener of this.#notifications) listener(message.method, params);
   }
 
@@ -314,6 +320,10 @@ class CodexAppServerClient {
     return this.#loginStatuses.get(loginId) ?? { state: "failed", error: "登录会话不存在或 OpenAI 官方账户服务已重启。" };
   }
 
+  markLoginSucceeded(loginId: string): void {
+    this.#loginStatuses.set(loginId, { state: "succeeded" });
+  }
+
   markLoginFailed(loginId: string, error: string): void {
     this.#loginStatuses.set(loginId, { state: "failed", error });
   }
@@ -371,6 +381,18 @@ export class CodexAppServerManagedAuth implements AiManagedAuthPort {
 
   async loginStatus(loginId: string): Promise<AiManagedLoginStatus> {
     await this.#client.ensureStarted();
+    const status = this.#client.loginStatus(loginId);
+    if (status.state !== "pending") return status;
+
+    // 窗口是否关闭不是认证事实；若 completion 通知尚未到达，用 OpenAI 官方 account/read 兜底确认。
+    try {
+      const accountResult = await this.#client.request("account/read", { refreshToken: false });
+      const account = isRecord(accountResult) && isRecord(accountResult.account) ? accountResult.account : null;
+      if (account?.type === "chatgpt") {
+        this.#client.markLoginSucceeded(loginId);
+        return { state: "succeeded" };
+      }
+    } catch { /* pending 阶段的 account/read 失败不覆盖正式 login 状态。 */ }
     return this.#client.loginStatus(loginId);
   }
 

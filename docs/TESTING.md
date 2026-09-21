@@ -1,6 +1,8 @@
-# LFAA Testing & Gates — v0.1.7
+# LFAA Testing & Gates — v0.1.8
 
-## v0.1.7 Provider 可靠性回归
+## v0.1.8 Provider 可靠性回归
+
+新增必须锁定：ChatGPT Hosted Success Page 关闭后不得立即 cancel；必须先检查官方 completion/account 状态，并允许 account/read / account/updated 兜底确认。
 
 必须覆盖：
 

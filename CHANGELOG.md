@@ -1,3 +1,13 @@
+# v0.1.8 ChatGPT 套餐 OAuth 完成态 / 窗口关闭竞态修复
+
+**当前任务：#22.14 · v0.1.8 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- 修复 OpenAI 官方 Hosted Success Page 已显示登录成功、用户关闭窗口后，LFAA 因先检查 `popup.closed` 而误判“登录已取消”的竞态。
+- 浏览器窗口不再是认证状态 Owner；Client 先读取 `/managed-login/:id` 官方状态，关闭窗口只进入 30 秒确认宽限期。
+- Managed Auth 在 pending 时通过官方 `account/read` 兜底确认 ChatGPT 账户；同时接受 `account/updated(authMode=chatgpt)` 作为官方成功信号。
+- 只有官方 failed、明确取消或等待超时才进入失败终态；成功后仍由 `/subscription/accounts` 做真实 model probe 与账户持久化。
+- 新增回归：禁止恢复“popup.closed 立即失败”，并增加 managed login `account/read` 行为测试。
+
 # v0.1.7 Provider 官方登录 / Usage 终态 / 真流式回复
 
 **当前任务：#22.13 · v0.1.7 · pending-user-acceptance · AI=pass · 用户验收=pending**

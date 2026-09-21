@@ -1,14 +1,15 @@
-# LFAA Project Plan — current v0.1.7
+# LFAA Project Plan — current v0.1.8
 
 ## 当前里程碑
 
-**v0.1.7 / Provider 官方登录、保存响应、Usage 终态与真实流式回复（pending-user-acceptance）**
+**v0.1.8 / ChatGPT 套餐 OAuth 完成态与关闭窗口竞态修复（pending-user-acceptance）**
 
-目标：保持 v0.1.6 的单一 Agent Core / Chat·Work·Manual 模型不变，只修真实 Provider 使用链和 UI 回归。配置“连接成功”必须与 Runtime/Usage 状态解耦，支持流式的 Provider 必须边生成边显示。
+目标：保持 v0.1.7 的 Provider/Streaming/Usage 行为不变，修复 OpenAI 官方 ChatGPT OAuth 已成功但用户关闭成功页后被 LFAA 误判为取消的竞态。认证真值必须来自官方账户事件 / account 状态，而不是浏览器窗口生命周期。
 
 本版：
 
 - ChatGPT 套餐继续使用 OpenAI 官方账户/App Server 协议，但产品层不要求用户安装 Codex CLI；Windows 由 LFAA 在 `LFAA_HOME` 按需下载固定 OpenAI 官方 App Server 独立资产并校验 SHA-256；
+- ChatGPT 浏览器成功页允许关闭；Client 先轮询官方登录状态，窗口关闭只开启 30 秒确认宽限期；Host 在 pending 时用 `account/read` 兜底，`account/updated(authMode=chatgpt)` 也可确认成功；
 - API Key 的“测试连接→保存”复用短期 Host Verified Probe，避免保存时重复 `/models`；
 - Usage UI 改为 `idle / loading / ready / error`，API Provider 后端 15 秒网络超时，Browser 端再提供 22 秒终止线；失败不阻塞账户/模型配置；
 - OpenAI Responses SSE 与 OpenAI-compatible Chat Completions SSE 都实时产生 `assistant.delta`；新增行为测试防止退回一次性 JSON；

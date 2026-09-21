@@ -1,3 +1,12 @@
+# v0.1.8 / #22.14 ChatGPT 套餐 OAuth 完成态竞态修复
+
+**当前任务：v0.1.8 · pending-user-acceptance · AI=pass · 用户验收=pending**
+
+- 实机复现：OpenAI 官方页面明确显示“你已登录，可以关闭此页面”，但关闭后 LFAA 显示“登录窗口已关闭，登录已取消”。
+- 根因：Browser Client 在轮询官方 `account/login/completed` 之前先判断 `popup.closed`，把表现层窗口生命周期误当认证事实。
+- 修复：轮询顺序改为“官方状态优先”；窗口关闭进入 30 秒 grace；Host pending 状态通过 `account/read` 兜底；`account/updated(authMode=chatgpt)` 可同步 pending 登录为成功。
+- 安全边界不变：LFAA 不读取/保存 OAuth Token；取消仍显式调用官方 `account/login/cancel`。
+
 # v0.1.7 / #22.13 Provider 官方登录 / Usage 终态 / 真流式回复
 
 **当前任务：v0.1.7 · pending-user-acceptance · AI=pass · 用户验收=pending**

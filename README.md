@@ -1,12 +1,12 @@
-# LFAA v0.1.7 — Provider 真实可用性 / 流式回复 / 官方订阅登录修复
+# LFAA v0.1.8 — ChatGPT 套餐登录状态机修复 / Provider 真实可用性
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.1.7**。本版继续保持“一套 Agent Core、Chat / Work 两种 Agent 表现层 + Manual 手动模式”，重点修复 Provider 使用链：ChatGPT 套餐由 LFAA 按需准备 OpenAI 官方账户运行组件，用户无需安装 Codex CLI；API Key 保存复用刚完成的官方连接 Probe，避免重复模型目录请求；官方余额/额度拥有 loading / ready / error / timeout 终态；OpenAI-compatible Provider 改为真实 SSE 流式输出。官方 Provider 的认证、免费/套餐/API 计量仍以官方事实为准，LFAA 不自行制造额度。
+当前包：**LFAA-v0.1.8**。本版继续保持“一套 Agent Core、Chat / Work 两种 Agent 表现层 + Manual 手动模式”，重点修复 Provider 使用链：ChatGPT 套餐由 LFAA 按需准备 OpenAI 官方账户运行组件，用户无需安装 Codex CLI；API Key 保存复用刚完成的官方连接 Probe，避免重复模型目录请求；官方余额/额度拥有 loading / ready / error / timeout 终态；OpenAI-compatible Provider 改为真实 SSE 流式输出。官方 Provider 的认证、免费/套餐/API 计量仍以官方事实为准，LFAA 不自行制造额度。
 
 > 当前真相以本 README、`ARCHITECTURE.md`、`DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
 
-## v0.1.7 当前产品模型
+## v0.1.8 当前产品模型
 
 ```text
                      LFAA Agent Core
@@ -26,7 +26,9 @@
 - **ChatGPT 套餐**：LFAA 按需把 OpenAI 官方 App Server 运行组件准备到 `LFAA_HOME/runtimes/openai-chatgpt`，不要求用户全局安装 Codex CLI；OAuth / Token 仍只由官方组件管理，LFAA 不读取 Secret。
 
 
-### v0.1.7 Provider 运行可靠性
+### v0.1.8 Provider 运行可靠性
+
+- **ChatGPT 登录真值**：官方 OAuth 成功与否只依据 App Server `account/login/completed`、`account/updated` 与 `account/read`；浏览器成功页被用户关闭不再被当成登录失败，并保留 30 秒官方确认宽限期。
 
 - **ChatGPT 套餐登录**：产品层只显示 OpenAI 官方 ChatGPT 套餐登录；Windows 由 LFAA 在 `LFAA_HOME` 按需准备并校验 OpenAI 官方 App Server 独立组件，不要求全局 `codex` / Codex CLI。
 - **API 保存**：显式“测试连接 / 获取模型”成功后，保存复用短期 Host Probe，不再重复请求同一官方模型目录；未测试时保存仍会做真实官方校验。

@@ -1,6 +1,14 @@
-# LFAA Development Standard — v0.1.7
+# LFAA Development Standard — v0.1.8
 
 本文件是当前开发规范。历史版本的设计过程请看 `CHANGELOG.md`、`docs/DEVELOPMENT_LOG.md` 和 `docs/PROMPTS.md`；历史内容不得覆盖本文件。
+
+## ChatGPT 套餐登录状态规则
+
+- 浏览器窗口生命周期不得作为认证成功/失败的事实源；Hosted Success Page 可被用户正常关闭。
+- 成功必须由官方 App Server `account/login/completed`、`account/updated(authMode=chatgpt)` 或 `account/read` 确认。
+- 关闭成功页后应继续短期轮询；只有官方 failed、明确取消或超时才能进入失败终态。
+- LFAA 不读取或保存 ChatGPT OAuth Token。
+
 
 ## 1. 开发目标
 
