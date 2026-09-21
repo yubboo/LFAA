@@ -1,8 +1,8 @@
-# LFAA 文档索引 — v0.1.12
+# LFAA 文档索引 — v0.1.14
 
-**当前候选版本：v0.1.12**
+**当前候选版本：v0.1.14**
 
-当前 v0.1.12 重点：本地 Identity Gate、First Run 超级管理员、AuthSession API 门禁与 App Hub；在此基础上继续保持 v0.1.11 的 真实 Project → Session → Runtime Event 状态流。项目/会话/置顶/展开/模式/消息写入 Host；Runtime Event 以 Session ID 隔离；Chat/Work 共核但中央交互面真正分流。DeepSeek Harness 的 append-only Session/Event + Client Projection 只作为状态组织参考。
+当前 v0.1.14 是发布治理热修复：补齐 Prompt ledger 并要求最终 ZIP fresh-extract preflight；产品/Runtime 不变。v0.1.13 重点：保留 v0.1.12 已成立的 Identity / Project / Session / Agent Runtime 与两层 packages 拓扑，清理发布包本机日志，并把产品路线锁定为 `App Pack Runtime → AI Writing V1`。不为了目录相似度复制 DeepSeek Harness 的全部 package。
 
 
 本目录只保留 9 份长期文档。**当前事实与历史事实严格分层。**

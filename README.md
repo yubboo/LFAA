@@ -1,11 +1,19 @@
-# LFAA v0.1.12 — 本地 Identity Gate / App Hub / 用户与权限
+# LFAA v0.1.14 — Release Governance Hotfix / AI Writing Track
 
 **Little Fish AI Agent（小鱼 AI 智能体）**，简称 **LFAA**。作者：二鱼。
 
-当前包：**LFAA-v0.1.12**。本版在 v0.1.11 的 Project / Session 真值之上新增实例级本地 Identity Boundary：第一次启动必须创建唯一 First Run 超级管理员，之后必须登录才能进入 App Hub 与工作台；所有 `/__lfaa/dev/*` Host HTTP API 默认先经过 AuthSession Gate。设置中心新增真实用户、Role 与 Permission 管理；登录后的第一屏升级为 App Hub，大展台先展示核心工作台与未来 App Pack 入口，未接入真实能力的入口保持 disabled，不伪装可用。
+当前包：**LFAA-v0.1.14**。这是 v0.1.13 的发布治理热修复：补齐遗漏的当前 Prompt 合同与任务索引，并用治理链重新验证候选包。v0.1.13 已完成的仓库结构收口、发布日志排除和 AI Writing 路线锁定保持不变；Identity / Project / Session / Chat / Work / Manual 产品行为不变。
 
 > 当前真相以本 README、`ARCHITECTURE.md`、`DEVELOPMENT.md`、`AGENTS.md` 与 `docs/项目结构与代码地图.md` 为准。CHANGELOG、DEVELOPMENT_LOG、PROMPTS 中出现的旧路径只代表当时版本的历史事实。
 
+
+## v0.1.14 Release Governance Hotfix
+
+修复 v0.1.13 候选包中 `docs/PROMPTS.md` 未登记当前版本/任务导致 `workspace-preflight` 阻断的问题。修复只涉及发布治理、版本元数据与长期文档，不改变 Runtime/UI/业务行为。
+
+## v0.1.13 Repository Baseline → App Pack → AI Writing
+
+当前目录与内核协议保持稳定；下一阶段先完成 App Pack Runtime，再进入 AI Writing V1。
 
 ## v0.1.12 Identity → App Hub → Workspace
 

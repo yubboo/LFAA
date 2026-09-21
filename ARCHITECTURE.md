@@ -1,4 +1,8 @@
-# LFAA Architecture — v0.1.12 Current Truth
+# LFAA Architecture — v0.1.14 Current Truth
+
+## 0.0 v0.1.14 Release Integrity Boundary
+
+发布包只有在当前版本 Prompt 合同、任务索引、版本元数据和 fresh-extract preflight 一致通过时才是有效候选。v0.1.14 不改变 Runtime 或 package ownership；它只修复 v0.1.13 的发布治理遗漏。
 
 ## 0.1 v0.1.12 Instance Identity / App Hub Boundary
 
@@ -44,6 +48,20 @@ Chat UI | Work Canvas | Manual Workspace
 
 
 > 本文件描述 **当前** LFAA 架构。旧版本的平铺 `packages/*`、`apps/web/dev/bridges/*`、`crates/` 与仓库级 `.lfaa/` 只允许出现在历史记录中，不再是当前设计。
+
+## 0.2 Repository / Plugin Boundary（v0.1.13）
+
+LFAA 对 DeepSeek Harness 采用“**复用思想与稳定协议，避免复制全部包数量**”的策略。当前 DeepSeek Harness 源码规模远大于 LFAA；LFAA 不以包数量对齐上游，而只在出现真实 Consumer 与独立生命周期时升格 package。
+
+“一切皆插件”的准确边界是：**一切业务能力皆插件，内核不是插件**。
+
+稳定内核包括：Agent Runtime 契约、Session 真值、Plugin Loader/Registry/Lifecycle、Identity/Permission、Credential Broker、Config 协议、Runtime Home 与 Host transport 基础边界。
+
+可插件化业务包括：App Pack、Skill、Expert、Tool、MCP、Workflow、Model Provider、Harness Adapter、Workbench Node、Artifact Renderer、UI Extension 等。
+
+因此当前 `packages/` 两层拓扑保持稳定，不新增 `packages/lfaa/` 或另一套 `features/modules/extensions` 平行树；AI Writing 作为第一个真实 App Pack 直接验证现有 Capability/Plugin 架构。
+
+发布源码包不得携带本机运行日志、Runtime Home、缓存或构建产物。`docs/logs/runtime/*` 仅可作为本机运行目录存在，`*.log` 不属于发布内容。
 
 ## 1. 架构目标
 

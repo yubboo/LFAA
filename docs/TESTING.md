@@ -1,4 +1,12 @@
-# LFAA Testing & Gates — v0.1.12
+# LFAA Testing & Gates — v0.1.14
+
+## v0.1.14 Release Governance 回归
+
+候选包必须验证 governance、prompt lifecycle、release consistency，并在最终 ZIP fresh extract 上执行 workspace preflight 等价检查；`docs/PROMPTS.md` 必须包含当前版本的 Prompt 条目、任务索引和当前合同。`release-archive` CLI 现在会在写 ZIP 前先运行 workspace preflight，归档核心还会单独拒绝缺少当前 Prompt 条目/索引的候选。
+
+## v0.1.13 Repository / Release 回归
+
+`test/release-archive.test.mjs` 除 Unicode path 与必要空目录外，还必须锁定本机 `.log` 不进入发布 ZIP。package/folder/docs/current-fact 门禁继续保护现有两层 packages 拓扑。
 
 ## v0.1.12 Identity / App Hub 回归
 

@@ -1,4 +1,12 @@
-# LFAA Runtime — v0.1.12
+# LFAA Runtime — v0.1.14
+
+## v0.1.14 Runtime 冻结范围
+
+v0.1.14 仅修发布治理；Agent/Session/Provider/Identity/Plugin Runtime 与 v0.1.13 完全一致。
+
+## v0.1.13 Runtime 冻结范围
+
+本版不改变 Agent、Session、Provider、Identity 或 Plugin lifecycle 的运行语义；仅修复发布归档边界并锁定下一阶段 App Pack → AI Writing 路线。
 
 ## v0.1.12 Identity Runtime
 

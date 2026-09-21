@@ -1,7 +1,7 @@
 {
   "name": "@lfaa/session",
   "private": true,
-  "version": "0.1.12",
+  "version": "0.1.14",
   "type": "module",
   "exports": "./src/index.ts",
   "author": "二鱼",

@@ -1,4 +1,12 @@
-# LFAA UI Architecture — v0.1.12
+# LFAA UI Architecture — v0.1.14
+
+## v0.1.14 UI 冻结范围
+
+v0.1.14 无 UI 变更，只修候选包 Prompt/发布治理。
+
+## v0.1.13 UI 冻结范围
+
+本版不重做 Workbench、Chat/Work/Manual、Resize/Motion 或 App Hub 视觉。下一阶段 App Hub 的业务入口应由真实 App Pack Catalog 驱动，再接 AI Writing。
 
 ## v0.1.12 Identity Gate / App Hub
 

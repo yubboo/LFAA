@@ -2,13 +2,14 @@
  * 文件：release-archive.mjs
  * 作用：生成 LFAA 发布 ZIP，并显式保证 Unicode 文件名使用 ZIP UTF-8 flag。
  * 负责：收集发布文件、写 Local/Central Directory、UTF-8 bit 11、CRC32、成品 entry 校验。
- * 不负责：版本递增、质量门禁、依赖安装或稳定工作区同步。
+ * 不负责：版本递增、依赖安装或稳定工作区同步；CLI 只在归档前复用 workspace-preflight 拒绝无效候选。
  * 状态归属：发布归档字节格式由本脚本唯一拥有；lfaa.release.json 仍是版本事实源。
  * 修改注意事项：禁止退回依赖平台默认编码的 zip 命令；中文 entry 必须在 Local Header 与 Central Directory 同时设置 bit 11。
  */
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { spawnSync } from "node:child_process";
 
 const UTF8_FLAG = 0x0800;
 const METHOD_STORE = 0;
@@ -55,6 +56,10 @@ function shouldExclude(relativePath, outputRelative) {
   const normalized = normalizeArchivePath(relativePath);
   if (!normalized) return false;
   if (outputRelative && normalized === outputRelative) return true;
+  // Runtime/developer logs are local machine artifacts. .gitignore already excludes
+  // them; release archives must do the same even when the source directory contains
+  // historical or untracked log files. Empty log directories are still preserved.
+  if (normalized.toLocaleLowerCase().endsWith(".log")) return true;
   return normalized.split("/").some((segment) => EXCLUDED_DIR_NAMES.has(segment));
 }
 
@@ -198,11 +203,33 @@ export function assertReleaseArchive(zipPath) {
   return entries;
 }
 
+export function assertReleaseCandidateMetadata(root = process.cwd()) {
+  const rootAbs = path.resolve(root);
+  const releasePath = path.join(rootAbs, "lfaa.release.json");
+  const promptPath = path.join(rootAbs, "docs", "PROMPTS.md");
+  if (!fs.existsSync(releasePath)) throw new Error(`不是 LFAA 工作区: ${rootAbs}`);
+  if (!fs.existsSync(promptPath)) throw new Error("候选包缺少 docs/PROMPTS.md。");
+
+  const release = JSON.parse(fs.readFileSync(releasePath, "utf8"));
+  const version = String(release.displayVersion ?? "").trim();
+  const prompt = fs.readFileSync(promptPath, "utf8");
+  if (!version) throw new Error("lfaa.release.json 缺少 displayVersion。");
+  if (!prompt.includes(`# v${version} Prompt / Requirement Note`)) {
+    throw new Error(`docs/PROMPTS.md 缺少当前版本 v${version} 的 Prompt 条目。`);
+  }
+  const escapedVersion = version.replaceAll(".", "\\.");
+  const taskIndex = new RegExp(`\\|\\s*#\\d+(?:\\.\\d+)?\\s*\\|[^\\n]*\\|\\s*v${escapedVersion}\\s*\\|`);
+  if (!taskIndex.test(prompt)) {
+    throw new Error(`docs/PROMPTS.md 当前任务索引缺少 v${version}。`);
+  }
+  return { version };
+}
+
 export function createReleaseArchive({ root = process.cwd(), output }) {
   if (!output) throw new Error("必须提供 --output <zip-path>。");
   const rootAbs = path.resolve(root);
   const outputAbs = path.resolve(output);
-  if (!fs.existsSync(path.join(rootAbs, "lfaa.release.json"))) throw new Error(`不是 LFAA 工作区: ${rootAbs}`);
+  assertReleaseCandidateMetadata(rootAbs);
   fs.mkdirSync(path.dirname(outputAbs), { recursive: true });
   const entries = collectReleaseEntries(rootAbs, outputAbs);
   fs.writeFileSync(outputAbs, buildZipBuffer(entries));
@@ -222,7 +249,22 @@ function parseArgs(argv) {
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   try {
-    const result = createReleaseArchive(parseArgs(process.argv.slice(2)));
+    const options = parseArgs(process.argv.slice(2));
+    const rootAbs = path.resolve(options.root);
+    const preflightScript = path.join(rootAbs, "scripts", "workspace-preflight.mjs");
+    if (!fs.existsSync(preflightScript)) throw new Error("候选工作区缺少 scripts/workspace-preflight.mjs。");
+    const preflight = spawnSync(process.execPath, [preflightScript, "--root", rootAbs], {
+      cwd: rootAbs,
+      encoding: "utf8",
+      env: process.env,
+      windowsHide: true,
+    });
+    if (preflight.stdout) process.stdout.write(preflight.stdout);
+    if (preflight.status !== 0) {
+      if (preflight.stderr) process.stderr.write(preflight.stderr);
+      throw new Error("workspace preflight 未通过，拒绝生成发布 ZIP。");
+    }
+    const result = createReleaseArchive(options);
     console.log(`[LFAA-ARCHIVE] output=${result.output}`);
     console.log(`[LFAA-ARCHIVE] entries=${result.entries}`);
     console.log(`[LFAA-ARCHIVE] bytes=${result.bytes}`);

@@ -1,3 +1,22 @@
+# v0.1.14 Release Governance / Prompt Ledger Hotfix
+
+**当前任务：#22.20 · v0.1.14 · pending-user-acceptance · AI=pass（Prompt lifecycle + governance + fresh-extract preflight） · 用户验收=pending**
+
+- 修复 v0.1.13 候选包遗漏 `docs/PROMPTS.md` 当前版本/任务，导致稳定工作区来源预检失败的问题。
+- 补齐当前 Prompt 条目、任务索引和当前合同，不通过简单塞版本字符串绕过 Gate。
+- 发布版本递增到 v0.1.14，避免同一个 v0.1.13 出现两份不同内容。
+- `release-archive` CLI 在生成 ZIP 前强制复用 `workspace-preflight`；归档核心额外检查当前 Prompt 条目/索引，避免同类无效包再次生成。
+- 本热修复不改变 Runtime、UI、Session、Provider、Plugin、Identity 或 AI Writing 路线。
+
+# v0.1.13 Repository Baseline / AI Writing Track Lock
+
+**当前任务：#22.19 · v0.1.13 · pending-user-acceptance · AI=pass（结构审计 + 发布归档聚焦回归） · 用户验收=pending**
+
+- 对照 DeepSeek Harness 后确认保留 LFAA 当前两层 capability-family package 拓扑，不进行破坏性重排。
+- 明确“一切业务能力皆插件，内核保持稳定”；AI Writing 锁定为第一个完整 App Pack。
+- 发布归档器新增 `.log` 排除规则，避免把本机 workspace-sync / GitHub push / source-update 等运行日志带入源码 ZIP。
+- 新增归档回归：空日志目录仍保留，日志文件不进入 ZIP。
+
 # v0.1.12 Local Identity Gate / App Hub / User RBAC
 
 **当前任务：#22.18 · v0.1.12 · pending-user-acceptance · AI=pass（静态门禁 + Identity 聚焦回归） · 用户验收=pending**

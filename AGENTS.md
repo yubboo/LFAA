@@ -1,6 +1,20 @@
-# LFAA Agent / Contributor Guide — v0.1.12
+# LFAA Agent / Contributor Guide — v0.1.14
 
 本文件给 AI Agent 和开发者提供最短路径的当前约束。**先遵守当前代码与本文件，再参考历史记录。**
+
+## v0.1.14 发布治理不可破坏原则
+
+1. 每个候选版本必须先在 `docs/PROMPTS.md` 同时登记当前 Prompt 条目、任务索引与当前合同，再生成发布 ZIP。
+2. `workspace-preflight` / `governance:check` / `prompt-lifecycle:check` 任一失败都表示候选包不可交付，禁止用“本地测试通过”替代发布包 fresh-extract 验证。
+3. 已交付但预检失败的候选包不得原地覆盖同版本；必须递增补丁版本，保留可追溯性。
+
+## v0.1.13 不可破坏的 Repository / Plugin 原则
+
+1. 保留 `packages/<capability-family>/<package>` 两层拓扑；禁止为了模仿外部 Harness 创建空包或第二套 `packages/lfaa|features|modules` 总目录。
+2. 一切业务能力皆插件，但 Agent/Session/Plugin lifecycle/Identity/Credential/Config 等稳定内核不是可随意替换的业务插件。
+3. 新 package 必须同时具备真实实现、真实 Consumer、独立生命周期和清晰 Owner。
+4. 第一个真实 App Pack 固定为 AI Writing；AI Writing V1 未 delivered 前禁止并行开启第二个大型业务域。
+5. 发布源码包不得包含本机 `.log`、Runtime Home、缓存、构建产物。
 
 
 ## v0.1.12 不可破坏的 Identity / App Hub 原则

@@ -1,3 +1,12 @@
+# v0.1.14 Prompt / Requirement Note — Release Governance / Prompt Ledger Hotfix
+
+- **基线 / 目标：** 无效候选 v0.1.13 → v0.1.14；任务 #22.20；状态 pending-user-acceptance；AI 验证 pass（governance + prompt lifecycle + release consistency + fresh-extract preflight）；用户验收 pending。
+- **用户问题：** 执行稳定工作区 Sync 时，来源预检在修改目标工作区前失败，明确报错 `docs/PROMPTS.md must contain current version v0.1.13`。
+- **根因：** v0.1.13 更新了 Release / Changelog / Development Log 和版本元数据，但漏更新唯一 Prompt ledger；打包前也未在最终候选 ZIP 的 fresh extract 上执行与 Sync 相同的来源预检。
+- **允许修改：** `docs/PROMPTS.md`、版本/发布账本、当前治理文档、发布验证说明与必要的防回归测试；版本递增到 v0.1.14。
+- **禁止修改：** Runtime、UI、Chat/Work/Manual、Project/Session、Provider/OAuth/Streaming、Plugin lifecycle、Identity/RBAC、AI Writing 产品实现；不得通过放宽 Gate 绕过失败。
+- **验收：** 当前 Prompt 条目 + 当前任务索引 + 当前合同都包含 #22.20 / v0.1.14；governance/prompt-lifecycle/release consistency 通过；最终 ZIP fresh extract 的 workspace preflight 不再因版本治理失败。
+
 # v0.1.12 Prompt / Requirement Note — Local Identity Gate / App Hub / Access Boundary
 
 - **基线 / 目标：** v0.1.11 → v0.1.12；任务 #22.18；状态 pending-user-acceptance；AI 验证 pass（当前可用环境的静态门禁 + Identity 聚焦回归）；用户验收 pending。
@@ -129,6 +138,7 @@
 
 | 任务 | 功能名称 | 版本 | 状态 | AI 验证 | 用户验收 |
 |---|---|---|---|---|---|
+| #22.20 | Release Governance / Prompt Ledger Hotfix | v0.1.14 | pending-user-acceptance | pass | pending |
 | #22.18 | Local Identity Gate / App Hub / User RBAC | v0.1.12 | pending-user-acceptance | pass | pending |
 | #22.17 | Project + Session Persistence / Runtime Event Isolation | v0.1.11 | pending-user-acceptance | pass | pending |
 | #22.16 | Session Persistence / Stable Navigation / Dual Mode Switch | v0.1.10 | pending-user-acceptance | pass | pending |
@@ -199,6 +209,15 @@
 | #20.5 | 文档体系单文件时间线重构 | v0.0.50 | pending-user-acceptance | pass | pending |
 
 ## 当前任务 / 当前合同
+
+## #22.20 Release Governance / Prompt Ledger Hotfix
+
+- **版本：** v0.1.14；**状态：** pending-user-acceptance。
+- **允许修改：** Prompt ledger、release/version metadata、发布账本、治理说明及其回归验证。
+- **禁止修改：** Runtime/UI/Session/Provider/Plugin/Identity 产品逻辑；禁止降低 governance / prompt lifecycle Gate。
+- **发布合同：** 已经对外给出的无效候选 v0.1.13 不原地覆盖；使用 v0.1.14。候选 ZIP 必须 fresh extract 后运行与 Sync 来源预检等价的治理链。
+- **验收：** `docs/PROMPTS.md` 的当前条目、索引与合同一致；当前版本 v0.1.14 在所有版本事实源一致；最终发布包来源预检通过。
+
 
 ## #22.18 Local Identity Gate / App Hub / User RBAC
 

@@ -1,4 +1,12 @@
-# LFAA Modules — v0.1.12 Current Ownership
+# LFAA Modules — v0.1.14 Current Ownership
+
+## v0.1.14 Ownership Freeze
+
+v0.1.14 不新增或迁移 Owner，只修发布治理。
+
+## v0.1.13 Repository Ownership 基线
+
+当前 14 个 capability family / 29 个 package 保持为真实 Owner 基线；下一步不新增空 Writing family，而先用现有 Plugin/App Pack 协议完成 Runtime 闭环。
 
 ## v0.1.12 Identity capability family
 

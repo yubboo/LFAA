@@ -1,3 +1,22 @@
+# v0.1.14 Release Governance / Prompt Ledger Hotfix
+
+**当前任务：#22.20 · v0.1.14 · pending-user-acceptance · AI=pass（Prompt lifecycle + governance + fresh-extract preflight） · 用户验收=pending**
+
+- v0.1.13 因 `docs/PROMPTS.md` 未登记当前版本而被 Sync 来源预检正确拒绝；稳定工作区未被修改。
+- v0.1.14 补齐 Prompt ledger，并要求最终候选 ZIP fresh extract 后再次执行治理/预检。
+- 使用新补丁版本而不是覆盖 v0.1.13，保证候选包可追溯。
+- 不包含 Runtime/UI/产品逻辑变更；AI Writing 仍是下一个业务纵向能力。
+
+# v0.1.13 Repository Baseline / AI Writing Track Lock
+
+**当前任务：#22.19 · v0.1.13 · pending-user-acceptance · AI=pass（结构审计 + 发布归档聚焦回归） · 用户验收=pending**
+
+- 审计 v0.1.12 与用户提供的 DeepSeek Harness：LFAA 当前 `packages/<family>/<package>` 已经稳定，不再做大规模目录迁移。
+- 固定“业务能力插件化、内核稳定化”边界；AI Writing 锁定为第一个真实 App Pack，完成前不并行启动第二条大型业务线。
+- 修复发布包把本机 `.log` 一起归档的问题；保留必要空日志目录，但 ZIP 不再携带运行日志。
+- 新增 release archive 回归，防止 `.log` 再次进入发布包。
+- Node 22 环境完成结构/目录/文档与关键 Session/Plugin/Mode 合同验证；完整 Node 24 + pnpm 11.17.0 `quality:full` 仍留给正式发布环境。
+
 # v0.1.12 Local Identity Gate / App Hub / User RBAC
 
 **当前任务：#22.18 · v0.1.12 · pending-user-acceptance · AI=pass（静态门禁 + Identity 聚焦回归） · 用户验收=pending**
@@ -10,7 +29,7 @@
 - Workbench Profile 改用真实登录用户，并提供应用中心/退出登录。
 - 新增 Identity 行为与产品边界测试；当前执行环境为 Node 22 且无 pnpm 11.17.0，因此完整 Node24/pnpm quality:full 尚未冒充通过。
 
-# LFAA Releases — current policy v0.1.12
+# LFAA Releases — current policy v0.1.14
 
 ## v0.1.11 — #22.17 Project + Session Persistence / Runtime Event Isolation
 
@@ -122,8 +141,8 @@
 ## 当前版本
 
 ```text
-displayVersion: 0.1.11
-releaseSequence: 111
+displayVersion: 0.1.14
+releaseSequence: 113
 architectureVersion: 6
 agentProtocolVersion: 3
 ```

@@ -1,3 +1,21 @@
+# v0.1.14 · #22.20 Release Governance / Prompt Ledger Hotfix
+
+**当前任务：v0.1.14 · pending-user-acceptance · AI=pass（Prompt lifecycle + governance + fresh-extract preflight） · 用户验收=pending**
+
+- 用户在 `LFAA-Sync.bat` 来源预检阶段复现：v0.1.13 `docs/PROMPTS.md` 未登记当前版本，稳定工作区尚未被修改。
+- 根因是 v0.1.13 维护文档时漏更新 Prompt ledger，而打包前没有在最终候选 ZIP fresh extract 上执行同一套 preflight。
+- v0.1.14 补齐 Prompt 条目/索引/当前合同，并把“最终 ZIP fresh-extract preflight”固定为候选包有效性要求。
+- `release-archive` CLI 现在先执行 `workspace-preflight`；程序化归档也会验证当前 Prompt 条目与任务索引，避免遗漏再次被打包。
+- 产品行为冻结，v0.1.13 的 Repository Baseline / AI Writing Track Lock 原样保留。
+
+# v0.1.13 · #22.19 Repository Baseline / AI Writing Track Lock
+
+**当前任务：v0.1.13 · pending-user-acceptance · AI=pass（结构审计 + 发布归档聚焦回归） · 用户验收=pending**
+
+- 对照 v0.1.12 与 DeepSeek Harness，确认当前 14 个 capability family / 29 个 package 已具备真实 Owner，不再做为了目录好看的大拆包。
+- 发现 release archive 不读取 `.gitignore`，导致本机 `.log` 被打进候选 ZIP；修复为发布时统一排除 `.log`，同时保留必要空目录 entry。
+- 产品路线冻结：先完成 App Pack Runtime，再完整完成 AI Writing V1；AI Writing delivered 前不启动第二个大型 App Pack。
+
 # v0.1.12 / #22.18 — Local Identity Gate / App Hub / User RBAC
 
 **当前任务：v0.1.12 · pending-user-acceptance · AI=pass（静态门禁 + Identity 聚焦回归） · 用户验收=pending**

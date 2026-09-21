@@ -1,4 +1,19 @@
-# LFAA Development Standard — v0.1.12
+# LFAA Development Standard — v0.1.14
+
+## v0.1.14 Release / Prompt 生命周期规范
+
+- 发布前必须先把当前版本写入 `docs/PROMPTS.md` 的 Prompt 条目、任务索引和“当前任务 / 当前合同”区。
+- 必须在最终 ZIP 的 fresh extract 上运行 `workspace-preflight` 等价治理链；源工作树通过不能替代候选 ZIP 通过。
+- 已经对外给出的无效候选包只能用新补丁版本修复，禁止用同版本不同内容覆盖。
+- 本版只修发布治理，不借机改 Runtime、UI、Session、Provider、Plugin 或 Identity。
+
+## v0.1.13 Repository / Product Track 开发规范
+
+- 当前 capability-family/package 拓扑是基线，不以外部 Harness 包数量为目标。
+- 新业务优先以 Plugin Capability / App Pack 组合进入；内核协议保持稳定。
+- 新 package 必须有真实 Consumer，禁止为规划提前建空包。
+- AI Writing 是第一个完整业务纵向能力；其 V1 未完成前，不启动第二个大型 App Pack。
+- `release-archive` 必须排除本机 `*.log`；空运行日志目录可以保留，日志文件不属于发布源码。
 
 ## v0.1.12 Identity / Access 开发规范
 
