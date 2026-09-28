@@ -1,0 +1,29 @@
+/*
+ 功能：定义文档级默认样式。
+ 作用：统一盒模型、页面画布、原生控件字体和键盘焦点；跨组件共用状态样式由 common.css 管理。
+ 关联文件：frontend/src/main.tsx、frontend/src/styles/common.css。
+*/
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 0; /* 不强制最小视口宽度，窄屏由各页面自行收缩和换行。 */
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 88% 4%, color-mix(in srgb, var(--color-brand) 8%, transparent), transparent 25rem),
+    var(--color-canvas);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 3px;
+}

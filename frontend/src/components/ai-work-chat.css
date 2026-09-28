@@ -1,0 +1,65 @@
+/*
+ * 文件：ai-work-chat.css
+ * 功能：定义 AI Work 对话画布、消息和输入区的布局与样式。
+ * 修改注意事项：当前应用会话导航由 ApplicationSidebar 提供；中心画布只承载对话。
+ */
+.ai-work-chat { position: relative; display: grid; min-height: 390px; height: calc(100% - 12px); grid-template-columns: minmax(0, 1fr); overflow: hidden; border: 1px solid var(--color-border); border-radius: 14px; background: color-mix(in srgb, var(--color-surface) 94%, transparent); box-shadow: 0 8px 30px rgba(25, 40, 70, .08); }
+.ai-work-chat__conversation { display: flex; min-width: 0; min-height: 0; flex-direction: column; gap: 10px; padding: 14px clamp(12px, 2.2vw, 24px) 16px; }
+.ai-work-chat__messages { display: flex; width: min(100%, 920px); min-height: 0; flex: 1; flex-direction: column; align-self: center; gap: 13px; overflow: auto; padding: 8px 7px; }
+.ai-work-chat__welcome { display: flex; max-width: 620px; flex-direction: column; align-items: center; gap: 15px; margin: auto; padding: 20px; text-align: center; }
+.ai-work-chat__welcome > .ant-typography { font-size: 10px; }
+.ai-work-chat__suggestions { display: grid; width: min(100%, 530px); gap: 7px; }
+.ai-work-chat__suggestions button { padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 9px; background: var(--color-surface); color: var(--color-text-secondary); cursor: pointer; font-size: 10px; text-align: left; }
+.ai-work-chat__suggestions button:hover:not(:disabled) { border-color: var(--settings-accent, var(--color-brand)); color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__message { max-width: min(88%, 820px); align-self: flex-start; padding: 12px 14px; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: var(--color-surface); }
+.ai-work-chat__message--user { align-self: flex-end; border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 24%, var(--color-border)); background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 7%, var(--color-surface)); }
+.ai-work-chat__message-meta { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; color: var(--color-text-muted); font-size: 9px; }
+.ai-work-chat__message-meta .ant-tag { margin: 0; line-height: 18px; }
+.ai-work-chat__message-content { color: var(--color-text-heading); font-size: 11px; line-height: 1.75; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ai-work-chat__usage { display: block; margin-top: 8px; color: var(--color-text-subtle); font-size: 9px; }
+.ai-work-chat__composer { display: grid; width: min(100%, 920px); flex: 0 0 auto; gap: 7px; align-self: center; margin: 0 0 clamp(2px, 1.2vh, 14px); padding: 9px 11px 8px; border: 1px solid var(--color-border); border-radius: 16px; background: color-mix(in srgb, var(--color-surface) 94%, transparent); box-shadow: 0 8px 26px rgba(25, 40, 70, .10); -webkit-backdrop-filter: blur(var(--settings-glass-blur, 8px)); backdrop-filter: blur(var(--settings-glass-blur, 8px)); transition: border-color 140ms ease, box-shadow 140ms ease; }
+.ai-work-chat__composer:focus-within { border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 48%, var(--color-border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, transparent), 0 8px 26px rgba(25, 40, 70, .10); }
+.ai-work-chat__composer-context { display: flex; min-width: 0; min-height: 24px; align-items: center; gap: 6px; padding: 0 2px; }
+.ai-work-chat__composer-app,
+.ai-work-chat__composer-model { display: inline-flex; min-width: 0; max-width: min(46%, 310px); align-items: center; gap: 5px; padding: 3px 7px; overflow: hidden; border: 1px solid var(--color-border-subtle); border-radius: 7px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__composer-app { flex: 0 0 auto; }
+.ai-work-chat__composer-model { color: var(--color-text-muted); }
+.ai-work-chat__composer-app svg,
+.ai-work-chat__composer-model svg { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__composer-count.ant-typography { flex: 0 0 auto; margin-left: auto; color: var(--color-text-muted); font-size: 9px; font-variant-numeric: tabular-nums; }
+.ai-work-chat__composer-count span { color: var(--color-text-subtle); }
+.ai-work-chat__composer .ant-input { min-height: 52px; resize: none; padding: 7px 3px; border: 0; background: transparent; box-shadow: none; color: var(--color-text-heading); font-size: 12px; line-height: 1.65; }
+.ai-work-chat__composer .ant-input:hover,
+.ai-work-chat__composer .ant-input:focus { border: 0; background: transparent; box-shadow: none; }
+.ai-work-chat__composer .ant-input::placeholder { color: var(--color-text-subtle); }
+.ai-work-chat__composer .ant-input:disabled { color: var(--color-text-muted); cursor: not-allowed; }
+.ai-work-chat__composer-actions { display: flex; min-height: 36px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 1px; }
+.ai-work-chat__composer-shortcut.ant-typography { overflow: hidden; color: var(--color-text-subtle); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__composer-submit.ant-btn { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; padding: 0; box-shadow: none; }
+.ai-work-chat__composer-submit.ant-btn-primary { background: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__composer-submit.ant-btn-primary:disabled { background: var(--color-border-strong); color: var(--color-text-inverse); }
+.ai-work-chat__composer-submit.ant-btn-dangerous { background: var(--color-danger, #c2413a); }
+.ai-work-chat__composer-submit.ant-btn:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.ai-work-chat__composer-submit .ant-btn-icon { display: inline-flex; align-items: center; }
+.ai-work-chat__conversation > .ant-alert { flex: 0 0 auto; }
+
+@media (max-width: 760px) {
+  .ai-work-chat { height: auto; min-height: 440px; grid-template-columns: minmax(0, 1fr); }
+  .ai-work-chat__conversation { padding: 9px 9px 11px; }
+  .ai-work-chat__composer { width: 100%; margin-bottom: 0; padding: 8px 9px 7px; border-radius: 14px; }
+  .ai-work-chat__composer-app,
+  .ai-work-chat__composer-model { max-width: 44%; }
+  .ai-work-chat__message { max-width: 100%; }
+}
+
+@media (max-width: 520px) {
+  .ai-work-chat__message { max-width: 100%; }
+  .ai-work-chat__composer-context { gap: 4px; }
+  .ai-work-chat__composer-app,
+  .ai-work-chat__composer-model { gap: 4px; padding-inline: 5px; font-size: 8px; }
+  .ai-work-chat__composer-shortcut.ant-typography { font-size: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-work-chat__composer { transition-duration: 0ms; }
+}

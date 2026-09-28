@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1540" viewBox="0 0 1800 1540" role="img" aria-labelledby="title desc">
+  <title id="title">LFAA 应用中心与 AI Work 模式思维导图</title>
+  <desc id="desc">SteamCMD、Minecraft 和写作是独立应用，每个应用内都包含 AI Work 模式，共用后端 AI 引擎；开服任务由目标节点上的 Agent 执行。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f7f9ff"/><stop offset="1" stop-color="#eef4fb"/></linearGradient>
+    <linearGradient id="root" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3478f6"/><stop offset="1" stop-color="#6756d9"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#19304d" flood-opacity=".10"/></filter>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="#8294ac"/></marker>
+    <marker id="arrowPurple" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="#8a69ec"/></marker>
+    <style>
+      text{font-family:"Microsoft YaHei","Noto Sans CJK SC","PingFang SC",Arial,sans-serif;fill:#172b45}
+      .title{font-size:34px;font-weight:700}.subtitle{font-size:16px;fill:#61748d}.section{font-size:20px;font-weight:700}
+      .nodeText{font-size:18px;font-weight:700}.body{font-size:14px;fill:#556a84}.small{font-size:12px;fill:#667a92}
+      .branch{fill:none;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;opacity:.78}
+      .thin{fill:none;stroke:#8a69ec;stroke-width:2.4;stroke-dasharray:7 7;opacity:.75;marker-end:url(#arrowPurple)}
+      .card{fill:#fff;stroke:#dce5f0;stroke-width:1.3;filter:url(#shadow)}
+    </style>
+  </defs>
+  <rect width="1800" height="1450" fill="url(#bg)"/>
+  <text x="64" y="58" class="title">LFAA 应用中心 · 思维导图</text>
+  <text x="66" y="89" class="subtitle">重点：AI Work 是每个业务 App 内的一种工作模式；共用 AI 引擎不等于单独的 AI 应用</text>
+  <rect x="1392" y="38" width="340" height="38" rx="19" fill="#f1eaff" stroke="#ded3ff"/>
+  <text x="1562" y="63" text-anchor="middle" font-size="14" font-weight="700" fill="#704ed0">常规模式 ⇄ AI Work 模式</text>
+
+  <!-- Root and category branches -->
+  <path d="M304 700 C340 700 344 190 388 190" class="branch" stroke="#3478f6"/>
+  <path d="M304 700 C348 700 344 540 388 540" class="branch" stroke="#845fe6"/>
+  <path d="M304 700 C348 700 344 1015 388 1015" class="branch" stroke="#e49b35"/>
+  <path d="M304 700 C340 700 344 1274 388 1274" class="branch" stroke="#24a783"/>
+  <rect x="64" y="632" width="240" height="136" rx="24" fill="url(#root)" filter="url(#shadow)"/>
+  <text x="184" y="686" text-anchor="middle" font-size="23" font-weight="700" fill="#fff">LFAA</text>
+  <text x="184" y="720" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">应用中心</text>
+  <text x="184" y="746" text-anchor="middle" font-size="13" fill="#e9edff">前后端分离 · 多端 · 多节点</text>
+
+  <!-- Category nodes -->
+  <rect x="388" y="146" width="230" height="88" rx="18" fill="#eaf2ff" stroke="#bfd4ff" stroke-width="1.5"/>
+  <text x="503" y="182" text-anchor="middle" class="section" fill="#2864cd">多端入口</text>
+  <text x="503" y="207" text-anchor="middle" class="small">共用工作台与应用 UI</text>
+
+  <rect x="388" y="496" width="230" height="88" rx="18" fill="#f1ecff" stroke="#d7caff" stroke-width="1.5"/>
+  <text x="503" y="532" text-anchor="middle" class="section" fill="#704ed0">业务应用</text>
+  <text x="503" y="557" text-anchor="middle" class="small">各自独立打开、各自有模式</text>
+
+  <rect x="388" y="971" width="230" height="88" rx="18" fill="#fff5e8" stroke="#f1d6ac" stroke-width="1.5"/>
+  <text x="503" y="1007" text-anchor="middle" class="section" fill="#b67519">分离的后端</text>
+  <text x="503" y="1032" text-anchor="middle" class="small">按应用划分业务边界</text>
+
+  <rect x="388" y="1230" width="230" height="88" rx="18" fill="#eaf8f4" stroke="#bce5d9" stroke-width="1.5"/>
+  <text x="503" y="1266" text-anchor="middle" class="section" fill="#197c67">分布式执行</text>
+  <text x="503" y="1291" text-anchor="middle" class="small">一台机器一个 Agent</text>
+
+  <!-- Entry leaves -->
+  <path d="M618 190 C664 190 664 129 710 129" class="branch" stroke="#3478f6"/>
+  <path d="M618 190 C664 190 664 190 710 190" class="branch" stroke="#3478f6"/>
+  <path d="M618 190 C664 190 664 251 710 251" class="branch" stroke="#3478f6"/>
+  <rect x="710" y="107" width="260" height="45" rx="13" fill="#fff" stroke="#d6e4ff"/>
+  <text x="730" y="136" class="nodeText" font-size="16">Web 浏览器</text><text x="940" y="136" text-anchor="end" class="small">Web</text>
+  <rect x="710" y="168" width="360" height="45" rx="13" fill="#fff" stroke="#d6e4ff"/>
+  <text x="730" y="197" class="nodeText" font-size="16">Tauri 桌面端</text><text x="1045" y="197" text-anchor="end" class="small">Windows · Linux</text>
+  <rect x="710" y="229" width="380" height="45" rx="13" fill="#fff" stroke="#d6e4ff"/>
+  <text x="730" y="258" class="nodeText" font-size="16">Electron 桌面端</text><text x="1065" y="258" text-anchor="end" class="small">Windows · Linux</text>
+
+  <!-- App branches -->
+  <path d="M618 540 C660 540 663 367 700 367" class="branch" stroke="#3478f6"/>
+  <path d="M618 540 C660 540 663 557 700 557" class="branch" stroke="#24a783"/>
+  <path d="M618 540 C660 540 663 747 700 747" class="branch" stroke="#e49b35"/>
+
+  <!-- SteamCMD app card -->
+  <rect x="700" y="294" width="1020" height="150" rx="18" class="card" stroke="#cbdcff"/>
+  <rect x="700" y="294" width="12" height="150" rx="6" fill="#3478f6"/>
+  <text x="735" y="326" class="section" fill="#2864cd">SteamCMD 开服 App</text>
+  <text x="735" y="350" class="small">同一个应用里切换工作模式</text>
+  <rect x="735" y="365" width="435" height="61" rx="12" fill="#f3f7ff" stroke="#dae6ff"/>
+  <text x="754" y="389" font-size="14" font-weight="700">常规模式</text><text x="754" y="412" class="body">选游戏 · 安装更新 · 配置 · 启停</text>
+  <rect x="1185" y="365" width="510" height="61" rx="12" fill="#f4efff" stroke="#dfd4ff"/>
+  <text x="1204" y="389" font-size="14" font-weight="700" fill="#704ed0">AI Work 模式</text><text x="1204" y="412" class="body">生成部署方案 · 解释日志 · 辅助创建开服任务</text>
+
+  <!-- Minecraft app card -->
+  <rect x="700" y="484" width="1020" height="150" rx="18" class="card" stroke="#ccefe3"/>
+  <rect x="700" y="484" width="12" height="150" rx="6" fill="#24a783"/>
+  <text x="735" y="516" class="section" fill="#197c67">Minecraft 开服 App</text>
+  <text x="735" y="540" class="small">Java / Bedrock 在同一应用内管理</text>
+  <rect x="735" y="555" width="435" height="61" rx="12" fill="#effaf7" stroke="#d4f0e6"/>
+  <text x="754" y="579" font-size="14" font-weight="700">常规模式</text><text x="754" y="602" class="body">版本 · 配置 · 世界 · 启停 · 备份</text>
+  <rect x="1185" y="555" width="510" height="61" rx="12" fill="#f4efff" stroke="#dfd4ff"/>
+  <text x="1204" y="579" font-size="14" font-weight="700" fill="#704ed0">AI Work 模式</text><text x="1204" y="602" class="body">生成配置 · 诊断报错 · 解释日志 · 给出建议</text>
+
+  <!-- Writing app card -->
+  <rect x="700" y="674" width="1020" height="150" rx="18" class="card" stroke="#f1dcb9"/>
+  <rect x="700" y="674" width="12" height="150" rx="6" fill="#e49b35"/>
+  <text x="735" y="706" class="section" fill="#b67519">写作 App</text>
+  <text x="735" y="730" class="small">创作和 AI 辅助都在写作应用内部</text>
+  <rect x="735" y="745" width="435" height="61" rx="12" fill="#fff8ed" stroke="#f2e2c9"/>
+  <text x="754" y="769" font-size="14" font-weight="700">常规模式</text><text x="754" y="792" class="body">作品 · 章节 · 大纲 · 自动保存</text>
+  <rect x="1185" y="745" width="510" height="61" rx="12" fill="#f4efff" stroke="#dfd4ff"/>
+  <text x="1204" y="769" font-size="14" font-weight="700" fill="#704ed0">AI Work 模式</text><text x="1204" y="792" class="body">头脑风暴 · 大纲 · 写作 · 改稿 · 连贯性检查</text>
+
+  <!-- Shared backend branches -->
+  <path d="M618 1015 C660 1015 663 925 700 925" class="branch" stroke="#e49b35"/>
+  <path d="M618 1015 C660 1015 663 1038 700 1038" class="branch" stroke="#8a69ec"/>
+  <path d="M618 1015 C660 1015 663 1150 700 1150" class="branch" stroke="#3478f6"/>
+  <rect x="700" y="886" width="1020" height="78" rx="15" class="card"/>
+  <text x="730" y="918" class="nodeText" fill="#b67519">前后端分离</text>
+  <text x="940" y="918" class="body">各 App 前端通过 HTTPS API 调用后端；账号、权限、数据统一管理</text>
+  <text x="730" y="943" class="small">SteamCMD API · Minecraft API · 写作 API · 任务 API</text>
+
+  <rect x="700" y="997" width="1020" height="82" rx="15" fill="#f7f3ff" stroke="#ddd2ff" stroke-width="1.3" filter="url(#shadow)"/>
+  <text x="730" y="1030" class="nodeText" fill="#704ed0">共用 AI 引擎（后端能力，不是独立 App）</text>
+  <text x="730" y="1057" class="body">模型接入与上下文管理 · 按当前 App 提供专属知识和工具 · 用户确认后再执行有影响的操作</text>
+
+  <rect x="700" y="1112" width="1020" height="78" rx="15" class="card"/>
+  <text x="730" y="1144" class="nodeText" fill="#2864cd">任务调度与数据</text>
+  <text x="930" y="1144" class="body">调度开服任务到目标节点；数据库保存配置与内容，文件存储保存章节、日志和备份</text>
+  <text x="730" y="1170" class="small">AI Work 可以调用当前 App 的 API；写作内容不经过开服 Agent</text>
+
+  <!-- Distributed node branches -->
+  <path d="M618 1274 H665 V1325 H945 V1340" class="branch" stroke="#24a783"/>
+  <path d="M665 1325 H1465 V1340" class="branch" stroke="#24a783"/>
+  <rect x="700" y="1340" width="490" height="76" rx="15" fill="#fff" stroke="#ccefe3" stroke-width="1.3" filter="url(#shadow)"/>
+  <text x="724" y="1371" class="nodeText" fill="#197c67">本机节点 · Windows Agent</text>
+  <text x="724" y="1396" class="body">调用 SteamCMD、管理 Minecraft / 游戏服务器进程</text>
+  <rect x="1210" y="1340" width="510" height="76" rx="15" fill="#fff" stroke="#ccefe3" stroke-width="1.3" filter="url(#shadow)"/>
+  <text x="1234" y="1371" class="nodeText" fill="#197c67">远程节点 · Linux Agent</text>
+  <text x="1234" y="1396" class="body">在 VPS 执行任务，回传进度、状态和日志</text>
+
+  <!-- Key takeaway -->
+  <rect x="700" y="1430" width="1020" height="86" rx="17" fill="#172b45"/>
+  <text x="730" y="1464" font-size="16" font-weight="700" fill="#fff">关系总结</text>
+  <text x="730" y="1493" font-size="14" fill="#e2eaf5">用户在 SteamCMD / Minecraft / 写作 App 内切换 AI Work；AI 能力由后端共用，开服命令由目标节点 Agent 执行。</text>
+
+  <!-- Dashed relation: each AI Work mode uses shared AI engine -->
+  <path d="M1695 395 C1760 395 1760 1038 1720 1038" class="thin"/>
+  <path d="M1695 585 C1750 585 1750 1038 1720 1038" class="thin"/>
+  <path d="M1695 775 C1740 775 1740 1038 1720 1038" class="thin"/>
+  <text x="1744" y="641" transform="rotate(90 1744 641)" font-size="12" font-weight="700" fill="#704ed0">每个 App 的 AI Work 都调用同一 AI 引擎</text>
+</svg>

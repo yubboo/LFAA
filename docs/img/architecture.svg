@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">AI 工作台与应用中心架构图</title>
+  <desc id="desc">展示 Web、Tauri、Electron 共用应用前端，通过后端 API 使用 SteamCMD、Minecraft、写作和 AI 应用，由本机或 Linux Agent 执行开服任务。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f5f8ff"/><stop offset="1" stop-color="#eef4fb"/></linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3478f6"/><stop offset="1" stop-color="#1557ce"/></linearGradient>
+    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8b65f5"/><stop offset="1" stop-color="#6744d4"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#18324f" flood-opacity=".09"/></filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#7890ae"/></marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#3478f6"/></marker>
+    <marker id="arrowBoth" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#26a58a"/></marker>
+    <style>
+      text{font-family:"Microsoft YaHei","Noto Sans CJK SC","PingFang SC",Arial,sans-serif;fill:#172b45}
+      .title{font-size:34px;font-weight:700;letter-spacing:.5px}.subtitle{font-size:16px;fill:#61748d}
+      .section{font-size:19px;font-weight:700}.small{font-size:13px;fill:#61748d}.label{font-size:15px;font-weight:600}
+      .cardTitle{font-size:17px;font-weight:700}.cardDesc{font-size:13px;fill:#61748d}
+      .panel{fill:#fff;stroke:#dce5f0;stroke-width:1.3;filter:url(#shadow)}
+      .soft{fill:#f7f9fc;stroke:#e2e9f2;stroke-width:1.2}.flow{fill:none;stroke:#7890ae;stroke-width:2.2;marker-end:url(#arrow)}
+      .flowBlue{fill:none;stroke:#3478f6;stroke-width:2.4;marker-end:url(#arrowBlue)}
+    </style>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <text x="64" y="58" class="title">AI 工作台 · 应用中心架构</text>
+  <text x="66" y="88" class="subtitle">一套应用体验，多种客户端；后端分离，Agent 在不同电脑和服务器执行开服任务</text>
+  <rect x="1295" y="38" width="240" height="34" rx="17" fill="#e5efff"/>
+  <text x="1415" y="60" text-anchor="middle" font-size="13" font-weight="700" fill="#2864cd">前端分离 · 节点分布式</text>
+
+  <!-- Client entry -->
+  <rect x="64" y="112" width="1472" height="112" rx="18" class="panel"/>
+  <text x="88" y="142" class="section">多端入口</text>
+  <text x="88" y="169" class="small">选择任一端登录，进入同一工作台</text>
+  <rect x="430" y="132" width="250" height="66" rx="13" fill="#f0f6ff" stroke="#cfe0ff"/>
+  <circle cx="463" cy="165" r="17" fill="#3478f6"/><text x="463" y="171" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">W</text>
+  <text x="490" y="160" class="cardTitle">Web 端</text><text x="490" y="181" class="cardDesc">浏览器访问</text>
+  <rect x="700" y="132" width="350" height="66" rx="13" fill="#f4f1ff" stroke="#ded5ff"/>
+  <circle cx="734" cy="165" r="17" fill="#7658e8"/><text x="734" y="171" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">T</text>
+  <text x="761" y="160" class="cardTitle">Tauri 桌面端</text><text x="761" y="181" class="cardDesc">Windows · Linux</text>
+  <rect x="1070" y="132" width="390" height="66" rx="13" fill="#effaf7" stroke="#ccefe3"/>
+  <circle cx="1104" cy="165" r="17" fill="#22a783"/><text x="1104" y="171" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">E</text>
+  <text x="1131" y="160" class="cardTitle">Electron 桌面端</text><text x="1131" y="181" class="cardDesc">Windows · Linux</text>
+
+  <path d="M800 224V249" class="flow"/>
+  <text x="817" y="243" class="small">共用应用界面</text>
+
+  <!-- App center -->
+  <rect x="64" y="252" width="1472" height="190" rx="18" class="panel"/>
+  <text x="88" y="284" class="section">应用中心前端</text>
+  <text x="279" y="284" class="small">每个功能是可打开使用的独立应用模块</text>
+  <rect x="88" y="303" width="338" height="112" rx="14" fill="#edf4ff" stroke="#cbdcff"/>
+  <rect x="108" y="321" width="42" height="42" rx="12" fill="url(#blue)"/><text x="129" y="350" text-anchor="middle" font-size="23" fill="#fff">⇩</text>
+  <text x="165" y="338" class="cardTitle">SteamCMD 开服</text><text x="165" y="363" class="cardDesc">选游戏 · 安装更新 · 启停管理</text><text x="108" y="394" class="small">前端应用</text>
+  <rect x="446" y="303" width="338" height="112" rx="14" fill="#effaf7" stroke="#ccefe3"/>
+  <rect x="466" y="321" width="42" height="42" rx="12" fill="#24a783"/><text x="487" y="349" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">M</text>
+  <text x="523" y="338" class="cardTitle">Minecraft 开服</text><text x="523" y="363" class="cardDesc">Java / Bedrock · 配置 · 启停</text><text x="466" y="394" class="small">前端应用</text>
+  <rect x="804" y="303" width="338" height="112" rx="14" fill="#fff8ec" stroke="#f2dfbd"/>
+  <rect x="824" y="321" width="42" height="42" rx="12" fill="#e99b2e"/><text x="845" y="349" text-anchor="middle" font-size="20" font-weight="700" fill="#fff">文</text>
+  <text x="881" y="338" class="cardTitle">写作应用</text><text x="881" y="363" class="cardDesc">作品 · 章节 · 大纲 · 自动保存</text><text x="824" y="394" class="small">直接使用后端内容服务</text>
+  <rect x="1162" y="303" width="350" height="112" rx="14" fill="#f5f0ff" stroke="#ded5ff"/>
+  <rect x="1182" y="321" width="42" height="42" rx="12" fill="url(#purple)"/><text x="1203" y="350" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">✦</text>
+  <text x="1239" y="338" class="cardTitle">AI 工作台</text><text x="1239" y="363" class="cardDesc">模型对话 · 写作辅助 · 任务辅助</text><text x="1182" y="394" class="small">经授权调用其他应用功能</text>
+
+  <path d="M800 442V470" class="flowBlue"/>
+  <rect x="661" y="448" width="278" height="27" rx="13" fill="#e8f0ff"/>
+  <text x="800" y="467" text-anchor="middle" font-size="13" font-weight="700" fill="#2864cd">HTTPS API · 前后端分离</text>
+
+  <!-- Backend -->
+  <rect x="64" y="478" width="1020" height="290" rx="18" class="panel"/>
+  <text x="88" y="512" class="section">后端业务服务</text>
+  <text x="292" y="512" class="small">模块边界清楚；首期可统一部署，后续按需拆分</text>
+  <rect x="88" y="532" width="298" height="83" rx="12" fill="#f4f7fb" stroke="#dce5f0"/>
+  <text x="108" y="561" class="cardTitle">SteamCMD 服务</text><text x="108" y="588" class="cardDesc">游戏目录、版本、部署配置、更新任务</text>
+  <rect x="406" y="532" width="298" height="83" rx="12" fill="#f4f7fb" stroke="#dce5f0"/>
+  <text x="426" y="561" class="cardTitle">Minecraft 服务</text><text x="426" y="588" class="cardDesc">Java / Bedrock 配置、实例与备份</text>
+  <rect x="724" y="532" width="336" height="83" rx="12" fill="#f4f7fb" stroke="#dce5f0"/>
+  <text x="744" y="561" class="cardTitle">写作服务</text><text x="744" y="588" class="cardDesc">作品、章节、版本与工作区数据</text>
+  <rect x="88" y="628" width="298" height="83" rx="12" fill="#f7f3ff" stroke="#e3d9ff"/>
+  <text x="108" y="657" class="cardTitle">AI 服务</text><text x="108" y="684" class="cardDesc">模型选择、对话、知识检索与工具调用</text>
+  <rect x="406" y="628" width="298" height="83" rx="12" fill="#f4f7fb" stroke="#dce5f0"/>
+  <text x="426" y="657" class="cardTitle">公共服务</text><text x="426" y="684" class="cardDesc">账号、权限、工作区、API 合约</text>
+  <rect x="724" y="628" width="336" height="83" rx="12" fill="#eaf7f4" stroke="#ccefe3"/>
+  <text x="744" y="657" class="cardTitle">任务调度</text><text x="744" y="684" class="cardDesc">创建任务 · 选择节点 · 汇总状态和日志</text>
+  <rect x="88" y="724" width="972" height="27" rx="13" fill="#f1f5fa"/>
+  <text x="574" y="743" text-anchor="middle" font-size="13" fill="#61748d">任务队列 / 事件通道：把指令发给 Agent，把进度与日志送回应用</text>
+
+  <!-- Data / model services -->
+  <rect x="1104" y="478" width="432" height="290" rx="18" class="panel"/>
+  <text x="1128" y="512" class="section">数据与模型</text>
+  <rect x="1128" y="532" width="384" height="63" rx="12" fill="#f4f7fb" stroke="#dce5f0"/>
+  <circle cx="1157" cy="563" r="15" fill="#3478f6"/><text x="1157" y="568" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">DB</text>
+  <text x="1183" y="559" class="label">业务数据库</text><text x="1183" y="580" class="cardDesc">账号、配置、任务、小说资料</text>
+  <rect x="1128" y="607" width="384" height="63" rx="12" fill="#f4f7fb" stroke="#dce5f0"/>
+  <circle cx="1157" cy="638" r="15" fill="#24a783"/><text x="1157" y="643" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">FILE</text>
+  <text x="1183" y="634" class="label">文件与备份存储</text><text x="1183" y="655" class="cardDesc">章节文件、服务器备份、附件</text>
+  <rect x="1128" y="682" width="384" height="63" rx="12" fill="#f7f3ff" stroke="#e3d9ff"/>
+  <circle cx="1157" cy="713" r="15" fill="#7658e8"/><text x="1157" y="718" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">AI</text>
+  <text x="1183" y="709" class="label">模型服务</text><text x="1183" y="730" class="cardDesc">云端大模型 / 私有模型 / 本地模型</text>
+
+  <!-- Queue and distributed agents -->
+  <path d="M892 768V792" class="flowBlue"/>
+  <rect x="64" y="792" width="1472" height="42" rx="13" fill="#e9f6f3" stroke="#c8e9e1"/>
+  <text x="800" y="819" text-anchor="middle" font-size="15" font-weight="700" fill="#197c67">分布式执行层 · 一台电脑 / 服务器安装一个 Agent</text>
+  <path d="M800 834V851H417V866" fill="none" stroke="#26a58a" stroke-width="2.3" marker-end="url(#arrowBoth)"/>
+  <path d="M800 851H1181V866" fill="none" stroke="#26a58a" stroke-width="2.3" marker-end="url(#arrowBoth)"/>
+
+  <rect x="64" y="868" width="710" height="104" rx="16" fill="#fff" stroke="#cfe0ff" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="86" y="884" width="44" height="44" rx="12" fill="#3478f6"/><text x="108" y="912" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">PC</text>
+  <text x="145" y="899" class="cardTitle">本机节点 · Windows Agent</text><text x="145" y="921" class="cardDesc">接收开服任务，管理本机进程</text>
+  <rect x="145" y="934" width="170" height="25" rx="12" fill="#edf4ff"/><text x="230" y="951" text-anchor="middle" font-size="12" fill="#2864cd">SteamCMD + 游戏服务器</text>
+  <rect x="324" y="934" width="185" height="25" rx="12" fill="#effaf7"/><text x="416" y="951" text-anchor="middle" font-size="12" fill="#197c67">Minecraft 服务端</text>
+  <text x="550" y="950" class="small">关闭工作台后可继续运行</text>
+
+  <rect x="794" y="868" width="742" height="104" rx="16" fill="#fff" stroke="#ccefe3" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="816" y="884" width="44" height="44" rx="12" fill="#24a783"/><text x="838" y="912" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">SV</text>
+  <text x="875" y="899" class="cardTitle">远程节点 · Linux Agent（VPS / 服务器）</text><text x="875" y="921" class="cardDesc">同一套 Agent 协议，可从 Web 或桌面端选择目标机器</text>
+  <rect x="875" y="934" width="190" height="25" rx="12" fill="#edf4ff"/><text x="970" y="951" text-anchor="middle" font-size="12" fill="#2864cd">SteamCMD + 游戏服务器</text>
+  <rect x="1074" y="934" width="195" height="25" rx="12" fill="#effaf7"/><text x="1171" y="951" text-anchor="middle" font-size="12" fill="#197c67">Minecraft 服务端</text>
+  <text x="1286" y="950" class="small">状态 / 日志回传</text>
+</svg>

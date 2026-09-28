@@ -1,0 +1,21 @@
+{
+  "name": "lfaa",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": ">=24.15.0"
+  },
+  "description": "LFAA workspace command entry point",
+  "scripts": {
+    "dev": "pnpm --recursive --parallel --filter lfaa-server --filter lfaa-frontend --filter lfaa-daemon run dev",
+    "dev:frontend": "pnpm --filter lfaa-frontend run dev",
+    "dev:server": "pnpm --filter lfaa-server run dev",
+    "dev:daemon": "pnpm --filter lfaa-daemon run dev",
+    "build": "pnpm run build:frontend && pnpm run build:server && pnpm run build:daemon",
+    "test": "pnpm --filter lfaa-server run test",
+    "build:frontend": "pnpm --filter lfaa-frontend run build",
+    "build:server": "pnpm --filter lfaa-server run build",
+    "build:daemon": "pnpm --filter lfaa-daemon run build"
+  }
+}

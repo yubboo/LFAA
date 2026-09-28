@@ -1,0 +1,14 @@
+# 依赖与根目录构建产物；包内误放的构建目录必须保持可见
+node_modules/
+**/node_modules/
+/dist/
+# 本机运行数据、凭据和数据库
+/data/
+/server/data/
+coverage/
+
+# Local configuration and logs
+.env
+.env.*
+!.env.example
+*.log

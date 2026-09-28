@@ -1,0 +1,632 @@
+/*
+ 功能：定义应用中心导航、应用卡片和工作台页脚样式。
+ 作用：呈现 SteamCMD、Minecraft 与写作应用入口及服务状态。
+ 关联文件：frontend/src/components/Workbench.tsx、frontend/src/styles/responsive.css。
+*/
+
+/* 工作台：顶部品牌与返回按钮｜开始 */
+.brand-lockup {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.brand-mark {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-deep);
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.brand-name {
+  color: inherit;
+  font-size: 14px;
+  font-weight: 760;
+  letter-spacing: .14em;
+}
+
+.brand-lockup--button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-heading);
+  cursor: pointer;
+}
+.brand-lockup--button .brand-mark {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
+}
+/* 工作台：顶部品牌与返回按钮｜结束 */
+.workbench-shell {
+  min-height: 100vh;
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--settings-interface-font-size, var(--font-size-base));
+  color: var(--color-text-primary);
+  background-color: var(--color-canvas);
+  background-image:
+    linear-gradient(var(--settings-background-overlay, rgba(244,247,252,.42)), var(--settings-background-overlay, rgba(244,247,252,.42))),
+    var(--settings-background-image, url(/images/minecraft/forest-bridge-evening.png));
+  background-position: center;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+/* 浅色主题的边框随高级对比度设置调整，默认值保持原有配色。 */
+.workbench-shell[data-theme="light"] {
+  --color-border: color-mix(in srgb, color-mix(in srgb, #dce3ed, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
+  --color-border-strong: color-mix(in srgb, color-mix(in srgb, #d4dce8, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
+  --color-border-subtle: color-mix(in srgb, color-mix(in srgb, #e7ecf3, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
+  --color-border-soft: color-mix(in srgb, color-mix(in srgb, #dfe5ef, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
+  --color-border-muted: color-mix(in srgb, color-mix(in srgb, #d8e0eb, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
+}
+
+.workbench-shell .workbench-content {
+  font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans)));
+}
+
+.workbench-shell .workbench-content .ant-typography,
+.workbench-shell .workbench-content .settings-row__copy {
+  font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans)));
+}
+
+.workbench-shell .settings-sidebar,
+.workbench-shell .module-sidebar {
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+}
+
+.workbench-shell :is(code, pre, kbd, .module-terminal__body, .settings-code-preview) {
+  font-family: var(--settings-code-font, Consolas, "Cascadia Code", monospace);
+  font-size: var(--settings-code-font-size, 12px);
+}
+.topbar {
+  position: sticky;
+  z-index: 5;
+  top: 0;
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 26px;
+  padding: 0 clamp(24px,5.5vw,88px);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 82%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 84%, transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur, 8px));
+  backdrop-filter: blur(var(--settings-glass-blur, 8px));
+}
+.topbar-nav {
+  display: flex;
+  height: 76px;
+  align-items: stretch;
+  gap: 8px;
+  margin-right: auto;
+}
+.nav-button.ant-btn {
+  position: relative;
+  height: 100%;
+  padding-inline: 16px;
+  border-radius: 0;
+  color: var(--color-text-secondary);
+  font-weight: 550;
+}
+.nav-button--active.ant-btn {
+  color: var(--settings-accent, var(--color-brand-hover));
+}
+.nav-button--active.ant-btn:hover,
+.brand-mark {
+  color: var(--settings-accent, var(--color-brand));
+}
+.nav-button--active.ant-btn:after {
+  position: absolute;
+  right: 15px;
+  bottom: 0;
+  left: 15px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--settings-accent, var(--color-brand));
+  content: "";
+}
+.topbar-account {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.account-identity {
+  display: flex;
+  min-width: 74px;
+  flex-direction: column;
+  gap: 2px;
+}
+.account-username {
+  overflow: hidden;
+  color: var(--color-text-heading);
+  font-size: var(--font-size-md);
+  font-weight: 650;
+  text-overflow: ellipsis;
+}
+.account-role {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+.logout-button.ant-btn {
+  color: var(--color-text-secondary);
+}
+.ai-work-button--preferred.ant-btn {
+  border-color: var(--settings-accent, var(--color-border));
+  background: var(--settings-accent, var(--color-surface));
+  color: #fff;
+}
+.workbench-content {
+  width: min(100% - 48px,1340px);
+  margin: 0 auto;
+  padding: clamp(36px,4vw,64px) 0 clamp(44px,5vw,64px);
+}
+.page-intro {
+  display: flex;
+  min-height: 244px;
+  flex-direction: column;
+  justify-content: flex-end;
+  max-width: none;
+  margin-bottom: clamp(24px,3vw,40px);
+  padding: clamp(24px,3.5vw,40px);
+  overflow: hidden;
+  border-radius: 22px;
+  background-color: #181818;
+  background-image: linear-gradient(90deg,rgba(24,24,24,.82),rgba(24,24,24,.42) 72%,rgba(24,24,24,.2)),var(--settings-background-image, url(/images/minecraft/forest-bridge-evening.png));
+  background-position: center 56%;
+  background-size: cover;
+}
+.page-intro h1.ant-typography {
+  margin: 0 0 12px;
+  color: var(--color-surface);
+  font-size: clamp(34px,3.7vw,48px);
+  font-weight: 650;
+  letter-spacing: -.055em;
+  line-height: 1.12;
+}
+.page-intro p.ant-typography {
+  max-width: 44rem;
+  margin: 0;
+  color: #f4f7ffcc;
+  font-size: var(--font-size-lg);
+  line-height: 1.65;
+}
+.application-grid {
+  display: grid;
+  grid-auto-flow: dense;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 18px;
+}
+.application-card.ant-card {
+  min-height: 320px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  box-shadow: 0 9px 30px var(--color-shadow-card-soft);
+  transition: transform .22s ease,box-shadow .22s ease,border-color .22s ease;
+}
+.application-card.ant-card:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 36%, var(--color-border));
+  box-shadow: 0 20px 40px color-mix(in srgb, var(--color-shadow-card-soft) 80%, transparent);
+}
+.application-card--blue.ant-card {
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+}
+.application-card--green.ant-card {
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+}
+.application-card--plum.ant-card {
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+}
+.application-card--selected.ant-card {
+  border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 48%, var(--color-border));
+  box-shadow: 0 0 0 2px var(--color-brand-subtle),0 12px 30px var(--color-shadow-card-soft);
+}
+.application-card .ant-card-body {
+  display: flex;
+  min-height: 320px;
+  flex-direction: column;
+  padding: 26px;
+}
+.application-card__topline {
+  display: flex;
+  min-height: 100px;
+  align-items: center;
+  justify-content: space-between;
+  margin: -26px -26px 0;
+  padding: 20px 26px;
+  border-radius: 19px 19px 0 0;
+  background-position: center;
+  background-size: cover;
+}
+.application-card--steamcmd .application-card__topline {
+  background-image: linear-gradient(90deg,rgba(12,20,36,.66),rgba(12,20,36,.16)),url(/images/minecraft/ocean-cliff-sunset.png);
+}
+.application-card--minecraft .application-card__topline {
+  background-image: linear-gradient(90deg,rgba(12,20,36,.66),rgba(12,20,36,.16)),url(/images/minecraft/cherry-blossom-village.png);
+}
+.application-card--writing .application-card__topline {
+  background-image: linear-gradient(90deg,rgba(12,20,36,.66),rgba(12,20,36,.16)),url(/images/minecraft/snowy-cabin-interior.png);
+}
+.application-monogram {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.8);
+  border-radius: 15px;
+  font-size: 17px;
+  font-weight: 720;
+}
+.application-monogram--blue {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
+}
+.application-monogram--green {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
+}
+.application-monogram--plum {
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
+}
+.selected-tag.ant-tag {
+  margin: 0;
+  padding: 3px 9px;
+  border-color: var(--color-border);
+  border-radius: 999px;
+  background: var(--color-brand-subtle);
+  color: var(--settings-accent, var(--color-brand));
+  font-size: var(--font-size-xs);
+}
+.application-card__copy {
+  margin-top: 18px;
+}
+.application-card__copy h3.ant-typography {
+  margin: 0 0 10px;
+  color: var(--color-text-heading);
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -.025em;
+}
+.application-card__copy p.ant-typography {
+  max-width: 360px;
+  min-height: 48px;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  line-height: 1.8;
+}
+.development-state {
+  display: inline-block;
+  margin-top: 13px;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+.application-card__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 22px;
+}
+.application-card__actions .ant-btn {
+  min-height: 39px;
+  padding-inline: 15px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+.application-card__actions .ai-work-button {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+.application-card__actions .ai-work-button:hover {
+  border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 42%, var(--color-border));
+  color: var(--color-brand);
+}
+.workspace-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 20px;
+  padding: 18px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+}
+.workspace-note p.ant-typography {
+  margin: 5px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.account-list-note {
+  margin-top: 12px;
+  font-size: var(--font-size-sm);
+}
+.workbench-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px clamp(24px,5.5vw,88px);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+.account-form-card .ant-card-body {
+  padding: 24px;
+}
+.account-list-note {
+  margin-top: 12px;
+  font-size: var(--font-size-sm);
+}
+.workbench-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: 22px clamp(24px,5.5vw,88px);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+.module-app-item .application-monogram {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  font-size: var(--font-size-sm);
+}
+
+.workbench-shell[data-theme="dark"] {
+  color-scheme: dark;
+  /* 深色模式统一使用中性黑灰背景与浅灰文字；边框沿用可调对比度，状态色保留语义色相。 */
+  --color-brand-subtle: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 18%, transparent);
+  --color-brand-glow: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 24%, transparent);
+  --color-shadow-card-soft: rgba(0, 0, 0, .24);
+  --color-shadow-float: rgba(0, 0, 0, .42);
+  --color-canvas: #181818;
+  --color-surface: #202020;
+  --color-surface-muted: #262626;
+  --color-surface-hover: #303030;
+  --color-surface-selected: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 18%, #262626);
+  --color-text-primary: #e5e5e5;
+  --color-text-heading: #f5f5f5;
+  --color-text-secondary: #c7c7c7;
+  --color-text-muted: #a8a8a8;
+  --color-text-caption: #a8a8a8;
+  --color-text-subtle: #8c8c8c;
+  --color-text-inverse: #f7f7f7;
+  --color-border: color-mix(in srgb, color-mix(in srgb, #3a3a3a, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
+  --color-border-strong: color-mix(in srgb, color-mix(in srgb, #454545, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
+  --color-border-subtle: color-mix(in srgb, color-mix(in srgb, #303030, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
+  --color-border-soft: color-mix(in srgb, color-mix(in srgb, #3a3a3a, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
+  --color-border-muted: color-mix(in srgb, color-mix(in srgb, #424242, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
+  --color-status-idle: #8797ae;
+  --color-status-success: #4aa983;
+  --color-status-success-text: #8bcbaa;
+  --color-status-success-surface: #1e3b34;
+  --color-status-warning: #d0ad61;
+  --color-status-warning-surface: #3b3425;
+  --color-status-error: #da7378;
+  --color-status-error-text: #e5a0a2;
+  --color-status-error-surface: #402b31;
+  color: var(--color-text-primary);
+}
+
+.workbench-shell[data-theme="dark"] .lfaa-workbench {
+  /* 弹性分栏使用 #181818 中性底色、#e5e5e5 浅灰文字和 #3a3a3a 分隔线，覆盖侧栏与底部面板空隙。 */
+  --agent-bg: #181818;
+  --agent-text: #e5e5e5;
+  --agent-border: #3a3a3a;
+  --agent-strong-border: #454545;
+}
+
+.workbench-shell[data-theme="dark"] .topbar {
+  border-bottom-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+}
+
+.workbench-shell[data-theme="dark"] .application-card.ant-card,
+.workbench-shell[data-theme="dark"] .workspace-note,
+.workbench-shell[data-theme="dark"] .module-notice-card,
+.workbench-shell[data-theme="dark"] .settings-page,
+.workbench-shell[data-theme="dark"] .settings-group__rows,
+.workbench-shell[data-theme="dark"] .settings-card.ant-card,
+.workbench-shell[data-theme="dark"] .ai-account-item {
+  border-color: var(--color-border);
+  background-color: color-mix(in srgb, var(--color-surface) 92%, transparent);
+}
+
+.workbench-shell[data-theme="dark"] .application-card--blue.ant-card,
+.workbench-shell[data-theme="dark"] .application-card--green.ant-card,
+.workbench-shell[data-theme="dark"] .application-card--plum.ant-card {
+  background-image: none;
+}
+
+.workbench-shell[data-theme="dark"] .settings-preview {
+  border-color: color-mix(in srgb, var(--preview-accent) 32%, var(--color-border));
+}
+
+.workbench-shell[data-theme="dark"] .ant-input,
+.workbench-shell[data-theme="dark"] .ant-input-affix-wrapper,
+.workbench-shell[data-theme="dark"] .ant-select-selector,
+.workbench-shell[data-theme="dark"] .ant-picker,
+.workbench-shell[data-theme="dark"] .ant-input-number {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-surface-muted);
+  color: var(--color-text-primary);
+}
+
+.workbench-shell[data-theme="dark"] .ant-input-number-input,
+.workbench-shell[data-theme="dark"] .ant-select-selection-item,
+.workbench-shell[data-theme="dark"] .ant-picker-input > input {
+  color: var(--color-text-primary);
+}
+
+.workbench-shell[data-theme="dark"] .ant-input::placeholder,
+.workbench-shell[data-theme="dark"] .ant-select-selection-placeholder,
+.workbench-shell[data-theme="dark"] .ant-picker-input > input::placeholder {
+  color: var(--color-text-subtle);
+}
+
+.workbench-shell[data-theme="dark"] .ant-btn-default {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+}
+
+.workbench-shell[data-theme="dark"] .ant-btn-default:hover {
+  border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 50%, var(--color-border));
+  background: var(--color-surface-hover);
+  color: var(--settings-accent, var(--color-brand));
+}
+
+.workbench-shell[data-theme="dark"] .ant-card,
+.workbench-shell[data-theme="dark"] .ant-table,
+.workbench-shell[data-theme="dark"] .ant-table-container,
+.workbench-shell[data-theme="dark"] .ant-table-thead > tr > th,
+.workbench-shell[data-theme="dark"] .ant-table-tbody > tr > td {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.workbench-shell[data-theme="dark"] .ant-table-thead > tr > th {
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+}
+
+.workbench-shell[data-theme="dark"] .ant-table-tbody > tr:hover > td {
+  background: var(--color-surface-hover);
+}
+
+body:has(.workbench-shell[data-theme="dark"]) .ant-select-dropdown,
+body:has(.workbench-shell[data-theme="dark"]) .ant-dropdown-menu,
+body:has(.workbench-shell[data-theme="dark"]) .ant-popover-inner,
+body:has(.workbench-shell[data-theme="dark"]) .ant-modal-content,
+body:has(.workbench-shell[data-theme="dark"]) .ant-picker-panel {
+  border-color: #3a3a3a;
+  background: #202020;
+  color: #e5e5e5;
+}
+
+body:has(.workbench-shell[data-theme="dark"]) .ant-select-item,
+body:has(.workbench-shell[data-theme="dark"]) .ant-dropdown-menu-item,
+body:has(.workbench-shell[data-theme="dark"]) .ant-popover-title,
+body:has(.workbench-shell[data-theme="dark"]) .ant-modal-title {
+  color: #e5e5e5;
+}
+
+body:has(.workbench-shell[data-theme="dark"]) .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+body:has(.workbench-shell[data-theme="dark"]) .ant-dropdown-menu-item:hover {
+  background: #303030;
+}
+
+body:has(.workbench-shell[data-theme="dark"]) {
+  color-scheme: dark;
+  background: #181818;
+}
+
+.workbench-shell .settings-sidebar,
+.workbench-shell .module-sidebar,
+.workbench-shell .module-navigation-rail,
+.workbench-shell .module-context {
+  /* 四种导航与工具侧栏共用账户设置的底色；自动值回退到当前主题的中灰或浅灰表面。 */
+  background-color: var(--settings-sidebar-color, var(--color-surface-muted));
+}
+
+/* 自定义侧栏颜色同步生成对比文字、边框和选中底色，确保浅深颜色都能阅读。 */
+.workbench-shell[data-custom-sidebar-color="true"] :is(.settings-sidebar, .module-sidebar, .module-navigation-rail, .module-context) {
+  --settings-accent: var(--settings-sidebar-accent);
+  --color-brand: var(--settings-sidebar-accent);
+  --color-brand-hover: var(--settings-sidebar-accent);
+  --color-brand-subtle: color-mix(in srgb, var(--settings-sidebar-accent) 14%, transparent);
+  --color-brand-glow: color-mix(in srgb, var(--settings-sidebar-accent) 20%, transparent);
+  --color-text-primary: var(--settings-sidebar-text-primary);
+  --color-text-heading: var(--settings-sidebar-text-heading);
+  --color-text-secondary: var(--settings-sidebar-text-secondary);
+  --color-text-muted: var(--settings-sidebar-text-muted);
+  --color-text-caption: var(--settings-sidebar-text-caption);
+  --color-text-subtle: var(--settings-sidebar-text-subtle);
+  --color-text-inverse: var(--settings-sidebar-text-primary);
+  --color-surface: var(--settings-sidebar-surface);
+  --color-surface-muted: var(--settings-sidebar-surface-muted);
+  --color-surface-hover: var(--settings-sidebar-surface-hover);
+  --color-surface-selected: var(--settings-sidebar-surface-selected);
+  --color-border: var(--settings-sidebar-border);
+  --color-border-strong: var(--settings-sidebar-border-strong);
+  --color-border-subtle: var(--settings-sidebar-border-subtle);
+  --color-border-soft: var(--settings-sidebar-border);
+  --color-border-muted: var(--settings-sidebar-border-strong);
+  --color-focus-ring: color-mix(in srgb, var(--settings-sidebar-accent) 34%, transparent);
+}
+
+/* 半透明效果沿用用户侧栏颜色与当前背景模糊强度。 */
+.workbench-shell[data-translucent-sidebar="true"] .settings-sidebar,
+.workbench-shell[data-translucent-sidebar="true"] .module-sidebar,
+.workbench-shell[data-translucent-sidebar="true"] .module-navigation-rail,
+.workbench-shell[data-translucent-sidebar="true"] .module-context {
+  background: color-mix(in srgb, var(--color-surface-muted) 76%, transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur, 8px));
+  backdrop-filter: blur(var(--settings-glass-blur, 8px));
+}
+
+/* 动态效果可由用户强制减少，也可只遵循系统的无障碍偏好。 */
+.workbench-shell[data-reduced-motion="on"] *,
+.workbench-shell[data-reduced-motion="on"] *::before,
+.workbench-shell[data-reduced-motion="on"] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workbench-shell[data-reduced-motion="system"] *,
+  .workbench-shell[data-reduced-motion="system"] *::before,
+  .workbench-shell[data-reduced-motion="system"] *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
+/* 仅在显式开启时覆盖按钮、链接、选择器和带交互语义的元素光标。 */
+.workbench-shell[data-pointer-cursor="true"] :is(button, a[href], [role="button"], [role="option"], [role="switch"], [role="tab"], .ant-select-selector, .ant-slider-handle):not(:disabled) {
+  cursor: pointer;
+}
+
+/* 语义化新增/删除片段可直接读取用户选定的差异显示方式。 */
+.workbench-shell[data-diff-markers="symbols"] :is(ins, .diff-added, [data-diff-type="added"])::before {
+  margin-right: .35em;
+  color: var(--color-status-success);
+  content: "+";
+  font-weight: 750;
+}
+
+.workbench-shell[data-diff-markers="symbols"] :is(del, .diff-removed, [data-diff-type="removed"])::before {
+  margin-right: .35em;
+  color: var(--color-status-error);
+  content: "−";
+  font-weight: 750;
+}
+
+.workbench-shell[data-diff-markers="color"] :is(ins, .diff-added, [data-diff-type="added"]) {
+  background: color-mix(in srgb, var(--color-status-success) 14%, transparent);
+}
+
+.workbench-shell[data-diff-markers="color"] :is(del, .diff-removed, [data-diff-type="removed"]) {
+  background: color-mix(in srgb, var(--color-status-error) 14%, transparent);
+}

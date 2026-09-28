@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1300" viewBox="0 0 1800 1300" role="img" aria-labelledby="title desc">
+  <title id="title">LFAA 系统总体架构图</title>
+  <desc id="desc">多端客户端使用 SteamCMD、Minecraft 和写作应用；每个应用内置 AI Work 模式。前端通过统一 API 连接云端业务服务，开服任务由本机或 Linux Agent 执行。</desc>
+  <defs>
+    <linearGradient id="canvas" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#15171b"/><stop offset="1" stop-color="#101216"/></linearGradient>
+    <linearGradient id="node" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#54233d"/><stop offset="1" stop-color="#3d1b30"/></linearGradient>
+    <linearGradient id="nodeAI" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#56306e"/><stop offset="1" stop-color="#3e2656"/></linearGradient>
+    <linearGradient id="nodeGreen" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#254d49"/><stop offset="1" stop-color="#1c3938"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#000" flood-opacity=".25"/></filter>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="#b7b9bf"/></marker>
+    <marker id="arrowPurple" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="#c69be8"/></marker>
+    <marker id="arrowBoth" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto-start-reverse"><path d="M0 0L9 4.5L0 9Z" fill="#a6d2c6"/></marker>
+    <style>
+      text{font-family:"Microsoft YaHei","Noto Sans CJK SC","PingFang SC",Arial,sans-serif;fill:#f4f3f5}
+      .title{font-size:34px;font-weight:700}.subtitle{font-size:16px;fill:#a8a8ad}.section{font-size:19px;font-weight:700}
+      .cardTitle{font-size:16px;font-weight:700;fill:#f2bfd8}.body{font-size:13px;fill:#e0d6dc}.muted{font-size:12px;fill:#b7b1b8}
+      .panel{fill:#282a2d;stroke:#3e4145;stroke-width:1.2}.card{fill:url(#node);stroke:#71405a;stroke-width:1.2;filter:url(#shadow)}
+      .cardAI{fill:url(#nodeAI);stroke:#7e5d98;stroke-width:1.2;filter:url(#shadow)}.cardGreen{fill:url(#nodeGreen);stroke:#44766f;stroke-width:1.2;filter:url(#shadow)}
+      .line{fill:none;stroke:#9b9da2;stroke-width:1.7;marker-end:url(#arrow)}.lineAI{fill:none;stroke:#c69be8;stroke-width:1.8;marker-end:url(#arrowPurple)}
+      .lineBoth{fill:none;stroke:#a6d2c6;stroke-width:1.8;marker-start:url(#arrowBoth);marker-end:url(#arrowBoth)}
+    </style>
+  </defs>
+  <rect width="1800" height="1300" fill="url(#canvas)"/>
+  <text x="74" y="58" class="title">LFAA 系统总体架构</text>
+  <text x="76" y="88" class="subtitle">应用中心 · 前后端分离 · 分布式执行节点</text>
+  <rect x="1370" y="38" width="358" height="38" rx="19" fill="#33243e" stroke="#5d466c"/>
+  <text x="1549" y="63" text-anchor="middle" font-size="14" font-weight="700" fill="#dfc5f0">AI Work 内置于各业务 App</text>
+
+  <!-- Multi-platform clients -->
+  <rect x="700" y="112" width="1030" height="142" rx="12" class="panel"/>
+  <text x="1215" y="137" text-anchor="middle" class="section">多端客户端</text>
+  <rect x="742" y="157" width="285" height="72" rx="18" class="card"/>
+  <text x="884" y="187" text-anchor="middle" class="cardTitle">Electron 桌面端</text><text x="884" y="210" text-anchor="middle" class="body">Windows / Linux</text>
+  <rect x="1073" y="157" width="285" height="72" rx="18" class="card"/>
+  <text x="1215" y="187" text-anchor="middle" class="cardTitle">Web 应用</text><text x="1215" y="210" text-anchor="middle" class="body">浏览器访问</text>
+  <rect x="1389" y="157" width="300" height="72" rx="18" class="card"/>
+  <text x="1539" y="187" text-anchor="middle" class="cardTitle">Tauri 桌面端</text><text x="1539" y="210" text-anchor="middle" class="body">Windows / Linux</text>
+
+  <!-- Clients to the app layer -->
+  <path d="M884 254V278H906V305" class="line"/>
+  <path d="M1215 254V305" class="line"/>
+  <path d="M1539 254V278H1525V305" class="line"/>
+  <text x="1230" y="286" text-anchor="middle" class="muted">进入同一应用中心</text>
+
+  <!-- App center and business applications -->
+  <rect x="70" y="305" width="1660" height="190" rx="12" class="panel"/>
+  <text x="900" y="333" text-anchor="middle" class="section">应用中心前端（共享工作台）</text>
+  <rect x="108" y="354" width="500" height="115" rx="16" class="card"/>
+  <text x="132" y="383" class="cardTitle">SteamCMD 开服 App</text>
+  <text x="132" y="410" class="body">常规模式：选游戏、安装更新、配置、启停</text>
+  <rect x="132" y="426" width="124" height="27" rx="13" fill="#3e3151" stroke="#83649b"/>
+  <text x="194" y="445" text-anchor="middle" font-size="12" font-weight="700" fill="#e3c9f3">AI Work 模式</text>
+  <text x="269" y="445" class="muted">方案生成 · 日志解读 · 辅助部署</text>
+
+  <rect x="650" y="354" width="500" height="115" rx="16" class="card"/>
+  <text x="674" y="383" class="cardTitle">Minecraft 开服 App</text>
+  <text x="674" y="410" class="body">常规模式：Java / Bedrock、配置、世界、启停</text>
+  <rect x="674" y="426" width="124" height="27" rx="13" fill="#3e3151" stroke="#83649b"/>
+  <text x="736" y="445" text-anchor="middle" font-size="12" font-weight="700" fill="#e3c9f3">AI Work 模式</text>
+  <text x="811" y="445" class="muted">配置建议 · 报错诊断 · 日志分析</text>
+
+  <rect x="1192" y="354" width="500" height="115" rx="16" class="card"/>
+  <text x="1216" y="383" class="cardTitle">写作 App</text>
+  <text x="1216" y="410" class="body">常规模式：作品、章节、大纲、自动保存</text>
+  <rect x="1216" y="426" width="124" height="27" rx="13" fill="#3e3151" stroke="#83649b"/>
+  <text x="1278" y="445" text-anchor="middle" font-size="12" font-weight="700" fill="#e3c9f3">AI Work 模式</text>
+  <text x="1353" y="445" class="muted">构思 · 写作 · 改稿 · 连贯性检查</text>
+
+  <!-- Frontend to API -->
+  <path d="M900 495V526" class="line"/>
+  <text x="920" y="517" class="muted">前端请求 / 实时状态</text>
+  <rect x="675" y="528" width="450" height="68" rx="18" class="card"/>
+  <text x="900" y="556" text-anchor="middle" class="cardTitle">统一 API 接入层</text>
+  <text x="900" y="578" text-anchor="middle" class="body">HTTPS · REST API · SSE / WebSocket</text>
+
+  <!-- Cloud control plane -->
+  <rect x="70" y="622" width="1660" height="350" rx="12" class="panel"/>
+  <text x="98" y="651" class="section">云端控制面（后端服务）</text>
+
+  <!-- Business app APIs -->
+  <rect x="102" y="674" width="610" height="164" rx="14" fill="#303235" stroke="#4a4c50"/>
+  <text x="407" y="701" text-anchor="middle" class="cardTitle">业务应用 API</text>
+  <rect x="122" y="718" width="178" height="95" rx="14" class="card"/>
+  <text x="211" y="755" text-anchor="middle" class="cardTitle">SteamCMD API</text><text x="211" y="780" text-anchor="middle" class="body">游戏目录 / 部署配置</text>
+  <rect x="318" y="718" width="178" height="95" rx="14" class="card"/>
+  <text x="407" y="755" text-anchor="middle" class="cardTitle">Minecraft API</text><text x="407" y="780" text-anchor="middle" class="body">实例 / 版本 / 配置</text>
+  <rect x="514" y="718" width="178" height="95" rx="14" class="card"/>
+  <text x="603" y="755" text-anchor="middle" class="cardTitle">写作 API</text><text x="603" y="780" text-anchor="middle" class="body">作品 / 章节 / 大纲</text>
+
+  <!-- Shared AI orchestration -->
+  <rect x="738" y="674" width="434" height="164" rx="14" fill="#302c35" stroke="#5d4a69"/>
+  <text x="955" y="701" text-anchor="middle" class="cardTitle" fill="#dfc5f0">共用 AI 编排服务</text>
+  <rect x="760" y="718" width="188" height="95" rx="14" class="cardAI"/>
+  <text x="854" y="751" text-anchor="middle" class="cardTitle">模型路由</text><text x="854" y="777" text-anchor="middle" class="body">云 / 私有 / 本地模型</text>
+  <rect x="962" y="718" width="188" height="95" rx="14" class="cardAI"/>
+  <text x="1056" y="751" text-anchor="middle" class="cardTitle">应用上下文与工具</text><text x="1056" y="777" text-anchor="middle" class="body">按当前 App 提供能力</text>
+  <text x="955" y="830" text-anchor="middle" class="muted">AI Work 在各 App 内调用此服务，不单独作为 App</text>
+
+  <!-- Core services -->
+  <rect x="1198" y="674" width="500" height="164" rx="14" fill="#303235" stroke="#4a4c50"/>
+  <text x="1448" y="701" text-anchor="middle" class="cardTitle">平台公共服务</text>
+  <rect x="1220" y="718" width="214" height="95" rx="14" class="card"/>
+  <text x="1327" y="751" text-anchor="middle" class="cardTitle">身份、权限、工作区</text><text x="1327" y="777" text-anchor="middle" class="body">用户 / 配置 / 授权</text>
+  <rect x="1450" y="718" width="226" height="95" rx="14" class="card"/>
+  <text x="1563" y="751" text-anchor="middle" class="cardTitle">任务调度与状态</text><text x="1563" y="777" text-anchor="middle" class="body">派发 / 进度 / 日志</text>
+
+  <!-- Storage, models and queue -->
+  <rect x="102" y="861" width="350" height="78" rx="14" class="card"/>
+  <text x="277" y="892" text-anchor="middle" class="cardTitle">业务数据库</text><text x="277" y="916" text-anchor="middle" class="body">账号、配置、任务、写作资料</text>
+  <rect x="470" y="861" width="350" height="78" rx="14" class="card"/>
+  <text x="645" y="892" text-anchor="middle" class="cardTitle">文件与备份存储</text><text x="645" y="916" text-anchor="middle" class="body">章节附件、日志、服务器备份</text>
+  <rect x="838" y="861" width="350" height="78" rx="14" class="cardAI"/>
+  <text x="1013" y="892" text-anchor="middle" class="cardTitle">大模型服务</text><text x="1013" y="916" text-anchor="middle" class="body">云端 / 私有部署 / 本地模型</text>
+  <rect x="1206" y="861" width="492" height="78" rx="14" class="cardGreen"/>
+  <text x="1452" y="892" text-anchor="middle" class="cardTitle" fill="#bce7d9">任务队列 / Agent 连接通道</text><text x="1452" y="916" text-anchor="middle" class="body">向节点下发任务，回传进度和状态</text>
+
+  <!-- Internal backend connections -->
+  <path d="M407 838V850H277V861" class="line"/>
+  <path d="M407 850H645V861" class="line"/>
+  <path d="M955 838V850H1013V861" class="lineAI"/>
+  <path d="M1563 838V850H1452V861" class="line"/>
+
+  <!-- Execution nodes -->
+  <rect x="70" y="1004" width="1660" height="245" rx="12" class="panel"/>
+  <text x="98" y="1035" class="section">分布式执行节点（每台机器安装一个 Agent）</text>
+  <path d="M1452 939V1048H478V1062" class="lineBoth"/>
+  <path d="M1452 1048H1322V1062" class="lineBoth"/>
+  <rect x="128" y="1062" width="700" height="142" rx="17" class="cardGreen"/>
+  <text x="478" y="1094" text-anchor="middle" class="cardTitle" fill="#bce7d9">本机 Agent · Windows / Linux</text>
+  <text x="478" y="1120" text-anchor="middle" class="body">接收任务 · 调用 SteamCMD · 管理服务端进程</text>
+  <rect x="170" y="1141" width="260" height="42" rx="13" fill="#263e3b" stroke="#4e786f"/>
+  <text x="300" y="1168" text-anchor="middle" class="body">SteamCMD + 游戏服务器</text>
+  <rect x="450" y="1141" width="320" height="42" rx="13" fill="#263e3b" stroke="#4e786f"/>
+  <text x="610" y="1168" text-anchor="middle" class="body">Minecraft Java / Bedrock 服务端</text>
+
+  <rect x="972" y="1062" width="700" height="142" rx="17" class="cardGreen"/>
+  <text x="1322" y="1094" text-anchor="middle" class="cardTitle" fill="#bce7d9">远程 Agent · Linux VPS / 服务器</text>
+  <text x="1322" y="1120" text-anchor="middle" class="body">与本机 Agent 使用同一协议；由 Web 或桌面端选择目标节点</text>
+  <rect x="1030" y="1141" width="265" height="42" rx="13" fill="#263e3b" stroke="#4e786f"/>
+  <text x="1162" y="1168" text-anchor="middle" class="body">游戏服安装与进程管理</text>
+  <rect x="1315" y="1141" width="315" height="42" rx="13" fill="#263e3b" stroke="#4e786f"/>
+  <text x="1472" y="1168" text-anchor="middle" class="body">Minecraft 服务端与日志</text>
+
+  <!-- Notes -->
+  <rect x="128" y="1214" width="1544" height="24" rx="12" fill="#25272b"/>
+  <text x="900" y="1231" text-anchor="middle" class="muted">写作 App 直接使用后端内容服务；只有需要在目标机器上安装或运行服务器的任务才交给 Agent。</text>
+
+  <!-- API routing arrows drawn over panels -->
+  <path d="M900 596V660H407V674" class="line"/>
+  <path d="M900 660H955V674" class="lineAI"/>
+  <path d="M900 660H1448V674" class="line"/>
+</svg>
