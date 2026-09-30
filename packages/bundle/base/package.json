@@ -1,0 +1,49 @@
+{
+  "name": "lfaa-base",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "lfaa": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "lfaa-agent": "workspace:*",
+    "lfaa-agent-loop": "workspace:*",
+    "lfaa-agent-preset": "workspace:*",
+    "lfaa-document-writing": "workspace:*",
+    "lfaa-fs": "workspace:*",
+    "lfaa-games-minecraft": "workspace:*",
+    "lfaa-games-steamcmd": "workspace:*",
+    "lfaa-hmr": "workspace:*",
+    "lfaa-hook-protocol": "workspace:*",
+    "lfaa-host-daemon": "workspace:*",
+    "lfaa-identity-auth": "workspace:*",
+    "lfaa-jobs": "workspace:*",
+    "lfaa-permission-presets": "workspace:*",
+    "lfaa-session": "workspace:*",
+    "lfaa-settings": "workspace:*",
+    "lfaa-storage-sqlite": "workspace:*",
+    "lfaa-tools": "workspace:*",
+    "lfaa-workspace-data-directory": "workspace:*",
+    "lfaa-storage-json": "workspace:*",
+    "lfaa-storage-domain": "workspace:*",
+    "lfaa-session-persistence-jsonl": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/express": "^4.0.0",
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^24.0.0",
+    "@types/js-yaml": "^4.0.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

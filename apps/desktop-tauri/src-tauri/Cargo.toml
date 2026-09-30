@@ -1,0 +1,18 @@
+# 功能：定义 LFAA Windows 桌面外壳的 Rust 构建包和平台依赖。
+# 作用：以 Tauri WebView2 显示本机 Web 界面，并管理随安装包提供的 Node 控制端与 Daemon 进程。
+# 关联文件：apps/desktop-tauri/src-tauri/src/main.rs、apps/desktop-tauri/src-tauri/tauri.conf.json、apps/desktop-tauri/scripts/package-windows.mjs。
+[package]
+name = "lfaa-desktop-tauri"
+version = "0.1.1"
+description = "LFAA Windows 本机一体版桌面应用"
+authors = ["LFAA"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+url = "2"

@@ -1,0 +1,12 @@
+{
+  "name": "lfaa-profile-web",
+  "private": true,
+  "lfaa": {
+    "profile": {
+      "bundles": [
+        "lfaa-base",
+        "lfaa-web-app"
+      ]
+    }
+  }
+}

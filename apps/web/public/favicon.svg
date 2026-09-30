@@ -1,0 +1,5 @@
+<!-- 功能：提供浏览器标签页的 LFAA 图标。作用：以中性黑白标识替代缺失的默认图标请求。关联文件：apps/web/index.html、packages/host/webserver/src/http-delivery.ts。 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="7" fill="black" />
+  <path d="M9 7h4v14h10v4H9z" fill="white" />
+</svg>

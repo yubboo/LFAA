@@ -1,0 +1,159 @@
+/*
+ * 功能：定义 LFAA 全局导航轨和其弹层的样式。
+ * 作用：让复用全局导航轨的设置中心、应用工作区和文件管理页独立获得完整布局与主题外观。
+ * 关联文件：packages/client/ui-sidebar/src/GlobalNavigationRail.tsx、packages/client/ui-settings/src/SettingsPage.tsx、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-sidebar-files/src/FileManagerPage.tsx。
+ */
+.module-navigation-rail {
+  position: relative;
+  z-index: 130;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px max(14px, env(safe-area-inset-bottom, 0px));
+  border-right: 0;
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+}
+
+.module-navigation-rail__primary,
+.module-navigation-rail__footer {
+  display: grid;
+  width: 100%;
+  justify-items: center;
+  gap: 6px;
+}
+
+.module-navigation-rail__footer { margin-top: auto; }
+
+.module-navigation-rail__button,
+.module-navigation-rail__avatar {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.module-navigation-rail__button:hover,
+.module-navigation-rail__button:focus-visible,
+.module-navigation-rail__button.is-active {
+  outline: none;
+  background: var(--color-surface-selected);
+  color: var(--color-brand);
+}
+
+.module-navigation-rail__status {
+  width: 8px;
+  height: 8px;
+  margin: 0 0 4px;
+  border-radius: 50%;
+  background: var(--color-status-error);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-status-error) 14%, transparent);
+}
+
+.module-navigation-rail__status--online {
+  background: var(--color-status-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-status-success) 14%, transparent);
+}
+
+.module-navigation-rail__status--checking {
+  background: var(--color-status-warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-status-warning) 14%, transparent);
+}
+
+.module-navigation-rail__button:disabled { opacity: .35; cursor: default; }
+.module-navigation-rail__button:disabled:hover { background: transparent; color: inherit; }
+
+.module-navigation-rail__profile { position: static; }
+
+.module-navigation-rail__avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-brand-subtle);
+  color: var(--settings-accent, var(--color-brand));
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.module-navigation-rail__avatar:hover,
+.module-navigation-rail__avatar:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.module-navigation-rail__popover {
+  position: absolute;
+  z-index: 160;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  left: calc(100% + 10px);
+  display: grid;
+  width: min(236px, calc(100vw - 92px));
+  max-height: calc(100% - 32px);
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: 0 14px 36px var(--color-shadow-float);
+}
+
+.module-navigation-rail__popover > header { display: flex; min-height: 30px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px 8px; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-heading); font-size: 11px; }
+.module-navigation-rail__popover > header > div { display: grid; gap: 3px; }
+.module-navigation-rail__popover > header strong { color: var(--color-text-heading); font-size: 11px; }
+.module-navigation-rail__popover > header span { color: var(--color-text-subtle); font-size: 10px; }
+.module-navigation-rail__popover > header button { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.module-navigation-rail__popover > header button:hover { background: var(--color-surface-hover); color: var(--color-brand); }
+.module-navigation-rail__popover-actions { display: grid; gap: 2px; }
+.module-navigation-rail__popover-actions button { display: flex; min-height: 34px; align-items: center; gap: 9px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-secondary); cursor: pointer; font-size: 10px; text-align: left; }
+.module-navigation-rail__popover-actions button:hover { background: var(--color-surface-hover); color: var(--color-brand); }
+.module-navigation-rail__popover-actions button span { flex: 1; }
+/* 最近会话弹层贴近左一中的历史图标；应用页多出一个应用中心按钮，因此顶部位置单独对齐。 */
+.module-navigation-rail__popover--recent { width: min(320px, calc(100vw - 92px)); max-height: calc(100% - 122px); }
+.module-navigation-rail__popover--recent-home { top: 106px; bottom: auto; }
+.module-navigation-rail__popover--recent-files,
+.module-navigation-rail__popover--recent-settings { top: 58px; bottom: auto; }
+.module-navigation-rail__recent-list { display: grid; gap: 2px; overflow-y: auto; }
+.module-navigation-rail__recent-item { display: grid; width: 100%; min-width: 0; gap: 5px; padding: 8px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-primary); cursor: pointer; font: inherit; text-align: left; }
+.module-navigation-rail__recent-item:hover,
+.module-navigation-rail__recent-item:focus-visible { outline: none; background: var(--color-surface-hover); }
+.module-navigation-rail__recent-item:focus-visible { box-shadow: inset 0 0 0 2px var(--color-focus-ring); }
+.module-navigation-rail__recent-item > strong { overflow: hidden; color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.module-navigation-rail__recent-item > span { display: flex; min-width: 0; justify-content: space-between; gap: 8px; color: var(--color-text-subtle); font-size: var(--font-size-xs); }
+.module-navigation-rail__recent-item > span > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.module-navigation-rail__recent-item time { flex: 0 0 auto; }
+.module-navigation-rail__recent-state { margin: 0; padding: 10px 8px; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.5; }
+.module-navigation-rail__recent-state--error { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--color-status-error-text); }
+.module-navigation-rail__recent-state--error button { flex: 0 0 auto; padding: 4px 7px; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface-muted); color: var(--color-text-secondary); cursor: pointer; font: inherit; }
+.module-navigation-rail__recent-state--error button:hover { color: var(--color-brand); }
+.module-navigation-rail__popover--shortcuts dl { display: grid; gap: 1px; margin: 0; }
+.module-navigation-rail__popover--shortcuts dl > div { display: flex; min-height: 31px; align-items: center; justify-content: space-between; gap: 9px; }
+.module-navigation-rail__popover--shortcuts dt { color: var(--color-text-secondary); font-size: 9px; }
+.module-navigation-rail__popover--shortcuts dd { display: flex; align-items: center; gap: 3px; margin: 0; color: var(--color-text-subtle); font-size: 8px; }
+.module-navigation-rail__popover--shortcuts kbd { min-width: 17px; padding: 3px 4px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-family: inherit; font-size: 8px; text-align: center; }
+
+@media (max-width: 720px) {
+  .module-navigation-rail { padding-inline: 6px; }
+  .module-navigation-rail__button { width: 38px; height: 38px; }
+}
+
+@media (max-width: 420px) {
+  .module-navigation-rail { padding-inline: 4px; }
+  .module-navigation-rail__button { width: 36px; height: 36px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workbench-shell[data-reduced-motion="system"] .module-navigation-rail__button,
+  .workbench-shell[data-reduced-motion="system"] .module-navigation-rail__avatar { transition-duration: 0ms; transition-delay: 0ms; }
+}
+

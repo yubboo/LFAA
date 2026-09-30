@@ -1,0 +1,80 @@
+# 功能：定义有序装配补丁。作用：由 profile 指定并交给 Cordis Loader。关联文件：本包 package.json。
+- insert:
+    - id: storage
+      name: lfaa-storage-sqlite
+      required: true
+    - id: storage-json
+      name: lfaa-storage-json
+      required: true
+    - id: storage-domain
+      name: lfaa-storage-domain
+      inject: ["lfaaStorage", "lfaaStorageJson"]
+      required: true
+    - id: session-persistence-jsonl
+      name: lfaa-session-persistence-jsonl
+      inject: ["lfaaStorage", "lfaaConfiguration"]
+      required: true
+    - id: auth
+      name: lfaa-identity-auth
+      inject: ["lfaaStorage"]
+      required: true
+    - id: settings
+      name: lfaa-settings
+      inject: ["lfaaStorage", "lfaaConfiguration"]
+      required: true
+    - id: data-directory
+      name: lfaa-workspace-data-directory
+      inject: ["lfaaStorage"]
+      required: true
+    - id: nodes
+      name: lfaa-host-daemon
+      inject: ["lfaaStorage"]
+      required: true
+    - id: jobs
+      name: lfaa-jobs
+      inject: ["lfaaStorage"]
+      required: true
+    - id: files
+      name: lfaa-fs
+      inject: ["lfaaStorage"]
+      required: true
+    - id: permissions
+      name: lfaa-permission-presets
+      inject: ["lfaaSettings"]
+      required: true
+    - id: minecraft
+      name: lfaa-games-minecraft
+      inject: ["lfaaJobs", "lfaaNodes"]
+      required: true
+    - id: steamcmd
+      name: lfaa-games-steamcmd
+      inject: ["lfaaNodes"]
+      required: true
+    - id: writing
+      name: lfaa-document-writing
+      inject: ["lfaaStorage"]
+      required: true
+    - id: agent
+      name: lfaa-agent
+      required: true
+    - id: hooks
+      name: lfaa-hook-protocol
+      required: true
+    - id: agent-loop
+      name: lfaa-agent-loop
+      inject: ["lfaaSettings", "lfaaSessions", "lfaaTools"]
+      required: true
+    - id: sessions
+      name: lfaa-session
+      inject: ["lfaaSessionPersistence"]
+      required: true
+    - id: tools
+      name: lfaa-tools
+      inject: ["lfaaPermissions"]
+      required: true
+    - id: agent-preset
+      name: lfaa-agent-preset
+      inject: ["aiExtensions", "aiRuntimeHooks"]
+      required: true
+    - id: hmr
+      name: lfaa-hmr

@@ -1,0 +1,63 @@
+{
+  "name": "lfaa-desktop-electron",
+  "private": true,
+  "version": "0.1.1",
+  "type": "module",
+  "main": "src/main.mjs",
+  "description": "LFAA Windows 本机一体版桌面外壳",
+  "scripts": {
+    "dev": "electron .",
+    "package:win": "node scripts/prepare-runtime.mjs prepare-deploy && pnpm --filter @yubboo/lfaa deploy --prod --legacy --config.node-linker=hoisted --config.confirmModulesPurge=false ../../dist/.tmp/desktop-electron/server-deploy && pnpm install --config.confirmModulesPurge=false && node scripts/prepare-runtime.mjs && electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.lfaa.desktop",
+    "productName": "LFAA",
+    "directories": {
+      "output": "../../dist/apps/desktop-electron",
+      "buildResources": "../../dist/.tmp/desktop-electron/build-resources"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../dist/.tmp/desktop-electron/runtime",
+        "to": "app-runtime",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../../dist/.tmp/desktop-electron/server-deploy/node_modules",
+        "to": "app-runtime/apps/cli/node_modules",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "LFAA ${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "include": "nsis/installer.nsh",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

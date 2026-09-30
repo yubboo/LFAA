@@ -1,0 +1,11 @@
+{
+  "name": "lfaa-profile-daemon",
+  "private": true,
+  "lfaa": {
+    "profile": {
+      "bundles": [
+        "lfaa-daemon-app"
+      ]
+    }
+  }
+}

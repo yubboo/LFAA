@@ -1,0 +1,613 @@
+{
+  "date": "2026-09-30",
+  "scope": "用户授权的 Harness 迁移、测试和临时产物清理",
+  "preservedBackups": [
+    {
+      "path": "H:/LFAA/dist/backups/LFAA 0.0.7.zip",
+      "bytes": 9034182
+    },
+    {
+      "path": "H:/LFAA/dist/backups/LFAA 0.0.8.zip",
+      "bytes": 9034784
+    },
+    {
+      "path": "H:/LFAA/dist/backups/LFAA 0.1.1 (2).zip",
+      "bytes": 36682554
+    },
+    {
+      "path": "H:/LFAA/dist/backups/LFAA 0.1.1.zip",
+      "bytes": 36276484
+    },
+    {
+      "path": "H:/LFAA/dist/backups/LFAA-runtime-data-20260930-001822.zip",
+      "bytes": 168329415
+    }
+  ],
+  "items": [
+    {
+      "path": "H:/LFAA/dist/.tmp/backup-project",
+      "files": 3027,
+      "directories": 612,
+      "bytes": 47020611,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/cordis-inspection",
+      "files": 4,
+      "directories": 0,
+      "bytes": 96082,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/daemon-compiled-check-data",
+      "files": 3,
+      "directories": 12,
+      "bytes": 471142,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/daemon-source-check-data",
+      "files": 4,
+      "directories": 12,
+      "bytes": 471207,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/desktop-electron",
+      "files": 6913,
+      "directories": 1407,
+      "bytes": 140064550,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/desktop-style-audit",
+      "files": 1,
+      "directories": 0,
+      "bytes": 2842180,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/desktop-tauri",
+      "files": 6515,
+      "directories": 1205,
+      "bytes": 137432558,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/harness-legacy-directories",
+      "files": 57,
+      "directories": 126,
+      "bytes": 14044629,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/harness-lifecycle-data",
+      "files": 3,
+      "directories": 12,
+      "bytes": 471142,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/harness-migration-original",
+      "files": 574,
+      "directories": 529,
+      "bytes": 11532062,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/harness-smoke-data",
+      "files": 4,
+      "directories": 2,
+      "bytes": 623385,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/lfaa-runtime-data-db-snapshot-20260930",
+      "files": 1,
+      "directories": 0,
+      "bytes": 544768,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/packaged-smoke-data",
+      "files": 3,
+      "directories": 12,
+      "bytes": 471142,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/portable-smoke-data",
+      "files": 3,
+      "directories": 12,
+      "bytes": 471142,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/server",
+      "files": 0,
+      "directories": 0,
+      "bytes": 0,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/source-smoke-data",
+      "files": 2,
+      "directories": 2,
+      "bytes": 471105,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/audit-harness.mjs",
+      "files": 1,
+      "directories": 0,
+      "bytes": 4815,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/baseline-database-tests.log",
+      "files": 1,
+      "directories": 0,
+      "bytes": 9647,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/browser-settings.mjs",
+      "files": 1,
+      "directories": 0,
+      "bytes": 1187,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/cleanup-inventory.json",
+      "files": 1,
+      "directories": 0,
+      "bytes": 6299,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/configure-harness.py",
+      "files": 1,
+      "directories": 0,
+      "bytes": 9921,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/connect-api.py",
+      "files": 1,
+      "directories": 0,
+      "bytes": 3053,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/connect-harness.py",
+      "files": 1,
+      "directories": 0,
+      "bytes": 12693,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/daemon-lifecycle-check.mjs",
+      "files": 1,
+      "directories": 0,
+      "bytes": 2805,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/finish-harness.py",
+      "files": 1,
+      "directories": 0,
+      "bytes": 3855,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/harness-contract-audit.json",
+      "files": 1,
+      "directories": 0,
+      "bytes": 3689,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/harness-electron-package.log",
+      "files": 1,
+      "directories": 0,
+      "bytes": 1826,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/harness-final-tests.log",
+      "files": 1,
+      "directories": 0,
+      "bytes": 11116,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/harness-invalid-patch.yml",
+      "files": 1,
+      "directories": 0,
+      "bytes": 31,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/harness-lifecycle-smoke.mjs",
+      "files": 1,
+      "directories": 0,
+      "bytes": 1524,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/harness-migration-map.json",
+      "files": 1,
+      "directories": 0,
+      "bytes": 80139,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/harness-source-backup.log",
+      "files": 1,
+      "directories": 0,
+      "bytes": 5712,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/migrate-desktop-daemon.py",
+      "files": 1,
+      "directories": 0,
+      "bytes": 7629,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/migrate-harness.py",
+      "files": 1,
+      "directories": 0,
+      "bytes": 12547,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/packaged-smoke.mjs",
+      "files": 1,
+      "directories": 0,
+      "bytes": 850,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/portable-smoke.mjs",
+      "files": 1,
+      "directories": 0,
+      "bytes": 1949,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/refresh-harness.py",
+      "files": 1,
+      "directories": 0,
+      "bytes": 4821,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/repair-imports.py",
+      "files": 1,
+      "directories": 0,
+      "bytes": 2978,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/restore-ui.py",
+      "files": 1,
+      "directories": 0,
+      "bytes": 1341,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/source-smoke.mjs",
+      "files": 1,
+      "directories": 0,
+      "bytes": 773,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/split-harness.mjs",
+      "files": 1,
+      "directories": 0,
+      "bytes": 8863,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/split-ui.mjs",
+      "files": 1,
+      "directories": 0,
+      "bytes": 4515,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/sync-harness-paths.py",
+      "files": 1,
+      "directories": 0,
+      "bytes": 2690,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/update-harness-docs.py",
+      "files": 1,
+      "directories": 0,
+      "bytes": 15014,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/.tmp/write-harness-report.py",
+      "files": 1,
+      "directories": 0,
+      "bytes": 17832,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/server/data/ai-runtime-smoke",
+      "files": 0,
+      "directories": 2,
+      "bytes": 0,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/packages/test-support",
+      "files": 2,
+      "directories": 2,
+      "bytes": 2636,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/apps/desktop-electron/win-unpacked",
+      "files": 3663,
+      "directories": 764,
+      "bytes": 506767205,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/apps/desktop-electron/builder-debug.yml",
+      "files": 1,
+      "directories": 0,
+      "bytes": 796,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/backups/.LFAA 0.1.1.5aad33fc627d49b39316f10e72e841ae.partial",
+      "files": 1,
+      "directories": 0,
+      "bytes": 14780747,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "H:/LFAA/dist/backups/.LFAA runtime data 20260930-001413.zip.partial",
+      "files": 1,
+      "directories": 0,
+      "bytes": 2598,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "C:/Users/Administrator/AppData/Local/Temp/lfaa-realtime-socket-2osAdB",
+      "files": 4,
+      "directories": 2,
+      "bytes": 893921,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "C:/Users/Administrator/AppData/Local/Temp/lfaa-realtime-socket-4Nuc99",
+      "files": 4,
+      "directories": 2,
+      "bytes": 692041,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "C:/Users/Administrator/AppData/Local/Temp/lfaa-realtime-socket-cJmmVc",
+      "files": 4,
+      "directories": 2,
+      "bytes": 893921,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "C:/Users/Administrator/AppData/Local/Temp/lfaa-realtime-socket-RxXa1n",
+      "files": 4,
+      "directories": 2,
+      "bytes": 893921,
+      "status": "blocked-by-policy"
+    },
+    {
+      "path": "C:/Users/Administrator/AppData/Local/Temp/lfaa-realtime-socket-upYh23",
+      "files": 4,
+      "directories": 2,
+      "bytes": 692041,
+      "status": "blocked-by-policy"
+    }
+  ],
+  "cleanupResult": "批量删除及精确的单个失败临时 ZIP 删除均被自动审核拒绝，只返回 blocked by policy；所有 56 个目标仍存在，未绕过审核。",
+  "changedFiles": [
+    {
+      "path": "H:/LFAA/AGENTS.md",
+      "role": "仓库执行规则",
+      "change": "加入模型驱动、硬编码、新旧实现和临时排查清理硬规则。"
+    },
+    {
+      "path": "H:/LFAA/开发规范.md",
+      "role": "开发规则",
+      "change": "定义固定值/配置边界、新实现优先、废弃删除、长期测试保留及模型自主决策。"
+    },
+    {
+      "path": "H:/LFAA/docs/系统总体架构.md",
+      "role": "当前架构",
+      "change": "固定模型—Agent—工具—App/节点执行链，更新包与进程边界、节点公开入口和实际限制。"
+    },
+    {
+      "path": "H:/LFAA/docs/开发计划.md",
+      "role": "开发进度",
+      "change": "登记本轮整理与自主多 Agent 协作的待实施内容。"
+    },
+    {
+      "path": "H:/LFAA/docs/PROMPTS.md",
+      "role": "任务合同",
+      "change": "登记 LFAA-HARNESS-CLEANUP-01 的范围、设置、清理和验证条件。"
+    },
+    {
+      "path": "H:/LFAA/docs/harness-migration.md",
+      "role": "历史迁移记录",
+      "change": "标为历史记录，后续入口与清理状态指向本轮记录。"
+    },
+    {
+      "path": "H:/LFAA/docs/harness-migration-files.json",
+      "role": "历史迁移清单",
+      "change": "标记 historical-migration 和后续记录位置，原哈希仍表示历史版本。"
+    },
+    {
+      "path": "H:/LFAA/docs/harness-packages.md",
+      "role": "包目录清单",
+      "change": "说明 test-support 为测试资源，不进入默认产品构建与发布树。"
+    },
+    {
+      "path": "H:/LFAA/docs/harness-cleanup.md",
+      "role": "本轮交付记录",
+      "change": "完整登记逐文件变更、设置、实际验证、限制与审核阻止的清理。"
+    },
+    {
+      "path": "H:/LFAA/docs/harness-cleanup-files.json",
+      "role": "机器清单",
+      "change": "记录全部 56 个清理目标、数量、正式备份、逐文件变更和实际状态。"
+    },
+    {
+      "path": "H:/LFAA/scripts/build-harness.mjs",
+      "role": "包与运行树构建",
+      "change": "默认能力包构建排除 test-support；控制端运行树排除 client 和 test-support。"
+    },
+    {
+      "path": "H:/LFAA/tsconfig.host.json",
+      "role": "控制端类型构建",
+      "change": "编译入口排除测试支持源码，长期测试的映射保留。"
+    },
+    {
+      "path": "H:/LFAA/apps/cli/package-loader.mjs",
+      "role": "Node 包解析",
+      "change": "遵循 package.json 的精确公开导出，生产入口将 TS/TSX 映射到编译后的 JS。"
+    },
+    {
+      "path": "H:/LFAA/apps/daemon/package.json",
+      "role": "节点启动工具",
+      "change": "语法检查命令指向通用 daemon.mjs。"
+    },
+    {
+      "path": "H:/LFAA/packages/host/daemon/package.json",
+      "role": "节点包清单",
+      "change": "公开 ./daemon 执行入口并声明 home-paths 依赖。"
+    },
+    {
+      "path": "H:/LFAA/packages/host/daemon/src/daemon.mjs",
+      "role": "节点执行插件",
+      "change": "由 minecraft-daemon.mjs 改名；跨包导入、版本读取包清单，卸载取消轮询及等待，关闭后不再派发领取的任务。"
+    },
+    {
+      "path": "H:/LFAA/packages/bundle/daemon-app/cordis.patch.yml",
+      "role": "节点装配",
+      "change": "装配 lfaa-host-daemon/daemon 公开执行入口。"
+    },
+    {
+      "path": "H:/LFAA/pnpm-lock.yaml",
+      "role": "工作区锁文件",
+      "change": "离线同步节点包新增的 home-paths 工作区依赖。"
+    },
+    {
+      "path": "H:/LFAA/scripts/start-dev.ps1",
+      "role": "开发启动器",
+      "change": "节点文件检查及进程识别匹配通用 daemon 名称。"
+    },
+    {
+      "path": "H:/LFAA/apps/desktop-electron/scripts/prepare-runtime.mjs",
+      "role": "Electron 运行组装",
+      "change": "必需运行文件检查和关联注释更新为通用节点入口。"
+    },
+    {
+      "path": "H:/LFAA/apps/desktop-tauri/scripts/package-windows.mjs",
+      "role": "Tauri 发布组装",
+      "change": "必需运行文件检查和关联注释更新为通用节点入口。"
+    },
+    {
+      "path": "H:/LFAA/apps/desktop-electron/src/main.mjs",
+      "role": "桌面进程管理",
+      "change": "仅同步节点关联路径注释。"
+    },
+    {
+      "path": "H:/LFAA/packages/util/home-paths/src/resolve-data-directory.mjs",
+      "role": "数据目录解析",
+      "change": "仅同步节点关联路径注释。"
+    },
+    {
+      "path": "H:/LFAA/packages/host/daemon/src/local-daemon.ts",
+      "role": "控制端节点登记",
+      "change": "仅同步节点关联路径注释。"
+    },
+    {
+      "path": "H:/LFAA/packages/jobs/jobs/src/ai-host-tasks.ts",
+      "role": "AI 主机任务队列",
+      "change": "仅同步节点关联路径注释。"
+    },
+    {
+      "path": "H:/LFAA/packages/fs/fs/src/queue.ts",
+      "role": "文件任务队列",
+      "change": "仅同步节点关联路径注释。"
+    },
+    {
+      "path": "H:/LFAA/packages/games/steamcmd/src/service.ts",
+      "role": "SteamCMD 业务服务",
+      "change": "仅同步节点关联路径注释。"
+    },
+    {
+      "path": "H:/LFAA/apps/cli/tests/data-directory.test.mjs",
+      "role": "长期数据目录测试",
+      "change": "仅同步节点关联路径注释，测试断言与夹具保留。"
+    }
+  ],
+  "renamedSource": {
+    "from": "H:/LFAA/packages/host/daemon/src/minecraft-daemon.mjs",
+    "to": "H:/LFAA/packages/host/daemon/src/daemon.mjs"
+  },
+  "verification": {
+    "buildServer": "passed",
+    "buildHarness": {
+      "status": "passed",
+      "productionPackages": 61
+    },
+    "buildDaemon": "passed",
+    "nodeAndPowerShellSyntax": "passed",
+    "runtimePackages": 39,
+    "testSupportExcludedFromRuntime": true,
+    "sourceTestMode": {
+      "health": 200,
+      "unauthenticatedHeartbeat": 401,
+      "lockReleased": true,
+      "pollRequests": 1,
+      "disposalMs": 7
+    },
+    "compiledTestMode": {
+      "health": 200,
+      "unauthenticatedHeartbeat": 401,
+      "lockReleased": true,
+      "pollRequests": 1,
+      "disposalMs": 6
+    },
+    "compiledProductionMode": {
+      "health": 200,
+      "unauthenticatedHeartbeat": 401,
+      "lockReleased": true,
+      "pollRequests": 1,
+      "disposalMs": 4
+    },
+    "staticContracts": {
+      "upstreamDirectories": 316,
+      "implementedPackages": 62,
+      "cssUnchanged": 16,
+      "routesUnchanged": 114,
+      "databaseImplementationUnchanged": true,
+      "settingsDefaultsUnchanged": true,
+      "settings": 71,
+      "packageDependenciesAcyclic": true
+    },
+    "longTermTestFilesPreserved": 5,
+    "existingFullSuite": "本轮未重跑；首轮记录为17项中12通过、5项既有夹具失败",
+    "developmentHmr": "补充开发模式检查启动等待未结束，已停止本轮进程，未算通过",
+    "cleanup": "blocked by policy"
+  }
+}

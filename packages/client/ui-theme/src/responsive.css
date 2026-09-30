@@ -1,0 +1,283 @@
+/*
+ 功能：定义前端各页面的响应式断点和减少动效规则。
+ 作用：适配应用中心与应用内工作区的不同宽度，并压缩矮桌面视口的首页留白。
+ 关联文件：packages/client/ui-layout/src/workbench.css、packages/client/ui-workspace/src/application-workspace.css。
+*/
+@media (max-width: 1050px) {
+  .application-grid {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+}
+@media (max-width: 720px) {
+  .topbar {
+    min-height: 66px;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 18px;
+  }
+  .topbar-nav {
+    height: 42px;
+    order: 3;
+    width: 100%;
+  }
+  .topbar-account {
+    gap: 10px;
+    margin-left: auto;
+  }
+  .topbar-account .service-status {
+    max-width: 36px;
+    overflow: hidden;
+    font-size: 0;
+  }
+  .topbar-account .service-status .ant-badge {
+    flex: 0 0 auto;
+  }
+  .account-identity {
+    min-width: 56px;
+    max-width: 92px;
+  }
+  .logout-button.ant-btn {
+    padding-inline: 7px;
+    font-size: var(--font-size-sm);
+  }
+  .workbench-content {
+    width: min(100% - 32px,1340px);
+    padding: 46px 0 60px;
+  }
+  .page-intro {
+    min-height: 240px;
+    margin-bottom: 30px;
+    padding: 22px;
+  }
+  .page-intro h1.ant-typography {
+    font-size: clamp(36px,10vw,48px);
+  }
+  .page-intro p.ant-typography {
+    font-size: var(--font-size-base);
+  }
+  .application-grid {
+    grid-template-columns: minmax(0,1fr);
+    gap: 13px;
+  }
+  .application-card.ant-card,
+  .application-card .ant-card-body {
+    min-height: 340px;
+  }
+  .application-card .ant-card-body {
+    padding: 18px;
+  }
+  .application-card__topline {
+    min-height: 112px;
+    margin: -18px -18px 0;
+    padding-inline: 18px;
+  }
+  .workspace-note {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .workbench-footer {
+    flex-direction: column;
+    gap: 7px;
+    padding: 19px 20px;
+  }
+  .account-list-card .ant-card-body {
+    padding: 12px;
+  }
+}
+/* 矮桌面视口减少应用中心纵向留白；页面仍按内容自然增高并允许滚动。 */
+@media (min-width: 721px) and (max-height: 960px) {
+  .workbench-content:not(.workbench-content--module):not(.workbench-content--settings) {
+    padding-top: 24px;
+    padding-bottom: 32px;
+  }
+  .page-intro {
+    min-height: 184px;
+    margin-bottom: 18px;
+    padding: 20px 28px;
+  }
+  .page-intro h1.ant-typography {
+    margin-bottom: 10px;
+    font-size: clamp(32px,3vw,42px);
+  }
+  .page-intro p.ant-typography {
+    line-height: 1.5;
+  }
+  .application-grid {
+    gap: 14px;
+  }
+  .application-card.ant-card,
+  .application-card .ant-card-body {
+    min-height: 286px;
+  }
+  .application-card .ant-card-body {
+    padding: 20px;
+  }
+  .application-card__topline {
+    min-height: 80px;
+    margin: -20px -20px 0;
+    padding: 12px 20px;
+  }
+  .application-card__copy {
+    margin-top: 12px;
+  }
+  .application-card__copy h3.ant-typography {
+    margin-bottom: 8px;
+    font-size: 19px;
+  }
+  .application-card__copy p.ant-typography {
+    min-height: 0;
+    line-height: 1.55;
+  }
+  .development-state {
+    margin-top: 8px;
+  }
+  .application-card__actions {
+    padding-top: 16px;
+  }
+  .application-card__actions .ant-btn {
+    min-height: 36px;
+  }
+  .workspace-note {
+    margin-top: 14px;
+    padding: 14px 18px;
+  }
+  .workbench-footer:not(.workbench-footer--module) {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+}
+@media (max-width: 720px) {
+  .workbench-shell--module {
+    min-height: 580px;
+  }
+  .module-workspace__toolbar {
+    min-height: 54px;
+    gap: 6px;
+    padding-inline: 12px;
+  }
+  .module-workspace__breadcrumb {
+    gap: 7px;
+    font-size: 10px;
+  }
+  .module-workspace__toolbar-actions .ant-btn {
+    width: 34px;
+    padding-inline: 0;
+    overflow: hidden;
+    font-size: 0;
+  }
+  .module-workspace__toolbar-actions .ant-btn:first-letter {
+    font-size: 15px;
+  }
+  .module-workspace__content {
+    padding: 30px 17px;
+  }
+  .module-heading--workspace {
+    min-height: 190px;
+    padding: 22px;
+  }
+  .module-notice-card {
+    gap: 12px;
+    padding: 18px;
+  }
+  .module-workspace__handle {
+    display: none;
+  }
+}
+@container (max-width: 1059.99px) {
+  .module-workspace[data-layout-mode=compact] {
+    position: relative;
+    grid-template-columns: var(--module-left-column) 8px minmax(0,1fr);
+  }
+  .module-workspace[data-layout-mode=compact] .module-workspace__center {
+    grid-column: 3;
+  }
+  .module-workspace[data-layout-mode=compact] .module-workspace__handle--right {
+    display: none;
+  }
+  .module-workspace[data-layout-mode=compact] .module-workspace__pane--right {
+    position: absolute;
+    z-index: 10;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(var(--module-right-width),calc(100% - 24px));
+    border-left: 1px solid var(--color-border-strong);
+    box-shadow: -18px 10px 40px #1c284421;
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(calc(100% + 18px));
+    transition: transform .28s cubic-bezier(.16,.82,.24,1);
+  }
+  .module-workspace[data-layout-mode=compact][data-right-overlay-open=true] .module-workspace__pane--right {
+    transform: translate(0);
+  }
+}
+@container (max-width: 759.99px) {
+  .module-workspace[data-layout-mode=mobile] {
+    position: relative;
+    display: block;
+  }
+  .module-workspace[data-layout-mode=mobile] .module-workspace__center {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+  }
+  .module-workspace[data-layout-mode=mobile] .module-workspace__pane {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 21;
+    width: min(320px,calc(100% - 34px));
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    box-shadow: 0 12px 38px #1c28442e;
+    transition: transform .26s cubic-bezier(.16,.82,.24,1);
+  }
+  .module-workspace[data-layout-mode=mobile] .module-workspace__pane--left {
+    left: 0;
+    border-right: 1px solid var(--color-border-strong);
+    transform: translate(calc(-100% - 18px));
+  }
+  .module-workspace[data-layout-mode=mobile] .module-workspace__pane--right {
+    right: 0;
+    z-index: 22;
+    border-left: 1px solid var(--color-border-strong);
+    transform: translate(calc(100% + 18px));
+  }
+  .module-workspace[data-layout-mode=mobile][data-mobile-pane=left] .module-workspace__pane--left,
+  .module-workspace[data-layout-mode=mobile][data-mobile-pane=right] .module-workspace__pane--right {
+    transform: translate(0);
+  }
+  .module-workspace[data-layout-mode=mobile] .module-workspace__mobile-scrim {
+    position: absolute;
+    z-index: 20;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    background: rgba(24,24,24,.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease;
+  }
+  .module-workspace[data-layout-mode=mobile][data-mobile-pane=left] .module-workspace__mobile-scrim,
+  .module-workspace[data-layout-mode=mobile][data-mobile-pane=right] .module-workspace__mobile-scrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

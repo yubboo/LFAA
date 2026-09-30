@@ -1,0 +1,38 @@
+/*
+ * 功能：定义写作 AI Work 右侧创作上下文的排版与状态样式。
+ * 作用：展示作品接入状态、当前会话和真实活动模型，并适配工作台主题与背景遮罩。
+ * 关联文件：packages/client/ui-writing/src/ai-work/WritingAiContext.tsx、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-layout/src/workbench.css。
+ */
+.writing-ai-context__heading { flex: 0 0 auto; }
+.writing-ai-context__heading > div { min-width: 0; }
+.module-center__header--writing-ai-work .module-center__title strong { font-size: var(--font-size-sm); }
+.module-center__header--writing-ai-work .module-center__mode button { font-size: var(--font-size-xs); }
+.writing-ai-context { display: grid; align-content: start; gap: 19px; padding: 16px 14px 20px; }
+.writing-ai-context__section { display: grid; min-width: 0; gap: 10px; }
+.writing-ai-context__section > header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 650; }
+.writing-ai-context__status { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 400; }
+.writing-ai-context__status.is-open { color: var(--color-status-success-text); }
+.writing-ai-context__status i { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--color-text-muted); }
+.writing-ai-context__status.is-open i { background: var(--color-status-success); }
+.writing-ai-context__book { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: start; gap: 10px; padding: 13px 11px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface-muted); }
+.writing-ai-context__book-icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 8px; background: var(--color-brand-subtle); color: var(--settings-accent, var(--color-brand)); }
+.writing-ai-context__book > div { display: grid; min-width: 0; gap: 5px; }
+.writing-ai-context__book strong { color: var(--color-text-heading); font-size: var(--font-size-sm); }
+.writing-ai-context__book p,
+.writing-ai-context__guide p { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.7; }
+.writing-ai-context__mode-link { display: inline-flex; width: fit-content; min-height: 30px; align-items: center; gap: 5px; padding: 0 2px; border: 0; background: transparent; color: var(--settings-accent, var(--color-brand)); cursor: pointer; font: inherit; font-size: var(--font-size-xs); }
+.writing-ai-context__mode-link:hover { color: var(--color-text-heading); }
+.writing-ai-context__mode-link:focus-visible { border-radius: 4px; outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.writing-ai-context__session { display: flex; min-width: 0; min-height: 37px; align-items: center; gap: 8px; padding: 0 9px; border: 1px solid var(--color-border-subtle); border-radius: 8px; color: var(--settings-accent, var(--color-brand)); }
+.writing-ai-context__session span { min-width: 0; overflow: hidden; color: var(--color-text-primary); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
+.writing-ai-context__provider { display: grid; min-width: 0; gap: 4px; padding: 0 2px; }
+.writing-ai-context__provider > span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.writing-ai-context__provider strong { overflow: hidden; color: var(--color-text-primary); font-size: var(--font-size-xs); font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.writing-ai-context__guide { padding-top: 13px; border-top: 1px solid var(--color-border); }
+
+/* 写作壁纸启用时，创作信息卡沿用外观设置中的统一遮罩透明度与模糊强度。 */
+.workbench-shell[data-background-image="true"] .writing-ai-context__book {
+  background-color: color-mix(in srgb, var(--color-surface-muted) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}

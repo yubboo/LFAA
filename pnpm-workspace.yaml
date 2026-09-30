@@ -1,13 +1,16 @@
 # 功能：声明 LFAA 使用 pnpm 管理的工作区包。
-# 作用：让根目录一次安装前端、控制端、daemon 及后续桌面端的依赖。
-# 关联文件：根目录 package.json、各工作区的 package.json。
+# 作用：纳入当前运行工作区和按领域组织的 packages/*/* 目标包目录。
+# 关联文件：根目录 package.json、各工作区的 package.json、docs/系统总体架构.md。
 packages:
-  - frontend
-  - server
-  - daemon
   - apps/*
+  - packages/*/*
+
+overrides:
+  '@electron/get': 3.1.0
 
 # 仅允许构建前端打包依赖；本阶段没有使用 PTY，保留显式禁用项以阻止其安装脚本。
 allowBuilds:
   esbuild: true
+  electron: true
   node-pty: false
+  electron-winstaller: false

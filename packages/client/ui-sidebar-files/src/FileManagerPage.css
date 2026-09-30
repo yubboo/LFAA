@@ -1,0 +1,131 @@
+/*
+ * 功能：定义通用文件管理工作台的布局、目录表格、任务提示和在线文本编辑器样式。
+ * 作用：让文件浏览在应用主导航旁占满可用空间，并在窄屏下保留主要文件操作。
+ * 关联文件：packages/client/ui-sidebar-files/src/FileManagerPage.tsx、packages/client/ui-layout/src/Workbench.tsx（提供账户外观变量）、packages/client/ui-sidebar/src/GlobalNavigationRail.tsx、packages/client/ui-workspace/src/module-workbench.css。
+ */
+.file-manager-stage { background: transparent; }
+
+.file-manager-page {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-canvas) var(--settings-background-surface-opacity), transparent);
+  color: var(--color-text-primary);
+}
+
+.file-manager__header {
+  display: flex;
+  min-height: 88px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.file-manager__header h2 { margin: 0 0 4px !important; }
+.file-manager__node-label { color: var(--color-text-muted); font-size: 12px; }
+.file-manager__alert { margin: 12px 24px 0; }
+
+.file-manager__task {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: color-mix(in srgb, var(--color-surface-muted) var(--settings-background-surface-opacity), transparent);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.file-manager__toolbar {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 18px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
+}
+
+.file-manager__location,
+.file-manager__actions { display: flex; min-width: 0; align-items: center; }
+.file-manager__location { gap: 4px; }
+.file-manager__breadcrumbs { display: flex; min-width: 0; align-items: center; gap: 6px; overflow-x: auto; white-space: nowrap; }
+.file-manager__breadcrumbs > span { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-subtle); }
+.file-manager__breadcrumbs button { max-width: 220px; padding: 4px 5px; overflow: hidden; border: 0; border-radius: 5px; background: transparent; color: var(--color-text-secondary); cursor: pointer; text-overflow: ellipsis; white-space: nowrap; }
+.file-manager__breadcrumbs button:hover,
+.file-manager__breadcrumbs button.is-current { background: var(--color-surface-hover); color: var(--color-text-heading); }
+.file-manager__breadcrumbs button:disabled { color: var(--color-text-subtle); cursor: not-allowed; }
+.file-manager__actions { justify-content: flex-end; }
+.file-manager__upload-input { display: none; }
+
+.file-manager__body { min-width: 0; min-height: 0; flex: 1; padding: 12px 18px; overflow: auto; }
+.file-manager__body .ant-table-wrapper { min-width: 660px; }
+.file-manager__name { display: inline-flex; max-width: 100%; align-items: center; gap: 9px; padding: 4px 0; border: 0; background: transparent; color: var(--color-text-primary); cursor: pointer; text-align: left; }
+.file-manager__name > svg { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
+.file-manager__name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-manager__empty { padding: 55px 0; }
+.file-manager__loading { display: flex; min-height: 200px; align-items: center; justify-content: center; gap: 12px; color: var(--color-text-muted); }
+.file-manager__truncated { display: block; padding: 10px 2px; }
+
+.file-manager__offline-state {
+  display: flex;
+  width: min(100%, 680px);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 11px;
+  margin: 24px auto;
+  padding: 24px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
+  color: var(--color-text-primary);
+}
+
+.file-manager__offline-state h4 { margin: 0 !important; color: var(--color-text-heading); }
+.file-manager__offline-label { color: var(--color-danger, #c0392b); font-size: 12px; font-weight: 650; }
+.file-manager__offline-details { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 2px 0; }
+.file-manager__offline-details > div { display: grid; gap: 3px; }
+.file-manager__offline-details dt { color: var(--color-text-muted); font-size: 12px; }
+.file-manager__offline-details dd { margin: 0; color: var(--color-text-primary); font-size: 13px; }
+.file-manager__offline-state--empty { align-items: center; text-align: center; }
+
+.file-manager__footer {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 22px;
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.file-manager__editor .ant-modal-body { padding-top: 14px; }
+.file-manager__editor .ant-modal-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-manager__editor .ant-modal-title > span { display: inline-flex; align-items: center; gap: 8px; }
+.file-manager__editor-input { min-height: min(65vh, 680px) !important; resize: vertical; font-family: var(--settings-code-font, monospace); font-size: var(--settings-code-font-size, 12px); line-height: 1.55; }
+
+@media (max-width: 900px) {
+  .file-manager__header { align-items: flex-start; flex-direction: column; padding: 14px 16px; }
+  .file-manager__toolbar { align-items: flex-start; flex-direction: column; }
+  .file-manager__actions { width: 100%; justify-content: flex-start; }
+}
+
+@media (max-width: 600px) {
+  .file-manager__header { gap: 12px; }
+  .file-manager__header > .ant-space { width: 100%; }
+  .file-manager__header .ant-select { flex: 1; }
+  .file-manager__offline-state { margin: 12px auto; padding: 18px; }
+  .file-manager__offline-details { grid-template-columns: minmax(0, 1fr); }
+  .file-manager__actions .ant-input-affix-wrapper { width: 100% !important; }
+  .file-manager__footer { align-items: flex-start; flex-direction: column; justify-content: center; padding: 8px 14px; }
+  .file-manager__body { padding: 8px; }
+}

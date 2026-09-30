@@ -1,0 +1,50 @@
+{
+  "name": "lfaa-web",
+  "private": true,
+  "version": "0.1.1",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/wait-for-server.mjs && vite",
+    "build": "tsc --noEmit -p ../../tsconfig.client.json && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.12.0",
+    "@tauri-apps/plugin-dialog": "2.8.0",
+    "@simplewebauthn/browser": "14.0.0",
+    "antd": "^5.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "socket.io-client": "4.8.4",
+    "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-client-connection": "workspace:*",
+    "lfaa-client-resources": "workspace:*",
+    "lfaa-client-store": "workspace:*",
+    "lfaa-client-ui-chat": "workspace:*",
+    "lfaa-client-ui-dockkit": "workspace:*",
+    "lfaa-client-ui-layout": "workspace:*",
+    "lfaa-client-ui-minecraft": "workspace:*",
+    "lfaa-client-ui-primitives": "workspace:*",
+    "lfaa-client-ui-renderer": "workspace:*",
+    "lfaa-client-ui-settings": "workspace:*",
+    "lfaa-client-ui-settings-account": "workspace:*",
+    "lfaa-client-ui-settings-general": "workspace:*",
+    "lfaa-client-ui-sidebar": "workspace:*",
+    "lfaa-client-ui-sidebar-files": "workspace:*",
+    "lfaa-client-ui-theme": "workspace:*",
+    "lfaa-client-ui-workspace": "workspace:*",
+    "lfaa-client-ui-writing": "workspace:*",
+    "lfaa-client-web": "workspace:*",
+    "lfaa-client-modules": "workspace:*",
+    "lfaa-client-ui-commands": "workspace:*",
+    "lfaa-client-ui-settings-models": "workspace:*",
+    "lfaa-client-ui-shortcuts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}

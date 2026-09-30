@@ -1,0 +1,381 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "lfaa-api-account-controller/src/*": [
+        "packages/api/account-controller/src/*"
+      ],
+      "lfaa-api-gateway/src/*": [
+        "packages/api/gateway/src/*"
+      ],
+      "lfaa-api-job-controller/src/*": [
+        "packages/api/job-controller/src/*"
+      ],
+      "lfaa-api-minecraft-controller/src/*": [
+        "packages/api/minecraft-controller/src/*"
+      ],
+      "lfaa-api-remotes/src/*": [
+        "packages/api/remotes/src/*"
+      ],
+      "lfaa-api-session-controller/src/*": [
+        "packages/api/session-controller/src/*"
+      ],
+      "lfaa-api-settings-controller/src/*": [
+        "packages/api/settings-controller/src/*"
+      ],
+      "lfaa-api-steamcmd-controller/src/*": [
+        "packages/api/steamcmd-controller/src/*"
+      ],
+      "lfaa-api-workspace-files/src/*": [
+        "packages/api/workspace-files/src/*"
+      ],
+      "lfaa-api-writing-controller/src/*": [
+        "packages/api/writing-controller/src/*"
+      ],
+      "lfaa-app-boot/src/*": [
+        "packages/boot/app-boot/src/*"
+      ],
+      "lfaa-hmr/src/*": [
+        "packages/boot/hmr/src/*"
+      ],
+      "lfaa-base/src/*": [
+        "packages/bundle/base/src/*"
+      ],
+      "lfaa-daemon-app/src/*": [
+        "packages/bundle/daemon-app/src/*"
+      ],
+      "lfaa-web-app/src/*": [
+        "packages/bundle/web-app/src/*"
+      ],
+      "lfaa-client-connection/src/*": [
+        "packages/client/connection/src/*"
+      ],
+      "lfaa-client-modules/src/*": [
+        "packages/client/modules/src/*"
+      ],
+      "lfaa-client-resources/src/*": [
+        "packages/client/resources/src/*"
+      ],
+      "lfaa-client-store/src/*": [
+        "packages/client/store/src/*"
+      ],
+      "lfaa-client-ui-chat/src/*": [
+        "packages/client/ui-chat/src/*"
+      ],
+      "lfaa-client-ui-commands/src/*": [
+        "packages/client/ui-commands/src/*"
+      ],
+      "lfaa-client-ui-dockkit/src/*": [
+        "packages/client/ui-dockkit/src/*"
+      ],
+      "lfaa-client-ui-layout/src/*": [
+        "packages/client/ui-layout/src/*"
+      ],
+      "lfaa-client-ui-minecraft/src/*": [
+        "packages/client/ui-minecraft/src/*"
+      ],
+      "lfaa-client-ui-primitives/src/*": [
+        "packages/client/ui-primitives/src/*"
+      ],
+      "lfaa-client-ui-renderer/src/*": [
+        "packages/client/ui-renderer/src/*"
+      ],
+      "lfaa-client-ui-settings/src/*": [
+        "packages/client/ui-settings/src/*"
+      ],
+      "lfaa-client-ui-settings-account/src/*": [
+        "packages/client/ui-settings-account/src/*"
+      ],
+      "lfaa-client-ui-settings-general/src/*": [
+        "packages/client/ui-settings-general/src/*"
+      ],
+      "lfaa-client-ui-settings-models/src/*": [
+        "packages/client/ui-settings-models/src/*"
+      ],
+      "lfaa-client-ui-shortcuts/src/*": [
+        "packages/client/ui-shortcuts/src/*"
+      ],
+      "lfaa-client-ui-sidebar/src/*": [
+        "packages/client/ui-sidebar/src/*"
+      ],
+      "lfaa-client-ui-sidebar-files/src/*": [
+        "packages/client/ui-sidebar-files/src/*"
+      ],
+      "lfaa-client-ui-theme/src/*": [
+        "packages/client/ui-theme/src/*"
+      ],
+      "lfaa-client-ui-workspace/src/*": [
+        "packages/client/ui-workspace/src/*"
+      ],
+      "lfaa-client-ui-writing/src/*": [
+        "packages/client/ui-writing/src/*"
+      ],
+      "lfaa-client-web/src/*": [
+        "packages/client/web/src/*"
+      ],
+      "lfaa-agent/src/*": [
+        "packages/core/agent/src/*"
+      ],
+      "lfaa-agent-loop/src/*": [
+        "packages/core/agent-loop/src/*"
+      ],
+      "lfaa-session/src/*": [
+        "packages/core/session/src/*"
+      ],
+      "lfaa-tools/src/*": [
+        "packages/core/tools/src/*"
+      ],
+      "lfaa-authorization/src/*": [
+        "packages/credentials/authorization/src/*"
+      ],
+      "lfaa-document-writing/src/*": [
+        "packages/document/writing/src/*"
+      ],
+      "lfaa-fs/src/*": [
+        "packages/fs/fs/src/*"
+      ],
+      "lfaa-games-minecraft/src/*": [
+        "packages/games/minecraft/src/*"
+      ],
+      "lfaa-games-steamcmd/src/*": [
+        "packages/games/steamcmd/src/*"
+      ],
+      "lfaa-hook-protocol/src/*": [
+        "packages/hooks/hook-protocol/src/*"
+      ],
+      "lfaa-host-daemon/src/*": [
+        "packages/host/daemon/src/*"
+      ],
+      "lfaa-host-webserver/src/*": [
+        "packages/host/webserver/src/*"
+      ],
+      "lfaa-identity-auth/src/*": [
+        "packages/identity/auth/src/*"
+      ],
+      "lfaa-permission-presets/src/*": [
+        "packages/interaction/permission-presets/src/*"
+      ],
+      "lfaa-jobs/src/*": [
+        "packages/jobs/jobs/src/*"
+      ],
+      "lfaa-agent-preset/src/*": [
+        "packages/preset/agent-preset/src/*"
+      ],
+      "lfaa-settings/src/*": [
+        "packages/settings/settings/src/*"
+      ],
+      "lfaa-skill-writing/src/*": [
+        "packages/skill/writing/src/*"
+      ],
+      "lfaa-storage-sqlite/src/*": [
+        "packages/storage/storage-sqlite/src/*"
+      ],
+      "lfaa-telemetry-logger/src/*": [
+        "packages/telemetry/logger/src/*"
+      ],
+      "lfaa-test-support-api/src/*": [
+        "packages/test-support/api/src/*"
+      ],
+      "lfaa-home-paths/src/*": [
+        "packages/util/home-paths/src/*"
+      ],
+      "lfaa-launch-environment/src/*": [
+        "packages/util/launch-environment/src/*"
+      ],
+      "lfaa-util-values/src/*": [
+        "packages/util/values/src/*"
+      ],
+      "lfaa-workspace-data-directory/src/*": [
+        "packages/workspace/data-directory/src/*"
+      ],
+      "lfaa-api-account-controller": [
+        "packages/api/account-controller/src/index.ts"
+      ],
+      "lfaa-api-gateway": [
+        "packages/api/gateway/src/index.ts"
+      ],
+      "lfaa-api-job-controller": [
+        "packages/api/job-controller/src/index.ts"
+      ],
+      "lfaa-api-minecraft-controller": [
+        "packages/api/minecraft-controller/src/index.ts"
+      ],
+      "lfaa-api-session-controller": [
+        "packages/api/session-controller/src/index.ts"
+      ],
+      "lfaa-api-settings-controller": [
+        "packages/api/settings-controller/src/index.ts"
+      ],
+      "lfaa-api-steamcmd-controller": [
+        "packages/api/steamcmd-controller/src/index.ts"
+      ],
+      "lfaa-api-workspace-files": [
+        "packages/api/workspace-files/src/index.ts"
+      ],
+      "lfaa-api-writing-controller": [
+        "packages/api/writing-controller/src/index.ts"
+      ],
+      "lfaa-app-boot": [
+        "packages/boot/app-boot/src/index.ts"
+      ],
+      "lfaa-hmr": [
+        "packages/boot/hmr/src/index.ts"
+      ],
+      "lfaa-base": [
+        "packages/bundle/base/src/index.ts"
+      ],
+      "lfaa-web-app": [
+        "packages/bundle/web-app/src/index.ts"
+      ],
+      "lfaa-client-modules": [
+        "packages/client/modules/src/index.ts"
+      ],
+      "lfaa-client-ui-chat": [
+        "packages/client/ui-chat/src/index.ts"
+      ],
+      "lfaa-client-ui-commands": [
+        "packages/client/ui-commands/src/index.ts"
+      ],
+      "lfaa-client-ui-dockkit": [
+        "packages/client/ui-dockkit/src/index.ts"
+      ],
+      "lfaa-client-ui-layout": [
+        "packages/client/ui-layout/src/index.ts"
+      ],
+      "lfaa-client-ui-minecraft": [
+        "packages/client/ui-minecraft/src/index.ts"
+      ],
+      "lfaa-client-ui-primitives": [
+        "packages/client/ui-primitives/src/index.ts"
+      ],
+      "lfaa-client-ui-renderer": [
+        "packages/client/ui-renderer/src/index.ts"
+      ],
+      "lfaa-client-ui-settings": [
+        "packages/client/ui-settings/src/index.ts"
+      ],
+      "lfaa-client-ui-settings-account": [
+        "packages/client/ui-settings-account/src/index.ts"
+      ],
+      "lfaa-client-ui-settings-general": [
+        "packages/client/ui-settings-general/src/index.ts"
+      ],
+      "lfaa-client-ui-sidebar": [
+        "packages/client/ui-sidebar/src/index.ts"
+      ],
+      "lfaa-client-ui-sidebar-files": [
+        "packages/client/ui-sidebar-files/src/index.ts"
+      ],
+      "lfaa-client-ui-workspace": [
+        "packages/client/ui-workspace/src/index.ts"
+      ],
+      "lfaa-client-ui-writing": [
+        "packages/client/ui-writing/src/index.ts"
+      ],
+      "lfaa-client-web": [
+        "packages/client/web/src/index.ts"
+      ],
+      "lfaa-agent": [
+        "packages/core/agent/src/index.ts"
+      ],
+      "lfaa-agent-loop": [
+        "packages/core/agent-loop/src/index.ts"
+      ],
+      "lfaa-session": [
+        "packages/core/session/src/index.ts"
+      ],
+      "lfaa-tools": [
+        "packages/core/tools/src/index.ts"
+      ],
+      "lfaa-document-writing": [
+        "packages/document/writing/src/index.ts"
+      ],
+      "lfaa-fs": [
+        "packages/fs/fs/src/index.ts"
+      ],
+      "lfaa-games-minecraft": [
+        "packages/games/minecraft/src/index.ts"
+      ],
+      "lfaa-games-steamcmd": [
+        "packages/games/steamcmd/src/index.ts"
+      ],
+      "lfaa-hook-protocol": [
+        "packages/hooks/hook-protocol/src/index.ts"
+      ],
+      "lfaa-host-daemon": [
+        "packages/host/daemon/src/index.ts"
+      ],
+      "lfaa-host-webserver": [
+        "packages/host/webserver/src/index.ts"
+      ],
+      "lfaa-identity-auth": [
+        "packages/identity/auth/src/index.ts"
+      ],
+      "lfaa-permission-presets": [
+        "packages/interaction/permission-presets/src/index.ts"
+      ],
+      "lfaa-jobs": [
+        "packages/jobs/jobs/src/index.ts"
+      ],
+      "lfaa-agent-preset": [
+        "packages/preset/agent-preset/src/index.ts"
+      ],
+      "lfaa-settings": [
+        "packages/settings/settings/src/index.ts"
+      ],
+      "lfaa-storage-sqlite": [
+        "packages/storage/storage-sqlite/src/index.ts"
+      ],
+      "lfaa-workspace-data-directory": [
+        "packages/workspace/data-directory/src/index.ts"
+      ],
+      "lfaa-storage-json": [
+        "packages/storage/storage-json/src/index.ts"
+      ],
+      "lfaa-storage-json/src/*": [
+        "packages/storage/storage-json/src/*"
+      ],
+      "lfaa-storage-domain": [
+        "packages/storage/storage-domain/src/index.ts"
+      ],
+      "lfaa-storage-domain/src/*": [
+        "packages/storage/storage-domain/src/*"
+      ],
+      "lfaa-session-persistence-jsonl": [
+        "packages/session/session-persistence-jsonl/src/index.ts"
+      ],
+      "lfaa-session-persistence-jsonl/src/*": [
+        "packages/session/session-persistence-jsonl/src/*"
+      ]
+    },
+    "types": [
+      "vite/client",
+      "node"
+    ]
+  },
+  "include": [
+    "packages/client/*/src",
+    "apps/web/src",
+    "apps/web/vite.config.ts"
+  ]
+}

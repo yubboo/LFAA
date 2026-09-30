@@ -1,0 +1,525 @@
+/*
+ 功能：定义登录页、首次初始化页和密码恢复页的专属样式。
+ 作用：按页面外层、左侧主视觉、右侧表单和响应式布局分区；颜色与玻璃材质集中在页面变量中调整。
+ 关联文件：packages/client/ui-settings-account/src/AuthView.tsx、packages/client/ui-theme/src/tokens.css。
+*/
+
+/* 登录页：外层与可调变量｜开始 */
+.auth-page {
+  /* 登录页外观变量集中于此，修改背景氛围、玻璃材质或控件颜色时先看这里。 */
+  --auth-color-page-fallback: #0d1523; /* 外层底色：深蓝黑，图片回退。 */
+  --auth-color-page-overlay: rgba(7, 14, 25, .32); /* 外层遮罩：深蓝黑 32%，压暗背景。 */
+  --auth-color-shell-edge: rgba(226, 237, 255, .09); /* 卡片外框：淡蓝白 9%。 */
+  --auth-color-shell-shadow: rgba(0, 0, 0, .38); /* 卡片投影：黑色 38%。 */
+  --auth-color-shell-inner-highlight: rgba(255, 255, 255, .04); /* 卡片内沿：白色 4% 高光。 */
+
+  --auth-color-visual-fallback: #182232; /* 左图底色：深石板蓝，图片回退。 */
+  --auth-color-visual-shade-top: rgba(8, 15, 29, .08); /* 左图顶部遮罩：深蓝黑 8%。 */
+  --auth-color-visual-shade-middle: rgba(8, 15, 29, .22); /* 左图中部遮罩：深蓝黑 22%。 */
+  --auth-color-visual-shade-bottom: rgba(8, 15, 29, .88); /* 左图底部遮罩：深蓝黑 88%。 */
+  --auth-color-visual-copy: rgba(239, 243, 252, .8); /* 左侧正文：冰白色 80%。 */
+  --auth-color-visual-muted: rgba(239, 243, 252, .65); /* 左侧次要文字：冰白色 65%。 */
+  --auth-color-visual-divider: rgba(239, 243, 252, .2); /* 左侧分隔线：冰白色 20%。 */
+  --auth-color-visual-ring: rgba(235, 241, 255, .15); /* 左侧圆环：冷白色 15%。 */
+  --auth-color-visual-ring-glow: rgba(220, 232, 255, .035); /* 圆环外发光一：淡蓝白 3.5%。 */
+  --auth-color-visual-ring-glow-soft: rgba(220, 232, 255, .025); /* 圆环外发光二：淡蓝白 2.5%。 */
+
+  --auth-color-visual-brand-tile: #e5ecff; /* 左侧品牌底板：淡蓝白。 */
+  --auth-color-visual-brand-edge: rgba(255, 255, 255, .58); /* 品牌底板边缘：白色 58%。 */
+  --auth-color-glass-tint: rgba(237, 245, 255, .52); /* 右侧玻璃底色：浅蓝白 52%。 */
+  --auth-color-glass-highlight: rgba(255, 255, 255, .34); /* 玻璃主高光：白色 34%。 */
+  --auth-color-glass-highlight-soft: rgba(255, 255, 255, .06); /* 玻璃柔光：白色 6%。 */
+  --auth-color-glass-reflection: rgba(218, 232, 250, .18); /* 玻璃反射：淡蓝色 18%。 */
+  --auth-color-glass-edge: rgba(255, 255, 255, .36); /* 玻璃描边：白色 36%。 */
+  --auth-color-glass-edge-top: rgba(255, 255, 255, .58); /* 玻璃上沿高光：白色 58%。 */
+  --auth-color-glass-fallback: rgba(249, 250, 252, .97); /* 不支持模糊时：近白色 97%。 */
+  --auth-color-glass-solid: rgba(249, 250, 252, .98); /* 减少透明时：近白色 98%。 */
+  --auth-color-glass-accessible-edge: rgba(255, 255, 255, .22); /* 无透明模式描边：白色 22%。 */
+  --auth-glass-filter: blur(24px) saturate(175%) brightness(1.08); /* 玻璃模糊 24px、饱和度 175%、亮度 108%。 */
+
+  --auth-color-form-eyebrow: #53699f; /* 右侧眉题：灰蓝色。 */
+  --auth-color-form-title: #202a3b; /* 右侧标题：深蓝灰。 */
+  --auth-color-form-copy: #707b8c; /* 右侧说明：中灰蓝。 */
+  --auth-color-form-label: #394456; /* 表单标签：深灰蓝。 */
+  --auth-color-form-input: #fff; /* 输入框：白底，覆盖自动填充蓝底。 */
+  --auth-color-form-input-edge: #dce2ec; /* 输入框边缘：浅灰蓝。 */
+  --auth-color-form-input-shadow: rgba(26, 39, 61, .035); /* 输入框阴影：深蓝灰 3.5%。 */
+  --auth-color-form-input-focus-edge: #7189df; /* 聚焦边缘：柔和蓝紫色。 */
+  --auth-color-form-input-focus-ring: rgba(var(--color-brand-rgb), .12); /* 聚焦外环：品牌蓝 12%。 */
+  --auth-color-form-placeholder: #9aa3b1; /* 占位文字：浅灰色。 */
+  --auth-color-form-password-icon: #718096; /* 密码眼睛：灰蓝色。 */
+  --auth-color-form-password-icon-hover: rgba(var(--color-brand-rgb), .08); /* 眼睛悬停底色：品牌蓝 8%。 */
+  --auth-color-form-recovery-link: #4967bd; /* 找回密码链接：蓝色。 */
+  --auth-color-form-footnote: #687589; /* 底部说明：灰蓝色。 */
+  --auth-color-form-button-shadow: rgba(var(--color-brand-rgb), .2); /* 按钮阴影：品牌蓝 20%。 */
+  --auth-color-form-button-shadow-hover: rgba(var(--color-brand-rgb), .26); /* 按钮悬停阴影：品牌蓝 26%。 */
+
+  --auth-radius-card: 28px; /* 登录卡片圆角大小。 */
+  --auth-radius-field: 11px; /* 输入框和按钮圆角大小。 */
+  --auth-control-height: 52px; /* 输入框和主按钮高度。 */
+
+  position: relative;
+  /* 独立堆叠上下文，让登录卡片和背景装饰的层级不受页面其他区域影响。 */
+  isolation: isolate;
+  display: grid;
+  height: 100vh;
+  /* 小视口单位兼顾移动浏览器地址栏和 Windows 显示缩放后的实际可用高度。 */
+  height: 100svh;
+  place-items: safe center;
+  padding: clamp(20px, 4vw, 56px);
+  padding-block: clamp(16px, 4svh, 48px);
+  /* 横向仍裁掉背景装饰溢出；纵向允许短窗口滚动，避免初始化字段被截断。 */
+  overflow-x: hidden;
+  overflow-y: auto;
+  background-color: var(--auth-color-page-fallback);
+  /* 背景图由 AuthView 传入，前面的渐层负责压暗图片以保证文字可读。 */
+  background-image:
+    linear-gradient(var(--auth-color-page-overlay), var(--auth-color-page-overlay)),
+    var(--auth-background-image, url("/images/minecraft/forest-bridge-evening.png"));
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.auth-page__split-layout {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(1160px, 100%);
+  min-height: min(680px, calc(100svh - 112px));
+  grid-template-columns: minmax(0, 1.08fr) minmax(410px, .92fr);
+  overflow: hidden;
+  border: 1px solid var(--auth-color-shell-edge);
+  border-radius: var(--auth-radius-card);
+  background: transparent;
+  box-shadow: 0 32px 90px var(--auth-color-shell-shadow), inset 0 1px var(--auth-color-shell-inner-highlight);
+}
+/* 登录页：外层与可调变量｜结束 */
+
+/* 登录页：左侧主视觉区域｜开始 */
+.auth-page__visual {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: clamp(360px, 60svh, 640px);
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(34px, 4.2vw, 60px);
+  padding-block: clamp(22px, 3.5svh, 48px);
+  overflow: hidden;
+  background-color: var(--auth-color-visual-fallback);
+  background-image:
+    linear-gradient(
+      180deg,
+      var(--auth-color-visual-shade-top) 4%,
+      var(--auth-color-visual-shade-middle) 42%,
+      var(--auth-color-visual-shade-bottom) 100%
+    ),
+    var(--auth-background-image, none);
+  background-position: center, center 54%;
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
+  color: var(--color-text-inverse);
+}
+
+.auth-page__visual::after {
+  position: absolute;
+  right: -190px;
+  bottom: -230px;
+  width: 470px;
+  height: 470px;
+  border: 1px solid var(--auth-color-visual-ring);
+  border-radius: 50%;
+  /* 多层外扩阴影只绘制装饰圆环，不参与布局，也不拦截文字区域的鼠标事件。 */
+  box-shadow:
+    0 0 0 54px var(--auth-color-visual-ring-glow),
+    0 0 0 108px var(--auth-color-visual-ring-glow-soft);
+  content: "";
+  pointer-events: none;
+}
+
+.auth-page__visual-brand {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.auth-page__visual-brand-mark {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--auth-color-visual-brand-edge);
+  border-radius: 12px;
+  background: var(--auth-color-visual-brand-tile);
+  color: var(--color-brand-deep);
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.auth-page__visual-brand-name {
+  color: inherit;
+  font-size: 14px;
+  font-weight: 760;
+  letter-spacing: .14em;
+}
+
+.auth-page__visual-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 510px;
+  padding-block: clamp(18px, 4svh, 54px);
+}
+
+.auth-page__visual-copy .ant-typography {
+  color: var(--color-text-inverse);
+}
+
+.auth-page__visual-copy h1.ant-typography {
+  max-width: 520px;
+  margin: 0 0 20px;
+  font-size: clamp(34px, 3.15vw, 48px);
+  font-weight: 650;
+  letter-spacing: -.045em;
+  line-height: 1.2;
+}
+
+.auth-page__visual-copy p.ant-typography {
+  max-width: 410px;
+  margin-bottom: 0;
+  color: var(--auth-color-visual-copy);
+  font-size: var(--font-size-base);
+  line-height: 1.85;
+}
+
+.auth-page__visual-status {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding-top: 20px;
+  border-top: 1px solid var(--auth-color-visual-divider);
+  color: var(--auth-color-visual-muted);
+  font-size: var(--font-size-sm);
+}
+
+.auth-page__visual-status .service-status {
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-sm);
+}
+/* 登录页：左侧主视觉区域｜结束 */
+
+/* 登录页：右侧登录、初始化和恢复表单面板｜开始 */
+.auth-page__form-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  border-left: 1px solid var(--auth-color-glass-edge);
+  padding: clamp(36px, 5vw, 66px);
+  padding-block: clamp(20px, 5svh, 66px);
+  background:
+    linear-gradient(
+      145deg,
+      var(--auth-color-glass-highlight),
+      var(--auth-color-glass-highlight-soft) 48%,
+      var(--auth-color-glass-reflection)
+    ),
+    var(--auth-color-glass-tint);
+  box-shadow:
+    inset 1px 0 var(--auth-color-glass-edge),
+    inset 0 1px var(--auth-color-glass-edge-top);
+  /* backdrop-filter 采样卡片后方的背景并模糊，形成磨砂玻璃；前缀覆盖部分旧版浏览器。 */
+  -webkit-backdrop-filter: var(--auth-glass-filter);
+  backdrop-filter: var(--auth-glass-filter);
+}
+
+/* 不支持背景模糊的浏览器使用不透明面板，避免文字直接叠在复杂背景上。 */
+@supports not (backdrop-filter: blur(1px)) and not (-webkit-backdrop-filter: blur(1px)) {
+  .auth-page__form-panel {
+    background: var(--auth-color-glass-fallback);
+  }
+}
+
+.auth-page__form-heading {
+  margin-bottom: clamp(18px, 3.8svh, 34px);
+}
+
+.auth-page__form-eyebrow {
+  display: inline-block;
+  margin-bottom: 13px;
+  color: var(--auth-color-form-eyebrow);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+
+.auth-page__form-heading h2.ant-typography {
+  margin: 0 0 11px;
+  color: var(--auth-color-form-title);
+  font-size: clamp(28px, 2.5vw, 34px);
+  font-weight: 680;
+  letter-spacing: -.04em;
+}
+
+.auth-page__form-heading p.ant-typography {
+  margin: 0;
+  color: var(--auth-color-form-copy);
+  font-size: var(--font-size-base);
+  line-height: 1.75;
+}
+
+.auth-page__form-message {
+  margin-bottom: clamp(12px, 2.2svh, 20px);
+}
+
+.auth-page__form .ant-form-item {
+  margin-bottom: clamp(12px, 2.3svh, 21px);
+}
+
+.auth-page__form .ant-form-item-label > label {
+  color: var(--auth-color-form-label);
+  font-size: 15px;
+  font-weight: 620;
+  line-height: 1.5;
+}
+/* 登录页：右侧登录、初始化和恢复表单面板｜结束 */
+
+/* 登录页：输入框、密码眼睛与自动填充｜开始 */
+.auth-page__form .ant-input-lg,
+.auth-page__form .ant-input-affix-wrapper-lg {
+  min-height: var(--auth-control-height);
+  border-color: var(--auth-color-form-input-edge);
+  border-radius: var(--auth-radius-field);
+  background: var(--auth-color-form-input);
+  box-shadow: 0 1px 2px var(--auth-color-form-input-shadow);
+  font-size: 16px;
+}
+
+/* 密码框由 Ant Design 外层包裹 input；内外层都设底色，避免聚焦时露出默认蓝底。 */
+.auth-page__form .ant-input,
+.auth-page__form .ant-input-affix-wrapper .ant-input,
+.auth-page__form .ant-input-affix-wrapper .ant-input:focus,
+.auth-page__form .ant-input-affix-wrapper .ant-input:hover {
+  background-color: var(--auth-color-form-input) !important;
+}
+
+/* Chromium 自动填充会自行绘制底色；大面积内阴影覆盖浏览器颜色，同时保留可读文字。 */
+.auth-page__form input.ant-input:-webkit-autofill,
+.auth-page__form input.ant-input:-webkit-autofill:hover,
+.auth-page__form input.ant-input:-webkit-autofill:focus,
+.auth-page__form .ant-input-affix-wrapper input.ant-input:-webkit-autofill,
+.auth-page__form .ant-input-affix-wrapper input.ant-input:-webkit-autofill:hover,
+.auth-page__form .ant-input-affix-wrapper input.ant-input:-webkit-autofill:focus {
+  background-color: var(--auth-color-form-input) !important;
+  transition: background-color 999999s ease-out 0s;
+  -webkit-text-fill-color: var(--color-text-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--auth-color-form-input) inset !important;
+  box-shadow: 0 0 0 1000px var(--auth-color-form-input) inset !important;
+  caret-color: var(--color-text-primary);
+}
+
+.auth-page__form .ant-input-affix-wrapper-focused,
+.auth-page__form .ant-input-lg:focus,
+.auth-page__form .ant-input-lg:hover,
+.auth-page__form .ant-input-affix-wrapper-lg:hover {
+  border-color: var(--auth-color-form-input-focus-edge);
+}
+
+.auth-page__form .ant-input-affix-wrapper-focused,
+.auth-page__form .ant-input-lg:focus {
+  box-shadow: 0 0 0 3px var(--auth-color-form-input-focus-ring);
+}
+
+.auth-page__form .ant-input::placeholder {
+  color: var(--auth-color-form-placeholder);
+}
+
+.auth-page__form .ant-input-password-icon {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  margin-inline-end: -4px;
+  border-radius: 8px;
+  color: var(--auth-color-form-password-icon);
+  font-size: 16px;
+  transition: color .16s ease, background-color .16s ease;
+}
+
+.auth-page__form .ant-input-password-icon:hover {
+  background-color: var(--auth-color-form-password-icon-hover);
+  color: var(--color-brand);
+}
+
+.auth-page__form .ant-input-password-icon svg {
+  display: block;
+}
+/* 登录页：输入框、密码眼睛与自动填充｜结束 */
+
+/* 登录页：提交按钮、恢复入口与说明文字｜开始 */
+.auth-page__form .ant-btn-primary {
+  min-height: var(--auth-control-height);
+  margin-top: 9px;
+  border-radius: var(--auth-radius-field);
+  font-size: 15px;
+  font-weight: 650;
+  box-shadow: 0 10px 22px var(--auth-color-form-button-shadow);
+  transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+
+.auth-page__form .ant-btn-primary:not(:disabled):hover {
+  box-shadow: 0 13px 26px var(--auth-color-form-button-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.auth-page__form-panel > .ant-btn-link {
+  min-height: 40px;
+  margin-top: 4px;
+  color: var(--auth-color-form-recovery-link);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.auth-page__form-footnote.ant-typography {
+  margin: clamp(14px, 2.6svh, 24px) 0 0;
+  color: var(--auth-color-form-footnote);
+  font-size: 13px;
+  line-height: 1.8;
+}
+/* 登录页：提交按钮、恢复入口与说明文字｜结束 */
+
+/* 登录页：中等屏幕堆叠布局｜开始 */
+@media (max-width: 860px) {
+  .auth-page {
+    padding: 28px;
+  }
+
+  .auth-page__split-layout {
+    width: min(640px, 100%);
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .auth-page__visual {
+    min-height: 275px;
+    padding: 28px 34px 24px;
+  }
+
+  .auth-page__visual-copy {
+    max-width: 560px;
+    padding: 25px 0 22px;
+  }
+
+  .auth-page__visual-copy h1.ant-typography {
+    margin-bottom: 12px;
+    font-size: clamp(28px, 5vw, 36px);
+  }
+
+  .auth-page__visual-copy p.ant-typography {
+    max-width: 500px;
+    font-size: var(--font-size-sm);
+  }
+
+  .auth-page__visual-status {
+    padding-top: 14px;
+  }
+
+  .auth-page__form-panel {
+    border-left: 0;
+    border-top: 1px solid var(--auth-color-glass-edge);
+    padding: 38px 44px 42px;
+  }
+}
+/* 登录页：中等屏幕堆叠布局｜结束 */
+
+/* 登录页：手机窄屏布局｜开始 */
+@media (max-width: 520px) {
+  .auth-page {
+    padding: 14px;
+  }
+
+  .auth-page__split-layout {
+    border-radius: 22px;
+  }
+
+  .auth-page__visual {
+    min-height: 236px;
+    padding: 22px 22px 18px;
+    background-position: center 54%;
+  }
+
+  .auth-page__visual-brand-mark {
+    width: 34px;
+    height: 34px;
+  }
+
+  .auth-page__visual-copy {
+    padding: 19px 0 17px;
+  }
+
+  .auth-page__visual-copy h1.ant-typography {
+    font-size: clamp(25px, 7.5vw, 32px);
+  }
+
+  .auth-page__visual-status {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .auth-page__form-panel {
+    padding: 30px 24px 32px;
+  }
+
+  .auth-page__form-heading {
+    margin-bottom: 26px;
+  }
+}
+/* 登录页：手机窄屏布局｜结束 */
+
+/* 登录页：桌面矮视口布局；压缩外边距和面板留白，极矮窗口仍由页面纵向滚动承载。 */
+@media (min-width: 861px) and (max-height: 900px) {
+  .auth-page {
+    padding-block: clamp(8px, 2svh, 18px);
+  }
+
+  .auth-page__split-layout {
+    min-height: 0;
+  }
+
+  .auth-page__visual {
+    min-height: clamp(360px, 60svh, 540px);
+    padding-block: clamp(20px, 3.5svh, 32px);
+  }
+
+  .auth-page__visual-copy {
+    padding-block: clamp(18px, 4svh, 36px);
+  }
+
+  .auth-page__form-panel {
+    justify-content: flex-start;
+    padding-block: clamp(12px, 2.5svh, 22px);
+  }
+}
+
+/* 登录页：低透明度或高对比度偏好｜开始 */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .auth-page__split-layout {
+    border-color: var(--auth-color-glass-accessible-edge);
+  }
+
+  .auth-page__form-panel {
+    border-left-color: var(--color-border);
+    border-top-color: var(--auth-color-glass-accessible-edge);
+    background: var(--auth-color-glass-solid);
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+/* 登录页：低透明度或高对比度偏好｜结束 */
+

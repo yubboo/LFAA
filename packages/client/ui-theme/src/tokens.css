@@ -1,0 +1,69 @@
+/*
+ * 功能：定义 LFAA 全局共用的颜色、字号、间距和字体变量。
+ * 作用：为各页面提供统一设计令牌；账户外观设置可在工作台中覆盖字号与字体变量。
+ * 关联文件：packages/client/web/src/main.tsx、packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-theme/src/base.css 及各页面样式。
+ */
+:root {
+  --font-family-sans: Geist, "Segoe UI Variable", "Microsoft YaHei", sans-serif;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px; /* 设置导航标题的默认大小，随账户界面字号同比缩放。 */
+  --font-size-2xl: 32px; /* 设置分类主标题的默认大小，随账户界面字号同比缩放。 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --radius-pill: 999px;
+
+  --color-brand: #3457d5;
+  --color-brand-rgb: 52, 87, 213;
+  --color-brand-hover: #294ab7;
+  --color-brand-deep: #203b87;
+  --color-focus-ring: rgba(var(--color-brand-rgb), 0.34);
+  --color-brand-subtle: rgba(var(--color-brand-rgb), 0.08);
+  --color-brand-glow: rgba(var(--color-brand-rgb), 0.18);
+  --color-shadow-card-soft: rgba(28, 40, 68, 0.08);
+  --color-shadow-float: rgba(28, 40, 68, .15);
+  --color-text-primary: #263247;
+  --color-text-heading: #202c40;
+  --color-text-secondary: #5d6a80;
+  --color-text-muted: #738097;
+  --color-text-caption: #7e8ba0;
+  --color-text-subtle: #96a1b2;
+  --color-text-inverse: #f7f8fc;
+  --color-surface: #fff;
+  --color-canvas: #edf1f7;
+  --color-surface-muted: #f5f7fb;
+  --color-surface-hover: #eef2f8;
+  --color-surface-selected: #eaf0ff;
+  --color-border: #dce3ed;
+  --color-border-strong: #d4dce8;
+  --color-border-subtle: #e7ecf3;
+  --color-border-soft: #dfe5ef;
+  --color-border-muted: #d8e0eb;
+  --color-status-idle: #8792a5;
+  --color-status-success: #328463;
+  --color-status-success-text: #286e53;
+  --color-status-success-surface: #e6f2ec;
+  --color-status-warning: #a47a2f;
+  --color-status-warning-surface: #f5efdf;
+  --color-status-error: #bd5558;
+  --color-status-error-text: #a24246;
+  --color-status-error-surface: #f6e9e9;
+
+  font-family: var(--font-family-sans);
+  color: var(--color-text-primary);
+  background: var(--color-canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+}
+
+
+

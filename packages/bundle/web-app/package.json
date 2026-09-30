@@ -1,0 +1,38 @@
+{
+  "name": "lfaa-web-app",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "lfaa": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "lfaa-api-account-controller": "workspace:*",
+    "lfaa-api-gateway": "workspace:*",
+    "lfaa-api-job-controller": "workspace:*",
+    "lfaa-api-minecraft-controller": "workspace:*",
+    "lfaa-api-session-controller": "workspace:*",
+    "lfaa-api-settings-controller": "workspace:*",
+    "lfaa-api-steamcmd-controller": "workspace:*",
+    "lfaa-api-workspace-files": "workspace:*",
+    "lfaa-api-writing-controller": "workspace:*",
+    "lfaa-host-webserver": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/express": "^4.0.0",
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^24.0.0",
+    "@types/js-yaml": "^4.0.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

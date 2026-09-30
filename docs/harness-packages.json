@@ -1,0 +1,2323 @@
+{
+  "reference": "https://github.com/deepseek-ai/deepseek-harness",
+  "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
+  "packages": [
+    {
+      "path": "packages/acp/acp",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-acp",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/api/account-controller",
+      "name": "lfaa-api-account-controller",
+      "upstreamName": "@deepseek-ai/dsh-api-account-controller",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/api/gateway",
+      "name": "lfaa-api-gateway",
+      "upstreamName": "@deepseek-ai/dsh-api-gateway",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/api/job-controller",
+      "name": "lfaa-api-job-controller",
+      "upstreamName": "@deepseek-ai/dsh-api-job-controller",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/api/remotes",
+      "name": "lfaa-api-remotes",
+      "upstreamName": "@deepseek-ai/dsh-api-remotes",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/api/session-controller",
+      "name": "lfaa-api-session-controller",
+      "upstreamName": "@deepseek-ai/dsh-api-session-controller",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/api/settings-controller",
+      "name": "lfaa-api-settings-controller",
+      "upstreamName": "@deepseek-ai/dsh-api-settings-controller",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/api/terminal-controller",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-api-terminal-controller",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/api/workspace-controller",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-api-workspace-controller",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/api/workspace-files",
+      "name": "lfaa-api-workspace-files",
+      "upstreamName": "@deepseek-ai/dsh-api-workspace-files",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/attachment/attachment",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-attachment",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/attachment/attachment-local",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-attachment-local",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/boot/app-boot",
+      "name": "lfaa-app-boot",
+      "upstreamName": "@deepseek-ai/dsh-app-boot",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/boot/cmdline",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-cmdline",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/boot/config-editor",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-config-editor",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/boot/hmr",
+      "name": "lfaa-hmr",
+      "upstreamName": "@deepseek-ai/dsh-hmr",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/boot/plugin-manager",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-plugin-manager",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/browser-use/browser-use",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-browser-use",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/bundle/acp-app",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-acp-app",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/bundle/base",
+      "name": "lfaa-base",
+      "upstreamName": "@deepseek-ai/dsh-base",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/bundle/headless",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-headless",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/bundle/sdk-app",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-sdk-app",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/bundle/sdk-minimal",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-sdk-minimal",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/bundle/web-app",
+      "name": "lfaa-web-app",
+      "upstreamName": "@deepseek-ai/dsh-web-app",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/connection",
+      "name": "lfaa-client-connection",
+      "upstreamName": "@deepseek-ai/dsh-client-connection",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/file-upload",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-file-upload",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/hmr",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-hmr",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/locale",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-locale",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/modules",
+      "name": "lfaa-client-modules",
+      "upstreamName": "@deepseek-ai/dsh-client-modules",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/product-analytics",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-product-analytics",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/resources",
+      "name": "lfaa-client-resources",
+      "upstreamName": "@deepseek-ai/dsh-client-resources",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/shortcuts",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-shortcuts",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/store",
+      "name": "lfaa-client-store",
+      "upstreamName": "@deepseek-ai/dsh-client-store",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-agent-preset",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-agent-preset",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-approval",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-approval",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-attachment",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-attachment",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-brand-official",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-brand-official",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-chat",
+      "name": "lfaa-client-ui-chat",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-chat",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-commands",
+      "name": "lfaa-client-ui-commands",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-commands",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-conversation",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-conversation",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-deliverables",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-deliverables",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-directory-picker-browse",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-directory-picker-browse",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-directory-picker-native",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-directory-picker-native",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-dockkit",
+      "name": "lfaa-client-ui-dockkit",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-dockkit",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-goal",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-goal",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-input-trigger",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-input-trigger",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-jobs",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-jobs",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-layout",
+      "name": "lfaa-client-ui-layout",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-layout",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-message-feedback",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-message-feedback",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-model-selection",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-model-selection",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-open-in-app",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-open-in-app",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-permission-presets",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-permission-presets",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-plan",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-plan",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-plugin-manager",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-plugin-manager",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-primitives",
+      "name": "lfaa-client-ui-primitives",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-primitives",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-reference",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-reference",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-renderer",
+      "name": "lfaa-client-ui-renderer",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-renderer",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-schedule",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-schedule",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-session",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-session",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-settings",
+      "name": "lfaa-client-ui-settings",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-settings",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-settings-account",
+      "name": "lfaa-client-ui-settings-account",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-settings-account",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-settings-agent-loop",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-settings-agent-loop",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-settings-general",
+      "name": "lfaa-client-ui-settings-general",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-settings-general",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-settings-models",
+      "name": "lfaa-client-ui-settings-models",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-settings-models",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-settings-plugin-inventory",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-settings-plugin-inventory",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-settings-plugins",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-settings-plugins",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-settings-session-log",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-settings-session-log",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-settings-shell",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-settings-shell",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-settings-subagent",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-settings-subagent",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-settings-web-search",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-settings-web-search",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-shortcuts",
+      "name": "lfaa-client-ui-shortcuts",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-shortcuts",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-sidebar",
+      "name": "lfaa-client-ui-sidebar",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-sidebar",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-sidebar-browser",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-sidebar-browser",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-sidebar-documentpreview",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-sidebar-documentpreview",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-sidebar-files",
+      "name": "lfaa-client-ui-sidebar-files",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-sidebar-files",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-sidebar-right",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-sidebar-right",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-sidebar-terminal",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-sidebar-terminal",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-skill",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-skill",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-slots",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-slots",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-subagent",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-subagent",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-theme",
+      "name": "lfaa-client-ui-theme",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-theme",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-tool",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-tool",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-trajectory",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-trajectory",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-user-questions",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-user-questions",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-workflow-run",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-workflow-run",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-workspace",
+      "name": "lfaa-client-ui-workspace",
+      "upstreamName": "@deepseek-ai/dsh-client-ui-workspace",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/web",
+      "name": "lfaa-client-web",
+      "upstreamName": "@deepseek-ai/dsh-client-web",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/compaction/command-compact",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-command-compact",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/compaction/compaction",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-compaction",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/compaction/compaction-basic",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-compaction-basic",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/compaction/compaction-image-offload",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-compaction-image-offload",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/compaction/compaction-tool-result-pruner",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-compaction-tool-result-pruner",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/computer-use/computer-use",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-computer-use",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/context/agent-instructions",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-agent-instructions",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/context/file-reference",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-file-reference",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/context/file-reference-local",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-file-reference-local",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/context/session-reference",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-reference",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/context/time-context",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-time-context",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/context/tmux-context",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tmux-context",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/core/agent",
+      "name": "lfaa-agent",
+      "upstreamName": "@deepseek-ai/dsh-agent",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/core/agent-default-model",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-agent-default-model",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/core/agent-loop",
+      "name": "lfaa-agent-loop",
+      "upstreamName": "@deepseek-ai/dsh-agent-loop",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/core/agent-tool-presentation",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-agent-tool-presentation",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/core/scope",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-scope",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/core/session",
+      "name": "lfaa-session",
+      "upstreamName": "@deepseek-ai/dsh-session",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/core/system-prompt",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-system-prompt",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/core/tools",
+      "name": "lfaa-tools",
+      "upstreamName": "@deepseek-ai/dsh-tools",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/credentials/authorization",
+      "name": "lfaa-authorization",
+      "upstreamName": "@deepseek-ai/dsh-authorization",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/credentials/credentials",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-credentials",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/credentials/credentials-local",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-credentials-local",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/credentials/deepseek-account",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-deepseek-account",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/credentials/deepseek-account-platform",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-deepseek-account-platform",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/deliverables/tool-present",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-present",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/deliverables/workspace-changes",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-workspace-changes",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/document/office-to-pdf",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-office-to-pdf",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/agent-team",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-agent-team",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/agent-team-profile",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-agent-team-profile",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/api-speech-to-text",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-api-speech-to-text",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/auto-review",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-auto-review",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/browser-use-chrome-devtools-mcp",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-browser-use-chrome-devtools-mcp",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/browser-use-playwright-mcp",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-browser-use-playwright-mcp",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/browser-use-runtime",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-browser-use-runtime",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/browser-use-stagehand-native",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-browser-use-stagehand-native",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/client-ui-agent-team",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-client-ui-agent-team",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/client-ui-voice-input",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-client-ui-voice-input",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/computer-use-cua-driver-mcp",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-computer-use-cua-driver-mcp",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/computer-use-cua-driver-native",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-computer-use-cua-driver-native",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/inspector",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-inspector",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/ptc-runtime-python",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-ptc-runtime-python",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/schedule-bundle",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-schedule-bundle",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/speech-to-text",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-speech-to-text",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/speech-to-text-sensevoice",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-speech-to-text-sensevoice",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/tool-agent-team",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-tool-agent-team",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/voice-input-bundle",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-voice-input-bundle",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/webworker-packer",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-webworker-packer",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/experimental/webworker-runtime",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-experimental-webworker-runtime",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/extensions/cordis-client-runner",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-cordis-client-runner",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/extensions/cordis-host-runner",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-cordis-host-runner",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/extensions/tool-cordis",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-cordis",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/extensions/ui-cordis",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-ui-cordis",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/feedback/command-feedback",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-command-feedback",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/feedback/message-feedback",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-message-feedback",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/fs/fs",
+      "name": "lfaa-fs",
+      "upstreamName": "@deepseek-ai/dsh-fs",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/fs/fs-local",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-fs-local",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/fs/fs-observation-policy",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-fs-observation-policy",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/fs/fs-sandbox",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-fs-sandbox",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/fs/tool-fs",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-fs",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/fs/tool-fs-search",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-fs-search",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/fs/tool-str-replace-editor",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-str-replace-editor",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/goal/command-goal",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-command-goal",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/goal/goal",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-goal",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/goal/goal-round-driver",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-goal-round-driver",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/goal/tool-goal",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-goal",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/guard/repeat-tool-reminder",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-repeat-tool-reminder",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/guard/timeout-policy",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-call-timeout-policy",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/hooks/hook-protocol",
+      "name": "lfaa-hook-protocol",
+      "upstreamName": "@deepseek-ai/dsh-hook-protocol",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/hooks/hooks-claude-code",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-hooks-claude-code",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/hooks/hooks-codex",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-hooks-codex",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/host/directory-picker",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-host-directory-picker",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/host/directory-picker-auto",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-host-directory-picker-auto",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/host/directory-picker-browse",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-host-directory-picker-browse",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/host/directory-picker-native",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-host-directory-picker-native",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/host/frontend-static",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-host-frontend-static",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/host/open-in-app",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-host-open-in-app",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/host/plugin-inventory",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-host-plugin-inventory",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/host/product-telemetry-otel",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-host-product-telemetry-otel",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/host/webserver",
+      "name": "lfaa-host-webserver",
+      "upstreamName": "@deepseek-ai/dsh-host-webserver",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/identity/anonymous-user-id",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-anonymous-user-id",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/interaction/commands",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-commands",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/interaction/permission-presets",
+      "name": "lfaa-permission-presets",
+      "upstreamName": "@deepseek-ai/dsh-permission-presets",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/interaction/tool-ask-user",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-ask-user",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/interaction/user-approval",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-user-approval",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/interaction/user-questions",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-user-questions",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/jobs/jobs",
+      "name": "lfaa-jobs",
+      "upstreamName": "@deepseek-ai/dsh-jobs",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/jobs/jobs-local",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-jobs-local",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/jobs/tool-jobs",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-jobs",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/llm/deepseek-llm-api-extensions",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-deepseek-llm-api-extensions",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/llm/llm",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-llm",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/llm/llm-deepseek",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-llm-deepseek",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/llm/llm-deepseek-account",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-llm-deepseek-account",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/llm/llm-deepseek-api-key",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-llm-deepseek-api-key",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/llm/llm-pi-ai",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-llm-pi-ai",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/llm/llm-retry",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-llm-retry",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/llm/plugin-package-inventory-deepseek",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-plugin-package-inventory-deepseek",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/llm/token-meter",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-token-meter",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/lsp/lsp",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-lsp",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/lsp/lsp-stdio",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-lsp-stdio",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/lsp/tool-lsp",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-lsp",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/mcp/mcp-client",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-mcp-client",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/mcp/mcp-resources",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-mcp-resources",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/plan/plan-mode",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-plan-mode",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/preset/agent-preset",
+      "name": "lfaa-agent-preset",
+      "upstreamName": "@deepseek-ai/dsh-agent-preset",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/preset/agent-preset-registry",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-agent-preset-registry",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/preset/persona",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-persona",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/ptc-runtime/ptc-runtime",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-ptc-runtime",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/ptc-runtime/ptc-runtime-node",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-ptc-runtime-node",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/runtime-diagnostics/invariants",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-invariants",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/sandbox/sandbox",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-sandbox",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/sandbox/sandbox-local",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-sandbox-local",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/sandbox/sandbox-policy",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-sandbox-policy",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/sandbox/sandbox-windows-acl",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-sandbox-windows-acl",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/schedule/schedule",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-schedule",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/sdk/client",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-sdk-client",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/sdk/protocol",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-sdk-protocol",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/sdk/server",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-sdk-jsonrpc-server",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-checkpoint-policy",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-checkpoint-policy",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-format",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-format",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-format-catalog",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-format-catalog",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-format-v0-to-v1",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-format-v0-to-v1",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-format-v1-to-v2",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-format-v1-to-v2",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-format-v2-to-v3",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-format-v2-to-v3",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-format-v3-to-v4",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-format-v3-to-v4",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-log-deepseek",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-log-deepseek",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-persistence",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-persistence",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-persistence-jsonl",
+      "name": "lfaa-session-persistence-jsonl",
+      "upstreamName": "@deepseek-ai/dsh-session-persistence-jsonl",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/session/session-projection",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-projection",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-projection-cache",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-projection-cache",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-stats",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-stats",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-telemetry",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-telemetry",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-telemetry-otel",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-telemetry-otel",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-title",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-title",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-title-all-prompts-llm",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-title-all-prompts-llm",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-title-first-prompt-llm",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-title-first-prompt-llm",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-title-llm",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-title-llm",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session/session-turn-outline",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-turn-outline",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session-query/session-log-export",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-log-export",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session-query/session-query",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-query",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session-query/session-query-sqlite",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-query-sqlite",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/session-query/tool-session-query",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-session-query",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/settings/settings",
+      "name": "lfaa-settings",
+      "upstreamName": "@deepseek-ai/dsh-settings",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/shell/bash-local",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-bash-local",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/shell/bash-sandbox",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-bash-sandbox",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/shell/pwsh-local",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-pwsh-local",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/shell/pwsh-sandbox",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-pwsh-sandbox",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/shell/shell",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-shell",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/shell/shell-env",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-shell-env",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/shell/tool-bash",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-bash",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/shell/tool-bash-persistent",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-bash-persistent",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/shell/tool-pwsh",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-pwsh",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/shell/tool-pwsh-persistent",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-pwsh-persistent",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/skill/skill",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-skill",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/skill/skill-badge",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-skill-badge",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/skill/skill-filesystem",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-skill-filesystem",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/skill/skill-office",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-skill-office",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/skill/tool-skill",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-skill",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/skill/tool-workspace-dependencies",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-workspace-dependencies",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/spill/spill",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-spill",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/spill/spill-local",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-spill-local",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/spill/spill-policy",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-spill-policy",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/ssh/fs-ssh",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-fs-ssh",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/ssh/sandbox-ssh",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-sandbox-ssh",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/ssh/ssh",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-ssh",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/ssh/subprocess-ssh",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-subprocess-ssh",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/storage/storage",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-storage",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/storage/storage-domain",
+      "name": "lfaa-storage-domain",
+      "upstreamName": "@deepseek-ai/dsh-storage-domain",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/storage/storage-json",
+      "name": "lfaa-storage-json",
+      "upstreamName": "@deepseek-ai/dsh-storage-json",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/storage/storage-sqlite",
+      "name": "lfaa-storage-sqlite",
+      "upstreamName": "@deepseek-ai/dsh-storage-sqlite",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/subagent/subagent",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-subagent",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/subagent/subagent-acp",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-subagent-acp",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/subagent/subagent-claude-code",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-subagent-claude-code",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/subagent/subagent-codex",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-subagent-codex",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/subagent/subagent-dsh-sdk",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-subagent-dsh-sdk",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/subagent/subagent-fork-in-process",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-subagent-fork-in-process",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/subagent/subagent-in-process-driver",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-subagent-in-process-driver",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/subagent/subagent-spawn-in-process",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-subagent-spawn-in-process",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/subagent/tool-subagent",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-subagent",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/subagent/tool-subagent-control",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-subagent-control",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/subprocess/subprocess",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-subprocess",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/subprocess/subprocess-local",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-subprocess-local",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/subprocess/win32-process",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-win32-process",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/telemetry/otel",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-otel",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/terminal/terminal",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-terminal",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/terminal/terminal-bash",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-terminal-bash",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/terminal/tool-terminal",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-terminal",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/test-support/agent-loop-testkit",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-agent-loop-testkit",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/test-support/client-runtime",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-client-test-runtime",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/test-support/llm-mock-server",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-llm-mock-server",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/test-support/llm-replay",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-llm-replay",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/test-support/loader-smoke",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-loader-smoke",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/test-support/remote-mock",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-remote-mock",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/test-support/session-snapshot",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-session-snapshot",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/todo/tool-todo",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-todo",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/typert/generator",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-typert-generator",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/typert/loader",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-typert-loader",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/typert/protocol",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-typert-protocol",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/typert/registry",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-typert-registry",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/atomic-write",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-atomic-write",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/brand",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-brand",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/chunked-list",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-chunked-list",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/code-language",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-util-code-language",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/crypto",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-util-crypto",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/deque",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-deque",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/home-paths",
+      "name": "lfaa-home-paths",
+      "upstreamName": "@deepseek-ai/dsh-home-paths",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/util/http-proxy",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-http-proxy",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/launch-environment",
+      "name": "lfaa-launch-environment",
+      "upstreamName": "@deepseek-ai/dsh-launch-environment",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/util/lazy-require",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-lazy-require",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/native-command",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-native-command",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/output-retention",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-output-retention",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/package-manifest",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-package-manifest",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/time",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-util-time",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/timeout",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-timeout",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/util/values",
+      "name": "lfaa-util-values",
+      "upstreamName": "@deepseek-ai/dsh-util-values",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/util/workspace-path",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-util-workspace-path",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/web/tool-web",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-web",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/web/web",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-web",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/web/web-fetch-http",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-web-fetch-http",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/web/web-search-deepseek",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-web-search-deepseek",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/web/web-search-exa",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-web-search-exa",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/web/web-search-perplexity",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-web-search-perplexity",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/webhook/webhook",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-webhook",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/webhook/webhook-github",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-webhook-github",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/workflow/tool-ralph",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-ralph",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/workflow/tool-workflow",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-tool-workflow",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/workflow/workflow",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-workflow",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/workflow/workflow-ptc",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-workflow-ptc",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/workspace/workspace",
+      "name": null,
+      "upstreamName": "@deepseek-ai/dsh-workspace",
+      "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/api/minecraft-controller",
+      "name": "lfaa-api-minecraft-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/api/steamcmd-controller",
+      "name": "lfaa-api-steamcmd-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/api/writing-controller",
+      "name": "lfaa-api-writing-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/bundle/daemon-app",
+      "name": "lfaa-daemon-app",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-minecraft",
+      "name": "lfaa-client-ui-minecraft",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/client/ui-writing",
+      "name": "lfaa-client-ui-writing",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/document/writing",
+      "name": "lfaa-document-writing",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/games/minecraft",
+      "name": "lfaa-games-minecraft",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/games/steamcmd",
+      "name": "lfaa-games-steamcmd",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/host/daemon",
+      "name": "lfaa-host-daemon",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/identity/auth",
+      "name": "lfaa-identity-auth",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/skill/writing",
+      "name": "lfaa-skill-writing",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/telemetry/logger",
+      "name": "lfaa-telemetry-logger",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/test-support/api",
+      "name": "lfaa-test-support-api",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/workspace/data-directory",
+      "name": "lfaa-workspace-data-directory",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    }
+  ]
+}

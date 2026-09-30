@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.host.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "outDir": "../../dist/apps/control-plane"
+  }
+}

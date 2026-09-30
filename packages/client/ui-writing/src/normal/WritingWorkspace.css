@@ -1,0 +1,211 @@
+/*
+ * 功能：定义写作常规模式的作品、卷、章节目录和正文编辑区样式。
+ * 作用：在共享工作台中为章节导航留出次级栏，让正文编辑区成为主视觉和主要输入区域。
+ * 关联文件：WritingWorkspace.tsx、packages/client/ui-layout/src/workbench.css、packages/client/ui-layout/src/Workbench.tsx。
+ */
+.writing-workspace {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 0;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+}
+
+.module-center__content--writing-normal { overflow: hidden; }
+
+.writing-workspace__library {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 0;
+  border-radius: inherit;
+  background: var(--settings-sidebar-color, var(--color-surface-muted));
+  color: var(--color-text-primary);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+}
+
+.writing-workspace__library > header,
+.writing-workspace__chapter-heading,
+.writing-workspace__volume-heading {
+  display: flex;
+  min-height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 13px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+}
+
+.writing-workspace__library > header { border-bottom: 1px solid var(--color-border-subtle); }
+
+.writing-workspace__library > header button,
+.writing-workspace__chapter-heading button,
+.writing-workspace__volume-heading button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.writing-workspace__library > header button:hover,
+.writing-workspace__chapter-heading button:hover:not(:disabled),
+.writing-workspace__volume-heading button:hover:not(:disabled) { background: var(--color-surface-hover); color: var(--settings-accent, var(--color-brand)); }
+.writing-workspace__library > header button:focus-visible,
+.writing-workspace__chapter-heading button:focus-visible,
+.writing-workspace__volume-heading button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+.writing-workspace__chapter-heading button:disabled { opacity: .5; cursor: default; }
+.writing-workspace__volume-heading button:disabled { opacity: .5; cursor: default; }
+
+.writing-workspace__books { display: grid; flex: 0 0 auto; gap: 2px; padding: 7px 8px; }
+.writing-workspace__books { max-height: 35%; overflow: auto; }
+.writing-workspace__book,
+.writing-workspace__chapter {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-xs);
+  text-align: left;
+}
+
+.writing-workspace__book svg,
+.writing-workspace__chapter svg { flex: 0 0 auto; color: var(--color-text-muted); }
+.writing-workspace__book span,
+.writing-workspace__chapter span { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.writing-workspace__book:hover,
+.writing-workspace__chapter:hover { background: var(--color-surface-hover); color: var(--color-text-heading); }
+.writing-workspace__book.is-active,
+.writing-workspace__chapter.is-active { border-color: var(--color-border); background: var(--color-surface-selected); color: var(--settings-accent, var(--color-brand)); font-weight: 650; }
+.writing-workspace__book.is-active svg,
+.writing-workspace__chapter.is-active svg { color: var(--settings-accent, var(--color-brand)); }
+.writing-workspace__chapter-tree { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; overflow: hidden; border-top: 1px solid var(--color-border-subtle); }
+.writing-workspace__chapter-heading { min-height: 31px; padding: 0 5px; }
+.writing-workspace__volumes { display: grid; min-height: 0; flex: 1 1 auto; align-content: start; gap: 5px; padding: 0 8px 7px; overflow: auto; }
+.writing-workspace__volume { display: grid; min-width: 0; align-content: start; gap: 1px; }
+.writing-workspace__volume-heading { min-height: 29px; gap: 6px; padding: 0 4px; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.writing-workspace__volume-heading > svg { flex: 0 0 auto; color: var(--color-text-muted); }
+.writing-workspace__volume-heading > span { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.writing-workspace__volume-heading button { width: 22px; height: 22px; }
+.writing-workspace__chapter { min-height: 32px; padding-inline: 8px; }
+.writing-workspace__volume .writing-workspace__chapter { padding-left: 17px; }
+.writing-workspace__chapter small { flex: 0 0 auto; color: var(--color-text-subtle); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
+.writing-workspace__tree-empty { margin: 5px 5px; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.writing-workspace__library-empty { display: grid; flex: 1 1 auto; align-content: center; justify-items: center; gap: 9px; padding: 20px; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.7; text-align: center; }
+.writing-workspace__library-empty svg { color: var(--settings-accent, var(--color-brand)); }
+.writing-workspace__library > footer { display: flex; min-height: 36px; flex: 0 0 auto; align-items: center; gap: 7px; padding: 0 13px; border-top: 1px solid var(--color-border-subtle); color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.writing-workspace__save-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--color-status-success); }
+.writing-workspace__save-dot--dirty,
+.writing-workspace__save-dot--saving { background: var(--color-status-warning); }
+.writing-workspace__save-dot--error { background: var(--color-status-error); }
+
+.writing-workspace__editor { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; background: transparent; }
+.writing-workspace__editor-toolbar { display: flex; min-height: 42px; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 10px; padding: 0 18px; border-bottom: 1px solid var(--color-border-subtle); background: color-mix(in srgb, var(--color-surface) 78%, transparent); }
+.writing-workspace__breadcrumb { display: flex; min-width: 0; align-items: center; gap: 8px; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.writing-workspace__breadcrumb span { max-width: min(32vw, 260px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.writing-workspace__breadcrumb span:last-child { color: var(--color-text-primary); font-weight: 600; }
+.writing-workspace__breadcrumb svg { flex: 0 0 auto; transform: rotate(-90deg); }
+.writing-workspace__toolbar-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; }
+.writing-workspace__toolbar-actions button { display: grid; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.writing-workspace__toolbar-actions button:hover { background: var(--color-surface-hover); color: var(--settings-accent, var(--color-brand)); }
+.writing-workspace__toolbar-actions button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+
+.writing-workspace__paper { display: flex; width: min(100%, 940px); min-width: 0; min-height: 0; flex: 1 1 auto; flex-direction: column; align-self: center; padding: clamp(28px, 6vh, 62px) clamp(22px, 7vw, 90px) 18px; overflow: auto; }
+.writing-workspace__chapter-title.ant-input { height: auto; flex: 0 0 auto; margin-bottom: 22px; padding: 0; border: 0; background: transparent; box-shadow: none; color: var(--color-text-heading); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: calc(var(--settings-interface-font-size, 14px) * 1.55); font-weight: 650; line-height: 1.35; }
+.writing-workspace__chapter-title.ant-input:hover,
+.writing-workspace__chapter-title.ant-input:focus { border: 0; background: transparent; box-shadow: none; }
+.writing-workspace__chapter-title.ant-input::placeholder { color: var(--color-text-subtle); }
+.writing-workspace__outline-title { margin: 0 0 22px; color: var(--color-text-heading); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: calc(var(--settings-interface-font-size, 14px) * 1.55); font-weight: 650; line-height: 1.35; }
+.writing-workspace__body { display: block; width: 100%; min-height: 220px; flex: 1 1 auto; resize: none; padding: 0; border: 0; outline: 0; background: transparent; color: var(--color-text-primary); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.95; tab-size: 2; }
+.writing-workspace__body::placeholder { color: var(--color-text-subtle); }
+.writing-workspace__editor-footer { display: flex; min-height: 28px; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; border-top: 1px solid var(--color-border-subtle); color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.writing-workspace__empty { display: grid; width: min(100%, 620px); min-height: 100%; align-content: center; justify-items: center; gap: 13px; align-self: center; padding: 32px; color: var(--color-text-muted); text-align: center; }
+.writing-workspace__empty-mark { display: grid; width: 46px; height: 46px; place-items: center; border: 1px solid var(--color-border); border-radius: 13px; background: var(--color-surface-muted); color: var(--settings-accent, var(--color-brand)); }
+.writing-workspace__empty h1 { margin: 0; color: var(--color-text-heading); font-size: var(--font-size-lg); font-weight: 650; }
+.writing-workspace__empty p { max-width: 420px; margin: 0; color: var(--color-text-muted); font-size: var(--font-size-sm); line-height: 1.8; }
+.writing-workspace__empty .ant-empty { display: none; }
+.writing-workspace__empty .ant-btn { display: inline-flex; align-items: center; gap: 7px; margin-top: 3px; }
+.writing-workspace__error { position: absolute; z-index: 5; right: 18px; bottom: 15px; display: flex; max-width: min(540px, calc(100% - 36px)); align-items: flex-start; gap: 8px; padding: 10px 12px; border: 1px solid var(--color-status-error); border-radius: 9px; background: var(--color-status-error-surface); color: var(--color-status-error-text); font-size: var(--font-size-xs); line-height: 1.55; box-shadow: 0 8px 26px var(--color-shadow-card-soft); }
+.writing-workspace__error svg { flex: 0 0 auto; margin-top: 1px; }
+.writing-workspace__loading,
+.writing-workspace__revision-loading { display: flex; min-height: 120px; flex: 1 1 auto; align-items: center; justify-content: center; gap: 9px; color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.writing-workspace__load-error { display: grid; min-height: 100%; align-content: center; justify-items: center; gap: 11px; padding: 30px; color: var(--color-text-muted); text-align: center; }
+.writing-workspace__load-error > svg { color: var(--color-status-warning); }
+.writing-workspace__load-error strong { color: var(--color-text-heading); font-size: var(--font-size-md); }
+.writing-workspace__load-error > span { max-width: 480px; font-size: var(--font-size-sm); line-height: 1.6; }
+.writing-workspace__revisions { display: grid; max-height: min(55vh, 520px); overflow: auto; }
+.writing-workspace__revision { display: flex; min-height: 55px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 2px; border-bottom: 1px solid var(--color-border-subtle); }
+.writing-workspace__revision > div { display: grid; min-width: 0; gap: 4px; }
+.writing-workspace__revision strong { overflow: hidden; color: var(--color-text-primary); font-size: var(--font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
+.writing-workspace__revision span,
+.writing-workspace__revisions-empty { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.writing-workspace__revisions-empty { padding: 20px 0; text-align: center; }
+.writing-workspace__revision-loading { min-height: 90px; }
+
+/* 壁纸下的编辑纸面和作品导航跟随统一遮罩透明度；作品导航仅在开启半透明侧栏时使用设置模糊。 */
+.workbench-shell[data-background-image="true"] .writing-workspace__library {
+  background-color: color-mix(in srgb, var(--settings-sidebar-color, var(--color-surface-muted)) var(--settings-background-surface-opacity), transparent);
+}
+
+.workbench-shell[data-background-image="true"] .writing-workspace__paper {
+  background-color: color-mix(in srgb, var(--color-canvas) var(--settings-background-surface-opacity), transparent);
+}
+
+.workbench-shell[data-translucent-sidebar="true"] .writing-workspace__library {
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}
+
+.workbench-shell[data-background-image="false"] .writing-workspace__library { background: var(--settings-sidebar-color, var(--color-surface-muted)); }
+.workbench-shell[data-background-image="false"] .writing-workspace__paper { background: var(--color-canvas); }
+
+@media (max-width: 720px) {
+  .writing-workspace__paper { padding: 28px 22px 14px; }
+  .writing-workspace__editor-toolbar { padding-inline: 11px; }
+}
+
+@media (max-width: 520px) {
+  .writing-workspace__library > header,
+  .writing-workspace__chapter-heading { padding-inline: 8px; }
+  .writing-workspace__books,
+  .writing-workspace__volumes { padding-inline: 5px; }
+  .writing-workspace__book,
+  .writing-workspace__chapter { gap: 5px; padding-inline: 5px; }
+  .writing-workspace__volume-heading { padding-inline: 3px; }
+  .writing-workspace__chapter small { display: none; }
+  .writing-workspace__paper { padding: 24px 14px 10px; }
+  .writing-workspace__chapter-title.ant-input { margin-bottom: 16px; font-size: var(--font-size-lg); }
+  .writing-workspace__outline-title { margin-bottom: 16px; font-size: var(--font-size-lg); }
+  .writing-workspace__toolbar-actions button { width: 26px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .writing-workspace * { scroll-behavior: auto !important; transition-duration: 0ms !important; }
+}

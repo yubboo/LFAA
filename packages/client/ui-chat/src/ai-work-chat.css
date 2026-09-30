@@ -1,0 +1,277 @@
+/*
+ * 文件：ai-work-chat.css
+ * 功能：定义 AI Work 对话画布、悬停式提问锚点、消息、权限模式弹层和输入区的布局与样式。
+ * 作用：控制会话消息、锚点跳转、活动轨迹、单次审批操作和输入区的主题适配及窄屏布局。
+ * 关联文件：packages/client/ui-chat/src/AiWorkChat.tsx、packages/client/ui-layout/src/workbench.css。
+ * 修改注意事项：应用会话导航由 ApplicationSidebar 提供；悬停锚点只索引当前会话已保存的用户提问，不占聊天列宽。
+ */
+.ai-work-chat { position: relative; display: grid; min-height: 390px; height: calc(100% - 12px); grid-template-columns: minmax(0, 1fr); overflow: hidden; border: 1px solid var(--color-border); border-radius: 14px; background: color-mix(in srgb, var(--color-surface) 94%, transparent); box-shadow: 0 8px 30px rgba(25, 40, 70, .08); }
+.ai-work-chat__conversation { display: flex; width: 100%; min-width: 0; min-height: 0; flex: 1 1 0; flex-direction: column; gap: 8px; padding: 10px 0 12px; }
+.ai-work-chat__alerts { display: grid; min-width: 0; flex: 0 0 auto; gap: 8px; }
+.ai-work-chat__conversation > .ai-work-chat__alerts { flex: 0 0 auto; }
+.ai-work-chat__alerts > .ant-alert { min-width: 0; margin: 0; }
+/* 锚点轨道悬浮在消息视口上，不占用列宽；指针进入聊天区或键盘聚焦时显示。 */
+.ai-work-chat__anchors { position: absolute; z-index: 4; top: 50%; left: 8px; width: 16px; height: 24vh; min-height: 180px; max-height: 300px; transform: translateY(-50%); opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
+.ai-work-chat__message-stage:hover > .ai-work-chat__anchors,
+.ai-work-chat__message-stage:focus-within > .ai-work-chat__anchors { opacity: 1; pointer-events: auto; }
+.ai-work-chat__anchor-list { position: absolute; inset: 0; }
+.ai-work-chat__anchor { position: absolute; left: 50%; display: grid; width: 16px; height: 18px; place-items: center; transform: translate(-50%, -50%); padding: 0; border: 0; background: transparent; cursor: pointer; }
+.ai-work-chat__anchor-mark { display: block; width: 6px; height: 3px; border-radius: 2px; background: var(--color-text-subtle); transition: width 120ms ease, background-color 120ms ease; }
+.ai-work-chat__anchor:hover .ai-work-chat__anchor-mark,
+.ai-work-chat__anchor.is-active .ai-work-chat__anchor-mark { width: 13px; background: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__anchor:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.ai-work-chat__anchor-preview { position: absolute; top: 50%; left: calc(100% + 20px); display: grid; width: min(480px, calc(100vw - 64px)); box-sizing: border-box; gap: 5px; transform: translateY(-50%) translateX(-4px); padding: 11px 13px; border: 1px solid var(--color-border); border-radius: 11px; background: var(--color-surface); box-shadow: 0 10px 32px color-mix(in srgb, var(--color-shadow) 22%, transparent); color: var(--color-text-muted); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--font-size-sm); line-height: 1.55; opacity: 0; visibility: hidden; transition: opacity 120ms ease, transform 120ms ease, visibility 120ms; pointer-events: none; }
+.ai-work-chat__anchor-preview strong { color: var(--color-text-primary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-xs); font-weight: 620; }
+.ai-work-chat__anchor-preview > span { display: -webkit-box; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.ai-work-chat__anchor:hover .ai-work-chat__anchor-preview,
+.ai-work-chat__anchor:focus-visible .ai-work-chat__anchor-preview { transform: translateY(-50%); opacity: 1; visibility: visible; }
+/* 滚动视口铺满中间工作区，消息列表与输入框共用居中窄列，滚动条因此贴在视口最右边。 */
+.ai-work-chat__message-stage { position: relative; display: flex; width: 100%; min-width: 0; min-height: 0; flex: 1 1 0; align-self: stretch; flex-direction: column; }
+.ai-work-chat__messages { display: block; width: 100%; min-width: 0; min-height: 0; flex: 1 1 auto; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; box-sizing: border-box; }
+.ai-work-chat__message-list { display: flex; width: min(100%, 920px); min-height: 100%; flex-direction: column; align-items: stretch; gap: 26px; margin-inline: auto; padding: 22px clamp(10px, 2vw, 20px) 34px; box-sizing: border-box; }
+.ai-work-chat__welcome { display: flex; max-width: 620px; flex-direction: column; align-items: center; gap: 15px; margin: auto; padding: 20px; text-align: center; }
+.ai-work-chat__welcome > .ant-typography { font-size: var(--settings-interface-font-size, var(--font-size-base)); }
+.ai-work-chat__welcome-mark { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid var(--color-border-subtle); border-radius: 13px; background: var(--color-brand-subtle); color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__welcome-copy { display: grid; justify-items: center; gap: 7px; }
+.ai-work-chat__welcome-copy h1 { margin: 0; color: var(--color-text-heading); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--font-size-xl); font-weight: 650; line-height: 1.35; }
+.ai-work-chat__welcome-copy p { max-width: 540px; margin: 0; color: var(--color-text-muted); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--font-size-sm); line-height: 1.7; }
+.ai-work-chat__suggestions { display: grid; width: min(100%, 530px); gap: 7px; }
+.ai-work-chat__suggestions button { padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 9px; background: color-mix(in srgb, var(--color-surface) 80%, transparent); color: var(--color-text-secondary); cursor: pointer; font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); text-align: left; }
+.ai-work-chat__suggestions button:hover:not(:disabled) { border-color: var(--settings-accent, var(--color-brand)); color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat--writing .ai-work-chat__composer .ant-input { font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--font-size-base); }
+.ai-work-chat--writing .ai-work-chat__composer-control.ant-btn { font-family: var(--settings-interface-font, var(--font-family-sans)); }
+.ai-work-chat--writing .ai-work-chat__composer-control-label { font-size: var(--font-size-xs); }
+.ai-work-chat--writing .ai-work-chat__composer-app,
+.ai-work-chat--writing .ai-work-chat__composer-count.ant-typography,
+.ai-work-chat--writing .ai-work-chat__message-meta,
+.ai-work-chat--writing .ai-work-chat__usage { font-size: var(--font-size-xs); }
+.ai-work-chat__message { width: 100%; max-width: 940px; align-self: center; margin-inline: auto; padding: 0; border: 0; border-radius: 0; background: transparent; box-sizing: border-box; }
+.ai-work-chat__message--assistant { align-self: center; }
+.ai-work-chat__message--user { width: fit-content; max-width: min(82%, 720px); align-self: flex-end; margin: 2px 0 2px auto; padding: 11px 16px; border: 1px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 22%, var(--color-border)); border-radius: 18px; background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, var(--color-surface)); }
+.ai-work-chat__message-meta { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; color: var(--color-text-muted); font-size: calc(var(--settings-interface-font-size, 14px) * .78); }
+.ai-work-chat__message--user .ai-work-chat__message-meta { display: none; }
+.ai-work-chat__message-meta .ant-tag { margin: 0; line-height: 18px; }
+.ai-work-chat__message-content { color: var(--color-text-heading); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.8; overflow-wrap: anywhere; }
+.ai-work-chat__message--user .ai-work-chat__message-content { line-height: 1.7; white-space: pre-wrap; }
+.ai-work-chat__markdown { min-width: 0; }
+.ai-work-chat__markdown > :first-child { margin-top: 0; }
+.ai-work-chat__markdown > :last-child { margin-bottom: 0; }
+.ai-work-chat__markdown p { margin: 0 0 15px; }
+.ai-work-chat__markdown :is(h1, h2, h3, h4) { margin: 24px 0 12px; color: var(--color-text-heading); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); line-height: 1.35; }
+.ai-work-chat__markdown h1 { font-size: 1.55em; }
+.ai-work-chat__markdown h2 { font-size: 1.35em; }
+.ai-work-chat__markdown :is(h3, h4) { font-size: 1.15em; }
+.ai-work-chat__markdown :is(ul, ol) { display: grid; gap: 7px; margin: 0 0 16px; padding-left: 1.45em; }
+.ai-work-chat__markdown li { padding-left: 3px; }
+.ai-work-chat__markdown blockquote { margin: 12px 0 16px; padding: 3px 0 3px 15px; border-left: 3px solid var(--settings-accent, var(--color-brand)); color: var(--color-text-secondary); }
+.ai-work-chat__markdown blockquote p { margin-bottom: 7px; }
+.ai-work-chat__markdown pre { max-width: 100%; margin: 12px 0 16px; padding: 14px 16px; overflow: auto; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: color-mix(in srgb, var(--color-surface-muted) 84%, transparent); color: var(--color-text-primary); font-family: var(--settings-code-font, var(--font-family-mono)); font-size: .9em; line-height: 1.65; white-space: pre; }
+.ai-work-chat__markdown :not(pre) > code { padding: 2px 5px; border: 1px solid var(--color-border-subtle); border-radius: 5px; background: var(--color-surface-muted); font-family: var(--settings-code-font, var(--font-family-mono)); font-size: .9em; }
+.ai-work-chat__table-wrap { max-width: 100%; margin: 12px 0 16px; overflow-x: auto; border: 1px solid var(--color-border-subtle); border-radius: 10px; }
+.ai-work-chat__markdown table { width: 100%; border-collapse: collapse; text-align: left; }
+.ai-work-chat__markdown :is(th, td) { min-width: 110px; padding: 9px 11px; border-bottom: 1px solid var(--color-border-subtle); }
+.ai-work-chat__markdown th { background: color-mix(in srgb, var(--color-surface-muted) 72%, transparent); color: var(--color-text-heading); font-weight: 650; }
+.ai-work-chat__markdown tr:last-child td { border-bottom: 0; }
+.ai-work-chat__markdown a { color: var(--settings-accent, var(--color-brand)); text-decoration: underline; text-underline-offset: 2px; }
+.ai-work-chat__thinking { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; }
+.ai-work-chat__thinking i { width: 6px; height: 6px; border-radius: 50%; background: var(--settings-accent, var(--color-brand)); animation: ai-work-chat-pulse 1s ease-in-out infinite; }
+.ai-work-chat__thinking i:nth-child(2) { animation-delay: 120ms; }
+.ai-work-chat__thinking i:nth-child(3) { animation-delay: 240ms; }
+.ai-work-chat__stream-caret { display: inline-block; width: 2px; height: 1em; margin-left: 3px; transform: translateY(2px); background: var(--settings-accent, var(--color-brand)); animation: ai-work-chat-caret 1s steps(2, start) infinite; }
+@keyframes ai-work-chat-pulse { 50% { opacity: .35; transform: translateY(-3px); } }
+@keyframes ai-work-chat-caret { to { visibility: hidden; } }
+.ai-work-chat__scroll-latest.ant-btn { position: absolute; z-index: 2; right: 50%; bottom: 14px; display: inline-flex; height: 38px; align-items: center; gap: 7px; transform: translateX(50%); padding: 0 14px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); box-shadow: 0 5px 18px color-mix(in srgb, var(--color-shadow) 18%, transparent); color: var(--color-text-secondary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-sm); }
+.ai-work-chat__scroll-latest.ant-btn:hover { border-color: var(--settings-accent, var(--color-brand)); color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__scroll-latest svg { transform: rotate(180deg); }
+.ai-work-chat__usage { display: block; margin-top: 8px; color: var(--color-text-subtle); font-size: 9px; }
+/* 活动折叠区复用工作台主题令牌，展开后按时间顺序展示本轮真实运行记录。 */
+.ai-work-chat__activity { width: 100%; align-self: center; margin-top: 14px; overflow: hidden; border-top: 1px solid var(--color-border-subtle); color: var(--color-text-secondary); font-size: calc(var(--settings-interface-font-size, 14px) * .84); }
+.ai-work-chat__activity > summary { display: flex; min-height: 36px; align-items: center; gap: 12px; padding: 0 2px; color: var(--color-text-muted); cursor: pointer; list-style: none; }
+.ai-work-chat__activity > summary::-webkit-details-marker { display: none; }
+.ai-work-chat__activity-summary-main { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 7px; }
+.ai-work-chat__activity-summary-main svg { color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__activity-summary-state { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__activity-list { display: grid; max-height: 320px; gap: 1px; overflow: auto; padding: 0 2px 8px; }
+.ai-work-chat__activity-row { display: flex; min-width: 0; align-items: flex-start; gap: 9px; padding: 7px 3px; border-top: 1px solid var(--color-border-subtle); }
+.ai-work-chat__activity-row > svg { flex: 0 0 auto; margin-top: 2px; color: var(--color-text-muted); }
+.ai-work-chat__activity-row--running > svg { color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__activity-row--approval_required > svg { color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__activity-row--error > svg { color: var(--color-status-error); }
+.ai-work-chat__activity-row--unavailable > svg { color: var(--color-text-subtle); }
+.ai-work-chat__activity-copy { display: grid; width: 100%; min-width: 0; gap: 2px; }
+.ai-work-chat__activity-row strong { color: var(--color-text-secondary); font-weight: 600; }
+.ai-work-chat__activity-copy > span { color: var(--color-text-muted); overflow-wrap: anywhere; line-height: 1.5; }
+/* 审批按钮与本条工具活动绑定，使用主题令牌和工作台字号，明确批准只作用于当前参数。 */
+.ai-work-chat__approval-actions { display: flex; flex-wrap: wrap; gap: 7px; padding-top: 7px; }
+.ai-work-chat__approval-actions .ant-btn { font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-sm); }
+.ai-work-chat__composer { display: grid; width: min(100%, 920px); flex: 0 0 auto; gap: 7px; align-self: center; margin: 0 0 clamp(2px, 1.2vh, 14px); padding: 9px 11px 8px; border: 1px solid var(--color-border); border-radius: 16px; background: color-mix(in srgb, var(--color-surface) 94%, transparent); box-shadow: 0 8px 26px rgba(25, 40, 70, .10); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); transition: border-color 140ms ease, box-shadow 140ms ease; box-sizing: border-box; }
+.ai-work-chat__composer:focus-within { border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 48%, var(--color-border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, transparent), 0 8px 26px rgba(25, 40, 70, .10); }
+.ai-work-chat__composer-context { display: flex; min-width: 0; min-height: 24px; align-items: center; gap: 6px; padding: 0 2px; }
+.ai-work-chat__composer-app { display: inline-flex; min-width: 0; max-width: min(70%, 310px); align-items: center; gap: 5px; padding: 3px 7px; overflow: hidden; border: 1px solid var(--color-border-subtle); border-radius: 7px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__composer-app { flex: 0 0 auto; }
+.ai-work-chat__composer-app svg { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__composer-count.ant-typography { flex: 0 0 auto; margin-left: auto; color: var(--color-text-muted); font-size: 9px; font-variant-numeric: tabular-nums; }
+.ai-work-chat__composer-count span { color: var(--color-text-subtle); }
+.ai-work-chat__composer .ant-input { min-height: 52px; resize: none; padding: 7px 3px; border: 0; background: transparent; box-shadow: none; color: var(--color-text-heading); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.65; }
+.ai-work-chat__composer .ant-input:hover,
+.ai-work-chat__composer .ant-input:focus { border: 0; background: transparent; box-shadow: none; }
+.ai-work-chat__composer .ant-input::placeholder { color: var(--color-text-subtle); }
+.ai-work-chat__composer .ant-input:disabled { color: var(--color-text-muted); cursor: not-allowed; }
+.ai-work-chat__composer-actions { display: flex; min-height: 36px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 1px; }
+.ai-work-chat__composer-actions-group { display: flex; min-width: 0; align-items: center; gap: 3px; }
+.ai-work-chat__composer-actions-group--right { margin-left: auto; }
+.ai-work-chat__composer-disabled-wrap { display: inline-flex; flex: 0 0 auto; }
+.ai-work-chat__composer-control.ant-btn { display: inline-flex; max-width: 230px; height: 34px; flex: 0 1 auto; align-items: center; justify-content: center; gap: 5px; padding: 0 7px; overflow: hidden; border-radius: 9px; color: var(--color-text-secondary); }
+.ai-work-chat__composer-control.ant-btn:hover:not(:disabled) { background: var(--color-surface-muted); color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__composer-control--permission.ant-btn svg { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__composer-control--icon.ant-btn { width: 34px; flex: 0 0 34px; padding: 0; }
+.ai-work-chat__composer-control--icon .ant-btn-icon { margin-inline-end: 0; }
+.ai-work-chat__composer-control-label { display: block; min-width: 0; overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__composer-control--model.ant-btn { max-width: min(30vw, 230px); }
+.ai-work-chat__composer-control--model .ai-work-chat__composer-control-label { max-width: min(24vw, 190px); }
+.ai-work-chat__composer-control--speed.ant-btn { max-width: 92px; }
+.ai-work-chat__composer-control--speed .ai-work-chat__composer-control-label { max-width: 58px; }
+.ai-work-chat__composer-control.ant-btn:disabled { color: var(--color-text-muted); }
+.ai-work-chat__composer-submit.ant-btn { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; padding: 0; box-shadow: none; }
+.ai-work-chat__composer-submit.ant-btn-primary { background: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__composer-submit.ant-btn-primary:disabled { background: var(--color-border-strong); color: var(--color-text-inverse); }
+.ai-work-chat__composer-submit.ant-btn-dangerous { background: var(--color-danger, #c2413a); }
+.ai-work-chat__composer-submit.ant-btn:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.ai-work-chat__composer-submit .ant-btn-icon { display: inline-flex; align-items: center; }
+.ai-work-chat__conversation > .ai-work-chat__alerts { margin-inline: clamp(12px, 2.2vw, 24px); }
+
+/* 权限弹层通过 Dropdown 挂入工作台主题容器，继续继承账户外观令牌。 */
+.workbench-shell .ai-work-chat__permission-overlay .ai-work-chat__permission-popover {
+  width: min(330px, calc(100vw - 24px));
+  max-height: min(240px, calc(100vh - 24px));
+  overflow: auto;
+  padding: 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--color-shadow) 18%, transparent);
+  color: var(--color-text-primary);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--settings-interface-font-size, var(--font-size-base));
+}
+.workbench-shell .ai-work-chat__permission-popover-header {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 7px 3px;
+  color: var(--color-text-heading);
+  font-size: .92em;
+}
+.workbench-shell .ai-work-chat__permission-help.ant-btn-link {
+  height: auto;
+  padding: 2px 0;
+  color: var(--settings-accent, var(--color-brand));
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: .82em;
+}
+.workbench-shell .ai-work-chat__permission-help.ant-btn-link:hover { color: var(--settings-accent, var(--color-brand-hover)); }
+.workbench-shell .ai-work-chat__permission-overlay .ai-work-chat__permission-menu.ant-dropdown-menu {
+  padding: 2px;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: inherit;
+}
+.workbench-shell .ai-work-chat__permission-overlay .ai-work-chat__permission-menu .ant-dropdown-menu-item {
+  min-height: 38px;
+  margin: 1px 0;
+  padding: 4px 7px;
+  border-radius: 9px;
+  color: var(--color-text-primary);
+  white-space: normal;
+}
+.workbench-shell .ai-work-chat__permission-overlay .ai-work-chat__permission-menu .ant-dropdown-menu-item:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text-heading);
+}
+.workbench-shell .ai-work-chat__permission-overlay .ai-work-chat__permission-menu .ant-dropdown-menu-item-selected,
+.workbench-shell .ai-work-chat__permission-overlay .ai-work-chat__permission-menu .ant-dropdown-menu-item-selected:hover {
+  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 13%, var(--color-surface));
+  color: var(--color-text-heading);
+}
+.workbench-shell .ai-work-chat__permission-overlay .ai-work-chat__permission-menu .ant-dropdown-menu-item:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+.workbench-shell .ai-work-chat__permission-option {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 16px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 7px;
+}
+.workbench-shell .ai-work-chat__permission-option-icon {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  color: var(--settings-accent, var(--color-brand));
+}
+.workbench-shell .ai-work-chat__permission-option-copy { display: grid; min-width: 0; gap: 1px; white-space: normal; }
+.workbench-shell .ai-work-chat__permission-option-title { color: var(--color-text-heading); font-size: .88em; font-weight: 620; line-height: 1.2; }
+.workbench-shell .ai-work-chat__permission-option-description { color: var(--color-text-muted); font-size: .75em; font-weight: 400; line-height: 1.25; }
+.workbench-shell .ai-work-chat__permission-option-selected {
+  display: grid;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--settings-accent, var(--color-brand));
+  color: var(--color-text-inverse);
+  font-size: .72em;
+  font-weight: 700;
+  line-height: 1;
+}
+.workbench-shell[data-background-image="true"] .ai-work-chat__permission-popover {
+  background-color: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}
+
+/* 写作壁纸启用时，仅为起始标记和示例按钮提供轻量表面，不覆盖整块消息画布。 */
+.workbench-shell[data-background-image="true"] :is(
+  .ai-work-chat__welcome-mark,
+  .ai-work-chat__suggestions--writing button
+) {
+  background-color: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}
+
+@media (max-width: 760px) {
+  .ai-work-chat { height: auto; min-height: 440px; grid-template-columns: minmax(0, 1fr); }
+  .ai-work-chat__conversation { padding: 9px 0 11px; }
+  .ai-work-chat__conversation > .ai-work-chat__alerts { margin-inline: 9px; }
+  .ai-work-chat__composer { width: calc(100% - 18px); margin-bottom: 0; padding: 8px 9px 7px; border-radius: 14px; }
+  .ai-work-chat__message { max-width: 100%; }
+}
+
+@media (max-width: 520px) {
+  .ai-work-chat__message { max-width: 100%; }
+  .ai-work-chat__composer-context { gap: 4px; }
+  .ai-work-chat__composer-actions { flex-wrap: wrap; row-gap: 3px; }
+  .ai-work-chat__composer-actions-group--right { margin-left: auto; }
+  .ai-work-chat__composer-control--model.ant-btn { max-width: min(32vw, 150px); }
+  .ai-work-chat__composer-control--model .ai-work-chat__composer-control-label { max-width: min(26vw, 110px); }
+}
+
+@media (hover: none) {
+  .ai-work-chat__anchors { opacity: 1; pointer-events: auto; }
+}
+
+@media (max-width: 520px) {
+  .ai-work-chat__activity > summary { gap: 7px; padding-inline: 8px; }
+  .ai-work-chat__activity-summary-state { text-align: right; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-work-chat__composer { transition-duration: 0ms; }
+}

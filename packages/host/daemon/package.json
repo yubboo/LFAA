@@ -1,0 +1,26 @@
+{
+  "name": "lfaa-host-daemon",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./daemon": "./src/daemon.mjs",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-home-paths": "workspace:*",
+    "lfaa-storage-sqlite": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/express": "^4.0.0",
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^24.0.0",
+    "@types/js-yaml": "^4.0.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

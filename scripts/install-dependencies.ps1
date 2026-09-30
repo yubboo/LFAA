@@ -1,7 +1,7 @@
 ﻿<#
 功能：显示 LFAA 项目主菜单并按用户选择执行操作。
-作用：管理工作区依赖、启动开发服务、检查环境、备份项目源码或推送 GitHub。
-关联文件：根目录 lfaa.bat、根目录 .gitignore、scripts/backup-project.ps1、scripts/start-dev.ps1、根目录 package.json、pnpm-workspace.yaml。
+作用：安装与构建当前包工作区、选择 Harness 运行入口、检查环境、备份源码或推送 GitHub。
+关联文件：lfaa.bat、scripts/project-menu.mjs、scripts/backup-project.ps1、scripts/start-dev.ps1、apps/cli/bin/lfaa.mjs、package.json、pnpm-workspace.yaml。
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -9,22 +9,35 @@ $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $rootManifest = Join-Path $projectRoot 'package.json'
 $workspaceFile = Join-Path $projectRoot 'pnpm-workspace.yaml'
 
+# Git 默认按 core.quotePath 把含非 ASCII 的路径转义成 "\345\274\200..." 形式。
+# 这种字符串一旦回传给 Git 当路径用就会报 "Invalid path"，也会让敏感路径规则匹配失败，
+# 因此所有 Git 调用统一关闭路径转义，保证中文路径在输出与入参之间原样往返。
+$gitCommonArguments = @('-c', 'core.quotePath=false')
+
+# 菜单是常驻进程：脚本在启动时就已读入内存，之后改动文件不会影响正在运行的菜单。
+# 记录本次加载时间，便于判断当前菜单跑的是哪一版脚本。
+$scriptLoadedAt = (Get-Item -LiteralPath $PSCommandPath).LastWriteTime
+
 function Show-MainMenu {
     Clear-Host
     Write-Host ''
     Write-Host '╔══════════════════════════════════════════════╗' -ForegroundColor DarkCyan
-    Write-Host '║               LFAA 项目管理工作台            ║' -ForegroundColor Cyan
+    Write-Host '║              LFAA Harness 工作台             ║' -ForegroundColor Cyan
     Write-Host '╚══════════════════════════════════════════════╝' -ForegroundColor DarkCyan
     Write-Host ''
     Write-Host '请选择要执行的操作：' -ForegroundColor White
-    Write-Host '  【1】一键安装全部项目依赖' -ForegroundColor Green
-    Write-Host '  【2】一键启动前端、server 和本机 Daemon' -ForegroundColor Magenta
-    Write-Host '  【3】查看依赖安装范围' -ForegroundColor Cyan
-    Write-Host '  【4】检查 Node.js、pnpm、Rust 和工作区环境' -ForegroundColor Yellow
-    Write-Host '  【5】一键生成版本化源码 ZIP' -ForegroundColor Green
-    Write-Host '  【6】一键强制推送 GitHub main（覆盖远端历史）' -ForegroundColor Red
+    Write-Host '  【1】安装工作区依赖：pnpm install' -ForegroundColor Green
+    Write-Host '  【2】启动 Harness：Web / Daemon / 开发模式' -ForegroundColor Magenta
+    Write-Host '  【3】构建 Harness：pnpm run build' -ForegroundColor Cyan
+    Write-Host '  【4】检查环境与实际工作区包' -ForegroundColor Yellow
+    Write-Host '  【5】一键生成纯净源码 ZIP（排除依赖与敏感数据）' -ForegroundColor Green
+    Write-Host '  【6】一键正常推送 GitHub main（不覆盖远端历史）' -ForegroundColor Green
+    Write-Host '  【7】一键强制推送 GitHub main（覆盖远端历史）' -ForegroundColor Red
     Write-Host '  【0】退出' -ForegroundColor Red
     Write-Host ''
+    Write-Host 'Web 使用编译后的包组合；Daemon 单独启动。普通 Web 不需要 Rust。' -ForegroundColor DarkGray
+    Write-Host '服务在当前终端运行，按 Ctrl+C 停止；不另开服务窗口。' -ForegroundColor DarkGray
+    Write-Host ("脚本加载于 {0:yyyy-MM-dd HH:mm}；若刚改过脚本，请按 0 退出并重新打开本菜单。" -f $scriptLoadedAt) -ForegroundColor DarkGray
 }
 
 function Get-ProjectManifest {
@@ -51,7 +64,7 @@ function Show-EnvironmentStatus {
     try {
         $manifest = Get-ProjectManifest
         $expectedVersion = ([string]$manifest.packageManager -replace '^pnpm@', '')
-        Write-Host "  项目指定 pnpm：$expectedVersion" -ForegroundColor Cyan
+        Write-Host "  项目要求 Node.js：$($manifest.engines.node)；pnpm：$expectedVersion" -ForegroundColor Cyan
     }
     catch {
         Write-Host "  项目配置：$($_.Exception.Message)" -ForegroundColor Red
@@ -98,35 +111,50 @@ function Show-DependencyScope {
     Write-Host ''
     Write-Host '【当前安装范围】' -ForegroundColor Cyan
 
-    $packageDirectories = @('frontend', 'server', 'daemon')
-    foreach ($directory in $packageDirectories) {
-        $manifestPath = Join-Path $projectRoot (Join-Path $directory 'package.json')
-        if (Test-Path -LiteralPath $manifestPath) {
-            $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-            Write-Host "  【Node.js】$directory（$($manifest.name)）" -ForegroundColor Green
+    # 按真实工作区 manifest 列出启动工具及能力包；目录占位不安装依赖。
+    $manifests = @()
+    foreach ($appDirectory in Get-ChildItem -LiteralPath (Join-Path $projectRoot 'apps') -Directory) {
+        $manifestPath = Join-Path $appDirectory.FullName 'package.json'
+        if (Test-Path -LiteralPath $manifestPath) { $manifests += $manifestPath }
+    }
+    foreach ($group in Get-ChildItem -LiteralPath (Join-Path $projectRoot 'packages') -Directory) {
+        foreach ($packageDirectory in Get-ChildItem -LiteralPath $group.FullName -Directory) {
+            $manifestPath = Join-Path $packageDirectory.FullName 'package.json'
+            if (Test-Path -LiteralPath $manifestPath) { $manifests += $manifestPath }
         }
     }
-
-    $appsPath = Join-Path $projectRoot 'apps'
-    if (Test-Path -LiteralPath $appsPath) {
-        $appDirectories = @(Get-ChildItem -LiteralPath $appsPath -Directory)
-        $appManifests = @()
-        foreach ($appDirectory in $appDirectories) {
-            $manifestPath = Join-Path $appDirectory.FullName 'package.json'
-            if (Test-Path -LiteralPath $manifestPath) {
-                $appManifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-                $appManifests += [PSCustomObject]@{ Directory = $appDirectory.Name; Name = $appManifest.name }
-            }
-        }
-        foreach ($appManifest in $appManifests) {
-            Write-Host "  【Node.js】$($appManifest.Directory)（$($appManifest.Name)）" -ForegroundColor Green
-        }
-        if ($appManifests.Count -eq 0) {
-            Write-Host '  【桌面端】apps/* 目前没有 package.json；加入后会自动纳入工作区。' -ForegroundColor Yellow
-        }
+    foreach ($manifestPath in $manifests | Sort-Object) {
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $directory = (Split-Path -Parent $manifestPath).Substring($projectRoot.Length + 1)
+        Write-Host "  【Node.js】$directory（$($manifest.name)）" -ForegroundColor Green
     }
 
-    Write-Host '  【不由 pnpm 管理】Daemon Windows AppContainer Sandbox Host 与 Tauri Rust/Cargo 依赖，需使用 Rust 工具链。' -ForegroundColor DarkYellow
+    Write-Host '  【不由 pnpm 管理】Daemon Windows AppContainer Sandbox Host 需要 Rust；普通 Web 安装、构建和启动不需要 Rust。' -ForegroundColor DarkYellow
+}
+
+function Start-Harness {
+    Write-Host '【启动模式】' -ForegroundColor Cyan
+    Write-Host '  【1】Web（默认）'
+    Write-Host '  【2】Daemon 节点'
+    Write-Host '  【3】开发模式'
+    Write-Host '  【0】返回'
+    $mode = [string](Read-Host '输入编号并按 Enter（默认 1）')
+    switch ($mode.Trim()) {
+        '0' { return }
+        '3' { Start-DevelopmentServices; return }
+        '2' { $profile = 'daemon' }
+        '1' { $profile = 'web' }
+        '' { $profile = 'web' }
+        default { throw '无效启动模式，请选择 1、2、3 或 0。' }
+    }
+    # 正式 CLI 不处理数据目录迁移；有待处理计划时禁止继续使用旧位置写数据。
+    if (Test-Path -LiteralPath (Join-Path $projectRoot '.lfaa-data-directory.pending.json')) {
+        throw '存在待处理的数据目录迁移。请停止正在运行的服务，使用开发模式或 pnpm dev 完成迁移后再启动 CLI。'
+    }
+    if ($profile -eq 'daemon') {
+        Write-Host '节点原生 Host 需先执行 pnpm run build:daemon；节点连接与数据位置沿用已有配置。' -ForegroundColor Yellow
+    }
+    Invoke-WorkspacePnpm -Arguments @('lfaa', $profile)
 }
 
 function Start-DevelopmentServices {
@@ -154,22 +182,26 @@ function Start-ProjectBackup {
     }
 }
 
-function Install-WorkspaceDependencies {
+function Get-WorkspacePnpm {
     if (-not (Get-Command 'node' -ErrorAction SilentlyContinue)) {
-        Write-Host '未检测到 Node.js，请先安装 Node.js。' -ForegroundColor Red
-        return
+        throw '未检测到 Node.js，请先安装项目要求的 Node.js。'
     }
 
     if (-not (Test-Path -LiteralPath $workspaceFile)) {
-        Write-Host '未找到 pnpm-workspace.yaml，无法安装工作区依赖。' -ForegroundColor Red
-        return
+        throw '未找到 pnpm-workspace.yaml，无法执行工作区命令。'
     }
 
     $manifest = Get-ProjectManifest
+    $nodeVersion = [version]((& node --version).Trim().TrimStart('v'))
+    if ([string]$manifest.engines.node -notmatch '^>=(\d+\.\d+\.\d+)$') {
+        throw '根目录 package.json 的 Node.js 最低版本格式无效。'
+    }
+    if ($nodeVersion -lt [version]$Matches[1]) {
+        throw "当前 Node.js 为 $nodeVersion，项目要求 $($manifest.engines.node)。"
+    }
     $packageManagerSpec = [string]$manifest.packageManager
     if ($packageManagerSpec -notmatch '^pnpm@(.+)$') {
-        Write-Host '根目录 package.json 未指定有效的 pnpm 版本。' -ForegroundColor Red
-        return
+        throw '根目录 package.json 未指定有效的 pnpm 版本。'
     }
     $expectedPnpmVersion = $Matches[1]
 
@@ -187,41 +219,69 @@ function Install-WorkspaceDependencies {
             $useCorepack = $true
         }
         else {
-            Write-Host "当前 pnpm 与项目要求的 $expectedPnpmVersion 不一致，且未检测到 Corepack。" -ForegroundColor Red
-            return
+            throw "当前 pnpm 与项目要求的 $expectedPnpmVersion 不一致，且未检测到 Corepack。"
         }
     }
     elseif ($corepackCommand) {
         $useCorepack = $true
     }
     else {
-        Write-Host '未检测到 pnpm 或 Corepack，请先安装项目指定的 pnpm。' -ForegroundColor Red
-        return
+        throw '未检测到 pnpm 或 Corepack，请先安装项目指定的 pnpm。'
     }
-
-    Set-Location -LiteralPath $projectRoot
-    Write-Host '开始安装所有已加入工作区的 Node.js 依赖……' -ForegroundColor Cyan
 
     if ($useCorepack) {
         Write-Host "由 Corepack 获取并运行 pnpm $expectedPnpmVersion。" -ForegroundColor Yellow
-        & $corepackCommand.Source pnpm install
+        $actualVersion = (& $corepackCommand.Source pnpm --version 2>$null | Select-Object -Last 1)
+        if ($LASTEXITCODE -ne 0 -or ([string]$actualVersion).Trim() -ne $expectedPnpmVersion) {
+            throw 'Corepack 未能运行项目指定的 pnpm 版本。'
+        }
+        return @{ Executable = $corepackCommand.Source; Prefix = @('pnpm') }
     }
-    else {
-        & $pnpmCommand.Source install
-    }
+    return @{ Executable = $pnpmCommand.Source; Prefix = @() }
+}
 
+function Invoke-WorkspacePnpm {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+    Set-Location -LiteralPath $projectRoot
+    $invocation = Get-WorkspacePnpm
+    $commandArguments = @($invocation.Prefix) + $Arguments
+    Write-Host "执行：pnpm $($Arguments -join ' ')" -ForegroundColor Cyan
+    & $invocation.Executable @commandArguments
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "pnpm 安装失败，退出代码：$LASTEXITCODE" -ForegroundColor Red
-        return
+        throw "pnpm 命令结束，退出代码：$LASTEXITCODE。"
     }
+}
 
+function Install-WorkspaceDependencies {
+    Invoke-WorkspacePnpm -Arguments @('install')
     Write-Host 'pnpm 工作区依赖安装成功，锁文件已写入根目录。' -ForegroundColor Green
+}
+
+function ConvertTo-NativeGitArguments {
+    param([string[]]$Arguments)
+
+    # PowerShell 5.1 组装原生命令行时不会转义参数里已有的双引号，裸引号会被 C 运行时吃掉：
+    # 含引号的正则会静默失配（敏感内容扫描形同虚设），提交说明里的引号会直接丢字。
+    # 这里按原生命令行规则补成 \"，让 Git 收到参数原文。
+    return @($Arguments | ForEach-Object { $_.Replace('"', '\"') })
+}
+
+function Assert-NativeGitArgumentPassing {
+    # 自检：确认参数里的双引号能完整送达 Git。
+    # 传参一旦被破坏，敏感内容扫描会以「无匹配」静默通过，所以这里必须大声失败而不是继续推送。
+    $probeArgument = 'lfaa"probe'
+    $escapedProbeArgument = @(ConvertTo-NativeGitArguments -Arguments @($probeArgument))[0]
+    $receivedArgument = @(& git @gitCommonArguments -C $projectRoot rev-parse --sq-quote $escapedProbeArgument 2>$null) -join ''
+    if ($receivedArgument -notmatch '"') {
+        throw 'Git 参数传递自检失败：命令行会吃掉参数里的双引号，敏感内容扫描结果不可信，已阻止推送。'
+    }
 }
 
 function Invoke-GitOutput {
     param([Parameter(Mandatory = $true)][string[]]$GitArguments)
 
-    $lines = @(& git -C $projectRoot @GitArguments 2>&1 | ForEach-Object { [string]$_ })
+    $nativeArguments = @(ConvertTo-NativeGitArguments -Arguments $GitArguments)
+    $lines = @(& git @gitCommonArguments -C $projectRoot @nativeArguments 2>&1 | ForEach-Object { [string]$_ })
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
         throw ("Git 命令失败（退出代码 {0}）：git {1}`n{2}" -f $exitCode, ($GitArguments -join ' '), ($lines -join "`n"))
@@ -233,7 +293,8 @@ function Invoke-GitOutput {
 function Invoke-GitChecked {
     param([Parameter(Mandatory = $true)][string[]]$GitArguments)
 
-    & git -C $projectRoot @GitArguments
+    $nativeArguments = @(ConvertTo-NativeGitArguments -Arguments $GitArguments)
+    & git @gitCommonArguments -C $projectRoot @nativeArguments
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
         throw ("Git 命令失败（退出代码 {0}）：git {1}" -f $exitCode, ($GitArguments -join ' '))
@@ -243,7 +304,8 @@ function Invoke-GitChecked {
 function Get-GitConfigValue {
     param([Parameter(Mandatory = $true)][string]$Key)
 
-    $lines = @(& git -C $projectRoot config --get $Key 2>$null | ForEach-Object { [string]$_ })
+    $nativeArguments = @(ConvertTo-NativeGitArguments -Arguments @('config', '--get', $Key))
+    $lines = @(& git @gitCommonArguments -C $projectRoot @nativeArguments 2>$null | ForEach-Object { [string]$_ })
     if ($LASTEXITCODE -ne 0) {
         return ''
     }
@@ -256,11 +318,190 @@ function Get-BlockedGitPaths {
 
     return @($Paths | Where-Object {
         $path = $_ -replace '\\', '/'
-        $path -match '(?i)(^|/)(data|dist|node_modules)(/|$)' -or
-        (($path -match '(^|/)\.env($|\.)') -and ($path -notmatch '(^|/)\.env\.example$')) -or
-        $path -match '(?i)\.(sqlite|sqlite3|db)(-(wal|shm))?$' -or
-        $path -match '(?i)\.log$'
+        # 运行数据目录一律不得推送：根 data/、server/data/、apps/*/data/。
+        $path -match '(?i)^(data|server/data)/' -or
+        $path -match '(?i)^apps/[^/]+/data/' -or
+        $path -match '(?i)(^|/)(dist|node_modules|target|build|coverage|\.cache|\.turbo|\.next|\.vite|\.output|\.pnpm-store|\.venv|venv|__pycache__|\.tox|\.nox|bower_components|pods|carthage|vendor|backups|credentials|secrets?|database|\.ssh|\.aws|\.azure|\.kube)(/|$)' -or
+        (($path -match '(?i)(^|/)\.env($|\.)') -and ($path -notmatch '(?i)(^|/)\.env\.example$')) -or
+        $path -match '(?i)\.(sqlite3?|db)([-.][a-z0-9_-]+)?$' -or
+        $path -match '(?i)\.(log|key|pem|p8|p12|pfx|jks|keystore|crt|cer|cert|der|token|secret|secrets|zip|7z|rar|tar|tgz|gz|whl|exe|msi|dll|node|so|dylib|class|jar|wasm|o|obj|pdb|ilk|lib|a|onnx|pt|pth|safetensors|gguf)$' -or
+        $path -match '(?i)(^|/)(\.npmrc|\.pypirc|\.netrc|\.git-credentials|credentials\.json|secrets\.json|token\.json|auth\.json|service-account[^/]*)$' -or
+        $path -match '(?i)(^|/)(id_rsa|id_ed25519|id_ecdsa|id_dsa)$' -or
+        $path -match '(?i)\.tsbuildinfo$'
     })
+}
+
+function Get-LargeGitObjectPaths {
+    param([string[]]$ObjectLines)
+
+    $maximumBytes = 25MB
+    if ($ObjectLines.Count -eq 0) {
+        return @()
+    }
+
+    $objectDetails = @($ObjectLines | & git @gitCommonArguments -C $projectRoot cat-file '--batch-check=%(objecttype) %(objectsize) %(rest)' 2>&1 | ForEach-Object { [string]$_ })
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        throw '无法读取 Git 对象大小，已阻止推送。'
+    }
+
+    $largePaths = New-Object System.Collections.Generic.List[string]
+    foreach ($detail in $objectDetails) {
+        if ($detail -match '^blob ([0-9]+) (.+)$' -and [long]$Matches[1] -gt $maximumBytes) {
+            $sizeMiB = [math]::Round(([long]$Matches[1] / 1MB), 1)
+            $largePaths.Add(("{0}（{1} MiB）" -f $Matches[2], $sizeMiB))
+        }
+    }
+
+    return @($largePaths | Select-Object -Unique)
+}
+
+function Get-GitIndexObjectLines {
+    param([string[]]$Paths)
+
+    if ($Paths.Count -eq 0) {
+        return @()
+    }
+
+    $wantedPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($path in $Paths) {
+        [void]$wantedPaths.Add($path)
+    }
+
+    # 一次读取整个索引再在本地按路径筛选。
+    # 逐条路径调用 Git 会为每个文件启动一次进程，暂存文件上千时明显拖慢推送前的检查。
+    $objectLines = New-Object System.Collections.Generic.List[string]
+    foreach ($entry in (Invoke-GitOutput -GitArguments @('ls-files', '--stage'))) {
+        if ($entry -match '^[0-7]+ ([0-9a-f]+) 0\t(.+)$') {
+            $entryPath = $Matches[2]
+            if ($wantedPaths.Contains($entryPath)) {
+                $objectLines.Add(("{0} {1}" -f $Matches[1], $entryPath))
+            }
+        }
+    }
+
+    return @($objectLines)
+}
+
+function Get-GitSecretPatterns {
+    # Blocking 表示该模式命中即可判定为真实凭据，直接阻止推送；
+    # 末尾的通用赋值启发式会把测试夹具（测试进程自设的 JWT_SECRET、测试账号口令）也算进来，
+    # 因此只报告给用户确认，不直接阻断。
+    return @(
+        [PSCustomObject]@{ Name = '私钥标记'; Regex = ('-----BEGIN ' + '(RSA |EC |OPENSSH )?PRIVATE KEY-----'); Blocking = $true },
+        [PSCustomObject]@{ Name = '云服务访问密钥'; Regex = ('AKIA' + '[0-9A-Z]{16}'); Blocking = $true },
+        [PSCustomObject]@{ Name = 'GitHub 访问令牌'; Regex = ('github_pat_' + '[A-Za-z0-9_]{22,}|gh[pousr]_' + '[A-Za-z0-9_]{20,}'); Blocking = $true },
+        [PSCustomObject]@{ Name = '模型服务令牌'; Regex = ('sk-' + '[A-Za-z0-9_-]{32,}'); Blocking = $true },
+        [PSCustomObject]@{ Name = '明文凭据赋值'; Regex = '(api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|jwt[_-]?secret|account[_-]?key|shared[_-]?access[_-]?signature|password)[[:space:]]*[:=][[:space:]]*["'']?[A-Za-z0-9/+_=-]{24,}'; IgnoreCase = $true; Blocking = $false }
+    )
+}
+
+function Get-GitSecretFindings {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet('Index', 'History')][string]$Scope,
+        [string[]]$Paths = @()
+    )
+
+    # 分两类收集：精确凭据阻断推送，通用赋值启发式交用户确认。
+    # 用字符串列表而不是对象列表：PowerShell 5.1 对 List[object] 装 PSCustomObject 再转数组会抛类型异常。
+    $blockingFindings = New-Object System.Collections.Generic.List[string]
+    $advisoryFindings = New-Object System.Collections.Generic.List[string]
+    $seenFindings = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($definition in (Get-GitSecretPatterns)) {
+        # 每个模式对应一到多次 Git 扫描；暂存文件多时按批拆分，
+        # 避免把上千条路径一次性塞进命令行而触发 Windows 命令行长度上限。
+        $argumentSets = [System.Collections.Generic.List[string[]]]::new()
+        if ($Scope -eq 'Index') {
+            $scanPaths = @($Paths)
+            if ($definition.Name -eq '明文凭据赋值') {
+                $scanPaths = @($scanPaths | Where-Object { $_ -notmatch '(^|/)\.env\.example$' })
+            }
+            if ($scanPaths.Count -eq 0) {
+                continue
+            }
+
+            $batchSize = 100
+            for ($offset = 0; $offset -lt $scanPaths.Count; $offset += $batchSize) {
+                $end = [Math]::Min($offset + $batchSize - 1, $scanPaths.Count - 1)
+                $batch = @($scanPaths[$offset..$end])
+                $gitArguments = @('grep', '--cached', '-I', '-l', '-E')
+                if ($definition.IgnoreCase) {
+                    $gitArguments += '-i'
+                }
+                $gitArguments += @('-e', $definition.Regex, '--') + $batch
+                $argumentSets.Add([string[]]$gitArguments)
+            }
+        }
+        else {
+            $gitArguments = @('log', '--format=%h')
+            if ($definition.IgnoreCase) {
+                $gitArguments += '-i'
+            }
+            $gitArguments += @(("-G{0}" -f $definition.Regex), 'HEAD', '--')
+            $argumentSets.Add([string[]]$gitArguments)
+        }
+
+        foreach ($argumentSet in $argumentSets) {
+            # 正则里含双引号，必须先转义再传，否则会被命令行吃掉而静默漏检。
+            $nativeArgumentSet = @(ConvertTo-NativeGitArguments -Arguments $argumentSet)
+            $gitMatches = @(& git @gitCommonArguments -C $projectRoot @nativeArgumentSet 2>$null | ForEach-Object { [string]$_ })
+            $exitCode = $LASTEXITCODE
+            if ($exitCode -eq 0) {
+                foreach ($gitMatch in $gitMatches) {
+                    if ($seenFindings.Add(("{0}|{1}" -f $gitMatch, $definition.Name))) {
+                        $findingText = ("{0} [{1}]" -f $gitMatch, $definition.Name)
+                        if ($definition.Blocking) {
+                            $blockingFindings.Add($findingText)
+                        }
+                        else {
+                            $advisoryFindings.Add($findingText)
+                        }
+                    }
+                }
+            }
+            elseif ($exitCode -ne 1) {
+                throw ("高风险敏感内容扫描失败（{0}），已阻止推送。" -f $definition.Name)
+            }
+        }
+    }
+
+    return @{
+        Blocking = @($blockingFindings)
+        Advisory = @($advisoryFindings)
+    }
+}
+
+function Assert-GitSecretFindings {
+    param(
+        [Parameter(Mandatory = $true)][string]$ScopeLabel,
+        [string[]]$Blocking = @(),
+        [string[]]$Advisory = @()
+    )
+
+    # 精确凭据模式一旦命中即判定为真实凭据，直接阻断。
+    if ($Blocking.Count -gt 0) {
+        Write-Host ("{0}检测到高风险凭据标记；为避免泄露，未输出匹配内容并已阻止推送：" -f $ScopeLabel) -ForegroundColor Red
+        foreach ($finding in $Blocking) {
+            Write-Host "  $finding" -ForegroundColor DarkYellow
+        }
+        throw '请从源码中移除真实凭据后重新推送。'
+    }
+
+    # 通用赋值启发式（形如「KEY = 长串」）无法区分测试夹具与真实凭据，
+    # 而测试夹具是必须提交的源码，所以这里只做醒目提示、不阻断、不追问，推送照常继续。
+    # 真正危险的凭据由上面的精确模式负责拦截。
+    if ($Advisory.Count -eq 0) {
+        return
+    }
+
+    Write-Host ("{0}提示：{1} 处形如「KEY = 长串」的赋值，通常是测试夹具，也可能是真实凭据（未输出匹配内容）：" -f $ScopeLabel, $Advisory.Count) -ForegroundColor Yellow
+    foreach ($finding in ($Advisory | Select-Object -First 10)) {
+        Write-Host "  $finding" -ForegroundColor Yellow
+    }
+    if ($Advisory.Count -gt 10) {
+        Write-Host ("  ...另有 {0} 处" -f ($Advisory.Count - 10)) -ForegroundColor Yellow
+    }
+    Write-Host '  如其中含真实凭据，请按 Ctrl+C 中止并先移除；否则本次继续推送。' -ForegroundColor DarkGray
 }
 
 function Set-GitHubOrigin {
@@ -277,19 +518,116 @@ function Set-GitHubOrigin {
     Write-Host "origin 与推送地址已固定为：$targetUrl" -ForegroundColor Green
 }
 
+function Get-ProjectReleaseVersion {
+    $manifest = Get-ProjectManifest
+    $projectName = ([string]$manifest.name).Split('/')[-1].ToUpperInvariant()
+    $updateLogPath = Join-Path $projectRoot 'docs\updata-log.md'
+    if (-not (Test-Path -LiteralPath $updateLogPath -PathType Leaf)) {
+        throw '找不到 docs\updata-log.md，无法确定本次推送版本。'
+    }
+
+    $updateLog = Get-Content -LiteralPath $updateLogPath -Raw -Encoding UTF8
+    $versionPattern = '(?m)^\s*-\s*\*\*项目版本：\*\*\s*`' + [regex]::Escape($projectName) + '\s+(?<version>\d+\.\d+\.\d+)`'
+    $versionMatch = [regex]::Match($updateLog, $versionPattern)
+    if (-not $versionMatch.Success) {
+        throw '无法从 docs\updata-log.md 最新记录中读取项目版本。'
+    }
+
+    return [PSCustomObject]@{
+        Name = $projectName
+        Number = $versionMatch.Groups['version'].Value
+        Label = ("{0} {1}" -f $projectName, $versionMatch.Groups['version'].Value)
+    }
+}
+
+function Read-Confirmation {
+    param(
+        [Parameter(Mandatory = $true)][string]$Prompt,
+        [switch]$DefaultYes
+    )
+
+    $hint = if ($DefaultYes) { '(Y/n)' } else { '(y/N)' }
+    while ($true) {
+        $answerInput = (Read-Host ("{0} {1}" -f $Prompt, $hint)).Trim()
+        if ([string]::IsNullOrWhiteSpace($answerInput)) {
+            return [bool]$DefaultYes.IsPresent
+        }
+        if ($answerInput -imatch '^(y|yes|是)$') { return $true }
+        if ($answerInput -imatch '^(n|no|否)$') { return $false }
+        Write-Host '请输入 y 或 n。' -ForegroundColor Yellow
+    }
+}
+
+function Read-ProjectReleaseVersion {
+    param([Parameter(Mandatory = $true)][PSCustomObject]$Version)
+
+    Write-Host ("更新日志记录的版本：{0}（来源：docs\updata-log.md）" -f $Version.Label) -ForegroundColor Magenta
+    while ($true) {
+        # 版本号本身是输入项而不是固定确认串：回车沿用更新日志版本，也可以直接输入自定义版本。
+        $versionInput = (Read-Host ("请输入本次版本号 [{0}]；直接回车沿用，或输入自定义版本（例如 0.1.2）" -f $Version.Number)).Trim()
+        if ([string]::IsNullOrWhiteSpace($versionInput)) {
+            return $Version
+        }
+        if ($versionInput -notmatch '^\d+\.\d+\.\d+$') {
+            Write-Host '版本号格式应为 主版本.次版本.修订号，例如 0.1.2。' -ForegroundColor Yellow
+            continue
+        }
+        if ($versionInput -ne $Version.Number) {
+            Write-Host ("自定义版本 {0} 与更新日志记录的 {1} 不一致；本次提交只使用 {0}，更新日志不会被改写，请自行补记。" -f $versionInput, $Version.Number) -ForegroundColor Yellow
+        }
+        return [PSCustomObject]@{
+            Name = $Version.Name
+            Number = $versionInput
+            Label = ("{0} {1}" -f $Version.Name, $versionInput)
+        }
+    }
+}
+
 function Push-GitHubRepository {
+    param([switch]$Force)
+
+    $isForcePush = $Force.IsPresent
+    $pushModeLabel = if ($isForcePush) { '强制推送' } else { '正常推送' }
     Write-Host ''
-    Write-Host '【GitHub 强制推送】' -ForegroundColor Red
+    Write-Host ("【GitHub {0}】" -f $pushModeLabel) -ForegroundColor $(if ($isForcePush) { 'Red' } else { 'Green' })
     Write-Host '目标：https://github.com/yubboo/LFAA.git' -ForegroundColor Cyan
     Write-Host '分支：main' -ForegroundColor Cyan
-    Write-Host '强制推送会用本地当前提交覆盖 GitHub main 的提交历史。' -ForegroundColor Yellow
+    # 先说明后续步骤，避免用户在凭据确认处取消后以为漏了「提交说明」这一步。
+    Write-Host '流程：排除依赖与敏感数据 → 扫描凭据 → 输入版本与提交说明 → 创建提交 → 推送到 main。' -ForegroundColor DarkGray
 
     if (-not (Get-Command 'git' -ErrorAction SilentlyContinue)) {
         Write-Host '未检测到 Git for Windows，请先安装 Git 并加入 PATH。' -ForegroundColor Red
         return
     }
 
+    # 参数传递被破坏时敏感内容扫描会静默漏检；先自检再询问用户，避免白确认一次。
     try {
+        Assert-NativeGitArgumentPassing
+    }
+    catch {
+        Write-Host "GitHub 推送失败：$($_.Exception.Message)" -ForegroundColor Red
+        return
+    }
+
+    if ($isForcePush) {
+        Write-Host '强制推送会用本地当前提交覆盖 GitHub main 的提交历史。' -ForegroundColor Yellow
+        # 只做一次 y/n 确认；取消时不暂存、不提交，也不连接远端。
+        if (-not (Read-Confirmation -Prompt '确认强制推送并覆盖远端 main 历史？')) {
+            Write-Host '已取消强制推送。' -ForegroundColor DarkGray
+            return
+        }
+    }
+    else {
+        Write-Host '常规推送不会覆盖远端历史；若远端领先，Git 会安全拒绝本次推送。' -ForegroundColor Green
+        if (-not (Read-Confirmation -Prompt '确认推送到 GitHub main？' -DefaultYes)) {
+            Write-Host '已取消推送。' -ForegroundColor DarkGray
+            return
+        }
+    }
+
+    try {
+        $projectVersion = Get-ProjectReleaseVersion
+
         $gitDirectory = Join-Path $projectRoot '.git'
         if (-not (Test-Path -LiteralPath $gitDirectory)) {
             Write-Host '当前目录还没有 Git 仓库，正在初始化 main 分支……' -ForegroundColor Cyan
@@ -332,39 +670,71 @@ function Push-GitHubRepository {
 
             Invoke-GitChecked -GitArguments @('add', '-A')
 
-            # 运行时数据和凭据即使误入暂存区，也必须在提交前拦截。
+            # 忽略规则不是安全边界；再次检查暂存区并保留被排除的本地文件。
             $stagedPaths = @(Invoke-GitOutput -GitArguments @('diff', '--cached', '--name-only'))
             $blockedPaths = @(Get-BlockedGitPaths -Paths $stagedPaths)
+            $stagedObjectLines = @(Get-GitIndexObjectLines -Paths $stagedPaths)
+            $oversizedStagedPaths = @(Get-LargeGitObjectPaths -ObjectLines $stagedObjectLines)
+            $oversizedGitPaths = @($oversizedStagedPaths | ForEach-Object { $_ -replace '（[0-9.]+ MiB）$', '' })
             if ($blockedPaths.Count -gt 0) {
-                Write-Host '正在从暂存区排除本机运行数据、配置和日志；本地文件会保留：' -ForegroundColor Yellow
+                Write-Host '正在从暂存区排除依赖、运行数据、凭据和生成文件；本地文件会保留：' -ForegroundColor Yellow
                 foreach ($path in $blockedPaths) {
                     Write-Host "  $path" -ForegroundColor DarkYellow
                 }
+            }
 
-                $unstageArguments = @('rm', '--cached', '--ignore-unmatch', '--force', '--') + $blockedPaths
-                Invoke-GitChecked -GitArguments $unstageArguments
-
-                $stagedPaths = @(Invoke-GitOutput -GitArguments @('diff', '--cached', '--name-only'))
-                $blockedPaths = @(Get-BlockedGitPaths -Paths $stagedPaths)
-                if ($blockedPaths.Count -gt 0) {
-                    throw ("暂存区仍包含本机运行数据或配置，已阻止提交：`n{0}" -f ($blockedPaths -join "`n"))
+            if ($oversizedStagedPaths.Count -gt 0) {
+                Write-Host '正在从暂存区排除超过 25 MiB 的文件；本地文件会保留，文件内容没有被读取或输出：' -ForegroundColor Yellow
+                foreach ($path in $oversizedStagedPaths) {
+                    Write-Host "  $path" -ForegroundColor DarkYellow
                 }
             }
 
-            $stagedSummary = @(Invoke-GitOutput -GitArguments @('diff', '--cached', '--name-status', '--find-renames'))
-            Write-Host ''
-            Write-Host '本次待提交文件：' -ForegroundColor Cyan
-            foreach ($path in $stagedSummary) {
-                Write-Host "  $path"
+            $pathsToUnstage = @($blockedPaths + $oversizedGitPaths | Select-Object -Unique)
+            if ($pathsToUnstage.Count -gt 0) {
+                $unstageArguments = @('rm', '--cached', '--ignore-unmatch', '--force', '--') + $pathsToUnstage
+                Invoke-GitChecked -GitArguments $unstageArguments
+                Write-Host ("已从暂存区移除 {0} 项；本地文件仍保留在磁盘上。" -f $pathsToUnstage.Count) -ForegroundColor Yellow
             }
 
-            Write-Host '接下来请输入提交说明；提交完成后会继续强制推送。' -ForegroundColor Cyan
-            do {
-                $commitMessage = (Read-Host '【提交说明】【必填】').Trim()
+            $stagedPaths = @(Invoke-GitOutput -GitArguments @('diff', '--cached', '--name-only'))
+            $blockedPaths = @(Get-BlockedGitPaths -Paths $stagedPaths)
+            if ($blockedPaths.Count -gt 0) {
+                throw ("暂存区仍包含本机运行数据或配置，已阻止提交：`n{0}" -f ($blockedPaths -join "`n"))
             }
-            while ([string]::IsNullOrWhiteSpace($commitMessage))
+            # 明确告知排除结果：依赖、构建产物、运行数据、数据库、凭据和 .env 都不会进入提交。
+            Write-Host ("已校验 {0} 个待提交文件：不含 node_modules、dist 等依赖与构建产物，也不含运行数据、数据库、凭据和 .env。" -f $stagedPaths.Count) -ForegroundColor Green
 
-            Invoke-GitChecked -GitArguments @('commit', '-m', $commitMessage)
+            $oversizedStagedPaths = @(Get-LargeGitObjectPaths -ObjectLines (Get-GitIndexObjectLines -Paths $stagedPaths))
+            if ($oversizedStagedPaths.Count -gt 0) {
+                throw ("暂存区仍包含超过 25 MiB 的文件，已阻止提交：`n{0}" -f ($oversizedStagedPaths -join "`n"))
+            }
+
+            if ($stagedPaths.Count -gt 0) {
+                $secretFindings = Get-GitSecretFindings -Scope 'Index' -Paths $stagedPaths
+                Assert-GitSecretFindings -ScopeLabel '暂存源码' -Blocking $secretFindings.Blocking -Advisory $secretFindings.Advisory
+
+                $stagedSummary = @(Invoke-GitOutput -GitArguments @('diff', '--cached', '--name-status', '--find-renames'))
+                Write-Host ''
+                Write-Host '本次待提交文件：' -ForegroundColor Cyan
+                foreach ($path in $stagedSummary) {
+                    Write-Host "  $path"
+                }
+
+                Write-Host ''
+                Write-Host '本次提交信息：版本号会自动加在提交说明前，两者都可以自行输入。' -ForegroundColor Cyan
+                $projectVersion = Read-ProjectReleaseVersion -Version $projectVersion
+                do {
+                    $commitMessage = (Read-Host '【提交说明】【必填】').Trim()
+                }
+                while ([string]::IsNullOrWhiteSpace($commitMessage))
+
+                $versionedCommitMessage = ("{0}: {1}" -f $projectVersion.Label, $commitMessage)
+                Invoke-GitChecked -GitArguments @('commit', '-m', $versionedCommitMessage)
+            }
+            else {
+                Write-Host '过滤后没有可提交的源码变化，不创建空提交；将推送当前本地提交。' -ForegroundColor Yellow
+            }
         }
         else {
             Write-Host '工作区没有新变化，将推送当前本地提交。' -ForegroundColor Green
@@ -372,29 +742,66 @@ function Push-GitHubRepository {
 
         [void](Invoke-GitOutput -GitArguments @('rev-parse', '--verify', 'HEAD'))
 
+        $historyObjects = @(Invoke-GitOutput -GitArguments @('rev-list', '--objects', 'HEAD'))
+        $historyPaths = @($historyObjects | ForEach-Object {
+            $separator = $_.IndexOf(' ')
+            if ($separator -ge 0 -and $separator -lt ($_.Length - 1)) {
+                $_.Substring($separator + 1)
+            }
+        })
+        $blockedHistoryPaths = @(Get-BlockedGitPaths -Paths $historyPaths)
+        if ($blockedHistoryPaths.Count -gt 0) {
+            throw ("本地 Git 历史含有运行数据、依赖或敏感文件路径；已阻止推送：`n{0}" -f ($blockedHistoryPaths -join "`n"))
+        }
+
+        $oversizedHistoryPaths = @(Get-LargeGitObjectPaths -ObjectLines $historyObjects)
+        if ($oversizedHistoryPaths.Count -gt 0) {
+            throw ("本地 Git 历史含有超过 25 MiB 的文件对象；已阻止推送：`n{0}" -f ($oversizedHistoryPaths -join "`n"))
+        }
+
+        $historySecrets = Get-GitSecretFindings -Scope 'History'
+        Assert-GitSecretFindings -ScopeLabel '本地 Git 历史' -Blocking $historySecrets.Blocking -Advisory $historySecrets.Advisory
+
         Write-Host ''
-        Write-Host '正在执行 git push --force origin HEAD:refs/heads/main ……' -ForegroundColor Yellow
-        # 按用户要求覆盖远端 main，不先合并远端历史。
-        Invoke-GitChecked -GitArguments @('push', '--force', 'origin', 'HEAD:refs/heads/main')
-        Write-Host 'GitHub main 强制推送成功。' -ForegroundColor Green
+        Write-Host 'HTTPS 传输低于 1 KiB/s 持续 60 秒时会超时退出。' -ForegroundColor DarkGray
+        if ($isForcePush) {
+            Write-Host '正在执行强制推送：git push --force origin HEAD:refs/heads/main ……' -ForegroundColor Yellow
+            Invoke-GitChecked -GitArguments @('-c', 'http.lowSpeedLimit=1024', '-c', 'http.lowSpeedTime=60', 'push', '--force', 'origin', 'HEAD:refs/heads/main')
+        }
+        else {
+            Write-Host '正在执行正常推送：git push origin HEAD:refs/heads/main ……' -ForegroundColor Green
+            Invoke-GitChecked -GitArguments @('-c', 'http.lowSpeedLimit=1024', '-c', 'http.lowSpeedTime=60', 'push', 'origin', 'HEAD:refs/heads/main')
+        }
+        Write-Host ("GitHub main {0}成功，版本：{1}。" -f $pushModeLabel, $projectVersion.Label) -ForegroundColor Green
     }
     catch {
+        if (-not $isForcePush -and $_.Exception.Message -match '(?i)non-fast-forward|fetch first|rejected') {
+            Write-Host '常规推送被 Git 拒绝：远端包含本地没有的提交；远端历史没有被覆盖。' -ForegroundColor Yellow
+        }
         Write-Host "GitHub 推送失败：$($_.Exception.Message)" -ForegroundColor Red
     }
 }
 
 while ($true) {
     Show-MainMenu
-    $choice = (Read-Host '输入编号并按 Enter').Trim()
-
-    switch ($choice) {
-        '1' { Install-WorkspaceDependencies; Read-Host '按 Enter 返回菜单' | Out-Null }
-        '2' { Start-DevelopmentServices; Read-Host '按 Enter 返回菜单' | Out-Null }
-        '3' { Show-DependencyScope; Read-Host '按 Enter 返回菜单' | Out-Null }
-        '4' { Show-EnvironmentStatus; Read-Host '按 Enter 返回菜单' | Out-Null }
-        '5' { Start-ProjectBackup; Read-Host '按 Enter 返回菜单' | Out-Null }
-        '6' { Push-GitHubRepository; Read-Host '按 Enter 返回菜单' | Out-Null }
-        '0' { Write-Host '已退出 LFAA 项目管理工作台。' -ForegroundColor DarkGray; exit 0 }
-        default { Write-Host '无效编号，请选择 0 至 6。' -ForegroundColor Red; Start-Sleep -Seconds 1 }
+    $choice = [string](Read-Host '输入编号并按 Enter')
+    # 重定向输入结束时正常退出，避免无输入反复刷新菜单。
+    if ([Console]::IsInputRedirected -and [string]::IsNullOrWhiteSpace($choice)) { exit 0 }
+    try {
+        switch ($choice.Trim()) {
+            '1' { Install-WorkspaceDependencies }
+            '2' { Start-Harness }
+            '3' { Invoke-WorkspacePnpm -Arguments @('run', 'build') }
+            '4' { Show-EnvironmentStatus; Show-DependencyScope }
+            '5' { Start-ProjectBackup }
+            '6' { Push-GitHubRepository }
+            '7' { Push-GitHubRepository -Force }
+            '0' { Write-Host '已退出 LFAA Harness 工作台。' -ForegroundColor DarkGray; exit 0 }
+            default { Write-Host '无效编号，请选择 0 至 7。' -ForegroundColor Red }
+        }
     }
+    catch {
+        Write-Host "操作未完成：$($_.Exception.Message)" -ForegroundColor Red
+    }
+    Read-Host '按 Enter 返回菜单' | Out-Null
 }

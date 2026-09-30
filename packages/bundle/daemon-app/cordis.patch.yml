@@ -1,0 +1,5 @@
+# 功能：装配节点执行插件。作用：Daemon 进程独立运行，沿用原任务合同。关联文件：host/daemon。
+- insert:
+    - id: daemon
+      name: lfaa-host-daemon/daemon
+      required: true

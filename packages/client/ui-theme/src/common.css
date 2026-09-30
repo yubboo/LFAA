@@ -1,0 +1,76 @@
+/*
+ * 功能：定义多个独立前端组件共用的状态样式。
+ * 作用：集中维护页面加载、服务连接状态和通用错误提示，不承载单页业务布局。
+ * 关联文件：packages/client/web/src/main.tsx、packages/client/ui-renderer/src/App.tsx、packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-settings-account/src/AdminUsersPage.tsx、packages/client/ui-primitives/src/ServiceStatus.tsx。
+ */
+
+/* 全页与局部加载状态由认证、工作台和应用页面共同使用。 */
+.loading-page {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.loading-page--compact {
+  min-height: 35vh;
+}
+
+.loading-indicator {
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--color-border-soft);
+  border-top-color: var(--color-brand);
+  border-radius: 50%;
+  animation: loading-turn 850ms linear infinite;
+}
+
+@keyframes loading-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 服务状态在全局工作台、登录说明与应用运行信息中使用同一展示。 */
+.service-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+  white-space: nowrap;
+}
+
+.service-status__dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--color-status-idle);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-status-idle) 14%, transparent);
+}
+
+.service-status--online {
+  color: var(--color-status-success-text);
+}
+
+.service-status--online .service-status__dot {
+  background: var(--color-status-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-status-success) 14%, transparent);
+}
+
+.service-status--offline {
+  color: var(--color-status-error-text);
+}
+
+.service-status--offline .service-status__dot {
+  background: var(--color-status-error);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-status-error) 14%, transparent);
+}
+
+/* 多页面错误提示共用统一的下方留白，颜色与图标由 Ant Design Alert 提供。 */
+.page-alert {
+  margin-bottom: var(--space-5);
+}

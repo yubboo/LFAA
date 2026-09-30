@@ -1,0 +1,202 @@
+/*
+ * 功能：定义 Minecraft 常规工作台内容区、实例视图和操作表单的样式。
+ * 作用：让状态、任务、配置和日志在共享 LFAA 工作区内清晰排布，并适配窄屏。
+ * 关联文件：packages/client/ui-minecraft/src/MinecraftWorkspace.tsx、packages/client/ui-workspace/src/ApplicationWorkspace.tsx。
+ */
+.minecraft-workspace { display: flex; width: 100%; min-width: 0; min-height: 100%; flex: 1 0 auto; flex-direction: column; gap: 16px; padding: clamp(18px, 3vw, 34px); color: var(--color-text-heading); }
+.minecraft-page-heading { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.minecraft-page-heading h2.ant-typography { margin: 5px 0 4px; color: var(--color-text-heading); }
+.minecraft-page-heading p.ant-typography { max-width: 760px; margin: 0; color: var(--color-text-secondary); }
+.minecraft-eyebrow { color: var(--color-brand); font-size: 10px; font-weight: 700; letter-spacing: .11em; }
+.minecraft-alert { flex: 0 0 auto; }
+.minecraft-loading { display: flex; min-height: 280px; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--color-text-secondary); }
+.minecraft-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.minecraft-metric-card { display: grid; min-width: 0; min-height: 112px; align-content: center; gap: 7px; padding: 17px; border: 1px solid var(--color-border); border-radius: 12px; background: color-mix(in srgb, var(--color-surface) 94%, transparent); color: inherit; cursor: pointer; font: inherit; text-align: left; transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease; }
+.minecraft-metric-card:hover { transform: translateY(-1px); border-color: var(--color-brand); background: var(--color-surface); }
+.minecraft-metric-card:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.minecraft-metric-card span, .minecraft-metric-card small { color: var(--color-text-secondary); font-size: 11px; }
+.minecraft-metric-card strong { overflow-wrap: anywhere; color: var(--color-text-heading); font-size: clamp(16px, 1.75cqi, 20px); font-weight: 700; }
+.minecraft-card .ant-typography { color: var(--color-text-heading); }
+.minecraft-card h4.ant-typography, .minecraft-card h5.ant-typography { margin: 0; }
+.minecraft-overview-meta { display: flex; flex-wrap: wrap; gap: 6px 15px; color: var(--color-text-muted); font-size: 10px; }
+.minecraft-overview-panels { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 12px; }
+.minecraft-task-panels { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.55fr); align-items: start; gap: 12px; }
+.minecraft-task-panels > .ant-card { min-width: 0; }
+.minecraft-overview-panel .ant-card-body { display: grid; align-content: start; gap: 10px; }
+.minecraft-overview-panel .minecraft-card-heading { align-items: center; }
+.minecraft-node-preview-list { display: grid; gap: 7px; }
+.minecraft-node-preview { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 10px; width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--color-border-subtle); border-radius: 9px; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; }
+.minecraft-node-preview:hover { border-color: var(--color-border); background: var(--color-surface-muted); }
+.minecraft-node-preview:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.minecraft-node-preview > span { display: grid; min-width: 0; gap: 3px; }
+.minecraft-node-preview strong { overflow: hidden; color: var(--color-text-heading); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.minecraft-node-preview small { color: var(--color-text-secondary); font-size: 10px; }
+.minecraft-node-preview > small:last-child { grid-column: 1 / -1; }
+.minecraft-node-preview .ant-tag { align-self: start; margin: 0; }
+.minecraft-node-management .ant-card-body { display: grid; gap: 14px; }
+.minecraft-node-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 12px; }
+.minecraft-node-card .ant-card-body { display: grid; align-content: start; gap: 12px; }
+.minecraft-node-capabilities { display: flex; flex-wrap: wrap; gap: 6px; }
+.minecraft-node-capabilities .ant-tag { margin: 0; }
+.minecraft-node-card .minecraft-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin: 0; }
+.minecraft-node-card .minecraft-node-java { grid-column: 1 / -1; }
+.minecraft-node-card .ant-alert { margin-top: 0; }
+.minecraft-sandbox-card .ant-card-body { display: grid; gap: 16px; }
+.minecraft-sandbox-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.minecraft-sandbox-grid > div { display: grid; align-content: start; gap: 5px; padding: 11px; border: 1px solid var(--color-border-subtle); border-radius: 9px; }
+.minecraft-sandbox-grid strong { color: var(--color-text-heading); font-size: 11px; }
+.minecraft-sandbox-grid span { color: var(--color-text-secondary); font-size: 10px; line-height: 1.55; }
+.minecraft-overview-card p.ant-typography, .minecraft-create-card p.ant-typography, .minecraft-config-card p.ant-typography, .minecraft-backup-card p.ant-typography, .minecraft-java-install p.ant-typography { margin: 7px 0 0; color: var(--color-text-secondary); }
+.minecraft-actions { display: flex; flex-wrap: wrap; gap: 9px; margin: 16px 0 0; }
+.minecraft-overview-card .minecraft-actions { margin: 0; }
+.minecraft-instance-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.minecraft-instance-card { cursor: pointer; }
+.minecraft-card-heading { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.minecraft-card-heading > div { min-width: 0; }
+.minecraft-card-heading .ant-tag { flex: 0 0 auto; }
+.minecraft-instance-card small { display: block; margin-top: 12px; color: var(--color-text-secondary); font-size: 11px; }
+.minecraft-instance-card .ant-btn-link { padding-inline: 0; }
+.minecraft-instance-tabs { display: flex; min-width: 0; gap: 6px; overflow-x: auto; border-bottom: 1px solid var(--color-border); }
+.minecraft-instance-tabs button { min-height: 38px; flex: 0 0 auto; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--color-text-secondary); cursor: pointer; font: inherit; font-size: 11px; }
+.minecraft-instance-tabs button[aria-current="page"] { border-bottom-color: var(--color-brand); color: var(--color-brand); font-weight: 650; }
+.minecraft-detail-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(260px, .9fr); gap: 12px; }
+.minecraft-instance-summary .minecraft-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px 18px; margin: 20px 0 0; }
+.minecraft-facts div { min-width: 0; }
+.minecraft-facts dt { margin-bottom: 4px; color: var(--color-text-muted); font-size: 10px; }
+.minecraft-facts dd { margin: 0; overflow-wrap: anywhere; color: var(--color-text-heading); font-size: 12px; }
+.minecraft-config-card, .minecraft-backup-card, .minecraft-java-install { max-width: 920px; }
+.minecraft-property-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; margin-top: 18px; }
+.minecraft-property-form > label, .minecraft-create-form > label { display: grid; min-width: 0; gap: 6px; color: var(--color-text-secondary); font-size: 11px; }
+.minecraft-property-form > label .ant-input-number { width: 100%; }
+.minecraft-property-form > .ant-checkbox-wrapper { align-self: center; color: var(--color-text-secondary); font-size: 11px; }
+.minecraft-property-form > .ant-btn { justify-self: start; }
+.minecraft-create-card { max-width: 960px; }
+.minecraft-create-card .ant-card-body { display: grid; gap: 17px; }
+/* 宽画布并排展示部署表单与记录，画布收窄后回到单列，保证字段可读。 */
+.minecraft-deployment-layout { display: grid; width: 100%; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }
+.minecraft-create-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+/* 目录标签多一行路径说明时，其他标签仍从行首紧凑排列，避免下拉控件被拉伸下移。 */
+.minecraft-create-form > label { align-content: start; }
+.minecraft-create-form > label .ant-input, .minecraft-create-form > label .ant-input-number, .minecraft-create-form > label .ant-select { width: 100%; }
+.minecraft-eula { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 5px; grid-column: 1 / -1; color: var(--color-text-secondary); font-size: 11px; }
+.minecraft-eula .ant-typography { flex-basis: 100%; margin: 2px 0 0; font-size: 10px; }
+.minecraft-create-form > .ant-btn { justify-self: start; grid-column: 1 / -1; }
+.minecraft-deployments-card { max-width: 960px; }
+.minecraft-deployments-card > .ant-card-body { display: grid; gap: 12px; }
+.minecraft-deployment-list { display: grid; gap: 9px; }
+.minecraft-deployment-row { display: grid; gap: 9px; padding: 13px; border: 1px solid var(--color-border-subtle); border-radius: 10px; background: var(--color-surface-muted); }
+.minecraft-deployment-row .minecraft-card-heading strong { display: block; margin-bottom: 4px; color: var(--color-text-heading); font-size: 12px; }
+.minecraft-deployment-row .ant-typography-secondary { font-size: 10px; }
+.minecraft-deployment-row > small { color: var(--color-text-muted); font-size: 10px; }
+.minecraft-register-form { display: grid; gap: 14px; }
+.minecraft-register-form > label { display: grid; gap: 6px; color: var(--color-text-secondary); font-size: 11px; }
+.minecraft-register-form > label .ant-input-number, .minecraft-register-form > label .ant-select { width: 100%; }
+.minecraft-register-form > label > .ant-typography-secondary { margin: 0; font-size: 10px; line-height: 1.55; }
+.minecraft-register-form .minecraft-eula { grid-column: auto; }
+.minecraft-instance-java-choice { display: grid; max-width: 680px; gap: 6px; margin-top: 16px; color: var(--color-text-secondary); font-size: 11px; }
+.minecraft-instance-java-choice .ant-select { width: 100%; }
+.minecraft-instance-java-choice .ant-typography { margin: 0; line-height: 1.55; }
+.minecraft-java-node { display: grid; gap: 5px; margin-top: 14px; padding: 12px; border: 1px solid var(--color-border-subtle); border-radius: 10px; }
+.minecraft-java-node p { margin: 3px 0 0; color: var(--color-text-secondary); font-size: 11px; }
+.minecraft-java-install__controls { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(130px, .6fr) auto; gap: 9px; margin-top: 16px; }
+.minecraft-java-manager > .ant-card-body, .minecraft-java-detected-card > .ant-card-body { display: grid; gap: 15px; }
+.minecraft-java-manager .minecraft-card-heading p.ant-typography, .minecraft-java-detected-card .minecraft-card-heading p.ant-typography { max-width: 760px; margin: 6px 0 0; color: var(--color-text-secondary); }
+.minecraft-java-node-picker { display: grid; max-width: 460px; gap: 6px; color: var(--color-text-secondary); font-size: 11px; }
+.minecraft-java-node-picker .ant-select { width: 100%; }
+.minecraft-java-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr)); gap: 12px; }
+/* 版本卡片按钮固定落在同一底边，说明文字增减时不再带着操作按钮上下漂移。 */
+.minecraft-java-version-card { display: flex; flex-direction: column; }
+.minecraft-java-version-card .ant-card-body { display: flex; min-height: 174px; flex: 1; flex-direction: column; gap: 12px; }
+.minecraft-java-version-card h5.ant-typography { margin-bottom: 4px; }
+.minecraft-java-version-card .ant-typography-secondary { font-size: 10px; }
+.minecraft-java-version-card__actions { display: grid; gap: 6px; margin-top: auto; }
+.minecraft-java-version-path, .minecraft-java-runtime__path { display: block; min-width: 0; overflow-wrap: anywhere; color: var(--color-text-muted); font-size: 10px; line-height: 1.55; }
+.minecraft-java-custom-card { width: 100%; }
+/* 自定义版本说明与输入操作左右分区，卡片铺满版本区宽度，避免底部只占半行。 */
+.minecraft-java-custom-card .ant-card-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 470px); align-items: center; gap: 24px; }
+.minecraft-java-custom-card__info { min-width: 0; max-width: 860px; }
+.minecraft-java-custom-card p.ant-typography { margin: 0; color: var(--color-text-secondary); }
+.minecraft-java-custom-card .minecraft-java-install__controls { grid-template-columns: minmax(160px, 220px) minmax(160px, 1fr); max-width: none; margin-top: 0; }
+.minecraft-java-runtime-list { display: grid; gap: 9px; }
+/* Java 运行环境每行让来源标签紧跟名称，操作按钮独立靠右并在窄屏时换行。 */
+.minecraft-java-runtime { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--color-border-subtle); border-radius: 10px; }
+.minecraft-java-runtime__info { display: grid; min-width: 0; gap: 8px; }
+.minecraft-java-runtime__info strong { color: var(--color-text-heading); font-size: 11px; }
+.minecraft-java-runtime__heading { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
+.minecraft-java-runtime__actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.minecraft-java-runtime__actions .ant-btn { min-width: 88px; }
+.minecraft-java-path-form { display: grid; gap: 14px; }
+.minecraft-java-path-form > label { display: grid; gap: 6px; color: var(--color-text-secondary); font-size: 11px; }
+.minecraft-java-path-form p.ant-typography { margin: 0; color: var(--color-text-secondary); }
+.minecraft-task-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 11px; }
+.minecraft-task-list article { min-width: 0; max-width: 520px; padding: 14px; border: 1px solid var(--color-border-subtle); border-radius: 11px; background: var(--color-surface-muted); }
+.minecraft-task-copy { display: grid; min-width: 0; gap: 10px; }
+.minecraft-task-heading { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.minecraft-task-heading strong { min-width: 0; padding-top: 2px; color: var(--color-text-heading); font-size: 12px; line-height: 1.45; }
+.minecraft-task-heading .ant-tag { flex: 0 0 auto; margin: 0; }
+.minecraft-task-copy > span { min-height: 2.8em; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 11px; line-height: 1.55; }
+.minecraft-task-copy > small { padding-top: 2px; color: var(--color-text-muted); font-size: 10px; }
+.minecraft-tasks-card > .ant-card-body { display: grid; gap: 12px; }
+.minecraft-log-list { display: grid; max-height: min(62vh, 680px); gap: 0; margin-top: 14px; overflow: auto; border: 1px solid var(--color-border-subtle); border-radius: 9px; background: var(--color-surface-muted); }
+.minecraft-log-list > p { display: grid; grid-template-columns: 138px 54px minmax(0, 1fr); gap: 10px; margin: 0; padding: 7px 10px; border-bottom: 1px solid var(--color-border-subtle); font-size: 10px; }
+.minecraft-log-list time, .minecraft-log-list > p > span { color: var(--color-text-muted); font-size: 9px; }
+.minecraft-log-list code { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; color: var(--color-text-secondary); font-size: 10px; }
+.minecraft-log-list .is-stderr { color: var(--color-danger, #c2413a); }
+.minecraft-empty { display: grid; min-height: 88px; place-items: center; padding: 18px; color: var(--color-text-muted); font-size: 11px; text-align: center; }
+.minecraft-backup-card .ant-alert { margin: 18px 0; }
+.minecraft-backup-card .ant-btn { margin-right: 12px; }
+.minecraft-backup-card > .ant-card-body > .ant-typography-secondary { display: inline-block; margin-top: 12px; }
+
+@media (max-width: 760px) {
+  .minecraft-workspace { gap: 12px; padding: 16px; }
+  .minecraft-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .minecraft-sandbox-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .minecraft-overview-panels, .minecraft-node-grid, .minecraft-task-panels { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-detail-grid { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-page-heading { align-items: flex-start; }
+  .minecraft-java-install__controls { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-java-runtime { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .minecraft-java-runtime__actions { justify-content: flex-start; }
+  .minecraft-java-custom-card .ant-card-body { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+  .minecraft-java-custom-card .minecraft-java-install__controls { grid-template-columns: minmax(0, 1fr); max-width: none; }
+}
+
+@media (max-width: 480px) {
+  .minecraft-workspace { padding: 12px; }
+  .minecraft-page-heading { flex-direction: column; }
+  .minecraft-create-form, .minecraft-property-form { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-sandbox-grid { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-java-card-grid { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-eula, .minecraft-create-form > .ant-btn { grid-column: auto; }
+  .minecraft-instance-summary .minecraft-facts { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-node-card .minecraft-facts { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-node-card .minecraft-node-java { grid-column: auto; }
+  .minecraft-log-list > p { grid-template-columns: 1fr; gap: 3px; }
+}
+
+/* Minecraft 卡片按中间列自身宽度收敛，避免桌面视口仍很宽但右 Dock 挤窄主区时持续折行。 */
+@container module-center-content (max-width: 920px) {
+  .minecraft-stat-grid,
+  .minecraft-sandbox-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .minecraft-java-custom-card .ant-card-body { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+  .minecraft-java-custom-card .minecraft-java-install__controls { max-width: 470px; }
+}
+
+@container module-center-content (max-width: 720px) {
+  .minecraft-overview-panels,
+  .minecraft-node-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@container module-center-content (max-width: 1080px) {
+  .minecraft-task-panels,
+  .minecraft-deployment-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+@container module-center-content (max-width: 560px) {
+  .minecraft-stat-grid,
+  .minecraft-sandbox-grid,
+  .minecraft-detail-grid,
+  .minecraft-create-form { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-node-card .minecraft-facts { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-node-card .minecraft-node-java { grid-column: auto; }
+}

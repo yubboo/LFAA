@@ -1,7 +1,7 @@
 ﻿<#
-功能：创建 LFAA 项目的版本化 ZIP 源码备份。
-作用：将源码备份写入根目录 dist\backups，排除依赖、构建产物、运行数据与敏感本地配置。
-关联文件：根目录 lfaa.bat、项目根目录 dist\backups、package.json、pnpm-lock.yaml、pnpm-workspace.yaml。
+功能：创建 LFAA 项目的版本化纯净 ZIP 源码备份。
+作用：将源码备份写入根目录 dist\backups，排除大依赖、构建产物、全部运行数据目录、数据库、密钥、日志与真实 .env。
+关联文件：根目录 lfaa.bat、project-menu.mjs 菜单所在的 install-dependencies.ps1、项目根目录 dist\backups、package.json、pnpm-lock.yaml、pnpm-workspace.yaml。
 #>
 
 [CmdletBinding()]
@@ -60,9 +60,10 @@ $requiredPaths = @(
     'package.json',
     'pnpm-lock.yaml',
     'pnpm-workspace.yaml',
-    'frontend\src',
-    'server\src',
-    'daemon\src',
+    'packages\client',
+    'packages\boot\app-boot',
+    'packages\host\daemon',
+    'native\system',
     'apps',
     'scripts',
     'docs',
@@ -109,15 +110,40 @@ foreach ($excludedDirectoryName in $excludedDirectoryNameList) {
     [void]$excludedDirectoryNames.Add($excludedDirectoryName)
 }
 
+# 运行数据根目录：控制端与节点在本地生成的数据库、凭据、缓存和日志都落在这些目录下。
+# 按实际路径判断而不是按目录名判断，避免误排 packages/credentials 等源码包。
+$runtimeDataRootCandidates = [System.Collections.Generic.List[string]]::new()
+$runtimeDataRootCandidates.Add((Join-Path $projectRoot 'data'))
+$runtimeDataRootCandidates.Add((Join-Path $projectRoot 'server\data'))
+foreach ($appDirectory in Get-ChildItem -LiteralPath (Join-Path $projectRoot 'apps') -Directory -ErrorAction SilentlyContinue) {
+    $runtimeDataRootCandidates.Add((Join-Path $appDirectory.FullName 'data'))
+}
+$runtimeDataRoots = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($runtimeDataRootCandidate in $runtimeDataRootCandidates) {
+    if (Test-Path -LiteralPath $runtimeDataRootCandidate -PathType Container) {
+        [void]$runtimeDataRoots.Add((ConvertTo-NormalizedFullPath $runtimeDataRootCandidate))
+    }
+}
+
+# 敏感与本机运行文件名：即使落在未被排除的目录里，也不进入备份。
+# 同一份清单同时用于文件清点与 Robocopy /XF，保证两者排除范围一致。
+$excludedFileNamePatterns = @(
+    '*.log',
+    '*.sqlite', '*.sqlite-wal', '*.sqlite-shm',
+    '*.db', '*.db-wal', '*.db-shm',
+    '*.key', '*.pem', '*.p12', '*.pfx', '*.jks', '*.keystore', '*.crt', '*.cer', '*.der',
+    'jwt-secret', 'daemon-token', 'daemon-node-id', 'daemon.lock',
+    '.lfaa-data-directory.pending.json'
+)
+
 $excludedDirectories = [System.Collections.Generic.List[string]]::new()
 $excludedEnvironmentFiles = [System.Collections.Generic.List[string]]::new()
-$excludedRuntimeData = ConvertTo-NormalizedFullPath (Join-Path $projectRoot 'data')
+$excludedRuntimeFiles = [System.Collections.Generic.List[string]]::new()
 $directoryStack = [System.Collections.Generic.Stack[string]]::new()
 $directoryStack.Push($projectRoot)
 $includedFiles = [System.Collections.Generic.Dictionary[string, long]]::new([System.StringComparer]::OrdinalIgnoreCase)
 $includedFileCount = [long]0
 $includedByteCount = [long]0
-$excludedLogCount = [long]0
 $excludedLinkCount = [long]0
 
 while ($directoryStack.Count -gt 0) {
@@ -125,7 +151,7 @@ while ($directoryStack.Count -gt 0) {
     foreach ($entry in Get-ChildItem -LiteralPath $currentDirectory -Force -ErrorAction Stop) {
         if ($entry.PSIsContainer) {
             $entryPath = ConvertTo-NormalizedFullPath $entry.FullName
-            $isRuntimeData = $entryPath.Equals($excludedRuntimeData, [System.StringComparison]::OrdinalIgnoreCase)
+            $isRuntimeData = $runtimeDataRoots.Contains($entryPath)
             $isLink = ($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0
             if ($isRuntimeData -or $excludedDirectoryNames.Contains($entry.Name) -or $isLink) {
                 $excludedDirectories.Add($entryPath)
@@ -151,8 +177,15 @@ while ($directoryStack.Count -gt 0) {
             continue
         }
 
-        if ($entry.Extension.Equals('.log', [System.StringComparison]::OrdinalIgnoreCase)) {
-            $excludedLogCount++
+        $isExcludedRuntimeFile = $false
+        foreach ($excludedFileNamePattern in $excludedFileNamePatterns) {
+            if ($entry.Name -like $excludedFileNamePattern) {
+                $isExcludedRuntimeFile = $true
+                break
+            }
+        }
+        if ($isExcludedRuntimeFile) {
+            $excludedRuntimeFiles.Add($entry.FullName)
             continue
         }
 
@@ -201,6 +234,11 @@ catch {
 }
 
 New-Item -ItemType Directory -Path $BackupRoot -Force | Out-Null
+# 清理历史中断留下的未完成压缩包；它们不是可用备份，只占空间。
+$stalePartialFiles = @(Get-ChildItem -LiteralPath $BackupRoot -Filter '*.partial' -File -Force -ErrorAction SilentlyContinue)
+foreach ($stalePartialFile in $stalePartialFiles) {
+    Remove-Item -LiteralPath $stalePartialFile.FullName -Force -ErrorAction SilentlyContinue
+}
 New-Item -ItemType Directory -Path $stagingDirectory -Force | Out-Null
 $logPath = Join-Path $stagingSession 'backup.log'
 $robocopy = Join-Path $env:SystemRoot 'System32\robocopy.exe'
@@ -214,10 +252,19 @@ Write-Host "项目目录：$projectRoot"
 Write-Host "项目版本：$projectName $projectVersion"
 Write-Host "压缩包：$archivePath"
 Write-Host ("待备份文件：{0:N0} 个，约 {1:N2} MB" -f $includedFileCount, ($includedByteCount / 1MB))
-Write-Host ("排除目录：{0:N0} 个；本地密钥配置：{1:N0} 个；日志：{2:N0} 个；链接：{3:N0} 个" -f $excludedDirectories.Count, $excludedEnvironmentFiles.Count, $excludedLogCount, $excludedLinkCount)
+Write-Host ("排除目录：{0:N0} 个（含运行数据根目录 {1:N0} 个）；本地密钥配置：{2:N0} 个；数据库/密钥/日志等敏感文件：{3:N0} 个；链接：{4:N0} 个；清掉历史未完成压缩包：{5:N0} 个" -f $excludedDirectories.Count, $runtimeDataRoots.Count, $excludedEnvironmentFiles.Count, $excludedRuntimeFiles.Count, $excludedLinkCount, $stalePartialFiles.Count)
 Write-Host '保留：源码、静态资源、文档、项目配置、锁文件和可用的 Git 元数据。' -ForegroundColor Green
-Write-Host '排除：node_modules、整个 dist/、其他构建/缓存目录、data/ 运行数据、日志、真实 .env 和目录链接。' -ForegroundColor Yellow
+Write-Host '排除：node_modules、整个 dist/、其他构建/缓存目录、运行数据目录（data、server\data、apps\*\data）、SQLite 数据库、密钥文件、日志、真实 .env 和目录链接。' -ForegroundColor Yellow
 Write-Host ''
+
+# Robocopy 通过命令行接收逐项排除路径；条目过多时命令行可能被截断，先明确报错而不是留下半个备份。
+$exclusionArgumentLength = [long]0
+foreach ($exclusionFile in (@($excludedEnvironmentFiles) + @($excludedRuntimeFiles))) {
+    $exclusionArgumentLength += $exclusionFile.Length + 1
+}
+if ($exclusionArgumentLength -gt 20000) {
+    throw '需要逐项排除的本机文件过多，无法安全传给 Robocopy；请先清理运行数据目录，或为这些目录补充目录级排除规则。'
+}
 
 $robocopyArguments = [System.Collections.Generic.List[string]]::new()
 $robocopyArguments.Add($projectRoot)
@@ -237,9 +284,14 @@ $robocopyArguments.Add('/NFL')
 $robocopyArguments.Add('/NDL')
 $robocopyArguments.Add("/LOG:$logPath")
 $robocopyArguments.Add('/XF')
-$robocopyArguments.Add('*.log')
+foreach ($excludedFileNamePattern in $excludedFileNamePatterns) {
+    $robocopyArguments.Add($excludedFileNamePattern)
+}
 foreach ($environmentFile in $excludedEnvironmentFiles) {
     $robocopyArguments.Add($environmentFile)
+}
+foreach ($excludedRuntimeFile in $excludedRuntimeFiles) {
+    $robocopyArguments.Add($excludedRuntimeFile)
 }
 $robocopyArguments.Add('/XD')
 foreach ($directory in $excludedDirectories) {

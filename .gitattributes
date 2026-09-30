@@ -1,0 +1,4 @@
+# 功能：固定 Windows 菜单启动器的换行格式。
+# 作用：检出 lfaa.bat 时使用 CRLF，避免编辑或克隆后重新出现 CMD 解析错误。
+# 关联文件：lfaa.bat、scripts/project-menu.mjs、scripts/install-dependencies.ps1。
+/lfaa.bat text eol=crlf

@@ -1,0 +1,14 @@
+{
+  "name": "lfaa-desktop-tauri",
+  "private": true,
+  "version": "0.1.1",
+  "type": "module",
+  "description": "LFAA Windows 本机一体版 Tauri 桌面外壳",
+  "scripts": {
+    "dev": "node scripts/run-tauri-dev.mjs",
+    "package:win": "node scripts/package-windows.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.0"
+  }
+}

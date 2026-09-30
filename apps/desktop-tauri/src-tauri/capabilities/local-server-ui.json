@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "local-server-ui",
+  "description": "仅允许 LFAA 本机页面调用原生目录选择对话框。",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://localhost:*"]
+  },
+  "permissions": [
+    "core:default",
+    "dialog:allow-open"
+  ]
+}

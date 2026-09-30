@@ -1,0 +1,17 @@
+{
+  "name": "lfaa-daemon",
+  "private": true,
+  "version": "0.1.1",
+  "type": "module",
+  "scripts": {
+    "predev": "pnpm run build:sandbox",
+    "dev": "node --import tsx --import ../cli/register-package-loader.mjs src/index.mjs",
+    "check": "node --check ../../packages/host/daemon/src/daemon.mjs",
+    "build:sandbox": "cargo build --manifest-path ../../native/system/Cargo.toml --release --target-dir ../../dist/apps/daemon/target --target x86_64-pc-windows-msvc",
+    "build": "pnpm run build:sandbox && pnpm run check"
+  },
+  "dependencies": {
+    "lfaa-app-boot": "workspace:*",
+    "lfaa-daemon-app": "workspace:*"
+  }
+}

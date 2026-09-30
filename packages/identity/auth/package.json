@@ -1,0 +1,29 @@
+{
+  "name": "lfaa-identity-auth",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "@simplewebauthn/server": "14.0.3",
+    "lfaa-launch-environment": "workspace:*",
+    "lfaa-storage-sqlite": "workspace:*",
+    "lfaa-util-values": "workspace:*",
+    "lfaa-storage-domain": "workspace:*",
+    "lfaa-session-persistence-jsonl": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/express": "^4.0.0",
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^24.0.0",
+    "@types/js-yaml": "^4.0.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

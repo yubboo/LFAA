@@ -1,0 +1,50 @@
+{
+  "name": "lfaa-client-ui-renderer",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts",
+    "./client": "./src/client/index.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "antd": "^5.0.0",
+    "lfaa-client-connection": "workspace:*",
+    "lfaa-client-modules": "workspace:*",
+    "lfaa-client-ui-layout": "workspace:*",
+    "lfaa-client-ui-primitives": "workspace:*",
+    "lfaa-client-ui-settings-account": "workspace:*",
+    "lfaa-client-ui-theme": "workspace:*",
+    "lfaa-client-ui-workspace": "workspace:*",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@types/express": "^4.0.0",
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^24.0.0",
+    "@types/js-yaml": "^4.0.0"
+  },
+  "lfaa": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "lfaa-client-connection",
+        "lfaa-client-modules",
+        "lfaa-client-ui-layout",
+        "lfaa-client-ui-primitives",
+        "lfaa-client-ui-settings-account",
+        "lfaa-client-ui-theme",
+        "lfaa-client-ui-workspace"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}
