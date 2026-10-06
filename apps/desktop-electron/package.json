@@ -1,7 +1,7 @@
 {
   "name": "lfaa-desktop-electron",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "main": "src/main.mjs",
   "description": "LFAA Windows 本机一体版桌面外壳",

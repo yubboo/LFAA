@@ -528,10 +528,13 @@ function Get-BlockedGitPaths {
 
     return @($Paths | Where-Object {
         $path = $_ -replace '\\', '/'
+        # packages/credentials 是版本化第一方源码包；其他 credentials 目录仍视为本机凭据数据。
+        $sourceCredentialsPackage = $path -match '(?i)^packages/credentials/'
         # 运行数据目录一律不得推送：根 data/、server/data/、apps/*/data/。
         $path -match '(?i)^(data|server/data)/' -or
         $path -match '(?i)^apps/[^/]+/data/' -or
-        $path -match '(?i)(^|/)(dist|node_modules|target|build|coverage|\.cache|\.turbo|\.next|\.vite|\.output|\.pnpm-store|\.venv|venv|__pycache__|\.tox|\.nox|bower_components|pods|carthage|vendor|backups|credentials|secrets?|database|\.ssh|\.aws|\.azure|\.kube)(/|$)' -or
+        $path -match '(?i)(^|/)(dist|node_modules|target|build|coverage|\.cache|\.turbo|\.next|\.vite|\.output|\.pnpm-store|\.venv|venv|__pycache__|\.tox|\.nox|bower_components|pods|carthage|vendor|backups|secrets?|database|\.ssh|\.aws|\.azure|\.kube)(/|$)' -or
+        (($path -match '(?i)(^|/)credentials(/|$)') -and -not $sourceCredentialsPackage) -or
         (($path -match '(?i)(^|/)\.env($|\.)') -and ($path -notmatch '(?i)(^|/)\.env\.example$')) -or
         $path -match '(?i)\.(sqlite3?|db)([-.][a-z0-9_-]+)?$' -or
         $path -match '(?i)\.(log|key|pem|p8|p12|pfx|jks|keystore|crt|cer|cert|der|token|secret|secrets|zip|7z|rar|tar|tgz|gz|whl|exe|msi|dll|node|so|dylib|class|jar|wasm|o|obj|pdb|ilk|lib|a|onnx|pt|pth|safetensors|gguf)$' -or

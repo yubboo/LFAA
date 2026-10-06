@@ -6,6 +6,7 @@
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
+| LFAA-DESKTOP-UPDATE-RELEASE-01 | 将 Windows Electron 更新能力接入 0.1.2，并发布可供 0.1.1 检测的更新 | 实施中 | 本文件“LFAA-DESKTOP-UPDATE-RELEASE-01” |
 | LFAA-UI-PLUGIN-WORKSPACE-01 | 将设置中心的插件配置重排为分区工作台，分离总览、能力目录、知识库、第三方插件、MCP 与运行诊断，并复用现有设置 Owner | 已实现（UI 包构建、客户端类型检查和差异检查通过；Web 构建指纹检测到并行源码变更而未登记，浏览器目视未验） | 本文件“LFAA-UI-PLUGIN-WORKSPACE-01” |
 | LFAA-CLI-WEB-LOCK-RECOVERY-01 | Web 菜单启动时识别当前数据目录的存活 LFAA Web 写锁持有者，结束该 CLI 进程后再启动 | 已实现（PowerShell 语法、数据目录解析、差异检查通过；真实 PID 终止与 Web 重启未运行） | 本文件“LFAA-CLI-WEB-LOCK-RECOVERY-01” |
 | LFAA-DESKTOP-ELECTRON-AUTO-UPDATE-01 | 为 Electron 桌面端增加 LFAA 更新清单，并接入自动检查、下载与受控安装 | 代码已接入；清单回归和静态检查通过；Electron NSIS 构建被现有 Host TypeScript 错误阻断；真实 Release 下载、签名和安装升级未验 | 本文件“LFAA-DESKTOP-ELECTRON-AUTO-UPDATE-01” |
@@ -5738,6 +5739,45 @@ AI Work 回复完成时，除工作台通知栏和右下角提醒外，播放设
 - 写锁格式错误、持有者仍存活但进程类型/命令不符、锁身份变化或终止未能确认都会中止启动。已退出的锁 PID不由菜单删除锁文件，沿用 `FileLease` 通过数据库事务回收。只停止控制端 PID，不结束它的本机 Daemon 子进程树；文档同步说明 Windows x64 Web 的本机 Daemon 托管行为。
 - 设置中心配置：不涉及。
 - 验证：PowerShell AST 语法检查通过；复用真实 Node resolver 的只读调用返回绝对数据目录；`git diff --check -- docs/PROMPTS.md docs/harness-cli.md scripts/install-dependencies.ps1` 通过。未启动 Web、未终止真实进程、未运行自动测试或构建；本地真实 PID 终止与重启行为未验。当前仓库未找到 `scripts/workspace-preflight.mjs`。
+
+## LFAA-DESKTOP-UPDATE-RELEASE-01
+
+### 用户目标
+
+- 发布 LFAA 0.1.2 Windows Electron 安装包，使已安装的 0.1.1 能读取稳定版更新清单、提示新版并在用户同意后下载和安装；支持桌面端手动检查。
+- 修复本次安装/启动所必需的 Electron 打包问题，沿用同一应用运行时与现有本机服务生命周期。
+
+### 运行入口、Owner 与设置
+
+- 运行入口：`apps/desktop-electron` Windows x64 NSIS 安装包；更新检查由 Electron 主进程负责，Renderer 通过受限 preload IPC 发起手动检查。
+- 更新权威：`docs/updata-log.md` 是唯一项目版本日志；`update.json` 是被签入 `main` 的 stable 更新清单；Electron Generic Release feed 与对应 GitHub Release assets 提供安装源。
+- 设置中心盘点：当前没有自动更新设置项、用户级更新开关或更新源选择；本次不新增或绕过设置。状态页继续复用现有主题与设置令牌。
+- 目标平台限于 Windows Electron。Android、Tauri、macOS、Linux 和 Web 不宣称已具备原生更新能力。
+
+### 允许修改
+
+- `apps/desktop-electron/**` 中更新主进程、受限 preload、关于/更新界面、NSIS 配置、安装资源和直接关联回归。
+- 修复桌面运行包加载所需的 `apps/cli/package-loader.mjs`；必要时同步该入口的精确打包器依赖映射。
+- 修复正常推送脚本对 `packages/credentials/**` 第一方源码的过宽排除，并补入提交 `553ad39` 依赖的凭据授权、凭据记录与凭据流程工作区包；仍排除这些包内的 `node_modules` 与所有本机密钥/运行数据。
+- 加入已被 Web Vite 配置引用的 `apps/web/scripts/web-asset-retention.d.mts` 声明，使候选源码可通过既定 TypeScript 构建门禁。
+- `docs/PROMPTS.md`、`docs/updata-log.md`、`update.json` 以及直接相关架构/验收事实文档。
+- 通过隔离 worktree 构建仅含本合同修改的 Windows Electron 包；用户已明确要求完成 0.1.2 演示，允许提交本合同限定的版本/更新记录文件、更新 `main`、创建 0.1.2 稳定 Release 并上传安装包、`latest.yml` 与 blockmap。
+
+### 禁止修改
+
+- 除 `packages/credentials/**` 中被 `pnpm-lock.yaml`、包清单和当前代码明确引用的第一方源码、本轮所需的 Web 声明文件及 version/update 文件外，不带入当前主工作区其他未提交文件；不改变应用权限、更新安全校验、本机服务 Owner 或数据目录；不做静默下载/安装。
+- 不覆盖或重启当前运行中的 3000 Web/Control Plane/Daemon；构建产物只写该隔离 checkout 的根 `dist/`。
+- 不发布 Tauri、Android、macOS、Linux 或 Web 更新包，不声称完成这些平台的验收；不加入未被实际构建验证的 Release asset。
+
+### 验收条件
+
+- 当前 0.1.1 安装包读取 `main/update.json` 后，Release feed 版本匹配 0.1.2 才可弹出升级；不一致时不得下载。
+- 用户同意后才下载；拒绝后不下载；下载完成后再次询问安装。手动检查能报告最新版/有新版/失败/不支持状态。
+- 定向更新回归、清单校验、桌面包构建和发行文件核验通过；源码提交、`main` 清单与稳定 Release/tag 对应 0.1.2；不把自动化结果冒充已实际完成安装升级。
+
+### 实施与验证记录
+
+- 待实施。
 
 ## LFAA-DESKTOP-ELECTRON-AUTO-UPDATE-01
 
