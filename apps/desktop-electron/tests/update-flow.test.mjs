@@ -6,19 +6,19 @@ function createHarness(overrides = {}) {
   const calls = { readManifest: 0, checkReleaseFeed: 0, promptForUpdate: 0, beginDownload: 0, errors: [] };
   const manifest = {
     enabled: true,
-    version: "0.2.0",
+    version: "0.0.3",
     releaseNotes: ["更新说明"],
     mandatory: false,
     minimumSupportedVersion: "0.0.1"
   };
   const flow = createDesktopUpdateFlow({
     isSupported: () => true,
-    getCurrentVersion: () => "0.1.1",
+    getCurrentVersion: () => "0.0.2",
     readManifest: async () => { calls.readManifest += 1; return manifest; },
-    checkReleaseFeed: async () => { calls.checkReleaseFeed += 1; return { isUpdateAvailable: true, updateInfo: { version: "0.2.0" } }; },
+    checkReleaseFeed: async () => { calls.checkReleaseFeed += 1; return { isUpdateAvailable: true, updateInfo: { version: "0.0.3" } }; },
     promptForUpdate: async () => { calls.promptForUpdate += 1; return "accept"; },
     beginDownload: () => { calls.beginDownload += 1; },
-    onError: (error, phase) => calls.errors.push({ message: error.message, phase }),
+    onError: (_error, phase, _manifest, safeMessage) => calls.errors.push({ message: safeMessage, phase }),
     ...overrides
   });
   return { calls, flow, manifest };
@@ -26,17 +26,17 @@ function createHarness(overrides = {}) {
 
 test("非打包或不支持的平台不读取远端清单", async () => {
   const { calls, flow } = createHarness({ isSupported: () => false });
-  assert.deepEqual(await flow.check({ manual: true }), { status: "unsupported", currentVersion: "0.1.1" });
+  assert.deepEqual(await flow.check({ manual: true }), { status: "unsupported", currentVersion: "0.0.2" });
   assert.equal(calls.readManifest, 0);
 });
 
 test("当前版本与清单一致时报告已是最新且不访问安装源", async () => {
   const { calls, flow, manifest } = createHarness({
-    readManifest: async () => { calls.readManifest += 1; return { ...manifest, version: "0.1.1" }; }
+    readManifest: async () => { calls.readManifest += 1; return { ...manifest, version: "0.0.2" }; }
   });
   const result = await flow.check({ manual: true });
   assert.equal(result.status, "up-to-date");
-  assert.equal(result.currentVersion, "0.1.1");
+  assert.equal(result.currentVersion, "0.0.2");
   assert.equal(calls.checkReleaseFeed, 0);
   assert.equal(calls.promptForUpdate, 0);
 });
@@ -52,7 +52,7 @@ test("发布清单关闭更新时报告当前策略且不访问安装源", async
 
 test("清单与 Release feed 版本不一致时拒绝弹出更新并拒绝下载", async () => {
   const { calls, flow } = createHarness({
-    checkReleaseFeed: async () => { calls.checkReleaseFeed += 1; return { isUpdateAvailable: true, updateInfo: { version: "0.3.0" } }; }
+    checkReleaseFeed: async () => { calls.checkReleaseFeed += 1; return { isUpdateAvailable: true, updateInfo: { version: "0.0.4" } }; }
   });
   const result = await flow.check({ manual: true });
   assert.equal(result.status, "error");
@@ -62,22 +62,49 @@ test("清单与 Release feed 版本不一致时拒绝弹出更新并拒绝下载
   assert.equal(calls.errors[0]?.phase, "check");
 });
 
-test("用户暂缓后不下载；再次手动检查可重新询问", async () => {
+test("HTTP 404 错误向 UI 和日志返回脱敏摘要", async () => {
+  const marker = "COOKIE_MUST_NOT_BE_EXPOSED";
   const { calls, flow } = createHarness({
-    promptForUpdate: async () => { calls.promptForUpdate += 1; return calls.promptForUpdate === 1 ? "defer" : "accept"; }
+    checkReleaseFeed: async () => {
+      calls.checkReleaseFeed += 1;
+      const error = new Error(`HttpError: 404 response headers: Set-Cookie: _gh_sess=${marker}`);
+      error.statusCode = 404;
+      throw error;
+    }
+  });
+
+  const result = await flow.check({ manual: true });
+  const expectedMessage = "官方更新文件尚未发布或暂时不可用（HTTP 404），请稍后重试。";
+  assert.equal(result.status, "error");
+  assert.equal(result.message, expectedMessage);
+  assert.equal(calls.errors[0]?.message, expectedMessage);
+  assert.doesNotMatch(JSON.stringify([result, calls.errors]), /COOKIE_MUST_NOT_BE_EXPOSED|Set-Cookie|headers|HttpError/u);
+  assert.equal(calls.promptForUpdate, 0);
+  assert.equal(calls.beginDownload, 0);
+});
+
+test("用户暂缓后自动和手动检查都不再提示同一版本；重启后可重新询问", async () => {
+  const { calls, flow } = createHarness({
+    promptForUpdate: async () => { calls.promptForUpdate += 1; return "defer"; }
   });
   assert.equal((await flow.check()).status, "deferred");
   assert.equal(calls.beginDownload, 0);
   assert.equal((await flow.check()).status, "deferred");
+  assert.equal((await flow.check({ manual: true })).status, "deferred");
+  assert.equal(calls.readManifest, 3);
   assert.equal(calls.promptForUpdate, 1);
-  assert.equal((await flow.check({ manual: true })).status, "downloading");
-  assert.equal(calls.promptForUpdate, 2);
-  assert.equal(calls.beginDownload, 1);
+  assert.equal(calls.checkReleaseFeed, 1);
+  assert.equal(calls.beginDownload, 0);
+
+  const restarted = createHarness();
+  assert.equal((await restarted.flow.check()).status, "downloading");
+  assert.equal(restarted.calls.promptForUpdate, 1);
+  assert.equal(restarted.calls.beginDownload, 1);
 });
 
 test("低于最低支持版本时向宿主传递强制更新状态", async () => {
   const { calls, flow, manifest } = createHarness({
-    readManifest: async () => { calls.readManifest += 1; return { ...manifest, minimumSupportedVersion: "0.2.0", mandatory: true }; },
+    readManifest: async () => { calls.readManifest += 1; return { ...manifest, minimumSupportedVersion: "0.0.3", mandatory: true }; },
     promptForUpdate: async (_manifest, options) => {
       calls.promptForUpdate += 1;
       assert.equal(options.mustInstall, true);
@@ -92,9 +119,9 @@ test("接受更新后开始下载，完成后后续检查报告已下载", async
   const { calls, flow } = createHarness();
   assert.equal((await flow.check({ manual: true })).status, "downloading");
   assert.equal(calls.beginDownload, 1);
-  assert.equal(flow.markDownloaded("0.3.0"), false);
-  assert.equal(flow.markDownloaded("0.2.0"), true);
-  assert.deepEqual(await flow.check({ manual: true }), { status: "downloaded", currentVersion: "0.1.1", latestVersion: "0.2.0" });
+  assert.equal(flow.markDownloaded("0.0.2"), false);
+  assert.equal(flow.markDownloaded("0.0.3"), true);
+  assert.deepEqual(await flow.check({ manual: true }), { status: "downloaded", currentVersion: "0.0.2", latestVersion: "0.0.3" });
 });
 
 test("并发手动检查合并为一次远端检查与一次用户提示", async () => {
@@ -102,7 +129,7 @@ test("并发手动检查合并为一次远端检查与一次用户提示", async
   const { calls, flow } = createHarness({
     checkReleaseFeed: () => {
       calls.checkReleaseFeed += 1;
-      return new Promise(resolve => { finishCheck = () => resolve({ isUpdateAvailable: true, updateInfo: { version: "0.2.0" } }); });
+      return new Promise(resolve => { finishCheck = () => resolve({ isUpdateAvailable: true, updateInfo: { version: "0.0.3" } }); });
     }
   });
   const first = flow.check({ manual: true });

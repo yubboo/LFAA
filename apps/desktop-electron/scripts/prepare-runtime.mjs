@@ -1,9 +1,9 @@
 /**
  * 功能：准备 Windows 本机一体版 Electron 应用所需的运行目录。
- * 作用：把 Web、控制端、生产依赖、Daemon、数据目录解析脚本和 Windows Sandbox Host 组装到根 dist 的临时工作区。
- * 关联文件：apps/desktop-electron/package.json、apps/desktop-electron/src/main.mjs、根目录 package.json、apps/cli/package.json、scripts/apply-data-directory-migration.mjs、packages/host/daemon/src/daemon.mjs。
+ * 作用：把独立构建的桌面候选 Web、控制端、生产依赖、Daemon、数据目录解析脚本和 Windows Sandbox Host 组装到根 dist 的临时工作区。
+ * 关联文件：apps/web/package.json、apps/desktop-electron/package.json、apps/desktop-electron/src/main.mjs、根目录 package.json、apps/cli/package.json、scripts/apply-data-directory-migration.mjs、packages/host/daemon/src/daemon.mjs。
  */
-import { cp, lstat, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
+import { cp, lstat, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,6 +12,7 @@ const repositoryRoot = resolve(scriptDirectory, "../../..");
 const desktopTempRoot = resolve(repositoryRoot, "dist", ".tmp", "desktop-electron");
 const runtimeRoot = resolve(desktopTempRoot, "runtime");
 const serverDeployRoot = resolve(desktopTempRoot, "server-deploy");
+const webCandidateRoot = resolve(desktopTempRoot, "web-candidate");
 
 function assertManagedTemporaryPath(targetPath) {
   const relativePath = relative(desktopTempRoot, targetPath);
@@ -40,7 +41,7 @@ async function resetRuntimeDirectory() {
   assertManagedTemporaryPath(runtimeRoot);
   const temporaryEntries = await readdir(desktopTempRoot, { withFileTypes: true });
   for (const entry of temporaryEntries) {
-    if (entry.name === "server-deploy") continue;
+    if (entry.name === "server-deploy" || entry.name === "web-candidate") continue;
     const targetPath = resolve(desktopTempRoot, entry.name);
     assertManagedTemporaryPath(targetPath);
     await rm(targetPath, { recursive: true, force: true });
@@ -90,7 +91,7 @@ async function prepareRuntime() {
   const sandboxHost = resolve(repositoryRoot, "dist", "apps", "daemon", "target", "x86_64-pc-windows-msvc", "release", "lfaa-sandbox-host.exe");
   await stat(sandboxHost);
 
-  await copyDirectory(resolve(repositoryRoot, "dist", "apps", "web"), resolve(runtimeRoot, "dist", "apps", "web"));
+  await copyDirectory(webCandidateRoot, resolve(runtimeRoot, "dist", "apps", "web"));
   await copyDirectory(resolve(repositoryRoot, "dist", "apps", "control-plane"), resolve(runtimeRoot, "dist", "apps", "control-plane"));
   await mkdir(resolve(runtimeRoot, "scripts"), { recursive: true });
   await mkdir(resolve(runtimeRoot, "apps", "cli"), { recursive: true });
@@ -105,7 +106,12 @@ async function prepareRuntime() {
   const buildResourcesRoot = resolve(desktopTempRoot, "build-resources");
   await mkdir(buildResourcesRoot, { recursive: true });
   await cp(resolve(repositoryRoot, "apps", "desktop-electron", "assets", "lfaa.ico"), resolve(buildResourcesRoot, "lfaa.ico"));
-  await cp(resolve(repositoryRoot, "apps", "desktop-electron", "assets", "installation-notice.txt"), resolve(buildResourcesRoot, "installation-notice.txt"));
+  const noticeSourcePath = resolve(repositoryRoot, "apps", "desktop-electron", "assets", "installation-notice.txt");
+  const noticeBytes = await readFile(noticeSourcePath);
+  if (!noticeBytes.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf]))) {
+    throw new Error(`NSIS 安装须知必须是带 UTF-8 BOM 的 UTF-8 文本：${noticeSourcePath}`);
+  }
+  await writeFile(resolve(buildResourcesRoot, "installation-notice.txt"), noticeBytes);
   await cp(process.execPath, resolve(runtimeRoot, "node.exe"));
   await cp(sandboxHost, resolve(runtimeRoot, "dist", "apps", "daemon", "target", "x86_64-pc-windows-msvc", "release", "lfaa-sandbox-host.exe"));
 

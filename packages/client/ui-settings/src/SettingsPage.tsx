@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-metrics.js";
+import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
+import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-update.mjs";
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
 import { activateAiAccount, cancelDataDirectorySettingsChange, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadDataDirectorySettings, loadMinecraftStorageSettings, loadMinecraftCores, loadSteamcmdSettings, loadSteamcmdTask, loadManagedPlugins, loadCapabilityInstallCatalog, searchManagedPlugins, inspectManagedPlugin, manageAiRuntimePlugin, probeAiProvider, reprobeAiAccount, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdNodeStorageSettings, saveSteamcmdStorageDefaults, saveMinecraftNodeStorageSettings, saveMinecraftStorageDefaults, saveDataDirectorySettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type ManagedPluginRecord, type ManagedPluginCandidate, type ManagedPluginInspection, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type ConversationMemorySnapshot, type DataDirectorySettings, type DesktopUpdateCheckResult, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { minecraftSceneBackgrounds } from "lfaa-client-ui-minecraft/src/assets/minecraftScenes.js";
@@ -463,6 +465,10 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [desktopUpdateRuntime, setDesktopUpdateRuntime] = useState<DesktopUpdateRuntimeInfo | null>(null);
   const [desktopUpdateResult, setDesktopUpdateResult] = useState<DesktopUpdateCheckResult | null>(null);
   const [checkingDesktopUpdates, setCheckingDesktopUpdates] = useState(false);
+  const [webUpdateResult, setWebUpdateResult] = useState<WebUpdateCheckResult | null>(null);
+  const [checkingWebUpdates, setCheckingWebUpdates] = useState(false);
+  const webUpdateRequestRef = useRef<AbortController | null>(null);
+  const webUpdateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dataDirectorySettings, setDataDirectorySettings] = useState<DataDirectorySettings | null>(() => cachedSettingsData?.dataDirectorySettings ?? null);
   const [dataDirectoryDraft, setDataDirectoryDraft] = useState(() => cachedSettingsData?.dataDirectoryDraft ?? "");
   const [dataDirectoryAction, setDataDirectoryAction] = useState<"save" | "cancel" | null>(null);
@@ -567,19 +573,29 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const settingsNavigationScroll = useScrollRestoration(createScrollRestorationKey(user.id, "settings-navigation"));
 
   useEffect(() => {
-    if (activeSection !== "about") return;
+    if (activeSection !== "about") {
+      cancelWebUpdateCheck();
+      setCheckingWebUpdates(false);
+      return;
+    }
     let active = true;
     const getRuntimeInfo = window.lfaaDesktop?.getUpdateRuntimeInfo;
     if (!getRuntimeInfo) {
-      setDesktopUpdateRuntime({ supported: false, currentVersion: "" });
-      return;
+      setDesktopUpdateRuntime({ supported: false, currentVersion: isDesktopApp() ? "" : lfaaProjectBuildInfo?.currentVersion ?? "" });
+      return () => {
+        active = false;
+        cancelWebUpdateCheck(false);
+      };
     }
     void getRuntimeInfo().then((runtime) => {
       if (active) setDesktopUpdateRuntime(runtime);
     }).catch(() => {
       if (active) setDesktopUpdateRuntime({ supported: false, currentVersion: "" });
     });
-    return () => { active = false; };
+    return () => {
+      active = false;
+      cancelWebUpdateCheck(false);
+    };
   }, [activeSection]);
 
   async function checkDesktopUpdates(): Promise<void> {
@@ -602,6 +618,65 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     } finally {
       setCheckingDesktopUpdates(false);
     }
+  }
+
+  async function checkWebUpdates(): Promise<void> {
+    if (!lfaaProjectBuildInfo?.currentVersion || !lfaaProjectBuildInfo.updateManifestUrl
+      || !lfaaProjectBuildInfo.feedUrl || !lfaaProjectBuildInfo.releasePage || webUpdateRequestRef.current) return;
+    const controller = new AbortController();
+    webUpdateRequestRef.current = controller;
+    setCheckingWebUpdates(true);
+    setWebUpdateResult(null);
+    webUpdateTimeoutRef.current = setTimeout(() => {
+      controller.abort(new DOMException("连接 LFAA 官方更新源超时。", "TimeoutError"));
+    }, 8_000);
+    try {
+      const response = await fetch(lfaaProjectBuildInfo.updateManifestUrl, {
+        method: "GET",
+        mode: "cors",
+        cache: "no-store",
+        credentials: "omit",
+        referrerPolicy: "no-referrer",
+        headers: { Accept: "application/json" },
+        signal: controller.signal
+      });
+      if (!response.ok) throw new Error(`官方更新清单请求失败（HTTP ${response.status}）。`);
+      const input: unknown = await response.json();
+      const result = inspectWebUpdateManifest(input, {
+        currentVersion: lfaaProjectBuildInfo.currentVersion,
+        expectedFeedUrl: lfaaProjectBuildInfo.feedUrl,
+        expectedReleasePage: lfaaProjectBuildInfo.releasePage
+      });
+      if (webUpdateRequestRef.current === controller) setWebUpdateResult(result);
+    } catch (error) {
+      if (webUpdateRequestRef.current !== controller) return;
+      const reason = controller.signal.reason;
+      const errorMessage = controller.signal.aborted && reason instanceof Error
+        ? reason.message
+        : getErrorMessage(error);
+      setWebUpdateResult({
+        status: "error",
+        currentVersion: lfaaProjectBuildInfo.currentVersion,
+        message: errorMessage
+      });
+    } finally {
+      if (webUpdateRequestRef.current === controller) {
+        webUpdateRequestRef.current = null;
+        if (webUpdateTimeoutRef.current) clearTimeout(webUpdateTimeoutRef.current);
+        webUpdateTimeoutRef.current = null;
+        setCheckingWebUpdates(false);
+      }
+    }
+  }
+
+  function cancelWebUpdateCheck(resetState = true): void {
+    const controller = webUpdateRequestRef.current;
+    if (!controller) return;
+    webUpdateRequestRef.current = null;
+    controller.abort();
+    if (webUpdateTimeoutRef.current) clearTimeout(webUpdateTimeoutRef.current);
+    webUpdateTimeoutRef.current = null;
+    if (resetState) setCheckingWebUpdates(false);
   }
 
   function loadHealthOnce(): Promise<ServerHealth> {
@@ -2906,38 +2981,59 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     }
 
     if (activeSection === "about") {
-      const updateStatusLabel = desktopUpdateResult?.status === "up-to-date" ? "已是最新"
+      const isWebUpdateRuntime = !isDesktopApp();
+      const webUpdateSupported = isWebUpdateRuntime && Boolean(lfaaProjectBuildInfo?.currentVersion && lfaaProjectBuildInfo.updateManifestUrl);
+      const updateStatusLabel = webUpdateResult?.status === "available" ? "发现新版"
+        : webUpdateResult?.status === "up-to-date" ? "已是最新"
+          : webUpdateResult?.status === "disabled" ? "更新未开放"
+            : webUpdateResult?.status === "error" ? "检查失败"
+              : desktopUpdateResult?.status === "up-to-date" ? "已是最新"
         : desktopUpdateResult?.status === "deferred" ? "已暂缓"
           : desktopUpdateResult?.status === "downloading" ? "正在下载"
             : desktopUpdateResult?.status === "downloaded" ? "已下载"
               : desktopUpdateResult?.status === "disabled" ? "更新未开放"
                 : desktopUpdateResult?.status === "error" ? "检查失败"
-                  : desktopUpdateRuntime?.supported ? "可手动检查" : "当前平台未支持";
+                  : desktopUpdateRuntime?.supported ? "可手动检查" : webUpdateSupported ? "可在线检查" : "当前平台未支持";
       const currentVersion = desktopUpdateRuntime?.supported
         ? desktopUpdateRuntime.currentVersion || desktopUpdateResult?.currentVersion || "读取中"
-        : desktopUpdateRuntime ? "当前平台未接入" : "读取中";
-      const updateMessage = desktopUpdateResult?.status === "up-to-date" ? `LFAA ${currentVersion} 已是最新版本。`
+        : webUpdateSupported ? lfaaProjectBuildInfo!.currentVersion : desktopUpdateRuntime ? "当前平台未接入" : "读取中";
+      const updateMessage = webUpdateResult?.status === "available"
+        ? `发现 LFAA ${webUpdateResult.latestVersion}。${webUpdateResult.mandatory ? "该版本为强制更新。" : ""}请打开官方发布页获取更新。`
+        : webUpdateResult?.status === "up-to-date" ? `LFAA ${currentVersion} 已是最新版本。`
+          : webUpdateResult?.status === "disabled" ? "当前官方发布清单暂未开放更新。"
+            : webUpdateResult?.status === "error" ? webUpdateResult.message || "检查更新失败，请稍后重试。"
+              : desktopUpdateResult?.status === "up-to-date" ? `LFAA ${currentVersion} 已是最新版本。`
         : desktopUpdateResult?.status === "deferred" ? `已暂缓 LFAA ${desktopUpdateResult.latestVersion ?? "新版本"}；本次不会下载。`
           : desktopUpdateResult?.status === "downloading" ? `已开始下载 LFAA ${desktopUpdateResult.latestVersion ?? "新版本"}。下载完成后会再次询问是否安装。`
             : desktopUpdateResult?.status === "downloaded" ? `LFAA ${desktopUpdateResult.latestVersion ?? "新版本"} 已下载，等待安装确认。`
               : desktopUpdateResult?.status === "disabled" ? "当前发布清单暂未开放更新。"
         : desktopUpdateResult?.status === "error" ? desktopUpdateResult.message || "检查更新失败，请查看桌面日志。"
                   : "应用启动后及运行期间每 6 小时自动检查；你也可以随时手动检查。";
-      const updateAlertType = desktopUpdateResult?.status === "error" ? "error"
-        : desktopUpdateResult?.status === "up-to-date" ? "success"
+      const updateAlertType = webUpdateResult?.status === "error" || desktopUpdateResult?.status === "error" ? "error"
+        : webUpdateResult?.status === "up-to-date" || desktopUpdateResult?.status === "up-to-date" ? "success"
           : "info";
+      const updateResult = webUpdateSupported ? webUpdateResult : desktopUpdateResult;
+      const checkingUpdates = webUpdateSupported ? checkingWebUpdates : checkingDesktopUpdates;
+      const updateCheckSupported = webUpdateSupported || Boolean(desktopUpdateRuntime?.supported);
       return (
         <section className="settings-content">
           <header className="settings-content__heading"><div><span className="settings-eyebrow">应用信息</span><Typography.Title level={2}>关于与更新</Typography.Title><Typography.Paragraph>查看当前版本，检查 LFAA 官方发布的新版本。是否下载由你决定。</Typography.Paragraph></div></header>
           <SettingGroup title="版本与更新">
-            <SettingRow title="当前版本" description={desktopUpdateRuntime?.supported ? "版本号由桌面宿主提供，不写入账户设置。" : "当前平台尚无可查询的原生应用版本号。"} status={desktopUpdateRuntime?.supported ? "已安装" : "平台未接入"}>
-              <Tag>{desktopUpdateRuntime?.supported ? `LFAA ${currentVersion}` : currentVersion}</Tag>
+            <SettingRow title="当前版本" description={desktopUpdateRuntime?.supported ? "版本号由桌面宿主提供，不写入账户设置。" : webUpdateSupported ? "版本号来自当前 Web 构建；在线检查只读取官方发布清单。" : "当前桌面宿主尚未接入版本查询。"} status={desktopUpdateRuntime?.supported ? "已安装" : webUpdateSupported ? "Web 构建" : "平台未接入"}>
+              <Tag>{desktopUpdateRuntime?.supported || webUpdateSupported ? `LFAA ${currentVersion}` : currentVersion}</Tag>
             </SettingRow>
-            <SettingRow title="检查更新" description={desktopUpdateRuntime?.supported ? "检查官方版本清单；发现新版本后会先询问你，再开始下载。" : "自动更新目前仅接入已安装的 Windows Electron 版；Tauri 与 Android 客户端尚未接入更新宿主。"} status={updateStatusLabel}>
-              <Button type="primary" disabled={!desktopUpdateRuntime?.supported} loading={checkingDesktopUpdates} onClick={() => void checkDesktopUpdates()}>检查更新</Button>
+            <SettingRow title="检查更新" description={desktopUpdateRuntime?.supported ? "检查官方版本清单；发现新版本后会先询问你，再开始下载。" : webUpdateSupported ? "读取 LFAA 官方更新清单并展示版本说明；Web 页面不自动下载或安装程序。" : "自动更新目前仅接入已安装的 Windows Electron 版；Tauri 与 Android 客户端尚未接入更新宿主。"} status={updateStatusLabel}>
+              <Button type="primary" disabled={!updateCheckSupported} loading={checkingUpdates} onClick={() => void (webUpdateSupported ? checkWebUpdates() : checkDesktopUpdates())}>检查更新</Button>
             </SettingRow>
           </SettingGroup>
-          {desktopUpdateResult ? <Alert className="settings-inline-alert" type={updateAlertType} showIcon message={updateMessage} description={desktopUpdateResult.releaseNotes?.length ? desktopUpdateResult.releaseNotes.join("；") : undefined} /> : null}
+          {updateResult ? <Alert
+            className="settings-inline-alert"
+            type={updateAlertType}
+            showIcon
+            message={updateMessage}
+            description={updateResult.releaseNotes?.length ? updateResult.releaseNotes.join("；") : undefined}
+            action={webUpdateResult?.status === "available" ? <Button type="link" href={lfaaProjectBuildInfo?.releasePage} target="_blank" rel="noreferrer">打开官方发布页</Button> : undefined}
+          /> : null}
         </section>
       );
     }

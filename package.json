@@ -17,13 +17,13 @@
     "test": "pnpm --filter @yubboo/lfaa run test",
     "build:web": "pnpm --filter lfaa-web run build",
     "build:control-plane": "pnpm --filter @yubboo/lfaa run build",
-    "build:daemon": "pnpm --filter lfaa-daemon run build",
+    "build:windows-sandbox-host": "pnpm --filter lfaa-daemon run build",
     "build:harness": "node scripts/build-harness.mjs packages",
     "build:cli": "node scripts/package-cli.mjs",
     "pack:cli": "pnpm run build && npm pack ./dist/npm/lfaa --pack-destination ./dist/npm",
     "publish:cli": "pnpm run build && npm publish ./dist/npm/lfaa --access public",
-    "build:desktop:win": "pnpm run build:web && pnpm run build:control-plane && pnpm run build:daemon && node apps/desktop-tauri/scripts/package-windows.mjs",
-    "build:desktop:electron:win": "pnpm run build:web && pnpm run build:control-plane && pnpm run build:daemon && pnpm --filter lfaa-desktop-electron run package:win",
+    "build:desktop:win": "pnpm run build:web && pnpm run build:control-plane && pnpm run build:windows-sandbox-host && node apps/desktop-tauri/scripts/package-windows.mjs",
+    "build:desktop:electron:win": "pnpm run build:web && pnpm run build:control-plane && pnpm run build:windows-sandbox-host && pnpm --filter lfaa-desktop-electron run package:win",
     "lfaa": "node apps/cli/bin/lfaa.mjs"
   },
   "devDependencies": {

@@ -1,5 +1,22 @@
 import { compareStableVersions } from "./update-manifest.mjs";
 
+function getHttpStatusCode(error) {
+  const directStatus = Number(error?.statusCode ?? error?.status);
+  if (Number.isInteger(directStatus) && directStatus >= 400 && directStatus <= 599) return directStatus;
+
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const match = message.match(/\b(?:HttpError|HTTPError)\s*:\s*(\d{3})\b|\bHTTP\s+(\d{3})\b/i);
+  const parsedStatus = Number(match?.[1] ?? match?.[2]);
+  return Number.isInteger(parsedStatus) && parsedStatus >= 400 && parsedStatus <= 599 ? parsedStatus : null;
+}
+
+export function getDesktopUpdateErrorMessage(error, phase) {
+  const statusCode = getHttpStatusCode(error);
+  if (statusCode === 404) return "官方更新文件尚未发布或暂时不可用（HTTP 404），请稍后重试。";
+  if (phase === "download") return "下载更新失败，请检查网络后重试。";
+  return "检查更新失败，请稍后重试。";
+}
+
 export function createDesktopUpdateFlow({
   isSupported,
   getCurrentVersion,
@@ -17,7 +34,8 @@ export function createDesktopUpdateFlow({
 
   function reportError(error, phase, manifest = null) {
     try {
-      void Promise.resolve(onError(error, phase, manifest)).catch(() => {});
+      const safeMessage = getDesktopUpdateErrorMessage(error, phase);
+      void Promise.resolve(onError(error, phase, manifest, safeMessage)).catch(() => {});
     } catch {
       // Diagnostic handlers must not replace the real updater result.
     }
@@ -47,13 +65,16 @@ export function createDesktopUpdateFlow({
         if (compareVersions(manifest.version, currentVersion) <= 0) {
           return result("up-to-date", currentVersion, manifest);
         }
-        if (!manual && deferredVersion === manifest.version) {
+        if (deferredVersion === manifest.version) {
           return result("deferred", currentVersion, manifest);
         }
 
         const release = await checkReleaseFeed();
         if (!release?.isUpdateAvailable || release.updateInfo?.version !== manifest.version) {
-          throw new Error(`更新清单版本 ${manifest.version} 与 Release feed 当前可用版本不一致，未开始下载。`);
+          const message = "更新清单与 Release feed 版本不一致，已阻止下载。";
+          const error = new Error(message);
+          reportError(error, "check", manifest);
+          return result("error", currentVersion, manifest, message);
         }
 
         const mustInstall = manifest.mandatory
@@ -73,13 +94,13 @@ export function createDesktopUpdateFlow({
         } catch (error) {
           downloadingVersion = "";
           reportError(error, "download", manifest);
-          return result("error", currentVersion, manifest, error instanceof Error ? error.message : String(error));
+          return result("error", currentVersion, manifest, getDesktopUpdateErrorMessage(error, "download"));
         }
         deferredVersion = "";
         return result("downloading", currentVersion, manifest);
       } catch (error) {
         reportError(error, "check", manifest);
-        return result("error", currentVersion, manifest, error instanceof Error ? error.message : String(error));
+        return result("error", currentVersion, manifest, getDesktopUpdateErrorMessage(error, "check"));
       }
     })();
 

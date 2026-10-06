@@ -7,10 +7,10 @@ const validManifest = {
   schemaVersion: 1,
   enabled: true,
   channel: "stable",
-  version: "0.1.1",
-  title: "LFAA 0.1.1",
-  publishedAt: "2026-09-28",
-  releaseNotes: ["工作区布局与交互状态修复。"],
+  version: "0.0.3",
+  title: "LFAA 0.0.3",
+  publishedAt: "2026-10-06",
+  releaseNotes: ["更新提示改为工作台内静音界面。"],
   mandatory: false,
   minimumSupportedVersion: "0.0.1",
   releasePage: "https://github.com/yubboo/LFAA/releases",
@@ -20,7 +20,8 @@ const validManifest = {
 test("稳定版语义版本按每段数字排序", () => {
   assert.equal(compareStableVersions("0.10.0", "0.9.9"), 1);
   assert.equal(compareStableVersions("1.0.0", "1.0.0"), 0);
-  assert.equal(compareStableVersions("0.1.1", "0.2.0"), -1);
+  assert.equal(compareStableVersions("0.0.1", "0.0.2"), -1);
+  assert.equal(compareStableVersions("0.0.2", "0.0.3"), -1);
 });
 
 test("从已配置的 GitHub Releases 源定位 main 分支更新清单", () => {
@@ -56,7 +57,7 @@ test("拒绝与安装包内发布源不一致的清单", () => {
 
 test("拒绝非法日期、无效版本与不支持的渠道", () => {
   assert.throws(() => validateLfaaUpdateManifest({ ...validManifest, publishedAt: "2026-02-30" }, feedUrl), /日期/);
-  assert.throws(() => validateLfaaUpdateManifest({ ...validManifest, version: "v0.1.1" }, feedUrl), /SemVer/);
+  assert.throws(() => validateLfaaUpdateManifest({ ...validManifest, version: "v0.0.3" }, feedUrl), /SemVer/);
   assert.throws(() => validateLfaaUpdateManifest({ ...validManifest, channel: "beta" }, feedUrl), /stable/);
 });
 
@@ -69,6 +70,6 @@ test("拒绝格式错误或超限的版本说明列表", () => {
 test("拒绝最低支持版本高于发布版本", () => {
   assert.throws(() => validateLfaaUpdateManifest({
     ...validManifest,
-    minimumSupportedVersion: "0.2.0"
+    minimumSupportedVersion: "0.0.4"
   }, feedUrl), /不能高于清单版本/);
 });

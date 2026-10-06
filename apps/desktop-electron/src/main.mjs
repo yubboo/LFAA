@@ -12,7 +12,8 @@ import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import electronUpdater from "electron-updater";
 import { compareStableVersions, getElectronUpdateFeedUrl, getLfaaUpdateManifestUrl, validateLfaaUpdateManifest } from "./update-manifest.mjs";
-import { createDesktopUpdateFlow } from "./update-flow.mjs";
+import { createDesktopUpdateFlow, getDesktopUpdateErrorMessage } from "./update-flow.mjs";
+import { createDesktopUpdatePromptBroker } from "./update-prompt-broker.mjs";
 
 const { autoUpdater } = electronUpdater;
 const INITIAL_UPDATE_CHECK_DELAY_MS = 3_000;
@@ -22,6 +23,7 @@ const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
 
 let mainWindow = null;
+const desktopUpdatePromptBroker = createDesktopUpdatePromptBroker();
 let serverProcess = null;
 let daemonProcess = null;
 let serviceShutdownPromise = null;
@@ -292,11 +294,15 @@ async function createMainWindow() {
   });
 
   mainWindow.once("ready-to-show", () => mainWindow?.show());
+  const rendererId = mainWindow.webContents.id;
+  mainWindow.webContents.on("did-start-loading", () => desktopUpdatePromptBroker.setRendererNotReady(rendererId));
   mainWindow.on("session-end", event => {
     systemSessionEnding = true;
     void writeLog("桌面端", `Windows 会话即将结束（${event.reasons.join("、")}）；更新安装将延期。`);
   });
   mainWindow.on("closed", () => {
+    desktopUpdatePromptBroker.setRendererNotReady(rendererId);
+    desktopUpdatePromptBroker.cancelAll();
     mainWindow = null;
   });
 
@@ -359,45 +365,36 @@ async function readRemoteUpdateManifest() {
 }
 
 async function promptToDownloadUpdate(manifest, { mustInstall }) {
-  const options = {
-    type: "info",
-    title: "发现 LFAA 新版本",
-    message: `${manifest.title} 已发布。`,
-    detail: `${manifest.releaseNotes.join("\n")}\n\n是否现在下载更新？下载完成后还会再次确认安装。`,
-    buttons: mustInstall ? ["下载并安装更新"] : ["下载并更新", "暂不更新"],
-    defaultId: 0,
-    cancelId: mustInstall ? 0 : 1,
-    noLink: true
-  };
-  const result = mainWindow
-    ? await dialog.showMessageBox(mainWindow, options)
-    : await dialog.showMessageBox(options);
-  return result.response === 0 ? "accept" : "defer";
+  const action = await desktopUpdatePromptBroker.request({
+    kind: "download",
+    version: manifest.version,
+    publishedAt: manifest.publishedAt,
+    releaseNotes: manifest.releaseNotes,
+    mandatory: mustInstall
+  });
+  return action === "accept" ? "accept" : "defer";
 }
 
 async function promptToInstallUpdate(info, manifest) {
   if (!manifest || downloadedUpdateVersion !== info.version) return;
   const mustInstall = manifest.mandatory
     && compareStableVersions(app.getVersion(), manifest.minimumSupportedVersion) < 0;
-  const detail = `${manifest.releaseNotes.join("\n")}\n\n安装更新会退出 LFAA，并按现有流程关闭本机控制端与 Daemon。由 Daemon 托管的游戏实例也会按当前关闭流程停止。`;
-  const options = {
-    type: "info",
-    title: "LFAA 更新已下载",
-    message: `${manifest.title} 已准备安装。`,
-    detail,
-    buttons: mustInstall ? ["安装并重启 LFAA"] : ["现在安装并重启", "稍后，退出时安装"],
-    defaultId: 0,
-    cancelId: mustInstall ? 0 : 1,
-    noLink: true
-  };
-  const result = mainWindow
-    ? await dialog.showMessageBox(mainWindow, options)
-    : await dialog.showMessageBox(options);
-  if (result.response === 0) {
+  const action = await desktopUpdatePromptBroker.request({
+    kind: "install",
+    version: info.version,
+    publishedAt: manifest.publishedAt,
+    releaseNotes: manifest.releaseNotes,
+    mandatory: mustInstall
+  });
+  if (action === "install") {
     await requestDownloadedUpdateInstall();
   } else {
     await writeLog("更新", `已下载 LFAA ${info.version}；用户选择在退出 LFAA 时安装。`);
   }
+}
+
+function showUpdateNotice(title, message, detail) {
+  return desktopUpdatePromptBroker.request({ kind: "notice", title, message, detail });
 }
 
 async function requestDownloadedUpdateInstall() {
@@ -422,15 +419,7 @@ function continueQuitAfterServiceShutdown() {
     if (!servicesStopped) {
       updateInstallRequested = false;
       await writeLog("桌面端 错误", "本机服务仍有进程未能确认退出，未安装更新，应用保持打开。 ");
-      const options = {
-        type: "error",
-        title: "无法关闭 LFAA 服务",
-        message: "本机控制端或 Daemon 尚未退出。更新未安装，请检查活动实例后重试。",
-        buttons: ["知道了"],
-        noLink: true
-      };
-      if (mainWindow) await dialog.showMessageBox(mainWindow, options);
-      else dialog.showErrorBox(options.title, options.message);
+      await showUpdateNotice("无法关闭 LFAA 服务", "本机控制端或 Daemon 尚未退出。更新未安装，请检查活动实例后重试。");
       return;
     }
 
@@ -447,15 +436,7 @@ function continueQuitAfterServiceShutdown() {
   })().catch(async error => {
     updateInstallRequested = false;
     await writeLog("桌面端 错误", `关闭本机服务失败：${error instanceof Error ? error.message : String(error)}`);
-    const options = {
-      type: "error",
-      title: "无法关闭 LFAA 服务",
-      message: "关闭本机服务时发生错误。更新未安装，应用保持打开。",
-      buttons: ["知道了"],
-      noLink: true
-    };
-    if (mainWindow) await dialog.showMessageBox(mainWindow, options);
-    else dialog.showErrorBox(options.title, options.message);
+    await showUpdateNotice("无法关闭 LFAA 服务", "关闭本机服务时发生错误。更新未安装，应用保持打开。", error instanceof Error ? error.message : String(error));
   }).finally(() => {
     serviceShutdownPromise = null;
   });
@@ -496,7 +477,8 @@ function configureAutoUpdater() {
   });
   autoUpdater.on("error", error => {
     if (error && typeof error === "object") loggedUpdaterErrors.add(error);
-    void writeLog("更新 错误", error instanceof Error ? error.message : String(error));
+    const phase = updateDownloadRequestedVersion ? "download" : "check";
+    void writeLog("更新 错误", getDesktopUpdateErrorMessage(error, phase));
   });
 }
 
@@ -523,24 +505,19 @@ function getDesktopUpdateFlow() {
     },
     promptForUpdate: promptToDownloadUpdate,
     beginDownload: beginDesktopUpdateDownload,
-    onError: async (error, phase, manifest) => {
+    onError: async (error, phase, manifest, safeMessage) => {
+      const message = safeMessage || getDesktopUpdateErrorMessage(error, phase);
       if (!(error && typeof error === "object" && loggedUpdaterErrors.has(error))) {
-        await writeLog("更新 错误", `${phase === "download" ? "下载" : "检查"}失败：${error instanceof Error ? error.message : String(error)}`);
+        await writeLog("更新 错误", message);
       }
       if (phase !== "download") return;
       if (updateDownloadRequestedVersion === manifest?.version) updateDownloadRequestedVersion = "";
       if (acceptedUpdateManifest?.version === manifest?.version) acceptedUpdateManifest = null;
-      const title = "LFAA 更新下载失败";
-      const options = {
-        type: "error",
-        title,
-        message: `LFAA ${manifest?.version ?? "新版本"} 下载失败。`,
-        detail: error instanceof Error ? error.message : String(error),
-        buttons: ["知道了"],
-        noLink: true
-      };
-      if (mainWindow) await dialog.showMessageBox(mainWindow, options);
-      else dialog.showErrorBox(title, options.message);
+      await showUpdateNotice(
+        "LFAA 更新下载失败",
+        `LFAA ${manifest?.version ?? "新版本"} 下载失败。`,
+        message
+      );
     }
   });
   return desktopUpdateFlow;
@@ -566,7 +543,7 @@ function scheduleDesktopUpdateCheck(delay = INITIAL_UPDATE_CHECK_DELAY_MS) {
   updateCheckTimer = setTimeout(() => {
     updateCheckTimer = null;
     void runDesktopUpdateCheck({ manual: false })
-      .catch(error => { void writeLog("更新 错误", `自动检查更新失败：${error instanceof Error ? error.message : String(error)}`); })
+      .catch(error => { void writeLog("更新 错误", getDesktopUpdateErrorMessage(error, "check")); })
       .finally(() => scheduleDesktopUpdateCheck(UPDATE_CHECK_INTERVAL_MS));
   }, delay);
 }
@@ -592,6 +569,28 @@ if (singleInstance) {
   ipcMain.handle("lfaa:desktop:check-updates", (event) => {
     assertTrustedUpdateRenderer(event);
     return runDesktopUpdateCheck({ manual: true });
+  });
+
+  ipcMain.handle("lfaa:desktop:update-prompt-ui-ready", (event) => {
+    assertTrustedUpdateRenderer(event);
+    const sender = event.sender;
+    desktopUpdatePromptBroker.setRendererReady(sender.id, payload => {
+      if (!mainWindow || mainWindow.webContents !== sender || mainWindow.isDestroyed()) return;
+      sender.send("lfaa:desktop:update-prompt", payload);
+    });
+    return true;
+  });
+
+  ipcMain.handle("lfaa:desktop:update-prompt-ui-not-ready", (event) => {
+    assertTrustedUpdateRenderer(event);
+    desktopUpdatePromptBroker.setRendererNotReady(event.sender.id);
+    return true;
+  });
+
+  ipcMain.handle("lfaa:desktop:update-prompt-response", (event, input) => {
+    assertTrustedUpdateRenderer(event);
+    if (!input || typeof input.requestId !== "string" || typeof input.action !== "string") return false;
+    return desktopUpdatePromptBroker.respond(input.requestId, input.action);
   });
 
   app.on("window-all-closed", () => {

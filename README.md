@@ -95,7 +95,9 @@ pnpm run dev:daemon
 LFAA-Harness 桌面产品主线目标为 Windows/macOS Electron，Web 与桌面共用前端。当前仓库的 `pnpm run build:desktop:win` 仍调用 Tauri，Electron 单独入口 `pnpm run build:desktop:electron:win` 只配置 Windows x64 NSIS；默认构建入口迁移和 macOS Electron 打包仍待完成。现有 Tauri Windows 包的数据迁移与卸载保留逻辑是当前实现事实，不能当作 Electron 新包已验收。Linux 与 Android 是后续平台目标。
 纯净源码 ZIP 和全新安装包只包含 LFAA 仓库中正式登记的第一方 Harness 能力与锁定的运行依赖。外部另装插件、账户凭据、Provider 密钥、游戏实例、数据库、缓存、日志和开发机路径均不得进入发行物；首次启动才创建空白用户数据。开发盘构建与干净克隆构建必须遵守相同文件边界。真实新安装和异盘验收通过前，不宣称产品包已纯净。
 
-Electron Windows x64 桌面包可单独运行 `pnpm run build:desktop:electron:win`。打包后的 Windows NSIS 应用会在启动后检查 `update.json`，有新版本时自动下载，并在安装前显示包含版本说明的确认框；选择“稍后”会在退出 LFAA 时安装。Windows 注销或关机期间会延期启动安装器，并在下次启动时重新检查。构建输出位于 `dist/apps/desktop-electron/`，其中 `latest.yml` 和安装包需由发布者上传到 `update.json` 所指向的 GitHub Release 下载目录。更新清单必须与 `docs/updata-log.md` 和 Electron 包版本一致；构建会校验版本、发布日期、说明和更新源。当前仓库未配置 Authenticode 发布者名称或签名证书，代码签名者验证尚未完成。打包命令只生成本地产物，不会上传或发布。
+Electron Windows x64 桌面包可运行 `pnpm run build:desktop:electron:win`；仅重新打包当前 Host/Web 产物时，可运行 `pnpm --filter lfaa-desktop-electron run package:win`，该入口会把当前 Web 源码构建到 `dist/.tmp/desktop-electron/web-candidate`，不覆盖开发服务正在使用的 `dist/apps/web`。打包后的 Windows NSIS 应用启动后检查 `update.json`，发现更新时在 LFAA 工作台显示静音更新提示；用户可暂缓或选择下载，暂缓后本次运行期间不重复提示同一版本，重启后重新检查。更新下载完成后按现有安装流程在退出 LFAA 时安装。构建输出位于 `dist/apps/desktop-electron/`，其中 `latest.yml` 和安装包需由发布者上传到 `update.json` 所指向的 GitHub Release 下载目录。更新清单必须与 `docs/updata-log.md` 和 Electron 包版本一致；构建会校验版本、发布日期、说明和更新源。当前仓库未配置 Authenticode 发布者名称或签名证书，代码签名者验证尚未完成。打包命令只生成本地产物，不会上传或发布。
+
+Web 设置中心“关于与更新”会显示当前 Web 构建版本，并在用户点击后读取同一官方更新清单、展示更新说明和官方发布页。Web 不会自动下载、安装或替换本机程序。
 
 本机一体版面向管理当前 Windows 主机；远程主机仍由 Web 界面连接部署在远端的控制端。公网访问本机控制端的内网穿透尚未接入，后续需要同时转发 Web、API 与 Socket.IO，并继续通过控制端鉴权。
 

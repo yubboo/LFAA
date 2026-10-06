@@ -1,9 +1,10 @@
 /** 功能：呈现现有工作台。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
 import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { Alert, Button, Card, ConfigProvider, Tag, Typography, theme as antdTheme } from "antd";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Alert, Button, Card, ConfigProvider, Modal, Tag, Typography, theme as antdTheme } from "antd";
 import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { SetupReminder } from "lfaa-client-ui-settings-general/src/SetupReminder.js";
+import { resolveAppearanceBackgrounds, resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { PasskeySetupPrompt } from "lfaa-client-ui-settings-account/src/PasskeySetupPrompt.js";
 import { minecraftSceneBackgrounds } from "lfaa-client-ui-minecraft/src/assets/minecraftScenes.js";
 import { cacheLoginBackground } from "lfaa-client-ui-theme/src/login-background.js";
@@ -12,13 +13,14 @@ import { createAiWorkDraftPersistence, readAiWorkDraft, writeAiWorkDraft } from 
 import { createBrowserPersistence, createDebouncedPersistenceWriter, stringPersistenceCodec, type DebouncedPersistenceWriter } from "lfaa-client-store/src/browser-persistence.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
-import { saveSettings, userRoleLabel, type ApplicationId, type ApplicationMode, type User, type UserPreferences, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { saveSettings, userRoleLabel, type ApplicationId, type ApplicationMode, type DesktopUpdatePrompt, type DesktopUpdatePromptAction, type User, type UserPreferences, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { shortcutMatches } from "lfaa-client-ui-commands/src/shortcuts.js";
 import { appearanceTextFontStacks, appearanceCodeFontStacks } from "lfaa-client-ui-theme/src/fonts.js";
 import { applyAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
 import { bindDshThemeOwner, dshThemeCompatibility, syncDshThemePreference } from "lfaa-client-ui-theme/src/dsh-theme-bridge.js";
 import { dshLocaleRuntime } from "lfaa-client-ui-workspace/src/dsh-locale-runtime.js";
 import { resolveWallpaperCanvasOwnership } from "./wallpaper-canvas-ownership.js";
+import { appearanceBackgroundSlotForRoute } from "./appearance-background-slot.js";
 
 
 
@@ -140,9 +142,8 @@ const backgroundFiles: Record<string, string> = {
 };
 
 function backgroundFileForRoute(route: string, currentSettings: UserSettings): string | null {
-  const routeMatch = route.match(/^\/apps\/(steamcmd|minecraft|connectivity|writing|workspace)\/(?:normal|ai-work)(?:\/.*)?$/);
-  const backgroundSlot = routeMatch && routeMatch[1] !== "workspace" && routeMatch[1] !== "connectivity" ? routeMatch[1] as "steamcmd" | "minecraft" | "writing" : "appCenter";
-  const selectedBackground = currentSettings.appearance.backgrounds[backgroundSlot];
+  const backgroundSlot = appearanceBackgroundSlotForRoute(route);
+  const selectedBackground = resolveAppearanceBackgrounds(currentSettings.appearance.backgrounds)[backgroundSlot];
   if (selectedBackground === "none") return null;
   return selectedBackground.startsWith("user-")
     ? `/api/settings/backgrounds/${encodeURIComponent(selectedBackground)}`
@@ -411,6 +412,7 @@ export function Workbench({
   }));
   const [notifications, setNotifications] = useState<AiWorkNotification[]>([]);
   const [notificationToast, setNotificationToast] = useState<AiWorkNotification | null>(null);
+  const [desktopUpdatePrompt, setDesktopUpdatePrompt] = useState<DesktopUpdatePrompt | null>(null);
   const [applicationCenterFocusApp, setApplicationCenterFocusApp] = useState<ApplicationId | null>(null);
   const [pendingSessionApp, setPendingSessionApp] = useState<ApplicationId | null>(null);
   const notificationSequence = useRef(0);
@@ -418,6 +420,16 @@ export function Workbench({
   const aiWorkDraftState = useRef<{ userId: string; values: Record<ApplicationId, string> } | null>(null);
   if (aiWorkDraftState.current?.userId !== user.id) aiWorkDraftState.current = { userId: user.id, values: readAiWorkDrafts(user.id) };
   const aiWorkDrafts = aiWorkDraftState.current!.values;
+  useEffect(() => {
+    const desktop = window.lfaaDesktop;
+    if (!desktop) return;
+    const unsubscribe = desktop.onUpdatePrompt(setDesktopUpdatePrompt);
+    void desktop.updatePromptUiReady().catch(() => undefined);
+    return () => {
+      unsubscribe();
+      void desktop.updatePromptUiNotReady().catch(() => undefined);
+    };
+  }, []);
   useEffect(() => {
     const writers = {} as Record<ApplicationId, DebouncedPersistenceWriter<string>>;
     for (const appId of AI_WORK_APPLICATIONS) {
@@ -482,6 +494,10 @@ export function Workbench({
   const clearNotifications = useCallback(() => {
     setNotifications([]);
     setNotificationToast(null);
+  }, []);
+  const respondToDesktopUpdatePrompt = useCallback((prompt: DesktopUpdatePrompt, action: DesktopUpdatePromptAction) => {
+    setDesktopUpdatePrompt(current => current?.requestId === prompt.requestId ? null : current);
+    void window.lfaaDesktop?.respondToUpdatePrompt(prompt.requestId, action).catch(() => undefined);
   }, []);
   const openAiWorkNotification = useCallback((target: AiWorkSessionTarget) => {
     persistActiveAiSession(user.id, target.appId, target.sessionId);
@@ -582,7 +598,8 @@ export function Workbench({
         ["openMinecraft", () => openApplicationFromCurrentPage("minecraft")],
         ["openWriting", () => openApplicationFromCurrentPage("writing")]
       ];
-      const match = entries.find(([key]) => settings.shortcuts[key].some((chord) => shortcutMatches(event, chord)));
+      const shortcuts = resolveShortcutSettings(settings.shortcuts);
+      const match = entries.find(([key]) => shortcuts[key].some((chord) => shortcutMatches(event, chord)));
       if (match) {
         event.preventDefault();
         match[1]();
@@ -617,8 +634,9 @@ export function Workbench({
   const activeAppearanceFonts = appearanceAdvanced.separateModes ? appearanceAdvanced.modeStyles[resolvedTheme].fonts : appearanceAdvanced.fonts;
   const interfaceFontScale = appearanceAdvanced.interfaceFontSize / 14;
   const contrastDelta = appearanceAdvanced.contrast - 60;
-  const backgroundSlot = isSettingsPage ? "settings" : appRoute && appRoute[1] !== "workspace" ? appRoute[1] as "steamcmd" | "minecraft" | "writing" : "appCenter";
-  const selectedBackground = settings.appearance.backgrounds[backgroundSlot];
+  const backgroundSlot = isSettingsPage ? "settings" : appearanceBackgroundSlotForRoute(route);
+  const appearanceBackgrounds = useMemo(() => resolveAppearanceBackgrounds(settings.appearance.backgrounds), [settings.appearance.backgrounds]);
+  const selectedBackground = appearanceBackgrounds[backgroundSlot];
   const backgroundFile = selectedBackground === "none"
     ? null
     : selectedBackground.startsWith("user-")
@@ -816,6 +834,65 @@ export function Workbench({
       <main className={`workbench-content${route === "/" ? " workbench-content--app-center" : ""}${appRoute || isFileManagerPage ? " workbench-content--module" : ""}${isSettingsPage ? " workbench-content--settings" : ""}`}>
         {pageContent}
       </main>
+      {desktopUpdatePrompt ? <Modal
+        open
+        centered
+        width={520}
+        footer={null}
+        title={null}
+        closable={false}
+        maskClosable={desktopUpdatePrompt.kind === "notice" || !desktopUpdatePrompt.mandatory}
+        keyboard={desktopUpdatePrompt.kind === "notice" || !desktopUpdatePrompt.mandatory}
+        getContainer={false}
+        className="lfaa-update-modal"
+        onCancel={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, desktopUpdatePrompt.kind === "install" ? "later" : desktopUpdatePrompt.kind === "download" ? "defer" : "dismiss")}
+      >
+        <section className="lfaa-update-prompt" aria-labelledby="lfaa-update-prompt-title">
+          <header className="lfaa-update-prompt__header">
+            <span className="lfaa-update-prompt__brand" aria-hidden="true">L</span>
+            <div className="lfaa-update-prompt__heading">
+              <Typography.Text className="lfaa-update-prompt__eyebrow">{desktopUpdatePrompt.kind === "notice" ? "更新状态" : desktopUpdatePrompt.kind === "install" ? "更新已就绪" : "发现新版本"}</Typography.Text>
+              <Typography.Title id="lfaa-update-prompt-title" level={3}>
+                {desktopUpdatePrompt.kind === "notice" ? desktopUpdatePrompt.title : `LFAA ${desktopUpdatePrompt.version}`}
+              </Typography.Title>
+            </div>
+            {desktopUpdatePrompt.kind !== "download" || desktopUpdatePrompt.mandatory ? null : <button
+              className="lfaa-update-prompt__close"
+              type="button"
+              onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "defer")}
+              aria-label="暂不更新"
+            ><WorkbenchIcon name="close" size={16} /></button>}
+          </header>
+          {desktopUpdatePrompt.kind === "notice" ? <div className="lfaa-update-prompt__notice">
+            <Typography.Paragraph>{desktopUpdatePrompt.message}</Typography.Paragraph>
+            {desktopUpdatePrompt.detail ? <Typography.Text type="secondary">{desktopUpdatePrompt.detail}</Typography.Text> : null}
+          </div> : <>
+            <div className="lfaa-update-prompt__meta">
+              <Tag color="blue">{desktopUpdatePrompt.kind === "install" ? "已下载" : desktopUpdatePrompt.mandatory ? "必须更新" : "稳定版"}</Tag>
+              <Typography.Text type="secondary">发布于 {desktopUpdatePrompt.publishedAt}</Typography.Text>
+            </div>
+            <div className="lfaa-update-prompt__notes">
+              <Typography.Text strong>本次更新</Typography.Text>
+              <ul>{desktopUpdatePrompt.releaseNotes.map((note, index) => <li key={`${index}-${note}`}>{note}</li>)}</ul>
+            </div>
+            {desktopUpdatePrompt.kind === "download" ? <Typography.Paragraph className="lfaa-update-prompt__hint">
+              下载只会在你确认后开始；下载完成后，还会再次确认安装。
+            </Typography.Paragraph> : <Typography.Paragraph className="lfaa-update-prompt__hint">
+              安装将重启 LFAA，并按现有关闭流程停止由本机 Daemon 托管的游戏实例。
+            </Typography.Paragraph>}
+          </>}
+          <footer className="lfaa-update-prompt__actions">
+            {desktopUpdatePrompt.kind === "notice" ? <Button type="primary" onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "dismiss")}>知道了</Button>
+              : desktopUpdatePrompt.kind === "download" ? <>
+                {desktopUpdatePrompt.mandatory ? null : <Button onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "defer")}>暂不更新</Button>}
+                <Button type="primary" onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "accept")}>{desktopUpdatePrompt.mandatory ? "下载并安装更新" : "下载更新"}</Button>
+              </> : <>
+                {desktopUpdatePrompt.mandatory ? null : <Button onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "later")}>稍后，退出时安装</Button>}
+                <Button type="primary" onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "install")}>{desktopUpdatePrompt.mandatory ? "安装并重启" : "现在安装并重启"}</Button>
+              </>}
+          </footer>
+        </section>
+      </Modal> : null}
       {/* DSH overlay 依赖当前应用工作台的右侧栏 Owner；设置与应用中心没有该面板，不挂载不可用的入口。 */}
       {appRoute ? <DshSlotOutlet name="shell.overlay" /> : null}
       {notificationToast ? <aside className={`ai-work-notification-toast ai-work-notification-toast--${notificationToast.kind}`} role={notificationToast.kind === "complete" ? "status" : "alert"} aria-live={notificationToast.kind === "complete" ? "polite" : "assertive"}>

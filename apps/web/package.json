@@ -1,11 +1,13 @@
 {
   "name": "lfaa-web",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.0.3",
   "type": "module",
   "scripts": {
     "dev": "node scripts/wait-for-server.mjs && vite",
     "build": "tsc --noEmit -p ../../tsconfig.client.json && vite build",
+    "build:desktop-candidate": "tsc --noEmit -p ../../tsconfig.client.json && vite build --outDir ../../dist/.tmp/desktop-electron/web-candidate",
+    "test:version-update": "node --test tests/project-version.test.mjs tests/web-update.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

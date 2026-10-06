@@ -851,6 +851,25 @@ export interface DesktopUpdateRuntimeInfo {
   currentVersion: string;
 }
 
+export type DesktopUpdatePromptAction = "accept" | "defer" | "install" | "later" | "dismiss";
+
+export type DesktopUpdatePrompt =
+  | {
+      requestId: string;
+      kind: "download" | "install";
+      version: string;
+      publishedAt: string;
+      releaseNotes: string[];
+      mandatory: boolean;
+    }
+  | {
+      requestId: string;
+      kind: "notice";
+      title: string;
+      message: string;
+      detail?: string;
+    };
+
 export interface DesktopUpdateCheckResult {
   status: "unsupported" | "disabled" | "up-to-date" | "deferred" | "downloading" | "downloaded" | "error";
   currentVersion: string;
@@ -865,6 +884,10 @@ declare global {
       selectDataDirectory: () => Promise<string | null>;
       getUpdateRuntimeInfo: () => Promise<DesktopUpdateRuntimeInfo>;
       checkForUpdates: () => Promise<DesktopUpdateCheckResult>;
+      onUpdatePrompt: (listener: (prompt: DesktopUpdatePrompt) => void) => () => void;
+      updatePromptUiReady: () => Promise<boolean>;
+      updatePromptUiNotReady: () => Promise<boolean>;
+      respondToUpdatePrompt: (requestId: string, action: DesktopUpdatePromptAction) => Promise<boolean>;
     };
   }
 }

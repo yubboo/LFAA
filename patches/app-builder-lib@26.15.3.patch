@@ -1,0 +1,17 @@
+diff --git a/templates/nsis/installSection.nsh b/templates/nsis/installSection.nsh
+index 053772f55ca6ece52f0a34c4fa0f05c9a5f07bd2..b895965761cffb9c3fbdb2457d087e2ef8e83542 100644
+--- a/templates/nsis/installSection.nsh
++++ b/templates/nsis/installSection.nsh
+@@ -3,7 +3,11 @@
+ InitPluginsDir
+
+ ${IfNot} ${Silent}
+-  SetDetailsPrint none
++  !ifmacrodef customInstallFilesStart
++    !insertmacro customInstallFilesStart
++  !else
++    SetDetailsPrint listonly
++  !endif
+ ${endif}
+
+ StrCpy $appExe "$INSTDIR\${APP_EXECUTABLE_FILENAME}"

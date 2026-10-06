@@ -2,12 +2,18 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "../../..");
-const runtimeRoot = resolve(repositoryRoot, "dist/apps/desktop-electron/win-unpacked/resources/app-runtime");
+const allowedPackageRoot = resolve(repositoryRoot, "dist/apps/desktop-electron");
+const packageOutputRoot = resolve(repositoryRoot, process.argv[2] ?? "dist/apps/desktop-electron");
+const outputRelativePath = relative(allowedPackageRoot, packageOutputRoot);
+if (outputRelativePath === ".." || outputRelativePath.startsWith(`..${sep}`) || isAbsolute(outputRelativePath)) {
+  throw new Error(`Electron 验收只允许读取根 dist/apps/desktop-electron 下的包：${packageOutputRoot}`);
+}
+const runtimeRoot = resolve(packageOutputRoot, "win-unpacked/resources/app-runtime");
 const driverManifestPath = resolve(runtimeRoot, "apps/cli/node_modules/@trycua/cua-driver/package.json");
 const sourceManifestPath = resolve(repositoryRoot, "packages/computer-use/computer-use/package.json");
 const driverManifest = JSON.parse(await readFile(driverManifestPath, "utf8"));

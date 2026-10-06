@@ -1,6 +1,6 @@
 /*
- 功能：定义应用中心、工作台页脚和首次配置提醒弹窗样式。
- 作用：呈现应用入口与服务状态，并组织首次配置提醒的配置项列表。
+ 功能：定义应用中心、工作台页脚、首次配置提醒和软件更新弹窗样式。
+ 作用：呈现应用入口与服务状态，并组织配置提醒和静音更新确认。
  关联文件：packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-settings-general/src/SetupReminder.tsx、packages/client/ui-theme/src/responsive.css。
 */
 
@@ -717,6 +717,95 @@ body:has(.workbench-shell[data-theme="dark"]) .ant-dropdown-menu-item:hover {
 .workbench-shell[data-reduced-motion="on"] .lfaa-permission-mode-confirm .ant-modal-mask {
   animation-duration: 0s !important;
   transition-duration: 0s !important;
+}
+
+.lfaa-update-modal .ant-modal-content {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  box-shadow: 0 24px 72px var(--color-shadow-float);
+  padding: 0;
+}
+
+/* 壁纸工作区中的更新弹窗沿用账户设置的表面透明度和模糊强度。 */
+.workbench-shell[data-background-image="true"] .lfaa-update-modal .ant-modal-content {
+  background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}
+
+.lfaa-update-prompt {
+  padding: 26px;
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+}
+
+.lfaa-update-prompt__header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.lfaa-update-prompt__brand {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 40%, var(--color-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 14%, var(--color-surface));
+  color: var(--settings-accent, var(--color-brand));
+  font-size: 24px;
+  font-weight: 750;
+}
+
+.lfaa-update-prompt__heading { min-width: 0; flex: 1; }
+.lfaa-update-prompt__eyebrow { color: var(--settings-accent, var(--color-brand)); font-size: var(--font-size-sm); font-weight: 650; }
+.lfaa-update-prompt__heading .ant-typography { margin: 3px 0 0; color: var(--color-text-heading); font-size: calc(var(--settings-interface-font-size, var(--font-size-base)) * 1.55); line-height: 1.25; }
+
+.lfaa-update-prompt__close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.lfaa-update-prompt__close:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
+.lfaa-update-prompt__close:focus-visible { outline: 2px solid var(--settings-accent, var(--color-brand)); outline-offset: 2px; }
+
+.lfaa-update-prompt__meta { display: flex; align-items: center; gap: 10px; margin: 18px 0 16px 60px; }
+.lfaa-update-prompt__notes { margin: 0 0 0 60px; padding: 14px 16px; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: var(--color-surface-muted); }
+.lfaa-update-prompt__notes > .ant-typography { color: var(--color-text-heading); }
+.lfaa-update-prompt__notes ul { display: grid; gap: 8px; margin: 10px 0 0; padding-left: 18px; color: var(--color-text-secondary); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--font-size-base); line-height: 1.55; }
+.lfaa-update-prompt__hint { margin: 14px 0 0 60px; color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.55; }
+.lfaa-update-prompt__notice { margin: 18px 0 0 60px; color: var(--color-text-primary); }
+.lfaa-update-prompt__notice .ant-typography { margin-bottom: 8px; }
+.lfaa-update-prompt__actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 9px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--color-border-subtle); }
+.lfaa-update-prompt__actions .ant-btn { min-height: 38px; border-radius: 10px; font-family: var(--settings-interface-font, var(--font-family-sans)); }
+
+.workbench-shell[data-reduced-motion="on"] .lfaa-update-modal,
+.workbench-shell[data-reduced-motion="on"] .lfaa-update-modal .ant-modal,
+.workbench-shell[data-reduced-motion="on"] .lfaa-update-modal .ant-modal-mask {
+  animation-duration: 0s !important;
+  transition-duration: 0s !important;
+}
+
+@media (max-width: 560px) {
+  .lfaa-update-prompt { padding: 20px; }
+  .lfaa-update-prompt__meta,
+  .lfaa-update-prompt__notes,
+  .lfaa-update-prompt__hint,
+  .lfaa-update-prompt__notice { margin-left: 0; }
+  .lfaa-update-prompt__actions { justify-content: stretch; }
+  .lfaa-update-prompt__actions .ant-btn { flex: 1 1 auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

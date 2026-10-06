@@ -27,15 +27,18 @@ function Show-MainMenu {
     Write-Host ''
     Write-Host '请选择要执行的操作：' -ForegroundColor White
     Write-Host '  【1】安装工作区依赖：pnpm install' -ForegroundColor Green
-    Write-Host '  【2】启动 Harness：Web / Daemon / 开发模式 / Vite 热更新' -ForegroundColor Magenta
-    Write-Host '  【3】构建 Harness：pnpm run build' -ForegroundColor Cyan
+    Write-Host '  【2】启动 Harness：Web（自动托管本机 Daemon）/ 独立节点 / 开发模式 / Vite 热更新' -ForegroundColor Magenta
+    Write-Host '  【3】构建 Harness 运行树（Web / Control Plane / CLI）' -ForegroundColor Cyan
     Write-Host '  【4】检查环境与实际工作区包' -ForegroundColor Yellow
     Write-Host '  【5】一键生成纯净源码 ZIP（排除依赖与敏感数据）' -ForegroundColor Green
     Write-Host '  【6】一键正常推送 GitHub main（不覆盖远端历史）' -ForegroundColor Green
     Write-Host '  【7】一键强制推送 GitHub main（覆盖远端历史）' -ForegroundColor Red
     Write-Host '  【0】退出' -ForegroundColor Red
     Write-Host ''
-    Write-Host 'Web 使用编译后的包组合，Windows 默认托管本机 Daemon；启动前检查源码与构建是否一致。' -ForegroundColor DarkGray
+    Write-Host '桌面安装版内置 Control Plane 与本机 Daemon，并自动启动；Web 在 Windows 默认托管本机 Daemon。' -ForegroundColor DarkGray
+    Write-Host '独立节点模式用于远程节点或维护；Windows Sandbox Host 由桌面打包自动构建，单独构建命令只针对该原生宿主。' -ForegroundColor DarkGray
+    Write-Host 'Electron Windows 安装包：pnpm run build:desktop:electron:win（自动打包本机 Daemon 与 Sandbox Host）。' -ForegroundColor DarkGray
+    Write-Host 'Web 启动前检查源码与构建是否一致。' -ForegroundColor DarkGray
     Write-Host '服务在当前终端运行，按 Ctrl+C 停止；不另开服务窗口。' -ForegroundColor DarkGray
     Write-Host ("脚本加载于 {0:yyyy-MM-dd HH:mm}；若刚改过脚本，请按 0 退出并重新打开本菜单。" -f $scriptLoadedAt) -ForegroundColor DarkGray
 }
@@ -135,7 +138,7 @@ function Show-DependencyScope {
 function Start-Harness {
     Write-Host '【启动模式】' -ForegroundColor Cyan
     Write-Host '  【1】Web（默认）'
-    Write-Host '  【2】Daemon 节点'
+    Write-Host '  【2】独立 Daemon 节点（远程主机/节点维护）'
     Write-Host '  【3】开发模式'
     Write-Host '  【4】Vite 热更新前端（5173，复用已运行控制端）'
     Write-Host '  【0】返回'
@@ -159,7 +162,7 @@ function Start-Harness {
         throw '存在待处理的数据目录迁移。请停止正在运行的服务，使用开发模式或 pnpm dev 完成迁移后再启动 CLI。'
     }
     if ($profile -eq 'daemon') {
-        Write-Host '节点原生 Host 需先执行 pnpm run build:daemon；节点连接与数据位置沿用已有配置。' -ForegroundColor Yellow
+        Write-Host '此项单独启动节点进程；桌面安装版会自动启动本机 Daemon。Windows AppContainer Sandbox Host 可用 pnpm run build:windows-sandbox-host 构建，Electron 桌面打包会自动内置。' -ForegroundColor Yellow
     }
     # 只重建已经过期的职责输出，禁止在源码更新后静默启动旧版本。
     $nodeCommand = Get-Command 'node' -ErrorAction Stop

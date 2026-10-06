@@ -4,11 +4,11 @@
   "version": "0.1.1",
   "type": "module",
   "scripts": {
-    "predev": "pnpm run build:sandbox",
+    "predev": "pnpm run build:sandbox-host",
     "dev": "node --import tsx --import ../cli/register-package-loader.mjs src/index.mjs",
     "check": "node --check ../../packages/host/daemon/src/daemon.mjs",
-    "build:sandbox": "cargo build --manifest-path ../../native/system/Cargo.toml --release --target-dir ../../dist/apps/daemon/target --target x86_64-pc-windows-msvc",
-    "build": "pnpm run build:sandbox && pnpm run check"
+    "build:sandbox-host": "cargo build --manifest-path ../../native/system/Cargo.toml --release --target-dir ../../dist/apps/daemon/target --target x86_64-pc-windows-msvc",
+    "build": "pnpm run build:sandbox-host && pnpm run check"
   },
   "dependencies": {
     "lfaa-app-boot": "workspace:*",

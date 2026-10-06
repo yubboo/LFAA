@@ -11,7 +11,17 @@
 | LFAA-CLI-WEB-LOCK-RECOVERY-01 | Web 菜单启动时识别当前数据目录的存活 LFAA Web 写锁持有者，结束该 CLI 进程后再启动 | 已实现（PowerShell 语法、数据目录解析、差异检查通过；真实 PID 终止与 Web 重启未运行） | 本文件“LFAA-CLI-WEB-LOCK-RECOVERY-01” |
 | LFAA-DESKTOP-ELECTRON-AUTO-UPDATE-01 | 为 Electron 桌面端增加 LFAA 更新清单，并接入自动检查、下载与受控安装 | 代码已接入；清单回归和静态检查通过；Electron NSIS 构建被现有 Host TypeScript 错误阻断；真实 Release 下载、签名和安装升级未验 | 本文件“LFAA-DESKTOP-ELECTRON-AUTO-UPDATE-01” |
 | LFAA-DESKTOP-UPDATE-CONSENT-CHECK-01 | 为当前可运行的 Windows Electron 桌面端增加新版本推送、用户选择下载及设置页手动检查 | Windows Electron 源码、定向回归及隔离前端构建通过；真实 Release/桌面安装及 Android、Tauri 未验 | 本文件“LFAA-DESKTOP-UPDATE-CONSENT-CHECK-01” |
+| LFAA-DESKTOP-UPDATE-PROMPT-UI-01 | 将 Electron 更新提示从有系统音效的原生消息框改为 LFAA 工作台内的静音、主题适配更新弹窗 | 源码、24 项更新回归、客户端类型检查、UI 包与 Web 构建通过；桌面候选包与实际视觉未验，Host 构建指纹过期 | 本文件“LFAA-DESKTOP-UPDATE-PROMPT-UI-01” |
+| LFAA-DESKTOP-UPDATE-DEFER-SUPPRESSION-01 | 用户暂不更新后，本次进程不再因自动或手动检查重复提示同一版本；重启后恢复提示 | 已修复；Electron 更新回归 24/24、语法与差异检查通过；打包桌面端未验 | 本文件“LFAA-DESKTOP-UPDATE-DEFER-SUPPRESSION-01” |
+| LFAA-DESKTOP-UPDATE-PACKAGE-REBUILD-01 | 重建包含工作台静音更新提示及进程内暂缓逻辑的 Windows Electron 安装候选，并核验随包运行树 | Windows x64 NSIS 候选构建、包内更新代码核验及 CUA Driver 导入验收通过；实际安装/启动目视未验 | 本文件“LFAA-DESKTOP-UPDATE-PACKAGE-REBUILD-01” |
+| LFAA-APP-VERSION-REBASE-01 | 按用户指定的 `0.0.1 → 0.0.2` 更新链重建 Windows Electron `0.0.2` 候选，保留运行中 Web 正式构建目录 | 已实现；版本/更新回归 7/7、24/24，安装器回归 3/3，Windows x64 候选包与随包运行树验收通过；真实安装/启动视觉及外部发布未验 | 本文件“LFAA-APP-VERSION-REBASE-01” |
+| LFAA-DESKTOP-UPDATE-RELEASE-003 | 修复桌面更新 404 错误泄露原始 HTTP 响应信息，并将 LFAA 0.0.3 安装包及更新清单发布至 GitHub Release | Windows x64 安装包已构建并本地验收；GitHub 推送与 Release 待执行；真实应用自动升级待验 | 本文件“LFAA-DESKTOP-UPDATE-RELEASE-003” |
+| LFAA-WEB-VERSION-UPDATE-CHECK-01 | 在 Web 设置页显示构建版本，并手动检查官方更新清单、展示更新说明和发布页 | Web 构建、定向回归、TypeScript 与登录态浏览器验收通过；桌面下载安装不属于 Web 验收 | 本文件“LFAA-WEB-VERSION-UPDATE-CHECK-01” |
 | LFAA-DESKTOP-ELECTRON-STARTUP-INSTALLER-01 | 修复桌面安装包缺少 CUA Driver 导致启动失败，并补齐 LFAA 安装图标、强制确认、安装详情和桌面快捷方式 | 源码、Windows x64 安装包及随包插件导入验收通过；实际安装交互与快捷方式目视待用户安装确认 | 本文件“LFAA-DESKTOP-ELECTRON-STARTUP-INSTALLER-01” |
+| LFAA-DESKTOP-ELECTRON-LICENSE-ENCODING-01 | 修复 Windows NSIS 安装须知中文乱码并重建独立候选安装包 | 源码与构建资源编码核验、Windows x64 NSIS 构建及随包运行树验收通过；安装器界面未安装/目视，候选未签名 | 本文件“LFAA-DESKTOP-ELECTRON-LICENSE-ENCODING-01” |
+| LFAA-DESKTOP-ELECTRON-INSTALL-PROGRESS-01 | 修复 NSIS 安装文件复制期间详情区为空，显示实际写入文件，同时保留总进度与静默安装行为 | 已实现；安装器定向回归、Windows x64 NSIS 构建与随包运行树检查通过；实际安装器界面未打开 | 本文件“LFAA-DESKTOP-ELECTRON-INSTALL-PROGRESS-01” |
+| LFAA-DESKTOP-DAEMON-INTEGRATION-CLARITY-01 | 将本机 Daemon 明确为桌面安装包内置、随桌面自动启动的独立节点进程，并把沙箱宿主构建命令和启动菜单说明改为真实职责 | 已完成（命令与构建链静态核对、JSON/PowerShell 解析和差异检查通过；未重建安装包或运行远程节点） | 本文件“LFAA-DESKTOP-DAEMON-INTEGRATION-CLARITY-01” |
+| LFAA-DESKTOP-ELECTRON-INSTALL-SMOOTHNESS-01 | 减少 Windows NSIS 安装中文件状态行闪烁，保留稳定的安装目标提示，核实目标目录为用户选择的安装目录，并按 `LFAA-版本号` 命名下一安装包 | 稳定提示已接入；定向回归 3/3、Windows x64 NSIS 重建与随包检查通过；安装器 UI 目视未验 | 本文件“LFAA-DESKTOP-ELECTRON-INSTALL-SMOOTHNESS-01” |
 | LFAA-HARNESS-PRODUCT-DIRECTION-01 | 明确 LFAA-Harness 自有产品、插件化、多平台目标与纯净发行边界，并检查当前项目偏差 | 开发规范/架构/打包指导已对齐，根 workspace 清单与锁文件入口已修复；桌面默认入口仍待迁移，安装包归档与异盘验收未做 | 本文件“LFAA-HARNESS-PRODUCT-DIRECTION-01” |
 | LFAA-AI-INSTRUCTION-CONSISTENCY-01 | 审查 AI 规则与当前能力描述，消除 Agent 委派、Minecraft 核心支持和运行数据事实中的过期冲突 | 规则/提示词/项目说明已对齐；`git diff --check` 和 Minecraft 包构建器通过；pnpm 包装命令因依赖目录清理需交互确认而中止，未绕过 | 本文件“LFAA-AI-INSTRUCTION-CONSISTENCY-01” |
 | LFAA-REPO-AI-GUIDES-01 | 参考 DeepWrite 的 AI 助手目录组织、Git 提交和桌面打包流程，为 LFAA 建立一致的仓库指导入口并整理根目录文档位置 | 仅文档、模板与目录变更；不改产品运行代码、设置或构建链；定向路径/差异检查，workspace-preflight 若缺失如实记录 | 本文件“LFAA-REPO-AI-GUIDES-01” |
@@ -30,6 +40,7 @@
 | LFAA-UI-GIT-CHANGE-EDITOR-01 | 把 AI Work 右侧 Git 变更摘要扩展为可联动的变更审查和安全文本编辑器，支持文件列表、差异视图、编辑保存及截图中的浏览操作 | 实现完成（浏览器验收未验证） | 本文件“LFAA-UI-GIT-CHANGE-EDITOR-01” |
 | LFAA-UI-AI-WORK-SIDE-CHAT-01 | 在 AI Work 右侧工具栏增加独立侧边聊天，支持 `/side` 与可配置快捷键；从当前 Session 已记录上下文创建无工具分支，在主任务运行期间提问且不打断主任务 | 实现完成；95 个包构建、Web 构建及 13 项相关回归通过；登录态页面验收待做 | 本文件“LFAA-UI-AI-WORK-SIDE-CHAT-01” |
 | LFAA-UI-AI-WORK-SETTINGS-COMPAT-01 | 修复 AI Work 因缺少侧聊快捷键兼容回退及 `AiWorkSideChat` 未注册导致的整页 React 崩溃，复用设置中心默认值并补齐真实 Client 模块装配 | 已修复；目标包/Web 构建、设置兼容回归和登录态四类 AI Work 页面验收通过；运行中控制端侧聊接口返回未找到 | 本文件“LFAA-UI-AI-WORK-SETTINGS-COMPAT-01” |
+| LFAA-CLIENT-WORKSPACE-RENDER-RECOVERY-01 | 排查 Minecraft/Connectivity 登录后共享工作区渲染失败，兼容旧版快捷键设置缺项并让错误边界显示安全摘要 | 兼容修复、4/4 定向回归、客户端类型检查和 Web 构建通过；当前登录态工作区尚未验收，具体根因需用错误摘要复核 | 本文件“LFAA-CLIENT-WORKSPACE-RENDER-RECOVERY-01” |
 | LFAA-AI-PLAN-MODE-01 | 为 AI Work 增加可持续讨论并经用户批准后执行的计划模式；支持 `/plan`、自然语言意图判断和批准后恢复任务工具 | 已实现；15/15 定向回归、控制端/Web 构建及差异检查通过；真实 Provider、登录态浏览器与 Daemon 验收未运行 | 本文件“LFAA-AI-PLAN-MODE-01” |
 | LFAA-AGENT-WORKFLOW-CANVAS-01 | 为 Minecraft 增加可保存、可执行的无限画布 Agent 工作流；图节点复用 Agent Loop 与 Minecraft 工具，任务状态可追踪 | 画布与定义持久化的浏览器验收通过；真实 Provider/Daemon 工作流执行待验 | 本文件“LFAA-AGENT-WORKFLOW-CANVAS-01” |
 | LFAA-WORKFLOW-CANVAS-DATAFLOW-01 | 将工作流拆为跨 App 的通用核心、可撤销节点/引擎适配器和共享编辑器；Minecraft 作为首个 App 适配器 | 核心与首个适配器已实现；类型检查、迁移回归、Control Plane/Web 构建及隔离浏览器创建/连线/保存/运行/刷新恢复通过；真实 Minecraft Agent/Provider/Daemon 未验；旁支 Agent API 回归的记忆生成断言失败 | 本文件“LFAA-WORKFLOW-CANVAS-DATAFLOW-01” |
@@ -7546,15 +7557,16 @@ Minecraft 节点适配器调用现有 Agent Loop、Minecraft Tools 和 Daemon Ow
 - 重启前核实原进程参数为 `web --no-local-daemon`，进程树没有托管 Daemon/Minecraft 子进程，也没有 Java 游戏进程。恢复后的 Web 进程 PID 为 67336，3000 端口监听正常；`/api/health` 为 200，未登录的 `/api/ai/sessions` 为 401，认证边界保留。
 - 干净浏览器会话实际打开 AI Work 路由后看到可交互的登录页，根节点已挂载；Minecraft 常规模式路由同样渲染登录页；当前入口主 JS、样式及页面拆分包均成功加载，未观察到页面 JS 异常。浏览器会话没有现成登录凭据，因此未能验收登录后的应用中心卡片、常规模式内部控件、AI Work 对话与联机操作；Codex 内置浏览器自动化初始化同时返回 Windows 系统路径错误。源码/当前构建已登记联机 App 卡片、路径、Minecraft 跳转及 `ConnectivityWorkspace` 模块，但这些登录态交互不能计作已验收。未测量浏览器帧时间，也未验收真实 Provider、Daemon 安装、EasyTier 网络、公网 Relay、DNS/TLS 或玩家连接。
 
-#### 2026-10-06 Minecraft 与联机常规模式二次白屏修复
+#### 2026-10-06 Minecraft 与联机常规模式二次白屏修复与复验
 
-- 对照活动浏览器请求日志、当前入口与磁盘资源：`/assets/ApplicationWorkspace-B9dAFsoh.js` 返回 404；当前 `index-Cpl808qn.js` 引用的 `ApplicationWorkspace-CEy9s345.js` 返回 200。Vite `emptyOutDir: true` 替换构建目录后，未刷新的 SPA 仍保留旧入口 JS；Minecraft 与联机 App 共用的 `ApplicationWorkspace` 懒加载模块因此失效，React 根没有错误边界时只剩桌面壁纸。
+- 根因复核：活动请求日志中的旧工作区哈希 `ApplicationWorkspace-B9dAFsoh.js` 曾返回 404；它属于上一代入口 `index-UfGLS1lh.js`，该入口映射在 `dist/.tmp/connectivity-web-validation` 快照中可复现。当前正式入口为 `index-CS76G6lD.js`，映射到 `ApplicationWorkspace-BlntrgeT.js`。旧标签页保留了上一代模块映射，而正式资源目录当时没有历史代际记录；旧版页面还没有当前的一次性自动恢复逻辑，因此错误边界会停留在“工作区暂时无法显示”。
+- 仓库已有 `apps/web/scripts/web-asset-retention.mjs` 保留当前及最近两代哈希资源。为让运行中的旧标签页恢复，本轮从上一代构建快照核对同名文件 SHA-256 后，将缺少的 72 个哈希资源恢复到正式 `dist/apps/web/assets/`，并初始化正式资源历史。随后重建 Web，保留记录为三代、每代 205 个资源，清理 0 个仍受保留集引用的资源；构建输出目录仍为仓库根 `dist/apps/web/`。
 - `packages/client/modules/src/client/stale-chunk-recovery.ts`、`packages/client/modules/src/client/index.ts`：在 LFAA 懒加载 Owner 捕获真实 `import()` 静态资源失败，在当前标签页只触发一次自动刷新，并于新页面稳定窗口后释放保护；会话存储不可用时不循环刷新。
-- `packages/client/ui-renderer/src/ClientRenderBoundary.tsx`、`packages/client/ui-renderer/src/render.tsx`：为两种现有 React 根提供可见渲染错误提示与手动刷新入口，失败原因保留在控制台。
-- `apps/cli/tests/client-stale-chunk-recovery.test.mjs`：覆盖识别旧哈希资源失败、单次自动恢复、防刷新循环、保护过期清理和会话存储不可用。
+- `packages/client/ui-renderer/src/ClientRenderBoundary.tsx`、`packages/client/ui-renderer/src/render.tsx`：为两种现有 React 根提供可见渲染错误提示与手动刷新入口，失败原因保留在控制台；本轮修正边界组件关联文件注释中的旧路径。
+- `apps/cli/tests/client-stale-chunk-recovery.test.mjs`、`apps/cli/tests/web-asset-retention.test.mjs`：覆盖旧哈希模块单次恢复、刷新防环、近期代际保留、过期资源清理与历史记录路径校验。
 - 本轮不新增设置中心配置；恢复过程使用浏览器标签页会话存储，错误界面使用现有 Appearance/Ant Design 主题。
-- 验收结果：`client-stale-chunk-recovery.test.mjs` 5/5 通过；Client TypeScript 检查通过；Vite Web 生产构建通过（2222 个模块，产物写入 `dist/apps/web/`，保留既有 >500 KB chunk 提示）；`runtime-build-state.mjs web` 返回 `[]`。当前入口 `/assets/index-CS76G6lD.js` 与其 `ApplicationWorkspace-BlntrgeT.js` 均返回 200；旧哈希 `ApplicationWorkspace-B9dAFsoh.js` 仍按预期返回 404。Minecraft 与联机路由 HTTP 均返回 200，健康 API 为 200，未认证 AI API 仍为 401，3000 服务 PID 保持 67336 未重启。
-- 使用独立匿名浏览器会话打开 Minecraft 与联机常规模式时，两条路由均渲染登录界面且未报浏览器脚本错误；这只证明匿名入口和当前资源可加载，不代表登录后的应用内容验收。Codex 内置浏览器控制仍因 Windows 路径错误不可用，因此当前已登录页面未能由我刷新并目视确认；旧页面仍需刷新一次读取新入口，后续懒加载哈希失配会自动刷新一次。未测帧时间；也未验收真实 Provider、Daemon 安装、EasyTier 网络、公网 Relay、DNS/TLS 或玩家连接。
+- 验收结果：定向回归 7/7；Client TypeScript 检查通过；Vite Web 生产构建通过（2222 个模块，既有 >500 KB chunk 警告仍在）；`runtime-build-state.mjs web` 返回 `[]`。Minecraft 与联机路由 HTTP 均返回 200，旧 `B9dAFsoh` 与当前 `BlntrgeT` 模块均返回 200，上一代快照的 205 个哈希资源全部返回 200；健康 API 为 200，未认证 AI API 仍为 401，3000 服务 PID 保持 67336 未重启。
+- 独立匿名浏览器打开两个常规模式路由均呈现可交互登录界面，未观察到页面异常；这不代表登录后 App 内部控件验收。Codex 内置浏览器控制初始化仍返回 Windows 路径错误，无法远程清除用户当前标签页已缓存的 React 错误边界；该标签页需要点一次现有“刷新页面”以载入当前入口。未测帧时间；也未验收真实 Provider、Daemon 安装、EasyTier 网络、公网 Relay、DNS/TLS 或玩家连接。
 
 ## LFAA-DESKTOP-ELECTRON-STARTUP-INSTALLER-01：桌面启动依赖与 Windows 安装体验修复
 
@@ -7594,6 +7606,464 @@ Minecraft 节点适配器调用现有 Agent Loop、Minecraft Tools 和 Daemon Ow
 - 原安装日志证实 CUA Driver 从桌面 Control Plane 编译树无法解析。修正打包态 Loader 的外部 ESM 依赖回退，使 `import` 条件从随包 CLI 依赖目录解析；保留源码态按所属能力包解析。桌面准备脚本会比对部署出的 `@trycua/cua-driver` 与源码声明版本，缺失/不匹配时终止打包。
 - 安装器使用 LFAA 黑底白色 L 标识多尺寸 `.ico`；通过 electron-builder 的 NSIS License 页面展示简体中文安装与本机运行须知，接受前不能继续交互安装；默认展开安装详情并写入实际组件摘要；`createDesktopShortcut: "always"` 对应生成脚本的 `RECREATE_DESKTOP_SHORTCUT`。
 - 随包 Node/Loader 调用打包态 `lfaa-computer-use.apply` 的导入与工具注册通过；调用只载入模块并登记工具，没有启动 Control Plane/Daemon、访问真实用户数据或执行桌面操控。
+
+## LFAA-DESKTOP-ELECTRON-LICENSE-ENCODING-01：修复 NSIS 安装须知中文乱码
+
+### 用户目标与运行入口
+
+- 修复用户截图中 Windows NSIS 安装器 License 正文中文乱码，并重新构建一个可检查的新候选安装包。
+- 运行入口为 `apps/desktop-electron/package.json` 的 Windows x64 NSIS 构建链；License 文本由 `nsis.license` 指定，electron-builder 将其交给 NSIS。
+- 责任 Owner：桌面安装包资源与 `prepare-runtime.mjs` 构建准备链；须知文本仍由 `apps/desktop-electron/assets/installation-notice.txt` 单一持有。
+- 不新增设置中心配置；安装须知不读取用户偏好或运行设置。
+
+### 允许修改
+
+- `apps/desktop-electron/assets/installation-notice.txt`：保留简体中文内容并使用 NSIS 可识别的 UTF-8 BOM 编码。
+- `apps/desktop-electron/scripts/prepare-runtime.mjs`：构建前校验须知 BOM，并将经校验的原始字节写入根 `dist/.tmp/desktop-electron/build-resources`。
+- `apps/desktop-electron/tests/installer-package.test.mjs`、`apps/desktop-electron/scripts/verify-packaged-runtime.mjs`：验证源资源编码，并允许对 `dist/apps/desktop-electron` 内的隔离输出目录执行随包运行树验收。
+- 本合同和任务索引；不调整安装须知语义、安装行为、设置或正式版本号。
+
+### 禁止修改
+
+- 不覆盖正在打开的 `dist/apps/desktop-electron/LFAA 0.1.1.exe`；新候选必须输出到根 `dist/apps/desktop-electron/` 下独立目录。
+- 不安装新候选、不替换现有安装、不停止或重启 Web、Control Plane、Daemon、桌面服务，也不执行发布、上传或签名。
+- 不以普通文本解码外观代替编码校验；不声称已完成安装器界面验收，除非实际打开新候选并检查正文。
+
+### 验收条件
+
+- 定向安装器回归检查确认源须知 UTF-8 BOM 和关键中文正文；准备脚本拒绝无 BOM 输入并将原始字节输出至构建资源目录。
+- Windows x64 NSIS 构建产物位于根 `dist/` 的独立候选目录；核对源须知与 electron-builder 构建资源的 SHA-256 相同，资源含 UTF-8 BOM 且关键中文可解码。实际安装界面目视验收需单独记录，不用构建资源核验代替。
+- 执行 `git diff --check`。说明真实安装界面是否目视验收、是否安装候选、签名状态和未完成边界。
+
+### 完成记录（2026-10-06）
+
+- 根因：`apps/desktop-electron/assets/installation-notice.txt` 原为无 BOM UTF-8；当前 electron-builder 的显式 `nsis.license` 路径直接将该文件交给 NSIS，没有走为本地化许可证追加 UTF-8 BOM 的转换分支，导致 NSIS 将中文正文错误解码。保留须知文字，只为源文件添加 UTF-8 BOM。
+- `prepare-runtime.mjs` 现在在打包前检查 BOM，并把校验后的原始字节写入 `dist/.tmp/desktop-electron/build-resources/installation-notice.txt`；定向安装器回归 2/2 通过。构建资源与源须知 SHA-256 均为 `8DD610FB539E6A8A4B9F2F18B90D0A1B8B9F1C0BA19DAEAA5EBB73F40F13D68C`，BOM 和关键中文解码检查通过。
+- Windows x64 NSIS 候选构建成功：`dist/apps/desktop-electron/license-bom-candidate-20261006/LFAA 0.1.1.exe`；`verify-packaged-runtime.mjs` 对该隔离候选验收通过，真实随包 CUA Driver 导入与工具注册通过。构建与验收未覆盖用户安装、启动交互或须知页面目视；候选 Authenticode 状态为 `NotSigned`。此前打开的根输出 `LFAA 0.1.1.exe` 未覆盖，现有 Web/Control Plane/Daemon 服务未重启或停止。
+- 设置中心配置：无；本次未增加或更改设置项。`workspace-preflight` 在当前仓库未找到，未运行。
 - 验证通过：Electron 安装清单与更新清单回归 11/11；CLI Loader 回归 1/1；更新清单版本校验；三个桌面脚本/Loader 语法检查；`git diff --check`；Windows x64 NSIS 包构建与随包插件导入检查。产物为 `dist/apps/desktop-electron/LFAA 0.1.1.exe`，158451467 字节。设置中心未新增或改动配置，版本日志未改版。
 - 标准 `pnpm --filter lfaa-desktop-electron run package:win` 被 pnpm 工作区状态预检中止：无 TTY 时请求清理整个 `node_modules`。为保护工作区，未执行该清理；使用现有依赖直接运行 Electron Builder 的 package-only 命令，随后手动运行相同的随包插件验收。未重建 Web/Control Plane/Daemon，未安装 Setup，未重启 3000（仍由 PID 42080 监听）。
 - 尚未实测：安装器窗口中的同意/拒绝点击、桌面快捷方式的实际创建及完整 Electron 窗口启动；本轮没有签名验证、Release 更新下载或鼠标/键盘操作测试。需在当前用户界面安装新 Setup 后确认这些 OS 交互结果。
+
+## LFAA-CLIENT-WORKSPACE-RENDER-RECOVERY-01
+
+### 用户目标与运行入口
+
+- 修复登录后 Minecraft 常规模式与 Connectivity 常规模式显示“工作区暂时无法显示”的客户端渲染失败；页面必须能进入可用的业务面板，错误时应提供足以区分客户端异常与控制端 API 错误的摘要。
+- 运行入口为当前 Web 的 `apps/web` 与共享 React 工作台；问题路径经过 `packages/client/ui-layout/src/Workbench.tsx`、`packages/client/ui-workspace/src/ApplicationWorkspace.tsx`，业务面板分别由 Minecraft 与 Connectivity Client Module 懒加载。
+- 已发现的确定风险：`ApplicationWorkspace` 在渲染控件时直接对多个 `settings.shortcuts` 字段调用 `.map()`；历史 Host/Settings 响应可能缺少后来新增的快捷键字段，而同一包已针对 `openSideChat` 做默认值兼容。该风险已由定向回归覆盖，但是否就是用户当前截图的实际运行时异常，必须以登录态运行验收或错误边界的真实摘要确认。
+
+### Owner、设置与边界
+
+- Shortcut 与 Appearance 背景默认值唯一归 `packages/client/ui-settings-general/src/default-settings.ts`；读取兼容只在客户端补默认，不写回、不覆盖已保存的合法空数组、背景值或“无背景”选择，不新增设置项或服务端配置。
+- 工作区布局和 React 错误呈现归现有 Client Owner；不更改 Connectivity API、EasyTier/Daemon 生命周期、Minecraft 部署/启停或账户/权限合同。
+- 浏览器错误摘要只显示错误名和经过路径/链接/凭据模式脱敏且有长度上限的消息，不显示堆栈、不把异常发送到服务端。
+- 性能与生命周期：快捷键与背景解析不新增订阅、请求、轮询或定时器；背景解析结果在工作台渲染中记忆化，错误摘要在边界捕获时生成一次。
+
+### 允许修改
+
+- `packages/client/ui-settings-general/src/default-settings.ts`：导出针对部分/旧版快捷键对象和背景对象的默认解析器，保持有效用户值优先。
+- `packages/client/ui-layout/src/appearance-background-slot.ts`、`packages/client/ui-layout/src/Workbench.tsx`：统一路由背景槽映射；Connectivity 复用 appCenter 背景，并对缺失外观项安全回退。
+- `packages/client/ui-workspace/src/ApplicationWorkspace.tsx`、`packages/client/ui-layout/src/Workbench.tsx`：对工作区渲染及快捷键匹配统一使用解析后的快捷键。
+- `packages/client/ui-renderer/src/ClientRenderBoundary.tsx` 与同包纯错误摘要函数：错误页面显示安全摘要。
+- `apps/cli/tests/**`：增加默认解析与敏感内容脱敏的定向回归。
+- 本合同及任务索引；仅当当前实现证实 Owner 或产品事实有变化时修改架构文档。
+
+### 禁止修改
+
+- 不通过假账户、测试权限、Mock API 或降低权限绕过真实会话。
+- 不吞掉渲染异常、不把错误状态当成功、不移除错误边界；不将堆栈、认证头、Cookie、令牌或任意本机路径写入服务端日志或界面。
+- 不重启/终止现有 3000 服务或影响 Minecraft 实例；不以未登录浏览器、HTTP 200 或构建通过声称登录后工作区验收成功。
+- 不调整无关主题、布局、设置字段、Connectivity Provider 或 EasyTier 接入行为。
+
+### 验收条件
+
+- 缺少 `shortcuts` 对象、缺少部分快捷键项及显式合法空数组都由同一设置 Owner 解析：缺项回退默认，用户保存的 `[]` 保持为空。
+- Connectivity 常规模式映射到 `appCenter` 背景槽；缺失 Appearance 背景项回退到当前默认值，且保留已保存背景及“无背景”。
+- 两个常规工作区对兼容后的快捷键读取不因历史设置缺项抛异常；其它字段不被重写。
+- 错误摘要回归覆盖典型 React TypeError、超长消息、链接/本机路径和凭据样式内容；堆栈和敏感值不得呈现。
+- 执行新增定向回归、受影响 Client 类型检查与 Web 构建、`git diff --check`，构建只写根 `dist/`。
+- 尝试在用户当前登录浏览器实际打开 `/apps/connectivity/normal`；若浏览器自动化不可用，必须记录具体工具阻塞，并将登录后页面、真实 API、布局帧时间分别标为未验，不用匿名登录页替代。
+
+### 本轮实现与验证记录（2026-10-06）
+
+- 在设置默认值 Owner 增加兼容解析：缺失或无效的快捷键项使用现有默认值，合法空数组保持不变；ApplicationWorkspace 的按钮、全局快捷键和导航轨统一读取解析结果，避免旧 Host 响应触发数组访问异常。
+- 客户端 React 错误边界显示异常类型和经过本机路径、链接及凭据模式脱敏并限制长度的摘要；完整异常仍只写浏览器控制台，不上送服务端。
+- 定向回归 4/4、`tsc --noEmit -p tsconfig.client.json` 和 `git diff --check` 通过；Vite Web 生产构建处理 2223 个模块并写入根 `dist/apps/web`，现有 >500 KB chunk 警告保留，资源保留器记录 3 代并清理 72 个过期资源。`runtime-build-state.mjs web` 返回 `[]`。
+- 当前 3000 服务仍由 PID 67336 提供，未重启；Connectivity/Minecraft 常规路由和 `/api/health` 返回 200，新入口 JS 返回 200。`agent-browser` 只能取得隔离匿名会话并显示登录页；Codex CUA 初始化报“failed to write kernel assets: 系统找不到指定的路径 (os error 3)”，无法检查用户的登录标签页或其控制台。因而当前 React 异常的确切摘要、登录后组件挂载、真实联机 API 操作和帧时间仍未验收；若刷新后错误仍存在，页面现在会显示摘要供继续定位。
+- 未新增设置中心配置，复用现有快捷键默认值及 Appearance/Ant Design 主题。`workspace-preflight` 在当前 checkout 不存在，未运行。
+
+#### 2026-10-06 `startsWith` 客户端渲染异常定位与修复
+
+- 用户提供边界摘要 `TypeError: Cannot read properties of undefined (reading 'startsWith')` 后，确认 `Workbench` 主渲染路径把 `/apps/connectivity/normal` 的 `connectivity` 应用 ID 当作 Appearance 背景键读取；`backgrounds.connectivity` 不存在，随后对 `undefined` 调用 `.startsWith()`。Minecraft 等工作区的旧版部分背景响应也可能触发同类异常。
+- 新增纯路由映射 `appearanceBackgroundSlotForRoute`，Connectivity 与 Workspace 统一复用 `appCenter`；外观默认 Owner 增加缺项解析，保留合法背景与“无背景”；工作台对渲染用解析值记忆化，并让设置页返回背景读取采用相同映射。
+- 定向回归 6/6、Client TypeScript 检查、`git diff --check` 与 Vite Web 生产构建通过；Vite 处理 2224 个模块并只输出到根 `dist/apps/web`，保留既有 >500 KB chunk 警告；`runtime-build-state.mjs web` 返回 `[]`。
+- 3000 端口仍由 PID 67336 提供，未重启。Connectivity/Minecraft 常规路由与 `/api/health` 返回 200，未认证 AI API 仍为 401。尝试检查当前登录浏览器时，Codex CUA 再次因 `failed to write kernel assets: 系统找不到指定的路径 (os error 3)` 初始化失败；因此登录后 React 挂载和联机面板仍未能从浏览器实测，HTTP 200 不作为该项验收证据。未新增设置中心配置；读取现有 Appearance 背景默认值及共享外观主题映射。
+
+#### Windows Electron 已安装包与共享 Client 版本差异核查
+
+- 用户反馈桌面窗口出现“工作区暂时无法显示”。目标运行入口是已安装的 `apps/desktop-electron` 本机控制端 + `dist/apps/web`，数据/API 仍归现有 Control Plane 与 Settings Owner；桌面页面不是由开发 Web 的 3000 进程提供。
+- Web 与桌面共用 `packages/client/**` 源码，但各自构建/打包、安装目录和资源快照独立；Web 构建不会替换已安装 Electron 的 `resources/app-runtime/dist/apps/web`。Connectivity 的 Appearance 背景仍复用 `appCenter`，不增加设置或安装器配置。
+- 已观察：本机 `LFAA.exe` 运行于 `D:\软件\LFAA`，其工作区 HTML 引用 `index-CS76G6lD.js`（随包资源时间 2026-10-06 16:08）；当前源码 Web 输出引用 `index-B4P1wNI1.js`（2026-10-06 16:32）。随包 `Workbench-DIcVtx2j.js` 仍把工作区应用 ID 直接用作背景键并对其值调用 `.startsWith()`；当前源码已改为统一槽映射。该桌面安装包没有包含已修复的共享 Client 构建，解释了用户看到的错误页；这属于打包与桌面验收缺口，不是有意取消桌面支持。
+- 允许生成 Windows x64 Electron 本地安装候选并核对包内 Web 资源/依赖；禁止替换 `D:\软件\LFAA` 已安装程序、安装包、重启/终止当前 Electron/Control Plane/Daemon 或影响游戏进程。安装态复验须等用户明确安排桌面重启/安装窗口。
+- 本次目标仅覆盖 Windows x64 Electron 候选与包内资源核对。当前项目记录的 macOS Electron 包与安装验收未完成，Linux 桌面和 Android 是后续平台目标；不能把共享 Client 源码描述成这些平台已发行。
+- Windows x64 本地候选已重建：更新清单校验通过；Electron `win-unpacked` 运行树的 `index.html` 与当前 Web 构建 SHA-256 相同，`Workbench-10ATt6bh.js` 包内/源码 SHA-256 相同；包内 `@trycua/cua-driver@0.32.0` 导入与工具登记核验通过。安装候选为 `dist/apps/desktop-electron/LFAA 0.1.1.exe`，158535671 字节；Authenticode 状态为 `NotSigned`，未发布。
+- 为避免 `package:win` 中的 pnpm workspace install 清理整个开发依赖树，本次复用先前已部署到 `dist/.tmp/desktop-electron/server-deploy` 且版本核对通过的生产依赖，执行 `prepare-runtime.mjs`、Electron Builder NSIS x64 和既有随包核验；没有安装到用户目录。当前 CUA 无法操控用户桌面，安装器点击、实际 Windows 安装/升级、登录态工作区和真实服务恢复均未验收。当前日志显示原桌面端 Daemon/Control Plane 在 16:46:18 收到 `SIGTERM`、Control Plane 于 16:46:59 退出；本次构建没有对 `D:\软件\LFAA` 安装目录或这些进程执行替换/重启。
+
+## LFAA-DESKTOP-ELECTRON-INSTALL-PROGRESS-01：NSIS 安装期间显示文件写入详情
+
+### 用户目标与运行入口
+
+- 修复 Windows 安装界面在写入/复制程序文件时详情区为空的问题；保留 NSIS 实际总进度条，并让详情区能显示当前安装文件条目。
+- 运行入口为 `apps/desktop-electron/package.json` 的 Windows x64 NSIS 构建；实际文件复制由锁定的 `app-builder-lib@26.15.3` NSIS 模板 `templates/nsis/installSection.nsh` 调用 `installApplicationFiles` 完成。
+- 安装器与模板行为归现有 Electron Builder/NSIS 链；只通过 pnpm 锁定的依赖补丁调整交互安装时的详情输出，不改变安装目标、文件集、许可页、快捷方式、卸载或保留用户数据流程。
+
+### Owner、设置与边界
+
+- 不新增或读取设置中心配置；进度由 NSIS 安装器自身报告，非用户偏好。
+- 根因已由锁定模板确认：复制文件前在非静默安装中执行 `SetDetailsPrint none`，项目 `customInstall` 钩子则在复制完成后才重新开启详情。
+- 仅在该模板的现有 `IfNot ${Silent}` 分支内将详情输出切换为 `both`；静默安装分支保持不变。总进度由 NSIS 原有文件提取流程继续报告。
+- 不新增运行时轮询、事件订阅或后台进程；安装详情随 NSIS 文件操作即时输出，不另行缓存文件清单。
+
+### 允许修改
+
+- 根 `package.json`、`pnpm-lock.yaml` 及根 `patches/` 下的 pnpm 补丁：锁定并补丁 `app-builder-lib@26.15.3` 的 NSIS 模板。
+- `apps/desktop-electron/tests/installer-package.test.mjs`：增加补丁内容与静默分支保持不变的回归。
+- 本合同及任务索引；不更改桌面版本号、安装资源、应用行为或设置中心。
+
+### 禁止修改
+
+- 不覆盖现有 `dist/apps/desktop-electron/LFAA 0.1.1.exe` 或此前的 License 修复候选；本轮构建必须写入根 `dist/apps/desktop-electron/` 下的全新独立目录。
+- 不点击、安装、替换或卸载用户当前正在使用的安装程序；不停止或重启桌面、Web、Control Plane、Daemon、Minecraft 实例；不签名、发布或上传候选包。
+- 不编写整套自定义 NSIS 安装脚本、不绕过用户同意页/权限、不修改静默安装行为；不声称已目视验收安装器，除非实际打开隔离候选并检查安装页面。
+
+### 验收条件
+
+- 回归确认根补丁只将 `IfNot ${Silent}` 内的安装详情模式由 `none` 改为 `both`，且原静默分支及 `installApplicationFiles` 顺序未被改写。
+- 直接运行 Electron 安装器定向回归及 `git diff --check`；Windows x64 NSIS 包构建至隔离候选目录，并核对候选实际产物、NSIS 构建采用的锁定模板补丁和既有随包运行树验收。
+- 如未实际打开安装候选，必须将“详情面板真实显示文件名”和现场进度视觉检查标记为未验；构建/模板证据不能替代安装器界面验收。
+- 交付逐项列出本次变更文件绝对路径与职责，说明无设置中心变更，并报告实际构建结果和未覆盖的安装、静默安装及设备边界。
+
+### 本轮实现与验收记录（2026-10-06）
+
+- 锁定的 `app-builder-lib@26.15.3` 在复制应用文件前对非静默安装执行 `SetDetailsPrint none`，而项目 `customInstall` 在复制之后才开启详情。通过 pnpm 根补丁只把该交互安装分支改为 `SetDetailsPrint both`，使 NSIS 原生总进度继续工作，并让文件复制条目进入现有详情窗格；静默安装分支没有改动。
+- `apps/desktop-electron/tests/installer-package.test.mjs` 新增检查，直接解析 electron-builder 当前关联的 `app-builder-lib` 模板，确认详情指令位于文件复制宏前且静默分支仍被条件保护；安装器定向回归 3/3 通过。
+- 更新清单校验通过；`prepare-runtime.mjs` 核验并准备桌面运行目录通过。Windows x64 NSIS 候选成功构建至 `dist/apps/desktop-electron/install-progress-candidate-20261006/LFAA 0.1.1.exe`，大小 158535122 字节，SHA-256 为 `4F263F2918DD53B46A61FF5BFB96E9EE1AE49070772FD8E45012427BE5E2D7EC`，Authenticode 状态为 `NotSigned`。`verify-packaged-runtime.mjs` 对该候选的 CUA Driver 导入与工具注册核验通过。
+- 变更没有新增设置中心配置；没有新增长期进程、计时器、轮询或事件订阅，详情使用 NSIS 已有文件操作输出。未测安装过程性能或视觉帧时间。
+- `git diff --check` 通过；复核锁文件和 pnpm 补丁指向 `app-builder-lib@26.15.3`，当前 Electron Builder 依赖链接解析到已补丁模板。`scripts/workspace-preflight.mjs` 在当前 checkout 不存在，未运行。候选未安装、未打开安装器界面，因此实际窗格是否逐个显示文件名、安装中总进度视觉状态和静默安装交互均未验收；未签名、未发布。用户正在运行的安装窗口和服务未触碰。
+
+## LFAA-DESKTOP-DAEMON-INTEGRATION-CLARITY-01：桌面内置 Daemon 与独立节点构建职责
+
+### 用户目标与运行入口
+
+- Windows 桌面版作为一个产品安装和启动；桌面主进程自动启动本机 Control Plane 与 Daemon，Daemon 继续作为独立节点进程，由现有认证任务与节点 Owner 控制。
+- 远程节点继续通过现有 HTTPS 连接身份接入；只有独立节点运行/维护和桌面发行打包需要处理节点宿主构建，普通桌面用户无需手动构建或启动 Daemon。
+- 目标入口为 Electron 桌面 Windows 安装链、根目录构建脚本及 `lfaa.bat` 的 Harness 启动菜单。
+
+### Owner、设置与边界
+
+- Electron `main.mjs` 负责启动和退出本机 Control Plane、Daemon 子进程；Daemon 节点执行归 `packages/host/daemon` 与 `daemon-app`；远程节点连接凭据和任务路由沿用当前 Control Plane/API Owner。
+- `build:daemon` 实际构建 Windows Sandbox Host 并检查 Daemon 源码；将命令改为准确标示 `lfaa-sandbox-host.exe` 的职责，桌面打包链继续自动调用它并将产物随包装入。
+- 不新增设置中心配置。节点身份、HTTPS 校验、用户数据目录、端口、进程生命周期与控制授权保持现有合同。
+
+### 允许修改
+
+- 根 `package.json` 与 `apps/daemon/package.json`：重命名沙箱宿主构建入口并更新 Electron Windows 打包依赖。
+- `scripts/install-dependencies.ps1`：标明 Web/桌面自动托管本机 Daemon 与独立节点模式的区别，修正沙箱宿主构建提示。
+- `docs/系统总体架构.md`、`packages/host/daemon/README.md` 与本合同：同步说明桌面集成、独立进程和远程节点的现有能力范围。
+
+### 禁止修改
+
+- 不合并 Control Plane 与 Daemon 进程，不改变 Electron 启动/关闭代码、Daemon 身份/HTTPS/任务协议、游戏数据、用户目录或权限边界。
+- 不触碰当前工作树中已有改动的 Electron 安装资源、运行时组装、更新逻辑或安装器回归文件；不构建、安装、发布或替换桌面安装包，不停止运行中的 Web、Daemon 或游戏进程。
+- 不把未接入的 Linux/macOS 远程 Daemon 服务安装、云端部署或开机自启描述成已完成。
+
+### 验收条件
+
+- Electron Windows 打包脚本在自身流程中构建 Sandbox Host，并把可执行文件放进单一桌面安装运行树；普通 Harness 构建与桌面安装包构建的产物范围在菜单/文档中写清。
+- 启动菜单明确：常规桌面由桌面外壳自动启动本机 Daemon；独立 Daemon 模式用于独立节点/维护，不能误导为日常桌面启动步骤。
+- 根与包级 JSON 可解析、PowerShell 脚本语法可解析、`git diff --check` 通过；不覆盖或运行当前桌面候选包。
+- 最终说明逐项列出变更文件、未变更的设置中心配置、执行的静态检查及未进行的桌面/远程节点运行验收。
+
+### 本轮实现与静态核对（2026-10-06）
+
+- 将 `build:daemon` 改名为 `build:windows-sandbox-host`，包级原生构建名改为 `build:sandbox-host`。Desktop Windows 构建仍在同一个发行命令中编译此宿主，随后把本机 Daemon 运行树和宿主装入单一安装包；Electron 启动代码保持现状，由桌面主进程独立启动/关闭 Control Plane 和 Daemon 子进程。
+- 根菜单 `3` 现在明确表示构建 Web、Control Plane 与 CLI 运行树，不是桌面安装器；菜单提供 Electron Windows 安装包实际命令，并注明本机 Daemon 随桌面自动启动。单独 Daemon 项改为“独立节点”模式。
+- 更新系统架构与 Daemon Host README，区分桌面集成发行、本机独立进程、远程 HTTPS 节点接入和尚未接入的远程安装器/系统服务托管。
+- 定向静态检查通过：根与 Daemon 包级 JSON 解析及脚本依赖核对通过；PowerShell AST 解析通过；`git diff --check` 通过。未运行构建、测试、Electron 安装包、当前浏览器、桌面安装、远程 Windows 节点或系统服务验收；不影响本机运行进程和 `dist/`。
+- 未新增或修改设置中心配置；本轮仅修改构建入口命名、菜单说明和架构/包文档，没有新增运行时订阅、轮询或主机进程。
+
+## LFAA-DESKTOP-ELECTRON-INSTALL-SMOOTHNESS-01：安装进度平滑与包名统一
+
+### 用户目标与运行入口
+
+- 针对用户截图中 NSIS 安装文件状态行快速闪烁进行修复；保留 NSIS 总体文件进度，并确认“复制到：<路径>”显示的是用户选择的程序安装目标目录。
+- 下一 Windows x64 Electron 包的输出目录和安装器文件名采用 `LFAA-<版本号>`（例如 `LFAA-0.1.1`、`LFAA-0.1.1.exe`），不添加用途或日期后缀。
+- 运行入口是 `apps/desktop-electron/package.json` 的 Windows x64 NSIS 构建。NSIS 模板在 `$INSTDIR` 上执行 `SetOutPath` 后提取应用文件；账户数据保留仍由现有 `customRemoveFiles` 覆盖安装/卸载流程负责。
+
+### Owner、设置与边界
+
+- 不新增设置中心配置；输出目录、NSIS 详情模式及应用文件目标归现有 Electron Builder 配置与 NSIS 模板。
+- 官方 NSIS 文档说明 `listonly` 只把操作状态输出到详情列表，不更新状态栏；因此单独使用它会令截图中的状态提示行空白。交互安装需先向状态栏写入一次稳定的目标目录提示，再切换到 `listonly` 处理后续文件操作，避免逐文件覆盖该行；总体进度和静默分支不变。
+- “复制到”是 `SetOutPath $INSTDIR` 的状态信息，不执行第二份应用副本；不改变用户选定的安装目录、升级迁移、数据保留或安装文件集。
+- 不新增循环、轮询、事件订阅或产品运行进程；详情由 NSIS 自身的文件提取流程输出。
+
+### 允许修改
+
+- `patches/app-builder-lib@26.15.3.patch`、`pnpm-lock.yaml`：交互安装先写稳定状态提示，再切换到 `listonly` 并同步补丁哈希。
+- `apps/desktop-electron/nsis/installer.nsh`：提供安装文件复制前的一次性目标目录提示。
+- `apps/desktop-electron/package.json`：把 NSIS 安装器产物名改为 `LFAA-${version}.${ext}`；本轮隔离输出目录为 `dist/apps/desktop-electron/LFAA-0.1.1/`。
+- `apps/desktop-electron/tests/installer-package.test.mjs`：覆盖详情模式、静默分支、`SetOutPath $INSTDIR` 顺序与版本化安装包命名。
+- 本合同和任务索引；不更改 `productName`、安装目标、数据保留逻辑、项目版本或设置中心。
+
+### 禁止修改
+
+- 不复用或覆盖既有 `LFAA 0.1.1.exe`、`install-progress-candidate-20261006`、`license-bom-candidate-20261006` 等候选；允许在确认目录只包含本合同本轮刚生成的 `LFAA-0.1.1` 候选后重建该短命名目录；不写入根 `dist/` 以外位置。
+- 不操作用户当前安装中的窗口，不向 `D:\软件\LFAA` 安装、复制或替换文件，不重启/停止桌面服务、Web、Control Plane、Daemon 或游戏进程。
+- 不改 `$INSTDIR` 目标与 `customRemoveFiles` 数据恢复路径；不声称已目视确认闪烁消失，除非真实打开新候选安装页面检查。
+
+### 验收条件
+
+- 定向回归证明 NSIS 只在非静默分支先以 `textonly` 显示一次目标目录提示，再切换到 `listonly`；两条指令位于 `SetOutPath $INSTDIR` 与 `installApplicationFiles` 文件提取之前，静默分支不变；Electron Builder 安装器文件名模板为 `LFAA-${version}.${ext}`。
+- 更新清单校验与运行目录准备通过；Windows x64 NSIS 候选构建到短路径 `dist/apps/desktop-electron/LFAA-0.1.1/LFAA-0.1.1.exe`，随包运行树核验通过，记录大小、摘要与签名状态。
+- “复制到”语义依据模板和回归检查核实；未实际在隔离目标安装时，不报告桌面升级、文件覆盖/保留运行行为通过。未打开 UI 时明确说明闪烁视觉复验未做。
+- 执行定向回归、`git diff --check` 和可用仓库 Gate；逐项列出修改文件绝对路径、设置中心配置及实际验收边界。
+
+### 本轮实现与验收记录（2026-10-06）
+
+- 最终将 `app-builder-lib@26.15.3` 交互安装分支设为 `SetDetailsPrint listonly`。NSIS 官方参考说明该模式将操作状态只写入详情列表，状态栏不再逐操作更新；这是针对截图闪烁行的修复判断，实际 UI 闪烁消失与否尚未目视复验。静默分支保留原有条件，总体进度条未改。
+- 核实配置允许用户选择安装目录；NSIS 模板先执行 `SetOutPath $INSTDIR`，再由 `installApplicationFiles` 解压程序文件。“复制到：D:\软件\LFAA”是当前安装目标提示，不是第二份程序副本。升级时 `data/` 恢复仍由 `customRemoveFiles` 执行，本轮未改。
+- 安装器文件名模板为 `LFAA-${version}.${ext}`；隔离输出目录为 `dist/apps/desktop-electron/LFAA-0.1.1/`，最终文件 `LFAA-0.1.1.exe`。大小 158535109 字节，SHA-256 为 `6CB90EFC24FE5A69958B031D8826BFD366CAC31661ED201A06E5E9A68C729417`，Authenticode `NotSigned`。
+- 定向安装器回归 3/3、更新清单校验、运行目录准备、Windows x64 NSIS 构建、候选包 CUA Driver 随包导入/工具注册核验和 `git diff --check` 均通过。`workspace-preflight` 脚本在当前 checkout 不存在，未运行。
+- 未新增设置中心配置、运行进程、计时器、轮询或事件订阅；未安装候选包、未操作用户当前安装目录或运行中服务。构建模板没有运行时性能开销，安装页面帧时间未测。
+
+### 用户截图反馈补充合同（2026-10-06）
+
+- 用户反馈候选包进度条仍推进，但原状态提示区域变空。根因是 `listonly` 将安装操作状态仅送往详情列表，不再写入状态栏；前版的无闪烁调整遗漏了稳定状态提示。
+- 本轮在自有 `nsis/installer.nsh` 定义单次状态提示“正在安装到：$INSTDIR”，并由受锁定补丁的 NSIS 模板在非静默文件提取前调用；调用后继续 `listonly`，使后续文件状态不覆盖单行提示。不要把该静态提示描述成逐文件实时进度。
+- 直接回归验证宏定义、非静默调用顺序、`listonly`、提取顺序及静默分支；重新构建短命名 Windows x64 候选并核验产物。无法目视安装器 UI 时，明确保留该验收缺口。
+- `node --test apps/desktop-electron/tests/installer-package.test.mjs` 3/3 通过；更新清单校验、`prepare-runtime.mjs`、最终 Windows x64 NSIS 构建和 `verify-packaged-runtime.mjs dist/apps/desktop-electron` 通过。最终候选 `dist/apps/desktop-electron/LFAA-0.1.1.exe` 为 158752360 字节，SHA-256 `A82A71C6BB8ACD491A59E72455CA4595D794DAE9153CEA2936BB88E5B4F2A1B1`，Authenticode `NotSigned`；`latest.yml` 文件名/大小与包一致；`git diff --check` 通过。`workspace-preflight` 脚本不存在，未运行。
+- 未安装候选或操作用户现有安装目录/运行服务；当前环境未执行安装器页面的目视检查，因此状态提示是否在真实 UI 中持续显示、视觉闪烁是否消失，仍待实机验收。无设置中心配置变更；无运行时进程、计时器、轮询或事件订阅变更。
+
+## LFAA-WEB-VERSION-UPDATE-CHECK-01：Web 显示项目版本并检查官方更新清单
+
+### 用户目标与运行入口
+
+- 用户在 Web 设置中心“关于与更新”查看当前 Web 构建的 LFAA 版本，点击后从 LFAA 官方 `update.json` 检查是否有更新；显示最新版本与更新说明，并提供官方发布页入口。
+- 主要运行入口是 `apps/cli/bin/lfaa.mjs web` 提供的 `dist/apps/web`；`apps/web` Vite 开发/生产构建生成同一套共享 Client。
+- 当前版本从 `apps/cli/package.json` 读取并注入 Web 构建；Web、CLI、Electron 包版本须一致。更新源从 `apps/cli/package.json` 的 GitHub 仓库元数据推导，限制为该仓库的 HTTPS 官方清单与 Release 页面。
+- 更新清单协议以现有 `update.json` 和 Electron 更新合同为准；Web 只做手动只读检查，发现更新后展示清单内容并链接官方发布页，不从浏览器自动下载、安装、替换或重启应用。
+- 设置中心配置盘点：无更新源或自动更新偏好设置；本任务不新增持久化设置，更新检查只由用户点击触发。
+
+### 允许修改
+
+- `apps/web/vite.config.ts` 与 Web 构建元数据读取/类型/定向测试：注入当前项目版本、官方清单地址和发布页；版本不一致或仓库地址不符合预期时构建失败。
+- `packages/client/connection/src/`：提供共享 Client 可读的构建版本常量。
+- `packages/client/ui-settings/src/SettingsPage.tsx` 与其纯更新清单读取/校验帮助模块：支持 Web 手动检查并展示状态；保留 Electron Host 的下载与安装流程。
+- `apps/web/tests/`：覆盖版本元数据、稳定版本比较、合法/无效清单与更新状态判定。
+- `docs/系统总体架构.md` 与 `README.md`：同步官方清单同时供 Electron 自动更新和 Web 手动检查的事实，以及 Web 不执行程序安装的边界。
+- 本合同及索引。
+
+### 禁止修改
+
+- 不改 `update.json`、项目版本、`docs/updata-log.md` 或 Electron 自动下载/安装流程；不把 Web 或 Tauri 标成已支持桌面安装更新。
+- 不由页面加载、后台计时器或轮询触发外网请求；不并发发送重复检查，不向官方清单请求传递账户信息或凭据。
+- 不信任清单内的任意下载 URL/HTML；显示文本须作为普通文本渲染，发布链接只使用构建时校验的 LFAA 官方仓库地址。
+- 不新增 API、服务、用户设置、权限绕行或模拟更新状态；不影响控制端身份/授权、Daemon、Minecraft 与用户运行数据。
+
+### 验收条件
+
+- Web About 页面显示本次构建的项目版本；Electron 仍显示 `app.getVersion()` 提供的宿主版本，Tauri 不因此获得更新器能力。
+- Web 按钮真实 GET 官方 HTTPS `update.json`，校验 schema、稳定版版本号、版本标题、发布日期、更新说明、最低支持版本及仓库地址；报告已是最新、发现新版、清单停用或可诊断失败。
+- 单次请求有界超时、不可重叠，并在离开 About 或组件卸载时中止；没有自动轮询或持续订阅。
+- 运行 Web 更新逻辑定向回归、Client TypeScript 检查、Web 构建至根 `dist/` 及 `git diff --check`。用户授权重启后，只重启经 PID 与命令行核实的当前 `lfaa web --no-local-daemon` 进程；先确认没有需保护的本机 Minecraft 进程，再从当前 127.0.0.1:3000 浏览器会话验收页面显示和真实官方清单检查。无登录态浏览器不得冒充页面验收。
+
+### 本轮实现与验收记录（2026-10-06）
+
+- `apps/web` 构建时从 CLI、Web、Electron 包元数据注入一致的项目版本，并从 CLI 仓库元数据生成固定的官方清单/Release 地址。Settings About 显示 `LFAA 0.1.1`；用户点击后才读取官方 `update.json`，校验版本、日期、说明、最低版本及地址，展示清单结果和官方发布页。Web 不自动下载、安装、替换或重启程序。
+- `pnpm --filter lfaa-web run test:version-update` 7/7 通过；`pnpm exec tsc --noEmit -p tsconfig.client.json` 通过；`pnpm run build:web` 通过（2226 modules，产物位于根 `dist/apps/web`）；`git diff --check` 通过。Vite 输出保留既有大分块警告。`workspace-preflight` 在当前仓库不存在，未运行。构建状态工具仅报告无关 Host 产物过期，本任务没有重建 Host。
+- 重启前确认 3000 端口为 PID 67336 的 `lfaa.mjs web --no-local-daemon`，本机 Java/Minecraft 进程数为 0；仅重启该 Web 进程，新 PID 58492。重启后 `/api/health` 和 About 页面均 HTTP 200；已有登录态浏览器重新点击检查后显示官方 `LFAA 0.1.2`、三条更新说明及官方 Release 链接。
+- 更新请求仅由按钮触发，最多一个在途请求，超时 8 秒，离开 About 或卸载时中止；没有轮询、持续订阅或增长中的缓存。未新增或读取设置中心配置；使用现有 About 页面主题样式。未做帧时间测量（本次功能无动画或持续渲染工作）；桌面安装器和其他平台仍按各自流程验收。
+
+## LFAA-DESKTOP-UPDATE-PROMPT-UI-01：工作台内静音更新弹窗
+
+### 用户目标与运行入口
+
+- 把 Windows Electron 发现新版、下载完成待安装、下载失败及受控退出失败提示从 Windows 原生消息框改为 LFAA 工作台内的自有提示；参照用户提供的现代圆角更新弹窗，明确版本、发布日期、更新说明和下一步操作，不播放系统提示音。
+- 更新决策仍由 `apps/desktop-electron/src/main.mjs` 单一持有；仅提示界面移至共享 Client `packages/client/ui-layout/src/Workbench.tsx`，IPC 通过 `apps/desktop-electron/src/preload.cjs` 和 Connection 类型定义传递。
+- 设置中心盘点：不增加自动下载、跳过版本或提示音配置。更新提示使用现有外观主题、强调色、字体、字号及减少动态效果映射；全局 AI Work `notificationSound` 配置只控制 AI Work 通知，本功能不得读取或播放该提示音。
+
+### 允许修改
+
+- Electron 更新提示 IPC、主进程提示桥接及其直接回归；只向当前可信主窗口发送经校验的清单展示字段，并核对响应请求 ID、阶段和动作。
+- Client Connection 中桌面更新提示类型，`Workbench` 全局工作台内提示呈现及其直接样式；下载、安装与延后决策继续回到原 Electron 更新协调器。
+- 本合同实施记录和索引。
+
+### 禁止修改
+
+- 不改变更新源、清单校验、自动检查间隔、mandatory 语义、下载/安装顺序和关闭本机服务的流程；未经用户同意不下载或安装。
+- 不保留更新流程使用的原生 `showMessageBox`/`showErrorBox`，不调用 Web Audio/系统通知/提示音；不可显示提示时安全地延后或记录错误，不暗中接受更新。
+- 不新增设置项、定时器轮询、独立服务、外部 UI 依赖或新的更新状态 Owner；不影响 AI Work 通知音和其他非更新提示。
+
+### 验收条件
+
+- 单元回归覆盖 Renderer 未就绪时待送达提示、有效/无效决策、强制更新不可延后的动作，以及窗口关闭/等待超时的安全延后与清理。
+- 更新发现、下载完成、更新下载失败和服务关闭失败均不再调用系统消息框；提示 UI 明确呈现真实版本、日期/说明与对应可用操作，所有操作返回现有主进程 Owner。
+- Client 类型检查、更新 Owner/提示桥接定向测试、UI 包构建及 `git diff --check` 通过；待决提示并发上限、计时器清理和 Renderer 重载重发有定向回归覆盖。真实打包 Electron 桌面提示目视验收若环境不可用，必须明确标注未验，不能把静态与构建结果描述为视觉验收。
+- 最终列出全部改动文件绝对路径、设置中心配置使用情况、验证结果及未验收边界；所有构建产物只写入根 `dist/`。
+
+### 本轮实现与验收记录（2026-10-06）
+
+- 将自动/手动发现更新、下载完成、下载失败和本机服务关闭失败提示统一改为共享工作台 Modal。更新卡片显示 LFAA 版本、发布日期、更新说明和当前阶段动作；延后、下载、安装仍通过原主进程更新 Owner 决策，不增加跳过版本或自动下载偏好。更新流程不再调用 Electron 原生消息框，不触发其系统声音；AI Work 通知音链路未修改。
+- 增加受限 IPC 与待决提示桥接。Renderer 只有在监听安装后才标记就绪；页面加载期间的提示会排队，刷新后重新发送。主进程校验 Renderer、请求 ID、阶段动作及 mandatory 规则；同时最多保留一个决策弹窗，窗口关闭和 15 分钟等待超时均安全延后/关闭提示并清除计时器，不会误下载或安装。
+- 设置中心配置盘点：未新增配置；沿用现有 `appearance.theme`、`appearance.accentColor`、界面/正文字体和字号、对比度、遮罩透明度、模糊、减少动态效果；不读取 `general.notificationSound`。
+- `pnpm --filter lfaa-desktop-electron run test:update-manifest` 24/24 通过；Electron `main.mjs`、preload 与提示桥接 Node 语法检查通过；Client TypeScript 检查通过；`pnpm --filter lfaa-client-ui-layout run build` 通过；最终 `pnpm run build:web` 通过（2226 模块，产物位于 `dist/apps/web`；仓库现有 >500 KB chunk 提示仍在）；`git diff --check` 通过。Web 指纹复核为当前；Host 指纹返回 `host` 过期。
+- 未构建 Electron 安装候选：`dist/apps/control-plane` 的 Host 构建指纹相对当前源码过期，直接桌面打包会把旧 Control Plane 与新桌面主进程混装；本轮没有覆盖正在运行的 Host 产物，也没有重启当前应用/服务。Codex CUA 浏览器初始化仍因 Windows 路径错误失败，未能在真实 Electron 窗口触发更新弹窗或检查声音；因此本轮证明的是回归、类型和构建，不声称已完成桌面目视验收。真实安装包视觉仍待隔离桌面候选验收。
+
+## LFAA-DESKTOP-UPDATE-DEFER-SUPPRESSION-01：进程内暂缓同版本更新提示
+
+### 用户目标与运行入口
+
+- 用户选择“暂不更新”后，同一应用进程内的自动检查与设置页手动检查均不再重复提示该版本；退出并重新启动应用后，允许再次提示。
+- 本合同修订 `LFAA-DESKTOP-UPDATE-CONSENT-CHECK-01` 中“同一版本暂缓后手动检查可再次询问”的旧行为；旧记录保留为历史，本合同定义当前规则。
+- 运行入口为 Windows Electron `apps/desktop-electron/src/main.mjs`，唯一更新流程 Owner 为 `apps/desktop-electron/src/update-flow.mjs`；共享设置页只发起现有手动检查并展示结果。
+- 设置中心盘点：没有更新开关、跳过版本设置或相关持久化偏好。本任务只复用更新流程已有的内存状态，不新增设置、账户写入或磁盘状态；Web/Tauri/Android 不受影响。
+
+### 允许修改
+
+- `apps/desktop-electron/src/update-flow.mjs` 中同版本暂缓判定及其直接长期回归。
+- 本合同、任务索引及必要交付记录。
+
+### 禁止修改
+
+- 不新增第二套更新状态 Owner，不把暂缓状态写入设置、账户、文件或跨进程存储。
+- 不改变更新源、检查间隔、版本比较、Release feed 校验、mandatory/最低支持版本、下载/安装顺序或提示 UI。
+- 不重启或覆盖正在运行的 Web、Control Plane、Daemon；不打包、发布或安装 Electron 候选包。
+
+### 验收条件
+
+- 暂缓同一版本后，后续自动检查及手动检查均返回暂缓状态，不再请求 Release feed 或显示更新提示，也不开始下载。
+- 创建新的更新流程实例（对应应用完整退出后重新启动）后，该版本可重新触发提示。
+- 运行 Electron 更新流程直接回归和差异检查；说明未做的 Electron 实机/安装包验收，并列出全部变更文件及设置中心配置使用情况。
+
+### 本轮实现与验收记录（2026-10-06）
+
+- 根因为更新流程只让自动检查遵守 `deferredVersion`，手动检查会绕过暂缓判断。现由 Electron 更新协调器对自动与手动检查统一按版本判断；同一版本暂缓后，即使 6 小时自动复查或用户再次手动检查，也只返回 `deferred`，在读取清单后不再触发 Release feed 检查、更新提示或下载。该状态仍是协调器闭包中的进程内存变量，完整退出会清除，未写入账户设置或磁盘。
+- 设置中心盘点：无桌面更新或跳过版本设置；未新增、修改或读取任何设置中心配置。设置页手动检查入口与外观、通知设置未改。
+- `pnpm --filter lfaa-desktop-electron run test:update-manifest` 通过，24/24；更新流程、Electron 主进程与 preload 的 `node --check` 通过；目标文件 `git diff --check` 通过。未运行构建、workspace-preflight 或根质量/发布 Gate：本 checkout 中 `scripts/workspace-preflight.mjs` 不存在，根 `package.json` 未登记质量/发布 Gate；本次仅改更新协调器及文档，无界面与装配变化。
+- 未构建 Electron 安装候选或在真实桌面窗口操作；因此验收证明覆盖更新流程的自动/手动分支与重启后重问行为，不证明当前已安装版本已包含修复。没有重启或覆盖任何运行中服务。
+
+## LFAA-DESKTOP-UPDATE-PACKAGE-REBUILD-01：重建静音更新提示 Electron 候选包
+
+### 用户目标与运行入口
+
+- 重建 Windows x64 Electron 安装候选，使新候选包含当前工作台静音更新 Modal、主进程提示桥接与“暂不更新”同版本进程内抑制逻辑；产物名按现有用户约定使用 `LFAA-版本号.exe`。
+- 唯一桌面入口为 `apps/desktop-electron` 的 `package:win`；包运行树由 `scripts/prepare-runtime.mjs` 从根 `dist/apps/web`、`dist/apps/control-plane`、Daemon Sandbox Host 和锁定运行依赖组装。项目版本从 `docs/updata-log.md`、CLI/Web/Electron 元数据和 `update.json` 对账。
+- 设置中心盘点：无自动更新、跳过版本或提示音控制项；不修改设置，不把暂缓状态持久化。
+
+### 允许修改
+
+- 只更新构建脚本管理的 `dist/apps/desktop-electron/` 和 `dist/.tmp/desktop-electron/` 候选/临时产物。
+- 若生产依赖的 `pnpm deploy` 因 Electron 打包专用补丁不属于目标生产依赖而拒绝执行，只在该次 deploy 命令局部启用 `allowUnusedPatches`；保留随后的工作区安装严格校验，不改全局/工作区补丁策略。
+- 允许对 `apps/desktop-electron/package.json` 的 `package:win` 增加上述局部 deploy 参数；其它依赖、版本和构建步骤不改。
+- `docs/PROMPTS.md` 本任务索引与实际验收记录。
+
+### 禁止修改
+
+- Web PID 58492 当前使用 `dist/apps/web` 与 Control Plane。两者构建指纹有效时不再执行会覆盖 `dist/apps/web`、`dist/apps/control-plane` 或 `dist/apps/daemon` 的全量入口构建。
+- 不安装、启动或升级候选，不重启 Web、Control Plane、Daemon 或现有桌面应用；不签名、发布、上传、提交或改变项目版本/更新日志。
+- 不清理 `dist/` 全根目录；只允许按桌面打包脚本的职责重建指定桌面临时运行树和 Electron 产物。
+- 不将 `allowUnusedPatches` 写入 `pnpm-workspace.yaml` 或持久化 pnpm 配置，不忽略 Electron 安装依赖真正使用补丁时的应用失败。
+
+### 验收条件
+
+- 构建前核对 Windows x64/Node、更新清单与项目版本、Host/Web 指纹、活动服务 PID 及构建实际管理的精确路径。
+- Electron 更新流程回归与更新清单校验通过；安装候选位于根 `dist/apps/desktop-electron/`，名称为 `LFAA-<package version>.exe`，核对大小、SHA-256、签名状态和实际包版本。
+- `verify-packaged-runtime.mjs` 对候选中的真实运行树执行 CUA Driver 插件导入验收；静态核对打包 `main.mjs`/preload 与工作台资源确实包含本轮更新提示代码。
+- 不将构建或包内模块导入称为安装/启动验收；最终列出全部改动文件、设置中心配置、命令结果和未运行步骤。
+
+### 本轮实现与验收记录（2026-10-06）
+
+- 首次标准打包在生产依赖 `pnpm deploy` 阶段被工作区 Electron-only 补丁 `app-builder-lib@26.15.3` 判为未使用并失败。按 pnpm 官方 `allowUnusedPatches` 配置语义，只在该生产 deploy 子命令增加 `--config.allowUnusedPatches=true`；随后的完整工作区 `pnpm install` 保持原严格策略，安装器测试确认补丁仍实际应用。未改 `pnpm-workspace.yaml` 补丁注册、补丁正文或全局 pnpm 设置。
+- `pnpm --filter lfaa-desktop-electron run package:win` 最终通过；pnpm 恢复工作区 110 个项目依赖，CUA Driver `0.32.0` 版本匹配；Electron Builder `26.15.3` 生成 `dist/apps/desktop-electron/LFAA-0.1.1.exe`，大小 `158465772` 字节，SHA-256 `FAA2B3ED334C9FA3F73A1E948BD9283C0F27DFD0DF695C577EAFE429CF53ABDF`，Authenticode 状态 `NotSigned`。`latest.yml` 版本、文件名、大小及 SHA-512 与安装包一致；未上传或发布。
+- `node apps/desktop-electron/scripts/update-manifest.mjs validate` 通过；`pnpm --filter lfaa-desktop-electron run test:update-manifest` 24/24；`node --test apps/desktop-electron/tests/installer-package.test.mjs` 3/3；Electron Builder 随包验收输出“桌面 Profile CUA Driver 导入与工具注册通过”。从实际 `app.asar` 提取核对 `main.mjs`、`preload.cjs`、`update-flow.mjs` 与 `update-prompt-broker.mjs`；同版本暂缓判断存在于包内，更新提示调用自有 broker，没有原生消息框调用。实际打包 Web 资源 `Workbench-CLWl6wvD.js` 与 CSS 均包含工作台更新弹窗。
+- 构建前后 Host/Web 指纹均为当前（`[]`）；未重建/覆盖其活动输出。PID 58492 的 Web `/api/health` 构建期间与结束后均为 HTTP 200。没有安装或启动 NSIS 候选，也没有重启任何服务；因此确认新候选内容正确，但尚未目视验收启动后的真实 Electron 弹窗。桌面更新逻辑无设置中心配置变更；没有增加轮询、计时器、订阅或用户数据写入。
+- 适用的 `scripts/workspace-preflight.mjs` 不存在，根 `package.json` 没有质量/发布 Gate；这两项未运行。最终 `git diff --check` 通过。
+
+## LFAA-APP-VERSION-REBASE-01：将更新版本线设为 0.0.1 → 0.0.2
+
+### 用户目标与运行入口
+
+- 用户要求以 `LFAA 0.0.1` 为已安装基线，将已删除的 GitHub `0.1.2` 更新目标改为 `LFAA 0.0.2`，生成 Windows Electron `LFAA-0.0.2.exe` 候选。
+- 项目版本 Owner 为 `docs/updata-log.md`；Web/Electron 更新清单是该版本的投影；当前实际产品版本由 CLI、Web 与 Electron 包元数据共同构建并验证。
+- Electron 候选 Web 资源应在 `dist/.tmp/desktop-electron/` 独立构建，再装入包运行树，不覆盖当前 Web 服务使用的 `dist/apps/web`。
+- 设置中心配置盘点：无版本号或更新源设置；本任务不新增或修改设置。
+
+### 允许修改
+
+- `docs/updata-log.md`、`update.json`，把本轮正式候选版本设为 `0.0.2`、最低支持版本设为 `0.0.1`；保留既有日志条目作为历史记录。
+- `apps/cli/package.json`、`apps/web/package.json`、`apps/desktop-electron/package.json` 的产品版本对齐至 `0.0.2`。
+- `apps/web/package.json` 中将 Web 候选构建输出到根 `dist/.tmp/desktop-electron/web-candidate` 的脚本；Electron 准备运行树时从该候选目录复制 Web 资源，不读写正式运行中的 Web 产物。
+- `apps/web/tests/` 与 `apps/desktop-electron/tests/` 中直接验证版本元数据、`0.0.1 → 0.0.2` 比较和更新流程的长期回归。
+- 本合同索引与验收记录；构建工具管理的根 `dist/apps/desktop-electron/` 与 `dist/.tmp/desktop-electron/` 产物。
+
+### 禁止修改
+
+- 不回写或删除 #1–#11 既有更新日志，不把已删除的 GitHub `0.1.2` 重新发布或上传；仅生成本地候选。
+- 不覆盖 `dist/apps/web`、`dist/apps/control-plane`、`dist/apps/daemon`，不重启或替换当前 Web、Control Plane、Daemon 或已安装桌面应用。
+- 不清理根 `dist/`；仅允许清理 Electron 脚本管理的桌面临时目录及桌面安装候选。
+- 不改变更新源、签名策略、mandatory 语义、检查节奏、下载/安装 Owner 或用户数据。
+
+### 验收条件
+
+- `docs/updata-log.md`、CLI/Web/Electron 产品版本及 `update.json.version/title/publishedAt/releaseNotes` 一致为 `0.0.2`；`minimumSupportedVersion` 为 `0.0.1`。
+- 定向回归确认基线 `0.0.1` 可发现 `0.0.2` 更新，更新包内 Web 构建版本为 `0.0.2`。
+- Windows x64 Electron `package:win` 及随包运行树验收通过；核对包名、内部版本、哈希、签名状态、工作台更新提示资源及暂缓逻辑。
+- 确认构建期间未改写正在运行 Web 使用的 `dist/apps/web` 指纹；明确报告尚未执行的真实安装/更新/视觉验收及外部发布。
+
+### 实施与验收记录
+
+- 版本链现为 `0.0.1 → 0.0.2`：`docs/updata-log.md` 新增 #12 `LFAA 0.0.2`，保留 #1–#11 历史；CLI、Web、Electron 包版本及 `update.json` 均为 `0.0.2`，最低支持版本为 `0.0.1`。此前 GitHub `0.1.2` 已由用户删除；本轮未访问、上传或重新发布任何 GitHub Release。
+- Electron `package:win` 先把 Web 源码构建到 `dist/.tmp/desktop-electron/web-candidate`，再从该候选组装 Electron 运行树，避免覆盖当前服务使用的 `dist/apps/web`。候选包内 `package.json` 为 `0.0.2`；从 `app.asar` 核实更新下载提示使用工作台 prompt broker、更新流程没有原生消息框调用、同版本暂缓判断存在；随包 Web 资源包含 `0.0.2` 和“暂不更新”。
+- `pnpm --filter lfaa-web run test:version-update` 通过 7/7；`pnpm --filter lfaa-desktop-electron run test:update-manifest` 通过 24/24；`node --test apps/desktop-electron/tests/installer-package.test.mjs` 通过 3/3；`node apps/desktop-electron/scripts/update-manifest.mjs validate` 与 `git diff --check` 通过。Web 候选构建输出 2226 个模块至隔离候选目录；Vite 报告既有大分块提示。
+- `pnpm --filter lfaa-desktop-electron run package:win` 通过，生成 `dist/apps/desktop-electron/LFAA-0.0.2.exe`，大小 `158463208` 字节，SHA-256 `09629CF014B4FB4C0922794C7137A4A4327B86191AED40286C70E00CD0901D2F`；`latest.yml` 的版本、包名、大小和 SHA-512 与安装包一致；Authenticode 为 `NotSigned`。随包 CUA Driver 导入与工具注册验收通过。
+- 构建前后 `dist/apps/web/index.html` SHA-256 均为 `A0868D7DAD49FE42809CB9A1FE7CC66D1FEAAA5273CBD9A9E445EFF7250DA28B`，`build-state.json` 均为 `B6F64C725D0C3EDD77BEF16B605AB79205B53CEBA4CD52743A16DB3613B6D81B`；PID 58492 的 `http://127.0.0.1:3000/api/health` 返回 HTTP 200，构建期间未重启服务。设置中心无版本或更新源配置，本轮未新增/改动设置；版本映射使用既有产品设置页和 Electron 更新流程。
+- 此次修改只增加一次打包用的候选 Web 构建工作量；未进行浏览器交互帧时间测量，未安装/启动安装包，未目视检查真实 Electron 更新弹窗，也未进行真实下载升级。当前安装为 `0.1.1` 的客户端不会把 `0.0.2` 视为更高版本；要验证 `0.0.1 → 0.0.2` 自动升级，需要先使用 `0.0.1` 基线安装。没有代码签名、GitHub 上传或 Release 发布。仓库没有 `scripts/workspace-preflight.mjs`，根 `package.json` 没有额外质量/发布 Gate；未运行。
+
+## LFAA-DESKTOP-UPDATE-RELEASE-003：修复更新源 404 提示并发布 LFAA 0.0.3
+
+### 用户目标与运行入口
+
+- 当前桌面版本为 `0.0.2`。用户报告 Electron 请求 `https://github.com/yubboo/LFAA/releases/latest/download/latest.yml` 返回 404；运行时截图显示更新错误正文把原始 HTTP 响应头及 GitHub 会话 Cookie 展示到了界面。
+- 修复范围是桌面更新唯一 Owner `apps/desktop-electron/src/update-flow.mjs` 与其 `main.mjs` 调用/日志、更新回归；更新检查失败只能向 UI 与日志输出脱敏摘要，不保留原始响应头、Cookie、响应体或调用栈。
+- 本轮正式目标为 `LFAA 0.0.3`。版本 Owner 为 `docs/updata-log.md`，更新清单为 `update.json`；桌面 Release feed 需要同时提供 Windows 安装程序及 `latest.yml`。
+- 用户指定的发布说明：新增可插件化工作流核心并完善数据分层管理；修复 Electron 桌面启动依赖，补齐带安装须知确认、详细进度、品牌图标和桌面快捷方式的 Windows 安装器；接入桌面版自动与手动检查更新，下载与安装前明确征求用户选择。
+- 设置中心无更新源/版本开关，本轮不增加或修改设置；继续使用现有“关于与更新”和 Electron 更新 Owner。
+
+### 允许修改
+
+- Electron 更新流程错误对外信息与直接相关长期回归；只提供有限、安全的 HTTP 状态摘要，禁止把上游错误全文写入用户界面或日志。
+- 本版本产品元数据、`docs/updata-log.md`、`update.json`、受影响发布说明与本任务合同；Windows x64 Electron 打包输出。
+- 为发布本版本所需的精准 Git 提交、`main` 推送、`0.0.3` Release Tag 与 GitHub Release 资产（`LFAA-0.0.3.exe`、`latest.yml` 及安装器 blockmap）。提交内容须逐项审阅，且不得混入未经授权或未完成的并行改动。
+
+### 禁止修改
+
+- 不更改 GitHub Actions/凭据/访问策略，不将用户截图中的会话 Cookie 或任何 Token 写入代码、提交、日志或发布说明。
+- 不重写 Git 历史、不强推、不删除或覆盖现有 tag/release；仅当目标名称尚不存在时创建 `0.0.3`。
+- 不在真实主机上安装候选、停止/重启当前服务或客户端；不发布 npm、商店或其他平台版本。
+
+### 验收条件
+
+- 更新流程遇到含 Cookie、响应头和堆栈的 HTTP 错误时，对用户与日志只显示脱敏摘要，并保留针对 404 的可读提示。
+- 更新/安装器回归、版本清单校验、Windows x64 NSIS 包构建通过；包名、版本、大小和 `latest.yml` 哈希匹配。
+- 先审阅并只提交授权差异，随后推送 `main` 并建立官方 `0.0.3` Release，资产可从 `releases/latest/download/` 下载。
+- 明确记录没有真实安装/桌面视觉/自动升级验收的边界。用户截图包含 GitHub 会话 Cookie，提醒用户结束该会话并重新认证。
+
+### 实施与本地验收记录
+
+- `apps/desktop-electron/src/update-flow.mjs` 现在只向 UI 和日志返回有限的安全错误摘要；HTTP 404 显示“官方更新文件尚未发布或暂时不可用（HTTP 404），请稍后重试。”，不会输出原始响应、响应头、Cookie 或堆栈。主进程更新错误事件和自动检查日志使用同一摘要 Owner；回归使用合成 Cookie 标记确认敏感响应不会泄露。
+- CLI/Web/Electron 包元数据与 `update.json` 均为 `0.0.3`，最低支持版本为 `0.0.1`；保留历史 `0.1.2` 记录为 #13，并把本次 `0.0.3` 写为 #14。设置中心没有版本/更新源控制项，本次未新增或改动设置。
+- 更新、安装器和工作区恢复回归合计 44 项通过；CLI workspace 用例使用仓库注册加载器 6/6 通过。更新清单校验和 `git diff --check` 通过。构建后的 `app.asar` 已核实包含 `0.0.3` 产品版本、更新错误脱敏逻辑和工作台提示 Broker。
+- `pnpm --filter lfaa-desktop-electron run package:win` 在合并远端 `main` 的 3 个提交后重新通过；Vite 隔离构建 2226 个模块，既有大分块警告仍在。生成 `dist/apps/desktop-electron/LFAA-0.0.3.exe`，大小 158463589 字节，SHA-256 `01D6F89C108F2D11D60E7A4AA3E263826E2FF6069445765FE37F2674C3953F77`；`latest.yml` 中版本、文件名、大小及 SHA-512 均与安装包匹配；随包 CUA Driver 导入与工具注册通过。Windows Authenticode 状态为 `NotSigned`。
+- 构建期间 `pnpm install` 按已清理空白符的 `app-builder-lib@26.15.3` 补丁更新了 `pnpm-lock.yaml` 的补丁哈希，变更仅对应此次补丁文件，已纳入本次发布提交。`http://127.0.0.1:3000/api/health` 构建后返回 HTTP 200，未重启当前服务，也未覆盖 `dist/apps/web`。
+- 本地验收完成，尚未推送 GitHub `main`、创建 Release 或实际安装/启动候选；发布执行结果将在完成后补记。未进行桌面更新弹窗目视及真实自动升级验收。

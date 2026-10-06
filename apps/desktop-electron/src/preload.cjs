@@ -5,8 +5,31 @@
  */
 const { contextBridge, ipcRenderer } = require("electron");
 
+const updatePromptListeners = new Set();
+let queuedUpdatePrompt = null;
+
+ipcRenderer.on("lfaa:desktop:update-prompt", (_event, prompt) => {
+  if (updatePromptListeners.size === 0) {
+    queuedUpdatePrompt = prompt;
+    return;
+  }
+  for (const listener of updatePromptListeners) listener(prompt);
+});
+
 contextBridge.exposeInMainWorld("lfaaDesktop", {
   selectDataDirectory: () => ipcRenderer.invoke("lfaa:select-data-directory"),
   getUpdateRuntimeInfo: () => ipcRenderer.invoke("lfaa:desktop:update-runtime"),
-  checkForUpdates: () => ipcRenderer.invoke("lfaa:desktop:check-updates")
+  checkForUpdates: () => ipcRenderer.invoke("lfaa:desktop:check-updates"),
+  onUpdatePrompt: (listener) => {
+    if (typeof listener !== "function") throw new TypeError("更新提示监听器必须是函数。");
+    updatePromptListeners.add(listener);
+    if (queuedUpdatePrompt) {
+      listener(queuedUpdatePrompt);
+      queuedUpdatePrompt = null;
+    }
+    return () => updatePromptListeners.delete(listener);
+  },
+  updatePromptUiReady: () => ipcRenderer.invoke("lfaa:desktop:update-prompt-ui-ready"),
+  updatePromptUiNotReady: () => ipcRenderer.invoke("lfaa:desktop:update-prompt-ui-not-ready"),
+  respondToUpdatePrompt: (requestId, action) => ipcRenderer.invoke("lfaa:desktop:update-prompt-response", { requestId, action })
 });

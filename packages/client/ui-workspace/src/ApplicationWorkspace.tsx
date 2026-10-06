@@ -8,7 +8,7 @@
 import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
 import { sidebarRightRuntime, useSidebarRightSnapshot } from "./sidebar-right-runtime.js";
 
-import { createElement, lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { createElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Alert, Popover, Tag, Typography } from "antd";
 import { archiveAiSession, getErrorMessage, hasAdminAccess, loadAiExtensions, loadAiSessions, loadWorkspaceProjects, loadWritingWorkspace, userRoleLabel, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import type { AiWorkNotification, AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
@@ -20,7 +20,7 @@ import { readWorkbenchLeftWidth, saveWorkbenchLeftWidth } from "lfaa-client-ui-d
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
 import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH, GLOBAL_NAVIGATION_RAIL_WIDTH, GlobalNavigationRail } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
-import { DEFAULT_USER_SETTINGS } from "lfaa-client-ui-settings-general/src/default-settings.js";
+import { resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { TaskTerminal } from "./TaskTerminal.js";
 import "./module-workbench.css";
@@ -314,10 +314,9 @@ function PanelControl({ name, title, shortcut, active, onClick }: { name: "termi
 }
 
 export function ApplicationWorkspace({ userId, app, mode, section, apps, username, role, serverState, error, settings, onSettingsChange, onBack, onSelectedModeHome, onNavigate, onOpenSettings, onOpenApplication, activeAiSessionId, aiDraft, notifications, onNotification, onMarkNotificationsRead, onClearNotifications, onOpenNotification, onActiveAiSessionChange, onAiDraftChange, onLogout }: ApplicationWorkspaceProps) {
-  // 新增设置字段遇到旧 Host 响应时沿用 Settings 包默认值，避免 AI Work 首屏渲染崩溃。
-  const sideChatShortcuts = Array.isArray(settings.shortcuts?.openSideChat)
-    ? settings.shortcuts.openSideChat
-    : DEFAULT_USER_SETTINGS.shortcuts.openSideChat;
+  // 旧版 Host 可能缺少后续新增的快捷键项；由 Settings 默认值补齐，不覆盖已保存的空数组。
+  const shortcuts = useMemo(() => resolveShortcutSettings(settings.shortcuts), [settings.shortcuts]);
+  const sideChatShortcuts = shortcuts.openSideChat;
   const layoutRef = useRef<HTMLDivElement>(null);
   const previewCloseTimer = useRef<number | null>(null);
   const metrics = useWorkbenchMetrics(layoutRef, () => initialMetrics(true), true);
@@ -575,7 +574,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
           && Boolean(event.shiftKey) === parts.includes("shift");
       };
       const region = isEditableTarget(event.target) ? "editable" : "page";
-      if (settings.shortcuts.wallpaperSidebarToggle.some((chord) => chord && matches(chord))
+      if (shortcuts.wallpaperSidebarToggle.some((chord) => chord && matches(chord))
         && sidebarRightRuntime.runShortcut(event, region)) {
         event.preventDefault();
         return;
@@ -587,12 +586,12 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
       }
       if (region === "editable") return;
       const actionGroups: Array<[string[], () => void]> = [
-        [settings.shortcuts.toggleContextPanel, toggleRight],
-        [settings.shortcuts.toggleSidebar, toggleLeft],
-        [terminalPanelAvailable ? settings.shortcuts.toggleBottomPanel : [], toggleTerminal],
-        [terminalPanelAvailable ? settings.shortcuts.openTerminal : [], openTerminal],
-        [app === "workspace" ? [] : settings.shortcuts.switchNormalMode, () => { void openApplication(app, "normal"); }],
-        [settings.shortcuts.switchAiWorkMode, () => { void openApplication(app, "ai-work"); }]
+        [shortcuts.toggleContextPanel, toggleRight],
+        [shortcuts.toggleSidebar, toggleLeft],
+        [terminalPanelAvailable ? shortcuts.toggleBottomPanel : [], toggleTerminal],
+        [terminalPanelAvailable ? shortcuts.openTerminal : [], openTerminal],
+        [app === "workspace" ? [] : shortcuts.switchNormalMode, () => { void openApplication(app, "normal"); }],
+        [shortcuts.switchAiWorkMode, () => { void openApplication(app, "ai-work"); }]
       ];
       const actions = actionGroups.flatMap(([chords, action]) => chords.filter(Boolean).map((chord) => [chord, action] as [string, () => void]));
       const action = actions.find(([chord]) => matches(chord));
@@ -607,7 +606,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [app, metrics.mode, mode, openApplication, openTerminal, settings.shortcuts, sideChatShortcuts, toggleLeft, toggleRight, toggleSideChat, toggleTerminal]);
+  }, [app, metrics.mode, mode, openApplication, openTerminal, shortcuts, sideChatShortcuts, toggleLeft, toggleRight, toggleSideChat, toggleTerminal]);
 
   const clearPreviewClose = useCallback(() => {
     if (previewCloseTimer.current !== null) {
@@ -703,7 +702,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
     <div className="module-center">
       <header className={`module-center__header${writingAiWork ? " module-center__header--writing-ai-work" : ""}`} data-layout-mode={metrics.mode}>
         <div className="module-center__heading">
-          <button className="module-shell-icon-button" type="button" aria-label="切换应用导航" aria-expanded={!chrome.leftCollapsed} aria-keyshortcuts={settings.shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`切换应用导航 · ${settings.shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={openLeftPreview} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
+          <button className="module-shell-icon-button" type="button" aria-label="切换应用导航" aria-expanded={!chrome.leftCollapsed} aria-keyshortcuts={shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`切换应用导航 · ${shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={openLeftPreview} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
           <div className="module-center__title"><WorkbenchIcon name={mode === "normal" ? "folder" : "spark"} size={16} /><strong>{writingAiWork ? "智能体对话" : selectedApp.title}</strong></div>
         </div>
         <div className="module-center__mode" role="tablist" aria-label="应用模式">
@@ -712,8 +711,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
         </div>
         <div className="module-center__actions">
           <span className={`module-runtime-state${serverState === "online" ? " is-connected" : ""}`}><i aria-hidden="true" />{statusLabel}</span>
-          {terminalPanelAvailable && settings.general.showBottomPanelControl && (chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="terminal" title="底部终端" shortcut={settings.shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
-          {(chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="panelRight" title="上下文栏" shortcut={settings.shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
+          {terminalPanelAvailable && settings.general.showBottomPanelControl && (chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
+          {(chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="panelRight" title="上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
         </div>
       </header>
       <main ref={moduleContentScroll.ref} onScroll={moduleContentScroll.onScroll} className={`module-center__content${mode === "ai-work" ? " module-center__content--ai-work" : ""}${writingNormal ? " module-center__content--writing-normal" : ""}`} aria-label={mode === "ai-work" ? `${selectedApp.title} AI Work 对话` : writingNormal ? "写作正文编辑区" : undefined} aria-labelledby={mode === "normal" && app !== "minecraft" && !writingNormal ? "module-heading" : undefined}>
@@ -776,8 +775,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
   const right = (
     <aside className="module-context" aria-label={app === "writing" ? mode === "ai-work" ? "写作上下文" : "作品信息" : "工具与资源"} data-layout-mode={metrics.mode}>
       {metrics.mode === "desktop" && !chrome.rightCollapsed ? <header className="module-context__shell-actions">
-          {terminalPanelAvailable && settings.general.showBottomPanelControl ? <PanelControl name="terminal" title="底部终端" shortcut={settings.shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
-          <PanelControl name="panelRight" title="收起上下文栏" shortcut={settings.shortcuts.toggleContextPanel.join(" / ")} active onClick={toggleRight} />
+          {terminalPanelAvailable && settings.general.showBottomPanelControl ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
+          <PanelControl name="panelRight" title="收起上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active onClick={toggleRight} />
       </header> : null}
       <div ref={contextBodyScroll.ref} onScroll={contextBodyScroll.onScroll} className="module-context__body">
       {mode === "ai-work" ? <div className="module-context__side-chat" hidden={!sideChatOpen}>
@@ -826,7 +825,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
       <header className="module-context__heading"><div><strong>工具与资源</strong><span>Runtime Registry</span></div><span className={`module-context__connection module-context__connection--${serverState}`}><i aria-hidden="true" />{serverState === "online" ? "已连接" : serverState === "checking" ? "检查中" : "未连接"}</span><button className="module-shell-icon-button module-context__close" type="button" aria-label="收起工具与资源" title="收起工具与资源" onClick={toggleRight}><WorkbenchIcon name="close" size={15} /></button></header>
         {(app === "workspace" || app === "minecraft") && mode === "ai-work" ? <Suspense fallback={<div className="module-context__git-loading"><span>正在准备 Git 摘要…</span></div>}><GitChangeSummary appId={app as WorkspaceProjectApplicationId} project={selectedGitProject} refreshRevision={gitRefreshRevision} /></Suspense> : null}
         <div className="module-context__tools">
-          {terminalPanelAvailable && settings.general.showBottomPanelControl ? <button type="button" onClick={openTerminal} aria-keyshortcuts={settings.shortcuts.openTerminal.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="terminal" size={16} /><span>终端</span><kbd>{settings.shortcuts.openTerminal.join(" / ") || "未分配"}</kbd></button> : null}
+          {terminalPanelAvailable && settings.general.showBottomPanelControl ? <button type="button" onClick={openTerminal} aria-keyshortcuts={shortcuts.openTerminal.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="terminal" size={16} /><span>终端</span><kbd>{shortcuts.openTerminal.join(" / ") || "未分配"}</kbd></button> : null}
           {mode === "ai-work" ? <button type="button" className="module-context__side-chat-action" onClick={() => openSideChat()} title="主聊天任务会继续运行；侧聊使用已记录的上下文快照。" aria-keyshortcuts={sideChatShortcuts.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="help" size={16} /><span>侧边聊天</span><kbd>{sideChatShortcuts.join(" / ") || "未分配"}</kbd></button> : null}
           <button type="button" disabled title="当前 Web Host 尚未接入审查工具"><WorkbenchIcon name="review" size={16} /><span>审查</span><kbd>待接入</kbd></button>
           <button type="button" disabled title="当前 Web Host 尚未接入浏览器工具"><WorkbenchIcon name="browser" size={16} /><span>浏览器</span><kbd>待接入</kbd></button>
@@ -860,7 +859,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
   const previewStyle = { "--module-left-preview-width": `${leftPaneWidth}px` } as CSSProperties;
   return (
     <div className="module-workbench-stage" style={previewStyle} data-layout-mode={metrics.mode}>
-      <GlobalNavigationRail username={username} role={role} serverState={serverState} shortcuts={settings.shortcuts} activePage="home" homeLabel="返回当前模式首页" onHome={onSelectedModeHome} onApplicationsHome={onBack} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={toggleRight} />
+      <GlobalNavigationRail username={username} role={role} serverState={serverState} shortcuts={shortcuts} activePage="home" homeLabel="返回当前模式首页" onHome={onSelectedModeHome} onApplicationsHome={onBack} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={toggleRight} />
       <div ref={layoutRef} className="module-workbench-layout" data-layout-mode={metrics.mode}>
         {chrome.leftCollapsed && metrics.mode !== "mobile" ? <div className={`module-left-preview${leftPreviewOpen ? " is-visible" : ""}`} data-layout-mode={metrics.mode} aria-hidden={!leftPreviewOpen} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview}>{leftPreview}</div> : null}
         <ResizableWorkbench

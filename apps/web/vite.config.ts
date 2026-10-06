@@ -5,6 +5,7 @@
  */
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { createLogger, defineConfig, loadEnv, type Logger } from "vite";
 import react from "@vitejs/plugin-react";
 import { renderIndexInjections } from "@deepseek-ai/dsh-host-webserver";
@@ -12,8 +13,14 @@ import { createHarnessDevProxy } from "./src/dev-proxy.js";
 import { workspaceAliases } from "../../scripts/harness-workspace.mjs";
 import { recordRuntimeBuild, runtimeBuildFingerprint } from "../../scripts/runtime-build-state.mjs";
 import { createWebAssetRetentionPlugin } from "./scripts/web-asset-retention.mjs";
+import { createProjectBuildMetadata } from "./scripts/project-version.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const projectBuildMetadata = createProjectBuildMetadata({
+  projectPackage: JSON.parse(readFileSync(resolve(repositoryRoot, "apps/cli/package.json"), "utf8")),
+  webPackage: JSON.parse(readFileSync(resolve(repositoryRoot, "apps/web/package.json"), "utf8")),
+  electronPackage: JSON.parse(readFileSync(resolve(repositoryRoot, "apps/desktop-electron/package.json"), "utf8"))
+});
 
 function createBackendProxyLogger(): { logger: Logger; markBackendAvailable: () => void } {
   const viteLogger = createLogger();
@@ -115,6 +122,7 @@ export default defineConfig(({ mode }) => {
       ]
     },
     define: {
+      __LFAA_PROJECT_BUILD_INFO__: JSON.stringify(projectBuildMetadata),
       // Match DSH's browser build: Cordis Loader's Node-only internal loader
       // stays unreachable while its client-side internal slot is supplied
       // by the DSH module graph at boot.

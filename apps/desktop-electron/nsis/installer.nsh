@@ -3,6 +3,12 @@
 ; 关联文件：apps/desktop-electron/package.json、apps/desktop-electron/src/main.mjs、apps/desktop-electron/assets/installation-notice.txt。
 ShowInstDetails show
 
+!macro customInstallFilesStart
+  SetDetailsPrint textonly
+  DetailPrint "正在安装到：$INSTDIR"
+  SetDetailsPrint listonly
+!macroend
+
 !macro customInstall
   SetDetailsPrint both
   DetailPrint "LFAA 桌面程序与本机运行环境已安装到：$INSTDIR"
