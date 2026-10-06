@@ -3,7 +3,7 @@ import test from "node:test";
 import { createDesktopUpdateFlow } from "../src/update-flow.mjs";
 
 function createHarness(overrides = {}) {
-  const calls = { readManifest: 0, checkReleaseFeed: 0, promptForUpdate: 0, beginDownload: 0, errors: [] };
+  const calls = { readManifest: 0, checkReleaseFeed: 0, promptForUpdate: 0, beginDownload: 0, ignored: [], availability: [], errors: [] };
   const manifest = {
     enabled: true,
     version: "0.0.3",
@@ -15,8 +15,11 @@ function createHarness(overrides = {}) {
     isSupported: () => true,
     getCurrentVersion: () => "0.0.2",
     readManifest: async () => { calls.readManifest += 1; return manifest; },
-    checkReleaseFeed: async () => { calls.checkReleaseFeed += 1; return { isUpdateAvailable: true, updateInfo: { version: "0.0.3" } }; },
+    checkReleaseFeed: async () => { calls.checkReleaseFeed += 1; return { isUpdateAvailable: true, updateInfo: { version: manifest.version } }; },
     promptForUpdate: async () => { calls.promptForUpdate += 1; return "accept"; },
+    getPreferences: async () => ({ autoDownloadAndInstall: false, ignoredVersion: "" }),
+    ignoreVersion: async version => { calls.ignored.push(version); },
+    onUpdateAvailable: manifest => { calls.availability.push(manifest?.version ?? null); },
     beginDownload: () => { calls.beginDownload += 1; },
     onError: (_error, phase, _manifest, safeMessage) => calls.errors.push({ message: safeMessage, phase }),
     ...overrides
@@ -48,6 +51,45 @@ test("发布清单关闭更新时报告当前策略且不访问安装源", async
   assert.equal((await flow.check({ manual: true })).status, "disabled");
   assert.equal(calls.checkReleaseFeed, 0);
   assert.equal(calls.promptForUpdate, 0);
+});
+
+test("跳过只持久忽略当前版本，随后清除顶部更新入口", async () => {
+  const { calls, flow } = createHarness({
+    promptForUpdate: async () => { calls.promptForUpdate += 1; return "skip"; }
+  });
+  const result = await flow.check({ manual: true });
+  assert.equal(result.status, "ignored");
+  assert.deepEqual(calls.ignored, ["0.0.3"]);
+  assert.deepEqual(calls.availability, ["0.0.3", null]);
+  assert.equal(calls.beginDownload, 0);
+});
+
+test("已跳过版本不会再次提示，新版本仍进入真实 Release feed 校验", async () => {
+  const { calls, flow, manifest } = createHarness({
+    getPreferences: async () => ({ autoDownloadAndInstall: false, ignoredVersion: "0.0.3" })
+  });
+  assert.equal((await flow.check()).status, "ignored");
+  assert.equal(calls.checkReleaseFeed, 0);
+  assert.equal(calls.promptForUpdate, 0);
+
+  manifest.version = "0.0.4";
+  assert.equal((await flow.check()).status, "downloading");
+  assert.equal(calls.checkReleaseFeed, 1);
+  assert.equal(calls.promptForUpdate, 1);
+  assert.deepEqual(calls.availability, [null, "0.0.4"]);
+});
+
+test("本机自动更新偏好开启时跳过提示并带上自动安装决策开始下载", async () => {
+  let downloadOptions;
+  const { calls, flow } = createHarness({
+    getPreferences: async () => ({ autoDownloadAndInstall: true, ignoredVersion: "" }),
+    promptForUpdate: async () => { calls.promptForUpdate += 1; return "defer"; },
+    beginDownload: (_manifest, options) => { calls.beginDownload += 1; downloadOptions = options; }
+  });
+  assert.equal((await flow.check()).status, "downloading");
+  assert.equal(calls.promptForUpdate, 0);
+  assert.equal(calls.beginDownload, 1);
+  assert.deepEqual(downloadOptions, { automaticInstall: true });
 });
 
 test("清单与 Release feed 版本不一致时拒绝弹出更新并拒绝下载", async () => {

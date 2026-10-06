@@ -851,7 +851,17 @@ export interface DesktopUpdateRuntimeInfo {
   currentVersion: string;
 }
 
-export type DesktopUpdatePromptAction = "accept" | "defer" | "install" | "later" | "dismiss";
+export interface DesktopUpdatePreferences {
+  autoDownloadAndInstall: boolean;
+}
+
+export interface DesktopAvailableUpdate {
+  version: string;
+  publishedAt: string;
+  releaseNotes: string[];
+}
+
+export type DesktopUpdatePromptAction = "accept" | "defer" | "skip" | "install" | "later" | "dismiss";
 
 export type DesktopUpdatePrompt =
   | {
@@ -871,7 +881,7 @@ export type DesktopUpdatePrompt =
     };
 
 export interface DesktopUpdateCheckResult {
-  status: "unsupported" | "disabled" | "up-to-date" | "deferred" | "downloading" | "downloaded" | "error";
+  status: "unsupported" | "disabled" | "up-to-date" | "deferred" | "ignored" | "downloading" | "downloaded" | "error";
   currentVersion: string;
   latestVersion?: string;
   releaseNotes?: string[];
@@ -883,7 +893,11 @@ declare global {
     lfaaDesktop?: {
       selectDataDirectory: () => Promise<string | null>;
       getUpdateRuntimeInfo: () => Promise<DesktopUpdateRuntimeInfo>;
+      getUpdatePreferences: () => Promise<DesktopUpdatePreferences>;
+      setAutoUpdateAndInstall: (enabled: boolean) => Promise<DesktopUpdatePreferences>;
+      getUpdateAvailability: () => Promise<DesktopAvailableUpdate | null>;
       checkForUpdates: () => Promise<DesktopUpdateCheckResult>;
+      onUpdateAvailable: (listener: (update: DesktopAvailableUpdate | null) => void) => () => void;
       onUpdatePrompt: (listener: (prompt: DesktopUpdatePrompt) => void) => () => void;
       updatePromptUiReady: () => Promise<boolean>;
       updatePromptUiNotReady: () => Promise<boolean>;

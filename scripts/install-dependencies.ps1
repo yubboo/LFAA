@@ -28,7 +28,7 @@ function Show-MainMenu {
     Write-Host '请选择要执行的操作：' -ForegroundColor White
     Write-Host '  【1】安装工作区依赖：pnpm install' -ForegroundColor Green
     Write-Host '  【2】启动 Harness：Web（自动托管本机 Daemon）/ 独立节点 / 开发模式 / Vite 热更新' -ForegroundColor Magenta
-    Write-Host '  【3】构建 Harness 运行树（Web / Control Plane / CLI）' -ForegroundColor Cyan
+    Write-Host '  【3】构建 Windows Electron 桌面安装包' -ForegroundColor Cyan
     Write-Host '  【4】检查环境与实际工作区包' -ForegroundColor Yellow
     Write-Host '  【5】一键生成纯净源码 ZIP（排除依赖与敏感数据）' -ForegroundColor Green
     Write-Host '  【6】一键正常推送 GitHub main（不覆盖远端历史）' -ForegroundColor Green
@@ -37,7 +37,8 @@ function Show-MainMenu {
     Write-Host ''
     Write-Host '桌面安装版内置 Control Plane 与本机 Daemon，并自动启动；Web 在 Windows 默认托管本机 Daemon。' -ForegroundColor DarkGray
     Write-Host '独立节点模式用于远程节点或维护；Windows Sandbox Host 由桌面打包自动构建，单独构建命令只针对该原生宿主。' -ForegroundColor DarkGray
-    Write-Host 'Electron Windows 安装包：pnpm run build:desktop:electron:win（自动打包本机 Daemon 与 Sandbox Host）。' -ForegroundColor DarkGray
+    Write-Host '菜单 3 等同 pnpm run build:win；安装包输出：dist/apps/desktop-electron/。' -ForegroundColor DarkGray
+    Write-Host '首次沿用待构建版本；之后每次新包会要求填写更新说明并递增版本。' -ForegroundColor DarkGray
     Write-Host 'Web 启动前检查源码与构建是否一致。' -ForegroundColor DarkGray
     Write-Host '服务在当前终端运行，按 Ctrl+C 停止；不另开服务窗口。' -ForegroundColor DarkGray
     Write-Host ("脚本加载于 {0:yyyy-MM-dd HH:mm}；若刚改过脚本，请按 0 退出并重新打开本菜单。" -f $scriptLoadedAt) -ForegroundColor DarkGray
@@ -1003,7 +1004,7 @@ while ($true) {
         switch ($choice.Trim()) {
             '1' { Install-WorkspaceDependencies }
             '2' { Start-Harness }
-            '3' { Invoke-WorkspacePnpm -Arguments @('run', 'build') }
+            '3' { Invoke-WorkspacePnpm -Arguments @('run', 'build:win') }
             '4' { Show-EnvironmentStatus; Show-DependencyScope }
             '5' { Start-ProjectBackup }
             '6' { Push-GitHubRepository }

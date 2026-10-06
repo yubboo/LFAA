@@ -6,7 +6,7 @@ import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-me
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-update.mjs";
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
-import { activateAiAccount, cancelDataDirectorySettingsChange, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadDataDirectorySettings, loadMinecraftStorageSettings, loadMinecraftCores, loadSteamcmdSettings, loadSteamcmdTask, loadManagedPlugins, loadCapabilityInstallCatalog, searchManagedPlugins, inspectManagedPlugin, manageAiRuntimePlugin, probeAiProvider, reprobeAiAccount, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdNodeStorageSettings, saveSteamcmdStorageDefaults, saveMinecraftNodeStorageSettings, saveMinecraftStorageDefaults, saveDataDirectorySettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type ManagedPluginRecord, type ManagedPluginCandidate, type ManagedPluginInspection, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type ConversationMemorySnapshot, type DataDirectorySettings, type DesktopUpdateCheckResult, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { activateAiAccount, cancelDataDirectorySettingsChange, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadDataDirectorySettings, loadMinecraftStorageSettings, loadMinecraftCores, loadSteamcmdSettings, loadSteamcmdTask, loadManagedPlugins, loadCapabilityInstallCatalog, searchManagedPlugins, inspectManagedPlugin, manageAiRuntimePlugin, probeAiProvider, reprobeAiAccount, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdNodeStorageSettings, saveSteamcmdStorageDefaults, saveMinecraftNodeStorageSettings, saveMinecraftStorageDefaults, saveDataDirectorySettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type ManagedPluginRecord, type ManagedPluginCandidate, type ManagedPluginInspection, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type ConversationMemorySnapshot, type DataDirectorySettings, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { minecraftSceneBackgrounds } from "lfaa-client-ui-minecraft/src/assets/minecraftScenes.js";
 import { cacheLoginBackground } from "lfaa-client-ui-theme/src/login-background.js";
 import { getBrowserNotificationPermission, playNotificationSound, requestBrowserNotificationPermission, sendBrowserNotification, type BrowserNotificationPermission } from "lfaa-client-resources/src/notification-runtime.js";
@@ -463,6 +463,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [archivedSessions, setArchivedSessions] = useState<AiSession[]>(() => cachedSettingsData?.archivedSessions ?? []);
   const [health, setHealth] = useState<ServerHealth | null>(() => cachedSettingsData?.health ?? null);
   const [desktopUpdateRuntime, setDesktopUpdateRuntime] = useState<DesktopUpdateRuntimeInfo | null>(null);
+  const [desktopUpdatePreferences, setDesktopUpdatePreferences] = useState<DesktopUpdatePreferences | null>(null);
+  const [savingDesktopAutoUpdate, setSavingDesktopAutoUpdate] = useState(false);
   const [desktopUpdateResult, setDesktopUpdateResult] = useState<DesktopUpdateCheckResult | null>(null);
   const [checkingDesktopUpdates, setCheckingDesktopUpdates] = useState(false);
   const [webUpdateResult, setWebUpdateResult] = useState<WebUpdateCheckResult | null>(null);
@@ -580,6 +582,15 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     }
     let active = true;
     const getRuntimeInfo = window.lfaaDesktop?.getUpdateRuntimeInfo;
+    const getUpdatePreferences = window.lfaaDesktop?.getUpdatePreferences;
+    setDesktopUpdatePreferences(null);
+    if (getUpdatePreferences) {
+      void getUpdatePreferences().then(preferences => {
+        if (active) setDesktopUpdatePreferences(preferences);
+      }).catch(() => {
+        if (active) setDesktopUpdatePreferences({ autoDownloadAndInstall: false });
+      });
+    }
     if (!getRuntimeInfo) {
       setDesktopUpdateRuntime({ supported: false, currentVersion: isDesktopApp() ? "" : lfaaProjectBuildInfo?.currentVersion ?? "" });
       return () => {
@@ -617,6 +628,20 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       messageApi.error(errorMessage);
     } finally {
       setCheckingDesktopUpdates(false);
+    }
+  }
+
+  async function setDesktopAutoUpdatePreference(enabled: boolean): Promise<void> {
+    const setPreference = window.lfaaDesktop?.setAutoUpdateAndInstall;
+    if (!setPreference || savingDesktopAutoUpdate) return;
+    setSavingDesktopAutoUpdate(true);
+    try {
+      setDesktopUpdatePreferences(await setPreference(enabled));
+      messageApi.success(enabled ? "已开启后续版本自动下载安装" : "已关闭自动更新");
+    } catch {
+      messageApi.error("本机更新设置未保存，请重试。");
+    } finally {
+      setSavingDesktopAutoUpdate(false);
     }
   }
 
@@ -2989,6 +3014,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             : webUpdateResult?.status === "error" ? "检查失败"
               : desktopUpdateResult?.status === "up-to-date" ? "已是最新"
         : desktopUpdateResult?.status === "deferred" ? "已暂缓"
+          : desktopUpdateResult?.status === "ignored" ? "已跳过"
           : desktopUpdateResult?.status === "downloading" ? "正在下载"
             : desktopUpdateResult?.status === "downloaded" ? "已下载"
               : desktopUpdateResult?.status === "disabled" ? "更新未开放"
@@ -3004,6 +3030,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             : webUpdateResult?.status === "error" ? webUpdateResult.message || "检查更新失败，请稍后重试。"
               : desktopUpdateResult?.status === "up-to-date" ? `LFAA ${currentVersion} 已是最新版本。`
         : desktopUpdateResult?.status === "deferred" ? `已暂缓 LFAA ${desktopUpdateResult.latestVersion ?? "新版本"}；本次不会下载。`
+          : desktopUpdateResult?.status === "ignored" ? `已跳过 LFAA ${desktopUpdateResult.latestVersion ?? "新版本"}；只在新版本发布后再次提示。`
           : desktopUpdateResult?.status === "downloading" ? `已开始下载 LFAA ${desktopUpdateResult.latestVersion ?? "新版本"}。下载完成后会再次询问是否安装。`
             : desktopUpdateResult?.status === "downloaded" ? `LFAA ${desktopUpdateResult.latestVersion ?? "新版本"} 已下载，等待安装确认。`
               : desktopUpdateResult?.status === "disabled" ? "当前发布清单暂未开放更新。"
@@ -3022,9 +3049,21 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             <SettingRow title="当前版本" description={desktopUpdateRuntime?.supported ? "版本号由桌面宿主提供，不写入账户设置。" : webUpdateSupported ? "版本号来自当前 Web 构建；在线检查只读取官方发布清单。" : "当前桌面宿主尚未接入版本查询。"} status={desktopUpdateRuntime?.supported ? "已安装" : webUpdateSupported ? "Web 构建" : "平台未接入"}>
               <Tag>{desktopUpdateRuntime?.supported || webUpdateSupported ? `LFAA ${currentVersion}` : currentVersion}</Tag>
             </SettingRow>
-            <SettingRow title="检查更新" description={desktopUpdateRuntime?.supported ? "检查官方版本清单；发现新版本后会先询问你，再开始下载。" : webUpdateSupported ? "读取 LFAA 官方更新清单并展示版本说明；Web 页面不自动下载或安装程序。" : "自动更新目前仅接入已安装的 Windows Electron 版；Tauri 与 Android 客户端尚未接入更新宿主。"} status={updateStatusLabel}>
+            <SettingRow title="检查更新" description={desktopUpdateRuntime?.supported ? "检查官方版本清单；自动下载关闭时，发现新版本会先询问你。" : webUpdateSupported ? "读取 LFAA 官方更新清单并展示版本说明；Web 页面不自动下载或安装程序。" : "自动更新目前仅接入已安装的 Windows Electron 版；Tauri 与 Android 客户端尚未接入更新宿主。"} status={updateStatusLabel}>
               <Button type="primary" disabled={!updateCheckSupported} loading={checkingUpdates} onClick={() => void (webUpdateSupported ? checkWebUpdates() : checkDesktopUpdates())}>检查更新</Button>
             </SettingRow>
+            {desktopUpdateRuntime?.supported && desktopUpdatePreferences ? <SettingRow
+              title="自动下载并安装"
+              description="只保存在这台电脑。开启后，新版本会自动下载并重启 LFAA；安装前会关闭本机控制端和 Daemon，可能中断由本机托管的游戏服务。"
+              status={desktopUpdatePreferences.autoDownloadAndInstall ? "本机已开启" : "默认关闭"}
+            >
+              <SettingsSwitch
+                label="新版本自动下载并安装"
+                checked={desktopUpdatePreferences.autoDownloadAndInstall}
+                disabled={savingDesktopAutoUpdate}
+                onChange={() => void setDesktopAutoUpdatePreference(!desktopUpdatePreferences.autoDownloadAndInstall)}
+              />
+            </SettingRow> : null}
           </SettingGroup>
           {updateResult ? <Alert
             className="settings-inline-alert"
@@ -3077,7 +3116,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       <section className="settings-content">
         <header className="settings-content__heading"><div><span className="settings-eyebrow">运行信息</span><Typography.Title level={2}>开发者</Typography.Title><Typography.Paragraph>查看客户端与控制端连接状态。</Typography.Paragraph></div><Button onClick={() => void refreshHealth()}>刷新状态</Button></header>
         <SettingGroup title="运行环境">
-          <SettingRow title="项目版本" description="LFAA 当前项目版本。" status="当前版本"><Tag>LFAA 0.1.1</Tag></SettingRow>
+          <SettingRow title="项目版本" description="LFAA 当前项目版本。" status="当前版本"><Tag>LFAA {lfaaProjectBuildInfo?.currentVersion ?? "未知"}</Tag></SettingRow>
           <SettingRow title="控制端" description={health?.timestamp ? `最近检查：${new Date(health.timestamp).toLocaleString("zh-CN")}` : "尚未获取检查时间。"} status={serverState === "checking" ? "检查中" : health?.status === "ok" ? "运行中" : "未连接"}><Tag color={health?.status === "ok" ? "green" : "red"}>{serverState === "checking" ? "检查中" : health?.status === "ok" ? "在线" : "离线"}</Tag></SettingRow>
           <SettingRow title="当前客户端" description={`${navigator.platform} · ${window.location.origin}`} status="已连接"><Tag>Web 界面</Tag></SettingRow>
         </SettingGroup>

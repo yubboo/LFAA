@@ -1,7 +1,7 @@
 /** 功能：呈现现有工作台。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
 import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Alert, Button, Card, ConfigProvider, Modal, Tag, Typography, theme as antdTheme } from "antd";
+import { Alert, Button, Card, Checkbox, ConfigProvider, Modal, Popover, Tag, Typography, theme as antdTheme } from "antd";
 import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { SetupReminder } from "lfaa-client-ui-settings-general/src/SetupReminder.js";
 import { resolveAppearanceBackgrounds, resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/default-settings.js";
@@ -13,7 +13,7 @@ import { createAiWorkDraftPersistence, readAiWorkDraft, writeAiWorkDraft } from 
 import { createBrowserPersistence, createDebouncedPersistenceWriter, stringPersistenceCodec, type DebouncedPersistenceWriter } from "lfaa-client-store/src/browser-persistence.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
-import { saveSettings, userRoleLabel, type ApplicationId, type ApplicationMode, type DesktopUpdatePrompt, type DesktopUpdatePromptAction, type User, type UserPreferences, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { saveSettings, userRoleLabel, type ApplicationId, type ApplicationMode, type DesktopAvailableUpdate, type DesktopUpdatePreferences, type DesktopUpdatePrompt, type DesktopUpdatePromptAction, type User, type UserPreferences, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { shortcutMatches } from "lfaa-client-ui-commands/src/shortcuts.js";
 import { appearanceTextFontStacks, appearanceCodeFontStacks } from "lfaa-client-ui-theme/src/fonts.js";
 import { applyAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
@@ -413,6 +413,12 @@ export function Workbench({
   const [notifications, setNotifications] = useState<AiWorkNotification[]>([]);
   const [notificationToast, setNotificationToast] = useState<AiWorkNotification | null>(null);
   const [desktopUpdatePrompt, setDesktopUpdatePrompt] = useState<DesktopUpdatePrompt | null>(null);
+  const [desktopAvailableUpdate, setDesktopAvailableUpdate] = useState<DesktopAvailableUpdate | null>(null);
+  const [desktopUpdatePreferences, setDesktopUpdatePreferences] = useState<DesktopUpdatePreferences | null>(null);
+  const [desktopUpdatePreferenceSaving, setDesktopUpdatePreferenceSaving] = useState(false);
+  const [desktopUpdatePreferenceError, setDesktopUpdatePreferenceError] = useState("");
+  const [updatePopoverOpen, setUpdatePopoverOpen] = useState(false);
+  const updateAvailabilityRevision = useRef(0);
   const [applicationCenterFocusApp, setApplicationCenterFocusApp] = useState<ApplicationId | null>(null);
   const [pendingSessionApp, setPendingSessionApp] = useState<ApplicationId | null>(null);
   const notificationSequence = useRef(0);
@@ -424,9 +430,18 @@ export function Workbench({
     const desktop = window.lfaaDesktop;
     if (!desktop) return;
     const unsubscribe = desktop.onUpdatePrompt(setDesktopUpdatePrompt);
+    const unsubscribeAvailability = desktop.onUpdateAvailable(update => {
+      updateAvailabilityRevision.current += 1;
+      setDesktopAvailableUpdate(update);
+    });
+    void desktop.getUpdateAvailability().then(update => {
+      if (updateAvailabilityRevision.current === 0) setDesktopAvailableUpdate(update);
+    }).catch(() => undefined);
+    void desktop.getUpdatePreferences().then(setDesktopUpdatePreferences).catch(() => undefined);
     void desktop.updatePromptUiReady().catch(() => undefined);
     return () => {
       unsubscribe();
+      unsubscribeAvailability();
       void desktop.updatePromptUiNotReady().catch(() => undefined);
     };
   }, []);
@@ -499,6 +514,22 @@ export function Workbench({
     setDesktopUpdatePrompt(current => current?.requestId === prompt.requestId ? null : current);
     void window.lfaaDesktop?.respondToUpdatePrompt(prompt.requestId, action).catch(() => undefined);
   }, []);
+  const setAutoUpdatePreference = useCallback(async (enabled: boolean) => {
+    const savePreference = window.lfaaDesktop?.setAutoUpdateAndInstall;
+    if (!savePreference || desktopUpdatePreferenceSaving) return;
+    const previous = desktopUpdatePreferences;
+    setDesktopUpdatePreferenceSaving(true);
+    setDesktopUpdatePreferenceError("");
+    setDesktopUpdatePreferences(current => current ? { ...current, autoDownloadAndInstall: enabled } : current);
+    try {
+      setDesktopUpdatePreferences(await savePreference(enabled));
+    } catch {
+      setDesktopUpdatePreferences(previous);
+      setDesktopUpdatePreferenceError("本机更新设置未保存，请在设置中心重试。");
+    } finally {
+      setDesktopUpdatePreferenceSaving(false);
+    }
+  }, [desktopUpdatePreferenceSaving, desktopUpdatePreferences]);
   const openAiWorkNotification = useCallback((target: AiWorkSessionTarget) => {
     persistActiveAiSession(user.id, target.appId, target.sessionId);
     setAiWorkUiState((current) => ({ ...current, [target.appId]: { ...current[target.appId], activeSessionId: target.sessionId } }));
@@ -814,6 +845,23 @@ export function Workbench({
           <span className="brand-mark" aria-hidden="true">L</span>
           <span className="brand-name">LFAA</span>
         </button>
+        {desktopAvailableUpdate ? <Popover
+          open={updatePopoverOpen}
+          onOpenChange={setUpdatePopoverOpen}
+          trigger="click"
+          placement="bottomLeft"
+          overlayClassName="lfaa-update-popover"
+          getPopupContainer={trigger => trigger.parentElement ?? document.body}
+          content={<section className="lfaa-update-card" aria-label={`LFAA ${desktopAvailableUpdate.version} 更新日志`}>
+            <Typography.Text className="lfaa-update-card__title">LFAA {desktopAvailableUpdate.version} 更新日志</Typography.Text>
+            <Typography.Text className="lfaa-update-card__date">{desktopAvailableUpdate.publishedAt}</Typography.Text>
+            <div className="lfaa-update-card__divider" />
+            <Typography.Text strong>更新内容</Typography.Text>
+            <ul>{desktopAvailableUpdate.releaseNotes.map((note, index) => <li key={`${index}-${note}`}>{note}</li>)}</ul>
+          </section>}
+        >
+          <Button className="lfaa-update-entry" aria-label={`发现新版本 LFAA ${desktopAvailableUpdate.version}`} aria-expanded={updatePopoverOpen}>更新</Button>
+        </Popover> : null}
         <nav className="topbar-nav" aria-label="主导航">
           <Button type="text" className={route === "/" ? "nav-button nav-button--active" : "nav-button"} onClick={() => onNavigate("/")}>
             应用中心
@@ -875,16 +923,28 @@ export function Workbench({
               <Typography.Text strong>本次更新</Typography.Text>
               <ul>{desktopUpdatePrompt.releaseNotes.map((note, index) => <li key={`${index}-${note}`}>{note}</li>)}</ul>
             </div>
-            {desktopUpdatePrompt.kind === "download" ? <Typography.Paragraph className="lfaa-update-prompt__hint">
-              下载只会在你确认后开始；下载完成后，还会再次确认安装。
-            </Typography.Paragraph> : <Typography.Paragraph className="lfaa-update-prompt__hint">
+            {desktopUpdatePrompt.kind === "download" ? <>
+              {desktopUpdatePreferences ? <div className="lfaa-update-prompt__auto-update">
+                <Checkbox
+                  checked={desktopUpdatePreferences.autoDownloadAndInstall}
+                  disabled={desktopUpdatePreferenceSaving}
+                  onChange={event => void setAutoUpdatePreference(event.target.checked)}
+                >以后自动下载并安装更新</Checkbox>
+                <Typography.Text className="lfaa-update-prompt__auto-update-hint">开启后，新版本会自动下载并重启 LFAA；本机控制端和托管中的游戏服务也会先关闭。</Typography.Text>
+                {desktopUpdatePreferenceError ? <Typography.Text type="danger">{desktopUpdatePreferenceError}</Typography.Text> : null}
+              </div> : null}
+              <Typography.Paragraph className="lfaa-update-prompt__hint">
+                下载会在确认后开始；未开启自动更新时，安装仍会再次询问。
+              </Typography.Paragraph>
+            </> : <Typography.Paragraph className="lfaa-update-prompt__hint">
               安装将重启 LFAA，并按现有关闭流程停止由本机 Daemon 托管的游戏实例。
             </Typography.Paragraph>}
           </>}
           <footer className="lfaa-update-prompt__actions">
             {desktopUpdatePrompt.kind === "notice" ? <Button type="primary" onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "dismiss")}>知道了</Button>
               : desktopUpdatePrompt.kind === "download" ? <>
-                {desktopUpdatePrompt.mandatory ? null : <Button onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "defer")}>暂不更新</Button>}
+                {desktopUpdatePrompt.mandatory ? null : <Button onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "skip")}>跳过此版本</Button>}
+                {desktopUpdatePrompt.mandatory ? null : <Button onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "defer")}>稍后</Button>}
                 <Button type="primary" onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "accept")}>{desktopUpdatePrompt.mandatory ? "下载并安装更新" : "下载更新"}</Button>
               </> : <>
                 {desktopUpdatePrompt.mandatory ? null : <Button onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "later")}>稍后，退出时安装</Button>}

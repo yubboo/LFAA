@@ -1,15 +1,16 @@
 {
   "name": "lfaa-desktop-electron",
   "private": true,
-  "version": "0.0.3",
+  "version": "0.0.4",
   "type": "module",
   "main": "src/main.mjs",
   "description": "LFAA Windows 本机一体版桌面外壳",
   "scripts": {
     "dev": "electron .",
-    "test:update-manifest": "node --test tests/update-manifest.test.mjs tests/update-flow.test.mjs tests/update-prompt-broker.test.mjs",
+    "test:update-manifest": "node --test tests/update-manifest.test.mjs tests/update-flow.test.mjs tests/update-prompt-broker.test.mjs tests/update-preferences.test.mjs tests/desktop-package-version.test.mjs",
     "validate:update-manifest": "node scripts/update-manifest.mjs validate",
-    "package:win": "node scripts/update-manifest.mjs validate && node scripts/prepare-runtime.mjs prepare-deploy && pnpm --filter @yubboo/lfaa deploy --prod --legacy --config.node-linker=hoisted --config.confirmModulesPurge=false --config.allowUnusedPatches=true ../../dist/.tmp/desktop-electron/server-deploy && pnpm install --config.confirmModulesPurge=false && pnpm --filter lfaa-web run build:desktop-candidate && node scripts/prepare-runtime.mjs && electron-builder --win nsis --x64 --publish never && node scripts/verify-packaged-runtime.mjs"
+    "package:win": "pnpm --dir ../.. run build:win",
+    "package:win:prepared": "node scripts/update-manifest.mjs validate && node scripts/prepare-runtime.mjs prepare-deploy && pnpm --filter @yubboo/lfaa deploy --prod --legacy --config.node-linker=hoisted --config.confirmModulesPurge=false --config.allowUnusedPatches=true ../../dist/.tmp/desktop-electron/server-deploy && pnpm install --config.confirmModulesPurge=false && pnpm --filter lfaa-web run build:desktop-candidate && node scripts/prepare-runtime.mjs && electron-builder --win nsis --x64 --publish never && node ../../scripts/desktop-package-version.mjs complete && node scripts/verify-packaged-runtime.mjs"
   },
   "dependencies": {
     "electron-updater": "6.8.9",

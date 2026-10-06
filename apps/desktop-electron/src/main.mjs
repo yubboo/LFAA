@@ -14,6 +14,7 @@ import electronUpdater from "electron-updater";
 import { compareStableVersions, getElectronUpdateFeedUrl, getLfaaUpdateManifestUrl, validateLfaaUpdateManifest } from "./update-manifest.mjs";
 import { createDesktopUpdateFlow, getDesktopUpdateErrorMessage } from "./update-flow.mjs";
 import { createDesktopUpdatePromptBroker } from "./update-prompt-broker.mjs";
+import { createDesktopUpdatePreferencesStore } from "./update-preferences.mjs";
 
 const { autoUpdater } = electronUpdater;
 const INITIAL_UPDATE_CHECK_DELAY_MS = 3_000;
@@ -24,6 +25,8 @@ if (!singleInstance) app.quit();
 
 let mainWindow = null;
 const desktopUpdatePromptBroker = createDesktopUpdatePromptBroker();
+let desktopUpdatePreferencesStore = null;
+let availableDesktopUpdate = null;
 let serverProcess = null;
 let daemonProcess = null;
 let serviceShutdownPromise = null;
@@ -35,6 +38,7 @@ let activeUpdateManifest = null;
 let acceptedUpdateManifest = null;
 let updateDownloadRequestedVersion = "";
 let downloadedUpdateVersion = "";
+let automaticInstallVersion = "";
 let updateInstallRequested = false;
 let systemSessionEnding = false;
 let updaterListenersConfigured = false;
@@ -372,7 +376,7 @@ async function promptToDownloadUpdate(manifest, { mustInstall }) {
     releaseNotes: manifest.releaseNotes,
     mandatory: mustInstall
   });
-  return action === "accept" ? "accept" : "defer";
+  return action === "accept" || action === "skip" ? action : "defer";
 }
 
 async function promptToInstallUpdate(info, manifest) {
@@ -465,12 +469,31 @@ function configureAutoUpdater() {
       if (updateDownloadRequestedVersion) desktopUpdateFlow?.markDownloadFailed(updateDownloadRequestedVersion);
       updateDownloadRequestedVersion = "";
       acceptedUpdateManifest = null;
+      automaticInstallVersion = "";
       void writeLog("更新 错误", `下载版本 ${String(info?.version)} 与用户接受的更新清单不一致，拒绝安装。`);
       return;
     }
     downloadedUpdateVersion = info.version;
     updateDownloadRequestedVersion = "";
     void writeLog("更新", `LFAA ${info.version} 下载完成。`);
+    if (automaticInstallVersion === info.version) {
+      automaticInstallVersion = "";
+      void readDesktopUpdatePreferences().then(preferences => {
+        if (preferences.autoDownloadAndInstall) {
+          void requestDownloadedUpdateInstall().catch(() => {
+            void writeLog("更新 错误", `自动安装 LFAA ${info.version} 失败。`);
+          });
+          return;
+        }
+        void promptToInstallUpdate(info, manifest).catch(error => {
+          void writeLog("更新 错误", `显示更新安装提示失败：${error instanceof Error ? error.message : String(error)}`);
+        });
+      }).catch(() => {
+        void promptToInstallUpdate(info, manifest).catch(() => undefined);
+      });
+      return;
+    }
+    automaticInstallVersion = "";
     void promptToInstallUpdate(info, manifest).catch(error => {
       void writeLog("更新 错误", `显示更新安装提示失败：${error instanceof Error ? error.message : String(error)}`);
     });
@@ -478,16 +501,44 @@ function configureAutoUpdater() {
   autoUpdater.on("error", error => {
     if (error && typeof error === "object") loggedUpdaterErrors.add(error);
     const phase = updateDownloadRequestedVersion ? "download" : "check";
+    if (phase === "download") automaticInstallVersion = "";
     void writeLog("更新 错误", getDesktopUpdateErrorMessage(error, phase));
   });
 }
 
-function beginDesktopUpdateDownload(manifest) {
+function beginDesktopUpdateDownload(manifest, { automaticInstall = false } = {}) {
   if (updateDownloadRequestedVersion === manifest.version || downloadedUpdateVersion === manifest.version) return;
   acceptedUpdateManifest = manifest;
   updateDownloadRequestedVersion = manifest.version;
-  void writeLog("更新", `用户选择下载 LFAA ${manifest.version}。`);
-  return autoUpdater.downloadUpdate();
+  automaticInstallVersion = automaticInstall ? manifest.version : "";
+  void writeLog("更新", `开始下载 LFAA ${manifest.version}。`);
+  try {
+    return Promise.resolve(autoUpdater.downloadUpdate()).catch(error => {
+      if (automaticInstallVersion === manifest.version) automaticInstallVersion = "";
+      throw error;
+    });
+  } catch (error) {
+    automaticInstallVersion = "";
+    throw error;
+  }
+}
+
+function publishDesktopUpdateAvailability(manifest) {
+  availableDesktopUpdate = manifest ? {
+    version: manifest.version,
+    publishedAt: manifest.publishedAt,
+    releaseNotes: [...manifest.releaseNotes]
+  } : null;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    mainWindow.webContents.send("lfaa:desktop:update-availability", availableDesktopUpdate);
+  } catch {
+    // A closing renderer can miss this event; a newly mounted UI reads the current availability over IPC.
+  }
+}
+
+async function readDesktopUpdatePreferences() {
+  return desktopUpdatePreferencesStore?.read() ?? { autoDownloadAndInstall: false, ignoredVersion: "" };
 }
 
 function getDesktopUpdateFlow() {
@@ -505,6 +556,18 @@ function getDesktopUpdateFlow() {
     },
     promptForUpdate: promptToDownloadUpdate,
     beginDownload: beginDesktopUpdateDownload,
+    getPreferences: readDesktopUpdatePreferences,
+    ignoreVersion: async version => {
+      try {
+        if (!desktopUpdatePreferencesStore) throw new Error("桌面更新偏好尚未初始化。");
+        await desktopUpdatePreferencesStore.ignoreVersion(version);
+      } catch {
+        await writeLog("更新 错误", "跳过版本设置未能保存到本机，未跳过该版本。 ");
+        await showUpdateNotice("无法跳过此版本", `LFAA ${version} 的跳过设置没有保存；下次检查时仍会提醒你。`);
+        throw new Error("跳过版本的本机设置未保存。");
+      }
+    },
+    onUpdateAvailable: publishDesktopUpdateAvailability,
     onError: async (error, phase, manifest, safeMessage) => {
       const message = safeMessage || getDesktopUpdateErrorMessage(error, phase);
       if (!(error && typeof error === "object" && loggedUpdaterErrors.has(error))) {
@@ -512,6 +575,7 @@ function getDesktopUpdateFlow() {
       }
       if (phase !== "download") return;
       if (updateDownloadRequestedVersion === manifest?.version) updateDownloadRequestedVersion = "";
+      if (automaticInstallVersion === manifest?.version) automaticInstallVersion = "";
       if (acceptedUpdateManifest?.version === manifest?.version) acceptedUpdateManifest = null;
       await showUpdateNotice(
         "LFAA 更新下载失败",
@@ -564,6 +628,24 @@ if (singleInstance) {
   ipcMain.handle("lfaa:desktop:update-runtime", (event) => {
     assertTrustedUpdateRenderer(event);
     return getDesktopUpdateRuntimeInfo();
+  });
+
+  ipcMain.handle("lfaa:desktop:update-preferences", (event) => {
+    assertTrustedUpdateRenderer(event);
+    return readDesktopUpdatePreferences().then(({ autoDownloadAndInstall }) => ({ autoDownloadAndInstall }));
+  });
+
+  ipcMain.handle("lfaa:desktop:update-preferences:set-auto", async (event, enabled) => {
+    assertTrustedUpdateRenderer(event);
+    if (typeof enabled !== "boolean") throw new TypeError("自动更新偏好必须是布尔值。");
+    if (!desktopUpdatePreferencesStore) throw new Error("桌面更新偏好尚未初始化。");
+    const preferences = await desktopUpdatePreferencesStore.setAutoDownloadAndInstall(enabled);
+    return { autoDownloadAndInstall: preferences.autoDownloadAndInstall };
+  });
+
+  ipcMain.handle("lfaa:desktop:update-availability", (event) => {
+    assertTrustedUpdateRenderer(event);
+    return availableDesktopUpdate;
   });
 
   ipcMain.handle("lfaa:desktop:check-updates", (event) => {
@@ -619,6 +701,7 @@ if (singleInstance) {
     const logDirectory = join(app.getPath("userData"), "logs");
     await mkdir(logDirectory, { recursive: true });
     logFilePath = join(logDirectory, "desktop.log");
+    desktopUpdatePreferencesStore = createDesktopUpdatePreferencesStore(join(app.getPath("userData"), "update-preferences.json"));
 
     try {
       const runtimeRoot = getRuntimeRoot();

@@ -92,6 +92,25 @@
   background: var(--color-brand-subtle);
   color: var(--color-brand);
 }
+.lfaa-update-entry.ant-btn {
+  min-height: 30px;
+  margin-right: 2px;
+  padding: 2px 15px;
+  border: 1px solid color-mix(in srgb, var(--color-status-success) 30%, var(--color-border));
+  border-radius: 999px;
+  background: var(--color-status-success-surface);
+  color: var(--color-status-success-text);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-weight: 650;
+  box-shadow: none;
+}
+.lfaa-update-entry.ant-btn:hover,
+.lfaa-update-entry.ant-btn:focus-visible {
+  border-color: var(--color-status-success);
+  background: color-mix(in srgb, var(--color-status-success-surface) 72%, var(--color-status-success));
+  color: var(--color-status-success-text);
+}
+.lfaa-update-entry.ant-btn:focus-visible { outline: 2px solid var(--color-status-success); outline-offset: 2px; }
 /* 工作台：顶部品牌与返回按钮｜结束 */
 .workbench-shell {
   --settings-background-surface-opacity: 37%; /* 工作区有壁纸时主要表面的默认主题底色透明度；与前后端 appearance.overlay 默认值一致。 */
@@ -229,6 +248,28 @@
   align-items: center;
   gap: 18px;
 }
+
+.lfaa-update-popover .ant-popover-inner {
+  width: min(360px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: 0 12px 36px var(--color-shadow-float);
+}
+.lfaa-update-card {
+  display: grid;
+  gap: 8px;
+  max-height: min(420px, calc(100vh - 112px));
+  overflow-y: auto;
+  padding: 18px;
+  color: var(--color-text-primary);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+}
+.lfaa-update-card__title { color: var(--color-text-heading); font-size: var(--font-size-base); font-weight: 650; }
+.lfaa-update-card__date { color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.lfaa-update-card__divider { height: 1px; margin: 4px 0; background: var(--color-border-subtle); }
+.lfaa-update-card ul { display: grid; gap: 8px; margin: 3px 0 0; padding-left: 19px; color: var(--color-text-secondary); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--font-size-base); line-height: 1.5; }
 .account-identity {
   display: flex;
   min-width: 74px;
@@ -786,6 +827,9 @@ body:has(.workbench-shell[data-theme="dark"]) .ant-dropdown-menu-item:hover {
 .lfaa-update-prompt__notes > .ant-typography { color: var(--color-text-heading); }
 .lfaa-update-prompt__notes ul { display: grid; gap: 8px; margin: 10px 0 0; padding-left: 18px; color: var(--color-text-secondary); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--font-size-base); line-height: 1.55; }
 .lfaa-update-prompt__hint { margin: 14px 0 0 60px; color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.55; }
+.lfaa-update-prompt__auto-update { display: grid; gap: 7px; margin: 16px 0 0 60px; }
+.lfaa-update-prompt__auto-update .ant-checkbox-wrapper { color: var(--color-text-primary); font-weight: 550; }
+.lfaa-update-prompt__auto-update-hint { color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.5; }
 .lfaa-update-prompt__notice { margin: 18px 0 0 60px; color: var(--color-text-primary); }
 .lfaa-update-prompt__notice .ant-typography { margin-bottom: 8px; }
 .lfaa-update-prompt__actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 9px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--color-border-subtle); }
@@ -803,6 +847,7 @@ body:has(.workbench-shell[data-theme="dark"]) .ant-dropdown-menu-item:hover {
   .lfaa-update-prompt__meta,
   .lfaa-update-prompt__notes,
   .lfaa-update-prompt__hint,
+  .lfaa-update-prompt__auto-update,
   .lfaa-update-prompt__notice { margin-left: 0; }
   .lfaa-update-prompt__actions { justify-content: stretch; }
   .lfaa-update-prompt__actions .ant-btn { flex: 1 1 auto; }

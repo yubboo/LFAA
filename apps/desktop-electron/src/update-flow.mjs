@@ -24,6 +24,9 @@ export function createDesktopUpdateFlow({
   checkReleaseFeed,
   promptForUpdate,
   beginDownload,
+  getPreferences = async () => ({ autoDownloadAndInstall: false, ignoredVersion: "" }),
+  ignoreVersion = async () => {},
+  onUpdateAvailable = () => {},
   onError = () => {},
   compareVersions = compareStableVersions
 }) {
@@ -61,9 +64,18 @@ export function createDesktopUpdateFlow({
       let manifest = null;
       try {
         manifest = await readManifest();
-        if (!manifest.enabled) return result("disabled", currentVersion, manifest);
+        if (!manifest.enabled) {
+          onUpdateAvailable(null);
+          return result("disabled", currentVersion, manifest);
+        }
         if (compareVersions(manifest.version, currentVersion) <= 0) {
+          onUpdateAvailable(null);
           return result("up-to-date", currentVersion, manifest);
+        }
+        const preferences = await getPreferences();
+        if (preferences?.ignoredVersion === manifest.version) {
+          onUpdateAvailable(null);
+          return result("ignored", currentVersion, manifest);
         }
         if (deferredVersion === manifest.version) {
           return result("deferred", currentVersion, manifest);
@@ -77,9 +89,18 @@ export function createDesktopUpdateFlow({
           return result("error", currentVersion, manifest, message);
         }
 
+        onUpdateAvailable(manifest);
         const mustInstall = manifest.mandatory
           && compareVersions(currentVersion, manifest.minimumSupportedVersion) < 0;
-        const decision = await promptForUpdate(manifest, { mustInstall, manual });
+        const decision = preferences?.autoDownloadAndInstall
+          ? "accept"
+          : await promptForUpdate(manifest, { mustInstall, manual });
+        if (decision === "skip" && !mustInstall) {
+          await ignoreVersion(manifest.version);
+          deferredVersion = "";
+          onUpdateAvailable(null);
+          return result("ignored", currentVersion, manifest);
+        }
         if (decision !== "accept") {
           deferredVersion = manifest.version;
           return result("deferred", currentVersion, manifest);
@@ -87,7 +108,7 @@ export function createDesktopUpdateFlow({
 
         downloadingVersion = manifest.version;
         try {
-          Promise.resolve(beginDownload(manifest)).catch(error => {
+          Promise.resolve(beginDownload(manifest, { automaticInstall: preferences?.autoDownloadAndInstall === true })).catch(error => {
             if (downloadingVersion === manifest.version) downloadingVersion = "";
             reportError(error, "download", manifest);
           });

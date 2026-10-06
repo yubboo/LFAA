@@ -16,6 +16,8 @@
 | LFAA-DESKTOP-UPDATE-PACKAGE-REBUILD-01 | 重建包含工作台静音更新提示及进程内暂缓逻辑的 Windows Electron 安装候选，并核验随包运行树 | Windows x64 NSIS 候选构建、包内更新代码核验及 CUA Driver 导入验收通过；实际安装/启动目视未验 | 本文件“LFAA-DESKTOP-UPDATE-PACKAGE-REBUILD-01” |
 | LFAA-APP-VERSION-REBASE-01 | 按用户指定的 `0.0.1 → 0.0.2` 更新链重建 Windows Electron `0.0.2` 候选，保留运行中 Web 正式构建目录 | 已实现；版本/更新回归 7/7、24/24，安装器回归 3/3，Windows x64 候选包与随包运行树验收通过；真实安装/启动视觉及外部发布未验 | 本文件“LFAA-APP-VERSION-REBASE-01” |
 | LFAA-DESKTOP-UPDATE-RELEASE-003 | 修复桌面更新 404 错误泄露原始 HTTP 响应信息，并将 LFAA 0.0.3 安装包及更新清单发布至 GitHub Release | Windows x64 安装包已构建并本地验收；GitHub 推送与 Release 待执行；真实应用自动升级待验 | 本文件“LFAA-DESKTOP-UPDATE-RELEASE-003” |
+| LFAA-DESKTOP-UPDATE-EXPERIENCE-004 | 将 LFAA 桌面更新体验完善为顶部更新入口、版本说明卡片、跳过指定版本及用户 opt-in 的自动下载安装，并构建 `LFAA-0.0.4.exe` | 本地代码、回归、Windows x64 NSIS 包和版本交付目录已验收；真实安装、桌面视觉和升级未验；未上传或发布 | 本文件“LFAA-DESKTOP-UPDATE-EXPERIENCE-004” |
+| LFAA-DESKTOP-ELECTRON-BUILD-MENU-01 | 将工作台菜单 3 与 `pnpm run build:win` 接入 Windows Electron 安装包构建；本次沿用待构建的 `0.0.4`，生成后后续每次新包递增版本并同步更新日志、产品元数据与更新清单 | 实现中；用户自行执行 Windows 打包，本轮不生成安装包 | 本文件“LFAA-DESKTOP-ELECTRON-BUILD-MENU-01” |
 | LFAA-WEB-VERSION-UPDATE-CHECK-01 | 在 Web 设置页显示构建版本，并手动检查官方更新清单、展示更新说明和发布页 | Web 构建、定向回归、TypeScript 与登录态浏览器验收通过；桌面下载安装不属于 Web 验收 | 本文件“LFAA-WEB-VERSION-UPDATE-CHECK-01” |
 | LFAA-DESKTOP-ELECTRON-STARTUP-INSTALLER-01 | 修复桌面安装包缺少 CUA Driver 导致启动失败，并补齐 LFAA 安装图标、强制确认、安装详情和桌面快捷方式 | 源码、Windows x64 安装包及随包插件导入验收通过；实际安装交互与快捷方式目视待用户安装确认 | 本文件“LFAA-DESKTOP-ELECTRON-STARTUP-INSTALLER-01” |
 | LFAA-DESKTOP-ELECTRON-LICENSE-ENCODING-01 | 修复 Windows NSIS 安装须知中文乱码并重建独立候选安装包 | 源码与构建资源编码核验、Windows x64 NSIS 构建及随包运行树验收通过；安装器界面未安装/目视，候选未签名 | 本文件“LFAA-DESKTOP-ELECTRON-LICENSE-ENCODING-01” |
@@ -8067,3 +8069,95 @@ Minecraft 节点适配器调用现有 Agent Loop、Minecraft Tools 和 Daemon Ow
 - `pnpm --filter lfaa-desktop-electron run package:win` 在合并远端 `main` 的 3 个提交后重新通过；Vite 隔离构建 2226 个模块，既有大分块警告仍在。生成 `dist/apps/desktop-electron/LFAA-0.0.3.exe`，大小 158463589 字节，SHA-256 `01D6F89C108F2D11D60E7A4AA3E263826E2FF6069445765FE37F2674C3953F77`；`latest.yml` 中版本、文件名、大小及 SHA-512 均与安装包匹配；随包 CUA Driver 导入与工具注册通过。Windows Authenticode 状态为 `NotSigned`。
 - 构建期间 `pnpm install` 按已清理空白符的 `app-builder-lib@26.15.3` 补丁更新了 `pnpm-lock.yaml` 的补丁哈希，变更仅对应此次补丁文件，已纳入本次发布提交。`http://127.0.0.1:3000/api/health` 构建后返回 HTTP 200，未重启当前服务，也未覆盖 `dist/apps/web`。
 - 本地验收完成，尚未推送 GitHub `main`、创建 Release 或实际安装/启动候选；发布执行结果将在完成后补记。未进行桌面更新弹窗目视及真实自动升级验收。
+
+## LFAA-DESKTOP-UPDATE-EXPERIENCE-004：桌面更新入口与 LFAA 0.0.4 安装包
+
+### 用户目标与运行入口
+
+- 当前桌面更新能力由 Windows Electron 主进程 `apps/desktop-electron/src/main.mjs` 拥有；共享工作台通过受信任 preload/IPC 显示更新提示，设置中心“关于与更新”负责手动检查与用户可控偏好。
+- 用户要求按截图为新版本增加顶部“更新”入口及发布说明卡片，并提供“跳过此版本 / 稍后 / 下载更新”选择；同意“以后自动下载并安装更新”后才可静默下载及在准备好时安装。
+- 自动下载安装偏好只保存在当前 Electron 用户数据目录，默认关闭。宿主采用该设置前仍须验证签名格式/版本清单/真实 Release Feed；安装继续经现有本机服务优雅关闭流程，并向用户明确说明重启 LFAA 与停止本机托管服务的影响。
+- “稍后”仅对当前进程内的当前版本生效；“跳过此版本”持久记住且只忽略选定版本，新版本仍可提示。自动下载不得覆盖已跳过/已暂缓决定。
+- 本轮正式目标版本 `LFAA 0.0.4`；唯一版本日志 `docs/updata-log.md` 新增 #15，CLI/Web/Electron 元数据与 `update.json` 投影一致，最低支持版本保持既有配置。
+- 交付 Windows x64 Electron NSIS 文件至根 `dist/apps/desktop-electron/LFAA-0.0.4.exe`。只构建和本地验收，不提交、不推送、不创建/改动远端 Release、不上传。
+
+### 设置中心与数据/权限归属
+
+- 设置中心“关于与更新”增加自动下载并安装开关和后果说明；Windows Electron UI 调用仅向当前受信任主窗口开放的 IPC。
+- 设置属于此台 Electron 安装实例的设备偏好，不写入账户服务或跨设备同步。Owner 为 Electron 主进程本地 JSON 存储，路径从 `app.getPath("userData")` 派生；只接受白名单布尔值及有效单版本号，默认关闭，使用临时文件原子替换持久化。
+- 外观沿用现有主题、字号、字体、对比度与减少动态效果映射；更新入口不播放系统通知音。
+
+### 允许修改
+
+- 当前 Electron 更新流程、更新 prompt broker、受信任 IPC/preload、本地更新偏好 Owner 及直接相关长期回归。
+- 共用 Client Connection 更新类型、Workbench 顶部状态/说明卡片和当前桌面更新 Modal、SettingsPage“关于与更新”。
+- `apps/desktop-electron`、`apps/web`、`apps/cli` 产品版本元数据；由 `docs/updata-log.md` 投影生成的 `update.json` 与直接相关生成/校验回归；桌面构建输出仅写根 `dist/`。
+- 本合同、`docs/updata-log.md` 和描述桌面更新 Owner/行为的架构事实。
+
+### 禁止修改
+
+- 不变更官方更新源、Electron Release feed/签名校验、发布通道、检查频率、强制更新、最低支持版本或 404 脱敏边界。
+- 不改变 Web、Tauri、Android 的更新行为；不写入账户设置 API；默认关闭自动下载/安装，不绕过用户选择、可信 renderer 校验、版本校验或本机服务优雅退出。
+- 不重启或停止当前 Web、Control Plane、Daemon、Minecraft 或桌面服务；不得让打包过程覆盖正在被 3000 端口服务使用的 `dist/apps/web`。
+- 不访问或修改远端 GitHub Release/Tag，不提交、推送、上传或发布，不清理既有版本安装包。
+
+### 验收条件
+
+- Electron 定向回归验证偏好默认关闭/保存/重载/拒绝非法输入、跳过版本持久化、稍后仅进程内抑制、更新入口数据事件、自动下载安装决策及下载/安装确认 Broker；检查无设置时不会自动下载/安装。
+- 相关 Client 类型检查、设置 UI 与 Workbench 包构建、更新清单校验、版本投影与 `git diff --check` 通过。
+- Windows x64 Electron `package:win` 通过；核对安装程序路径/文件名/0.0.4 版本、`latest.yml` 文件名/大小/hash 与 exe 匹配、包内 Web 版本和更新 Owner 文件。构建前后记录 3000 服务健康及现有 `dist/apps/web` 指纹。
+- 明确区分源码/自动化/包内核对与真实更新服务器、真实弹窗视觉、下载升级和安装首次启动；未实测项如实报告。不得用已构建表述远端 Release 已可用。
+
+### 实施与本地验收记录
+
+- Electron 主进程保持唯一更新 Owner；`update-preferences.json` 位于 app userData，默认关闭自动下载安装并只记录一个被跳过的 SemVer。IPC 只对白名单布尔设置开放且校验当前主窗口主 frame；“稍后”继续使用本进程内 deferred 状态。新版本经清单和 Release feed 匹配后才推送给顶部更新入口，下载和自动安装仍使用现有 updater 与优雅关闭本机服务流程。
+- 设置中心“关于与更新”新增设备级开关并说明重启 LFAA/关闭本机服务的影响；不写账户设置。Workbench 复用主题/字体/色彩 token，订阅器在卸载时撤销，初始偏好/更新可用状态各读取一次；没有新增轮询、定时器或通知声音。
+- Electron 更新清单、Flow、Prompt Broker 和新偏好 Store 定向回归 32/32；主进程、preload、更新流程和偏好 Store Node 语法检查、JSON 清单校验、`git diff --check` 通过。`pnpm --filter lfaa-web run build:desktop-candidate` 的 `tsc --noEmit -p tsconfig.client.json` 与 Vite 构建通过，转换 2226 个模块；存在既有超过 500 kB 的 chunk 警告。
+- `pnpm --filter lfaa-desktop-electron run package:win` 通过；Electron Builder 生成 NSIS x64 包并通过随包 CUA Driver 导入/工具注册核验。`app.asar` 中 package 版本为 `0.0.4`，包含更新主进程、preload、Flow、偏好 Store；随包 Web JS/CSS 可检索到“跳过此版本”“以后自动下载并安装更新”及顶部入口/卡片样式。
+- 安装器为 `dist/apps/desktop-electron/LFAA-0.0.4.exe`，大小 158466057 字节，SHA-256 `0251609B6992EB722C898DDEE74AE4638C48FC9933E5325712B51073DE455D22`；`latest.yml` 版本、文件名、大小及 SHA-512 与 exe 匹配；Authenticode 为 `NotSigned`。用户交付目录 `dist/apps/desktop-electron/LFAA-0.0.4/` 含 exe、blockmap 和 `latest.yml`。
+- 构建前后 `http://127.0.0.1:3000/api/health` 均返回 HTTP 200；`dist/apps/web/index.html` SHA-256 保持 `A0868D7DAD49FE42809CB9A1FE7CC66D1FEAAA5273CBD9A9E445EFF7250DA28B`，`build-state.json` 保持 `B6F64C725D0C3EDD77BEF16B605AB79205B53CEBA4CD52743A16DB3613B6D81B`，未重启活动服务或改写正式 Web 目录。`workspace-preflight` 脚本不存在；未运行不存在的 Gate。
+- 未安装或启动候选包，未进行 Electron 实际弹窗视觉、真实更新服务器下载或版本升级验收；当前真实运行账户/服务环境不适合直接执行隔离安装。没有提交、推送、Tag、修改 GitHub Release 或上传资产。浏览器交互帧时间未测。
+
+## LFAA-DESKTOP-ELECTRON-BUILD-MENU-01：菜单 3 与版本递增 Electron Windows 构建
+
+### 用户目标与运行入口
+
+- 用户在 `lfaa.bat` 菜单选择 `3` 时构建 Windows Electron x64 NSIS 安装包；等价命令为 `pnpm run build:win`，产物位于根目录 `dist/apps/desktop-electron/`。
+- 当前正式产品版本及待构建候选均为 `0.0.4`。本次首次菜单打包沿用 `0.0.4`，不提前递增；候选安装器生成后，下一次新包目标为 `0.0.5`。
+- 版本权威是 `docs/updata-log.md`；`apps/cli/package.json`、`apps/web/package.json`、`apps/desktop-electron/package.json` 与 `update.json` 是该版本的产品元数据投影。
+- Windows Electron 桌面构建依赖 Control Plane、Windows Sandbox Host 与包内隔离 Web 候选；不要构建覆盖正在运行 Web 服务使用的 `dist/apps/web`。
+
+### Owner、设置与边界
+
+- 根 `scripts/install-dependencies.ps1` 拥有交互菜单；根 `package.json` 拥有统一 `build:win` 入口；Electron 包负责 Windows 安装器封装和 `latest.yml`。
+- 版本构建协调脚本根据更新日志中的“Windows Electron 包状态”决定使用现存待构建版本或开始下一修订版，要求用户填写新版本更新说明，并同步唯一版本日志、三个产品包版本、更新清单。
+- 安装器文件和构建缓存只能写入根 `dist/apps/desktop-electron/`、`dist/.tmp/desktop-electron/` 及各自身拥有的根 `dist/apps` 子目录。
+- 不新增设置中心配置；不更改更新渠道、最低支持版本、签名、Daemon 权限和生命周期。
+
+### 允许修改
+
+- `scripts/install-dependencies.ps1`、根 `package.json`：将菜单 `3` 与 `pnpm run build:win` 接至同一 Electron Windows 构建入口。
+- 根 `scripts/`：新增版本校验/递增和桌面发行构建协调脚本。
+- `apps/desktop-electron/package.json`：保留 Windows x64 NSIS 构建步骤，拆分面向用户的统一入口与内部已准备版本的封装步骤。
+- `apps/desktop-electron/tests/`：为待构建版本复用、已生成后版本递增、元数据一致性与安装器完成记账增加长期回归，并更新测试脚本入口。
+- `开发规范.md`、`.agents/skills/lfaa-patch-release/SKILL.md`、`docs/系统总体架构.md`、`docs/updata-log.md` 与本合同。
+- `packages/client/ui-settings/src/SettingsPage.tsx`：把开发者面板中的旧硬编码版本替换为现有构建/桌面运行时版本 Owner。
+
+### 禁止修改
+
+- 本轮不构建、不安装、不启动安装器、不覆盖 `dist/apps/desktop-electron/` 中既有候选，不重启端口 3000 服务或桌面进程。
+- 不改变普通 `pnpm run build` 的 Harness 运行树职责；Electron 安装器仅由 `pnpm run build:win`、菜单 `3` 或其等价 Windows Electron 入口生成。
+- 不推送 GitHub、创建 Tag/Release、上传安装包、签名或提交 Git；不清理旧构建产物与用户数据。
+- 若桌面构建前置失败且尚未生成 Electron 安装器，保留当前待构建版本供重试；一旦 `electron-builder` 生成与 `latest.yml` 匹配的安装器，该版本即记为已使用，后续不得重用。
+
+### 验收条件
+
+- 根菜单显示 `3` 为 Windows Electron 安装包构建并给出产物路径；选择 `3` 实际调用统一 `build:win` 命令；根脚本可通过 `pnpm run build:win` 触发相同流程。
+- 当前 `0.0.4` 待构建版本不递增；完成后记录安装器文件名。下一次构建开始时产生 `0.0.5`、连续更新日志编号和必填的本次更新说明，并同步 CLI/Web/Electron 版本及 `update.json`。
+- 构建失败时能够区分尚未生成安装器的可重试状态与已经生成、版本已消耗的状态；修订号不回退、不重复。
+- 定向回归覆盖版本解析/递增、初次待构建版本、版本已消耗后的升级、更新清单同步、失败前置条件不误记完成；根/包清单与 PowerShell AST 校验和 `git diff --check` 通过。
+- 设置中心无新增或修改项。实际 Electron 打包、安装器目视、签名、发布与用户升级均由用户后续执行，本轮不得声称已验收。
+
+### 实施与本地验收记录
+
+- （完成后按实际结果填写；用户自行执行 Windows Electron 打包。）

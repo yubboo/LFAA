@@ -2,14 +2,13 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "0.0.3",
-  "title": "LFAA 0.0.3",
-  "publishedAt": "2026-10-06",
+  "version": "0.0.4",
+  "title": "LFAA 0.0.4",
+  "publishedAt": "2026-10-07",
   "releaseNotes": [
-    "修复更新检查失败时展示原始 HTTP 响应信息的问题",
-    "新增可插件化工作流核心并完善数据分层管理",
-    "修复 Electron 桌面启动依赖，补齐带安装须知确认、详细进度、品牌图标和桌面快捷方式的 Windows 安装器",
-    "接入桌面版自动与手动检查更新，下载与安装前明确征求用户选择。"
+    "桌面端新增顶部更新入口和版本说明卡片",
+    "提供“跳过此版本”和“稍后”选项",
+    "自动下载并安装改为本机明确授权且默认关闭"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "0.0.1",

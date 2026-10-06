@@ -23,7 +23,8 @@
     "pack:cli": "pnpm run build && npm pack ./dist/npm/lfaa --pack-destination ./dist/npm",
     "publish:cli": "pnpm run build && npm publish ./dist/npm/lfaa --access public",
     "build:desktop:win": "pnpm run build:web && pnpm run build:control-plane && pnpm run build:windows-sandbox-host && node apps/desktop-tauri/scripts/package-windows.mjs",
-    "build:desktop:electron:win": "pnpm run build:web && pnpm run build:control-plane && pnpm run build:windows-sandbox-host && pnpm --filter lfaa-desktop-electron run package:win",
+    "build:win": "pnpm run build:desktop:electron:win",
+    "build:desktop:electron:win": "node scripts/desktop-package-version.mjs prepare && pnpm run build:control-plane && pnpm run build:windows-sandbox-host && pnpm --filter lfaa-desktop-electron run package:win:prepared",
     "lfaa": "node apps/cli/bin/lfaa.mjs"
   },
   "devDependencies": {

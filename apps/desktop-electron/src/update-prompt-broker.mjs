@@ -7,7 +7,7 @@ function fallbackAction(prompt) {
 }
 
 function isAllowedAction(prompt, action) {
-  if (prompt.kind === "download") return action === "accept" || (!prompt.mandatory && action === "defer");
+  if (prompt.kind === "download") return action === "accept" || (!prompt.mandatory && (action === "defer" || action === "skip"));
   if (prompt.kind === "install") return action === "install" || (!prompt.mandatory && action === "later");
   return prompt.kind === "notice" && action === "dismiss";
 }

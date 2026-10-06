@@ -48,9 +48,15 @@ test("强制更新不能延后，未知请求和无效动作会被拒绝", async
   const result = broker.request({ kind: "download", version: "0.2.0", mandatory: true });
   assert.equal(broker.respond("unknown", "accept"), false);
   assert.equal(broker.respond(received.requestId, "defer"), false);
+  assert.equal(broker.respond(received.requestId, "skip"), false);
   assert.equal(broker.pendingCount, 1);
   assert.equal(broker.respond(received.requestId, "accept"), true);
   assert.equal(await result, "accept");
+
+  const optionalResult = broker.request({ kind: "download", version: "0.3.0", mandatory: false });
+  const optionalPromptId = received.requestId;
+  assert.equal(broker.respond(optionalPromptId, "skip"), true);
+  assert.equal(await optionalResult, "skip");
 });
 
 test("渲染端重载后重发未决提示，窗口关闭或超时均安全延后", async () => {
