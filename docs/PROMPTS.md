@@ -6,7 +6,7 @@
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
-| LFAA-DESKTOP-UPDATE-RELEASE-01 | 将 Windows Electron 更新能力接入 0.1.2，并发布可供 0.1.1 检测的更新 | 实施中 | 本文件“LFAA-DESKTOP-UPDATE-RELEASE-01” |
+| LFAA-DESKTOP-UPDATE-RELEASE-01 | 将 Windows Electron 更新能力接入 0.1.2，并发布可供 0.1.1 检测的更新 | 已发布（构建、线上清单与安装包核对通过；0.1.1 实机升级未验） | 本文件“LFAA-DESKTOP-UPDATE-RELEASE-01” |
 | LFAA-UI-PLUGIN-WORKSPACE-01 | 将设置中心的插件配置重排为分区工作台，分离总览、能力目录、知识库、第三方插件、MCP 与运行诊断，并复用现有设置 Owner | 已实现（UI 包构建、客户端类型检查和差异检查通过；Web 构建指纹检测到并行源码变更而未登记，浏览器目视未验） | 本文件“LFAA-UI-PLUGIN-WORKSPACE-01” |
 | LFAA-CLI-WEB-LOCK-RECOVERY-01 | Web 菜单启动时识别当前数据目录的存活 LFAA Web 写锁持有者，结束该 CLI 进程后再启动 | 已实现（PowerShell 语法、数据目录解析、差异检查通过；真实 PID 终止与 Web 重启未运行） | 本文件“LFAA-CLI-WEB-LOCK-RECOVERY-01” |
 | LFAA-DESKTOP-ELECTRON-AUTO-UPDATE-01 | 为 Electron 桌面端增加 LFAA 更新清单，并接入自动检查、下载与受控安装 | 代码已接入；清单回归和静态检查通过；Electron NSIS 构建被现有 Host TypeScript 错误阻断；真实 Release 下载、签名和安装升级未验 | 本文件“LFAA-DESKTOP-ELECTRON-AUTO-UPDATE-01” |
@@ -5777,7 +5777,12 @@ AI Work 回复完成时，除工作台通知栏和右下角提醒外，播放设
 
 ### 实施与验证记录
 
-- 待实施。
+- `lfaa.bat` 菜单 6 的提交 `553ad39` 已正常以 fast-forward 推到 `main`，脚本没有执行强推；复核发现 `scripts/install-dependencies.ps1` 的 `Get-BlockedGitPaths` 将所有名为 `credentials` 的目录一概过滤，导致 `packages/credentials/**` 第一方源码未进入该提交。已将过滤收窄为允许该第一方源码目录，同时仍拦截其中的 `node_modules`，并继续拦截其他凭据目录、密钥和运行数据；已用 PowerShell AST/路径判定回归核对。
+- 为使 0.1.2 在干净源码中构建，补入当前 lockfile、workspace 清单和导入实际引用的授权、凭据记录及凭据流程包源码，以及 Vite 已引用的 `web-asset-retention.d.mts` 类型声明。未带入主工作区其余未提交 UI、设置或测试改动。
+- 隔离 worktree 的 `pnpm run build:desktop:electron:win` 最终通过，包含 Web、Control Plane、Daemon/Sandbox Host、Electron NSIS 打包和 packaged-runtime 验证；首次构建因缺失上述 `.d.mts` 声明失败，补齐后重跑通过。设置中心没有新增或修改配置；复用现有主题/设置令牌，更新偏好仍由现有桌面更新交互管理。
+- 定向验证通过：`pnpm --dir apps/desktop-electron run test:update-manifest`（18/18）、`pnpm --dir apps/desktop-electron run validate:update-manifest`、`node --test apps/desktop-electron/tests/installer-package.test.mjs`（2/2）、Electron 更新入口与清单的 `node --check`、凭据路径过滤 AST 回归及 `git diff --check`。
+- 已将版本源码提交并 fast-forward 推送至 `main`：`ad61f72`（0.1.2 发布准备）和 `badcc73`（Electron Release 文件名稳定化）。正式 GitHub Release/tag 为 [LFAA 0.1.2](https://github.com/yubboo/LFAA/releases/tag/0.1.2)。线上 `main/update.json` 为 enabled stable 0.1.2；Release 仅含 `latest.yml`、`LFAA-0.1.2.exe` 和对应 `.blockmap`。线上 `latest.yml` 指向实际安装包名称，安装包下载 URL 返回 HTTP 200，Release API 中安装包 SHA-256 为 `a92588c92e87a7859ad29d737e78c7b204f38f0517517b526f7beb6df7700ce5`。
+- 安装包未做 Authenticode 签名。未实际启动用户安装的 0.1.1、点击更新并完成安装升级；此项仍需桌面实机验收。`workspace-preflight` 入口在本仓库不存在，未运行。隔离 worktree 中旧的带空格命名临时安装包清理被自动策略拦截，保留原文件，未通过其他方式删除。
 
 ## LFAA-DESKTOP-ELECTRON-AUTO-UPDATE-01
 
