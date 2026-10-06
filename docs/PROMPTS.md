@@ -17,7 +17,8 @@
 | LFAA-APP-VERSION-REBASE-01 | 按用户指定的 `0.0.1 → 0.0.2` 更新链重建 Windows Electron `0.0.2` 候选，保留运行中 Web 正式构建目录 | 已实现；版本/更新回归 7/7、24/24，安装器回归 3/3，Windows x64 候选包与随包运行树验收通过；真实安装/启动视觉及外部发布未验 | 本文件“LFAA-APP-VERSION-REBASE-01” |
 | LFAA-DESKTOP-UPDATE-RELEASE-003 | 修复桌面更新 404 错误泄露原始 HTTP 响应信息，并将 LFAA 0.0.3 安装包及更新清单发布至 GitHub Release | Windows x64 安装包已构建并本地验收；GitHub 推送与 Release 待执行；真实应用自动升级待验 | 本文件“LFAA-DESKTOP-UPDATE-RELEASE-003” |
 | LFAA-DESKTOP-UPDATE-EXPERIENCE-004 | 将 LFAA 桌面更新体验完善为顶部更新入口、版本说明卡片、跳过指定版本及用户 opt-in 的自动下载安装，并构建 `LFAA-0.0.4.exe` | 本地代码、回归、Windows x64 NSIS 包和版本交付目录已验收；真实安装、桌面视觉和升级未验；未上传或发布 | 本文件“LFAA-DESKTOP-UPDATE-EXPERIENCE-004” |
-| LFAA-DESKTOP-ELECTRON-BUILD-MENU-01 | 将工作台菜单 3 与 `pnpm run build:win` 接入 Windows Electron 安装包构建；本次沿用待构建的 `0.0.4`，生成后后续每次新包递增版本并同步更新日志、产品元数据与更新清单 | 实现中；用户自行执行 Windows 打包，本轮不生成安装包 | 本文件“LFAA-DESKTOP-ELECTRON-BUILD-MENU-01” |
+| LFAA-DESKTOP-ELECTRON-BUILD-MENU-01 | 将工作台菜单 3 与 `pnpm run build:win` 接入 Windows Electron 安装包构建；保留 `0.0.4` 已生成事实，之后每次新包递增版本并同步更新日志、产品元数据与更新清单 | 构建入口、版本登记与回归完成；现有 `0.0.4` 安装器匹配核验通过；未生成新包 | 本文件“LFAA-DESKTOP-ELECTRON-BUILD-MENU-01” |
+| LFAA-GIT-PUSH-CREDENTIAL-PATH-GUARD-01 | 修复正常推送前历史路径扫描将第一方 `packages/credentials` 目录树节点误判为敏感数据，同时保留其他敏感路径、内容和大对象阻断 | Pester 2/2、完整历史安全门禁通过；正常快进推送至 GitHub main；远端 `update.json` 与 `latest.yml` 均为 0.0.4；应用内手动检测待用户复验 | 本文件“LFAA-GIT-PUSH-CREDENTIAL-PATH-GUARD-01” |
 | LFAA-WEB-VERSION-UPDATE-CHECK-01 | 在 Web 设置页显示构建版本，并手动检查官方更新清单、展示更新说明和发布页 | Web 构建、定向回归、TypeScript 与登录态浏览器验收通过；桌面下载安装不属于 Web 验收 | 本文件“LFAA-WEB-VERSION-UPDATE-CHECK-01” |
 | LFAA-DESKTOP-ELECTRON-STARTUP-INSTALLER-01 | 修复桌面安装包缺少 CUA Driver 导致启动失败，并补齐 LFAA 安装图标、强制确认、安装详情和桌面快捷方式 | 源码、Windows x64 安装包及随包插件导入验收通过；实际安装交互与快捷方式目视待用户安装确认 | 本文件“LFAA-DESKTOP-ELECTRON-STARTUP-INSTALLER-01” |
 | LFAA-DESKTOP-ELECTRON-LICENSE-ENCODING-01 | 修复 Windows NSIS 安装须知中文乱码并重建独立候选安装包 | 源码与构建资源编码核验、Windows x64 NSIS 构建及随包运行树验收通过；安装器界面未安装/目视，候选未签名 | 本文件“LFAA-DESKTOP-ELECTRON-LICENSE-ENCODING-01” |
@@ -8123,7 +8124,7 @@ Minecraft 节点适配器调用现有 Agent Loop、Minecraft Tools 和 Daemon Ow
 ### 用户目标与运行入口
 
 - 用户在 `lfaa.bat` 菜单选择 `3` 时构建 Windows Electron x64 NSIS 安装包；等价命令为 `pnpm run build:win`，产物位于根目录 `dist/apps/desktop-electron/`。
-- 当前正式产品版本及待构建候选均为 `0.0.4`。本次首次菜单打包沿用 `0.0.4`，不提前递增；候选安装器生成后，下一次新包目标为 `0.0.5`。
+- 当前正式产品版本为 `0.0.4`；本轮发现 `dist/apps/desktop-electron/LFAA-0.0.4.exe` 和 `latest.yml` 已匹配存在，已据实登记为已生成。下一次新包目标为 `0.0.5`，构建入口需要求填写新版本更新说明。
 - 版本权威是 `docs/updata-log.md`；`apps/cli/package.json`、`apps/web/package.json`、`apps/desktop-electron/package.json` 与 `update.json` 是该版本的产品元数据投影。
 - Windows Electron 桌面构建依赖 Control Plane、Windows Sandbox Host 与包内隔离 Web 候选；不要构建覆盖正在运行 Web 服务使用的 `dist/apps/web`。
 
@@ -8148,16 +8149,54 @@ Minecraft 节点适配器调用现有 Agent Loop、Minecraft Tools 和 Daemon Ow
 - 本轮不构建、不安装、不启动安装器、不覆盖 `dist/apps/desktop-electron/` 中既有候选，不重启端口 3000 服务或桌面进程。
 - 不改变普通 `pnpm run build` 的 Harness 运行树职责；Electron 安装器仅由 `pnpm run build:win`、菜单 `3` 或其等价 Windows Electron 入口生成。
 - 不推送 GitHub、创建 Tag/Release、上传安装包、签名或提交 Git；不清理旧构建产物与用户数据。
-- 若桌面构建前置失败且尚未生成 Electron 安装器，保留当前待构建版本供重试；一旦 `electron-builder` 生成与 `latest.yml` 匹配的安装器，该版本即记为已使用，后续不得重用。
+- 若桌面构建前置失败且尚未生成 Electron 安装器，保留当前待构建版本供重试；一旦 `electron-builder` 生成与 `latest.yml` 匹配的安装器，该版本即记为已使用，后续不得重用。若安装器先生成、完成记账尚未执行，下一次运行入口会按文件和清单版本自动补记。
 
 ### 验收条件
 
 - 根菜单显示 `3` 为 Windows Electron 安装包构建并给出产物路径；选择 `3` 实际调用统一 `build:win` 命令；根脚本可通过 `pnpm run build:win` 触发相同流程。
-- 当前 `0.0.4` 待构建版本不递增；完成后记录安装器文件名。下一次构建开始时产生 `0.0.5`、连续更新日志编号和必填的本次更新说明，并同步 CLI/Web/Electron 版本及 `update.json`。
+- 当前 `0.0.4` 安装器文件与 `latest.yml` 已存在；完成记账后下次构建应产生 `0.0.5`、连续更新日志编号和必填的本次更新说明，并同步 CLI/Web/Electron 版本及 `update.json`。
 - 构建失败时能够区分尚未生成安装器的可重试状态与已经生成、版本已消耗的状态；修订号不回退、不重复。
 - 定向回归覆盖版本解析/递增、初次待构建版本、版本已消耗后的升级、更新清单同步、失败前置条件不误记完成；根/包清单与 PowerShell AST 校验和 `git diff --check` 通过。
 - 设置中心无新增或修改项。实际 Electron 打包、安装器目视、签名、发布与用户升级均由用户后续执行，本轮不得声称已验收。
 
 ### 实施与本地验收记录
 
-- （完成后按实际结果填写；用户自行执行 Windows Electron 打包。）
+- 根菜单 `3` 已改为调用 `pnpm run build:win`；该入口先读取唯一更新日志状态，再依次构建 Control Plane、Windows Sandbox Host 和隔离的 Web 候选，不触碰正式 `dist/apps/web/`。Electron 包提供转发入口与内部 `package:win:prepared`，成功生成后通过安装器与 `latest.yml` 匹配校验登记完成。
+- 当前 `dist/apps/desktop-electron/LFAA-0.0.4.exe` 存在，`latest.yml` 的 `version` 与 `path` 均为 `0.0.4` / `LFAA-0.0.4.exe`；执行 `node scripts/desktop-package-version.mjs complete` 成功将 #15 状态标为已生成。没有重新构建、安装或启动安装器。
+- 新增 5 项版本构建回归，覆盖沿用待构建版本、匹配产物记账、下一包同步递增、进程中断后补记，以及元数据不一致时拒绝写入。完整 Electron 更新/版本回归通过 37/37。
+- 开发者页项目版本改为读取现有 `lfaaProjectBuildInfo`，不再硬编码旧版本；`lfaa-client-ui-settings` 包构建通过。构建入口与版本文件不增加设置中心配置；Node 语法、三份 JSON、更新清单校验、PowerShell AST、工作树与当前代码差异空白检查均通过。未运行 Electron 打包，安装器后续由用户执行。
+
+## LFAA-GIT-PUSH-CREDENTIAL-PATH-GUARD-01：正常推送历史路径误报
+
+### 用户目标与运行入口
+
+- 用户选择工作台菜单 6“正常推送 GitHub main”并确认推送；脚本在 Git 历史路径检查中将 `packages/credentials` 拦截，导致远端 `main/update.json` 仍为 `0.0.3`，桌面 `0.0.3` 客户端无法发现已发布的 `0.0.4`。
+- 运行入口为根目录 `scripts/install-dependencies.ps1` 的正常 GitHub 推送流程；目标 Owner 为该脚本的历史路径/敏感内容扫描与 Git push 编排。
+- `packages/credentials` 是受版本控制的第一方源码包。Git 历史枚举会返回目录树对象路径 `packages/credentials`（无末尾斜杠）以及包内文件路径；白名单边界必须覆盖两种形态。
+
+### 设置、数据/权限 Owner 与验收条件
+
+- 不涉及设置中心配置。只读取 Git 索引、对象路径、文件大小及历史敏感内容，不读写产品运行数据。
+- 仅允许精确的第一方根包 `packages/credentials` 及其后代路径通过通用 `credentials` 目录名规则；其他运行数据、依赖、秘密目录、敏感扩展名、凭据文件名、历史大对象和内容级凭据扫描继续执行。
+- 用 PowerShell AST 加载并运行真实 `Get-BlockedGitPaths` 函数的 Pester 回归，覆盖第一方目录树/文件允许及其他凭据目录/敏感扩展名拒绝；通过 PowerShell 解析及 `git diff --check`。
+- 用户已在菜单 6 中确认正常推送。本轮只允许正常 fast-forward 推送到 `origin` 的 `main`；任何路径、体积或高风险秘密扫描阻断以及远端非快进均停止，不绕过扫描、不强推、不改写历史。
+
+### 允许修改
+
+- `scripts/install-dependencies.ps1` 中 `Get-BlockedGitPaths` 对第一方源码包的边界匹配。
+- `scripts/tests/install-dependencies-path-guard.Tests.ps1` 对真实 PowerShell 函数的直接回归。
+- 本合同及其实施验收记录。
+
+### 禁止修改
+
+- 不放宽历史凭据内容模式、运行数据/依赖/密钥/大文件规则；不跳过任何安全 Gate。
+- 不强制推送，不重置、变基或改写已有提交；不改变 origin URL 或推送目标。
+- 不触碰 `packages/credentials` 内的源码或运行数据，不改其他产品行为。
+
+### 实施与验收记录
+
+- `Get-BlockedGitPaths` 的第一方源码例外现在匹配 `packages/credentials` 本身及其后代路径。其他凭据目录仍被拒绝；位于包内的 `.pem` 和 `credentials.json` 仍被拒绝。
+- `scripts/tests/install-dependencies-path-guard.Tests.ps1` 通过 Pester 3.4.0，2/2；`scripts/install-dependencies.ps1` PowerShell AST 解析通过，`git diff --cached --check` 通过。
+- 对 HEAD 的 1628 条历史路径扫描、超过 25 MiB 对象扫描与高风险历史凭据扫描全部通过；存在 2 条现有通用凭据赋值启发式非阻断提醒。修复与回归两文件的 staged 路径/高风险凭据扫描通过。
+- 按用户在菜单 6 中的确认，提交 `68716b1773349e2df3531932f9ebab9bd09a0968` 与其父提交 `3bb810c` 通过普通 fast-forward 推送至 `origin/main`，没有强推。推送后 GitHub `main/update.json` 返回 HTTP 200、版本 `0.0.4`；`releases/latest/download/latest.yml` 返回 HTTP 200、版本 `0.0.4`。未能在用户的桌面安装实例中实际点击“检查更新”复验。
+- 不涉及设置中心配置。用户工作区中另外存在的 `docs/updata-log.md`、`update.json` 与 `开发规范.md` 变更未纳入修复提交；`docs/PROMPTS.md` 含其他并行版本构建合同变更，也未推送。
