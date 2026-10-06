@@ -15,6 +15,8 @@ test("Windows 安装器绑定 LFAA 图标、同意须知与始终创建桌面快
   const nsis = desktopPackage.build.nsis;
 
   assert.equal(desktopPackage.build.win.icon, "assets/lfaa.ico");
+  assert.equal(desktopPackage.build.win.artifactName, "LFAA-${version}.${ext}");
+  assert.doesNotMatch(desktopPackage.build.win.artifactName, /\s/);
   assert.equal(nsis.license, "installation-notice.txt");
   assert.equal(nsis.installerIcon, "lfaa.ico");
   assert.equal(nsis.uninstallerIcon, "lfaa.ico");

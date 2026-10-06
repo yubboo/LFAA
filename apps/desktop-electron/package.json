@@ -56,7 +56,7 @@
           ]
         }
       ],
-      "artifactName": "LFAA ${version}.${ext}"
+      "artifactName": "LFAA-${version}.${ext}"
     },
     "publish": [
       {
