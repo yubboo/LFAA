@@ -11,9 +11,9 @@
 import type { ReactElement, SVGProps } from "react";
 
 export type WorkbenchIconName =
-  | "archive" | "bolt" | "book" | "browser" | "chevron" | "close" | "dots" | "file" | "folder" | "grid" | "history"
+  | "archive" | "bolt" | "book" | "branch" | "browser" | "check" | "chevron" | "close" | "copy" | "dots" | "file" | "folder" | "grid" | "history"
   | "help" | "home" | "keyboard" | "microphone" | "moon" | "monitor" | "new" | "panelLeft" | "panelRight" | "plus" | "refresh" | "review" | "search"
-  | "settings" | "shield" | "spark" | "sun" | "terminal" | "tools" | "trash" | "user" | "bell";
+  | "settings" | "shield" | "spark" | "sun" | "terminal" | "thumbDown" | "thumbUp" | "tools" | "trash" | "user" | "bell";
 
 export interface WorkbenchIconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
   name: WorkbenchIconName;
@@ -25,9 +25,12 @@ const paths: Record<WorkbenchIconName, ReactElement> = {
   archive: <><path d="M4 7h16"/><path d="M5 7v12h14V7"/><path d="M8 3h8l2 4H6l2-4Z"/><path d="M9 11h6"/></>,
   bolt: <path d="m13 2-8 12h6l-1 8 9-13h-6l0-7Z"/>,
   book: <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22V5.5Z"/><path d="M4 6v14a2 2 0 0 1 2-2h14"/><path d="M8 7h8"/></>,
+  branch: <><circle cx="6" cy="5" r="2.5"/><circle cx="18" cy="5" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.5 5h3a3 3 0 0 1 3 3v8a3 3 0 0 0 3 3"/><path d="M8.5 5h6.5a3 3 0 0 1 3 3"/></>,
   browser: <><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.7 2.4 4 5.4 4 9s-1.3 6.6-4 9c-2.7-2.4-4-5.4-4-9s1.3-6.6 4-9Z"/></>,
+  check: <path d="m5 12 4 4L19 6"/>,
   chevron: <path d="m8 10 4 4 4-4"/>,
   close: <><path d="m6 6 12 12"/><path d="M18 6 6 18"/></>,
+  copy: <><rect x="9" y="9" width="11" height="12" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></>,
   dots: <><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></>,
   file: <><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/></>,
   folder: <><path d="M3 6h7l2 2h9v11H3z"/></>,
@@ -51,6 +54,8 @@ const paths: Record<WorkbenchIconName, ReactElement> = {
   spark: <><path d="m12 3 1.3 4.1L17 9l-3.7 1.9L12 15l-1.3-4.1L7 9l3.7-1.9L12 3Z"/><path d="m18 15 .7 2.3L21 18l-2.3.7L18 21l-.7-2.3L15 18l2.3-.7L18 15Z"/></>,
   sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.9 4.9 1.4 1.4"/><path d="m17.7 17.7 1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m4.9 19.1 1.4-1.4"/><path d="m17.7 6.3 1.4-1.4"/></>,
   terminal: <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3"/><path d="M12 15h5"/></>,
+  thumbDown: <g transform="rotate(180 12 12)"><path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h3Z"/><path d="M7 10 12 3a2 2 0 0 1 2 2v4h5a2 2 0 0 1 2 2l-2 8a2 2 0 0 1-2 2H7"/></g>,
+  thumbUp: <><path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h3Z"/><path d="M7 10 12 3a2 2 0 0 1 2 2v4h5a2 2 0 0 1 2 2l-2 8a2 2 0 0 1-2 2H7"/></>,
   tools: <><path d="m14 7 3-3 3 3-3 3"/><path d="m4 20 8-8"/><circle cx="7" cy="7" r="3"/><circle cx="17" cy="17" r="3"/></>,
   trash: <><path d="M4 7h16"/><path d="m6 7 1 14h10l1-14"/><path d="M9 7V4h6v3"/><path d="M10 11v6M14 11v6"/></>,
   user: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,

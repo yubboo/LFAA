@@ -36,8 +36,12 @@ test("MCP 按真实协议发现和执行工具，取消不重放", async () => {
   const controller = new AbortController();
   let discovered;
   try {
-    discovered = await discoverMcpTools([{ id: "fixture", name: "测试服务", url, enabled: true }], controller.signal, 10);
+    const hiddenFromMinecraft = await discoverMcpTools([{ id: "fixture", name: "测试服务", url, enabled: true, applicationIds: ["workspace"] }], "minecraft", new AbortController().signal, 10);
+    assert.deepEqual(hiddenFromMinecraft.errors, []); assert.equal(hiddenFromMinecraft.tools.length, 0); assert.equal(calls.length, 0); await hiddenFromMinecraft.close();
+    discovered = await discoverMcpTools([{ id: "fixture", name: "测试服务", url, enabled: true, applicationIds: ["workspace"] }], "workspace", controller.signal, 10);
     assert.deepEqual(discovered.errors, []); assert.equal(discovered.tools.length, 1);
+    assert.equal(discovered.serverStates[0].status, "ready");
+    assert.match(discovered.serverStates[0].manifestSha256, /^[a-f0-9]{64}$/u);
     const tool = discovered.tools[0];
     assert.equal(tool.risk({}), "dangerous");
     assert.throws(() => tool.parse({ path: 1 }), /约束/u);
@@ -49,7 +53,9 @@ test("MCP 按真实协议发现和执行工具，取消不重放", async () => {
     const waiting = tool.execute({ path: "block" }, context); await blocked; controller.abort(); await assert.rejects(waiting);
     assert.ok(cancellations.length >= 2);
     await discovered.close(); assert.equal(removed.length, 1);
-    const invalid = await discoverMcpTools([{ id: "bad", name: "无效服务", url: "http://user:secret@127.0.0.1/mcp", enabled: true }], new AbortController().signal, 10);
+    const invalid = await discoverMcpTools([{ id: "bad", name: "无效服务", url: "http://user:secret@127.0.0.1/mcp", enabled: true, applicationIds: ["workspace"] }], "workspace", new AbortController().signal, 10);
     assert.equal(invalid.tools.length, 0); assert.equal(invalid.errors.length, 1); await invalid.close();
+    const pinned = await discoverMcpTools([{ id: "fixture", name: "测试服务", url, enabled: true, applicationIds: ["workspace"], manifestSha256: "0".repeat(64) }], "workspace", new AbortController().signal, 10);
+    assert.equal(pinned.tools.length, 0); assert.equal(pinned.serverStates[0].status, "incompatible"); await pinned.close();
   } finally { await discovered?.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 });

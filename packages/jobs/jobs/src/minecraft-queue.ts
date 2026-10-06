@@ -8,7 +8,7 @@ import { database } from "lfaa-storage-sqlite/src/database.js";
 
 const taskLeaseDurationMilliseconds = 30_000;
 
-export type MinecraftTaskKind = "install" | "start" | "stop" | "properties" | "backup" | "java-install";
+export type MinecraftTaskKind = "install" | "start" | "stop" | "properties" | "backup" | "java-install" | "restart" | "console";
 export type MinecraftTaskStatus = "queued" | "running" | "succeeded" | "failed";
 
 export interface MinecraftTask {
@@ -89,6 +89,9 @@ export function createMinecraftTask(input: {
   payload: Record<string, unknown>;
   message?: string;
 }): MinecraftTask {
+  if (input.instanceId && database.prepare("SELECT 1 FROM minecraft_tasks WHERE instance_id = ? AND status IN ('queued', 'running') LIMIT 1").get(input.instanceId)) {
+    throw new Error("实例已有排队或运行中的操作，不能同时修改配置或启动备份。");
+  }
   const id = randomUUID();
   database.prepare(`
     INSERT INTO minecraft_tasks (id, node_id, instance_id, deployment_id, created_by, kind, status, progress, message, payload_json)
@@ -103,8 +106,8 @@ export function renewMinecraftTaskLeases(nodeId: string, taskIds: string[]): num
   const placeholders = taskIds.map(() => "?").join(", ");
   const result = database.prepare(`
     UPDATE minecraft_tasks SET lease_expires_at = ?
-    WHERE node_id = ? AND status = 'running' AND id IN (${placeholders})
-  `).run(expiresAt, nodeId, ...taskIds);
+    WHERE node_id = ? AND status = 'running' AND id IN (${placeholders}) AND lease_expires_at > ?
+  `).run(expiresAt, nodeId, ...taskIds, new Date().toISOString());
   return Number(result.changes);
 }
 
@@ -138,7 +141,7 @@ function failExpiredMinecraftTasks(nodeId?: string): void {
         task.id,
         now
       );
-      if (Number(result.changes) === 1 && task.instance_id && ["install", "start", "stop"].includes(task.kind)) {
+      if (Number(result.changes) === 1 && task.instance_id && ["install", "start", "stop", "restart"].includes(task.kind)) {
         updateInstance.run(now, task.instance_id);
       }
       if (Number(result.changes) === 1 && task.deployment_id) {
@@ -161,7 +164,7 @@ export function claimNextMinecraftTask(nodeId: string, sandboxAvailable = false)
   try {
     const row = database.prepare(`
       SELECT id, deployment_id FROM minecraft_tasks
-      WHERE node_id = ? AND status = 'queued' AND (kind <> 'start' OR ? = 1)
+      WHERE node_id = ? AND status = 'queued' AND (kind NOT IN ('start', 'restart') OR ? = 1)
       ORDER BY created_at LIMIT 1
     `).get(nodeId, sandboxAvailable ? 1 : 0) as { id: string; deployment_id: string | null } | undefined;
     if (!row) {
@@ -223,6 +226,10 @@ export function completeMinecraftTask(taskId: string, nodeId: string, succeeded:
   failExpiredMinecraftTasks(nodeId);
   const task = database.prepare("SELECT kind, instance_id, deployment_id, payload_json FROM minecraft_tasks WHERE id = ? AND node_id = ? AND status = 'running'").get(taskId, nodeId) as { kind: MinecraftTaskKind; instance_id: string | null; deployment_id: string | null; payload_json: string } | undefined;
   if (!task) return false;
+  if (succeeded && (parseJsonObject(task.payload_json)?.operation === "provision" || task.kind === "start" || task.kind === "restart") && result.serverReady !== true) {
+    succeeded = false;
+    message = "节点未提供服务就绪证据，开服未确认成功，请查看实例日志。";
+  }
   const status: MinecraftTaskStatus = succeeded ? "succeeded" : "failed";
   const finishTime = new Date().toISOString();
 
@@ -237,19 +244,21 @@ export function completeMinecraftTask(taskId: string, nodeId: string, succeeded:
       return false;
     }
     if (task.instance_id) {
-      const nextState = task.kind === "install" ? (succeeded ? "stopped" : "error")
-        : task.kind === "start" ? (succeeded ? "running" : "error")
-          : task.kind === "stop" ? (succeeded ? "stopped" : "error")
+      const payload = parseJsonObject(task.payload_json);
+      const automatic = payload?.operation === "provision";
+      const nextState = task.kind === "install" ? (succeeded ? automatic && result.serverReady === true ? "running" : "stopped" : "error")
+        : task.kind === "start" || task.kind === "restart" ? (succeeded ? "running" : "unknown")
+          : task.kind === "stop" ? (succeeded ? "stopped" : "unknown")
             : undefined;
       if (nextState) {
         database.prepare("UPDATE minecraft_instances SET state = ?, updated_at = ? WHERE id = ?")
           .run(nextState, finishTime, task.instance_id);
       }
-      if (succeeded && ["install", "stop"].includes(task.kind)) {
+      if (succeeded && ["install", "stop"].includes(task.kind) && payload?.executionMode !== "native") {
         database.prepare("UPDATE minecraft_instances SET sandbox_status = 'prepared', updated_at = ? WHERE id = ?")
           .run(finishTime, task.instance_id);
       }
-      if (succeeded && task.kind === "start") {
+      if (succeeded && (task.kind === "start" || task.kind === "restart") && payload?.executionMode !== "native") {
         database.prepare("UPDATE minecraft_instances SET sandbox_status = 'running', updated_at = ? WHERE id = ?")
           .run(finishTime, task.instance_id);
       }
@@ -261,10 +270,11 @@ export function completeMinecraftTask(taskId: string, nodeId: string, succeeded:
             .run(JSON.stringify(properties), finishTime, task.instance_id);
         }
       }
+      if (payload?.executionMode === "native") database.prepare("UPDATE minecraft_instances SET sandbox_status = 'unsupported', execution_mode = 'native' WHERE id = ?").run(task.instance_id);
     }
     if (task.deployment_id && task.kind === "install") {
       const payload = parseJsonObject(task.payload_json);
-      const nextState = payload?.operation === "register" ? (succeeded ? "registered" : "ready") : (succeeded ? "ready" : "failed");
+      const nextState = payload?.operation === "provision" ? (succeeded && result.serverReady === true ? "registered" : "failed") : payload?.operation === "register" ? (succeeded ? "registered" : "ready") : (succeeded ? "ready" : "failed");
       database.prepare("UPDATE minecraft_deployments SET state = ?, updated_at = ? WHERE id = ?")
         .run(nextState, finishTime, task.deployment_id);
     }

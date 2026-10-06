@@ -4,6 +4,8 @@
  * 关联文件：packages/client/connection/src/api.ts、packages/client/ui-sidebar/src/GlobalNavigationRail.tsx、packages/client/ui-sidebar-files/src/FileManagerPage.css、packages/fs/fs/src/queue.ts。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
+import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { Alert, Button, Empty, Input, Modal, Select, Space, Spin, Table, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { getErrorMessage, hasAdminAccess, loadFileManagerNodes, loadFileManagerTask, submitFileManagerTask, type FileManagerNode, type FileManagerOperation, type FileManagerTask, type ManagedFileEntry, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
@@ -22,13 +24,13 @@ interface FileManagerSnapshot {
   truncated: boolean;
 }
 
-const fileManagerSnapshots = new Map<string, FileManagerSnapshot>();
+const fileManagerSnapshots = createSnapshotCache<FileManagerSnapshot>();
 
 interface FileManagerPageProps {
   user: User;
   settings: UserSettings;
   serverState: ServiceState;
-  returnRoute: string;
+  homeRoute: string;
   onNavigate: (path: string) => void;
   onOpenSettings: () => void;
   onLogout: () => void;
@@ -58,7 +60,7 @@ function getFileManagerModalContainer(): HTMLElement {
   return document.querySelector<HTMLElement>(".workbench-shell") ?? document.body;
 }
 
-export function FileManagerPage({ user, settings, serverState, returnRoute, onNavigate, onOpenSettings, onLogout }: FileManagerPageProps) {
+export function FileManagerPage({ user, settings, serverState, homeRoute, onNavigate, onOpenSettings, onLogout }: FileManagerPageProps) {
   const [messageApi, messageContext] = message.useMessage();
   const [modalApi, modalContext] = Modal.useModal();
   const cacheKey = `${user.id}:${user.role}`;
@@ -93,6 +95,7 @@ export function FileManagerPage({ user, settings, serverState, returnRoute, onNa
   nodeIdRef.current = nodeId;
   const searchTextRef = useRef(searchText);
   searchTextRef.current = searchText;
+  const directoryReadSequence = useRef(0);
 
   const selectedNode = nodes.find((node) => node.id === nodeId) ?? null;
   const isOnline = selectedNode?.status === "online";
@@ -131,6 +134,7 @@ export function FileManagerPage({ user, settings, serverState, returnRoute, onNa
   }, [isOnline, nodeId]);
 
   const refresh = useCallback(async () => {
+    const request = ++directoryReadSequence.current;
     if (!nodeId || !isOnline) {
       // 离线缓存只能用于节点恢复后的快速首屏，不能伪装成当前可操作目录。
       setEntries([]);
@@ -149,6 +153,7 @@ export function FileManagerPage({ user, settings, serverState, returnRoute, onNa
       const result = searchQuery.trim()
         ? await runTask("search", { path: currentPath, query: searchQuery.trim() })
         : await runTask("list", { path: currentPath });
+      if (request !== directoryReadSequence.current) return;
       const nextEntries = Array.isArray(result.entries) ? result.entries as ManagedFileEntry[] : [];
       setEntries(nextEntries);
       const nextTruncated = result.truncated === true;
@@ -158,11 +163,12 @@ export function FileManagerPage({ user, settings, serverState, returnRoute, onNa
         nodes: nodesRef.current, nodeId, currentPath, searchText: searchTextRef.current, searchQuery, entries: nextEntries, truncated: nextTruncated
       });
     } catch {
+      if (request !== directoryReadSequence.current) return;
       setEntries([]);
       setTruncated(false);
       setDirectoryState("error");
     } finally {
-      setLoading(false);
+      if (request === directoryReadSequence.current) setLoading(false);
     }
   }, [cacheKey, currentPath, isOnline, nodeId, runTask, searchQuery]);
 
@@ -174,12 +180,14 @@ export function FileManagerPage({ user, settings, serverState, returnRoute, onNa
     }
     let active = true;
     let loaded = false;
-    let manualRefreshPending = false;
+    let manualRefreshRevision = 0;
+    let completedManualRefreshRevision = 0;
     let requestSequence = 0;
-    const refreshNodes = async (manual = false) => {
+    const refreshNodes = async () => {
       const request = ++requestSequence;
+      const manualRevision = manualRefreshRevision;
+      const manual = manualRevision > completedManualRefreshRevision;
       if (manual) {
-        manualRefreshPending = true;
         setNodesRefreshing(true);
         setError("");
       }
@@ -217,30 +225,33 @@ export function FileManagerPage({ user, settings, serverState, returnRoute, onNa
             loaded = true;
             setNodesLoading(false);
           }
-          if (manualRefreshPending) {
-            manualRefreshPending = false;
+          if (manual && manualRevision === manualRefreshRevision) {
+            completedManualRefreshRevision = manualRevision;
             setNodesRefreshing(false);
           }
         }
       }
     };
-    refreshNodesRef.current = () => { void refreshNodes(true); };
     if (cachedSnapshot === null) setNodesLoading(true);
-    void refreshNodes();
     // 节点在线状态来自 daemon 心跳；定时刷新让页面能跟上 daemon 启停。
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible" && !manualRefreshPending) void refreshNodes();
-    }, 10_000);
+    const poller = createReadPoller(refreshNodes, 10_000);
+    refreshNodesRef.current = () => {
+      manualRefreshRevision += 1;
+      setNodesRefreshing(true);
+      setError("");
+      void poller.refresh();
+    };
     return () => {
       active = false;
       requestSequence += 1;
       refreshNodesRef.current = null;
-      window.clearInterval(timer);
+      poller.stop();
     };
   }, [cacheKey, cachedSnapshot, user.role]);
 
   useEffect(() => {
     void refresh();
+    return () => { directoryReadSequence.current += 1; };
   }, [refresh]);
 
   const openEntry = async (entry: ManagedFileEntry) => {
@@ -413,8 +424,8 @@ export function FileManagerPage({ user, settings, serverState, returnRoute, onNa
         serverState={serverState}
         shortcuts={settings.shortcuts}
         activePage="files"
-        homeLabel="返回上一个位置"
-        onHome={() => onNavigate(returnRoute)}
+        homeLabel="返回来源应用/模式首页"
+        onHome={() => onNavigate(homeRoute)}
         onApplicationsHome={() => onNavigate("/")}
         onOpenFiles={() => onNavigate("/files")}
         onOpenSettings={onOpenSettings}

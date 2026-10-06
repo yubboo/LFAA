@@ -1,0 +1,31 @@
+.minecraft-workflow-page { display: grid; min-height: 0; gap: 14px; }
+.minecraft-workflow-loading { display: flex; min-height: 320px; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+.minecraft-workflow-heading { display: flex; min-width: 0; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.minecraft-workflow-heading > div:first-child { min-width: 260px; max-width: 680px; }
+.minecraft-workflow-heading h3.ant-typography { margin: 4px 0; color: var(--color-text-heading); }
+.minecraft-workflow-heading p.ant-typography { margin: 0; color: var(--color-text-secondary); }
+.minecraft-workflow-alert { margin-bottom: 0; }
+.minecraft-workflow-editor > .ant-card-body { display: grid; gap: 12px; }
+.minecraft-workflow-toolbar { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 10px; }
+.minecraft-workflow-toolbar > .ant-input { width: min(320px, 100%); }
+.minecraft-workflow-toolbar > span { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.minecraft-workflow-eula { display: flex; align-items: center; gap: 5px; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.minecraft-workflow-eula a { color: var(--color-brand); }
+.minecraft-workflow-runs > .ant-card-body { display: grid; gap: 12px; }
+.minecraft-workflow-runs .minecraft-card-heading { align-items: center; }
+.minecraft-workflow-runs .minecraft-card-heading h4.ant-typography { margin: 0; }
+.minecraft-workflow-runs .minecraft-card-heading p.ant-typography { margin: 3px 0 0; font-size: var(--font-size-xs); }
+.minecraft-workflow-run { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--color-border-subtle); border-radius: 9px; }
+.minecraft-workflow-run__heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.minecraft-workflow-run__heading .ant-tag { margin: 0; }
+.minecraft-workflow-run__node { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.minecraft-workflow-run__node > span:first-child { min-width: 90px; color: var(--color-text-heading); font-weight: 600; }
+.minecraft-workflow-run__node .ant-tag { margin: 0; }
+.minecraft-workflow-run__output { width: 100%; max-height: 180px; overflow: auto; margin: 0; padding: 8px; border-radius: 6px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.minecraft-workflow-question { display: grid; width: 100%; gap: 8px; margin-top: 4px; padding: 10px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface-muted); color: var(--color-text-heading); }
+.minecraft-workflow-question > strong { font-size: var(--font-size-sm); line-height: 1.5; white-space: pre-wrap; }
+.minecraft-workflow-footnote { line-height: 1.6; }
+@media (max-width: 760px) {
+  .minecraft-workflow-heading { align-items: flex-start; }
+  .minecraft-workflow-heading > .ant-space { width: 100%; }
+}

@@ -12,7 +12,9 @@
     "@deepseek-ai/cordis": "4.0.4",
     "lfaa-storage-json": "workspace:*",
     "lfaa-storage-sqlite": "workspace:*",
-    "lfaa-launch-environment": "workspace:*"
+    "lfaa-launch-environment": "workspace:*",
+    "lfaa-home-paths": "workspace:*",
+    "lfaa-util-values": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0"

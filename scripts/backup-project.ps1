@@ -41,6 +41,28 @@ function Test-PathInsideDirectory {
 $projectRoot = ConvertTo-NormalizedFullPath (Join-Path $PSScriptRoot '..')
 $projectBackupRoot = ConvertTo-NormalizedFullPath (Join-Path $projectRoot 'dist\backups')
 $temporaryRoot = ConvertTo-NormalizedFullPath (Join-Path $projectRoot 'dist\.tmp\backup-project')
+# 输出祖先不能是目录联接；字符串路径位于 dist 不代表实际落盘也位于 dist。
+function Assert-BackupPathHasNoLinks {
+    param([string]$Path)
+    $currentPath = ConvertTo-NormalizedFullPath $Path
+    while (Test-PathInsideDirectory -Candidate $currentPath -Directory $projectRoot) {
+        if ((Test-Path -LiteralPath $currentPath) -and
+            ((Get-Item -LiteralPath $currentPath -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+            throw '备份输出或暂存路径含目录链接，已停止备份。'
+        }
+        if ($currentPath -eq $projectRoot) { break }
+        $currentPath = Split-Path -Parent $currentPath
+    }
+}
+Assert-BackupPathHasNoLinks $temporaryRoot
+New-Item -ItemType Directory -Path $temporaryRoot -Force | Out-Null
+Assert-BackupPathHasNoLinks (Join-Path $temporaryRoot 'backup.lock')
+try {
+    $backupLock = [System.IO.File]::Open((Join-Path $temporaryRoot 'backup.lock'), [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+} catch { throw '已有源码备份正在执行，或暂存目录不可写。请等待当前备份完成后重试。' }
+$stagingSession = $null
+$temporaryArchivePath = $null
+try {
 $manifestPath = Join-Path $projectRoot 'package.json'
 $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $projectName = ([string]$manifest.name).Split('/')[-1].ToUpperInvariant()
@@ -86,9 +108,11 @@ $BackupRoot = ConvertTo-NormalizedFullPath $BackupRoot
 if (-not (Test-PathInsideDirectory -Candidate $BackupRoot -Directory $projectBackupRoot)) {
     throw '备份输出目录必须位于根目录 dist\backups。'
 }
+Assert-BackupPathHasNoLinks $BackupRoot
 
 $excludedDirectoryNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 $excludedDirectoryNameList = @(
+    '.git',
     'node_modules',
     'dist',
     'build',
@@ -115,6 +139,28 @@ foreach ($excludedDirectoryName in $excludedDirectoryNameList) {
 $runtimeDataRootCandidates = [System.Collections.Generic.List[string]]::new()
 $runtimeDataRootCandidates.Add((Join-Path $projectRoot 'data'))
 $runtimeDataRootCandidates.Add((Join-Path $projectRoot 'server\data'))
+# 只加载环境文件并调用同一数据路径 Owner，避免漏收项目内部显式配置的数据根；不导入会创建密钥的运行配置。
+$nodeCommand = Get-Command 'node' -ErrorAction SilentlyContinue
+if ($nodeCommand) {
+    $resolveDataScript = @'
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+const root = process.argv[1];
+if (existsSync(resolve(root, '.env'))) process.loadEnvFile(resolve(root, '.env'));
+const { resolveDataDirectory } = await import(pathToFileURL(resolve(root, 'packages/util/home-paths/src/resolve-data-directory.mjs')));
+process.stdout.write(resolveDataDirectory(root, process.env.LFAA_DATA_DIR?.trim() || 'data'));
+'@
+    $configuredDataRoot = & $nodeCommand.Source --input-type=module -e $resolveDataScript $projectRoot
+    if ($LASTEXITCODE -ne 0) { throw '无法核查实际数据根目录，已停止备份，避免收录运行数据。' }
+    $runtimeDataRootCandidates.Add([string]$configuredDataRoot)
+} elseif ($env:LFAA_DATA_DIR) {
+    $configuredDataPath = $env:LFAA_DATA_DIR
+    if (-not [System.IO.Path]::IsPathRooted($configuredDataPath)) { $configuredDataPath = Join-Path $projectRoot $configuredDataPath }
+    $runtimeDataRootCandidates.Add([System.IO.Path]::GetFullPath($configuredDataPath))
+} elseif (Test-Path -LiteralPath (Join-Path $projectRoot '.env')) {
+    throw '存在本机环境配置但没有 Node.js，无法安全核查数据目录。请先安装 Node.js。'
+}
 foreach ($appDirectory in Get-ChildItem -LiteralPath (Join-Path $projectRoot 'apps') -Directory -ErrorAction SilentlyContinue) {
     $runtimeDataRootCandidates.Add((Join-Path $appDirectory.FullName 'data'))
 }
@@ -128,12 +174,16 @@ foreach ($runtimeDataRootCandidate in $runtimeDataRootCandidates) {
 # 敏感与本机运行文件名：即使落在未被排除的目录里，也不进入备份。
 # 同一份清单同时用于文件清点与 Robocopy /XF，保证两者排除范围一致。
 $excludedFileNamePatterns = @(
+    '.git',
     '*.log',
     '*.sqlite', '*.sqlite-wal', '*.sqlite-shm',
     '*.db', '*.db-wal', '*.db-shm',
     '*.key', '*.pem', '*.p12', '*.pfx', '*.jks', '*.keystore', '*.crt', '*.cer', '*.der',
     'jwt-secret', 'daemon-token', 'daemon-node-id', 'daemon.lock',
-    '.lfaa-data-directory.pending.json'
+    '.lfaa-data-directory.pending.json',
+    '.npmrc', '.pypirc', '.netrc', '.git-credentials',
+    'credentials.json', 'secrets.json', 'token.json', 'auth.json', 'service-account*.json',
+    '*.sqlite3', '*.token', '*.secret', '*.secrets', '*.p8', 'id_rsa', 'id_ed25519', 'id_ecdsa', 'id_dsa'
 )
 
 $excludedDirectories = [System.Collections.Generic.List[string]]::new()
@@ -235,7 +285,7 @@ catch {
 
 New-Item -ItemType Directory -Path $BackupRoot -Force | Out-Null
 # 清理历史中断留下的未完成压缩包；它们不是可用备份，只占空间。
-$stalePartialFiles = @(Get-ChildItem -LiteralPath $BackupRoot -Filter '*.partial' -File -Force -ErrorAction SilentlyContinue)
+$stalePartialFiles = @(Get-ChildItem -LiteralPath $BackupRoot -Filter ".$projectName *.partial" -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '\.[0-9a-f]{32}\.partial$' })
 foreach ($stalePartialFile in $stalePartialFiles) {
     Remove-Item -LiteralPath $stalePartialFile.FullName -Force -ErrorAction SilentlyContinue
 }
@@ -253,8 +303,8 @@ Write-Host "项目版本：$projectName $projectVersion"
 Write-Host "压缩包：$archivePath"
 Write-Host ("待备份文件：{0:N0} 个，约 {1:N2} MB" -f $includedFileCount, ($includedByteCount / 1MB))
 Write-Host ("排除目录：{0:N0} 个（含运行数据根目录 {1:N0} 个）；本地密钥配置：{2:N0} 个；数据库/密钥/日志等敏感文件：{3:N0} 个；链接：{4:N0} 个；清掉历史未完成压缩包：{5:N0} 个" -f $excludedDirectories.Count, $runtimeDataRoots.Count, $excludedEnvironmentFiles.Count, $excludedRuntimeFiles.Count, $excludedLinkCount, $stalePartialFiles.Count)
-Write-Host '保留：源码、静态资源、文档、项目配置、锁文件和可用的 Git 元数据。' -ForegroundColor Green
-Write-Host '排除：node_modules、整个 dist/、其他构建/缓存目录、运行数据目录（data、server\data、apps\*\data）、SQLite 数据库、密钥文件、日志、真实 .env 和目录链接。' -ForegroundColor Yellow
+Write-Host '保留：当前源码、静态资源、文档、项目配置、锁文件和上游目录占位。' -ForegroundColor Green
+Write-Host '排除：Git 历史、node_modules、整个 dist/、构建/缓存目录、实际运行数据、数据库、密钥、日志、真实 .env、本机认证配置和目录链接。' -ForegroundColor Yellow
 Write-Host ''
 
 # Robocopy 通过命令行接收逐项排除路径；条目过多时命令行可能被截断，先明确报错而不是留下半个备份。
@@ -279,7 +329,8 @@ $robocopyArguments.Add('/XJ')
 $robocopyArguments.Add('/MT:8')
 $robocopyArguments.Add('/Z')
 $robocopyArguments.Add('/NP')
-$robocopyArguments.Add('/TEE')
+$robocopyArguments.Add('/NJH')
+$robocopyArguments.Add('/NJS')
 $robocopyArguments.Add('/NFL')
 $robocopyArguments.Add('/NDL')
 $robocopyArguments.Add("/LOG:$logPath")
@@ -301,6 +352,7 @@ foreach ($directory in $excludedDirectories) {
 $previousErrorActionPreference = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 try {
+    Write-Host '阶段 1/3：暂存当前源码（详情写入暂存日志）。' -ForegroundColor Cyan
     & $robocopy @robocopyArguments
     $robocopyExitCode = $LASTEXITCODE
 }
@@ -338,12 +390,13 @@ foreach ($relativeFilePath in $includedFiles.Keys) {
 if ($verificationErrors.Count -gt 0 -or $copiedFiles.Count -ne $includedFileCount -or $copiedByteCount -ne $includedByteCount) {
     Write-Host ("暂存校验未通过：源文件 {0:N0} 个 / {1:N0} 字节，暂存文件 {2:N0} 个 / {3:N0} 字节。" -f $includedFileCount, $includedByteCount, $copiedFiles.Count, $copiedByteCount) -ForegroundColor Red
     $verificationErrors | Select-Object -First 20 | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
-    Write-Host "未删除临时文件，请检查日志：$logPath" -ForegroundColor Yellow
+    Write-Host '本轮暂存将在退出时清理；请根据上面的差异修复后重试。' -ForegroundColor Yellow
     throw '源码暂存校验未通过。'
 }
 
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+Write-Host '阶段 2/3：压缩源码。' -ForegroundColor Cyan
 try {
     $archiveFileStream = [System.IO.File]::Open(
         $temporaryArchivePath,
@@ -358,7 +411,10 @@ try {
             [System.IO.Compression.ZipArchiveMode]::Create,
             $false
         )
+        $compressedCount = 0
         foreach ($copiedFile in $copiedFiles) {
+            $compressedCount++
+            if ($compressedCount % 100 -eq 0) { Write-Host ("已压缩 {0}/{1} 个文件。" -f $compressedCount, $copiedFiles.Count) -ForegroundColor DarkGray }
             $relativeFilePath = $copiedFile.FullName.Substring($stagingDirectory.Length).TrimStart([char[]]@('\', '/'))
             $archiveEntryName = "$archiveFileName/$($relativeFilePath.Replace('\', '/'))"
             $archiveEntry = $archiveWriter.CreateEntry($archiveEntryName, [System.IO.Compression.CompressionLevel]::Optimal)
@@ -380,6 +436,7 @@ try {
         $archiveFileStream.Dispose()
     }
 
+Write-Host '阶段 3/3：逐项读取 ZIP 并核对源码清单。' -ForegroundColor Cyan
 $zipArchive = [System.IO.Compression.ZipFile]::OpenRead($temporaryArchivePath)
 try {
     $archiveFiles = @($zipArchive.Entries | Where-Object { -not $_.FullName.EndsWith('/') -and -not $_.FullName.EndsWith('\') })
@@ -457,3 +514,13 @@ catch {
 Write-Host ''
 Write-Host ("备份完成并通过 ZIP 文件数量、总大小校验：{0:N0} 个文件，{1:N2} MB。" -f $archiveFiles.Count, ($archiveByteCount / 1MB)) -ForegroundColor Green
 Write-Host "保存位置：$archivePath" -ForegroundColor Cyan
+} finally {
+    # 失败也撤销本轮暂存与未完成压缩包；不删除正式 ZIP，也不清理其他备份进程的文件。
+    if ($temporaryArchivePath -and (Test-PathInsideDirectory -Candidate $temporaryArchivePath -Directory $projectBackupRoot) -and (Test-Path -LiteralPath $temporaryArchivePath -PathType Leaf)) {
+        Remove-Item -LiteralPath $temporaryArchivePath -Force -ErrorAction SilentlyContinue
+    }
+    if ($stagingSession -and (Test-PathInsideDirectory -Candidate $stagingSession -Directory $temporaryRoot) -and (Test-Path -LiteralPath $stagingSession)) {
+        Remove-Item -LiteralPath $stagingSession -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $backupLock.Dispose()
+}

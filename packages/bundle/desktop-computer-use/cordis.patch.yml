@@ -1,0 +1,5 @@
+# 功能：仅在 Windows 桌面 Profile 装配本机电脑操控驱动。作用：把真实 CUA 工具接入 LFAA Agent 权限链。关联文件：package.json。
+- insert:
+    - id: computer-use
+      name: lfaa-computer-use
+      inject: [profileContext, lfaaTools]

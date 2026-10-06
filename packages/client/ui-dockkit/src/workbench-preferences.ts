@@ -68,7 +68,8 @@ export function readWorkbenchLeftWidth(limits: WorkbenchPaneLimits, containerWid
 export function saveWorkbenchLeftWidth(width: number, limits: WorkbenchPaneLimits): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(WORKBENCH_LEFT_WIDTH_KEY, String(clampWidth(width, limits)));
+    const saved = String(clampWidth(width, limits));
+    if (window.localStorage.getItem(WORKBENCH_LEFT_WIDTH_KEY) !== saved) window.localStorage.setItem(WORKBENCH_LEFT_WIDTH_KEY, saved);
   } catch {
     // 浏览器存储不可用时仍允许本次页面内拖动，不影响工作台操作。
   }

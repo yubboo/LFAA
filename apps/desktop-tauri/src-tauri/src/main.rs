@@ -1,7 +1,7 @@
 /*
  * 功能：启动 Windows 本机一体版 LFAA 桌面应用。
  * 作用：从安装资源目录启动本机控制端与 Daemon，等待健康检查通过后再用系统 WebView2 打开同源工作台。
- * 关联文件：apps/desktop-tauri/src-tauri/tauri.conf.json、apps/desktop-tauri/src-tauri/capabilities/local-server-ui.json、apps/desktop-tauri/scripts/package-windows.mjs、frontend/src/api.ts、server/src/index.ts、scripts/apply-data-directory-migration.mjs。
+ * 关联文件：apps/desktop-tauri/src-tauri/tauri.conf.json、apps/desktop-tauri/src-tauri/capabilities/local-server-ui.json、apps/desktop-tauri/scripts/package-windows.mjs、packages/client/connection/src/api.ts、apps/cli/src/index.ts、scripts/apply-data-directory-migration.mjs。
  */
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 

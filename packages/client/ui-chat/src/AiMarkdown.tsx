@@ -3,7 +3,7 @@
  * 作用：把标题、段落、列表、表格和代码块转换为可读的 React 内容，不解释模型返回的 HTML。
  * 关联文件：packages/client/ui-chat/src/AiWorkChat.tsx、packages/client/ui-chat/src/ai-work-chat.css。
  */
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 
 interface AiMarkdownProps {
   content: string;
@@ -36,7 +36,7 @@ function isBlockStart(lines: string[], index: number): boolean {
   return /^\s*(```|#{1,6}\s|>\s?|[-*+]\s|\d+[.)]\s)/.test(line) || Boolean(lines[index + 1] && isTableSeparator(lines[index + 1]));
 }
 
-export function AiMarkdown({ content }: AiMarkdownProps) {
+export const AiMarkdown = memo(function AiMarkdown({ content }: AiMarkdownProps) {
   const lines = content.replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
@@ -57,7 +57,7 @@ export function AiMarkdown({ content }: AiMarkdownProps) {
         index += 1;
       }
       if (index < lines.length) index += 1;
-      blocks.push(<pre key={`block-${blocks.length}`}><code data-language={fence[1].trim() || undefined}>{codeLines.join("\n")}</code></pre>);
+      blocks.push(<pre className="_block_lfaa_wallpaper_code" key={`block-${blocks.length}`}><code data-language={fence[1].trim() || undefined}>{codeLines.join("\n")}</code></pre>);
       continue;
     }
 
@@ -78,7 +78,7 @@ export function AiMarkdown({ content }: AiMarkdownProps) {
         rows.push(tableCells(lines[index] ?? ""));
         index += 1;
       }
-      blocks.push(<div className="ai-work-chat__table-wrap" key={`block-${blocks.length}`}><table><thead><tr>{headers.map((cell, cellIndex) => <th key={`head-${cellIndex}`}>{renderInlineMarkdown(cell, `table-head-${blocks.length}-${cellIndex}`)}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={`row-${rowIndex}`}>{headers.map((_, cellIndex) => <td key={`cell-${cellIndex}`}>{renderInlineMarkdown(row[cellIndex] ?? "", `table-${blocks.length}-${rowIndex}-${cellIndex}`)}</td>)}</tr>)}</tbody></table></div>);
+      blocks.push(<div className="ai-work-chat__table-wrap _tableScroll_lfaa_wallpaper" key={`block-${blocks.length}`}><table><thead><tr>{headers.map((cell, cellIndex) => <th key={`head-${cellIndex}`}>{renderInlineMarkdown(cell, `table-head-${blocks.length}-${cellIndex}`)}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={`row-${rowIndex}`}>{headers.map((_, cellIndex) => <td key={`cell-${cellIndex}`}>{renderInlineMarkdown(row[cellIndex] ?? "", `table-${blocks.length}-${rowIndex}-${cellIndex}`)}</td>)}</tr>)}</tbody></table></div>);
       continue;
     }
 
@@ -116,5 +116,5 @@ export function AiMarkdown({ content }: AiMarkdownProps) {
     blocks.push(<p key={`block-${blocks.length}`}>{paragraph.map((part, partIndex) => <span key={`line-${partIndex}`}>{partIndex ? <br /> : null}{renderInlineMarkdown(part, `paragraph-${blocks.length}-${partIndex}`)}</span>)}</p>);
   }
 
-  return <div className="ai-work-chat__markdown">{blocks}</div>;
-}
+  return <div className="ai-work-chat__markdown _markdown_lfaa_wallpaper">{blocks}</div>;
+});

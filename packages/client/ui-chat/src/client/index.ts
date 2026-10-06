@@ -5,4 +5,5 @@ export const inject = ["clientModules"];
 export function apply(ctx: Context): void {
   ctx.clientModules.register(ctx, "lfaa-client-ui-chat/src/AiMarkdown.js", () => import("../AiMarkdown.js"));
   ctx.clientModules.register(ctx, "lfaa-client-ui-chat/src/AiWorkChat.js", () => import("../AiWorkChat.js"));
+  ctx.clientModules.register(ctx, "lfaa-client-ui-chat/src/AiWorkSideChat.js", () => import("../AiWorkSideChat.js"));
 }

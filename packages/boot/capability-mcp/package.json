@@ -1,0 +1,33 @@
+{
+  "name": "lfaa-capability-mcp",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "lfaa": {
+    "server": {
+      "entry": "./src/index.ts",
+      "inject": ["lfaaCapabilityInstalls"],
+      "required": true,
+      "capabilities": [],
+      "settings": []
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-capability-installs": "workspace:*",
+    "lfaa-tools": "workspace:*",
+    "lfaa-settings": "workspace:*",
+    "lfaa-util-values": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

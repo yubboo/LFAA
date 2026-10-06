@@ -25,6 +25,12 @@ const [{ default: express }, { default: jwt }, { config }, { database, closeData
   import("lfaa-test-support-api/src/router.js")
 ]);
 
+// 使用与正式启动相同的文件存储迁移，再执行包含独立节点身份表的后续版本链。
+const { retireLegacyFileTables } = await import("lfaa-storage-domain/src/migration.js");
+const { configuration } = await import("lfaa-storage-domain/src/configuration.js");
+const { sessionRecords } = await import("lfaa-session-persistence-jsonl/src/repository.js");
+retireLegacyFileTables();
+
 const userId = randomUUID();
 const nodeId = randomUUID();
 const emptyResultNodeId = randomUUID();
@@ -59,6 +65,8 @@ await new Promise((resolveServer, rejectServer) => {
 
 test.after(async () => {
   await new Promise((resolveServer, rejectServer) => server.close((error) => error ? rejectServer(error) : resolveServer()));
+  configuration.close();
+  sessionRecords.close();
   closeDatabase();
   const resolvedDataDirectory = resolve(dataDirectory);
   assert.equal(dirname(resolvedDataDirectory), temporaryParent);
@@ -108,7 +116,7 @@ test("Daemon 可成功回报数据根目录列表", async () => {
     },
     body: JSON.stringify({ nodeId })
   });
-  assert.equal(claimResponse.status, 200);
+  assert.equal(claimResponse.status, 200, await claimResponse.clone().text());
   const { task } = await claimResponse.json();
   assert.ok(task);
   assert.equal(task.operation, "list");
@@ -160,7 +168,7 @@ test("Daemon 可成功回报空文本文件和零字节下载", async () => {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.daemonToken}` },
       body: JSON.stringify({ nodeId: emptyResultNodeId })
     });
-    assert.equal(claimResponse.status, 200);
+    assert.equal(claimResponse.status, 200, await claimResponse.clone().text());
     const { task: claimed } = await claimResponse.json();
     assert.equal(claimed.id, created.id);
 

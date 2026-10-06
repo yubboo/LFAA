@@ -27,7 +27,7 @@ writeFileSync(join(frontendDirectory, "favicon.svg"), readFileSync(join(reposito
 const app = express();
 app.use((_request, response, next) => { response.setHeader("Cache-Control", "no-store"); next(); });
 app.get("/api/private", (_request, response) => response.json({ value: "隔离夹具" }));
-serveFrontend(app, frontendDirectory);
+serveFrontend(app, frontendDirectory, html => `${html}<script>window.__DSH_BOOT__={};</script>`);
 app.use((_request, response) => response.status(404).json({ error: "not_found" }));
 const server = createServer(app);
 await new Promise((ready, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", ready); });
@@ -65,6 +65,22 @@ test("入口、无哈希图片和图标可校验更新，私有 API 继续禁止
   const response = await fetch(`${baseUrl}/api/private`);
   assert.equal(response.headers.get("cache-control"), "no-store");
   await response.text();
+  const injectedRoot = await fetch(`${baseUrl}/`);
+  assert.match(await injectedRoot.text(), /window\.__DSH_BOOT__=\{\}/u);
+  const injectedIndex = await fetch(`${baseUrl}/index.html`);
+  assert.match(await injectedIndex.text(), /window\.__DSH_BOOT__=\{\}/u);
+});
+
+test("运行期间替换构建入口后，新页面读取当前哈希资源清单", async () => {
+  const replacement = '<!doctype html><title>新构建入口</title><script type="module" src="/assets/index-current.js"></script>';
+  writeFileSync(join(frontendDirectory, "index.html"), replacement);
+  const response = await fetch(`${baseUrl}/apps/minecraft/normal`);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "public, no-cache");
+  const body = await response.text();
+  assert.match(body, /新构建入口/u);
+  assert.match(body, /\/assets\/index-current\.js/u);
+  assert.match(body, /window\.__DSH_BOOT__=\{\}/u);
 });
 
 test("显式图标和默认图标地址都不会返回 HTML", async () => {
@@ -90,6 +106,11 @@ test("读取明细使用 debug，写入保留 info，所有失败保持可见", 
   assert.equal(requestLogLevel("GET", "/assets/index-RB-F2s6N.js", 200), "debug");
   assert.equal(requestLogLevel("GET", "/api/settings", 200), "debug");
   assert.equal(requestLogLevel("POST", "/api/daemon/tasks/claim", 204), "debug");
+  for (const path of ["/api/daemon/heartbeat", "/api/daemon/tasks/claim", "/api/daemon/files/tasks/claim", "/api/daemon/steamcmd/tasks/claim", "/api/daemon/ai/host-tasks/claim"]) {
+    assert.equal(requestLogLevel("POST", path, 200), "debug", path);
+    assert.equal(requestLogLevel("POST", path, 401), "warn", path);
+    assert.equal(requestLogLevel("POST", path, 500), "error", path);
+  }
   assert.equal(requestLogLevel("PUT", "/api/preferences", 200), "info");
   assert.equal(requestLogLevel("POST", "/api/auth/login", 401), "warn");
   assert.equal(requestLogLevel("GET", "/api/health", 500), "error");

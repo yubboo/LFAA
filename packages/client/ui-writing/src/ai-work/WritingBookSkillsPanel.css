@@ -1,0 +1,28 @@
+/* 功能：为作品专属写作 Skill 管理器提供工作台主题适配。作用：沿用设置中心主题、字体、模糊与减少动态效果，不定义新 CSS 变量。关联文件：WritingBookSkillsPanel.tsx、WritingAiContext.css。 */
+.writing-book-skills__launcher { padding: 0 12px 12px; }
+.writing-book-skills__launcher .ant-btn { height: 31px; border-color: var(--color-border); background: var(--color-surface); color: var(--color-text-secondary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-xs); }
+.writing-book-skills__launcher .ant-btn:hover:not(:disabled) { border-color: var(--settings-accent, var(--color-brand)); color: var(--settings-accent, var(--color-brand)); }
+.writing-book-skills__modal .ant-modal-content { display: flex; max-height: min(86vh, 820px); flex-direction: column; overflow: hidden; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); color: var(--color-text-primary); box-shadow: 0 18px 54px var(--color-shadow-float); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); }
+.workbench-shell[data-background-image="true"] .writing-book-skills__modal .ant-modal-content,
+body[data-we-wallpaper] .workbench-shell .writing-book-skills__modal .ant-modal-content { background: color-mix(in srgb, var(--settings-sidebar-color, var(--color-surface)) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
+.writing-book-skills__modal .ant-modal-header { flex: 0 0 auto; background: transparent; }
+.writing-book-skills__modal .ant-modal-body { min-height: 0; overflow: auto; }
+.writing-book-skills__hint { margin: 0 0 12px; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.6; }
+.writing-book-skills__list { display: flex; max-height: 200px; flex-direction: column; gap: 7px; overflow: auto; }
+.writing-book-skills__item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid var(--color-border-subtle); border-radius: 8px; background: var(--color-surface-raised); }
+.writing-book-skills__item > div:first-child { min-width: 0; }
+.writing-book-skills__item strong { color: var(--color-text-primary); font-size: var(--font-size-sm); }
+.writing-book-skills__item p { overflow: hidden; margin: 3px 0; color: var(--color-text-secondary); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
+.writing-book-skills__item small { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.writing-book-skills__actions { display: flex; flex: 0 0 auto; gap: 5px; }
+.writing-book-skills__empty,
+.writing-book-skills__loading { padding: 18px 10px; color: var(--color-text-muted); font-size: var(--font-size-sm); text-align: center; }
+.writing-book-skills__editor-heading { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 8px; color: var(--color-text-primary); font-size: var(--font-size-sm); }
+.writing-book-skills__form { display: flex; flex-direction: column; gap: 9px; }
+.writing-book-skills__form > label { display: flex; flex-direction: column; gap: 4px; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.writing-book-skills__form .ant-input { font-family: var(--settings-interface-font, var(--font-family-sans)); }
+.writing-book-skills__form textarea.ant-input { font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.75; }
+.writing-book-skills__footer { display: flex; align-items: center; gap: 10px; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.writing-book-skills__footer > span { margin-left: auto; }
+.writing-book-skills__enabled { display: inline-flex; align-items: center; gap: 7px; color: var(--color-text-secondary); }
+.writing-book-skills__error { margin: 10px 0 0; color: var(--color-danger); font-size: var(--font-size-xs); }

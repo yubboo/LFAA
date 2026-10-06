@@ -3,7 +3,7 @@
  * 作用：把 Web、控制端、生产依赖、Daemon、数据目录解析脚本和 Windows Sandbox Host 组装到根 dist 的临时工作区。
  * 关联文件：apps/desktop-electron/package.json、apps/desktop-electron/src/main.mjs、根目录 package.json、apps/cli/package.json、scripts/apply-data-directory-migration.mjs、packages/host/daemon/src/daemon.mjs。
  */
-import { cp, lstat, mkdir, readdir, rm, stat } from "node:fs/promises";
+import { cp, lstat, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -66,6 +66,18 @@ async function prepareRuntime() {
   await resetRuntimeDirectory();
   await stat(resolve(serverDeployRoot, "node_modules"));
 
+  const cuaManifestPath = resolve(serverDeployRoot, "node_modules", "@trycua", "cua-driver", "package.json");
+  const cuaSourceManifestPath = resolve(repositoryRoot, "packages", "computer-use", "computer-use", "package.json");
+  const [cuaManifest, cuaSourceManifest] = await Promise.all([
+    readFile(cuaManifestPath, "utf8").then(JSON.parse),
+    readFile(cuaSourceManifestPath, "utf8").then(JSON.parse)
+  ]);
+  const requiredCuaVersion = cuaSourceManifest.dependencies?.["@trycua/cua-driver"];
+  if (cuaManifest.name !== "@trycua/cua-driver" || cuaManifest.version !== requiredCuaVersion) {
+    throw new Error(`Electron 运行依赖版本不匹配：${cuaManifestPath} 应为 @trycua/cua-driver@${requiredCuaVersion}，实际为 ${cuaManifest.version ?? "未知版本"}。`);
+  }
+  process.stdout.write(`已核验桌面 Profile 运行依赖：@trycua/cua-driver@${cuaManifest.version}\n`);
+
   // pnpm 11 的部署自链接可能指回源码仓库，打包前解除该链接。
   const workspaceSelfLink = resolve(serverDeployRoot, "node_modules", ".pnpm", "node_modules", "@yubboo/lfaa");
   try {
@@ -90,6 +102,10 @@ async function prepareRuntime() {
   await cp(resolve(repositoryRoot, "apps", "cli", "package-loader.mjs"), resolve(runtimeRoot, "apps", "cli", "package-loader.mjs"));
   await copyDirectory(resolve(repositoryRoot, "packages", "util", "home-paths", "src"), resolve(runtimeRoot, "packages", "util", "home-paths", "src"));
   await cp(resolve(repositoryRoot, "scripts", "harness-workspace.mjs"), resolve(runtimeRoot, "scripts", "harness-workspace.mjs"));
+  const buildResourcesRoot = resolve(desktopTempRoot, "build-resources");
+  await mkdir(buildResourcesRoot, { recursive: true });
+  await cp(resolve(repositoryRoot, "apps", "desktop-electron", "assets", "lfaa.ico"), resolve(buildResourcesRoot, "lfaa.ico"));
+  await cp(resolve(repositoryRoot, "apps", "desktop-electron", "assets", "installation-notice.txt"), resolve(buildResourcesRoot, "installation-notice.txt"));
   await cp(process.execPath, resolve(runtimeRoot, "node.exe"));
   await cp(sandboxHost, resolve(runtimeRoot, "dist", "apps", "daemon", "target", "x86_64-pc-windows-msvc", "release", "lfaa-sandbox-host.exe"));
 

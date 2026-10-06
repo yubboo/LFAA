@@ -1,0 +1,146 @@
+/* 功能：布局 Markdown 资料库的设置中心卡片、来源表单和编辑器。作用：沿用主题表面、文字和边框令牌适配外观设置。 */
+.knowledge-library {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  color: var(--color-text-primary);
+}
+
+.knowledge-library__intro,
+.knowledge-library__limit,
+.knowledge-library__source-form p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+}
+
+.knowledge-library__toolbar,
+.knowledge-library__entry,
+.knowledge-library__entry-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.knowledge-library__toolbar {
+  flex-wrap: wrap;
+}
+
+.knowledge-library__field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.knowledge-library__field .ant-select {
+  min-width: 180px;
+}
+
+.knowledge-library__upload {
+  position: relative;
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 4px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.knowledge-library__upload:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.knowledge-library__upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.knowledge-library__upload:focus-within {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.knowledge-library__source-form {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.knowledge-library__source-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.knowledge-library__list {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.knowledge-library__empty {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  gap: 9px;
+  color: var(--color-text-secondary);
+}
+
+.knowledge-library__entry {
+  min-width: 0;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.knowledge-library__entry-copy {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.knowledge-library__entry-title {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.knowledge-library__entry-copy p,
+.knowledge-library__entry-copy small,
+.knowledge-library__editor p,
+.knowledge-library__editor small {
+  margin: 0;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.knowledge-library__editor {
+  display: grid;
+  gap: 14px;
+}
+
+@media (max-width: 620px) {
+  .knowledge-library__entry {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .knowledge-library__source-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

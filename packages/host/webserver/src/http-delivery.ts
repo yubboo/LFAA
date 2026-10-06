@@ -4,6 +4,7 @@
  * 关联文件：server.ts 装配这些规则；apps/web/index.html 声明图标；apps/cli/tests/http-delivery.test.mjs 验证真实 HTTP 响应。
  */
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
 import express, { type Express } from "express";
 
@@ -17,13 +18,29 @@ export function requestLogLevel(method: string, path: string, statusCode: number
     || path === "/api/daemon/tasks/claim"
     || path === "/api/daemon/files/tasks/claim"
     || path === "/api/daemon/steamcmd/tasks/claim"
+    || path === "/api/daemon/ai/host-tasks/claim"
   )) return "debug";
   return "info";
 }
 
-export function serveFrontend(app: Express, frontendDirectory: string): void {
+export function serveFrontend(app: Express, frontendDirectory: string, renderIndex?: (html: string) => string): void {
   const frontendEntry = resolve(frontendDirectory, "index.html");
   if (!existsSync(frontendEntry)) throw new Error(`前端构建文件不存在：${frontendEntry}`);
+  // Re-read the small HTML shell for each document request. A long-running Web
+  // process must not keep a previous hashed asset name after a new build has
+  // replaced the static directory.
+  const sendIndex = (response: import("express").Response, next: import("express").NextFunction): void => {
+    response.setHeader("Cache-Control", "public, no-cache");
+    if (renderIndex) {
+      void readFile(frontendEntry, "utf8")
+        .then((html) => response.type("html").send(renderIndex(html)))
+        .catch(next);
+      return;
+    }
+    response.sendFile(frontendEntry, (error) => { if (error) next(error); });
+  };
+
+  if (renderIndex) app.get("/index.html", (_request, response, next) => sendIndex(response, next));
 
   // API 与账户图片在上游保持 no-store；只有构建目录中的公开文件可以覆盖缓存头。
   app.use(express.static(frontendDirectory, {
@@ -49,7 +66,6 @@ export function serveFrontend(app: Express, frontendDirectory: string): void {
       next();
       return;
     }
-    response.setHeader("Cache-Control", "public, no-cache");
-    response.sendFile(frontendEntry, (error) => { if (error) next(error); });
+    sendIndex(response, next);
   });
 }

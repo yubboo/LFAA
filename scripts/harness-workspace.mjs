@@ -9,6 +9,11 @@ export function workspacePackages(root) {
       return existsSync(manifest) ? [{ path, ...JSON.parse(readFileSync(manifest, "utf8")) }] : [];
     }));
 }
+/** 返回可进入产品运行树的包；工程期与测试支持包仅参与开发/构建。 */
+export function productRuntimePackages(root) {
+  return workspacePackages(root).filter((pkg) =>
+    pkg.lfaa?.runtime !== false && !pkg.path.startsWith("packages/client/") && !pkg.path.startsWith("packages/test-support/"));
+}
 export function workspaceAliases(root) {
   return workspacePackages(root).flatMap((pkg) => [
     { find: `${pkg.name}/src`, replacement: resolve(root, pkg.path, "src") },

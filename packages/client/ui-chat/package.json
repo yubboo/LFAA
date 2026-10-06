@@ -17,6 +17,7 @@
     "lfaa-client-resources": "workspace:*",
     "lfaa-client-store": "workspace:*",
     "lfaa-client-ui-primitives": "workspace:*",
+    "lfaa-client-ui-settings-models": "workspace:*",
     "react": "^18.0.0"
   },
   "devDependencies": {
@@ -35,7 +36,8 @@
         "lfaa-client-modules",
         "lfaa-client-resources",
         "lfaa-client-store",
-        "lfaa-client-ui-primitives"
+        "lfaa-client-ui-primitives",
+        "lfaa-client-ui-settings-models"
       ]
     }
   },

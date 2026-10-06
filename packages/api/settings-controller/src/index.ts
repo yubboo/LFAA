@@ -6,9 +6,11 @@ import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import { PluginRuntimeError } from "lfaa-app-boot/src/plugin-runtime.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
 import { getUserPreferences, saveUserPreferences, type ApplicationId, type ApplicationMode } from "lfaa-settings/src/preferences/service.js";
+import { clearConversationMemories, getConversationMemorySnapshot, replaceConversationMemories, validateConversationMemoriesInput } from "lfaa-conversation-memory/src/index.js";
+import { redactConversationMemoryContexts } from "lfaa-session/src/sessions.js";
 import { activateAiAccount, deleteAiAccount, deleteUserBackground, getUserBackground, getUserSettings, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, reprobeAiAccount, saveAiAccount, saveUserBackground, saveUserSettings, updateAiAccountModel, updateAiAccountReasoningMode, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
 import { cancelDataDirectoryChange, DataDirectorySettingsError, getDataDirectorySettings, requestDataDirectoryChange } from "lfaa-workspace-data-directory/src/service.js";
-import { asyncHandler, parseBody, preferencesSchema, generalSettingsSchema, aiRuntimeSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { asyncHandler, parseBody, preferencesSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
 export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher): void {
 
 router.get("/ai/extensions", requireAuthentication, (_request, response) => {
@@ -51,8 +53,12 @@ router.put("/settings/:category", requireAuthentication, (request, response) => 
       appearance: appearanceSettingsSchema,
       shortcuts: shortcutsSchema,
       "ai-runtime": aiRuntimeSettingsSchema,
+      "minecraft-runtime": minecraftRuntimeSettingsSchema,
+      git: gitSettingsSchema,
       permissions: permissionsSettingsSchema,
-      plugins: pluginsSettingsSchema
+      plugins: pluginsSettingsSchema,
+      personalization: personalizationSettingsSchema,
+      "computer-control": computerControlSettingsSchema
     };
     const schema = schemas[category];
     if (!schema) throw new ApiError(404, "settings_category_not_found", "找不到此设置分类。");
@@ -72,6 +78,28 @@ router.put("/settings/:category", requireAuthentication, (request, response) => 
     }
     saveUserSettings(request.auth!.user.id, category, value as never);
     response.json({ settings: getUserSettings(request.auth!.user.id) });
+  });
+
+router.get("/settings/memories", requireAuthentication, (request, response) => {
+    response.json({ snapshot: getConversationMemorySnapshot(request.auth!.user.id) });
+  });
+
+router.put("/settings/memories", requireAuthentication, (request, response) => {
+    const body = parseBody<{ revision: number; memories: string[] }>(conversationMemoriesSchema, request.body);
+    const memories = validateConversationMemoriesInput(body.memories);
+    if (!memories) throw new ApiError(400, "conversation_memories_invalid", "记忆内容含有不支持的信息、重复项或超出数量/长度限制，请检查后重试。");
+    const userId = request.auth!.user.id;
+    if (!replaceConversationMemories(userId, memories, body.revision)) {
+      throw new ApiError(409, "conversation_memories_changed", "记忆已在其他请求中更新，请刷新后再保存。");
+    }
+    response.json({ snapshot: getConversationMemorySnapshot(userId) });
+  });
+
+router.delete("/settings/memories", requireAuthentication, (request, response) => {
+    const userId = request.auth!.user.id;
+    redactConversationMemoryContexts(userId);
+    clearConversationMemories(userId);
+    response.status(204).end();
   });
 
 router.get("/settings/backgrounds", requireAuthentication, (request, response) => {

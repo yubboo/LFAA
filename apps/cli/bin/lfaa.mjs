@@ -17,7 +17,7 @@ const runtimeRoot = packaged ? packageRoot : resolve(packageRoot, "../..");
 async function main() {
   const args = process.argv.slice(2);
   if (!args.length || args.includes("--help") || args.includes("-h")) {
-    process.stdout.write(`LFAA ${manifest.version}\n用法：lfaa web [--home <目录>] [--patch <文件>]\n      lfaa daemon\n源码启动：pnpm lfaa web\nnpm 启动：npx @yubboo/lfaa web\n`);
+    process.stdout.write(`LFAA ${manifest.version}\n用法：lfaa web [--home <目录>] [--patch <文件>] [--no-local-daemon]\n      lfaa daemon\n      lfaa daemon export --node <ID> --output-file <文件>\n      lfaa daemon configure --connection-file <文件>\n源码启动：pnpm lfaa web\nnpm 启动：npx @yubboo/lfaa web\n`);
     return;
   }
   if (args.includes("--version") || args.includes("-v")) { process.stdout.write(`${manifest.version}\n`); return; }
@@ -45,12 +45,42 @@ async function main() {
     process.env.LFAA_SERVE_FRONTEND = "true";
     process.env.LFAA_LOCAL_MODE ??= "true";
   }
+  if (profile === "daemon" && args[1] === "export") {
+    const id = args[args.indexOf("--node") + 1], destination = args[args.indexOf("--output-file") + 1];
+    if (!args.includes("--node") || !args.includes("--output-file") || !id || !destination) throw new Error("请指定 --node 和 --output-file；导出文件不能覆盖已有文件。");
+    await import(pathToFileURL(resolve(runtimeRoot, "apps/cli/register-package-loader.mjs")).href);
+    const { exportDaemonConnection } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/host/daemon/src/node-credentials.js")).href);
+    exportDaemonConnection(id, resolve(destination));
+    process.stdout.write("节点连接文件已导出；导入目标节点后删除传输副本。\n");
+    return;
+  }
+  if (profile === "daemon" && args[1] === "configure") {
+    const file = args[args.indexOf("--connection-file") + 1];
+    if (!args.includes("--connection-file") || !file) throw new Error("请指定 --connection-file；不要把通信密钥写在命令参数中。");
+    const { configureDaemonConnection } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/host/daemon/src/connection-config.mjs")).href);
+    const { resolveDataDirectory } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/util/home-paths/src/resolve-data-directory.mjs")).href);
+    const node = await configureDaemonConnection(resolve(file), resolveDataDirectory(runtimeRoot, process.env.LFAA_DATA_DIR?.trim() || "data"));
+    process.stdout.write(`节点连接已保存：${node.displayName}（${node.nodeId}）。运行 lfaa daemon 连接控制端。\n`);
+    return;
+  }
   await import(pathToFileURL(resolve(runtimeRoot, "apps/cli/register-package-loader.mjs")).href);
   // 在装配前给出实际部署配置错误，不把密钥配置失败埋进一串等待依赖的插件名称中。
   if (profile === "web") await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/util/launch-environment/src/config.js")).href);
   const { boot } = await import(pathToFileURL(entry).href);
   const context = await boot(args);
   if (profile === "web") {
+    if (process.platform === "win32" && process.arch === "x64" && !args.includes("--no-local-daemon")) {
+      const { config } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/util/launch-environment/src/config.js")).href);
+      const connectionConfigured = existsSync(resolve(config.dataDirectory, "credentials/daemon-connection.json"));
+      const { superviseLocalDaemon } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/host/daemon/src/supervisor.mjs")).href);
+      if (connectionConfigured) process.stderr.write("此数据目录已配置远程节点连接；未将它作为本机节点托管。控制端和远程执行器应使用各自的数据目录。\n");
+      else {
+        const homeIndex = args.indexOf("--home");
+        const daemonArgs = [fileURLToPath(import.meta.url), "daemon", ...(homeIndex >= 0 ? ["--home", args[homeIndex + 1]] : [])];
+        const supervisor = superviseLocalDaemon({ args: daemonArgs, cwd: process.cwd() });
+        context.effect(() => () => supervisor.stop());
+      }
+    }
     const address = context.get("lfaaWebserver").server.address();
     const host = ["0.0.0.0", "::"].includes(address.address) ? "localhost" : address.address;
     process.stdout.write(`LFAA Web 已就绪：http://${host.includes(":") ? `[${host}]` : host}:${address.port}\n按 Ctrl+C 停止。\n`);

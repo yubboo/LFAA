@@ -5,7 +5,8 @@
     "profile": {
       "bundles": [
         "lfaa-base",
-        "lfaa-web-app"
+        "lfaa-web-app",
+        "lfaa-desktop-computer-use"
       ]
     }
   }

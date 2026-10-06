@@ -1,0 +1,26 @@
+{
+  "name": "lfaa-workflow-minecraft-adapter",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-agent-loop": "workspace:*",
+    "lfaa-app-boot": "workspace:*",
+    "lfaa-identity-auth": "workspace:*",
+    "lfaa-settings": "workspace:*",
+    "lfaa-tools": "workspace:*",
+    "lfaa-workflow": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

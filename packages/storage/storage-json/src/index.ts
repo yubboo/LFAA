@@ -7,6 +7,11 @@ import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, re
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
+import { config } from "lfaa-launch-environment/src/config.js";
+import type { StorageHub } from "lfaa-storage-hub/src/index.js";
+import { JsonStorageKvBackend } from "./hub-backend.js";
+
+declare module "@deepseek-ai/cordis" { interface Context { lfaaStorageHub: StorageHub } }
 
 export function encode(value: unknown): string {
   return JSON.stringify(value, function (key, item: unknown) {
@@ -38,6 +43,29 @@ export function atomicWrite(path: string, value: unknown): void {
   if (process.platform !== "win32") {
     const directory = openSync(dirname(path), "r");
     try { fsyncSync(directory); } finally { closeSync(directory); }
+  }
+}
+
+/** 以二进制写入受限素材，避免 JSON/Base64 膨胀；完成刷盘后原子发布文件。 */
+export function atomicWriteBytes(path: string, value: Uint8Array): void {
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  let descriptor: number | undefined;
+  try {
+    descriptor = openSync(temporary, "wx", 0o600);
+    writeFileSync(descriptor, value);
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    renameSync(temporary, path);
+    if (process.platform !== "win32") {
+      const directory = openSync(dirname(path), "r");
+      try { fsyncSync(directory); } finally { closeSync(directory); }
+    }
+  } catch (error) {
+    if (descriptor !== undefined) closeSync(descriptor);
+    if (existsSync(temporary)) unlinkSync(temporary);
+    throw error;
   }
 }
 
@@ -82,4 +110,10 @@ export class FileLease {
 }
 
 export const name = "storage-json";
-export function apply(ctx: Context): void { ctx.provide("lfaaStorageJson", { JsonStorageBackend }); }
+export const inject = ["lfaaStorageHub"];
+export function apply(ctx: Context): void {
+  ctx.provide("lfaaStorageJson", { JsonStorageBackend });
+  const backend = new JsonStorageKvBackend(new JsonStorageBackend(resolve(config.dataDirectory, "storages")));
+  const unregister = ctx.lfaaStorageHub.backend.register("json", backend);
+  ctx.effect(() => async () => { unregister(); await backend.close(); });
+}

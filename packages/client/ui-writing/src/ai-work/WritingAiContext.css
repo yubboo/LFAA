@@ -28,6 +28,9 @@
 .writing-ai-context__provider { display: grid; min-width: 0; gap: 4px; padding: 0 2px; }
 .writing-ai-context__provider > span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .writing-ai-context__provider strong { overflow: hidden; color: var(--color-text-primary); font-size: var(--font-size-xs); font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.writing-ai-context__section .ant-select { width: 100%; }
+.writing-ai-context__role-description { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.55; }
+.writing-ai-context__error { margin: 0; color: var(--color-danger); font-size: var(--font-size-xs); }
 .writing-ai-context__guide { padding-top: 13px; border-top: 1px solid var(--color-border); }
 
 /* 写作壁纸启用时，创作信息卡沿用外观设置中的统一遮罩透明度与模糊强度。 */

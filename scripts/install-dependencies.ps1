@@ -1,7 +1,7 @@
 ﻿<#
 功能：显示 LFAA 项目主菜单并按用户选择执行操作。
 作用：安装与构建当前包工作区、选择 Harness 运行入口、检查环境、备份源码或推送 GitHub。
-关联文件：lfaa.bat、scripts/project-menu.mjs、scripts/backup-project.ps1、scripts/start-dev.ps1、apps/cli/bin/lfaa.mjs、package.json、pnpm-workspace.yaml。
+关联文件：lfaa.bat、scripts/project-menu.mjs、scripts/backup-project.ps1、scripts/start-dev.ps1、apps/cli/bin/lfaa.mjs、apps/web/package.json、apps/web/scripts/wait-for-server.mjs、packages/util/home-paths/src/resolve-data-directory.mjs、packages/storage/storage-json/src/index.ts、package.json、pnpm-workspace.yaml。
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -27,7 +27,7 @@ function Show-MainMenu {
     Write-Host ''
     Write-Host '请选择要执行的操作：' -ForegroundColor White
     Write-Host '  【1】安装工作区依赖：pnpm install' -ForegroundColor Green
-    Write-Host '  【2】启动 Harness：Web / Daemon / 开发模式' -ForegroundColor Magenta
+    Write-Host '  【2】启动 Harness：Web / Daemon / 开发模式 / Vite 热更新' -ForegroundColor Magenta
     Write-Host '  【3】构建 Harness：pnpm run build' -ForegroundColor Cyan
     Write-Host '  【4】检查环境与实际工作区包' -ForegroundColor Yellow
     Write-Host '  【5】一键生成纯净源码 ZIP（排除依赖与敏感数据）' -ForegroundColor Green
@@ -35,7 +35,7 @@ function Show-MainMenu {
     Write-Host '  【7】一键强制推送 GitHub main（覆盖远端历史）' -ForegroundColor Red
     Write-Host '  【0】退出' -ForegroundColor Red
     Write-Host ''
-    Write-Host 'Web 使用编译后的包组合；Daemon 单独启动。普通 Web 不需要 Rust。' -ForegroundColor DarkGray
+    Write-Host 'Web 使用编译后的包组合，Windows 默认托管本机 Daemon；启动前检查源码与构建是否一致。' -ForegroundColor DarkGray
     Write-Host '服务在当前终端运行，按 Ctrl+C 停止；不另开服务窗口。' -ForegroundColor DarkGray
     Write-Host ("脚本加载于 {0:yyyy-MM-dd HH:mm}；若刚改过脚本，请按 0 退出并重新打开本菜单。" -f $scriptLoadedAt) -ForegroundColor DarkGray
 }
@@ -137,15 +137,22 @@ function Start-Harness {
     Write-Host '  【1】Web（默认）'
     Write-Host '  【2】Daemon 节点'
     Write-Host '  【3】开发模式'
+    Write-Host '  【4】Vite 热更新前端（5173，复用已运行控制端）'
     Write-Host '  【0】返回'
     $mode = [string](Read-Host '输入编号并按 Enter（默认 1）')
     switch ($mode.Trim()) {
         '0' { return }
         '3' { Start-DevelopmentServices; return }
+        '4' {
+            Write-Host 'Vite 会等待当前控制端健康就绪后启动，只提供前端热更新，不重启控制端或 Daemon。' -ForegroundColor Cyan
+            Write-Host '启动后打开 http://127.0.0.1:5173/apps/minecraft/ai-work；按 Ctrl+C 停止 Vite。' -ForegroundColor DarkGray
+            Start-ViteFrontend
+            return
+        }
         '2' { $profile = 'daemon' }
         '1' { $profile = 'web' }
         '' { $profile = 'web' }
-        default { throw '无效启动模式，请选择 1、2、3 或 0。' }
+        default { throw '无效启动模式，请选择 1、2、3、4 或 0。' }
     }
     # 正式 CLI 不处理数据目录迁移；有待处理计划时禁止继续使用旧位置写数据。
     if (Test-Path -LiteralPath (Join-Path $projectRoot '.lfaa-data-directory.pending.json')) {
@@ -153,6 +160,22 @@ function Start-Harness {
     }
     if ($profile -eq 'daemon') {
         Write-Host '节点原生 Host 需先执行 pnpm run build:daemon；节点连接与数据位置沿用已有配置。' -ForegroundColor Yellow
+    }
+    # 只重建已经过期的职责输出，禁止在源码更新后静默启动旧版本。
+    $nodeCommand = Get-Command 'node' -ErrorAction Stop
+    $staleJson = & $nodeCommand.Source (Join-Path $projectRoot 'scripts/runtime-build-state.mjs') $profile
+    if ($LASTEXITCODE -ne 0) { throw '无法检查正式运行树，请先执行菜单 3 构建。' }
+    $staleBuilds = @($staleJson | ConvertFrom-Json)
+    if ($staleBuilds -contains 'host') {
+        Write-Host '控制端构建缺失或源码已更新，正在构建当前实现。' -ForegroundColor Yellow
+        Invoke-WorkspacePnpm -Arguments @('run', 'build:control-plane')
+    }
+    if ($staleBuilds -contains 'web') {
+        Write-Host 'Web 构建缺失或源码已更新，正在构建当前实现。' -ForegroundColor Yellow
+        Invoke-WorkspacePnpm -Arguments @('run', 'build:web')
+    }
+    if ($profile -eq 'web') {
+        Stop-ExistingLfaaWebLockOwner
     }
     Invoke-WorkspacePnpm -Arguments @('lfaa', $profile)
 }
@@ -178,7 +201,7 @@ function Start-ProjectBackup {
         & $backupScript
     }
     catch {
-        Write-Host "项目备份失败：$($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "项目备份失败：$($_.Exception.Message)（脚本行号：$($_.InvocationInfo.ScriptLineNumber)）" -ForegroundColor Red
     }
 }
 
@@ -250,6 +273,193 @@ function Invoke-WorkspacePnpm {
     if ($LASTEXITCODE -ne 0) {
         throw "pnpm 命令结束，退出代码：$LASTEXITCODE。"
     }
+}
+
+function Start-ViteFrontend {
+    Set-Location -LiteralPath $projectRoot
+    $nodeCommand = Get-Command 'node' -ErrorAction Stop
+    $cliManifestPath = Join-Path $projectRoot 'apps\cli\package.json'
+    if (-not (Test-Path -LiteralPath $cliManifestPath)) {
+        throw '未找到 LFAA CLI 运行时清单，无法核对 Node.js 要求。'
+    }
+
+    $workspaceManifest = Get-ProjectManifest
+    $cliManifest = Get-Content -LiteralPath $cliManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    # 根清单若未声明 Node.js 下限，沿用 CLI 的运行时要求，避免另写固定版本。
+    $nodeRequirement = [string]$workspaceManifest.engines.node
+    if ([string]::IsNullOrWhiteSpace($nodeRequirement)) {
+        $nodeRequirement = [string]$cliManifest.engines.node
+    }
+    if ($nodeRequirement -notmatch '^>=(\d+\.\d+\.\d+)$') {
+        throw 'apps/cli/package.json 的 Node.js 最低版本格式无效。'
+    }
+    $minimumNodeVersion = [version]$Matches[1]
+    $installedNodeVersion = [version]((& $nodeCommand.Source --version).Trim().TrimStart('v'))
+    if ($installedNodeVersion -lt $minimumNodeVersion) {
+        throw "当前 Node.js 为 $installedNodeVersion，项目要求 $nodeRequirement。"
+    }
+
+    $pnpmCommand = Get-Command 'pnpm' -ErrorAction Stop
+    $pnpmVersion = (& $pnpmCommand.Source --version 2>$null).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pnpmVersion)) {
+        throw '无法读取当前 pnpm 版本，Vite 未启动。'
+    }
+    $packageManagerSpec = [string]$workspaceManifest.packageManager
+    if (-not [string]::IsNullOrWhiteSpace($packageManagerSpec)) {
+        if ($packageManagerSpec -notmatch '^pnpm@(.+)$') {
+            throw '根目录 package.json 的 packageManager 不是有效 pnpm 声明。'
+        }
+        if ($pnpmVersion -ne $Matches[1]) {
+            throw "当前 pnpm 为 $pnpmVersion，工作区要求 $($Matches[1])。"
+        }
+    }
+    else {
+        Write-Host '当前根清单未固定 pnpm 版本，使用 PATH 中可用的 pnpm。' -ForegroundColor Yellow
+    }
+
+    # 本工作区的 Vite 已占用默认端口时直接复用；身份不明的占用者只报告，不终止、不换端口。
+    $portListeners = @(Get-NetTCPConnection -State Listen -LocalPort 5173 -ErrorAction SilentlyContinue)
+    if ($portListeners.Count -gt 0) {
+        $projectPath = [System.IO.Path]::GetFullPath($projectRoot).TrimEnd('\')
+        $unverifiedListeners = @()
+        foreach ($ownerPid in @($portListeners | Select-Object -ExpandProperty OwningProcess -Unique)) {
+            $owner = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $ownerPid" -ErrorAction SilentlyContinue
+            $commandLine = if ($null -eq $owner) { '' } else { ([string]$owner.CommandLine).Replace('/', '\') }
+            $isCurrentWorkspaceVite = $null -ne $owner -and
+                $owner.Name -match '^node(?:\.exe)?$' -and
+                $commandLine.IndexOf($projectPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+                $commandLine -match '(?i)(?:^|[\\/])vite[\\/]bin[\\/]vite\.js(?:["\s]|$)'
+            if (-not $isCurrentWorkspaceVite) {
+                $processName = if ($null -eq $owner) { '进程信息不可用' } else { [string]$owner.Name }
+                $unverifiedListeners += "PID $ownerPid（$processName）"
+            }
+        }
+
+        if ($unverifiedListeners.Count -gt 0) {
+            throw "端口 5173 已被无法确认属于当前工作区 Vite 的进程占用：$($unverifiedListeners -join '、')。未启动新进程，也未停止占用者。"
+        }
+
+        $viteReady = $false
+        $lastViteCheckError = ''
+        for ($attempt = 0; $attempt -lt 12; $attempt++) {
+            try {
+                $viteResponse = Invoke-WebRequest -Uri 'http://127.0.0.1:5173/apps/minecraft/ai-work' -TimeoutSec 2 -UseBasicParsing -Headers @{ Accept = 'text/html' } -ErrorAction Stop
+                if ([int]$viteResponse.StatusCode -eq 200) {
+                    $viteReady = $true
+                    break
+                }
+                $lastViteCheckError = "HTTP $([int]$viteResponse.StatusCode)"
+            }
+            catch {
+                $lastViteCheckError = $_.Exception.Message
+            }
+            Start-Sleep -Milliseconds 250
+        }
+        if (-not $viteReady) {
+            throw "检测到当前工作区 Vite 正在监听 5173，但 AI Work 页面未就绪：$lastViteCheckError"
+        }
+
+        Write-Host '检测到当前工作区 Vite 已就绪，复用 http://127.0.0.1:5173/apps/minecraft/ai-work；不会再启动第二个实例。' -ForegroundColor Green
+        return
+    }
+
+    Write-Host "使用 Node.js $installedNodeVersion 与 pnpm $pnpmVersion。" -ForegroundColor Cyan
+    Write-Host '执行：pnpm --filter lfaa-web run dev' -ForegroundColor Cyan
+    & $pnpmCommand.Source '--filter' 'lfaa-web' 'run' 'dev'
+    if ($LASTEXITCODE -ne 0) {
+        throw "Vite 前端结束，退出代码：$LASTEXITCODE。"
+    }
+}
+
+function Get-ResolvedDataDirectory {
+    # 与 CLI 共用同一数据目录解析器和 .env 优先级，定位写锁时不自行推导默认路径。
+    $nodeCommand = Get-Command 'node' -ErrorAction Stop
+    $resolverSource = @'
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+const environmentFile = process.argv[1];
+if (existsSync(environmentFile)) process.loadEnvFile(environmentFile);
+const resolverFile = pathToFileURL(resolve(process.argv[2])).href;
+const { resolveDataDirectory } = await import(resolverFile);
+console.log(resolveDataDirectory(process.argv[3], process.env.LFAA_DATA_DIR || "data"));
+'@
+    $environmentFile = Join-Path $projectRoot '.env'
+    $resolverFile = Join-Path $projectRoot 'packages\util\home-paths\src\resolve-data-directory.mjs'
+    $resolverOutput = @(& $nodeCommand.Source '--input-type=module' '--eval' $resolverSource $environmentFile $resolverFile $projectRoot 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw "无法解析当前 LFAA 数据目录：$($resolverOutput -join ' ')"
+    }
+
+    $dataDirectory = [string]($resolverOutput | Select-Object -Last 1)
+    if ([string]::IsNullOrWhiteSpace($dataDirectory)) {
+        throw '数据目录解析没有返回路径，已停止 Web 启动。'
+    }
+    return $dataDirectory.Trim()
+}
+
+function Read-ConfigurationLockRecord {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+    try {
+        $record = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        throw "LFAA 配置写锁格式无效，未尝试结束进程：$Path"
+    }
+
+    $processId = [long]0
+    $identity = [guid]::Empty
+    if (-not [long]::TryParse([string]$record.pid, [ref]$processId) -or $processId -lt 1 -or
+        -not [guid]::TryParse([string]$record.identity, [ref]$identity)) {
+        throw "LFAA 配置写锁缺少有效 PID 或身份标识，未尝试结束进程：$Path"
+    }
+    return [pscustomobject]@{ ProcessId = $processId; Identity = $identity.ToString() }
+}
+
+function Stop-ExistingLfaaWebLockOwner {
+    # 只协调可确认的 Web 写锁持有者；锁释放仍由存储 Owner 事务处理。
+    $dataDirectory = Get-ResolvedDataDirectory
+    $lockPath = Join-Path (Join-Path $dataDirectory 'storages') '.configuration.lock'
+    $lockRecord = Read-ConfigurationLockRecord -Path $lockPath
+    if ($null -eq $lockRecord) { return }
+
+    $owner = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($lockRecord.ProcessId)" -ErrorAction Stop
+    if ($null -eq $owner) {
+        Write-Host '配置写锁记录的 PID 已退出；由存储模块在启动事务中安全回收。' -ForegroundColor Yellow
+        return
+    }
+
+    $ownerCommandLine = [string]$owner.CommandLine
+    $normalizedCommandLine = $ownerCommandLine.Replace('/', '\')
+    if ($owner.Name -notmatch '^node(?:\.exe)?$' -or
+        $normalizedCommandLine -notmatch '(?i)apps\\cli\\bin\\lfaa\.mjs' -or
+        $ownerCommandLine -notmatch '(?i)(?:^|[\s"])web(?:$|[\s"])') {
+        throw "数据目录写锁 PID $($lockRecord.ProcessId) 仍存活，但无法确认为 LFAA Web CLI；为避免误杀，已停止启动。"
+    }
+
+    $currentLockRecord = Read-ConfigurationLockRecord -Path $lockPath
+    if ($null -eq $currentLockRecord) { return }
+    if ($currentLockRecord.ProcessId -ne $lockRecord.ProcessId -or $currentLockRecord.Identity -ne $lockRecord.Identity) {
+        throw 'Web 启动期间配置写锁归属发生变化，已停止启动。'
+    }
+
+    $currentOwner = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($lockRecord.ProcessId)" -ErrorAction Stop
+    if ($null -eq $currentOwner) { return }
+    if ($currentOwner.Name -ne $owner.Name -or
+        [string]$currentOwner.CommandLine -ne $ownerCommandLine -or
+        [string]$currentOwner.CreationDate -ne [string]$owner.CreationDate) {
+        throw 'Web 启动期间锁持有进程身份发生变化，已停止启动。'
+    }
+
+    Write-Host "检测到当前数据目录由 LFAA Web PID $($lockRecord.ProcessId) 占用，正在结束该进程并重新启动 Web。" -ForegroundColor Yellow
+    Stop-Process -Id $lockRecord.ProcessId -Force -ErrorAction Stop
+    for ($attempt = 0; $attempt -lt 40; $attempt++) {
+        if (-not (Get-Process -Id $lockRecord.ProcessId -ErrorAction SilentlyContinue)) { return }
+        Start-Sleep -Milliseconds 125
+    }
+    throw "未能确认 LFAA Web PID $($lockRecord.ProcessId) 已退出，已停止重启。"
 }
 
 function Install-WorkspaceDependencies {
@@ -558,31 +768,6 @@ function Read-Confirmation {
     }
 }
 
-function Read-ProjectReleaseVersion {
-    param([Parameter(Mandatory = $true)][PSCustomObject]$Version)
-
-    Write-Host ("更新日志记录的版本：{0}（来源：docs\updata-log.md）" -f $Version.Label) -ForegroundColor Magenta
-    while ($true) {
-        # 版本号本身是输入项而不是固定确认串：回车沿用更新日志版本，也可以直接输入自定义版本。
-        $versionInput = (Read-Host ("请输入本次版本号 [{0}]；直接回车沿用，或输入自定义版本（例如 0.1.2）" -f $Version.Number)).Trim()
-        if ([string]::IsNullOrWhiteSpace($versionInput)) {
-            return $Version
-        }
-        if ($versionInput -notmatch '^\d+\.\d+\.\d+$') {
-            Write-Host '版本号格式应为 主版本.次版本.修订号，例如 0.1.2。' -ForegroundColor Yellow
-            continue
-        }
-        if ($versionInput -ne $Version.Number) {
-            Write-Host ("自定义版本 {0} 与更新日志记录的 {1} 不一致；本次提交只使用 {0}，更新日志不会被改写，请自行补记。" -f $versionInput, $Version.Number) -ForegroundColor Yellow
-        }
-        return [PSCustomObject]@{
-            Name = $Version.Name
-            Number = $versionInput
-            Label = ("{0} {1}" -f $Version.Name, $versionInput)
-        }
-    }
-}
-
 function Push-GitHubRepository {
     param([switch]$Force)
 
@@ -593,7 +778,7 @@ function Push-GitHubRepository {
     Write-Host '目标：https://github.com/yubboo/LFAA.git' -ForegroundColor Cyan
     Write-Host '分支：main' -ForegroundColor Cyan
     # 先说明后续步骤，避免用户在凭据确认处取消后以为漏了「提交说明」这一步。
-    Write-Host '流程：排除依赖与敏感数据 → 扫描凭据 → 输入版本与提交说明 → 创建提交 → 推送到 main。' -ForegroundColor DarkGray
+    Write-Host '流程：排除依赖与敏感数据 → 扫描凭据 → 输入提交说明 → 创建提交 → 推送到 main。' -ForegroundColor DarkGray
 
     if (-not (Get-Command 'git' -ErrorAction SilentlyContinue)) {
         Write-Host '未检测到 Git for Windows，请先安装 Git 并加入 PATH。' -ForegroundColor Red
@@ -660,6 +845,7 @@ function Push-GitHubRepository {
 
         Set-GitHubOrigin
 
+        $commitCreated = $false
         $workingChanges = @(Invoke-GitOutput -GitArguments @('status', '--short', '--untracked-files=all'))
         if ($workingChanges.Count -gt 0) {
             Write-Host ''
@@ -722,22 +908,42 @@ function Push-GitHubRepository {
                 }
 
                 Write-Host ''
-                Write-Host '本次提交信息：版本号会自动加在提交说明前，两者都可以自行输入。' -ForegroundColor Cyan
-                $projectVersion = Read-ProjectReleaseVersion -Version $projectVersion
+                Write-Host ("更新日志版本：{0}（来源：docs\updata-log.md）" -f $projectVersion.Label) -ForegroundColor Magenta
+                # 只问一次提交说明：输入内容原样作为 commit message，不再额外询问版本、也不自动加前缀。
+                Write-Host '本次提交信息：直接输入提交说明即可。' -ForegroundColor Cyan
                 do {
                     $commitMessage = (Read-Host '【提交说明】【必填】').Trim()
                 }
                 while ([string]::IsNullOrWhiteSpace($commitMessage))
 
-                $versionedCommitMessage = ("{0}: {1}" -f $projectVersion.Label, $commitMessage)
-                Invoke-GitChecked -GitArguments @('commit', '-m', $versionedCommitMessage)
+                Invoke-GitChecked -GitArguments @('commit', '-m', $commitMessage)
+                $commitCreated = $true
             }
             else {
-                Write-Host '过滤后没有可提交的源码变化，不创建空提交；将推送当前本地提交。' -ForegroundColor Yellow
+                Write-Host '过滤后没有可提交的源码变化，不创建空提交。' -ForegroundColor Yellow
             }
         }
         else {
-            Write-Host '工作区没有新变化，将推送当前本地提交。' -ForegroundColor Green
+            Write-Host '工作区没有新变化。' -ForegroundColor Green
+        }
+
+        if (-not $commitCreated) {
+            # 没有任何代码改动时不做无意义推送：远端已含本地 HEAD 就直接结束。
+            # 若本地还有没推上去的提交（例如上次推送失败），仍然继续推送，避免重试无路可走。
+            $headRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', 'HEAD')) -join '').Trim()
+            $remoteRevision = ''
+            try {
+                $remoteRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', '--verify', 'refs/remotes/origin/main')) -join '').Trim()
+            }
+            catch {
+                $remoteRevision = ''
+            }
+            if ($remoteRevision -eq $headRevision) {
+                Write-Host ''
+                Write-Host '未检测到代码改动，远端 main 已与本地一致，无需推送。' -ForegroundColor Yellow
+                return
+            }
+            Write-Host '未检测到代码改动，但本地有尚未推送的提交，将继续推送。' -ForegroundColor Yellow
         }
 
         [void](Invoke-GitOutput -GitArguments @('rev-parse', '--verify', 'HEAD'))

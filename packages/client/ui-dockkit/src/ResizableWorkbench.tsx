@@ -172,12 +172,20 @@ export function ResizableWorkbench({
   rightCollapsed: rightCollapsedProp,
   bottomOpen = false,
   layoutMode = "desktop",
+  responsiveRightDock = false,
   onLeftWidthChange,
   onLeftCollapsedChange,
   onRightCollapsedChange,
   onBottomOpenChange,
 }: ResizableWorkbenchProps) {
   const rightEnabled = right !== undefined && right !== null;
+  const mobileRightDock = rightEnabled
+    && responsiveRightDock
+    && layoutMode === "mobile"
+    && containerWidth >= minCenterWidth + rightLimits.min + HANDLE_WIDTH;
+  const rightUsesGrid = rightEnabled && (layoutMode === "desktop"
+    || (responsiveRightDock && layoutMode === "compact")
+    || mobileRightDock);
   const rightPaneSwapped = rightEnabled && layoutMode === "desktop" && rightPaneSwappedProp;
   const initial = useMemo(
     () => loadState(storageKey, leftLimits, rightLimits, bottomLimits, containerWidth),
@@ -191,6 +199,15 @@ export function ResizableWorkbench({
   const leftWidth = leftWidthProp ?? internalLeftWidth;
   const leftCollapsed = leftCollapsedProp ?? internalLeftCollapsed;
   const rightCollapsed = rightCollapsedProp ?? internalRightCollapsed;
+  const leftUsesGrid = layoutMode !== "mobile";
+  const rightGridHandleBudget = rightUsesGrid
+    ? HANDLE_WIDTH + (leftUsesGrid && leftVisible ? HANDLE_WIDTH : 0)
+    : 0;
+  const maxRightGridWidth = Math.max(0, containerWidth
+    - minCenterWidth
+    - (leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth : 0)
+    - rightGridHandleBudget);
+  const rightWidthForLayout = rightUsesGrid ? Math.min(rightWidth, maxRightGridWidth) : rightWidth;
 
   // 受控模式下父组件拥有 leftWidth；非受控模式下组件自己保存。
   // 工作台与 Settings 可以因此共享同一个左栏宽度事实源，而不是各存一份。
@@ -253,24 +270,24 @@ export function ResizableWorkbench({
     onRightCollapsedChange?.(resolved);
   }, [onRightCollapsedChange, rightCollapsed, rightCollapsedProp]);
 
-  // 动态 max 会给中间区预留 minCenterWidth。
-  // 只有 Desktop 双 Dock 才需要扣除“另一侧栏”的宽度；Compact/Mobile 的 Overlay 不参与主区几何。
+  // 动态 max 会给中间区预留 minCenterWidth；只有实际参与网格的另一侧 Dock 才占用预算。
   const getDynamicMax = useCallback((side: "left" | "right") => {
     const root = rootRef.current;
     if (!root) return side === "left" ? leftLimits.max : rightLimits.max;
     const rect = root.getBoundingClientRect();
-    const otherWidth = layoutMode === "desktop"
-      ? side === "left"
-        ? (!rightEnabled || rightCollapsed ? 0 : rightWidth)
-        : (leftCollapsed ? 0 : leftWidth)
-      : 0;
     const staticMax = side === "left" ? leftLimits.max : rightLimits.max;
-    const handleBudget = layoutMode === "desktop"
-      ? HANDLE_WIDTH + (rightEnabled ? HANDLE_WIDTH : 0)
-      : HANDLE_WIDTH;
-    const available = Math.max(0, rect.width - otherWidth - minCenterWidth - handleBudget);
-    return Math.max(0, Math.min(staticMax, available > 0 ? available : staticMax));
-  }, [layoutMode, leftCollapsed, leftLimits.max, leftWidth, minCenterWidth, rightCollapsed, rightEnabled, rightLimits.max, rightWidth]);
+    if (side === "right" && layoutMode === "mobile" && !rightUsesGrid) {
+      return Math.max(0, Math.min(staticMax, rect.width - 12));
+    }
+    const otherWidth = side === "left"
+      ? (rightUsesGrid && !rightCollapsed ? rightWidthForLayout : 0)
+      : (leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth : 0);
+    const handleBudget = rightUsesGrid
+      ? HANDLE_WIDTH + (leftUsesGrid && leftVisible ? HANDLE_WIDTH : 0)
+      : (leftUsesGrid && side === "left" ? HANDLE_WIDTH : 0);
+    const available = rect.width - otherWidth - minCenterWidth - handleBudget;
+    return Math.max(0, Math.min(staticMax, available));
+  }, [layoutMode, leftCollapsed, leftLimits.max, leftUsesGrid, leftVisible, leftWidth, minCenterWidth, rightCollapsed, rightLimits.max, rightUsesGrid, rightWidthForLayout]);
 
   // 响应式计算结果变化时，把历史持久化尺寸重新夹进当前容器允许的范围。
   // 这一步很重要：用户在大屏保存的 340px 侧栏，切到小窗后不能继续拿 340px 挤压主区。
@@ -295,22 +312,20 @@ export function ResizableWorkbench({
   }, [getDynamicMax, leftLimits.min, setResolvedLeftWidth]);
 
   useEffect(() => {
-    if (layoutMode !== "desktop") return;
-    const dynamicMax = getDynamicMax("right");
-    const dynamicMin = Math.min(rightLimits.min, dynamicMax);
-    setRightWidth((value) => clamp(value, dynamicMin, dynamicMax));
-  }, [getDynamicMax, layoutMode, rightLimits.min]);
-
-  useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(storageKey, JSON.stringify({
+    const saved = JSON.stringify({
       leftWidth,
       rightWidth,
       bottomHeight,
       leftCollapsed,
       rightCollapsed,
       layoutDefaultsVersion: 3,
-    }));
+    });
+    try {
+      if (window.localStorage.getItem(storageKey) !== saved) window.localStorage.setItem(storageKey, saved);
+    } catch {
+      // 浏览器禁用存储或配额耗尽时保留页面内操作，不能让栏宽保存中断整个工作台。
+    }
   }, [bottomHeight, leftCollapsed, leftWidth, rightCollapsed, rightWidth, storageKey]);
 
   // ===== 4. 左右栏与底部面板共用的 Pointer 拖拽和吸附预览 =====
@@ -408,7 +423,10 @@ export function ResizableWorkbench({
     const staticMin = side === "left" ? leftLimits.min : rightLimits.min;
     const effectiveMax = getDynamicMax(side);
     const effectiveMin = Math.min(staticMin, effectiveMax);
-    const current = side === "left" ? leftWidth : rightWidth;
+    const rawCurrent = side === "left" ? leftWidth : rightWidthForLayout;
+    const current = side === "right" && layoutMode === "mobile" && !rightUsesGrid
+      ? Math.min(rawCurrent, Math.max(0, rect.width - 12))
+      : rawCurrent;
 
     sideDragRef.current = {
       side,
@@ -430,7 +448,7 @@ export function ResizableWorkbench({
     root.dataset.autoSnap = "none";
     event.currentTarget.setPointerCapture(event.pointerId);
     document.body.classList.add("lfaa-is-resizing");
-  }, [getDynamicMax, leftCollapsed, leftLimits.min, leftWidth, rightCollapsed, rightLimits.min, rightWidth, snapCaptureRatio]);
+  }, [getDynamicMax, layoutMode, leftCollapsed, leftLimits.min, leftWidth, rightCollapsed, rightLimits.min, rightUsesGrid, rightWidth, rightWidthForLayout, snapCaptureRatio]);
 
   const onSidePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = sideDragRef.current;
@@ -633,6 +651,9 @@ export function ResizableWorkbench({
   // Home 收起、End 恢复；方向键按 12px，Shift+方向键按 36px。
   const keyboardResize = useCallback((event: KeyboardEvent<HTMLDivElement>, side: "left" | "right") => {
     const collapsed = side === "left" ? leftCollapsed : rightCollapsed;
+    const limits = side === "left" ? leftLimits : rightLimits;
+    const max = getDynamicMax(side);
+    const min = Math.min(limits.min, max);
     // 已吸附的栏位不能从 resize separator 反向展开；使用外部显式控件或快捷键。
     if (collapsed) return;
     const step = event.shiftKey
@@ -649,28 +670,24 @@ export function ResizableWorkbench({
     if (event.key === "End") {
       event.preventDefault();
       if (side === "left") {
-        const max = Math.max(leftLimits.min, getDynamicMax("left"));
         setResolvedLeftCollapsed(false);
-        setResolvedLeftWidth((value) => clamp(Math.max(value, leftLimits.initial), leftLimits.min, max));
+        setResolvedLeftWidth((value) => clamp(Math.max(value, leftLimits.initial), min, max));
       } else {
-        const max = Math.max(rightLimits.min, getDynamicMax("right"));
         setResolvedRightCollapsed(false);
-        setRightWidth((value) => clamp(Math.max(value, rightLimits.initial), rightLimits.min, max));
+        setRightWidth(clamp(Math.max(rightWidthForLayout, rightLimits.initial), min, max));
       }
       return;
     }
     if (event.key !== collapseKey && event.key !== expandKey) return;
     event.preventDefault();
     if (side === "left") {
-      const max = Math.max(leftLimits.min, getDynamicMax("left"));
       setResolvedLeftCollapsed(false);
-      setResolvedLeftWidth((value) => clamp(value + (event.key === expandKey ? step : -step), leftLimits.min, max));
+      setResolvedLeftWidth((value) => clamp(value + (event.key === expandKey ? step : -step), min, max));
     } else {
-      const max = Math.max(rightLimits.min, getDynamicMax("right"));
       setResolvedRightCollapsed(false);
-      setRightWidth((value) => clamp(value + (event.key === expandKey ? step : -step), rightLimits.min, max));
+      setRightWidth(clamp(rightWidthForLayout + (event.key === expandKey ? step : -step), min, max));
     }
-  }, [getDynamicMax, leftCollapsed, leftLimits.initial, leftLimits.min, rightCollapsed, rightLimits.initial, rightLimits.min, setResolvedLeftCollapsed, setResolvedLeftWidth, setResolvedRightCollapsed]);
+  }, [getDynamicMax, leftCollapsed, leftLimits, rightCollapsed, rightLimits, rightWidthForLayout, setResolvedLeftCollapsed, setResolvedLeftWidth, setResolvedRightCollapsed]);
 
   // ===== 7. CSS Grid 变量输出 =====
   // 普通开合由 CSS Grid 完成；拖动尺寸由共用 Pointer 帧处理直接写入或执行释放缓动。
@@ -679,9 +696,9 @@ export function ResizableWorkbench({
     // 收起侧栏时同步收起分隔器列，避免主内容边缘留下空隙或悬浮细线。
     "--lfaa-left-handle-width": `${leftVisible && !leftCollapsed ? HANDLE_WIDTH : 0}px`,
     "--lfaa-right-handle-width": `${rightEnabled && !rightCollapsed ? HANDLE_WIDTH : 0}px`,
-    "--lfaa-right-size": `${rightWidth}px`,
+    "--lfaa-right-size": `${rightWidthForLayout}px`,
     "--lfaa-left-column": `${leftCollapsed ? 0 : leftWidth}px`,
-    "--lfaa-right-column": `${rightEnabled && !rightCollapsed ? rightWidth : 0}px`,
+    "--lfaa-right-column": `${rightEnabled && !rightCollapsed ? rightWidthForLayout : 0}px`,
     "--lfaa-bottom-size": `${bottomHeight}px`,
     "--lfaa-bottom-row": `${bottom && bottomOpen ? bottomHeight : 0}px`,
     // 吸附捕获和状态归位只从统一 token 写入 CSS 变量；释放缓动由共用 Pointer 帧处理驱动。
@@ -709,6 +726,8 @@ export function ResizableWorkbench({
       data-snap-preview="none"
       data-auto-snap="none"
       data-layout-mode={layoutMode}
+      data-responsive-right-dock={responsiveRightDock}
+      data-right-layout={rightUsesGrid ? "dock" : "overlay"}
     >
       {leftVisible ? <aside className="lfaa-workbench__pane lfaa-workbench__pane--left" aria-label="左侧导航">{left}</aside> : null}
       {leftVisible ? <div

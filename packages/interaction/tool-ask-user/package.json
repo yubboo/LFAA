@@ -1,0 +1,22 @@
+{
+  "name": "lfaa-tool-ask-user",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-tools": "workspace:*",
+    "lfaa-util-values": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

@@ -1,11 +1,17 @@
 /**
- * 功能：运行本机 Windows x64 Daemon，并执行 SteamCMD、Minecraft、Java、文件管理与 AI 主机命令任务。
- * 作用：轮询控制端任务、安装并校验 Valve SteamCMD、发现和管理 Java 运行环境、维护 Minecraft 实例目录、在 LFAA 数据根目录内管理文件，并按项目权限模式运行账户设置的 Shell 命令。
+ * 功能：运行本机 Windows x64 Daemon，并执行 Minecraft、Java、文件管理与 AI 主机命令任务。
+ * 作用：轮询控制端已授权的节点业务任务；Wallpaper Engine 和 DSH Bundle 属于 Harness 插件宿主，不属于游戏 Daemon。
  * 关联文件：packages/host/daemon/src/local-daemon.ts、packages/jobs/jobs/src/ai-host-tasks.ts、packages/jobs/jobs/src/minecraft-queue.ts、packages/fs/fs/src/queue.ts、packages/games/minecraft/src/service.ts、packages/games/steamcmd/src/service.ts、apps/daemon/package.json。
  */
 import { protectedDataDirectories } from "lfaa-home-paths/src/reserved-data-paths.mjs";
 import { randomUUID, createHash } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { execFile, spawn } from "node:child_process";
+import { startCommand, waitForMinecraftReady, isVanillaReadyLine, terminateProcessTree } from "./process-control.mjs";
+import { provisionMinecraftCore, startNativeMinecraftServer, isMinecraftCoreReadyLine, downloadCoreArtifact } from "./minecraft-provisioner.mjs";
+import { validateDaemonConnection } from "./connection-config.mjs";
+import { installEasyTierRuntime, readInstalledEasyTierVersion, validateEasyTierInstallRequest } from "./easytier-runtime.mjs";
+import { EASYTIER_RUNTIME_RELEASE } from "lfaa-game-connectivity/src/easytier-release.mjs";
 import { closeSync, createReadStream, createWriteStream, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { access, copyFile, lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
@@ -42,7 +48,16 @@ const nodeIdPath = resolve(credentialsDirectory, "daemon-node-id");
 const lockPath = resolve(credentialsDirectory, "daemon.lock");
 const serverPort = Number(process.env.SERVER_PORT || 3000);
 const serverHost = process.env.SERVER_HOST?.trim() || "127.0.0.1";
-const apiBase = `http://${serverHost}:${serverPort}/api`;
+const connectionPath = resolve(credentialsDirectory, "daemon-connection.json");
+// 节点连接配置保存在凭据目录，不能由模型的普通文件/设置工具改写。
+const remoteConnection = (() => {
+  try {
+    let parsed;
+    try { parsed = JSON.parse(readFileSync(connectionPath, "utf8")); } catch (error) { if (error?.code === "ENOENT") return null; throw new Error("节点连接文件无法读取或不是有效 JSON。"); }
+    return validateDaemonConnection(parsed);
+  } catch (error) { if (error?.code === "ENOENT") return null; throw error; }
+})();
+const apiBase = remoteConnection?.controlPlaneUrl ?? `http://${serverHost}:${serverPort}/api`;
 // 节点版本以当前包清单为准，避免发布时遗漏业务文件中的重复版本常量。
 const daemonVersion = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 const sandboxBackendId = "windows-appcontainer-v1";
@@ -55,6 +70,7 @@ const activeServers = new Map();
 // 目录按用户填写的实例名称保存；此映射让进程和任务仍按稳定 UUID 定位实例。
 const minecraftInstanceDirectories = new Map();
 const activeTasks = new Set();
+const activeCommands = new Map();
 const logBuffers = new Map();
 let shuttingDown = false;
 let pollingController;
@@ -62,6 +78,9 @@ let runLoopPromise;
 let daemonToken = "";
 let lockNonce = "";
 let sandboxBackendAvailable = false;
+let easyTierRuntimeVersion = null;
+let nextEasyTierRuntimeProbeAt = 0;
+let lastEasyTierRuntimeProbeError = "";
 let controlPlaneReady = false;
 let lastControlPlaneError = "";
 let customJavaPathWarningLogged = false;
@@ -80,7 +99,7 @@ export async function apply(ctx) {
   controlPlaneReady = false;
   lastControlPlaneError = "";
   pollingController = new AbortController();
-  nodeId = await loadOrCreateNodeId();
+  nodeId = remoteConnection?.nodeId ?? await loadOrCreateNodeId();
   ctx.effect(() => () => shutdown("Harness 卸载"));
   const onExit = () => releaseDaemonLock();
   process.once("exit", onExit);
@@ -95,11 +114,11 @@ async function initialize() {
     if (info.isSymbolicLink() || !info.isDirectory()) throw new Error("LFAA Daemon 数据目录不能是符号链接或非目录路径。");
   }
   // 菜单可能在节点已运行时再次启动；复用现有进程，避免 Daemon 重复启动让并行开发服务一起退出。
-  if (!acquireDaemonLock()) return;
+  if (!acquireDaemonLock()) { if (process.connected) process.disconnect(); return; }
   await rebuildMinecraftInstanceDirectoryIndex();
   for (let attempt = 0; attempt < 30; attempt += 1) {
     try {
-      daemonToken = (await readFile(tokenPath, "utf8")).trim();
+      daemonToken = remoteConnection?.token ?? (await readFile(tokenPath, "utf8")).trim();
       break;
     } catch (error) {
       if (error?.code !== "ENOENT" || attempt === 29) throw error;
@@ -108,7 +127,8 @@ async function initialize() {
   }
   if (daemonToken.length < 32) throw new Error("本机 Daemon 通信密钥无效。");
   sandboxBackendAvailable = await detectSandboxBackend();
-  if (!sandboxBackendAvailable) process.stderr.write("Windows AppContainer Sandbox Host 不可用；Minecraft 实例启动将被拒绝，其他已登记任务仍可处理。\n");
+  await refreshEasyTierRuntimeVersion(true);
+  if (!sandboxBackendAvailable) process.stderr.write("Windows AppContainer Host 不可用；原生 Minecraft 可按账户设置执行，AppContainer 实例不可启动。\n");
   process.stdout.write(`LFAA 本机 Daemon 已启动（${nodeId.slice(0, 8)}）。\n`);
   runLoopPromise = runLoop();
 }
@@ -258,7 +278,7 @@ function releaseDaemonLock() {
 }
 
 async function readToken() {
-  const token = (await readFile(tokenPath, "utf8")).trim();
+  const token = remoteConnection?.token ?? (await readFile(tokenPath, "utf8")).trim();
   if (token.length < 32) throw new Error("本机 Daemon 通信密钥无效。");
   daemonToken = token;
   return token;
@@ -270,6 +290,8 @@ async function apiRequest(path, options = {}) {
   options.signal?.throwIfAborted();
   const response = await fetch(`${apiBase}${path}`, {
     ...options,
+    // 节点结果可能含私有文件输出，不能跟随重定向把请求正文发给其他地址或降级到 HTTP。
+    redirect: "error",
     signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(options.timeout ?? 15_000)]) : AbortSignal.timeout(options.timeout ?? 15_000),
     headers: {
       authorization: `Bearer ${daemonToken}`,
@@ -307,14 +329,21 @@ async function runLoop() {
     }
 
     try {
-      const javaRuntimes = await discoverJavaRuntimes();
-      const capabilities = ["minecraft-vanilla", "java-environment-manager-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "agent-shell-v1", "project-files-v1", ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
+      // Java 探测可能启动多个进程；后台刷新，不能阻塞节点心跳与正在执行的任务续租。
+      const javaRuntimes = cachedJavaRuntimes;
+      if (!javaDiscoveryPending && Date.now() >= javaDiscoveryRefreshAt) {
+        javaDiscoveryPending = discoverJavaRuntimes().then(value => { cachedJavaRuntimes = value; })
+          .catch(error => { process.stderr.write(`Java 环境刷新失败：${safeMessage(error)}\n`); })
+          .finally(() => { javaDiscoveryPending = null; javaDiscoveryRefreshAt = Date.now() + 60_000; });
+      }
+      await refreshEasyTierRuntimeVersion();
+      const capabilities = ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "java-environment-manager-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "agent-shell-v1", "project-files-v1", "git-workspace-v1", EASYTIER_RUNTIME_RELEASE.installCapability, ...(easyTierRuntimeVersion === EASYTIER_RUNTIME_RELEASE.version ? [EASYTIER_RUNTIME_RELEASE.runtimeCapability] : []), ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
       if (await steamcmdExecutableReady(steamcmdSettings.steamcmdDirectory)) capabilities.push("steamcmd-ready-v1");
       const heartbeat = await pollRequest("/daemon/heartbeat", {
         method: "POST",
         body: JSON.stringify({
           id: nodeId,
-          displayName: process.env.COMPUTERNAME || "本机 Windows 节点",
+          displayName: remoteConnection?.displayName ?? process.env.COMPUTERNAME ?? "本机节点",
           platform: process.platform,
           architecture: process.arch,
           version: daemonVersion,
@@ -326,6 +355,7 @@ async function runLoop() {
         })
       });
       if (shuttingDown) break;
+      for (const id of heartbeat?.cancelTaskIds ?? []) { const command = activeCommands.get(id); if (command) void command.cancel(); }
       if (heartbeat?.steamcmdSettings) steamcmdSettings = validateSteamcmdSettings(heartbeat.steamcmdSettings);
       if (heartbeat?.minecraftStorageSettings) await applyMinecraftStorageSettings(heartbeat.minecraftStorageSettings);
 
@@ -359,6 +389,14 @@ async function runLoop() {
         if (task) {
           activeTasks.add(task.id);
           void executeAiHostTask(task).finally(() => activeTasks.delete(task.id));
+        }
+      }
+      if (activeTasks.size === 0) {
+        const { task } = await pollRequest("/connectivity/daemon/easytier/install/claim", { method: "POST", body: JSON.stringify({ nodeId }) });
+        if (shuttingDown) break;
+        if (task) {
+          activeTasks.add(task.id);
+          void executeConnectivityInstallTask(task).finally(() => activeTasks.delete(task.id));
         }
       }
     } catch (error) {
@@ -460,7 +498,7 @@ async function applyMinecraftStorageSettings(settings) {
 
 async function readMinecraftInstanceId(directory, fallbackDirectoryName = "") {
   // 新目录从安装标记或实例元数据读取 UUID；旧版 UUID 目录则继续按目录名识别。
-  for (const filename of ["daemon-installing.json", "lfaa-instance.json"]) {
+  for (const filename of ["daemon-installing.json", "lfaa-instance.json", "lfaa-provision.json"]) {
     try {
       const value = JSON.parse(await readSafeFile(resolve(directory, filename), "utf8"));
       if (typeof value?.instanceId === "string" && /^[0-9a-f-]{36}$/iu.test(value.instanceId)) return value.instanceId;
@@ -489,7 +527,10 @@ async function scanMinecraftInstances() {
       minecraftInstanceDirectories.set(instanceId, directory);
       const markerPath = resolve(directory, "daemon-process.json");
       const installingPath = resolve(directory, "daemon-installing.json");
-      const jarExists = await safeFileExists(resolve(directory, "server.jar"));
+      const instanceMetadata = await readInstanceMetadata(directory).catch(() => null);
+      const launchPath = instanceMetadata?.launch?.path;
+      const jarExists = typeof launchPath === "string" && !isAbsolute(launchPath) && !launchPath.split(/[\\/]/u).includes("..")
+        ? await safeFileExists(resolve(directory, launchPath)) : await safeFileExists(resolve(directory, "server.jar"));
       if (await safeFileExists(installingPath)) {
       try {
         const installMarker = JSON.parse(await readSafeFile(installingPath, "utf8"));
@@ -510,7 +551,7 @@ async function scanMinecraftInstances() {
       if (!jarExists) continue;
       const currentProcess = activeServers.get(instanceId);
       if (currentProcess && !currentProcess.child.killed && currentProcess.child.exitCode === null) {
-        result.push({ id: instanceId, state: "running", sandboxStatus: currentProcess.sandboxReady ? "running" : "unknown" });
+        result.push({ id: instanceId, state: currentProcess.serverReady ? "running" : "starting", sandboxStatus: currentProcess.executionMode === "native" ? "unsupported" : currentProcess.sandboxReady ? "running" : "unknown" });
         continue;
       }
       if (await safeFileExists(markerPath)) {
@@ -530,7 +571,7 @@ async function scanMinecraftInstances() {
       result.push({
         id: instanceId,
         state: "stopped",
-        sandboxStatus: !sandboxBackendAvailable ? "unsupported" : prepared ? "prepared" : "unprepared"
+        sandboxStatus: instanceMetadata?.executionMode === "native" || !sandboxBackendAvailable ? "unsupported" : prepared ? "prepared" : "unprepared"
       });
     }
   }
@@ -547,24 +588,47 @@ async function executeTask(task) {
     let result = {};
     switch (task.kind) {
       case "install":
-        if (task.payload?.operation === "deploy") result = await installMinecraftDeployment(task);
+        if (task.payload?.operation === "provision") result = await provisionMinecraftCore(task, {
+          createDirectory: createSafeInstanceDirectory, java: (major, runtimeId, progress) => resolveMinecraftJavaRuntime(major, runtimeId, progress, task.payload.downloadTimeoutSeconds), progress: postTaskProgress,
+          start: startMinecraftInstance, phpDirectory: resolve(dataDirectory, "environments", "php", "pocketmine"),
+          assertSafeDirectory: ensureManagedDirectory, assertSafeFileTarget, safeFileExists, readSafeFile, isProcessRunning, findExecutable, expandZip,
+          installerLog: (installTask) => {
+            const offsets = { stdout: 0, stderr: 0 };
+            return (value) => { for (const stream of ["stdout", "stderr"]) { const text = value[stream].slice(offsets[stream]); offsets[stream] = value[stream].length; if (text) bufferLogs(installTask.instanceId, installTask.id, stream, text.split(/\r?\n/u)); } };
+          }
+        });
+        else if (task.payload?.operation === "deploy") result = await installMinecraftDeployment(task);
         else if (task.payload?.operation === "register") result = await registerMinecraftInstance(task);
         else result = await installMinecraftInstance(task);
         break;
       case "start": result = await startMinecraftInstance(task); break;
       case "stop": result = await stopMinecraftInstance(task); break;
+      case "restart": {
+        const stopped = await stopMinecraftInstance(task);
+        if (stopped.forced) throw new Error("上次停服被强制终止，未自动启动；请核查存档后手动启动。");
+        result = await startMinecraftInstance(task); break;
+      }
+      case "console": {
+        const runtime = activeServers.get(requireInstanceId(task.instanceId));
+        const command = task.payload?.command;
+        if (!runtime?.serverReady || typeof command !== "string" || !command.trim() || command.length > 1024 || /[\u0000-\u001f\u007f]/u.test(command) || /^(?:stop|restart)\b/iu.test(command)) throw new Error("实例控制台不可用或命令无效。");
+        await new Promise((resolve, reject) => runtime.child.stdin.write(`${command}\n`, error => error ? reject(error) : resolve()));
+        result = { delivered: true, verified: false, note: "命令已写入服务器标准输入；效果须读取后续日志验证。" }; break;
+      }
       case "properties": result = await applyMinecraftProperties(task); break;
       case "backup": result = await backupMinecraftWorld(task); break;
       case "java-install": result = await executeJavaEnvironmentTask(task); break;
       default: throw new Error("Daemon 拒绝执行未登记的任务类型。");
     }
+    await flushMinecraftTaskLogs(task.id);
     await apiRequest(`/daemon/tasks/${task.id}/complete`, {
       method: "POST",
-      body: JSON.stringify({ nodeId, succeeded: true, message: "Minecraft 任务已完成。", result })
+      body: JSON.stringify({ nodeId, succeeded: true, message: result.forced ? "实例已强制结束；未确认存档完整性，请先核查日志和世界文件。" : "Minecraft 任务已完成。", result })
     });
   } catch (error) {
     const message = safeMessage(error);
     await sendSystemLog(task.instanceId, task.id, `任务失败：${message}`).catch(() => undefined);
+    await flushMinecraftTaskLogs(task.id);
     await apiRequest(`/daemon/tasks/${task.id}/complete`, {
       method: "POST",
       body: JSON.stringify({ nodeId, succeeded: false, message, result: {} })
@@ -590,97 +654,108 @@ async function executeNodeFileTask(task) {
 const aiHostOutputLimitBytes = 1024 * 1024;
 
 async function executeAiHostTask(task) {
-  const output = { stdout: [], stderr: [], stdoutBytes: 0, stderrBytes: 0, outputTruncated: false };
-  let timedOut = false;
-  let spawnError = "";
-  const appendOutput = (target, chunk) => {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    const byteKey = `${target}Bytes`;
-    const remaining = Math.max(0, aiHostOutputLimitBytes - output[byteKey]);
-    const captured = buffer.subarray(0, remaining);
-    if (captured.length) output[target].push(captured);
-    output[byteKey] += captured.length;
-    if (captured.length < buffer.length) output.outputTruncated = true;
+  let latest, sequence = 0, dirty = false, sending = Promise.resolve(), flushing = false;
+  let command;
+  const flush = async () => {
+    if (!dirty || !latest || flushing) return;
+    flushing = true;
+    dirty = false;
+    const snapshot = latest, currentSequence = ++sequence;
+    sending = apiRequest(`/daemon/ai/host-tasks/${task.id}/output`, {
+      method: 'POST', body: JSON.stringify({ nodeId, sequence: currentSequence, result: snapshot })
+    });
+    try { await sending; } finally { flushing = false; }
   };
-
+  // 运行输出分批回传；网络失败不会重放已执行命令。
+  const outputTimer = setInterval(() => { void flush().catch(() => { dirty = true; }); }, 750);
   try {
-    const result = await new Promise((resolveResult, rejectResult) => {
-      let executable;
-      let args;
-      if (task.shell === "project-files") {
-        executable = process.execPath;
-        args = [fileURLToPath(new URL("./project-files.mjs", import.meta.url))];
-      } else if (task.shell === "powershell") {
-        executable = "powershell.exe";
-        args = ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", task.command];
-      } else if (task.shell === "bash" || task.shell === "zsh") {
-        executable = task.shell;
-        args = ["-lc", task.command];
-      } else {
-        executable = process.env.ComSpec || "cmd.exe";
-        args = ["/d", "/s", "/c", task.command];
-      }
-
-      let child;
-      try {
-        child = spawn(executable, args, {
-          cwd: task.workingDirectory || repositoryRoot,
-          windowsHide: true,
-          stdio: [task.shell === "project-files" ? "pipe" : "ignore", "pipe", "pipe"]
-        });
-        if (task.shell === "project-files") { child.stdin.on("error", () => {}); child.stdin.end(task.command); }
-      } catch (error) {
-        rejectResult(error);
-        return;
-      }
-      child.stdout?.on("data", (chunk) => appendOutput("stdout", chunk));
-      child.stderr?.on("data", (chunk) => appendOutput("stderr", chunk));
-      child.once("error", (error) => { spawnError = safeMessage(error); });
-
-      const timeoutSeconds = Number(task.timeoutSeconds);
-      const timeout = timeoutSeconds > 0 ? setTimeout(() => {
-        timedOut = true;
-        if (Number.isInteger(child.pid)) {
-          void execFileAsync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, timeout: 5000, maxBuffer: 16 * 1024 }).catch(() => undefined);
-        }
-        child.kill();
-      }, timeoutSeconds * 1000) : null;
-
-      child.once("close", (exitCode) => {
-        if (timeout) clearTimeout(timeout);
-        resolveResult(exitCode);
-      });
-    });
-    const exitCode = typeof result === "number" ? result : null;
-    const response = {
-      stdout: Buffer.concat(output.stdout).toString("utf8"),
-      stderr: [Buffer.concat(output.stderr).toString("utf8"), spawnError].filter(Boolean).join("\n"),
-      exitCode,
-      timedOut,
-      outputTruncated: output.outputTruncated
-    };
-    const succeeded = exitCode === 0 && !timedOut && !spawnError;
-    await apiRequest(`/daemon/ai/host-tasks/${task.id}/complete`, {
-      method: "POST",
-      body: JSON.stringify({
-        nodeId,
-        succeeded,
-        message: timedOut ? "主机命令已超时并终止。" : succeeded ? "主机命令执行完成。" : `主机命令退出状态：${exitCode ?? "启动失败"}。`,
-        result: response
-      })
-    });
+    const shell = task.shell;
+    const executable = shell === 'project-files' ? process.execPath : shell === 'powershell' ? 'powershell.exe' : shell === 'bash' || shell === 'zsh' ? shell : process.env.ComSpec || 'cmd.exe';
+    const args = shell === 'project-files' ? [fileURLToPath(new URL('./project-files.mjs', import.meta.url))]
+      : shell === 'powershell' ? ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [Console]::OutputEncoding; & { ${task.command}\n }`]
+      : shell === 'bash' || shell === 'zsh' ? ['-lc', task.command] : ['/d', '/s', '/c', task.command];
+    // 控制面和模型秘密不继承给命令进程；本机执行仍具有节点 OS 账户的原生权限。
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/(?:TOKEN|SECRET|PASSWORD|API_KEY|COOKIE|AUTHORIZATION)/iu.test(key)));
+    if (shell === 'project-files') env.LFAA_DAEMON_DATA_ROOT = dataDirectory;
+    command = startCommand({ executable, args, cwd: task.workingDirectory || repositoryRoot,
+      env, input: shell === 'project-files' ? task.command : undefined, timeoutSeconds: task.timeoutSeconds,
+      onOutput: value => { latest = value; dirty = true; }, outputLimitBytes: aiHostOutputLimitBytes });
+    activeCommands.set(task.id, command);
+    const result = await command.done;
+    latest = result; dirty = true;
+    clearInterval(outputTimer);
+    await sending.catch(() => {});
+    await flush().catch(() => {});
+    const succeeded = result.exitCode === 0 && !result.timedOut && !result.cancelled;
+    await apiRequest(`/daemon/ai/host-tasks/${task.id}/complete`, { method: 'POST', body: JSON.stringify({ nodeId, succeeded,
+      message: result.cancelled ? '节点已确认任务进程退出；已产生的文件或外部副作用不会撤销。' : result.timedOut ? '命令超时，进程已退出。' : succeeded ? '命令执行完成。' : '命令执行失败，请检查输出。', result }) });
   } catch (error) {
     const message = safeMessage(error);
-    await apiRequest(`/daemon/ai/host-tasks/${task.id}/complete`, {
-      method: "POST",
-      body: JSON.stringify({
-        nodeId,
-        succeeded: false,
-        message: `主机命令启动或回传失败：${message.slice(0, 180)}`,
-        result: { stdout: "", stderr: message.slice(0, 1200), exitCode: null, timedOut, outputTruncated: false }
-      })
-    }).catch(() => undefined);
+    if (command) { await command.cancel(); await command.done; }
+    await apiRequest(`/daemon/ai/host-tasks/${task.id}/complete`, { method: 'POST', body: JSON.stringify({ nodeId, succeeded: false,
+      message: `命令启动或回传失败：${message.slice(0, 180)}`, result: latest ?? { stdout: '', stderr: message, exitCode: null, timedOut: false, outputTruncated: false } }) }).catch(() => {});
+  } finally { clearInterval(outputTimer); activeCommands.delete(task.id); }
+}
+
+async function executeConnectivityInstallTask(task) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15 * 60 * 1000);
+  timeout.unref?.();
+  activeCommands.set(task.id, { cancel: async () => controller.abort() });
+  let succeeded = false;
+  let version;
+  try {
+    validateEasyTierInstallRequest({ operation: "install-easytier-runtime", version: task.version });
+    const installed = await installEasyTierRuntime({
+      dataDirectory,
+      ensureManagedDirectory,
+      downloadAndVerify: (url, destinationPath, integrity, signal) => downloadAndVerify(url, destinationPath, integrity, signal),
+      expandArchive: expandZip,
+      probeVersion: probeEasyTierVersion,
+      signal: controller.signal,
+      id: task.id
+    });
+    easyTierRuntimeVersion = installed.version;
+    nextEasyTierRuntimeProbeAt = Date.now() + 60_000;
+    version = installed.version;
+    succeeded = true;
+  } catch {
+    succeeded = false;
   }
+  clearTimeout(timeout);
+  activeCommands.delete(task.id);
+  try {
+    await apiRequest(`/connectivity/daemon/easytier/install/${task.id}/complete`, {
+      method: "POST",
+      body: JSON.stringify({ nodeId, succeeded, ...(succeeded ? { version } : {}) })
+    });
+  } catch {
+    // 回报失败后任务会在控制面截止时间后标记为结果未知，不会自动重放安装操作。
+  } finally {
+    activeCommands.delete(task.id);
+  }
+}
+
+async function refreshEasyTierRuntimeVersion(force = false) {
+  if (!force && Date.now() < nextEasyTierRuntimeProbeAt) return;
+  nextEasyTierRuntimeProbeAt = Date.now() + 60_000;
+  try {
+    easyTierRuntimeVersion = await readInstalledEasyTierVersion({ dataDirectory, probeVersion: probeEasyTierVersion });
+  } catch (error) {
+    easyTierRuntimeVersion = null;
+    const message = safeMessage(error);
+    if (!lastEasyTierRuntimeProbeError || lastEasyTierRuntimeProbeError !== message) process.stderr.write(`EasyTier 运行包状态核验失败：${message}\n`);
+    lastEasyTierRuntimeProbeError = message;
+    return;
+  }
+  lastEasyTierRuntimeProbeError = "";
+}
+
+async function probeEasyTierVersion(executable) {
+  const result = await captureProcess(executable, ["--version"], 10_000);
+  const output = `${result.stdout}\n${result.stderr}`;
+  const match = /\beasytier-core\s+v?(\d+\.\d+\.\d+)\b/iu.exec(output) ?? /\bv?(\d+\.\d+\.\d+)\b/u.exec(output);
+  return match?.[1] ?? "";
 }
 
 async function executeSteamcmdTask(task) {
@@ -1110,7 +1185,7 @@ async function installMinecraftInstance(task) {
     const existingMetadata = await readInstanceMetadata(instanceDirectory);
     if (existingMetadata && existingMetadata.releaseId !== releaseId) throw new Error("此实例目录已经安装了另一个 Minecraft 版本，拒绝覆盖。");
     const javaRuntimeId = typeof payload.javaRuntimeId === "string" ? payload.javaRuntimeId : null;
-    const java = await resolveMinecraftJavaRuntime(javaMajor, javaRuntimeId, (progress, message) => postTaskProgress(task.id, progress, message));
+    const java = await resolveMinecraftJavaRuntime(javaMajor, javaRuntimeId, (progress, message) => postTaskProgress(task.id, progress, message), task.payload.downloadTimeoutSeconds);
     await prepareMinecraftSandbox(instanceId, instanceName, java, memoryMb, task.id, instanceDirectory);
 
     await postTaskProgress(task.id, 50, `正在下载官方 Minecraft ${releaseId} Vanilla 服务端。`);
@@ -1231,8 +1306,8 @@ async function registerMinecraftInstance(task) {
   minecraftInstanceDirectories.set(instanceId, directory);
   try {
     const javaRuntimeId = typeof payload.javaRuntimeId === "string" ? payload.javaRuntimeId : null;
-    const java = await resolveMinecraftJavaRuntime(javaMajor, javaRuntimeId, (progress, message) => postTaskProgress(task.id, progress, message));
-    await prepareMinecraftSandbox(instanceId, name, java, memoryMb, task.id, directory);
+    const java = await resolveMinecraftJavaRuntime(javaMajor, javaRuntimeId, (progress, message) => postTaskProgress(task.id, progress, message), task.payload.downloadTimeoutSeconds);
+    if (payload.executionMode !== "native") await prepareMinecraftSandbox(instanceId, name, java, memoryMb, task.id, directory);
     await assertSafeFileTarget(resolve(directory, "eula.txt"));
     await assertSafeFileTarget(resolve(directory, "lfaa-instance.json"));
     await writeFile(resolve(directory, "eula.txt"), "# 由用户在创建 Minecraft 实例时明确同意 EULA 后写入。\neula=true\n", "utf8");
@@ -1243,7 +1318,10 @@ async function registerMinecraftInstance(task) {
       javaMajor,
       javaRuntimeId,
       memoryMb,
-      deploymentId
+      deploymentId,
+      executionMode: payload.executionMode ?? "appcontainer",
+      coreType: "Vanilla",
+      launch: { kind: "jar", path: "server.jar" }
     }, null, 2), "utf8");
     await appendInstanceLog(instanceId, task.id, "system", `已将 Minecraft ${releaseId} 官方 Vanilla 部署注册为实例。`);
     return { deploymentId, releaseId, javaMajor };
@@ -1253,16 +1331,24 @@ async function registerMinecraftInstance(task) {
 }
 
 async function startMinecraftInstance(task) {
+  const readyTimeout = Number(task.payload?.readyTimeoutSeconds);
+  const stopTimeoutSeconds = Number(task.payload?.stopTimeoutSeconds);
+  if (!Number.isInteger(readyTimeout) || readyTimeout < 10 || readyTimeout > 900 || !Number.isInteger(stopTimeoutSeconds) || stopTimeoutSeconds < 5 || stopTimeoutSeconds > 300) throw new Error("任务缺少有效的就绪/安全停服等待配置，请重新提交启动任务。");
   const instanceId = requireInstanceId(task.instanceId);
   const instanceDirectory = await requireSafeInstanceDirectory(instanceId);
   const metadata = await readInstanceMetadata(instanceDirectory);
   if (!metadata) throw new Error("找不到已安装的 Minecraft 实例元数据。");
+  if ((task.payload?.executionMode ?? metadata.executionMode) === "native") return await startNativeMinecraftServer(task, metadata, instanceDirectory, {
+    activeServers, safeFileExists, readSafeFile, isProcessRunning, assertSafeFileTarget, java: (major, runtimeId, progress) => resolveMinecraftJavaRuntime(major, runtimeId, progress, task.payload.downloadTimeoutSeconds),
+    phpDirectory: resolve(dataDirectory, "environments", "php", "pocketmine"), progress: postTaskProgress,
+    attachOutput: attachServerOutput, waitForExit: waitForChildExit
+  });
   const instanceName = requireMinecraftInstanceName(task.payload?.instanceName ?? metadata.instanceName ?? basename(instanceDirectory));
   const javaMajor = requireMajor(task.payload?.javaMajor ?? metadata.javaMajor);
   const javaRuntimeId = Object.hasOwn(task.payload ?? {}, "javaRuntimeId")
     ? (typeof task.payload.javaRuntimeId === "string" ? task.payload.javaRuntimeId : null)
     : (typeof metadata.javaRuntimeId === "string" ? metadata.javaRuntimeId : null);
-  const java = await resolveMinecraftJavaRuntime(javaMajor, javaRuntimeId, (progress, message) => postTaskProgress(task.id, progress, message));
+  const java = await resolveMinecraftJavaRuntime(javaMajor, javaRuntimeId, (progress, message) => postTaskProgress(task.id, progress, message), task.payload.downloadTimeoutSeconds);
   if (!(await safeFileExists(resolve(instanceDirectory, "server.jar")))) throw new Error("实例目录缺少 server.jar，请重新安装或恢复官方文件。");
   if (!(await safeFileExists(resolve(instanceDirectory, "eula.txt")))) throw new Error("实例缺少 EULA 同意记录。");
   if (activeServers.has(instanceId)) throw new Error("Minecraft 实例已由本机 Daemon 管理为运行状态。");
@@ -1284,39 +1370,22 @@ async function startMinecraftInstance(task) {
     windowsHide: true,
     stdio: ["pipe", "pipe", "pipe"]
   });
-  const record = { child, javaMajor, javaRuntimeId, startedAt: Date.now(), taskId: task.id, sandboxReady: false, sandboxBackend: sandboxBackendId };
+  const record = { child, javaMajor, javaRuntimeId, stopTimeoutSeconds, startedAt: Date.now(), taskId: task.id, sandboxReady: false, serverReady: false, sandboxBackend: sandboxBackendId };
+  child.stdin.on("error", () => { void appendInstanceLog(instanceId, task.id, "system", "Minecraft 控制台输入通道发生错误；发送任务以实际回报为准。"); });
   activeServers.set(instanceId, record);
   attachServerOutput(instanceId, child, task.id, {
     readinessToken,
-    onSandboxReady: () => { record.sandboxReady = true; record.onSandboxReady?.(); }
+    onSandboxReady: () => { record.sandboxReady = true; record.onReady?.(); },
+    onServerReady: () => { record.serverReady = true; record.onReady?.(); }
   });
 
-  await new Promise((resolveStarted, rejectStarted) => {
-    let settled = false;
-    const finish = (error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      child.off("error", onError);
-      child.off("exit", onExit);
-      if (error) {
-        activeServers.delete(instanceId);
-        if (child.exitCode === null && child.signalCode === null && !child.killed) child.kill();
-        rejectStarted(error);
-      } else resolveStarted();
-    };
-    const timer = setTimeout(() => finish(new Error("Minecraft AppContainer 启动确认超时。")), 20_000);
-    const onError = () => finish(new Error("无法启动 Minecraft AppContainer Sandbox Host。"));
-    const onExit = (code) => finish(new Error(`Minecraft AppContainer 在启动确认前退出（退出码 ${code ?? "未知"}）。`));
-    record.onSandboxReady = () => finish();
-    child.once("error", onError);
-    child.once("exit", onExit);
-  });
+  try { await waitForMinecraftReady(child, record, readyTimeout); }
+  catch (error) { child.kill(); await waitForChildExit(child, 10_000); throw error; }
   const processMarker = resolve(instanceDirectory, "daemon-process.json");
   await assertSafeFileTarget(processMarker);
   await writeFile(processMarker, JSON.stringify({ pid: child.pid, javaMajor, startedAt: new Date().toISOString(), appId: "minecraft", sandboxBackend: sandboxBackendId }), "utf8");
   await appendInstanceLog(instanceId, task.id, "system", `Minecraft ${metadata.releaseId} 已启动，使用 Java ${javaMajor}。`);
-  return { javaMajor };
+  return { javaMajor, processStarted: true, serverReady: true, externallyReachable: null, evidence: "Vanilla 服务就绪日志与 AppContainer 启动握手" };
 }
 
 async function stopMinecraftInstance(task) {
@@ -1331,17 +1400,19 @@ async function stopMinecraftInstance(task) {
   }
   const child = running.child;
   if (child.exitCode !== null || child.killed) throw new Error("Minecraft 进程已经退出。");
-  child.stdin.write("stop\n");
+  const stopTimeout = Number(task.payload?.stopTimeoutSeconds);
+  if (!Number.isInteger(stopTimeout) || stopTimeout < 5 || stopTimeout > 300) throw new Error("任务缺少有效的安全停服等待配置。");
+  await new Promise((resolveWrite, rejectWrite) => child.stdin.write(running.coreType === "BungeeCord" ? "end\n" : "stop\n", error => error ? rejectWrite(error) : resolveWrite()));
   await postTaskProgress(task.id, 35, "已发送 Minecraft 安全停止命令，等待世界保存和进程退出。");
-  const stopped = await waitForChildExit(child, 30_000);
+  const stopped = await waitForChildExit(child, stopTimeout * 1000);
   if (!stopped) {
-    child.kill();
+    await terminateProcessTree(child);
     if (!(await waitForChildExit(child, 10_000))) throw new Error("Minecraft 进程未能在安全停止或终止请求后退出。");
-    await sendSystemLog(instanceId, task.id, "Minecraft 未在 30 秒内响应安全停止，Daemon 已结束本实例进程。");
+    await sendSystemLog(instanceId, task.id, `Minecraft 未在 ${stopTimeout} 秒内响应安全停止，Daemon 已结束本实例进程；存档完整性未确认。`);
   }
   await rm(resolve(instanceDirectory, "daemon-process.json"), { force: true });
   await appendInstanceLog(instanceId, task.id, "system", "Minecraft 实例已停止。");
-  return {};
+  return { stopped: true, forced: !stopped, exitCode: child.exitCode, worldSaveConfirmed: null };
 }
 
 async function applyMinecraftProperties(task) {
@@ -1370,7 +1441,8 @@ async function backupMinecraftWorld(task) {
   const properties = await safeFileExists(propertiesPath) ? parseProperties(await readSafeFile(propertiesPath, "utf8")) : new Map();
   const levelName = String(properties.get("level-name") || "world");
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u.test(levelName) || levelName.includes("..")) throw new Error("世界目录名称无法通过安全校验。");
-  const worlds = [levelName, `${levelName}_nether`, `${levelName}_the_end`];
+  const metadata = await readInstanceMetadata(instanceDirectory);
+  const worlds = ["Nukkit", "PocketMine"].includes(metadata?.coreType) ? ["worlds"] : [levelName, `${levelName}_nether`, `${levelName}_the_end`];
   const timestamp = new Date().toISOString().replace(/[:.]/gu, "-");
   const backupName = `${timestamp}-${randomUUID()}`;
   const instanceBackupRoot = resolve(backupDirectory, instanceId);
@@ -1396,7 +1468,7 @@ async function backupMinecraftWorld(task) {
   return { backupName };
 }
 
-async function installTemurinRuntime(majorInput, reportProgress) {
+async function installTemurinRuntime(majorInput, reportProgress, downloadTimeoutSeconds) {
   const major = requireMajor(majorInput);
   const existing = await findJavaRuntime(major, true);
   if (existing?.managed) return { javaMajor: major, runtimeVendor: "Eclipse Temurin" };
@@ -1410,7 +1482,8 @@ async function installTemurinRuntime(majorInput, reportProgress) {
   if (!(await fileExists(archivePath)) || await hashFile(archivePath, "sha256").catch(() => "") !== expectedSha256) {
     await rm(archivePath, { force: true });
     await reportProgress?.(24, `正在下载并校验 Temurin Java ${major} ${imageType.toUpperCase()}。`);
-    await downloadAndVerify(downloadUrl, archivePath, { algorithm: "sha256", digest: expectedSha256, maxBytes: 1_000_000_000 });
+    await downloadCoreArtifact({ url: downloadUrl, algorithm: "sha256", digest: expectedSha256 }, archivePath, downloadTimeoutSeconds,
+      (bytes, total) => reportProgress?.(24, `正在下载 Java ${major}：${Math.round(bytes / 1024 / 1024)} MiB${total > 0 ? ` / ${Math.round(total / 1024 / 1024)} MiB` : ""}。`));
   }
 
   const extractionDirectory = resolve(javaDirectory, `.install-${major}-${randomUUID()}`);
@@ -1507,7 +1580,7 @@ async function executeJavaEnvironmentTask(task) {
   const payload = task.payload ?? {};
   const reportProgress = (progress, message) => postTaskProgress(task.id, progress, message);
   switch (payload.operation ?? "install") {
-    case "install": return await installTemurinRuntime(payload.javaMajor, reportProgress);
+    case "install": return await installTemurinRuntime(payload.javaMajor, reportProgress, payload.downloadTimeoutSeconds);
     case "uninstall": return await uninstallTemurinRuntime(payload.javaMajor, reportProgress);
     case "register-path": return await registerJavaRuntimePath(payload, reportProgress);
     case "forget-path": return await forgetJavaRuntimePath(payload.runtimeId, reportProgress);
@@ -1575,6 +1648,7 @@ async function forgetJavaRuntimePath(runtimeId, reportProgress) {
   return {};
 }
 
+let cachedJavaRuntimes = [], javaDiscoveryPending = null, javaDiscoveryRefreshAt = 0;
 async function discoverJavaRuntimes() {
   const runtimes = new Map();
   const managedEntries = await readdir(javaDirectory, { withFileTypes: true }).catch(() => []);
@@ -1819,7 +1893,7 @@ async function findJavaRuntime(major, managedOnly = false) {
   return null;
 }
 
-async function resolveMinecraftJavaRuntime(majorInput, runtimeId, reportProgress) {
+async function resolveMinecraftJavaRuntime(majorInput, runtimeId, reportProgress, downloadTimeoutSeconds) {
   const major = requireMajor(majorInput);
   if (runtimeId !== null) {
     // 显式选择必须再次按运行时 ID 和主版本解析；已失效时不回退到另一套 Java。
@@ -1827,7 +1901,7 @@ async function resolveMinecraftJavaRuntime(majorInput, runtimeId, reportProgress
     let discovered = (await discoverJavaRuntimes()).find((runtime) => runtime.runtimeId === runtimeId);
     if (!discovered && runtimeId === `temurin-${major}`) {
       await reportProgress?.(20, `实例选择的 LFAA 托管 Java ${major} 已卸载，正在重新准备 Temurin JRE。`);
-      await installTemurinRuntime(major, reportProgress);
+      await installTemurinRuntime(major, reportProgress, downloadTimeoutSeconds);
       discovered = (await discoverJavaRuntimes()).find((runtime) => runtime.runtimeId === runtimeId);
     }
     if (!discovered) throw new Error("实例选择的 Java 已不在节点扫描结果中；请为实例重新选择运行环境。");
@@ -1838,7 +1912,7 @@ async function resolveMinecraftJavaRuntime(majorInput, runtimeId, reportProgress
     }
     const binaryDirectory = dirname(executable);
     if (basename(binaryDirectory).toLocaleLowerCase() !== "bin") {
-      throw new Error("实例选择的 Java 不在标准 bin\java.exe 目录中，无法安全授权给 AppContainer。");
+      throw new Error("实例选择的 Java 不在标准 bin\java.exe 目录中，无法确认运行环境边界。");
     }
     const root = await realpath(dirname(binaryDirectory)).catch(() => "");
     if (!root) throw new Error("实例选择的 Java 安装目录无法验证。");
@@ -1849,8 +1923,15 @@ async function resolveMinecraftJavaRuntime(majorInput, runtimeId, reportProgress
 
   let java = await findJavaRuntime(major, true);
   if (!java) {
+    const discovered = cachedJavaRuntimes.find(runtime => runtime.major === major) ?? (await discoverJavaRuntimes()).find(runtime => runtime.major === major);
+    if (discovered) {
+      await reportProgress?.(20, `已发现 Java ${major}，正在核对并复用节点现有运行环境。`);
+      return resolveMinecraftJavaRuntime(major, discovered.runtimeId, reportProgress, downloadTimeoutSeconds);
+    }
+  }
+  if (!java) {
     await reportProgress?.(20, `未找到 LFAA 托管 Java ${major}，正在准备 Temurin JRE。`);
-    await installTemurinRuntime(major, reportProgress);
+    await installTemurinRuntime(major, reportProgress, downloadTimeoutSeconds);
     java = await findJavaRuntime(major, true);
   }
   if (!java) throw new Error(`没有找到 LFAA 托管 Java ${major}，请检查 Java 管理任务。`);
@@ -1876,7 +1957,9 @@ async function readJavaVersion(executable) {
 }
 
 async function expandZip(archivePath, destinationPath) {
-  const script = "$ErrorActionPreference='Stop'; Expand-Archive -LiteralPath $env:LFAA_ARCHIVE_PATH -DestinationPath $env:LFAA_DESTINATION_PATH -Force";
+  // 解压前逐个核对归一化路径，拒绝 ZIP 路径逃逸和符号链接；只操作节点受管理目标。
+  await ensureManagedDirectory(destinationPath);
+  const script = "$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.IO.Compression.FileSystem; $root=[IO.Path]::GetFullPath($env:LFAA_DESTINATION_PATH).TrimEnd([IO.Path]::DirectorySeparatorChar)+[IO.Path]::DirectorySeparatorChar; $zip=[IO.Compression.ZipFile]::OpenRead($env:LFAA_ARCHIVE_PATH); try { foreach($entry in $zip.Entries) { $path=[IO.Path]::GetFullPath([IO.Path]::Combine($root,$entry.FullName)); if(-not $path.StartsWith($root,[StringComparison]::OrdinalIgnoreCase) -or (($entry.ExternalAttributes -shr 16) -band 61440) -eq 40960) { throw 'ZIP entry rejected' } } } finally { $zip.Dispose() }; Expand-Archive -LiteralPath $env:LFAA_ARCHIVE_PATH -DestinationPath $env:LFAA_DESTINATION_PATH -Force";
   await captureProcess("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], 180_000, {
     ...process.env,
     LFAA_ARCHIVE_PATH: archivePath,
@@ -1884,11 +1967,12 @@ async function expandZip(archivePath, destinationPath) {
   });
 }
 
-async function downloadAndVerify(url, destinationPath, { algorithm, digest, size, maxBytes }) {
+async function downloadAndVerify(url, destinationPath, { algorithm, digest, size, maxBytes }, operationSignal) {
   const allowedHost = algorithm === "sha1" ? "piston-data.mojang.com" : "github.com";
   assertHttpsHost(url, allowedHost);
+  const signal = operationSignal ? AbortSignal.any([operationSignal, AbortSignal.timeout(30 * 60 * 1000)]) : AbortSignal.timeout(30 * 60 * 1000);
   const response = await fetch(url, {
-    signal: AbortSignal.timeout(30 * 60 * 1000),
+    signal,
     redirect: algorithm === "sha1" ? "error" : "follow"
   });
   if (!response.ok || !response.body) throw new Error(`官方文件下载失败（${response.status}）。`);
@@ -1906,7 +1990,7 @@ async function downloadAndVerify(url, destinationPath, { algorithm, digest, size
   });
   await mkdir(dirname(destinationPath), { recursive: true });
   try {
-    await pipeline(response.body, verifier, createWriteStream(destinationPath, { flags: "wx" }));
+    await pipeline(response.body, verifier, createWriteStream(destinationPath, { flags: "wx" }), { signal });
     if (Number.isSafeInteger(size) && received !== size) throw new Error("下载文件大小与官方元数据不一致。");
     if (hash.digest("hex") !== digest) throw new Error("下载文件摘要与官方校验值不一致，文件已拒绝使用。");
   } catch (error) {
@@ -2068,6 +2152,8 @@ function attachServerOutput(instanceId, child, taskId, options = {}) {
       const lines = rest.split(/\r?\n/u);
       rest = lines.pop() || "";
       const logLines = lines.filter((line) => {
+        options.onFailureLine?.(redactLogLine(line));
+        if (options.coreType ? isMinecraftCoreReadyLine(options.coreType, line) : isVanillaReadyLine(line)) options.onServerReady?.();
         if (options.readinessToken && line === `${sandboxReadyPrefix}${options.readinessToken}\u001e`) {
           options.onSandboxReady?.();
           return false;
@@ -2087,48 +2173,66 @@ function attachServerOutput(instanceId, child, taskId, options = {}) {
     });
   }
   child.once("error", () => {
-    void appendInstanceLog(instanceId, taskId, "system", "Minecraft Java 进程发生启动或运行错误。");
+    void appendInstanceLog(instanceId, taskId, "system", "Minecraft 进程发生启动或运行错误。").catch(() => {});
   });
   child.once("exit", (code) => {
     activeServers.delete(instanceId);
-    void rm(resolve(getInstanceDirectory(instanceId), "daemon-process.json"), { force: true });
-    void appendInstanceLog(instanceId, taskId, "system", `Minecraft 进程已退出（退出码 ${code ?? "未知"}）。`);
+    void rm(resolve(getInstanceDirectory(instanceId), "daemon-process.json"), { force: true }).catch(() => {
+      void appendInstanceLog(instanceId, taskId, "system", "进程已退出，但运行标记清理失败；下次启动将重新核实标记中的进程。").catch(() => {});
+    });
+    void appendInstanceLog(instanceId, taskId, "system", `Minecraft 进程已退出（退出码 ${code ?? "未知"}）。`).catch(() => {});
   });
 }
 
 function bufferLogs(instanceId, taskId, stream, lines) {
-  const buffer = logBuffers.get(instanceId) || { taskId, stream, lines: [], timer: null };
+  const key = `${instanceId}:${taskId}:${stream}`;
+  const buffer = logBuffers.get(key) || { instanceId, taskId, stream, lines: [], timer: null, flushing: false };
   for (const line of lines) {
     const trimmed = redactLogLine(line);
     if (trimmed) buffer.lines.push(trimmed.slice(0, 4096));
   }
   if (buffer.lines.length > 200) buffer.lines.splice(0, buffer.lines.length - 200);
   if (!buffer.timer) {
-    buffer.timer = setTimeout(() => { void flushLogs(instanceId); }, 750);
+    buffer.timer = setTimeout(() => { void flushLogs(key); }, 750);
   }
-  logBuffers.set(instanceId, buffer);
+  logBuffers.set(key, buffer);
 }
 
-async function flushLogs(instanceId) {
-  const buffer = logBuffers.get(instanceId);
-  if (!buffer || buffer.lines.length === 0) { logBuffers.delete(instanceId); return; }
+async function flushLogs(key) {
+  const buffer = logBuffers.get(key);
+  if (!buffer || buffer.lines.length === 0) { logBuffers.delete(key); return; }
+  if (buffer.flushing) return buffer.pending?.catch(() => {});
+  const instanceId = buffer.instanceId;
+  buffer.flushing = true;
   const lines = buffer.lines.splice(0, 200);
   clearTimeout(buffer.timer);
   buffer.timer = null;
   try {
-    await apiRequest(`/daemon/tasks/${buffer.taskId}/logs`, {
+    buffer.pending = apiRequest(`/daemon/tasks/${buffer.taskId}/logs`, {
       method: "POST",
       body: JSON.stringify({ nodeId, instanceId, taskId: buffer.taskId, stream: buffer.stream, lines })
     });
+    await buffer.pending;
   } catch {
+    buffer.flushing = false;
     buffer.lines.unshift(...lines);
     if (buffer.lines.length > 200) buffer.lines.splice(0, buffer.lines.length - 200);
-    buffer.timer = setTimeout(() => { void flushLogs(instanceId); }, 3000);
+    buffer.timer = setTimeout(() => { void flushLogs(key); }, 3000);
     return;
   }
+  buffer.flushing = false;
   if (buffer.lines.length) {
-    buffer.timer = setTimeout(() => { void flushLogs(instanceId); }, 250);
-  } else logBuffers.delete(instanceId);
+    buffer.timer = setTimeout(() => { void flushLogs(key); }, 250);
+  } else logBuffers.delete(key);
+}
+
+/** 先交付末尾错误输出再完成任务，避免页面拿到失败状态时诊断日志仍留在计时缓冲。 */
+async function flushMinecraftTaskLogs(taskId) {
+  for (const [key, buffer] of logBuffers) {
+    if (buffer.taskId !== taskId) continue;
+    await buffer.pending?.catch(() => {});
+    await flushLogs(key);
+  }
 }
 
 function redactLogLine(line) {
@@ -2281,12 +2385,13 @@ async function shutdown(signal) {
   pollingController?.abort();
   await runLoopPromise;
   runLoopPromise = undefined;
+  await Promise.all([...activeCommands.values()].map(async command => { await command.cancel(); await command.done; }));
   process.stdout.write(`本机 Daemon 正在关闭（${signal}），请求安全停止受管实例。\n`);
   const stops = [...activeServers.entries()].map(async ([instanceId, runtime]) => {
     try {
-      runtime.child.stdin.write("stop\n");
-      const stopped = await waitForChildExit(runtime.child, 20_000);
-      if (!stopped) runtime.child.kill();
+      runtime.child.stdin.write(runtime.coreType === "BungeeCord" ? "end\n" : "stop\n");
+      const stopped = await waitForChildExit(runtime.child, runtime.stopTimeoutSeconds * 1000);
+      if (!stopped) await terminateProcessTree(runtime.child);
       if (stopped) await rm(resolve(getInstanceDirectory(instanceId), "daemon-process.json"), { force: true });
     } catch { /* 关闭阶段保留进程状态标记供下次启动后复核。 */ }
   });

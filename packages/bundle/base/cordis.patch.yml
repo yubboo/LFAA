@@ -1,10 +1,22 @@
 # 功能：定义有序装配补丁。作用：由 profile 指定并交给 Cordis Loader。关联文件：本包 package.json。
 - insert:
+    - id: storage-hub
+      name: lfaa-storage-hub
+      required: true
+    - id: typert-registry
+      name: lfaa-typert-registry
+      required: true
+    - id: typert-loader
+      name: lfaa-typert-loader
+      inject: ["lfaaTypertRegistry"]
+      required: true
     - id: storage
       name: lfaa-storage-sqlite
+      inject: ["lfaaStorageHub"]
       required: true
     - id: storage-json
       name: lfaa-storage-json
+      inject: ["lfaaStorageHub"]
       required: true
     - id: storage-domain
       name: lfaa-storage-domain
@@ -18,12 +30,27 @@
       name: lfaa-identity-auth
       inject: ["lfaaStorage"]
       required: true
+    - id: credentials
+      name: lfaa-credentials
+      required: true
     - id: settings
       name: lfaa-settings
-      inject: ["lfaaStorage", "lfaaConfiguration"]
+      inject: ["lfaaStorage", "lfaaConfiguration", "lfaaCredentials"]
+      required: true
+    - id: credential-flows
+      name: lfaa-credential-flows
+      inject: ["lfaaCredentials"]
+      required: true
+    - id: agent-default-model
+      name: lfaa-agent-default-model
+      inject: ["lfaaCredentials", "lfaaSettings"]
       required: true
     - id: data-directory
       name: lfaa-workspace-data-directory
+      inject: ["lfaaStorage"]
+      required: true
+    - id: workspace
+      name: lfaa-workspace-workspace
       inject: ["lfaaStorage"]
       required: true
     - id: nodes
@@ -34,6 +61,10 @@
       name: lfaa-jobs
       inject: ["lfaaStorage"]
       required: true
+    - id: game-connectivity
+      name: lfaa-game-connectivity
+      inject: ["lfaaCredentials"]
+      required: true
     - id: files
       name: lfaa-fs
       inject: ["lfaaStorage"]
@@ -42,9 +73,15 @@
       name: lfaa-permission-presets
       inject: ["lfaaSettings"]
       required: true
+    - id: user-approval
+      name: lfaa-user-approval
+      required: true
+    - id: user-questions
+      name: lfaa-user-questions
+      required: true
     - id: minecraft
       name: lfaa-games-minecraft
-      inject: ["lfaaJobs", "lfaaNodes"]
+      inject: ["lfaaJobs", "lfaaNodes", "lfaaGameConnectivity"]
       required: true
     - id: steamcmd
       name: lfaa-games-steamcmd
@@ -62,8 +99,17 @@
       required: true
     - id: agent-loop
       name: lfaa-agent-loop
-      inject: ["lfaaSettings", "lfaaSessions", "lfaaTools"]
+      inject: ["lfaaSettings", "lfaaSessions", "lfaaTools", "lfaaUserApproval", "lfaaUserQuestions"]
       required: true
+    - id: workflow
+      name: lfaa-workflow
+      required: true
+    - id: workflow-dag-engine
+      name: lfaa-workflow-dag-engine
+      inject: ["lfaaWorkflow"]
+    - id: workflow-minecraft-adapter
+      name: lfaa-workflow-minecraft-adapter
+      inject: ["lfaaWorkflow", "lfaaAgentLoop"]
     - id: sessions
       name: lfaa-session
       inject: ["lfaaSessionPersistence"]
@@ -71,6 +117,34 @@
     - id: tools
       name: lfaa-tools
       inject: ["lfaaPermissions"]
+      required: true
+    - id: knowledge-library
+      name: lfaa-knowledge-library-runtime
+      inject: ["lfaaTools"]
+      required: true
+    - id: ask-user
+      name: lfaa-tool-ask-user
+      inject: ["lfaaTools"]
+      required: true
+    - id: capability-installs
+      name: lfaa-capability-installs
+      inject: ["lfaaTools"]
+      required: true
+    - id: plugin-manager
+      name: lfaa-plugin-manager
+      inject: ["profileContext", "lfaaCapabilityInstalls"]
+      required: true
+    - id: capability-skill
+      name: lfaa-capability-skill
+      inject: ["lfaaCapabilityInstalls"]
+      required: true
+    - id: capability-mcp
+      name: lfaa-capability-mcp
+      inject: ["lfaaCapabilityInstalls"]
+      required: true
+    - id: capability-prompt
+      name: lfaa-capability-prompt
+      inject: ["lfaaCapabilityInstalls"]
       required: true
     - id: agent-preset
       name: lfaa-agent-preset

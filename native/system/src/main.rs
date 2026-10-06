@@ -5,6 +5,7 @@
  */
 #[cfg(windows)]
 mod windows_host {
+    use sha2::{Digest, Sha256};
     use std::ffi::{OsStr, OsString, c_void};
     use std::fs::{self, File};
     use std::io::{Read, Write};
@@ -24,20 +25,24 @@ mod windows_host {
         SetEntriesInAclW, SetNamedSecurityInfoW, TRUSTEE_IS_SID, TRUSTEE_IS_USER,
     };
     use windows_sys::Win32::Security::Isolation::{
-        CreateAppContainerProfile, DeriveAppContainerSidFromAppContainerName,
+        CreateAppContainerProfile, DeleteAppContainerProfile,
+        DeriveAppContainerSidFromAppContainerName,
     };
     use windows_sys::Win32::Security::{
-        CONTAINER_INHERIT_ACE, DACL_SECURITY_INFORMATION, DeriveCapabilitySidsFromName,
+        CONTAINER_INHERIT_ACE, DACL_SECURITY_INFORMATION, DeriveCapabilitySidsFromName, EqualSid,
         GetSecurityDescriptorSacl, LABEL_SECURITY_INFORMATION, OBJECT_INHERIT_ACE,
         SECURITY_ATTRIBUTES, SECURITY_CAPABILITIES, SID_AND_ATTRIBUTES,
+        TOKEN_APPCONTAINER_INFORMATION, TOKEN_QUERY, TokenAppContainerSid,
     };
     use windows_sys::Win32::Storage::FileSystem::{
         FILE_ATTRIBUTE_REPARSE_POINT, FILE_DELETE_CHILD, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ,
         FILE_GENERIC_WRITE,
     };
-    use windows_sys::Win32::System::Console::{GetStdHandle, STD_ERROR_HANDLE};
+    use windows_sys::Win32::System::Console::{
+        GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+    };
     use windows_sys::Win32::System::Environment::{
-        FreeEnvironmentStringsW, GetEnvironmentStringsW,
+        FreeEnvironmentStringsW, GetEnvironmentStringsW, SetEnvironmentVariableW,
     };
     use windows_sys::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_ACTIVE_PROCESS,
@@ -50,19 +55,48 @@ mod windows_host {
     use windows_sys::Win32::System::Threading::{
         CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, DeleteProcThreadAttributeList,
         EXTENDED_STARTUPINFO_PRESENT, GetExitCodeProcess, InitializeProcThreadAttributeList,
-        PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
-        PROCESS_INFORMATION, ResumeThread, STARTF_USESTDHANDLES, STARTUPINFOEXW, TerminateProcess,
-        UpdateProcThreadAttribute, WaitForSingleObject,
+        OpenProcessToken, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+        PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, PROCESS_INFORMATION, ResumeThread,
+        STARTF_USESTDHANDLES, STARTUPINFOEXW, TerminateProcess, UpdateProcThreadAttribute,
+        WaitForSingleObject,
     };
     use windows_sys::core::HRESULT;
 
     const BACKEND_ID: &str = "windows-appcontainer-v1";
     const APP_ID: &str = "minecraft";
     const SANDBOX_READY_PREFIX: &str = "\u{1e}LFAA_SANDBOX_READY:";
+    const PLUGIN_READY_PREFIX: &str = "\u{1e}LFAA_PLUGIN_SANDBOX_READY:";
     const NETWORK_CAPABILITIES: [&str; 2] = ["internetClientServer", "privateNetworkClientServer"];
     const INSTANCE_WRITE_ACCESS: u32 = FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_DELETE_CHILD;
     const JAVA_READ_ACCESS: u32 = FILE_GENERIC_READ | FILE_GENERIC_EXECUTE;
+    const PLUGIN_READ_ACCESS: u32 = FILE_GENERIC_READ | FILE_GENERIC_EXECUTE;
+    // 插件沿父目录解析已知运行时/入口路径时，只能穿越目录并读取元数据，不能列目录。
+    const PLUGIN_DIRECTORY_TRAVERSE: u32 = 0xA0;
     const DIRECTORY_INHERITANCE: u32 = OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE;
+    const PLUGIN_MAX_FILES: usize = 8192;
+    const PLUGIN_MEMORY_LIMIT_MB: usize = 512;
+    const PLUGIN_ENVIRONMENT_ALLOWLIST: [&str; 20] = [
+        "APPDATA",
+        "COMPUTERNAME",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "LOCALAPPDATA",
+        "OS",
+        "PATH",
+        "PROCESSOR_ARCHITECTURE",
+        "PROCESSOR_IDENTIFIER",
+        "ProgramData",
+        "ProgramFiles",
+        "ProgramFiles(x86)",
+        "PUBLIC",
+        "SystemDrive",
+        "SystemRoot",
+        "TEMP",
+        "TMP",
+        "USERDOMAIN",
+        "USERNAME",
+        "USERPROFILE",
+    ];
     const HRESULT_ALREADY_EXISTS: HRESULT = 0x8007_00b7u32 as i32;
 
     struct LocalAllocation(*mut c_void);
@@ -143,6 +177,22 @@ mod windows_host {
         readiness_token: Option<String>,
     }
 
+    struct PluginLaunchArgs {
+        data_root: PathBuf,
+        profile: String,
+        plugin_id: String,
+        entry: String,
+        node_path: PathBuf,
+        readiness_token: String,
+    }
+
+    struct PluginForgetArgs {
+        data_root: PathBuf,
+        profile: String,
+        plugin_id: String,
+        node_path: PathBuf,
+    }
+
     pub fn main() -> Result<(), String> {
         let mut args = std::env::args_os().skip(1);
         let command = args
@@ -172,6 +222,14 @@ mod windows_host {
             "--launch" => {
                 let parsed = parse_launch_args(args, true)?;
                 launch_instance(&parsed)
+            }
+            "--plugin-run" => {
+                let parsed = parse_plugin_launch_args(args)?;
+                launch_plugin(&parsed)
+            }
+            "--plugin-forget-profile" => {
+                let parsed = parse_plugin_forget_args(args)?;
+                forget_plugin_profile(&parsed)
             }
             _ => Err("Sandbox Host 命令不受支持。".to_owned()),
         }
@@ -271,6 +329,164 @@ mod windows_host {
             memory_mb,
             readiness_token,
         })
+    }
+
+    fn parse_plugin_launch_args(
+        args: impl Iterator<Item = OsString>,
+    ) -> Result<PluginLaunchArgs, String> {
+        let mut values = std::collections::HashMap::<String, OsString>::new();
+        let mut args = args;
+        while let Some(key) = args.next() {
+            let key = key.into_string().map_err(|_| "插件沙盒参数无效。")?;
+            if !matches!(
+                key.as_str(),
+                "--data-root"
+                    | "--profile"
+                    | "--plugin-id"
+                    | "--entry"
+                    | "--node"
+                    | "--readiness-token"
+            ) {
+                return Err("插件沙盒参数不受支持。".to_owned());
+            }
+            let value = args
+                .next()
+                .ok_or_else(|| "插件沙盒参数缺少值。".to_owned())?;
+            if values.insert(key, value).is_some() {
+                return Err("插件沙盒参数重复。".to_owned());
+            }
+        }
+        let data_root = PathBuf::from(
+            values
+                .remove("--data-root")
+                .ok_or_else(|| "缺少 LFAA 数据根目录。".to_owned())?,
+        );
+        let profile = values
+            .remove("--profile")
+            .and_then(|value| value.into_string().ok())
+            .filter(|value| is_valid_profile_name(value))
+            .ok_or_else(|| "插件 Profile 名称无效。".to_owned())?;
+        let plugin_id = values
+            .remove("--plugin-id")
+            .and_then(|value| value.into_string().ok())
+            .filter(|value| is_valid_plugin_id(value))
+            .ok_or_else(|| "插件 ID 无效。".to_owned())?;
+        let entry = values
+            .remove("--entry")
+            .and_then(|value| value.into_string().ok())
+            .filter(|value| is_valid_plugin_entry(value))
+            .ok_or_else(|| "插件运行入口必须是安全的 .mjs 相对路径。".to_owned())?;
+        let node_path = PathBuf::from(
+            values
+                .remove("--node")
+                .ok_or_else(|| "缺少受信任的 Node.js 运行时路径。".to_owned())?,
+        );
+        let readiness_token = values
+            .remove("--readiness-token")
+            .and_then(|value| value.into_string().ok())
+            .filter(|value| is_uuid(value))
+            .ok_or_else(|| "插件沙盒启动确认令牌无效。".to_owned())?;
+        if !values.is_empty() || !data_root.is_absolute() || !node_path.is_absolute() {
+            return Err("插件沙盒路径参数无效。".to_owned());
+        }
+        Ok(PluginLaunchArgs {
+            data_root,
+            profile,
+            plugin_id,
+            entry,
+            node_path,
+            readiness_token,
+        })
+    }
+
+    fn parse_plugin_forget_args(
+        args: impl Iterator<Item = OsString>,
+    ) -> Result<PluginForgetArgs, String> {
+        let mut values = std::collections::HashMap::<String, OsString>::new();
+        let mut args = args;
+        while let Some(key) = args.next() {
+            let key = key.into_string().map_err(|_| "插件清理参数无效。")?;
+            if !matches!(
+                key.as_str(),
+                "--data-root" | "--profile" | "--plugin-id" | "--node"
+            ) {
+                return Err("插件清理参数不受支持。".to_owned());
+            }
+            let value = args
+                .next()
+                .ok_or_else(|| "插件清理参数缺少值。".to_owned())?;
+            if values.insert(key, value).is_some() {
+                return Err("插件清理参数重复。".to_owned());
+            }
+        }
+        let data_root = PathBuf::from(
+            values
+                .remove("--data-root")
+                .ok_or_else(|| "缺少 LFAA 数据根目录。".to_owned())?,
+        );
+        let profile = values
+            .remove("--profile")
+            .and_then(|value| value.into_string().ok())
+            .filter(|value| is_valid_profile_name(value))
+            .ok_or_else(|| "插件 Profile 名称无效。".to_owned())?;
+        let plugin_id = values
+            .remove("--plugin-id")
+            .and_then(|value| value.into_string().ok())
+            .filter(|value| is_valid_plugin_id(value))
+            .ok_or_else(|| "插件 ID 无效。".to_owned())?;
+        let node_path = PathBuf::from(
+            values
+                .remove("--node")
+                .ok_or_else(|| "缺少受信任的 Node.js 运行时路径。".to_owned())?,
+        );
+        if !values.is_empty() || !data_root.is_absolute() || !node_path.is_absolute() {
+            return Err("插件清理路径参数无效。".to_owned());
+        }
+        Ok(PluginForgetArgs {
+            data_root,
+            profile,
+            plugin_id,
+            node_path,
+        })
+    }
+
+    fn is_valid_profile_name(value: &str) -> bool {
+        !value.is_empty()
+            && value.len() <= 64
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+            && value.as_bytes()[0].is_ascii_lowercase()
+    }
+
+    fn is_valid_plugin_id(value: &str) -> bool {
+        let Some(first) = value.bytes().next() else {
+            return false;
+        };
+        value.len() >= 2
+            && value.len() <= 120
+            && (first.is_ascii_lowercase() || first.is_ascii_digit())
+            && value.bytes().all(|byte| {
+                byte.is_ascii_lowercase()
+                    || byte.is_ascii_digit()
+                    || matches!(byte, b'.' | b'_' | b'-')
+            })
+    }
+
+    fn is_valid_plugin_entry(value: &str) -> bool {
+        !value.is_empty()
+            && value.len() <= 512
+            && !value.contains('\\')
+            && value.ends_with(".mjs")
+            && value.split('/').all(|segment| {
+                !segment.is_empty()
+                    && segment != "."
+                    && segment != ".."
+                    && segment.len() <= 120
+                    && segment.bytes().all(|byte| {
+                        byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-')
+                    })
+            })
     }
 
     fn is_valid_storage_path(value: &str) -> bool {
@@ -477,6 +693,523 @@ mod windows_host {
             ));
         }
         Ok(LocalAllocation(existing_sid))
+    }
+
+    fn plugin_app_container_sid(profile: &str, plugin_id: &str) -> Result<LocalAllocation, String> {
+        let profile_name = plugin_container_name(profile, plugin_id);
+        let profile_name_wide = wide(&profile_name);
+        let display_name = wide(&format!(
+            "LFAA Plugin {}",
+            plugin_id.chars().take(32).collect::<String>()
+        ));
+        let description = wide("LFAA 无网络第三方插件隔离容器");
+        let mut app_sid = null_mut();
+        let result = unsafe {
+            CreateAppContainerProfile(
+                profile_name_wide.as_ptr(),
+                display_name.as_ptr(),
+                description.as_ptr(),
+                null(),
+                0,
+                &mut app_sid,
+            )
+        };
+        if result >= 0 && !app_sid.is_null() {
+            return Ok(LocalAllocation(app_sid));
+        }
+        if result != HRESULT_ALREADY_EXISTS {
+            return Err(format!(
+                "无法建立插件 AppContainer（HRESULT 0x{:08X}）。",
+                result as u32
+            ));
+        }
+        let mut existing_sid = null_mut();
+        let derive_result = unsafe {
+            DeriveAppContainerSidFromAppContainerName(profile_name_wide.as_ptr(), &mut existing_sid)
+        };
+        if derive_result < 0 || existing_sid.is_null() {
+            return Err(format!(
+                "无法读取插件 AppContainer（HRESULT 0x{:08X}）。",
+                derive_result as u32
+            ));
+        }
+        Ok(LocalAllocation(existing_sid))
+    }
+
+    fn plugin_container_name(profile: &str, plugin_id: &str) -> String {
+        let mut digest = Sha256::new();
+        digest.update(profile.as_bytes());
+        digest.update([0]);
+        digest.update(plugin_id.as_bytes());
+        let digest = digest.finalize();
+        format!(
+            "LFAA.Plugin.{}",
+            digest[..24]
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        )
+    }
+
+    fn canonical_managed_directory(parent: &Path, segment: &str) -> Result<PathBuf, String> {
+        let path = parent.join(segment);
+        let metadata =
+            fs::symlink_metadata(&path).map_err(|_| "插件受管目录不存在或无法验证。".to_owned())?;
+        if !metadata.is_dir() || is_reparse_point(&metadata) {
+            return Err("插件受管目录包含重解析点或非目录路径。".to_owned());
+        }
+        let canonical = fs::canonicalize(&path).map_err(|_| "插件受管目录无法验证。".to_owned())?;
+        if canonical.parent() != Some(parent) {
+            return Err("插件受管目录越过 LFAA 数据根目录。".to_owned());
+        }
+        Ok(canonical)
+    }
+
+    fn validate_plugin_paths(
+        args: &PluginLaunchArgs,
+    ) -> Result<(PathBuf, PathBuf, PathBuf, PathBuf), String> {
+        let data_root = fs::canonicalize(&args.data_root)
+            .map_err(|_| "LFAA 插件数据根目录无法验证。".to_owned())?;
+        if !data_root.is_dir() {
+            return Err("LFAA 插件数据根目录不是目录。".to_owned());
+        }
+        let plugins_root = canonical_managed_directory(&data_root, "plugins")?;
+        let profiles_root = canonical_managed_directory(&plugins_root, "profiles")?;
+        let profile_root = canonical_managed_directory(&profiles_root, &args.profile)?;
+        let plugin_root = canonical_managed_directory(&profile_root, &args.plugin_id)?;
+        let entry_path = fs::canonicalize(plugin_root.join(&args.entry))
+            .map_err(|_| "插件入口文件无法验证。".to_owned())?;
+        let entry_metadata =
+            fs::symlink_metadata(&entry_path).map_err(|_| "插件入口文件无法读取。".to_owned())?;
+        if !entry_metadata.is_file()
+            || is_reparse_point(&entry_metadata)
+            || !path_is_within_case_insensitive(&entry_path, &plugin_root)
+        {
+            return Err("插件入口不是受管目录内的普通文件。".to_owned());
+        }
+        let node_metadata = fs::symlink_metadata(&args.node_path)
+            .map_err(|_| "受信任的 Node.js 运行时无法读取。".to_owned())?;
+        if !node_metadata.is_file()
+            || is_reparse_point(&node_metadata)
+            || !args
+                .node_path
+                .file_name()
+                .is_some_and(|name| name.eq_ignore_ascii_case("node.exe"))
+        {
+            return Err("插件运行时必须是受信任的普通 node.exe 文件。".to_owned());
+        }
+        let node_path = fs::canonicalize(&args.node_path)
+            .map_err(|_| "Node.js 运行时路径无法验证。".to_owned())?;
+        Ok((data_root, plugin_root, entry_path, node_path))
+    }
+
+    fn grant_plugin_source_tree(
+        path: &Path,
+        sid: windows_sys::Win32::Security::PSID,
+        seen: &mut usize,
+    ) -> Result<(), String> {
+        *seen += 1;
+        if *seen > PLUGIN_MAX_FILES {
+            return Err("插件源码文件数超过 AppContainer 权限准备上限。".to_owned());
+        }
+        let metadata = fs::symlink_metadata(path).map_err(|_| "插件源码树无法检查。".to_owned())?;
+        if is_reparse_point(&metadata) {
+            return Err("插件源码树含重解析点；拒绝授予沙盒访问。".to_owned());
+        }
+        if metadata.is_dir() {
+            grant_access(path, sid, PLUGIN_READ_ACCESS, DIRECTORY_INHERITANCE)?;
+            let entries = fs::read_dir(path).map_err(|_| "插件源码目录无法读取。".to_owned())?;
+            for entry in entries {
+                let entry = entry.map_err(|_| "插件源码目录项无法读取。".to_owned())?;
+                grant_plugin_source_tree(&entry.path(), sid, seen)?;
+            }
+            Ok(())
+        } else if metadata.is_file() {
+            grant_access(path, sid, PLUGIN_READ_ACCESS, 0)
+        } else {
+            Err("插件源码含非普通文件对象；拒绝授予沙盒访问。".to_owned())
+        }
+    }
+
+    fn prepare_plugin_container(
+        plugin_root: &Path,
+        node_path: &Path,
+        sid: windows_sys::Win32::Security::PSID,
+    ) -> Result<(), String> {
+        let mut seen = 0;
+        grant_plugin_source_tree(plugin_root, sid, &mut seen)?;
+        for directory in plugin_volume_roots(plugin_root, node_path)? {
+            grant_access(&directory, sid, PLUGIN_DIRECTORY_TRAVERSE, 0)?;
+        }
+        grant_access(node_path, sid, PLUGIN_READ_ACCESS, 0)?;
+        Ok(())
+    }
+
+    fn forget_plugin_profile(args: &PluginForgetArgs) -> Result<(), String> {
+        let data_root = fs::canonicalize(&args.data_root)
+            .map_err(|_| "LFAA 插件数据根目录无法验证。".to_owned())?;
+        let plugins_root = canonical_managed_directory(&data_root, "plugins")?;
+        let profiles_root = canonical_managed_directory(&plugins_root, "profiles")?;
+        let profile_root = canonical_managed_directory(&profiles_root, &args.profile)?;
+        let plugin_root = canonical_managed_directory(&profile_root, &args.plugin_id)?;
+        let node_metadata = fs::symlink_metadata(&args.node_path)
+            .map_err(|_| "受信任的 Node.js 运行时无法读取。".to_owned())?;
+        if !node_metadata.is_file()
+            || is_reparse_point(&node_metadata)
+            || !args
+                .node_path
+                .file_name()
+                .is_some_and(|name| name.eq_ignore_ascii_case("node.exe"))
+        {
+            return Err("插件运行时必须是受信任的普通 node.exe 文件。".to_owned());
+        }
+        let node_path = fs::canonicalize(&args.node_path)
+            .map_err(|_| "Node.js 运行时路径无法验证。".to_owned())?;
+        let app_sid = plugin_app_container_sid(&args.profile, &args.plugin_id)?;
+        let mut paths = Vec::new();
+        collect_plugin_source_paths(&plugin_root, &mut paths)?;
+        for path in paths.iter().rev() {
+            revoke_access(path, app_sid.0)?;
+        }
+        revoke_access(&node_path, app_sid.0)?;
+        for directory in plugin_volume_roots(&plugin_root, &node_path)? {
+            revoke_access(&directory, app_sid.0)?;
+        }
+        let profile_name = wide(&plugin_container_name(&args.profile, &args.plugin_id));
+        let result = unsafe { DeleteAppContainerProfile(profile_name.as_ptr()) };
+        if result < 0 {
+            return Err(format!(
+                "无法删除插件 AppContainer 配置（HRESULT 0x{:08X}）。",
+                result as u32
+            ));
+        }
+        println!("{{\"backend\":\"{BACKEND_ID}\",\"pluginProfileRemoved\":true}}");
+        Ok(())
+    }
+
+    fn collect_plugin_source_paths(root: &Path, paths: &mut Vec<PathBuf>) -> Result<(), String> {
+        paths.push(root.to_owned());
+        if paths.len() > PLUGIN_MAX_FILES {
+            return Err("插件源码文件数超过 AppContainer 权限清理上限。".to_owned());
+        }
+        let metadata = fs::symlink_metadata(root).map_err(|_| "插件源码树无法检查。".to_owned())?;
+        if is_reparse_point(&metadata) {
+            return Err("插件源码树含重解析点；拒绝清理沙盒权限。".to_owned());
+        }
+        if metadata.is_dir() {
+            let entries = fs::read_dir(root).map_err(|_| "插件源码目录无法读取。".to_owned())?;
+            for entry in entries {
+                let entry = entry.map_err(|_| "插件源码目录项无法读取。".to_owned())?;
+                collect_plugin_source_paths(&entry.path(), paths)?;
+            }
+        } else if !metadata.is_file() {
+            return Err("插件源码含非普通文件对象；拒绝清理沙盒权限。".to_owned());
+        }
+        Ok(())
+    }
+
+    fn plugin_volume_roots(plugin_root: &Path, node_path: &Path) -> Result<Vec<PathBuf>, String> {
+        let mut roots = Vec::new();
+        for path in [plugin_root, node_path] {
+            let root = path
+                .ancestors()
+                .last()
+                .ok_or_else(|| "插件运行路径缺少卷根目录。".to_owned())?;
+            let metadata = fs::symlink_metadata(root)
+                .map_err(|_| "插件运行路径的卷根目录无法检查。".to_owned())?;
+            if !metadata.is_dir() || is_reparse_point(&metadata) {
+                return Err("插件运行路径的卷根目录无效。".to_owned());
+            }
+            if !roots
+                .iter()
+                .any(|existing: &PathBuf| paths_equal_case_insensitive(existing, root))
+            {
+                roots.push(root.to_owned());
+            }
+        }
+        Ok(roots)
+    }
+
+    fn create_plugin_job() -> Result<OwnedHandle, String> {
+        let job = OwnedHandle(unsafe { CreateJobObjectW(null(), null()) });
+        if !job.is_valid() {
+            return Err("无法创建插件 Job Object。".to_owned());
+        }
+        let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            | JOB_OBJECT_LIMIT_ACTIVE_PROCESS
+            | JOB_OBJECT_LIMIT_PROCESS_MEMORY;
+        limits.BasicLimitInformation.ActiveProcessLimit = 1;
+        limits.ProcessMemoryLimit = PLUGIN_MEMORY_LIMIT_MB * 1024 * 1024;
+        let applied = unsafe {
+            SetInformationJobObject(
+                job.raw(),
+                JobObjectExtendedLimitInformation,
+                &limits as *const _ as *const c_void,
+                size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            )
+        };
+        if applied == 0 {
+            return Err("无法设置插件进程数与内存上限。".to_owned());
+        }
+        Ok(job)
+    }
+
+    fn build_plugin_command_line(node_path: &Path, entry_path: &Path) -> Vec<u16> {
+        let arguments = [
+            node_path.as_os_str().to_owned(),
+            OsString::from("--preserve-symlinks-main"),
+            entry_path.as_os_str().to_owned(),
+        ];
+        let command = arguments
+            .iter()
+            .map(|argument| quote_windows_argument(argument))
+            .collect::<Vec<_>>()
+            .join(" ");
+        wide(&command)
+    }
+
+    fn sanitize_plugin_process_environment(
+        node_path: &Path,
+        profile: &str,
+        plugin_id: &str,
+    ) -> Result<(), String> {
+        let system_root = std::env::var_os("SystemRoot")
+            .or_else(|| std::env::var_os("WINDIR"))
+            .ok_or_else(|| "Windows 系统目录未配置，拒绝启动第三方插件。".to_owned())?;
+        let local_app_data = std::env::var_os("LOCALAPPDATA")
+            .ok_or_else(|| "Windows 本地应用数据目录未配置，拒绝启动第三方插件。".to_owned())?;
+        let environment = unsafe { GetEnvironmentStringsW() };
+        if environment.is_null() {
+            return Err("无法读取 Windows 环境变量以清理插件启动环境。".to_owned());
+        }
+        let mut names = Vec::<Vec<u16>>::new();
+        let mut malformed = false;
+        unsafe {
+            let mut cursor = environment;
+            while *cursor != 0 {
+                let start = cursor;
+                while *cursor != 0 {
+                    cursor = cursor.add(1);
+                }
+                let length = cursor.offset_from(start) as usize;
+                let entry = std::slice::from_raw_parts(start, length);
+                // Windows 盘符当前目录项不是普通变量名；它们只包含路径且没有凭据。
+                if entry.first() != Some(&(b'=' as u16)) {
+                    if let Some(separator) = entry.iter().position(|unit| *unit == b'=' as u16) {
+                        let name = String::from_utf16_lossy(&entry[..separator]);
+                        if !PLUGIN_ENVIRONMENT_ALLOWLIST
+                            .iter()
+                            .any(|allowed| name.eq_ignore_ascii_case(allowed))
+                        {
+                            names.push(entry[..separator].to_vec());
+                        }
+                    } else {
+                        malformed = true;
+                        break;
+                    }
+                }
+                cursor = cursor.add(1);
+            }
+            if FreeEnvironmentStringsW(environment) == 0 {
+                return Err("无法释放 Windows 环境变量快照。".to_owned());
+            }
+        }
+        if malformed {
+            return Err("Windows 环境变量格式无效，拒绝启动第三方插件。".to_owned());
+        }
+        for mut name in names {
+            name.push(0);
+            if unsafe { SetEnvironmentVariableW(name.as_ptr(), null()) } == 0 {
+                return Err("无法清除插件宿主继承的非白名单环境变量。".to_owned());
+            }
+        }
+        let node_directory = node_path
+            .parent()
+            .ok_or_else(|| "Node.js 运行时目录无效。".to_owned())?;
+        let system_bin = PathBuf::from(&system_root).join("System32");
+        let path = format!(
+            "{};{}",
+            windows_process_path(node_directory).display(),
+            system_bin.display()
+        );
+        set_process_environment("PATH", OsStr::new(&path))?;
+        set_process_environment("SystemRoot", &system_root)?;
+        set_process_environment("WINDIR", &system_root)?;
+        set_process_environment("LOCALAPPDATA", &local_app_data)?;
+        set_process_environment("LFAA_PLUGIN_PROFILE", OsStr::new(profile))?;
+        set_process_environment("LFAA_PLUGIN_ID", OsStr::new(plugin_id))?;
+        set_process_environment("LFAA_PLUGIN_PROTOCOL", OsStr::new("1"))?;
+        Ok(())
+    }
+
+    fn set_process_environment(name: &str, value: &OsStr) -> Result<(), String> {
+        let name = wide(name);
+        let mut value = value.encode_wide().collect::<Vec<_>>();
+        value.push(0);
+        if unsafe { SetEnvironmentVariableW(name.as_ptr(), value.as_ptr()) } == 0 {
+            return Err("无法设置受限的第三方插件环境变量。".to_owned());
+        }
+        Ok(())
+    }
+
+    fn launch_plugin(args: &PluginLaunchArgs) -> Result<(), String> {
+        let (_data_root, plugin_root, entry_path, node_path) = validate_plugin_paths(args)?;
+        let app_sid = plugin_app_container_sid(&args.profile, &args.plugin_id)?;
+        prepare_plugin_container(&plugin_root, &node_path, app_sid.0)?;
+        sanitize_plugin_process_environment(&node_path, &args.profile, &args.plugin_id)?;
+        let capabilities = SECURITY_CAPABILITIES {
+            AppContainerSid: app_sid.0,
+            Capabilities: null_mut(),
+            CapabilityCount: 0,
+            Reserved: 0,
+        };
+        let job = create_plugin_job()?;
+        let standard_handles = [
+            unsafe { GetStdHandle(STD_INPUT_HANDLE) },
+            unsafe { GetStdHandle(STD_OUTPUT_HANDLE) },
+            unsafe { GetStdHandle(STD_ERROR_HANDLE) },
+        ];
+        if standard_handles
+            .iter()
+            .any(|handle| handle.is_null() || *handle == INVALID_HANDLE_VALUE)
+        {
+            return Err("插件沙盒的标准输入输出管道不可用。".to_owned());
+        }
+        for handle in standard_handles {
+            if unsafe { SetHandleInformation(handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) }
+                == 0
+            {
+                return Err("无法将限定的插件标准输入输出句柄设为可继承。".to_owned());
+            }
+        }
+        let attributes = create_attribute_list(&capabilities, &standard_handles)?;
+        let mut startup = STARTUPINFOEXW::default();
+        startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
+        startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+        startup.StartupInfo.hStdInput = standard_handles[0];
+        startup.StartupInfo.hStdOutput = standard_handles[1];
+        startup.StartupInfo.hStdError = standard_handles[2];
+        startup.lpAttributeList = attributes.raw;
+        let process_node_path = windows_process_path(&node_path);
+        let process_entry_path = windows_process_path(&entry_path);
+        let mut command_line = build_plugin_command_line(&process_node_path, &process_entry_path);
+        let node_path_wide = wide_os(process_node_path.as_os_str());
+        let mut process_info = PROCESS_INFORMATION::default();
+        let created = unsafe {
+            windows_sys::Win32::System::Threading::CreateProcessW(
+                node_path_wide.as_ptr(),
+                command_line.as_mut_ptr(),
+                null(),
+                null(),
+                1,
+                CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT,
+                null(),
+                null(),
+                &startup.StartupInfo,
+                &mut process_info,
+            )
+        };
+        if created == 0 {
+            let error = std::io::Error::last_os_error();
+            return Err(format!(
+                "Windows 无法在无网络 AppContainer 中创建插件 Node.js 进程（Win32 错误 {}: {error}）。",
+                error.raw_os_error().unwrap_or_default(),
+            ));
+        }
+        let process = OwnedHandle(process_info.hProcess);
+        let thread_handle = OwnedHandle(process_info.hThread);
+        if let Err(error) = verify_plugin_process_app_sid(process.raw(), app_sid.0) {
+            unsafe {
+                TerminateProcess(process.raw(), 1);
+            }
+            return Err(error);
+        }
+        if unsafe { AssignProcessToJobObject(job.raw(), process.raw()) } == 0 {
+            unsafe {
+                TerminateProcess(process.raw(), 1);
+            }
+            return Err("无法将第三方插件加入受限 Job Object。".to_owned());
+        }
+        if unsafe { ResumeThread(thread_handle.raw()) } == u32::MAX {
+            unsafe {
+                TerminateProcess(process.raw(), 1);
+            }
+            return Err("无法恢复受限的第三方插件进程。".to_owned());
+        }
+        write_plugin_ready_message(&args.readiness_token)?;
+        if unsafe { WaitForSingleObject(process.raw(), u32::MAX) } != WAIT_OBJECT_0 {
+            return Err("等待第三方插件进程结束时发生错误。".to_owned());
+        }
+        let mut exit_code = 1u32;
+        if unsafe { GetExitCodeProcess(process.raw(), &mut exit_code) } == 0 {
+            return Err("无法读取第三方插件退出状态。".to_owned());
+        }
+        if exit_code != 0 {
+            return Err(format!("第三方插件进程退出（代码 {exit_code}）。"));
+        }
+        Ok(())
+    }
+
+    fn verify_plugin_process_app_sid(
+        process: HANDLE,
+        expected_sid: windows_sys::Win32::Security::PSID,
+    ) -> Result<(), String> {
+        let mut token = null_mut();
+        if unsafe { OpenProcessToken(process, TOKEN_QUERY, &mut token) } == 0 {
+            return Err("无法检查插件 AppContainer 进程令牌。".to_owned());
+        }
+        let token = OwnedHandle(token);
+        let mut required = 0u32;
+        unsafe {
+            windows_sys::Win32::Security::GetTokenInformation(
+                token.raw(),
+                TokenAppContainerSid,
+                null_mut(),
+                0,
+                &mut required,
+            );
+        }
+        if required < size_of::<TOKEN_APPCONTAINER_INFORMATION>() as u32 {
+            return Err("插件进程没有可验证的 AppContainer SID。".to_owned());
+        }
+        let mut information = vec![0usize; (required as usize).div_ceil(size_of::<usize>())];
+        if unsafe {
+            windows_sys::Win32::Security::GetTokenInformation(
+                token.raw(),
+                TokenAppContainerSid,
+                information.as_mut_ptr().cast::<c_void>(),
+                required,
+                &mut required,
+            )
+        } == 0
+        {
+            return Err("无法读取插件进程的 AppContainer SID。".to_owned());
+        }
+        let actual_sid = unsafe {
+            (*(information
+                .as_ptr()
+                .cast::<TOKEN_APPCONTAINER_INFORMATION>()))
+            .TokenAppContainer
+        };
+        if actual_sid.is_null() || unsafe { EqualSid(actual_sid, expected_sid) } == 0 {
+            return Err("插件进程令牌 SID 与当前隔离配置不匹配。".to_owned());
+        }
+        Ok(())
+    }
+
+    fn write_plugin_ready_message(token: &str) -> Result<(), String> {
+        let handle = unsafe { GetStdHandle(STD_ERROR_HANDLE) };
+        if handle.is_null() || handle == INVALID_HANDLE_VALUE {
+            return Err("插件沙盒启动确认通道不可用。".to_owned());
+        }
+        let message = format!("{PLUGIN_READY_PREFIX}{token}\u{1e}\n");
+        std::io::stderr()
+            .write_all(message.as_bytes())
+            .map_err(|_| "插件沙盒启动确认通道不可用。".to_owned())?;
+        std::io::stderr()
+            .flush()
+            .map_err(|_| "插件沙盒启动确认通道不可用。".to_owned())
     }
 
     fn validated_paths(args: &LaunchArgs) -> Result<(PathBuf, PathBuf, PathBuf, PathBuf), String> {
@@ -1032,16 +1765,20 @@ mod windows_host {
         capabilities: &SECURITY_CAPABILITIES,
         handles: &[HANDLE],
     ) -> Result<ProcAttributeList, String> {
+        let attribute_count = if handles.is_empty() { 1 } else { 2 };
         let mut required_bytes = 0usize;
         unsafe {
-            InitializeProcThreadAttributeList(null_mut(), 2, 0, &mut required_bytes);
+            InitializeProcThreadAttributeList(null_mut(), attribute_count, 0, &mut required_bytes);
         }
         if required_bytes == 0 {
             return Err("无法初始化 AppContainer 进程属性。".to_owned());
         }
         let mut storage = vec![0usize; required_bytes.div_ceil(size_of::<usize>())];
         let list = storage.as_mut_ptr().cast::<c_void>();
-        if unsafe { InitializeProcThreadAttributeList(list, 2, 0, &mut required_bytes) } == 0 {
+        if unsafe {
+            InitializeProcThreadAttributeList(list, attribute_count, 0, &mut required_bytes)
+        } == 0
+        {
             return Err("无法初始化 AppContainer 进程属性。".to_owned());
         }
         let attribute_list = ProcAttributeList {
@@ -1062,19 +1799,20 @@ mod windows_host {
         if security_added == 0 {
             return Err("Windows 拒绝设置 AppContainer 安全能力。".to_owned());
         }
-        let handles_added = unsafe {
-            UpdateProcThreadAttribute(
-                list,
-                0,
-                PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
-                handles.as_ptr() as *const c_void,
-                std::mem::size_of_val(handles),
-                null_mut(),
-                null(),
-            )
-        };
-        if handles_added == 0 {
-            return Err("Windows 拒绝设置 Minecraft 标准句柄白名单。".to_owned());
+        if !handles.is_empty()
+            && unsafe {
+                UpdateProcThreadAttribute(
+                    list,
+                    0,
+                    PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
+                    handles.as_ptr() as *const c_void,
+                    std::mem::size_of_val(handles),
+                    null_mut(),
+                    null(),
+                )
+            } == 0
+        {
+            return Err("Windows 拒绝设置 Minecraft 控制台句柄白名单。".to_owned());
         }
         Ok(attribute_list)
     }
@@ -1204,6 +1942,16 @@ mod windows_host {
         let mut entry = vec![b'=' as u16, u16::from(drive), b':' as u16, b'=' as u16];
         entry.extend(path);
         Some(entry)
+    }
+
+    fn windows_process_path(path: &Path) -> PathBuf {
+        let text = path.as_os_str().to_string_lossy();
+        match text.strip_prefix(r"\\?\") {
+            Some(normalized) if normalized.as_bytes().get(1) == Some(&b':') => {
+                PathBuf::from(normalized)
+            }
+            _ => path.to_owned(),
+        }
     }
 
     fn build_java_command_line(

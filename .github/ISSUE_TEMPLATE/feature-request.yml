@@ -1,0 +1,28 @@
+name: 功能与方案建议
+description: 提出功能需求或需要讨论的架构方案。
+title: "[建议] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 背景与问题
+      description: 谁在什么场景遇到什么限制？
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 期望结果
+      description: 描述用户可观察到的结果与验收方式。
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 相关入口与边界
+      description: 如已知，请列出 App、Web/桌面/Daemon 入口、数据或权限 Owner、相关设置。
+  - type: textarea
+    id: constraints
+    attributes:
+      label: 约束与取舍
+      description: 说明依赖、兼容性、性能、安全或迁移方面的条件。

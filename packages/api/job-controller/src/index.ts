@@ -4,7 +4,7 @@ import Joi from "joi";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { getDaemonNode, listDaemonNodes, recordDaemonHeartbeat } from "lfaa-host-daemon/src/local-daemon.js";
 import { claimNextNodeFileTask, completeNodeFileTask, getNodeFileTask, renewNodeFileTaskLeases } from "lfaa-fs/src/queue.js";
-import { claimNextAiHostTask, completeAiHostTask, getAiHostTask, renewAiHostTaskLeases } from "lfaa-jobs/src/ai-host-tasks.js";
+import { claimNextAiHostTask, completeAiHostTask, getAiHostTask, renewAiHostTaskLeases, listAiHostCancellationRequests, updateAiHostTaskOutput, type AiHostTaskResult } from "lfaa-jobs/src/ai-host-tasks.js";
 import { claimNextMinecraftTask, appendMinecraftTaskLogs, completeMinecraftTask, getMinecraftTask, renewMinecraftTaskLeases, updateMinecraftTaskProgress } from "lfaa-jobs/src/minecraft-queue.js";
 import { claimNextSteamcmdTask, completeSteamcmdTask, getSteamcmdNodeSettings, renewSteamcmdTaskLeases, updateSteamcmdTaskProgress } from "lfaa-games-steamcmd/src/service.js";
 import { getMinecraftInstance, getMinecraftNodeStorageDirectories, updateInstanceStatesFromDaemon } from "lfaa-games-minecraft/src/service.js";
@@ -16,7 +16,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, real
 router.post("/daemon/heartbeat", requireLocalDaemon, (request, response) => {
     const body = parseBody<Parameters<typeof recordDaemonHeartbeat>[0] & {
       activeTaskIds: string[];
-      instances: Array<{ id: string; state: "stopped" | "running" | "installing" | "unknown"; sandboxStatus: "unsupported" | "unprepared" | "prepared" | "running" | "unknown" }>;
+      instances: Array<{ id: string; state: "stopped" | "running" | "starting" | "installing" | "unknown"; sandboxStatus: "unsupported" | "unprepared" | "prepared" | "running" | "unknown" }>;
     }>(daemonHeartbeatSchema, request.body);
     const { activeTaskIds, instances, ...heartbeat } = body;
     const nodeChanged = recordDaemonHeartbeat(heartbeat);
@@ -30,6 +30,7 @@ router.post("/daemon/heartbeat", requireLocalDaemon, (request, response) => {
     }
     response.json({
       receivedAt: new Date().toISOString(),
+      cancelTaskIds: listAiHostCancellationRequests(body.id),
       steamcmdSettings: getSteamcmdNodeSettings(body.id),
       minecraftStorageSettings: getMinecraftNodeStorageDirectories(body.id)
     });
@@ -84,6 +85,14 @@ router.post("/daemon/ai/host-tasks/:taskId/complete", requireLocalDaemon, (reque
       throw new ApiError(409, "daemon_host_task_not_running", "主机命令任务已结束或不处于执行状态。");
     }
     response.status(204).end();
+  });
+
+router.post("/daemon/ai/host-tasks/:taskId/output", requireLocalDaemon, (request, response) => {
+    const body = parseBody<{ nodeId: string; sequence: number; result: AiHostTaskResult }>(Joi.object({ nodeId: Joi.string().guid().required(), sequence: Joi.number().integer().min(1).required(), result: aiHostTaskCompletionSchema.extract("result") }).unknown(false), request.body);
+    const task = getAiHostTask(request.params.taskId);
+    if (!task || task.nodeId !== body.nodeId) throw new ApiError(404, "daemon_host_task_not_found", "找不到此节点的命令任务。");
+    const accepted = updateAiHostTaskOutput(task.id, body.nodeId, body.sequence, body.result);
+    response.json({ accepted });
   });
 
 router.post("/daemon/steamcmd/tasks/claim", requireLocalDaemon, (request, response) => {

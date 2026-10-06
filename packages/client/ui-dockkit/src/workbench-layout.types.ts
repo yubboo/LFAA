@@ -50,6 +50,8 @@ export interface ResizableWorkbenchProps {
   bottomOpen?: boolean;
   /** 当前容器布局模式；决定左右栏使用 Dock 还是 Overlay。 */
   layoutMode?: WorkbenchLayoutMode;
+  /** 应用工作区在 Compact/Mobile 中优先保留可并排的右侧 Dock；通用 Surface 默认保持原布局。 */
+  responsiveRightDock?: boolean;
   /** 当前左栏真实宽度变化；供 Shell 的 Hover Preview 与正式 Dock 共享同一几何事实源。 */
   onLeftWidthChange?: (width: number) => void;
   onLeftCollapsedChange?: (collapsed: boolean) => void;

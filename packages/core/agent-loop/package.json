@@ -10,13 +10,22 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-agent-default-model": "workspace:*",
+    "lfaa-user-approval": "workspace:*",
+    "lfaa-user-questions": "workspace:*",
+    "lfaa-agent-tool-presentation": "workspace:*",
+    "lfaa-conversation-memory": "workspace:*",
     "lfaa-document-writing": "workspace:*",
+    "lfaa-games-minecraft": "workspace:*",
     "lfaa-settings": "workspace:*",
     "lfaa-app-boot": "workspace:*",
     "lfaa-identity-auth": "workspace:*",
     "lfaa-tools": "workspace:*",
+    "lfaa-workspace-workspace": "workspace:*",
     "lfaa-session": "workspace:*",
     "lfaa-permission-presets": "workspace:*",
+    "lfaa-scope": "workspace:*",
+    "lfaa-system-prompt": "workspace:*",
     "lfaa-telemetry-logger": "workspace:*"
   },
   "devDependencies": {

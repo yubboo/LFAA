@@ -3,9 +3,9 @@ import type { Context } from "@deepseek-ai/cordis";
 import * as capability from "./runtime.js";
 import { initializeAiRuns, closeAiRuns } from "./runs.js";
 export const name = "lfaaAgentLoop";
-export const inject = ["lfaaSettings", "lfaaSessions", "lfaaTools"];
+export const inject = ["lfaaSettings", "lfaaSessions", "lfaaTools", "lfaaAgentDefaultModel", "lfaaUserApproval", "lfaaUserQuestions"];
 export function apply(ctx: Context): void {
   ctx.provide(name, capability);
-  initializeAiRuns();
+  initializeAiRuns(ctx.lfaaAgentDefaultModel, ctx.lfaaUserApproval, ctx.lfaaUserQuestions);
   ctx.effect(() => () => closeAiRuns());
 }

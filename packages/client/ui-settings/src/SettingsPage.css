@@ -32,7 +32,7 @@
 .settings-page {
   --settings-content-max-width: 1092px; /* 设置中心所有分类共用的阅读列宽上限。 */
   --settings-page-padding-block: 40px; /* 设置分类共用的页面上下留白。 */
-  --settings-page-padding-inline: clamp(24px, 4vw, 52px); /* 设置分类共用的页面左右留白，并随视口平滑变化。 */
+  --settings-page-padding-inline: clamp(14px, 4%, 52px); /* 设置正文按实际中间窗格宽度留出 4% 左右边距，限制在 14px 到 52px。 */
   --settings-section-gap: 24px; /* 页头、分组、提示和操作区之间共用的垂直间距。 */
   --settings-group-title-gap: 12px; /* 分组标题与分组内容之间共用的间距。 */
   --settings-row-min-height: 78px; /* 标准设置行的最小高度，内容变多时允许自然增高。 */
@@ -60,6 +60,47 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.settings-save-feedback {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  pointer-events: none;
+}
+
+.settings-save-feedback__card {
+  display: flex;
+  width: min(420px, calc(100vw - 40px));
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  box-shadow: 0 16px 48px var(--color-shadow-float);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur, 14px));
+  backdrop-filter: blur(var(--settings-glass-blur, 14px));
+  color: var(--color-text-primary);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  animation: settings-save-feedback-in 180ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.settings-save-feedback__card--success { border-color: color-mix(in srgb, var(--color-status-success) 38%, var(--color-border)); }
+.settings-save-feedback__card--error { border-color: color-mix(in srgb, var(--color-status-error) 42%, var(--color-border)); }
+.settings-save-feedback__icon { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 50%; }
+.settings-save-feedback__card--success .settings-save-feedback__icon { background: var(--color-status-success-surface); color: var(--color-status-success-text); }
+.settings-save-feedback__card--error .settings-save-feedback__icon { background: var(--color-status-error-surface); color: var(--color-status-error-text); }
+.settings-save-feedback__copy { display: grid; min-width: 0; gap: 4px; }
+.settings-save-feedback__copy strong { color: var(--color-text-heading); font-size: var(--settings-interface-font-size, var(--font-size-base)); font-weight: 650; }
+.settings-save-feedback__copy > span { color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.5; overflow-wrap: anywhere; }
+
+@keyframes settings-save-feedback-in {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* 设置中心复用应用工作区的全局导航轨，调整宽度时仅把剩余空间交给可调分类栏和正文。 */
@@ -151,59 +192,6 @@
   overflow-y: auto;
 }
 
-/* 导航和内容各自滚动；滚动条按当前主题边框与强调色混合，适配浅色、深色及系统主题。 */
-.settings-nav,
-.settings-main {
-  --settings-scrollbar-thumb: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 82%, var(--color-border));
-}
-
-.workbench-shell--settings[data-theme="dark"] .settings-nav,
-.workbench-shell--settings[data-theme="dark"] .settings-main {
-  --settings-scrollbar-thumb: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 60%, var(--color-text-primary));
-}
-
-@supports (scrollbar-color: auto) {
-  .settings-nav,
-  .settings-main {
-    scrollbar-color: var(--settings-scrollbar-thumb) transparent;
-    scrollbar-width: thin;
-  }
-}
-
-/* 仅在不支持标准滚动条属性的旧版 WebKit 浏览器中使用专属伪元素。 */
-@supports not (scrollbar-color: auto) {
-  .settings-nav::-webkit-scrollbar,
-  .settings-main::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-
-  .settings-nav::-webkit-scrollbar-track,
-  .settings-main::-webkit-scrollbar-track,
-  .settings-nav::-webkit-scrollbar-corner,
-  .settings-main::-webkit-scrollbar-corner {
-    background: transparent;
-  }
-
-  .settings-nav::-webkit-scrollbar-thumb,
-  .settings-main::-webkit-scrollbar-thumb {
-    border: 2px solid transparent;
-    border-radius: 999px;
-    background-color: var(--settings-scrollbar-thumb);
-    background-clip: padding-box;
-  }
-
-  .settings-nav::-webkit-scrollbar-thumb:hover,
-  .settings-main::-webkit-scrollbar-thumb:hover {
-    background-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 78%, var(--color-border));
-  }
-
-  .settings-nav::-webkit-scrollbar-thumb:active,
-  .settings-main::-webkit-scrollbar-thumb:active {
-    background-color: var(--settings-accent, var(--color-brand));
-  }
-}
-
 .settings-nav__section {
   display: grid;
   gap: 3px;
@@ -276,7 +264,13 @@
   transition: grid-template-rows 180ms ease, opacity 150ms ease, visibility 0s linear 180ms;
 }
 
+.workbench-shell[data-reduced-motion="on"] .settings-save-feedback__card { animation: none; }
+
 @media (prefers-reduced-motion: reduce) {
+  .workbench-shell[data-reduced-motion="system"] .settings-save-feedback__card {
+    animation: none;
+  }
+
   .settings-nav__items,
   .settings-nav button.settings-nav__group::after {
     transition: none;
@@ -373,6 +367,7 @@
 
 .settings-main {
   position: relative;
+  container: settings-main / inline-size;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -425,11 +420,26 @@
   color: var(--settings-accent, var(--color-brand));
 }
 
-.settings-sidebar-open {
+.settings-sidebar-open-bar {
   position: sticky;
-  z-index: 2;
-  top: 0;
-  margin: -12px 0 18px;
+  z-index: 4;
+  top: calc(0px - var(--settings-page-padding-block));
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  margin-top: calc(0px - var(--settings-page-padding-block));
+  margin-right: calc(0px - var(--settings-page-padding-inline));
+  margin-bottom: var(--settings-section-gap);
+  margin-left: calc(0px - var(--settings-page-padding-inline));
+  padding-inline: var(--settings-page-padding-inline);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: color-mix(in srgb, var(--color-canvas) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}
+
+.settings-sidebar-open {
+  margin: 0;
 }
 
 /* 三种主题采用可预览的卡片选择器；当前选项同时驱动整个工作台的 data-theme。 */
@@ -836,6 +846,38 @@
   /* 长分类中的离屏表单行跳过布局与绘制；估算高度降低滚动进入视口时的尺寸回补。 */
   content-visibility: auto;
   contain-intrinsic-size: auto 112px;
+}
+
+.settings-memory-editor {
+  display: grid;
+  gap: var(--settings-row-gap);
+  padding: var(--settings-row-padding);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.settings-memory-editor__heading {
+  display: grid;
+  gap: var(--settings-row-copy-gap);
+}
+
+.settings-memory-editor__heading strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+  font-weight: 650;
+}
+
+.settings-memory-editor__heading span {
+  max-width: 720px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  line-height: 1.65;
+}
+
+.settings-memory-editor__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--settings-row-gap);
 }
 
 .settings-row--shortcuts {
@@ -1959,6 +2001,132 @@
   }
 }
 
+.settings-plugin-workspace__tabs {
+  display: flex;
+  min-width: 0;
+  gap: var(--space-1);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border-subtle);
+  scrollbar-width: thin;
+}
+
+.settings-plugin-workspace__tabs > button {
+  display: inline-flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 620;
+}
+
+.settings-plugin-workspace__tabs > button:hover {
+  background: color-mix(in srgb, var(--color-surface-hover) 68%, transparent);
+  color: var(--color-text-primary);
+}
+
+.settings-plugin-workspace__tabs > button.is-active {
+  border-bottom-color: var(--settings-accent, var(--color-brand));
+  color: var(--color-text-heading);
+}
+
+.settings-plugin-workspace__tabs > button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+.settings-plugin-workspace__tab-count {
+  display: inline-grid;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1;
+}
+
+.settings-plugin-workspace__panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--settings-section-gap);
+}
+
+.settings-plugin-workspace__overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.settings-plugin-workspace__overview-card {
+  display: flex;
+  min-width: 0;
+  min-height: 124px;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--settings-panel-radius);
+  background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+  color: var(--color-text-muted);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+}
+
+.settings-plugin-workspace__overview-card strong {
+  color: var(--color-text-heading);
+  font-size: var(--font-size-2xl);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.settings-plugin-workspace__overview-card strong i {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-style: normal;
+  font-weight: 500;
+}
+
+.settings-plugin-workspace__overview-card small {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+}
+
+@container settings-main (max-width: 900px) {
+  .settings-plugin-workspace__overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container settings-main (max-width: 520px) {
+  .settings-plugin-workspace__tabs > button {
+    min-height: 40px;
+    padding-inline: var(--space-2);
+    font-size: var(--font-size-xs);
+  }
+
+  .settings-plugin-workspace__overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-plugin-workspace__overview-card {
+    min-height: 104px;
+  }
+}
+
 @media (max-width: 420px) {
   /* 极窄屏与应用工作区保持一致，缩窄固定导航轨并为设置正文留出空间。 */
   .settings-page__stage {
@@ -1978,6 +2146,80 @@
   gap: var(--space-4);
   padding: var(--settings-panel-padding);
   font-family: var(--settings-interface-font, var(--font-family-sans));
+}
+
+/* 设置正文根据自己的实际宽度换列，支持分屏、可调侧栏和嵌入式工作台。 */
+@container settings-main (max-width: 1280px) {
+  .ai-provider-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container settings-main (max-width: 980px) {
+  .settings-layout-options,
+  .settings-theme-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container settings-main (max-width: 760px) {
+  .settings-row,
+  .settings-row--shortcuts {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    padding: 14px;
+  }
+
+  .settings-row__control {
+    min-width: 0;
+    align-items: flex-start;
+  }
+
+  .ai-provider-card {
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .ai-provider-card__brand {
+    width: 40px;
+    height: 40px;
+  }
+
+  .ai-provider-card > .ant-tag {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .settings-content__heading {
+    flex-wrap: wrap;
+  }
+
+  .settings-appearance-profile__row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .settings-appearance-profile__fields label {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-content .account-user-filter-bar {
+    flex-wrap: wrap;
+  }
+}
+
+@container settings-main (max-width: 620px) {
+  .ai-provider-grid,
+  .settings-theme-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-layout-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .settings-extension-catalog__toolbar {

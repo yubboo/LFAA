@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-game-connectivity": "workspace:*",
     "lfaa-home-paths": "workspace:*",
+    "lfaa-launch-environment": "workspace:*",
     "lfaa-storage-sqlite": "workspace:*"
   },
   "devDependencies": {

@@ -7,7 +7,7 @@ import type { ApplicationId } from "lfaa-client-connection/src/api.js";
 
 export type BrowserNotificationPermission = NotificationPermission | "unsupported" | "insecure";
 export type NotificationSound = "default" | "subtle" | "off";
-export type AiWorkNotificationKind = "complete" | "issue" | "approval";
+export type AiWorkNotificationKind = "complete" | "issue" | "approval" | "question";
 
 export interface AiWorkNotificationInput {
   appId: ApplicationId;
@@ -122,6 +122,9 @@ export function notifyAiWorkAction(input: {
   if (input.sound !== "off") playNotificationSound(input.sound);
   input.onNotification(input.notification);
   if (document.visibilityState !== "visible" || !document.hasFocus()) {
-    sendBrowserNotification("LFAA AI Work", input.notification.body, input.notification);
+    sendBrowserNotification("LFAA AI Work", input.notification.body, {
+      appId: input.notification.appId,
+      sessionId: input.notification.sessionId
+    });
   }
 }

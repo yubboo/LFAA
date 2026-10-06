@@ -6,6 +6,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f3f5f8" />
     <meta name="description" content="LFAA 本机与远程主机应用工作台" />
+    <style>
+      /* 刷新时沿用当前标签页的深色画布，避免账户主题返回前出现浅色首帧。 */
+      html[data-lfaa-bootstrap-theme="dark"] {
+        color-scheme: dark;
+        background-color: #181818;
+      }
+      html[data-lfaa-bootstrap-theme="dark"] body {
+        color-scheme: dark;
+        background: #181818;
+      }
+    </style>
+    <script>
+      try {
+        const preference = window.sessionStorage.getItem("lfaa.appearance-theme-bootstrap.v1");
+        const isDark = preference === "dark"
+          || (preference === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (preference === "dark" || preference === "light" || preference === "system") {
+          const theme = isDark ? "dark" : "light";
+          document.documentElement.dataset.lfaaBootstrapTheme = theme;
+          document.documentElement.style.colorScheme = theme;
+          document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#181818" : "#f3f5f8");
+        }
+      } catch {
+        // 首帧提示不可用时继续使用默认画布，认证和权威设置读取不受影响。
+      }
+    </script>
+    <base href="/" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>LFAA 工作台</title>
   </head>

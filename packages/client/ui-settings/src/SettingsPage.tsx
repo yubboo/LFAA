@@ -1,7 +1,10 @@
 /** 功能：呈现现有设置中心。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
+import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
+import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-metrics.js";
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
-import { activateAiAccount, cancelDataDirectorySettingsChange, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadDataDirectorySettings, loadMinecraftStorageSettings, loadSteamcmdSettings, loadSteamcmdTask, manageAiRuntimePlugin, probeAiProvider, reprobeAiAccount, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdNodeStorageSettings, saveSteamcmdStorageDefaults, saveMinecraftNodeStorageSettings, saveMinecraftStorageDefaults, saveDataDirectorySettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type DataDirectorySettings, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { activateAiAccount, cancelDataDirectorySettingsChange, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadDataDirectorySettings, loadMinecraftStorageSettings, loadMinecraftCores, loadSteamcmdSettings, loadSteamcmdTask, loadManagedPlugins, loadCapabilityInstallCatalog, searchManagedPlugins, inspectManagedPlugin, manageAiRuntimePlugin, probeAiProvider, reprobeAiAccount, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdNodeStorageSettings, saveSteamcmdStorageDefaults, saveMinecraftNodeStorageSettings, saveMinecraftStorageDefaults, saveDataDirectorySettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type ManagedPluginRecord, type ManagedPluginCandidate, type ManagedPluginInspection, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type ConversationMemorySnapshot, type DataDirectorySettings, type DesktopUpdateCheckResult, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { minecraftSceneBackgrounds } from "lfaa-client-ui-minecraft/src/assets/minecraftScenes.js";
 import { cacheLoginBackground } from "lfaa-client-ui-theme/src/login-background.js";
 import { getBrowserNotificationPermission, playNotificationSound, requestBrowserNotificationPermission, sendBrowserNotification, type BrowserNotificationPermission } from "lfaa-client-resources/src/notification-runtime.js";
@@ -17,9 +20,20 @@ import { GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH, GLOBAL_NAVIGATION_RAIL_WIDTH, Glo
 import { PasskeyManager } from "lfaa-client-ui-settings-account/src/PasskeyManager.js";
 import "./SettingsPage.css";
 import { hasShortcutConflicts, ShortcutRow } from "lfaa-client-ui-shortcuts/src/settings-shortcuts.js";
-import { reasoningOptions, modelParameterSummary, modelOptionLabel, fixedThinkingLabel } from "lfaa-client-ui-settings-models/src/model-options.js";
+import { defaultReasoningMode, effectiveReasoningMode, reasoningOptions, modelParameterSummary, modelOptionLabel, fixedThinkingLabel } from "lfaa-client-ui-settings-models/src/model-options.js";
 import { DEFAULT_USER_SETTINGS } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { SettingGroup, AdvancedGroup, SettingRow, SettingsSwitch, SettingsActions } from "lfaa-client-ui-primitives/src/settings-controls.js";
+import { DshSlotOutlet } from "lfaa-client-modules/src/client/index.js";
+
+const mcpApplicationOptions = [
+  { value: "workspace", label: "通用工作区" },
+  { value: "minecraft", label: "Minecraft" },
+  { value: "steamcmd", label: "SteamCMD 开服" },
+  { value: "writing", label: "写作工作区" }
+] as const;
+import { GitWorktreesSettings } from "./GitWorktreesSettings.js";
+import { KnowledgeLibraryPanel } from "./KnowledgeLibraryPanel.js";
+import { isComputerControlEnabled } from "./computer-control-settings.js";
 
 
 
@@ -68,9 +82,18 @@ const SETTINGS_LAYOUT_KEY = "lfaa.settings.layout.v2";
 
 
 
-type SectionId = "general" | "notifications" | "import" | "profile" | "security" | "appearance" | "parental" | "trustedContacts" | "voice" | "configuration" | "personalization" | "mini" | "shortcuts" | "usage" | "account" | "plugins" | "computerControl" | "snapshots" | "browser" | "hooks" | "connections" | "cloudPreferences" | "codeReview" | "git" | "environment" | "worktrees" | "archived" | "ai" | "permissions" | "workspace" | "developer";
+type SectionId = "general" | "notifications" | "import" | "profile" | "security" | "appearance" | "wallpaperEngine" | "parental" | "trustedContacts" | "voice" | "about" | "configuration" | "personalization" | "mini" | "shortcuts" | "usage" | "account" | "plugins" | "computerControl" | "snapshots" | "browser" | "hooks" | "connections" | "cloudPreferences" | "codeReview" | "git" | "environment" | "worktrees" | "archived" | "ai" | "minecraft" | "permissions" | "workspace" | "developer";
+type PluginWorkspaceTab = "overview" | "catalog" | "knowledge" | "third-party" | "mcp" | "diagnostics";
+const PLUGIN_WORKSPACE_TABS: Array<{ id: PluginWorkspaceTab; label: string }> = [
+  { id: "overview", label: "总览" },
+  { id: "catalog", label: "能力目录" },
+  { id: "knowledge", label: "我的资料库" },
+  { id: "third-party", label: "第三方插件" },
+  { id: "mcp", label: "MCP 连接" },
+  { id: "diagnostics", label: "运行诊断" }
+];
 // 只在进入需要真实数据的分类时请求专属数据，避免首次打开设置就并发加载全部分类。
-const SETTINGS_DATA_SECTIONS = new Set<SectionId>(["configuration", "appearance", "usage", "plugins", "archived", "ai", "permissions", "workspace", "developer"]);
+const SETTINGS_DATA_SECTIONS = new Set<SectionId>(["configuration", "appearance", "usage", "plugins", "archived", "ai", "minecraft", "permissions", "workspace", "developer"]);
 
 const EXTENSION_CATEGORIES: Array<{ kind: AiExtension["kind"]; label: string; description: string; icon: WorkbenchIconName }> = [
   { kind: "agent", label: "Agent", description: "承担任务规划与执行的 Agent 配置。", icon: "spark" },
@@ -87,6 +110,8 @@ interface SettingsDataSnapshot {
   accounts: AiAccount[];
   extensions: AiExtension[];
   runtimePlugins: AiRuntimePlugin[];
+  managedPlugins: ManagedPluginRecord[];
+  capabilityInstallCatalog: CapabilityInstallCatalogEntry[];
   hotReloadEnabled: boolean;
   runtimeHooks: AiRuntimeHookInfo[];
   usage: AiUsageSummary | null;
@@ -114,11 +139,11 @@ interface SettingsDataSnapshot {
   uploadedBackgrounds: AppearanceBackground[];
 }
 
-const settingsDataSnapshots = new Map<string, SettingsDataSnapshot>();
+const settingsDataSnapshots = createSnapshotCache<SettingsDataSnapshot>();
 
 function createEmptySettingsDataSnapshot(): SettingsDataSnapshot {
   return {
-    loadedSections: new Set(), providers: [], accounts: [], extensions: [], runtimePlugins: [], hotReloadEnabled: false, runtimeHooks: [],
+    loadedSections: new Set(), providers: [], accounts: [], extensions: [], runtimePlugins: [], managedPlugins: [], capabilityInstallCatalog: [], hotReloadEnabled: false, runtimeHooks: [],
     usage: null, pendingApprovals: [], permissionGrants: [], archivedSessions: [], health: null, steamcmdNodes: [],
     dataDirectorySettings: null, dataDirectoryDraft: "",
     steamcmdConfigurationDefaultsConfigured: false, steamcmdConfigurationDefaults: { installMode: "online", steamcmdDirectory: "lib/steamcmd" }, selectedSteamcmdConfigurationNodeId: "",
@@ -139,21 +164,23 @@ const sections: Array<{ id: SectionId; title: string; group: string; icon: Workb
   { id: "profile", title: "个人资料", group: "个人", icon: "user" },
   { id: "security", title: "安全", group: "个人", icon: "shield" },
   { id: "appearance", title: "外观", group: "个人", icon: "sun" },
+  { id: "wallpaperEngine", title: "壁纸引擎", group: "个人", icon: "sun" },
   { id: "parental", title: "家长控制", group: "个人", icon: "shield" },
   { id: "trustedContacts", title: "受信任联系人", group: "个人", icon: "user" },
   { id: "voice", title: "语音", group: "个人", icon: "spark" },
+  { id: "about", title: "关于与更新", group: "个人", icon: "refresh" },
   { id: "configuration", title: "SteamCMD 配置", group: "LFAA 配置", icon: "settings" },
   { id: "personalization", title: "个性化", group: "个人", icon: "sun" },
   { id: "mini", title: "Mini 与虚拟宠物", group: "个人", icon: "bolt" },
   { id: "shortcuts", title: "键盘快捷键", group: "个人", icon: "keyboard" },
   { id: "usage", title: "使用情况和计费", group: "个人", icon: "bolt" },
   { id: "account", title: "账户", group: "个人", icon: "user" },
-  { id: "plugins", title: "插件", group: "集成", icon: "grid" },
+  { id: "plugins", title: "插件与能力", group: "集成", icon: "grid" },
   { id: "computerControl", title: "电脑操控", group: "集成", icon: "tools" },
   { id: "snapshots", title: "应用快照", group: "集成", icon: "archive" },
   { id: "browser", title: "浏览器", group: "集成", icon: "browser" },
   { id: "hooks", title: "钩子", group: "编码", icon: "review" },
-  { id: "connections", title: "连接", group: "编码", icon: "tools" },
+  { id: "connections", title: "MCP 连接", group: "集成", icon: "tools" },
   { id: "cloudPreferences", title: "云端偏好设置", group: "编码", icon: "browser" },
   { id: "codeReview", title: "代码审查", group: "编码", icon: "review" },
   { id: "git", title: "Git", group: "编码", icon: "refresh" },
@@ -161,6 +188,7 @@ const sections: Array<{ id: SectionId; title: string; group: string; icon: Workb
   { id: "worktrees", title: "Worktrees", group: "编码", icon: "folder" },
   { id: "archived", title: "已归档的聊天", group: "已归档", icon: "archive" },
   { id: "ai", title: "AI 与模型", group: "LFAA 配置", icon: "spark" },
+  { id: "minecraft", title: "Minecraft 配置", group: "LFAA 配置", icon: "settings" },
   { id: "permissions", title: "用户与权限", group: "LFAA 配置", icon: "shield" },
   { id: "workspace", title: "项目与存储", group: "LFAA 配置", icon: "folder" },
   { id: "developer", title: "开发者", group: "LFAA 配置", icon: "terminal" }
@@ -185,8 +213,11 @@ function settingsCategoryForSection(section: SectionId): keyof UserSettings | nu
   if (section === "appearance") return "appearance";
   if (section === "shortcuts") return "shortcuts";
   if (section === "ai") return "aiRuntime";
+  if (section === "minecraft") return "minecraftRuntime";
   if (section === "permissions") return "permissions";
-  if (section === "plugins") return "plugins";
+  if (section === "computerControl") return "computerControl";
+  if (section === "plugins" || section === "connections") return "plugins";
+  if (section === "personalization") return "personalization";
   return null;
 }
 
@@ -276,19 +307,14 @@ const pendingSections: Partial<Record<SectionId, { description: string; status: 
   parental: { description: "管理家庭成员和使用限制。此类账户能力尚未纳入 LFAA 账户模型。", status: "账户能力待接入" },
   trustedContacts: { description: "管理账户恢复和信任联系人。当前账户恢复通过管理员与恢复密钥完成。", status: "恢复联系人待接入" },
   voice: { description: "浏览器语音输入与完成回复播报由账户设置控制；宿主需支持 Web Speech API。", status: "浏览器语音已接入" },
-  personalization: { description: "主题、强调色和各工作区背景已放在“外观”中。", status: "请使用外观设置" },
   mini: { description: "轻量窗口和虚拟宠物尚未进入 LFAA 的桌面产品规划。", status: "桌面能力待接入" },
   account: { description: "由超级管理员查看和管理本机账户。", status: "账户管理已接入" },
-  computerControl: { description: "电脑操控需要桌面宿主授权和 Agent Runtime；Web 页面不会直接操作主机。", status: "桌面宿主待接入" },
   snapshots: { description: "应用快照用于保存与恢复工作区状态，当前版本尚未接入快照存储。", status: "快照服务待接入" },
   browser: { description: "浏览器工具需要受控浏览器宿主，尚未与 LFAA Agent Runtime 连接。", status: "浏览器宿主待接入" },
   hooks: { description: "此处是编码工作流钩子设置；AI 对话推理生命周期钩子由“插件”管理。编码任务 Runtime 尚未接入。", status: "编码任务 Runtime 待接入" },
-  connections: { description: "外部连接器和 MCP 服务需要凭据保管与连接 Runtime，当前版本尚未接入。", status: "连接 Runtime 待接入" },
   cloudPreferences: { description: "当前设置由本机控制端保存，暂未提供云端偏好同步。", status: "云端同步待接入" },
   codeReview: { description: "代码审查工具会在 LFAA 的编码工作台接入后提供。", status: "编码工作台待接入" },
-  git: { description: "Git 工作区状态和操作需要编码 Agent 与版本控制 Runtime。", status: "编码工作台待接入" },
   environment: { description: "运行环境偏好已保存在“常规”中；主机环境扫描依赖 Daemon 节点。", status: "Daemon 节点待接入" },
-  worktrees: { description: "Worktree 管理需要仓库识别与安全的本机文件操作能力。", status: "编码工作台待接入" },
 };
 
 const appearanceBackgrounds = [
@@ -326,25 +352,6 @@ function initialSettingsMetrics(): WorkbenchLayoutMetrics {
   if (typeof window === "undefined") return resolveWorkbenchLayoutMetrics(1280 - GLOBAL_NAVIGATION_RAIL_WIDTH, 800);
   const railWidth = window.innerWidth <= 420 ? GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH : GLOBAL_NAVIGATION_RAIL_WIDTH;
   return resolveWorkbenchLayoutMetrics(window.innerWidth - railWidth, window.innerHeight);
-}
-
-function useSettingsLayoutMetrics(ref: RefObject<HTMLDivElement | null>): WorkbenchLayoutMetrics {
-  const [metrics, setMetrics] = useState<WorkbenchLayoutMetrics>(initialSettingsMetrics);
-
-  useEffect(() => {
-    const element = ref.current;
-    if (!element || typeof ResizeObserver === "undefined") return;
-    const update = () => {
-      const rect = element.getBoundingClientRect();
-      setMetrics(resolveWorkbenchLayoutMetrics(rect.width, rect.height));
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [ref]);
-
-  return metrics;
 }
 
 interface SettingsPageProps {
@@ -393,12 +400,15 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const cachedSettingsData = useRef(settingsDataSnapshots.get(cacheKey) ?? null).current;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => initialSettingsMetrics().mode === "mobile");
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const layout = useSettingsLayoutMetrics(rootRef);
+  const layout = useWorkbenchMetrics(rootRef, initialSettingsMetrics);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const initial = initialSettingsMetrics();
     return readWorkbenchLeftWidth(initial.left, initial.containerWidth);
   });
   const [activeSection, setActiveSection] = useState<SectionId>(() => getInitialSettingsSection(initialSection, user.id));
+  const [pluginWorkspaceTab, setPluginWorkspaceTab] = useState<PluginWorkspaceTab>(() => getInitialSettingsSection(initialSection, user.id) === "connections" ? "mcp" : "overview");
+  const [knowledgeLibraryOpened, setKnowledgeLibraryOpened] = useState(false);
+  const [minecraftCoreOptions, setMinecraftCoreOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [expandedSettingsGroups, setExpandedSettingsGroups] = useState<Set<string>>(() => readExpandedSettingsGroups(user.id));
   const [searchExpandedSettingsGroups, setSearchExpandedSettingsGroups] = useState<Set<string>>(() => new Set());
   const [search, setSearch] = useState("");
@@ -411,6 +421,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const settingsAutoSaveTimersRef = useRef(new Map<keyof UserSettings, number>());
   const settingsSaveRequestsRef = useRef(new Map<keyof UserSettings, Promise<void>>());
   const settingsPageMountedRef = useRef(true);
+  const settingsSaveFeedbackTimerRef = useRef<number | null>(null);
+  const settingsSaveFeedbackSequenceRef = useRef(0);
+  const [settingsSaveFeedback, setSettingsSaveFeedback] = useState<{ id: number; status: "success" | "error"; message: string } | null>(null);
   const [loadingSection, setLoadingSection] = useState<SectionId | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -424,6 +437,14 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [accounts, setAccounts] = useState<AiAccount[]>(() => cachedSettingsData?.accounts ?? []);
   const [, setAiAccountsLoadState] = useState<"idle" | "loading" | "ready" | "error">(() => cachedSettingsData?.loadedSections.has("ai") || cachedSettingsData?.loadedSections.has("configuration") ? "ready" : "idle");
   const [extensions, setExtensions] = useState<AiExtension[]>(() => cachedSettingsData?.extensions ?? []);
+  const [managedPlugins, setManagedPlugins] = useState<ManagedPluginRecord[]>(() => cachedSettingsData?.managedPlugins ?? []);
+  const [capabilityInstallCatalog, setCapabilityInstallCatalog] = useState<CapabilityInstallCatalogEntry[]>(() => cachedSettingsData?.capabilityInstallCatalog ?? []);
+  const [pluginSearchQuery, setPluginSearchQuery] = useState("");
+  const [pluginCandidates, setPluginCandidates] = useState<ManagedPluginCandidate[]>([]);
+  const [pluginRepositoryUrl, setPluginRepositoryUrl] = useState("");
+  const [pluginRef, setPluginRef] = useState("");
+  const [pluginInspection, setPluginInspection] = useState<ManagedPluginInspection | null>(null);
+  const [pluginOperation, setPluginOperation] = useState<string | null>(null);
   const [extensionSearch, setExtensionSearch] = useState("");
   const [extensionKindFilter, setExtensionKindFilter] = useState<AiExtension["kind"] | "all">("all");
   const [runtimePlugins, setRuntimePlugins] = useState<AiRuntimePlugin[]>(() => cachedSettingsData?.runtimePlugins ?? []);
@@ -439,9 +460,17 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [approvalBusyId, setApprovalBusyId] = useState<string | null>(null);
   const [archivedSessions, setArchivedSessions] = useState<AiSession[]>(() => cachedSettingsData?.archivedSessions ?? []);
   const [health, setHealth] = useState<ServerHealth | null>(() => cachedSettingsData?.health ?? null);
+  const [desktopUpdateRuntime, setDesktopUpdateRuntime] = useState<DesktopUpdateRuntimeInfo | null>(null);
+  const [desktopUpdateResult, setDesktopUpdateResult] = useState<DesktopUpdateCheckResult | null>(null);
+  const [checkingDesktopUpdates, setCheckingDesktopUpdates] = useState(false);
   const [dataDirectorySettings, setDataDirectorySettings] = useState<DataDirectorySettings | null>(() => cachedSettingsData?.dataDirectorySettings ?? null);
   const [dataDirectoryDraft, setDataDirectoryDraft] = useState(() => cachedSettingsData?.dataDirectoryDraft ?? "");
   const [dataDirectoryAction, setDataDirectoryAction] = useState<"save" | "cancel" | null>(null);
+  const [deletingConversationMemories, setDeletingConversationMemories] = useState(false);
+  const [conversationMemorySnapshot, setConversationMemorySnapshot] = useState<ConversationMemorySnapshot | null>(null);
+  const [conversationMemoryDraft, setConversationMemoryDraft] = useState("");
+  const [loadingConversationMemories, setLoadingConversationMemories] = useState(false);
+  const [savingConversationMemories, setSavingConversationMemories] = useState(false);
   const [steamcmdNodes, setSteamcmdNodes] = useState<SteamcmdSettingsNode[]>(() => cachedSettingsData?.steamcmdNodes ?? []);
   const [steamcmdConfigurationDefaultsConfigured, setSteamcmdConfigurationDefaultsConfigured] = useState(() => cachedSettingsData?.steamcmdConfigurationDefaultsConfigured ?? false);
   const [steamcmdConfigurationDefaults, setSteamcmdConfigurationDefaults] = useState<SteamcmdConfigurationValues>(() => cachedSettingsData?.steamcmdConfigurationDefaults ?? { installMode: "online", steamcmdDirectory: "lib/steamcmd" });
@@ -537,6 +566,44 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   );
   const settingsNavigationScroll = useScrollRestoration(createScrollRestorationKey(user.id, "settings-navigation"));
 
+  useEffect(() => {
+    if (activeSection !== "about") return;
+    let active = true;
+    const getRuntimeInfo = window.lfaaDesktop?.getUpdateRuntimeInfo;
+    if (!getRuntimeInfo) {
+      setDesktopUpdateRuntime({ supported: false, currentVersion: "" });
+      return;
+    }
+    void getRuntimeInfo().then((runtime) => {
+      if (active) setDesktopUpdateRuntime(runtime);
+    }).catch(() => {
+      if (active) setDesktopUpdateRuntime({ supported: false, currentVersion: "" });
+    });
+    return () => { active = false; };
+  }, [activeSection]);
+
+  async function checkDesktopUpdates(): Promise<void> {
+    const checkForUpdates = window.lfaaDesktop?.checkForUpdates;
+    if (!checkForUpdates) return;
+    setCheckingDesktopUpdates(true);
+    setDesktopUpdateResult(null);
+    try {
+      const result = await checkForUpdates();
+      setDesktopUpdateResult(result);
+      if (result.status === "error") messageApi.error(result.message || "检查更新失败，请查看桌面日志。 ");
+    } catch (checkError) {
+      const errorMessage = getErrorMessage(checkError);
+      setDesktopUpdateResult({
+        status: "error",
+        currentVersion: desktopUpdateRuntime?.currentVersion ?? "",
+        message: errorMessage
+      });
+      messageApi.error(errorMessage);
+    } finally {
+      setCheckingDesktopUpdates(false);
+    }
+  }
+
   function loadHealthOnce(): Promise<ServerHealth> {
     if (healthValueRef.current) return Promise.resolve(healthValueRef.current);
     if (!healthRequestRef.current) {
@@ -570,6 +637,12 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       extensionsRequestRef.current = trackedRequest;
     }
     return extensionsRequestRef.current;
+  }
+
+  async function reloadManagedPlugins(): Promise<void> {
+    if (!canAdmin) return;
+    const result = await loadManagedPlugins();
+    setManagedPlugins(result.plugins);
   }
 
   useEffect(() => {
@@ -650,7 +723,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   useEffect(() => {
     const snapshot = settingsDataSnapshots.get(cacheKey) ?? createEmptySettingsDataSnapshot();
     Object.assign(snapshot, {
-      providers, accounts, extensions, runtimePlugins, hotReloadEnabled, runtimeHooks, usage, pendingApprovals, permissionGrants,
+      providers, accounts, extensions, runtimePlugins, managedPlugins, capabilityInstallCatalog, hotReloadEnabled, runtimeHooks, usage, pendingApprovals, permissionGrants,
       archivedSessions, health, steamcmdNodes, steamcmdConfigurationDefaultsConfigured, steamcmdConfigurationDefaults,
       dataDirectorySettings, dataDirectoryDraft,
       selectedSteamcmdConfigurationNodeId, steamcmdConfigurationDraft, steamcmdStorageDefaultsConfigured, steamcmdStorageDefaults,
@@ -659,7 +732,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       uploadedBackgrounds
     });
     settingsDataSnapshots.set(cacheKey, snapshot);
-  }, [accounts, archivedSessions, cacheKey, dataDirectoryDraft, dataDirectorySettings, extensions, health, hotReloadEnabled, minecraftStorageDefaults, minecraftStorageDefaultsConfigured, minecraftStorageDraft, minecraftStorageNodes, pendingApprovals, permissionGrants, providers, runtimeHooks, runtimePlugins, selectedMinecraftStorageNodeId, selectedSteamcmdConfigurationNodeId, selectedSteamcmdInstallNodeId, selectedSteamcmdStorageNodeId, steamcmdConfigurationDefaults, steamcmdConfigurationDefaultsConfigured, steamcmdConfigurationDraft, steamcmdNodes, steamcmdStorageDefaults, steamcmdStorageDefaultsConfigured, steamcmdStorageDraft, uploadedBackgrounds, usage]);
+  }, [accounts, archivedSessions, cacheKey, capabilityInstallCatalog, dataDirectoryDraft, dataDirectorySettings, extensions, health, hotReloadEnabled, managedPlugins, minecraftStorageDefaults, minecraftStorageDefaultsConfigured, minecraftStorageDraft, minecraftStorageNodes, pendingApprovals, permissionGrants, providers, runtimeHooks, runtimePlugins, selectedMinecraftStorageNodeId, selectedSteamcmdConfigurationNodeId, selectedSteamcmdInstallNodeId, selectedSteamcmdStorageNodeId, steamcmdConfigurationDefaults, steamcmdConfigurationDefaultsConfigured, steamcmdConfigurationDraft, steamcmdNodes, steamcmdStorageDefaults, steamcmdStorageDefaultsConfigured, steamcmdStorageDraft, uploadedBackgrounds, usage]);
 
   function selectSection(section: SectionId): void {
     // 账户安全页含有多个凭据输入项；离开分类筛选状态，避免浏览器把用户名填入搜索框后隐藏全部导航分类。
@@ -668,6 +741,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       setSearchExpandedSettingsGroups(new Set());
     }
     setActiveSection(section);
+    if (section === "plugins") setPluginWorkspaceTab("overview");
+    if (section === "connections") setPluginWorkspaceTab("mcp");
     const group = sections.find((item) => item.id === section)?.group;
     if (group) {
       setExpandedSettingsGroups((current) => new Set(current).add(group));
@@ -697,6 +772,24 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     };
   }, []);
 
+  useEffect(() => {
+    if (activeSection !== "personalization") return;
+    let active = true;
+    setConversationMemorySnapshot(null);
+    setConversationMemoryDraft("");
+    setLoadingConversationMemories(true);
+    void loadConversationMemories().then(({ snapshot }) => {
+      if (!active) return;
+      setConversationMemorySnapshot(snapshot);
+      setConversationMemoryDraft(snapshot.memories.join("\n"));
+    }).catch(loadError => {
+      if (active) messageApi.error(`读取对话记忆失败：${getErrorMessage(loadError)}`);
+    }).finally(() => {
+      if (active) setLoadingConversationMemories(false);
+    });
+    return () => { active = false; };
+  }, [activeSection, user.id, messageApi]);
+
   // 窄屏先展示设置内容；切回宽屏时保留用户手动选择的导航状态。
   useEffect(() => {
     if (layout.mode === "mobile") setSidebarCollapsed(true);
@@ -706,6 +799,12 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const currentProviderOptions = providerOptions[providerId] ?? {};
   const providerSecretLabel = providerId === "xiaomi" && currentProviderOptions.authMethod === "token-plan" ? "Token Plan Key" : "API Key";
   const selectedModelDetails = probe?.models.find((model) => model.id === selectedModel);
+  const selectedModelReasoningOptions = reasoningOptions(selectedModelDetails);
+  const conversationMemoryDraftItems = conversationMemoryDraft.split(/\r?\n/u).map(value => value.trim()).filter(Boolean);
+  const conversationMemoryDraftUniqueCount = new Set(conversationMemoryDraftItems.map(value => value.toLocaleLowerCase("zh-CN"))).size;
+  const conversationMemoryDraftOverLimit = conversationMemoryDraftItems.length > 16 || conversationMemoryDraftUniqueCount !== conversationMemoryDraftItems.length
+    || conversationMemoryDraftItems.some(value => value.length > 240)
+    || conversationMemoryDraftItems.reduce((total, value) => total + value.length, 0) > 2400;
 
   useEffect(() => {
     const section = activeSection;
@@ -766,8 +865,14 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             void loadExtensionsOnce().catch(() => undefined);
             break;
           }
+          case "minecraft": {
+            const catalog = await loadMinecraftCores();
+            setMinecraftCoreOptions(catalog.cores.map(core => ({ value: core.name, label: `${core.name}${core.name === "Paper" ? "（普通开服推荐）" : ""}` })));
+            break;
+          }
           case "plugins": {
-            await loadExtensionsOnce();
+            const [, capabilityResult] = await Promise.all([loadExtensionsOnce(), loadCapabilityInstallCatalog(), canAdmin ? reloadManagedPlugins() : Promise.resolve()]);
+            setCapabilityInstallCatalog(capabilityResult.capabilities);
             break;
           }
           case "usage": {
@@ -1056,21 +1161,25 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   useEffect(() => {
     if (!steamcmdTask || steamcmdTask.status === "succeeded" || steamcmdTask.status === "failed") return;
     const taskId = steamcmdTask.id;
-    const timer = window.setInterval(() => {
-      void loadSteamcmdTask(taskId).then(({ task }) => {
+    let active = true;
+    const poller = createReadPoller(async () => {
+      try {
+        const { task } = await loadSteamcmdTask(taskId);
+        const recoveredNodes = task.status === "failed" ? await loadSteamcmdSettings().catch(() => null) : null;
+        if (!active) return;
         setSteamcmdTask(task);
         if (task.status === "succeeded" || task.status === "failed") {
           if (task.status === "succeeded") {
             setSteamcmdNodes((current) => current.map((node) => node.id === task.nodeId ? { ...node, steamcmdInstalled: true } : node));
           } else {
-            void loadSteamcmdSettings().then((result) => setSteamcmdNodes(result.nodes)).catch(() => undefined);
+            if (recoveredNodes) setSteamcmdNodes(recoveredNodes.nodes);
           }
         }
-      }).catch((loadError: unknown) => {
-        messageApi.error(getErrorMessage(loadError));
-      });
+      } catch (loadError: unknown) {
+        if (active) messageApi.error(getErrorMessage(loadError));
+      }
     }, 1000);
-    return () => window.clearInterval(timer);
+    return () => { active = false; poller.stop(); };
   }, [steamcmdTask?.id, steamcmdTask?.status]);
 
   function clearSettingsAutoSave(category: keyof UserSettings): void {
@@ -1132,9 +1241,23 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     for (const category of settingsAutoSaveTimersRef.current.keys()) {
       clearSettingsAutoSave(category);
       void persistLatestSettings(category).catch((saveError: unknown) => {
-        if (settingsPageMountedRef.current) setSettingsSaveErrors((current) => ({ ...current, [category]: getErrorMessage(saveError) }));
+        if (settingsPageMountedRef.current) {
+          const detail = getErrorMessage(saveError);
+          setSettingsSaveErrors((current) => ({ ...current, [category]: detail }));
+        }
       });
     }
+  }
+
+  function showSettingsSaveFeedback(status: "success" | "error", detail: string): void {
+    if (!settingsPageMountedRef.current) return;
+    if (settingsSaveFeedbackTimerRef.current !== null) window.clearTimeout(settingsSaveFeedbackTimerRef.current);
+    const id = ++settingsSaveFeedbackSequenceRef.current;
+    setSettingsSaveFeedback({ id, status, message: detail });
+    settingsSaveFeedbackTimerRef.current = window.setTimeout(() => {
+      setSettingsSaveFeedback(current => current?.id === id ? null : current);
+      settingsSaveFeedbackTimerRef.current = null;
+    }, status === "success" ? 2300 : 4200);
   }
 
   useEffect(() => {
@@ -1144,6 +1267,10 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     return () => {
       window.removeEventListener("pagehide", flush);
       settingsPageMountedRef.current = false;
+      if (settingsSaveFeedbackTimerRef.current !== null) {
+        window.clearTimeout(settingsSaveFeedbackTimerRef.current);
+        settingsSaveFeedbackTimerRef.current = null;
+      }
       flush();
     };
   }, [user.id]);
@@ -1158,7 +1285,10 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     const timer = window.setTimeout(() => {
       settingsAutoSaveTimersRef.current.delete(category);
       void persistLatestSettings(category).catch((saveError: unknown) => {
-        if (settingsPageMountedRef.current) setSettingsSaveErrors((current) => ({ ...current, [category]: getErrorMessage(saveError) }));
+        if (settingsPageMountedRef.current) {
+          const detail = getErrorMessage(saveError);
+          setSettingsSaveErrors((current) => ({ ...current, [category]: detail }));
+        }
       });
     }, SETTINGS_AUTOSAVE_DELAY_MS);
     settingsAutoSaveTimersRef.current.set(category, timer);
@@ -1211,7 +1341,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
   async function persistSettings<K extends keyof UserSettings>(category: K): Promise<void> {
     if (category === "shortcuts" && hasShortcutConflicts(settingsRef.current.shortcuts)) {
-      setError("快捷键不能重复，请修改冲突项后再保存");
+      const detail = "快捷键不能重复，请修改冲突项后再保存";
+      setError(detail);
+      showSettingsSaveFeedback("error", detail);
       return;
     }
     clearSettingsAutoSave(category);
@@ -1219,11 +1351,52 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     setError("");
     try {
       await persistLatestSettings(category);
-      messageApi.success("设置已保存");
+      showSettingsSaveFeedback("success", "设置已保存到当前账户。");
     } catch (saveError) {
-      setError(getErrorMessage(saveError));
+      const detail = getErrorMessage(saveError);
+      setError(detail);
+      showSettingsSaveFeedback("error", `保存失败：${detail}`);
     } finally {
       setSaving(null);
+    }
+  }
+
+  async function clearCurrentConversationMemories(): Promise<void> {
+    setDeletingConversationMemories(true);
+    try {
+      await deleteConversationMemories();
+      const { snapshot } = await loadConversationMemories();
+      setConversationMemorySnapshot(snapshot);
+      setConversationMemoryDraft(snapshot.memories.join("\n"));
+      messageApi.success("当前账户的 AI Work 记忆已删除。");
+    } catch (clearError) {
+      messageApi.error(getErrorMessage(clearError));
+    } finally {
+      setDeletingConversationMemories(false);
+    }
+  }
+
+  async function saveCurrentConversationMemories(): Promise<void> {
+    if (!conversationMemorySnapshot) return;
+    const memories = conversationMemoryDraft.split(/\r?\n/u).map(value => value.trim()).filter(Boolean);
+    setSavingConversationMemories(true);
+    try {
+      const { snapshot } = await saveConversationMemories({ revision: conversationMemorySnapshot.revision, memories });
+      setConversationMemorySnapshot(snapshot);
+      setConversationMemoryDraft(snapshot.memories.join("\n"));
+      messageApi.success("对话记忆已保存。");
+    } catch (saveError) {
+      const detail = getErrorMessage(saveError);
+      if (detail.includes("其他请求中更新")) {
+        try {
+          const { snapshot } = await loadConversationMemories();
+          setConversationMemorySnapshot(snapshot);
+          setConversationMemoryDraft(snapshot.memories.join("\n"));
+        } catch { /* 保留原错误提示；手动刷新设置页仍可重新读取。 */ }
+      }
+      messageApi.error(detail);
+    } finally {
+      setSavingConversationMemories(false);
     }
   }
 
@@ -1355,6 +1528,38 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     }
   }
 
+  async function searchPluginSources(): Promise<void> {
+    const query = pluginSearchQuery.trim();
+    if (!query || !canAdmin) return;
+    setPluginOperation("search");
+    try {
+      const result = await searchManagedPlugins(query);
+      setPluginCandidates(result.candidates);
+      if (!result.candidates.length) messageApi.info("GitHub 没有返回候选来源。");
+    } catch (searchError) {
+      messageApi.error(getErrorMessage(searchError));
+    } finally {
+      setPluginOperation(null);
+    }
+  }
+
+  async function inspectPluginSource(repositoryUrl = pluginRepositoryUrl, ref = pluginRef): Promise<void> {
+    const url = repositoryUrl.trim();
+    if (!url || !canAdmin) return;
+    setPluginOperation("inspect");
+    setPluginInspection(null);
+    try {
+      const result = await inspectManagedPlugin(url, ref.trim() || undefined);
+      setPluginRepositoryUrl(url);
+      setPluginRef(ref);
+      setPluginInspection(result.plugin);
+    } catch (inspectError) {
+      messageApi.error(getErrorMessage(inspectError));
+    } finally {
+      setPluginOperation(null);
+    }
+  }
+
   async function runRuntimePluginAction(plugin: AiRuntimePlugin, action: "start" | "stop" | "reload"): Promise<void> {
     if (!canAdmin || !plugin.canToggle || (action === "reload" && !plugin.canReload)) return;
     setRuntimePluginBusyId(plugin.id);
@@ -1451,7 +1656,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       const result = await probeAiProvider({ providerId, secret, options: currentProviderOptions });
       setProbe(result.result);
       setSelectedModel(result.result.models[0]?.id ?? "");
-      setReasoningMode("default");
+      setReasoningMode(defaultReasoningMode(result.result.models[0]));
       messageApi.success(`已从官方 API 拉取 ${result.result.models.length} 个模型`);
     } catch (probeError) {
       setProbe(null);
@@ -1666,13 +1871,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       <SettingRow title="今日不再提醒" description="仅对当前账户和此浏览器生效，暂停到本地今天结束；明天自动恢复，不会关闭上方的永久总开关。可随时关闭此开关以恢复今天的提醒。" status={!settings.general.setupReminderEnabled ? setupReminderPausedToday ? "总开关已关闭，今日也已暂停" : "总开关已关闭" : setupReminderPausedToday ? "今日已暂停" : "今日未暂停"}>
         <SettingsSwitch label="今日不再提醒" checked={setupReminderPausedToday} disabled={!settings.general.setupReminderEnabled} onChange={() => updateSetupReminderSnooze(!setupReminderPausedToday)} />
       </SettingRow>
-      <SettingRow title="AI 工具权限请求" description="AI Work 等待工具审批时，在通知栏和右下角提醒；点击可打开对应会话处理审批。" status={settings.general.permissionNotifications ? "已开启" : "已关闭"}>
+      <SettingRow title="AI 工具权限请求" description="审批操作统一在当前 AI Work 输入框上方处理；此开关控制通知栏和后台系统通知提醒，不会隐藏当前会话中的待处理审批。" status={settings.general.permissionNotifications ? "已开启" : "已关闭"}>
         <SettingsSwitch label="审批提醒" checked={settings.general.permissionNotifications} onChange={() => updateGeneral({ permissionNotifications: !settings.general.permissionNotifications })} />
       </SettingRow>
-      <SettingRow title="AI Work 等待回答" description="当前 AI Work 只提供流式对话，没有暂停等待用户回答的任务事件。" status="待接入">
-        <Typography.Text type="secondary">等待真实问题事件源</Typography.Text>
+      <SettingRow title="AI Work 澄清问题" description="当模型判断关键信息不足时，可暂停当前任务并提供选项或自定义回答；此开关控制通知栏和后台系统通知，不会隐藏当前会话中的问题卡。" status={settings.general.questionNotifications ? "已开启" : "已关闭"}>
+        <SettingsSwitch label="澄清问题提醒" checked={settings.general.questionNotifications} onChange={() => updateGeneral({ questionNotifications: !settings.general.questionNotifications })} />
       </SettingRow>
-      <SettingRow title="通知提示音" description="选择 AI Work 回复完成、审批请求和会话错误的提示音；试听音量受浏览器和系统音量控制。" status="已接入">
+      <SettingRow title="通知提示音" description="选择 AI Work 回复完成、审批请求、澄清问题和会话错误的提示音；试听音量受浏览器和系统音量控制。" status="已接入">
         <Space>
           <Select value={settings.general.notificationSound} options={[{ value: "default", label: "默认" }, { value: "subtle", label: "轻柔" }, { value: "off", label: "关闭" }]} onChange={(value) => updateGeneral({ notificationSound: value })} />
           <Button onClick={testNotificationSound} disabled={settings.general.notificationSound === "off"}>试听</Button>
@@ -1820,8 +2025,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="弹出窗口快捷键" description="为桌面弹出窗口保存全局快捷键；不设置则保持关闭。">
             <Input value={settings.general.popupShortcut} placeholder="关闭" maxLength={48} onChange={(event) => updateGeneral({ popupShortcut: event.target.value })} />
           </SettingRow>
-          <SettingRow title="默认使用独立聊天" description="开启后从首页登录或恢复账户时默认进入通用任务工作区。">
-            <SettingsSwitch label="默认使用独立聊天" checked={settings.general.defaultStandaloneChat} onChange={() => updateGeneral({ defaultStandaloneChat: !settings.general.defaultStandaloneChat })} />
+          <SettingRow title="应用中心优先通用任务" description="开启后在应用中心把通用任务标为默认入口；登录后仍先显示应用中心，由你点击进入。">
+            <SettingsSwitch label="应用中心优先通用任务" checked={settings.general.defaultStandaloneChat} onChange={() => updateGeneral({ defaultStandaloneChat: !settings.general.defaultStandaloneChat })} />
           </SettingRow>
         </SettingGroup>
         {notificationGroup}
@@ -1851,6 +2056,21 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       </section>
     );
 
+    if (activeSection === "wallpaperEngine") return (
+      <DshSlotOutlet name="settings.section" fallback={(
+        <section className="settings-content">
+          <header className="settings-content__heading"><div><span className="settings-eyebrow">扩展设置</span><Typography.Title level={2}>壁纸引擎</Typography.Title><Typography.Paragraph>这里显示由 DSH 插件提供的原生设置界面。</Typography.Paragraph></div></header>
+          <Alert
+            className="settings-inline-alert"
+            type="warning"
+            showIcon
+            message="壁纸插件界面尚未加载"
+            description="当前没有 DSH Client 内容提供此设置页。请检查当前 Profile 中插件是否已安装并启用；若插件状态正常，再排查 Client Runtime 或插件入口的加载错误。"
+          />
+          <div className="settings-actions"><Button type="primary" onClick={() => selectSection("plugins")}>查看插件状态</Button></div>
+        </section>
+      )} />
+    );
     if (activeSection === "appearance") return (
       <section className="settings-content">
         <header className="settings-content__heading"><div><span className="settings-eyebrow">界面显示</span><Typography.Title level={2}>外观</Typography.Title><Typography.Paragraph>调整主题、强调色，并为登录页和不同工作区选择背景图片。</Typography.Paragraph></div><span className="settings-preview" style={{ "--preview-accent": "var(--settings-accent)" } as CSSProperties}>LFAA</span></header>
@@ -1949,6 +2169,17 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="背景遮罩" description="统一控制整张工作区壁纸的遮罩透明度，设置和应用的顶部栏、导航及 AI Work 输入区等独立表面同步使用该值；0% 时壁纸最清晰，数值越高整体底色越明显。消息画布不另加局部遮罩。" status="已接入"><div className="settings-slider"><Slider min={0} max={75} value={settings.appearance.overlay} onChange={(overlay) => updateSettings("appearance", { ...settings.appearance, overlay })} /><output>{settings.appearance.overlay}%</output></div></SettingRow>
           <SettingRow title="玻璃模糊" description="调整顶栏、半透明导航栏、AI Work 输入区和写作上下文作品卡片的玻璃模糊强度；消息画布保持透明并显示工作区壁纸，设置正文不做实时模糊。" status="已接入"><div className="settings-slider"><Slider min={0} max={32} value={settings.appearance.blur} onChange={(blur) => updateSettings("appearance", { ...settings.appearance, blur })} /><output>{settings.appearance.blur}px</output></div></SettingRow>
         </SettingGroup>
+        <SettingGroup title="AI Work 空闲虚化">
+          <SettingRow title="空闲时虚化回复" description="开启后，鼠标、键盘、滚动或触屏操作停止达到设定时长后，回复内容、刻度和滚动条一起虚化；再次操作后恢复清晰。输入框保持清晰。">
+            <SettingsSwitch label="空闲时虚化回复" checked={settings.appearance.advanced.aiWorkOutputFocusBlurEnabled} onChange={() => updateAppearanceAdvanced({ aiWorkOutputFocusBlurEnabled: !settings.appearance.advanced.aiWorkOutputFocusBlurEnabled })} />
+          </SettingRow>
+          <SettingRow title="空闲多久后虚化" description="页面至少 1 分钟没有鼠标、键盘、滚动或触屏操作后，开始虚化 AI Work 输出区域。">
+            <div className="settings-slider"><Slider disabled={!settings.appearance.advanced.aiWorkOutputFocusBlurEnabled} min={1} max={60} value={settings.appearance.advanced.aiWorkOutputFocusBlurIdleSeconds / 60} onChange={(minutes) => updateAppearanceAdvanced({ aiWorkOutputFocusBlurIdleSeconds: minutes * 60 })} /><output>{settings.appearance.advanced.aiWorkOutputFocusBlurIdleSeconds / 60} 分钟</output></div>
+          </SettingRow>
+          <SettingRow title="回复虚化强度" description="按百分比调节 AI Work 空闲后的虚化强度；0% 不模糊，100% 对应 8px 模糊半径，不会淡出隐藏内容。">
+            <div className="settings-slider"><Slider disabled={!settings.appearance.advanced.aiWorkOutputFocusBlurEnabled} min={0} max={100} value={settings.appearance.advanced.aiWorkOutputFocusBlurPercent} onChange={(aiWorkOutputFocusBlurPercent) => updateAppearanceAdvanced({ aiWorkOutputFocusBlurPercent })} /><output>{settings.appearance.advanced.aiWorkOutputFocusBlurPercent}%</output></div>
+          </SettingRow>
+        </SettingGroup>
         <section className="settings-advanced">
           <button className="settings-advanced__toggle" type="button" aria-expanded={appearanceAdvancedOpen} onClick={() => setAppearanceAdvancedOpen((open) => !open)}>
             <span>高级</span>
@@ -2012,13 +2243,15 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         <SettingGroup title="导航">
           <ShortcutRow title="打开设置中心" value={settings.shortcuts.openSettings} onChange={(value) => updateShortcut("openSettings", value)} />
           <ShortcutRow title="返回应用中心" value={settings.shortcuts.openHome} onChange={(value) => updateShortcut("openHome", value)} />
-          <ShortcutRow title="打开 SteamCMD 应用" value={settings.shortcuts.openSteamcmd} onChange={(value) => updateShortcut("openSteamcmd", value)} />
-          <ShortcutRow title="打开 Minecraft 应用" value={settings.shortcuts.openMinecraft} onChange={(value) => updateShortcut("openMinecraft", value)} />
-          <ShortcutRow title="打开写作应用" value={settings.shortcuts.openWriting} onChange={(value) => updateShortcut("openWriting", value)} />
+          <ShortcutRow title="前往 SteamCMD 入口" value={settings.shortcuts.openSteamcmd} onChange={(value) => updateShortcut("openSteamcmd", value)} />
+          <ShortcutRow title="前往 Minecraft 入口" value={settings.shortcuts.openMinecraft} onChange={(value) => updateShortcut("openMinecraft", value)} />
+          <ShortcutRow title="前往写作入口" value={settings.shortcuts.openWriting} onChange={(value) => updateShortcut("openWriting", value)} />
         </SettingGroup>
         <SettingGroup title="应用工作区面板">
           <ShortcutRow title="切换应用导航栏" value={settings.shortcuts.toggleSidebar} onChange={(value) => updateShortcut("toggleSidebar", value)} />
           <ShortcutRow title="切换工具与资源栏" value={settings.shortcuts.toggleContextPanel} onChange={(value) => updateShortcut("toggleContextPanel", value)} />
+          <ShortcutRow title="打开侧边聊天" value={settings.shortcuts.openSideChat} onChange={(value) => updateShortcut("openSideChat", value)} />
+          <ShortcutRow title="切换壁纸引擎侧栏" value={settings.shortcuts.wallpaperSidebarToggle} onChange={(value) => updateShortcut("wallpaperSidebarToggle", value)} />
           <ShortcutRow title="切换底部面板" value={settings.shortcuts.toggleBottomPanel} onChange={(value) => updateShortcut("toggleBottomPanel", value)} />
           <ShortcutRow title="打开终端面板" value={settings.shortcuts.openTerminal} onChange={(value) => updateShortcut("openTerminal", value)} />
         </SettingGroup>
@@ -2055,13 +2288,14 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           {!accounts.length ? <div className="settings-empty"><strong>还没有模型账户</strong><span>选择上方服务商卡片，配置并测试你的 API Key。</span></div> : accounts.map((account) => {
             const accountModel = account.models.find((model) => model.id === account.modelId);
             const accountReasoningOptions = reasoningOptions(accountModel);
+            const accountReasoningMode = effectiveReasoningMode(accountModel, account.reasoningMode);
             return <article className={`ai-account-item${account.active ? " is-active" : ""}`} key={account.id}>
               <div className="ai-account-item__header"><div><strong>{account.displayName}</strong><span>{providers.find((provider) => provider.id === account.providerId)?.name ?? account.providerId} · {account.active ? "当前模型" : "已保存"}</span></div><Tag color={account.active ? "green" : "default"}>{account.active ? "当前使用" : "未启用"}</Tag></div>
               <label className="settings-field"><span>当前模型</span><Select value={account.modelId} options={account.models.length ? account.models.map((model) => ({ value: model.id, label: modelOptionLabel(account.providerId, model) })) : [{ value: account.modelId, label: account.modelId }]} onChange={(modelId) => void selectAccountModel(account, modelId)} /></label>
               <p className="settings-field-help">{modelParameterSummary(accountModel)}</p>
-              {accountReasoningOptions.length ? <label className="settings-field"><span>官方思考参数</span><Select value={accountReasoningOptions.some((option) => option.value === account.reasoningMode) ? account.reasoningMode : "default"} options={accountReasoningOptions} disabled={aiBusy !== null} onChange={(value) => void selectAccountReasoningMode(account, value)} /></label>
+              {accountReasoningOptions.length ? <label className="settings-field"><span>{accountModel?.thinking?.kind === "effort" ? "思考力度" : "思考模式"}</span><Select value={accountReasoningMode} options={accountReasoningOptions} disabled={aiBusy !== null} onChange={(value) => void selectAccountReasoningMode(account, value)} /></label>
                 : accountModel?.thinking?.kind === "fixed" ? <p className="ai-thinking-note">{fixedThinkingLabel(accountModel)}</p>
-                  : <p className="ai-thinking-note">当前模型没有已确认的可配置官方思考参数；请求会跟随模型默认值，不发送思考字段。</p>}
+                  : <p className="ai-thinking-note">当前模型目录没有已验证的思考力度选项；请求会跟随模型自身行为，不发送思考字段。</p>}
               <div className="ai-account-item__actions">
                 {!account.active ? <Button size="small" type="primary" disabled={aiBusy !== null} onClick={() => void runAccountAction(account, "activate")}>设为当前模型</Button> : null}
                 <Button size="small" disabled={aiBusy !== null} loading={aiBusy === `retest:${account.id}`} onClick={() => void runAccountAction(account, "retest")}>重测模型</Button>
@@ -2101,11 +2335,11 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             </div>
             {probe ? <Alert className="settings-ai-result" type="success" showIcon message={probe.message} description="此步骤只读取模型目录；请选择具体模型后，再发起真实对话测试。" /> : null}
             {probe?.models.length ? <>
-              <label className="settings-field"><span>模型</span><Select value={selectedModel || undefined} placeholder="选择官方目录中的模型" options={probe.models.map((model) => ({ value: model.id, label: modelOptionLabel(providerId, model) }))} onChange={(nextModel) => { setSelectedModel(nextModel); setReasoningMode("default"); setModelTest(null); }} showSearch optionFilterProp="label" /></label>
+              <label className="settings-field"><span>模型</span><Select value={selectedModel || undefined} placeholder="选择官方目录中的模型" options={probe.models.map((model) => ({ value: model.id, label: modelOptionLabel(providerId, model) }))} onChange={(nextModel) => { setSelectedModel(nextModel); setReasoningMode(defaultReasoningMode(probe.models.find((model) => model.id === nextModel))); setModelTest(null); }} showSearch optionFilterProp="label" /></label>
               {selectedModelDetails ? <p className="settings-field-help">{modelParameterSummary(selectedModelDetails)}</p> : null}
-              {selectedModelDetails?.thinking && selectedModelDetails.thinking.kind !== "fixed" ? <label className="settings-field"><span>思考模式 / 力度</span><Select value={reasoningMode} options={reasoningOptions(selectedModelDetails)} disabled={aiBusy !== null} onChange={(value) => { setReasoningMode(value); setModelTest(null); }} /></label>
+              {selectedModelReasoningOptions.length ? <label className="settings-field"><span>{selectedModelDetails?.thinking?.kind === "effort" ? "思考力度" : "思考模式"}</span><Select value={effectiveReasoningMode(selectedModelDetails, reasoningMode)} options={selectedModelReasoningOptions} disabled={aiBusy !== null} onChange={(value) => { setReasoningMode(value); setModelTest(null); }} /></label>
                 : selectedModelDetails?.thinking?.kind === "fixed" ? <p className="ai-thinking-note">{fixedThinkingLabel(selectedModelDetails)}</p>
-                  : selectedModelDetails ? <p className="ai-thinking-note">此型号没有已确认的可配置官方思考参数；将跟随模型默认值，不发送思考字段。</p> : null}
+                  : selectedModelDetails ? <p className="ai-thinking-note">此模型目录没有已验证的思考力度选项；将跟随模型自身行为，不发送思考字段。</p> : null}
               <div className="ai-provider-test-row">
                 <div><strong>真实模型测试</strong><span>会发送一条简短请求至所选模型，可能产生 Provider 用量。</span></div>
                 <Button loading={aiBusy === "test"} disabled={!selectedModel || !secret.trim() || aiBusy !== null} onClick={() => void runModelTest()}>测试模型</Button>
@@ -2134,6 +2368,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="最大委派深度" description="限制子 Agent 继续派发任务的层数，0 表示关闭委派。">
             <InputNumber min={0} max={4} value={settings.aiRuntime.maxDelegationDepth} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, maxDelegationDepth: value })} />
           </SettingRow>
+          <SettingRow title="节点命令默认时限（秒）" description="0 表示不限时；模型指定的时限只能缩短已保存的非零上限。停止任务会向执行节点请求终止进程树。">
+            <InputNumber min={0} max={1800} value={settings.aiRuntime.commandTimeoutSeconds} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, commandTimeoutSeconds: value })} />
+          </SettingRow>
           <SettingRow title="每轮模型请求上限" description="限制一次任务的模型调用次数；达到预算后停止并保留已执行结果。">
             <InputNumber min={1} max={100} value={settings.aiRuntime.maxModelRequests} onChange={(value) => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, maxModelRequests: value })} />
           </SettingRow>
@@ -2148,6 +2385,42 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           </SettingRow>
         </SettingGroup>
         <SettingsActions saving={saving === "aiRuntime"} onReset={() => resetSettings("aiRuntime")} onSave={() => void persistSettings("aiRuntime")} />
+      </section>
+    );
+
+    if (activeSection === "minecraft") return (
+      <section className="settings-content">
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">Minecraft</span><Typography.Title level={2}>Minecraft 配置</Typography.Title><Typography.Paragraph>Minecraft 常规面板与 Minecraft AI Work 共用这些账户级运行默认值。</Typography.Paragraph></div></header>
+        <SettingGroup title="默认部署与运行">
+          <SettingRow title="Minecraft 默认内存（MB）" description="传统面板新建实例的默认内存；现有实例不变，可在开服表单调整。">
+            <InputNumber min={1024} max={32768} value={settings.minecraftRuntime.minecraftDefaultMemoryMb} onChange={value => value !== null && updateSettings("minecraftRuntime", { ...settings.minecraftRuntime, minecraftDefaultMemoryMb: value })} />
+          </SettingRow>
+          <SettingRow title="Minecraft 执行方式" description="推荐本机原生进程，适合模组与插件开服；以 Daemon 系统账户运行。AppContainer 当前只支持旧 Vanilla 启动合同，缺少 Host 时明确失败，不自动降级。">
+            <Select value={settings.minecraftRuntime.minecraftExecutionMode} options={[{ value: "native", label: "本机原生进程（推荐）" }, { value: "appcontainer", label: "Windows AppContainer" }]} onChange={value => updateSettings("minecraftRuntime", { ...settings.minecraftRuntime, minecraftExecutionMode: value })} />
+          </SettingRow>
+          <SettingRow title="Minecraft 默认核心" description="普通生存和插件服推荐 Paper；模组服按模组包要求选择 Fabric/Forge。来源暂不可用时不会静默替换。">
+            <Select value={settings.minecraftRuntime.minecraftDefaultCore} options={minecraftCoreOptions.some(option => option.value === settings.minecraftRuntime.minecraftDefaultCore) ? minecraftCoreOptions : [{ value: settings.minecraftRuntime.minecraftDefaultCore, label: `${settings.minecraftRuntime.minecraftDefaultCore}（已保存，目录待连接）` }, ...minecraftCoreOptions]} onChange={minecraftDefaultCore => updateSettings("minecraftRuntime", { ...settings.minecraftRuntime, minecraftDefaultCore })} />
+          </SettingRow>
+          <SettingRow title="Minecraft 基岩默认端口" description="Nukkit 与 PocketMine 新实例的默认 UDP 端口，可在开服表单调整。">
+            <InputNumber min={1024} max={65535} value={settings.minecraftRuntime.minecraftBedrockDefaultPort} onChange={value => value !== null && updateSettings("minecraftRuntime", { ...settings.minecraftRuntime, minecraftBedrockDefaultPort: value })} />
+          </SettingRow>
+          <SettingRow title="Minecraft 默认端口" description="Java 服务端和代理的新实例默认监听端口；开服时检查节点端口占用。基岩核心使用协议默认端口。">
+            <InputNumber min={1024} max={65535} value={settings.minecraftRuntime.minecraftDefaultPort} onChange={value => value !== null && updateSettings("minecraftRuntime", { ...settings.minecraftRuntime, minecraftDefaultPort: value })} />
+          </SettingRow>
+          <SettingRow title="Minecraft 下载时限（秒）" description="核心工件下载的等待预算；任务提交时保存当前值，超时报告真实失败。">
+            <InputNumber min={30} max={7200} value={settings.minecraftRuntime.minecraftDownloadTimeoutSeconds} onChange={value => value !== null && updateSettings("minecraftRuntime", { ...settings.minecraftRuntime, minecraftDownloadTimeoutSeconds: value })} />
+          </SettingRow>
+          <SettingRow title="Minecraft 安装时限（秒）" description="Forge、NeoForge 等安装器及运行环境准备的等待预算；超时结束本任务进程树。">
+            <InputNumber min={30} max={7200} value={settings.minecraftRuntime.minecraftInstallTimeoutSeconds} onChange={value => value !== null && updateSettings("minecraftRuntime", { ...settings.minecraftRuntime, minecraftInstallTimeoutSeconds: value })} />
+          </SettingRow>
+          <SettingRow title="Minecraft 就绪等待（秒）" description="启动任务须收到所选核心的就绪日志才成功；超时保留故障证据，不能仅凭进程启动显示开服成功。">
+            <InputNumber min={10} max={900} value={settings.minecraftRuntime.minecraftReadyTimeoutSeconds} onChange={value => value !== null && updateSettings("minecraftRuntime", { ...settings.minecraftRuntime, minecraftReadyTimeoutSeconds: value })} />
+          </SettingRow>
+          <SettingRow title="Minecraft 安全停服等待（秒）" description="发送 stop 后等待保存退出；超时会终止当前实例进程，并在结果中明确报告非正常停服。">
+            <InputNumber min={5} max={300} value={settings.minecraftRuntime.minecraftStopTimeoutSeconds} onChange={value => value !== null && updateSettings("minecraftRuntime", { ...settings.minecraftRuntime, minecraftStopTimeoutSeconds: value })} />
+          </SettingRow>
+        </SettingGroup>
+        <SettingsActions saving={saving === "minecraftRuntime"} onReset={() => resetSettings("minecraftRuntime")} onSave={() => void persistSettings("minecraftRuntime")} />
       </section>
     );
 
@@ -2175,11 +2448,120 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       </section>
     );
 
-    if (activeSection === "plugins") return (
+    if (activeSection === "plugins" || activeSection === "connections") return (
       <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">扩展能力</span><Typography.Title level={2}>插件</Typography.Title><Typography.Paragraph>管理受信任的内置 Agent、Skills、专家提示、推理 Hooks 与 Tools；MCP 与外部服务请在“连接”中配置。</Typography.Paragraph></div></header>
-        <Alert className="settings-inline-alert" type="warning" showIcon message="当前仅运行随 LFAA 发布的受信任内置扩展；第三方插件安装与隔离执行尚未开放。" />
-        <SettingGroup title="能力目录">
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">{activeSection === "connections" ? "外部服务" : "扩展能力工作区"}</span><Typography.Title level={2}>{activeSection === "connections" ? "MCP 连接" : "插件与能力"}</Typography.Title><Typography.Paragraph>{activeSection === "connections" ? "配置 MCP 服务与应用范围；此处和插件工作区使用同一份账户设置。" : "按目录、资料、外部插件、连接和运行状态分区管理；各项仍由原有 Owner 保存和执行。"}</Typography.Paragraph></div></header>
+        <nav className="settings-plugin-workspace__tabs" role="tablist" aria-label="插件与能力分区" onKeyDown={(event) => {
+          const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=tab]"));
+          const currentIndex = tabs.indexOf(event.target as HTMLButtonElement);
+          const nextIndex = event.key === "ArrowRight" ? (currentIndex + 1) % tabs.length
+            : event.key === "ArrowLeft" ? (currentIndex - 1 + tabs.length) % tabs.length
+              : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
+          if (currentIndex >= 0 && nextIndex >= 0) {
+            event.preventDefault();
+            tabs[nextIndex]?.focus();
+            tabs[nextIndex]?.click();
+          }
+        }}>
+          {PLUGIN_WORKSPACE_TABS.map((tab) => <button key={tab.id} id={`settings-plugin-tab-${tab.id}`} type="button" role="tab" tabIndex={pluginWorkspaceTab === tab.id ? 0 : -1} aria-selected={pluginWorkspaceTab === tab.id} aria-controls="settings-plugin-panel" className={pluginWorkspaceTab === tab.id ? "is-active" : ""} onClick={() => {
+            const nextSection: SectionId = tab.id === "mcp" ? "connections" : "plugins";
+            if (activeSection !== nextSection) selectSection(nextSection);
+            if (tab.id === "knowledge") setKnowledgeLibraryOpened(true);
+            setPluginWorkspaceTab(tab.id);
+          }}>{tab.label}{tab.id === "mcp" && settings.plugins.mcpServers.length ? <span className="settings-plugin-workspace__tab-count">{settings.plugins.mcpServers.length}</span> : null}</button>)}
+        </nav>
+        <div id="settings-plugin-panel" className="settings-plugin-workspace__panel" role="tabpanel" aria-labelledby={`settings-plugin-tab-${pluginWorkspaceTab}`}>
+        {pluginWorkspaceTab === "overview" ? <>
+          <div className="settings-plugin-workspace__overview" aria-label="扩展能力概况">
+            <article className="settings-plugin-workspace__overview-card"><span>已登记能力</span><strong>{extensions.length}</strong><small>来自当前运行时目录</small></article>
+            <article className="settings-plugin-workspace__overview-card"><span>第三方插件</span><strong>{canAdmin ? managedPlugins.length : "—"}</strong><small>{canAdmin ? `${managedPlugins.filter((plugin) => plugin.state === "enabled").length} 个由 Runtime 确认启用` : "插件清单需要管理员权限"}</small></article>
+            <article className="settings-plugin-workspace__overview-card"><span>MCP 服务</span><strong>{settings.plugins.mcpServers.length}</strong><small>{settings.plugins.mcpServers.filter((server) => server.enabled).length} 个配置为启用</small></article>
+            <article className="settings-plugin-workspace__overview-card"><span>运行模块</span><strong>{activeRuntimePluginCount}<i> / {runtimePlugins.length}</i></strong><small>{runtimePluginHostReady ? "宿主核心状态正常" : "需要检查宿主状态"}</small></article>
+          </div>
+          <SettingGroup title="运行策略">
+            <SettingRow title="允许 AI Work 使用扩展" description="关闭后，登记的 Skills、Experts、Prompts、Tools 和 MCP 服务不会加入运行时。MCP 工具仍只提供给各自选择的应用。">
+              <SettingsSwitch label="启用扩展" checked={settings.plugins.enabled} onChange={() => updateSettings("plugins", { ...settings.plugins, enabled: !settings.plugins.enabled })} />
+            </SettingRow>
+          </SettingGroup>
+          <div className="settings-note-card"><strong>状态口径</strong><p>登记、安装、启用和运行分别来自对应目录与 Runtime；MCP“启用”只表示已保存的连接配置，不代表服务当前在线。</p></div>
+          <SettingsActions saving={saving === "plugins"} onReset={() => resetSettings("plugins")} onSave={() => void persistSettings("plugins")} />
+        </> : null}
+        {knowledgeLibraryOpened ? <div hidden={pluginWorkspaceTab !== "knowledge"}><KnowledgeLibraryPanel extensionsEnabled={settings.plugins.enabled} /></div> : null}
+        {pluginWorkspaceTab === "catalog" ? <>
+        <Alert className="settings-inline-alert" type="info" showIcon message="自然语言安装由 AI 调用受权限控制的能力工具；本页管理当前 Profile 的第三方 GitHub 插件快照。Skills、提示词、MCP 与 Minecraft 插件/模组仍由各自应用 Owner 管理，不会写进同一个插件目录。" />
+        <SettingGroup title="能力安装接入状态">
+          {capabilityInstallCatalog.length ? capabilityInstallCatalog.map((capability) => {
+            const kindLabels: Record<CapabilityInstallCatalogEntry["kind"], string> = { plugin: "第三方插件", skill: "Skills", prompt: "提示词", tool: "Tools", mcp: "MCP 服务", "minecraft-plugin": "Minecraft 插件", "minecraft-mod": "Minecraft 模组" };
+            const applicationLabels: Record<string, string> = { workspace: "通用工作台", steamcmd: "SteamCMD", minecraft: "Minecraft", writing: "写作" };
+            const operationLabels: Record<string, string> = { search: "搜索", inspect: "检查", install: "安装", list: "清单", enable: "启用", disable: "停用", remove: "移除" };
+            const detail = capability.available
+              ? ["支持 App：", capability.applicationIds.map((id) => applicationLabels[id] ?? id).join("、"), "；操作：", capability.operations.map((operation) => operationLabels[operation] ?? operation).join("、")].join("")
+              : capability.reason ?? "领域 Owner 适配器尚未接入。";
+            return <SettingRow key={capability.kind} title={kindLabels[capability.kind]} description={detail} status={capability.available ? "安装路由已接入" : "安装路由待接入"}>
+              <Tag color={capability.available ? "green" : "default"}>{capability.available ? "可由 AI 路由" : "自然语言安装尚不可用"}</Tag>
+            </SettingRow>;
+          }) : <SettingRow title="能力接入清单暂不可用" description="打开本页后会从已认证的 LFAA 服务读取真实适配器登记状态。" status="未读取"><Tag>等待服务响应</Tag></SettingRow>}
+        </SettingGroup>
+        <SettingGroup title="已安装的 AI 提示词">
+          {settings.plugins.prompts.length ? settings.plugins.prompts.map((prompt) => {
+            const applicationLabel = prompt.applicationId === "workspace" ? "通用工作台" : prompt.applicationId === "steamcmd" ? "SteamCMD" : prompt.applicationId === "minecraft" ? "Minecraft" : "写作";
+            const status = !prompt.enabled ? "已停用" : settings.plugins.enabled ? "可由 AI 按需加载" : "AI 扩展总开关关闭";
+            return <SettingRow key={`${prompt.applicationId}:${prompt.id}`} title={prompt.name} description={`${applicationLabel} · ${prompt.description || "第三方提示词"} · ${prompt.sourceRepository}/${prompt.sourcePath} · ${prompt.commit.slice(0, 12)} · 内容 SHA-256 ${prompt.contentSha256.slice(0, 12)}`} status={status}>
+              <Tag color={prompt.enabled && settings.plugins.enabled ? "green" : "default"}>{prompt.enabled ? "已登记" : "已停用"}</Tag>
+            </SettingRow>;
+          }) : <SettingRow title="没有已安装提示词" description="你可以在 AI Work 中让模型检查来源并按当前权限模式安装；提示词会绑定到指定账户和目标 App。" status="空清单"><Tag>0 项</Tag></SettingRow>}
+        </SettingGroup>
+        </> : null}
+        {pluginWorkspaceTab === "third-party" ? <SettingGroup title="第三方插件来源与运行状态">
+          {!canAdmin ? <SettingRow title="管理员管理" description="第三方插件来源检查、安装和生命周期操作需要管理员权限；已发布的内置能力目录仍可查看。" status="只读"><Tag>管理员专属</Tag></SettingRow> : <>
+            <SettingRow title="AI 自然语言安装" description="在通用工作台或 AI Work 中描述目标，模型可以搜索、检查固定提交和许可证，再按当前权限模式请求安装；本页展示安装及 Runtime 实际状态。" status="Profile 插件清单"><Tag>按权限模式执行</Tag></SettingRow>
+            <Space.Compact style={{ width: "100%" }}>
+              <Input aria-label="搜索 GitHub 插件" placeholder="用关键词搜索 GitHub 插件候选" maxLength={120} value={pluginSearchQuery} onChange={(event) => setPluginSearchQuery(event.target.value)} onPressEnter={() => void searchPluginSources()} />
+              <Button type="primary" disabled={!pluginSearchQuery.trim() || pluginOperation !== null} loading={pluginOperation === "search"} onClick={() => void searchPluginSources()}>搜索 GitHub</Button>
+            </Space.Compact>
+            {pluginCandidates.map((candidate) => <SettingRow key={candidate.url} title={candidate.fullName} description={`${candidate.description || "暂无说明。"} · ${candidate.stars.toLocaleString("zh-CN")} stars · 许可证 ${candidate.license ?? "未确认"}`} status="未检查候选">
+              <Space wrap><Tag>{candidate.defaultBranch}</Tag><Button size="small" disabled={pluginOperation !== null} onClick={() => void inspectPluginSource(candidate.url, candidate.defaultBranch)}>检查来源</Button></Space>
+            </SettingRow>)}
+            <Space direction="vertical" size="small" style={{ width: "100%" }}>
+              <Input aria-label="插件 GitHub 仓库地址" placeholder="https://github.com/owner/repository" value={pluginRepositoryUrl} onChange={(event) => { setPluginRepositoryUrl(event.target.value); setPluginInspection(null); }} />
+              <Space.Compact style={{ width: "100%" }}>
+                <Input aria-label="插件版本或分支" placeholder="提交、标签或分支（留空用默认分支）" maxLength={200} value={pluginRef} onChange={(event) => { setPluginRef(event.target.value); setPluginInspection(null); }} />
+                <Button disabled={!pluginRepositoryUrl.trim() || pluginOperation !== null} loading={pluginOperation === "inspect"} onClick={() => void inspectPluginSource()}>检查来源</Button>
+              </Space.Compact>
+            </Space>
+            {pluginInspection ? <SettingRow title={`${pluginInspection.name} · v${pluginInspection.version}`} description={pluginInspection.description || "来源没有提供说明。"} status={pluginInspection.canEnable ? "可由受支持适配器运行" : "当前不能运行"}>
+              <Space direction="vertical" size="small" align="start">
+                <Space wrap><Tag>{pluginInspection.compatibility}</Tag><Tag>{pluginInspection.license ?? "许可证未确认"}</Tag></Space>
+                <Typography.Text type="secondary">检查目标 App：通用工作台（安装时由 AI 工具使用本轮明确的目标 App）。</Typography.Text>
+                <Typography.Text copyable>{pluginInspection.repository.url} · {pluginInspection.resolvedCommit}</Typography.Text>
+                <Typography.Text type="secondary">SHA-256：{pluginInspection.archiveSha256}</Typography.Text>
+                <Typography.Text type="secondary">声明能力：{pluginInspection.capabilities.join("、") || "无"}</Typography.Text>
+                {pluginInspection.compatibility === "dsh-v1" ? <>
+                  <Typography.Text type="secondary">DSH 要求：{pluginInspection.requirements.dshVersion ?? "未声明版本"} · Host：{pluginInspection.requirements.hostEntry ?? "入口未在归档中确认"} · 补丁：{pluginInspection.requirements.bundlePatch ?? "未确认"}</Typography.Text>
+                  <Typography.Text type="secondary">Client：{pluginInspection.requirements.clientEntry ?? "未声明"} · 平台：{pluginInspection.requirements.clientPlatform ?? "未声明"} · 注入：{pluginInspection.requirements.clientInject.join("、") || "无"}</Typography.Text>
+                  <Typography.Text type="secondary">Peer dependencies：{Object.entries(pluginInspection.requirements.peerDependencies).map(([name, version]) => `${name} ${version}`).join("；") || "无"}</Typography.Text>
+                  <Typography.Text type="secondary">声明脚本：{pluginInspection.requirements.declaredScripts.join("、") || "无"}（只读取名称，不执行）</Typography.Text>
+                </> : null}
+                {pluginInspection.runtimeReason ? <Typography.Text type="warning">{pluginInspection.runtimeReason}</Typography.Text> : null}
+                <Typography.Text type="secondary">安装、启用或移除请在通用工作台或对应 AI Work 中用自然语言发起，由模型工具遵循权限模式执行。</Typography.Text>
+              </Space>
+            </SettingRow> : null}
+            {managedPlugins.length ? managedPlugins.map((plugin) => {
+              const status = plugin.state === "enabled" ? "插件 Runtime 已确认运行" : plugin.state === "installed" ? "已安装，未启用" : "运行适配不兼容";
+              const compatibility = plugin.compatibility === "lfaa-v1" ? "LFAA v1" : plugin.compatibility === "dsh-v1" ? "DSH bundle" : "未知合同";
+              const appNames = plugin.applicationIds.map(app => ({ workspace: "通用工作台", steamcmd: "SteamCMD", minecraft: "Minecraft", connectivity: "联机服务", writing: "写作" })[app]).join("、");
+              return <SettingRow key={plugin.id} title={`${plugin.name} · v${plugin.version}`} description={`${plugin.description || "暂无说明。"} · 目标 App：${appNames || "未登记"} · 来源 ${plugin.source.repository} · 固定提交 ${plugin.source.commit.slice(0, 12)}`} status={status}>
+                <Space wrap>
+                  <Tag color={plugin.state === "enabled" ? "green" : plugin.state === "incompatible" ? "orange" : undefined}>{compatibility}</Tag>
+                  <Tag>{plugin.source.license ?? "许可证未确认"}</Tag>
+                  {plugin.reason ? <Typography.Text type="warning">{plugin.reason}</Typography.Text> : null}
+                </Space>
+              </SettingRow>;
+            }) : <SettingRow title="当前 Profile 尚未安装第三方插件" description="候选来源必须先检查；安装记录会固定到 Git 提交并校验归档 SHA-256。" status="插件清单为空"><Tag>0 项</Tag></SettingRow>}
+            <Alert className="settings-inline-alert" type="warning" showIcon message="第三方源码默认不会在 LFAA 控制端或浏览器主页面执行。只有固定来源与提交的 Wallpaper Engine Host/Client Runtime Adapter 可用；其他 DSH 插件仍保持隔离且不可直接执行。" />
+          </>}
+        </SettingGroup> : null}
+        {pluginWorkspaceTab === "catalog" ? <SettingGroup title="能力目录">
           {extensions.length ? <div className="settings-extension-catalog">
             <div className="settings-extension-catalog__toolbar">
               <div className="settings-extension-catalog__filters" role="group" aria-label="按能力类型筛选">
@@ -2228,11 +2610,12 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
               <Button type="link" onClick={() => { setExtensionSearch(""); setExtensionKindFilter("all"); }}>清除筛选</Button>
             </div>}
           </div> : <SettingRow title="暂无扩展登记" description="Cordis 插件加载后，Agent、领域专家、提示词、技能和工具会显示在此。" status="空目录"><Tag>0 项</Tag></SettingRow>}
-        </SettingGroup>
+        </SettingGroup> : null}
+        {pluginWorkspaceTab === "diagnostics" ? <>
         <SettingGroup title="Cordis 模块管理">
           <SettingRow title="当前运行组合" description={`已运行 ${activeRuntimePluginCount}/${runtimePlugins.length} 个模块；核心依赖 ${runtimePluginHostReady ? "正常" : "未就绪"}。管理员操作立即生效，并保存为此控制端的全局配置。`} status={runtimePluginHostReady ? "核心模块正常" : "需要检查"}><Tag color={runtimePluginHostReady ? "green" : "orange"}>{canAdmin ? "管理员可管理可选模块" : "只读"}</Tag></SettingRow>
           <SettingRow title="源码热重载" description={hotReloadEnabled ? "开发环境源码监听器正在运行；修改 packages/ 内的受信任模块后由 Cordis 自动热替换，进行中的任务仍保留启动时使用的模块版本。" : "当前没有活动的源码监听器。正式运行环境不监听源码；启用开发环境 HMR 模块后才会自动热替换代码。"} status={hotReloadEnabled ? "自动热重载可用" : "未监听源码"}><Tag color={hotReloadEnabled ? "green" : "default"}>{hotReloadEnabled ? "免重启代码热替换" : "不可用"}</Tag></SettingRow>
-          <Alert className="settings-inline-alert" type="warning" showIcon message="停止可选模块会立即撤销其服务和资源；依赖模块或正在执行的相关请求可能受影响。‘重建实例’会重新运行模块，但不会替换已缓存的源码。第三方插件安装与隔离执行尚未开放。" />
+          <Alert className="settings-inline-alert" type="warning" showIcon message="停止可选模块会立即撤销其服务和资源；依赖模块或正在执行的相关请求可能受影响。‘重建实例’会重新运行模块，但不会替换已缓存的源码。第三方源码快照在下方单独登记；DSH Host/Client 基础运行时已接入，插件 UI 仍须映射到 LFAA 的设置与工作台 Owner 并通过实际运行验收后才可用。" />
           {runtimePluginGroups.map((group) => {
             const expanded = expandedRuntimePluginGroups.has(group.id);
             const groupActiveCount = group.plugins.filter((plugin) => plugin.enabled && plugin.state === "ACTIVE").length;
@@ -2270,22 +2653,22 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         <SettingGroup title="AI Runtime Hooks">
           {runtimeHooks.length ? runtimeHooks.map((hook) => <SettingRow key={hook.id} title={hook.id} description={`订阅事件：${hook.events.map((event) => event === "beforeInference" ? "推理前" : "推理后").join("、")}`} status="受信任插件"><Tag>生命周期钩子</Tag></SettingRow>) : <SettingRow title="暂无已注册钩子" description="AI 推理钩子通过 Cordis 插件生命周期注册；钩子只能观察元数据，不能改变权限或 Provider 请求。" status="空目录"><Tag>0 项</Tag></SettingRow>}
         </SettingGroup>
-        <SettingGroup title="运行策略">
-          <SettingRow title="允许 AI Work 使用扩展" description="关闭后，模型仍可对话，但登记的 Skills、Experts、Prompts 和 Tools 不会加入运行时。">
-            <SettingsSwitch label="启用扩展" checked={settings.plugins.enabled} onChange={() => updateSettings("plugins", { ...settings.plugins, enabled: !settings.plugins.enabled })} />
-          </SettingRow>
-        </SettingGroup>
-          <SettingGroup title="MCP 连接">
+        </> : null}
+        {pluginWorkspaceTab === "mcp" ? <>
+          <SettingGroup title="MCP 服务配置">
             {settings.plugins.mcpServers.map((server, index) => {
               const change = (patch: Partial<typeof server>) => updateSettings("plugins", { ...settings.plugins, mcpServers: settings.plugins.mcpServers.map((item, position) => position === index ? { ...item, ...patch } : item) });
-              return <SettingRow key={server.id} title={server.name || "MCP 服务"} description="连接已运行的 Streamable HTTP 服务。地址不能包含密钥；需要认证的服务须先配置本机代理。">
-                <Space direction="vertical"><Input aria-label="MCP 服务名称" value={server.name} maxLength={80} onChange={event => change({ name: event.target.value })} /><Input aria-label="MCP 服务地址" value={server.url} maxLength={1024} placeholder="http://127.0.0.1:端口/mcp" onChange={event => change({ url: event.target.value })} /><Space><SettingsSwitch label="连接 MCP" checked={server.enabled} onChange={() => change({ enabled: !server.enabled })} /><Button onClick={() => updateSettings("plugins", { ...settings.plugins, mcpServers: settings.plugins.mcpServers.filter(item => item.id !== server.id) })}>移除</Button></Space></Space>
+              const manifestState = server.manifestSha256 ? "已固定工具合同 SHA-256 " + server.manifestSha256.slice(0, 16) : "尚未固定工具合同";
+              return <SettingRow key={server.id} title={server.name || "MCP 服务"} description={"连接已运行的 Streamable HTTP 服务。地址不能包含密钥；需要认证的服务须先配置本机代理。只有选择的应用会向模型提供此服务的工具，工具调用仍遵循当前权限模式。 " + manifestState + "。"}>
+                <Space direction="vertical"><Input aria-label="MCP 服务名称" value={server.name} maxLength={80} onChange={event => change({ name: event.target.value })} /><Input aria-label="MCP 服务地址" value={server.url} maxLength={1024} placeholder="http://127.0.0.1:端口/mcp" onChange={event => change({ url: event.target.value })} /><Select mode="multiple" aria-label="MCP 可用应用范围" value={server.applicationIds} options={[...mcpApplicationOptions]} onChange={(values: string[]) => change({ applicationIds: values.filter((value): value is typeof mcpApplicationOptions[number]["value"] => mcpApplicationOptions.some(option => option.value === value)) })} placeholder="选择可用应用" /><Space><SettingsSwitch label="连接 MCP" checked={server.enabled} onChange={() => change({ enabled: !server.enabled })} /><Button onClick={() => updateSettings("plugins", { ...settings.plugins, mcpServers: settings.plugins.mcpServers.filter(item => item.id !== server.id) })}>移除</Button></Space></Space>
               </SettingRow>;
             })}
-            <Button disabled={settings.plugins.mcpServers.length >= 16} onClick={() => updateSettings("plugins", { ...settings.plugins, mcpServers: [...settings.plugins.mcpServers, { id: `m${crypto.randomUUID().slice(0, 12)}`, name: "", url: "", enabled: false }] })}>添加 MCP 服务</Button>
+            <Button disabled={settings.plugins.mcpServers.length >= 16} onClick={() => updateSettings("plugins", { ...settings.plugins, mcpServers: [...settings.plugins.mcpServers, { id: `m${crypto.randomUUID().slice(0, 12)}`, name: "", url: "", enabled: false, applicationIds: ["workspace"] }] })}>添加 MCP 服务</Button>
           </SettingGroup>
           <div className="settings-note-card"><strong>运行安全边界</strong><p>扩展工具必须提供真实执行实现；MCP 服务由你配置和运行，其工具沿用项目权限模式。模型不能自行添加连接。当前连接不支持 OAuth 或 stdio。</p></div>
         <SettingsActions saving={saving === "plugins"} onReset={() => resetSettings("plugins")} onSave={() => void persistSettings("plugins")} />
+        </> : null}
+        </div>
       </section>
     );
 
@@ -2346,6 +2729,38 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="角色模型" description="当前版本提供管理员与普通账户两种固定角色；细粒度 Permission 规则尚未接入。" status="部分接入"><Tag>管理员 / 普通账户</Tag></SettingRow>
         </SettingGroup>
         <SettingsActions saving={saving === "permissions"} onReset={() => resetSettings("permissions")} onSave={() => void persistSettings("permissions")} />
+      </section>
+    );
+
+    if (activeSection === "personalization") return (
+      <section className="settings-content">
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">个人</span><Typography.Title level={2}>个性化</Typography.Title><Typography.Paragraph>为后续 AI Work 对话保存少量账户级偏好，帮助 LFAA 更贴合你的工作方式。</Typography.Paragraph></div></header>
+        <SettingGroup title="AI Work 记忆">
+          <SettingRow title="启用 AI Work 记忆" description="开启后，LFAA 只会处理启用后新完成的 AI Work 对话，不回看或整理旧聊天。关闭会暂停使用与生成，已有记忆会保留；记忆保存在本机控制端，并按当前账户隔离。" status={settings.personalization.memoryEnabled ? "已开启" : "默认关闭"}>
+            <SettingsSwitch label="启用 AI Work 记忆" checked={settings.personalization.memoryEnabled} onChange={() => updateSettings("personalization", { ...settings.personalization, memoryEnabled: !settings.personalization.memoryEnabled })} />
+          </SettingRow>
+          <SettingRow title="允许从使用工具的聊天中生成记忆" description="开启后，符合条件的工具聊天会把本轮问题、助手最终回复和已有记忆发送到当前 Provider 整理；不会发送原始工具参数或工具输出。每次最多增加一次有界模型请求和相应用量。" status={settings.personalization.memoryFromToolChats ? "已允许" : "默认关闭"}>
+            <SettingsSwitch label="允许从使用工具的聊天中生成记忆" checked={settings.personalization.memoryFromToolChats} disabled={!settings.personalization.memoryEnabled} onChange={() => updateSettings("personalization", { ...settings.personalization, memoryFromToolChats: !settings.personalization.memoryFromToolChats })} />
+          </SettingRow>
+          <div className="settings-memory-editor">
+            <div className="settings-memory-editor__heading">
+              <strong>查看与编辑已保存的记忆</strong>
+              <span>每行一条；最多 16 条、每条 240 字。常见凭据和个人标识会在保存或发送整理请求前过滤，但无法保证识别所有敏感表达。</span>
+            </div>
+            <Input.TextArea aria-label="查看与编辑已保存的 AI Work 记忆" rows={7} value={conversationMemoryDraft} disabled={loadingConversationMemories || !conversationMemorySnapshot} onChange={(event) => setConversationMemoryDraft(event.target.value)} placeholder="每行输入一条稳定偏好或长期背景" />
+            <div className="settings-memory-editor__actions">
+              <Typography.Text type={conversationMemoryDraftOverLimit ? "danger" : "secondary"}>{loadingConversationMemories ? "正在读取…" : `${conversationMemoryDraftItems.length} / 16 条${conversationMemoryDraftOverLimit ? " · 检查数量、重复项或长度" : ""}`}</Typography.Text>
+              <Button type="primary" loading={savingConversationMemories} disabled={loadingConversationMemories || !conversationMemorySnapshot || conversationMemoryDraftOverLimit} onClick={() => void saveCurrentConversationMemories()}>保存记忆</Button>
+            </div>
+          </div>
+          <SettingRow title="删除 AI Work 记忆" description="清除当前账户的全部对话记忆，并从已保存的模型请求快照中移除 LFAA 注入的记忆正文；原始聊天消息、工具审批授权和 Markdown 知识库会保留。" status="当前账户">
+            <Popconfirm title="删除当前账户的全部 AI Work 记忆？" description="同时从已保存的模型请求快照中移除注入记忆正文；聊天原文会保留。" okText="删除记忆" cancelText="取消" onConfirm={() => void clearCurrentConversationMemories()}>
+              <Button danger loading={deletingConversationMemories}>删除</Button>
+            </Popconfirm>
+          </SettingRow>
+        </SettingGroup>
+        <Alert className="settings-inline-alert" type="info" showIcon message="记忆整理在回答完成后后台运行，不会拖延主回答；最多同时整理 4 轮，同一账户已有整理任务时会跳过新一轮。它会使用当前已配置的 Provider 并增加模型用量。发送前会在本机过滤可识别的常见敏感内容，但规则无法识别所有情况。仅成功完成的根级 AI Work 轮次可整理；失败、取消和子 Agent 轮次不会生成记忆。" />
+        <SettingsActions saving={saving === "personalization"} onReset={() => resetSettings("personalization")} onSave={() => void persistSettings("personalization")} />
       </section>
     );
 
@@ -2474,6 +2889,79 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       </section>
     );
 
+    if (activeSection === "computerControl") {
+      const computerControlEnabled = isComputerControlEnabled(settings);
+      return (
+        <section className="settings-content">
+          <header className="settings-content__heading"><div><span className="settings-eyebrow">本机桌面</span><Typography.Title level={2}>电脑操控</Typography.Title><Typography.Paragraph>管理 Agent 是否可以使用本机电脑操控工具。打开后，模型会根据你的任务决定是否调用；进入此设置页或切换开关都不会操作电脑。</Typography.Paragraph></div></header>
+          <SettingGroup title="本机访问权限">
+            <SettingRow title="任意应用" description="允许模型通过本机电脑操控工具与当前桌面上的应用交互；开关只授权能力，模型按任务决定是否调用，鼠标和键盘动作仍按当前权限模式审批。" status={computerControlEnabled ? "Agent 已获准" : "默认关闭"}>
+              <SettingsSwitch label="任意应用" checked={computerControlEnabled} onChange={() => updateSettings("computerControl", { enabled: !computerControlEnabled })} />
+            </SettingRow>
+          </SettingGroup>
+          <div className="settings-note-card"><strong>模型如何使用</strong><p>开关只决定本账户是否向模型开放已装配的电脑操控工具，不会安装或启动驱动。模型需要根据任务主动选择工具；实际执行时先观察屏幕、动作后再观察核对。密码、验证码、支付资料和 API 密钥须由你自行输入。</p></div>
+          <SettingsActions saving={saving === "computerControl"} onReset={() => resetSettings("computerControl")} onSave={() => void persistSettings("computerControl")} />
+        </section>
+      );
+    }
+
+    if (activeSection === "about") {
+      const updateStatusLabel = desktopUpdateResult?.status === "up-to-date" ? "已是最新"
+        : desktopUpdateResult?.status === "deferred" ? "已暂缓"
+          : desktopUpdateResult?.status === "downloading" ? "正在下载"
+            : desktopUpdateResult?.status === "downloaded" ? "已下载"
+              : desktopUpdateResult?.status === "disabled" ? "更新未开放"
+                : desktopUpdateResult?.status === "error" ? "检查失败"
+                  : desktopUpdateRuntime?.supported ? "可手动检查" : "当前平台未支持";
+      const currentVersion = desktopUpdateRuntime?.supported
+        ? desktopUpdateRuntime.currentVersion || desktopUpdateResult?.currentVersion || "读取中"
+        : desktopUpdateRuntime ? "当前平台未接入" : "读取中";
+      const updateMessage = desktopUpdateResult?.status === "up-to-date" ? `LFAA ${currentVersion} 已是最新版本。`
+        : desktopUpdateResult?.status === "deferred" ? `已暂缓 LFAA ${desktopUpdateResult.latestVersion ?? "新版本"}；本次不会下载。`
+          : desktopUpdateResult?.status === "downloading" ? `已开始下载 LFAA ${desktopUpdateResult.latestVersion ?? "新版本"}。下载完成后会再次询问是否安装。`
+            : desktopUpdateResult?.status === "downloaded" ? `LFAA ${desktopUpdateResult.latestVersion ?? "新版本"} 已下载，等待安装确认。`
+              : desktopUpdateResult?.status === "disabled" ? "当前发布清单暂未开放更新。"
+        : desktopUpdateResult?.status === "error" ? desktopUpdateResult.message || "检查更新失败，请查看桌面日志。"
+                  : "应用启动后及运行期间每 6 小时自动检查；你也可以随时手动检查。";
+      const updateAlertType = desktopUpdateResult?.status === "error" ? "error"
+        : desktopUpdateResult?.status === "up-to-date" ? "success"
+          : "info";
+      return (
+        <section className="settings-content">
+          <header className="settings-content__heading"><div><span className="settings-eyebrow">应用信息</span><Typography.Title level={2}>关于与更新</Typography.Title><Typography.Paragraph>查看当前版本，检查 LFAA 官方发布的新版本。是否下载由你决定。</Typography.Paragraph></div></header>
+          <SettingGroup title="版本与更新">
+            <SettingRow title="当前版本" description={desktopUpdateRuntime?.supported ? "版本号由桌面宿主提供，不写入账户设置。" : "当前平台尚无可查询的原生应用版本号。"} status={desktopUpdateRuntime?.supported ? "已安装" : "平台未接入"}>
+              <Tag>{desktopUpdateRuntime?.supported ? `LFAA ${currentVersion}` : currentVersion}</Tag>
+            </SettingRow>
+            <SettingRow title="检查更新" description={desktopUpdateRuntime?.supported ? "检查官方版本清单；发现新版本后会先询问你，再开始下载。" : "自动更新目前仅接入已安装的 Windows Electron 版；Tauri 与 Android 客户端尚未接入更新宿主。"} status={updateStatusLabel}>
+              <Button type="primary" disabled={!desktopUpdateRuntime?.supported} loading={checkingDesktopUpdates} onClick={() => void checkDesktopUpdates()}>检查更新</Button>
+            </SettingRow>
+          </SettingGroup>
+          {desktopUpdateResult ? <Alert className="settings-inline-alert" type={updateAlertType} showIcon message={updateMessage} description={desktopUpdateResult.releaseNotes?.length ? desktopUpdateResult.releaseNotes.join("；") : undefined} /> : null}
+        </section>
+      );
+    }
+
+    if (activeSection === "git") return (
+      <section className="settings-content">
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">本地版本管理</span><Typography.Title level={2}>Git</Typography.Title><Typography.Paragraph>在 AI Work 项目中查看真实 Git 差异，并从原项目创建隔离 Worktree。此设置只影响本地分支命名；远端、Pull Request 和推送功能尚未接入。</Typography.Paragraph></div></header>
+        <SettingGroup title="AI Worktree 分支">
+          <SettingRow title="分支前缀" description="创建 AI Worktree 时添加在分支名称前。必须以斜线结尾；Git 会再次校验完整分支名。" status="账户设置">
+            <Input value={settings.git.branchPrefix} maxLength={65} placeholder="codex/" onChange={(event) => updateSettings("git", { ...settings.git, branchPrefix: event.target.value })} />
+          </SettingRow>
+        </SettingGroup>
+        <div className="settings-note-card"><strong>变更与恢复</strong><p>AI Work 右侧摘要读取目标 Daemon 的 Git 状态和 diff。隔离 Worktree 可恢复到创建时的基线；源项目不会被该恢复操作修改。</p></div>
+        <SettingsActions saving={saving === "git"} onReset={() => resetSettings("git")} onSave={() => void persistSettings("git")} />
+      </section>
+    );
+
+    if (activeSection === "worktrees") return (
+      <section className="settings-content">
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">本地版本管理</span><Typography.Title level={2}>Worktrees</Typography.Title><Typography.Paragraph>查看并移除当前账户由 LFAA 创建的隔离 AI 工作树。删除工作树会移除其目录；原始项目保留。</Typography.Paragraph></div></header>
+        <GitWorktreesSettings />
+      </section>
+    );
+
     const pending = pendingSections[activeSection];
     if (pending) {
       const selectedSection = sections.find((section) => section.id === activeSection);
@@ -2483,7 +2971,6 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingGroup title="功能状态">
             <SettingRow title={selectedSection?.title ?? "设置模块"} description={pending.description} status="当前版本状态"><Tag>{pending.status}</Tag></SettingRow>
           </SettingGroup>
-          {activeSection === "personalization" ? <Button type="primary" onClick={() => selectSection("appearance")}>打开外观设置</Button> : null}
           {activeSection === "environment" ? <Button type="primary" onClick={() => selectSection("general")}>查看常规环境偏好</Button> : null}
           <div className="settings-note-card"><strong>接入说明</strong><p>此入口已保留在设置导航中。相关宿主能力接入后，会在此页提供可实际使用的配置项和运行状态。</p></div>
         </section>
@@ -2534,7 +3021,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const activeError = (providerModalOpen ? undefined : error) || sectionErrors[activeSection] || (activeSettingsCategory ? settingsSaveErrors[activeSettingsCategory] : undefined);
   const main = (
     <main ref={settingsContentScroll.ref} className="settings-main" onScroll={settingsContentScroll.onScroll}>
-      {sidebarCollapsed ? <Button className="settings-sidebar-open" aria-label="展开设置导航" onClick={() => setSidebarCollapsed(false)}>☰ 设置菜单</Button> : null}
+      {sidebarCollapsed ? <div className="settings-sidebar-open-bar"><Button className="settings-sidebar-open" aria-label="展开设置导航" onClick={() => setSidebarCollapsed(false)}>☰ 设置菜单</Button></div> : null}
         {activeError ? <Alert className="settings-page-alert" type="error" showIcon message={activeError} closable onClose={() => { setError(""); setSectionErrors((current) => ({ ...current, [activeSection]: undefined })); }} /> : null}
         {loadingSection === activeSection ? <div className="settings-loading"><span className="loading-indicator" /><span>正在读取设置…</span></div> : sectionContent}
     </main>
@@ -2578,6 +3065,12 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           layoutMode={layout.mode}
         />
       </div>
+      {settingsSaveFeedback ? <div key={settingsSaveFeedback.id} className="settings-save-feedback" role={settingsSaveFeedback.status === "success" ? "status" : "alert"} aria-live={settingsSaveFeedback.status === "success" ? "polite" : "assertive"} aria-atomic="true">
+        <div className={`settings-save-feedback__card settings-save-feedback__card--${settingsSaveFeedback.status}`}>
+          <span className="settings-save-feedback__icon"><WorkbenchIcon name={settingsSaveFeedback.status === "success" ? "review" : "close"} size={19} /></span>
+          <span className="settings-save-feedback__copy"><strong>{settingsSaveFeedback.status === "success" ? "保存成功" : "保存未成功"}</strong><span>{settingsSaveFeedback.message}</span></span>
+        </div>
+      </div> : null}
       <Modal title="无项目任务文件夹" open={folderModalOpen} okText="保存路径" cancelText="取消" onCancel={() => setFolderModalOpen(false)} onOk={() => { updateGeneral({ taskFolder: folderDraft.trim() }); setFolderModalOpen(false); }}>
         <Typography.Paragraph type="secondary">填写桌面宿主或受控节点上的默认任务目录。Web 端不会通过此路径访问本机文件。</Typography.Paragraph>
         <Input autoFocus maxLength={512} value={folderDraft} onChange={(event) => setFolderDraft(event.target.value)} placeholder="例如：C:\\Users\\用户名\\Documents\\LFAA" />

@@ -1,0 +1,14 @@
+{
+  "name": "lfaa-subprocess",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

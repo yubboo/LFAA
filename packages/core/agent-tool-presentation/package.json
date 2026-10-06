@@ -1,0 +1,14 @@
+{
+  "name": "lfaa-agent-tool-presentation",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

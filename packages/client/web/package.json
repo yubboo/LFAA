@@ -13,6 +13,7 @@
     "lfaa-client-modules": "workspace:*",
     "lfaa-client-ui-chat": "workspace:*",
     "lfaa-client-ui-commands": "workspace:*",
+    "lfaa-client-ui-connectivity": "workspace:*",
     "lfaa-client-ui-dockkit": "workspace:*",
     "lfaa-client-ui-layout": "workspace:*",
     "lfaa-client-ui-minecraft": "workspace:*",

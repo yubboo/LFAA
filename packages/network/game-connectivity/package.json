@@ -1,0 +1,25 @@
+{
+  "name": "lfaa-game-connectivity",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-credentials": "workspace:*",
+    "lfaa-home-paths": "workspace:*",
+    "lfaa-launch-environment": "workspace:*",
+    "lfaa-storage-json": "workspace:*",
+    "lfaa-util-values": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

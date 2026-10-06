@@ -2,14 +2,18 @@
 import { mkdirSync, chmodSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import { database, migrateWorkspaceSchema, migrateWritingCatalogSchema } from "lfaa-storage-sqlite/src/database.js";
+import { database, migrateWorkspaceSchema, migrateWritingCatalogSchema, migrateExecutionControlSchema, migrateMinecraftCoreSchema, migrateWorkspaceProjectSchema, migrateWorkspaceGitSchema, migrateWorkspaceProjectApplicationSchema, migrateWritingEditProposalSchema, migrateStorageHubSchema, migrateWritingBookProfileSchema, migrateKnowledgeLibrarySchema, migrateConversationMemorySchema, migrateMinecraftWorkflowSchema, migrateApplicationWorkflowSchema, migrateWorkflowRunCurrentNodeSchema, migrateConfigurationStorageSchema } from "lfaa-storage-sqlite/src/database.js";
 import { config } from "lfaa-launch-environment/src/config.js";
 import { JsonStorageBackend } from "lfaa-storage-json/src/index.js";
-import { configurationTables } from "./configuration.js";
+import { configuration, configurationTables } from "./configuration.js";
 import { withControlLock } from "./control-lock.js";
 export function retireLegacyFileTables(): void {
   const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
-  if (version >= 31) { migrateWorkspaceSchema(); migrateWritingCatalogSchema(); return; }
+  if (version >= 31) {
+    migrateWorkspaceSchema(); migrateWritingCatalogSchema(); migrateExecutionControlSchema(); migrateMinecraftCoreSchema(); migrateWorkspaceProjectSchema(); migrateWorkspaceGitSchema(); migrateWorkspaceProjectApplicationSchema(); migrateWritingEditProposalSchema(); migrateStorageHubSchema(); migrateWritingBookProfileSchema(); migrateKnowledgeLibrarySchema(); migrateConversationMemorySchema(); migrateMinecraftWorkflowSchema(); migrateApplicationWorkflowSchema(); migrateWorkflowRunCurrentNodeSchema(); migrateConfigurationStorageSchema();
+    configuration.activateSqliteStorage();
+    return;
+  }
   const metadata = new JsonStorageBackend(resolve(config.dataDirectory, "storages"));
   if (!metadata.read("configuration") || !metadata.read("session-migration")) throw new Error("文件存储迁移尚未完成，拒绝退役旧表。");
   const directory = resolve(config.dataDirectory, "credentials", "storage-migration-backups");
@@ -24,4 +28,19 @@ export function retireLegacyFileTables(): void {
   });
   migrateWorkspaceSchema();
   migrateWritingCatalogSchema();
+  migrateExecutionControlSchema();
+  migrateMinecraftCoreSchema();
+  migrateWorkspaceProjectSchema();
+  migrateWorkspaceGitSchema();
+  migrateWorkspaceProjectApplicationSchema();
+  migrateWritingEditProposalSchema();
+  migrateStorageHubSchema();
+  migrateWritingBookProfileSchema();
+  migrateKnowledgeLibrarySchema();
+  migrateConversationMemorySchema();
+  migrateMinecraftWorkflowSchema();
+  migrateApplicationWorkflowSchema();
+  migrateWorkflowRunCurrentNodeSchema();
+  migrateConfigurationStorageSchema();
+  configuration.activateSqliteStorage();
 }

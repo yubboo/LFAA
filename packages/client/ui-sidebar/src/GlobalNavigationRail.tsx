@@ -18,6 +18,7 @@ const applicationLabels: Record<AiSession["appId"], string> = {
   workspace: "通用任务",
   steamcmd: "SteamCMD 游戏服务",
   minecraft: "Minecraft 管理",
+  connectivity: "LFAA 联机服务",
   writing: "写作空间"
 };
 

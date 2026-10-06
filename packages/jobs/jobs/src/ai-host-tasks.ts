@@ -22,6 +22,7 @@ export interface AiHostTaskResult {
   exitCode: number | null;
   timedOut: boolean;
   outputTruncated: boolean;
+  cancelled?: boolean;
 }
 
 export interface AiHostTask {
@@ -39,6 +40,8 @@ export interface AiHostTask {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+  cancelRequested: boolean;
+  outputSequence: number;
 }
 
 interface AiHostTaskRow {
@@ -56,6 +59,8 @@ interface AiHostTaskRow {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  cancel_requested: number;
+  output_sequence: number;
 }
 
 function parseResult(value: string | null): AiHostTaskResult | null {
@@ -72,7 +77,8 @@ function parseResult(value: string | null): AiHostTaskResult | null {
       stderr: record.stderr,
       exitCode: record.exitCode,
       timedOut: record.timedOut,
-      outputTruncated: record.outputTruncated
+      outputTruncated: record.outputTruncated,
+      cancelled: record.cancelled === true
     };
   } catch {
     return null;
@@ -94,7 +100,9 @@ function toTask(row: AiHostTaskRow): AiHostTask {
     result: parseResult(row.result_json),
     createdAt: row.created_at,
     startedAt: row.started_at,
-    finishedAt: row.finished_at
+    finishedAt: row.finished_at,
+    cancelRequested: row.cancel_requested === 1,
+    outputSequence: row.output_sequence ?? 0
   };
 }
 
@@ -121,8 +129,9 @@ export function createAiHostTask(input: {
   timeoutSeconds: number;
 }): AiHostTask {
   const node = getDaemonNode(input.nodeId);
-  if (!node || node.status !== "online" || Date.parse(node.lastSeenAt) < Date.now() - 20_000 || !node.capabilities.includes(input.shell === "project-files" ? "project-files-v1" : "agent-shell-v1")) {
-    throw new Error(`目标 Daemon 节点离线或尚未报告 ${input.shell === "project-files" ? "project-files-v1" : "agent-shell-v1"} 能力。请先读取主机节点列表。`);
+  const requiredCapability = input.shell === "project-files" ? "project-files-v1" : "agent-shell-v1";
+  if (!node || node.status !== "online" || Date.parse(node.lastSeenAt) < Date.now() - 20_000 || !node.capabilities.includes(requiredCapability)) {
+    throw new Error(`目标 Daemon 节点离线或尚未报告 ${requiredCapability} 能力。请先读取主机节点列表。`);
   }
   clearExpiredAiHostTaskResults();
   const id = randomUUID();
@@ -134,13 +143,19 @@ export function createAiHostTask(input: {
 }
 
 export function getAiHostTask(taskId: string): AiHostTask | null {
+  failExpiredAiHostTasks();
   const row = database.prepare("SELECT * FROM ai_host_tasks WHERE id = ?").get(taskId) as AiHostTaskRow | undefined;
   return row ? toTask(row) : null;
 }
 
 /** 命令面板仅返回当前账户最近的真实任务摘要，正文按任务独立查询。 */
 export function listUserAiHostTasks(userId: string): Array<Omit<AiHostTask, "command" | "result">> {
-  const rows = database.prepare("SELECT * FROM ai_host_tasks WHERE created_by = ? ORDER BY created_at DESC LIMIT 50").all(userId) as unknown as AiHostTaskRow[];
+  failExpiredAiHostTasks();
+  // 摘要只读取元数据；禁止先复制/解析所有任务的 MiB 输出再丢弃，正文仍由单任务接口提供。
+  const rows = database.prepare(`SELECT id, node_id, created_by, app_id, shell, working_directory,
+    timeout_seconds, status, message, created_at, started_at, finished_at, cancel_requested, output_sequence,
+    '' AS command, NULL AS result_json
+    FROM ai_host_tasks WHERE created_by = ? ORDER BY created_at DESC LIMIT 50`).all(userId) as unknown as AiHostTaskRow[];
   return rows.map(row => { const { command: _command, result: _result, ...summary } = toTask(row); return summary; });
 }
 
@@ -154,12 +169,13 @@ export function renewAiHostTaskLeases(nodeId: string, taskIds: string[]): number
   const placeholders = taskIds.map(() => "?").join(", ");
   const result = database.prepare(`
     UPDATE ai_host_tasks SET lease_expires_at = ?
-    WHERE node_id = ? AND status = 'running' AND id IN (${placeholders})
-  `).run(expiresAt, nodeId, ...taskIds);
+    WHERE node_id = ? AND status = 'running' AND id IN (${placeholders}) AND lease_expires_at > ?
+  `).run(expiresAt, nodeId, ...taskIds, new Date().toISOString());
   return Number(result.changes);
 }
 
 export function claimNextAiHostTask(nodeId: string): AiHostTask | null {
+  failExpiredAiHostTasks();
   const node = getDaemonNode(nodeId);
   if (!node || node.status !== "online") return null;
   const canRunShell = node.capabilities.includes("agent-shell-v1");
@@ -214,14 +230,47 @@ export function completeAiHostTask(input: {
   message: string;
   result: AiHostTaskResult;
 }): boolean {
-  const status: AiHostTaskStatus = input.succeeded ? "succeeded" : "failed";
+  // 执行器必须回传实际退出结果；布尔标志不能把取消/超时/未知结果改成成功。
+  const status: AiHostTaskStatus = input.succeeded && input.result.exitCode === 0 && !input.result.timedOut && !input.result.cancelled ? "succeeded" : "failed";
   const now = new Date().toISOString();
   const update = database.prepare(`
     UPDATE ai_host_tasks
     SET status = ?, message = ?, command = '', working_directory = '', result_json = ?, finished_at = ?, lease_expires_at = NULL
-    WHERE id = ? AND node_id = ? AND status = 'running'
-  `).run(status, input.message, JSON.stringify(input.result), now, input.taskId, input.nodeId);
+    WHERE id = ? AND node_id = ? AND status = 'running' AND lease_expires_at > ?
+  `).run(status, input.message, JSON.stringify(input.result), now, input.taskId, input.nodeId, now);
   return Number(update.changes) === 1;
+}
+
+/** 取消排队任务可以确认未执行；运行任务只记录请求，必须等执行器确认 close 后才结束。 */
+export function requestAiHostTaskCancellation(taskId: string, userId: string): boolean {
+  const task = getAiHostTask(taskId);
+  if (!task || task.createdBy !== userId) return false;
+  if (task.status === "succeeded" || task.status === "failed") return true;
+  if (task.status === "queued") {
+    database.prepare("UPDATE ai_host_tasks SET cancel_requested = 1, status = 'failed', command = '', working_directory = '', message = '任务在执行前已取消。', result_json = ?, finished_at = ? WHERE id = ? AND created_by = ? AND status = 'queued'")
+      .run(JSON.stringify({ stdout: "", stderr: "", exitCode: null, timedOut: false, outputTruncated: false, cancelled: true }), new Date().toISOString(), taskId, userId);
+  } else {
+    database.prepare("UPDATE ai_host_tasks SET cancel_requested = 1, message = '已请求节点终止进程树；尚未确认终止结果。' WHERE id = ? AND created_by = ? AND status = 'running'").run(taskId, userId);
+  }
+  return true;
+}
+
+export function listAiHostCancellationRequests(nodeId: string): string[] {
+  return (database.prepare("SELECT id FROM ai_host_tasks WHERE node_id = ? AND status = 'running' AND cancel_requested = 1").all(nodeId) as Array<{ id: string }>).map(row => row.id);
+}
+
+/** 保存单调递增、总量受限的输出快照；重复/乱序传输不能覆盖较新的证据。 */
+export function updateAiHostTaskOutput(taskId: string, nodeId: string, sequence: number, result: AiHostTaskResult): boolean {
+  if (!Number.isSafeInteger(sequence) || sequence < 1 || Buffer.byteLength(result.stdout) > 1024 * 1024 || Buffer.byteLength(result.stderr) > 1024 * 1024) return false;
+  const now = new Date().toISOString();
+  const update = database.prepare("UPDATE ai_host_tasks SET result_json = ?, output_sequence = ? WHERE id = ? AND node_id = ? AND status = 'running' AND output_sequence < ? AND lease_expires_at > ?")
+    .run(JSON.stringify(result), sequence, taskId, nodeId, sequence, now);
+  return Number(update.changes) === 1;
+}
+
+function failExpiredAiHostTasks(): void {
+  const now = new Date().toISOString();
+  database.prepare("UPDATE ai_host_tasks SET status = 'failed', message = '节点任务租约已过期，执行结果未知；不会自动重放。', command = '', working_directory = '', finished_at = ?, lease_expires_at = NULL WHERE status = 'running' AND (lease_expires_at IS NULL OR lease_expires_at <= ?)").run(now, now);
 }
 
 function clearExpiredAiHostTaskResults(): void {

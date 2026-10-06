@@ -1,7 +1,7 @@
 /**
  * 文件：database.ts
  * 功能：打开控制端 SQLite 数据库并依次执行结构迁移。
- * 作用：持久化账户、身份权限、节点及应用任务；保留旧版本导入链和会话头投影，版本 31 后配置与 AI 消息由 JSON/JSONL 负责。
+ * 作用：持久化账户、身份权限、节点、应用任务及按记录存储的结构化配置；会话事件继续由 JSONL 负责。
  * 关联文件：packages/util/launch-environment/src/config.ts、packages/identity/auth/src/service.ts、packages/identity/auth/src/passkeys.ts、packages/settings/settings/src/preferences/service.ts、packages/settings/settings/src/service.ts、packages/fs/fs/src/queue.ts、packages/games/steamcmd/src/service.ts。
  * 修改注意事项：迁移必须按版本递增并保持可重复启动；不得删除用户数据来绕过迁移。
  */
@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 33;
+const latestSupportedDatabaseVersion = 47;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -1091,3 +1091,446 @@ export function migrateWritingCatalogSchema(): void {
 // 已完成文件存储迁移的账户可立即升级；旧版本须先由协调器完成版本 31 再调用。
 migrateWorkspaceSchema();
 migrateWritingCatalogSchema();
+
+/** 版本 34 保存取消/增量输出事实，增加实例重启与控制台动作；旧任务及日志完整保留。 */
+export function migrateExecutionControlSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 33 || version >= 34) return;
+  database.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE;");
+  try {
+    const row = database.prepare("SELECT sql FROM sqlite_master WHERE name = 'minecraft_tasks' AND type = 'table'").get();
+    if (typeof row?.sql !== "string") throw new Error("缺少 Minecraft 任务表，拒绝执行迁移。");
+    const indexes = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'minecraft_tasks' AND sql IS NOT NULL").all();
+    const schema = row.sql.replace(/^CREATE TABLE\s+"?minecraft_tasks"?/u, "CREATE TABLE minecraft_tasks_v34")
+      .replace("'install', 'start', 'stop', 'properties', 'backup', 'java-install'", "'install', 'start', 'stop', 'properties', 'backup', 'java-install', 'restart', 'console'");
+    if (!schema.includes("'console'")) throw new Error("Minecraft 任务约束与版本 34 不匹配。");
+    database.exec(schema);
+    database.exec("INSERT INTO minecraft_tasks_v34 SELECT * FROM minecraft_tasks; DROP TABLE minecraft_tasks; ALTER TABLE minecraft_tasks_v34 RENAME TO minecraft_tasks;");
+    for (const index of indexes) database.exec(String(index.sql));
+    database.exec(`
+      ALTER TABLE ai_host_tasks ADD COLUMN cancel_requested INTEGER NOT NULL DEFAULT 0 CHECK (cancel_requested IN (0, 1));
+      ALTER TABLE ai_host_tasks ADD COLUMN output_sequence INTEGER NOT NULL DEFAULT 0;
+      CREATE TABLE daemon_credentials (
+        node_id TEXT PRIMARY KEY NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        display_name TEXT NOT NULL,
+        revoked INTEGER NOT NULL DEFAULT 0 CHECK (revoked IN (0, 1)),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+    `);
+    if (database.prepare("PRAGMA foreign_key_check").all().length) throw new Error("执行控制迁移外键校验失败。");
+    database.exec("PRAGMA user_version = 34; COMMIT;");
+  } catch (error) { database.exec("ROLLBACK;"); throw error; }
+  finally { database.exec("PRAGMA foreign_keys = ON;"); }
+}
+migrateExecutionControlSchema();
+
+/** 版本 35 扩展多核心持久元数据；旧 Vanilla、部署、任务外键和索引原样保留。 */
+export function migrateMinecraftCoreSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 34 || version >= 35) return;
+  database.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE;");
+  try {
+    const row = database.prepare("SELECT sql FROM sqlite_master WHERE name = 'minecraft_deployments' AND type = 'table'").get();
+    if (typeof row?.sql !== "string") throw new Error("缺少 Minecraft 部署表，拒绝迁移。");
+    const indexes = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'minecraft_deployments' AND sql IS NOT NULL").all();
+    const schema = row.sql.replace(/^CREATE TABLE\s+"?minecraft_deployments"?/u, "CREATE TABLE minecraft_deployments_v35")
+      .replace("CHECK (server_type IN ('vanilla'))", "CHECK (length(server_type) BETWEEN 1 AND 32)");
+    if (schema === row.sql || schema.includes("server_type IN ('vanilla')")) throw new Error("核心表结构与迁移合同不符。");
+    database.exec(schema);
+    database.exec("INSERT INTO minecraft_deployments_v35 SELECT * FROM minecraft_deployments; DROP TABLE minecraft_deployments; ALTER TABLE minecraft_deployments_v35 RENAME TO minecraft_deployments;");
+    for (const index of indexes) database.exec(String(index.sql));
+    database.exec(`
+      ALTER TABLE minecraft_deployments ADD COLUMN core_build TEXT NOT NULL DEFAULT '';
+      ALTER TABLE minecraft_deployments ADD COLUMN artifact_json TEXT;
+      ALTER TABLE minecraft_deployments ADD COLUMN automatic INTEGER NOT NULL DEFAULT 0 CHECK (automatic IN (0, 1));
+      ALTER TABLE minecraft_instances ADD COLUMN core_type TEXT NOT NULL DEFAULT 'Vanilla';
+      ALTER TABLE minecraft_instances ADD COLUMN core_build TEXT NOT NULL DEFAULT '';
+      ALTER TABLE minecraft_instances ADD COLUMN execution_mode TEXT NOT NULL DEFAULT 'appcontainer' CHECK (execution_mode IN ('appcontainer', 'native'));
+    `);
+    if (database.prepare("PRAGMA foreign_key_check").all().length) throw new Error("多核心迁移外键核查失败。");
+    database.exec("PRAGMA user_version = 35; COMMIT;");
+  } catch (error) { database.exec("ROLLBACK;"); throw error; }
+  finally { database.exec("PRAGMA foreign_keys = ON;"); }
+}
+migrateMinecraftCoreSchema();
+
+/** 版本 36 为账户保存通用项目目录登记；移除登记不会级联删除节点文件或会话日志。 */
+export function migrateWorkspaceProjectSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 35 || version >= 36) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE workspace_projects (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+        path TEXT NOT NULL,
+        path_key TEXT NOT NULL,
+        title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 120),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT;
+      CREATE UNIQUE INDEX workspace_projects_user_node_path_idx
+        ON workspace_projects(user_id, node_id, path_key);
+      CREATE INDEX workspace_projects_user_recent_idx
+        ON workspace_projects(user_id, updated_at DESC, id);
+      PRAGMA user_version = 36;
+      COMMIT;
+    `);
+  } catch (error) { database.exec("ROLLBACK;"); throw error; }
+}
+migrateWorkspaceProjectSchema();
+
+/** 版本 37 为账户隔离的 Git Worktree 保存可恢复基线和 Daemon 归属。 */
+export function migrateWorkspaceGitSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 36 || version >= 37) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE workspace_git_worktrees (
+        project_id TEXT PRIMARY KEY NOT NULL REFERENCES workspace_projects(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        source_project_id TEXT NOT NULL REFERENCES workspace_projects(id) ON DELETE RESTRICT,
+        node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+        worktree_id TEXT NOT NULL CHECK (length(worktree_id) = 36),
+        worktree_root TEXT NOT NULL,
+        project_relative_path TEXT NOT NULL DEFAULT '',
+        branch TEXT NOT NULL CHECK (length(branch) BETWEEN 1 AND 255),
+        base_commit TEXT NOT NULL CHECK (length(base_commit) BETWEEN 40 AND 64),
+        source_head TEXT NOT NULL CHECK (length(source_head) BETWEEN 40 AND 64),
+        created_at TEXT NOT NULL
+      ) STRICT;
+      CREATE UNIQUE INDEX workspace_git_worktrees_node_id_idx ON workspace_git_worktrees(node_id, worktree_id);
+      CREATE UNIQUE INDEX workspace_git_worktrees_node_path_idx ON workspace_git_worktrees(node_id, worktree_root);
+      CREATE INDEX workspace_git_worktrees_source_idx ON workspace_git_worktrees(user_id, source_project_id);
+      PRAGMA user_version = 37;
+      COMMIT;
+    `);
+  } catch (error) { database.exec("ROLLBACK;"); throw error; }
+}
+migrateWorkspaceGitSchema();
+
+/** 版本 38 为通用项目目录增加 App 归属；旧目录保持未分配，等用户在对应 App 使用时显式认领。 */
+export function migrateWorkspaceProjectApplicationSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 37 || version >= 38) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      ALTER TABLE workspace_projects ADD COLUMN app_id TEXT CHECK (app_id IN ('workspace', 'minecraft'));
+      DROP INDEX workspace_projects_user_node_path_idx;
+      CREATE UNIQUE INDEX workspace_projects_user_app_node_path_idx
+        ON workspace_projects(user_id, app_id, node_id, path_key) WHERE app_id IS NOT NULL;
+      CREATE UNIQUE INDEX workspace_projects_user_legacy_node_path_idx
+        ON workspace_projects(user_id, node_id, path_key) WHERE app_id IS NULL;
+      CREATE INDEX workspace_projects_user_app_recent_idx
+        ON workspace_projects(user_id, app_id, updated_at DESC, id);
+      PRAGMA user_version = 38;
+      COMMIT;
+    `);
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateWorkspaceProjectApplicationSchema();
+
+/** 版本 39 为 Writing AI 的审阅式修改保存账户/作品绑定提案与原文指纹。 */
+export function migrateWritingEditProposalSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 38 || version >= 39) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE writing_edit_proposals (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        book_id TEXT NOT NULL REFERENCES writing_books(id) ON DELETE CASCADE,
+        target_type TEXT NOT NULL CHECK (target_type IN ('outline', 'chapter')),
+        target_id TEXT NOT NULL,
+        operation TEXT NOT NULL CHECK (operation IN ('append', 'prepend', 'insert_before', 'insert_after', 'replace_anchor', 'replace')),
+        base_sha256 TEXT NOT NULL CHECK (length(base_sha256) = 64),
+        proposed_content TEXT NOT NULL CHECK (length(proposed_content) <= 1500000),
+        status TEXT NOT NULL CHECK (status IN ('pending', 'applied', 'rejected', 'stale', 'superseded', 'expired')),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        expires_at TEXT NOT NULL
+      ) STRICT;
+      CREATE INDEX writing_edit_proposals_user_recent_idx ON writing_edit_proposals(user_id, created_at DESC, id);
+      CREATE INDEX writing_edit_proposals_target_pending_idx ON writing_edit_proposals(user_id, target_type, target_id, status, created_at DESC);
+      PRAGMA user_version = 39;
+      COMMIT;
+    `);
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateWritingEditProposalSchema();
+
+/** 版本 40 为插件化存储 Hub 增加具名单元、KV 记录与全局值表。 */
+export function migrateStorageHubSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 39 || version >= 40) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE lfaa_hub_storage_units (
+        name TEXT PRIMARY KEY NOT NULL,
+        version INTEGER NOT NULL CHECK (version >= 0),
+        descriptor_json TEXT NOT NULL
+      ) STRICT;
+      CREATE TABLE lfaa_hub_storage_records (
+        unit_name TEXT NOT NULL REFERENCES lfaa_hub_storage_units(name) ON DELETE CASCADE,
+        table_name TEXT NOT NULL,
+        record_key TEXT NOT NULL,
+        value_json TEXT NOT NULL,
+        PRIMARY KEY (unit_name, table_name, record_key)
+      ) STRICT;
+      CREATE TABLE lfaa_hub_storage_globals (
+        unit_name TEXT PRIMARY KEY NOT NULL REFERENCES lfaa_hub_storage_units(name) ON DELETE CASCADE,
+        value_json TEXT NOT NULL
+      ) STRICT;
+      PRAGMA user_version = 40;
+      COMMIT;
+    `);
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateStorageHubSchema();
+
+/** 版本 41 为每部作品保存专职角色，并创建账户/作品隔离的写作 Skill 库。 */
+export function migrateWritingBookProfileSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 40 || version >= 41) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      ALTER TABLE writing_books ADD COLUMN ai_role_id TEXT NOT NULL DEFAULT 'writing-companion'
+        CHECK (ai_role_id IN ('writing-companion', 'outline-planner', 'chapter-writer', 'precision-editor', 'continuity-reviewer', 'character-consultant'));
+      CREATE TABLE writing_book_skills (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        book_id TEXT NOT NULL REFERENCES writing_books(id) ON DELETE CASCADE,
+        title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 120),
+        description TEXT NOT NULL DEFAULT '' CHECK (length(description) <= 300),
+        instructions TEXT NOT NULL CHECK (length(instructions) BETWEEN 1 AND 12000),
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        UNIQUE (book_id, title COLLATE NOCASE)
+      ) STRICT;
+      CREATE INDEX writing_book_skills_book_enabled_idx ON writing_book_skills(book_id, enabled, updated_at DESC, id);
+      PRAGMA user_version = 41;
+      COMMIT;
+    `);
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateWritingBookProfileSchema();
+
+/** 版本 42 为账户隔离的 Markdown AI 资料库及本地项目来源建立持久化。 */
+export function migrateKnowledgeLibrarySchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 41 || version >= 42) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE knowledge_library_items (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        application_id TEXT NOT NULL CHECK (application_id IN ('all', 'workspace', 'steamcmd', 'minecraft', 'writing')),
+        kind TEXT NOT NULL CHECK (kind IN ('knowledge', 'skill', 'prompt', 'expert')),
+        title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 120),
+        description TEXT NOT NULL DEFAULT '' CHECK (length(description) <= 500),
+        content_markdown TEXT NOT NULL CHECK (length(content_markdown) BETWEEN 1 AND 65536),
+        content_sha256 TEXT NOT NULL CHECK (length(content_sha256) = 64),
+        source_kind TEXT NOT NULL CHECK (source_kind IN ('upload', 'conversation', 'manual')),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+      CREATE INDEX knowledge_library_items_scope_idx ON knowledge_library_items(user_id, application_id, kind, updated_at DESC, id);
+      CREATE TABLE knowledge_library_project_sources (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        application_id TEXT NOT NULL CHECK (application_id IN ('workspace', 'minecraft')),
+        project_id TEXT NOT NULL REFERENCES workspace_projects(id) ON DELETE CASCADE,
+        project_application_id TEXT NOT NULL CHECK (project_application_id IN ('workspace', 'minecraft')),
+        relative_path TEXT NOT NULL CHECK (length(relative_path) <= 512),
+        title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 120),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        UNIQUE (user_id, application_id, project_id, relative_path),
+        CHECK (application_id = project_application_id)
+      ) STRICT;
+      CREATE INDEX knowledge_library_project_sources_scope_idx ON knowledge_library_project_sources(user_id, application_id, created_at DESC, id);
+      PRAGMA user_version = 42;
+      COMMIT;
+    `);
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateKnowledgeLibrarySchema();
+
+/** 版本 43 为每个账户保存有界的 AI Work 个性化记忆与并发删除版本。 */
+export function migrateConversationMemorySchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 42 || version >= 43) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE conversation_memories (
+        user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        memories_json TEXT NOT NULL DEFAULT '[]' CHECK (length(memories_json) <= 8192),
+        revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+      PRAGMA user_version = 43;
+      COMMIT;
+    `);
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateConversationMemorySchema();
+
+/** 版本 44 为每个账户保存可执行的 Minecraft Agent 工作流定义与运行轨迹。 */
+export function migrateMinecraftWorkflowSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 43 || version >= 44) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE workflow_definitions (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 80),
+        definition_json TEXT NOT NULL CHECK (length(definition_json) <= 65536),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        UNIQUE (user_id, id)
+      ) STRICT;
+      CREATE INDEX workflow_definitions_user_updated_idx ON workflow_definitions(user_id, updated_at DESC, id);
+      CREATE TABLE workflow_runs (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        workflow_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'interrupted')),
+        nodes_json TEXT NOT NULL CHECK (length(nodes_json) <= 65536),
+        current_agent_run_id TEXT,
+        session_id TEXT,
+        eula_accepted INTEGER NOT NULL DEFAULT 0 CHECK (eula_accepted IN (0, 1)),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (user_id, workflow_id) REFERENCES workflow_definitions(user_id, id) ON DELETE CASCADE
+      ) STRICT;
+      CREATE INDEX workflow_runs_user_workflow_created_idx ON workflow_runs(user_id, workflow_id, created_at DESC, id);
+      PRAGMA user_version = 44;
+      COMMIT;
+    `);
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateMinecraftWorkflowSchema();
+
+/** 版本 45 为工作流定义增加 App 作用域，旧工作流保留在 Minecraft App。 */
+export function migrateApplicationWorkflowSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 44 || version >= 45) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      ALTER TABLE workflow_definitions
+        ADD COLUMN application_id TEXT NOT NULL DEFAULT 'minecraft'
+        CHECK (application_id IN ('steamcmd', 'minecraft', 'writing', 'workspace'));
+      CREATE INDEX workflow_definitions_user_app_updated_idx
+        ON workflow_definitions(user_id, application_id, updated_at DESC, id);
+      PRAGMA user_version = 45;
+      COMMIT;
+    `);
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateApplicationWorkflowSchema();
+
+/** 版本 46 为通用工作流运行记录保存当前节点，旧 Agent 字段继续保留以兼容既有记录。 */
+export function migrateWorkflowRunCurrentNodeSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 45 || version >= 46) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      ALTER TABLE workflow_runs ADD COLUMN current_node_id TEXT;
+      PRAGMA user_version = 46;
+      COMMIT;
+    `);
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateWorkflowRunCurrentNodeSchema();
+
+/** 版本 47 将结构化配置改为 SQLite 按记录事务写入，旧 JSON 由 storage-domain 校验并导入。 */
+export function migrateConfigurationStorageSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 46 || version >= 47) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE configuration_records (
+        table_name TEXT NOT NULL CHECK (table_name IN (
+          'user_settings', 'user_preferences', 'ai_accounts',
+          'minecraft_storage_settings_defaults', 'minecraft_storage_node_settings',
+          'steamcmd_configuration_defaults', 'steamcmd_configuration_node_settings',
+          'steamcmd_storage_defaults', 'steamcmd_storage_node_settings'
+        )),
+        record_key TEXT NOT NULL,
+        user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+        node_id TEXT REFERENCES daemon_nodes(id) ON DELETE CASCADE,
+        value_json TEXT NOT NULL,
+        PRIMARY KEY (table_name, record_key)
+      ) STRICT;
+      CREATE INDEX configuration_records_user_idx ON configuration_records(table_name, user_id);
+      CREATE INDEX configuration_records_node_idx ON configuration_records(table_name, node_id);
+      CREATE TABLE configuration_credentials (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        provider_id TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        record_kind TEXT NOT NULL CHECK (record_kind IN ('api-key', 'grant')),
+        ciphertext TEXT NOT NULL,
+        iv TEXT NOT NULL,
+        tag TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, provider_id, record_id)
+      ) STRICT;
+      CREATE TABLE configuration_storage_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        revision INTEGER NOT NULL CHECK (revision >= 0),
+        source_format TEXT NOT NULL CHECK (source_format IN ('legacy-json-v1', 'legacy-sqlite-v0-30')),
+        source_sha256 TEXT NOT NULL CHECK (length(source_sha256) = 64),
+        migrated_at TEXT NOT NULL
+      ) STRICT;
+      PRAGMA user_version = 47;
+      COMMIT;
+    `);
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+
+// SQLite 46+ 可以先安全创建新 schema；storage-domain 在验证旧来源后再原子导入并启用。
+migrateConfigurationStorageSchema();

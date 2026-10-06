@@ -7,8 +7,11 @@ import { requireAuthentication, requireSuperAdmin, clearSessionCookie } from "lf
 import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
-import { authenticateUser, changeUserPassword, createManagedUser, createInitialAdmin, deleteManagedUser, searchUsers, requiresInitialSetup, revokeSession, resetPasswordWithRecoveryKey, setRecoveryKey, transferSuperAdmin, updateManagedUser, updateOwnEmail, verifyUserPassword, type ManagedUserInput, type ManagedUserUpdate, type UserSearchFilters } from "lfaa-identity-auth/src/service.js";
+import { authenticateUser, changeUserPassword, createManagedUser, createInitialAdmin, deleteManagedUser, searchUsers, requiresInitialSetup, revokeSession, resetPasswordWithRecoveryKey, setRecoveryKey, transferSuperAdmin, updateManagedUser, updateOwnEmail, verifyUserPassword, type ManagedUserInput, type ManagedUserUpdate, type PublicUser, type UserSearchFilters } from "lfaa-identity-auth/src/service.js";
 import { completePasskeyAuthentication, completePasskeyRegistration, createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, deleteUserPasskey, getPasskeyAvailability, listUserPasskeys } from "lfaa-identity-auth/src/passkeys.js";
+import { createTypertJsonSchema, defineTypertMethod, type TypertCallContext, type TypertContribution } from "lfaa-typert-protocol/src/index.js";
+import "lfaa-typert-loader/src/index.js";
+import { accountControllerRemoteMethods, accountControllerRemoteSchemas, type AccountControllerRemoteContract } from "./client-contract.generated.js";
 import { asyncHandler, parseBody, issueSession, assertPasskeyRequestOrigin, accountCredentialsSchema, managedUserCreateSchema, managedUserUpdateSchema, userSearchSchema, loginSchema, passwordRecoverySchema, recoveryKeySchema, passwordChangeSchema, accountEmailSchema, passkeyRegistrationOptionsSchema, passkeyRegistrationVerificationSchema, passkeyAuthenticationVerificationSchema, passkeyRemovalSchema } from "lfaa-api-remotes/src/route-contracts.js";
 export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, realtime: MinecraftRealtimePublisher): void {
 const limitSetup = createRateLimit(5, 10 * 60 * 1000);
@@ -78,10 +81,6 @@ router.put("/auth/email", requireAuthentication, limitRecoveryKeyChange, asyncHa
     if (!user) throw new ApiError(401, "invalid_current_password", "当前登录密码不正确，请重新确认。");
     response.json({ user });
   }));
-
-router.get("/auth/me", requireAuthentication, (request, response) => {
-    response.json({ user: request.auth?.user });
-  });
 
 router.get("/auth/passkeys", requireAuthentication, (request, response) => {
     response.json({ passkeys: listUserPasskeys(request.auth!.user.id) });
@@ -169,5 +168,57 @@ router.post("/users/:userId/transfer-super-admin", requireAuthentication, requir
 /** 将本控制器的路由层与当前插件生命周期绑定。 */
 import type { Context } from "@deepseek-ai/cordis";
 import "lfaa-api-gateway/src/index.js";
-export const inject = ["apiGateway"];
-export function apply(ctx: Context): void { ctx.apiGateway.register(ctx, "account-controller", registerRoutes); }
+export const inject = ["apiGateway", "lfaaTypertLoader"];
+export function apply(ctx: Context): void {
+  ctx.apiGateway.register(ctx, "account-controller", registerRoutes);
+  ctx.lfaaTypertLoader.register(ctx, accountRemoteContribution);
+}
+
+interface AccountSelfPrincipal { readonly user: PublicUser }
+type AccountSelfRemote = AccountControllerRemoteContract["auth/me"];
+const accountSelfOutputSchema = createTypertJsonSchema<AccountSelfRemote["output"]>(accountControllerRemoteSchemas["auth/me"].output);
+
+const accountSelfMethod = defineTypertMethod<AccountSelfRemote["input"], AccountSelfRemote["output"], AccountSelfPrincipal>({
+  id: "account.self",
+  namespace: accountControllerRemoteMethods["auth/me"].namespace,
+  method: accountControllerRemoteMethods["auth/me"].method,
+  input: createTypertJsonSchema<AccountSelfRemote["input"]>(accountControllerRemoteSchemas["auth/me"].input),
+  output: {
+    parse(value: unknown): AccountSelfRemote["output"] {
+      const parsed = accountSelfOutputSchema.parse(value);
+      if (!isPublicUser(parsed.user)) throw new TypeError("账户响应格式无效。");
+      return parsed;
+    }
+  },
+  authorize(context: TypertCallContext<AccountSelfPrincipal>): boolean {
+    return isAccountSelfPrincipal(context.principal);
+  },
+  invoke(_input, context) { return { user: context.principal.user }; }
+});
+
+const accountRemoteContribution: TypertContribution = {
+  package: "lfaa-api-account-controller",
+  methods: [accountSelfMethod]
+};
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function isAccountSelfPrincipal(value: unknown): value is AccountSelfPrincipal {
+  return isPlainRecord(value) && isPublicUser(value.user);
+}
+
+function isPublicUser(value: unknown): value is PublicUser {
+  if (!isPlainRecord(value)) return false;
+  const expected = ["id", "uid", "username", "email", "role", "createdAt"];
+  if (Object.keys(value).length !== expected.length || expected.some((key) => !Object.hasOwn(value, key))) return false;
+  return typeof value.id === "string" && /^[0-9a-f-]{36}$/iu.test(value.id)
+    && typeof value.uid === "number" && Number.isSafeInteger(value.uid) && value.uid > 0
+    && typeof value.username === "string" && value.username.length > 0 && value.username.length <= 32
+    && (value.email === null || typeof value.email === "string" && value.email.length <= 254)
+    && (value.role === "super_admin" || value.role === "admin" || value.role === "member")
+    && typeof value.createdAt === "string" && Number.isFinite(Date.parse(value.createdAt));
+}

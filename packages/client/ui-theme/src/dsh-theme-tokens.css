@@ -1,0 +1,123 @@
+/* 功能：为固定 Wallpaper Engine 插件保留其主题服务检查的 DSH 令牌目录。 */
+body,
+.workbench-shell {
+  /* DSH 内容字号基线映射到 LFAA 界面字号；变化只影响 Workbench 内已映射的 DSH 内容。 */
+  --dsh-content-font-size: var(--settings-interface-font-size, 14px);
+  /* DSH 正文字号增量由 LFAA 界面字号计算，未设置插件角色时保持上游比例。 */
+  --dsh-content-font-delta: calc(var(--dsh-content-font-size) - 14px);
+  /* DSH 次级字号以 LFAA 当前界面字号的 13/14 比例计算。 */
+  --dsh-content-font-size-secondary: calc(var(--dsh-content-font-size) * 0.928571);
+  /* DSH 次级字号增量供表格角色维持上游行高比例。 */
+  --dsh-content-font-delta-secondary: calc(var(--dsh-content-font-size-secondary) - 13px);
+  /* DSH 字体角色默认沿用 LFAA 内容字体；插件字体集显式覆盖时只作用于 Workbench。 */
+  --dsw-font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans, system-ui)));
+
+  /* AI 回复标题 1 的默认字重、字号、行高和字体；设置中心字号变化按上游增量缩放。 */
+  --dsw-font-markdown-h1-font-size: calc(21px + var(--dsh-content-font-delta));
+  --dsw-font-markdown-h1-line-height: calc(30px + var(--dsh-content-font-delta));
+  --dsw-font-markdown-h1-font-family: var(--dsw-font-family);
+  --dsw-font-markdown-h1-font-weight: 700;
+  --dsw-font-markdown-h1: var(--dsw-font-markdown-h1-font-weight) var(--dsw-font-markdown-h1-font-size) / var(--dsw-font-markdown-h1-line-height) var(--dsw-font-markdown-h1-font-family);
+
+  /* AI 回复标题 2 的默认字重、字号、行高和字体。 */
+  --dsw-font-markdown-h2-font-size: calc(19px + var(--dsh-content-font-delta));
+  --dsw-font-markdown-h2-line-height: calc(28px + var(--dsh-content-font-delta));
+  --dsw-font-markdown-h2-font-family: var(--dsw-font-family);
+  --dsw-font-markdown-h2-font-weight: 700;
+  --dsw-font-markdown-h2: var(--dsw-font-markdown-h2-font-weight) var(--dsw-font-markdown-h2-font-size) / var(--dsw-font-markdown-h2-line-height) var(--dsw-font-markdown-h2-font-family);
+
+  /* AI 回复标题 3 的默认字重、字号、行高和字体。 */
+  --dsw-font-markdown-h3-font-size: calc(18px + var(--dsh-content-font-delta));
+  --dsw-font-markdown-h3-line-height: calc(26px + var(--dsh-content-font-delta));
+  --dsw-font-markdown-h3-font-family: var(--dsw-font-family);
+  --dsw-font-markdown-h3-font-weight: 700;
+  --dsw-font-markdown-h3: var(--dsw-font-markdown-h3-font-weight) var(--dsw-font-markdown-h3-font-size) / var(--dsw-font-markdown-h3-line-height) var(--dsw-font-markdown-h3-font-family);
+
+  /* AI 回复标题 4 的默认字重、字号、行高和字体。 */
+  --dsw-font-markdown-h4-font-size: var(--dsh-content-font-size);
+  --dsw-font-markdown-h4-line-height: calc(24px + var(--dsh-content-font-delta));
+  --dsw-font-markdown-h4-font-family: var(--dsw-font-family);
+  --dsw-font-markdown-h4-font-weight: 600;
+  --dsw-font-markdown-h4: var(--dsw-font-markdown-h4-font-weight) var(--dsw-font-markdown-h4-font-size) / var(--dsw-font-markdown-h4-line-height) var(--dsw-font-markdown-h4-font-family);
+
+  /* AI 回复正文的默认字号、行高和字体，使用 LFAA 内容字体与界面字号。 */
+  --dsw-font-markdown-base-font-size: var(--dsh-content-font-size);
+  --dsw-font-markdown-base-line-height: calc(24px + var(--dsh-content-font-delta));
+  --dsw-font-markdown-base-font-family: var(--dsw-font-family);
+  --dsw-font-markdown-base-font-weight: 400;
+  --dsw-font-markdown-base: var(--dsw-font-markdown-base-font-size) / var(--dsw-font-markdown-base-line-height) var(--dsw-font-markdown-base-font-family);
+
+  /* AI 回复小字的默认字号、行高和字体，供说明文字与引用细节使用。 */
+  --dsw-font-markdown-small-font-size: 12px;
+  --dsw-font-markdown-small-line-height: 20px;
+  --dsw-font-markdown-small-font-family: var(--dsw-font-family);
+  --dsw-font-markdown-small-font-weight: 400;
+  --dsw-font-markdown-small: var(--dsw-font-markdown-small-font-size) / var(--dsw-font-markdown-small-line-height) var(--dsw-font-markdown-small-font-family);
+
+  /* AI 回复行内代码的默认字号、行高和 LFAA 代码字体。 */
+  --dsw-font-markdown-code-font-size: 12px;
+  --dsw-font-markdown-code-line-height: 19px;
+  --dsw-font-markdown-code-font-family: var(--settings-code-font, var(--font-family-mono, monospace));
+  --dsw-font-markdown-code-font-weight: 400;
+  --dsw-font-markdown-code: var(--dsw-font-markdown-code-font-size) / var(--dsw-font-markdown-code-line-height) var(--dsw-font-markdown-code-font-family);
+
+  /* AI 回复代码块的默认字号、行高和 LFAA 代码字体。 */
+  --dsw-font-markdown-code-block-font-size: 11px;
+  --dsw-font-markdown-code-block-line-height: 19px;
+  --dsw-font-markdown-code-block-font-family: var(--settings-code-font, var(--font-family-mono, monospace));
+  --dsw-font-markdown-code-block-font-weight: 400;
+  --dsw-font-markdown-code-block: var(--dsw-font-markdown-code-block-font-size) / var(--dsw-font-markdown-code-block-line-height) var(--dsw-font-markdown-code-block-font-family);
+
+  /* AI 回复表格内容的默认字号、行高和字体。 */
+  --dsw-font-markdown-table-font-size: var(--dsh-content-font-size-secondary);
+  --dsw-font-markdown-table-line-height: calc(22px + var(--dsh-content-font-delta-secondary));
+  --dsw-font-markdown-table-font-family: var(--dsw-font-family);
+  --dsw-font-markdown-table-font-weight: 400;
+  --dsw-font-markdown-table: var(--dsw-font-markdown-table-font-size) / var(--dsw-font-markdown-table-line-height) var(--dsw-font-markdown-table-font-family);
+
+  /* AI 回复表格表头的默认字重、字号、行高和字体。 */
+  --dsw-font-markdown-table-head-font-size: var(--dsh-content-font-size-secondary);
+  --dsw-font-markdown-table-head-line-height: calc(22px + var(--dsh-content-font-delta-secondary));
+  --dsw-font-markdown-table-head-font-family: var(--dsw-font-family);
+  --dsw-font-markdown-table-head-font-weight: 500;
+  --dsw-font-markdown-table-head: var(--dsw-font-markdown-table-head-font-weight) var(--dsw-font-markdown-table-head-font-size) / var(--dsw-font-markdown-table-head-line-height) var(--dsw-font-markdown-table-head-font-family);
+
+  /* AI Work 活动摘要的小号界面文字默认字号、行高和字体。 */
+  --dsw-font-xs-13-font-size: 13px;
+  --dsw-font-xs-13-line-height: 20px;
+  --dsw-font-xs-13-font-family: var(--settings-interface-font, var(--font-family-sans, system-ui));
+  --dsw-font-xs-13-font-weight: 400;
+  --dsw-font-xs-13: var(--dsw-font-xs-13-font-size) / var(--dsw-font-xs-13-line-height) var(--dsw-font-xs-13-font-family);
+
+  /* AI Work 活动状态与辅助标签的极小字号默认行高和字体。 */
+  --dsw-font-xxs-12-font-size: 12px;
+  --dsw-font-xxs-12-line-height: 18px;
+  --dsw-font-xxs-12-font-family: var(--settings-interface-font, var(--font-family-sans, system-ui));
+  --dsw-font-xxs-12-font-weight: 400;
+  --dsw-font-xxs-12: var(--dsw-font-xxs-12-font-size) / var(--dsw-font-xxs-12-line-height) var(--dsw-font-xxs-12-font-family);
+}
+
+.workbench-shell {
+  /* DSH 正文颜色映射到 LFAA 当前主题文字色；均为不透明文字色并只影响 Workbench 子树。 */
+  --dsw-alias-label-primary: var(--color-text-primary);
+  /* 次要文字沿用当前主题的次级文字色，不改变色调或透明度。 */
+  --dsw-alias-label-secondary: var(--color-text-secondary);
+  /* 弱化说明沿用当前主题的弱化文字色，不改变色调或透明度。 */
+  --dsw-alias-label-tertiary: var(--color-text-muted);
+  /* 极小说明沿用当前主题的说明文字色，不改变色调或透明度。 */
+  --dsw-alias-label-caption: var(--color-text-caption);
+  /* 禁用文字沿用当前主题的弱化文字色，不改变色调或透明度。 */
+  --dsw-alias-label-dimmed: var(--color-text-subtle);
+  /* 更弱的正文层级沿用当前主题的弱化文字色，不改变色调或透明度。 */
+  --dsw-alias-label-primary-dimmed: var(--color-text-subtle);
+}
+
+/* DSH 固定上游使用的组件字体钩子：AI 回复代码块与 LFAA 节点任务终端分别接收对应字体设置。 */
+._block_lfaa_wallpaper_code {
+  --dsl-code-block-content-font: var(--dsw-font-markdown-code-block);
+  --dsl-code-block-banner-font: var(--dsw-font-markdown-small);
+}
+
+._block_lfaa_wallpaper_terminal {
+  --dsl-terminal-font: var(--dsw-font-markdown-code-block);
+}

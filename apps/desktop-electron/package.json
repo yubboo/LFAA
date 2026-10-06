@@ -7,7 +7,13 @@
   "description": "LFAA Windows 本机一体版桌面外壳",
   "scripts": {
     "dev": "electron .",
-    "package:win": "node scripts/prepare-runtime.mjs prepare-deploy && pnpm --filter @yubboo/lfaa deploy --prod --legacy --config.node-linker=hoisted --config.confirmModulesPurge=false ../../dist/.tmp/desktop-electron/server-deploy && pnpm install --config.confirmModulesPurge=false && node scripts/prepare-runtime.mjs && electron-builder --win nsis --x64"
+    "test:update-manifest": "node --test tests/update-manifest.test.mjs tests/update-flow.test.mjs",
+    "validate:update-manifest": "node scripts/update-manifest.mjs validate",
+    "package:win": "node scripts/update-manifest.mjs validate && node scripts/prepare-runtime.mjs prepare-deploy && pnpm --filter @yubboo/lfaa deploy --prod --legacy --config.node-linker=hoisted --config.confirmModulesPurge=false ../../dist/.tmp/desktop-electron/server-deploy && pnpm install --config.confirmModulesPurge=false && node scripts/prepare-runtime.mjs && electron-builder --win nsis --x64 --publish never && node scripts/verify-packaged-runtime.mjs"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9",
+    "js-yaml": "4.3.2"
   },
   "devDependencies": {
     "electron": "44.4.5",
@@ -41,6 +47,7 @@
       }
     ],
     "win": {
+      "icon": "assets/lfaa.ico",
       "target": [
         {
           "target": "nsis",
@@ -51,12 +58,21 @@
       ],
       "artifactName": "LFAA ${version}.${ext}"
     },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://github.com/yubboo/LFAA/releases/latest/download/"
+      }
+    ],
     "nsis": {
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "include": "nsis/installer.nsh",
-      "createDesktopShortcut": true,
+      "license": "installation-notice.txt",
+      "installerIcon": "lfaa.ico",
+      "uninstallerIcon": "lfaa.ico",
+      "createDesktopShortcut": "always",
       "createStartMenuShortcut": true
     }
   }

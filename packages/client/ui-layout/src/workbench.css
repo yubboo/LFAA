@@ -114,6 +114,42 @@
   --settings-background-overlay: rgba(24, 24, 24, .37); /* 深色工作区默认使用 37% 中性深灰壁纸遮罩，账户外观设置加载后由 Workbench 覆盖。 */
 }
 
+/* 引擎启用并选中项目时，LFAA 账户背景仍保留为偏好，但首帧由 Wallpaper Engine 独占壁纸画布。 */
+.workbench-shell[data-wallpaper-engine-owner="true"] { background-image: none; }
+
+.workbench-shell[data-wallpaper-video="true"] {
+  position: relative;
+  isolation: isolate;
+}
+
+.workbench-wallpaper-video,
+.workbench-wallpaper-video__overlay {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+.workbench-wallpaper-video {
+  object-fit: cover;
+}
+
+.workbench-wallpaper-video__overlay {
+  background: var(--settings-background-overlay); /* 视频壁纸使用设置中心同一主题遮罩，色调和透明度由 appearance.theme/overlay 控制。 */
+}
+
+.workbench-shell[data-wallpaper-video="true"] :is(.workbench-content, .workbench-footer) {
+  position: relative;
+  z-index: 1;
+}
+
+.workbench-shell[data-wallpaper-video="true"] > .topbar {
+  position: relative;
+  z-index: 1;
+}
+
 /* 浅色主题的边框随高级对比度设置调整，默认值保持原有配色。 */
 .workbench-shell[data-theme="light"] {
   --color-border: color-mix(in srgb, color-mix(in srgb, #dce3ed, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
@@ -223,53 +259,98 @@
   margin: 0 auto;
   padding: clamp(36px,4vw,64px) 0 clamp(44px,5vw,64px);
 }
+.workbench-content--app-center {
+  padding-top: clamp(22px,2.5vw,36px);
+  padding-bottom: clamp(28px,3vw,42px);
+}
 .page-intro {
-  display: flex;
-  min-height: 244px;
-  flex-direction: column;
-  justify-content: flex-end;
-  max-width: none;
-  margin-bottom: clamp(24px,3vw,40px);
-  padding: clamp(24px,3.5vw,40px);
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(0,1fr);
+  align-items: center;
+  justify-items: center;
+  gap: 18px;
+  margin-bottom: clamp(20px,2.4vw,30px);
+  padding: clamp(22px,3vw,34px) clamp(20px,4vw,48px);
   overflow: hidden;
+  border: 1px solid var(--color-border);
   border-radius: 22px;
-  background-color: #181818;
-  background-image: linear-gradient(90deg,rgba(24,24,24,.82),rgba(24,24,24,.42) 72%,rgba(24,24,24,.2)),var(--settings-background-image, url(/images/minecraft/forest-bridge-evening.png));
-  background-position: center 56%;
-  background-size: cover;
+  background: var(--color-surface);
+  box-shadow: 0 12px 34px var(--color-shadow-card-soft);
+}
+.workbench-shell[data-background-image="true"] .page-intro {
+  background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}
+.page-intro__copy {
+  width: min(100%, 58rem);
+  min-width: 0;
+  text-align: center;
 }
 .page-intro h1.ant-typography {
-  margin: 0 0 12px;
-  color: var(--color-surface);
-  font-size: clamp(34px,3.7vw,48px);
+  margin: 0 0 7px;
+  color: var(--color-text-heading);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--font-size-2xl);
   font-weight: 650;
-  letter-spacing: -.055em;
-  line-height: 1.12;
+  letter-spacing: -.04em;
+  line-height: 1.25;
 }
 .page-intro p.ant-typography {
-  max-width: 44rem;
+  max-width: 42rem;
   margin: 0;
-  color: #f4f7ffcc;
-  font-size: var(--font-size-lg);
-  line-height: 1.65;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  line-height: 1.55;
+}
+.page-intro__action.ant-btn {
+  min-height: 44px;
+  padding-inline: 22px;
+  border-radius: 11px;
+  font-size: var(--font-size-sm);
+  font-weight: 620;
+  white-space: nowrap;
+}
+.application-list {
+  min-width: 0;
+}
+.application-list__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 4px 13px;
+}
+.application-list__heading h2.ant-typography {
+  margin: 0;
+  color: var(--color-text-heading);
+  font-size: var(--font-size-xl);
+  font-weight: 650;
+  letter-spacing: -.02em;
+}
+.application-list__heading .ant-typography {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
 }
 .application-grid {
   display: grid;
   grid-auto-flow: dense;
   grid-template-columns: repeat(3,minmax(0,1fr));
-  gap: 18px;
+  gap: 16px;
 }
 .application-card.ant-card {
-  min-height: 320px;
+  min-height: 316px;
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: 20px;
+  border-radius: 19px;
   background: color-mix(in srgb, var(--color-surface) 94%, transparent);
   box-shadow: 0 9px 30px var(--color-shadow-card-soft);
-  transition: transform .22s ease,box-shadow .22s ease,border-color .22s ease;
+  transition: transform .2s ease,box-shadow .2s ease,border-color .2s ease;
 }
 .application-card.ant-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-3px);
   border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 36%, var(--color-border));
   box-shadow: 0 20px 40px color-mix(in srgb, var(--color-shadow-card-soft) 80%, transparent);
 }
@@ -286,19 +367,23 @@
   border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 48%, var(--color-border));
   box-shadow: 0 0 0 2px var(--color-brand-subtle),0 12px 30px var(--color-shadow-card-soft);
 }
+.application-card--focus-target.ant-card {
+  outline: 2px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 70%, var(--color-border));
+  outline-offset: 3px;
+}
 .application-card .ant-card-body {
   display: flex;
-  min-height: 320px;
+  min-height: 316px;
   flex-direction: column;
-  padding: 26px;
+  padding: 22px;
 }
 .application-card__topline {
   display: flex;
   min-height: 100px;
   align-items: center;
   justify-content: space-between;
-  margin: -26px -26px 0;
-  padding: 20px 26px;
+  margin: -22px -22px 0;
+  padding: 18px 22px;
   border-radius: 19px 19px 0 0;
   background-position: center;
   background-size: cover;
@@ -314,13 +399,14 @@
 }
 .application-monogram {
   display: grid;
-  width: 46px;
-  height: 46px;
+  width: 50px;
+  height: 50px;
   place-items: center;
   border: 1px solid rgba(255,255,255,.8);
-  border-radius: 15px;
+  border-radius: 16px;
   font-size: 17px;
   font-weight: 720;
+  box-shadow: 0 4px 16px var(--color-shadow-card-soft);
 }
 .application-monogram--blue {
   background: var(--color-brand-subtle);
@@ -337,45 +423,56 @@
 .selected-tag.ant-tag {
   margin: 0;
   padding: 3px 9px;
-  border-color: var(--color-border);
+  border-color: var(--color-border-subtle);
   border-radius: 999px;
-  background: var(--color-brand-subtle);
+  background: var(--color-surface);
   color: var(--settings-accent, var(--color-brand));
   font-size: var(--font-size-xs);
 }
 .application-card__copy {
-  margin-top: 18px;
+  margin-top: 16px;
 }
 .application-card__copy h3.ant-typography {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   color: var(--color-text-heading);
-  font-size: 21px;
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--font-size-xl);
   font-weight: 650;
-  letter-spacing: -.025em;
+  letter-spacing: -.02em;
 }
 .application-card__copy p.ant-typography {
-  max-width: 360px;
-  min-height: 48px;
+  max-width: 400px;
+  min-height: 42px;
   margin: 0;
   color: var(--color-text-muted);
-  font-size: var(--font-size-md);
-  line-height: 1.8;
+  font-size: var(--font-size-base);
+  line-height: 1.55;
 }
 .development-state {
-  display: inline-block;
-  margin-top: 13px;
-  color: var(--color-text-subtle);
-  font-size: var(--font-size-xs);
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 11px;
+  padding: 4px 9px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
 }
 .application-card__actions {
   display: flex;
   gap: 10px;
   margin-top: auto;
-  padding-top: 22px;
+  padding-top: 18px;
 }
 .application-card__actions .ant-btn {
-  min-height: 39px;
-  padding-inline: 15px;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  padding-inline: 10px;
+  border-radius: 10px;
   font-size: var(--font-size-sm);
   font-weight: 600;
 }
@@ -387,22 +484,6 @@
 .application-card__actions .ai-work-button:hover {
   border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 42%, var(--color-border));
   color: var(--color-brand);
-}
-.workspace-note {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  margin-top: 20px;
-  padding: 18px 20px;
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
-}
-.workspace-note p.ant-typography {
-  margin: 5px 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
 }
 .account-list-note {
   margin-top: 12px;
@@ -491,7 +572,6 @@
 }
 
 .workbench-shell[data-theme="dark"] .application-card.ant-card,
-.workbench-shell[data-theme="dark"] .workspace-note,
 .workbench-shell[data-theme="dark"] .module-notice-card,
 .workbench-shell[data-theme="dark"] .settings-page,
 .workbench-shell[data-theme="dark"] .settings-group__rows,
@@ -758,3 +838,22 @@ body.lfaa-is-resizing .workbench-shell[data-translucent-sidebar="true"] :is(.mod
 .workbench-shell[data-diff-markers="color"] :is(del, .diff-removed, [data-diff-type="removed"]) {
   background: color-mix(in srgb, var(--color-status-error) 14%, transparent);
 }
+
+/* 壁纸归属由 Workbench 的账户设置首帧确定，避免等到插件异步挂载标记后再切换 LFAA 表面材质。 */
+/* LFAA 根主题在 html 上设置了不透明画布色；覆盖它时保留插件为掉帧/回退提供的代表色，让 -2 壁纸层参与根画布合成。 */
+html:has(body[data-we-wallpaper]) { background-color: var(--we-wallpaper-underlay, transparent); }
+/* 启动主题通过 body:has(.workbench-shell[data-theme]) 设置更高优先级的不透明底色；壁纸激活时需由根级状态覆盖该画布底色。 */
+html:has(body[data-we-wallpaper]) body[data-we-wallpaper] { background: transparent; }
+body[data-we-wallpaper] .workbench-shell { background-color: transparent; background-image: none; }
+.workbench-shell[data-wallpaper-engine-owner="true"] :is(.topbar, .page-intro, .application-card, .module-notice-card, .module-center__header, .settings-nav, .settings-content, .settings-group, .settings-card, .settings-section-card) {
+  background-color: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}
+.workbench-shell[data-wallpaper-engine-owner="true"][data-translucent-sidebar="true"] :is(.module-sidebar, .module-navigation-rail, .module-context, .settings-sidebar) {
+  background-color: color-mix(in srgb, var(--settings-sidebar-color, var(--color-surface-muted)) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}
+.workbench-shell[data-wallpaper-engine-owner="true"] .lfaa-workbench__pane--left,
+.workbench-shell[data-wallpaper-engine-owner="true"] .lfaa-workbench__pane--right { background: transparent; }

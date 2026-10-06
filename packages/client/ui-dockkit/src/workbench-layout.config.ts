@@ -59,6 +59,7 @@ export const WORKBENCH_LAYOUT_TOKENS = Object.freeze({
   center: {
     comfortable: { ratio: 0.50, floor: 440, ceiling: 720 },
     compactFloor: 420,
+    applicationCompactFloor: 260,
     minimumHeight: 168, // 底部终端打开时为主工作区保留的最小高度。
   },
   bottom: {
@@ -108,10 +109,10 @@ function resolvePane(widthOrHeight: number, rules: PaneRuleSet): WorkbenchPaneLi
  *
  * Mode 不是写死的 1240/760：
  * - Desktop：容器能同时容纳 left.initial + center.comfortable + right.initial；
- * - Compact：至少能容纳 left.initial + 中心区底线；右栏切换成 Overlay；
- * - Mobile：连左栏 Dock + 中心区都放不下，左右都切 Overlay。
+ * - Compact：通用 Surface 使用单侧 Dock；应用工作区可启用左右 Dock 并共享中心区底线；
+ * - Mobile：左侧改 Overlay；应用工作区仍可在空间足够时保留右侧 Dock。
  */
-export function resolveWorkbenchLayoutMetrics(containerWidth: number, containerHeight: number): WorkbenchLayoutMetrics {
+export function resolveWorkbenchLayoutMetrics(containerWidth: number, containerHeight: number, responsiveRightDock = false): WorkbenchLayoutMetrics {
   // 保留真实容器边界；窄屏和矮窗必须进入移动布局，不能被桌面最小值抬高。
   const width = Math.max(1, Math.round(containerWidth || 0));
   const height = Math.max(1, Math.round(containerHeight || 0));
@@ -130,10 +131,17 @@ export function resolveWorkbenchLayoutMetrics(containerWidth: number, containerH
     max: bottomMax,
   };
   const centerComfortable = resolveScalar(width, WORKBENCH_LAYOUT_TOKENS.center.comfortable);
-  const minCenterWidth = Math.min(centerComfortable, Math.max(WORKBENCH_LAYOUT_TOKENS.center.compactFloor, Math.round(width * 0.62)));
+  const compactCenterFloor = responsiveRightDock
+    ? WORKBENCH_LAYOUT_TOKENS.center.applicationCompactFloor
+    : WORKBENCH_LAYOUT_TOKENS.center.compactFloor;
 
   const desktopNeed = left.initial + right.initial + centerComfortable + separator * 2;
-  const compactNeed = left.initial + Math.min(centerComfortable, WORKBENCH_LAYOUT_TOKENS.center.compactFloor + 60) + separator;
+  const compactNeed = responsiveRightDock
+    ? left.initial + right.min + compactCenterFloor + separator * 2
+    : left.initial + Math.min(centerComfortable, WORKBENCH_LAYOUT_TOKENS.center.compactFloor + 60) + separator;
+  const minCenterWidth = responsiveRightDock && width < desktopNeed
+    ? compactCenterFloor
+    : Math.min(centerComfortable, Math.max(compactCenterFloor, Math.round(width * 0.62)));
 
   const mode: WorkbenchLayoutMode = width >= desktopNeed
     ? "desktop"

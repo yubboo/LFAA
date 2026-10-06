@@ -3,15 +3,17 @@
  * 作用：重放权威事件并幂等恢复跨文件事务；文件路径使用会话 ID 的摘要，拒绝路径穿越。
  * 关联文件：storage-domain 的控制域事务、storage-json 的值编码与 core/session。
  */
-import { createHash } from "node:crypto";
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, truncateSync, writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { decode, encode, FileLease } from "lfaa-storage-json/src/index.js";
 
-export type SessionTable = "ai_sessions" | "ai_messages" | "ai_usage";
+/** session_events 与消息/用量共用同一条受控 JSONL 持久化事务流。 */
+export type SessionTable = "ai_sessions" | "ai_messages" | "ai_usage" | "session_events";
 export interface SessionChange { table: SessionTable; key: string; value: Record<string, unknown> | null }
 export interface SessionCommit { sessionId: string; transaction: string; changes: SessionChange[] }
 interface SessionEvent { format: 1; sessionId: string; transaction: string; changes: SessionChange[]; sequence: number; previous: string; checksum: string }
+export interface SessionRewriteResult { rewrittenTransactions: number; commits: SessionCommit[] }
 
 export class JsonlSessionPersistence {
   private readonly applied = new Map<string, Set<string>>();
@@ -29,7 +31,13 @@ export class JsonlSessionPersistence {
     for (const entry of readdirSync(this.root, { withFileTypes: true })) {
       if (entry.name === ".writer.lock") continue;
       if (!entry.isDirectory() || !/^[a-f0-9]{64}$/u.test(entry.name)) throw new Error("会话存储中存在未知目录项。");
-      const path = resolve(this.root, entry.name, "events.jsonl");
+      const directory = resolve(this.root, entry.name);
+      for (const item of readdirSync(directory, { withFileTypes: true })) {
+        if (item.name === "events.jsonl") continue;
+        if (item.isFile() && /^events-[0-9a-f-]{36}\.tmp$/u.test(item.name)) rmSync(resolve(directory, item.name), { force: true });
+        else throw new Error("会话存储目录中存在未知文件。");
+      }
+      const path = resolve(directory, "events.jsonl");
       if (!existsSync(path)) continue;
       const bytes = readFileSync(path);
       const boundary = bytes.lastIndexOf(10) + 1;
@@ -66,6 +74,67 @@ export class JsonlSessionPersistence {
       this.revisions.set(commit.sessionId, { sequence: event.sequence, checksum: event.checksum });
     } finally { closeSync(descriptor); }
     applied.add(commit.transaction); this.applied.set(commit.sessionId, applied);
+  }
+  /** 重写单个会话日志并重新计算哈希链；调用方必须先校验账户归属并持有仓库事务锁。 */
+  rewrite(sessionId: string, transform: (commit: SessionCommit) => SessionCommit): SessionRewriteResult {
+    const directory = this.directory(sessionId);
+    const path = resolve(directory, "events.jsonl");
+    if (!existsSync(path)) return { rewrittenTransactions: 0, commits: [] };
+    const bytes = readFileSync(path);
+    const boundary = bytes.lastIndexOf(10) + 1;
+    if (boundary !== bytes.length) truncateSync(path, boundary);
+    const originalEvents: SessionEvent[] = [];
+    const seenTransactions = new Set<string>();
+    let previous = { sequence: 0, checksum: "" };
+    for (const line of bytes.subarray(0, boundary).toString("utf8").split("\n").filter(Boolean)) {
+      const event = decode(line) as SessionEvent;
+      if (event?.format !== 1 || event.sessionId !== sessionId || typeof event.transaction !== "string" || !Array.isArray(event.changes)
+        || this.directory(event.sessionId) !== directory) throw new Error("会话 JSONL 事件损坏或身份不匹配。");
+      const { checksum, ...content } = event;
+      if (event.sequence !== previous.sequence + 1 || event.previous !== previous.checksum || checksum !== createHash("sha256").update(encode(content)).digest("hex")
+        || seenTransactions.has(event.transaction)) throw new Error("会话事件顺序、事务唯一性或完整性校验失败。");
+      previous = { sequence: event.sequence, checksum };
+      seenTransactions.add(event.transaction);
+      originalEvents.push(event);
+    }
+    const commits = originalEvents;
+    const rewritten = commits.map(commit => {
+      const next = transform(structuredClone(commit));
+      if (next.sessionId !== sessionId || next.transaction !== commit.transaction) throw new Error("会话重写不得改变日志身份或事务顺序。");
+      return next;
+    });
+    if (!rewritten.some((commit, index) => encode(commit.changes) !== encode(commits[index]!.changes))) {
+      return { rewrittenTransactions: 0, commits: originalEvents };
+    }
+
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const temporaryPath = resolve(directory, `events-${randomUUID()}.tmp`);
+    previous = { sequence: 0, checksum: "" };
+    const nextEvents: SessionEvent[] = [];
+    const lines = rewritten.map(commit => {
+      const content = { format: 1 as const, sessionId: commit.sessionId, transaction: commit.transaction, changes: commit.changes, sequence: previous.sequence + 1, previous: previous.checksum };
+      const checksum = createHash("sha256").update(encode(content)).digest("hex");
+      previous = { sequence: content.sequence, checksum };
+      const event = { ...content, checksum };
+      nextEvents.push(event);
+      return `${encode(event).replace(/\n\s*/gu, "")}\n`;
+    });
+    let descriptor: number | undefined;
+    try {
+      descriptor = openSync(temporaryPath, "wx", 0o600);
+      writeFileSync(descriptor, lines.join(""));
+      fsyncSync(descriptor);
+      closeSync(descriptor);
+      descriptor = undefined;
+      renameSync(temporaryPath, path);
+    } catch (error) {
+      if (descriptor !== undefined) closeSync(descriptor);
+      rmSync(temporaryPath, { force: true });
+      throw error;
+    }
+    this.applied.set(sessionId, new Set(rewritten.map(commit => commit.transaction)));
+    this.revisions.set(sessionId, previous);
+    return { rewrittenTransactions: rewritten.length, commits: nextEvents };
   }
   hasTransaction(sessionId: string, transaction: string): boolean { return this.applied.get(sessionId)?.has(transaction) ?? false; }
   remove(sessionId: string): void { rmSync(this.directory(sessionId), { recursive: true, force: true }); this.applied.delete(sessionId); this.revisions.delete(sessionId); }

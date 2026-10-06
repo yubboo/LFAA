@@ -11,6 +11,7 @@ import { getUserSettings } from "lfaa-settings/src/service.js";
 
 export type AiToolRisk = "read" | "write" | "dangerous";
 export type AiToolAuthorization = "allow" | "approval_required" | "deny";
+export const AI_TOOL_APPROVAL_LIFETIME_MS = 5 * 60 * 1000;
 
 export class AiPermissionModeChangedError extends Error {
   constructor() {
@@ -213,7 +214,7 @@ export function requestAiToolApproval(input: {
   if (!session || session.app_id !== input.appId) throw new Error("找不到此应用下的 AI 会话。");
 
   const id = randomUUID();
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + AI_TOOL_APPROVAL_LIFETIME_MS).toISOString();
   database.prepare(`
     INSERT INTO ai_tool_approvals (id, user_id, session_id, app_id, tool_id, tool_version, risk, summary, scope_summary, action_hash, scope_hash, expires_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

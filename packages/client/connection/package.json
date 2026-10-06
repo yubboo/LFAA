@@ -11,7 +11,10 @@
     "@simplewebauthn/browser": "14.0.0",
     "@tauri-apps/api": "2.12.0",
     "@tauri-apps/plugin-dialog": "2.8.0",
-    "socket.io-client": "4.8.4"
+    "lfaa-api-account-controller": "workspace:*",
+    "socket.io-client": "4.8.4",
+    "lfaa-util-values": "workspace:*",
+    "lfaa-typert-protocol": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",

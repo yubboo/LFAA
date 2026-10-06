@@ -10,6 +10,7 @@ import { createServer } from "node:net";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { dirname, resolve, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { DatabaseSync } from "node:sqlite";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const temporaryRoot = resolve(root, "dist/.tmp");
@@ -61,6 +62,20 @@ async function stop(runtime) {
   finally { clearTimeout(timer); }
 }
 
+async function localNodeReady(runtime, directory) {
+  if (process.platform !== "win32" || process.arch !== "x64") return;
+  // 只读取测试目录内控制面的真实心跳，确认 Web 自动托管节点，而不是只看到进程启动日志。
+  const database = new DatabaseSync(resolve(directory, "data/database/lfaa.sqlite"), { readOnly: true });
+  try {
+    for (let attempt = 0; attempt < 150; attempt++) {
+      if (database.prepare("SELECT 1 FROM daemon_nodes WHERE status='online' AND last_seen_at > ?").get(new Date(Date.now() - 20000).toISOString())) return;
+      if (runtime.child.exitCode !== null || runtime.child.signalCode !== null) throw new Error(runtime.output());
+      await new Promise(done => setTimeout(done, 100));
+    }
+    throw new Error(`Web 未自动接通本地节点：${runtime.output()}`);
+  } finally { database.close(); }
+}
+
 test("生产 CLI 真实启动、认证、正常停止及同数据目录重启", { timeout: 45_000 }, async () => {
   const data = await fixture();
   const port = await freePort();
@@ -70,6 +85,7 @@ test("生产 CLI 真实启动、认证、正常停止及同数据目录重启", 
     for (let i = 0; i < 2; i++) {
       runtime = launch(data.directory, port);
       await ready(runtime, address);
+      await localNodeReady(runtime, data.directory);
       assert.equal((await fetch(address)).status, 200);
       assert.equal((await fetch(`${address}/api/ai/sessions`)).status, 401);
       assert.doesNotMatch(runtime.output(), /插件未就绪|插件加载失败/);

@@ -1,0 +1,36 @@
+name: 问题反馈
+description: 报告 LFAA 中可以复现的问题。
+title: "[问题] "
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        请提供可复现的现象与环境。不要粘贴密码、Token、Cookie、远程凭据、真实用户数据或私人文件内容。
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题表现
+      description: 描述实际发生了什么，以及预期行为。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      description: 从哪个入口开始，执行哪些操作后出现问题？
+      placeholder: |
+        1. 打开……
+        2. 选择……
+        3. 观察到……
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 运行环境
+      description: 提供 LFAA 版本、操作系统、Web/桌面入口及相关 App/节点状态。
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 脱敏证据
+      description: 可附错误信息或截图；提交前移除账号、凭据、私人路径与用户内容。

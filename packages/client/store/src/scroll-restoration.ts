@@ -4,37 +4,33 @@
  * 关联文件：Workbench.tsx、SettingsPage.tsx、ApplicationWorkspace.tsx、AiWorkChat.tsx、MinecraftWorkspace.tsx。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type UIEvent } from "react";
-
-const SCROLL_POSITION_STORAGE_PREFIX = "lfaa.ui-scroll-position.v1";
+import { createBrowserPersistence, createClientPersistenceKey, finiteNumberPersistenceCodec, stringPersistenceCodec } from "./browser-persistence.js";
 
 /** 使用账户和视图片段隔离不同页面，避免滚动位置在菜单或用户之间串用。 */
 export function createScrollRestorationKey(userId: string, ...viewParts: string[]): string {
-  return [SCROLL_POSITION_STORAGE_PREFIX, userId, ...viewParts]
-    .map((part, index) => index === 0 ? part : encodeURIComponent(part))
-    .join(":");
+  return createClientPersistenceKey("ui-scroll-position", 1, [userId, ...viewParts]);
 }
 
 function readScrollPosition(storageKey: string, legacyStorageKey?: string): number | null {
-  try {
-    const value = window.localStorage.getItem(storageKey);
-    const legacyValue = value === null && legacyStorageKey ? window.localStorage.getItem(legacyStorageKey) : null;
-    const candidate = value ?? legacyValue;
-    if (candidate === null) return null;
-    const position = Number(candidate);
-    if (!Number.isFinite(position) || position < 0) return null;
-    if (value === null) writeScrollPosition(storageKey, position);
-    return position;
-  } catch {
-    return null;
+  const persistence = createBrowserPersistence({ key: storageKey, codec: finiteNumberPersistenceCodec });
+  const value = persistence.read();
+  if (value !== undefined) {
+    if (value >= 0) return value;
+    persistence.remove();
   }
+
+  if (!legacyStorageKey) return null;
+  const legacyValue = createBrowserPersistence({ key: legacyStorageKey, codec: stringPersistenceCodec }).read();
+  if (legacyValue === undefined || !legacyValue.trim()) return null;
+  const position = Number(legacyValue);
+  if (!Number.isFinite(position) || position < 0) return null;
+  persistence.write(position);
+  return position;
 }
 
 function writeScrollPosition(storageKey: string, position: number): void {
-  try {
-    window.localStorage.setItem(storageKey, String(Math.max(0, position)));
-  } catch {
-    // 滚动位置只是可丢失的界面偏好；存储不可用时不影响页面交互。
-  }
+  if (!Number.isFinite(position)) return;
+  createBrowserPersistence({ key: storageKey, codec: finiteNumberPersistenceCodec }).write(Math.max(0, position));
 }
 
 /**
@@ -58,6 +54,7 @@ export function useScrollRestoration(storageKey: string, ready = true, target: "
   }, []);
 
   const scheduleSave = useCallback((key: string, position: number) => {
+    if (lastScrollTopRef.current === position) return;
     lastScrollTopRef.current = position;
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => {

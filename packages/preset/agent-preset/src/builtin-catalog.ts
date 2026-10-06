@@ -6,8 +6,10 @@
  */
 import type { Context } from "@deepseek-ai/cordis";
 import type { AiExtensionManifest } from "lfaa-agent/src/extension-registry.js";
+import { MINECRAFT_PROMPTS } from "lfaa-games-minecraft/src/minecraft-prompt-library.js";
 import { WRITING_PROMPTS } from "lfaa-document-writing/src/writing-prompt-library.js";
 import { WRITING_SKILLS } from "lfaa-skill-writing/src/writing-skills.js";
+import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 
 const extensions: AiExtensionManifest[] = [
   {
@@ -17,7 +19,7 @@ const extensions: AiExtensionManifest[] = [
     name: "LFAA AI Work 主 Agent",
     version: "1.0.0",
     description: "为通用任务和业务应用提供对话、工具选择、结果回传和专业子 Agent 委派。",
-    applicationIds: ["steamcmd", "minecraft", "writing", "workspace"],
+    applicationIds: [...APPLICATION_IDS],
     instructions: "你是 LFAA 主 Agent，负责理解用户目标、选择已登记工具、按需委派子 Agent，并根据真实结果继续决策。工具范围和审批要求以本轮 Runtime 提供的能力与账户权限模式为准：请求审批逐项确认，替我审批按已记住范围执行，完全权限直接执行且不增加逐项确认。只有提供了主机 Shell 工具时才能使用相应节点能力；拒绝后不得换工具绕过授权，未接入的 Runner 或能力不得声称已执行。"
   },
   {
@@ -27,7 +29,7 @@ const extensions: AiExtensionManifest[] = [
     name: "专业领域子 Agent",
     version: "1.0.0",
     description: "由主 Agent 委派的独立执行任务；模型、工具范围和委派预算遵循设置中心配置。",
-    applicationIds: ["steamcmd", "minecraft", "writing", "workspace"]
+    applicationIds: [...APPLICATION_IDS]
   },
   {
     id: "expert.steamcmd-hosting",
@@ -45,9 +47,9 @@ const extensions: AiExtensionManifest[] = [
     kind: "expert",
     name: "Minecraft 开服顾问",
     version: "1.0.0",
-    description: "围绕 Java 版本、服务端类型、内存、世界备份与插件兼容性提供建议和子 Agent 执行与分析。",
+    description: "围绕官方 Vanilla、Java 环境、实例状态、Sandbox、日志、配置与停止中世界备份提供分析和工具协作。",
     applicationIds: ["minecraft"],
-    instructions: "你是 Minecraft 服务端领域顾问。给出 Java 版本、服务端发行版、内存、世界存档与插件兼容性建议。仅在收到对应业务工具结果后才报告部署、实例或配置操作已执行；Minecraft EULA 仍需用户单独同意。"
+    instructions: "你是 LFAA Minecraft 领域顾问。当前可执行能力以本轮 Minecraft 工具和节点上报为准，当前 Runner 支持官方 Vanilla；按需调用 minecraft_load_prompt 读取专项方法。实例操作必须经 Minecraft 业务工具，只有真实任务和状态确认后才能报告结果；不得绕过业务校验或沙盒，Minecraft EULA 仍需用户单独同意。"
   },
   {
     id: "expert.ai-writing",
@@ -124,6 +126,15 @@ const extensions: AiExtensionManifest[] = [
     version: "1.0.0",
     description: prompt.description,
     applicationIds: ["writing"]
+  })),
+  ...MINECRAFT_PROMPTS.map((prompt): AiExtensionManifest => ({
+    id: "prompt.minecraft." + prompt.id,
+    pluginId: "lfaa-core",
+    kind: "prompt",
+    name: prompt.name,
+    version: "1.0.0",
+    description: prompt.description,
+    applicationIds: ["minecraft"]
   }))
 ];
 

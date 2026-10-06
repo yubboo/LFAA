@@ -13,6 +13,7 @@
     "jsonwebtoken": "^9.0.0",
     "lfaa-authorization": "workspace:*",
     "lfaa-host-daemon": "workspace:*",
+    "lfaa-game-connectivity": "workspace:*",
     "lfaa-identity-auth": "workspace:*",
     "lfaa-jobs": "workspace:*",
     "lfaa-launch-environment": "workspace:*",

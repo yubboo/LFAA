@@ -6,11 +6,34 @@
 import { createHash } from "node:crypto";
 import { Ajv } from "ajv";
 import type { PluginSettings } from "lfaa-settings/src/service.js";
+import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 import type { AiBusinessTool } from "./business-tools.js";
 
 type ObjectValue = Record<string, unknown>;
 const versions = ["2025-11-25", "2025-06-18"];
 const jsonObject = (value: unknown): ObjectValue => { if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("MCP 返回了无效对象。"); return value as ObjectValue; };
+
+export interface McpServerRuntimeState {
+  serverId: string;
+  status: "ready" | "incompatible" | "unknown";
+  toolCount: number;
+  protocolVersion?: string;
+  manifestSha256?: string;
+}
+
+/** 固定端点地址、协议版本与 MCP 工具合同；不代表远端实现代码不可变。 */
+export function fingerprintMcpToolManifest(url: string, protocolVersion: string, tools: readonly { name: string; description: string; schema: ObjectValue }[]): string {
+  const canonical = (value: unknown): string => {
+    if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+    if (value && typeof value === "object") {
+      const object = value as ObjectValue;
+      return `{${Object.keys(object).sort().map(key => `${JSON.stringify(key)}:${canonical(object[key])}`).join(",")}}`;
+    }
+    return JSON.stringify(value) ?? "null";
+  };
+  const manifest = tools.map(tool => ({ name: tool.name, description: tool.description, schema: tool.schema })).sort((a, b) => a.name.localeCompare(b.name));
+  return createHash("sha256").update(canonical({ url, protocolVersion, tools: manifest })).digest("hex");
+}
 
 class McpConnection {
   private sessionId = "";
@@ -75,6 +98,7 @@ class McpConnection {
     this.version = result.protocolVersion;
     await this.request("notifications/initialized", {}, true);
   }
+  get protocolVersion(): string { return this.version; }
   async close(): Promise<void> {
     if (!this.sessionId) return;
     await fetch(this.server.url, { method: "DELETE", headers: this.headers(), redirect: "error", signal: AbortSignal.timeout(2000) }).then(async response => { await response.body?.cancel(); }).catch(() => undefined);
@@ -82,46 +106,63 @@ class McpConnection {
 }
 
 /** 外部声明的只读标记不是授权依据；每次外部执行均走高风险权限合同。 */
-export async function discoverMcpTools(servers: PluginSettings["mcpServers"], signal: AbortSignal, timeoutSeconds: number): Promise<{ tools: AiBusinessTool[]; errors: string[]; close: () => Promise<void> }> {
+export async function discoverMcpTools(servers: PluginSettings["mcpServers"], applicationId: ApplicationId, signal: AbortSignal, timeoutSeconds: number): Promise<{ tools: AiBusinessTool[]; errors: string[]; serverStates: McpServerRuntimeState[]; close: () => Promise<void> }> {
   const connections: McpConnection[] = [];
-  const tools: AiBusinessTool[] = [], errors: string[] = [];
+  const tools: AiBusinessTool[] = [], errors: string[] = [], serverStates: McpServerRuntimeState[] = [];
   const ajv = new Ajv({ strict: false, allErrors: true, validateFormats: false, ownProperties: true });
-  for (const server of servers.filter(server => server.enabled)) {
+  for (const server of servers.filter(server => server.enabled && (server.applicationIds ?? ["workspace"]).includes(applicationId))) {
+    const serverToolStart = tools.length;
+    let connection: McpConnection | undefined;
     try {
       signal.throwIfAborted();
-      const connection = new McpConnection(server, signal, timeoutSeconds * 1000); connections.push(connection);
-      await connection.initialize();
+      const activeConnection = new McpConnection(server, signal, timeoutSeconds * 1000);
+      connection = activeConnection;
+      connections.push(activeConnection);
+      await activeConnection.initialize();
       let cursor: string | undefined;
       const cursors = new Set<string>();
+      const manifestEntries: Array<{ name: string; description: string; schema: ObjectValue }> = [];
       do {
-        const result = await connection.request("tools/list", cursor ? { cursor } : {});
+        const result = await activeConnection.request("tools/list", cursor ? { cursor } : {});
         if (!Array.isArray(result.tools)) throw new Error("MCP 工具列表格式无效。");
         for (const item of result.tools) {
           const remote = jsonObject(item), schema = jsonObject(remote.inputSchema);
           if (typeof remote.name !== "string" || !remote.name.length || remote.name.length > 120 || schema.type !== "object") throw new Error("MCP 工具定义无效。");
           if (tools.length >= 200) throw new Error("MCP 工具目录超过 200 项安全限制。");
           const remoteName = remote.name;
+          const remoteDescription = String(remote.description ?? "").slice(0, 2000);
           const digest = createHash("sha256").update(remoteName).digest("hex").slice(0, 16);
           const name = `mcp_${server.id}_${digest}`;
           if (tools.some(tool => tool.name === name)) throw new Error("MCP 工具名称重复。");
           const validate = ajv.compile(schema);
-          tools.push({ id: `mcp.${server.id}.${digest}`, name, description: `MCP ${server.name} · ${remoteName}。${String(remote.description ?? "").slice(0, 2000)}`, applicationIds: ["workspace"], schema,
+          tools.push({ id: `mcp.${server.id}.${digest}`, name, description: `MCP ${server.name} · ${remoteName}。${remoteDescription}`, applicationIds: server.applicationIds ?? ["workspace"], schema,
             parse: value => { const parameters = jsonObject(value); if (!validate(parameters)) throw new Error(`MCP 参数不符合工具约束：${ajv.errorsText(validate.errors).slice(0, 500)}`); return parameters; },
             risk: () => "dangerous", approval: parameters => ({ scopeKey: "mcp:" + createHash("sha256").update(JSON.stringify([server.url, remoteName, parameters])).digest("hex"), scopeSummary: `${server.name} · ${remoteName}`, summary: `调用 MCP 服务 ${server.name} 的 ${remoteName}` }),
-            execute: async (parameters, context) => { context.signal.throwIfAborted(); return connection.request("tools/call", { name: remoteName, arguments: parameters }); }
+            execute: async (parameters, context) => { context.signal.throwIfAborted(); return activeConnection.request("tools/call", { name: remoteName, arguments: parameters }); }
           });
+          manifestEntries.push({ name: remoteName, description: remoteDescription, schema });
         }
         cursor = typeof result.nextCursor === "string" ? result.nextCursor : undefined;
         if (cursor && cursors.has(cursor)) throw new Error("MCP 服务返回重复的分页游标。");
         if (cursors.size >= 200) throw new Error("MCP 工具目录分页超过安全限制。");
         if (cursor) cursors.add(cursor);
       } while (cursor);
+      const serverTools = tools.slice(serverToolStart);
+      const manifestSha256 = fingerprintMcpToolManifest(server.url, activeConnection.protocolVersion, manifestEntries);
+      if (server.manifestSha256 && server.manifestSha256 !== manifestSha256) {
+        tools.splice(serverToolStart);
+        errors.push(`${server.name}：MCP 工具清单与安装时固定的 SHA-256 不一致，已拒绝提供这些工具。`);
+        serverStates.push({ serverId: server.id, status: "incompatible", toolCount: serverTools.length, protocolVersion: activeConnection.protocolVersion, manifestSha256 });
+      } else {
+        serverStates.push({ serverId: server.id, status: "ready", toolCount: serverTools.length, protocolVersion: activeConnection.protocolVersion, manifestSha256 });
+      }
     } catch (error) {
       if (signal.aborted) { await Promise.allSettled(connections.map(connection => connection.close())); signal.throwIfAborted(); }
       // 某个服务不完整时撤销它已发现的工具，避免以残缺目录误导模型。
-      for (let index = tools.length - 1; index >= 0; index--) if (tools[index].id.startsWith(`mcp.${server.id}.`)) tools.splice(index, 1);
+      tools.splice(serverToolStart);
       errors.push(`${server.name}：${error instanceof Error ? error.message : "MCP 连接失败"}`);
+      serverStates.push({ serverId: server.id, status: "unknown", toolCount: 0, ...(connection ? { protocolVersion: connection.protocolVersion } : {}) });
     }
   }
-  return { tools, errors, close: async () => { await Promise.allSettled(connections.map(connection => connection.close())); } };
+  return { tools, errors, serverStates, close: async () => { await Promise.allSettled(connections.map(connection => connection.close())); } };
 }

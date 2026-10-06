@@ -2,6 +2,8 @@
 
 日期：2026-09-30。此记录只描述本轮改动，不把工作区既有的大量迁移改动归入本轮；没有重置、暂存或提交用户已有改动，也未发布产品版本。
 
+> 历史构建快照：下文记录的 dist/frontend 与 dist/server 是 2026-09-30 当次构建输出。当前构建与运行入口以 [2026-10-01 全仓审计](workspace-audit.md) 和 [系统总体架构](系统总体架构.md) 为准。
+
 ## 已交付
 
 通用 `/tasks` 入口；与 HTTP 连接解耦的后台 Run；结构化工具证据恢复；设置驱动的执行预算；排队与引导输入；独立模型与工具循环的顺序子 Agent；真实项目文件和 Markdown Skills 发现/读取；可执行插件工具；设置中心配置的 HTTP MCP 工具接入；账户隔离的节点输出面板；浏览器语音输入与播报适配。
@@ -24,7 +26,7 @@
 | general.taskFolder / integratedShell | 既有路径及 system；项目根目录和主机命令默认目录/Shell |
 | general.followupBehavior | 既有 queue；运行中输入按 queue/steer 行为处理 |
 | general.terminalPosition / showBottomPanelControl | 既有 bottom/true；真实输出面板位置与入口可见性 |
-| general.defaultStandaloneChat | 既有 false；首页登录或恢复时是否默认进入 /tasks |
+| general.defaultStandaloneChat | 既有 false；记录时用于登录/恢复直达 `/tasks`，2026-10-04 后在应用中心标记通用任务默认入口，登录或恢复仍先显示 `/` |
 | general.language / sendShortcut / 通知及快捷键设置 | 既有偏好；语音语言、发送、输出入口快捷键与任务通知 |
 | aiRuntime.speed / requestTimeoutSeconds / maxOutputTokens / promptSuggestions / showContextUsage | 既有偏好；保留模型请求、MCP 超时和聊天展示配置 |
 | permissions.mode | 既有 ask；写入、高风险和外部 MCP 调用沿用三种权限合同 |

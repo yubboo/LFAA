@@ -34,6 +34,21 @@ apps/desktop-tauri/src-tauri/gen/
 backups/
 **/backups/
 **/credentials/
+# packages/credentials 是第一方源码命名空间；运行时凭据目录仍按上面的全局规则排除。
+!packages/credentials/
+!packages/credentials/authorization/
+!packages/credentials/authorization/**
+!packages/credentials/credential-flows/
+!packages/credentials/credential-flows/**
+!packages/credentials/credentials/
+!packages/credentials/credentials/**
+!packages/credentials/credentials-local/
+!packages/credentials/credentials-local/**
+!packages/credentials/deepseek-account/
+!packages/credentials/deepseek-account/**
+!packages/credentials/deepseek-account-platform/
+!packages/credentials/deepseek-account-platform/**
+packages/credentials/**/node_modules/
 **/secrets/
 *.sqlite
 *.sqlite3

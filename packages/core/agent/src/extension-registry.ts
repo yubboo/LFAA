@@ -4,6 +4,8 @@
  * 关联文件：packages/boot/app-boot/src/ai-host.ts、未来的 AI Provider/Skill/Prompt/Agent/Tool 插件。
  */
 import { Service, type Context } from "@deepseek-ai/cordis";
+import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
+import { isApplicationInScope } from "lfaa-scope/src/index.js";
 
 export type AiExtensionKind = "agent" | "llm-provider" | "skill" | "prompt" | "expert" | "tool";
 
@@ -14,7 +16,7 @@ export interface AiExtensionManifest {
   name: string;
   version: string;
   description: string;
-  applicationIds?: readonly ("steamcmd" | "minecraft" | "writing" | "workspace")[];
+  applicationIds?: readonly ApplicationId[];
   toolPolicy?: Readonly<{ risk: "read" | "write" | "dangerous"; workspaceBound: boolean }>;
   instructions?: string;
 }
@@ -47,6 +49,9 @@ export class AiExtensionRegistry extends Service {
       if (manifest.kind === "tool" && (!manifest.applicationIds?.length || !manifest.toolPolicy)) {
         throw new Error("AI 工具扩展必须声明应用范围和风险策略。");
       }
+      if (manifest.applicationIds?.some((applicationId) => !APPLICATION_IDS.includes(applicationId))) {
+        throw new Error("AI 扩展声明了无效的应用范围。");
+      }
       if (manifest.kind !== "tool" && manifest.toolPolicy) {
         throw new Error("只有 AI 工具扩展可以声明工具风险策略。");
       }
@@ -75,16 +80,16 @@ export class AiExtensionRegistry extends Service {
       .sort((left, right) => left.id.localeCompare(right.id));
   }
 
-  getInstructions(applicationId: "steamcmd" | "minecraft" | "writing" | "workspace"): string[] {
+  getInstructions(applicationId: ApplicationId): string[] {
     return [...this.manifests.values()]
-      .filter((manifest) => manifest.instructions && (!manifest.applicationIds || manifest.applicationIds.includes(applicationId)))
+      .filter((manifest) => manifest.instructions && isApplicationInScope(manifest.applicationIds, applicationId))
       .sort((left, right) => left.id.localeCompare(right.id))
       .map((manifest) => manifest.instructions!);
   }
 
-  listInstructionExtensions(applicationId: "steamcmd" | "minecraft" | "writing" | "workspace"): AiExtensionManifest[] {
+  listInstructionExtensions(applicationId: ApplicationId): AiExtensionManifest[] {
     return [...this.manifests.values()]
-      .filter((manifest) => manifest.instructions && (!manifest.applicationIds || manifest.applicationIds.includes(applicationId)))
+      .filter((manifest) => manifest.instructions && isApplicationInScope(manifest.applicationIds, applicationId))
       .map(({ instructions: _instructions, ...manifest }) => ({ ...manifest }))
       .sort((left, right) => left.id.localeCompare(right.id));
   }

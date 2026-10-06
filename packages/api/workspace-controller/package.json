@@ -1,0 +1,35 @@
+{
+  "name": "lfaa-api-workspace-controller",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "express": "^4.0.0",
+    "joi": "^17.0.0",
+    "lfaa-api-gateway": "workspace:*",
+    "lfaa-api-remotes": "workspace:*",
+    "lfaa-app-boot": "workspace:*",
+    "lfaa-authorization": "workspace:*",
+    "lfaa-host-daemon": "workspace:*",
+    "lfaa-jobs": "workspace:*",
+    "lfaa-session": "workspace:*",
+    "lfaa-settings": "workspace:*",
+    "lfaa-util-values": "workspace:*",
+    "lfaa-workspace-workspace": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/express": "^4.0.0",
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^24.0.0",
+    "@types/js-yaml": "^4.0.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

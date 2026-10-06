@@ -1,6 +1,15 @@
 ; 功能：在卸载或覆盖安装时保留安装目录中的 LFAA 运行数据。
 ; 作用：复用 electron-builder 的安全文件移出流程，只把程序安装文件清出安装目录，再恢复 data/ 数据树。
-; 关联文件：apps/desktop-electron/package.json、apps/desktop-electron/src/main.mjs。
+; 关联文件：apps/desktop-electron/package.json、apps/desktop-electron/src/main.mjs、apps/desktop-electron/assets/installation-notice.txt。
+ShowInstDetails show
+
+!macro customInstall
+  SetDetailsPrint both
+  DetailPrint "LFAA 桌面程序与本机运行环境已安装到：$INSTDIR"
+  DetailPrint "Control Plane 与 Daemon 运行组件已随程序安装。"
+  DetailPrint "开始菜单与桌面快捷方式已创建。"
+!macroend
+
 !macro customRemoveFiles
   CreateDirectory "$PLUGINSDIR\old-install"
   Push ""

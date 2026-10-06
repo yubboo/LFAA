@@ -5,6 +5,7 @@
  */
 import type { Context } from "@deepseek-ai/cordis";
 import type { AiBusinessTool, AiBusinessToolContext } from "./business-tools.js";
+import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 
 const tools = new Map<string, AiBusinessTool>();
 
@@ -12,7 +13,7 @@ const tools = new Map<string, AiBusinessTool>();
 export function registerAiBusinessTool(owner: Context, tool: AiBusinessTool): void {
   owner.effect(() => {
     if (!/^[a-z0-9][a-z0-9._-]{1,119}$/u.test(tool.id) || !/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/u.test(tool.name)) throw new Error("可执行工具标识格式无效。");
-    if (!tool.applicationIds.length || !tool.applicationIds.every(id => ["workspace", "writing", "minecraft", "steamcmd"].includes(id))) throw new Error("可执行工具必须声明有效应用范围。");
+    if (!tool.applicationIds.length || !tool.applicationIds.every(id => APPLICATION_IDS.includes(id))) throw new Error("可执行工具必须声明有效应用范围。");
     if (!tool.description || tool.schema.type !== "object" || [tool.parse, tool.risk, tool.approval, tool.execute].some(fn => typeof fn !== "function") || tool.delegation) throw new Error("插件工具必须提供完整执行、校验和权限合同。");
     if (tools.has(tool.id) || [...tools.values()].some(item => item.name === tool.name)) throw new Error("可执行工具 ID 或模型调用名称重复。");
     const registered: AiBusinessTool = Object.freeze({ ...tool, applicationIds: [...tool.applicationIds], schema: structuredClone(tool.schema), execute: async (parameters: Record<string, unknown>, context: AiBusinessToolContext) => {

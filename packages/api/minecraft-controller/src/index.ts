@@ -1,5 +1,7 @@
 /** 功能：登记 minecraft-controller 的现有接口。作用：保留迁移前的行为并按包维护。关联文件：API Gateway、设置中心或工作台对应入口。 */
 import { Router } from "express";
+import { issueDaemonCredential, listDaemonCredentials, revokeDaemonCredential } from "lfaa-host-daemon/src/node-credentials.js";
+import { restartMinecraftInstance, sendMinecraftConsoleCommand } from "lfaa-games-minecraft/src/service.js";
 import Joi from "joi";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication, requireRole } from "lfaa-authorization/src/middleware.js";
@@ -7,8 +9,52 @@ import { getDaemonNode, listDaemonNodes } from "lfaa-host-daemon/src/local-daemo
 import { backupMinecraftWorld, createMinecraftDeployment, getMinecraftInstance, getMinecraftInstanceLogs, getMinecraftOverview, getMinecraftRelease, getMinecraftReleases, getMinecraftStorageSettingsOverview, listMinecraftDeployments, forgetMinecraftJavaPath, installMinecraftJava, listMinecraftInstances, listMinecraftJavaRuntimes, listMinecraftTaskRecords, startMinecraftInstance, stopMinecraftInstance, registerMinecraftDeployment, retryMinecraftDeployment, updateMinecraftInstanceJavaRuntime, saveMinecraftNodeStorageSettings, saveMinecraftStorageDefaults, registerMinecraftJavaPath, uninstallMinecraftJava, updateMinecraftServerProperties, validateMinecraftServerProperties } from "lfaa-games-minecraft/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
+import { listMinecraftCores, listMinecraftCoreBuilds } from "lfaa-games-minecraft/src/core-sources.js";
+import { provisionMinecraftServer, type MinecraftProvisionInput } from "lfaa-games-minecraft/src/deployment-service.js";
 import { asyncHandler, parseBody, withoutJavaExecutablePath, withoutJavaExecutablePaths, withoutJavaTaskPath, minecraftDeploymentSchema, minecraftDeploymentRegistrationSchema, minecraftInstanceJavaRuntimeSchema, minecraftJavaInstallSchema, minecraftJavaUninstallSchema, minecraftJavaPathSchema, minecraftJavaPathRemovalSchema, minecraftStorageSettingsSchema } from "lfaa-api-remotes/src/route-contracts.js";
 export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, realtime: MinecraftRealtimePublisher): void {
+
+router.get("/minecraft/cores", requireAuthentication, asyncHandler(async (_request, response) => {
+  response.json(await listMinecraftCores());
+}));
+router.get("/minecraft/cores/:core/versions/:version/builds", requireAuthentication, asyncHandler(async (request, response) => {
+  const offset = request.query.offset === undefined ? 0 : Number(request.query.offset);
+  response.json(await listMinecraftCoreBuilds(request.params.core, request.params.version, offset));
+}));
+router.post("/minecraft/provision", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
+  const body = parseBody<Omit<MinecraftProvisionInput, "userId">>(Joi.object({
+    nodeId: Joi.string().guid().required(), name: Joi.string().trim().min(1).max(48).required(),
+    core: Joi.string().max(32).required(), version: Joi.string().max(120).required(), build: Joi.string().max(120).required(),
+    eulaAccepted: Joi.boolean().valid(true).required(), memoryMb: Joi.number().integer().min(1024).max(32768),
+    serverPort: Joi.number().integer().min(1024).max(65535), javaRuntimeId: Joi.string().max(80).allow(null),
+    proxyBackendInstanceId: Joi.string().guid()
+  }).unknown(false), request.body);
+  const created = await provisionMinecraftServer({ ...body, userId: request.auth!.user.id });
+  realtime.publishMinecraftChange(["state", "tasks"], created.instance.id);
+  response.status(202).json(created);
+}));
+router.get("/daemon-nodes/credentials", requireAuthentication, requireRole("admin"), (_request, response) => response.json({ nodes: listDaemonCredentials() }));
+router.post("/daemon-nodes/credentials", requireAuthentication, requireRole("admin"), (request, response) => {
+    const body = parseBody<{ displayName: string; nodeId?: string; controlPlaneUrl: string }>(Joi.object({ displayName: Joi.string().trim().min(1).max(80).required(), nodeId: Joi.string().guid(), controlPlaneUrl: Joi.string().uri({ scheme: ["https"] }).max(2048).required() }).unknown(false), request.body);
+    response.setHeader("Cache-Control", "no-store");
+    try { const issued = issueDaemonCredential(body.displayName, body.nodeId, body.controlPlaneUrl); response.status(201).json({ nodeId: issued.nodeId, displayName: issued.displayName }); }
+    catch (error) { throw new ApiError(400, "invalid_daemon_identity", error instanceof Error ? error.message : "节点身份无效。"); }
+  });
+router.delete("/daemon-nodes/credentials/:nodeId", requireAuthentication, requireRole("admin"), (request, response) => {
+    if (!revokeDaemonCredential(request.params.nodeId)) throw new ApiError(404, "daemon_identity_not_found", "找不到远程节点身份。");
+    realtime.publishMinecraftChange(["state"]); response.status(204).end();
+  });
+router.post("/minecraft/instances/:instanceId/restart", requireAuthentication, requireRole("admin"), (request, response) => {
+    const task = restartMinecraftInstance(request.params.instanceId, request.auth!.user.id);
+    realtime.publishMinecraftChange(["state", "tasks"], request.params.instanceId);
+    response.status(202).json({ task });
+  });
+router.post("/minecraft/instances/:instanceId/console", requireAuthentication, requireRole("admin"), (request, response) => {
+    const body = parseBody<{ command: string }>(Joi.object({ command: Joi.string().min(1).max(1024).required() }).unknown(false), request.body);
+    const task = sendMinecraftConsoleCommand(request.params.instanceId, request.auth!.user.id, body.command);
+    realtime.publishMinecraftChange(["tasks"], request.params.instanceId);
+    response.status(202).json({ task });
+  });
 
 router.get("/minecraft/overview", requireAuthentication, asyncHandler(async (_request, response) => {
     const overview = await getMinecraftOverview(() => realtime.publishMinecraftChange(["state"]));

@@ -64,7 +64,7 @@ test("在线节点心跳续租后任务保持运行", () => {
   assert.equal(claimNextMinecraftTask(nodeId)?.id, task.id);
 
   database.prepare("UPDATE minecraft_tasks SET lease_expires_at = ? WHERE id = ?")
-    .run(new Date(Date.now() - 1_000).toISOString(), task.id);
+    .run(new Date(Date.now() + 1_000).toISOString(), task.id);
   assert.equal(renewMinecraftTaskLeases(nodeId, [task.id]), 1);
 
   const renewedExpiry = database.prepare("SELECT lease_expires_at FROM minecraft_tasks WHERE id = ?").get(task.id).lease_expires_at;
@@ -85,6 +85,7 @@ test("过期任务标记结果未确认并将实例置为未知状态", () => {
 
   database.prepare("UPDATE minecraft_tasks SET lease_expires_at = ? WHERE id = ?")
     .run(new Date(Date.now() - 1_000).toISOString(), task.id);
+  assert.equal(renewMinecraftTaskLeases(nodeId, [task.id]), 0);
 
   const expiredTask = listMinecraftTasks().find((item) => item.id === task.id);
   assert.equal(expiredTask?.status, "failed");

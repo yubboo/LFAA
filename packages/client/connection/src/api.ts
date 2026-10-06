@@ -13,8 +13,12 @@ import {
 } from "@simplewebauthn/browser";
 import { isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { createStreamDeltas } from "./stream-deltas.js";
+import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
+import type { TypertRemoteCallOptions, TypertRemoteClientContract } from "lfaa-typert-protocol/src/index.js";
+import { accountControllerRemoteMethods, type AccountControllerRemoteContract } from "lfaa-api-account-controller/src/client-contract.generated.js";
 
-export type ApplicationId = "steamcmd" | "minecraft" | "writing" | "workspace";
+export type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 export type ApplicationMode = "normal" | "ai-work";
 export type UserRole = "super_admin" | "admin" | "member";
 
@@ -97,6 +101,9 @@ export interface AppearanceAdvancedSettings {
   contrast: number;
   diffMarkers: "color" | "symbols";
   pointerCursor: boolean;
+  aiWorkOutputFocusBlurEnabled: boolean;
+  aiWorkOutputFocusBlurPercent: number;
+  aiWorkOutputFocusBlurIdleSeconds: number;
 }
 
 export interface AppearanceSettings {
@@ -104,6 +111,7 @@ export interface AppearanceSettings {
   accentColor: string;
   sidebarColor: string;
   backgrounds: { login: string; appCenter: string; steamcmd: string; minecraft: string; writing: string; settings: string };
+  wallpaperEngine: { enabled: boolean; projectId: string };
   overlay: number;
   blur: number;
   advanced: AppearanceAdvancedSettings;
@@ -122,7 +130,10 @@ export const DEFAULT_APPEARANCE_ADVANCED_SETTINGS: AppearanceAdvancedSettings = 
   translucentSidebar: false,
   contrast: 60,
   diffMarkers: "color",
-  pointerCursor: false
+  pointerCursor: false,
+  aiWorkOutputFocusBlurEnabled: true,
+  aiWorkOutputFocusBlurPercent: 33,
+  aiWorkOutputFocusBlurIdleSeconds: 60
 };
 
 export interface UserSettings {
@@ -152,10 +163,18 @@ export interface UserSettings {
     confettiEnabled: boolean;
   };
   appearance: AppearanceSettings;
-  shortcuts: { openSettings: string[]; openHome: string[]; openSteamcmd: string[]; openMinecraft: string[]; openWriting: string[]; toggleSidebar: string[]; toggleContextPanel: string[]; toggleBottomPanel: string[]; openTerminal: string[]; switchNormalMode: string[]; switchAiWorkMode: string[] };
-  aiRuntime: { speed: "balanced" | "fast" | "deep"; promptSuggestions: boolean; showContextUsage: boolean; requestTimeoutSeconds: number; maxOutputTokens: number; maxModelRequests: number; maxToolCalls: number; subagentAccountId: string; maxSubagents: number; maxDelegationDepth: number; voiceInputEnabled: boolean; readResponsesAloud: boolean };
+  shortcuts: { openSettings: string[]; openHome: string[]; openSteamcmd: string[]; openMinecraft: string[]; openWriting: string[]; toggleSidebar: string[]; toggleContextPanel: string[]; toggleBottomPanel: string[]; openTerminal: string[]; switchNormalMode: string[]; switchAiWorkMode: string[]; openSideChat: string[]; wallpaperSidebarToggle: string[] };
+  aiRuntime: { speed: "balanced" | "fast" | "deep"; promptSuggestions: boolean; showContextUsage: boolean; requestTimeoutSeconds: number; maxOutputTokens: number; maxModelRequests: number; maxToolCalls: number; subagentAccountId: string; maxSubagents: number; maxDelegationDepth: number; voiceInputEnabled: boolean; readResponsesAloud: boolean; commandTimeoutSeconds: number; };
+  minecraftRuntime: { minecraftReadyTimeoutSeconds: number; minecraftStopTimeoutSeconds: number; minecraftDefaultMemoryMb: number; minecraftDefaultPort: number; minecraftDownloadTimeoutSeconds: number; minecraftInstallTimeoutSeconds: number; minecraftExecutionMode: "native" | "appcontainer"; minecraftDefaultCore: string; minecraftBedrockDefaultPort: number; };
+  git: { branchPrefix: string };
   permissions: { mode: "ask" | "approve_remembered" | "full_access" };
-  plugins: { enabled: boolean; mcpServers: Array<{ id: string; name: string; url: string; enabled: boolean }> };
+  personalization: { memoryEnabled: boolean; memoryFromToolChats: boolean };
+  computerControl: { enabled: boolean };
+  plugins: {
+    enabled: boolean;
+    mcpServers: Array<{ id: string; name: string; url: string; enabled: boolean; applicationIds: ApplicationId[]; manifestSha256?: string }>;
+    prompts: Array<{ id: string; name: string; description: string; applicationId: ApplicationId; sourceRepository: string; sourcePath: string; license: string | null; commit: string; archiveSha256: string; contentSha256: string; content: string; enabled: boolean; createdAt: string }>;
+  };
 }
 
 export interface AppearanceBackground {
@@ -180,6 +199,7 @@ export interface AiModel {
   contextWindow?: number;
   maxOutputTokens?: number;
   thinking: AiModelThinkingControl | null;
+  thinkingSource: "provider-model-catalog" | null;
 }
 
 export type AiModelThinkingControl =
@@ -266,6 +286,77 @@ export interface AiRuntimePlugin {
   state: string;
 }
 
+export interface ManagedPluginRecord {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  source: { repository: string; requestedRef: string; commit: string; archiveSha256: string; license: string | null };
+  compatibility: "lfaa-v1" | "dsh-v1" | "unsupported";
+  runtimeEntry: string | null;
+  capabilities: string[];
+  applicationIds: ApplicationId[];
+  state: "installed" | "enabled" | "incompatible";
+  reason: string | null;
+  installedAt: string;
+  installedBy: string;
+}
+
+export type CapabilityInstallKind = "plugin" | "skill" | "prompt" | "tool" | "mcp" | "minecraft-plugin" | "minecraft-mod";
+
+export interface CapabilityInstallCatalogEntry {
+  kind: CapabilityInstallKind;
+  available: boolean;
+  applicationIds: ApplicationId[];
+  operations: string[];
+  reason: string | null;
+}
+
+export interface ManagedPluginCandidate {
+  owner: string;
+  name: string;
+  fullName: string;
+  description: string;
+  stars: number;
+  license: string | null;
+  defaultBranch: string;
+  url: string;
+  updatedAt: string;
+  sourceType: "github";
+  requiresInspection: true;
+  warning: string;
+}
+
+export interface ManagedPluginInspection {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  compatibility: "lfaa-v1" | "dsh-v1" | "unsupported";
+  runtimeEntry: string | null;
+  capabilities: string[];
+  applicationIds: ApplicationId[];
+  reason: string | null;
+  repository: { owner: string; name: string; fullName: string; description: string; stars: number; license: string | null; defaultBranch: string; url: string };
+  requestedRef: string;
+  resolvedCommit: string;
+  archiveSha256: string;
+  requirements: {
+    dshVersion: string | null;
+    hostEntry: string | null;
+    bundlePatch: string | null;
+    clientEntry: string | null;
+    clientPlatform: string | null;
+    clientInject: string[];
+    peerDependencies: Record<string, string>;
+    packageDependencies: string[];
+    declaredScripts: string[];
+  };
+  license: string | null;
+  canEnable: boolean;
+  runtimeReason: string | null;
+}
+
 export interface AiSession {
   id: string;
   appId: ApplicationId;
@@ -273,21 +364,129 @@ export interface AiSession {
   archived: boolean;
   createdAt: string;
   updatedAt: string;
+  projectId?: string | null;
+  projectTitle?: string | null;
+  planMode: boolean;
+}
+
+export type WorkspaceProjectApplicationId = "workspace" | "minecraft";
+
+export interface WorkspaceProject {
+  id: string;
+  userId: string;
+  appId: WorkspaceProjectApplicationId | null;
+  nodeId: string;
+  path: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  gitWorktree: { projectId: string; sourceProjectId: string; nodeId: string; worktreeId: string; worktreeRoot: string; projectRelativePath: string; branch: string; baseCommit: string; sourceHead: string; createdAt: string } | null;
+}
+
+export type KnowledgeLibraryKind = "knowledge" | "skill" | "prompt" | "expert";
+export type KnowledgeLibraryScope = ApplicationId | "all";
+
+export interface KnowledgeLibraryItemSummary {
+  id: string;
+  applicationId: KnowledgeLibraryScope;
+  kind: KnowledgeLibraryKind;
+  title: string;
+  description: string;
+  contentSha256: string;
+  sourceKind: "upload" | "conversation" | "manual";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeLibraryItem extends KnowledgeLibraryItemSummary {
+  contentMarkdown: string;
+}
+
+export interface KnowledgeLibraryProjectSource {
+  id: string;
+  applicationId: KnowledgeLibraryScope;
+  projectId: string;
+  projectApplicationId: WorkspaceProjectApplicationId;
+  relativePath: string;
+  title: string;
+  createdAt: string;
+}
+
+export interface KnowledgeLibraryUsage {
+  resources: number;
+  limit: number;
+}
+
+export interface WorkspaceDaemonNode {
+  id: string;
+  displayName: string;
+  platform: string;
+  architecture: string;
+  version: string;
+  status: "online" | "offline";
+  lastSeenAt: string;
+  gitWorkspaceSupported?: boolean;
+}
+
+export interface WorkspaceGitStatus {
+  repository: string;
+  projectRelativePath: string;
+  worktreeId: string | null;
+  branch: string;
+  head: string;
+  baseline: string;
+  clean: boolean;
+  changedFileCount: number;
+  shownFileCount: number;
+  files: Array<{ status: string; path: string; projectPath: string; displayPath: string; insertions: number | null; deletions: number | null }>;
+  insertions: number;
+  deletions: number;
+  unknownLineCounts: number;
+  diff: string;
+  diffTruncated: boolean;
+  statusTruncated: boolean;
+}
+
+export interface WorkspaceGitFileDiff {
+  path: string;
+  status: string;
+  diff: string;
+  diffTruncated: boolean;
+  wordDiff: boolean;
+  ignoreWhitespace: boolean;
+}
+
+export interface WorkspaceProjectTextFile {
+  path: string;
+  content: string;
+  offset: number;
+  totalCharacters: number;
+  truncated: boolean;
+  sha256: string;
 }
 
 export interface AiHostTask {
   id: string; nodeId: string; shell: string; workingDirectory: string; status: "queued" | "running" | "succeeded" | "failed"; message: string; createdAt: string;
   result?: { stdout: string; stderr: string; exitCode: number | null; timedOut: boolean; outputTruncated: boolean } | null;
+  cancelRequested?: boolean;
 }
 export function loadAiHostTasks(): Promise<{ tasks: AiHostTask[] }> { return request("/ai/host-tasks"); }
 export function loadAiHostTask(taskId: string): Promise<{ task: AiHostTask }> { return request(`/ai/host-tasks/${encodeURIComponent(taskId)}`); }
+export function cancelAiHostTask(taskId: string): Promise<{ task: AiHostTask }> { return request(`/ai/host-tasks/${encodeURIComponent(taskId)}/cancel`, { method: "POST" }); }
 
 export interface WritingBook {
   id: string;
   title: string;
+    aiRoleId: WritingSpecialistId;
   createdAt: string;
   updatedAt: string;
 }
+
+  export type WritingSpecialistId = "writing-companion" | "outline-planner" | "chapter-writer" | "precision-editor" | "continuity-reviewer" | "character-consultant";
+
+  export interface WritingSpecialistOption { id: WritingSpecialistId; name: string; description: string }
+  export interface WritingBookSkillSummary { id: string; title: string; description: string; enabled: boolean; updatedAt: string }
+  export interface WritingBookSkill extends WritingBookSkillSummary { bookId: string; instructions: string; createdAt: string }
 
 export interface WritingVolume {
   id: string;
@@ -334,13 +533,37 @@ export interface WritingCatalogSummary {
   kind: WritingCatalogKind;
   title: string;
   updatedAt: string;
-  wordCount: number;
 }
 
 export interface WritingCatalogEntry extends WritingCatalogSummary {
   bookId: string;
   content: string;
   createdAt: string;
+  wordCount: number;
+}
+
+export interface WritingCatalogPage {
+  entries: WritingCatalogSummary[];
+  offset: number;
+  limit: number;
+  total: number;
+}
+
+export type WritingEditOperation = "append" | "prepend" | "insert_before" | "insert_after" | "replace_anchor" | "replace";
+
+export interface WritingEditProposal {
+  id: string;
+  bookId: string;
+  targetType: "outline" | "chapter";
+  targetId: string;
+  bookTitle: string;
+  targetTitle: string;
+  operation: WritingEditOperation;
+  status: "pending" | "applied" | "rejected" | "stale" | "superseded" | "expired";
+  createdAt: string;
+  expiresAt: string;
+  baseContent: string | null;
+  proposedContent: string | null;
 }
 
 export interface WritingWorkspace {
@@ -352,6 +575,9 @@ export interface WritingWorkspace {
   activeChapterId: string | null;
   activeChapter: WritingChapter | null;
   catalogEntries: WritingCatalogSummary[];
+  catalogEntriesHasMore: boolean;
+    writingRoleOptions: WritingSpecialistOption[];
+    bookSkills: WritingBookSkillSummary[];
 }
 
 export interface AiMessage {
@@ -361,18 +587,36 @@ export interface AiMessage {
   status: "complete" | "queued" | "streaming" | "interrupted" | "error";
   createdAt: string;
   activity: AiActivityItem[];
+  feedback?: AiMessageFeedback;
+}
+
+export interface AiMessageFeedback {
+  rating: "positive" | "negative";
+  reasons: string[];
+  detail: string;
+  submittedAt: string;
+}
+
+export interface AiMessageFeedbackInput {
+  rating: "positive" | "negative";
+  reasons: string[];
+  detail: string;
 }
 
 export interface AiActivityItem {
   id: string;
-  kind: "status" | "skill" | "tool" | "command" | "agent";
+  kind: "status" | "skill" | "tool" | "command" | "agent" | "question";
   title: string;
-  status: "running" | "approval_required" | "complete" | "error" | "unavailable";
+  status: "running" | "approval_required" | "waiting_input" | "complete" | "error" | "unavailable";
   detail: string;
   startedAt: string;
   completedAt: string | null;
   durationMs: number | null;
   approvalId?: string;
+  questionId?: string;
+  question?: string;
+  options?: string[];
+  writingProposalId?: string;
 }
 
 export interface AiUsageSummary {
@@ -438,6 +682,9 @@ export interface MinecraftInstance {
   javaMajor: number;
   javaRuntimeId: string | null;
   memoryMb: number;
+  coreType: string;
+  coreBuild: string;
+  executionMode: "native" | "appcontainer";
   state: "installing" | "stopped" | "starting" | "running" | "stopping" | "error" | "unknown";
   sandboxAvailable: boolean;
   sandboxStatus: "unsupported" | "unprepared" | "prepared" | "running" | "unknown";
@@ -447,6 +694,64 @@ export interface MinecraftInstance {
   updatedAt: string;
 }
 
+export interface ConnectivityTarget {
+  id: string;
+  applicationId: ApplicationId;
+  name: string;
+  nodeId: string;
+  nodeName: string;
+  nodeStatus: "online" | "offline";
+  transport: "tcp" | "udp";
+  localHost: "127.0.0.1";
+  localPort: number;
+  state: "running";
+}
+
+export interface ConnectivityRoute {
+  id: string;
+  sourceAppId: ApplicationId | "custom";
+  targetId: string | null;
+  name: string;
+  mode: "provider" | "self-managed" | "room-domain";
+  transport: "tcp" | "udp";
+  target: { nodeId: string; localHost: "127.0.0.1"; localPort: number };
+  roomName: string | null;
+  publicPort: number | null;
+  playerAddress: string | null;
+  state: "manual" | "waiting-for-node" | "connected" | "offline" | "failed";
+  errorCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastConnectedAt: string | null;
+}
+
+export interface ConnectivityProvider {
+  id: string;
+  name: string;
+  officialUrl: string;
+  status: "ready";
+  transports: Array<"tcp" | "udp">;
+  configured: boolean;
+}
+
+export interface ConnectivityOverview {
+  deployment: { roomDomain: { configured: boolean; publicDomain: string | null; relayUrl: string | null; reason: string | null; tcpPortStart: number | null; tcpPortEnd: number | null; udpPortStart: number | null; udpPortEnd: number | null; minecraftPort: number | null } };
+  easyTier: { version: string; license: "LGPL-3.0"; installCapability: string; runtimeCapability: string };
+  providers: ConnectivityProvider[];
+  routes: ConnectivityRoute[];
+  targets: ConnectivityTarget[];
+  nodes: Array<{ id: string; displayName: string; platform: string; architecture: string; capabilities: string[] }>;
+}
+
+export interface ConnectivityEasyTierTask {
+  id: string;
+  nodeId: string;
+    status: "queued" | "running" | "succeeded" | "failed" | "unknown";
+  message: string;
+  createdAt: string;
+  finishedAt: string | null;
+}
+
 export interface MinecraftDeployment {
   id: string;
   nodeId: string;
@@ -454,7 +759,9 @@ export interface MinecraftDeployment {
   nodeStatus: "online" | "offline";
   name: string;
   storageDirectory: string;
-  serverType: "vanilla";
+  serverType: string;
+  coreBuild: string;
+  automatic: boolean;
   releaseId: string;
   javaMajor: number;
   state: "queued" | "downloading" | "ready" | "failed" | "registering" | "registered";
@@ -469,7 +776,7 @@ export interface MinecraftTask {
   instanceId: string | null;
   deploymentId: string | null;
   createdBy: string;
-  kind: "install" | "start" | "stop" | "properties" | "backup" | "java-install";
+  kind: "install" | "start" | "stop" | "properties" | "backup" | "java-install" | "restart" | "console";
   status: "queued" | "running" | "succeeded" | "failed";
   progress: number;
   message: string;
@@ -539,10 +846,25 @@ export interface DataDirectorySettings {
   unavailableReason: string | null;
 }
 
+export interface DesktopUpdateRuntimeInfo {
+  supported: boolean;
+  currentVersion: string;
+}
+
+export interface DesktopUpdateCheckResult {
+  status: "unsupported" | "disabled" | "up-to-date" | "deferred" | "downloading" | "downloaded" | "error";
+  currentVersion: string;
+  latestVersion?: string;
+  releaseNotes?: string[];
+  message?: string;
+}
+
 declare global {
   interface Window {
     lfaaDesktop?: {
       selectDataDirectory: () => Promise<string | null>;
+      getUpdateRuntimeInfo: () => Promise<DesktopUpdateRuntimeInfo>;
+      checkForUpdates: () => Promise<DesktopUpdateCheckResult>;
     };
   }
 }
@@ -654,6 +976,28 @@ async function requestOnce<T>(path: string, options: RequestInit): Promise<T> {
   }
 
   return responseBody as T;
+}
+
+async function requestBinary(path: string, options: RequestInit = {}): Promise<Blob> {
+  const headers = new Headers(options.headers);
+  const response = await fetch(`/api${path}`, { ...options, headers, credentials: "include" });
+  if (!response.ok) {
+    const rawBody = await response.text();
+    let responseBody: unknown;
+    try { responseBody = rawBody ? JSON.parse(rawBody) as unknown : undefined; } catch { responseBody = undefined; }
+    const message = typeof responseBody === "object" && responseBody !== null && "message" in responseBody && typeof responseBody.message === "string"
+      ? responseBody.message
+      : "请求失败，请稍后重试。";
+    const code = typeof responseBody === "object" && responseBody !== null && "error" in responseBody && typeof responseBody.error === "string"
+      ? responseBody.error
+      : undefined;
+    if (response.status === 401 && (code === "authentication_required" || code === "invalid_session") && typeof window !== "undefined") {
+      pendingReads.clear();
+      window.dispatchEvent(new Event(sessionExpiredEventName));
+    }
+    throw new ApiError(response.status, message, code);
+  }
+  return response.blob();
 }
 
 export function loadHealth(): Promise<ServerHealth> {
@@ -769,6 +1113,140 @@ export function loadMinecraftNodes(): Promise<{ nodes: MinecraftNode[] }> {
 export function loadMinecraftReleases(): Promise<{ catalog: MinecraftCatalog }> {
   return request("/minecraft/releases");
 }
+export type WorkflowValueType = "text" | "json" | "artifact" | "any";
+export interface WorkflowPort { id: string; valueType: WorkflowValueType; required?: boolean }
+export interface WorkflowNode { id: string; type: string; version: number; title: string; data: Record<string, unknown>; x: number; y: number }
+export interface WorkflowEdge { id: string; from: string; fromPort: string; to: string; toPort: string }
+export interface WorkflowDefinition { id: string; appId: ApplicationId; schemaVersion: 1; engineId: string; title: string; nodes: WorkflowNode[]; edges: WorkflowEdge[]; createdAt: string; updatedAt: string }
+export interface WorkflowNodeType { type: string; version: number; applicationIds: ApplicationId[]; name: string; description: string; defaultData: Record<string, unknown>; inputPorts: WorkflowPort[]; outputPorts: WorkflowPort[]; configurationOptions?: unknown }
+export interface WorkflowEngineType { id: string; version: number; name: string }
+export type WorkflowStatus = "queued" | "running" | "succeeded" | "failed" | "interrupted";
+export type WorkflowNodeStatus = "waiting" | "running" | "succeeded" | "failed" | "interrupted";
+export interface WorkflowRunNode { nodeId: string; type: string; title: string; startedAt: string | null; completedAt: string | null; status: WorkflowNodeStatus; output?: string; outputTruncated?: boolean; references?: Array<{ kind: string; id: string }>; progress?: Record<string, unknown>; error?: string }
+export interface WorkflowRun { id: string; appId: ApplicationId; workflowId: string; status: WorkflowStatus; nodes: WorkflowRunNode[]; currentNodeId: string | null; createdAt: string; updatedAt: string }
+
+const workflowPath = (appId: ApplicationId) => `/apps/${encodeURIComponent(appId)}/workflows`;
+function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
+export function loadWorkflows(appId: ApplicationId): Promise<{ workflows: WorkflowDefinition[] }> { return request(workflowPath(appId)); }
+export function loadWorkflowNodeTypes(appId: ApplicationId): Promise<{ nodes: WorkflowNodeType[] }> { return request(`${workflowPath(appId)}/nodes`); }
+export function loadWorkflowEngineTypes(appId: ApplicationId): Promise<{ engines: WorkflowEngineType[] }> { return request(`${workflowPath(appId)}/engines`); }
+export function createWorkflow(appId: ApplicationId, input: Pick<WorkflowDefinition, "title" | "nodes" | "edges"> & Partial<Pick<WorkflowDefinition, "engineId">>): Promise<{ workflow: WorkflowDefinition }> {
+  return request(workflowPath(appId), { method: "POST", body: JSON.stringify(input) });
+}
+export function saveWorkflow(appId: ApplicationId, workflowId: string, input: Pick<WorkflowDefinition, "title" | "nodes" | "edges"> & Partial<Pick<WorkflowDefinition, "engineId">>): Promise<{ workflow: WorkflowDefinition }> {
+  return request(`${workflowPath(appId)}/${encodeURIComponent(workflowId)}`, { method: "PUT", body: JSON.stringify(input) });
+}
+export function deleteWorkflow(appId: ApplicationId, workflowId: string): Promise<void> { return request(`${workflowPath(appId)}/${encodeURIComponent(workflowId)}`, { method: "DELETE" }); }
+export function loadWorkflowRuns(appId: ApplicationId, workflowId: string): Promise<{ runs: WorkflowRun[] }> { return request(`${workflowPath(appId)}/${encodeURIComponent(workflowId)}/runs`); }
+export function startWorkflowRun(appId: ApplicationId, workflowId: string, options: Record<string, unknown> = {}): Promise<{ run: WorkflowRun }> {
+  return request(`${workflowPath(appId)}/${encodeURIComponent(workflowId)}/runs`, { method: "POST", body: JSON.stringify({ options }) });
+}
+export function cancelWorkflowRun(appId: ApplicationId, runId: string): Promise<{ run: WorkflowRun }> {
+  return request(`/apps/${encodeURIComponent(appId)}/workflow-runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" });
+}
+
+// Minecraft 页面适配器：旧 UI DTO 转成共享版本化图合同，数据库与 API 只保存通用定义。
+export interface MinecraftWorkflowNode { id: string; type?: string; version?: number; kind?: "agent" | "text-input" | "result"; title: string; prompt: string; value?: string; toolNames: string[]; data?: Record<string, unknown>; x: number; y: number }
+export interface MinecraftWorkflowEdge { id: string; from: string; fromPort?: string; to: string; toPort?: string }
+export interface MinecraftWorkflow { id: string; appId: "minecraft"; schemaVersion: 1; engineId: string; title: string; nodes: MinecraftWorkflowNode[]; edges: MinecraftWorkflowEdge[]; createdAt: string; updatedAt: string }
+export interface MinecraftWorkflowTool { id: string; name: string; description: string }
+export type MinecraftWorkflowStatus = WorkflowStatus;
+export interface MinecraftWorkflowRun extends Omit<WorkflowRun, "nodes"> {
+  nodes: Array<WorkflowRunNode & { aiRunId: string | null; agentStatus?: string | null; pendingQuestion?: { questionId: string; question: string; options: string[] } | null; pendingApproval?: { approvalId: string; title: string; detail: string } | null }>;
+  currentAgentRunId: string | null; sessionId: string | null; eulaAccepted: boolean;
+}
+function asMinecraftWorkflow(workflow: WorkflowDefinition): MinecraftWorkflow {
+  return {
+    ...workflow,
+    appId: "minecraft",
+    nodes: workflow.nodes.map((node) => ({
+      id: node.id, type: node.type, version: node.version,
+      kind: node.type === "core.text-input" ? "text-input" : node.type === "core.result" ? "result" : node.type === "minecraft.agent" ? "agent" : undefined,
+      title: node.title,
+      prompt: typeof node.data.prompt === "string" ? node.data.prompt : "",
+      value: typeof node.data.text === "string" ? node.data.text : "",
+      toolNames: Array.isArray(node.data.toolNames) ? node.data.toolNames.filter((name): name is string => typeof name === "string") : [],
+      data: node.data, x: node.x, y: node.y
+    }))
+  };
+}
+function asGenericWorkflowInput(input: Pick<MinecraftWorkflow, "title" | "nodes" | "edges">) {
+  const nodeById = new Map(input.nodes.map((node) => [node.id, node]));
+  return {
+    title: input.title,
+    nodes: input.nodes.map((node) => ({
+      id: node.id, type: node.type ?? (node.kind === "text-input" ? "core.text-input" : node.kind === "result" ? "core.result" : "minecraft.agent"),
+      version: node.version ?? 1, title: node.title,
+      data: node.kind === "text-input" ? { text: node.value ?? "" }
+        : node.kind === "result" ? {}
+          : node.kind === "agent" || !node.type ? { prompt: node.prompt, toolNames: node.toolNames }
+            : node.data ?? {},
+      x: node.x, y: node.y
+    })),
+    edges: input.edges.map((edge) => ({
+      id: edge.id,
+      from: edge.from,
+      fromPort: edge.fromPort ?? (nodeById.get(edge.from)?.type === "core.text-input" ? "text" : "result"),
+      to: edge.to,
+      toPort: edge.toPort ?? (nodeById.get(edge.to)?.type === "core.result" ? "value" : "context")
+    }))
+  };
+}
+function asMinecraftRun(run: WorkflowRun): MinecraftWorkflowRun {
+  const nodes = run.nodes.map((node) => {
+    const aiRunId = node.references?.find((reference) => reference.kind === "ai-run")?.id ?? null;
+    const progress = node.progress ?? {};
+    return {
+      ...node, aiRunId,
+      agentStatus: typeof progress.agentStatus === "string" ? progress.agentStatus : null,
+      pendingQuestion: progress.pendingQuestion && typeof progress.pendingQuestion === "object" ? progress.pendingQuestion as MinecraftWorkflowRun["nodes"][number]["pendingQuestion"] : null,
+      pendingApproval: progress.pendingApproval && typeof progress.pendingApproval === "object" ? progress.pendingApproval as MinecraftWorkflowRun["nodes"][number]["pendingApproval"] : null
+    };
+  });
+  return { ...run, nodes, currentAgentRunId: nodes.find((node) => node.aiRunId)?.aiRunId ?? null, sessionId: null, eulaAccepted: false };
+}
+export async function loadMinecraftWorkflowTools(): Promise<{ tools: MinecraftWorkflowTool[] }> {
+  const { nodes } = await loadWorkflowNodeTypes("minecraft");
+  const configuration = nodes.find((node) => node.type === "minecraft.agent")?.configurationOptions;
+  return { tools: isRecord(configuration) && Array.isArray(configuration.tools) ? configuration.tools as MinecraftWorkflowTool[] : [] };
+}
+export async function loadMinecraftWorkflows(): Promise<{ workflows: MinecraftWorkflow[] }> {
+  const result = await loadWorkflows("minecraft");
+  return { workflows: result.workflows.map(asMinecraftWorkflow) };
+}
+export async function createMinecraftWorkflow(input: Pick<MinecraftWorkflow, "title" | "nodes" | "edges">): Promise<{ workflow: MinecraftWorkflow }> {
+  const result = await createWorkflow("minecraft", asGenericWorkflowInput(input));
+  return { workflow: asMinecraftWorkflow(result.workflow) };
+}
+export async function saveMinecraftWorkflow(workflowId: string, input: Pick<MinecraftWorkflow, "title" | "nodes" | "edges">): Promise<{ workflow: MinecraftWorkflow }> {
+  const result = await saveWorkflow("minecraft", workflowId, asGenericWorkflowInput(input));
+  return { workflow: asMinecraftWorkflow(result.workflow) };
+}
+export function deleteMinecraftWorkflow(workflowId: string): Promise<void> { return deleteWorkflow("minecraft", workflowId); }
+export async function loadMinecraftWorkflowRuns(workflowId: string): Promise<{ runs: MinecraftWorkflowRun[] }> {
+  const result = await loadWorkflowRuns("minecraft", workflowId);
+  return { runs: result.runs.map(asMinecraftRun) };
+}
+export async function startMinecraftWorkflowRun(workflowId: string, eulaAccepted: boolean): Promise<{ run: MinecraftWorkflowRun }> {
+  const result = await startWorkflowRun("minecraft", workflowId, { eulaAccepted });
+  return { run: asMinecraftRun(result.run) };
+}
+export async function cancelMinecraftWorkflowRun(runId: string): Promise<{ run: MinecraftWorkflowRun }> {
+  const result = await cancelWorkflowRun("minecraft", runId);
+  return { run: asMinecraftRun(result.run) };
+}
+export interface MinecraftCore {
+  name: string; category: "pure" | "mod" | "vanilla" | "proxy" | "bedrock"; versions: string[];
+  homepage: string; source: "fastmirror" | "mohist"; launchKind: string;
+}
+export interface MinecraftCoreBuild { id: string; updatedAt: string; digest: string; }
+export function loadMinecraftCores(): Promise<{ cores: MinecraftCore[]; errors: string[] }> { return request("/minecraft/cores"); }
+export function loadMinecraftCoreBuilds(core: string, version: string, offset = 0): Promise<{ builds: MinecraftCoreBuild[]; count: number }> {
+  return request(`/minecraft/cores/${encodeURIComponent(core)}/versions/${encodeURIComponent(version)}/builds?offset=${offset}`);
+}
+export function provisionMinecraftServer(input: { nodeId: string; name: string; core: string; version: string; build: string; eulaAccepted: true; memoryMb: number; serverPort: number; javaRuntimeId?: string | null; proxyBackendInstanceId?: string }): Promise<{ instance: MinecraftInstance; deployment: MinecraftDeployment; task: MinecraftTask }> {
+  return request("/minecraft/provision", { method: "POST", body: JSON.stringify(input) });
+}
 
 export function loadMinecraftJava(): Promise<{ nodes: Array<{ nodeId: string; nodeName: string; nodeStatus: string; runtimes: MinecraftNode["javaRuntimes"] }> }> {
   return request("/minecraft/java");
@@ -792,6 +1270,42 @@ export function loadMinecraftTasks(): Promise<{ tasks: MinecraftTask[] }> {
 
 export function createMinecraftDeployment(input: { nodeId: string; name: string; serverType: "vanilla"; releaseId: string }): Promise<{ deployment: MinecraftDeployment; task: MinecraftTask }> {
   return request("/minecraft/deployments", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function loadConnectivityOverview(): Promise<ConnectivityOverview> {
+  return request("/connectivity/overview");
+}
+
+export function loadConnectivityEasyTierTasks(): Promise<{ tasks: ConnectivityEasyTierTask[] }> {
+  return request("/connectivity/easytier/tasks");
+}
+
+export function installConnectivityEasyTier(nodeId: string): Promise<{ task: ConnectivityEasyTierTask }> {
+  return request("/connectivity/easytier/install", { method: "POST", body: JSON.stringify({ nodeId }) });
+}
+
+export function loadConnectivityEasyTierTask(taskId: string): Promise<{ task: ConnectivityEasyTierTask }> {
+  return request(`/connectivity/easytier/tasks/${encodeURIComponent(taskId)}`);
+}
+
+export function createConnectivityRoute(input: { sourceAppId: ApplicationId | "custom"; targetId?: string | null; name: string; mode: ConnectivityRoute["mode"]; transport: ConnectivityRoute["transport"]; nodeId?: string; localPort?: number; playerAddress?: string }): Promise<{ route: ConnectivityRoute }> {
+  return request("/connectivity/routes", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function deleteConnectivityRoute(routeId: string): Promise<void> {
+  return request(`/connectivity/routes/${encodeURIComponent(routeId)}`, { method: "DELETE" });
+}
+
+export function saveConnectivityProviderCredential(providerId: string, token: string): Promise<void> {
+  return request(`/connectivity/providers/${encodeURIComponent(providerId)}/credential`, { method: "POST", body: JSON.stringify({ token }) });
+}
+
+export function deleteConnectivityProviderCredential(providerId: string): Promise<void> {
+  return request(`/connectivity/providers/${encodeURIComponent(providerId)}/credential`, { method: "DELETE" });
+}
+
+export function loadConnectivityProviderCatalog(providerId: string): Promise<{ result: unknown }> {
+  return request(`/connectivity/providers/${encodeURIComponent(providerId)}/catalog`, { method: "POST", body: JSON.stringify({ kind: "nodes" }) });
 }
 
 export function retryMinecraftDeployment(deploymentId: string): Promise<{ task: MinecraftTask }> {
@@ -822,8 +1336,11 @@ export function forgetMinecraftJavaPath(nodeId: string, runtimeId: string): Prom
   return request(`/minecraft/java/paths/${encodeURIComponent(runtimeId)}`, { method: "DELETE", body: JSON.stringify({ nodeId }) });
 }
 
-export function runMinecraftInstanceAction(instanceId: string, action: "start" | "stop" | "backup"): Promise<{ task: MinecraftTask }> {
+export function runMinecraftInstanceAction(instanceId: string, action: "start" | "stop" | "backup" | "restart"): Promise<{ task: MinecraftTask }> {
   return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/${action}`, { method: "POST" });
+}
+export function sendMinecraftConsole(instanceId: string, command: string): Promise<{ task: MinecraftTask }> {
+  return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/console`, { method: "POST", body: JSON.stringify({ command }) });
 }
 
 export function saveMinecraftServerProperties(instanceId: string, properties: MinecraftServerProperties): Promise<{ task: MinecraftTask }> {
@@ -835,7 +1352,40 @@ export function loadSetupStatus(): Promise<{ requiresSetup: boolean }> {
 }
 
 export function loadCurrentUser(): Promise<{ user: User }> {
-  return request<{ user: User }>("/auth/me");
+  const endpoint = accountControllerRemoteMethods["auth/me"].endpoint;
+  return invokeTypertRemote<AccountControllerRemoteContract, typeof endpoint>(endpoint, {}).catch((error: unknown) => {
+    // Host 进程可能仍在运行升级前的构建；只在明确的路由缺失时走其同一认证 Owner 的旧只读入口。
+    // 401、网络故障、输入/输出校验失败都原样返回，不降级认证或吞掉新 Host 错误。
+    if (error instanceof ApiError && error.status === 404 && error.code === "not_found") {
+      return request<{ user: User }>("/auth/me");
+    }
+    throw error;
+  });
+}
+
+/** 使用现有同源 API 会话调用已登记的类型化 Remote；响应仍由 Host 方法的运行时解析器校验。 */
+export async function invokeTypertRemote<Contract extends TypertRemoteClientContract, Endpoint extends keyof Contract & string>(
+  endpoint: Endpoint,
+  input: Contract[Endpoint]["input"],
+  options: TypertRemoteCallOptions = {}
+): Promise<Contract[Endpoint]["output"]> {
+  const separator = endpoint.indexOf("/");
+  const namespace = endpoint.slice(0, separator);
+  const method = endpoint.slice(separator + 1);
+  if (separator <= 0 || endpoint.indexOf("/", separator + 1) >= 0 || !isTypertIdentifier(namespace) || !isTypertIdentifier(method)) {
+    throw new TypeError("Remote 命名空间或方法名无效。");
+  }
+  const signalOption = options.signal ? { signal: options.signal } : {};
+  const response = await request<{ result: Contract[Endpoint]["output"] }>(`/typert/${encodeURIComponent(namespace)}/${encodeURIComponent(method)}`, {
+    method: "POST",
+    body: JSON.stringify({ input }),
+    ...signalOption
+  });
+  return response.result;
+}
+
+function isTypertIdentifier(value: string): boolean {
+  return value.length <= 128 && /^[a-z0-9][a-z0-9._-]*$/u.test(value);
 }
 
 export function initializeAdmin(username: string, password: string): Promise<{ user: User }> {
@@ -942,12 +1492,26 @@ export function loadSettings(): Promise<{ settings: UserSettings }> {
 }
 
 export function saveSettings<K extends keyof UserSettings>(category: K, value: UserSettings[K]): Promise<{ settings: UserSettings }> {
-  const serverCategory = category === "aiRuntime" ? "ai-runtime" : category;
+  const serverCategory = category === "aiRuntime" ? "ai-runtime" : category === "minecraftRuntime" ? "minecraft-runtime" : category === "computerControl" ? "computer-control" : category;
   return request<{ settings: UserSettings }>(`/settings/${serverCategory}`, {
     method: "PUT",
     body: JSON.stringify(value),
     keepalive: true
   });
+}
+
+export interface ConversationMemorySnapshot { memories: string[]; revision: number }
+
+export function loadConversationMemories(): Promise<{ snapshot: ConversationMemorySnapshot }> {
+  return request("/settings/memories");
+}
+
+export function saveConversationMemories(snapshot: ConversationMemorySnapshot): Promise<{ snapshot: ConversationMemorySnapshot }> {
+  return request("/settings/memories", { method: "PUT", body: JSON.stringify(snapshot) });
+}
+
+export function deleteConversationMemories(): Promise<void> {
+  return request<void>("/settings/memories", { method: "DELETE" });
 }
 
 export function loadAppearanceBackgrounds(): Promise<{ backgrounds: AppearanceBackground[] }> {
@@ -981,6 +1545,22 @@ export function loadAiAccounts(): Promise<{ accounts: AiAccount[] }> {
 
 export function loadAiExtensions(): Promise<{ plugins: AiRuntimePlugin[]; extensions: AiExtension[]; hooks: AiRuntimeHookInfo[]; hotReloadEnabled: boolean }> {
   return request<{ plugins: AiRuntimePlugin[]; extensions: AiExtension[]; hooks: AiRuntimeHookInfo[]; hotReloadEnabled: boolean }>("/ai/extensions");
+}
+
+export function loadManagedPlugins(): Promise<{ profile: string; plugins: ManagedPluginRecord[] }> {
+  return request("/plugins");
+}
+
+export function loadCapabilityInstallCatalog(): Promise<{ capabilities: CapabilityInstallCatalogEntry[] }> {
+  return request("/capabilities/catalog");
+}
+
+export function searchManagedPlugins(query: string): Promise<{ candidates: ManagedPluginCandidate[] }> {
+  return request("/plugins/search", { method: "POST", body: JSON.stringify({ query }) });
+}
+
+export function inspectManagedPlugin(repositoryUrl: string, ref?: string): Promise<{ plugin: ManagedPluginInspection }> {
+  return request("/plugins/inspect", { method: "POST", body: JSON.stringify({ repositoryUrl, ...(ref ? { ref } : {}) }) });
 }
 
 export function manageAiRuntimePlugin(pluginId: string, action: "start" | "stop" | "reload"): Promise<{ plugins: AiRuntimePlugin[]; hotReloadEnabled: boolean }> {
@@ -1017,12 +1597,129 @@ export function loadAiMessages(sessionId: string): Promise<{ messages: AiMessage
   return request<{ messages: AiMessage[] }>(`/ai/sessions/${encodeURIComponent(sessionId)}/messages`);
 }
 
+export function submitAiMessageFeedback(sessionId: string, messageId: string, feedback: AiMessageFeedbackInput): Promise<{ feedback: AiMessageFeedback }> {
+  return request<{ feedback: AiMessageFeedback }>(`/ai/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}/feedback`, { method: "POST", body: JSON.stringify(feedback) });
+}
+
+export function forkAiSessionFromMessage(sessionId: string, messageId: string): Promise<{ session: AiSession }> {
+  return request<{ session: AiSession }>(`/ai/sessions/${encodeURIComponent(sessionId)}/fork`, { method: "POST", body: JSON.stringify({ messageId }) });
+}
+
+export function forkAiSessionBeforeUserMessage(sessionId: string, messageId: string): Promise<{ session: AiSession }> {
+  return request<{ session: AiSession }>(`/ai/sessions/${encodeURIComponent(sessionId)}/fork-before-message`, { method: "POST", body: JSON.stringify({ messageId }) });
+}
+
+export function forkAiSessionFromMessageInWorktree(sessionId: string, messageId: string, targetProjectId: string, appId: WorkspaceProjectApplicationId): Promise<{ session: AiSession }> {
+  return request<{ session: AiSession }>(`/workspace/sessions/${encodeURIComponent(sessionId)}/fork`, { method: "POST", body: JSON.stringify({ appId, messageId, targetProjectId }) });
+}
+
+export function openAiSideChatSession(sourceSessionId: string): Promise<{ session: AiSession }> {
+  return request<{ session: AiSession }>(`/ai/sessions/${encodeURIComponent(sourceSessionId)}/side-chat`, { method: "POST" });
+}
+
 export function archiveAiSession(sessionId: string, archived: boolean): Promise<{ session: AiSession }> {
   return request<{ session: AiSession }>(`/ai/sessions/${encodeURIComponent(sessionId)}/archive`, { method: "PATCH", body: JSON.stringify({ archived }) });
 }
 
+export function setAiSessionProject(sessionId: string, projectId: string | null, appId: WorkspaceProjectApplicationId): Promise<{ session: AiSession }> {
+  return request<{ session: AiSession }>(`/workspace/sessions/${encodeURIComponent(sessionId)}/project`, { method: "PATCH", body: JSON.stringify({ appId, projectId }) });
+}
+
+export function setAiSessionPlanMode(sessionId: string, active: boolean): Promise<{ session: AiSession }> {
+  return request<{ session: AiSession }>(`/ai/sessions/${encodeURIComponent(sessionId)}/plan-mode`, { method: "PATCH", body: JSON.stringify({ active }) });
+}
+
+export function loadWorkspaceProjects(options: { appId?: WorkspaceProjectApplicationId; query?: string; signal?: AbortSignal } = {}): Promise<{ projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean }> {
+  const parameters = new URLSearchParams();
+  if (options.appId) parameters.set("appId", options.appId);
+  if (options.query?.trim()) parameters.set("query", options.query.trim());
+  const suffix = parameters.size ? `?${parameters.toString()}` : "";
+  return request<{ projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean }>(`/workspace/projects${suffix}`, options.signal ? { signal: options.signal } : {});
+}
+
+export function loadKnowledgeLibrary(applicationId?: ApplicationId): Promise<{ items: KnowledgeLibraryItemSummary[]; sources: KnowledgeLibraryProjectSource[]; usage: KnowledgeLibraryUsage }> {
+  const suffix = applicationId ? `?applicationId=${encodeURIComponent(applicationId)}` : "";
+  return request<{ items: KnowledgeLibraryItemSummary[]; sources: KnowledgeLibraryProjectSource[]; usage: KnowledgeLibraryUsage }>(`/knowledge/items${suffix}`);
+}
+
+export function loadKnowledgeLibraryItem(id: string, applicationId: ApplicationId): Promise<{ item: KnowledgeLibraryItem }> {
+  return request<{ item: KnowledgeLibraryItem }>(`/knowledge/items/${encodeURIComponent(id)}?applicationId=${encodeURIComponent(applicationId)}`);
+}
+
+export function createKnowledgeLibraryItem(input: { applicationId: KnowledgeLibraryScope; kind: KnowledgeLibraryKind; title: string; description: string; contentMarkdown: string; sourceKind: "upload" | "manual" }): Promise<{ item: KnowledgeLibraryItem }> {
+  return request<{ item: KnowledgeLibraryItem }>("/knowledge/items", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function updateKnowledgeLibraryItem(id: string, input: { applicationId: ApplicationId; title: string; description: string; contentMarkdown: string; expectedContentSha256: string }): Promise<{ item: KnowledgeLibraryItem }> {
+  return request<{ item: KnowledgeLibraryItem }>(`/knowledge/items/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export function removeKnowledgeLibraryItem(id: string): Promise<void> {
+  return request<void>(`/knowledge/items/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function createKnowledgeLibraryProjectSource(input: { applicationId: WorkspaceProjectApplicationId; projectId: string; projectApplicationId: WorkspaceProjectApplicationId; relativePath: string; title: string }): Promise<{ source: KnowledgeLibraryProjectSource }> {
+  return request<{ source: KnowledgeLibraryProjectSource }>("/knowledge/sources", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function removeKnowledgeLibraryProjectSource(id: string): Promise<void> {
+  return request<void>(`/knowledge/sources/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function browseWorkspaceDirectory(appId: WorkspaceProjectApplicationId, nodeId: string, operation: "home" | "list" | "create-directory", path?: string, name?: string): Promise<{ result: { path: string; root?: string; home?: string; roots?: string[]; entries?: string[]; truncated?: boolean; created?: boolean; name?: string } }> {
+  return request<{ result: { path: string; root?: string; home?: string; roots?: string[]; entries?: string[]; truncated?: boolean; created?: boolean; name?: string } }>("/workspace/projects/browse", { method: "POST", body: JSON.stringify({ appId, nodeId, operation, ...(path ? { path } : {}), ...(name ? { name } : {}) }) });
+}
+
+export function createWorkspaceProject(appId: WorkspaceProjectApplicationId, nodeId: string, path: string, title: string): Promise<{ project: WorkspaceProject }> {
+  return request<{ project: WorkspaceProject }>("/workspace/projects", { method: "POST", body: JSON.stringify({ appId, nodeId, path, title }) });
+}
+
+export function renameWorkspaceProject(projectId: string, title: string, appId: WorkspaceProjectApplicationId): Promise<{ project: WorkspaceProject }> {
+  return request<{ project: WorkspaceProject }>(`/workspace/projects/${encodeURIComponent(projectId)}`, { method: "PATCH", body: JSON.stringify({ appId, title }) });
+}
+
+export function removeWorkspaceProject(projectId: string, deleteManagedWorktree: boolean, appId: WorkspaceProjectApplicationId): Promise<void> {
+  return request<void>(`/workspace/projects/${encodeURIComponent(projectId)}`, { method: "DELETE", body: JSON.stringify({ appId, deleteManagedWorktree }) });
+}
+
+export function loadWorkspaceGitStatus(projectId: string, appId: WorkspaceProjectApplicationId): Promise<{ status: WorkspaceGitStatus }> {
+  return request<{ status: WorkspaceGitStatus }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/status`, { method: "POST", body: JSON.stringify({ appId }) });
+}
+
+export function loadWorkspaceGitFileDiff(projectId: string, appId: WorkspaceProjectApplicationId, path: string, options: { ignoreWhitespace?: boolean; wordDiff?: boolean } = {}): Promise<{ file: WorkspaceGitFileDiff }> {
+  return request<{ file: WorkspaceGitFileDiff }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/file-diff`, { method: "POST", body: JSON.stringify({ appId, path, ignoreWhitespace: options.ignoreWhitespace === true, wordDiff: options.wordDiff === true }) });
+}
+
+export function readWorkspaceProjectTextFile(projectId: string, appId: WorkspaceProjectApplicationId, path: string, offset = 0, limit = 40000): Promise<{ file: WorkspaceProjectTextFile }> {
+  return request<{ file: WorkspaceProjectTextFile }>(`/workspace/projects/${encodeURIComponent(projectId)}/files/read`, { method: "POST", body: JSON.stringify({ appId, path, offset, limit }) });
+}
+
+export function writeWorkspaceProjectTextFile(projectId: string, appId: WorkspaceProjectApplicationId, path: string, content: string, sha256: string): Promise<{ result: { path: string; sha256: string; changed: boolean; bytes: number } }> {
+  return request<{ result: { path: string; sha256: string; changed: boolean; bytes: number } }>(`/workspace/projects/${encodeURIComponent(projectId)}/files/write`, { method: "POST", body: JSON.stringify({ appId, path, content, sha256 }) });
+}
+
+export function createWorkspaceGitWorktree(projectId: string, appId: WorkspaceProjectApplicationId): Promise<{ project: WorkspaceProject }> {
+  return request<{ project: WorkspaceProject }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/worktrees`, { method: "POST", body: JSON.stringify({ appId }) });
+}
+
+export function resetWorkspaceGitWorktree(projectId: string, appId: WorkspaceProjectApplicationId): Promise<{ status: WorkspaceGitStatus }> {
+  return request<{ status: WorkspaceGitStatus }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/reset`, { method: "POST", body: JSON.stringify({ appId }) });
+}
+
 export function loadWritingWorkspace(): Promise<{ workspace: WritingWorkspace }> {
   return request<{ workspace: WritingWorkspace }>("/writing/workspace");
+}
+
+export function downloadWritingBookDeepWriteZip(bookId: string): Promise<Blob> {
+  return requestBinary(`/writing/books/${encodeURIComponent(bookId)}/deepwrite.zip`);
+}
+
+export function importWritingBookDeepWriteZip(file: File): Promise<{ workspace: WritingWorkspace }> {
+  return request<{ workspace: WritingWorkspace }>("/writing/import/deepwrite.zip", {
+    method: "POST",
+    headers: { "Content-Type": "application/zip" },
+    body: file
+  });
 }
 
 export function createWritingBook(title: string): Promise<{ workspace: WritingWorkspace }> {
@@ -1035,6 +1732,28 @@ export function createWritingVolume(bookId: string, title: string): Promise<{ wo
 
 export function renameWritingBook(bookId: string, title: string): Promise<{ book: WritingBook }> {
   return request<{ book: WritingBook }>(`/writing/books/${encodeURIComponent(bookId)}`, { method: "PATCH", body: JSON.stringify({ title }) });
+}
+
+export function saveWritingBookRole(bookId: string, roleId: WritingSpecialistId): Promise<{ workspace: WritingWorkspace }> {
+  return request<{ workspace: WritingWorkspace }>(`/writing/books/${encodeURIComponent(bookId)}/ai-profile`, { method: "PATCH", body: JSON.stringify({ roleId }) });
+}
+
+export function listWritingBookSkills(bookId: string): Promise<{ skills: WritingBookSkillSummary[] }> {
+  return request<{ skills: WritingBookSkillSummary[] }>(`/writing/books/${encodeURIComponent(bookId)}/skills`);
+}
+
+export function loadWritingBookSkill(bookId: string, skillId: string): Promise<{ skill: WritingBookSkill }> {
+  return request<{ skill: WritingBookSkill }>(`/writing/books/${encodeURIComponent(bookId)}/skills/${encodeURIComponent(skillId)}`);
+}
+
+export function saveWritingBookSkill(bookId: string, input: { id?: string; title: string; description: string; instructions: string; enabled: boolean }): Promise<{ skill: WritingBookSkill; workspace: WritingWorkspace }> {
+  const method = input.id ? "PATCH" : "POST";
+  const path = input.id ? `/writing/books/${encodeURIComponent(bookId)}/skills/${encodeURIComponent(input.id)}` : `/writing/books/${encodeURIComponent(bookId)}/skills`;
+  return request<{ skill: WritingBookSkill; workspace: WritingWorkspace }>(path, { method, body: JSON.stringify({ title: input.title, description: input.description, instructions: input.instructions, enabled: input.enabled }) });
+}
+
+export function deleteWritingBookSkill(bookId: string, skillId: string): Promise<{ workspace: WritingWorkspace }> {
+  return request<{ workspace: WritingWorkspace }>(`/writing/books/${encodeURIComponent(bookId)}/skills/${encodeURIComponent(skillId)}`, { method: "DELETE" });
 }
 
 export function saveWritingBookOutline(bookId: string, content: string): Promise<{ outline: { bookId: string; content: string; updatedAt: string; wordCount: number } }> {
@@ -1081,6 +1800,12 @@ export function createWritingCatalogEntry(bookId: string, kind: WritingCatalogKi
   return request<{ entry: WritingCatalogEntry }>(`/writing/books/${encodeURIComponent(bookId)}/catalog`, { method: "POST", body: JSON.stringify({ kind, title }) });
 }
 
+export function listWritingCatalogEntries(bookId: string, kind: WritingCatalogKind, offset = 0, search = ""): Promise<{ page: WritingCatalogPage }> {
+  const query = new URLSearchParams({ kind, offset: String(offset) });
+  if (search) query.set("search", search);
+  return request<{ page: WritingCatalogPage }>(`/writing/books/${encodeURIComponent(bookId)}/catalog?${query.toString()}`);
+}
+
 export function loadWritingCatalogEntry(entryId: string): Promise<{ entry: WritingCatalogEntry }> {
   return request<{ entry: WritingCatalogEntry }>(`/writing/catalog/${encodeURIComponent(entryId)}`);
 }
@@ -1093,6 +1818,18 @@ export function deleteWritingCatalogEntry(entryId: string): Promise<void> {
   return request<void>(`/writing/catalog/${encodeURIComponent(entryId)}`, { method: "DELETE" });
 }
 
+export function loadWritingEditProposal(proposalId: string): Promise<{ proposal: WritingEditProposal }> {
+  return request<{ proposal: WritingEditProposal }>(`/writing/proposals/${encodeURIComponent(proposalId)}`);
+}
+
+export function applyWritingEditProposal(proposalId: string): Promise<{ proposal: { id: string; status: WritingEditProposal["status"] } }> {
+  return request<{ proposal: { id: string; status: WritingEditProposal["status"] } }>(`/writing/proposals/${encodeURIComponent(proposalId)}/apply`, { method: "POST", body: JSON.stringify({}) });
+}
+
+export function rejectWritingEditProposal(proposalId: string): Promise<{ proposal: { id: string; status: WritingEditProposal["status"] } }> {
+  return request<{ proposal: { id: string; status: WritingEditProposal["status"] } }>(`/writing/proposals/${encodeURIComponent(proposalId)}/reject`, { method: "POST", body: JSON.stringify({}) });
+}
+
 export function loadAiUsage(): Promise<{ usage: AiUsageSummary }> {
   return request<{ usage: AiUsageSummary }>("/ai/usage");
 }
@@ -1102,25 +1839,43 @@ export function cancelAiRun(runId: string): Promise<unknown> { return request(`/
 
 export function appendAiRunInput(runId: string, content: string): Promise<{ mode: "queue" | "steer"; run: { id: string; message: AiMessage }; userMessage: AiMessage }> { return request(`/ai/runs/${encodeURIComponent(runId)}/input`, { method: "POST", body: JSON.stringify({ content }) }); }
 
-export async function streamAiChat(input: {
+/** 回答已暂停的模型澄清问题；服务端将答案绑定当前 run 并写入会话。 */
+export function answerAiRunQuestion(runId: string, questionId: string, answer: string, skipped = false): Promise<{ mode: "answered"; userMessage: AiMessage }> {
+  return request(`/ai/runs/${encodeURIComponent(runId)}/answer`, { method: "POST", body: JSON.stringify({ questionId, answer, skipped }) });
+}
+
+type AiChatStreamInput = {
   runId?: string;
   appId: ApplicationId;
   sessionId: string | null;
+  projectId?: string | null;
   content: string;
+  planMode?: boolean;
   signal: AbortSignal;
   onSession: (value: { session: AiSession; userMessage: AiMessage; assistantMessage: AiMessage }) => void;
+  onPlanMode?: (active: boolean) => void;
   onInput?: (message: AiMessage) => void;
   onActivity: (value: { messageId: string; activity: AiActivityItem }) => void;
   onDelta: (value: { messageId: string; delta: string }) => void;
   onUsage: (value: { messageId: string; promptTokens: number | null; completionTokens: number | null; providerId: string; modelId: string }) => void;
   onError: (message: string) => void;
   onDone: (status: "complete" | "interrupted" | "error") => void;
-}): Promise<void> {
-  const response = await fetch(input.runId ? `/api/ai/runs/${encodeURIComponent(input.runId)}/events` : "/api/ai/chat/stream", {
+};
+
+export function streamAiChat(input: AiChatStreamInput): Promise<void> {
+  return streamAiChatAt(input, "/api/ai/chat/stream");
+}
+
+export function streamAiSideChat(input: AiChatStreamInput): Promise<void> {
+  return streamAiChatAt(input, "/api/ai/side-chat/stream");
+}
+
+async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string): Promise<void> {
+  const response = await fetch(input.runId ? `/api/ai/runs/${encodeURIComponent(input.runId)}/events` : streamEndpoint, {
     method: input.runId ? "GET" : "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    ...(!input.runId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, content: input.content }) } : {}),
+    ...(!input.runId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, ...(input.projectId ? { projectId: input.projectId } : {}), ...(input.planMode === undefined ? {} : { planMode: input.planMode }), content: input.content }) } : {}),
     signal: input.signal
   });
 
@@ -1132,9 +1887,13 @@ export async function streamAiChat(input: {
     }
     throw new ApiError(response.status, result.message ?? "AI Work 请求失败，请重试。", result.error);
   }
+
   if (!response.body) throw new ApiError(response.status, "浏览器无法读取 AI Work 流式响应。");
 
   const reader = response.body.getReader();
+  const deltas = createStreamDeltas(input.onDelta);
+  const cancelDeltas = () => deltas.dispose();
+  input.signal.addEventListener("abort", cancelDeltas, { once: true });
   const decoder = new TextDecoder();
   let buffer = "";
   let eventName = "message";
@@ -1144,12 +1903,15 @@ export async function streamAiChat(input: {
     let payload: Record<string, unknown>;
     try { payload = JSON.parse(dataLines.join("\n")) as Record<string, unknown>; }
     catch { eventName = "message"; dataLines = []; return; }
+    if (input.signal.aborted) { eventName = "message"; dataLines = []; return; }
+    if (eventName !== "delta") deltas.flush();
     if (eventName === "input" && payload.userMessage) input.onInput?.(payload.userMessage as AiMessage);
     if (eventName === "session") input.onSession(payload as unknown as Parameters<typeof input.onSession>[0]);
+    if (eventName === "plan-mode" && typeof payload.active === "boolean") input.onPlanMode?.(payload.active);
     if (eventName === "activity" && typeof payload.messageId === "string" && typeof payload.activity === "object" && payload.activity !== null) {
       input.onActivity({ messageId: payload.messageId, activity: payload.activity as AiActivityItem });
     }
-    if (eventName === "delta" && typeof payload.messageId === "string" && typeof payload.delta === "string") input.onDelta({ messageId: payload.messageId, delta: payload.delta });
+    if (eventName === "delta" && typeof payload.messageId === "string" && typeof payload.delta === "string") deltas.push({ messageId: payload.messageId, delta: payload.delta });
     if (eventName === "usage" && typeof payload.providerId === "string" && typeof payload.modelId === "string") input.onUsage({ messageId: typeof payload.messageId === "string" ? payload.messageId : "", promptTokens: typeof payload.promptTokens === "number" ? payload.promptTokens : null, completionTokens: typeof payload.completionTokens === "number" ? payload.completionTokens : null, providerId: payload.providerId, modelId: payload.modelId });
     if (eventName === "error" && typeof payload.message === "string") input.onError(payload.message);
     if (eventName === "done" && (payload.status === "complete" || payload.status === "interrupted" || payload.status === "error")) input.onDone(payload.status);
@@ -1175,10 +1937,15 @@ export async function streamAiChat(input: {
     buffer += decoder.decode();
     if (buffer.trim()) {
       if (buffer.startsWith("data:")) dataLines.push(buffer.slice(5).trimStart());
-      dispatch();
     }
+    dispatch();
   } finally {
-    reader.releaseLock();
+    try { if (!input.signal.aborted) deltas.flush(); }
+    finally {
+      deltas.dispose();
+      input.signal.removeEventListener("abort", cancelDeltas);
+      reader.releaseLock();
+    }
   }
 }
 
@@ -1242,4 +2009,15 @@ export function transferSuperAdmin(userId: string): Promise<{ message: string }>
 
 export function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "发生了未知错误，请重试。";
+}
+
+export interface DaemonCredentialSummary { nodeId: string; displayName: string; revoked: boolean }
+export function loadDaemonCredentials(): Promise<{ nodes: DaemonCredentialSummary[] }> {
+  return request("/daemon-nodes/credentials");
+}
+export function issueDaemonConnection(displayName: string, controlPlaneUrl: string, nodeId?: string): Promise<{ nodeId: string; displayName: string }> {
+  return request("/daemon-nodes/credentials", { method: "POST", body: JSON.stringify({ displayName, controlPlaneUrl, nodeId }) });
+}
+export function revokeDaemonConnection(nodeId: string): Promise<void> {
+  return request(`/daemon-nodes/credentials/${encodeURIComponent(nodeId)}`, { method: "DELETE" });
 }

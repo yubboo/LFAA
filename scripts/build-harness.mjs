@@ -5,7 +5,8 @@ import { dirname, resolve, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { transform } from "esbuild";
-import { workspacePackages } from "./harness-workspace.mjs";
+import { workspacePackages, productRuntimePackages } from "./harness-workspace.mjs";
+import { recordRuntimeBuild, runtimeBuildFingerprint } from "./runtime-build-state.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const packages = workspacePackages(root);
 const require = createRequire(import.meta.url);
@@ -24,12 +25,16 @@ function managedOutput(path) {
   if (!within || within === ".." || within.startsWith(`..${sep}`)) throw new Error("构建输出必须位于根 dist 内。");
   return path;
 }
-if (process.argv[2] === "host") {
-  // 测试支持和浏览器代码均不进入控制端/节点发布运行树。
-  const runtimePackages = packages.filter((pkg) => !pkg.path.startsWith("packages/client/") && !pkg.path.startsWith("packages/test-support/"));
-  const output = managedOutput(resolve(root, "dist/apps/control-plane"));
+if (process.argv[2] === "host" || process.argv[2] === "host-staging") {
+  const staging = process.argv[2] === "host-staging";
+  const sourceFingerprint = runtimeBuildFingerprint("host");
+  // 工程支持包、测试支持包和浏览器代码均不进入控制端/节点发布运行树。
+  const runtimePackages = productRuntimePackages(root);
+  const output = managedOutput(resolve(root, staging ? "dist/.tmp/p0-control-plane" : "dist/apps/control-plane"));
   await rm(output, { recursive: true, force: true });
-  const result = spawnSync(process.execPath, [require.resolve("typescript/bin/tsc"), "-p", resolve(root, "tsconfig.host.json")], { cwd: root, stdio: "inherit", windowsHide: true });
+  const compilerArgs = [require.resolve("typescript/bin/tsc"), "-p", resolve(root, "tsconfig.host.json")];
+  if (staging) compilerArgs.push("--outDir", output);
+  const result = spawnSync(process.execPath, compilerArgs, { cwd: root, stdio: "inherit", windowsHide: true });
   if (result.status !== 0) throw new Error("控制端编译失败。");
   for (const pkg of runtimePackages) {
     await mkdir(resolve(output, pkg.path), { recursive: true });
@@ -45,7 +50,8 @@ if (process.argv[2] === "host") {
   await writeFile(resolve(output, "workspace.json"), JSON.stringify(runtimePackages));
   await writeFile(resolve(output, "package.json"), JSON.stringify({ type: "module" }));
   await writeFile(resolve(output, "index.js"), '/** 功能：启动编译后的 Harness。作用：供桌面外壳运行。关联文件：apps/cli/src/index.js。 */\nimport "./apps/cli/src/index.js";\n');
-  process.stdout.write(`控制端已构建：${output}\n`);
+  if (!staging) recordRuntimeBuild("host", root, sourceFingerprint);
+  process.stdout.write(`${staging ? "控制端隔离构建已完成" : "控制端已构建"}：${output}\n`);
 } else {
   const selected = process.argv[2] === "package" ? packages.filter((pkg) => resolve(root, pkg.path) === process.cwd()) : packages.filter((pkg) => !pkg.path.startsWith("packages/test-support/"));
   if (!selected.length) throw new Error("没有找到要构建的工作区包。");

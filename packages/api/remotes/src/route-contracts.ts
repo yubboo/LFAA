@@ -7,9 +7,12 @@ import { config } from "lfaa-launch-environment/src/config.js";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { setSessionCookie } from "lfaa-authorization/src/middleware.js";
 import { type DaemonNode, type JavaRuntimeSummary } from "lfaa-host-daemon/src/local-daemon.js";
+import { authenticateDaemonCredential, isRemoteDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
 import { type MinecraftTask } from "lfaa-jobs/src/minecraft-queue.js";
 import { createSession, sessionLifetimeSeconds } from "lfaa-identity-auth/src/service.js";
 import { type ShortcutSettings } from "lfaa-settings/src/service.js";
+import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
+import { EASYTIER_RUNTIME_RELEASE } from "lfaa-game-connectivity/src/easytier-release.mjs";
 export type AsyncRequestHandler = (request: Request, response: Response, next: NextFunction) => Promise<void>;
 
 export function asyncHandler(handler: AsyncRequestHandler): RequestHandler {
@@ -28,6 +31,8 @@ export function parseBody<T>(schema: Joi.ObjectSchema, value: unknown): T {
   return result.value as T;
 }
 
+export const typertRemoteCallSchema = Joi.object({ input: Joi.any().required() }).unknown(false);
+
 export const requireLocalDaemon: RequestHandler = (request, response, next) => {
   const authorization = request.header("authorization") ?? "";
   const match = /^Bearer ([A-Za-z0-9_-]{32,128})$/u.exec(authorization);
@@ -37,8 +42,16 @@ export const requireLocalDaemon: RequestHandler = (request, response, next) => {
   }
   const received = Buffer.from(match[1]!);
   const expected = Buffer.from(config.daemonToken);
-  if (received.length !== expected.length || !timingSafeEqual(received, expected)) {
+  const local = received.length === expected.length && timingSafeEqual(received, expected);
+  const remote = local ? null : authenticateDaemonCredential(match[1]!);
+  const requestedId = request.body?.nodeId ?? request.body?.id;
+  // 密钥绑定真实目标节点，不能拿节点 A 的凭据领取或回报节点 B 的任务。
+  if ((!local && !remote) || remote && requestedId !== remote.nodeId || local && typeof requestedId === "string" && isRemoteDaemonIdentity(requestedId)) {
     response.status(401).json({ error: "daemon_authentication_required", message: "本机 Daemon 身份校验失败。" });
+    return;
+  }
+  if (remote && !request.secure) {
+    response.status(403).json({ error: "daemon_tls_required", message: "远程节点必须通过 HTTPS 连接控制端。" });
     return;
   }
   next();
@@ -150,7 +163,7 @@ export const passkeyRemovalSchema = Joi.object({
 }).unknown(false);
 
 export const preferencesSchema = Joi.object({
-  selectedApp: Joi.string().valid("steamcmd", "minecraft", "writing", "workspace").required(),
+  selectedApp: Joi.string().valid(...APPLICATION_IDS).required(),
   selectedMode: Joi.string().valid("normal", "ai-work").required()
 });
 
@@ -202,7 +215,38 @@ export const aiRuntimeSettingsSchema = Joi.object({
   maxSubagents: Joi.number().integer().min(0).max(16).default(4),
   maxDelegationDepth: Joi.number().integer().min(0).max(4).default(2),
   voiceInputEnabled: Joi.boolean().default(false),
-  readResponsesAloud: Joi.boolean().default(false)
+  readResponsesAloud: Joi.boolean().default(false),
+  commandTimeoutSeconds: Joi.number().integer().min(0).max(1800).default(0),
+  // 暂兼容已打开的旧客户端；保存层会将这些键拆到 minecraft-runtime，绝不回写 ai-runtime。
+  minecraftReadyTimeoutSeconds: Joi.number().integer().min(10).max(900).optional(),
+  minecraftStopTimeoutSeconds: Joi.number().integer().min(5).max(300).optional(),
+  minecraftDefaultMemoryMb: Joi.number().integer().min(1024).max(32768).optional(),
+  minecraftDefaultPort: Joi.number().integer().min(1024).max(65535).optional(),
+  minecraftDownloadTimeoutSeconds: Joi.number().integer().min(30).max(7200).optional(),
+  minecraftInstallTimeoutSeconds: Joi.number().integer().min(30).max(7200).optional(),
+  minecraftExecutionMode: Joi.string().valid("native", "appcontainer").optional(),
+  minecraftDefaultCore: Joi.string().min(1).max(32).optional(),
+  minecraftBedrockDefaultPort: Joi.number().integer().min(1024).max(65535).optional()
+}).unknown(false);
+
+export const minecraftRuntimeSettingsSchema = Joi.object({
+  minecraftReadyTimeoutSeconds: Joi.number().integer().min(10).max(900).required(),
+  minecraftStopTimeoutSeconds: Joi.number().integer().min(5).max(300).required(),
+  minecraftDefaultMemoryMb: Joi.number().integer().min(1024).max(32768).required(),
+  minecraftDefaultPort: Joi.number().integer().min(1024).max(65535).required(),
+  minecraftDownloadTimeoutSeconds: Joi.number().integer().min(30).max(7200).required(),
+  minecraftInstallTimeoutSeconds: Joi.number().integer().min(30).max(7200).required(),
+  minecraftExecutionMode: Joi.string().valid("native", "appcontainer").required(),
+  minecraftDefaultCore: Joi.string().min(1).max(32).required(),
+  minecraftBedrockDefaultPort: Joi.number().integer().min(1024).max(65535).required()
+}).unknown(false);
+
+export const gitSettingsSchema = Joi.object({
+  branchPrefix: Joi.string().trim().min(2).max(65).pattern(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}\/$/u).custom((value, helpers) => {
+    const segments = value.slice(0, -1).split("/");
+    return value.includes("..") || value.includes("@{") || segments.some((segment: string) => !segment || segment.startsWith(".") || segment.endsWith(".") || segment.toLocaleLowerCase("en-US").endsWith(".lock"))
+      ? helpers.error("any.invalid") : value;
+  }).required()
 }).unknown(false);
 
 export const permissionsSettingsSchema = Joi.object({
@@ -215,8 +259,39 @@ export const pluginsSettingsSchema = Joi.object({
     id: Joi.string().pattern(/^[a-z0-9][a-z0-9_-]{0,23}$/u).required(),
     name: Joi.string().trim().min(1).max(80).required(),
     url: Joi.string().max(1024).uri({ scheme: ["http", "https"] }).custom((value, helpers) => { const url = new URL(value); return url.username || url.password || url.search || url.hash ? helpers.error("any.invalid") : value; }).required(),
-    enabled: Joi.boolean().required()
-  }).unknown(false)).default([])
+    enabled: Joi.boolean().required(),
+    applicationIds: Joi.array().unique().items(Joi.string().valid(...APPLICATION_IDS)).max(APPLICATION_IDS.length).default(["workspace"]),
+    manifestSha256: Joi.string().pattern(/^[a-f0-9]{64}$/u)
+  }).unknown(false)).default([]),
+  prompts: Joi.array().max(16).unique("id").items(Joi.object({
+    id: Joi.string().pattern(/^prompt-[a-f0-9]{20}$/u).required(),
+    name: Joi.string().trim().min(1).max(120).required(),
+    description: Joi.string().max(500).required(),
+    applicationId: Joi.string().valid(...APPLICATION_IDS).required(),
+    sourceRepository: Joi.string().pattern(/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u).required(),
+    sourcePath: Joi.string().trim().min(1).max(512).custom((value, helpers) => value.split("/").some((part: string) => !part || part === "." || part === ".." || part.includes("\\")) ? helpers.error("any.invalid") : value).required(),
+    license: Joi.string().allow(null).required(),
+    commit: Joi.string().pattern(/^[a-f0-9]{40}$/iu).required(),
+    archiveSha256: Joi.string().pattern(/^[a-f0-9]{64}$/u).required(),
+    contentSha256: Joi.string().pattern(/^[a-f0-9]{64}$/u).required(),
+    content: Joi.string().max(24 * 1024).required(),
+    enabled: Joi.boolean().required(),
+    createdAt: Joi.string().isoDate().required()
+  }).unknown(false))
+}).unknown(false);
+
+export const personalizationSettingsSchema = Joi.object({
+  memoryEnabled: Joi.boolean().required(),
+  memoryFromToolChats: Joi.boolean().required()
+}).unknown(false);
+
+export const conversationMemoriesSchema = Joi.object({
+  revision: Joi.number().integer().min(0).max(Number.MAX_SAFE_INTEGER).required(),
+  memories: Joi.array().items(Joi.string().trim().min(1).max(240)).max(16).required()
+}).unknown(false);
+
+export const computerControlSettingsSchema = Joi.object({
+  enabled: Joi.boolean().required()
 }).unknown(false);
 
 export const appearanceFontsSchema = Joi.object({
@@ -245,6 +320,10 @@ export const appearanceSettingsSchema = Joi.object({
     writing: appearanceBackgroundIdSchema.required(),
     settings: appearanceBackgroundIdSchema.required()
   }).unknown(false).required(),
+  wallpaperEngine: Joi.object({
+    enabled: Joi.boolean().default(false),
+    projectId: Joi.string().allow("").max(180).pattern(/^[A-Za-z0-9_-]+$/u).default("")
+  }).unknown(false).default({ enabled: false, projectId: "" }),
   overlay: Joi.number().integer().min(0).max(75).required(),
   blur: Joi.number().integer().min(0).max(32).required(),
   advanced: Joi.object({
@@ -260,12 +339,16 @@ export const appearanceSettingsSchema = Joi.object({
     translucentSidebar: Joi.boolean().required(),
     contrast: Joi.number().integer().min(0).max(100).required(),
     diffMarkers: Joi.string().valid("color", "symbols").required(),
-    pointerCursor: Joi.boolean().required()
+    pointerCursor: Joi.boolean().required(),
+    aiWorkOutputFocusBlurEnabled: Joi.boolean().default(true),
+    aiWorkOutputFocusBlurPercent: Joi.number().integer().min(0).max(100).optional(),
+    aiWorkOutputFocusBlurIdleSeconds: Joi.number().integer().min(60).max(3600).multiple(60).default(60),
+    aiWorkOutputFocusBlurAmount: Joi.number().integer().min(0).max(24).optional()
   }).unknown(false).optional()
 }).unknown(false);
 
 export const shortcutBindingsSchema = Joi.array()
-  .items(Joi.string().max(32).pattern(/^[\p{L}\p{N}\p{P} ]*$/u))
+  .items(Joi.string().max(32).pattern(/^[\p{L}\p{N}\p{P} +`]*$/u))
   .max(4)
   .required();
 
@@ -280,7 +363,9 @@ export const shortcutsSchema = Joi.object({
   toggleBottomPanel: shortcutBindingsSchema,
   openTerminal: shortcutBindingsSchema,
   switchNormalMode: shortcutBindingsSchema,
-  switchAiWorkMode: shortcutBindingsSchema
+  switchAiWorkMode: shortcutBindingsSchema,
+  openSideChat: shortcutBindingsSchema,
+  wallpaperSidebarToggle: shortcutBindingsSchema
 }).unknown(false);
 
 export const aiProbeSchema = Joi.object({
@@ -310,8 +395,10 @@ export const backgroundUploadSchema = Joi.object({
 }).unknown(false);
 
 export const aiChatMessageSchema = Joi.object({
-  appId: Joi.string().valid("steamcmd", "minecraft", "writing", "workspace").required(),
+  appId: Joi.string().valid(...APPLICATION_IDS).required(),
   sessionId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).allow(null).default(null),
+  projectId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).allow(null),
+  planMode: Joi.boolean(),
   content: Joi.string().trim().min(1).max(12000).required()
 }).unknown(false);
 
@@ -353,8 +440,25 @@ export const writingCatalogEntrySchema = Joi.object({
 }).unknown(false);
 
 export const aiSessionArchiveSchema = Joi.object({ archived: Joi.boolean().required() }).unknown(false);
+export const aiSessionPlanModeSchema = Joi.object({ active: Joi.boolean().required() }).unknown(false);
+
+export const aiSessionForkSchema = Joi.object({
+  messageId: Joi.string().guid({ version: ["uuidv4"] }).required()
+}).unknown(false);
+
+export const aiMessageFeedbackSchema = Joi.object({
+  rating: Joi.string().valid("positive", "negative").required(),
+  reasons: Joi.array().items(Joi.string().trim().min(1).max(80)).max(6).unique().default([]),
+  detail: Joi.string().trim().max(2000).default("")
+}).custom((value, helpers) => value.reasons.length || value.detail ? value : helpers.error("any.invalid")).unknown(false);
 
 export const aiApprovalDecisionSchema = Joi.object({ decision: Joi.string().valid("approved", "denied").required(), remember: Joi.boolean().default(false) }).unknown(false);
+
+export const aiRunQuestionAnswerSchema = Joi.object({
+  questionId: Joi.string().guid({ version: ["uuidv4"] }).required(),
+  answer: Joi.string().trim().max(12000).allow("").required(),
+  skipped: Joi.boolean().default(false)
+}).unknown(false);
 
 export function shortcutIdentity(value: string): string {
   const parts = value.split("+").map((part) => part.trim().toLocaleLowerCase());
@@ -400,7 +504,7 @@ export const daemonHeartbeatSchema = Joi.object({
     architecture: Joi.string().valid("x64").required(),
     version: Joi.string().trim().max(40).required(),
     dataRoot: Joi.string().trim().min(3).max(2048).pattern(/^(?:[a-z]:\\|\\\\)/iu).required(),
-    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1")).max(8).required(),
+    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", "git-workspace-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(13).unique().required(),
     javaRuntimes: Joi.array().items(Joi.object({
       runtimeId: Joi.string().max(80).required(),
       major: Joi.number().integer().min(8).max(40).required(),
@@ -412,7 +516,7 @@ export const daemonHeartbeatSchema = Joi.object({
     activeTaskIds: Joi.array().items(Joi.string().guid()).max(32).unique().default([]),
     instances: Joi.array().items(Joi.object({
       id: Joi.string().guid().required(),
-      state: Joi.string().valid("stopped", "running", "installing", "unknown").required(),
+      state: Joi.string().valid("stopped", "running", "starting", "installing", "unknown").required(),
       sandboxStatus: Joi.string().valid("unsupported", "unprepared", "prepared", "running", "unknown").default("unknown")
     }).unknown(false)).max(500).required()
   }).unknown(false);
@@ -477,7 +581,28 @@ export const minecraftCompletionSchema = Joi.object({
       javaMajor: Joi.number().integer().min(8).max(40),
       artifactName: Joi.string().max(120),
       backupName: Joi.string().max(120),
-      runtimeVendor: Joi.string().max(80)
+      runtimeVendor: Joi.string().max(80),
+      imageType: Joi.string().valid("jre", "jdk"),
+      deploymentId: Joi.string().guid(),
+      releaseId: Joi.string().max(120),
+      coreType: Joi.string().max(32),
+      coreBuild: Joi.string().max(120),
+      executionMode: Joi.string().valid("native", "appcontainer"),
+      processStarted: Joi.boolean(),
+      serverReady: Joi.boolean(),
+      locallyListening: Joi.boolean().allow(null),
+      externallyReachable: Joi.boolean().allow(null),
+      serverPort: Joi.number().integer().min(1024).max(65535),
+      evidence: Joi.string().max(240),
+      forced: Joi.boolean(),
+      stopped: Joi.boolean(),
+      exitCode: Joi.number().integer().allow(null),
+      worldSaveConfirmed: Joi.boolean().allow(null),
+      serverType: Joi.string().max(32),
+      delivered: Joi.boolean(),
+      verified: Joi.boolean(),
+      note: Joi.string().max(240),
+      properties: Joi.object({ serverPort: Joi.number().integer().min(1024).max(65535) }).unknown(false)
     }).unknown(false).default({})
   }).unknown(false);
 
@@ -565,10 +690,11 @@ export const aiHostTaskCompletionSchema = Joi.object({
     succeeded: Joi.boolean().required(),
     message: Joi.string().trim().min(1).max(240).required(),
     result: Joi.object({
-      stdout: Joi.string().max(1024 * 1024).required(),
-      stderr: Joi.string().max(1024 * 1024).required(),
+      stdout: Joi.string().allow("").max(1024 * 1024).required(),
+      stderr: Joi.string().allow("").max(1024 * 1024).required(),
       exitCode: Joi.number().integer().allow(null).required(),
       timedOut: Joi.boolean().required(),
-      outputTruncated: Joi.boolean().required()
+      outputTruncated: Joi.boolean().required(),
+      cancelled: Joi.boolean().default(false)
     }).unknown(false).required()
   }).unknown(false);

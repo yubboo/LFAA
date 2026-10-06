@@ -13,6 +13,7 @@
     "lfaa-authorization": "workspace:*",
     "lfaa-document-writing": "workspace:*",
     "lfaa-permission-presets": "workspace:*",
+    "lfaa-user-approval": "workspace:*",
     "lfaa-session": "workspace:*",
     "lfaa-settings": "workspace:*",
     "lfaa-jobs": "workspace:*",

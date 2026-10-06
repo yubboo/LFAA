@@ -81,11 +81,27 @@ export async function boot(args: string[] = []): Promise<Context> {
     }
     await context.loader.await();
     const failed = [...context.loader.entries()].filter((entry) => !entry.disabled && entry.fiber?.state !== 2);
-    if (failed.length) throw new Error(`插件未就绪：${failed.map((entry) => entry.options.name).join("、")}`);
+    if (failed.length) {
+      const diagnostics = await Promise.all(failed.map(async (entry) => {
+        let detail = "";
+        if (entry.fiber?.state === 3) {
+          try { await entry.fiber.await(); }
+          catch (error) { detail = error instanceof Error ? `；原因：${error.message}` : `；原因：${String(error)}`; }
+        }
+        return `${entry.options.name}（Cordis 状态 ${entry.fiber?.state ?? "缺失"}${detail}）`;
+      }));
+      throw new Error(`插件未就绪：${diagnostics.join("、")}`);
+    }
     const shutdown = () => { void context.fiber.dispose().catch((error: unknown) => { console.error(error); process.exitCode = 1; }); };
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);
-    context.effect(() => () => { process.off("SIGINT", shutdown); process.off("SIGTERM", shutdown); });
+    const onMessage = (message: unknown) => {
+      if (typeof message === "object" && message !== null && "type" in message && message.type === "lfaa-shutdown") {
+        void context.fiber.dispose().then(() => { if (process.connected) process.disconnect(); });
+      }
+    };
+    process.on("message", onMessage);
+    context.effect(() => () => { process.off("SIGINT", shutdown); process.off("SIGTERM", shutdown); process.off("message", onMessage); });
     return context;
   } catch (error) {
     await context.fiber.dispose();

@@ -1,0 +1,19 @@
+{
+  "name": "lfaa-typert-generator",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "lfaa": {
+    "kind": "engineering-support",
+    "runtime": false
+  },
+  "bin": {
+    "lfaa-typert-generate": "./src/cli.mjs"
+  },
+  "dependencies": {
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

@@ -25,6 +25,9 @@
       "lfaa-api-account-controller/src/*": [
         "packages/api/account-controller/src/*"
       ],
+      "lfaa-api-connectivity-controller/src/*": [
+        "packages/api/connectivity-controller/src/*"
+      ],
       "lfaa-api-gateway/src/*": [
         "packages/api/gateway/src/*"
       ],
@@ -85,6 +88,9 @@
       "lfaa-client-ui-commands/src/*": [
         "packages/client/ui-commands/src/*"
       ],
+      "lfaa-client-ui-connectivity/src/*": [
+        "packages/client/ui-connectivity/src/*"
+      ],
       "lfaa-client-ui-dockkit/src/*": [
         "packages/client/ui-dockkit/src/*"
       ],
@@ -136,14 +142,29 @@
       "lfaa-agent/src/*": [
         "packages/core/agent/src/*"
       ],
+      "lfaa-agent-default-model/src/*": [
+        "packages/core/agent-default-model/src/*"
+      ],
       "lfaa-agent-loop/src/*": [
         "packages/core/agent-loop/src/*"
+      ],
+      "lfaa-agent-tool-presentation/src/*": [
+        "packages/core/agent-tool-presentation/src/*"
+      ],
+      "lfaa-scope/src/*": [
+        "packages/core/scope/src/*"
       ],
       "lfaa-session/src/*": [
         "packages/core/session/src/*"
       ],
+      "lfaa-system-prompt/src/*": [
+        "packages/core/system-prompt/src/*"
+      ],
       "lfaa-tools/src/*": [
         "packages/core/tools/src/*"
+      ],
+      "lfaa-typert-protocol/src/*": [
+        "packages/typert/protocol/src/*"
       ],
       "lfaa-authorization/src/*": [
         "packages/credentials/authorization/src/*"
@@ -156,6 +177,9 @@
       ],
       "lfaa-games-minecraft/src/*": [
         "packages/games/minecraft/src/*"
+      ],
+      "lfaa-game-connectivity/src/*": [
+        "packages/network/game-connectivity/src/*"
       ],
       "lfaa-games-steamcmd/src/*": [
         "packages/games/steamcmd/src/*"
@@ -211,6 +235,9 @@
       "lfaa-api-account-controller": [
         "packages/api/account-controller/src/index.ts"
       ],
+      "lfaa-api-connectivity-controller": [
+        "packages/api/connectivity-controller/src/index.ts"
+      ],
       "lfaa-api-gateway": [
         "packages/api/gateway/src/index.ts"
       ],
@@ -256,6 +283,9 @@
       "lfaa-client-ui-commands": [
         "packages/client/ui-commands/src/index.ts"
       ],
+      "lfaa-client-ui-connectivity": [
+        "packages/client/ui-connectivity/src/index.ts"
+      ],
       "lfaa-client-ui-dockkit": [
         "packages/client/ui-dockkit/src/index.ts"
       ],
@@ -298,11 +328,23 @@
       "lfaa-agent": [
         "packages/core/agent/src/index.ts"
       ],
+      "lfaa-agent-default-model": [
+        "packages/core/agent-default-model/src/index.ts"
+      ],
       "lfaa-agent-loop": [
         "packages/core/agent-loop/src/index.ts"
       ],
+      "lfaa-agent-tool-presentation": [
+        "packages/core/agent-tool-presentation/src/index.ts"
+      ],
+      "lfaa-scope": [
+        "packages/core/scope/src/index.ts"
+      ],
       "lfaa-session": [
         "packages/core/session/src/index.ts"
+      ],
+      "lfaa-system-prompt": [
+        "packages/core/system-prompt/src/index.ts"
       ],
       "lfaa-tools": [
         "packages/core/tools/src/index.ts"
@@ -315,6 +357,9 @@
       ],
       "lfaa-games-minecraft": [
         "packages/games/minecraft/src/index.ts"
+      ],
+      "lfaa-game-connectivity": [
+        "packages/network/game-connectivity/src/index.ts"
       ],
       "lfaa-games-steamcmd": [
         "packages/games/steamcmd/src/index.ts"

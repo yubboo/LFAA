@@ -9,7 +9,9 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@deepseek-ai/cordis": "4.0.4"
+    "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-launch-environment": "workspace:*",
+    "lfaa-storage-hub": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0"

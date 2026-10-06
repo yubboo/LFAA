@@ -2,7 +2,7 @@
 
 参考：[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，提交 `639ed015397290b3745d163aafe02ffee4aa3f84`。
 
-上游 316 个两级包目录原名保留；当前 65 个包有实际源码或装配配置（64 个产品包、1 个长期测试支持包）。`占位` 只保留 `.gitkeep`，不承诺对应能力已实现。原有业务按职责迁入这些包，LFAA 专属包列为扩展。
+上游 316 个两级包目录原名保留；当前 88 个包有实际源码或装配配置（86 个运行产品能力包、1 个工程期生成器、1 个长期测试支持包）。`占位` 只保留 `.gitkeep`，不承诺对应能力已实现；有源码也不代表已经通过 DSH 行为对齐或真实运行验收，P0 逐包映射见 [P0 能力核对记录](harness-p0-audit.md)。原有业务按职责迁入这些包，LFAA 专属包列为扩展。
 
 ## acp
 
@@ -23,11 +23,12 @@
 | [H:/LFAA/packages/api/session-controller](<H:/LFAA/packages/api/session-controller>) | lfaa-api-session-controller | 实际实现 | DSH 同名目录 |
 | [H:/LFAA/packages/api/settings-controller](<H:/LFAA/packages/api/settings-controller>) | lfaa-api-settings-controller | 实际实现 | DSH 同名目录 |
 | [H:/LFAA/packages/api/terminal-controller](<H:/LFAA/packages/api/terminal-controller>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/api/workspace-controller](<H:/LFAA/packages/api/workspace-controller>) | — | 占位 | DSH 同名目录 |
+| [H:/LFAA/packages/api/workspace-controller](<H:/LFAA/packages/api/workspace-controller>) | lfaa-api-workspace-controller | 实际实现 | DSH 同名目录 |
 | [H:/LFAA/packages/api/workspace-files](<H:/LFAA/packages/api/workspace-files>) | lfaa-api-workspace-files | 实际实现 | DSH 同名目录 |
 | [H:/LFAA/packages/api/minecraft-controller](<H:/LFAA/packages/api/minecraft-controller>) | lfaa-api-minecraft-controller | 实际实现 | LFAA 扩展 |
 | [H:/LFAA/packages/api/steamcmd-controller](<H:/LFAA/packages/api/steamcmd-controller>) | lfaa-api-steamcmd-controller | 实际实现 | LFAA 扩展 |
 | [H:/LFAA/packages/api/writing-controller](<H:/LFAA/packages/api/writing-controller>) | lfaa-api-writing-controller | 实际实现 | LFAA 扩展 |
+| [H:/LFAA/packages/api/plugin-controller](<H:/LFAA/packages/api/plugin-controller>) | lfaa-api-plugin-controller | 实际实现 | LFAA 扩展 |
 
 ## attachment
 
@@ -41,10 +42,11 @@
 | 绝对目录 | 包名 | 状态 | 来源 |
 |---|---|---|---|
 | [H:/LFAA/packages/boot/app-boot](<H:/LFAA/packages/boot/app-boot>) | lfaa-app-boot | 实际实现 | DSH 同名目录 |
+| [H:/LFAA/packages/boot/capability-installs](<H:/LFAA/packages/boot/capability-installs>) | lfaa-capability-installs | 实际实现 | LFAA 跨类型能力适配器 |
 | [H:/LFAA/packages/boot/cmdline](<H:/LFAA/packages/boot/cmdline>) | — | 占位 | DSH 同名目录 |
 | [H:/LFAA/packages/boot/config-editor](<H:/LFAA/packages/boot/config-editor>) | — | 占位 | DSH 同名目录 |
 | [H:/LFAA/packages/boot/hmr](<H:/LFAA/packages/boot/hmr>) | lfaa-hmr | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/boot/plugin-manager](<H:/LFAA/packages/boot/plugin-manager>) | — | 占位 | DSH 同名目录 |
+| [H:/LFAA/packages/boot/plugin-manager](<H:/LFAA/packages/boot/plugin-manager>) | lfaa-plugin-manager | 实际实现 | DSH 同名目录 |
 
 ## browser-use
 
@@ -148,7 +150,7 @@
 
 | 绝对目录 | 包名 | 状态 | 来源 |
 |---|---|---|---|
-| [H:/LFAA/packages/computer-use/computer-use](<H:/LFAA/packages/computer-use/computer-use>) | — | 占位 | DSH 同名目录 |
+| [H:/LFAA/packages/computer-use/computer-use](<H:/LFAA/packages/computer-use/computer-use>) | lfaa-computer-use | 已实现；Windows 桌面实机验收待完成 | LFAA CUA Driver SDK 适配 |
 
 ## context
 
@@ -166,20 +168,22 @@
 | 绝对目录 | 包名 | 状态 | 来源 |
 |---|---|---|---|
 | [H:/LFAA/packages/core/agent](<H:/LFAA/packages/core/agent>) | lfaa-agent | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/core/agent-default-model](<H:/LFAA/packages/core/agent-default-model>) | — | 占位 | DSH 同名目录 |
+| [H:/LFAA/packages/core/agent-default-model](<H:/LFAA/packages/core/agent-default-model>) | lfaa-agent-default-model | 实际实现 | DSH 同名目录；插件注入凭据引用读取模型密钥，账户/模型状态仍归设置中心 |
 | [H:/LFAA/packages/core/agent-loop](<H:/LFAA/packages/core/agent-loop>) | lfaa-agent-loop | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/core/agent-tool-presentation](<H:/LFAA/packages/core/agent-tool-presentation>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/core/scope](<H:/LFAA/packages/core/scope>) | — | 占位 | DSH 同名目录 |
+| [H:/LFAA/packages/core/agent-tool-presentation](<H:/LFAA/packages/core/agent-tool-presentation>) | lfaa-agent-tool-presentation | 实际实现 | DSH 同名目录；仅呈现原生 function calling，不含 PTC |
+| [H:/LFAA1/packages/core/conversation-memory](<H:/LFAA1/packages/core/conversation-memory>) | lfaa-conversation-memory | 实际实现 | LFAA 扩展；账户级有界记忆 Owner，由 AI Work 设置控制生成资格 |
+| [H:/LFAA/packages/core/scope](<H:/LFAA/packages/core/scope>) | lfaa-scope | 实际实现 | DSH 同名目录；过滤可见范围，不替代授权 |
 | [H:/LFAA/packages/core/session](<H:/LFAA/packages/core/session>) | lfaa-session | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/core/system-prompt](<H:/LFAA/packages/core/system-prompt>) | — | 占位 | DSH 同名目录 |
+| [H:/LFAA/packages/core/system-prompt](<H:/LFAA/packages/core/system-prompt>) | lfaa-system-prompt | 实际实现 | DSH 同名目录；按 LFAA Owner 顺序组装提示词 |
 | [H:/LFAA/packages/core/tools](<H:/LFAA/packages/core/tools>) | lfaa-tools | 实际实现 | DSH 同名目录 |
 
 ## credentials
 
 | 绝对目录 | 包名 | 状态 | 来源 |
 |---|---|---|---|
-| [H:/LFAA/packages/credentials/authorization](<H:/LFAA/packages/credentials/authorization>) | lfaa-authorization | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/credentials/credentials](<H:/LFAA/packages/credentials/credentials>) | — | 占位 | DSH 同名目录 |
+| [packages/credentials/authorization](packages/credentials/authorization) | lfaa-authorization | 实际实现 | LFAA 登录 Cookie 与角色校验中间件；DSH 凭据获取流程由 `lfaa-credential-flows` 提供，避免混淆两类授权 |
+| [packages/credentials/credential-flows](packages/credentials/credential-flows) | lfaa-credential-flows | 实际实现 | LFAA 插件化凭据授权流程；由活动插件身份归属，支持账户隔离、取消/卸载及本次提交确认 |
+| [packages/credentials/credentials](packages/credentials/credentials) | lfaa-credentials | 实际实现 | DSH 同名目录；按插件身份提供凭据引用和记录接口，密文由 Settings 唯一加密存储持有 |
 | [H:/LFAA/packages/credentials/credentials-local](<H:/LFAA/packages/credentials/credentials-local>) | — | 占位 | DSH 同名目录 |
 | [H:/LFAA/packages/credentials/deepseek-account](<H:/LFAA/packages/credentials/deepseek-account>) | — | 占位 | DSH 同名目录 |
 | [H:/LFAA/packages/credentials/deepseek-account-platform](<H:/LFAA/packages/credentials/deepseek-account-platform>) | — | 占位 | DSH 同名目录 |
@@ -304,9 +308,9 @@
 |---|---|---|---|
 | [H:/LFAA/packages/interaction/commands](<H:/LFAA/packages/interaction/commands>) | — | 占位 | DSH 同名目录 |
 | [H:/LFAA/packages/interaction/permission-presets](<H:/LFAA/packages/interaction/permission-presets>) | lfaa-permission-presets | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/interaction/tool-ask-user](<H:/LFAA/packages/interaction/tool-ask-user>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/interaction/user-approval](<H:/LFAA/packages/interaction/user-approval>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/interaction/user-questions](<H:/LFAA/packages/interaction/user-questions>) | — | 占位 | DSH 同名目录 |
+| [H:/LFAA/packages/interaction/tool-ask-user](<H:/LFAA/packages/interaction/tool-ask-user>) | lfaa-tool-ask-user | 实际实现 | DSH 同名目录；只接入既有 Agent Run 问题通道 |
+| [H:/LFAA1/packages/interaction/user-approval](<H:/LFAA1/packages/interaction/user-approval>) | lfaa-user-approval | 实际实现 | DSH 同名目录；提供账户隔离的审批状态唤醒，不持有审批记录 |
+| [H:/LFAA/packages/interaction/user-questions](<H:/LFAA/packages/interaction/user-questions>) | `lfaa-user-questions` | 部分实现（通道中立回答者注册与 Agent Run 适配；其他通道待接） | DSH 同名目录 |
 
 ## jobs
 
@@ -376,9 +380,9 @@
 
 | 绝对目录 | 包名 | 状态 | 来源 |
 |---|---|---|---|
-| [H:/LFAA/packages/sandbox/sandbox](<H:/LFAA/packages/sandbox/sandbox>) | — | 占位 | DSH 同名目录 |
+| [H:/LFAA/packages/sandbox/sandbox](<H:/LFAA/packages/sandbox/sandbox>) | lfaa-sandbox | 实际实现 | P0 沙箱提供方接口与失败关闭结果核验；执行器待 P2 |
 | [H:/LFAA/packages/sandbox/sandbox-local](<H:/LFAA/packages/sandbox/sandbox-local>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/sandbox/sandbox-policy](<H:/LFAA/packages/sandbox/sandbox-policy>) | — | 占位 | DSH 同名目录 |
+| [H:/LFAA/packages/sandbox/sandbox-policy](<H:/LFAA/packages/sandbox/sandbox-policy>) | lfaa-sandbox-policy | 实际实现 | P0 按目标节点验证的逐调用策略合同；设置与会话 Owner 接线待核 |
 | [H:/LFAA/packages/sandbox/sandbox-windows-acl](<H:/LFAA/packages/sandbox/sandbox-windows-acl>) | — | 占位 | DSH 同名目录 |
 
 ## schedule
@@ -483,10 +487,10 @@
 
 | 绝对目录 | 包名 | 状态 | 来源 |
 |---|---|---|---|
-| [H:/LFAA/packages/storage/storage](<H:/LFAA/packages/storage/storage>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/storage/storage-domain](<H:/LFAA/packages/storage/storage-domain>) | lfaa-storage-domain | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/storage/storage-json](<H:/LFAA/packages/storage/storage-json>) | lfaa-storage-json | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/storage/storage-sqlite](<H:/LFAA/packages/storage/storage-sqlite>) | lfaa-storage-sqlite | 实际实现 | DSH 同名目录 |
+| [H:/LFAA1/packages/storage/storage](<H:/LFAA1/packages/storage/storage>) | lfaa-storage-hub | 实际实现 | 具名后端/数据形式注册与插件生命周期；不持有领域数据 |
+| [H:/LFAA1/packages/storage/storage-domain](<H:/LFAA1/packages/storage/storage-domain>) | lfaa-storage-domain | 实际实现 | DSH 同名目录 |
+| [H:/LFAA1/packages/storage/storage-json](<H:/LFAA1/packages/storage/storage-json>) | lfaa-storage-json | 实际实现 | DSH 同名目录 |
+| [H:/LFAA1/packages/storage/storage-sqlite](<H:/LFAA1/packages/storage/storage-sqlite>) | lfaa-storage-sqlite | 实际实现 | DSH 同名目录 |
 
 ## subagent
 
@@ -507,7 +511,7 @@
 
 | 绝对目录 | 包名 | 状态 | 来源 |
 |---|---|---|---|
-| [H:/LFAA/packages/subprocess/subprocess](<H:/LFAA/packages/subprocess/subprocess>) | — | 占位 | DSH 同名目录 |
+| [H:/LFAA/packages/subprocess/subprocess](<H:/LFAA/packages/subprocess/subprocess>) | lfaa-subprocess | 实际实现 | P0 受管子进程/伪终端服务合同；本机及 Daemon 提供方待 P2 |
 | [H:/LFAA/packages/subprocess/subprocess-local](<H:/LFAA/packages/subprocess/subprocess-local>) | — | 占位 | DSH 同名目录 |
 | [H:/LFAA/packages/subprocess/win32-process](<H:/LFAA/packages/subprocess/win32-process>) | — | 占位 | DSH 同名目录 |
 
@@ -549,10 +553,10 @@
 
 | 绝对目录 | 包名 | 状态 | 来源 |
 |---|---|---|---|
-| [H:/LFAA/packages/typert/generator](<H:/LFAA/packages/typert/generator>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/typert/loader](<H:/LFAA/packages/typert/loader>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/typert/protocol](<H:/LFAA/packages/typert/protocol>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/typert/registry](<H:/LFAA/packages/typert/registry>) | — | 占位 | DSH 同名目录 |
+| [H:/LFAA1/packages/typert/generator](<H:/LFAA1/packages/typert/generator>) | `lfaa-typert-generator` | 部分实现（账户 `auth/me` 源合同生成双端描述与 JSON Schema；工程期包，不进入产品运行树） | DSH 同名目录 |
+| [H:/LFAA1/packages/typert/loader](<H:/LFAA1/packages/typert/loader>) | `lfaa-typert-loader` | 部分实现（插件生命周期登记；生成工件自动发现待做） | DSH 同名目录 |
+| [H:/LFAA1/packages/typert/protocol](<H:/LFAA1/packages/typert/protocol>) | `lfaa-typert-protocol` | 部分实现（一元协议与逐方法授权；流式协议、生成器待做） | DSH 同名目录 |
+| [H:/LFAA1/packages/typert/registry](<H:/LFAA1/packages/typert/registry>) | `lfaa-typert-registry` | 部分实现（Host 路由已接；仅账户自身读取迁移，其他 API/Socket 待接） | DSH 同名目录 |
 
 ## util
 
@@ -600,14 +604,14 @@
 |---|---|---|---|
 | [H:/LFAA/packages/workflow/tool-ralph](<H:/LFAA/packages/workflow/tool-ralph>) | — | 占位 | DSH 同名目录 |
 | [H:/LFAA/packages/workflow/tool-workflow](<H:/LFAA/packages/workflow/tool-workflow>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/workflow/workflow](<H:/LFAA/packages/workflow/workflow>) | — | 占位 | DSH 同名目录 |
+| [H:/LFAA/packages/workflow/workflow](<H:/LFAA/packages/workflow/workflow>) | `lfaa-workflow` | 部分实现（Minecraft Agent 工作流定义与运行 Owner；通用 DSH 工作流待做） | DSH 同名目录 / LFAA 扩展 |
 | [H:/LFAA/packages/workflow/workflow-ptc](<H:/LFAA/packages/workflow/workflow-ptc>) | — | 占位 | DSH 同名目录 |
 
 ## workspace
 
 | 绝对目录 | 包名 | 状态 | 来源 |
 |---|---|---|---|
-| [H:/LFAA/packages/workspace/workspace](<H:/LFAA/packages/workspace/workspace>) | — | 占位 | DSH 同名目录 |
+| [H:/LFAA/packages/workspace/workspace](<H:/LFAA/packages/workspace/workspace>) | lfaa-workspace-workspace | 实际实现 | DSH 同名目录 |
 | [H:/LFAA/packages/workspace/data-directory](<H:/LFAA/packages/workspace/data-directory>) | lfaa-workspace-data-directory | 实际实现 | LFAA 扩展 |
 
 ## games

@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",
-    "lfaa-launch-environment": "workspace:*"
+    "lfaa-launch-environment": "workspace:*",
+    "lfaa-storage-hub": "workspace:*"
   },
   "devDependencies": {
     "@types/express": "^4.0.0",

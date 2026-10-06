@@ -12,6 +12,8 @@ import { configuration } from "lfaa-storage-domain/src/configuration.js";
 import { getDaemonDataRoot, getDaemonNode, listDaemonNodes, type DaemonNode } from "lfaa-host-daemon/src/local-daemon.js";
 import { createMinecraftTask, listMinecraftLogs, listMinecraftTasks, type MinecraftTask } from "lfaa-jobs/src/minecraft-queue.js";
 import { getMinecraftReleaseArtifact, listMinecraftReleases } from "./catalog.js";
+import { getUserSettings } from "lfaa-settings/src/service.js";
+import type { MinecraftCoreName } from "./core-sources.js";
 
 const sandboxCapability = "app-sandbox-windows-appcontainer-v1";
 const javaRuntimeSelectionCapability = "minecraft-java-runtime-selection-v1";
@@ -136,6 +138,9 @@ export interface MinecraftInstance {
   javaMajor: number;
   javaRuntimeId: string | null;
   memoryMb: number;
+  coreType: MinecraftCoreName;
+  coreBuild: string;
+  executionMode: "native" | "appcontainer";
   state: "installing" | "stopped" | "starting" | "running" | "stopping" | "error" | "unknown";
   sandboxAvailable: boolean;
   sandboxStatus: "unsupported" | "unprepared" | "prepared" | "running" | "unknown";
@@ -152,7 +157,9 @@ export interface MinecraftDeployment {
   nodeStatus: "online" | "offline";
   name: string;
   storageDirectory: string;
-  serverType: "vanilla";
+  serverType: string;
+  coreBuild: string;
+  automatic: boolean;
   releaseId: string;
   javaMajor: number;
   state: "queued" | "downloading" | "ready" | "failed" | "registering" | "registered";
@@ -172,6 +179,9 @@ interface InstanceRow {
   java_major: number;
   java_runtime_id: string | null;
   memory_mb: number;
+  core_type: MinecraftCoreName;
+  core_build: string;
+  execution_mode: MinecraftInstance["executionMode"];
   state: MinecraftInstance["state"];
   sandbox_status: MinecraftInstance["sandboxStatus"];
   node_capabilities_json: string;
@@ -183,7 +193,7 @@ interface InstanceRow {
 
 const instanceSelect = `
   SELECT i.id, i.node_id, n.display_name AS node_name, n.status AS node_status,
-    i.name, i.storage_directory, i.release_id, i.java_major, i.java_runtime_id, i.memory_mb, i.state, i.eula_accepted_at,
+    i.name, i.storage_directory, i.release_id, i.java_major, i.java_runtime_id, i.memory_mb, i.core_type, i.core_build, i.execution_mode, i.state, i.eula_accepted_at,
     i.sandbox_status, n.capabilities_json AS node_capabilities_json,
     i.server_properties_json, i.created_at, i.updated_at
   FROM minecraft_instances i JOIN daemon_nodes n ON n.id = i.node_id
@@ -212,6 +222,9 @@ function toInstance(row: InstanceRow): MinecraftInstance {
     javaMajor: row.java_major,
     javaRuntimeId: row.java_runtime_id,
     memoryMb: row.memory_mb,
+    coreType: row.core_type,
+    coreBuild: row.core_build,
+    executionMode: row.execution_mode,
     state: row.node_status === "offline" && ["running", "starting", "stopping"].includes(row.state) ? "unknown" : row.state,
     sandboxAvailable: parseCapabilities(row.node_capabilities_json).includes(sandboxCapability),
     sandboxStatus: row.node_status === "offline" && row.sandbox_status === "running" ? "unknown" : row.sandbox_status,
@@ -277,6 +290,29 @@ export function listMinecraftInstances(): MinecraftInstance[] {
   return rows.map(toInstance);
 }
 
+/** 返回账户本人正在运行且节点在线的 Java TCP 实例，供独立联机 App 读取目标；不启动或改变实例。 */
+export function listMinecraftConnectivityTargets(ownerId: string) {
+  const rows = database.prepare(`
+    SELECT i.id, i.name, i.node_id, n.display_name AS node_name, n.status AS node_status, i.server_properties_json
+    FROM minecraft_instances i JOIN daemon_nodes n ON n.id = i.node_id
+    WHERE i.created_by = ? AND i.state = 'running' AND n.status = 'online'
+    ORDER BY i.updated_at DESC
+    LIMIT 200
+  `).all(ownerId) as Array<{ id: string; name: string; node_id: string; node_name: string; node_status: "online" | "offline"; server_properties_json: string }>;
+  return rows.map((row) => {
+    let port = 25565;
+    try {
+      const properties = JSON.parse(row.server_properties_json) as { serverPort?: unknown };
+      if (Number.isInteger(properties.serverPort) && Number(properties.serverPort) >= 1 && Number(properties.serverPort) <= 65535) port = Number(properties.serverPort);
+    } catch { /* 损坏属性回到 Minecraft Java 默认端口。 */ }
+    return { id: row.id, applicationId: "minecraft" as const, name: row.name, nodeId: row.node_id, nodeName: row.node_name, nodeStatus: row.node_status, transport: "tcp" as const, localHost: "127.0.0.1" as const, localPort: port, state: "running" as const };
+  });
+}
+
+export function getMinecraftConnectivityTarget(ownerId: string, instanceId: string) {
+  return listMinecraftConnectivityTargets(ownerId).find((target) => target.id === instanceId) ?? null;
+}
+
 export function getMinecraftInstance(instanceId: string): MinecraftInstance | null {
   const row = database.prepare(`${instanceSelect} WHERE i.id = ?`).get(instanceId) as InstanceRow | undefined;
   return row ? toInstance(row) : null;
@@ -300,7 +336,9 @@ function toMinecraftDeployment(row: {
   node_status: "online" | "offline";
   name: string;
   storage_directory: string;
-  server_type: "vanilla";
+  server_type: string;
+  core_build: string;
+  automatic: number;
   release_id: string;
   java_major: number;
   state: MinecraftDeployment["state"];
@@ -316,6 +354,8 @@ function toMinecraftDeployment(row: {
     name: row.name,
     storageDirectory: row.storage_directory,
     serverType: row.server_type,
+    coreBuild: row.core_build,
+    automatic: row.automatic === 1,
     releaseId: row.release_id,
     javaMajor: row.java_major,
     state: row.state,
@@ -327,7 +367,7 @@ function toMinecraftDeployment(row: {
 
 const deploymentSelect = `
   SELECT d.id, d.node_id, n.display_name AS node_name, n.status AS node_status,
-    d.name, d.storage_directory, d.server_type, d.release_id, d.java_major, d.state, d.instance_id,
+    d.name, d.storage_directory, d.server_type, d.core_build, d.automatic, d.release_id, d.java_major, d.state, d.instance_id,
     d.created_at, d.updated_at
   FROM minecraft_deployments d JOIN daemon_nodes n ON n.id = d.node_id
 `;
@@ -337,6 +377,8 @@ export function listMinecraftDeployments(): MinecraftDeployment[] {
   return rows.map(toMinecraftDeployment);
 }
 
+/** 已废弃：两步 Vanilla 下载兼容入口，替代为 deployment-service.provisionMinecraftServer。
+ * 为既有下载/注册任务保留；旧调用方全部迁入多核心协议后删除此入口及 deploy/register 执行分支。 */
 export async function createMinecraftDeployment(input: {
   nodeId: string;
   name: string;
@@ -383,7 +425,8 @@ export async function createMinecraftDeployment(input: {
         serverUrl: release.serverUrl,
         serverSha1: release.serverSha1,
         serverSize: release.serverSize,
-        javaMajor: release.javaMajor
+        javaMajor: release.javaMajor,
+        downloadTimeoutSeconds: getUserSettings(input.userId).minecraftRuntime.minecraftDownloadTimeoutSeconds
       }
     });
     const row = database.prepare(`${deploymentSelect} WHERE d.id = ?`).get(deploymentId) as Parameters<typeof toMinecraftDeployment>[0] | undefined;
@@ -400,6 +443,7 @@ export async function retryMinecraftDeployment(deploymentId: string, userId: str
   const row = database.prepare(`${deploymentSelect} WHERE d.id = ?`).get(deploymentId) as Parameters<typeof toMinecraftDeployment>[0] | undefined;
   if (!row) throw new ApiError(404, "minecraft_deployment_not_found", "找不到这个 Minecraft 部署记录。");
   if (row.state !== "failed") throw new ApiError(409, "minecraft_deployment_not_failed", "只有失败的部署可以重试。");
+  if (row.automatic) return (await import("./deployment-service.js")).retryMinecraftProvision(deploymentId, userId);
   const node = requireOnlineWindowsNode(row.node_id);
   const release = await getMinecraftReleaseArtifact(row.release_id);
   database.exec("BEGIN IMMEDIATE;");
@@ -424,7 +468,8 @@ export async function retryMinecraftDeployment(deploymentId: string, userId: str
         serverUrl: release.serverUrl,
         serverSha1: release.serverSha1,
         serverSize: release.serverSize,
-        javaMajor: release.javaMajor
+        javaMajor: release.javaMajor,
+        downloadTimeoutSeconds: getUserSettings(userId).minecraftRuntime.minecraftDownloadTimeoutSeconds
       }
     });
     database.exec("COMMIT;");
@@ -450,9 +495,11 @@ export async function registerMinecraftDeployment(input: {
   if (!row) throw new ApiError(404, "minecraft_deployment_not_found", "找不到这个 Minecraft 部署记录。");
   if (row.state !== "ready") throw new ApiError(409, "minecraft_deployment_not_ready", "服务端下载完成后才能创建实例。");
   const node = requireOnlineWindowsNode(row.node_id);
-  if (!node.capabilities.includes(sandboxCapability)) {
+  const executionMode = getUserSettings(input.userId).minecraftRuntime.minecraftExecutionMode;
+  if (executionMode === "appcontainer" && !node.capabilities.includes(sandboxCapability)) {
     throw new ApiError(409, "minecraft_sandbox_unavailable", "节点尚未报告 Windows AppContainer Host，暂不能创建实例。");
   }
+  if (executionMode === "native" && !node.capabilities.includes("minecraft-native-v1")) throw new ApiError(409, "minecraft_native_unavailable", "请更新目标 Daemon 以启用原生 Minecraft 执行能力。");
   const javaRuntimeId = validateSelectedJavaRuntime(node, row.java_major, input.javaRuntimeId ?? null);
   const acceptedAt = new Date().toISOString();
 
@@ -502,7 +549,9 @@ export async function registerMinecraftDeployment(input: {
         javaMajor: currentRow.java_major,
         javaRuntimeId,
         memoryMb: input.memoryMb,
-        eulaAccepted: true
+        executionMode,
+        eulaAccepted: true,
+        downloadTimeoutSeconds: getUserSettings(input.userId).minecraftRuntime.minecraftDownloadTimeoutSeconds
       }
     });
     database.exec("COMMIT;");
@@ -526,31 +575,43 @@ function requireInstanceNode(instance: MinecraftInstance): DaemonNode {
 }
 
 export function updateMinecraftInstanceJavaRuntime(instanceId: string, runtimeId: string | null): MinecraftInstance {
+  listMinecraftTasks(1);
   const current = requireInstance(instanceId);
+  if (current.coreType === "PocketMine") throw new ApiError(409, "minecraft_php_runtime", "PocketMine 使用 PHP，无需选择 Java。");
+  if (database.prepare("SELECT 1 FROM minecraft_tasks WHERE instance_id = ? AND status IN ('queued', 'running') LIMIT 1").get(instanceId)) throw new ApiError(409, "minecraft_instance_busy", "实例已有未完成操作，暂不能更换 Java。");
   // Java 是实例级设置；运行中及状态未确认时不变更运行文件授权范围。
   if (current.state !== "stopped" && current.state !== "error") {
     throw new ApiError(409, "minecraft_instance_running", "只能为已停止的 Minecraft 实例更换 Java。");
   }
   const node = requireInstanceNode(current);
-  if (!node.capabilities.includes(sandboxCapability)) {
+  if (current.executionMode === "appcontainer" && !node.capabilities.includes(sandboxCapability)) {
     throw new ApiError(409, "minecraft_sandbox_unavailable", "节点未报告 Windows AppContainer Sandbox Host，无法更换实例 Java。");
   }
   const javaRuntimeId = validateSelectedJavaRuntime(node, current.javaMajor, runtimeId);
-  database.prepare("UPDATE minecraft_instances SET java_runtime_id = ?, sandbox_status = 'unprepared', updated_at = ? WHERE id = ?")
-    .run(javaRuntimeId, new Date().toISOString(), instanceId);
+  database.prepare("UPDATE minecraft_instances SET java_runtime_id = ?, sandbox_status = ?, updated_at = ? WHERE id = ?")
+    .run(javaRuntimeId, current.executionMode === "native" ? "unsupported" : "unprepared", new Date().toISOString(), instanceId);
   return getMinecraftInstance(instanceId)!;
 }
 
-function queueInstanceAction(instance: MinecraftInstance, userId: string, kind: "start" | "stop" | "backup", payload: Record<string, unknown> = {}): MinecraftTask {
+function queueInstanceAction(instance: MinecraftInstance, userId: string, kind: "start" | "stop" | "backup" | "restart" | "console", payload: Record<string, unknown> = {}): MinecraftTask {
+  // 先收敛已过期租约，再进入领域事务；不会重放任何副作用。
+  listMinecraftTasks(1);
   database.exec("BEGIN IMMEDIATE;");
   try {
     const current = requireInstance(instance.id);
     const node = requireInstanceNode(current);
-    if (kind === "start") {
-      if (!node.capabilities.includes(sandboxCapability)) {
+    const settings = getUserSettings(userId).minecraftRuntime;
+    const executionMode = kind === "start" || kind === "restart" ? settings.minecraftExecutionMode : current.executionMode;
+    // 手动和模型入口共享实例互斥；不能在备份/配置排队后再启动同一实例。
+    if (database.prepare("SELECT 1 FROM minecraft_tasks WHERE instance_id = ? AND status IN ('queued', 'running') LIMIT 1").get(current.id)) {
+      throw new ApiError(409, "minecraft_instance_busy", "实例已有未完成的操作，请等待并核对任务结果。");
+    }
+    if (kind === "start" || kind === "restart") {
+      if (executionMode === "appcontainer" && (current.coreType !== "Vanilla" || !node.capabilities.includes(sandboxCapability))) {
         throw new ApiError(409, "minecraft_sandbox_unavailable", "节点未报告 Windows AppContainer Sandbox Host，已拒绝排入实例启动任务。");
       }
-      if (current.state !== "stopped" && current.state !== "error") throw new ApiError(409, "minecraft_instance_not_stopped", "只有已停止的实例可以启动。");
+      if (kind === "start" && current.state !== "stopped" && current.state !== "error") throw new ApiError(409, "minecraft_instance_not_stopped", "只有已停止的实例可以启动。");
+      if (kind === "restart" && current.state !== "running") throw new ApiError(409, "minecraft_instance_not_running", "只有已就绪的实例可以重启。");
       if (!current.eulaAcceptedAt) throw new ApiError(409, "minecraft_eula_required", "实例尚未记录 EULA 同意状态。");
       const selectedRuntime = current.javaRuntimeId ? node.javaRuntimes.find((runtime) => runtime.runtimeId === current.javaRuntimeId) : null;
       const usesManagedJava = selectedRuntime?.managed || current.javaRuntimeId === `temurin-${current.javaMajor}`;
@@ -565,11 +626,13 @@ function queueInstanceAction(instance: MinecraftInstance, userId: string, kind: 
     if (kind === "backup" && current.state !== "stopped") {
       throw new ApiError(409, "minecraft_backup_requires_stopped", "为保证世界备份一致性，请先停止实例。");
     }
+    if (kind === "console" && current.state !== "running") throw new ApiError(409, "minecraft_console_unavailable", "只能向已就绪的实例发送控制台命令。");
     const message = kind === "start" ? "等待启动 Minecraft 实例。"
       : kind === "stop" ? "等待安全停止 Minecraft 实例。"
         : "等待备份已停止实例的世界存档。";
-    const task = createMinecraftTask({ nodeId: node.id, instanceId: current.id, createdBy: userId, kind, payload: { ...payload, instanceName: current.name }, message });
-    const nextState = kind === "start" ? "starting" : kind === "stop" ? "stopping" : current.state;
+    if ((kind === "start" || kind === "restart") && executionMode === "native" && !node.capabilities.includes("minecraft-native-v1")) throw new ApiError(409, "minecraft_native_unavailable", "请更新并重启目标 Daemon，当前节点尚未报告原生 Minecraft 执行能力。");
+    const task = createMinecraftTask({ nodeId: node.id, instanceId: current.id, createdBy: userId, kind, payload: { ...payload, executionMode, serverPort: current.serverProperties.serverPort ?? settings.minecraftDefaultPort, instanceName: current.name, readyTimeoutSeconds: settings.minecraftReadyTimeoutSeconds, downloadTimeoutSeconds: settings.minecraftDownloadTimeoutSeconds, stopTimeoutSeconds: settings.minecraftStopTimeoutSeconds }, message: kind === "console" ? "等待向实例发送控制台命令。" : kind === "restart" ? "等待安全停止并重新启动实例。" : message });
+    const nextState = kind === "start" || kind === "restart" ? "starting" : kind === "stop" ? "stopping" : current.state;
     if (nextState !== current.state) {
       const result = database.prepare("UPDATE minecraft_instances SET state = ?, updated_at = ? WHERE id = ? AND state = ?")
         .run(nextState, new Date().toISOString(), current.id, current.state);
@@ -592,7 +655,23 @@ export function stopMinecraftInstance(instanceId: string, userId: string): Minec
   return queueInstanceAction(requireInstance(instanceId), userId, "stop");
 }
 
+export function restartMinecraftInstance(instanceId: string, userId: string): MinecraftTask {
+  const instance = requireInstance(instanceId);
+  return queueInstanceAction(instance, userId, "restart", { memoryMb: instance.memoryMb, javaMajor: instance.javaMajor, javaRuntimeId: instance.javaRuntimeId });
+}
+
+/** 单行服务器指令不是系统 Shell；生命周期命令必须走对应接口，避免状态失去同步。 */
+export function sendMinecraftConsoleCommand(instanceId: string, userId: string, command: string): MinecraftTask {
+  const value = command.trim();
+  if (!value || value.length > 1024 || /[\u0000-\u001f\u007f]/u.test(value) || /^(?:stop|restart)\b/iu.test(value)) {
+    throw new ApiError(400, "invalid_minecraft_console_command", "请输入单行服务器命令；停服/重启请使用对应操作。");
+  }
+  return queueInstanceAction(requireInstance(instanceId), userId, "console", { command: value });
+}
+
 export function backupMinecraftWorld(instanceId: string, userId: string): MinecraftTask {
+  const instance = requireInstance(instanceId);
+  if (["BungeeCord", "Velocity"].includes(instance.coreType)) throw new ApiError(409, "minecraft_proxy_has_no_world", "代理没有世界存档，请在后端实例备份世界。");
   return queueInstanceAction(requireInstance(instanceId), userId, "backup");
 }
 
@@ -641,9 +720,11 @@ export function validateMinecraftServerProperties(input: unknown): MinecraftServ
 
 export function updateMinecraftServerProperties(instanceId: string, userId: string, input: unknown): MinecraftTask {
   const instance = requireInstance(instanceId);
+  if (["BungeeCord", "Velocity", "Nukkit", "PocketMine"].includes(instance.coreType)) throw new ApiError(409, "minecraft_core_properties_unsupported", "此核心使用独立配置格式，请通过节点文件管理修改真实配置。");
   if (instance.state !== "stopped") throw new ApiError(409, "minecraft_properties_requires_stopped", "请先停止实例，再修改服务器配置。");
   const node = requireInstanceNode(instance);
-  const properties = validateMinecraftServerProperties(input);
+  if (database.prepare("SELECT 1 FROM minecraft_tasks WHERE instance_id = ? AND status IN ('queued', 'running') LIMIT 1").get(instanceId)) throw new ApiError(409, "minecraft_instance_busy", "实例已有未完成操作，请等待后再修改配置。");
+  const properties = { ...instance.serverProperties, ...validateMinecraftServerProperties(input) };
   return createMinecraftTask({
     nodeId: node.id,
     instanceId,
@@ -667,7 +748,7 @@ export function installMinecraftJava(nodeId: string, userId: string, major: numb
     instanceId: null,
     createdBy: userId,
     kind: "java-install",
-    payload: { javaMajor: major },
+    payload: { javaMajor: major, downloadTimeoutSeconds: getUserSettings(userId).minecraftRuntime.minecraftDownloadTimeoutSeconds },
     message: `等待下载并校验 Temurin Java ${major} 官方 JRE/JDK 压缩包。`
   });
 }
@@ -792,11 +873,11 @@ export async function getMinecraftRelease(releaseId: string) {
 
 export function updateInstanceStatesFromDaemon(nodeId: string, reports: Array<{
   id: string;
-  state: "stopped" | "running" | "installing" | "unknown";
+  state: "stopped" | "running" | "starting" | "installing" | "unknown";
   sandboxStatus: MinecraftInstance["sandboxStatus"];
 }>): string[] {
   // 换 Java 后保留待准备状态，直到下一次启动或成功停止任务确认新运行目录的 ACL。
-  const update = database.prepare("UPDATE minecraft_instances SET state = ?, sandbox_status = ?, updated_at = ? WHERE id = ? AND node_id = ? AND NOT (state = 'error' AND ? = 'stopped') AND NOT (sandbox_status = 'unprepared' AND ? = 'stopped' AND ? = 'prepared') AND (state IS NOT ? OR sandbox_status IS NOT ?)");
+  const update = database.prepare("UPDATE minecraft_instances SET state = ?, sandbox_status = ?, updated_at = ? WHERE id = ? AND node_id = ? AND NOT EXISTS (SELECT 1 FROM minecraft_tasks WHERE instance_id = minecraft_instances.id AND status IN ('queued', 'running') AND kind IN ('start', 'stop', 'restart', 'install')) AND NOT (state = 'error' AND ? = 'stopped') AND NOT (sandbox_status = 'unprepared' AND ? = 'stopped' AND ? = 'prepared') AND (state IS NOT ? OR sandbox_status IS NOT ?)");
   const now = new Date().toISOString();
   const changed: string[] = [];
   for (const report of reports) {

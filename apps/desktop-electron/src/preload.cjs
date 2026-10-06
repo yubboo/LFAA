@@ -6,5 +6,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("lfaaDesktop", {
-  selectDataDirectory: () => ipcRenderer.invoke("lfaa:select-data-directory")
+  selectDataDirectory: () => ipcRenderer.invoke("lfaa:select-data-directory"),
+  getUpdateRuntimeInfo: () => ipcRenderer.invoke("lfaa:desktop:update-runtime"),
+  checkForUpdates: () => ipcRenderer.invoke("lfaa:desktop:check-updates")
 });

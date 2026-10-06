@@ -1,0 +1,19 @@
+{
+  "name": "lfaa-workflow-dag-engine",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-workflow": "workspace:*",
+    "lfaa-util-values": "workspace:*"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

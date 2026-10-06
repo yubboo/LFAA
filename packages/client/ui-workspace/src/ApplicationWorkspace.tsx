@@ -5,26 +5,32 @@
  * 关联文件：packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-settings/src/SettingsPage.tsx、packages/client/ui-sidebar/src/GlobalNavigationRail.tsx、packages/client/resources/src/notification-runtime.ts、packages/client/store/src/scroll-restoration.ts、packages/client/ui-dockkit/src/ResizableWorkbench.tsx、packages/client/ui-workspace/src/module-workbench.css。
  * 修改注意事项：工作区导航只负责切换界面；用户设置与快捷键保存由设置页面和控制端 API 负责。
  */
-import { loadClientModule } from "lfaa-client-modules/src/client/index.js";
+import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
+import { sidebarRightRuntime, useSidebarRightSnapshot } from "./sidebar-right-runtime.js";
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { createElement, lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { Alert, Popover, Tag, Typography } from "antd";
-import { archiveAiSession, getErrorMessage, loadAiExtensions, loadAiSessions, loadWritingWorkspace, userRoleLabel, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type UserRole, type UserSettings, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
+import { archiveAiSession, getErrorMessage, hasAdminAccess, loadAiExtensions, loadAiSessions, loadWorkspaceProjects, loadWritingWorkspace, userRoleLabel, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import type { AiWorkNotification, AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
 import type { WorkbenchLayoutMode } from "lfaa-client-ui-dockkit/src/workbench-layout.types.js";
 import { ResizableWorkbench } from "lfaa-client-ui-dockkit/src/ResizableWorkbench.js";
+import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-metrics.js";
 import { readWorkbenchLeftWidth, saveWorkbenchLeftWidth } from "lfaa-client-ui-dockkit/src/workbench-preferences.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
 import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH, GLOBAL_NAVIGATION_RAIL_WIDTH, GlobalNavigationRail } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
+import { DEFAULT_USER_SETTINGS } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { TaskTerminal } from "./TaskTerminal.js";
 import "./module-workbench.css";
 
 // 按当前应用模式分别加载业务面板，避免工作台外壳等待无关应用代码。
 const AiWorkChat = lazy(() => loadClientModule<typeof import("lfaa-client-ui-chat/src/AiWorkChat.js")>("lfaa-client-ui-chat/src/AiWorkChat.js").then((module) => ({ default: module.AiWorkChat })));
+const AiWorkSideChat = lazy(() => loadClientModule<typeof import("lfaa-client-ui-chat/src/AiWorkSideChat.js")>("lfaa-client-ui-chat/src/AiWorkSideChat.js").then((module) => ({ default: module.AiWorkSideChat })));
+const GitChangeSummary = lazy(() => import("./GitChangeSummary.js").then((module) => ({ default: module.GitChangeSummary })));
 const MinecraftWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-minecraft/src/MinecraftWorkspace.js")>("lfaa-client-ui-minecraft/src/MinecraftWorkspace.js").then((module) => ({ default: module.MinecraftWorkspace })));
+const ConnectivityWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-connectivity/src/ConnectivityWorkspace.js")>("lfaa-client-ui-connectivity/src/ConnectivityWorkspace.js").then((module) => ({ default: module.ConnectivityWorkspace })));
 const WritingAiContext = lazy(() => loadClientModule<typeof import("lfaa-client-ui-writing/src/ai-work/WritingAiContext.js")>("lfaa-client-ui-writing/src/ai-work/WritingAiContext.js").then((module) => ({ default: module.WritingAiContext })));
 const WritingWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-writing/src/normal/WritingWorkspace.js")>("lfaa-client-ui-writing/src/normal/WritingWorkspace.js").then((module) => ({ default: module.WritingWorkspace })));
 
@@ -86,6 +92,7 @@ const LEGACY_CHROME_KEY = "lfaa.module-workbench.chrome.v1";
 const LAYOUT_KEY = "lfaa.module-workbench.layout.v1";
 const aiExtensionSnapshots = new Map<string, AiExtension[]>();
 const aiSessionSnapshots = new Map<string, AiSession[]>();
+const workspaceProjectSnapshots = new Map<string, { projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean }>();
 type NavigationLayout = UserSettings["general"]["navigationLayout"];
 
 interface ChromeStorageMetadata {
@@ -93,10 +100,10 @@ interface ChromeStorageMetadata {
   navigationLayout: NavigationLayout | null;
 }
 
-function initialMetrics(): WorkbenchLayoutMetrics {
-  if (typeof window === "undefined") return resolveWorkbenchLayoutMetrics(1440 - GLOBAL_NAVIGATION_RAIL_WIDTH, 900);
+function initialMetrics(responsiveRightDock = false): WorkbenchLayoutMetrics {
+  if (typeof window === "undefined") return resolveWorkbenchLayoutMetrics(1440 - GLOBAL_NAVIGATION_RAIL_WIDTH, 900, responsiveRightDock);
   const railWidth = window.innerWidth <= 420 ? GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH : GLOBAL_NAVIGATION_RAIL_WIDTH;
-  return resolveWorkbenchLayoutMetrics(window.innerWidth - railWidth, window.innerHeight);
+  return resolveWorkbenchLayoutMetrics(window.innerWidth - railWidth, window.innerHeight, responsiveRightDock);
 }
 
 function defaultChrome(mode: WorkbenchLayoutMode): ChromeState {
@@ -105,7 +112,7 @@ function defaultChrome(mode: WorkbenchLayoutMode): ChromeState {
   return { leftCollapsed: false, rightCollapsed: true, rightSwapped: false, terminalOpen: false };
 }
 
-function readChrome(mode: WorkbenchLayoutMode): ChromeState {
+function readChrome(mode: WorkbenchLayoutMode, responsiveRightDock = false): ChromeState {
   if (typeof window === "undefined") return defaultChrome(mode);
   try {
     const current = window.localStorage.getItem(CHROME_KEY);
@@ -118,8 +125,8 @@ function readChrome(mode: WorkbenchLayoutMode): ChromeState {
       rightSwapped: Boolean(value.rightSwapped),
       terminalOpen: Boolean(value.terminalOpen),
     };
-    if (mode === "mobile") return { ...stored, leftCollapsed: true, rightCollapsed: true, terminalOpen: false };
-    if (mode === "compact") return { ...stored, rightCollapsed: true };
+    if (mode === "mobile") return { ...stored, leftCollapsed: true, rightCollapsed: responsiveRightDock ? stored.rightCollapsed : true, terminalOpen: false };
+    if (mode === "compact" && !responsiveRightDock) return { ...stored, rightCollapsed: true };
     return stored;
   } catch {
     return defaultChrome(mode);
@@ -154,28 +161,43 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userId" | "app" | "mode" | "section" | "apps" | "onNavigate" | "onOpenApplication"> {
   layoutMode: WorkbenchLayoutMode;
+  showWritingLibraryPortal: boolean;
+  onWritingLibraryPortalTargetChange: (target: HTMLDivElement | null) => void;
   onToggleLeft: () => void;
   notifications: AiWorkNotification[];
   onMarkNotificationsRead: () => void;
   onClearNotifications: () => void;
   onOpenNotification: (notification: AiWorkNotification) => void;
   sessions: AiSession[];
+  workspaceProjects: WorkspaceProject[];
+  projectLoadError: string;
+  onRetryProjects: () => void;
   activeSessionId: string | null;
   sessionsLoading: boolean;
   sessionsError: string;
   chatBusy: boolean;
   providerStatus: string | null;
-  onNewSession: () => void;
+  onNewSession: (projectId?: string) => void;
   onSelectSession: (sessionId: string) => void;
   onArchiveSession: (session: AiSession) => void;
 }
 
-function ApplicationSidebar({ userId, app, mode, section, apps, layoutMode, onNavigate, onOpenApplication, onToggleLeft, notifications, onMarkNotificationsRead, onClearNotifications, onOpenNotification, sessions, activeSessionId, sessionsLoading, sessionsError, chatBusy, providerStatus, onNewSession, onSelectSession, onArchiveSession }: ApplicationSidebarProps) {
+function ApplicationSidebar({ userId, app, mode, section, apps, layoutMode, showWritingLibraryPortal, onNavigate, onOpenApplication, onWritingLibraryPortalTargetChange, onToggleLeft, notifications, onMarkNotificationsRead, onClearNotifications, onOpenNotification, sessions, workspaceProjects, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, chatBusy, providerStatus, onNewSession, onSelectSession, onArchiveSession }: ApplicationSidebarProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const appSessions = sessions.filter((session) => session.appId === app && !session.archived);
+  const projectsById = new Map(workspaceProjects.map(project => [project.id, project]));
+  const projectGroups = new Map<string, { project: WorkspaceProject | null; title: string; sessions: AiSession[] }>();
+  for (const session of appSessions) {
+    if (!session.projectId) continue;
+    const project = projectsById.get(session.projectId) ?? null;
+    const group = projectGroups.get(session.projectId) ?? { project, title: project?.title ?? session.projectTitle ?? "已移除项目", sessions: [] };
+    group.sessions.push(session);
+    projectGroups.set(session.projectId, group);
+  }
+  const ungroupedSessions = appSessions.filter(session => !session.projectId);
   const appMenuScroll = useScrollRestoration(createScrollRestorationKey(userId, "module-app-menu", app));
   const sessionsScroll = useScrollRestoration(createScrollRestorationKey(userId, "module-session-list", app), !sessionsLoading);
-  const minecraftMenuCategory = section === "java" ? "environment" : section === "overview" || section === "nodes" ? "monitor" : "management";
+  const minecraftMenuCategory = section === "connectivity" ? "network" : section === "java" ? "environment" : section === "overview" || section === "nodes" ? "monitor" : "management";
   const nextMode: ApplicationMode = mode === "normal" ? "ai-work" : "normal";
   const nextModeLabel = nextMode === "normal" ? "常规模式" : "AI Work";
   const unreadNotifications = notifications.filter((notification) => !notification.read).length;
@@ -229,21 +251,22 @@ function ApplicationSidebar({ userId, app, mode, section, apps, layoutMode, onNa
           <button className="module-icon-button module-sidebar__close" type="button" aria-label="收起应用导航" title="收起应用导航" onClick={() => { setNotificationsOpen(false); onToggleLeft(); }}><WorkbenchIcon name="close" size={16} /></button>
         </div>
       </header>
-      {app === "writing" && mode === "normal" ? <div className="module-sidebar__writing-library-portal" /> : null}
-      {app === "minecraft" && mode === "normal" ? <nav ref={appMenuScroll.ref} onScroll={appMenuScroll.onScroll} className="module-sidebar__app-menu" aria-label="Minecraft 管理菜单">
-        <div className="module-sidebar__section-title"><span>Minecraft 管理</span></div>
-        <div className="module-sidebar__menu-tabs" role="group" aria-label="Minecraft 菜单分类">
+      {showWritingLibraryPortal && app === "writing" && mode === "normal" ? <div ref={onWritingLibraryPortalTargetChange} className="module-sidebar__writing-library-portal" /> : null}
+      {app === "minecraft" && mode === "normal" ? <nav ref={appMenuScroll.ref} onScroll={appMenuScroll.onScroll} className="module-sidebar__app-menu" aria-label="Minecraft 工作区菜单">
+        <div className="module-sidebar__section-title"><span>Minecraft 工作区</span></div>
+        <div className="module-sidebar__menu-tabs" role="group" aria-label="Minecraft 工作区分类">
           <button type="button" aria-pressed={minecraftMenuCategory === "monitor"} onClick={() => onNavigate("/apps/minecraft/normal/overview")}>监控</button>
           <button type="button" aria-pressed={minecraftMenuCategory === "management"} onClick={() => onNavigate("/apps/minecraft/normal/instances")}>管理</button>
           <button type="button" aria-pressed={minecraftMenuCategory === "environment"} onClick={() => onNavigate("/apps/minecraft/normal/java")}>环境</button>
+          <button type="button" aria-pressed={minecraftMenuCategory === "network"} onClick={() => void onOpenApplication("connectivity", "normal")}>联机</button>
         </div>
         {(minecraftMenuCategory === "monitor"
           ? [["overview", "总览"], ["nodes", "控制节点"]]
           : minecraftMenuCategory === "management"
             // 此入口复用全局文件工作台，避免 Minecraft 维护另一份文件管理界面。
-            ? [["deployment", "部署"], ["instances", "实例"], ["tasks", "任务"], ["files", "文件管理"]]
-            : [["java", "Java 环境"]]
-        ).map(([key, label]) => <button type="button" key={key} className={`module-sidebar__menu-item${section === key || key === "instances" && section.startsWith("instance/") ? " is-active" : ""}`} aria-current={section === key ? "page" : undefined} onClick={() => onNavigate(key === "files" ? "/files" : `/apps/minecraft/normal/${key}`)}><span aria-hidden="true" />{label}</button>)}
+            ? [["deployment", "部署"], ["instances", "实例"], ["tasks", "任务"], ["workflows", "工作流"], ["files", "文件管理"]]
+            : minecraftMenuCategory === "network" ? [["connectivity", "LFAA 世界联机"]] : [["java", "Java 环境"]]
+        ).map(([key, label]) => <button type="button" key={key} className={`module-sidebar__menu-item${section === key || key === "instances" && section.startsWith("instance/") ? " is-active" : ""}`} aria-current={section === key ? "page" : undefined} onClick={() => key === "connectivity" ? void onOpenApplication("connectivity", "normal") : onNavigate(key === "files" ? "/files" : `/apps/minecraft/normal/${key}`)}><span aria-hidden="true" />{label}</button>)}
         {section.startsWith("instance/") ? <>
           <div className="module-sidebar__section-title module-sidebar__section-title--instance"><span>当前实例</span></div>
           {([
@@ -251,14 +274,28 @@ function ApplicationSidebar({ userId, app, mode, section, apps, layoutMode, onNa
           ] as const).map(([view, label]) => <button type="button" key={view} className={`module-sidebar__menu-item module-sidebar__menu-item--nested${section.endsWith(`/${view}`) ? " is-active" : ""}`} aria-current={section.endsWith(`/${view}`) ? "page" : undefined} onClick={() => onNavigate(`/apps/minecraft/normal/${section.replace(/\/(overview|configuration|logs|backup)$/u, "")}/${view}`)}><span aria-hidden="true" />{label}</button>)}
         </> : null}
       </nav> : null}
+      {app === "connectivity" && mode === "normal" ? <nav ref={appMenuScroll.ref} onScroll={appMenuScroll.onScroll} className="module-sidebar__app-menu" aria-label="LFAA 联机服务菜单">
+        <div className="module-sidebar__section-title"><span>联机服务</span></div>
+        {[["overview", "总览"], ["room-domain", "房间域名"], ["self-managed", "自备穿透"], ["providers", "穿透 Provider"], ["plugins", "组网与扩展"]].map(([key, label]) => <button type="button" key={key} className={`module-sidebar__menu-item${section === key ? " is-active" : ""}`} aria-current={section === key ? "page" : undefined} onClick={() => onNavigate(`/apps/connectivity/normal/${key}`)}><span aria-hidden="true" />{label}</button>)}
+      </nav> : null}
       {mode === "ai-work" ? <section className="module-sidebar__sessions" aria-label={`${apps.find((item) => item.id === app)?.title ?? "当前应用"} 会话`}>
-        <div className="module-sidebar__sessions-heading"><span>会话</span><span className="module-sidebar__sessions-count">{appSessions.length}</span><button type="button" aria-label="新建会话" title="新建会话" disabled={chatBusy} onClick={() => { onNewSession(); if (layoutMode === "mobile") onToggleLeft(); }}><WorkbenchIcon name="plus" size={15} /></button></div>
+        <div className="module-sidebar__sessions-heading"><span>{apps.find(item => item.id === app)?.title ?? "当前应用"} 项目与会话</span><span className="module-sidebar__sessions-count">{appSessions.length}</span><button type="button" aria-label="新建会话" title="新建会话" disabled={chatBusy} onClick={() => { onNewSession(); if (layoutMode === "mobile") onToggleLeft(); }}><WorkbenchIcon name="plus" size={15} /></button></div>
         {sessionsError ? <p className="module-sidebar__sessions-error" role="alert">{sessionsError}</p> : null}
+        {projectLoadError ? <p className="module-sidebar__sessions-error" role="alert">项目目录加载失败：{projectLoadError} <button type="button" onClick={onRetryProjects}>重试</button></p> : null}
         <div ref={sessionsScroll.ref} onScroll={sessionsScroll.onScroll} className="module-sidebar__session-list">
-          {sessionsLoading ? <span className="module-sidebar__session-message">正在加载会话…</span> : appSessions.map((session) => <div className={`module-sidebar__session${session.id === activeSessionId ? " is-active" : ""}`} key={session.id}>
-            <button type="button" disabled={chatBusy} aria-current={session.id === activeSessionId ? "page" : undefined} onClick={() => { onSelectSession(session.id); if (layoutMode === "mobile") onToggleLeft(); }} title={session.title}><WorkbenchIcon name="history" size={14} /><span>{session.title}</span></button>
-            <button type="button" disabled={chatBusy} aria-label={`归档 ${session.title}`} title="归档会话" onClick={() => onArchiveSession(session)}><WorkbenchIcon name="archive" size={13} /></button>
-          </div>)}
+          {sessionsLoading ? <span className="module-sidebar__session-message">正在加载会话…</span> : <>
+            {[...projectGroups.entries()].map(([projectId, group]) => <section className="module-sidebar__project-group" key={projectId}>
+              <button className="module-sidebar__project-heading" type="button" disabled={chatBusy || !group.project} title={group.project ? `在 ${group.title} 中新建会话` : `${group.title} 的目录登记已移除，现有会话仍保留原节点目录上下文`} onClick={() => { if (group.project) { onNewSession(group.project.id); if (layoutMode === "mobile") onToggleLeft(); } }}><WorkbenchIcon name="folder" size={14} /><span>{group.title}</span><small>{group.sessions.length}</small></button>
+              {group.sessions.map(session => <div className={`module-sidebar__session module-sidebar__session--nested${session.id === activeSessionId ? " is-active" : ""}`} key={session.id}>
+                <button type="button" disabled={chatBusy} aria-current={session.id === activeSessionId ? "page" : undefined} onClick={() => { onSelectSession(session.id); if (layoutMode === "mobile") onToggleLeft(); }} title={session.title}><WorkbenchIcon name="history" size={14} /><span>{session.title}</span></button>
+                <button type="button" disabled={chatBusy} aria-label={`归档 ${session.title}`} title="归档会话" onClick={() => onArchiveSession(session)}><WorkbenchIcon name="archive" size={13} /></button>
+              </div>)}
+            </section>)}
+            {ungroupedSessions.map(session => <div className={`module-sidebar__session${session.id === activeSessionId ? " is-active" : ""}`} key={session.id}>
+              <button type="button" disabled={chatBusy} aria-current={session.id === activeSessionId ? "page" : undefined} onClick={() => { onSelectSession(session.id); if (layoutMode === "mobile") onToggleLeft(); }} title={session.title}><WorkbenchIcon name="history" size={14} /><span>{session.title}</span></button>
+              <button type="button" disabled={chatBusy} aria-label={`归档 ${session.title}`} title="归档会话" onClick={() => onArchiveSession(session)}><WorkbenchIcon name="archive" size={13} /></button>
+            </div>)}
+          </>}
           {!sessionsLoading && !appSessions.length ? <span className="module-sidebar__session-message">还没有会话</span> : null}
         </div>
         <div className="module-sidebar__provider"><Tag color={providerStatus && providerStatus !== "未配置模型" && providerStatus !== "模型状态不可用" ? "green" : "default"}>{providerStatus ?? "正在读取模型…"}</Tag></div>
@@ -277,26 +314,53 @@ function PanelControl({ name, title, shortcut, active, onClick }: { name: "termi
 }
 
 export function ApplicationWorkspace({ userId, app, mode, section, apps, username, role, serverState, error, settings, onSettingsChange, onBack, onSelectedModeHome, onNavigate, onOpenSettings, onOpenApplication, activeAiSessionId, aiDraft, notifications, onNotification, onMarkNotificationsRead, onClearNotifications, onOpenNotification, onActiveAiSessionChange, onAiDraftChange, onLogout }: ApplicationWorkspaceProps) {
+  // 新增设置字段遇到旧 Host 响应时沿用 Settings 包默认值，避免 AI Work 首屏渲染崩溃。
+  const sideChatShortcuts = Array.isArray(settings.shortcuts?.openSideChat)
+    ? settings.shortcuts.openSideChat
+    : DEFAULT_USER_SETTINGS.shortcuts.openSideChat;
   const layoutRef = useRef<HTMLDivElement>(null);
   const previewCloseTimer = useRef<number | null>(null);
-  const [metrics, setMetrics] = useState(initialMetrics);
-  const [chrome, setChrome] = useState(() => readChrome(metrics.mode));
+  const metrics = useWorkbenchMetrics(layoutRef, () => initialMetrics(true), true);
+  const sidebarRight = useSidebarRightSnapshot();
+  const [chrome, setChrome] = useState(() => readChrome(metrics.mode, true));
   const [chromeStorageMetadata] = useState(readChromeStorageMetadata);
   const [leftPaneWidth, setLeftPaneWidth] = useState(() => readWorkbenchLeftWidth(metrics.left, metrics.containerWidth));
   const [leftPreviewOpen, setLeftPreviewOpen] = useState(false);
   const [registeredExtensions, setRegisteredExtensions] = useState<AiExtension[]>(() => aiExtensionSnapshots.get(userId) ?? []);
   const [extensionsLoading, setExtensionsLoading] = useState(() => !aiExtensionSnapshots.has(userId));
   const [aiSessions, setAiSessions] = useState<AiSession[]>(() => aiSessionSnapshots.get(`${userId}:${app}`) ?? []);
+  const [workspaceProjects, setWorkspaceProjects] = useState<WorkspaceProject[]>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.projects ?? []);
+  const [workspaceNodes, setWorkspaceNodes] = useState<WorkspaceDaemonNode[]>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.nodes ?? []);
+  const [workspaceProjectsTruncated, setWorkspaceProjectsTruncated] = useState(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.truncated ?? false);
+  const [workspaceProjectsError, setWorkspaceProjectsError] = useState("");
+  const [workspaceProjectsRevision, setWorkspaceProjectsRevision] = useState(0);
   const [aiSessionsLoading, setAiSessionsLoading] = useState(() => mode === "ai-work" && !aiSessionSnapshots.has(`${userId}:${app}`));
   const [aiSessionsError, setAiSessionsError] = useState("");
   const [aiChatBusy, setAiChatBusy] = useState(false);
+  const [sideChatOpen, setSideChatOpen] = useState(false);
+  const [sideChatInitialQuestion, setSideChatInitialQuestion] = useState("");
+  const [sideChatQuestionRevision, setSideChatQuestionRevision] = useState(0);
+  const [gitRefreshRevision, setGitRefreshRevision] = useState(0);
   const [aiProviderStatus, setAiProviderStatus] = useState<string | null>(null);
   const [newAiSessionKey, setNewAiSessionKey] = useState(0);
+  const [newAiSessionProjectId, setNewAiSessionProjectId] = useState<string | null>(null);
   const [writingWorkspace, setWritingWorkspace] = useState<WritingWorkspaceData | null>(null);
   const [writingWorkspaceLoading, setWritingWorkspaceLoading] = useState(app === "writing");
   const [writingWorkspaceError, setWritingWorkspaceError] = useState("");
+  const [writingLibraryPortalTarget, setWritingLibraryPortalTarget] = useState<HTMLDivElement | null>(null);
   const writingFlushRef = useRef<(() => Promise<void>) | null>(null);
   const [minecraftContentReady, setMinecraftContentReady] = useState(app !== "minecraft");
+  const onAiChatBusyChange = useCallback((busy: boolean) => {
+    setAiChatBusy(busy);
+    if (!busy) setGitRefreshRevision((revision) => revision + 1);
+  }, []);
+  const rememberAiSession = useCallback((session: AiSession) => {
+    setAiSessions((current) => {
+      const next = [session, ...current.filter((item) => item.id !== session.id)];
+      aiSessionSnapshots.set(`${userId}:${app}`, next);
+      return next;
+    });
+  }, [app, userId]);
   const appliedLayoutMode = useRef(metrics.mode);
   const appliedNavigationLayout = useRef<NavigationLayout | null>(chromeStorageMetadata.navigationLayout);
   const activeAiSessionIdRef = useRef(activeAiSessionId);
@@ -316,7 +380,11 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
   const modeLabel = mode === "normal" ? "常规模式" : "AI Work";
   const writingAiWork = app === "writing" && mode === "ai-work";
   const writingNormal = app === "writing" && mode === "normal";
+  const terminalPanelAvailable = app !== "writing";
   const activeAiSessionTitle = aiSessions.find((session) => session.id === activeAiSessionId)?.title ?? null;
+  const activeAiSession = aiSessions.find((session) => session.id === activeAiSessionId) ?? null;
+  const selectedGitProjectId = activeAiSession?.projectId ?? (!activeAiSessionId ? newAiSessionProjectId : null);
+  const selectedGitProject = workspaceProjects.find((project) => project.id === selectedGitProjectId) ?? null;
   const statusLabel = serverState === "online" ? "控制端已连接" : serverState === "checking" ? "正在检查控制端" : "控制端未连接";
 
   const registerWritingFlush = useCallback((flush: (() => Promise<void>) | null) => {
@@ -403,45 +471,39 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
   }, [app, mode, userId]);
 
   useEffect(() => {
-    const element = layoutRef.current;
-    if (!element) return;
-    let frame: number | null = null;
-    const update = () => {
-      if (frame !== null) window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(() => {
-        frame = null;
-        const rect = element.getBoundingClientRect();
-        const next = resolveWorkbenchLayoutMetrics(rect.width, rect.height);
-        setMetrics((current) => current.mode === next.mode
-          && current.containerWidth === next.containerWidth
-          && current.containerHeight === next.containerHeight
-          && current.left.min === next.left.min
-          && current.left.initial === next.left.initial
-          && current.left.max === next.left.max
-          && current.right.min === next.right.min
-          && current.right.initial === next.right.initial
-          && current.right.max === next.right.max
-          && current.bottom.min === next.bottom.min
-          && current.bottom.initial === next.bottom.initial
-          && current.bottom.max === next.bottom.max
-          && current.minCenterWidth === next.minCenterWidth
-          ? current : next);
-      });
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    return () => {
-      if (frame !== null) window.cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, []);
+    if (app !== "minecraft" && app !== "workspace") {
+      setWorkspaceProjects([]);
+      setWorkspaceNodes([]);
+      setWorkspaceProjectsTruncated(false);
+      return;
+    }
+    const cacheKey = `${userId}:${app}`;
+    const cached = workspaceProjectSnapshots.get(cacheKey);
+    setWorkspaceProjects(cached?.projects ?? []);
+    setWorkspaceNodes(cached?.nodes ?? []);
+    setWorkspaceProjectsTruncated(cached?.truncated ?? false);
+    setWorkspaceProjectsError("");
+    if (mode !== "ai-work") return;
+    let alive = true;
+    setWorkspaceProjectsError("");
+    void loadWorkspaceProjects({ appId: app }).then(({ projects, nodes, truncated }) => {
+      if (!alive) return;
+      workspaceProjectSnapshots.set(cacheKey, { projects, nodes, truncated });
+      setWorkspaceProjects(projects);
+      setWorkspaceNodes(nodes);
+      setWorkspaceProjectsTruncated(truncated);
+    }).catch(projectError => {
+      if (alive) setWorkspaceProjectsError(getErrorMessage(projectError));
+    });
+    return () => { alive = false; };
+  }, [userId, app, mode, workspaceProjectsRevision]);
+
+  const retryWorkspaceProjects = useCallback(() => setWorkspaceProjectsRevision(revision => revision + 1), []);
 
   useEffect(() => {
     if (appliedLayoutMode.current === metrics.mode) return;
     appliedLayoutMode.current = metrics.mode;
-    if (metrics.mode === "compact") setChrome((current) => ({ ...current, rightCollapsed: true }));
-    if (metrics.mode === "mobile") setChrome((current) => ({ ...current, leftCollapsed: true, rightCollapsed: true, terminalOpen: false }));
+    if (metrics.mode === "mobile") setChrome((current) => ({ ...current, leftCollapsed: true, terminalOpen: false }));
   }, [metrics.mode]);
 
   useEffect(() => {
@@ -453,12 +515,12 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
     const initialPreference = previousNavigationLayout === null;
     const mobile = metrics.mode === "mobile";
     const hidesLeft = settings.general.navigationLayout === "right-tools" || settings.general.navigationLayout === "focus";
-    const hidesRight = settings.general.navigationLayout === "left-two-column" || settings.general.navigationLayout === "focus" || metrics.mode !== "desktop";
-    const keepsThreeColumnDefaultClosed = initialPreference && settings.general.navigationLayout === "three-column" && metrics.mode === "desktop";
+    const hidesRight = settings.general.navigationLayout === "left-two-column" || settings.general.navigationLayout === "focus";
+    const keepsThreeColumnDefaultClosed = initialPreference && settings.general.navigationLayout === "three-column";
     setChrome((current) => ({
       ...current,
       leftCollapsed: mobile || hidesLeft,
-      rightCollapsed: keepsThreeColumnDefaultClosed ? current.rightCollapsed : mobile || hidesRight,
+      rightCollapsed: keepsThreeColumnDefaultClosed ? current.rightCollapsed : hidesRight,
     }));
   }, [chromeStorageMetadata.hasSavedState, metrics.mode, settings.general.navigationLayout]);
 
@@ -484,13 +546,25 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
     rightCollapsed: !current.rightCollapsed,
     ...(metrics.mode === "mobile" && current.rightCollapsed ? { leftCollapsed: true } : {}),
   })), [metrics.mode]);
+  const openSideChat = useCallback((initialQuestion = "") => {
+    setSideChatOpen(true);
+    setSideChatInitialQuestion(initialQuestion);
+    setSideChatQuestionRevision((revision) => revision + 1);
+    setChrome((current) => ({ ...current, rightCollapsed: false, ...(metrics.mode === "mobile" ? { leftCollapsed: true } : {}) }));
+  }, [metrics.mode]);
+  const closeSideChat = useCallback(() => setSideChatOpen(false), []);
+  const toggleSideChat = useCallback(() => {
+    if (sideChatOpen) closeSideChat();
+    else openSideChat();
+  }, [closeSideChat, openSideChat, sideChatOpen]);
+  useEffect(() => sidebarRightRuntime.bindExpansion(() => !chrome.rightCollapsed, toggleRight), [chrome.rightCollapsed, toggleRight]);
   const togglePaneOrder = useCallback(() => setChrome((current) => ({ ...current, rightSwapped: !current.rightSwapped })), []);
   const toggleTerminal = useCallback(() => setChrome((current) => ({ ...current, terminalOpen: !current.terminalOpen, ...(settings.general.terminalPosition === "right" ? { rightCollapsed: false } : {}) })), [settings.general.terminalPosition]);
   const openTerminal = useCallback(() => setChrome((current) => ({ ...current, terminalOpen: true, ...(settings.general.terminalPosition === "right" ? { rightCollapsed: false } : {}) })), [settings.general.terminalPosition]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat || isEditableTarget(event.target)) return;
+      if (event.defaultPrevented || event.repeat || event.isComposing) return;
       const key = event.key.toLocaleLowerCase();
       const matches = (chord: string) => {
         const parts = chord.split("+").map((part) => part.toLocaleLowerCase());
@@ -500,11 +574,23 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
           && Boolean(event.altKey) === parts.includes("alt")
           && Boolean(event.shiftKey) === parts.includes("shift");
       };
+      const region = isEditableTarget(event.target) ? "editable" : "page";
+      if (settings.shortcuts.wallpaperSidebarToggle.some((chord) => chord && matches(chord))
+        && sidebarRightRuntime.runShortcut(event, region)) {
+        event.preventDefault();
+        return;
+      }
+      if (mode === "ai-work" && sideChatShortcuts.some((chord) => chord && matches(chord))) {
+        event.preventDefault();
+        toggleSideChat();
+        return;
+      }
+      if (region === "editable") return;
       const actionGroups: Array<[string[], () => void]> = [
         [settings.shortcuts.toggleContextPanel, toggleRight],
         [settings.shortcuts.toggleSidebar, toggleLeft],
-        [settings.shortcuts.toggleBottomPanel, toggleTerminal],
-        [settings.shortcuts.openTerminal, openTerminal],
+        [terminalPanelAvailable ? settings.shortcuts.toggleBottomPanel : [], toggleTerminal],
+        [terminalPanelAvailable ? settings.shortcuts.openTerminal : [], openTerminal],
         [app === "workspace" ? [] : settings.shortcuts.switchNormalMode, () => { void openApplication(app, "normal"); }],
         [settings.shortcuts.switchAiWorkMode, () => { void openApplication(app, "ai-work"); }]
       ];
@@ -521,7 +607,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [app, metrics.mode, openApplication, openTerminal, settings.shortcuts, toggleLeft, toggleRight, toggleTerminal]);
+  }, [app, metrics.mode, mode, openApplication, openTerminal, settings.shortcuts, sideChatShortcuts, toggleLeft, toggleRight, toggleSideChat, toggleTerminal]);
 
   const clearPreviewClose = useCallback(() => {
     if (previewCloseTimer.current !== null) {
@@ -563,8 +649,9 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
     onNavigate(path);
     if (metrics.mode === "mobile") setChrome((current) => ({ ...current, leftCollapsed: true }));
   }, [metrics.mode, onNavigate]);
-  const startNewAiSession = () => {
+  const startNewAiSession = (projectId?: string) => {
     onActiveAiSessionChange(null);
+    setNewAiSessionProjectId(projectId ?? null);
     setNewAiSessionKey((current) => current + 1);
     setAiSessionsError("");
   };
@@ -580,30 +667,38 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
       setAiSessionsError(getErrorMessage(archiveError));
     }
   };
-  const left = <ApplicationSidebar
-    userId={userId}
-    app={app}
-    mode={mode}
-    section={section}
-    apps={apps}
-    layoutMode={metrics.mode}
-    onNavigate={navigateWithinApplication}
-    onOpenApplication={openSidebarMode}
-    onToggleLeft={toggleLeft}
-    notifications={notifications}
-    onMarkNotificationsRead={onMarkNotificationsRead}
-    onClearNotifications={onClearNotifications}
-    onOpenNotification={onOpenNotification}
-    sessions={aiSessions}
-    activeSessionId={activeAiSessionId}
-    sessionsLoading={aiSessionsLoading}
-    sessionsError={aiSessionsError}
-    chatBusy={aiChatBusy}
-    providerStatus={aiProviderStatus}
-    onNewSession={startNewAiSession}
-    onSelectSession={(sessionId) => { onActiveAiSessionChange(sessionId); setAiSessionsError(""); }}
-    onArchiveSession={(session) => { void archiveAiWorkSession(session); }}
-  />;
+  const sidebarProps: ApplicationSidebarProps = {
+    userId,
+    app,
+    mode,
+    section,
+    apps,
+    layoutMode: metrics.mode,
+    onWritingLibraryPortalTargetChange: setWritingLibraryPortalTarget,
+    onNavigate: navigateWithinApplication,
+    onOpenApplication: openSidebarMode,
+    onToggleLeft: toggleLeft,
+    notifications,
+    onMarkNotificationsRead,
+    onClearNotifications,
+    onOpenNotification,
+    sessions: aiSessions,
+    workspaceProjects,
+    projectLoadError: workspaceProjectsError,
+    onRetryProjects: retryWorkspaceProjects,
+    activeSessionId: activeAiSessionId,
+    sessionsLoading: aiSessionsLoading,
+    sessionsError: aiSessionsError,
+    chatBusy: aiChatBusy,
+    providerStatus: aiProviderStatus,
+    onNewSession: startNewAiSession,
+    onSelectSession: (sessionId) => { onActiveAiSessionChange(sessionId); setNewAiSessionProjectId(null); setAiSessionsError(""); },
+    onArchiveSession: (session) => { void archiveAiWorkSession(session); },
+    showWritingLibraryPortal: true,
+  };
+  const left = <ApplicationSidebar {...sidebarProps} />;
+  // 折叠态预览不挂写作 Portal 宿主，避免与主侧栏重复注册目标。
+  const leftPreview = <ApplicationSidebar {...sidebarProps} showWritingLibraryPortal={false} />;
   const center = (
     <div className="module-center">
       <header className={`module-center__header${writingAiWork ? " module-center__header--writing-ai-work" : ""}`} data-layout-mode={metrics.mode}>
@@ -617,7 +712,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
         </div>
         <div className="module-center__actions">
           <span className={`module-runtime-state${serverState === "online" ? " is-connected" : ""}`}><i aria-hidden="true" />{statusLabel}</span>
-          {settings.general.showBottomPanelControl && (chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="terminal" title="底部终端" shortcut={settings.shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
+          {terminalPanelAvailable && settings.general.showBottomPanelControl && (chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="terminal" title="底部终端" shortcut={settings.shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
           {(chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="panelRight" title="上下文栏" shortcut={settings.shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
         </div>
       </header>
@@ -632,6 +727,18 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
               onSettingsChange={onSettingsChange}
               sessions={aiSessions}
               activeSessionId={activeAiSessionId}
+              newSessionProjectId={newAiSessionProjectId}
+              workspaceProjects={workspaceProjects}
+              workspaceProjectsTruncated={workspaceProjectsTruncated}
+              workspaceNodes={workspaceNodes}
+              workspaceProjectsError={workspaceProjectsError}
+              onRetryWorkspaceProjects={retryWorkspaceProjects}
+              onWorkspaceProjectsChange={(projects) => {
+                const truncated = workspaceProjectsTruncated || projects.length > 200;
+                workspaceProjectSnapshots.set(`${userId}:${app}`, { projects: projects.slice(0, 200), nodes: workspaceNodes, truncated });
+                setWorkspaceProjects(projects.slice(0, 200));
+                setWorkspaceProjectsTruncated(truncated);
+              }}
               initialDraft={aiDraft}
               newSessionKey={newAiSessionKey}
               onSessionsChange={(sessions) => {
@@ -641,12 +748,15 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
               onActiveSessionChange={onActiveAiSessionChange}
               onDraftChange={onAiDraftChange}
               onProviderStatusChange={setAiProviderStatus}
-              onBusyChange={setAiChatBusy}
+              onBusyChange={onAiChatBusyChange}
+              onSelectedProjectChange={setNewAiSessionProjectId}
               onOpenSettings={onOpenSettings}
               onNotification={onNotification}
+              onOpenSideChat={openSideChat}
+              onWritingWorkspaceChange={setWritingWorkspace}
             />
           </Suspense>
-        </> : app === "minecraft" ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkspace userId={userId} section={section} role={role} onNavigate={navigateWithinApplication} onContentReady={setMinecraftContentReady} /></Suspense> : writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingWorkspace workspace={writingWorkspace} loading={writingWorkspaceLoading} loadError={writingWorkspaceError} writingSkills={registeredExtensions.filter((extension) => extension.kind === "skill" && extension.applicationIds?.includes("writing"))} skillsLoading={extensionsLoading} onRetry={() => { void retryWritingWorkspace(); }} onWorkspaceChange={setWritingWorkspace} onRegisterFlush={registerWritingFlush} /></Suspense> : <>
+        </> : app === "minecraft" ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkspace userId={userId} section={section} role={role} settings={settings} onNavigate={navigateWithinApplication} onOpenConnectivity={() => { void openApplication("connectivity", "normal"); }} onContentReady={setMinecraftContentReady} /></Suspense> : app === "connectivity" && mode === "normal" ? <Suspense fallback={<ApplicationContentLoading />}><ConnectivityWorkspace section={section} isAdmin={hasAdminAccess(role)} /></Suspense> : writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingWorkspace workspace={writingWorkspace} loading={writingWorkspaceLoading} loadError={writingWorkspaceError} libraryPortalTarget={writingLibraryPortalTarget} writingSkills={registeredExtensions.filter((extension) => extension.kind === "skill" && extension.applicationIds?.includes("writing"))} skillsLoading={extensionsLoading} onRetry={() => { void retryWritingWorkspace(); }} onWorkspaceChange={setWritingWorkspace} onRegisterFlush={registerWritingFlush} /></Suspense> : <>
           <div className={`module-heading module-heading--workspace module-heading--${app}`}>
             <div className="module-heading__labels"><Tag className="development-tag">开发中</Tag><Tag className="module-mode-tag">{modeLabel}</Tag></div>
             <Typography.Title id="module-heading" level={2}>{selectedApp.title}</Typography.Title>
@@ -666,24 +776,58 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
   const right = (
     <aside className="module-context" aria-label={app === "writing" ? mode === "ai-work" ? "写作上下文" : "作品信息" : "工具与资源"} data-layout-mode={metrics.mode}>
       {metrics.mode === "desktop" && !chrome.rightCollapsed ? <header className="module-context__shell-actions">
-          {settings.general.showBottomPanelControl ? <PanelControl name="terminal" title="底部终端" shortcut={settings.shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
+          {terminalPanelAvailable && settings.general.showBottomPanelControl ? <PanelControl name="terminal" title="底部终端" shortcut={settings.shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
           <PanelControl name="panelRight" title="收起上下文栏" shortcut={settings.shortcuts.toggleContextPanel.join(" / ")} active onClick={toggleRight} />
       </header> : null}
       <div ref={contextBodyScroll.ref} onScroll={contextBodyScroll.onScroll} className="module-context__body">
-      {chrome.terminalOpen && settings.general.terminalPosition === "right" ? <div style={{ height: metrics.bottom.initial }}><TaskTerminal onClose={toggleTerminal} /></div> : null}
-      {app === "writing" ? <Suspense fallback={<ApplicationContentLoading />}><WritingAiContext
+      {mode === "ai-work" ? <div className="module-context__side-chat" hidden={!sideChatOpen}>
+        <Suspense fallback={<ApplicationContentLoading />}><AiWorkSideChat
+          key={activeAiSessionId ?? "no-session"}
+          appId={app}
+          sourceSessionId={activeAiSessionId}
+          sourceSessionTitle={activeAiSessionTitle}
+          open={sideChatOpen}
+          initialQuestion={sideChatInitialQuestion}
+          initialQuestionRevision={sideChatQuestionRevision}
+          onClose={closeSideChat}
+          onSessionCreated={rememberAiSession}
+        /></Suspense>
+      </div> : null}
+      <div className="module-context__default-content" hidden={mode === "ai-work" && sideChatOpen}>
+      {terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "right" ? <div style={{ height: metrics.bottom.initial }}><TaskTerminal onClose={toggleTerminal} /></div> : null}
+      {sidebarRight.tabs.length > 0 ? <nav className="module-context__tabs" aria-label="上下文栏面板与插件入口">
+        {app === "writing" ? <button type="button" className={sidebarRight.activeId === null ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null} onClick={() => sidebarRightRuntime.select(null)}>{mode === "ai-work" ? "写作上下文" : "作品信息"}</button> : <button type="button" className={sidebarRight.activeId === null ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null} onClick={() => sidebarRightRuntime.select(null)}>工具与资源</button>}
+        {sidebarRight.tabs.flatMap((tab) => {
+          const guideItems = [...(tab.guide ?? [])].sort((first, second) => first.order - second.order);
+          if (guideItems.length === 0) {
+            return [<button key={tab.id} type="button" className={sidebarRight.activeId === tab.id ? "is-active" : ""} aria-pressed={sidebarRight.activeId === tab.id} onClick={() => sidebarRightRuntime.control.openTab(tab.kind)}>{typeof tab.title === "function" ? tab.title() : tab.title}</button>];
+          }
+          return guideItems.map((guide) => {
+            const title = typeof guide.title === "function" ? guide.title() : guide.title;
+            const description = typeof guide.description === "function" ? guide.description() : guide.description;
+            return <button key={`${tab.id}:${guide.id}`} type="button" className={`module-context__tab-guide${sidebarRight.activeId === tab.id ? " is-active" : ""}`} aria-label={title} aria-pressed={sidebarRight.activeId === tab.id} title={description ? `${title} — ${description}` : title} onClick={() => sidebarRightRuntime.control.openTab(tab.kind)}>
+              {guide.icon ? createElement(guide.icon, { size: 16, className: "module-context__tab-guide-icon" }) : title}
+            </button>;
+          });
+        })}
+      </nav> : null}
+      {sidebarRight.tabs.map((tab) => tab.keepMounted || sidebarRight.activeId === tab.id ? <div key={tab.id} className="module-context__tab-panel" hidden={sidebarRight.activeId !== tab.id} aria-hidden={sidebarRight.activeId !== tab.id}>{createElement(DshSlotOutlet, { name: "sidebar.right.pane.tab", entryKey: tab.id, fallback: <Alert type="warning" showIcon message="扩展面板尚未加载内容" description="此入口已登记，但当前没有 DSH Client 内容提供面板。请检查当前 Profile 的插件状态及 Client 入口加载错误。" /> })}</div> : null)}
+      {sidebarRight.activeId === null ? app === "writing" ? <Suspense fallback={<ApplicationContentLoading />}><WritingAiContext
         mode={mode}
         workspace={writingWorkspace}
         workspaceLoading={writingWorkspaceLoading}
         sessionTitle={aiSessionsLoading ? "正在读取会话…" : activeAiSessionTitle ?? "新对话"}
         providerStatus={aiProviderStatus}
+        onWorkspaceChange={setWritingWorkspace}
         onOpenNormal={() => { void openApplication(app, "normal"); }}
         onOpenAiWork={() => { void openApplication(app, "ai-work"); }}
         onClose={toggleRight}
       /></Suspense> : <>
       <header className="module-context__heading"><div><strong>工具与资源</strong><span>Runtime Registry</span></div><span className={`module-context__connection module-context__connection--${serverState}`}><i aria-hidden="true" />{serverState === "online" ? "已连接" : serverState === "checking" ? "检查中" : "未连接"}</span><button className="module-shell-icon-button module-context__close" type="button" aria-label="收起工具与资源" title="收起工具与资源" onClick={toggleRight}><WorkbenchIcon name="close" size={15} /></button></header>
+        {(app === "workspace" || app === "minecraft") && mode === "ai-work" ? <Suspense fallback={<div className="module-context__git-loading"><span>正在准备 Git 摘要…</span></div>}><GitChangeSummary appId={app as WorkspaceProjectApplicationId} project={selectedGitProject} refreshRevision={gitRefreshRevision} /></Suspense> : null}
         <div className="module-context__tools">
-          {settings.general.showBottomPanelControl ? <button type="button" onClick={openTerminal} aria-keyshortcuts={settings.shortcuts.openTerminal.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="terminal" size={16} /><span>终端</span><kbd>{settings.shortcuts.openTerminal.join(" / ") || "未分配"}</kbd></button> : null}
+          {terminalPanelAvailable && settings.general.showBottomPanelControl ? <button type="button" onClick={openTerminal} aria-keyshortcuts={settings.shortcuts.openTerminal.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="terminal" size={16} /><span>终端</span><kbd>{settings.shortcuts.openTerminal.join(" / ") || "未分配"}</kbd></button> : null}
+          {mode === "ai-work" ? <button type="button" className="module-context__side-chat-action" onClick={() => openSideChat()} title="主聊天任务会继续运行；侧聊使用已记录的上下文快照。" aria-keyshortcuts={sideChatShortcuts.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="help" size={16} /><span>侧边聊天</span><kbd>{sideChatShortcuts.join(" / ") || "未分配"}</kbd></button> : null}
           <button type="button" disabled title="当前 Web Host 尚未接入审查工具"><WorkbenchIcon name="review" size={16} /><span>审查</span><kbd>待接入</kbd></button>
           <button type="button" disabled title="当前 Web Host 尚未接入浏览器工具"><WorkbenchIcon name="browser" size={16} /><span>浏览器</span><kbd>待接入</kbd></button>
           <button type="button" onClick={() => onNavigate("/files")} title="打开已接入的节点文件管理"><WorkbenchIcon name="file" size={16} /><span>节点文件</span></button>
@@ -704,27 +848,28 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
         </section>
         <section className="module-context__section"><header><span>服务状态</span></header><div className="module-context__service"><ServiceStatus state={serverState} /><small>控制端健康状态</small></div></section>
         <section className="module-context__note"><strong>工作区能力</strong><p>工具与资源会在当前宿主接入后显示。尚未连接的入口保持禁用状态。</p></section>
-      </>}
+      </> : null}
         <div className="module-context__account"><WorkbenchIcon name="user" size={15} /><span>{username}</span><small>{userRoleLabel(role)}</small></div>
+      </div>
       </div>
     </aside>
   );
 
-  const bottom = <TaskTerminal onClose={toggleTerminal} />;
+  const bottom = terminalPanelAvailable ? <TaskTerminal onClose={toggleTerminal} /> : null;
 
   const previewStyle = { "--module-left-preview-width": `${leftPaneWidth}px` } as CSSProperties;
   return (
     <div className="module-workbench-stage" style={previewStyle} data-layout-mode={metrics.mode}>
       <GlobalNavigationRail username={username} role={role} serverState={serverState} shortcuts={settings.shortcuts} activePage="home" homeLabel="返回当前模式首页" onHome={onSelectedModeHome} onApplicationsHome={onBack} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={toggleRight} />
       <div ref={layoutRef} className="module-workbench-layout" data-layout-mode={metrics.mode}>
-        {chrome.leftCollapsed && metrics.mode !== "mobile" ? <div className={`module-left-preview${leftPreviewOpen ? " is-visible" : ""}`} data-layout-mode={metrics.mode} aria-hidden={!leftPreviewOpen} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview}>{left}</div> : null}
+        {chrome.leftCollapsed && metrics.mode !== "mobile" ? <div className={`module-left-preview${leftPreviewOpen ? " is-visible" : ""}`} data-layout-mode={metrics.mode} aria-hidden={!leftPreviewOpen} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview}>{leftPreview}</div> : null}
         <ResizableWorkbench
           left={left}
           center={center}
           right={right}
           rightPaneSwapped={chrome.rightSwapped && !chrome.rightCollapsed}
           onSwapPanes={togglePaneOrder}
-          bottom={chrome.terminalOpen && settings.general.terminalPosition === "bottom" ? bottom : null}
+          bottom={terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "bottom" ? bottom : null}
           storageKey={LAYOUT_KEY}
           leftLimits={metrics.left}
           rightLimits={metrics.right}
@@ -734,13 +879,14 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
           snapHysteresis={metrics.snapHysteresis}
           minCenterWidth={metrics.minCenterWidth}
           layoutMode={metrics.mode}
+          responsiveRightDock
           leftWidth={leftPaneWidth}
           onLeftWidthChange={setLeftPaneWidth}
           leftCollapsed={chrome.leftCollapsed}
           onLeftCollapsedChange={(leftCollapsed) => setChrome((current) => ({ ...current, leftCollapsed }))}
           rightCollapsed={chrome.rightCollapsed}
           onRightCollapsedChange={(rightCollapsed) => setChrome((current) => ({ ...current, rightCollapsed }))}
-          bottomOpen={chrome.terminalOpen && settings.general.terminalPosition === "bottom"}
+          bottomOpen={terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "bottom"}
           onBottomOpenChange={(terminalOpen) => setChrome((current) => ({ ...current, terminalOpen }))}
         />
       </div>

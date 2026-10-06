@@ -1,0 +1,19 @@
+{
+  "name": "lfaa-system-prompt",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "lfaa-document-writing": "workspace:*",
+    "lfaa-games-minecraft": "workspace:*",
+    "lfaa-settings": "workspace:*"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

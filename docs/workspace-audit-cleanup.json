@@ -1,0 +1,369 @@
+{
+  "date": "2026-10-01",
+  "scope": "2026-10-01 历史清理审计清单；目标绝对路径记录于本项目根目录改名为 H:\\LFAA1 之前的 H:\\LFAA。用户确认两者为同一项目。路径需映射至当前根目录后重新逐项核实；当时未执行物理删除，历史授权不能代替当前授权。不得直接执行旧绝对路径。",
+  "preserved": [
+    "data",
+    "dist/backups",
+    "dist/.tmp/lfaa-runtime-data-db-snapshot-20260930",
+    "apps/desktop",
+    "apps/desktop-host",
+    "316 个上游占位",
+    "长期测试"
+  ],
+  "items": [
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\audit-harness.mjs",
+      "files": 1,
+      "bytes": 4815,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\backup-project\\c6cb85377e96465a8e05585ee43e7330",
+      "files": 1811,
+      "bytes": 22565539,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\baseline-database-tests.log",
+      "files": 1,
+      "bytes": 9647,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\browser-settings.mjs",
+      "files": 1,
+      "bytes": 1187,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\cleanup-inventory.json",
+      "files": 1,
+      "bytes": 6299,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\configure-harness.py",
+      "files": 1,
+      "bytes": 9921,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\connect-api.py",
+      "files": 1,
+      "bytes": 3053,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\connect-harness.py",
+      "files": 1,
+      "bytes": 12693,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\convert-storage.mjs",
+      "files": 1,
+      "bytes": 13018,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\cordis-inspection",
+      "files": 4,
+      "bytes": 96082,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\daemon-compiled-check-data",
+      "files": 7,
+      "bytes": 942748,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\daemon-lifecycle-check.mjs",
+      "files": 1,
+      "bytes": 2805,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\daemon-source-check-data",
+      "files": 4,
+      "bytes": 471207,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\desktop-electron",
+      "files": 3647,
+      "bytes": 121948124,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\desktop-style-audit",
+      "files": 1,
+      "bytes": 2842180,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\desktop-tauri",
+      "files": 6515,
+      "bytes": 137432558,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\finish-harness.py",
+      "files": 1,
+      "bytes": 3855,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-cli-npm-validation-data",
+      "files": 6,
+      "bytes": 942711,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-cli-package-validation",
+      "files": 3546,
+      "bytes": 28810763,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-cli-source-validation",
+      "files": 6,
+      "bytes": 942711,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-contract-audit.json",
+      "files": 1,
+      "bytes": 3689,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-electron-package.log",
+      "files": 1,
+      "bytes": 1826,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-final-tests.log",
+      "files": 1,
+      "bytes": 11116,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-invalid-patch.yml",
+      "files": 1,
+      "bytes": 31,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-legacy-directories",
+      "files": 57,
+      "bytes": 14044629,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-lifecycle-data",
+      "files": 3,
+      "bytes": 471142,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-lifecycle-smoke.mjs",
+      "files": 1,
+      "bytes": 1524,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-migration-map.json",
+      "files": 1,
+      "bytes": 80139,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-migration-original",
+      "files": 574,
+      "bytes": 11532062,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-smoke-data",
+      "files": 4,
+      "bytes": 623385,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\harness-source-backup.log",
+      "files": 1,
+      "bytes": 5712,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\lfaa-cli-install",
+      "files": 3517,
+      "bytes": 28755576,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\lfaa-storage-draft",
+      "files": 2,
+      "bytes": 51139,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\migrate-desktop-daemon.py",
+      "files": 1,
+      "bytes": 7629,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\migrate-harness.py",
+      "files": 1,
+      "bytes": 12547,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\packaged-smoke-data",
+      "files": 3,
+      "bytes": 471142,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\packaged-smoke.mjs",
+      "files": 1,
+      "bytes": 850,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\portable-smoke-data",
+      "files": 3,
+      "bytes": 471142,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\portable-smoke.mjs",
+      "files": 1,
+      "bytes": 1949,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\refresh-harness.py",
+      "files": 1,
+      "bytes": 4821,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\repair-imports.py",
+      "files": 1,
+      "bytes": 2978,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\restore-ui.py",
+      "files": 1,
+      "bytes": 1341,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\server",
+      "files": 0,
+      "bytes": 0,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\source-smoke-data",
+      "files": 2,
+      "bytes": 471105,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\source-smoke.mjs",
+      "files": 1,
+      "bytes": 773,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\split-harness.mjs",
+      "files": 1,
+      "bytes": 8863,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\split-ui.mjs",
+      "files": 1,
+      "bytes": 4515,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\storage-migration-tools",
+      "files": 147,
+      "bytes": 92558441,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\storage-query-generated.json",
+      "files": 1,
+      "bytes": 738666,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\storage-query-inventory.json",
+      "files": 1,
+      "bytes": 602886,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\storage-schema-inventory.json",
+      "files": 1,
+      "bytes": 87462,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\sync-harness-paths.py",
+      "files": 1,
+      "bytes": 2690,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\update-harness-docs.py",
+      "files": 1,
+      "bytes": 15014,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\.tmp\\write-harness-report.py",
+      "files": 1,
+      "bytes": 17832,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\daemon",
+      "files": 125,
+      "bytes": 108533560,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\frontend",
+      "files": 91,
+      "bytes": 10550697,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\packages\\test-support",
+      "files": 2,
+      "bytes": 2636,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\dist\\server",
+      "files": 218,
+      "bytes": 842685,
+      "status": "blocked-by-policy-not-deleted"
+    },
+    {
+      "path": "H:\\LFAA\\server",
+      "files": 0,
+      "bytes": 0,
+      "status": "blocked-by-policy-not-deleted"
+    }
+  ]
+}

@@ -1,10 +1,13 @@
 /**
  * 功能：展示写作应用当前作品、章节与模式上下文。
- * 作用：让常规编辑器和 AI Work 共用同一份服务端作品状态，并说明 Agent 写入大纲或正文时的工具与审批规则。
+ * 作用：让常规编辑器和 AI Work 共用同一份服务端作品状态，并说明 Agent 提案及用户审阅应用边界。
  * 关联文件：packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-writing/src/normal/WritingWorkspace.tsx、WritingAiContext.css。
  */
-import type { ApplicationMode, WritingWorkspace } from "lfaa-client-connection/src/api.js";
+import { useState } from "react";
+import { Select } from "antd";
+import { getErrorMessage, saveWritingBookRole, type ApplicationMode, type WritingWorkspace } from "lfaa-client-connection/src/api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
+import { WritingBookSkillsPanel } from "./WritingBookSkillsPanel.js";
 import "./WritingAiContext.css";
 
 interface WritingAiContextProps {
@@ -13,12 +16,15 @@ interface WritingAiContextProps {
   workspaceLoading: boolean;
   sessionTitle: string;
   providerStatus: string | null;
+  onWorkspaceChange: (workspace: WritingWorkspace) => void;
   onOpenNormal: () => void;
   onOpenAiWork: () => void;
   onClose: () => void;
 }
 
-export function WritingAiContext({ mode, workspace, workspaceLoading, sessionTitle, providerStatus, onOpenNormal, onOpenAiWork, onClose }: WritingAiContextProps) {
+export function WritingAiContext({ mode, workspace, workspaceLoading, sessionTitle, providerStatus, onWorkspaceChange, onOpenNormal, onOpenAiWork, onClose }: WritingAiContextProps) {
+  const [roleSaving, setRoleSaving] = useState(false);
+  const [error, setError] = useState("");
   const aiWork = mode === "ai-work";
   const activeBook = workspace?.books.find((book) => book.id === workspace.activeBookId) ?? null;
   const activeChapter = workspace?.activeChapter ?? null;
@@ -45,9 +51,26 @@ export function WritingAiContext({ mode, workspace, workspaceLoading, sessionTit
           <div className="writing-ai-context__session"><WorkbenchIcon name="history" size={15} /><span title={sessionTitle}>{sessionTitle}</span></div>
           <div className="writing-ai-context__provider"><span>活动模型</span><strong title={providerStatus ?? "正在读取模型配置"}>{providerStatus ?? "正在读取模型配置…"}</strong></div>
         </section>
+        {activeBook ? <section className="writing-ai-context__section" aria-labelledby="writing-ai-context-role">
+          <header><span id="writing-ai-context-role">作品专职角色</span></header>
+          <Select
+            aria-label="当前作品专职写作角色"
+            value={activeBook.aiRoleId}
+            disabled={roleSaving || workspaceLoading}
+            options={(workspace?.writingRoleOptions ?? []).map((role) => ({ value: role.id, label: role.name }))}
+            onChange={(roleId: typeof activeBook.aiRoleId) => {
+              setRoleSaving(true);
+              setError("");
+              void saveWritingBookRole(activeBook.id, roleId).then(({ workspace: updated }) => onWorkspaceChange(updated)).catch((saveError: unknown) => setError(getErrorMessage(saveError))).finally(() => setRoleSaving(false));
+            }}
+          />
+          <p className="writing-ai-context__role-description">{workspace?.writingRoleOptions.find((role) => role.id === activeBook.aiRoleId)?.description ?? "角色只影响写作方法，不改变作品范围和提案审阅权限。"}</p>
+          {error ? <p className="writing-ai-context__error" role="alert">{error}</p> : null}
+        </section> : null}
+        <WritingBookSkillsPanel bookId={activeBook?.id ?? null} bookTitle={activeBook?.title ?? "当前作品"} skills={workspace?.bookSkills ?? []} onWorkspaceChange={onWorkspaceChange} />
         <section className="writing-ai-context__section writing-ai-context__guide" aria-labelledby="writing-ai-context-guide">
           <header><span id="writing-ai-context-guide">本轮参考内容</span></header>
-          <p>{hasContext ? "模型会参考当前作品大纲和章节正文，根据你说的“大纲”或“正文”选择写入目标；写入经真实写作工具执行并逐项审批。默认追加，明确指定位置时按唯一原文锚点插入；位置不清会先询问。" : "先在常规模式新建或选择作品。模型会按你的指令选择大纲或正文，写入前等待你逐项审批。"}</p>
+          <p>{hasContext ? "模型会参考当前作品大纲和章节正文，根据你说的“大纲”或“正文”选择目标并生成待审修改。默认追加，明确指定位置时按唯一原文锚点插入；位置不清会先询问。只有你在审阅界面查看新旧正文并点击“确认并应用”后，作品才会更新。" : "先在常规模式新建或选择作品。模型生成的修改只会成为待审提案；你需要打开审阅并明确点击应用，作品正文才会更新。"}</p>
         </section>
       </> : <section className="writing-ai-context__section writing-ai-context__guide" aria-labelledby="writing-ai-context-guide">
         <header><span id="writing-ai-context-guide">作品保存</span></header>

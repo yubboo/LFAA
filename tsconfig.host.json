@@ -24,6 +24,9 @@
       "lfaa-api-account-controller/src/*": [
         "packages/api/account-controller/src/*"
       ],
+      "lfaa-api-connectivity-controller/src/*": [
+        "packages/api/connectivity-controller/src/*"
+      ],
       "lfaa-api-gateway/src/*": [
         "packages/api/gateway/src/*"
       ],
@@ -47,6 +50,9 @@
       ],
       "lfaa-api-workspace-files/src/*": [
         "packages/api/workspace-files/src/*"
+      ],
+      "lfaa-api-workflow-controller/src/*": [
+        "packages/api/workflow-controller/src/*"
       ],
       "lfaa-api-writing-controller/src/*": [
         "packages/api/writing-controller/src/*"
@@ -83,6 +89,9 @@
       ],
       "lfaa-client-ui-commands/src/*": [
         "packages/client/ui-commands/src/*"
+      ],
+      "lfaa-client-ui-connectivity/src/*": [
+        "packages/client/ui-connectivity/src/*"
       ],
       "lfaa-client-ui-dockkit/src/*": [
         "packages/client/ui-dockkit/src/*"
@@ -135,17 +144,53 @@
       "lfaa-agent/src/*": [
         "packages/core/agent/src/*"
       ],
+      "lfaa-agent-default-model/src/*": [
+        "packages/core/agent-default-model/src/*"
+      ],
       "lfaa-agent-loop/src/*": [
         "packages/core/agent-loop/src/*"
+      ],
+      "lfaa-agent-tool-presentation/src/*": [
+        "packages/core/agent-tool-presentation/src/*"
+      ],
+      "lfaa-scope/src/*": [
+        "packages/core/scope/src/*"
       ],
       "lfaa-session/src/*": [
         "packages/core/session/src/*"
       ],
+      "lfaa-system-prompt/src/*": [
+        "packages/core/system-prompt/src/*"
+      ],
       "lfaa-tools/src/*": [
         "packages/core/tools/src/*"
       ],
+      "lfaa-workflow/src/*": [
+        "packages/workflow/workflow/src/*"
+      ],
+      "lfaa-typert-protocol/src/*": [
+        "packages/typert/protocol/src/*"
+      ],
+      "lfaa-typert-registry/src/*": [
+        "packages/typert/registry/src/*"
+      ],
+      "lfaa-typert-loader/src/*": [
+        "packages/typert/loader/src/*"
+      ],
+      "lfaa-knowledge-library/src/*": [
+        "packages/knowledge/knowledge-library/src/*"
+      ],
+      "lfaa-knowledge-library-runtime/src/*": [
+        "packages/boot/knowledge-library/src/*"
+      ],
+      "lfaa-api-knowledge-controller/src/*": [
+        "packages/api/knowledge-controller/src/*"
+      ],
       "lfaa-authorization/src/*": [
         "packages/credentials/authorization/src/*"
+      ],
+      "lfaa-credential-flows/src/*": [
+        "packages/credentials/credential-flows/src/*"
       ],
       "lfaa-document-writing/src/*": [
         "packages/document/writing/src/*"
@@ -155,6 +200,9 @@
       ],
       "lfaa-games-minecraft/src/*": [
         "packages/games/minecraft/src/*"
+      ],
+      "lfaa-game-connectivity/src/*": [
+        "packages/network/game-connectivity/src/*"
       ],
       "lfaa-games-steamcmd/src/*": [
         "packages/games/steamcmd/src/*"
@@ -174,6 +222,9 @@
       "lfaa-permission-presets/src/*": [
         "packages/interaction/permission-presets/src/*"
       ],
+      "lfaa-user-questions/src/*": [
+        "packages/interaction/user-questions/src/*"
+      ],
       "lfaa-jobs/src/*": [
         "packages/jobs/jobs/src/*"
       ],
@@ -188,6 +239,9 @@
       ],
       "lfaa-storage-sqlite/src/*": [
         "packages/storage/storage-sqlite/src/*"
+      ],
+      "lfaa-storage-hub/src/*": [
+        "packages/storage/storage/src/*"
       ],
       "lfaa-telemetry-logger/src/*": [
         "packages/telemetry/logger/src/*"
@@ -207,8 +261,14 @@
       "lfaa-workspace-data-directory/src/*": [
         "packages/workspace/data-directory/src/*"
       ],
+      "lfaa-workspace-workspace/src/*": [
+        "packages/workspace/workspace/src/*"
+      ],
       "lfaa-api-account-controller": [
         "packages/api/account-controller/src/index.ts"
+      ],
+      "lfaa-api-connectivity-controller": [
+        "packages/api/connectivity-controller/src/index.ts"
       ],
       "lfaa-api-gateway": [
         "packages/api/gateway/src/index.ts"
@@ -230,6 +290,9 @@
       ],
       "lfaa-api-workspace-files": [
         "packages/api/workspace-files/src/index.ts"
+      ],
+      "lfaa-api-workflow-controller": [
+        "packages/api/workflow-controller/src/index.ts"
       ],
       "lfaa-api-writing-controller": [
         "packages/api/writing-controller/src/index.ts"
@@ -254,6 +317,9 @@
       ],
       "lfaa-client-ui-commands": [
         "packages/client/ui-commands/src/index.ts"
+      ],
+      "lfaa-client-ui-connectivity": [
+        "packages/client/ui-connectivity/src/index.ts"
       ],
       "lfaa-client-ui-dockkit": [
         "packages/client/ui-dockkit/src/index.ts"
@@ -297,14 +363,41 @@
       "lfaa-agent": [
         "packages/core/agent/src/index.ts"
       ],
+      "lfaa-agent-default-model": [
+        "packages/core/agent-default-model/src/index.ts"
+      ],
+      "lfaa-credential-flows": [
+        "packages/credentials/credential-flows/src/index.ts"
+      ],
       "lfaa-agent-loop": [
         "packages/core/agent-loop/src/index.ts"
+      ],
+      "lfaa-agent-tool-presentation": [
+        "packages/core/agent-tool-presentation/src/index.ts"
+      ],
+      "lfaa-scope": [
+        "packages/core/scope/src/index.ts"
       ],
       "lfaa-session": [
         "packages/core/session/src/index.ts"
       ],
+      "lfaa-system-prompt": [
+        "packages/core/system-prompt/src/index.ts"
+      ],
       "lfaa-tools": [
         "packages/core/tools/src/index.ts"
+      ],
+      "lfaa-workflow": [
+        "packages/workflow/workflow/src/index.ts"
+      ],
+      "lfaa-knowledge-library": [
+        "packages/knowledge/knowledge-library/src/index.ts"
+      ],
+      "lfaa-knowledge-library-runtime": [
+        "packages/boot/knowledge-library/src/index.ts"
+      ],
+      "lfaa-api-knowledge-controller": [
+        "packages/api/knowledge-controller/src/index.ts"
       ],
       "lfaa-document-writing": [
         "packages/document/writing/src/index.ts"
@@ -314,6 +407,9 @@
       ],
       "lfaa-games-minecraft": [
         "packages/games/minecraft/src/index.ts"
+      ],
+      "lfaa-game-connectivity": [
+        "packages/network/game-connectivity/src/index.ts"
       ],
       "lfaa-games-steamcmd": [
         "packages/games/steamcmd/src/index.ts"
@@ -333,6 +429,9 @@
       "lfaa-permission-presets": [
         "packages/interaction/permission-presets/src/index.ts"
       ],
+      "lfaa-user-questions": [
+        "packages/interaction/user-questions/src/index.ts"
+      ],
       "lfaa-jobs": [
         "packages/jobs/jobs/src/index.ts"
       ],
@@ -347,6 +446,9 @@
       ],
       "lfaa-workspace-data-directory": [
         "packages/workspace/data-directory/src/index.ts"
+      ],
+      "lfaa-workspace-workspace": [
+        "packages/workspace/workspace/src/index.ts"
       ],
       "lfaa-storage-json": [
         "packages/storage/storage-json/src/index.ts"

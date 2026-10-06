@@ -1,11 +1,12 @@
 /**
  * 功能：保存和读取当前用户的应用中心偏好。
- * 作用：在用户切换应用或模式时写入 JSON 配置文件，使选择在刷新和重启后恢复。
+ * 作用：在用户切换应用或模式时经配置域写入账户设置文件，使选择在刷新和重启后恢复。
  * 关联文件：packages/storage/storage-sqlite/src/database.ts、packages/api/gateway/src/index.ts。
  */
 import { configuration } from "lfaa-storage-domain/src/configuration.js";
+import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 
-export type ApplicationId = "steamcmd" | "minecraft" | "writing" | "workspace";
+export { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
 export type ApplicationMode = "normal" | "ai-work";
 
 export interface UserPreferences {

@@ -4,6 +4,7 @@
  * 关联文件：packages/host/webserver/src/server.ts、packages/util/launch-environment/src/config.ts、packages/telemetry/logger/src/logger.ts、packages/core/agent/src/extension-registry.ts。
  */
 import type { Context } from "@deepseek-ai/cordis";
+import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 import type { AiExtensionKind, AiExtensionManifest, AiExtensionRegistry } from "lfaa-agent/src/extension-registry.js";
 import type { AiRuntimeHookInfo, AiRuntimeHookRegistry, AiRuntimeHookResult } from "lfaa-hook-protocol/src/runtime-hooks.js";
 import type { PluginRuntimeSnapshot } from "./plugin-runtime.js";
@@ -16,9 +17,9 @@ export interface AiPluginHost {
   setPluginEnabled(pluginId: string, enabled: boolean): Promise<void>;
   reloadPlugin(pluginId: string): Promise<void>;
   listExtensions(kind?: AiExtensionKind): AiExtensionManifest[];
-  listInstructionExtensions(applicationId: "steamcmd" | "minecraft" | "writing" | "workspace"): AiExtensionManifest[];
+  listInstructionExtensions(applicationId: ApplicationId): AiExtensionManifest[];
   listHooks(): AiRuntimeHookInfo[];
-  getSystemInstructions(applicationId: "steamcmd" | "minecraft" | "writing" | "workspace"): string[];
+  getSystemInstructions(applicationId: ApplicationId): string[];
   runBeforeInference(event: Parameters<AiRuntimeHookRegistry["beforeInference"]>[0]): AiRuntimeHookResult;
   runAfterInference(event: Parameters<AiRuntimeHookRegistry["afterInference"]>[0]): AiRuntimeHookResult;
   close(): Promise<void>;

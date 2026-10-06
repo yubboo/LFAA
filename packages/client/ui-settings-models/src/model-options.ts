@@ -1,29 +1,53 @@
-/** 功能：提供 lfaa-client-ui-settings-models 的现有界面能力。作用：保留迁移前的行为并按包维护。关联文件：API Gateway、设置中心或工作台对应入口。 */
+/**
+ * 功能：把 Provider 模型目录中的真实能力映射为设置中心和 AI Work 共用的选项。
+ * 作用：只有控制端标记为来源可信的模型能力才会显示，避免客户端按模型名称自行推测参数。
+ * 关联文件：packages/settings/settings/src/model-capabilities.ts、SettingsPage.tsx、AiWorkChat.tsx。
+ */
 import { type AiModel } from "lfaa-client-connection/src/api.js";
 export function reasoningModeLabel(value: string): string {
   const labels: Record<string, string> = {
-    none: "关闭思考",
-    minimal: "最少",
+    minimal: "轻量",
     low: "低",
     medium: "中",
     high: "高",
     xhigh: "超高",
     max: "最大",
-    enabled: "启用思考",
-    disabled: "关闭思考"
+    enabled: "启用思考"
   };
   return labels[value] ?? value;
 }
 
+/** 将真实 Provider 默认值与用户可选强度区分显示。 */
+export function reasoningDefaultLabel(model: AiModel | undefined): string {
+  const control = model?.thinking;
+  if (control?.kind === "effort" && control.defaultValue) {
+    return `跟随官方默认 · ${reasoningModeLabel(control.defaultValue)}`;
+  }
+  if (control?.kind === "toggle" && control.defaultValue === "enabled") return "跟随官方默认 · 启用思考";
+  return "跟随 Provider 默认";
+}
+
 export function reasoningOptions(model: AiModel | undefined): Array<{ value: string; label: string }> {
-  if (!model?.thinking || model.thinking.kind === "fixed") return [];
-  const defaultLabel = model.thinking.defaultValue
-    ? `跟随官方默认（${reasoningModeLabel(model.thinking.defaultValue)}）`
-    : "跟随官方默认";
-  return [
-    { value: "default", label: defaultLabel },
-    ...model.thinking.values.map((value) => ({ value, label: reasoningModeLabel(value) }))
-  ];
+  const control = model?.thinking;
+  if (model?.thinkingSource !== "provider-model-catalog" || !control || control.kind === "fixed") return [];
+  const values = control.kind === "effort"
+    ? control.values.filter((value) => !["none", "disabled", "off"].includes(value))
+    : control.values.filter((value) => value === "enabled");
+  if (!values.length) return [];
+  return [{ value: "default", label: reasoningDefaultLabel(model) }, ...values.map((value) => {
+    const isDefault = value === control.defaultValue;
+    return { value, label: isDefault ? `${reasoningModeLabel(value)} · 官方默认` : reasoningModeLabel(value) };
+  })];
+}
+
+/** 新模型先遵循 Provider 默认；用户主动选档后才保存具体能力值。 */
+export function defaultReasoningMode(_model: AiModel | undefined): string {
+  return "default";
+}
+
+export function effectiveReasoningMode(model: AiModel | undefined, savedValue: string): string {
+  const options = reasoningOptions(model);
+  return options.some((option) => option.value === savedValue) ? savedValue : "default";
 }
 
 export function modelParameterSummary(model: AiModel | undefined): string {
@@ -42,7 +66,8 @@ export function modelOptionLabel(providerId: string, model: AiModel): string {
 }
 
 export function fixedThinkingLabel(model: AiModel): string {
-  if (model.thinking?.kind !== "fixed") return "";
-  if (model.thinking.value === "high") return "此型号由 Provider 固定为高思考力度。";
-  return model.thinking.value === "disabled" ? "此型号固定关闭思考模式。" : "此型号始终启用思考模式，不能切换。";
+  if (model.thinkingSource !== "provider-model-catalog" || model.thinking?.kind !== "fixed") return "";
+  return model.thinking.value === "enabled"
+    ? "此模型的思考模式由 Provider 固定启用，不能调整力度。"
+    : `此模型的思考力度由 Provider 固定为${reasoningModeLabel(model.thinking.value)}。`;
 }

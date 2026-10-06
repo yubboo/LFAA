@@ -1,0 +1,40 @@
+/*
+ * 功能：定义写作作品资料库入口和分页编辑弹窗。
+ * 作用：沿用工作台外观令牌，并在窄窗口中把列表与编辑区切换为上下布局。
+ * 关联文件：WritingCatalogPanel.tsx、WritingWorkspace.css。
+ */
+.writing-catalog-panel__launcher { flex: 0 0 auto; padding: 8px 10px; border-top: 1px solid var(--color-border-subtle); }
+.writing-catalog-panel__launcher .ant-btn { height: 31px; border-color: var(--color-border); background: var(--color-surface); color: var(--color-text-secondary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-xs); }
+.writing-catalog-panel__launcher .ant-btn:hover:not(:disabled) { border-color: var(--settings-accent, var(--color-brand)); color: var(--settings-accent, var(--color-brand)); }
+.writing-catalog-panel__modal .ant-modal-content { display: flex; max-height: min(86vh, 900px); flex-direction: column; overflow: hidden; background: var(--color-surface); color: var(--color-text-primary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); }
+.workbench-shell[data-background-image="true"] .writing-catalog-panel__modal .ant-modal-content { background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
+body[data-we-wallpaper] .workbench-shell .writing-catalog-panel__modal .ant-modal-content { background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
+.writing-catalog-panel__modal .ant-modal-header { flex: 0 0 auto; background: transparent; }
+.writing-catalog-panel__modal .ant-modal-body { min-height: 0; overflow: auto; }
+.writing-catalog-panel__toolbar { display: grid; grid-template-columns: minmax(190px, .8fr) minmax(220px, 1.2fr); gap: 10px; }
+.writing-catalog-panel__create { display: flex; gap: 8px; margin-top: 10px; }
+.writing-catalog-panel__create .ant-input { min-width: 0; }
+.writing-catalog-panel__body { display: grid; min-height: 390px; max-height: 62vh; grid-template-columns: minmax(230px, .72fr) minmax(0, 1.6fr); gap: 14px; margin-top: 12px; }
+.writing-catalog-panel__list,
+.writing-catalog-panel__editor { display: flex; min-width: 0; min-height: 0; flex-direction: column; gap: 9px; overflow: auto; }
+.writing-catalog-panel__list { border-right: 1px solid var(--color-border-subtle); padding-right: 10px; }
+.writing-catalog-panel__item { display: flex; min-height: 38px; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 9px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--color-text-secondary); cursor: pointer; font: inherit; text-align: left; }
+.writing-catalog-panel__item > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.writing-catalog-panel__item > small { flex: 0 0 auto; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.writing-catalog-panel__item:hover { background: var(--color-surface-hover); }
+.writing-catalog-panel__item.is-active { border-color: var(--color-border); background: var(--color-surface-selected); color: var(--settings-accent, var(--color-brand)); }
+.writing-catalog-panel__loading,
+.writing-catalog-panel__empty { display: grid; min-height: 100px; flex: 1 1 auto; place-items: center; color: var(--color-text-muted); font-size: var(--font-size-sm); text-align: center; }
+.writing-catalog-panel__content { min-height: 270px; flex: 1 1 auto; resize: vertical; font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.8; }
+.writing-catalog-panel__editor-footer { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 10px; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.writing-catalog-panel__editor-footer > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.writing-catalog-panel__editor-footer > div { display: flex; flex: 0 0 auto; gap: 8px; }
+.writing-catalog-panel__error { margin: 10px 0 0; color: var(--color-danger); font-size: var(--font-size-xs); }
+
+@media (max-width: 760px) {
+  .writing-catalog-panel__modal { max-width: calc(100vw - 24px); }
+  .writing-catalog-panel__toolbar { grid-template-columns: minmax(0, 1fr); }
+  .writing-catalog-panel__body { max-height: 62vh; grid-template-columns: minmax(0, 1fr); }
+  .writing-catalog-panel__list { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--color-border-subtle); padding: 0 0 10px; }
+  .writing-catalog-panel__editor { min-height: 270px; }
+}

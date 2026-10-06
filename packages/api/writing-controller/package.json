@@ -6,6 +6,7 @@
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",
     "express": "^4.0.0",
+    "joi": "^17.0.0",
     "lfaa-api-gateway": "workspace:*",
     "lfaa-api-remotes": "workspace:*",
     "lfaa-app-boot": "workspace:*",

@@ -1,0 +1,35 @@
+.connectivity-workspace { display: grid; gap: 20px; width: min(1120px, 100%); margin: 0 auto; padding: 28px clamp(18px, 3vw, 40px) 48px; }
+.connectivity-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding-bottom: 8px; }
+.connectivity-heading .ant-typography { margin: 0; }
+.connectivity-kicker { display: block; margin-bottom: 8px; color: var(--ant-color-primary); font-size: 11px; font-weight: 700; letter-spacing: .18em; }
+.connectivity-heading .ant-typography-paragraph { margin-top: 8px; color: var(--ant-color-text-secondary); }
+.connectivity-status-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.connectivity-status-card { min-height: 124px; border-radius: 14px; }
+.connectivity-status-card .ant-typography { display: block; }
+.connectivity-status-card h4 { margin: 8px 0 2px; }
+.connectivity-panel { border-radius: 16px; }
+.connectivity-panel-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.connectivity-panel-heading .ant-typography { margin-top: 0; }
+.connectivity-route-form { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--ant-color-border-secondary); }
+.connectivity-route-form > h4 { margin: 0 0 16px; }
+.connectivity-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+.connectivity-form-grid > .ant-alert, .connectivity-form-grid > .ant-typography { grid-column: 1 / -1; }
+.connectivity-form-footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-top: 4px; }
+.connectivity-alert { border-radius: 12px; }
+.connectivity-route-list { display: grid; gap: 12px; }
+.connectivity-route-card, .connectivity-provider-card { border-radius: 14px; }
+.connectivity-route-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.connectivity-route-top .ant-typography { display: block; margin: 0; }
+.connectivity-route-target, .connectivity-route-address { display: flex; align-items: center; gap: 14px; padding-top: 15px; margin-top: 15px; border-top: 1px solid var(--ant-color-border-secondary); }
+.connectivity-route-target code, .connectivity-route-address code { flex: 1; overflow-wrap: anywhere; font-family: var(--font-family-mono); }
+.connectivity-route-footnote { display: block; margin-top: 12px; }
+.connectivity-empty { text-align: center; }
+.connectivity-empty .ant-typography { display: block; margin: 0 0 6px; }
+.connectivity-provider-card { display: grid; gap: 14px; margin-top: 16px; }
+@media (max-width: 760px) {
+  .connectivity-workspace { padding-inline: 16px; }
+  .connectivity-status-grid { grid-template-columns: 1fr; }
+  .connectivity-form-grid { grid-template-columns: 1fr; }
+  .connectivity-route-target, .connectivity-route-address { align-items: flex-start; flex-wrap: wrap; }
+  .connectivity-route-address code { flex-basis: 100%; }
+}

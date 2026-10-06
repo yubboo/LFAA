@@ -1,0 +1,103 @@
+/** 功能：验收 EasyTier 安装任务的认证与账户边界。作用：只启动临时控制端，不运行 Daemon 或下载运行包。 */
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
+
+test("EasyTier 安装 API 限管理员提交且任务只对创建账户可见", { timeout: 30000 }, async t => {
+  const parent = resolve(tmpdir());
+  const data = mkdtempSync(join(parent, "lfaa-connectivity-easytier-api-"));
+  process.env.LFAA_DATA_DIR = data;
+  process.env.NODE_ENV = "test";
+  process.env.JWT_SECRET = "";
+  process.env.LOG_LEVEL = "error";
+  process.env.SERVER_HOST = "127.0.0.1";
+  const reservation = createServer();
+  reservation.listen(0, "127.0.0.1");
+  await new Promise(resolveListen => reservation.once("listening", resolveListen));
+  process.env.SERVER_PORT = String(reservation.address().port);
+  await new Promise(resolveClose => reservation.close(resolveClose));
+  const { boot } = await import("lfaa-app-boot/src/index.js");
+  const { EASYTIER_RUNTIME_RELEASE } = await import("lfaa-game-connectivity/src/easytier-release.mjs");
+  const { createManagedUser } = await import("lfaa-identity-auth/src/service.js");
+  const { recordDaemonHeartbeat } = await import("lfaa-host-daemon/src/local-daemon.js");
+  const { database } = await import("lfaa-storage-sqlite/src/database.js");
+  const { config } = await import("lfaa-launch-environment/src/config.js");
+  const context = await boot(["web"]);
+  const base = `http://127.0.0.1:${process.env.SERVER_PORT}/api`;
+  t.after(async () => {
+    await context.fiber.dispose();
+    assert.equal(dirname(resolve(data)), parent);
+    rmSync(data, { recursive: true, force: true });
+  });
+
+  const setup = await fetch(`${base}/auth/setup`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "connectivity-easytier-admin", password: "Connectivity-EasyTier-Admin-93!" }) });
+  assert.equal(setup.status, 201);
+  const setupPayload = await setup.json();
+  const adminHeaders = { "Content-Type": "application/json", Cookie: setup.headers.get("set-cookie").split(";")[0] };
+  const member = await createManagedUser(setupPayload.user.id, { username: "connectivity-easytier-member", email: "", password: "Connectivity-EasyTier-Member-93!", role: "member" });
+  const memberLogin = await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: member.username, password: "Connectivity-EasyTier-Member-93!" }) });
+  assert.equal(memberLogin.status, 200, await memberLogin.text());
+  const memberHeaders = { "Content-Type": "application/json", Cookie: memberLogin.headers.get("set-cookie").split(";")[0] };
+  const nodeId = randomUUID();
+  recordDaemonHeartbeat({ id: nodeId, displayName: "临时 EasyTier 测试节点", platform: "win32", architecture: "x64", version: "test", dataRoot: data, capabilities: [EASYTIER_RUNTIME_RELEASE.installCapability], javaRuntimes: [] });
+
+  const memberInstall = await fetch(`${base}/connectivity/easytier/install`, { method: "POST", headers: memberHeaders, body: JSON.stringify({ nodeId }) });
+  assert.equal(memberInstall.status, 403);
+  const created = await fetch(`${base}/connectivity/easytier/install`, { method: "POST", headers: adminHeaders, body: JSON.stringify({ nodeId }) });
+  assert.equal(created.status, 202);
+  const { task } = await created.json();
+  assert.equal(task.status, "queued");
+  assert.equal("command" in task, false);
+  assert.equal("result" in task, false);
+
+  const duplicate = await fetch(`${base}/connectivity/easytier/install`, { method: "POST", headers: adminHeaders, body: JSON.stringify({ nodeId }) });
+  assert.equal(duplicate.status, 409);
+  const adminTasks = await fetch(`${base}/connectivity/easytier/tasks`, { headers: adminHeaders });
+  assert.equal(adminTasks.status, 200);
+  assert.equal((await adminTasks.json()).tasks[0].id, task.id);
+  const memberTasks = await fetch(`${base}/connectivity/easytier/tasks`, { headers: memberHeaders });
+  assert.equal(memberTasks.status, 200);
+  assert.deepEqual((await memberTasks.json()).tasks, []);
+  const memberTask = await fetch(`${base}/connectivity/easytier/tasks/${task.id}`, { headers: memberHeaders });
+  assert.equal(memberTask.status, 404);
+
+  const taskFile = join(data, "connectivity", "easytier-install-tasks.json");
+  assert.equal(existsSync(taskFile), true);
+  assert.equal(database.prepare("SELECT count(*) AS count FROM ai_host_tasks WHERE shell = 'connectivity'").get().count, 0);
+  const daemonHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${readFileSync(join(data, "credentials", "daemon-token"), "utf8").trim()}` };
+  const claim = await fetch(`${base}/connectivity/daemon/easytier/install/claim`, { method: "POST", headers: daemonHeaders, body: JSON.stringify({ nodeId }) });
+  assert.equal(claim.status, 200);
+  assert.deepEqual(await claim.json(), { task: { id: task.id, version: EASYTIER_RUNTIME_RELEASE.version } });
+  const duplicateAfterClaim = await fetch(`${base}/connectivity/easytier/install`, { method: "POST", headers: adminHeaders, body: JSON.stringify({ nodeId }) });
+  assert.equal(duplicateAfterClaim.status, 409);
+  const complete = await fetch(`${base}/connectivity/daemon/easytier/install/${task.id}/complete`, { method: "POST", headers: daemonHeaders, body: JSON.stringify({ nodeId, succeeded: true, version: EASYTIER_RUNTIME_RELEASE.version }) });
+  assert.equal(complete.status, 204);
+  const completedTaskResponse = await fetch(`${base}/connectivity/easytier/tasks/${task.id}`, { headers: adminHeaders });
+  assert.equal(completedTaskResponse.status, 200);
+  assert.equal((await completedTaskResponse.json()).task.status, "succeeded");
+  const lateCompletion = await fetch(`${base}/connectivity/daemon/easytier/install/${task.id}/complete`, { method: "POST", headers: daemonHeaders, body: JSON.stringify({ nodeId, succeeded: true, version: EASYTIER_RUNTIME_RELEASE.version }) });
+  assert.equal(lateCompletion.status, 404);
+  const invalidDaemon = await fetch(`${base}/connectivity/daemon/easytier/install/claim`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer invalid-invalid-invalid-invalid-invalid-invalid" }, body: JSON.stringify({ nodeId }) });
+  assert.equal(invalidDaemon.status, 401);
+
+  const staleNodeId = randomUUID();
+  recordDaemonHeartbeat({ id: staleNodeId, displayName: "临时超时验收节点", platform: "win32", architecture: "x64", version: "test", dataRoot: data, capabilities: [EASYTIER_RUNTIME_RELEASE.installCapability], javaRuntimes: [] });
+  const staleCreated = await fetch(`${base}/connectivity/easytier/install`, { method: "POST", headers: adminHeaders, body: JSON.stringify({ nodeId: staleNodeId }) });
+  assert.equal(staleCreated.status, 202);
+  const staleTask = (await staleCreated.json()).task;
+  const staleClaim = await fetch(`${base}/connectivity/daemon/easytier/install/claim`, { method: "POST", headers: daemonHeaders, body: JSON.stringify({ nodeId: staleNodeId }) });
+  assert.equal(staleClaim.status, 200);
+  const stored = JSON.parse(readFileSync(taskFile, "utf8"));
+  stored.tasks.find(item => item.id === staleTask.id).deadlineAt = new Date(Date.now() - 1000).toISOString();
+  writeFileSync(taskFile, JSON.stringify(stored));
+  const expiredClaim = await fetch(`${base}/connectivity/daemon/easytier/install/claim`, { method: "POST", headers: daemonHeaders, body: JSON.stringify({ nodeId: staleNodeId }) });
+  assert.deepEqual(await expiredClaim.json(), { task: null });
+  const staleStatus = await fetch(`${base}/connectivity/easytier/tasks/${staleTask.id}`, { headers: adminHeaders });
+  assert.equal((await staleStatus.json()).task.status, "unknown");
+  const staleComplete = await fetch(`${base}/connectivity/daemon/easytier/install/${staleTask.id}/complete`, { method: "POST", headers: daemonHeaders, body: JSON.stringify({ nodeId: staleNodeId, succeeded: true, version: EASYTIER_RUNTIME_RELEASE.version }) });
+  assert.equal(staleComplete.status, 404);
+});

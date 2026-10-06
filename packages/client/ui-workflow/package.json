@@ -1,0 +1,23 @@
+{
+  "name": "lfaa-client-ui-workflow",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@xyflow/react": "12.11.5",
+    "antd": "^5.0.0",
+    "lfaa-client-connection": "workspace:*",
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

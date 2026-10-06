@@ -7,6 +7,12 @@
   .application-grid {
     grid-template-columns: repeat(2,minmax(0,1fr));
   }
+  /* 双列下让第三张应用卡片居中，保持卡片同宽并平衡第二行的留白。 */
+  .application-card:nth-child(3):last-child {
+    width: calc((100% - 16px) / 2);
+    grid-column: 1 / -1;
+    justify-self: center;
+  }
 }
 @media (max-width: 720px) {
   .topbar {
@@ -44,36 +50,55 @@
     width: min(100% - 32px,1340px);
     padding: 46px 0 60px;
   }
+  .workbench-content--app-center {
+    padding: 24px 0 32px;
+  }
   .page-intro {
-    min-height: 240px;
-    margin-bottom: 30px;
-    padding: 22px;
+    min-height: 0;
+    grid-template-columns: minmax(0,1fr);
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 18px;
+    padding: 20px;
+  }
+  .page-intro__copy {
+    width: 100%;
   }
   .page-intro h1.ant-typography {
-    font-size: clamp(36px,10vw,48px);
+    font-size: var(--font-size-2xl);
   }
   .page-intro p.ant-typography {
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-md);
+  }
+  .page-intro__action.ant-btn {
+    width: 100%;
+    max-width: 22rem;
+    justify-self: center;
+  }
+  .application-list__heading {
+    flex-wrap: wrap;
+    row-gap: 5px;
+    margin-bottom: 11px;
   }
   .application-grid {
     grid-template-columns: minmax(0,1fr);
     gap: 13px;
   }
+  .application-card:nth-child(3):last-child {
+    width: auto;
+    grid-column: auto;
+  }
   .application-card.ant-card,
   .application-card .ant-card-body {
-    min-height: 340px;
+    min-height: 286px;
   }
   .application-card .ant-card-body {
     padding: 18px;
   }
   .application-card__topline {
-    min-height: 112px;
+    min-height: 82px;
     margin: -18px -18px 0;
     padding-inline: 18px;
-  }
-  .workspace-note {
-    align-items: flex-start;
-    flex-direction: column;
   }
   .workbench-footer {
     flex-direction: column;
@@ -91,19 +116,15 @@
     padding-bottom: 32px;
   }
   .page-intro {
-    min-height: 184px;
+    min-height: 0;
     margin-bottom: 18px;
-    padding: 20px 28px;
-  }
-  .page-intro h1.ant-typography {
-    margin-bottom: 10px;
-    font-size: clamp(32px,3vw,42px);
+    padding: 18px 24px;
   }
   .page-intro p.ant-typography {
     line-height: 1.5;
   }
   .application-grid {
-    gap: 14px;
+    gap: 16px;
   }
   .application-card.ant-card,
   .application-card .ant-card-body {
@@ -135,11 +156,7 @@
     padding-top: 16px;
   }
   .application-card__actions .ant-btn {
-    min-height: 36px;
-  }
-  .workspace-note {
-    margin-top: 14px;
-    padding: 14px 18px;
+    min-height: 44px;
   }
   .workbench-footer:not(.workbench-footer--module) {
     padding-top: 16px;

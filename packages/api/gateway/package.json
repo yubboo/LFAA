@@ -14,7 +14,10 @@
     "lfaa-api-remotes": "workspace:*",
     "lfaa-app-boot": "workspace:*",
     "lfaa-identity-auth": "workspace:*",
-    "lfaa-storage-sqlite": "workspace:*"
+    "lfaa-storage-sqlite": "workspace:*",
+    "lfaa-authorization": "workspace:*",
+    "lfaa-typert-protocol": "workspace:*",
+    "lfaa-typert-registry": "workspace:*"
   },
   "devDependencies": {
     "@types/express": "^4.0.0",

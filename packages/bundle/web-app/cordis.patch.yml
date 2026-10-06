@@ -2,16 +2,23 @@
 - insert:
     - id: api-gateway
       name: lfaa-api-gateway
+      inject: [lfaaTypertRegistry]
       required: true
     - id: api-account-controller
       name: lfaa-api-account-controller
-      inject: [apiGateway]
+      inject: [apiGateway, lfaaTypertLoader]
     - id: api-writing-controller
       name: lfaa-api-writing-controller
       inject: [apiGateway]
+    - id: api-knowledge-controller
+      name: lfaa-api-knowledge-controller
+      inject: [apiGateway]
     - id: api-session-controller
       name: lfaa-api-session-controller
-      inject: [apiGateway]
+      inject: [apiGateway, lfaaAgentLoop, lfaaUserApproval]
+    - id: api-workflow-controller
+      name: lfaa-api-workflow-controller
+      inject: [apiGateway, lfaaWorkflow]
     - id: api-settings-controller
       name: lfaa-api-settings-controller
       inject: [apiGateway]
@@ -19,11 +26,20 @@
     - id: api-minecraft-controller
       name: lfaa-api-minecraft-controller
       inject: [apiGateway]
+    - id: api-connectivity-controller
+      name: lfaa-api-connectivity-controller
+      inject: [apiGateway, lfaaGameConnectivity]
+    - id: api-plugin-controller
+      name: lfaa-api-plugin-controller
+      inject: [apiGateway, lfaaPluginManager, lfaaCapabilityInstalls]
     - id: api-steamcmd-controller
       name: lfaa-api-steamcmd-controller
       inject: [apiGateway]
     - id: api-workspace-files
       name: lfaa-api-workspace-files
+      inject: [apiGateway]
+    - id: api-workspace-controller
+      name: lfaa-api-workspace-controller
       inject: [apiGateway]
     - id: api-job-controller
       name: lfaa-api-job-controller
@@ -31,4 +47,17 @@
     - id: webserver
       name: lfaa-host-webserver
       inject: [apiGateway, aiExtensions, aiRuntimeHooks, lfaaSettings, lfaaAuth, lfaaMinecraft, lfaaSteamcmd, lfaaWriting]
+      required: true
+    - id: dsh-client-modules
+      name: '@deepseek-ai/dsh-client-modules'
+      inject: [webServer]
+      required: true
+    - id: dsh-client-ui-renderer
+      name: '@deepseek-ai/dsh-client-ui-renderer'
+      required: true
+    - id: dsh-client-hmr
+      name: '@deepseek-ai/dsh-client-hmr'
+      inject: [clientModules, webServer]
+      config:
+        pollIntervalMs: 1000
       required: true

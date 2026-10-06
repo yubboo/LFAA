@@ -15,12 +15,15 @@ import { logger } from "lfaa-telemetry-logger/src/logger.js";
 import { createAiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import { createRealtimeSocketServer } from "lfaa-api-remotes/src/socket-server.js";
 import { requestLogLevel, serveFrontend } from "./http-delivery.js";
+import { DshWebServerCarrier, mountDshWebRoutes } from "./dsh-carrier.js";
 
 export const name = "lfaaWebserver";
 export const inject = ["apiGateway", "aiExtensions", "aiRuntimeHooks", "lfaaSettings", "lfaaAuth", "lfaaMinecraft", "lfaaSteamcmd", "lfaaWriting"];
 export async function apply(ctx: Context): Promise<void> {
 const app = express();
 app.disable("x-powered-by");
+// 远程节点使用 HTTPS；仅在部署明确启用时信任本机 TLS 反向代理，拒绝任意来源伪造转发协议。
+if (process.env.LFAA_TRUST_LOOPBACK_PROXY === "true") app.set("trust proxy", "loopback");
 
 app.use((request, response, next) => {
   const requestId = randomUUID();
@@ -47,14 +50,31 @@ app.use((request, response, next) => {
   next();
 });
 
-app.use(express.json({ limit: "5mb" }));
+// API routes consume JSON here; DSH plugin routes retain their raw request stream
+// for bounded host-side adapters such as Wallpaper Engine settings.
+app.use("/api", express.json({ limit: "5mb" }));
 const aiPluginHost = createAiPluginHost(ctx);
+const dshWebServer = new DshWebServerCarrier(ctx, config.host, config.port);
+dshWebServer.provide();
 const server = createServer(app);
+dshWebServer.bind(server);
 const realtime = createRealtimeSocketServer(server);
 app.use("/api", ctx.apiGateway.createRouter(ctx, aiPluginHost, realtime));
+app.get("/__dsh/index-injections", (_request, response) => {
+  const injections = dshWebServer.collectIndexInjections();
+  if (!injections.some((row) => row.kind === "global" && row.name === "__DSH_BOOT__")) {
+    response.status(503).json({ error: "dsh_runtime_not_ready", message: "DSH Client Runtime 尚未完成装配。" });
+    return;
+  }
+  // This public read-only payload is the same bootstrap graph that the
+  // production HTML serves; the Vite dev shell applies it with DSH's renderer.
+  response.setHeader("Cache-Control", "public, no-cache");
+  response.json(injections);
+});
+mountDshWebRoutes(dshWebServer, app);
 
 if (process.env.LFAA_SERVE_FRONTEND === "true" || process.env.LFAA_SERVE_FRONTEND === "1") {
-  serveFrontend(app, resolve(config.repositoryRoot, "dist", "apps", "web"));
+  serveFrontend(app, resolve(config.repositoryRoot, "dist", "apps", "web"), (html) => dshWebServer.renderIndex(html));
 }
 
 app.use((_request, response) => {

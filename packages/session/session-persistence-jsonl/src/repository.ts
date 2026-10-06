@@ -9,15 +9,17 @@ import { database } from "lfaa-storage-sqlite/src/database.js";
 import { config } from "lfaa-launch-environment/src/config.js";
 import { encode, JsonStorageBackend } from "lfaa-storage-json/src/index.js";
 import { withControlLock } from "lfaa-storage-domain/src/control-lock.js";
-import { JsonlSessionPersistence, type SessionChange, type SessionTable } from "./persistence.js";
+import { JsonlSessionPersistence, type SessionChange, type SessionCommit, type SessionTable } from "./persistence.js";
 
 export type SessionRecord = Record<string, unknown>;
-const tables: SessionTable[] = ["ai_sessions", "ai_messages", "ai_usage"];
+const tables: SessionTable[] = ["ai_sessions", "ai_messages", "ai_usage", "session_events"];
 function digest(value: unknown): string { return createHash("sha256").update(encode(value)).digest("hex"); }
 export class SessionRepository {
   private readonly persistence = new JsonlSessionPersistence(resolve(config.dataDirectory, "sessions"), action => withControlLock(database, action));
   private readonly metadata = new JsonStorageBackend(resolve(config.dataDirectory, "storages"));
   private records = new Map<SessionTable, Map<string, SessionRecord>>(tables.map(table => [table, new Map()]));
+  private readonly sessionEventsBySession = new Map<string, Map<string, SessionRecord>>();
+  private readonly sessionRemovalListeners = new Set<(sessionIds: readonly string[]) => void>();
   private failed = false;
   constructor() {
     try {
@@ -40,11 +42,27 @@ export class SessionRepository {
       if (!tables.includes(change.table) || typeof change.key !== "string" || !change.key) throw new Error("会话事件记录无效。");
       const record = change.value;
       if (record !== null && (!record || typeof record !== "object" || Array.isArray(record) || record.id !== change.key || (change.table === "ai_sessions" ? record.id : record.session_id) !== sessionId)) throw new Error("会话事件所属 ID 不一致。");
-      if (record !== null) this.records.get(change.table)!.set(change.key, structuredClone(record));
-      else this.records.get(change.table)!.delete(change.key);
+      this.storeRecord(change.table, change.key, record);
     }
   }
-  private replay(): void { this.records = new Map(tables.map(table => [table, new Map()])); for (const event of this.persistence.readAll()) this.apply(event.sessionId, event.changes); }
+  private storeRecord(table: SessionTable, key: string, value: SessionRecord | null | undefined): void {
+    const records = this.records.get(table)!;
+    const old = records.get(key);
+    const sessionId = String((value ?? old)?.session_id ?? "");
+    if (value === null || value === undefined) records.delete(key);
+    else records.set(key, structuredClone(value));
+    if (table !== "session_events" || !sessionId) return;
+    const rows = this.sessionEventsBySession.get(sessionId) ?? new Map<string, SessionRecord>();
+    if (value === null || value === undefined) rows.delete(key);
+    else rows.set(key, records.get(key)!);
+    if (rows.size) this.sessionEventsBySession.set(sessionId, rows);
+    else this.sessionEventsBySession.delete(sessionId);
+  }
+  private replay(): void {
+    this.records = new Map(tables.map(table => [table, new Map()]));
+    this.sessionEventsBySession.clear();
+    for (const event of this.persistence.readAll()) this.apply(event.sessionId, event.changes);
+  }
   private project(header: SessionRecord): void {
     if (!database.prepare("SELECT id FROM users WHERE id = ?").get(String(header.user_id))) return;
     database.prepare(`INSERT INTO ai_sessions (id, user_id, app_id, title, archived, created_at, updated_at)
@@ -74,14 +92,39 @@ export class SessionRepository {
       this.metadata.write("session-migration", { version: 1, sessions: headers.length, messages: this.records.get("ai_messages")!.size, usage: this.records.get("ai_usage")!.size, migratedAt: new Date().toISOString() });
     });
   }
-  all(table: SessionTable, predicate: (record: SessionRecord) => boolean = () => true): unknown[] { this.assertReady(); return structuredClone([...this.records.get(table)!.values()].filter(predicate)); }
+  all(table: SessionTable, predicate: (record: SessionRecord) => boolean = () => true, fields?: readonly string[]): unknown[] {
+    this.assertReady();
+    const rows: SessionRecord[] = [];
+    for (const record of this.records.get(table)!.values()) if (predicate(record)) {
+      rows.push(fields ? Object.fromEntries(fields.map(field => [field, record[field]])) : record);
+    }
+    return structuredClone(rows);
+  }
+  allForSession(table: SessionTable, sessionId: string, fields?: readonly string[]): unknown[] {
+    this.assertReady();
+    const rows = table === "session_events"
+      ? [...(this.sessionEventsBySession.get(sessionId)?.values() ?? [])]
+      : [...this.records.get(table)!.values()].filter(record => table === "ai_sessions" ? record.id === sessionId : record.session_id === sessionId);
+    return structuredClone(fields ? rows.map(record => Object.fromEntries(fields.map(field => [field, record[field]]))) : rows);
+  }
+  onSessionsRemoved(listener: (sessionIds: readonly string[]) => void): () => void {
+    this.sessionRemovalListeners.add(listener);
+    return () => this.sessionRemovalListeners.delete(listener);
+  }
   get(table: SessionTable, id: string): unknown { this.assertReady(); return structuredClone(this.records.get(table)!.get(id)); }
   assertReady(): void { if (this.failed) throw new Error("会话提交失败，必须重启并重放日志后再继续。"); }
   commit(sessionId: string, changes: SessionChange[]): void {
     this.assertReady();
-    const previous = this.records;
-    this.records = new Map([...previous].map(([table, records]) => [table, new Map(records)]));
+    // 提交只替换涉及的记录；按键保留回滚值，不能为一条活动复制所有账户的历史索引。
+    const previous = new Map<SessionTable, Map<string, SessionRecord | undefined>>();
     try {
+      for (const change of [...changes, { table: "ai_sessions" as const, key: sessionId }]) {
+        const records = this.records.get(change.table);
+        if (!records) throw new Error("会话事件记录无效。");
+        let saved = previous.get(change.table);
+        if (!saved) { saved = new Map(); previous.set(change.table, saved); }
+        if (!saved.has(change.key)) saved.set(change.key, records.get(change.key));
+      }
       this.apply(sessionId, changes);
       const header = this.records.get("ai_sessions")!.get(sessionId);
       if (!header || typeof header.user_id !== "string" || typeof header.app_id !== "string" || typeof header.title !== "string" || ![0, 1].includes(Number(header.archived))) throw new Error("会话头无效。");
@@ -94,13 +137,38 @@ export class SessionRepository {
         this.project(committedHeader);
         this.persistence.append({ sessionId, transaction, changes: committedChanges });
       });
-    } catch (error) { this.records = previous; this.failed = true; throw error; }
+    } catch (error) {
+      for (const [table, saved] of previous) for (const [key, value] of saved) {
+        this.storeRecord(table, key, value);
+      }
+      this.failed = true;
+      throw error;
+    }
+  }
+  rewriteSession(sessionId: string, transform: (commit: SessionCommit) => SessionCommit): number {
+    this.assertReady();
+    try {
+      return withControlLock(database, () => {
+        const rewrite = this.persistence.rewrite(sessionId, transform);
+        if (!rewrite.rewrittenTransactions) return 0;
+        for (const event of rewrite.commits) this.apply(sessionId, event.changes);
+        return rewrite.rewrittenTransactions;
+      });
+    } catch (error) {
+      this.failed = true;
+      throw error;
+    }
   }
   removeUser(userId: string): void {
     const headers = [...this.records.get("ai_sessions")!.values()].filter(row => row.user_id === userId);
+    const sessionIds = headers.map(header => String(header.id));
+    for (const listener of [...this.sessionRemovalListeners]) {
+      try { listener(sessionIds); }
+      catch { this.sessionRemovalListeners.delete(listener); }
+    }
     for (const header of headers) {
       const sessionId = String(header.id); this.persistence.remove(sessionId);
-      for (const table of tables) for (const [id, record] of this.records.get(table)!) if ((table === "ai_sessions" ? record.id : record.session_id) === sessionId) this.records.get(table)!.delete(id);
+      for (const table of tables) for (const [id, record] of this.records.get(table)!) if ((table === "ai_sessions" ? record.id : record.session_id) === sessionId) this.storeRecord(table, id, null);
     }
   }
   close(): void { this.persistence.close(); }

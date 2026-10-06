@@ -3,9 +3,14 @@
  * 作用：恢复会话时一次读取账户偏好与设置，工作台首次渲染即可采用已保存主题。
  * 关联文件：packages/client/connection/src/api.ts、packages/client/ui-settings-account/src/AuthView.tsx、packages/client/ui-layout/src/Workbench.tsx。
  */
-import { loadClientModule } from "lfaa-client-modules/src/client/index.js";
+import { loadClientModule, syncDshClientModulesForAuthentication } from "lfaa-client-modules/src/client/index.js";
+import { resolveSessionBootstrap } from "./session-bootstrap.js";
+import { preloadWorkbenchForRoute } from "./workbench-preload.js";
+import { clearAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
+import { clearClientSnapshots } from "lfaa-client-store/src/snapshot-cache.js";
 import { Alert, Button } from "antd";
 import {
   ApiError,
@@ -44,17 +49,11 @@ function loadWorkbenchModule() {
   return workbenchModulePromise;
 }
 
-function preloadWorkbenchModule(): void {
-  void loadWorkbenchModule().catch(() => undefined);
-}
-
 const AuthView = lazy(() => loadClientModule<typeof import("lfaa-client-ui-settings-account/src/AuthView.js")>("lfaa-client-ui-settings-account/src/AuthView.js").then((module) => ({ default: module.AuthView })));
 const Workbench = lazy(() => loadWorkbenchModule().then((module) => ({ default: module.Workbench })));
 
-// 直接刷新应用工作区时，尽早预热共享外壳；登录和设置校验仍完成后才会挂载工作台。
-if (/^\/apps\/(?:steamcmd|minecraft|writing)\/(?:normal|ai-work)(?:\/|$)/u.test(window.location.pathname)) {
-  preloadWorkbenchModule();
-}
+// 直接刷新受保护工作区时先准备代码；账户界面仍要等会话和账户设置验证完成后才会挂载。
+void preloadWorkbenchForRoute(window.location.pathname, loadWorkbenchModule);
 
 const fallbackPreferences: UserPreferences = {
   selectedApp: "steamcmd",
@@ -68,17 +67,77 @@ function serverStateFromHealth(health: ServerHealth | null, checking: boolean): 
   return health?.status === "ok" && health.persistence === "ready" ? "online" : "offline";
 }
 
-function routeTo(path: string, setRoute: (next: string) => void): void {
-  if (window.location.pathname !== path) {
-    window.history.pushState({}, "", path);
+const applicationCenterEntryStateKey = "lfaaApplicationCenterEntry";
+
+function applicationIdForRoute(path: string): ApplicationId | null {
+  if (path === "/tasks") return "workspace";
+  const match = path.match(/^\/apps\/(steamcmd|minecraft|connectivity|writing|workspace)\/(normal|ai-work)(?:\/|$)/u);
+  return match ? match[1] as ApplicationId : null;
+}
+
+function applicationIdFromHistoryState(): ApplicationId | null {
+  const state: unknown = window.history.state;
+  if (!state || typeof state !== "object") return null;
+  const app = (state as Record<string, unknown>)[applicationCenterEntryStateKey];
+  return app === "steamcmd" || app === "minecraft" || app === "connectivity" || app === "writing" || app === "workspace" ? app : null;
+}
+
+function routeTo(
+  path: string,
+  setRoute: (next: string) => void,
+  options: { applicationEntryApp?: ApplicationId; replace?: boolean } = {}
+): void {
+  const currentState: unknown = window.history.state;
+  const nextState: Record<string, unknown> = currentState && typeof currentState === "object" && !Array.isArray(currentState)
+    ? { ...(currentState as Record<string, unknown>) }
+    : {};
+  let nextPath = path;
+  const targetApp = applicationIdForRoute(nextPath);
+
+  if (nextPath === "/") {
+    delete nextState[applicationCenterEntryStateKey];
+  } else if (options.applicationEntryApp) {
+    if (targetApp === options.applicationEntryApp) {
+      nextState[applicationCenterEntryStateKey] = options.applicationEntryApp;
+    } else {
+      nextPath = "/";
+      delete nextState[applicationCenterEntryStateKey];
+    }
+  } else if (targetApp && nextState[applicationCenterEntryStateKey] !== targetApp) {
+    nextPath = "/";
+    delete nextState[applicationCenterEntryStateKey];
   }
-  setRoute(path);
+
+  const shouldReplace = options.replace || nextPath !== path;
+  if (window.location.pathname !== nextPath) {
+    if (shouldReplace) window.history.replaceState(nextState, "", nextPath);
+    else window.history.pushState(nextState, "", nextPath);
+  } else {
+    window.history.replaceState(nextState, "", nextPath);
+  }
+  setRoute(nextPath);
   // 滚动位置由各工作区的恢复 Hook 管理，路由切换时不再额外启动全局平滑滚动。
 }
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [clientModulesReadyUserId, setClientModulesReadyUserId] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    void syncDshClientModulesForAuthentication(Boolean(user)).catch((syncError: unknown) => {
+      console.error("LFAA DSH Client Runtime 同步失败。", syncError);
+    }).finally(() => {
+      if (active && user) setClientModulesReadyUserId(user.id);
+    });
+    return () => { active = false; };
+  }, [user?.id]);
   const [preferences, setPreferences] = useState<UserPreferences>(fallbackPreferences);
+  const preferencesRef = useRef(preferences);
+  preferencesRef.current = preferences;
+  const currentUserRef = useRef(user);
+  currentUserRef.current = user;
+  const navigationSequence = useRef(0);
+  const navigationSave = useRef<Promise<void>>(Promise.resolve());
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [health, setHealth] = useState<ServerHealth | null>(null);
   const healthRef = useRef<ServerHealth | null>(null);
@@ -111,16 +170,33 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void refreshHealth();
-    const interval = window.setInterval(() => void refreshHealth(), 15000);
-    return () => window.clearInterval(interval);
+    const poller = createReadPoller(refreshHealth, 15000);
+    return () => poller.stop();
   }, [refreshHealth]);
 
   useEffect(() => {
-    const handlePopState = () => setRoute(window.location.pathname);
+    const handlePopState = () => {
+      navigationSequence.current += 1;
+      setOpening(null);
+      const nextPath = window.location.pathname;
+      const targetApp = applicationIdForRoute(nextPath);
+      if (targetApp && applicationIdFromHistoryState() !== targetApp) {
+        routeTo("/", setRoute, { replace: true });
+        return;
+      }
+      setRoute(nextPath);
+    };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  useLayoutEffect(() => {
+    if (!user) return;
+    const targetApp = applicationIdForRoute(route);
+    if (targetApp && applicationIdFromHistoryState() !== targetApp) {
+      routeTo("/", setRoute, { replace: true });
+    }
+  }, [route, user?.id]);
 
   useEffect(() => {
     const handleSessionExpired = () => {
@@ -130,6 +206,10 @@ export default function App() {
       }
 
       setUser(null);
+      setClientModulesReadyUserId(null);
+      clearAppearanceThemeBootstrap();
+      navigationSequence.current += 1;
+      clearClientSnapshots();
       setPreferences(fallbackPreferences);
       setUserSettings(null);
       setRequiresSetup(false);
@@ -149,16 +229,8 @@ export default function App() {
     }
 
     // 定期复核 HttpOnly 会话，避免用户长时间停留时仍能看到已过期会话的工作台。
-    const verifySession = () => {
-      void loadCurrentUser().catch(() => undefined);
-    };
-    const handleWindowFocus = () => verifySession();
-    const interval = window.setInterval(verifySession, 15000);
-    window.addEventListener("focus", handleWindowFocus);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("focus", handleWindowFocus);
-    };
+    const poller = createReadPoller(loadCurrentUser, 15000);
+    return () => poller.stop();
   }, [user]);
 
   useEffect(() => {
@@ -177,47 +249,42 @@ export default function App() {
 
     async function restoreSession(): Promise<void> {
       try {
-        const setupStatus = await loadSetupStatus();
+        const bootstrap = await resolveSessionBootstrap(
+          loadCurrentUser,
+          loadSetupStatus,
+          (sessionError) => sessionError instanceof ApiError && sessionError.status === 401
+        );
         if (!active) {
           return;
         }
 
-        setRequiresSetup(setupStatus.requiresSetup);
-        if (setupStatus.requiresSetup) {
+        if (bootstrap.kind === "anonymous") {
+          clearAppearanceThemeBootstrap();
+          setRequiresSetup(bootstrap.requiresSetup);
           sessionRestoreResolvedRef.current = true;
+          setClientModulesReadyUserId(null);
           setUser(null);
           setPreferences(fallbackPreferences);
           setUserSettings(null);
           return;
         }
 
-        try {
-          const session = await loadCurrentUser();
-          if (!active) {
-            return;
+        setRequiresSetup(false);
+        const [savedResult, settingsResult] = await Promise.allSettled([
+          loadPreferences(),
+          loadSettings(),
+          preloadWorkbenchForRoute(window.location.pathname, loadWorkbenchModule, true)
+        ]);
+        if (active) {
+          if (savedResult.status === "rejected") throw savedResult.reason;
+          sessionRestoreResolvedRef.current = true;
+          setPreferences(savedResult.value.preferences);
+          setUser(bootstrap.user);
+          if (settingsResult.status === "fulfilled") {
+            setUserSettings(settingsResult.value.settings);
+          } else {
+            setError(getErrorMessage(settingsResult.reason));
           }
-          preloadWorkbenchModule();
-          const [savedResult, settingsResult] = await Promise.allSettled([loadPreferences(), loadSettings()]);
-          if (active) {
-            if (savedResult.status === "rejected") throw savedResult.reason;
-            sessionRestoreResolvedRef.current = true;
-            setPreferences(savedResult.value.preferences);
-            setUser(session.user);
-            if (settingsResult.status === "fulfilled") {
-              setUserSettings(settingsResult.value.settings);
-              if (window.location.pathname === "/" && settingsResult.value.settings.general.defaultStandaloneChat) routeTo("/tasks", setRoute);
-            } else {
-              setError(getErrorMessage(settingsResult.reason));
-            }
-          }
-        } catch (sessionError) {
-          if (sessionError instanceof ApiError && sessionError.status === 401) {
-            sessionRestoreResolvedRef.current = true;
-            setUser(null);
-            setUserSettings(null);
-            return;
-          }
-          throw sessionError;
         }
       } catch (loadError) {
         if (active) {
@@ -254,17 +321,22 @@ export default function App() {
   }
 
   async function finishAuthentication(user: User): Promise<void> {
-    preloadWorkbenchModule();
-    const [savedResult, settingsResult] = await Promise.allSettled([loadPreferences(), loadSettings()]);
+    clearClientSnapshots();
+    const [savedResult, settingsResult] = await Promise.allSettled([
+      loadPreferences(),
+      loadSettings(),
+      preloadWorkbenchForRoute(window.location.pathname, loadWorkbenchModule, true)
+    ]);
     if (savedResult.status === "rejected") throw savedResult.reason;
     setRequiresSetup(false);
     sessionRestoreResolvedRef.current = true;
     setSessionRestoreError(null);
     setPreferences(savedResult.value.preferences);
+    setClientModulesReadyUserId(null);
     setUser(user);
     const returnRoute = window.location.pathname === "/settings" || window.location.pathname === "/admin/users"
       ? window.location.pathname
-      : settingsResult.status === "fulfilled" && settingsResult.value.settings.general.defaultStandaloneChat ? "/tasks" : "/";
+      : "/";
     routeTo(returnRoute, setRoute);
     if (settingsResult.status === "fulfilled") {
       setUserSettings(settingsResult.value.settings);
@@ -304,21 +376,46 @@ export default function App() {
   }
 
   const handleOpenApplication = useCallback(async (app: ApplicationId, mode: ApplicationMode) => {
+    const owner = currentUserRef.current?.id;
+    if (!owner) return;
+    const currentRouteApp = applicationIdForRoute(window.location.pathname);
+    if (window.location.pathname !== "/" && (currentRouteApp !== app || applicationIdFromHistoryState() !== app)) {
+      routeTo("/", setRoute);
+      return;
+    }
+    const request = ++navigationSequence.current;
+    const selectedMode = app === "workspace" ? "ai-work" : mode;
     setOpening(`${app}:${mode}`);
     setError(null);
-
-    try {
-      const result = await savePreferences({ selectedApp: app, selectedMode: app === "workspace" ? "ai-work" : mode });
-      setPreferences(result.preferences);
-      routeTo(app === "workspace" ? "/tasks" : `/apps/${app}/${mode}`, setRoute);
-    } catch (saveError) {
-      setError(getErrorMessage(saveError));
-    } finally {
-      setOpening(null);
-    }
+    const isCurrent = () => request === navigationSequence.current && currentUserRef.current?.id === owner;
+    // 导航偏好只有一个写入链；跳过被新选择替代的请求，相同偏好直接进入，旧响应不能拉回旧页面。
+    const operation = navigationSave.current.then(async () => {
+      if (!isCurrent()) return;
+      // 通用任务不覆盖上次选择的业务 App；其入口仍由应用中心提供独立的路由标记。
+      if (app !== "workspace" && (preferencesRef.current.selectedApp !== app || preferencesRef.current.selectedMode !== selectedMode)) {
+        const result = await savePreferences({ selectedApp: app, selectedMode });
+        if (currentUserRef.current?.id !== owner) return;
+        preferencesRef.current = result.preferences;
+        if (!isCurrent()) return;
+        setPreferences(result.preferences);
+      }
+      if (isCurrent()) {
+        setPreferences(preferencesRef.current);
+        routeTo(app === "workspace" ? "/tasks" : `/apps/${app}/${mode}`, setRoute, { applicationEntryApp: app });
+      }
+    }).catch((saveError: unknown) => {
+      if (isCurrent()) setError(getErrorMessage(saveError));
+    }).finally(() => {
+      if (isCurrent()) setOpening(null);
+    });
+    navigationSave.current = operation;
+    await operation;
   }, []);
 
   async function handleLogout(): Promise<void> {
+    navigationSequence.current += 1;
+    clearClientSnapshots();
+    setOpening(null);
     setError(null);
     try {
       await logout();
@@ -327,6 +424,8 @@ export default function App() {
         setError(getErrorMessage(logoutError));
       }
     } finally {
+      clearAppearanceThemeBootstrap();
+      setClientModulesReadyUserId(null);
       setUser(null);
       setPreferences(fallbackPreferences);
       setUserSettings(null);
@@ -359,13 +458,7 @@ export default function App() {
   }
 
   if (isInitializing) {
-    return (
-      <main className="loading-page" aria-live="polite">
-        <span className="loading-indicator" aria-hidden="true" />
-        <span>正在恢复 LFAA 工作台…</span>
-        {serverState === "checking" ? <ServiceStatus state={serverState} /> : null}
-      </main>
-    );
+    return <main className="loading-page" aria-busy="true" />;
   }
 
   if (!user && serverState !== "online") {
@@ -421,8 +514,12 @@ export default function App() {
     );
   }
 
+  if (userSettings.appearance.wallpaperEngine.enabled && clientModulesReadyUserId !== user.id) {
+    return <main className="loading-page" aria-busy="true" />;
+  }
+
   return (
-    <Suspense fallback={<main className="loading-page" aria-live="polite"><span className="loading-indicator" aria-hidden="true" /><span>正在加载工作台…</span></main>}>
+    <Suspense fallback={<main className="loading-page" aria-busy="true" />}>
       <Workbench
         user={user}
         initialSettings={userSettings}
@@ -431,7 +528,13 @@ export default function App() {
         route={route}
         error={error}
         opening={opening}
-        onNavigate={(path) => routeTo(path, setRoute)}
+        onNavigate={(path) => {
+          if (path === "/") {
+            navigationSequence.current += 1;
+            setOpening(null);
+          }
+          routeTo(path, setRoute);
+        }}
         onOpenApplication={handleOpenApplication}
         onUserChange={(nextUser) => setUser(nextUser)}
         onLogout={() => void handleLogout()}

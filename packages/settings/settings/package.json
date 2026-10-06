@@ -10,9 +10,13 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-credentials": "workspace:*",
     "lfaa-launch-environment": "workspace:*",
+    "lfaa-home-paths": "workspace:*",
+    "lfaa-storage-json": "workspace:*",
     "lfaa-storage-sqlite": "workspace:*",
-    "lfaa-storage-domain": "workspace:*"
+    "lfaa-storage-domain": "workspace:*",
+    "lfaa-util-values": "workspace:*"
   },
   "devDependencies": {
     "@types/express": "^4.0.0",

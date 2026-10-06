@@ -7,7 +7,9 @@ import { Context, Service } from "@deepseek-ai/cordis";
 import { Router } from "express";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
+import type { TypertRegistry } from "lfaa-typert-registry/src/index.js";
 import { registerRoutes as registerHealth } from "./health-controller.js";
+import { registerTypertRoutes } from "./typert-controller.js";
 export type RouteContributor = (router: Router, aiHost: AiPluginHost, realtime: MinecraftRealtimePublisher) => void;
 interface MountedRouter { router: Router; aiHost: AiPluginHost; realtime: MinecraftRealtimePublisher; layers: Map<string, Router> }
 export class ApiGateway extends Service {
@@ -44,7 +46,9 @@ export class ApiGateway extends Service {
   }
 }
 declare module "@deepseek-ai/cordis" { interface Context { apiGateway: ApiGateway } }
+export const inject = ["lfaaTypertRegistry"];
 export function apply(ctx: Context): void {
   const gateway = new ApiGateway(ctx);
   gateway.register(ctx, "health", registerHealth);
+  gateway.register(ctx, "typert", (router) => registerTypertRoutes(router, ctx.lfaaTypertRegistry as TypertRegistry));
 }

@@ -54,8 +54,8 @@
     grid-template-rows var(--lfaa-snap-settle-duration) cubic-bezier(.16, .82, .24, 1);
 }
 
-/* 左右 Dock 正在改变宽度时暂缓内部容器断点，避免内容在动画每一帧反复切换列数。 */
-.lfaa-workbench[data-width-transitioning="true"] .module-center__content {
+/* Dock 动画和真实拖拽期间暂缓中心卡片容器断点，释放后一次性按最终宽度重排。 */
+.lfaa-workbench:is([data-width-transitioning="true"], [data-dragging="left"], [data-dragging="right"]) .module-center__content {
   container-type: normal;
 }
 
@@ -296,9 +296,8 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-workbench[data-snap-preview="bottom"] .lfaa-workbench__bottom-handle::before { height: 2px; background: var(--agent-text, #171717); }
 .lfaa-workbench__bottom-content { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
 
-/* ===== 7. Compact：左 Dock + 右 Overlay =====
- * Mode 由容器计算器决定，不依赖 viewport 固定断点。
- * 右 Overlay 不参与 Grid 宽度，所以不会再把 Center 挤成一条窄缝。
+/* ===== 7. Compact：通用 Surface 为左 Dock + 右 Overlay =====
+ * AI 工作区启用响应式右 Dock 时覆盖为双 Dock；断点仍由真实工作台容器计算。
  */
 .lfaa-workbench[data-layout-mode="compact"] {
   position: relative;
@@ -320,6 +319,28 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 }
 .lfaa-workbench[data-layout-mode="compact"][data-right-collapsed="true"] .lfaa-workbench__pane--right {
   transform: translateX(calc(100% + 1rem));
+}
+.lfaa-workbench[data-layout-mode="compact"][data-responsive-right-dock="true"][data-right-layout="dock"] {
+  grid-template-columns:
+    var(--lfaa-left-column)
+    var(--lfaa-left-handle-width, var(--lfaa-handle-width))
+    minmax(0, 1fr)
+    var(--lfaa-right-handle-width, var(--lfaa-handle-width))
+    var(--lfaa-right-column);
+}
+.lfaa-workbench[data-layout-mode="compact"][data-responsive-right-dock="true"][data-right-layout="dock"] .lfaa-workbench__center { grid-column: 3; }
+.lfaa-workbench[data-layout-mode="compact"][data-responsive-right-dock="true"][data-right-layout="dock"] .lfaa-workbench__bottom { grid-column: 3 / 6; }
+.lfaa-workbench[data-layout-mode="compact"][data-responsive-right-dock="true"][data-right-layout="dock"] .lfaa-workbench__handle--right { display: block; }
+.lfaa-workbench[data-layout-mode="compact"][data-responsive-right-dock="true"][data-right-layout="dock"] .lfaa-workbench__pane--right {
+  position: relative;
+  z-index: auto;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  width: auto;
+  max-width: none;
+  box-shadow: none;
+  border-left: 1px solid var(--agent-border, #e5e5e5);
 }
 
 /* ===== 8. Mobile：主区全宽 + 左右 Overlay ===== */
@@ -367,3 +388,63 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 }
 .lfaa-workbench[data-layout-mode="mobile"] .lfaa-workbench__handle--left,
 .lfaa-workbench[data-layout-mode="mobile"] .lfaa-workbench__handle--right { display: none; }
+
+/* 中心区和右栏仍放得下时，Mobile 只把左导航浮起，中心与右 Dock 保持并排。 */
+.lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="true"][data-right-layout="dock"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--lfaa-right-handle-width, var(--lfaa-handle-width)) var(--lfaa-right-column);
+  grid-template-rows: minmax(0, 1fr) var(--lfaa-bottom-row);
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="true"][data-right-layout="dock"] .lfaa-workbench__pane--left {
+  position: absolute;
+  z-index: 80;
+  top: var(--lfaa-shell-header-h);
+  bottom: var(--lfaa-bottom-row);
+  left: 0;
+  width: var(--lfaa-mobile-pane-width);
+  max-width: calc(100% - .75rem);
+  box-shadow: 1rem .625rem 2.25rem rgba(0, 0, 0, .14);
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="true"][data-right-layout="dock"] .lfaa-workbench__handle--left { display: none; }
+.lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="true"][data-right-layout="dock"] .lfaa-workbench__center { grid-column: 1; grid-row: 1; }
+.lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="true"][data-right-layout="dock"] .lfaa-workbench__handle--right { display: block; grid-column: 2; grid-row: 1; }
+.lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="true"][data-right-layout="dock"] .lfaa-workbench__pane--right {
+  position: relative;
+  z-index: auto;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  width: auto;
+  max-width: none;
+  box-shadow: none;
+  border-left: 1px solid var(--agent-border, #e5e5e5);
+  grid-column: 3;
+  grid-row: 1;
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="true"][data-right-layout="dock"] .lfaa-workbench__bottom {
+  position: relative;
+  z-index: auto;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  height: var(--lfaa-bottom-row);
+  max-height: none;
+  grid-column: 1 / 4;
+  grid-row: 2;
+}
+
+/* 空间不足以保留 260px 中心区时，右栏退回浮层但仍可从左边缘拉伸宽度。 */
+.lfaa-workbench[data-layout-mode="mobile"][data-right-layout="overlay"] .lfaa-workbench__pane--right {
+  width: min(var(--lfaa-right-size), calc(100% - .75rem));
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-right-layout="overlay"] .lfaa-workbench__handle--right:not([aria-disabled="true"]) {
+  position: absolute;
+  z-index: 90;
+  top: var(--lfaa-shell-header-h);
+  right: min(var(--lfaa-right-size), calc(100% - .75rem));
+  bottom: var(--lfaa-bottom-row);
+  display: block;
+  width: var(--lfaa-right-handle-width, var(--lfaa-handle-width));
+  transform: translateX(-50%);
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-right-layout="overlay"][data-right-collapsed="true"] .lfaa-workbench__handle--right { display: none; }

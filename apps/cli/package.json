@@ -62,6 +62,8 @@
     "lfaa-hmr": "workspace:*",
     "lfaa-base": "workspace:*",
     "lfaa-web-app": "workspace:*",
+    "lfaa-desktop-computer-use": "workspace:*",
+    "lfaa-computer-use": "workspace:*",
     "lfaa-home-paths": "workspace:*",
     "lfaa-api-account-controller": "workspace:*",
     "lfaa-api-job-controller": "workspace:*",
