@@ -533,7 +533,7 @@ function Get-BlockedGitPaths {
     return @($Paths | Where-Object {
         $path = $_ -replace '\\', '/'
         # packages/credentials 是版本化第一方源码包；其他 credentials 目录仍视为本机凭据数据。
-        $sourceCredentialsPackage = $path -match '(?i)^packages/credentials/'
+        $sourceCredentialsPackage = $path -match '(?i)^packages/credentials(?:/|$)'
         # 运行数据目录一律不得推送：根 data/、server/data/、apps/*/data/。
         $path -match '(?i)^(data|server/data)/' -or
         $path -match '(?i)^apps/[^/]+/data/' -or
