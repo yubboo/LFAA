@@ -6,6 +6,7 @@
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
+| LFAA-DESKTOP-UPDATE-CHECK-UI-UNBLOCK-01 | 修复桌面端更新检查在新版提示等待用户操作期间持续转圈的问题，让检查先明确返回发现版本，再独立等待下载选择 | 已实现（38 项定向回归、Windows x64 构建、包内版本/界面与更新清单对账通过；安装器未签名；弹窗交互和真实升级未验，未发布） | 本文件“LFAA-DESKTOP-UPDATE-CHECK-UI-UNBLOCK-01” |
 | LFAA-DESKTOP-UPDATE-RELEASE-01 | 将 Windows Electron 更新能力接入 0.1.2，并发布可供 0.1.1 检测的更新 | 已发布（构建、线上清单与安装包核对通过；0.1.1 实机升级未验） | 本文件“LFAA-DESKTOP-UPDATE-RELEASE-01” |
 | LFAA-UI-PLUGIN-WORKSPACE-01 | 将设置中心的插件配置重排为分区工作台，分离总览、能力目录、知识库、第三方插件、MCP 与运行诊断，并复用现有设置 Owner | 已实现（UI 包构建、客户端类型检查和差异检查通过；Web 构建指纹检测到并行源码变更而未登记，浏览器目视未验） | 本文件“LFAA-UI-PLUGIN-WORKSPACE-01” |
 | LFAA-CLI-WEB-LOCK-RECOVERY-01 | Web 菜单启动时识别当前数据目录的存活 LFAA Web 写锁持有者，结束该 CLI 进程后再启动 | 已实现（PowerShell 语法、数据目录解析、差异检查通过；真实 PID 终止与 Web 重启未运行） | 本文件“LFAA-CLI-WEB-LOCK-RECOVERY-01” |
@@ -8200,3 +8201,44 @@ Minecraft 节点适配器调用现有 Agent Loop、Minecraft Tools 和 Daemon Ow
 - 对 HEAD 的 1628 条历史路径扫描、超过 25 MiB 对象扫描与高风险历史凭据扫描全部通过；存在 2 条现有通用凭据赋值启发式非阻断提醒。修复与回归两文件的 staged 路径/高风险凭据扫描通过。
 - 按用户在菜单 6 中的确认，提交 `68716b1773349e2df3531932f9ebab9bd09a0968` 与其父提交 `3bb810c` 通过普通 fast-forward 推送至 `origin/main`，没有强推。推送后 GitHub `main/update.json` 返回 HTTP 200、版本 `0.0.4`；`releases/latest/download/latest.yml` 返回 HTTP 200、版本 `0.0.4`。未能在用户的桌面安装实例中实际点击“检查更新”复验。
 - 不涉及设置中心配置。用户工作区中另外存在的 `docs/updata-log.md`、`update.json` 与 `开发规范.md` 变更未纳入修复提交；`docs/PROMPTS.md` 含其他并行版本构建合同变更，也未推送。
+
+## LFAA-DESKTOP-UPDATE-CHECK-UI-UNBLOCK-01：新版已检测但检查界面仍持续等待
+
+### 用户目标与运行入口
+
+- 用户在 Windows Electron 设置中心手动检查更新；本机日志显示 0.0.3 客户端曾在 2026-10-06 19:20:16 UTC 确认 Release feed 提供 LFAA 0.0.4，但检查按钮仍转圈，界面仍显示“可手动检查”。
+- 运行入口为 `packages/client/ui-settings/src/SettingsPage.tsx` 的手动检查 IPC；更新清单校验、Release feed 对账、提示决策及下载 Owner 为 `apps/desktop-electron/src/update-flow.mjs` 与 `apps/desktop-electron/src/main.mjs`；工作台弹窗由 `packages/client/ui-layout/src/Workbench.tsx` 消费。
+- 现有检查 IPC 等待 `promptForUpdate` 的用户选择，提示 Broker 最长可等 15 分钟；这让“检查是否发现版本”与“用户是否同意下载”耦合在一个请求中。目标是先返回 `available` 并解除检查按钮 loading，再由唯一桌面更新 Owner 异步处理用户选择；保持弹窗、清单与 Release 匹配、偏好和下载安全流程。
+
+### 设置、数据/权限 Owner 与验收条件
+
+- 复用现有桌面设备偏好 `autoDownloadAndInstall`（默认关闭）和 `ignoredVersion`（默认空），由 Electron `update-preferences.json` Owner 保存；本轮不增加设置中心配置，不改变下载/跳过授权语义。
+- 更新检查并发仍合并为一个请求；用户决策等待期间重复自动/手动检查返回同一可用版本状态，不再重复打开提示或阻塞 UI；确认下载后沿用现有 Release 版本匹配和下载流程。
+- 定向回归验证：发现更新立即返回 `available`；提示未决期间重复检查不重读清单、不发起重复提示；defer/skip/accept 各自维持既有状态、持久化及下载行为；自动下载安装偏好开启时继续跳过提示并进入既有下载路径。
+- 更新结果 UI 明确显示“发现新版”和版本号；更新清单与 Release feed 实际请求成功，且分别报告 HTTP 状态和版本。性能核查确认无新增定时器/订阅/重复网络请求，既有 6 小时周期保持不变；`git diff --check` 通过。
+- 按正式桌面构建流程产出下一个唯一 Windows x64 Electron 包 `LFAA-0.0.5.exe` 到根 `dist/apps/desktop-electron/`，并提供 `dist/apps/desktop-electron/LFAA-0.0.5/` 用户交付目录；包内版本、更新清单、`latest.yml` 与安装器文件/hash 对账通过。
+- 不重启正在运行的 LFAA 桌面进程、Control Plane/Daemon 或端口 3000；不安装候选、不推送 GitHub、不创建 Tag/Release、不上传。实际更新弹窗交互及 0.0.3→0.0.5 安装升级未由本轮静态、自动化或打包证据替代。
+
+### 允许修改
+
+- `apps/desktop-electron/src/update-flow.mjs`、`apps/desktop-electron/tests/update-flow.test.mjs`：解除更新检查 IPC 与用户提示选择的等待耦合，保持单一更新决策 Owner，并验证并发与用户选项。
+- `apps/desktop-electron/src/main.mjs`：仅在更新提示交互需要时增加不含秘密的阶段日志。
+- `packages/client/connection/src/api.ts`、`packages/client/ui-settings/src/SettingsPage.tsx`：扩展现有更新结果联合类型及新版状态/说明。
+- `docs/updata-log.md`、`update.json`、CLI/Web/Electron 版本元数据：由正式 `build:win` 版本准备流程同步到 `0.0.5`；本合同登记目标与实现验收。
+- 构建与临时输出仅写根目录 `dist/apps/desktop-electron/`、`dist/.tmp/desktop-electron/` 及构建入口拥有的根 `dist/apps` 目标。
+
+### 禁止修改
+
+- 不更改更新源 URL、签名策略、最低支持版本、更新权限模式或设置中心偏好默认值；不新增旁路更新源、假状态、定时轮询或平行更新 Owner。
+- 不停止或重启当前运行的桌面/服务进程，不覆盖 `dist/apps/web/` 正式运行资源。
+- 不提交、推送、发布、上传、签名或安装候选包；不清理其他版本产物和用户数据。
+
+### 实施与验收记录
+
+- `apps/desktop-electron/src/update-flow.mjs` 在确认更新版本后立即返回 `available`；弹窗选择在后台由原更新 Owner 处理。等待用户决定期间重复检查返回同一可用版本，不重复读取清单或重新弹窗。接受、稍后、跳过及自动下载安装仍走原偏好与下载流程。
+- `packages/client/ui-settings/src/SettingsPage.tsx` 在检查返回后显示新版状态和版本；Electron 阶段日志记录发现版本与用户选择，不包含凭据。没有新增设置中心配置；继续使用设备偏好 `autoDownloadAndInstall`（默认关闭）和 `ignoredVersion`（默认空）。
+- `pnpm --filter lfaa-desktop-electron run test:update-manifest` 定向回归 38/38 通过；`node --check` 对 `main.mjs`、`update-flow.mjs` 通过；Electron 更新清单校验、`git diff --check` 通过。
+- `pnpm run build:win` 成功，产出 LFAA 0.0.5 Windows x64 NSIS 安装包；Control Plane、Windows Sandbox Host、隔离 Web 候选构建及随包 Profile CUA Driver 导入/工具注册冒烟检查通过。Web 候选有既存的大 chunk 提示。包内 `app.asar` 版本为 0.0.5，含非阻塞 `available` 检查和新版阶段日志；编译后的 Settings 页面含“发现新版”状态。
+- 用户交付目录为 `H:\LFAA1\dist\apps\desktop-electron\LFAA-0.0.5\`，包含 `LFAA-0.0.5.exe`、同名 `.blockmap` 与 `latest.yml`。安装器为 158,466,308 字节；根构建输出与交付副本 SHA-256 均为 `35B319105A768EF2F3577ED7057C3BFB1E834992409AB9303D62A5ED21E0DC7E`。`latest.yml` 的版本、路径、大小和 SHA-512 与安装器匹配。
+- 安装器 Authenticode 状态为 `NotSigned`。未安装候选包；桌面更新弹窗的真实呈现/点击、0.0.3 到 0.0.5 的实际升级和发布后的在线检测未验。GitHub 当前仍是已核实的 0.0.4 清单/Release；本轮没有推送、创建 Release 或上传，0.0.5 需用户按既定流程上传后才会成为线上版本。
+- 未停止或重启现有 LFAA 桌面、Control Plane/Daemon 或端口 3000。构建前后正式 `dist/apps/web/index.html` 与 `build-state.json` 指纹未变化，运行中的 `/api/health` 返回 HTTP 200。性能边界：本次改动没有新增定时器/订阅，提示等待期重复检查不产生重复清单请求；没有进行桌面帧时间或安装后交互测量。

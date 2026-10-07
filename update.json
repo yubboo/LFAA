@@ -2,16 +2,15 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "0.0.4",
-  "title": "LFAA 0.0.4",
+  "version": "0.0.5",
+  "title": "LFAA 0.0.5",
   "publishedAt": "2026-10-07",
   "releaseNotes": [
-    "桌面端新增顶部更新入口和版本说明卡片",
-    "提供“跳过此版本”和“稍后”选项",
-    "自动下载并安装改为本机明确授权且默认关闭。"
+    "修复桌面端发现新版后检查按钮持续转圈",
+    "检查结果立即显示新版并保留下载前确认、稍后与跳过选项"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "0.0.1",
   "releasePage": "https://github.com/yubboo/LFAA/releases",
-  "feedUrl": "https://github.com/yubboo/LFAA/releases/latest/download/"
+  "feedUrl": "https://github.com/yubboo/LFAA/releases/latest/download"
 }

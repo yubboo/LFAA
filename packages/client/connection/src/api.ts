@@ -881,7 +881,7 @@ export type DesktopUpdatePrompt =
     };
 
 export interface DesktopUpdateCheckResult {
-  status: "unsupported" | "disabled" | "up-to-date" | "deferred" | "ignored" | "downloading" | "downloaded" | "error";
+  status: "unsupported" | "disabled" | "up-to-date" | "available" | "deferred" | "ignored" | "downloading" | "downloaded" | "error";
   currentVersion: string;
   latestVersion?: string;
   releaseNotes?: string[];

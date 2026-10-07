@@ -27,6 +27,10 @@ function createHarness(overrides = {}) {
   return { calls, flow, manifest };
 }
 
+function nextEventLoopTurn() {
+  return new Promise(resolve => setImmediate(resolve));
+}
+
 test("非打包或不支持的平台不读取远端清单", async () => {
   const { calls, flow } = createHarness({ isSupported: () => false });
   assert.deepEqual(await flow.check({ manual: true }), { status: "unsupported", currentVersion: "0.0.2" });
@@ -53,12 +57,14 @@ test("发布清单关闭更新时报告当前策略且不访问安装源", async
   assert.equal(calls.promptForUpdate, 0);
 });
 
-test("跳过只持久忽略当前版本，随后清除顶部更新入口", async () => {
+test("发现新版先返回可用状态；跳过只持久忽略当前版本", async () => {
   const { calls, flow } = createHarness({
     promptForUpdate: async () => { calls.promptForUpdate += 1; return "skip"; }
   });
   const result = await flow.check({ manual: true });
-  assert.equal(result.status, "ignored");
+  assert.equal(result.status, "available");
+  assert.equal(result.latestVersion, "0.0.3");
+  await nextEventLoopTurn();
   assert.deepEqual(calls.ignored, ["0.0.3"]);
   assert.deepEqual(calls.availability, ["0.0.3", null]);
   assert.equal(calls.beginDownload, 0);
@@ -73,6 +79,8 @@ test("已跳过版本不会再次提示，新版本仍进入真实 Release feed 
   assert.equal(calls.promptForUpdate, 0);
 
   manifest.version = "0.0.4";
+  assert.equal((await flow.check()).status, "available");
+  await nextEventLoopTurn();
   assert.equal((await flow.check()).status, "downloading");
   assert.equal(calls.checkReleaseFeed, 1);
   assert.equal(calls.promptForUpdate, 1);
@@ -129,16 +137,20 @@ test("用户暂缓后自动和手动检查都不再提示同一版本；重启�
   const { calls, flow } = createHarness({
     promptForUpdate: async () => { calls.promptForUpdate += 1; return "defer"; }
   });
+  assert.equal((await flow.check()).status, "available");
+  await nextEventLoopTurn();
   assert.equal((await flow.check()).status, "deferred");
   assert.equal(calls.beginDownload, 0);
   assert.equal((await flow.check()).status, "deferred");
   assert.equal((await flow.check({ manual: true })).status, "deferred");
-  assert.equal(calls.readManifest, 3);
+  assert.equal(calls.readManifest, 4);
   assert.equal(calls.promptForUpdate, 1);
   assert.equal(calls.checkReleaseFeed, 1);
   assert.equal(calls.beginDownload, 0);
 
   const restarted = createHarness();
+  assert.equal((await restarted.flow.check()).status, "available");
+  await nextEventLoopTurn();
   assert.equal((await restarted.flow.check()).status, "downloading");
   assert.equal(restarted.calls.promptForUpdate, 1);
   assert.equal(restarted.calls.beginDownload, 1);
@@ -153,14 +165,17 @@ test("低于最低支持版本时向宿主传递强制更新状态", async () =>
       return "accept";
     }
   });
-  assert.equal((await flow.check({ manual: true })).status, "downloading");
+  assert.equal((await flow.check({ manual: true })).status, "available");
+  await nextEventLoopTurn();
   assert.equal(calls.beginDownload, 1);
 });
 
 test("接受更新后开始下载，完成后后续检查报告已下载", async () => {
   const { calls, flow } = createHarness();
-  assert.equal((await flow.check({ manual: true })).status, "downloading");
+  assert.equal((await flow.check({ manual: true })).status, "available");
+  await nextEventLoopTurn();
   assert.equal(calls.beginDownload, 1);
+  assert.equal((await flow.check({ manual: true })).status, "downloading");
   assert.equal(flow.markDownloaded("0.0.2"), false);
   assert.equal(flow.markDownloaded("0.0.3"), true);
   assert.deepEqual(await flow.check({ manual: true }), { status: "downloaded", currentVersion: "0.0.2", latestVersion: "0.0.3" });
@@ -179,8 +194,9 @@ test("并发手动检查合并为一次远端检查与一次用户提示", async
   await new Promise(resolve => setImmediate(resolve));
   finishCheck();
   const results = await Promise.all([first, second]);
-  assert.equal(results[0].status, "downloading");
-  assert.equal(results[1].status, "downloading");
+  assert.equal(results[0].status, "available");
+  assert.equal(results[1].status, "available");
+  await nextEventLoopTurn();
   assert.equal(calls.readManifest, 1);
   assert.equal(calls.checkReleaseFeed, 1);
   assert.equal(calls.promptForUpdate, 1);
@@ -191,8 +207,33 @@ test("下载失败后释放下载锁并记录诊断", async () => {
   const { calls, flow } = createHarness({
     beginDownload: async () => { calls.beginDownload += 1; throw new Error("network failed"); }
   });
-  assert.equal((await flow.check({ manual: true })).status, "downloading");
-  await new Promise(resolve => setImmediate(resolve));
+  assert.equal((await flow.check({ manual: true })).status, "available");
+  await nextEventLoopTurn();
   assert.equal(flow.markDownloadFailed("0.2.0"), false);
   assert.equal(calls.errors[0]?.phase, "download");
+});
+
+test("提示等待用户选择时检查已结束，重复检查不重读清单或重复提示", async () => {
+  let choose;
+  const { calls, flow, manifest } = createHarness({
+    promptForUpdate: () => {
+      calls.promptForUpdate += 1;
+      return new Promise(resolve => { choose = resolve; });
+    }
+  });
+
+  const first = await flow.check({ manual: true });
+  assert.equal(first.status, "available");
+  assert.equal(first.latestVersion, manifest.version);
+  assert.equal(calls.beginDownload, 0);
+
+  const repeated = await flow.check({ manual: true });
+  assert.equal(repeated.status, "available");
+  assert.equal(calls.readManifest, 1);
+  assert.equal(calls.checkReleaseFeed, 1);
+  assert.equal(calls.promptForUpdate, 1);
+
+  choose("defer");
+  await nextEventLoopTurn();
+  assert.equal((await flow.check({ manual: true })).status, "deferred");
 });

@@ -3013,6 +3013,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           : webUpdateResult?.status === "disabled" ? "更新未开放"
             : webUpdateResult?.status === "error" ? "检查失败"
               : desktopUpdateResult?.status === "up-to-date" ? "已是最新"
+        : desktopUpdateResult?.status === "available" ? "发现新版"
         : desktopUpdateResult?.status === "deferred" ? "已暂缓"
           : desktopUpdateResult?.status === "ignored" ? "已跳过"
           : desktopUpdateResult?.status === "downloading" ? "正在下载"
@@ -3029,6 +3030,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           : webUpdateResult?.status === "disabled" ? "当前官方发布清单暂未开放更新。"
             : webUpdateResult?.status === "error" ? webUpdateResult.message || "检查更新失败，请稍后重试。"
               : desktopUpdateResult?.status === "up-to-date" ? `LFAA ${currentVersion} 已是最新版本。`
+        : desktopUpdateResult?.status === "available" ? `发现 LFAA ${desktopUpdateResult.latestVersion ?? "新版本"}；可以在工作台更新入口查看说明并选择下载。`
         : desktopUpdateResult?.status === "deferred" ? `已暂缓 LFAA ${desktopUpdateResult.latestVersion ?? "新版本"}；本次不会下载。`
           : desktopUpdateResult?.status === "ignored" ? `已跳过 LFAA ${desktopUpdateResult.latestVersion ?? "新版本"}；只在新版本发布后再次提示。`
           : desktopUpdateResult?.status === "downloading" ? `已开始下载 LFAA ${desktopUpdateResult.latestVersion ?? "新版本"}。下载完成后会再次询问是否安装。`

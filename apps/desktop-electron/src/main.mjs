@@ -369,6 +369,7 @@ async function readRemoteUpdateManifest() {
 }
 
 async function promptToDownloadUpdate(manifest, { mustInstall }) {
+  await writeLog("更新", `已发现 LFAA ${manifest.version}，等待用户选择是否下载。`);
   const action = await desktopUpdatePromptBroker.request({
     kind: "download",
     version: manifest.version,
@@ -376,6 +377,7 @@ async function promptToDownloadUpdate(manifest, { mustInstall }) {
     releaseNotes: manifest.releaseNotes,
     mandatory: mustInstall
   });
+  await writeLog("更新", `LFAA ${manifest.version} 更新提示已结束，用户选择：${action}。`);
   return action === "accept" || action === "skip" ? action : "defer";
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "@yubboo/lfaa",
   "private": true,
-  "version": "0.0.4",
+  "version": "0.0.5",
   "type": "module",
   "bin": {
     "lfaa": "./bin/lfaa.mjs"

@@ -34,6 +34,7 @@ export function createDesktopUpdateFlow({
   let downloadingVersion = "";
   let downloadedVersion = "";
   let deferredVersion = "";
+  let promptingManifest = null;
 
   function reportError(error, phase, manifest = null) {
     try {
@@ -58,7 +59,49 @@ export function createDesktopUpdateFlow({
     if (!isSupported()) return result("unsupported", currentVersion);
     if (downloadedVersion) return { status: "downloaded", currentVersion, latestVersion: downloadedVersion };
     if (downloadingVersion) return { status: "downloading", currentVersion, latestVersion: downloadingVersion };
+    if (promptingManifest) return result("available", currentVersion, promptingManifest);
     if (inFlightCheck) return inFlightCheck;
+
+    function startDownload(manifest, preferences) {
+      downloadingVersion = manifest.version;
+      try {
+        Promise.resolve(beginDownload(manifest, { automaticInstall: preferences?.autoDownloadAndInstall === true })).catch(error => {
+          if (downloadingVersion === manifest.version) downloadingVersion = "";
+          reportError(error, "download", manifest);
+        });
+      } catch (error) {
+        downloadingVersion = "";
+        reportError(error, "download", manifest);
+        return result("error", currentVersion, manifest, getDesktopUpdateErrorMessage(error, "download"));
+      }
+      deferredVersion = "";
+      return result("downloading", currentVersion, manifest);
+    }
+
+    function promptForDecision(manifest, preferences, mustInstall) {
+      promptingManifest = manifest;
+      void (async () => {
+        try {
+          const decision = await promptForUpdate(manifest, { mustInstall, manual });
+          if (decision === "skip" && !mustInstall) {
+            await ignoreVersion(manifest.version);
+            deferredVersion = "";
+            onUpdateAvailable(null);
+            return;
+          }
+          if (decision !== "accept") {
+            deferredVersion = manifest.version;
+            return;
+          }
+          startDownload(manifest, preferences);
+        } catch (error) {
+          reportError(error, "check", manifest);
+        } finally {
+          if (promptingManifest?.version === manifest.version) promptingManifest = null;
+        }
+      })();
+      return result("available", currentVersion, manifest);
+    }
 
     const request = (async () => {
       let manifest = null;
@@ -92,33 +135,8 @@ export function createDesktopUpdateFlow({
         onUpdateAvailable(manifest);
         const mustInstall = manifest.mandatory
           && compareVersions(currentVersion, manifest.minimumSupportedVersion) < 0;
-        const decision = preferences?.autoDownloadAndInstall
-          ? "accept"
-          : await promptForUpdate(manifest, { mustInstall, manual });
-        if (decision === "skip" && !mustInstall) {
-          await ignoreVersion(manifest.version);
-          deferredVersion = "";
-          onUpdateAvailable(null);
-          return result("ignored", currentVersion, manifest);
-        }
-        if (decision !== "accept") {
-          deferredVersion = manifest.version;
-          return result("deferred", currentVersion, manifest);
-        }
-
-        downloadingVersion = manifest.version;
-        try {
-          Promise.resolve(beginDownload(manifest, { automaticInstall: preferences?.autoDownloadAndInstall === true })).catch(error => {
-            if (downloadingVersion === manifest.version) downloadingVersion = "";
-            reportError(error, "download", manifest);
-          });
-        } catch (error) {
-          downloadingVersion = "";
-          reportError(error, "download", manifest);
-          return result("error", currentVersion, manifest, getDesktopUpdateErrorMessage(error, "download"));
-        }
-        deferredVersion = "";
-        return result("downloading", currentVersion, manifest);
+        if (!preferences?.autoDownloadAndInstall) return promptForDecision(manifest, preferences, mustInstall);
+        return startDownload(manifest, preferences);
       } catch (error) {
         reportError(error, "check", manifest);
         return result("error", currentVersion, manifest, getDesktopUpdateErrorMessage(error, "check"));
