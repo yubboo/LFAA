@@ -1,6 +1,6 @@
 /**
- * 功能：回归 AI Work 空闲虚化计时与 UI 状态接线。
- * 作用：验证活动复位、到期虚化、隐藏/卸载清理，以及设置控制正文/刻度/滚动条的同一状态。
+ * 功能：回归 AI Work 空闲虚化/淡出计时与 UI 状态接线。
+ * 作用：验证活动复位、到期虚化/淡出、隐藏/卸载清理，以及设置控制回复/刻度/滚动条的同一状态。
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -99,11 +99,12 @@ test("高频活动不重复安排计时器，隐藏时暂停，恢复后重计�
   assert.equal(clock.pendingCount(), 0);
 });
 
-test("AI Work、外观设置和刻度/滚动条都绑定到账户空闲虚化设置", () => {
+test("AI Work 回复、刻度/滚动条使用设置的虚化与淡出强度并平滑切换", () => {
   const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
   const chat = read("../../../packages/client/ui-chat/src/AiWorkChat.tsx");
   const chatCss = read("../../../packages/client/ui-chat/src/ai-work-chat.css");
   const workbenchCss = read("../../../packages/client/ui-workspace/src/module-workbench.css");
+  const workbench = read("../../../packages/client/ui-layout/src/Workbench.tsx");
   const settings = read("../../../packages/client/ui-settings/src/SettingsPage.tsx");
 
   assert.match(chat, /aiWorkOutputFocusBlurIdleSeconds\s*\*\s*1000/u);
@@ -120,9 +121,15 @@ test("AI Work、外观设置和刻度/滚动条都绑定到账户空闲虚化设
   assert.match(chatCss, /data-output-idle="true"[^\n]*\.ai-work-chat__scroll-latest/u);
   assert.match(chatCss, /data-output-idle="true"[^\n]*\.ai-work-chat__composer-context/u);
   assert.match(workbenchCss, /data-output-idle="false"[^\n]*\.ai-work-chat__messages/u);
+  assert.match(workbench, /--settings-ai-work-output-focus-opacity/u);
+  assert.match(workbench, /1\s*-\s*appearanceAdvanced\.aiWorkOutputFocusBlurPercent\s*\/\s*100/u);
+  assert.match(chatCss, /opacity:\s*var\(--settings-ai-work-output-focus-opacity/u);
+  assert.match(chatCss, /transition:\s*filter\s+240ms[^;]*opacity\s+240ms/u);
+  assert.match(chatCss, /data-reduced-motion="on"[\s\S]*transition:\s*none/u);
+  assert.match(chatCss, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*transition-duration:\s*0ms/u);
   assert.match(settings, /aiWorkOutputFocusBlurIdleSeconds/u);
   assert.match(settings, /min=\{1\} max=\{60\} value=\{settings\.appearance\.advanced\.aiWorkOutputFocusBlurIdleSeconds \/ 60\} onChange=\{\(minutes\) => updateAppearanceAdvanced\(\{ aiWorkOutputFocusBlurIdleSeconds: minutes \* 60 \}\)\}/u);
   assert.match(settings, /min=\{1\} max=\{60\}[\s\S]*?\} 分钟/u);
-  assert.match(chatCss, /瞬时切换[\s\S]*filter 动画/u);
-  assert.doesNotMatch(chatCss, /720ms|settings-ai-work-output-focus-opacity/u);
+  assert.match(settings, /100% 完全淡出隐藏回复/u);
+  assert.doesNotMatch(chatCss, /瞬时切换[\s\S]*filter 动画/u);
 });

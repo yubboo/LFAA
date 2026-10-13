@@ -4,6 +4,7 @@
  * 关联文件：packages/storage/storage-sqlite/src/database.ts、packages/api/gateway/src/index.ts、packages/host/daemon/src/local-daemon.ts、packages/host/daemon/src/daemon.mjs、packages/client/ui-settings/src/SettingsPage.tsx。
  */
 import { randomUUID } from "node:crypto";
+import { win32 } from "node:path";
 import { protectedDataDirectories } from "lfaa-home-paths/src/reserved-data-paths.mjs";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { configuration } from "lfaa-storage-domain/src/configuration.js";
@@ -89,7 +90,7 @@ export const defaultSteamcmdConfiguration = {
 export const defaultSteamcmdStorage = { gameDirectory: "games/steamcmd" };
 export const defaultSteamcmdNodeSettings = { ...defaultSteamcmdConfiguration, ...defaultSteamcmdStorage };
 
-/** 配置路径只接受数据根目录内的安全相对路径，确保文件管理器能访问且不能越界。 */
+/** SteamCMD 工具路径继续留在目标节点 data 根目录内。 */
 export function validateSteamcmdDirectory(value: string): string {
   if (typeof value !== "string" || value.length > 512 || value.includes("\\") || value.startsWith("/") || /^[a-z]:/iu.test(value)) {
     throw new Error("目录必须是 LFAA 数据根目录内的相对路径。");
@@ -108,6 +109,21 @@ export function validateSteamcmdDirectory(value: string): string {
   return segments.join("/");
 }
 
+/** 游戏内容目录可使用节点 data 相对路径或本机 Windows 磁盘绝对路径。 */
+export function validateSteamcmdGameDirectory(value: string): string {
+  if (typeof value !== "string" || value.length > 2_048 || /[\r\n\u0000]/u.test(value)) throw new Error("Steam 游戏目录无效。");
+  if (!win32.isAbsolute(value)) return validateSteamcmdDirectory(value);
+  if (value.split(/[\\/]/u).includes("..")) throw new Error("Steam 游戏目录不能包含父目录跳转。");
+  const normalized = win32.normalize(value);
+  const root = win32.parse(normalized).root;
+  if (!/^[a-z]:\\$/iu.test(root) || normalized.length <= root.length) throw new Error("Steam 游戏目录必须位于可用磁盘的普通文件夹中，不能直接选择磁盘根目录。");
+  const segments = win32.relative(root, normalized).split("\\");
+  if (segments.some(segment => !segment || segment === "." || segment === ".." || segment.length > 120
+    || /[<>:"|?*\u0000-\u001f]/u.test(segment) || /[ .]$/u.test(segment)
+    || /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/iu.test(segment))) throw new Error("Steam 游戏目录包含无效路径片段。");
+  return normalized;
+}
+
 function validateConfiguration(input: SteamcmdConfigurationValues): SteamcmdConfigurationValues {
   if (input.installMode !== "online" && input.installMode !== "manual") throw new Error("SteamCMD 安装方式无效。");
   const steamcmdDirectory = validateSteamcmdDirectory(input.steamcmdDirectory);
@@ -115,7 +131,7 @@ function validateConfiguration(input: SteamcmdConfigurationValues): SteamcmdConf
 }
 
 function validateStorage(input: SteamcmdStorageValues): SteamcmdStorageValues {
-  return { gameDirectory: validateSteamcmdDirectory(input.gameDirectory) };
+  return { gameDirectory: validateSteamcmdGameDirectory(input.gameDirectory) };
 }
 
 function validateSettings(input: SteamcmdSettingsValues): SteamcmdSettingsValues {

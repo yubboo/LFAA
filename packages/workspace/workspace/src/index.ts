@@ -9,7 +9,8 @@ import { randomUUID } from "node:crypto";
 import { basename, isAbsolute } from "node:path";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 
-export type WorkspaceProjectApplicationId = "workspace" | "minecraft";
+import type { WorkspaceProjectApplicationId } from "lfaa-util-values/src/application-id.js";
+export type { WorkspaceProjectApplicationId } from "lfaa-util-values/src/application-id.js";
 
 export interface WorkspaceProject {
   id: string;

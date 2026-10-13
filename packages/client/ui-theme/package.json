@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "lfaa-client-connection": "workspace:*",
-    "lfaa-client-ui-minecraft": "workspace:*"
+    "lfaa-util-values": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
@@ -22,9 +22,7 @@
   "lfaa": {
     "client": {
       "platform": "web",
-      "inject": [
-        "lfaa-client-ui-minecraft"
-      ]
+      "inject": []
     }
   },
   "scripts": {

@@ -7,16 +7,18 @@ import { Router } from "express";
 import Joi from "joi";
 import type { Context } from "@deepseek-ai/cordis";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
-import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
+import { APPLICATION_IDS, WORKSPACE_PROJECT_APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
 import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
 import { createKnowledgeLibraryItem, createKnowledgeLibraryProjectSource, deleteKnowledgeLibraryItem, deleteKnowledgeLibraryProjectSource, getKnowledgeLibraryItem, getKnowledgeLibraryUsage, listKnowledgeLibraryItems, listKnowledgeLibraryProjectSources, updateKnowledgeLibraryItem } from "lfaa-knowledge-library/src/index.js";
 import { KNOWLEDGE_LIBRARY_KINDS } from "lfaa-knowledge-library/src/index.js";
+import { systemFiles } from "lfaa-fs/src/library.js";
+import { knowledgeFileMount } from "./file-mount.js";
 
 const scopeSchema = Joi.alternatives().try(Joi.string().valid("all"), Joi.string().valid(...APPLICATION_IDS));
 const readScopeSchema = Joi.string().valid(...APPLICATION_IDS);
-const projectAppSchema = Joi.string().valid("workspace", "minecraft");
+const projectAppSchema = Joi.string().valid(...WORKSPACE_PROJECT_APPLICATION_IDS);
 const createItemSchema = Joi.object({
   applicationId: scopeSchema.required(), kind: Joi.string().valid(...KNOWLEDGE_LIBRARY_KINDS).required(),
   title: Joi.string().trim().min(1).max(120).required(), description: Joi.string().max(500).allow("").default(""),
@@ -91,4 +93,4 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
 }
 
 export const inject = ["apiGateway"];
-export function apply(ctx: Context): void { ctx.apiGateway.register(ctx, "knowledge-controller", registerRoutes); }
+export function apply(ctx: Context): void { ctx.effect(() => systemFiles.register(knowledgeFileMount)); ctx.apiGateway.register(ctx, "knowledge-controller", registerRoutes); }

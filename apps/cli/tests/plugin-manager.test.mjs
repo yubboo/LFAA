@@ -325,7 +325,7 @@ test('同一管理器识别非 DSH 的 LFAA 插件合同，并在重启后清除
   assert.equal((await restartedManager.setEnabled('generic-sample', false)).state, 'installed');
   const migratedInventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
   assert.equal(migratedInventory.version, 3);
-  assert.deepEqual(migratedInventory.plugins[0].applicationIds, ['steamcmd', 'minecraft', 'writing', 'workspace']);
+  assert.deepEqual(migratedInventory.plugins[0].applicationIds, ['steamcmd', 'minecraft', 'connectivity', 'writing', 'workspace']);
   assert.equal(migratedInventory.plugins[0].runtimeEntry, null);
   assert.equal(migratedInventory.plugins[0].state, 'installed');
   await restartedManager.remove('generic-sample');
@@ -517,6 +517,10 @@ function makeWallpaperArchive(version) {
       '  if (realTarget && realTarget !== realRoot && !realTarget.startsWith(realRoot + sep)) return;',
       '  serveFile(target, req, res, method === \'HEAD\', { revalidate: true, payloadToken: token });',
       '}',
+      'function handleSceneAudio(req, res) {',
+      '  res.statusCode = 404;',
+      "  res.end(JSON.stringify({ error: 'no-scene-audio' }));",
+      '}',
       'function ensureMediaOrigin() {',
       '  return new Promise((done) => {',
       '    const server = createServer((req, res) => {',
@@ -546,7 +550,49 @@ function makeWallpaperArchive(version) {
     ].join('\n'),
     'lib/client.js': wallpaperClientSource,
     'lib/http-body.js': 'export const body = true;',
-    'lib/settings-schema.js': 'export const schema = true;'
+    'lib/settings-schema.js': 'export const schema = true;',
+    'lib/routes/scene-serve.js': [
+      'export function registerSceneServeRoutes(webServer, c) {',
+      '  const { WEBWALLGL_DIR, sep, serveFile } = c;',
+      '  const BASE = "/wallpaper-engine";',
+      '  return webServer.register({',
+      '    kind: "prefix",',
+      '    path: `${BASE}/scene-live`,',
+      '    handler: (req, res) => {',
+      '      const method = (req.method || "GET").toUpperCase();',
+      '      const rest = new URL(req.url || "/", "http://x").pathname;',
+      '      const abs = resolve(WEBWALLGL_DIR, rest);',
+      '      if (abs === WEBWALLGL_DIR || !abs.startsWith(WEBWALLGL_DIR + sep)) {',
+      '        res.statusCode = 403;',
+      '        res.end("forbidden");',
+      '        return;',
+      '      }',
+      "      res.setHeader('Cache-Control', rest === 'index.html' || rest === 'default-wallpaper/index.html'",
+      "        ? 'no-store'",
+      "        : 'public, max-age=31536000, immutable');",
+      "      serveFile(abs, req, res, method === 'HEAD');",
+      '    }',
+      '  });',
+      '}'
+    ].join('\n'),
+    'lib/routes/scene-frame.js': [
+      'export function registerSceneFrameRoutes(webServer) {',
+      '  const handler = (req, res) => {',
+      '    if (!frame) {',
+      '      res.statusCode = 404;',
+      "      res.setHeader('Content-Type', 'application/json; charset=utf-8');",
+      "      res.end(JSON.stringify({ error: 'no-frame' }));",
+      '      return;',
+      '    }',
+      '    if (!frame) {',
+      "      res.statusCode = variant === 4 ? 422 : 404;",
+      "      res.setHeader('Content-Type', 'application/json; charset=utf-8');",
+      "      res.end(JSON.stringify({ error: variant === 4 ? 'no-custom-frame' : 'no-frame' }));",
+      '      return;',
+      '    }',
+      '  };',
+      '}'
+    ].join('\n')
   });
 }
 
@@ -560,6 +606,14 @@ function wallpaperClientFixture() {
     '  });',
     '}',
     '// Settings first (host file, port-independent).',
+    'function weDrawFrame(canvas) {',
+    '  canvas.dataset.weDrawn = "1";',
+    '  noteLayerContent(canvas);',
+    '}',
+    'function layerContentReady(node) {',
+    '  if (node.querySelector("canvas.we-media--canvas")) return false;',
+    '  return true;',
+    '}',
     'function apply(ctx) {',
     '  if (ctx.effect) ctx.effect(() => () => undefined);',
     '}',

@@ -34,6 +34,7 @@ const MAX_NODE_OUTPUT_PREVIEW_CHARS = 700;
 export type WorkflowStatus = "queued" | "running" | "succeeded" | "failed" | "interrupted";
 export type WorkflowNodeStatus = WorkflowNodeRunStatus;
 export interface WorkflowDefinition extends WorkflowDefinitionShape { id: string; createdAt: string; updatedAt: string }
+export interface WorkflowSummary { id: string; appId: ApplicationId; title: string; createdAt: string; updatedAt: string }
 export interface WorkflowRunNode {
   nodeId: string;
   type: string;
@@ -131,6 +132,12 @@ function normalizeForApp(appId: ApplicationId, input: unknown): WorkflowDefiniti
 export function listWorkflows(userId: string, appId: ApplicationId): WorkflowDefinition[] {
   const rows = database.prepare(`${rowQuery()} WHERE user_id = ? AND application_id = ? ORDER BY updated_at DESC, id`).all(userId, appId) as unknown as WorkflowRow[];
   return rows.map(readDefinitionFile);
+}
+
+/** Agent and list views can discover saved workflows without reading every bounded definition file. */
+export function listWorkflowSummaries(userId: string, appId: ApplicationId): WorkflowSummary[] {
+  return database.prepare("SELECT id, application_id AS appId, title, created_at AS createdAt, updated_at AS updatedAt FROM workflow_definitions WHERE user_id = ? AND application_id = ? ORDER BY updated_at DESC, id LIMIT ?")
+    .all(userId, appId, MAX_WORKFLOWS_PER_APP) as unknown as WorkflowSummary[];
 }
 
 export function getWorkflow(userId: string, appId: ApplicationId, workflowId: string): WorkflowDefinition | null {

@@ -96,26 +96,29 @@
   min-height: 30px;
   margin-right: 2px;
   padding: 2px 15px;
-  border: 1px solid color-mix(in srgb, var(--color-status-success) 30%, var(--color-border));
+  border: 1px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 42%, var(--color-border));
   border-radius: 999px;
-  background: var(--color-status-success-surface);
-  color: var(--color-status-success-text);
+  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 12%, var(--color-surface));
+  color: var(--settings-accent, var(--color-brand));
   font-family: var(--settings-interface-font, var(--font-family-sans));
   font-weight: 650;
   box-shadow: none;
 }
 .lfaa-update-entry.ant-btn:hover,
 .lfaa-update-entry.ant-btn:focus-visible {
-  border-color: var(--color-status-success);
-  background: color-mix(in srgb, var(--color-status-success-surface) 72%, var(--color-status-success));
-  color: var(--color-status-success-text);
+  border-color: var(--settings-accent, var(--color-brand));
+  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 20%, var(--color-surface));
+  color: var(--settings-accent, var(--color-brand));
 }
-.lfaa-update-entry.ant-btn:focus-visible { outline: 2px solid var(--color-status-success); outline-offset: 2px; }
+.lfaa-update-entry.ant-btn:focus-visible { outline: 2px solid var(--settings-accent, var(--color-brand)); outline-offset: 2px; }
+.lfaa-update-entry--progress.ant-btn { display: inline-flex; max-width: min(42vw, 360px); align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lfaa-update-entry__spinner { width: 13px; height: 13px; flex: 0 0 auto; border: 2px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 26%, transparent); border-top-color: var(--settings-accent, var(--color-brand)); border-radius: 50%; animation: lfaa-update-spin .8s linear infinite; }
+@keyframes lfaa-update-spin { to { transform: rotate(360deg); } }
 /* 工作台：顶部品牌与返回按钮｜结束 */
 .workbench-shell {
   --settings-background-surface-opacity: 37%; /* 工作区有壁纸时主要表面的默认主题底色透明度；与前后端 appearance.overlay 默认值一致。 */
   --settings-glass-blur: 14px; /* 工作区玻璃表面的默认背景模糊强度；与前后端 appearance.blur 默认值一致。 */
-  --settings-background-overlay: rgba(244, 247, 252, .37); /* 浅色工作区默认使用 37% 浅灰蓝壁纸遮罩，账户外观设置加载后由 Workbench 覆盖。 */
+  --settings-background-overlay: rgba(255, 255, 255, .37); /* 浅色工作区默认使用 37% 纯白壁纸遮罩，账户外观设置加载后由 Workbench 覆盖。 */
   min-height: 100vh;
   font-family: var(--settings-interface-font, var(--font-family-sans));
   font-size: var(--settings-interface-font-size, var(--font-size-base));
@@ -169,13 +172,14 @@
   z-index: 1;
 }
 
-/* 浅色主题的边框随高级对比度设置调整，默认值保持原有配色。 */
+/* 浅色主题使用中性灰边框，仍随高级对比度设置调整；原生控件显式使用浅色外观。 */
 .workbench-shell[data-theme="light"] {
-  --color-border: color-mix(in srgb, color-mix(in srgb, #dce3ed, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
-  --color-border-strong: color-mix(in srgb, color-mix(in srgb, #d4dce8, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
-  --color-border-subtle: color-mix(in srgb, color-mix(in srgb, #e7ecf3, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
-  --color-border-soft: color-mix(in srgb, color-mix(in srgb, #dfe5ef, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
-  --color-border-muted: color-mix(in srgb, color-mix(in srgb, #d8e0eb, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%));
+  color-scheme: light;
+  --color-border: color-mix(in srgb, color-mix(in srgb, #dedede, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%)); /* 普通边框：中性浅灰，按对比度向黑字或白底混合。 */
+  --color-border-strong: color-mix(in srgb, color-mix(in srgb, #d4d4d4, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%)); /* 重要边界：较深浅灰，按对比度调整深浅。 */
+  --color-border-subtle: color-mix(in srgb, color-mix(in srgb, #ebebeb, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%)); /* 细分隔线：极浅灰，按对比度调整深浅。 */
+  --color-border-soft: color-mix(in srgb, color-mix(in srgb, #e5e5e5, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%)); /* 柔和边界：中性浅灰，按对比度调整深浅。 */
+  --color-border-muted: color-mix(in srgb, color-mix(in srgb, #d9d9d9, var(--color-text-primary) var(--settings-contrast-strong-mix, 0%)), var(--color-surface) var(--settings-contrast-soft-mix, 0%)); /* 弱化边界：中性浅灰，按对比度调整深浅。 */
 }
 
 .workbench-shell .workbench-content {
@@ -254,7 +258,9 @@
   padding: 0;
   border: 1px solid var(--color-border);
   border-radius: 14px;
-  background: var(--color-surface);
+  background: color-mix(in srgb, var(--color-surface) var(--settings-update-surface-opacity, 92%), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur, 14px));
+  backdrop-filter: blur(var(--settings-glass-blur, 14px));
   box-shadow: 0 12px 36px var(--color-shadow-float);
 }
 .lfaa-update-card {
@@ -764,17 +770,12 @@ body:has(.workbench-shell[data-theme="dark"]) .ant-dropdown-menu-item:hover {
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: 18px;
-  background: var(--color-surface);
+  background: color-mix(in srgb, var(--color-surface) var(--settings-update-surface-opacity, 92%), transparent);
   color: var(--color-text-primary);
   box-shadow: 0 24px 72px var(--color-shadow-float);
   padding: 0;
-}
-
-/* 壁纸工作区中的更新弹窗沿用账户设置的表面透明度和模糊强度。 */
-.workbench-shell[data-background-image="true"] .lfaa-update-modal .ant-modal-content {
-  background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
-  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
-  backdrop-filter: blur(var(--settings-glass-blur));
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur, 14px));
+  backdrop-filter: blur(var(--settings-glass-blur, 14px));
 }
 
 .lfaa-update-prompt {
@@ -805,6 +806,9 @@ body:has(.workbench-shell[data-theme="dark"]) .ant-dropdown-menu-item:hover {
 .lfaa-update-prompt__heading { min-width: 0; flex: 1; }
 .lfaa-update-prompt__eyebrow { color: var(--settings-accent, var(--color-brand)); font-size: var(--font-size-sm); font-weight: 650; }
 .lfaa-update-prompt__heading .ant-typography { margin: 3px 0 0; color: var(--color-text-heading); font-size: calc(var(--settings-interface-font-size, var(--font-size-base)) * 1.55); line-height: 1.25; }
+.lfaa-update-prompt__tag { margin: 0; border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 38%, var(--color-border)); background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 12%, var(--color-surface)); color: var(--settings-accent, var(--color-brand)); }
+.lfaa-update-modal .ant-btn-primary { border-color: var(--settings-accent, var(--color-brand)); background: var(--settings-accent, var(--color-brand)); }
+.lfaa-update-modal .ant-btn-primary:hover { border-color: var(--settings-accent, var(--color-brand)); background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 84%, var(--color-text-primary)); }
 
 .lfaa-update-prompt__close {
   display: grid;
@@ -835,12 +839,25 @@ body:has(.workbench-shell[data-theme="dark"]) .ant-dropdown-menu-item:hover {
 .lfaa-update-prompt__actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 9px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--color-border-subtle); }
 .lfaa-update-prompt__actions .ant-btn { min-height: 38px; border-radius: 10px; font-family: var(--settings-interface-font, var(--font-family-sans)); }
 
+.lfaa-update-download { padding: 26px; font-family: var(--settings-interface-font, var(--font-family-sans)); }
+.lfaa-update-download__summary { display: flex; justify-content: space-between; gap: 16px; margin: 26px 0 12px; color: var(--color-text-primary); }
+.lfaa-update-download__numbers { color: var(--color-text-heading); font-variant-numeric: tabular-nums; text-align: right; }
+.lfaa-update-download__bar { position: relative; height: 9px; overflow: hidden; border-radius: 999px; background: var(--color-surface-muted); }
+.lfaa-update-download__bar > span { display: block; height: 100%; border-radius: inherit; background: var(--settings-accent, var(--color-brand)); transition: width .24s ease; }
+.lfaa-update-download__bar--indeterminate > span { position: absolute; width: 32%; animation: lfaa-update-download-sweep 1.35s ease-in-out infinite; }
+@keyframes lfaa-update-download-sweep { from { transform: translateX(-110%); } to { transform: translateX(420%); } }
+.lfaa-update-download__footnote { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: var(--font-size-sm); }
+.lfaa-update-download .lfaa-update-prompt__actions { margin-top: 24px; }
+
 .workbench-shell[data-reduced-motion="on"] .lfaa-update-modal,
 .workbench-shell[data-reduced-motion="on"] .lfaa-update-modal .ant-modal,
 .workbench-shell[data-reduced-motion="on"] .lfaa-update-modal .ant-modal-mask {
   animation-duration: 0s !important;
   transition-duration: 0s !important;
 }
+.workbench-shell[data-reduced-motion="on"] .lfaa-update-entry__spinner,
+.workbench-shell[data-reduced-motion="on"] .lfaa-update-download__bar--indeterminate > span { animation: none !important; }
+.workbench-shell[data-reduced-motion="on"] .lfaa-update-download__bar > span { transition: none !important; }
 
 @media (max-width: 560px) {
   .lfaa-update-prompt { padding: 20px; }
@@ -859,6 +876,9 @@ body:has(.workbench-shell[data-theme="dark"]) .ant-dropdown-menu-item:hover {
     animation-duration: 0s !important;
     transition-duration: 0s !important;
   }
+  .workbench-shell[data-reduced-motion="system"] .lfaa-update-entry__spinner,
+  .workbench-shell[data-reduced-motion="system"] .lfaa-update-download__bar--indeterminate > span { animation: none !important; }
+  .workbench-shell[data-reduced-motion="system"] .lfaa-update-download__bar > span { transition: none !important; }
 }
 
 body:has(.workbench-shell[data-theme="dark"]) {
@@ -973,21 +993,25 @@ body.lfaa-is-resizing .workbench-shell[data-translucent-sidebar="true"] :is(.mod
   background: color-mix(in srgb, var(--color-status-error) 14%, transparent);
 }
 
-/* 壁纸归属由 Workbench 的账户设置首帧确定，避免等到插件异步挂载标记后再切换 LFAA 表面材质。 */
+/* 首帧按账户设置确定画布归属；插件运行时标记在本页首次选壁纸后同步启用相同表面材质。 */
 /* LFAA 根主题在 html 上设置了不透明画布色；覆盖它时保留插件为掉帧/回退提供的代表色，让 -2 壁纸层参与根画布合成。 */
 html:has(body[data-we-wallpaper]) { background-color: var(--we-wallpaper-underlay, transparent); }
 /* 启动主题通过 body:has(.workbench-shell[data-theme]) 设置更高优先级的不透明底色；壁纸激活时需由根级状态覆盖该画布底色。 */
 html:has(body[data-we-wallpaper]) body[data-we-wallpaper] { background: transparent; }
 body[data-we-wallpaper] .workbench-shell { background-color: transparent; background-image: none; }
-.workbench-shell[data-wallpaper-engine-owner="true"] :is(.topbar, .page-intro, .application-card, .module-notice-card, .module-center__header, .settings-nav, .settings-content, .settings-group, .settings-card, .settings-section-card) {
+.workbench-shell[data-wallpaper-engine-owner="true"] :is(.topbar, .page-intro, .application-card, .module-notice-card, .module-center__header, .settings-nav, .settings-content, .settings-group, .settings-card, .settings-section-card),
+body[data-we-wallpaper] .workbench-shell :is(.topbar, .page-intro, .application-card, .module-notice-card, .module-center__header, .settings-nav, .settings-content, .settings-group, .settings-card, .settings-section-card) {
   background-color: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
   -webkit-backdrop-filter: blur(var(--settings-glass-blur));
   backdrop-filter: blur(var(--settings-glass-blur));
 }
-.workbench-shell[data-wallpaper-engine-owner="true"][data-translucent-sidebar="true"] :is(.module-sidebar, .module-navigation-rail, .module-context, .settings-sidebar) {
+.workbench-shell[data-wallpaper-engine-owner="true"][data-translucent-sidebar="true"] :is(.module-sidebar, .module-navigation-rail, .module-context, .settings-sidebar),
+body[data-we-wallpaper] .workbench-shell[data-translucent-sidebar="true"] :is(.module-sidebar, .module-navigation-rail, .module-context, .settings-sidebar) {
   background-color: color-mix(in srgb, var(--settings-sidebar-color, var(--color-surface-muted)) var(--settings-background-surface-opacity), transparent);
   -webkit-backdrop-filter: blur(var(--settings-glass-blur));
   backdrop-filter: blur(var(--settings-glass-blur));
 }
 .workbench-shell[data-wallpaper-engine-owner="true"] .lfaa-workbench__pane--left,
-.workbench-shell[data-wallpaper-engine-owner="true"] .lfaa-workbench__pane--right { background: transparent; }
+.workbench-shell[data-wallpaper-engine-owner="true"] .lfaa-workbench__pane--right,
+body[data-we-wallpaper] .workbench-shell .lfaa-workbench__pane--left,
+body[data-we-wallpaper] .workbench-shell .lfaa-workbench__pane--right { background: transparent; }

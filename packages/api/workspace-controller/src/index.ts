@@ -1,3 +1,4 @@
+import { WORKSPACE_PROJECT_APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 /**
  * 功能：提供账户隔离的项目目录、节点浏览与 Git Worktree API。
  * 作用：在真实 Daemon 上浏览、校验目录并登记项目，登记删除只解除目录关联。
@@ -9,16 +10,19 @@ import Joi from "joi";
 import { randomUUID } from "node:crypto";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
+import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
 import { listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
 import { createAiHostTask, getAiHostTask } from "lfaa-jobs/src/ai-host-tasks.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
 import { asyncHandler, parseBody } from "lfaa-api-remotes/src/route-contracts.js";
-import { forkAiSessionFromMessage, getAiSession, listAiSessions, setAiSessionProject, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
+import { createAiSessionBranchWithMemory } from "lfaa-agent-loop/src/runs.js";
+import { getAiSession, listAiSessions, setAiSessionProject, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
 import { claimWorkspaceProjectApplication, createWorkspaceGitWorktree, createWorkspaceProject, getWorkspaceProject, hasWorkspaceGitWorktrees, searchWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-workspace-workspace/src/index.js";
 
-const projectAppIdSchema = Joi.string().valid("workspace", "minecraft").required();
+const projectAppIdSchema = Joi.string().valid(...WORKSPACE_PROJECT_APPLICATION_IDS).required();
+const limitAiBranchMemory = createRateLimit(12, 60 * 1000);
 const forkWorktreeSchema = Joi.object({ appId: projectAppIdSchema, messageId: Joi.string().guid({ version: ["uuidv4"] }).required(), targetProjectId: Joi.string().guid({ version: ["uuidv4"] }).required() }).unknown(false);
 const browseSchema = Joi.object({
   appId: projectAppIdSchema,
@@ -41,7 +45,7 @@ const projectRelativeFilePathSchema = Joi.string().min(1).max(32760).custom((val
 const projectFileReadSchema = Joi.object({ appId: projectAppIdSchema, path: projectRelativeFilePathSchema.required(), offset: Joi.number().integer().min(0).max(2 * 1024 * 1024).default(0), limit: Joi.number().integer().min(1).max(100000).default(40000) }).unknown(false);
 const projectFileWriteSchema = Joi.object({ appId: projectAppIdSchema, path: projectRelativeFilePathSchema.required(), sha256: Joi.string().pattern(/^[a-f0-9]{64}$/u).required(), content: Joi.string().max(2 * 1024 * 1024).required() }).unknown(false);
 const gitFileDiffSchema = Joi.object({ appId: projectAppIdSchema, path: projectRelativeFilePathSchema.required(), ignoreWhitespace: Joi.boolean().default(false), wordDiff: Joi.boolean().default(false) }).unknown(false);
-const projectsQuerySchema = Joi.object({ appId: Joi.string().valid("workspace", "minecraft").optional(), query: Joi.string().trim().max(200).allow("") }).unknown(false);
+const projectsQuerySchema = Joi.object({ appId: Joi.string().valid(...WORKSPACE_PROJECT_APPLICATION_IDS).optional(), query: Joi.string().trim().max(200).allow("") }).unknown(false);
 
 function projectHasOtherAppSessions(userId: string, projectId: string, appId: WorkspaceProjectApplicationId): boolean {
   return [false, true].some(archived => listAiSessions(userId, archived).some(session => session.projectId === projectId && session.appId !== appId));
@@ -240,7 +244,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
     response.json({ session });
   });
 
-  router.post("/workspace/sessions/:sessionId/fork", requireAuthentication, (request, response) => {
+  router.post("/workspace/sessions/:sessionId/fork", requireAuthentication, limitAiBranchMemory, asyncHandler(async (request, response) => {
     const body = parseBody<{ appId: WorkspaceProjectApplicationId; messageId: string; targetProjectId: string }>(forkWorktreeSchema, request.body);
     const userId = request.auth!.user.id;
     const sourceSession = getAiSession(userId, request.params.sessionId);
@@ -253,10 +257,23 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
       throw new ApiError(409, "workspace_session_fork_worktree_mismatch", "目标必须是在同一账户、App 与 Daemon 下从当前源项目登记的 AI Worktree。");
     }
     const projectContext: AiSessionProjectContext = { id: targetProject.id, appId: body.appId, nodeId: targetProject.nodeId, path: targetProject.path, title: targetProject.title };
-    const session = forkAiSessionFromMessage(userId, sourceSession.id, body.messageId, projectContext);
+    const controller = new AbortController();
+    const abortOnDisconnect = () => { if (!response.writableEnded) controller.abort(); };
+    request.once("aborted", abortOnDisconnect);
+    response.once("close", abortOnDisconnect);
+    let session;
+    try {
+      session = await createAiSessionBranchWithMemory(userId, sourceSession.id, body.messageId, { projectContext, signal: controller.signal });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      throw new ApiError(502, "ai_session_branch_memory_failed", error instanceof Error ? error.message : "分支记忆生成失败，未创建新会话。");
+    } finally {
+      request.off("aborted", abortOnDisconnect);
+      response.off("close", abortOnDisconnect);
+    }
     if (!session) throw new ApiError(404, "ai_session_fork_target_not_found", "找不到可创建分支的完整 AI 回复。");
     response.status(201).json({ session });
-  });
+  }));
 }
 
 async function runDirectoryOperation(userId: string, appId: WorkspaceProjectApplicationId, nodeId: string, operation: Record<string, unknown>): Promise<unknown> {

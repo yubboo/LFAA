@@ -339,6 +339,7 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 .module-context__heading { display: flex; min-height: 62px; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 15px; border-bottom: 1px solid var(--color-border); }
 .module-context__heading > div { display: grid; gap: 4px; }
 .module-context__close { display: none; }
+.module-context:is([data-layout-mode="compact"], [data-layout-mode="mobile"]) .module-context__close { display: grid; }
 .module-context__heading strong { color: var(--color-text-heading); font-size: var(--font-size-sm); }
 .module-context__heading span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .module-context__connection { display: inline-flex; align-items: center; gap: 7px; color: var(--color-status-error-text); font-size: var(--font-size-xs); white-space: nowrap; }
@@ -422,8 +423,24 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 .module-terminal__tasks { display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: auto; }
 /* DSH terminal 字体钩子把固定插件的终端角色映射到真实节点任务输出。 */
 .module-terminal__output { margin: 0; min-width: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: var(--dsl-terminal-font, var(--dsw-font-markdown-code-block)); color: inherit; }
+.module-terminal__interactive-body { display: flex; min-height: 0; min-width: 0; flex-direction: column; gap: 6px; padding: 6px 10px; overflow: auto; background: var(--color-surface-muted); color: var(--color-text-primary); }
+.module-terminal__controls { display: flex; flex: 0 0 auto; min-width: 0; align-items: center; flex-wrap: wrap; gap: 6px; }
+.module-terminal__controls .ant-select { width: min(100%, 220px); min-width: 0; }
+.module-terminal__controls > span { min-width: 0; overflow-wrap: anywhere; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.module-terminal__emulator { flex: 1 0 64px; min-width: 0; min-height: 64px; overflow: hidden; font-family: var(--settings-code-font); font-size: var(--settings-code-font-size); }
+.module-terminal__emulator .xterm { height: 100%; padding: 0; }
+/* 透明视口沿用终端区域的账户主题与壁纸遮罩，覆盖 xterm 自带的不透明黑底；输入法预编辑沿用同一主题表面和文字。 */
+.module-terminal__emulator .xterm .xterm-viewport { background-color: transparent; }
+.module-terminal__emulator .xterm .composition-view { background: var(--color-surface-muted); color: var(--color-text-primary); }
+.module-terminal__approval { flex: 0 0 auto; overflow-wrap: anywhere; font-size: var(--font-size-xs); }
+.module-terminal__approval p { margin: 0 0 4px; }
+.module-terminal__approval > div { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 
 @container (max-width: 760px) {
+  .module-context__heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; align-items: center; gap: 4px 8px; }
+  .module-context__heading > div { grid-column: 1; grid-row: 1; min-width: 0; }
+  .module-context__connection { grid-column: 1; grid-row: 2; }
+  .module-context__close { grid-column: 2; grid-row: 1 / span 2; align-self: start; justify-self: end; }
   .module-center__header[data-layout-mode="mobile"] { display: grid; min-height: 72px; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 30px 28px; gap: 2px 8px; padding: 5px 9px; }
   .module-center__header[data-layout-mode="mobile"] .module-center__heading { grid-column: 1; grid-row: 1; }
   .module-center__header[data-layout-mode="mobile"] .module-center__actions { grid-column: 2; grid-row: 1; }
@@ -431,19 +448,15 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
   .module-center__header[data-layout-mode="mobile"] .module-runtime-state { display: none; }
   .module-center__header[data-layout-mode="mobile"] .module-panel-control { width: 29px; justify-content: center; padding: 0; font-size: 0; }
   .module-center__content { padding: 0; }
+  .module-center__content--ai-work > .ai-work-chat { box-sizing: border-box; padding-inline: clamp(4px, 1.25cqi, 10px); }
+  .module-center__content--ai-work .ai-work-chat__message-list { padding-inline: clamp(4px, 1.25cqi, 10px); }
   .module-notice-card { gap: 11px; padding: 17px; }
-  .module-sidebar[data-layout-mode="mobile"] .module-sidebar__close,
-  .module-context[data-layout-mode="mobile"] .module-context__close { display: grid; }
-}
-
-@container (min-width: 760.01px) and (max-width: 1059.99px) {
-  .module-context[data-layout-mode="compact"] .module-context__close { display: grid; }
+  .module-sidebar[data-layout-mode="mobile"] .module-sidebar__close { display: grid; }
 }
 
 @media (max-width: 720px) {
   .module-center__title { max-width: 150px; }
   .module-center__title strong { font-size: 10px; }
-  .module-context__heading { align-items: flex-start; flex-direction: column; }
 }
 
 @media (max-width: 420px) {

@@ -7,8 +7,10 @@ packages:
 
 overrides:
   '@electron/get': 3.1.0
+  # 统一直接与数学 Markdown 间接依赖，修复继承 trust 属性绕过限制的 GHSA-238p-pmpm-9mq7。
+  katex: 0.18.2
 
-# 仅允许构建前端打包依赖；本阶段没有使用 PTY，保留显式禁用项以阻止其安装脚本。
+# PTY 使用官方依赖内的原生预编译文件；保留安装脚本禁用，避免在包目录生成构建输出。
 allowBuilds:
   esbuild: true
   electron: true

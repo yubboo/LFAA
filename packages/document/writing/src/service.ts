@@ -1,13 +1,17 @@
 /**
  * 功能：管理账户自己的写作作品、大纲、卷、章节、设定条目、自动保存修订和当前编辑位置。
  * 作用：为常规写作编辑器与写作 AI Work 提供同一份受账户隔离的持久内容。
- * 不负责：任意文件路径访问或 Daemon 文件操作；作品大纲与章节正文保存在控制端 SQLite。
+ * 不负责：任意文件路径访问或 Daemon 文件操作；作品正文由本地文件 Owner 保存，SQLite 保留账户归属与关系元数据。
  * 关联文件：packages/api/gateway/src/index.ts、packages/storage/storage-sqlite/src/database.ts、packages/client/ui-writing/src/normal/WritingWorkspace.tsx。
  */
 import { createHash, randomUUID } from "node:crypto";
 import { createDeepWriteZip, parseDeepWriteProject, readDeepWriteZip, DEEPWRITE_ZIP_MAX_COMPRESSED_BYTES, DEEPWRITE_ZIP_MAX_ENTRIES, DEEPWRITE_ZIP_MAX_ENTRY_BYTES, DEEPWRITE_ZIP_MAX_UNCOMPRESSED_BYTES } from "./deepwrite-archive.js";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { WRITING_SPECIALISTS, getWritingSpecialist, type WritingSpecialistId } from "./writing-specialist-library.js";
+import { countWritingWords } from "./content-utils.js";
+import { ensureWritingProjectFiles, migrateWritingContentToLocalFiles, readWritingLocalText, removeWritingLocalText, removeWritingProjectFiles, writeWritingLocalText, WRITING_LOCAL_FILE_MARKER, type WritingLocalContentRef } from "./local-files.js";
+
+migrateWritingContentToLocalFiles();
 
 export interface WritingBook {
   id: string;
@@ -182,9 +186,10 @@ export interface WritingWorkspace {
 
 interface BookRow { id: string; title: string; ai_role_id: WritingSpecialistId; created_at: string; updated_at: string }
 interface VolumeRow { id: string; title: string; sort_order: number }
-interface ChapterRow { id: string; book_id: string; volume_id: string; title: string; content: string; sort_order: number; created_at: string; updated_at: string }
-interface RevisionRow { id: string; title: string; content: string; created_at: string }
-interface OutlineRevisionRow { id: string; content: string; created_at: string }
+interface ChapterRow { id: string; book_id: string; volume_id: string; title: string; content: string; word_count: number; sort_order: number; created_at: string; updated_at: string }
+interface ChapterSummaryRow extends Omit<ChapterRow, "content"> {}
+interface RevisionRow { id: string; title: string; created_at: string; word_count: number }
+interface OutlineRevisionRow { id: string; created_at: string; word_count: number }
 interface WorkspaceStateRow { active_book_id: string | null; active_chapter_id: string | null }
 interface CatalogEntryRow { id: string; book_id: string; kind: WritingCatalogKind; title: string; content: string; created_at: string; updated_at: string }
 interface CatalogSummaryRow { id: string; kind: WritingCatalogKind; title: string; updated_at: string }
@@ -213,14 +218,10 @@ function mapVolume(row: VolumeRow): WritingVolume {
   return { id: row.id, title: row.title, sortOrder: row.sort_order };
 }
 
-function countWords(content: string): number {
-  const cjkCharacters = [...content.matchAll(/\p{Script=Han}/gu)].length;
-  const otherWords = [...content.replace(/\p{Script=Han}/gu, " ").matchAll(/[\p{L}\p{N}]+(?:['’_-][\p{L}\p{N}]+)*/gu)].length;
-  return cjkCharacters + otherWords;
-}
+const countWords = countWritingWords;
 
-function mapChapterSummary(row: Pick<ChapterRow, "id" | "volume_id" | "title" | "sort_order" | "updated_at" | "content">): WritingChapterSummary {
-  return { id: row.id, volumeId: row.volume_id, title: row.title, sortOrder: row.sort_order, updatedAt: row.updated_at, wordCount: countWords(row.content) };
+function mapChapterSummary(row: Pick<ChapterSummaryRow, "id" | "volume_id" | "title" | "sort_order" | "updated_at" | "word_count">): WritingChapterSummary {
+  return { id: row.id, volumeId: row.volume_id, title: row.title, sortOrder: row.sort_order, updatedAt: row.updated_at, wordCount: row.word_count };
 }
 
 function mapChapter(row: ChapterRow): WritingChapter {
@@ -235,6 +236,13 @@ function mapCatalogSummary(row: CatalogSummaryRow): WritingCatalogSummary {
   return { id: row.id, kind: row.kind, title: row.title, updatedAt: row.updated_at };
 }
 
+function cleanupWritingLocalFiles(userId: string, bookId: string, refs: WritingLocalContentRef[]): void {
+  for (const ref of refs) {
+    try { removeWritingLocalText(userId, bookId, ref); }
+    catch { process.emitWarning("Writing 已完成保存，但旧修订文件清理失败。"); }
+  }
+}
+
 function listCatalogRows(bookId: string, limit: number): CatalogSummaryRow[] {
   return database.prepare("SELECT id, kind, title, updated_at FROM writing_catalog_entries WHERE book_id = ? ORDER BY kind ASC, updated_at DESC, created_at DESC LIMIT ?").all(bookId, limit) as unknown as CatalogSummaryRow[];
 }
@@ -244,11 +252,12 @@ function bookRow(userId: string, bookId: string): BookRow | undefined {
 }
 
 function chapterRow(userId: string, chapterId: string): ChapterRow | undefined {
-  return database.prepare(`
-    SELECT c.id, c.book_id, c.volume_id, c.title, c.content, c.sort_order, c.created_at, c.updated_at
+  const row = database.prepare(`
+    SELECT c.id, c.book_id, c.volume_id, c.title, c.word_count, c.sort_order, c.created_at, c.updated_at
     FROM writing_chapters c JOIN writing_books b ON b.id = c.book_id
     WHERE b.user_id = ? AND c.id = ?
-  `).get(userId, chapterId) as ChapterRow | undefined;
+  `).get(userId, chapterId) as ChapterSummaryRow | undefined;
+  return row ? { ...row, content: readWritingLocalText(userId, row.book_id, { kind: "chapter", id: row.id }) } : undefined;
 }
 
 export function getWritingBookTarget(userId: string, bookId: string): { id: string; title: string } | null {
@@ -268,18 +277,23 @@ export function getWritingChapterTarget(userId: string, chapterId: string): { id
 export function createWritingCatalogEntry(userId: string, bookId: string, input: { kind: WritingCatalogKind; title: string }): WritingCatalogEntry | null {
   if (!bookRow(userId, bookId)) return null;
   const id = randomUUID();
-  database.prepare("INSERT INTO writing_catalog_entries (id, book_id, kind, title) VALUES (?, ?, ?, ?)").run(id, bookId, input.kind, input.title);
-  const row = database.prepare("SELECT id, book_id, kind, title, content, created_at, updated_at FROM writing_catalog_entries WHERE id = ? AND book_id = ?").get(id, bookId) as CatalogEntryRow | undefined;
-  return row ? mapCatalogEntry(row) : null;
+  writeWritingLocalText(userId, bookId, { kind: "catalog", id }, "");
+  try {
+    database.prepare("INSERT INTO writing_catalog_entries (id, book_id, kind, title, content) VALUES (?, ?, ?, ?, '')").run(id, bookId, input.kind, input.title);
+    return getWritingCatalogEntry(userId, id);
+  } catch (error) {
+    removeWritingLocalText(userId, bookId, { kind: "catalog", id });
+    throw error;
+  }
 }
 
 export function getWritingCatalogEntry(userId: string, entryId: string): WritingCatalogEntry | null {
   const row = database.prepare(`
-    SELECT e.id, e.book_id, e.kind, e.title, e.content, e.created_at, e.updated_at
+    SELECT e.id, e.book_id, e.kind, e.title, e.created_at, e.updated_at
     FROM writing_catalog_entries e JOIN writing_books b ON b.id = e.book_id
     WHERE b.user_id = ? AND e.id = ?
-  `).get(userId, entryId) as CatalogEntryRow | undefined;
-  return row ? mapCatalogEntry(row) : null;
+  `).get(userId, entryId) as Omit<CatalogEntryRow, "content"> | undefined;
+  return row ? mapCatalogEntry({ ...row, content: readWritingLocalText(userId, row.book_id, { kind: "catalog", id: row.id }) }) : null;
 }
 
 export function listWritingCatalogEntries(userId: string, bookId: string, input: { kind?: WritingCatalogKind; search?: string; offset: number }): WritingCatalogPage | null {
@@ -308,14 +322,15 @@ export function listWritingCatalogEntries(userId: string, bookId: string, input:
 
 export function getWritingCatalogEntryForBook(userId: string, bookId: string, entryId: string): WritingCatalogAiExcerpt | null {
   const row = database.prepare(`
-    SELECT e.id, e.book_id, e.kind, e.title, substr(e.content, 1, ?) AS content, e.created_at, e.updated_at, length(e.content) AS character_count
+    SELECT e.id, e.book_id, e.kind, e.title, e.created_at, e.updated_at
     FROM writing_catalog_entries e JOIN writing_books b ON b.id = e.book_id
     WHERE b.user_id = ? AND e.book_id = ? AND e.id = ?
-  `).get(WRITING_CATALOG_AI_CONTEXT_CHARACTERS + 1, userId, bookId, entryId) as (CatalogEntryRow & { character_count: number }) | undefined;
+  `).get(userId, bookId, entryId) as Omit<CatalogEntryRow, "content"> | undefined;
   if (!row) return null;
-  const characterCount = row.character_count;
+  const fullContent = readWritingLocalText(userId, bookId, { kind: "catalog", id: row.id });
+  const characterCount = [...fullContent].length;
   const contentTruncated = characterCount > WRITING_CATALOG_AI_CONTEXT_CHARACTERS;
-  const content = contentTruncated ? row.content.slice(0, WRITING_CATALOG_AI_CONTEXT_CHARACTERS) : row.content;
+  const content = contentTruncated ? fullContent.slice(0, WRITING_CATALOG_AI_CONTEXT_CHARACTERS) : fullContent;
   return {
     ...mapCatalogEntry({ ...row, content }),
     characterCount,
@@ -338,17 +353,18 @@ export function getWritingAnalysisChapterExcerpts(userId: string, bookId: string
   if (!bookRow(userId, bookId)) return null;
   if (!chapterIds.length || chapterIds.length > WRITING_ANALYSIS_BATCH_CHAPTER_LIMIT || new Set(chapterIds).size !== chapterIds.length) throw new Error(`每批请选择 1–${WRITING_ANALYSIS_BATCH_CHAPTER_LIMIT} 个不同章节。`);
   const read = database.prepare(`
-    SELECT c.id, c.title, c.sort_order, substr(c.content, 1, ?) AS body, length(c.content) AS character_count
+    SELECT c.id, c.title, c.sort_order
     FROM writing_chapters c JOIN writing_books b ON b.id = c.book_id
     WHERE b.user_id = ? AND c.book_id = ? AND c.id = ?
   `);
-  const rows = chapterIds.map((chapterId) => read.get(WRITING_ANALYSIS_BATCH_CHARACTER_LIMIT + 1, userId, bookId, chapterId) as { id: string; title: string; sort_order: number; body: string; character_count: number } | undefined);
+  const rows = chapterIds.map((chapterId) => read.get(userId, bookId, chapterId) as { id: string; title: string; sort_order: number } | undefined);
   if (rows.some((row) => !row)) return null;
   let remaining = WRITING_ANALYSIS_BATCH_CHARACTER_LIMIT;
   let characterCount = 0;
   const chapters = rows.map((row) => {
-    const actual = row!.character_count;
-    const returnedBody = row!.body.slice(0, remaining);
+    const content = readWritingLocalText(userId, bookId, { kind: "chapter", id: row!.id });
+    const actual = [...content].length;
+    const returnedBody = content.slice(0, remaining);
     const truncated = actual > returnedBody.length;
     characterCount += actual;
     remaining = Math.max(0, remaining - returnedBody.length);
@@ -359,20 +375,29 @@ export function getWritingAnalysisChapterExcerpts(userId: string, bookId: string
 
 export function updateWritingCatalogEntry(userId: string, entryId: string, input: { title: string; content: string }): WritingCatalogEntry | null {
   const current = database.prepare(`
-    SELECT e.id, e.book_id, e.kind, e.title, e.content, e.created_at, e.updated_at
+    SELECT e.id, e.book_id, e.kind, e.title, e.created_at, e.updated_at
     FROM writing_catalog_entries e JOIN writing_books b ON b.id = e.book_id
     WHERE b.user_id = ? AND e.id = ?
-  `).get(userId, entryId) as CatalogEntryRow | undefined;
+  `).get(userId, entryId) as Omit<CatalogEntryRow, "content"> | undefined;
   if (!current) return null;
-  if (current.title !== input.title || current.content !== input.content) {
-    database.prepare("UPDATE writing_catalog_entries SET title = ?, content = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(input.title, input.content, entryId);
+  const previousContent = readWritingLocalText(userId, current.book_id, { kind: "catalog", id: current.id });
+  if (current.title !== input.title || previousContent !== input.content) {
+    if (previousContent !== input.content) writeWritingLocalText(userId, current.book_id, { kind: "catalog", id: current.id }, input.content);
+    try {
+      database.prepare("UPDATE writing_catalog_entries SET title = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(input.title, entryId);
+    } catch (error) {
+      if (previousContent !== input.content) writeWritingLocalText(userId, current.book_id, { kind: "catalog", id: current.id }, previousContent);
+      throw error;
+    }
   }
   return getWritingCatalogEntry(userId, entryId);
 }
 
 export function deleteWritingCatalogEntry(userId: string, entryId: string): boolean {
-  if (!getWritingCatalogEntry(userId, entryId)) return false;
+  const current = getWritingCatalogEntry(userId, entryId);
+  if (!current) return false;
   database.prepare("DELETE FROM writing_catalog_entries WHERE id = ?").run(entryId);
+  removeWritingLocalText(userId, current.bookId, { kind: "catalog", id: entryId });
   return true;
 }
 
@@ -407,8 +432,8 @@ function writingContentHash(content: string): string {
 function readWritingProposalTarget(userId: string, bookId: string, targetType: "outline" | "chapter", targetId: string): { bookTitle: string; targetTitle: string; content: string } | null {
   if (targetType === "outline") {
     if (targetId !== bookId) return null;
-    const row = database.prepare("SELECT title, outline_content FROM writing_books WHERE user_id = ? AND id = ?").get(userId, bookId) as { title: string; outline_content: string } | undefined;
-    return row ? { bookTitle: row.title, targetTitle: "作品大纲", content: row.outline_content } : null;
+    const row = database.prepare("SELECT title FROM writing_books WHERE user_id = ? AND id = ?").get(userId, bookId) as { title: string } | undefined;
+    return row ? { bookTitle: row.title, targetTitle: "作品大纲", content: readWritingLocalText(userId, bookId, { kind: "outline" }) } : null;
   }
   const chapter = chapterRow(userId, targetId);
   if (!chapter || chapter.book_id !== bookId) return null;
@@ -474,10 +499,16 @@ export function getWritingEditProposal(userId: string, proposalId: string): Writ
 }
 
 export function resolveWritingEditProposal(userId: string, proposalId: string, decision: "apply" | "reject"): { id: string; status: WritingEditProposalView["status"] } | null {
+  let restoreLocalText: (() => void) | undefined;
+  let createdRevisionFile: WritingLocalContentRef | undefined;
+  let proposalBookId: string | undefined;
+  let outlineRevisionToRemove: string[] = [];
+  let chapterRevisionToRemove: string[] = [];
   database.exec("BEGIN IMMEDIATE;");
   try {
     const row = proposalRow(userId, proposalId);
     if (!row) { database.exec("ROLLBACK;"); return null; }
+    proposalBookId = row.book_id;
     if (row.status !== "pending") { database.exec("COMMIT;"); return { id: row.id, status: row.status }; }
     if (decision === "reject") {
       const status = row.expires_at <= new Date().toISOString() ? "expired" : "rejected";
@@ -497,8 +528,16 @@ export function resolveWritingEditProposal(userId: string, proposalId: string, d
       return { id: row.id, status: "stale" };
     }
     if (row.target_type === "outline") {
-      database.prepare("INSERT INTO writing_book_outline_revisions (id, book_id, content) VALUES (?, ?, ?)").run(randomUUID(), row.book_id, target.content);
-      database.prepare("UPDATE writing_books SET outline_content = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND user_id = ?").run(row.proposed_content, row.book_id, userId);
+      const revisionId = randomUUID();
+      createdRevisionFile = { kind: "outline-revision", id: revisionId };
+      writeWritingLocalText(userId, row.book_id, createdRevisionFile, target.content);
+      writeWritingLocalText(userId, row.book_id, { kind: "outline" }, row.proposed_content);
+      restoreLocalText = () => writeWritingLocalText(userId, row.book_id, { kind: "outline" }, target.content);
+      database.prepare("INSERT INTO writing_book_outline_revisions (id, book_id, content, word_count) VALUES (?, ?, '', ?)").run(revisionId, row.book_id, countWords(target.content));
+      database.prepare("UPDATE writing_books SET outline_content = '', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND user_id = ?").run(row.book_id, userId);
+      outlineRevisionToRemove = (database.prepare(`SELECT id FROM writing_book_outline_revisions WHERE book_id = ? AND id NOT IN (
+        SELECT id FROM writing_book_outline_revisions WHERE book_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50
+      )`).all(row.book_id, row.book_id) as Array<{ id: string }>).map((item) => item.id);
       database.prepare(`DELETE FROM writing_book_outline_revisions WHERE book_id = ? AND id NOT IN (
         SELECT id FROM writing_book_outline_revisions WHERE book_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50
       )`).run(row.book_id, row.book_id);
@@ -509,30 +548,56 @@ export function resolveWritingEditProposal(userId: string, proposalId: string, d
         database.exec("COMMIT;");
         return { id: row.id, status: "stale" };
       }
-      database.prepare("INSERT INTO writing_chapter_revisions (id, chapter_id, title, content) VALUES (?, ?, ?, ?)").run(randomUUID(), chapter.id, chapter.title, chapter.content);
-      database.prepare("UPDATE writing_chapters SET content = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(row.proposed_content, chapter.id);
+      const revisionId = randomUUID();
+      createdRevisionFile = { kind: "chapter-revision", chapterId: chapter.id, id: revisionId };
+      writeWritingLocalText(userId, row.book_id, createdRevisionFile, chapter.content);
+      writeWritingLocalText(userId, row.book_id, { kind: "chapter", id: chapter.id }, row.proposed_content);
+      restoreLocalText = () => writeWritingLocalText(userId, row.book_id, { kind: "chapter", id: chapter.id }, chapter.content);
+      database.prepare("INSERT INTO writing_chapter_revisions (id, chapter_id, title, content, word_count) VALUES (?, ?, ?, '', ?)").run(revisionId, chapter.id, chapter.title, countWords(chapter.content));
+      database.prepare("UPDATE writing_chapters SET content = '', word_count = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(countWords(row.proposed_content), chapter.id);
       database.prepare("UPDATE writing_books SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(row.book_id);
+      chapterRevisionToRemove = (database.prepare(`SELECT id FROM writing_chapter_revisions WHERE chapter_id = ? AND id NOT IN (
+        SELECT id FROM writing_chapter_revisions WHERE chapter_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50
+      )`).all(chapter.id, chapter.id) as Array<{ id: string }>).map((item) => item.id);
       database.prepare(`DELETE FROM writing_chapter_revisions WHERE chapter_id = ? AND id NOT IN (
         SELECT id FROM writing_chapter_revisions WHERE chapter_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50
       )`).run(chapter.id, chapter.id);
     }
     database.prepare("UPDATE writing_edit_proposals SET status = 'applied' WHERE id = ? AND user_id = ? AND status = 'pending'").run(row.id, userId);
     database.exec("COMMIT;");
+    restoreLocalText = undefined;
+    cleanupWritingLocalFiles(userId, row.book_id, [
+      ...outlineRevisionToRemove.map((id) => ({ kind: "outline-revision" as const, id })),
+      ...chapterRevisionToRemove.map((id) => ({ kind: "chapter-revision" as const, chapterId: row.target_id, id }))
+    ]);
     return { id: row.id, status: "applied" };
   } catch (error) {
     if (database.isTransaction) database.exec("ROLLBACK;");
+    if (restoreLocalText) restoreLocalText();
+    if (createdRevisionFile && proposalBookId) cleanupWritingLocalFiles(userId, proposalBookId, [createdRevisionFile]);
     throw error;
   }
 }
 
 export function updateWritingBookOutline(userId: string, bookId: string, content: string): { bookId: string; content: string; updatedAt: string; wordCount: number } | null {
-  const current = database.prepare("SELECT id, outline_content FROM writing_books WHERE user_id = ? AND id = ?").get(userId, bookId) as { id: string; outline_content: string } | undefined;
+  const current = database.prepare("SELECT id FROM writing_books WHERE user_id = ? AND id = ?").get(userId, bookId) as { id: string } | undefined;
   if (!current) return null;
-  if (current.outline_content !== content) {
+  const previousContent = readWritingLocalText(userId, bookId, { kind: "outline" });
+  let revisionId: string | undefined;
+  let prunedRevisionIds: string[] = [];
+  if (previousContent !== content) {
+    let fileChanged = false;
     database.exec("BEGIN IMMEDIATE;");
     try {
-      database.prepare("INSERT INTO writing_book_outline_revisions (id, book_id, content) VALUES (?, ?, ?)").run(randomUUID(), bookId, current.outline_content);
-      database.prepare("UPDATE writing_books SET outline_content = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND user_id = ?").run(content, bookId, userId);
+      revisionId = randomUUID();
+      writeWritingLocalText(userId, bookId, { kind: "outline-revision", id: revisionId }, previousContent);
+      writeWritingLocalText(userId, bookId, { kind: "outline" }, content);
+      fileChanged = true;
+      database.prepare("INSERT INTO writing_book_outline_revisions (id, book_id, content, word_count) VALUES (?, ?, '', ?)").run(revisionId, bookId, countWords(previousContent));
+      database.prepare("UPDATE writing_books SET outline_content = '', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND user_id = ?").run(bookId, userId);
+      prunedRevisionIds = (database.prepare(`SELECT id FROM writing_book_outline_revisions WHERE book_id = ? AND id NOT IN (
+        SELECT id FROM writing_book_outline_revisions WHERE book_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50
+      )`).all(bookId, bookId) as Array<{ id: string }>).map((row) => row.id);
       database.prepare(`
         DELETE FROM writing_book_outline_revisions WHERE book_id = ? AND id NOT IN (
           SELECT id FROM writing_book_outline_revisions WHERE book_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50
@@ -540,18 +605,21 @@ export function updateWritingBookOutline(userId: string, bookId: string, content
       `).run(bookId, bookId);
       database.exec("COMMIT;");
     } catch (error) {
-      database.exec("ROLLBACK;");
+      if (database.isTransaction) database.exec("ROLLBACK;");
+      if (fileChanged) writeWritingLocalText(userId, bookId, { kind: "outline" }, previousContent);
+      if (revisionId) cleanupWritingLocalFiles(userId, bookId, [{ kind: "outline-revision", id: revisionId }]);
       throw error;
     }
+    cleanupWritingLocalFiles(userId, bookId, prunedRevisionIds.map((id) => ({ kind: "outline-revision" as const, id })));
   }
-  const updated = database.prepare("SELECT outline_content, updated_at FROM writing_books WHERE user_id = ? AND id = ?").get(userId, bookId) as { outline_content: string; updated_at: string } | undefined;
-  return updated ? { bookId, content: updated.outline_content, updatedAt: updated.updated_at, wordCount: countWords(updated.outline_content) } : null;
+  const updated = database.prepare("SELECT updated_at FROM writing_books WHERE user_id = ? AND id = ?").get(userId, bookId) as { updated_at: string } | undefined;
+  return updated ? { bookId, content: readWritingLocalText(userId, bookId, { kind: "outline" }), updatedAt: updated.updated_at, wordCount: countWords(content) } : null;
 }
 
 export function applyWritingBookOutlineEdit(userId: string, bookId: string, input: WritingEditInput): { bookId: string; bookTitle: string; content: string; updatedAt: string; wordCount: number } | null {
-  const target = database.prepare("SELECT title, outline_content FROM writing_books WHERE user_id = ? AND id = ?").get(userId, bookId) as { title: string; outline_content: string } | undefined;
+  const target = database.prepare("SELECT title FROM writing_books WHERE user_id = ? AND id = ?").get(userId, bookId) as { title: string } | undefined;
   if (!target) return null;
-  const content = applyWritingEdit(target.outline_content, input);
+  const content = applyWritingEdit(readWritingLocalText(userId, bookId, { kind: "outline" }), input);
   if (content.length > 1_500_000) throw new Error("本次修改会使大纲超过 150 万字符上限，未保存。");
   const updated = updateWritingBookOutline(userId, bookId, content);
   return updated ? { ...updated, bookTitle: target.title } : null;
@@ -586,7 +654,7 @@ export function getWritingWorkspace(userId: string): WritingWorkspace {
     : [];
   const volumes = volumeRows.map(mapVolume);
   const chapterRows = selectedBook
-    ? database.prepare("SELECT id, book_id, volume_id, title, content, sort_order, created_at, updated_at FROM writing_chapters WHERE book_id = ? ORDER BY sort_order ASC, created_at ASC").all(selectedBook.id) as unknown as ChapterRow[]
+    ? database.prepare("SELECT id, book_id, volume_id, title, word_count, sort_order, created_at, updated_at FROM writing_chapters WHERE book_id = ? ORDER BY sort_order ASC, created_at ASC").all(selectedBook.id) as unknown as ChapterSummaryRow[]
     : [];
   const chapters = chapterRows.map(mapChapterSummary);
   const selectedChapter = state
@@ -606,11 +674,9 @@ export function getWritingWorkspace(userId: string): WritingWorkspace {
     volumes,
     chapters,
     activeBookId: selectedBook?.id ?? null,
-    activeBookOutline: selectedBook
-      ? (database.prepare("SELECT outline_content FROM writing_books WHERE id = ? AND user_id = ?").get(selectedBook.id, userId) as { outline_content: string }).outline_content
-      : "",
+    activeBookOutline: selectedBook ? readWritingLocalText(userId, selectedBook.id, { kind: "outline" }) : "",
     activeChapterId: selectedChapter?.id ?? null,
-    activeChapter: selectedChapter ? mapChapter(selectedChapter) : null,
+    activeChapter: selectedChapter ? mapChapter({ ...selectedChapter, content: readWritingLocalText(userId, selectedBook!.id, { kind: "chapter", id: selectedChapter.id }) }) : null,
     catalogEntries: catalogRows.slice(0, WRITING_CATALOG_PAGE_SIZE).map(mapCatalogSummary),
     catalogEntriesHasMore: catalogRows.length > WRITING_CATALOG_PAGE_SIZE,
     writingRoleOptions: WRITING_SPECIALISTS.map(({ id, name, description }) => ({ id, name, description })),
@@ -635,11 +701,11 @@ export function listWritingBookSkills(userId: string, bookId: string): WritingBo
 
 export function getWritingBookSkill(userId: string, bookId: string, skillId: string): WritingBookSkill | null {
   const row = database.prepare(`
-    SELECT s.id, s.book_id, s.title, s.description, s.instructions, s.enabled, s.created_at, s.updated_at
+    SELECT s.id, s.book_id, s.title, s.description, s.enabled, s.created_at, s.updated_at
     FROM writing_book_skills s JOIN writing_books b ON b.id = s.book_id
     WHERE b.user_id = ? AND s.user_id = ? AND s.book_id = ? AND s.id = ?
-  `).get(userId, userId, bookId, skillId) as WritingBookSkillRow | undefined;
-  return row ? mapWritingBookSkill(row) : null;
+  `).get(userId, userId, bookId, skillId) as Omit<WritingBookSkillRow, "instructions"> | undefined;
+  return row ? mapWritingBookSkill({ ...row, instructions: readWritingLocalText(userId, bookId, { kind: "skill", id: skillId }) }) : null;
 }
 
 export function createWritingBookSkill(userId: string, bookId: string, input: { title: string; description?: string; instructions: string; enabled?: boolean }): WritingBookSkill | null {
@@ -650,23 +716,39 @@ export function createWritingBookSkill(userId: string, bookId: string, input: { 
   const count = (database.prepare("SELECT COUNT(*) AS count FROM writing_book_skills WHERE user_id = ? AND book_id = ?").get(userId, bookId) as { count: number }).count;
   if (count >= 40) throw new Error("每部作品最多保存 40 个 Skill。");
   const id = randomUUID();
-  database.prepare("INSERT INTO writing_book_skills (id, user_id, book_id, title, description, instructions, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, userId, bookId, title, description, input.instructions, input.enabled === false ? 0 : 1);
-  return getWritingBookSkill(userId, bookId, id);
+  writeWritingLocalText(userId, bookId, { kind: "skill", id }, input.instructions);
+  try {
+    database.prepare("INSERT INTO writing_book_skills (id, user_id, book_id, title, description, instructions, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, userId, bookId, title, description, WRITING_LOCAL_FILE_MARKER, input.enabled === false ? 0 : 1);
+    return getWritingBookSkill(userId, bookId, id);
+  } catch (error) {
+    removeWritingLocalText(userId, bookId, { kind: "skill", id });
+    throw error;
+  }
 }
 
 export function updateWritingBookSkill(userId: string, bookId: string, skillId: string, input: { title: string; description?: string; instructions: string; enabled: boolean }): WritingBookSkill | null {
   const title = input.title.trim();
   const description = input.description?.trim() ?? "";
   if (!title || title.length > 120 || description.length > 300 || !input.instructions.trim() || input.instructions.length > 12_000) throw new Error("作品 Skill 内容超出有效范围（标题 1–120、说明不超过 300、方法正文 1–12000 字符）。");
-  database.prepare(`
-    UPDATE writing_book_skills SET title = ?, description = ?, instructions = ?, enabled = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-    WHERE user_id = ? AND book_id = ? AND id = ?
-  `).run(title, description, input.instructions, input.enabled ? 1 : 0, userId, bookId, skillId);
+  const current = getWritingBookSkill(userId, bookId, skillId);
+  if (!current) return null;
+  writeWritingLocalText(userId, bookId, { kind: "skill", id: skillId }, input.instructions);
+  try {
+    database.prepare(`
+      UPDATE writing_book_skills SET title = ?, description = ?, instructions = ?, enabled = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE user_id = ? AND book_id = ? AND id = ?
+    `).run(title, description, WRITING_LOCAL_FILE_MARKER, input.enabled ? 1 : 0, userId, bookId, skillId);
+  } catch (error) {
+    writeWritingLocalText(userId, bookId, { kind: "skill", id: skillId }, current.instructions);
+    throw error;
+  }
   return getWritingBookSkill(userId, bookId, skillId);
 }
 
 export function deleteWritingBookSkill(userId: string, bookId: string, skillId: string): boolean {
-  return database.prepare("DELETE FROM writing_book_skills WHERE user_id = ? AND book_id = ? AND id = ?").run(userId, bookId, skillId).changes > 0;
+  const removed = database.prepare("DELETE FROM writing_book_skills WHERE user_id = ? AND book_id = ? AND id = ?").run(userId, bookId, skillId).changes > 0;
+  if (removed) removeWritingLocalText(userId, bookId, { kind: "skill", id: skillId });
+  return removed;
 }
 
 export function setActiveWritingLocation(userId: string, bookId: string | null, chapterId: string | null): WritingWorkspace | null {
@@ -691,15 +773,20 @@ export function createWritingBook(userId: string, title: string): WritingWorkspa
   const bookId = randomUUID();
   const volumeId = randomUUID();
   const chapterId = randomUUID();
-  database.exec("BEGIN IMMEDIATE;");
   try {
+    ensureWritingProjectFiles(userId, bookId);
+    writeWritingLocalText(userId, bookId, { kind: "outline" }, "");
+    writeWritingLocalText(userId, bookId, { kind: "chapter", id: chapterId }, "");
+    database.exec("BEGIN IMMEDIATE;");
     database.prepare("INSERT INTO writing_books (id, user_id, title) VALUES (?, ?, ?)").run(bookId, userId, title);
     database.prepare("INSERT INTO writing_volumes (id, book_id, title, sort_order) VALUES (?, ?, '第一卷', 0)").run(volumeId, bookId);
-    database.prepare("INSERT INTO writing_chapters (id, book_id, volume_id, title, content, sort_order) VALUES (?, ?, ?, '第1章', '', 0)").run(chapterId, bookId, volumeId);
+    database.prepare("INSERT INTO writing_chapters (id, book_id, volume_id, title, content, word_count, sort_order) VALUES (?, ?, ?, '第1章', '', 0, 0)").run(chapterId, bookId, volumeId);
+    database.prepare("INSERT INTO writing_local_file_migrations (book_id, format_version, content_count) VALUES (?, 1, 2)").run(bookId);
     setWorkspaceState(userId, bookId, chapterId);
     database.exec("COMMIT;");
   } catch (error) {
-    database.exec("ROLLBACK;");
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    removeWritingProjectFiles(userId, bookId);
     throw error;
   }
   return getWritingWorkspace(userId);
@@ -745,6 +832,7 @@ export function deleteWritingBook(userId: string, bookId: string): boolean {
     database.exec("ROLLBACK;");
     throw error;
   }
+  removeWritingProjectFiles(userId, bookId);
   return true;
 }
 
@@ -754,21 +842,40 @@ export function createWritingChapter(userId: string, bookId: string, title: stri
   if (!volumeId || !database.prepare("SELECT id FROM writing_volumes WHERE id = ? AND book_id = ?").get(volumeId, bookId)) return null;
   const maxOrder = database.prepare("SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM writing_chapters WHERE book_id = ?").get(bookId) as { max_order: number };
   const chapterId = randomUUID();
-  database.prepare("INSERT INTO writing_chapters (id, book_id, volume_id, title, content, sort_order) VALUES (?, ?, ?, ?, '', ?)").run(chapterId, bookId, volumeId, title, maxOrder.max_order + 1);
-  database.prepare("UPDATE writing_books SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(bookId);
-  setWorkspaceState(userId, bookId, chapterId);
+  writeWritingLocalText(userId, bookId, { kind: "chapter", id: chapterId }, "");
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.prepare("INSERT INTO writing_chapters (id, book_id, volume_id, title, content, word_count, sort_order) VALUES (?, ?, ?, ?, '', 0, ?)").run(chapterId, bookId, volumeId, title, maxOrder.max_order + 1);
+    database.prepare("UPDATE writing_books SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(bookId);
+    setWorkspaceState(userId, bookId, chapterId);
+    database.exec("COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    removeWritingLocalText(userId, bookId, { kind: "chapter", id: chapterId });
+    throw error;
+  }
   return getWritingWorkspace(userId);
 }
 
 export function updateWritingChapter(userId: string, chapterId: string, input: { title: string; content: string }): WritingChapter | null {
   const current = chapterRow(userId, chapterId);
   if (!current) return null;
+  let revisionId: string | undefined;
+  let prunedRevisionIds: string[] = [];
   if (current.title !== input.title || current.content !== input.content) {
+    let fileChanged = false;
     database.exec("BEGIN IMMEDIATE;");
     try {
-      database.prepare("INSERT INTO writing_chapter_revisions (id, chapter_id, title, content) VALUES (?, ?, ?, ?)").run(randomUUID(), chapterId, current.title, current.content);
-      database.prepare("UPDATE writing_chapters SET title = ?, content = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(input.title, input.content, chapterId);
+      revisionId = randomUUID();
+      writeWritingLocalText(userId, current.book_id, { kind: "chapter-revision", chapterId, id: revisionId }, current.content);
+      writeWritingLocalText(userId, current.book_id, { kind: "chapter", id: chapterId }, input.content);
+      fileChanged = true;
+      database.prepare("INSERT INTO writing_chapter_revisions (id, chapter_id, title, content, word_count) VALUES (?, ?, ?, '', ?)").run(revisionId, chapterId, current.title, countWords(current.content));
+      database.prepare("UPDATE writing_chapters SET title = ?, content = '', word_count = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(input.title, countWords(input.content), chapterId);
       database.prepare("UPDATE writing_books SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(current.book_id);
+      prunedRevisionIds = (database.prepare(`SELECT id FROM writing_chapter_revisions WHERE chapter_id = ? AND id NOT IN (
+        SELECT id FROM writing_chapter_revisions WHERE chapter_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50
+      )`).all(chapterId, chapterId) as Array<{ id: string }>).map((row) => row.id);
       database.prepare(`
         DELETE FROM writing_chapter_revisions WHERE chapter_id = ? AND id NOT IN (
           SELECT id FROM writing_chapter_revisions WHERE chapter_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50
@@ -776,9 +883,12 @@ export function updateWritingChapter(userId: string, chapterId: string, input: {
       `).run(chapterId, chapterId);
       database.exec("COMMIT;");
     } catch (error) {
-      database.exec("ROLLBACK;");
+      if (database.isTransaction) database.exec("ROLLBACK;");
+      if (fileChanged) writeWritingLocalText(userId, current.book_id, { kind: "chapter", id: chapterId }, current.content);
+      if (revisionId) cleanupWritingLocalFiles(userId, current.book_id, [{ kind: "chapter-revision", chapterId, id: revisionId }]);
       throw error;
     }
+    cleanupWritingLocalFiles(userId, current.book_id, prunedRevisionIds.map((id) => ({ kind: "chapter-revision" as const, chapterId, id })));
   }
   const updated = chapterRow(userId, chapterId);
   return updated ? mapChapter(updated) : null;
@@ -787,6 +897,7 @@ export function updateWritingChapter(userId: string, chapterId: string, input: {
 export function deleteWritingChapter(userId: string, chapterId: string): WritingWorkspace | null {
   const current = chapterRow(userId, chapterId);
   if (!current) return null;
+  const revisionIds = (database.prepare("SELECT id FROM writing_chapter_revisions WHERE chapter_id = ?").all(chapterId) as Array<{ id: string }>).map((row) => row.id);
   database.exec("BEGIN IMMEDIATE;");
   try {
     database.prepare("DELETE FROM writing_chapters WHERE id = ?").run(chapterId);
@@ -799,13 +910,15 @@ export function deleteWritingChapter(userId: string, chapterId: string): Writing
     database.exec("ROLLBACK;");
     throw error;
   }
+  removeWritingLocalText(userId, current.book_id, { kind: "chapter", id: chapterId });
+  for (const id of revisionIds) removeWritingLocalText(userId, current.book_id, { kind: "chapter-revision", chapterId, id });
   return getWritingWorkspace(userId);
 }
 
 export function listWritingChapterRevisions(userId: string, chapterId: string): WritingChapterRevision[] | null {
   if (!chapterRow(userId, chapterId)) return null;
-  const rows = database.prepare("SELECT id, title, content, created_at FROM writing_chapter_revisions WHERE chapter_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50").all(chapterId) as unknown as RevisionRow[];
-  return rows.map((row) => ({ id: row.id, title: row.title, createdAt: row.created_at, wordCount: countWords(row.content) }));
+  const rows = database.prepare("SELECT id, title, created_at, word_count FROM writing_chapter_revisions WHERE chapter_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50").all(chapterId) as unknown as RevisionRow[];
+  return rows.map((row) => ({ id: row.id, title: row.title, createdAt: row.created_at, wordCount: row.word_count }));
 }
 
 export function listWritingChapterRevisionsForAi(userId: string, chapterId: string): Array<{ id: string; title: string; createdAt: string }> | null {
@@ -816,43 +929,49 @@ export function listWritingChapterRevisionsForAi(userId: string, chapterId: stri
 
 export function getWritingChapterRevisionForAi(userId: string, chapterId: string, revisionId: string): WritingChapterRevisionExcerpt | null {
   const row = database.prepare(`
-    SELECT r.id, r.title, r.created_at, substr(r.content, 1, ?) AS content, length(r.content) AS character_count
+    SELECT r.id, r.title, r.created_at
     FROM writing_chapter_revisions r
     JOIN writing_chapters c ON c.id = r.chapter_id
     JOIN writing_books b ON b.id = c.book_id
     WHERE b.user_id = ? AND r.chapter_id = ? AND r.id = ?
-  `).get(WRITING_ANALYSIS_BATCH_CHARACTER_LIMIT + 1, userId, chapterId, revisionId) as { id: string; title: string; created_at: string; content: string; character_count: number } | undefined;
+  `).get(userId, chapterId, revisionId) as { id: string; title: string; created_at: string; book_id: string } | undefined;
   if (!row) return null;
-  const contentTruncated = row.character_count > WRITING_ANALYSIS_BATCH_CHARACTER_LIMIT;
-  return { id: row.id, title: row.title, createdAt: row.created_at, content: row.content.slice(0, WRITING_ANALYSIS_BATCH_CHARACTER_LIMIT), characterCount: row.character_count, contentTruncated };
+  const chapter = database.prepare("SELECT book_id FROM writing_chapters WHERE id = ?").get(chapterId) as { book_id: string } | undefined;
+  if (!chapter) return null;
+  const fullContent = readWritingLocalText(userId, chapter.book_id, { kind: "chapter-revision", chapterId, id: revisionId });
+  const characterCount = [...fullContent].length;
+  const contentTruncated = characterCount > WRITING_ANALYSIS_BATCH_CHARACTER_LIMIT;
+  return { id: row.id, title: row.title, createdAt: row.created_at, content: fullContent.slice(0, WRITING_ANALYSIS_BATCH_CHARACTER_LIMIT), characterCount, contentTruncated };
 }
 
 export function listWritingBookOutlineRevisions(userId: string, bookId: string): WritingBookOutlineRevision[] | null {
   if (!bookRow(userId, bookId)) return null;
-  const rows = database.prepare("SELECT id, content, created_at FROM writing_book_outline_revisions WHERE book_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50").all(bookId) as unknown as OutlineRevisionRow[];
-  return rows.map((row) => ({ id: row.id, title: "大纲", createdAt: row.created_at, wordCount: countWords(row.content) }));
+  const rows = database.prepare("SELECT id, created_at, word_count FROM writing_book_outline_revisions WHERE book_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50").all(bookId) as unknown as OutlineRevisionRow[];
+  return rows.map((row) => ({ id: row.id, title: "大纲", createdAt: row.created_at, wordCount: row.word_count }));
 }
 
 export function restoreWritingBookOutlineRevision(userId: string, bookId: string, revisionId: string): { bookId: string; content: string; updatedAt: string; wordCount: number } | null {
   if (!bookRow(userId, bookId)) return null;
   const revision = database.prepare(`
-    SELECT r.id, r.content, r.created_at FROM writing_book_outline_revisions r
+    SELECT r.id, r.created_at FROM writing_book_outline_revisions r
     JOIN writing_books b ON b.id = r.book_id
     WHERE b.user_id = ? AND r.book_id = ? AND r.id = ?
-  `).get(userId, bookId, revisionId) as OutlineRevisionRow | undefined;
+  `).get(userId, bookId, revisionId) as { id: string; created_at: string } | undefined;
   if (!revision) return null;
-  return updateWritingBookOutline(userId, bookId, revision.content);
+  return updateWritingBookOutline(userId, bookId, readWritingLocalText(userId, bookId, { kind: "outline-revision", id: revision.id }));
 }
 
 export function restoreWritingChapterRevision(userId: string, chapterId: string, revisionId: string): WritingChapter | null {
   if (!chapterRow(userId, chapterId)) return null;
   const revision = database.prepare(`
-    SELECT r.id, r.title, r.content, r.created_at FROM writing_chapter_revisions r
+    SELECT r.id, r.title, r.created_at FROM writing_chapter_revisions r
     JOIN writing_chapters c ON c.id = r.chapter_id JOIN writing_books b ON b.id = c.book_id
     WHERE b.user_id = ? AND r.chapter_id = ? AND r.id = ?
-  `).get(userId, chapterId, revisionId) as RevisionRow | undefined;
+  `).get(userId, chapterId, revisionId) as { id: string; title: string; created_at: string } | undefined;
   if (!revision) return null;
-  return updateWritingChapter(userId, chapterId, { title: revision.title, content: revision.content });
+  const chapter = chapterRow(userId, chapterId);
+  if (!chapter) return null;
+  return updateWritingChapter(userId, chapterId, { title: revision.title, content: readWritingLocalText(userId, chapter.book_id, { kind: "chapter-revision", chapterId, id: revision.id }) });
 }
 
 export function getActiveWritingAiContext(userId: string): {
@@ -868,34 +987,37 @@ export function getActiveWritingAiContext(userId: string): {
 } | null {
   const state = database.prepare("SELECT active_book_id, active_chapter_id FROM writing_workspace_state WHERE user_id = ?").get(userId) as WorkspaceStateRow | undefined;
   if (!state?.active_book_id) return null;
-  const book = database.prepare("SELECT id, title, outline_content, ai_role_id FROM writing_books WHERE user_id = ? AND id = ?").get(userId, state.active_book_id) as { id: string; title: string; outline_content: string; ai_role_id: WritingSpecialistId } | undefined;
+  const book = database.prepare("SELECT id, title, ai_role_id FROM writing_books WHERE user_id = ? AND id = ?").get(userId, state.active_book_id) as { id: string; title: string; ai_role_id: WritingSpecialistId } | undefined;
   if (!book) return null;
+  const outline = readWritingLocalText(userId, book.id, { kind: "outline" });
   const chapter = state.active_chapter_id
-    ? database.prepare("SELECT id, title, content FROM writing_chapters WHERE id = ? AND book_id = ?").get(state.active_chapter_id, book.id) as { id: string; title: string; content: string } | undefined
+    ? database.prepare("SELECT id, title FROM writing_chapters WHERE id = ? AND book_id = ?").get(state.active_chapter_id, book.id) as { id: string; title: string } | undefined
     : undefined;
+  const chapterContent = chapter ? readWritingLocalText(userId, book.id, { kind: "chapter", id: chapter.id }) : "";
   const limit = 12_000;
   return {
     bookId: book.id,
     bookTitle: book.title,
     aiRoleId: book.ai_role_id,
-    outline: book.outline_content.slice(0, limit),
-    outlineTruncated: book.outline_content.length > limit,
+    outline: outline.slice(0, limit),
+    outlineTruncated: outline.length > limit,
     chapterId: chapter?.id ?? null,
     chapterTitle: chapter?.title ?? null,
-    content: chapter?.content.slice(0, limit) ?? "",
-    chapterTruncated: (chapter?.content.length ?? 0) > limit
+    content: chapterContent.slice(0, limit),
+    chapterTruncated: chapterContent.length > limit
   };
 }
 
 /** 导出当前账户的一部作品为 DeepWrite 原生长篇目录 ZIP，不包含提案、修订与会话数据。 */
 export function exportWritingBookDeepWriteZip(userId: string, bookId: string): { data: Buffer; filename: string } | null {
-  const book = database.prepare("SELECT id, title, outline_content, ai_role_id, created_at, updated_at FROM writing_books WHERE user_id = ? AND id = ?").get(userId, bookId) as (BookRow & { outline_content: string }) | undefined;
+  const book = database.prepare("SELECT id, title, ai_role_id, created_at, updated_at FROM writing_books WHERE user_id = ? AND id = ?").get(userId, bookId) as BookRow | undefined;
   if (!book) return null;
   const volumes = database.prepare("SELECT id, title, sort_order FROM writing_volumes WHERE book_id = ? ORDER BY sort_order ASC, created_at ASC").all(bookId) as unknown as VolumeRow[];
-  const chapters = database.prepare("SELECT id, volume_id, title, content, sort_order, updated_at FROM writing_chapters WHERE book_id = ? ORDER BY sort_order ASC, created_at ASC").all(bookId) as Array<{ id: string; volume_id: string; title: string; content: string; sort_order: number; updated_at: string }>;
-  const catalog = database.prepare("SELECT id, kind, title, content, created_at, updated_at FROM writing_catalog_entries WHERE book_id = ? ORDER BY kind ASC, created_at ASC, id ASC").all(bookId) as Array<{ id: string; kind: WritingCatalogKind; title: string; content: string; created_at: string; updated_at: string }>;
-  const skills = database.prepare("SELECT title, description, instructions, enabled FROM writing_book_skills WHERE user_id = ? AND book_id = ? ORDER BY created_at ASC, id ASC LIMIT 40").all(userId, bookId) as Array<{ title: string; description: string; instructions: string; enabled: number }>;
-  if (book.title.length > 256 || book.outline_content.length > 200_000) throw new Error("DeepWrite 长篇格式要求作品标题不超过 256、全书故事线不超过 200,000 字符。");
+  const outline = readWritingLocalText(userId, bookId, { kind: "outline" });
+  const chapters = (database.prepare("SELECT id, volume_id, title, sort_order, updated_at FROM writing_chapters WHERE book_id = ? ORDER BY sort_order ASC, created_at ASC").all(bookId) as Array<{ id: string; volume_id: string; title: string; sort_order: number; updated_at: string }>).map((chapter) => ({ ...chapter, content: readWritingLocalText(userId, bookId, { kind: "chapter", id: chapter.id }) }));
+  const catalog = (database.prepare("SELECT id, kind, title, created_at, updated_at FROM writing_catalog_entries WHERE book_id = ? ORDER BY kind ASC, created_at ASC, id ASC").all(bookId) as Array<{ id: string; kind: WritingCatalogKind; title: string; created_at: string; updated_at: string }>).map((entry) => ({ ...entry, content: readWritingLocalText(userId, bookId, { kind: "catalog", id: entry.id }) }));
+  const skills = (database.prepare("SELECT id, title, description, enabled FROM writing_book_skills WHERE user_id = ? AND book_id = ? ORDER BY created_at ASC, id ASC LIMIT 40").all(userId, bookId) as Array<{ id: string; title: string; description: string; enabled: number }>).map((skill) => ({ ...skill, instructions: readWritingLocalText(userId, bookId, { kind: "skill", id: skill.id }) }));
+  if (book.title.length > 256 || outline.length > 200_000) throw new Error("DeepWrite 长篇格式要求作品标题不超过 256、全书故事线不超过 200,000 字符。");
   if (chapters.length > 4_900 || volumes.length > 4_900 || catalog.length > 4_900) throw new Error("当前作品内容数量超过单个 DeepWrite ZIP 的文件数量限制。");
 
   const now = book.updated_at;
@@ -931,7 +1053,7 @@ export function exportWritingBookDeepWriteZip(userId: string, bookId: string): {
     };
   });
   const bookLinePath = "long/plot/book-line.md";
-  addText(bookLinePath, book.outline_content);
+  addText(bookLinePath, outline);
   const chapterOrderByVolume = new Map<string, number>();
   const chapterCards = chapters.map((chapter) => {
     const order = (chapterOrderByVolume.get(chapter.volume_id) ?? 0) + 1;
@@ -1023,21 +1145,37 @@ export function importWritingBookDeepWriteZip(userId: string, archive: Uint8Arra
   const totalEntries = project.volumes.length + orderedChapters.length + materials.length + project.skills.length + 1;
   if (totalEntries > DEEPWRITE_ZIP_MAX_ENTRIES) throw new Error("导入作品记录数量超过单包事务限制。");
 
+  const catalogRecords = materials.map((entry) => ({ ...entry, id: randomUUID() }));
+  const skillRecords = project.skills.map((skill) => ({ ...skill, id: randomUUID() }));
+  try {
+    ensureWritingProjectFiles(userId, bookId);
+    writeWritingLocalText(userId, bookId, { kind: "outline" }, project.outline);
+    for (const chapter of orderedChapters) writeWritingLocalText(userId, bookId, { kind: "chapter", id: chapterIds.get(chapter.externalId)! }, chapter.content);
+    for (const entry of catalogRecords) writeWritingLocalText(userId, bookId, { kind: "catalog", id: entry.id }, entry.content);
+    for (const skill of skillRecords) writeWritingLocalText(userId, bookId, { kind: "skill", id: skill.id }, skill.instructions);
+  } catch (error) {
+    removeWritingProjectFiles(userId, bookId);
+    throw error;
+  }
+
   database.exec("BEGIN IMMEDIATE;");
   try {
-    database.prepare("INSERT INTO writing_books (id, user_id, title, outline_content, ai_role_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(bookId, userId, project.title, project.outline, project.aiRoleId, now, now);
+    database.prepare("INSERT INTO writing_books (id, user_id, title, outline_content, ai_role_id, created_at, updated_at) VALUES (?, ?, ?, '', ?, ?, ?)").run(bookId, userId, project.title, project.aiRoleId, now, now);
     const insertVolume = database.prepare("INSERT INTO writing_volumes (id, book_id, title, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)");
     project.volumes.sort((left, right) => left.order - right.order || left.externalId.localeCompare(right.externalId)).forEach((volume, order) => insertVolume.run(volumeIds.get(volume.externalId)!, bookId, volume.title, order, now, now));
-    const insertChapter = database.prepare("INSERT INTO writing_chapters (id, book_id, volume_id, title, content, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    orderedChapters.forEach((chapter, order) => insertChapter.run(chapterIds.get(chapter.externalId)!, bookId, volumeIds.get(chapter.volumeExternalId)!, chapter.title, chapter.content, order, now, now));
-    const insertCatalog = database.prepare("INSERT INTO writing_catalog_entries (id, book_id, kind, title, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    for (const entry of materials) insertCatalog.run(randomUUID(), bookId, entry.kind, entry.title, entry.content, now, now);
+    const insertChapter = database.prepare("INSERT INTO writing_chapters (id, book_id, volume_id, title, content, word_count, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, '', ?, ?, ?, ?)");
+    orderedChapters.forEach((chapter, order) => insertChapter.run(chapterIds.get(chapter.externalId)!, bookId, volumeIds.get(chapter.volumeExternalId)!, chapter.title, countWords(chapter.content), order, now, now));
+    const insertCatalog = database.prepare("INSERT INTO writing_catalog_entries (id, book_id, kind, title, content, created_at, updated_at) VALUES (?, ?, ?, ?, '', ?, ?)");
+    for (const entry of catalogRecords) insertCatalog.run(entry.id, bookId, entry.kind, entry.title, now, now);
     const insertSkill = database.prepare("INSERT INTO writing_book_skills (id, user_id, book_id, title, description, instructions, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    for (const skill of project.skills) insertSkill.run(randomUUID(), userId, bookId, skill.title, skill.description, skill.instructions, skill.enabled ? 1 : 0, now, now);
+    for (const skill of skillRecords) insertSkill.run(skill.id, userId, bookId, skill.title, skill.description, WRITING_LOCAL_FILE_MARKER, skill.enabled ? 1 : 0, now, now);
+    database.prepare("INSERT INTO writing_local_file_migrations (book_id, format_version, content_count) VALUES (?, 1, ?)")
+      .run(bookId, 1 + orderedChapters.length + catalogRecords.length + skillRecords.length);
     setWorkspaceState(userId, bookId, chapterIds.get(orderedChapters[0]!.externalId)!);
     database.exec("COMMIT;");
   } catch (error) {
     database.exec("ROLLBACK;");
+    removeWritingProjectFiles(userId, bookId);
     throw error;
   }
   return getWritingWorkspace(userId);

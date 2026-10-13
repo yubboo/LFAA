@@ -1,7 +1,8 @@
 /** 功能：登记 settings-controller 的现有接口。作用：保留迁移前的行为并按包维护。关联文件：API Gateway、设置中心或工作台对应入口。 */
 import { Router } from "express";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
-import { requireAuthentication, requireRole } from "lfaa-authorization/src/middleware.js";
+import { requireAuthentication, requireRole, requireSuperAdmin } from "lfaa-authorization/src/middleware.js";
+import { assertSystemFileAccess } from "lfaa-fs/src/library.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import { PluginRuntimeError } from "lfaa-app-boot/src/plugin-runtime.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
@@ -9,8 +10,9 @@ import { getUserPreferences, saveUserPreferences, type ApplicationId, type Appli
 import { clearConversationMemories, getConversationMemorySnapshot, replaceConversationMemories, validateConversationMemoriesInput } from "lfaa-conversation-memory/src/index.js";
 import { redactConversationMemoryContexts } from "lfaa-session/src/sessions.js";
 import { activateAiAccount, deleteAiAccount, deleteUserBackground, getUserBackground, getUserSettings, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, reprobeAiAccount, saveAiAccount, saveUserBackground, saveUserSettings, updateAiAccountModel, updateAiAccountReasoningMode, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
-import { cancelDataDirectoryChange, DataDirectorySettingsError, getDataDirectorySettings, requestDataDirectoryChange } from "lfaa-workspace-data-directory/src/service.js";
-import { asyncHandler, parseBody, preferencesSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { cancelDataDirectoryChange, confirmDataDirectoryLocation, DataDirectorySettingsError, getDataDirectorySettings, requestDataDirectoryChange } from "lfaa-workspace-data-directory/src/service.js";
+import { getProjectStorageLocations, isOutsideProjectDataDirectory, saveProjectStorageLocations } from "lfaa-settings/src/project-storage.js";
+import { asyncHandler, parseBody, preferencesSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, projectStorageLocationsSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
 export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher): void {
 
 router.get("/ai/extensions", requireAuthentication, (_request, response) => {
@@ -208,8 +210,24 @@ router.delete("/settings/ai/accounts/:accountId", requireAuthentication, (reques
 router.get("/data-directory", requireAuthentication, requireRole("admin"), (_request, response) => {
     response.json({ settings: getDataDirectorySettings() });
   });
+router.get("/project-storage-locations", requireAuthentication, requireRole("admin"), (_request, response) => {
+    response.json(getProjectStorageLocations());
+  });
+router.put("/project-storage-locations", requireAuthentication, requireRole("admin"), (request, response) => {
+    const body = parseBody<{ logsDirectory: string; writingDirectory: string; dramaDirectory: string }>(projectStorageLocationsSchema, request.body);
+    const userId = request.auth!.user.id;
+    if (Object.values(body).some(isOutsideProjectDataDirectory)) assertSystemFileAccess(userId);
+    try {
+      response.json(saveProjectStorageLocations(body));
+    } catch (error) {
+      throw new ApiError(400, "invalid_project_storage_location", error instanceof Error ? error.message : "项目存储位置无效。");
+    }
+  });
+router.post("/data-directory/confirm", requireAuthentication, requireSuperAdmin, (_request, response) => {
+    response.json({ settings: confirmDataDirectoryLocation() });
+  });
 
-router.put("/data-directory", requireAuthentication, requireRole("admin"), (request, response) => {
+router.put("/data-directory", requireAuthentication, requireSuperAdmin, (request, response) => {
     const body = parseBody<{ directory: string }>(dataDirectorySettingsSchema, request.body);
     try {
       response.json({ settings: requestDataDirectoryChange(body.directory) });
@@ -222,7 +240,7 @@ router.put("/data-directory", requireAuthentication, requireRole("admin"), (requ
     }
   });
 
-router.delete("/data-directory", requireAuthentication, requireRole("admin"), (_request, response) => {
+router.delete("/data-directory", requireAuthentication, requireSuperAdmin, (_request, response) => {
     try {
       cancelDataDirectoryChange();
       response.json({ settings: getDataDirectorySettings() });

@@ -4,6 +4,54 @@
 
 每次正式更新一个项目版本时，追加一条记录。条目以 `#编号 名称` 命名，编号从 `#1` 开始连续递增；每条记录包含项目版本、日期和更新内容。详细规则见根目录 [开发规范](../开发规范.md) 的“版本与更新日志”章节。
 
+历史版本线曾按用户授权重置；旧条目保留原版本、编号和结果。当前产品版本取最新条目，CLI/Web/Electron/update.json 对账，私有实现包独立版本不当作产品发行版本。2026-10-08 工作区整改不生成安装包、不改产品版本；源码修复与验证见 [审查记录](development/workspace-audit-20261008.zh.md)。
+
+## #21 系统能力深度对齐 DSH（src 源文件数基准）
+
+- **项目版本：** `LFAA 0.0.8`
+- **日期：** 2026-10-09
+- **更新内容：** 以 DSH 对应包 **src 源文件数**（排除编译产物/测试/生成文件）为验收基准的深度对齐，本条目为源码级对齐，不生成安装包、不改产品版本：
+  - 薄实现扩展为 DSH 同构完整实现（src 文件数对照 DSH ±20% 内）：subagent/subagent 3→25、tool-subagent 1→6、core/agent 2→11、core/scope 1→3（ScopedLayers 分层存储）、core/session 4→14（fork/repair/surface/seq-ranges 等）、llm/llm-pi-ai 2→13（豆包完整 Provider：目录/认证/探测/模型/上下文/流式）、schedule 4→11（模型可见定时任务工具+投递历史）、ssh 2→8（结构化协议/流安全/远端哨兵）、fs/tool-fs 1→11（diff/read-image/编辑合同）、compaction 2→6 与 compaction-basic 1→5（checkpoint/tool-pairing/invariant/config/region/summarizer）。
+  - 新增 skill 系统（用户痛点闭环）：`lfaa-skill`（ctx.skills 注册表：provider 注册/catalog 合并/winner 解析/正文加载）、`lfaa-skill-filesystem`（SKILL.md 目录束与扁平 md 发现、YAML frontmatter 解析、多级 skill 根、chokidar 监听）、`lfaa-skill-office`（内置 docx/pptx/xlsx 技能）；用户自建 MC skill（H:\mc\skill，SKILL.md 文件夹格式）经自定义目录配置即可发现并加载正文，冒烟验证通过；路径未写死进代码。
+  - 豆包/火山方舟显示链路修复：设置页「模型服务商」数据驱动链路（providers 白名单 → listAiProviders → 设置页卡片渲染）已确认完整，服务重载后豆包即出现在列表。
+  - 验证：host 与 client 全量 typecheck 通过（0 错误）；工作区门禁通过（177 个实际包，类型映射/依赖/文档一致）。
+
+## #20 系统能力对齐 DSH
+
+- **项目版本：** `LFAA 0.0.8`
+- **日期：** 2026-10-09
+- **更新内容：** 以 DeepSeek Harness（DSH）为蓝本系统性补齐 AI Work 端到端能力，本条目为源码级能力对齐，不生成安装包、不改产品版本：
+  - LLM Provider 族：新增豆包/火山方舟 Provider（OpenAI 兼容 Ark 通道，Provider id doubao）、有界指数退避重试、token 计量；llm 补齐流式原语（块组装/SSE 解析/错误分类/重试策略）。
+  - 上下文管理：agent-loop 主循环接入上下文压力评估与压缩/溢出钩子；新增 compaction 摘要压缩、图像卸载、工具结果裁剪与手动压缩命令；spill 本地溢出存储与策略。
+  - 本机执行能力：fs 读/写/列目录/搜索/替换工具、shell 协议与 pwsh/bash 执行器、subprocess 受管子进程运行时与进程树终止、terminal 管道终端会话，均带路径边界与用户审批。
+  - 联网能力：web_search/web_fetch 工具接入统一 WebRuntime，DeepSeek 搜索 Provider 复用激活账户密钥，SSRF 防护与外部内容不可信标注。
+  - 委派能力：subagent 驱动注册表、进程内委派驱动、委派/列表/取消工具，及 claude-code/codex CLI 驱动。
+  - 会话持久化链：JSONL 落盘格式协议化（版本号/四表/哈希链校验），投影/缓存/统计/标题/回合大纲，node:sqlite 内存查询引擎与 NDJSON 导出，v0→v1 真实迁移。
+  - 计划任务与远程：schedule 定时引擎（手写 cron/时区/SQLite 持久化/失败退避）；ssh 会话协议与 fs/subprocess/sandbox 适配。
+  - API 层：统一 SSE 流式助手、会话单条详情端点、终端控制器路由骨架（认证与账户隔离）。
+  - 验证：host 与 client 全量 typecheck 通过（0 错误）；工作区门禁（包依赖/类型映射/版本/文档一致性）通过。
+
+## #19 Electron 桌面安装包
+
+- **项目版本：** `LFAA 0.0.8`
+- **日期：** 2026-10-09
+- **更新内容：** 完善通用 Agent 能力调用链，支持模型规划并执行已登记工具、Skill、MCP 等能力；修复 Windows 本机 Web 电脑操控能力登记，限制在本机回环访问
+- **Windows Electron 包状态：** 已生成：LFAA-0.0.8.exe
+
+## #18 Electron 桌面安装包
+
+- **项目版本：** `LFAA 0.0.7`
+- **日期：** 2026-10-07
+- **更新内容：** 修复 Electron 更新清单在系统代理环境下的检测超时；增加真实下载进度、速度显示与可取消下载；下载完成后提供“稍后”或“重启并安装”确认；桌面安装包只输出到项目名加版本号目录
+- **Windows Electron 包状态：** 已生成：LFAA-0.0.7.exe
+
+## #17 Electron 桌面安装包
+
+- **项目版本：** `LFAA 0.0.6`
+- **日期：** 2026-10-07
+- **更新内容：** 改进更新失败恢复与安全诊断；更新卡片和弹窗接入外观设置；旧版本可直达最新稳定版
+- **Windows Electron 包状态：** 已生成：LFAA-0.0.6.exe
+
 ## #16 Electron 桌面安装包
 
 - **项目版本：** `LFAA 0.0.5`

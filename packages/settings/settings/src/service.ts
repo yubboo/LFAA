@@ -8,231 +8,25 @@
  * 修改注意事项：Provider 地址必须来自固定登记表；不得接受任意 URL 或将明文密钥写入数据库、日志和 API 响应。
  */
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { configuration, ConfigurationConflict } from "lfaa-storage-domain/src/configuration.js";
 import { config } from "lfaa-launch-environment/src/config.js";
 import { resolveUserDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
+import { protectPrivateDirectory } from "lfaa-home-paths/src/private-directory.mjs";
 import { atomicWrite, atomicWriteBytes, decode } from "lfaa-storage-json/src/index.js";
 import { withControlLock } from "lfaa-storage-domain/src/control-lock.js";
+import { validateSettingsInput } from "./validation.js";
 import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
 import { credentialReference, normalizeCredentialRecord, type CredentialRecord, type CredentialRecordMetadata } from "lfaa-credentials/src/index.js";
 import { defaultReasoningMode, isSelectableReasoningMode, normalizeAccountReasoningMode, normalizeProviderModelThinking, normalizeStoredModelThinking, PROVIDER_MODEL_CAPABILITY_SOURCE } from "./model-capabilities.js";
 import type { AiModelCatalogEntry, AiModelThinkingControl } from "./model-capabilities.js";
 export type { AiModelCatalogEntry, AiModelThinkingControl } from "./model-capabilities.js";
 
-export type SettingsCategory = "general" | "appearance" | "shortcuts" | "ai-runtime" | "minecraft-runtime" | "git" | "permissions" | "plugins" | "personalization" | "computer-control";
-
-export interface GeneralSettings {
-  defaultMode: "normal" | "ai-work";
-  showServiceStatus: boolean;
-  showBottomPanelControl: boolean;
-  taskFolder: string;
-  fileOpenLocation: "system" | "ask";
-  agentEnvironment: "system" | "windows-native" | "wsl" | "linux";
-  integratedShell: "system" | "powershell" | "cmd" | "bash" | "zsh";
-  language: "system" | "zh-CN" | "en-US";
-  defaultFullView: boolean;
-  navigationLayout: "left-two-column" | "three-column" | "right-tools" | "focus";
-  terminalPosition: "bottom" | "right";
-  plainTextEditor: boolean;
-  sendShortcut: "enter" | "ctrl-enter";
-  followupBehavior: "queue" | "steer";
-  popupShortcut: string;
-  defaultStandaloneChat: boolean;
-  completionNotification: "always" | "unfocused" | "never";
-  permissionNotifications: boolean;
-  questionNotifications: boolean;
-  sessionIssueNotifications: boolean;
-  notificationSound: "default" | "subtle" | "off";
-  setupReminderEnabled: boolean;
-  confettiEnabled: boolean;
-}
-
-export interface AppearanceSettings {
-  theme: "light" | "dark" | "system";
-  accentColor: string;
-  sidebarColor: string;
-  backgrounds: {
-    login: string;
-    appCenter: string;
-    steamcmd: string;
-    minecraft: string;
-    writing: string;
-    settings: string;
-  };
-  wallpaperEngine: { enabled: boolean; projectId: string };
-  overlay: number;
-  blur: number;
-  advanced: AppearanceAdvancedSettings;
-}
-
-export interface AppearanceFonts {
-  interface: "system" | "sans" | "serif";
-  content: "system" | "sans" | "serif";
-  code: "system" | "cascadia" | "consolas" | "jetbrains";
-}
-
-export interface AppearanceAdvancedSettings {
-  interfaceFontSize: number;
-  codeFontSize: number;
-  reducedMotion: "system" | "on" | "off";
-  separateModes: boolean;
-  fonts: AppearanceFonts;
-  modeStyles: {
-    light: { accentColor: string; fonts: AppearanceFonts };
-    dark: { accentColor: string; fonts: AppearanceFonts };
-  };
-  translucentSidebar: boolean;
-  contrast: number;
-  diffMarkers: "color" | "symbols";
-  pointerCursor: boolean;
-  aiWorkOutputFocusBlurEnabled: boolean;
-  aiWorkOutputFocusBlurPercent: number;
-  aiWorkOutputFocusBlurIdleSeconds: number;
-}
-
-export interface AppearanceBackgroundView {
-  id: string;
-  name: string;
-  mimeType: string;
-  url: string;
-  createdAt: string;
-}
-
-export interface ShortcutSettings {
-  openSettings: string[];
-  openHome: string[];
-  openSteamcmd: string[];
-  openMinecraft: string[];
-  openWriting: string[];
-  toggleSidebar: string[];
-  toggleContextPanel: string[];
-  toggleBottomPanel: string[];
-  openTerminal: string[];
-  switchNormalMode: string[];
-  switchAiWorkMode: string[];
-  openSideChat: string[];
-  wallpaperSidebarToggle: string[];
-}
-
-export interface UserSettings {
-  general: GeneralSettings;
-  appearance: AppearanceSettings;
-  shortcuts: ShortcutSettings;
-  aiRuntime: AiRuntimeSettings;
-  minecraftRuntime: MinecraftRuntimeSettings;
-  git: GitSettings;
-  permissions: PermissionSettings;
-  plugins: PluginSettings;
-  personalization: PersonalizationSettings;
-  computerControl: ComputerControlSettings;
-}
-
-export interface ComputerControlSettings {
-  enabled: boolean;
-}
-
-export interface PersonalizationSettings {
-  memoryEnabled: boolean;
-  memoryFromToolChats: boolean;
-}
-
-export interface AiRuntimeSettings {
-  speed: "balanced" | "fast" | "deep";
-  promptSuggestions: boolean;
-  showContextUsage: boolean;
-  requestTimeoutSeconds: number;
-  maxOutputTokens: number;
-  maxModelRequests: number;
-  maxToolCalls: number;
-  subagentAccountId: string;
-  maxSubagents: number;
-  maxDelegationDepth: number;
-  voiceInputEnabled: boolean;
-  readResponsesAloud: boolean;
-  commandTimeoutSeconds: number;
-}
-
-export interface MinecraftRuntimeSettings {
-  minecraftReadyTimeoutSeconds: number;
-  minecraftStopTimeoutSeconds: number;
-  minecraftDefaultMemoryMb: number;
-  minecraftDefaultPort: number;
-  minecraftDownloadTimeoutSeconds: number;
-  minecraftInstallTimeoutSeconds: number;
-  minecraftExecutionMode: "native" | "appcontainer";
-  minecraftDefaultCore: string;
-  minecraftBedrockDefaultPort: number;
-}
-
-export interface GitSettings {
-  branchPrefix: string;
-}
-
-export interface PermissionSettings {
-  mode: "ask" | "approve_remembered" | "full_access";
-}
-
-export interface UserCapabilityPrompt {
-  id: string;
-  name: string;
-  description: string;
-  applicationId: ApplicationId;
-  sourceRepository: string;
-  sourcePath: string;
-  license: string | null;
-  commit: string;
-  archiveSha256: string;
-  contentSha256: string;
-  content: string;
-  enabled: boolean;
-  createdAt: string;
-}
-
-export interface PluginSettings {
-  enabled: boolean;
-  mcpServers: Array<{ id: string; name: string; url: string; enabled: boolean; applicationIds: ApplicationId[]; manifestSha256?: string }>;
-  prompts?: UserCapabilityPrompt[];
-}
-
-export const defaultSettings: UserSettings = {
-  general: {
-    defaultMode: "normal",
-    showServiceStatus: true,
-    showBottomPanelControl: true,
-    taskFolder: "",
-    fileOpenLocation: "system",
-    agentEnvironment: "system",
-    integratedShell: "system",
-    language: "system",
-    defaultFullView: true,
-    navigationLayout: "three-column",
-    terminalPosition: "bottom",
-    plainTextEditor: true,
-    sendShortcut: "enter",
-    followupBehavior: "queue",
-    popupShortcut: "",
-    defaultStandaloneChat: false,
-    completionNotification: "unfocused",
-    permissionNotifications: true,
-    questionNotifications: true,
-    sessionIssueNotifications: true,
-    notificationSound: "default",
-    setupReminderEnabled: true,
-    confettiEnabled: false
-  },
-  appearance: { theme: "system", accentColor: "#3457d5", sidebarColor: "auto", backgrounds: { login: "forest-bridge-evening", appCenter: "cherry-blossom-shore", steamcmd: "ocean-cliff-sunset", minecraft: "cherry-blossom-village", writing: "snowy-cabin-interior", settings: "lakeside-pagoda-morning" }, wallpaperEngine: { enabled: false, projectId: "" }, overlay: 37, blur: 14, advanced: { interfaceFontSize: 14, codeFontSize: 12, reducedMotion: "system", separateModes: false, fonts: { interface: "system", content: "system", code: "system" }, modeStyles: { light: { accentColor: "#3457d5", fonts: { interface: "system", content: "system", code: "system" } }, dark: { accentColor: "#3457d5", fonts: { interface: "system", content: "system", code: "system" } } }, translucentSidebar: false, contrast: 60, diffMarkers: "color", pointerCursor: false, aiWorkOutputFocusBlurEnabled: true, aiWorkOutputFocusBlurPercent: 33, aiWorkOutputFocusBlurIdleSeconds: 60 } },
-  shortcuts: { openSettings: ["Ctrl+,"], openHome: ["Alt+0"], openSteamcmd: ["Ctrl+Alt+1"], openMinecraft: ["Ctrl+Alt+2"], openWriting: ["Ctrl+Alt+3"], toggleSidebar: ["Ctrl+B"], toggleContextPanel: ["Ctrl+Alt+B"], toggleBottomPanel: ["Ctrl+J"], openTerminal: ["Ctrl+`"], switchNormalMode: ["Alt+1"], switchAiWorkMode: ["Alt+2"], openSideChat: ["Ctrl+Alt+S"], wallpaperSidebarToggle: [] },
-  aiRuntime: { speed: "balanced", promptSuggestions: true, showContextUsage: false, requestTimeoutSeconds: 90, maxOutputTokens: 2048, maxModelRequests: 12, maxToolCalls: 24, subagentAccountId: "", maxSubagents: 4, maxDelegationDepth: 2, voiceInputEnabled: false, readResponsesAloud: false, commandTimeoutSeconds: 0 },
-  minecraftRuntime: { minecraftReadyTimeoutSeconds: 120, minecraftStopTimeoutSeconds: 30, minecraftDefaultMemoryMb: 4096, minecraftDefaultPort: 25565, minecraftDownloadTimeoutSeconds: 1800, minecraftInstallTimeoutSeconds: 900, minecraftExecutionMode: "native", minecraftDefaultCore: "Paper", minecraftBedrockDefaultPort: 19132 },
-  git: { branchPrefix: "codex/" },
-  permissions: { mode: "ask" },
-  plugins: { enabled: false, mcpServers: [], prompts: [] },
-  personalization: { memoryEnabled: false, memoryFromToolChats: false },
-  computerControl: { enabled: false }
-};
+import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, DEFAULT_USER_SETTINGS, type SettingsCategory, type GeneralSettings, type AppearanceSettings, type AppearanceFonts, type AppearanceAdvancedSettings, type AppearanceBackgroundView, type ShortcutSettings, type UserSettings, type ComputerControlSettings, type PersonalizationSettings, type AiRuntimeSettings, type MinecraftRuntimeSettings, type GitSettings, type PermissionSettings, type UserCapabilityPrompt, type PluginSettings } from "lfaa-util-values/src/settings-contract.js";
+export type { SettingsCategory, GeneralSettings, AppearanceSettings, AppearanceFonts, AppearanceAdvancedSettings, AppearanceBackgroundView, ShortcutSettings, UserSettings, ComputerControlSettings, PersonalizationSettings, AiRuntimeSettings, MinecraftRuntimeSettings, GitSettings, PermissionSettings, UserCapabilityPrompt, PluginSettings } from "lfaa-util-values/src/settings-contract.js";
+export const defaultSettings: UserSettings = structuredClone(DEFAULT_USER_SETTINGS);
 
 const allowedAccentColors = new Set(["#3457d5", "#1687a7", "#27845b", "#8956bb", "#d05b37", "#d64d8f"]);
 
@@ -310,26 +104,43 @@ function readAiRuntimeSettings(value: Record<string, unknown>): AiRuntimeSetting
     speed: choose(value.speed, ["fast", "balanced", "deep"], defaultSettings.aiRuntime.speed),
     promptSuggestions: typeof value.promptSuggestions === "boolean" ? value.promptSuggestions : defaultSettings.aiRuntime.promptSuggestions,
     showContextUsage: typeof value.showContextUsage === "boolean" ? value.showContextUsage : defaultSettings.aiRuntime.showContextUsage,
+    autoCompaction: typeof value.autoCompaction === "boolean" ? value.autoCompaction : defaultSettings.aiRuntime.autoCompaction!,
+    contextWindowTokens: typeof value.contextWindowTokens === "number" && Number.isInteger(value.contextWindowTokens) && value.contextWindowTokens >= 4096 && value.contextWindowTokens <= 2000000 ? value.contextWindowTokens : defaultSettings.aiRuntime.contextWindowTokens!,
     requestTimeoutSeconds: typeof value.requestTimeoutSeconds === "number" && Number.isInteger(value.requestTimeoutSeconds) && value.requestTimeoutSeconds >= 10 && value.requestTimeoutSeconds <= 300 ? value.requestTimeoutSeconds : defaultSettings.aiRuntime.requestTimeoutSeconds,
-    maxOutputTokens: typeof value.maxOutputTokens === "number" && Number.isInteger(value.maxOutputTokens) && value.maxOutputTokens >= 256 && value.maxOutputTokens <= 16384 ? value.maxOutputTokens : defaultSettings.aiRuntime.maxOutputTokens,
+    maxOutputTokens: typeof value.maxOutputTokens === "number" && Number.isSafeInteger(value.maxOutputTokens) && value.maxOutputTokens >= 0 ? value.maxOutputTokens : defaultSettings.aiRuntime.maxOutputTokens,
+    requestRetries: typeof value.requestRetries === "number" && Number.isInteger(value.requestRetries) && value.requestRetries >= 0 && value.requestRetries <= 3 ? value.requestRetries : defaultSettings.aiRuntime.requestRetries,
+    retryDelaySeconds: typeof value.retryDelaySeconds === "number" && Number.isInteger(value.retryDelaySeconds) && value.retryDelaySeconds >= 0 && value.retryDelaySeconds <= 30 ? value.retryDelaySeconds : defaultSettings.aiRuntime.retryDelaySeconds,
     // 旧账户只补齐执行预算，保留模型、权限与其他偏好。
     voiceInputEnabled: typeof value.voiceInputEnabled === "boolean" ? value.voiceInputEnabled : defaultSettings.aiRuntime.voiceInputEnabled,
     readResponsesAloud: typeof value.readResponsesAloud === "boolean" ? value.readResponsesAloud : defaultSettings.aiRuntime.readResponsesAloud,
     // AI 节点命令时限只影响 AI Work 发起的主机命令。
     commandTimeoutSeconds: typeof value.commandTimeoutSeconds === "number" && Number.isInteger(value.commandTimeoutSeconds) && value.commandTimeoutSeconds >= 0 && value.commandTimeoutSeconds <= 1800 ? value.commandTimeoutSeconds : defaultSettings.aiRuntime.commandTimeoutSeconds,
-    maxModelRequests: typeof value.maxModelRequests === "number" && Number.isInteger(value.maxModelRequests) && value.maxModelRequests >= 1 && value.maxModelRequests <= 100 ? value.maxModelRequests : defaultSettings.aiRuntime.maxModelRequests,
-    maxToolCalls: typeof value.maxToolCalls === "number" && Number.isInteger(value.maxToolCalls) && value.maxToolCalls >= 1 && value.maxToolCalls <= 200 ? value.maxToolCalls : defaultSettings.aiRuntime.maxToolCalls,
+    maxModelRequests: typeof value.maxModelRequests === "number" && Number.isInteger(value.maxModelRequests) && value.maxModelRequests >= 0 && Number.isSafeInteger(value.maxModelRequests) ? Math.min(value.maxModelRequests, AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN) : defaultSettings.aiRuntime.maxModelRequests,
+    maxToolCalls: typeof value.maxToolCalls === "number" && Number.isInteger(value.maxToolCalls) && value.maxToolCalls >= 0 && Number.isSafeInteger(value.maxToolCalls) ? Math.min(value.maxToolCalls, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN) : defaultSettings.aiRuntime.maxToolCalls,
     subagentAccountId: typeof value.subagentAccountId === "string" && value.subagentAccountId.length <= 160 ? value.subagentAccountId : defaultSettings.aiRuntime.subagentAccountId,
+    imageGenerationAccountId: typeof value.imageGenerationAccountId === "string" && value.imageGenerationAccountId.length <= 160 ? value.imageGenerationAccountId : defaultSettings.aiRuntime.imageGenerationAccountId,
+    imageGenerationModelId: typeof value.imageGenerationModelId === "string" && value.imageGenerationModelId.length <= 160 ? value.imageGenerationModelId : defaultSettings.aiRuntime.imageGenerationModelId,
+    videoGenerationAccountId: typeof value.videoGenerationAccountId === "string" && value.videoGenerationAccountId.length <= 160 ? value.videoGenerationAccountId : defaultSettings.aiRuntime.videoGenerationAccountId,
+    videoGenerationModelId: typeof value.videoGenerationModelId === "string" && value.videoGenerationModelId.length <= 160 ? value.videoGenerationModelId : defaultSettings.aiRuntime.videoGenerationModelId,
+    videoGenerationDurationSeconds: typeof value.videoGenerationDurationSeconds === "number" && Number.isInteger(value.videoGenerationDurationSeconds) && value.videoGenerationDurationSeconds >= 1 && value.videoGenerationDurationSeconds <= 15 ? value.videoGenerationDurationSeconds : defaultSettings.aiRuntime.videoGenerationDurationSeconds,
+    videoGenerationRatio: value.videoGenerationRatio === "adaptive" || value.videoGenerationRatio === "16:9" || value.videoGenerationRatio === "9:16" || value.videoGenerationRatio === "1:1" || value.videoGenerationRatio === "4:3" || value.videoGenerationRatio === "3:4" ? value.videoGenerationRatio : defaultSettings.aiRuntime.videoGenerationRatio,
+    videoGenerationResolution: value.videoGenerationResolution === "480p" || value.videoGenerationResolution === "720p" || value.videoGenerationResolution === "1080p" ? value.videoGenerationResolution : defaultSettings.aiRuntime.videoGenerationResolution,
+    videoGenerationGenerateAudio: typeof value.videoGenerationGenerateAudio === "boolean" ? value.videoGenerationGenerateAudio : defaultSettings.aiRuntime.videoGenerationGenerateAudio,
+    videoGenerationWatermark: typeof value.videoGenerationWatermark === "boolean" ? value.videoGenerationWatermark : defaultSettings.aiRuntime.videoGenerationWatermark,
     maxSubagents: typeof value.maxSubagents === "number" && Number.isInteger(value.maxSubagents) && value.maxSubagents >= 0 && value.maxSubagents <= 16 ? value.maxSubagents : defaultSettings.aiRuntime.maxSubagents,
     maxDelegationDepth: typeof value.maxDelegationDepth === "number" && Number.isInteger(value.maxDelegationDepth) && value.maxDelegationDepth >= 0 && value.maxDelegationDepth <= 4 ? value.maxDelegationDepth : defaultSettings.aiRuntime.maxDelegationDepth
   };
 }
 
-const MINECRAFT_RUNTIME_FIELDS = [
-  "minecraftReadyTimeoutSeconds", "minecraftStopTimeoutSeconds", "minecraftDefaultMemoryMb", "minecraftDefaultPort",
-  "minecraftDownloadTimeoutSeconds", "minecraftInstallTimeoutSeconds", "minecraftExecutionMode", "minecraftDefaultCore",
-  "minecraftBedrockDefaultPort"
-] as const;
+const MINECRAFT_RUNTIME_FIELDS = Object.keys(defaultSettings.minecraftRuntime) as Array<keyof MinecraftRuntimeSettings>;
+
+/** 同一拆分算法供启动迁移与旧客户端保存复用，新旧分类优先级由调用方明确决定。 */
+function splitMinecraftRuntimeSettings(input: Record<string, unknown>) {
+  const minecraftValue = Object.fromEntries(MINECRAFT_RUNTIME_FIELDS.filter(field => Object.hasOwn(input, field)).map(field => [field, input[field]]));
+  const aiValue = { ...input };
+  for (const field of MINECRAFT_RUNTIME_FIELDS) delete aiValue[field];
+  return { aiValue, minecraftValue };
+}
 
 function readMinecraftRuntimeSettings(value: Record<string, unknown>): MinecraftRuntimeSettings {
   const defaults = defaultSettings.minecraftRuntime;
@@ -353,10 +164,8 @@ function migrateLegacyMinecraftRuntimeSettings(): void {
   for (const row of rows) {
     try {
       const value = JSON.parse(row.value_json) as Record<string, unknown>;
-      const minecraftValue = Object.fromEntries(MINECRAFT_RUNTIME_FIELDS.filter(field => Object.hasOwn(value, field)).map(field => [field, value[field]]));
+      const { aiValue, minecraftValue } = splitMinecraftRuntimeSettings(value);
       if (!Object.keys(minecraftValue).length) continue;
-      const aiValue = { ...value };
-      for (const field of MINECRAFT_RUNTIME_FIELDS) delete aiValue[field];
       pending.push({ row, aiValue, minecraftValue });
     } catch {
       // 损坏的旧 JSON 不参与迁移，保留原记录供现有读取错误恢复处理。
@@ -375,6 +184,35 @@ function migrateLegacyMinecraftRuntimeSettings(): void {
 }
 
 migrateLegacyMinecraftRuntimeSettings();
+
+const AI_RUNTIME_DEFAULTS_MIGRATION_VERSION = 3;
+
+/** 将旧版固定输出/请求预算迁移到模型跟随默认；完整自定义指纹保留，用户后续保存不再被改写。 */
+export function migrateLegacyAiRuntimeDefaults(): void {
+  const rows = configuration.all("user_settings", row => row.category === "ai-runtime") as Array<{ user_id: string; category: string; value_json: string }>;
+  for (const row of rows) {
+    try {
+      const value = JSON.parse(row.value_json) as Record<string, unknown>;
+      if (value._aiRuntimeDefaultsMigrationVersion === AI_RUNTIME_DEFAULTS_MIGRATION_VERSION) continue;
+      const isLegacyDefault = value.speed === "balanced"
+        && value.maxOutputTokens === 2048
+        && value.maxModelRequests === 12
+        && value.maxToolCalls === 24;
+      const migrated = isLegacyDefault
+        ? { ...value, maxOutputTokens: defaultSettings.aiRuntime.maxOutputTokens, maxModelRequests: defaultSettings.aiRuntime.maxModelRequests, maxToolCalls: defaultSettings.aiRuntime.maxToolCalls }
+        : value;
+      configuration.save("user_settings", {
+        user_id: row.user_id,
+        category: "ai-runtime",
+        value_json: JSON.stringify({ ...migrated, _aiRuntimeDefaultsMigrationVersion: AI_RUNTIME_DEFAULTS_MIGRATION_VERSION })
+      });
+    } catch {
+      // 损坏的 JSON 留给既有读取回退；不覆盖无法解析的账户设置。
+    }
+  }
+}
+
+migrateLegacyAiRuntimeDefaults();
 
 function readPermissionSettings(value: Record<string, unknown>): PermissionSettings | null {
   if (value.mode === "ask" || value.mode === "approve_remembered" || value.mode === "full_access") return { mode: value.mode };
@@ -399,9 +237,18 @@ function readPluginSettings(value: Record<string, unknown>): PluginSettings | nu
   if (typeof value.enabled !== "boolean") return null;
   const validApplicationIds = new Set<ApplicationId>(APPLICATION_IDS);
   const mcpServers = Array.isArray(value.mcpServers) ? value.mcpServers.flatMap((item): PluginSettings["mcpServers"] => {
-    if (!item || typeof item !== "object" || typeof item.id !== "string" || !/^[a-z0-9][a-z0-9_-]{0,23}$/u.test(item.id) || typeof item.name !== "string" || !item.name.trim() || item.name.length > 80 || typeof item.enabled !== "boolean" || typeof item.url !== "string" || item.url.length > 1024) return [];
+    if (!item || typeof item !== "object" || Array.isArray(item) || typeof item.id !== "string" || !/^[a-z0-9][a-z0-9_-]{0,23}$/u.test(item.id) || typeof item.name !== "string" || !item.name.trim() || item.name.length > 80 || typeof item.enabled !== "boolean") return [];
     if (item.manifestSha256 !== undefined && (typeof item.manifestSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(item.manifestSha256))) return [];
-    try { const url = new URL(item.url); if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) return []; } catch { return []; }
+    if (item.computerUse !== undefined && typeof item.computerUse !== "boolean") return [];
+    const transport = item.transport === undefined ? "streamable-http" : item.transport;
+    if (transport === "stdio") {
+      if (typeof item.command !== "string" || !item.command.trim() || item.command.length > 1024 || item.command.includes("\0")
+        || !Array.isArray(item.args) || item.args.length > 32
+        || item.args.some((argument: unknown) => typeof argument !== "string" || argument.length > 1024 || argument.includes("\0"))) return [];
+    } else if (transport === "streamable-http") {
+      if (item.computerUse === true || typeof item.url !== "string" || item.url.length > 1024) return [];
+      try { const url = new URL(item.url); if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) return []; } catch { return []; }
+    } else return [];
     const applicationIds: ApplicationId[] = [];
     if (Array.isArray(item.applicationIds)) {
       for (const candidate of item.applicationIds as unknown[]) {
@@ -412,7 +259,10 @@ function readPluginSettings(value: Record<string, unknown>): PluginSettings | nu
     } else {
       applicationIds.push("workspace");
     }
-    return [{ id: item.id, name: item.name, url: item.url, enabled: item.enabled, applicationIds, ...(typeof item.manifestSha256 === "string" ? { manifestSha256: item.manifestSha256 } : {}) }];
+    const base = { id: item.id, name: item.name.trim(), enabled: item.enabled, applicationIds, ...(typeof item.manifestSha256 === "string" ? { manifestSha256: item.manifestSha256 } : {}) };
+    return transport === "stdio"
+      ? [{ ...base, transport, command: item.command as string, args: item.args as string[], computerUse: item.computerUse === true }]
+      : [{ ...base, transport, url: item.url as string }];
   }).slice(0, 16) : [];
   const prompts = Array.isArray(value.prompts) ? value.prompts.flatMap((item): UserCapabilityPrompt[] => {
     if (!item || typeof item !== "object" || Array.isArray(item)) return [];
@@ -437,7 +287,8 @@ function readPluginSettings(value: Record<string, unknown>): PluginSettings | nu
       content: prompt.content, enabled: prompt.enabled, createdAt: prompt.createdAt
     }];
   }).filter((prompt, index, all) => all.findIndex(candidate => candidate.id === prompt.id) === index).slice(0, 16) : [];
-  return { enabled: value.enabled, mcpServers, prompts };
+  const skillDirectories = Array.isArray(value.skillDirectories) ? [...new Set(value.skillDirectories.filter((path): path is string => typeof path === "string" && path.length <= 32760 && /^(?:[A-Za-z]:[\\/]|\/|\\\\)/u.test(path) && !path.includes("\0")))].slice(0, 16) : [];
+  return { enabled: value.enabled, mcpServers, prompts, skillDirectories };
 }
 
 export function saveUserSettings(
@@ -445,6 +296,11 @@ export function saveUserSettings(
   category: SettingsCategory,
   value: GeneralSettings | AppearanceSettings | ShortcutSettings | AiRuntimeSettings | MinecraftRuntimeSettings | GitSettings | PermissionSettings | PluginSettings | PersonalizationSettings | ComputerControlSettings
 ): void {
+  // 旧客户端提交整类设置时保留后来新增的字段，显式提交仍采用用户新值。
+  const submitted = value as unknown as Record<string, unknown>;
+  if (category === "plugins") value = { ...getUserSettings(userId).plugins, ...submitted } as PluginSettings;
+  if (category === "ai-runtime") value = { ...getUserSettings(userId).aiRuntime, ...submitted } as AiRuntimeSettings;
+  value = validateSettingsInput(category, value) as unknown as typeof value;
   if (category === "appearance") {
     const normalized = readAppearanceSettings(value as unknown as Record<string, unknown>);
     if (!normalized) throw new Error("外观设置无效。");
@@ -473,10 +329,7 @@ export function saveUserSettings(
     configuration.save("user_settings", { user_id: userId, category, value_json: JSON.stringify(value) });
     return;
   }
-  const input = value as AiRuntimeSettings & Partial<MinecraftRuntimeSettings>;
-  const aiValue = { ...input } as Record<string, unknown>;
-  const minecraftValue = Object.fromEntries(MINECRAFT_RUNTIME_FIELDS.filter(field => Object.hasOwn(input, field)).map(field => [field, input[field]]));
-  for (const field of MINECRAFT_RUNTIME_FIELDS) delete aiValue[field];
+  const { aiValue, minecraftValue } = splitMinecraftRuntimeSettings(value as unknown as Record<string, unknown>);
   configuration.transaction(() => {
     if (Object.keys(minecraftValue).length) {
       const existing = configuration.get("user_settings", row => row.user_id === userId && row.category === "minecraft-runtime") as { value_json?: string } | undefined;
@@ -484,7 +337,7 @@ export function saveUserSettings(
       try { if (existing?.value_json) existingValue = JSON.parse(existing.value_json) as Record<string, unknown>; } catch { /* 旧分类随本次有效提交修复。 */ }
       configuration.save("user_settings", { user_id: userId, category: "minecraft-runtime", value_json: JSON.stringify(readMinecraftRuntimeSettings({ ...existingValue, ...minecraftValue })) });
     }
-    configuration.save("user_settings", { user_id: userId, category, value_json: JSON.stringify(aiValue) });
+    configuration.save("user_settings", { user_id: userId, category, value_json: JSON.stringify({ ...aiValue, _aiRuntimeDefaultsMigrationVersion: AI_RUNTIME_DEFAULTS_MIGRATION_VERSION }) });
   });
 }
 
@@ -532,7 +385,7 @@ function updateUserCapabilityPrompt(userId: string, id: string, applicationId: A
   return result;
 }
 
-function imageDimensions(data: Buffer, mimeType: string): { width: number; height: number } {
+export function imageDimensions(data: Buffer, mimeType: string): { width: number; height: number } {
   // 根据文件头与编码尺寸复核图片内容，不能只信任浏览器声明的 MIME 类型或像素值。
   if (mimeType === "image/png") {
     if (data.length < 24 || data.toString("hex", 0, 8) !== "89504e470d0a1a0a") throw new Error("PNG 图片头无效。");
@@ -672,6 +525,10 @@ function readAppearanceSettings(value: Record<string, unknown>): AppearanceSetti
     ...appearance,
     // 旧账户没有侧边栏颜色字段时继续跟随主题；自定义颜色仅接受标准六位十六进制值。
     sidebarColor: typeof appearance.sidebarColor === "string" ? appearance.sidebarColor.toLocaleLowerCase() : defaultSettings.appearance.sidebarColor,
+    // 新增更新界面透明度时兼容已存储的旧外观对象；异常值回到默认不透明度。
+    updateSurfaceOpacity: Number.isInteger(value.updateSurfaceOpacity) && Number(value.updateSurfaceOpacity) >= 70 && Number(value.updateSurfaceOpacity) <= 100
+      ? Number(value.updateSurfaceOpacity)
+      : defaultSettings.appearance.updateSurfaceOpacity,
     // 旧账户没有高级外观字段时使用默认值，保留原有主题、背景和遮罩设置。
     backgrounds: { ...defaultSettings.appearance.backgrounds, ...appearance.backgrounds },
     wallpaperEngine: readWallpaperEngineSettings(value.wallpaperEngine),
@@ -730,7 +587,8 @@ function isAppearanceSettings(value: Record<string, unknown>): boolean {
       return typeof backgroundId === "string" && (backgroundIds.has(backgroundId) || /^user-[0-9a-f-]{36}$/iu.test(backgroundId));
     })
     && Number.isInteger(value.overlay) && Number(value.overlay) >= 0 && Number(value.overlay) <= 75
-    && Number.isInteger(value.blur) && Number(value.blur) >= 0 && Number(value.blur) <= 32;
+    && Number.isInteger(value.blur) && Number(value.blur) >= 0 && Number(value.blur) <= 32
+    && (value.updateSurfaceOpacity === undefined || Number.isInteger(value.updateSurfaceOpacity) && Number(value.updateSurfaceOpacity) >= 70 && Number(value.updateSurfaceOpacity) <= 100);
 }
 
 function isAppearanceFonts(value: unknown): value is AppearanceFonts {
@@ -799,6 +657,7 @@ export interface AiProviderDefinition {
 const providers: readonly AiProviderDefinition[] = [
   { id: "openai", name: "OpenAI", description: "OpenAI API 官方模型目录。", options: [], discovery: "api" },
   { id: "deepseek", name: "DeepSeek", description: "DeepSeek 官方 API。", options: [], discovery: "api" },
+  { id: "doubao", name: "豆包 / 火山方舟", description: "字节跳动火山方舟（Ark）OpenAI 兼容接口。", options: [], discovery: "api" },
   { id: "qwen", name: "千问 / 百炼", description: "阿里云百炼区域 API。", options: [{ id: "region", label: "区域", choices: [{ value: "cn-beijing", label: "中国（北京）" }, { value: "ap-southeast-1", label: "新加坡" }, { value: "cn-hongkong", label: "中国（香港）" }, { value: "eu-central-1", label: "德国（法兰克福）" }, { value: "ap-northeast-1", label: "日本（东京）" }, { value: "us-east-1", label: "美国（弗吉尼亚）" }] }, { id: "workspaceId", label: "Workspace ID", choices: [] }], discovery: "api" },
   { id: "kimi", name: "Kimi", description: "Moonshot / Kimi 开放平台。", options: [{ id: "region", label: "区域", choices: [{ value: "china", label: "中国" }, { value: "international", label: "国际" }] }], discovery: "api" },
   { id: "zhipu", name: "智谱 GLM", description: "智谱 BigModel API 模型目录。", options: [{ id: "endpoint", label: "接口类型", choices: [{ value: "standard", label: "标准 API" }, { value: "coding", label: "Coding API" }] }], discovery: "api" },
@@ -840,7 +699,9 @@ function normalizeProviderModels(list: unknown[]): AiModelCatalogEntry[] {
     if (!id || id.length > 160) return [];
     const name = typeof raw.name === "string" ? raw.name : id;
     const contextWindow = positiveInteger(raw.context_window);
-    const maxOutputTokens = positiveInteger(raw.max_output_tokens);
+    const maxOutputTokens = positiveInteger(raw.max_output_tokens)
+      ?? positiveInteger(raw.maxOutputTokens)
+      ?? positiveInteger(raw.max_completion_tokens);
     const thinking = normalizeProviderModelThinking(raw);
     return [{
       id,
@@ -862,7 +723,9 @@ function normalizeSavedModels(providerId: string, value: unknown): AiModelCatalo
     if (!id || id.length > 160) return [];
     const name = typeof raw.name === "string" ? raw.name : id;
     const contextWindow = positiveInteger(raw.contextWindow) ?? positiveInteger(raw.context_window);
-    const maxOutputTokens = positiveInteger(raw.maxOutputTokens) ?? positiveInteger(raw.max_output_tokens);
+    const maxOutputTokens = positiveInteger(raw.maxOutputTokens)
+      ?? positiveInteger(raw.max_output_tokens)
+      ?? positiveInteger(raw.max_completion_tokens);
     const savedThinking = typeof raw.thinking === "object" && raw.thinking !== null ? raw.thinking as Record<string, unknown> : null;
     const capability = normalizeStoredModelThinking(savedThinking, raw.thinkingSource, providerId === "deepseek");
     return [{
@@ -880,6 +743,8 @@ function resolveProvider(providerId: string, options: Record<string, string>): P
   switch (providerId) {
     case "openai": return { url: "https://api.openai.com/v1/models", chatUrl: "https://api.openai.com/v1/chat/completions", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_completion_tokens" };
     case "deepseek": return { url: "https://api.deepseek.com/models", chatUrl: "https://api.deepseek.com/chat/completions", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_tokens" };
+    // 豆包/火山方舟（Ark）：OpenAI 兼容协议，Base = https://ark.cn-beijing.volces.com/api/v3。
+    case "doubao": return { url: "https://ark.cn-beijing.volces.com/api/v3/models", chatUrl: "https://ark.cn-beijing.volces.com/api/v3/chat/completions", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_tokens" };
     case "kimi": {
       const base = options.region === "international" ? "https://api.moonshot.ai/v1" : "https://api.moonshot.cn/v1";
       if (options.region && options.region !== "china" && options.region !== "international") throw new Error("Kimi 区域无效。");
@@ -1082,7 +947,7 @@ export function listAiAccounts(userId: string): AiAccountView[] {
 function getEncryptionKey(): Buffer {
   // 使用数据根目录中的稳定密钥文件，避免服务重启后无法解密已保存的 Provider 凭证。
   const keyPath = resolve(config.dataDirectory, "credentials", "settings.key");
-  mkdirSync(dirname(keyPath), { recursive: true, mode: 0o700 });
+  protectPrivateDirectory(dirname(keyPath));
   try {
     const key = readFileSync(keyPath);
     if (key.length !== 32) throw new Error("AI 密钥加密文件格式无效。");
@@ -1175,6 +1040,7 @@ export interface ActiveAiModelConfiguration {
   keyPrefix: string;
   maxTokensField: ProviderConnection["maxTokensField"];
   maxOutputTokens?: number;
+  contextWindow?: number;
   reasoningMode: string;
   thinking: AiModelThinkingControl | null;
 }
@@ -1198,6 +1064,7 @@ export function resolveActiveAiModelDetails(userId: string, accountId?: string):
     keyPrefix: connection.keyPrefix ?? "",
     maxTokensField: connection.maxTokensField,
     ...(selectedModel?.maxOutputTokens ? { maxOutputTokens: selectedModel.maxOutputTokens } : {}),
+    ...(selectedModel?.contextWindow ? { contextWindow: selectedModel.contextWindow } : {}),
     reasoningMode: normalizeAccountReasoningMode(selectedModel?.thinking ?? null, row.reasoning_mode),
     thinking: selectedModel?.thinking ?? null
   };

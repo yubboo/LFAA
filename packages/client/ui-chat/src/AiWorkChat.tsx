@@ -9,14 +9,16 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type UIEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { Alert, Button, Dropdown, Empty, Input, Modal, Popover, Spin, Tag, Tooltip, Typography } from "antd";
-import { answerAiRunQuestion, appendAiRunInput, applyWritingEditProposal, ApiError, cancelAiRun, createWorkspaceGitWorktree, decideAiApproval, forkAiSessionBeforeUserMessage, forkAiSessionFromMessage, forkAiSessionFromMessageInWorktree, getErrorMessage, loadAiAccounts, loadWritingEditProposal, loadAiMessages, loadAiSessions, loadWritingWorkspace, rejectWritingEditProposal, saveSettings, setAiSessionPlanMode, setAiSessionProject, streamAiChat, submitAiMessageFeedback, updateAiAccountModel, updateAiAccountReasoningMode, type AiAccount, type AiActivityItem, type AiMessage, type AiMessageFeedbackInput, type AiSession, type ApplicationId, type UserSettings, type WritingEditProposal, type WritingWorkspace, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
+import { appendAiTextDelta, answerAiRunQuestion, appendAiRunInput, applyWritingEditProposal, ApiError, cancelAiRun, createWorkspaceGitWorktree, createAiSessionBranchFromMessage, createAiSessionBranchFromMessageInWorktree, decideAiApproval, forkAiSessionBeforeUserMessage, getErrorMessage, loadSettings, loadAiAccounts, loadWritingEditProposal, loadAiMessages, loadAiSessions, loadWritingWorkspace, pauseAiRun, rejectWritingEditProposal, resumeAiRun, saveSettings, setAiSessionPlanMode, setAiSessionProject, streamAiChat, submitAiMessageFeedback, updateAiAccountModel, updateAiAccountReasoningMode, type AiAccount, type AiActivityItem, type AiMessage, type AiMessageFeedbackInput, type AiRunPauseState, type AiSession, type AiSessionBranchSource, type ApplicationId, type UserSettings, type WritingEditProposal, type WritingWorkspace, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
 import { notifyAiWorkAction, notifyAiWorkCompletion, type AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
-import { AiMarkdown } from "./AiMarkdown.js";
+import { AiWorkResponse } from "./AiWorkResponse.js";
+import { buildResponseTimeline } from "./response-timeline.js";
 import { formatAiActivityDuration, getAiActivityDisplayStatus, getAiActivityDurationSeconds, getAiActivitySummary } from "./activity-duration.js";
 import { buildConversationAnchors, conversationAnchorLabel, conversationAnchorReply, type ConversationAnchorPreview } from "./conversation-anchor-preview.js";
 import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, updateConversationAnchorPointerTarget } from "./conversation-scroll.js";
 import { createOutputIdleBlurController } from "./output-idle-blur.js";
+import { AI_RUN_CONTROL_GUARD_MS, canControlAiRun } from "./run-stop-guard.js";
 import { supportsVoiceInput, startVoiceInput, readResponseAloud, stopVoicePlayback } from "./voice.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { WorkspaceProjectPicker } from "./WorkspaceProjectPicker.js";
@@ -56,6 +58,7 @@ interface AiWorkChatProps {
   onNotification: (notification: AiWorkNotificationInput) => void;
   onOpenSideChat: (initialQuestion?: string) => void;
   onWritingWorkspaceChange?: (workspace: WritingWorkspace) => void;
+  onOpenProjectFileReview?: (projectId: string, path: string) => void;
 }
 
 type MessageUsage = { promptTokens: number | null; completionTokens: number | null; providerId: string; modelId: string };
@@ -91,7 +94,8 @@ const suggestions: Record<ApplicationId, string[]> = {
   steamcmd: ["帮我列出一份 SteamCMD 部署专用服务器前的检查清单。", "如何规划游戏服务器端口、备份和更新流程？"],
   minecraft: ["给我一份升级 Minecraft Java 服务端前的兼容性检查清单。", "比较 Paper、Fabric 和原版服务端的适用场景。"],
   connectivity: [],
-  writing: ["帮我梳理这个故事的核心设定和待确认问题。", "请分析这段正文的节奏、人物动机与表达问题。", "围绕这个角色，帮我补出清晰的目标、阻碍与变化。"]
+  writing: ["帮我梳理这个故事的核心设定和待确认问题。", "请分析这段正文的节奏、人物动机与表达问题。", "围绕这个角色，帮我补出清晰的目标、阻碍与变化。"],
+  aivideo: ["把这段剧情拆成镜头画面和对白。", "帮我设计一组镜头，并标出镜头之间的顺序关系。"]
 };
 
 const permissionModeLabels: Record<UserSettings["permissions"]["mode"], string> = {
@@ -114,6 +118,8 @@ const permissionModeOptions: Array<{
 function getPermissionModeHint(applicationId: ApplicationId, mode: UserSettings["permissions"]["mode"]): string {
   const appContext = applicationId === "writing"
     ? "AI 可围绕当前作品大纲和章节正文工作，并按你的指令选择写入目标。"
+    : applicationId === "aivideo"
+      ? "AI 可协助编写剧本与镜头文案；分镜画布保存由画布界面完成，视频生成、素材上传和白模导入尚未接入。"
     : "AI 可调用当前应用的项目管理、节点、文件及主机终端能力。";
   if (mode === "full_access") return `${appContext}完全权限已开启，模型可在在线 Daemon 上执行任意命令并指定任意工作目录，不再逐项等待审批。`;
   if (mode === "approve_remembered") return `${appContext}匹配已记住的精确范围时自动执行，其他写入和高风险操作会请求审批。`;
@@ -218,12 +224,12 @@ const ConversationAnchorRail = memo(function ConversationAnchorRail({ anchors, l
 });
 
 const runtimeSpeedOptions: Array<{ value: UserSettings["aiRuntime"]["speed"]; label: string; description: string }> = [
-  { value: "fast", label: "快速", description: "短输出" },
-  { value: "balanced", label: "平衡", description: "按设置上限" },
-  { value: "deep", label: "深入", description: "长输出" }
+  { value: "fast", label: "快速", description: "最多 1024 tokens" },
+  { value: "balanced", label: "平衡", description: "跟随模型/自定义上限" },
+  { value: "deep", label: "深入", description: "按模型/自定义上限" }
 ];
 
-function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, activeSessionId, newSessionProjectId, onSelectedProjectChange, workspaceProjects, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onWritingWorkspaceChange }: AiWorkChatProps) {
+function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, activeSessionId, newSessionProjectId, onSelectedProjectChange, workspaceProjects, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFileReview, onWritingWorkspaceChange }: AiWorkChatProps) {
   const currentScrollConversationKey = `${appId}:${activeSessionId ?? "new-session"}`;
   const outputFocusRegionElementRef = useRef<HTMLElement | null>(null);
   const setOutputFocusRegionElement = useCallback((node: HTMLElement | null) => {
@@ -233,6 +239,11 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
   const cachedAccounts = useRef(aiAccountSnapshots.get(userId) ?? null).current;
   const cachedMessages = useRef(activeSessionId ? aiMessageSnapshots.get(aiMessageSnapshotKey(userId, appId, activeSessionId)) ?? null : null).current;
   const [messages, setMessages] = useState<AiMessage[]>(() => cachedMessages ?? []);
+  const [messagePageCursor, setMessagePageCursor] = useState<string | null>(null);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [branchSourceSnapshot, setBranchSourceSnapshot] = useState<{ sessionId: string; source: AiSessionBranchSource | null } | null>(null);
+  const branchSource = branchSourceSnapshot?.sessionId === activeSessionId ? branchSourceSnapshot.source : null;
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [draft, setDraft] = useState(initialDraft);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectId ?? null : newSessionProjectId);
   const [projectBusy, setProjectBusy] = useState(false);
@@ -245,12 +256,31 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
   const [accountLoadState, setAccountLoadState] = useState<"loading" | "ready" | "error">(() => cachedAccounts === null ? "loading" : "ready");
   const [loading, setLoading] = useState(() => Boolean(activeSessionId && cachedMessages === null));
   const [busy, setBusy] = useState(false);
+  const [stopGuardElapsed, setStopGuardElapsed] = useState(false);
+  const [runPauseState, setRunPauseState] = useState<{ runId: string; state: AiRunPauseState } | null>(null);
+  const [runPauseBusy, setRunPauseBusy] = useState(false);
+  const runPauseEventRevisionRef = useRef(0);
   const [listening, setListening] = useState(false);
   const stopListening = useRef<(() => void) | null>(null);
   const draftRef = useRef(draft); draftRef.current = draft;
-  useEffect(() => () => { stopListening.current?.(); stopVoicePlayback(); }, []);
+  const stopGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopGuardStartedAtRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    stopListening.current?.();
+    stopVoicePlayback();
+    if (stopGuardTimerRef.current) clearTimeout(stopGuardTimerRef.current);
+  }, []);
   useEffect(() => { if (!settings.aiRuntime.voiceInputEnabled) { stopListening.current?.(); stopListening.current = null; setListening(false); } if (!settings.aiRuntime.readResponsesAloud) stopVoicePlayback(); }, [settings.aiRuntime.voiceInputEnabled, settings.aiRuntime.readResponsesAloud]);
   const [activityClock, setActivityClock] = useState(() => Date.now());
+  const [expandedActivitySteps, setExpandedActivitySteps] = useState<{ messageId: string; activityIds: ReadonlySet<string> } | null>(null);
+  function toggleActivityStep(messageId: string, activityId: string): void {
+    setExpandedActivitySteps(current => {
+      const activityIds = new Set(current?.messageId === messageId ? current.activityIds : []);
+      if (activityIds.has(activityId)) activityIds.delete(activityId);
+      else activityIds.add(activityId);
+      return { messageId, activityIds };
+    });
+  }
   const [error, setError] = useState("");
   const [toolbarBusy, setToolbarBusy] = useState<"permissions" | "aiRuntime" | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -284,6 +314,7 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
   const sessionIdForTurn = useRef(activeSessionId);
   const notifiedTurnEvents = useRef(new Set<string>());
   const messagesElementRef = useRef<HTMLDivElement | null>(null);
+  const olderMessagesScrollRestoreRef = useRef<{ height: number; top: number } | null>(null);
   const scrollTrackerRef = useRef<ReturnType<typeof createConversationScrollTracker> | null>(null);
   const activeScrollConversationRef = useRef<string | null>(null);
   const initializedScrollConversationRef = useRef<string | null>(null);
@@ -293,11 +324,13 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
   useEffect(() => {
     setCopiedMessageId(null);
     setMessageActionError("");
+    setBranchSourceSnapshot(current => current?.sessionId === activeSessionId ? current : null);
     setFeedbackTarget(null);
     setFeedbackReasons([]);
     setFeedbackDetail("");
     setBranchTargetMessageId(null);
     setEditingMessage(null);
+    setExpandedActivitySteps(null);
   }, [activeSessionId]);
 
   async function openWritingProposal(proposalId: string): Promise<void> {
@@ -431,6 +464,14 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
       pointerScrollDirectionRef.current = null;
     }
   }, []);
+
+  useLayoutEffect(() => {
+    const restore = olderMessagesScrollRestoreRef.current;
+    const element = messagesElementRef.current;
+    if (!restore || !element) return;
+    olderMessagesScrollRestoreRef.current = null;
+    element.scrollTop = restore.top + element.scrollHeight - restore.height;
+  }, [messages]);
   const handleMessagesPointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (pointerScrollTopRef.current === null) return;
     pointerScrollTopRef.current = null;
@@ -623,6 +664,8 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
       setActiveAnchorId(null);
       setMessagesReady(true);
       setLoading(false);
+      setMessagePageCursor(null);
+      setHasOlderMessages(false);
       return;
     }
     const cacheKey = aiMessageSnapshotKey(userId, appId, activeSessionId);
@@ -643,6 +686,9 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
         preparedScrollConversationRef.current = conversationKey;
         aiMessageSnapshots.set(cacheKey, result.messages);
         setMessages(result.messages);
+        setBranchSourceSnapshot({ sessionId: activeSessionId, source: result.branchSource ?? null });
+        setMessagePageCursor(result.nextCursor);
+        setHasOlderMessages(Boolean(result.nextCursor));
         const running = result.messages.find(item => item.role === "assistant" && (item.status === "streaming" || item.status === "queued"));
         if (running && autoFollowAttempt.current !== running.id) { autoFollowAttempt.current = running.id; void sendMessage("", running.id); }
       }
@@ -656,6 +702,34 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
     });
     return () => { alive = false; };
   }, [activeSessionId, appId, busy, userId]);
+
+  useLayoutEffect(() => {
+    setMessagePageCursor(null);
+    setHasOlderMessages(false);
+  }, [activeSessionId]);
+
+  async function loadEarlierMessages(): Promise<void> {
+    if (!activeSessionId || !messagePageCursor || loadingOlderMessages) return;
+    const element = messagesElementRef.current;
+    olderMessagesScrollRestoreRef.current = element ? { height: element.scrollHeight, top: element.scrollTop } : null;
+    setLoadingOlderMessages(true);
+    setMessageActionError("");
+    try {
+      const result = await loadAiMessages(activeSessionId, messagePageCursor);
+      if (!result.messages.length) olderMessagesScrollRestoreRef.current = null;
+      setMessages(current => {
+        const existing = new Set(current.map(message => message.id));
+        return [...result.messages.filter(message => !existing.has(message.id)), ...current];
+      });
+      setMessagePageCursor(result.nextCursor);
+      setHasOlderMessages(Boolean(result.nextCursor));
+    } catch (loadError) {
+      olderMessagesScrollRestoreRef.current = null;
+      setMessageActionError(`加载更早消息失败：${getErrorMessage(loadError)}`);
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }
 
   async function changePlanMode(active: boolean): Promise<void> {
     if (busy || planModeBusy) return;
@@ -724,6 +798,16 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
     followLatestMessageRef.current = true;
     if (!followRunId) { setDraft(""); onDraftChange(""); }
     setError("");
+    activeRunRef.current = null;
+    runPauseEventRevisionRef.current += 1;
+    setRunPauseState(null);
+    setStopGuardElapsed(false);
+    if (stopGuardTimerRef.current) clearTimeout(stopGuardTimerRef.current);
+    stopGuardStartedAtRef.current = Date.now();
+    stopGuardTimerRef.current = setTimeout(() => {
+      stopGuardTimerRef.current = null;
+      if (requestGeneration === runRequestGenerationRef.current) setStopGuardElapsed(true);
+    }, AI_RUN_CONTROL_GUARD_MS);
     setBusy(true);
     sessionIdForTurn.current = requestSessionId;
     notifiedTurnEvents.current.clear();
@@ -733,6 +817,24 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
     let followedExistingCompletion = false;
     let runMessageId: string | null = null;
     let runSessionId = requestSessionId;
+    // 同一运行的设置失效合并为串行读取；离开会话或换账户后旧响应不更新工作台。
+    let settingsRefreshRunning = false, settingsRefreshPending = false;
+    const refreshCapabilitySettings = (): void => {
+      settingsRefreshPending = true;
+      if (settingsRefreshRunning) return;
+      settingsRefreshRunning = true;
+      void (async () => {
+        try {
+          while (settingsRefreshPending && !controller.signal.aborted && requestGeneration === runRequestGenerationRef.current) {
+            settingsRefreshPending = false;
+            const result = await loadSettings(controller.signal);
+            if (!controller.signal.aborted && requestGeneration === runRequestGenerationRef.current) onSettingsChange(result.settings);
+          }
+        } catch (error) {
+          if (!controller.signal.aborted && requestGeneration === runRequestGenerationRef.current) setError(`能力设置对账失败：${getErrorMessage(error)}`);
+        } finally { settingsRefreshRunning = false; }
+      })();
+    };
     try {
       await streamAiChat({
         ...(followRunId ? { runId: followRunId } : {}),
@@ -748,6 +850,7 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
           runMessageId = assistantMessage.id;
           runSessionId = session.id;
           activeRunRef.current = assistantMessage.id;
+          setRunPauseState({ runId: assistantMessage.id, state: "running" });
           autoFollowAttempt.current = assistantMessage.id;
           sessionIdForTurn.current = session.id;
           setPlanModeOverride({ sessionId: session.id, active: session.planMode });
@@ -760,7 +863,14 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
           });
           targetSession?.onStarted?.();
         },
+        onPauseState: ({ runId, state }) => {
+          if (!runMessageId || runMessageId === runId) {
+            runPauseEventRevisionRef.current += 1;
+            setRunPauseState({ runId, state });
+          }
+        },
         onPlanMode: active => setPlanModeOverride({ sessionId: runSessionId, active }),
+        onSettingsInvalidated: refreshCapabilitySettings,
         onInput: (message) => setMessages(current => [...current.filter(item => item.id !== message.id), message]),
         onActivity: ({ messageId, activity }) => {
           setMessages((current) => current.map((item) => {
@@ -779,7 +889,8 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
           }
           if (activity.status === "error") notifySessionIssue("AI Work 步骤未能完成，请打开会话查看活动详情。");
         },
-        onDelta: ({ messageId, delta }) => { spokenContent += delta; setMessages((current) => current.map((item) => item.id === messageId ? { ...item, content: item.content + delta } : item)); },
+        onDelta: value => { spokenContent += value.delta; setMessages(current => current.map(item => item.id === value.messageId ? appendAiTextDelta(item, value) : item)); },
+        onPresentation: ({ messageId, parts }) => setMessages(current => current.map(item => item.id === messageId ? { ...item, parts } : item)),
         onUsage: ({ messageId, ...usage }) => {
           if (messageId) setUsageByMessage((current) => ({ ...current, [messageId]: usage }));
           else setUsageByMessage((current) => {
@@ -789,7 +900,13 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
         },
         onError: setError,
         onDone: (status) => {
-          if (runMessageId) setMessages((current) => current.map((item) => item.id === runMessageId ? { ...item, status } : item));
+          runPauseEventRevisionRef.current += 1;
+          setRunPauseState(current => current?.runId === runMessageId ? null : current);
+          const completedMessageId = runMessageId;
+          if (completedMessageId) {
+            setExpandedActivitySteps(current => current?.messageId === completedMessageId ? null : current);
+            setMessages((current) => current.map((item) => item.id === completedMessageId ? { ...item, status } : item));
+          }
           if (status === "error") notifySessionIssue("本轮 AI Work 回复未能完成，请打开会话查看错误详情。");
           if (status === "complete" && runSessionId) {
             if (settings.aiRuntime.readResponsesAloud && spokenContent && !followedExistingCompletion) { try { readResponseAloud(spokenContent, settings.general.language); } catch (error) { setError(getErrorMessage(error)); } }
@@ -819,9 +936,32 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
       // 传输错误只代表订阅中断；服务端任务继续运行，不能在本地伪造已停止状态。
     } finally {
       if (requestGeneration === runRequestGenerationRef.current) {
+        runPauseEventRevisionRef.current += 1;
+        if (stopGuardTimerRef.current) clearTimeout(stopGuardTimerRef.current);
+        stopGuardTimerRef.current = null;
+        stopGuardStartedAtRef.current = null;
+        activeRunRef.current = null;
+        setRunPauseState(null);
+        setStopGuardElapsed(false);
         if (controllerRef.current === controller) controllerRef.current = null;
         setBusy(false);
       }
+    }
+  }
+
+  async function toggleAiRunPause(): Promise<void> {
+    const runId = activeRunRef.current;
+    if (!runId || runPauseBusy || !canControlAiRun(runId, stopGuardStartedAtRef.current, Date.now())) return;
+    const currentState = runPauseState?.runId === runId ? runPauseState.state : "running";
+    const eventRevision = runPauseEventRevisionRef.current;
+    setRunPauseBusy(true);
+    try {
+      const result = currentState === "running" ? await pauseAiRun(runId) : await resumeAiRun(runId);
+      if (eventRevision === runPauseEventRevisionRef.current) setRunPauseState({ runId, state: result.pauseState });
+    } catch (pauseError) {
+      if (!(pauseError instanceof ApiError && pauseError.status === 409)) setError(`任务${currentState === "running" ? "暂停" : "继续"}失败：${getErrorMessage(pauseError)}`);
+    } finally {
+      setRunPauseBusy(false);
     }
   }
 
@@ -869,8 +1009,19 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
     setInteractionBusy(true);
     setError("");
     try {
-      const result = await answerAiRunQuestion(question.runId, question.activity.questionId!, answer, skipped);
-      setMessages(current => [...current.filter(item => item.id !== result.userMessage.id), result.userMessage]);
+      await answerAiRunQuestion(question.runId, question.activity.questionId!, answer, skipped);
+      const detail = skipped ? "你选择跳过了这条澄清问题。" : `你的回答：${answer.trim()}`;
+      const completedAt = new Date().toISOString();
+      setMessages(current => current.map(item => item.id !== question.runId ? item : {
+        ...item,
+        activity: item.activity.map(activity => activity.questionId !== question.activity.questionId ? activity : {
+          ...activity,
+          status: "complete",
+          detail,
+          completedAt,
+          durationMs: Math.max(0, Date.now() - Date.parse(activity.startedAt))
+        })
+      }));
       setQuestionReply("");
     } catch (answerError) {
       setError(`回答未能提交：${getErrorMessage(answerError)}`);
@@ -964,7 +1115,7 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
     setMessageActionError("");
     try {
       if (!navigator.clipboard?.writeText) throw new Error("当前宿主没有可用的剪贴板接口。");
-      await navigator.clipboard.writeText(item.content);
+      await navigator.clipboard.writeText(item.role === "assistant" ? buildResponseTimeline(item).finalText || item.content : item.content);
       setCopiedMessageId(item.id);
     } catch (copyError) {
       setMessageActionError(`复制失败：${getErrorMessage(copyError)}。请检查剪贴板权限后重试。`);
@@ -1111,9 +1262,9 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
         createdWorktree = result.project;
         const nextProjects = [result.project, ...workspaceProjects.filter(project => project.id !== result.project.id)];
         onWorkspaceProjectsChange(nextProjects);
-        ({ session } = await forkAiSessionFromMessageInWorktree(activeSessionId, branchTargetMessageId, result.project.id, appId as WorkspaceProjectApplicationId));
+        ({ session } = await createAiSessionBranchFromMessageInWorktree(activeSessionId, branchTargetMessageId, result.project.id, appId as WorkspaceProjectApplicationId));
       } else {
-        ({ session } = await forkAiSessionFromMessage(activeSessionId, branchTargetMessageId));
+        ({ session } = await createAiSessionBranchFromMessage(activeSessionId, branchTargetMessageId));
       }
       onSessionsChange([session, ...sessions.filter(item => item.id !== session.id)]);
       onSelectedProjectChange(session.projectId ?? null);
@@ -1287,18 +1438,89 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
           /> : null}
           <div ref={setMessagesElement} onScroll={handleMessagesScroll} onWheel={handleMessagesWheel} onPointerDown={handleMessagesPointerDown} onPointerUp={handleMessagesPointerUp} onPointerCancel={handleMessagesPointerUp} className="ai-work-chat__messages" aria-live="polite">
             <div className="ai-work-chat__message-list">
+              {hasOlderMessages ? <div className="ai-work-chat__older-messages"><Button loading={loadingOlderMessages} onClick={() => void loadEarlierMessages()}>加载更早消息</Button></div> : null}
               {loading ? <Spin /> : messages.length ? messages.map((item, messageIndex) => {
             const usage = usageByMessage[item.id];
             const activitySummary = getAiActivitySummary(item, activityClock);
-            const runningActivity = activitySummary.activeActivity;
             const pairedAssistant = item.role === "user" ? messages[messageIndex + 1] : undefined;
             const isEditingMessage = editingMessage?.messageId === item.id;
             const canEditMessage = item.role === "user" && pairedAssistant?.role === "assistant" && pairedAssistant.status !== "queued"
               && (!busy || pairedAssistant.status === "streaming" && activeRunRef.current === pairedAssistant.id)
               && !branchBusy && !hasQueuedRuns
               && (!editingMessage || isEditingMessage);
+            const messagePauseState = runPauseState?.runId === item.id ? runPauseState.state : null;
+            const renderActivity = (activity: AiActivityItem) => {
+                  const activityExpanded = expandedActivitySteps?.messageId === item.id && expandedActivitySteps.activityIds.has(activity.id);
+                  const activityDetailId = `ai-work-chat-activity-detail-${item.id}-${activity.id}`;
+                  return <div className={`ai-work-chat__activity-row ai-work-chat__activity-row--${activity.status}`} key={activity.id}>
+                    <Button className="ai-work-chat__activity-step-toggle" type="text" aria-expanded={activityExpanded} aria-controls={activityDetailId} onClick={() => toggleActivityStep(item.id, activity.id)}>
+                      <WorkbenchIcon name={activity.status === "running" ? "spark" : activity.status === "approval_required" ? "shield" : activity.status === "waiting_input" || activity.status === "unavailable" ? "help" : activity.status === "error" ? "close" : "review"} size={14} />
+                      <span className="ai-work-chat__activity-heading"><strong>{activity.title}</strong><span className={`ai-work-chat__activity-status ai-work-chat__activity-status--${activity.status}`}>{getAiActivityDisplayStatus(activity)}</span><span className="ai-work-chat__activity-duration">{formatAiActivityDuration(getAiActivityDurationSeconds(activity, activityClock))}</span></span>
+                      <WorkbenchIcon name="chevron" size={13} />
+                    </Button>
+                      {activity.fileChanges?.map((change, index) => {
+                        const operation = change.operation === "read" ? "读取" : change.operation === "created" ? "新建" : change.operation === "deleted" ? "删除" : "修改";
+                        const key = `${activity.id}:${index}:${change.path}`;
+                        return change.operation !== "read" && change.projectId && onOpenProjectFileReview
+                          ? <Button key={key} className="ai-work-chat__file-change-trigger" type="link" size="small" aria-label={`${operation}文件 ${change.path}，查看 Git 差异和编辑`} onClick={() => onOpenProjectFileReview(change.projectId!, change.path)}>
+                              <WorkbenchIcon name="file" size={13} />{operation} <code>{change.path}</code><span>查看差异与编辑</span>
+                            </Button>
+                          : <span key={key} className="ai-work-chat__file-change-path"><WorkbenchIcon name="file" size={13} />{operation} <code>{change.path}</code></span>;
+                      })}
+                    {activityExpanded ? <div className="ai-work-chat__activity-step-detail" id={activityDetailId}>
+                      {activity.detail ? <span className="ai-work-chat__activity-detail">{activity.detail}</span> : null}
+                      {appId === "writing" && activity.writingProposalId ? <Button className="ai-work-chat__writing-review-trigger" type="link" size="small" disabled={writingProposalLoading || writingProposalBusy} onClick={() => void openWritingProposal(activity.writingProposalId!)}>审阅修改</Button> : null}
+                    </div> : null}
+                  </div>;
+
+            };
+            const renderInteraction = (activity: AiActivityItem) => {
+                if (activity.approvalId) {
+                  const pending = pendingInteraction?.kind === "approval" && pendingInteraction.activity.approvalId === activity.approvalId && activity.status === "approval_required";
+                  const answer = activity.approvalAnswer === "approved" ? "批准本次操作" : activity.approvalAnswer === "denied" ? "拒绝本次操作" : activity.approvalAnswer === "expired" ? "审批已过期" : "未记录审批决定";
+                  return <section className="ai-work-chat__interaction-dock ai-work-chat__interaction-dock--approval" key={activity.id} aria-label={pending ? "待处理审批" : "审批记录"}>
+                    <strong>{activity.approvalQuestion ?? activity.title}</strong>
+                    {pending ? <><p>{activity.detail}</p><div className="ai-work-chat__interaction-dock-actions">
+                      <Button type="primary" disabled={interactionBusy} loading={interactionBusy} onClick={() => void resolvePendingApproval("approved")}>批准本次操作</Button>
+                      <Button danger disabled={interactionBusy} onClick={() => void resolvePendingApproval("denied")}>拒绝</Button>
+                    </div></> : <><p className="ai-work-chat__question-inline-answer">{answer}</p>{renderActivity(activity)}</>}
+                  </section>;
+                }
+
+                const isPendingQuestion = pendingInteraction?.kind === "question"
+                  && pendingInteraction.runId === item.id
+                  && pendingInteraction.activity.questionId === activity.questionId
+                  && activity.status === "waiting_input";
+                const questionText = activity.question ?? activity.detail ?? "";
+                const skipped = activity.detail?.includes("选择跳过") ?? false;
+                const answerText = activity.detail?.startsWith("你的回答：") ? activity.detail.slice("你的回答：".length).trim() : activity.detail;
+                if (activity.status === "complete") return <section className="ai-work-chat__question-record" key={activity.id} aria-label="已回答的澄清问题">
+                  <strong>{questionText}</strong><p className="ai-work-chat__question-inline-answer">{skipped ? "已跳过" : answerText || "未记录文字答案"}</p>
+                </section>;
+                return <section className="ai-work-chat__interaction-dock ai-work-chat__interaction-dock--question ai-work-chat__question-inline" key={activity.id} aria-label="助手回复中的澄清问题">
+                  <div className="ai-work-chat__interaction-dock-heading">
+                    <span className="ai-work-chat__interaction-dock-icon"><WorkbenchIcon name="help" size={15} /></span>
+                    <strong>{activity.status === "waiting_input" ? "需要你补充信息" : activity.title}</strong>
+                    {isPendingQuestion ? <span>选择一个选项，或补充你的答案</span> : null}
+                  </div>
+                  <p className="ai-work-chat__interaction-dock-question">{questionText}</p>
+                  {isPendingQuestion && activity.options?.length ? <>
+                    <div className="ai-work-chat__interaction-dock-options" role="group" aria-label="选择回答">
+                      {activity.options.map((option, index) => <button className="ai-work-chat__interaction-option" type="button" key={`${activity.questionId}-${index}`} disabled={interactionBusy} onClick={() => void submitPendingQuestion(option)}>
+                        <span className="ai-work-chat__interaction-option-number">{index + 1}</span><span>{option}</span><WorkbenchIcon name="chevron" size={14} />
+                      </button>)}
+                    </div>
+                    <div className="ai-work-chat__interaction-dock-reply">
+                      <Input aria-label="补充回答" value={questionReply} maxLength={12000} placeholder="或自行填写补充回答" disabled={interactionBusy} onChange={(event) => setQuestionReply(event.target.value)} onPressEnter={() => void submitPendingQuestion(questionReply)} />
+                      <Button type="text" disabled={interactionBusy} onClick={() => void submitPendingQuestion("", true)}>跳过</Button>
+                      <Button type="primary" disabled={interactionBusy || !questionReply.trim()} loading={interactionBusy} onClick={() => void submitPendingQuestion(questionReply)}>发送</Button>
+                    </div>
+                  </> : activity.detail && activity.detail !== activity.question ? <p className="ai-work-chat__question-inline-answer">{activity.detail}</p> : null}
+                </section>;
+
+            };
             return <article className={`ai-work-chat__message ai-work-chat__message--${item.role}`} key={item.id} data-ai-anchor-id={item.role === "user" ? item.id : undefined}>
-              {item.status === "queued" || item.status === "streaming" || item.status === "error" || item.status === "interrupted" ? <div className="ai-work-chat__message-meta">{item.status === "queued" ? <Tag>排队中</Tag> : item.status === "streaming" ? <Tag color={activitySummary.isProcessing ? "processing" : undefined}>{activitySummary.messageLabel}</Tag> : item.status === "error" ? <Tag color="error">失败</Tag> : <Tag>已停止</Tag>}</div> : null}
+              {item.status === "queued" || item.status === "streaming" || item.status === "error" || item.status === "interrupted" ? (item.role !== "assistant" || item.status !== "streaming") ? <div className="ai-work-chat__message-meta">{item.status === "queued" ? <Tag>{messagePauseState === "paused" ? "已暂停" : messagePauseState === "pausing" ? "正在暂停" : "排队中"}</Tag> : item.status === "streaming" ? <Tag color={messagePauseState === "paused" ? undefined : activitySummary.isProcessing ? "processing" : undefined}>{messagePauseState === "paused" ? "已暂停" : messagePauseState === "pausing" ? "正在暂停" : activitySummary.label}</Tag> : item.status === "error" ? <Tag color="error">失败</Tag> : <Tag>已停止</Tag>}</div> : null : null}
               <div className={`ai-work-chat__message-content${activitySummary.isProcessing ? " ai-work-chat__message-content--streaming" : ""}`}>
                 {item.role === "user" && isEditingMessage ? <div className="ai-work-chat__message-edit">
                   <Input.TextArea
@@ -1315,25 +1537,8 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
                     <Button size="small" disabled={editingMessage.phase === "sending"} onClick={cancelMessageEditing}>取消</Button>
                     <Button size="small" type="primary" loading={editingMessage.phase === "sending"} disabled={editingMessage.phase !== "ready" || !editingMessage.content.trim()} onClick={() => void submitEditedMessage()}>发送</Button>
                   </div>
-                </div> : item.role === "assistant" ? item.content ? <AiMarkdown content={item.content} /> : activitySummary.isProcessing ? <span className="ai-work-chat__thinking" role="status" aria-label="AI 正在思考"><i /><i /><i /></span> : "" : item.content}
+                </div> : item.role === "assistant" ? <AiWorkResponse message={item} now={activityClock} pauseLabel={messagePauseState === "paused" ? "已暂停" : messagePauseState === "pausing" ? "正在暂停" : undefined} renderActivity={renderActivity} renderInteraction={renderInteraction} /> : item.content}
               </div>
-              {item.role === "assistant" && item.activity.length ? <details className={`ai-work-chat__activity ai-work-chat__activity--${activitySummary.tone}`}>
-                <summary aria-label={`查看工作轨迹：${activitySummary.label}，${activitySummary.durationText}`}>
-                  <span className="ai-work-chat__activity-summary-main"><WorkbenchIcon name={activitySummary.tone === "waiting" ? "shield" : activitySummary.tone === "error" ? "close" : activitySummary.tone === "stopped" ? "close" : activitySummary.tone === "complete" ? "review" : "spark"} size={14} /><strong>{activitySummary.label}</strong><span>{activitySummary.durationText}</span></span>
-                  <span className="ai-work-chat__activity-summary-state">{runningActivity?.title ?? `本轮共 ${item.activity.length} 个步骤`}</span>
-                  <WorkbenchIcon name="chevron" size={14} />
-                </summary>
-                <div className="ai-work-chat__activity-list">
-                  {item.activity.map((activity) => <div className={`ai-work-chat__activity-row ai-work-chat__activity-row--${activity.status}`} key={activity.id}>
-                    <WorkbenchIcon name={activity.status === "running" ? "spark" : activity.status === "approval_required" ? "shield" : activity.status === "waiting_input" || activity.status === "unavailable" ? "help" : activity.status === "error" ? "close" : "review"} size={14} />
-                    <div className="ai-work-chat__activity-copy">
-                      <div className="ai-work-chat__activity-heading"><strong>{activity.title}</strong><span className={`ai-work-chat__activity-status ai-work-chat__activity-status--${activity.status}`}>{getAiActivityDisplayStatus(activity)}</span><span className="ai-work-chat__activity-duration">{formatAiActivityDuration(getAiActivityDurationSeconds(activity, activityClock))}</span></div>
-                      {activity.detail ? <span className="ai-work-chat__activity-detail">{activity.detail}</span> : null}
-                      {appId === "writing" && activity.writingProposalId ? <Button className="ai-work-chat__writing-review-trigger" type="link" size="small" disabled={writingProposalLoading || writingProposalBusy} onClick={() => void openWritingProposal(activity.writingProposalId!)}>审阅修改</Button> : null}
-                    </div>
-                  </div>)}
-                </div>
-              </details> : null}
               {item.role === "assistant" && settings.aiRuntime.showContextUsage && usage ? <small className="ai-work-chat__usage">{`${usage.promptTokens ?? "?"} 输入 · ${usage.completionTokens ?? "?"} 输出 tokens · ${usage.providerId} / ${usage.modelId}`}</small> : null}
               {item.role === "user" && item.content && !isEditingMessage ? <div className="ai-work-chat__message-actions ai-work-chat__message-actions--user">
                 <Tooltip title={copiedMessageId === item.id ? "已复制完整提问" : "复制消息"}>
@@ -1370,36 +1575,24 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
             {settings.aiRuntime.promptSuggestions ? <div className={`ai-work-chat__suggestions${appId === "writing" ? " ai-work-chat__suggestions--writing" : ""}`}>{suggestions[appId].map((suggestion) => <button type="button" key={suggestion} disabled={!activeAccount || busy} onClick={() => void sendMessage(suggestion)}>{suggestion}</button>)}</div> : null}
             <Typography.Text type="secondary">{getPermissionModeHint(appId, settings.permissions.mode)}</Typography.Text>
               </div>}
+              {branchSource ? <div className="ai-work-chat__branch-origin" role="note" aria-label={`接续自 ${branchSource.title}`}>
+                <WorkbenchIcon name="branch" size={13} />
+                <span>接续自</span>
+                {branchSource.session && !branchSource.session.archived && sessions.some(session => session.id === branchSource.session!.id && !session.archived)
+                  ? <Button className="ai-work-chat__branch-origin-link" type="link" size="small" aria-label={`返回来源会话：${branchSource.session.title}`} onClick={() => {
+                    const source = branchSource.session!;
+                    onSessionsChange([source, ...sessions.filter(session => session.id !== source.id)]);
+                    onSelectedProjectChange(source.projectId ?? null);
+                    setSelectedProjectId(source.projectId ?? null);
+                    onActiveSessionChange(source.id);
+                  }}>{branchSource.title}</Button>
+                  : <span className="ai-work-chat__branch-origin-title">{branchSource.title}</span>}
+                {branchSource.session?.archived ? <span className="ai-work-chat__branch-origin-status">已归档</span> : null}
+              </div> : null}
             </div>
           </div>
           {showScrollToLatest ? <Button className="ai-work-chat__scroll-latest" type="default" onClick={() => scrollToLatest(true)} aria-label="回到底部查看最新回复"><WorkbenchIcon name="chevron" size={16} /><span>{busy ? "有新内容 · 回到底部" : "回到底部"}</span></Button> : null}
         </div>
-        {pendingInteraction ? <section className={`ai-work-chat__interaction-dock ai-work-chat__interaction-dock--${pendingInteraction.kind}`} aria-label={pendingInteraction.kind === "approval" ? "待处理审批" : "待回答问题"}>
-          <div className="ai-work-chat__interaction-dock-heading">
-            <span className="ai-work-chat__interaction-dock-icon"><WorkbenchIcon name={pendingInteraction.kind === "approval" ? "shield" : "help"} size={15} /></span>
-            <strong>{pendingInteraction.kind === "approval" ? "需要审批" : "问题"}</strong>
-            <span>{pendingInteraction.kind === "approval" ? "批准仅作用于这一次操作" : "选择一个选项，或补充你的答案"}</span>
-          </div>
-          {pendingInteraction.kind === "approval" ? <>
-            <p className="ai-work-chat__interaction-dock-question">{pendingInteraction.activity.detail}</p>
-            <div className="ai-work-chat__interaction-dock-actions">
-              <Button type="primary" disabled={interactionBusy} loading={interactionBusy} onClick={() => void resolvePendingApproval("approved")}>批准本次操作</Button>
-              <Button danger disabled={interactionBusy} onClick={() => void resolvePendingApproval("denied")}>拒绝</Button>
-            </div>
-          </> : <>
-            <p className="ai-work-chat__interaction-dock-question">{pendingInteraction.activity.question}</p>
-            <div className="ai-work-chat__interaction-dock-options" role="group" aria-label="选择回答">
-              {pendingInteraction.activity.options!.map((option, index) => <button className="ai-work-chat__interaction-option" type="button" key={`${pendingInteraction.activity.questionId}-${index}`} disabled={interactionBusy} onClick={() => void submitPendingQuestion(option)}>
-                <span className="ai-work-chat__interaction-option-number">{index + 1}</span><span>{option}</span><WorkbenchIcon name="chevron" size={14} />
-              </button>)}
-            </div>
-            <div className="ai-work-chat__interaction-dock-reply">
-              <Input aria-label="补充回答" value={questionReply} maxLength={12000} placeholder="或自行填写补充回答" disabled={interactionBusy} onChange={(event) => setQuestionReply(event.target.value)} onPressEnter={() => void submitPendingQuestion(questionReply)} />
-              <Button type="text" disabled={interactionBusy} onClick={() => void submitPendingQuestion("", true)}>跳过</Button>
-              <Button type="primary" disabled={interactionBusy || !questionReply.trim()} loading={interactionBusy} onClick={() => void submitPendingQuestion(questionReply)}>发送</Button>
-            </div>
-          </>}
-        </section> : null}
         {planModeActive ? <section className="ai-work-chat__plan-mode" aria-label="计划讨论模式" aria-live="polite">
           <span className="ai-work-chat__plan-mode-icon"><WorkbenchIcon name="spark" size={15} /></span>
           <div className="ai-work-chat__plan-mode-copy"><strong>计划讨论中</strong><span>当前只允许只读查询；确认计划后才会执行写入操作。</span></div>
@@ -1423,7 +1616,7 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
               onDraftChange(value);
             }}
             onKeyDown={handleComposerKeyDown}
-            placeholder={pendingInteraction?.kind === "question" ? "请先回答上方问题，或选择跳过…" : busy ? settings.general.followupBehavior === "queue" ? "发送跟进，当前任务完成后继续处理…" : "发送约束，引导当前任务的下一步…" : "向 LFAA AI 提问…"}
+            placeholder={pendingInteraction?.kind === "question" ? "请在回复中的问题卡里回答，或选择跳过…" : busy ? settings.general.followupBehavior === "queue" ? "发送跟进，当前任务完成后继续处理…" : "发送约束，引导当前任务的下一步…" : "向 LFAA AI 提问…"}
             autoSize={{ minRows: 2, maxRows: 7 }}
             maxLength={12000}
             disabled={projectBusy || Boolean(editingMessage) || pendingInteraction?.kind === "question" || !activeAccount && !busy}
@@ -1510,7 +1703,10 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
             {busy && draft.trim() ? <Button htmlType="submit" disabled={Boolean(editingMessage) || !activeRunRef.current}>{settings.general.followupBehavior === "queue" ? "发送跟进" : "引导任务"}</Button> : null}
             {settings.aiRuntime.readResponsesAloud ? <Button type="text" onClick={stopVoicePlayback}>停止播报</Button> : null}
             {busy
-                ? <Button className="ai-work-chat__composer-submit ai-work-chat__composer-submit--stop" type="primary" shape="circle" aria-label="停止生成" title="停止生成" disabled={Boolean(editingMessage)} icon={<span className="ai-work-chat__composer-stop-icon" aria-hidden="true" />} onClick={() => { const runId = activeRunRef.current; if (runId) void cancelAiRun(runId).catch(error => setError(getErrorMessage(error))); }} />
+                ? <>
+                  <Button className="ai-work-chat__composer-submit ai-work-chat__composer-submit--pause" type="primary" shape="circle" aria-label={runPauseState?.state === "running" || runPauseState?.runId !== activeRunRef.current ? "暂停任务" : "继续任务"} title={runPauseState?.state === "pausing" ? "继续运行（取消待暂停请求）" : runPauseState?.state === "paused" ? "继续当前任务" : "暂停任务；当前模型或工具操作完成后会在安全检查点暂停"} aria-pressed={runPauseState?.state === "paused"} disabled={Boolean(editingMessage) || runPauseBusy || !canControlAiRun(activeRunRef.current, stopGuardStartedAtRef.current, Date.now()) || !stopGuardElapsed} icon={<span className={`ai-work-chat__composer-pause-icon${runPauseState?.state === "running" || runPauseState?.runId !== activeRunRef.current ? "" : " ai-work-chat__composer-pause-icon--resume"}`} aria-hidden="true" />} onClick={() => void toggleAiRunPause()} />
+                  <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--icon" type="text" aria-label="停止并终止当前任务" title="停止并终止当前任务" disabled={Boolean(editingMessage) || !activeRunRef.current} icon={<WorkbenchIcon name="close" size={15} />} onClick={() => { const runId = activeRunRef.current; if (runId) void cancelAiRun(runId).catch(stopError => setError(`停止任务失败：${getErrorMessage(stopError)}`)); }} />
+                </>
                 : <Button className="ai-work-chat__composer-submit" type="primary" shape="circle" htmlType="submit" aria-label="发送消息" title={settings.general.sendShortcut === "enter" ? "发送消息 · Enter" : "发送消息 · Ctrl+Enter"} icon={<WorkbenchIcon name="spark" size={15} />} disabled={!draft.trim() || !activeAccount} />}
             </div>
           </div>
@@ -1616,9 +1812,10 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
         </Modal>
         <Modal
           className="ai-work-chat__branch-modal"
+          rootClassName="ai-work-chat__branch-modal-root"
           open={branchTargetMessageId !== null}
           title="从这里创建聊天分支"
-          width={560}
+          width="min(560px, 100%)"
           getContainer={() => outputFocusRegionElementRef.current?.closest<HTMLElement>(".workbench-shell") ?? outputFocusRegionElementRef.current ?? document.body}
           closable={!branchBusy}
           maskClosable={!branchBusy}
@@ -1634,11 +1831,11 @@ function AiWorkChatView({ userId, appId, settings, onSettingsChange, sessions, a
           <div className="ai-work-chat__branch-options">
             <button className="ai-work-chat__branch-option" type="button" disabled={branchBusy} onClick={() => void createMessageBranch("workspace")}>
               <span className="ai-work-chat__branch-option-icon"><WorkbenchIcon name="branch" size={18} /></span>
-              <span className="ai-work-chat__branch-option-copy"><strong>{branchBusy ? "正在创建分支…" : "在当前工作空间中创建分支"}</strong><small>继承所选回答之前的完整聊天上下文，在新聊天中继续</small></span>
+              <span className="ai-work-chat__branch-option-copy"><strong>{branchBusy ? "正在整理对话记忆…" : "在当前工作空间中创建分支"}</strong><small>提炼到此回复为止的关键记忆，在空白新聊天中继续</small></span>
             </button>
             {canCreateWorktreeBranch ? <button className="ai-work-chat__branch-option" type="button" disabled={branchBusy} onClick={() => void createMessageBranch("worktree")}>
               <span className="ai-work-chat__branch-option-icon"><WorkbenchIcon name="branch" size={18} /></span>
-              <span className="ai-work-chat__branch-option-copy"><strong>{branchBusy ? "正在创建新工作树…" : "在新工作树中创建分支"}</strong><small>为当前项目创建隔离 AI Worktree，并继续所选回答的上下文</small></span>
+              <span className="ai-work-chat__branch-option-copy"><strong>{branchBusy ? "正在创建工作树并整理记忆…" : "在新工作树中创建分支"}</strong><small>创建隔离 AI Worktree，并在空白新聊天中接续关键记忆</small></span>
             </button> : null}
           </div>
         </Modal>

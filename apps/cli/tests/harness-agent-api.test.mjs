@@ -19,19 +19,27 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
       import assert from 'node:assert/strict';import {createServer} from 'node:http';import {once} from 'node:events';import {execFileSync} from 'node:child_process';import {readFileSync} from 'node:fs';import {join} from 'node:path';
       const reservation=createServer();reservation.listen(0,'127.0.0.1');await once(reservation,'listening');process.env.SERVER_PORT=String(reservation.address().port);await new Promise(resolve=>reservation.close(resolve));
       const base='http://127.0.0.1:'+process.env.SERVER_PORT+'/api';
-      const {boot}=await import('lfaa-app-boot/src/index.js');const context=await boot(['--profile','web']);
+        process.env.LFAA_LOCAL_MODE='true';
+        const {boot}=await import('lfaa-app-boot/src/index.js');const context=await boot(['--profile','web']);
       try {
         assert.ok(context.get('lfaaAgentLoop'));assert.ok(context.get('lfaaSessions'));assert.ok(context.get('lfaaTools'));
+        const {listRegisteredAiTools}=await import('lfaa-tools/src/registry.js');
+        const computerTools=listRegisteredAiTools().filter(tool=>tool.id.startsWith('computer-use.'));
+        assert.equal(computerTools.length,process.platform==='win32'?9:0,'only a local Windows loopback Web Profile registers computer-control tools');
         assert.equal((await fetch(base+'/ai/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({appId:'workspace',sessionId:null,content:'test'})})).status,401);
         const setup=await fetch(base+'/auth/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'fixture-admin',password:'Fixture-test-password-93!'})});assert.equal(setup.status,201);
         const cookie=setup.headers.get('set-cookie').split(';')[0];const {user}=await setup.json();const headers={'Content-Type':'application/json',Cookie:cookie};
+        const {LfaaClient,LfaaApiError}=await import('lfaa-sdk-client');
+        const sdk=new LfaaClient({apiUrl:base,authenticationHeaders:()=>({Cookie:cookie})});
+        const anonymousSdk=new LfaaClient({apiUrl:base});
+        await assert.rejects(anonymousSdk.listSessions('workspace'),error=>error instanceof LfaaApiError&&error.status===401);
         const registered=await fetch(base+'/daemon-nodes/credentials',{method:'POST',headers,body:JSON.stringify({displayName:'隔离远程节点',controlPlaneUrl:'https://fixture.example'})});assert.equal(registered.status,201);const registeredNode=await registered.json();assert.ok(registeredNode.nodeId);assert.equal(registeredNode.token,undefined);assert.equal(registeredNode.tokenHash,undefined);
         const exportFile=join(process.env.LFAA_DATA_DIR,'fixture-cli-connection.json');const exportOutput=execFileSync(process.execPath,['bin/lfaa.mjs','daemon','export','--node',registeredNode.nodeId,'--output-file',exportFile],{encoding:'utf8',windowsHide:true,timeout:10000});const exported=JSON.parse(readFileSync(exportFile,'utf8'));assert.equal(exported.nodeId,registeredNode.nodeId);assert.ok(exported.token);assert.ok(!exportOutput.includes(exported.token));
         assert.deepEqual((await(await fetch(base+'/ai/host-tasks',{headers})).json()).tasks,[]);
         const {database}=await import('lfaa-storage-sqlite/src/database.js');
         database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role) VALUES('other-fixture',2,'other-fixture','test','test','member')").run();
         const conversationMemory=await import('lfaa-conversation-memory/src/index.js');
-        assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version),47);
+        assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version),50);
         assert.deepEqual(conversationMemory.getConversationMemorySnapshot(user.id),{memories:[],revision:0});
         assert.equal(conversationMemory.replaceConversationMemories('other-fixture',['另一账户的偏好'],0),true);
         database.prepare("INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,status,last_seen_at) VALUES('fixture-node','测试节点','win32','x64','test','offline','2026-09-30T00:00:00Z')").run();
@@ -46,10 +54,12 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         const invalid=await fetch(base+'/settings/plugins',{method:'PUT',headers,body:JSON.stringify({enabled:true,mcpServers:[{id:'bad',name:'bad',enabled:true,url:'http://user:secret@localhost/mcp'}]})});assert.equal(invalid.status,400);
         const nativeFetch=globalThis.fetch;
         const providerRequests=[];
+        let pauseHold=false,releasePauseFetch,pauseProviderSignal;
         globalThis.fetch=async(url,options)=>{
           if(!String(url).startsWith('https://api.openai.com/'))return nativeFetch(url,options);
           if(String(url).endsWith('/models'))return Response.json({data:[{id:'fixture-model'}]});
           const requestBody=JSON.parse(options.body);providerRequests.push(requestBody);
+          if(pauseHold&&requestBody.messages.some(message=>message.role==='user'&&message.content==='暂停后继续同一 Run')){pauseProviderSignal=options.signal;await new Promise(resolve=>{releasePauseFetch=resolve;});}
           await new Promise(resolve=>setTimeout(resolve,100));
           const isMemoryRequest=requestBody.messages.some(message=>message.role==='system'&&message.content.includes('你只负责整理账户的长期个性化记忆'));
           const content=isMemoryRequest?JSON.stringify({memories:['用户偏好用简体中文交流']}):'测试隔离回复';
@@ -60,18 +70,42 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         const events=await fetch(base+'/ai/runs/'+run.id+'/events',{headers});assert.equal(events.status,200);await events.body.cancel();
         let result;for(let attempt=0;attempt<200;attempt++){result=(await(await fetch(base+'/ai/runs/'+run.id,{headers})).json()).run;if(result.status==='complete')break;await new Promise(resolve=>setTimeout(resolve,10));}
         assert.equal(result.status,'complete');assert.equal(result.message.content,'测试隔离回复');
+        const messages=await fetch(base+'/ai/sessions/'+run.sessionId+'/messages?limit=50',{headers});assert.equal(messages.status,200);const page=await messages.json();assert.equal(page.messages.at(-1).status,'complete');assert.equal(page.nextCursor,null);
         assert.equal(providerRequests.length,2);
         const memoryRequest=providerRequests.at(-1);assert.equal(memoryRequest.tools,undefined);assert.equal(memoryRequest.messages.length,2);
         assert.match(memoryRequest.messages[1].content,/\"userMessage\":\"测试任务\"/u);assert.match(memoryRequest.messages[1].content,/\"assistantFinalReply\":\"测试隔离回复\"/u);
-        assert.deepEqual(conversationMemory.getConversationMemorySnapshot(user.id).memories,['用户偏好用简体中文交流']);
-        assert.equal(Number(database.prepare('SELECT COUNT(*) AS count FROM ai_usage WHERE user_id = ?').get(user.id).count),1);
-        assert.deepEqual(database.prepare('SELECT prompt_tokens,completion_tokens FROM ai_usage WHERE user_id = ?').get(user.id),{prompt_tokens:22,completion_tokens:10});
+        assert.equal((await fetch(base+'/ai/runs/unknown/pause',{method:'POST'})).status,401,'暂停接口必须要求账户认证');
+        pauseHold=true;
+        const pauseSubmission=await fetch(base+'/ai/runs',{method:'POST',headers,body:JSON.stringify({appId:'workspace',sessionId:null,content:'暂停后继续同一 Run'})});assert.equal(pauseSubmission.status,202);const {run:pauseRun}=await pauseSubmission.json();
+        for(let attempt=0;attempt<200&&!releasePauseFetch;attempt++)await new Promise(resolve=>setTimeout(resolve,10));assert.equal(typeof releasePauseFetch,'function','合成 Provider 请求必须已到达暂停点');
+        const pauseRequested=await fetch(base+'/ai/runs/'+pauseRun.id+'/pause',{method:'POST',headers});assert.equal(pauseRequested.status,202);assert.equal((await pauseRequested.json()).pauseState,'pausing');assert.equal(pauseProviderSignal.aborted,false,'暂停 API 不能中止 Provider 请求');
+        const pauseEvents=await fetch(base+'/ai/runs/'+pauseRun.id+'/events',{headers});assert.equal(pauseEvents.status,200);const pauseReader=pauseEvents.body.getReader();const pauseDecoder=new TextDecoder();let pauseEventText='';
+        const releasePausedProvider=releasePauseFetch;releasePauseFetch=undefined;pauseHold=false;releasePausedProvider();
+        for(let attempt=0;attempt<100&&!pauseEventText.includes('"state":"paused"');attempt++){const chunk=await pauseReader.read();if(chunk.done)break;pauseEventText+=pauseDecoder.decode(chunk.value,{stream:true});}
+        assert.match(pauseEventText,/"state":"paused"/u,'原 Run 的 SSE 必须确认已经暂停');await pauseReader.cancel();
+        const pauseSnapshot=(await(await fetch(base+'/ai/runs/'+pauseRun.id,{headers})).json()).run;assert.equal(pauseSnapshot.status,'streaming');
+        const resumed=await fetch(base+'/ai/runs/'+pauseRun.id+'/resume',{method:'POST',headers});assert.equal(resumed.status,202);assert.equal((await resumed.json()).pauseState,'running');
+        let pauseResult;for(let attempt=0;attempt<200;attempt++){pauseResult=(await(await fetch(base+'/ai/runs/'+pauseRun.id,{headers})).json()).run;if(pauseResult.status==='complete')break;await new Promise(resolve=>setTimeout(resolve,10));}
+        assert.equal(pauseResult.id,pauseRun.id);assert.equal(pauseResult.status,'complete');assert.equal(pauseResult.message.content,'测试隔离回复');
+        let memories=[];for(let attempt=0;attempt<200;attempt++){memories=conversationMemory.getConversationMemorySnapshot(user.id).memories;if(memories.includes('用户偏好用简体中文交流'))break;await new Promise(resolve=>setTimeout(resolve,10));}
+        assert.deepEqual(memories,['用户偏好用简体中文交流']);
+        const usageResponse=await fetch(base+'/ai/usage',{headers});assert.equal(usageResponse.status,200);const usage=(await usageResponse.json()).usage;
+        assert.equal(usage.requestCount,3);assert.equal(usage.promptTokens,33);assert.equal(usage.completionTokens,15);
         assert.equal((await fetch(base+'/settings/memories',{method:'DELETE'})).status,401);
         assert.equal((await fetch(base+'/settings/memories',{method:'DELETE',headers})).status,204);
         assert.deepEqual(conversationMemory.getConversationMemorySnapshot(user.id).memories,[]);
         assert.deepEqual(conversationMemory.getConversationMemorySnapshot('other-fixture').memories,['另一账户的偏好']);
-        const messages=await fetch(base+'/ai/sessions/'+run.sessionId+'/messages',{headers});assert.equal((await messages.json()).messages.at(-1).status,'complete');
         assert.equal((await fetch(base+'/ai/runs/'+run.id)).status,401);
+        assert.equal((await sdk.run(run.id)).run.status,'complete');
+        assert.ok((await sdk.messages(run.sessionId,{limit:1})).messages.length<=1);
+        const sdkEvents=[];for await(const event of sdk.events(run.id))sdkEvents.push(event);
+        assert.equal(sdkEvents.at(-1).event,'done');
+        assert.equal((await sdk.listSessions('workspace')).sessions.some(item=>item.id===run.sessionId),true);
+        assert.ok(context.get('lfaaLlm'));assert.ok(context.get('lfaaMcp'));
+        const names=context.lfaaTools.listAiBusinessTools('workspace','admin').map(tool=>tool.name);
+        for(const name of ['lfaa_capability_status','lfaa_set_capability_enabled','lfaa_skill_load','session_search'])assert.ok(names.includes(name),name);
+        assert.equal(names.includes('host_execute_command'),false,'通用任务 Agent 不应把 Daemon 节点 Shell 当作本机 Shell');
+        assert.ok(context.lfaaTools.listAiBusinessTools('minecraft','admin').some(tool=>tool.name==='host_execute_command'),'游戏 Agent 可由模型选择目标节点 Shell');
       }finally{await context.fiber.dispose();}
       process.stdout.write('完整装配回归通过');
     `], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: data, SERVER_HOST: "127.0.0.1", JWT_SECRET: "", LOG_LEVEL: "error" }, encoding: "utf8", windowsHide: true, stdio: "pipe", timeout: 25000 });

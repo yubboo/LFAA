@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "0.0.5",
-  "title": "LFAA 0.0.5",
-  "publishedAt": "2026-10-07",
+  "version": "0.0.8",
+  "title": "LFAA 0.0.8",
+  "publishedAt": "2026-10-09",
   "releaseNotes": [
-    "修复桌面端发现新版后检查按钮持续转圈",
-    "检查结果立即显示新版并保留下载前确认、稍后与跳过选项"
+    "完善通用 Agent 能力调用链，支持模型规划并执行已登记工具、Skill、MCP 等能力",
+    "修复 Windows 本机 Web 电脑操控能力登记，限制在本机回环访问"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "0.0.1",

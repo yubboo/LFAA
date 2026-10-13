@@ -14,6 +14,8 @@
 
 首个 App 节点实现位于 `packages/workflow/minecraft-adapter`；默认顺序 DAG 引擎在 `packages/workflow/dag-engine`。核心 Registry 允许切换已安装的兼容引擎，但 LFAA 通用第三方插件运行时尚不支持任意工作流代码安全装载。
 
+AI Work 模型工具桥接位于 `packages/workflow/tool-workflow`，当前账户和 App 由 Agent Run 提供；该工具包调用本服务，不复制图校验、运行状态或节点执行逻辑。
+
 ## 构建
 
 构建输出由工作区脚本写入根目录 `dist/packages/workflow/workflow/`。

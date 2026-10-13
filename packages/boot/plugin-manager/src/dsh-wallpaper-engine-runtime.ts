@@ -22,7 +22,7 @@ const ARCHIVE_SHA256_PATTERN = /^[0-9a-f]{64}$/iu;
 const ROUTE = "/wallpaper-engine/settings";
 const BODY_LIMIT = 64 * 1024;
 const BODY_IDLE_TIMEOUT_MS = 60_000;
-const ADAPTER_REVISION = 7;
+const ADAPTER_REVISION = 9;
 
 interface LoaderEntry {
   fiber?: { state?: number; inertia?: Promise<unknown>; await?: () => Promise<unknown>; dispose?: () => void | Promise<void> };
@@ -139,7 +139,7 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
   private async prepareRuntimeCopy(installedDirectory: string, record: PluginRecord): Promise<string> {
     const source = resolve(installedDirectory);
     const runtimeRoot = this.runtimeRootFor(record);
-    const requiredFiles = ["package.json", "lib/index.js", "lib/client.js", "lib/http-body.js", "lib/settings-schema.js", "lib/routes/scene-serve.js", "cordis.patch.yml"];
+    const requiredFiles = ["package.json", "lib/index.js", "lib/client.js", "lib/http-body.js", "lib/settings-schema.js", "lib/routes/scene-serve.js", "lib/routes/scene-frame.js", "cordis.patch.yml"];
     const files: PluginArchiveFile[] = [];
     for (const required of requiredFiles) {
       const file = resolve(source, ...required.split("/"));
@@ -182,6 +182,8 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
       writeFileSync(clientPath, inspected.adaptedClient!, { flag: "w", mode: 0o600 });
       const sceneServePath = resolve(staging, "lib", "routes", "scene-serve.js");
       writeFileSync(sceneServePath, inspected.adaptedSceneServe!, { flag: "w", mode: 0o600 });
+      const sceneFramePath = resolve(staging, "lib", "routes", "scene-frame.js");
+      writeFileSync(sceneFramePath, inspected.adaptedSceneFrame!, { flag: "w", mode: 0o600 });
       const contentSha256 = runtimeContentDigest(staging);
       writeFileSync(resolve(staging, "lfaa-runtime-adapter.json"), `${JSON.stringify({
         sourceCommit: record.source.commit.toLocaleLowerCase("en-US"),
@@ -253,6 +255,7 @@ function inspectWallpaperEngineSources(record: PluginRecord, files: readonly Plu
   adaptedHost?: string;
   adaptedClient?: string;
   adaptedSceneServe?: string;
+  adaptedSceneFrame?: string;
 } {
   try {
     const byPath = new Map<string, Buffer>();
@@ -260,14 +263,15 @@ function inspectWallpaperEngineSources(record: PluginRecord, files: readonly Plu
       if (byPath.has(file.path)) throw new Error(`Wallpaper Engine 来源包含重复文件：${file.path}`);
       byPath.set(file.path, file.contents);
     }
-    const required = ["package.json", "lib/index.js", "lib/client.js", "lib/http-body.js", "lib/settings-schema.js", "lib/routes/scene-serve.js", "cordis.patch.yml"];
+    const required = ["package.json", "lib/index.js", "lib/client.js", "lib/http-body.js", "lib/settings-schema.js", "lib/routes/scene-serve.js", "lib/routes/scene-frame.js", "cordis.patch.yml"];
     for (const path of required) if (!byPath.has(path)) throw new Error(`Wallpaper Engine 来源缺少普通文件：${path}`);
     const manifest = JSON.parse(byPath.get("package.json")!.toString("utf8")) as Record<string, unknown>;
     verifySourceManifest(manifest, record);
     const adaptedHost = adaptHostSource(byPath.get("lib/index.js")!.toString("utf8"));
     const adaptedClient = adaptClientSource(byPath.get("lib/client.js")!.toString("utf8"));
     const adaptedSceneServe = adaptSceneServeSource(byPath.get("lib/routes/scene-serve.js")!.toString("utf8"));
-    return { supported: true, reason: null, manifest, adaptedHost, adaptedClient, adaptedSceneServe };
+    const adaptedSceneFrame = adaptSceneFrameSource(byPath.get("lib/routes/scene-frame.js")!.toString("utf8"));
+    return { supported: true, reason: null, manifest, adaptedHost, adaptedClient, adaptedSceneServe, adaptedSceneFrame };
   } catch (error) {
     return { supported: false, reason: error instanceof Error ? error.message : "Wallpaper Engine 来源无法通过兼容合同。" };
   }
@@ -277,11 +281,20 @@ function adaptClientSource(source: string): string {
   const ropeDock = source.match(/^[\t ]*\/\/ 3\. Chat-interface rope dock:[\s\S]*?(?=^[\t ]*\/\/ Settings first \()/gmu) ?? [];
   const apply = source.match(/^[\t ]*function apply\(ctx\) \{/gmu) ?? [];
   const moduleExport = source.match(/^[\t ]*exports\.apply = apply;\r?\n[\t ]*exports\.inject = inject;\r?\n[\t ]*return module\.exports;$/gmu) ?? [];
+  const edgeCanvasReadiness = source.match(/^[\t ]*if \(node\.querySelector\("canvas\.we-media--canvas"\)\) return false;$/gmu) ?? [];
+  const edgeCanvasDrawSignal = source.match(/^[\t ]*canvas\.dataset\.weDrawn = "1";\r?\n[\t ]*noteLayerContent\(canvas\);$/gmu) ?? [];
   if (ropeDock.length !== 1 || !ropeDock[0]!.includes("ReactDOM.createRoot(host)") || !ropeDock[0]!.includes("RopeDock")
-    || apply.length !== 1 || moduleExport.length !== 1) {
-    throw new Error("固定 Wallpaper Engine Client 的 RopeDock/app 导出生命周期锚点不匹配；没有创建第二个 React 根。");
+    || apply.length !== 1 || moduleExport.length !== 1 || edgeCanvasReadiness.length !== 1 || edgeCanvasDrawSignal.length !== 1) {
+    throw new Error("固定 Wallpaper Engine Client 的 RopeDock/app 导出或 Edge 视频画布就绪锚点不匹配；没有创建第二个 React 根。");
   }
-  const slottedDock = source.replace(ropeDock[0]!, `\t\t// RopeDock is rendered by LFAA's existing UI root through the declared overlay slot.\n\t\tif (ctx.effect && ctx.slots && typeof ctx.slots.inject === "function") {\n\t\t  ctx.effect(() => ctx.slots.inject("shell.overlay", () => ctx.slots.register(\n\t\t    { name: "shell.overlay", id: "${PACKAGE_ID}/rope-dock", order: 100 },\n\t\t    () => React.createElement(RopeDock, null),\n\t\t  )));\n\t\t}\n\n\t\t// Settings first (host file, port-independent persistence replacing localStorage).`);
+  // Upstream's Edge branch creates a mirror canvas and marks its first actual draw with
+  // canvas.dataset.weDrawn, but its layer gate currently rejects every canvas forever.
+  // Honor that existing signal so video switching can retire the previous wallpaper after one frame.
+  const withEdgeCanvasReadiness = source.replace(edgeCanvasReadiness[0]!, (anchor) => {
+    const indent = anchor.match(/^[\t ]*/u)?.[0] ?? "";
+    return `${indent}const canvas = node.querySelector("canvas.we-media--canvas");\n${indent}if (canvas) return Boolean(canvas.dataset && canvas.dataset.weDrawn === "1");`;
+  });
+  const slottedDock = withEdgeCanvasReadiness.replace(ropeDock[0]!, `\t\t// RopeDock is rendered by LFAA's existing UI root through the declared overlay slot.\n\t\tif (ctx.effect && ctx.slots && typeof ctx.slots.inject === "function") {\n\t\t  ctx.effect(() => ctx.slots.inject("shell.overlay", () => ctx.slots.register(\n\t\t    { name: "shell.overlay", id: "${PACKAGE_ID}/rope-dock", order: 100 },\n\t\t    () => React.createElement(RopeDock, null),\n\t\t  )));\n\t\t}\n\n\t\t// Settings first (host file, port-independent persistence replacing localStorage).`);
   const withLfaaCleanup = slottedDock.replace(apply[0]!, `${apply[0]}\n\t\tif (ctx.effect) ctx.effect(() => () => { try { ctx.get("theme")?.clearWallpaperEngineOverride?.(); } catch { /* ignore */ } });`);
   return withLfaaCleanup.replace(moduleExport[0]!, `// LFAA Cordis 要求以非构造回调加载具名 apply，才能托管其返回清理器。\n\t\texports.apply = (ctx, config) => apply(ctx, config);\n\t\texports.inject = inject;\n\t\treturn module.exports;`);
 }
@@ -306,6 +319,7 @@ function adaptHostSource(source: string): string {
   const info = findHostFunction(source, "mediaOriginInfo");
   const mediaOrigin = findHostFunction(source, "ensureMediaOrigin");
   const sceneFiles = findHostFunction(source, "handleSceneFiles", "req, res, mount");
+  const noSceneAudio = source.match(/^[\t ]*res\.end\(JSON\.stringify\(\{ error: 'no-scene-audio' \}\)\);$/gmu) ?? [];
   const pluginExport = source.match(/^export default \{ inject, apply \};$/gmu) ?? [];
   const mediaOriginAnchors = [
     "createServer((req, res) => {",
@@ -325,7 +339,7 @@ function adaptHostSource(source: string): string {
     "realTarget = realpathSync.native(target);",
     "realRoot = realpathSync.native(root);",
     "realTarget.startsWith(realRoot + sep)",
-    "serveFile(target, req, res, method === 'HEAD'",
+    "serveFile(target, req, res, method === 'HEAD', { revalidate: true, payloadToken: token });",
   ];
   const missingAnchors = [
     ...(needed.length !== 1 || !needed[0]!.includes("adapterFenceSeen") || !needed[0]!.includes("adapterShellSeen") ? ["mediaOriginNeeded"] : []),
@@ -333,6 +347,7 @@ function adaptHostSource(source: string): string {
     ...(info.length !== 1 || !info[0]!.includes("ensureMediaOrigin") ? ["mediaOriginInfo"] : []),
     ...(mediaOrigin.length !== 1 ? ["ensureMediaOrigin"] : mediaOriginAnchors.filter((anchor) => !mediaOrigin[0]!.includes(anchor))),
     ...(sceneFiles.length !== 1 ? ["handleSceneFiles"] : sceneFilesAnchors.filter((anchor) => !sceneFiles[0]!.includes(anchor))),
+    ...(noSceneAudio.length !== 1 || !source.slice(Math.max(0, source.indexOf(noSceneAudio[0]!) - 180), source.indexOf(noSceneAudio[0]!)).includes("res.statusCode = 404;") ? ["no-scene-audio 404"] : []),
     ...(!source.includes("disposers.push(() => { try { mediaOrigin?.server?.close(); } catch { /* ignore */ } });") ? ["mediaOrigin Fiber disposer"] : []),
     ...(pluginExport.length !== 1 ? ["default Host export"] : []),
   ];
@@ -342,7 +357,14 @@ function adaptHostSource(source: string): string {
   // LFAA 只允许现有 WebServer 监听器：Scene 与网页资源都复用认证的同源 /scene-files 路由。
   // 先验证官方临时监听器、诊断、文件围栏和 Fiber 清理结构，再在运行副本中关闭整个媒体源，
   // 使 inventory 和诊断调用都无法启动第二个端口。空 mediaBase 由上游 Client 回落到当前 origin。
-  let adapted = source.replace(needed[0]!, "function mediaOriginNeeded() { return false; }");
+  let adapted = source;
+  const sceneServe = sceneFiles[0]!;
+  const sceneFileServe = sceneServe.match(/^[\t ]*serveFile\(target, req, res, method === 'HEAD', \{ revalidate: true, payloadToken: token \}\);$/gmu) ?? [];
+  if (sceneFileServe.length !== 1) throw new Error("固定 Wallpaper Engine Host 的 Scene 文件发送锚点不匹配，拒绝启用。");
+  adapted = adapted.replace(sceneServe, sceneServe.replace(sceneFileServe[0]!, `if (abs.toLowerCase().endsWith(".pkg") && subpath === "scene.json" && !existsSync(target) && res.locals) res.locals.lfaaExpectedMiss = true;\n${sceneFileServe[0]!}`));
+  const audioIndent = noSceneAudio[0]!.match(/^[\t ]*/u)?.[0] ?? "";
+  adapted = adapted.replace(noSceneAudio[0]!, `${audioIndent}if (res.locals) res.locals.lfaaExpectedMiss = true;\n${noSceneAudio[0]!}`);
+  adapted = adapted.replace(needed[0]!, "function mediaOriginNeeded() { return false; }");
   adapted = adapted.replace(scene[0]!, "function ensureSceneMediaOrigin() { return Promise.resolve(\"\"); }");
   adapted = adapted.replace(info[0]!, "function mediaOriginInfo() { return Promise.resolve({ base: null, port: null }); }");
   adapted = adapted.replace(mediaOrigin[0]!, "function ensureMediaOrigin() { return Promise.resolve(null); }");
@@ -361,6 +383,18 @@ function adaptSceneServeSource(source: string): string {
   // 仅 iframe 文档需要同源嵌入；站点中间件其余响应继续保持 X-Frame-Options: DENY。
   const indent = htmlCacheHeader[0]!.match(/^[\t ]*/u)?.[0] ?? "";
   return source.replace(htmlCacheHeader[0]!, `${indent}if (rest === 'index.html') res.setHeader('X-Frame-Options', 'SAMEORIGIN');\n${htmlCacheHeader[0]!}`);
+}
+
+function adaptSceneFrameSource(source: string): string {
+  const headNoFrame = source.match(/^[\t ]*res\.statusCode = 404;\r?\n[\t ]*res\.setHeader\('Content-Type', 'application\/json; charset=utf-8'\);\r?\n[\t ]*res\.end\(JSON\.stringify\(\{ error: 'no-frame' \}\)\);$/gmu) ?? [];
+  const automaticNoFrame = source.match(/^[\t ]*res\.statusCode = variant === 4 \? 422 : 404;\r?\n[\t ]*res\.setHeader\('Content-Type', 'application\/json; charset=utf-8'\);\r?\n[\t ]*res\.end\(JSON\.stringify\(\{ error: variant === 4 \? 'no-custom-frame' : 'no-frame' \}\)\);$/gmu) ?? [];
+  if (headNoFrame.length !== 1 || automaticNoFrame.length !== 1) {
+    throw new Error("固定 Wallpaper Engine Scene Frame 路由的 no-frame 探测锚点不匹配，拒绝启用。");
+  }
+  const headIndent = headNoFrame[0]!.match(/^[\t ]*/u)?.[0] ?? "";
+  const automaticIndent = automaticNoFrame[0]!.match(/^[\t ]*/u)?.[0] ?? "";
+  const withHeadMiss = source.replace(headNoFrame[0]!, `${headIndent}if (res.locals) res.locals.lfaaExpectedMiss = true;\n${headNoFrame[0]!}`);
+  return withHeadMiss.replace(automaticNoFrame[0]!, `${automaticIndent}if (variant !== 4 && res.locals) res.locals.lfaaExpectedMiss = true;\n${automaticNoFrame[0]!}`);
 }
 
 /**

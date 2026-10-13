@@ -17,6 +17,7 @@
     "lfaa-app-boot": "workspace:*",
     "lfaa-authorization": "workspace:*",
     "lfaa-knowledge-library": "workspace:*",
+    "lfaa-fs": "workspace:*",
     "lfaa-util-values": "workspace:*"
   },
   "devDependencies": {

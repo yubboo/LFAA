@@ -8,7 +8,7 @@ export function apply(ctx: Context): void {
   // AI 密钥和插件凭据记录都由 Settings 加密持有；凭据插件只获得明确登记的读取/存储适配。
   ctx.effect(() => {
     const unregisterAccountSource = ctx.lfaaCredentials.register(ctx, {
-      consumers: ["lfaa-agent-default-model"],
+      consumers: ["lfaa-agent-default-model", "lfaa-ai-video"],
       resolve: (ownerId, referenceId) => capability.resolveAiModelAccountCredential(ownerId, referenceId),
       describe: (ownerId, referenceId) => ({
         configured: capability.listAiAccounts(ownerId).some(account => account.id === referenceId && account.hasSecret),

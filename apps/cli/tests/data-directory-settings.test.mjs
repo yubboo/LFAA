@@ -1,0 +1,50 @@
+/** 功能：回归默认用户 data、显式位置和安全迁移。作用：只使用隔离目录和合成文件，不迁移真实用户数据。关联文件：home-paths、workspace/data-directory、apply-data-directory-migration。 */
+import test, { after } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { resolveDataDirectory } from "../../../packages/util/home-paths/src/resolve-data-directory.mjs";
+const root = mkdtempSync(join(tmpdir(), "lfaa-data-settings-test-"));
+const source = join(root, "source", "data"); mkdirSync(source, { recursive: true });
+const project = join(root, "project"); mkdirSync(project);
+process.env.NODE_ENV = "test";
+process.env.LFAA_DATA_DIR = source;
+process.env.LFAA_DATA_DIR_MANAGED_BY_LAUNCHER = "1";
+process.env.LFAA_DATA_DIRECTORY_MIGRATION_SUPPORTED = "1";
+process.env.LFAA_LOCAL_MODE = "true";
+process.env.LFAA_DATA_DIRECTORY_MIGRATION_REQUEST_PATH = join(project, ".lfaa-data-directory.pending.json");
+const { configuration } = await import("lfaa-storage-domain/src/configuration.js");
+const { sessionRecords } = await import("lfaa-session-persistence-jsonl/src/repository.js");
+const { database, closeDatabase } = await import("lfaa-storage-sqlite/src/database.js");
+const { retireLegacyFileTables } = await import("lfaa-storage-domain/src/migration.js"); retireLegacyFileTables();
+const service = await import("lfaa-workspace-data-directory/src/service.js");
+let closed = false;
+function closeStorage() { if (!closed) { configuration.close(); sessionRecords.close(); closeDatabase(); closed = true; } }
+after(() => { closeStorage(); assert.ok(root.startsWith(join(tmpdir(), "lfaa-data-settings-test-"))); rmSync(root, { recursive: true, force: true }); });
+test("未配置默认用户 .lfaa/data，不随 C/D/H 盘或可移动盘变化；显式路径保持", () => {
+  for (const project of ["C:\\LFAA", "D:\\apps\\LFAA", "H:\\LFAA"]) for (const driveType of ["Fixed", "Removable"]) assert.equal(resolveDataDirectory(project, "", { platform: "win32", userProfile: "C:\\Users\\Administrator", driveType }), "C:\\Users\\Administrator\\.lfaa\\data");
+  assert.equal(resolveDataDirectory("D:\\LFAA", "data", { platform: "win32", userProfile: "C:\\Users\\Administrator" }), "D:\\LFAA\\data");
+  assert.equal(resolveDataDirectory("D:\\LFAA", "E:\\Storage\\data", { platform: "win32" }), "E:\\Storage\\data");
+});
+test("确认默认位置并持久化，选择父目录自动使用 data，迁移成功才切换", () => {
+  assert.equal(service.getDataDirectorySettings().currentDirectory, source);
+  assert.equal(service.confirmDataDirectoryLocation().configured, true);
+  const selected = join(root, "chosen-storage");
+  const pending = service.requestDataDirectoryChange(selected);
+  assert.equal(pending.pendingDirectory, join(selected, "data"));
+  assert.equal(pending.currentDirectory, source);
+  assert.throws(() => service.requestDataDirectoryChange(join(source, "nested")), /内部或上级/u);
+  writeFileSync(join(source, "keep.txt"), "isolated-storage-evidence");
+  closeStorage();
+  const script = resolve("../../scripts/apply-data-directory-migration.mjs");
+  const liveNodeLock = join(source, "credentials", "daemon.lock");
+  writeFileSync(liveNodeLock, `${process.pid}\nisolated-live-node\n`);
+  assert.throws(() => execFileSync(process.execPath, [script, project], { env: process.env, stdio: ["ignore", "pipe", "pipe"] }), /旧 Web 或 Daemon 仍在运行/u);
+  rmSync(liveNodeLock);
+  execFileSync(process.execPath, [script, project], { env: process.env, encoding: "utf8" });
+  assert.equal(readFileSync(join(selected, "data", "keep.txt"), "utf8"), "isolated-storage-evidence");
+  assert.equal(readFileSync(join(source, "keep.txt"), "utf8"), "isolated-storage-evidence");
+  assert.ok(readFileSync(join(project, ".env"), "utf8").includes(join(selected, "data").replaceAll("\\", "/")));
+});

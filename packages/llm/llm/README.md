@@ -1,0 +1,15 @@
+# LFAA LLM
+
+`lfaa-llm` 是唯一 Provider 请求实现，供 Agent Loop 使用。原 `core/agent-loop/src/runtime.ts` 已迁入 `src/completion.ts`，不保留第二份执行逻辑。Bundle 登记 `lfaaLlm` 服务。
+
+读取 Settings 的当前模型地址、凭据与能力目录；支持 SSE delta、SSE message 与 JSON message，限制响应大小、超时与输出。隐藏推理、密钥和错误响应正文不发给客户端。空响应提供格式/结束原因诊断；可恢复且尚无可展示输出或工具调用的错误才允许 Agent Loop 按 `aiRuntime.requestRetries`、`retryDelaySeconds` 重试，仍计入请求预算；不重放工具或更换模型。
+
+构建输出为根 `dist/packages/llm/llm/`。真实用户 Provider 兼容性仍需单独验收。
+
+参照 DSH `llm-pi-ai/replay` 保留 Chat Completions 实际返回的 `reasoning_content`，以账户、Provider、模型三项来源绑定的 `providerReplay` 交给 Agent/Session Owner。发给同来源 Provider 时才转换成原生字段，不推断其他协议或思考参数；请求观察者、正文回调和进度通知均不接收隐藏文本。私有协议仅由现有 Session 受保护记录保存，跨模型/账户不回传。旧会话没有记录的隐藏内容无法重建，不编造替代值。
+
+SSE 必须收到 `[DONE]` 或正常 `finish_reason` 才能完成；只有 EOF 的半截正文/工具选择失败并禁止派发，有可见输出/工具选择时不自动重试。无换行的末尾 `[DONE]`、正常 finish_reason 和 JSON message 仍兼容。HTTP 400 只报告参数/协议拒绝，不依据“请求带 tools”就断言模型不支持工具，也不回显 Provider 错误正文。
+
+图片生成通过固定的 OpenAI Images 与火山方舟 Seedream 端点执行。没有参考图时走各自生成 API；有项目本机角色/场景参考图时，OpenAI 走 Images Edit multipart、Ark 走官方 Base64 `image` 字段，文件数量和字节数有界。调用方可传入 AbortSignal；请求超时和 Agent 主动取消分别报告，取消监听随请求完成撤销，不切换模型或端点。
+
+异步视频任务由本模块唯一 Provider Owner 调用火山方舟 `contents/generations/tasks` 创建、查询和取消排队任务。只向固定官方 API 发送用户选定的账户密钥/目录模型和 Settings 参数；参考图作为有界 data URL 与任务提示一起发送。任务输出 URL 必须符合已登记的 Ark 北京 TOS 主机，下载时拒绝重定向、限制 MP4 内容类型/ftyp 文件头、超时和 128 MiB 文件大小；仅返回二进制，不将临时 URL传给 Client。OpenAI 视频生成不在可用范围（其 Videos API 已下线）；真实 Provider 任务、额度、模型能力和账户权限需现场单独验收。

@@ -25,7 +25,8 @@
     "lfaa-client-ui-shortcuts": "workspace:*",
     "lfaa-client-ui-sidebar": "workspace:*",
     "lfaa-client-ui-theme": "workspace:*",
-    "react": "^18.0.0"
+    "react": "^18.0.0",
+    "lfaa-util-values": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",

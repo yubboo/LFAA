@@ -26,6 +26,72 @@
       name: lfaa-session-persistence-jsonl
       inject: ["lfaaStorage", "lfaaConfiguration"]
       required: true
+    - id: session-format
+      name: lfaa-session-format
+      inject: []
+      required: true
+    - id: session-format-catalog
+      name: lfaa-session-format-catalog
+      inject: ["lfaaSessionFormat"]
+      required: true
+    - id: session-persistence
+      name: lfaa-session-persistence
+      inject: []
+      required: true
+    - id: session-projection
+      name: lfaa-session-projection
+      inject: []
+    - id: session-projection-cache
+      name: lfaa-session-projection-cache
+      inject: []
+    - id: session-stats
+      name: lfaa-session-stats
+      inject: []
+    - id: session-title
+      name: lfaa-session-title
+      inject: []
+    - id: session-title-llm
+      name: lfaa-session-title-llm
+      inject: ["lfaaSessionTitle"]
+    - id: session-title-first-prompt-llm
+      name: lfaa-session-title-first-prompt-llm
+      inject: ["lfaaSessionTitleLlm"]
+    - id: session-title-all-prompts-llm
+      name: lfaa-session-title-all-prompts-llm
+      inject: ["lfaaSessionTitleLlm"]
+    - id: session-turn-outline
+      name: lfaa-session-turn-outline
+      inject: ["lfaaSessionTitle"]
+    - id: session-format-v0-to-v1
+      name: lfaa-session-format-v0-to-v1
+      inject: []
+    - id: session-format-v1-to-v2
+      name: lfaa-session-format-v1-to-v2
+      inject: []
+    - id: session-format-v2-to-v3
+      name: lfaa-session-format-v2-to-v3
+      inject: []
+    - id: session-format-v3-to-v4
+      name: lfaa-session-format-v3-to-v4
+      inject: []
+    - id: session-checkpoint-policy
+      name: lfaa-session-checkpoint-policy
+      inject: []
+    - id: session-telemetry
+      name: lfaa-session-telemetry
+      inject: []
+    - id: session-telemetry-otel
+      name: lfaa-session-telemetry-otel
+      inject: ["lfaaSessionTelemetry"]
+    - id: session-query
+      name: lfaa-session-query
+      inject: []
+    - id: session-query-sqlite
+      name: lfaa-session-query-sqlite
+      inject: []
+    - id: session-log-export
+      name: lfaa-session-log-export
+      inject: ["lfaaSessionProjection"]
     - id: auth
       name: lfaa-identity-auth
       inject: ["lfaaStorage"]
@@ -45,6 +111,47 @@
       name: lfaa-agent-default-model
       inject: ["lfaaCredentials", "lfaaSettings"]
       required: true
+    - id: llm
+      name: lfaa-llm
+      inject: ["lfaaSettings"]
+      required: true
+    - id: llm-pi-ai
+      name: lfaa-llm-pi-ai
+      inject: []
+    - id: llm-retry
+      name: lfaa-llm-retry
+      inject: []
+    - id: token-meter
+      name: lfaa-token-meter
+      inject: []
+    - id: mcp
+      name: lfaa-mcp-client
+      inject: ["lfaaSettings"]
+      required: true
+    - id: subagent
+      name: lfaa-subagent
+      inject: []
+      required: true
+    - id: subagent-in-process-driver
+      name: lfaa-subagent-in-process-driver
+      inject: ["lfaaSubagents"]
+      required: true
+    - id: subagent-claude-code
+      name: lfaa-subagent-claude-code
+      inject: ["lfaaSubagents"]
+      required: true
+    - id: subagent-codex
+      name: lfaa-subagent-codex
+      inject: ["lfaaSubagents"]
+      required: true
+    - id: tool-subagent
+      name: lfaa-tool-subagent
+      inject: ["lfaaTools", "lfaaSubagents"]
+      required: true
+    - id: tool-subagent-control
+      name: lfaa-tool-subagent-control
+      inject: ["lfaaTools", "lfaaSubagents"]
+      required: true
     - id: data-directory
       name: lfaa-workspace-data-directory
       inject: ["lfaaStorage"]
@@ -61,6 +168,22 @@
       name: lfaa-jobs
       inject: ["lfaaStorage"]
       required: true
+    - id: schedule
+      name: lfaa-schedule
+      inject: ["lfaaStorage", "lfaaTools"]
+      required: true
+    - id: ssh
+      name: lfaa-ssh
+      inject: ["lfaaCredentials"]
+    - id: fs-ssh
+      name: lfaa-fs-ssh
+      inject: ["lfaaSsh"]
+    - id: subprocess-ssh
+      name: lfaa-subprocess-ssh
+      inject: ["lfaaSsh"]
+    - id: sandbox-ssh
+      name: lfaa-sandbox-ssh
+      inject: ["lfaaSsh"]
     - id: game-connectivity
       name: lfaa-game-connectivity
       inject: ["lfaaCredentials"]
@@ -68,6 +191,42 @@
     - id: files
       name: lfaa-fs
       inject: ["lfaaStorage"]
+      required: true
+    - id: fs-local
+      name: lfaa-fs-local
+      inject: []
+      required: true
+    - id: tool-fs
+      name: lfaa-tool-fs
+      inject: ["lfaaTools", "lfaaLocalFs"]
+      required: true
+    - id: tool-fs-search
+      name: lfaa-tool-fs-search
+      inject: ["lfaaTools", "lfaaLocalFs"]
+      required: true
+    - id: tool-str-replace-editor
+      name: lfaa-tool-str-replace-editor
+      inject: ["lfaaTools", "lfaaLocalFs"]
+      required: true
+    - id: win32-process
+      name: lfaa-win32-process
+      inject: []
+      required: true
+    - id: subprocess-local
+      name: lfaa-subprocess-local
+      inject: ["lfaaWin32Process"]
+      required: true
+    - id: terminal-bash
+      name: lfaa-terminal-bash
+      inject: []
+      required: true
+    - id: terminal
+      name: lfaa-terminal
+      inject: ["lfaaSubprocess", "lfaaTerminalBash"]
+      required: true
+    - id: tool-terminal
+      name: lfaa-tool-terminal
+      inject: ["lfaaTools", "lfaaTerminal"]
       required: true
     - id: permissions
       name: lfaa-permission-presets
@@ -99,8 +258,20 @@
       required: true
     - id: agent-loop
       name: lfaa-agent-loop
-      inject: ["lfaaSettings", "lfaaSessions", "lfaaTools", "lfaaUserApproval", "lfaaUserQuestions"]
+      inject: ["lfaaSettings", "lfaaSessions", "lfaaTools", "lfaaAgentDefaultModel", "lfaaUserApproval", "lfaaUserQuestions", "lfaaSchedule", "aiExtensions", "aiRuntimeHooks"]
       required: true
+    - id: compaction-basic
+      name: lfaa-compaction-basic
+      inject: []
+      required: true
+    - id: spill-local
+      name: lfaa-spill-local
+      inject: []
+      required: true
+    - id: command-compact
+      name: lfaa-command-compact
+      inject: []
+      required: false
     - id: workflow
       name: lfaa-workflow
       required: true
@@ -125,6 +296,70 @@
     - id: ask-user
       name: lfaa-tool-ask-user
       inject: ["lfaaTools"]
+      required: true
+    - id: tool-shell
+      name: lfaa-tool-shell
+      inject: ["lfaaTools"]
+      required: true
+    - id: shell
+      name: lfaa-shell
+      inject: []
+      required: true
+    - id: shell-env
+      name: lfaa-shell-env
+      inject: []
+      required: true
+    - id: pwsh-local
+      name: lfaa-pwsh-local
+      inject: []
+      required: true
+    - id: pwsh-sandbox
+      name: lfaa-pwsh-sandbox
+      inject: []
+      required: true
+    - id: bash-local
+      name: lfaa-bash-local
+      inject: []
+      required: true
+    - id: bash-sandbox
+      name: lfaa-bash-sandbox
+      inject: []
+      required: true
+    - id: tool-skill
+      name: lfaa-tool-skill
+      inject: ["lfaaTools", "skills"]
+      required: true
+    - id: skill
+      name: lfaa-skill
+      inject: []
+      required: true
+    - id: skill-filesystem
+      name: lfaa-skill-filesystem
+      inject: ["skills"]
+      required: true
+    - id: skill-office
+      name: lfaa-skill-office
+      inject: ["skills"]
+    - id: web
+      name: lfaa-web
+      required: true
+    - id: web-fetch-http
+      name: lfaa-web-fetch-http
+      inject: ["lfaaWeb"]
+    - id: web-search-deepseek
+      name: lfaa-web-search-deepseek
+      inject: ["lfaaWeb"]
+    - id: tool-web
+      name: lfaa-tool-web
+      inject: ["lfaaTools", "lfaaWeb"]
+      required: true
+    - id: tool-session-query
+      name: lfaa-tool-session-query
+      inject: ["lfaaTools", "lfaaSessions"]
+      required: true
+    - id: tool-workflow
+      name: lfaa-tool-workflow
+      inject: ["lfaaTools", "lfaaWorkflow", "lfaaAgentLoop", "aiExtensions", "aiRuntimeHooks", "skills", "lfaaPluginRuntime"]
       required: true
     - id: capability-installs
       name: lfaa-capability-installs

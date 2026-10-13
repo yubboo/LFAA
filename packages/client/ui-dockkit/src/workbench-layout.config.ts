@@ -60,6 +60,7 @@ export const WORKBENCH_LAYOUT_TOKENS = Object.freeze({
     comfortable: { ratio: 0.50, floor: 440, ceiling: 720 },
     compactFloor: 420,
     applicationCompactFloor: 260,
+    applicationRightDockFloor: 220,
     minimumHeight: 168, // 底部终端打开时为主工作区保留的最小高度。
   },
   bottom: {
@@ -69,6 +70,27 @@ export const WORKBENCH_LAYOUT_TOKENS = Object.freeze({
   } satisfies PaneRuleSet,
   mobileGuard: 680,
 } as const);
+
+/** Mobile 下只有中心区和左栏都能达到各自下限时，应用工作区才把左栏放进 Grid。 */
+export function shouldDockResponsiveLeftPane(containerWidth: number, minCenterWidth: number, minLeftWidth: number, enabled: boolean): boolean {
+  return enabled
+    && Math.max(1, Math.round(containerWidth || 0)) >= minCenterWidth + minLeftWidth + WORKBENCH_LAYOUT_TOKENS.separator;
+}
+
+/** Compact/Mobile 应用右栏在右栏和至少 220px 中心区可共存时沿用标准 Dock，否则使用可拉伸 Overlay。 */
+export function shouldDockResponsiveRightPane(
+  containerWidth: number,
+  minCenterWidth: number,
+  minRightWidth: number,
+  leftWidth: number,
+  enabled: boolean,
+): boolean {
+  const width = Math.max(1, Math.round(containerWidth || 0));
+  const centerFloor = Math.min(minCenterWidth, WORKBENCH_LAYOUT_TOKENS.center.applicationRightDockFloor);
+  const leftBudget = Math.max(0, Math.round(leftWidth || 0));
+  const handleCount = leftBudget > 0 ? 2 : 1;
+  return enabled && width >= centerFloor + minRightWidth + handleCount * WORKBENCH_LAYOUT_TOKENS.separator + leftBudget;
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -110,7 +132,7 @@ function resolvePane(widthOrHeight: number, rules: PaneRuleSet): WorkbenchPaneLi
  * Mode 不是写死的 1240/760：
  * - Desktop：容器能同时容纳 left.initial + center.comfortable + right.initial；
  * - Compact：通用 Surface 使用单侧 Dock；应用工作区可启用左右 Dock 并共享中心区底线；
- * - Mobile：左侧改 Overlay；应用工作区仍可在空间足够时保留右侧 Dock。
+ * - Mobile：默认左侧使用 Overlay；应用工作区可根据侧栏与中心区下限启用左 Dock，右侧按剩余空间选择 Dock/Overlay。
  */
 export function resolveWorkbenchLayoutMetrics(containerWidth: number, containerHeight: number, responsiveRightDock = false): WorkbenchLayoutMetrics {
   // 保留真实容器边界；窄屏和矮窗必须进入移动布局，不能被桌面最小值抬高。

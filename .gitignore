@@ -101,6 +101,8 @@ id_dsa
 *.class
 *.jar
 *.wasm
+# 文档不收录与产品无关的 CAD 工程附件。
+*.dwg
 *.o
 *.obj
 *.pdb

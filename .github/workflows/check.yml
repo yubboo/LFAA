@@ -1,0 +1,30 @@
+name: Workspace checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  checks:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.16.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check:workspace
+      - run: pnpm run typecheck
+      - run: node --test scripts/tests/workspace-check.test.mjs scripts/tests/private-directory.test.mjs scripts/tests/math-rendering.test.mjs
+      - working-directory: apps/cli
+        run: node --import tsx --import ./register-package-loader.mjs --test tests/settings-contract.test.mjs tests/daemon-task-lanes.test.mjs tests/managed-process-shutdown.test.mjs tests/session-cache.test.mjs tests/session-kernel-persistence.test.mjs tests/execution-control.test.mjs tests/credentials-authorization.test.mjs
+      - run: node --test apps/desktop-electron/tests/service-shutdown.test.mjs apps/desktop-electron/tests/update-flow.test.mjs

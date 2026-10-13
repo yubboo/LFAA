@@ -3,6 +3,7 @@
  * 作用：轮询控制端已授权的节点业务任务；Wallpaper Engine 和 DSH Bundle 属于 Harness 插件宿主，不属于游戏 Daemon。
  * 关联文件：packages/host/daemon/src/local-daemon.ts、packages/jobs/jobs/src/ai-host-tasks.ts、packages/jobs/jobs/src/minecraft-queue.ts、packages/fs/fs/src/queue.ts、packages/games/minecraft/src/service.ts、packages/games/steamcmd/src/service.ts、apps/daemon/package.json。
  */
+import { createManagedFileService } from "lfaa-fs/src/managed-files.mjs";
 import { protectedDataDirectories } from "lfaa-home-paths/src/reserved-data-paths.mjs";
 import { randomUUID, createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -10,17 +11,22 @@ import { execFile, spawn } from "node:child_process";
 import { startCommand, waitForMinecraftReady, isVanillaReadyLine, terminateProcessTree } from "./process-control.mjs";
 import { provisionMinecraftCore, startNativeMinecraftServer, isMinecraftCoreReadyLine, downloadCoreArtifact } from "./minecraft-provisioner.mjs";
 import { validateDaemonConnection } from "./connection-config.mjs";
+import { createDaemonTaskLanes } from "./task-lanes.mjs";
+import { startTerminalChannel } from "./terminal-channel.mjs";
+import { stopManagedProcess } from "./managed-process-shutdown.mjs";
 import { installEasyTierRuntime, readInstalledEasyTierVersion, validateEasyTierInstallRequest } from "./easytier-runtime.mjs";
 import { EASYTIER_RUNTIME_RELEASE } from "lfaa-game-connectivity/src/easytier-release.mjs";
 import { closeSync, createReadStream, createWriteStream, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { access, copyFile, lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { access, copyFile, lstat, mkdir, opendir, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep, win32 } from "node:path";
 import { findRepositoryRoot } from "lfaa-home-paths/src/index.mjs";
 import { promisify } from "node:util";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { inflateRawSync } from "node:zlib";
 import { resolveDataDirectory } from "lfaa-home-paths/src/resolve-data-directory.mjs";
+import { protectPrivateDirectory } from "lfaa-home-paths/src/private-directory.mjs";
 
 const repositoryRoot = findRepositoryRoot(import.meta.url);
 const environmentFile = resolve(repositoryRoot, ".env");
@@ -30,13 +36,15 @@ if (typeof process.loadEnvFile === "function") {
   }
 }
 
-const configuredDataDirectory = process.env.LFAA_DATA_DIR?.trim() || "data";
+const configuredDataDirectory = process.env.LFAA_DATA_DIR?.trim() || "";
 const dataDirectory = resolveDataDirectory(repositoryRoot, configuredDataDirectory);
 const credentialsDirectory = resolve(dataDirectory, "credentials");
 let minecraftDirectoryRelative = "games/minecraft";
 let minecraftDirectory = resolve(dataDirectory, "games", "minecraft");
 const knownMinecraftDirectories = new Set([minecraftDirectoryRelative]);
 const defaultSteamcmdSettings = { installMode: "online", steamcmdDirectory: "lib/steamcmd", gameDirectory: "games/steamcmd" };
+// 文件任务单独领取但仍与安装运维共用维护槽；每秒一次将交互等待压至一个心跳间隔以下。
+const fileTaskPollIntervalMilliseconds = 1000;
 const javaDirectory = resolve(dataDirectory, "environments", "java");
 const customJavaPathsPath = resolve(javaDirectory, "custom-paths.json");
 const backupDirectory = resolve(dataDirectory, "backups", "minecraft");
@@ -70,11 +78,14 @@ const activeServers = new Map();
 // 目录按用户填写的实例名称保存；此映射让进程和任务仍按稳定 UUID 定位实例。
 const minecraftInstanceDirectories = new Map();
 const activeTasks = new Set();
+let taskLanes;
 const activeCommands = new Map();
 const logBuffers = new Map();
 let shuttingDown = false;
 let pollingController;
 let runLoopPromise;
+let fileTaskLoopPromise;
+let terminalChannel;
 let daemonToken = "";
 let lockNonce = "";
 let sandboxBackendAvailable = false;
@@ -95,10 +106,12 @@ const deepDiscoveredJavaPaths = new Map();
 export async function apply(ctx) {
   if (process.platform !== "win32" || process.arch !== "x64") throw new Error("LFAA Daemon 当前只支持 Windows x64。");
   if (runLoopPromise && !shuttingDown) throw new Error("本进程已经装配了 Daemon 执行插件。");
+  protectPrivateDirectory(credentialsDirectory);
   shuttingDown = false;
   controlPlaneReady = false;
   lastControlPlaneError = "";
   pollingController = new AbortController();
+  taskLanes = createDaemonTaskLanes({ activeTaskIds: activeTasks, onError: error => process.stderr.write(`节点任务收尾失败：${safeMessage(error)}\n`) });
   nodeId = remoteConnection?.nodeId ?? await loadOrCreateNodeId();
   ctx.effect(() => () => shutdown("Harness 卸载"));
   const onExit = () => releaseDaemonLock();
@@ -131,6 +144,8 @@ async function initialize() {
   if (!sandboxBackendAvailable) process.stderr.write("Windows AppContainer Host 不可用；原生 Minecraft 可按账户设置执行，AppContainer 实例不可启动。\n");
   process.stdout.write(`LFAA 本机 Daemon 已启动（${nodeId.slice(0, 8)}）。\n`);
   runLoopPromise = runLoop();
+  fileTaskLoopPromise = runFileTaskPoller();
+  terminalChannel = startTerminalChannel({ apiBase, nodeId, readToken, signal: pollingController.signal, onError: message => process.stderr.write(`节点终端连接暂不可用：${message}\n`) });
 }
 
 async function detectSandboxBackend() {
@@ -337,7 +352,7 @@ async function runLoop() {
           .finally(() => { javaDiscoveryPending = null; javaDiscoveryRefreshAt = Date.now() + 60_000; });
       }
       await refreshEasyTierRuntimeVersion();
-      const capabilities = ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "java-environment-manager-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "agent-shell-v1", "project-files-v1", "git-workspace-v1", EASYTIER_RUNTIME_RELEASE.installCapability, ...(easyTierRuntimeVersion === EASYTIER_RUNTIME_RELEASE.version ? [EASYTIER_RUNTIME_RELEASE.runtimeCapability] : []), ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
+      const capabilities = ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "java-environment-manager-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "agent-shell-v1", "project-files-v1", "git-workspace-v1", EASYTIER_RUNTIME_RELEASE.installCapability, ...(easyTierRuntimeVersion === EASYTIER_RUNTIME_RELEASE.version ? [EASYTIER_RUNTIME_RELEASE.runtimeCapability] : []), ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
       if (await steamcmdExecutableReady(steamcmdSettings.steamcmdDirectory)) capabilities.push("steamcmd-ready-v1");
       const heartbeat = await pollRequest("/daemon/heartbeat", {
         method: "POST",
@@ -359,46 +374,15 @@ async function runLoop() {
       if (heartbeat?.steamcmdSettings) steamcmdSettings = validateSteamcmdSettings(heartbeat.steamcmdSettings);
       if (heartbeat?.minecraftStorageSettings) await applyMinecraftStorageSettings(heartbeat.minecraftStorageSettings);
 
-      if (activeTasks.size === 0) {
-        const { task: fileTask } = await pollRequest("/daemon/files/tasks/claim", { method: "POST", body: JSON.stringify({ nodeId }) });
-        if (shuttingDown) break;
-        if (fileTask) {
-          activeTasks.add(fileTask.id);
-          void executeNodeFileTask(fileTask).finally(() => activeTasks.delete(fileTask.id));
-        }
-      }
-      if (activeTasks.size === 0) {
-        const { task } = await pollRequest("/daemon/tasks/claim", { method: "POST", body: JSON.stringify({ nodeId }) });
-        if (shuttingDown) break;
-        if (task) {
-          activeTasks.add(task.id);
-          void executeTask(task).finally(() => activeTasks.delete(task.id));
-        }
-      }
-      if (activeTasks.size === 0) {
-        const { task } = await pollRequest("/daemon/steamcmd/tasks/claim", { method: "POST", body: JSON.stringify({ nodeId }) });
-        if (shuttingDown) break;
-        if (task) {
-          activeTasks.add(task.id);
-          void executeSteamcmdTask(task).finally(() => activeTasks.delete(task.id));
-        }
-      }
-      if (activeTasks.size === 0) {
-        const { task } = await pollRequest("/daemon/ai/host-tasks/claim", { method: "POST", body: JSON.stringify({ nodeId }) });
-        if (shuttingDown) break;
-        if (task) {
-          activeTasks.add(task.id);
-          void executeAiHostTask(task).finally(() => activeTasks.delete(task.id));
-        }
-      }
-      if (activeTasks.size === 0) {
-        const { task } = await pollRequest("/connectivity/daemon/easytier/install/claim", { method: "POST", body: JSON.stringify({ nodeId }) });
-        if (shuttingDown) break;
-        if (task) {
-          activeTasks.add(task.id);
-          void executeConnectivityInstallTask(task).finally(() => activeTasks.delete(task.id));
-        }
-      }
+      await taskLanes.poll({
+        claim: async path => (await pollRequest(path, { method: "POST", body: JSON.stringify({ nodeId }) })).task,
+        maintenance: [
+          { path: "/daemon/tasks/claim", execute: executeTask },
+          { path: "/daemon/steamcmd/tasks/claim", execute: executeSteamcmdTask },
+          { path: "/connectivity/daemon/easytier/install/claim", execute: executeConnectivityInstallTask }
+        ],
+        shell: { path: "/daemon/ai/host-tasks/claim", execute: executeAiHostTask }
+      });
     } catch (error) {
       controlPlaneReady = false;
       const message = safeMessage(error);
@@ -406,6 +390,27 @@ async function runLoop() {
       lastControlPlaneError = message;
     }
     await delay(5000, pollingController.signal);
+  }
+}
+
+async function runFileTaskPoller() {
+  const pollRequest = (path, options = {}) => apiRequest(path, { ...options, signal: pollingController.signal });
+  let lastFileTaskPollError = "";
+  while (!shuttingDown) {
+    if (controlPlaneReady) {
+      try {
+        await taskLanes.pollFile({
+          claim: async path => (await pollRequest(path, { method: "POST", body: JSON.stringify({ nodeId }) })).task,
+          queue: { path: "/daemon/files/tasks/claim", execute: executeNodeFileTask }
+        });
+        lastFileTaskPollError = "";
+      } catch (error) {
+        const message = safeMessage(error);
+        if (!shuttingDown && message !== lastFileTaskPollError) process.stderr.write(`Daemon 文件任务领取暂不可用：${message}\n`);
+        lastFileTaskPollError = message;
+      }
+    }
+    await delay(fileTaskPollIntervalMilliseconds, pollingController.signal);
   }
 }
 
@@ -429,32 +434,45 @@ async function rebuildMinecraftInstanceDirectoryIndex() {
 }
 
 function validateMinecraftStorageDirectory(value) {
-  if (typeof value !== "string" || value.length > 512 || value.includes("\\") || value.startsWith("/") || /^[a-z]:/iu.test(value)) {
-    throw new Error("Minecraft 实例目录必须是 LFAA 数据根目录内的相对路径。");
-  }
-  const segments = value.split("/");
-  if (segments.length < 1 || segments.length > 16 || segments.some((segment) =>
+  if (typeof value !== "string" || value.length > 2048 || /[\r\n\u0000]/u.test(value)) throw new Error("Minecraft 实例目录无效。");
+  const absolute = win32.isAbsolute(value);
+  if (absolute && value.split(/[\\/]/u).includes("..")) throw new Error("Minecraft 实例目录不能包含父目录跳转。");
+  if (!absolute && (value.includes("\\") || value.startsWith("/") || /^[a-z]:/iu.test(value))) throw new Error("Minecraft 实例目录必须是数据根目录内的相对路径或磁盘绝对路径。");
+  const normalized = absolute ? win32.normalize(value) : value;
+  const volumeRoot = absolute ? win32.parse(normalized).root : "";
+  if (absolute && (!/^[a-z]:\\$/iu.test(volumeRoot) || normalized.length <= volumeRoot.length)) throw new Error("Minecraft 实例根目录必须是磁盘内的普通文件夹。");
+  const segments = absolute ? win32.relative(volumeRoot, normalized).split("\\") : value.split("/");
+  if (segments.length < 1 || segments.length > 32 || segments.some((segment) =>
     segment.length === 0 || segment.length > 120 || segment === "." || segment === ".."
     || /[<>:"|?*\u0000-\u001f]/u.test(segment) || /[ .]$/u.test(segment)
     || /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/iu.test(segment)
-  ) || protectedDataDirectories.includes(segments[0]?.toLocaleLowerCase() ?? "")) {
+  ) || !absolute && protectedDataDirectories.includes(segments[0]?.toLocaleLowerCase() ?? "")) {
     throw new Error("Minecraft 实例目录包含不受支持的路径片段。");
+  }
+  if (absolute) {
+    const dataRelative = win32.relative(win32.resolve(dataDirectory), normalized);
+    const insideData = dataRelative === "" || dataRelative !== ".." && !dataRelative.startsWith(`..${win32.sep}`) && !win32.isAbsolute(dataRelative);
+    if (insideData && protectedDataDirectories.includes(dataRelative.split(win32.sep)[0]?.toLocaleLowerCase() ?? "")) throw new Error("Minecraft 实例目录不能放在凭据、数据库、配置或会话目录中。");
+    return normalized;
   }
   return segments.join("/");
 }
 
 function getMinecraftStorageRoot(storageDirectory) {
   const validated = validateMinecraftStorageDirectory(storageDirectory);
+  if (win32.isAbsolute(validated)) return win32.resolve(validated);
   const root = resolve(dataDirectory, ...validated.split("/"));
   const rel = relative(dataDirectory, root);
   if (!rel || rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel)) throw new Error("Minecraft 实例根目录越过 LFAA 数据根目录。");
   return root;
 }
 
-async function ensureMinecraftStorageRoot(storageDirectory) {
-  const root = getMinecraftStorageRoot(storageDirectory);
-  let current = dataDirectory;
-  for (const segment of relative(dataDirectory, root).split(sep)) {
+async function ensureStorageDirectory(root) {
+  const target = win32.resolve(root);
+  const volumeRoot = win32.parse(target).root;
+  if (!/^[a-z]:\\$/iu.test(volumeRoot) || target === volumeRoot) throw new Error("存储目录必须位于可用磁盘的普通文件夹中。");
+  let current = volumeRoot;
+  for (const segment of win32.relative(volumeRoot, target).split(win32.sep).filter(Boolean)) {
     current = resolve(current, segment);
     try {
       const info = await lstat(current);
@@ -464,13 +482,14 @@ async function ensureMinecraftStorageRoot(storageDirectory) {
       await mkdir(current);
     }
   }
-  return root;
+  return target;
 }
 
 async function getExistingMinecraftStorageRoot(storageDirectory) {
   const root = getMinecraftStorageRoot(storageDirectory);
-  let current = dataDirectory;
-  for (const segment of relative(dataDirectory, root).split(sep)) {
+  const volumeRoot = win32.parse(root).root;
+  let current = volumeRoot;
+  for (const segment of win32.relative(volumeRoot, root).split(win32.sep).filter(Boolean)) {
     current = resolve(current, segment);
     try {
       const info = await lstat(current);
@@ -492,7 +511,7 @@ async function applyMinecraftStorageSettings(settings) {
   knownMinecraftDirectories.clear();
   for (const item of directories) knownMinecraftDirectories.add(item);
   minecraftDirectoryRelative = currentDirectory;
-  minecraftDirectory = await ensureMinecraftStorageRoot(currentDirectory);
+  minecraftDirectory = await ensureStorageDirectory(getMinecraftStorageRoot(currentDirectory));
   await rebuildMinecraftInstanceDirectoryIndex();
 }
 
@@ -611,7 +630,7 @@ async function executeTask(task) {
       case "console": {
         const runtime = activeServers.get(requireInstanceId(task.instanceId));
         const command = task.payload?.command;
-        if (!runtime?.serverReady || typeof command !== "string" || !command.trim() || command.length > 1024 || /[\u0000-\u001f\u007f]/u.test(command) || /^(?:stop|restart)\b/iu.test(command)) throw new Error("实例控制台不可用或命令无效。");
+        if (!runtime?.serverReady || typeof command !== "string" || !command.trim() || command.length > 1024 || /[\u0000-\u001f\u007f]/u.test(command)) throw new Error("实例控制台不可用或命令无效。");
         await new Promise((resolve, reject) => runtime.child.stdin.write(`${command}\n`, error => error ? reject(error) : resolve()));
         result = { delivered: true, verified: false, note: "命令已写入服务器标准输入；效果须读取后续日志验证。" }; break;
       }
@@ -782,14 +801,26 @@ async function postSteamcmdProgress(taskId, progress, message) {
 
 function validateSteamcmdSettings(value) {
   if (!value || !["online", "manual"].includes(value.installMode)) throw new Error("控制端返回的 SteamCMD 安装设置无效。");
-  resolveManagedFilePath(value.steamcmdDirectory);
-  resolveManagedFilePath(value.gameDirectory);
-  if (value.steamcmdDirectory.toLocaleLowerCase() === value.gameDirectory.toLocaleLowerCase()
-    || value.steamcmdDirectory.toLocaleLowerCase().startsWith(`${value.gameDirectory.toLocaleLowerCase()}/`)
-    || value.gameDirectory.toLocaleLowerCase().startsWith(`${value.steamcmdDirectory.toLocaleLowerCase()}/`)) {
+  const toolDirectory = resolveManagedFilePath(value.steamcmdDirectory);
+  const gameDirectory = resolveSteamcmdGameDirectory(value.gameDirectory);
+  if (pathsOverlap(toolDirectory, gameDirectory)) {
     throw new Error("SteamCMD 工具目录和游戏存储目录不能相同或互相包含。");
   }
   return { installMode: value.installMode, steamcmdDirectory: value.steamcmdDirectory, gameDirectory: value.gameDirectory };
+}
+
+function resolveSteamcmdGameDirectory(value) {
+  const validated = validateMinecraftStorageDirectory(value);
+  return win32.isAbsolute(validated) ? win32.resolve(validated) : resolveManagedFilePath(validated);
+}
+
+function pathsOverlap(left, right) {
+  const normalizedLeft = win32.resolve(left).toLocaleLowerCase("en-US");
+  const normalizedRight = win32.resolve(right).toLocaleLowerCase("en-US");
+  const leftToRight = win32.relative(normalizedLeft, normalizedRight);
+  const rightToLeft = win32.relative(normalizedRight, normalizedLeft);
+  const within = value => value === "" || value !== ".." && !value.startsWith(`..${win32.sep}`) && !win32.isAbsolute(value);
+  return within(leftToRight) || within(rightToLeft);
 }
 
 async function steamcmdExecutableReady(relativeDirectory) {
@@ -807,10 +838,10 @@ async function installSteamcmd(task) {
   const settings = validateSteamcmdSettings(task.payload ?? {});
   if (settings.installMode !== "online") throw new Error("当前 SteamCMD 设置为手动指定，不能执行在线安装。");
   const toolDirectory = resolveManagedFilePath(settings.steamcmdDirectory);
-  const gameDirectory = resolveManagedFilePath(settings.gameDirectory);
+  const gameDirectory = resolveSteamcmdGameDirectory(settings.gameDirectory);
   await postSteamcmdProgress(task.id, 12, "正在准备 SteamCMD 和游戏存储目录。");
   await ensureManagedDirectory(toolDirectory);
-  await ensureManagedDirectory(gameDirectory);
+  await ensureStorageDirectory(gameDirectory);
 
   const existingExecutable = resolve(toolDirectory, "steamcmd.exe");
   const existingInfo = await assertManagedPathIsSafe(existingExecutable, true);
@@ -884,9 +915,9 @@ async function installSteamcmd(task) {
 async function verifySteamcmd(task) {
   const settings = validateSteamcmdSettings(task.payload ?? {});
   const toolDirectory = resolveManagedFilePath(settings.steamcmdDirectory);
-  const gameDirectory = resolveManagedFilePath(settings.gameDirectory);
+  const gameDirectory = resolveSteamcmdGameDirectory(settings.gameDirectory);
   await postSteamcmdProgress(task.id, 35, "正在检查 SteamCMD 文件并准备游戏存储目录。");
-  await ensureManagedDirectory(gameDirectory);
+  await ensureStorageDirectory(gameDirectory);
   const executable = resolve(toolDirectory, "steamcmd.exe");
   let executableInfo;
   try { executableInfo = await assertManagedPathIsSafe(executable, true); }
@@ -908,95 +939,11 @@ async function verifySteamcmd(task) {
   };
 }
 
-async function performNodeFileOperation(operation, payload) {
-  const filePath = resolveManagedFilePath(payload.path, ["list", "search", "upload"].includes(operation));
-  if (operation === "list") return await listManagedFiles(filePath);
-  if (operation === "search") return await searchManagedFiles(filePath, payload.query);
-  if (operation === "read") return await readManagedTextFile(filePath);
-  if (operation === "download") return await downloadManagedFile(filePath);
-  if (operation === "write") return await writeManagedTextFile(filePath, payload.content);
-  if (operation === "create-file") return await createManagedFile(filePath);
-  if (operation === "create-folder") return await createManagedFolder(filePath);
-  if (operation === "rename") return await renameManagedFile(filePath, payload.name);
-  if (operation === "delete") return await deleteManagedFile(filePath);
-  if (operation === "upload") return await uploadManagedFile(filePath, payload.name, payload.dataBase64);
-  throw new Error("Daemon 拒绝执行未登记的文件操作。");
-}
-
-function resolveManagedFilePath(value, allowRoot = false) {
-  // 所有请求都按数据根目录相对路径解释；拒绝绝对路径、父目录跳转和系统私有目录。
-  if (value === "" && allowRoot) return dataDirectory;
-  if (typeof value !== "string" || value.length > 1024 || value.includes("\\") || value.startsWith("/") || /^[a-z]:/iu.test(value)) {
-    throw new Error("文件路径格式无效；路径必须相对于 LFAA 数据根目录。");
-  }
-  const segments = value.split("/");
-  if (segments.some((segment) => !isSafeManagedFileName(segment))) throw new Error("文件路径包含不安全的目录名称。");
-  if (protectedDataDirectories.includes(segments[0]?.toLocaleLowerCase() ?? "")) throw new Error("凭据、数据库、配置和会话目录不开放给文件管理器。");
-  const target = resolve(dataDirectory, ...segments);
-  const rel = relative(dataDirectory, target);
-  if (rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel)) throw new Error("文件路径越过 LFAA 数据根目录。");
-  return target;
-}
-
-/** 按段创建数据根目录中的文件夹，并在每一级拒绝符号链接和重解析点。 */
-async function ensureManagedDirectory(directory) {
-  const relativePath = relative(dataDirectory, directory);
-  if (relativePath === "") {
-    const rootInfo = await lstat(dataDirectory);
-    if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) throw new Error("LFAA 数据根目录状态无效。");
-    return dataDirectory;
-  }
-  if (relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
-    throw new Error("目录路径越过 LFAA 数据根目录。");
-  }
-  const rootInfo = await lstat(dataDirectory);
-  if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) throw new Error("LFAA 数据根目录状态无效。");
-  let current = dataDirectory;
-  for (const segment of relativePath.split(sep)) {
-    if (!isSafeManagedFileName(segment)) throw new Error("目录路径包含不安全名称。");
-    current = resolve(current, segment);
-    let info;
-    try { info = await lstat(current); }
-    catch (error) {
-      if (error?.code !== "ENOENT") throw error;
-      try { await mkdir(current); } catch (mkdirError) { if (mkdirError?.code !== "EEXIST") throw mkdirError; }
-      info = await lstat(current);
-    }
-    if (info.isSymbolicLink() || !info.isDirectory()) throw new Error("目标目录包含符号链接或非目录路径，已拒绝访问。");
-  }
-  return current;
-}
-
-function isSafeManagedFileName(value) {
-  return typeof value === "string" && value.length > 0 && value.length <= 255
-    && value !== "." && value !== ".." && !/[<>:"|?*\\/\u0000-\u001f]/u.test(value)
-    && !/[ .]$/u.test(value)
-    && !/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/iu.test(value);
-}
-
-async function assertManagedPathIsSafe(path, allowMissing = false) {
-  // 逐层核实真实文件类型，拒绝链接与硬链接，避免受管路径指向数据根目录之外。
-  const rel = relative(dataDirectory, path);
-  if (rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel)) throw new Error("文件路径越过 LFAA 数据根目录。");
-  const segments = rel ? rel.split(sep) : [];
-  let current = dataDirectory;
-  const rootInfo = await lstat(current);
-  if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) throw new Error("LFAA 数据根目录状态无效。");
-  for (let index = 0; index < segments.length; index += 1) {
-    current = resolve(current, segments[index]);
-    let info;
-    try { info = await lstat(current); }
-    catch (error) {
-      if (allowMissing && error?.code === "ENOENT" && index === segments.length - 1) return null;
-      throw error;
-    }
-    if (info.isSymbolicLink()) throw new Error("文件路径包含符号链接或目录联接，已拒绝访问。");
-    if (index < segments.length - 1 && !info.isDirectory()) throw new Error("文件路径中的上级目录无效。");
-    if (index === segments.length - 1 && info.isFile() && info.nlink > 1) throw new Error("文件是硬链接，已拒绝访问以避免读取或修改目录之外的数据。");
-    if (index === segments.length - 1) return info;
-  }
-  return rootInfo;
-}
+const nodeFileService = createManagedFileService({root: dataDirectory, protectedDirectories: protectedDataDirectories, assertCanMutate: assertNoActiveInstanceAffected});
+export async function performNodeFileOperation(operation, payload) { return nodeFileService.operate(operation, payload); }
+function resolveManagedFilePath(value, allowRoot = false) { return nodeFileService.resolvePath(value, allowRoot); }
+async function ensureManagedDirectory(directory) { return nodeFileService.ensureDirectory(directory); }
+async function assertManagedPathIsSafe(path, allowMissing = false) { return nodeFileService.assertPath(path, allowMissing); }
 
 function assertNoActiveInstanceAffected(path) {
   for (const instanceId of activeServers.keys()) {
@@ -1007,158 +954,6 @@ function assertNoActiveInstanceAffected(path) {
     const instanceIsInside = instanceInsideTarget === "" || !instanceInsideTarget.startsWith(`..${sep}`) && instanceInsideTarget !== ".." && !isAbsolute(instanceInsideTarget);
     if (targetIsInside || instanceIsInside) throw new Error("Minecraft 实例正在运行；请先停止实例，再修改、移动或删除相关文件。");
   }
-}
-
-function toManagedRelativePath(path) {
-  return relative(dataDirectory, path).split(sep).join("/");
-}
-
-async function listManagedFiles(directory) {
-  const directoryInfo = await assertManagedPathIsSafe(directory);
-  if (!directoryInfo.isDirectory()) throw new Error("当前路径不是文件夹。");
-  const entries = [];
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    if (directory === dataDirectory && protectedDataDirectories.includes(entry.name.toLocaleLowerCase())) continue;
-    const path = resolve(directory, entry.name);
-    let info;
-    try { info = await lstat(path); } catch { continue; }
-    if (info.isSymbolicLink() || (!info.isDirectory() && !info.isFile()) || info.isFile() && info.nlink > 1) continue;
-    const relativePath = toManagedRelativePath(path);
-    if (relativePath.length > 1024) continue;
-    entries.push({
-      name: entry.name,
-      path: relativePath,
-      kind: info.isDirectory() ? "directory" : "file",
-      size: info.isFile() ? info.size : 0,
-      modifiedAt: info.mtime.toISOString()
-    });
-    if (entries.length >= 500) break;
-  }
-  entries.sort((left, right) => Number(right.kind === "directory") - Number(left.kind === "directory") || left.name.localeCompare(right.name, "zh-CN", { sensitivity: "base" }));
-  return { path: toManagedRelativePath(directory), entries, truncated: entries.length >= 500 };
-}
-
-async function searchManagedFiles(root, query) {
-  if (typeof query !== "string" || query.trim().length < 1 || query.length > 100) throw new Error("搜索内容长度无效。");
-  const rootInfo = await assertManagedPathIsSafe(root);
-  if (!rootInfo.isDirectory()) throw new Error("当前路径不是文件夹。");
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const results = [];
-  const pending = [{ path: root, depth: 0 }];
-  let scanned = 0;
-  const maximumScannedEntries = 10_000;
-  while (pending.length && results.length < 500 && scanned < maximumScannedEntries) {
-    const current = pending.shift();
-    for (const entry of await readdir(current.path, { withFileTypes: true })) {
-      scanned += 1;
-      if (current.path === dataDirectory && protectedDataDirectories.includes(entry.name.toLocaleLowerCase())) continue;
-      const path = resolve(current.path, entry.name);
-      let info;
-      try { info = await lstat(path); } catch { continue; }
-      if (info.isSymbolicLink() || (!info.isDirectory() && !info.isFile()) || info.isFile() && info.nlink > 1) continue;
-      const relativePath = toManagedRelativePath(path);
-      if (relativePath.length > 1024) continue;
-      if (entry.name.toLocaleLowerCase().includes(normalizedQuery)) {
-        results.push({
-          name: entry.name,
-          path: relativePath,
-          kind: info.isDirectory() ? "directory" : "file",
-          size: info.isFile() ? info.size : 0,
-          modifiedAt: info.mtime.toISOString()
-        });
-        if (results.length >= 500 || scanned >= maximumScannedEntries) break;
-      }
-      if (info.isDirectory() && current.depth < 10) pending.push({ path, depth: current.depth + 1 });
-      if (scanned >= maximumScannedEntries) break;
-    }
-  }
-  return { path: toManagedRelativePath(root), entries: results, truncated: results.length >= 500 || pending.length > 0 || scanned >= maximumScannedEntries };
-}
-
-async function readManagedTextFile(path) {
-  const info = await assertManagedPathIsSafe(path);
-  if (!info.isFile() || info.size > 2 * 1024 * 1024) throw new Error("仅支持在线编辑 2 MiB 以内的普通文本文件。");
-  const buffer = await readFile(path);
-  let content;
-  try { content = new TextDecoder("utf-8", { fatal: true }).decode(buffer); }
-  catch { throw new Error("此文件不是有效的 UTF-8 文本；请下载后使用本地程序编辑。"); }
-  if (content.includes("\u0000")) throw new Error("此文件包含二进制内容；请下载后使用本地程序编辑。");
-  return { path: toManagedRelativePath(path), content, size: info.size };
-}
-
-async function downloadManagedFile(path) {
-  const info = await assertManagedPathIsSafe(path);
-  if (!info.isFile() || info.size > 3 * 1024 * 1024) throw new Error("只支持下载 3 MiB 以内的普通文件。");
-  return { path: toManagedRelativePath(path), name: basename(path), dataBase64: (await readFile(path)).toString("base64"), size: info.size };
-}
-
-async function writeManagedTextFile(path, content) {
-  const info = await assertManagedPathIsSafe(path);
-  assertNoActiveInstanceAffected(path);
-  if (!info.isFile() || typeof content !== "string" || Buffer.byteLength(content, "utf8") > 2 * 1024 * 1024) {
-    throw new Error("仅支持写入 2 MiB 以内的普通文本文件。");
-  }
-  if (content.includes("\u0000")) throw new Error("文本内容包含无效的空字符。");
-  await writeFile(path, content, { encoding: "utf8", flag: "w" });
-  return { path: toManagedRelativePath(path), size: Buffer.byteLength(content, "utf8") };
-}
-
-async function createManagedFile(path) {
-  const info = await assertManagedPathIsSafe(path, true);
-  assertNoActiveInstanceAffected(path);
-  if (info) throw new Error("同名文件或文件夹已经存在。");
-  const parentInfo = await assertManagedPathIsSafe(dirname(path));
-  if (!parentInfo.isDirectory()) throw new Error("目标上级路径不是文件夹。");
-  await writeFile(path, "", { encoding: "utf8", flag: "wx" });
-  return { path: toManagedRelativePath(path), size: 0 };
-}
-
-async function createManagedFolder(path) {
-  const info = await assertManagedPathIsSafe(path, true);
-  assertNoActiveInstanceAffected(path);
-  if (info) throw new Error("同名文件或文件夹已经存在。");
-  const parentInfo = await assertManagedPathIsSafe(dirname(path));
-  if (!parentInfo.isDirectory()) throw new Error("目标上级路径不是文件夹。");
-  await mkdir(path);
-  return { path: toManagedRelativePath(path) };
-}
-
-async function renameManagedFile(path, name) {
-  if (relative(dataDirectory, path) === "") throw new Error("不能重命名 LFAA 数据根目录。");
-  if (!isSafeManagedFileName(name)) throw new Error("新名称包含不支持的字符。");
-  const sourceInfo = await assertManagedPathIsSafe(path);
-  const target = resolve(dirname(path), name);
-  assertNoActiveInstanceAffected(path);
-  assertNoActiveInstanceAffected(target);
-  const targetRelative = toManagedRelativePath(target).split("/");
-  if (protectedDataDirectories.includes(targetRelative[0]?.toLocaleLowerCase() ?? "")) throw new Error("目标名称保留给系统目录使用。");
-  if (await assertManagedPathIsSafe(target, true)) throw new Error("同名文件或文件夹已经存在。");
-  await rename(path, target);
-  return { path: toManagedRelativePath(target), kind: sourceInfo.isDirectory() ? "directory" : "file" };
-}
-
-async function deleteManagedFile(path) {
-  if (relative(dataDirectory, path) === "") throw new Error("不能删除 LFAA 数据根目录。");
-  const info = await assertManagedPathIsSafe(path);
-  assertNoActiveInstanceAffected(path);
-  await rm(path, { recursive: info.isDirectory(), force: false });
-  return { path: toManagedRelativePath(path), deleted: true };
-}
-
-async function uploadManagedFile(directory, name, dataBase64) {
-  if (!isSafeManagedFileName(name)) throw new Error("上传文件名包含不支持的字符。");
-  if (typeof dataBase64 !== "string" || dataBase64.length > 4_194_304 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(dataBase64)) {
-    throw new Error("上传文件编码格式无效。");
-  }
-  const buffer = Buffer.from(dataBase64, "base64");
-  if (buffer.length > 3 * 1024 * 1024) throw new Error("单个上传文件不能超过 3 MiB。");
-  const directoryInfo = await assertManagedPathIsSafe(directory);
-  if (!directoryInfo.isDirectory()) throw new Error("上传目标不是文件夹。");
-  const path = resolve(directory, name);
-  assertNoActiveInstanceAffected(path);
-  if (await assertManagedPathIsSafe(path, true)) throw new Error("同名文件已经存在；请先重命名或删除原文件。");
-  await writeFile(path, buffer, { flag: "wx" });
-  return { path: toManagedRelativePath(path), size: buffer.length };
 }
 
 async function installMinecraftInstance(task) {
@@ -1331,6 +1126,7 @@ async function registerMinecraftInstance(task) {
 }
 
 async function startMinecraftInstance(task) {
+  if (shuttingDown) throw new Error("节点正在关闭，不再启动实例。");
   const readyTimeout = Number(task.payload?.readyTimeoutSeconds);
   const stopTimeoutSeconds = Number(task.payload?.stopTimeoutSeconds);
   if (!Number.isInteger(readyTimeout) || readyTimeout < 10 || readyTimeout > 900 || !Number.isInteger(stopTimeoutSeconds) || stopTimeoutSeconds < 5 || stopTimeoutSeconds > 300) throw new Error("任务缺少有效的就绪/安全停服等待配置，请重新提交启动任务。");
@@ -2290,10 +2086,11 @@ function getNamedInstanceDirectory(instanceName, storageDirectory = minecraftDir
 }
 
 function minecraftStorageDirectoryForInstance(instanceDirectory) {
-  const storageDirectory = relative(dataDirectory, dirname(instanceDirectory)).split(sep).join("/");
-  const validated = validateMinecraftStorageDirectory(storageDirectory);
-  if (!knownMinecraftDirectories.has(validated)) throw new Error("Minecraft 实例不在控制端登记的存储目录中。");
-  return validated;
+  const actualRoot = win32.resolve(dirname(instanceDirectory));
+  for (const storageDirectory of knownMinecraftDirectories) {
+    if (win32.resolve(getMinecraftStorageRoot(storageDirectory)).toLocaleLowerCase("en-US") === actualRoot.toLocaleLowerCase("en-US")) return storageDirectory;
+  }
+  throw new Error("Minecraft 实例不在控制端登记的存储目录中。");
 }
 
 function requireInstanceId(value) {
@@ -2381,21 +2178,31 @@ function delay(milliseconds, signal) {
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
+  taskLanes?.stop();
   // Fiber 关闭时立即终止轮询请求和等待，避免退出后继续领取任务或打印等待状态。
   pollingController?.abort();
-  await runLoopPromise;
+  await terminalChannel?.done;
+  terminalChannel = undefined;
+  await Promise.all([runLoopPromise, fileTaskLoopPromise]);
   runLoopPromise = undefined;
+  fileTaskLoopPromise = undefined;
   await Promise.all([...activeCommands.values()].map(async command => { await command.cancel(); await command.done; }));
+  await taskLanes?.drain();
   process.stdout.write(`本机 Daemon 正在关闭（${signal}），请求安全停止受管实例。\n`);
   const stops = [...activeServers.entries()].map(async ([instanceId, runtime]) => {
-    try {
-      runtime.child.stdin.write(runtime.coreType === "BungeeCord" ? "end\n" : "stop\n");
-      const stopped = await waitForChildExit(runtime.child, runtime.stopTimeoutSeconds * 1000);
-      if (!stopped) await terminateProcessTree(runtime.child);
-      if (stopped) await rm(resolve(getInstanceDirectory(instanceId), "daemon-process.json"), { force: true });
-    } catch { /* 关闭阶段保留进程状态标记供下次启动后复核。 */ }
+    const graceful = await stopManagedProcess({
+      child: runtime.child, command: runtime.coreType === "BungeeCord" ? "end\n" : "stop\n",
+      timeoutMilliseconds: runtime.stopTimeoutSeconds * 1000,
+      waitForExit: waitForChildExit, terminate: terminateProcessTree
+    });
+    if (graceful) await rm(resolve(getInstanceDirectory(instanceId), "daemon-process.json"), { force: true });
+    else process.stderr.write("实例停服等待或输入失败，已确认强制结束；保留状态标记供启动后复核。\n");
   });
-  await Promise.all(stops);
+  const results = await Promise.allSettled(stops);
+  if (results.some(result => result.status === "rejected")) {
+    process.exitCode = 1;
+    process.stderr.write("部分受管实例未能确认安全退出；不返回正常停机，状态标记保留。\n");
+  }
   for (const buffer of logBuffers.values()) if (buffer.timer) clearTimeout(buffer.timer);
   releaseDaemonLock();
 }

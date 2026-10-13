@@ -22,6 +22,11 @@ configuration.save("user_settings", { user_id: userId, category: "ai-runtime", v
 configuration.save("user_settings", { user_id: precedenceUserId, category: "ai-runtime", value_json: JSON.stringify({ speed: "fast", minecraftDefaultMemoryMb: 8192, minecraftDefaultPort: 25577 }) });
 configuration.save("user_settings", { user_id: precedenceUserId, category: "minecraft-runtime", value_json: JSON.stringify({ minecraftDefaultPort: 25678 }) });
 const settings = await import("lfaa-settings/src/service.js");
+const { Context } = await import("@deepseek-ai/cordis");
+const toolsContext = new Context();
+const toolsFiber = await toolsContext.plugin(await import("lfaa-tools/src/index.js"));
+const shellFiber = await toolsContext.plugin(await import("lfaa-tool-shell/src/index.js"));
+test.after(async () => { await shellFiber.dispose(); await toolsFiber.dispose(); });
 const { retireLegacyFileTables } = await import("lfaa-storage-domain/src/migration.js");
 // 文件配置协调器先迁移旧配置，之后才可升级版本 34 的控制面字段。
 await import("lfaa-session/src/sessions.js"); retireLegacyFileTables();
@@ -119,7 +124,7 @@ test("账户时限保存后进入真实任务，备份/启动互斥且心跳不�
 test("模型读取配置时限、三种模式都可选择工具，取消工具仍校验归属", async () => {
   const { findAiBusinessTool } = await import("lfaa-tools/src/business-tools.js");
   for (const mode of ["ask", "approve_remembered", "full_access"]) {
-    const tool = findAiBusinessTool("workspace", "member", "host_execute_command", null, mode); assert.ok(tool);
+    const tool = findAiBusinessTool("minecraft", "member", "host_execute_command", null, mode); assert.ok(tool);
     assert.equal(tool.prepare({ nodeId, command: "fixture-only", timeoutSeconds: 1800 }, { userId }).timeoutSeconds, 60);
     assert.equal(tool.prepare({ nodeId, command: "fixture-only" }, { userId }).timeoutSeconds, 60);
     assert.equal(tool.prepare({ nodeId, command: "fixture-only", timeoutSeconds: 10 }, { userId }).timeoutSeconds, 10);

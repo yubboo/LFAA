@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { loadAiExtensions, loadAiAccounts, loadSettings, saveSettings, login, ApiError } from "../../../packages/client/connection/src/api.ts";
+import { loadAiExtensions, loadAiAccounts, loadAiMessages, loadSettings, saveSettings, login, ApiError } from "../../../packages/client/connection/src/api.ts";
 import { DEFAULT_USER_SETTINGS } from "../../../packages/client/ui-settings-general/src/default-settings.ts";
 
 function deferredFetch(t) {
@@ -21,6 +21,19 @@ function jsonResponse(value, status = 200) {
   return new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
 }
 
+test("运行设置对账可独立取消，不取消其他组件的默认查询", async (t) => {
+  const calls = deferredFetch(t), controller = new AbortController();
+  const shared = loadSettings();
+  const cancellable = loadSettings(controller.signal);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].options.signal, controller.signal);
+  const rejected = assert.rejects(cancellable, error => error.name === "AbortError");
+  controller.abort();
+  calls[1].reject(controller.signal.reason);
+  calls[0].resolve(jsonResponse({ settings: structuredClone(DEFAULT_USER_SETTINGS) }));
+  await Promise.all([shared, rejected]);
+});
+
 test("多个组件的相同并发读取只发一次请求，各自获得独立数据，完成后再次读取走网络", async (t) => {
   const calls = deferredFetch(t);
   const first = loadAiExtensions();
@@ -35,6 +48,20 @@ test("多个组件的相同并发读取只发一次请求，各自获得独立�
   assert.equal(calls.length, 2);
   calls[1].resolve(jsonResponse({ extensions: [], plugins: [], hooks: [] }));
   await fresh;
+});
+
+test("消息首屏沿同一读取返回分支来源，不额外查询会话详情", async (t) => {
+  const calls = deferredFetch(t);
+  const pending = loadAiMessages("branch-session");
+  assert.equal(calls.length, 1);
+  assert.match(String(calls[0].url), /\/ai\/sessions\/branch-session\/messages\?limit=50/u);
+  const result = {
+    messages: [],
+    nextCursor: null,
+    branchSource: { title: "原会话", session: { id: "source-session", title: "原会话", archived: false, appId: "writing", createdAt: "2026-10-11T00:00:00.000Z", updatedAt: "2026-10-11T00:00:00.000Z", projectId: null, projectTitle: null, planMode: false } }
+  };
+  calls[0].resolve(jsonResponse(result));
+  assert.deepEqual(await pending, result);
 });
 
 test("不同路径独立请求，失败后清除共享登记并允许重试", async (t) => {

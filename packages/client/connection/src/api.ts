@@ -76,106 +76,9 @@ export interface UserPreferences {
   selectedMode: ApplicationMode;
 }
 
-export type AppearanceTextFont = "system" | "sans" | "serif";
-export type AppearanceCodeFont = "system" | "cascadia" | "consolas" | "jetbrains";
-
-export interface AppearanceFonts {
-  interface: AppearanceTextFont;
-  content: AppearanceTextFont;
-  code: AppearanceCodeFont;
-}
-
-export interface AppearanceModeStyle {
-  accentColor: string;
-  fonts: AppearanceFonts;
-}
-
-export interface AppearanceAdvancedSettings {
-  interfaceFontSize: number;
-  codeFontSize: number;
-  reducedMotion: "system" | "on" | "off";
-  separateModes: boolean;
-  fonts: AppearanceFonts;
-  modeStyles: { light: AppearanceModeStyle; dark: AppearanceModeStyle };
-  translucentSidebar: boolean;
-  contrast: number;
-  diffMarkers: "color" | "symbols";
-  pointerCursor: boolean;
-  aiWorkOutputFocusBlurEnabled: boolean;
-  aiWorkOutputFocusBlurPercent: number;
-  aiWorkOutputFocusBlurIdleSeconds: number;
-}
-
-export interface AppearanceSettings {
-  theme: "light" | "dark" | "system";
-  accentColor: string;
-  sidebarColor: string;
-  backgrounds: { login: string; appCenter: string; steamcmd: string; minecraft: string; writing: string; settings: string };
-  wallpaperEngine: { enabled: boolean; projectId: string };
-  overlay: number;
-  blur: number;
-  advanced: AppearanceAdvancedSettings;
-}
-
-export const DEFAULT_APPEARANCE_ADVANCED_SETTINGS: AppearanceAdvancedSettings = {
-  interfaceFontSize: 14,
-  codeFontSize: 12,
-  reducedMotion: "system",
-  separateModes: false,
-  fonts: { interface: "system", content: "system", code: "system" },
-  modeStyles: {
-    light: { accentColor: "#3457d5", fonts: { interface: "system", content: "system", code: "system" } },
-    dark: { accentColor: "#3457d5", fonts: { interface: "system", content: "system", code: "system" } }
-  },
-  translucentSidebar: false,
-  contrast: 60,
-  diffMarkers: "color",
-  pointerCursor: false,
-  aiWorkOutputFocusBlurEnabled: true,
-  aiWorkOutputFocusBlurPercent: 33,
-  aiWorkOutputFocusBlurIdleSeconds: 60
-};
-
-export interface UserSettings {
-  general: {
-    defaultMode: ApplicationMode;
-    showServiceStatus: boolean;
-    showBottomPanelControl: boolean;
-    taskFolder: string;
-    fileOpenLocation: "system" | "ask";
-    agentEnvironment: "system" | "windows-native" | "wsl" | "linux";
-    integratedShell: "system" | "powershell" | "cmd" | "bash" | "zsh";
-    language: "system" | "zh-CN" | "en-US";
-    defaultFullView: boolean;
-    navigationLayout: "left-two-column" | "three-column" | "right-tools" | "focus";
-    terminalPosition: "bottom" | "right";
-    plainTextEditor: boolean;
-    sendShortcut: "enter" | "ctrl-enter";
-    followupBehavior: "queue" | "steer";
-    popupShortcut: string;
-    defaultStandaloneChat: boolean;
-    completionNotification: "always" | "unfocused" | "never";
-    permissionNotifications: boolean;
-    questionNotifications: boolean;
-    sessionIssueNotifications: boolean;
-    notificationSound: "default" | "subtle" | "off";
-    setupReminderEnabled: boolean;
-    confettiEnabled: boolean;
-  };
-  appearance: AppearanceSettings;
-  shortcuts: { openSettings: string[]; openHome: string[]; openSteamcmd: string[]; openMinecraft: string[]; openWriting: string[]; toggleSidebar: string[]; toggleContextPanel: string[]; toggleBottomPanel: string[]; openTerminal: string[]; switchNormalMode: string[]; switchAiWorkMode: string[]; openSideChat: string[]; wallpaperSidebarToggle: string[] };
-  aiRuntime: { speed: "balanced" | "fast" | "deep"; promptSuggestions: boolean; showContextUsage: boolean; requestTimeoutSeconds: number; maxOutputTokens: number; maxModelRequests: number; maxToolCalls: number; subagentAccountId: string; maxSubagents: number; maxDelegationDepth: number; voiceInputEnabled: boolean; readResponsesAloud: boolean; commandTimeoutSeconds: number; };
-  minecraftRuntime: { minecraftReadyTimeoutSeconds: number; minecraftStopTimeoutSeconds: number; minecraftDefaultMemoryMb: number; minecraftDefaultPort: number; minecraftDownloadTimeoutSeconds: number; minecraftInstallTimeoutSeconds: number; minecraftExecutionMode: "native" | "appcontainer"; minecraftDefaultCore: string; minecraftBedrockDefaultPort: number; };
-  git: { branchPrefix: string };
-  permissions: { mode: "ask" | "approve_remembered" | "full_access" };
-  personalization: { memoryEnabled: boolean; memoryFromToolChats: boolean };
-  computerControl: { enabled: boolean };
-  plugins: {
-    enabled: boolean;
-    mcpServers: Array<{ id: string; name: string; url: string; enabled: boolean; applicationIds: ApplicationId[]; manifestSha256?: string }>;
-    prompts: Array<{ id: string; name: string; description: string; applicationId: ApplicationId; sourceRepository: string; sourcePath: string; license: string | null; commit: string; archiveSha256: string; contentSha256: string; content: string; enabled: boolean; createdAt: string }>;
-  };
-}
+import type { UserSettings } from "lfaa-util-values/src/settings-contract.js";
+export type { UserSettings, AppearanceFonts, AppearanceModeStyle, AppearanceAdvancedSettings, AppearanceSettings, AppearanceTextFont, AppearanceCodeFont } from "lfaa-util-values/src/settings-contract.js";
+export { DEFAULT_APPEARANCE_ADVANCED_SETTINGS } from "lfaa-util-values/src/settings-contract.js";
 
 export interface AppearanceBackground {
   id: string;
@@ -369,6 +272,11 @@ export interface AiSession {
   planMode: boolean;
 }
 
+export interface AiSessionBranchSource {
+  title: string;
+  session: AiSession | null;
+}
+
 export type WorkspaceProjectApplicationId = "workspace" | "minecraft";
 
 export interface WorkspaceProject {
@@ -473,6 +381,17 @@ export interface AiHostTask {
 export function loadAiHostTasks(): Promise<{ tasks: AiHostTask[] }> { return request("/ai/host-tasks"); }
 export function loadAiHostTask(taskId: string): Promise<{ task: AiHostTask }> { return request(`/ai/host-tasks/${encodeURIComponent(taskId)}`); }
 export function cancelAiHostTask(taskId: string): Promise<{ task: AiHostTask }> { return request(`/ai/host-tasks/${encodeURIComponent(taskId)}/cancel`, { method: "POST" }); }
+
+export type { TerminalInfo } from "lfaa-api-terminal-controller/src/protocol.js";
+export interface TerminalNode { id: string; displayName: string; connected: boolean }
+export interface CreateTerminalInput { id: string; nodeId: string; appId: ApplicationId; sessionId?: string | null; approvalId?: string; cols: number; rows: number }
+export function loadTerminalNodes(): Promise<{ nodes: TerminalNode[] }> { return request("/terminals/nodes"); }
+export function createTerminal(input: CreateTerminalInput, signal?: AbortSignal): Promise<{ terminal?: import("lfaa-api-terminal-controller/src/protocol.js").TerminalInfo; approval?: AiToolApproval }> {
+  return request("/terminals", { method: "POST", body: JSON.stringify(input), signal });
+}
+export function sendTerminalInput(id: string, data: string): Promise<void> { return request(`/terminals/${encodeURIComponent(id)}/input`, { method: "POST", body: JSON.stringify({ data }) }); }
+export function resizeTerminal(id: string, cols: number, rows: number): Promise<void> { return request(`/terminals/${encodeURIComponent(id)}/resize`, { method: "POST", body: JSON.stringify({ cols, rows }) }); }
+export function closeTerminal(id: string): Promise<void> { return request(`/terminals/${encodeURIComponent(id)}`, { method: "DELETE" }); }
 
 export interface WritingBook {
   id: string;
@@ -587,7 +506,23 @@ export interface AiMessage {
   status: "complete" | "queued" | "streaming" | "interrupted" | "error";
   createdAt: string;
   activity: AiActivityItem[];
+  parts?: AiReplyPart[];
   feedback?: AiMessageFeedback;
+}
+
+/** 同一任务各次模型可见正文的范围，正文仍只有一份。 */
+export interface AiReplyPart { id: string; start: number; end: number; kind: "commentary" | "final" }
+export interface AiTextDelta { messageId: string; delta: string; partId?: string; partStart?: number }
+
+/** SSE 帧合并后的更新仍按请求分段；老服务未提供边界时保留原显示。 */
+export function appendAiTextDelta(message: AiMessage, value: AiTextDelta): AiMessage {
+  const content = message.content + value.delta;
+  if (!value.partId || !Number.isSafeInteger(value.partStart)) return { ...message, content };
+  const parts = (message.parts ?? []).map(part => ({ ...part }));
+  const part = parts.find(item => item.id === value.partId);
+  if (part) part.end = content.length;
+  else parts.push({ id: value.partId, start: value.partStart!, end: content.length, kind: "commentary" });
+  return { ...message, content, parts };
 }
 
 export interface AiMessageFeedback {
@@ -613,10 +548,20 @@ export interface AiActivityItem {
   completedAt: string | null;
   durationMs: number | null;
   approvalId?: string;
+  approvalQuestion?: string;
+  approvalAnswer?: "approved" | "denied" | "expired";
   questionId?: string;
   question?: string;
   options?: string[];
   writingProposalId?: string;
+  fileChanges?: AiActivityFileChange[];
+  contentOffset?: number;
+}
+
+export interface AiActivityFileChange {
+  operation: "read" | "created" | "modified" | "deleted";
+  path: string;
+  projectId: string | null;
 }
 
 export interface AiUsageSummary {
@@ -839,11 +784,18 @@ export interface MinecraftStorageSettings {
 }
 
 export interface DataDirectorySettings {
+  configured: boolean;
   currentDirectory: string;
   pendingDirectory: string | null;
   pendingError: string | null;
   editable: boolean;
   unavailableReason: string | null;
+}
+
+export interface ProjectStorageLocations {
+  logsDirectory: string;
+  writingDirectory: string;
+  dramaDirectory: string;
 }
 
 export interface DesktopUpdateRuntimeInfo {
@@ -853,6 +805,15 @@ export interface DesktopUpdateRuntimeInfo {
 
 export interface DesktopUpdatePreferences {
   autoDownloadAndInstall: boolean;
+}
+
+export interface DesktopUpdateDownloadProgress {
+  version: string;
+  phase: "starting" | "downloading" | "cancelling";
+  transferredBytes: number;
+  totalBytes: number | null;
+  percent: number | null;
+  bytesPerSecond: number;
 }
 
 export interface DesktopAvailableUpdate {
@@ -896,8 +857,11 @@ declare global {
       getUpdatePreferences: () => Promise<DesktopUpdatePreferences>;
       setAutoUpdateAndInstall: (enabled: boolean) => Promise<DesktopUpdatePreferences>;
       getUpdateAvailability: () => Promise<DesktopAvailableUpdate | null>;
+      getUpdateDownloadProgress: () => Promise<DesktopUpdateDownloadProgress | null>;
+      cancelUpdateDownload: () => Promise<boolean>;
       checkForUpdates: () => Promise<DesktopUpdateCheckResult>;
       onUpdateAvailable: (listener: (update: DesktopAvailableUpdate | null) => void) => () => void;
+      onUpdateDownloadProgress: (listener: (progress: DesktopUpdateDownloadProgress | null) => void) => () => void;
       onUpdatePrompt: (listener: (prompt: DesktopUpdatePrompt) => void) => () => void;
       updatePromptUiReady: () => Promise<boolean>;
       updatePromptUiNotReady: () => Promise<boolean>;
@@ -906,15 +870,23 @@ declare global {
   }
 }
 
-export interface ManagedFileEntry {
-  name: string;
-  path: string;
-  kind: "directory" | "file";
-  size: number;
-  modifiedAt: string;
-}
+import type { ManagedFileEntry, FileManagerOperation, FileOperationInput } from "lfaa-util-values/src/file-manager-contract.js";
+export type { ManagedFileEntry, FileManagerOperation };
 
-export type FileManagerOperation = "list" | "search" | "read" | "write" | "create-file" | "create-folder" | "rename" | "delete" | "upload" | "download";
+export interface FileManagerAuditEntry {
+  id: string;
+  taskId?: string;
+  nodeId?: string;
+  userId: string;
+  username: string;
+  operation: string;
+  path: string;
+  targetPath: string;
+  fileName: string;
+  succeeded: boolean;
+  createdAt: string;
+  finishedAt: string;
+}
 
 export interface FileManagerTask {
   id: string;
@@ -1044,6 +1016,19 @@ export function loadHealth(): Promise<ServerHealth> {
 export function loadFileManagerNodes(): Promise<{ nodes: FileManagerNode[] }> {
   return request("/files/nodes");
 }
+/** 页面与 AI 共用统一文件 Owner，普通本机操作直接返回，不产生节点任务。 */
+export function operateSystemFiles(input: FileOperationInput & { operation: FileManagerOperation }, signal?: AbortSignal): Promise<{ result: Record<string, unknown> }> {
+  return request("/files/operations", { method: "POST", body: JSON.stringify(input), signal });
+}
+export function downloadSystemFile(path: string): Promise<Blob> {
+  return requestBinary(`/files/download?${new URLSearchParams({ path })}`);
+}
+export function uploadSystemFile(path: string, file: File, sha256: string): Promise<{ result: Record<string, unknown> }> {
+  return request(`/files/upload?${new URLSearchParams({ path, name: file.name, sha256 })}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
+}
+export function loadSystemFileAudit(query = ""): Promise<{ entries: FileManagerAuditEntry[] }> {
+  return request(`/files/system-audit?${new URLSearchParams({ q: query.slice(0, 120) })}`);
+}
 
 export function submitFileManagerTask(input: {
   nodeId: string;
@@ -1051,10 +1036,19 @@ export function submitFileManagerTask(input: {
   path: string;
   query?: string;
   name?: string;
+  destinationPath?: string;
   content?: string;
   dataBase64?: string;
+  sha256?: string;
+  expectedSha256?: string;
 }): Promise<{ task: FileManagerTask }> {
   return request("/files/tasks", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function loadFileManagerAudit(query = ""): Promise<{ entries: FileManagerAuditEntry[] }> {
+  const parameters = new URLSearchParams({ limit: "200" });
+  if (query.trim()) parameters.set("q", query.trim().slice(0, 120));
+  return request(`/files/audit?${parameters.toString()}`);
 }
 
 export function loadFileManagerTask(taskId: string): Promise<{ task: FileManagerTask }> {
@@ -1111,6 +1105,9 @@ export function saveMinecraftNodeStorageSettings(nodeId: string, settings: Minec
 export function loadDataDirectorySettings(): Promise<{ settings: DataDirectorySettings }> {
   return request("/data-directory");
 }
+export function confirmDataDirectoryLocation(): Promise<{ settings: DataDirectorySettings }> {
+  return request("/data-directory/confirm", { method: "POST" });
+}
 
 export function saveDataDirectorySettings(directory: string): Promise<{ settings: DataDirectorySettings }> {
   return request("/data-directory", { method: "PUT", body: JSON.stringify({ directory }) });
@@ -1118,6 +1115,14 @@ export function saveDataDirectorySettings(directory: string): Promise<{ settings
 
 export function cancelDataDirectorySettingsChange(): Promise<{ settings: DataDirectorySettings }> {
   return request("/data-directory", { method: "DELETE" });
+}
+
+export function loadProjectStorageLocations(): Promise<{ settings: ProjectStorageLocations; configured: boolean }> {
+  return request("/project-storage-locations");
+}
+
+export function saveProjectStorageLocations(settings: ProjectStorageLocations): Promise<{ settings: ProjectStorageLocations; configured: boolean }> {
+  return request("/project-storage-locations", { method: "PUT", body: JSON.stringify(settings) });
 }
 
 export function isDesktopApp(): boolean {
@@ -1161,6 +1166,89 @@ export type WorkflowStatus = "queued" | "running" | "succeeded" | "failed" | "in
 export type WorkflowNodeStatus = "waiting" | "running" | "succeeded" | "failed" | "interrupted";
 export interface WorkflowRunNode { nodeId: string; type: string; title: string; startedAt: string | null; completedAt: string | null; status: WorkflowNodeStatus; output?: string; outputTruncated?: boolean; references?: Array<{ kind: string; id: string }>; progress?: Record<string, unknown>; error?: string }
 export interface WorkflowRun { id: string; appId: ApplicationId; workflowId: string; status: WorkflowStatus; nodes: WorkflowRunNode[]; currentNodeId: string | null; createdAt: string; updatedAt: string }
+
+export interface AiVideoTask { localId: string; accountId: string; modelId: string; status: "submitting" | "queued" | "running" | "succeeded" | "failed" | "cancelled" | "expired"; createdAt: string; updatedAt: string; providerTaskId?: string; error?: string }
+export interface AiVideoShot { id: string; title: string; description: string; dialogue: string; durationSeconds: number; x: number; y: number; characterIds: string[]; locationId?: string; imageAssetId?: string; imageMimeType?: "image/png" | "image/jpeg" | "image/webp"; videoAssetId?: string; videoMimeType?: "video/mp4"; videoTask?: AiVideoTask }
+export interface AiVideoShotLink { id: string; source: string; target: string }
+export interface AiVideoReference { id: string; name: string; description: string; imageAssetId?: string; imageMimeType?: "image/png" | "image/jpeg" | "image/webp" }
+export type AiVideoMediaMimeType = "image/png" | "image/jpeg" | "image/webp" | "video/mp4" | "video/webm" | "audio/mpeg" | "audio/wav" | "audio/ogg";
+export interface AiVideoMediaAsset { assetId: string; name: string; mimeType: AiVideoMediaMimeType; bytes: number; createdAt: string; origin: "imported" | "export" | "generated"; available?: boolean }
+export interface AiVideoTimelineClip { id: string; track: "video" | "audio" | "subtitle"; assetId?: string; text?: string; startSeconds: number; inPointSeconds: number; durationSeconds: number }
+export interface AiVideoWhiteModelItem { id: string; name: string; kind: "actor" | "block"; x: number; z: number; width: number; depth: number; height: number }
+export interface AiVideoWhiteModel { items: AiVideoWhiteModelItem[]; camera: { x: number; y: number; z: number; yaw: number; pitch: number; focalLength: number }; ratio: "16:9" | "9:16" | "1:1" }
+export interface AiVideoCanvas { id: string; title: string; script: string; characters: AiVideoReference[]; locations: AiVideoReference[]; shots: AiVideoShot[]; links: AiVideoShotLink[]; mediaAssets: AiVideoMediaAsset[]; timelineClips: AiVideoTimelineClip[]; whiteModel: AiVideoWhiteModel; createdAt: string; updatedAt: string }
+export type AiVideoCanvasInput = Pick<AiVideoCanvas, "title" | "script" | "characters" | "locations" | "shots" | "links" | "timelineClips" | "whiteModel">;
+
+type AiVideoCanvasLimits = { canvases: number; shots: number; links: number; characters: number; locations: number; scriptCharacters: number; referencesPerShot: number; referenceImageBytes: number; referenceImageDimension: number; referenceImagePixels: number; imageAssetBytes: number; mediaAssetBytes: number; timelineClips: number; timelineSeconds: number };
+type AiVideoCanvasCollection = { canvases: AiVideoCanvas[]; limits: AiVideoCanvasLimits };
+const aiVideoCanvasLimitFields = ["canvases", "shots", "links", "characters", "locations", "scriptCharacters", "referencesPerShot", "referenceImageBytes", "referenceImageDimension", "referenceImagePixels", "imageAssetBytes", "mediaAssetBytes", "timelineClips", "timelineSeconds"] as const satisfies readonly (keyof AiVideoCanvasLimits)[];
+
+export async function loadAiVideoCanvases(): Promise<AiVideoCanvasCollection> {
+  const response: unknown = await request<unknown>("/ai-video/canvases");
+  const limits = isRecord(response) && isRecord(response.limits) ? response.limits : undefined;
+  if (!isRecord(response) || !Array.isArray(response.canvases) || !limits || !aiVideoCanvasLimitFields.every(field => {
+    const value = limits[field];
+    return typeof value === "number" && Number.isFinite(value) && value >= 0;
+  })) {
+    throw new ApiError(502, "AI 漫剧服务返回的数据与当前界面版本不兼容。请重启本机 LFAA Web 服务后刷新页面。", "ai_video_contract_mismatch");
+  }
+  return response as AiVideoCanvasCollection;
+}
+export function createAiVideoCanvas(title: string): Promise<{ canvas: AiVideoCanvas }> {
+  return request("/ai-video/canvases", { method: "POST", body: JSON.stringify({ title }) });
+}
+export function saveAiVideoCanvas(canvasId: string, expectedUpdatedAt: string, canvas: AiVideoCanvasInput): Promise<{ canvas: AiVideoCanvas }> {
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}`, { method: "PUT", body: JSON.stringify({ expectedUpdatedAt, canvas }) });
+}
+export function generateAiVideoShotImage(canvasId: string, shotId: string, expectedUpdatedAt: string): Promise<{ canvas: AiVideoCanvas }> {
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}/shots/${encodeURIComponent(shotId)}/image`, { method: "POST", body: JSON.stringify({ expectedUpdatedAt }) });
+}
+export function startAiVideoShotVideo(canvasId: string, shotId: string, expectedUpdatedAt: string): Promise<{ canvas: AiVideoCanvas }> {
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}/shots/${encodeURIComponent(shotId)}/video`, { method: "POST", body: JSON.stringify({ expectedUpdatedAt }) });
+}
+export function refreshAiVideoShotVideo(canvasId: string, shotId: string): Promise<{ canvas: AiVideoCanvas }> {
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}/shots/${encodeURIComponent(shotId)}/video`);
+}
+export function cancelAiVideoShotVideo(canvasId: string, shotId: string): Promise<{ canvas: AiVideoCanvas }> {
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}/shots/${encodeURIComponent(shotId)}/video`, { method: "DELETE" });
+}
+export function aiVideoShotImageUrl(canvasId: string, assetId: string): string {
+  return aiVideoAssetUrl(canvasId, assetId);
+}
+export function aiVideoAssetUrl(canvasId: string, assetId: string): string {
+  return `/api/ai-video/canvases/${encodeURIComponent(canvasId)}/assets/${encodeURIComponent(assetId)}`;
+}
+export function loadAiVideoMediaAssets(canvasId: string): Promise<{ assets: AiVideoMediaAsset[] }> {
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}/media`);
+}
+export function readAiVideoMediaAsset(canvasId: string, assetId: string): Promise<Blob> {
+  return requestBinary(`/ai-video/canvases/${encodeURIComponent(canvasId)}/assets/${encodeURIComponent(assetId)}`);
+}
+export function uploadAiVideoMediaAsset(canvasId: string, expectedUpdatedAt: string, file: File): Promise<{ canvas: AiVideoCanvas }> {
+  const query = new URLSearchParams({ expectedUpdatedAt, name: file.name });
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}/assets?${query}`, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+}
+export function deleteAiVideoMediaAsset(canvasId: string, assetId: string, expectedUpdatedAt: string): Promise<{ canvas: AiVideoCanvas }> {
+  const query = new URLSearchParams({ expectedUpdatedAt });
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}/assets/${encodeURIComponent(assetId)}?${query}`, { method: "DELETE" });
+}
+export function saveAiVideoExport(canvasId: string, expectedUpdatedAt: string, blob: Blob): Promise<{ canvas: AiVideoCanvas; asset: AiVideoMediaAsset }> {
+  const query = new URLSearchParams({ expectedUpdatedAt });
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}/exports?${query}`, { method: "POST", headers: { "Content-Type": blob.type }, body: blob });
+}
+export function uploadAiVideoShotImage(canvasId: string, shotId: string, expectedUpdatedAt: string, blob: Blob): Promise<{ canvas: AiVideoCanvas }> {
+  const query = new URLSearchParams({ expectedUpdatedAt });
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}/shots/${encodeURIComponent(shotId)}/image?${query}`, { method: "PUT", headers: { "Content-Type": blob.type }, body: blob });
+}
+export function uploadAiVideoReferenceImage(canvasId: string, kind: "characters" | "locations", referenceId: string, expectedUpdatedAt: string, dataUrl: string): Promise<{ canvas: AiVideoCanvas }> {
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}/references/${kind}/${encodeURIComponent(referenceId)}/image`, { method: "PUT", body: JSON.stringify({ expectedUpdatedAt, dataUrl }) });
+}
+export function removeAiVideoReferenceImage(canvasId: string, kind: "characters" | "locations", referenceId: string, expectedUpdatedAt: string): Promise<{ canvas: AiVideoCanvas }> {
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}/references/${kind}/${encodeURIComponent(referenceId)}/image`, { method: "DELETE", body: JSON.stringify({ expectedUpdatedAt }) });
+}
+export function deleteAiVideoCanvas(canvasId: string): Promise<void> {
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}`, { method: "DELETE" });
+}
 
 const workflowPath = (appId: ApplicationId) => `/apps/${encodeURIComponent(appId)}/workflows`;
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
@@ -1524,8 +1612,8 @@ export function savePreferences(preferences: UserPreferences): Promise<{ prefere
   });
 }
 
-export function loadSettings(): Promise<{ settings: UserSettings }> {
-  return request<{ settings: UserSettings }>("/settings");
+export function loadSettings(signal?: AbortSignal): Promise<{ settings: UserSettings }> {
+  return request<{ settings: UserSettings }>("/settings", signal ? { signal } : {});
 }
 
 export function saveSettings<K extends keyof UserSettings>(category: K, value: UserSettings[K]): Promise<{ settings: UserSettings }> {
@@ -1630,15 +1718,17 @@ export function loadAiSessions(options: { archived?: boolean; appId?: Applicatio
   return request<{ sessions: AiSession[] }>(`/ai/sessions${query.size ? `?${query}` : ""}`);
 }
 
-export function loadAiMessages(sessionId: string): Promise<{ messages: AiMessage[] }> {
-  return request<{ messages: AiMessage[] }>(`/ai/sessions/${encodeURIComponent(sessionId)}/messages`);
+export function loadAiMessages(sessionId: string, cursor?: string): Promise<{ messages: AiMessage[]; nextCursor: string | null; branchSource?: AiSessionBranchSource }> {
+  const query = new URLSearchParams({ limit: "50" });
+  if (cursor) query.set("cursor", cursor);
+  return request<{ messages: AiMessage[]; nextCursor: string | null; branchSource?: AiSessionBranchSource }>(`/ai/sessions/${encodeURIComponent(sessionId)}/messages?${query}`);
 }
 
 export function submitAiMessageFeedback(sessionId: string, messageId: string, feedback: AiMessageFeedbackInput): Promise<{ feedback: AiMessageFeedback }> {
   return request<{ feedback: AiMessageFeedback }>(`/ai/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}/feedback`, { method: "POST", body: JSON.stringify(feedback) });
 }
 
-export function forkAiSessionFromMessage(sessionId: string, messageId: string): Promise<{ session: AiSession }> {
+export function createAiSessionBranchFromMessage(sessionId: string, messageId: string): Promise<{ session: AiSession }> {
   return request<{ session: AiSession }>(`/ai/sessions/${encodeURIComponent(sessionId)}/fork`, { method: "POST", body: JSON.stringify({ messageId }) });
 }
 
@@ -1646,7 +1736,7 @@ export function forkAiSessionBeforeUserMessage(sessionId: string, messageId: str
   return request<{ session: AiSession }>(`/ai/sessions/${encodeURIComponent(sessionId)}/fork-before-message`, { method: "POST", body: JSON.stringify({ messageId }) });
 }
 
-export function forkAiSessionFromMessageInWorktree(sessionId: string, messageId: string, targetProjectId: string, appId: WorkspaceProjectApplicationId): Promise<{ session: AiSession }> {
+export function createAiSessionBranchFromMessageInWorktree(sessionId: string, messageId: string, targetProjectId: string, appId: WorkspaceProjectApplicationId): Promise<{ session: AiSession }> {
   return request<{ session: AiSession }>(`/workspace/sessions/${encodeURIComponent(sessionId)}/fork`, { method: "POST", body: JSON.stringify({ appId, messageId, targetProjectId }) });
 }
 
@@ -1874,10 +1964,22 @@ export function loadAiUsage(): Promise<{ usage: AiUsageSummary }> {
 /** 显式停止后台 Agent；断开流式连接只结束订阅。 */
 export function cancelAiRun(runId: string): Promise<unknown> { return request(`/ai/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" }); }
 
+export type AiRunPauseState = "running" | "pausing" | "paused";
+
+/** 请求当前 Run 在安全检查点暂停；正在执行的 Provider/工具操作会先完成。 */
+export function pauseAiRun(runId: string): Promise<{ pauseState: AiRunPauseState }> {
+  return request(`/ai/runs/${encodeURIComponent(runId)}/pause`, { method: "POST" });
+}
+
+/** 继续同一个 Run；不创建新的用户消息或运行。 */
+export function resumeAiRun(runId: string): Promise<{ pauseState: AiRunPauseState }> {
+  return request(`/ai/runs/${encodeURIComponent(runId)}/resume`, { method: "POST" });
+}
+
 export function appendAiRunInput(runId: string, content: string): Promise<{ mode: "queue" | "steer"; run: { id: string; message: AiMessage }; userMessage: AiMessage }> { return request(`/ai/runs/${encodeURIComponent(runId)}/input`, { method: "POST", body: JSON.stringify({ content }) }); }
 
-/** 回答已暂停的模型澄清问题；服务端将答案绑定当前 run 并写入会话。 */
-export function answerAiRunQuestion(runId: string, questionId: string, answer: string, skipped = false): Promise<{ mode: "answered"; userMessage: AiMessage }> {
+/** 回答当前 Run 的模型澄清问题；答案作为原工具结果返回，不新增普通用户消息。 */
+export function answerAiRunQuestion(runId: string, questionId: string, answer: string, skipped = false): Promise<{ mode: "answered" }> {
   return request(`/ai/runs/${encodeURIComponent(runId)}/answer`, { method: "POST", body: JSON.stringify({ questionId, answer, skipped }) });
 }
 
@@ -1890,10 +1992,14 @@ type AiChatStreamInput = {
   planMode?: boolean;
   signal: AbortSignal;
   onSession: (value: { session: AiSession; userMessage: AiMessage; assistantMessage: AiMessage }) => void;
+  onPauseState?: (value: { runId: string; state: AiRunPauseState }) => void;
   onPlanMode?: (active: boolean) => void;
+  /** 能力 Owner 修改设置后只发失效信号，客户端从认证 Settings API 对账。 */
+  onSettingsInvalidated?: () => void;
   onInput?: (message: AiMessage) => void;
   onActivity: (value: { messageId: string; activity: AiActivityItem }) => void;
-  onDelta: (value: { messageId: string; delta: string }) => void;
+  onDelta: (value: AiTextDelta) => void;
+  onPresentation?: (value: { messageId: string; parts: AiReplyPart[] }) => void;
   onUsage: (value: { messageId: string; promptTokens: number | null; completionTokens: number | null; providerId: string; modelId: string }) => void;
   onError: (message: string) => void;
   onDone: (status: "complete" | "interrupted" | "error") => void;
@@ -1907,82 +2013,158 @@ export function streamAiSideChat(input: AiChatStreamInput): Promise<void> {
   return streamAiChatAt(input, "/api/ai/side-chat/stream");
 }
 
-async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string): Promise<void> {
-  const response = await fetch(input.runId ? `/api/ai/runs/${encodeURIComponent(input.runId)}/events` : streamEndpoint, {
-    method: input.runId ? "GET" : "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    ...(!input.runId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, ...(input.projectId ? { projectId: input.projectId } : {}), ...(input.planMode === undefined ? {} : { planMode: input.planMode }), content: input.content }) } : {}),
-    signal: input.signal
+const AI_RUN_STREAM_RECONNECT_BASE_MS = 250;
+const AI_RUN_STREAM_RECONNECT_MAX_MS = 8_000;
+
+function waitForAiRunStreamReconnect(signal: AbortSignal, attempt: number): Promise<boolean> {
+  const delay = Math.min(AI_RUN_STREAM_RECONNECT_BASE_MS * 2 ** Math.min(attempt, 5), AI_RUN_STREAM_RECONNECT_MAX_MS);
+  return new Promise(resolve => {
+    let timer: ReturnType<typeof setTimeout>;
+    const finish = (continueStreaming: boolean): void => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
+      resolve(continueStreaming);
+    };
+    const abort = (): void => finish(false);
+    timer = setTimeout(() => finish(true), delay);
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
   });
+}
 
-  if (!response.ok) {
-    let result: { message?: string; error?: string } = {};
-    try { result = await response.json() as typeof result; } catch { /* 非 JSON 错误由通用 API 错误承载。 */ }
-    if (response.status === 401 && (result.error === "authentication_required" || result.error === "invalid_session")) {
-      window.dispatchEvent(new Event(sessionExpiredEventName));
-    }
-    throw new ApiError(response.status, result.message ?? "AI Work 请求失败，请重试。", result.error);
-  }
+function isRetryableAiRunStreamStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
 
-  if (!response.body) throw new ApiError(response.status, "浏览器无法读取 AI Work 流式响应。");
-
-  const reader = response.body.getReader();
+async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string): Promise<void> {
+  let activeRunId = input.runId ?? null;
+  let reconnectAttempt = 0;
   const deltas = createStreamDeltas(input.onDelta);
   const cancelDeltas = () => deltas.dispose();
   input.signal.addEventListener("abort", cancelDeltas, { once: true });
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let eventName = "message";
-  let dataLines: string[] = [];
-  const dispatch = () => {
-    if (dataLines.length === 0) { eventName = "message"; return; }
-    let payload: Record<string, unknown>;
-    try { payload = JSON.parse(dataLines.join("\n")) as Record<string, unknown>; }
-    catch { eventName = "message"; dataLines = []; return; }
-    if (input.signal.aborted) { eventName = "message"; dataLines = []; return; }
-    if (eventName !== "delta") deltas.flush();
-    if (eventName === "input" && payload.userMessage) input.onInput?.(payload.userMessage as AiMessage);
-    if (eventName === "session") input.onSession(payload as unknown as Parameters<typeof input.onSession>[0]);
-    if (eventName === "plan-mode" && typeof payload.active === "boolean") input.onPlanMode?.(payload.active);
-    if (eventName === "activity" && typeof payload.messageId === "string" && typeof payload.activity === "object" && payload.activity !== null) {
-      input.onActivity({ messageId: payload.messageId, activity: payload.activity as AiActivityItem });
-    }
-    if (eventName === "delta" && typeof payload.messageId === "string" && typeof payload.delta === "string") deltas.push({ messageId: payload.messageId, delta: payload.delta });
-    if (eventName === "usage" && typeof payload.providerId === "string" && typeof payload.modelId === "string") input.onUsage({ messageId: typeof payload.messageId === "string" ? payload.messageId : "", promptTokens: typeof payload.promptTokens === "number" ? payload.promptTokens : null, completionTokens: typeof payload.completionTokens === "number" ? payload.completionTokens : null, providerId: payload.providerId, modelId: payload.modelId });
-    if (eventName === "error" && typeof payload.message === "string") input.onError(payload.message);
-    if (eventName === "done" && (payload.status === "complete" || payload.status === "interrupted" || payload.status === "error")) input.onDone(payload.status);
-    eventName = "message";
-    dataLines = [];
-  };
-
   try {
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      buffer += decoder.decode(chunk.value, { stream: true });
-      let newline = buffer.indexOf("\n");
-      while (newline >= 0) {
-        const line = buffer.slice(0, newline).replace(/\r$/u, "");
-        buffer = buffer.slice(newline + 1);
+    while (!input.signal.aborted) {
+      let response: Response;
+      try {
+        response = await fetch(activeRunId ? `/api/ai/runs/${encodeURIComponent(activeRunId)}/events` : streamEndpoint, {
+          method: activeRunId ? "GET" : "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+          ...(!activeRunId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, ...(input.projectId ? { projectId: input.projectId } : {}), ...(input.planMode === undefined ? {} : { planMode: input.planMode }), content: input.content }) } : {}),
+          signal: input.signal
+        });
+      } catch (error) {
+        if (input.signal.aborted) return;
+        if (!activeRunId) throw error;
+        if (!await waitForAiRunStreamReconnect(input.signal, reconnectAttempt++)) return;
+        continue;
+      }
+
+      if (!response.ok) {
+        let result: { message?: string; error?: string } = {};
+        try { result = await response.json() as typeof result; } catch { /* 非 JSON 错误由通用 API 错误承载。 */ }
+        if (response.status === 401 && (result.error === "authentication_required" || result.error === "invalid_session")) {
+          window.dispatchEvent(new Event(sessionExpiredEventName));
+        }
+        if (activeRunId && isRetryableAiRunStreamStatus(response.status)) {
+          if (!await waitForAiRunStreamReconnect(input.signal, reconnectAttempt++)) return;
+          continue;
+        }
+        throw new ApiError(response.status, result.message ?? "AI Work 请求失败，请重试。", result.error);
+      }
+
+      if (!response.body) {
+        if (!activeRunId) throw new ApiError(response.status, "浏览器无法读取 AI Work 流式响应。");
+        if (!await waitForAiRunStreamReconnect(input.signal, reconnectAttempt++)) return;
+        continue;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let eventName = "message";
+      let dataLines: string[] = [];
+      let doneReceived = false;
+      const dispatch = () => {
+        if (dataLines.length === 0) { eventName = "message"; return; }
+        let payload: Record<string, unknown>;
+        try { payload = JSON.parse(dataLines.join("\n")) as Record<string, unknown>; }
+        catch { eventName = "message"; dataLines = []; return; }
+        if (input.signal.aborted) { eventName = "message"; dataLines = []; return; }
+        if (eventName !== "delta") deltas.flush();
+        if (eventName === "input" && payload.userMessage) input.onInput?.(payload.userMessage as AiMessage);
+        if (eventName === "session") {
+          const assistantMessage = payload.assistantMessage as AiMessage | undefined;
+          const messageRunId = typeof assistantMessage?.id === "string" ? assistantMessage.id : null;
+          const declaredRunId = typeof payload.runId === "string" ? payload.runId : null;
+          if (activeRunId && ((messageRunId !== null && activeRunId !== messageRunId) || (declaredRunId !== null && activeRunId !== declaredRunId))) throw new ApiError(502, "AI Work 事件流返回了不同的任务，已停止跟随。");
+          if (!activeRunId) activeRunId = messageRunId ?? declaredRunId;
+          input.onSession(payload as unknown as Parameters<typeof input.onSession>[0]);
+        }
+        if (eventName === "pause-state" && typeof payload.runId === "string"
+          && (payload.state === "running" || payload.state === "pausing" || payload.state === "paused")) {
+          if (activeRunId && activeRunId !== payload.runId) throw new ApiError(502, "AI Work 暂停状态属于其他任务，已停止跟随。");
+          input.onPauseState?.({ runId: payload.runId, state: payload.state });
+        }
+        if (eventName === "plan-mode" && typeof payload.active === "boolean") input.onPlanMode?.(payload.active);
+        if (eventName === "capability-settings" && payload.changed === true) input.onSettingsInvalidated?.();
+        if (eventName === "activity" && typeof payload.messageId === "string" && typeof payload.activity === "object" && payload.activity !== null) {
+          input.onActivity({ messageId: payload.messageId, activity: payload.activity as AiActivityItem });
+        }
+        if (eventName === "delta" && typeof payload.messageId === "string" && typeof payload.delta === "string") deltas.push({ messageId: payload.messageId, delta: payload.delta, ...(typeof payload.partId === "string" && typeof payload.partStart === "number" ? { partId: payload.partId, partStart: payload.partStart } : {}) });
+        if (eventName === "presentation" && typeof payload.messageId === "string" && Array.isArray(payload.parts)) input.onPresentation?.({ messageId: payload.messageId, parts: payload.parts as AiReplyPart[] });
+        if (eventName === "usage" && typeof payload.providerId === "string" && typeof payload.modelId === "string") input.onUsage({ messageId: typeof payload.messageId === "string" ? payload.messageId : "", promptTokens: typeof payload.promptTokens === "number" ? payload.promptTokens : null, completionTokens: typeof payload.completionTokens === "number" ? payload.completionTokens : null, providerId: payload.providerId, modelId: payload.modelId });
+        if (eventName === "error" && typeof payload.message === "string") input.onError(payload.message);
+        if (eventName === "done" && (payload.status === "complete" || payload.status === "interrupted" || payload.status === "error")) {
+          doneReceived = true;
+          input.onDone(payload.status);
+        }
+        eventName = "message";
+        dataLines = [];
+      };
+      const processLine = (line: string): void => {
         if (line === "") dispatch();
         else if (line.startsWith("event:")) eventName = line.slice(6).trim();
         else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
-        newline = buffer.indexOf("\n");
+      };
+      let readError: unknown;
+      const connectedAt = Date.now();
+      try {
+        while (!input.signal.aborted && !doneReceived) {
+          let chunk: ReadableStreamReadResult<Uint8Array>;
+          try { chunk = await reader.read(); }
+          catch (error) { readError = error; break; }
+          if (chunk.done) break;
+          buffer += decoder.decode(chunk.value, { stream: true });
+          let newline = buffer.indexOf("\n");
+          while (newline >= 0 && !doneReceived) {
+            processLine(buffer.slice(0, newline).replace(/\r$/u, ""));
+            buffer = buffer.slice(newline + 1);
+            newline = buffer.indexOf("\n");
+          }
+        }
+        buffer += decoder.decode();
+        if (buffer) processLine(buffer.replace(/\r$/u, ""));
+        dispatch();
+      } finally {
+        if (doneReceived) void reader.cancel().catch(() => undefined);
+        try { reader.releaseLock(); } catch { /* 断流时读取请求可能仍在撤销；下一轮使用新的响应流。 */ }
       }
+
+      if (input.signal.aborted) return;
+      deltas.flush();
+      if (doneReceived) return;
+      if (!activeRunId) {
+        if (readError instanceof Error) throw readError;
+        throw new ApiError(response.status, "AI Work 流在确认任务结束前断开，当前任务 ID 尚未收到；请重新载入会话恢复。", "ai_run_stream_ended");
+      }
+      if (Date.now() - connectedAt >= 30_000) reconnectAttempt = 0;
+      if (!await waitForAiRunStreamReconnect(input.signal, reconnectAttempt++)) return;
     }
-    buffer += decoder.decode();
-    if (buffer.trim()) {
-      if (buffer.startsWith("data:")) dataLines.push(buffer.slice(5).trimStart());
-    }
-    dispatch();
   } finally {
-    try { if (!input.signal.aborted) deltas.flush(); }
-    finally {
-      deltas.dispose();
-      input.signal.removeEventListener("abort", cancelDeltas);
-      reader.releaseLock();
-    }
+    if (!input.signal.aborted) deltas.flush();
+    deltas.dispose();
+    input.signal.removeEventListener("abort", cancelDeltas);
   }
 }
 

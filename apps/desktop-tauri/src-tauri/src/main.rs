@@ -15,7 +15,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::webview::WebviewWindowBuilder;
 use tauri::{Manager, RunEvent, WebviewUrl};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
@@ -133,7 +133,7 @@ fn writable_data_directory(directory: &Path) -> bool {
 }
 
 fn resolve_data_directory(
-    runtime_root: &Path,
+    _runtime_root: &Path,
     configuration_path: &Path,
 ) -> Result<(PathBuf, bool), String> {
     if let Some(directory) = env::var_os("LFAA_DATA_DIR") {
@@ -152,31 +152,16 @@ fn resolve_data_directory(
         return Ok((saved_directory, true));
     }
 
-    let install_directory = env::current_exe()
-        .map_err(|error| format!("无法读取 LFAA 安装目录：{error}"))?
-        .parent()
-        .map(Path::to_path_buf)
-        .ok_or_else(|| "LFAA 安装目录无效。".to_string())?;
-    let preferred_directory = if cfg!(debug_assertions) {
-        runtime_root.join("data")
-    } else {
-        install_directory.join("data")
-    };
-    if writable_data_directory(&preferred_directory) {
-        let preferred_directory =
-            fs::canonicalize(&preferred_directory).unwrap_or(preferred_directory);
-        save_data_directory(configuration_path, &preferred_directory)?;
-        return Ok((preferred_directory, true));
+    // 首次运行默认使用当前系统账户 .lfaa/data；已保存位置和显式部署配置保持优先。
+    let home = env::var_os("USERPROFILE")
+        .ok_or_else(|| "Windows 未提供系统账户主目录，请设置 LFAA_DATA_DIR。".to_string())?;
+    let default_directory = PathBuf::from(home).join(".lfaa").join("data");
+    if writable_data_directory(&default_directory) {
+        let directory = fs::canonicalize(&default_directory).unwrap_or(default_directory);
+        save_data_directory(configuration_path, &directory)?;
+        return Ok((directory, true));
     }
-
-    let fallback_directory = app_data_directory()?.join("data");
-    if writable_data_directory(&fallback_directory) {
-        let fallback_directory =
-            fs::canonicalize(&fallback_directory).unwrap_or(fallback_directory);
-        save_data_directory(configuration_path, &fallback_directory)?;
-        return Ok((fallback_directory, true));
-    }
-    Err("无法在应用安装目录或当前账户的应用数据目录创建可写 LFAA 数据目录。请检查磁盘权限或设置 LFAA_DATA_DIR。".to_string())
+    Err("无法在系统账户 .lfaa/data 创建可写数据目录，请检查目录权限。".to_string())
 }
 
 fn run_pending_data_migration(
@@ -254,6 +239,7 @@ fn service_environment(
     vec![
         ("NODE_ENV".to_string(), "production".to_string()),
         ("LFAA_DESKTOP_MODE".to_string(), "true".to_string()),
+        ("LFAA_DESKTOP_SHUTDOWN_STDIN".to_string(), "1".to_string()),
         ("LFAA_SERVE_FRONTEND".to_string(), "true".to_string()),
         ("JWT_SECRET".to_string(), String::new()),
         (
@@ -326,7 +312,7 @@ fn spawn_node(
                 .iter()
                 .map(|(key, value)| (key.as_str(), value.as_str())),
         )
-        .stdin(Stdio::null())
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     #[cfg(windows)]
@@ -429,7 +415,11 @@ fn start_local_services(
     drop(listener);
 
     let environment = service_environment(port, &data_directory, managed_by_desktop, app_data);
-    let server_entry = runtime_root.join("dist").join("apps").join("control-plane").join("index.js");
+    let server_entry = runtime_root
+        .join("dist")
+        .join("apps")
+        .join("control-plane")
+        .join("index.js");
     let server_loader = Url::from_file_path(
         runtime_root
             .join("apps")
@@ -466,7 +456,13 @@ fn start_local_services(
     let daemon_entry = server_entry.clone();
     let daemon = match spawn_node(
         &node_path,
-        &["--import".to_string(), server_loader.to_string(), daemon_entry.to_string_lossy().into_owned(), "--profile".to_string(), "daemon".to_string()],
+        &[
+            "--import".to_string(),
+            server_loader.to_string(),
+            daemon_entry.to_string_lossy().into_owned(),
+            "--profile".to_string(),
+            "daemon".to_string(),
+        ],
         runtime_root,
         &environment,
         log_file,
@@ -489,19 +485,69 @@ fn start_local_services(
     ))
 }
 
-fn stop_services(services: &mut LocalServices, log_file: &Arc<Mutex<File>>) {
-    for (service, name) in [
-        (&mut services.daemon, "本机 Daemon"),
-        (&mut services.server, "本机控制端"),
-    ] {
-        if let Some(mut child) = service.take() {
-            if child.try_wait().ok().flatten().is_none() {
-                log_line(log_file, "桌面端", &format!("正在关闭{name}。"));
-                let _ = child.kill();
+fn stop_child(
+    service: &mut Option<Child>,
+    name: &str,
+    timeout: Duration,
+    log_file: &Arc<Mutex<File>>,
+) -> Result<(), String> {
+    let Some(child) = service.as_mut() else {
+        return Ok(());
+    };
+    if let Some(status) = child
+        .try_wait()
+        .map_err(|error| format!("无法读取{name}退出状态：{error}"))?
+    {
+        service.take();
+        return if status.success() {
+            Ok(())
+        } else {
+            Err(format!("{name}已异常退出（{status}），未确认安全停机。"))
+        };
+    }
+    log_line(log_file, "桌面端", &format!("正在请求{name}安全关闭。"));
+    let stdin = child
+        .stdin
+        .as_mut()
+        .ok_or_else(|| format!("{name}没有可用的安全关闭通道。"))?;
+    stdin
+        .write_all(b"{\"type\":\"lfaa-shutdown\"}\n")
+        .and_then(|()| stdin.flush())
+        .map_err(|error| format!("无法向{name}发送安全关闭请求：{error}"))?;
+    child.stdin.take();
+
+    let deadline = Instant::now() + timeout;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                service.take();
+                return if status.success() {
+                    log_line(log_file, "桌面端", &format!("{name}已确认退出。"));
+                    Ok(())
+                } else {
+                    Err(format!("{name}退出码异常（{status}），未确认安全停机。"))
+                };
             }
-            let _ = child.wait();
+            Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(100)),
+            Ok(None) => return Err(format!("等待{name}安全关闭超时；应用保持打开。")),
+            Err(error) => return Err(format!("无法确认{name}退出状态：{error}")),
         }
     }
+}
+
+fn stop_services(services: &mut LocalServices, log_file: &Arc<Mutex<File>>) -> Result<(), String> {
+    stop_child(
+        &mut services.daemon,
+        "本机 Daemon",
+        Duration::from_secs(320),
+        log_file,
+    )?;
+    stop_child(
+        &mut services.server,
+        "本机控制端",
+        Duration::from_secs(10),
+        log_file,
+    )
 }
 
 fn open_workbench(app: &tauri::AppHandle, url: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -525,6 +571,7 @@ fn show_startup_error(app: &tauri::App, log_path: &Path, message: &str) {
 
 fn main() {
     let shutdown_started = Arc::new(AtomicBool::new(false));
+    let shutdown_finished = Arc::new(AtomicBool::new(false));
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -570,6 +617,8 @@ fn main() {
                 format!("http://localhost:{port}")
             };
 
+            app.manage(frontend_url.clone());
+
             if let Err(error) = open_workbench(app.handle(), &frontend_url) {
                 log_line(
                     &log_file,
@@ -579,7 +628,9 @@ fn main() {
                 show_startup_error(app, &log_path, &format!("无法打开 LFAA 工作台：{error}"));
                 if let Some(services) = app.try_state::<Mutex<LocalServices>>() {
                     if let Ok(mut services) = services.lock() {
-                        stop_services(&mut services, &log_file);
+                        if let Err(error) = stop_services(&mut services, &log_file) {
+                            log_line(&log_file, "桌面端 错误", &error);
+                        }
                     }
                 }
                 return Err(Box::new(std::io::Error::new(
@@ -590,7 +641,7 @@ fn main() {
             Ok(())
         });
 
-    let mut app = match builder.build(tauri::generate_context!()) {
+    let app = match builder.build(tauri::generate_context!()) {
         Ok(app) => app,
         Err(error) => {
             eprintln!("LFAA Tauri 桌面程序构建失败：{error}");
@@ -599,7 +650,11 @@ fn main() {
     };
     app.run(move |app_handle, event| {
         if let RunEvent::ExitRequested { api, .. } = event {
+            if shutdown_finished.swap(false, Ordering::SeqCst) {
+                return;
+            }
             if shutdown_started.swap(true, Ordering::SeqCst) {
+                api.prevent_exit();
                 return;
             }
             api.prevent_exit();
@@ -615,19 +670,57 @@ fn main() {
                 .try_state::<Arc<Mutex<File>>>()
                 .map(|state| state.inner().clone());
             let app_handle = app_handle.clone();
+            let shutdown_started = shutdown_started.clone();
+            let shutdown_finished = shutdown_finished.clone();
             thread::spawn(move || {
                 if let Some(mut services) = services {
-                    if let Some(log_file) = log_file {
-                        stop_services(&mut services, &log_file);
+                    let result = if let Some(log_file) = log_file {
+                        stop_services(&mut services, &log_file)
                     } else {
-                        for child in [&mut services.daemon, &mut services.server] {
-                            if let Some(mut child) = child.take() {
-                                let _ = child.kill();
-                                let _ = child.wait();
+                        Err("桌面日志状态不可用，未对本机服务执行退出操作。".to_string())
+                    };
+                    if let Err(error) = result {
+                        if let Some(state) = app_handle.try_state::<Mutex<LocalServices>>() {
+                            if let Ok(mut current) = state.lock() {
+                                *current = services;
                             }
                         }
+                        shutdown_started.store(false, Ordering::SeqCst);
+                        if let Some(log_file) = app_handle
+                            .try_state::<Arc<Mutex<File>>>()
+                            .map(|state| state.inner().clone())
+                        {
+                            log_line(&log_file, "桌面端 错误", &error);
+                        }
+                        app_handle
+                            .dialog()
+                            .message(format!(
+                                "{error}\n\n服务仍未确认安全关闭，LFAA 将保持打开。"
+                            ))
+                            .title("无法安全关闭本机服务")
+                            .kind(MessageDialogKind::Error)
+                            .blocking_show();
+                        if let Some(url) = app_handle
+                            .try_state::<String>()
+                            .map(|state| state.inner().clone())
+                        {
+                            if let Err(open_error) = open_workbench(&app_handle, &url) {
+                                if let Some(log_file) = app_handle
+                                    .try_state::<Arc<Mutex<File>>>()
+                                    .map(|state| state.inner().clone())
+                                {
+                                    log_line(
+                                        &log_file,
+                                        "桌面端 错误",
+                                        &format!("无法重新打开工作台：{open_error}"),
+                                    );
+                                }
+                            }
+                        }
+                        return;
                     }
                 }
+                shutdown_finished.store(true, Ordering::SeqCst);
                 app_handle.exit(0);
             });
         }

@@ -16,9 +16,21 @@
     - id: api-session-controller
       name: lfaa-api-session-controller
       inject: [apiGateway, lfaaAgentLoop, lfaaUserApproval]
+    - id: api-terminal-controller
+      name: lfaa-api-terminal-controller
+      inject: [apiGateway]
     - id: api-workflow-controller
       name: lfaa-api-workflow-controller
       inject: [apiGateway, lfaaWorkflow]
+    - id: video-ai-video
+      name: lfaa-video-ai-video
+      inject: [lfaaCredentials, lfaaSettings]
+    - id: api-ai-video-controller
+      name: lfaa-api-ai-video-controller
+      inject: [apiGateway, lfaaAiVideo]
+    - id: tool-ai-video
+      name: lfaa-video-tool-ai-video
+      inject: [lfaaAiVideo, lfaaTools]
     - id: api-settings-controller
       name: lfaa-api-settings-controller
       inject: [apiGateway]

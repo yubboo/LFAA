@@ -112,6 +112,17 @@ test("读取明细使用 debug，写入保留 info，所有失败保持可见", 
     assert.equal(requestLogLevel("POST", path, 500), "error", path);
   }
   assert.equal(requestLogLevel("PUT", "/api/preferences", 200), "info");
+  assert.equal(requestLogLevel("POST", "/wallpaper-engine/client-diag", 204), "debug");
+  assert.equal(requestLogLevel("PUT", "/wallpaper-engine/settings", 200), "debug");
+  assert.equal(requestLogLevel("PUT", "/wallpaper-engine/other-settings", 200), "info");
+  assert.equal(requestLogLevel("HEAD", "/wallpaper-engine/scene-frame/token", 404, true), "debug");
+  assert.equal(requestLogLevel("GET", "/wallpaper-engine/scene-audio/token", 404, true), "debug");
+  assert.equal(requestLogLevel("GET", "/wallpaper-engine/scene-files/token/scene.json", 404, true), "debug");
+  assert.equal(requestLogLevel("GET", "/wallpaper-engine/scene-frame/unknown-token", 404), "warn");
+  assert.equal(requestLogLevel("GET", "/api/unrelated", 404, true), "warn");
+  assert.equal(requestLogLevel("POST", "/wallpaper-engine/scene-frame/token", 404, true), "warn");
+  assert.equal(requestLogLevel("GET", "/wallpaper-engine/scene-frame/token", 403, true), "warn");
+  assert.equal(requestLogLevel("GET", "/wallpaper-engine/scene-audio/token", 500, true), "error");
   assert.equal(requestLogLevel("POST", "/api/auth/login", 401), "warn");
   assert.equal(requestLogLevel("GET", "/api/health", 500), "error");
 });

@@ -23,7 +23,7 @@ test("作品角色与 Skills 只作用于当前账户和当前作品，并由模
       const { sessionRecords } = await import('lfaa-session-persistence-jsonl/src/repository.js');
       const { retireLegacyFileTables } = await import('lfaa-storage-domain/src/migration.js');
       retireLegacyFileTables();
-        assert.equal(database.prepare('PRAGMA user_version').get().user_version, 47);
+        assert.equal(database.prepare('PRAGMA user_version').get().user_version, 51);
       database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('profile-owner',8301,'profile-owner','salt','hash','member',0),('profile-other',8302,'profile-other','salt','hash','member',0)").run();
       const writing = await import('lfaa-document-writing/src/service.js');
       const { listAiBusinessTools } = await import('lfaa-tools/src/business-tools.js');

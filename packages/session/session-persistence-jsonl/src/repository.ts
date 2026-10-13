@@ -10,6 +10,8 @@ import { config } from "lfaa-launch-environment/src/config.js";
 import { encode, JsonStorageBackend } from "lfaa-storage-json/src/index.js";
 import { withControlLock } from "lfaa-storage-domain/src/control-lock.js";
 import { JsonlSessionPersistence, type SessionChange, type SessionCommit, type SessionTable } from "./persistence.js";
+// 增量对齐：把现有 JSONL 仓库声明为实现 session-persistence 协议（仅类型校验，不改变运行行为）。
+import type { SessionPersistenceBackend } from "lfaa-session-persistence";
 
 export type SessionRecord = Record<string, unknown>;
 const tables: SessionTable[] = ["ai_sessions", "ai_messages", "ai_usage", "session_events"];
@@ -19,7 +21,16 @@ export class SessionRepository {
   private readonly metadata = new JsonStorageBackend(resolve(config.dataDirectory, "storages"));
   private records = new Map<SessionTable, Map<string, SessionRecord>>(tables.map(table => [table, new Map()]));
   private readonly sessionEventsBySession = new Map<string, Map<string, SessionRecord>>();
+  // 只保留轻量会话头和消息定位；正文缓存受会话数与编码字节预算约束。
+  private readonly recordSessions = new Map<SessionTable, Map<string, string>>(tables.map(table => [table, new Map()]));
+  private readonly loadedSessions = new Map<string, number>();
+  private cachedBytes = 0;
+  private readonly cacheMaxSessions = 8;
+  private readonly cacheMaxBytes = 32 * 1024 * 1024;
+  private readonly interruptedMessages = new Map<string, SessionRecord>();
+  private readonly planEvents = new Map<string, Map<string, { seq: number; active: boolean }>>();
   private readonly sessionRemovalListeners = new Set<(sessionIds: readonly string[]) => void>();
+  private replaying = false;
   private failed = false;
   constructor() {
     try {
@@ -33,7 +44,8 @@ export class SessionRepository {
       }
       withControlLock(database, () => { for (const header of this.records.get("ai_sessions")!.values()) this.project(header); });
       // 进程退出后尚未结束的回复不能继续表现为推理中；恢复也必须留下权威事件。
-      const interrupted = [...this.records.get("ai_messages")!.values()].filter(row => row.status === "streaming");
+      const interrupted = [...this.interruptedMessages.values()];
+      this.interruptedMessages.clear();
       for (const message of interrupted) this.commit(String(message.session_id), [{ table: "ai_messages", key: String(message.id), value: { ...message, status: "interrupted" } }]);
     } catch (error) { this.persistence.close(); throw error; }
   }
@@ -48,20 +60,87 @@ export class SessionRepository {
   private storeRecord(table: SessionTable, key: string, value: SessionRecord | null | undefined): void {
     const records = this.records.get(table)!;
     const old = records.get(key);
-    const sessionId = String((value ?? old)?.session_id ?? "");
+    const sessionId = table === "ai_sessions" ? key : String((value ?? old)?.session_id ?? this.recordSessions.get(table)!.get(key) ?? "");
+    if (sessionId) {
+      const before = old ? Buffer.byteLength(encode(old)) : 0;
+      const after = value ? Buffer.byteLength(encode(value)) : 0;
+      if (table !== "ai_sessions") {
+        const size = (this.loadedSessions.get(sessionId) ?? 0) + after - before;
+        this.loadedSessions.set(sessionId, size); this.cachedBytes += after - before;
+      }
+      if (value) this.recordSessions.get(table)!.set(key, sessionId);
+      else this.recordSessions.get(table)!.delete(key);
+      if (this.replaying && table === "ai_messages") {
+        if (value?.status === "streaming") this.interruptedMessages.set(key, value);
+        else this.interruptedMessages.delete(key);
+      }
+    }
     if (value === null || value === undefined) records.delete(key);
     else records.set(key, structuredClone(value));
     if (table !== "session_events" || !sessionId) return;
+    const plans = this.planEvents.get(sessionId) ?? new Map<string, { seq: number; active: boolean }>();
+    if (value?.type === "session/plan-mode") {
+      const data = value.data as { active?: unknown } | undefined;
+      if (typeof data?.active === "boolean" && typeof value.seq === "number") plans.set(key, { seq: value.seq, active: data.active });
+    } else plans.delete(key);
+    if (plans.size) this.planEvents.set(sessionId, plans);
+    else this.planEvents.delete(sessionId);
     const rows = this.sessionEventsBySession.get(sessionId) ?? new Map<string, SessionRecord>();
     if (value === null || value === undefined) rows.delete(key);
     else rows.set(key, records.get(key)!);
     if (rows.size) this.sessionEventsBySession.set(sessionId, rows);
     else this.sessionEventsBySession.delete(sessionId);
   }
+  private evictSession(sessionId: string): void {
+    for (const table of tables) {
+      if (table === "ai_sessions") continue;
+      for (const [key, row] of this.records.get(table)!) if (row.session_id === sessionId) this.records.get(table)!.delete(key);
+    }
+    this.sessionEventsBySession.delete(sessionId);
+    this.cachedBytes -= this.loadedSessions.get(sessionId) ?? 0;
+    this.loadedSessions.delete(sessionId);
+  }
+  private trimCache(): void {
+    while (this.loadedSessions.size > this.cacheMaxSessions || this.cachedBytes > this.cacheMaxBytes) {
+      const oldest = this.loadedSessions.keys().next().value;
+      if (oldest === undefined) break;
+      this.evictSession(oldest);
+    }
+  }
+  private loadSession(sessionId: string): void {
+    if (this.loadedSessions.has(sessionId)) {
+      const bytes = this.loadedSessions.get(sessionId)!;
+      this.loadedSessions.delete(sessionId); this.loadedSessions.set(sessionId, bytes); return;
+    }
+    this.loadedSessions.set(sessionId, 0);
+    try { for (const event of this.persistence.readSession(sessionId)) this.apply(sessionId, event.changes); }
+    catch (error) { this.evictSession(sessionId); this.failed = true; throw error; }
+  }
+  /** 诊断仅给出缓存工作量，不包含消息、账户或路径。 */
+  cacheStats(): { sessions: number; bytes: number } { return { sessions: this.loadedSessions.size, bytes: this.cachedBytes }; }
+  /** 消息页直接按行扫描经重放登记的单会话事务，不把超长会话正文装入热缓存。 */
+  readMessagePage(sessionId: string, before: { createdAt: string; order: number } | undefined, limit: number, observeEvent?: Parameters<JsonlSessionPersistence["readMessagePage"]>[3]): ReturnType<JsonlSessionPersistence["readMessagePage"]> {
+    this.assertReady();
+    return this.persistence.readMessagePage(sessionId, before, limit, observeEvent);
+  }
+  /** 权限及字段投影由 Session Owner 提供，持久化层只负责单遍完整性与有界分页。 */
+  readEventPage(...parameters: Parameters<JsonlSessionPersistence["readEventPage"]>): ReturnType<JsonlSessionPersistence["readEventPage"]> {
+    this.assertReady();
+    return this.persistence.readEventPage(...parameters);
+  }
   private replay(): void {
     this.records = new Map(tables.map(table => [table, new Map()]));
-    this.sessionEventsBySession.clear();
-    for (const event of this.persistence.readAll()) this.apply(event.sessionId, event.changes);
+    this.sessionEventsBySession.clear(); this.loadedSessions.clear(); this.cachedBytes = 0;
+    for (const index of this.recordSessions.values()) index.clear();
+    this.interruptedMessages.clear(); this.replaying = true;
+    this.planEvents.clear();
+    let previousSession: string | undefined;
+    try {
+      for (const event of this.persistence.readAll()) {
+        if (previousSession && event.sessionId !== previousSession) this.trimCache();
+        this.apply(event.sessionId, event.changes); previousSession = event.sessionId;
+      }
+    } finally { this.replaying = false; this.trimCache(); }
   }
   private project(header: SessionRecord): void {
     if (!database.prepare("SELECT id FROM users WHERE id = ?").get(String(header.user_id))) return;
@@ -86,35 +165,65 @@ export class SessionRepository {
       }
       this.replay();
       for (const [sessionId, changes] of expected) {
+        this.loadSession(sessionId);
         const actual = changes.map(change => ({ ...change, value: this.records.get(change.table)!.get(change.key) ?? null }));
         if (digest(actual) !== digest(changes)) throw new Error(`会话迁移回读校验失败：${sessionId}`);
+        this.trimCache();
       }
-      this.metadata.write("session-migration", { version: 1, sessions: headers.length, messages: this.records.get("ai_messages")!.size, usage: this.records.get("ai_usage")!.size, migratedAt: new Date().toISOString() });
+      this.metadata.write("session-migration", { version: 1, sessions: headers.length, messages: this.recordSessions.get("ai_messages")!.size, usage: this.recordSessions.get("ai_usage")!.size, migratedAt: new Date().toISOString() });
     });
   }
   all(table: SessionTable, predicate: (record: SessionRecord) => boolean = () => true, fields?: readonly string[]): unknown[] {
     this.assertReady();
     const rows: SessionRecord[] = [];
-    for (const record of this.records.get(table)!.values()) if (predicate(record)) {
-      rows.push(fields ? Object.fromEntries(fields.map(field => [field, record[field]])) : record);
+    const collect = (record: SessionRecord) => { if (predicate(record)) rows.push(structuredClone(fields ? Object.fromEntries(fields.map(field => [field, record[field]])) : record)); };
+    if (table === "ai_sessions") for (const record of this.records.get(table)!.values()) collect(record);
+    else for (const sessionId of this.records.get("ai_sessions")!.keys()) {
+      this.loadSession(sessionId);
+      for (const record of this.records.get(table)!.values()) if (record.session_id === sessionId) collect(record);
+      this.trimCache();
     }
-    return structuredClone(rows);
+    return rows;
   }
   allForSession(table: SessionTable, sessionId: string, fields?: readonly string[]): unknown[] {
     this.assertReady();
+    if (table !== "ai_sessions") this.loadSession(sessionId);
     const rows = table === "session_events"
       ? [...(this.sessionEventsBySession.get(sessionId)?.values() ?? [])]
       : [...this.records.get(table)!.values()].filter(record => table === "ai_sessions" ? record.id === sessionId : record.session_id === sessionId);
-    return structuredClone(fields ? rows.map(record => Object.fromEntries(fields.map(field => [field, record[field]]))) : rows);
+    const result = structuredClone(fields ? rows.map(record => Object.fromEntries(fields.map(field => [field, record[field]]))) : rows);
+    this.trimCache(); return result;
+  }
+  /** SQLite 只选择已投影的身份键，返回值仍从 JSONL 会话头取得。 */
+  listHeaders(userId: string, archived: boolean, appId?: string): unknown[] {
+    this.assertReady();
+    const rows = appId
+      ? database.prepare("SELECT id FROM ai_sessions WHERE user_id = ? AND archived = ? AND app_id = ? ORDER BY updated_at DESC, id LIMIT 200").all(userId, Number(archived), appId)
+      : database.prepare("SELECT id FROM ai_sessions WHERE user_id = ? AND archived = ? ORDER BY updated_at DESC, id LIMIT 200").all(userId, Number(archived));
+    return rows.flatMap(row => { const header = this.records.get("ai_sessions")!.get(String(row.id)); return header?.user_id === userId ? [structuredClone(header)] : []; });
+  }
+  /** 列表只读取已校验事件的轻量计划投影，避免为两百条标题恢复正文和完整 Kernel。 */
+  planMode(sessionId: string): boolean {
+    this.assertReady();
+    let latest = { seq: -1, active: false };
+    for (const event of this.planEvents.get(sessionId)?.values() ?? []) if (event.seq > latest.seq) latest = event;
+    return latest.active;
   }
   onSessionsRemoved(listener: (sessionIds: readonly string[]) => void): () => void {
     this.sessionRemovalListeners.add(listener);
     return () => this.sessionRemovalListeners.delete(listener);
   }
-  get(table: SessionTable, id: string): unknown { this.assertReady(); return structuredClone(this.records.get(table)!.get(id)); }
+  get(table: SessionTable, id: string): unknown {
+    this.assertReady();
+    const sessionId = this.recordSessions.get(table)!.get(id);
+    if (sessionId && table !== "ai_sessions") this.loadSession(sessionId);
+    const result = structuredClone(this.records.get(table)!.get(id));
+    this.trimCache(); return result;
+  }
   assertReady(): void { if (this.failed) throw new Error("会话提交失败，必须重启并重放日志后再继续。"); }
   commit(sessionId: string, changes: SessionChange[]): void {
     this.assertReady();
+    this.loadSession(sessionId);
     // 提交只替换涉及的记录；按键保留回滚值，不能为一条活动复制所有账户的历史索引。
     const previous = new Map<SessionTable, Map<string, SessionRecord | undefined>>();
     try {
@@ -143,11 +252,12 @@ export class SessionRepository {
       }
       this.failed = true;
       throw error;
-    }
+    } finally { this.trimCache(); }
   }
   rewriteSession(sessionId: string, transform: (commit: SessionCommit) => SessionCommit): number {
     this.assertReady();
     try {
+      this.loadSession(sessionId);
       return withControlLock(database, () => {
         const rewrite = this.persistence.rewrite(sessionId, transform);
         if (!rewrite.rewrittenTransactions) return 0;
@@ -157,7 +267,7 @@ export class SessionRepository {
     } catch (error) {
       this.failed = true;
       throw error;
-    }
+    } finally { this.trimCache(); }
   }
   removeUser(userId: string): void {
     const headers = [...this.records.get("ai_sessions")!.values()].filter(row => row.user_id === userId);
@@ -168,9 +278,12 @@ export class SessionRepository {
     }
     for (const header of headers) {
       const sessionId = String(header.id); this.persistence.remove(sessionId);
+      this.evictSession(sessionId);
+      this.planEvents.delete(sessionId);
+      for (const index of this.recordSessions.values()) for (const [key, owner] of index) if (owner === sessionId) index.delete(key);
       for (const table of tables) for (const [id, record] of this.records.get(table)!) if ((table === "ai_sessions" ? record.id : record.session_id) === sessionId) this.storeRecord(table, id, null);
     }
   }
   close(): void { this.persistence.close(); }
 }
-export const sessionRecords = new SessionRepository();
+export const sessionRecords = new SessionRepository() satisfies SessionPersistenceBackend;

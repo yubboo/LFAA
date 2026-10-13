@@ -2,16 +2,17 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "../../..");
-const allowedPackageRoot = resolve(repositoryRoot, "dist/apps/desktop-electron");
-const packageOutputRoot = resolve(repositoryRoot, process.argv[2] ?? "dist/apps/desktop-electron");
-const outputRelativePath = relative(allowedPackageRoot, packageOutputRoot);
-if (outputRelativePath === ".." || outputRelativePath.startsWith(`..${sep}`) || isAbsolute(outputRelativePath)) {
-  throw new Error(`Electron 验收只允许读取根 dist/apps/desktop-electron 下的包：${packageOutputRoot}`);
+const desktopPackageRoot = resolve(repositoryRoot, "apps/desktop-electron");
+const packageManifest = JSON.parse(await readFile(resolve(desktopPackageRoot, "package.json"), "utf8"));
+const packageOutputRoot = resolve(desktopPackageRoot, packageManifest.build?.directories?.output ?? "");
+const expectedPackageOutputRoot = resolve(repositoryRoot, "dist/.tmp/desktop-electron", `LFAA-${packageManifest.version}`);
+if (packageOutputRoot !== expectedPackageOutputRoot) {
+  throw new Error(`Electron 验收只读取本版本根 dist/.tmp/desktop-electron 下的隔离暂存包：${packageOutputRoot}`);
 }
 const runtimeRoot = resolve(packageOutputRoot, "win-unpacked/resources/app-runtime");
 const driverManifestPath = resolve(runtimeRoot, "apps/cli/node_modules/@trycua/cua-driver/package.json");

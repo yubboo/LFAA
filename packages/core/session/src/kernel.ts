@@ -9,7 +9,26 @@ export type SessionModelMessage = {
   content: string | null;
   tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }>;
   tool_call_id?: string;
+  /** 仅供同模型重建协议，外部消息投影必须剔除。 */
+  providerReplay?: { accountId: string; providerId: string; modelId: string; reasoningContent: string };
 };
+
+/** 公开正文的字符范围；不包含 Provider 私有协议或工具原文。 */
+export interface SessionReplyPart { id: string; start: number; end: number; kind: "commentary" | "final" }
+
+export function isSessionReplyParts(value: unknown, contentLength: number): value is SessionReplyPart[] {
+  if (!Array.isArray(value) || value.length > 256) return false;
+  let end = 0;
+  const ids = new Set<string>();
+  return value.every(part => {
+    if (!part || typeof part !== "object" || typeof part.id !== "string" || !part.id || part.id.length > 128 || ids.has(part.id)
+      || !Number.isSafeInteger(part.start) || part.start !== end || !Number.isSafeInteger(part.end) || part.end < part.start || part.end > contentLength
+      || !["commentary", "final"].includes(part.kind)) return false;
+    ids.add(part.id);
+    end = part.end;
+    return true;
+  });
+}
 
 export interface SessionToolSchema {
   type: "function";
@@ -92,6 +111,7 @@ export interface SessionEventDataMap {
   "session/archived": { archived: boolean };
   "session/plan-mode": { active: boolean };
   "session/side-chat": { parentSessionId: string; snapshotSeq: number };
+  "session/branch-memory": { sourceSessionId: string; sourceSeq: number; sourceEventId: string; summary: string; version: 1 };
   "turn/start": { turnId: string; userMessageId: string; assistantMessageId: string };
   "turn/end": { turnId: string; status: "complete" | "interrupted" | "error" | "forked" };
   "step/start": { turnId: string; step: number };
@@ -99,7 +119,7 @@ export interface SessionEventDataMap {
   "user/message": { messageId: string; content: string; runId?: string };
   "developer/message": { content: string; messageId?: string; blocks?: SessionDeveloperBlock[]; headerSeq?: number; runId?: string };
   "system/message": { content: string; runId?: string };
-  "assistant/message": { messageId: string; content: string; status: string; runId?: string };
+  "assistant/message": { messageId: string; content: string; status: string; runId?: string; parts?: SessionReplyPart[] };
   "message/feedback": { messageId: string; rating: "positive" | "negative"; reasons: string[]; detail: string };
   "assistant/response": { runId: string; message: SessionModelMessage; stream?: string[]; usage?: { promptTokens: number | null; completionTokens: number | null } };
   "assistant/attempt": { runId: string; messages: SessionModelMessage[]; error?: { name: string; message: string }; stream?: string[] };
@@ -109,7 +129,7 @@ export interface SessionEventDataMap {
   "tool/result": { runId: string; callId: string; content: string; isError: boolean; executionState: "complete" | "failed" | "unconfirmed" | "not_started"; repaired?: boolean };
   "activity/change": { runId: string; messageId: string; activity: unknown[] };
   "usage/record": { runId: string; providerId: string; modelId: string; promptTokens: number | null; completionTokens: number | null };
-  "session/end-seed": { sourceSessionId: string; sourceSeq: number };
+  "session/end-seed": { sourceSessionId: string; sourceSeq: number; inheritedEventCount?: number };
 }
 
 export type SessionEventType = keyof SessionEventDataMap;
@@ -134,7 +154,7 @@ export type SessionSurfaceItem = Readonly<{
 
 const knownTypes = new Set<string>([
   "session/created", "session/title", "session/project", "session/archived", "session/plan-mode", "turn/start", "turn/end", "step/start", "step/end",
-  "session/side-chat",
+  "session/side-chat", "session/branch-memory",
   "user/message", "system/message", "developer/message", "assistant/message", "message/feedback", "assistant/response", "assistant/attempt",
   "request/header", "request/context", "tool/call", "tool/result", "activity/change", "usage/record",
   "session/end-seed"
@@ -191,6 +211,8 @@ function string(value: unknown): value is string { return typeof value === "stri
 function modelMessage(value: unknown): value is SessionModelMessage {
   if (!record(value) || !["system", "user", "assistant", "tool"].includes(String(value.role)) || value.content !== null && !string(value.content)) return false;
   if (value.tool_call_id !== undefined && !string(value.tool_call_id)) return false;
+  if (value.providerReplay !== undefined && (value.role !== "assistant" || !record(value.providerReplay)
+    || !string(value.providerReplay.accountId) || !string(value.providerReplay.providerId) || !string(value.providerReplay.modelId) || !string(value.providerReplay.reasoningContent))) return false;
   return value.tool_calls === undefined || Array.isArray(value.tool_calls) && value.tool_calls.every(call => record(call) && string(call.id) && call.type === "function"
     && record(call.function) && string(call.function.name) && string(call.function.arguments));
 }
@@ -219,7 +241,7 @@ function validatePayload(event: SessionEvent): void {
         && (data.blocks === undefined || Array.isArray(data.blocks) && data.blocks.every(block => record(block)
           && (block.type === "text" && string(block.text) || (block.type === "tool-addition" || block.type === "tool-removal") && string(block.toolName))));
       case "system/message": return string(data.content) && (data.runId === undefined || string(data.runId));
-      case "assistant/message": return string(data.messageId) && string(data.content) && string(data.status) && (data.runId === undefined || string(data.runId));
+      case "assistant/message": return string(data.messageId) && string(data.content) && string(data.status) && (data.runId === undefined || string(data.runId)) && (data.parts === undefined || isSessionReplyParts(data.parts, (data.content as string).length));
       case "message/feedback": return string(data.messageId) && ["positive", "negative"].includes(String(data.rating))
         && Array.isArray(data.reasons) && data.reasons.length <= 6
         && data.reasons.every(reason => string(reason) && reason.trim().length > 0 && reason.length <= 80)
@@ -247,7 +269,10 @@ function validatePayload(event: SessionEvent): void {
       case "activity/change": return string(data.runId) && string(data.messageId) && Array.isArray(data.activity);
       case "usage/record": return string(data.runId) && string(data.providerId) && string(data.modelId)
         && [data.promptTokens, data.completionTokens].every(value => value === null || typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
-      case "session/end-seed": return string(data.sourceSessionId) && Number.isSafeInteger(data.sourceSeq) && Number(data.sourceSeq) >= 0;
+      case "session/branch-memory": return string(data.sourceSessionId) && Number.isSafeInteger(data.sourceSeq) && Number(data.sourceSeq) >= 0
+        && string(data.sourceEventId) && string(data.summary) && data.summary.length > 0 && data.summary.length <= 16000 && data.version === 1;
+      case "session/end-seed": return string(data.sourceSessionId) && Number.isSafeInteger(data.sourceSeq) && Number(data.sourceSeq) >= 0
+        && (data.inheritedEventCount === undefined || Number.isSafeInteger(data.inheritedEventCount) && Number(data.inheritedEventCount) >= 0);
     }
   })();
   if (!ok) throw new Error(`Session 事件载荷无效：${event.type}`);
@@ -412,7 +437,7 @@ export class SessionKernel {
       this.applyProjection(event);
     }
     const forkMarker = [...this.log].reverse().find((event): event is Extract<SessionEvent, { type: "session/end-seed" }> => event.type === "session/end-seed");
-    if (forkMarker?.type === "session/end-seed") this._inheritedEventCount = Math.min(forkMarker.data.sourceSeq, this.log.length);
+    if (forkMarker?.type === "session/end-seed") this._inheritedEventCount = Math.min(forkMarker.data.inheritedEventCount ?? forkMarker.data.sourceSeq, this.log.length);
   }
 
   private validateTransition(event: SessionEvent): void {

@@ -20,6 +20,7 @@
     "lfaa-host-daemon": "workspace:*",
     "lfaa-identity-auth": "workspace:*",
     "lfaa-jobs": "workspace:*",
+    "lfaa-launch-environment": "workspace:*",
     "lfaa-settings": "workspace:*",
     "lfaa-scope": "workspace:*",
     "lfaa-skill-writing": "workspace:*",

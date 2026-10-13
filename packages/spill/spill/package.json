@@ -1,0 +1,15 @@
+{
+  "name": "lfaa-spill",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "dependencies": {},
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

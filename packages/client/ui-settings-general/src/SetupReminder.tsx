@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Modal, Space, Typography } from "antd";
-import { getErrorMessage, hasAdminAccess, loadAiAccounts, loadSteamcmdSettings, saveSettings, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { getErrorMessage, hasAdminAccess, loadAiAccounts, loadDataDirectorySettings, loadSteamcmdSettings, saveSettings, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { getSetupReminderLocalDay, isSetupReminderSnoozedToday, setSetupReminderSnoozedToday } from "./setup-reminder.js";
 
 interface SetupReminderProps {
@@ -13,12 +13,12 @@ interface SetupReminderProps {
   settings: UserSettings;
   isSettingsPage: boolean;
   onSettingsChange: (settings: UserSettings) => void;
-  onOpenSettings: (section: "ai" | "configuration") => void;
+  onOpenSettings: (section: "ai" | "configuration" | "workspace") => void;
 }
 
 export function SetupReminder({ user, settings, isSettingsPage, onSettingsChange, onOpenSettings }: SetupReminderProps) {
   const [open, setOpen] = useState(false);
-  const [missing, setMissing] = useState<Array<"steamcmd" | "ai">>([]);
+  const [missing, setMissing] = useState<Array<"steamcmd" | "ai" | "storage">>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [currentLocalDay, setCurrentLocalDay] = useState(() => getSetupReminderLocalDay());
@@ -45,9 +45,11 @@ export function SetupReminder({ user, settings, isSettingsPage, onSettingsChange
 
     let active = true;
     const steamcmdRequest = hasAdminAccess(user.role) ? loadSteamcmdSettings() : Promise.resolve(null);
-    void Promise.allSettled([loadAiAccounts(), steamcmdRequest]).then(([accountsResult, steamcmdResult]) => {
+    const storageRequest = user.role === "super_admin" ? loadDataDirectorySettings() : Promise.resolve(null);
+    void Promise.allSettled([loadAiAccounts(), steamcmdRequest, storageRequest]).then(([accountsResult, steamcmdResult, storageResult]) => {
       if (!active) return;
-      const nextMissing: Array<"steamcmd" | "ai"> = [];
+      const nextMissing: Array<"steamcmd" | "ai" | "storage"> = [];
+      if (storageResult.status === "fulfilled" && storageResult.value && !storageResult.value.settings.configured) nextMissing.push("storage");
       if (accountsResult.status === "fulfilled" && accountsResult.value.accounts.length === 0) nextMissing.push("ai");
       if (steamcmdResult.status === "fulfilled" && steamcmdResult.value) {
         const { configurationDefaultsConfigured, storageDefaultsConfigured, nodes } = steamcmdResult.value;
@@ -114,6 +116,7 @@ export function SetupReminder({ user, settings, isSettingsPage, onSettingsChange
     >
       {saveError ? <Alert type="error" showIcon message={saveError} /> : null}
       <div className="setup-reminder-list">
+        {missing.includes("storage") ? <div className="setup-reminder-list__item"><Typography.Text strong>本机数据存储位置（默认系统账户 .lfaa/data）</Typography.Text><Button type="primary" size="small" onClick={() => { setOpen(false); onOpenSettings("workspace"); }}>设置存储位置</Button></div> : null}
         {missing.includes("steamcmd") ? <div className="setup-reminder-list__item"><Typography.Text strong>SteamCMD 安装目录与游戏默认目录</Typography.Text><Button type="primary" size="small" onClick={() => { setOpen(false); onOpenSettings("configuration"); }}>前往配置</Button></div> : null}
         {missing.includes("ai") ? <div className="setup-reminder-list__item"><Typography.Text strong>AI 模型 API</Typography.Text><Button type="primary" size="small" onClick={() => { setOpen(false); onOpenSettings("ai"); }}>前往配置</Button></div> : null}
       </div>

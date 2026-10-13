@@ -80,7 +80,7 @@ test("账户保存、切换模型与 Agent Runtime 使用同一目录能力", ()
       const { database, closeDatabase } = await import('lfaa-storage-sqlite/src/database.js');
       database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('thinking-owner',1,'thinking-owner','test-salt','test-hash','admin',1)").run();
       const settings = await import('lfaa-settings/src/service.js');
-      const { streamAiCompletion } = await import('lfaa-agent-loop/src/runtime.js');
+      const { streamAiCompletion } = await import('lfaa-llm/src/completion.js');
       const { configuration } = await import('lfaa-storage-domain/src/configuration.js');
       let requestBodies = [];
       globalThis.fetch = async (url, options = {}) => {

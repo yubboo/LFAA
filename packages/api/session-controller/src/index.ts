@@ -6,13 +6,14 @@ import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
 import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
-import { startAiRun, getAiRun, cancelAiRun, subscribeAiRun, appendAiRunInput, answerAiRunQuestion, type AiRunInput } from "lfaa-agent-loop/src/runs.js";
-import { forkAiSessionBeforeUserMessage, forkAiSessionForSideChat, forkAiSessionFromMessage, getAiSideChatParentSessionId, getAiSessionMessages, getAiUsageSummary, listAiSessions, setAiSessionArchived, setAiSessionPlanMode, submitAiMessageFeedback, type AiMessageFeedbackInput } from "lfaa-session/src/sessions.js";
+import { createAiSessionBranchWithMemory, startAiRun, getAiRun, cancelAiRun, pauseAiRun, resumeAiRun, subscribeAiRun, appendAiRunInput, answerAiRunQuestion, type AiRunInput } from "lfaa-agent-loop/src/runs.js";
+import { forkAiSessionBeforeUserMessage, forkAiSessionForSideChat, getAiSideChatParentSessionId, getAiSession, getAiSessionMessages, getAiSessionMessagesPage, getAiUsageSummary, InvalidAiSessionMessageCursorError, listAiSessions, setAiSessionArchived, setAiSessionPlanMode, submitAiMessageFeedback, type AiMessageFeedbackInput } from "lfaa-session/src/sessions.js";
 import { AiPermissionModeChangedError, decideAiToolApproval, listAiToolApprovals, listAiToolPermissionGrants, revokeAiToolPermissionGrant } from "lfaa-permission-presets/src/permissions.js";
 import type { UserApprovalNotifications } from "lfaa-user-approval/src/index.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
 import { getAiHostTask, listUserAiHostTasks, requestAiHostTaskCancellation } from "lfaa-jobs/src/ai-host-tasks.js";
 import { asyncHandler, parseBody, aiChatMessageSchema, aiMessageFeedbackSchema, aiSessionArchiveSchema, aiSessionPlanModeSchema, aiSessionForkSchema, aiApprovalDecisionSchema, aiRunQuestionAnswerSchema, writeSse } from "lfaa-api-remotes/src/route-contracts.js";
+import { openSseStream } from "lfaa-api-gateway/src/sse.js";
 export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher, approvalNotifications: UserApprovalNotifications): void {
 const limitAiInference = createRateLimit(12, 60 * 1000);
 router.post("/ai/host-tasks/:taskId/cancel", requireAuthentication, (request, response) => {
@@ -33,11 +34,32 @@ router.get("/ai/sessions", requireAuthentication, (request, response) => {
     response.json({ sessions: listAiSessions(request.auth!.user.id, archivedValue === "true", appValue as ApplicationId | undefined) });
   });
 
-router.get("/ai/sessions/:sessionId/messages", requireAuthentication, (request, response) => {
+router.get("/ai/sessions/:sessionId", requireAuthentication, (request, response) => {
+    // 单会话详情：对齐 DSH sessionController.list 的单条读取，历史/消息仍走 messages 分页端点。
+    const session = getAiSession(request.auth!.user.id, request.params.sessionId);
+    if (!session) throw new ApiError(404, "ai_session_not_found", "找不到此 AI 会话。");
+    response.json({ session });
+  });
+
+router.get("/ai/sessions/:sessionId/messages", requireAuthentication, asyncHandler(async (request, response) => {
+    if (request.query.limit !== undefined || request.query.cursor !== undefined) {
+      const rawLimit = request.query.limit === undefined ? 50 : Number(request.query.limit);
+      if (!Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > 100) throw new ApiError(400, "invalid_message_page_size", "会话消息分页大小必须为 1 到 100。");
+      if (request.query.cursor !== undefined && (typeof request.query.cursor !== "string" || !/^[A-Za-z0-9_-]{1,512}$/u.test(request.query.cursor))) throw new ApiError(400, "invalid_message_cursor", "会话消息游标无效。");
+      let page;
+      try { page = await getAiSessionMessagesPage(request.auth!.user.id, request.params.sessionId, request.query.cursor as string | undefined, rawLimit); }
+      catch (error) {
+        if (error instanceof InvalidAiSessionMessageCursorError) throw new ApiError(400, "invalid_message_cursor", "会话消息游标无效。");
+        throw error;
+      }
+      if (!page) throw new ApiError(404, "ai_session_not_found", "找不到此 AI 会话。");
+      response.json(page);
+      return;
+    }
     const messages = getAiSessionMessages(request.auth!.user.id, request.params.sessionId);
     if (!messages) throw new ApiError(404, "ai_session_not_found", "找不到此 AI 会话。");
     response.json({ messages });
-  });
+  }));
 
 router.post("/ai/sessions/:sessionId/messages/:messageId/feedback", requireAuthentication, (request, response) => {
     const body = parseBody<AiMessageFeedbackInput>(aiMessageFeedbackSchema, request.body);
@@ -46,12 +68,25 @@ router.post("/ai/sessions/:sessionId/messages/:messageId/feedback", requireAuthe
     response.json({ feedback });
   });
 
-router.post("/ai/sessions/:sessionId/fork", requireAuthentication, (request, response) => {
+router.post("/ai/sessions/:sessionId/fork", requireAuthentication, limitAiInference, asyncHandler(async (request, response) => {
     const body = parseBody<{ messageId: string }>(aiSessionForkSchema, request.body);
-    const session = forkAiSessionFromMessage(request.auth!.user.id, request.params.sessionId, body.messageId);
+    const controller = new AbortController();
+    const abortOnDisconnect = () => { if (!response.writableEnded) controller.abort(); };
+    request.once("aborted", abortOnDisconnect);
+    response.once("close", abortOnDisconnect);
+    let session;
+    try {
+      session = await createAiSessionBranchWithMemory(request.auth!.user.id, request.params.sessionId, body.messageId, { signal: controller.signal });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      throw new ApiError(502, "ai_session_branch_memory_failed", error instanceof Error ? error.message : "分支记忆生成失败，未创建新会话。");
+    } finally {
+      request.off("aborted", abortOnDisconnect);
+      response.off("close", abortOnDisconnect);
+    }
     if (!session) throw new ApiError(404, "ai_session_fork_target_not_found", "找不到可创建分支的完整 AI 回复。");
     response.status(201).json({ session });
-  });
+  }));
 
 router.post("/ai/sessions/:sessionId/fork-before-message", requireAuthentication, (request, response) => {
     const body = parseBody<{ messageId: string }>(aiSessionForkSchema, request.body);
@@ -124,7 +159,7 @@ router.patch("/ai/approvals/:approvalId", requireAuthentication, (request, respo
 router.post("/ai/chat/stream", requireAuthentication, limitAiInference, asyncHandler(async (request, response) => {
     const body = parseBody<AiRunInput>(aiChatMessageSchema, request.body);
     const run = submit(request.auth!.user.id, request.auth!.user.role, body, aiPluginHost);
-    follow(response, request.auth!.user.id, run.id);
+    follow(request, response, request.auth!.user.id, run.id);
   }));
   router.post("/ai/side-chat/stream", requireAuthentication, limitAiInference, asyncHandler(async (request, response) => {
     const body = parseBody<AiRunInput>(aiChatMessageSchema, request.body);
@@ -132,7 +167,7 @@ router.post("/ai/chat/stream", requireAuthentication, limitAiInference, asyncHan
       throw new ApiError(404, "ai_side_chat_session_not_found", "找不到当前账户的侧边聊天会话。");
     }
     const run = submit(request.auth!.user.id, request.auth!.user.role, body, aiPluginHost);
-    follow(response, request.auth!.user.id, run.id);
+    follow(request, response, request.auth!.user.id, run.id);
   }));
   router.post("/ai/runs", requireAuthentication, limitAiInference, asyncHandler(async (request, response) => {
     const body = parseBody<AiRunInput>(aiChatMessageSchema, request.body);
@@ -144,7 +179,7 @@ router.post("/ai/chat/stream", requireAuthentication, limitAiInference, asyncHan
     if (!run) throw new ApiError(404, "ai_run_not_found", "找不到当前账户的任务。");
     response.json({ run });
   });
-  router.get("/ai/runs/:runId/events", requireAuthentication, (request, response) => follow(response, request.auth!.user.id, request.params.runId));
+  router.get("/ai/runs/:runId/events", requireAuthentication, (request, response) => follow(request, response, request.auth!.user.id, request.params.runId));
   router.post("/ai/runs/:runId/input", requireAuthentication, limitAiInference, asyncHandler(async (request, response) => {
     const body = parseBody<AiRunInput>(aiChatMessageSchema, { ...request.body, appId: "workspace", sessionId: null });
     try { response.status(202).json(appendAiRunInput(request.auth!.user.id, request.auth!.user.role, request.params.runId, body.content, aiPluginHost)); }
@@ -163,6 +198,22 @@ router.post("/ai/chat/stream", requireAuthentication, limitAiInference, asyncHan
     if (!cancelAiRun(request.auth!.user.id, request.params.runId)) throw new ApiError(404, "ai_run_not_found", "找不到当前账户的活动任务。");
     response.status(202).json({ run: getAiRun(request.auth!.user.id, request.params.runId) });
   });
+  router.post("/ai/runs/:runId/pause", requireAuthentication, (request, response) => {
+    const userId = request.auth!.user.id;
+    const run = getAiRun(userId, request.params.runId);
+    if (!run) throw new ApiError(404, "ai_run_not_found", "找不到当前账户的任务。");
+    const pauseState = pauseAiRun(userId, request.params.runId);
+    if (!pauseState) throw new ApiError(409, "ai_run_not_active", "当前任务已经结束，不能暂停。");
+    response.status(202).json({ run, pauseState });
+  });
+  router.post("/ai/runs/:runId/resume", requireAuthentication, (request, response) => {
+    const userId = request.auth!.user.id;
+    const run = getAiRun(userId, request.params.runId);
+    if (!run) throw new ApiError(404, "ai_run_not_found", "找不到当前账户的任务。");
+    const pauseState = resumeAiRun(userId, request.params.runId);
+    if (!pauseState) throw new ApiError(409, "ai_run_not_active", "当前任务已经结束，不能继续。");
+    response.status(202).json({ run, pauseState });
+  });
 }
 
 function submit(userId: string, userRole: import("lfaa-identity-auth/src/service.js").UserRole, body: AiRunInput, aiHost: AiPluginHost) {
@@ -170,21 +221,18 @@ function submit(userId: string, userRole: import("lfaa-identity-auth/src/service
   catch (error) { const message = error instanceof Error ? error.message : "任务提交失败。"; throw new ApiError(message.includes("找不到") ? 404 : 409, "ai_run_submission_failed", message); }
 }
 
-/** 连接关闭仅取消订阅；停止由账户隔离的取消接口处理。 */
-function follow(response: import("express").Response, userId: string, runId: string): void {
+/** 连接关闭仅取消订阅；停止由账户隔离的取消接口处理。SSE 头/心跳/清理统一走 gateway 助手。 */
+function follow(request: import("express").Request, response: import("express").Response, userId: string, runId: string): void {
   const run = getAiRun(userId, runId);
   if (!run) throw new ApiError(404, "ai_run_not_found", "找不到当前账户的任务。");
-  response.status(200).set({ "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive" });
-  response.flushHeaders();
+  const stream = openSseStream(request, response);
   const unsubscribe = subscribeAiRun(userId, runId, (event, data) => {
-    if (response.destroyed || response.writableEnded) return;
+    if (stream.closed || response.destroyed || response.writableEnded) return;
     writeSse(response, event, data);
-    if (event === "done") response.end();
+    if (event === "done") { stream.close(); response.end(); }
   });
-  const heartbeat = setInterval(() => { if (!response.destroyed && !response.writableEnded) writeSse(response, "keepalive", {}); }, 15_000);
-  heartbeat.unref();
-  response.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
-  if (response.writableEnded) { clearInterval(heartbeat); unsubscribe(); }
+  response.once("close", () => { unsubscribe(); });
+  if (stream.closed) { stream.close(); unsubscribe(); }
 }
 
 /** 将控制器路由绑定到插件生命周期；运行服务由 agent-loop 包管理。 */

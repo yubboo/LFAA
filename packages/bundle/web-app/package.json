@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "lfaa-api-account-controller": "workspace:*",
+    "lfaa-api-ai-video-controller": "workspace:*",
     "lfaa-api-connectivity-controller": "workspace:*",
     "lfaa-api-gateway": "workspace:*",
     "lfaa-api-job-controller": "workspace:*",
@@ -29,6 +30,8 @@
     "lfaa-api-workspace-files": "workspace:*",
     "lfaa-api-workspace-controller": "workspace:*",
     "lfaa-api-workflow-controller": "workspace:*",
+    "lfaa-video-ai-video": "workspace:*",
+    "lfaa-video-tool-ai-video": "workspace:*",
     "lfaa-workflow": "workspace:*",
     "lfaa-api-writing-controller": "workspace:*",
     "lfaa-game-connectivity": "workspace:*",

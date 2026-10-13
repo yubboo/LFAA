@@ -11,6 +11,8 @@ import type { TypertRegistry } from "lfaa-typert-registry/src/index.js";
 import { registerRoutes as registerHealth } from "./health-controller.js";
 import { registerTypertRoutes } from "./typert-controller.js";
 export type RouteContributor = (router: Router, aiHost: AiPluginHost, realtime: MinecraftRealtimePublisher) => void;
+// 复用的 SSE 流式助手：统一响应头/心跳/关闭清理，控制器无需重复样板。
+export { openSseStream, type SseStreamHandle, type OpenSseStreamOptions } from "./sse.js";
 interface MountedRouter { router: Router; aiHost: AiPluginHost; realtime: MinecraftRealtimePublisher; layers: Map<string, Router> }
 export class ApiGateway extends Service {
   private readonly contributors = new Map<string, RouteContributor>();

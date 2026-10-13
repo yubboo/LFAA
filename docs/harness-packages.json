@@ -17,6 +17,20 @@
       "status": "implemented"
     },
     {
+      "path": "packages/api/ai-video-controller",
+      "name": "lfaa-api-ai-video-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/api/connectivity-controller",
+      "name": "lfaa-api-connectivity-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/api/gateway",
       "name": "lfaa-api-gateway",
       "upstreamName": "@deepseek-ai/dsh-api-gateway",
@@ -28,6 +42,27 @@
       "name": "lfaa-api-job-controller",
       "upstreamName": "@deepseek-ai/dsh-api-job-controller",
       "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/api/knowledge-controller",
+      "name": "lfaa-api-knowledge-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/api/minecraft-controller",
+      "name": "lfaa-api-minecraft-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/api/plugin-controller",
+      "name": "lfaa-api-plugin-controller",
+      "upstreamName": null,
+      "upstream": false,
       "status": "implemented"
     },
     {
@@ -52,11 +87,25 @@
       "status": "implemented"
     },
     {
+      "path": "packages/api/steamcmd-controller",
+      "name": "lfaa-api-steamcmd-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/api/terminal-controller",
-      "name": null,
+      "name": "lfaa-api-terminal-controller",
       "upstreamName": "@deepseek-ai/dsh-api-terminal-controller",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
+    },
+    {
+      "path": "packages/api/workflow-controller",
+      "name": "lfaa-api-workflow-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
     },
     {
       "path": "packages/api/workspace-controller",
@@ -73,8 +122,8 @@
       "status": "implemented"
     },
     {
-      "path": "packages/api/plugin-controller",
-      "name": "lfaa-api-plugin-controller",
+      "path": "packages/api/writing-controller",
+      "name": "lfaa-api-writing-controller",
       "upstreamName": null,
       "upstream": false,
       "status": "implemented"
@@ -108,6 +157,27 @@
       "status": "implemented"
     },
     {
+      "path": "packages/boot/capability-mcp",
+      "name": "lfaa-capability-mcp",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/boot/capability-prompt",
+      "name": "lfaa-capability-prompt",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/boot/capability-skill",
+      "name": "lfaa-capability-skill",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/boot/cmdline",
       "name": null,
       "upstreamName": "@deepseek-ai/dsh-cmdline",
@@ -126,6 +196,13 @@
       "name": "lfaa-hmr",
       "upstreamName": "@deepseek-ai/dsh-hmr",
       "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/boot/knowledge-library",
+      "name": "lfaa-knowledge-library-runtime",
+      "upstreamName": null,
+      "upstream": false,
       "status": "implemented"
     },
     {
@@ -154,6 +231,20 @@
       "name": "lfaa-base",
       "upstreamName": "@deepseek-ai/dsh-base",
       "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/bundle/daemon-app",
+      "name": "lfaa-daemon-app",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/bundle/desktop-computer-use",
+      "name": "lfaa-desktop-computer-use",
+      "upstreamName": null,
+      "upstream": false,
       "status": "implemented"
     },
     {
@@ -290,6 +381,13 @@
       "status": "implemented"
     },
     {
+      "path": "packages/client/ui-connectivity",
+      "name": "lfaa-client-ui-connectivity",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/client/ui-conversation",
       "name": null,
       "upstreamName": "@deepseek-ai/dsh-client-ui-conversation",
@@ -358,6 +456,13 @@
       "upstreamName": "@deepseek-ai/dsh-client-ui-message-feedback",
       "upstream": true,
       "status": "placeholder"
+    },
+    {
+      "path": "packages/client/ui-minecraft",
+      "name": "lfaa-client-ui-minecraft",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
     },
     {
       "path": "packages/client/ui-model-selection",
@@ -605,6 +710,13 @@
       "status": "placeholder"
     },
     {
+      "path": "packages/client/ui-workflow",
+      "name": "lfaa-client-ui-workflow",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/client/ui-workflow-run",
       "name": null,
       "upstreamName": "@deepseek-ai/dsh-client-ui-workflow-run",
@@ -619,6 +731,13 @@
       "status": "implemented"
     },
     {
+      "path": "packages/client/ui-writing",
+      "name": "lfaa-client-ui-writing",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/client/web",
       "name": "lfaa-client-web",
       "upstreamName": "@deepseek-ai/dsh-client-web",
@@ -627,38 +746,38 @@
     },
     {
       "path": "packages/compaction/command-compact",
-      "name": null,
+      "name": "lfaa-command-compact",
       "upstreamName": "@deepseek-ai/dsh-command-compact",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/compaction/compaction",
-      "name": null,
+      "name": "lfaa-compaction",
       "upstreamName": "@deepseek-ai/dsh-compaction",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/compaction/compaction-basic",
-      "name": null,
+      "name": "lfaa-compaction-basic",
       "upstreamName": "@deepseek-ai/dsh-compaction-basic",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/compaction/compaction-image-offload",
-      "name": null,
+      "name": "lfaa-compaction-image-offload",
       "upstreamName": "@deepseek-ai/dsh-compaction-image-offload",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/compaction/compaction-tool-result-pruner",
-      "name": null,
+      "name": "lfaa-compaction-tool-result-pruner",
       "upstreamName": "@deepseek-ai/dsh-compaction-tool-result-pruner",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/computer-use/computer-use",
@@ -738,6 +857,13 @@
       "status": "implemented"
     },
     {
+      "path": "packages/core/conversation-memory",
+      "name": "lfaa-conversation-memory",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/core/scope",
       "name": "lfaa-scope",
       "upstreamName": "@deepseek-ai/dsh-scope",
@@ -770,6 +896,13 @@
       "name": "lfaa-authorization",
       "upstreamName": "@deepseek-ai/dsh-authorization",
       "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/credentials/credential-flows",
+      "name": "lfaa-credential-flows",
+      "upstreamName": null,
+      "upstream": false,
       "status": "implemented"
     },
     {
@@ -820,6 +953,13 @@
       "upstreamName": "@deepseek-ai/dsh-office-to-pdf",
       "upstream": true,
       "status": "placeholder"
+    },
+    {
+      "path": "packages/document/writing",
+      "name": "lfaa-document-writing",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
     },
     {
       "path": "packages/experimental/agent-team",
@@ -1019,10 +1159,10 @@
     },
     {
       "path": "packages/fs/fs-local",
-      "name": null,
+      "name": "lfaa-fs-local",
       "upstreamName": "@deepseek-ai/dsh-fs-local",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/fs/fs-observation-policy",
@@ -1040,24 +1180,38 @@
     },
     {
       "path": "packages/fs/tool-fs",
-      "name": null,
+      "name": "lfaa-tool-fs",
       "upstreamName": "@deepseek-ai/dsh-tool-fs",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/fs/tool-fs-search",
-      "name": null,
+      "name": "lfaa-tool-fs-search",
       "upstreamName": "@deepseek-ai/dsh-tool-fs-search",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/fs/tool-str-replace-editor",
-      "name": null,
+      "name": "lfaa-tool-str-replace-editor",
       "upstreamName": "@deepseek-ai/dsh-tool-str-replace-editor",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
+    },
+    {
+      "path": "packages/games/minecraft",
+      "name": "lfaa-games-minecraft",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/games/steamcmd",
+      "name": "lfaa-games-steamcmd",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
     },
     {
       "path": "packages/goal/command-goal",
@@ -1085,6 +1239,13 @@
       "name": null,
       "upstreamName": "@deepseek-ai/dsh-tool-goal",
       "upstream": true,
+      "status": "placeholder"
+    },
+    {
+      "path": "packages/guard/authorization",
+      "name": null,
+      "upstreamName": null,
+      "upstream": false,
       "status": "placeholder"
     },
     {
@@ -1121,6 +1282,13 @@
       "upstreamName": "@deepseek-ai/dsh-hooks-codex",
       "upstream": true,
       "status": "placeholder"
+    },
+    {
+      "path": "packages/host/daemon",
+      "name": "lfaa-host-daemon",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
     },
     {
       "path": "packages/host/directory-picker",
@@ -1193,6 +1361,13 @@
       "status": "placeholder"
     },
     {
+      "path": "packages/identity/auth",
+      "name": "lfaa-identity-auth",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/interaction/commands",
       "name": null,
       "upstreamName": "@deepseek-ai/dsh-commands",
@@ -1249,6 +1424,13 @@
       "status": "placeholder"
     },
     {
+      "path": "packages/knowledge/knowledge-library",
+      "name": "lfaa-knowledge-library",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/llm/deepseek-llm-api-extensions",
       "name": null,
       "upstreamName": "@deepseek-ai/dsh-deepseek-llm-api-extensions",
@@ -1257,10 +1439,10 @@
     },
     {
       "path": "packages/llm/llm",
-      "name": null,
+      "name": "lfaa-llm",
       "upstreamName": "@deepseek-ai/dsh-llm",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/llm/llm-deepseek",
@@ -1285,17 +1467,17 @@
     },
     {
       "path": "packages/llm/llm-pi-ai",
-      "name": null,
+      "name": "lfaa-llm-pi-ai",
       "upstreamName": "@deepseek-ai/dsh-llm-pi-ai",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/llm/llm-retry",
-      "name": null,
+      "name": "lfaa-llm-retry",
       "upstreamName": "@deepseek-ai/dsh-llm-retry",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/llm/plugin-package-inventory-deepseek",
@@ -1306,10 +1488,10 @@
     },
     {
       "path": "packages/llm/token-meter",
-      "name": null,
+      "name": "lfaa-token-meter",
       "upstreamName": "@deepseek-ai/dsh-token-meter",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/lsp/lsp",
@@ -1334,10 +1516,10 @@
     },
     {
       "path": "packages/mcp/mcp-client",
-      "name": null,
+      "name": "lfaa-mcp-client",
       "upstreamName": "@deepseek-ai/dsh-mcp-client",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/mcp/mcp-resources",
@@ -1345,6 +1527,13 @@
       "upstreamName": "@deepseek-ai/dsh-mcp-resources",
       "upstream": true,
       "status": "placeholder"
+    },
+    {
+      "path": "packages/network/game-connectivity",
+      "name": "lfaa-game-connectivity",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
     },
     {
       "path": "packages/plan/plan-mode",
@@ -1396,6 +1585,13 @@
       "status": "placeholder"
     },
     {
+      "path": "packages/sandbox/permission-presets",
+      "name": null,
+      "upstreamName": null,
+      "upstream": false,
+      "status": "placeholder"
+    },
+    {
       "path": "packages/sandbox/sandbox",
       "name": "lfaa-sandbox",
       "upstreamName": "@deepseek-ai/dsh-sandbox",
@@ -1425,10 +1621,10 @@
     },
     {
       "path": "packages/schedule/schedule",
-      "name": null,
+      "name": "lfaa-schedule",
       "upstreamName": "@deepseek-ai/dsh-schedule",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/sdk/client",
@@ -1445,6 +1641,20 @@
       "status": "placeholder"
     },
     {
+      "path": "packages/sdk/sdk-client",
+      "name": "lfaa-sdk-client",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/sdk/sdk-protocol",
+      "name": "lfaa-sdk-protocol",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/sdk/server",
       "name": null,
       "upstreamName": "@deepseek-ai/dsh-sdk-jsonrpc-server",
@@ -1452,53 +1662,81 @@
       "status": "placeholder"
     },
     {
+      "path": "packages/session-query/session-log-export",
+      "name": "lfaa-session-log-export",
+      "upstreamName": "@deepseek-ai/dsh-session-log-export",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/session-query/session-query",
+      "name": "lfaa-session-query",
+      "upstreamName": "@deepseek-ai/dsh-session-query",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/session-query/session-query-sqlite",
+      "name": "lfaa-session-query-sqlite",
+      "upstreamName": "@deepseek-ai/dsh-session-query-sqlite",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/session-query/tool-session-query",
+      "name": "lfaa-tool-session-query",
+      "upstreamName": "@deepseek-ai/dsh-tool-session-query",
+      "upstream": true,
+      "status": "implemented"
+    },
+    {
       "path": "packages/session/session-checkpoint-policy",
-      "name": null,
+      "name": "lfaa-session-checkpoint-policy",
       "upstreamName": "@deepseek-ai/dsh-session-checkpoint-policy",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-format",
-      "name": null,
+      "name": "lfaa-session-format",
       "upstreamName": "@deepseek-ai/dsh-session-format",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-format-catalog",
-      "name": null,
+      "name": "lfaa-session-format-catalog",
       "upstreamName": "@deepseek-ai/dsh-session-format-catalog",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-format-v0-to-v1",
-      "name": null,
+      "name": "lfaa-session-format-v0-to-v1",
       "upstreamName": "@deepseek-ai/dsh-session-format-v0-to-v1",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-format-v1-to-v2",
-      "name": null,
+      "name": "lfaa-session-format-v1-to-v2",
       "upstreamName": "@deepseek-ai/dsh-session-format-v1-to-v2",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-format-v2-to-v3",
-      "name": null,
+      "name": "lfaa-session-format-v2-to-v3",
       "upstreamName": "@deepseek-ai/dsh-session-format-v2-to-v3",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-format-v3-to-v4",
-      "name": null,
+      "name": "lfaa-session-format-v3-to-v4",
       "upstreamName": "@deepseek-ai/dsh-session-format-v3-to-v4",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-log-deepseek",
@@ -1509,10 +1747,10 @@
     },
     {
       "path": "packages/session/session-persistence",
-      "name": null,
+      "name": "lfaa-session-persistence",
       "upstreamName": "@deepseek-ai/dsh-session-persistence",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-persistence-jsonl",
@@ -1523,101 +1761,73 @@
     },
     {
       "path": "packages/session/session-projection",
-      "name": null,
+      "name": "lfaa-session-projection",
       "upstreamName": "@deepseek-ai/dsh-session-projection",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-projection-cache",
-      "name": null,
+      "name": "lfaa-session-projection-cache",
       "upstreamName": "@deepseek-ai/dsh-session-projection-cache",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-stats",
-      "name": null,
+      "name": "lfaa-session-stats",
       "upstreamName": "@deepseek-ai/dsh-session-stats",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-telemetry",
-      "name": null,
+      "name": "lfaa-session-telemetry",
       "upstreamName": "@deepseek-ai/dsh-session-telemetry",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-telemetry-otel",
-      "name": null,
+      "name": "lfaa-session-telemetry-otel",
       "upstreamName": "@deepseek-ai/dsh-session-telemetry-otel",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-title",
-      "name": null,
+      "name": "lfaa-session-title",
       "upstreamName": "@deepseek-ai/dsh-session-title",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-title-all-prompts-llm",
-      "name": null,
+      "name": "lfaa-session-title-all-prompts-llm",
       "upstreamName": "@deepseek-ai/dsh-session-title-all-prompts-llm",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-title-first-prompt-llm",
-      "name": null,
+      "name": "lfaa-session-title-first-prompt-llm",
       "upstreamName": "@deepseek-ai/dsh-session-title-first-prompt-llm",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-title-llm",
-      "name": null,
+      "name": "lfaa-session-title-llm",
       "upstreamName": "@deepseek-ai/dsh-session-title-llm",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/session/session-turn-outline",
-      "name": null,
+      "name": "lfaa-session-turn-outline",
       "upstreamName": "@deepseek-ai/dsh-session-turn-outline",
       "upstream": true,
-      "status": "placeholder"
-    },
-    {
-      "path": "packages/session-query/session-log-export",
-      "name": null,
-      "upstreamName": "@deepseek-ai/dsh-session-log-export",
-      "upstream": true,
-      "status": "placeholder"
-    },
-    {
-      "path": "packages/session-query/session-query",
-      "name": null,
-      "upstreamName": "@deepseek-ai/dsh-session-query",
-      "upstream": true,
-      "status": "placeholder"
-    },
-    {
-      "path": "packages/session-query/session-query-sqlite",
-      "name": null,
-      "upstreamName": "@deepseek-ai/dsh-session-query-sqlite",
-      "upstream": true,
-      "status": "placeholder"
-    },
-    {
-      "path": "packages/session-query/tool-session-query",
-      "name": null,
-      "upstreamName": "@deepseek-ai/dsh-tool-session-query",
-      "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/settings/settings",
@@ -1628,45 +1838,45 @@
     },
     {
       "path": "packages/shell/bash-local",
-      "name": null,
+      "name": "lfaa-bash-local",
       "upstreamName": "@deepseek-ai/dsh-bash-local",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/shell/bash-sandbox",
-      "name": null,
+      "name": "lfaa-bash-sandbox",
       "upstreamName": "@deepseek-ai/dsh-bash-sandbox",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/shell/pwsh-local",
-      "name": null,
+      "name": "lfaa-pwsh-local",
       "upstreamName": "@deepseek-ai/dsh-pwsh-local",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/shell/pwsh-sandbox",
-      "name": null,
+      "name": "lfaa-pwsh-sandbox",
       "upstreamName": "@deepseek-ai/dsh-pwsh-sandbox",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/shell/shell",
-      "name": null,
+      "name": "lfaa-shell",
       "upstreamName": "@deepseek-ai/dsh-shell",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/shell/shell-env",
-      "name": null,
+      "name": "lfaa-shell-env",
       "upstreamName": "@deepseek-ai/dsh-shell-env",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/shell/tool-bash",
@@ -1697,11 +1907,18 @@
       "status": "placeholder"
     },
     {
+      "path": "packages/shell/tool-shell",
+      "name": "lfaa-tool-shell",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/skill/skill",
-      "name": null,
+      "name": "lfaa-skill",
       "upstreamName": "@deepseek-ai/dsh-skill",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/skill/skill-badge",
@@ -1712,24 +1929,24 @@
     },
     {
       "path": "packages/skill/skill-filesystem",
-      "name": null,
+      "name": "lfaa-skill-filesystem",
       "upstreamName": "@deepseek-ai/dsh-skill-filesystem",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/skill/skill-office",
-      "name": null,
+      "name": "lfaa-skill-office",
       "upstreamName": "@deepseek-ai/dsh-skill-office",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/skill/tool-skill",
-      "name": null,
+      "name": "lfaa-tool-skill",
       "upstreamName": "@deepseek-ai/dsh-tool-skill",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/skill/tool-workspace-dependencies",
@@ -1739,53 +1956,60 @@
       "status": "placeholder"
     },
     {
+      "path": "packages/skill/writing",
+      "name": "lfaa-skill-writing",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/spill/spill",
-      "name": null,
+      "name": "lfaa-spill",
       "upstreamName": "@deepseek-ai/dsh-spill",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/spill/spill-local",
-      "name": null,
+      "name": "lfaa-spill-local",
       "upstreamName": "@deepseek-ai/dsh-spill-local",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/spill/spill-policy",
-      "name": null,
+      "name": "lfaa-spill-policy",
       "upstreamName": "@deepseek-ai/dsh-spill-policy",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/ssh/fs-ssh",
-      "name": null,
+      "name": "lfaa-fs-ssh",
       "upstreamName": "@deepseek-ai/dsh-fs-ssh",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/ssh/sandbox-ssh",
-      "name": null,
+      "name": "lfaa-sandbox-ssh",
       "upstreamName": "@deepseek-ai/dsh-sandbox-ssh",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/ssh/ssh",
-      "name": null,
+      "name": "lfaa-ssh",
       "upstreamName": "@deepseek-ai/dsh-ssh",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/ssh/subprocess-ssh",
-      "name": null,
+      "name": "lfaa-subprocess-ssh",
       "upstreamName": "@deepseek-ai/dsh-subprocess-ssh",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/storage/storage",
@@ -1817,10 +2041,10 @@
     },
     {
       "path": "packages/subagent/subagent",
-      "name": null,
+      "name": "lfaa-subagent",
       "upstreamName": "@deepseek-ai/dsh-subagent",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/subagent/subagent-acp",
@@ -1831,17 +2055,17 @@
     },
     {
       "path": "packages/subagent/subagent-claude-code",
-      "name": null,
+      "name": "lfaa-subagent-claude-code",
       "upstreamName": "@deepseek-ai/dsh-subagent-claude-code",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/subagent/subagent-codex",
-      "name": null,
+      "name": "lfaa-subagent-codex",
       "upstreamName": "@deepseek-ai/dsh-subagent-codex",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/subagent/subagent-dsh-sdk",
@@ -1859,10 +2083,10 @@
     },
     {
       "path": "packages/subagent/subagent-in-process-driver",
-      "name": null,
+      "name": "lfaa-subagent-in-process-driver",
       "upstreamName": "@deepseek-ai/dsh-subagent-in-process-driver",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/subagent/subagent-spawn-in-process",
@@ -1873,17 +2097,17 @@
     },
     {
       "path": "packages/subagent/tool-subagent",
-      "name": null,
+      "name": "lfaa-tool-subagent",
       "upstreamName": "@deepseek-ai/dsh-tool-subagent",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/subagent/tool-subagent-control",
-      "name": null,
+      "name": "lfaa-tool-subagent-control",
       "upstreamName": "@deepseek-ai/dsh-tool-subagent-control",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/subprocess/subprocess",
@@ -1894,17 +2118,24 @@
     },
     {
       "path": "packages/subprocess/subprocess-local",
-      "name": null,
+      "name": "lfaa-subprocess-local",
       "upstreamName": "@deepseek-ai/dsh-subprocess-local",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/subprocess/win32-process",
-      "name": null,
+      "name": "lfaa-win32-process",
       "upstreamName": "@deepseek-ai/dsh-win32-process",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
+    },
+    {
+      "path": "packages/telemetry/logger",
+      "name": "lfaa-telemetry-logger",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
     },
     {
       "path": "packages/telemetry/otel",
@@ -1915,24 +2146,24 @@
     },
     {
       "path": "packages/terminal/terminal",
-      "name": null,
+      "name": "lfaa-terminal",
       "upstreamName": "@deepseek-ai/dsh-terminal",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/terminal/terminal-bash",
-      "name": null,
+      "name": "lfaa-terminal-bash",
       "upstreamName": "@deepseek-ai/dsh-terminal-bash",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/terminal/tool-terminal",
-      "name": null,
+      "name": "lfaa-tool-terminal",
       "upstreamName": "@deepseek-ai/dsh-tool-terminal",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/test-support/agent-loop-testkit",
@@ -1940,6 +2171,13 @@
       "upstreamName": "@deepseek-ai/dsh-agent-loop-testkit",
       "upstream": true,
       "status": "placeholder"
+    },
+    {
+      "path": "packages/test-support/api",
+      "name": "lfaa-test-support-api",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
     },
     {
       "path": "packages/test-support/client-runtime",
@@ -2138,32 +2376,46 @@
       "status": "placeholder"
     },
     {
+      "path": "packages/video/ai-video",
+      "name": "lfaa-video-ai-video",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/video/tool-ai-video",
+      "name": "lfaa-video-tool-ai-video",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/web/tool-web",
-      "name": null,
+      "name": "lfaa-tool-web",
       "upstreamName": "@deepseek-ai/dsh-tool-web",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/web/web",
-      "name": null,
+      "name": "lfaa-web",
       "upstreamName": "@deepseek-ai/dsh-web",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/web/web-fetch-http",
-      "name": null,
+      "name": "lfaa-web-fetch-http",
       "upstreamName": "@deepseek-ai/dsh-web-fetch-http",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/web/web-search-deepseek",
-      "name": null,
+      "name": "lfaa-web-search-deepseek",
       "upstreamName": "@deepseek-ai/dsh-web-search-deepseek",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/web/web-search-exa",
@@ -2194,6 +2446,20 @@
       "status": "placeholder"
     },
     {
+      "path": "packages/workflow/dag-engine",
+      "name": "lfaa-workflow-dag-engine",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/workflow/minecraft-adapter",
+      "name": "lfaa-workflow-minecraft-adapter",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/workflow/tool-ralph",
       "name": null,
       "upstreamName": "@deepseek-ai/dsh-tool-ralph",
@@ -2202,10 +2468,10 @@
     },
     {
       "path": "packages/workflow/tool-workflow",
-      "name": null,
+      "name": "lfaa-tool-workflow",
       "upstreamName": "@deepseek-ai/dsh-tool-workflow",
       "upstream": true,
-      "status": "placeholder"
+      "status": "implemented"
     },
     {
       "path": "packages/workflow/workflow",
@@ -2222,122 +2488,17 @@
       "status": "placeholder"
     },
     {
-      "path": "packages/workspace/workspace",
-      "name": "lfaa-workspace-workspace",
-      "upstreamName": "@deepseek-ai/dsh-workspace",
-      "upstream": true,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/api/minecraft-controller",
-      "name": "lfaa-api-minecraft-controller",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/api/steamcmd-controller",
-      "name": "lfaa-api-steamcmd-controller",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/api/writing-controller",
-      "name": "lfaa-api-writing-controller",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/bundle/daemon-app",
-      "name": "lfaa-daemon-app",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/client/ui-minecraft",
-      "name": "lfaa-client-ui-minecraft",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/client/ui-writing",
-      "name": "lfaa-client-ui-writing",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/core/conversation-memory",
-      "name": "lfaa-conversation-memory",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/document/writing",
-      "name": "lfaa-document-writing",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/games/minecraft",
-      "name": "lfaa-games-minecraft",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/games/steamcmd",
-      "name": "lfaa-games-steamcmd",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/host/daemon",
-      "name": "lfaa-host-daemon",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/identity/auth",
-      "name": "lfaa-identity-auth",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/skill/writing",
-      "name": "lfaa-skill-writing",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/telemetry/logger",
-      "name": "lfaa-telemetry-logger",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
-      "path": "packages/test-support/api",
-      "name": "lfaa-test-support-api",
-      "upstreamName": null,
-      "upstream": false,
-      "status": "implemented"
-    },
-    {
       "path": "packages/workspace/data-directory",
       "name": "lfaa-workspace-data-directory",
       "upstreamName": null,
       "upstream": false,
+      "status": "implemented"
+    },
+    {
+      "path": "packages/workspace/workspace",
+      "name": "lfaa-workspace-workspace",
+      "upstreamName": "@deepseek-ai/dsh-workspace",
+      "upstream": true,
       "status": "implemented"
     }
   ]

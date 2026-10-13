@@ -4,7 +4,7 @@
  * 作用：从当前会话已记录事件创建只读解释分支，并维护独立消息、草稿和流订阅，不控制主聊天任务。
  * 关联文件：packages/client/connection/src/api.ts、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-chat/src/AiMarkdown.tsx。
  */
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { Alert, Button, Empty, Input, Spin } from "antd";
 import { ApiError, getErrorMessage, loadAiMessages, openAiSideChatSession, streamAiSideChat, type AiMessage, type AiSession, type ApplicationId } from "lfaa-client-connection/src/api.js";
 import { AiMarkdown } from "./AiMarkdown.js";
@@ -30,17 +30,30 @@ export function AiWorkSideChat({ appId, sourceSessionId, sourceSessionTitle, ope
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
+  const [messagePageCursor, setMessagePageCursor] = useState<string | null>(null);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const sessionsBySource = useRef(new Map<string, AiSession>());
   const creationBySource = useRef(new Map<string, Promise<AiSession>>());
   const streamController = useRef<AbortController | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const olderMessagesScrollRestoreRef = useRef<{ height: number; top: number } | null>(null);
+  const skipBottomScrollRef = useRef(false);
+
+  useLayoutEffect(() => {
+    setMessagePageCursor(null);
+    setHasOlderMessages(false);
+    olderMessagesScrollRestoreRef.current = null;
+  }, [sourceSessionId]);
 
   useEffect(() => {
     if (!open || !sourceSessionId) return;
     let alive = true;
     setLoading(true);
+    setMessagePageCursor(null);
+    setHasOlderMessages(false);
     setError("");
     setSideSession(sessionsBySource.current.get(sourceSessionId) ?? null);
     const existing = sessionsBySource.current.get(sourceSessionId);
@@ -57,7 +70,11 @@ export function AiWorkSideChat({ appId, sourceSessionId, sourceSessionTitle, ope
       setSideSession(session);
       onSessionCreated(session);
       const result = await loadAiMessages(session.id);
-      if (alive) setMessages(result.messages);
+      if (alive) {
+        setMessages(result.messages);
+        setMessagePageCursor(result.nextCursor);
+        setHasOlderMessages(Boolean(result.nextCursor));
+      }
     }).catch((loadError: unknown) => {
       if (alive) setError(getErrorMessage(loadError));
     }).finally(() => {
@@ -70,12 +87,46 @@ export function AiWorkSideChat({ appId, sourceSessionId, sourceSessionTitle, ope
     if (open && initialQuestionRevision > 0) setDraft(initialQuestion);
   }, [initialQuestionRevision, initialQuestion, open]);
 
+  useLayoutEffect(() => {
+    const saved = olderMessagesScrollRestoreRef.current;
+    const transcript = transcriptRef.current;
+    if (!saved || !transcript) return;
+    transcript.scrollTop = saved.top + transcript.scrollHeight - saved.height;
+    olderMessagesScrollRestoreRef.current = null;
+    skipBottomScrollRef.current = true;
+  }, [messages]);
+
   useEffect(() => {
     const transcript = transcriptRef.current;
-    if (transcript) transcript.scrollTop = transcript.scrollHeight;
+    if (!transcript) return;
+    if (skipBottomScrollRef.current) { skipBottomScrollRef.current = false; return; }
+    transcript.scrollTop = transcript.scrollHeight;
   }, [messages]);
 
   useEffect(() => () => streamController.current?.abort(), []);
+
+  async function loadEarlierMessages(): Promise<void> {
+    if (!sideSession || !messagePageCursor || loadingOlderMessages) return;
+    const transcript = transcriptRef.current;
+    olderMessagesScrollRestoreRef.current = transcript ? { height: transcript.scrollHeight, top: transcript.scrollTop } : null;
+    setLoadingOlderMessages(true);
+    setError("");
+    try {
+      const result = await loadAiMessages(sideSession.id, messagePageCursor);
+      if (!result.messages.length) olderMessagesScrollRestoreRef.current = null;
+      setMessages(current => {
+        const ids = new Set(current.map(message => message.id));
+        return [...result.messages.filter(message => !ids.has(message.id)), ...current];
+      });
+      setMessagePageCursor(result.nextCursor);
+      setHasOlderMessages(Boolean(result.nextCursor));
+    } catch (loadError) {
+      olderMessagesScrollRestoreRef.current = null;
+      setError(`加载更早侧聊消息失败：${getErrorMessage(loadError)}`);
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }
 
   async function sendMessage(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -121,6 +172,7 @@ export function AiWorkSideChat({ appId, sourceSessionId, sourceSessionTitle, ope
     {!sourceSessionId ? <Empty className="ai-work-side-chat__empty" description="先在主聊天发送一条消息，再开启侧边聊天。" /> : <>
       {error ? <Alert className="ai-work-side-chat__error" type="error" showIcon message={error} /> : null}
       <div className="ai-work-side-chat__messages" ref={transcriptRef} role="log" aria-live="polite" aria-relevant="additions text">
+        {hasOlderMessages ? <Button className="ai-work-side-chat__older" loading={loadingOlderMessages} onClick={() => void loadEarlierMessages()}>加载更早侧聊消息</Button> : null}
         {loading && messages.length === 0 ? <div className="ai-work-side-chat__loading"><Spin size="small" /><span>正在读取当前聊天上下文…</span></div> : null}
         {messages.map((message) => <article key={message.id} className={`ai-work-side-chat__message ai-work-side-chat__message--${message.role}`}>
           {message.role === "user" ? <p>{message.content}</p> : <div className="ai-work-chat__markdown"><AiMarkdown content={message.content || (message.status === "streaming" ? "正在思考…" : "")} /></div>}

@@ -52,7 +52,9 @@ test('迁移保持旧 Vanilla 记录并可重复执行', () => {
   database.exec("INSERT INTO minecraft_deployments_fixture_v34 SELECT * FROM minecraft_deployments; DROP TABLE minecraft_deployments; ALTER TABLE minecraft_deployments_fixture_v34 RENAME TO minecraft_deployments;");
   for (const index of indexes) database.exec(index.sql);
   database.exec("PRAGMA user_version=34; COMMIT; PRAGMA foreign_keys=ON;");
-  migrateMinecraftCoreSchema(); migrateMinecraftCoreSchema(); retireLegacyFileTables();
+  // 当前测试数据库已含 v36+ 项目表；只对合成 v34 Minecraft 表执行 v35 迁移，
+  // 不将 user_version 回退后再把较新表误当作 v34 数据库重新迁移。
+  migrateMinecraftCoreSchema(); migrateMinecraftCoreSchema();
   const instance = database.prepare('SELECT * FROM minecraft_instances WHERE id=?').get(id);
   assert.equal(instance.core_type, 'Vanilla'); assert.equal(instance.execution_mode, 'appcontainer');
   assert.equal(database.prepare('PRAGMA user_version').get().user_version, 35);

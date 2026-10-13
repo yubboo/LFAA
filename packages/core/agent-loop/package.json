@@ -9,6 +9,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "lfaa-mcp-client": "workspace:*",
+    "lfaa-llm": "workspace:*",
     "@deepseek-ai/cordis": "4.0.4",
     "lfaa-agent-default-model": "workspace:*",
     "lfaa-user-approval": "workspace:*",
@@ -20,7 +22,10 @@
     "lfaa-settings": "workspace:*",
     "lfaa-app-boot": "workspace:*",
     "lfaa-identity-auth": "workspace:*",
+    "lfaa-util-values": "workspace:*",
     "lfaa-tools": "workspace:*",
+    "lfaa-launch-environment": "workspace:*",
+    "lfaa-schedule": "workspace:*",
     "lfaa-workspace-workspace": "workspace:*",
     "lfaa-session": "workspace:*",
     "lfaa-permission-presets": "workspace:*",

@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatAiActivityDuration, getAiActivityDisplayStatus, getAiActivityDurationSeconds, getAiActivitySummary } from "../../../packages/client/ui-chat/src/activity-duration.ts";
+import { formatAiActivityDuration, getAiActivityActionLabel, getAiActivityDisplayStatus, getAiActivityDurationSeconds, getAiActivitySummary } from "../../../packages/client/ui-chat/src/activity-duration.ts";
 import { streamAiChat } from "../../../packages/client/connection/src/api.ts";
 
 const message = (activity, createdAt = "2026-10-02T03:00:00.000Z") => ({
@@ -23,37 +23,52 @@ const message = (activity, createdAt = "2026-10-02T03:00:00.000Z") => ({
   }]
 });
 
-test("刷新后待答问题沿用服务端开始时间并明确显示等待", () => {
+test("运行中的摘要从助手消息创建时间累计整轮耗时，活动行保留单步等待时长", () => {
   const waitingMessage = message({ status: "waiting_input", startedAt: "2026-10-02T03:01:00.000Z" });
   const afterInitialRender = getAiActivitySummary(waitingMessage, Date.parse("2026-10-02T03:01:05.900Z"));
   assert.equal(afterInitialRender.label, "等待你补充信息");
-  assert.equal(afterInitialRender.seconds, 5);
-  assert.equal(afterInitialRender.durationText, "已等待 5 秒");
-  assert.equal(afterInitialRender.messageLabel, "等待你补充信息");
+  assert.equal(afterInitialRender.seconds, 65);
+  assert.equal(afterInitialRender.durationText, "已处理 1 分钟 5 秒");
   assert.equal(afterInitialRender.isProcessing, false);
+  assert.equal(getAiActivityDurationSeconds(waitingMessage.activity[0], Date.parse("2026-10-02T03:01:05.900Z")), 5);
   // 新页面实例重新读取同一条记录时，时长继续从持久化时间戳累计。
   const afterReload = getAiActivitySummary(waitingMessage, Date.parse("2026-10-02T03:01:12.000Z"));
   assert.equal(afterReload.label, "等待你补充信息");
-  assert.equal(afterReload.seconds, 12);
-  assert.equal(afterReload.messageLabel, "等待你补充信息");
+  assert.equal(afterReload.seconds, 72);
   assert.equal(afterReload.isProcessing, false);
 });
 
 test("待审批状态使用审批等待时长，不冒充处理中", () => {
   const summary = getAiActivitySummary(message({ status: "approval_required", startedAt: "2026-10-02T03:01:00.000Z" }), Date.parse("2026-10-02T03:01:08.000Z"));
   assert.equal(summary.label, "等待审批");
-  assert.equal(summary.seconds, 8);
-  assert.equal(summary.messageLabel, "等待审批");
+  assert.equal(summary.seconds, 68);
+  assert.equal(summary.durationText, "已处理 1 分钟 8 秒");
   assert.equal(summary.isProcessing, false);
 });
 
-test("工具运行中明确显示执行阶段并按当前步骤开始时间累计", () => {
+test("工具运行中摘要显示整轮耗时，活动记录单独显示当前步骤耗时", () => {
   const summary = getAiActivitySummary(message({ status: "running", startedAt: "2026-10-02T03:01:00.000Z" }), Date.parse("2026-10-02T03:01:09.000Z"));
   assert.equal(summary.label, "正在执行工具");
-  assert.equal(summary.seconds, 9);
-  assert.equal(summary.durationText, "已用 9 秒");
-  assert.equal(summary.messageLabel, "正在执行工具");
+  assert.equal(summary.seconds, 69);
+  assert.equal(summary.durationText, "已处理 1 分钟 9 秒");
   assert.equal(summary.isProcessing, true);
+});
+
+test("当前动作摘要跟随真实命令、工具与等待状态变化", () => {
+  const activity = {
+    id: "activity-current",
+    kind: "command",
+    title: "执行 Shell 命令",
+    status: "running",
+    detail: "已通过校验。",
+    startedAt: "2026-10-02T03:01:00.000Z",
+    completedAt: null,
+    durationMs: null
+  };
+  assert.equal(getAiActivityActionLabel(activity, "正在思考"), "正在运行命令");
+  assert.equal(getAiActivityActionLabel({ ...activity, kind: "tool", title: "操作项目文件" }, "正在思考"), "正在执行：操作项目文件");
+  assert.equal(getAiActivityActionLabel({ ...activity, status: "approval_required" }, "正在执行工具"), "等待审批");
+  assert.equal(getAiActivityActionLabel(null, "正在思考"), "正在思考");
 });
 
 test("真实模型活动区分思考、回复、工具准备、执行、能力加载与子 Agent 协调", () => {

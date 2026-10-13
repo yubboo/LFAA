@@ -6,6 +6,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import type { AiBusinessTool, AiBusinessToolContext } from "./business-tools.js";
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
+import { isJsonSchemaRecord, validateJsonSchemaValue, type JsonSchemaNode } from "./json-schema.js";
 
 const tools = new Map<string, AiBusinessTool>();
 
@@ -26,3 +27,13 @@ export function registerAiBusinessTool(owner: Context, tool: AiBusinessTool): vo
 }
 
 export function listRegisteredAiTools(): AiBusinessTool[] { return [...tools.values()]; }
+
+/**
+ * 可选的参数交叉校验：按受限 JSON Schema 子集（type/properties/required/additionalProperties/enum/const/items）
+ * 校验模型回传参数；对 format/minLength/minimum 等扩展关键字一律忽略，因此不会与既有 Joi 风格 schema 冲突。
+ * 返回路径级违规，空数组即合法。非对象 schema 直接返回空（交由工具自有 parse 处理）。
+ */
+export function checkToolArgumentsAgainstSchema(schema: unknown, args: unknown): string[] {
+  if (!isJsonSchemaRecord(schema) || !Object.hasOwn(schema, "type") && !Object.hasOwn(schema, "oneOf")) return [];
+  return validateJsonSchemaValue(schema as JsonSchemaNode, args, "arguments");
+}

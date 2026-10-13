@@ -58,7 +58,7 @@ export interface CapabilityInstallAdapter {
   revalidateTarget(target: Record<string, unknown>, applicationId: CapabilityApplicationId, context: AiBusinessToolContext): Record<string, unknown>;
   targetSummary(target: Record<string, unknown>): string;
   search(query: string, applicationId: CapabilityApplicationId): Promise<unknown>;
-  inspect(source: string, ref: string | undefined, applicationId: CapabilityApplicationId, target: Record<string, unknown>): Promise<CapabilityInspectionPlan>;
+  inspect(source: string, ref: string | undefined, applicationId: CapabilityApplicationId, target: Record<string, unknown>, context: Pick<AiBusinessToolContext, "userId">): Promise<CapabilityInspectionPlan>;
   install(source: string, resolvedRef: string, applicationId: CapabilityApplicationId, userId: string, target: Record<string, unknown>, details: unknown, context: AiBusinessToolContext): Promise<unknown>;
   /** 安装动作后回读该 Owner 的权威状态，确认同一来源、版本和类型目标已登记。 */
   verifyInstalled(installation: unknown, source: string, resolvedRef: string, applicationId: CapabilityApplicationId, target: Record<string, unknown>, details: unknown, context: AiBusinessToolContext): Promise<CapabilityInstallVerification>;
@@ -104,7 +104,7 @@ export class CapabilityInstallRegistry {
     adapter.authorize?.("inspect", context);
     const normalizedTarget = adapter.validateTarget(target, applicationId, context);
     const boundedTarget = cloneBoundedObject(normalizedTarget, "目标范围", 16 * 1024);
-    const plan = await adapter.inspect(source, ref, applicationId, boundedTarget);
+    const plan = await adapter.inspect(source, ref, applicationId, boundedTarget, context);
     if (!plan || typeof plan.resolvedRef !== "string" || !plan.resolvedRef.trim() || plan.resolvedRef.length > 256) throw new Error("领域 Owner 未返回可固定的检查版本；没有创建安装凭证。");
     const finalTarget = plan.resolvedTarget === undefined ? boundedTarget : cloneBoundedObject(adapter.validateTarget(plan.resolvedTarget, applicationId, context), "检查后目标范围", 16 * 1024);
     const boundedDetails = cloneBoundedValue(plan.details, "检查详情", MAX_INSPECTION_DETAILS_BYTES);

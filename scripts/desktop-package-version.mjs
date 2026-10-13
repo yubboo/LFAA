@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { validateLfaaUpdateManifest } from "../apps/desktop-electron/src/update-manifest.mjs";
+import { getDesktopPackageArtifactPaths, verifyDesktopPackageArtifacts } from "./desktop-package-artifacts.mjs";
 
 const VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 const PRODUCT_PACKAGES = ["apps/cli/package.json", "apps/web/package.json", "apps/desktop-electron/package.json"];
@@ -27,6 +28,7 @@ export async function prepareDesktopPackageVersion(repositoryRoot, { notes } = {
   }
 
   if (current.packageStatus === "pending") {
+    await ensureVersionedStagingOutput(repositoryRoot, current);
     return { version: current.version, incremented: false };
   }
   if (current.packageStatus !== "built") {
@@ -62,7 +64,10 @@ export async function prepareDesktopPackageVersion(repositoryRoot, { notes } = {
   const writes = [];
   for (const relativePath of PRODUCT_PACKAGES) {
     const manifest = current.productManifests.get(relativePath);
-    writes.push([resolve(repositoryRoot, relativePath), `${JSON.stringify({ ...manifest, version: nextVersion }, null, 2)}\n`]);
+    const nextManifest = relativePath === "apps/desktop-electron/package.json"
+      ? withVersionedStagingOutput({ ...manifest, version: nextVersion }, nextVersion)
+      : { ...manifest, version: nextVersion };
+    writes.push([resolve(repositoryRoot, relativePath), `${JSON.stringify(nextManifest, null, 2)}\n`]);
   }
   writes.push([resolve(repositoryRoot, "update.json"), `${JSON.stringify(updatedManifest, null, 2)}\n`]);
   writes.push([resolve(repositoryRoot, "docs/updata-log.md"), updatedChangelog]);
@@ -76,21 +81,13 @@ export async function markDesktopPackageBuilt(repositoryRoot) {
   if (current.packageStatus === "built") return { version: current.version, alreadyMarked: true };
   if (current.packageStatus !== "pending") throw new Error("当前更新日志不是待构建的 Windows Electron 版本。" );
 
-  const outputDirectory = resolve(
-    repositoryRoot,
-    "apps/desktop-electron",
-    current.electronManifest.build?.directories?.output ?? ""
-  );
-  const installerName = `LFAA-${current.version}.exe`;
-  const installerPath = resolve(outputDirectory, installerName);
-  const latestPath = resolve(outputDirectory, "latest.yml");
-  await access(installerPath).catch(() => { throw new Error(`未找到 Electron 安装器：${installerPath}`); });
-  const latestYaml = await readFile(latestPath, "utf8");
-  const latestVersion = latestYaml.match(/^version:\s*(\S+)\s*$/mu)?.[1];
-  const latestPathName = latestYaml.match(/^path:\s*(\S+)\s*$/mu)?.[1];
-  if (latestVersion !== current.version || latestPathName !== installerName) {
-    throw new Error(`latest.yml 与 ${installerName} 版本不一致，未登记本次安装器。`);
+  const artifactPaths = getDesktopPackageArtifactPaths(repositoryRoot, current.version);
+  try {
+    await verifyDesktopPackageArtifacts(artifactPaths.deliveryDirectory, current.version);
+  } catch (deliveryError) {
+    if (!await hasLegacyBuiltArtifact(repositoryRoot, current.version)) throw deliveryError;
   }
+  const installerName = `LFAA-${current.version}.exe`;
 
   const updatedChangelog = replaceLatestReleaseStatus(
     current.changelog,
@@ -183,9 +180,19 @@ function nextChangelogNumber(changelog) {
 }
 
 async function hasBuiltArtifact(repositoryRoot, version) {
-  const outputDirectory = resolve(repositoryRoot, "dist/apps/desktop-electron");
-  const installerPath = resolve(outputDirectory, `LFAA-${version}.exe`);
-  const latestPath = resolve(outputDirectory, "latest.yml");
+  const artifactPaths = getDesktopPackageArtifactPaths(repositoryRoot, version);
+  try {
+    await verifyDesktopPackageArtifacts(artifactPaths.deliveryDirectory, version);
+    return true;
+  } catch {
+    return hasLegacyBuiltArtifact(repositoryRoot, version);
+  }
+}
+
+async function hasLegacyBuiltArtifact(repositoryRoot, version) {
+  const legacyRoot = resolve(repositoryRoot, "dist/apps/desktop-electron");
+  const installerPath = resolve(legacyRoot, `LFAA-${version}.exe`);
+  const latestPath = resolve(legacyRoot, "latest.yml");
   try {
     const latestYaml = await readFile(latestPath, "utf8");
     const latestVersion = latestYaml.match(/^version:\s*(\S+)\s*$/mu)?.[1];
@@ -195,6 +202,24 @@ async function hasBuiltArtifact(repositoryRoot, version) {
   } catch {
     return false;
   }
+}
+
+async function ensureVersionedStagingOutput(repositoryRoot, current) {
+  const packagePath = resolve(repositoryRoot, "apps/desktop-electron/package.json");
+  const nextManifest = withVersionedStagingOutput(current.electronManifest, current.version);
+  if (nextManifest.build.directories.output === current.electronManifest.build?.directories?.output) return;
+  await writeFilesAtomically([[packagePath, `${JSON.stringify(nextManifest, null, 2)}\n`]]);
+}
+
+function withVersionedStagingOutput(manifest, version) {
+  const output = `../../dist/.tmp/desktop-electron/LFAA-${version}`;
+  return {
+    ...manifest,
+    build: {
+      ...manifest.build,
+      directories: { ...manifest.build?.directories, output }
+    }
+  };
 }
 
 function replaceLatestReleaseStatus(changelog, headerIndex, status) {

@@ -10,7 +10,6 @@ export interface AiActivitySummary {
   seconds: number;
   durationText: string;
   tone: "processing" | "waiting" | "complete" | "stopped" | "error";
-  messageLabel: AiActivitySummary["label"] | null;
   isProcessing: boolean;
   activeActivity: AiActivityItem | null;
 }
@@ -57,6 +56,19 @@ export function getAiActivityDisplayStatus(activity: AiActivityItem): string {
     return activity.detail.startsWith("正在校验工具参数") ? "正在准备工具" : "正在执行工具";
   }
   return "进行中";
+}
+
+/** 把真实当前活动压缩为正文下方的一行操作提示。 */
+export function getAiActivityActionLabel(activity: AiActivityItem | null, fallback: AiActivitySummary["label"]): string {
+  if (!activity) return fallback;
+  if (activity.status === "approval_required") return "等待审批";
+  if (activity.status === "waiting_input") return "等待你补充信息";
+  if (activity.status === "unavailable") return "等待确认执行结果";
+  if (activity.kind === "command") return "正在运行命令";
+  if (activity.kind === "tool") return `${getAiActivityDisplayStatus(activity) === "正在准备工具" ? "正在准备工具" : "正在执行"}：${activity.title}`;
+  if (activity.kind === "agent") return `正在协调：${activity.title}`;
+  if (activity.kind === "skill") return `正在加载：${activity.title}`;
+  return fallback;
 }
 
 export function formatAiActivityDuration(seconds: number): string {
@@ -119,7 +131,8 @@ export function getAiActivitySummary(message: Pick<AiMessage, "status" | "create
     label = summary.label;
     tone = summary.tone;
     isProcessing = summary.isProcessing;
-    seconds = activeActivity ? elapsedSeconds(activeActivity.startedAt, now) : elapsedSeconds(message.createdAt, now);
+    // 摘要计量整个 Run；当前步骤的单独耗时由活动列表展示。
+    seconds = elapsedSeconds(message.createdAt, now);
   }
 
   if (message.status === "complete" || message.status === "interrupted" || message.status === "error") {
@@ -130,13 +143,12 @@ export function getAiActivitySummary(message: Pick<AiMessage, "status" | "create
     seconds = activityTimes.length ? Math.max(0, Math.round((Math.max(...activityTimes) - Math.min(...activityTimes)) / 1000)) : 0;
   }
 
-  const durationPrefix = message.status === "queued" ? "已排队" : message.status === "streaming" && !isProcessing ? "已等待" : message.status === "streaming" ? "已用" : "用时";
+  const durationPrefix = message.status === "queued" ? "已排队" : message.status === "complete" || message.status === "interrupted" || message.status === "error" ? "用时" : "已处理";
   return {
     label,
     seconds,
     durationText: `${durationPrefix} ${formatAiActivityDuration(seconds)}`,
     tone,
-    messageLabel: message.status === "streaming" ? label : null,
     isProcessing,
     activeActivity
   };

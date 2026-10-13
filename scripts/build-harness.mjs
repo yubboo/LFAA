@@ -40,7 +40,9 @@ if (process.argv[2] === "host" || process.argv[2] === "host-staging") {
     await mkdir(resolve(output, pkg.path), { recursive: true });
     await cp(resolve(root, pkg.path, "package.json"), resolve(output, pkg.path, "package.json"));
     for (const source of await files(resolve(root, pkg.path))) {
-      if (!/\.(mjs|yml|yaml)$/u.test(source)) continue;
+      // Skill 的脚本和模板是运行资源；与 JS/YAML 一起复制，不能只在源码 Profile 中可用。
+      const packageRelative = relative(resolve(root, pkg.path), source);
+      if (!/\.(mjs|yml|yaml)$/u.test(source) && !packageRelative.startsWith(`assets${sep}`)) continue;
       const target = resolve(output, relative(root, source));
       await mkdir(dirname(target), { recursive: true });
       await cp(source, target);

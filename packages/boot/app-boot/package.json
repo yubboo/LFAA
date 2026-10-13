@@ -17,6 +17,8 @@
     "@deepseek-ai/dsh-client-hmr": "0.2.0-rc.2",
     "js-yaml": "^4.1.0",
     "lfaa-agent": "workspace:*",
+    "lfaa-skill": "workspace:*",
+    "lfaa-llm": "workspace:*",
     "lfaa-hook-protocol": "workspace:*",
     "lfaa-launch-environment": "workspace:*",
     "lfaa-storage-json": "workspace:*",

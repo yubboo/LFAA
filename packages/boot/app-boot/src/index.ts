@@ -8,6 +8,7 @@ import Loader from "@deepseek-ai/cordis-plugin-loader";
 import Timer from "@deepseek-ai/cordis-plugin-timer";
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { PluginRuntimeManager } from "./plugin-runtime.js";
@@ -76,7 +77,9 @@ export async function boot(args: string[] = []): Promise<Context> {
         try { await import(entrypoint); }
         catch (error) { throw new Error(`插件加载失败：${row.id}（${row.name}）：${error instanceof Error ? error.message : String(error)}`, { cause: error }); }
       }
-      const runtimeId = await context.loader.create({ name: entrypoint, inject: row.inject ?? [], config: row.config ?? {}, disabled });
+      let runtimeId: string;
+      try { runtimeId = await context.loader.create({ name: entrypoint, inject: row.inject ?? [], config: row.config ?? {}, disabled }); }
+      catch (error) { throw new Error(`插件装配失败：${row.id}（${row.name}）：${error instanceof Error ? error.message : String(error)}`, { cause: error }); }
       pluginRuntime.registerEntry(row.id, runtimeId);
     }
     await context.loader.await();
@@ -92,16 +95,29 @@ export async function boot(args: string[] = []): Promise<Context> {
       }));
       throw new Error(`插件未就绪：${diagnostics.join("、")}`);
     }
-    const shutdown = () => { void context.fiber.dispose().catch((error: unknown) => { console.error(error); process.exitCode = 1; }); };
+    let shutdownPromise: Promise<void> | undefined;
+    const shutdown = () => {
+      shutdownPromise ??= context.fiber.dispose().catch((error: unknown) => { console.error(error); process.exitCode = 1; });
+      return shutdownPromise;
+    };
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);
     const onMessage = (message: unknown) => {
       if (typeof message === "object" && message !== null && "type" in message && message.type === "lfaa-shutdown") {
-        void context.fiber.dispose().then(() => { if (process.connected) process.disconnect(); });
+        void shutdown().then(() => { if (process.connected) process.disconnect(); });
       }
     };
     process.on("message", onMessage);
-    context.effect(() => () => { process.off("SIGINT", shutdown); process.off("SIGTERM", shutdown); process.off("message", onMessage); });
+    const shutdownInput = process.env.LFAA_DESKTOP_SHUTDOWN_STDIN === "1"
+      ? createInterface({ input: process.stdin, crlfDelay: Infinity, terminal: false })
+      : undefined;
+    shutdownInput?.on("line", line => {
+      if (line.trim() !== '{"type":"lfaa-shutdown"}') return;
+      shutdownInput.close();
+      process.stdin.pause();
+      void shutdown();
+    });
+    context.effect(() => () => { shutdownInput?.close(); process.off("SIGINT", shutdown); process.off("SIGTERM", shutdown); process.off("message", onMessage); });
     return context;
   } catch (error) {
     await context.fiber.dispose();

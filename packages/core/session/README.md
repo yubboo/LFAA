@@ -1,18 +1,23 @@
 # LFAA Session 内核
 
+公开助手消息可携带 `parts`（稳定 ID、连续正文范围及阶段/最终类型），活动可携带首次正文落点及原审批问题/真实决定。内核校验范围数量、连续性和长度，消息投影白名单输出安全字段；正文仍只保存一份。JSONL 重新加载、分页和同账户分支恢复这些展示事实，原记录缺失时不制造分段。Provider 私有续接数据仍不进入公开消息或 SSE。
+
 `lfaa-session` 是 LFAA AI Work、Agent Loop 与会话 API 共用的唯一 Session Owner。Session 事件、消息、活动和用量沿用 `lfaa-session-persistence-jsonl` 的账户隔离 JSONL 事务日志；SQLite 继续保存授权查询所需的会话头投影。没有另建服务、数据根或 UI。
 
 ## 内核能力
 
 - `kernel.ts` 提供带连续序号、普通 JSON 快照和深度冻结的类型化追加日志；拒绝循环/稀疏/非有限/非 JSON 值、跳号、非法事件和重入追加。LFAA 沿用现有事件格式，用 1 起始序号、事件 UUID、Session ID 和 ISO 时间；DSH 源格式使用 0 起始序号与数字时间。
 - `SessionKernel` 增量维护无损 Surface：支持 append、按当前顺序的闭区间 replace、来源事件引用和首个 system 节点保护；保留活动请求 Header/Context、历史工具 Schema、动态增删 Tool 更新、模型回复流、失败 Attempt、轮次状态与用量。Surface 派生历史在无变化时复用冻结缓存，完整持久事件仍由唯一 JSONL Owner 保存。
-- Agent Loop 在网络请求前持久化 Provider 实际可见消息和工具 Schema（剔除 URL、认证头和密钥）；成功/失败的模型尝试、可见输出片段、工具派发/结果、活动、结束状态和 Provider 实际用量都来自真实执行边界。原始协议仅保存在受保护 Host 持久层，不由普通消息展示 API 或 DSH Client 插件读取。
-- `forkAiSession()` 按前缀长度建立同账户、同 App 分支；`forkAiSessionFromMessage()` 只接受已完成助手消息，并由 Session Owner 从消息 ID 推导事件边界。`forkAiSessionBeforeUserMessage()` 只接受有独立助手消息配对的用户轮次；源会话存在活动运行时拒绝编辑分支，并在目标轮次 `turn/start` 之前推导边界（排队轮次在目标用户事件前截断）。普通分支继承源项目；Workspace Owner 已验证受管 AI Worktree 后可传入目标项目上下文，新会话在同一事件事务中绑定到该项目。未配对 Tool 调用按“未派发”或“派发后结果未知”闭合，fork/恢复不会自动重放副作用。LFAA 的前缀长度约定是已复制事件数，和 DSH 的闭区间边界参数不同。
+- Agent Loop 在网络请求前持久化 Provider 实际可见消息和工具 Schema（剔除 URL、认证头和密钥）；成功/失败的模型尝试、可见输出片段、工具派发/结果、活动、结束状态和 Provider 实际用量都来自真实执行边界。项目文件成功 mutation 的活动只记录操作枚举、Daemon 校验的项目相对路径和可空项目 ID，不保存文件正文或原始结果；消息投影会校验并限制这些路径。原始协议仅保存在受保护 Host 持久层，不由普通消息展示 API 或 DSH Client 插件读取。
+- 普通回答分支由 Agent Loop 调用当前 Provider 整理截至目标回答的有界记忆；Session Owner 的 `prepareAiSessionBranchSeed()` 仅构造摘要输入，`createAiSessionBranchWithMemory()` 仅保存版本化记忆事件、真实 Provider 用量及来源关系，子 Session 不复制父用户/助手/工具事件。`historyForTurn()` 每轮从 JSONL 恢复该记忆作为历史背景，嵌套分支可继续整理已有记忆与新对话。记忆摘要失败时不创建子会话。Workspace Owner 验证受管 AI Worktree 后可传入目标项目上下文，并在同一事务中绑定项目。`forkAiSession()` 的精确事件前缀能力仅供编辑问题截断与侧聊快照使用；未配对 Tool 调用按“未派发”或“派发后结果未知”闭合，恢复不会自动重放副作用。
 - `forkAiSessionForSideChat()` 在主会话仍有活动 Run 时，按最新已记录事件建立独立快照，并以 `session/side-chat` 标记记录来源 Session 与快照序号；不复制内存中的未持久化流内容、不修改源 Session。`getAiSideChatParentSessionId()` 只对当前账户拥有的 Session 返回来源关系，由 Agent Loop 统一 Run Owner 执行无工具、无用户澄清及无账户记忆写入限制。
+- AI Work 首屏消息分页在既有 JSONL 单遍扫描中读取 `session/end-seed` 或 `session/branch-memory` 来源；Session Owner 仅在父会话仍属于当前账户且 App 相同时返回父会话投影。归档或已删除的父会话不产生可导航来源，历史记录不回写。
 - 已完成助手消息的反馈以 `message/feedback` 事件保存在同一账户隔离 JSONL 中；每条消息最多一条，理由与补充文本有长度上限，消息投影只向该会话 Owner 返回。反馈事件不进入模型上下文或消息正文 Surface。
-- 计划协作模式以 `session/plan-mode` 事件持久化，读取最新事件恢复当前状态并投影到会话列表；账户归属、归档状态、侧聊来源和活动 Run 均在状态变更入口校验。分支沿用其事件前缀中的计划状态，不另建计划存储。
+- 计划协作模式以 `session/plan-mode` 事件持久化，读取最新事件恢复当前状态并投影到会话列表；账户归属、归档状态、侧聊来源和活动 Run 均在状态变更入口校验。精确前缀派生保留其事件状态；新建记忆分支会单独继承源会话当前计划状态，不复制旧事件。
 - `SessionStore` 提供 create/restore/prepare/publish/get/list/fork/flush/drop 生命周期，默认 LRU 最多保留 32 个实时对象；`flush()` 等待持久层屏障。LFAA JSONL 每笔事务在返回前 `fsync`，提交失败后拒绝继续写入，须重启并重放。
+- `getAiSessionMessagesPage()` 为消息 API 提供账户归属检查后的 1–100 条游标页，按 `(created_at, _order)` 稳定向前翻页；反馈随消息页投影。UI 主聊与侧聊均可加载更早记录并保持视口。分页异步流式读取，单次扫描并校验该会话完整哈希链；额外扫描工作集使用 64 KiB 读取块、一条当前事件和至多 101 个候选消息，不含仓库启动恢复保留的事务去重索引。每个请求仍需遍历完整日志，CPU 与磁盘读取量仍随会话增长，索引/压缩/沉降与真实长会话测量未完成。
 - 旧会话首次由 Session Owner 读取时，以原消息、活动、内部工具历史、用量和项目元数据幂等生成事件并校验提交；原记录不改写或删除。老记录缺少请求 Header、精确 Provider 输入流和完整工具定义，导入不会推断缺失事实。读取最新消息状态只投影展示字段，不复制整段 `model_history`。
+- Agent 澄清答案保存在助手活动和 `lfaa_ask_user` 工具结果中，不产生普通用户消息；后续轮次只把校验通过的 assistant tool-call/tool-result 配对带回模型，不将答案改写为 `role:user`。
 
 ## DSH 来源与适配边界
 
@@ -22,8 +27,11 @@ LFAA 适配继续通过既有 `/ai/sessions`、`/ai/runs` 与 AI Work 消息投�
 
 ## 性能与安全边界
 
-- Session 事件写入共用 JSONL 事务和已有 SHA-256 链校验；最近 Header、Tool History 和派生消息按增量/代数缓存，实时 SessionStore 有界为 32 个对象。完整事件历史随会话增长且用于精确恢复/fork；本轮未测大型真实会话的时间/内存曲线。
+通用 Session Query 通过本 Owner 校验当前运行会话及目标会话的账户/App/项目范围；无项目时只查自身。最多枚举 200 个活动和 200 个归档头，消息页继续用既有投影，结构事件页采用字段白名单，不提供模型请求、隐藏推理或原始工具参数/结果。读取共用 JSONL 单次异步扫描，不新增事件存储。
+
+- Session 事件写入共用 JSONL 事务和已有 SHA-256 链校验；最近 Header、Tool History 和派生消息按增量/代数缓存，实时 SessionStore 有界为 32 个对象。消息分页以异步流单次校验完整日志，扫描工作集有界，但 CPU 与磁盘读取仍随历史增长；历史事务去重索引仍常驻，后续索引/压缩和真实长会话时间/内存曲线尚未完成。
 - 事件 Header 不保存 Provider URL、API key 或认证头；Tool 参数/结果、模型输入上下文保存在受保护的 Host JSONL，不返回普通消息 API 或 Client 插件。
 - 用户、App、项目归属仍由 LFAA API/Session Owner 校验；Provider、权限模式、AI Runtime 限制与跟进方式继续读取现有设置，不新增设置项。
+- assistant 的可选 `providerReplay` 在既有模型历史和 response 事件中保存真实 reasoning_content 及账户/Provider/模型来源，内核验证结构，重启可恢复。新轮次保留最终 assistant 的续接字段与完整澄清配对，仍不重送已完成普通工具大结果。消息分页、Run/SSE、Session Query 与日志导出只消费公开投影，不返回私有续接数据。旧记录缺失时不补写或编造隐藏推理。
 - Session Owner 的模型请求上下文和失败 Attempt 会移除 LFAA `<conversation-memory>` 注入块，不把已保存记忆正文复制进新的模型历史快照。账户清除记忆时，设置 API 先让 Session Owner 对该账户会话 JSONL 做链校验、脱敏重写与哈希链重算；原始用户/助手消息保留，其他账户的会话文件不处理。重写失败时 API 不清空 Conversation Memory，用户可重试。
 - Web 浏览器、认证 Provider、桌面宿主、真实 Daemon 副作用验收由对应运行环境单独完成；包构建或内核单测不代替这些验收。

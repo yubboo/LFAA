@@ -7,9 +7,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { once } from "node:events";
-import { CapabilityInstallRegistry } from "lfaa-capability-installs/src/index.js";
-import { createMcpCapabilityAdapter } from "lfaa-capability-mcp/src/index.js";
-import { discoverMcpTools } from "lfaa-tools/src/mcp-tools.js";
+import { isolateData } from "./isolated-data.mjs";
+isolateData(test, "capability-mcp");
+const { CapabilityInstallRegistry } = await import("lfaa-capability-installs/src/index.js");
+const { createMcpCapabilityAdapter } = await import("lfaa-capability-mcp/src/index.js");
+const { discoverMcpTools } = await import("lfaa-mcp-client/src/runtime.js");
 
 function settings(enabled = true) {
   return { plugins: { enabled, mcpServers: [] }, aiRuntime: { requestTimeoutSeconds: 5 } };
@@ -70,7 +72,7 @@ test("MCP 来源经真实协议检查后安装到单一 App，并由同一 Runti
     assert.equal(entry.manifestSha256, inspected.details.mcp.manifestSha256);
     assert.deepEqual(users.get("user-2").plugins.mcpServers, [], "安装只写当前用户的设置");
 
-    const runtime = await discoverMcpTools(users.get("user-1").plugins.mcpServers, "workspace", new AbortController().signal, 5);
+    const runtime = await discoverMcpTools(users.get("user-1").plugins.mcpServers, "workspace", "user-1", new AbortController().signal, 5);
     try {
       assert.equal(runtime.errors.length, 0);
       assert.equal(runtime.tools.length, 1);
@@ -87,7 +89,7 @@ test("MCP 来源经真实协议检查后安装到单一 App，并由同一 Runti
     assert.deepEqual(entry.applicationIds, ["workspace"], "重复来源不得扩大到另一个 App");
 
     remoteTools = [{ name: "read_status", description: "变化后的说明", inputSchema: { type: "object", properties: { detail: { type: "boolean" } }, additionalProperties: false } }];
-    const drifted = await discoverMcpTools(users.get("user-1").plugins.mcpServers, "workspace", new AbortController().signal, 5);
+    const drifted = await discoverMcpTools(users.get("user-1").plugins.mcpServers, "workspace", "user-1", new AbortController().signal, 5);
     try {
       assert.equal(drifted.tools.length, 0, "远端工具合同变化后不能把工具交给模型");
       assert.equal(drifted.serverStates[0].status, "incompatible");

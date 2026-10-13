@@ -5,7 +5,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { config } from "lfaa-launch-environment/src/config.js";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 
@@ -19,6 +19,7 @@ interface DataDirectoryMigrationRequest {
 }
 
 export interface DataDirectorySettings {
+  configured: boolean;
   currentDirectory: string;
   pendingDirectory: string | null;
   pendingError: string | null;
@@ -55,6 +56,7 @@ function readMigrationRequest(): DataDirectoryMigrationRequest | null {
 export function getDataDirectorySettings(): DataDirectorySettings {
   const pendingRequest = readMigrationRequest();
   return {
+    configured: existsSync(resolve(config.dataDirectory, "credentials", "storage-location-confirmed.json")) || pendingRequest !== null,
     currentDirectory: config.dataDirectory,
     pendingDirectory: pendingRequest?.targetDirectory ?? null,
     pendingError: pendingRequest?.lastError ?? null,
@@ -63,13 +65,25 @@ export function getDataDirectorySettings(): DataDirectorySettings {
   };
 }
 
+/** 在原数据 Owner 中记录用户已确认当前存储位置，不另造一份 data 根配置。 */
+export function confirmDataDirectoryLocation(): DataDirectorySettings {
+  const directory = resolve(config.dataDirectory, "credentials");
+  const info = lstatSync(directory);
+  if (!info.isDirectory() || info.isSymbolicLink()) throw new DataDirectorySettingsError("存储配置目录无效。", "invalid_data_directory");
+  const temporary = resolve(directory, `.storage-location-${randomUUID()}.tmp`);
+  try { writeFileSync(temporary, JSON.stringify({ version: 1, confirmedAt: new Date().toISOString() }), { flag: "wx", mode: 0o600 }); renameSync(temporary, resolve(directory, "storage-location-confirmed.json")); }
+  finally { rmSync(temporary, { force: true }); }
+  return getDataDirectorySettings();
+}
+
 function normalizeTargetDirectory(value: string): string {
   const target = value.trim();
   if (!target || target.length > 2048 || !isAbsolute(target)) {
     throw new DataDirectorySettingsError("请输入有效的绝对目录路径。", "invalid_data_directory");
   }
 
-  return resolve(target);
+  const resolved = resolve(target);
+  return basename(resolved).toLocaleLowerCase("en-US") === "data" ? resolved : resolve(resolved, "data");
 }
 
 function assertSafeDirectoryPair(sourceDirectory: string, targetDirectory: string): void {
@@ -80,8 +94,8 @@ function assertSafeDirectoryPair(sourceDirectory: string, targetDirectory: strin
   }
 
   const repository = resolve(config.repositoryRoot);
-  if (!config.desktopDataDirectoryManaged && (isWithinDirectory(repository, target) || isWithinDirectory(target, repository))) {
-    throw new DataDirectorySettingsError("为避免把数据库和凭据放进源码目录或复制整个项目，新数据目录必须位于项目根目录之外。", "invalid_data_directory");
+  if (!config.desktopDataDirectoryManaged && !samePath(target, resolve(repository, "data")) && (isWithinDirectory(repository, target) || isWithinDirectory(target, repository))) {
+    throw new DataDirectorySettingsError("项目内只允许使用根目录的 data，不能使用源码目录或项目的上级目录。", "invalid_data_directory");
   }
   if (config.desktopDataDirectoryManaged && config.desktopInstallDirectory) {
     const installDirectory = resolve(config.desktopInstallDirectory);
@@ -116,7 +130,7 @@ function assertTargetDirectoryCanBeUsed(targetDirectory: string): void {
       throw new DataDirectorySettingsError("目标目录与当前数据目录在文件系统中重叠；请改选其他位置。", "invalid_data_directory");
     }
     const realRepository = realpathSync.native(config.repositoryRoot);
-    if (isWithinDirectory(realRepository, realTargetDirectory) || isWithinDirectory(realTargetDirectory, realRepository)) {
+    if (!samePath(realTargetDirectory, resolve(realRepository, "data")) && (isWithinDirectory(realRepository, realTargetDirectory) || isWithinDirectory(realTargetDirectory, realRepository))) {
       throw new DataDirectorySettingsError("解析符号链接后目标目录与源码目录重叠；请改选源码目录之外的位置。", "invalid_data_directory");
     }
     if (config.desktopDataDirectoryManaged && config.desktopInstallDirectory) {
@@ -184,7 +198,7 @@ export function requestDataDirectoryChange(value: string): DataDirectorySettings
   const targetDirectory = normalizeTargetDirectory(value);
   if (samePath(targetDirectory, config.dataDirectory)) {
     cancelDataDirectoryChange();
-    return getDataDirectorySettings();
+    return confirmDataDirectoryLocation();
   }
 
   assertLocalDataIsIdle();

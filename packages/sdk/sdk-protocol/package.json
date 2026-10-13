@@ -1,0 +1,6 @@
+{
+  "name": "lfaa-sdk-protocol", "version": "0.1.1", "private": true, "type": "module",
+  "exports": { ".": "./src/index.ts", "./src/*": "./src/*", "./package.json": "./package.json" },
+  "devDependencies": { "lfaa-agent-loop": "workspace:*", "lfaa-session": "workspace:*", "lfaa-util-values": "workspace:*" },
+  "scripts": { "build": "node ../../../scripts/build-harness.mjs package" }
+}

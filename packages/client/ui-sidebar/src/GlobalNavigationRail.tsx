@@ -19,7 +19,8 @@ const applicationLabels: Record<AiSession["appId"], string> = {
   steamcmd: "SteamCMD 游戏服务",
   minecraft: "Minecraft 管理",
   connectivity: "LFAA 联机服务",
-  writing: "写作空间"
+  writing: "写作空间",
+  aivideo: "AI 漫剧"
 };
 
 function formatSessionUpdatedAt(value: string): string {

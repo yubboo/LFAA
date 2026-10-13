@@ -2,7 +2,7 @@
 import { mkdirSync, chmodSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import { database, migrateWorkspaceSchema, migrateWritingCatalogSchema, migrateExecutionControlSchema, migrateMinecraftCoreSchema, migrateWorkspaceProjectSchema, migrateWorkspaceGitSchema, migrateWorkspaceProjectApplicationSchema, migrateWritingEditProposalSchema, migrateStorageHubSchema, migrateWritingBookProfileSchema, migrateKnowledgeLibrarySchema, migrateConversationMemorySchema, migrateMinecraftWorkflowSchema, migrateApplicationWorkflowSchema, migrateWorkflowRunCurrentNodeSchema, migrateConfigurationStorageSchema } from "lfaa-storage-sqlite/src/database.js";
+import { database, migrateWorkspaceSchema, migrateWritingCatalogSchema, migrateExecutionControlSchema, migrateMinecraftCoreSchema, migrateWorkspaceProjectSchema, migrateWorkspaceGitSchema, migrateWorkspaceProjectApplicationSchema, migrateWritingEditProposalSchema, migrateStorageHubSchema, migrateWritingBookProfileSchema, migrateKnowledgeLibrarySchema, migrateConversationMemorySchema, migrateMinecraftWorkflowSchema, migrateApplicationWorkflowSchema, migrateWorkflowRunCurrentNodeSchema, migrateConfigurationStorageSchema, migratePermissionDecisionModeSchema, migrateHostTaskTimeoutSchema, migrateApplicationIdSchema, migrateWritingLocalFileSchema, migrateNodeFileManagerFoundationSchema, migrateNodeFileManagerDirectorySizeSchema } from "lfaa-storage-sqlite/src/database.js";
 import { config } from "lfaa-launch-environment/src/config.js";
 import { JsonStorageBackend } from "lfaa-storage-json/src/index.js";
 import { configuration, configurationTables } from "./configuration.js";
@@ -10,7 +10,7 @@ import { withControlLock } from "./control-lock.js";
 export function retireLegacyFileTables(): void {
   const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
   if (version >= 31) {
-    migrateWorkspaceSchema(); migrateWritingCatalogSchema(); migrateExecutionControlSchema(); migrateMinecraftCoreSchema(); migrateWorkspaceProjectSchema(); migrateWorkspaceGitSchema(); migrateWorkspaceProjectApplicationSchema(); migrateWritingEditProposalSchema(); migrateStorageHubSchema(); migrateWritingBookProfileSchema(); migrateKnowledgeLibrarySchema(); migrateConversationMemorySchema(); migrateMinecraftWorkflowSchema(); migrateApplicationWorkflowSchema(); migrateWorkflowRunCurrentNodeSchema(); migrateConfigurationStorageSchema();
+    migrateWorkspaceSchema(); migrateWritingCatalogSchema(); migrateExecutionControlSchema(); migrateMinecraftCoreSchema(); migrateWorkspaceProjectSchema(); migrateWorkspaceGitSchema(); migrateWorkspaceProjectApplicationSchema(); migrateWritingEditProposalSchema(); migrateStorageHubSchema(); migrateWritingBookProfileSchema(); migrateKnowledgeLibrarySchema(); migrateConversationMemorySchema(); migrateMinecraftWorkflowSchema(); migrateApplicationWorkflowSchema(); migrateWorkflowRunCurrentNodeSchema(); migrateConfigurationStorageSchema(); migratePermissionDecisionModeSchema(); migrateHostTaskTimeoutSchema(); migrateApplicationIdSchema(); migrateWritingLocalFileSchema(); migrateNodeFileManagerFoundationSchema(); migrateNodeFileManagerDirectorySizeSchema();
     configuration.activateSqliteStorage();
     return;
   }
@@ -42,5 +42,11 @@ export function retireLegacyFileTables(): void {
   migrateApplicationWorkflowSchema();
   migrateWorkflowRunCurrentNodeSchema();
   migrateConfigurationStorageSchema();
+  migratePermissionDecisionModeSchema();
+  migrateHostTaskTimeoutSchema();
+  migrateApplicationIdSchema();
+  migrateWritingLocalFileSchema();
+  migrateNodeFileManagerFoundationSchema();
+  migrateNodeFileManagerDirectorySizeSchema();
   configuration.activateSqliteStorage();
 }

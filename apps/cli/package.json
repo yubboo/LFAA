@@ -1,7 +1,7 @@
 {
   "name": "@yubboo/lfaa",
   "private": true,
-  "version": "0.0.5",
+  "version": "0.0.8",
   "type": "module",
   "bin": {
     "lfaa": "./bin/lfaa.mjs"
@@ -22,6 +22,7 @@
     "start": "node --import ./register-package-loader.mjs ../../dist/apps/control-plane/index.js"
   },
   "dependencies": {
+    "lfaa-llm": "workspace:*",
     "@deepseek-ai/cordis": "4.0.4",
     "@deepseek-ai/cordis-plugin-hmr": "1.0.19",
     "@deepseek-ai/cordis-plugin-loader": "1.0.5",

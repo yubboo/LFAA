@@ -8,6 +8,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
+import { spawnSync } from "node:child_process";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(readFileSync(resolve(packageRoot, "package.json"), "utf8"));
@@ -32,6 +33,7 @@ async function main() {
   if (!existsSync(entry)) throw new Error("找不到编译后的 LFAA；请先运行 pnpm install 和 pnpm run build。");
   if (profile === "web" && !existsSync(resolve(runtimeRoot, "dist/apps/web/index.html"))) throw new Error("Web 界面尚未构建；请先运行 pnpm run build:web。");
 
+  const externalDataDirectoryAtStart = process.env.LFAA_DATA_DIR?.trim() ?? "";
   const environmentFile = resolve(packaged ? process.cwd() : runtimeRoot, ".env");
   if (existsSync(environmentFile)) process.loadEnvFile(environmentFile);
   process.env.NODE_ENV ??= "production";
@@ -44,6 +46,18 @@ async function main() {
   if (profile === "web") {
     process.env.LFAA_SERVE_FRONTEND = "true";
     process.env.LFAA_LOCAL_MODE ??= "true";
+    if (process.platform === "win32" && !packaged && !externalDataDirectoryAtStart && process.env.LFAA_DESKTOP_MODE !== "true") {
+      // 本机源码 CLI 与项目菜单共用同一迁移器；外部部署变量和桌面外壳仍保留原 Owner。
+      process.env.LFAA_DATA_DIRECTORY_MIGRATION_SUPPORTED = "1";
+      process.env.LFAA_DATA_DIR_MANAGED_BY_LAUNCHER = "1";
+      const requestPath = resolve(runtimeRoot, ".lfaa-data-directory.pending.json");
+      if (existsSync(requestPath)) {
+        const request = JSON.parse(readFileSync(requestPath, "utf8"));
+        const migration = spawnSync(process.execPath, [resolve(runtimeRoot, "scripts/apply-data-directory-migration.mjs"), runtimeRoot], { stdio: "inherit", windowsHide: true, env: process.env });
+        if (migration.status !== 0) throw new Error("数据迁移未完成，保留原目录；请先停止旧 Web、Daemon 和游戏进程，再完整重启。");
+        process.env.LFAA_DATA_DIR = request.targetDirectory;
+      }
+    }
   }
   if (profile === "daemon" && args[1] === "export") {
     const id = args[args.indexOf("--node") + 1], destination = args[args.indexOf("--output-file") + 1];
@@ -59,19 +73,27 @@ async function main() {
     if (!args.includes("--connection-file") || !file) throw new Error("请指定 --connection-file；不要把通信密钥写在命令参数中。");
     const { configureDaemonConnection } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/host/daemon/src/connection-config.mjs")).href);
     const { resolveDataDirectory } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/util/home-paths/src/resolve-data-directory.mjs")).href);
-    const node = await configureDaemonConnection(resolve(file), resolveDataDirectory(runtimeRoot, process.env.LFAA_DATA_DIR?.trim() || "data"));
+    const node = await configureDaemonConnection(resolve(file), resolveDataDirectory(runtimeRoot, process.env.LFAA_DATA_DIR?.trim() || ""));
     process.stdout.write(`节点连接已保存：${node.displayName}（${node.nodeId}）。运行 lfaa daemon 连接控制端。\n`);
     return;
   }
   await import(pathToFileURL(resolve(runtimeRoot, "apps/cli/register-package-loader.mjs")).href);
   // 在装配前给出实际部署配置错误，不把密钥配置失败埋进一串等待依赖的插件名称中。
-  if (profile === "web") await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/util/launch-environment/src/config.js")).href);
+  const launchConfig = profile === "web"
+    ? (await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/util/launch-environment/src/config.js")).href)).config
+    : null;
   const { boot } = await import(pathToFileURL(entry).href);
   const context = await boot(args);
   if (profile === "web") {
+    if (process.platform === "win32" && launchConfig?.localComputerUse) {
+      const computerTools = context.get("lfaaTools").listAiBusinessTools("workspace", "admin", null, "ask", true, false, true)
+        .filter(tool => tool.id.startsWith("computer-use."));
+      process.stdout.write(computerTools.length
+        ? `本机 Windows 电脑操控适配器已登记 ${computerTools.length} 项工具；账户开关仍需启用，实际动作继续按权限模式执行。\n`
+        : "本机 Windows 电脑操控没有登记工具；请检查本次启动时记录的适配器错误。\n");
+    }
     if (process.platform === "win32" && process.arch === "x64" && !args.includes("--no-local-daemon")) {
-      const { config } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/util/launch-environment/src/config.js")).href);
-      const connectionConfigured = existsSync(resolve(config.dataDirectory, "credentials/daemon-connection.json"));
+      const connectionConfigured = existsSync(resolve(launchConfig.dataDirectory, "credentials/daemon-connection.json"));
       const { superviseLocalDaemon } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/host/daemon/src/supervisor.mjs")).href);
       if (connectionConfigured) process.stderr.write("此数据目录已配置远程节点连接；未将它作为本机节点托管。控制端和远程执行器应使用各自的数据目录。\n");
       else {

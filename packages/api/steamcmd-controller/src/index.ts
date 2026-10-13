@@ -2,11 +2,13 @@
 import { Router } from "express";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication, requireRole } from "lfaa-authorization/src/middleware.js";
+import { assertSystemFileAccess } from "lfaa-fs/src/library.js";
 import { getDaemonDataRoot, getDaemonNode, listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
 import { createSteamcmdTask, getSteamcmdConfigurationDefaults, getSteamcmdNodeConfiguration, getSteamcmdNodeStorageSettings, getSteamcmdStorageDefaults, getSteamcmdTask, hasSteamcmdNodeConfiguration, hasSteamcmdNodeStorageSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdNodeStorageSettings, saveSteamcmdStorageDefaults } from "lfaa-games-steamcmd/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
 import { parseBody, steamcmdConfigurationSettingsSchema, steamcmdStorageSettingsSchema, steamcmdTaskSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { ensureProjectStorageDirectory, isOutsideProjectDataDirectory } from "lfaa-settings/src/project-storage.js";
 export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, realtime: MinecraftRealtimePublisher): void {
 
 router.get("/steamcmd/settings", requireAuthentication, requireRole("admin"), (_request, response) => {
@@ -61,8 +63,11 @@ router.put("/steamcmd/configuration-settings/:nodeId", requireAuthentication, re
 router.put("/steamcmd/storage-settings/defaults", requireAuthentication, requireRole("admin"), (request, response) => {
     const body = parseBody<ReturnType<typeof getSteamcmdStorageDefaults>["settings"]>(steamcmdStorageSettingsSchema, request.body);
     try {
+      if (isOutsideProjectDataDirectory(body.gameDirectory)) assertSystemFileAccess(request.auth!.user.id);
+      ensureProjectStorageDirectory(body.gameDirectory);
       response.json({ settings: saveSteamcmdStorageDefaults(body) });
     } catch (error) {
+      if (error instanceof ApiError) throw error;
       throw new ApiError(400, "invalid_steamcmd_storage_settings", error instanceof Error ? error.message : "Steam 游戏存储设置无效。");
     }
   });
@@ -71,8 +76,10 @@ router.put("/steamcmd/storage-settings/:nodeId", requireAuthentication, requireR
     const body = parseBody<ReturnType<typeof getSteamcmdStorageDefaults>["settings"]>(steamcmdStorageSettingsSchema, request.body);
     if (!getDaemonNode(request.params.nodeId)) throw new ApiError(404, "daemon_node_not_found", "找不到目标 daemon 节点。");
     try {
+      if (/^[a-z]:[\\/]/iu.test(body.gameDirectory)) assertSystemFileAccess(request.auth!.user.id);
       response.json({ settings: saveSteamcmdNodeStorageSettings({ nodeId: request.params.nodeId, ...body }) });
     } catch (error) {
+      if (error instanceof ApiError) throw error;
       throw new ApiError(400, "invalid_steamcmd_storage_settings", error instanceof Error ? error.message : "Steam 游戏存储设置无效。");
     }
   });

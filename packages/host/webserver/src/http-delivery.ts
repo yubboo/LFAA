@@ -8,17 +8,27 @@ import { readFile } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
 import express, { type Express } from "express";
 
-export function requestLogLevel(method: string, path: string, statusCode: number): "debug" | "info" | "warn" | "error" {
+export function requestLogLevel(method: string, path: string, statusCode: number, expectedWallpaperMiss = false): "debug" | "info" | "warn" | "error" {
   if (statusCode >= 500) return "error";
-  if (statusCode >= 400) return "warn";
-  // 正常读取和节点空队列查询是访问明细；写入、启动与故障仍在默认日志中可见。
+  if (statusCode >= 400) {
+    const methodCanProbe = method === "GET" || method === "HEAD";
+    const expectedWallpaperProbe = ["/wallpaper-engine/scene-frame/", "/wallpaper-engine/scene-audio/", "/wallpaper-engine/scene-files/"]
+      .some((prefix) => path.startsWith(prefix));
+    if (statusCode === 404 && methodCanProbe && expectedWallpaperMiss && expectedWallpaperProbe) return "debug";
+    return "warn";
+  }
+  if (method === "POST" && path === "/wallpaper-engine/client-diag") return "debug";
+  if (method === "PUT" && path === "/wallpaper-engine/settings") return "debug";
+  // 正常读取和后台只读复核/节点空队列轮询是访问明细；写入、启动与故障仍在默认日志中可见。
   if (method === "GET" || method === "HEAD") return "debug";
   if (method === "POST" && (
-    path === "/api/daemon/heartbeat"
+    path === "/api/typert/auth/me"
+    || path === "/api/daemon/heartbeat"
     || path === "/api/daemon/tasks/claim"
     || path === "/api/daemon/files/tasks/claim"
     || path === "/api/daemon/steamcmd/tasks/claim"
     || path === "/api/daemon/ai/host-tasks/claim"
+    || path === "/api/connectivity/daemon/easytier/install/claim"
   )) return "debug";
   return "info";
 }

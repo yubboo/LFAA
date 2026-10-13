@@ -3,8 +3,11 @@
  * 作用：确保 Owner 在首帧可由账户设置确定，且 LFAA 壁纸偏好不会被清空。
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { resolveWallpaperCanvasOwnership } from '../../../packages/client/ui-layout/src/wallpaper-canvas-ownership.ts';
+
+const workbenchCss = readFileSync(new URL('../../../packages/client/ui-layout/src/workbench.css', import.meta.url), 'utf8');
 
 test('引擎启用且选择项目时首帧将画布交给插件，但仍标记有壁纸表面', () => {
   assert.deepEqual(resolveWallpaperCanvasOwnership({
@@ -38,4 +41,10 @@ test('双方都没有已选壁纸时不声明壁纸背景', () => {
     wallpaperEngineOwnsCanvas: false,
     hasWallpaperBackground: false
   });
+});
+
+test('插件在当前页面开始显示壁纸后立即启用现有 LFAA 表面外观', () => {
+  assert.match(workbenchCss, /body\[data-we-wallpaper\] \.workbench-shell :is\([^)]*\.settings-content/s);
+  assert.match(workbenchCss, /body\[data-we-wallpaper\] \.workbench-shell\[data-translucent-sidebar="true"\] :is\([^)]*\.settings-sidebar/s);
+  assert.match(workbenchCss, /body\[data-we-wallpaper\] \.workbench-shell \.lfaa-workbench__pane--left/);
 });

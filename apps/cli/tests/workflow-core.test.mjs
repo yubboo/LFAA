@@ -22,6 +22,81 @@ test("v44 Minecraft 工作流保留并迁移到账户文件，SQLite 只保留 A
   seeded.exec(`
     PRAGMA foreign_keys = ON;
     CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL) STRICT;
+    CREATE TABLE daemon_nodes (id TEXT PRIMARY KEY NOT NULL) STRICT;
+    CREATE TABLE user_preferences (
+      user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      selected_app TEXT NOT NULL CHECK (selected_app IN ('steamcmd', 'minecraft', 'writing')),
+      selected_mode TEXT NOT NULL CHECK (selected_mode IN ('normal', 'ai-work'))
+    ) STRICT;
+    CREATE TABLE ai_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      app_id TEXT NOT NULL CHECK (app_id IN ('steamcmd', 'minecraft', 'writing', 'workspace')),
+      title TEXT NOT NULL
+    ) STRICT;
+    -- v44 已有节点任务队列；v49 放宽超时约束，v50 扩展 AI 漫剧 App 作用域。
+    CREATE TABLE ai_host_tasks (
+      id TEXT PRIMARY KEY NOT NULL,
+      node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE CASCADE,
+      created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      app_id TEXT NOT NULL CHECK (app_id IN ('steamcmd', 'minecraft', 'writing', 'workspace')),
+      shell TEXT NOT NULL CHECK (shell IN ('system', 'powershell', 'cmd', 'bash', 'zsh', 'project-files')),
+      working_directory TEXT NOT NULL,
+      command TEXT NOT NULL,
+      timeout_seconds INTEGER NOT NULL DEFAULT 60 CHECK (timeout_seconds BETWEEN 1 AND 1800),
+      status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed')),
+      message TEXT NOT NULL,
+      result_json TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      started_at TEXT,
+      finished_at TEXT,
+      lease_expires_at TEXT,
+      cancel_requested INTEGER NOT NULL DEFAULT 0 CHECK (cancel_requested IN (0, 1)),
+      output_sequence INTEGER NOT NULL DEFAULT 0
+    ) STRICT;
+    CREATE INDEX ai_host_tasks_node_queue_idx ON ai_host_tasks(node_id, status, created_at);
+    CREATE INDEX ai_host_tasks_retention_idx ON ai_host_tasks(status, finished_at);
+    -- v44 已包含审批表；后续权限迁移会为它补充决策模式列和索引。
+    CREATE TABLE ai_tool_approvals (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      session_id TEXT NOT NULL,
+      app_id TEXT NOT NULL CHECK (app_id IN ('steamcmd', 'minecraft', 'writing', 'workspace')),
+      tool_id TEXT NOT NULL,
+      tool_version TEXT NOT NULL,
+      risk TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      scope_summary TEXT NOT NULL,
+      action_hash TEXT NOT NULL,
+      scope_hash TEXT NOT NULL,
+      status TEXT NOT NULL,
+      requested_at TEXT NOT NULL,
+      expires_at TEXT,
+      decided_at TEXT,
+      decided_by TEXT REFERENCES users(id) ON DELETE SET NULL
+    ) STRICT;
+    CREATE TABLE ai_tool_permission_grants (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      app_id TEXT NOT NULL CHECK (app_id IN ('steamcmd', 'minecraft', 'writing', 'workspace')),
+      tool_id TEXT NOT NULL,
+      tool_version TEXT NOT NULL,
+      risk TEXT NOT NULL,
+      scope_hash TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      scope_summary TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    ) STRICT;
+    CREATE TABLE knowledge_library_items (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      application_id TEXT NOT NULL CHECK (application_id IN ('all', 'workspace', 'steamcmd', 'minecraft', 'writing')),
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content_markdown TEXT NOT NULL,
+      content_sha256 TEXT NOT NULL,
+      source_kind TEXT NOT NULL
+    ) STRICT;
     CREATE TABLE workflow_definitions (
       id TEXT PRIMARY KEY NOT NULL,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -55,7 +130,7 @@ test("v44 Minecraft 工作流保留并迁移到账户文件，SQLite 只保留 A
     const script = [
       "import assert from 'node:assert/strict';",
       "const { database } = await import('lfaa-storage-sqlite/src/database.js');",
-      "assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 47);",
+      "assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 50);",
       "assert.ok(database.prepare('PRAGMA table_info(workflow_runs)').all().some(column => column.name === 'current_node_id'));",
       "assert.equal(database.prepare('SELECT application_id FROM workflow_definitions WHERE id = ?').get('legacy-minecraft').application_id, 'minecraft');",
       "const { createWorkflow, getWorkflow, listWorkflows, updateWorkflow } = await import('lfaa-workflow/src/service.js');",

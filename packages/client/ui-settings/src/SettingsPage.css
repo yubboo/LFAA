@@ -500,7 +500,7 @@
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--space-2);
-  background: #f2f5fa;
+  background: #fff;
 }
 
 .settings-theme-option__preview i {
@@ -508,13 +508,13 @@
   height: 15px;
   flex: 1;
   border-radius: 3px 3px 0 0;
-  background: #d5ddea;
+  background: #dedede;
 }
 
 .settings-theme-option__preview i:first-child {
   height: 27px;
   flex: .7;
-  background: #e4eaf4;
+  background: #f5f5f5;
 }
 
 .settings-theme-option__preview i:last-child {
@@ -536,15 +536,15 @@
 }
 
 .settings-theme-option__preview--system {
-  background: linear-gradient(110deg, #f2f5fa 50%, #181818 50%);
+  background: linear-gradient(110deg, #fff 50%, #181818 50%);
 }
 
 .settings-theme-option__preview--system i:first-child {
-  background: linear-gradient(90deg, #e4eaf4 50%, #262626 50%);
+  background: linear-gradient(90deg, #f5f5f5 50%, #262626 50%);
 }
 
 .settings-theme-option__preview--system i:nth-child(2) {
-  background: linear-gradient(90deg, #d5ddea 50%, #3a3a3a 50%);
+  background: linear-gradient(90deg, #dedede 50%, #3a3a3a 50%);
 }
 
 /* 四个工作台预设共用简洁的列结构预览，窄屏下改为两列卡片。 */

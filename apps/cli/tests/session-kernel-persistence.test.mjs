@@ -20,6 +20,71 @@ const setup = `
   const close=()=>{configuration.close();sessionRecords.close();closeDatabase();};
 `;
 
+test("正文分段和审批记录经 JSONL 重启与分页保留，非法范围拒绝", () => {
+  const parent = resolve(cli, "../../dist/.tmp"); mkdirSync(parent, { recursive: true });
+  const data = mkdtempSync(join(parent, "lfaa-session-response-parts-"));
+  try {
+    const output = run(data, `${setup}
+      (await import('lfaa-storage-domain/src/migration.js')).retireLegacyFileTables();
+      database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES ('parts-owner','parts-owner','salt','hash','admin')").run();
+      const turn=sessions.createAiTurn('parts-owner','workspace',null,'检查分段');
+      const parts=[{id:'first',start:0,end:2,kind:'commentary'},{id:'last',start:2,end:4,kind:'final'}];
+      assert.throws(()=>sessions.finishAiAssistantMessage('parts-owner',turn.session.id,turn.assistantMessage.id,'阶段结果','complete',[{id:'bad',start:0,end:9,kind:'final'}]),/分段无效/);
+      sessions.saveAiAssistantActivity('parts-owner',turn.session.id,turn.assistantMessage.id,[{id:'approval',kind:'command',title:'真实审批',detail:'执行完成',status:'complete',startedAt:turn.assistantMessage.createdAt,completedAt:turn.assistantMessage.createdAt,durationMs:0,contentOffset:2,approvalId:'approval-id',approvalQuestion:'允许执行本次操作吗？',approvalAnswer:'approved'}]);
+      sessions.finishAiAssistantMessage('parts-owner',turn.session.id,turn.assistantMessage.id,'阶段结果','complete',parts);
+      assert.deepEqual(sessions.getAiSessionMessages('parts-owner',turn.session.id).at(-1).parts,parts);
+      console.log(JSON.stringify({id:turn.session.id}));close();
+    `);
+    run(data, `${setup}
+      const ids=${JSON.stringify(JSON.parse(output))};
+      for(const id of [ids.id]){
+        const page=await sessions.getAiSessionMessagesPage('parts-owner',id,undefined,100);
+        const reply=page.messages.at(-1);
+        assert.deepEqual(reply.parts.map(part=>part.kind),['commentary','final']);
+        assert.equal(reply.activity[0].contentOffset,2);assert.equal(reply.activity[0].approvalAnswer,'approved');
+        assert.equal(await sessions.getAiSessionMessagesPage('other-owner',id,undefined),null);
+      }close();
+    `);
+  } finally {
+    assert.equal(dirname(resolve(data)), parent); assert.ok(basename(data).startsWith("lfaa-session-response-parts-"));
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test("私有 Provider 续接协议经 JSONL 重启恢复，消息、查询与导出始终只返回公开字段", () => {
+  const parent = resolve(cli, '../../dist/.tmp');
+  mkdirSync(parent, { recursive: true });
+  const data = mkdtempSync(join(parent, 'lfaa-session-provider-replay-'));
+  try {
+    const output = run(data, `${setup}
+      (await import('lfaa-storage-domain/src/migration.js')).retireLegacyFileTables();
+      database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES ('replay-owner','replay-owner','salt','hash','admin')").run();
+      const turn=sessions.createAiTurn('replay-owner','workspace',null,'合成首问');
+      const replay={accountId:'fixture-account',providerId:'fixture-provider',modelId:'fixture-model',reasoningContent:'private-durable-replay'};
+      sessions.recordAiModelResponse('replay-owner',turn.session.id,turn.assistantMessage.id,'公开回答',[],['公开回答'],undefined,replay);
+      sessions.saveAiModelHistory('replay-owner',turn.session.id,turn.assistantMessage.id,[{role:'assistant',content:'公开回答',providerReplay:replay}]);
+      sessions.finishAiAssistantMessage('replay-owner',turn.session.id,turn.assistantMessage.id,'公开回答','complete');
+      console.log(JSON.stringify({sessionId:turn.session.id}));close();
+    `);
+    run(data, `${setup}
+      const {exportSessionLog}=await import('lfaa-session-log-export');
+      const ids=${JSON.stringify(JSON.parse(output))};
+      const turn=sessions.createAiTurn('replay-owner','workspace',ids.sessionId,'合成后续问题');
+      assert.equal(turn.history.find(message=>message.role==='assistant').providerReplay.reasoningContent,'private-durable-replay');
+      const page=await sessions.getAiSessionMessagesPage('replay-owner',ids.sessionId,undefined,100);
+      assert.ok(page.messages.length>=3);
+      const events=await sessions.getAiQueryEventsPage('replay-owner',ids.sessionId,ids.sessionId,{after:0,limit:100});
+      const exported=exportSessionLog({header:sessions.getAiSession('replay-owner',ids.sessionId),messages:page.messages});
+      assert.doesNotMatch(JSON.stringify([page,events,exported]),/private-durable-replay|providerReplay/u);
+      assert.throws(()=>sessions.recordAiModelResponse('replay-owner',ids.sessionId,turn.assistantMessage.id,'',[],undefined,undefined,{accountId:'fixture-account',providerId:'fixture-provider',modelId:123,reasoningContent:'invalid'}),/载荷无效/u);
+      close();
+    `);
+  } finally {
+    assert.equal(dirname(resolve(data)), parent);
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
 test("真实 Agent 请求、Tool 中断修复、精确 fork 与重启沿用唯一 JSONL Owner", () => {
   const parent = resolve(cli, "../../dist/.tmp");
   mkdirSync(parent, { recursive: true });
@@ -75,6 +140,33 @@ test("真实 Agent 请求、Tool 中断修复、精确 fork 与重启沿用唯�
   }
 });
 
+test("Session 活动持久化有界文件路径并拒绝不安全的变更路径", () => {
+  const parent = resolve(cli, "../../dist/.tmp");
+  mkdirSync(parent, { recursive: true });
+  const data = mkdtempSync(join(parent, "lfaa-session-file-activity-"));
+  try {
+    run(data, `${setup}
+      database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('file-owner',20,'file-owner','salt','hash','admin',1)").run();
+      const turn=sessions.createAiTurn('file-owner','writing',null,'检查文件改动');
+      const activity={id:'file-change',kind:'tool',title:'操作项目文件',status:'complete',detail:'已返回真实结果。',startedAt:'2026-10-10T00:00:00.000Z',completedAt:'2026-10-10T00:00:01.000Z',durationMs:1000,fileChanges:[{operation:'modified',path:'packages/core/example.ts',projectId:'project-file-owner'}]};
+      sessions.saveAiAssistantActivity('file-owner',turn.session.id,turn.assistantMessage.id,[activity]);
+      const visible=sessions.getAiSessionMessages('file-owner',turn.session.id).at(-1).activity;
+      assert.deepEqual(visible[0].fileChanges,activity.fileChanges);
+      const event=sessionRecords.allForSession('session_events',turn.session.id).find(row=>row.type==='activity/change');
+      assert.deepEqual(event.data.activity[0].fileChanges,activity.fileChanges);
+      assert.doesNotMatch(JSON.stringify(visible),/file contents|oldText|newText/u);
+      sessions.saveAiAssistantActivity('file-owner',turn.session.id,turn.assistantMessage.id,[{...activity,fileChanges:[{operation:'modified',path:'../outside.txt',projectId:'project-file-owner'}]}]);
+      assert.deepEqual(sessions.getAiSessionMessages('file-owner',turn.session.id).at(-1).activity,[]);
+      await sessions.flushAiSession('file-owner',turn.session.id);
+      close();
+    `);
+  } finally {
+    assert.equal(dirname(resolve(data)), parent);
+    assert.ok(basename(data).startsWith("lfaa-session-file-activity-"));
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
 test("旧会话首次读取幂等导入消息、Tool 历史、项目与真实用量", () => {
   const parent = resolve(cli, "../../dist/.tmp");
   mkdirSync(parent, { recursive: true });
@@ -114,7 +206,7 @@ test("旧会话首次读取幂等导入消息、Tool 历史、项目与真实用
   }
 });
 
-test("回答反馈由 Session Owner 持久化，分支只继承所选完整回答的上下文前缀", () => {
+test("回答反馈由 Session Owner 持久化，Worktree 记忆分支绑定已校验项目", () => {
   const parent = resolve(cli, "../../dist/.tmp");
   mkdirSync(parent, { recursive: true });
   const data = mkdtempSync(join(parent, "lfaa-session-message-actions-"));
@@ -128,28 +220,20 @@ test("回答反馈由 Session Owner 持久化，分支只继承所选完整回�
       assert.deepEqual(submitted.reasons,['解决了我的问题']);
       assert.equal(sessions.submitAiMessageFeedback('feedback-owner',first.session.id,first.assistantMessage.id,{rating:'negative',reasons:['回答不够准确'],detail:''}).rating,'positive');
       assert.equal(sessions.submitAiMessageFeedback('feedback-other',first.session.id,first.assistantMessage.id,{rating:'positive',reasons:['快速高效'],detail:''}),null);
-      const second=sessions.createAiTurn('feedback-owner','writing',first.session.id,'第二个问题');
-      assert.equal(sessions.forkAiSessionFromMessage('feedback-owner',first.session.id,second.assistantMessage.id),null);
-      const branch=sessions.forkAiSessionFromMessage('feedback-owner',first.session.id,first.assistantMessage.id);
-      assert.ok(branch);
-      assert.equal(branch.appId,'writing');
-      assert.deepEqual(sessions.getAiSessionMessages('feedback-owner',branch.id).map(message=>message.content),['第一个问题','第一个完整回答']);
-      assert.equal(sessions.getAiSessionMessages('feedback-owner',branch.id).at(-1).feedback,undefined);
-      assert.equal(sessions.getAiSessionMessages('feedback-owner',first.session.id).at(-3).feedback.rating,'positive');
+      assert.equal(sessions.getAiSessionMessages('feedback-owner',first.session.id).at(-1).feedback.rating,'positive');
       const feedbackEvents=sessionRecords.allForSession('session_events',first.session.id).filter(event=>event.type==='message/feedback');
       assert.equal(feedbackEvents.length,1);
-      assert.equal(sessions.forkAiSessionFromMessage('feedback-other',first.session.id,first.assistantMessage.id),null);
       const sourceProject={id:'minecraft-source',appId:'minecraft',nodeId:'daemon-a',path:'H:/projects/source',title:'源项目'};
       const sourceTurn=sessions.createAiTurn('feedback-owner','minecraft',null,'工作树分支上下文');
       sessions.finishAiAssistantMessage('feedback-owner',sourceTurn.session.id,sourceTurn.assistantMessage.id,'继续在隔离工作树中处理','complete');
       assert.equal(sessions.setAiSessionProject('feedback-owner',sourceTurn.session.id,sourceProject).projectId,sourceProject.id);
       const targetProject={id:'minecraft-worktree',appId:'minecraft',nodeId:'daemon-a',path:'H:/projects/source-worktree',title:'源项目 · AI Worktree'};
-      const worktreeBranch=sessions.forkAiSessionFromMessage('feedback-owner',sourceTurn.session.id,sourceTurn.assistantMessage.id,targetProject);
+      const worktreeSeed=sessions.prepareAiSessionBranchSeed('feedback-owner',sourceTurn.session.id,sourceTurn.assistantMessage.id,200000);
+      const worktreeBranch=sessions.createAiSessionBranchWithMemory('feedback-owner',worktreeSeed,'工作树分支记忆',[{providerId:'fixture-provider',modelId:'fixture-model',promptTokens:9,completionTokens:4}],targetProject);
       assert.equal(worktreeBranch.projectId,targetProject.id);
-      assert.deepEqual(sessions.getAiSessionMessages('feedback-owner',worktreeBranch.id).map(message=>message.content),['工作树分支上下文','继续在隔离工作树中处理']);
+      assert.deepEqual(sessions.getAiSessionMessages('feedback-owner',worktreeBranch.id),[]);
       assert.equal(sessions.getAiSession('feedback-owner',sourceTurn.session.id).projectId,sourceProject.id);
       assert.deepEqual(sessions.getAiSessionWorkspaceContext('feedback-owner',worktreeBranch.id),targetProject);
-      await sessions.flushAiSession('feedback-owner',first.session.id);
       await sessions.flushAiSession('feedback-owner',sourceTurn.session.id);
       close();
     `);
@@ -157,11 +241,12 @@ test("回答反馈由 Session Owner 持久化，分支只继承所选完整回�
       const source=sessionRecords.all('ai_sessions',row=>row.user_id==='feedback-owner'&&row.title==='第一个问题').find(row=>!row.archived);
       assert.ok(source);
       const messages=sessions.getAiSessionMessages('feedback-owner',source.id);
-      assert.equal(messages.at(-3).feedback.rating,'positive');
-      assert.equal(messages.at(-3).feedback.detail,'说明清楚');
+      assert.equal(messages.at(-1).feedback.rating,'positive');
+      assert.equal(messages.at(-1).feedback.detail,'说明清楚');
       assert.equal(sessionRecords.allForSession('session_events',source.id).filter(event=>event.type==='message/feedback').length,1);
-      const worktreeBranch=sessionRecords.all('ai_sessions',row=>row.user_id==='feedback-owner'&&row.workspace_project_id==='minecraft-worktree').find(row=>row.title==='工作树分支上下文（分支）');
+      const worktreeBranch=sessionRecords.all('ai_sessions',row=>row.user_id==='feedback-owner'&&row.workspace_project_id==='minecraft-worktree').find(row=>row.title==='工作树分支上下文（记忆分支）');
       assert.ok(worktreeBranch);
+      assert.deepEqual(sessions.getAiSessionMessages('feedback-owner',worktreeBranch.id),[]);
       assert.deepEqual(sessions.getAiSessionWorkspaceContext('feedback-owner',worktreeBranch.id),{id:'minecraft-worktree',appId:'minecraft',nodeId:'daemon-a',path:'H:/projects/source-worktree',title:'源项目 · AI Worktree'});
       close();
     `);
@@ -264,6 +349,31 @@ test("编辑用户问题只从该轮之前分支，拒绝活动运行和 run 内
       const branch=sessionRecords.all('ai_sessions',row=>row.user_id==='edit-owner'&&row.title==='第一个问题（分支）').find(row=>!row.archived);
       assert.ok(branch);
       assert.deepEqual(sessions.getAiSessionMessages('edit-owner',branch.id).map(message=>message.content),['第一个问题','第一个完整回答']);
+      const source=sessionRecords.all('ai_sessions',row=>row.user_id==='edit-owner'&&row.app_id==='writing'&&row.title==='第一个问题')[0];
+      assert.ok(source);
+      const branchPage=await sessions.getAiSessionMessagesPage('edit-owner',branch.id,undefined,50);
+      assert.equal(branchPage.branchSource.session.id,source.id);
+      assert.equal(branchPage.branchSource.session.title,'第一个问题');
+      assert.equal(branchPage.branchSource.session.archived,false);
+      assert.equal((await sessions.getAiSessionMessagesPage('edit-other',branch.id,undefined,50)),null);
+      const nestedMessage=sessions.getAiSessionMessages('edit-owner',branch.id).at(-1);
+      const nestedSeed=sessions.prepareAiSessionBranchSeed('edit-owner',branch.id,nestedMessage.id,200000);
+      const nestedBranch=sessions.createAiSessionBranchWithMemory('edit-owner',nestedSeed,'嵌套的压缩记忆',[{providerId:'fixture-provider',modelId:'fixture-model',promptTokens:8,completionTokens:3}]);
+      assert.ok(nestedBranch);
+      assert.deepEqual(sessions.getAiSessionMessages('edit-owner',nestedBranch.id),[]);
+      const nestedPage=await sessions.getAiSessionMessagesPage('edit-owner',nestedBranch.id,undefined,50);
+      assert.equal(nestedPage.branchSource.session.id,branch.id);
+      const nestedEditBranch=sessions.forkAiSessionBeforeUserMessage('edit-owner',branch.id,sessions.getAiSessionMessages('edit-owner',branch.id)[0].id);
+      assert.ok(nestedEditBranch);
+      assert.deepEqual(sessions.getAiSessionMessages('edit-owner',nestedEditBranch.id),[]);
+      const nestedEditPage=await sessions.getAiSessionMessagesPage('edit-owner',nestedEditBranch.id,undefined,50);
+      assert.equal(nestedEditPage.branchSource.session.id,branch.id);
+      const sourcePage=await sessions.getAiSessionMessagesPage('edit-owner',source.id,undefined,50);
+      assert.equal(Object.hasOwn(sourcePage,'branchSource'),false);
+      sessions.setAiSessionArchived('edit-owner',source.id,true);
+      const archivedBranchPage=await sessions.getAiSessionMessagesPage('edit-owner',branch.id,undefined,50);
+      assert.equal(archivedBranchPage.branchSource.title,'第一个问题');
+      assert.equal(archivedBranchPage.branchSource.session.archived,true);
       const projectBranch=sessionRecords.all('ai_sessions',row=>row.user_id==='edit-owner'&&row.workspace_project_id==='edit-project').find(row=>!row.archived);
       assert.ok(projectBranch);
       assert.deepEqual(sessions.getAiSessionWorkspaceContext('edit-owner',projectBranch.id),{id:'edit-project',appId:'minecraft',nodeId:'daemon-edit',path:'H:/projects/edit',title:'编辑回归项目'});
@@ -297,7 +407,8 @@ test("计划模式由 Session JSONL 持久化、按账户隔离并随分支恢�
       assert.equal(sessions.setAiSessionPlanMode('plan-other',active.session.id,false),null);
       const next=sessions.createAiTurn('plan-owner','writing',active.session.id,'补充方案约束');
       sessions.finishAiAssistantMessage('plan-owner',active.session.id,next.assistantMessage.id,'已补充','complete');
-      const branch=sessions.forkAiSessionFromMessage('plan-owner',active.session.id,next.assistantMessage.id);
+      const branchSeed=sessions.prepareAiSessionBranchSeed('plan-owner',active.session.id,next.assistantMessage.id,200000);
+      const branch=sessions.createAiSessionBranchWithMemory('plan-owner',branchSeed,'计划模式记忆',[{providerId:'fixture-provider',modelId:'fixture-model',promptTokens:10,completionTokens:4}]);
       assert.equal(branch.planMode,true);
       const side=sessions.forkAiSessionForSideChat('plan-owner',active.session.id);
       assert.ok(side);

@@ -9,13 +9,20 @@ import { getUserSettings } from "lfaa-settings/src/service.js";
 import { createAiHostTask, getAiHostTask, requestAiHostTaskCancellation } from "lfaa-jobs/src/ai-host-tasks.js";
 import type { AiBusinessTool } from "./business-tools.js";
 
-const schema = Joi.object({ nodeId: Joi.string().uuid(), operation: Joi.string().valid("list", "read", "search", "search_markdown", "create", "create_tree", "replace", "diff", "discover_skills").required(), rootDirectory: Joi.string().max(32760).allow("").default(""), path: Joi.string().max(32760).allow("").default(""), offset: Joi.number().integer().min(0).max(2 * 1024 * 1024), query: Joi.string().min(1).max(500), content: Joi.string().allow("").max(2 * 1024 * 1024), files: Joi.array().items(Joi.object({ path: Joi.string().min(1).max(512).required(), content: Joi.string().max(2 * 1024 * 1024).required() }).unknown(false)).min(1).max(128).when("operation", { is: "create_tree", then: Joi.required(), otherwise: Joi.forbidden() }), oldText: Joi.string().min(1).max(2 * 1024 * 1024), newText: Joi.string().allow("").max(2 * 1024 * 1024), sha256: Joi.string().pattern(/^[a-f0-9]{64}$/u) }).unknown(false);
+const schema = Joi.object({ nodeId: Joi.string().uuid(), operation: Joi.string().valid("list", "read", "search", "search_markdown", "create", "create_tree", "write", "replace", "delete", "diff", "discover_skills").required(), rootDirectory: Joi.string().max(32760).allow("").default(""), path: Joi.string().max(32760).allow("").default(""), offset: Joi.number().integer().min(0).max(2 * 1024 * 1024), query: Joi.string().min(1).max(500), content: Joi.string().allow("").max(2 * 1024 * 1024), files: Joi.array().items(Joi.object({ path: Joi.string().min(1).max(512).required(), content: Joi.string().max(2 * 1024 * 1024).required() }).unknown(false)).min(1).max(128).when("operation", { is: "create_tree", then: Joi.required(), otherwise: Joi.forbidden() }), oldText: Joi.string().min(1).max(2 * 1024 * 1024), newText: Joi.string().allow("").max(2 * 1024 * 1024), sha256: Joi.string().pattern(/^[a-f0-9]{64}$/u) }).unknown(false);
 
 export const projectFileTool: AiBusinessTool = {
   id: "project.files", name: "project_file_operation", applicationIds: ["workspace", "minecraft"],
-  description: "在当前会话选中的项目目录中列目录、检索、读文本、创建文件、原子创建一组 UTF-8 文件、用唯一锚点局部替换或查询 Git 差异；当会话未关联项目时，才需要提供真实在线节点和根目录。discover_skills 发现项目 .agents/skills 和 .lfaa/skills 中的真实 SKILL.md，之后用 read 按需加载。create_tree 只在目标目录不存在时创建完整文件树，失败时清理暂存目录且不覆盖现有内容。替换必须提供最近读取的 sha256，不能盲目覆盖。",
-  schema: { type: "object", additionalProperties: false, properties: { nodeId: { type: "string", format: "uuid" }, operation: { type: "string", enum: ["list", "read", "search", "search_markdown", "create", "create_tree", "replace", "diff", "discover_skills"] }, rootDirectory: { type: "string" }, path: { type: "string" }, offset: { type: "integer", minimum: 0 }, query: { type: "string" }, content: { type: "string" }, files: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, properties: { path: { type: "string", maxLength: 512 }, content: { type: "string", maxLength: 2097152 } }, required: ["path", "content"] } }, oldText: { type: "string" }, newText: { type: "string" }, sha256: { type: "string" } }, required: ["operation"] },
-  parse(value) { const result = schema.validate(value); if (result.error || result.value.operation === "create_tree" && !result.value.path) throw new Error("项目文件工具参数无效。"); return result.value as Record<string, unknown>; },
+  description: "在当前会话选中的项目目录中列目录、检索、读写和删除普通文件、原子创建一组 UTF-8 文件、用唯一锚点局部替换或查询 Git 差异；当会话未关联项目时，才需要提供真实在线节点和根目录。discover_skills 发现项目 .agents/skills 和 .lfaa/skills 中的真实 SKILL.md，之后用 read 按需加载。create_tree 只在目标目录不存在时创建完整文件树，失败时清理暂存目录且不覆盖现有内容。覆盖或替换必须提供最近读取的 sha256；delete 仅删除目标根目录内的普通文件，不递归删除目录。",
+  schema: { type: "object", additionalProperties: false, properties: { nodeId: { type: "string", format: "uuid" }, operation: { type: "string", enum: ["list", "read", "search", "search_markdown", "create", "create_tree", "write", "replace", "delete", "diff", "discover_skills"] }, rootDirectory: { type: "string" }, path: { type: "string" }, offset: { type: "integer", minimum: 0 }, query: { type: "string" }, content: { type: "string" }, files: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, properties: { path: { type: "string", maxLength: 512 }, content: { type: "string", maxLength: 2097152 } }, required: ["path", "content"] } }, oldText: { type: "string" }, newText: { type: "string" }, sha256: { type: "string", description: "覆盖或替换已有文件时必须使用最近读取返回的摘要。" } }, required: ["operation"] },
+  parse(value) {
+    const result = schema.validate(value);
+    const operation = result.value?.operation;
+    if (result.error || operation === "create_tree" && !result.value.path || operation === "delete" && !result.value.path
+      || operation === "write" && (!result.value.path || typeof result.value.content !== "string" || !result.value.sha256)
+      || operation === "replace" && (!result.value.path || !result.value.sha256)) throw new Error("项目文件工具参数无效。");
+    return result.value as Record<string, unknown>;
+  },
   prepare(parameters, context) {
     const folder = getUserSettings(context.userId).general.taskFolder;
     const root = context.workspaceProject?.path ?? String(parameters.rootDirectory || folder);
@@ -24,7 +31,12 @@ export const projectFileTool: AiBusinessTool = {
     if (!nodeId) throw new Error("请先选择项目目录，或指定真实在线 Daemon 节点。");
     return { ...parameters, nodeId, rootDirectory: root, configuredRoot: root === folder, workspaceTitle: context.workspaceProject?.title ?? null };
   },
-  risk: parameters => ["create", "create_tree", "replace"].includes(String(parameters.operation)) ? "write" : parameters.configuredRoot === true ? "read" : "dangerous",
+  risk(parameters) {
+    const operation = String(parameters.operation);
+    if (operation === "delete") return "dangerous";
+    if (["create", "create_tree", "replace", "write"].includes(operation)) return "write";
+    return parameters.configuredRoot === true ? "read" : "dangerous";
+  },
   approval(parameters) { const scopeKey = createHash("sha256").update(JSON.stringify([parameters.nodeId, parameters.rootDirectory, parameters.path, parameters.operation])).digest("hex"); return { scopeKey: `project:${scopeKey}`, scopeSummary: `${parameters.rootDirectory} · ${parameters.path}`.slice(0, 240), summary: `项目文件操作：${parameters.operation}` }; },
   async execute(parameters, context) {
     const { nodeId, configuredRoot: _configuredRoot, workspaceTitle: _workspaceTitle, ...input } = parameters;
@@ -47,3 +59,28 @@ export const projectFileTool: AiBusinessTool = {
     }
   }
 };
+
+/** 通用文件工具只翻译参数；文件范围与权限由项目文件工具解析，真实文件操作交给节点 Daemon 的 project-files 通用文件任务执行器。 */
+export function projectFileAlias(tool: Pick<AiBusinessTool, "id" | "name" | "coreManaged" | "description" | "applicationIds" | "schema" | "parse">, operation: string): AiBusinessTool {
+  return {
+    ...tool,
+    description: `${tool.description} 在目标节点的通用文件任务执行器上执行，不读取控制端宿主。工具优先使用当前会话项目或设置中心任务目录；未关联有效目录时，沿用现有 nodeId/rootDirectory 参数合同。修改已有文件必须携带最近读取的 sha256，新建文件不携带 sha256。`,
+    schema: { ...tool.schema, properties: { ...(tool.schema.properties as Record<string, unknown>), nodeId: { type: "string", format: "uuid" }, rootDirectory: { type: "string", maxLength: 32760 }, sha256: { type: "string", pattern: "^[a-f0-9]{64}$" } } },
+    parse(value) {
+      const envelope = Joi.object({ nodeId: Joi.string().uuid(), rootDirectory: Joi.string().max(32760), sha256: Joi.string().pattern(/^[a-f0-9]{64}$/u) }).unknown(true).validate(value, { convert: false });
+      if (envelope.error) throw new Error("文件工具目标或摘要参数无效。");
+      const { nodeId, rootDirectory, sha256, ...argumentsValue } = envelope.value;
+      return { ...tool.parse(argumentsValue), ...(nodeId ? { nodeId } : {}), ...(rootDirectory ? { rootDirectory } : {}), ...(sha256 ? { sha256 } : {}) };
+    },
+    prepare(parameters, context) {
+      const mapped = { ...parameters, operation: operation === "write" && !parameters.sha256 ? "create" : operation,
+        ...(operation === "read_lines" ? { lineOffset: parameters.offset, lineLimit: parameters.limit } : {}),
+        ...(operation === "search_files" ? { query: parameters.pattern } : {}),
+        ...(operation === "replace" ? { oldText: parameters.old_string, newText: parameters.new_string } : {}) };
+      return projectFileTool.prepare!(mapped, context);
+    },
+    risk: parameters => String(parameters.operation) === "delete" ? "dangerous" : ["write", "create", "replace"].includes(String(parameters.operation)) ? "write" : projectFileTool.risk(parameters),
+    approval: projectFileTool.approval,
+    execute: projectFileTool.execute
+  };
+}

@@ -3,8 +3,9 @@
  * 作用：减少逐 token React 更新；非文本事件前刷新以保留协议顺序，取消/卸载时撤销待处理帧。
  * 关联文件：api.ts 的 streamAiChat；AiWorkChat 消费完整且有序的增量。
  */
-export function createStreamDeltas(emit: (value: { messageId: string; delta: string }) => void) {
-  let pending: { messageId: string; delta: string } | null = null;
+type TextDelta = { messageId: string; delta: string; partId?: string; partStart?: number };
+export function createStreamDeltas(emit: (value: TextDelta) => void) {
+  let pending: TextDelta | null = null;
   let frame: number | null = null;
   function flush() {
     if (frame !== null) cancelAnimationFrame(frame);
@@ -19,8 +20,8 @@ export function createStreamDeltas(emit: (value: { messageId: string; delta: str
     pending = null;
   }
   return {
-    push(value: { messageId: string; delta: string }) {
-      if (pending && pending.messageId !== value.messageId) flush();
+    push(value: TextDelta) {
+      if (pending && (pending.messageId !== value.messageId || pending.partId !== value.partId || pending.partStart !== value.partStart)) flush();
       if (pending) pending.delta += value.delta;
       else pending = { ...value };
       if (frame === null) frame = requestAnimationFrame(flush);

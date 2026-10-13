@@ -3,7 +3,7 @@
  * 作用：缓存当前设备最近加载的背景标识，并解析为静态资源路径；不缓存账户私有的上传图片。
  * 关联文件：packages/client/ui-settings-account/src/AuthView.tsx、packages/client/ui-settings/src/SettingsPage.tsx、packages/client/ui-layout/src/Workbench.tsx。
  */
-import { minecraftSceneBackgrounds } from "lfaa-client-ui-minecraft/src/assets/minecraftScenes.js";
+import { minecraftSceneBackgrounds } from "lfaa-util-values/src/builtin-backgrounds.js";
 
 const loginBackgroundStorageKey = "lfaa:login-background";
 export const defaultLoginBackgroundId = "forest-bridge-evening";

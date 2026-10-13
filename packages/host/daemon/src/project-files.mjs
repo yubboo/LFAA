@@ -1,9 +1,9 @@
 /**
- * 功能：执行项目文件的真实读取、检索、创建和唯一锚点修改。
+ * 功能：执行项目文件的真实读取、检索、创建、修改、删除和唯一锚点编辑。
  * 作用：验证规范路径、拒绝越界符号链接，使用文件摘要检测并发修改，返回可核对的内容与差异。
  * 关联文件：daemon.mjs 的 project-files 任务执行器、git-workspace.mjs、core/tools/project-tools.ts；可作为独立 Node 任务运行。
  */
-import { readFile, writeFile, realpath, stat, lstat, readdir, mkdir, opendir, rename, rm } from "node:fs/promises";
+import { readFile, writeFile, realpath, stat, lstat, readdir, mkdir, opendir, rename, rm, unlink } from "node:fs/promises";
 import { resolve, relative, dirname, isAbsolute, sep, parse } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -55,6 +55,10 @@ async function checkedPath(root, value, create = false) {
     catch (error) { if (!create || error.code !== "ENOENT" || dirname(ancestor) === ancestor) throw error; ancestor = dirname(ancestor); }
   }
   return path;
+}
+// 活动记录只消费经 Daemon 校验后的项目相对路径，避免把节点绝对路径传到浏览器。
+function toProjectRelativePath(root, path) {
+  return relative(root, path).split(sep).join("/");
 }
 async function readText(path) {
   const details = await stat(path);
@@ -116,10 +120,20 @@ export async function executeProjectFile(input) {
     }
     return { path: canonical, root: parse(canonical).root, entries: visible.slice(0, 500), truncated: listed.truncated || visible.length > 500 };
   }
-  if (!input || !["list", "read", "search", "search_markdown", "create", "create_tree", "replace", "write", "diff", "discover_skills"].includes(input.operation) || typeof input.rootDirectory !== "string" || !isAbsolute(input.rootDirectory)) throw new Error("项目操作或绝对根目录无效。");
+  if (!input || !["list", "read", "read_lines", "read_image", "search_files", "search", "search_markdown", "create", "create_tree", "replace", "write", "delete", "diff", "discover_skills"].includes(input.operation) || typeof input.rootDirectory !== "string" || !isAbsolute(input.rootDirectory)) throw new Error("项目操作或绝对根目录无效。");
   const root = await realpath(input.rootDirectory);
   await assertOutsideDataRoot(root);
   const path = await checkedPath(root, input.path, input.operation === "create" || input.operation === "create_tree");
+  if (input.operation === "delete") {
+    if (typeof input.path !== "string" || input.path.trim() === "" || path === root) throw new Error("删除必须指定项目根目录内的普通文件路径。 ");
+    const initial = await lstat(path);
+    if (initial.isSymbolicLink() || !initial.isFile()) throw new Error("删除仅支持普通文件，不支持符号链接或目录。 ");
+    await checkedPath(root, input.path);
+    const current = await lstat(path);
+    if (current.isSymbolicLink() || !current.isFile() || current.dev !== initial.dev || current.ino !== initial.ino) throw new Error("删除前目标文件已变化；未删除。 ");
+    await unlink(path);
+    return { path, relativePath: toProjectRelativePath(root, path), deleted: true };
+  }
   if (input.operation === "discover_skills") {
     const skills = [];
     // 使用项目内公开约定目录；发现只返回真实路径，模型按任务需要再读取 SKILL.md。
@@ -148,16 +162,44 @@ export async function executeProjectFile(input) {
     visible.sort((left, right) => Number(right.isDirectory()) - Number(left.isDirectory()) || left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
     return { root, path, entries: visible.slice(0, 1000).map(entry => ({ name: entry.name, directory: entry.isDirectory(), symbolicLink: entry.isSymbolicLink() })), truncated: listed.truncated || visible.length > 1000 };
   }
+  if (input.operation === "read_image") {
+    // 任务输出协议上限 1 MiB，图像字节限制为 512 KiB，为 JSON/base64 留出空间。
+    const info = await stat(path);
+    if (!info.isFile() || info.size > 512 * 1024) throw new Error("图像必须是 512 KiB 以内的普通 PNG/JPEG/WebP 文件，请先缩小图像。");
+    const bytes = await readFile(path);
+    if (bytes.length > 512 * 1024) throw new Error("读取期间图像超过大小限制。");
+    const mimeType = bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ? "image/png"
+      : bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 ? "image/jpeg"
+      : bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP" ? "image/webp" : null;
+    if (!mimeType) throw new Error("文件不是受支持的 PNG/JPEG/WebP 图像。");
+    return { path, relativePath: toProjectRelativePath(root, path), bytes: bytes.length, content: [{ type: "image", mimeType, data: bytes.toString("base64") }] };
+  }
+  if (input.operation === "read_lines") {
+    const content = await readText(path);
+    const offset = input.lineOffset ?? 1, limit = input.lineLimit ?? 2000;
+    if (!Number.isSafeInteger(offset) || offset < 1 || !Number.isSafeInteger(limit) || limit < 1 || limit > 2000) throw new Error("读取行范围无效。");
+    const lines = content.split(/\r?\n/u), selected = []; let size = 0;
+    for (let index = offset - 1; index < Math.min(lines.length, offset - 1 + limit); index++) {
+      const line = `${index + 1}: ${lines[index].slice(0, 2000)}`;
+      size += Buffer.byteLength(line);
+      if (size > 40000) break;
+      selected.push(line);
+    }
+    return { path, relativePath: toProjectRelativePath(root, path), content: selected.join("\n"), totalLines: lines.length, nextLine: offset + selected.length, truncated: offset - 1 + selected.length < lines.length, sha256: digest(content) };
+  }
   if (input.operation === "read") {
     const content = await readText(path);
     const offset = Math.max(0, Number(input.offset) || 0);
     const requestedLimit = Number.isInteger(input.limit) ? input.limit : 40000;
     const limit = Math.max(1, Math.min(requestedLimit, 100000));
-    return { path, content: content.slice(offset, offset + limit), offset, totalCharacters: content.length, truncated: offset + limit < content.length, sha256: digest(content) };
+    return { path, relativePath: toProjectRelativePath(root, path), content: content.slice(offset, offset + limit), offset, totalCharacters: content.length, truncated: offset + limit < content.length, sha256: digest(content) };
   }
-  if (input.operation === "search" || input.operation === "search_markdown") {
+  if (input.operation === "search" || input.operation === "search_markdown" || input.operation === "search_files") {
     if (typeof input.query !== "string" || !input.query.length) throw new Error("检索文本不能为空。");
     const markdownOnly = input.operation === "search_markdown";
+    const filenameOnly = input.operation === "search_files";
+    if (input.query.length > 500) throw new Error("检索文本过长。");
+    const filePattern = filenameOnly ? new RegExp(`^${input.query.replace(/[.+^${}()|[\]\\]/gu, "\\$&").replaceAll("*", ".*").replaceAll("?", ".")}$`, "iu") : null;
     const matches = []; let scanned = 0; let directories = 0; let truncated = false;
     const walk = async directory => {
       if (directories >= 1000) { truncated = true; return; }
@@ -172,6 +214,7 @@ export async function executeProjectFile(input) {
         if (entry.isDirectory()) await walk(child);
         else if (entry.isFile()) {
           scanned += 1;
+          if (filenameOnly) { if (filePattern.test(entry.name)) matches.push({ path: relative(root, child) }); continue; }
           if (markdownOnly && !/\.(?:md|markdown)$/iu.test(entry.name)) continue;
           let content;
           try { content = await readText(child); } catch { continue; }
@@ -188,7 +231,7 @@ export async function executeProjectFile(input) {
     await mkdir(dirname(path), { recursive: true });
     await checkedPath(root, input.path, true);
     await writeFile(path, input.content, { flag: "wx" });
-    return { path, created: true, sha256: digest(input.content) };
+    return { path, relativePath: toProjectRelativePath(root, path), created: true, sha256: digest(input.content) };
   }
   if (input.operation === "create_tree") {
     if (!Array.isArray(input.files) || input.files.length < 1 || input.files.length > 128 || path === root) throw new Error("文件树必须包含 1–128 个文件，并且不能覆盖项目根目录。");
@@ -230,7 +273,8 @@ export async function executeProjectFile(input) {
       const installedPath = await realpath(path);
       assertWithin(root, installedPath);
       await assertOutsideDataRoot(installedPath);
-      return { path: installedPath, created: true, files: files.map(file => ({ path: file.path, sha256: file.sha256, bytes: Buffer.byteLength(file.content, "utf8") })), totalBytes };
+      const relativeBase = toProjectRelativePath(root, installedPath);
+      return { path: installedPath, relativePath: relativeBase, created: true, files: files.map(file => ({ path: file.path, relativePath: `${relativeBase}/${file.path}`, sha256: file.sha256, bytes: Buffer.byteLength(file.content, "utf8") })), totalBytes };
     } catch (error) {
       await rm(stage, { recursive: true, force: true }).catch(() => undefined);
       throw error;
@@ -248,19 +292,20 @@ export async function executeProjectFile(input) {
       await checkedPath(root, input.path);
       if (digest(await readText(path)) !== input.sha256) throw new Error("写入前文件已变化，请重新读取后再保存。");
       await rename(temporary, path);
-      return { path, sha256: digest(input.content), changed: before !== input.content, bytes: Buffer.byteLength(input.content, "utf8") };
+      return { path, relativePath: toProjectRelativePath(root, path), sha256: digest(input.content), changed: before !== input.content, bytes: Buffer.byteLength(input.content, "utf8") };
     } finally { await rm(temporary, { force: true }).catch(() => undefined); }
   }
-  if (typeof input.sha256 !== "string" || digest(before) !== input.sha256) throw new Error("文件已变化，请重新读取后再修改。");
+  if (typeof input.sha256 !== "string") throw new Error("修改已有文件必须提供最近读取的 sha256 摘要。");
+  if (digest(before) !== input.sha256) throw new Error("文件已变化，请重新读取后再修改。");
   if (typeof input.oldText !== "string" || !input.oldText.length || typeof input.newText !== "string") throw new Error("替换锚点或内容无效。");
   const index = before.indexOf(input.oldText);
-  if (index < 0 || before.indexOf(input.oldText, index + 1) >= 0) throw new Error("替换锚点不存在或不唯一，未写入文件。");
-  const after = before.slice(0, index) + input.newText + before.slice(index + input.oldText.length);
+  if (index < 0 || input.replace_all !== true && before.indexOf(input.oldText, index + 1) >= 0) throw new Error("替换锚点不存在或不唯一，未写入文件。");
+  const after = input.replace_all === true ? before.replaceAll(input.oldText, input.newText) : before.slice(0, index) + input.newText + before.slice(index + input.oldText.length);
   if (Buffer.byteLength(after) > textLimit) throw new Error("修改后文件超过允许大小。");
   await checkedPath(root, input.path);
   if (digest(await readText(path)) !== input.sha256) throw new Error("写入前文件已变化，未覆盖其他修改。");
   await writeFile(path, after);
-  return { path, sha256: digest(after), change: { oldText: input.oldText, newText: input.newText }, changed: before !== after };
+  return { path, relativePath: toProjectRelativePath(root, path), sha256: digest(after), change: { oldText: input.oldText, newText: input.newText }, changed: before !== after };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -8,4 +8,4 @@
 
 变更审阅通过 `POST /workspace/projects/:projectId/git/file-diff` 返回单文件 Git 差异；`/files/read` 提供分段 UTF-8 文本读取，`/files/write` 只接受带 SHA-256 的用户主动编辑保存。三条路由均从认证账户、App 项目登记和目标 Daemon 解析真实根目录，不接受任意绝对路径。文件读写继续由 `project-files-v1` 执行器校验路径、符号链接、文本类型、2 MiB 上限和并发摘要；编辑器 API 不加入模型 `project-tools` 的操作合同。
 
-`POST /workspace/sessions/:sessionId/fork` 只接受消息 ID、目标受管项目 ID 和 App。控制器验证源会话属于当前账户/App 且绑定原始项目，并验证目标 Worktree 的源项目、Daemon 与 App 完全对应；随后调用 Session Owner 按完成回答推导上下文前缀，并在新 Session 事务中绑定已校验的 Worktree 项目。该接口不接受客户端目录或任意会话上下文。
+`POST /workspace/sessions/:sessionId/fork` 只接受消息 ID、目标受管项目 ID 和 App。控制器验证源会话属于当前账户/App 且绑定原始项目，并验证目标 Worktree 的源项目、Daemon 与 App 完全对应；随后由 Agent Loop 使用当前 Provider 整理至完成回答的对话记忆，Session Owner 在创建新 Session 时只保存该记忆与来源关系，并绑定已校验的 Worktree 项目。该接口不接受客户端目录或任意会话上下文，也不复制父消息或重放工具。

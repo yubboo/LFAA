@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 47;
+const latestSupportedDatabaseVersion = 53;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -1495,7 +1495,8 @@ export function migrateConfigurationStorageSchema(): void {
           'user_settings', 'user_preferences', 'ai_accounts',
           'minecraft_storage_settings_defaults', 'minecraft_storage_node_settings',
           'steamcmd_configuration_defaults', 'steamcmd_configuration_node_settings',
-          'steamcmd_storage_defaults', 'steamcmd_storage_node_settings'
+          'steamcmd_storage_defaults', 'steamcmd_storage_node_settings',
+          'project_storage_locations'
         )),
         record_key TEXT NOT NULL,
         user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
@@ -1532,5 +1533,297 @@ export function migrateConfigurationStorageSchema(): void {
   }
 }
 
+/** 版本 54 为配置记录表登记项目存储位置域，保留原有配置记录与索引。 */
+export function migrateProjectStorageLocationsSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 47 || version >= 54) return;
+  const foreignKeysEnabled = Number(database.prepare("PRAGMA foreign_keys").get()!.foreign_keys) === 1;
+  database.exec("PRAGMA foreign_keys = OFF;");
+  try {
+    database.exec("BEGIN IMMEDIATE;");
+    const table = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'configuration_records'").get() as { sql?: string } | undefined;
+    if (!table?.sql) throw new Error("v54 迁移找不到 configuration_records 表；数据库未更改。");
+    if (table.sql.includes("'project_storage_locations'")) {
+      database.exec("PRAGMA user_version = 54; COMMIT;");
+      return;
+    }
+    const updatedSql = table.sql.replace(
+      /('steamcmd_storage_defaults'\s*,\s*'steamcmd_storage_node_settings')/u,
+      "$1, 'project_storage_locations'"
+    );
+    if (updatedSql === table.sql) throw new Error("v54 迁移无法安全扩展配置记录域；数据库未更改。");
+    const temporarySql = updatedSql.replace(/^CREATE\s+TABLE\s+(?:[" ]?configuration_records[" ]?)(?=\s|\()/iu, "CREATE TABLE configuration_records_v54");
+    if (temporarySql === updatedSql) throw new Error("v54 迁移无法安全重建 configuration_records 表；数据库未更改。");
+    const indexes = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'configuration_records' AND sql IS NOT NULL ORDER BY name").all() as Array<{ sql: string }>;
+    database.exec(temporarySql);
+    database.exec("INSERT INTO configuration_records_v54 SELECT * FROM configuration_records; DROP TABLE configuration_records; ALTER TABLE configuration_records_v54 RENAME TO configuration_records;");
+    for (const index of indexes) database.exec(index.sql);
+    database.exec("PRAGMA user_version = 54;");
+    if (database.prepare("PRAGMA foreign_key_check").all().length) throw new Error("v54 迁移外键检查失败；数据库事务已回滚。");
+    database.exec("COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  } finally {
+    database.exec(`PRAGMA foreign_keys = ${foreignKeysEnabled ? "ON" : "OFF"}`);
+  }
+}
+
 // SQLite 46+ 可以先安全创建新 schema；storage-domain 在验证旧来源后再原子导入并启用。
 migrateConfigurationStorageSchema();
+
+/** 版本 48 记录审批决策时生效的权限模式，以便按同一授权范围累计明确批准。 */
+export function migratePermissionDecisionModeSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 47 || version >= 48) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      ALTER TABLE ai_tool_approvals ADD COLUMN decision_mode TEXT CHECK (decision_mode IS NULL OR decision_mode IN ('ask', 'approve_remembered', 'full_access'));
+      ALTER TABLE ai_tool_approvals ADD COLUMN memory_generation INTEGER NOT NULL DEFAULT 0 CHECK (memory_generation >= 0);
+      CREATE TABLE ai_tool_permission_memory_state (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        app_id TEXT NOT NULL,
+        tool_id TEXT NOT NULL,
+        tool_version TEXT NOT NULL,
+        risk TEXT NOT NULL CHECK (risk IN ('write', 'dangerous')),
+        scope_hash TEXT NOT NULL CHECK (length(scope_hash) = 64),
+        generation INTEGER NOT NULL CHECK (generation >= 0),
+        PRIMARY KEY (user_id, app_id, tool_id, tool_version, risk, scope_hash)
+      ) STRICT;
+      CREATE INDEX ai_tool_approvals_scope_memory_idx ON ai_tool_approvals(user_id, app_id, tool_id, tool_version, risk, scope_hash, memory_generation, decision_mode, decided_by, status, decided_at);
+      PRAGMA user_version = 48;
+      COMMIT;
+    `);
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migratePermissionDecisionModeSchema();
+
+/** 版本 49 允许通用 Daemon 任务使用 0 表示不限时，与现行任务执行合同一致。 */
+export function migrateHostTaskTimeoutSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 48 || version >= 49) return;
+
+  const foreignKeys = Number(database.prepare("PRAGMA foreign_keys").get()!.foreign_keys) === 1;
+  database.exec("PRAGMA foreign_keys = OFF;");
+  let transactionStarted = false;
+  try {
+    database.exec("BEGIN IMMEDIATE;");
+    transactionStarted = true;
+    const table = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'ai_host_tasks'").get() as { sql?: string } | undefined;
+    if (!table?.sql) throw new Error("v49 迁移找不到 ai_host_tasks 表；数据库未更改。");
+    const indexes = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'ai_host_tasks' AND sql IS NOT NULL ORDER BY name").all() as Array<{ sql: string }>;
+    const legacyConstraint = /timeout_seconds\s+INTEGER\s+NOT\s+NULL(?:\s+DEFAULT\s+\d+)?\s+CHECK\s*\(\s*timeout_seconds\s+BETWEEN\s+1\s+AND\s+1800\s*\)/iu;
+    const permissiveConstraint = /timeout_seconds\s+INTEGER\s+NOT\s+NULL(?:\s+DEFAULT\s+\d+)?\s+CHECK\s*\(\s*timeout_seconds\s+BETWEEN\s+0\s+AND\s+1800\s*\)/iu;
+    let replacementSql = table.sql;
+    if (legacyConstraint.test(replacementSql)) {
+      replacementSql = replacementSql.replace(legacyConstraint, "timeout_seconds INTEGER NOT NULL DEFAULT 0 CHECK (timeout_seconds BETWEEN 0 AND 1800)");
+    } else if (!permissiveConstraint.test(replacementSql)) {
+      throw new Error("v49 迁移发现未知的 ai_host_tasks.timeout_seconds 约束；数据库未更改。");
+    }
+
+    if (replacementSql !== table.sql) {
+      const tempSql = replacementSql.replace(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:["]ai_host_tasks["]|ai_host_tasks)(?=\s|\()/iu, "CREATE TABLE ai_host_tasks_v49");
+      if (tempSql === replacementSql) throw new Error("v49 迁移无法安全重建 ai_host_tasks；数据库未更改。");
+      database.exec(tempSql);
+      const columns = database.prepare("PRAGMA table_info(ai_host_tasks)").all() as Array<{ name: string }>;
+      if (!columns.length) throw new Error("v49 迁移无法读取 ai_host_tasks 列；数据库未更改。");
+      const names = columns.map(column => `\"${column.name.replaceAll("\"", "\"\"")}\"`).join(", ");
+      database.exec(`INSERT INTO ai_host_tasks_v49 (${names}) SELECT ${names} FROM ai_host_tasks;`);
+      database.exec("DROP TABLE ai_host_tasks;");
+      database.exec("ALTER TABLE ai_host_tasks_v49 RENAME TO ai_host_tasks;");
+      for (const index of indexes) database.exec(index.sql);
+      const violations = database.prepare("PRAGMA foreign_key_check(ai_host_tasks)").all();
+      if (violations.length) throw new Error("v49 迁移后 ai_host_tasks 外键检查失败；数据库事务已回滚。");
+    }
+    database.exec("PRAGMA user_version = 49;");
+    database.exec("COMMIT;");
+    transactionStarted = false;
+  } catch (error) {
+    if (transactionStarted) database.exec("ROLLBACK;");
+    throw error;
+  } finally {
+    if (foreignKeys) database.exec("PRAGMA foreign_keys = ON;");
+  }
+}
+migrateHostTaskTimeoutSchema();
+
+/** 版本 50 将 aivideo 纳入既有 App 作用域表，按事务重建并保留记录、索引与外键。 */
+export function migrateApplicationIdSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 49 || version >= 50) return;
+
+  const tables = [
+    ["user_preferences", "selected_app"],
+    ["ai_sessions", "app_id"],
+    ["ai_tool_approvals", "app_id"],
+    ["ai_tool_permission_grants", "app_id"],
+    ["ai_host_tasks", "app_id"],
+    ["knowledge_library_items", "application_id"],
+    ["workflow_definitions", "application_id"]
+  ] as const;
+  const foreignKeysEnabled = Number(database.prepare("PRAGMA foreign_keys").get()!.foreign_keys) === 1;
+  database.exec("PRAGMA foreign_keys = OFF;");
+  let transactionStarted = false;
+  try {
+    database.exec("BEGIN IMMEDIATE;");
+    transactionStarted = true;
+    for (const [tableName, columnName] of tables) {
+      const table = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName) as { sql?: string } | undefined;
+      // v31 之后应用偏好归账户设置文件负责；旧 user_preferences 表已随迁移退役。
+      if (!table?.sql && tableName === "user_preferences") continue;
+      if (!table?.sql) throw new Error(`v50 迁移找不到 ${tableName} 表；数据库未更改。`);
+      const listPattern = new RegExp(`\\b${columnName}\\s+IN\\s*\\(([^()]*)\\)`, "iu");
+      const listMatch = listPattern.exec(table.sql);
+      if (!listMatch) throw new Error(`v50 迁移找不到 ${tableName}.${columnName} 的应用约束；数据库未更改。`);
+      const values = listMatch[1].split(",").map(value => value.trim());
+      if (!values.length || values.some(value => !/^'[^']*'$/u.test(value))) throw new Error(`v50 迁移发现未知的 ${tableName}.${columnName} 约束；数据库未更改。`);
+      if (values.includes("'aivideo'")) continue;
+
+      const indexes = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL ORDER BY name").all(tableName) as Array<{ sql: string }>;
+      const triggers = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'trigger' AND tbl_name = ? AND sql IS NOT NULL ORDER BY name").all(tableName) as Array<{ sql: string }>;
+      const temporaryName = `${tableName}_v50`;
+      if (database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(temporaryName)) throw new Error(`v50 迁移发现临时表 ${temporaryName}；数据库未更改。`);
+      const updatedSql = table.sql.replace(listPattern, (_match, list: string) => `${columnName} IN (${list}, 'aivideo')`);
+      const temporarySql = updatedSql.replace(new RegExp(`^CREATE\\s+TABLE\\s+(?:[\"]${tableName}[\"]|${tableName})(?=\\s|\\()`, "iu"), `CREATE TABLE ${temporaryName}`);
+      if (temporarySql === updatedSql) throw new Error(`v50 迁移无法安全重建 ${tableName}；数据库未更改。`);
+      database.exec(temporarySql);
+      const columns = database.prepare(`PRAGMA table_info("${tableName}")`).all() as Array<{ name: string }>;
+      if (!columns.length) throw new Error(`v50 迁移无法读取 ${tableName} 的列；数据库未更改。`);
+      const names = columns.map(column => `"${column.name.replaceAll("\"", "\"\"")}"`).join(", ");
+      database.exec(`INSERT INTO ${temporaryName} (${names}) SELECT ${names} FROM ${tableName};`);
+      database.exec(`DROP TABLE ${tableName}; ALTER TABLE ${temporaryName} RENAME TO ${tableName};`);
+      for (const index of indexes) database.exec(index.sql);
+      for (const trigger of triggers) database.exec(trigger.sql);
+    }
+    if (database.prepare("PRAGMA foreign_key_check").all().length) throw new Error("v50 迁移后外键检查失败；数据库事务已回滚。");
+    database.exec("PRAGMA user_version = 50; COMMIT;");
+    transactionStarted = false;
+  } catch (error) {
+    if (transactionStarted) database.exec("ROLLBACK;");
+    throw error;
+  } finally {
+    database.exec(`PRAGMA foreign_keys = ${foreignKeysEnabled ? "ON" : "OFF"};`);
+  }
+}
+migrateApplicationIdSchema();
+
+/** 版本 51 为 Writing 文件化保存增加修订字数投影与逐作品迁移标记；正文由 Writing Owner 校验后迁移。 */
+export function migrateWritingLocalFileSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 50 || version >= 51) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      ALTER TABLE writing_chapters ADD COLUMN word_count INTEGER NOT NULL DEFAULT 0 CHECK (word_count >= 0);
+      ALTER TABLE writing_chapter_revisions ADD COLUMN word_count INTEGER NOT NULL DEFAULT 0 CHECK (word_count >= 0);
+      ALTER TABLE writing_book_outline_revisions ADD COLUMN word_count INTEGER NOT NULL DEFAULT 0 CHECK (word_count >= 0);
+      CREATE TABLE writing_local_file_migrations (
+        book_id TEXT PRIMARY KEY NOT NULL REFERENCES writing_books(id) ON DELETE CASCADE,
+        format_version INTEGER NOT NULL CHECK (format_version = 1),
+        content_count INTEGER NOT NULL CHECK (content_count >= 1),
+        migrated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+      PRAGMA user_version = 51;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateWritingLocalFileSchema();
+
+/** 版本 52 扩展节点文件任务操作集合，并保存不含文件正文的可检索审计索引。 */
+export function migrateNodeFileManagerFoundationSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 51 || version >= 52) return;
+  const foreignKeysEnabled = Number(database.prepare("PRAGMA foreign_keys").get()!.foreign_keys) === 1;
+  database.exec("PRAGMA foreign_keys = OFF;");
+  try {
+    database.exec("BEGIN IMMEDIATE;");
+    const table = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'node_file_tasks'").get() as { sql?: string } | undefined;
+    if (!table?.sql) throw new Error("v52 迁移找不到 node_file_tasks 表；数据库未更改。");
+    const operationPattern = /operation\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(operation\s+IN\s*\(([^()]*)\)\)/iu;
+    const match = operationPattern.exec(table.sql);
+    if (!match) throw new Error("v52 迁移找不到文件操作约束；数据库未更改。");
+    const additions = ["preview", "move", "trash-list", "trash-restore", "trash-purge"];
+    const existingValues = match[1].split(",").map(value => value.trim());
+    if (existingValues.some(value => !/^'[^']*'$/u.test(value))) throw new Error("v52 迁移遇到未知文件操作约束；数据库未更改。");
+    const updatedSql = table.sql.replace(operationPattern, (_whole, values: string) => `operation TEXT NOT NULL CHECK (operation IN (${values}, ${additions.map(value => `'${value}'`).join(", ")}))`);
+    const temporarySql = updatedSql.replace(/^CREATE\s+TABLE\s+(?:[" ]?node_file_tasks[" ]?)(?=\s|\()/iu, "CREATE TABLE node_file_tasks_v52");
+    if (temporarySql === updatedSql) throw new Error("v52 迁移无法安全重建文件任务表；数据库未更改。");
+    const indexes = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'node_file_tasks' AND sql IS NOT NULL ORDER BY name").all() as Array<{ sql: string }>;
+    database.exec(temporarySql);
+    database.exec("INSERT INTO node_file_tasks_v52 SELECT * FROM node_file_tasks; DROP TABLE node_file_tasks; ALTER TABLE node_file_tasks_v52 RENAME TO node_file_tasks;");
+    for (const index of indexes) database.exec(index.sql);
+    database.exec(`
+      CREATE TABLE node_file_audit (
+        id TEXT PRIMARY KEY NOT NULL,
+        task_id TEXT NOT NULL UNIQUE,
+        node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        operation TEXT NOT NULL,
+        path TEXT NOT NULL DEFAULT '',
+        target_path TEXT NOT NULL DEFAULT '',
+        file_name TEXT NOT NULL DEFAULT '',
+        succeeded INTEGER NOT NULL CHECK (succeeded IN (0, 1)),
+        created_at TEXT NOT NULL,
+        finished_at TEXT NOT NULL
+      ) STRICT;
+      CREATE INDEX node_file_audit_recent_idx ON node_file_audit(finished_at DESC, id);
+      CREATE INDEX node_file_audit_actor_idx ON node_file_audit(user_id, finished_at DESC);
+      PRAGMA user_version = 52;
+    `);
+    if (database.prepare("PRAGMA foreign_key_check").all().length) throw new Error("v52 迁移外键检查失败；数据库事务已回滚。");
+    database.exec("COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  } finally {
+    database.exec(`PRAGMA foreign_keys = ${foreignKeysEnabled ? "ON" : "OFF"}`);
+  }
+}
+migrateNodeFileManagerFoundationSchema();
+
+/** 版本 53 允许文件任务队列登记按需计算目录大小的只读操作。 */
+export function migrateNodeFileManagerDirectorySizeSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 52 || version >= 53) return;
+  const foreignKeysEnabled = Number(database.prepare("PRAGMA foreign_keys").get()!.foreign_keys) === 1;
+  database.exec("PRAGMA foreign_keys = OFF;");
+  try {
+    database.exec("BEGIN IMMEDIATE;");
+    const table = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'node_file_tasks'").get() as { sql?: string } | undefined;
+    if (!table?.sql) throw new Error("v53 迁移找不到 node_file_tasks 表；数据库未更改。");
+    const operationPattern = /operation\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(operation\s+IN\s*\(([^()]*)\)\)/iu;
+    const match = operationPattern.exec(table.sql);
+    if (!match) throw new Error("v53 迁移找不到文件操作约束；数据库未更改。");
+    const existingValues = match[1].split(",").map(value => value.trim());
+    if (existingValues.some(value => !/^'[^']*'$/u.test(value))) throw new Error("v53 迁移遇到未知文件操作约束；数据库未更改。");
+    if (existingValues.includes("'directory-size'")) {
+      database.exec("PRAGMA user_version = 53; COMMIT;");
+      return;
+    }
+    const updatedSql = table.sql.replace(operationPattern, (_whole, values: string) => `operation TEXT NOT NULL CHECK (operation IN (${values}, 'directory-size'))`);
+    const temporarySql = updatedSql.replace(/^CREATE\s+TABLE\s+(?:[" ]?node_file_tasks[" ]?)(?=\s|\()/iu, "CREATE TABLE node_file_tasks_v53");
+    if (temporarySql === updatedSql) throw new Error("v53 迁移无法安全重建文件任务表；数据库未更改。");
+    const indexes = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'node_file_tasks' AND sql IS NOT NULL ORDER BY name").all() as Array<{ sql: string }>;
+    database.exec(temporarySql);
+    database.exec("INSERT INTO node_file_tasks_v53 SELECT * FROM node_file_tasks; DROP TABLE node_file_tasks; ALTER TABLE node_file_tasks_v53 RENAME TO node_file_tasks;");
+    for (const index of indexes) database.exec(index.sql);
+    database.exec("PRAGMA user_version = 53;");
+    if (database.prepare("PRAGMA foreign_key_check").all().length) throw new Error("v53 迁移外键检查失败；数据库事务已回滚。");
+    database.exec("COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  } finally {
+    database.exec(`PRAGMA foreign_keys = ${foreignKeysEnabled ? "ON" : "OFF"}`);
+  }
+}
+migrateNodeFileManagerDirectorySizeSchema();
+migrateProjectStorageLocationsSchema();

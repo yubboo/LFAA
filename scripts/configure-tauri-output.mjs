@@ -18,7 +18,17 @@ export async function configureTauriOutput() {
   let info;
   try { info = await lstat(source); } catch (error) { if (error.code !== "ENOENT") throw error; }
   if (info?.isSymbolicLink()) {
-    if ((await realpath(source)).toLocaleLowerCase() !== (await realpath(destination)).toLocaleLowerCase()) throw new Error("Tauri gen 指向了非预期目录。");
+    let resolvedSource;
+    try { resolvedSource = await realpath(source); }
+    catch (error) {
+      if (error.code !== "ENOENT") throw error;
+      // A copied checkout can retain a junction to the former root. Remove only
+      // the broken link itself, then point it at this checkout's managed dist.
+      await rm(source, { recursive: true, force: true });
+      await symlink(destination, source, process.platform === "win32" ? "junction" : "dir");
+      return;
+    }
+    if (resolvedSource.toLocaleLowerCase() !== (await realpath(destination)).toLocaleLowerCase()) throw new Error("Tauri gen 指向了非预期目录。");
     return;
   }
   if (info) {

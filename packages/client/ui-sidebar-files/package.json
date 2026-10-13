@@ -16,7 +16,9 @@
     "lfaa-client-modules": "workspace:*",
     "lfaa-client-ui-primitives": "workspace:*",
     "lfaa-client-ui-sidebar": "workspace:*",
-    "react": "^18.0.0"
+    "react": "^18.0.0",
+    "lfaa-client-store": "workspace:*",
+    "lfaa-client-ui-dockkit": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",

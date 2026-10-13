@@ -12,7 +12,7 @@
 
 部署记录显示历史执行结果，当前运行状态以实例为准。未知结果不提供自动重放；强制结束显示橙色“已强制停止”，不声称正常存档退出。PocketMine 不展示 Java 内存配置；代理不提供世界备份或 Java 世界属性编辑。
 
-代码与实机记录见 [开发计划](../../../docs/minecraft-deployment-plan.md)。浏览器可视验收与构建分别记录，不能把产物构建当作主题、字号及操作体验已通过。输出仅进入根 `dist/`。
+代码与实机记录见 [开发计划](../../../docs/archive/audits/minecraft-deployment-plan.md)。浏览器可视验收与构建分别记录，不能把产物构建当作主题、字号及操作体验已通过。输出仅进入根 `dist/`。
 
 Minecraft 常规模式的“工作流”页提供无限画布式 Agent DAG：节点可拖动、连线表达前置依赖，位置与定义由账户隔离的 Workflow Owner 保存。每个节点仍运行于 Minecraft App 的现有 Agent Loop、Session 和 Minecraft 工具/权限链；当前运行按拓扑顺序串行执行，不提供循环、计划任务、跨 App 或任意代码节点。界面沿用现有外观设置与主题令牌，不新增设置项。浏览器编辑、拖动、连线、保存/刷新恢复和缩放验收见 `docs/PROMPTS.md` 的 `LFAA-AGENT-WORKFLOW-CANVAS-01`。
 

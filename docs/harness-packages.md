@@ -1,622 +1,369 @@
 # LFAA Harness 目录对标清单
 
-参考：[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，提交 `639ed015397290b3745d163aafe02ffee4aa3f84`。
+<!-- 由 scripts/check-workspace.mjs --write 生成，不手工维护计数或路径。 -->
 
-上游 316 个两级包目录原名保留；当前 88 个包有实际源码或装配配置（86 个运行产品能力包、1 个工程期生成器、1 个长期测试支持包）。`占位` 只保留 `.gitkeep`，不承诺对应能力已实现；有源码也不代表已经通过 DSH 行为对齐或真实运行验收，P0 逐包映射见 [P0 能力核对记录](harness-p0-audit.md)。原有业务按职责迁入这些包，LFAA 专属包列为扩展。
+参考 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，上游基线 commit `639ed015397290b3745d163aafe02ffee4aa3f84`。
 
-## acp
+当前 357 个两级目录、181 个实际 workspace 包（179 个产品源码/组合包，2 个工程/测试包），176 个占位目录。控制端/节点运行树含 155 个包；客户端源码包单独进入 Web 构建。
 
-`packages/test-support/api` 为长期测试资源，保留源码和夹具；默认产品包构建与控制端/节点发布运行树均排除它，目录清单的“实现”不代表参与产品装配。
+`implemented` 仅表示有 package.json 和源码/装配；不代表已经进入 Profile、通过运行验收或与 DSH 等价。`placeholder` 不可执行。产品能力现状见 [系统总体架构](系统总体架构.md)，历史核验见 [P0 记录](archive/audits/harness-p0-audit.md)。
 
-| 绝对目录 | 包名 | 状态 | 来源 |
+| 仓库相对目录 | 包名 | 状态 | 来源 |
 |---|---|---|---|
-| [H:/LFAA/packages/acp/acp](<H:/LFAA/packages/acp/acp>) | — | 占位 | DSH 同名目录 |
-
-## api
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/api/account-controller](<H:/LFAA/packages/api/account-controller>) | lfaa-api-account-controller | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/api/gateway](<H:/LFAA/packages/api/gateway>) | lfaa-api-gateway | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/api/job-controller](<H:/LFAA/packages/api/job-controller>) | lfaa-api-job-controller | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/api/remotes](<H:/LFAA/packages/api/remotes>) | lfaa-api-remotes | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/api/session-controller](<H:/LFAA/packages/api/session-controller>) | lfaa-api-session-controller | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/api/settings-controller](<H:/LFAA/packages/api/settings-controller>) | lfaa-api-settings-controller | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/api/terminal-controller](<H:/LFAA/packages/api/terminal-controller>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/api/workspace-controller](<H:/LFAA/packages/api/workspace-controller>) | lfaa-api-workspace-controller | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/api/workspace-files](<H:/LFAA/packages/api/workspace-files>) | lfaa-api-workspace-files | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/api/minecraft-controller](<H:/LFAA/packages/api/minecraft-controller>) | lfaa-api-minecraft-controller | 实际实现 | LFAA 扩展 |
-| [H:/LFAA/packages/api/steamcmd-controller](<H:/LFAA/packages/api/steamcmd-controller>) | lfaa-api-steamcmd-controller | 实际实现 | LFAA 扩展 |
-| [H:/LFAA/packages/api/writing-controller](<H:/LFAA/packages/api/writing-controller>) | lfaa-api-writing-controller | 实际实现 | LFAA 扩展 |
-| [H:/LFAA/packages/api/plugin-controller](<H:/LFAA/packages/api/plugin-controller>) | lfaa-api-plugin-controller | 实际实现 | LFAA 扩展 |
-
-## attachment
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/attachment/attachment](<H:/LFAA/packages/attachment/attachment>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/attachment/attachment-local](<H:/LFAA/packages/attachment/attachment-local>) | — | 占位 | DSH 同名目录 |
-
-## boot
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/boot/app-boot](<H:/LFAA/packages/boot/app-boot>) | lfaa-app-boot | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/boot/capability-installs](<H:/LFAA/packages/boot/capability-installs>) | lfaa-capability-installs | 实际实现 | LFAA 跨类型能力适配器 |
-| [H:/LFAA/packages/boot/cmdline](<H:/LFAA/packages/boot/cmdline>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/boot/config-editor](<H:/LFAA/packages/boot/config-editor>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/boot/hmr](<H:/LFAA/packages/boot/hmr>) | lfaa-hmr | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/boot/plugin-manager](<H:/LFAA/packages/boot/plugin-manager>) | lfaa-plugin-manager | 实际实现 | DSH 同名目录 |
-
-## browser-use
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/browser-use/browser-use](<H:/LFAA/packages/browser-use/browser-use>) | — | 占位 | DSH 同名目录 |
-
-## bundle
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/bundle/acp-app](<H:/LFAA/packages/bundle/acp-app>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/bundle/base](<H:/LFAA/packages/bundle/base>) | lfaa-base | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/bundle/headless](<H:/LFAA/packages/bundle/headless>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/bundle/sdk-app](<H:/LFAA/packages/bundle/sdk-app>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/bundle/sdk-minimal](<H:/LFAA/packages/bundle/sdk-minimal>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/bundle/web-app](<H:/LFAA/packages/bundle/web-app>) | lfaa-web-app | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/bundle/daemon-app](<H:/LFAA/packages/bundle/daemon-app>) | lfaa-daemon-app | 实际实现 | LFAA 扩展 |
-
-## client
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/client/connection](<H:/LFAA/packages/client/connection>) | lfaa-client-connection | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/file-upload](<H:/LFAA/packages/client/file-upload>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/hmr](<H:/LFAA/packages/client/hmr>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/locale](<H:/LFAA/packages/client/locale>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/modules](<H:/LFAA/packages/client/modules>) | lfaa-client-modules | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/product-analytics](<H:/LFAA/packages/client/product-analytics>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/resources](<H:/LFAA/packages/client/resources>) | lfaa-client-resources | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/shortcuts](<H:/LFAA/packages/client/shortcuts>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/store](<H:/LFAA/packages/client/store>) | lfaa-client-store | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-agent-preset](<H:/LFAA/packages/client/ui-agent-preset>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-approval](<H:/LFAA/packages/client/ui-approval>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-attachment](<H:/LFAA/packages/client/ui-attachment>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-brand-official](<H:/LFAA/packages/client/ui-brand-official>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-chat](<H:/LFAA/packages/client/ui-chat>) | lfaa-client-ui-chat | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-commands](<H:/LFAA/packages/client/ui-commands>) | lfaa-client-ui-commands | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-conversation](<H:/LFAA/packages/client/ui-conversation>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-deliverables](<H:/LFAA/packages/client/ui-deliverables>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-directory-picker-browse](<H:/LFAA/packages/client/ui-directory-picker-browse>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-directory-picker-native](<H:/LFAA/packages/client/ui-directory-picker-native>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-dockkit](<H:/LFAA/packages/client/ui-dockkit>) | lfaa-client-ui-dockkit | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-goal](<H:/LFAA/packages/client/ui-goal>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-input-trigger](<H:/LFAA/packages/client/ui-input-trigger>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-jobs](<H:/LFAA/packages/client/ui-jobs>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-layout](<H:/LFAA/packages/client/ui-layout>) | lfaa-client-ui-layout | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-message-feedback](<H:/LFAA/packages/client/ui-message-feedback>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-model-selection](<H:/LFAA/packages/client/ui-model-selection>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-open-in-app](<H:/LFAA/packages/client/ui-open-in-app>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-permission-presets](<H:/LFAA/packages/client/ui-permission-presets>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-plan](<H:/LFAA/packages/client/ui-plan>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-plugin-manager](<H:/LFAA/packages/client/ui-plugin-manager>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-primitives](<H:/LFAA/packages/client/ui-primitives>) | lfaa-client-ui-primitives | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-reference](<H:/LFAA/packages/client/ui-reference>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-renderer](<H:/LFAA/packages/client/ui-renderer>) | lfaa-client-ui-renderer | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-schedule](<H:/LFAA/packages/client/ui-schedule>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-session](<H:/LFAA/packages/client/ui-session>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-settings](<H:/LFAA/packages/client/ui-settings>) | lfaa-client-ui-settings | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-settings-account](<H:/LFAA/packages/client/ui-settings-account>) | lfaa-client-ui-settings-account | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-settings-agent-loop](<H:/LFAA/packages/client/ui-settings-agent-loop>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-settings-general](<H:/LFAA/packages/client/ui-settings-general>) | lfaa-client-ui-settings-general | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-settings-models](<H:/LFAA/packages/client/ui-settings-models>) | lfaa-client-ui-settings-models | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-settings-plugin-inventory](<H:/LFAA/packages/client/ui-settings-plugin-inventory>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-settings-plugins](<H:/LFAA/packages/client/ui-settings-plugins>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-settings-session-log](<H:/LFAA/packages/client/ui-settings-session-log>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-settings-shell](<H:/LFAA/packages/client/ui-settings-shell>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-settings-subagent](<H:/LFAA/packages/client/ui-settings-subagent>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-settings-web-search](<H:/LFAA/packages/client/ui-settings-web-search>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-shortcuts](<H:/LFAA/packages/client/ui-shortcuts>) | lfaa-client-ui-shortcuts | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-sidebar](<H:/LFAA/packages/client/ui-sidebar>) | lfaa-client-ui-sidebar | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-sidebar-browser](<H:/LFAA/packages/client/ui-sidebar-browser>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-sidebar-documentpreview](<H:/LFAA/packages/client/ui-sidebar-documentpreview>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-sidebar-files](<H:/LFAA/packages/client/ui-sidebar-files>) | lfaa-client-ui-sidebar-files | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-sidebar-right](<H:/LFAA/packages/client/ui-sidebar-right>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-sidebar-terminal](<H:/LFAA/packages/client/ui-sidebar-terminal>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-skill](<H:/LFAA/packages/client/ui-skill>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-slots](<H:/LFAA/packages/client/ui-slots>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-subagent](<H:/LFAA/packages/client/ui-subagent>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-theme](<H:/LFAA/packages/client/ui-theme>) | lfaa-client-ui-theme | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-tool](<H:/LFAA/packages/client/ui-tool>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-trajectory](<H:/LFAA/packages/client/ui-trajectory>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-user-questions](<H:/LFAA/packages/client/ui-user-questions>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-workflow-run](<H:/LFAA/packages/client/ui-workflow-run>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-workspace](<H:/LFAA/packages/client/ui-workspace>) | lfaa-client-ui-workspace | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/web](<H:/LFAA/packages/client/web>) | lfaa-client-web | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/client/ui-minecraft](<H:/LFAA/packages/client/ui-minecraft>) | lfaa-client-ui-minecraft | 实际实现 | LFAA 扩展 |
-| [H:/LFAA/packages/client/ui-writing](<H:/LFAA/packages/client/ui-writing>) | lfaa-client-ui-writing | 实际实现 | LFAA 扩展 |
-
-## compaction
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/compaction/command-compact](<H:/LFAA/packages/compaction/command-compact>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/compaction/compaction](<H:/LFAA/packages/compaction/compaction>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/compaction/compaction-basic](<H:/LFAA/packages/compaction/compaction-basic>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/compaction/compaction-image-offload](<H:/LFAA/packages/compaction/compaction-image-offload>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/compaction/compaction-tool-result-pruner](<H:/LFAA/packages/compaction/compaction-tool-result-pruner>) | — | 占位 | DSH 同名目录 |
-
-## computer-use
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/computer-use/computer-use](<H:/LFAA/packages/computer-use/computer-use>) | lfaa-computer-use | 已实现；Windows 桌面实机验收待完成 | LFAA CUA Driver SDK 适配 |
-
-## context
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/context/agent-instructions](<H:/LFAA/packages/context/agent-instructions>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/context/file-reference](<H:/LFAA/packages/context/file-reference>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/context/file-reference-local](<H:/LFAA/packages/context/file-reference-local>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/context/session-reference](<H:/LFAA/packages/context/session-reference>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/context/time-context](<H:/LFAA/packages/context/time-context>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/context/tmux-context](<H:/LFAA/packages/context/tmux-context>) | — | 占位 | DSH 同名目录 |
-
-## core
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/core/agent](<H:/LFAA/packages/core/agent>) | lfaa-agent | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/core/agent-default-model](<H:/LFAA/packages/core/agent-default-model>) | lfaa-agent-default-model | 实际实现 | DSH 同名目录；插件注入凭据引用读取模型密钥，账户/模型状态仍归设置中心 |
-| [H:/LFAA/packages/core/agent-loop](<H:/LFAA/packages/core/agent-loop>) | lfaa-agent-loop | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/core/agent-tool-presentation](<H:/LFAA/packages/core/agent-tool-presentation>) | lfaa-agent-tool-presentation | 实际实现 | DSH 同名目录；仅呈现原生 function calling，不含 PTC |
-| [H:/LFAA1/packages/core/conversation-memory](<H:/LFAA1/packages/core/conversation-memory>) | lfaa-conversation-memory | 实际实现 | LFAA 扩展；账户级有界记忆 Owner，由 AI Work 设置控制生成资格 |
-| [H:/LFAA/packages/core/scope](<H:/LFAA/packages/core/scope>) | lfaa-scope | 实际实现 | DSH 同名目录；过滤可见范围，不替代授权 |
-| [H:/LFAA/packages/core/session](<H:/LFAA/packages/core/session>) | lfaa-session | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/core/system-prompt](<H:/LFAA/packages/core/system-prompt>) | lfaa-system-prompt | 实际实现 | DSH 同名目录；按 LFAA Owner 顺序组装提示词 |
-| [H:/LFAA/packages/core/tools](<H:/LFAA/packages/core/tools>) | lfaa-tools | 实际实现 | DSH 同名目录 |
-
-## credentials
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [packages/credentials/authorization](packages/credentials/authorization) | lfaa-authorization | 实际实现 | LFAA 登录 Cookie 与角色校验中间件；DSH 凭据获取流程由 `lfaa-credential-flows` 提供，避免混淆两类授权 |
-| [packages/credentials/credential-flows](packages/credentials/credential-flows) | lfaa-credential-flows | 实际实现 | LFAA 插件化凭据授权流程；由活动插件身份归属，支持账户隔离、取消/卸载及本次提交确认 |
-| [packages/credentials/credentials](packages/credentials/credentials) | lfaa-credentials | 实际实现 | DSH 同名目录；按插件身份提供凭据引用和记录接口，密文由 Settings 唯一加密存储持有 |
-| [H:/LFAA/packages/credentials/credentials-local](<H:/LFAA/packages/credentials/credentials-local>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/credentials/deepseek-account](<H:/LFAA/packages/credentials/deepseek-account>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/credentials/deepseek-account-platform](<H:/LFAA/packages/credentials/deepseek-account-platform>) | — | 占位 | DSH 同名目录 |
-
-## deliverables
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/deliverables/tool-present](<H:/LFAA/packages/deliverables/tool-present>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/deliverables/workspace-changes](<H:/LFAA/packages/deliverables/workspace-changes>) | — | 占位 | DSH 同名目录 |
-
-## document
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/document/office-to-pdf](<H:/LFAA/packages/document/office-to-pdf>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/document/writing](<H:/LFAA/packages/document/writing>) | lfaa-document-writing | 实际实现 | LFAA 扩展 |
-
-## experimental
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/experimental/agent-team](<H:/LFAA/packages/experimental/agent-team>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/agent-team-profile](<H:/LFAA/packages/experimental/agent-team-profile>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/api-speech-to-text](<H:/LFAA/packages/experimental/api-speech-to-text>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/auto-review](<H:/LFAA/packages/experimental/auto-review>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/browser-use-chrome-devtools-mcp](<H:/LFAA/packages/experimental/browser-use-chrome-devtools-mcp>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/browser-use-playwright-mcp](<H:/LFAA/packages/experimental/browser-use-playwright-mcp>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/browser-use-runtime](<H:/LFAA/packages/experimental/browser-use-runtime>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/browser-use-stagehand-native](<H:/LFAA/packages/experimental/browser-use-stagehand-native>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/client-ui-agent-team](<H:/LFAA/packages/experimental/client-ui-agent-team>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/client-ui-voice-input](<H:/LFAA/packages/experimental/client-ui-voice-input>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/computer-use-cua-driver-mcp](<H:/LFAA/packages/experimental/computer-use-cua-driver-mcp>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/computer-use-cua-driver-native](<H:/LFAA/packages/experimental/computer-use-cua-driver-native>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/inspector](<H:/LFAA/packages/experimental/inspector>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/ptc-runtime-python](<H:/LFAA/packages/experimental/ptc-runtime-python>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/schedule-bundle](<H:/LFAA/packages/experimental/schedule-bundle>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/speech-to-text](<H:/LFAA/packages/experimental/speech-to-text>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/speech-to-text-sensevoice](<H:/LFAA/packages/experimental/speech-to-text-sensevoice>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/tool-agent-team](<H:/LFAA/packages/experimental/tool-agent-team>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/voice-input-bundle](<H:/LFAA/packages/experimental/voice-input-bundle>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/webworker-packer](<H:/LFAA/packages/experimental/webworker-packer>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/experimental/webworker-runtime](<H:/LFAA/packages/experimental/webworker-runtime>) | — | 占位 | DSH 同名目录 |
-
-## extensions
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/extensions/cordis-client-runner](<H:/LFAA/packages/extensions/cordis-client-runner>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/extensions/cordis-host-runner](<H:/LFAA/packages/extensions/cordis-host-runner>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/extensions/tool-cordis](<H:/LFAA/packages/extensions/tool-cordis>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/extensions/ui-cordis](<H:/LFAA/packages/extensions/ui-cordis>) | — | 占位 | DSH 同名目录 |
-
-## feedback
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/feedback/command-feedback](<H:/LFAA/packages/feedback/command-feedback>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/feedback/message-feedback](<H:/LFAA/packages/feedback/message-feedback>) | — | 占位 | DSH 同名目录 |
-
-## fs
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/fs/fs](<H:/LFAA/packages/fs/fs>) | lfaa-fs | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/fs/fs-local](<H:/LFAA/packages/fs/fs-local>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/fs/fs-observation-policy](<H:/LFAA/packages/fs/fs-observation-policy>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/fs/fs-sandbox](<H:/LFAA/packages/fs/fs-sandbox>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/fs/tool-fs](<H:/LFAA/packages/fs/tool-fs>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/fs/tool-fs-search](<H:/LFAA/packages/fs/tool-fs-search>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/fs/tool-str-replace-editor](<H:/LFAA/packages/fs/tool-str-replace-editor>) | — | 占位 | DSH 同名目录 |
-
-## goal
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/goal/command-goal](<H:/LFAA/packages/goal/command-goal>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/goal/goal](<H:/LFAA/packages/goal/goal>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/goal/goal-round-driver](<H:/LFAA/packages/goal/goal-round-driver>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/goal/tool-goal](<H:/LFAA/packages/goal/tool-goal>) | — | 占位 | DSH 同名目录 |
-
-## guard
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/guard/repeat-tool-reminder](<H:/LFAA/packages/guard/repeat-tool-reminder>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/guard/timeout-policy](<H:/LFAA/packages/guard/timeout-policy>) | — | 占位 | DSH 同名目录 |
-
-## hooks
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/hooks/hook-protocol](<H:/LFAA/packages/hooks/hook-protocol>) | lfaa-hook-protocol | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/hooks/hooks-claude-code](<H:/LFAA/packages/hooks/hooks-claude-code>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/hooks/hooks-codex](<H:/LFAA/packages/hooks/hooks-codex>) | — | 占位 | DSH 同名目录 |
-
-## host
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/host/directory-picker](<H:/LFAA/packages/host/directory-picker>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/host/directory-picker-auto](<H:/LFAA/packages/host/directory-picker-auto>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/host/directory-picker-browse](<H:/LFAA/packages/host/directory-picker-browse>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/host/directory-picker-native](<H:/LFAA/packages/host/directory-picker-native>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/host/frontend-static](<H:/LFAA/packages/host/frontend-static>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/host/open-in-app](<H:/LFAA/packages/host/open-in-app>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/host/plugin-inventory](<H:/LFAA/packages/host/plugin-inventory>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/host/product-telemetry-otel](<H:/LFAA/packages/host/product-telemetry-otel>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/host/webserver](<H:/LFAA/packages/host/webserver>) | lfaa-host-webserver | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/host/daemon](<H:/LFAA/packages/host/daemon>) | lfaa-host-daemon | 实际实现 | LFAA 扩展 |
-
-## identity
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/identity/anonymous-user-id](<H:/LFAA/packages/identity/anonymous-user-id>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/identity/auth](<H:/LFAA/packages/identity/auth>) | lfaa-identity-auth | 实际实现 | LFAA 扩展 |
-
-## interaction
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/interaction/commands](<H:/LFAA/packages/interaction/commands>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/interaction/permission-presets](<H:/LFAA/packages/interaction/permission-presets>) | lfaa-permission-presets | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/interaction/tool-ask-user](<H:/LFAA/packages/interaction/tool-ask-user>) | lfaa-tool-ask-user | 实际实现 | DSH 同名目录；只接入既有 Agent Run 问题通道 |
-| [H:/LFAA1/packages/interaction/user-approval](<H:/LFAA1/packages/interaction/user-approval>) | lfaa-user-approval | 实际实现 | DSH 同名目录；提供账户隔离的审批状态唤醒，不持有审批记录 |
-| [H:/LFAA/packages/interaction/user-questions](<H:/LFAA/packages/interaction/user-questions>) | `lfaa-user-questions` | 部分实现（通道中立回答者注册与 Agent Run 适配；其他通道待接） | DSH 同名目录 |
-
-## jobs
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/jobs/jobs](<H:/LFAA/packages/jobs/jobs>) | lfaa-jobs | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/jobs/jobs-local](<H:/LFAA/packages/jobs/jobs-local>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/jobs/tool-jobs](<H:/LFAA/packages/jobs/tool-jobs>) | — | 占位 | DSH 同名目录 |
-
-## llm
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/llm/deepseek-llm-api-extensions](<H:/LFAA/packages/llm/deepseek-llm-api-extensions>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/llm/llm](<H:/LFAA/packages/llm/llm>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/llm/llm-deepseek](<H:/LFAA/packages/llm/llm-deepseek>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/llm/llm-deepseek-account](<H:/LFAA/packages/llm/llm-deepseek-account>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/llm/llm-deepseek-api-key](<H:/LFAA/packages/llm/llm-deepseek-api-key>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/llm/llm-pi-ai](<H:/LFAA/packages/llm/llm-pi-ai>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/llm/llm-retry](<H:/LFAA/packages/llm/llm-retry>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/llm/plugin-package-inventory-deepseek](<H:/LFAA/packages/llm/plugin-package-inventory-deepseek>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/llm/token-meter](<H:/LFAA/packages/llm/token-meter>) | — | 占位 | DSH 同名目录 |
-
-## lsp
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/lsp/lsp](<H:/LFAA/packages/lsp/lsp>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/lsp/lsp-stdio](<H:/LFAA/packages/lsp/lsp-stdio>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/lsp/tool-lsp](<H:/LFAA/packages/lsp/tool-lsp>) | — | 占位 | DSH 同名目录 |
-
-## mcp
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/mcp/mcp-client](<H:/LFAA/packages/mcp/mcp-client>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/mcp/mcp-resources](<H:/LFAA/packages/mcp/mcp-resources>) | — | 占位 | DSH 同名目录 |
-
-## plan
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/plan/plan-mode](<H:/LFAA/packages/plan/plan-mode>) | — | 占位 | DSH 同名目录 |
-
-## preset
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/preset/agent-preset](<H:/LFAA/packages/preset/agent-preset>) | lfaa-agent-preset | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/preset/agent-preset-registry](<H:/LFAA/packages/preset/agent-preset-registry>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/preset/persona](<H:/LFAA/packages/preset/persona>) | — | 占位 | DSH 同名目录 |
-
-## ptc-runtime
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/ptc-runtime/ptc-runtime](<H:/LFAA/packages/ptc-runtime/ptc-runtime>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/ptc-runtime/ptc-runtime-node](<H:/LFAA/packages/ptc-runtime/ptc-runtime-node>) | — | 占位 | DSH 同名目录 |
-
-## runtime-diagnostics
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/runtime-diagnostics/invariants](<H:/LFAA/packages/runtime-diagnostics/invariants>) | — | 占位 | DSH 同名目录 |
-
-## sandbox
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/sandbox/sandbox](<H:/LFAA/packages/sandbox/sandbox>) | lfaa-sandbox | 实际实现 | P0 沙箱提供方接口与失败关闭结果核验；执行器待 P2 |
-| [H:/LFAA/packages/sandbox/sandbox-local](<H:/LFAA/packages/sandbox/sandbox-local>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/sandbox/sandbox-policy](<H:/LFAA/packages/sandbox/sandbox-policy>) | lfaa-sandbox-policy | 实际实现 | P0 按目标节点验证的逐调用策略合同；设置与会话 Owner 接线待核 |
-| [H:/LFAA/packages/sandbox/sandbox-windows-acl](<H:/LFAA/packages/sandbox/sandbox-windows-acl>) | — | 占位 | DSH 同名目录 |
-
-## schedule
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/schedule/schedule](<H:/LFAA/packages/schedule/schedule>) | — | 占位 | DSH 同名目录 |
-
-## sdk
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/sdk/client](<H:/LFAA/packages/sdk/client>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/sdk/protocol](<H:/LFAA/packages/sdk/protocol>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/sdk/server](<H:/LFAA/packages/sdk/server>) | — | 占位 | DSH 同名目录 |
-
-## session
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/session/session-checkpoint-policy](<H:/LFAA/packages/session/session-checkpoint-policy>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-format](<H:/LFAA/packages/session/session-format>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-format-catalog](<H:/LFAA/packages/session/session-format-catalog>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-format-v0-to-v1](<H:/LFAA/packages/session/session-format-v0-to-v1>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-format-v1-to-v2](<H:/LFAA/packages/session/session-format-v1-to-v2>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-format-v2-to-v3](<H:/LFAA/packages/session/session-format-v2-to-v3>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-format-v3-to-v4](<H:/LFAA/packages/session/session-format-v3-to-v4>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-log-deepseek](<H:/LFAA/packages/session/session-log-deepseek>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-persistence](<H:/LFAA/packages/session/session-persistence>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-persistence-jsonl](<H:/LFAA/packages/session/session-persistence-jsonl>) | lfaa-session-persistence-jsonl | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-projection](<H:/LFAA/packages/session/session-projection>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-projection-cache](<H:/LFAA/packages/session/session-projection-cache>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-stats](<H:/LFAA/packages/session/session-stats>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-telemetry](<H:/LFAA/packages/session/session-telemetry>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-telemetry-otel](<H:/LFAA/packages/session/session-telemetry-otel>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-title](<H:/LFAA/packages/session/session-title>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-title-all-prompts-llm](<H:/LFAA/packages/session/session-title-all-prompts-llm>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-title-first-prompt-llm](<H:/LFAA/packages/session/session-title-first-prompt-llm>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-title-llm](<H:/LFAA/packages/session/session-title-llm>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session/session-turn-outline](<H:/LFAA/packages/session/session-turn-outline>) | — | 占位 | DSH 同名目录 |
-
-## session-query
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/session-query/session-log-export](<H:/LFAA/packages/session-query/session-log-export>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session-query/session-query](<H:/LFAA/packages/session-query/session-query>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session-query/session-query-sqlite](<H:/LFAA/packages/session-query/session-query-sqlite>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/session-query/tool-session-query](<H:/LFAA/packages/session-query/tool-session-query>) | — | 占位 | DSH 同名目录 |
-
-## settings
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/settings/settings](<H:/LFAA/packages/settings/settings>) | lfaa-settings | 实际实现 | DSH 同名目录 |
-
-## shell
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/shell/bash-local](<H:/LFAA/packages/shell/bash-local>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/shell/bash-sandbox](<H:/LFAA/packages/shell/bash-sandbox>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/shell/pwsh-local](<H:/LFAA/packages/shell/pwsh-local>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/shell/pwsh-sandbox](<H:/LFAA/packages/shell/pwsh-sandbox>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/shell/shell](<H:/LFAA/packages/shell/shell>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/shell/shell-env](<H:/LFAA/packages/shell/shell-env>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/shell/tool-bash](<H:/LFAA/packages/shell/tool-bash>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/shell/tool-bash-persistent](<H:/LFAA/packages/shell/tool-bash-persistent>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/shell/tool-pwsh](<H:/LFAA/packages/shell/tool-pwsh>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/shell/tool-pwsh-persistent](<H:/LFAA/packages/shell/tool-pwsh-persistent>) | — | 占位 | DSH 同名目录 |
-
-## skill
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/skill/skill](<H:/LFAA/packages/skill/skill>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/skill/skill-badge](<H:/LFAA/packages/skill/skill-badge>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/skill/skill-filesystem](<H:/LFAA/packages/skill/skill-filesystem>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/skill/skill-office](<H:/LFAA/packages/skill/skill-office>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/skill/tool-skill](<H:/LFAA/packages/skill/tool-skill>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/skill/tool-workspace-dependencies](<H:/LFAA/packages/skill/tool-workspace-dependencies>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/skill/writing](<H:/LFAA/packages/skill/writing>) | lfaa-skill-writing | 实际实现 | LFAA 扩展 |
-
-## spill
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/spill/spill](<H:/LFAA/packages/spill/spill>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/spill/spill-local](<H:/LFAA/packages/spill/spill-local>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/spill/spill-policy](<H:/LFAA/packages/spill/spill-policy>) | — | 占位 | DSH 同名目录 |
-
-## ssh
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/ssh/fs-ssh](<H:/LFAA/packages/ssh/fs-ssh>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/ssh/sandbox-ssh](<H:/LFAA/packages/ssh/sandbox-ssh>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/ssh/ssh](<H:/LFAA/packages/ssh/ssh>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/ssh/subprocess-ssh](<H:/LFAA/packages/ssh/subprocess-ssh>) | — | 占位 | DSH 同名目录 |
-
-## storage
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA1/packages/storage/storage](<H:/LFAA1/packages/storage/storage>) | lfaa-storage-hub | 实际实现 | 具名后端/数据形式注册与插件生命周期；不持有领域数据 |
-| [H:/LFAA1/packages/storage/storage-domain](<H:/LFAA1/packages/storage/storage-domain>) | lfaa-storage-domain | 实际实现 | DSH 同名目录 |
-| [H:/LFAA1/packages/storage/storage-json](<H:/LFAA1/packages/storage/storage-json>) | lfaa-storage-json | 实际实现 | DSH 同名目录 |
-| [H:/LFAA1/packages/storage/storage-sqlite](<H:/LFAA1/packages/storage/storage-sqlite>) | lfaa-storage-sqlite | 实际实现 | DSH 同名目录 |
-
-## subagent
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/subagent/subagent](<H:/LFAA/packages/subagent/subagent>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/subagent/subagent-acp](<H:/LFAA/packages/subagent/subagent-acp>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/subagent/subagent-claude-code](<H:/LFAA/packages/subagent/subagent-claude-code>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/subagent/subagent-codex](<H:/LFAA/packages/subagent/subagent-codex>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/subagent/subagent-dsh-sdk](<H:/LFAA/packages/subagent/subagent-dsh-sdk>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/subagent/subagent-fork-in-process](<H:/LFAA/packages/subagent/subagent-fork-in-process>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/subagent/subagent-in-process-driver](<H:/LFAA/packages/subagent/subagent-in-process-driver>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/subagent/subagent-spawn-in-process](<H:/LFAA/packages/subagent/subagent-spawn-in-process>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/subagent/tool-subagent](<H:/LFAA/packages/subagent/tool-subagent>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/subagent/tool-subagent-control](<H:/LFAA/packages/subagent/tool-subagent-control>) | — | 占位 | DSH 同名目录 |
-
-## subprocess
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/subprocess/subprocess](<H:/LFAA/packages/subprocess/subprocess>) | lfaa-subprocess | 实际实现 | P0 受管子进程/伪终端服务合同；本机及 Daemon 提供方待 P2 |
-| [H:/LFAA/packages/subprocess/subprocess-local](<H:/LFAA/packages/subprocess/subprocess-local>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/subprocess/win32-process](<H:/LFAA/packages/subprocess/win32-process>) | — | 占位 | DSH 同名目录 |
-
-## telemetry
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/telemetry/otel](<H:/LFAA/packages/telemetry/otel>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/telemetry/logger](<H:/LFAA/packages/telemetry/logger>) | lfaa-telemetry-logger | 实际实现 | LFAA 扩展 |
-
-## terminal
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/terminal/terminal](<H:/LFAA/packages/terminal/terminal>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/terminal/terminal-bash](<H:/LFAA/packages/terminal/terminal-bash>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/terminal/tool-terminal](<H:/LFAA/packages/terminal/tool-terminal>) | — | 占位 | DSH 同名目录 |
-
-## test-support
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/test-support/agent-loop-testkit](<H:/LFAA/packages/test-support/agent-loop-testkit>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/test-support/client-runtime](<H:/LFAA/packages/test-support/client-runtime>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/test-support/llm-mock-server](<H:/LFAA/packages/test-support/llm-mock-server>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/test-support/llm-replay](<H:/LFAA/packages/test-support/llm-replay>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/test-support/loader-smoke](<H:/LFAA/packages/test-support/loader-smoke>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/test-support/remote-mock](<H:/LFAA/packages/test-support/remote-mock>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/test-support/session-snapshot](<H:/LFAA/packages/test-support/session-snapshot>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/test-support/api](<H:/LFAA/packages/test-support/api>) | lfaa-test-support-api | 实际实现 | LFAA 扩展 |
-
-## todo
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/todo/tool-todo](<H:/LFAA/packages/todo/tool-todo>) | — | 占位 | DSH 同名目录 |
-
-## typert
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA1/packages/typert/generator](<H:/LFAA1/packages/typert/generator>) | `lfaa-typert-generator` | 部分实现（账户 `auth/me` 源合同生成双端描述与 JSON Schema；工程期包，不进入产品运行树） | DSH 同名目录 |
-| [H:/LFAA1/packages/typert/loader](<H:/LFAA1/packages/typert/loader>) | `lfaa-typert-loader` | 部分实现（插件生命周期登记；生成工件自动发现待做） | DSH 同名目录 |
-| [H:/LFAA1/packages/typert/protocol](<H:/LFAA1/packages/typert/protocol>) | `lfaa-typert-protocol` | 部分实现（一元协议与逐方法授权；流式协议、生成器待做） | DSH 同名目录 |
-| [H:/LFAA1/packages/typert/registry](<H:/LFAA1/packages/typert/registry>) | `lfaa-typert-registry` | 部分实现（Host 路由已接；仅账户自身读取迁移，其他 API/Socket 待接） | DSH 同名目录 |
-
-## util
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/util/atomic-write](<H:/LFAA/packages/util/atomic-write>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/util/brand](<H:/LFAA/packages/util/brand>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/util/chunked-list](<H:/LFAA/packages/util/chunked-list>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/util/code-language](<H:/LFAA/packages/util/code-language>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/util/crypto](<H:/LFAA/packages/util/crypto>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/util/deque](<H:/LFAA/packages/util/deque>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/util/home-paths](<H:/LFAA/packages/util/home-paths>) | lfaa-home-paths | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/util/http-proxy](<H:/LFAA/packages/util/http-proxy>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/util/launch-environment](<H:/LFAA/packages/util/launch-environment>) | lfaa-launch-environment | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/util/lazy-require](<H:/LFAA/packages/util/lazy-require>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/util/native-command](<H:/LFAA/packages/util/native-command>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/util/output-retention](<H:/LFAA/packages/util/output-retention>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/util/package-manifest](<H:/LFAA/packages/util/package-manifest>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/util/time](<H:/LFAA/packages/util/time>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/util/timeout](<H:/LFAA/packages/util/timeout>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/util/values](<H:/LFAA/packages/util/values>) | lfaa-util-values | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/util/workspace-path](<H:/LFAA/packages/util/workspace-path>) | — | 占位 | DSH 同名目录 |
-
-## web
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/web/tool-web](<H:/LFAA/packages/web/tool-web>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/web/web](<H:/LFAA/packages/web/web>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/web/web-fetch-http](<H:/LFAA/packages/web/web-fetch-http>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/web/web-search-deepseek](<H:/LFAA/packages/web/web-search-deepseek>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/web/web-search-exa](<H:/LFAA/packages/web/web-search-exa>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/web/web-search-perplexity](<H:/LFAA/packages/web/web-search-perplexity>) | — | 占位 | DSH 同名目录 |
-
-## webhook
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/webhook/webhook](<H:/LFAA/packages/webhook/webhook>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/webhook/webhook-github](<H:/LFAA/packages/webhook/webhook-github>) | — | 占位 | DSH 同名目录 |
-
-## workflow
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/workflow/tool-ralph](<H:/LFAA/packages/workflow/tool-ralph>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/workflow/tool-workflow](<H:/LFAA/packages/workflow/tool-workflow>) | — | 占位 | DSH 同名目录 |
-| [H:/LFAA/packages/workflow/workflow](<H:/LFAA/packages/workflow/workflow>) | `lfaa-workflow` | 部分实现（Minecraft Agent 工作流定义与运行 Owner；通用 DSH 工作流待做） | DSH 同名目录 / LFAA 扩展 |
-| [H:/LFAA/packages/workflow/workflow-ptc](<H:/LFAA/packages/workflow/workflow-ptc>) | — | 占位 | DSH 同名目录 |
-
-## workspace
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/workspace/workspace](<H:/LFAA/packages/workspace/workspace>) | lfaa-workspace-workspace | 实际实现 | DSH 同名目录 |
-| [H:/LFAA/packages/workspace/data-directory](<H:/LFAA/packages/workspace/data-directory>) | lfaa-workspace-data-directory | 实际实现 | LFAA 扩展 |
-
-## games
-
-| 绝对目录 | 包名 | 状态 | 来源 |
-|---|---|---|---|
-| [H:/LFAA/packages/games/minecraft](<H:/LFAA/packages/games/minecraft>) | lfaa-games-minecraft | 实际实现 | LFAA 扩展 |
-| [H:/LFAA/packages/games/steamcmd](<H:/LFAA/packages/games/steamcmd>) | lfaa-games-steamcmd | 实际实现 | LFAA 扩展 |
+| [packages/acp/acp](../packages/acp/acp) | — | placeholder | DSH 同名目录 |
+| [packages/api/account-controller](../packages/api/account-controller) | lfaa-api-account-controller | implemented | DSH 同名目录 |
+| [packages/api/ai-video-controller](../packages/api/ai-video-controller) | lfaa-api-ai-video-controller | implemented | LFAA 扩展 |
+| [packages/api/connectivity-controller](../packages/api/connectivity-controller) | lfaa-api-connectivity-controller | implemented | LFAA 扩展 |
+| [packages/api/gateway](../packages/api/gateway) | lfaa-api-gateway | implemented | DSH 同名目录 |
+| [packages/api/job-controller](../packages/api/job-controller) | lfaa-api-job-controller | implemented | DSH 同名目录 |
+| [packages/api/knowledge-controller](../packages/api/knowledge-controller) | lfaa-api-knowledge-controller | implemented | LFAA 扩展 |
+| [packages/api/minecraft-controller](../packages/api/minecraft-controller) | lfaa-api-minecraft-controller | implemented | LFAA 扩展 |
+| [packages/api/plugin-controller](../packages/api/plugin-controller) | lfaa-api-plugin-controller | implemented | LFAA 扩展 |
+| [packages/api/remotes](../packages/api/remotes) | lfaa-api-remotes | implemented | DSH 同名目录 |
+| [packages/api/session-controller](../packages/api/session-controller) | lfaa-api-session-controller | implemented | DSH 同名目录 |
+| [packages/api/settings-controller](../packages/api/settings-controller) | lfaa-api-settings-controller | implemented | DSH 同名目录 |
+| [packages/api/steamcmd-controller](../packages/api/steamcmd-controller) | lfaa-api-steamcmd-controller | implemented | LFAA 扩展 |
+| [packages/api/terminal-controller](../packages/api/terminal-controller) | lfaa-api-terminal-controller | implemented | DSH 同名目录 |
+| [packages/api/workflow-controller](../packages/api/workflow-controller) | lfaa-api-workflow-controller | implemented | LFAA 扩展 |
+| [packages/api/workspace-controller](../packages/api/workspace-controller) | lfaa-api-workspace-controller | implemented | DSH 同名目录 |
+| [packages/api/workspace-files](../packages/api/workspace-files) | lfaa-api-workspace-files | implemented | DSH 同名目录 |
+| [packages/api/writing-controller](../packages/api/writing-controller) | lfaa-api-writing-controller | implemented | LFAA 扩展 |
+| [packages/attachment/attachment](../packages/attachment/attachment) | — | placeholder | DSH 同名目录 |
+| [packages/attachment/attachment-local](../packages/attachment/attachment-local) | — | placeholder | DSH 同名目录 |
+| [packages/boot/app-boot](../packages/boot/app-boot) | lfaa-app-boot | implemented | DSH 同名目录 |
+| [packages/boot/capability-installs](../packages/boot/capability-installs) | lfaa-capability-installs | implemented | LFAA 扩展 |
+| [packages/boot/capability-mcp](../packages/boot/capability-mcp) | lfaa-capability-mcp | implemented | LFAA 扩展 |
+| [packages/boot/capability-prompt](../packages/boot/capability-prompt) | lfaa-capability-prompt | implemented | LFAA 扩展 |
+| [packages/boot/capability-skill](../packages/boot/capability-skill) | lfaa-capability-skill | implemented | LFAA 扩展 |
+| [packages/boot/cmdline](../packages/boot/cmdline) | — | placeholder | DSH 同名目录 |
+| [packages/boot/config-editor](../packages/boot/config-editor) | — | placeholder | DSH 同名目录 |
+| [packages/boot/hmr](../packages/boot/hmr) | lfaa-hmr | implemented | DSH 同名目录 |
+| [packages/boot/knowledge-library](../packages/boot/knowledge-library) | lfaa-knowledge-library-runtime | implemented | LFAA 扩展 |
+| [packages/boot/plugin-manager](../packages/boot/plugin-manager) | lfaa-plugin-manager | implemented | DSH 同名目录 |
+| [packages/browser-use/browser-use](../packages/browser-use/browser-use) | — | placeholder | DSH 同名目录 |
+| [packages/bundle/acp-app](../packages/bundle/acp-app) | — | placeholder | DSH 同名目录 |
+| [packages/bundle/base](../packages/bundle/base) | lfaa-base | implemented | DSH 同名目录 |
+| [packages/bundle/daemon-app](../packages/bundle/daemon-app) | lfaa-daemon-app | implemented | LFAA 扩展 |
+| [packages/bundle/desktop-computer-use](../packages/bundle/desktop-computer-use) | lfaa-desktop-computer-use | implemented | LFAA 扩展 |
+| [packages/bundle/headless](../packages/bundle/headless) | — | placeholder | DSH 同名目录 |
+| [packages/bundle/sdk-app](../packages/bundle/sdk-app) | — | placeholder | DSH 同名目录 |
+| [packages/bundle/sdk-minimal](../packages/bundle/sdk-minimal) | — | placeholder | DSH 同名目录 |
+| [packages/bundle/web-app](../packages/bundle/web-app) | lfaa-web-app | implemented | DSH 同名目录 |
+| [packages/client/connection](../packages/client/connection) | lfaa-client-connection | implemented | DSH 同名目录 |
+| [packages/client/file-upload](../packages/client/file-upload) | — | placeholder | DSH 同名目录 |
+| [packages/client/hmr](../packages/client/hmr) | — | placeholder | DSH 同名目录 |
+| [packages/client/locale](../packages/client/locale) | — | placeholder | DSH 同名目录 |
+| [packages/client/modules](../packages/client/modules) | lfaa-client-modules | implemented | DSH 同名目录 |
+| [packages/client/product-analytics](../packages/client/product-analytics) | — | placeholder | DSH 同名目录 |
+| [packages/client/resources](../packages/client/resources) | lfaa-client-resources | implemented | DSH 同名目录 |
+| [packages/client/shortcuts](../packages/client/shortcuts) | — | placeholder | DSH 同名目录 |
+| [packages/client/store](../packages/client/store) | lfaa-client-store | implemented | DSH 同名目录 |
+| [packages/client/ui-agent-preset](../packages/client/ui-agent-preset) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-approval](../packages/client/ui-approval) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-attachment](../packages/client/ui-attachment) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-brand-official](../packages/client/ui-brand-official) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-chat](../packages/client/ui-chat) | lfaa-client-ui-chat | implemented | DSH 同名目录 |
+| [packages/client/ui-commands](../packages/client/ui-commands) | lfaa-client-ui-commands | implemented | DSH 同名目录 |
+| [packages/client/ui-connectivity](../packages/client/ui-connectivity) | lfaa-client-ui-connectivity | implemented | LFAA 扩展 |
+| [packages/client/ui-conversation](../packages/client/ui-conversation) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-deliverables](../packages/client/ui-deliverables) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-directory-picker-browse](../packages/client/ui-directory-picker-browse) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-directory-picker-native](../packages/client/ui-directory-picker-native) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-dockkit](../packages/client/ui-dockkit) | lfaa-client-ui-dockkit | implemented | DSH 同名目录 |
+| [packages/client/ui-goal](../packages/client/ui-goal) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-input-trigger](../packages/client/ui-input-trigger) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-jobs](../packages/client/ui-jobs) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-layout](../packages/client/ui-layout) | lfaa-client-ui-layout | implemented | DSH 同名目录 |
+| [packages/client/ui-message-feedback](../packages/client/ui-message-feedback) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-minecraft](../packages/client/ui-minecraft) | lfaa-client-ui-minecraft | implemented | LFAA 扩展 |
+| [packages/client/ui-model-selection](../packages/client/ui-model-selection) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-open-in-app](../packages/client/ui-open-in-app) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-permission-presets](../packages/client/ui-permission-presets) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-plan](../packages/client/ui-plan) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-plugin-manager](../packages/client/ui-plugin-manager) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-primitives](../packages/client/ui-primitives) | lfaa-client-ui-primitives | implemented | DSH 同名目录 |
+| [packages/client/ui-reference](../packages/client/ui-reference) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-renderer](../packages/client/ui-renderer) | lfaa-client-ui-renderer | implemented | DSH 同名目录 |
+| [packages/client/ui-schedule](../packages/client/ui-schedule) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-session](../packages/client/ui-session) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-settings](../packages/client/ui-settings) | lfaa-client-ui-settings | implemented | DSH 同名目录 |
+| [packages/client/ui-settings-account](../packages/client/ui-settings-account) | lfaa-client-ui-settings-account | implemented | DSH 同名目录 |
+| [packages/client/ui-settings-agent-loop](../packages/client/ui-settings-agent-loop) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-settings-general](../packages/client/ui-settings-general) | lfaa-client-ui-settings-general | implemented | DSH 同名目录 |
+| [packages/client/ui-settings-models](../packages/client/ui-settings-models) | lfaa-client-ui-settings-models | implemented | DSH 同名目录 |
+| [packages/client/ui-settings-plugin-inventory](../packages/client/ui-settings-plugin-inventory) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-settings-plugins](../packages/client/ui-settings-plugins) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-settings-session-log](../packages/client/ui-settings-session-log) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-settings-shell](../packages/client/ui-settings-shell) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-settings-subagent](../packages/client/ui-settings-subagent) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-settings-web-search](../packages/client/ui-settings-web-search) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-shortcuts](../packages/client/ui-shortcuts) | lfaa-client-ui-shortcuts | implemented | DSH 同名目录 |
+| [packages/client/ui-sidebar](../packages/client/ui-sidebar) | lfaa-client-ui-sidebar | implemented | DSH 同名目录 |
+| [packages/client/ui-sidebar-browser](../packages/client/ui-sidebar-browser) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-sidebar-documentpreview](../packages/client/ui-sidebar-documentpreview) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-sidebar-files](../packages/client/ui-sidebar-files) | lfaa-client-ui-sidebar-files | implemented | DSH 同名目录 |
+| [packages/client/ui-sidebar-right](../packages/client/ui-sidebar-right) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-sidebar-terminal](../packages/client/ui-sidebar-terminal) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-skill](../packages/client/ui-skill) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-slots](../packages/client/ui-slots) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-subagent](../packages/client/ui-subagent) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-theme](../packages/client/ui-theme) | lfaa-client-ui-theme | implemented | DSH 同名目录 |
+| [packages/client/ui-tool](../packages/client/ui-tool) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-trajectory](../packages/client/ui-trajectory) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-user-questions](../packages/client/ui-user-questions) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-workflow](../packages/client/ui-workflow) | lfaa-client-ui-workflow | implemented | LFAA 扩展 |
+| [packages/client/ui-workflow-run](../packages/client/ui-workflow-run) | — | placeholder | DSH 同名目录 |
+| [packages/client/ui-workspace](../packages/client/ui-workspace) | lfaa-client-ui-workspace | implemented | DSH 同名目录 |
+| [packages/client/ui-writing](../packages/client/ui-writing) | lfaa-client-ui-writing | implemented | LFAA 扩展 |
+| [packages/client/web](../packages/client/web) | lfaa-client-web | implemented | DSH 同名目录 |
+| [packages/compaction/command-compact](../packages/compaction/command-compact) | lfaa-command-compact | implemented | DSH 同名目录 |
+| [packages/compaction/compaction](../packages/compaction/compaction) | lfaa-compaction | implemented | DSH 同名目录 |
+| [packages/compaction/compaction-basic](../packages/compaction/compaction-basic) | lfaa-compaction-basic | implemented | DSH 同名目录 |
+| [packages/compaction/compaction-image-offload](../packages/compaction/compaction-image-offload) | lfaa-compaction-image-offload | implemented | DSH 同名目录 |
+| [packages/compaction/compaction-tool-result-pruner](../packages/compaction/compaction-tool-result-pruner) | lfaa-compaction-tool-result-pruner | implemented | DSH 同名目录 |
+| [packages/computer-use/computer-use](../packages/computer-use/computer-use) | lfaa-computer-use | implemented | DSH 同名目录 |
+| [packages/context/agent-instructions](../packages/context/agent-instructions) | — | placeholder | DSH 同名目录 |
+| [packages/context/file-reference](../packages/context/file-reference) | — | placeholder | DSH 同名目录 |
+| [packages/context/file-reference-local](../packages/context/file-reference-local) | — | placeholder | DSH 同名目录 |
+| [packages/context/session-reference](../packages/context/session-reference) | — | placeholder | DSH 同名目录 |
+| [packages/context/time-context](../packages/context/time-context) | — | placeholder | DSH 同名目录 |
+| [packages/context/tmux-context](../packages/context/tmux-context) | — | placeholder | DSH 同名目录 |
+| [packages/core/agent](../packages/core/agent) | lfaa-agent | implemented | DSH 同名目录 |
+| [packages/core/agent-default-model](../packages/core/agent-default-model) | lfaa-agent-default-model | implemented | DSH 同名目录 |
+| [packages/core/agent-loop](../packages/core/agent-loop) | lfaa-agent-loop | implemented | DSH 同名目录 |
+| [packages/core/agent-tool-presentation](../packages/core/agent-tool-presentation) | lfaa-agent-tool-presentation | implemented | DSH 同名目录 |
+| [packages/core/conversation-memory](../packages/core/conversation-memory) | lfaa-conversation-memory | implemented | LFAA 扩展 |
+| [packages/core/scope](../packages/core/scope) | lfaa-scope | implemented | DSH 同名目录 |
+| [packages/core/session](../packages/core/session) | lfaa-session | implemented | DSH 同名目录 |
+| [packages/core/system-prompt](../packages/core/system-prompt) | lfaa-system-prompt | implemented | DSH 同名目录 |
+| [packages/core/tools](../packages/core/tools) | lfaa-tools | implemented | DSH 同名目录 |
+| [packages/credentials/authorization](../packages/credentials/authorization) | lfaa-authorization | implemented | DSH 同名目录 |
+| [packages/credentials/credential-flows](../packages/credentials/credential-flows) | lfaa-credential-flows | implemented | LFAA 扩展 |
+| [packages/credentials/credentials](../packages/credentials/credentials) | lfaa-credentials | implemented | DSH 同名目录 |
+| [packages/credentials/credentials-local](../packages/credentials/credentials-local) | — | placeholder | DSH 同名目录 |
+| [packages/credentials/deepseek-account](../packages/credentials/deepseek-account) | — | placeholder | DSH 同名目录 |
+| [packages/credentials/deepseek-account-platform](../packages/credentials/deepseek-account-platform) | — | placeholder | DSH 同名目录 |
+| [packages/deliverables/tool-present](../packages/deliverables/tool-present) | — | placeholder | DSH 同名目录 |
+| [packages/deliverables/workspace-changes](../packages/deliverables/workspace-changes) | — | placeholder | DSH 同名目录 |
+| [packages/document/office-to-pdf](../packages/document/office-to-pdf) | — | placeholder | DSH 同名目录 |
+| [packages/document/writing](../packages/document/writing) | lfaa-document-writing | implemented | LFAA 扩展 |
+| [packages/experimental/agent-team](../packages/experimental/agent-team) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/agent-team-profile](../packages/experimental/agent-team-profile) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/api-speech-to-text](../packages/experimental/api-speech-to-text) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/auto-review](../packages/experimental/auto-review) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/browser-use-chrome-devtools-mcp](../packages/experimental/browser-use-chrome-devtools-mcp) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/browser-use-playwright-mcp](../packages/experimental/browser-use-playwright-mcp) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/browser-use-runtime](../packages/experimental/browser-use-runtime) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/browser-use-stagehand-native](../packages/experimental/browser-use-stagehand-native) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/client-ui-agent-team](../packages/experimental/client-ui-agent-team) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/client-ui-voice-input](../packages/experimental/client-ui-voice-input) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/computer-use-cua-driver-mcp](../packages/experimental/computer-use-cua-driver-mcp) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/computer-use-cua-driver-native](../packages/experimental/computer-use-cua-driver-native) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/inspector](../packages/experimental/inspector) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/ptc-runtime-python](../packages/experimental/ptc-runtime-python) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/schedule-bundle](../packages/experimental/schedule-bundle) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/speech-to-text](../packages/experimental/speech-to-text) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/speech-to-text-sensevoice](../packages/experimental/speech-to-text-sensevoice) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/tool-agent-team](../packages/experimental/tool-agent-team) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/voice-input-bundle](../packages/experimental/voice-input-bundle) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/webworker-packer](../packages/experimental/webworker-packer) | — | placeholder | DSH 同名目录 |
+| [packages/experimental/webworker-runtime](../packages/experimental/webworker-runtime) | — | placeholder | DSH 同名目录 |
+| [packages/extensions/cordis-client-runner](../packages/extensions/cordis-client-runner) | — | placeholder | DSH 同名目录 |
+| [packages/extensions/cordis-host-runner](../packages/extensions/cordis-host-runner) | — | placeholder | DSH 同名目录 |
+| [packages/extensions/tool-cordis](../packages/extensions/tool-cordis) | — | placeholder | DSH 同名目录 |
+| [packages/extensions/ui-cordis](../packages/extensions/ui-cordis) | — | placeholder | DSH 同名目录 |
+| [packages/feedback/command-feedback](../packages/feedback/command-feedback) | — | placeholder | DSH 同名目录 |
+| [packages/feedback/message-feedback](../packages/feedback/message-feedback) | — | placeholder | DSH 同名目录 |
+| [packages/fs/fs](../packages/fs/fs) | lfaa-fs | implemented | DSH 同名目录 |
+| [packages/fs/fs-local](../packages/fs/fs-local) | lfaa-fs-local | implemented | DSH 同名目录 |
+| [packages/fs/fs-observation-policy](../packages/fs/fs-observation-policy) | — | placeholder | DSH 同名目录 |
+| [packages/fs/fs-sandbox](../packages/fs/fs-sandbox) | — | placeholder | DSH 同名目录 |
+| [packages/fs/tool-fs](../packages/fs/tool-fs) | lfaa-tool-fs | implemented | DSH 同名目录 |
+| [packages/fs/tool-fs-search](../packages/fs/tool-fs-search) | lfaa-tool-fs-search | implemented | DSH 同名目录 |
+| [packages/fs/tool-str-replace-editor](../packages/fs/tool-str-replace-editor) | lfaa-tool-str-replace-editor | implemented | DSH 同名目录 |
+| [packages/games/minecraft](../packages/games/minecraft) | lfaa-games-minecraft | implemented | LFAA 扩展 |
+| [packages/games/steamcmd](../packages/games/steamcmd) | lfaa-games-steamcmd | implemented | LFAA 扩展 |
+| [packages/goal/command-goal](../packages/goal/command-goal) | — | placeholder | DSH 同名目录 |
+| [packages/goal/goal](../packages/goal/goal) | — | placeholder | DSH 同名目录 |
+| [packages/goal/goal-round-driver](../packages/goal/goal-round-driver) | — | placeholder | DSH 同名目录 |
+| [packages/goal/tool-goal](../packages/goal/tool-goal) | — | placeholder | DSH 同名目录 |
+| [packages/guard/authorization](../packages/guard/authorization) | — | placeholder | LFAA 扩展 |
+| [packages/guard/repeat-tool-reminder](../packages/guard/repeat-tool-reminder) | — | placeholder | DSH 同名目录 |
+| [packages/guard/timeout-policy](../packages/guard/timeout-policy) | — | placeholder | DSH 同名目录 |
+| [packages/hooks/hook-protocol](../packages/hooks/hook-protocol) | lfaa-hook-protocol | implemented | DSH 同名目录 |
+| [packages/hooks/hooks-claude-code](../packages/hooks/hooks-claude-code) | — | placeholder | DSH 同名目录 |
+| [packages/hooks/hooks-codex](../packages/hooks/hooks-codex) | — | placeholder | DSH 同名目录 |
+| [packages/host/daemon](../packages/host/daemon) | lfaa-host-daemon | implemented | LFAA 扩展 |
+| [packages/host/directory-picker](../packages/host/directory-picker) | — | placeholder | DSH 同名目录 |
+| [packages/host/directory-picker-auto](../packages/host/directory-picker-auto) | — | placeholder | DSH 同名目录 |
+| [packages/host/directory-picker-browse](../packages/host/directory-picker-browse) | — | placeholder | DSH 同名目录 |
+| [packages/host/directory-picker-native](../packages/host/directory-picker-native) | — | placeholder | DSH 同名目录 |
+| [packages/host/frontend-static](../packages/host/frontend-static) | — | placeholder | DSH 同名目录 |
+| [packages/host/open-in-app](../packages/host/open-in-app) | — | placeholder | DSH 同名目录 |
+| [packages/host/plugin-inventory](../packages/host/plugin-inventory) | — | placeholder | DSH 同名目录 |
+| [packages/host/product-telemetry-otel](../packages/host/product-telemetry-otel) | — | placeholder | DSH 同名目录 |
+| [packages/host/webserver](../packages/host/webserver) | lfaa-host-webserver | implemented | DSH 同名目录 |
+| [packages/identity/anonymous-user-id](../packages/identity/anonymous-user-id) | — | placeholder | DSH 同名目录 |
+| [packages/identity/auth](../packages/identity/auth) | lfaa-identity-auth | implemented | LFAA 扩展 |
+| [packages/interaction/commands](../packages/interaction/commands) | — | placeholder | DSH 同名目录 |
+| [packages/interaction/permission-presets](../packages/interaction/permission-presets) | lfaa-permission-presets | implemented | DSH 同名目录 |
+| [packages/interaction/tool-ask-user](../packages/interaction/tool-ask-user) | lfaa-tool-ask-user | implemented | DSH 同名目录 |
+| [packages/interaction/user-approval](../packages/interaction/user-approval) | lfaa-user-approval | implemented | DSH 同名目录 |
+| [packages/interaction/user-questions](../packages/interaction/user-questions) | lfaa-user-questions | implemented | DSH 同名目录 |
+| [packages/jobs/jobs](../packages/jobs/jobs) | lfaa-jobs | implemented | DSH 同名目录 |
+| [packages/jobs/jobs-local](../packages/jobs/jobs-local) | — | placeholder | DSH 同名目录 |
+| [packages/jobs/tool-jobs](../packages/jobs/tool-jobs) | — | placeholder | DSH 同名目录 |
+| [packages/knowledge/knowledge-library](../packages/knowledge/knowledge-library) | lfaa-knowledge-library | implemented | LFAA 扩展 |
+| [packages/llm/deepseek-llm-api-extensions](../packages/llm/deepseek-llm-api-extensions) | — | placeholder | DSH 同名目录 |
+| [packages/llm/llm](../packages/llm/llm) | lfaa-llm | implemented | DSH 同名目录 |
+| [packages/llm/llm-deepseek](../packages/llm/llm-deepseek) | — | placeholder | DSH 同名目录 |
+| [packages/llm/llm-deepseek-account](../packages/llm/llm-deepseek-account) | — | placeholder | DSH 同名目录 |
+| [packages/llm/llm-deepseek-api-key](../packages/llm/llm-deepseek-api-key) | — | placeholder | DSH 同名目录 |
+| [packages/llm/llm-pi-ai](../packages/llm/llm-pi-ai) | lfaa-llm-pi-ai | implemented | DSH 同名目录 |
+| [packages/llm/llm-retry](../packages/llm/llm-retry) | lfaa-llm-retry | implemented | DSH 同名目录 |
+| [packages/llm/plugin-package-inventory-deepseek](../packages/llm/plugin-package-inventory-deepseek) | — | placeholder | DSH 同名目录 |
+| [packages/llm/token-meter](../packages/llm/token-meter) | lfaa-token-meter | implemented | DSH 同名目录 |
+| [packages/lsp/lsp](../packages/lsp/lsp) | — | placeholder | DSH 同名目录 |
+| [packages/lsp/lsp-stdio](../packages/lsp/lsp-stdio) | — | placeholder | DSH 同名目录 |
+| [packages/lsp/tool-lsp](../packages/lsp/tool-lsp) | — | placeholder | DSH 同名目录 |
+| [packages/mcp/mcp-client](../packages/mcp/mcp-client) | lfaa-mcp-client | implemented | DSH 同名目录 |
+| [packages/mcp/mcp-resources](../packages/mcp/mcp-resources) | — | placeholder | DSH 同名目录 |
+| [packages/network/game-connectivity](../packages/network/game-connectivity) | lfaa-game-connectivity | implemented | LFAA 扩展 |
+| [packages/plan/plan-mode](../packages/plan/plan-mode) | — | placeholder | DSH 同名目录 |
+| [packages/preset/agent-preset](../packages/preset/agent-preset) | lfaa-agent-preset | implemented | DSH 同名目录 |
+| [packages/preset/agent-preset-registry](../packages/preset/agent-preset-registry) | — | placeholder | DSH 同名目录 |
+| [packages/preset/persona](../packages/preset/persona) | — | placeholder | DSH 同名目录 |
+| [packages/ptc-runtime/ptc-runtime](../packages/ptc-runtime/ptc-runtime) | — | placeholder | DSH 同名目录 |
+| [packages/ptc-runtime/ptc-runtime-node](../packages/ptc-runtime/ptc-runtime-node) | — | placeholder | DSH 同名目录 |
+| [packages/runtime-diagnostics/invariants](../packages/runtime-diagnostics/invariants) | — | placeholder | DSH 同名目录 |
+| [packages/sandbox/permission-presets](../packages/sandbox/permission-presets) | — | placeholder | LFAA 扩展 |
+| [packages/sandbox/sandbox](../packages/sandbox/sandbox) | lfaa-sandbox | implemented | DSH 同名目录 |
+| [packages/sandbox/sandbox-local](../packages/sandbox/sandbox-local) | — | placeholder | DSH 同名目录 |
+| [packages/sandbox/sandbox-policy](../packages/sandbox/sandbox-policy) | lfaa-sandbox-policy | implemented | DSH 同名目录 |
+| [packages/sandbox/sandbox-windows-acl](../packages/sandbox/sandbox-windows-acl) | — | placeholder | DSH 同名目录 |
+| [packages/schedule/schedule](../packages/schedule/schedule) | lfaa-schedule | implemented | DSH 同名目录 |
+| [packages/sdk/client](../packages/sdk/client) | — | placeholder | DSH 同名目录 |
+| [packages/sdk/protocol](../packages/sdk/protocol) | — | placeholder | DSH 同名目录 |
+| [packages/sdk/sdk-client](../packages/sdk/sdk-client) | lfaa-sdk-client | implemented | LFAA 扩展 |
+| [packages/sdk/sdk-protocol](../packages/sdk/sdk-protocol) | lfaa-sdk-protocol | implemented | LFAA 扩展 |
+| [packages/sdk/server](../packages/sdk/server) | — | placeholder | DSH 同名目录 |
+| [packages/session-query/session-log-export](../packages/session-query/session-log-export) | lfaa-session-log-export | implemented | DSH 同名目录 |
+| [packages/session-query/session-query](../packages/session-query/session-query) | lfaa-session-query | implemented | DSH 同名目录 |
+| [packages/session-query/session-query-sqlite](../packages/session-query/session-query-sqlite) | lfaa-session-query-sqlite | implemented | DSH 同名目录 |
+| [packages/session-query/tool-session-query](../packages/session-query/tool-session-query) | lfaa-tool-session-query | implemented | DSH 同名目录 |
+| [packages/session/session-checkpoint-policy](../packages/session/session-checkpoint-policy) | lfaa-session-checkpoint-policy | implemented | DSH 同名目录 |
+| [packages/session/session-format](../packages/session/session-format) | lfaa-session-format | implemented | DSH 同名目录 |
+| [packages/session/session-format-catalog](../packages/session/session-format-catalog) | lfaa-session-format-catalog | implemented | DSH 同名目录 |
+| [packages/session/session-format-v0-to-v1](../packages/session/session-format-v0-to-v1) | lfaa-session-format-v0-to-v1 | implemented | DSH 同名目录 |
+| [packages/session/session-format-v1-to-v2](../packages/session/session-format-v1-to-v2) | lfaa-session-format-v1-to-v2 | implemented | DSH 同名目录 |
+| [packages/session/session-format-v2-to-v3](../packages/session/session-format-v2-to-v3) | lfaa-session-format-v2-to-v3 | implemented | DSH 同名目录 |
+| [packages/session/session-format-v3-to-v4](../packages/session/session-format-v3-to-v4) | lfaa-session-format-v3-to-v4 | implemented | DSH 同名目录 |
+| [packages/session/session-log-deepseek](../packages/session/session-log-deepseek) | — | placeholder | DSH 同名目录 |
+| [packages/session/session-persistence](../packages/session/session-persistence) | lfaa-session-persistence | implemented | DSH 同名目录 |
+| [packages/session/session-persistence-jsonl](../packages/session/session-persistence-jsonl) | lfaa-session-persistence-jsonl | implemented | DSH 同名目录 |
+| [packages/session/session-projection](../packages/session/session-projection) | lfaa-session-projection | implemented | DSH 同名目录 |
+| [packages/session/session-projection-cache](../packages/session/session-projection-cache) | lfaa-session-projection-cache | implemented | DSH 同名目录 |
+| [packages/session/session-stats](../packages/session/session-stats) | lfaa-session-stats | implemented | DSH 同名目录 |
+| [packages/session/session-telemetry](../packages/session/session-telemetry) | lfaa-session-telemetry | implemented | DSH 同名目录 |
+| [packages/session/session-telemetry-otel](../packages/session/session-telemetry-otel) | lfaa-session-telemetry-otel | implemented | DSH 同名目录 |
+| [packages/session/session-title](../packages/session/session-title) | lfaa-session-title | implemented | DSH 同名目录 |
+| [packages/session/session-title-all-prompts-llm](../packages/session/session-title-all-prompts-llm) | lfaa-session-title-all-prompts-llm | implemented | DSH 同名目录 |
+| [packages/session/session-title-first-prompt-llm](../packages/session/session-title-first-prompt-llm) | lfaa-session-title-first-prompt-llm | implemented | DSH 同名目录 |
+| [packages/session/session-title-llm](../packages/session/session-title-llm) | lfaa-session-title-llm | implemented | DSH 同名目录 |
+| [packages/session/session-turn-outline](../packages/session/session-turn-outline) | lfaa-session-turn-outline | implemented | DSH 同名目录 |
+| [packages/settings/settings](../packages/settings/settings) | lfaa-settings | implemented | DSH 同名目录 |
+| [packages/shell/bash-local](../packages/shell/bash-local) | lfaa-bash-local | implemented | DSH 同名目录 |
+| [packages/shell/bash-sandbox](../packages/shell/bash-sandbox) | lfaa-bash-sandbox | implemented | DSH 同名目录 |
+| [packages/shell/pwsh-local](../packages/shell/pwsh-local) | lfaa-pwsh-local | implemented | DSH 同名目录 |
+| [packages/shell/pwsh-sandbox](../packages/shell/pwsh-sandbox) | lfaa-pwsh-sandbox | implemented | DSH 同名目录 |
+| [packages/shell/shell](../packages/shell/shell) | lfaa-shell | implemented | DSH 同名目录 |
+| [packages/shell/shell-env](../packages/shell/shell-env) | lfaa-shell-env | implemented | DSH 同名目录 |
+| [packages/shell/tool-bash](../packages/shell/tool-bash) | — | placeholder | DSH 同名目录 |
+| [packages/shell/tool-bash-persistent](../packages/shell/tool-bash-persistent) | — | placeholder | DSH 同名目录 |
+| [packages/shell/tool-pwsh](../packages/shell/tool-pwsh) | — | placeholder | DSH 同名目录 |
+| [packages/shell/tool-pwsh-persistent](../packages/shell/tool-pwsh-persistent) | — | placeholder | DSH 同名目录 |
+| [packages/shell/tool-shell](../packages/shell/tool-shell) | lfaa-tool-shell | implemented | LFAA 扩展 |
+| [packages/skill/skill](../packages/skill/skill) | lfaa-skill | implemented | DSH 同名目录 |
+| [packages/skill/skill-badge](../packages/skill/skill-badge) | — | placeholder | DSH 同名目录 |
+| [packages/skill/skill-filesystem](../packages/skill/skill-filesystem) | lfaa-skill-filesystem | implemented | DSH 同名目录 |
+| [packages/skill/skill-office](../packages/skill/skill-office) | lfaa-skill-office | implemented | DSH 同名目录 |
+| [packages/skill/tool-skill](../packages/skill/tool-skill) | lfaa-tool-skill | implemented | DSH 同名目录 |
+| [packages/skill/tool-workspace-dependencies](../packages/skill/tool-workspace-dependencies) | — | placeholder | DSH 同名目录 |
+| [packages/skill/writing](../packages/skill/writing) | lfaa-skill-writing | implemented | LFAA 扩展 |
+| [packages/spill/spill](../packages/spill/spill) | lfaa-spill | implemented | DSH 同名目录 |
+| [packages/spill/spill-local](../packages/spill/spill-local) | lfaa-spill-local | implemented | DSH 同名目录 |
+| [packages/spill/spill-policy](../packages/spill/spill-policy) | lfaa-spill-policy | implemented | DSH 同名目录 |
+| [packages/ssh/fs-ssh](../packages/ssh/fs-ssh) | lfaa-fs-ssh | implemented | DSH 同名目录 |
+| [packages/ssh/sandbox-ssh](../packages/ssh/sandbox-ssh) | lfaa-sandbox-ssh | implemented | DSH 同名目录 |
+| [packages/ssh/ssh](../packages/ssh/ssh) | lfaa-ssh | implemented | DSH 同名目录 |
+| [packages/ssh/subprocess-ssh](../packages/ssh/subprocess-ssh) | lfaa-subprocess-ssh | implemented | DSH 同名目录 |
+| [packages/storage/storage](../packages/storage/storage) | lfaa-storage-hub | implemented | DSH 同名目录 |
+| [packages/storage/storage-domain](../packages/storage/storage-domain) | lfaa-storage-domain | implemented | DSH 同名目录 |
+| [packages/storage/storage-json](../packages/storage/storage-json) | lfaa-storage-json | implemented | DSH 同名目录 |
+| [packages/storage/storage-sqlite](../packages/storage/storage-sqlite) | lfaa-storage-sqlite | implemented | DSH 同名目录 |
+| [packages/subagent/subagent](../packages/subagent/subagent) | lfaa-subagent | implemented | DSH 同名目录 |
+| [packages/subagent/subagent-acp](../packages/subagent/subagent-acp) | — | placeholder | DSH 同名目录 |
+| [packages/subagent/subagent-claude-code](../packages/subagent/subagent-claude-code) | lfaa-subagent-claude-code | implemented | DSH 同名目录 |
+| [packages/subagent/subagent-codex](../packages/subagent/subagent-codex) | lfaa-subagent-codex | implemented | DSH 同名目录 |
+| [packages/subagent/subagent-dsh-sdk](../packages/subagent/subagent-dsh-sdk) | — | placeholder | DSH 同名目录 |
+| [packages/subagent/subagent-fork-in-process](../packages/subagent/subagent-fork-in-process) | — | placeholder | DSH 同名目录 |
+| [packages/subagent/subagent-in-process-driver](../packages/subagent/subagent-in-process-driver) | lfaa-subagent-in-process-driver | implemented | DSH 同名目录 |
+| [packages/subagent/subagent-spawn-in-process](../packages/subagent/subagent-spawn-in-process) | — | placeholder | DSH 同名目录 |
+| [packages/subagent/tool-subagent](../packages/subagent/tool-subagent) | lfaa-tool-subagent | implemented | DSH 同名目录 |
+| [packages/subagent/tool-subagent-control](../packages/subagent/tool-subagent-control) | lfaa-tool-subagent-control | implemented | DSH 同名目录 |
+| [packages/subprocess/subprocess](../packages/subprocess/subprocess) | lfaa-subprocess | implemented | DSH 同名目录 |
+| [packages/subprocess/subprocess-local](../packages/subprocess/subprocess-local) | lfaa-subprocess-local | implemented | DSH 同名目录 |
+| [packages/subprocess/win32-process](../packages/subprocess/win32-process) | lfaa-win32-process | implemented | DSH 同名目录 |
+| [packages/telemetry/logger](../packages/telemetry/logger) | lfaa-telemetry-logger | implemented | LFAA 扩展 |
+| [packages/telemetry/otel](../packages/telemetry/otel) | — | placeholder | DSH 同名目录 |
+| [packages/terminal/terminal](../packages/terminal/terminal) | lfaa-terminal | implemented | DSH 同名目录 |
+| [packages/terminal/terminal-bash](../packages/terminal/terminal-bash) | lfaa-terminal-bash | implemented | DSH 同名目录 |
+| [packages/terminal/tool-terminal](../packages/terminal/tool-terminal) | lfaa-tool-terminal | implemented | DSH 同名目录 |
+| [packages/test-support/agent-loop-testkit](../packages/test-support/agent-loop-testkit) | — | placeholder | DSH 同名目录 |
+| [packages/test-support/api](../packages/test-support/api) | lfaa-test-support-api | implemented | LFAA 扩展 |
+| [packages/test-support/client-runtime](../packages/test-support/client-runtime) | — | placeholder | DSH 同名目录 |
+| [packages/test-support/llm-mock-server](../packages/test-support/llm-mock-server) | — | placeholder | DSH 同名目录 |
+| [packages/test-support/llm-replay](../packages/test-support/llm-replay) | — | placeholder | DSH 同名目录 |
+| [packages/test-support/loader-smoke](../packages/test-support/loader-smoke) | — | placeholder | DSH 同名目录 |
+| [packages/test-support/remote-mock](../packages/test-support/remote-mock) | — | placeholder | DSH 同名目录 |
+| [packages/test-support/session-snapshot](../packages/test-support/session-snapshot) | — | placeholder | DSH 同名目录 |
+| [packages/todo/tool-todo](../packages/todo/tool-todo) | — | placeholder | DSH 同名目录 |
+| [packages/typert/generator](../packages/typert/generator) | lfaa-typert-generator | implemented | DSH 同名目录 |
+| [packages/typert/loader](../packages/typert/loader) | lfaa-typert-loader | implemented | DSH 同名目录 |
+| [packages/typert/protocol](../packages/typert/protocol) | lfaa-typert-protocol | implemented | DSH 同名目录 |
+| [packages/typert/registry](../packages/typert/registry) | lfaa-typert-registry | implemented | DSH 同名目录 |
+| [packages/util/atomic-write](../packages/util/atomic-write) | — | placeholder | DSH 同名目录 |
+| [packages/util/brand](../packages/util/brand) | — | placeholder | DSH 同名目录 |
+| [packages/util/chunked-list](../packages/util/chunked-list) | — | placeholder | DSH 同名目录 |
+| [packages/util/code-language](../packages/util/code-language) | — | placeholder | DSH 同名目录 |
+| [packages/util/crypto](../packages/util/crypto) | — | placeholder | DSH 同名目录 |
+| [packages/util/deque](../packages/util/deque) | — | placeholder | DSH 同名目录 |
+| [packages/util/home-paths](../packages/util/home-paths) | lfaa-home-paths | implemented | DSH 同名目录 |
+| [packages/util/http-proxy](../packages/util/http-proxy) | — | placeholder | DSH 同名目录 |
+| [packages/util/launch-environment](../packages/util/launch-environment) | lfaa-launch-environment | implemented | DSH 同名目录 |
+| [packages/util/lazy-require](../packages/util/lazy-require) | — | placeholder | DSH 同名目录 |
+| [packages/util/native-command](../packages/util/native-command) | — | placeholder | DSH 同名目录 |
+| [packages/util/output-retention](../packages/util/output-retention) | — | placeholder | DSH 同名目录 |
+| [packages/util/package-manifest](../packages/util/package-manifest) | — | placeholder | DSH 同名目录 |
+| [packages/util/time](../packages/util/time) | — | placeholder | DSH 同名目录 |
+| [packages/util/timeout](../packages/util/timeout) | — | placeholder | DSH 同名目录 |
+| [packages/util/values](../packages/util/values) | lfaa-util-values | implemented | DSH 同名目录 |
+| [packages/util/workspace-path](../packages/util/workspace-path) | — | placeholder | DSH 同名目录 |
+| [packages/video/ai-video](../packages/video/ai-video) | lfaa-video-ai-video | implemented | LFAA 扩展 |
+| [packages/video/tool-ai-video](../packages/video/tool-ai-video) | lfaa-video-tool-ai-video | implemented | LFAA 扩展 |
+| [packages/web/tool-web](../packages/web/tool-web) | lfaa-tool-web | implemented | DSH 同名目录 |
+| [packages/web/web](../packages/web/web) | lfaa-web | implemented | DSH 同名目录 |
+| [packages/web/web-fetch-http](../packages/web/web-fetch-http) | lfaa-web-fetch-http | implemented | DSH 同名目录 |
+| [packages/web/web-search-deepseek](../packages/web/web-search-deepseek) | lfaa-web-search-deepseek | implemented | DSH 同名目录 |
+| [packages/web/web-search-exa](../packages/web/web-search-exa) | — | placeholder | DSH 同名目录 |
+| [packages/web/web-search-perplexity](../packages/web/web-search-perplexity) | — | placeholder | DSH 同名目录 |
+| [packages/webhook/webhook](../packages/webhook/webhook) | — | placeholder | DSH 同名目录 |
+| [packages/webhook/webhook-github](../packages/webhook/webhook-github) | — | placeholder | DSH 同名目录 |
+| [packages/workflow/dag-engine](../packages/workflow/dag-engine) | lfaa-workflow-dag-engine | implemented | LFAA 扩展 |
+| [packages/workflow/minecraft-adapter](../packages/workflow/minecraft-adapter) | lfaa-workflow-minecraft-adapter | implemented | LFAA 扩展 |
+| [packages/workflow/tool-ralph](../packages/workflow/tool-ralph) | — | placeholder | DSH 同名目录 |
+| [packages/workflow/tool-workflow](../packages/workflow/tool-workflow) | lfaa-tool-workflow | implemented | DSH 同名目录 |
+| [packages/workflow/workflow](../packages/workflow/workflow) | lfaa-workflow | implemented | DSH 同名目录 |
+| [packages/workflow/workflow-ptc](../packages/workflow/workflow-ptc) | — | placeholder | DSH 同名目录 |
+| [packages/workspace/data-directory](../packages/workspace/data-directory) | lfaa-workspace-data-directory | implemented | LFAA 扩展 |
+| [packages/workspace/workspace](../packages/workspace/workspace) | lfaa-workspace-workspace | implemented | DSH 同名目录 |

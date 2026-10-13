@@ -1,22 +1,23 @@
 /**
- * 功能：呈现各应用共用的 daemon 文件管理工作台。
- * 作用：浏览和搜索受管目录，创建、编辑、上传、下载、重命名与删除文件，并显示节点任务状态。
+ * 功能：呈现本机、应用及游戏服务器共用的统一文件工作台。
+ * 作用：浏览和搜索受管目录，创建、编辑、上传、下载、重命名与删除文件，并显示真实操作结果。
  * 关联文件：packages/client/connection/src/api.ts、packages/client/ui-sidebar/src/GlobalNavigationRail.tsx、packages/client/ui-sidebar-files/src/FileManagerPage.css、packages/fs/fs/src/queue.ts。
  */
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Key, type ReactNode } from "react";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
-import { Alert, Button, Empty, Input, Modal, Select, Space, Spin, Table, Tag, Typography, message } from "antd";
+import { Alert, Button, Dropdown, Empty, Input, Modal, Popover, Select, Space, Spin, Table, Tag, Tree, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { getErrorMessage, hasAdminAccess, loadFileManagerNodes, loadFileManagerTask, submitFileManagerTask, type FileManagerNode, type FileManagerOperation, type FileManagerTask, type ManagedFileEntry, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import type { DataNode, EventDataNode } from "antd/es/tree";
+import { getErrorMessage, loadSystemFileAudit, operateSystemFiles, downloadSystemFile, uploadSystemFile, type FileManagerAuditEntry, type FileManagerOperation, type ManagedFileEntry, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import type { ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { GlobalNavigationRail } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
+import { usePointerResize } from "lfaa-client-ui-dockkit/src/ui-resize/use-pointer-resize.js";
+import { createTarArchive } from "./archive.js";
 import "./FileManagerPage.css";
 
 interface FileManagerSnapshot {
-  nodes: FileManagerNode[];
-  nodeId: string;
+  operations?: FileManagerOperation[];
   currentPath: string;
   entries: ManagedFileEntry[];
   searchText: string;
@@ -36,23 +37,81 @@ interface FileManagerPageProps {
   onLogout: () => void;
 }
 
-function wait(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-}
-
 function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatLastSeen(value: string): string {
-  const timestamp = new Date(value);
-  return Number.isNaN(timestamp.getTime()) ? "时间未知" : timestamp.toLocaleString();
-}
-
 function pathWithin(directory: string, name: string): string {
   return [directory, name].filter(Boolean).join("/");
+}
+
+function directorySnapshotKey(path: string, query: string): string {
+  return JSON.stringify([path, query.trim()]);
+}
+
+const maximumBatchItems = 50;
+const maximumBatchTransferBytes = 20 * 1024 * 1024;
+const maximumExpandedDirectoryNodes = 200;
+type FileColumnKey = "name" | "fileType" | "size" | "modifiedAt" | "actions";
+interface FileColumnWidths extends Record<FileColumnKey, number> {}
+interface FileColumnResizeEdge { left: FileColumnKey; right: FileColumnKey }
+const initialFileColumnWidths: FileColumnWidths = { name: 360, fileType: 120, size: 120, modifiedAt: 200, actions: 160 };
+const minimumFileColumnWidths: FileColumnWidths = { name: 160, fileType: 82, size: 88, modifiedAt: 146, actions: 120 };
+const maximumFileColumnWidths: FileColumnWidths = { name: 1200, fileType: 280, size: 280, modifiedAt: 380, actions: 240 };
+const fileColumnResizeEdges: Record<"name" | "fileType" | "size" | "modifiedAt", FileColumnResizeEdge> = {
+  name: { left: "name", right: "fileType" },
+  fileType: { left: "fileType", right: "size" },
+  size: { left: "size", right: "modifiedAt" },
+  modifiedAt: { left: "modifiedAt", right: "actions" }
+};
+const editableFileTypes = new Set(["txt", "md", "markdown", "json", "jsonc", "yaml", "yml", "toml", "properties", "cfg", "conf", "ini", "xml", "csv", "html", "css", "js", "mjs", "ts", "tsx", "jsx", "log"]);
+function renderMarkdownInline(line: string): ReactNode[] {
+  const tokens = line.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\(https?:\/\/[^\s)]+\))/gu);
+  return tokens.map((token, index) => {
+    if (token.startsWith("`") && token.endsWith("`")) return <code key={index}>{token.slice(1, -1)}</code>;
+    if (token.startsWith("**") && token.endsWith("**")) return <strong key={index}>{token.slice(2, -2)}</strong>;
+    if (token.startsWith("*") && token.endsWith("*")) return <em key={index}>{token.slice(1, -1)}</em>;
+    const link = /^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/u.exec(token);
+    if (link) return <a key={index} href={link[2]} target="_blank" rel="noreferrer">{link[1]}</a>;
+    return token;
+  });
+}
+
+function renderMarkdown(content: string): ReactNode[] {
+  const blocks: ReactNode[] = [];
+  const lines = content.split(/\r?\n/u);
+  let paragraph: string[] = [];
+  let code: string[] | null = null;
+  const flushParagraph = () => {
+    if (paragraph.length) blocks.push(<p key={`p-${blocks.length}`}>{paragraph.map((line, index) => <span key={index}>{index ? <br /> : null}{renderMarkdownInline(line)}</span>)}</p>);
+    paragraph = [];
+  };
+  for (const line of lines) {
+    if (line.trimStart().startsWith("```")) {
+      flushParagraph();
+      if (code) { blocks.push(<pre key={`code-${blocks.length}`}><code>{code.join("\n")}</code></pre>); code = null; }
+      else code = [];
+      continue;
+    }
+    if (code) { code.push(line); continue; }
+    const heading = /^(#{1,6})\s+(.+)$/u.exec(line);
+    const item = /^\s*[-*+]\s+(.+)$/u.exec(line);
+    if (heading) {
+      flushParagraph();
+      const level = Math.min(heading[1].length, 4) as 1 | 2 | 3 | 4;
+      const Heading = `h${level}` as "h1" | "h2" | "h3" | "h4";
+      blocks.push(<Heading key={`h-${blocks.length}`}>{renderMarkdownInline(heading[2])}</Heading>);
+    } else if (item) {
+      flushParagraph();
+      blocks.push(<ul key={`ul-${blocks.length}`}><li>{renderMarkdownInline(item[1])}</li></ul>);
+    } else if (!line.trim()) flushParagraph();
+    else paragraph.push(line);
+  }
+  flushParagraph();
+  if (code) blocks.push(<pre key={`code-${blocks.length}`}><code>{code.join("\n")}</code></pre>);
+  return blocks;
 }
 
 function getFileManagerModalContainer(): HTMLElement {
@@ -63,22 +122,26 @@ function getFileManagerModalContainer(): HTMLElement {
 export function FileManagerPage({ user, settings, serverState, homeRoute, onNavigate, onOpenSettings, onLogout }: FileManagerPageProps) {
   const [messageApi, messageContext] = message.useMessage();
   const [modalApi, modalContext] = Modal.useModal();
-  const cacheKey = `${user.id}:${user.role}`;
+  const fileAccess = user.role === "super_admin" && settings.permissions.mode === "full_access";
+  const fileAccessRef = useRef(fileAccess);
+  fileAccessRef.current = fileAccess;
+  const cacheKey = `data-v2:${user.id}:${user.role}:${settings.permissions.mode}`;
   const cachedSnapshot = useRef(fileManagerSnapshots.get(cacheKey) ?? null).current;
-  const [nodes, setNodes] = useState<FileManagerNode[]>(() => cachedSnapshot?.nodes ?? []);
-  const [nodeId, setNodeId] = useState(() => cachedSnapshot?.nodeId ?? "");
   const [currentPath, setCurrentPath] = useState(() => cachedSnapshot?.currentPath ?? "");
+  const [dataRootLabel, setDataRootLabel] = useState("");
   const [entries, setEntries] = useState<ManagedFileEntry[]>(() => cachedSnapshot?.entries ?? []);
   const [searchText, setSearchText] = useState(() => cachedSnapshot?.searchText ?? "");
   const [searchQuery, setSearchQuery] = useState(() => cachedSnapshot?.searchQuery ?? "");
-  const [nodesLoading, setNodesLoading] = useState(() => cachedSnapshot === null);
-  const [nodesRefreshing, setNodesRefreshing] = useState(false);
+  const [visibleSnapshotKey, setVisibleSnapshotKey] = useState(() => cachedSnapshot
+    ? directorySnapshotKey(cachedSnapshot.currentPath, cachedSnapshot.searchQuery)
+    : "");
   const [loading, setLoading] = useState(() => cachedSnapshot === null);
   const [directoryState, setDirectoryState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [taskMessage, setTaskMessage] = useState("");
   const [truncated, setTruncated] = useState(() => cachedSnapshot?.truncated ?? false);
+  const [availableOperations, setAvailableOperations] = useState<FileManagerOperation[] | undefined>(() => cachedSnapshot?.operations);
   const [createKind, setCreateKind] = useState<"file" | "folder" | null>(null);
   const [newName, setNewName] = useState("");
   const [renameEntry, setRenameEntry] = useState<ManagedFileEntry | null>(null);
@@ -86,190 +149,364 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
   const [editorPath, setEditorPath] = useState("");
   const [editorContent, setEditorContent] = useState("");
   const [editorSavedContent, setEditorSavedContent] = useState("");
+  const [editorSha256, setEditorSha256] = useState("");
   const [editorBusy, setEditorBusy] = useState(false);
+  const [directorySizes, setDirectorySizes] = useState<Record<string, { totalSize: number; skippedEntries: number }>>({});
+  const [calculatingDirectoryPath, setCalculatingDirectoryPath] = useState("");
+  const [preview, setPreview] = useState<{ name: string; kind: "text" | "image" | "pdf"; content?: string; mimeType?: string; dataBase64?: string } | null>(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [minimumSize, setMinimumSize] = useState("");
+  const [maximumSize, setMaximumSize] = useState("");
+  const [modifiedAfter, setModifiedAfter] = useState("");
+  const [modifiedBefore, setModifiedBefore] = useState("");
+  const [treeOpen, setTreeOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [treeData, setTreeData] = useState<DataNode[]>([{ title: "文件", key: "", isLeaf: false, children: [] }]);
+  const [loadedTreeKeys, setLoadedTreeKeys] = useState<Key[]>([]);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [moveDestination, setMoveDestination] = useState("");
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashEntries, setTrashEntries] = useState<ManagedFileEntry[]>([]);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditEntries, setAuditEntries] = useState<FileManagerAuditEntry[]>([]);
+  const [auditQuery, setAuditQuery] = useState("");
+  const [columnWidths, setColumnWidths] = useState<FileColumnWidths>(initialFileColumnWidths);
+  const columnWidthsRef = useRef(columnWidths);
+  const columnResizeStartRef = useRef<FileColumnWidths | null>(null);
+  const columnsManuallyResizedRef = useRef(false);
+  const fileManagerBodyRef = useRef<HTMLDivElement | null>(null);
+
+  const commitColumnWidths = useCallback((next: FileColumnWidths) => {
+    columnWidthsRef.current = next;
+    setColumnWidths(next);
+  }, []);
+
+  const resizeAdjacentColumns = useCallback((edge: FileColumnResizeEdge, delta: number, start = columnWidthsRef.current) => {
+    const lowerBound = Math.max(
+      minimumFileColumnWidths[edge.left] - start[edge.left],
+      start[edge.right] - maximumFileColumnWidths[edge.right],
+    );
+    const upperBound = Math.min(
+      maximumFileColumnWidths[edge.left] - start[edge.left],
+      start[edge.right] - minimumFileColumnWidths[edge.right],
+    );
+    const appliedDelta = Math.min(upperBound, Math.max(lowerBound, delta));
+    commitColumnWidths({
+      ...start,
+      [edge.left]: start[edge.left] + appliedDelta,
+      [edge.right]: start[edge.right] - appliedDelta,
+    });
+  }, [commitColumnWidths]);
+
+  const columnResize = usePointerResize<FileColumnResizeEdge>({
+    onResizeStart: () => {
+      columnResizeStartRef.current = { ...columnWidthsRef.current };
+    },
+    onResize: (edge, delta) => resizeAdjacentColumns(edge, delta, columnResizeStartRef.current ?? columnWidthsRef.current),
+    onResizeEnd: (_edge, cancelled) => {
+      const start = columnResizeStartRef.current;
+      if (cancelled && start) commitColumnWidths(start);
+      else columnsManuallyResizedRef.current = true;
+      columnResizeStartRef.current = null;
+    },
+  });
+
+  useEffect(() => {
+    const body = fileManagerBodyRef.current;
+    if (!body || typeof ResizeObserver === "undefined") return;
+
+    const fitNameColumn = () => {
+      if (columnsManuallyResizedRef.current) return;
+      const style = window.getComputedStyle(body);
+      const horizontalPadding = Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight);
+      const availableWidth = body.clientWidth - horizontalPadding - 42;
+      const reservedWidth = initialFileColumnWidths.fileType + initialFileColumnWidths.size + initialFileColumnWidths.modifiedAt + initialFileColumnWidths.actions;
+      const nameWidth = Math.max(minimumFileColumnWidths.name, Math.min(maximumFileColumnWidths.name, Math.floor(availableWidth - reservedWidth)));
+      if (columnWidthsRef.current.name === nameWidth) return;
+      commitColumnWidths({ ...columnWidthsRef.current, name: nameWidth });
+    };
+
+    const observer = new ResizeObserver(fitNameColumn);
+    observer.observe(body);
+    fitNameColumn();
+    return () => observer.disconnect();
+  }, [commitColumnWidths]);
   const uploadInputRef = useRef<HTMLInputElement>(null);
-  const refreshNodesRef = useRef<(() => void) | null>(null);
-  const nodesRef = useRef(nodes);
-  nodesRef.current = nodes;
-  const nodeIdRef = useRef(nodeId);
-  nodeIdRef.current = nodeId;
   const searchTextRef = useRef(searchText);
   searchTextRef.current = searchText;
   const directoryReadSequence = useRef(0);
-
-  const selectedNode = nodes.find((node) => node.id === nodeId) ?? null;
-  const isOnline = selectedNode?.status === "online";
+  const directoryReadController = useRef<AbortController | null>(null);
+  const directorySizeInFlight = useRef(new Set<string>());
+  const draggedPathRef = useRef("");
+  const supportsDirectorySize = !currentPath.startsWith(".lfaa-library") || currentPath.startsWith(".lfaa-library/game-servers/");
+  const isOnline = fileAccess;
   const directoryReady = directoryState === "ready";
-  const nodeSelectionLocked = busy || createKind !== null || renameEntry !== null || Boolean(editorPath);
+  const hasCurrentDirectorySnapshot = visibleSnapshotKey === directorySnapshotKey(currentPath, searchQuery);
+  const showCurrentDirectorySnapshot = hasCurrentDirectorySnapshot && isOnline;
+  const directoryUsable = directoryReady || showCurrentDirectorySnapshot;
+  const concreteDirectory = !currentPath.startsWith(".lfaa-library") || currentPath.startsWith(".lfaa-library/game-servers/") && currentPath.split("/").length >= 3;
+  const canOperate = (operation: FileManagerOperation, entry?: ManagedFileEntry) => entry?.operations ? entry.operations.includes(operation) : availableOperations ? availableOperations.includes(operation) : concreteDirectory;
 
   const runTask = useCallback(async (
     operation: FileManagerOperation,
-    input: { path: string; query?: string; name?: string; content?: string; dataBase64?: string }
+    input: { path: string; query?: string; name?: string; destinationPath?: string; content?: string; dataBase64?: string; sha256?: string; expectedSha256?: string }, signal?: AbortSignal
   ): Promise<Record<string, unknown>> => {
-    if (!nodeId || !isOnline) throw new Error("所选 daemon 节点当前离线，请先恢复连接或切换到在线节点。");
-    setBusy(true);
+    if (!isOnline) throw new Error("当前账户无权操作 data 文件。");
+    const locksWorkspace = operation !== "list" && operation !== "search";
+    if (locksWorkspace) setBusy(true);
     setError("");
-    setTaskMessage("正在提交文件任务…");
+    if (locksWorkspace) setTaskMessage("正在处理文件操作…");
     try {
-      const { task: submitted } = await submitFileManagerTask({ nodeId, operation, ...input });
-      setTaskMessage(submitted.message);
-      let task: FileManagerTask = submitted;
-      for (let attempt = 0; attempt < 120; attempt += 1) {
-        if (task.status === "succeeded") return task.result ?? {};
-        if (task.status === "failed") throw new Error(task.message || "文件任务执行失败。");
-        await wait(500);
-        const latest = await loadFileManagerTask(task.id);
-        task = latest.task;
-        setTaskMessage(task.message);
-      }
-      throw new Error("文件任务等待超时；请刷新目录确认文件状态后再继续操作。");
+      const { result } = await operateSystemFiles({ operation, ...input }, signal);
+      if (!fileAccessRef.current) throw new Error("文件权限已变更，请重新核对设置。");
+      return result;
     } catch (taskError) {
+      if (signal?.aborted) throw taskError;
       const detail = getErrorMessage(taskError);
       setError(detail);
       throw new Error(detail);
     } finally {
-      setBusy(false);
-      setTaskMessage("");
+      if (locksWorkspace) {
+        setBusy(false);
+        setTaskMessage("");
+      }
     }
-  }, [isOnline, nodeId]);
+  }, [isOnline]);
 
   const refresh = useCallback(async () => {
     const request = ++directoryReadSequence.current;
-    if (!nodeId || !isOnline) {
+    directoryReadController.current?.abort();
+    const controller = new AbortController();
+    directoryReadController.current = controller;
+    setDirectorySizes({});
+    if (!isOnline) {
       // 离线缓存只能用于节点恢复后的快速首屏，不能伪装成当前可操作目录。
       setEntries([]);
       setTruncated(false);
       setLoading(false);
       setDirectoryState("idle");
+      setVisibleSnapshotKey("");
       return;
     }
-    // 目录请求成功前隐藏缓存，避免请求失败时把旧列表或空数组伪装成当前目录。
+    // 同节点同目录可保留最近快照作首屏预览；交互仍等待本次节点读取成功。
     setLoading(true);
     setDirectoryState("loading");
-    setEntries([]);
-    setTruncated(false);
     setError("");
     try {
       const result = searchQuery.trim()
-        ? await runTask("search", { path: currentPath, query: searchQuery.trim() })
-        : await runTask("list", { path: currentPath });
+        ? await runTask("search", { path: currentPath, query: searchQuery.trim() }, controller.signal)
+        : await runTask("list", { path: currentPath }, controller.signal);
       if (request !== directoryReadSequence.current) return;
+      if (typeof result.rootDirectory === "string") setDataRootLabel(result.rootDirectory);
       const nextEntries = Array.isArray(result.entries) ? result.entries as ManagedFileEntry[] : [];
       setEntries(nextEntries);
+      const operations = Array.isArray(result.operations) ? result.operations as FileManagerOperation[] : undefined;
+      setAvailableOperations(operations);
       const nextTruncated = result.truncated === true;
       setTruncated(nextTruncated);
       setDirectoryState("ready");
+      setVisibleSnapshotKey(directorySnapshotKey(currentPath, searchQuery));
       fileManagerSnapshots.set(cacheKey, {
-        nodes: nodesRef.current, nodeId, currentPath, searchText: searchTextRef.current, searchQuery, entries: nextEntries, truncated: nextTruncated
+        currentPath, searchText: searchTextRef.current, searchQuery, entries: nextEntries, truncated: nextTruncated, operations
       });
     } catch {
       if (request !== directoryReadSequence.current) return;
       setEntries([]);
       setTruncated(false);
       setDirectoryState("error");
+      setVisibleSnapshotKey("");
     } finally {
       if (request === directoryReadSequence.current) setLoading(false);
     }
-  }, [cacheKey, currentPath, isOnline, nodeId, runTask, searchQuery]);
-
-  useEffect(() => {
-    if (!hasAdminAccess(user.role)) {
-      refreshNodesRef.current = null;
-      setNodesLoading(false);
-      return;
-    }
-    let active = true;
-    let loaded = false;
-    let manualRefreshRevision = 0;
-    let completedManualRefreshRevision = 0;
-    let requestSequence = 0;
-    const refreshNodes = async () => {
-      const request = ++requestSequence;
-      const manualRevision = manualRefreshRevision;
-      const manual = manualRevision > completedManualRefreshRevision;
-      if (manual) {
-        setNodesRefreshing(true);
-        setError("");
-      }
-      try {
-        const { nodes: nextNodes } = await loadFileManagerNodes();
-        if (!active || request !== requestSequence) return;
-        const currentNodeId = nodeIdRef.current;
-        setNodes(nextNodes);
-        const nextNodeId = currentNodeId && nextNodes.some((node) => node.id === currentNodeId)
-          ? currentNodeId
-          : nextNodes.find((node) => node.status === "online")?.id ?? nextNodes[0]?.id ?? "";
-        if (nextNodeId !== currentNodeId) {
-          setNodeId(nextNodeId);
-          setCurrentPath("");
-          setSearchText("");
-          setSearchQuery("");
-          setEntries([]);
-          setTruncated(false);
-          setDirectoryState("idle");
-        }
-        const snapshot = fileManagerSnapshots.get(cacheKey);
-        if (snapshot) {
-          const sameSnapshotNode = snapshot.nodeId === nextNodeId;
-          fileManagerSnapshots.set(cacheKey, {
-            ...snapshot,
-            nodes: nextNodes,
-            ...(sameSnapshotNode ? {} : { nodeId: nextNodeId, currentPath: "", entries: [], searchText: "", searchQuery: "", truncated: false })
-          });
-        }
-      } catch (loadError) {
-        if (active && request === requestSequence && (!loaded || manual)) setError(getErrorMessage(loadError));
-      } finally {
-        if (active && request === requestSequence) {
-          if (!loaded) {
-            loaded = true;
-            setNodesLoading(false);
-          }
-          if (manual && manualRevision === manualRefreshRevision) {
-            completedManualRefreshRevision = manualRevision;
-            setNodesRefreshing(false);
-          }
-        }
-      }
-    };
-    if (cachedSnapshot === null) setNodesLoading(true);
-    // 节点在线状态来自 daemon 心跳；定时刷新让页面能跟上 daemon 启停。
-    const poller = createReadPoller(refreshNodes, 10_000);
-    refreshNodesRef.current = () => {
-      manualRefreshRevision += 1;
-      setNodesRefreshing(true);
-      setError("");
-      void poller.refresh();
-    };
-    return () => {
-      active = false;
-      requestSequence += 1;
-      refreshNodesRef.current = null;
-      poller.stop();
-    };
-  }, [cacheKey, cachedSnapshot, user.role]);
+  }, [cacheKey, currentPath, isOnline, runTask, searchQuery]);
 
   useEffect(() => {
     void refresh();
-    return () => { directoryReadSequence.current += 1; };
+    return () => { directoryReadSequence.current += 1; directoryReadController.current?.abort(); };
   }, [refresh]);
 
+  useEffect(() => {
+    setTreeData([{ title: "文件", key: "", isLeaf: false, children: [] }]);
+    setLoadedTreeKeys([]);
+    setSelectedPaths([]);
+  }, [cacheKey]);
+
+  useEffect(() => { setSelectedPaths([]); }, [currentPath, searchQuery]);
+  useEffect(() => {
+    if (!fileAccess) { setPreview(null); setEditorPath(""); setTrashOpen(false); setAuditOpen(false); setCreateKind(null); setRenameEntry(null); }
+  }, [fileAccess]);
+
+  useEffect(() => {
+    if (!preview?.dataBase64 || (preview.kind !== "image" && preview.kind !== "pdf")) {
+      setPreviewUrl("");
+      return;
+    }
+    let url = "";
+    try {
+      const binary = window.atob(preview.dataBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      url = URL.createObjectURL(new Blob([bytes], { type: preview.mimeType ?? "application/octet-stream" }));
+      setPreviewUrl(url);
+    } catch {
+      setPreviewUrl("");
+    }
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [preview]);
+
   const openEntry = async (entry: ManagedFileEntry) => {
+    if (busy || !directoryUsable) return;
     if (entry.kind === "directory") {
       setSearchQuery("");
       setSearchText("");
       setCurrentPath(entry.path);
       return;
     }
+    if (!directoryReady) return;
+    try {
+      const result = await runTask("preview", { path: entry.path });
+      const kind = result.previewKind;
+      if (kind !== "text" && kind !== "image" && kind !== "pdf") throw new Error("文件服务未返回受支持的预览内容。");
+      setPreview({ name: entry.name, kind, content: typeof result.content === "string" ? result.content : undefined, mimeType: typeof result.mimeType === "string" ? result.mimeType : undefined, dataBase64: typeof result.dataBase64 === "string" ? result.dataBase64 : undefined });
+    } catch {
+      // 错误由任务提交状态统一显示；预览失败不触发编辑或下载。
+    }
+  };
+
+  const editEntry = async (entry: ManagedFileEntry) => {
+    if (busy || !directoryReady || entry.kind !== "file" || entry.size > 2 * 1024 * 1024) return;
     try {
       const result = await runTask("read", { path: entry.path });
-      if (typeof result.content !== "string") throw new Error("Daemon 没有返回可编辑的文本内容。");
+      if (typeof result.content !== "string") throw new Error("文件服务没有返回可编辑的文本内容。");
+      if (typeof result.sha256 !== "string") throw new Error("文件服务未返回文件版本摘要，已停止编辑以保护并发修改。");
       setEditorPath(entry.path);
       setEditorContent(result.content);
       setEditorSavedContent(result.content);
+      setEditorSha256(result.sha256);
     } catch {
-      // 错误由任务提交状态统一显示；二进制文件仍可下载后使用本地程序编辑。
+      // 错误显示在工具栏任务状态中。
     }
+  };
+
+  const loadTreeChildren = async (treeNode: EventDataNode<DataNode>) => {
+    if (loadedTreeKeys.length >= maximumExpandedDirectoryNodes) throw new Error("目录树最多展开 200 个目录；请在表格中直接进入更深目录。 ");
+    const treeReadSequence = directoryReadSequence.current;
+    const parentPath = String(treeNode.key);
+    const result = await runTask("list", { path: parentPath });
+    if (directoryReadSequence.current !== treeReadSequence) return;
+    const folders = (Array.isArray(result.entries) ? result.entries as ManagedFileEntry[] : []).filter(entry => entry.kind === "directory");
+    const updateChildren = (nodes: DataNode[]): DataNode[] => nodes.map(node => String(node.key) === parentPath
+      ? { ...node, isLeaf: folders.length === 0, children: folders.map(folder => ({ title: folder.name, key: folder.path, isLeaf: false, children: [] })) }
+      : { ...node, ...(node.children ? { children: updateChildren(node.children) } : {}) });
+    setTreeData(current => updateChildren(current));
+    setLoadedTreeKeys(current => current.includes(treeNode.key) ? current : [...current, treeNode.key]);
+  };
+
+  const startMove = (entriesToMove: ManagedFileEntry[]) => {
+    if (!entriesToMove.length) return;
+    setSelectedPaths(entriesToMove.map(entry => entry.path));
+    setMoveDestination(currentPath);
+    setMoveDialogOpen(true);
+  };
+
+  const moveSelectedEntries = async () => {
+    const selected = entries.filter(entry => selectedPaths.includes(entry.path));
+    if (!selected.length) return;
+    let moved = 0;
+    const failures: string[] = [];
+    for (const entry of selected) {
+      try { await runTask("move", { path: entry.path, destinationPath: moveDestination.trim() }); moved += 1; }
+      catch { failures.push(entry.name); }
+    }
+    setMoveDialogOpen(false);
+    setSelectedPaths([]);
+    if (failures.length) messageApi.warning(`已移动 ${moved} 项；${failures.length} 项未移动：${failures.slice(0, 3).join("、")}`);
+    else messageApi.success(`已移动 ${moved} 项。`);
+    await refresh();
+  };
+
+  const deleteSelectedEntries = () => {
+    const selected = entries.filter(entry => selectedPaths.includes(entry.path));
+    if (!selected.length) return;
+    modalApi.confirm({
+      title: `将 ${selected.length} 项移入回收站？`,
+      content: "需要时可以在回收站恢复；仅彻底删除才会释放磁盘空间。",
+      okText: "移入回收站", cancelText: "取消", getContainer: getFileManagerModalContainer,
+      onOk: async () => {
+        let moved = 0;
+        const failures: string[] = [];
+        for (const entry of selected) {
+          try { await runTask("delete", { path: entry.path }); moved += 1; }
+          catch { failures.push(entry.name); }
+        }
+        setSelectedPaths([]);
+        if (failures.length) messageApi.warning(`已移入回收站 ${moved} 项；${failures.length} 项失败：${failures.slice(0, 3).join("、")}`);
+        else messageApi.success(`已将 ${moved} 项移入回收站。`);
+        await refresh();
+      }
+    });
+  };
+
+  const downloadSelectedEntries = async () => {
+    const selected = entries.filter(entry => selectedPaths.includes(entry.path));
+    if (!selected.length) return;
+    if (selected.some(entry => entry.kind !== "file")) { messageApi.warning("批量下载目前请选择文件；文件夹请先打开后选择其中的文件。"); return; }
+    try {
+      const files: Array<{ path: string; bytes: Uint8Array }> = [];
+      let totalBytes = 0;
+      for (const entry of selected) {
+        const result = !entry.path.startsWith(".lfaa-library/") ? null : await runTask("download", { path: entry.path });
+        if (result && typeof result.dataBase64 !== "string") throw new Error("文件服务没有返回文件内容。");
+        totalBytes += entry.size;
+        if (totalBytes > maximumBatchTransferBytes) throw new Error("批量下载总量不能超过 20 MiB；请分批选择。");
+        const bytes = result ? Uint8Array.from(window.atob(result.dataBase64 as string), character => character.charCodeAt(0)) : new Uint8Array(await (await downloadSystemFile(entry.path)).arrayBuffer());
+        files.push({ path: entry.path, bytes });
+      }
+      const url = URL.createObjectURL(createTarArchive(files));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "lfaa-files.tar";
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      messageApi.success(`已打包下载 ${files.length} 个文件。`);
+    } catch (downloadError) { setError(getErrorMessage(downloadError)); }
+  };
+
+  const loadTrash = async () => {
+    try {
+      const trashRoot = currentPath.startsWith(".lfaa-library/game-servers/")
+        ? currentPath.split("/").slice(0, 3).join("/")
+        : currentPath.startsWith("local-drives/") ? currentPath.split("/").slice(0, 2).join("/") : "";
+      const result = await runTask("trash-list", { path: trashRoot });
+      setTrashEntries(Array.isArray(result.entries) ? result.entries as ManagedFileEntry[] : []);
+      setTrashOpen(true);
+    } catch { /* 任务错误显示在工具栏。 */ }
+  };
+
+  const restoreTrashEntry = async (entry: ManagedFileEntry) => {
+    if (!entry.trashId) return;
+    try {
+      await runTask("trash-restore", { path: "", name: entry.trashId });
+      messageApi.success(`已恢复“${entry.name}”。`);
+      setTrashEntries(current => current.filter(item => item.trashId !== entry.trashId));
+      await refresh();
+    } catch { /* 目录冲突等真实错误已显示。 */ }
+  };
+
+  const purgeTrashEntry = (entry: ManagedFileEntry) => {
+    if (!entry.trashId) return;
+    modalApi.confirm({ title: "彻底删除？", content: `“${entry.name}”删除后无法恢复。`, okText: "彻底删除", okButtonProps: { danger: true }, cancelText: "取消", getContainer: getFileManagerModalContainer, onOk: async () => {
+      await runTask("trash-purge", { path: "", name: entry.trashId });
+      setTrashEntries(current => current.filter(item => item.trashId !== entry.trashId));
+      messageApi.success("已彻底删除。 ");
+    } });
+  };
+
+  const loadAudit = async () => {
+    try { const result = await loadSystemFileAudit(auditQuery); setAuditEntries(result.entries); setAuditOpen(true); }
+    catch (auditError) { setError(getErrorMessage(auditError)); }
   };
 
   const navigateUp = () => {
@@ -316,9 +553,8 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
   const deleteEntry = (entry: ManagedFileEntry) => {
     modalApi.confirm({
       title: entry.kind === "directory" ? "删除文件夹？" : "删除文件？",
-      content: entry.kind === "directory" ? `“${entry.name}”及其中所有文件都会被删除。` : `“${entry.name}”将被永久删除。`,
-      okText: "删除",
-      okButtonProps: { danger: true },
+      content: "此项目会移入回收站，可以之后恢复。",
+      okText: "移入回收站",
       cancelText: "取消",
       getContainer: getFileManagerModalContainer,
       onOk: async () => {
@@ -331,39 +567,45 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
 
   const downloadEntry = async (entry: ManagedFileEntry) => {
     try {
-      const result = await runTask("download", { path: entry.path });
-      if (typeof result.dataBase64 !== "string") throw new Error("Daemon 没有返回文件内容。");
-      const binary = window.atob(result.dataBase64);
-      const bytes = new Uint8Array(binary.length);
-      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-      const url = URL.createObjectURL(new Blob([bytes]));
+      const result = !entry.path.startsWith(".lfaa-library/") ? null : await runTask("download", { path: entry.path });
+      if (result && typeof result.dataBase64 !== "string") throw new Error("文件服务没有返回文件内容。");
+      const blob = result ? new Blob([Uint8Array.from(window.atob(result.dataBase64 as string), character => character.charCodeAt(0))]) : await downloadSystemFile(entry.path);
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = typeof result.name === "string" ? result.name : entry.name;
+      link.download = result && typeof result.name === "string" ? result.name : entry.name;
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch {
-      // 错误显示在工具栏下方。
+    } catch (downloadError) {
+      setError(getErrorMessage(downloadError));
     }
   };
 
-  const uploadSelectedFile = async (file: File | undefined) => {
-    if (!file) return;
-    if (file.size > 3 * 1024 * 1024) {
-      setError("单个上传文件不能超过 3 MiB。");
-      return;
-    }
+  const uploadSelectedFiles = async (files: File[]) => {
+    if (!files.length) return;
     try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.addEventListener("load", () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("无法读取上传文件。")), { once: true });
-        reader.addEventListener("error", () => reject(new Error("无法读取上传文件。")), { once: true });
-        reader.readAsDataURL(file);
-      });
-      const separator = dataUrl.indexOf(",");
-      if (separator < 0) throw new Error("上传文件编码无效。");
-      await runTask("upload", { path: currentPath, name: file.name, dataBase64: dataUrl.slice(separator + 1) });
-      messageApi.success("文件已上传。");
+      if (files.length > maximumBatchItems) throw new Error(`单次最多导入 ${maximumBatchItems} 个文件。`);
+      const batchSize = files.reduce((total, file) => total + file.size, 0);
+      if (batchSize > maximumBatchTransferBytes) throw new Error("单次导入总量不能超过 20 MiB，请分批选择。");
+      let uploaded = 0;
+      let duplicates = 0;
+      for (const file of files) {
+        if (file.size > 3 * 1024 * 1024) throw new Error(`“${file.name}”超过 3 MiB 单文件上传上限。`);
+        const dataUrl = !currentPath.startsWith(".lfaa-library/") ? "" : await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.addEventListener("load", () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("无法读取上传文件。")), { once: true });
+          reader.addEventListener("error", () => reject(new Error("无法读取上传文件。")), { once: true });
+          reader.readAsDataURL(file);
+        });
+        const separator = dataUrl.indexOf(",");
+        if (separator < 0 && currentPath.startsWith(".lfaa-library/")) throw new Error("上传文件编码无效。");
+        const digest = await window.crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+        const sha256 = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+        const result = !currentPath.startsWith(".lfaa-library/") ? (await uploadSystemFile(currentPath, file, sha256)).result : await runTask("upload", { path: currentPath, name: file.name, dataBase64: dataUrl.slice(separator + 1), sha256 });
+        uploaded += 1;
+        if (result.duplicate === true) duplicates += 1;
+      }
+      messageApi.success(`已处理 ${uploaded} 个文件，其中 ${duplicates} 个与同名文件内容一致并保留原件。`);
       await refresh();
     } catch (uploadError) {
       setError(getErrorMessage(uploadError));
@@ -375,8 +617,9 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
   const saveEditor = async () => {
     setEditorBusy(true);
     try {
-      await runTask("write", { path: editorPath, content: editorContent });
+      const result = await runTask("write", { path: editorPath, content: editorContent, expectedSha256: editorSha256 });
       setEditorSavedContent(editorContent);
+      if (typeof result.sha256 === "string") setEditorSha256(result.sha256);
       setEditorPath("");
       messageApi.success("文件已保存。");
       await refresh();
@@ -387,32 +630,145 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
     }
   };
 
+  const calculateDirectorySize = async (entry: ManagedFileEntry) => {
+    if (busy || !directoryReady || entry.kind !== "directory" || !supportsDirectorySize || directorySizeInFlight.current.has(entry.path)) return;
+    const treeReadSequence = directoryReadSequence.current;
+    directorySizeInFlight.current.add(entry.path);
+    setCalculatingDirectoryPath(entry.path);
+    try {
+      const result = await runTask("directory-size", { path: entry.path });
+      const totalSize = Number(result.totalSize);
+      const skippedEntries = Number(result.skippedEntries) || 0;
+      if (!Number.isSafeInteger(totalSize) || totalSize < 0 || !Number.isSafeInteger(skippedEntries) || skippedEntries < 0) {
+        throw new Error("文件服务返回的目录大小无效。");
+      }
+      if (directoryReadSequence.current !== treeReadSequence) return;
+      setDirectorySizes(current => ({ ...current, [entry.path]: { totalSize, skippedEntries } }));
+      setEntries(current => current.map(item => item.path === entry.path ? { ...item, size: totalSize } : item));
+      if (skippedEntries) messageApi.info(`目录大小已计算；为保持安全，跳过了 ${skippedEntries} 个链接或特殊文件。`);
+    } catch {
+      // 错误由文件任务状态在工作台工具栏中显示。
+    } finally {
+      directorySizeInFlight.current.delete(entry.path);
+      setCalculatingDirectoryPath(current => current === entry.path ? "" : current);
+    }
+  };
+
+  const visibleEntries = entries.filter(entry => {
+    const typeMatches = typeFilter === "all" || typeFilter === "folder" && entry.kind === "directory"
+      || typeFilter === "file" && entry.kind === "file" || typeFilter === entry.fileType;
+    const sizeMatches = (!minimumSize || entry.size >= Math.max(0, Number(minimumSize)))
+      && (!maximumSize || entry.size <= Math.max(0, Number(maximumSize)));
+    const modified = new Date(entry.modifiedAt).getTime();
+    const after = modifiedAfter ? new Date(`${modifiedAfter}T00:00:00`).getTime() : null;
+    const before = modifiedBefore ? new Date(`${modifiedBefore}T23:59:59.999`).getTime() : null;
+    const dateMatches = (after === null || modified >= after) && (before === null || modified <= before);
+    return typeMatches && sizeMatches && dateMatches;
+  });
+  const activeFilterCount = [typeFilter !== "all", Boolean(minimumSize), Boolean(maximumSize), Boolean(modifiedAfter), Boolean(modifiedBefore)].filter(Boolean).length;
+
+  const moveOnDrop = async (entry: ManagedFileEntry) => {
+    const sourcePath = draggedPathRef.current;
+    draggedPathRef.current = "";
+    if (!sourcePath || entry.kind !== "directory" || sourcePath === entry.path) return;
+    try {
+      await runTask("move", { path: sourcePath, destinationPath: entry.path });
+      messageApi.success("已移动到目标文件夹。");
+      await refresh();
+    } catch { /* 目标目录或运行实例保护错误已显示。 */ }
+  };
+
+  const onColumnResizeKeyDown = (event: KeyboardEvent<HTMLDivElement>, edge: FileColumnResizeEdge) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    event.stopPropagation();
+    columnsManuallyResizedRef.current = true;
+    const step = event.shiftKey ? 24 : 8;
+    resizeAdjacentColumns(edge, event.key === "ArrowRight" ? step : -step);
+  };
+
+  const renderColumnHeading = (label: string, key: keyof typeof fileColumnResizeEdges) => {
+    const edge = fileColumnResizeEdges[key];
+    return <div className="file-manager__column-heading">
+      <span>{label}</span>
+      <div
+        className="file-manager__column-resize-handle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={`调整${edge.left === "name" ? "名称" : edge.left === "fileType" ? "类型" : edge.left === "size" ? "大小" : "修改时间"}列宽`}
+        aria-valuemin={minimumFileColumnWidths[edge.left]}
+        aria-valuemax={maximumFileColumnWidths[edge.left]}
+        aria-valuenow={columnWidths[edge.left]}
+        tabIndex={0}
+        title="拖动调整列宽；也可聚焦后按左右方向键"
+        onPointerDown={event => columnResize.onPointerDown(event, edge)}
+        onPointerMove={columnResize.onPointerMove}
+        onPointerUp={columnResize.onPointerUp}
+        onPointerCancel={columnResize.onPointerCancel}
+        onLostPointerCapture={columnResize.onLostPointerCapture}
+        onKeyDown={event => onColumnResizeKeyDown(event, edge)}
+        onClick={event => event.stopPropagation()}
+      />
+    </div>;
+  };
+
   const columns: ColumnsType<ManagedFileEntry> = [
     {
-      title: "名称",
+      title: renderColumnHeading("名称", "name"),
       dataIndex: "name",
       key: "name",
-      render: (_value, entry) => <button className="file-manager__name" type="button" onClick={() => entry.kind === "directory" ? void openEntry(entry) : undefined}>
-        <WorkbenchIcon name={entry.kind === "directory" ? "folder" : "file"} size={17} />
-        <span>{entry.name}</span>
-      </button>
+      width: columnWidths.name,
+      sorter: (left, right) => left.name.localeCompare(right.name, "zh-CN", { sensitivity: "base" }),
+      render: (_value, entry) => {
+        const entryUsable = directoryReady || showCurrentDirectorySnapshot && entry.kind === "directory";
+        return <button className="file-manager__name" type="button" draggable={entryUsable && !busy} disabled={busy || !isOnline || !entryUsable} onDragStart={event => { draggedPathRef.current = entry.path; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", entry.path); }} onClick={() => void openEntry(entry)}>
+          <WorkbenchIcon name={entry.kind === "directory" ? "folder" : "file"} size={17} />
+          <span>{entry.name}</span>
+        </button>;
+      }
     },
-    { title: "大小", dataIndex: "size", key: "size", width: 110, render: (size: number, entry) => entry.kind === "directory" ? "—" : formatBytes(size) },
-    { title: "修改时间", dataIndex: "modifiedAt", key: "modifiedAt", width: 210, render: (value: string) => new Date(value).toLocaleString() },
+    { title: renderColumnHeading("类型", "fileType"), dataIndex: "fileType", key: "fileType", width: columnWidths.fileType, align: "left", onHeaderCell: () => ({ className: "file-manager__left-cell" }), onCell: () => ({ className: "file-manager__left-cell" }), sorter: (left, right) => (left.fileType ?? "").localeCompare(right.fileType ?? ""), render: (value: string, entry) => entry.kind === "directory" ? <Tag className="file-manager__type-tag" bordered={false}>文件夹</Tag> : <Tag className="file-manager__type-tag" bordered={false}>{value === "file" || !value ? "文件" : value}</Tag> },
+    { title: renderColumnHeading("大小", "size"), dataIndex: "size", key: "size", width: columnWidths.size, align: "left", onHeaderCell: () => ({ className: "file-manager__left-cell" }), onCell: () => ({ className: "file-manager__left-cell" }), sorter: (left, right) => left.size - right.size, render: (size: number, entry) => {
+      if (entry.kind === "file") return formatBytes(size);
+      if (entry.operations && !entry.operations.includes("directory-size")) return <Typography.Text type="secondary">不适用</Typography.Text>;
+      const calculated = directorySizes[entry.path];
+      if (calculated) return <Typography.Text title={calculated.skippedEntries ? `已跳过 ${calculated.skippedEntries} 个链接或特殊文件` : "目录大小已计算"}>{formatBytes(calculated.totalSize)}</Typography.Text>;
+      return <Button className="file-manager__size-action" type="link" size="small" loading={calculatingDirectoryPath === entry.path} disabled={!directoryReady || busy || !supportsDirectorySize} title={supportsDirectorySize ? "按需计算文件夹内的文件总大小" : "先进入磁盘或服务器目录，再计算目录大小"} aria-label={`计算文件夹“${entry.name}”的大小`} onClick={() => void calculateDirectorySize(entry)}>{supportsDirectorySize ? "计算" : "需更新"}</Button>;
+    } },
+    { title: renderColumnHeading("修改时间", "modifiedAt"), dataIndex: "modifiedAt", key: "modifiedAt", width: columnWidths.modifiedAt, align: "left", sorter: (left, right) => left.modifiedAt.localeCompare(right.modifiedAt), render: (value: string) => value ? value ? new Date(value).toLocaleString() : "" : "" },
     {
       title: "操作",
       key: "actions",
-      width: 220,
-      render: (_value, entry) => <Space size={4}>
-        <Button type="text" size="small" disabled={busy || !isOnline || !directoryReady || entry.kind === "file" && entry.size > 2 * 1024 * 1024} onClick={() => void openEntry(entry)}>{entry.kind === "directory" ? "打开" : "编辑"}</Button>
-        {entry.kind === "file" ? <Button type="text" size="small" disabled={busy || !isOnline || !directoryReady} onClick={() => void downloadEntry(entry)}>下载</Button> : null}
-        <Button type="text" size="small" disabled={busy || !isOnline || !directoryReady} onClick={() => beginRename(entry)}>重命名</Button>
-        <Button type="text" danger size="small" disabled={busy || !isOnline || !directoryReady} onClick={() => deleteEntry(entry)}>删除</Button>
-      </Space>
+      width: columnWidths.actions,
+      align: "left",
+      onHeaderCell: () => ({ className: "file-manager__left-cell" }),
+      onCell: () => ({ className: "file-manager__left-cell" }),
+      render: (_value, entry) => {
+        const entryUsable = directoryReady || showCurrentDirectorySnapshot && entry.kind === "directory";
+        const menuItems = [
+          ...(entry.kind === "file" && editableFileTypes.has(entry.fileType ?? "") ? [{ key: "edit", label: "编辑", disabled: busy || !directoryReady || !canOperate("write", entry) || entry.size > 2 * 1024 * 1024 }] : []),
+          ...(entry.kind === "file" ? [{ key: "download", label: "下载", disabled: busy || !directoryReady || !canOperate("download", entry) || entry.size > 3 * 1024 * 1024 }] : []),
+          { key: "move", label: "移动", disabled: busy || !directoryReady || !canOperate("move", entry) },
+          { key: "rename", label: "重命名", disabled: busy || !directoryReady || !canOperate("rename", entry) },
+          { key: "delete", label: "移入回收站", danger: true, disabled: busy || !directoryReady || !canOperate("delete", entry) }
+        ];
+        return <Space className="file-manager__row-actions" size={8}>
+          <Button type="text" size="small" disabled={busy || !isOnline || !entryUsable} onClick={() => void openEntry(entry)}>{entry.kind === "directory" ? "打开" : "预览"}</Button>
+          <Dropdown trigger={["click"]} placement="bottomRight" menu={{ items: menuItems, onClick: ({ key }) => {
+            if (key === "edit") void editEntry(entry);
+            else if (key === "download") void downloadEntry(entry);
+            else if (key === "move") startMove([entry]);
+            else if (key === "rename") beginRename(entry);
+            else if (key === "delete") deleteEntry(entry);
+          } }}>
+            <Button type="text" size="small" aria-label={`更多操作：${entry.name}`}>更多</Button>
+          </Dropdown>
+        </Space>;
+      }
     }
   ];
 
-  const crumbs = currentPath ? currentPath.split("/").map((name, index, segments) => ({ name, path: segments.slice(0, index + 1).join("/") })) : [];
+  const crumbs = currentPath ? currentPath.split("/").map((name, index, segments) => ({ name: name === ".lfaa-library" ? "应用资源" : name === "game-servers" ? "游戏服务器" : name === "knowledge" ? "我的资料库" : name === "local-drives" ? "本机磁盘" : segments[index - 1] === "local-drives" && /^[A-Z]$/iu.test(name) ? `${name}:` : name, path: segments.slice(0, index + 1).join("/") })) : [];
 
   return (
     <div className="module-workbench-stage file-manager-stage">
@@ -435,104 +791,108 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
         <header className="file-manager__header">
           <div>
             <Typography.Title id="file-manager-title" level={2}>文件管理</Typography.Title>
-            <Typography.Text type="secondary">按节点浏览 LFAA 数据目录；文件操作只在节点在线时可用。</Typography.Text>
+            <Typography.Text type="secondary">浏览 data 文件、应用资源和本机全部可用磁盘。操作记录按账户留存。{dataRootLabel ? ` 数据根：${dataRootLabel}` : ""}</Typography.Text>
           </div>
-          <Space wrap>
-            <span className="file-manager__node-label">节点</span>
-            <Select
-              aria-label="daemon 节点"
-              loading={nodesLoading}
-              disabled={nodeSelectionLocked}
-              value={nodeId || undefined}
-              placeholder="选择 daemon 节点"
-              options={nodes.map((node) => ({ value: node.id, label: `${node.displayName}${node.status === "online" ? "" : "（离线）"}`, disabled: node.status !== "online" }))}
-              getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
-              onChange={(value) => {
-                setNodeId(value);
-                setCurrentPath("");
-                setSearchQuery("");
-                setSearchText("");
-                setEntries([]);
-                setTruncated(false);
-                setDirectoryState("idle");
-              }}
-              style={{ width: 230 }}
-            />
-            {selectedNode ? <Tag color={selectedNode.status === "online" ? "green" : "default"}>{selectedNode.status === "online" ? "在线" : "离线"}</Tag> : null}
-            <Button
-              icon={<WorkbenchIcon name="refresh" size={15} />}
-              loading={nodesLoading || nodesRefreshing}
-              disabled={!hasAdminAccess(user.role) || nodesLoading || nodesRefreshing}
-              onClick={() => refreshNodesRef.current?.()}
-            >刷新节点状态</Button>
-          </Space>
+          <div className="file-manager__header-controls">
+            <Space wrap className="file-manager__header-actions">
+            <Button disabled={!isOnline || busy} onClick={() => void loadTrash()}>回收站</Button>
+            <Button disabled={!fileAccess} onClick={() => void loadAudit()}>操作记录</Button>
+
+            </Space>
+          </div>
         </header>
 
-        {!hasAdminAccess(user.role) ? <Alert type="warning" showIcon message="文件管理仅对管理员开放。" /> : null}
+        {!fileAccess ? <Alert type="warning" showIcon message="文件管理需要同时满足：超级管理员身份、设置中心的完全访问模式。" /> : null}
         {error ? <Alert className="file-manager__alert" type="error" showIcon message={error} closable onClose={() => setError("")} /> : null}
         {busy ? <div className="file-manager__task" role="status"><Spin size="small" /><span>{taskMessage || "正在执行文件操作…"}</span></div> : null}
 
         <div className="file-manager__toolbar">
-          <div className="file-manager__location">
-            <Button aria-label="返回上一级" title="返回上一级" disabled={!isOnline || !directoryReady || !currentPath || busy} onClick={navigateUp}><WorkbenchIcon name="chevron" size={15} /></Button>
-            <Button aria-label="回到数据根目录" title="回到数据根目录" disabled={!isOnline || !directoryReady || !currentPath || busy} onClick={() => { setCurrentPath(""); setSearchQuery(""); setSearchText(""); }}><WorkbenchIcon name="home" size={15} /></Button>
-            <div className="file-manager__breadcrumbs" aria-label="当前目录">
-              <button type="button" className={!currentPath ? "is-current" : ""} disabled={!isOnline || !directoryReady || busy} onClick={() => { setCurrentPath(""); setSearchQuery(""); setSearchText(""); }}>LFAA 数据</button>
-              {crumbs.map((crumb) => <span key={crumb.path}>
-                <span aria-hidden="true">/</span>
-                <button type="button" className={crumb.path === currentPath ? "is-current" : ""} disabled={!isOnline || !directoryReady || busy} onClick={() => { setCurrentPath(crumb.path); setSearchQuery(""); setSearchText(""); }}>{crumb.name}</button>
-              </span>)}
+          <div className="file-manager__navigation-row">
+            <Button className="file-manager__tree-toggle" aria-expanded={treeOpen} aria-controls="file-manager-directory-tree" onClick={() => setTreeOpen(value => !value)} disabled={!isOnline}>
+              <WorkbenchIcon name="folder" size={15} />目录
+            </Button>
+            <div className="file-manager__location">
+              <Button aria-label="返回上一级" title="返回上一级" disabled={!isOnline || !currentPath || busy} onClick={navigateUp}><WorkbenchIcon name="chevron" size={15} /></Button>
+              <Button aria-label="回到文件总览" title="回到文件总览" disabled={!isOnline || !currentPath || busy} onClick={() => { setCurrentPath(""); setSearchQuery(""); setSearchText(""); }}><WorkbenchIcon name="home" size={15} /></Button>
+              <div className="file-manager__breadcrumbs" aria-label="当前目录">
+                <button type="button" className={!currentPath ? "is-current" : ""} disabled={!isOnline || busy} onClick={() => { setCurrentPath(""); setSearchQuery(""); setSearchText(""); }}>LFAA 数据</button>
+                {crumbs.map((crumb) => <span key={crumb.path}>
+                  <span aria-hidden="true">/</span>
+                  <button type="button" className={crumb.path === currentPath ? "is-current" : ""} disabled={!isOnline || busy} onClick={() => { setCurrentPath(crumb.path); setSearchQuery(""); setSearchText(""); }}>{crumb.name}</button>
+                </span>)}
+              </div>
             </div>
           </div>
-          <Space wrap className="file-manager__actions">
+          <div className="file-manager__actions">
             <Input
               allowClear
-              disabled={!isOnline || !directoryReady || busy || !hasAdminAccess(user.role)}
+              disabled={!isOnline || !directoryUsable || busy || !fileAccess}
               prefix={<WorkbenchIcon name="search" size={15} />}
               placeholder="搜索当前目录及子目录"
               value={searchText}
               onChange={(event) => { setSearchText(event.target.value); if (!event.target.value) setSearchQuery(""); }}
               onPressEnter={() => setSearchQuery(searchText.trim())}
-              style={{ width: 230 }}
+              style={{ width: 280 }}
             />
-            <Button aria-label="刷新目录" title="刷新目录" disabled={!isOnline || busy} onClick={() => void refresh()}><WorkbenchIcon name="refresh" size={15} /></Button>
-            <Button disabled={!isOnline || !directoryReady || busy || !hasAdminAccess(user.role)} onClick={() => openCreateDialog("folder")}><WorkbenchIcon name="folder" size={15} />新建文件夹</Button>
-            <Button disabled={!isOnline || !directoryReady || busy || !hasAdminAccess(user.role)} onClick={() => openCreateDialog("file")}><WorkbenchIcon name="plus" size={15} />新建文件</Button>
-            <Button type="primary" disabled={!isOnline || !directoryReady || busy || !hasAdminAccess(user.role)} onClick={() => uploadInputRef.current?.click()}><WorkbenchIcon name="file" size={15} />上传</Button>
-            <input ref={uploadInputRef} className="file-manager__upload-input" type="file" onChange={(event) => void uploadSelectedFile(event.target.files?.[0])} />
-          </Space>
+            <Popover trigger="click" placement="bottomLeft" open={filtersOpen} onOpenChange={setFiltersOpen} content={<div className="file-manager__filter-panel">
+              <label><span>文件类型</span><Select aria-label="文件类型筛选" value={typeFilter} onChange={setTypeFilter} disabled={!directoryUsable || busy} options={[
+                { value: "all", label: "全部类型" }, { value: "folder", label: "文件夹" }, { value: "file", label: "文件" },
+                ...Array.from(new Set(entries.filter(entry => entry.kind === "file").map(entry => entry.fileType).filter((value): value is string => Boolean(value) && value !== "file" && value !== "folder"))).sort().map(value => ({ value, label: `.${value}` }))
+              ]} /></label>
+              <label><span>文件大小（字节）</span><div className="file-manager__filter-range"><Input aria-label="最小大小（字节）" type="number" min={0} placeholder="最小" value={minimumSize} onChange={event => setMinimumSize(event.target.value)} disabled={!directoryUsable || busy} /><span>至</span><Input aria-label="最大大小（字节）" type="number" min={0} placeholder="最大" value={maximumSize} onChange={event => setMaximumSize(event.target.value)} disabled={!directoryUsable || busy} /></div></label>
+              <label><span>修改日期</span><div className="file-manager__filter-range"><Input aria-label="修改时间起始日期" type="date" value={modifiedAfter} onChange={event => setModifiedAfter(event.target.value)} disabled={!directoryUsable || busy} /><span>至</span><Input aria-label="修改时间截止日期" type="date" value={modifiedBefore} onChange={event => setModifiedBefore(event.target.value)} disabled={!directoryUsable || busy} /></div></label>
+              <div className="file-manager__filter-footer"><span>{activeFilterCount ? `已启用 ${activeFilterCount} 项筛选` : "未设置筛选条件"}</span><Button size="small" type="link" disabled={!activeFilterCount} onClick={() => { setTypeFilter("all"); setMinimumSize(""); setMaximumSize(""); setModifiedAfter(""); setModifiedBefore(""); }}>清除筛选</Button></div>
+            </div>}>
+              <Button aria-expanded={filtersOpen} aria-label={activeFilterCount ? `筛选，已启用 ${activeFilterCount} 项` : "筛选文件"}>筛选{activeFilterCount ? ` · ${activeFilterCount}` : ""}</Button>
+            </Popover>
+            <Button aria-label="刷新目录" title="刷新目录" loading={loading} disabled={!isOnline || busy || loading} onClick={() => void refresh()}><WorkbenchIcon name="refresh" size={15} /></Button>
+            <Dropdown trigger={["click"]} menu={{ items: [
+              { key: "folder", label: "新建文件夹", disabled: !canOperate("create-folder") },
+              { key: "file", label: "新建文件", disabled: !canOperate("create-file") }
+            ], onClick: ({ key }) => openCreateDialog(key === "folder" ? "folder" : "file") }}>
+              <Button disabled={!isOnline || !directoryReady || busy || !canOperate("create-file") && !canOperate("create-folder")}><WorkbenchIcon name="plus" size={15} />新建</Button>
+            </Dropdown>
+            <Button type="primary" disabled={!isOnline || !directoryReady || busy || !canOperate("upload")} onClick={() => uploadInputRef.current?.click()}><WorkbenchIcon name="file" size={15} />上传 / 导入</Button>
+            <input ref={uploadInputRef} className="file-manager__upload-input" type="file" multiple onChange={(event) => void uploadSelectedFiles(Array.from(event.target.files ?? []))} />
+          </div>
         </div>
 
-        <div className="file-manager__body">
-          {loading || nodesLoading ? <div className="file-manager__loading"><Spin /><span>正在读取目录…</span></div>
-            : !hasAdminAccess(user.role) ? <Empty className="file-manager__empty" description="仅管理员可以管理节点文件" />
-              : !nodes.length ? <div className="file-manager__offline-state file-manager__offline-state--empty" role="status">
-                <Typography.Title level={4}>没有可管理节点</Typography.Title>
-                <Typography.Text>当前没有报告文件管理能力的 Daemon。启动或更新目标主机上的 LFAA Daemon，待节点上线后刷新节点状态。</Typography.Text>
-              </div>
-                : selectedNode && !isOnline ? <section className="file-manager__offline-state" aria-labelledby="file-manager-offline-title" role="status">
-                  <Typography.Text className="file-manager__offline-label">节点离线 · 文件操作已暂停</Typography.Text>
-                  <Typography.Title id="file-manager-offline-title" level={4}>{selectedNode.displayName} 当前无法连接</Typography.Title>
-                  <dl className="file-manager__offline-details">
-                    <div><dt>节点状态</dt><dd>离线</dd></div>
-                    <div><dt>最近心跳</dt><dd>{formatLastSeen(selectedNode.lastSeenAt)}</dd></div>
-                  </dl>
-                  <Typography.Text type="secondary">请在目标主机启动 LFAA Daemon，再刷新节点状态；也可以在上方切换到其他在线节点。</Typography.Text>
-                </section>
-                  : !selectedNode ? <Empty className="file-manager__empty" description="请选择在线 daemon 节点" />
-                    : directoryState === "error" ? <div className="file-manager__offline-state" role="status">
+        {selectedPaths.length ? <div className="file-manager__selection" role="toolbar" aria-label="批量操作">
+          <span>已选 {selectedPaths.length} 项</span>
+          <Button size="small" disabled={busy} onClick={() => void downloadSelectedEntries()}>批量下载</Button>
+          <Button size="small" disabled={busy || !directoryReady || entries.some(entry => selectedPaths.includes(entry.path) && !canOperate("move", entry))} onClick={() => startMove(entries.filter(entry => selectedPaths.includes(entry.path)))}>批量移动</Button>
+          <Button size="small" danger disabled={busy || !directoryReady || entries.some(entry => selectedPaths.includes(entry.path) && !canOperate("delete", entry))} onClick={deleteSelectedEntries}>批量移入回收站</Button>
+          <Button size="small" type="text" onClick={() => setSelectedPaths([])}>清除选择</Button>
+        </div> : null}
+
+        <div className={`file-manager__workspace${treeOpen ? " is-tree-open" : ""}`}>
+          <aside id="file-manager-directory-tree" className="file-manager__tree" aria-label="目录树" hidden={!treeOpen}>
+            <Typography.Text className="file-manager__tree-title">目录</Typography.Text>
+            <Tree key={cacheKey} blockNode treeData={treeData} loadData={loadTreeChildren} loadedKeys={loadedTreeKeys} onLoad={(keys) => setLoadedTreeKeys(keys)} selectedKeys={[currentPath]} onSelect={(keys) => {
+              if (!keys.length || busy) return;
+              setCurrentPath(String(keys[0])); setSearchQuery(""); setSearchText("");
+            }} />
+          </aside>
+          <div className="file-manager__body" ref={fileManagerBodyRef}>
+          {loading && !showCurrentDirectorySnapshot ? <div className="file-manager__loading" role="status"><Spin /><span>正在读取目录…</span></div>
+            : !fileAccess ? <Empty className="file-manager__empty" description="仅超级管理员在完全访问模式下可使用文件管理"><Button onClick={onOpenSettings}>前往设置中心</Button></Empty>
+                      : directoryState === "error" ? <div className="file-manager__offline-state" role="status">
                       <Typography.Title level={4}>目录读取失败</Typography.Title>
                       <Typography.Text>请求未成功，无法判断目录内容。请检查上方错误信息后重试。</Typography.Text>
                       <Button disabled={!isOnline || busy} onClick={() => void refresh()}>重试读取目录</Button>
                     </div>
-                      : directoryState !== "ready" ? <div className="file-manager__offline-state" role="status"><Typography.Text>目录尚未读取。</Typography.Text></div>
-                        : entries.length ? <Table<ManagedFileEntry> rowKey="path" size="small" columns={columns} dataSource={entries} pagination={{ pageSize: 20, showSizeChanger: false }} onRow={(entry) => ({ onDoubleClick: () => void openEntry(entry) })} />
+                      : directoryState !== "ready" && !showCurrentDirectorySnapshot ? <div className="file-manager__offline-state" role="status"><Typography.Text>目录尚未读取。</Typography.Text></div>
+                      : visibleEntries.length ? <Table<ManagedFileEntry> rowKey="path" size="small" tableLayout="fixed" scroll={{ x: true }} columns={columns} dataSource={visibleEntries} rowSelection={{ columnWidth: 42, selectedRowKeys: selectedPaths, onChange: keys => {
+                          if (keys.length > maximumBatchItems) { messageApi.warning(`批量操作最多选择 ${maximumBatchItems} 项。`); setSelectedPaths(keys.slice(0, maximumBatchItems).map(String)); }
+                          else setSelectedPaths(keys.map(String));
+                        } }} pagination={{ pageSize: 20, showSizeChanger: false }} onRow={(entry) => ({ onDoubleClick: () => void openEntry(entry), onDragOver: event => { if (entry.kind === "directory") event.preventDefault(); }, onDrop: event => { event.preventDefault(); void moveOnDrop(entry); } })} />
                           : <Empty className="file-manager__empty" description={searchQuery ? "没有匹配的文件" : "此目录为空"} />}
           {truncated ? <Typography.Text className="file-manager__truncated" type="secondary">当前结果最多显示 500 项，请进入子目录进一步筛选。</Typography.Text> : null}
+          </div>
         </div>
         <footer className="file-manager__footer">
-          <span>{!isOnline || !directoryReady ? "目录未读取" : searchQuery ? `搜索结果 ${entries.length} 项` : `${entries.length} 个项目`}</span>
-          <span>仅管理员可修改；凭据和控制端数据库目录受保护。</span>
+          <span>{!isOnline || !directoryUsable ? "目录未读取" : searchQuery ? `搜索结果 ${visibleEntries.length} 项` : `${visibleEntries.length} 个项目`}{loading && showCurrentDirectorySnapshot ? " · 正在同步" : ""}</span>
+          <span>统一文件服务 · 敏感文件禁止在线预览</span>
         </footer>
       </section>
 
@@ -541,6 +901,35 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
       </Modal>
       <Modal title="重命名" open={renameEntry !== null} getContainer={getFileManagerModalContainer} okText="保存" cancelText="取消" onOk={() => void renameSelectedEntry()} onCancel={() => setRenameEntry(null)} confirmLoading={busy} okButtonProps={{ disabled: !isOnline || !renameValue.trim() }}>
         <Input autoFocus disabled={!isOnline} value={renameValue} maxLength={255} onChange={(event) => setRenameValue(event.target.value)} onPressEnter={() => void renameSelectedEntry()} />
+      </Modal>
+      <Modal title={`预览 · ${preview?.name ?? ""}`} open={preview !== null} getContainer={getFileManagerModalContainer} footer={<Button onClick={() => setPreview(null)}>关闭</Button>} width="min(1080px, calc(100vw - 40px))" onCancel={() => setPreview(null)}>
+        {preview?.kind === "image" && previewUrl ? <div className="file-manager__image-preview"><img src={previewUrl} alt={preview.name} /></div> : null}
+        {preview?.kind === "pdf" && previewUrl ? <iframe className="file-manager__pdf-preview" src={previewUrl} title={`PDF 预览：${preview.name}`} /> : null}
+        {preview?.kind === "text" ? <article className={`file-manager__text-preview${/\.(?:md|markdown)$/iu.test(preview.name) ? " is-markdown" : ""}`}>
+          {/\.(?:md|markdown)$/iu.test(preview.name) ? renderMarkdown(preview.content ?? "") : <pre>{preview.content ?? ""}</pre>}
+        </article> : null}
+      </Modal>
+      <Modal title="移动到目录" open={moveDialogOpen} getContainer={getFileManagerModalContainer} okText="移动" cancelText="取消" confirmLoading={busy} okButtonProps={{ disabled: busy || !isOnline }} onOk={() => void moveSelectedEntries()} onCancel={() => setMoveDialogOpen(false)}>
+        <Typography.Paragraph type="secondary">选择同一磁盘或机器内的目标目录。可从目录树复制当前路径。</Typography.Paragraph>
+        <Input autoFocus value={moveDestination} maxLength={1024} placeholder="例如 games/minecraft" onChange={event => setMoveDestination(event.target.value)} onPressEnter={() => void moveSelectedEntries()} />
+      </Modal>
+      <Modal title="回收站" open={trashOpen} getContainer={getFileManagerModalContainer} footer={<Button onClick={() => setTrashOpen(false)}>关闭</Button>} width="min(900px, calc(100vw - 40px))" onCancel={() => setTrashOpen(false)}>
+        {trashEntries.length ? <Table<ManagedFileEntry> rowKey="trashId" size="small" pagination={{ pageSize: 8 }} dataSource={trashEntries} columns={[
+          { title: "名称", dataIndex: "name", key: "name", ellipsis: true },
+          { title: "原位置", dataIndex: "path", key: "path", ellipsis: true },
+          { title: "删除时间", dataIndex: "modifiedAt", key: "modifiedAt", width: 190, render: (value: string) => new Date(value).toLocaleString() },
+          { title: "操作", key: "actions", width: 150, render: (_value, entry) => <Space size={4}><Button size="small" type="link" onClick={() => void restoreTrashEntry(entry)}>恢复</Button><Button size="small" type="link" danger onClick={() => purgeTrashEntry(entry)}>彻底删除</Button></Space> }
+        ]} /> : <Empty description="回收站为空" />}
+      </Modal>
+      <Modal title="文件操作记录" open={auditOpen} getContainer={getFileManagerModalContainer} footer={<Button onClick={() => setAuditOpen(false)}>关闭</Button>} width="min(1040px, calc(100vw - 40px))" onCancel={() => setAuditOpen(false)}>
+        <Input.Search allowClear value={auditQuery} placeholder="搜索文件名、路径、操作或用户" enterButton="搜索" onChange={event => setAuditQuery(event.target.value)} onSearch={() => void loadAudit()} />
+        <Table<FileManagerAuditEntry> rowKey="id" size="small" pagination={{ pageSize: 10 }} dataSource={auditEntries} columns={[
+          { title: "操作人", dataIndex: "username", key: "username", width: 120 },
+          { title: "操作", dataIndex: "operation", key: "operation", width: 125 },
+          { title: "路径", dataIndex: "path", key: "path", ellipsis: true, render: (value: string, entry) => entry.targetPath ? `${value} → ${entry.targetPath}` : value || entry.fileName || "数据根" },
+          { title: "结果", dataIndex: "succeeded", key: "succeeded", width: 80, render: (value: boolean) => <Tag color={value ? "green" : "red"}>{value ? "成功" : "失败"}</Tag> },
+          { title: "时间", dataIndex: "finishedAt", key: "finishedAt", width: 190, render: (value: string) => new Date(value).toLocaleString() }
+        ]} />
       </Modal>
       <Modal
         className="file-manager__editor"
@@ -557,9 +946,14 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
           } else setEditorPath("");
         }}
         confirmLoading={editorBusy}
-        okButtonProps={{ disabled: !hasAdminAccess(user.role) || !isOnline || editorContent === editorSavedContent }}
+        okButtonProps={{ disabled: !fileAccess || !isOnline || editorContent === editorSavedContent }}
       >
-        <Input.TextArea className="file-manager__editor-input" value={editorContent} onChange={(event) => setEditorContent(event.target.value)} spellCheck={false} />
+        {/\.(?:md|markdown)$/iu.test(editorPath)
+          ? <div className="file-manager__markdown-editor">
+            <Input.TextArea className="file-manager__editor-input" aria-label="Markdown 源文编辑" value={editorContent} onChange={(event) => setEditorContent(event.target.value)} spellCheck={false} />
+            <article className="file-manager__markdown-live-preview" aria-label="Markdown 实时预览">{renderMarkdown(editorContent)}</article>
+          </div>
+          : <Input.TextArea className="file-manager__editor-input" aria-label="文本内容编辑" value={editorContent} onChange={(event) => setEditorContent(event.target.value)} spellCheck={false} />}
       </Modal>
     </div>
   );

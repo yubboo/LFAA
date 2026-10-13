@@ -5,7 +5,8 @@
  */
 import type { Context } from "@deepseek-ai/cordis";
 import { createHash } from "node:crypto";
-import { discoverMcpTools } from "lfaa-tools/src/mcp-tools.js";
+import type { AiBusinessToolContext } from "lfaa-tools/src/business-tools.js";
+import { discoverMcpTools } from "lfaa-mcp-client/src/runtime.js";
 import { getUserSettings, saveUserSettings, type PluginSettings, type UserSettings } from "lfaa-settings/src/service.js";
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import type { CapabilityApplicationId, CapabilityInstallAdapter, CapabilityInstallRegistry } from "lfaa-capability-installs/src/index.js";
@@ -72,11 +73,12 @@ export function createMcpCapabilityAdapter(dependencies: McpCapabilityAdapterDep
         };
       }
     },
-    async inspect(source, ref, applicationId, target) {
+    async inspect(source, ref, applicationId, target, context: Pick<AiBusinessToolContext, "userId">) {
       const url = normalizeEndpoint(source);
       const name = target.name === "MCP 服务" ? normalizeName(url.hostname) : normalizeName(target.name);
       const server = makeServer(url, applicationId, name);
-      const result = await discover([server], applicationId, new AbortController().signal, 15);
+      const currentServers = readSettings(context.userId).plugins.mcpServers.filter(item => item.transport !== "stdio");
+      const result = await discover([...currentServers.filter(item => item.id !== server.id), server], applicationId, context.userId, new AbortController().signal, 15);
       try {
         const state = result.serverStates.find(item => item.serverId === server.id);
         if (result.errors.length || !state || state.status !== "ready") throw new Error(result.errors[0] ?? "MCP 服务没有返回可检查的工具清单。");
@@ -124,10 +126,10 @@ export function createMcpCapabilityAdapter(dependencies: McpCapabilityAdapterDep
         if (isSameInstalledServer(existingById, server)) return { serverId: server.id, name: server.name, applicationIds: [applicationId], manifestSha256: server.manifestSha256, alreadyPresent: true };
         throw new Error("该 MCP 端点已存在，但名称、版本或 App 范围不同；不会覆盖或扩大既有设置。");
       }
-      if (current.mcpServers.some(item => canonicalEndpoint(item.url) === url.toString())) throw new Error("该 MCP 端点已使用另一个设置 ID；请先在设置中心核对现有服务，不会创建重复记录。");
+      if (current.mcpServers.some(item => item.transport !== "stdio" && canonicalEndpoint(item.url) === url.toString())) throw new Error("该 MCP 端点已使用另一个设置 ID；请先在设置中心核对现有服务，不会创建重复记录。");
       if (current.mcpServers.length >= 16) throw new Error("账户 MCP 服务数已达到设置中心上限 16；没有写入。");
 
-      const live = await discover([server], applicationId, context.signal, settings.aiRuntime.requestTimeoutSeconds);
+      const live = await discover([server], applicationId, context.userId, context.signal, settings.aiRuntime.requestTimeoutSeconds);
       try {
         const state = live.serverStates.find(item => item.serverId === server.id);
         if (live.errors.length || !state || state.status !== "ready" || state.manifestSha256 !== plan.manifestSha256) {
@@ -143,7 +145,8 @@ export function createMcpCapabilityAdapter(dependencies: McpCapabilityAdapterDep
       const url = normalizeEndpoint(source);
       const plan = parseDetails(details, resolvedRef, url, applicationId, target);
       const settings = readSettings(context.userId);
-      const server = settings.plugins.mcpServers.find(item => item.id === plan.serverId);
+      const configuredServer = settings.plugins.mcpServers.find(item => item.id === plan.serverId);
+      const server = configuredServer?.transport !== "stdio" ? configuredServer : undefined;
       if (!isRecord(installation) || installation.serverId !== plan.serverId || !server
         || canonicalEndpoint(server.url) !== url.toString() || server.name !== plan.name
         || server.manifestSha256 !== plan.manifestSha256 || server.applicationIds.length !== 1 || server.applicationIds[0] !== applicationId) {
@@ -157,7 +160,7 @@ export function createMcpCapabilityAdapter(dependencies: McpCapabilityAdapterDep
           details: { serverId: server.id, manifestSha256: plan.manifestSha256, applicationIds: server.applicationIds, runtimeEnabled: false }
         };
       }
-      const live = await discover([server], applicationId, context.signal, settings.aiRuntime.requestTimeoutSeconds);
+      const live = await discover([server], applicationId, context.userId, context.signal, settings.aiRuntime.requestTimeoutSeconds);
       try {
         const state = live.serverStates.find(item => item.serverId === server.id);
         if (state?.status === "incompatible") return { status: "incompatible", verified: true, summary: "MCP 设置已保存，但当前远端工具合同与固定摘要不一致；Runtime 已拒绝提供这些工具。" };
@@ -180,7 +183,7 @@ export function createMcpCapabilityAdapter(dependencies: McpCapabilityAdapterDep
         .map(server => ({
           id: server.id,
           name: server.name,
-          source: server.url,
+          source: server.transport === "stdio" ? "本机 stdio" : server.url,
           enabled: server.enabled,
           applicationIds: server.applicationIds,
           ...(server.manifestSha256 ? { manifestSha256: server.manifestSha256 } : {}),
@@ -243,7 +246,8 @@ function makeServer(url: URL, applicationId: CapabilityApplicationId, name: stri
 }
 
 function isSameInstalledServer(existing: McpServerSetting, expected: McpServerSetting): boolean {
-  return existing.name === expected.name && canonicalEndpoint(existing.url) === expected.url
+  return existing.transport !== "stdio" && expected.transport !== "stdio"
+    && existing.name === expected.name && canonicalEndpoint(existing.url) === expected.url
     && existing.enabled && existing.applicationIds.length === 1
     && existing.applicationIds[0] === expected.applicationIds[0]
     && existing.manifestSha256 === expected.manifestSha256;

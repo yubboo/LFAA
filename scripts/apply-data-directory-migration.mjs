@@ -185,14 +185,27 @@ async function main() {
   }
   const sourceDirectory = resolve(request.sourceDirectory);
   const targetDirectory = resolve(request.targetDirectory);
+  // 迁移前确认旧宿主和节点已退出，不能一边复制一边让旧运行树继续写入。
+  for (const [file, parsePid] of [
+    [resolve(sourceDirectory, "storages", ".configuration.lock"), text => Number(JSON.parse(text).pid)],
+    [resolve(sourceDirectory, "credentials", "daemon.lock"), text => Number(text.split(/\r?\n/u)[0])]
+  ]) {
+    let text;
+    try { text = await readFile(file, "utf8"); } catch (error) { if (error?.code === "ENOENT") continue; throw error; }
+    const pid = parsePid(text);
+    if (!Number.isSafeInteger(pid) || pid < 1) throw new Error("旧数据目录进程锁无效，迁移已停止。");
+    let alive = true;
+    try { process.kill(pid, 0); } catch (error) { if (error?.code === "ESRCH") alive = false; }
+    if (alive) throw new Error("旧 Web 或 Daemon 仍在运行，请完整停止后重试迁移。");
+  }
   if (!isAbsolute(request.sourceDirectory) || !isAbsolute(request.targetDirectory) || normalizePath(sourceDirectory) === normalizePath(targetDirectory)) {
     throw new Error("迁移请求必须包含两个不同的绝对目录；原目录未改动。");
   }
   if (isWithinDirectory(sourceDirectory, targetDirectory) || isWithinDirectory(targetDirectory, sourceDirectory)) {
     throw new Error("源目录和目标目录重叠；原目录未改动。");
   }
-  if (!desktopMigration && (isWithinDirectory(projectRoot, targetDirectory) || isWithinDirectory(targetDirectory, projectRoot))) {
-    throw new Error("自定义数据目录必须位于项目源码目录之外；原目录未改动。");
+  if (!desktopMigration && normalizePath(targetDirectory) !== normalizePath(resolve(projectRoot, "data")) && (isWithinDirectory(projectRoot, targetDirectory) || isWithinDirectory(targetDirectory, projectRoot))) {
+    throw new Error("项目内只允许选择根目录的 data；原目录未改动。");
   }
 
   const sourceInfo = await lstat(sourceDirectory);

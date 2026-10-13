@@ -22,6 +22,12 @@ export function hasAdminAccess(role: UserRole): boolean {
   return role === "super_admin" || role === "admin";
 }
 
+/** 后台任务每次派发时读取当前角色；不继承过期角色或已删除账户。 */
+export function resolveUserRole(userId: string): UserRole | null {
+  const row = database.prepare("SELECT role,is_super_admin FROM users WHERE id=?").get(userId) as { role: AssignableUserRole; is_super_admin: number } | undefined;
+  return row ? row.is_super_admin === 1 ? "super_admin" : row.role : null;
+}
+
 export interface PublicUser {
   id: string;
   uid: number;

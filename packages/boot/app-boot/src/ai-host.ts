@@ -8,10 +8,23 @@ import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 import type { AiExtensionKind, AiExtensionManifest, AiExtensionRegistry } from "lfaa-agent/src/extension-registry.js";
 import type { AiRuntimeHookInfo, AiRuntimeHookRegistry, AiRuntimeHookResult } from "lfaa-hook-protocol/src/runtime-hooks.js";
 import type { PluginRuntimeSnapshot } from "./plugin-runtime.js";
+import type { SkillLookupOptions, SkillSummary } from "lfaa-skill";
+import type { AiCompletionMessage } from "lfaa-llm/src/completion.js";
+
+/** Host 只适配已装配压缩服务；摘要请求由调用 Run 负责。 */
+export interface HostCompactionInput {
+  messages: AiCompletionMessage[];
+  contextWindow: number;
+  signal?: AbortSignal;
+  summarize: (text: string, instruction: string) => Promise<string>;
+}
 
 export type AiPluginSnapshot = PluginRuntimeSnapshot;
 
 export interface AiPluginHost {
+  /** 当前请求的目录，正文仍由模型按需调用 Skill 工具。 */
+  listSkills?: (options: SkillLookupOptions) => Promise<SkillSummary[]>;
+  compactContext?: (input: HostCompactionInput) => Promise<{ messages: AiCompletionMessage[] } | null>;
   readonly hotReloadEnabled: boolean;
   listPlugins(): AiPluginSnapshot[];
   setPluginEnabled(pluginId: string, enabled: boolean): Promise<void>;
@@ -28,6 +41,12 @@ export interface AiPluginHost {
 export function createAiPluginHost(context: Context): AiPluginHost {
   let closed = false;
   return {
+    listSkills: options => context.skills.list(options),
+    compactContext: async input => {
+      const service = context.get("lfaaCompaction");
+      if (!service) return null;
+      return service.createBasicCompactionEngine({ summarize: input.summarize }).compactIfNeeded({ messages: input.messages, contextWindow: input.contextWindow, ...(input.signal ? { signal: input.signal } : {}), trigger: { reason: "pressure" } });
+    },
     get hotReloadEnabled() {
       return Boolean(context.get("lfaaHotReload")) && context.lfaaPluginRuntime.list().some((plugin) => plugin.id === "hmr" && plugin.enabled);
     },

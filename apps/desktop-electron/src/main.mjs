@@ -9,14 +9,19 @@ import { spawn, spawnSync } from "node:child_process";
 import { createServer as createTcpServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net } from "electron";
 import electronUpdater from "electron-updater";
-import { compareStableVersions, getElectronUpdateFeedUrl, getLfaaUpdateManifestUrl, validateLfaaUpdateManifest } from "./update-manifest.mjs";
-import { createDesktopUpdateFlow, getDesktopUpdateErrorMessage } from "./update-flow.mjs";
+import builderUtilRuntime from "builder-util-runtime";
+import { requestServiceShutdown } from "./service-shutdown.mjs";
+import { compareStableVersions, getElectronUpdateFeedUrl } from "./update-manifest.mjs";
+import { createDesktopUpdateFlow, getDesktopUpdateErrorDiagnostic, getDesktopUpdateErrorMessage } from "./update-flow.mjs";
+import { fetchLfaaUpdateManifest } from "./update-manifest-fetch.mjs";
+import { createInitialDesktopUpdateDownloadProgress, normalizeDesktopUpdateDownloadProgress } from "./update-download-progress.mjs";
 import { createDesktopUpdatePromptBroker } from "./update-prompt-broker.mjs";
 import { createDesktopUpdatePreferencesStore } from "./update-preferences.mjs";
 
 const { autoUpdater } = electronUpdater;
+const { CancellationError, CancellationToken } = builderUtilRuntime;
 const INITIAL_UPDATE_CHECK_DELAY_MS = 3_000;
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1_000;
 
@@ -44,6 +49,9 @@ let systemSessionEnding = false;
 let updaterListenersConfigured = false;
 let desktopUpdateFlow = null;
 let desktopAppClosing = false;
+let desktopUpdateDownloadProgress = null;
+let updateDownloadCancellationToken = null;
+let cancelledDownloadVersion = "";
 const loggedUpdaterErrors = new WeakSet();
 
 function getRuntimeRoot() {
@@ -121,22 +129,14 @@ function resolveDesktopDataDirectory(runtimeRoot) {
     return { directory, managedByDesktop: true };
   }
 
-  const preferredDirectory = app.isPackaged
-    ? join(dirname(app.getPath("exe")), "data")
-    : join(runtimeRoot, "data");
-  if (canUseDataDirectory(preferredDirectory)) {
-    const directory = resolve(preferredDirectory);
+  const defaultDirectory = join(app.getPath("home"), ".lfaa", "data");
+  if (canUseDataDirectory(defaultDirectory)) {
+    const directory = resolve(defaultDirectory);
     saveDesktopDataDirectory(directory);
     return { directory, managedByDesktop: true };
   }
 
-  const userDataDirectory = join(app.getPath("userData"), "data");
-  if (canUseDataDirectory(userDataDirectory)) {
-    const directory = resolve(userDataDirectory);
-    saveDesktopDataDirectory(directory);
-    return { directory, managedByDesktop: true };
-  }
-  throw new Error("无法在应用安装目录或当前账户的应用数据目录创建可写 LFAA 数据目录。请检查磁盘权限或设置 LFAA_DATA_DIR。");
+  throw new Error("无法在当前系统账户的 .lfaa/data 创建可写 LFAA 数据目录。请检查磁盘权限或设置 LFAA_DATA_DIR。");
 }
 
 async function applyPendingDesktopStorageMigration(runtimeRoot) {
@@ -261,7 +261,7 @@ async function startLocalServices(runtimeRoot) {
     cwd: runtimeRoot,
     env: environment,
     windowsHide: true,
-    stdio: ["ignore", "pipe", "pipe"]
+    stdio: ["ignore", "pipe", "pipe", "ipc"]
   });
   connectProcessOutput(serverProcess, "控制端");
   await waitForControlPlane(serverProcess, port);
@@ -272,7 +272,7 @@ async function startLocalServices(runtimeRoot) {
     cwd: runtimeRoot,
     env: environment,
     windowsHide: true,
-    stdio: ["ignore", "pipe", "pipe"]
+    stdio: ["ignore", "pipe", "pipe", "ipc"]
   });
   connectProcessOutput(daemonProcess, "本机 Daemon");
 
@@ -314,37 +314,18 @@ async function createMainWindow() {
   await mainWindow.loadURL(frontendUrl);
 }
 
-function waitForProcessExit(child, timeoutMilliseconds) {
-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true);
-
-  return new Promise((resolveExit) => {
-    const timer = setTimeout(() => finish(false), timeoutMilliseconds);
-    const onExit = () => finish(true);
-    function finish(exited) {
-      clearTimeout(timer);
-      child.off("exit", onExit);
-      resolveExit(exited);
-    }
-    child.once("exit", onExit);
-  });
-}
-
 async function stopChild(child, name, timeoutMilliseconds) {
-  if (!child || child.exitCode !== null || child.signalCode !== null) return true;
-  await writeLog("桌面端", `正在关闭${name}。`);
-  child.kill("SIGTERM");
-  let exited = await waitForProcessExit(child, timeoutMilliseconds);
-  if (!exited && child.exitCode === null && child.signalCode === null) {
-    await writeLog("桌面端", `${name}未及时退出，结束该服务进程。`);
-    child.kill();
-    exited = await waitForProcessExit(child, 5_000);
-  }
-  return exited || child.exitCode !== null || child.signalCode !== null;
+  if (!child) return true;
+  await writeLog("桌面端", `正在请求安全关闭${name}。`);
+  const stopped = await requestServiceShutdown(child, timeoutMilliseconds);
+  if (!stopped) await writeLog("桌面端", `${name}尚未确认安全退出；保留服务，延期退出与安装。`);
+  return stopped;
 }
 
 async function stopLocalServices() {
-  const daemonStopped = await stopChild(daemonProcess, "本机 Daemon", 30_000);
-  if (daemonStopped) daemonProcess = null;
+  const daemonStopped = await stopChild(daemonProcess, "本机 Daemon", 320_000);
+  if (!daemonStopped) return false;
+  daemonProcess = null;
   const serverStopped = await stopChild(serverProcess, "本机控制端", 10_000);
   if (serverStopped) serverProcess = null;
   return daemonStopped && serverStopped;
@@ -357,15 +338,7 @@ function getConfiguredUpdateFeedUrl() {
 
 async function readRemoteUpdateManifest() {
   const feedUrl = getConfiguredUpdateFeedUrl();
-  const manifestUrl = getLfaaUpdateManifestUrl(feedUrl);
-  const response = await fetch(manifestUrl, { signal: AbortSignal.timeout(8_000) });
-  if (!response.ok) throw new Error(`更新清单请求失败，HTTP ${response.status}。`);
-  const finalUrl = new URL(response.url);
-  const expectedUrl = new URL(manifestUrl);
-  if (finalUrl.protocol !== "https:" || finalUrl.origin !== expectedUrl.origin || finalUrl.pathname !== expectedUrl.pathname) {
-    throw new Error("更新清单发生了非预期的主机或路径跳转。");
-  }
-  return validateLfaaUpdateManifest(await response.text(), feedUrl);
+  return fetchLfaaUpdateManifest(net.fetch.bind(net), feedUrl);
 }
 
 async function promptToDownloadUpdate(manifest, { mustInstall }) {
@@ -424,6 +397,8 @@ function continueQuitAfterServiceShutdown() {
     const servicesStopped = await stopLocalServices();
     if (!servicesStopped) {
       updateInstallRequested = false;
+      desktopAppClosing = false;
+      scheduleDesktopUpdateCheck();
       await writeLog("桌面端 错误", "本机服务仍有进程未能确认退出，未安装更新，应用保持打开。 ");
       await showUpdateNotice("无法关闭 LFAA 服务", "本机控制端或 Daemon 尚未退出。更新未安装，请检查活动实例后重试。");
       return;
@@ -441,6 +416,8 @@ function continueQuitAfterServiceShutdown() {
     app.quit();
   })().catch(async error => {
     updateInstallRequested = false;
+    desktopAppClosing = false;
+    scheduleDesktopUpdateCheck();
     await writeLog("桌面端 错误", `关闭本机服务失败：${error instanceof Error ? error.message : String(error)}`);
     await showUpdateNotice("无法关闭 LFAA 服务", "关闭本机服务时发生错误。更新未安装，应用保持打开。", error instanceof Error ? error.message : String(error));
   }).finally(() => {
@@ -465,6 +442,12 @@ function configureAutoUpdater() {
     }
     void writeLog("更新", `确认 Release feed 提供 LFAA ${info.version}。`);
   });
+  autoUpdater.on("download-progress", info => {
+    const version = updateDownloadRequestedVersion;
+    if (!version || acceptedUpdateManifest?.version !== version) return;
+    const progress = normalizeDesktopUpdateDownloadProgress(version, info);
+    if (progress) publishDesktopUpdateDownloadProgress(progress);
+  });
   autoUpdater.on("update-downloaded", info => {
     const manifest = acceptedUpdateManifest;
     if (!manifest || info?.version !== manifest.version || !desktopUpdateFlow?.markDownloaded(info.version)) {
@@ -472,11 +455,13 @@ function configureAutoUpdater() {
       updateDownloadRequestedVersion = "";
       acceptedUpdateManifest = null;
       automaticInstallVersion = "";
+      publishDesktopUpdateDownloadProgress(null);
       void writeLog("更新 错误", `下载版本 ${String(info?.version)} 与用户接受的更新清单不一致，拒绝安装。`);
       return;
     }
     downloadedUpdateVersion = info.version;
     updateDownloadRequestedVersion = "";
+    publishDesktopUpdateDownloadProgress(null);
     void writeLog("更新", `LFAA ${info.version} 下载完成。`);
     if (automaticInstallVersion === info.version) {
       automaticInstallVersion = "";
@@ -501,10 +486,13 @@ function configureAutoUpdater() {
     });
   });
   autoUpdater.on("error", error => {
+    if (error instanceof CancellationError || updateDownloadCancellationToken?.cancelled) return;
     if (error && typeof error === "object") loggedUpdaterErrors.add(error);
     const phase = updateDownloadRequestedVersion ? "download" : "check";
     if (phase === "download") automaticInstallVersion = "";
-    void writeLog("更新 错误", getDesktopUpdateErrorMessage(error, phase));
+    const step = phase === "download" ? "下载文件" : "GitHub Release 文件";
+    const diagnostic = getDesktopUpdateErrorDiagnostic(error, phase, step);
+    void writeLog("更新 错误", `${getDesktopUpdateErrorMessage(error, phase)}（${diagnostic}）`);
   });
 }
 
@@ -513,16 +501,51 @@ function beginDesktopUpdateDownload(manifest, { automaticInstall = false } = {})
   acceptedUpdateManifest = manifest;
   updateDownloadRequestedVersion = manifest.version;
   automaticInstallVersion = automaticInstall ? manifest.version : "";
+  cancelledDownloadVersion = "";
+  const cancellationToken = new CancellationToken();
+  updateDownloadCancellationToken = cancellationToken;
+  publishDesktopUpdateDownloadProgress(createInitialDesktopUpdateDownloadProgress(manifest.version));
   void writeLog("更新", `开始下载 LFAA ${manifest.version}。`);
   try {
-    return Promise.resolve(autoUpdater.downloadUpdate()).catch(error => {
+    return Promise.resolve(autoUpdater.downloadUpdate(cancellationToken)).catch(error => {
       if (automaticInstallVersion === manifest.version) automaticInstallVersion = "";
       throw error;
+    }).finally(() => {
+      if (updateDownloadCancellationToken === cancellationToken) {
+        updateDownloadCancellationToken = null;
+        cancellationToken.dispose();
+      }
     });
   } catch (error) {
     automaticInstallVersion = "";
+    if (updateDownloadCancellationToken === cancellationToken) updateDownloadCancellationToken = null;
+    cancellationToken.dispose();
     throw error;
   }
+}
+
+function publishDesktopUpdateDownloadProgress(progress) {
+  const previous = desktopUpdateDownloadProgress;
+  if (progress && previous && Object.keys(progress).length === Object.keys(previous).length
+    && Object.keys(progress).every(key => Object.is(progress[key], previous[key]))) return;
+  desktopUpdateDownloadProgress = progress;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    mainWindow.webContents.send("lfaa:desktop:update-download-progress", desktopUpdateDownloadProgress);
+  } catch {
+    // A newly mounted renderer obtains the bounded current snapshot over IPC.
+  }
+}
+
+function cancelDesktopUpdateDownload() {
+  const token = updateDownloadCancellationToken;
+  if (!updateDownloadRequestedVersion || !token || token.cancelled) return false;
+  cancelledDownloadVersion = updateDownloadRequestedVersion;
+  const current = desktopUpdateDownloadProgress ?? createInitialDesktopUpdateDownloadProgress(updateDownloadRequestedVersion);
+  publishDesktopUpdateDownloadProgress(Object.freeze({ ...current, phase: "cancelling" }));
+  token.cancel();
+  void writeLog("更新", `用户取消 LFAA ${updateDownloadRequestedVersion} 下载。`);
+  return true;
 }
 
 function publishDesktopUpdateAvailability(manifest) {
@@ -559,6 +582,16 @@ function getDesktopUpdateFlow() {
     promptForUpdate: promptToDownloadUpdate,
     beginDownload: beginDesktopUpdateDownload,
     getPreferences: readDesktopUpdatePreferences,
+    isDownloadCancelled: error => error instanceof CancellationError || cancelledDownloadVersion !== "",
+    onDownloadCancelled: manifest => {
+      if (updateDownloadRequestedVersion === manifest.version) updateDownloadRequestedVersion = "";
+      if (automaticInstallVersion === manifest.version) automaticInstallVersion = "";
+      if (acceptedUpdateManifest?.version === manifest.version) acceptedUpdateManifest = null;
+      if (cancelledDownloadVersion === manifest.version) cancelledDownloadVersion = "";
+      publishDesktopUpdateDownloadProgress(null);
+      publishDesktopUpdateAvailability(manifest);
+      void writeLog("更新", `LFAA ${manifest.version} 下载已取消。`);
+    },
     ignoreVersion: async version => {
       try {
         if (!desktopUpdatePreferencesStore) throw new Error("桌面更新偏好尚未初始化。");
@@ -570,15 +603,18 @@ function getDesktopUpdateFlow() {
       }
     },
     onUpdateAvailable: publishDesktopUpdateAvailability,
-    onError: async (error, phase, manifest, safeMessage) => {
+    onError: async (error, phase, manifest, safeMessage, diagnostic) => {
       const message = safeMessage || getDesktopUpdateErrorMessage(error, phase);
       if (!(error && typeof error === "object" && loggedUpdaterErrors.has(error))) {
-        await writeLog("更新 错误", message);
+        await writeLog("更新 错误", `${message}（${diagnostic || getDesktopUpdateErrorDiagnostic(error, phase)}）`);
       }
       if (phase !== "download") return;
       if (updateDownloadRequestedVersion === manifest?.version) updateDownloadRequestedVersion = "";
       if (automaticInstallVersion === manifest?.version) automaticInstallVersion = "";
       if (acceptedUpdateManifest?.version === manifest?.version) acceptedUpdateManifest = null;
+      if (cancelledDownloadVersion === manifest?.version) cancelledDownloadVersion = "";
+      publishDesktopUpdateDownloadProgress(null);
+      publishDesktopUpdateAvailability(manifest);
       await showUpdateNotice(
         "LFAA 更新下载失败",
         `LFAA ${manifest?.version ?? "新版本"} 下载失败。`,
@@ -650,6 +686,16 @@ if (singleInstance) {
     return availableDesktopUpdate;
   });
 
+  ipcMain.handle("lfaa:desktop:update-download-progress", (event) => {
+    assertTrustedUpdateRenderer(event);
+    return desktopUpdateDownloadProgress;
+  });
+
+  ipcMain.handle("lfaa:desktop:update-download-cancel", (event) => {
+    assertTrustedUpdateRenderer(event);
+    return cancelDesktopUpdateDownload();
+  });
+
   ipcMain.handle("lfaa:desktop:check-updates", (event) => {
     assertTrustedUpdateRenderer(event);
     return runDesktopUpdateCheck({ manual: true });
@@ -716,8 +762,7 @@ if (singleInstance) {
     } catch (error) {
       const message = error instanceof Error ? error.message : "未知启动错误。";
       await writeLog("桌面端 错误", message);
-      await stopLocalServices();
-      serviceShutdownComplete = true;
+      serviceShutdownComplete = await stopLocalServices();
       dialog.showErrorBox("LFAA 启动失败", `${message}\n\n日志位置：${logFilePath}`);
       app.quit();
     }

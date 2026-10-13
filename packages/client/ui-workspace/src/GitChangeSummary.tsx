@@ -1,6 +1,6 @@
 /**
- * 功能：显示当前 AI Work 项目的真实 Git 差异和受管 Worktree 恢复入口。
- * 作用：差异由目标 Daemon 的 Git 状态 API 提供；组件不接受模型生成的摘要。
+ * 功能：显示当前 AI Work 项目的真实 Git 差异、受管 Worktree 恢复入口和活动文件审阅桥接。
+ * 作用：差异由目标 Daemon 的 Git 状态 API 提供；活动桥接先核对已登记项目状态，再复用 GitChangeReview。
  * 不负责：源项目修改、提交、推送、合并或远端 Pull Request。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -117,4 +117,78 @@ export function GitChangeSummary({ appId, project, refreshRevision }: GitChangeS
     </Modal>
     {project && status ? <GitChangeReview appId={appId} project={project} status={status} initialPath={reviewPath} open={reviewOpen} onClose={() => setReviewOpen(false)} onRefresh={() => refresh(project.id)} /> : null}
   </section>;
+}
+
+interface GitChangeActivityReviewProps {
+  appId: WorkspaceProjectApplicationId;
+  project: WorkspaceProject;
+  path: string;
+  requestId: number;
+  onClose: () => void;
+  onRefresh: () => void;
+}
+
+/** 活动记录只提供项目相对路径；此处必须以已登记项目的 Git 状态精确映射后才打开审阅器。 */
+export function GitChangeActivityReview({ appId, project, path, requestId, onClose, onRefresh }: GitChangeActivityReviewProps) {
+  const [status, setStatus] = useState<WorkspaceGitStatus | null>(null);
+  const [reviewPath, setReviewPath] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const requestRevision = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    const revision = ++requestRevision.current;
+    setStatus(null);
+    setReviewPath("");
+    setLoading(true);
+    setError("");
+    void loadWorkspaceGitStatus(project.id, appId).then(({ status: current }) => {
+      if (!active || requestRevision.current !== revision) return;
+      const changedFile = current.files.find(file => file.projectPath === path);
+      if (!changedFile) throw new Error("当前 Git 差异结果未包含此文件；它可能已提交、被忽略、超出返回列表，或项目状态已经变化。");
+      setStatus(current);
+      setReviewPath(changedFile.path);
+    }).catch(loadError => {
+      if (active && requestRevision.current === revision) setError(getErrorMessage(loadError));
+    }).finally(() => {
+      if (active && requestRevision.current === revision) setLoading(false);
+    });
+    return () => {
+      active = false;
+      requestRevision.current += 1;
+    };
+  }, [appId, path, project.id, requestId]);
+
+  const refresh = useCallback(async () => {
+    const revision = ++requestRevision.current;
+    try {
+      const { status: current } = await loadWorkspaceGitStatus(project.id, appId);
+      if (requestRevision.current !== revision) return;
+      const changedFile = current.files.find(file => file.projectPath === path);
+      if (!changedFile) throw new Error("当前 Git 差异结果未包含此文件；请刷新后从当前差异列表重新打开。");
+      setStatus(current);
+      setReviewPath(changedFile.path);
+      onRefresh();
+    } catch (refreshError) {
+      if (requestRevision.current !== revision) return;
+      setStatus(null);
+      setReviewPath("");
+      setError(getErrorMessage(refreshError));
+      setLoading(false);
+    }
+  }, [appId, onRefresh, path, project.id]);
+
+  return status && reviewPath
+    ? <GitChangeReview appId={appId} project={project} status={status} initialPath={reviewPath} open onClose={onClose} onRefresh={refresh} />
+    : <Modal
+        open
+        title="打开文件差异"
+        footer={null}
+        onCancel={onClose}
+        getContainer={() => document.querySelector(".workbench-shell") ?? document.body}
+      >
+        {loading ? <div className="module-context__git-loading"><Spin size="small" /><span>正在核对项目 Git 状态…</span></div> : null}
+        {error ? <Alert type="warning" showIcon message={error} action={<Button size="small" onClick={onClose}>关闭</Button>} /> : null}
+      </Modal>;
 }

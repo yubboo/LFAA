@@ -7,6 +7,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { isAbsolute } from 'node:path';
+import { isolateData } from './isolated-data.mjs';
+
+isolateData(test, 'capability-skill');
 
 const { createProjectSkillAdapter } = await import('lfaa-capability-skill/src/index.js');
 const { CapabilityInstallRegistry } = await import('lfaa-capability-installs/src/index.js');

@@ -1,18 +1,19 @@
 {
   "name": "lfaa-desktop-electron",
   "private": true,
-  "version": "0.0.5",
+  "version": "0.0.8",
   "type": "module",
   "main": "src/main.mjs",
   "description": "LFAA Windows 本机一体版桌面外壳",
   "scripts": {
     "dev": "electron .",
-    "test:update-manifest": "node --test tests/update-manifest.test.mjs tests/update-flow.test.mjs tests/update-prompt-broker.test.mjs tests/update-preferences.test.mjs tests/desktop-package-version.test.mjs",
+    "test:update-manifest": "node --test tests/update-manifest.test.mjs tests/update-manifest-fetch.test.mjs tests/update-download-progress.test.mjs tests/update-flow.test.mjs tests/update-prompt-broker.test.mjs tests/update-preferences.test.mjs tests/desktop-package-version.test.mjs ../../scripts/tests/desktop-package-artifacts.test.mjs",
     "validate:update-manifest": "node scripts/update-manifest.mjs validate",
     "package:win": "pnpm --dir ../.. run build:win",
-    "package:win:prepared": "node scripts/update-manifest.mjs validate && node scripts/prepare-runtime.mjs prepare-deploy && pnpm --filter @yubboo/lfaa deploy --prod --legacy --config.node-linker=hoisted --config.confirmModulesPurge=false --config.allowUnusedPatches=true ../../dist/.tmp/desktop-electron/server-deploy && pnpm install --config.confirmModulesPurge=false && pnpm --filter lfaa-web run build:desktop-candidate && node scripts/prepare-runtime.mjs && electron-builder --win nsis --x64 --publish never && node ../../scripts/desktop-package-version.mjs complete && node scripts/verify-packaged-runtime.mjs"
+    "package:win:prepared": "node scripts/update-manifest.mjs validate && node scripts/prepare-runtime.mjs prepare-deploy && pnpm --filter @yubboo/lfaa deploy --prod --legacy --config.node-linker=hoisted --config.confirmModulesPurge=false --config.allowUnusedPatches=true ../../dist/.tmp/desktop-electron/server-deploy && pnpm install --config.confirmModulesPurge=false && pnpm --filter lfaa-web run build:desktop-candidate && node scripts/prepare-runtime.mjs && electron-builder --win nsis --x64 --publish never && node scripts/verify-packaged-runtime.mjs && node ../../scripts/desktop-package-artifacts.mjs collect && node ../../scripts/desktop-package-version.mjs complete"
   },
   "dependencies": {
+    "builder-util-runtime": "9.7.0",
     "electron-updater": "6.8.9",
     "js-yaml": "4.3.2"
   },
@@ -24,7 +25,7 @@
     "appId": "com.lfaa.desktop",
     "productName": "LFAA",
     "directories": {
-      "output": "../../dist/apps/desktop-electron",
+      "output": "../../dist/.tmp/desktop-electron/LFAA-0.0.8",
       "buildResources": "../../dist/.tmp/desktop-electron/build-resources"
     },
     "files": [

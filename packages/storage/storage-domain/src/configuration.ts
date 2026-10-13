@@ -30,9 +30,10 @@ const keys: Record<string, readonly string[]> = {
   user_settings: ["user_id", "category"], user_preferences: ["user_id"], ai_accounts: ["id"],
   minecraft_storage_settings_defaults: ["id"], minecraft_storage_node_settings: ["node_id"],
   steamcmd_configuration_defaults: ["id"], steamcmd_configuration_node_settings: ["node_id"],
-  steamcmd_storage_defaults: ["id"], steamcmd_storage_node_settings: ["node_id"]
+  steamcmd_storage_defaults: ["id"], steamcmd_storage_node_settings: ["node_id"],
+  project_storage_locations: ["id"]
 } as const;
-export type ConfigurationTable = "user_settings" | "user_preferences" | "ai_accounts" | "minecraft_storage_settings_defaults" | "minecraft_storage_node_settings" | "steamcmd_configuration_defaults" | "steamcmd_configuration_node_settings" | "steamcmd_storage_defaults" | "steamcmd_storage_node_settings";
+export type ConfigurationTable = "user_settings" | "user_preferences" | "ai_accounts" | "minecraft_storage_settings_defaults" | "minecraft_storage_node_settings" | "steamcmd_configuration_defaults" | "steamcmd_configuration_node_settings" | "steamcmd_storage_defaults" | "steamcmd_storage_node_settings" | "project_storage_locations";
 export const configurationTables = Object.keys(keys) as ConfigurationTable[];
 export class ConfigurationConflict extends Error { readonly code = "ai_account_name_conflict"; }
 interface ConfigurationDocument { version: 1; revision: number; tables: Record<ConfigurationTable, ConfigurationRecord[]>; credential_records: EncryptedCredentialRecordRow[] }
@@ -60,7 +61,12 @@ export class ConfigurationDomain {
   private normalizeDocument(saved: unknown): ConfigurationDocument {
     const parsed = saved as ConfigurationDocument;
     // 旧版设置文档没有凭据记录区；惰性补空数组，凭据仍以既有加密字段保存。
-    const document = parsed && Object.hasOwn(parsed, "credential_records") ? parsed : { ...parsed, credential_records: [] };
+    const tables = parsed?.tables ? { ...parsed.tables } : parsed?.tables;
+    // 新增的存储位置配置只为旧 JSON 配置补空域；其他缺失配置域仍由 validate 拒绝。
+    if (tables && !Object.hasOwn(tables, "project_storage_locations")) tables.project_storage_locations = [];
+    const document = parsed && Object.hasOwn(parsed, "credential_records")
+      ? { ...parsed, tables, credential_records: parsed.credential_records }
+      : { ...parsed, tables, credential_records: [] };
     this.validate(document);
     return document;
   }
@@ -69,7 +75,7 @@ export class ConfigurationDomain {
     if (saved !== undefined) return this.normalizeDocument(saved);
     if (version > 30) throw new Error("配置文件和 SQLite 配置迁移标记均缺失；请恢复同一数据根目录的完整备份。");
     return withControlLock(database, () => {
-      const tables = Object.fromEntries(configurationTables.map(table => [table, database.prepare(`SELECT * FROM ${table}`).all()])) as ConfigurationDocument["tables"];
+      const tables = Object.fromEntries(configurationTables.map(table => [table, table === "project_storage_locations" ? [] : database.prepare(`SELECT * FROM ${table}`).all()])) as ConfigurationDocument["tables"];
       const imported: ConfigurationDocument = { version: 1, revision: 0, tables, credential_records: [] };
       this.validate(imported); this.backend.write("configuration", imported);
       if (encode(this.backend.read("configuration")) !== encode(imported)) throw new Error("配置文件迁移回读校验失败。");

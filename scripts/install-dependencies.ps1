@@ -32,12 +32,11 @@ function Show-MainMenu {
     Write-Host '  【4】检查环境与实际工作区包' -ForegroundColor Yellow
     Write-Host '  【5】一键生成纯净源码 ZIP（排除依赖与敏感数据）' -ForegroundColor Green
     Write-Host '  【6】一键正常推送 GitHub main（不覆盖远端历史）' -ForegroundColor Green
-    Write-Host '  【7】一键强制推送 GitHub main（覆盖远端历史）' -ForegroundColor Red
     Write-Host '  【0】退出' -ForegroundColor Red
     Write-Host ''
     Write-Host '桌面安装版内置 Control Plane 与本机 Daemon，并自动启动；Web 在 Windows 默认托管本机 Daemon。' -ForegroundColor DarkGray
     Write-Host '独立节点模式用于远程节点或维护；Windows Sandbox Host 由桌面打包自动构建，单独构建命令只针对该原生宿主。' -ForegroundColor DarkGray
-    Write-Host '菜单 3 等同 pnpm run build:win；安装包输出：dist/apps/desktop-electron/。' -ForegroundColor DarkGray
+    Write-Host '菜单 3 等同 pnpm run build:win；安装包输出：dist/apps/desktop-electron/LFAA-版本号/。' -ForegroundColor DarkGray
     Write-Host '首次沿用待构建版本；之后每次新包会要求填写更新说明并递增版本。' -ForegroundColor DarkGray
     Write-Host 'Web 启动前检查源码与构建是否一致。' -ForegroundColor DarkGray
     Write-Host '服务在当前终端运行，按 Ctrl+C 停止；不另开服务窗口。' -ForegroundColor DarkGray
@@ -138,10 +137,10 @@ function Show-DependencyScope {
 
 function Start-Harness {
     Write-Host '【启动模式】' -ForegroundColor Cyan
-    Write-Host '  【1】Web（默认）'
-    Write-Host '  【2】独立 Daemon 节点（远程主机/节点维护）'
+    Write-Host '  【1】完整 Web（控制端 + 编译前端，自动托管本机 Daemon；默认）'
+    Write-Host '  【2】独立 Daemon 节点（远程节点；需配置绝对路径 LFAA_DATA_DIR）'
     Write-Host '  【3】开发模式'
-    Write-Host '  【4】Vite 热更新前端（5173，复用已运行控制端）'
+    Write-Host '  【4】仅 Vite 前端热更新（5173；必须先启动完整 Web）'
     Write-Host '  【0】返回'
     $mode = [string](Read-Host '输入编号并按 Enter（默认 1）')
     switch ($mode.Trim()) {
@@ -159,8 +158,8 @@ function Start-Harness {
         default { throw '无效启动模式，请选择 1、2、3、4 或 0。' }
     }
     # 正式 CLI 不处理数据目录迁移；有待处理计划时禁止继续使用旧位置写数据。
-    if (Test-Path -LiteralPath (Join-Path $projectRoot '.lfaa-data-directory.pending.json')) {
-        throw '存在待处理的数据目录迁移。请停止正在运行的服务，使用开发模式或 pnpm dev 完成迁移后再启动 CLI。'
+    if ($profile -eq 'daemon' -and (Test-Path -LiteralPath (Join-Path $projectRoot '.lfaa-data-directory.pending.json'))) {
+        throw '存在待处理的数据目录迁移。请先停止旧服务并通过完整 Web 启动入口完成迁移，再启动独立 Daemon。'
     }
     if ($profile -eq 'daemon') {
         Write-Host '此项单独启动节点进程；桌面安装版会自动启动本机 Daemon。Windows AppContainer Sandbox Host 可用 pnpm run build:windows-sandbox-host 构建，Electron 桌面打包会自动内置。' -ForegroundColor Yellow
@@ -378,19 +377,8 @@ function Start-ViteFrontend {
 function Get-ResolvedDataDirectory {
     # 与 CLI 共用同一数据目录解析器和 .env 优先级，定位写锁时不自行推导默认路径。
     $nodeCommand = Get-Command 'node' -ErrorAction Stop
-    $resolverSource = @'
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-const environmentFile = process.argv[1];
-if (existsSync(environmentFile)) process.loadEnvFile(environmentFile);
-const resolverFile = pathToFileURL(resolve(process.argv[2])).href;
-const { resolveDataDirectory } = await import(resolverFile);
-console.log(resolveDataDirectory(process.argv[3], process.env.LFAA_DATA_DIR || "data"));
-'@
-    $environmentFile = Join-Path $projectRoot '.env'
-    $resolverFile = Join-Path $projectRoot 'packages\util\home-paths\src\resolve-data-directory.mjs'
-    $resolverOutput = @(& $nodeCommand.Source '--input-type=module' '--eval' $resolverSource $environmentFile $resolverFile $projectRoot 2>&1)
+    $resolverFile = Join-Path $projectRoot 'scripts\resolve-data-directory.mjs'
+    $resolverOutput = @(& $nodeCommand.Source $resolverFile $projectRoot 2>&1)
     if ($LASTEXITCODE -ne 0) {
         throw "无法解析当前 LFAA 数据目录：$($resolverOutput -join ' ')"
     }
@@ -730,7 +718,7 @@ function Set-GitHubOrigin {
     }
 
     Invoke-GitChecked -GitArguments @('config', '--replace-all', 'remote.origin.url', $targetUrl)
-    # 清除可能存在的多个 push URL，保证强推只发往用户指定的 GitHub 仓库。
+    # 清除可能存在的多个 push URL，保证正常推送只发往用户指定的 GitHub 仓库。
     Invoke-GitChecked -GitArguments @('config', '--replace-all', 'remote.origin.pushurl', $targetUrl)
     Write-Host "origin 与推送地址已固定为：$targetUrl" -ForegroundColor Green
 }
@@ -776,12 +764,9 @@ function Read-Confirmation {
 }
 
 function Push-GitHubRepository {
-    param([switch]$Force)
-
-    $isForcePush = $Force.IsPresent
-    $pushModeLabel = if ($isForcePush) { '强制推送' } else { '正常推送' }
+    $pushModeLabel = '正常推送'
     Write-Host ''
-    Write-Host ("【GitHub {0}】" -f $pushModeLabel) -ForegroundColor $(if ($isForcePush) { 'Red' } else { 'Green' })
+    Write-Host ("【GitHub {0}】" -f $pushModeLabel) -ForegroundColor Green
     Write-Host '目标：https://github.com/yubboo/LFAA.git' -ForegroundColor Cyan
     Write-Host '分支：main' -ForegroundColor Cyan
     # 先说明后续步骤，避免用户在凭据确认处取消后以为漏了「提交说明」这一步。
@@ -801,20 +786,10 @@ function Push-GitHubRepository {
         return
     }
 
-    if ($isForcePush) {
-        Write-Host '强制推送会用本地当前提交覆盖 GitHub main 的提交历史。' -ForegroundColor Yellow
-        # 只做一次 y/n 确认；取消时不暂存、不提交，也不连接远端。
-        if (-not (Read-Confirmation -Prompt '确认强制推送并覆盖远端 main 历史？')) {
-            Write-Host '已取消强制推送。' -ForegroundColor DarkGray
-            return
-        }
-    }
-    else {
-        Write-Host '常规推送不会覆盖远端历史；若远端领先，Git 会安全拒绝本次推送。' -ForegroundColor Green
-        if (-not (Read-Confirmation -Prompt '确认推送到 GitHub main？' -DefaultYes)) {
-            Write-Host '已取消推送。' -ForegroundColor DarkGray
-            return
-        }
+    Write-Host '常规推送不会覆盖远端历史；若远端领先，Git 会安全拒绝本次推送。' -ForegroundColor Green
+    if (-not (Read-Confirmation -Prompt '确认推送到 GitHub main？' -DefaultYes)) {
+        Write-Host '已取消推送。' -ForegroundColor DarkGray
+        return
     }
 
     try {
@@ -977,18 +952,12 @@ function Push-GitHubRepository {
 
         Write-Host ''
         Write-Host 'HTTPS 传输低于 1 KiB/s 持续 60 秒时会超时退出。' -ForegroundColor DarkGray
-        if ($isForcePush) {
-            Write-Host '正在执行强制推送：git push --force origin HEAD:refs/heads/main ……' -ForegroundColor Yellow
-            Invoke-GitChecked -GitArguments @('-c', 'http.lowSpeedLimit=1024', '-c', 'http.lowSpeedTime=60', 'push', '--force', 'origin', 'HEAD:refs/heads/main')
-        }
-        else {
-            Write-Host '正在执行正常推送：git push origin HEAD:refs/heads/main ……' -ForegroundColor Green
-            Invoke-GitChecked -GitArguments @('-c', 'http.lowSpeedLimit=1024', '-c', 'http.lowSpeedTime=60', 'push', 'origin', 'HEAD:refs/heads/main')
-        }
+        Write-Host '正在执行正常推送：git push origin HEAD:refs/heads/main ……' -ForegroundColor Green
+        Invoke-GitChecked -GitArguments @('-c', 'http.lowSpeedLimit=1024', '-c', 'http.lowSpeedTime=60', 'push', 'origin', 'HEAD:refs/heads/main')
         Write-Host ("GitHub main {0}成功，版本：{1}。" -f $pushModeLabel, $projectVersion.Label) -ForegroundColor Green
     }
     catch {
-        if (-not $isForcePush -and $_.Exception.Message -match '(?i)non-fast-forward|fetch first|rejected') {
+        if ($_.Exception.Message -match '(?i)non-fast-forward|fetch first|rejected') {
             Write-Host '常规推送被 Git 拒绝：远端包含本地没有的提交；远端历史没有被覆盖。' -ForegroundColor Yellow
         }
         Write-Host "GitHub 推送失败：$($_.Exception.Message)" -ForegroundColor Red
@@ -1008,9 +977,8 @@ while ($true) {
             '4' { Show-EnvironmentStatus; Show-DependencyScope }
             '5' { Start-ProjectBackup }
             '6' { Push-GitHubRepository }
-            '7' { Push-GitHubRepository -Force }
             '0' { Write-Host '已退出 LFAA Harness 工作台。' -ForegroundColor DarkGray; exit 0 }
-            default { Write-Host '无效编号，请选择 0 至 7。' -ForegroundColor Red }
+            default { Write-Host '无效编号，请选择 0 至 6。' -ForegroundColor Red }
         }
     }
     catch {

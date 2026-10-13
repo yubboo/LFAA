@@ -25,21 +25,27 @@ export interface MinecraftStorageSettings {
 
 /** 只接受数据根目录内的普通相对目录，供节点配置和受限文件管理共用。 */
 export function validateMinecraftStorageDirectory(value: string): string {
-  if (typeof value !== "string" || value.length > 512 || value.includes("\\") || value.startsWith("/") || /^[a-z]:/iu.test(value)) {
-    throw new Error("Minecraft 实例目录必须是 LFAA 数据根目录内的相对路径。");
+  if (typeof value !== "string" || value.length > 2_048 || /[\r\n\u0000]/u.test(value)) {
+    throw new Error("Minecraft 实例目录无效。");
   }
-  const segments = value.split("/");
-  if (segments.length < 1 || segments.length > 16 || segments.some((segment) =>
+  const absolute = win32.isAbsolute(value);
+  if (absolute && (value.split(/[\\/]/u).includes(".."))) throw new Error("Minecraft 实例目录不能包含父目录跳转。");
+  if (!absolute && (value.includes("\\") || value.startsWith("/") || /^[a-z]:/iu.test(value))) throw new Error("Minecraft 实例目录必须是数据根目录内的相对路径或磁盘绝对路径。");
+  const normalized = absolute ? win32.normalize(value) : value;
+  const root = absolute ? win32.parse(normalized).root : "";
+  if (absolute && (!/^[a-z]:\\$/iu.test(root) || normalized.length <= root.length)) throw new Error("Minecraft 实例根目录必须位于可用磁盘的普通文件夹中，不能直接选择磁盘根目录。");
+  const segments = absolute ? win32.relative(root, normalized).split("\\") : value.split("/");
+  if (segments.length < 1 || segments.length > 32 || segments.some((segment) =>
     segment.length === 0 || segment.length > 120 || segment === "." || segment === ".."
     || /[<>:"|?*\u0000-\u001f]/u.test(segment) || /[ .]$/u.test(segment)
     || /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/iu.test(segment)
   )) {
     throw new Error("Minecraft 实例目录包含无效名称；请使用数据根目录内的普通相对路径。");
   }
-  if (protectedDataDirectories.includes(segments[0]!.toLocaleLowerCase())) {
+  if (!absolute && protectedDataDirectories.includes(segments[0]!.toLocaleLowerCase())) {
     throw new Error("Minecraft 实例目录不能放在凭据、数据库、配置或会话目录中。");
   }
-  return segments.join("/");
+  return absolute ? normalized : segments.join("/");
 }
 
 function validateMinecraftStorageSettings(input: MinecraftStorageSettings): MinecraftStorageSettings {
@@ -660,11 +666,11 @@ export function restartMinecraftInstance(instanceId: string, userId: string): Mi
   return queueInstanceAction(instance, userId, "restart", { memoryMb: instance.memoryMb, javaMajor: instance.javaMajor, javaRuntimeId: instance.javaRuntimeId });
 }
 
-/** 单行服务器指令不是系统 Shell；生命周期命令必须走对应接口，避免状态失去同步。 */
+/** 单行服务器指令不是系统 Shell；生命周期命令通常优先使用对应接口；控制台仍按用户选择接收有效单行指令。 */
 export function sendMinecraftConsoleCommand(instanceId: string, userId: string, command: string): MinecraftTask {
   const value = command.trim();
-  if (!value || value.length > 1024 || /[\u0000-\u001f\u007f]/u.test(value) || /^(?:stop|restart)\b/iu.test(value)) {
-    throw new ApiError(400, "invalid_minecraft_console_command", "请输入单行服务器命令；停服/重启请使用对应操作。");
+  if (!value || value.length > 1024 || /[\u0000-\u001f\u007f]/u.test(value)) {
+    throw new ApiError(400, "invalid_minecraft_console_command", "请输入有效的单行服务器命令。");
   }
   return queueInstanceAction(requireInstance(instanceId), userId, "console", { command: value });
 }

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-session-persistence": "workspace:*",
     "lfaa-storage-domain": "workspace:*",
     "lfaa-storage-json": "workspace:*",
     "lfaa-storage-sqlite": "workspace:*",

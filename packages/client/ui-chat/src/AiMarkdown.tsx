@@ -118,3 +118,21 @@ export const AiMarkdown = memo(function AiMarkdown({ content }: AiMarkdownProps)
 
   return <div className="ai-work-chat__markdown _markdown_lfaa_wallpaper">{blocks}</div>;
 });
+
+const StreamingInlineLine = memo(function StreamingInlineLine({ line, keyPrefix, literal, newline }: { line: string; keyPrefix: string; literal: boolean; newline: boolean }) {
+  return <span>{literal ? line : renderInlineMarkdown(line, keyPrefix)}{newline ? "\n" : null}</span>;
+});
+
+/** 流式时只处理已闭合的行内语法，保持段落、列表和代码块结构稳定。 */
+export const AiStreamingMarkdown = memo(function AiStreamingMarkdown({ content }: AiMarkdownProps) {
+  const lines = content.replace(/\r\n?/g, "\n").split("\n");
+  let inCodeFence = false;
+  return <div className="ai-work-chat__markdown ai-work-chat__streaming-text _markdown_lfaa_wallpaper">
+    {lines.map((line, index) => {
+      const fence = /^\s*```/.test(line);
+      const literal = inCodeFence || fence;
+      if (fence) inCodeFence = !inCodeFence;
+      return <StreamingInlineLine key={`line-${index}`} line={line} keyPrefix={`stream-${index}`} literal={literal} newline={index < lines.length - 1} />;
+    })}
+  </div>;
+});

@@ -19,8 +19,10 @@
     "lfaa-client-ui-settings-account": "workspace:*",
     "lfaa-client-ui-theme": "workspace:*",
     "lfaa-client-ui-workspace": "workspace:*",
+    "lfaa-util-values": "workspace:*",
     "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "react-dom": "^18.0.0",
+    "lfaa-client-store": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",

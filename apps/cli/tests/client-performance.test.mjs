@@ -9,7 +9,7 @@ import test from "node:test";
 import { setImmediate as nextTurn } from "node:timers/promises";
 import { createReadPoller } from "../../../packages/client/connection/src/read-poller.ts";
 import { createStreamDeltas } from "../../../packages/client/connection/src/stream-deltas.ts";
-import { streamAiChat } from "../../../packages/client/connection/src/api.ts";
+import { pauseAiRun, resumeAiRun, streamAiChat } from "../../../packages/client/connection/src/api.ts";
 import { saveWorkbenchLeftWidth } from "../../../packages/client/ui-dockkit/src/workbench-preferences.ts";
 import { createSnapshotCache, clearClientSnapshots } from "../../../packages/client/store/src/snapshot-cache.ts";
 import { observeWorkbenchMetrics } from "../../../packages/client/ui-dockkit/src/use-workbench-metrics.ts";
@@ -113,6 +113,59 @@ test("1000 个同帧文本片段只更新一次，跨消息和终止保持原始
   assert.equal(emitted.length, 3); assert.equal(animation.pending.size, 0);
 });
 
+test("AI Work 分段流式正文使用稳定纯文本，终态 Markdown 保留且无光标", () => {
+  const response = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url), "utf8");
+  const styles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
+  assert.match(response, /const ResponseText = memo/u);
+  assert.ok(response.includes('streaming ? <span className="ai-work-chat__streaming-text">{content}</span> : <AiMarkdown content={content} />'));
+  assert.match(styles, /\.ai-work-chat__streaming-text\s*\{[^}]*white-space:\s*pre-wrap[^}]*overflow-wrap:\s*anywhere/su);
+  assert.doesNotMatch(styles, /ai-work-chat__message-content--streaming[^\n]*::after/u);
+});
+
+test("AI Work 主聊挂载唯一分段展示，沿用原活动展开和完成清理", () => {
+  const chat = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+  const response = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url), "utf8");
+  const styles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
+  assert.ok(chat.includes('<AiWorkResponse message={item} now={activityClock}'));
+  assert.ok(chat.includes('renderActivity={renderActivity} renderInteraction={renderInteraction}'));
+  assert.ok(chat.includes('appendAiTextDelta(item, value)'));
+  assert.match(chat, /onPresentation:/u);
+  assert.ok(chat.includes('setExpandedActivitySteps(current => current?.messageId === completedMessageId ? null : current)'));
+  assert.ok(chat.includes('aria-expanded={activityExpanded} aria-controls={activityDetailId}'));
+  assert.ok(chat.includes('activityExpanded ? <div className="ai-work-chat__activity-step-detail"'));
+  assert.match(response, /summary\.durationText/u);
+  assert.ok(response.includes('className="ai-work-chat__response-duration" role="status"'));
+  assert.ok(response.includes('pauseLabel ?? summary.label'));
+  assert.match(styles, /response-divider[^}]*border-top: 1px solid var\(--color-border-subtle\)/u);
+});
+
+test("AI Work 文件活动显示真实路径并通过登记项目打开现有 Git 审阅器", () => {
+  const chat = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+  const workspace = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
+  const reviewer = readFileSync(new URL("../../../packages/client/ui-workspace/src/GitChangeSummary.tsx", import.meta.url), "utf8");
+  assert.match(chat, /activity\.fileChanges\?\.map/u);
+  assert.match(chat, /onOpenProjectFileReview\(change\.projectId!, change\.path\)/u);
+  assert.match(chat, /查看差异与编辑/u);
+  assert.match(workspace, /workspaceProjects\.find\(item => item\.id === projectId/u);
+  assert.match(workspace, /onOpenProjectFileReview=\{openProjectFileReview\}/u);
+  assert.match(reviewer, /current\.files\.find\(file => file\.projectPath === path\)/u);
+  assert.match(reviewer, /setReviewPath\(changedFile\.path\)/u);
+  assert.match(reviewer, /<GitChangeReview appId=\{appId\} project=\{project\} status=\{status\} initialPath=\{reviewPath\}/u);
+});
+
+test("AI Work 澄清与审批记录留在发起位置，等待交互沿用真实 Owner", () => {
+  const chat = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+  assert.match(chat, /const renderInteraction = \(activity: AiActivityItem\)/u);
+  assert.match(chat, /已回答的澄清问题/u);
+  assert.ok(chat.includes('<strong>{questionText}</strong>'));
+  assert.ok(chat.includes('skipped ? "已跳过" : answerText || "未记录文字答案"'));
+  assert.ok(chat.includes('activity.detail?.startsWith("你的回答：")'));
+  assert.match(chat, /pendingInteraction\?\.kind === "approval"/u);
+  assert.match(chat, /activity\.approvalQuestion/u);assert.match(chat, /activity\.approvalAnswer/u);
+  assert.match(chat, /answerAiRunQuestion\(question\.runId/u);assert.match(chat, /decideAiApproval\(approvalId, decision\)/u);
+  assert.doesNotMatch(chat, /result\.userMessage\.id/u);
+});
+
 test("真实 SSE 解析合并文本，并在没有末尾空行时先交付全文再完成", async t => {
   const animation = frames(t), events = [];
   const source = Array.from({ length: 1000 }, () => 'event: delta\ndata: {"messageId":"m","delta":"文"}\n\n').join("")
@@ -127,6 +180,62 @@ test("真实 SSE 解析合并文本，并在没有末尾空行时先交付全文
   });
   assert.deepEqual(events, ["文".repeat(1000), "complete"]);
   assert.equal(animation.pending.size, 0);
+});
+
+test("Run SSE 在 done 前断流后按同一 Run ID 重订阅并恢复快照", async t => {
+  const animation = frames(t), requests = [], sessions = [], deltas = [], done = [];
+  const userMessage = { id: "run-user", role: "user", content: "继续回答", status: "complete" };
+  const assistant = content => ({ id: "recovered-run", role: "assistant", content, status: "streaming", activity: [] });
+  const session = { id: "existing-session", appId: "writing", title: "恢复测试", planMode: false };
+  const first = `event: session\ndata: ${JSON.stringify({ runId: "recovered-run", session, userMessage, assistantMessage: assistant("") })}\n\n`
+    + 'event: delta\ndata: {"messageId":"recovered-run","delta":"已收到的片段"}\n\n';
+  const resumed = `event: session\ndata: ${JSON.stringify({ runId: "recovered-run", session, userMessage, assistantMessage: assistant("已收到的片段") })}\n\n`
+    + 'event: delta\ndata: {"messageId":"recovered-run","delta":"和后续内容"}\n\n'
+    + 'event: done\ndata: {"status":"complete"}\n\n';
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    requests.push({ url, method: options.method, body: options.body });
+    return new Response(requests.length === 1 ? first : resumed, { headers: { "content-type": "text/event-stream" } });
+  });
+
+  await streamAiChat({ appId: "writing", sessionId: "existing-session", content: "继续回答", signal: new AbortController().signal,
+    onSession: value => sessions.push(value.assistantMessage.content), onActivity() {}, onUsage() {}, onError() {},
+    onDelta: value => deltas.push(value.delta), onDone: status => done.push(status)
+  });
+
+  assert.deepEqual(requests.map(({ url, method }) => [url, method]), [
+    ["/api/ai/chat/stream", "POST"],
+    ["/api/ai/runs/recovered-run/events", "GET"]
+  ]);
+  assert.deepEqual(sessions, ["", "已收到的片段"]);
+  assert.deepEqual(deltas, ["已收到的片段", "和后续内容"]);
+  assert.deepEqual(done, ["complete"]);
+  assert.equal(animation.pending.size, 0);
+});
+
+test("Run SSE 恢复当前暂停状态，控制 API 只请求当前 Run 的暂停/继续路由", async t => {
+  const states = [], requests = [];
+  const session = { id: "pause-session", appId: "workspace", title: "暂停测试", planMode: false };
+  const userMessage = { id: "pause-user", role: "user", content: "暂停", status: "complete" };
+  const assistantMessage = { id: "pause-run", role: "assistant", content: "", status: "streaming", activity: [] };
+  const stream = `event: session\ndata: ${JSON.stringify({ runId: "pause-run", session, userMessage, assistantMessage })}\n\n`
+    + 'event: pause-state\ndata: {"runId":"pause-run","state":"paused"}\n\n'
+    + 'event: done\ndata: {"status":"complete"}\n\n';
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    requests.push({ url, method: options.method });
+    if (url === "/api/ai/chat/stream") return new Response(stream, { headers: { "content-type": "text/event-stream" } });
+    return Response.json({ pauseState: url.endsWith("/pause") ? "pausing" : "running" });
+  });
+  await streamAiChat({ appId: "workspace", sessionId: null, content: "暂停", signal: new AbortController().signal,
+    onSession() {}, onPauseState: value => states.push(value), onActivity() {}, onUsage() {}, onError() {}, onDelta() {}, onDone() {}
+  });
+  assert.deepEqual(states, [{ runId: "pause-run", state: "paused" }]);
+  assert.deepEqual(await pauseAiRun("pause-run"), { pauseState: "pausing" });
+  assert.deepEqual(await resumeAiRun("pause-run"), { pauseState: "running" });
+  assert.deepEqual(requests, [
+    { url: "/api/ai/chat/stream", method: "POST" },
+    { url: "/api/ai/runs/pause-run/pause", method: "POST" },
+    { url: "/api/ai/runs/pause-run/resume", method: "POST" }
+  ]);
 });
 
 test("取消 SSE 撤销尚未绘制的文本，不在取消后回调或泄漏动画帧", async t => {

@@ -15,8 +15,30 @@ export function productRuntimePackages(root) {
     pkg.lfaa?.runtime !== false && !pkg.path.startsWith("packages/client/") && !pkg.path.startsWith("packages/test-support/"));
 }
 export function workspaceAliases(root) {
-  return workspacePackages(root).flatMap((pkg) => [
-    { find: `${pkg.name}/src`, replacement: resolve(root, pkg.path, "src") },
-    { find: pkg.name, replacement: resolve(root, pkg.path, "src/index.ts") }
-  ]);
+  return workspacePackages(root).flatMap((pkg) => {
+    const entry = workspaceSourceEntry(root, pkg);
+    return [
+      { find: `${pkg.name}/src`, replacement: resolve(root, pkg.path, "src") },
+      ...(entry ? [{ find: pkg.name, replacement: resolve(root, pkg.path, entry) }] : [])
+    ];
+  });
+}
+
+/** 公开入口优先读取 manifest；TSX/MJS 入口不能被固定的 index.ts 覆盖。 */
+export function workspaceSourceEntry(root, pkg) {
+  const declared = pkg.exports?.["."];
+  const entry = typeof declared === "string" ? declared : declared?.import ?? declared?.default;
+  if (typeof entry === "string") return entry.replace(/^\.\//u, "");
+  return ["src/index.ts", "src/index.tsx", "src/index.mjs"].find(path => existsSync(resolve(root, pkg.path, path)));
+}
+
+/** TypeScript、Vite 和 Node 从同一 workspace 清单取得包位置。 */
+export function workspaceTypeScriptPaths(root) {
+  return Object.fromEntries(workspacePackages(root).flatMap(pkg => {
+    const entry = workspaceSourceEntry(root, pkg);
+    return [
+      [`${pkg.name}/src/*`, [`${pkg.path}/src/*`]],
+      ...(entry ? [[pkg.name, [`${pkg.path}/${entry}`]]] : [])
+    ];
+  }).sort(([left], [right]) => left.localeCompare(right, "en")));
 }

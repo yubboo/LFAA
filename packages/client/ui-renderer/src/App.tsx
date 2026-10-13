@@ -7,6 +7,8 @@ import { loadClientModule, syncDshClientModulesForAuthentication } from "lfaa-cl
 import { resolveSessionBootstrap } from "./session-bootstrap.js";
 import { preloadWorkbenchForRoute } from "./workbench-preload.js";
 import { clearAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
+import { APPLICATION_ROUTE_PATTERN } from "lfaa-util-values/src/application-id.js";
+import { APPLICATION_ENTRY_STATE_KEY as applicationCenterEntryStateKey, readApplicationEntryIdFromHistory } from "./application-entry-state.js";
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
@@ -67,19 +69,10 @@ function serverStateFromHealth(health: ServerHealth | null, checking: boolean): 
   return health?.status === "ok" && health.persistence === "ready" ? "online" : "offline";
 }
 
-const applicationCenterEntryStateKey = "lfaaApplicationCenterEntry";
-
 function applicationIdForRoute(path: string): ApplicationId | null {
   if (path === "/tasks") return "workspace";
-  const match = path.match(/^\/apps\/(steamcmd|minecraft|connectivity|writing|workspace)\/(normal|ai-work)(?:\/|$)/u);
+  const match = path.match(APPLICATION_ROUTE_PATTERN);
   return match ? match[1] as ApplicationId : null;
-}
-
-function applicationIdFromHistoryState(): ApplicationId | null {
-  const state: unknown = window.history.state;
-  if (!state || typeof state !== "object") return null;
-  const app = (state as Record<string, unknown>)[applicationCenterEntryStateKey];
-  return app === "steamcmd" || app === "minecraft" || app === "connectivity" || app === "writing" || app === "workspace" ? app : null;
 }
 
 function routeTo(
@@ -180,7 +173,7 @@ export default function App() {
       setOpening(null);
       const nextPath = window.location.pathname;
       const targetApp = applicationIdForRoute(nextPath);
-      if (targetApp && applicationIdFromHistoryState() !== targetApp) {
+      if (targetApp && readApplicationEntryIdFromHistory(window.history.state) !== targetApp) {
         routeTo("/", setRoute, { replace: true });
         return;
       }
@@ -193,7 +186,7 @@ export default function App() {
   useLayoutEffect(() => {
     if (!user) return;
     const targetApp = applicationIdForRoute(route);
-    if (targetApp && applicationIdFromHistoryState() !== targetApp) {
+    if (targetApp && readApplicationEntryIdFromHistory(window.history.state) !== targetApp) {
       routeTo("/", setRoute, { replace: true });
     }
   }, [route, user?.id]);
@@ -379,7 +372,7 @@ export default function App() {
     const owner = currentUserRef.current?.id;
     if (!owner) return;
     const currentRouteApp = applicationIdForRoute(window.location.pathname);
-    if (window.location.pathname !== "/" && (currentRouteApp !== app || applicationIdFromHistoryState() !== app)) {
+    if (window.location.pathname !== "/" && (currentRouteApp !== app || readApplicationEntryIdFromHistory(window.history.state) !== app)) {
       routeTo("/", setRoute);
       return;
     }

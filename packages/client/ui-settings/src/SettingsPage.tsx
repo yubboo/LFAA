@@ -6,8 +6,8 @@ import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-me
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-update.mjs";
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
-import { activateAiAccount, cancelDataDirectorySettingsChange, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadDataDirectorySettings, loadMinecraftStorageSettings, loadMinecraftCores, loadSteamcmdSettings, loadSteamcmdTask, loadManagedPlugins, loadCapabilityInstallCatalog, searchManagedPlugins, inspectManagedPlugin, manageAiRuntimePlugin, probeAiProvider, reprobeAiAccount, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdNodeStorageSettings, saveSteamcmdStorageDefaults, saveMinecraftNodeStorageSettings, saveMinecraftStorageDefaults, saveDataDirectorySettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type ManagedPluginRecord, type ManagedPluginCandidate, type ManagedPluginInspection, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type ConversationMemorySnapshot, type DataDirectorySettings, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
-import { minecraftSceneBackgrounds } from "lfaa-client-ui-minecraft/src/assets/minecraftScenes.js";
+import { activateAiAccount, cancelDataDirectorySettingsChange, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadDataDirectorySettings, confirmDataDirectoryLocation, loadMinecraftStorageSettings, loadMinecraftCores, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, loadManagedPlugins, loadCapabilityInstallCatalog, searchManagedPlugins, inspectManagedPlugin, manageAiRuntimePlugin, probeAiProvider, reprobeAiAccount, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdNodeStorageSettings, saveSteamcmdStorageDefaults, saveMinecraftNodeStorageSettings, saveMinecraftStorageDefaults, saveDataDirectorySettings, saveProjectStorageLocations, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type ManagedPluginRecord, type ManagedPluginCandidate, type ManagedPluginInspection, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type ConversationMemorySnapshot, type DataDirectorySettings, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { minecraftSceneBackgrounds } from "lfaa-util-values/src/builtin-backgrounds.js";
 import { cacheLoginBackground } from "lfaa-client-ui-theme/src/login-background.js";
 import { getBrowserNotificationPermission, playNotificationSound, requestBrowserNotificationPermission, sendBrowserNotification, type BrowserNotificationPermission } from "lfaa-client-resources/src/notification-runtime.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
@@ -24,6 +24,7 @@ import "./SettingsPage.css";
 import { hasShortcutConflicts, ShortcutRow } from "lfaa-client-ui-shortcuts/src/settings-shortcuts.js";
 import { defaultReasoningMode, effectiveReasoningMode, reasoningOptions, modelParameterSummary, modelOptionLabel, fixedThinkingLabel } from "lfaa-client-ui-settings-models/src/model-options.js";
 import { DEFAULT_USER_SETTINGS } from "lfaa-client-ui-settings-general/src/default-settings.js";
+import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN } from "lfaa-util-values/src/settings-contract.js";
 import { SettingGroup, AdvancedGroup, SettingRow, SettingsSwitch, SettingsActions } from "lfaa-client-ui-primitives/src/settings-controls.js";
 import { DshSlotOutlet } from "lfaa-client-modules/src/client/index.js";
 
@@ -124,6 +125,9 @@ interface SettingsDataSnapshot {
   steamcmdNodes: SteamcmdSettingsNode[];
   dataDirectorySettings: DataDirectorySettings | null;
   dataDirectoryDraft: string;
+  projectStorageLocations: ProjectStorageLocations | null;
+  projectStorageDraft: ProjectStorageLocations | null;
+  projectStorageConfigured: boolean;
   steamcmdConfigurationDefaultsConfigured: boolean;
   steamcmdConfigurationDefaults: SteamcmdConfigurationValues;
   selectedSteamcmdConfigurationNodeId: string;
@@ -147,7 +151,7 @@ function createEmptySettingsDataSnapshot(): SettingsDataSnapshot {
   return {
     loadedSections: new Set(), providers: [], accounts: [], extensions: [], runtimePlugins: [], managedPlugins: [], capabilityInstallCatalog: [], hotReloadEnabled: false, runtimeHooks: [],
     usage: null, pendingApprovals: [], permissionGrants: [], archivedSessions: [], health: null, steamcmdNodes: [],
-    dataDirectorySettings: null, dataDirectoryDraft: "",
+    dataDirectorySettings: null, dataDirectoryDraft: "", projectStorageLocations: null, projectStorageDraft: null, projectStorageConfigured: false,
     steamcmdConfigurationDefaultsConfigured: false, steamcmdConfigurationDefaults: { installMode: "online", steamcmdDirectory: "lib/steamcmd" }, selectedSteamcmdConfigurationNodeId: "",
     steamcmdConfigurationDraft: { installMode: "online", steamcmdDirectory: "lib/steamcmd" }, steamcmdStorageDefaultsConfigured: false,
     steamcmdStorageDefaults: { gameDirectory: "games/steamcmd" }, selectedSteamcmdStorageNodeId: "", selectedSteamcmdInstallNodeId: "",
@@ -376,9 +380,17 @@ interface SettingsPageProps {
 
 /** 将节点数据根目录和安全相对路径合成仅管理员可见的安装位置预览。 */
 function displaySteamcmdPath(node: { dataRoot: string | null } | null, relativePath: string): string {
+  if (/^[a-z]:[\\/]/iu.test(relativePath) || relativePath.startsWith("/")) return relativePath;
   const root = node?.dataRoot?.replace(/[\\/]+$/u, "");
   const separator = root?.includes("\\") ? "\\" : "/";
   return root ? `${root}${separator}${relativePath.split("/").join(separator)}` : `LFAA_DATA_DIR/${relativePath}`;
+}
+
+/** 显示控制端数据根目录下由 Writing Owner 推导的账户项目路径。 */
+function displayLocalStoragePath(root: string | null | undefined, relativePath: string): string {
+  const normalizedRoot = root?.replace(/[\\/]+$/u, "");
+  const separator = normalizedRoot?.includes("\\") ? "\\" : "/";
+  return normalizedRoot ? `${normalizedRoot}${separator}${relativePath.split("/").join(separator)}` : `LFAA_DATA_DIR/${relativePath}`;
 }
 
 
@@ -416,6 +428,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [search, setSearch] = useState("");
   const [appearanceAdvancedOpen, setAppearanceAdvancedOpen] = useState(() => readSettingsAppearanceAdvancedOpen(user.id));
   const [settings, setSettings] = useState<UserSettings>(workbenchSettings);
+  const [skillDirectoriesDraft, setSkillDirectoriesDraft] = useState<string | null>(null);
   const [setupReminderLocalDay, setSetupReminderLocalDay] = useState(() => getSetupReminderLocalDay());
   const [setupReminderPausedToday, setSetupReminderPausedToday] = useState(() => isSetupReminderSnoozedToday(user.id));
   const settingsRef = useRef(settings);
@@ -437,6 +450,10 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [notificationPermission, setNotificationPermission] = useState<BrowserNotificationPermission>(() => getBrowserNotificationPermission());
   const [providers, setProviders] = useState<AiProvider[]>(() => cachedSettingsData?.providers ?? []);
   const [accounts, setAccounts] = useState<AiAccount[]>(() => cachedSettingsData?.accounts ?? []);
+  const imageGenerationAccounts = accounts.filter(account => account.providerId === "openai" || account.providerId === "doubao");
+  const selectedImageGenerationAccount = imageGenerationAccounts.find(account => account.id === settings.aiRuntime.imageGenerationAccountId);
+  const videoGenerationAccounts = accounts.filter(account => account.providerId === "doubao");
+  const selectedVideoGenerationAccount = videoGenerationAccounts.find(account => account.id === settings.aiRuntime.videoGenerationAccountId);
   const [, setAiAccountsLoadState] = useState<"idle" | "loading" | "ready" | "error">(() => cachedSettingsData?.loadedSections.has("ai") || cachedSettingsData?.loadedSections.has("configuration") ? "ready" : "idle");
   const [extensions, setExtensions] = useState<AiExtension[]>(() => cachedSettingsData?.extensions ?? []);
   const [managedPlugins, setManagedPlugins] = useState<ManagedPluginRecord[]>(() => cachedSettingsData?.managedPlugins ?? []);
@@ -458,7 +475,6 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [pendingApprovals, setPendingApprovals] = useState<AiToolApproval[]>(() => cachedSettingsData?.pendingApprovals ?? []);
   const [permissionGrants, setPermissionGrants] = useState<AiToolPermissionGrant[]>(() => cachedSettingsData?.permissionGrants ?? []);
   const [persistedPermissionMode, setPersistedPermissionMode] = useState<UserSettings["permissions"]["mode"]>(workbenchSettings.permissions.mode);
-  const [approvalMemoryPrompt, setApprovalMemoryPrompt] = useState<AiToolApproval | null>(null);
   const [approvalBusyId, setApprovalBusyId] = useState<string | null>(null);
   const [archivedSessions, setArchivedSessions] = useState<AiSession[]>(() => cachedSettingsData?.archivedSessions ?? []);
   const [health, setHealth] = useState<ServerHealth | null>(() => cachedSettingsData?.health ?? null);
@@ -474,6 +490,10 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [dataDirectorySettings, setDataDirectorySettings] = useState<DataDirectorySettings | null>(() => cachedSettingsData?.dataDirectorySettings ?? null);
   const [dataDirectoryDraft, setDataDirectoryDraft] = useState(() => cachedSettingsData?.dataDirectoryDraft ?? "");
   const [dataDirectoryAction, setDataDirectoryAction] = useState<"save" | "cancel" | null>(null);
+  const [projectStorageLocations, setProjectStorageLocations] = useState<ProjectStorageLocations | null>(() => cachedSettingsData?.projectStorageLocations ?? null);
+  const [projectStorageDraft, setProjectStorageDraft] = useState<ProjectStorageLocations | null>(() => cachedSettingsData?.projectStorageDraft ?? cachedSettingsData?.projectStorageLocations ?? null);
+  const [projectStorageConfigured, setProjectStorageConfigured] = useState(() => cachedSettingsData?.projectStorageConfigured ?? false);
+  const [projectStorageAction, setProjectStorageAction] = useState<"save" | null>(null);
   const [deletingConversationMemories, setDeletingConversationMemories] = useState(false);
   const [conversationMemorySnapshot, setConversationMemorySnapshot] = useState<ConversationMemorySnapshot | null>(null);
   const [conversationMemoryDraft, setConversationMemoryDraft] = useState("");
@@ -826,13 +846,14 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       providers, accounts, extensions, runtimePlugins, managedPlugins, capabilityInstallCatalog, hotReloadEnabled, runtimeHooks, usage, pendingApprovals, permissionGrants,
       archivedSessions, health, steamcmdNodes, steamcmdConfigurationDefaultsConfigured, steamcmdConfigurationDefaults,
       dataDirectorySettings, dataDirectoryDraft,
+      projectStorageLocations, projectStorageDraft, projectStorageConfigured,
       selectedSteamcmdConfigurationNodeId, steamcmdConfigurationDraft, steamcmdStorageDefaultsConfigured, steamcmdStorageDefaults,
       selectedSteamcmdStorageNodeId, selectedMinecraftStorageNodeId, selectedSteamcmdInstallNodeId, steamcmdStorageDraft,
       minecraftStorageNodes, minecraftStorageDefaultsConfigured, minecraftStorageDefaults, minecraftStorageDraft,
       uploadedBackgrounds
     });
     settingsDataSnapshots.set(cacheKey, snapshot);
-  }, [accounts, archivedSessions, cacheKey, capabilityInstallCatalog, dataDirectoryDraft, dataDirectorySettings, extensions, health, hotReloadEnabled, managedPlugins, minecraftStorageDefaults, minecraftStorageDefaultsConfigured, minecraftStorageDraft, minecraftStorageNodes, pendingApprovals, permissionGrants, providers, runtimeHooks, runtimePlugins, selectedMinecraftStorageNodeId, selectedSteamcmdConfigurationNodeId, selectedSteamcmdInstallNodeId, selectedSteamcmdStorageNodeId, steamcmdConfigurationDefaults, steamcmdConfigurationDefaultsConfigured, steamcmdConfigurationDraft, steamcmdNodes, steamcmdStorageDefaults, steamcmdStorageDefaultsConfigured, steamcmdStorageDraft, uploadedBackgrounds, usage]);
+  }, [accounts, archivedSessions, cacheKey, capabilityInstallCatalog, dataDirectoryDraft, dataDirectorySettings, extensions, health, hotReloadEnabled, managedPlugins, minecraftStorageDefaults, minecraftStorageDefaultsConfigured, minecraftStorageDraft, minecraftStorageNodes, pendingApprovals, permissionGrants, projectStorageConfigured, projectStorageDraft, projectStorageLocations, providers, runtimeHooks, runtimePlugins, selectedMinecraftStorageNodeId, selectedSteamcmdConfigurationNodeId, selectedSteamcmdInstallNodeId, selectedSteamcmdStorageNodeId, steamcmdConfigurationDefaults, steamcmdConfigurationDefaultsConfigured, steamcmdConfigurationDraft, steamcmdNodes, steamcmdStorageDefaults, steamcmdStorageDefaultsConfigured, steamcmdStorageDraft, uploadedBackgrounds, usage]);
 
   function selectSection(section: SectionId): void {
     // 账户安全页含有多个凭据输入项；离开分类筛选状态，避免浏览器把用户名填入搜索框后隐藏全部导航分类。
@@ -997,13 +1018,17 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           case "workspace": {
             await loadHealthOnce();
             if (canAdmin) {
-              const [steamcmdResult, minecraftResult, dataDirectoryResult] = await Promise.all([
+              const [steamcmdResult, minecraftResult, dataDirectoryResult, projectStorageResult] = await Promise.all([
                 loadSteamcmdSettings(),
                 loadMinecraftStorageSettings(),
-                loadDataDirectorySettings()
+                loadDataDirectorySettings(),
+                loadProjectStorageLocations()
               ]);
               setDataDirectorySettings(dataDirectoryResult.settings);
               setDataDirectoryDraft(dataDirectoryResult.settings.pendingDirectory ?? dataDirectoryResult.settings.currentDirectory);
+              setProjectStorageLocations(projectStorageResult.settings);
+              setProjectStorageDraft(projectStorageResult.settings);
+              setProjectStorageConfigured(projectStorageResult.configured);
               setSteamcmdNodes(steamcmdResult.nodes);
               setSteamcmdStorageDefaultsConfigured(steamcmdResult.storageDefaultsConfigured);
               setSteamcmdStorageDefaults(steamcmdResult.storageDefaults);
@@ -1187,6 +1212,31 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       messageApi.error(getErrorMessage(saveError));
     } finally {
       setDataDirectoryAction(null);
+    }
+  }
+
+  async function chooseStorageDirectory(onSelected: (directory: string) => void): Promise<void> {
+    try {
+      const directory = await selectDesktopDataDirectory();
+      if (directory) onSelected(directory);
+    } catch (selectionError) {
+      messageApi.error(getErrorMessage(selectionError));
+    }
+  }
+
+  async function saveProjectStorageConfiguration(): Promise<void> {
+    if (!projectStorageDraft) return;
+    setProjectStorageAction("save");
+    try {
+      const result = await saveProjectStorageLocations(projectStorageDraft);
+      setProjectStorageLocations(result.settings);
+      setProjectStorageDraft(result.settings);
+      setProjectStorageConfigured(result.configured);
+      messageApi.success("日志、写作和漫剧存储位置已保存；已有项目仍从原位置读取，新项目使用新位置。");
+    } catch (saveError) {
+      messageApi.error(getErrorMessage(saveError));
+    } finally {
+      setProjectStorageAction(null);
     }
   }
 
@@ -1703,19 +1753,28 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     });
   }
 
-  async function resolveApproval(approval: AiToolApproval, decision: "approved" | "denied", remember = false): Promise<void> {
+  async function resolveApproval(approval: AiToolApproval, decision: "approved" | "denied"): Promise<void> {
     setApprovalBusyId(approval.id);
     setError("");
     try {
-      await decideAiApproval(approval.id, decision, remember);
+      const previousGrantIds = new Set(permissionGrants.map((grant) => grant.id));
+      await decideAiApproval(approval.id, decision, false);
       const result = await loadAiApprovals();
       setPendingApprovals(result.approvals);
-      if (remember) {
+      let remembered = false;
+      if (decision === "approved" && persistedPermissionMode === "approve_remembered") {
         const grants = await loadAiPermissionGrants();
         setPermissionGrants(grants.grants);
+        remembered ||= grants.grants.some((grant) => !previousGrantIds.has(grant.id)
+          && grant.appId === approval.appId
+          && grant.toolId === approval.toolId
+          && grant.toolVersion === approval.toolVersion
+          && grant.risk === approval.risk
+          && grant.scopeSummary === approval.scopeSummary);
       }
-      setApprovalMemoryPrompt(null);
-      messageApi.success(decision === "approved" ? remember ? "本次操作已批准，并记住了相同范围的操作。" : "本次操作已批准；执行器仍须校验并消费本次授权。" : "操作已拒绝");
+      messageApi.success(decision === "approved" ? remembered
+        ? "本次操作已批准；相同范围累计两次后已自动记住，后续匹配操作无需逐项审批。"
+        : "本次操作已批准；执行器仍须校验并消费本次授权。" : "操作已拒绝");
     } catch (approvalError) {
       setError(getErrorMessage(approvalError));
     } finally {
@@ -1724,10 +1783,6 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   }
 
   function confirmApproval(approval: AiToolApproval): void {
-    if (persistedPermissionMode === "approve_remembered") {
-      setApprovalMemoryPrompt(approval);
-      return;
-    }
     void resolveApproval(approval, "approved");
   }
 
@@ -1735,7 +1790,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     try {
       await revokeAiPermissionGrant(grant.id);
       setPermissionGrants((current) => current.filter((item) => item.id !== grant.id));
-      messageApi.success("记忆授权已撤销；下次匹配的操作将重新询问。");
+      messageApi.success("记忆授权已撤销；该范围重新累计两次明确批准前会逐项等待。");
     } catch (revokeError) {
       setError(getErrorMessage(revokeError));
     }
@@ -2215,7 +2270,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                 <input
                   type="color"
                   aria-label="自定义侧边栏颜色"
-                  value={settings.appearance.sidebarColor === "auto" ? (resolvedTheme === "dark" ? "#262626" : "#f5f7fb") : settings.appearance.sidebarColor}
+                  value={settings.appearance.sidebarColor === "auto" ? (resolvedTheme === "dark" ? "#262626" : "#f5f5f5") : settings.appearance.sidebarColor}
                   onChange={(event) => updateSettings("appearance", { ...settings.appearance, sidebarColor: event.target.value.toLocaleLowerCase() })}
                 />
                 <span>自定义</span>
@@ -2268,15 +2323,16 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         <SettingGroup title="背景显示">
           <SettingRow title="背景遮罩" description="统一控制整张工作区壁纸的遮罩透明度，设置和应用的顶部栏、导航及 AI Work 输入区等独立表面同步使用该值；0% 时壁纸最清晰，数值越高整体底色越明显。消息画布不另加局部遮罩。" status="已接入"><div className="settings-slider"><Slider min={0} max={75} value={settings.appearance.overlay} onChange={(overlay) => updateSettings("appearance", { ...settings.appearance, overlay })} /><output>{settings.appearance.overlay}%</output></div></SettingRow>
           <SettingRow title="玻璃模糊" description="调整顶栏、半透明导航栏、AI Work 输入区和写作上下文作品卡片的玻璃模糊强度；消息画布保持透明并显示工作区壁纸，设置正文不做实时模糊。" status="已接入"><div className="settings-slider"><Slider min={0} max={32} value={settings.appearance.blur} onChange={(blur) => updateSettings("appearance", { ...settings.appearance, blur })} /><output>{settings.appearance.blur}px</output></div></SettingRow>
+          <SettingRow title="更新界面不透明度" description="控制顶栏更新悬浮卡片和更新确认弹窗的清晰度；默认 92%，数值越高壁纸透出越少，并继续跟随当前主题的玻璃模糊设置。" status="实时预览"><div className="settings-slider"><Slider min={70} max={100} value={settings.appearance.updateSurfaceOpacity} onChange={(updateSurfaceOpacity) => updateSettings("appearance", { ...settings.appearance, updateSurfaceOpacity })} /><output>{settings.appearance.updateSurfaceOpacity}%</output></div></SettingRow>
         </SettingGroup>
         <SettingGroup title="AI Work 空闲虚化">
-          <SettingRow title="空闲时虚化回复" description="开启后，鼠标、键盘、滚动或触屏操作停止达到设定时长后，回复内容、刻度和滚动条一起虚化；再次操作后恢复清晰。输入框保持清晰。">
+          <SettingRow title="空闲时虚化回复" description="开启后，鼠标、键盘、滚动或触屏操作停止达到设定时长后，回复内容、刻度和滚动条按强度虚化并淡出；再次操作后平滑恢复清晰。输入框保持清晰。">
             <SettingsSwitch label="空闲时虚化回复" checked={settings.appearance.advanced.aiWorkOutputFocusBlurEnabled} onChange={() => updateAppearanceAdvanced({ aiWorkOutputFocusBlurEnabled: !settings.appearance.advanced.aiWorkOutputFocusBlurEnabled })} />
           </SettingRow>
           <SettingRow title="空闲多久后虚化" description="页面至少 1 分钟没有鼠标、键盘、滚动或触屏操作后，开始虚化 AI Work 输出区域。">
             <div className="settings-slider"><Slider disabled={!settings.appearance.advanced.aiWorkOutputFocusBlurEnabled} min={1} max={60} value={settings.appearance.advanced.aiWorkOutputFocusBlurIdleSeconds / 60} onChange={(minutes) => updateAppearanceAdvanced({ aiWorkOutputFocusBlurIdleSeconds: minutes * 60 })} /><output>{settings.appearance.advanced.aiWorkOutputFocusBlurIdleSeconds / 60} 分钟</output></div>
           </SettingRow>
-          <SettingRow title="回复虚化强度" description="按百分比调节 AI Work 空闲后的虚化强度；0% 不模糊，100% 对应 8px 模糊半径，不会淡出隐藏内容。">
+          <SettingRow title="回复虚化与淡出强度" description="按百分比调节 AI Work 空闲后的虚化和淡出；0% 保持清晰可见，100% 完全淡出隐藏回复，中间值同时增加模糊并降低不透明度。">
             <div className="settings-slider"><Slider disabled={!settings.appearance.advanced.aiWorkOutputFocusBlurEnabled} min={0} max={100} value={settings.appearance.advanced.aiWorkOutputFocusBlurPercent} onChange={(aiWorkOutputFocusBlurPercent) => updateAppearanceAdvanced({ aiWorkOutputFocusBlurPercent })} /><output>{settings.appearance.advanced.aiWorkOutputFocusBlurPercent}%</output></div>
           </SettingRow>
         </SettingGroup>
@@ -2449,15 +2505,54 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             </> : null}
           </div> : null}
         </Modal>
-        <SettingGroup title="推理参数">
-          <SettingRow title="输出长度策略" description="此策略只形成请求的最大输出 token 上限，不控制模型思考力度，也不保证 Provider 延迟。思考参数请在对应模型账户卡片中选择。">
-            <Select value={settings.aiRuntime.speed} options={[{ value: "fast", label: "短输出 · 最多 1024" }, { value: "balanced", label: "使用下方上限" }, { value: "deep", label: "加长输出 · 至少 4096" }]} onChange={(value) => updateSettings("aiRuntime", { ...settings.aiRuntime, speed: value })} />
+        <SettingGroup title="AI 漫剧图片生成">
+            <SettingRow title="图片模型账户" description="复用此处加密保存的 OpenAI 或豆包/火山方舟账户。生成只在你点击镜头卡片上的按钮时发起，服务商可能按其规则计费。">
+              <Select allowClear value={settings.aiRuntime.imageGenerationAccountId || undefined} placeholder="选择 OpenAI 或豆包账户" options={imageGenerationAccounts.map(account => ({ value: account.id, label: `${account.displayName} · ${account.providerId}` }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationAccountId: value ?? "", imageGenerationModelId: "" })} />
+            </SettingRow>
+            <SettingRow title="图像模型 ID" description="从已保存账户的模型目录选择；模型目录存在不代表该型号已开通图像生成，真实请求会返回服务商判定结果。">
+              <Select allowClear showSearch optionFilterProp="label" disabled={!selectedImageGenerationAccount} value={settings.aiRuntime.imageGenerationModelId || undefined} placeholder={selectedImageGenerationAccount ? "选择模型目录中的图像模型" : "请先选择图片模型账户"} options={selectedImageGenerationAccount?.models.map(model => ({ value: model.id, label: model.id })) ?? []} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationModelId: value ?? "" })} />
+            </SettingRow>
+            {!imageGenerationAccounts.length ? <Alert type="info" showIcon message="请先在上方配置并加密保存 OpenAI 或豆包/火山方舟账户。" /> : null}
+        </SettingGroup>
+        <SettingGroup title="AI 漫剧视频生成">
+          <SettingRow title="火山方舟视频账户" description="复用此处加密保存的火山方舟账户；视频生成会创建服务商异步任务并按服务商规则计费。">
+            <Select allowClear value={settings.aiRuntime.videoGenerationAccountId || undefined} placeholder="选择火山方舟账户" options={videoGenerationAccounts.map(account => ({ value: account.id, label: `${account.displayName} · 火山方舟` }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationAccountId: value ?? "", videoGenerationModelId: "" })} />
           </SettingRow>
-          <SettingRow title="最大输出 tokens" description="作为 LFAA 的输出 token 上限，服务端最多发送 16384 tokens；Provider 或所选型号限制更低时仍以其限制为准。">
-            <Input type="number" min={256} max={16384} step={256} value={settings.aiRuntime.maxOutputTokens} onChange={(event) => updateSettings("aiRuntime", { ...settings.aiRuntime, maxOutputTokens: Math.max(256, Math.min(16384, Number(event.target.value) || 256)) })} />
+          <SettingRow title="视频模型 ID" description="从所选账户保存的模型目录选择。目录不声明视频能力时仍由服务商按真实请求判定，不自动切换模型。">
+            <Select allowClear showSearch optionFilterProp="label" disabled={!selectedVideoGenerationAccount} value={settings.aiRuntime.videoGenerationModelId || undefined} placeholder={selectedVideoGenerationAccount ? "选择模型目录中的视频模型" : "请先选择火山方舟账户"} options={selectedVideoGenerationAccount?.models.map(model => ({ value: model.id, label: model.id })) ?? []} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationModelId: value ?? "" })} />
+          </SettingRow>
+          <SettingRow title="生成时长" description="时长单位为秒；模型支持范围和可选离散值由火山方舟实际判定。">
+            <InputNumber min={1} max={15} step={1} value={settings.aiRuntime.videoGenerationDurationSeconds} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationDurationSeconds: value })} />
+          </SettingRow>
+          <SettingRow title="画面比例" description="不同模型支持的比例不同；“自适应”交由所选模型按参考素材决定。">
+            <Select value={settings.aiRuntime.videoGenerationRatio} options={[{ value: "adaptive", label: "自适应" }, { value: "16:9", label: "16:9 横屏" }, { value: "9:16", label: "9:16 竖屏" }, { value: "1:1", label: "1:1 方形" }, { value: "4:3", label: "4:3" }, { value: "3:4", label: "3:4" }]} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationRatio: value })} />
+          </SettingRow>
+          <SettingRow title="清晰度" description="清晰度选择也受模型和所选比例限制；不支持时显示服务商错误。">
+            <Select value={settings.aiRuntime.videoGenerationResolution} options={[{ value: "480p", label: "480p" }, { value: "720p", label: "720p" }, { value: "1080p", label: "1080p" }]} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationResolution: value })} />
+          </SettingRow>
+          <SettingRow title="生成声音" description="将镜头对白与声音提示交给模型；具体音频支持由模型决定。">
+            <SettingsSwitch label="生成音频" checked={settings.aiRuntime.videoGenerationGenerateAudio} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationGenerateAudio: !settings.aiRuntime.videoGenerationGenerateAudio })} />
+          </SettingRow>
+          <SettingRow title="水印" description="按所选账户模型的水印参数发送偏好；最终结果遵循服务商规则。">
+            <SettingsSwitch label="保留水印" checked={settings.aiRuntime.videoGenerationWatermark} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationWatermark: !settings.aiRuntime.videoGenerationWatermark })} />
+          </SettingRow>
+          {!videoGenerationAccounts.length ? <Alert type="info" showIcon message="请先在上方配置并加密保存火山方舟账户。" /> : null}
+        </SettingGroup>
+        <SettingGroup title="推理参数">
+          <SettingRow title="输出长度策略" description="快速策略最多请求 1024 tokens；平衡/深入遵循所选模型能力或你填写的上限，不改变模型思考力度。">
+            <Select value={settings.aiRuntime.speed} options={[{ value: "fast", label: "快速 · 最多 1024" }, { value: "balanced", label: "平衡 · 按模型/自定义上限" }, { value: "deep", label: "深入 · 尽量使用模型上限" }]} onChange={(value) => updateSettings("aiRuntime", { ...settings.aiRuntime, speed: value })} />
+          </SettingRow>
+          <SettingRow title="最大输出 tokens" description="0 表示自动：按模型目录声明的单次输出上限发送；目录未提供时省略上限字段，遵循 Provider 对该型号的默认值。正数是你的上限，已验证的模型上限仍会优先约束。部分模型的思考内容也占用 Provider 输出预算。">
+            <InputNumber min={0} max={Number.MAX_SAFE_INTEGER} step={1024} value={settings.aiRuntime.maxOutputTokens} onChange={(value) => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, maxOutputTokens: value })} />
           </SettingRow>
           <SettingRow title="请求超时" description="模型请求等待 Provider 的最长时间。">
             <Input type="number" min={10} max={300} value={settings.aiRuntime.requestTimeoutSeconds} onChange={(event) => updateSettings("aiRuntime", { ...settings.aiRuntime, requestTimeoutSeconds: Math.max(10, Math.min(300, Number(event.target.value) || 10)) })} />
+          </SettingRow>
+          <SettingRow title="模型请求重试次数" description="仅在未收到回答或工具选择时恢复临时网络、服务错误或空回答；0 表示关闭。每次重试计入本轮请求预算，已执行工具不会重放。">
+            <InputNumber min={0} max={3} value={settings.aiRuntime.requestRetries} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, requestRetries: value })} />
+          </SettingRow>
+          <SettingRow title="模型重试等待（秒）" description="临时请求失败后的基础等待时间，后续重试逐次递增。停止任务会取消等待。">
+            <InputNumber min={0} max={30} value={settings.aiRuntime.retryDelaySeconds} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, retryDelaySeconds: value })} />
           </SettingRow>
           <SettingRow title="子 Agent 模型账户" description="默认继承主 Agent 的模型账户，也可选择当前账户保存的其他模型；所选账户失效会明确失败，不自动换模型。">
             <Select value={settings.aiRuntime.subagentAccountId} options={[{ value: "", label: "继承主 Agent" }, ...accounts.map(account => ({ value: account.id, label: account.displayName + " · " + account.modelId }))]} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, subagentAccountId: value })} />
@@ -2471,17 +2566,21 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="节点命令默认时限（秒）" description="0 表示不限时；模型指定的时限只能缩短已保存的非零上限。停止任务会向执行节点请求终止进程树。">
             <InputNumber min={0} max={1800} value={settings.aiRuntime.commandTimeoutSeconds} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, commandTimeoutSeconds: value })} />
           </SettingRow>
-          <SettingRow title="每轮模型请求上限" description="限制一次任务的模型调用次数；达到预算后停止并保留已执行结果。">
-            <InputNumber min={1} max={100} value={settings.aiRuntime.maxModelRequests} onChange={(value) => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, maxModelRequests: value })} />
+          <SettingRow title="每轮模型请求上限" description={`0 使用产品安全上限 ${AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN} 次（含重试和上下文摘要）；正数可设置更低预算。`}>
+            <InputNumber min={0} max={AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN} value={settings.aiRuntime.maxModelRequests} onChange={(value) => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, maxModelRequests: value })} />
           </SettingRow>
-          <SettingRow title="每轮工具调用上限" description="限制一次任务中实际尝试的工具调用数；不会重放已经执行的操作。">
-            <InputNumber min={1} max={200} value={settings.aiRuntime.maxToolCalls} onChange={(value) => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, maxToolCalls: value })} />
+          <SettingRow title="每轮工具调用上限" description={`0 使用产品安全上限 ${AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN} 次；正数可设置更低预算。超出预算的本批调用均不会派发。`}>
+            <InputNumber min={0} max={AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN} value={settings.aiRuntime.maxToolCalls} onChange={(value) => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, maxToolCalls: value })} />
           </SettingRow>
           <SettingRow title="提示词建议" description="在空会话输入区显示当前应用的示例任务。">
             <SettingsSwitch label="提示词建议" checked={settings.aiRuntime.promptSuggestions} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, promptSuggestions: !settings.aiRuntime.promptSuggestions })} />
           </SettingRow>
           <SettingRow title="显示上下文使用情况" description="显示 Provider 返回的真实 token 用量；未提供用量时明确显示“Provider 未提供”。">
             <SettingsSwitch label="显示上下文使用情况" checked={settings.aiRuntime.showContextUsage} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, showContextUsage: !settings.aiRuntime.showContextUsage })} />
+            <SettingsSwitch label="自动压缩较早上下文" checked={settings.aiRuntime.autoCompaction ?? DEFAULT_USER_SETTINGS.aiRuntime.autoCompaction!} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, autoCompaction: !(settings.aiRuntime.autoCompaction ?? DEFAULT_USER_SETTINGS.aiRuntime.autoCompaction!) })} />
+            <SettingRow title="模型窗口未知时的上下文容量" description="优先使用模型目录的实际窗口；未知时按此 token 数触发摘要。摘要使用当前模型并计入请求预算。">
+              <InputNumber min={4096} max={2000000} value={settings.aiRuntime.contextWindowTokens ?? DEFAULT_USER_SETTINGS.aiRuntime.contextWindowTokens!} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, contextWindowTokens: value })} />
+            </SettingRow>
           </SettingRow>
         </SettingGroup>
         <SettingsActions saving={saving === "aiRuntime"} onReset={() => resetSettings("aiRuntime")} onSave={() => void persistSettings("aiRuntime")} />
@@ -2582,6 +2681,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             <SettingRow title="允许 AI Work 使用扩展" description="关闭后，登记的 Skills、Experts、Prompts、Tools 和 MCP 服务不会加入运行时。MCP 工具仍只提供给各自选择的应用。">
               <SettingsSwitch label="启用扩展" checked={settings.plugins.enabled} onChange={() => updateSettings("plugins", { ...settings.plugins, enabled: !settings.plugins.enabled })} />
             </SettingRow>
+            <SettingRow title="本机 Skill 目录" description="每行一个绝对目录，最多 16 个。模型可发现其中的 SKILL.md 并按需加载；远程控制端不会把这些路径当成服务器读取授权。">
+              <Input.TextArea aria-label="本机 Skill 目录" autoSize={{ minRows: 2, maxRows: 6 }} value={skillDirectoriesDraft ?? (settings.plugins.skillDirectories ?? []).join("\n")} onChange={event => setSkillDirectoriesDraft(event.target.value)} onBlur={event => { updateSettings("plugins", { ...settings.plugins, skillDirectories: event.target.value.split(/\r?\n/u).map(path => path.trim()).filter(Boolean) }); setSkillDirectoriesDraft(null); }} />
+            </SettingRow>
           </SettingGroup>
           <div className="settings-note-card"><strong>状态口径</strong><p>登记、安装、启用和运行分别来自对应目录与 Runtime；MCP“启用”只表示已保存的连接配置，不代表服务当前在线。</p></div>
           <SettingsActions saving={saving === "plugins"} onReset={() => resetSettings("plugins")} onSave={() => void persistSettings("plugins")} />
@@ -2592,7 +2694,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         <SettingGroup title="能力安装接入状态">
           {capabilityInstallCatalog.length ? capabilityInstallCatalog.map((capability) => {
             const kindLabels: Record<CapabilityInstallCatalogEntry["kind"], string> = { plugin: "第三方插件", skill: "Skills", prompt: "提示词", tool: "Tools", mcp: "MCP 服务", "minecraft-plugin": "Minecraft 插件", "minecraft-mod": "Minecraft 模组" };
-            const applicationLabels: Record<string, string> = { workspace: "通用工作台", steamcmd: "SteamCMD", minecraft: "Minecraft", writing: "写作" };
+            const applicationLabels: Record<string, string> = { workspace: "通用工作台", steamcmd: "SteamCMD", minecraft: "Minecraft", connectivity: "联机服务", writing: "写作", aivideo: "AI 漫剧" };
             const operationLabels: Record<string, string> = { search: "搜索", inspect: "检查", install: "安装", list: "清单", enable: "启用", disable: "停用", remove: "移除" };
             const detail = capability.available
               ? ["支持 App：", capability.applicationIds.map((id) => applicationLabels[id] ?? id).join("、"), "；操作：", capability.operations.map((operation) => operationLabels[operation] ?? operation).join("、")].join("")
@@ -2604,7 +2706,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         </SettingGroup>
         <SettingGroup title="已安装的 AI 提示词">
           {settings.plugins.prompts.length ? settings.plugins.prompts.map((prompt) => {
-            const applicationLabel = prompt.applicationId === "workspace" ? "通用工作台" : prompt.applicationId === "steamcmd" ? "SteamCMD" : prompt.applicationId === "minecraft" ? "Minecraft" : "写作";
+            const applicationLabel = prompt.applicationId === "workspace" ? "通用工作台" : prompt.applicationId === "steamcmd" ? "SteamCMD" : prompt.applicationId === "minecraft" ? "Minecraft" : prompt.applicationId === "connectivity" ? "联机服务" : prompt.applicationId === "aivideo" ? "AI 漫剧" : "写作";
             const status = !prompt.enabled ? "已停用" : settings.plugins.enabled ? "可由 AI 按需加载" : "AI 扩展总开关关闭";
             return <SettingRow key={`${prompt.applicationId}:${prompt.id}`} title={prompt.name} description={`${applicationLabel} · ${prompt.description || "第三方提示词"} · ${prompt.sourceRepository}/${prompt.sourcePath} · ${prompt.commit.slice(0, 12)} · 内容 SHA-256 ${prompt.contentSha256.slice(0, 12)}`} status={status}>
               <Tag color={prompt.enabled && settings.plugins.enabled ? "green" : "default"}>{prompt.enabled ? "已登记" : "已停用"}</Tag>
@@ -2649,7 +2751,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             {managedPlugins.length ? managedPlugins.map((plugin) => {
               const status = plugin.state === "enabled" ? "插件 Runtime 已确认运行" : plugin.state === "installed" ? "已安装，未启用" : "运行适配不兼容";
               const compatibility = plugin.compatibility === "lfaa-v1" ? "LFAA v1" : plugin.compatibility === "dsh-v1" ? "DSH bundle" : "未知合同";
-              const appNames = plugin.applicationIds.map(app => ({ workspace: "通用工作台", steamcmd: "SteamCMD", minecraft: "Minecraft", connectivity: "联机服务", writing: "写作" })[app]).join("、");
+              const appNames = plugin.applicationIds.map(app => ({ workspace: "通用工作台", steamcmd: "SteamCMD", minecraft: "Minecraft", connectivity: "联机服务", writing: "写作", aivideo: "AI 漫剧" })[app]).join("、");
               return <SettingRow key={plugin.id} title={`${plugin.name} · v${plugin.version}`} description={`${plugin.description || "暂无说明。"} · 目标 App：${appNames || "未登记"} · 来源 ${plugin.source.repository} · 固定提交 ${plugin.source.commit.slice(0, 12)}`} status={status}>
                 <Space wrap>
                   <Tag color={plugin.state === "enabled" ? "green" : plugin.state === "incompatible" ? "orange" : undefined}>{compatibility}</Tag>
@@ -2757,15 +2859,37 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         {pluginWorkspaceTab === "mcp" ? <>
           <SettingGroup title="MCP 服务配置">
             {settings.plugins.mcpServers.map((server, index) => {
-              const change = (patch: Partial<typeof server>) => updateSettings("plugins", { ...settings.plugins, mcpServers: settings.plugins.mcpServers.map((item, position) => position === index ? { ...item, ...patch } : item) });
+              const commit = (next: typeof server) => updateSettings("plugins", { ...settings.plugins, mcpServers: settings.plugins.mcpServers.map((item, position) => position === index ? next : item) });
+              const change = (patch: Partial<typeof server>) => commit({ ...server, ...patch } as typeof server);
+              const transport = server.transport ?? "streamable-http";
+              const stdioServer = server.transport === "stdio" ? server : null;
               const manifestState = server.manifestSha256 ? "已固定工具合同 SHA-256 " + server.manifestSha256.slice(0, 16) : "尚未固定工具合同";
-              return <SettingRow key={server.id} title={server.name || "MCP 服务"} description={"连接已运行的 Streamable HTTP 服务。地址不能包含密钥；需要认证的服务须先配置本机代理。只有选择的应用会向模型提供此服务的工具，工具调用仍遵循当前权限模式。 " + manifestState + "。"}>
-                <Space direction="vertical"><Input aria-label="MCP 服务名称" value={server.name} maxLength={80} onChange={event => change({ name: event.target.value })} /><Input aria-label="MCP 服务地址" value={server.url} maxLength={1024} placeholder="http://127.0.0.1:端口/mcp" onChange={event => change({ url: event.target.value })} /><Select mode="multiple" aria-label="MCP 可用应用范围" value={server.applicationIds} options={[...mcpApplicationOptions]} onChange={(values: string[]) => change({ applicationIds: values.filter((value): value is typeof mcpApplicationOptions[number]["value"] => mcpApplicationOptions.some(option => option.value === value)) })} placeholder="选择可用应用" /><Space><SettingsSwitch label="连接 MCP" checked={server.enabled} onChange={() => change({ enabled: !server.enabled })} /><Button onClick={() => updateSettings("plugins", { ...settings.plugins, mcpServers: settings.plugins.mcpServers.filter(item => item.id !== server.id) })}>移除</Button></Space></Space>
+              return <SettingRow key={server.id} title={server.name || "MCP 服务"} description={(transport === "stdio"
+                ? "本机 MCP 程序在 LFAA Control Plane 所在机器启动，配置只能启动用户填写的可执行文件和参数，不经过 Shell；远程生产控制端拒绝启动。"
+                : "连接已运行的 Streamable HTTP 服务。地址不能包含密钥；需要认证的服务须先配置本机代理。")
+                + "只有选择的应用会向模型提供此服务的工具，工具调用仍遵循当前权限模式。 " + manifestState + "。"}>
+                <Space direction="vertical">
+                  <Input aria-label="MCP 服务名称" value={server.name} maxLength={80} onChange={event => change({ name: event.target.value })} />
+                  <Select aria-label="MCP 传输方式" value={transport} options={[{ value: "streamable-http", label: "Streamable HTTP" }, { value: "stdio", label: "本机 stdio" }]} onChange={(value: "streamable-http" | "stdio") => {
+                    const base = { id: server.id, name: server.name, enabled: server.enabled, applicationIds: server.applicationIds };
+                    commit(value === "stdio"
+                      ? { ...base, transport: "stdio", command: "", args: [], computerUse: false }
+                      : { ...base, transport: "streamable-http", url: "" });
+                  }} />
+                  {stdioServer ? <>
+                    <Input aria-label="MCP 可执行文件" value={stdioServer.command} maxLength={1024} placeholder="open-computer-use.exe 或 node.exe" onChange={event => change({ command: event.target.value } as Partial<typeof server>)} />
+                    <Input.TextArea aria-label="MCP 参数（每行一个）" value={stdioServer.args.join("\n")} autoSize={{ minRows: 2, maxRows: 6 }} onChange={event => change({ args: event.target.value ? event.target.value.split(/\r?\n/u).slice(0, 32) : [] } as Partial<typeof server>)} placeholder={'mcp\n或 node 脚本路径和 mcp'} />
+                    <SettingsSwitch label="这是本机 Computer-Use 服务" checked={stdioServer.computerUse === true} onChange={() => change({ computerUse: stdioServer.computerUse !== true } as Partial<typeof server>)} />
+                    {stdioServer.computerUse === true ? <Typography.Text type={settings.computerControl.enabled ? "secondary" : "warning"}>{settings.computerControl.enabled ? "还需同时开启设置中心的“电脑操控”，Agent 才会发现和调用此服务。" : "电脑操控当前关闭；此 MCP 不会启动或向 Agent 暴露工具。"}</Typography.Text> : null}
+                  </> : <Input aria-label="MCP 服务地址" value={server.transport === "stdio" ? "" : server.url} maxLength={1024} placeholder="http://127.0.0.1:端口/mcp" onChange={event => change({ transport: "streamable-http", url: event.target.value })} />}
+                  <Select mode="multiple" aria-label="MCP 可用应用范围" value={server.applicationIds} options={[...mcpApplicationOptions]} onChange={(values: string[]) => change({ applicationIds: values.filter((value): value is typeof mcpApplicationOptions[number]["value"] => mcpApplicationOptions.some(option => option.value === value)) })} placeholder="选择可用应用" />
+                  <Space><SettingsSwitch label="连接 MCP" checked={server.enabled} onChange={() => change({ enabled: !server.enabled })} /><Button onClick={() => updateSettings("plugins", { ...settings.plugins, mcpServers: settings.plugins.mcpServers.filter(item => item.id !== server.id) })}>移除</Button></Space>
+                </Space>
               </SettingRow>;
             })}
-            <Button disabled={settings.plugins.mcpServers.length >= 16} onClick={() => updateSettings("plugins", { ...settings.plugins, mcpServers: [...settings.plugins.mcpServers, { id: `m${crypto.randomUUID().slice(0, 12)}`, name: "", url: "", enabled: false, applicationIds: ["workspace"] }] })}>添加 MCP 服务</Button>
+            <Button disabled={settings.plugins.mcpServers.length >= 16} onClick={() => updateSettings("plugins", { ...settings.plugins, mcpServers: [...settings.plugins.mcpServers, { id: `m${crypto.randomUUID().slice(0, 12)}`, name: "", transport: "streamable-http", url: "", enabled: false, applicationIds: ["workspace"] }] })}>添加 MCP 服务</Button>
           </SettingGroup>
-          <div className="settings-note-card"><strong>运行安全边界</strong><p>扩展工具必须提供真实执行实现；MCP 服务由你配置和运行，其工具沿用项目权限模式。模型不能自行添加连接。当前连接不支持 OAuth 或 stdio。</p></div>
+          <div className="settings-note-card"><strong>运行安全边界</strong><p>扩展工具必须提供真实执行实现；MCP 服务由你配置和运行，其工具沿用项目权限模式，模型不能自行添加连接。stdio 命令只允许在本机桌面、开发或本机 CLI 控制端运行，使用独立可执行文件和参数，不经 Shell；远程生产控制端不会代替你的电脑启动。标为 Computer-Use 的服务还受“电脑操控”账户开关限制。外部服务说明只是能力参考，不能改变用户目标或权限。</p></div>
         <SettingsActions saving={saving === "plugins"} onReset={() => resetSettings("plugins")} onSave={() => void persistSettings("plugins")} />
         </> : null}
         </div>
@@ -2787,7 +2911,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="请求审批" description="只读操作按规则执行；写入和高风险操作每次都由你明确批准，不保存记忆授权。" status={settings.permissions.mode === "ask" ? "当前选择" : undefined}>
             <Tag>逐项确认</Tag>
           </SettingRow>
-          <SettingRow title="替我审批" description="未记住的写入或高风险操作先由你批准；你选择记住后，完全匹配的后续操作自动执行。" status={settings.permissions.mode === "approve_remembered" ? "当前选择" : undefined}>
+          <SettingRow title="替我审批" description="同一账户、应用、工具版本、风险和目标范围经你明确批准两次后自动记忆；此后完全匹配的操作不再逐项等待。不同范围仍分别判断，已记忆的范围可在下方撤销。" status={settings.permissions.mode === "approve_remembered" ? "当前选择" : undefined}>
             <Tag>可记住限定范围</Tag>
           </SettingRow>
           <SettingRow title="完全权限" description="模型按你的任务指令自主执行全部项目操作，可在在线 Daemon 上执行任意命令并指定工作目录，不再逐项审批。" status={settings.permissions.mode === "full_access" ? "当前选择" : undefined}>
@@ -2803,7 +2927,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             status={`有效期至 ${new Date(approval.expiresAt).toLocaleTimeString("zh-CN")}`}
           >
             <Space>
-              <Popconfirm title="批准这项操作？" description={`${approval.summary}；目标范围：${approval.scopeSummary}。只授权此参数摘要对应的单次操作，有效 5 分钟。`} okText="批准" cancelText="取消" onConfirm={() => confirmApproval(approval)}>
+              <Popconfirm title="批准这项操作？" description={`${approval.summary}；目标范围：${approval.scopeSummary}。只授权此参数摘要对应的单次操作，有效 5 分钟。${persistedPermissionMode === "approve_remembered" ? "此明确批准会计入同范围的自动记忆次数；累计两次后后续匹配操作免逐项审批。" : ""}`} okText="批准" cancelText="取消" onConfirm={() => confirmApproval(approval)}>
                 <Button type="primary" loading={approvalBusyId === approval.id} disabled={approvalBusyId !== null}>批准</Button>
               </Popconfirm>
               <Popconfirm title="拒绝这项操作？" okText="拒绝" cancelText="取消" onConfirm={() => void resolveApproval(approval, "denied")}>
@@ -2819,7 +2943,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             description={`${grant.appId === "steamcmd" ? "SteamCMD 开服" : grant.appId === "minecraft" ? "Minecraft" : "写作"} · ${grant.toolId}@${grant.toolVersion} · ${grant.risk === "write" ? "写入" : "高风险"} · 目标范围：${grant.scopeSummary}`}
             status={`记住于 ${new Date(grant.createdAt).toLocaleString("zh-CN")}`}
           >
-            <Popconfirm title="撤销这条记忆授权？" description="在“替我审批”模式下，匹配的后续操作会自动执行；撤销后需要重新逐项批准。" okText="撤销授权" cancelText="保留" onConfirm={() => void revokePermissionGrant(grant)}>
+            <Popconfirm title="撤销这条记忆授权？" description="在“替我审批”模式下，匹配的后续操作会自动执行；撤销后同范围重新累计两次明确批准。" okText="撤销授权" cancelText="保留" onConfirm={() => void revokePermissionGrant(grant)}>
               <Button danger size="small">撤销</Button>
             </Popconfirm>
           </SettingRow>) : <SettingRow title="没有已记住的授权" description="记忆授权按账户、应用、工具版本、风险和目标范围保存；仅在“替我审批”模式下生效。" status="0 项"><Tag>未授权</Tag></SettingRow>}
@@ -2866,7 +2990,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
     if (activeSection === "workspace") return (
       <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">数据与目录</span><Typography.Title level={2}>项目与存储</Typography.Title><Typography.Paragraph>管理本机 LFAA 数据根目录，以及 Steam 游戏和 Minecraft 实例在各节点中的相对存储目录；SteamCMD 工具安装配置单独位于“SteamCMD 配置”。</Typography.Paragraph></div></header>
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">数据与目录</span><Typography.Title level={2}>项目与存储</Typography.Title><Typography.Paragraph>为 Steam 游戏、Minecraft、日志、写作和漫剧设置默认或自定义存储位置。游戏目录在目标节点上使用；控制端项目目录在所选本机磁盘使用。SteamCMD 工具安装目录仍在“SteamCMD 配置”中独立管理。</Typography.Paragraph></div></header>
         {!canAdmin ? <Alert className="settings-inline-alert" type="warning" showIcon message="应用存储路径由管理员配置。" /> : null}
         {canAdmin ? <>
           <SettingGroup title="Steam 游戏存储范围">
@@ -2874,10 +2998,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
               <Select value={selectedSteamcmdStorageNodeId || "__defaults__"} options={[{ value: "__defaults__", label: "全局默认设置" }, ...steamcmdNodes.map((node) => ({ value: node.id, label: node.displayName + " · " + (node.status === "online" ? "在线" : "离线") }))]} onChange={selectSteamcmdStorageNode} />
             </SettingRow>
           </SettingGroup>
-          {steamcmdNodes.length === 0 && minecraftStorageNodes.length === 0 ? <Alert className="settings-inline-alert" type="info" showIcon message={loadingSection === "workspace" ? "正在读取 daemon 节点…" : "当前没有已登记的 Daemon 节点"} description="Steam 游戏与 Minecraft 的默认目录可先保存；节点连接后会按各自默认目录工作。" /> : null}
+          {steamcmdNodes.length === 0 && minecraftStorageNodes.length === 0 ? <Alert className="settings-inline-alert" type="info" showIcon message={loadingSection === "workspace" ? "正在读取游戏节点…" : "当前没有已登记的游戏节点"} description="默认目录仍可保存；节点接入后会按节点上的同名绝对路径或数据根目录相对路径使用。" /> : null}
           <SettingGroup title="Steam 游戏存储">
-            <SettingRow title="Steam 游戏默认目录" description={"完整位置：" + displaySteamcmdPath(selectedSteamcmdStorageNode, steamcmdStorageDraft.gameDirectory || "games/steamcmd") + "。之后的新 Steam 游戏服务端部署会使用此目录；目录变更不移动已有文件。"} status={selectedSteamcmdStorageNode?.storageConfigured ? "节点目录" : "默认下载目录"}>
-              <Input value={steamcmdStorageDraft.gameDirectory} onChange={(event) => setSteamcmdStorageDraft({ gameDirectory: event.target.value })} placeholder="games/steamcmd" disabled={steamcmdAction !== null} />
+            <SettingRow title="Steam 游戏默认目录" description={"完整位置：" + displaySteamcmdPath(selectedSteamcmdStorageNode, steamcmdStorageDraft.gameDirectory || "games/steamcmd") + (selectedSteamcmdStorageNode ? "。绝对路径按此节点上的盘符解析；相对路径从此节点的 data 根目录解析。" : "。相对路径默认位于节点 data/games/steamcmd；绝对路径会按节点上的同名盘符解析。") + "新部署使用此目录，不搬动已有游戏文件。"} status={selectedSteamcmdStorageNode?.storageConfigured ? "节点目录" : "默认目录"}>
+              <Space wrap style={{ width: "100%" }}>
+                <Input aria-label="Steam 游戏存储目录" value={steamcmdStorageDraft.gameDirectory} onChange={(event) => setSteamcmdStorageDraft({ gameDirectory: event.target.value })} placeholder="games/steamcmd 或 D:\\Games\\SteamCMD" disabled={steamcmdAction !== null} />
+                {isDesktopApp() && !selectedSteamcmdStorageNode ? <Button disabled={steamcmdAction !== null} onClick={() => void chooseStorageDirectory(directory => setSteamcmdStorageDraft({ gameDirectory: directory }))}>选择文件夹</Button> : null}
+              </Space>
             </SettingRow>
             <SettingRow title="操作" description="只保存 Steam 游戏文件目录；SteamCMD 工具安装目录在“SteamCMD 配置”中单独保存。">
               <Space wrap>
@@ -2893,31 +3020,55 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             <SettingRow title={selectedMinecraftStorageNode ? "当前节点" : "配置范围"} description={selectedMinecraftStorageNode ? selectedMinecraftStorageNode.displayName + " · " + (selectedMinecraftStorageNode.status === "online" ? "实例存储在此节点的数据根目录内。" : "节点离线；路径可保存，节点上线后生效。") : (minecraftStorageNodes.length ? "所有未单独覆盖的节点" : "等待 Windows x64 Daemon 接入") + "；可以在没有 Daemon 时先保存默认目录。"} status="存储状态">
               <Tag color={selectedMinecraftStorageNode?.settingsConfigured ? "blue" : minecraftStorageDefaultsConfigured ? "blue" : "default"}>{selectedMinecraftStorageNode?.settingsConfigured ? "节点已覆盖" : minecraftStorageDefaultsConfigured ? "默认路径已保存" : "推荐默认值"}</Tag>
             </SettingRow>
-            <SettingRow title="Minecraft 实例根目录" description={"完整位置：" + displaySteamcmdPath(selectedMinecraftStorageNode, minecraftStorageDraft.instanceDirectory || "games/minecraft") + "。新实例会在根目录下各自保留独立子目录；更改目录不迁移已有实例。"}>
-              <Input value={minecraftStorageDraft.instanceDirectory} onChange={(event) => setMinecraftStorageDraft({ instanceDirectory: event.target.value })} placeholder="games/minecraft" disabled={steamcmdAction !== null} />
+            <SettingRow title="Minecraft 实例根目录" description={"完整位置：" + displaySteamcmdPath(selectedMinecraftStorageNode, minecraftStorageDraft.instanceDirectory || "games/minecraft") + (selectedMinecraftStorageNode ? "。绝对路径按此节点上的盘符解析；相对路径从此节点的 data 根目录解析。" : "。相对路径默认位于节点 data/games/minecraft；绝对路径会按节点上的同名盘符解析。") + "新实例会在根目录下各自保留独立子目录；更改目录不迁移已有实例。"}>
+              <Space wrap style={{ width: "100%" }}>
+                <Input aria-label="Minecraft 实例存储目录" value={minecraftStorageDraft.instanceDirectory} onChange={(event) => setMinecraftStorageDraft({ instanceDirectory: event.target.value })} placeholder="games/minecraft 或 D:\\Games\\Minecraft" disabled={steamcmdAction !== null} />
+                {isDesktopApp() && !selectedMinecraftStorageNode ? <Button disabled={steamcmdAction !== null} onClick={() => void chooseStorageDirectory(directory => setMinecraftStorageDraft({ instanceDirectory: directory }))}>选择文件夹</Button> : null}
+              </Space>
             </SettingRow>
             <SettingRow title="操作" description="只保存 Minecraft 实例存储目录。">
               <Button type="primary" loading={steamcmdAction === "save"} disabled={steamcmdAction !== null} onClick={() => void saveMinecraftStorageConfiguration()}>{selectedMinecraftStorageNode ? "保存当前节点目录" : "保存默认目录"}</Button>
             </SettingRow>
           </SettingGroup>
-          <SettingGroup title="写作作品存储">
-            <SettingRow title="建议路径" description="按用户隔离作品目录的建议位置：控制端 / projects/writing/<用户 ID>，相对于控制端实际运行环境的 LFAA_DATA_DIR。" status="尚未接入"><Tag>预留建议路径</Tag></SettingRow>
-            <SettingRow title="当前状态" description="当前写作会话和消息保存在控制端 SQLite 数据库。作品目录暂未接入读写或文件管理，因此这个路径现在不会创建目录或保存文件。"><Tag>SQLite 会话存储</Tag></SettingRow>
+          <SettingGroup title="日志、写作与漫剧存储">
+            <Alert className="settings-inline-alert" type="info" showIcon message="默认位置都在当前 data 目录内；可选择本机磁盘上的其他文件夹" description="默认：日志 data/logs；写作和漫剧继续使用 data/users/<账户隔离目录>/projects 下各自的项目分类。自定义目录会在保存时创建；已有作品和画布保留在旧位置，新建内容使用新位置。data 之外的目录需要超级管理员启用“完全访问”。" />
+            {projectStorageDraft ? <>
+              <SettingRow title="控制端日志目录" description={`结构化控制端日志写入此目录下的 control-plane.log，并按配置轮转。当前目录：${projectStorageDraft.logsDirectory}`} status={projectStorageConfigured ? "已保存" : "默认位置"}>
+                <Space wrap style={{ width: "100%" }}>
+                  <Input aria-label="控制端日志存储目录" value={projectStorageDraft.logsDirectory} maxLength={2048} onChange={(event) => setProjectStorageDraft(current => current ? { ...current, logsDirectory: event.target.value } : current)} placeholder="data/logs 或 D:\\LFAA\\logs" disabled={projectStorageAction !== null} />
+                  {isDesktopApp() ? <Button disabled={projectStorageAction !== null} onClick={() => void chooseStorageDirectory(directory => setProjectStorageDraft(current => current ? { ...current, logsDirectory: directory } : current))}>选择文件夹</Button> : null}
+                </Space>
+              </SettingRow>
+              <SettingRow title="写作作品目录" description={`新建作品正文位于此目录下的账户隔离项目分类。当前目录：${displayLocalStoragePath(projectStorageDraft.writingDirectory, "users/<账户隔离目录>/projects/writing/<作品 UUID>")}`} status={projectStorageConfigured ? "已保存" : "默认位置"}>
+                <Space wrap style={{ width: "100%" }}>
+                  <Input aria-label="写作作品存储目录" value={projectStorageDraft.writingDirectory} maxLength={2048} onChange={(event) => setProjectStorageDraft(current => current ? { ...current, writingDirectory: event.target.value } : current)} placeholder="data 或 D:\\LFAA\\writing" disabled={projectStorageAction !== null} />
+                  {isDesktopApp() ? <Button disabled={projectStorageAction !== null} onClick={() => void chooseStorageDirectory(directory => setProjectStorageDraft(current => current ? { ...current, writingDirectory: directory } : current))}>选择文件夹</Button> : null}
+                </Space>
+              </SettingRow>
+              <SettingRow title="漫剧项目目录" description={`新建漫剧画布位于此目录下的账户隔离项目分类。当前目录：${displayLocalStoragePath(projectStorageDraft.dramaDirectory, "users/<账户隔离目录>/projects/aivideo/<画布 UUID>")}`} status={projectStorageConfigured ? "已保存" : "默认位置"}>
+                <Space wrap style={{ width: "100%" }}>
+                  <Input aria-label="漫剧项目存储目录" value={projectStorageDraft.dramaDirectory} maxLength={2048} onChange={(event) => setProjectStorageDraft(current => current ? { ...current, dramaDirectory: event.target.value } : current)} placeholder="data 或 D:\\LFAA\\drama" disabled={projectStorageAction !== null} />
+                  {isDesktopApp() ? <Button disabled={projectStorageAction !== null} onClick={() => void chooseStorageDirectory(directory => setProjectStorageDraft(current => current ? { ...current, dramaDirectory: directory } : current))}>选择文件夹</Button> : null}
+                </Space>
+              </SettingRow>
+              <SettingRow title="保存项目存储位置" description="保存会创建选定目录，并立即切换控制端日志目录；新建写作作品和漫剧画布使用新的目录。旧项目从登记的历史目录继续读取。">
+                <Button type="primary" loading={projectStorageAction === "save"} disabled={projectStorageAction !== null} onClick={() => void saveProjectStorageConfiguration()}>保存三个目录</Button>
+              </SettingRow>
+            </> : <SettingRow title="项目目录" description="正在读取当前生效的存储目录。" status="读取中"><Tag>请稍候</Tag></SettingRow>}
           </SettingGroup>
         </> : null}
-        <SettingGroup title="控制端数据">
-          <SettingRow title="账户与设置数据库" description="保存账户、会话、用户偏好和加密后的 AI Provider 配置。" status={health?.persistence === "ready" ? "已连接" : "不可用"}><Tag>{health?.persistence === "ready" ? "SQLite · 已连接" : "SQLite · 未连接"}</Tag></SettingRow>
-          <SettingRow title="游戏服务器文件" description="SteamCMD、Minecraft 实例、Java 环境、插件、日志和备份由各自 Daemon 节点管理；应用存储设置决定新内容使用的默认目录。" status="按节点管理"><Tag>节点数据目录</Tag></SettingRow>
-          {canAdmin && dataDirectorySettings ? <SettingRow title="本机数据根目录" description="数据库、凭据和本机节点文件都从此目录读取。改动会在下一次完整重启时复制并核对全部数据；原目录会保留。" status={dataDirectorySettings.pendingDirectory ? "等待重启迁移" : "当前生效"}>
+        {canAdmin && dataDirectorySettings ? <SettingGroup title="控制端本机存储位置">
+          <SettingRow title="统一数据根目录" description="此位置同时保存控制端账户、设置、会话、凭据和 Writing 作品等本机数据，不是 Daemon 节点目录。默认使用当前系统账户的 .lfaa/data；自定义位置统一使用所选位置下的 data 子目录。安排迁移后，完整重启并核验成功才切换，原数据保留。" status={dataDirectorySettings.pendingDirectory ? "等待重启迁移" : "当前生效"}>
             <Space direction="vertical" size="small" style={{ width: "100%" }}>
               <Typography.Text code copyable>{dataDirectorySettings.currentDirectory}</Typography.Text>
+              {!dataDirectorySettings.configured ? <Button onClick={() => { void confirmDataDirectoryLocation().then(result => setDataDirectorySettings(result.settings)).catch(error => messageApi.error(getErrorMessage(error))); }}>使用当前数据目录</Button> : null}
               {dataDirectorySettings.pendingDirectory ? <>
                 <Alert className="settings-inline-alert" type="warning" showIcon message={`下次完整重启会迁移到：${dataDirectorySettings.pendingDirectory}`} description={dataDirectorySettings.pendingError ? `${dataDirectorySettings.pendingError} 停止本机实例后，可保留或更新目标并重启重试。` : "先停止本机 Minecraft 实例和正在执行的任务，再通过项目启动器或桌面程序完整重启。复制并核对成功后才会切换。"} />
                 <Button loading={dataDirectoryAction === "cancel"} disabled={dataDirectoryAction !== null} onClick={() => void cancelDataDirectoryConfiguration()}>取消待处理迁移</Button>
               </> : null}
               {dataDirectorySettings.editable ? <>
                 <Space wrap style={{ width: "100%" }}>
-                  <Input aria-label="LFAA 数据根目录" value={dataDirectoryDraft} maxLength={2048} placeholder="输入绝对目录路径，例如 D:\\LFAA-Data" disabled={dataDirectoryAction !== null} onChange={(event) => setDataDirectoryDraft(event.target.value)} />
+                  <Input aria-label="LFAA 数据根目录" value={dataDirectoryDraft} maxLength={2048} placeholder="例如 D:\\LFAA（实际使用 D:\\LFAA\\data）" disabled={dataDirectoryAction !== null} onChange={(event) => setDataDirectoryDraft(event.target.value)} />
                   {isDesktopApp() ? <Button disabled={dataDirectoryAction !== null} onClick={() => void chooseDataDirectoryConfiguration()}>选择文件夹</Button> : null}
                 </Space>
                 <Space wrap>
@@ -2925,7 +3076,12 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                 </Space>
               </> : <Alert className="settings-inline-alert" type="info" showIcon message="此运行环境由启动配置管理数据位置" description={dataDirectorySettings.unavailableReason ?? "请修改 LFAA_DATA_DIR 部署配置并使用持久化目录。"} />}
             </Space>
-          </SettingRow> : <SettingRow title="数据根目录" description="本机绝对路径仅对管理员显示和管理；普通账户不会收到主机路径。" status={canAdmin ? "读取中" : "管理员管理"}><Tag>{canAdmin ? "读取中" : "按部署配置管理"}</Tag></SettingRow>}
+          </SettingRow>
+        </SettingGroup> : null}
+        <SettingGroup title="控制端数据">
+          <SettingRow title="账户与设置数据库" description="保存账户、会话、用户偏好和加密后的 AI Provider 配置。" status={health?.persistence === "ready" ? "已连接" : "不可用"}><Tag>{health?.persistence === "ready" ? "SQLite · 已连接" : "SQLite · 未连接"}</Tag></SettingRow>
+          <SettingRow title="游戏服务器文件" description="SteamCMD、Minecraft 实例、Java 环境、插件、日志和备份由各自 Daemon 节点管理；应用存储设置决定新内容使用的默认目录。" status="按节点管理"><Tag>节点数据目录</Tag></SettingRow>
+          {!canAdmin ? <SettingRow title="本机数据位置" description="由管理员在本页“控制端本机存储位置”配置；普通账户不会收到主机绝对路径。" status="管理员管理"><Tag>按控制端设置</Tag></SettingRow> : null}
         </SettingGroup>
       </section>
     );
@@ -2993,13 +3149,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       const computerControlEnabled = isComputerControlEnabled(settings);
       return (
         <section className="settings-content">
-          <header className="settings-content__heading"><div><span className="settings-eyebrow">本机桌面</span><Typography.Title level={2}>电脑操控</Typography.Title><Typography.Paragraph>管理 Agent 是否可以使用本机电脑操控工具。打开后，模型会根据你的任务决定是否调用；进入此设置页或切换开关都不会操作电脑。</Typography.Paragraph></div></header>
+          <header className="settings-content__heading"><div><span className="settings-eyebrow">本机桌面</span><Typography.Title level={2}>电脑操控</Typography.Title><Typography.Paragraph>管理 Agent 是否可以使用本机桌面交互工具，以及发现和启动当前 Windows 用户可见的应用与游戏。进入此设置页或切换开关都不会操作电脑。</Typography.Paragraph></div></header>
           <SettingGroup title="本机访问权限">
-            <SettingRow title="任意应用" description="允许模型通过本机电脑操控工具与当前桌面上的应用交互；开关只授权能力，模型按任务决定是否调用，鼠标和键盘动作仍按当前权限模式审批。" status={computerControlEnabled ? "Agent 已获准" : "默认关闭"}>
+            <SettingRow title="桌面交互与应用启动" description="允许模型与当前桌面交互，也可发现 Windows 开始菜单快捷方式和 Steam 已安装游戏并请求启动；启动操作仍按当前权限模式执行，需要审批时会等待批准。" status={computerControlEnabled ? "Agent 已获准" : "默认关闭"}>
               <SettingsSwitch label="任意应用" checked={computerControlEnabled} onChange={() => updateSettings("computerControl", { enabled: !computerControlEnabled })} />
             </SettingRow>
           </SettingGroup>
-          <div className="settings-note-card"><strong>模型如何使用</strong><p>开关只决定本账户是否向模型开放已装配的电脑操控工具，不会安装或启动驱动。模型需要根据任务主动选择工具；实际执行时先观察屏幕、动作后再观察核对。密码、验证码、支付资料和 API 密钥须由你自行输入。</p></div>
+          <div className="settings-note-card"><strong>模型如何使用</strong><p>开关只决定本账户是否向模型开放已装配的电脑操控工具，不会安装或启动驱动。指定应用或游戏时，模型会先查询真实可发现的入口；未指定游戏时可根据本次 Control Plane 运行期间由 LFAA 发起的启动记录给出候选，并等你选择后才启动。该记录不包含实际游玩时长，也不包含 LFAA 外的启动。实际桌面操作先观察屏幕、动作后再观察核对；密码、验证码、支付资料和 API 密钥须由你自行输入。</p></div>
           <SettingsActions saving={saving === "computerControl"} onReset={() => resetSettings("computerControl")} onSave={() => void persistSettings("computerControl")} />
         </section>
       );
@@ -3211,22 +3367,6 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       <Modal title="无项目任务文件夹" open={folderModalOpen} okText="保存路径" cancelText="取消" onCancel={() => setFolderModalOpen(false)} onOk={() => { updateGeneral({ taskFolder: folderDraft.trim() }); setFolderModalOpen(false); }}>
         <Typography.Paragraph type="secondary">填写桌面宿主或受控节点上的默认任务目录。Web 端不会通过此路径访问本机文件。</Typography.Paragraph>
         <Input autoFocus maxLength={512} value={folderDraft} onChange={(event) => setFolderDraft(event.target.value)} placeholder="例如：C:\\Users\\用户名\\Documents\\LFAA" />
-      </Modal>
-      <Modal
-        title="是否记住这类操作？"
-        open={approvalMemoryPrompt !== null}
-        closable={false}
-        maskClosable={false}
-        onCancel={() => setApprovalMemoryPrompt(null)}
-        footer={[
-          <Button key="cancel" disabled={approvalBusyId !== null} onClick={() => setApprovalMemoryPrompt(null)}>取消审批</Button>,
-          <Button key="once" disabled={approvalBusyId !== null} loading={approvalBusyId === approvalMemoryPrompt?.id} onClick={() => { if (approvalMemoryPrompt) void resolveApproval(approvalMemoryPrompt, "approved"); }}>仅批准一次</Button>,
-          <Button key="remember" type="primary" disabled={approvalBusyId !== null} loading={approvalBusyId === approvalMemoryPrompt?.id} onClick={() => { if (approvalMemoryPrompt) void resolveApproval(approvalMemoryPrompt, "approved", true); }}>保存授权并批准本次</Button>
-        ]}
-      >
-        <Typography.Paragraph>{approvalMemoryPrompt?.summary}</Typography.Paragraph>
-        <Typography.Paragraph type="secondary">目标范围：{approvalMemoryPrompt?.scopeSummary}</Typography.Paragraph>
-        <Typography.Paragraph type="secondary">记忆授权只匹配此账户、应用、工具版本、风险和目标范围；工具参数仍绑定本次单次审批。当前 AI Work 写工具即使保存了记忆授权，后续操作也会继续逐次询问。</Typography.Paragraph>
       </Modal>
       <Modal title="开源许可证" open={licensesModalOpen} footer={<Button onClick={() => setLicensesModalOpen(false)}>关闭</Button>} onCancel={() => setLicensesModalOpen(false)}>
         <Typography.Paragraph type="secondary">以下为 LFAA 前端直接运行依赖的许可证信息；完整依赖锁定记录位于仓库根目录 pnpm-lock.yaml。</Typography.Paragraph>

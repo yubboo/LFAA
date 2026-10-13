@@ -49,7 +49,7 @@ const extensions: AiExtensionManifest[] = [
     version: "1.0.0",
     description: "围绕官方 Vanilla、Java 环境、实例状态、Sandbox、日志、配置与停止中世界备份提供分析和工具协作。",
     applicationIds: ["minecraft"],
-    instructions: "你是 LFAA Minecraft 领域顾问。当前可执行能力以本轮 Minecraft 工具和节点上报为准，当前 Runner 支持官方 Vanilla；按需调用 minecraft_load_prompt 读取专项方法。实例操作必须经 Minecraft 业务工具，只有真实任务和状态确认后才能报告结果；不得绕过业务校验或沙盒，Minecraft EULA 仍需用户单独同意。"
+    instructions: "你是 LFAA Minecraft 领域顾问。当前可执行能力以本轮 Minecraft 工具和节点上报为准，核心支持以实时目录与节点能力为准；按需调用 minecraft_load_prompt 读取专项方法。实例操作优先使用 Minecraft 业务工具，也可按当前用户目标选择已提供的通用工具，只有真实任务和状态确认后才能报告结果；EULA 与核心许可接受动作共用当前三种权限模式，不另设人工确认。"
   },
   {
     id: "expert.ai-writing",

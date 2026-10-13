@@ -8,6 +8,6 @@
 
 账户运行配置来自 settings；节点实例相对根目录来自 storage configuration，既有实例路径不移动。数据库版本 35 保留旧实例、任务、日志与外键，增加核心、构建、执行方式及工件快照。
 
-长期回归位于 `apps/cli/tests/minecraft-{multicore,provisioner,task-leases}.test.mjs`。经明确 EULA 授权可运行 `minecraft-live-deployment.test.mjs`，只操作独立临时数据；支持按核心、版本与账户停服预算验收。具体命令、已验证构建、上游兼容问题及未测量边界见 [开发与验收记录](../../../docs/minecraft-deployment-plan.md)。构建输出只进入根 `dist/packages/games/minecraft/`。
+长期回归位于 `apps/cli/tests/minecraft-{multicore,provisioner,task-leases}.test.mjs`。经明确 EULA 授权可运行 `minecraft-live-deployment.test.mjs`，只操作独立临时数据；支持按核心、版本与账户停服预算验收。具体命令、已验证构建、上游兼容问题及未测量边界见 [开发与验收记录](../../../docs/archive/audits/minecraft-deployment-plan.md)。构建输出只进入根 `dist/packages/games/minecraft/`。
 
 玩家联机不是此部署服务的副作用。Minecraft App 通过 `lfaa-game-connectivity` 注册 Java TCP 目标适配器；联机 App 只列出当前账户拥有、节点在线且实际运行的实例，并读取真实保存端口生成回环目标。网络路线由跨游戏 Connectivity Owner 管理，不调用 Minecraft 部署或启停服务。

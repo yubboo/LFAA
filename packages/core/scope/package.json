@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
     "lfaa-util-values": "workspace:*"
   },
   "scripts": {

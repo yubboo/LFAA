@@ -21,59 +21,191 @@
     ],
     "baseUrl": ".",
     "paths": {
+      "lfaa-agent": [
+        "packages/core/agent/src/index.ts"
+      ],
+      "lfaa-agent-default-model": [
+        "packages/core/agent-default-model/src/index.ts"
+      ],
+      "lfaa-agent-default-model/src/*": [
+        "packages/core/agent-default-model/src/*"
+      ],
+      "lfaa-agent-loop": [
+        "packages/core/agent-loop/src/index.ts"
+      ],
+      "lfaa-agent-loop/src/*": [
+        "packages/core/agent-loop/src/*"
+      ],
+      "lfaa-agent-preset": [
+        "packages/preset/agent-preset/src/index.ts"
+      ],
+      "lfaa-agent-preset/src/*": [
+        "packages/preset/agent-preset/src/*"
+      ],
+      "lfaa-agent-tool-presentation": [
+        "packages/core/agent-tool-presentation/src/index.ts"
+      ],
+      "lfaa-agent-tool-presentation/src/*": [
+        "packages/core/agent-tool-presentation/src/*"
+      ],
+      "lfaa-agent/src/*": [
+        "packages/core/agent/src/*"
+      ],
+      "lfaa-api-account-controller": [
+        "packages/api/account-controller/src/index.ts"
+      ],
       "lfaa-api-account-controller/src/*": [
         "packages/api/account-controller/src/*"
+      ],
+      "lfaa-api-ai-video-controller": [
+        "packages/api/ai-video-controller/src/index.ts"
+      ],
+      "lfaa-api-ai-video-controller/src/*": [
+        "packages/api/ai-video-controller/src/*"
+      ],
+      "lfaa-api-connectivity-controller": [
+        "packages/api/connectivity-controller/src/index.ts"
       ],
       "lfaa-api-connectivity-controller/src/*": [
         "packages/api/connectivity-controller/src/*"
       ],
+      "lfaa-api-gateway": [
+        "packages/api/gateway/src/index.ts"
+      ],
       "lfaa-api-gateway/src/*": [
         "packages/api/gateway/src/*"
+      ],
+      "lfaa-api-job-controller": [
+        "packages/api/job-controller/src/index.ts"
       ],
       "lfaa-api-job-controller/src/*": [
         "packages/api/job-controller/src/*"
       ],
+      "lfaa-api-knowledge-controller": [
+        "packages/api/knowledge-controller/src/index.ts"
+      ],
+      "lfaa-api-knowledge-controller/src/*": [
+        "packages/api/knowledge-controller/src/*"
+      ],
+      "lfaa-api-minecraft-controller": [
+        "packages/api/minecraft-controller/src/index.ts"
+      ],
       "lfaa-api-minecraft-controller/src/*": [
         "packages/api/minecraft-controller/src/*"
+      ],
+      "lfaa-api-plugin-controller": [
+        "packages/api/plugin-controller/src/index.ts"
+      ],
+      "lfaa-api-plugin-controller/src/*": [
+        "packages/api/plugin-controller/src/*"
       ],
       "lfaa-api-remotes/src/*": [
         "packages/api/remotes/src/*"
       ],
+      "lfaa-api-session-controller": [
+        "packages/api/session-controller/src/index.ts"
+      ],
       "lfaa-api-session-controller/src/*": [
         "packages/api/session-controller/src/*"
+      ],
+      "lfaa-api-settings-controller": [
+        "packages/api/settings-controller/src/index.ts"
       ],
       "lfaa-api-settings-controller/src/*": [
         "packages/api/settings-controller/src/*"
       ],
+      "lfaa-api-steamcmd-controller": [
+        "packages/api/steamcmd-controller/src/index.ts"
+      ],
       "lfaa-api-steamcmd-controller/src/*": [
         "packages/api/steamcmd-controller/src/*"
       ],
-      "lfaa-api-workspace-files/src/*": [
-        "packages/api/workspace-files/src/*"
+      "lfaa-api-terminal-controller": [
+        "packages/api/terminal-controller/src/index.ts"
+      ],
+      "lfaa-api-terminal-controller/src/*": [
+        "packages/api/terminal-controller/src/*"
+      ],
+      "lfaa-api-workflow-controller": [
+        "packages/api/workflow-controller/src/index.ts"
       ],
       "lfaa-api-workflow-controller/src/*": [
         "packages/api/workflow-controller/src/*"
       ],
+      "lfaa-api-workspace-controller": [
+        "packages/api/workspace-controller/src/index.ts"
+      ],
+      "lfaa-api-workspace-controller/src/*": [
+        "packages/api/workspace-controller/src/*"
+      ],
+      "lfaa-api-workspace-files": [
+        "packages/api/workspace-files/src/index.ts"
+      ],
+      "lfaa-api-workspace-files/src/*": [
+        "packages/api/workspace-files/src/*"
+      ],
+      "lfaa-api-writing-controller": [
+        "packages/api/writing-controller/src/index.ts"
+      ],
       "lfaa-api-writing-controller/src/*": [
         "packages/api/writing-controller/src/*"
+      ],
+      "lfaa-app-boot": [
+        "packages/boot/app-boot/src/index.ts"
       ],
       "lfaa-app-boot/src/*": [
         "packages/boot/app-boot/src/*"
       ],
-      "lfaa-hmr/src/*": [
-        "packages/boot/hmr/src/*"
+      "lfaa-authorization/src/*": [
+        "packages/credentials/authorization/src/*"
+      ],
+      "lfaa-base": [
+        "packages/bundle/base/src/index.ts"
       ],
       "lfaa-base/src/*": [
         "packages/bundle/base/src/*"
       ],
-      "lfaa-daemon-app/src/*": [
-        "packages/bundle/daemon-app/src/*"
+      "lfaa-bash-local": [
+        "packages/shell/bash-local/src/index.ts"
       ],
-      "lfaa-web-app/src/*": [
-        "packages/bundle/web-app/src/*"
+      "lfaa-bash-local/src/*": [
+        "packages/shell/bash-local/src/*"
+      ],
+      "lfaa-bash-sandbox": [
+        "packages/shell/bash-sandbox/src/index.ts"
+      ],
+      "lfaa-bash-sandbox/src/*": [
+        "packages/shell/bash-sandbox/src/*"
+      ],
+      "lfaa-capability-installs": [
+        "packages/boot/capability-installs/src/index.ts"
+      ],
+      "lfaa-capability-installs/src/*": [
+        "packages/boot/capability-installs/src/*"
+      ],
+      "lfaa-capability-mcp": [
+        "packages/boot/capability-mcp/src/index.ts"
+      ],
+      "lfaa-capability-mcp/src/*": [
+        "packages/boot/capability-mcp/src/*"
+      ],
+      "lfaa-capability-prompt": [
+        "packages/boot/capability-prompt/src/index.ts"
+      ],
+      "lfaa-capability-prompt/src/*": [
+        "packages/boot/capability-prompt/src/*"
+      ],
+      "lfaa-capability-skill": [
+        "packages/boot/capability-skill/src/index.ts"
+      ],
+      "lfaa-capability-skill/src/*": [
+        "packages/boot/capability-skill/src/*"
       ],
       "lfaa-client-connection/src/*": [
         "packages/client/connection/src/*"
+      ],
+      "lfaa-client-modules": [
+        "packages/client/modules/src/index.ts"
       ],
       "lfaa-client-modules/src/*": [
         "packages/client/modules/src/*"
@@ -84,257 +216,53 @@
       "lfaa-client-store/src/*": [
         "packages/client/store/src/*"
       ],
-      "lfaa-client-ui-chat/src/*": [
-        "packages/client/ui-chat/src/*"
-      ],
-      "lfaa-client-ui-commands/src/*": [
-        "packages/client/ui-commands/src/*"
-      ],
-      "lfaa-client-ui-connectivity/src/*": [
-        "packages/client/ui-connectivity/src/*"
-      ],
-      "lfaa-client-ui-dockkit/src/*": [
-        "packages/client/ui-dockkit/src/*"
-      ],
-      "lfaa-client-ui-layout/src/*": [
-        "packages/client/ui-layout/src/*"
-      ],
-      "lfaa-client-ui-minecraft/src/*": [
-        "packages/client/ui-minecraft/src/*"
-      ],
-      "lfaa-client-ui-primitives/src/*": [
-        "packages/client/ui-primitives/src/*"
-      ],
-      "lfaa-client-ui-renderer/src/*": [
-        "packages/client/ui-renderer/src/*"
-      ],
-      "lfaa-client-ui-settings/src/*": [
-        "packages/client/ui-settings/src/*"
-      ],
-      "lfaa-client-ui-settings-account/src/*": [
-        "packages/client/ui-settings-account/src/*"
-      ],
-      "lfaa-client-ui-settings-general/src/*": [
-        "packages/client/ui-settings-general/src/*"
-      ],
-      "lfaa-client-ui-settings-models/src/*": [
-        "packages/client/ui-settings-models/src/*"
-      ],
-      "lfaa-client-ui-shortcuts/src/*": [
-        "packages/client/ui-shortcuts/src/*"
-      ],
-      "lfaa-client-ui-sidebar/src/*": [
-        "packages/client/ui-sidebar/src/*"
-      ],
-      "lfaa-client-ui-sidebar-files/src/*": [
-        "packages/client/ui-sidebar-files/src/*"
-      ],
-      "lfaa-client-ui-theme/src/*": [
-        "packages/client/ui-theme/src/*"
-      ],
-      "lfaa-client-ui-workspace/src/*": [
-        "packages/client/ui-workspace/src/*"
-      ],
-      "lfaa-client-ui-writing/src/*": [
-        "packages/client/ui-writing/src/*"
-      ],
-      "lfaa-client-web/src/*": [
-        "packages/client/web/src/*"
-      ],
-      "lfaa-agent/src/*": [
-        "packages/core/agent/src/*"
-      ],
-      "lfaa-agent-default-model/src/*": [
-        "packages/core/agent-default-model/src/*"
-      ],
-      "lfaa-agent-loop/src/*": [
-        "packages/core/agent-loop/src/*"
-      ],
-      "lfaa-agent-tool-presentation/src/*": [
-        "packages/core/agent-tool-presentation/src/*"
-      ],
-      "lfaa-scope/src/*": [
-        "packages/core/scope/src/*"
-      ],
-      "lfaa-session/src/*": [
-        "packages/core/session/src/*"
-      ],
-      "lfaa-system-prompt/src/*": [
-        "packages/core/system-prompt/src/*"
-      ],
-      "lfaa-tools/src/*": [
-        "packages/core/tools/src/*"
-      ],
-      "lfaa-workflow/src/*": [
-        "packages/workflow/workflow/src/*"
-      ],
-      "lfaa-typert-protocol/src/*": [
-        "packages/typert/protocol/src/*"
-      ],
-      "lfaa-typert-registry/src/*": [
-        "packages/typert/registry/src/*"
-      ],
-      "lfaa-typert-loader/src/*": [
-        "packages/typert/loader/src/*"
-      ],
-      "lfaa-knowledge-library/src/*": [
-        "packages/knowledge/knowledge-library/src/*"
-      ],
-      "lfaa-knowledge-library-runtime/src/*": [
-        "packages/boot/knowledge-library/src/*"
-      ],
-      "lfaa-api-knowledge-controller/src/*": [
-        "packages/api/knowledge-controller/src/*"
-      ],
-      "lfaa-authorization/src/*": [
-        "packages/credentials/authorization/src/*"
-      ],
-      "lfaa-credential-flows/src/*": [
-        "packages/credentials/credential-flows/src/*"
-      ],
-      "lfaa-document-writing/src/*": [
-        "packages/document/writing/src/*"
-      ],
-      "lfaa-fs/src/*": [
-        "packages/fs/fs/src/*"
-      ],
-      "lfaa-games-minecraft/src/*": [
-        "packages/games/minecraft/src/*"
-      ],
-      "lfaa-game-connectivity/src/*": [
-        "packages/network/game-connectivity/src/*"
-      ],
-      "lfaa-games-steamcmd/src/*": [
-        "packages/games/steamcmd/src/*"
-      ],
-      "lfaa-hook-protocol/src/*": [
-        "packages/hooks/hook-protocol/src/*"
-      ],
-      "lfaa-host-daemon/src/*": [
-        "packages/host/daemon/src/*"
-      ],
-      "lfaa-host-webserver/src/*": [
-        "packages/host/webserver/src/*"
-      ],
-      "lfaa-identity-auth/src/*": [
-        "packages/identity/auth/src/*"
-      ],
-      "lfaa-permission-presets/src/*": [
-        "packages/interaction/permission-presets/src/*"
-      ],
-      "lfaa-user-questions/src/*": [
-        "packages/interaction/user-questions/src/*"
-      ],
-      "lfaa-jobs/src/*": [
-        "packages/jobs/jobs/src/*"
-      ],
-      "lfaa-agent-preset/src/*": [
-        "packages/preset/agent-preset/src/*"
-      ],
-      "lfaa-settings/src/*": [
-        "packages/settings/settings/src/*"
-      ],
-      "lfaa-skill-writing/src/*": [
-        "packages/skill/writing/src/*"
-      ],
-      "lfaa-storage-sqlite/src/*": [
-        "packages/storage/storage-sqlite/src/*"
-      ],
-      "lfaa-storage-hub/src/*": [
-        "packages/storage/storage/src/*"
-      ],
-      "lfaa-telemetry-logger/src/*": [
-        "packages/telemetry/logger/src/*"
-      ],
-      "lfaa-test-support-api/src/*": [
-        "packages/test-support/api/src/*"
-      ],
-      "lfaa-home-paths/src/*": [
-        "packages/util/home-paths/src/*"
-      ],
-      "lfaa-launch-environment/src/*": [
-        "packages/util/launch-environment/src/*"
-      ],
-      "lfaa-util-values/src/*": [
-        "packages/util/values/src/*"
-      ],
-      "lfaa-workspace-data-directory/src/*": [
-        "packages/workspace/data-directory/src/*"
-      ],
-      "lfaa-workspace-workspace/src/*": [
-        "packages/workspace/workspace/src/*"
-      ],
-      "lfaa-api-account-controller": [
-        "packages/api/account-controller/src/index.ts"
-      ],
-      "lfaa-api-connectivity-controller": [
-        "packages/api/connectivity-controller/src/index.ts"
-      ],
-      "lfaa-api-gateway": [
-        "packages/api/gateway/src/index.ts"
-      ],
-      "lfaa-api-job-controller": [
-        "packages/api/job-controller/src/index.ts"
-      ],
-      "lfaa-api-minecraft-controller": [
-        "packages/api/minecraft-controller/src/index.ts"
-      ],
-      "lfaa-api-session-controller": [
-        "packages/api/session-controller/src/index.ts"
-      ],
-      "lfaa-api-settings-controller": [
-        "packages/api/settings-controller/src/index.ts"
-      ],
-      "lfaa-api-steamcmd-controller": [
-        "packages/api/steamcmd-controller/src/index.ts"
-      ],
-      "lfaa-api-workspace-files": [
-        "packages/api/workspace-files/src/index.ts"
-      ],
-      "lfaa-api-workflow-controller": [
-        "packages/api/workflow-controller/src/index.ts"
-      ],
-      "lfaa-api-writing-controller": [
-        "packages/api/writing-controller/src/index.ts"
-      ],
-      "lfaa-app-boot": [
-        "packages/boot/app-boot/src/index.ts"
-      ],
-      "lfaa-hmr": [
-        "packages/boot/hmr/src/index.ts"
-      ],
-      "lfaa-base": [
-        "packages/bundle/base/src/index.ts"
-      ],
-      "lfaa-web-app": [
-        "packages/bundle/web-app/src/index.ts"
-      ],
-      "lfaa-client-modules": [
-        "packages/client/modules/src/index.ts"
-      ],
       "lfaa-client-ui-chat": [
         "packages/client/ui-chat/src/index.ts"
+      ],
+      "lfaa-client-ui-chat/src/*": [
+        "packages/client/ui-chat/src/*"
       ],
       "lfaa-client-ui-commands": [
         "packages/client/ui-commands/src/index.ts"
       ],
+      "lfaa-client-ui-commands/src/*": [
+        "packages/client/ui-commands/src/*"
+      ],
       "lfaa-client-ui-connectivity": [
         "packages/client/ui-connectivity/src/index.ts"
+      ],
+      "lfaa-client-ui-connectivity/src/*": [
+        "packages/client/ui-connectivity/src/*"
       ],
       "lfaa-client-ui-dockkit": [
         "packages/client/ui-dockkit/src/index.ts"
       ],
+      "lfaa-client-ui-dockkit/src/*": [
+        "packages/client/ui-dockkit/src/*"
+      ],
       "lfaa-client-ui-layout": [
         "packages/client/ui-layout/src/index.ts"
+      ],
+      "lfaa-client-ui-layout/src/*": [
+        "packages/client/ui-layout/src/*"
       ],
       "lfaa-client-ui-minecraft": [
         "packages/client/ui-minecraft/src/index.ts"
       ],
+      "lfaa-client-ui-minecraft/src/*": [
+        "packages/client/ui-minecraft/src/*"
+      ],
       "lfaa-client-ui-primitives": [
         "packages/client/ui-primitives/src/index.ts"
       ],
+      "lfaa-client-ui-primitives/src/*": [
+        "packages/client/ui-primitives/src/*"
+      ],
       "lfaa-client-ui-renderer": [
         "packages/client/ui-renderer/src/index.ts"
+      ],
+      "lfaa-client-ui-renderer/src/*": [
+        "packages/client/ui-renderer/src/*"
       ],
       "lfaa-client-ui-settings": [
         "packages/client/ui-settings/src/index.ts"
@@ -342,8 +270,23 @@
       "lfaa-client-ui-settings-account": [
         "packages/client/ui-settings-account/src/index.ts"
       ],
+      "lfaa-client-ui-settings-account/src/*": [
+        "packages/client/ui-settings-account/src/*"
+      ],
       "lfaa-client-ui-settings-general": [
         "packages/client/ui-settings-general/src/index.ts"
+      ],
+      "lfaa-client-ui-settings-general/src/*": [
+        "packages/client/ui-settings-general/src/*"
+      ],
+      "lfaa-client-ui-settings-models/src/*": [
+        "packages/client/ui-settings-models/src/*"
+      ],
+      "lfaa-client-ui-settings/src/*": [
+        "packages/client/ui-settings/src/*"
+      ],
+      "lfaa-client-ui-shortcuts/src/*": [
+        "packages/client/ui-shortcuts/src/*"
       ],
       "lfaa-client-ui-sidebar": [
         "packages/client/ui-sidebar/src/index.ts"
@@ -351,44 +294,182 @@
       "lfaa-client-ui-sidebar-files": [
         "packages/client/ui-sidebar-files/src/index.ts"
       ],
+      "lfaa-client-ui-sidebar-files/src/*": [
+        "packages/client/ui-sidebar-files/src/*"
+      ],
+      "lfaa-client-ui-sidebar/src/*": [
+        "packages/client/ui-sidebar/src/*"
+      ],
+      "lfaa-client-ui-theme/src/*": [
+        "packages/client/ui-theme/src/*"
+      ],
+      "lfaa-client-ui-workflow": [
+        "packages/client/ui-workflow/src/index.tsx"
+      ],
+      "lfaa-client-ui-workflow/src/*": [
+        "packages/client/ui-workflow/src/*"
+      ],
       "lfaa-client-ui-workspace": [
         "packages/client/ui-workspace/src/index.ts"
+      ],
+      "lfaa-client-ui-workspace/src/*": [
+        "packages/client/ui-workspace/src/*"
       ],
       "lfaa-client-ui-writing": [
         "packages/client/ui-writing/src/index.ts"
       ],
+      "lfaa-client-ui-writing/src/*": [
+        "packages/client/ui-writing/src/*"
+      ],
       "lfaa-client-web": [
         "packages/client/web/src/index.ts"
       ],
-      "lfaa-agent": [
-        "packages/core/agent/src/index.ts"
+      "lfaa-client-web/src/*": [
+        "packages/client/web/src/*"
       ],
-      "lfaa-agent-default-model": [
-        "packages/core/agent-default-model/src/index.ts"
+      "lfaa-command-compact": [
+        "packages/compaction/command-compact/src/index.ts"
+      ],
+      "lfaa-command-compact/src/*": [
+        "packages/compaction/command-compact/src/*"
+      ],
+      "lfaa-compaction": [
+        "packages/compaction/compaction/src/index.ts"
+      ],
+      "lfaa-compaction-basic": [
+        "packages/compaction/compaction-basic/src/index.ts"
+      ],
+      "lfaa-compaction-basic/src/*": [
+        "packages/compaction/compaction-basic/src/*"
+      ],
+      "lfaa-compaction-image-offload": [
+        "packages/compaction/compaction-image-offload/src/index.ts"
+      ],
+      "lfaa-compaction-image-offload/src/*": [
+        "packages/compaction/compaction-image-offload/src/*"
+      ],
+      "lfaa-compaction-tool-result-pruner": [
+        "packages/compaction/compaction-tool-result-pruner/src/index.ts"
+      ],
+      "lfaa-compaction-tool-result-pruner/src/*": [
+        "packages/compaction/compaction-tool-result-pruner/src/*"
+      ],
+      "lfaa-compaction/src/*": [
+        "packages/compaction/compaction/src/*"
+      ],
+      "lfaa-computer-use": [
+        "packages/computer-use/computer-use/src/index.ts"
+      ],
+      "lfaa-computer-use/src/*": [
+        "packages/computer-use/computer-use/src/*"
+      ],
+      "lfaa-conversation-memory": [
+        "packages/core/conversation-memory/src/index.ts"
+      ],
+      "lfaa-conversation-memory/src/*": [
+        "packages/core/conversation-memory/src/*"
       ],
       "lfaa-credential-flows": [
         "packages/credentials/credential-flows/src/index.ts"
       ],
-      "lfaa-agent-loop": [
-        "packages/core/agent-loop/src/index.ts"
+      "lfaa-credential-flows/src/*": [
+        "packages/credentials/credential-flows/src/*"
       ],
-      "lfaa-agent-tool-presentation": [
-        "packages/core/agent-tool-presentation/src/index.ts"
+      "lfaa-credentials": [
+        "packages/credentials/credentials/src/index.ts"
       ],
-      "lfaa-scope": [
-        "packages/core/scope/src/index.ts"
+      "lfaa-credentials/src/*": [
+        "packages/credentials/credentials/src/*"
       ],
-      "lfaa-session": [
-        "packages/core/session/src/index.ts"
+      "lfaa-daemon-app/src/*": [
+        "packages/bundle/daemon-app/src/*"
       ],
-      "lfaa-system-prompt": [
-        "packages/core/system-prompt/src/index.ts"
+      "lfaa-desktop-computer-use/src/*": [
+        "packages/bundle/desktop-computer-use/src/*"
       ],
-      "lfaa-tools": [
-        "packages/core/tools/src/index.ts"
+      "lfaa-document-writing": [
+        "packages/document/writing/src/index.ts"
       ],
-      "lfaa-workflow": [
-        "packages/workflow/workflow/src/index.ts"
+      "lfaa-document-writing/src/*": [
+        "packages/document/writing/src/*"
+      ],
+      "lfaa-fs": [
+        "packages/fs/fs/src/index.ts"
+      ],
+      "lfaa-fs-local": [
+        "packages/fs/fs-local/src/index.ts"
+      ],
+      "lfaa-fs-local/src/*": [
+        "packages/fs/fs-local/src/*"
+      ],
+      "lfaa-fs-ssh": [
+        "packages/ssh/fs-ssh/src/index.ts"
+      ],
+      "lfaa-fs-ssh/src/*": [
+        "packages/ssh/fs-ssh/src/*"
+      ],
+      "lfaa-fs/src/*": [
+        "packages/fs/fs/src/*"
+      ],
+      "lfaa-game-connectivity": [
+        "packages/network/game-connectivity/src/index.ts"
+      ],
+      "lfaa-game-connectivity/src/*": [
+        "packages/network/game-connectivity/src/*"
+      ],
+      "lfaa-games-minecraft": [
+        "packages/games/minecraft/src/index.ts"
+      ],
+      "lfaa-games-minecraft/src/*": [
+        "packages/games/minecraft/src/*"
+      ],
+      "lfaa-games-steamcmd": [
+        "packages/games/steamcmd/src/index.ts"
+      ],
+      "lfaa-games-steamcmd/src/*": [
+        "packages/games/steamcmd/src/*"
+      ],
+      "lfaa-hmr": [
+        "packages/boot/hmr/src/index.ts"
+      ],
+      "lfaa-hmr/src/*": [
+        "packages/boot/hmr/src/*"
+      ],
+      "lfaa-home-paths": [
+        "packages/util/home-paths/src/index.mjs"
+      ],
+      "lfaa-home-paths/src/*": [
+        "packages/util/home-paths/src/*"
+      ],
+      "lfaa-hook-protocol": [
+        "packages/hooks/hook-protocol/src/index.ts"
+      ],
+      "lfaa-hook-protocol/src/*": [
+        "packages/hooks/hook-protocol/src/*"
+      ],
+      "lfaa-host-daemon": [
+        "packages/host/daemon/src/index.ts"
+      ],
+      "lfaa-host-daemon/src/*": [
+        "packages/host/daemon/src/*"
+      ],
+      "lfaa-host-webserver": [
+        "packages/host/webserver/src/index.ts"
+      ],
+      "lfaa-host-webserver/src/*": [
+        "packages/host/webserver/src/*"
+      ],
+      "lfaa-identity-auth": [
+        "packages/identity/auth/src/index.ts"
+      ],
+      "lfaa-identity-auth/src/*": [
+        "packages/identity/auth/src/*"
+      ],
+      "lfaa-jobs": [
+        "packages/jobs/jobs/src/index.ts"
+      ],
+      "lfaa-jobs/src/*": [
+        "packages/jobs/jobs/src/*"
       ],
       "lfaa-knowledge-library": [
         "packages/knowledge/knowledge-library/src/index.ts"
@@ -396,65 +477,305 @@
       "lfaa-knowledge-library-runtime": [
         "packages/boot/knowledge-library/src/index.ts"
       ],
-      "lfaa-api-knowledge-controller": [
-        "packages/api/knowledge-controller/src/index.ts"
+      "lfaa-knowledge-library-runtime/src/*": [
+        "packages/boot/knowledge-library/src/*"
       ],
-      "lfaa-document-writing": [
-        "packages/document/writing/src/index.ts"
+      "lfaa-knowledge-library/src/*": [
+        "packages/knowledge/knowledge-library/src/*"
       ],
-      "lfaa-fs": [
-        "packages/fs/fs/src/index.ts"
+      "lfaa-launch-environment/src/*": [
+        "packages/util/launch-environment/src/*"
       ],
-      "lfaa-games-minecraft": [
-        "packages/games/minecraft/src/index.ts"
+      "lfaa-llm": [
+        "packages/llm/llm/src/index.ts"
       ],
-      "lfaa-game-connectivity": [
-        "packages/network/game-connectivity/src/index.ts"
+      "lfaa-llm-pi-ai": [
+        "packages/llm/llm-pi-ai/src/index.ts"
       ],
-      "lfaa-games-steamcmd": [
-        "packages/games/steamcmd/src/index.ts"
+      "lfaa-llm-pi-ai/src/*": [
+        "packages/llm/llm-pi-ai/src/*"
       ],
-      "lfaa-hook-protocol": [
-        "packages/hooks/hook-protocol/src/index.ts"
+      "lfaa-llm-retry": [
+        "packages/llm/llm-retry/src/index.ts"
       ],
-      "lfaa-host-daemon": [
-        "packages/host/daemon/src/index.ts"
+      "lfaa-llm-retry/src/*": [
+        "packages/llm/llm-retry/src/*"
       ],
-      "lfaa-host-webserver": [
-        "packages/host/webserver/src/index.ts"
+      "lfaa-llm/src/*": [
+        "packages/llm/llm/src/*"
       ],
-      "lfaa-identity-auth": [
-        "packages/identity/auth/src/index.ts"
+      "lfaa-mcp-client": [
+        "packages/mcp/mcp-client/src/index.ts"
+      ],
+      "lfaa-mcp-client/src/*": [
+        "packages/mcp/mcp-client/src/*"
       ],
       "lfaa-permission-presets": [
         "packages/interaction/permission-presets/src/index.ts"
       ],
-      "lfaa-user-questions": [
-        "packages/interaction/user-questions/src/index.ts"
+      "lfaa-permission-presets/src/*": [
+        "packages/interaction/permission-presets/src/*"
       ],
-      "lfaa-jobs": [
-        "packages/jobs/jobs/src/index.ts"
+      "lfaa-plugin-manager": [
+        "packages/boot/plugin-manager/src/index.ts"
       ],
-      "lfaa-agent-preset": [
-        "packages/preset/agent-preset/src/index.ts"
+      "lfaa-plugin-manager/src/*": [
+        "packages/boot/plugin-manager/src/*"
+      ],
+      "lfaa-pwsh-local": [
+        "packages/shell/pwsh-local/src/index.ts"
+      ],
+      "lfaa-pwsh-local/src/*": [
+        "packages/shell/pwsh-local/src/*"
+      ],
+      "lfaa-pwsh-sandbox": [
+        "packages/shell/pwsh-sandbox/src/index.ts"
+      ],
+      "lfaa-pwsh-sandbox/src/*": [
+        "packages/shell/pwsh-sandbox/src/*"
+      ],
+      "lfaa-sandbox": [
+        "packages/sandbox/sandbox/src/index.ts"
+      ],
+      "lfaa-sandbox-policy": [
+        "packages/sandbox/sandbox-policy/src/index.ts"
+      ],
+      "lfaa-sandbox-policy/src/*": [
+        "packages/sandbox/sandbox-policy/src/*"
+      ],
+      "lfaa-sandbox-ssh": [
+        "packages/ssh/sandbox-ssh/src/index.ts"
+      ],
+      "lfaa-sandbox-ssh/src/*": [
+        "packages/ssh/sandbox-ssh/src/*"
+      ],
+      "lfaa-sandbox/src/*": [
+        "packages/sandbox/sandbox/src/*"
+      ],
+      "lfaa-schedule": [
+        "packages/schedule/schedule/src/index.ts"
+      ],
+      "lfaa-schedule/src/*": [
+        "packages/schedule/schedule/src/*"
+      ],
+      "lfaa-scope": [
+        "packages/core/scope/src/index.ts"
+      ],
+      "lfaa-scope/src/*": [
+        "packages/core/scope/src/*"
+      ],
+      "lfaa-sdk-client": [
+        "packages/sdk/sdk-client/src/index.ts"
+      ],
+      "lfaa-sdk-client/src/*": [
+        "packages/sdk/sdk-client/src/*"
+      ],
+      "lfaa-sdk-protocol": [
+        "packages/sdk/sdk-protocol/src/index.ts"
+      ],
+      "lfaa-sdk-protocol/src/*": [
+        "packages/sdk/sdk-protocol/src/*"
+      ],
+      "lfaa-session": [
+        "packages/core/session/src/index.ts"
+      ],
+      "lfaa-session-checkpoint-policy": [
+        "packages/session/session-checkpoint-policy/src/index.ts"
+      ],
+      "lfaa-session-checkpoint-policy/src/*": [
+        "packages/session/session-checkpoint-policy/src/*"
+      ],
+      "lfaa-session-format": [
+        "packages/session/session-format/src/index.ts"
+      ],
+      "lfaa-session-format-catalog": [
+        "packages/session/session-format-catalog/src/index.ts"
+      ],
+      "lfaa-session-format-catalog/src/*": [
+        "packages/session/session-format-catalog/src/*"
+      ],
+      "lfaa-session-format-v0-to-v1": [
+        "packages/session/session-format-v0-to-v1/src/index.ts"
+      ],
+      "lfaa-session-format-v0-to-v1/src/*": [
+        "packages/session/session-format-v0-to-v1/src/*"
+      ],
+      "lfaa-session-format-v1-to-v2": [
+        "packages/session/session-format-v1-to-v2/src/index.ts"
+      ],
+      "lfaa-session-format-v1-to-v2/src/*": [
+        "packages/session/session-format-v1-to-v2/src/*"
+      ],
+      "lfaa-session-format-v2-to-v3": [
+        "packages/session/session-format-v2-to-v3/src/index.ts"
+      ],
+      "lfaa-session-format-v2-to-v3/src/*": [
+        "packages/session/session-format-v2-to-v3/src/*"
+      ],
+      "lfaa-session-format-v3-to-v4": [
+        "packages/session/session-format-v3-to-v4/src/index.ts"
+      ],
+      "lfaa-session-format-v3-to-v4/src/*": [
+        "packages/session/session-format-v3-to-v4/src/*"
+      ],
+      "lfaa-session-format/src/*": [
+        "packages/session/session-format/src/*"
+      ],
+      "lfaa-session-log-export": [
+        "packages/session-query/session-log-export/src/index.ts"
+      ],
+      "lfaa-session-log-export/src/*": [
+        "packages/session-query/session-log-export/src/*"
+      ],
+      "lfaa-session-persistence": [
+        "packages/session/session-persistence/src/index.ts"
+      ],
+      "lfaa-session-persistence-jsonl": [
+        "packages/session/session-persistence-jsonl/src/index.ts"
+      ],
+      "lfaa-session-persistence-jsonl/src/*": [
+        "packages/session/session-persistence-jsonl/src/*"
+      ],
+      "lfaa-session-persistence/src/*": [
+        "packages/session/session-persistence/src/*"
+      ],
+      "lfaa-session-projection": [
+        "packages/session/session-projection/src/index.ts"
+      ],
+      "lfaa-session-projection-cache": [
+        "packages/session/session-projection-cache/src/index.ts"
+      ],
+      "lfaa-session-projection-cache/src/*": [
+        "packages/session/session-projection-cache/src/*"
+      ],
+      "lfaa-session-projection/src/*": [
+        "packages/session/session-projection/src/*"
+      ],
+      "lfaa-session-query": [
+        "packages/session-query/session-query/src/index.ts"
+      ],
+      "lfaa-session-query-sqlite": [
+        "packages/session-query/session-query-sqlite/src/index.ts"
+      ],
+      "lfaa-session-query-sqlite/src/*": [
+        "packages/session-query/session-query-sqlite/src/*"
+      ],
+      "lfaa-session-query/src/*": [
+        "packages/session-query/session-query/src/*"
+      ],
+      "lfaa-session-stats": [
+        "packages/session/session-stats/src/index.ts"
+      ],
+      "lfaa-session-stats/src/*": [
+        "packages/session/session-stats/src/*"
+      ],
+      "lfaa-session-telemetry": [
+        "packages/session/session-telemetry/src/index.ts"
+      ],
+      "lfaa-session-telemetry-otel": [
+        "packages/session/session-telemetry-otel/src/index.ts"
+      ],
+      "lfaa-session-telemetry-otel/src/*": [
+        "packages/session/session-telemetry-otel/src/*"
+      ],
+      "lfaa-session-telemetry/src/*": [
+        "packages/session/session-telemetry/src/*"
+      ],
+      "lfaa-session-title": [
+        "packages/session/session-title/src/index.ts"
+      ],
+      "lfaa-session-title-all-prompts-llm": [
+        "packages/session/session-title-all-prompts-llm/src/index.ts"
+      ],
+      "lfaa-session-title-all-prompts-llm/src/*": [
+        "packages/session/session-title-all-prompts-llm/src/*"
+      ],
+      "lfaa-session-title-first-prompt-llm": [
+        "packages/session/session-title-first-prompt-llm/src/index.ts"
+      ],
+      "lfaa-session-title-first-prompt-llm/src/*": [
+        "packages/session/session-title-first-prompt-llm/src/*"
+      ],
+      "lfaa-session-title-llm": [
+        "packages/session/session-title-llm/src/index.ts"
+      ],
+      "lfaa-session-title-llm/src/*": [
+        "packages/session/session-title-llm/src/*"
+      ],
+      "lfaa-session-title/src/*": [
+        "packages/session/session-title/src/*"
+      ],
+      "lfaa-session-turn-outline": [
+        "packages/session/session-turn-outline/src/index.ts"
+      ],
+      "lfaa-session-turn-outline/src/*": [
+        "packages/session/session-turn-outline/src/*"
+      ],
+      "lfaa-session/src/*": [
+        "packages/core/session/src/*"
       ],
       "lfaa-settings": [
         "packages/settings/settings/src/index.ts"
       ],
-      "lfaa-storage-sqlite": [
-        "packages/storage/storage-sqlite/src/index.ts"
+      "lfaa-settings/src/*": [
+        "packages/settings/settings/src/*"
       ],
-      "lfaa-workspace-data-directory": [
-        "packages/workspace/data-directory/src/index.ts"
+      "lfaa-shell": [
+        "packages/shell/shell/src/index.ts"
       ],
-      "lfaa-workspace-workspace": [
-        "packages/workspace/workspace/src/index.ts"
+      "lfaa-shell-env": [
+        "packages/shell/shell-env/src/index.ts"
       ],
-      "lfaa-storage-json": [
-        "packages/storage/storage-json/src/index.ts"
+      "lfaa-shell-env/src/*": [
+        "packages/shell/shell-env/src/*"
       ],
-      "lfaa-storage-json/src/*": [
-        "packages/storage/storage-json/src/*"
+      "lfaa-shell/src/*": [
+        "packages/shell/shell/src/*"
+      ],
+      "lfaa-skill": [
+        "packages/skill/skill/src/index.ts"
+      ],
+      "lfaa-skill-filesystem": [
+        "packages/skill/skill-filesystem/src/index.ts"
+      ],
+      "lfaa-skill-filesystem/src/*": [
+        "packages/skill/skill-filesystem/src/*"
+      ],
+      "lfaa-skill-office": [
+        "packages/skill/skill-office/src/index.ts"
+      ],
+      "lfaa-skill-office/src/*": [
+        "packages/skill/skill-office/src/*"
+      ],
+      "lfaa-skill-writing/src/*": [
+        "packages/skill/writing/src/*"
+      ],
+      "lfaa-skill/src/*": [
+        "packages/skill/skill/src/*"
+      ],
+      "lfaa-spill": [
+        "packages/spill/spill/src/index.ts"
+      ],
+      "lfaa-spill-local": [
+        "packages/spill/spill-local/src/index.ts"
+      ],
+      "lfaa-spill-local/src/*": [
+        "packages/spill/spill-local/src/*"
+      ],
+      "lfaa-spill-policy": [
+        "packages/spill/spill-policy/src/index.ts"
+      ],
+      "lfaa-spill-policy/src/*": [
+        "packages/spill/spill-policy/src/*"
+      ],
+      "lfaa-spill/src/*": [
+        "packages/spill/spill/src/*"
+      ],
+      "lfaa-ssh": [
+        "packages/ssh/ssh/src/index.ts"
+      ],
+      "lfaa-ssh/src/*": [
+        "packages/ssh/ssh/src/*"
       ],
       "lfaa-storage-domain": [
         "packages/storage/storage-domain/src/index.ts"
@@ -462,11 +783,284 @@
       "lfaa-storage-domain/src/*": [
         "packages/storage/storage-domain/src/*"
       ],
-      "lfaa-session-persistence-jsonl": [
-        "packages/session/session-persistence-jsonl/src/index.ts"
+      "lfaa-storage-hub": [
+        "packages/storage/storage/src/index.ts"
       ],
-      "lfaa-session-persistence-jsonl/src/*": [
-        "packages/session/session-persistence-jsonl/src/*"
+      "lfaa-storage-hub/src/*": [
+        "packages/storage/storage/src/*"
+      ],
+      "lfaa-storage-json": [
+        "packages/storage/storage-json/src/index.ts"
+      ],
+      "lfaa-storage-json/src/*": [
+        "packages/storage/storage-json/src/*"
+      ],
+      "lfaa-storage-sqlite": [
+        "packages/storage/storage-sqlite/src/index.ts"
+      ],
+      "lfaa-storage-sqlite/src/*": [
+        "packages/storage/storage-sqlite/src/*"
+      ],
+      "lfaa-subagent": [
+        "packages/subagent/subagent/src/index.ts"
+      ],
+      "lfaa-subagent-claude-code": [
+        "packages/subagent/subagent-claude-code/src/index.ts"
+      ],
+      "lfaa-subagent-claude-code/src/*": [
+        "packages/subagent/subagent-claude-code/src/*"
+      ],
+      "lfaa-subagent-codex": [
+        "packages/subagent/subagent-codex/src/index.ts"
+      ],
+      "lfaa-subagent-codex/src/*": [
+        "packages/subagent/subagent-codex/src/*"
+      ],
+      "lfaa-subagent-in-process-driver": [
+        "packages/subagent/subagent-in-process-driver/src/index.ts"
+      ],
+      "lfaa-subagent-in-process-driver/src/*": [
+        "packages/subagent/subagent-in-process-driver/src/*"
+      ],
+      "lfaa-subagent/src/*": [
+        "packages/subagent/subagent/src/*"
+      ],
+      "lfaa-subprocess": [
+        "packages/subprocess/subprocess/src/index.ts"
+      ],
+      "lfaa-subprocess-local": [
+        "packages/subprocess/subprocess-local/src/index.ts"
+      ],
+      "lfaa-subprocess-local/src/*": [
+        "packages/subprocess/subprocess-local/src/*"
+      ],
+      "lfaa-subprocess-ssh": [
+        "packages/ssh/subprocess-ssh/src/index.ts"
+      ],
+      "lfaa-subprocess-ssh/src/*": [
+        "packages/ssh/subprocess-ssh/src/*"
+      ],
+      "lfaa-subprocess/src/*": [
+        "packages/subprocess/subprocess/src/*"
+      ],
+      "lfaa-system-prompt": [
+        "packages/core/system-prompt/src/index.ts"
+      ],
+      "lfaa-system-prompt/src/*": [
+        "packages/core/system-prompt/src/*"
+      ],
+      "lfaa-telemetry-logger/src/*": [
+        "packages/telemetry/logger/src/*"
+      ],
+      "lfaa-terminal": [
+        "packages/terminal/terminal/src/index.ts"
+      ],
+      "lfaa-terminal-bash": [
+        "packages/terminal/terminal-bash/src/index.ts"
+      ],
+      "lfaa-terminal-bash/src/*": [
+        "packages/terminal/terminal-bash/src/*"
+      ],
+      "lfaa-terminal/src/*": [
+        "packages/terminal/terminal/src/*"
+      ],
+      "lfaa-test-support-api/src/*": [
+        "packages/test-support/api/src/*"
+      ],
+      "lfaa-token-meter": [
+        "packages/llm/token-meter/src/index.ts"
+      ],
+      "lfaa-token-meter/src/*": [
+        "packages/llm/token-meter/src/*"
+      ],
+      "lfaa-tool-ask-user": [
+        "packages/interaction/tool-ask-user/src/index.ts"
+      ],
+      "lfaa-tool-ask-user/src/*": [
+        "packages/interaction/tool-ask-user/src/*"
+      ],
+      "lfaa-tool-fs": [
+        "packages/fs/tool-fs/src/index.ts"
+      ],
+      "lfaa-tool-fs-search": [
+        "packages/fs/tool-fs-search/src/index.ts"
+      ],
+      "lfaa-tool-fs-search/src/*": [
+        "packages/fs/tool-fs-search/src/*"
+      ],
+      "lfaa-tool-fs/src/*": [
+        "packages/fs/tool-fs/src/*"
+      ],
+      "lfaa-tool-session-query": [
+        "packages/session-query/tool-session-query/src/index.ts"
+      ],
+      "lfaa-tool-session-query/src/*": [
+        "packages/session-query/tool-session-query/src/*"
+      ],
+      "lfaa-tool-shell": [
+        "packages/shell/tool-shell/src/index.ts"
+      ],
+      "lfaa-tool-shell/src/*": [
+        "packages/shell/tool-shell/src/*"
+      ],
+      "lfaa-tool-skill": [
+        "packages/skill/tool-skill/src/index.ts"
+      ],
+      "lfaa-tool-skill/src/*": [
+        "packages/skill/tool-skill/src/*"
+      ],
+      "lfaa-tool-str-replace-editor": [
+        "packages/fs/tool-str-replace-editor/src/index.ts"
+      ],
+      "lfaa-tool-str-replace-editor/src/*": [
+        "packages/fs/tool-str-replace-editor/src/*"
+      ],
+      "lfaa-tool-subagent": [
+        "packages/subagent/tool-subagent/src/index.ts"
+      ],
+      "lfaa-tool-subagent-control": [
+        "packages/subagent/tool-subagent-control/src/index.ts"
+      ],
+      "lfaa-tool-subagent-control/src/*": [
+        "packages/subagent/tool-subagent-control/src/*"
+      ],
+      "lfaa-tool-subagent/src/*": [
+        "packages/subagent/tool-subagent/src/*"
+      ],
+      "lfaa-tool-terminal": [
+        "packages/terminal/tool-terminal/src/index.ts"
+      ],
+      "lfaa-tool-terminal/src/*": [
+        "packages/terminal/tool-terminal/src/*"
+      ],
+      "lfaa-tool-web": [
+        "packages/web/tool-web/src/index.ts"
+      ],
+      "lfaa-tool-web/src/*": [
+        "packages/web/tool-web/src/*"
+      ],
+      "lfaa-tool-workflow": [
+        "packages/workflow/tool-workflow/src/index.ts"
+      ],
+      "lfaa-tool-workflow/src/*": [
+        "packages/workflow/tool-workflow/src/*"
+      ],
+      "lfaa-tools": [
+        "packages/core/tools/src/index.ts"
+      ],
+      "lfaa-tools/src/*": [
+        "packages/core/tools/src/*"
+      ],
+      "lfaa-typert-generator": [
+        "packages/typert/generator/src/index.mjs"
+      ],
+      "lfaa-typert-generator/src/*": [
+        "packages/typert/generator/src/*"
+      ],
+      "lfaa-typert-loader": [
+        "packages/typert/loader/src/index.ts"
+      ],
+      "lfaa-typert-loader/src/*": [
+        "packages/typert/loader/src/*"
+      ],
+      "lfaa-typert-protocol": [
+        "packages/typert/protocol/src/index.ts"
+      ],
+      "lfaa-typert-protocol/src/*": [
+        "packages/typert/protocol/src/*"
+      ],
+      "lfaa-typert-registry": [
+        "packages/typert/registry/src/index.ts"
+      ],
+      "lfaa-typert-registry/src/*": [
+        "packages/typert/registry/src/*"
+      ],
+      "lfaa-user-approval": [
+        "packages/interaction/user-approval/src/index.ts"
+      ],
+      "lfaa-user-approval/src/*": [
+        "packages/interaction/user-approval/src/*"
+      ],
+      "lfaa-user-questions": [
+        "packages/interaction/user-questions/src/index.ts"
+      ],
+      "lfaa-user-questions/src/*": [
+        "packages/interaction/user-questions/src/*"
+      ],
+      "lfaa-util-values/src/*": [
+        "packages/util/values/src/*"
+      ],
+      "lfaa-video-ai-video": [
+        "packages/video/ai-video/src/index.ts"
+      ],
+      "lfaa-video-ai-video/src/*": [
+        "packages/video/ai-video/src/*"
+      ],
+      "lfaa-video-tool-ai-video": [
+        "packages/video/tool-ai-video/src/index.ts"
+      ],
+      "lfaa-video-tool-ai-video/src/*": [
+        "packages/video/tool-ai-video/src/*"
+      ],
+      "lfaa-web": [
+        "packages/web/web/src/index.ts"
+      ],
+      "lfaa-web-app": [
+        "packages/bundle/web-app/src/index.ts"
+      ],
+      "lfaa-web-app/src/*": [
+        "packages/bundle/web-app/src/*"
+      ],
+      "lfaa-web-fetch-http": [
+        "packages/web/web-fetch-http/src/index.ts"
+      ],
+      "lfaa-web-fetch-http/src/*": [
+        "packages/web/web-fetch-http/src/*"
+      ],
+      "lfaa-web-search-deepseek": [
+        "packages/web/web-search-deepseek/src/index.ts"
+      ],
+      "lfaa-web-search-deepseek/src/*": [
+        "packages/web/web-search-deepseek/src/*"
+      ],
+      "lfaa-web/src/*": [
+        "packages/web/web/src/*"
+      ],
+      "lfaa-win32-process": [
+        "packages/subprocess/win32-process/src/index.ts"
+      ],
+      "lfaa-win32-process/src/*": [
+        "packages/subprocess/win32-process/src/*"
+      ],
+      "lfaa-workflow": [
+        "packages/workflow/workflow/src/index.ts"
+      ],
+      "lfaa-workflow-dag-engine": [
+        "packages/workflow/dag-engine/src/index.ts"
+      ],
+      "lfaa-workflow-dag-engine/src/*": [
+        "packages/workflow/dag-engine/src/*"
+      ],
+      "lfaa-workflow-minecraft-adapter": [
+        "packages/workflow/minecraft-adapter/src/index.ts"
+      ],
+      "lfaa-workflow-minecraft-adapter/src/*": [
+        "packages/workflow/minecraft-adapter/src/*"
+      ],
+      "lfaa-workflow/src/*": [
+        "packages/workflow/workflow/src/*"
+      ],
+      "lfaa-workspace-data-directory": [
+        "packages/workspace/data-directory/src/index.ts"
+      ],
+      "lfaa-workspace-data-directory/src/*": [
+        "packages/workspace/data-directory/src/*"
+      ],
+      "lfaa-workspace-workspace": [
+        "packages/workspace/workspace/src/index.ts"
+      ],
+      "lfaa-workspace-workspace/src/*": [
+        "packages/workspace/workspace/src/*"
       ]
     },
     "declaration": true

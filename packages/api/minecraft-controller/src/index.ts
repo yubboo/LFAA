@@ -5,6 +5,7 @@ import { restartMinecraftInstance, sendMinecraftConsoleCommand } from "lfaa-game
 import Joi from "joi";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication, requireRole } from "lfaa-authorization/src/middleware.js";
+import { assertSystemFileAccess } from "lfaa-fs/src/library.js";
 import { getDaemonNode, listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
 import { backupMinecraftWorld, createMinecraftDeployment, getMinecraftInstance, getMinecraftInstanceLogs, getMinecraftOverview, getMinecraftRelease, getMinecraftReleases, getMinecraftStorageSettingsOverview, listMinecraftDeployments, forgetMinecraftJavaPath, installMinecraftJava, listMinecraftInstances, listMinecraftJavaRuntimes, listMinecraftTaskRecords, startMinecraftInstance, stopMinecraftInstance, registerMinecraftDeployment, retryMinecraftDeployment, updateMinecraftInstanceJavaRuntime, saveMinecraftNodeStorageSettings, saveMinecraftStorageDefaults, registerMinecraftJavaPath, uninstallMinecraftJava, updateMinecraftServerProperties, validateMinecraftServerProperties } from "lfaa-games-minecraft/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
@@ -12,6 +13,7 @@ import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-ser
 import { listMinecraftCores, listMinecraftCoreBuilds } from "lfaa-games-minecraft/src/core-sources.js";
 import { provisionMinecraftServer, type MinecraftProvisionInput } from "lfaa-games-minecraft/src/deployment-service.js";
 import { asyncHandler, parseBody, withoutJavaExecutablePath, withoutJavaExecutablePaths, withoutJavaTaskPath, minecraftDeploymentSchema, minecraftDeploymentRegistrationSchema, minecraftInstanceJavaRuntimeSchema, minecraftJavaInstallSchema, minecraftJavaUninstallSchema, minecraftJavaPathSchema, minecraftJavaPathRemovalSchema, minecraftStorageSettingsSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { ensureProjectStorageDirectory, isOutsideProjectDataDirectory } from "lfaa-settings/src/project-storage.js";
 export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, realtime: MinecraftRealtimePublisher): void {
 
 router.get("/minecraft/cores", requireAuthentication, asyncHandler(async (_request, response) => {
@@ -76,8 +78,11 @@ router.get("/minecraft/storage-settings", requireAuthentication, requireRole("ad
 router.put("/minecraft/storage-settings/defaults", requireAuthentication, requireRole("admin"), (request, response) => {
     const body = parseBody<{ instanceDirectory: string }>(minecraftStorageSettingsSchema, request.body);
     try {
+      if (isOutsideProjectDataDirectory(body.instanceDirectory)) assertSystemFileAccess(request.auth!.user.id);
+      ensureProjectStorageDirectory(body.instanceDirectory);
       response.json({ settings: saveMinecraftStorageDefaults(body) });
     } catch (error) {
+      if (error instanceof ApiError) throw error;
       throw new ApiError(400, "invalid_minecraft_storage_settings", error instanceof Error ? error.message : "Minecraft 实例存储设置无效。");
     }
   });
@@ -86,6 +91,7 @@ router.put("/minecraft/storage-settings/:nodeId", requireAuthentication, require
     const body = parseBody<{ instanceDirectory: string }>(minecraftStorageSettingsSchema, request.body);
     if (!getDaemonNode(request.params.nodeId)) throw new ApiError(404, "daemon_node_not_found", "找不到目标 daemon 节点。");
     try {
+      if (/^[a-z]:[\\/]/iu.test(body.instanceDirectory)) assertSystemFileAccess(request.auth!.user.id);
       response.json({ settings: saveMinecraftNodeStorageSettings(request.params.nodeId, body) });
     } catch (error) {
       if (error instanceof ApiError) throw error;

@@ -3,6 +3,7 @@
  * 作用：加载仓库根目录的本地环境文件，规范监听地址、数据目录、签名密钥与本机 Daemon 通信密钥，并识别数据目录迁移的受支持启动方式。
  * 关联文件：packages/host/webserver/src/server.ts、packages/storage/storage-sqlite/src/database.ts、packages/workspace/data-directory/src/service.ts、scripts/resolve-data-directory.mjs、scripts/start-dev.ps1、apps/desktop-electron/src/main.mjs、apps/desktop-tauri/src-tauri/src/main.rs、根目录 .env.example。
  */
+import { protectPrivateDirectory } from "lfaa-home-paths/src/private-directory.mjs";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { isIP } from "node:net";
@@ -36,7 +37,7 @@ const environmentSchema = Joi.object({
   LFAA_DESKTOP_MODE: Joi.boolean().truthy("1").falsy("0").default(false),
   LFAA_LOCAL_MODE: Joi.boolean().truthy("1").falsy("0").default(false),
   LFAA_SERVE_FRONTEND: Joi.boolean().truthy("1").falsy("0").default(false),
-  LFAA_DATA_DIR: Joi.string().trim().min(1).default("data"),
+  LFAA_DATA_DIR: Joi.string().trim().allow("").default(""),
   JWT_SECRET: Joi.string().allow("").max(512).default(""),
   WEBAUTHN_RP_ID: Joi.string().trim().allow("").max(253).default(""),
   WEBAUTHN_ORIGIN: Joi.string().trim().allow("").max(512).default(""),
@@ -63,12 +64,31 @@ interface ParsedEnvironment {
   LOG_LEVEL: string;
 }
 
+function isLoopbackHost(value: string): boolean {
+  const host = value.toLocaleLowerCase().replace(/^\[|\]$/gu, "");
+  return host === "localhost" || host === "::1" || (isIP(host) === 4 && host.startsWith("127."));
+}
+
+/** Local MCP endpoints remain available to desktop/development users; remote production stays public-network only. */
+export function allowsPrivateMcpNetwork(environment: Pick<ParsedEnvironment, "LFAA_DESKTOP_MODE" | "LFAA_LOCAL_MODE" | "NODE_ENV" | "SERVER_HOST">): boolean {
+  const loopback = isLoopbackHost(environment.SERVER_HOST);
+  return environment.LFAA_DESKTOP_MODE
+    || environment.LFAA_LOCAL_MODE && loopback
+    || (environment.NODE_ENV !== "production" && loopback);
+}
+
+/** 本机 Windows UI 操控只有显式本机模式且 HTTP 仅绑定 loopback 时启用。 */
+export function allowsLocalComputerUse(environment: Pick<ParsedEnvironment, "LFAA_LOCAL_MODE" | "SERVER_HOST">, platform = process.platform): boolean {
+  return platform === "win32" && environment.LFAA_LOCAL_MODE && isLoopbackHost(environment.SERVER_HOST);
+}
+
 const environment = validation.value as ParsedEnvironment;
 // 本机 CLI 只在回环监听地址使用持久签名密钥；外部监听仍遵循生产部署配置要求。
 const loopbackHost = environment.SERVER_HOST.toLocaleLowerCase();
-const localCliMode = environment.LFAA_LOCAL_MODE && (loopbackHost === "localhost" || loopbackHost === "::1" || (isIP(loopbackHost) === 4 && loopbackHost.startsWith("127.")));
+const localCliMode = environment.LFAA_LOCAL_MODE && isLoopbackHost(loopbackHost);
 const dataDirectoryChangeSupported = process.platform === "win32"
-  && ((environment.NODE_ENV === "development"
+  && ((localCliMode && fullLauncherSupportsDataDirectoryMigration && dataDirectoryWasResolvedByProjectLauncher)
+    || (environment.NODE_ENV === "development"
     && fullLauncherSupportsDataDirectoryMigration
     && (!externallyConfiguredDataDirectory || dataDirectoryWasResolvedByProjectLauncher))
     || (environment.LFAA_DESKTOP_MODE && desktopShellSupportsDataDirectoryMigration
@@ -82,8 +102,8 @@ const dataDirectoryChangeUnavailableReason = dataDirectoryIsExternallyManaged
     : process.platform !== "win32"
       ? "当前运行环境不支持通过设置页迁移数据目录；请在启动环境中配置 LFAA_DATA_DIR。"
       : "请通过项目启动器完整启动 Windows 开发服务后，再从设置页修改；完整启动器会在服务停止后执行数据迁移。";
-// 生产控制端必须显式使用持久化绝对路径，避免把数据库和凭据写入源码仓库。
-if (environment.NODE_ENV === "production" && !localCliMode && !isAbsolute(environment.LFAA_DATA_DIR)) {
+// 未配置时使用系统账户持久目录；显式生产部署路径仍必须为绝对路径，避免数据依赖启动工作目录。
+if (environment.NODE_ENV === "production" && !localCliMode && environment.LFAA_DATA_DIR && !isAbsolute(environment.LFAA_DATA_DIR)) {
   throw new Error("生产环境必须将 LFAA_DATA_DIR 配置为绝对路径并指向持久化目录。");
 }
 
@@ -163,6 +183,7 @@ function readLocalJwtSecret(secretPath: string): string {
 }
 
 function loadOrCreateLocalJwtSecret(secretPath: string): string {
+  protectPrivateDirectory(dirname(secretPath));
   mkdirSync(dirname(secretPath), { recursive: true });
   try {
     return readLocalJwtSecret(secretPath);
@@ -186,6 +207,7 @@ function loadOrCreateLocalJwtSecret(secretPath: string): string {
 }
 
 function loadOrCreateLocalDaemonToken(tokenPath: string): string {
+  protectPrivateDirectory(dirname(tokenPath));
   mkdirSync(dirname(tokenPath), { recursive: true });
   try {
     const existing = readFileSync(tokenPath, "utf8").trim();
@@ -227,6 +249,10 @@ export const config = {
   dataDirectoryChangeSupported,
   dataDirectoryChangeUnavailableReason,
   desktopMode: environment.LFAA_DESKTOP_MODE,
+  /** 本机 Profile 的宿主能力；远程控制端必须通过目标 Daemon 执行文件与进程操作。 */
+  localHostExecution: environment.LFAA_DESKTOP_MODE || localCliMode,
+  localComputerUse: allowsLocalComputerUse(environment),
+  allowPrivateMcpNetwork: allowsPrivateMcpNetwork(environment),
   desktopDataDirectoryManaged: dataDirectoryWasResolvedByDesktopShell,
   desktopInstallDirectory: process.env.LFAA_DESKTOP_INSTALL_DIRECTORY?.trim()
     ? resolve(process.env.LFAA_DESKTOP_INSTALL_DIRECTORY.trim())

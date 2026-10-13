@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -68,11 +69,24 @@ async function createFixture() {
   return { root, packageManifests };
 }
 
-async function writeMatchingInstaller(root, targetVersion = version) {
-  const outputDirectory = resolve(root, "dist/apps/desktop-electron");
+async function writeMatchingInstaller(root, targetVersion = version, { legacyRoot = false } = {}) {
+  const outputDirectory = resolve(root, legacyRoot ? "dist/apps/desktop-electron" : `dist/apps/desktop-electron/LFAA-${targetVersion}`);
   await mkdir(outputDirectory, { recursive: true });
-  await writeFile(resolve(outputDirectory, "LFAA-" + targetVersion + ".exe"), "installer", "utf8");
-  await writeFile(resolve(outputDirectory, "latest.yml"), "version: " + targetVersion + "\npath: LFAA-" + targetVersion + ".exe\n", "utf8");
+  const installer = Buffer.from("installer", "utf8");
+  const installerName = `LFAA-${targetVersion}.exe`;
+  await writeFile(resolve(outputDirectory, installerName), installer);
+  await writeFile(resolve(outputDirectory, `${installerName}.blockmap`), "blockmap", "utf8");
+  const sha512 = createHash("sha512").update(installer).digest("base64");
+  await writeFile(resolve(outputDirectory, "latest.yml"), [
+    `version: ${targetVersion}`,
+    "files:",
+    `  - url: ${installerName}`,
+    `    sha512: ${sha512}`,
+    `    size: ${installer.length}`,
+    `path: ${installerName}`,
+    `sha512: ${sha512}`,
+    ""
+  ].join("\n"), "utf8");
 }
 
 async function readJson(path) {
@@ -86,6 +100,7 @@ test("首次构建复用待构建的 0.0.4，不提前递增", async (t) => {
   const result = await prepareDesktopPackageVersion(root);
 
   assert.deepEqual(result, { version, incremented: false });
+  assert.equal((await readJson(resolve(root, "apps/desktop-electron/package.json"))).build.directories.output, `../../dist/.tmp/desktop-electron/LFAA-${version}`);
   assert.equal((await readFile(resolve(root, "docs/updata-log.md"), "utf8")).includes("待构建"), true);
   for (const path of Object.keys(packageManifests)) {
     assert.equal((await readJson(resolve(root, path))).version, version);
@@ -96,7 +111,7 @@ test("只有安装器与 latest.yml 版本匹配时才登记完成，并保留�
   const { root } = await createFixture();
   t.after(() => rm(root, { recursive: true, force: true }));
 
-  await assert.rejects(markDesktopPackageBuilt(root), /未找到 Electron 安装器/);
+  await assert.rejects(markDesktopPackageBuilt(root), /发行目录缺少/u);
   await writeMatchingInstaller(root);
   assert.deepEqual(await markDesktopPackageBuilt(root), { version, alreadyMarked: false });
   const changelog = await readFile(resolve(root, "docs/updata-log.md"), "utf8");
@@ -113,6 +128,7 @@ test("0.0.4 安装器生成后，下一次构建同步递增到 0.0.5", async (t
   const result = await prepareDesktopPackageVersion(root, { notes: ["修复桌面端启动流程", "优化安装器构建入口"] });
 
   assert.deepEqual(result, { version: "0.0.5", incremented: true });
+  assert.equal((await readJson(resolve(root, "apps/desktop-electron/package.json"))).build.directories.output, "../../dist/.tmp/desktop-electron/LFAA-0.0.5");
   for (const path of Object.keys(packageManifests)) {
     assert.equal((await readJson(resolve(root, path))).version, "0.0.5");
   }
@@ -127,7 +143,7 @@ test("0.0.4 安装器生成后，下一次构建同步递增到 0.0.5", async (t
 test("发现未记账但与 latest.yml 匹配的安装器时先消耗当前版本", async (t) => {
   const { root } = await createFixture();
   t.after(() => rm(root, { recursive: true, force: true }));
-  await writeMatchingInstaller(root);
+  await writeMatchingInstaller(root, version, { legacyRoot: true });
 
   assert.deepEqual(await getDesktopPackageBuildState(root), { version, packageStatus: "built" });
   const changelog = await readFile(resolve(root, "docs/updata-log.md"), "utf8");

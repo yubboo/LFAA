@@ -18,6 +18,7 @@
     }
   },
   "dependencies": {
+    "lfaa-mcp-client": "workspace:*",
     "@deepseek-ai/cordis": "4.0.4",
     "lfaa-capability-installs": "workspace:*",
     "lfaa-tools": "workspace:*",

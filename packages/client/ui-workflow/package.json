@@ -6,7 +6,7 @@
   "exports": {
     "./src/*": "./src/*",
     "./package.json": "./package.json",
-    ".": "./src/index.ts"
+    ".": "./src/index.tsx"
   },
   "dependencies": {
     "@xyflow/react": "12.11.5",

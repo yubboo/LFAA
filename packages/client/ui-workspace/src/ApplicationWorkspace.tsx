@@ -29,10 +29,12 @@ import "./module-workbench.css";
 const AiWorkChat = lazy(() => loadClientModule<typeof import("lfaa-client-ui-chat/src/AiWorkChat.js")>("lfaa-client-ui-chat/src/AiWorkChat.js").then((module) => ({ default: module.AiWorkChat })));
 const AiWorkSideChat = lazy(() => loadClientModule<typeof import("lfaa-client-ui-chat/src/AiWorkSideChat.js")>("lfaa-client-ui-chat/src/AiWorkSideChat.js").then((module) => ({ default: module.AiWorkSideChat })));
 const GitChangeSummary = lazy(() => import("./GitChangeSummary.js").then((module) => ({ default: module.GitChangeSummary })));
+const GitChangeActivityReview = lazy(() => import("./GitChangeSummary.js").then((module) => ({ default: module.GitChangeActivityReview })));
 const MinecraftWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-minecraft/src/MinecraftWorkspace.js")>("lfaa-client-ui-minecraft/src/MinecraftWorkspace.js").then((module) => ({ default: module.MinecraftWorkspace })));
 const ConnectivityWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-connectivity/src/ConnectivityWorkspace.js")>("lfaa-client-ui-connectivity/src/ConnectivityWorkspace.js").then((module) => ({ default: module.ConnectivityWorkspace })));
 const WritingAiContext = lazy(() => loadClientModule<typeof import("lfaa-client-ui-writing/src/ai-work/WritingAiContext.js")>("lfaa-client-ui-writing/src/ai-work/WritingAiContext.js").then((module) => ({ default: module.WritingAiContext })));
 const WritingWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-writing/src/normal/WritingWorkspace.js")>("lfaa-client-ui-writing/src/normal/WritingWorkspace.js").then((module) => ({ default: module.WritingWorkspace })));
+const AiVideoCanvasWorkspace = lazy(() => import("./AiVideoCanvasWorkspace.js").then((module) => ({ default: module.AiVideoCanvasWorkspace })));
 
 // 占位位于已挂载的主题容器中，沿用外观设置的颜色、字体和减少动态效果偏好。
 function ApplicationContentLoading() {
@@ -340,6 +342,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
   const [sideChatInitialQuestion, setSideChatInitialQuestion] = useState("");
   const [sideChatQuestionRevision, setSideChatQuestionRevision] = useState(0);
   const [gitRefreshRevision, setGitRefreshRevision] = useState(0);
+  const [fileReviewRequest, setFileReviewRequest] = useState<{ projectId: string; path: string; requestId: number } | null>(null);
   const [aiProviderStatus, setAiProviderStatus] = useState<string | null>(null);
   const [newAiSessionKey, setNewAiSessionKey] = useState(0);
   const [newAiSessionProjectId, setNewAiSessionProjectId] = useState<string | null>(null);
@@ -379,16 +382,24 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
   const modeLabel = mode === "normal" ? "常规模式" : "AI Work";
   const writingAiWork = app === "writing" && mode === "ai-work";
   const writingNormal = app === "writing" && mode === "normal";
+  const aiVideoNormal = app === "aivideo" && mode === "normal";
   const terminalPanelAvailable = app !== "writing";
   const activeAiSessionTitle = aiSessions.find((session) => session.id === activeAiSessionId)?.title ?? null;
   const activeAiSession = aiSessions.find((session) => session.id === activeAiSessionId) ?? null;
   const selectedGitProjectId = activeAiSession?.projectId ?? (!activeAiSessionId ? newAiSessionProjectId : null);
   const selectedGitProject = workspaceProjects.find((project) => project.id === selectedGitProjectId) ?? null;
+  const fileReviewProject = fileReviewRequest ? workspaceProjects.find(project => project.id === fileReviewRequest.projectId && (!project.appId || project.appId === app)) ?? null : null;
   const statusLabel = serverState === "online" ? "控制端已连接" : serverState === "checking" ? "正在检查控制端" : "控制端未连接";
 
   const registerWritingFlush = useCallback((flush: (() => Promise<void>) | null) => {
     writingFlushRef.current = flush;
   }, []);
+  const openProjectFileReview = useCallback((projectId: string, path: string) => {
+    if (app !== "workspace" && app !== "minecraft") return;
+    const project = workspaceProjects.find(item => item.id === projectId && (!item.appId || item.appId === app));
+    if (!project || !path) return;
+    setFileReviewRequest(current => ({ projectId, path, requestId: (current?.requestId ?? 0) + 1 }));
+  }, [app, workspaceProjects]);
   const openApplication = useCallback(async (nextApp: ApplicationId, nextMode: ApplicationMode) => {
     if (app === "writing" && mode === "normal" && writingFlushRef.current) {
       try {
@@ -715,7 +726,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
           {(chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="panelRight" title="上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
         </div>
       </header>
-      <main ref={moduleContentScroll.ref} onScroll={moduleContentScroll.onScroll} className={`module-center__content${mode === "ai-work" ? " module-center__content--ai-work" : ""}${writingNormal ? " module-center__content--writing-normal" : ""}`} aria-label={mode === "ai-work" ? `${selectedApp.title} AI Work 对话` : writingNormal ? "写作正文编辑区" : undefined} aria-labelledby={mode === "normal" && app !== "minecraft" && !writingNormal ? "module-heading" : undefined}>
+      <main ref={moduleContentScroll.ref} onScroll={moduleContentScroll.onScroll} className={`module-center__content${mode === "ai-work" ? " module-center__content--ai-work" : ""}${writingNormal ? " module-center__content--writing-normal" : ""}${aiVideoNormal ? " module-center__content--aivideo" : ""}`} aria-label={mode === "ai-work" ? `${selectedApp.title} AI Work 对话` : writingNormal ? "写作正文编辑区" : aiVideoNormal ? "AI 漫剧分镜画布" : undefined} aria-labelledby={mode === "normal" && app !== "minecraft" && !writingNormal && !aiVideoNormal ? "module-heading" : undefined}>
         {mode === "ai-work" ? <>
           {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
           <Suspense fallback={<ApplicationContentLoading />}>
@@ -753,9 +764,10 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
               onNotification={onNotification}
               onOpenSideChat={openSideChat}
               onWritingWorkspaceChange={setWritingWorkspace}
+              onOpenProjectFileReview={openProjectFileReview}
             />
           </Suspense>
-        </> : app === "minecraft" ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkspace userId={userId} section={section} role={role} settings={settings} onNavigate={navigateWithinApplication} onOpenConnectivity={() => { void openApplication("connectivity", "normal"); }} onContentReady={setMinecraftContentReady} /></Suspense> : app === "connectivity" && mode === "normal" ? <Suspense fallback={<ApplicationContentLoading />}><ConnectivityWorkspace section={section} isAdmin={hasAdminAccess(role)} /></Suspense> : writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingWorkspace workspace={writingWorkspace} loading={writingWorkspaceLoading} loadError={writingWorkspaceError} libraryPortalTarget={writingLibraryPortalTarget} writingSkills={registeredExtensions.filter((extension) => extension.kind === "skill" && extension.applicationIds?.includes("writing"))} skillsLoading={extensionsLoading} onRetry={() => { void retryWritingWorkspace(); }} onWorkspaceChange={setWritingWorkspace} onRegisterFlush={registerWritingFlush} /></Suspense> : <>
+        </> : app === "minecraft" ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkspace userId={userId} section={section} role={role} settings={settings} onNavigate={navigateWithinApplication} onOpenConnectivity={() => { void openApplication("connectivity", "normal"); }} onContentReady={setMinecraftContentReady} /></Suspense> : app === "connectivity" && mode === "normal" ? <Suspense fallback={<ApplicationContentLoading />}><ConnectivityWorkspace section={section} isAdmin={hasAdminAccess(role)} /></Suspense> : writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingWorkspace workspace={writingWorkspace} loading={writingWorkspaceLoading} loadError={writingWorkspaceError} libraryPortalTarget={writingLibraryPortalTarget} writingSkills={registeredExtensions.filter((extension) => extension.kind === "skill" && extension.applicationIds?.includes("writing"))} skillsLoading={extensionsLoading} onRetry={() => { void retryWritingWorkspace(); }} onWorkspaceChange={setWritingWorkspace} onRegisterFlush={registerWritingFlush} /></Suspense> : aiVideoNormal ? <Suspense fallback={<ApplicationContentLoading />}><AiVideoCanvasWorkspace /></Suspense> : <>
           <div className={`module-heading module-heading--workspace module-heading--${app}`}>
             <div className="module-heading__labels"><Tag className="development-tag">开发中</Tag><Tag className="module-mode-tag">{modeLabel}</Tag></div>
             <Typography.Title id="module-heading" level={2}>{selectedApp.title}</Typography.Title>
@@ -793,7 +805,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
         /></Suspense>
       </div> : null}
       <div className="module-context__default-content" hidden={mode === "ai-work" && sideChatOpen}>
-      {terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "right" ? <div style={{ height: metrics.bottom.initial }}><TaskTerminal onClose={toggleTerminal} /></div> : null}
+      {terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "right" ? <div style={{ height: metrics.bottom.initial }}><TaskTerminal appId={app} settings={settings} sessionId={activeAiSessionId} role={role} onClose={toggleTerminal} /></div> : null}
       {sidebarRight.tabs.length > 0 ? <nav className="module-context__tabs" aria-label="上下文栏面板与插件入口">
         {app === "writing" ? <button type="button" className={sidebarRight.activeId === null ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null} onClick={() => sidebarRightRuntime.select(null)}>{mode === "ai-work" ? "写作上下文" : "作品信息"}</button> : <button type="button" className={sidebarRight.activeId === null ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null} onClick={() => sidebarRightRuntime.select(null)}>工具与资源</button>}
         {sidebarRight.tabs.flatMap((tab) => {
@@ -854,7 +866,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
     </aside>
   );
 
-  const bottom = terminalPanelAvailable ? <TaskTerminal onClose={toggleTerminal} /> : null;
+  const bottom = terminalPanelAvailable ? <TaskTerminal appId={app} settings={settings} sessionId={activeAiSessionId} role={role} onClose={toggleTerminal} /> : null;
 
   const previewStyle = { "--module-left-preview-width": `${leftPaneWidth}px` } as CSSProperties;
   return (
@@ -879,6 +891,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
           minCenterWidth={metrics.minCenterWidth}
           layoutMode={metrics.mode}
           responsiveRightDock
+          responsiveLeftDock
           leftWidth={leftPaneWidth}
           onLeftWidthChange={setLeftPaneWidth}
           leftCollapsed={chrome.leftCollapsed}
@@ -889,6 +902,15 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, usernam
           onBottomOpenChange={(terminalOpen) => setChrome((current) => ({ ...current, terminalOpen }))}
         />
       </div>
+      {fileReviewRequest && fileReviewProject && (app === "workspace" || app === "minecraft") ? <Suspense fallback={null}><GitChangeActivityReview
+        key={`${fileReviewRequest.projectId}:${fileReviewRequest.path}:${fileReviewRequest.requestId}`}
+        appId={app}
+        project={fileReviewProject}
+        path={fileReviewRequest.path}
+        requestId={fileReviewRequest.requestId}
+        onClose={() => setFileReviewRequest(null)}
+        onRefresh={() => setGitRefreshRevision(revision => revision + 1)}
+      /></Suspense> : null}
     </div>
   );
 }

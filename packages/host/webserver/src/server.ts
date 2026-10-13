@@ -44,7 +44,7 @@ app.use((request, response, next) => {
       statusCode: response.statusCode,
       durationMilliseconds: Date.now() - startedAt
     };
-    logger.log(requestLogLevel(request.method, requestPath, response.statusCode), "HTTP 请求完成", logFields);
+    logger.log(requestLogLevel(request.method, requestPath, response.statusCode, response.locals.lfaaExpectedMiss === true), "HTTP 请求完成", logFields);
   });
 
   next();

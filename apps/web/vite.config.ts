@@ -133,6 +133,24 @@ export default defineConfig(({ mode }) => {
     build: {
       target: "es2022",
       outDir: "../../dist/apps/web",
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            const moduleId = id.replace(/\\/gu, "/");
+            if (moduleId.includes("/simple-icons/")) return "vendor-simple-icons";
+            if (moduleId.includes("/katex/")) return "vendor-katex";
+            if (moduleId.includes("/react-dom/")) return "vendor-react-dom";
+            if (moduleId.includes("/@shikijs/langs/dist/cpp-macro.mjs")) return "vendor-syntax-cpp-macro";
+            if (moduleId.includes("/@shikijs/langs/dist/regexp.mjs")) return "vendor-syntax-regexp";
+            if (["/dist/typescript.mjs", "/dist/shellscript.mjs", "/dist/json.mjs"].some(fileName => moduleId.includes(`/@shikijs/langs${fileName}`))) return "vendor-syntax-basics";
+            if (moduleId.includes("/shiki/") || moduleId.includes("/@shikijs/") && !moduleId.includes("/@shikijs/langs/")) return "vendor-syntax-core";
+            if (["/micromark/", "/micromark-", "/mdast-util-", "/hast-util-", "/unist-util-", "/property-information/"].some(packagePath => moduleId.includes(packagePath))) return "vendor-markdown";
+            if (moduleId.includes("/@deepseek-ai/dsh-client-ui-primitives/")) return "dsh-ui-primitives";
+            if (moduleId.includes("/@deepseek-ai/dsh-client-ui-dockkit/")) return "dsh-ui-dockkit";
+            return undefined;
+          }
+        }
+      },
       // 正式目录由资源保留插件按构建代数清理；显式临时输出仍由 Vite 独立清空。
       emptyOutDir: process.argv.some((argument) => argument === "--outDir" || argument.startsWith("--outDir="))
     },

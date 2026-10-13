@@ -17,12 +17,15 @@ test("项目文本操作返回真实证据且拒绝覆盖、重复锚点和越�
   const root = mkdtempSync(join(parent, "lfaa-project-files-"));
   const base = { rootDirectory: root, path: "src/example.txt" };
   try {
-    await executeProjectFile({ ...base, operation: "create", content: "第一行\r\n修复位置\r\n" });
+    const created = await executeProjectFile({ ...base, operation: "create", content: "第一行\r\n修复位置\r\n" });
+    assert.equal(created.relativePath, "src/example.txt");
     await assert.rejects(executeProjectFile({ ...base, operation: "create", content: "覆盖" }), /EEXIST/u);
     const initial = await executeProjectFile({ ...base, operation: "read" });
     assert.equal(initial.content, "第一行\r\n修复位置\r\n");
+    assert.equal(initial.relativePath, "src/example.txt");
     const replaced = await executeProjectFile({ ...base, operation: "replace", sha256: initial.sha256, oldText: "修复位置", newText: "已修复" });
     assert.equal(replaced.changed, true);
+    assert.equal(replaced.relativePath, "src/example.txt");
     await assert.rejects(executeProjectFile({ ...base, operation: "replace", sha256: initial.sha256, oldText: "已修复", newText: "覆盖" }), /文件已变化/u);
     const current = await executeProjectFile({ ...base, operation: "read" });
     await executeProjectFile({ ...base, path: ".agents/skills/reviewer/SKILL.md", operation: "create", content: "---\nname: reviewer\n---\n检查项目差异和测试证据。" });
@@ -43,13 +46,22 @@ test("项目文本操作返回真实证据且拒绝覆盖、重复锚点和越�
     assert.equal(page.truncated, true);
     const saved = await executeProjectFile({ ...base, operation: "write", sha256: current.sha256, content: "保存后的文本🙂\r\n" });
     assert.equal(saved.changed, true);
+    assert.equal(saved.relativePath, "src/example.txt");
     assert.equal((await executeProjectFile({ ...base, operation: "read" })).content, "保存后的文本🙂\r\n");
     await assert.rejects(executeProjectFile({ ...base, operation: "write", sha256: current.sha256, content: "不应覆盖" }), /文件已变化/u);
     await assert.rejects(executeProjectFile({ ...base, operation: "write", sha256: saved.sha256, content: "含\0二进制标记" }), /二进制标记/u);
+    await assert.rejects(executeProjectFile({ ...base, path: ".", operation: "delete" }), /普通文件路径/u);
+    await assert.rejects(executeProjectFile({ ...base, path: "missing.txt", operation: "delete" }), /ENOENT/u);
+    mkdirSync(join(root, "folder-to-keep"));
+    await assert.rejects(executeProjectFile({ ...base, path: "folder-to-keep", operation: "delete" }), /普通文件/u);
+    writeFileSync(join(root, "delete-me.bin"), Buffer.from([0, 1, 2]));
+    assert.deepEqual(await executeProjectFile({ ...base, path: "delete-me.bin", operation: "delete" }), { path: join(root, "delete-me.bin"), relativePath: "delete-me.bin", deleted: true });
+    await assert.rejects(executeProjectFile({ ...base, path: "../outside.txt", operation: "delete" }), /超出/u);
     try {
       symlinkSync("src/example.txt", join(root, "inside-link.txt"), "file");
       const linked = await executeProjectFile({ ...base, path: "inside-link.txt", operation: "read" });
       await assert.rejects(executeProjectFile({ ...base, path: "inside-link.txt", operation: "write", sha256: linked.sha256, content: "不要替换链接" }), /不支持符号链接/u);
+      await assert.rejects(executeProjectFile({ ...base, path: "inside-link.txt", operation: "delete" }), /符号链接/u);
     } catch (error) {
       if (!error || !["EPERM", "EACCES", "ENOSYS"].includes(error.code)) throw error;
     }
@@ -68,6 +80,7 @@ test("Skill 文件树只在新目录内原子创建并拒绝路径穿越或覆�
     ] });
     assert.equal(result.created, true);
     assert.equal(result.files.length, 3);
+    assert.equal(result.files.find(file => file.path === "SKILL.md").relativePath, ".agents/skills/reviewer/SKILL.md");
     assert.equal((await executeProjectFile({ rootDirectory: root, path: ".", operation: "discover_skills" })).skills[0].name, "reviewer");
     await assert.rejects(executeProjectFile({ ...base, files: [{ path: "../escape.txt", content: "越界" }] }), /不安全的相对路径/u);
     await assert.rejects(executeProjectFile({ ...base, files: [{ path: "SKILL.md", content: "覆盖" }] }), /目标目录已存在/u);

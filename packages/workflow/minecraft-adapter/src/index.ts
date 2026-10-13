@@ -11,7 +11,10 @@ import { listAiBusinessTools } from "lfaa-tools/src/business-tools.js";
 import type { UserRole } from "lfaa-identity-auth/src/service.js";
 import { registerWorkflowNodeProvider, type WorkflowNodeExecutionContext } from "lfaa-workflow/src/registry.js";
 
-interface MinecraftWorkflowServices { aiHost?: AiPluginHost }
+interface MinecraftWorkflowServices {
+  aiHost?: AiPluginHost;
+  askUser?: (input: { questionId: string; question: string; options: string[] }) => Promise<{ answer: string; skipped: boolean }>;
+}
 interface MinecraftAgentData extends Record<string, unknown> { prompt: string; toolNames: string[] }
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
@@ -80,7 +83,7 @@ async function executeAgentNode(context: WorkflowNodeExecutionContext) {
     appId: "minecraft",
     sessionId: typeof previousSessionId === "string" ? previousSessionId : null,
     content: `工作流节点：${context.node.title}\n\n${upstreamText ? `上游数据：\n${upstreamText.slice(0, 4_000)}\n\n` : ""}用户目标：\n${data.prompt}`
-  }, services.aiHost, { allowedToolNames: data.toolNames, canAskUser: true, systemPrompt });
+  }, services.aiHost, { allowedToolNames: data.toolNames, canAskUser: true, ...(services.askUser ? { requestUserInput: services.askUser } : {}), systemPrompt });
   context.state.set("minecraft.sessionId", run.sessionId);
   context.reportReference({ kind: "ai-run", id: run.id });
   const updateProgress = () => {

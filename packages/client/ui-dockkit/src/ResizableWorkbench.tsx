@@ -34,7 +34,7 @@ import {
   resolveSnapCaptureThreshold,
   resolveSnapDragFrame,
 } from "./workbench-interaction.config.ts";
-import { WORKBENCH_LAYOUT_TOKENS, resolveLegacyWorkbenchInitialWidths, resolvePreviousWorkbenchInitialWidths, resolveWorkbenchLayoutMetrics } from "./workbench-layout.config.ts";
+import { WORKBENCH_LAYOUT_TOKENS, resolveLegacyWorkbenchInitialWidths, resolvePreviousWorkbenchInitialWidths, resolveWorkbenchLayoutMetrics, shouldDockResponsiveLeftPane, shouldDockResponsiveRightPane } from "./workbench-layout.config.ts";
 import type { ResizableWorkbenchProps, WorkbenchPaneLimits } from "./workbench-layout.types.ts";
 import "./workbench.css";
 
@@ -63,6 +63,7 @@ interface SideDragState extends SnapDragState {
   side: "left" | "right";
   rectLeft: number;
   rectRight: number;
+  pointerStartX: number;
   startSize: number;
 }
 
@@ -173,20 +174,13 @@ export function ResizableWorkbench({
   bottomOpen = false,
   layoutMode = "desktop",
   responsiveRightDock = false,
+  responsiveLeftDock = false,
   onLeftWidthChange,
   onLeftCollapsedChange,
   onRightCollapsedChange,
   onBottomOpenChange,
 }: ResizableWorkbenchProps) {
   const rightEnabled = right !== undefined && right !== null;
-  const mobileRightDock = rightEnabled
-    && responsiveRightDock
-    && layoutMode === "mobile"
-    && containerWidth >= minCenterWidth + rightLimits.min + HANDLE_WIDTH;
-  const rightUsesGrid = rightEnabled && (layoutMode === "desktop"
-    || (responsiveRightDock && layoutMode === "compact")
-    || mobileRightDock);
-  const rightPaneSwapped = rightEnabled && layoutMode === "desktop" && rightPaneSwappedProp;
   const initial = useMemo(
     () => loadState(storageKey, leftLimits, rightLimits, bottomLimits, containerWidth),
     [bottomLimits, containerWidth, leftLimits, rightLimits, storageKey],
@@ -199,12 +193,25 @@ export function ResizableWorkbench({
   const leftWidth = leftWidthProp ?? internalLeftWidth;
   const leftCollapsed = leftCollapsedProp ?? internalLeftCollapsed;
   const rightCollapsed = rightCollapsedProp ?? internalRightCollapsed;
-  const leftUsesGrid = layoutMode !== "mobile";
+  const mobileLeftDock = layoutMode === "mobile"
+    && shouldDockResponsiveLeftPane(containerWidth, minCenterWidth, leftLimits.min, responsiveLeftDock && leftVisible);
+  const leftUsesGrid = layoutMode !== "mobile" || mobileLeftDock;
+  const responsiveLeftWidth = leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth : 0;
+  const canDockResponsiveRight = rightEnabled
+    && responsiveRightDock
+    && layoutMode !== "desktop"
+    && shouldDockResponsiveRightPane(containerWidth, minCenterWidth, rightLimits.min, responsiveLeftWidth, responsiveRightDock);
+  const rightUsesGrid = rightEnabled && (layoutMode === "desktop" || canDockResponsiveRight);
+  const rightPaneSwapped = rightEnabled && layoutMode === "desktop" && rightPaneSwappedProp;
+  const responsiveRightCenterFloor = responsiveRightDock && layoutMode !== "desktop"
+    ? Math.min(minCenterWidth, WORKBENCH_LAYOUT_TOKENS.center.applicationRightDockFloor)
+    : minCenterWidth;
+  const responsiveLeftHandleWidth = leftUsesGrid && leftVisible && !leftCollapsed ? HANDLE_WIDTH : 0;
   const rightGridHandleBudget = rightUsesGrid
-    ? HANDLE_WIDTH + (leftUsesGrid && leftVisible ? HANDLE_WIDTH : 0)
+    ? HANDLE_WIDTH + responsiveLeftHandleWidth
     : 0;
   const maxRightGridWidth = Math.max(0, containerWidth
-    - minCenterWidth
+    - responsiveRightCenterFloor
     - (leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth : 0)
     - rightGridHandleBudget);
   const rightWidthForLayout = rightUsesGrid ? Math.min(rightWidth, maxRightGridWidth) : rightWidth;
@@ -277,17 +284,24 @@ export function ResizableWorkbench({
     const rect = root.getBoundingClientRect();
     const staticMax = side === "left" ? leftLimits.max : rightLimits.max;
     if (side === "right" && layoutMode === "mobile" && !rightUsesGrid) {
-      return Math.max(0, Math.min(staticMax, rect.width - 12));
+      const leftDockBudget = leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth + HANDLE_WIDTH : 0;
+      return Math.max(0, Math.min(staticMax, rect.width - leftDockBudget - 12));
     }
     const otherWidth = side === "left"
-      ? (rightUsesGrid && !rightCollapsed ? rightWidthForLayout : 0)
+      // 三栏共存时先保障左栏和中心区下限；右栏可在布局中临时收窄到自身最小值，
+      // 不要因保留历史右栏宽度而把左栏压到 min 以下。持久化的 rightWidth 不变。
+      ? (rightUsesGrid && !rightCollapsed
+          ? (responsiveRightDock && layoutMode !== "desktop" ? rightLimits.min : rightWidthForLayout)
+          : 0)
       : (leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth : 0);
+    const leftHandleWidth = leftUsesGrid && leftVisible && !leftCollapsed ? HANDLE_WIDTH : 0;
     const handleBudget = rightUsesGrid
-      ? HANDLE_WIDTH + (leftUsesGrid && leftVisible ? HANDLE_WIDTH : 0)
+      ? HANDLE_WIDTH + leftHandleWidth
       : (leftUsesGrid && side === "left" ? HANDLE_WIDTH : 0);
-    const available = rect.width - otherWidth - minCenterWidth - handleBudget;
+    const centerFloor = side === "right" ? responsiveRightCenterFloor : minCenterWidth;
+    const available = rect.width - otherWidth - centerFloor - handleBudget;
     return Math.max(0, Math.min(staticMax, available));
-  }, [layoutMode, leftCollapsed, leftLimits.max, leftUsesGrid, leftVisible, leftWidth, minCenterWidth, rightCollapsed, rightLimits.max, rightUsesGrid, rightWidthForLayout]);
+  }, [layoutMode, leftCollapsed, leftLimits.max, leftUsesGrid, leftVisible, leftWidth, minCenterWidth, responsiveRightCenterFloor, responsiveRightDock, rightCollapsed, rightLimits.max, rightLimits.min, rightUsesGrid, rightWidthForLayout]);
 
   // 响应式计算结果变化时，把历史持久化尺寸重新夹进当前容器允许的范围。
   // 这一步很重要：用户在大屏保存的 340px 侧栏，切到小窗后不能继续拿 340px 挤压主区。
@@ -434,6 +448,7 @@ export function ResizableWorkbench({
       target: event.currentTarget,
       rectLeft: rect.left,
       rectRight: rect.right,
+      pointerStartX: event.clientX,
       startSize: current,
       min: effectiveMin,
       max: effectiveMax,
@@ -453,7 +468,9 @@ export function ResizableWorkbench({
   const onSidePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = sideDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    const raw = drag.side === "left" ? event.clientX - drag.rectLeft : drag.rectRight - event.clientX;
+    const raw = drag.side === "left"
+      ? event.clientX - drag.rectLeft
+      : drag.rectRight - event.clientX;
     schedule(raw);
   }, [schedule]);
 
@@ -727,6 +744,7 @@ export function ResizableWorkbench({
       data-auto-snap="none"
       data-layout-mode={layoutMode}
       data-responsive-right-dock={responsiveRightDock}
+      data-mobile-left-layout={layoutMode === "mobile" ? (mobileLeftDock ? "dock" : "overlay") : undefined}
       data-right-layout={rightUsesGrid ? "dock" : "overlay"}
     >
       {leftVisible ? <aside className="lfaa-workbench__pane lfaa-workbench__pane--left" aria-label="左侧导航">{left}</aside> : null}

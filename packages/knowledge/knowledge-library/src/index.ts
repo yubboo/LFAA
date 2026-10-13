@@ -31,6 +31,7 @@ export type KnowledgeLibrarySourceKind = "upload" | "conversation" | "manual";
 const FILE_BACKED_MARKER = " ";
 
 export interface KnowledgeLibraryItemSummary {
+  size?: number;
   id: string;
   applicationId: KnowledgeLibraryScope;
   kind: KnowledgeLibraryKind;
@@ -82,7 +83,7 @@ function mapItem(row: ItemRow, contentMarkdown = row.content_markdown): Knowledg
 
 function mapSummary(row: ItemRow): KnowledgeLibraryItemSummary {
   const { contentMarkdown: _content, ...summary } = mapItem(row);
-  return summary;
+  return { ...summary, size: Buffer.byteLength(_content, "utf8") };
 }
 
 function itemFilePaths(row: Pick<ItemRow, "id" | "user_id" | "application_id">): { markdown: string; metadata: string } {

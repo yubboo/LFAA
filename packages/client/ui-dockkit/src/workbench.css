@@ -1,7 +1,7 @@
 /**
  * 文件：workbench.css
  * 作用：ResizableWorkbench 的纯几何布局和吸附/收起视觉状态。
- * 负责：Desktop 双 Dock、Compact 单 Dock + 右 Overlay、Mobile 双 Overlay、separator、collapsed/snap preview、底部 Dock。
+ * 负责：Desktop 双 Dock、Compact 单 Dock + 右 Overlay、Mobile 默认双 Overlay 与应用按空间启用的左 Dock、separator、collapsed/snap preview、底部 Dock。
  * 不负责：左/中/右实际内容、Shell 按钮、主题业务、终端 xterm 样式。
  * 状态归属：无状态；读取 ResizableWorkbench 写入的 CSS 变量和 data-* 属性。
  * 对外接口：lfaa-workbench* CSS class、--lfaa-* CSS 变量、data-layout-mode。
@@ -343,6 +343,22 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   border-left: 1px solid var(--agent-border, #e5e5e5);
 }
 
+/* 应用 Compact 右栏空间不足时沿用共享浮层尺寸和分隔条；顶边贴齐工作台且仍可拉伸。 */
+.lfaa-workbench[data-layout-mode="compact"][data-responsive-right-dock="true"][data-right-layout="overlay"] .lfaa-workbench__pane--right {
+  top: 0;
+  width: min(var(--lfaa-right-size), calc(100% - .75rem));
+}
+.lfaa-workbench[data-layout-mode="compact"][data-responsive-right-dock="true"][data-right-layout="overlay"] .lfaa-workbench__handle--right:not([aria-disabled="true"]) {
+  position: absolute;
+  z-index: 90;
+  top: 0;
+  right: min(var(--lfaa-right-size), calc(100% - .75rem));
+  bottom: var(--lfaa-bottom-row);
+  display: block;
+  width: var(--lfaa-right-handle-width, var(--lfaa-handle-width));
+  transform: translateX(-50%);
+}
+
 /* ===== 8. Mobile：主区全宽 + 左右 Overlay ===== */
 .lfaa-workbench[data-layout-mode="mobile"] {
   display: block;
@@ -448,3 +464,119 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   transform: translateX(-50%);
 }
 .lfaa-workbench[data-layout-mode="mobile"][data-right-layout="overlay"][data-right-collapsed="true"] .lfaa-workbench__handle--right { display: none; }
+
+/* 极窄屏应用右栏沿用共享 Overlay 与拖拽手柄，只取消顶栏避让造成的空白顶边。 */
+.lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="true"][data-right-layout="overlay"] .lfaa-workbench__pane--right { top: 0; }
+.lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="true"][data-right-layout="overlay"] .lfaa-workbench__handle--right:not([aria-disabled="true"]) { top: 0; }
+
+/* 应用工作区的 Mobile 左栏在中心区仍能保持下限时进 Grid；窄于该空间则继续使用上面的 Overlay。 */
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"] {
+  display: grid;
+  grid-template-columns: var(--lfaa-left-column) var(--lfaa-left-handle-width, var(--lfaa-handle-width)) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--lfaa-bottom-row);
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"] .lfaa-workbench__pane--left {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  z-index: auto;
+  width: auto;
+  max-width: none;
+  grid-column: 1;
+  grid-row: 1;
+  box-shadow: none;
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"] .lfaa-workbench__handle--left {
+  display: block;
+  grid-column: 2;
+  grid-row: 1;
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"] .lfaa-workbench__center {
+  position: relative;
+  grid-column: 3;
+  grid-row: 1;
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"] .lfaa-workbench__bottom {
+  position: relative;
+  z-index: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  height: var(--lfaa-bottom-row);
+  max-height: none;
+  grid-column: 3;
+  grid-row: 2;
+}
+
+/* 左、中心和右 Dock 同时有足够空间时沿用完整五列；右栏作为 Overlay 时不为它预留空列。 */
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"][data-right-layout="dock"] {
+  grid-template-columns:
+    var(--lfaa-left-column)
+    var(--lfaa-left-handle-width, var(--lfaa-handle-width))
+    minmax(0, 1fr)
+    var(--lfaa-right-handle-width, var(--lfaa-handle-width))
+    var(--lfaa-right-column);
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"][data-right-layout="dock"] .lfaa-workbench__handle--right {
+  display: block;
+  grid-column: 4;
+  grid-row: 1;
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"][data-right-layout="dock"] .lfaa-workbench__handle--left {
+  display: block;
+  grid-column: 2;
+  grid-row: 1;
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"][data-right-layout="dock"] .lfaa-workbench__pane--left {
+  position: relative;
+  z-index: auto;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  width: auto;
+  max-width: none;
+  grid-column: 1;
+  grid-row: 1;
+  box-shadow: none;
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"][data-right-layout="dock"] .lfaa-workbench__center {
+  grid-column: 3;
+  grid-row: 1;
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"][data-right-layout="dock"] .lfaa-workbench__pane--right {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  width: auto;
+  max-width: none;
+  grid-column: 5;
+  grid-row: 1;
+  box-shadow: none;
+}
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"][data-right-layout="dock"] .lfaa-workbench__bottom {
+  grid-column: 3 / 6;
+}
+
+/* Dock 模式下终端已经使用独立 Grid 行，聊天区不再重复留出同一段底部高度。 */
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"] .lfaa-workbench__center,
+.lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="true"][data-right-layout="dock"] .lfaa-workbench__center {
+  padding-bottom: 0;
+}
+
+/* Mobile Overlay 采用浮层时中心内容被面板覆盖；隐藏其文字与焦点，避免半透明表面下叠读。Dock 模式仍保留被挤开的中心列。 */
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="overlay"][data-left-collapsed="false"] .lfaa-workbench__center,
+.lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="false"][data-right-layout="overlay"][data-right-collapsed="false"] .lfaa-workbench__center {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* 触屏没有稳定的 hover；只常显同一标准分隔线，不改变大屏的轨道、热区和拖动样式。 */
+@media (hover: none) {
+  .lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"] .lfaa-workbench__handle--left::before {
+    opacity: 1;
+  }
+}

@@ -11,6 +11,7 @@ import { getUserSettings } from "lfaa-settings/src/service.js";
 
 export type AiToolRisk = "read" | "write" | "dangerous";
 export type AiToolAuthorization = "allow" | "approval_required" | "deny";
+type AiPermissionMode = "ask" | "approve_remembered" | "full_access";
 export const AI_TOOL_APPROVAL_LIFETIME_MS = 5 * 60 * 1000;
 
 export class AiPermissionModeChangedError extends Error {
@@ -68,6 +69,8 @@ type ApprovalRow = {
   summary: string;
   scope_summary?: string | null;
   scope_hash?: string | null;
+  decision_mode?: AiPermissionMode | null;
+  memory_generation?: number;
   status: AiToolApprovalView["status"];
   requested_at: string;
   expires_at: string;
@@ -210,17 +213,27 @@ export function requestAiToolApproval(input: {
   const toolVersion = normalizeIdentity(input.toolVersion, "工具版本", 80);
   const scopeHash = authorizationScopeHash({ ...input, toolId, toolVersion, risk: input.risk });
   if (!summary || !scopeSummary) throw new Error("工具审批信息或目标范围说明无效。");
-  const session = database.prepare("SELECT app_id FROM ai_sessions WHERE id = ? AND user_id = ?").get(input.sessionId, input.userId) as { app_id: ApplicationId } | undefined;
-  if (!session || session.app_id !== input.appId) throw new Error("找不到此应用下的 AI 会话。");
-
-  const id = randomUUID();
-  const expiresAt = new Date(Date.now() + AI_TOOL_APPROVAL_LIFETIME_MS).toISOString();
-  database.prepare(`
-    INSERT INTO ai_tool_approvals (id, user_id, session_id, app_id, tool_id, tool_version, risk, summary, scope_summary, action_hash, scope_hash, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, input.userId, input.sessionId, input.appId, toolId, toolVersion, input.risk, summary, scopeSummary, actionHash({ toolId, toolVersion, appId: input.appId, risk: input.risk, scopeHash, parameters: input.parameters }), scopeHash, expiresAt);
-  const row = database.prepare("SELECT id, session_id, app_id, tool_id, tool_version, risk, summary, scope_summary, status, requested_at, expires_at, decided_at FROM ai_tool_approvals WHERE id = ? AND user_id = ?").get(id, input.userId) as ApprovalRow;
-  return mapApproval(row);
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const session = database.prepare("SELECT app_id FROM ai_sessions WHERE id = ? AND user_id = ?").get(input.sessionId, input.userId) as { app_id: ApplicationId } | undefined;
+    if (!session || session.app_id !== input.appId) throw new Error("找不到此应用下的 AI 会话。");
+    const memoryGeneration = Number((database.prepare(`
+      SELECT generation FROM ai_tool_permission_memory_state
+      WHERE user_id = ? AND app_id = ? AND tool_id = ? AND tool_version = ? AND risk = ? AND scope_hash = ?
+    `).get(input.userId, input.appId, toolId, toolVersion, input.risk, scopeHash) as { generation: number | bigint } | undefined)?.generation ?? 0);
+    const id = randomUUID();
+    const expiresAt = new Date(Date.now() + AI_TOOL_APPROVAL_LIFETIME_MS).toISOString();
+    database.prepare(`
+      INSERT INTO ai_tool_approvals (id, user_id, session_id, app_id, tool_id, tool_version, risk, summary, scope_summary, action_hash, scope_hash, expires_at, memory_generation)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, input.userId, input.sessionId, input.appId, toolId, toolVersion, input.risk, summary, scopeSummary, actionHash({ toolId, toolVersion, appId: input.appId, risk: input.risk, scopeHash, parameters: input.parameters }), scopeHash, expiresAt, memoryGeneration);
+    const row = database.prepare("SELECT id, session_id, app_id, tool_id, tool_version, risk, summary, scope_summary, status, requested_at, expires_at, decided_at FROM ai_tool_approvals WHERE id = ? AND user_id = ?").get(id, input.userId) as ApprovalRow;
+    database.exec("COMMIT;");
+    return mapApproval(row);
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
 }
 
 export function listAiToolApprovals(userId: string, status?: AiToolApprovalView["status"]): AiToolApprovalView[] {
@@ -235,19 +248,31 @@ export function listAiToolApprovals(userId: string, status?: AiToolApprovalView[
 export function decideAiToolApproval(userId: string, approvalId: string, decision: "approved" | "denied", remember = false): AiToolApprovalView | null {
   if (remember && decision !== "approved") throw new Error("拒绝的操作不能保存为记忆授权。");
 
+  const decisionMode = getUserSettings(userId).permissions.mode;
   database.exec("BEGIN IMMEDIATE;");
   try {
-    if (remember && getUserSettings(userId).permissions.mode !== "approve_remembered") {
+    if (remember && decisionMode !== "approve_remembered") {
       throw new AiPermissionModeChangedError();
     }
-    const result = database.prepare("UPDATE ai_tool_approvals SET status = ?, decided_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), decided_by = ? WHERE id = ? AND user_id = ? AND status = 'pending' AND julianday(expires_at) > julianday('now')").run(decision, userId, approvalId, userId);
+    const result = database.prepare("UPDATE ai_tool_approvals SET status = ?, decided_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), decided_by = ?, decision_mode = ? WHERE id = ? AND user_id = ? AND status = 'pending' AND julianday(expires_at) > julianday('now')").run(decision, userId, decisionMode, approvalId, userId);
     if (result.changes !== 1) {
       database.exec("ROLLBACK;");
       return null;
     }
 
-    const approval = database.prepare("SELECT id, session_id, app_id, tool_id, tool_version, risk, summary, scope_summary, scope_hash, status, requested_at, expires_at, decided_at FROM ai_tool_approvals WHERE id = ? AND user_id = ?").get(approvalId, userId) as ApprovalRow;
-    if (remember) {
+    const approval = database.prepare("SELECT id, session_id, app_id, tool_id, tool_version, risk, summary, scope_summary, scope_hash, decision_mode, memory_generation, status, requested_at, expires_at, decided_at FROM ai_tool_approvals WHERE id = ? AND user_id = ?").get(approvalId, userId) as ApprovalRow;
+    const matchingApprovalCount = decision === "approved" && !remember && decisionMode === "approve_remembered" && approval.tool_version && approval.scope_hash
+      ? Number((database.prepare(`
+        SELECT COUNT(*) AS count FROM (
+          SELECT id FROM ai_tool_approvals
+          WHERE user_id = ? AND app_id = ? AND tool_id = ? AND tool_version = ? AND risk = ? AND scope_hash = ?
+            AND memory_generation = ? AND decision_mode = 'approve_remembered' AND decided_by = ? AND decided_at IS NOT NULL
+            AND status IN ('approved', 'consumed', 'expired')
+          LIMIT 2
+        )
+      `).get(userId, approval.app_id, approval.tool_id, approval.tool_version, approval.risk, approval.scope_hash, approval.memory_generation ?? 0, userId) as { count: number | bigint }).count)
+      : 0;
+    if (remember || matchingApprovalCount >= 2) {
       if (!approval.tool_version || !approval.scope_hash || !approval.scope_summary || approval.risk === "read") throw new Error("此审批缺少可记忆的工具版本或目标范围。");
       const grantId = randomUUID();
       database.prepare(`
@@ -275,7 +300,29 @@ export function listAiToolPermissionGrants(userId: string): AiToolPermissionGran
 }
 
 export function revokeAiToolPermissionGrant(userId: string, grantId: string): boolean {
-  return database.prepare("DELETE FROM ai_tool_permission_grants WHERE id = ? AND user_id = ?").run(grantId, userId).changes === 1;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const grant = database.prepare(`
+      SELECT app_id, tool_id, tool_version, risk, scope_hash
+      FROM ai_tool_permission_grants WHERE id = ? AND user_id = ?
+    `).get(grantId, userId) as { app_id: ApplicationId; tool_id: string; tool_version: string; risk: Exclude<AiToolRisk, "read">; scope_hash: string } | undefined;
+    if (!grant) {
+      database.exec("COMMIT;");
+      return false;
+    }
+    database.prepare("DELETE FROM ai_tool_permission_grants WHERE id = ? AND user_id = ?").run(grantId, userId);
+    database.prepare(`
+      INSERT INTO ai_tool_permission_memory_state (user_id, app_id, tool_id, tool_version, risk, scope_hash, generation)
+      VALUES (?, ?, ?, ?, ?, ?, 1)
+      ON CONFLICT(user_id, app_id, tool_id, tool_version, risk, scope_hash)
+      DO UPDATE SET generation = ai_tool_permission_memory_state.generation + 1
+    `).run(userId, grant.app_id, grant.tool_id, grant.tool_version, grant.risk, grant.scope_hash);
+    database.exec("COMMIT;");
+    return true;
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  }
 }
 
 /** 工具执行前调用；只匹配同一用户、工具、应用与完整参数摘要的单次批准。 */

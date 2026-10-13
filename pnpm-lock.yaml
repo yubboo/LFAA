@@ -6,6 +6,7 @@ settings:
 
 overrides:
   '@electron/get': 3.1.0
+  katex: 0.18.2
 
 patchedDependencies:
   app-builder-lib@26.15.3: 43c882ceff921fd86221265d0d74696d796ca7a933f28a0cc89ae7d354dbd03b
@@ -33,8 +34,8 @@ importers:
         specifier: ^18.0.0
         version: 18.0.0
       '@vitejs/plugin-react':
-        specifier: ^4.0.0
-        version: 4.0.0(supports-color@7.1.0)(vite@5.0.0(@types/node@24.19.0))
+        specifier: 4.3.4
+        version: 4.3.4(supports-color@7.1.0)(vite@5.0.0(@types/node@24.19.0))
       esbuild:
         specifier: ^0.21.5
         version: 0.21.5
@@ -173,6 +174,9 @@ importers:
       lfaa-launch-environment:
         specifier: workspace:*
         version: link:../../packages/util/launch-environment
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../../packages/llm/llm
       lfaa-permission-presets:
         specifier: workspace:*
         version: link:../../packages/interaction/permission-presets
@@ -258,6 +262,9 @@ importers:
 
   apps/desktop-electron:
     dependencies:
+      builder-util-runtime:
+        specifier: 9.7.0
+        version: 9.7.0(supports-color@7.1.0)
       electron-updater:
         specifier: 6.8.9
         version: 6.8.9(supports-color@7.1.0)
@@ -381,8 +388,8 @@ importers:
         specifier: ^18.0.0
         version: 18.0.0
       '@vitejs/plugin-react':
-        specifier: ^4.0.0
-        version: 4.0.0(supports-color@7.1.0)(vite@5.0.0(@types/node@24.19.0))
+        specifier: 4.3.4
+        version: 4.3.4(supports-color@7.1.0)(vite@5.0.0(@types/node@24.19.0))
       typescript:
         specifier: ^5.0.0
         version: 5.0.2
@@ -445,6 +452,43 @@ importers:
         specifier: workspace:*
         version: link:../../typert/generator
 
+  packages/api/ai-video-controller:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      express:
+        specifier: ^4.0.0
+        version: 4.22.3(supports-color@7.1.0)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-api-gateway:
+        specifier: workspace:*
+        version: link:../gateway
+      lfaa-api-remotes:
+        specifier: workspace:*
+        version: link:../remotes
+      lfaa-app-boot:
+        specifier: workspace:*
+        version: link:../../boot/app-boot
+      lfaa-authorization:
+        specifier: workspace:*
+        version: link:../../credentials/authorization
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+      lfaa-video-ai-video:
+        specifier: workspace:*
+        version: link:../../video/ai-video
+    devDependencies:
+      '@types/express':
+        specifier: ^4.0.0
+        version: 4.17.25
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
   packages/api/connectivity-controller:
     dependencies:
       '@deepseek-ai/cordis':
@@ -462,6 +506,9 @@ importers:
       lfaa-api-remotes:
         specifier: workspace:*
         version: link:../remotes
+      lfaa-app-boot:
+        specifier: workspace:*
+        version: link:../../boot/app-boot
       lfaa-authorization:
         specifier: workspace:*
         version: link:../../credentials/authorization
@@ -600,6 +647,9 @@ importers:
       lfaa-authorization:
         specifier: workspace:*
         version: link:../../credentials/authorization
+      lfaa-fs:
+        specifier: workspace:*
+        version: link:../../fs/fs
       lfaa-knowledge-library:
         specifier: workspace:*
         version: link:../../knowledge/knowledge-library
@@ -908,6 +958,58 @@ importers:
         specifier: ^24.0.0
         version: 24.19.0
 
+  packages/api/terminal-controller:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      express:
+        specifier: ^4.0.0
+        version: 4.22.3(supports-color@7.1.0)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-api-gateway:
+        specifier: workspace:*
+        version: link:../gateway
+      lfaa-api-remotes:
+        specifier: workspace:*
+        version: link:../remotes
+      lfaa-app-boot:
+        specifier: workspace:*
+        version: link:../../boot/app-boot
+      lfaa-authorization:
+        specifier: workspace:*
+        version: link:../../credentials/authorization
+      lfaa-host-daemon:
+        specifier: workspace:*
+        version: link:../../host/daemon
+      lfaa-identity-auth:
+        specifier: workspace:*
+        version: link:../../identity/auth
+      lfaa-permission-presets:
+        specifier: workspace:*
+        version: link:../../interaction/permission-presets
+      lfaa-session:
+        specifier: workspace:*
+        version: link:../../core/session
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-subprocess:
+        specifier: workspace:*
+        version: link:../../subprocess/subprocess
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
+      '@types/express':
+        specifier: ^4.0.0
+        version: 4.17.25
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
   packages/api/workflow-controller:
     dependencies:
       '@deepseek-ai/cordis':
@@ -959,6 +1061,9 @@ importers:
       joi:
         specifier: ^17.0.0
         version: 17.13.8
+      lfaa-agent-loop:
+        specifier: workspace:*
+        version: link:../../core/agent-loop
       lfaa-api-gateway:
         specifier: workspace:*
         version: link:../gateway
@@ -1026,9 +1131,15 @@ importers:
       lfaa-fs:
         specifier: workspace:*
         version: link:../../fs/fs
+      lfaa-games-minecraft:
+        specifier: workspace:*
+        version: link:../../games/minecraft
       lfaa-host-daemon:
         specifier: workspace:*
         version: link:../../host/daemon
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
@@ -1121,6 +1232,12 @@ importers:
       lfaa-launch-environment:
         specifier: workspace:*
         version: link:../../util/launch-environment
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../../llm/llm
+      lfaa-skill:
+        specifier: workspace:*
+        version: link:../../skill/skill
       lfaa-storage-json:
         specifier: workspace:*
         version: link:../../storage/storage-json
@@ -1168,6 +1285,9 @@ importers:
       lfaa-capability-installs:
         specifier: workspace:*
         version: link:../capability-installs
+      lfaa-mcp-client:
+        specifier: workspace:*
+        version: link:../../mcp/mcp-client
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
@@ -1366,6 +1486,12 @@ importers:
       lfaa-knowledge-library-runtime:
         specifier: workspace:*
         version: link:../../boot/knowledge-library
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../../llm/llm
+      lfaa-mcp-client:
+        specifier: workspace:*
+        version: link:../../mcp/mcp-client
       lfaa-permission-presets:
         specifier: workspace:*
         version: link:../../interaction/permission-presets
@@ -1396,6 +1522,18 @@ importers:
       lfaa-tool-ask-user:
         specifier: workspace:*
         version: link:../../interaction/tool-ask-user
+      lfaa-tool-session-query:
+        specifier: workspace:*
+        version: link:../../session-query/tool-session-query
+      lfaa-tool-shell:
+        specifier: workspace:*
+        version: link:../../shell/tool-shell
+      lfaa-tool-skill:
+        specifier: workspace:*
+        version: link:../../skill/tool-skill
+      lfaa-tool-workflow:
+        specifier: workspace:*
+        version: link:../../workflow/tool-workflow
       lfaa-tools:
         specifier: workspace:*
         version: link:../../core/tools
@@ -1482,6 +1620,9 @@ importers:
       lfaa-api-account-controller:
         specifier: workspace:*
         version: link:../../api/account-controller
+      lfaa-api-ai-video-controller:
+        specifier: workspace:*
+        version: link:../../api/ai-video-controller
       lfaa-api-connectivity-controller:
         specifier: workspace:*
         version: link:../../api/connectivity-controller
@@ -1530,6 +1671,12 @@ importers:
       lfaa-user-approval:
         specifier: workspace:*
         version: link:../../interaction/user-approval
+      lfaa-video-ai-video:
+        specifier: workspace:*
+        version: link:../../video/ai-video
+      lfaa-video-tool-ai-video:
+        specifier: workspace:*
+        version: link:../../video/tool-ai-video
       lfaa-workflow:
         specifier: workspace:*
         version: link:../../workflow/workflow
@@ -1561,6 +1708,9 @@ importers:
       lfaa-api-account-controller:
         specifier: workspace:*
         version: link:../../api/account-controller
+      lfaa-api-terminal-controller:
+        specifier: workspace:*
+        version: link:../../api/terminal-controller
       lfaa-typert-protocol:
         specifier: workspace:*
         version: link:../../typert/protocol
@@ -1632,8 +1782,8 @@ importers:
         specifier: ^10.1.1
         version: 10.2.0
       katex:
-        specifier: ^0.16.47
-        version: 0.16.47
+        specifier: 0.18.2
+        version: 0.18.2
       mdast-util-from-markdown:
         specifier: ^2.0.3
         version: 2.0.3(supports-color@7.1.0)
@@ -1932,6 +2082,9 @@ importers:
       lfaa-client-ui-workspace:
         specifier: workspace:*
         version: link:../ui-workspace
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
       react:
         specifier: ^18.0.0
         version: 18.0.0
@@ -1975,6 +2128,9 @@ importers:
       lfaa-client-ui-workflow:
         specifier: workspace:*
         version: link:../ui-workflow
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
       react:
         specifier: ^18.0.0
         version: 18.0.0
@@ -2046,6 +2202,9 @@ importers:
       lfaa-client-modules:
         specifier: workspace:*
         version: link:../modules
+      lfaa-client-store:
+        specifier: workspace:*
+        version: link:../store
       lfaa-client-ui-layout:
         specifier: workspace:*
         version: link:../ui-layout
@@ -2061,6 +2220,9 @@ importers:
       lfaa-client-ui-workspace:
         specifier: workspace:*
         version: link:../ui-workspace
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
       react:
         specifier: ^18.0.0
         version: 18.0.0
@@ -2134,6 +2296,9 @@ importers:
       lfaa-client-ui-theme:
         specifier: workspace:*
         version: link:../ui-theme
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
       react:
         specifier: ^18.0.0
         version: 18.0.0
@@ -2217,6 +2382,9 @@ importers:
       lfaa-client-modules:
         specifier: workspace:*
         version: link:../modules
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
       react:
         specifier: ^18.0.0
         version: 18.0.0
@@ -2350,6 +2518,12 @@ importers:
       lfaa-client-modules:
         specifier: workspace:*
         version: link:../modules
+      lfaa-client-store:
+        specifier: workspace:*
+        version: link:../store
+      lfaa-client-ui-dockkit:
+        specifier: workspace:*
+        version: link:../ui-dockkit
       lfaa-client-ui-primitives:
         specifier: workspace:*
         version: link:../ui-primitives
@@ -2384,9 +2558,9 @@ importers:
       lfaa-client-connection:
         specifier: workspace:*
         version: link:../connection
-      lfaa-client-ui-minecraft:
+      lfaa-util-values:
         specifier: workspace:*
-        version: link:../ui-minecraft
+        version: link:../../util/values
     devDependencies:
       '@types/express':
         specifier: ^4.0.0
@@ -2431,6 +2605,15 @@ importers:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      '@xterm/addon-fit':
+        specifier: 0.11.0
+        version: 0.11.0
+      '@xterm/xterm':
+        specifier: 6.0.0
+        version: 6.0.0
+      '@xyflow/react':
+        specifier: 12.11.5
+        version: 12.11.5(@types/react-dom@18.0.0)(@types/react@18.3.31)(immer@10.2.0)(react-dom@18.0.0(react@18.0.0))(react@18.0.0)
       antd:
         specifier: ^5.0.0
         version: 5.29.3(moment@2.31.0)(react-dom@18.0.0(react@18.0.0))(react@18.0.0)
@@ -2612,6 +2795,54 @@ importers:
         specifier: ^18.0.0
         version: 18.0.0
 
+  packages/compaction/command-compact:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-compaction:
+        specifier: workspace:*
+        version: link:../compaction
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../../llm/llm
+
+  packages/compaction/compaction:
+    dependencies:
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../../llm/llm
+
+  packages/compaction/compaction-basic:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-agent-loop:
+        specifier: workspace:*
+        version: link:../../core/agent-loop
+      lfaa-compaction:
+        specifier: workspace:*
+        version: link:../compaction
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../../llm/llm
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+
+  packages/compaction/compaction-image-offload:
+    dependencies:
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../../llm/llm
+
+  packages/compaction/compaction-tool-result-pruner:
+    dependencies:
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../../llm/llm
+
   packages/computer-use/computer-use:
     dependencies:
       '@deepseek-ai/cordis':
@@ -2623,6 +2854,9 @@ importers:
       joi:
         specifier: ^17.0.0
         version: 17.13.8
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
@@ -2645,6 +2879,9 @@ importers:
       lfaa-scope:
         specifier: workspace:*
         version: link:../scope
+      lfaa-session:
+        specifier: workspace:*
+        version: link:../session
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
@@ -2700,9 +2937,21 @@ importers:
       lfaa-identity-auth:
         specifier: workspace:*
         version: link:../../identity/auth
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../../llm/llm
+      lfaa-mcp-client:
+        specifier: workspace:*
+        version: link:../../mcp/mcp-client
       lfaa-permission-presets:
         specifier: workspace:*
         version: link:../../interaction/permission-presets
+      lfaa-schedule:
+        specifier: workspace:*
+        version: link:../../schedule/schedule
       lfaa-scope:
         specifier: workspace:*
         version: link:../scope
@@ -2727,6 +2976,9 @@ importers:
       lfaa-user-questions:
         specifier: workspace:*
         version: link:../../interaction/user-questions
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
       lfaa-workspace-workspace:
         specifier: workspace:*
         version: link:../../workspace/workspace
@@ -2770,6 +3022,9 @@ importers:
 
   packages/core/scope:
     dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
@@ -2846,6 +3101,9 @@ importers:
       lfaa-jobs:
         specifier: workspace:*
         version: link:../../jobs/jobs
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
       lfaa-scope:
         specifier: workspace:*
         version: link:../scope
@@ -2928,9 +3186,18 @@ importers:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-home-paths:
+        specifier: workspace:*
+        version: link:../../util/home-paths
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
       lfaa-skill-writing:
         specifier: workspace:*
         version: link:../../skill/writing
+      lfaa-storage-json:
+        specifier: workspace:*
+        version: link:../../storage/storage-json
       lfaa-storage-sqlite:
         specifier: workspace:*
         version: link:../../storage/storage-sqlite
@@ -2953,9 +3220,24 @@ importers:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-home-paths:
+        specifier: workspace:*
+        version: link:../../util/home-paths
+      lfaa-identity-auth:
+        specifier: workspace:*
+        version: link:../../identity/auth
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
       lfaa-storage-sqlite:
         specifier: workspace:*
         version: link:../../storage/storage-sqlite
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
     devDependencies:
       '@types/express':
         specifier: ^4.0.0
@@ -2966,6 +3248,73 @@ importers:
       '@types/jsonwebtoken':
         specifier: ^9.0.0
         version: 9.0.10
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/fs/fs-local:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/fs/tool-fs:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-fs-local:
+        specifier: workspace:*
+        version: link:../fs-local
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/fs/tool-fs-search:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-fs-local:
+        specifier: workspace:*
+        version: link:../fs-local
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/fs/tool-str-replace-editor:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-fs-local:
+        specifier: workspace:*
+        version: link:../fs-local
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.0
@@ -3071,6 +3420,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-fs:
+        specifier: workspace:*
+        version: link:../../fs/fs
       lfaa-game-connectivity:
         specifier: workspace:*
         version: link:../../network/game-connectivity
@@ -3083,6 +3435,12 @@ importers:
       lfaa-storage-sqlite:
         specifier: workspace:*
         version: link:../../storage/storage-sqlite
+      lfaa-subprocess-local:
+        specifier: workspace:*
+        version: link:../../subprocess/subprocess-local
+      lfaa-terminal-bash:
+        specifier: workspace:*
+        version: link:../../terminal/terminal-bash
     devDependencies:
       '@types/express':
         specifier: ^4.0.0
@@ -3292,6 +3650,73 @@ importers:
         specifier: ^24.0.0
         version: 24.19.0
 
+  packages/llm/llm:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-system-prompt:
+        specifier: workspace:*
+        version: link:../../core/system-prompt
+
+  packages/llm/llm-pi-ai:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../llm
+      lfaa-token-meter:
+        specifier: workspace:*
+        version: link:../token-meter
+
+  packages/llm/llm-retry:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../llm
+
+  packages/llm/token-meter:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../llm
+
+  packages/mcp/mcp-client:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+
   packages/network/game-connectivity:
     dependencies:
       '@deepseek-ai/cordis':
@@ -3359,6 +3784,152 @@ importers:
 
   packages/sandbox/sandbox-policy: {}
 
+  packages/schedule/schedule:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-storage-sqlite:
+        specifier: workspace:*
+        version: link:../../storage/storage-sqlite
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/sdk/sdk-client:
+    dependencies:
+      lfaa-sdk-protocol:
+        specifier: workspace:*
+        version: link:../sdk-protocol
+
+  packages/sdk/sdk-protocol:
+    devDependencies:
+      lfaa-agent-loop:
+        specifier: workspace:*
+        version: link:../../core/agent-loop
+      lfaa-session:
+        specifier: workspace:*
+        version: link:../../core/session
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+
+  packages/session-query/session-log-export:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-session-projection:
+        specifier: workspace:*
+        version: link:../../session/session-projection
+
+  packages/session-query/session-query:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-session-format:
+        specifier: workspace:*
+        version: link:../../session/session-format
+
+  packages/session-query/session-query-sqlite:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-session-query:
+        specifier: workspace:*
+        version: link:../session-query
+
+  packages/session-query/tool-session-query:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-session:
+        specifier: workspace:*
+        version: link:../../core/session
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/session/session-checkpoint-policy:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+
+  packages/session/session-format:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-storage-json:
+        specifier: workspace:*
+        version: link:../../storage/storage-json
+
+  packages/session/session-format-catalog:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-session-format:
+        specifier: workspace:*
+        version: link:../session-format
+
+  packages/session/session-format-v0-to-v1:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-session-format:
+        specifier: workspace:*
+        version: link:../session-format
+
+  packages/session/session-format-v1-to-v2:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+
+  packages/session/session-format-v2-to-v3:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+
+  packages/session/session-format-v3-to-v4:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+
+  packages/session/session-persistence:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-session-format:
+        specifier: workspace:*
+        version: link:../session-format
+
   packages/session/session-persistence-jsonl:
     dependencies:
       '@deepseek-ai/cordis':
@@ -3367,6 +3938,9 @@ importers:
       lfaa-launch-environment:
         specifier: workspace:*
         version: link:../../util/launch-environment
+      lfaa-session-persistence:
+        specifier: workspace:*
+        version: link:../session-persistence
       lfaa-storage-domain:
         specifier: workspace:*
         version: link:../../storage/storage-domain
@@ -3381,11 +3955,92 @@ importers:
         specifier: ^24.0.0
         version: 24.19.0
 
+  packages/session/session-projection:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-session-format:
+        specifier: workspace:*
+        version: link:../session-format
+
+  packages/session/session-projection-cache:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+
+  packages/session/session-stats:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-session-format:
+        specifier: workspace:*
+        version: link:../session-format
+
+  packages/session/session-telemetry:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+
+  packages/session/session-telemetry-otel:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+
+  packages/session/session-title:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+
+  packages/session/session-title-all-prompts-llm:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-session-title-llm:
+        specifier: workspace:*
+        version: link:../session-title-llm
+
+  packages/session/session-title-first-prompt-llm:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-session-title-llm:
+        specifier: workspace:*
+        version: link:../session-title-llm
+
+  packages/session/session-title-llm:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-session-title:
+        specifier: workspace:*
+        version: link:../session-title
+
+  packages/session/session-turn-outline:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-session-title:
+        specifier: workspace:*
+        version: link:../session-title
+
   packages/settings/settings:
     dependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
       lfaa-credentials:
         specifier: workspace:*
         version: link:../../credentials/credentials
@@ -3421,6 +4076,224 @@ importers:
         specifier: ^24.0.0
         version: 24.19.0
 
+  packages/shell/bash-local:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-shell:
+        specifier: workspace:*
+        version: link:../shell
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/shell/bash-sandbox:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-bash-local:
+        specifier: workspace:*
+        version: link:../bash-local
+      lfaa-sandbox:
+        specifier: workspace:*
+        version: link:../../sandbox/sandbox
+      lfaa-sandbox-policy:
+        specifier: workspace:*
+        version: link:../../sandbox/sandbox-policy
+      lfaa-shell:
+        specifier: workspace:*
+        version: link:../shell
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/shell/pwsh-local:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-sandbox-policy:
+        specifier: workspace:*
+        version: link:../../sandbox/sandbox-policy
+      lfaa-shell:
+        specifier: workspace:*
+        version: link:../shell
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/shell/pwsh-sandbox:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-pwsh-local:
+        specifier: workspace:*
+        version: link:../pwsh-local
+      lfaa-sandbox:
+        specifier: workspace:*
+        version: link:../../sandbox/sandbox
+      lfaa-sandbox-policy:
+        specifier: workspace:*
+        version: link:../../sandbox/sandbox-policy
+      lfaa-shell:
+        specifier: workspace:*
+        version: link:../shell
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/shell/shell:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-sandbox:
+        specifier: workspace:*
+        version: link:../../sandbox/sandbox
+      lfaa-sandbox-policy:
+        specifier: workspace:*
+        version: link:../../sandbox/sandbox-policy
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/shell/shell-env:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-shell:
+        specifier: workspace:*
+        version: link:../shell
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/shell/tool-shell:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-jobs:
+        specifier: workspace:*
+        version: link:../../jobs/jobs
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-shell:
+        specifier: workspace:*
+        version: link:../shell
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/skill/skill:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      '@deepseek-ai/schemastery':
+        specifier: 3.18.4
+        version: 3.18.4
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/skill/skill-filesystem:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      chokidar:
+        specifier: 4.0.3
+        version: 4.0.3
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.3.2
+      lfaa-skill:
+        specifier: workspace:*
+        version: link:../skill
+    devDependencies:
+      '@types/js-yaml':
+        specifier: 4.0.9
+        version: 4.0.9
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/skill/skill-office:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.3.2
+      lfaa-skill:
+        specifier: workspace:*
+        version: link:../skill
+    devDependencies:
+      '@types/js-yaml':
+        specifier: 4.0.9
+        version: 4.0.9
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/skill/tool-skill:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-skill:
+        specifier: workspace:*
+        version: link:../skill
+      lfaa-skill-writing:
+        specifier: workspace:*
+        version: link:../writing
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
   packages/skill/writing:
     devDependencies:
       '@types/express':
@@ -3432,6 +4305,81 @@ importers:
       '@types/jsonwebtoken':
         specifier: ^9.0.0
         version: 9.0.10
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/spill/spill: {}
+
+  packages/spill/spill-local:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-spill:
+        specifier: workspace:*
+        version: link:../spill
+
+  packages/spill/spill-policy:
+    dependencies:
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../../llm/llm
+      lfaa-spill:
+        specifier: workspace:*
+        version: link:../spill
+
+  packages/ssh/fs-ssh:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-ssh:
+        specifier: workspace:*
+        version: link:../ssh
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/ssh/sandbox-ssh:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-ssh:
+        specifier: workspace:*
+        version: link:../ssh
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/ssh/ssh:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-credentials:
+        specifier: workspace:*
+        version: link:../../credentials/credentials
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/ssh/subprocess-ssh:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-ssh:
+        specifier: workspace:*
+        version: link:../ssh
+      lfaa-subprocess:
+        specifier: workspace:*
+        version: link:../../subprocess/subprocess
+    devDependencies:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.0
@@ -3512,7 +4460,138 @@ importers:
         specifier: ^24.0.0
         version: 24.19.0
 
+  packages/subagent/subagent:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-identity-auth:
+        specifier: workspace:*
+        version: link:../../identity/auth
+      lfaa-telemetry-logger:
+        specifier: workspace:*
+        version: link:../../telemetry/logger
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/subagent/subagent-claude-code:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-subagent:
+        specifier: workspace:*
+        version: link:../subagent
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/subagent/subagent-codex:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-subagent:
+        specifier: workspace:*
+        version: link:../subagent
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/subagent/subagent-in-process-driver:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-subagent:
+        specifier: workspace:*
+        version: link:../subagent
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/subagent/tool-subagent:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-subagent:
+        specifier: workspace:*
+        version: link:../subagent
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/subagent/tool-subagent-control:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-subagent:
+        specifier: workspace:*
+        version: link:../subagent
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
   packages/subprocess/subprocess: {}
+
+  packages/subprocess/subprocess-local:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-subprocess:
+        specifier: workspace:*
+        version: link:../subprocess
+      lfaa-win32-process:
+        specifier: workspace:*
+        version: link:../win32-process
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/subprocess/win32-process:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
 
   packages/telemetry/logger:
     dependencies:
@@ -3532,6 +4611,60 @@ importers:
       '@types/jsonwebtoken':
         specifier: ^9.0.0
         version: 9.0.10
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/terminal/terminal:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-subprocess:
+        specifier: workspace:*
+        version: link:../../subprocess/subprocess
+      lfaa-terminal-bash:
+        specifier: workspace:*
+        version: link:../terminal-bash
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/terminal/terminal-bash:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/terminal/tool-terminal:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-terminal:
+        specifier: workspace:*
+        version: link:../terminal
+      lfaa-terminal-bash:
+        specifier: workspace:*
+        version: link:../terminal-bash
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.0
@@ -3669,6 +4802,123 @@ importers:
         specifier: ^24.0.0
         version: 24.19.0
 
+  packages/video/ai-video:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-credentials:
+        specifier: workspace:*
+        version: link:../../credentials/credentials
+      lfaa-home-paths:
+        specifier: workspace:*
+        version: link:../../util/home-paths
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
+      lfaa-llm:
+        specifier: workspace:*
+        version: link:../../llm/llm
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-storage-domain:
+        specifier: workspace:*
+        version: link:../../storage/storage-domain
+      lfaa-storage-json:
+        specifier: workspace:*
+        version: link:../../storage/storage-json
+      lfaa-storage-sqlite:
+        specifier: workspace:*
+        version: link:../../storage/storage-sqlite
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/video/tool-ai-video:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+      lfaa-video-ai-video:
+        specifier: workspace:*
+        version: link:../ai-video
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/web/tool-web:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+      lfaa-web:
+        specifier: workspace:*
+        version: link:../web
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/web/web:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/web/web-fetch-http:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-web:
+        specifier: workspace:*
+        version: link:../web
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/web/web-search-deepseek:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-web:
+        specifier: workspace:*
+        version: link:../web
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
   packages/workflow/dag-engine:
     dependencies:
       '@deepseek-ai/cordis':
@@ -3701,6 +4951,28 @@ importers:
       lfaa-tools:
         specifier: workspace:*
         version: link:../../core/tools
+      lfaa-workflow:
+        specifier: workspace:*
+        version: link:../workflow
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/workflow/tool-workflow:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-app-boot:
+        specifier: workspace:*
+        version: link:../../boot/app-boot
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
       lfaa-workflow:
         specifier: workspace:*
         version: link:../workflow
@@ -3770,6 +5042,9 @@ importers:
       lfaa-storage-sqlite:
         specifier: workspace:*
         version: link:../../storage/storage-sqlite
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
     devDependencies:
       '@types/express':
         specifier: ^4.0.0
@@ -4009,11 +5284,6 @@ packages:
   '@electron-internal/extract-zip@1.0.5':
     resolution: {integrity: sha512-+bqFCP98pLI0Tt0XQo1TmlXtwjWchISndDOxCkEcIuUgXWpBnLyRI+2DU+mesvnMMX6L1XDqYNA0lXNDHd/yiA==}
     engines: {node: '>=22.12.0'}
-
-  '@electron/asar@3.2.1':
-    resolution: {integrity: sha512-hE2cQMZ5+4o7+6T2lUaVbxIzrOjZZfX7dB02xuapyYFJZEAiWTelq6J3mMoxzd0iONDvYLPVKecB5tyjIoVDVA==}
-    engines: {node: '>=10.12.0'}
-    hasBin: true
 
   '@electron/asar@3.4.1':
     resolution: {integrity: sha512-i4/rNPRS84t0vSRa2HorerGRXWyF4vThfHesw0dmcWHp+cspK743UanA0suA5Q5y8kzY2y6YKrvbIUn69BCAiA==}
@@ -5015,6 +6285,18 @@ packages:
   '@trycua/cua-driver@0.32.0':
     resolution: {integrity: sha512-lg53Ayp2PuI7RdI7NvHerD7Y8/EzSZnfxHkBd9E2xei3XkP4tcmZaVAu10qK9jkAhhTTIwz0wC6pe4IJDza18A==}
 
+  '@types/babel__core@7.20.5':
+    resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
+
+  '@types/babel__generator@7.27.0':
+    resolution: {integrity: sha512-ufFd2Xi92OAVPYsy+P4n7/U7e68fex0+Ee8gSG9KX7eo084CWiQ4sdxktvdl0bOPupXtVJPY19zk6EwWqUQ8lg==}
+
+  '@types/babel__template@7.4.4':
+    resolution: {integrity: sha512-h/NUaSyG5EyxBIp8YRxo4RMe2/qQgvyowRwVMzhYhBCONbW8PUsg4lkFMrhgZhUe5z3L3MiLDuvyJ/CaPa2A8A==}
+
+  '@types/babel__traverse@7.28.0':
+    resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
+
   '@types/body-parser@1.19.6':
     resolution: {integrity: sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==}
 
@@ -5060,9 +6342,6 @@ packages:
   '@types/fs-extra@9.0.13':
     resolution: {integrity: sha512-nEnwB++1u5lVDM2UI4c1+5R+FYaKfaAzS4OococimjVm3nQw3TuzH5UNsocrcTBbhnerblyHj4A49qXbIiZdpA==}
 
-  '@types/glob@7.2.0':
-    resolution: {integrity: sha512-ZUxbzKl0IfJILTS6t7ip5fQQM/J3TJYubDm3nMbgubNNYS62eXeUpoLUC8/7fJNiFYHTrGPQn7hspDUzIHX3UA==}
-
   '@types/hast@3.0.5':
     resolution: {integrity: sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g==}
 
@@ -5089,10 +6368,6 @@ packages:
 
   '@types/mime@1.3.5':
     resolution: {integrity: sha512-/pyBZWSLD2n0dcHE3hq8s8ZvcETHtEuF+3E7XVt0Ig2nvsVQXdghHVcEkIWjy9A0wKfTn97a/PSDYohKIlnP/w==}
-
-  '@types/minimatch@6.0.0':
-    resolution: {integrity: sha512-zmPitbQ8+6zNutpwgcQuLcsEpn/Cj54Kbn7L5pX0Os5kdWplB7xPgEh/g+SWOB/qmows2gpuCaPyduq8ZZRnxA==}
-    deprecated: This is a stub types definition. minimatch provides its own type definitions, so you do not need this installed.
 
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
@@ -5189,11 +6464,11 @@ packages:
   '@ungap/structured-clone@1.4.0':
     resolution: {integrity: sha512-1mEZtMKPM09vDmQt5y7YvmN2+DFTP7Tg0EWXdic8/C6VRnpb33e4ghisCIE3WZjsE2N8mf+QV1Zqh7ZFYLWInQ==}
 
-  '@vitejs/plugin-react@4.0.0':
-    resolution: {integrity: sha512-HX0XzMjL3hhOYm+0s95pb0Z7F8O81G7joUHgfDd/9J/ZZf5k4xX6QAMFkKsHFxaHlf6X7GD7+XuaZ66ULiJuhQ==}
+  '@vitejs/plugin-react@4.3.4':
+    resolution: {integrity: sha512-SCCPBJtYLdE8PX/7ZQAs1QAZ8Jqwih+0VBLum1EGqmCCQal+MIUqLCzj3ZUy8ufbC0cAM4LRlSTm7IQJwWT4ug==}
     engines: {node: ^14.18.0 || >=16.0.0}
     peerDependencies:
-      vite: ^4.2.0
+      vite: ^4.2.0 || ^5.0.0 || ^6.0.0
 
   '@xmldom/xmldom@0.8.15':
     resolution: {integrity: sha512-/5NV/vDALVFDXgLmfsy9TRCBlKwO2LNBFzpzvb9iIj+jR+eSc6DLYYvVOdivT/jm7MtU6TebYuRmzEOI7w40UA==}
@@ -5202,6 +6477,12 @@ packages:
   '@xmldom/xmldom@0.9.12':
     resolution: {integrity: sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A==}
     engines: {node: '>=14.6'}
+
+  '@xterm/addon-fit@0.11.0':
+    resolution: {integrity: sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==}
+
+  '@xterm/xterm@6.0.0':
+    resolution: {integrity: sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==}
 
   '@xyflow/react@12.11.5':
     resolution: {integrity: sha512-QqoryGkqEhWBuQN9bZWRKhwr3Uoj9lCGj/tg0NnIWHHEOXV+5c8cYsc7Q9TST63V92lHqcNV9P5cjvJ9ZAmblQ==}
@@ -5226,10 +6507,6 @@ packages:
   accepts@1.3.8:
     resolution: {integrity: sha512-PYAthTa2m2VKxuvSD3DPC/Gy+U+sOA1LAuT8mkmRuvw+NACSaeXEQ+NHcVF7rONl6qcaxV3Uuemwawk+7+SJLw==}
     engines: {node: '>= 0.6'}
-
-  agent-base@7.0.2:
-    resolution: {integrity: sha512-k2/tQ1+8Zf50dEUJWklUP80LcE/+Ph+OJ6cf2Ff2fD/c/TtCe6ofnCoNMz9UnyxOQYlaAALZtEWETzn+1JjfHg==}
-    engines: {node: '>= 14'}
 
   agent-base@7.1.0:
     resolution: {integrity: sha512-o/zjMZRhJxny7OyEF+Op8X+efiELC7k7yOjMzgfzVqOzXqkBkWI79YoTdOtsuWd5BWhAGAuOY/Xa6xpiaWXiNg==}
@@ -5377,14 +6654,6 @@ packages:
 
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==}
-
-  chalk@4.1.0:
-    resolution: {integrity: sha512-qwx12AxXe2Q5xQ43Ac//I6v5aXTipYrSESdOgzrN+9XjgEpyjpKuvSGaN4qE93f7TQTlerQQ8S+EQ0EyDoVL1A==}
-    engines: {node: '>=10'}
-
-  chalk@4.1.1:
-    resolution: {integrity: sha512-diHzdDKxcU+bAsUboHLPEDQiw0qEe0qd7SYUn3HgcFlWgbDcfLGswOHYeGrHKzG9z6UYf01d9VFMfZxPM1xZSg==}
-    engines: {node: '>=10'}
 
   chalk@4.1.2:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
@@ -5857,10 +7126,6 @@ packages:
     resolution: {integrity: sha512-yhlQgA6mnOJUKOsRUFsgJdQCvkKhcz8tlZG5HBQfReYZy46OwLcY+Zia0mtdHsOo9y/hP+CxMN0TU9QxoOtG4g==}
     engines: {node: '>=6 <7 || >=8'}
 
-  fs-extra@9.0.0:
-    resolution: {integrity: sha512-pmEYSk3vYsG/bF651KPUXZ+hvjpgWYw/Gc7W9NFUe3ZVLczKKWIij3IKpOrQcdw4TILtibFslZ0UmR8Vvzig4g==}
-    engines: {node: '>=10'}
-
   fs-extra@9.0.1:
     resolution: {integrity: sha512-h2iAoN838FqAFJY2/qVpzFXy+EBxfVE220PalAqQLDVsFOHLJrZvut5puAbCdNv6WJk+B8ihI+k0c7JK5erwqQ==}
     engines: {node: '>=10'}
@@ -6078,8 +7343,8 @@ packages:
   jws@4.0.1:
     resolution: {integrity: sha512-EKI/M/yqPncGUUh44xz0PxSidXFr/+r0pA70+gIYhjv+et7yxM+s29Y+VGDkovRofQem0fs7Uvf4+YmAdyRduA==}
 
-  katex@0.16.47:
-    resolution: {integrity: sha512-Eeo8Ys1doU1z+x8AZsPpQu+p/QcZBI5PeOo7QGQdy2x2m0MU/hYagBbGOmXwr5KVbEfVuWv9LpnQWeehogurjg==}
+  katex@0.18.2:
+    resolution: {integrity: sha512-3snve4y0SXTMequLim1FMiPvLGElySam0blN5xQZBqEY3lOJz1TnuaaiugnBZBqHzlSAGmFTYL7MCQkORuLKCA==}
     hasBin: true
 
   keyv@4.0.0:
@@ -6397,6 +7662,10 @@ packages:
     resolution: {integrity: sha512-ymk4aIzxdPopw2giv8Fs1Ec6vybGkjmyxUwVqhkI4MCy2tVfXdkOGGWieWVjL0THgH+7a8lRdevyupoYj3Js/Q==}
     engines: {node: '>=22.12.0'}
 
+  node-addon-api@7.1.0:
+    resolution: {integrity: sha512-mNcltoe1R8o7STTegSOHdnJNN7s5EUvhoS7ShnTHDyOSd+8H+UdWODq6qSv67PjC8Zc5JRT8+oLAMCr0SIXw7g==}
+    engines: {node: ^16 || ^18 || >= 20}
+
   node-addon-native-custom-loader@0.1.6:
     resolution: {integrity: sha512-QaW7d8lTcGCXrpNVyFDtID3vrpa7vFdpcY9pql2/9FGFSe7tcSnhQOKZX+1aOWq+pB1d2ZwNnKAdQI5nD9wAXA==}
     engines: {node: '>=20'}
@@ -6459,6 +7728,9 @@ packages:
 
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
+
+  node-pty@1.1.0:
+    resolution: {integrity: sha512-20JqtutY6JPXTUnL0ij1uad7Qe1baT46lyolh2sSENDd4sTzKZ4nmAFkeAARDKwmlLjPx6XKRlwRUxwjOy+lUg==}
 
   node-releases@2.0.57:
     resolution: {integrity: sha512-kQK9LGGFiHtrWiNhZtA7Qbw17AQz+dmsEKODRIVTXA9+e5MS/2gZEBhYJt13GrAz5/IOZKddH/0Z3TP/Zgo+yw==}
@@ -6847,8 +8119,8 @@ packages:
   react-is@18.2.0:
     resolution: {integrity: sha512-xWGDIW6x921xtzPkhiULtthJHoJvBbF3q26fzloPCK0hsvxtPVelvftw3zjbHWSkR2km9Z+4uxbDDK/6Zw9B8w==}
 
-  react-refresh@0.14.0:
-    resolution: {integrity: sha512-wViHqhAd8OHeLS/IRMJjTSDHF3U9eWi62F/MledQGPdJGDhodXJ9PBLNGr6WWL7qlH12Mt3TyTpbS+hGXMjCzQ==}
+  react-refresh@0.14.2:
+    resolution: {integrity: sha512-jCvmsr+1IUSMUyzOkRcvnVbX3ZYC6g9TDrDbFuFmRDq7PD4yaGbLKNQL6k2jnArV8hjYxh7hVhAZB6s9HDGpZA==}
     engines: {node: '>=0.10.0'}
 
   react@18.0.0:
@@ -7636,15 +8908,6 @@ snapshots:
 
   '@electron-internal/extract-zip@1.0.5': {}
 
-  '@electron/asar@3.2.1':
-    dependencies:
-      chromium-pickle-js: 0.2.0
-      commander: 5.0.0
-      glob: 7.2.0
-      minimatch: 3.1.5
-    optionalDependencies:
-      '@types/glob': 7.2.0
-
   '@electron/asar@3.4.1':
     dependencies:
       commander: 5.0.0
@@ -7653,7 +8916,7 @@ snapshots:
 
   '@electron/fuses@1.8.0':
     dependencies:
-      chalk: 4.1.1
+      chalk: 4.1.2
       fs-extra: 9.0.1
       minimist: 1.2.8
 
@@ -7989,7 +9252,7 @@ snapshots:
   '@malept/flatpak-bundler@0.4.0(supports-color@7.1.0)':
     dependencies:
       debug: 4.4.3(supports-color@7.1.0)
-      fs-extra: 9.0.0
+      fs-extra: 9.0.1
       lodash: 4.18.1
       tmp-promise: 3.0.3
     transitivePeerDependencies:
@@ -8465,6 +9728,27 @@ snapshots:
       '@trycua/cua-driver-win32-arm64-msvc': 0.32.0
       '@trycua/cua-driver-win32-x64-msvc': 0.32.0
 
+  '@types/babel__core@7.20.5':
+    dependencies:
+      '@babel/parser': 7.29.9
+      '@babel/types': 7.29.8
+      '@types/babel__generator': 7.27.0
+      '@types/babel__template': 7.4.4
+      '@types/babel__traverse': 7.28.0
+
+  '@types/babel__generator@7.27.0':
+    dependencies:
+      '@babel/types': 7.29.8
+
+  '@types/babel__template@7.4.4':
+    dependencies:
+      '@babel/parser': 7.29.9
+      '@babel/types': 7.29.8
+
+  '@types/babel__traverse@7.28.0':
+    dependencies:
+      '@babel/types': 7.29.8
+
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
@@ -8530,12 +9814,6 @@ snapshots:
     dependencies:
       '@types/node': 24.19.0
 
-  '@types/glob@7.2.0':
-    dependencies:
-      '@types/minimatch': 6.0.0
-      '@types/node': 24.19.0
-    optional: true
-
   '@types/hast@3.0.5':
     dependencies:
       '@types/unist': 3.0.3
@@ -8562,11 +9840,6 @@ snapshots:
       '@types/unist': 3.0.3
 
   '@types/mime@1.3.5': {}
-
-  '@types/minimatch@6.0.0':
-    dependencies:
-      minimatch: 10.2.6
-    optional: true
 
   '@types/ms@2.1.0': {}
 
@@ -8655,12 +9928,13 @@ snapshots:
 
   '@ungap/structured-clone@1.4.0': {}
 
-  '@vitejs/plugin-react@4.0.0(supports-color@7.1.0)(vite@5.0.0(@types/node@24.19.0))':
+  '@vitejs/plugin-react@4.3.4(supports-color@7.1.0)(vite@5.0.0(@types/node@24.19.0))':
     dependencies:
       '@babel/core': 7.29.7(supports-color@7.1.0)
       '@babel/plugin-transform-react-jsx-self': 7.29.7(@babel/core@7.29.7(supports-color@7.1.0))
       '@babel/plugin-transform-react-jsx-source': 7.29.7(@babel/core@7.29.7(supports-color@7.1.0))
-      react-refresh: 0.14.0
+      '@types/babel__core': 7.20.5
+      react-refresh: 0.14.2
       vite: 5.0.0(@types/node@24.19.0)
     transitivePeerDependencies:
       - supports-color
@@ -8668,6 +9942,10 @@ snapshots:
   '@xmldom/xmldom@0.8.15': {}
 
   '@xmldom/xmldom@0.9.12': {}
+
+  '@xterm/addon-fit@0.11.0': {}
+
+  '@xterm/xterm@6.0.0': {}
 
   '@xyflow/react@12.11.5(@types/react-dom@18.0.0)(@types/react@18.3.31)(immer@10.2.0)(react-dom@18.0.0(react@18.0.0))(react@18.0.0)':
     dependencies:
@@ -8700,12 +9978,6 @@ snapshots:
     dependencies:
       mime-types: 2.1.34
       negotiator: 0.6.3
-
-  agent-base@7.0.2(supports-color@7.1.0):
-    dependencies:
-      debug: 4.4.3(supports-color@7.1.0)
-    transitivePeerDependencies:
-      - supports-color
 
   agent-base@7.1.0(supports-color@7.1.0):
     dependencies:
@@ -8968,16 +10240,6 @@ snapshots:
   caniuse-lite@1.0.30001812: {}
 
   ccount@2.0.1: {}
-
-  chalk@4.1.0:
-    dependencies:
-      ansi-styles: 4.1.0
-      supports-color: 7.1.0
-
-  chalk@4.1.1:
-    dependencies:
-      ansi-styles: 4.1.0
-      supports-color: 7.1.0
 
   chalk@4.1.2:
     dependencies:
@@ -9303,7 +10565,7 @@ snapshots:
 
   electron-winstaller@5.4.0(supports-color@7.1.0):
     dependencies:
-      '@electron/asar': 3.2.1
+      '@electron/asar': 3.4.1
       debug: 4.4.3(supports-color@7.1.0)
       fs-extra: 7.0.1
       lodash: 4.18.1
@@ -9582,13 +10844,6 @@ snapshots:
       jsonfile: 4.0.0
       universalify: 0.1.2
 
-  fs-extra@9.0.0:
-    dependencies:
-      at-least-node: 1.0.0
-      graceful-fs: 4.2.11
-      jsonfile: 6.2.1
-      universalify: 1.0.0
-
   fs-extra@9.0.1:
     dependencies:
       at-least-node: 1.0.0
@@ -9737,7 +10992,7 @@ snapshots:
 
   https-proxy-agent@7.0.0(supports-color@7.1.0):
     dependencies:
-      agent-base: 7.0.2(supports-color@7.1.0)
+      agent-base: 7.1.0(supports-color@7.1.0)
       debug: 4.4.3(supports-color@7.1.0)
     transitivePeerDependencies:
       - supports-color
@@ -9776,7 +11031,7 @@ snapshots:
   jake@10.8.5:
     dependencies:
       async: 3.2.6
-      chalk: 4.1.0
+      chalk: 4.1.2
       filelist: 1.0.6
       minimatch: 3.1.5
 
@@ -9847,7 +11102,7 @@ snapshots:
       jwa: 2.0.1
       safe-buffer: 5.2.1
 
-  katex@0.16.47:
+  katex@0.18.2:
     dependencies:
       commander: 8.3.0
 
@@ -10129,7 +11384,7 @@ snapshots:
     dependencies:
       '@types/katex': 0.16.8
       devlop: 1.1.0
-      katex: 0.16.47
+      katex: 0.18.2
       micromark-factory-space: 2.1.0
       micromark-util-character: 2.1.1
       micromark-util-symbol: 2.0.1
@@ -10329,6 +11584,8 @@ snapshots:
     dependencies:
       semver: 7.8.5
 
+  node-addon-api@7.1.0: {}
+
   node-addon-native-custom-loader@0.1.6: {}
 
   node-addon-require-builtin-darwin-arm64@0.1.6:
@@ -10396,6 +11653,10 @@ snapshots:
       which: 6.0.1
 
   node-int64@0.4.0: {}
+
+  node-pty@1.1.0:
+    dependencies:
+      node-addon-api: 7.1.0
 
   node-releases@2.0.57: {}
 
@@ -10865,7 +12126,7 @@ snapshots:
 
   react-is@18.2.0: {}
 
-  react-refresh@0.14.0: {}
+  react-refresh@0.14.2: {}
 
   react@18.0.0:
     dependencies:

@@ -1,4 +1,5 @@
 /** 功能：呈现现有工作台。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
+import { APPLICATION_ROUTE_PATTERN } from "lfaa-util-values/src/application-id.js";
 import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Alert, Button, Card, Checkbox, ConfigProvider, Modal, Popover, Tag, Typography, theme as antdTheme } from "antd";
@@ -6,14 +7,14 @@ import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/
 import { SetupReminder } from "lfaa-client-ui-settings-general/src/SetupReminder.js";
 import { resolveAppearanceBackgrounds, resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { PasskeySetupPrompt } from "lfaa-client-ui-settings-account/src/PasskeySetupPrompt.js";
-import { minecraftSceneBackgrounds } from "lfaa-client-ui-minecraft/src/assets/minecraftScenes.js";
+import { minecraftSceneBackgrounds } from "lfaa-util-values/src/builtin-backgrounds.js";
 import { cacheLoginBackground } from "lfaa-client-ui-theme/src/login-background.js";
 import { aiWorkSessionOpenEventName, type AiWorkNotification, type AiWorkNotificationInput, type AiWorkSessionTarget } from "lfaa-client-resources/src/notification-runtime.js";
 import { createAiWorkDraftPersistence, readAiWorkDraft, writeAiWorkDraft } from "lfaa-client-store/src/ai-work-drafts.js";
 import { createBrowserPersistence, createDebouncedPersistenceWriter, stringPersistenceCodec, type DebouncedPersistenceWriter } from "lfaa-client-store/src/browser-persistence.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
-import { saveSettings, userRoleLabel, type ApplicationId, type ApplicationMode, type DesktopAvailableUpdate, type DesktopUpdatePreferences, type DesktopUpdatePrompt, type DesktopUpdatePromptAction, type User, type UserPreferences, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { saveSettings, userRoleLabel, type ApplicationId, type ApplicationMode, type DesktopAvailableUpdate, type DesktopUpdateDownloadProgress, type DesktopUpdatePreferences, type DesktopUpdatePrompt, type DesktopUpdatePromptAction, type User, type UserPreferences, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { shortcutMatches } from "lfaa-client-ui-commands/src/shortcuts.js";
 import { appearanceTextFontStacks, appearanceCodeFontStacks } from "lfaa-client-ui-theme/src/fonts.js";
 import { applyAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
@@ -92,10 +93,23 @@ function preloadSettingsPageModule(): void {
   void preloadSettingsPageForRoute().catch(() => undefined);
 }
 
+function formatDesktopUpdateBytes(bytes: number): string {
+  const value = Number.isFinite(bytes) && bytes > 0 ? bytes : 0;
+  if (value < 1_000) return `${Math.floor(value)} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let scaled = value / 1_000;
+  let unitIndex = 0;
+  while (scaled >= 1_000 && unitIndex < units.length - 1) {
+    scaled /= 1_000;
+    unitIndex += 1;
+  }
+  return `${scaled.toFixed(1)} ${units[unitIndex]}`;
+}
+
 // 将文件页来源归一为应用模式根页；通用任务的正式入口 `/tasks` 对应 workspace AI Work。
 function applicationModeHomeRoute(pathname: string): string | null {
   if (pathname === "/tasks") return "/apps/workspace/ai-work";
-  const match = pathname.match(/^\/apps\/(steamcmd|minecraft|connectivity|writing|workspace)\/(normal|ai-work)(?:\/|$)/u);
+  const match = pathname.match(APPLICATION_ROUTE_PATTERN);
   return match ? `/apps/${match[1]}/${match[2]}` : null;
 }
 
@@ -120,7 +134,7 @@ function persistActiveAiSession(userId: string, app: ApplicationId, sessionId: s
   else persistence.remove();
 }
 
-const AI_WORK_APPLICATIONS: readonly ApplicationId[] = ["workspace", "steamcmd", "minecraft", "connectivity", "writing"];
+const AI_WORK_APPLICATIONS: readonly ApplicationId[] = ["workspace", "steamcmd", "minecraft", "connectivity", "writing", "aivideo"];
 const AI_WORK_DRAFT_SAVE_DELAY_MS = 250;
 
 function readAiWorkDrafts(userId: string): Record<ApplicationId, string> {
@@ -129,7 +143,8 @@ function readAiWorkDrafts(userId: string): Record<ApplicationId, string> {
     steamcmd: readAiWorkDraft(userId, "steamcmd"),
     minecraft: readAiWorkDraft(userId, "minecraft"),
     connectivity: readAiWorkDraft(userId, "connectivity"),
-    writing: readAiWorkDraft(userId, "writing")
+    writing: readAiWorkDraft(userId, "writing"),
+    aivideo: readAiWorkDraft(userId, "aivideo")
   };
 }
 
@@ -272,6 +287,13 @@ const applicationCards: Array<{
     initials: "W",
     description: "为作品、章节和资料整理提供独立的应用入口。",
     color: "plum"
+  },
+  {
+    id: "aivideo",
+    title: "AI 漫剧",
+    initials: "漫",
+    description: "从剧本、连线分镜到图片/视频生成、媒体时间线与白模取景的一体创作。",
+    color: "plum"
   }
 ];
 
@@ -295,7 +317,7 @@ function ApplicationCard({ app, title, initials, description, color, selected, s
       <div className="application-card__copy">
         <Typography.Title level={3}>{title}</Typography.Title>
         <Typography.Paragraph>{description}</Typography.Paragraph>
-        <span className="development-state">{app === "minecraft" ? "开服部署已接入 · 实机验收中" : app === "connectivity" ? "独立联机入口 · Relay 与插件接入中" : app === "steamcmd" ? "工具已接入 · 游戏开服待接入" : "正文编辑已接入"}</span>
+        <span className="development-state">{app === "aivideo" ? "创作、图片/视频生成、时间线与白模已接入 · Provider/设备验收中" : app === "minecraft" ? "开服部署已接入 · 实机验收中" : app === "connectivity" ? "独立联机入口 · Relay 与插件接入中" : app === "steamcmd" ? "工具已接入 · 游戏开服待接入" : "正文编辑已接入"}</span>
       </div>
       <div className="application-card__actions">
         <Button
@@ -334,7 +356,7 @@ export function Workbench({
   onUserChange,
   onLogout
 }: WorkbenchProps) {
-  const appRoute = route === "/tasks" ? [route, "workspace", "ai-work", "overview"] : route.match(/^\/apps\/(steamcmd|minecraft|connectivity|writing|workspace)\/(normal|ai-work)(?:\/(.*))?$/);
+  const appRoute = route === "/tasks" ? [route, "workspace", "ai-work", "overview"] : route.match(APPLICATION_ROUTE_PATTERN);
   const currentRouteApp = appRoute ? appRoute[1] as ApplicationId : null;
   const generalTaskEntryButtonRef = useRef<HTMLButtonElement | null>(null);
   const isFileManagerPage = route === "/files";
@@ -360,8 +382,10 @@ export function Workbench({
   const fileManagerHomeRoute = applicationModeHomeRoute(fileManagerSourceRoute ?? "")
     ?? `/apps/${preferences.selectedApp}/${preferences.selectedMode}`;
   const settingsReturnBackgroundRef = useRef<HTMLImageElement | null>(null);
-  const [settingsInitialSection, setSettingsInitialSection] = useState<"ai" | "permissions" | "configuration" | "account" | undefined>();
+  const [settingsInitialSection, setSettingsInitialSection] = useState<"ai" | "permissions" | "configuration" | "account" | "workspace" | undefined>();
   const [settings, setSettings] = useState<UserSettings>(initialSettings);
+  const shortcutSettingsRef = useRef(settings.shortcuts);
+  useLayoutEffect(() => { shortcutSettingsRef.current = settings.shortcuts; }, [settings.shortcuts]);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const workbenchShellRef = useRef<HTMLDivElement | null>(null);
@@ -408,17 +432,22 @@ export function Workbench({
     steamcmd: { activeSessionId: readActiveAiSession(user.id, "steamcmd") },
     minecraft: { activeSessionId: readActiveAiSession(user.id, "minecraft") },
     connectivity: { activeSessionId: readActiveAiSession(user.id, "connectivity") },
-    writing: { activeSessionId: readActiveAiSession(user.id, "writing") }
+    writing: { activeSessionId: readActiveAiSession(user.id, "writing") },
+    aivideo: { activeSessionId: readActiveAiSession(user.id, "aivideo") }
   }));
   const [notifications, setNotifications] = useState<AiWorkNotification[]>([]);
   const [notificationToast, setNotificationToast] = useState<AiWorkNotification | null>(null);
   const [desktopUpdatePrompt, setDesktopUpdatePrompt] = useState<DesktopUpdatePrompt | null>(null);
   const [desktopAvailableUpdate, setDesktopAvailableUpdate] = useState<DesktopAvailableUpdate | null>(null);
+  const [desktopUpdateDownloadProgress, setDesktopUpdateDownloadProgress] = useState<DesktopUpdateDownloadProgress | null>(null);
+  const [downloadProgressOpen, setDownloadProgressOpen] = useState(false);
+  const [updateDownloadCancelError, setUpdateDownloadCancelError] = useState("");
   const [desktopUpdatePreferences, setDesktopUpdatePreferences] = useState<DesktopUpdatePreferences | null>(null);
   const [desktopUpdatePreferenceSaving, setDesktopUpdatePreferenceSaving] = useState(false);
   const [desktopUpdatePreferenceError, setDesktopUpdatePreferenceError] = useState("");
   const [updatePopoverOpen, setUpdatePopoverOpen] = useState(false);
   const updateAvailabilityRevision = useRef(0);
+  const updateDownloadProgressRevision = useRef(0);
   const [applicationCenterFocusApp, setApplicationCenterFocusApp] = useState<ApplicationId | null>(null);
   const [pendingSessionApp, setPendingSessionApp] = useState<ApplicationId | null>(null);
   const notificationSequence = useRef(0);
@@ -434,14 +463,27 @@ export function Workbench({
       updateAvailabilityRevision.current += 1;
       setDesktopAvailableUpdate(update);
     });
+    const unsubscribeDownloadProgress = desktop.onUpdateDownloadProgress(progress => {
+      updateDownloadProgressRevision.current += 1;
+      setDesktopUpdateDownloadProgress(progress);
+      setDownloadProgressOpen(Boolean(progress));
+      setUpdateDownloadCancelError("");
+    });
     void desktop.getUpdateAvailability().then(update => {
       if (updateAvailabilityRevision.current === 0) setDesktopAvailableUpdate(update);
+    }).catch(() => undefined);
+    void desktop.getUpdateDownloadProgress().then(progress => {
+      if (updateDownloadProgressRevision.current === 0) {
+        setDesktopUpdateDownloadProgress(progress);
+        setDownloadProgressOpen(Boolean(progress));
+      }
     }).catch(() => undefined);
     void desktop.getUpdatePreferences().then(setDesktopUpdatePreferences).catch(() => undefined);
     void desktop.updatePromptUiReady().catch(() => undefined);
     return () => {
       unsubscribe();
       unsubscribeAvailability();
+      unsubscribeDownloadProgress();
       void desktop.updatePromptUiNotReady().catch(() => undefined);
     };
   }, []);
@@ -468,7 +510,7 @@ export function Workbench({
     else writeAiWorkDraft(user.id, appId, draft);
   }, [aiWorkDrafts, user.id]);
   const [systemDark, setSystemDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
-  const openSettings = useCallback((section?: "ai" | "permissions" | "configuration" | "account") => {
+  const openSettings = useCallback((section?: "ai" | "permissions" | "configuration" | "account" | "workspace") => {
     setSettingsInitialSection(section);
     if (route !== "/settings" && route !== "/admin/users") setSettingsReturnRoute(route);
     onNavigate("/settings");
@@ -513,6 +555,20 @@ export function Workbench({
   const respondToDesktopUpdatePrompt = useCallback((prompt: DesktopUpdatePrompt, action: DesktopUpdatePromptAction) => {
     setDesktopUpdatePrompt(current => current?.requestId === prompt.requestId ? null : current);
     void window.lfaaDesktop?.respondToUpdatePrompt(prompt.requestId, action).catch(() => undefined);
+  }, []);
+  const openDesktopUpdatePrompt = useCallback(() => {
+    setUpdatePopoverOpen(false);
+    void window.lfaaDesktop?.checkForUpdates().catch(() => undefined);
+  }, []);
+  const cancelDesktopUpdateDownload = useCallback(async () => {
+    const cancel = window.lfaaDesktop?.cancelUpdateDownload;
+    if (!cancel) return;
+    setUpdateDownloadCancelError("");
+    try {
+      if (!await cancel()) setUpdateDownloadCancelError("下载已经结束，请稍候查看更新状态。");
+    } catch {
+      setUpdateDownloadCancelError("取消下载失败，请稍后重试。");
+    }
   }, []);
   const setAutoUpdatePreference = useCallback(async (enabled: boolean) => {
     const savePreference = window.lfaaDesktop?.setAutoUpdateAndInstall;
@@ -629,7 +685,7 @@ export function Workbench({
         ["openMinecraft", () => openApplicationFromCurrentPage("minecraft")],
         ["openWriting", () => openApplicationFromCurrentPage("writing")]
       ];
-      const shortcuts = resolveShortcutSettings(settings.shortcuts);
+      const shortcuts = resolveShortcutSettings(shortcutSettingsRef.current);
       const match = entries.find(([key]) => shortcuts[key].some((chord) => shortcutMatches(event, chord)));
       if (match) {
         event.preventDefault();
@@ -638,7 +694,7 @@ export function Workbench({
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [onNavigate, openApplicationFromCurrentPage, openSettings, settings]);
+  }, [onNavigate, openApplicationFromCurrentPage, openSettings]);
 
   const resolvedTheme = settings.appearance.theme === "system"
     ? (systemDark ? "dark" : "light")
@@ -700,11 +756,16 @@ export function Workbench({
     "--settings-contrast-soft-mix": `${Math.max(0, -contrastDelta) / 3}%`,
     // 设置中心与应用工作区导航、主画布和 AI Work 输入区的主题底色透明度统一跟随背景遮罩；0% 时透出壁纸。
     "--settings-background-surface-opacity": `${settings.appearance.overlay}%`,
+    // 更新日志悬浮卡片与确认弹窗的表面不透明度由账户外观设置控制，避免默认壁纸透出过多。
+    "--settings-update-surface-opacity": `${settings.appearance.updateSurfaceOpacity}%`,
     "--settings-background-image": backgroundFile && !wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? `url("${backgroundFile}")` : "none",
-    "--settings-background-overlay": resolvedTheme === "dark" ? `rgba(24, 24, 24, ${settings.appearance.overlay / 100})` : `rgba(244, 247, 252, ${settings.appearance.overlay / 100})`,
+    // 壁纸遮罩使用深色中性灰或浅色纯白，透明度继续读取账户偏好。
+    "--settings-background-overlay": resolvedTheme === "dark" ? `rgba(24, 24, 24, ${settings.appearance.overlay / 100})` : `rgba(255, 255, 255, ${settings.appearance.overlay / 100})`,
     "--settings-glass-blur": `${settings.appearance.blur}px`,
-    // AI Work 空闲回复区的模糊半径，强度按账户百分比映射到 0–8px，保持内容不透明并控制绘制成本。
-    "--settings-ai-work-output-focus-blur": `${appearanceAdvanced.aiWorkOutputFocusBlurPercent * 0.08}px`
+    // AI Work 空闲回复区的模糊半径按账户百分比映射到 0–8px。
+    "--settings-ai-work-output-focus-blur": `${appearanceAdvanced.aiWorkOutputFocusBlurPercent * 0.08}px`,
+    // AI Work 空闲回复区的不透明度，0% 保持完全可见，100% 淡出至完全透明。
+    "--settings-ai-work-output-focus-opacity": `${1 - appearanceAdvanced.aiWorkOutputFocusBlurPercent / 100}`
   } as CSSProperties;
 
   let pageContent;
@@ -831,11 +892,11 @@ export function Workbench({
       algorithm: resolvedTheme === "dark" ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
       token: {
         colorPrimary: activeAccentColor,
-        colorText: resolvedTheme === "dark" ? "#e5e5e5" : "#263247",
-        colorTextSecondary: resolvedTheme === "dark" ? "#c7c7c7" : "#5d6a80",
+        colorText: resolvedTheme === "dark" ? "#e5e5e5" : "#171717",
+        colorTextSecondary: resolvedTheme === "dark" ? "#c7c7c7" : "#525252",
         colorBgBase: resolvedTheme === "dark" ? "#181818" : "#ffffff",
         colorBgContainer: resolvedTheme === "dark" ? "#202020" : "#ffffff",
-        colorBorder: resolvedTheme === "dark" ? "#3a3a3a" : "#dce3ed",
+        colorBorder: resolvedTheme === "dark" ? "#3a3a3a" : "#dedede",
         fontFamily: "var(--font-family-sans)"
       }
     }}>
@@ -845,10 +906,20 @@ export function Workbench({
           <span className="brand-mark" aria-hidden="true">L</span>
           <span className="brand-name">LFAA</span>
         </button>
-        {desktopAvailableUpdate ? <Popover
+        {desktopUpdateDownloadProgress ? <Button
+          className="lfaa-update-entry lfaa-update-entry--progress"
+          aria-label={`LFAA ${desktopUpdateDownloadProgress.version} ${desktopUpdateDownloadProgress.phase === "cancelling" ? "正在取消下载" : "正在下载更新"}`}
+          aria-live="polite"
+          onClick={() => setDownloadProgressOpen(true)}
+        >
+          <span className="lfaa-update-entry__spinner" aria-hidden="true" />
+          {desktopUpdateDownloadProgress.phase === "cancelling" ? "正在取消更新…" : desktopUpdateDownloadProgress.percent === null
+            ? "正在准备下载更新…"
+            : `正在下载更新… ${formatDesktopUpdateBytes(desktopUpdateDownloadProgress.transferredBytes)} / ${desktopUpdateDownloadProgress.totalBytes === null ? "未知大小" : formatDesktopUpdateBytes(desktopUpdateDownloadProgress.totalBytes)}`}
+        </Button> : desktopAvailableUpdate ? <Popover
           open={updatePopoverOpen}
           onOpenChange={setUpdatePopoverOpen}
-          trigger="click"
+          trigger={["hover", "focus"]}
           placement="bottomLeft"
           overlayClassName="lfaa-update-popover"
           getPopupContainer={trigger => trigger.parentElement ?? document.body}
@@ -860,7 +931,7 @@ export function Workbench({
             <ul>{desktopAvailableUpdate.releaseNotes.map((note, index) => <li key={`${index}-${note}`}>{note}</li>)}</ul>
           </section>}
         >
-          <Button className="lfaa-update-entry" aria-label={`发现新版本 LFAA ${desktopAvailableUpdate.version}`} aria-expanded={updatePopoverOpen}>更新</Button>
+          <Button className="lfaa-update-entry" aria-label={`打开 LFAA ${desktopAvailableUpdate.version} 更新提示`} aria-haspopup="dialog" aria-expanded={updatePopoverOpen} onClick={openDesktopUpdatePrompt}>更新</Button>
         </Popover> : null}
         <nav className="topbar-nav" aria-label="主导航">
           <Button type="text" className={route === "/" ? "nav-button nav-button--active" : "nav-button"} onClick={() => onNavigate("/")}>
@@ -882,6 +953,55 @@ export function Workbench({
       <main className={`workbench-content${route === "/" ? " workbench-content--app-center" : ""}${appRoute || isFileManagerPage ? " workbench-content--module" : ""}${isSettingsPage ? " workbench-content--settings" : ""}`}>
         {pageContent}
       </main>
+      {desktopUpdateDownloadProgress && downloadProgressOpen ? <Modal
+        open
+        centered
+        width={520}
+        footer={null}
+        title={null}
+        closable
+        maskClosable={false}
+        getContainer={false}
+        className="lfaa-update-modal"
+        onCancel={() => setDownloadProgressOpen(false)}
+      >
+        <section className="lfaa-update-download" aria-labelledby="lfaa-update-download-title" aria-live="polite">
+          <header className="lfaa-update-prompt__header">
+            <span className="lfaa-update-prompt__brand" aria-hidden="true">L</span>
+            <div className="lfaa-update-prompt__heading">
+              <Typography.Text className="lfaa-update-prompt__eyebrow">
+                {desktopUpdateDownloadProgress.phase === "cancelling" ? "正在取消下载" : desktopUpdateDownloadProgress.percent === null ? "正在准备下载" : "正在下载更新"}
+              </Typography.Text>
+              <Typography.Title id="lfaa-update-download-title" level={3}>LFAA {desktopUpdateDownloadProgress.version}</Typography.Title>
+            </div>
+          </header>
+          <div className="lfaa-update-download__summary">
+            <Typography.Text>下载进度</Typography.Text>
+            <Typography.Text className="lfaa-update-download__numbers">
+              {desktopUpdateDownloadProgress.percent === null ? "连接更新服务…" : `${formatDesktopUpdateBytes(desktopUpdateDownloadProgress.transferredBytes)} / ${desktopUpdateDownloadProgress.totalBytes === null ? "大小未知" : formatDesktopUpdateBytes(desktopUpdateDownloadProgress.totalBytes)}`}
+            </Typography.Text>
+          </div>
+          <div
+            className={`lfaa-update-download__bar${desktopUpdateDownloadProgress.percent === null ? " lfaa-update-download__bar--indeterminate" : ""}`}
+            role="progressbar"
+            aria-label={`LFAA ${desktopUpdateDownloadProgress.version} 下载进度`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={desktopUpdateDownloadProgress.percent === null ? undefined : Math.round(desktopUpdateDownloadProgress.percent)}
+          >
+            <span style={{ width: desktopUpdateDownloadProgress.percent === null ? undefined : `${Math.max(0, Math.min(100, desktopUpdateDownloadProgress.percent))}%` }} />
+          </div>
+          <div className="lfaa-update-download__footnote">
+            <Typography.Text type="secondary">{desktopUpdateDownloadProgress.percent === null ? "正在连接更新服务" : `${Math.round(desktopUpdateDownloadProgress.percent)}% · ${formatDesktopUpdateBytes(desktopUpdateDownloadProgress.bytesPerSecond)}/秒`}</Typography.Text>
+            {updateDownloadCancelError ? <Typography.Text type="danger">{updateDownloadCancelError}</Typography.Text> : null}
+          </div>
+          <footer className="lfaa-update-prompt__actions">
+            <Button disabled={desktopUpdateDownloadProgress.phase === "cancelling"} onClick={() => void cancelDesktopUpdateDownload()}>
+              {desktopUpdateDownloadProgress.phase === "cancelling" ? "正在取消…" : "取消下载"}
+            </Button>
+          </footer>
+        </section>
+      </Modal> : null}
       {desktopUpdatePrompt ? <Modal
         open
         centered
@@ -899,7 +1019,7 @@ export function Workbench({
           <header className="lfaa-update-prompt__header">
             <span className="lfaa-update-prompt__brand" aria-hidden="true">L</span>
             <div className="lfaa-update-prompt__heading">
-              <Typography.Text className="lfaa-update-prompt__eyebrow">{desktopUpdatePrompt.kind === "notice" ? "更新状态" : desktopUpdatePrompt.kind === "install" ? "更新已就绪" : "发现新版本"}</Typography.Text>
+              <Typography.Text className="lfaa-update-prompt__eyebrow">{desktopUpdatePrompt.kind === "notice" ? "更新状态" : desktopUpdatePrompt.kind === "install" ? "更新已准备就绪" : "发现新版本"}</Typography.Text>
               <Typography.Title id="lfaa-update-prompt-title" level={3}>
                 {desktopUpdatePrompt.kind === "notice" ? desktopUpdatePrompt.title : `LFAA ${desktopUpdatePrompt.version}`}
               </Typography.Title>
@@ -916,7 +1036,7 @@ export function Workbench({
             {desktopUpdatePrompt.detail ? <Typography.Text type="secondary">{desktopUpdatePrompt.detail}</Typography.Text> : null}
           </div> : <>
             <div className="lfaa-update-prompt__meta">
-              <Tag color="blue">{desktopUpdatePrompt.kind === "install" ? "已下载" : desktopUpdatePrompt.mandatory ? "必须更新" : "稳定版"}</Tag>
+              <Tag className="lfaa-update-prompt__tag">{desktopUpdatePrompt.kind === "install" ? "已准备就绪" : desktopUpdatePrompt.mandatory ? "必须更新" : "稳定版"}</Tag>
               <Typography.Text type="secondary">发布于 {desktopUpdatePrompt.publishedAt}</Typography.Text>
             </div>
             <div className="lfaa-update-prompt__notes">
@@ -937,7 +1057,7 @@ export function Workbench({
                 下载会在确认后开始；未开启自动更新时，安装仍会再次询问。
               </Typography.Paragraph>
             </> : <Typography.Paragraph className="lfaa-update-prompt__hint">
-              安装将重启 LFAA，并按现有关闭流程停止由本机 Daemon 托管的游戏实例。
+              选择“稍后”可继续使用；退出 LFAA 时会安装已下载更新。选择重启并安装会先关闭本机控制端和 Daemon，再启动 Windows 安装程序。
             </Typography.Paragraph>}
           </>}
           <footer className="lfaa-update-prompt__actions">
@@ -947,8 +1067,8 @@ export function Workbench({
                 {desktopUpdatePrompt.mandatory ? null : <Button onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "defer")}>稍后</Button>}
                 <Button type="primary" onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "accept")}>{desktopUpdatePrompt.mandatory ? "下载并安装更新" : "下载更新"}</Button>
               </> : <>
-                {desktopUpdatePrompt.mandatory ? null : <Button onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "later")}>稍后，退出时安装</Button>}
-                <Button type="primary" onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "install")}>{desktopUpdatePrompt.mandatory ? "安装并重启" : "现在安装并重启"}</Button>
+                {desktopUpdatePrompt.mandatory ? null : <Button onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "later")}>稍后</Button>}
+                <Button type="primary" onClick={() => respondToDesktopUpdatePrompt(desktopUpdatePrompt, "install")}>重启并安装</Button>
               </>}
           </footer>
         </section>

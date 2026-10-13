@@ -15,6 +15,11 @@
     }
   },
   "dependencies": {
+    "lfaa-tool-shell": "workspace:*",
+    "lfaa-mcp-client": "workspace:*",
+    "lfaa-llm": "workspace:*",
+    "lfaa-tool-skill": "workspace:*",
+    "lfaa-tool-session-query": "workspace:*",
     "lfaa-agent": "workspace:*",
     "lfaa-agent-loop": "workspace:*",
     "lfaa-agent-preset": "workspace:*",
@@ -38,6 +43,7 @@
     "lfaa-workflow": "workspace:*",
     "lfaa-workflow-dag-engine": "workspace:*",
     "lfaa-workflow-minecraft-adapter": "workspace:*",
+    "lfaa-tool-workflow": "workspace:*",
     "lfaa-credential-flows": "workspace:*",
     "lfaa-plugin-manager": "workspace:*",
     "lfaa-session": "workspace:*",

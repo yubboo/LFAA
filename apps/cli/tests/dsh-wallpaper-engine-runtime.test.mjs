@@ -8,6 +8,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { Context } from '@deepseek-ai/cordis';
 
 const packageId = 'dsh-plugin-wallpaper-engine';
@@ -49,7 +50,7 @@ writeFileSync(join(installed, 'lib', 'index.js'), [
   '  function handleSceneFiles(req, res, mount) {',
   '    const token = "token";',
   '    const abs = mediaMap.get(token);',
-  '    const subpath = "scene.pkg";',
+  '    const subpath = "scene.json";',
   '    const root = dirname(abs);',
   '    const target = resolve(root, subpath);',
   '    if (target === root || !target.startsWith(root + sep)) return;',
@@ -58,6 +59,14 @@ writeFileSync(join(installed, 'lib', 'index.js'), [
   '    realRoot = realpathSync.native(root);',
   '    if (realTarget && realTarget !== realRoot && !realTarget.startsWith(realRoot + sep)) return;',
   "    serveFile(target, req, res, method === 'HEAD', { revalidate: true, payloadToken: token });",
+  '  }',
+  '  function respondNoSceneAudio(res, file) {',
+  '    if (!file) {',
+  '      res.statusCode = 404;',
+  "      res.setHeader('Content-Type', 'application/json; charset=utf-8');",
+  "      res.end(JSON.stringify({ error: 'no-scene-audio' }));",
+  '      return;',
+  '    }',
   '  }',
   '  function ensureMediaOrigin() {',
   '    return new Promise((done) => {',
@@ -95,6 +104,14 @@ writeFileSync(join(installed, 'lib', 'client.js'), [
   '\t\t  }',
   '',
   '\t\t  // Settings first (host file, port-independent).',
+  'function weDrawFrame(canvas) {',
+  '  canvas.dataset.weDrawn = "1";',
+  '  noteLayerContent(canvas);',
+  '}',
+  'function layerContentReady(node) {',
+  '  if (node.querySelector("canvas.we-media--canvas")) return false;',
+  '  return true;',
+  '}',
   'function apply(ctx) {',
   'exports.apply = apply;',
   'exports.inject = inject;',
@@ -127,6 +144,35 @@ writeFileSync(join(installed, 'lib', 'routes', 'scene-serve.js'), [
   '    }',
   '  }));',
   '}'
+].join('\n'));
+writeFileSync(join(installed, 'lib', 'routes', 'scene-frame.js'), [
+  'export function registerSceneFrameRoutes(webServer, c) {',
+  "  const BASE = '/wallpaper-engine';",
+  '  const handler = (req, res) => {',
+  "    const method = (req.method || 'GET').toUpperCase();",
+  "    const abs = mediaMap.get('token');",
+  '    if (!abs) {',
+  '      res.statusCode = 404;',
+  "      res.setHeader('Content-Type', 'application/json; charset=utf-8');",
+  "      res.end(JSON.stringify({ error: 'unknown-token' }));",
+  '      return;',
+  '    }',
+  "    if (method === 'HEAD') {",
+  '      if (!file) {',
+  '        res.statusCode = 404;',
+  "        res.setHeader('Content-Type', 'application/json; charset=utf-8');",
+  "        res.end(JSON.stringify({ error: 'no-frame' }));",
+  '        return;',
+  '      }',
+  '    }',
+  '    if (!servePath) {',
+  '      res.statusCode = variant === 4 ? 422 : 404;',
+  "      res.setHeader('Content-Type', 'application/json; charset=utf-8');",
+  "      res.end(JSON.stringify({ error: variant === 4 ? 'no-custom-frame' : 'no-frame' }));",
+  '      return;',
+  '    }',
+  '  };',
+  '}',
 ].join('\n'));
 
 const activeFiber = { state: 2, await: async () => activeFiber };
@@ -176,9 +222,20 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
   assert.equal(runtime.supports({ ...record, source: { ...record.source, commit: 'a'.repeat(40) } }), true, 'a second verified commit is accepted without a code pin');
   assert.equal(runtime.supports({ ...record, source: { ...record.source, repository: 'https://github.com/untrusted/dsh-wallpaper-engine' } }), false);
   assert.equal(runtime.supports({ ...record, source: { ...record.source, commit: 'not-a-commit' } }), false);
-  const sourceFiles = ['package.json', 'cordis.patch.yml', 'lib/index.js', 'lib/client.js', 'lib/http-body.js', 'lib/settings-schema.js', 'lib/routes/scene-serve.js']
+  const sourceFiles = ['package.json', 'cordis.patch.yml', 'lib/index.js', 'lib/client.js', 'lib/http-body.js', 'lib/settings-schema.js', 'lib/routes/scene-serve.js', 'lib/routes/scene-frame.js']
     .map(path => ({ path, contents: readFileSync(join(installed, path)) }));
   assert.deepEqual(runtime.inspectSnapshot(record, sourceFiles), { supported: true, reason: null });
+  const changedEdgeCanvasGate = sourceFiles.map(file => file.path === 'lib/client.js'
+    ? { ...file, contents: Buffer.from(file.contents.toString('utf8').replace(
+      '  if (node.querySelector("canvas.we-media--canvas")) return false;',
+      '  if (node.querySelector("canvas.we-media--canvas")) return true;'
+    )) }
+    : file);
+  assert.equal(runtime.inspectSnapshot(record, changedEdgeCanvasGate).supported, false, 'an unknown Edge canvas readiness contract fails closed');
+  const changedEdgeCanvasDrawSignal = sourceFiles.map(file => file.path === 'lib/client.js'
+    ? { ...file, contents: Buffer.from(file.contents.toString('utf8').replace('  noteLayerContent(canvas);', '  noteLayerContent(node);')) }
+    : file);
+  assert.equal(runtime.inspectSnapshot(record, changedEdgeCanvasDrawSignal).supported, false, 'the Edge first-frame signal must remain paired with the verified draw callback');
   const unsupportedSceneFunction = sourceFiles.map(file => file.path === 'lib/index.js'
     ? { ...file, contents: Buffer.from(file.contents.toString('utf8').replace(
       '  function ensureSceneMediaOrigin() {\n    return ensureMediaOrigin().then((mediaOrigin) => (mediaOrigin ? mediaOrigin.base : ""));\n  }',
@@ -207,6 +264,12 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
     ? { ...file, contents: Buffer.from(file.contents.toString('utf8').replace('      if (abs === WEBWALLGL_DIR || !abs.startsWith(WEBWALLGL_DIR + sep)) {\n', '')) }
     : file);
   assert.equal(runtime.inspectSnapshot(record, missingSceneAssetFence).supported, false, 'a changed Scene Renderer path fence fails closed');
+  const missingSceneFrameProbe = sourceFiles.filter(file => file.path !== 'lib/routes/scene-frame.js');
+  assert.equal(runtime.inspectSnapshot(record, missingSceneFrameProbe).supported, false, 'the runtime requires the route whose expected no-frame miss it classifies');
+  const changedSceneFrameProbe = sourceFiles.map(file => file.path === 'lib/routes/scene-frame.js'
+    ? { ...file, contents: Buffer.from(file.contents.toString('utf8').replace("{ error: 'no-frame' }", "{ error: 'frame-missing' }")) }
+    : file);
+  assert.equal(runtime.inspectSnapshot(record, changedSceneFrameProbe).supported, false, 'a changed no-frame response fails closed');
 
   await runtime.enable(record, installed);
   assert.equal(runtime.isActive(record), true);
@@ -215,7 +278,7 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
   assert.deepEqual(loaderCalls[0].inject, ['webServer']);
   assert.equal(process.env.DSH_WE_DATA_DIR, join(data, 'plugins', 'runtime-data', 'profiles', 'web', packageId));
 
-  const runtimeCopy = join(data, 'plugins', 'runtime-adapters', 'profiles', 'web', packageId, commit, 'adapter-7');
+  const runtimeCopy = join(data, 'plugins', 'runtime-adapters', 'profiles', 'web', packageId, commit, 'adapter-9');
   const adaptedManifest = JSON.parse(readFileSync(join(runtimeCopy, 'package.json'), 'utf8'));
   assert.deepEqual(adaptedManifest.dsh.client.inject, ['slots', 'shortcuts', 'theme']);
   const host = readFileSync(join(runtimeCopy, 'lib', 'index.js'), 'utf8');
@@ -226,6 +289,10 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
   assert.doesNotMatch(host, /server\.listen\(0, '127\.0\.0\.1'/u, 'the adapted runtime must not contain an active ephemeral listener');
   assert.match(host, /function handleSceneFiles\(req, res, mount\)/u, 'the upstream fenced file handler must remain available');
   assert.match(host, /realpathSync\.native\(target\)/u, 'the media route must preserve the upstream realpath fence');
+  assert.match(host, /abs\.toLowerCase\(\)\.endsWith\("\.pkg"\) && subpath === "scene\.json" && !existsSync\(target\) && res\.locals\) res\.locals\.lfaaExpectedMiss = true/u,
+    'only a missing optional scene.json next to a scene.pkg is marked as an expected miss');
+  assert.match(host, /if \(res\.locals\) res\.locals\.lfaaExpectedMiss = true;\s*res\.end\(JSON\.stringify\(\{ error: 'no-scene-audio' \}\)\)/u,
+    'only the explicit no-scene-audio response is marked');
   assert.match(host, /disposers\.push\(\(\) => \{ try \{ mediaOrigin\?\.server\?\.close\(\)/u, 'Cordis Fiber cleanup must close the media listener');
   assert.match(host, /path: `\$\{BASE\}\/scene-files`, handler: \(req, res\) => handleSceneFiles\(req, res, "app"\)/u, 'the existing same-origin scene route must remain registered');
   assert.match(host, /export default \{ inject, apply: \(ctx, config\) => apply\(ctx, config\) \};/u);
@@ -233,10 +300,25 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
   assert.match(sceneServe, /if \(rest === 'index\.html'\) res\.setHeader\('X-Frame-Options', 'SAMEORIGIN'\)/u, 'only the same-origin iframe document may be embedded');
   assert.equal((sceneServe.match(/X-Frame-Options/g) ?? []).length, 1, 'static Scene assets and other routes retain the global frame policy');
   assert.ok(sceneServe.indexOf("'SAMEORIGIN'") < sceneServe.indexOf("serveFile(abs, req, res, method === 'HEAD');"), 'the frame policy is set before the document is served');
+  const sceneFrame = readFileSync(join(runtimeCopy, 'lib', 'routes', 'scene-frame.js'), 'utf8');
+  assert.match(sceneFrame, /if \(res\.locals\) res\.locals\.lfaaExpectedMiss = true;\s*res\.statusCode = 404;[\s\S]*?error: 'no-frame'/u,
+    'the empty HEAD frame probe is marked as expected');
+  assert.match(sceneFrame, /if \(variant !== 4 && res\.locals\) res\.locals\.lfaaExpectedMiss = true;\s*res\.statusCode = variant === 4 \? 422 : 404;/u,
+    'automatic frame misses are marked while pinned custom-frame failures retain 422');
+  assert.doesNotMatch(sceneFrame.slice(0, sceneFrame.indexOf("if (method === 'HEAD')")), /lfaaExpectedMiss/u,
+    'unknown-token is not marked as an expected miss');
   const client = readFileSync(join(runtimeCopy, 'lib', 'client.js'), 'utf8');
   assert.doesNotMatch(client, /ReactDOM\.createRoot\(host\)/u);
   assert.match(client, /shell\.overlay/u);
   assert.match(client, /clearWallpaperEngineOverride/u);
+  assert.match(client, /const canvas = node\.querySelector\("canvas\.we-media--canvas"\);\s*if \(canvas\) return Boolean\(canvas\.dataset && canvas\.dataset\.weDrawn === "1"\);/u,
+    'Edge video layers become ready only after their mirror canvas has actually drawn a frame');
+  const readinessFunction = client.match(/function layerContentReady\(node\) \{[\s\S]*?\n\}/u)?.[0];
+  assert.ok(readinessFunction, 'the adapted video readiness function remains available');
+  const layerContentReady = runInNewContext(`(${readinessFunction})`);
+  assert.equal(layerContentReady({ querySelector: () => ({ dataset: {} }) }), false, 'an empty canvas must keep the old wallpaper visible');
+  assert.equal(layerContentReady({ querySelector: () => ({ dataset: { weDrawn: '1' } }) }), true, 'the first drawn video frame releases the old wallpaper');
+  assert.equal(layerContentReady({ querySelector: () => null }), true, 'non-canvas media keep the existing readiness path');
   assert.match(client, /exports\.apply = \(ctx, config\) => apply\(ctx, config\);/u);
   const workbenchSource = readFileSync(new URL('../../../packages/client/ui-layout/src/Workbench.tsx', import.meta.url), 'utf8');
   assert.match(workbenchSource, /<DshSlotOutlet name="shell\.overlay" \/>/u, 'the Workbench must render the upstream floating RopeDock slot');
@@ -267,7 +349,7 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
   };
   assert.equal(runtime.supports(nextRecord), true, 'same official DSH v1 contract accepts a new verified version and commit');
   await runtime.enable(nextRecord, nextInstalled);
-  const nextRuntimeCopy = join(data, 'plugins', 'runtime-adapters', 'profiles', 'web', packageId, nextCommit, 'adapter-7');
+  const nextRuntimeCopy = join(data, 'plugins', 'runtime-adapters', 'profiles', 'web', packageId, nextCommit, 'adapter-9');
   const nextAdaptedManifest = JSON.parse(readFileSync(join(nextRuntimeCopy, 'package.json'), 'utf8'));
   const nextMarker = JSON.parse(readFileSync(join(nextRuntimeCopy, 'lfaa-runtime-adapter.json'), 'utf8'));
   assert.equal(nextAdaptedManifest.version, '1.3.0');
@@ -308,7 +390,7 @@ test('LFAA Harness activates the adapted Host through its Cordis Loader and WebS
 
     await runtime.enable(record, installed);
     assert.equal(runtime.isActive(record), true);
-    const hostEntry = [...hostContext.loader.entries()].find(entry => entry.options.name.includes(`${commit}/adapter-7/lib/index.js`));
+    const hostEntry = [...hostContext.loader.entries()].find(entry => entry.options.name.includes(`${commit}/adapter-9/lib/index.js`));
     assert.equal(hostEntry?.fiber?.state, 2);
     assert.equal(carrier.exactRoutes.has('/wallpaper-engine/inventory'), true);
     assert.equal(carrier.prefixRoutes.has('/wallpaper-engine/scene-files'), true, 'scene files stay on the authenticated LFAA Host route');

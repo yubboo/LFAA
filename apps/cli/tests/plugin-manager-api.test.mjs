@@ -67,7 +67,7 @@ test('Web Profile 加载通用能力工具并保护适配器目录与插件 API'
   assert.deepEqual(catalog.find(item => item.kind === 'plugin'), {
     kind: 'plugin',
     available: true,
-    applicationIds: ['steamcmd', 'minecraft', 'writing', 'workspace'],
+    applicationIds: ['steamcmd', 'minecraft', 'connectivity', 'writing', 'workspace'],
     targetSchema: { type: 'object', properties: {}, additionalProperties: false },
     targetDescription: 'Profile 插件不需要额外的实例或项目目标；安装记录限定到 targetApplicationId。',
     operations: ['search', 'inspect', 'install', 'list', 'enable', 'disable', 'remove'],
