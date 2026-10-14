@@ -16,9 +16,20 @@ const libraryDirectory = ".lfaa-library";
 const localDriveShortcut = "local-drives";
 const protectedWindowsRootDirectories = new Set(["$recycle.bin", "system volume information", "windows", "windows.old", "recovery", "program files", "program files (x86)", "programdata"]);
 let localVolumeCache: { expiresAt: number; volumes: Array<{ id: string; name: string; root: string }> } | null = null;
+let localVolumePending: Promise<Array<{ id: string; name: string; root: string }>> | null = null;
 
 async function listLocalVolumes(): Promise<Array<{ id: string; name: string; root: string }>> {
   if (localVolumeCache && localVolumeCache.expiresAt > Date.now()) return localVolumeCache.volumes;
+  if (localVolumePending) return localVolumePending;
+  const pending = scanLocalVolumes();
+  localVolumePending = pending;
+  try {
+    const volumes = await pending;
+    localVolumeCache = { expiresAt: Date.now() + 20_000, volumes };
+    return volumes;
+  } finally { if (localVolumePending === pending) localVolumePending = null; }
+}
+async function scanLocalVolumes(): Promise<Array<{ id: string; name: string; root: string }>> {
   const volumes: Array<{ id: string; name: string; root: string }> = [];
   if (process.platform === "win32") {
     const candidates = Array.from({ length: 26 }, (_, index) => String.fromCharCode(65 + index));
@@ -39,7 +50,6 @@ async function listLocalVolumes(): Promise<Array<{ id: string; name: string; roo
   } else {
     volumes.push({ id: "root", name: "本机文件系统 (/)" , root: "/" });
   }
-  localVolumeCache = { expiresAt: Date.now() + 20_000, volumes };
   return volumes;
 }
 
@@ -124,7 +134,10 @@ export class SystemFileLibrary {
     }
     if (operation === "move") { const target = this.split(input.destinationPath); if (target[0] === libraryDirectory) throw new ApiError(400, "cross_owner_move", "不能直接移入业务 Owner 目录。"); }
     const result = await this.local(actor).operate(operation, input);
-    if (!parts.length && operation === "list") return { ...result, rootDirectory: this.dataRoot, entries: [...result.entries as ManagedFileEntry[], { name: "本机磁盘", path: localDriveShortcut, kind: "directory", size: 0, fileType: "folder", modifiedAt: "", operations: ["list"] }, ...(this.mounts.size ? [{ name: "应用资源", path: libraryDirectory, kind: "directory", size: 0, fileType: "folder", modifiedAt: "", operations: ["list"] }] : [])] };
+    if (!parts.length && operation === "list") {
+      const volumes = await listLocalVolumes();
+      return { ...result, rootDirectory: this.dataRoot, entries: [...result.entries as ManagedFileEntry[], { name: "本机磁盘", path: localDriveShortcut, kind: "directory", size: 0, fileType: "folder", modifiedAt: "", operations: ["list"] }, ...volumes.map(volume => ({ name: volume.name, path: `${localDriveShortcut}/${volume.id}`, kind: "directory", size: 0, fileType: "folder", modifiedAt: "", operations: ["list"] })), ...(this.mounts.size ? [{ name: "应用资源", path: libraryDirectory, kind: "directory", size: 0, fileType: "folder", modifiedAt: "", operations: ["list"] }] : [])] };
+    }
     return result;
   }
   private async operateLocalDrives(actor: FileActor, operation: FileManagerOperation, input: Record<string, unknown>, parts: string[]): Promise<Record<string, unknown>> {

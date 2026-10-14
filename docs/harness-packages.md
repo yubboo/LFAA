@@ -4,7 +4,7 @@
 
 参考 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，上游基线 commit `639ed015397290b3745d163aafe02ffee4aa3f84`。
 
-当前 357 个两级目录、181 个实际 workspace 包（179 个产品源码/组合包，2 个工程/测试包），176 个占位目录。控制端/节点运行树含 155 个包；客户端源码包单独进入 Web 构建。
+当前 359 个两级目录、183 个实际 workspace 包（181 个产品源码/组合包，2 个工程/测试包），176 个占位目录。控制端/节点运行树含 157 个包；客户端源码包单独进入 Web 构建。
 
 `implemented` 仅表示有 package.json 和源码/装配；不代表已经进入 Profile、通过运行验收或与 DSH 等价。`placeholder` 不可执行。产品能力现状见 [系统总体架构](系统总体架构.md)，历史核验见 [P0 记录](archive/audits/harness-p0-audit.md)。
 
@@ -182,6 +182,7 @@
 | [packages/fs/tool-fs-search](../packages/fs/tool-fs-search) | lfaa-tool-fs-search | implemented | DSH 同名目录 |
 | [packages/fs/tool-str-replace-editor](../packages/fs/tool-str-replace-editor) | lfaa-tool-str-replace-editor | implemented | DSH 同名目录 |
 | [packages/games/minecraft](../packages/games/minecraft) | lfaa-games-minecraft | implemented | LFAA 扩展 |
+| [packages/games/runtime-manager](../packages/games/runtime-manager) | lfaa-runtime-manager | implemented | LFAA 扩展 |
 | [packages/games/steamcmd](../packages/games/steamcmd) | lfaa-games-steamcmd | implemented | LFAA 扩展 |
 | [packages/goal/command-goal](../packages/goal/command-goal) | — | placeholder | DSH 同名目录 |
 | [packages/goal/goal](../packages/goal/goal) | — | placeholder | DSH 同名目录 |
@@ -202,6 +203,7 @@
 | [packages/host/open-in-app](../packages/host/open-in-app) | — | placeholder | DSH 同名目录 |
 | [packages/host/plugin-inventory](../packages/host/plugin-inventory) | — | placeholder | DSH 同名目录 |
 | [packages/host/product-telemetry-otel](../packages/host/product-telemetry-otel) | — | placeholder | DSH 同名目录 |
+| [packages/host/runtime-environment](../packages/host/runtime-environment) | lfaa-runtime-environment | implemented | LFAA 扩展 |
 | [packages/host/webserver](../packages/host/webserver) | lfaa-host-webserver | implemented | DSH 同名目录 |
 | [packages/identity/anonymous-user-id](../packages/identity/anonymous-user-id) | — | placeholder | DSH 同名目录 |
 | [packages/identity/auth](../packages/identity/auth) | lfaa-identity-auth | implemented | LFAA 扩展 |

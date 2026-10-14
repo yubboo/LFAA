@@ -15,6 +15,7 @@
     }
   },
   "dependencies": {
+    "lfaa-runtime-manager": "workspace:*",
     "lfaa-tool-shell": "workspace:*",
     "lfaa-mcp-client": "workspace:*",
     "lfaa-llm": "workspace:*",

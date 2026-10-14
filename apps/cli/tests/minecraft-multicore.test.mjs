@@ -22,10 +22,16 @@ const queue = await import('lfaa-jobs/src/minecraft-queue.js');
 const { recordDaemonHeartbeat } = await import('lfaa-host-daemon/src/local-daemon.js');
 const userId = randomUUID(), nodeId = randomUUID();
 database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES(?,?,'fixture-salt','fixture-hash','admin')").run(userId, `fixture-${userId}`);
-recordDaemonHeartbeat({ id: nodeId, displayName: '隔离测试节点', platform: 'win32', architecture: 'x64', version: 'fixture', dataRoot: data, capabilities: ['minecraft-vanilla', 'minecraft-native-v1', 'minecraft-multicore-v1'], javaRuntimes: [] });
+recordDaemonHeartbeat({ id: nodeId, displayName: '隔离测试节点', platform: 'win32', architecture: 'x64', version: 'fixture', dataRoot: data, capabilities: ['minecraft-vanilla', 'minecraft-native-v1', 'minecraft-multicore-v1','java-environment-manager-v1'], javaRuntimes: [] });
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async input => {
   const url = String(input);
+  if (url === 'https://fill.papermc.io/v3/projects/paper') return Response.json({versions:{fixture:['fixture-version','1.12.2']}});
+  if (url.endsWith('/paper/versions/1.12.2')) return Response.json({version:{id:'1.12.2',java:{version:{minimum:8}}}});
+  if (url.endsWith('/paper/versions/1.12.2/builds/1620')) return Response.json({id:1620,channel:'STABLE',downloads:{'server:default':{name:'paper.jar',url:'https://fill-data.papermc.io/v1/objects/fixture/paper.jar',checksums:{sha256:'a'.repeat(64)}}}});
+  if (url.endsWith('/paper/versions/fixture-version')) return Response.json({version:{id:'fixture-version',java:{version:{minimum:21}}}});
+  if (url.endsWith('/paper/versions/fixture-version/builds')) return Response.json([{id:2,time:'fixture',channel:'STABLE',downloads:{'server:default':{checksums:{sha256:'a'.repeat(64)}}}}]);
+  if (url.includes('/paper/versions/fixture-version/builds/')) return Response.json({id:url.endsWith('/fixture-build')?'fixture-build':2,time:'fixture',channel:'STABLE',downloads:{'server:default':{name:'server.jar',url:'https://fill-data.papermc.io/v1/objects/fixture/server.jar',checksums:{sha256:'a'.repeat(64)}}}});
   if (url.endsWith('/api/v3')) return Response.json({ success: true, data: [{ name: 'Paper', tag: 'pure', homepage: 'https://papermc.io', mc_versions: ['fixture-version'] }, { name: 'SpongeNeo', tag: 'mod', homepage: 'https://spongepowered.org', mc_versions: ['fixture-version'] }] });
   if (url.includes('mohistmc.cn/download/youer')) return new Response('"projectName":"youer","availableVersions":["fixture-version"]');
   if (url.includes('version_manifest')) return Response.json({ versions: [{ id: 'fixture-version', url: 'https://piston-meta.mojang.com/fixture/detail' }] });
@@ -88,6 +94,27 @@ test('配置持久化并进入任务；重名冲突不产生额外实例', async
   const { installMinecraftJava } = await import('lfaa-games-minecraft/src/service.js');
   assert.equal(installMinecraftJava(nodeId, userId, 25).payload.downloadTimeoutSeconds, 77);
 });
+test('省略构建和端口由领域 Owner 选择；已登记端口不重复分配', async () => {
+  const input = {nodeId,userId,name:'automatic-defaults',core:'Paper',version:'fixture-version',eulaAccepted:true};
+  const first = await provisionMinecraftServer(input);
+  assert.equal(first.instance.coreBuild,'2');
+  assert.equal(first.task.payload.artifact.source,'papermc');
+  assert.equal(first.task.payload.artifact.algorithm,'sha256');
+  assert.equal(first.task.payload.artifact.javaMajor,21);
+  const second = await provisionMinecraftServer({...input,name:'automatic-defaults-2'});
+  assert.equal(second.task.payload.properties.serverPort,first.task.payload.properties.serverPort+1);
+  await assert.rejects(provisionMinecraftServer({...input,name:'explicit-port-conflict',serverPort:first.task.payload.properties.serverPort}),/端口/u);
+});
+test('Paper 旧版本最低字节码为 8 时复用官方推荐 Java 11，不重复安装 Java 8', async () => {
+  recordDaemonHeartbeat({ id: nodeId, displayName: '隔离测试节点', platform: 'win32', architecture: 'x64', version: 'fixture', dataRoot: data, capabilities: ['minecraft-multicore-v1'], javaRuntimes: [{runtimeId:'temurin-11',major:11,managed:true,vendor:'Eclipse Temurin'}] });
+  const artifact = await resolveMinecraftCoreArtifact('Paper','1.12.2','1620');
+  assert.equal(artifact.javaMajor,11);
+  const created = await provisionMinecraftServer({nodeId,userId,name:'paper-java11-reuse',core:'Paper',version:'1.12.2',build:'1620',eulaAccepted:true,javaRuntimeId:'temurin-11'});
+  assert.equal(created.task.payload.javaMajor,11);
+  assert.equal(created.task.payload.javaRuntimeId,'temurin-11');
+  assert.equal(created.instance.javaMajor,11);
+});
+
 test('EULA、执行边界和路径坐标拒绝无效输入', async () => {
   const input = { nodeId, userId, name: 'fixture-two', core: 'Paper', version: 'fixture-version', build: 'fixture-build', eulaAccepted: false };
   await assert.rejects(provisionMinecraftServer(input), /EULA/u);

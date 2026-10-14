@@ -60,7 +60,8 @@ async function runFixture(mode, decide = "approved", remember = false, scope) {
   try {
     await executeAiTurn({ userId: owner, userRole: "admin", body: { appId: "workspace", sessionId: turn.session.id, content: "fixture" }, turn, aiPluginHost: host, abortController: new AbortController(), emit(event, data) {
       events.push({ event, data });
-      if (event === "activity" && data.activity.status === "approval_required") {
+      // 审批答案会作为原活动再次发布；只有未回答的问题才能提交一次决定。
+      if (event === "activity" && data.activity.status === "approval_required" && !data.activity.approvalAnswer) {
         approvals++;
         const approval = permissions.listAiToolApprovals(owner, "pending").find(row => row.id === data.activity.approvalId);
         assert.ok(approval);

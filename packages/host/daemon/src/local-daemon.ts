@@ -7,6 +7,9 @@ import { database } from "lfaa-storage-sqlite/src/database.js";
 
 export interface JavaRuntimeSummary {
   runtimeId: string;
+  version?: string;
+  architecture?:string;
+  os?:string;
   major: number;
   vendor: string;
   managed: boolean;

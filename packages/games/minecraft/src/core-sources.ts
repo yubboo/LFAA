@@ -1,9 +1,10 @@
 /**
  * 功能：解析多核心版本、构建与经过校验的下载工件。
- * 作用：统一 FastMirror、Mojang 和 Mohist 来源，不接受浏览器提供下载地址或摘要。
+ * 作用：统一 PaperMC、FastMirror、Mojang 和 Mohist 来源，不接受浏览器提供下载地址或摘要。
  * 关联文件：catalog.ts 提供 Mojang 元数据；service.ts 与 deployment-service.ts 派发节点任务；核心面板消费目录接口。
  */
 import { ApiError } from "lfaa-util-values/src/http-error.js";
+import {fetchRuntimeResource} from "lfaa-runtime-environment/src/network.mjs";
 
 export const minecraftCoreNames = ["Vanilla", "Paper", "Purpur", "Folia", "Leaves", "Fabric", "Forge", "Arclight", "CatServer", "SpongeForge", "SpongeNeo", "SpongeVanilla", "BungeeCord", "Velocity", "Nukkit", "PocketMine", "Youer"] as const;
 export type MinecraftCoreName = typeof minecraftCoreNames[number];
@@ -11,7 +12,7 @@ export type CoreCategory = "pure" | "mod" | "vanilla" | "proxy" | "bedrock";
 export type CoreLaunchKind = "jar" | "forge" | "sponge-forge" | "sponge-neo" | "php";
 export interface MinecraftCoreSummary {
   name: MinecraftCoreName; category: CoreCategory; versions: string[]; homepage: string;
-  source: "fastmirror" | "mohist"; launchKind: CoreLaunchKind;
+  source: "papermc" | "fastmirror" | "mohist"; launchKind: CoreLaunchKind;
 }
 export interface MinecraftCoreBuild { id: string; updatedAt: string; digest: string; }
 export interface CoreArtifact {
@@ -22,18 +23,16 @@ export interface CoreArtifact {
 }
 const fastMirrorBase = "https://download.fastmirror.net";
 const mohistBase = "https://api.mohistmc.cn";
+const paperBase = "https://fill.papermc.io/v3/projects/paper";
 const cache = new Map<string, { expiresAt: number; data: unknown }>();
 /** 只读元数据允许一次网络重试；不重放节点写入，失败保留可操作的来源提示。 */
 async function sourceRequest(url: string | URL, init: RequestInit = {}): Promise<Response> {
-  for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const headers = new Headers(init.headers);
-      if (attempt === 1) headers.set("Connection", "close");
-      return await fetch(url, { signal: AbortSignal.timeout(20_000), ...init, headers });
+      if (new URL(url).hostname === "fill.papermc.io") headers.set("User-Agent", "LFAA-Harness (https://github.com/yubboo/LFAA)");
+      return await fetchRuntimeResource(url, { signal: AbortSignal.timeout(20_000), ...init, headers });
     }
-    catch { if (attempt === 1) throw new ApiError(502, "minecraft_source_connection_failed", `无法连接核心来源 ${new URL(url).hostname}，请检查网络后刷新或重试。`); }
-  }
-  throw new ApiError(502, "minecraft_source_connection_failed", "核心来源连接失败。");
+    catch { throw new ApiError(502, "minecraft_source_connection_failed", `无法连接核心来源 ${new URL(url).hostname}，请检查网络后刷新或重试。`); }
 }
 
 /** API 路径分段编码；版本可含空格，但绝不作为实例目录或命令使用。 */
@@ -52,9 +51,9 @@ async function json<T>(url: string): Promise<T> {
   const hit = cache.get(url);
   if (hit && hit.expiresAt > Date.now()) return hit.data as T;
   const parsed = new URL(url);
-  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.port && parsed.port !== "443" || !["download.fastmirror.net", "api.mohistmc.cn", "piston-meta.mojang.com"].includes(parsed.hostname)) throw new ApiError(502, "minecraft_source_invalid", "核心目录来源无效。");
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.port && parsed.port !== "443" || !["download.fastmirror.net", "api.mohistmc.cn", "piston-meta.mojang.com", "fill.papermc.io"].includes(parsed.hostname)) throw new ApiError(502, "minecraft_source_invalid", "核心目录来源无效。");
   const response = await sourceRequest(parsed, { redirect: "error" });
-  if (!response.ok) throw new ApiError(502, "minecraft_catalog_unavailable", `核心目录请求失败（${response.status}）。`);
+  if (!response.ok) {await response.body?.cancel();throw new ApiError(502, "minecraft_catalog_unavailable", `核心目录请求失败（${response.status}）。`);}
   const data = await response.json() as T;
   cache.set(url, { data, expiresAt: Date.now() + 60_000 });
   return data;
@@ -63,6 +62,21 @@ async function mirror<T>(path: string): Promise<T> {
   const response = await json<{ success: boolean; data: T }>(`${fastMirrorBase}/api/v3${path}`);
   if (response.success !== true || response.data == null) throw new ApiError(502, "minecraft_mirror_response_invalid", "FastMirror 未返回有效核心目录。");
   return response.data;
+}
+interface PaperBuild {
+  id: number; time: string; channel: string;
+  downloads: Record<string, { name: string; url: string; checksums: { sha256: string } }>;
+}
+export async function getPaperCoreSummary(): Promise<MinecraftCoreSummary> {
+  const project = await json<{ versions: Record<string, string[]> }>(paperBase);
+  const versions = Object.values(project.versions ?? {}).flat();
+  if (!versions.length || !versions.every(v => typeof v === "string")) throw new ApiError(502, "minecraft_paper_catalog_invalid", "PaperMC 未返回有效版本目录。");
+  return { name: "Paper", category: "pure", versions, homepage: "https://papermc.io", source: "papermc", launchKind: "jar" };
+}
+async function paperBuilds(version: string): Promise<PaperBuild[]> {
+  const rows = await json<PaperBuild[]>(`${paperBase}/versions/${encodeURIComponent(version)}/builds`);
+  if (!Array.isArray(rows) || rows.some(row => !Number.isSafeInteger(row.id) || row.id <= 0)) throw new ApiError(502, "minecraft_paper_builds_invalid", "PaperMC 构建目录格式无效。");
+  return rows.sort((a, b) => b.id - a.id);
 }
 async function youerVersions(): Promise<{ versions: string[] }> {
   const key = "youer-page-versions", hit = cache.get(key);
@@ -84,7 +98,7 @@ export async function listMinecraftCores(): Promise<{ cores: MinecraftCoreSummar
   // 来源彼此独立；一个来源故障不会让另一个来源的目录消失。
   const results = await Promise.allSettled([
     mirror<Array<{ name: string; tag: CoreCategory; homepage: string; mc_versions: string[] }>>(""),
-    youerVersions()
+    youerVersions(), getPaperCoreSummary()
   ]);
   if (results[0].status === "fulfilled" && Array.isArray(results[0].value)) {
     for (const item of results[0].value) {
@@ -98,12 +112,18 @@ export async function listMinecraftCores(): Promise<{ cores: MinecraftCoreSummar
   if (results[1].status === "fulfilled" && Array.isArray(results[1].value.versions)) {
     cores.push({ name: "Youer", category: "mod", homepage: "https://www.mohistmc.cn/download/youer", versions: results[1].value.versions.filter(v => typeof v === "string"), source: "mohist", launchKind: "jar" });
   } else errors.push("Mohist Youer 版本目录暂不可用。");
+  if (results[2].status === "fulfilled") {
+    const previous = cores.findIndex(core => core.name === "Paper");
+    if (previous >= 0) cores.splice(previous, 1);
+    cores.push(results[2].value);
+  } else errors.push("PaperMC 官方版本目录暂不可用。");
   return { cores, errors };
 }
 async function requireCoreVersion(core: string, version: string): Promise<MinecraftCoreSummary> {
   const name = requireMinecraftCore(core);
   validateCoreCoordinate(version);
-  const entry = (await listMinecraftCores()).cores.find(c => c.name === name);
+  // 已明确 Paper 时只请求其官方目录，避免等候无关核心来源。
+  const entry = name === "Paper" ? await getPaperCoreSummary() : (await listMinecraftCores()).cores.find(c => c.name === name);
   if (!entry) throw new ApiError(502, "minecraft_core_source_unavailable", "无法从来源确认该核心。");
   if (!entry.versions.includes(version)) throw new ApiError(400, "minecraft_core_version_unknown", "该来源没有此核心版本，请刷新目录。");
   return entry;
@@ -112,6 +132,10 @@ interface YouerBuild { id: number; build_date: string; file_sha256: string; down
 export async function listMinecraftCoreBuilds(core: string, version: string, offset = 0): Promise<{ builds: MinecraftCoreBuild[]; count: number }> {
   const entry = await requireCoreVersion(core, version);
   if (!Number.isInteger(offset) || offset < 0 || offset > 100_000) throw new ApiError(400, "minecraft_build_offset_invalid", "构建分页偏移无效。");
+  if (entry.name === "Paper") {
+    const rows = await paperBuilds(version);
+    return { builds: rows.slice(offset, offset + 25).map(row => ({ id: String(row.id), updatedAt: row.time, digest: row.downloads?.["server:default"]?.checksums?.sha256 ?? "" })), count: rows.length };
+  }
   if (entry.name === "Youer") {
     const rows = await json<YouerBuild[]>(`${mohistBase}/project/youer/${encodeURIComponent(version)}/builds`);
     if (!Array.isArray(rows)) throw new ApiError(502, "minecraft_build_response_invalid", "Youer 构建格式无效。");
@@ -134,7 +158,11 @@ async function javaForCore(core: MinecraftCoreName, version: string): Promise<nu
   const detail = await json<{ javaVersion?: { majorVersion?: number } }>(game.url);
   const major = detail.javaVersion?.majorVersion ?? 8;
   if (!Number.isInteger(major) || major < 8 || major > 40) throw new ApiError(502, "minecraft_java_requirement_invalid", "版本的 Java 要求无效。");
-  // 旧版插件核心最低 Java 要求可能高于原版；按核心公开运行协议约束。
+  return pluginJavaMajor(core, gameVersion, major);
+}
+/** Paper 官方运行建议与构建最低版本共同约束；所有下载分支共用，避免把最低字节码版本当作推荐运行时。 */
+function pluginJavaMajor(core: MinecraftCoreName, gameVersion: string, major: number): number {
+  // https://docs.papermc.io/paper/getting-started/#requirements
   if (["Paper", "Purpur", "Folia", "Leaves"].includes(core)) {
     const match = /^1\.(\d+)(?:\.(\d+))?$/u.exec(gameVersion);
     if (match) {
@@ -175,9 +203,28 @@ async function resolvePocketMinePhp(): Promise<CoreArtifact["phpArtifact"]> {
   if (!path || !digest) throw new ApiError(502, "minecraft_php_digest_missing", "无法确认 PocketMine Windows PHP 工件和官方摘要。");
   return { url: `https://github.com${path}`, algorithm: "sha256", digest };
 }
-export async function resolveMinecraftCoreArtifact(core: string, version: string, build: string): Promise<CoreArtifact> {
+export async function resolveMinecraftCoreArtifact(core: string, version: string, build?: string): Promise<CoreArtifact> {
   const entry = await requireCoreVersion(core, version);
+  if (build === undefined) {
+    if (entry.name === "Paper") {
+      const stable = (await paperBuilds(version)).find(row => row.channel === "STABLE");
+      if (!stable) throw new ApiError(409, "minecraft_stable_build_missing", "该版本没有稳定 Paper 构建，请选择其他版本或明确指定构建；不会静默更换版本。");
+      build = String(stable.id);
+    } else build = (await listMinecraftCoreBuilds(core, version)).builds[0]?.id;
+    if (!build) throw new ApiError(404, "minecraft_build_unknown", "该核心版本没有可部署构建。");
+  }
   validateCoreCoordinate(build);
+  if (entry.name === "Paper") {
+    const [row, detail] = await Promise.all([
+      json<PaperBuild>(`${paperBase}/versions/${encodeURIComponent(version)}/builds/${encodeURIComponent(build)}`),
+      json<{ version: { id: string; java: { version: { minimum: number } } } }>(`${paperBase}/versions/${encodeURIComponent(version)}`)
+    ]);
+    const file = row.downloads?.["server:default"], javaMajor = detail.version?.java?.version?.minimum;
+    if (String(row.id) !== build || detail.version?.id !== version || !file || !Number.isInteger(javaMajor) || javaMajor < 8 || javaMajor > 40) throw new ApiError(502, "minecraft_paper_artifact_invalid", "PaperMC 构建或 Java 要求与目标版本不符。");
+    const url = new URL(file.url);
+    if (url.protocol !== "https:" || url.hostname !== "fill-data.papermc.io" || url.username || url.password || url.port && url.port !== "443" || !/^[a-f0-9]{64}$/iu.test(file.checksums?.sha256 ?? "") || !/^[\w.-]+\.jar$/u.test(file.name)) throw new ApiError(502, "minecraft_paper_artifact_invalid", "PaperMC 工件来源、文件名或 SHA-256 无效。");
+    return { core: "Paper", version, build, category: entry.category, launchKind: "jar", url: file.url, filename: file.name, algorithm: "sha256", digest: file.checksums.sha256.toLowerCase(), javaMajor: pluginJavaMajor("Paper", version, javaMajor), source: "papermc" };
+  }
   let url: string, digest: string, filename: string, algorithm: "sha1" | "sha256";
   if (entry.name === "Youer") {
     const rows = await json<YouerBuild[]>(`${mohistBase}/project/youer/${encodeURIComponent(version)}/builds`);

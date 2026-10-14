@@ -106,6 +106,8 @@ test("读取明细使用 debug，写入保留 info，所有失败保持可见", 
   assert.equal(requestLogLevel("GET", "/assets/index-RB-F2s6N.js", 200), "debug");
   assert.equal(requestLogLevel("GET", "/api/settings", 200), "debug");
   assert.equal(requestLogLevel("POST", "/api/daemon/tasks/claim", 204), "debug");
+  assert.equal(requestLogLevel("POST", "/api/daemon/runtime/tasks/claim", 200), "debug");
+  assert.equal(requestLogLevel("POST", "/api/daemon/runtime/tasks/claim", 500), "error");
   for (const path of ["/api/daemon/heartbeat", "/api/daemon/tasks/claim", "/api/daemon/files/tasks/claim", "/api/daemon/steamcmd/tasks/claim", "/api/daemon/ai/host-tasks/claim"]) {
     assert.equal(requestLogLevel("POST", path, 200), "debug", path);
     assert.equal(requestLogLevel("POST", path, 401), "warn", path);

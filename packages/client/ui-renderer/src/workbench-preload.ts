@@ -10,6 +10,7 @@ const APP_WORKSPACE_ROUTE = /^\/apps\/(?:steamcmd|minecraft|connectivity|writing
 
 export function shouldPreloadWorkbenchForRoute(pathname: string): boolean {
   return pathname === "/settings"
+    || pathname === "/games" || pathname === "/games/environments"
     || pathname === "/admin/users"
     || pathname === "/tasks"
     || pathname === "/files"

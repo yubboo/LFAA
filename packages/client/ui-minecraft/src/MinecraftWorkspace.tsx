@@ -9,9 +9,8 @@ import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { Alert, Button, Card, Checkbox, ConfigProvider, Input, InputNumber, Modal, Popconfirm, Progress, Select, Space, Spin, Tag, Typography } from "antd";
 import {
   hasAdminAccess,
-  forgetMinecraftJavaPath,
+  deleteMinecraftInstance,
   getErrorMessage,
-  installMinecraftJava,
   loadMinecraftDeployments,
   loadMinecraftInstances,
   loadMinecraftJava,
@@ -25,9 +24,7 @@ import {
   runMinecraftInstanceAction,
   sendMinecraftConsole,
   saveMinecraftServerProperties,
-  saveMinecraftJavaPath,
   setMinecraftInstanceJavaRuntime,
-  uninstallMinecraftJava,
   type MinecraftCatalog,
   type MinecraftDeployment,
   type MinecraftInstance,
@@ -42,11 +39,13 @@ import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-st
 import { createMinecraftSocket, type MinecraftRealtimeChange } from "lfaa-client-connection/src/minecraft-socket.js";
 import "./MinecraftWorkspace.css";
 import { MinecraftDeploymentPanel } from "./MinecraftDeploymentPanel.js";
+import {cancelMinecraftTask} from "lfaa-client-connection/src/runtime-api.js";
 import { MinecraftConnectivityPanel } from "./MinecraftConnectivityPanel.js";
 import { DaemonConnections } from "./DaemonConnections.js";
 import { MinecraftWorkflowCanvas } from "./MinecraftWorkflowCanvas.js";
 
 interface MinecraftWorkspaceProps {
+  onPrepareWithAi:(prompt:string)=>void;
   userId: string;
   section: string;
   role: UserRole;
@@ -57,7 +56,6 @@ interface MinecraftWorkspaceProps {
 }
 
 const minecraftRoot = "/apps/minecraft/normal";
-const javaCardMajors = [8, 11, 17, 21, 25];
 type RealtimeConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 type MinecraftInstanceFilter = "all" | MinecraftInstance["state"];
 
@@ -94,7 +92,7 @@ function sandboxStatusLabel(status: MinecraftInstance["sandboxStatus"]): string 
 }
 
 function taskLabel(kind: MinecraftTask["kind"]): string {
-  return ({ install: "安装服务端", start: "启动实例", stop: "停止实例", restart: "重启实例", console: "控制台指令", properties: "保存配置", backup: "世界备份", "java-install": "Java 环境管理" })[kind];
+  return ({ install: "安装服务端", start: "启动实例", stop: "停止实例", restart: "重启实例", console: "控制台指令", properties: "保存配置", backup: "世界备份", "java-install": "Java 环境管理", delete:"归档并删除实例" })[kind];
 }
 
 function deploymentStateLabel(state: MinecraftDeployment["state"]): string {
@@ -127,7 +125,7 @@ function timeLabel(value: string): string {
   return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
-function MinecraftWorkspaceView({ userId, section, role, settings, onNavigate, onOpenConnectivity, onContentReady }: MinecraftWorkspaceProps) {
+function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, settings, onNavigate, onOpenConnectivity, onContentReady }: MinecraftWorkspaceProps) {
   const cachedSnapshot = useRef(minecraftWorkspaceSnapshots.get(userId) ?? null).current;
   const [overview, setOverview] = useState<MinecraftWorkspaceSnapshot["overview"] | null>(() => cachedSnapshot?.overview ?? null);
   const [nodes, setNodes] = useState<MinecraftNode[]>(() => cachedSnapshot?.nodes ?? []);
@@ -147,16 +145,11 @@ function MinecraftWorkspaceView({ userId, section, role, settings, onNavigate, o
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeConnectionStatus>("connecting");
-  const [javaNodeId, setJavaNodeId] = useState("");
   const [memoryMb, setMemoryMb] = useState<number | null>(settings.minecraftRuntime.minecraftDefaultMemoryMb);
   const [eulaAccepted, setEulaAccepted] = useState(false);
   const [registerDeploymentId, setRegisterDeploymentId] = useState("");
   const [registerJavaRuntimeId, setRegisterJavaRuntimeId] = useState("");
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
-  const [javaMajor, setJavaMajor] = useState<number | null>(null);
-  const [javaPathModalOpen, setJavaPathModalOpen] = useState(false);
-  const [javaPathInput, setJavaPathInput] = useState("");
-  const [javaPathRuntimeId, setJavaPathRuntimeId] = useState<string | null>(null);
   const [propertyDraft, setPropertyDraft] = useState<MinecraftServerProperties>({});
   const [consoleCommand, setConsoleCommand] = useState("");
   const [instanceSearch, setInstanceSearch] = useState("");
@@ -204,6 +197,7 @@ function MinecraftWorkspaceView({ userId, section, role, settings, onNavigate, o
   const eligibleNodes = useMemo(() => nodes.filter((node) => node.status === "online" && node.platform === "win32" && node.architecture === "x64" && node.capabilities.includes("minecraft-multicore-v1")), [nodes]);
   const onlineNodeCount = nodes.filter((node) => node.status === "online").length;
   const onlineWindowsNodes = nodes.filter((node) => node.status === "online" && node.platform === "win32" && node.architecture === "x64");
+  useEffect(()=>{if(section==="java")onNavigate(`/games/environments?return=overview`);},[section,onNavigate]);
   const currentSection = section === "overview" || section === "nodes" || section === "deployment" || section === "instances" || section === "java" || section === "tasks" || section === "workflows" || section === "connectivity" ? section : detailMatch ? "instances" : "overview";
   const visibleInstances = useMemo(() => {
     const query = instanceSearch.trim().toLocaleLowerCase();
@@ -221,15 +215,6 @@ function MinecraftWorkspaceView({ userId, section, role, settings, onNavigate, o
     return latestByNode;
   }, [tasks]);
   const canOperate = hasAdminAccess(role);
-  const selectedJavaNodeId = onlineWindowsNodes.some((node) => node.id === javaNodeId) ? javaNodeId : onlineWindowsNodes[0]?.id ?? javaNodeId ?? "";
-  const selectedJavaNode = nodes.find((node) => node.id === selectedJavaNodeId) ?? null;
-  const selectedJavaNodeInfo = javaNodes.find((node) => node.nodeId === selectedJavaNodeId) ?? null;
-  const selectedJavaNodeOnline = selectedJavaNode
-    ? selectedJavaNode.status === "online" && (selectedJavaNodeInfo?.nodeStatus ?? "online") === "online"
-    : selectedJavaNodeInfo?.nodeStatus === "online";
-  const selectedJavaRuntimes = selectedJavaNodeOnline ? (selectedJavaNodeInfo?.runtimes ?? selectedJavaNode?.javaRuntimes ?? []) : [];
-  const supportsJavaManagement = selectedJavaNode?.capabilities.includes("java-environment-manager-v1") ?? false;
-
   const snapshotPoller = useRef<ReturnType<typeof createReadPoller> | null>(null);
   const readSnapshot = useCallback(async () => {
     const sequence = ++refreshSequence.current;
@@ -384,22 +369,6 @@ function MinecraftWorkspaceView({ userId, section, role, settings, onNavigate, o
     }
   }, [onNavigate, refresh]);
 
-  const openJavaPathModal = (runtime?: MinecraftNode["javaRuntimes"][number]) => {
-    setJavaPathRuntimeId(runtime?.source === "custom" ? runtime.runtimeId : null);
-    setJavaPathInput(runtime?.executablePath ?? "");
-    setJavaPathModalOpen(true);
-  };
-
-  const saveJavaPath = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!selectedJavaNodeId || !javaPathInput.trim()) return;
-    void submitAction(() => saveMinecraftJavaPath({
-      nodeId: selectedJavaNodeId,
-      executablePath: javaPathInput.trim(),
-      ...(javaPathRuntimeId ? { runtimeId: javaPathRuntimeId } : {})
-    }), false).then((saved) => { if (saved) setJavaPathModalOpen(false); });
-  };
-
   const openRegisterModal = (deploymentId: string) => {
     const deployment = deployments.find((item) => item.id === deploymentId);
     const nodeRuntimes = deployment
@@ -486,7 +455,7 @@ function MinecraftWorkspaceView({ userId, section, role, settings, onNavigate, o
         </nav>
         {detailView === "overview" ? <div className="minecraft-detail-grid">
           <Card className="minecraft-card minecraft-instance-summary"><div className="minecraft-card-heading"><div><Typography.Title level={4}>实例状态</Typography.Title><Typography.Text type="secondary">创建于 {timeLabel(selectedInstance.createdAt)}</Typography.Text></div><Tag color={selectedInstance.state === "running" ? "green" : selectedInstance.state === "error" ? "red" : "default"}>{stateLabel(selectedInstance.state)}</Tag></div>
-            <dl className="minecraft-facts"><div><dt>服务端</dt><dd>{selectedInstance.coreType} · {selectedInstance.releaseId}</dd></div><div><dt>节点</dt><dd>{selectedInstance.nodeName} · {selectedInstance.nodeStatus === "online" ? "在线" : "离线"}</dd></div><div><dt>运行环境</dt><dd>{selectedInstance.coreType === "PocketMine" ? "官方 PHP" : `Java ${selectedInstance.javaMajor}`}</dd></div><div><dt>最大内存</dt><dd>{selectedInstance.coreType === "PocketMine" ? "由 PHP 核心管理" : `${selectedInstance.memoryMb} MB`}</dd></div><div><dt>执行方式</dt><dd>{selectedInstance.executionMode === "native" ? "本机原生进程（当前系统账户权限）" : sandboxStatusLabel(selectedInstance.sandboxStatus)}</dd></div><div><dt>EULA</dt><dd>已于 {timeLabel(selectedInstance.eulaAcceptedAt)} 明确同意</dd></div></dl>
+            <dl className="minecraft-facts"><div><dt>服务端</dt><dd>{selectedInstance.coreType} · {selectedInstance.releaseId}</dd></div><div><dt>节点</dt><dd>{selectedInstance.nodeName} · {selectedInstance.nodeStatus === "online" ? "在线" : "离线"}</dd></div><div><dt>运行环境</dt><dd>{selectedInstance.coreType === "PocketMine" ? "官方 PHP" : `要求 Java ${selectedInstance.javaMajor}（实际版本以节点启动结果为准）`}</dd></div><div><dt>最大内存</dt><dd>{selectedInstance.coreType === "PocketMine" ? "由 PHP 核心管理" : `${selectedInstance.memoryMb} MB`}</dd></div><div><dt>执行方式</dt><dd>{selectedInstance.executionMode === "native" ? "本机原生进程（当前系统账户权限）" : sandboxStatusLabel(selectedInstance.sandboxStatus)}</dd></div><div><dt>EULA</dt><dd>已于 {timeLabel(selectedInstance.eulaAcceptedAt)} 明确同意</dd></div></dl>
             {selectedInstance.coreType !== "PocketMine" ? <div className="minecraft-instance-java-choice">
               <label htmlFor="minecraft-instance-java-runtime">实例 Java 运行环境</label>
               <Select id="minecraft-instance-java-runtime" value={selectedInstance.javaRuntimeId ?? ""} onChange={changeInstanceJavaRuntime} disabled={!canOperate || busy || selectedInstance.nodeStatus !== "online" || !["stopped", "error"].includes(selectedInstance.state) || (!selectedInstanceSupportsJavaSelection && !selectedInstance.javaRuntimeId)} options={[
@@ -511,11 +480,12 @@ function MinecraftWorkspaceView({ userId, section, role, settings, onNavigate, o
                   ? "节点当前没有发现这套 Java；请选择其他运行环境，实例不会静默改用其他版本。"
                   : "优先复用可用的托管或系统 Java，缺少匹配版本时下载 Temurin。"}</Typography.Text>
             </div> : <Typography.Paragraph type="secondary">使用校验过的 PocketMine 官方 PHP 运行环境，无需 Java。</Typography.Paragraph>}
+            <Button onClick={()=>onNavigate(`/games/environments?target=${selectedInstance.nodeId}&return=${selectedInstance.id}`)}>管理运行环境并返回实例</Button>
             <div className="minecraft-actions"><Button type="primary" disabled={!canOperate || (settings.minecraftRuntime.minecraftExecutionMode === "appcontainer" && !selectedInstance.sandboxAvailable) || selectedInstance.nodeStatus !== "online" || !["stopped", "error"].includes(selectedInstance.state)} loading={busy} onClick={() => instanceAction("start")}>启动实例</Button><Button disabled={!canOperate || selectedInstance.nodeStatus !== "online" || selectedInstance.state !== "running"} loading={busy} onClick={() => instanceAction("restart")}>安全重启</Button><Button danger disabled={!canOperate || selectedInstance.nodeStatus !== "online" || !["running", "starting"].includes(selectedInstance.state)} loading={busy} onClick={() => instanceAction("stop")}>安全停止</Button><Button disabled={!canOperate || proxyInstance || selectedInstance.state !== "stopped" || selectedInstance.nodeStatus !== "online"} onClick={() => onNavigate(getInstanceRoute(selectedInstance.id, "backup"))}>备份世界</Button></div>
             {settings.minecraftRuntime.minecraftExecutionMode === "appcontainer" && !selectedInstance.sandboxAvailable ? <Alert type="error" showIcon message="当前选择 AppContainer，但节点沙盒不可用。可在设置中心选择推荐的本机原生执行。" /> : null}
             {!canOperate ? <Typography.Text type="secondary">当前账户为只读角色，实例操作需要管理员权限。</Typography.Text> : null}
           </Card>
-          <Card className="minecraft-card"><Typography.Title level={4}>最近任务</Typography.Title><TaskList tasks={tasks.filter((task) => task.instanceId === selectedInstance.id).slice(0, 5)} /></Card>
+          <Card className="minecraft-card"><Typography.Title level={4}>最近任务</Typography.Title><TaskList userId={canOperate ? userId : ""} onCancel={id=>{void submitAction(()=>cancelMinecraftTask(id),false);}} tasks={tasks.filter((task) => task.instanceId === selectedInstance.id).slice(0, 5)} /></Card>
         </div> : null}
         {detailView === "configuration" && independentCoreConfiguration ? <Alert type="info" showIcon message="此核心使用独立配置格式" description="请通过节点文件管理修改真实配置；停止实例后再修改。" /> : null}
         {detailView === "configuration" && !independentCoreConfiguration ? <Card className="minecraft-card minecraft-config-card"><Typography.Title level={4}>server.properties</Typography.Title><Typography.Paragraph type="secondary">仅提交下列受支持字段。实例必须停止后才能写入；节点未回传的 Minecraft 默认值不会被显示成已测量配置。</Typography.Paragraph>
@@ -581,7 +551,7 @@ function MinecraftWorkspaceView({ userId, section, role, settings, onNavigate, o
           </Card>
           <Card className="minecraft-card minecraft-overview-panel">
             <div className="minecraft-card-heading"><Typography.Title level={4}>最近任务</Typography.Title><Button type="link" onClick={() => onNavigate("/apps/minecraft/normal/tasks")}>查看全部</Button></div>
-            {tasksLoaded ? <TaskList tasks={tasks.slice(0, 4)} /> : <div className="minecraft-empty">任务状态暂不可读。</div>}
+            {tasksLoaded ? <TaskList userId={canOperate ? userId : ""} onCancel={id=>{void submitAction(()=>cancelMinecraftTask(id),false);}} tasks={tasks.slice(0, 4)} /> : <div className="minecraft-empty">任务状态暂不可读。</div>}
           </Card>
         </div>
       </> : null}
@@ -624,7 +594,7 @@ function MinecraftWorkspaceView({ userId, section, role, settings, onNavigate, o
 
       {!selectedInstance && currentSection === "deployment" ? <>
         <div className="minecraft-deployment-layout">
-          <MinecraftDeploymentPanel nodes={nodes} instances={instances} settings={settings} canOperate={canOperate} onSubmit={submitAction} onNavigate={onNavigate} />
+          <MinecraftDeploymentPanel onPrepareWithAi={onPrepareWithAi} userId={userId} nodes={nodes} instances={instances} settings={settings} canOperate={canOperate} onSubmit={submitAction} onNavigate={onNavigate} />
           <Card className="minecraft-card minecraft-deployments-card">
             <div className="minecraft-deployments-heading"><div><Typography.Title level={4}>部署记录</Typography.Title><Typography.Text type="secondary">任务进度和结果来自控制端与目标节点。</Typography.Text></div><Tag>{deployments.length}</Tag></div>
             {!deployments.length ? <div className="minecraft-empty">暂无部署记录。</div> : <div className="minecraft-deployment-list">{deployments.map((deployment) => {
@@ -688,7 +658,7 @@ function MinecraftWorkspaceView({ userId, section, role, settings, onNavigate, o
                 <dl className="minecraft-instance-card__facts">
                   <div><dt>运行节点</dt><dd>{instance.nodeName} · {nodeOnline ? "在线" : "离线"}</dd></div>
                   <div><dt>运行环境</dt><dd>{instance.coreType === "PocketMine" ? "官方 PHP" : `Java ${instance.javaMajor}`}</dd></div>
-                  <div><dt>资源配置</dt><dd>{instance.coreType === "PocketMine" ? "由 PHP 核心管理" : `${instance.memoryMb} MB`} · 端口 ${instance.serverProperties.serverPort ?? "—"}</dd></div>
+                  <div><dt>资源配置</dt><dd>{instance.coreType === "PocketMine" ? "由 PHP 核心管理" : `${instance.memoryMb} MB`} · 端口 {instance.serverProperties.serverPort ?? "—"}</dd></div>
                   <div><dt>最近更新</dt><dd>{timeLabel(instance.updatedAt)}</dd></div>
                 </dl>
                 {!nodeOnline ? <Typography.Text type="secondary">节点离线；当前状态不可核实，操作会保持禁用。</Typography.Text> : null}
@@ -699,6 +669,7 @@ function MinecraftWorkspaceView({ userId, section, role, settings, onNavigate, o
                     <Button danger disabled={!canStop} loading={busy}>安全停止</Button>
                   </Popconfirm>
                   <Button onClick={() => onNavigate(getInstanceRoute(instance.id, "overview"))}>管理实例</Button>
+                  <Popconfirm title={`删除“${instance.name}”？`} description="完整实例文件将移入节点备份归档，再移除登记；不会覆盖已有备份。" okText="归档并删除" cancelText="取消" onConfirm={()=>void submitAction(()=>deleteMinecraftInstance(instance.id))}><Button danger disabled={!canOperate||!nodeOnline||busy||!["stopped","error","unknown"].includes(instance.state)}>删除实例</Button></Popconfirm>
                 </div>
               </Card>;
             })}</div> : <div className="minecraft-empty minecraft-instance-filter-empty"><Typography.Text>没有符合当前搜索和状态筛选的实例。</Typography.Text><Button type="link" onClick={() => { setInstanceSearch(""); setInstanceStateFilter("all"); }}>清除筛选条件</Button></div>}
@@ -710,62 +681,6 @@ function MinecraftWorkspaceView({ userId, section, role, settings, onNavigate, o
         </Card>
       </> : null}
 
-      {!selectedInstance && currentSection === "java" ? <>
-        <Card className="minecraft-card minecraft-java-manager">
-          <div className="minecraft-card-heading"><div><Typography.Title level={4}>Java 环境</Typography.Title><Typography.Paragraph type="secondary">按节点安装到项目数据目录并核对 SHA-256；旧版本没有 JRE 时自动使用 JDK。扫描本机磁盘、PATH、JAVA_HOME 和常见安装目录，电脑上的外部 Java 会显示完整路径。</Typography.Paragraph></div><Button type="primary" onClick={() => openJavaPathModal()} disabled={!canOperate || !supportsJavaManagement || !selectedJavaNodeId || !selectedJavaNodeOnline}>手动添加 Java 路径</Button></div>
-          <div className="minecraft-java-node-picker"><label htmlFor="minecraft-java-node">管理节点</label><Select id="minecraft-java-node" value={selectedJavaNodeId || undefined} onChange={setJavaNodeId} placeholder="选择在线 Windows 节点" options={onlineWindowsNodes.map((node) => ({ value: node.id, label: node.displayName }))} disabled={!onlineWindowsNodes.length} /></div>
-          {!onlineWindowsNodes.length ? <Alert type="info" showIcon message="没有在线 Windows x64 节点" description="Java 环境由在线 Daemon 在目标电脑上扫描和管理。" /> : null}
-          {selectedJavaNode && !selectedJavaNodeOnline ? <Alert type="warning" showIcon message="节点离线，无法核验当前 Java 文件" description="离线节点显示的上次 Java 清单不会被当作当前已安装状态；重启 Daemon 并刷新后会重新扫描。" /> : null}
-          {selectedJavaNode && !supportsJavaManagement ? <Alert type="warning" showIcon message="节点需要重启 Daemon 才能启用路径管理和卸载" description="版本卡片下载仍可使用；手动路径和卸载功能将在 Daemon 汇报 Java 环境管理能力后开放。" /> : null}
-          <div className="minecraft-java-card-grid">
-            {javaCardMajors.map((major) => {
-              const installed = selectedJavaRuntimes.find((runtime) => runtime.major === major && runtime.managed);
-              const discovered = selectedJavaRuntimes.some((runtime) => runtime.major === major && !runtime.managed);
-              const inUse = instances.filter((instance) => instance.nodeId === selectedJavaNodeId && instance.javaMajor === major && (instance.javaRuntimeId === null || instance.javaRuntimeId === `temurin-${major}`) && !["stopped", "error"].includes(instance.state));
-              const pending = tasks.some((task) => task.kind === "java-install" && task.nodeId === selectedJavaNodeId && Number(task.payload.javaMajor) === major && ["queued", "running"].includes(task.status));
-              return <Card className="minecraft-card minecraft-java-version-card" key={major}>
-                <div className="minecraft-card-heading"><div><Typography.Title level={5}>Java {major}</Typography.Title><Typography.Text type="secondary">Eclipse Temurin · Windows x64 · JRE（无 JRE 时回退 JDK）</Typography.Text></div><Tag color={installed ? "green" : discovered ? "blue" : "default"}>{installed ? "LFAA 项目已安装" : discovered ? "电脑已发现" : "未安装"}</Tag></div>
-                {installed?.executablePath ? <Typography.Text className="minecraft-java-version-path" title={installed.executablePath}>{installed.executablePath}</Typography.Text> : <Typography.Text className="minecraft-java-version-path">{discovered ? "已发现外部 Java，可在实例中选择使用，无需重复下载。" : "适用于对应版本的 Minecraft 服务端。"}</Typography.Text>}
-                <div className="minecraft-java-version-card__actions">
-                  {installed ? <Popconfirm title={`卸载项目管理的 Java ${major}？`} description="只删除本项目 data/environments/java 下对应的 Temurin 安装目录，不会删除电脑上其他 Java。使用此版本的已停止实例下次启动前需要重新安装 Java。" okText="卸载" cancelText="取消" onConfirm={() => void submitAction(() => uninstallMinecraftJava({ nodeId: selectedJavaNodeId, major }), false)}>
-                    <Button danger block loading={busy || pending} disabled={!canOperate || !supportsJavaManagement || !selectedJavaNodeId || !selectedJavaNodeOnline || pending || inUse.length > 0}>卸载</Button>
-                  </Popconfirm> : <Button type="primary" block loading={busy || pending} disabled={!canOperate || !selectedJavaNodeId || !selectedJavaNodeOnline || pending} onClick={() => void submitAction(() => installMinecraftJava({ nodeId: selectedJavaNodeId, major }), false)}>{discovered ? "安装 LFAA 托管版" : "下载并安装"}</Button>}
-                  {inUse.length > 0 ? <Typography.Text type="secondary">{inUse.length} 个实例正在使用或状态未确认，暂不能卸载。</Typography.Text> : null}
-                </div>
-              </Card>;
-            })}
-          </div>
-          <Card className="minecraft-card minecraft-java-custom-card">
-            <div className="minecraft-java-custom-card__info"><Typography.Title level={5}>其他 Java 主版本</Typography.Title><Typography.Paragraph type="secondary">需要 Java 8–40 中的其他主版本时，可手动指定；优先下载 JRE，历史版本没有 JRE 时改用同版本 JDK。Adoptium 没有官方工件的版本会给出明确提示。</Typography.Paragraph></div>
-            <div className="minecraft-java-install__controls"><InputNumber min={8} max={40} value={javaMajor} onChange={setJavaMajor} placeholder="Java 主版本" /><Button type="primary" loading={busy} disabled={!canOperate || !selectedJavaNodeId || !selectedJavaNodeOnline || !javaMajor || javaCardMajors.includes(javaMajor)} onClick={() => { if (selectedJavaNodeId && javaMajor) void submitAction(() => installMinecraftJava({ nodeId: selectedJavaNodeId, major: javaMajor }), false); }}>下载自定义版本</Button></div>
-          </Card>
-        </Card>
-
-        <Card className="minecraft-card minecraft-java-detected-card">
-          <div className="minecraft-card-heading"><div><Typography.Title level={4}>此电脑已发现的 Java</Typography.Title><Typography.Paragraph type="secondary">扫描固定/可移动磁盘、PATH、JAVA_HOME、Windows 常见安装目录和手动登记路径。每个路径都要能运行 java.exe 并通过版本校验；手动移除只删除 LFAA 的路径记录。</Typography.Paragraph></div><Tag color={selectedJavaNodeOnline ? "green" : "default"}>{selectedJavaNodeInfo?.nodeName ?? selectedJavaNode?.displayName ?? "未选择节点"} · {selectedJavaNodeOnline ? "在线" : "离线"}</Tag></div>
-          {!selectedJavaRuntimes.length ? <div className="minecraft-empty">{selectedJavaNode && !selectedJavaNodeOnline ? "节点离线，无法确认上次记录的 Java 是否仍存在。" : "当前节点尚未发现可运行的 Java；可手动添加 `java.exe` 完整路径。"}</div> : <div className="minecraft-java-runtime-list">{selectedJavaRuntimes.map((runtime) => {
-            const source = runtime.managed || runtime.source === "managed" ? "LFAA 管理" : runtime.source === "custom" ? "手动路径" : "系统识别";
-            return <article className="minecraft-java-runtime" key={runtime.runtimeId}>
-              <div className="minecraft-java-runtime__info"><div className="minecraft-java-runtime__heading"><strong>Java {runtime.major} · {runtime.vendor}</strong><Tag color={runtime.managed ? "green" : runtime.source === "custom" ? "blue" : "default"}>{source}</Tag></div><Typography.Text className="minecraft-java-runtime__path" title={runtime.executablePath}>{runtime.executablePath ?? "路径暂不可用"}</Typography.Text></div>
-              {!runtime.managed ? <div className="minecraft-java-runtime__actions"><Button disabled={!canOperate || !supportsJavaManagement || !selectedJavaNodeId} onClick={() => openJavaPathModal(runtime.source === "custom" ? runtime : { ...runtime, source: "system" })}>{runtime.source === "custom" ? "更改路径" : "登记路径"}</Button>{runtime.source === "custom" ? <Popconfirm title="移除此 Java 路径记录？" description="只移除 LFAA 的记录，不删除磁盘上的 Java 文件。" okText="移除记录" cancelText="取消" onConfirm={() => void submitAction(() => forgetMinecraftJavaPath(selectedJavaNodeId, runtime.runtimeId), false)}><Button danger disabled={!canOperate || !supportsJavaManagement || busy}>移除记录</Button></Popconfirm> : null}</div> : null}
-            </article>;
-          })}</div>}
-          {!canOperate ? <Typography.Text type="secondary">Java 安装、卸载和路径管理需要管理员权限。</Typography.Text> : null}
-        </Card>
-        <Modal title={javaPathRuntimeId ? "更改 Java 路径" : "手动添加 Java 路径"} open={javaPathModalOpen} okText={javaPathRuntimeId ? "识别并更新" : "识别并登记"} cancelText="取消" confirmLoading={busy} onCancel={() => setJavaPathModalOpen(false)} onOk={() => document.getElementById("minecraft-java-path-form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))}>
-          <form id="minecraft-java-path-form" className="minecraft-java-path-form" onSubmit={saveJavaPath}>
-            <Typography.Paragraph type="secondary">输入目标节点上已安装的 `java.exe` 完整路径。Daemon 会运行版本核验并登记外部路径；这不会复制、移动或更改 Java 文件。符合实例版本要求的 Java 可在创建或管理实例时直接选择使用。</Typography.Paragraph>
-            <label>节点<Select value={selectedJavaNodeId || undefined} onChange={setJavaNodeId} options={onlineWindowsNodes.map((node) => ({ value: node.id, label: node.displayName }))} disabled={!onlineWindowsNodes.length || Boolean(javaPathRuntimeId)} /></label>
-            <label>java.exe 路径<Input autoFocus value={javaPathInput} onChange={(event) => setJavaPathInput(event.target.value)} placeholder="例如 C:\Program Files\Java\jdk-21\bin\java.exe" /></label>
-          </form>
-        </Modal>
-      </> : null}
-
-      {!selectedInstance && currentSection === "tasks" ? <div className="minecraft-task-panels">
-          <Card className="minecraft-card minecraft-overview-panel"><div className="minecraft-card-heading"><Typography.Title level={4}>最近部署任务</Typography.Title></div><TaskList tasks={tasks.filter((task) => task.kind === "install").slice(0, 5)} /></Card>
-          <Card className="minecraft-card minecraft-tasks-card"><Typography.Title level={4}>全部任务</Typography.Title><TaskList tasks={tasks} /></Card>
-      </div> : null}
-
       {!selectedInstance && currentSection === "workflows" ? <MinecraftWorkflowCanvas userId={userId} /> : null}
     </section>
     </ConfigProvider>
@@ -774,13 +689,14 @@ function MinecraftWorkspaceView({ userId, section, role, settings, onNavigate, o
 
 export const MinecraftWorkspace = memo(MinecraftWorkspaceView);
 
-function TaskList({ tasks }: { tasks: MinecraftTask[] }) {
+function TaskList({ tasks,userId,onCancel }: { tasks: MinecraftTask[];userId:string;onCancel:(id:string)=>void }) {
   if (!tasks.length) return <div className="minecraft-empty">暂无任务记录。</div>;
   return <div className="minecraft-task-list">{tasks.map((task) => <article key={task.id}>
     <div className="minecraft-task-copy">
       <div className="minecraft-task-heading"><strong>{task.kind === "java-install" ? javaTaskLabel(task) : deploymentTaskLabel(task)}</strong><Tag color={task.result?.forced === true ? "orange" : task.status === "succeeded" ? "green" : task.status === "failed" ? "red" : "blue"}>{task.result?.forced === true ? "已强制停止" : taskStatusLabel(task.status)}{task.status === "running" ? ` · ${task.progress}%` : ""}</Tag></div>
-      <span>{task.message}</span>
+      <span>{task.message}</span>{typeof task.result?.note==="string"?<small>{task.result.note}</small>:null}{typeof task.result?.backupName==="string"?<small>节点备份归档：{task.result.backupName}</small>:null}
       <small>{timeLabel(task.createdAt)}</small>
+      {task.createdBy===userId&&["queued","running"].includes(task.status)&&["install","start"].includes(task.kind)&&task.payload.executionMode==="native"?<Button onClick={()=>onCancel(task.id)}>请求取消任务</Button>:null}
     </div>
   </article>)}</div>;
 }

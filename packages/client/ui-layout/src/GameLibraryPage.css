@@ -1,0 +1,61 @@
+/** 游戏库沿用设置映射的文字、表面、强调色和减少动态效果，不新增独立主题。 */
+.game-library { width: 100%; min-width: 0; max-width: 76rem; margin: 0 auto; padding: clamp(1rem, 3vw, 2.5rem); container-type: inline-size; }
+.game-library__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.25rem; margin-bottom: 2rem; }
+.game-library__header h1 { margin: 0; font-size: var(--font-size-2xl); }
+.game-library__header p { max-width: 48rem; color: var(--color-text-secondary); }
+.game-library__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; align-items: stretch; }
+.game-library__card { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1rem; padding: clamp(1.25rem, 2.2vw, 2rem); border: 1px solid var(--color-border); border-radius: 1.25rem; background: var(--color-surface); box-shadow: 0 .5rem 1.5rem var(--color-shadow-card-soft); transition: border-color .18s ease, transform .18s ease; }
+.game-library__card:hover, .game-library__card:focus-within { border-color: var(--settings-accent, var(--color-brand)); transform: translateY(-2px); }
+.game-library__card--primary { border-color: var(--settings-accent, var(--color-brand)); }
+.game-library__card h2 { font-size: var(--font-size-xl); margin: 0; }
+.game-library__card p { color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.game-library__icon { display: grid; place-items: center; color: var(--settings-accent, var(--color-brand)); padding: .8rem; border-radius: .9rem; background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 18%, transparent); }
+.game-library__status { margin-top: auto; font-size: .9em; }
+.game-library__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.game-library__environment-controls { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; margin: 1.5rem 0; }
+.game-library__environment-controls label { display: grid; grid-template-columns: minmax(0,1fr); gap: .5rem; min-width: 0; flex-basis: 15rem; max-width: 100%; }
+.game-library__environment-controls label > .ant-select,
+.game-library__environment-controls label > .ant-input,
+.game-library__environment-controls label > .ant-input-number { width: 100%; min-width: 0; max-width: 100%; }
+.game-library__runtime-list { display: grid; gap: 1rem; }
+.game-library__runtime { min-width: 0; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; padding: 1.25rem; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 1rem; }
+.game-library__runtime > div { min-width: 0; max-width: 100%; }
+.game-library__runtime h3 { font-size: var(--font-size-lg); margin: 0; }
+.game-library__runtime code { white-space: normal; overflow-wrap: anywhere; }
+@container (max-width: 62rem) { .game-library__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .game-library__card--primary { grid-column: auto; } }
+@container (max-width: 39rem) { .game-library__grid { grid-template-columns: minmax(0, 1fr); } .game-library__header { flex-wrap: wrap; } .game-library__environment-controls { align-items: stretch; flex-direction: column; } .game-library__environment-controls label { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .game-library__card { transition: none; } .game-library__card:hover, .game-library__card:focus-within { transform: none; } }
+[data-reduced-motion="on"] .game-library__card { transition: none; transform: none; }
+
+/* 有壁纸时，游戏卡片与环境条目沿用账户遮罩的不透明度，以及设置的玻璃背景模糊强度。 */
+.workbench-shell[data-background-image="true"] .game-library__card,
+.workbench-shell[data-background-image="true"] .game-library__runtime {
+  background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}
+.game-library code { font-family: var(--settings-code-font); font-size: var(--settings-code-font-size); }
+
+.runtime-manager { min-width: 0; border: 1px solid var(--color-border); border-radius: 1rem; background: var(--color-surface); overflow: hidden; }
+.runtime-manager__tabs { display: flex; flex-wrap: wrap; gap: .25rem 1rem; padding: .6rem 1.25rem 0; border-bottom: 1px solid var(--color-border); }
+.runtime-manager__tabs button { display: flex; align-items: center; gap: .5rem; padding: .9rem .25rem; background: transparent; border: 0; border-bottom: 2px solid transparent; font: inherit; color: var(--color-text-secondary); cursor: pointer; }
+.runtime-manager__tabs button[aria-pressed="true"] { color: var(--settings-accent, var(--color-brand)); border-bottom-color: currentColor; }
+.runtime-manager__tabs button:focus-visible { outline: 2px solid var(--settings-accent, var(--color-brand)); outline-offset: -2px; }
+.runtime-manager__body { padding: clamp(1rem, 2.5cqw, 2rem); }
+.runtime-manager__heading { text-align: center; margin: .5rem auto 1.5rem; max-width: 52rem; }
+.runtime-manager__heading h2 { font-size: var(--font-size-xl); }
+.runtime-manager__heading p { color: var(--color-text-secondary); }
+.runtime-manager__cards { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1rem; }
+.game-library--environments { max-width: 100rem; }
+.runtime-manager__cards--java { grid-template-columns: repeat(auto-fit,minmax(min(100%,13rem),1fr)); }
+.runtime-manager__card { display: flex; flex-direction: column; min-width: 0; gap: .75rem; padding: 1.3rem; border: 1px solid var(--color-border); border-radius: .8rem; background: color-mix(in srgb, var(--color-text-primary) 4%, transparent); }
+.runtime-manager__card-title { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; justify-content: space-between; }
+.runtime-manager__card h3 { font-size: var(--font-size-lg); margin: 0; }
+.runtime-manager__card p { margin: 0; overflow-wrap: anywhere; }
+.runtime-manager__card > button, .runtime-manager__card-actions { margin-top: auto; }
+.runtime-manager__card-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.runtime-manager__card-actions > button:first-child { flex: 1; }
+.runtime-manager__path { overflow-wrap: anywhere; color: var(--color-text-secondary); font-family: var(--settings-code-font); font-size: var(--settings-code-font-size); }
+.runtime-manager__detected { display: grid; gap: .75rem; margin-top: 1.5rem; }
+.workbench-shell[data-background-image="true"] .runtime-manager { background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
+@container (max-width: 42rem) { .runtime-manager__cards { grid-template-columns: minmax(0,1fr); } .runtime-manager__tabs { gap: 0 .75rem; padding-inline: 1rem; } }

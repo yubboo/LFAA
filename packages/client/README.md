@@ -63,3 +63,7 @@ Agent Loop 只将 Daemon 成功返回的新建/修改/删除路径记录到助�
 ## Markdown 知识库
 
 `connection/src/api.ts` 提供账户知识库与已登记项目来源 API；`ui-settings/src/KnowledgeLibraryPanel.tsx` 在设置中心“插件”页管理知识、用户 Skills、提示词和领域专家 Markdown，可上传 `.md`/`.markdown`、编辑/删除，并把 Workspace/Minecraft 项目中的相对目录链接为实时来源。列表只请求短摘要；完整正文仅在用户打开编辑器时读取，上传与手工编辑限制为 64 KiB UTF-8。范围下拉明确区分单 App 和所有 App 共享；本地项目来源始终保持项目 App 隔离。界面不改变扩展、权限、MCP 或外观设置，由既有 `plugins.enabled`、`permissions.mode`、MCP App 范围及外观令牌控制运行行为。
+
+## 游戏库入口
+
+`/games` 组合运行环境、Minecraft 与 SteamCMD 三个入口，`/games/environments` 消费 RuntimeManager 认证接口。原 App ID、路由、会话和实例 Owner 保持原归属；窄容器以 Grid 换行，沿用主题与减少动态设置。环境读取串行、隐藏页暂停并在卸载时取消；操作任务持久化后以执行器回报为准。

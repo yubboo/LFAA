@@ -22,6 +22,7 @@ import { bindDshThemeOwner, dshThemeCompatibility, syncDshThemePreference } from
 import { dshLocaleRuntime } from "lfaa-client-ui-workspace/src/dsh-locale-runtime.js";
 import { resolveWallpaperCanvasOwnership } from "./wallpaper-canvas-ownership.js";
 import { appearanceBackgroundSlotForRoute } from "./appearance-background-slot.js";
+const GameLibraryPage = lazy(() => import("./GameLibraryPage.js").then(module => ({ default: module.GameLibraryPage })));
 
 
 
@@ -817,6 +818,8 @@ export function Workbench({
         />
       </Suspense>
     );
+  } else if (route === "/games" || route === "/games/environments") {
+    pageContent = <Suspense fallback={<div role="status">正在打开游戏库…</div>}><GameLibraryPage onOpenStorage={()=>openSettings("workspace")} user={user} environments={route === "/games/environments"} onNavigate={onNavigate} onOpenApplication={onOpenApplication} /></Suspense>;
   } else if (route === "/") {
     pageContent = (
       <section className="application-center" aria-labelledby="center-heading">
@@ -852,7 +855,12 @@ export function Workbench({
             <Typography.Text>选择常规模式或 AI Work 进入工作区</Typography.Text>
           </header>
           <div className="application-grid">
-            {applicationCards.map((app) => (
+            <Card className="application-card application-card--green">
+              <div className="application-card__topline"><span className="application-monogram application-monogram--green" aria-hidden="true"><WorkbenchIcon name="monitor" size={24} /></span></div>
+              <div className="application-card__copy"><Typography.Title level={3}>游戏库</Typography.Title><Typography.Paragraph>统一管理运行环境、Minecraft 开服部署与 SteamCMD，保留已有实例和配置。</Typography.Paragraph><span className="development-state">运行环境 · Minecraft · SteamCMD</span></div>
+              <div className="application-card__actions"><Button type="primary" onClick={() => onNavigate("/games")}>进入游戏库</Button></div>
+            </Card>
+            {applicationCards.filter(app => app.id !== "minecraft" && app.id !== "steamcmd").map((app) => (
               <ApplicationCard
                 key={app.id}
                 app={app.id}

@@ -721,7 +721,7 @@ export interface MinecraftTask {
   instanceId: string | null;
   deploymentId: string | null;
   createdBy: string;
-  kind: "install" | "start" | "stop" | "properties" | "backup" | "java-install" | "restart" | "console";
+  kind: "install" | "start" | "stop" | "properties" | "backup" | "java-install" | "restart" | "console" | "delete";
   status: "queued" | "running" | "succeeded" | "failed";
   progress: number;
   message: string;
@@ -796,6 +796,9 @@ export interface ProjectStorageLocations {
   logsDirectory: string;
   writingDirectory: string;
   dramaDirectory: string;
+  runtimeDirectory: string;
+  downloadCacheDirectory: string;
+  temporaryDirectory: string;
 }
 
 export interface DesktopUpdateRuntimeInfo {
@@ -920,7 +923,7 @@ export const sessionExpiredEventName = "lfaa:session-expired";
 
 const pendingReads = new Map<string, Promise<unknown>>();
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method ?? "GET").toUpperCase();
   if (method !== "GET") {
     // 写入与身份切换前后清空共享登记，后续读取不能加入此前账户或旧状态的请求。
@@ -1460,6 +1463,8 @@ export function saveMinecraftJavaPath(input: { nodeId: string; executablePath: s
 export function forgetMinecraftJavaPath(nodeId: string, runtimeId: string): Promise<{ task: MinecraftTask }> {
   return request(`/minecraft/java/paths/${encodeURIComponent(runtimeId)}`, { method: "DELETE", body: JSON.stringify({ nodeId }) });
 }
+
+export function deleteMinecraftInstance(instanceId:string):Promise<{task:MinecraftTask}> {return request(`/minecraft/instances/${encodeURIComponent(instanceId)}`,{method:"DELETE"});}
 
 export function runMinecraftInstanceAction(instanceId: string, action: "start" | "stop" | "backup" | "restart"): Promise<{ task: MinecraftTask }> {
   return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/${action}`, { method: "POST" });

@@ -4,6 +4,7 @@
  * 关联文件：packages/games/minecraft/src/catalog.ts、packages/host/daemon/src/local-daemon.ts、packages/jobs/jobs/src/minecraft-queue.ts。
  */
 import { randomUUID } from "node:crypto";
+import {hasPendingJavaEnvironmentTask} from "lfaa-runtime-manager/src/legacy-java.js";
 import { protectedDataDirectories } from "lfaa-home-paths/src/reserved-data-paths.mjs";
 import { win32 } from "node:path";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
@@ -661,6 +662,19 @@ export function stopMinecraftInstance(instanceId: string, userId: string): Minec
   return queueInstanceAction(requireInstance(instanceId), userId, "stop");
 }
 
+/** 节点确认目录归档/失效后才移除登记；未知交由节点核验，运行或活动任务拒绝。 */
+export function deleteMinecraftInstance(instanceId:string,userId:string):MinecraftTask {
+  listMinecraftTasks(1);
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const instance=requireInstance(instanceId),node=requireInstanceNode(instance);
+    if(!node.capabilities.includes("minecraft-instance-archive-v1"))throw new ApiError(409,"minecraft_delete_unavailable","请更新节点后使用实例删除。");
+    if(!["stopped","error","unknown"].includes(instance.state))throw new ApiError(409,"minecraft_delete_running","请先安全停止实例并确认状态，再删除。");
+    const task=createMinecraftTask({nodeId:node.id,instanceId,createdBy:userId,kind:"delete",payload:{instanceName:instance.name,storageDirectory:instance.storageDirectory},message:"等待节点安全归档实例文件并移除登记。"});
+    database.exec("COMMIT;");return task;
+  }catch(error){if(database.isTransaction)database.exec("ROLLBACK;");throw error;}
+}
+
 export function restartMinecraftInstance(instanceId: string, userId: string): MinecraftTask {
   const instance = requireInstance(instanceId);
   return queueInstanceAction(instance, userId, "restart", { memoryMb: instance.memoryMb, javaMajor: instance.javaMajor, javaRuntimeId: instance.javaRuntimeId });
@@ -741,124 +755,7 @@ export function updateMinecraftServerProperties(instanceId: string, userId: stri
   });
 }
 
-export function installMinecraftJava(nodeId: string, userId: string, major: number): MinecraftTask {
-  const node = requireOnlineWindowsNode(nodeId);
-  if (!Number.isInteger(major) || major < 8 || major > 40) throw new ApiError(400, "invalid_java_version", "Java 主版本号不受支持。");
-  if (hasPendingJavaEnvironmentTask(node.id, "install", major)) throw new ApiError(409, "java_install_pending", `Java ${major} 的安装任务已经排队或正在执行。`);
-  if (hasPendingJavaEnvironmentTask(node.id, "uninstall", major)) throw new ApiError(409, "java_uninstall_pending", `Java ${major} 的卸载任务尚未完成。`);
-  if (node.javaRuntimes.some((runtime) => runtime.major === major && runtime.managed)) {
-    throw new ApiError(409, "java_runtime_already_installed", "本机已登记此 Java 主版本的受管理运行环境。");
-  }
-  return createMinecraftTask({
-    nodeId: node.id,
-    instanceId: null,
-    createdBy: userId,
-    kind: "java-install",
-    payload: { javaMajor: major, downloadTimeoutSeconds: getUserSettings(userId).minecraftRuntime.minecraftDownloadTimeoutSeconds },
-    message: `等待下载并校验 Temurin Java ${major} 官方 JRE/JDK 压缩包。`
-  });
-}
-
-export function uninstallMinecraftJava(nodeId: string, userId: string, major: number): MinecraftTask {
-  const node = requireJavaManagementNode(nodeId);
-  if (!Number.isInteger(major) || major < 8 || major > 40) throw new ApiError(400, "invalid_java_version", "Java 主版本号不受支持。");
-  if (hasPendingJavaEnvironmentTask(node.id, "uninstall", major)) throw new ApiError(409, "java_uninstall_pending", `Java ${major} 的卸载任务已经排队或正在执行。`);
-  if (!node.javaRuntimes.some((runtime) => runtime.major === major && runtime.managed)) {
-    throw new ApiError(404, "java_runtime_not_managed", "找不到 LFAA 管理的此 Java 版本，无法卸载电脑上的外部 Java。");
-  }
-  // 保留运行中或结果未确认实例依赖的 Java；停止状态的实例可在重装相同主版本后继续使用。
-  const activeInstance = database.prepare(`
-    SELECT name FROM minecraft_instances
-    WHERE node_id = ? AND java_major = ? AND (java_runtime_id IS NULL OR java_runtime_id = 'temurin-' || java_major)
-      AND state IN ('installing', 'starting', 'running', 'stopping', 'unknown')
-    LIMIT 1
-  `).get(nodeId, major) as { name: string } | undefined;
-  if (activeInstance) throw new ApiError(409, "java_runtime_in_use", `Minecraft 实例“${activeInstance.name}”正在使用 LFAA 托管 Java ${major} 或状态未确认，暂不能卸载。`);
-  return createMinecraftTask({
-    nodeId: node.id,
-    instanceId: null,
-    createdBy: userId,
-    kind: "java-install",
-    payload: { operation: "uninstall", javaMajor: major },
-    message: `等待卸载 LFAA 管理的 Temurin Java ${major} JRE。`
-  });
-}
-
-export function registerMinecraftJavaPath(nodeId: string, userId: string, executablePath: string, runtimeId?: string): MinecraftTask {
-  const node = requireJavaManagementNode(nodeId);
-  // Java 路径属于节点本地设置，只接受 Windows java.exe 绝对路径并由 Daemon 实际核验。
-  const path = executablePath.trim();
-  if (path.length > 2048 || /[\r\n\u0000]/u.test(path) || !win32.isAbsolute(path) || win32.basename(path).toLocaleLowerCase() !== "java.exe") {
-    throw new ApiError(400, "invalid_java_path", "请输入 Windows 上 java.exe 的完整绝对路径。");
-  }
-  if (runtimeId && !node.javaRuntimes.some((runtime) => runtime.runtimeId === runtimeId && runtime.source === "custom" && !runtime.managed)) {
-    throw new ApiError(404, "custom_java_path_not_found", "找不到可修改的手动登记 Java 路径；请刷新运行环境列表后重试。");
-  }
-  const normalizedPath = win32.normalize(path).toLocaleLowerCase();
-  if (hasPendingJavaEnvironmentTask(node.id, "register-path", (payload) => {
-    const pendingPath = typeof payload.executablePath === "string" ? win32.normalize(payload.executablePath).toLocaleLowerCase() : "";
-    return runtimeId ? payload.runtimeId === runtimeId : pendingPath === normalizedPath;
-  })) {
-    throw new ApiError(409, "java_path_update_pending", "此 Java 路径已有管理任务排队或正在执行。");
-  }
-  return createMinecraftTask({
-    nodeId: node.id,
-    instanceId: null,
-    createdBy: userId,
-    kind: "java-install",
-    payload: { operation: "register-path", executablePath: path, ...(runtimeId ? { runtimeId } : {}) },
-    message: runtimeId ? "等待识别并更新手动登记的 Java 路径。" : "等待识别并登记 Java 路径。"
-  });
-}
-
-export function forgetMinecraftJavaPath(nodeId: string, userId: string, runtimeId: string): MinecraftTask {
-  const node = requireJavaManagementNode(nodeId);
-  if (!node.javaRuntimes.some((runtime) => runtime.runtimeId === runtimeId && runtime.source === "custom" && !runtime.managed)) {
-    throw new ApiError(404, "custom_java_path_not_found", "找不到可移除的手动 Java 路径；请刷新运行环境列表后重试。");
-  }
-  if (hasPendingJavaEnvironmentTask(node.id, "forget-path", (payload) => payload.runtimeId === runtimeId)) {
-    throw new ApiError(409, "java_path_removal_pending", "此 Java 路径的移除任务已经排队或正在执行。");
-  }
-  return createMinecraftTask({
-    nodeId: node.id,
-    instanceId: null,
-    createdBy: userId,
-    kind: "java-install",
-    payload: { operation: "forget-path", runtimeId },
-    message: "等待移除手动登记的 Java 路径记录。"
-  });
-}
-
-export function listMinecraftJavaRuntimes(onNodeStatusChanged?: () => void): Array<{ nodeId: string; nodeName: string; nodeStatus: string; runtimes: DaemonNode["javaRuntimes"] }> {
-  return listDaemonNodes(onNodeStatusChanged).map((node) => ({ nodeId: node.id, nodeName: node.displayName, nodeStatus: node.status, runtimes: node.javaRuntimes }));
-}
-
-function requireJavaManagementNode(nodeId: string): DaemonNode {
-  const node = requireOnlineWindowsNode(nodeId);
-  if (!node.capabilities.includes("java-environment-manager-v1")) {
-    throw new ApiError(409, "java_manager_daemon_update_required", "此节点的 Daemon 尚未启用 Java 环境管理，请重启本机 Daemon 后重试。");
-  }
-  return node;
-}
-
-function hasPendingJavaEnvironmentTask(
-  nodeId: string,
-  operation: string,
-  matches: ((payload: Record<string, unknown>) => boolean) | number
-): boolean {
-  const rows = database.prepare(`
-    SELECT payload_json FROM minecraft_tasks
-    WHERE node_id = ? AND kind = 'java-install' AND status IN ('queued', 'running')
-  `).all(nodeId) as Array<{ payload_json: string }>;
-  return rows.some((row) => {
-    let payload: Record<string, unknown>;
-    try { payload = JSON.parse(row.payload_json) as Record<string, unknown>; }
-    catch { return false; }
-    const taskOperation = typeof payload.operation === "string" ? payload.operation : "install";
-    if (taskOperation !== operation) return false;
-    return typeof matches === "number" ? Number(payload.javaMajor) === matches : matches(payload);
-  });
-}
+export {installMinecraftJava,uninstallMinecraftJava,registerMinecraftJavaPath,forgetMinecraftJavaPath,listMinecraftJavaRuntimes} from "lfaa-runtime-manager/src/legacy-java.js";
 
 export function listMinecraftTaskRecords(): MinecraftTask[] {
   return listMinecraftTasks(200);

@@ -12,6 +12,7 @@
     "@deepseek-ai/cordis": "4.0.4",
     "lfaa-home-paths": "workspace:*",
     "lfaa-launch-environment": "workspace:*",
+    "lfaa-settings": "workspace:*",
     "lfaa-skill-writing": "workspace:*",
     "lfaa-storage-json": "workspace:*",
     "lfaa-storage-sqlite": "workspace:*"

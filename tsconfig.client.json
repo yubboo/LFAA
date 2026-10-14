@@ -535,6 +535,18 @@
       "lfaa-pwsh-sandbox/src/*": [
         "packages/shell/pwsh-sandbox/src/*"
       ],
+      "lfaa-runtime-environment": [
+        "packages/host/runtime-environment/src/java-runtime.mjs"
+      ],
+      "lfaa-runtime-environment/src/*": [
+        "packages/host/runtime-environment/src/*"
+      ],
+      "lfaa-runtime-manager": [
+        "packages/games/runtime-manager/src/index.ts"
+      ],
+      "lfaa-runtime-manager/src/*": [
+        "packages/games/runtime-manager/src/*"
+      ],
       "lfaa-sandbox": [
         "packages/sandbox/sandbox/src/index.ts"
       ],

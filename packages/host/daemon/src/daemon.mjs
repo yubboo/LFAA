@@ -3,6 +3,9 @@
  * 作用：轮询控制端已授权的节点业务任务；Wallpaper Engine 和 DSH Bundle 属于 Harness 插件宿主，不属于游戏 Daemon。
  * 关联文件：packages/host/daemon/src/local-daemon.ts、packages/jobs/jobs/src/ai-host-tasks.ts、packages/jobs/jobs/src/minecraft-queue.ts、packages/fs/fs/src/queue.ts、packages/games/minecraft/src/service.ts、packages/games/steamcmd/src/service.ts、apps/daemon/package.json。
  */
+import {createRuntimeExecutor} from "lfaa-runtime-environment/src/executor.mjs";
+import {fetchRuntimeResource} from "lfaa-runtime-environment/src/network.mjs";
+import {promoteSteamcmdInstallation,initializeSteamcmd} from "./steamcmd-installation.mjs";
 import { createManagedFileService } from "lfaa-fs/src/managed-files.mjs";
 import { protectedDataDirectories } from "lfaa-home-paths/src/reserved-data-paths.mjs";
 import { randomUUID, createHash } from "node:crypto";
@@ -45,7 +48,7 @@ const knownMinecraftDirectories = new Set([minecraftDirectoryRelative]);
 const defaultSteamcmdSettings = { installMode: "online", steamcmdDirectory: "lib/steamcmd", gameDirectory: "games/steamcmd" };
 // 文件任务单独领取但仍与安装运维共用维护槽；每秒一次将交互等待压至一个心跳间隔以下。
 const fileTaskPollIntervalMilliseconds = 1000;
-const javaDirectory = resolve(dataDirectory, "environments", "java");
+const javaDirectory = resolve(dataDirectory, "environments", "Java");
 const customJavaPathsPath = resolve(javaDirectory, "custom-paths.json");
 const backupDirectory = resolve(dataDirectory, "backups", "minecraft");
 const downloadDirectory = resolve(dataDirectory, "cache", "minecraft-downloads");
@@ -78,6 +81,7 @@ const activeServers = new Map();
 // 目录按用户填写的实例名称保存；此映射让进程和任务仍按稳定 UUID 定位实例。
 const minecraftInstanceDirectories = new Map();
 const activeTasks = new Set();
+const minecraftTaskControllers=new Map();
 let taskLanes;
 const activeCommands = new Map();
 const logBuffers = new Map();
@@ -94,13 +98,7 @@ let nextEasyTierRuntimeProbeAt = 0;
 let lastEasyTierRuntimeProbeError = "";
 let controlPlaneReady = false;
 let lastControlPlaneError = "";
-let customJavaPathWarningLogged = false;
 let steamcmdSettings = { ...defaultSteamcmdSettings };
-let localDriveRootsCache = [];
-let localDriveRootsCacheExpiresAt = 0;
-let deepJavaScanRunning = false;
-let nextDeepJavaScanAt = 0;
-const deepDiscoveredJavaPaths = new Map();
 
 // Daemon 启动和关闭由 Cordis Fiber 管理；导入模块不登记节点或启动轮询。
 export async function apply(ctx) {
@@ -352,7 +350,7 @@ async function runLoop() {
           .finally(() => { javaDiscoveryPending = null; javaDiscoveryRefreshAt = Date.now() + 60_000; });
       }
       await refreshEasyTierRuntimeVersion();
-      const capabilities = ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "java-environment-manager-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "agent-shell-v1", "project-files-v1", "git-workspace-v1", EASYTIER_RUNTIME_RELEASE.installCapability, ...(easyTierRuntimeVersion === EASYTIER_RUNTIME_RELEASE.version ? [EASYTIER_RUNTIME_RELEASE.runtimeCapability] : []), ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
+      const capabilities = ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-instance-archive-v1", "java-environment-manager-v1", "runtime-environment-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "agent-shell-v1", "project-files-v1", "git-workspace-v1", EASYTIER_RUNTIME_RELEASE.installCapability, ...(easyTierRuntimeVersion === EASYTIER_RUNTIME_RELEASE.version ? [EASYTIER_RUNTIME_RELEASE.runtimeCapability] : []), ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
       if (await steamcmdExecutableReady(steamcmdSettings.steamcmdDirectory)) capabilities.push("steamcmd-ready-v1");
       const heartbeat = await pollRequest("/daemon/heartbeat", {
         method: "POST",
@@ -371,12 +369,19 @@ async function runLoop() {
       });
       if (shuttingDown) break;
       for (const id of heartbeat?.cancelTaskIds ?? []) { const command = activeCommands.get(id); if (command) void command.cancel(); }
+      for(const id of heartbeat?.cancelMinecraftTaskIds??[])minecraftTaskControllers.get(id)?.abort(new DOMException("用户取消 Minecraft 任务。","AbortError"));
       if (heartbeat?.steamcmdSettings) steamcmdSettings = validateSteamcmdSettings(heartbeat.steamcmdSettings);
       if (heartbeat?.minecraftStorageSettings) await applyMinecraftStorageSettings(heartbeat.minecraftStorageSettings);
+      if (heartbeat?.runtimeStorageSettings && JSON.stringify(heartbeat.runtimeStorageSettings)!==JSON.stringify(runtimeStorage)) {
+        runtimeStorage=heartbeat.runtimeStorageSettings;
+        javaManager=createRuntimeExecutor({dataDirectory,repositoryRoot,storage:runtimeStorage,activeServers,postTaskProgress}).manager;
+        javaDiscoveryRefreshAt=0;
+      }
 
       await taskLanes.poll({
         claim: async path => (await pollRequest(path, { method: "POST", body: JSON.stringify({ nodeId }) })).task,
         maintenance: [
+          { path: "/daemon/runtime/tasks/claim", execute: executeRuntimeTask },
           { path: "/daemon/tasks/claim", execute: executeTask },
           { path: "/daemon/steamcmd/tasks/claim", execute: executeSteamcmdTask },
           { path: "/connectivity/daemon/easytier/install/claim", execute: executeConnectivityInstallTask }
@@ -602,13 +607,16 @@ function isProcessRunning(pid) {
 }
 
 async function executeTask(task) {
+  const controller=new AbortController();minecraftTaskControllers.set(task.id,controller);
+  let operationCompleted=false;
   try {
     await postTaskProgress(task.id, 5, "正在检查任务输入和目标实例。");
     let result = {};
     switch (task.kind) {
       case "install":
         if (task.payload?.operation === "provision") result = await provisionMinecraftCore(task, {
-          createDirectory: createSafeInstanceDirectory, java: (major, runtimeId, progress) => resolveMinecraftJavaRuntime(major, runtimeId, progress, task.payload.downloadTimeoutSeconds), progress: postTaskProgress,
+          signal:controller.signal,fetchResource:fetchRuntimeResource,cacheDirectory:runtimeStorage.downloadCacheDirectory,
+          createDirectory: createSafeInstanceDirectory, java: (major, runtimeId, progress) => createRuntimeExecutor({dataDirectory,repositoryRoot,storage:runtimeStorage,signal:controller.signal,activeServers}).manager.resolveMinecraftJavaRuntime(major, runtimeId, progress, task.payload.downloadTimeoutSeconds), progress: postTaskProgress,
           start: startMinecraftInstance, phpDirectory: resolve(dataDirectory, "environments", "php", "pocketmine"),
           assertSafeDirectory: ensureManagedDirectory, assertSafeFileTarget, safeFileExists, readSafeFile, isProcessRunning, findExecutable, expandZip,
           installerLog: (installTask) => {
@@ -636,23 +644,25 @@ async function executeTask(task) {
       }
       case "properties": result = await applyMinecraftProperties(task); break;
       case "backup": result = await backupMinecraftWorld(task); break;
+      case "delete": result = await archiveMinecraftInstance(task); break;
       case "java-install": result = await executeJavaEnvironmentTask(task); break;
       default: throw new Error("Daemon 拒绝执行未登记的任务类型。");
     }
+    operationCompleted=true;
     await flushMinecraftTaskLogs(task.id);
     await apiRequest(`/daemon/tasks/${task.id}/complete`, {
       method: "POST",
       body: JSON.stringify({ nodeId, succeeded: true, message: result.forced ? "实例已强制结束；未确认存档完整性，请先核查日志和世界文件。" : "Minecraft 任务已完成。", result })
     });
   } catch (error) {
-    const message = safeMessage(error);
+    const message = (operationCompleted?`节点已执行操作，但控制端未确认结果：${safeMessage(error)}`:safeMessage(error)).slice(0,240);
     await sendSystemLog(task.instanceId, task.id, `任务失败：${message}`).catch(() => undefined);
     await flushMinecraftTaskLogs(task.id);
     await apiRequest(`/daemon/tasks/${task.id}/complete`, {
       method: "POST",
-      body: JSON.stringify({ nodeId, succeeded: false, message, result: {} })
+      body: JSON.stringify({ nodeId, succeeded: false, message, result: operationCompleted?{outcome:"unknown"}:controller.signal.aborted?{outcome:"cancelled"}:{} })
     }).catch(() => undefined);
-  }
+  } finally {minecraftTaskControllers.delete(task.id);}
 }
 
 async function executeNodeFileTask(task) {
@@ -851,15 +861,16 @@ async function installSteamcmd(task) {
     await ensureManagedDirectory(downloadDirectory);
     const archivePath = resolve(downloadDirectory, `${task.id}.zip`);
     const stagingDirectory = resolve(downloadDirectory, `${task.id}.staging`);
-    const archive = await fetch("https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip", {
+    const archive = await fetchRuntimeResource("https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip", {
       redirect: "error",
       signal: AbortSignal.timeout(120_000)
     });
-    if (!archive.ok) throw new Error(`SteamCMD 官方下载失败（HTTP ${archive.status}）。`);
+    if (!archive.ok) {await archive.body?.cancel();throw new Error(`SteamCMD 官方下载失败（HTTP ${archive.status}）。`);}
     const contentLength = Number(archive.headers.get("content-length") ?? 0);
-    if (contentLength > 64 * 1024 * 1024) throw new Error("SteamCMD 安装包超过安全下载大小限制。");
+    if (contentLength > 64 * 1024 * 1024) {await archive.body?.cancel();throw new Error("SteamCMD 安装包超过安全下载大小限制。");}
     const archiveBytes = new Uint8Array(await archive.arrayBuffer());
     if (archiveBytes.byteLength < 1024 || archiveBytes.byteLength > 64 * 1024 * 1024) throw new Error("SteamCMD 安装包大小无效。");
+    if(contentLength>0&&archiveBytes.byteLength!==contentLength)throw new Error("SteamCMD 官方安装包下载不完整。");
     await writeFile(archivePath, archiveBytes, { flag: "wx" });
     try {
       await rm(stagingDirectory, { recursive: true, force: true });
@@ -878,13 +889,7 @@ async function installSteamcmd(task) {
       const stagedExecutable = resolve(stagingDirectory, "steamcmd.exe");
       const stagedInfo = await assertManagedPathIsSafe(stagedExecutable);
       if (!stagedInfo?.isFile()) throw new Error("Valve 安装包中没有找到 steamcmd.exe。");
-      const targetInfo = await assertManagedPathIsSafe(toolDirectory);
-      if (targetInfo?.isDirectory()) {
-        const existingEntries = await readdir(toolDirectory);
-        if (existingEntries.length > 0) throw new Error("所选 SteamCMD 目录已包含其他文件；请换用空目录或现有 SteamCMD 目录。");
-        await rm(toolDirectory, { recursive: false });
-      }
-      await rename(stagingDirectory, toolDirectory);
+      await promoteSteamcmdInstallation(stagingDirectory,toolDirectory,assertManagedPathIsSafe);
     } finally {
       await rm(archivePath, { force: true }).catch(() => undefined);
       await rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
@@ -895,13 +900,7 @@ async function installSteamcmd(task) {
 
   await postSteamcmdProgress(task.id, 76, "正在启动 SteamCMD 并完成首次自更新。");
   const executable = resolve(toolDirectory, "steamcmd.exe");
-  const output = await execFileAsync(executable, ["+quit"], {
-    cwd: toolDirectory,
-    windowsHide: true,
-    timeout: 10 * 60_000,
-    maxBuffer: 2 * 1024 * 1024
-  });
-  const versionLine = `${output.stdout ?? ""}\n${output.stderr ?? ""}`.split(/\r?\n/u).find((line) => /Steam Console Client/iu.test(line));
+  const versionLine = await initializeSteamcmd(executable,{cwd:toolDirectory,windowsHide:true,timeout:10*60_000,maxBuffer:2*1024*1024},()=>postSteamcmdProgress(task.id,86,"检测到 SteamCMD 客户端自更新，正在继续核验版本。"));
   await postSteamcmdProgress(task.id, 94, "SteamCMD 已启动，正在确认可执行文件和游戏目录。");
   if (!await steamcmdExecutableReady(settings.steamcmdDirectory)) throw new Error("SteamCMD 首次启动后未能通过文件检查。");
   return {
@@ -923,13 +922,7 @@ async function verifySteamcmd(task) {
   try { executableInfo = await assertManagedPathIsSafe(executable, true); }
   catch (error) { if (error?.code !== "ENOENT") throw error; }
   if (!executableInfo?.isFile()) throw new Error("所选目录中没有 steamcmd.exe；请确认路径或选择在线安装。");
-  const output = await execFileAsync(executable, ["+quit"], {
-    cwd: toolDirectory,
-    windowsHide: true,
-    timeout: 10 * 60_000,
-    maxBuffer: 2 * 1024 * 1024
-  });
-  const versionLine = `${output.stdout ?? ""}\n${output.stderr ?? ""}`.split(/\r?\n/u).find((line) => /Steam Console Client/iu.test(line));
+  const versionLine = await initializeSteamcmd(executable,{cwd:toolDirectory,windowsHide:true,timeout:10*60_000,maxBuffer:2*1024*1024},()=>postSteamcmdProgress(task.id,86,"检测到 SteamCMD 客户端自更新，正在继续核验版本。"));
   if (!await steamcmdExecutableReady(settings.steamcmdDirectory)) throw new Error("SteamCMD 校验后未能通过文件检查。");
   return {
     steamcmdDirectory: settings.steamcmdDirectory,
@@ -1022,7 +1015,7 @@ async function installMinecraftDeployment(task) {
   }
 
   const storageDirectory = validateMinecraftStorageDirectory(payload.storageDirectory ?? minecraftDirectoryRelative);
-  await ensureMinecraftStorageRoot(storageDirectory);
+  await ensureStorageDirectory(getMinecraftStorageRoot(storageDirectory));
   const directory = getNamedInstanceDirectory(name, storageDirectory);
   await mkdir(directory, { recursive: true });
   const directoryInfo = await lstat(directory);
@@ -1135,6 +1128,7 @@ async function startMinecraftInstance(task) {
   const metadata = await readInstanceMetadata(instanceDirectory);
   if (!metadata) throw new Error("找不到已安装的 Minecraft 实例元数据。");
   if ((task.payload?.executionMode ?? metadata.executionMode) === "native") return await startNativeMinecraftServer(task, metadata, instanceDirectory, {
+    signal:minecraftTaskControllers.get(task.id)?.signal,
     activeServers, safeFileExists, readSafeFile, isProcessRunning, assertSafeFileTarget, java: (major, runtimeId, progress) => resolveMinecraftJavaRuntime(major, runtimeId, progress, task.payload.downloadTimeoutSeconds),
     phpDirectory: resolve(dataDirectory, "environments", "php", "pocketmine"), progress: postTaskProgress,
     attachOutput: attachServerOutput, waitForExit: waitForChildExit
@@ -1264,492 +1258,28 @@ async function backupMinecraftWorld(task) {
   return { backupName };
 }
 
-async function installTemurinRuntime(majorInput, reportProgress, downloadTimeoutSeconds) {
-  const major = requireMajor(majorInput);
-  const existing = await findJavaRuntime(major, true);
-  if (existing?.managed) return { javaMajor: major, runtimeVendor: "Eclipse Temurin" };
-  const destinationDirectory = resolve(javaDirectory, `temurin-${major}-windows-x64`);
-  if (await fileExists(destinationDirectory)) throw new Error(`Java ${major} 的标准安装目录已存在，但其中没有可识别的运行时；为避免覆盖文件，已停止安装。`);
-  await reportProgress?.(8, `正在查询 Temurin Java ${major} 的官方安装包。`);
-  const archive = await findTemurinArchive(major);
-  const { downloadUrl, expectedSha256, archiveName, imageType } = archive;
-  assertHttpsHost(downloadUrl, "github.com");
-  const archivePath = resolve(downloadDirectory, archiveName);
-  if (!(await fileExists(archivePath)) || await hashFile(archivePath, "sha256").catch(() => "") !== expectedSha256) {
-    await rm(archivePath, { force: true });
-    await reportProgress?.(24, `正在下载并校验 Temurin Java ${major} ${imageType.toUpperCase()}。`);
-    await downloadCoreArtifact({ url: downloadUrl, algorithm: "sha256", digest: expectedSha256 }, archivePath, downloadTimeoutSeconds,
-      (bytes, total) => reportProgress?.(24, `正在下载 Java ${major}：${Math.round(bytes / 1024 / 1024)} MiB${total > 0 ? ` / ${Math.round(total / 1024 / 1024)} MiB` : ""}。`));
-  }
+let runtimeStorage={runtimeDirectory:resolve(dataDirectory,"environments"),downloadCacheDirectory:resolve(dataDirectory,"cache"),temporaryDirectory:resolve(dataDirectory,"tmp")};
+let javaManager=createRuntimeExecutor({dataDirectory,repositoryRoot,storage:runtimeStorage,activeServers,postTaskProgress}).manager;
+const installTemurinRuntime=(...args)=>javaManager.installTemurinRuntime(...args);
+const executeJavaEnvironmentTask=(...args)=>javaManager.executeJavaEnvironmentTask(...args);
+const discoverJavaRuntimes=(...args)=>javaManager.discoverJavaRuntimes(...args);
+const resolveMinecraftJavaRuntime=(...args)=>javaManager.resolveMinecraftJavaRuntime(...args);
+const readJavaVersion=(...args)=>javaManager.readJavaVersion(...args);
+let cachedJavaRuntimes=[],javaDiscoveryPending=null,javaDiscoveryRefreshAt=0;
 
-  const extractionDirectory = resolve(javaDirectory, `.install-${major}-${randomUUID()}`);
-  await mkdir(extractionDirectory, { recursive: true });
-  let finalDirectory = "";
+async function executeRuntimeTask(task) {
+  const controller=new AbortController();
+  const shutdown=()=>controller.abort(new DOMException("节点正在卸载。","AbortError"));
+  pollingController.signal.addEventListener("abort",shutdown,{once:true});
+  let renewing=false;
+  const renew=setInterval(async()=>{if(renewing)return;renewing=true;try{const state=await apiRequest(`/daemon/runtime/tasks/${task.id}/renew`,{method:"POST",body:JSON.stringify({nodeId})});if(state.cancelRequested)controller.abort(new DOMException("用户取消环境任务。","AbortError"));}catch(error){controller.abort(error);}finally{renewing=false;}},3000);
   try {
-    await reportProgress?.(72, `正在解压 Temurin Java ${major} ${imageType.toUpperCase()} 到项目数据目录。`);
-    await expandZip(archivePath, extractionDirectory);
-    const executable = await findExecutable(extractionDirectory, "java.exe");
-    if (!executable) throw new Error("Temurin JRE 解压内容中没有 java.exe。");
-    const archiveRuntimeDirectory = dirname(dirname(executable));
-    // 永久目录使用发行版、主版本和平台命名，并把压缩包顶层目录折叠掉，避免日期、随机串和上游目录名进入用户路径。
-    await rename(archiveRuntimeDirectory, destinationDirectory);
-    finalDirectory = destinationDirectory;
-    const finalExecutable = resolve(finalDirectory, relative(archiveRuntimeDirectory, executable));
-    const version = await readJavaVersion(finalExecutable);
-    if (version.major !== major) throw new Error(`安装后的 Java 主版本为 ${version.major}，预期为 ${major}。`);
-    await rm(extractionDirectory, { recursive: true, force: true });
-    await rm(archivePath, { force: true });
-    await reportProgress?.(96, `Temurin Java ${major} ${imageType.toUpperCase()} 已安装并通过版本核对。`).catch(() => {});
-    return { javaMajor: major, runtimeVendor: version.vendor || "Eclipse Temurin", imageType };
-  } catch (error) {
-    await rm(extractionDirectory, { recursive: true, force: true });
-    if (finalDirectory) await rm(finalDirectory, { recursive: true, force: true });
-    throw error;
-  }
-}
-
-async function findTemurinArchive(major) {
-  const latestJreUrl = `https://api.adoptium.net/v3/assets/latest/${major}/hotspot?architecture=x64&image_type=jre&os=windows&vendor=eclipse`;
-  assertHttpsHost(latestJreUrl, "api.adoptium.net");
-  const latestResponse = await fetch(latestJreUrl, { signal: AbortSignal.timeout(30_000), redirect: "error" });
-  if (!latestResponse.ok && latestResponse.status !== 404) {
-    throw new Error(`Adoptium Java ${major} JRE 版本目录查询失败（${latestResponse.status}）。`);
-  }
-  if (latestResponse.ok) {
-    const latestAssets = await latestResponse.json().catch(() => null);
-    const latestBinary = Array.isArray(latestAssets)
-      ? latestAssets.find((asset) => asset?.binary?.os === "windows" && asset.binary.architecture === "x64" && asset.binary.image_type === "jre" && asset.binary.jvm_impl === "hotspot")?.binary
-      : null;
-    const latestPackage = latestBinary?.package;
-    if (isValidTemurinArchivePackage(latestPackage)) {
-      return {
-        downloadUrl: latestPackage.link,
-        expectedSha256: latestPackage.checksum.toLowerCase(),
-        archiveName: latestPackage.name,
-        imageType: "jre"
-      };
-    }
-  }
-
-  // 旧主版本可能没有 latest JRE；先查归档 JRE，再回退到包含同一 java.exe 的 JDK ZIP。
-  for (const imageType of ["jre", "jdk"]) {
-    const versionRange = encodeURIComponent(`[${major},${major + 1})`).replace(/\)/gu, "%29");
-    const archiveUrl = new URL(`https://api.adoptium.net/v3/assets/version/${versionRange}`);
-    archiveUrl.searchParams.set("architecture", "x64");
-    archiveUrl.searchParams.set("heap_size", "normal");
-    archiveUrl.searchParams.set("image_type", imageType);
-    archiveUrl.searchParams.set("jvm_impl", "hotspot");
-    archiveUrl.searchParams.set("os", "windows");
-    archiveUrl.searchParams.set("project", "jdk");
-    archiveUrl.searchParams.set("release_type", "ga");
-    archiveUrl.searchParams.set("sort_method", "DATE");
-    archiveUrl.searchParams.set("sort_order", "DESC");
-    archiveUrl.searchParams.set("page_size", "1");
-    assertHttpsHost(archiveUrl.href, "api.adoptium.net");
-    const response = await fetch(archiveUrl, { signal: AbortSignal.timeout(30_000), redirect: "error" });
-    if (!response.ok) {
-      if (response.status === 404) continue;
-      throw new Error(`Adoptium Java ${major} ${imageType.toUpperCase()} 归档查询失败（${response.status}）。`);
-    }
-    const assets = await response.json().catch(() => null);
-    const binary = Array.isArray(assets)
-      ? assets.flatMap((asset) => Array.isArray(asset?.binaries) ? asset.binaries : []).find((candidate) => candidate.os === "windows" && candidate.architecture === "x64" && candidate.image_type === imageType && candidate.jvm_impl === "hotspot" && isValidTemurinArchivePackage(candidate.package))
-      : null;
-    if (!binary) continue;
-    return {
-      downloadUrl: binary.package.link,
-      expectedSha256: binary.package.checksum.toLowerCase(),
-      archiveName: binary.package.name,
-      imageType
-    };
-  }
-  throw new Error(`Adoptium 没有 Java ${major} 的 Windows x64 JRE/JDK ZIP 工件；请选择有官方工件的版本，或登记本机现有 Java。`);
-}
-
-function isValidTemurinArchivePackage(value) {
-  return value && typeof value.link === "string" && /^[a-f0-9]{64}$/iu.test(value.checksum || "")
-    && typeof value.name === "string" && /^[A-Za-z0-9._-]+\.zip$/iu.test(value.name)
-    && (value.size === undefined || (Number.isSafeInteger(value.size) && value.size > 0 && value.size <= 1_000_000_000));
-}
-
-async function executeJavaEnvironmentTask(task) {
-  const payload = task.payload ?? {};
-  const reportProgress = (progress, message) => postTaskProgress(task.id, progress, message);
-  switch (payload.operation ?? "install") {
-    case "install": return await installTemurinRuntime(payload.javaMajor, reportProgress, payload.downloadTimeoutSeconds);
-    case "uninstall": return await uninstallTemurinRuntime(payload.javaMajor, reportProgress);
-    case "register-path": return await registerJavaRuntimePath(payload, reportProgress);
-    case "forget-path": return await forgetJavaRuntimePath(payload.runtimeId, reportProgress);
-    default: throw new Error("Daemon 拒绝执行未登记的 Java 环境操作。");
-  }
-}
-
-async function uninstallTemurinRuntime(majorInput, reportProgress) {
-  const major = requireMajor(majorInput);
-  if ([...activeServers.values()].some((runtime) => runtime.javaMajor === major && runtime.child.exitCode === null && runtime.child.signalCode === null)) {
-    throw new Error(`Java ${major} 正被运行中的 Minecraft 实例使用，已拒绝卸载。`);
-  }
-  const runtimeDirectory = resolve(javaDirectory, `temurin-${major}-windows-x64`);
-  const directoryInfo = await lstat(runtimeDirectory).catch((error) => {
-    if (error?.code === "ENOENT") return null;
-    throw error;
-  });
-  if (!directoryInfo || directoryInfo.isSymbolicLink() || !directoryInfo.isDirectory()) {
-    throw new Error(`没有找到 LFAA 管理的 Java ${major} 安装目录。`);
-  }
-  const executable = await findExecutable(runtimeDirectory, "java.exe");
-  if (!executable || (await readJavaVersion(executable)).major !== major) {
-    throw new Error(`Java ${major} 安装目录校验失败，已保留现有文件。`);
-  }
-  await reportProgress(45, `正在安全卸载 LFAA 项目管理的 Temurin Java ${major}。`);
-  await rm(runtimeDirectory, { recursive: true, force: false });
-  return { javaMajor: major, runtimeVendor: "Eclipse Temurin" };
-}
-
-async function registerJavaRuntimePath(payload, reportProgress) {
-  // 手动路径只在节点本机验证和持久化，绝不作为 Shell 命令拼接或复制外部文件。
-  const executablePath = validateCustomJavaExecutablePath(payload.executablePath);
-  const customPaths = await readCustomJavaPaths();
-  let existingIndex = -1;
-  if (payload.runtimeId !== undefined) {
-    if (typeof payload.runtimeId !== "string") throw new Error("手动 Java 路径标识无效。");
-    existingIndex = customPaths.findIndex((path) => getCustomJavaRuntimeId(path) === payload.runtimeId);
-    if (existingIndex < 0) throw new Error("找不到待修改的手动 Java 路径记录。");
-  }
-  if (!(await fileExists(executablePath))) throw new Error("指定位置没有找到 java.exe。");
-  await reportProgress(35, "正在识别指定 Java 路径并核对主版本。");
-  const version = await readJavaVersion(executablePath);
-  const normalizedPath = resolve(executablePath);
-  const duplicateIndex = customPaths.findIndex((path, index) => index !== existingIndex && sameWindowsPath(path, normalizedPath));
-  if (duplicateIndex >= 0) throw new Error("此 Java 路径已经登记，无需重复添加。");
-  if (existingIndex >= 0) customPaths.splice(existingIndex, 1, normalizedPath);
-  else {
-    if (customPaths.length >= 32) throw new Error("手动登记的 Java 路径已达到 32 个上限。");
-    customPaths.push(normalizedPath);
-  }
-  await assertSafeFileTarget(customJavaPathsPath, true);
-  await writeFile(customJavaPathsPath, JSON.stringify(customPaths, null, 2), "utf8");
-  return { javaMajor: version.major, runtimeVendor: version.vendor };
-}
-
-async function forgetJavaRuntimePath(runtimeId, reportProgress) {
-  if (typeof runtimeId !== "string" || !/^java-[a-f0-9]{24}$/u.test(runtimeId)) throw new Error("手动 Java 路径标识无效。");
-  const customPaths = await readCustomJavaPaths();
-  const index = customPaths.findIndex((path) => getCustomJavaRuntimeId(path) === runtimeId);
-  if (index < 0) throw new Error("找不到待移除的手动 Java 路径记录。");
-  customPaths.splice(index, 1);
-  await reportProgress(65, "正在移除手动登记的 Java 路径记录。");
-  await assertSafeFileTarget(customJavaPathsPath, true);
-  await writeFile(customJavaPathsPath, JSON.stringify(customPaths, null, 2), "utf8");
-  return {};
-}
-
-let cachedJavaRuntimes = [], javaDiscoveryPending = null, javaDiscoveryRefreshAt = 0;
-async function discoverJavaRuntimes() {
-  const runtimes = new Map();
-  const managedEntries = await readdir(javaDirectory, { withFileTypes: true }).catch(() => []);
-  for (const entry of managedEntries) {
-    if (!entry.isDirectory() || entry.isSymbolicLink() || entry.name.startsWith(".")) continue;
-    const executable = await findExecutable(resolve(javaDirectory, entry.name), "java.exe");
-    if (!executable) continue;
-    const version = await readJavaVersion(executable).catch(() => null);
-    if (!version) continue;
-    const runtimeId = `temurin-${version.major}`;
-    runtimes.set(runtimeId, { runtimeId, major: version.major, vendor: version.vendor || "Eclipse Temurin", managed: true, source: "managed", executablePath: executable });
-  }
-  const externalPaths = new Map();
-  const addExternalPath = (executablePath, source) => {
-    const normalizedPath = resolve(executablePath);
-    const managedRelativePath = relative(javaDirectory, normalizedPath);
-    if (!managedRelativePath.startsWith(`..${sep}`) && managedRelativePath !== ".." && !isAbsolute(managedRelativePath)) return;
-    const key = normalizedPath.toLocaleLowerCase();
-    const existing = externalPaths.get(key);
-    if (!existing || source === "custom") externalPaths.set(key, { executablePath: normalizedPath, source });
-  };
-  const pathEntries = (process.env.PATH || "").split(";").filter(Boolean);
-  for (const pathEntry of pathEntries) {
-    addExternalPath(resolve(pathEntry.replace(/^"|"$/gu, ""), "java.exe"), "system");
-  }
-  const javaHome = process.env.JAVA_HOME?.trim().replace(/^"|"$/gu, "");
-  if (javaHome) {
-    const resolvedHome = resolve(javaHome);
-    const javaExecutable = basename(resolvedHome).toLocaleLowerCase() === "java.exe"
-      ? resolvedHome
-      : basename(resolvedHome).toLocaleLowerCase() === "bin"
-        ? resolve(resolvedHome, "java.exe")
-        : resolve(resolvedHome, "bin", "java.exe");
-    addExternalPath(javaExecutable, "system");
-  }
-  const knownJavaRoots = [
-    process.env.ProgramFiles && join(process.env.ProgramFiles, "Java"),
-    process.env.ProgramFiles && join(process.env.ProgramFiles, "Eclipse Adoptium"),
-    process.env.ProgramFiles && join(process.env.ProgramFiles, "Microsoft"),
-    process.env.ProgramFiles && join(process.env.ProgramFiles, "Amazon Corretto"),
-    process.env.ProgramFiles && join(process.env.ProgramFiles, "Zulu"),
-    process.env.ProgramFiles && join(process.env.ProgramFiles, "BellSoft"),
-    process.env["ProgramFiles(x86)"] && join(process.env["ProgramFiles(x86)"], "Java"),
-    process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, "Programs", "Eclipse Adoptium"),
-    process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, "Programs", "Microsoft")
-  ].filter(Boolean);
-  const scannedRoots = new Set();
-  for (const root of knownJavaRoots) {
-    const normalizedRoot = resolve(root);
-    if (scannedRoots.has(normalizedRoot.toLocaleLowerCase())) continue;
-    scannedRoots.add(normalizedRoot.toLocaleLowerCase());
-    addJavaHomeCandidate(normalizedRoot, addExternalPath);
-    const entries = await readdir(normalizedRoot, { withFileTypes: true }).catch(() => []);
-    for (const entry of entries) {
-      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
-      const childRoot = resolve(normalizedRoot, entry.name);
-      addJavaHomeCandidate(childRoot, addExternalPath);
-      if (["latest", "current"].includes(entry.name.toLocaleLowerCase())) {
-        const linkedEntries = await readdir(childRoot, { withFileTypes: true }).catch(() => []);
-        for (const linkedEntry of linkedEntries) {
-          if (linkedEntry.isDirectory() || linkedEntry.isSymbolicLink()) {
-            addJavaHomeCandidate(resolve(childRoot, linkedEntry.name), addExternalPath);
-          }
-        }
-      }
-    }
-  }
-  const localDriveRoots = await getLocalDriveRoots();
-  await scanJavaPathsAtDriveRoots(localDriveRoots, addExternalPath);
-  scheduleDeepJavaScan(localDriveRoots);
-  for (const executablePath of deepDiscoveredJavaPaths.values()) addExternalPath(executablePath, "system");
-  const customPaths = await readCustomJavaPaths().catch((error) => {
-    if (!customJavaPathWarningLogged) {
-      customJavaPathWarningLogged = true;
-      process.stderr.write(`${safeMessage(error)}\n`);
-    }
-    return [];
-  });
-  for (const customPath of customPaths) addExternalPath(customPath, "custom");
-  for (const { executablePath, source } of externalPaths.values()) {
-    if (!(await fileExists(executablePath))) continue;
-    const version = await readJavaVersion(executablePath).catch(() => null);
-    if (!version) continue;
-    const runtimeId = getCustomJavaRuntimeId(executablePath);
-    const current = runtimes.get(runtimeId);
-    if (!current || source === "custom") {
-      runtimes.set(runtimeId, { runtimeId, major: version.major, vendor: version.vendor || "Java Runtime", managed: false, source, executablePath });
-    }
-  }
-  return [...runtimes.values()].slice(0, 128);
-}
-
-async function getLocalDriveRoots() {
-  if (Date.now() < localDriveRootsCacheExpiresAt) return localDriveRootsCache;
-  const fallbackRoots = [process.env.SystemDrive, `${resolve(repositoryRoot).slice(0, 2)}\\`]
-    .map(toDriveRoot).filter(Boolean);
-  try {
-    const query = "Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2 OR DriveType=3' | ForEach-Object { $_.DeviceID }";
-    const { stdout } = await execFileAsync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", query], {
-      windowsHide: true,
-      timeout: 10_000,
-      maxBuffer: 16 * 1024
-    });
-    const discoveredRoots = stdout.split(/\r?\n/u).map(toDriveRoot).filter(Boolean);
-    localDriveRootsCache = [...new Set([...fallbackRoots, ...discoveredRoots])];
-  } catch {
-    localDriveRootsCache = [...new Set(fallbackRoots)];
-  }
-  localDriveRootsCacheExpiresAt = Date.now() + 5 * 60_000;
-  return localDriveRootsCache;
-}
-
-function toDriveRoot(value) {
-  const match = /^([a-z]):(?:\\)?$/iu.exec(String(value ?? "").trim());
-  return match ? `${match[1].toUpperCase()}:\\` : null;
-}
-
-async function scanJavaPathsAtDriveRoots(driveRoots, addExternalPath) {
-  const javaFolderPattern = /java|jdk|jre|openjdk|temurin|adoptium|corretto|zulu|bellsoft|oracle/iu;
-  const installContainerPattern = /^(?:program files(?: \(x86\))?|apps?|software|tools?|development|dev|sdks?)$/iu;
-  for (const driveRoot of driveRoots) {
-    addJavaHomeCandidate(driveRoot, addExternalPath);
-    const entries = await readdir(driveRoot, { withFileTypes: true }).catch(() => []);
-    for (const entry of entries) {
-      if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
-      const directory = resolve(driveRoot, entry.name);
-      addJavaHomeCandidate(directory, addExternalPath);
-      if (!javaFolderPattern.test(entry.name) && !installContainerPattern.test(entry.name)) continue;
-      const children = await readdir(directory, { withFileTypes: true }).catch(() => []);
-      for (const child of children) {
-        if (!child.isDirectory() || child.isSymbolicLink()) continue;
-        const childDirectory = resolve(directory, child.name);
-        addJavaHomeCandidate(childDirectory, addExternalPath);
-        if (!javaFolderPattern.test(child.name)) continue;
-        const runtimes = await readdir(childDirectory, { withFileTypes: true }).catch(() => []);
-        for (const runtime of runtimes) {
-          if (runtime.isDirectory() && !runtime.isSymbolicLink()) {
-            addJavaHomeCandidate(resolve(childDirectory, runtime.name), addExternalPath);
-          }
-        }
-      }
-    }
-  }
-}
-
-function scheduleDeepJavaScan(driveRoots) {
-  if (shuttingDown || deepJavaScanRunning || Date.now() < nextDeepJavaScanAt || driveRoots.length === 0) return;
-  deepJavaScanRunning = true;
-  nextDeepJavaScanAt = Date.now() + 15 * 60_000;
-  void scanLocalVolumesForJava(driveRoots).catch(() => {}).finally(() => { deepJavaScanRunning = false; });
-}
-
-async function scanLocalVolumesForJava(driveRoots) {
-  const ignoredDirectories = new Set([
-    "$recycle.bin", "system volume information", "windows", "windows.old", "recovery", "perflogs",
-    "node_modules", ".git", ".svn", ".hg"
-  ]);
-  for (const driveRoot of driveRoots) {
-    if (shuttingDown) break;
-    const pending = [{ directory: driveRoot, depth: 0 }];
-    let cursor = 0;
-    let scannedDirectories = 0;
-    while (!shuttingDown && cursor < pending.length && scannedDirectories < 100_000) {
-      const current = pending[cursor++];
-      scannedDirectories += 1;
-      const executablePath = resolve(current.directory, "bin", "java.exe");
-      if (await fileExists(executablePath)) {
-        deepDiscoveredJavaPaths.set(executablePath.toLocaleLowerCase(), executablePath);
-        continue;
-      }
-      if (current.depth >= 20) continue;
-      const entries = await readdir(current.directory, { withFileTypes: true }).catch(() => []);
-      for (const entry of entries) {
-        if (!entry.isDirectory() || entry.isSymbolicLink() || ignoredDirectories.has(entry.name.toLocaleLowerCase())) continue;
-        pending.push({ directory: resolve(current.directory, entry.name), depth: current.depth + 1 });
-      }
-    }
-  }
-}
-
-function addJavaHomeCandidate(home, addExternalPath) {
-  const resolvedHome = resolve(home);
-  const executablePath = basename(resolvedHome).toLocaleLowerCase() === "bin"
-    ? resolve(resolvedHome, "java.exe")
-    : resolve(resolvedHome, "bin", "java.exe");
-  addExternalPath(executablePath, "system");
-}
-
-async function readCustomJavaPaths() {
-  try {
-    await assertSafeFileTarget(customJavaPathsPath, false);
-    const value = JSON.parse(await readFile(customJavaPathsPath, "utf8"));
-    if (!Array.isArray(value)) return [];
-    return value.filter((path) => typeof path === "string" && path.length <= 2048 && isAbsolute(path)
-      && basename(path).toLocaleLowerCase() === "java.exe").slice(0, 32);
-  } catch (error) {
-    if (error?.code === "ENOENT") return [];
-    throw new Error("手动 Java 路径清单损坏，Daemon 已停止读取该清单。");
-  }
-}
-
-function validateCustomJavaExecutablePath(value) {
-  if (typeof value !== "string" || value.length > 2048 || /[\r\n\u0000]/u.test(value) || !isAbsolute(value)
-    || basename(value).toLocaleLowerCase() !== "java.exe") {
-    throw new Error("请输入 Windows 上 java.exe 的完整绝对路径。");
-  }
-  const relativePath = relative(javaDirectory, resolve(value));
-  if (!relativePath.startsWith(`..${sep}`) && relativePath !== ".." && !isAbsolute(relativePath)) {
-    throw new Error("LFAA 管理目录中的 Java 无法作为外部路径重复登记。");
-  }
-  return resolve(value);
-}
-
-function getCustomJavaRuntimeId(executablePath) {
-  const normalizedPath = resolve(executablePath).toLocaleLowerCase();
-  return `java-${createHash("sha256").update(normalizedPath).digest("hex").slice(0, 24)}`;
-}
-
-function sameWindowsPath(left, right) {
-  return resolve(left).toLocaleLowerCase() === resolve(right).toLocaleLowerCase();
-}
-
-async function findJavaRuntime(major, managedOnly = false) {
-  const runtimes = [];
-  const entries = await readdir(javaDirectory, { withFileTypes: true }).catch(() => []);
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.isSymbolicLink() || entry.name.startsWith(".")) continue;
-    const root = resolve(javaDirectory, entry.name);
-    const executable = await findExecutable(root, "java.exe");
-    if (executable) runtimes.push({ executable, managed: true, root });
-  }
-  if (!managedOnly) {
-    for (const pathEntry of (process.env.PATH || "").split(";").filter(Boolean)) {
-      const executable = resolve(pathEntry.replace(/^"|"$/gu, ""), "java.exe");
-      if (await fileExists(executable)) runtimes.push({ executable, managed: false, root: null });
-    }
-  }
-  for (const runtime of runtimes) {
-    const version = await readJavaVersion(runtime.executable).catch(() => null);
-    if (version?.major === major) return { ...runtime, runtimeId: runtime.managed ? `temurin-${major}` : null, ...version };
-  }
-  return null;
-}
-
-async function resolveMinecraftJavaRuntime(majorInput, runtimeId, reportProgress, downloadTimeoutSeconds) {
-  const major = requireMajor(majorInput);
-  if (runtimeId !== null) {
-    // 显式选择必须再次按运行时 ID 和主版本解析；已失效时不回退到另一套 Java。
-    if (typeof runtimeId !== "string" || runtimeId.length > 80) throw new Error("实例选择的 Java 运行环境标识无效。");
-    let discovered = (await discoverJavaRuntimes()).find((runtime) => runtime.runtimeId === runtimeId);
-    if (!discovered && runtimeId === `temurin-${major}`) {
-      await reportProgress?.(20, `实例选择的 LFAA 托管 Java ${major} 已卸载，正在重新准备 Temurin JRE。`);
-      await installTemurinRuntime(major, reportProgress, downloadTimeoutSeconds);
-      discovered = (await discoverJavaRuntimes()).find((runtime) => runtime.runtimeId === runtimeId);
-    }
-    if (!discovered) throw new Error("实例选择的 Java 已不在节点扫描结果中；请为实例重新选择运行环境。");
-    if (discovered.major !== major) throw new Error(`实例选择的 Java ${discovered.major} 与服务端要求的 Java ${major} 不匹配。`);
-    const executable = await realpath(discovered.executablePath).catch(() => "");
-    if (!executable || basename(executable).toLocaleLowerCase() !== "java.exe") {
-      throw new Error("实例选择的 Java 可执行文件已不存在或路径无效。");
-    }
-    const binaryDirectory = dirname(executable);
-    if (basename(binaryDirectory).toLocaleLowerCase() !== "bin") {
-      throw new Error("实例选择的 Java 不在标准 bin\java.exe 目录中，无法确认运行环境边界。");
-    }
-    const root = await realpath(dirname(binaryDirectory)).catch(() => "");
-    if (!root) throw new Error("实例选择的 Java 安装目录无法验证。");
-    const version = await readJavaVersion(executable);
-    if (version.major !== major) throw new Error(`实例选择的 Java 实际版本为 ${version.major}，与服务端要求的 Java ${major} 不匹配。`);
-    return { ...discovered, executable, root, ...version };
-  }
-
-  let java = await findJavaRuntime(major, true);
-  if (!java) {
-    const discovered = cachedJavaRuntimes.find(runtime => runtime.major === major) ?? (await discoverJavaRuntimes()).find(runtime => runtime.major === major);
-    if (discovered) {
-      await reportProgress?.(20, `已发现 Java ${major}，正在核对并复用节点现有运行环境。`);
-      return resolveMinecraftJavaRuntime(major, discovered.runtimeId, reportProgress, downloadTimeoutSeconds);
-    }
-  }
-  if (!java) {
-    await reportProgress?.(20, `未找到 LFAA 托管 Java ${major}，正在准备 Temurin JRE。`);
-    await installTemurinRuntime(major, reportProgress, downloadTimeoutSeconds);
-    java = await findJavaRuntime(major, true);
-  }
-  if (!java) throw new Error(`没有找到 LFAA 托管 Java ${major}，请检查 Java 管理任务。`);
-  const executable = await realpath(java.executable).catch(() => "");
-  if (!executable) throw new Error(`LFAA 托管 Java ${major} 的可执行文件无法验证。`);
-  const binaryDirectory = dirname(executable);
-  if (basename(binaryDirectory).toLocaleLowerCase() !== "bin") throw new Error("LFAA 托管 Java 不在标准 bin\java.exe 目录中。");
-  const root = await realpath(dirname(binaryDirectory)).catch(() => "");
-  if (!root) throw new Error(`LFAA 托管 Java ${major} 的安装目录无法验证。`);
-  return { ...java, executable, root };
-}
-
-async function readJavaVersion(executable) {
-  const output = await captureProcess(executable, ["-version"], 10_000);
-  const text = `${output.stdout}\n${output.stderr}`;
-  const versionMatch = /version\s+"(?:1\.)?(\d+)/iu.exec(text);
-  if (!versionMatch) throw new Error("无法识别 Java 版本输出。");
-  const vendor = /Temurin/iu.test(text) ? "Eclipse Temurin"
-    : /Java\(TM\)/iu.test(text) ? "Java(TM)"
-      : /Oracle/iu.test(text) ? "Oracle"
-        : /OpenJDK/iu.test(text) ? "OpenJDK" : "Java Runtime";
-  return { major: Number(versionMatch[1]), vendor };
+    const executor=createRuntimeExecutor({dataDirectory,repositoryRoot,storage:task.payload.storage,signal:controller.signal,activeServers});
+    const result=await executor.execute(task.operation,task.payload,(progress,message)=>apiRequest(`/daemon/runtime/tasks/${task.id}/progress`,{method:"POST",body:JSON.stringify({nodeId,progress,message})}));
+    controller.signal.throwIfAborted();
+    await apiRequest(`/daemon/runtime/tasks/${task.id}/complete`,{method:"POST",body:JSON.stringify({nodeId,status:"succeeded",message:"节点环境操作已完成并取得实际结果。",result})});javaDiscoveryRefreshAt=0;
+  }catch(error){await apiRequest(`/daemon/runtime/tasks/${task.id}/complete`,{method:"POST",body:JSON.stringify({nodeId,status:controller.signal.aborted?"cancelled":"failed",message:safeMessage(error).slice(0,1000),result:{}})});}
+  finally{clearInterval(renew);pollingController.signal.removeEventListener("abort",shutdown);}
 }
 
 async function expandZip(archivePath, destinationPath) {
@@ -1767,7 +1297,7 @@ async function downloadAndVerify(url, destinationPath, { algorithm, digest, size
   const allowedHost = algorithm === "sha1" ? "piston-data.mojang.com" : "github.com";
   assertHttpsHost(url, allowedHost);
   const signal = operationSignal ? AbortSignal.any([operationSignal, AbortSignal.timeout(30 * 60 * 1000)]) : AbortSignal.timeout(30 * 60 * 1000);
-  const response = await fetch(url, {
+  const response = await fetchRuntimeResource(url, {
     signal,
     redirect: algorithm === "sha1" ? "error" : "follow"
   });
@@ -1809,7 +1339,11 @@ async function hashFile(path, algorithm) {
 
 async function readInstanceMetadata(instanceDirectory) {
   try { return JSON.parse(await readSafeFile(resolve(instanceDirectory, "lfaa-instance.json"), "utf8")); }
-  catch (error) { if (error?.code === "ENOENT") return null; throw error; }
+  catch (error) {
+    if (error?.code === "ENOENT") return null;
+    if (error instanceof SyntaxError) throw new Error("实例元数据 lfaa-instance.json 不是有效 JSON；文件存在但内容损坏。请核对内容与实例登记参数后修复，不要重复下载或创建其他实例。", { cause: error });
+    throw error;
+  }
 }
 
 async function readDeploymentMetadata(deploymentDirectory) {
@@ -1819,7 +1353,7 @@ async function readDeploymentMetadata(deploymentDirectory) {
 
 async function createSafeInstanceDirectory(instanceId, instanceName, storageDirectory = minecraftDirectoryRelative) {
   const id = requireInstanceId(instanceId);
-  await ensureMinecraftStorageRoot(storageDirectory);
+  await ensureStorageDirectory(getMinecraftStorageRoot(storageDirectory));
   const directory = getNamedInstanceDirectory(instanceName, storageDirectory);
   try {
     const info = await lstat(directory);
@@ -1833,6 +1367,39 @@ async function createSafeInstanceDirectory(instanceId, instanceName, storageDire
   }
   minecraftInstanceDirectories.set(id, directory);
   return await requireSafeInstanceDirectory(instanceId);
+}
+
+async function archiveMinecraftInstance(task) {
+  const id=requireInstanceId(task.instanceId);
+  if(activeServers.has(id))throw new Error("实例仍有受管进程，请先安全停止。");
+  await getExistingMinecraftStorageRoot(task.payload?.storageDirectory);
+  const directory=minecraftInstanceDirectories.get(id)??getNamedInstanceDirectory(task.payload?.instanceName,task.payload?.storageDirectory);
+  const info=await lstat(directory).catch(error=>{if(error.code==="ENOENT")return null;throw error;});
+  if(!info)return {archived:true,note:"节点已核实登记目录不存在，仅移除失效登记；没有删除磁盘文件。"};
+  if(!info.isDirectory()||info.isSymbolicLink())throw new Error("实例目标不是安全的普通目录。");
+  await ensureManagedDirectory(directory);
+  const metadataPath=resolve(directory,"lfaa-instance.json");
+  if(await safeFileExists(metadataPath)){
+    const raw=await readSafeFile(metadataPath,"utf8");
+    let metadata;try{metadata=JSON.parse(raw);}catch{/* 损坏的元数据随整个已登记目录归档，不能据此启动或执行。 */}
+    if(metadata?.instanceId&&metadata.instanceId!==id)throw new Error("实例目录身份不匹配，拒绝归档。");
+  }
+  const markerPath=resolve(directory,"daemon-process.json");
+  if(await safeFileExists(markerPath)) {
+    const marker=JSON.parse(await readSafeFile(markerPath,"utf8"));
+    if(!Number.isInteger(marker.pid)||isProcessRunning(marker.pid))throw new Error("实例进程尚未确认退出，拒绝归档。");
+  }
+  if(await safeFileExists(resolve(directory,"daemon-installing.json")))throw new Error("实例仍有安装标记，请先核对任务。");
+  const archiveRoot=resolve(backupDirectory,"deleted-instances");
+  await ensureStorageDirectory(archiveRoot);
+  const backupName=`${id}-${task.id}`;
+  const destination=resolve(archiveRoot,backupName);
+  if(await lstat(destination).catch(error=>{if(error.code==="ENOENT")return null;throw error;}))throw new Error("归档目录已存在，未覆盖。");
+  await postTaskProgress(task.id,60,"正在把完整实例目录安全移入备份归档。");
+  await rename(directory,destination);
+  minecraftInstanceDirectories.delete(id);
+  await rm(resolve(sandboxMetadataDirectory,`${id}.json`),{force:true});
+  return {archived:true,backupName};
 }
 
 async function requireSafeInstanceDirectory(instanceId) {

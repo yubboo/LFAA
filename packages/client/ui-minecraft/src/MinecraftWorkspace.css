@@ -82,6 +82,7 @@
 .minecraft-instance-tabs button { min-height: 38px; flex: 0 0 auto; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--color-text-secondary); cursor: pointer; font: inherit; font-size: var(--font-size-xs); }
 .minecraft-instance-tabs button[aria-current="page"] { border-bottom-color: var(--color-brand); color: var(--color-brand); font-weight: 650; }
 .minecraft-detail-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(260px, .9fr); gap: 12px; }
+.minecraft-detail-grid > * { min-width: 0; }
 .minecraft-instance-summary .minecraft-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px 18px; margin: 20px 0 0; }
 .minecraft-facts div { min-width: 0; }
 .minecraft-facts dt { margin-bottom: 4px; color: var(--color-text-muted); font-size: calc(var(--font-size-xs) * .91); }
@@ -233,8 +234,8 @@
 .minecraft-register-form > label .ant-input-number, .minecraft-register-form > label .ant-select { width: 100%; }
 .minecraft-register-form > label > .ant-typography-secondary { margin: 0; font-size: calc(var(--font-size-xs) * .91); line-height: 1.55; }
 .minecraft-register-form .minecraft-eula { grid-column: auto; }
-.minecraft-instance-java-choice { display: grid; max-width: 680px; gap: 6px; margin-top: 16px; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
-.minecraft-instance-java-choice .ant-select { width: 100%; }
+.minecraft-instance-java-choice { display: grid; grid-template-columns: minmax(0,1fr); min-width: 0; max-width: 680px; gap: 6px; margin-top: 16px; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.minecraft-instance-java-choice .ant-select { width: 100%; min-width: 0; max-width: 100%; }
 .minecraft-instance-java-choice .ant-typography { margin: 0; line-height: 1.55; }
 .minecraft-java-node { display: grid; gap: 5px; margin-top: 14px; padding: 12px; border: 1px solid var(--color-border-subtle); border-radius: 10px; }
 .minecraft-java-node p { margin: 3px 0 0; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
@@ -323,6 +324,7 @@
 }
 
 @container module-center-content (max-width: 720px) {
+  .minecraft-detail-grid { grid-template-columns: minmax(0,1fr); }
   .minecraft-overview-panels,
   .minecraft-node-grid { grid-template-columns: minmax(0, 1fr); }
 }

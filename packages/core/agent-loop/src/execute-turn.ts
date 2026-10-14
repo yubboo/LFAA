@@ -30,6 +30,7 @@ import { appendShellCommandActivityPreview } from "./shell-command-activity.js";
 import { buildWebActivityPreview } from "./web-activity.js";
 import { buildAiProjectFileChanges } from "./project-file-activity.js";
 import { AiRunPauseGate } from "./run-pause.js";
+import { toolExecutionState } from "./tool-outcome.js";
 
 export interface AiTurnInput { userId: string; userRole: UserRole; body: { appId: ApplicationId; content: string; sessionId: string | null }; turn: AiTurnRows; aiPluginHost: AiPluginHost; abortController: AbortController; pauseGate?: AiRunPauseGate; emit: (event: string, data: Record<string, unknown>) => void; takeInputs?: () => AiCompletionMessage[]; requestUserInput?: (input: { questionId: string; question: string; options: string[] }) => Promise<{ answer: string; skipped: boolean }>; modelAccountId?: string; modelResolver: AgentDefaultModelResolver; approvalNotifications: UserApprovalNotifications; systemPrompt?: string; allowedToolNames?: string[]; memoryEligible?: boolean; planModeEnabled?: boolean; writeGate?: { denied: boolean }; delegate?: (parameters: Record<string, unknown>, availableTools: string[], onActivity: (activity: AiActivityItem) => void, execute?: (startChild: (signal?: AbortSignal) => Promise<{ status: string; [key: string]: unknown }>) => Promise<{ status: string; [key: string]: unknown }>) => Promise<{ status: string; [key: string]: unknown }>; /** 上下文管理钩子（compaction/spill）。未注入时行为与现状完全一致；注入后在每次发模型请求前按上下文规模触发。 */ contextManager?: ContextManagerHooks }
 
@@ -309,6 +310,10 @@ const activityToolTitles: Record<string, string> = {
   "minecraft.list-core-builds": "查询 Minecraft 核心构建",
   "minecraft.provision": "准备 Minecraft 服务端",
   "minecraft.list-nodes": "检查 Minecraft 节点",
+  "runtime.list":"读取设备运行环境",
+  "runtime.resolve":"匹配所需运行环境",
+  "runtime.operation":"执行运行环境任务",
+  "runtime.task":"核对环境任务结果",
   "minecraft.list-instances": "查询 Minecraft 实例",
   "minecraft.get-instance": "读取 Minecraft 实例详情",
   "minecraft.list-releases": "查询 Minecraft 版本",
@@ -558,6 +563,9 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
       let toolCallCount = 0;
       const failedToolSignatures = new Set<string>();
       const completedWriteToolSignatures = new Set<string>();
+      const blockedToolSignatures = new Set<string>();
+      const confirmedFailures = new Map<string, number>();
+      let recoveryRevision = 0;
       const maxModelRequests = Math.min(settings.aiRuntime.maxModelRequests || AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN);
       const maxToolCalls = Math.min(settings.aiRuntime.maxToolCalls || AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN);
       // 请求审批与替我审批模式下，一次拒绝或过期会锁住本轮剩余写操作；完全权限模式不进入审批等待。
@@ -820,8 +828,9 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
               const command = (parameters as Record<string, unknown>).command;
               if (typeof command === "string") shellCommandByActivity.set(activityId, { toolId: tool.id, command });
             }
-            if (failedToolSignatures.has(toolSignature)) {
-              throw new AiRepeatedToolCallError("本轮检测到模型重复请求先前已失败或结果未知的同一工具与参数；本次未重新派发。已停止本轮以避免重复副作用，请先核对工具或节点的真实状态后再继续。");
+            const repairedFailure = tool.retryAfterRecovery && confirmedFailures.has(toolSignature) && recoveryRevision > confirmedFailures.get(toolSignature)!;
+            if (failedToolSignatures.has(toolSignature) && !repairedFailure) {
+              throw new AiRepeatedToolCallError("重复请求先前已失败或结果未知的同一工具与参数；本次未派发。请使用只读状态/日志核对结果；确认失败可选择领域恢复工具，结果未知不可重放。根据已有证据选择其他行动或给出最终答复。");
             }
             updateActivity(activityId, "参数校验通过；将按当前权限模式执行。");
 
@@ -829,7 +838,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
             if (!["read", "write", "dangerous"].includes(risk)) throw new Error("工具返回了无效的权限风险类型，已拒绝调用。");
             isSideEffectTool = risk !== "read";
             if (isSideEffectTool && completedWriteToolSignatures.has(toolSignature)) {
-              throw new AiRepeatedToolCallError("本轮检测到模型重复请求已成功完成的同一写入/危险工具与参数；本次未重新派发，避免重复副作用。");
+              throw new AiRepeatedToolCallError("重复请求已成功完成的同一写入/危险工具与参数；本次未派发。请核对已有结果或读取当前状态；已满足目标时给出最终答复，不要重复副作用。");
             }
             const planModeActive = planModeEnabled && getAiSessionPlanMode(userId, turn.session.id);
             if (planModeActive && (risk !== "read" || tool.delegation === "domain-expert" || tool.createsSubagent || tool.requiresComputerControl)) {
@@ -978,17 +987,11 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
                   }
                 }
               }
-              const hostTask = typeof toolResult === "object" && toolResult !== null
-                ? (toolResult as { task?: { status?: unknown; message?: unknown } }).task
-                : undefined;
-              if (toolResult && typeof toolResult === "object" && "executionState" in toolResult && toolResult.executionState === "unconfirmed") {
+              const outcome = toolExecutionState(toolResult, true);
+              if (outcome === "unconfirmed") {
                 finishActivity(activityId, "unavailable", "执行结果未确认（可能超时、取消或退出码未知）；不能当作成功，也不能重放可能已产生副作用的相同操作。");
-              } else if (toolResult && typeof toolResult === "object" && "isError" in toolResult && toolResult.isError === true) {
-                finishActivity(activityId, "error", "外部服务报告失败；详细结果已交给模型。");
-              } else if (hostTask?.status === "failed") {
+              } else if (outcome === "failed") {
                 finishActivity(activityId, "error", "节点任务执行失败；详细结果已交给模型。");
-              } else if (hostTask?.status === "queued" || hostTask?.status === "running") {
-                finishActivity(activityId, "unavailable", "任务仍在执行，最终结果待确认；模型须继续读取真实任务状态，不能报告完成。");
               } else {
                 const runtimeActivation = toolResult && typeof toolResult === "object" && !Array.isArray(toolResult)
                   ? (toolResult as Record<string, unknown>).runtimeActivation
@@ -1018,8 +1021,11 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
               recordAiToolCall(userId, turn.session.id, turn.assistantMessage.id, call.id, call.name, storedToolArguments(call.name, call.arguments), false);
               finishActivity(activityId, "error", message);
               toolResult = { error: message, executed: false, executionState: "not_started" };
-              repeatedToolCallMessage = message;
-              stopForRepeatedFailure = true;
+              // 首次拦截只返回纠正反馈，让模型保留同一 Run 并选择恢复或交付；再次无进展才终止。
+              if (toolSignature && blockedToolSignatures.has(toolSignature)) {
+                repeatedToolCallMessage = message;
+                stopForRepeatedFailure = true;
+              } else if (toolSignature) blockedToolSignatures.add(toolSignature);
             } else if (error instanceof Error && error.name === "AbortError") {
               finishActivity(activityId, "error", "本轮已停止，未继续派发工具；若工具已把操作交给外部执行器，副作用状态仍需通过该工具对应的状态查询核实。");
               throw error;
@@ -1032,22 +1038,23 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           const storedToolResult = call.name.startsWith("mcp_") ? persistedMcpToolResult(toolResult) : toolResult;
           let resultText = JSON.stringify(storedToolResult);
           if (resultText.length > 48_000) resultText = JSON.stringify({ truncated: true, preview: resultText.slice(0, 47_000) });
-          const resultRecord = toolResult && typeof toolResult === "object" && !Array.isArray(toolResult) ? toolResult as Record<string, unknown> : null;
-          const resultTask = resultRecord?.task && typeof resultRecord.task === "object" && !Array.isArray(resultRecord.task) ? resultRecord.task as Record<string, unknown> : null;
-          const executionState = !dispatched ? "not_started"
-            : resultRecord?.executionState === "unconfirmed" || resultTask?.status === "queued" || resultTask?.status === "running" ? "unconfirmed"
-              : resultRecord?.executionState === "failed" || resultRecord?.isError === true || resultTask?.status === "failed" || resultRecord?.error !== undefined ? "failed" : "complete";
+          const executionState = toolExecutionState(toolResult, dispatched);
           if (executionState === "complete" && tool) {
             const fileChanges = buildAiProjectFileChanges(tool.id, preparedToolParameters, toolResult, workspaceProject?.id ?? null);
             const currentActivity = activities.find(activity => activity.id === activityId);
             if (fileChanges.length && currentActivity) publishActivity({ ...currentActivity, fileChanges });
           }
-          if (toolSignature && isSideEffectTool && executionState === "complete") completedWriteToolSignatures.add(toolSignature);
+          if (toolSignature && isSideEffectTool && executionState === "complete") {
+            completedWriteToolSignatures.add(toolSignature);
+            recoveryRevision++;
+          }
           if (toolSignature && (executionState === "failed" || executionState === "unconfirmed")) {
             if (!failedToolSignatures.has(toolSignature) && failedToolSignatures.size >= MAX_FAILED_TOOL_SIGNATURES_PER_RUN) {
               repeatedToolCallMessage = `本轮已有 ${MAX_FAILED_TOOL_SIGNATURES_PER_RUN} 项不同工具调用失败或结果未知；已停止继续派发，避免运行轨迹和重试状态无限增长。请核对失败项后再继续。`;
               stopForRepeatedFailure = true;
             } else failedToolSignatures.add(toolSignature);
+            if (executionState === "failed") confirmedFailures.set(toolSignature, recoveryRevision);
+            else confirmedFailures.delete(toolSignature);
           }
           recordAiToolResult(userId, turn.session.id, turn.assistantMessage.id, call.id, persistedComputerToolResult(call.name, resultText), executionState === "failed" || executionState === "not_started", executionState);
           const finishedToolActivity = activities.find((activity) => activity.id === activityId);

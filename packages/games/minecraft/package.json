@@ -9,6 +9,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "lfaa-runtime-environment": "workspace:*",
+    "lfaa-runtime-manager": "workspace:*",
     "@deepseek-ai/cordis": "4.0.4",
     "lfaa-host-daemon": "workspace:*",
     "lfaa-jobs": "workspace:*",
@@ -17,7 +19,8 @@
     "lfaa-util-values": "workspace:*",
     "lfaa-storage-domain": "workspace:*",
     "lfaa-home-paths": "workspace:*",
-    "lfaa-game-connectivity": "workspace:*"
+    "lfaa-game-connectivity": "workspace:*",
+    "lfaa-skill": "workspace:*"
   },
   "devDependencies": {
     "@types/express": "^4.0.0",

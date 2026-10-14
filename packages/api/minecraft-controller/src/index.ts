@@ -1,7 +1,10 @@
 /** 功能：登记 minecraft-controller 的现有接口。作用：保留迁移前的行为并按包维护。关联文件：API Gateway、设置中心或工作台对应入口。 */
 import { Router } from "express";
+import {runtimeManager} from "lfaa-runtime-manager/src/service.js";
+import {requestMinecraftTaskCancellation} from "lfaa-jobs/src/minecraft-queue.js";
+import {resolveMinecraftCoreArtifact} from "lfaa-games-minecraft/src/core-sources.js";
 import { issueDaemonCredential, listDaemonCredentials, revokeDaemonCredential } from "lfaa-host-daemon/src/node-credentials.js";
-import { restartMinecraftInstance, sendMinecraftConsoleCommand } from "lfaa-games-minecraft/src/service.js";
+import { deleteMinecraftInstance, restartMinecraftInstance, sendMinecraftConsoleCommand } from "lfaa-games-minecraft/src/service.js";
 import Joi from "joi";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication, requireRole } from "lfaa-authorization/src/middleware.js";
@@ -15,6 +18,12 @@ import { provisionMinecraftServer, type MinecraftProvisionInput } from "lfaa-gam
 import { asyncHandler, parseBody, withoutJavaExecutablePath, withoutJavaExecutablePaths, withoutJavaTaskPath, minecraftDeploymentSchema, minecraftDeploymentRegistrationSchema, minecraftInstanceJavaRuntimeSchema, minecraftJavaInstallSchema, minecraftJavaUninstallSchema, minecraftJavaPathSchema, minecraftJavaPathRemovalSchema, minecraftStorageSettingsSchema } from "lfaa-api-remotes/src/route-contracts.js";
 import { ensureProjectStorageDirectory, isOutsideProjectDataDirectory } from "lfaa-settings/src/project-storage.js";
 export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, realtime: MinecraftRealtimePublisher): void {
+router.post("/minecraft/tasks/:taskId/cancel",requireAuthentication,requireRole("admin"),(request,response)=>{const task=requestMinecraftTaskCancellation(request.params.taskId,request.auth!.user.id);realtime.publishMinecraftChange(["tasks","state"],task.instanceId??undefined);response.json({task});});
+router.post("/minecraft/runtime-requirement",requireAuthentication,requireRole("admin"),asyncHandler(async(request,response)=>{
+  const body=parseBody<{core:string;version:string;build?:string;nodeId:string}>(Joi.object({core:Joi.string().max(32).required(),version:Joi.string().max(120).required(),build:Joi.string().max(120),nodeId:Joi.string().guid().required()}).unknown(false),request.body);
+  const artifact=await resolveMinecraftCoreArtifact(body.core,body.version,body.build);
+  response.json({javaMajor:artifact.javaMajor,source:artifact.source,launchKind:artifact.launchKind,...(artifact.launchKind!=="php"?await runtimeManager.resolve(body.nodeId,artifact.javaMajor):{runtimes:[],installed:true})});
+}));
 
 router.get("/minecraft/cores", requireAuthentication, asyncHandler(async (_request, response) => {
   response.json(await listMinecraftCores());
@@ -26,7 +35,7 @@ router.get("/minecraft/cores/:core/versions/:version/builds", requireAuthenticat
 router.post("/minecraft/provision", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
   const body = parseBody<Omit<MinecraftProvisionInput, "userId">>(Joi.object({
     nodeId: Joi.string().guid().required(), name: Joi.string().trim().min(1).max(48).required(),
-    core: Joi.string().max(32).required(), version: Joi.string().max(120).required(), build: Joi.string().max(120).required(),
+    core: Joi.string().max(32).required(), version: Joi.string().max(120).required(), build: Joi.string().max(120),
     eulaAccepted: Joi.boolean().valid(true).required(), memoryMb: Joi.number().integer().min(1024).max(32768),
     serverPort: Joi.number().integer().min(1024).max(65535), javaRuntimeId: Joi.string().max(80).allow(null),
     proxyBackendInstanceId: Joi.string().guid()
@@ -187,6 +196,12 @@ router.patch("/minecraft/instances/:instanceId/java-runtime", requireAuthenticat
 
 router.get("/minecraft/instances/:instanceId/logs", requireAuthentication, (request, response) => {
     response.json({ logs: getMinecraftInstanceLogs(request.params.instanceId) });
+  });
+
+router.delete("/minecraft/instances/:instanceId",requireAuthentication,requireRole("admin"),(request,response)=>{
+    const task=deleteMinecraftInstance(request.params.instanceId,request.auth!.user.id);
+    realtime.publishMinecraftChange(["state","tasks"],request.params.instanceId);
+    response.status(202).json({task});
   });
 
 router.post("/minecraft/instances/:instanceId/start", requireAuthentication, requireRole("admin"), (request, response) => {

@@ -7,10 +7,13 @@ import { config } from "lfaa-launch-environment/src/config.js";
 import { JsonStorageBackend } from "lfaa-storage-json/src/index.js";
 import { configuration, configurationTables } from "./configuration.js";
 import { withControlLock } from "./control-lock.js";
+import { migrateProjectStorageLocationsSchema,migrateRuntimeEnvironmentSchema,migrateMinecraftArchiveSchema } from "lfaa-storage-sqlite/src/database.js";
 export function retireLegacyFileTables(): void {
   const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
   if (version >= 31) {
     migrateWorkspaceSchema(); migrateWritingCatalogSchema(); migrateExecutionControlSchema(); migrateMinecraftCoreSchema(); migrateWorkspaceProjectSchema(); migrateWorkspaceGitSchema(); migrateWorkspaceProjectApplicationSchema(); migrateWritingEditProposalSchema(); migrateStorageHubSchema(); migrateWritingBookProfileSchema(); migrateKnowledgeLibrarySchema(); migrateConversationMemorySchema(); migrateMinecraftWorkflowSchema(); migrateApplicationWorkflowSchema(); migrateWorkflowRunCurrentNodeSchema(); migrateConfigurationStorageSchema(); migratePermissionDecisionModeSchema(); migrateHostTaskTimeoutSchema(); migrateApplicationIdSchema(); migrateWritingLocalFileSchema(); migrateNodeFileManagerFoundationSchema(); migrateNodeFileManagerDirectorySizeSchema();
+    migrateProjectStorageLocationsSchema();
+  migrateRuntimeEnvironmentSchema(); migrateMinecraftArchiveSchema();
     configuration.activateSqliteStorage();
     return;
   }
@@ -22,7 +25,8 @@ export function retireLegacyFileTables(): void {
   database.prepare("VACUUM INTO ?").run(path); chmodSync(path, 0o600);
   withControlLock(database, () => {
     database.exec("DROP TABLE ai_usage; DROP TABLE ai_messages;");
-    for (const table of configurationTables) database.exec(`DROP TABLE ${table};`);
+    // 项目存储域在 v54 才登记为配置记录，从未有旧 SQLite 独立表，不能纳入 v30 退役表。
+    for (const table of configurationTables) if (table !== "project_storage_locations") database.exec(`DROP TABLE ${table};`);
     database.exec("ALTER TABLE ai_sessions ADD COLUMN jsonl_revision TEXT;");
     database.exec("PRAGMA user_version = 31;");
   });
@@ -48,5 +52,7 @@ export function retireLegacyFileTables(): void {
   migrateWritingLocalFileSchema();
   migrateNodeFileManagerFoundationSchema();
   migrateNodeFileManagerDirectorySizeSchema();
+  migrateProjectStorageLocationsSchema();
+  migrateRuntimeEnvironmentSchema(); migrateMinecraftArchiveSchema();
   configuration.activateSqliteStorage();
 }

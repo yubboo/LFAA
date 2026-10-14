@@ -7,8 +7,23 @@ import { randomUUID } from "node:crypto";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 
 const taskLeaseDurationMilliseconds = 30_000;
+export function requestMinecraftTaskCancellation(taskId:string,userId:string):MinecraftTask {
+  const task=getMinecraftTask(taskId);
+  if(!task||task.createdBy!==userId)throw new Error("找不到当前账户的 Minecraft 任务。");
+  if(!["install","start"].includes(task.kind)||task.payload.executionMode!=="native")throw new Error("此操作没有接入安全取消；请等待结果后按真实状态处理。");
+  if(task.status==="queued") {
+    database.exec("BEGIN IMMEDIATE;");
+    try {const changed=database.prepare("UPDATE minecraft_tasks SET status='failed',cancel_requested=1,message='任务尚未开始，已取消。',result_json=?,finished_at=? WHERE id=? AND status='queued'").run(JSON.stringify({outcome:"cancelled",executed:false}),new Date().toISOString(),taskId);
+      if(changed.changes===1){if(task.instanceId)database.prepare("UPDATE minecraft_instances SET state=? WHERE id=?").run(task.kind==="install"?"error":"stopped",task.instanceId);if(task.deploymentId)database.prepare("UPDATE minecraft_deployments SET state='failed' WHERE id=?").run(task.deploymentId);}
+      else database.prepare("UPDATE minecraft_tasks SET cancel_requested=1,message='已请求取消，等待节点确认安全退出。' WHERE id=? AND status='running'").run(taskId);
+      database.exec("COMMIT;");
+    }catch(error){if(database.isTransaction)database.exec("ROLLBACK;");throw error;}
+  }else if(task.status==="running")database.prepare("UPDATE minecraft_tasks SET cancel_requested=1,message='已请求取消，等待节点确认安全退出。' WHERE id=? AND status='running'").run(taskId);
+  return getMinecraftTask(taskId)!;
+}
+export function listMinecraftCancellationRequests(nodeId:string):string[]{return (database.prepare("SELECT id FROM minecraft_tasks WHERE node_id=? AND status='running' AND cancel_requested=1").all(nodeId) as Array<{id:string}>).map(row=>row.id);}
 
-export type MinecraftTaskKind = "install" | "start" | "stop" | "properties" | "backup" | "java-install" | "restart" | "console";
+export type MinecraftTaskKind = "install" | "start" | "stop" | "properties" | "backup" | "java-install" | "restart" | "console" | "delete";
 export type MinecraftTaskStatus = "queued" | "running" | "succeeded" | "failed";
 
 export interface MinecraftTask {
@@ -226,6 +241,7 @@ export function completeMinecraftTask(taskId: string, nodeId: string, succeeded:
   failExpiredMinecraftTasks(nodeId);
   const task = database.prepare("SELECT kind, instance_id, deployment_id, payload_json FROM minecraft_tasks WHERE id = ? AND node_id = ? AND status = 'running'").get(taskId, nodeId) as { kind: MinecraftTaskKind; instance_id: string | null; deployment_id: string | null; payload_json: string } | undefined;
   if (!task) return false;
+  if(succeeded&&task.kind==="delete"&&result.archived!==true){succeeded=false;message="节点未确认实例归档，保留实例登记。";}
   if (succeeded && (parseJsonObject(task.payload_json)?.operation === "provision" || task.kind === "start" || task.kind === "restart") && result.serverReady !== true) {
     succeeded = false;
     message = "节点未提供服务就绪证据，开服未确认成功，请查看实例日志。";
@@ -246,7 +262,7 @@ export function completeMinecraftTask(taskId: string, nodeId: string, succeeded:
     if (task.instance_id) {
       const payload = parseJsonObject(task.payload_json);
       const automatic = payload?.operation === "provision";
-      const nextState = task.kind === "install" ? (succeeded ? automatic && result.serverReady === true ? "running" : "stopped" : "error")
+      const nextState = result.outcome==="unknown"?"unknown":task.kind === "install" ? (succeeded ? automatic && result.serverReady === true ? "running" : "stopped" : "error")
         : task.kind === "start" || task.kind === "restart" ? (succeeded ? "running" : "unknown")
           : task.kind === "stop" ? (succeeded ? "stopped" : "unknown")
             : undefined;
@@ -277,6 +293,10 @@ export function completeMinecraftTask(taskId: string, nodeId: string, succeeded:
       const nextState = payload?.operation === "provision" ? (succeeded && result.serverReady === true ? "registered" : "failed") : payload?.operation === "register" ? (succeeded ? "registered" : "ready") : (succeeded ? "ready" : "failed");
       database.prepare("UPDATE minecraft_deployments SET state = ?, updated_at = ? WHERE id = ?")
         .run(nextState, finishTime, task.deployment_id);
+    }
+    if(task.kind==="delete"&&succeeded&&task.instance_id){
+      database.prepare("DELETE FROM minecraft_deployments WHERE instance_id=?").run(task.instance_id);
+      database.prepare("DELETE FROM minecraft_instances WHERE id=?").run(task.instance_id);
     }
     database.exec("COMMIT;");
     return true;

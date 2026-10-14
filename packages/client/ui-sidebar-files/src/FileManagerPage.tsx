@@ -14,6 +14,7 @@ import { GlobalNavigationRail } from "lfaa-client-ui-sidebar/src/GlobalNavigatio
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { usePointerResize } from "lfaa-client-ui-dockkit/src/ui-resize/use-pointer-resize.js";
 import { createTarArchive } from "./archive.js";
+import { consumeFileManagerLocation, readFileManagerLocation } from "lfaa-client-connection/src/file-manager-location.js";
 import "./FileManagerPage.css";
 
 interface FileManagerSnapshot {
@@ -126,8 +127,10 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
   const fileAccessRef = useRef(fileAccess);
   fileAccessRef.current = fileAccess;
   const cacheKey = `data-v2:${user.id}:${user.role}:${settings.permissions.mode}`;
-  const cachedSnapshot = useRef(fileManagerSnapshots.get(cacheKey) ?? null).current;
-  const [currentPath, setCurrentPath] = useState(() => cachedSnapshot?.currentPath ?? "");
+  const requestedLocation = useRef(readFileManagerLocation(user.id)).current;
+  const cachedSnapshot = useRef(requestedLocation === null ? fileManagerSnapshots.get(cacheKey) ?? null : null).current;
+  const [currentPath, setCurrentPath] = useState(() => requestedLocation ?? cachedSnapshot?.currentPath ?? "");
+  useEffect(() => { consumeFileManagerLocation(); }, []);
   const [dataRootLabel, setDataRootLabel] = useState("");
   const [entries, setEntries] = useState<ManagedFileEntry[]>(() => cachedSnapshot?.entries ?? []);
   const [searchText, setSearchText] = useState(() => cachedSnapshot?.searchText ?? "");

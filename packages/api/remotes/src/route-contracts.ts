@@ -306,8 +306,11 @@ export const daemonHeartbeatSchema = Joi.object({
     architecture: Joi.string().valid("x64").required(),
     version: Joi.string().trim().max(40).required(),
     dataRoot: Joi.string().trim().min(3).max(2048).pattern(/^(?:[a-z]:\\|\\\\)/iu).required(),
-    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", "git-workspace-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(14).unique().required(),
+    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-instance-archive-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "runtime-environment-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", "git-workspace-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(20).unique().required(),
     javaRuntimes: Joi.array().items(Joi.object({
+      version: Joi.string().max(80),
+      architecture:Joi.string().max(80),
+      os:Joi.string().max(80),
       runtimeId: Joi.string().max(80).required(),
       major: Joi.number().integer().min(8).max(40).required(),
       vendor: Joi.string().max(80).required(),
@@ -383,6 +386,7 @@ export const minecraftCompletionSchema = Joi.object({
       javaMajor: Joi.number().integer().min(8).max(40),
       artifactName: Joi.string().max(120),
       backupName: Joi.string().max(120),
+      archived: Joi.boolean(),
       runtimeVendor: Joi.string().max(80),
       imageType: Joi.string().valid("jre", "jdk"),
       deploymentId: Joi.string().guid(),
@@ -393,7 +397,10 @@ export const minecraftCompletionSchema = Joi.object({
       processStarted: Joi.boolean(),
       serverReady: Joi.boolean(),
       locallyListening: Joi.boolean().allow(null),
+      lanReachable:Joi.boolean().allow(null),
       externallyReachable: Joi.boolean().allow(null),
+      clientLoginVerified:Joi.boolean(),
+      outcome:Joi.string().valid("unknown","cancelled"),
       serverPort: Joi.number().integer().min(1024).max(65535),
       evidence: Joi.string().max(240),
       forced: Joi.boolean(),
@@ -439,6 +446,9 @@ export const dataDirectorySettingsSchema = Joi.object({
   }).unknown(false);
 
 export const projectStorageLocationsSchema = Joi.object({
+  runtimeDirectory: Joi.string().trim().min(1).max(2048),
+  downloadCacheDirectory: Joi.string().trim().min(1).max(2048),
+  temporaryDirectory: Joi.string().trim().min(1).max(2048),
     logsDirectory: Joi.string().trim().min(1).max(2048).required(),
     writingDirectory: Joi.string().trim().min(1).max(2048).required(),
     dramaDirectory: Joi.string().trim().min(1).max(2048).required()

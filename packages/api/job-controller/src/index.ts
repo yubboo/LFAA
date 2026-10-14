@@ -1,5 +1,8 @@
 /** 功能：登记 job-controller 的现有接口。作用：保留迁移前的行为并按包维护。关联文件：API Gateway、设置中心或工作台对应入口。 */
 import { Router } from "express";
+import {registerRuntimeRoutes} from "./runtime-routes.js";
+import {runtimeStorageFor} from "lfaa-runtime-manager/src/service.js";
+import {listMinecraftCancellationRequests} from "lfaa-jobs/src/minecraft-queue.js";
 import Joi from "joi";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { getDaemonNode, listDaemonNodes, recordDaemonHeartbeat } from "lfaa-host-daemon/src/local-daemon.js";
@@ -12,6 +15,7 @@ import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
 import { parseBody, requireLocalDaemon, daemonHeartbeatSchema, minecraftProgressSchema, minecraftLogBatchSchema, minecraftCompletionSchema, steamcmdProgressSchema, steamcmdCompletionSchema, fileTaskCompletionSchema, aiHostTaskCompletionSchema } from "lfaa-api-remotes/src/route-contracts.js";
 export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, realtime: MinecraftRealtimePublisher): void {
+registerRuntimeRoutes(router);
 
 router.post("/daemon/heartbeat", requireLocalDaemon, (request, response) => {
     const body = parseBody<Parameters<typeof recordDaemonHeartbeat>[0] & {
@@ -31,8 +35,10 @@ router.post("/daemon/heartbeat", requireLocalDaemon, (request, response) => {
     response.json({
       receivedAt: new Date().toISOString(),
       cancelTaskIds: listAiHostCancellationRequests(body.id),
+      cancelMinecraftTaskIds: listMinecraftCancellationRequests(body.id),
       steamcmdSettings: getSteamcmdNodeSettings(body.id),
-      minecraftStorageSettings: getMinecraftNodeStorageDirectories(body.id)
+      minecraftStorageSettings: getMinecraftNodeStorageDirectories(body.id),
+      runtimeStorageSettings: runtimeStorageFor(body.id)
     });
   });
 

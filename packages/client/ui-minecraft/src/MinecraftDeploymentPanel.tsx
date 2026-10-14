@@ -4,10 +4,14 @@
  * 关联文件：MinecraftWorkspace.tsx 提供节点与任务状态；connection/api.ts 提供目录与部署 API；MinecraftWorkspace.css 提供共享主题样式。
  */
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {createSnapshotCache} from "lfaa-client-store/src/snapshot-cache.js";
+import {loadMinecraftRuntimeRequirement} from "lfaa-client-connection/src/runtime-api.js";
 import { Alert, Button, Card, Checkbox, Input, InputNumber, Select, Space, Tag, Typography } from "antd";
 import { getErrorMessage, loadMinecraftCores, loadMinecraftCoreBuilds, provisionMinecraftServer, type MinecraftCore, type MinecraftNode, type MinecraftInstance, type UserSettings } from "lfaa-client-connection/src/api.js";
 
 interface Props {
+  userId:string;
+  onPrepareWithAi:(prompt:string)=>void;
   nodes: MinecraftNode[]; instances: MinecraftInstance[]; settings: UserSettings; canOperate: boolean;
   onSubmit: (operation: () => Promise<unknown>, returnToTasks?: boolean) => Promise<boolean>;
   onNavigate: (path: string) => void;
@@ -42,17 +46,24 @@ function orderedVersions(versions: string[]): string[] {
     return Number(stable(b)) - Number(stable(a)) || b.localeCompare(a, undefined, { numeric: true });
   });
 }
-export function MinecraftDeploymentPanel({ nodes, instances, settings, canOperate, onSubmit, onNavigate }: Props) {
+interface DeploymentDraft {core:string;version:string;nodeId:string;name:string;backendId:string;memory:number|null;port:number|null;step:number;javaRuntimeId:string;}
+const draftCache=createSnapshotCache<DeploymentDraft>();
+export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instances, settings, canOperate, onSubmit, onNavigate }: Props) {
+  const draft=useRef(draftCache.get(userId)).current;
   const [cores, setCores] = useState<MinecraftCore[]>([]), [sourceErrors, setSourceErrors] = useState<string[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true), [reload, setReload] = useState(0);
-  const [core, setCore] = useState(settings.minecraftRuntime.minecraftDefaultCore), [version, setVersion] = useState(""), [build, setBuild] = useState("");
+  const [core, setCore] = useState(draft?.core??settings.minecraftRuntime.minecraftDefaultCore), [version, setVersion] = useState(draft?.version??""), [build, setBuild] = useState("");
   const [category, setCategory] = useState<MinecraftCore["category"] | "">(""), [coreSearch, setCoreSearch] = useState(""), [visibleVersionCount, setVisibleVersionCount] = useState(24);
   const [packageAvailable, setPackageAvailable] = useState(false), [buildLoading, setBuildLoading] = useState(false);
-  const [nodeId, setNodeId] = useState(""), [name, setName] = useState(""), [backendId, setBackendId] = useState("");
-  const [memory, setMemory] = useState<number | null>(settings.minecraftRuntime.minecraftDefaultMemoryMb);
-  const [port, setPort] = useState<number | null>(settings.minecraftRuntime.minecraftDefaultPort);
+  const [nodeId, setNodeId] = useState(draft?.nodeId??""), [name, setName] = useState(draft?.name??""), [backendId, setBackendId] = useState(draft?.backendId??"");
+  const [javaRuntimeId,setJavaRuntimeId]=useState(draft?.javaRuntimeId??"");
+  const [requirement,setRequirement]=useState<Awaited<ReturnType<typeof loadMinecraftRuntimeRequirement>>|null>(null);
+  const [memory, setMemory] = useState<number | null>(draft?.memory??settings.minecraftRuntime.minecraftDefaultMemoryMb);
+  const [port, setPort] = useState<number | null>(draft?.port??settings.minecraftRuntime.minecraftDefaultPort);
   const [eula, setEula] = useState(false), [submitting, setSubmitting] = useState(false), [error, setError] = useState("");
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(draft?.step??0);
+  useEffect(()=>{draftCache.set(userId,{core,version,nodeId,name,backendId,memory,port,step,javaRuntimeId});},[userId,core,version,nodeId,name,backendId,memory,port,step,javaRuntimeId]);
+  useEffect(()=>{setRequirement(null);if(!nodeId||!version||!build||!canOperate)return;const controller=new AbortController();void loadMinecraftRuntimeRequirement({core,version,build,nodeId},controller.signal).then(setRequirement).catch(reason=>{if(!controller.signal.aborted)setError(getErrorMessage(reason));});return()=>controller.abort();},[core,version,build,nodeId,canOperate]);
   const buildSequence = useRef(0);
   const selectedCore = cores.find(c => c.name === core);
   const versions = useMemo(() => orderedVersions(selectedCore?.versions ?? []), [selectedCore]);
@@ -93,11 +104,19 @@ export function MinecraftDeploymentPanel({ nodes, instances, settings, canOperat
     loadMinecraftCores().then(value => { if (alive) { setCores(value.cores); setSourceErrors(value.errors); } }).catch(reason => { if (alive) setSourceErrors([getErrorMessage(reason)]); }).finally(() => { if (alive) setCatalogLoading(false); });
     return () => { alive = false; };
   }, [reload]);
-  useEffect(() => { setVersion(current => versions.includes(current) ? current : versions[0] ?? ""); }, [core, versions]);
+  useEffect(() => { if(versions.length)setVersion(current => versions.includes(current) ? current : versions[0] ?? ""); }, [core, versions]);
   useEffect(() => { setVisibleVersionCount(24); }, [core]);
   useEffect(() => { setBackendId(""); }, [core]);
   const soleNodeId = eligible.length === 1 ? eligible[0]!.id : "";
   useEffect(() => { if (!nodeId && soleNodeId) setNodeId(soleNodeId); }, [nodeId, soleNodeId]);
+  // 默认端口已被本节点实例登记时给出下一个建议；保留用户显式修改过的端口。
+  useEffect(()=>{setPort(current=>{
+    const defaultPort=selectedCore?.category==="bedrock"?settings.minecraftRuntime.minecraftBedrockDefaultPort:settings.minecraftRuntime.minecraftDefaultPort;
+    if(current!==defaultPort||!nodeId)return current;
+    const used=new Set(instances.filter(item=>item.nodeId===nodeId).map(item=>item.serverProperties.serverPort));
+    let suggested=defaultPort;while(used.has(suggested)&&suggested<65535)suggested++;
+    return suggested;
+  });},[nodeId,instances,selectedCore?.category,settings.minecraftRuntime.minecraftDefaultPort,settings.minecraftRuntime.minecraftBedrockDefaultPort]);
   useEffect(() => {
     const sequence = ++buildSequence.current;
     setPackageAvailable(false); setBuild(""); setError("");
@@ -118,13 +137,19 @@ export function MinecraftDeploymentPanel({ nodes, instances, settings, canOperat
   const changeCategory = (value: MinecraftCore["category"]) => { setCategory(value); setCoreSearch(""); };
   const loadMoreVersions = () => setVisibleVersionCount(current => Math.min(current + 24, versions.length));
   const sourceReady = Boolean(activeCore && version && build && packageAvailable && !buildLoading);
-  const instanceReady = Boolean(selectedNode && name.trim() && memory && port && (activeCore?.category !== "proxy" || backends.some(i => i.id === backendId)));
+  const portConflict=instances.some(item=>item.nodeId===nodeId&&item.serverProperties.serverPort===port);
+  const nameConflict=instances.some(item=>item.nodeId===nodeId&&item.name.normalize("NFC").toLowerCase()===name.trim().normalize("NFC").toLowerCase());
+  const runtimeValid=!javaRuntimeId||Boolean(requirement?.runtimes.some(item=>item.runtimeId===javaRuntimeId));
+  const instanceReady = Boolean(selectedNode && name.trim() && !nameConflict && memory && port && !portConflict && runtimeValid && (activeCore?.category !== "proxy" || backends.some(i => i.id === backendId)));
   const valid = canOperate && sourceReady && instanceReady && modeNative && eula;
   const submit = async (event: FormEvent) => {
     event.preventDefault(); if (step !== 2 || !valid || !memory || !port) return; setSubmitting(true);
     try {
-      const success = await onSubmit(() => provisionMinecraftServer({ nodeId, name: name.trim(), core, version, build, eulaAccepted: true, memoryMb: memory, serverPort: port, ...(activeCore?.category === "proxy" ? { proxyBackendInstanceId: backendId } : {}) }), false);
-      if (success) { setName(""); setEula(false); setStep(0); }
+      const success = await onSubmit(() => provisionMinecraftServer({ nodeId, name: name.trim(), core, version, build, eulaAccepted: true, memoryMb: memory, serverPort: port,javaRuntimeId:javaRuntimeId||null, ...(activeCore?.category === "proxy" ? { proxyBackendInstanceId: backendId } : {}) }), true);
+      if (success) {
+        draftCache.set(userId,{core,version,nodeId,name:"",backendId:"",memory,port:settings.minecraftRuntime.minecraftDefaultPort,step:0,javaRuntimeId:""});
+        setName(""); setEula(false); setStep(0);
+      }
     } finally { setSubmitting(false); }
   };
   return <Card className="minecraft-card minecraft-create-card minecraft-provision-card">
@@ -247,6 +272,16 @@ export function MinecraftDeploymentPanel({ nodes, instances, settings, canOperat
           {selectedCore?.launchKind !== "php" ? <label>最大内存（MB）<InputNumber min={1024} max={32768} step={512} value={memory} onChange={setMemory} /></label> : null}
           {selectedCore?.category === "proxy" ? <label>代理后端实例<Select value={backendId || undefined} onChange={setBackendId} options={backends.map(i => ({ value: i.id, label: `${i.name} · ${i.serverProperties.serverPort}` }))} placeholder="选择同节点已运行且已配置的 Java 后端" />{!backends.length ? <Typography.Text type="secondary">先配置并启动真实后端；代理不会替你关闭后端正版验证。</Typography.Text> : null}</label> : null}
         </div>
+        {portConflict?<Alert type="warning" showIcon message="该端口已被此节点的实例登记，请选择其他端口。"/>:null}
+        {nameConflict?<Alert type="warning" showIcon message="该节点已有同名实例，请修改名称。"/>:null}
+      </section> : null}
+      {step >= 1 && selectedNode && selectedCore?.launchKind!=="php" ? <section className="minecraft-provision-section" aria-label="部署运行环境">
+        <Typography.Title level={5}>Java 运行环境</Typography.Title>
+        <Typography.Paragraph>{requirement?`当前核心要求 Java ${requirement.javaMajor}，依据：${requirement.source}。${requirement.installed?"已检测到匹配环境，将优先复用。":"目标节点尚未检测到匹配环境，可以前往运行环境准备；自动部署也会按相同规则准备。"}`:"正在核对所选核心的 Java 要求…"}</Typography.Paragraph>
+        <Select aria-label="部署 Java 环境" value={javaRuntimeId} onChange={setJavaRuntimeId} style={{width:"100%"}} options={[{value:"",label:"自动匹配已有环境，缺少时准备"},...(requirement?.runtimes??[]).map(runtime=>({value:runtime.runtimeId,label:`Java ${runtime.major} · ${runtime.version??runtime.vendor} · ${runtime.source}`}))]} />
+        {!runtimeValid?<Alert type="warning" showIcon message="之前选择的 Java 不适用于当前版本或节点，请重新选择或使用自动匹配。"/>:null}
+        <Space wrap><Button onClick={()=>onNavigate(`/games/environments?target=${encodeURIComponent(nodeId)}&return=minecraft`)}>管理运行环境并返回</Button><Button disabled={!requirement} onClick={()=>onPrepareWithAi(`请为我的手动部署准备运行环境。核心 ${core}，游戏版本 ${version}，构建 ${build}，实例名称 ${name.trim()||"待填写"}；目标节点 ${selectedNode.displayName}（${nodeId}），已核实需要 Java ${requirement!.javaMajor}（来源 ${requirement!.source}）。优先复用该设备已有环境，缺少时按设备的项目与存储设置准备。完成后我会返回保留的手动部署草稿继续核对。`)}>交给 AI Work 准备</Button></Space>
+        <Typography.Text type="secondary">离开页面会保留当前账户的部署草稿；返回后重新核对设备和核心。EULA 勾选不会保留。</Typography.Text>
       </section> : null}
       {step === 2 ? <>
       <section className="minecraft-wizard-review" aria-label="部署配置摘要">

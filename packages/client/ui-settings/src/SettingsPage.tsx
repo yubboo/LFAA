@@ -1,3 +1,4 @@
+import {RuntimeStorageSettings} from "./RuntimeStorageSettings.js";
 /** 功能：呈现现有设置中心。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
@@ -8,6 +9,7 @@ import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-updat
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
 import { activateAiAccount, cancelDataDirectorySettingsChange, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadDataDirectorySettings, confirmDataDirectoryLocation, loadMinecraftStorageSettings, loadMinecraftCores, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, loadManagedPlugins, loadCapabilityInstallCatalog, searchManagedPlugins, inspectManagedPlugin, manageAiRuntimePlugin, probeAiProvider, reprobeAiAccount, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdNodeStorageSettings, saveSteamcmdStorageDefaults, saveMinecraftNodeStorageSettings, saveMinecraftStorageDefaults, saveDataDirectorySettings, saveProjectStorageLocations, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type ManagedPluginRecord, type ManagedPluginCandidate, type ManagedPluginInspection, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type ConversationMemorySnapshot, type DataDirectorySettings, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { minecraftSceneBackgrounds } from "lfaa-util-values/src/builtin-backgrounds.js";
+import { setFileManagerLocation, storageFileManagerPath } from "lfaa-client-connection/src/file-manager-location.js";
 import { cacheLoginBackground } from "lfaa-client-ui-theme/src/login-background.js";
 import { getBrowserNotificationPermission, playNotificationSound, requestBrowserNotificationPermission, sendBrowserNotification, type BrowserNotificationPermission } from "lfaa-client-resources/src/notification-runtime.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
@@ -1213,6 +1215,14 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     } finally {
       setDataDirectoryAction(null);
     }
+  }
+
+  function browseSavedStorage(directory: string): void {
+    if (user.role !== "super_admin" || settings.permissions.mode !== "full_access" || !dataDirectorySettings) return;
+    try {
+      setFileManagerLocation(user.id, storageFileManagerPath(directory, dataDirectorySettings.currentDirectory));
+      onNavigate("/files");
+    } catch (error) { void messageApi.error(getErrorMessage(error)); }
   }
 
   async function chooseStorageDirectory(onSelected: (directory: string) => void): Promise<void> {
@@ -3030,9 +3040,18 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
               <Button type="primary" loading={steamcmdAction === "save"} disabled={steamcmdAction !== null} onClick={() => void saveMinecraftStorageConfiguration()}>{selectedMinecraftStorageNode ? "保存当前节点目录" : "保存默认目录"}</Button>
             </SettingRow>
           </SettingGroup>
-          <SettingGroup title="日志、写作与漫剧存储">
+          {user.role!=="member"?<RuntimeStorageSettings/>:null}
+          <SettingGroup title="运行环境、缓存与项目存储">
             <Alert className="settings-inline-alert" type="info" showIcon message="默认位置都在当前 data 目录内；可选择本机磁盘上的其他文件夹" description="默认：日志 data/logs；写作和漫剧继续使用 data/users/<账户隔离目录>/projects 下各自的项目分类。自定义目录会在保存时创建；已有作品和画布保留在旧位置，新建内容使用新位置。data 之外的目录需要超级管理员启用“完全访问”。" />
             {projectStorageDraft ? <>
+              {([
+                ["runtimeDirectory", "运行环境存储目录", "Java 等受管环境存放在此目录下的类型子目录；已有环境继续从历史位置发现，不自动搬迁。"],
+                ["downloadCacheDirectory", "下载缓存目录", "保存经过来源与摘要校验的环境和核心下载缓存，避免重复下载。"],
+                ["temporaryDirectory", "临时文件目录", "环境安装暂存和解压使用此位置，失败或取消后仅清理本次任务产生的临时文件。"]
+              ] as const).map(([field,title,description]) => <SettingRow key={field} title={title} description={description} status={projectStorageConfigured ? "已保存" : "默认位置"}>
+                <Space wrap style={{width:"100%"}}><Input aria-label={title} value={projectStorageDraft[field] ?? ""} maxLength={2048} disabled={projectStorageAction !== null} onChange={event=>setProjectStorageDraft(current=>current?{...current,[field]:event.target.value}:current)} />
+                {isDesktopApp()?<Button disabled={projectStorageAction!==null} onClick={()=>void chooseStorageDirectory(directory=>setProjectStorageDraft(current=>current?{...current,[field]:directory}:current))}>选择文件夹</Button>:null}</Space>
+              </SettingRow>)}
               <SettingRow title="控制端日志目录" description={`结构化控制端日志写入此目录下的 control-plane.log，并按配置轮转。当前目录：${projectStorageDraft.logsDirectory}`} status={projectStorageConfigured ? "已保存" : "默认位置"}>
                 <Space wrap style={{ width: "100%" }}>
                   <Input aria-label="控制端日志存储目录" value={projectStorageDraft.logsDirectory} maxLength={2048} onChange={(event) => setProjectStorageDraft(current => current ? { ...current, logsDirectory: event.target.value } : current)} placeholder="data/logs 或 D:\\LFAA\\logs" disabled={projectStorageAction !== null} />
@@ -3051,8 +3070,19 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                   {isDesktopApp() ? <Button disabled={projectStorageAction !== null} onClick={() => void chooseStorageDirectory(directory => setProjectStorageDraft(current => current ? { ...current, dramaDirectory: directory } : current))}>选择文件夹</Button> : null}
                 </Space>
               </SettingRow>
+              {user.role === "super_admin" && settings.permissions.mode === "full_access" && projectStorageLocations ? <SettingRow title="浏览已保存位置" description="在文件管理中打开当前生效的存储根目录；账户私有内容仍由各应用管理，未保存的输入不会改变浏览目标。">
+                <Space wrap>
+                  <Button disabled={!dataDirectorySettings || projectStorageAction !== null} onClick={() => browseSavedStorage(projectStorageLocations.logsDirectory)}>日志目录</Button>
+                  <Button disabled={!dataDirectorySettings || projectStorageAction !== null} onClick={() => browseSavedStorage(projectStorageLocations.runtimeDirectory)}>运行环境目录</Button>
+                  <Button disabled={!dataDirectorySettings || projectStorageAction !== null} onClick={() => browseSavedStorage(projectStorageLocations.downloadCacheDirectory)}>下载缓存目录</Button>
+                  <Button disabled={!dataDirectorySettings || projectStorageAction !== null} onClick={() => browseSavedStorage(projectStorageLocations.temporaryDirectory)}>临时目录</Button>
+                  <Button disabled={!dataDirectorySettings || projectStorageAction !== null} onClick={() => browseSavedStorage(projectStorageLocations.writingDirectory)}>写作存储根目录</Button>
+                  <Button disabled={!dataDirectorySettings || projectStorageAction !== null} onClick={() => browseSavedStorage(projectStorageLocations.dramaDirectory)}>漫剧存储根目录</Button>
+                  <Button onClick={() => { setFileManagerLocation(user.id, "local-drives"); onNavigate("/files"); }}>全部本机磁盘</Button>
+                </Space>
+              </SettingRow> : null}
               <SettingRow title="保存项目存储位置" description="保存会创建选定目录，并立即切换控制端日志目录；新建写作作品和漫剧画布使用新的目录。旧项目从登记的历史目录继续读取。">
-                <Button type="primary" loading={projectStorageAction === "save"} disabled={projectStorageAction !== null} onClick={() => void saveProjectStorageConfiguration()}>保存三个目录</Button>
+                <Button type="primary" loading={projectStorageAction === "save"} disabled={projectStorageAction !== null} onClick={() => void saveProjectStorageConfiguration()}>保存存储位置</Button>
               </SettingRow>
             </> : <SettingRow title="项目目录" description="正在读取当前生效的存储目录。" status="读取中"><Tag>请稍候</Tag></SettingRow>}
           </SettingGroup>

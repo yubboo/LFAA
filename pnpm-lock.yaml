@@ -592,6 +592,9 @@ importers:
       lfaa-app-boot:
         specifier: workspace:*
         version: link:../../boot/app-boot
+      lfaa-authorization:
+        specifier: workspace:*
+        version: link:../../credentials/authorization
       lfaa-fs:
         specifier: workspace:*
         version: link:../../fs/fs
@@ -607,6 +610,9 @@ importers:
       lfaa-jobs:
         specifier: workspace:*
         version: link:../../jobs/jobs
+      lfaa-runtime-manager:
+        specifier: workspace:*
+        version: link:../../games/runtime-manager
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
@@ -687,12 +693,24 @@ importers:
       lfaa-authorization:
         specifier: workspace:*
         version: link:../../credentials/authorization
+      lfaa-fs:
+        specifier: workspace:*
+        version: link:../../fs/fs
       lfaa-games-minecraft:
         specifier: workspace:*
         version: link:../../games/minecraft
       lfaa-host-daemon:
         specifier: workspace:*
         version: link:../../host/daemon
+      lfaa-jobs:
+        specifier: workspace:*
+        version: link:../../jobs/jobs
+      lfaa-runtime-manager:
+        specifier: workspace:*
+        version: link:../../games/runtime-manager
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
@@ -889,6 +907,9 @@ importers:
       lfaa-conversation-memory:
         specifier: workspace:*
         version: link:../../core/conversation-memory
+      lfaa-fs:
+        specifier: workspace:*
+        version: link:../../fs/fs
       lfaa-session:
         specifier: workspace:*
         version: link:../../core/session
@@ -935,12 +956,18 @@ importers:
       lfaa-authorization:
         specifier: workspace:*
         version: link:../../credentials/authorization
+      lfaa-fs:
+        specifier: workspace:*
+        version: link:../../fs/fs
       lfaa-games-steamcmd:
         specifier: workspace:*
         version: link:../../games/steamcmd
       lfaa-host-daemon:
         specifier: workspace:*
         version: link:../../host/daemon
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
@@ -1498,6 +1525,9 @@ importers:
       lfaa-plugin-manager:
         specifier: workspace:*
         version: link:../../boot/plugin-manager
+      lfaa-runtime-manager:
+        specifier: workspace:*
+        version: link:../../games/runtime-manager
       lfaa-session:
         specifier: workspace:*
         version: link:../../core/session
@@ -3104,6 +3134,9 @@ importers:
       lfaa-launch-environment:
         specifier: workspace:*
         version: link:../../util/launch-environment
+      lfaa-runtime-manager:
+        specifier: workspace:*
+        version: link:../../games/runtime-manager
       lfaa-scope:
         specifier: workspace:*
         version: link:../scope
@@ -3192,6 +3225,9 @@ importers:
       lfaa-launch-environment:
         specifier: workspace:*
         version: link:../../util/launch-environment
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
       lfaa-skill-writing:
         specifier: workspace:*
         version: link:../../skill/writing
@@ -3336,9 +3372,18 @@ importers:
       lfaa-jobs:
         specifier: workspace:*
         version: link:../../jobs/jobs
+      lfaa-runtime-environment:
+        specifier: workspace:*
+        version: link:../../host/runtime-environment
+      lfaa-runtime-manager:
+        specifier: workspace:*
+        version: link:../runtime-manager
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
+      lfaa-skill:
+        specifier: workspace:*
+        version: link:../../skill/skill
       lfaa-storage-domain:
         specifier: workspace:*
         version: link:../../storage/storage-domain
@@ -3361,6 +3406,36 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.0
+
+  packages/games/runtime-manager:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-home-paths:
+        specifier: workspace:*
+        version: link:../../util/home-paths
+      lfaa-host-daemon:
+        specifier: workspace:*
+        version: link:../../host/daemon
+      lfaa-jobs:
+        specifier: workspace:*
+        version: link:../../jobs/jobs
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
+      lfaa-runtime-environment:
+        specifier: workspace:*
+        version: link:../../host/runtime-environment
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-storage-sqlite:
+        specifier: workspace:*
+        version: link:../../storage/storage-sqlite
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
 
   packages/games/steamcmd:
     dependencies:
@@ -3432,6 +3507,9 @@ importers:
       lfaa-launch-environment:
         specifier: workspace:*
         version: link:../../util/launch-environment
+      lfaa-runtime-environment:
+        specifier: workspace:*
+        version: link:../runtime-environment
       lfaa-storage-sqlite:
         specifier: workspace:*
         version: link:../../storage/storage-sqlite
@@ -3454,6 +3532,12 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.0
+
+  packages/host/runtime-environment:
+    dependencies:
+      undici:
+        specifier: 6.29.0
+        version: 6.29.0
 
   packages/host/webserver:
     dependencies:
@@ -3608,6 +3692,9 @@ importers:
       lfaa-storage-sqlite:
         specifier: workspace:*
         version: link:../../storage/storage-sqlite
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
     devDependencies:
       '@types/express':
         specifier: ^4.0.0
@@ -4059,6 +4146,9 @@ importers:
       lfaa-storage-sqlite:
         specifier: workspace:*
         version: link:../../storage/storage-sqlite
+      lfaa-telemetry-logger:
+        specifier: workspace:*
+        version: link:../../telemetry/logger
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values

@@ -238,9 +238,13 @@
     - id: user-questions
       name: lfaa-user-questions
       required: true
+    - id: runtime-manager
+      name: lfaa-runtime-manager
+      inject: ["lfaaStorage", "lfaaConfiguration"]
+      required: true
     - id: minecraft
       name: lfaa-games-minecraft
-      inject: ["lfaaJobs", "lfaaNodes", "lfaaGameConnectivity"]
+      inject: ["lfaaJobs", "lfaaNodes", "lfaaGameConnectivity", "skills"]
       required: true
     - id: steamcmd
       name: lfaa-games-steamcmd

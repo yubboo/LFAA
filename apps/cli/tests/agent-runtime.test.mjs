@@ -13,6 +13,17 @@ import { fileURLToPath } from "node:url";
 import { appendShellCommandActivityPreview, sanitizeShellCommandActivityPreview } from "../../../packages/core/agent-loop/src/shell-command-activity.ts";
 import { buildAiProjectFileChanges } from "../../../packages/core/agent-loop/src/project-file-activity.ts";
 import { buildWebActivityPreview } from "../../../packages/core/agent-loop/src/web-activity.ts";
+import { toolExecutionState } from "../../../packages/core/agent-loop/src/tool-outcome.ts";
+
+test("顶层与嵌套任务结果保持失败、运行中及未知状态，不能误记为成功写入", () => {
+  for (const wrap of [value => value, value => ({task:value})]) {
+    assert.equal(toolExecutionState(wrap({status:'failed',result:{}}),true),'failed');
+    assert.equal(toolExecutionState(wrap({status:'failed',result:{outcome:'unknown'}}),true),'unconfirmed');
+    assert.equal(toolExecutionState(wrap({status:'running'}),true),'unconfirmed');
+    assert.equal(toolExecutionState(wrap({status:'succeeded',result:{serverReady:true}}),true),'complete');
+  }
+  assert.equal(toolExecutionState({status:'succeeded'},false),'not_started');
+});
 
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const stdioMcpFixture = resolve(cli, "tests", "fixtures", "mcp-stdio-fixture.mjs");
@@ -123,7 +134,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       });
       mcpServer.listen(0,'127.0.0.1');await once(mcpServer,'listening');const mcpUrl='http://127.0.0.1:'+mcpServer.address().port+'/mcp';
       retireLegacyFileTables();
-      assert.equal(database.prepare('PRAGMA user_version').get().user_version,51);
+      assert.equal(database.prepare('PRAGMA user_version').get().user_version,56);
       const {aiRuntimeSettingsSchema}=await import('lfaa-api-remotes/src/route-contracts.js');
       const {AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN,AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN}=await import('lfaa-util-values/src/settings-contract.js');
       assert.equal(aiRuntimeSettingsSchema.validate({...settings.defaultSettings.aiRuntime,maxModelRequests:0,maxToolCalls:0}).error,undefined);
@@ -169,6 +180,17 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       const projectCommand=shellTool.parse({command:'Get-Location'});
       const projectPrepared=shellTool.prepare(projectCommand,{userId:'fixture-owner',workspaceProject:{nodeId:projectNode,path:'/fixture/project',title:'fixture'}});
       assert.equal(projectPrepared.nodeId,projectNode);assert.equal(projectPrepared.workingDirectory,'/fixture/project');
+      assert.equal(projectPrepared.shell,settings.getUserSettings('fixture-owner').general.integratedShell);
+      const shellBefore=settings.getUserSettings('fixture-owner').general.integratedShell;
+      const powershellPrepared=shellTool.prepare(shellTool.parse({nodeId:projectNode,command:'$value = 1; Write-Output $value',shell:'powershell'}),{userId:'fixture-owner',workspaceProject:null});
+      assert.equal(powershellPrepared.shell,'powershell');
+      assert.equal(settings.getUserSettings('fixture-owner').general.integratedShell,shellBefore,'单次明确 Shell 不修改用户终端偏好');
+      assert.throws(()=>shellTool.parse({nodeId:projectNode,command:'echo fixture',shell:'arbitrary-executable'}));
+      const nodeOwner=await import('lfaa-host-daemon/src/local-daemon.js');
+      nodeOwner.recordDaemonHeartbeat({id:projectNode,displayName:'fixture-path-node',platform:'win32',architecture:'x64',version:'fixture',dataRoot:'/fixture/data',capabilities:['minecraft-vanilla'],javaRuntimes:[]});
+      const nodesTool=tools.listAiBusinessTools('minecraft','super_admin').find(tool=>tool.id==='minecraft.list-nodes');
+      assert.equal((await nodesTool.execute({}, {userId:'fixture-owner',userRole:'super_admin'})).find(node=>node.id===projectNode).dataRoot,'/fixture/data');
+      assert.equal(Object.hasOwn((await nodesTool.execute({}, {userId:'fixture-owner',userRole:'member'})).find(node=>node.id===projectNode),'dataRoot'),false,'普通账户不获得宿主绝对路径');
       const explicitPrepared=shellTool.prepare(shellTool.parse({nodeId:'22222222-2222-4222-8222-222222222222',command:'Get-Location',workingDirectory:'/explicit/path'}),{userId:'fixture-owner',workspaceProject:{nodeId:projectNode,path:'/fixture/project',title:'fixture'}});
       assert.equal(explicitPrepared.nodeId,'22222222-2222-4222-8222-222222222222');assert.equal(explicitPrepared.workingDirectory,'/explicit/path');
       settings.saveUserSettings('fixture-owner','general',{...settings.defaultSettings.general,taskFolder:'/fixture/default'});
@@ -222,12 +244,16 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
           if(toolResults.length===0){assert.ok(body.tools.some(tool=>tool.function.name==='capability_install'));assert.ok(!body.tools.some(tool=>tool.function.name==='capability_prompt_load'),'未安装提示词时不向模型暴露无用工具');delta={tool_calls:[{index:0,id:'fixture-prompt-install',type:'function',function:{name:'capability_install',arguments:JSON.stringify({kind:'prompt'})}}]};}
           else if(toolResults.length===1){const installed=JSON.parse(toolResults[0].content);const promptTool=body.tools.find(tool=>tool.function.name==='capability_prompt_load');assert.ok(promptTool);assert.ok(installed.promptId);delta={tool_calls:[{index:0,id:'fixture-prompt-load',type:'function',function:{name:promptTool.function.name,arguments:JSON.stringify({promptId:installed.promptId})}}]};}
           else{assert.ok(toolResults.some(item=>item.content.includes('第三方提示词真实正文')));delta={content:'提示词已安装并按需加载'};}
+        }else if(scenario==='recoverFailedTask'){
+          const count=body.messages.filter(message=>message.role==='tool').length;
+          const name=count===1?'fixture_write_probe':'fixture_task_probe';
+          delta=count>=3?{content:'依赖修复后启动成功。'}:{tool_calls:[{index:0,id:'fixture-recover-'+count,type:'function',function:{name,arguments:'{}'}}]};
         }else if(scenario==='repeatFailedTool'){
           assert.ok(body.tools.some(tool=>tool.function.name==='fixture_failure_probe'));
           delta={tool_calls:[{index:0,id:'fixture-failure-'+body.messages.filter(message=>message.role==='tool').length,type:'function',function:{name:'fixture_failure_probe',arguments:'{}'}}]};
         }else if(scenario==='repeatSuccessfulTool'){
           assert.ok(body.tools.some(tool=>tool.function.name==='fixture_write_probe'));
-          delta={tool_calls:[{index:0,id:'fixture-success-'+body.messages.filter(message=>message.role==='tool').length,type:'function',function:{name:'fixture_write_probe',arguments:'{}'}}]};
+          delta=body.messages.filter(message=>message.role==='tool').length>=2 ? {content:'已核对已有成功结果，无需重复操作。'} : {tool_calls:[{index:0,id:'fixture-success-'+body.messages.filter(message=>message.role==='tool').length,type:'function',function:{name:'fixture_write_probe',arguments:'{}'}}]};
         }else if(scenario==='modelBudgetZero'){
           assert.ok(body.tools.some(tool=>tool.function.name==='fixture_read_probe'));
           delta={tool_calls:[{index:0,id:'fixture-model-budget-'+body.messages.filter(message=>message.role==='tool').length,type:'function',function:{name:'fixture_read_probe',arguments:'{}'}}]};
@@ -339,6 +365,8 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       const registry=await import('lfaa-tools/src/registry.js');const disposers=[];
       registry.registerAiBusinessTool({effect:setup=>disposers.push(setup())},{id:'fixture.read-probe',name:'fixture_read_probe',description:'仅测试目录的隔离夹具',applicationIds:['workspace'],schema:{type:'object',properties:{},additionalProperties:false},parse:value=>value,risk:()=> 'read',approval:()=>({scopeKey:'test',scopeSummary:'test',summary:'test'}),execute:async(_,context)=>{assert.equal(context.userId,'fixture-owner');executions++;return {observed:'真实夹具执行计数',executions};}});
       let failureExecutions=0;
+      let taskExecutions=0;
+      registry.registerAiBusinessTool({effect:setup=>disposers.push(setup())},{id:'fixture.task-probe',name:'fixture_task_probe',description:'隔离领域启动与恢复夹具',retryAfterRecovery:true,applicationIds:['workspace'],schema:{type:'object',properties:{},additionalProperties:false},parse:value=>value,risk:()=> 'write',approval:()=>({scopeKey:'fixture-task',scopeSummary:'隔离任务',summary:'验证依赖恢复'}),execute:async()=>({status:++taskExecutions===1?'failed':'succeeded',message:'真实任务夹具',result:{}})});
       registry.registerAiBusinessTool({effect:setup=>disposers.push(setup())},{id:'fixture.failure-probe',name:'fixture_failure_probe',description:'验证不重复派发失败操作',applicationIds:['workspace'],schema:{type:'object',properties:{},additionalProperties:false},parse:value=>value,risk:()=> 'read',approval:()=>({scopeKey:'fixture-failure',scopeSummary:'隔离测试目标',summary:'验证失败操作防重'}),execute:async()=>{failureExecutions++;throw new Error('合成执行器返回未知结果');}});
       let writeExecutions=0;
       registry.registerAiBusinessTool({effect:setup=>disposers.push(setup())},{id:'fixture.write-probe',name:'fixture_write_probe',description:'仅测试目录的受审批写操作夹具',applicationIds:['workspace'],schema:{type:'object',properties:{},additionalProperties:false},parse:value=>value,risk:()=> 'write',approval:()=>({scopeKey:'fixture-write-target',scopeSummary:'隔离测试目标',summary:'验证一次性审批通知'}),execute:async(_,context)=>{assert.equal(context.userId,'fixture-owner');if(holdWriteTool&&scenario==='pauseDuringTool'){pauseToolSignal=context.signal;await new Promise(resolve=>{releaseWriteTool=resolve;});}writeExecutions++;return {executed:true};}});
@@ -403,12 +431,19 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       bodies=[];scenario='repeatSuccessfulTool';const successfulWritesBefore=writeExecutions;
       const repeatedSuccess=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'验证成功写操作不会重复派发'},host);
       await until(()=>runs.getAiRun('fixture-owner',repeatedSuccess.id).status!=='streaming');
-      assert.equal(runs.getAiRun('fixture-owner',repeatedSuccess.id).status,'error');
+      assert.equal(runs.getAiRun('fixture-owner',repeatedSuccess.id).status,'complete');
       assert.equal(writeExecutions-successfulWritesBefore,1,'相同成功写操作只执行一次');
-      assert.equal(bodies.length,2,'成功操作重复后不再请求 Provider');
-      assert.ok(runs.getAiRun('fixture-owner',repeatedSuccess.id).message.content.includes('已成功完成的同一写入/危险工具'));
+      assert.equal(bodies.length,3,'防重反馈回到同一 Run，允许模型纠正并交付');
+      assert.ok(runs.getAiRun('fixture-owner',repeatedSuccess.id).message.content.includes('无需重复操作'));
       const successfulCalls=sessionRecords.allForSession('session_events',repeatedSuccess.sessionId).filter(event=>event.type==='tool/call'&&event.data.name==='fixture_write_probe');
       assert.deepEqual(successfulCalls.map(event=>event.data.dispatched),[true,false]);
+      bodies=[];scenario='recoverFailedTask';
+      const recovered=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'修复依赖后再启动同一实例的合成目标'},host);
+      await until(()=>runs.getAiRun('fixture-owner',recovered.id).status!=='streaming');
+      assert.equal(runs.getAiRun('fixture-owner',recovered.id).status,'complete');
+      assert.equal(taskExecutions,2,'明确失败的领域操作在不同写工具修复后允许重验并执行');
+      assert.ok(bodies[1].messages.some(message=>message.role==='tool'&&message.content.includes('failed')));
+      assert.equal(bodies.length,4);
       executions=0;writeExecutions=0;
       bodies=[];scenario='planSafety';const planningRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'先做计划再实践，请先检查范围，等我确认后执行'},host);let planModeEvents=[];const unsubscribePlanMode=runs.subscribeAiRun('fixture-owner',planningRun.id,(event,data)=>{if(event==='plan-mode')planModeEvents.push(data);});
       await until(()=>runs.getAiRun('fixture-owner',planningRun.id).status==='complete');
@@ -573,10 +608,10 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       await until(()=>runs.getAiRun('fixture-owner',repeatedFailure.id).status!=='streaming');
       assert.equal(runs.getAiRun('fixture-owner',repeatedFailure.id).status,'error');
       assert.equal(failureExecutions,1,JSON.stringify({message:'执行结果未知的工具在同一 Run 内只派发一次',status:runs.getAiRun('fixture-owner',repeatedFailure.id).status,content:runs.getAiRun('fixture-owner',repeatedFailure.id).message.content,tools:bodies.map(body=>body.tools?.map(tool=>tool.function.name)),history:bodies.map(body=>body.messages.filter(message=>message.role==='tool'))}));
-      assert.equal(bodies.length,2,'检测到重复调用后不再请求 Provider');
+      assert.equal(bodies.length,3,'首次防重给纠正机会，继续重复才停止');
       assert.match(runs.getAiRun('fixture-owner',repeatedFailure.id).message.content,/重复请求先前已失败或结果未知/u);
       const failureCalls=sessionRecords.allForSession('session_events',repeatedFailure.sessionId).filter(event=>event.type==='tool/call'&&event.data.name==='fixture_failure_probe');
-      assert.deepEqual(failureCalls.map(event=>event.data.dispatched),[true,false]);
+      assert.deepEqual(failureCalls.map(event=>event.data.dispatched),[true,false,false]);
       scenario='basic';
       assert.equal(executions,1);for(const dispose of disposers)dispose();await shellFiber.dispose();assert.deepEqual(registry.listRegisteredAiTools().map(tool=>tool.id),['interaction.ask-user']);
       await askUserFiber.dispose();assert.equal(registry.listRegisteredAiTools().length,0);await toolsFiber.dispose();

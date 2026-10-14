@@ -84,7 +84,9 @@ function routeTo(
   const nextState: Record<string, unknown> = currentState && typeof currentState === "object" && !Array.isArray(currentState)
     ? { ...(currentState as Record<string, unknown>) }
     : {};
-  let nextPath = path;
+  const targetUrl=new URL(path,window.location.origin);
+  const requestedPath=targetUrl.origin===window.location.origin?targetUrl.pathname:"/";
+  let nextPath = requestedPath;
   const targetApp = applicationIdForRoute(nextPath);
 
   if (nextPath === "/") {
@@ -101,12 +103,13 @@ function routeTo(
     delete nextState[applicationCenterEntryStateKey];
   }
 
-  const shouldReplace = options.replace || nextPath !== path;
-  if (window.location.pathname !== nextPath) {
-    if (shouldReplace) window.history.replaceState(nextState, "", nextPath);
-    else window.history.pushState(nextState, "", nextPath);
+  const nextAddress=nextPath===requestedPath&&targetUrl.origin===window.location.origin?`${nextPath}${targetUrl.search}${targetUrl.hash}`:nextPath;
+  const shouldReplace = options.replace || nextPath !== requestedPath;
+  if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== nextAddress) {
+    if (shouldReplace) window.history.replaceState(nextState, "", nextAddress);
+    else window.history.pushState(nextState, "", nextAddress);
   } else {
-    window.history.replaceState(nextState, "", nextPath);
+    window.history.replaceState(nextState, "", nextAddress);
   }
   setRoute(nextPath);
   // 滚动位置由各工作区的恢复 Hook 管理，路由切换时不再额外启动全局平滑滚动。
@@ -372,7 +375,7 @@ export default function App() {
     const owner = currentUserRef.current?.id;
     if (!owner) return;
     const currentRouteApp = applicationIdForRoute(window.location.pathname);
-    if (window.location.pathname !== "/" && (currentRouteApp !== app || readApplicationEntryIdFromHistory(window.history.state) !== app)) {
+    if (window.location.pathname !== "/" && !["/games","/games/environments"].includes(window.location.pathname) && (currentRouteApp !== app || readApplicationEntryIdFromHistory(window.history.state) !== app)) {
       routeTo("/", setRoute);
       return;
     }

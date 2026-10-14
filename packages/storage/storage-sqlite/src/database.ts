@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 53;
+const latestSupportedDatabaseVersion = 56;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -1827,3 +1827,56 @@ export function migrateNodeFileManagerDirectorySizeSchema(): void {
 }
 migrateNodeFileManagerDirectorySizeSchema();
 migrateProjectStorageLocationsSchema();
+
+/** 版本 55：独立运行环境任务复用现有账户/节点身份，保存取消、进度和一次性租约。 */
+export function migrateRuntimeEnvironmentSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 54 || version >= 55) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`CREATE TABLE runtime_environment_tasks (
+      id TEXT PRIMARY KEY NOT NULL,
+      target_id TEXT NOT NULL,
+      created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      app_id TEXT NOT NULL,
+      operation TEXT NOT NULL CHECK(operation IN ('detect','install','verify','register','remove','forget','update')),
+      payload_json TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('queued','running','succeeded','failed','cancelled')),
+      progress INTEGER NOT NULL DEFAULT 0 CHECK(progress BETWEEN 0 AND 100),
+      message TEXT NOT NULL,
+      cancel_requested INTEGER NOT NULL DEFAULT 0 CHECK(cancel_requested IN (0,1)),
+      result_json TEXT NOT NULL DEFAULT '{}',
+      lease_expires_at TEXT,
+      created_at TEXT NOT NULL,
+      started_at TEXT,
+      finished_at TEXT
+    ) STRICT;
+    CREATE INDEX runtime_environment_queue_idx ON runtime_environment_tasks(target_id,status,created_at);
+    CREATE INDEX runtime_environment_actor_idx ON runtime_environment_tasks(created_by,created_at);
+    PRAGMA user_version=55;`);
+    database.exec("ALTER TABLE minecraft_tasks ADD COLUMN cancel_requested INTEGER NOT NULL DEFAULT 0 CHECK(cancel_requested IN (0,1));");
+    database.exec("COMMIT;");
+  } catch(error) { if(database.isTransaction) database.exec("ROLLBACK;"); throw error; }
+}
+migrateRuntimeEnvironmentSchema();
+
+/** 版本 56：实例归档任务；重建仅扩展种类，保留全部任务、索引与外键。 */
+export function migrateMinecraftArchiveSchema():void {
+  const version=Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if(version<55||version>=56)return;
+  database.exec("PRAGMA foreign_keys=OFF; BEGIN IMMEDIATE;");
+  try {
+    const row=database.prepare("SELECT sql FROM sqlite_master WHERE name='minecraft_tasks' AND type='table'").get();
+    if(typeof row?.sql!=="string")throw new Error("缺少 Minecraft 任务表。");
+    const indexes=database.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name='minecraft_tasks' AND sql IS NOT NULL").all();
+    const schema=row.sql.replace(/^CREATE TABLE\s+"?minecraft_tasks"?/u,"CREATE TABLE minecraft_tasks_v56").replace("'restart', 'console'","'restart', 'console', 'delete'");
+    if(!schema.includes("'delete'"))throw new Error("Minecraft 归档任务约束不匹配。");
+    database.exec(schema);
+    database.exec("INSERT INTO minecraft_tasks_v56 SELECT * FROM minecraft_tasks; DROP TABLE minecraft_tasks; ALTER TABLE minecraft_tasks_v56 RENAME TO minecraft_tasks;");
+    for(const index of indexes)database.exec(String(index.sql));
+    if(database.prepare("PRAGMA foreign_key_check").all().length)throw new Error("实例归档迁移外键校验失败。");
+    database.exec("PRAGMA user_version=56; COMMIT;");
+  }catch(error){if(database.isTransaction)database.exec("ROLLBACK;");throw error;}
+  finally{database.exec("PRAGMA foreign_keys=ON;");}
+}
+migrateMinecraftArchiveSchema();

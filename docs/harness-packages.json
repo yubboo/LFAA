@@ -1207,6 +1207,13 @@
       "status": "implemented"
     },
     {
+      "path": "packages/games/runtime-manager",
+      "name": "lfaa-runtime-manager",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
+    },
+    {
       "path": "packages/games/steamcmd",
       "name": "lfaa-games-steamcmd",
       "upstreamName": null,
@@ -1345,6 +1352,13 @@
       "upstreamName": "@deepseek-ai/dsh-host-product-telemetry-otel",
       "upstream": true,
       "status": "placeholder"
+    },
+    {
+      "path": "packages/host/runtime-environment",
+      "name": "lfaa-runtime-environment",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented"
     },
     {
       "path": "packages/host/webserver",

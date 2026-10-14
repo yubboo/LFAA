@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { createHash } from "node:crypto";
-const base = resolve("../../dist/.tmp");
+import { tmpdir } from "node:os";
+import { storageFileManagerPath } from "../../../packages/client/connection/src/file-manager-location.ts";
+const base = resolve(tmpdir());
 await mkdir(base, { recursive: true });
 const root = await mkdtemp(join(base, "system-files-test-"));
 const dataRoot = join(root, "data");
@@ -30,6 +32,9 @@ test("无节点时浏览当前 data并完成创建、摘要编辑、移动、回
   const before = database.prepare("SELECT COUNT(*) AS n FROM node_file_tasks").get().n;
   const overview = await library.operate(actor, "list", { path: "" });
   assert.equal(overview.rootDirectory, dataRoot);
+  const volumes = await library.operate(actor, "list", {path:"local-drives"});
+  assert.ok(volumes.entries.length > 0);
+  for (const volume of volumes.entries) assert.ok(overview.entries.some(entry => entry.path === volume.path), "首页直接显示每个真实可用卷");
   await library.operate(actor, "create-folder", { path: "docs" });
   await library.operate(actor, "create-file", { path: "file.txt" });
   const read = await library.operate(actor, "read", { path: "file.txt" });
@@ -45,6 +50,14 @@ test("无节点时浏览当前 data并完成创建、摘要编辑、移动、回
   await library.operate(actor, "trash-restore", { path: "", name: trash.entries[0].trashId });
   assert.equal(await readFile(join(volumeRoot, "docs/renamed.txt"), "utf8"), "真实文件内容");
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM node_file_tasks").get().n, before);
+});
+
+test("存储位置映射使用保存的本机路径，不跨盘伪装为 data 子目录", () => {
+  assert.equal(storageFileManagerPath('games/minecraft','H:/LFAA/data'),'games/minecraft');
+  assert.equal(storageFileManagerPath('H:\\LFAA\\data\\logs','h:\\lfaa\\data'),'logs');
+  assert.equal(storageFileManagerPath('E:\\Servers\\Minecraft','H:\\LFAA\\data'),'local-drives/E/Servers/Minecraft');
+  assert.equal(storageFileManagerPath('/mnt/games','/var/lfaa/data'),'local-drives/root/mnt/games');
+  assert.throws(()=>storageFileManagerPath('../secret','H:/LFAA/data'),/无效/u);
 });
 test("真实字节上传、摘要与同名冲突、串行写入、审计不保存正文", async () => {
   const bytes = Buffer.from("上传正文"); const sha256 = createHash("sha256").update(bytes).digest("hex");

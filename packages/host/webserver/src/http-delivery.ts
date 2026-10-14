@@ -25,6 +25,8 @@ export function requestLogLevel(method: string, path: string, statusCode: number
     path === "/api/typert/auth/me"
     || path === "/api/daemon/heartbeat"
     || path === "/api/daemon/tasks/claim"
+    || path === "/api/daemon/runtime/tasks/claim"
+    || /^\/api\/daemon\/runtime\/tasks\/[^/]+\/(?:renew|progress)$/u.test(path)
     || path === "/api/daemon/files/tasks/claim"
     || path === "/api/daemon/steamcmd/tasks/claim"
     || path === "/api/daemon/ai/host-tasks/claim"

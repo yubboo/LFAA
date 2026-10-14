@@ -99,3 +99,22 @@ test('恢复仅复用归属相符的工件与配置，已有用户内容保持�
     assert.equal(await readFile(join(directory, 'server.jar'), 'utf8'), 'user-change');
   } finally { assert.equal(dirname(resolve(directory)), parent); assert.ok(basename(directory).startsWith('lfaa-core-resume-')); await rm(directory, { recursive: true, force: true }); }
 });
+
+test('一次部署准备 Java、校验官方核心并提交完整元数据后才启动', async () => {
+  const parent=resolve(tmpdir()), directory=await mkdtemp(join(parent,'lfaa-core-provision-'));
+  const body=Buffer.from('isolated-paper-artifact'), originalFetch=globalThis.fetch;
+  const artifact={core:'Paper',version:'1.12.2',build:'1620',javaMajor:8,launchKind:'jar',algorithm:'sha256',url:'https://fill-data.papermc.io/v1/objects/fixture/server.jar',digest:createHash('sha256').update(body).digest('hex')};
+  const task={id:'task-fixture',instanceId:'instance-fixture',deploymentId:'deployment-fixture',payload:{artifact,eulaAccepted:true,executionMode:'native',instanceName:'paper-fixture',memoryMb:2048,properties:{serverPort:25566},downloadTimeoutSeconds:30}};
+  const calls=[];
+  globalThis.fetch=async url=>{assert.equal(String(url),artifact.url);calls.push('download');return new Response(body);};
+  const host={createDirectory:async()=>directory,progress:async()=>{},java:async major=>{assert.equal(major,8);calls.push('prepare-java');return {executable:'fixture-java',root:directory};},start:async()=>{
+    calls.push('start');
+    const saved=JSON.parse(await readFile(join(directory,'lfaa-instance.json'),'utf8'));
+    assert.equal(saved.instanceId,task.instanceId);assert.equal(saved.javaMajor,8);assert.equal(saved.coreBuild,'1620');
+    assert.equal(saved.properties.serverPort,25566);assert.match(await readFile(join(directory,'eula.txt'),'utf8'),/eula=true/u);
+    assert.deepEqual(await readFile(join(directory,'server.jar')),body);
+    return {serverReady:true,processStarted:true,locallyListening:true};
+  }};
+  try {assert.equal((await provisionMinecraftCore(task,host)).serverReady,true);assert.deepEqual(calls,['prepare-java','download','start']);}
+  finally {globalThis.fetch=originalFetch;assert.equal(dirname(directory),parent);await rm(directory,{recursive:true,force:true});}
+});

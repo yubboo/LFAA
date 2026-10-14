@@ -4,77 +4,17 @@
  * 关联文件：daemon.mjs 提供数据路径、Java、日志与持久进程管理；core-sources.ts 提供可信工件；process-control.mjs 管理进程树。
  */
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { lstat, mkdir, open, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { constants,createReadStream } from "node:fs";
+import { copyFile,lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, isAbsolute, resolve } from "node:path";
-import { Transform } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import { createServer, createConnection } from "node:net";
 import { spawn } from "node:child_process";
 import { createSocket } from "node:dgram";
 import { startCommand, terminateProcessTree } from "./process-control.mjs";
 
-const artifactHosts = new Set(["download.fastmirror.net", "mohistmc-build.cn-sy1.rains3.com", "maven.minecraftforge.net", "maven.neoforged.net", "github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"]);
-export function validateCoreArtifactDownload(artifact) {
-  const url = new URL(artifact?.url);
-  if (url.protocol !== "https:" || url.username || url.password || url.port && url.port !== "443" || !artifactHosts.has(url.hostname)) throw new Error("核心工件来源未通过 HTTPS 白名单校验。");
-  if (!["sha1", "sha256"].includes(artifact.algorithm) || !new RegExp(`^[a-f0-9]{${artifact.algorithm === "sha1" ? 40 : 64}}$`, "iu").test(artifact.digest)) throw new Error("核心工件缺少有效摘要。");
-  return url;
-}
-/** 每次跳转重新校验 HTTPS 来源；摘要与体积均确认后才将下载文件提升为可执行工件。 */
-export async function downloadCoreArtifact(artifact, destination, timeoutSeconds, progress) {
-  validateCoreArtifactDownload(artifact);
-  if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 30 || timeoutSeconds > 7200) throw new Error("缺少有效的下载时限配置。");
-  const signal = AbortSignal.timeout(timeoutSeconds * 1000);
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try { return await downloadCoreArtifactAttempt(artifact, destination, signal, timeoutSeconds, progress, attempt); }
-    catch (error) {
-      // 只重试同一摘要的只读工件下载，复用总时限；安装/配置/进程任务绝不在此重放。
-      const cause = error.cause ?? error;
-      if (signal.aborted) throw new Error(`工件下载超过已配置的 ${timeoutSeconds} 秒时限，未完成文件已清理。`, { cause: error });
-      if (attempt === 1 && cause.name === "TypeError") throw new Error(`工件下载连接中断（${new URL(artifact.url).hostname}），请检查网络后恢复任务。`, { cause: error });
-      if (attempt === 1 || cause.name !== "TypeError") throw error;
-    }
-  }
-}
-async function downloadCoreArtifactAttempt(artifact, destination, signal, timeoutSeconds, progress, attempt) {
-  let url = validateCoreArtifactDownload(artifact);
-  let response;
-  for (let i = 0; i < 6; i++) {
-    response = await fetch(url, { redirect: "manual", signal, ...(attempt === 1 ? { headers: { Connection: "close" } } : {}) });
-    if (![301, 302, 303, 307, 308].includes(response.status)) break;
-    const location = response.headers.get("location");
-    await response.body?.cancel();
-    if (!location || i === 5) throw new Error("核心下载跳转无效或过多。");
-    url = validateCoreArtifactDownload({ ...artifact, url: new URL(location, url).href });
-  }
-  if (!response?.ok || !response.body) throw new Error(`核心下载失败（${response?.status ?? "未知"}）。`);
-  const maximum = 1024 * 1024 * 1024, total = Number(response.headers.get("content-length") ?? 0);
-  if (total > maximum) { await response.body.cancel(); throw new Error("核心工件超过 1 GiB 安全上限。"); }
-  const hash = createHash(artifact.algorithm);
-  let bytes = 0, last = 0, reporting = Promise.resolve();
-  const verifier = new Transform({ transform(chunk, _encoding, done) {
-    bytes += chunk.length;
-    if (bytes > maximum) return done(new Error("核心工件超过 1 GiB 安全上限。"));
-    hash.update(chunk);
-    if (Date.now() - last > 1500) { last = Date.now(); const current = bytes; reporting = reporting.then(() => progress?.(current, total)); reporting.catch(() => {}); }
-    done(null, chunk);
-  } });
-  await mkdir(dirname(destination), { recursive: true });
-  // 先独占创建，失败时不删除其他任务或用户已经存在的文件。
-  const file = await open(destination, "wx");
-  try {
-    await pipeline(response.body, verifier, file.createWriteStream());
-    await reporting;
-    if (bytes === 0 || total > 0 && bytes !== total || hash.digest("hex") !== artifact.digest.toLowerCase()) throw new Error("核心工件的体积或摘要与来源不符，已拒绝使用。");
-  } catch (error) {
-    await file.close().catch(() => {}); await rm(destination, { force: true });
-    if (signal.aborted) throw new Error(`工件下载超过已配置的 ${timeoutSeconds} 秒时限（${url.hostname}），未完成文件已清理。`, { cause: error });
-    if (error?.message === "terminated" || error?.name === "TypeError") throw new Error(`工件下载连接中断（${url.hostname}），未完成文件已清理；请检查网络后恢复任务。`, { cause: error });
-    throw error;
-  }
-  return bytes;
-}
+export {validateCoreArtifactDownload,downloadCoreArtifact} from "lfaa-runtime-environment/src/download.mjs";
+import {validateCoreArtifactDownload,downloadCoreArtifact} from "lfaa-runtime-environment/src/download.mjs";
+import {createRuntimeIO} from "lfaa-runtime-environment/src/runtime-io.mjs";
 async function hashFile(path, algorithm) {
   const stat = await lstat(path);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink > 1) throw new Error("核心文件不能是链接或特殊文件。");
@@ -82,15 +22,26 @@ async function hashFile(path, algorithm) {
   for await (const chunk of createReadStream(path)) hash.update(chunk);
   return hash.digest("hex");
 }
-async function installArtifact(artifact, path, task, report) {
+async function installArtifact(artifact, path, task, report, host={}) {
+  host.signal?.throwIfAborted();
   const exists = await lstat(path).catch(e => { if (e.code !== "ENOENT") throw e; return null; });
   if (exists) {
     if (await hashFile(path, artifact.algorithm) !== artifact.digest.toLowerCase()) throw new Error("目录已有不同内容的核心工件，拒绝覆盖。");
     return;
   }
   const temporary = `${path}.${task.id}.download`;
+  if(host.cacheDirectory) {
+    const cache=resolve(host.cacheDirectory,"minecraft-core",`${artifact.algorithm}-${artifact.digest}`);
+    const io=createRuntimeIO({roots:[host.cacheDirectory],signal:host.signal});await io.assertSafeFileTarget(cache);
+    await mkdir(dirname(cache),{recursive:true});
+    const info=await lstat(cache).catch(error=>{if(error.code==="ENOENT")return null;throw error;});
+    if(info){if(await hashFile(cache,artifact.algorithm)!==artifact.digest.toLowerCase())throw new Error("已有核心缓存校验失败，未覆盖；请核对缓存后恢复。");}
+    else {const cacheDownload=`${cache}.${task.id}.download`;try{await downloadCoreArtifact(artifact,cacheDownload,task.payload.downloadTimeoutSeconds,undefined,host.signal,host.fetchResource);await rename(cacheDownload,cache);}finally{await rm(cacheDownload,{force:true});}}
+    host.signal?.throwIfAborted();await copyFile(cache,path,constants.COPYFILE_EXCL);await report(45,"已校验并复用核心下载缓存。");return;
+  }
   try {
-    await downloadCoreArtifact(artifact, temporary, task.payload.downloadTimeoutSeconds, (bytes, total) => report(35, `正在下载：${Math.round(bytes / 1024 / 1024)} MiB${total > 0 ? ` / ${Math.round(total / 1024 / 1024)} MiB` : ""}。`));
+    await downloadCoreArtifact(artifact, temporary, task.payload.downloadTimeoutSeconds, (bytes, total) => report(35, `正在下载：${Math.round(bytes / 1024 / 1024)} MiB${total > 0 ? ` / ${Math.round(total / 1024 / 1024)} MiB` : ""}。`),host.signal,host.fetchResource);
+    host.signal?.throwIfAborted();
     await rename(temporary, path);
   } finally { await rm(temporary, { force: true }); }
 }
@@ -103,9 +54,10 @@ export function minecraftNativeEnvironment(directory, runtime) {
   if (runtime.kind !== "php") env.JAVA_HOME = runtime.root;
   return env;
 }
-async function installer(java, path, directory, timeout, log) {
+async function installer(java, path, directory, timeout, log, signal) {
   const operation = startCommand({ executable: java.executable, args: ["-jar", path, "--installServer"], cwd: directory, env: minecraftNativeEnvironment(directory, java), timeoutSeconds: timeout, onOutput: value => log(value) });
-  const result = await operation.done;
+  const cancel=()=>{void operation.cancel();};signal?.addEventListener("abort",cancel,{once:true});if(signal?.aborted)cancel();
+  let result;try{result=await operation.done;}finally{signal?.removeEventListener("abort",cancel);}signal?.throwIfAborted();
   if (result.timedOut || result.exitCode !== 0) throw new Error(`加载器安装失败${result.timedOut ? "（超时）" : `（退出码 ${result.exitCode}）`}；请查看安装日志。`);
 }
 async function findFiles(directory, predicate, depth = 0) {
@@ -150,6 +102,11 @@ export function buildMinecraftNativeArguments(metadata) {
   if (launch.kind !== "jar") throw new Error("实例启动协议未登记。");
   return [...jvm, "-jar", launch.path, ...(["BungeeCord", "Velocity"].includes(metadata.coreType) ? [] : ["nogui"])];
 }
+/** 导出供用户手动运行的 Windows 启动脚本；应用本身仍直接以参数数组启动。 */
+export function buildMinecraftWindowsLauncher(metadata,runtime) {
+  const quote=value=>{if(typeof value!=="string"||/["\r\n\u0000]/u.test(value))throw new Error("启动脚本参数包含不受支持的字符。");return `"${value.replaceAll("%","%%")}"`;};
+  return ["@echo off","setlocal DisableDelayedExpansion","chcp 65001 >nul","cd /d \"%~dp0\"",[quote(runtime.executable),...buildMinecraftNativeArguments(metadata).map(quote)].join(" "),"exit /b %errorlevel%",""] .join("\r\n");
+}
 export async function assertMinecraftPortAvailable(port, udp = false) {
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("服务端口配置无效。");
   await new Promise((resolvePromise, reject) => {
@@ -160,23 +117,26 @@ export async function assertMinecraftPortAvailable(port, udp = false) {
   });
 }
 /** 原生进程只等待核心就绪，不伪造 AppContainer 握手。 */
-export function waitForNativeMinecraftReady(child, record, seconds) {
+export function waitForNativeMinecraftReady(child, record, seconds, signal) {
   return new Promise((resolvePromise, reject) => {
     let settled = false;
     const finish = error => {
       if (settled) return;
-      settled = true; clearTimeout(timer); child.off("error", onError); child.off("exit", onExit); record.onReady = undefined;
+      settled = true; clearTimeout(timer); child.off("error", onError); child.off("exit", onExit); signal?.removeEventListener("abort",onAbort);record.onReady = undefined;
       error ? reject(error) : resolvePromise();
     };
     const onError = error => finish(error);
+    const onAbort=()=>finish(signal.reason??new DOMException("用户取消启动。","AbortError"));
     const onExit = code => finish(new Error(record.startupError ? `核心启动失败：${record.startupError}（退出码 ${code ?? "未知"}），请查看实例日志。` : `核心在就绪前退出（退出码 ${code ?? "未知"}），请查看实例日志。`));
     const timer = setTimeout(() => finish(new Error("核心服务就绪超时，请查看安装/启动日志。")), seconds * 1000);
     record.onReady = () => { if (record.serverReady) finish(); };
     child.once("error", onError); child.once("exit", onExit);
+    signal?.addEventListener("abort",onAbort,{once:true});if(signal?.aborted)onAbort();
     if (child.exitCode !== null || child.signalCode !== null) onExit(child.exitCode); else record.onReady();
   });
 }
 export async function startNativeMinecraftServer(task, stored, directory, host) {
+  host.signal?.throwIfAborted();
   const id = task.instanceId;
   if (host.activeServers.has(id)) throw new Error("实例已在本节点运行，拒绝重复启动。");
   const marker = join(directory, "daemon-process.json");
@@ -216,7 +176,7 @@ export async function startNativeMinecraftServer(task, stored, directory, host) 
   child.stdin.on("error", () => {});
   host.attachOutput(id, child, task.id, { coreType: metadata.coreType, onFailureLine: line => { if (!record.serverReady && /Caused by:|^(?:Exception in thread|Error:|Fatal error:)/u.test(line)) record.startupError = line.replace(/^\s*Caused by:\s*/u, "").slice(0, 160); }, onServerReady: () => { record.serverReady = true; record.onReady?.(); } });
   // PID 立即持久化；控制端/Daemon 中断时可发现未知进程，不等待就绪后才记录。
-  const waiting = waitForNativeMinecraftReady(child, record, task.payload?.operation === "provision" ? Math.max(timeout, installTimeout) : timeout);
+  const waiting = waitForNativeMinecraftReady(child, record, task.payload?.operation === "provision" ? Math.max(timeout, installTimeout) : timeout,host.signal);
   waiting.catch(() => {});
   try {
     if (Number.isInteger(child.pid)) await writeFile(marker, JSON.stringify({ pid: child.pid, instanceId: id, executionMode: "native", startedAt: new Date().toISOString() }), { flag: "wx" });
@@ -224,8 +184,10 @@ export async function startNativeMinecraftServer(task, stored, directory, host) 
     if (!udp) await new Promise((resolvePromise, reject) => { const socket = createConnection({ host: "127.0.0.1", port }); socket.setTimeout(5000); socket.once("connect", () => { socket.destroy(); resolvePromise(); }); socket.once("error", error => { socket.destroy(); reject(error); }); socket.once("timeout", () => { socket.destroy(); reject(new Error("核心就绪日志后无法连接本机监听端口。")); }); });
   } catch (error) { await terminateProcessTree(child); await host.waitForExit(child, 10_000); throw error; }
   await host.progress(task.id, 98, `${metadata.coreType} 已报告服务就绪；公网连接尚未测量。`);
-  return { processStarted: true, serverReady: true, locallyListening: udp ? null : true, externallyReachable: null, serverPort: port, executionMode: "native", evidence: `${metadata.coreType} 真实就绪日志${udp ? "" : "与本机端口连接"}`, javaMajor: metadata.javaMajor };
+  return buildMinecraftReadyResult(metadata,port,udp);
 }
+/** 执行器与接口共享可回归的真实证据形状，不将本机连接扩展为玩家连通。 */
+export function buildMinecraftReadyResult(metadata,port,udp){return {processStarted:true,serverReady:true,locallyListening:udp?null:true,lanReachable:null,externallyReachable:null,clientLoginVerified:false,serverPort:port,executionMode:"native",evidence:`${metadata.coreType} 真实就绪日志${udp?"":"与本机端口连接"}；局域网、外网及客户端登录未验证`,javaMajor:metadata.javaMajor};}
 /** 恢复时只接受与本次配置逐字相同的普通文件，不覆盖用户修改或链接。 */
 export async function writeMinecraftOwnedConfiguration(path, content, resume = false) {
   const info = await lstat(path).catch(error => { if (error.code !== "ENOENT") throw error; return null; });
@@ -293,7 +255,7 @@ export async function provisionMinecraftCore(task, host) {
       const phpRoot = resolve(host.phpDirectory, artifact.phpArtifact.digest);
       await host.assertSafeDirectory(phpRoot);
       const archive = join(phpRoot, "php.zip");
-      await installArtifact(artifact.phpArtifact, archive, task, report);
+      await installArtifact(artifact.phpArtifact, archive, task, report,host);
       const php = await host.findExecutable(phpRoot, "php.exe");
       if (!php) await host.expandZip(archive, phpRoot);
       const executable = await host.findExecutable(phpRoot, "php.exe");
@@ -307,15 +269,16 @@ export async function provisionMinecraftCore(task, host) {
     const isSponge = ["sponge-forge", "sponge-neo"].includes(artifact.launchKind);
     if (isSponge) await mkdir(join(directory, "mods"), { recursive: true });
     const name = coreArtifactPath(artifact);
-    await installArtifact(artifact, join(directory, name), task, report);
+    await installArtifact(artifact, join(directory, name), task, report,host);
     let launch = { kind: artifact.launchKind === "php" ? "php" : "jar", path: name };
     if (artifact.launchKind === "forge" || isSponge) {
       await report(55, "正在安装加载器和依赖库，真实安装输出可在实例日志查看。");
       let installerPath = join(directory, "installer.jar");
-      if (isSponge) { if (!artifact.loaderArtifact) throw new Error("Sponge 缺少匹配加载器。"); await installArtifact(artifact.loaderArtifact, installerPath, task, report); }
-      await installer(runtime, installerPath, directory, payload.installTimeoutSeconds, host.installerLog(task));
+      if (isSponge) { if (!artifact.loaderArtifact) throw new Error("Sponge 缺少匹配加载器。"); await installArtifact(artifact.loaderArtifact, installerPath, task, report,host); }
+      await installer(runtime, installerPath, directory, payload.installTimeoutSeconds, host.installerLog(task),host.signal);
       launch = await forgeLaunch(directory);
     }
+    host.signal?.throwIfAborted();
     await report(75, "正在写入 EULA、端口和实例启动配置。");
     await writeMinecraftOwnedConfiguration(join(directory, "eula.txt"), "# 用户已在 LFAA 开服表单明确同意。\neula=true\n", payload.resume);
     await writeCoreConfiguration(artifact.core, directory, payload);
@@ -323,8 +286,10 @@ export async function provisionMinecraftCore(task, host) {
     await writeMinecraftOwnedConfiguration(join(directory, "lfaa-deployment.json"), JSON.stringify({ deploymentId: task.deploymentId, name: payload.instanceName, releaseId: artifact.version, serverType: artifact.core, coreBuild: artifact.build, artifactName: name, javaMajor: artifact.javaMajor }), payload.resume);
     // 最后提交启动元数据；缺少此文件代表配置阶段尚未完成。
     await writeMinecraftOwnedConfiguration(join(directory, "lfaa-instance.json"), JSON.stringify(metadata, null, 2), payload.resume);
+    await writeMinecraftOwnedConfiguration(join(directory,"start.bat"),buildMinecraftWindowsLauncher(metadata,runtime),payload.resume);
     await rm(marker);
     await report(85, "正在启动并等待核心报告服务就绪。");
+    host.signal?.throwIfAborted();
     const result = await host.start(task);
     if (result.serverReady !== true) throw new Error("核心启动未提供服务就绪证据。");
     return { ...result, coreType: artifact.core, coreBuild: artifact.build, executionMode: "native", properties: payload.properties };

@@ -23,6 +23,8 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         const {boot}=await import('lfaa-app-boot/src/index.js');const context=await boot(['--profile','web']);
       try {
         assert.ok(context.get('lfaaAgentLoop'));assert.ok(context.get('lfaaSessions'));assert.ok(context.get('lfaaTools'));
+        const minecraftSkill=await context.get('skills').get('minecraft-server-setup');
+        assert.equal(minecraftSkill.provider,'lfaa-minecraft');assert.ok(minecraftSkill.content.includes('minecraft_provision_server'));
         const {listRegisteredAiTools}=await import('lfaa-tools/src/registry.js');
         const computerTools=listRegisteredAiTools().filter(tool=>tool.id.startsWith('computer-use.'));
         assert.equal(computerTools.length,process.platform==='win32'?9:0,'only a local Windows loopback Web Profile registers computer-control tools');
@@ -39,7 +41,7 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         const {database}=await import('lfaa-storage-sqlite/src/database.js');
         database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role) VALUES('other-fixture',2,'other-fixture','test','test','member')").run();
         const conversationMemory=await import('lfaa-conversation-memory/src/index.js');
-        assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version),50);
+        assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version),56);
         assert.deepEqual(conversationMemory.getConversationMemorySnapshot(user.id),{memories:[],revision:0});
         assert.equal(conversationMemory.replaceConversationMemories('other-fixture',['另一账户的偏好'],0),true);
         database.prepare("INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,status,last_seen_at) VALUES('fixture-node','测试节点','win32','x64','test','offline','2026-09-30T00:00:00Z')").run();
@@ -47,6 +49,14 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         assert.equal((await fetch(base+'/ai/host-tasks/foreign-task',{headers})).status,404);
         assert.deepEqual((await(await fetch(base+'/ai/host-tasks',{headers})).json()).tasks,[]);
         const settingsResponse=await fetch(base+'/settings',{headers});assert.equal(settingsResponse.status,200);const initial=(await settingsResponse.json()).settings;
+        const storageResponse=await fetch(base+'/project-storage-locations',{headers});assert.equal(storageResponse.status,200);
+        const storageLocations=(await storageResponse.json()).settings;
+        const savedStorage=await fetch(base+'/project-storage-locations',{method:'PUT',headers,body:JSON.stringify(storageLocations)});assert.equal(savedStorage.status,200);
+        assert.deepEqual((await savedStorage.json()).settings,storageLocations);
+        const customStorage={...storageLocations,writingDirectory:join(process.env.LFAA_DATA_DIR,'custom-writing')};
+        const customStorageResponse=await fetch(base+'/project-storage-locations',{method:'PUT',headers,body:JSON.stringify(customStorage)});assert.equal(customStorageResponse.status,200);
+        assert.deepEqual((await(await fetch(base+'/project-storage-locations',{headers})).json()).settings,customStorage);
+        const restoredStorage=await fetch(base+'/project-storage-locations',{method:'PUT',headers,body:JSON.stringify(storageLocations)});assert.equal(restoredStorage.status,200);
         assert.deepEqual(initial.personalization,{memoryEnabled:false,memoryFromToolChats:false});
         const personalization=await fetch(base+'/settings/personalization',{method:'PUT',headers,body:JSON.stringify({memoryEnabled:true,memoryFromToolChats:false})});assert.equal(personalization.status,200);assert.equal((await personalization.json()).settings.personalization.memoryEnabled,true);
         const updated={...initial.aiRuntime,maxModelRequests:7,maxToolCalls:9,voiceInputEnabled:true};

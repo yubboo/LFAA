@@ -10,6 +10,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "lfaa-runtime-environment": "workspace:*",
     "@deepseek-ai/cordis": "4.0.4",
     "lfaa-fs": "workspace:*",
     "lfaa-game-connectivity": "workspace:*",

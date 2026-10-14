@@ -13,6 +13,9 @@ export interface ProjectStorageLocations {
   logsDirectory: string;
   writingDirectory: string;
   dramaDirectory: string;
+  runtimeDirectory: string;
+  downloadCacheDirectory: string;
+  temporaryDirectory: string;
 }
 
 export type ProjectStorageKind = "logs" | "writing" | "drama";
@@ -25,12 +28,22 @@ interface ProjectStorageRow extends Record<string, unknown> {
   logs_previous_directories?: string[];
   writing_previous_directories?: string[];
   drama_previous_directories?: string[];
+  runtime_directory?: string;
+  download_cache_directory?: string;
+  temporary_directory?: string;
+  runtime_previous_directories?: string[];
+  runtime_node_locations?: Record<string, RuntimeStorageLocations>;
 }
+
+export interface RuntimeStorageLocations { runtimeDirectory: string; downloadCacheDirectory: string; temporaryDirectory: string; previousRuntimeDirectories?: string[] }
 
 const defaultProjectStorageLocations = (): ProjectStorageLocations => ({
   logsDirectory: resolve(config.dataDirectory, "logs"),
   writingDirectory: resolve(config.dataDirectory),
-  dramaDirectory: resolve(config.dataDirectory)
+  dramaDirectory: resolve(config.dataDirectory),
+  runtimeDirectory: resolve(config.dataDirectory, "environments"),
+  downloadCacheDirectory: resolve(config.dataDirectory, "cache"),
+  temporaryDirectory: resolve(config.dataDirectory, "tmp")
 });
 
 function readRow(): ProjectStorageRow | undefined {
@@ -81,7 +94,10 @@ export function getProjectStorageLocations(): { settings: ProjectStorageLocation
   const settings = {
     logsDirectory: normalizedSavedPath(row?.logs_directory ?? defaults.logsDirectory, config.dataDirectory, "日志目录"),
     writingDirectory: normalizedSavedPath(row?.writing_directory ?? defaults.writingDirectory, config.dataDirectory, "写作目录"),
-    dramaDirectory: normalizedSavedPath(row?.drama_directory ?? defaults.dramaDirectory, config.dataDirectory, "漫剧目录")
+    dramaDirectory: normalizedSavedPath(row?.drama_directory ?? defaults.dramaDirectory, config.dataDirectory, "漫剧目录"),
+    runtimeDirectory: normalizedSavedPath(row?.runtime_directory ?? defaults.runtimeDirectory, config.dataDirectory, "运行环境目录"),
+    downloadCacheDirectory: normalizedSavedPath(row?.download_cache_directory ?? defaults.downloadCacheDirectory, config.dataDirectory, "下载缓存目录"),
+    temporaryDirectory: normalizedSavedPath(row?.temporary_directory ?? defaults.temporaryDirectory, config.dataDirectory, "临时目录")
   };
   return {
     configured: Boolean(row),
@@ -95,18 +111,21 @@ export function getProjectStorageDirectoryCandidates(kind: ProjectStorageKind): 
   return [...new Set([current, ...history])];
 }
 
-export function saveProjectStorageLocations(input: ProjectStorageLocations): { settings: ProjectStorageLocations; configured: boolean } {
+export function saveProjectStorageLocations(input: Pick<ProjectStorageLocations,"logsDirectory"|"writingDirectory"|"dramaDirectory"> & Partial<ProjectStorageLocations>): { settings: ProjectStorageLocations; configured: boolean } {
   const defaults = defaultProjectStorageLocations();
   const current = getProjectStorageLocations().settings;
   const next: ProjectStorageLocations = {
     logsDirectory: normalizedSavedPath(input.logsDirectory, config.dataDirectory, "日志目录"),
     writingDirectory: normalizedSavedPath(input.writingDirectory, config.dataDirectory, "写作目录"),
-    dramaDirectory: normalizedSavedPath(input.dramaDirectory, config.dataDirectory, "漫剧目录")
+    dramaDirectory: normalizedSavedPath(input.dramaDirectory, config.dataDirectory, "漫剧目录"),
+    runtimeDirectory: normalizedSavedPath(input.runtimeDirectory ?? current.runtimeDirectory, config.dataDirectory, "运行环境目录"),
+    downloadCacheDirectory: normalizedSavedPath(input.downloadCacheDirectory ?? current.downloadCacheDirectory, config.dataDirectory, "下载缓存目录"),
+    temporaryDirectory: normalizedSavedPath(input.temporaryDirectory ?? current.temporaryDirectory, config.dataDirectory, "临时目录")
   };
   for (const path of Object.values(next)) ensureRealDirectory(path);
 
   const previousRow = readRow();
-  const record: ProjectStorageRow = { id: 1 };
+  const record: ProjectStorageRow = { ...previousRow, id: 1 };
   for (const kind of ["logs", "writing", "drama"] as const) {
     const field = `${kind}Directory` as keyof ProjectStorageLocations;
     const column = `${kind}_directory` as const;
@@ -120,9 +139,38 @@ export function saveProjectStorageLocations(input: ProjectStorageLocations): { s
     } else if (history.length) record[previousColumn] = history;
     record[column] = next[field] === defaults[field] ? null : next[field];
   }
+  record.runtime_directory = next.runtimeDirectory;
+  record.download_cache_directory = next.downloadCacheDirectory;
+  record.temporary_directory = next.temporaryDirectory;
+  record.runtime_previous_directories = [...new Set([...(current.runtimeDirectory !== next.runtimeDirectory ? [current.runtimeDirectory] : []), ...(previousRow?.runtime_previous_directories ?? [])])];
+  if(record.runtime_previous_directories.length > 32) throw new Error("运行环境历史目录已达上限，请先核查仍被引用的位置。");
   configuration.save("project_storage_locations", record);
   configureFileLogDirectory(next.logsDirectory);
   return getProjectStorageLocations();
+}
+
+/** 本机设置与远端覆盖分开；默认远端路径必须由该设备数据根推导，不能复用控制端绝对路径。 */
+export function getRuntimeStorageLocations(targetId: string, dataRoot: string, platform: string,localNodeDefaults?:RuntimeStorageLocations): RuntimeStorageLocations {
+  const row = readRow();
+  if(targetId === "local") { const current = getProjectStorageLocations().settings; return {runtimeDirectory:current.runtimeDirectory,downloadCacheDirectory:current.downloadCacheDirectory,temporaryDirectory:current.temporaryDirectory,previousRuntimeDirectories:row?.runtime_previous_directories ?? []}; }
+  const saved = row?.runtime_node_locations?.[targetId];
+  if(saved) return structuredClone(saved);
+  if(localNodeDefaults)return structuredClone(localNodeDefaults);
+  // 节点返回自己的目录分隔符；控制端可以在与节点不同的平台运行。
+  const separator = platform === "win32" ? "\\" : "/";
+  const joinNode = (part:string) => `${dataRoot.replace(/[\\/]$/u,"")}${separator}${part}`;
+  if(!dataRoot) throw new Error("目标设备尚未报告数据根目录。");
+  return {runtimeDirectory:joinNode("environments"),downloadCacheDirectory:joinNode("cache"),temporaryDirectory:joinNode("tmp"),previousRuntimeDirectories:[]};
+}
+
+export function saveRuntimeNodeStorageLocations(targetId:string,input:RuntimeStorageLocations):RuntimeStorageLocations {
+  if(!/^[a-f0-9-]{36}$/iu.test(targetId))throw new Error("运行环境设备标识无效。");
+  const row=readRow();const nodes={...(row?.runtime_node_locations ?? {})};const previous=nodes[targetId];
+  if(!Object.hasOwn(nodes,targetId)&&Object.keys(nodes).length>=128)throw new Error("运行环境设备配置数量已达上限。");
+  nodes[targetId]={...input,previousRuntimeDirectories:[...new Set([...(previous&&previous.runtimeDirectory!==input.runtimeDirectory?[previous.runtimeDirectory]:[]),...(previous?.previousRuntimeDirectories??[]),...(input.previousRuntimeDirectories??[])])]};
+  if(nodes[targetId].previousRuntimeDirectories!.length>32)throw new Error("目标设备运行环境历史目录已达上限。");
+  configuration.save("project_storage_locations",{...row,id:1,runtime_node_locations:nodes});
+  return structuredClone(nodes[targetId]);
 }
 
 export function isOutsideProjectDataDirectory(path: string): boolean {

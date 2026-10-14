@@ -13,7 +13,7 @@ import { getMinecraftInstance, getMinecraftNodeStorageSettings, listMinecraftDep
 import { resolveMinecraftCoreArtifact } from "./core-sources.js";
 
 export interface MinecraftProvisionInput {
-  nodeId: string; name: string; core: string; version: string; build: string; userId: string;
+  nodeId: string; name: string; core: string; version: string; build?: string; userId: string;
   eulaAccepted: boolean; memoryMb?: number; serverPort?: number; javaRuntimeId?: string | null;
   proxyBackendInstanceId?: string;
 }
@@ -26,7 +26,7 @@ export async function provisionMinecraftServer(input: MinecraftProvisionInput) {
   const memoryMb = input.memoryMb ?? settings.minecraftDefaultMemoryMb;
   if (!Number.isInteger(memoryMb) || memoryMb < 1024 || memoryMb > 32768) throw new ApiError(400, "minecraft_memory_invalid", "实例内存须为 1024–32768 MB。");
   const artifact = await resolveMinecraftCoreArtifact(input.core, input.version, input.build);
-  const serverPort = input.serverPort ?? (artifact.category === "bedrock" ? settings.minecraftBedrockDefaultPort : settings.minecraftDefaultPort);
+  let serverPort = input.serverPort ?? (artifact.category === "bedrock" ? settings.minecraftBedrockDefaultPort : settings.minecraftDefaultPort);
   validateMinecraftServerProperties({ serverPort });
   // 解析网络目录后再核实节点，避免慢请求期间节点离线却仍派发。
   const node = getDaemonNode(input.nodeId);
@@ -49,7 +49,10 @@ export async function provisionMinecraftServer(input: MinecraftProvisionInput) {
   try {
     const names = database.prepare("SELECT name FROM minecraft_instances WHERE node_id = ? UNION ALL SELECT name FROM minecraft_deployments WHERE node_id = ?").all(node.id, node.id) as Array<{ name: string }>;
     if (names.some(row => row.name.normalize("NFC").toLowerCase() === name.toLowerCase())) throw new ApiError(409, "minecraft_name_exists", "节点上已存在这个实例或部署目录，请换一个名称。");
-    const occupied = database.prepare("SELECT name FROM minecraft_instances WHERE node_id = ? AND json_extract(server_properties_json, '$.serverPort') = ? AND state NOT IN ('error')").get(node.id, serverPort);
+    const portQuery = database.prepare("SELECT name FROM minecraft_instances WHERE node_id = ? AND json_extract(server_properties_json, '$.serverPort') = ?");
+    // 未指定端口时在同一事务中分配未登记端口；显式端口冲突仍拒绝，节点启动前继续检查实际监听。
+    if (input.serverPort === undefined) while (serverPort < 65535 && portQuery.get(node.id, serverPort)) serverPort++;
+    const occupied = portQuery.get(node.id, serverPort);
     if (occupied) throw new ApiError(409, "minecraft_port_reserved", "这个节点已有实例使用该端口，请选择其他端口。");
     database.prepare(`INSERT INTO minecraft_instances (id,node_id,created_by,name,storage_directory,release_id,java_major,memory_mb,state,eula_accepted_at,java_runtime_id,core_type,core_build,execution_mode,sandbox_status,server_properties_json)
       VALUES (?,?,?,?,?,?,?,?,'installing',?,?,?,?,'native','unsupported',?)`).run(instanceId,node.id,input.userId,name,storageDirectory,input.version,artifact.javaMajor,memoryMb,now,javaRuntimeId,artifact.core,artifact.build,JSON.stringify({ serverPort }));

@@ -4,6 +4,7 @@
  * 关联文件：packages/games/minecraft/src/service.ts、packages/api/gateway/src/index.ts。
  */
 import { ApiError } from "lfaa-util-values/src/http-error.js";
+import {fetchRuntimeResource} from "lfaa-runtime-environment/src/network.mjs";
 
 const manifestUrl = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 const manifestHost = "piston-meta.mojang.com";
@@ -50,8 +51,8 @@ async function fetchOfficialJson<T>(url: string, expectedHost: string): Promise<
     throw new ApiError(502, "minecraft_official_source_invalid", "Minecraft 官方版本来源地址未通过校验。");
   }
 
-  const response = await fetch(parsed, { signal: AbortSignal.timeout(20_000), redirect: "error" });
-  if (!response.ok) throw new ApiError(502, "minecraft_official_source_unavailable", "暂时无法读取 Minecraft 官方版本信息。");
+  const response = await fetchRuntimeResource(parsed, { signal: AbortSignal.timeout(20_000), redirect: "error" });
+  if (!response.ok) {await response.body?.cancel();throw new ApiError(502, "minecraft_official_source_unavailable", "暂时无法读取 Minecraft 官方版本信息。");}
   return await response.json() as T;
 }
 

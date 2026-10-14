@@ -323,8 +323,8 @@ test("旧 SQLite/JSON 用户设置迁入账户文件，SQLite 控制数据与 JS
       assert.deepEqual(prefs.getUserPreferences('fixture-owner'),{selectedApp:'writing',selectedMode:'ai-work'});
       assert.equal(sessions.getAiSessionMessages('fixture-owner','fixture-session')[0].content,'保留原文\\n第二行');
       assert.equal(sessions.getAiSessionMessages('different-owner','fixture-session'),null);
-      // 当前 schema 为 v50；用户设置文件与 Session JSONL 均由各自 Owner 管理。
-      assert.equal(database.prepare('PRAGMA user_version').get().user_version,50);
+        // 当前 schema 为 v55；用户设置文件与 Session JSONL 均由各自 Owner 管理。
+        assert.equal(database.prepare('PRAGMA user_version').get().user_version,56);
       assert.ok(database.prepare('PRAGMA table_info(ai_sessions)').all().some(column=>column.name==='jsonl_revision'));
       assert.equal(database.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('ai_messages','ai_usage','user_settings','ai_accounts','user_preferences')").get().count,0);
       assert.equal(configuration.get('user_preferences',row=>row.user_id==='fixture-owner').selected_mode,'ai-work');
@@ -350,7 +350,8 @@ test("旧 SQLite/JSON 用户设置迁入账户文件，SQLite 控制数据与 JS
       const state=database.prepare('SELECT revision FROM configuration_storage_state WHERE id=1').get();
       const snapshot={version:1,revision:Number(state.revision),tables:Object.fromEntries(tableNames.map(table=>[table,configuration.all(table)])),credential_records:configuration.listCredentialRecords('fixture-owner')};
       writeFileSync(resolve(process.env.LFAA_DATA_DIR,'storages/configuration.json'),encode(snapshot));
-      database.exec('DROP INDEX ai_tool_approvals_scope_memory_idx; DROP TABLE ai_tool_permission_memory_state; ALTER TABLE ai_tool_approvals DROP COLUMN decision_mode; ALTER TABLE ai_tool_approvals DROP COLUMN memory_generation; DROP TABLE configuration_storage_state; DROP TABLE configuration_credentials; DROP TABLE configuration_records; PRAGMA user_version = 46;');
+        // 合成旧库必须撤回 v51/v52 新增表列，不能只回退版本号后重放 ALTER TABLE。
+        database.exec('DROP TABLE runtime_environment_tasks; ALTER TABLE minecraft_tasks DROP COLUMN cancel_requested; DROP TABLE node_file_audit; DROP TABLE writing_local_file_migrations; ALTER TABLE writing_chapters DROP COLUMN word_count; ALTER TABLE writing_chapter_revisions DROP COLUMN word_count; ALTER TABLE writing_book_outline_revisions DROP COLUMN word_count; DROP INDEX ai_tool_approvals_scope_memory_idx; DROP TABLE ai_tool_permission_memory_state; ALTER TABLE ai_tool_approvals DROP COLUMN decision_mode; ALTER TABLE ai_tool_approvals DROP COLUMN memory_generation; DROP TABLE configuration_storage_state; DROP TABLE configuration_credentials; DROP TABLE configuration_records; PRAGMA user_version = 46;');
       ${close}
     `);
     const sourcePath = join(data, "storages", "configuration.json");
@@ -359,7 +360,7 @@ test("旧 SQLite/JSON 用户设置迁入账户文件，SQLite 控制数据与 JS
     assert.throws(() => run(data, `${imports}${files}${close}`));
     writeFileSync(sourcePath, validSource);
     run(data, `${imports}${files}
-      assert.equal(database.prepare('PRAGMA user_version').get().user_version,50);
+        assert.equal(database.prepare('PRAGMA user_version').get().user_version,56);
       assert.equal(settings.getUserSettings('fixture-owner').appearance.theme,'dark');
       assert.equal(settings.getUserSettings('fixture-owner').appearance.blur,17);
       assert.equal(settings.getUserSettings('fixture-owner').permissions.mode,'full_access');

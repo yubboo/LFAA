@@ -1,5 +1,7 @@
 # Daemon Host
 
+Minecraft 自动部署的 Java 准备继续使用 `resolveMinecraftJavaRuntime`：匹配环境缺失时安装并验证 Temurin，再下载/校验核心并提交实例元数据。`minecraft-provisioner.mjs` 接受 PaperMC 官方 `fill-data.papermc.io` 工件，仍校验每次 HTTPS 跳转和来源摘要；Java 官方目录失败会标明实际 Java 主版本及准备阶段。此源码路径与隔离回归不等于真实网络下载、安装或游戏就绪验收。
+
 Daemon Host 是目标节点本机能力的执行 Owner。通用项目文件操作由 `src/project-files.mjs` 在调用方提供的已登记根目录内执行：读取限定为普通 UTF-8 文本并支持分页；创建文件不覆盖既有内容，更新按 SHA-256 检查并发修改，删除仅对普通文件调用单文件 unlink，不递归删除目录。Agent Tool 可用的操作仍由 `packages/core/tools/src/project-tools.ts` 单独列明。
 
 全局管理员文件工作台由 `src/daemon.mjs` 执行。本机与远程节点通用 `node-filesystem-directory-size-v1` 能力只在管理员显式请求目录大小时遍历目标目录；遍历限定为数据根内最多 20,000 项和 64 层，按小批量异步检查文件元数据，拒绝越界路径，不进入数据根的受保护目录，不跟随链接/目录联接，不读取文件内容；预算用尽或目录正在变化时失败且不返回部分总和。列表读取不计算目录大小。
@@ -15,6 +17,8 @@ Daemon Host 是目标节点本机能力的执行 Owner。通用项目文件操�
 `terminal-channel.mjs` 在现有控制端地址上建立认证 POST SSE 命令连接，通过顺序 HTTP 批量回报输出和应答；本机与远程节点共用该链，远程仍要求 HTTPS。真实 Shell 经 subprocess-local 的原生 PTY 在线程中启动，节点最多 8 个会话，发送队列 1 MiB；控制端断线、凭据失效或 Daemon 卸载关闭全部会话，不重放输入。Shell 选择来自 Settings，并通过 terminal-bash 异步解析，必要 OS 环境采用显式允许集合，不继承模型服务密钥。
 
 Windows Electron 桌面安装包内置本机 Daemon，并由桌面主进程自动启动和收尾。Daemon 保持独立进程与 `daemon` Profile，控制端通过现有认证节点任务通道单独读取节点状态和派发操作。需要新增远程节点时，管理员通过控制端签发 HTTPS 连接身份，目标 Windows x64 主机导入连接文件后运行 `lfaa daemon`；远程主机安装器和系统服务托管尚未接入。
+
+实例和旧部署建目录统一调用现有 `ensureStorageDirectory(getMinecraftStorageRoot(...))`，不调用不存在的路径助手。元数据读取区分不存在与 JSON 损坏，损坏时明确指出 `lfaa-instance.json` 并保留原文件供核对，避免被误诊为未下载而重复部署。
 
 根脚本 `build:windows-sandbox-host` 编译的是 Rust `lfaa-sandbox-host.exe`，不是 Daemon 服务本身。Electron 桌面发行脚本会自动调用该构建并将原生宿主随 Daemon 运行树打包；普通用户无需单独构建或启动 Daemon。
 

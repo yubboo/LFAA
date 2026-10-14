@@ -5,11 +5,12 @@
  * 关联文件：packages/core/agent-loop/src/execute-turn.ts、packages/interaction/permission-presets/src/permissions.ts、packages/api/gateway/src/index.ts、packages/fs/fs/src/queue.ts、packages/games/。
  */
 import Joi from "joi";
-import { listMinecraftCores, listMinecraftCoreBuilds } from "lfaa-games-minecraft/src/core-sources.js";
+import { listMinecraftCores, listMinecraftCoreBuilds, getPaperCoreSummary } from "lfaa-games-minecraft/src/core-sources.js";
 import { provisionMinecraftServer } from "lfaa-games-minecraft/src/deployment-service.js";
-import { restartMinecraftInstance, sendMinecraftConsoleCommand } from "lfaa-games-minecraft/src/service.js";
+import { deleteMinecraftInstance, restartMinecraftInstance, sendMinecraftConsoleCommand } from "lfaa-games-minecraft/src/service.js";
 import { projectFileTool } from "./project-tools.js";
 import { capabilitySettingsTools } from "./capability-settings.js";
+import {createRuntimeTools} from "./runtime-tools.js";
 import { listRegisteredAiTools } from "./registry.js";
 import { createHash } from "node:crypto";
 import { isApplicationInScope } from "lfaa-scope/src/index.js";
@@ -18,12 +19,12 @@ import { presentNativeFunctionTools } from "lfaa-agent-tool-presentation/src/ind
 export interface AiCompletionTool { type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } }
 import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
 import type { UserRole } from "lfaa-identity-auth/src/service.js";
-import { listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
+import { getDaemonDataRoot, listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
 import { systemFiles } from "lfaa-fs/src/library.js";
 import { FILE_MANAGER_OPERATIONS, type FileManagerOperation } from "lfaa-util-values/src/file-manager-contract.js";
 import { getMinecraftInstance, getMinecraftInstanceLogs, getMinecraftReleases, listMinecraftDeployments, listMinecraftInstances, createMinecraftDeployment, retryMinecraftDeployment, startMinecraftInstance, stopMinecraftInstance, backupMinecraftWorld, updateMinecraftServerProperties } from "lfaa-games-minecraft/src/service.js";
 import { createSteamcmdTask, getSteamcmdTask } from "lfaa-games-steamcmd/src/service.js";
-import { getMinecraftTask } from "lfaa-jobs/src/minecraft-queue.js";
+import { getMinecraftTask,requestMinecraftTaskCancellation } from "lfaa-jobs/src/minecraft-queue.js";
 import { resolveWritingEditProposal, getWritingEditProposal, createWritingEditProposal, getWritingBookTarget, getWritingChapterTarget, getWritingCatalogEntryForBook, listWritingCatalogEntries, listWritingBookSkills, getWritingBookSkill, getWritingAnalysisChapterExcerpts, listWritingAnalysisChapters, listWritingChapterRevisionsForAi, getWritingChapterRevisionForAi, WRITING_ANALYSIS_BATCH_CHAPTER_LIMIT, WRITING_CATALOG_KINDS, type WritingCatalogKind, type WritingEditInput, type WritingEditOperation } from "lfaa-document-writing/src/service.js";
 import { getWritingPrompt, WRITING_PROMPTS } from "lfaa-document-writing/src/writing-prompt-library.js";
 import { getWritingSkill, WRITING_SKILLS } from "lfaa-skill-writing/src/writing-skills.js";
@@ -64,6 +65,8 @@ export interface AiBusinessTool {
   name: string;
   /** LFAA 必需 Core 管理能力，不随账户的可选 AI 扩展开关关闭。 */
   coreManaged?: boolean;
+  /** 领域执行器重验互斥及状态的操作，可在不同写工具成功修复后重试已确认失败；未知结果始终禁止重放。 */
+  retryAfterRecovery?: boolean;
   /** 本机桌面工具只进入显式启用电脑操控设置的 Agent Run。 */
   requiresComputerControl?: boolean;
   /** 可选角色闸门；默认 false，具体 Owner 仍须在执行时做业务授权。 */
@@ -143,7 +146,7 @@ export async function waitForTask<T extends { status: string; progress?: number;
       lastState = state;
       input.onProgress(task.progress === undefined ? task.message : `${task.message}（${task.progress}%）`);
     }
-    if (["succeeded", "failed"].includes(task.status)) return task;
+    if (["succeeded", "failed", "cancelled"].includes(task.status)) return task;
     if (Date.now() - startedAt >= (input.timeoutMilliseconds ?? 10 * 60 * 1000)) return task;
     await new Promise<void>((resolve, reject) => {
       const finish = () => {
@@ -162,12 +165,18 @@ export async function waitForTask<T extends { status: string; progress?: number;
   }
 }
 
+async function waitForMinecraftTask(id:string,context:AiBusinessToolContext,missingMessage:string) {
+  const cancel=()=>{const task=getMinecraftTask(id);if(task&&task.createdBy===context.userId&&["install","start"].includes(task.kind)&&task.payload.executionMode==="native")requestMinecraftTaskCancellation(id,context.userId);};
+  context.signal.addEventListener("abort",cancel,{once:true});
+  try{if(context.signal.aborted)cancel();return await waitForTask({read:()=>getMinecraftTask(id),signal:context.signal,onProgress:context.onProgress,missingMessage});}
+  finally{context.signal.removeEventListener("abort",cancel);}
+}
 const minecraftTools: AiBusinessTool[] = [
   makeTool({
     id: "minecraft.list-cores", name: "minecraft_list_cores", applicationIds: ["minecraft"],
-    description: "读取 FastMirror 与 Mohist 当前核心分类和版本；普通插件生存服优先推荐 Paper，模组服按整合包选核心。来源失败会明确返回。",
-    schema: strictObject({}), parse: value => parseWithSchema(Joi.object({}).unknown(false), value),
-    execute: async () => listMinecraftCores()
+    description: "读取真实核心分类和版本；指定 core=Paper 时只查询 PaperMC 官方目录，避免加载无关来源。水桶插件服可选兼容 Bukkit 插件的 Paper；版本以目录为准。",
+    schema: strictObject({ core: { type: "string" } }), parse: value => parseWithSchema(Joi.object({ core: oneString("core", 32).optional() }).unknown(false), value),
+    execute: async parameters => parameters.core === "Paper" ? { cores: [await getPaperCoreSummary()], errors: [] } : listMinecraftCores()
   }),
   makeTool({
     id: "minecraft.list-core-builds", name: "minecraft_list_core_builds", applicationIds: ["minecraft"],
@@ -178,14 +187,14 @@ const minecraftTools: AiBusinessTool[] = [
   }),
   makeTool({
     id: "minecraft.provision", name: "minecraft_provision_server", applicationIds: ["minecraft"],
-    description: "复用传统面板自动准备环境、下载校验、安装和启动指定核心。eulaAccepted=true 表示此次操作包含接受 Minecraft EULA 和核心许可；与部署共用当前三种权限模式，不另设人工确认。代理须提供同节点真实运行且显式关闭正版验证的后端。",
-    schema: strictObject({ nodeId: { type: "string", format: "uuid" }, name: { type: "string", maxLength: 48 }, core: { type: "string" }, version: { type: "string" }, build: { type: "string" }, eulaAccepted: { type: "boolean", const: true }, memoryMb: { type: "integer" }, serverPort: { type: "integer" }, proxyBackendInstanceId: { type: "string", format: "uuid" } }, ["nodeId", "name", "core", "version", "build", "eulaAccepted"]),
-    parse: value => parseWithSchema(Joi.object({ nodeId: idSchema("nodeId"), name: oneString("name", 48), core: oneString("core", 32), version: oneString("version", 120), build: oneString("build", 120), eulaAccepted: Joi.boolean().valid(true).required(), memoryMb: Joi.number().integer().min(1024).max(32768), serverPort: Joi.number().integer().min(1024).max(65535), proxyBackendInstanceId: Joi.string().guid() }).unknown(false), value),
+    description: "一次任务自动准备匹配 Java、下载校验核心、配置、登记并启动，等待真实就绪结果。无需单独安装 Java 或手写实例元数据。build 可省略，Paper 自动选择该版本最新稳定构建；端口省略时从设置默认值起分配未登记端口。eulaAccepted=true 包含接受 Minecraft EULA 与核心许可，沿用三种权限模式。失败后读取任务/日志，确认失败可用恢复工具；未知结果不重放。代理须提供同节点真实运行且显式关闭正版验证的后端。",
+    schema: strictObject({ nodeId: { type: "string", format: "uuid" }, name: { type: "string", maxLength: 48 }, core: { type: "string" }, version: { type: "string" }, build: { type: "string" }, eulaAccepted: { type: "boolean", const: true }, memoryMb: { type: "integer" }, serverPort: { type: "integer" }, proxyBackendInstanceId: { type: "string", format: "uuid" } }, ["nodeId", "name", "core", "version", "eulaAccepted"]),
+    parse: value => parseWithSchema(Joi.object({ nodeId: idSchema("nodeId"), name: oneString("name", 48), core: oneString("core", 32), version: oneString("version", 120), build: oneString("build", 120).optional(), eulaAccepted: Joi.boolean().valid(true).required(), memoryMb: Joi.number().integer().min(1024).max(32768), serverPort: Joi.number().integer().min(1024).max(65535), proxyBackendInstanceId: Joi.string().guid() }).unknown(false), value),
     risk: () => "write",
     approval: parameters => ({ scopeKey: `node:${parameters.nodeId}:minecraft-provision:${String(parameters.name).normalize("NFC").toLowerCase()}`, scopeSummary: `Minecraft ${parameters.core} ${parameters.version} · ${parameters.name}`, summary: "接受 Minecraft EULA 与所选核心许可，下载、安装并启动服务器；使用节点当前系统账户权限。" }),
     execute: async (parameters, context) => {
       const created = await provisionMinecraftServer({ ...parameters, userId: context.userId } as unknown as Parameters<typeof provisionMinecraftServer>[0]);
-      const task = await waitForTask({ read: () => getMinecraftTask(created.task.id), signal: context.signal, onProgress: context.onProgress, missingMessage: "找不到自动开服任务。" });
+      const task = await waitForMinecraftTask(created.task.id, context, "找不到自动开服任务。");
       return { instanceId: created.instance.id, deploymentId: created.deployment.id, task: safeTaskView(task as unknown as Record<string, unknown>) };
     }
   }),
@@ -193,23 +202,23 @@ const minecraftTools: AiBusinessTool[] = [
     id: "minecraft.list-nodes", name: "minecraft_list_nodes", applicationIds: ["minecraft"],
     description: "读取已登记 Minecraft Daemon 节点的 ID、名称、平台、在线状态和 Minecraft 能力。部署前确认目标节点在线。",
     schema: strictObject({}), parse: (value) => parseWithSchema(Joi.object({}).unknown(false), value),
-    execute: async () => listDaemonNodes().filter((node) => node.platform === "win32" && node.architecture === "x64").map(({ id, displayName, status, capabilities, version }) => ({ id, displayName, status, version, minecraftSupported: capabilities.includes("minecraft-vanilla"), fileOperationsSupported: capabilities.includes("node-filesystem-v1") }))
+    execute: async (_, context) => listDaemonNodes().filter((node) => node.platform === "win32" && node.architecture === "x64").map(({ id, displayName, status, capabilities, version, javaRuntimes }) => ({ id, displayName, status, version, minecraftSupported: capabilities.includes("minecraft-vanilla"), fileOperationsSupported: capabilities.includes("node-filesystem-v1"), integratedShell: getUserSettings(context.userId).general.integratedShell, ...(context.userRole === "admin" || context.userRole === "super_admin" ? { dataRoot: getDaemonDataRoot(id), javaRuntimes } : { javaRuntimes: javaRuntimes.map(({ runtimeId, major, managed }) => ({ runtimeId, major, managed })) }) }))
   }),
   makeTool({
     id: "minecraft.list-instances", name: "minecraft_list_instances", applicationIds: ["minecraft"],
     description: "读取 Minecraft 实例名称、ID、节点、版本与当前运行状态。",
     schema: strictObject({}), parse: (value) => parseWithSchema(Joi.object({}).unknown(false), value),
-    execute: async () => listMinecraftInstances().slice(0, 100).map(({ id, nodeId, nodeName, nodeStatus, name, releaseId, javaMajor, memoryMb, state, sandboxStatus, coreType, coreBuild, executionMode }) => ({ id, nodeId, nodeName, nodeStatus, name, releaseId, javaMajor, memoryMb, state, sandboxStatus, coreType, coreBuild, executionMode }))
+    execute: async () => listMinecraftInstances().slice(0, 100).map(({ id, nodeId, nodeName, nodeStatus, name, releaseId, javaMajor, memoryMb, state, sandboxStatus, coreType, coreBuild, executionMode, serverProperties }) => ({ id, nodeId, nodeName, nodeStatus, name, releaseId, javaMajor, memoryMb, state, sandboxStatus, coreType, coreBuild, executionMode, serverPort: serverProperties.serverPort }))
   }),
   makeTool({
     id: "minecraft.get-instance", name: "minecraft_get_instance", applicationIds: ["minecraft"],
     description: "读取指定 Minecraft 实例的运行状态、服务器属性、Java 版本和节点信息。",
     schema: strictObject({ instanceId: { type: "string", format: "uuid" } }, ["instanceId"]),
     parse: (value) => parseWithSchema(Joi.object({ instanceId: idSchema("instanceId") }).unknown(false), value),
-    execute: async (parameters) => {
+    execute: async (parameters, context) => {
       const instance = getMinecraftInstance(String(parameters.instanceId));
       if (!instance) throw new Error("找不到这个 Minecraft 实例。");
-      return { id: instance.id, nodeId: instance.nodeId, nodeName: instance.nodeName, nodeStatus: instance.nodeStatus, name: instance.name, releaseId: instance.releaseId, javaMajor: instance.javaMajor, javaRuntimeId: instance.javaRuntimeId, memoryMb: instance.memoryMb, state: instance.state, sandboxStatus: instance.sandboxStatus, coreType: instance.coreType, coreBuild: instance.coreBuild, executionMode: instance.executionMode, serverProperties: instance.serverProperties, updatedAt: instance.updatedAt };
+      return { id: instance.id, nodeId: instance.nodeId, nodeName: instance.nodeName, nodeStatus: instance.nodeStatus, name: instance.name, releaseId: instance.releaseId, javaMajor: instance.javaMajor, javaRuntimeId: instance.javaRuntimeId, memoryMb: instance.memoryMb, state: instance.state, sandboxStatus: instance.sandboxStatus, coreType: instance.coreType, coreBuild: instance.coreBuild, executionMode: instance.executionMode, serverProperties: instance.serverProperties, updatedAt: instance.updatedAt, ...(context.userRole === "admin" || context.userRole === "super_admin" ? { storageDirectory: instance.storageDirectory, dataRoot: getDaemonDataRoot(instance.nodeId) } : {}) };
     }
   }),
   makeTool({
@@ -244,7 +253,7 @@ const minecraftTools: AiBusinessTool[] = [
     execute: async (parameters, context) => {
       const created = await createMinecraftDeployment({ nodeId: String(parameters.nodeId), name: String(parameters.name), releaseId: String(parameters.releaseId), serverType: "vanilla", userId: context.userId });
       context.onProgress("Mojang 官方服务端工件校验通过，部署任务已排入 Daemon 队列。");
-      const task = await waitForTask({ read: () => getMinecraftTask(created.task.id), signal: context.signal, onProgress: context.onProgress, missingMessage: "找不到 Minecraft 部署任务。" });
+      const task = await waitForMinecraftTask(created.task.id, context, "找不到 Minecraft 部署任务。");
       return { deployment: created.deployment, task: safeTaskView(task as unknown as Record<string, unknown>), note: task.status === "queued" || task.status === "running" ? "任务仍在运行，之后可通过 Minecraft 部署列表查看。" : undefined };
     }
   }),
@@ -257,29 +266,31 @@ const minecraftTools: AiBusinessTool[] = [
     approval: (parameters) => ({ scopeKey: `minecraft-deployment:${parameters.deploymentId}`, scopeSummary: `Minecraft 部署 ${parameters.deploymentId}`, summary: `重试失败的 Minecraft 部署 ${parameters.deploymentId}` }),
     execute: async (parameters, context) => {
       const task = await retryMinecraftDeployment(String(parameters.deploymentId), context.userId);
-      const finalTask = await waitForTask({ read: () => getMinecraftTask(task.id), signal: context.signal, onProgress: context.onProgress, missingMessage: "找不到 Minecraft 重试任务。" });
+      const finalTask = await waitForMinecraftTask(task.id, context, "找不到 Minecraft 重试任务。");
       return safeTaskView(finalTask as unknown as Record<string, unknown>);
     }
   }),
-  ...(["start", "stop", "backup", "restart"] as const).map((operation) => makeTool({
+  ...(["start", "stop", "backup", "restart", "delete"] as const).map((operation) => makeTool({
     id: `minecraft.${operation}`, name: `minecraft_${operation}_instance`, applicationIds: ["minecraft"],
+    retryAfterRecovery: operation === "start" || operation === "stop",
+    adminOnly: operation === "delete",
     description: operation === "start" ? "启动指定 Minecraft 实例。"
       : operation === "stop" ? "安全停止指定 Minecraft 实例。"
       : operation === "restart" ? "安全停止后重新启动同一 Minecraft 实例，并等待服务就绪；强制停服后不自动启动。"
-        : "备份已停止的 Minecraft 世界存档。若实例正在运行，业务服务会拒绝。",
+        : operation === "delete" ? "删除已停止/失败且无活动任务的实例；状态未知时先由节点核实进程与目录：节点先将完整目录移入备份归档，确认归档后移除登记。仍有进程或安装标记时拒绝；不会永久清除存档。" : "备份已停止的 Minecraft 世界存档。若实例正在运行，业务服务会拒绝。",
     schema: strictObject({ instanceId: { type: "string", format: "uuid" } }, ["instanceId"]),
     parse: (value) => parseWithSchema(Joi.object({ instanceId: idSchema("instanceId") }).unknown(false), value),
     risk: () => "write",
     approval: (parameters) => {
       const instance = getMinecraftInstance(String(parameters.instanceId));
-      return { scopeKey: `minecraft-instance:${parameters.instanceId}`, scopeSummary: instance ? `${instance.nodeName} · ${instance.name}` : `Minecraft 实例 ${parameters.instanceId}`, summary: `${operation === "start" ? "启动" : operation === "stop" ? "停止" : operation === "restart" ? "重启" : "备份"} Minecraft 实例 ${instance?.name ?? parameters.instanceId}` };
+      return { scopeKey: `minecraft-instance:${parameters.instanceId}`, scopeSummary: instance ? `${instance.nodeName} · ${instance.name}` : `Minecraft 实例 ${parameters.instanceId}`, summary: `${operation === "start" ? "启动" : operation === "stop" ? "停止" : operation === "restart" ? "重启" : operation === "delete" ? "归档并删除" : "备份"} Minecraft 实例 ${instance?.name ?? parameters.instanceId}` };
     },
     execute: async (parameters, context) => {
       const instanceId = String(parameters.instanceId);
       const task = operation === "start" ? startMinecraftInstance(instanceId, context.userId)
         : operation === "stop" ? stopMinecraftInstance(instanceId, context.userId)
-          : operation === "restart" ? restartMinecraftInstance(instanceId, context.userId) : backupMinecraftWorld(instanceId, context.userId);
-      const finalTask = await waitForTask({ read: () => getMinecraftTask(task.id), signal: context.signal, onProgress: context.onProgress, missingMessage: "找不到 Minecraft 实例任务。" });
+          : operation === "restart" ? restartMinecraftInstance(instanceId, context.userId) : operation === "delete" ? deleteMinecraftInstance(instanceId,context.userId) : backupMinecraftWorld(instanceId, context.userId);
+      const finalTask = await waitForMinecraftTask(task.id, context, "找不到 Minecraft 实例任务。");
       return safeTaskView(finalTask as unknown as Record<string, unknown>);
     }
   })),
@@ -292,7 +303,7 @@ const minecraftTools: AiBusinessTool[] = [
     approval: parameters => ({ scopeKey: `minecraft-console:${parameters.instanceId}:${createHash("sha256").update(String(parameters.command)).digest("hex")}`, scopeSummary: `实例 ${parameters.instanceId}`, summary: "发送 Minecraft 控制台指令" }),
     execute: async (parameters, context) => {
       const task = sendMinecraftConsoleCommand(String(parameters.instanceId), context.userId, String(parameters.command));
-      return safeTaskView(await waitForTask({ read: () => getMinecraftTask(task.id), signal: context.signal, onProgress: context.onProgress, missingMessage: "找不到控制台任务。" }) as unknown as Record<string, unknown>);
+      return safeTaskView(await waitForMinecraftTask(task.id, context, "找不到控制台任务。") as unknown as Record<string, unknown>);
     }
   }),
   makeTool({
@@ -318,7 +329,7 @@ const minecraftTools: AiBusinessTool[] = [
     },
     execute: async (parameters, context) => {
       const task = updateMinecraftServerProperties(String(parameters.instanceId), context.userId, parameters.properties);
-      const finalTask = await waitForTask({ read: () => getMinecraftTask(task.id), signal: context.signal, onProgress: context.onProgress, missingMessage: "找不到 Minecraft 配置任务。" });
+      const finalTask = await waitForMinecraftTask(task.id, context, "找不到 Minecraft 配置任务。");
       return safeTaskView(finalTask as unknown as Record<string, unknown>);
     }
   })
@@ -720,7 +731,7 @@ const delegationTool: AiBusinessTool = makeTool({
 });
 
 export function listAiBusinessTools(applicationId: ApplicationId, userRole: UserRole, writingTarget: AiWritingToolTarget | null = null, permissionMode: "ask" | "approve_remembered" | "full_access" = "ask", includeExtensions = false, includeInstalledPrompts = false, includeComputerControl = false): AiBusinessTool[] {
-  const available = [...capabilitySettingsTools, ...(applicationId === "workspace" || applicationId === "minecraft" ? [projectFileTool] : []), delegationTool, ...(includeInstalledPrompts ? installedPromptTools : []), fileTool, ...(applicationId === "writing" ? [writingSkillTool, writingPromptTool, ...writingToolsFor(writingTarget)] : []), ...(applicationId === "minecraft" ? [minecraftPromptTool] : []), ...(applicationId === "minecraft" || applicationId === "workspace" ? minecraftTools : []), ...(applicationId === "steamcmd" || applicationId === "workspace" ? steamcmdTools : [])];
+  const available = [...createRuntimeTools(), ...capabilitySettingsTools, ...(applicationId === "workspace" || applicationId === "minecraft" ? [projectFileTool] : []), delegationTool, ...(includeInstalledPrompts ? installedPromptTools : []), fileTool, ...(applicationId === "writing" ? [writingSkillTool, writingPromptTool, ...writingToolsFor(writingTarget)] : []), ...(applicationId === "minecraft" ? [minecraftPromptTool] : []), ...(applicationId === "minecraft" || applicationId === "workspace" ? minecraftTools : []), ...(applicationId === "steamcmd" || applicationId === "workspace" ? steamcmdTools : [])];
   const canAdmin = userRole === "admin" || userRole === "super_admin";
   const fullAccess = permissionMode === "full_access";
   // 完全权限由账户持有人显式启用后可调用当前应用的全部已登记控制工具；写作目标仍绑定调用账户自己的作品。

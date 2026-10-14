@@ -6,4 +6,6 @@
 
 构建输出为根 `dist/packages/shell/tool-shell/`。当前是一次性命令任务，交互式持久 PTY 尚未接入；不能把本包说成已移植 DSH 全部 Shell 模块。
 
+目标节点命令可通过 `shell` 为本次调用明确选择受支持的 Shell；省略仍读取 `general.integratedShell`，不修改持久偏好。Windows `system` 为 cmd，PowerShell 脚本应明确选择 powershell，执行结果携带实际 Shell 与工作目录，避免嵌套命令错误转义与重复探测。
+
 本机命令输出通过 PowerShell 的进程内 UTF-8 配置与 Shell 收集器对齐，包含 Windows PowerShell 5.1 回退；不修改系统编码或用户环境设置。一次性执行在没有输入时也关闭 stdin，避免等输入至超时；已取消信号拒绝启动，进程结束撤销取消监听器。本机工具返回 `executionState`、`isError`、`aborted` 与真实退出码：正常零退出为 complete，非零退出为 failed，超时/取消/未知退出码为 unconfirmed；部分输出仍保留，不能据此声称成功或重放可能已有副作用的操作。模型查询指引要求有界目录/过滤/结果范围，仍允许当前目标内已授权的通用命令。

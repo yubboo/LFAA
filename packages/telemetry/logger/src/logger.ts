@@ -23,8 +23,9 @@ export function configureFileLogDirectory(directory: string): void {
   if (target === fileDirectory) return;
   mkdirSync(target, { recursive: true });
   if (fileTransport) {
-    logger.remove(fileTransport);
-    fileTransport.close();
+    const old = fileTransport
+    logger.remove(old)
+    if (typeof old.close === "function") old.close()
   }
   fileTransport = new winston.transports.File({
     dirname: target,
