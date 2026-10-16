@@ -10,7 +10,6 @@ export interface RuntimeOverview {
   devices: Array<{ id: string; displayName: string; platform: string; architecture: string; status: "online" | "offline"; runtimes: RuntimeEnvironment[];storage?:RuntimeStorage;servers?:Array<{id:string;name:string;requiredJavaMajor:number|null;state:string}> }>;
 }
 export interface RuntimeStorage {runtimeDirectory:string;downloadCacheDirectory:string;temporaryDirectory:string;}
-export function saveRuntimeStorage(targetId:string,input:RuntimeStorage):Promise<RuntimeStorage> {return request(`/runtime-environments/storage/${encodeURIComponent(targetId)}`,{method:"PUT",body:JSON.stringify(input)});}
 export function listRuntimeTasks(signal?:AbortSignal):Promise<{tasks:RuntimeTask[]}> {return request("/runtime-environments/tasks",{signal});}
 export function cancelMinecraftTask(id:string):Promise<unknown> {return request(`/minecraft/tasks/${encodeURIComponent(id)}/cancel`,{method:"POST"});}
 export interface RuntimeTask {

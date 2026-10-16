@@ -1,7 +1,7 @@
 /**
  * 功能：回归验证浏览器端共享持久化底座。
  * 作用：覆盖版本/作用域键、运行时编解码、异常降级及防抖写入生命周期。
- * 关联文件：packages/client/store/src/browser-persistence.ts、ai-work-drafts.ts、scroll-restoration.ts。
+ * 关联文件：packages/client/store/src/browser-persistence.ts、ai-work-drafts.ts、ai-session-pins.ts、scroll-restoration.ts。
  */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -13,6 +13,7 @@ import {
   stringPersistenceCodec
 } from "../../../packages/client/store/src/browser-persistence.ts";
 import { readAiWorkDraft, writeAiWorkDraft } from "../../../packages/client/store/src/ai-work-drafts.ts";
+import { MAX_PINNED_AI_SESSIONS, readPinnedAiSessionIds, writePinnedAiSessionIds } from "../../../packages/client/store/src/ai-session-pins.ts";
 import { createScrollRestorationKey } from "../../../packages/client/store/src/scroll-restoration.ts";
 
 function createMemoryStorage() {
@@ -51,6 +52,21 @@ test("AI Work 草稿兼容旧键，按账户和应用隔离并在清空后删除
   writeAiWorkDraft("user:a", "writing", "", storage);
   assert.equal(readAiWorkDraft("user:a", "writing", storage), "");
   assert.equal(readAiWorkDraft("user:b", "writing", storage), "另一账户的草稿");
+});
+
+test("会话置顶按账户隔离、去重并限制在有界 ID 列表", () => {
+  const storage = createMemoryStorage();
+  assert.deepEqual(readPinnedAiSessionIds("user:a", storage), []);
+  assert.equal(writePinnedAiSessionIds("user:a", ["session-a", "session-a", "session-b"], storage), true);
+  assert.deepEqual(readPinnedAiSessionIds("user:a", storage), ["session-a", "session-b"]);
+  assert.deepEqual(readPinnedAiSessionIds("user:b", storage), []);
+
+  const excessive = Array.from({ length: MAX_PINNED_AI_SESSIONS + 5 }, (_, index) => `session-${index}`);
+  assert.equal(writePinnedAiSessionIds("user:a", excessive, storage), true);
+  assert.equal(readPinnedAiSessionIds("user:a", storage).length, MAX_PINNED_AI_SESSIONS);
+  assert.equal(writePinnedAiSessionIds("user:a", ["", "x".repeat(129)], storage), true);
+  assert.deepEqual(readPinnedAiSessionIds("user:a", storage), []);
+  assert.equal(storage.values.has("lfaa.ai-session-pins.v1:user%3Aa"), false);
 });
 
 test("共享 JSON codec 校验运行时类型并跳过相同值写入", () => {

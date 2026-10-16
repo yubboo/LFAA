@@ -29,7 +29,24 @@ export interface AiWorkSessionTarget {
   sessionId: string;
 }
 
+export interface AiWorkGoalRequest {
+  requestId: string;
+  prompt: string;
+}
+
 export const aiWorkSessionOpenEventName = "lfaa:open-ai-session";
+export const aiWorkGoalRequestEventName = "lfaa:submit-ai-work-goal";
+let aiWorkGoalSequence = 0;
+
+export function requestAiWorkGoal(prompt: string): AiWorkGoalRequest {
+  const normalized = prompt.trim();
+  if (!normalized) throw new Error("小鱼智能体目标不能为空。");
+  aiWorkGoalSequence += 1;
+  const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${aiWorkGoalSequence}`;
+  const request = { requestId, prompt: normalized };
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<AiWorkGoalRequest>(aiWorkGoalRequestEventName, { detail: request }));
+  return request;
+}
 
 let sharedAudioContext: AudioContext | null = null;
 

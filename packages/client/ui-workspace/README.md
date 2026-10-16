@@ -1,5 +1,9 @@
 # `lfaa-client-ui-workspace`
 
+共享小鱼工作区接收 Workbench 投递的 `AiWorkGoalRequest` 并传给 `AiWorkChat`；聊天仍通过既有 Agent Loop 执行目标，没有 Provider 时保留草稿。
+
+2026-10-16：普通 App 是手动操作与成果管理面板，Agent 对话、能力资源和侧聊只在共享工作区展示。写作侧栏改用 `normal/WritingBookInfo`，保留作品信息与写作方法管理，不再提供 App 专属 AI Work 切换。普通面板不加载 Agent 能力目录；共享工作读取目录可取消，离开或切换账户时撤销请求。两类自定义模板（成果/应用面板）的目标与待实施范围见 [模板目标](../../../docs/development/application-panels-templates.zh.md)，本轮不声明模板运行时已实现。
+
 Web/Desktop 共用的应用工作区 UI。除通用 Workspace 外，`AiVideoCanvasWorkspace` 将单个 AI 漫剧项目呈现为剧本、角色/场景档案和 React Flow 分镜画布，通过 Client Connection 调用认证 API 保存，不把浏览器存储作为项目数据 Owner。
 
 应用侧栏与中心区复用 `packages/client/ui-dockkit/src/ResizableWorkbench.tsx`。响应式容器足以保留侧栏和中心区最小宽度时，展开的二级导航占用左侧 Dock 并推动中心区；更窄时继续使用 Overlay。AI Work 窄宽度的聊天外层和消息列间距按中心容器实际宽度渐进收缩，不按整个浏览器视口计算，避免窄屏累计留白过大或消息、输入贴住面板边界。
@@ -9,3 +13,17 @@ Web/Desktop 共用的应用工作区 UI。除通用 Workspace 外，`AiVideoCanv
 构建输出位于仓库根 `dist/packages/client/ui-workspace/`。
 
 工作区终端可切换真实交互式会话和 Agent 任务输出；交互页选择已连接的本机/远程 Daemon，使用 xterm 处理输入、ANSI、中文、尺寸变化和 Ctrl+C。沿用 `general.integratedShell/taskFolder/terminalPosition/showBottomPanelControl`、统一权限模式及工作台主题、代码字体/字号、强调色、壁纸/遮罩/模糊和减少动态效果。容器 ResizeObserver 合并一帧内的缩放，输入与缩放分别串行发送；绘制容量 512 Ki 字符、历史 2000 行，超限失败关闭。卸载关闭会话并撤销 SSE、观察器与动画帧；节点状态查询复用可见性控制的串行轮询。
+
+## 小鱼共享工作入口（2026-10-14）
+
+根地址与默认首页进入 `/work` 小鱼智能体对话区。左侧全局导航提供紧凑“应用”菜单，保留游戏库及 SteamCMD、Minecraft、LFAA 联机服务、写作空间和 AI 漫剧常规入口。应用切换继续调用 Workbench/Client Renderer 已有打开与路由标记，不在菜单复制业务规则。
+
+工作区顶栏状态与左侧导航状态点共同消费设置中心 `general.showServiceStatus`；Appearance 的字体、颜色、壁纸、遮罩、模糊、字号、对比度和减少动态效果继续读取工作台共享令牌。
+
+应用仅组合原常规界面，共享工作组合一个聊天/项目/会话 UI。项目和旧 App 会话按账户统一查询，公共会话列表不随当前 App 分区；列表在账户间隔离、按账户缓存，并在离开工作模式或切换账户时取消过期请求。游戏“交给小鱼”进入公共工作；容器布局仍归 ResizableWorkbench。
+
+小鱼智能体左侧会话栏按草稿、置顶、项目、最近分区；置顶 ID 使用 Client Store 的账户隔离本机偏好，项目与会话仍由现有 Owner 管理，界面沿用 Appearance 共享令牌。
+
+构建只写仓库根 dist/packages/client/ui-workspace/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
+
+2026-10-16：置顶、项目与最近会话行统一通过三点菜单调用既有置顶/归档操作；Web 保留浏览器原生右键，桌面宿主可右键打开相同菜单。菜单挂在工作区，自动翻转，短屏可滚动，继承主题；Esc、点击外部与布局模式变化会关闭，临时监听随菜单生命周期撤销。聊天读取通用中心宽度下限；窄容器打开一侧会收起另一侧，桌面缩入紧凑布局且右栏已开时收起左栏。普通 App 仍沿用应用布局指标，不改变 Session/项目数据。

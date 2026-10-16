@@ -122,6 +122,29 @@ test("AI Work 分段流式正文使用稳定纯文本，终态 Markdown 保留�
   assert.doesNotMatch(styles, /ai-work-chat__message-content--streaming[^\n]*::after/u);
 });
 
+test("历史首屏按账户与会话去重，切换时取消过期读取", () => {
+  const chat = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+  assert.ok(chat.includes("const messageSessionKey = `${userId}:${conversationKey}`;"));
+  assert.ok(chat.includes("if (loadedMessageSessionKeyRef.current === messageSessionKey)"));
+  assert.ok(chat.includes("loadAiMessages(activeSessionId, undefined, controller.signal)"));
+  assert.ok(chat.includes("loadedMessageSessionKeyRef.current = messageSessionKey;"));
+  assert.ok(chat.includes("return () => { alive = false; controller.abort(); };"));
+});
+
+test("设置中心独立工作区读取并发启动，共享会话列表按账户取消旧请求", () => {
+  const settings = readFileSync(new URL("../../../packages/client/ui-settings/src/SettingsPage.tsx", import.meta.url), "utf8");
+  const workspaceStart = settings.indexOf('case "workspace":');
+  const workspaceEnd = settings.indexOf('case "developer":', workspaceStart);
+  const workspaceCase = settings.slice(workspaceStart, workspaceEnd);
+  assert.match(workspaceCase, /Promise\.all\(\[\s*loadHealthOnce\(\),\s*loadSteamcmdSettings\(\),\s*loadMinecraftStorageSettings\(\),\s*loadDataDirectorySettings\(\),\s*loadProjectStorageLocations\(\)/u);
+
+  const appWorkspace = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
+  assert.ok(appWorkspace.includes("loadAiSessions({ signal: controller.signal })"));
+  assert.ok(appWorkspace.includes("const cacheKey = userId;"));
+  assert.ok(!appWorkspace.includes("loadAiSessions({ appId: app, signal: controller.signal })"));
+  assert.ok(appWorkspace.includes("return () => { alive = false; controller.abort(); };"));
+});
+
 test("AI Work 主聊挂载唯一分段展示，沿用原活动展开和完成清理", () => {
   const chat = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
   const response = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url), "utf8");

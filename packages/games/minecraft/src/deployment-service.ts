@@ -16,8 +16,20 @@ export interface MinecraftProvisionInput {
   nodeId: string; name: string; core: string; version: string; build?: string; userId: string;
   eulaAccepted: boolean; memoryMb?: number; serverPort?: number; javaRuntimeId?: string | null;
   proxyBackendInstanceId?: string;
+  signal?: AbortSignal;
+}
+/** 仅由事务前的只读工件准备和指定运行时校验抛出；不能用普通业务错误推断节点没有副作用。 */
+export class MinecraftProvisionPreparationError extends ApiError {
+  readonly executionState = "not_started";
+  readonly retryable: boolean;
+  constructor(error: ApiError) {
+    super(error.statusCode, error.errorCode, error.message);
+    this.name = "MinecraftProvisionPreparationError";
+    this.retryable = error.errorCode === "minecraft_source_connection_failed";
+  }
 }
 export async function provisionMinecraftServer(input: MinecraftProvisionInput) {
+  input.signal?.throwIfAborted();
   if (input.eulaAccepted !== true) throw new ApiError(400, "minecraft_eula_required", "请先阅读并明确同意 Minecraft EULA 和所选核心的许可。");
   const name = input.name.trim().normalize("NFC");
   if (!name || name.length > 48 || /[<>:"/\\|?*\u0000-\u001f]/u.test(name) || /[ .]$/u.test(name) || name === "." || name === ".." || /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/iu.test(name)) throw new ApiError(400, "minecraft_instance_name_invalid", "实例名称不能包含路径或 Windows 保留名称。");
@@ -25,7 +37,14 @@ export async function provisionMinecraftServer(input: MinecraftProvisionInput) {
   if (settings.minecraftExecutionMode !== "native") throw new ApiError(409, "minecraft_automatic_boundary_unsupported", "多核心自动安装使用本机原生执行。请在设置中心选择推荐的本机原生进程；AppContainer 继续支持旧 Vanilla 实例，不会静默降级。");
   const memoryMb = input.memoryMb ?? settings.minecraftDefaultMemoryMb;
   if (!Number.isInteger(memoryMb) || memoryMb < 1024 || memoryMb > 32768) throw new ApiError(400, "minecraft_memory_invalid", "实例内存须为 1024–32768 MB。");
-  const artifact = await resolveMinecraftCoreArtifact(input.core, input.version, input.build);
+  const artifact = await resolveMinecraftCoreArtifact(input.core, input.version, input.build).catch(error => {
+    input.signal?.throwIfAborted();
+    // 此阶段尚未登记实例、部署或任务。任务创建及等待后的错误仍保持原未知结果合同。
+    if (error instanceof ApiError) throw new MinecraftProvisionPreparationError(error);
+    throw error;
+  });
+  // 目录请求可能在用户停止后才返回；停止必须在任何实例/任务写入前生效。
+  input.signal?.throwIfAborted();
   let serverPort = input.serverPort ?? (artifact.category === "bedrock" ? settings.minecraftBedrockDefaultPort : settings.minecraftDefaultPort);
   validateMinecraftServerProperties({ serverPort });
   // 解析网络目录后再核实节点，避免慢请求期间节点离线却仍派发。
@@ -35,7 +54,7 @@ export async function provisionMinecraftServer(input: MinecraftProvisionInput) {
   const javaRuntimeId = input.javaRuntimeId ?? null;
   if (javaRuntimeId) {
     const runtime = node.javaRuntimes.find(r => r.runtimeId === javaRuntimeId);
-    if (!runtime || runtime.major !== artifact.javaMajor) throw new ApiError(400, "minecraft_java_mismatch", `请选择目标节点上 Java ${artifact.javaMajor} 的有效运行环境，或使用自动准备。`);
+    if (!runtime || runtime.major !== artifact.javaMajor) throw new MinecraftProvisionPreparationError(new ApiError(400, "minecraft_java_mismatch", `请选择目标节点上 Java ${artifact.javaMajor} 的有效运行环境，或使用自动准备。`));
   }
   const storageDirectory = getMinecraftNodeStorageSettings(node.id).instanceDirectory;
   let proxyBackend: { name: string; address: string } | undefined;

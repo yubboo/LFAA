@@ -8,6 +8,7 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSy
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { config } from "lfaa-launch-environment/src/config.js";
 import { database } from "lfaa-storage-sqlite/src/database.js";
+import { resolveDataDirectory } from "lfaa-home-paths/src/resolve-data-directory.mjs";
 
 interface DataDirectoryMigrationRequest {
   version: 1;
@@ -19,6 +20,9 @@ interface DataDirectoryMigrationRequest {
 }
 
 export interface DataDirectorySettings {
+  defaultDirectory: string;
+  recommendedDirectory: string;
+  selection: "default" | "recommended" | "custom";
   configured: boolean;
   currentDirectory: string;
   pendingDirectory: string | null;
@@ -55,7 +59,13 @@ function readMigrationRequest(): DataDirectoryMigrationRequest | null {
 
 export function getDataDirectorySettings(): DataDirectorySettings {
   const pendingRequest = readMigrationRequest();
+  const defaultDirectory = resolveDataDirectory(config.repositoryRoot);
+  const recommendedDirectory = resolve(config.desktopInstallDirectory || config.repositoryRoot, "data");
+  const selected = pendingRequest?.targetDirectory ?? config.dataDirectory;
   return {
+    defaultDirectory,
+    recommendedDirectory,
+    selection: samePath(selected, defaultDirectory) ? "default" : samePath(selected, recommendedDirectory) ? "recommended" : "custom",
     configured: existsSync(resolve(config.dataDirectory, "credentials", "storage-location-confirmed.json")) || pendingRequest !== null,
     currentDirectory: config.dataDirectory,
     pendingDirectory: pendingRequest?.targetDirectory ?? null,
@@ -63,6 +73,11 @@ export function getDataDirectorySettings(): DataDirectorySettings {
     editable: config.dataDirectoryChangeSupported,
     unavailableReason: config.dataDirectoryChangeSupported ? null : config.dataDirectoryChangeUnavailableReason
   };
+}
+/** 推荐路径由本 Owner 产生；用户显式保存推荐选择时也可从自定义根安排迁移。 */
+export function recommendDataDirectoryLocation(): DataDirectorySettings {
+  const settings = getDataDirectorySettings();
+  return requestDataDirectoryChange(settings.recommendedDirectory);
 }
 
 /** 在原数据 Owner 中记录用户已确认当前存储位置，不另造一份 data 根配置。 */
@@ -83,7 +98,8 @@ function normalizeTargetDirectory(value: string): string {
   }
 
   const resolved = resolve(target);
-  return basename(resolved).toLocaleLowerCase("en-US") === "data" ? resolved : resolve(resolved, "data");
+  // 历史自定义根可能不叫 data，保留当前目录不能被误判为迁移到它的子目录。
+  return samePath(resolved, config.dataDirectory) || basename(resolved).toLocaleLowerCase("en-US") === "data" ? resolved : resolve(resolved, "data");
 }
 
 function assertSafeDirectoryPair(sourceDirectory: string, targetDirectory: string): void {

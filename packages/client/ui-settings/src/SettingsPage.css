@@ -62,6 +62,35 @@
   overflow: hidden;
 }
 
+/* 插件工作区复用扩展配置表单，但隐藏设置分类导航并把滚动留在自身面板。 */
+.settings-page--plugin-standalone {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.settings-plugin-standalone,
+.settings-plugin-standalone__content {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.settings-plugin-standalone__content {
+  padding: clamp(12px, 2vw, 24px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 520px) {
+  .settings-plugin-standalone__content { padding: 12px; }
+}
+
 .settings-save-feedback {
   position: fixed;
   z-index: 1200;
@@ -146,26 +175,9 @@
   gap: 14px;
 }
 
-.settings-sidebar__header .ant-btn {
-  align-self: flex-start;
-  padding-inline: 5px;
-  color: var(--color-text-secondary);
-}
-
 .settings-sidebar__header h4.ant-typography {
   margin: 0 8px;
   color: var(--color-text-heading);
-  font-size: var(--font-size-xl);
-}
-
-/* 收起按钮与返回按钮顶边对齐，并保持在侧栏标题内容区内。 */
-.settings-sidebar-collapse.ant-btn {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 30px;
-  height: 30px;
-  color: var(--color-text-muted);
   font-size: var(--font-size-xl);
 }
 
@@ -368,14 +380,80 @@
 .settings-main {
   position: relative;
   container: settings-main / inline-size;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-canvas) var(--settings-background-surface-opacity), transparent);
+  /* 正文大面积底色透明度跟随背景遮罩；不对整块滚动区域实时模糊采样。 */
+}
+
+/* 固定操作栏占据右侧展示盒顶行，分类正文独立滚动并沿用设置中心留白。 */
+.settings-toolbar {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  min-width: 0;
+  min-height: 58px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline: var(--settings-page-padding-inline);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: color-mix(in srgb, var(--color-canvas) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}
+
+.settings-toolbar__start,
+.settings-toolbar__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-toolbar__start > .ant-btn,
+.settings-toolbar__actions > .ant-btn {
+  min-height: var(--settings-control-height);
+}
+
+.settings-toolbar__back.ant-btn {
+  padding-inline: 5px;
+  color: var(--color-text-secondary);
+}
+
+.settings-toolbar__collapse.ant-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xl);
+}
+
+.settings-toolbar__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.settings-toolbar__actions > small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.settings-main__content {
+  position: relative;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
   padding: var(--settings-page-padding-block) var(--settings-page-padding-inline);
   overflow: auto;
-  background: color-mix(in srgb, var(--color-canvas) var(--settings-background-surface-opacity), transparent);
-  /* 正文大面积底色透明度跟随背景遮罩；不对整块滚动区域实时模糊采样。 */
+  overscroll-behavior: contain;
 }
 
 /* 设置页的滚动正文与导航并列，导航无需实时模糊采样正文或壁纸。 */
@@ -418,24 +496,6 @@
 
 .settings-license-list a {
   color: var(--settings-accent, var(--color-brand));
-}
-
-.settings-sidebar-open-bar {
-  position: sticky;
-  z-index: 4;
-  top: calc(0px - var(--settings-page-padding-block));
-  display: flex;
-  min-height: 48px;
-  align-items: center;
-  margin-top: calc(0px - var(--settings-page-padding-block));
-  margin-right: calc(0px - var(--settings-page-padding-inline));
-  margin-bottom: var(--settings-section-gap);
-  margin-left: calc(0px - var(--settings-page-padding-inline));
-  padding-inline: var(--settings-page-padding-inline);
-  border-bottom: 1px solid var(--color-border-subtle);
-  background: color-mix(in srgb, var(--color-canvas) var(--settings-background-surface-opacity), transparent);
-  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
-  backdrop-filter: blur(var(--settings-glass-blur));
 }
 
 .settings-sidebar-open {
@@ -596,6 +656,122 @@
   border-radius: var(--space-2);
   background: var(--color-surface-muted);
 }
+
+/* 卡片与弹窗共用一组动效选择布局；真实效果由共享主题层驱动。 */
+.settings-row:has(.settings-motion-options) {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: var(--settings-group-title-gap);
+}
+
+.settings-row:has(.settings-motion-options) .settings-row__control {
+  align-items: stretch;
+}
+
+.settings-motion-options {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.settings-motion-option {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--settings-panel-radius);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.settings-motion-option:hover,
+.settings-motion-option.is-selected {
+  border-color: var(--settings-accent, var(--color-brand));
+}
+
+.settings-motion-option.is-selected {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--settings-accent, var(--color-brand)) 15%, transparent);
+}
+
+.settings-motion-option:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.settings-motion-option strong {
+  font-size: var(--font-size-sm);
+}
+
+.settings-motion-option small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.45;
+}
+
+.settings-motion-option__preview {
+  display: grid;
+  min-height: 60px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 5px;
+  padding: 8px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--space-2);
+  background: var(--color-surface-muted);
+}
+
+.settings-motion-option__preview i {
+  display: block;
+  height: 26px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 5px;
+  background: var(--color-surface);
+}
+
+.settings-motion-option__preview i:nth-child(2) { height: 32px; }
+.settings-motion-option__preview--card i:nth-child(3) { height: 38px; background: var(--color-brand-subtle); }
+.settings-motion-option__preview--card.settings-motion-option__preview--fluid i:first-child { transform: translateY(-5px) scale(.97); opacity: .58; }
+.settings-motion-option__preview--card.settings-motion-option__preview--fluid i:nth-child(2) { transform: translateY(-2px) scale(.99); opacity: .8; }
+.settings-motion-option__preview--card.settings-motion-option__preview--fade i:first-child { opacity: .45; }
+.settings-motion-option__preview--card.settings-motion-option__preview--fade i:nth-child(2) { opacity: .72; }
+.settings-motion-option__preview--card.settings-motion-option__preview--lift i:first-child { transform: translateY(-9px); }
+.settings-motion-option__preview--card.settings-motion-option__preview--lift i:nth-child(2) { transform: translateY(-4px); }
+
+.settings-motion-option__preview--dialog {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  justify-items: center;
+}
+
+.settings-motion-option__preview--dialog i:first-child {
+  position: absolute;
+  inset: 7px 11px;
+  height: auto;
+  border: 0;
+  border-radius: 6px;
+  background: var(--color-text-heading);
+  opacity: .1;
+}
+
+.settings-motion-option__preview--dialog i:last-child {
+  z-index: 1;
+  width: 42%;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--color-surface);
+  box-shadow: 0 4px 9px color-mix(in srgb, var(--color-text-heading) 12%, transparent);
+}
+
+.settings-motion-option__preview--dialog.settings-motion-option__preview--fluid i:last-child { transform: translateY(-3px) scale(.97); opacity: .72; }
+.settings-motion-option__preview--dialog.settings-motion-option__preview--fade i:last-child { transform: scale(.98); opacity: .68; }
+.settings-motion-option__preview--dialog.settings-motion-option__preview--lift i:last-child { transform: translateY(-7px); opacity: .78; }
 
 .settings-layout-option__preview i {
   display: block;
@@ -846,6 +1022,138 @@
   /* 长分类中的离屏表单行跳过布局与绘制；估算高度降低滚动进入视口时的尺寸回补。 */
   content-visibility: auto;
   contain-intrinsic-size: auto 112px;
+}
+
+/* 存储选择独占整行；三种位置先编辑后保存，长路径在卡片内换行。 */
+.settings-storage-panel {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+  padding: var(--settings-panel-padding);
+}
+.settings-storage-panel > .ant-typography,
+.settings-storage-pending p,
+.settings-storage-note .ant-typography {
+  margin-bottom: 0;
+}
+.settings-storage-current,
+.settings-storage-custom,
+.settings-storage-pending {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+.settings-storage-current > div,
+.settings-storage-actions,
+.settings-storage-custom__input {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.settings-storage-current .ant-typography,
+.settings-storage-panel .ant-typography,
+.settings-storage-folder .ant-typography {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.settings-storage-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.settings-storage-options .ant-radio-wrapper {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--settings-panel-radius);
+  color: var(--color-text-primary);
+  background: var(--settings-panel-background);
+}
+.settings-storage-options .ant-radio-wrapper-checked {
+  border-color: var(--settings-accent, var(--color-brand));
+  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 8%, var(--settings-panel-background));
+}
+.settings-storage-options .ant-radio-wrapper > span:last-child {
+  min-width: 0;
+}
+.settings-storage-option__copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+.settings-storage-option__copy > span,
+.settings-storage-custom > .ant-typography,
+.settings-storage-note {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+.settings-storage-option__copy code {
+  font-family: var(--settings-code-font, monospace);
+  font-size: var(--settings-code-font-size, var(--font-size-xs));
+}
+.settings-storage-custom__input > .ant-input {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 240px;
+}
+.settings-storage-actions > .ant-typography {
+  flex: 1 1 240px;
+}
+.settings-storage-pending > .ant-btn {
+  justify-self: start;
+}
+.settings-storage-note {
+  padding: var(--space-3) var(--settings-row-inline-padding);
+}
+/* 分类目录使用两列紧凑清单，不再重复六组大行与相同说明。 */
+.settings-storage-folders {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: 0 var(--settings-row-inline-padding);
+}
+.settings-storage-folder {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--settings-panel-radius);
+}
+.settings-storage-folder > div {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  grid-column: 1 / -1;
+}
+.settings-storage-folder > .ant-btn {
+  align-self: start;
+}
+@container settings-main (max-width: 760px) {
+  .settings-storage-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container settings-main (max-width: 560px) {
+  .settings-storage-folders {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-storage-actions > .ant-btn {
+    width: 100%;
+    white-space: normal;
+    height: auto;
+    min-height: var(--settings-control-height);
+  }
 }
 
 .settings-memory-editor {
@@ -1883,6 +2191,9 @@
   .settings-layout-options {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .settings-motion-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 620px) {
@@ -1954,7 +2265,8 @@
   }
 
   .settings-row:has(.settings-theme-options),
-  .settings-row:has(.settings-layout-options) {
+  .settings-row:has(.settings-layout-options),
+  .settings-row:has(.settings-motion-options) {
     contain-intrinsic-size: auto 220px;
   }
 
@@ -2157,12 +2469,30 @@
 
 @container settings-main (max-width: 980px) {
   .settings-layout-options,
-  .settings-theme-options {
+  .settings-theme-options,
+  .settings-motion-options {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @container settings-main (max-width: 760px) {
+  .settings-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: var(--space-2);
+    padding-block: var(--space-2);
+  }
+
+  .settings-toolbar__start,
+  .settings-toolbar__actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .settings-toolbar__actions > small {
+    flex: 1 1 auto;
+  }
+
   .settings-row,
   .settings-row--shortcuts {
     grid-template-columns: minmax(0, 1fr);
@@ -2219,6 +2549,10 @@
 
   .settings-layout-options {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-motion-options {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

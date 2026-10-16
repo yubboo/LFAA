@@ -1,0 +1,28 @@
+{
+  "name": "lfaa-prompt-minecraft",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  },
+  "lfaa": {
+    "server": {
+      "entry": "./src/index.ts",
+      "inject": [
+        "aiExtensions"
+      ],
+      "required": true,
+      "capabilities": [],
+      "settings": []
+    }
+  }
+}

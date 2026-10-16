@@ -6,13 +6,15 @@
  * 修改注意事项：应用会话导航由 ApplicationSidebar 提供；悬停锚点只索引当前会话已保存的用户提问，不占聊天列宽。
  */
 .ai-work-chat { position: relative; display: grid; min-height: 390px; height: calc(100% - 12px); grid-template-columns: minmax(0, 1fr); overflow: hidden; border: 1px solid var(--color-border); border-radius: 14px; background: color-mix(in srgb, var(--color-surface) 94%, transparent); box-shadow: 0 8px 30px rgba(25, 40, 70, .08); }
+.ai-work-chat--composer-menu-open { overflow: visible; }
 /* Wallpaper Engine 活动时优先级高于自定义背景的透明主面板规则，改为消费外观中心的遮罩透明度与模糊。 */
 body[data-we-wallpaper] .workbench-shell .ai-work-chat {
   background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
   -webkit-backdrop-filter: blur(var(--settings-glass-blur));
   backdrop-filter: blur(var(--settings-glass-blur));
 }
-.ai-work-chat__conversation { display: flex; width: 100%; min-width: 0; min-height: 0; flex: 1 1 0; flex-direction: column; gap: 8px; padding: 10px 0 12px; }
+/* 提示区、关联和输入框超过所属容器高度时允许整体滚动，短屏不裁掉底部操作。 */
+.ai-work-chat__conversation { display: flex; width: 100%; min-width: 0; min-height: 0; flex: 1 1 0; flex-direction: column; gap: 8px; padding: 10px 0 12px; overflow: auto; overscroll-behavior: contain; }
 .ai-work-chat__alerts { display: grid; min-width: 0; flex: 0 0 auto; gap: 8px; }
 .ai-work-chat__conversation > .ai-work-chat__alerts { flex: 0 0 auto; }
 .ai-work-chat__alerts > .ant-alert { min-width: 0; margin: 0; }
@@ -307,8 +309,47 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__plan-mode-copy strong { color: var(--color-text-heading); font-size: .82em; font-weight: 620; }
 .ai-work-chat__plan-mode-copy span { color: var(--color-text-muted); font-size: .72em; line-height: 1.4; }
 .ai-work-chat__plan-mode-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 5px; margin-left: auto; }
-.ai-work-chat__composer { display: grid; width: min(100%, 920px); min-width: 0; grid-template-columns: minmax(0, 1fr); flex: 0 0 auto; gap: 7px; align-self: center; margin: 0 0 clamp(2px, 1.2vh, 14px); padding: 9px 11px 8px; border: 1px solid var(--color-border); border-radius: 16px; background: color-mix(in srgb, var(--color-surface) 94%, transparent); box-shadow: 0 8px 26px rgba(25, 40, 70, .10); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); transition: border-color 140ms ease, box-shadow 140ms ease; box-sizing: border-box; }
+.ai-work-chat__composer { position: relative; z-index: 2; display: grid; width: min(100%, 920px); min-width: 0; grid-template-columns: minmax(0, 1fr); flex: 0 0 auto; gap: 7px; align-self: center; margin: 0 0 clamp(2px, 1.2vh, 14px); padding: 9px 11px 8px; border: 1px solid var(--color-border); border-radius: 16px; background: color-mix(in srgb, var(--color-surface) 94%, transparent); box-shadow: 0 8px 26px rgba(25, 40, 70, .10); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); transition: border-color 140ms ease, box-shadow 140ms ease; box-sizing: border-box; }
 .ai-work-chat__composer:focus-within { border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 48%, var(--color-border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, transparent), 0 8px 26px rgba(25, 40, 70, .10); }
+.ai-work-chat__composer-menu { position: absolute; z-index: 30; right: 0; bottom: calc(100% + 9px); left: 0; display: grid; width: 100%; max-height: min(68dvh, 480px); min-height: 0; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; box-sizing: border-box; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); box-shadow: 0 12px 36px color-mix(in srgb, var(--color-shadow) 26%, transparent); color: var(--color-text-primary); font-family: var(--settings-interface-font, var(--font-family-sans)); }
+.ai-work-chat__composer-menu[data-trigger="/"] { grid-template-rows: minmax(0, 1fr); }
+.ai-work-chat__composer-menu[data-trigger="/"] .ai-work-chat__composer-menu-heading,
+.ai-work-chat__composer-menu[data-trigger="/"] .ai-work-chat__composer-menu-group-label { display: none; }
+.ai-work-chat__composer-menu-heading { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; padding: 10px 12px 7px; border-bottom: 1px solid var(--color-border); }
+.ai-work-chat__composer-menu-heading strong { color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 620; }
+.ai-work-chat__composer-menu-heading > span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.ai-work-chat__composer-menu-list { display: grid; min-height: 0; gap: 4px; align-content: start; overflow: auto; padding: 5px; overscroll-behavior: contain; }
+.ai-work-chat__composer-menu-group { display: grid; min-width: 0; gap: 2px; }
+.ai-work-chat__composer-menu-group-label { padding: 6px 8px 2px; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.ai-work-chat__composer-menu-option { display: flex; width: 100%; min-width: 0; min-height: 40px; align-items: center; justify-content: flex-start; gap: 11px; padding: 7px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--color-text-primary); cursor: pointer; text-align: left; }
+.ai-work-chat__composer-menu-option[aria-selected="true"],
+.ai-work-chat__composer-menu-option:hover:not(:disabled) { background: var(--color-surface-hover); }
+.ai-work-chat__composer-menu-option:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+.ai-work-chat__composer-menu-option:disabled { color: var(--color-text-muted); cursor: not-allowed; }
+.ai-work-chat__composer-menu-option-icon { flex: 0 0 18px; color: var(--color-text-muted); }
+.ai-work-chat__composer-menu-option-copy { display: flex; min-width: 0; flex: 1 1 auto; align-items: baseline; gap: 10px; }
+.ai-work-chat__composer-menu-option-copy strong { max-width: min(42%, 280px); flex: 0 1 auto; overflow: hidden; color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__composer-menu-option-copy small { min-width: 0; flex: 1 1 auto; overflow: hidden; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__composer-menu-associated { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); font-size: var(--font-size-xs); }
+
+/* LFAA chat glass is the matching DSH extension surface: use the active plugin's conversation tint, global alpha and blur; without the plugin, existing account tokens remain untouched. */
+body[data-we-wallpaper][data-we-glass-chat] .workbench-shell[data-wallpaper-engine-owner="true"] :is(.ai-work-chat__composer, .ai-work-chat__message--user, .ai-work-chat__interaction-dock, .ai-work-chat__plan-mode, .ai-work-side-chat__composer, .ai-work-side-chat__message--user) {
+  background-color: var(--settings-wallpaper-chat-surface, var(--color-surface));
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, var(--we-glass-highlight, 0.16)), rgba(255, 255, 255, 0.05) 38%, rgba(255, 255, 255, 0.02));
+  border-color: rgba(180, 180, 180, var(--we-border-alpha, 0.35));
+  -webkit-backdrop-filter: blur(var(--settings-wallpaper-chat-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+  backdrop-filter: blur(var(--settings-wallpaper-chat-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, var(--we-glass-highlight, 0.32)), 0 8px 26px rgba(0, 0, 0, var(--we-glass-shadow, 0.12));
+}
+
+/* LFAA suggestion menus and anchored overlays follow the plugin's separate floating-glass controls. */
+body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-engine-owner="true"] :is(.ai-work-chat__composer-menu, .ai-work-chat__model-overlay .ant-popover-inner) {
+  background-color: var(--settings-wallpaper-floaters-surface, var(--color-surface));
+  -webkit-backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+  backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+  border-color: var(--color-border);
+}
+.ai-work-chat__composer-menu-empty { padding: 12px 9px; color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .ai-work-chat__composer-context { display: flex; min-width: 0; min-height: 24px; align-items: center; gap: 6px; padding: 0 2px; }
 .ai-work-chat__composer-app { display: inline-flex; min-width: 0; max-width: min(70%, 310px); align-items: center; gap: 5px; padding: 3px 7px; overflow: hidden; border: 1px solid var(--color-border-subtle); border-radius: 7px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .ai-work-chat__composer-app { flex: 0 0 auto; }
@@ -411,7 +452,8 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__project-directories > button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-work-chat__project-new-folder { display: flex; gap: 6px; }
 .ai-work-chat__project-error { margin: 0; color: var(--color-danger, #c2413a); font-size: var(--font-size-xs); }
-.ai-work-chat__composer .ant-input { width: 100%; min-width: 0; min-height: 52px; resize: none; padding: 7px 3px; border: 0; background: transparent; box-shadow: none; color: var(--color-text-heading); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.65; }
+/* Wallpaper Engine 注入的全局白色光标规则带 !important；仅在 AI Work 提问框内跟随文字颜色覆盖它。 */
+.ai-work-chat__composer .ant-input { width: 100%; min-width: 0; min-height: 52px; resize: none; padding: 7px 3px; border: 0; background: transparent; box-shadow: none; color: var(--color-text-heading); caret-color: currentColor !important; font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.65; }
 .ai-work-chat__composer .ant-input:hover,
 .ai-work-chat__composer .ant-input:focus { border: 0; background: transparent; box-shadow: none; }
 .ai-work-chat__composer .ant-input::placeholder { color: var(--color-text-subtle); }
@@ -566,6 +608,9 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
   .ai-work-chat__plan-mode { align-items: flex-start; flex-wrap: wrap; }
   .ai-work-chat__plan-mode-actions { flex: 1 1 100%; margin-left: 24px; }
   .ai-work-chat__message { max-width: 100%; }
+  .ai-work-chat__composer-menu { max-height: min(44dvh, 360px); }
+  .ai-work-chat__composer-menu-option { align-items: flex-start; }
+  .ai-work-chat__composer-menu-associated { padding-top: 2px; }
   .ai-work-chat__composer-context { gap: 4px; }
   .ai-work-chat__composer-actions { flex-wrap: wrap; row-gap: 3px; }
   .ai-work-chat__composer-actions-group--right { margin-left: auto; }
@@ -634,3 +679,8 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-side-chat__composer > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ai-work-side-chat__composer small { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .ai-work-side-chat__composer .ant-btn { min-width: 64px; }
+
+/* 可选关联在输入区内随容器换行，颜色/字号继续继承账户外观令牌。 */
+.ai-work-chat__associations { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0; min-width: 0; }
+.ai-work-chat__associations .ant-select { flex: 1 1 170px; min-width: 0; max-width: 100%; }
+.ai-work-chat__associations > .ant-typography { flex-basis: 100%; font-size: var(--font-size-sm); }

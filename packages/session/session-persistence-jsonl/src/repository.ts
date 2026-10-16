@@ -16,6 +16,26 @@ import type { SessionPersistenceBackend } from "lfaa-session-persistence";
 export type SessionRecord = Record<string, unknown>;
 const tables: SessionTable[] = ["ai_sessions", "ai_messages", "ai_usage", "session_events"];
 function digest(value: unknown): string { return createHash("sha256").update(encode(value)).digest("hex"); }
+type RecentMessagePage = {
+  rows: Map<string, SessionRecord>;
+  orderedRows: SessionRecord[];
+  rowBytes: Map<string, number>;
+  feedback: Map<string, SessionRecord>;
+  feedbackBytes: Map<string, number>;
+  count: number;
+  bytes: number;
+  complete: boolean;
+  branchParentSessionId?: string;
+};
+type RecentMessagePageResult = { items: Array<{ message: SessionRecord; feedback?: SessionRecord }>; hasMore: boolean; branchParentSessionId?: string };
+type UsageAggregateGroup = { providerId: string; modelId: string; requestCount: number; promptTokens: number; promptTokenCount: number; completionTokens: number; completionTokenCount: number; latestAt: string };
+type UsageAggregate = { requestCount: number; promptTokens: number; promptTokenCount: number; completionTokens: number; completionTokenCount: number; groups: Map<string, UsageAggregateGroup> };
+const recentMessagePageSize = 100;
+const recentMessagePageMaxSessions = 128;
+const recentMessagePageMaxBytes = 16 * 1024 * 1024;
+const displayMessageFields = ["id", "session_id", "_order", "role", "content", "status", "created_at", "activity_json", "parts"] as const;
+const emptyAssociationProjection = (): { seq: number; value: unknown } => ({ seq: -1, value: { applicationIds: [], capabilityIds: [] } });
+const compareMessages = (left: SessionRecord, right: SessionRecord) => String(left.created_at).localeCompare(String(right.created_at)) || Number(left._order) - Number(right._order);
 export class SessionRepository {
   private readonly persistence = new JsonlSessionPersistence(resolve(config.dataDirectory, "sessions"), action => withControlLock(database, action));
   private readonly metadata = new JsonStorageBackend(resolve(config.dataDirectory, "storages"));
@@ -29,6 +49,12 @@ export class SessionRepository {
   private readonly cacheMaxBytes = 32 * 1024 * 1024;
   private readonly interruptedMessages = new Map<string, SessionRecord>();
   private readonly planEvents = new Map<string, Map<string, { seq: number; active: boolean }>>();
+  // 关联引用只附着在仓库本来就持有的会话头上；不保留完整事件或另建无界键表。
+  private associationByHeader = new WeakMap<SessionRecord, { seq: number; value: unknown }>();
+  private readonly recentMessagePages = new Map<string, RecentMessagePage>();
+  private recentMessagePageBytes = 0;
+  // 用量汇总只保留账户和 Provider/模型粒度；历史记录仍只在 JSONL 中保存。
+  private readonly usageAggregates = new Map<string, UsageAggregate>();
   private readonly sessionRemovalListeners = new Set<(sessionIds: readonly string[]) => void>();
   private replaying = false;
   private failed = false;
@@ -50,16 +76,23 @@ export class SessionRepository {
     } catch (error) { this.persistence.close(); throw error; }
   }
   private apply(sessionId: string, changes: SessionChange[]): void {
+    let hasHeaderChange = false;
     for (const change of changes) {
       if (!tables.includes(change.table) || typeof change.key !== "string" || !change.key) throw new Error("会话事件记录无效。");
       const record = change.value;
       if (record !== null && (!record || typeof record !== "object" || Array.isArray(record) || record.id !== change.key || (change.table === "ai_sessions" ? record.id : record.session_id) !== sessionId)) throw new Error("会话事件所属 ID 不一致。");
-      this.storeRecord(change.table, change.key, record);
+      if (change.table === "ai_sessions") hasHeaderChange = true;
     }
+    // 仅首笔事务可能把会话头放在事件后；先完整校验，再为它调整应用顺序。
+    if (hasHeaderChange && !this.records.get("ai_sessions")!.has(sessionId)) {
+      for (const change of changes) if (change.table === "ai_sessions") this.storeRecord(change.table, change.key, change.value);
+      for (const change of changes) if (change.table !== "ai_sessions") this.storeRecord(change.table, change.key, change.value);
+    } else for (const change of changes) this.storeRecord(change.table, change.key, change.value);
   }
   private storeRecord(table: SessionTable, key: string, value: SessionRecord | null | undefined): void {
     const records = this.records.get(table)!;
     const old = records.get(key);
+    const knownMessage = table === "ai_messages" && this.recordSessions.get(table)!.has(key);
     const sessionId = table === "ai_sessions" ? key : String((value ?? old)?.session_id ?? this.recordSessions.get(table)!.get(key) ?? "");
     if (sessionId) {
       const before = old ? Buffer.byteLength(encode(old)) : 0;
@@ -75,8 +108,20 @@ export class SessionRepository {
         else this.interruptedMessages.delete(key);
       }
     }
+    if (table === "ai_usage") {
+      if (old) this.adjustUsageAggregate(old, -1);
+      if (value) this.adjustUsageAggregate(value, 1);
+    }
     if (value === null || value === undefined) records.delete(key);
     else records.set(key, structuredClone(value));
+    if (table === "ai_sessions") {
+      const header = records.get(key);
+      if (header) this.associationByHeader.set(header, old ? this.associationByHeader.get(old) ?? emptyAssociationProjection() : emptyAssociationProjection());
+    }
+    // 日志事务允许会话头位于末尾；apply 已先归一会话头，再建立首批事件投影。
+    if (sessionId && table !== "ai_sessions" && !this.recentMessagePages.has(sessionId)) this.createRecentMessagePage(sessionId);
+    if (table === "ai_sessions" && value && !old) this.createRecentMessagePage(sessionId);
+    if (table === "ai_messages") this.updateRecentMessagePage(sessionId, key, value, knownMessage);
     if (table !== "session_events" || !sessionId) return;
     const plans = this.planEvents.get(sessionId) ?? new Map<string, { seq: number; active: boolean }>();
     if (value?.type === "session/plan-mode") {
@@ -90,6 +135,8 @@ export class SessionRepository {
     else rows.set(key, records.get(key)!);
     if (rows.size) this.sessionEventsBySession.set(sessionId, rows);
     else this.sessionEventsBySession.delete(sessionId);
+    this.updateAssociationProjection(sessionId, value, old, rows);
+    this.updateRecentSessionEventProjection(sessionId, value, old);
   }
   private evictSession(sessionId: string): void {
     for (const table of tables) {
@@ -107,6 +154,159 @@ export class SessionRepository {
       this.evictSession(oldest);
     }
   }
+  private createRecentMessagePage(sessionId: string): void {
+    if (this.recentMessagePages.has(sessionId)) return;
+    const page: RecentMessagePage = { rows: new Map(), orderedRows: [], rowBytes: new Map(), feedback: new Map(), feedbackBytes: new Map(), count: 0, bytes: 128, complete: true };
+    this.recentMessagePages.set(sessionId, page);
+    this.recentMessagePageBytes += page.bytes;
+    this.trimRecentMessagePages();
+  }
+  private touchRecentMessagePage(sessionId: string, page: RecentMessagePage): void {
+    this.recentMessagePages.delete(sessionId);
+    this.recentMessagePages.set(sessionId, page);
+  }
+  private removeRecentMessagePage(sessionId: string): void {
+    const page = this.recentMessagePages.get(sessionId);
+    if (!page) return;
+    this.recentMessagePageBytes -= page.bytes;
+    this.recentMessagePages.delete(sessionId);
+  }
+  private trimRecentMessagePages(): void {
+    while (this.recentMessagePages.size > recentMessagePageMaxSessions || this.recentMessagePageBytes > recentMessagePageMaxBytes) {
+      const oldest = this.recentMessagePages.keys().next().value;
+      if (oldest === undefined) break;
+      this.removeRecentMessagePage(oldest);
+    }
+  }
+  private adjustUsageAggregate(row: SessionRecord, change: 1 | -1): void {
+    const userId = typeof row.user_id === "string" ? row.user_id : "";
+    const providerId = typeof row.provider_id === "string" ? row.provider_id : "";
+    const modelId = typeof row.model_id === "string" ? row.model_id : "";
+    if (!userId) return;
+    let aggregate = this.usageAggregates.get(userId);
+    if (!aggregate && change > 0) {
+      aggregate = { requestCount: 0, promptTokens: 0, promptTokenCount: 0, completionTokens: 0, completionTokenCount: 0, groups: new Map() };
+      this.usageAggregates.set(userId, aggregate);
+    }
+    if (!aggregate) return;
+    const key = JSON.stringify([providerId, modelId]);
+    let group = aggregate.groups.get(key);
+    if (!group && change > 0) {
+      group = { providerId, modelId, requestCount: 0, promptTokens: 0, promptTokenCount: 0, completionTokens: 0, completionTokenCount: 0, latestAt: "" };
+      aggregate.groups.set(key, group);
+    }
+    if (!group) return;
+    aggregate.requestCount += change;
+    group.requestCount += change;
+    if (typeof row.prompt_tokens === "number") {
+      aggregate.promptTokens += change * row.prompt_tokens;
+      aggregate.promptTokenCount += change;
+      group.promptTokens += change * row.prompt_tokens;
+      group.promptTokenCount += change;
+    }
+    if (typeof row.completion_tokens === "number") {
+      aggregate.completionTokens += change * row.completion_tokens;
+      aggregate.completionTokenCount += change;
+      group.completionTokens += change * row.completion_tokens;
+      group.completionTokenCount += change;
+    }
+    if (change > 0 && typeof row.created_at === "string" && row.created_at > group.latestAt) group.latestAt = row.created_at;
+    if (group.requestCount <= 0) aggregate.groups.delete(key);
+    if (aggregate.requestCount <= 0) this.usageAggregates.delete(userId);
+  }
+  private updateRecentMessagePage(sessionId: string, key: string, value: SessionRecord | null | undefined, wasKnown: boolean): void {
+    const page = this.recentMessagePages.get(sessionId);
+    if (!page) return;
+    const previousBytes = page.bytes;
+    const existing = page.rows.get(key);
+    if (!value) {
+      if (wasKnown) page.count = Math.max(0, page.count - 1);
+      if (existing) {
+        const index = page.orderedRows.indexOf(existing);
+        if (index >= 0) page.orderedRows.splice(index, 1);
+        page.bytes -= page.rowBytes.get(key) ?? 0;
+        page.rows.delete(key); page.rowBytes.delete(key);
+        const feedbackBytes = page.feedbackBytes.get(key) ?? 0;
+        page.bytes -= feedbackBytes; page.feedback.delete(key); page.feedbackBytes.delete(key);
+        // 缺少下一条旧消息时不返回残缺首屏，回退到完整分页读取。
+        page.complete = false;
+      }
+    } else if (!wasKnown || existing) {
+      const projected = Object.fromEntries(displayMessageFields.filter(field => field in value).map(field => [field, value[field]]));
+      if (existing) {
+        const index = page.orderedRows.indexOf(existing);
+        if (index >= 0) page.orderedRows.splice(index, 1);
+        page.bytes -= page.rowBytes.get(key) ?? 0;
+      } else {
+        page.count += 1;
+      }
+      const row = structuredClone(projected);
+      const bytes = Buffer.byteLength(encode(row));
+      page.rows.set(key, row); page.rowBytes.set(key, bytes); page.bytes += bytes;
+      let low = 0, high = page.orderedRows.length;
+      while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (compareMessages(page.orderedRows[middle]!, row) <= 0) low = middle + 1;
+        else high = middle;
+      }
+      page.orderedRows.splice(low, 0, row);
+      while (page.orderedRows.length > recentMessagePageSize) {
+        const removed = page.orderedRows.shift()!;
+        const removedId = String(removed.id);
+        page.bytes -= page.rowBytes.get(removedId) ?? 0;
+        page.rows.delete(removedId); page.rowBytes.delete(removedId);
+        page.bytes -= page.feedbackBytes.get(removedId) ?? 0;
+        page.feedback.delete(removedId); page.feedbackBytes.delete(removedId);
+      }
+    }
+    this.recentMessagePageBytes += page.bytes - previousBytes;
+    this.touchRecentMessagePage(sessionId, page);
+    this.trimRecentMessagePages();
+  }
+  private updateRecentSessionEventProjection(sessionId: string, value: SessionRecord | null | undefined, old: SessionRecord | undefined): void {
+    const page = this.recentMessagePages.get(sessionId);
+    if (!value) {
+      const data = old?.data as Record<string, unknown> | undefined;
+      if (old?.type === "message/feedback" && typeof data?.messageId === "string" && page?.feedback.has(data.messageId)) {
+        const bytes = page.feedbackBytes.get(data.messageId) ?? 0;
+        page.bytes -= bytes; this.recentMessagePageBytes -= bytes;
+        page.feedback.delete(data.messageId); page.feedbackBytes.delete(data.messageId);
+      }
+      if (page && (old?.type === "session/end-seed" || old?.type === "session/branch-memory") && page.branchParentSessionId === data?.sourceSessionId) {
+        delete page.branchParentSessionId; page.bytes -= 128; page.complete = false;
+        this.recentMessagePageBytes -= 128;
+      }
+      this.trimRecentMessagePages();
+      return;
+    }
+    const data = value.data as Record<string, unknown> | undefined;
+    if (value.type === "message/feedback" && typeof data?.messageId === "string" && page?.rows.has(data.messageId)) {
+      const previousBytes = page.bytes;
+      const feedback = structuredClone(value);
+      const bytes = Buffer.byteLength(encode(feedback));
+      page.bytes += bytes - (page.feedbackBytes.get(data.messageId) ?? 0);
+      this.recentMessagePageBytes += page.bytes - previousBytes;
+      page.feedback.set(data.messageId, feedback); page.feedbackBytes.set(data.messageId, bytes);
+    } else if ((value.type === "session/end-seed" || value.type === "session/branch-memory") && typeof data?.sourceSessionId === "string" && page) {
+      if (!page.branchParentSessionId) { page.bytes += 128; this.recentMessagePageBytes += 128; }
+      page.branchParentSessionId = data.sourceSessionId;
+    }
+    this.trimRecentMessagePages();
+  }
+  private updateAssociationProjection(sessionId: string, value: SessionRecord | null | undefined, old: SessionRecord | undefined, rows: Map<string, SessionRecord>): void {
+    const header = this.records.get("ai_sessions")!.get(sessionId);
+    if (!header) return;
+    const current = this.associationByHeader.get(header) ?? emptyAssociationProjection();
+    if (value?.type === "session/associations" && Number.isSafeInteger(value.seq)) {
+      if (Number(value.seq) >= current.seq) this.associationByHeader.set(header, { seq: Number(value.seq), value: structuredClone(value.data) });
+      return;
+    }
+    if (!value && old?.type === "session/associations") {
+      let latest = emptyAssociationProjection();
+      for (const event of rows.values()) if (event.type === "session/associations" && Number.isSafeInteger(event.seq) && Number(event.seq) > latest.seq) latest = { seq: Number(event.seq), value: structuredClone(event.data) };
+      this.associationByHeader.set(header, latest);
+    }
+  }
   private loadSession(sessionId: string): void {
     if (this.loadedSessions.has(sessionId)) {
       const bytes = this.loadedSessions.get(sessionId)!;
@@ -118,10 +318,27 @@ export class SessionRepository {
   }
   /** 诊断仅给出缓存工作量，不包含消息、账户或路径。 */
   cacheStats(): { sessions: number; bytes: number } { return { sessions: this.loadedSessions.size, bytes: this.cachedBytes }; }
-  /** 消息页直接按行扫描经重放登记的单会话事务，不把超长会话正文装入热缓存。 */
-  readMessagePage(sessionId: string, before: { createdAt: string; order: number } | undefined, limit: number, observeEvent?: Parameters<JsonlSessionPersistence["readMessagePage"]>[3]): ReturnType<JsonlSessionPersistence["readMessagePage"]> {
+  /** 日志版本未变化时复用重放建立的有界首屏；失效或超预算时回退到完整链扫描。 */
+  readRecentMessagePage(sessionId: string, limit: number): RecentMessagePageResult | null {
     this.assertReady();
-    return this.persistence.readMessagePage(sessionId, before, limit, observeEvent);
+    if (!Number.isInteger(limit) || limit < 1 || limit > recentMessagePageSize || !this.persistence.isCurrentRevision(sessionId)) return null;
+    const page = this.recentMessagePages.get(sessionId);
+    if (!page?.complete) return null;
+    this.touchRecentMessagePage(sessionId, page);
+    const rows = page.orderedRows.slice(Math.max(0, page.orderedRows.length - limit));
+    return {
+      items: rows.map(message => {
+        const feedback = page.feedback.get(String(message.id));
+        return feedback ? { message: structuredClone(message), feedback: structuredClone(feedback) } : { message: structuredClone(message) };
+      }),
+      hasMore: page.count > rows.length,
+      ...(page.branchParentSessionId ? { branchParentSessionId: page.branchParentSessionId } : {})
+    };
+  }
+  /** 首屏缓存未命中或加载更早消息时，完整校验 JSONL 哈希链。 */
+  readMessagePage(sessionId: string, before: { createdAt: string; order: number } | undefined, limit: number, observeEvent?: Parameters<JsonlSessionPersistence["readMessagePage"]>[3], signal?: AbortSignal): ReturnType<JsonlSessionPersistence["readMessagePage"]> {
+    this.assertReady();
+    return this.persistence.readMessagePage(sessionId, before, limit, observeEvent, signal);
   }
   /** 权限及字段投影由 Session Owner 提供，持久化层只负责单遍完整性与有界分页。 */
   readEventPage(...parameters: Parameters<JsonlSessionPersistence["readEventPage"]>): ReturnType<JsonlSessionPersistence["readEventPage"]> {
@@ -134,6 +351,8 @@ export class SessionRepository {
     for (const index of this.recordSessions.values()) index.clear();
     this.interruptedMessages.clear(); this.replaying = true;
     this.planEvents.clear();
+    this.associationByHeader = new WeakMap(); this.recentMessagePages.clear(); this.recentMessagePageBytes = 0;
+    this.usageAggregates.clear();
     let previousSession: string | undefined;
     try {
       for (const event of this.persistence.readAll()) {
@@ -209,6 +428,32 @@ export class SessionRepository {
     for (const event of this.planEvents.get(sessionId)?.values() ?? []) if (event.seq > latest.seq) latest = event;
     return latest.active;
   }
+  /** 返回重放/提交期间同步维护的用量汇总，不恢复历史会话或逐行用量记录。 */
+  usageSummary(userId: string): { requestCount: number; promptTokens: number | null; completionTokens: number | null; providers: Array<{ providerId: string; modelId: string; requestCount: number; promptTokens: number | null; completionTokens: number | null }> } {
+    this.assertReady();
+    const aggregate = this.usageAggregates.get(userId);
+    if (!aggregate) return { requestCount: 0, promptTokens: null, completionTokens: null, providers: [] };
+    const providers = [...aggregate.groups.values()]
+      .sort((left, right) => right.latestAt.localeCompare(left.latestAt))
+      .map(group => ({
+        providerId: group.providerId, modelId: group.modelId, requestCount: group.requestCount,
+        promptTokens: group.promptTokenCount ? group.promptTokens : null,
+        completionTokens: group.completionTokenCount ? group.completionTokens : null
+      }));
+    return {
+      requestCount: aggregate.requestCount,
+      promptTokens: aggregate.promptTokenCount ? aggregate.promptTokens : null,
+      completionTokens: aggregate.completionTokenCount ? aggregate.completionTokens : null,
+      providers
+    };
+  }
+  /** 关联引用来自已验证的轻量事件投影，不为会话列表恢复完整 Kernel。 */
+  associations(sessionId: string): unknown {
+    this.assertReady();
+    const header = this.records.get("ai_sessions")!.get(sessionId);
+    const projection = header ? this.associationByHeader.get(header) : undefined;
+    return structuredClone(projection?.value ?? emptyAssociationProjection().value);
+  }
   onSessionsRemoved(listener: (sessionIds: readonly string[]) => void): () => void {
     this.sessionRemovalListeners.add(listener);
     return () => this.sessionRemovalListeners.delete(listener);
@@ -270,6 +515,7 @@ export class SessionRepository {
     } finally { this.trimCache(); }
   }
   removeUser(userId: string): void {
+    this.usageAggregates.delete(userId);
     const headers = [...this.records.get("ai_sessions")!.values()].filter(row => row.user_id === userId);
     const sessionIds = headers.map(header => String(header.id));
     for (const listener of [...this.sessionRemovalListeners]) {
@@ -278,6 +524,7 @@ export class SessionRepository {
     }
     for (const header of headers) {
       const sessionId = String(header.id); this.persistence.remove(sessionId);
+      this.removeRecentMessagePage(sessionId);
       this.evictSession(sessionId);
       this.planEvents.delete(sessionId);
       for (const index of this.recordSessions.values()) for (const [key, owner] of index) if (owner === sessionId) index.delete(key);

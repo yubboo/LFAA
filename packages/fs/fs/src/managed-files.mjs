@@ -5,7 +5,7 @@
  */
 import {randomUUID, createHash} from 'node:crypto';
 import {createReadStream} from 'node:fs';
-import {lstat, mkdir, opendir, readFile, readdir, rename, rm, writeFile} from 'node:fs/promises';
+import {lstat, mkdir, opendir, readFile, readdir, realpath, rename, rm, writeFile} from 'node:fs/promises';
 import {basename, dirname, extname, isAbsolute, relative, resolve, sep} from 'node:path';
 import {inflateRawSync} from 'node:zlib';
 
@@ -29,8 +29,9 @@ export function assertSafeTextPreview(path, content) {
 // 写入按实际根目录串行，同一账户的多个请求共享锁；结束后删除登记，避免长期增长。
 const mutationTails = new Map();
 const readOperations = new Set(['list','search','directory-size','preview','read','download','trash-list']);
-export function createManagedFileService({root, protectedDirectories = [], assertCanRead = () => {}, assertCanMutate = () => {}, recycleNamespace = ""}) {
+export function createManagedFileService({root, mutationRoot = root, signal, protectedDirectories = [], assertCanRead = () => {}, assertCanMutate = () => {}, recycleNamespace = ""}) {
 const dataDirectory = resolve(root);
+const mutationKey = resolve(mutationRoot);
 const protectedDataDirectories = protectedDirectories;
 const managedRecycleBinName = ".lfaa-recycle-bin";
 if (recycleNamespace && !/^[a-f0-9]{64}$/u.test(recycleNamespace)) throw new Error("回收站账户标识无效。");
@@ -41,6 +42,7 @@ const managedFileMetadataBatchSize = 32;
 const managedDirectorySizeMaximumEntries = 20_000;
 const managedDirectorySizeMaximumDepth = 64;
 async function performFileOperation(operation, payload) {
+  signal?.throwIfAborted();
   const filePath = resolveManagedFilePath(payload.path, ["list", "search", "directory-size", "upload", "trash-list", "trash-restore", "trash-purge"].includes(operation));
   if (operation === "list") return await listManagedFiles(filePath);
   if (operation === "directory-size") return await calculateManagedDirectorySize(filePath);
@@ -122,6 +124,9 @@ async function assertManagedPathIsSafe(path, allowMissing = false) {
   let current = dataDirectory;
   const rootInfo = await lstat(current);
   if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) throw new Error("LFAA 数据根目录状态无效。");
+  const actualRoot = await realpath(current);
+  const equalRoot = process.platform === 'win32' ? actualRoot.toLowerCase() === current.toLowerCase() : actualRoot === current;
+  if (!equalRoot) throw new Error('资源根目录的上级路径包含符号链接或目录联接，已拒绝访问。');
   for (let index = 0; index < segments.length; index += 1) {
     current = resolve(current, segments[index]);
     let info;
@@ -146,14 +151,20 @@ async function listManagedFiles(directory) {
   const directoryInfo = await assertManagedPathIsSafe(directory);
   if (!directoryInfo.isDirectory()) throw new Error("当前路径不是文件夹。");
   const entries = [];
-  const directoryEntries = (await readdir(directory, { withFileTypes: true })).filter(entry => !(directory === dataDirectory && entry.name.toLocaleLowerCase() === managedRecycleBinName));
-  let scanned = 0;
-  while (scanned < directoryEntries.length && entries.length < 500) {
-    const batch = directoryEntries.slice(scanned, scanned + managedFileMetadataBatchSize);
-    scanned += batch.length;
+  // 流式枚举：即使目录有百万项，也不一次把全部名称装入内存。多读一项判断是否截断。
+  let scanned = 0, truncated = false, batch = [];
+  const handle = await opendir(directory);
+  for await (const entry of handle) {
+    signal?.throwIfAborted();
+    if (++scanned > 20_000) { truncated = true; break; }
+    batch.push(entry);
+    if (batch.length < managedFileMetadataBatchSize) continue;
     entries.push(...(await inspectManagedFileEntries(directory, batch)).filter(Boolean));
+    batch = [];
+    if (entries.length > 500) { truncated = true; break; }
   }
-  const truncated = entries.length >= 500 || scanned < directoryEntries.length;
+  if (batch.length) entries.push(...(await inspectManagedFileEntries(directory, batch)).filter(Boolean));
+  truncated ||= entries.length > 500;
   entries.length = Math.min(entries.length, 500);
   entries.sort((left, right) => Number(right.kind === "directory") - Number(left.kind === "directory") || left.name.localeCompare(right.name, "zh-CN", { sensitivity: "base" }));
   return { path: toManagedRelativePath(directory), entries, truncated };
@@ -171,6 +182,7 @@ async function calculateManagedDirectorySize(directory) {
   let skippedEntries = 0;
 
   while (nextDirectoryIndex < pendingDirectories.length) {
+    signal?.throwIfAborted();
     const current = pendingDirectories[nextDirectoryIndex++];
     const currentInfo = await assertManagedPathIsSafe(current.path);
     if (!currentInfo?.isDirectory()) throw new Error("目录在计算期间发生变化，未返回不完整大小；请重新计算。");
@@ -207,6 +219,7 @@ async function calculateManagedDirectorySize(directory) {
     };
 
     for await (const entry of handle) {
+      signal?.throwIfAborted();
       inspectedEntries += 1;
       if (inspectedEntries > managedDirectorySizeMaximumEntries) throw new Error(`目录项超过 ${managedDirectorySizeMaximumEntries} 个，未返回不完整大小。`);
       if (current.path === dataDirectory && (entry.name.toLocaleLowerCase() === managedRecycleBinName || protectedDataDirectories.includes(entry.name.toLocaleLowerCase()))) continue;
@@ -333,19 +346,30 @@ async function searchManagedFiles(root, query) {
   let scanned = 0;
   const maximumScannedEntries = 10_000;
   while (directoryCursor < pending.length && results.length < 500 && scanned < maximumScannedEntries) {
+    signal?.throwIfAborted();
     const current = pending[directoryCursor++];
-    const directoryEntries = await readdir(current.path, { withFileTypes: true });
-    for (let offset = 0; offset < directoryEntries.length && results.length < 500 && scanned < maximumScannedEntries; offset += managedFileMetadataBatchSize) {
-      const batch = directoryEntries.slice(offset, offset + Math.min(managedFileMetadataBatchSize, maximumScannedEntries - scanned));
-      scanned += batch.length;
+    // 每次进入递归目录重新校验，拒绝发现后被替换的目录联接。
+    await assertManagedPathIsSafe(current.path);
+    const handle = await opendir(current.path);
+    let batch = [];
+    const inspectBatch = async () => {
       const inspected = await inspectManagedFileEntries(current.path, batch);
+      batch = [];
       for (const entry of inspected) {
         if (!entry) continue;
         if (entry.name.toLocaleLowerCase().includes(normalizedQuery)) results.push(entry);
         if (entry.kind === "directory" && current.depth < 10) pending.push({ path: resolve(current.path, entry.name), depth: current.depth + 1 });
         if (results.length >= 500) break;
       }
+    };
+    for await (const entry of handle) {
+      signal?.throwIfAborted();
+      if (results.length >= 500 || scanned >= maximumScannedEntries) break;
+      scanned += 1;
+      batch.push(entry);
+      if (batch.length >= managedFileMetadataBatchSize) await inspectBatch();
     }
+    if (batch.length) await inspectBatch();
   }
   return { path: toManagedRelativePath(root), entries: results, truncated: results.length >= 500 || directoryCursor < pending.length || scanned >= maximumScannedEntries };
 }
@@ -372,7 +396,7 @@ async function downloadManagedFile(path) {
 async function writeManagedTextFile(path, content, expectedSha256) {
   const info = await assertManagedPathIsSafe(path);
   if (isSensitivePreviewPath(path)) throw new Error("敏感文件禁止通过文件管理器在线修改。");
-  assertCanMutate(path);
+  await assertCanMutate(path);
   if (!info.isFile() || typeof content !== "string" || Buffer.byteLength(content, "utf8") > 2 * 1024 * 1024) {
     throw new Error("仅支持写入 2 MiB 以内的普通文本文件。");
   }
@@ -395,7 +419,7 @@ async function writeManagedTextFile(path, content, expectedSha256) {
 async function createManagedFile(path) {
   const info = await assertManagedPathIsSafe(path, true);
   if (dangerousManagedFileExtensions.has(extname(path).toLocaleLowerCase("en-US"))) throw new Error("不能在文件管理器中创建可执行文件或脚本。 ");
-  assertCanMutate(path);
+  await assertCanMutate(path);
   if (info) throw new Error("同名文件或文件夹已经存在。");
   const parentInfo = await assertManagedPathIsSafe(dirname(path));
   if (!parentInfo.isDirectory()) throw new Error("目标上级路径不是文件夹。");
@@ -405,7 +429,7 @@ async function createManagedFile(path) {
 
 async function createManagedFolder(path) {
   const info = await assertManagedPathIsSafe(path, true);
-  assertCanMutate(path);
+  await assertCanMutate(path);
   if (info) throw new Error("同名文件或文件夹已经存在。");
   const parentInfo = await assertManagedPathIsSafe(dirname(path));
   if (!parentInfo.isDirectory()) throw new Error("目标上级路径不是文件夹。");
@@ -419,8 +443,8 @@ async function renameManagedFile(path, name) {
   if (dangerousManagedFileExtensions.has(extname(name).toLocaleLowerCase("en-US"))) throw new Error("不能将文件重命名为可执行文件或脚本。 ");
   const sourceInfo = await assertManagedPathIsSafe(path);
   const target = resolve(dirname(path), name);
-  assertCanMutate(path);
-  assertCanMutate(target);
+  await assertCanMutate(path);
+  await assertCanMutate(target);
   const targetRelative = toManagedRelativePath(target).split("/");
   if (protectedDataDirectories.includes(targetRelative[0]?.toLocaleLowerCase() ?? "")) throw new Error("目标名称保留给系统目录使用。");
   if (await assertManagedPathIsSafe(target, true)) throw new Error("同名文件或文件夹已经存在。");
@@ -440,8 +464,8 @@ async function moveManagedFile(path, destinationPath) {
   const sourceRelative = relative(dataDirectory, path);
   if (targetRelative === sourceRelative) return { path: toManagedRelativePath(path), moved: false };
   if (sourceInfo.isDirectory() && (targetRelative.startsWith(`${sourceRelative}${sep}`) || targetRelative === sourceRelative)) throw new Error("不能将文件夹移动到自身内部。 ");
-  assertCanMutate(path);
-  assertCanMutate(target);
+  await assertCanMutate(path);
+  await assertCanMutate(target);
   if (await assertManagedPathIsSafe(target, true)) throw new Error("目标目录已存在同名文件或文件夹；未覆盖。 ");
   await rename(path, target);
   return { path: toManagedRelativePath(target), moved: true, kind: sourceInfo.isDirectory() ? "directory" : "file" };
@@ -497,7 +521,7 @@ async function restoreManagedFile(trashId) {
   const parent = await assertManagedPathIsSafe(dirname(original));
   if (!parent.isDirectory()) throw new Error("原目录已不存在；请先重新创建目录后恢复。 ");
   if (await assertManagedPathIsSafe(original, true)) throw new Error("原路径已存在同名文件或文件夹；请先重命名或移动现有项目。 ");
-  assertCanMutate(original);
+  await assertCanMutate(original);
   const source = resolve(directory, trashId);
   const info = await lstat(source);
   if (info.isSymbolicLink()) throw new Error("回收站条目不是安全的普通文件或文件夹。 ");
@@ -521,7 +545,7 @@ async function purgeManagedTrashItem(trashId) {
 async function deleteManagedFile(path) {
   if (relative(dataDirectory, path) === "") throw new Error("不能删除 LFAA 数据根目录。");
   const info = await assertManagedPathIsSafe(path);
-  assertCanMutate(path);
+  await assertCanMutate(path);
   const { directory, items } = await readManagedTrashManifest();
   if (items.length >= managedRecycleBinLimit) throw new Error("回收站已达到 5000 项上限；请先恢复或彻底清理部分项目。 ");
   const id = randomUUID();
@@ -552,7 +576,7 @@ async function uploadManagedFile(directory, name, dataBase64, expectedSha256) {
   const directoryInfo = await assertManagedPathIsSafe(directory);
   if (!directoryInfo.isDirectory()) throw new Error("上传目标不是文件夹。");
   const path = resolve(directory, name);
-  assertCanMutate(path);
+  await assertCanMutate(path);
   const existing = await assertManagedPathIsSafe(path, true);
   if (existing) {
     if (existing.isFile() && existing.size === buffer.length && createHash("sha256").update(await readFile(path)).digest("hex") === sha256) {
@@ -566,16 +590,18 @@ async function uploadManagedFile(directory, name, dataBase64, expectedSha256) {
 
 
 async function operate(operation, payload) {
-  const previous = mutationTails.get(dataDirectory) ?? Promise.resolve();
+  signal?.throwIfAborted();
+  const previous = mutationTails.get(mutationKey) ?? Promise.resolve();
   if (readOperations.has(operation)) return previous.then(() => performFileOperation(operation, payload));
   const result = previous.then(() => performFileOperation(operation, payload));
   const settled = result.then(() => undefined, () => undefined);
-  mutationTails.set(dataDirectory, settled);
-  void settled.finally(() => { if (mutationTails.get(dataDirectory) === settled) mutationTails.delete(dataDirectory); });
+  mutationTails.set(mutationKey, settled);
+  void settled.finally(() => { if (mutationTails.get(mutationKey) === settled) mutationTails.delete(mutationKey); });
   return result;
 }
 async function openDownload(pathInput) {
-  await (mutationTails.get(dataDirectory) ?? Promise.resolve());
+  await (mutationTails.get(mutationKey) ?? Promise.resolve());
+  signal?.throwIfAborted();
   const path = resolveManagedFilePath(pathInput);
   const info = await assertManagedPathIsSafe(path);
   if (!info.isFile() || info.size > 3 * 1024 * 1024) throw new Error('只支持传输 3 MiB 以内的普通文件。');

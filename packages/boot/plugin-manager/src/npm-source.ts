@@ -1,17 +1,76 @@
 /**
- * 功能：为 GitHub 插件源码补齐其官方 NPM 发布包中的已构建入口。
- * 作用：只接受同包名/版本/仓库/固定 Git 提交且 SRI 校验通过的 registry.npmjs.org tarball；不运行任何脚本。
- * 关联文件：github-source.ts 在 GitHub 快照缺少清单声明的发布文件时调用本模块。
+ * 功能：读取官方 NPM 插件包，并为 GitHub 插件源码补齐已构建入口。
+ * 作用：只接受 registry.npmjs.org tarball，校验 SHA-512 SRI 并安全展开；不运行任何脚本。
+ * 关联文件：source-resolution.ts 解析 NPM 来源；github-source.ts 仅在缺少声明产物时调用补齐流程。
  */
 import { createHash, timingSafeEqual } from "node:crypto";
-import { readNpmTarGzip } from "./npm-archive.js";
+import { maxSatisfying, valid, validRange } from "semver";
+import { PLUGIN_ARCHIVE_LIMITS, readNpmTarGzip } from "./npm-archive.js";
 import type { GitHubSnapshot } from "./github-source.js";
 import type { PluginArchiveFile } from "./zip-archive.js";
 
 const REGISTRY_ROOT = "https://registry.npmjs.org";
-const MAX_TARBALL_BYTES = 64 * 1024 * 1024;
+interface PackageManifest { name?: unknown; version?: unknown; description?: unknown; license?: unknown; repository?: unknown; main?: unknown; exports?: unknown; dsh?: unknown }
 
-interface PackageManifest { name?: unknown; version?: unknown; repository?: unknown; main?: unknown; exports?: unknown; dsh?: unknown }
+export interface RegistryPluginPackage {
+  name: string;
+  version: string;
+  description: string;
+  license: string | null;
+  integrity: string;
+  archiveSha256: string;
+  files: PluginArchiveFile[];
+}
+
+/** Resolve a dependency's declared semver range from the official registry; never fall back to an unrelated latest. */
+export async function downloadCompatibleRegistryPluginPackage(name: string, range: string): Promise<RegistryPluginPackage> {
+  if (!isNpmPackageName(name)) throw new Error("插件依赖包名无效。");
+  if (range.length > 200 || !validRange(range)) throw new Error(`插件依赖版本范围无效：${name}@${range}`);
+  if (valid(range)) return downloadRegistryPluginPackage(name, range);
+  const metadata = await readJson(await fetch(`${REGISTRY_ROOT}/${encodeURIComponent(name)}`, {
+    headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/json" },
+    redirect: "error", signal: AbortSignal.timeout(20_000)
+  }), "NPM registry");
+  const version = maxSatisfying(Object.keys(isRecord(metadata.versions) ? metadata.versions : {}), range);
+  if (!version) throw new Error(`官方 registry 没有满足范围的插件依赖：${name}@${range}`);
+  return downloadRegistryPluginPackage(name, version);
+}
+
+/** Resolve one npm package version and verify its registry integrity before reading its manifest. */
+export async function downloadRegistryPluginPackage(packageName: string, requestedVersion: string): Promise<RegistryPluginPackage> {
+  if (!isNpmPackageName(packageName) || !/^[A-Za-z0-9][A-Za-z0-9.+_-]{0,99}$/u.test(requestedVersion)) throw new Error("NPM 插件包名或版本标签格式无效。");
+  const metadataUrl = `${REGISTRY_ROOT}/${encodeURIComponent(packageName)}/${encodeURIComponent(requestedVersion)}`;
+  const metadata = await readJson(await fetch(metadataUrl, {
+    headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/json" },
+    redirect: "error", signal: AbortSignal.timeout(20_000)
+  }), "NPM registry");
+  if (metadata.name !== packageName || typeof metadata.version !== "string" || !isExactVersion(metadata.version)) throw new Error("NPM registry 未返回与请求包名匹配的固定版本。");
+  const dist = isRecord(metadata.dist) ? metadata.dist : undefined;
+  if (!dist || typeof dist.tarball !== "string" || typeof dist.integrity !== "string") throw new Error("NPM registry 未提供插件 tarball 与 SHA-512 完整性声明。");
+  const tarballUrl = new URL(dist.tarball);
+  if (tarballUrl.protocol !== "https:" || tarballUrl.hostname.toLocaleLowerCase("en-US") !== "registry.npmjs.org" || tarballUrl.port || tarballUrl.username || tarballUrl.password || tarballUrl.search || tarballUrl.hash) {
+    throw new Error("NPM 插件 tarball 必须来自官方 registry.npmjs.org。");
+  }
+  const tarballResponse = await fetch(tarballUrl, {
+    headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/octet-stream" },
+    redirect: "error", signal: AbortSignal.timeout(60_000)
+  });
+  const tarball = await readBoundedBody(tarballResponse);
+  verifyIntegrity(tarball, dist.integrity);
+  // DefinitelyTyped 的旧发布包使用类型包名作为单一根目录；仍拒绝混合根、链接和路径穿越。
+  const files = readNpmTarGzip(tarball, packageName.startsWith("@types/") ? packageName.slice(7) : undefined);
+  const manifest = readPackageManifest(files);
+  if (manifest.name !== packageName || manifest.version !== metadata.version) throw new Error("NPM tarball 内部包名或版本与 registry 元数据不一致。");
+  return {
+    name: packageName,
+    version: metadata.version,
+    description: typeof manifest.description === "string" ? safeManifestText(manifest.description, 500) : "",
+    license: typeof manifest.license === "string" && /^[A-Za-z0-9.+-]{1,40}$/u.test(manifest.license) ? manifest.license : null,
+    integrity: dist.integrity,
+    archiveSha256: createHash("sha256").update(tarball).digest("hex"),
+    files
+  };
+}
 
 export function needsPublishedFiles(snapshot: GitHubSnapshot): boolean {
   const manifest = readPackageManifest(snapshot.files);
@@ -102,8 +161,26 @@ function readRepositoryUrl(value: unknown): string | null {
 
 async function readJson(response: Response, source: string): Promise<Record<string, unknown>> {
   if (!response.ok) throw new Error(`${source} 请求失败（HTTP ${response.status}）；未写入插件文件。`);
+  const contentLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > 2 * 1024 * 1024) throw new Error(`${source} 清单超过 2 MiB 限制。`);
+  if (!response.body) throw new Error(`${source} 未返回清单内容。`);
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      size += next.value.length;
+      if (size > 2 * 1024 * 1024) throw new Error(`${source} 清单超过 2 MiB 限制。`);
+      chunks.push(next.value);
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  } finally { reader.releaseLock(); }
   let value: unknown;
-  try { value = await response.json(); } catch { throw new Error(`${source} 返回的清单不是有效 JSON。`); }
+  try { value = JSON.parse(Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), size).toString("utf8")); } catch { throw new Error(`${source} 返回的清单不是有效 JSON。`); }
   if (!isRecord(value)) throw new Error(`${source} 返回的清单格式无效。`);
   return value;
 }
@@ -111,7 +188,7 @@ async function readJson(response: Response, source: string): Promise<Record<stri
 async function readBoundedBody(response: Response): Promise<Buffer> {
   if (!response.ok) throw new Error(`NPM 发布 tarball 下载失败（HTTP ${response.status}）。`);
   const length = Number(response.headers.get("content-length"));
-  if (Number.isFinite(length) && length > MAX_TARBALL_BYTES) throw new Error("NPM 插件 tarball 超过 64 MiB 限制。");
+  if (Number.isFinite(length) && length > PLUGIN_ARCHIVE_LIMITS.archiveBytes) throw new Error("NPM 插件 tarball 超过 64 MiB 限制。");
   if (!response.body) throw new Error("NPM registry 未返回插件 tarball 内容。");
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -121,9 +198,12 @@ async function readBoundedBody(response: Response): Promise<Buffer> {
       const next = await reader.read();
       if (next.done) break;
       size += next.value.length;
-      if (size > MAX_TARBALL_BYTES) throw new Error("NPM 插件 tarball 超过 64 MiB 限制。");
+      if (size > PLUGIN_ARCHIVE_LIMITS.archiveBytes) throw new Error("NPM 插件 tarball 超过 64 MiB 限制。");
       chunks.push(next.value);
     }
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    throw error;
   } finally { reader.releaseLock(); }
   return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), size);
 }
@@ -139,6 +219,10 @@ function verifyIntegrity(tarball: Buffer, integrity: string): void {
 
 function isNpmPackageName(value: string): boolean {
   return value.length <= 214 && /^(?:@[a-z0-9][a-z0-9._-]{0,99}\/)?[a-z0-9][a-z0-9._-]{0,99}$/u.test(value);
+}
+
+function safeManifestText(value: string, limit: number): string {
+  return value.replace(/[\r\n\0]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, limit);
 }
 
 function isExactVersion(value: string): boolean { return value.length <= 100 && /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(value); }

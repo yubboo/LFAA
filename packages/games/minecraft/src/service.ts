@@ -11,7 +11,7 @@ import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { configuration } from "lfaa-storage-domain/src/configuration.js";
 import { getDaemonDataRoot, getDaemonNode, listDaemonNodes, type DaemonNode } from "lfaa-host-daemon/src/local-daemon.js";
-import { createMinecraftTask, listMinecraftLogs, listMinecraftTasks, type MinecraftTask } from "lfaa-jobs/src/minecraft-queue.js";
+import { createMinecraftTask, deleteMinecraftTaskRecords as deleteMinecraftTaskRows, getMinecraftTaskDetails, listMinecraftLogs, listMinecraftTasks, MinecraftTaskRecordError, type MinecraftTask, type MinecraftTaskDetails } from "lfaa-jobs/src/minecraft-queue.js";
 import { getMinecraftReleaseArtifact, listMinecraftReleases } from "./catalog.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
 import type { MinecraftCoreName } from "./core-sources.js";
@@ -759,6 +759,24 @@ export {installMinecraftJava,uninstallMinecraftJava,registerMinecraftJavaPath,fo
 
 export function listMinecraftTaskRecords(): MinecraftTask[] {
   return listMinecraftTasks(200);
+}
+
+export function getMinecraftTaskRecordDetails(taskId: string): MinecraftTaskDetails {
+  const details = getMinecraftTaskDetails(taskId);
+  if (!details) throw new ApiError(404, "minecraft_task_not_found", "找不到这条 Minecraft 任务记录。");
+  return details;
+}
+
+export function deleteMinecraftTaskRecords(taskIds: string[]): number {
+  try {
+    return deleteMinecraftTaskRows(taskIds);
+  } catch (error) {
+    if (error instanceof MinecraftTaskRecordError) {
+      const statusCode = error.code === "task_not_found" ? 404 : error.code === "task_not_terminal" ? 409 : 400;
+      throw new ApiError(statusCode, `minecraft_${error.code}`, error.message);
+    }
+    throw error;
+  }
 }
 
 export function getMinecraftInstanceLogs(instanceId: string) {

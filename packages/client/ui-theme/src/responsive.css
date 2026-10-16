@@ -1,19 +1,8 @@
 /*
  功能：定义前端各页面的响应式断点和减少动效规则。
- 作用：适配应用中心与应用内工作区的不同宽度，并压缩矮桌面视口的首页留白。
+ 作用：适配应用工作区、文件和设置页面的不同容器宽度与短屏滚动。
  关联文件：packages/client/ui-layout/src/workbench.css、packages/client/ui-workspace/src/application-workspace.css。
 */
-@media (max-width: 1050px) {
-  .application-grid {
-    grid-template-columns: repeat(2,minmax(0,1fr));
-  }
-  /* 双列下让第三张应用卡片居中，保持卡片同宽并平衡第二行的留白。 */
-  .application-card:nth-child(3):last-child {
-    width: calc((100% - 16px) / 2);
-    grid-column: 1 / -1;
-    justify-self: center;
-  }
-}
 @media (max-width: 720px) {
   .topbar {
     min-height: 66px;
@@ -50,56 +39,6 @@
     width: min(100% - 32px,1340px);
     padding: 46px 0 60px;
   }
-  .workbench-content--app-center {
-    padding: 24px 0 32px;
-  }
-  .page-intro {
-    min-height: 0;
-    grid-template-columns: minmax(0,1fr);
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 18px;
-    padding: 20px;
-  }
-  .page-intro__copy {
-    width: 100%;
-  }
-  .page-intro h1.ant-typography {
-    font-size: var(--font-size-2xl);
-  }
-  .page-intro p.ant-typography {
-    font-size: var(--font-size-md);
-  }
-  .page-intro__action.ant-btn {
-    width: 100%;
-    max-width: 22rem;
-    justify-self: center;
-  }
-  .application-list__heading {
-    flex-wrap: wrap;
-    row-gap: 5px;
-    margin-bottom: 11px;
-  }
-  .application-grid {
-    grid-template-columns: minmax(0,1fr);
-    gap: 13px;
-  }
-  .application-card:nth-child(3):last-child {
-    width: auto;
-    grid-column: auto;
-  }
-  .application-card.ant-card,
-  .application-card .ant-card-body {
-    min-height: 286px;
-  }
-  .application-card .ant-card-body {
-    padding: 18px;
-  }
-  .application-card__topline {
-    min-height: 82px;
-    margin: -18px -18px 0;
-    padding-inline: 18px;
-  }
   .workbench-footer {
     flex-direction: column;
     gap: 7px;
@@ -109,54 +48,11 @@
     padding: 12px;
   }
 }
-/* 矮桌面视口减少应用中心纵向留白；页面仍按内容自然增高并允许滚动。 */
+/* 矮桌面视口减少工作区纵向留白；页面仍按内容自然增高并允许滚动。 */
 @media (min-width: 721px) and (max-height: 960px) {
   .workbench-content:not(.workbench-content--module):not(.workbench-content--settings) {
     padding-top: 24px;
     padding-bottom: 32px;
-  }
-  .page-intro {
-    min-height: 0;
-    margin-bottom: 18px;
-    padding: 18px 24px;
-  }
-  .page-intro p.ant-typography {
-    line-height: 1.5;
-  }
-  .application-grid {
-    gap: 16px;
-  }
-  .application-card.ant-card,
-  .application-card .ant-card-body {
-    min-height: 286px;
-  }
-  .application-card .ant-card-body {
-    padding: 20px;
-  }
-  .application-card__topline {
-    min-height: 80px;
-    margin: -20px -20px 0;
-    padding: 12px 20px;
-  }
-  .application-card__copy {
-    margin-top: 12px;
-  }
-  .application-card__copy h3.ant-typography {
-    margin-bottom: 8px;
-    font-size: 19px;
-  }
-  .application-card__copy p.ant-typography {
-    min-height: 0;
-    line-height: 1.55;
-  }
-  .development-state {
-    margin-top: 8px;
-  }
-  .application-card__actions {
-    padding-top: 16px;
-  }
-  .application-card__actions .ant-btn {
-    min-height: 44px;
   }
   .workbench-footer:not(.workbench-footer--module) {
     padding-top: 16px;

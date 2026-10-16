@@ -175,6 +175,24 @@ export function authorizeAiTool(input: AiToolPolicyInput): AiToolAuthorization {
   return mode === "ask" || mode === "approve_remembered" ? "approval_required" : "deny";
 }
 
+/** 直接页面操作由登录用户明确点击动作按钮，本次点击就是该 App 操作的一次性授权。 */
+export function authorizeExplicitUserAction(input: AiToolPolicyInput): AiToolAuthorization {
+  if (!input.executable || !input.toolApplicationIds.includes(input.activeApplicationId) || input.risk === "read") return "deny";
+  try {
+    normalizeIdentity(input.userId, "用户标识", 128);
+    authorizationScopeHash({
+      appId: input.activeApplicationId,
+      toolId: input.toolId,
+      toolVersion: input.toolVersion,
+      risk: input.risk,
+      scopeKey: input.scopeKey
+    });
+    return "allow";
+  } catch {
+    return "deny";
+  }
+}
+
 function canonicalize(value: unknown): unknown {
   if (value === null || typeof value === "string" || typeof value === "boolean") return value;
   if (typeof value === "number" && Number.isFinite(value)) return value;

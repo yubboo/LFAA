@@ -1,3 +1,4 @@
+import { isAgentAssociations, type AgentAssociations } from "lfaa-util-values/src/agent-associations.js";
 /**
  * 文件：sessions.ts
  * 功能：管理按用户隔离的 AI Work 会话、消息和实际 Provider 用量。
@@ -24,6 +25,7 @@ export interface AiSessionView {
   projectId: string | null;
   projectTitle: string | null;
   planMode: boolean;
+  associations: AgentAssociations;
 }
 
 export interface AiSessionBranchSourceView {
@@ -43,6 +45,7 @@ export interface AiSessionBranchSeed {
   sourceEventId: string;
   appId: ApplicationId;
   sourceTitle: string;
+  associations: AgentAssociations;
   planMode: boolean;
   messages: AiSessionBranchSeedMessage[];
 }
@@ -126,6 +129,37 @@ export interface AiModelMessage {
 }
 
 export interface AiRunView { id: string; sessionId: string; appId: ApplicationId; status: AiMessageView["status"]; message: AiMessageView; userMessage: AiMessageView; session: AiSessionView }
+
+export type AiSubagentTaskRecord = import("./kernel.js").SessionSubagentTask;
+// 每个会话的派生索引最多保留 64 项；完整历史仍由原 JSONL Owner 保存。
+const subagentTaskIndexes = new WeakMap<SessionKernel, { length: number; tasks: Map<string, AiSubagentTaskRecord> }>();
+
+export function listAiSubagentTasks(userId: string, sessionId: string): AiSubagentTaskRecord[] {
+  const session = sessionRow(userId, sessionId);
+  if (!session) return [];
+  const kernel = ensureSessionEventLog(session);
+  let index = subagentTaskIndexes.get(kernel);
+  if (!index) { index = { length: 0, tasks: new Map() }; subagentTaskIndexes.set(kernel, index); }
+  for (const event of kernel.eventsAfter(index.length)) if (event.type === "subagent/task") {
+    index.tasks.delete(event.data.runId);
+    index.tasks.set(event.data.runId, event.data);
+    if (index.tasks.size > 64) index.tasks.delete([...index.tasks].find(([, task]) => task.status !== "running")?.[0] ?? index.tasks.keys().next().value!);
+  }
+  index.length = kernel.length;
+  return [...index.tasks.values()].reverse().map(task => ({ ...task }));
+}
+
+export function saveAiSubagentTask(userId: string, sessionId: string, task: AiSubagentTaskRecord): void {
+  const parent = getAiRun(userId, task.parentRunId);
+  if (!parent || parent.sessionId !== sessionId) throw new Error("子任务来源不属于当前账户会话。");
+  const existing = listAiSubagentTasks(userId, sessionId).find(item => item.runId === task.runId);
+  if (existing) {
+    if (existing.parentRunId !== task.parentRunId || existing.driver !== task.driver || existing.description !== task.description || existing.mode !== task.mode || existing.startedAt !== task.startedAt) throw new Error("不能改变已登记子任务的来源。");
+    if (existing.status !== "running") return;
+  }
+  const record = { ...task, ...(task.answer !== undefined ? { answer: task.answer.slice(0, 64000) } : {}), ...(task.diagnostic !== undefined ? { diagnostic: task.diagnostic.slice(0, 4096) } : {}) };
+  commitSessionChanges(userId, sessionId, [], [eventSpec("subagent/task", record)]);
+}
 
 type SessionEventSpec = { [K in SessionEventType]: { type: K; data: SessionEventDataMap[K]; time?: string; surface?: { surfaceOp?: SessionSurfaceOperation; sourceEventSeqs?: number[] } } }[SessionEventType];
 const activeSessionRuns = new Set<string>();
@@ -584,7 +618,7 @@ export function prepareAiSessionBranchSeed(userId: string, sessionId: string, as
     else if (event.type === "tool/result") append({ role: "tool", content: event.data.content, executionState: event.data.executionState });
   }
   if (!messages.length) return null;
-  return { sessionId, sourceSeq, sourceEventId: assistantEvent.id, appId: source.app_id, sourceTitle: source.title, planMode: planModeForSession(source), messages };
+  return { sessionId, sourceSeq, sourceEventId: assistantEvent.id, appId: source.app_id, sourceTitle: source.title, associations: structuredClone([...events].reverse().find((event): event is Extract<SessionEvent, { type: "session/associations" }> => event.type === "session/associations" && event.seq <= sourceSeq)?.data ?? { applicationIds: [], capabilityIds: [] }), planMode: planModeForSession(source), messages };
 }
 
 /** 原子创建不含原始问答的记忆分支，并将摘要 Provider 的真实用量记入同一 Session。 */
@@ -616,6 +650,7 @@ export function createAiSessionBranchWithMemory(
   const specs: SessionEventSpec[] = [
     eventSpec("session/created", { ownerId: userId, appId: source.app_id, createdAt: now }, now),
     eventSpec("session/title", { title: header.title }, now),
+    eventSpec("session/associations", structuredClone(seed.associations), now),
     eventSpec("session/project", { projectId: header.workspace_project_id ?? null, nodeId: header.workspace_node_id ?? null, directory: header.workspace_directory ?? null, title: header.workspace_title ?? null }, now),
     ...(seed.planMode ? [eventSpec("session/plan-mode", { active: true }, now)] : []),
     eventSpec("session/archived", { archived: false }, now),
@@ -667,8 +702,24 @@ export function interruptOrphanedAiRuns(): void {
   }
 }
 
+export function getAiSessionAssociations(userId: string, sessionId: string): AgentAssociations {
+  const row = sessionRow(userId, sessionId);
+  return row ? associationsForSession(row) : { applicationIds: [], capabilityIds: [] };
+}
+function associationsForSession(row: SessionRow): AgentAssociations {
+  const associations = sessionRecords.associations(row.id);
+  return isAgentAssociations(associations) ? structuredClone(associations) : { applicationIds: [], capabilityIds: [] };
+}
+export function setAiSessionAssociations(userId: string, sessionId: string, associations: AgentAssociations): AiSessionView | null {
+  if (!isAgentAssociations(associations)) throw new Error("关联引用无效。");
+  const row = sessionRow(userId, sessionId);
+  if (!row || row.archived === 1 || messageRows(sessionId).some(message => message.role === "assistant" && (message.status === "queued" || message.status === "streaming"))) return null;
+  commitSessionChanges(userId, sessionId, [change("ai_sessions", { ...row, updated_at: new Date().toISOString() })], [eventSpec("session/associations", structuredClone(associations))]);
+  return mapSession(sessionRow(userId, sessionId)!);
+}
+
 function mapSession(row: SessionRow, planMode = planModeForSession(row)): AiSessionView {
-  return { id: row.id, appId: row.app_id, title: row.title, archived: row.archived === 1, createdAt: row.created_at, updatedAt: row.updated_at, projectId: row.workspace_project_id ?? null, projectTitle: row.workspace_title ?? null, planMode };
+  return { id: row.id, appId: row.app_id, title: row.title, archived: row.archived === 1, createdAt: row.created_at, updatedAt: row.updated_at, projectId: row.workspace_project_id ?? null, projectTitle: row.workspace_title ?? null, planMode, associations: associationsForSession(row) };
 }
 
 export interface AiSessionProjectContext { id: string; appId: Extract<ApplicationId, "workspace" | "minecraft">; nodeId: string; path: string; title: string }
@@ -676,14 +727,14 @@ export interface AiSessionProjectContext { id: string; appId: Extract<Applicatio
 /** 私有执行上下文不通过会话展示 API 返回，工具调用必须始终绑定该会话记录。 */
 export function getAiSessionWorkspaceContext(userId: string, sessionId: string): AiSessionProjectContext | null {
   const row = sessionRow(userId, sessionId);
-  if (!row || row.app_id !== "workspace" && row.app_id !== "minecraft" || !row.workspace_project_id || !row.workspace_node_id || !row.workspace_directory || !row.workspace_title) return null;
-  return { id: row.workspace_project_id, appId: row.app_id, nodeId: row.workspace_node_id, path: row.workspace_directory, title: row.workspace_title };
+  if (!row || !row.workspace_project_id || !row.workspace_node_id || !row.workspace_directory || !row.workspace_title) return null;
+  return { id: row.workspace_project_id, appId: row.app_id === "minecraft" ? "minecraft" : "workspace", nodeId: row.workspace_node_id, path: row.workspace_directory, title: row.workspace_title };
 }
 
 /** 只有空闲的通用 AI 会话可改绑；目录注册与会话历史是独立记录。 */
 export function setAiSessionProject(userId: string, sessionId: string, project: AiSessionProjectContext | null): AiSessionView | null {
   const row = sessionRow(userId, sessionId);
-  if (!row || row.app_id !== "workspace" && row.app_id !== "minecraft" || project && project.appId !== row.app_id || messageRows(sessionId).some(message => message.role === "assistant" && (message.status === "queued" || message.status === "streaming"))) return null;
+  if (!row || project && project.appId !== "workspace" && project.appId !== row.app_id || messageRows(sessionId).some(message => message.role === "assistant" && (message.status === "queued" || message.status === "streaming"))) return null;
   const updated: SessionRow = {
     ...row,
     workspace_project_id: project?.id ?? null,
@@ -836,7 +887,7 @@ export class InvalidAiSessionMessageCursorError extends Error {
 }
 
 /** 按需异步读取单会话展示页；单次固定内存扫描校验完整 JSONL 哈希链，不恢复整份 Kernel。 */
-export async function getAiSessionMessagesPage(userId: string, sessionId: string, cursor: string | undefined, limit = 50): Promise<{ messages: AiMessageView[]; nextCursor: string | null; branchSource?: AiSessionBranchSourceView } | null> {
+export async function getAiSessionMessagesPage(userId: string, sessionId: string, cursor: string | undefined, limit = 50, signal?: AbortSignal): Promise<{ messages: AiMessageView[]; nextCursor: string | null; branchSource?: AiSessionBranchSourceView } | null> {
   const session = sessionRow(userId, sessionId);
   if (!session) return null;
   let before: { createdAt: string; order: number } | undefined;
@@ -849,11 +900,13 @@ export async function getAiSessionMessagesPage(userId: string, sessionId: string
     } catch (error) { if (error instanceof InvalidAiSessionMessageCursorError) throw error; throw new InvalidAiSessionMessageCursorError(); }
   }
   let branchParentSessionId: string | undefined;
-  const page = await sessionRecords.readMessagePage(sessionId, before, limit, cursor ? undefined : event => {
+  const recentPage = cursor ? null : sessionRecords.readRecentMessagePage(sessionId, limit);
+  if (recentPage) branchParentSessionId = recentPage.branchParentSessionId;
+  const page = recentPage ?? await sessionRecords.readMessagePage(sessionId, before, limit, cursor ? undefined : event => {
     if (!event || event.type !== "session/end-seed" && event.type !== "session/branch-memory" || !event.data || typeof event.data !== "object" || Array.isArray(event.data)) return;
     const data = event.data as Record<string, unknown>;
     if (typeof data.sourceSessionId === "string" && Number.isSafeInteger(data.sourceSeq) && Number(data.sourceSeq) >= 0) branchParentSessionId = data.sourceSessionId;
-  });
+  }, signal);
   const messages = page.items.map(({ message, feedback }) => {
     const row = message as MessageRow;
     const event = feedback as Extract<SessionEvent, { type: "message/feedback" }> | undefined;
@@ -928,7 +981,8 @@ export interface AiTurnRows {
   history: AiModelMessage[];
 }
 
-export function createAiTurn(userId: string, appId: ApplicationId, sessionId: string | null, content: string, queued = false, project: AiSessionProjectContext | null = null): AiTurnRows {
+export function createAiTurn(userId: string, appId: ApplicationId, sessionId: string | null, content: string, queued = false, project: AiSessionProjectContext | null = null, associations?: AgentAssociations): AiTurnRows {
+  if (associations && !isAgentAssociations(associations)) throw new Error("关联引用无效。");
   const now = new Date().toISOString();
   const id = sessionId ?? randomUUID();
   const existing = sessionId ? sessionRow(userId, sessionId) : undefined;
@@ -952,6 +1006,7 @@ export function createAiTurn(userId: string, appId: ApplicationId, sessionId: st
   const specs: SessionEventSpec[] = [];
   if (!existing) {
     specs.push(eventSpec("session/created", { ownerId: userId, appId, createdAt: now }, now));
+    if (associations) specs.push(eventSpec("session/associations", structuredClone(associations), now));
     specs.push(eventSpec("session/title", { title: session.title }, now));
     specs.push(eventSpec("session/project", { projectId: session.workspace_project_id ?? null, nodeId: session.workspace_node_id ?? null, directory: session.workspace_directory ?? null, title: session.workspace_title ?? null }, now));
   }
@@ -1083,20 +1138,6 @@ export function recordAiUsage(userId: string, sessionId: string, messageId: stri
   commitSessionChanges(userId, sessionId, [change("ai_usage", row)], [eventSpec("usage/record", { runId: messageId, providerId, modelId, promptTokens, completionTokens }, row.created_at)]);
 }
 
-function tokenSum(rows: UsageRow[], key: "prompt_tokens" | "completion_tokens"): number | null {
-  const values = rows.map(row => row[key]).filter((value): value is number => value !== null);
-  return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
-}
-
 export function getAiUsageSummary(userId: string): AiUsageSummary {
-  const rows = sessionRecords.all("ai_usage", row => row.user_id === userId) as UsageRow[];
-  const groups = new Map<string, UsageRow[]>();
-  for (const row of rows.sort((a, b) => b.created_at.localeCompare(a.created_at))) {
-    const key = JSON.stringify([row.provider_id, row.model_id]);
-    const group = groups.get(key) ?? []; group.push(row); groups.set(key, group);
-  }
-  return {
-    requestCount: rows.length, promptTokens: tokenSum(rows, "prompt_tokens"), completionTokens: tokenSum(rows, "completion_tokens"),
-    providers: [...groups.values()].map(group => ({ providerId: group[0]!.provider_id, modelId: group[0]!.model_id, requestCount: group.length, promptTokens: tokenSum(group, "prompt_tokens"), completionTokens: tokenSum(group, "completion_tokens") }))
-  };
+  return sessionRecords.usageSummary(userId);
 }

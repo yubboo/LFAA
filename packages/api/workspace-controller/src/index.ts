@@ -65,7 +65,11 @@ function filterLegacyProjectsForApp(userId: string, appId: WorkspaceProjectAppli
 type WorkspaceProjectForApp = NonNullable<ReturnType<typeof getWorkspaceProject>> & { appId: WorkspaceProjectApplicationId };
 
 function requireProjectForApp(userId: string, projectId: string, appId: WorkspaceProjectApplicationId): WorkspaceProjectForApp {
-  let project = getWorkspaceProject(userId, projectId, appId);
+  let project = getWorkspaceProject(userId, projectId, appId === "workspace" ? undefined : appId);
+  if (project && appId === "workspace") {
+    if (project.appId === null) project = claimWorkspaceProjectApplication(userId, projectId, "workspace");
+    return project as WorkspaceProjectForApp;
+  }
   if (!project) throw new ApiError(404, "workspace_project_not_found", "找不到当前应用下的此项目目录。 ");
   if (project.appId === appId) return project as WorkspaceProjectForApp;
   if (projectHasOtherAppSessions(userId, project.id, appId)) {
@@ -108,8 +112,8 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
 
   router.patch("/workspace/projects/:projectId", requireAuthentication, (request, response) => {
     const body = parseBody<{ appId: WorkspaceProjectApplicationId; title: string }>(renameProjectSchema, request.body);
-    requireProjectForApp(request.auth!.user.id, request.params.projectId, body.appId);
-    const project = renameWorkspaceProject(request.auth!.user.id, request.params.projectId, body.title, body.appId);
+    const owned = requireProjectForApp(request.auth!.user.id, request.params.projectId, body.appId);
+    const project = renameWorkspaceProject(request.auth!.user.id, request.params.projectId, body.title, owned.appId);
     if (!project) throw new ApiError(404, "workspace_project_not_found", "找不到此账户的项目。 ");
     response.json({ project });
   });
@@ -182,7 +186,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
       throw new ApiError(502, "workspace_git_worktree_result_invalid", `Daemon 返回的 Git 工作树身份信息无效；请检查节点状态后再操作。${cleanupMessage}`);
     }
     try {
-      const project = createWorkspaceGitWorktree({ userId, appId: body.appId, sourceProjectId: source.id, nodeId: node.id,
+      const project = createWorkspaceGitWorktree({ userId, appId: source.appId, sourceProjectId: source.id, nodeId: node.id,
         path: result.projectDirectory, worktreeRoot: result.worktreeRoot, worktreeId, projectRelativePath: result.projectRelativePath,
         branch: result.branch, baseCommit: result.baseline, sourceHead: result.sourceHead, platform: node.platform });
       response.status(201).json({ project });
@@ -220,7 +224,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
     } else if (body.deleteManagedWorktree) {
       throw new ApiError(409, "workspace_git_worktree_not_managed", "此项目不是 LFAA 管理的 AI Worktree。 ");
     }
-    if (!removeWorkspaceProject(userId, project.id, body.appId)) throw new ApiError(404, "workspace_project_not_found", "找不到此账户的项目。 ");
+    if (!removeWorkspaceProject(userId, project.id, project.appId)) throw new ApiError(404, "workspace_project_not_found", "找不到此账户的项目。 ");
     response.status(204).end();
   }));
 
@@ -228,7 +232,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
     const body = parseBody<{ appId: WorkspaceProjectApplicationId; projectId: string | null }>(changeSessionProjectSchema, request.body);
     const existing = getAiSession(request.auth!.user.id, request.params.sessionId);
     if (!existing) throw new ApiError(404, "ai_session_not_found", "找不到此账户的 AI 会话。");
-    if (existing.appId !== body.appId) throw new ApiError(409, "workspace_session_app_mismatch", "会话所属应用与项目应用不一致。 ");
+    if (body.appId !== "workspace" && existing.appId !== body.appId) throw new ApiError(409, "workspace_session_app_mismatch", "会话所属应用与项目应用不一致。 ");
     const project = body.projectId ? requireProjectForApp(request.auth!.user.id, body.projectId, body.appId) : null;
     const projectContext = project ? {
       id: project.id,

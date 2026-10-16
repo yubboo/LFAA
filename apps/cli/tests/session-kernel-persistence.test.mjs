@@ -438,3 +438,82 @@ test("计划模式由 Session JSONL 持久化、按账户隔离并随分支恢�
     rmSync(data, { recursive: true, force: true });
   }
 });
+
+test("会话列表不恢复完整事件日志，消息首屏复用已验证投影并保持更早页校验", () => {
+  const parent = resolve(cli, "../../dist/.tmp");
+  mkdirSync(parent, { recursive: true });
+  const data = mkdtempSync(join(parent, "lfaa-session-history-performance-"));
+  try {
+    const output = run(data, `${setup}
+      (await import('lfaa-storage-domain/src/migration.js')).retireLegacyFileTables();
+      database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES ('history-owner','history-owner','salt','hash','admin')").run();
+      let turn=sessions.createAiTurn('history-owner','workspace',null,'问题 0');
+      sessions.finishAiAssistantMessage('history-owner',turn.session.id,turn.assistantMessage.id,'答复 0','complete');
+      const sessionId=turn.session.id;
+      for(let index=1;index<56;index++){
+        turn=sessions.createAiTurn('history-owner','workspace',sessionId,'问题 '+index);
+        sessions.finishAiAssistantMessage('history-owner',sessionId,turn.assistantMessage.id,'答复 '+index,'complete');
+      }
+      sessions.setAiSessionAssociations('history-owner',sessionId,{applicationIds:['writing'],capabilityIds:['lfaa-skill:writing']});
+      sessions.submitAiMessageFeedback('history-owner',sessionId,turn.assistantMessage.id,{rating:'positive',reasons:[],detail:'回答清楚'});
+      console.log(JSON.stringify({sessionId}));close();
+    `);
+    run(data, `${setup}
+      const ids=${JSON.stringify(JSON.parse(output))};
+      let fullEventReads=0, sessionReplays=0, pageReads=0;
+      const originalAllForSession=sessionRecords.allForSession.bind(sessionRecords);
+      const originalReadMessagePage=sessionRecords.readMessagePage.bind(sessionRecords);
+      const persistence=sessionRecords.persistence;
+      const originalReadSession=persistence.readSession.bind(persistence);
+      sessionRecords.allForSession=(table,...args)=>{if(table==='session_events')fullEventReads++;return originalAllForSession(table,...args);};
+      sessionRecords.readMessagePage=(...args)=>{pageReads++;return originalReadMessagePage(...args);};
+      persistence.readSession=(...args)=>{sessionReplays++;return originalReadSession(...args);};
+      const listed=sessions.listAiSessions('history-owner',false,'workspace');
+      assert.equal(fullEventReads,0);
+      assert.equal(sessionReplays,0);
+      assert.deepEqual(listed.find(row=>row.id===ids.sessionId).associations,{applicationIds:['writing'],capabilityIds:['lfaa-skill:writing']});
+      const first=await sessions.getAiSessionMessagesPage('history-owner',ids.sessionId,undefined,50);
+      assert.equal(pageReads,0);
+      assert.equal(first.messages.length,50);
+      assert.equal(first.messages[0].content,'问题 31');
+      assert.equal(first.messages.at(-1).feedback.rating,'positive');
+      const older=await sessions.getAiSessionMessagesPage('history-owner',ids.sessionId,first.nextCursor,50);
+      assert.equal(pageReads,1);
+      assert.equal(older.messages.length,50);
+      assert.equal(older.messages.at(-1).content,'答复 30');
+      assert.equal(new Set([...first.messages,...older.messages].map(row=>row.id)).size,100);
+      const originalIsCurrentRevision=persistence.isCurrentRevision.bind(persistence);
+      persistence.isCurrentRevision=()=>false;
+      const fallback=await sessions.getAiSessionMessagesPage('history-owner',ids.sessionId,undefined,50);
+      assert.equal(pageReads,2);
+      assert.equal(fallback.messages[0].content,'问题 31');
+      persistence.isCurrentRevision=originalIsCurrentRevision;
+      const controller=new AbortController();controller.abort();
+      await assert.rejects(sessions.getAiSessionMessagesPage('history-owner',ids.sessionId,older.nextCursor,50,controller.signal),error=>error.name==='AbortError');
+      assert.equal(pageReads,3);
+      assert.equal(await sessions.getAiSessionMessagesPage('other-owner',ids.sessionId,undefined),null);
+      // 先放入列表会返回的 200 个旧头，再超过旧 512 项投影上限；旧实现会对它们逐条读日志。
+      const insertHeader=database.prepare("INSERT INTO ai_sessions(id,user_id,app_id,title,archived,created_at,updated_at) VALUES (?,?,?,?,?,?,?)");
+      for(let index=0;index<200;index++){
+        const id='association-victim-'+index;
+        const header={id,user_id:'history-owner',app_id:'workspace',title:'关联列表压力夹具',archived:0,created_at:'2026-10-15T00:00:00.000Z',updated_at:'2999-12-31T23:59:59.999Z'};
+        sessionRecords.apply(id,[{table:'ai_sessions',key:id,value:header}]);
+        insertHeader.run(id,header.user_id,header.app_id,header.title,header.archived,header.created_at,header.updated_at);
+      }
+      for(let index=0;index<520;index++){
+        const id='association-pressure-'+index;
+        sessionRecords.apply(id,[{table:'ai_sessions',key:id,value:{id,user_id:'history-owner',app_id:'minecraft',title:'关联压力夹具',archived:0,created_at:'2026-10-15T00:00:00.000Z',updated_at:'2026-10-15T00:00:00.000Z'}}]);
+      }
+      const pressuredList=sessions.listAiSessions('history-owner',false,'workspace');
+      assert.equal(pressuredList.length,200);
+      assert.ok(pressuredList.every(row=>row.associations.applicationIds.length===0&&row.associations.capabilityIds.length===0));
+      assert.deepEqual(sessionRecords.associations(ids.sessionId),{applicationIds:['writing'],capabilityIds:['lfaa-skill:writing']});
+      assert.equal(sessionReplays,0);
+      close();
+    `);
+  } finally {
+    assert.equal(dirname(resolve(data)), parent);
+    assert.ok(basename(data).startsWith("lfaa-session-history-performance-"));
+    rmSync(data, { recursive: true, force: true });
+  }
+});

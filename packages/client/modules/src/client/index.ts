@@ -12,7 +12,7 @@ import * as UiPrimitives from "@deepseek-ai/dsh-client-ui-primitives";
 import * as UiDockkit from "@deepseek-ai/dsh-client-ui-dockkit";
 import type { DshWindow, ClientModuleLoader } from "@deepseek-ai/dsh-client-modules/client";
 import { installLfaaDshSessionScope } from "./session-scope.js";
-import { syncClientModuleGraphForAuthentication, type ClientModuleAuthState } from "./auth-sync.js";
+import { hasWallpaperEngineClientEntry, syncClientModuleGraphForAuthentication, type ClientModuleAuthState } from "./auth-sync.js";
 import { initializeStaleChunkRecovery, loadClientModuleWithRecovery } from "./stale-chunk-recovery.js";
 export { DshSlotOutlet, DshSlotRoot, useDshSlotRenderer } from "./slots.js";
 
@@ -22,6 +22,7 @@ interface DshAuthRuntime extends ClientModuleAuthState {
   readonly rawSync: (graph: unknown) => Promise<void>;
 }
 let dshAuthRuntime: DshAuthRuntime | undefined;
+const WALLPAPER_ENGINE_CLIENT_ATTRIBUTE = "data-lfaa-wallpaper-engine-client";
 export class ClientModules extends Service {
   private readonly modules = new Map<string, () => Promise<unknown>>();
   constructor(ctx: Context) { super(ctx, "clientModules"); }
@@ -75,8 +76,14 @@ export async function bootDshClientModules(context: Context): Promise<ClientModu
     "@deepseek-ai/dsh-client-ui-dockkit": UiDockkit
   };
   const fullGraph = dshWindow.__DSH_BOOT__;
-  const modules = target.create({ boot: graphWithoutWallpaperEngine(fullGraph), staticModules }) as DshModuleRuntime;
+  const initialGraph = graphWithoutWallpaperEngine(fullGraph);
+  const modules = target.create({ boot: initialGraph, staticModules }) as DshModuleRuntime;
   const rawSync = modules.entries.sync.bind(modules.entries);
+  const syncWallpaperEngineAvailability = (graph: unknown) => {
+    if (typeof document === "undefined" || !document.body) return;
+    if (hasWallpaperEngineClientEntry(graph)) document.body.setAttribute(WALLPAPER_ENGINE_CLIENT_ATTRIBUTE, "available");
+    else document.body.removeAttribute(WALLPAPER_ENGINE_CLIENT_ATTRIBUTE);
+  };
   const authRuntime: DshAuthRuntime = {
     rawSync,
     graph: fullGraph,
@@ -87,16 +94,23 @@ export async function bootDshClientModules(context: Context): Promise<ClientModu
   };
   modules.entries.sync = (graph: unknown) => {
     authRuntime.graph = graph;
-    return rawSync(authRuntime.authenticated ? graph : graphWithoutWallpaperEngine(graph));
+    const effectiveGraph = authRuntime.authenticated ? graph : graphWithoutWallpaperEngine(graph);
+    return rawSync(effectiveGraph).then(() => syncWallpaperEngineAvailability(effectiveGraph));
   };
   dshAuthRuntime = authRuntime;
   context.effect(() => () => {
-    if (dshAuthRuntime === authRuntime) dshAuthRuntime = undefined;
+    if (dshAuthRuntime === authRuntime) {
+      dshAuthRuntime = undefined;
+      syncWallpaperEngineAvailability(undefined);
+    }
   });
 
   await context.plugin(Loader);
   context.loader.internal = modules as unknown as typeof context.loader.internal;
   await modules.entries.start(context.loader, modules.manifest);
+  // Keep the complete HTML-injected graph; start() may have synced only the unauthenticated subset.
+  authRuntime.graph = fullGraph;
+  syncWallpaperEngineAvailability(initialGraph);
   authRuntime.appliedAuthentication = false;
   installLfaaDshSessionScope(context);
 
@@ -124,7 +138,13 @@ export async function syncDshClientModulesForAuthentication(authenticated: boole
       return graph;
     },
     filterUnauthenticatedGraph: graphWithoutWallpaperEngine,
-    applyGraph: (graph) => runtime.rawSync(graph)
+    async applyGraph(graph) {
+      await runtime.rawSync(graph);
+      if (typeof document !== "undefined" && document.body) {
+        if (hasWallpaperEngineClientEntry(graph)) document.body.setAttribute(WALLPAPER_ENGINE_CLIENT_ATTRIBUTE, "available");
+        else document.body.removeAttribute(WALLPAPER_ENGINE_CLIENT_ATTRIBUTE);
+      }
+    }
   });
 }
 

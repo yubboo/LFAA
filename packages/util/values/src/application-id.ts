@@ -12,3 +12,9 @@ export type WorkspaceProjectApplicationId = typeof WORKSPACE_PROJECT_APPLICATION
 
 /** 路由枚举从应用权威清单生成，新增 App 无需在工作台手写正则分支。 */
 export const APPLICATION_ROUTE_PATTERN = new RegExp(`^/apps/(${APPLICATION_IDS.join("|")})/(normal|ai-work)(?:/(.*))?$`, "u");
+
+/** 所有 App 共用工作入口；根首页、旧工作地址及旧 App 工作地址统一归一到这里。 */
+export const SHARED_WORK_ROUTE = "/work";
+export function normalizeWorkRoute(path: string): string {
+  return path === "/" || path === "/tasks" || path.match(APPLICATION_ROUTE_PATTERN)?.[2] === "ai-work" ? SHARED_WORK_ROUTE : path;
+}

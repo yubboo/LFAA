@@ -7,7 +7,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Button, Input, Modal, Spin, Tooltip } from "antd";
-import { createWritingBook, createWritingChapter, createWritingVolume, deleteWritingBook, deleteWritingChapter, downloadWritingBookDeepWriteZip, getErrorMessage, importWritingBookDeepWriteZip, loadWritingBookOutlineRevisions, loadWritingChapterRevisions, loadWritingWorkspace, renameWritingBook, restoreWritingBookOutlineRevision, restoreWritingChapterRevision, saveWritingBookOutline, saveWritingChapter, selectWritingLocation, type AiExtension, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
+import { createWritingBook, createWritingChapter, createWritingVolume, deleteWritingBook, deleteWritingChapter, downloadWritingBookDeepWriteZip, getErrorMessage, importWritingBookDeepWriteZip, loadWritingBookOutlineRevisions, loadWritingChapterRevisions, loadWritingWorkspace, renameWritingBook, restoreWritingBookOutlineRevision, restoreWritingChapterRevision, saveWritingBookOutline, saveWritingChapter, selectWritingLocation, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { WritingCatalogPanel } from "./WritingCatalogPanel.js";
 import "./WritingWorkspace.css";
@@ -18,8 +18,6 @@ interface WritingWorkspaceProps {
   loadError: string;
   onRetry: () => void;
   libraryPortalTarget: HTMLElement | null;
-  writingSkills: AiExtension[];
-  skillsLoading: boolean;
   onWorkspaceChange: (workspace: WritingWorkspaceData) => void;
   onRegisterFlush: (flush: (() => Promise<void>) | null) => void;
 }

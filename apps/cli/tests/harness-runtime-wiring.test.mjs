@@ -16,7 +16,7 @@ test("完整 Harness：Agent 工具循环、Skill、委派、压缩、节点文�
       cwd: cli, windowsHide: true, encoding: "utf8", timeout: 85000,
       env: { ...process.env, LFAA_DATA_DIR: data, NODE_ENV: "test", LFAA_LOCAL_MODE: "true", SERVER_HOST: "127.0.0.1", LOG_LEVEL: "error", JWT_SECRET: "" }
     });
-    for (const stage of ["settings-migration", "model-output-capability", "skill", "preflight-recovery", "reply-stream", "response-failures", "subagent", "compaction", "files", "schedule", "permissions", "workflow-chat-automation", "terminal", "host-task-timeout-migration"]) assert.ok(output.includes(`verified:${stage}`), stage);
+    for (const stage of ["settings-migration", "model-output-capability", "skill", "preflight-recovery", "reply-stream", "response-failures", "subagent", "lazy-expert", "compaction", "files", "schedule", "permissions", "workflow-chat-automation", "terminal", "host-task-timeout-migration"]) assert.ok(output.includes(`verified:${stage}`), stage);
   } finally {
     assert.equal(dirname(resolve(data)), parent);
     rmSync(data, { recursive: true, force: true });

@@ -10,6 +10,7 @@ export interface DataPaths {
   lib: string;
   plugins: string;
   cache: string;
+  tmp: string;
   logs: string;
   backups: string;
   models: string;

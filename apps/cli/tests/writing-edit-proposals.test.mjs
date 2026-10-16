@@ -26,6 +26,8 @@ test("写作提案保留审阅；应用共用权限并保留隔离、冲突和�
       database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('proposal-owner',8201,'proposal-owner','salt','hash','member',0),('proposal-other',8202,'proposal-other','salt','hash','member',0)").run();
       const writing = await import('lfaa-document-writing/src/service.js');
       const { readWritingLocalText, writeWritingLocalText } = await import('lfaa-document-writing/src/local-files.js');
+      const { createDomainToolTestHost } = await import('./tests/fixtures/domain-tools.mjs');
+      const domainToolHost = await createDomainToolTestHost(['writing']);
       const { listAiBusinessTools } = await import('lfaa-tools/src/business-tools.js');
       const workspace = writing.createWritingBook('proposal-owner', '提案作品');
       const bookId = workspace.activeBookId;
@@ -108,6 +110,7 @@ test("写作提案保留审阅；应用共用权限并保留隔离、冲突和�
 
       configuration.close();
       sessionRecords.close();
+      await domainToolHost.close();
       closeDatabase();
     `], {
       cwd: cli,

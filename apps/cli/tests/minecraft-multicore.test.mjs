@@ -20,6 +20,9 @@ const { provisionMinecraftServer, retryMinecraftProvision } = await import('lfaa
 const { validateCoreCoordinate, resolveMinecraftCoreArtifact } = await import('lfaa-games-minecraft/src/core-sources.js');
 const queue = await import('lfaa-jobs/src/minecraft-queue.js');
 const { recordDaemonHeartbeat } = await import('lfaa-host-daemon/src/local-daemon.js');
+const { createDomainToolTestHost } = await import('./fixtures/domain-tools.mjs');
+const domainToolHost = await createDomainToolTestHost(['minecraft']);
+test.after(async () => { await domainToolHost.close(); });
 const userId = randomUUID(), nodeId = randomUUID();
 database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES(?,?,'fixture-salt','fixture-hash','admin')").run(userId, `fixture-${userId}`);
 recordDaemonHeartbeat({ id: nodeId, displayName: '隔离测试节点', platform: 'win32', architecture: 'x64', version: 'fixture', dataRoot: data, capabilities: ['minecraft-vanilla', 'minecraft-native-v1', 'minecraft-multicore-v1','java-environment-manager-v1'], javaRuntimes: [] });
@@ -69,6 +72,48 @@ test('迁移保持旧 Vanilla 记录并可重复执行', () => {
   assert.equal(database.prepare('SELECT line FROM minecraft_task_logs WHERE task_id=?').get(taskId).line,'legacy-log');
   assert.deepEqual(database.prepare('PRAGMA foreign_key_check').all(), []);
 });
+test('工件准备连接失败不创建实例或任务，并向模型返回可核验的未开始结果', async () => {
+  const fixtureFetch = globalThis.fetch;
+  const counts = () => ['minecraft_instances','minecraft_deployments','minecraft_tasks'].map(table=>database.prepare('SELECT count(*) AS count FROM '+table).get().count);
+  const before = counts();
+  globalThis.fetch = async (input, init) => String(input).endsWith('/builds/preflight-build') ? Promise.reject(new Error('合成网络超时')) : fixtureFetch(input, init);
+  try {
+    const input = {nodeId,userId,name:'preflight-failure',core:'Paper',version:'fixture-version',build:'preflight-build',eulaAccepted:true};
+    await assert.rejects(provisionMinecraftServer(input), error=>error.executionState==='not_started'&&error.errorCode==='minecraft_source_connection_failed');
+    const { listAiBusinessTools } = await import('lfaa-tools/src/business-tools.js');
+    const tool = listAiBusinessTools('minecraft','admin').find(tool=>tool.id==='minecraft.provision');
+    const {userId:unused,...parameters}=input;
+    const result = await tool.execute(parameters,{userId,userRole:'admin',applicationId:'minecraft',signal:new AbortController().signal});
+    assert.equal(result.executionState,'not_started');assert.equal(result.executed,false);assert.equal(result.retryable,true);
+    assert.deepEqual(counts(),before,'元数据错误发生在事务前，没有实例、部署或节点任务');
+  } finally { globalThis.fetch = fixtureFetch; }
+});
+test('用户在工件读取期间停止，迟到的元数据不能创建实例或派发任务', async () => {
+  const fixtureFetch = globalThis.fetch, controller = new AbortController();
+  const count = () => database.prepare('SELECT count(*) AS count FROM minecraft_tasks').get().count;
+  const before = count();
+  globalThis.fetch = async (input, init) => {
+    if (String(input).endsWith('/builds/cancelled-build')) {
+      controller.abort(new DOMException('用户停止','AbortError'));
+      const response = await fixtureFetch(String(input).replace('/cancelled-build','/fixture-build'),init);
+      return Response.json({...await response.json(),id:'cancelled-build'});
+    }
+    return fixtureFetch(input,init);
+  };
+  try {
+    await assert.rejects(provisionMinecraftServer({nodeId,userId,name:'cancel-preparation',core:'Paper',version:'fixture-version',build:'cancelled-build',eulaAccepted:true,signal:controller.signal}),error=>error.name==='AbortError');
+    assert.equal(count(),before);
+    assert.equal(database.prepare("SELECT 1 FROM minecraft_instances WHERE name='cancel-preparation'").get(),undefined);
+  } finally { globalThis.fetch = fixtureFetch; }
+});
+test('指定核心的工具只返回目标版本目录，不将无关核心塞入模型上下文', async () => {
+  const { listAiBusinessTools } = await import('lfaa-tools/src/business-tools.js');
+  const tool = listAiBusinessTools('minecraft','admin').find(tool=>tool.id==='minecraft.list-cores');
+  const catalog = await tool.execute({core:'SpongeNeo'});
+  assert.deepEqual(catalog.cores.map(item=>item.name),['SpongeNeo']);
+  assert.deepEqual(catalog.cores[0].versions,['fixture-version']);
+  await assert.rejects(tool.execute({core:'未登记核心'}),/尚未登记/u);
+});
 test('配置持久化并进入任务；重名冲突不产生额外实例', async () => {
   settings.saveUserSettings(userId, 'minecraft-runtime', { ...settings.defaultSettings.minecraftRuntime, minecraftDefaultMemoryMb: 3072, minecraftDefaultPort: 25577, minecraftReadyTimeoutSeconds: 64, minecraftDownloadTimeoutSeconds: 77, minecraftInstallTimeoutSeconds: 88 });
   const input = { nodeId, userId, name: '自动测试实例', core: 'Paper', version: 'fixture-version', build: 'fixture-build', eulaAccepted: true };
@@ -113,6 +158,32 @@ test('Paper 旧版本最低字节码为 8 时复用官方推荐 Java 11，不重
   assert.equal(created.task.payload.javaMajor,11);
   assert.equal(created.task.payload.javaRuntimeId,'temurin-11');
   assert.equal(created.instance.javaMajor,11);
+});
+
+test('模型可读取核心 Java 要求并将指定运行时传入部署；不匹配时不创建任务', async () => {
+  recordDaemonHeartbeat({ id: nodeId, displayName: '隔离测试节点', platform: 'win32', architecture: 'x64', version: 'fixture', dataRoot: data, capabilities: ['minecraft-multicore-v1'], javaRuntimes: [{runtimeId:'temurin-11',major:11,managed:true,vendor:'Eclipse Temurin'}] });
+  const tools = await import('lfaa-tools/src/business-tools.js');
+  const read = tools.findAiBusinessTool('workspace','admin','minecraft_resolve_core_artifact',null,'full_access');
+  assert.ok(read, '模型需要真实工件和运行时要求证据，不能凭版本名称猜测');
+  const requirement = await read.execute(read.parse({core:'Paper',version:'1.12.2',build:'1620'}),{});
+  assert.equal(requirement.javaMajor,11);
+  const provision = tools.findAiBusinessTool('workspace','admin','minecraft_provision_server',null,'full_access');
+  assert.equal(provision.schema.properties.javaRuntimeId.type,'string');
+  const input = {nodeId,name:'model-selected-java',core:'Paper',version:'1.12.2',build:'1620',eulaAccepted:true,javaRuntimeId:'temurin-11'};
+  const context = {userId,userRole:'admin',applicationId:'workspace',signal:new AbortController().signal,onProgress(){}};
+  const before = database.prepare('SELECT count(*) AS count FROM minecraft_tasks').get().count;
+  const rejected = await provision.execute(provision.parse({...input,javaRuntimeId:'missing-runtime'}),context);
+  assert.equal(rejected.executionState,'not_started');
+  assert.equal(rejected.errorCode,'minecraft_java_mismatch');
+  assert.equal(database.prepare('SELECT count(*) AS count FROM minecraft_tasks').get().count,before);
+  // 派发后取消等待，只核查服务创建的真实任务载荷；不把替身节点称为就绪。
+  const controller = new AbortController();
+  const completion = provision.execute(provision.parse(input),{...context,signal:controller.signal});
+  await new Promise(resolve=>setTimeout(resolve,10));
+  controller.abort();
+  await assert.rejects(completion);
+  const task = database.prepare('SELECT payload_json FROM minecraft_tasks ORDER BY rowid DESC LIMIT 1').get();
+  assert.equal(JSON.parse(task.payload_json).javaRuntimeId,'temurin-11');
 });
 
 test('EULA、执行边界和路径坐标拒绝无效输入', async () => {

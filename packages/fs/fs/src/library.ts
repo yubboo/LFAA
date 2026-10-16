@@ -6,14 +6,17 @@ import { config } from "lfaa-launch-environment/src/config.js";
 import { protectedDataDirectories } from "lfaa-home-paths/src/reserved-data-paths.mjs";
 import { resolveUserDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
 import { getUserSettings } from "lfaa-settings/src/service.js";
+import { getProjectStorageLocations } from "lfaa-settings/src/project-storage.js";
 import { resolveUserRole } from "lfaa-identity-auth/src/service.js";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
-import type { FileManagerOperation, ManagedFileEntry } from "lfaa-util-values/src/file-manager-contract.js";
+import type { FileManagerOperation, FileResourceLocation, ManagedFileEntry } from "lfaa-util-values/src/file-manager-contract.js";
 import { createManagedFileService } from "./managed-files.mjs";
+import { assertGameMetadataMutable } from "./instance-files.mjs";
 export interface FileActor { userId: string; role: string; signal?: AbortSignal }
 export interface FileMount { id: string; name: string; operate(actor: FileActor, operation: FileManagerOperation, input: Record<string, unknown>): Promise<Record<string, unknown>> }
 const libraryDirectory = ".lfaa-library";
 const localDriveShortcut = "local-drives";
+const resourceShortcut = ".lfaa-resources";
 const protectedWindowsRootDirectories = new Set(["$recycle.bin", "system volume information", "windows", "windows.old", "recovery", "program files", "program files (x86)", "programdata"]);
 let localVolumeCache: { expiresAt: number; volumes: Array<{ id: string; name: string; root: string }> } | null = null;
 let localVolumePending: Promise<Array<{ id: string; name: string; root: string }>> | null = null;
@@ -68,7 +71,7 @@ function prefixResult(result: Record<string, unknown>, prefix: string): Record<s
 }
 export class SystemFileLibrary {
   private mounts = new Map<string, FileMount>();
-  private mutationGuards = new Set<(path: string) => void>();
+  private mutationGuards = new Set<(path: string) => void | Promise<void>>();
   private auditTails = new Map<string, Promise<void>>();
   private auditDirectories: ReturnType<typeof createManagedFileService>;
   constructor(private dataRoot: string) { this.dataRoot = resolve(dataRoot); this.auditDirectories = createManagedFileService({ root: this.dataRoot }); }
@@ -76,7 +79,53 @@ export class SystemFileLibrary {
     if (!/^[a-z][a-z0-9-]{0,63}$/u.test(mount.id) || this.mounts.has(mount.id)) throw new Error("文件 Owner 标识无效或重复。");
     this.mounts.set(mount.id, mount); return () => { if (this.mounts.get(mount.id) === mount) this.mounts.delete(mount.id); };
   }
-  registerMutationGuard(guard: (path: string) => void): () => void { this.mutationGuards.add(guard); return () => { this.mutationGuards.delete(guard); }; }
+  registerMutationGuard(guard: (path: string) => void | Promise<void>): () => void { this.mutationGuards.add(guard); return () => { this.mutationGuards.delete(guard); }; }
+  private resources() {
+    const saved = getProjectStorageLocations().settings;
+    return [
+      { id: "backups", name: "备份", root: resolve(this.dataRoot, "backups"), description: "备份文件；恢复操作由对应游戏 Owner 执行" },
+      { id: "environments", name: "运行环境", root: saved.runtimeDirectory, description: "data/environments，跟随统一数据根" },
+      { id: "lib", name: "工具目录", root: resolve(this.dataRoot, "lib"), description: "SteamCMD 等运行工具" },
+      { id: "logs", name: "日志", root: saved.logsDirectory, description: "data/logs，跟随统一数据根" },
+      { id: "plugins", name: "扩展插件", root: resolve(this.dataRoot, "plugins"), description: "Harness / DSH 第三方扩展；安装、更新、启停和卸载由插件管理器处理" },
+      { id: "cache", name: "缓存", root: saved.downloadCacheDirectory, description: "data/cache，跟随统一数据根，不自动清理" },
+      { id: "tmp", name: "临时文件", root: saved.temporaryDirectory, description: "data/tmp，跟随统一数据根，不自动清理" }
+    ];
+  }
+  listLocations(actor: FileActor): { rootDirectory: string; locations: FileResourceLocation[] } {
+    this.checkActor(actor);
+    const priority = (id: string) => id === "game-instances" ? 0 : id === "game-storage" ? 1 : 2;
+    const mounts = [...this.mounts.values()].sort((left, right) => priority(left.id) - priority(right.id));
+    return { rootDirectory: this.dataRoot, locations: [
+      { id: "data", name: "LFAA 数据", path: "", description: "当前数据根；私有账户与数据库由各自 Owner 管理" },
+      ...mounts.map(mount => ({ id: mount.id, name: mount.name, path: `${libraryDirectory}/${mount.id}`, description: "由已登记的领域 Owner 提供" })),
+      ...this.resources().map(resource => ({ id: resource.id, name: resource.name, path: `${resourceShortcut}/${resource.id}`, description: resource.description })),
+      { id: "local-drives", name: "本机磁盘", path: localDriveShortcut, description: "显式切换到本机磁盘；文件权限和领域保护仍生效" }
+    ] };
+  }
+  private assertLocalReadable(path: string) {
+    const rel = relative(this.dataRoot, path);
+    if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return;
+    const segments = rel.split(sep).map(segment => segment.toLocaleLowerCase());
+    if (protectedDataDirectories.includes(segments[0] ?? "") || segments[0] === "plugins" && segments[1] === "runtime-data") throw new ApiError(403, "file_private_path", "该系统或插件私有数据由对应 Owner 管理。");
+  }
+  private async assertLocalMutable(path: string) {
+    assertGameMetadataMutable(path);
+    this.assertLocalReadable(path);
+    const plugins = resolve(this.dataRoot, "plugins");
+    if (containsPath(plugins, path) || containsPath(path, plugins)) throw new ApiError(409, "plugin_lifecycle_required", "扩展插件安装目录由插件管理器维护，请通过插件安装、更新或卸载操作管理。");
+    const insideData = containsPath(this.dataRoot, path);
+    if (containsPath(config.repositoryRoot, path) && !insideData || containsPath(path, config.repositoryRoot)) throw new ApiError(403, "file_source_protected", "LFAA 项目源码和安装目录受保护。");
+    if (containsPath(resolve(this.dataRoot, "games"), path) && !this.mutationGuards.size) throw new ApiError(409, "game_file_owner_unavailable", "游戏文件保护服务尚未就绪。");
+    for (const guard of this.mutationGuards) await guard(path);
+  }
+  private describeResult(result: Record<string, unknown>, root: string) {
+    const plugins = resolve(this.dataRoot, "plugins");
+    const readonly: FileManagerOperation[] = ["list", "search", "directory-size", "preview", "read", "download", "trash-list"];
+    const current = resolve(root, typeof result.path === "string" ? result.path : "");
+    return { ...result, ...(containsPath(plugins, current) ? { operations: readonly } : {}),
+      ...(Array.isArray(result.entries) ? { entries: result.entries.map((entry: ManagedFileEntry) => containsPath(plugins, resolve(root, entry.path)) ? { ...entry, operations: readonly } : entry) } : {}) };
+  }
   private checkActor(actor: FileActor) {
     assertSystemFileAccess(actor.userId); actor.signal?.throwIfAborted();
     const repositoryFromData = relative(this.dataRoot, config.repositoryRoot);
@@ -92,12 +141,12 @@ export class SystemFileLibrary {
     return parts;
   }
   private local(actor: FileActor) {
-    return createManagedFileService({ root: this.dataRoot, protectedDirectories: [...protectedDataDirectories, libraryDirectory], recycleNamespace: createHash("sha256").update(actor.userId).digest("hex"), assertCanMutate: path => {
+    return createManagedFileService({ root: this.dataRoot, signal: actor.signal, protectedDirectories: [...protectedDataDirectories, libraryDirectory, resourceShortcut], assertCanRead: path => this.assertLocalReadable(path), recycleNamespace: createHash("sha256").update(actor.userId).digest("hex"), assertCanMutate: async path => {
       const rel = relative(this.dataRoot, path);
       if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new ApiError(403, "file_outside_data", "不能操作 data 之外的文件。");
       if ([...protectedDataDirectories, libraryDirectory].includes(rel.split(sep)[0].toLocaleLowerCase())) throw new ApiError(403, "file_private_path", "不能写入系统或账户私有目录。");
       if (rel.split(sep)[0] === "games" && !this.mutationGuards.size) throw new ApiError(409, "game_file_owner_unavailable", "游戏文件保护服务尚未就绪，请稍后重试。");
-      for (const guard of this.mutationGuards) guard(path);
+      await this.assertLocalMutable(path);
     } });
   }
   async operate(actor: FileActor, operation: FileManagerOperation, input: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -109,12 +158,14 @@ export class SystemFileLibrary {
     } catch (error) { if (!["list", "search", "directory-size", "trash-list"].includes(operation)) await this.audit(actor, operation, input, false); throw error; }
   }
   private async execute(actor: FileActor, operation: FileManagerOperation, input: Record<string, unknown>, parts: string[]): Promise<Record<string, unknown>> {
+    if (parts[0] === resourceShortcut) return this.operateResource(actor, operation, input, parts);
     if (parts[0] === localDriveShortcut) return await this.operateLocalDrives(actor, operation, input, parts);
     if (parts[0] === libraryDirectory) {
       if (parts.length === 1 && operation === "list") return { path: libraryDirectory, operations: ["list"], entries: [...this.mounts.values()].map(m => ({ name: m.name, path: `${libraryDirectory}/${m.id}`, kind: "directory", size: 0, fileType: "folder", modifiedAt: "", operations: ["list"] })), truncated: false };
       const mount = this.mounts.get(parts[1]);
       if (!mount) throw new ApiError(404, "file_owner_missing", "文件 Owner 未登记。");
       const payload: Record<string, unknown> = { ...input, path: parts.slice(2).join("/") };
+      if (["trash-restore", "trash-purge"].includes(operation) && typeof input.name === "string" && input.name.startsWith(`${libraryDirectory}/${mount.id}/`)) payload.name = input.name.slice(libraryDirectory.length + mount.id.length + 2);
       if (operation === "move") {
         const target = this.split(input.destinationPath);
         if (target[0] !== libraryDirectory || target[1] !== mount.id) throw new ApiError(400, "cross_owner_move", "不同文件 Owner 之间请使用导出和导入。");
@@ -122,28 +173,48 @@ export class SystemFileLibrary {
       }
       return prefixResult(await mount.operate(actor, operation, payload), `${libraryDirectory}/${mount.id}`);
     }
+    if (!parts.length && ["trash-restore", "trash-purge"].includes(operation) && String(input.name).startsWith(resourceShortcut + "/")) {
+      const trash = this.split(input.name);
+      return this.operateResource(actor, operation, { ...input, path: trash.slice(0, 2).join("/") }, trash.slice(0, 2));
+    }
     if (!parts.length && ["trash-restore", "trash-purge"].includes(operation) && String(input.name).startsWith(libraryDirectory + "/")) {
       const trash = this.split(input.name); const mount = this.mounts.get(trash[1]);
       if (!mount || trash.length < 4) throw new ApiError(400, "invalid_trash_id", "回收站来源无效。");
-      return prefixResult(await mount.operate(actor, operation, { path: trash[2], name: trash.slice(3).join("/") }), `${libraryDirectory}/${mount.id}`);
+      return prefixResult(await mount.operate(actor, operation, { path: trash.slice(2, -1).join("/"), name: trash.at(-1) }), `${libraryDirectory}/${mount.id}`);
     }
     if (!parts.length && ["trash-restore", "trash-purge"].includes(operation) && String(input.name).startsWith(localDriveShortcut + "/")) {
       const trash = this.split(input.name);
       if (trash.length < 4) throw new ApiError(400, "invalid_trash_id", "回收站来源无效。");
       return await this.operateLocalDrives(actor, operation, { ...input, path: trash.slice(0, 2).join("/"), name: trash.slice(2).join("/") }, trash.slice(0, 2));
     }
-    if (operation === "move") { const target = this.split(input.destinationPath); if (target[0] === libraryDirectory) throw new ApiError(400, "cross_owner_move", "不能直接移入业务 Owner 目录。"); }
-    const result = await this.local(actor).operate(operation, input);
+    if (operation === "move") { const target = this.split(input.destinationPath); if ([libraryDirectory, resourceShortcut, localDriveShortcut].includes(target[0])) throw new ApiError(400, "cross_owner_move", "不同资源来源不能直接移动。"); }
+    const result = this.describeResult(await this.local(actor).operate(operation, input), this.dataRoot);
     if (!parts.length && operation === "list") {
-      const volumes = await listLocalVolumes();
-      return { ...result, rootDirectory: this.dataRoot, entries: [...result.entries as ManagedFileEntry[], { name: "本机磁盘", path: localDriveShortcut, kind: "directory", size: 0, fileType: "folder", modifiedAt: "", operations: ["list"] }, ...volumes.map(volume => ({ name: volume.name, path: `${localDriveShortcut}/${volume.id}`, kind: "directory", size: 0, fileType: "folder", modifiedAt: "", operations: ["list"] })), ...(this.mounts.size ? [{ name: "应用资源", path: libraryDirectory, kind: "directory", size: 0, fileType: "folder", modifiedAt: "", operations: ["list"] }] : [])] };
+      return { ...result, rootDirectory: this.dataRoot, locations: this.listLocations(actor).locations };
     }
     return result;
+  }
+  private async operateResource(actor: FileActor, operation: FileManagerOperation, input: Record<string, unknown>, parts: string[]) {
+    const resource = this.resources().find(item => item.id === parts[1]);
+    if (!resource) throw new ApiError(404, "file_resource_missing", "资源目录未登记。");
+    const prefix = `${resourceShortcut}/${resource.id}`;
+    const payload: Record<string, unknown> = { ...input, path: parts.slice(2).join("/") };
+    if (["trash-restore", "trash-purge"].includes(operation) && typeof input.name === "string" && input.name.startsWith(prefix + "/")) payload.name = input.name.slice(prefix.length + 1);
+    if (operation === "move") {
+      const destination = this.split(input.destinationPath);
+      if (destination[0] !== resourceShortcut || destination[1] !== resource.id) throw new ApiError(400, "cross_owner_move", "不同资源来源不能直接移动。");
+      payload.destinationPath = destination.slice(2).join("/");
+    }
+    const service = createManagedFileService({ root: resource.root, mutationRoot: this.dataRoot, signal: actor.signal,
+      recycleNamespace: createHash("sha256").update(actor.userId).digest("hex"),
+      assertCanRead: path => this.assertLocalReadable(path), assertCanMutate: path => this.assertLocalMutable(path) });
+    const result = this.describeResult(await service.operate(operation, payload), resource.root);
+    return { ...prefixResult(result, prefix), description: resource.description, rootDirectory: resource.root };
   }
   private async operateLocalDrives(actor: FileActor, operation: FileManagerOperation, input: Record<string, unknown>, parts: string[]): Promise<Record<string, unknown>> {
     if (parts.length === 1 && operation === "list") {
       const volumes = await listLocalVolumes();
-      return { path: localDriveShortcut, entries: volumes.map(volume => ({ name: volume.name, path: `${localDriveShortcut}/${volume.id}`, kind: "directory", size: 0, fileType: "folder", modifiedAt: "", operations: ["list"] })), truncated: false };
+      return { path: localDriveShortcut, operations: ["list"], entries: volumes.map(volume => ({ name: volume.name, path: `${localDriveShortcut}/${volume.id}`, kind: "directory", size: 0, fileType: "folder", modifiedAt: "", operations: ["list"] })), truncated: false };
     }
     const volumeId = parts[1];
     const volume = (await listLocalVolumes()).find(item => item.id === volumeId);
@@ -157,35 +228,43 @@ export class SystemFileLibrary {
       payload.destinationPath = target.slice(2).join("/");
     }
     const service = this.localVolumeService(actor, volume);
-    const result = await service.operate(operation, payload);
+    const result = this.describeResult(await service.operate(operation, payload), volume.root);
     return prefixResult(result, `${localDriveShortcut}/${volumeId}`);
   }
   private localVolumeService(actor: FileActor, volume: { id: string; name: string; root: string }) {
     return createManagedFileService({
       root: volume.root,
+      mutationRoot: this.dataRoot,
+      signal: actor.signal,
       protectedDirectories: ["$recycle.bin", "system volume information"],
       recycleNamespace: createHash("sha256").update(actor.userId).digest("hex"),
       assertCanRead: path => {
+        this.assertLocalReadable(path);
         const dataRelative = relative(this.dataRoot, path);
         const insideData = dataRelative === "" || dataRelative !== ".." && !dataRelative.startsWith(`..${sep}`) && !isAbsolute(dataRelative);
         if (!insideData) return;
         const segments = dataRelative.split(sep).filter(Boolean).map(segment => segment.toLocaleLowerCase());
         if (protectedDataDirectories.includes(segments[0] ?? "") || segments[0] === "users" && segments[2] === "settings") throw new ApiError(403, "file_private_path", "该账户配置和会话文件不开放给通用文件操作。");
       },
-      assertCanMutate: path => {
+      assertCanMutate: async path => {
         const insideData = containsPath(config.dataDirectory, path);
         const intersectsRepository = containsPath(config.repositoryRoot, path) && !insideData || containsPath(path, config.repositoryRoot);
         if (intersectsRepository) throw new ApiError(403, "file_source_protected", "LFAA 项目源码和安装目录受保护，不能通过文件管理器改动。");
         const rootRelative = relative(volume.root, path);
         const topLevel = rootRelative.split(sep)[0]?.toLocaleLowerCase() ?? "";
         if (protectedWindowsRootDirectories.has(topLevel)) throw new ApiError(403, "file_system_path_protected", "Windows 系统目录和程序安装目录受保护。");
-        for (const guard of this.mutationGuards) guard(path);
+        await this.assertLocalMutable(path);
       }
     });
   }
   async openDownload(actor: FileActor, path: string) {
     this.checkActor(actor);
     const parts = this.split(path);
+    if (parts[0] === resourceShortcut) {
+      const resource = this.resources().find(item => item.id === parts[1]);
+      if (!resource || parts.length < 3) throw new ApiError(404, "local_file_missing", "资源文件不存在。");
+      return createManagedFileService({ root: resource.root, mutationRoot: this.dataRoot, signal: actor.signal, assertCanRead: path => this.assertLocalReadable(path) }).openDownload(parts.slice(2).join("/"));
+    }
     if (parts[0] === localDriveShortcut) {
       const volume = (await listLocalVolumes()).find(item => item.id === parts[1]);
       if (!volume || parts.length < 3) throw new ApiError(404, "local_file_missing", "本机磁盘文件不存在或当前不可用。");

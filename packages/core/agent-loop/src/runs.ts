@@ -1,3 +1,4 @@
+import type { AgentAssociations } from "lfaa-util-values/src/agent-associations.js";
 /**
  * 功能：管理独立于网页连接的 Agent 任务。
  * 作用：提供提交、账户隔离查询、事件跟随及显式取消；任务证据由 JSONL 会话服务保存。
@@ -17,7 +18,7 @@ import { AiRunPauseGate, type AiRunPauseState } from "./run-pause.js";
 import { claimWorkspaceProjectApplication, getWorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-workspace-workspace/src/index.js";
 import type { SessionReplyPart } from "lfaa-session/src/kernel.js";
 
-export interface AiRunInput { appId: ApplicationId; sessionId: string | null; content: string; projectId?: string | null; planMode?: boolean }
+export interface AiRunInput { appId: ApplicationId; sessionId: string | null; content: string; projectId?: string | null; associations?: AgentAssociations; planMode?: boolean }
 interface AiUserQuestion { questionId: string; question: string; options: string[]; resolve: (value: { answer: string; skipped: boolean }) => void; signal: AbortSignal; abort: () => void }
 type Listener = (event: string, data: Record<string, unknown>) => void;
 interface LiveRun { id: string; userId: string; applicationId: ApplicationId; sessionId: string; canAskUser: boolean; controller: AbortController; pauseGate: AiRunPauseGate; children: Set<string>; pendingApprovals: Set<string>; listeners: Set<Listener>; completion: Promise<void>; content: string; parts: SessionReplyPart[]; inbox: AiModelMessage[]; pendingQuestion?: AiUserQuestion }
@@ -109,18 +110,21 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
   if (body.projectId && body.sessionId) throw new Error("只能为新会话选择项目；已有会话请从项目菜单切换。 ");
   if (body.projectId && body.appId !== "workspace" && body.appId !== "minecraft") throw new Error("当前应用不支持通用项目目录。 ");
   const projectAppId = body.appId === "workspace" || body.appId === "minecraft" ? body.appId as WorkspaceProjectApplicationId : undefined;
-  let registeredProject = body.projectId && projectAppId ? getWorkspaceProject(userId, body.projectId, projectAppId) : null;
+  let registeredProject = body.projectId && projectAppId ? getWorkspaceProject(userId, body.projectId, projectAppId === "workspace" ? undefined : projectAppId) : null;
   if (body.projectId && !registeredProject) throw new Error("找不到此账户的项目目录。 ");
-  if (registeredProject?.appId === null && projectAppId) {
+  if (registeredProject?.appId === null && projectAppId && projectAppId !== "workspace") {
     const usedByOtherApp = [...listAiSessions(userId, false), ...listAiSessions(userId, true)]
       .some(session => session.projectId === registeredProject!.id && session.appId !== projectAppId);
     if (usedByOtherApp) throw new Error("此旧项目已关联其他应用的会话。请在当前应用重新登记该文件夹，避免跨 App 共享项目。 ");
     registeredProject = claimWorkspaceProjectApplication(userId, registeredProject.id, projectAppId);
     if (!registeredProject) throw new Error("此项目已归属其他应用，不能在当前应用使用。 ");
   }
-  if (runOptions.workspaceProject && runOptions.workspaceProject.appId !== body.appId) throw new Error("子 Agent 项目归属与当前应用不一致，已拒绝执行。 ");
+  if (runOptions.workspaceProject) {
+    const owned = getWorkspaceProject(userId, runOptions.workspaceProject.id);
+    if (!owned || owned.nodeId !== runOptions.workspaceProject.nodeId || owned.path !== runOptions.workspaceProject.path) throw new Error("子 Agent 项目不属于当前账户或节点目录已变更，已拒绝执行。");
+  }
   const workspaceProject = runOptions.workspaceProject ?? (registeredProject && projectAppId ? { id: registeredProject.id, appId: projectAppId, nodeId: registeredProject.nodeId, path: registeredProject.path, title: registeredProject.title } : null);
-  const turn = createAiTurn(userId, body.appId, body.sessionId, body.content, Boolean(previous), workspaceProject);
+  const turn = createAiTurn(userId, body.appId, body.sessionId, body.content, Boolean(previous), workspaceProject, body.associations);
   if (body.planMode !== undefined) setAiSessionPlanMode(userId, turn.session.id, body.planMode, { allowActiveRun: true });
   const id = turn.assistantMessage.id;
   let run!: LiveRun;
@@ -171,7 +175,7 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
         let childStarted = false; const startChild = async (signal?: AbortSignal) => { if (childStarted) throw new Error("同一委派只允许启动一个子任务。"); childStarted = true;
         run.controller.signal.throwIfAborted();
         signal?.throwIfAborted();
-        const child = startAiRun(userId, userRole, { appId: body.appId, sessionId: null, content: String(parameters.task) }, aiPluginHost, { depth: depth + 1, modelAccountId: typeof parameters.modelAccountId === "string" ? parameters.modelAccountId : currentRuntime.subagentAccountId || account.accountId, allowedToolNames: requested, systemPrompt: "你是主 Agent 委派的子 Agent。围绕本次子任务自主选择工具、检查结果和完成验证；返回产物、执行证据和未解决事项。", delegationBudget: budget, writeGate, canAskUser: false, workspaceProject: getAiSessionWorkspaceContext(userId, turn.session.id) });
+        const child = startAiRun(userId, userRole, { appId: body.appId, sessionId: null, content: String(parameters.task) }, aiPluginHost, { depth: depth + 1, modelAccountId: typeof parameters.modelAccountId === "string" ? parameters.modelAccountId : currentRuntime.subagentAccountId || account.accountId, allowedToolNames: requested, systemPrompt: ["你是主 Agent 委派的子 Agent。围绕本次子任务自主选择工具、检查结果和完成验证；返回产物、执行证据和未解决事项。", typeof parameters.expertInstructions === "string" ? parameters.expertInstructions : ""].filter(Boolean).join("\n\n"), delegationBudget: budget, writeGate, canAskUser: false, workspaceProject: getAiSessionWorkspaceContext(userId, turn.session.id) });
         const childLive = liveRuns.get(child.id)!;
         run.children.add(child.id);
         const abortChild = () => childLive.controller.abort();

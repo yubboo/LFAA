@@ -12,6 +12,11 @@ import { isolateData } from "./isolated-data.mjs";
 
 isolateData(test, "mcp-tools");
 process.env.SERVER_HOST = "127.0.0.1";
+// Agent Loop 的工具依赖 Writing Owner；先按正式顺序初始化隔离存储，保留迁移校验。
+await import("lfaa-settings/src/service.js");
+await import("lfaa-session/src/sessions.js");
+const { retireLegacyFileTables } = await import("lfaa-storage-domain/src/migration.js");
+retireLegacyFileTables();
 const { discoverMcpTools } = await import("lfaa-mcp-client/src/runtime.js");
 const { formatMcpServerInstructions, mcpToolResultContent, persistedMcpToolResult, persistedModelMessages, releaseOlderComputerImages } = await import("lfaa-agent-loop/src/execute-turn.js");
 const { createPinnedMcpLookup, isPublicMcpAddress, resolveMcpEndpoint } = await import("lfaa-mcp-client/src/network.js");

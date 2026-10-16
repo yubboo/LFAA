@@ -58,7 +58,7 @@ Agent Loop 只将 Daemon 成功返回的新建/修改/删除路径记录到助�
 
 ## 工作区窄屏分栏
 
-`ui-dockkit/src/ResizableWorkbench.tsx` 默认保持通用单侧布局；应用工作区通过 `responsiveRightDock` 启用窄屏右栏联动。`useWorkbenchMetrics` 的对应布局策略将应用中心最小宽度设为 260px：空间足够时右栏参与网格并可拖动，较窄时左栏改用 Overlay、中心与右栏继续并排；不足以同时保留中心和右栏时，右栏转为可拖动宽度的 Overlay。Settings 不启用此策略，仍沿用既有断点与单侧导航行为。
+`ui-dockkit/src/ResizableWorkbench.tsx` 默认保持通用单侧布局；应用工作区通过 `responsiveRightDock` 启用窄屏右栏联动。`useWorkbenchMetrics` 的对应布局策略将中间工作区最小宽度设为 260px：空间足够时右栏参与网格并可拖动，较窄时左栏改用 Overlay、中间工作区与右栏继续并排；不足以同时保留中间工作区和右栏时，右栏转为可拖动宽度的 Overlay。Settings 不启用此策略，仍沿用既有断点与单侧导航行为。
 
 ## Markdown 知识库
 

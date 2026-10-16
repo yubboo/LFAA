@@ -15,6 +15,7 @@
     "lfaa-api-remotes": "workspace:*",
     "lfaa-authorization": "workspace:*",
     "lfaa-capability-installs": "workspace:*",
+    "lfaa-permission-presets": "workspace:*",
     "lfaa-settings": "workspace:*",
     "lfaa-plugin-manager": "workspace:*",
     "lfaa-util-values": "workspace:*"

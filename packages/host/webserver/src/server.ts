@@ -18,7 +18,7 @@ import { requestLogLevel, serveFrontend } from "./http-delivery.js";
 import { DshWebServerCarrier, mountDshWebRoutes } from "./dsh-carrier.js";
 
 export const name = "lfaaWebserver";
-export const inject = ["apiGateway", "aiExtensions", "aiRuntimeHooks", "lfaaSettings", "lfaaAuth", "lfaaMinecraft", "lfaaSteamcmd", "lfaaWriting"];
+export const inject = ["apiGateway", "skills", "aiExtensions", "aiRuntimeHooks", "lfaaSettings", "lfaaAuth", "lfaaMinecraft", "lfaaSteamcmd", "lfaaWriting"];
 export async function apply(ctx: Context): Promise<void> {
 const app = express();
 app.disable("x-powered-by");

@@ -1,29 +1,28 @@
 /**
  * 功能：安全读取 NPM registry 发布的 gzip TAR 包。
- * 作用：验证归档边界、校验和、单一 package/ 根目录及普通文件类型；绝不执行包脚本。
+ * 作用：验证归档边界、校验和、单一 package/ 或已知类型包根目录及普通文件类型；绝不执行包脚本。
  * 关联文件：npm-source.ts 只接收官方 registry 的完整性校验通过的 tarball。
  */
 import { gunzipSync } from "node:zlib";
 import type { PluginArchiveFile } from "./zip-archive.js";
 
-const MAX_ARCHIVE_BYTES = 64 * 1024 * 1024;
-const MAX_UNPACKED_BYTES = 128 * 1024 * 1024;
-const MAX_FILE_BYTES = 32 * 1024 * 1024;
-const MAX_FILES = 512;
+export const PLUGIN_ARCHIVE_LIMITS = Object.freeze({ archiveBytes: 64 * 1024 * 1024, unpackedBytes: 128 * 1024 * 1024, fileBytes: 32 * 1024 * 1024, files: 512 });
 const BLOCK = 512;
 
-export function readNpmTarGzip(input: Buffer): PluginArchiveFile[] {
-  if (input.length < 2 || input.length > MAX_ARCHIVE_BYTES || input[0] !== 0x1f || input[1] !== 0x8b) {
+export function readNpmTarGzip(input: Buffer, alternativeRoot?: string): PluginArchiveFile[] {
+  if (alternativeRoot !== undefined && !/^[a-z0-9][a-z0-9._-]*$/u.test(alternativeRoot)) throw new Error("NPM 包根目录名称无效。");
+  if (input.length < 2 || input.length > PLUGIN_ARCHIVE_LIMITS.archiveBytes || input[0] !== 0x1f || input[1] !== 0x8b) {
     throw new Error("NPM 插件 tarball 尺寸或 gzip 格式无效。");
   }
   let archive: Buffer;
-  try { archive = gunzipSync(input, { maxOutputLength: MAX_UNPACKED_BYTES + MAX_FILES * BLOCK }); }
+  try { archive = gunzipSync(input, { maxOutputLength: PLUGIN_ARCHIVE_LIMITS.unpackedBytes + PLUGIN_ARCHIVE_LIMITS.files * BLOCK }); }
   catch { throw new Error("NPM 插件 tarball 无法安全解压或超过解压上限。"); }
   const files: PluginArchiveFile[] = [];
   const seen = new Set<string>();
   let totalBytes = 0;
   let offset = 0;
   let ended = false;
+  let archiveRoot: string | undefined;
 
   while (offset + BLOCK <= archive.length) {
     const header = archive.subarray(offset, offset + BLOCK);
@@ -40,11 +39,13 @@ export function readNpmTarGzip(input: Buffer): PluginArchiveFile[] {
     const type = header[156] === 0 ? "0" : String.fromCharCode(header[156]!);
     const size = readTarOctal(header.subarray(124, 136), "文件大小");
     const mode = readTarOctal(header.subarray(100, 108), "文件权限");
-    if (rawPath.split("/")[0] !== "package") throw new Error("NPM 插件 TAR 必须仅包含 package/ 根目录。");
+    const root = rawPath.split("/")[0]!;
+    if ((root !== "package" && root !== alternativeRoot) || (archiveRoot !== undefined && archiveRoot !== root)) throw new Error("NPM 插件 TAR 必须仅包含一个已声明的包根目录。");
+    archiveRoot = root;
     const isDirectory = type === "5";
     if (!isDirectory && type !== "0" && type !== "7") throw new Error(`NPM 插件 TAR 包含链接或特殊文件：${rawPath}`);
-    const normalized = normalizeNpmPath(rawPath, isDirectory);
-    const path = normalized.slice("package/".length);
+    const normalized = normalizeNpmPath(rawPath, isDirectory, root);
+    const path = normalized.slice(root.length + 1);
     if (!path) {
       if (!isDirectory || size !== 0) throw new Error("NPM 插件 TAR 根目录条目无效。");
     } else if (isDirectory) {
@@ -53,10 +54,10 @@ export function readNpmTarGzip(input: Buffer): PluginArchiveFile[] {
       const key = path.toLocaleLowerCase("en-US");
       if (seen.has(key)) throw new Error(`NPM 插件 TAR 包含重复路径：${path}`);
       seen.add(key);
-      if (files.length >= MAX_FILES) throw new Error("NPM 插件 TAR 文件数量超过允许上限。");
-      if (size > MAX_FILE_BYTES) throw new Error(`NPM 插件文件过大：${path}`);
+      if (files.length >= PLUGIN_ARCHIVE_LIMITS.files) throw new Error("NPM 插件 TAR 文件数量超过允许上限。");
+      if (size > PLUGIN_ARCHIVE_LIMITS.fileBytes) throw new Error(`NPM 插件文件过大：${path}`);
       totalBytes += size;
-      if (totalBytes > MAX_UNPACKED_BYTES) throw new Error("NPM 插件 TAR 解压后总大小超过允许上限。");
+      if (totalBytes > PLUGIN_ARCHIVE_LIMITS.unpackedBytes) throw new Error("NPM 插件 TAR 解压后总大小超过允许上限。");
       // 可执行位不影响 Node import；剥除所有上游 mode，安装器一律以受限权限落盘。
       void mode;
       const dataStart = offset + BLOCK;
@@ -94,11 +95,11 @@ function readTarText(value: Buffer): string {
   return text;
 }
 
-function normalizeNpmPath(value: string, directory: boolean): string {
+function normalizeNpmPath(value: string, directory: boolean, root: string): string {
   if (!value || value.length > 240 || value.includes("\\") || value.startsWith("/") || /^[a-z]:/iu.test(value)) throw new Error("NPM 插件 TAR 包含绝对或无效路径。");
   const trimmed = directory ? value.replace(/\/+$/u, "") : value;
   const pieces = trimmed.split("/");
-  if (pieces[0] !== "package" || pieces.length < 1 || pieces.some((piece) => !piece || piece === "." || piece === ".." || /[<>:"|?*]/u.test(piece) || /[ .]$/u.test(piece))) {
+  if (pieces[0] !== root || pieces.length < 1 || pieces.some((piece) => !piece || piece === "." || piece === ".." || /[<>:"|?*]/u.test(piece) || /[ .]$/u.test(piece))) {
     throw new Error("NPM 插件 TAR 包含路径穿越或 Windows 不兼容文件名。");
   }
   for (const piece of pieces) if (/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/iu.test(piece)) throw new Error("NPM 插件 TAR 包含 Windows 保留设备名。");

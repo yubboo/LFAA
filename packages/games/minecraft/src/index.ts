@@ -5,11 +5,9 @@ import * as coreSources from "./core-sources.js";
 import * as deployment from "./deployment-service.js";
 import { getMinecraftConnectivityTarget, listMinecraftConnectivityTargets } from "./service.js";
 import type { ConnectivityTargetAdapter } from "lfaa-game-connectivity/src/service.js";
-import { registerMinecraftSetupSkill } from "./setup-skill.js";
 export const name = "lfaaMinecraft";
-export const inject = ["lfaaGameConnectivity", "skills"];
+export const inject = ["lfaaGameConnectivity"];
 export function apply(ctx: Context): void {
-  registerMinecraftSetupSkill(ctx);
   ctx.provide(name, { ...capability, ...coreSources, ...deployment });
   const adapter: ConnectivityTargetAdapter = {
     list: (ownerId) => listMinecraftConnectivityTargets(ownerId),

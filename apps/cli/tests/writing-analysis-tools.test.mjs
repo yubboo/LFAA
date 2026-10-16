@@ -25,6 +25,8 @@ test("章节分析按当前作品读取有界正文，修订分析只读当前�
       retireLegacyFileTables();
       database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('analysis-owner',8401,'analysis-owner','salt','hash','member',0),('analysis-other',8402,'analysis-other','salt','hash','member',0)").run();
       const writing = await import('lfaa-document-writing/src/service.js');
+      const { createDomainToolTestHost } = await import('./tests/fixtures/domain-tools.mjs');
+      const domainToolHost = await createDomainToolTestHost(['writing']);
       const { listAiBusinessTools } = await import('lfaa-tools/src/business-tools.js');
       const owner = writing.createWritingBook('analysis-owner', '分析作品');
       const bookId = owner.activeBookId;
@@ -67,13 +69,14 @@ test("章节分析按当前作品读取有界正文，修订分析只读当前�
       assert.equal((await readChapters.execute({ chapterIds: [firstChapterId] }, context)).chapters[0].body.length, 12000);
       assert.equal((await listRevisions.execute({}, context)).revisions.length, 2);
       assert.equal((await readRevision.execute({ revisionId: revisions[0].id }, context)).content.length, 12000);
-      assert.equal(listAiBusinessTools('workspace', 'member', target).some(tool => tool.name.includes('book_chapters') || tool.name.includes('chapter_revision')), false);
+      assert.equal(listAiBusinessTools('workspace', 'member', target).some(tool => tool.name.includes('book_chapters') || tool.name.includes('chapter_revision')), true, '方法与能力按需共享，账户与作品校验仍在领域服务');
       assert.equal(listAiBusinessTools('writing', 'member', null).some(tool => tool.name.includes('book_chapters') || tool.name.includes('chapter_revision')), false);
-      const { WRITING_PROMPTS } = await import('lfaa-document-writing/src/writing-prompt-library.js');
+      const { WRITING_PROMPTS } = await import('lfaa-prompt-writing/src/writing-prompt-library.js');
       for (const id of ['short-manuscript-analysis', 'long-manuscript-analysis', 'revision-analysis', 'style-comparison']) assert.ok(WRITING_PROMPTS.some(prompt => prompt.id === id));
 
       configuration.close();
       sessionRecords.close();
+      await domainToolHost.close();
       closeDatabase();
     `], { cwd: cli, env: { ...process.env, LFAA_DATA_DIR: dataDirectory }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   } finally {

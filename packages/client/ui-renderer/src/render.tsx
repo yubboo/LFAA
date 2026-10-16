@@ -1,6 +1,6 @@
 /**
  * 功能：挂载 LFAA React 前端。
- * 作用：按固定级联顺序只加载一次全局基础、公共和页面样式，再呈现认证和应用中心入口。
+ * 作用：按固定级联顺序只加载一次全局基础、公共和页面样式，再呈现认证和小鱼智能体首页。
  * 关联文件：apps/web/index.html、packages/client/ui-renderer/src/App.tsx、packages/client/ui-theme/src/tokens.css、base.css、common.css、responsive.css。
  */
 import React from "react";
@@ -11,7 +11,7 @@ import "antd/dist/reset.css";
 import "lfaa-client-ui-theme/src/tokens.css";
 import "lfaa-client-ui-theme/src/dsh-theme-tokens.css";
 import "lfaa-client-ui-theme/src/base.css";
-import "lfaa-client-ui-theme/src/common.css"; // 跨组件共用状态样式只在全局入口导入一次。
+import "lfaa-client-ui-theme/src/common.css"; // 跨组件状态、共享卡片与弹窗动效只在全局入口导入一次。
 import "lfaa-client-ui-settings-account/src/auth.css";
 import "lfaa-client-ui-layout/src/workbench.css";
 import "lfaa-client-ui-layout/src/pages.css";

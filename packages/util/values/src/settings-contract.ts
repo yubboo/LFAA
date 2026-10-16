@@ -11,6 +11,20 @@ export interface AppearanceModeStyle { accentColor: string; fonts: AppearanceFon
 
 export type SettingsCategory = "general" | "appearance" | "shortcuts" | "ai-runtime" | "minecraft-runtime" | "git" | "permissions" | "plugins" | "personalization" | "computer-control";
 
+export const UI_MOTION_EFFECT_OPTIONS = [
+  { id: "fluid", label: "柔和流体", cardDescription: "轻轻淡入、错开上浮；默认效果。", dialogDescription: "轻柔淡入、微缩放并顺势落位；默认效果。" },
+  { id: "fade", label: "渐隐淡入", cardDescription: "从轻微缩放中柔和显现。", dialogDescription: "以柔和渐隐和轻微缩放进出。" },
+  { id: "lift", label: "轻盈上浮", cardDescription: "从下方升起，悬停时轻抬。", dialogDescription: "从稍低位置轻盈升起后停稳。" },
+  { id: "none", label: "静态", cardDescription: "不播放卡片入场或悬停动画。", dialogDescription: "不播放弹窗入场或退出动画。" }
+] as const;
+export type UiMotionEffect = typeof UI_MOTION_EFFECT_OPTIONS[number]["id"];
+export type CardMotionEffect = UiMotionEffect;
+export type DialogMotionEffect = UiMotionEffect;
+export const UI_MOTION_EFFECT_IDS: readonly UiMotionEffect[] = UI_MOTION_EFFECT_OPTIONS.map(({ id }) => id);
+// 兼容现有卡片设置消费者；卡片与弹窗共用同一个效果目录。
+export const CARD_MOTION_EFFECT_OPTIONS = UI_MOTION_EFFECT_OPTIONS;
+export const CARD_MOTION_EFFECT_IDS = UI_MOTION_EFFECT_IDS;
+
 export interface GeneralSettings {
   defaultMode: "normal" | "ai-work";
   showServiceStatus: boolean;
@@ -22,6 +36,8 @@ export interface GeneralSettings {
   language: "system" | "zh-CN" | "en-US";
   defaultFullView: boolean;
   navigationLayout: "left-two-column" | "three-column" | "right-tools" | "focus";
+  cardMotionEffect: CardMotionEffect;
+  dialogMotionEffect: DialogMotionEffect;
   terminalPosition: "bottom" | "right";
   plainTextEditor: boolean;
   sendShortcut: "enter" | "ctrl-enter";
@@ -245,7 +261,7 @@ export const DEFAULT_APPEARANCE_ADVANCED_SETTINGS: AppearanceAdvancedSettings = 
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   general: {
-    defaultMode: "normal",
+    defaultMode: "ai-work",
     showServiceStatus: true,
     showBottomPanelControl: true,
     taskFolder: "",
@@ -255,12 +271,14 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     language: "system",
     defaultFullView: true,
     navigationLayout: "three-column",
+    cardMotionEffect: "fluid",
+    dialogMotionEffect: "fluid",
     terminalPosition: "bottom",
     plainTextEditor: true,
     sendShortcut: "enter",
     followupBehavior: "queue",
     popupShortcut: "",
-    defaultStandaloneChat: false,
+    defaultStandaloneChat: true,
     completionNotification: "unfocused",
     permissionNotifications: true,
     questionNotifications: true,

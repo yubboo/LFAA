@@ -2,12 +2,12 @@
 import {windowsRuntimeCatalog} from "lfaa-runtime-environment/src/windows-runtimes.mjs";
 import {hostname} from "node:os";
 import {readFileSync} from "node:fs";
-import {resolve,win32,posix} from "node:path";
+import {resolve} from "node:path";
 import {config} from "lfaa-launch-environment/src/config.js";
 import {findRepositoryRoot} from "lfaa-home-paths/src/index.mjs";
 import {getDaemonDataRoot,getDaemonNode,listDaemonNodes} from "lfaa-host-daemon/src/local-daemon.js";
 import {database} from "lfaa-storage-sqlite/src/database.js";
-import {getRuntimeStorageLocations,saveRuntimeNodeStorageLocations,type RuntimeStorageLocations} from "lfaa-settings/src/project-storage.js";
+import {getRuntimeStorageLocations,type RuntimeStorageLocations} from "lfaa-settings/src/project-storage.js";
 import {getUserSettings} from "lfaa-settings/src/service.js";
 import {createRuntimeExecutor} from "lfaa-runtime-environment/src/executor.mjs";
 import {cancelRuntimeTask,claimRuntimeTask,completeRuntimeTask,createRuntimeTask,getRuntimeTask,listRuntimeTasks,progressRuntimeTask,renewRuntimeTask,type RuntimeOperation,type RuntimeTask} from "lfaa-jobs/src/runtime-environment-tasks.js";
@@ -25,15 +25,7 @@ export function runtimeStorageFor(targetId:string):RuntimeStorageLocations {
   const node=getDaemonNode(targetId);const root=getDaemonDataRoot(targetId);if(!node||!root)throw new ApiError(404,"runtime_target_not_found","找不到已登记的运行环境设备。");
   return getRuntimeStorageLocations(targetId,root,node.platform,targetId===localNodeId()&&resolve(root)===resolve(config.dataDirectory)?getRuntimeStorageLocations("local",config.dataDirectory,process.platform):undefined);
 }
-export function saveRuntimeStorage(targetId:string,input:RuntimeStorageLocations):RuntimeStorageLocations {
-  if(targetId==="local")throw new ApiError(400,"runtime_local_storage_settings","本机位置请在设置中心“项目与存储”保存。");
-  const node=getDaemonNode(targetId);if(!node)throw new ApiError(404,"runtime_target_not_found","找不到目标设备。");
-  const paths=node.platform==="win32"?win32:posix;
-  const next={} as RuntimeStorageLocations;
-  for(const field of ["runtimeDirectory","downloadCacheDirectory","temporaryDirectory"] as const){const value=input[field];if(typeof value!=="string"||value.length>2048||/[\r\n\u0000]/u.test(value)||!paths.isAbsolute(value)||paths.resolve(value)===paths.parse(value).root)throw new ApiError(400,"runtime_storage_invalid","请选择目标设备上非卷根目录的有效绝对位置。");next[field]=paths.normalize(value);}
-  const previous=runtimeStorageFor(targetId);next.previousRuntimeDirectories=[...new Set([...(previous.runtimeDirectory!==next.runtimeDirectory?[previous.runtimeDirectory]:[]),...(previous.previousRuntimeDirectories??[])])];
-  return saveRuntimeNodeStorageLocations(targetId,next);
-}
+
 export class RuntimeManager {
   private cachedLocal: Array<Record<string,unknown>>=[];
   private discoveredAt=0;

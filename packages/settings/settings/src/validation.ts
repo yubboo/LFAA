@@ -4,7 +4,7 @@
  * 关联文件：service.ts、api/remotes/src/route-contracts.ts、api/settings-controller/src/index.ts。
  */
 import Joi from "joi";
-import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, DEFAULT_USER_SETTINGS } from "lfaa-util-values/src/settings-contract.js";
+import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, DEFAULT_USER_SETTINGS } from "lfaa-util-values/src/settings-contract.js";
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import type { SettingsCategory } from "lfaa-util-values/src/settings-contract.js";
 
@@ -29,6 +29,8 @@ export const generalSettingsSchema = Joi.object({
   language: Joi.string().valid("system", "zh-CN", "en-US").required(),
   defaultFullView: Joi.boolean().required(),
   navigationLayout: Joi.string().valid("left-two-column", "three-column", "right-tools", "focus").required(),
+  cardMotionEffect: Joi.string().valid(...CARD_MOTION_EFFECT_IDS),
+  dialogMotionEffect: Joi.string().valid(...UI_MOTION_EFFECT_IDS),
   terminalPosition: Joi.string().valid("bottom", "right").required(),
   plainTextEditor: Joi.boolean().required(),
   sendShortcut: Joi.string().valid("enter", "ctrl-enter").required(),

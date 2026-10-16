@@ -1,5 +1,7 @@
 # Daemon Host
 
+节点详情和列表都以同一 20 秒心跳有效期返回在线状态；读取详情无需先调用列表来刷新过期状态。列表持久化离线变化并按原回调通知，收到新心跳后恢复在线；能力和执行授权仍由原节点与 Permission Owner 校验。
+
 Minecraft 自动部署的 Java 准备继续使用 `resolveMinecraftJavaRuntime`：匹配环境缺失时安装并验证 Temurin，再下载/校验核心并提交实例元数据。`minecraft-provisioner.mjs` 接受 PaperMC 官方 `fill-data.papermc.io` 工件，仍校验每次 HTTPS 跳转和来源摘要；Java 官方目录失败会标明实际 Java 主版本及准备阶段。此源码路径与隔离回归不等于真实网络下载、安装或游戏就绪验收。
 
 Daemon Host 是目标节点本机能力的执行 Owner。通用项目文件操作由 `src/project-files.mjs` 在调用方提供的已登记根目录内执行：读取限定为普通 UTF-8 文本并支持分页；创建文件不覆盖既有内容，更新按 SHA-256 检查并发修改，删除仅对普通文件调用单文件 unlink，不递归删除目录。Agent Tool 可用的操作仍由 `packages/core/tools/src/project-tools.ts` 单独列明。
@@ -25,3 +27,7 @@ Windows Electron 桌面安装包内置本机 Daemon，并由桌面主进程自�
 AI Work 变更审阅复用同一执行器的内部 `write` 操作，但仅由认证 Workspace Controller 的用户界面路由调用。保存要求最近读取的 SHA-256 匹配、内容为不超过 2 MiB 的 UTF-8 文本，并通过同目录临时文件替换；路径、符号链接与 Daemon 数据目录边界继续由执行器校验。Git 状态和单文件差异归 `src/git-workspace.mjs`，只接受固定参数化操作，不执行浏览器传来的任意命令或补丁。界面复制 `git apply` 命令时仅将经过完整性限制的文件差异编码进剪贴板，不会由 Daemon 或 Client 自动执行。
 
 `src/easytier-runtime.mjs` 只接受 Connectivity Owner 派发的固定 EasyTier v2.6.4 安装操作，复用 Daemon 的数据根目录围栏、官方 HTTPS 资产摘要/大小验证和 ZIP 路径检查。安装包保存在 `environments/easytier/v2.6.4`，安装任务使用唯一暂存目录、拒绝覆盖无效已有目标，并通过核心程序 `--version` 输出确认后才加入节点心跳能力。该能力不启动 EasyTier、修改虚拟网卡或上报网络/对等连接状态；组网实例管理 RPC 尚未接入。
+
+## 游戏文件资源范围（2026-10-14）
+
+节点新增 node-filesystem-instance-v1 与 node-filesystem-game-storage-v1：实例请求只提交已登记实例 ID，目标节点用既有核验索引定位真实目录；Minecraft/SteamCMD 平台目录从节点自己的已保存设置解析，支持原 Owner 允许的绝对自定义位置。实例根、元数据、活动进程或保留进程/安装标记由共享 instance-files 保护。普通 data、实例和平台来源共用文件执行器和串行写锁；回收站命名空间由控制端依据真实账户派生，不能由浏览器覆盖。旧节点不声称支持这些范围。扩展 plugins 目录由 Plugin Manager 生命周期维护，不受通用文件写操作管理。构建和隔离夹具不等于实际节点/游戏进程验收。

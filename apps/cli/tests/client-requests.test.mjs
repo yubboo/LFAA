@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { loadAiExtensions, loadAiAccounts, loadAiMessages, loadSettings, saveSettings, login, ApiError } from "../../../packages/client/connection/src/api.ts";
+import { loadAiExtensions, loadAiAccounts, loadAiMessages, loadAiSessions, loadSettings, saveSettings, login, ApiError } from "../../../packages/client/connection/src/api.ts";
 import { DEFAULT_USER_SETTINGS } from "../../../packages/client/ui-settings-general/src/default-settings.ts";
 
 function deferredFetch(t) {
@@ -50,6 +50,20 @@ test("多个组件的相同并发读取只发一次请求，各自获得独立�
   await fresh;
 });
 
+test("工作区取消能力目录请求不取消其他组件的共享读取", async (t) => {
+  const calls = deferredFetch(t), controller = new AbortController();
+  const shared = loadAiExtensions();
+  const workspace = loadAiExtensions(controller.signal);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].options.signal, controller.signal);
+  const rejected = assert.rejects(workspace, error => error.name === "AbortError");
+  controller.abort();
+  calls[1].reject(controller.signal.reason);
+  calls[0].resolve(jsonResponse({ extensions: [], plugins: [], hooks: [] }));
+  const [result] = await Promise.all([shared, rejected]);
+  assert.deepEqual(result.extensions, []);
+});
+
 test("消息首屏沿同一读取返回分支来源，不额外查询会话详情", async (t) => {
   const calls = deferredFetch(t);
   const pending = loadAiMessages("branch-session");
@@ -62,6 +76,29 @@ test("消息首屏沿同一读取返回分支来源，不额外查询会话详�
   };
   calls[0].resolve(jsonResponse(result));
   assert.deepEqual(await pending, result);
+});
+
+test("消息首屏可随会话切换取消旧读取", async (t) => {
+  const calls = deferredFetch(t), controller = new AbortController();
+  const pending = loadAiMessages("stale-session", undefined, controller.signal);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.signal, controller.signal);
+  const rejected = assert.rejects(pending, error => error.name === "AbortError");
+  controller.abort();
+  calls[0].reject(controller.signal.reason);
+  await rejected;
+});
+
+test("会话列表支持显式 App 筛选，并可取消已过期请求", async (t) => {
+  const calls = deferredFetch(t), controller = new AbortController();
+  const pending = loadAiSessions({ appId: "writing", archived: false, signal: controller.signal });
+  assert.equal(calls.length, 1);
+  assert.match(String(calls[0].url), /\/ai\/sessions\?archived=false&appId=writing/u);
+  assert.equal(calls[0].options.signal, controller.signal);
+  const rejected = assert.rejects(pending, error => error.name === "AbortError");
+  controller.abort();
+  calls[0].reject(controller.signal.reason);
+  await rejected;
 });
 
 test("不同路径独立请求，失败后清除共享登记并允许重试", async (t) => {

@@ -3,7 +3,7 @@
  * 作用：统一记录文件操作请求、领取状态、结果和超时租约，供所有应用共用。
  * 关联文件：packages/storage/storage-sqlite/src/database.ts、packages/api/gateway/src/index.ts、packages/host/daemon/src/daemon.mjs、packages/client/connection/src/api.ts。
  */
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { assertSystemFileAccess } from "./library.js";
 
@@ -91,13 +91,21 @@ export function createNodeFileTask(input: {
   database.prepare(`
     INSERT INTO node_file_tasks (id, node_id, created_by, operation, status, progress, message, payload_json)
     VALUES (?, ?, ?, ?, 'queued', 0, '等待 daemon 节点接收文件操作。', ?)
-  `).run(id, input.nodeId, input.createdBy, input.operation, JSON.stringify(input.payload));
+  `).run(id, input.nodeId, input.createdBy, input.operation, JSON.stringify({ ...input.payload, recycleNamespace: createHash("sha256").update(input.createdBy).digest("hex") }));
   return getNodeFileTask(id)!;
 }
 
 export function getNodeFileTask(taskId: string): NodeFileTask | null {
   const row = database.prepare("SELECT * FROM node_file_tasks WHERE id = ?").get(taskId) as NodeFileTaskRow | undefined;
   return row ? toTask(row) : null;
+}
+/** 只取消本账户尚未执行的只读请求；已领取或写入任务保留真实状态，不能伪称已撤销。 */
+export function cancelQueuedNodeFileReadTask(taskId: string, createdBy: string): boolean {
+  const result = database.prepare(`UPDATE node_file_tasks SET status='failed', message='只读文件请求已取消，节点未执行。',
+    payload_json='{}', result_json='{"outcome":"cancelled"}', finished_at=?
+    WHERE id=? AND created_by=? AND status='queued' AND operation IN ('list','search','directory-size','preview','read','download','trash-list')`)
+    .run(new Date().toISOString(), taskId, createdBy);
+  return Number(result.changes) === 1;
 }
 
 export function renewNodeFileTaskLeases(nodeId: string, taskIds: string[]): number {

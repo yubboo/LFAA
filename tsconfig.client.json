@@ -253,6 +253,12 @@
       "lfaa-client-ui-minecraft/src/*": [
         "packages/client/ui-minecraft/src/*"
       ],
+      "lfaa-client-ui-plugin-manager": [
+        "packages/client/ui-plugin-manager/src/index.ts"
+      ],
+      "lfaa-client-ui-plugin-manager/src/*": [
+        "packages/client/ui-plugin-manager/src/*"
+      ],
       "lfaa-client-ui-primitives": [
         "packages/client/ui-primitives/src/index.ts"
       ],
@@ -394,6 +400,12 @@
       "lfaa-document-writing/src/*": [
         "packages/document/writing/src/*"
       ],
+      "lfaa-domain-experts": [
+        "packages/preset/domain-experts/src/index.ts"
+      ],
+      "lfaa-domain-experts/src/*": [
+        "packages/preset/domain-experts/src/*"
+      ],
       "lfaa-fs": [
         "packages/fs/fs/src/index.ts"
       ],
@@ -522,6 +534,24 @@
       ],
       "lfaa-plugin-manager/src/*": [
         "packages/boot/plugin-manager/src/*"
+      ],
+      "lfaa-prompt": [
+        "packages/prompt/prompt/src/index.ts"
+      ],
+      "lfaa-prompt-minecraft": [
+        "packages/prompt/minecraft/src/index.ts"
+      ],
+      "lfaa-prompt-minecraft/src/*": [
+        "packages/prompt/minecraft/src/*"
+      ],
+      "lfaa-prompt-writing": [
+        "packages/prompt/writing/src/index.ts"
+      ],
+      "lfaa-prompt-writing/src/*": [
+        "packages/prompt/writing/src/*"
+      ],
+      "lfaa-prompt/src/*": [
+        "packages/prompt/prompt/src/*"
       ],
       "lfaa-pwsh-local": [
         "packages/shell/pwsh-local/src/index.ts"
@@ -754,11 +784,20 @@
       "lfaa-skill-filesystem/src/*": [
         "packages/skill/skill-filesystem/src/*"
       ],
+      "lfaa-skill-minecraft": [
+        "packages/skill/minecraft/src/index.ts"
+      ],
+      "lfaa-skill-minecraft/src/*": [
+        "packages/skill/minecraft/src/*"
+      ],
       "lfaa-skill-office": [
         "packages/skill/skill-office/src/index.ts"
       ],
       "lfaa-skill-office/src/*": [
         "packages/skill/skill-office/src/*"
+      ],
+      "lfaa-skill-writing": [
+        "packages/skill/writing/src/index.ts"
       ],
       "lfaa-skill-writing/src/*": [
         "packages/skill/writing/src/*"
@@ -904,6 +943,18 @@
       "lfaa-tool-fs/src/*": [
         "packages/fs/tool-fs/src/*"
       ],
+      "lfaa-tool-minecraft": [
+        "packages/games/tool-minecraft/src/index.ts"
+      ],
+      "lfaa-tool-minecraft/src/*": [
+        "packages/games/tool-minecraft/src/*"
+      ],
+      "lfaa-tool-runtime": [
+        "packages/games/tool-runtime/src/index.ts"
+      ],
+      "lfaa-tool-runtime/src/*": [
+        "packages/games/tool-runtime/src/*"
+      ],
       "lfaa-tool-session-query": [
         "packages/session-query/tool-session-query/src/index.ts"
       ],
@@ -921,6 +972,12 @@
       ],
       "lfaa-tool-skill/src/*": [
         "packages/skill/tool-skill/src/*"
+      ],
+      "lfaa-tool-steamcmd": [
+        "packages/games/tool-steamcmd/src/index.ts"
+      ],
+      "lfaa-tool-steamcmd/src/*": [
+        "packages/games/tool-steamcmd/src/*"
       ],
       "lfaa-tool-str-replace-editor": [
         "packages/fs/tool-str-replace-editor/src/index.ts"
@@ -957,6 +1014,12 @@
       ],
       "lfaa-tool-workflow/src/*": [
         "packages/workflow/tool-workflow/src/*"
+      ],
+      "lfaa-tool-writing": [
+        "packages/document/tool-writing/src/index.ts"
+      ],
+      "lfaa-tool-writing/src/*": [
+        "packages/document/tool-writing/src/*"
       ],
       "lfaa-tools": [
         "packages/core/tools/src/index.ts"

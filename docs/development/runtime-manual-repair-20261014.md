@@ -92,7 +92,7 @@
 | [H:/LFAA1/packages/storage/storage-sqlite/src/database.ts](../../packages/storage/storage-sqlite/src/database.ts) | v56 删除任务迁移，保留索引/外键/数据 |
 | [H:/LFAA1/packages/storage/storage-domain/src/migration.ts](../../packages/storage/storage-domain/src/migration.ts) | 当前迁移链接入 v56 |
 | [H:/LFAA1/packages/host/daemon/src/daemon.mjs](../../packages/host/daemon/src/daemon.mjs) | 目录归档、能力回报、Java 位置与官方下载 |
-| [H:/LFAA1/packages/core/tools/src/runtime-tools.ts](../../packages/core/tools/src/runtime-tools.ts) | 共享下载参数及 update 校验对齐 |
+| [H:/LFAA1/packages/core/tools/src/runtime-tools.ts](../../packages/games/tool-runtime/src/index.ts) | 共享下载参数及 update 校验对齐 |
 | [H:/LFAA1/packages/core/tools/src/business-tools.ts](../../packages/core/tools/src/business-tools.ts) | 删除工具复用领域 Owner 与权限 |
 | [H:/LFAA1/pnpm-lock.yaml](../../pnpm-lock.yaml) | 同步声明的工作区与网络依赖 |
 | [H:/LFAA1/apps/cli/tests/runtime-environment.test.mjs](../../apps/cli/tests/runtime-environment.test.mjs) | 迁移、下载重试、签名失败与取消回归 |

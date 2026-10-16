@@ -23,6 +23,11 @@ test("顶层与嵌套任务结果保持失败、运行中及未知状态，不�
     assert.equal(toolExecutionState(wrap({status:'succeeded',result:{serverReady:true}}),true),'complete');
   }
   assert.equal(toolExecutionState({status:'succeeded'},false),'not_started');
+  assert.equal(toolExecutionState({executionState:'not_started',error:'准备阶段失败'},true),'not_started');
+  assert.equal(toolExecutionState({task:{status:'cancelled'}},true),'unconfirmed');
+  assert.equal(toolExecutionState({executionState:'cancelled'},true),'unconfirmed');
+  // 节点 Shell 将任务头与执行结果分开返回，未知副作用不能被 succeeded 任务头覆盖。
+  assert.equal(toolExecutionState({task:{status:'succeeded'},result:{outcome:'unknown'}},true),'unconfirmed');
 });
 
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -118,6 +123,10 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       const settingsFiber=await pluginContext.plugin(await import('lfaa-settings/src/index.js'));
       const modelFiber=await pluginContext.plugin(await import('lfaa-agent-default-model/src/index.js'));
       const toolsFiber=await pluginContext.plugin(await import('lfaa-tools/src/index.js'));
+      pluginContext.provide('lfaaMinecraft',await import('lfaa-games-minecraft/src/service.js'));
+      const extensionsFiber=await pluginContext.plugin((await import('lfaa-agent')).default);
+      const promptToolsFiber=await pluginContext.plugin(await import('lfaa-prompt'));
+      const minecraftToolsFiber=await pluginContext.plugin(await import('lfaa-tool-minecraft'));
       const askUserFiber=await pluginContext.plugin(await import('lfaa-tool-ask-user/src/index.js'));
       const shellFiber=await pluginContext.plugin(await import('lfaa-tool-shell/src/index.js'));
       const {createServer}=await import('node:http');const {once}=await import('node:events');
@@ -174,7 +183,9 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
        assert.equal(settings.setUserCapabilityPromptEnabled('fixture-owner',promptEntry.id,'workspace',false).enabled,false);
        assert.equal(settings.removeUserCapabilityPrompt('fixture-owner',promptEntry.id,'workspace').id,promptEntry.id);
        assert.deepEqual(settings.getUserSettings('fixture-owner').plugins.prompts,[]);
-      assert.equal(tools.listAiBusinessTools('workspace','admin').some(tool=>tool.id==='host.execute-command'),false,'通用工作区不得把游戏 Daemon Shell 暴露成本机命令工具');
+      const sharedNodeCommand=tools.listAiBusinessTools('workspace','admin').find(tool=>tool.id==='host.execute-command');
+      assert.equal(sharedNodeCommand.name,'host_execute_command','跨界面复用节点能力仍与本机 local_execute_command 分开');
+      assert.throws(()=>sharedNodeCommand.prepare(sharedNodeCommand.parse({command:'Get-Location'}),{userId:'fixture-owner',workspaceProject:null}),/选择在线 Daemon 节点/u,'缺少真实节点目标时不得回退到控制端本机');
       const shellTool=tools.listAiBusinessTools('minecraft','admin').find(tool=>tool.id==='host.execute-command');assert.ok(shellTool,'游戏 App 仍由模型选择目标节点 Shell 工具');
       const projectNode='11111111-1111-4111-8111-111111111111';
       const projectCommand=shellTool.parse({command:'Get-Location'});
@@ -248,6 +259,13 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
           const count=body.messages.filter(message=>message.role==='tool').length;
           const name=count===1?'fixture_write_probe':'fixture_task_probe';
           delta=count>=3?{content:'依赖修复后启动成功。'}:{tool_calls:[{index:0,id:'fixture-recover-'+count,type:'function',function:{name,arguments:'{}'}}]};
+        }else if(scenario==='recoverPreflight'||scenario==='repeatPreflight'){
+          const count=body.messages.filter(message=>message.role==='tool').length;
+          const name=scenario==='recoverPreflight'&&count===1?'fixture_read_probe':'fixture_preflight_probe';
+          delta=scenario==='recoverPreflight'&&count>=3?{content:'准备失败后核查并完成。'}:{tool_calls:[{index:0,id:'fixture-preflight-'+count,type:'function',function:{name,arguments:'{}'}}]};
+        }else if(scenario==='invalidToolArguments'||scenario==='abortedTool'){
+          const name=scenario==='invalidToolArguments'?'fixture_read_probe':'fixture_abort_probe';
+          delta=hasResult?{content:'已如实报告工具没有完成'}:{tool_calls:[{index:0,id:'fixture-protocol-pair',type:'function',function:{name,arguments:scenario==='invalidToolArguments'?'{':'{}'}}]};
         }else if(scenario==='repeatFailedTool'){
           assert.ok(body.tools.some(tool=>tool.function.name==='fixture_failure_probe'));
           delta={tool_calls:[{index:0,id:'fixture-failure-'+body.messages.filter(message=>message.role==='tool').length,type:'function',function:{name:'fixture_failure_probe',arguments:'{}'}}]};
@@ -267,7 +285,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
           const argumentsText=name==='delegate_domain_expert' ? JSON.stringify({task:'child-target',toolNames:['fixture_read_probe']}) : '{}';
           delta=hasResult||!body.tools ? {content:'合成测试回答'} : {tool_calls:[{index:0,id:'fixture-call',type:'function',function:{name,arguments:argumentsText}}]};
         }
-        return new Response('data: '+JSON.stringify({choices:[{delta}]})+'\\n\\ndata: [DONE]\\n\\n',{headers:{'Content-Type':'text/event-stream'}});
+        return new Response('data: '+JSON.stringify({choices:[{delta}],...(scenario==='repeatFailedTool'?{usage:{prompt_tokens:11,completion_tokens:3}}:{})})+'\\n\\ndata: [DONE]\\n\\n',{headers:{'Content-Type':'text/event-stream'}});
       };
       const account=await settings.saveAiAccount('fixture-owner',{providerId:'openai',secret:'fixture-test-key',options:{},displayName:'合成测试模型',modelId:'fixture-model',reasoningMode:'default'});
       settings.activateAiAccount('fixture-owner',account.id);
@@ -369,6 +387,9 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       registry.registerAiBusinessTool({effect:setup=>disposers.push(setup())},{id:'fixture.task-probe',name:'fixture_task_probe',description:'隔离领域启动与恢复夹具',retryAfterRecovery:true,applicationIds:['workspace'],schema:{type:'object',properties:{},additionalProperties:false},parse:value=>value,risk:()=> 'write',approval:()=>({scopeKey:'fixture-task',scopeSummary:'隔离任务',summary:'验证依赖恢复'}),execute:async()=>({status:++taskExecutions===1?'failed':'succeeded',message:'真实任务夹具',result:{}})});
       registry.registerAiBusinessTool({effect:setup=>disposers.push(setup())},{id:'fixture.failure-probe',name:'fixture_failure_probe',description:'验证不重复派发失败操作',applicationIds:['workspace'],schema:{type:'object',properties:{},additionalProperties:false},parse:value=>value,risk:()=> 'read',approval:()=>({scopeKey:'fixture-failure',scopeSummary:'隔离测试目标',summary:'验证失败操作防重'}),execute:async()=>{failureExecutions++;throw new Error('合成执行器返回未知结果');}});
       let writeExecutions=0;
+      registry.registerAiBusinessTool({effect:setup=>disposers.push(setup())},{id:'fixture.abort-probe',name:'fixture_abort_probe',description:'仅测试执行器取消的协议证据',applicationIds:['workspace'],schema:{type:'object',properties:{},additionalProperties:false},parse:value=>value,risk:()=> 'read',approval:()=>({scopeKey:'fixture-abort',scopeSummary:'隔离取消',summary:'核对协议配对'}),execute:async()=>{throw new DOMException('合成执行器已中止等待','AbortError');}});
+      let preflightExecutions=0;
+      registry.registerAiBusinessTool({effect:setup=>disposers.push(setup())},{id:'fixture.preflight-probe',name:'fixture_preflight_probe',description:'仅测试准备失败且没有副作用的恢复',applicationIds:['workspace'],schema:{type:'object',properties:{},additionalProperties:false},parse:value=>value,risk:()=> 'write',approval:()=>({scopeKey:'fixture-preflight',scopeSummary:'隔离准备目标',summary:'验证安全恢复'}),execute:async()=>++preflightExecutions===1||scenario==='repeatPreflight'?{error:'合成元数据连接失败',executionState:'not_started',retryable:true,executed:false}:{executed:true}});
       registry.registerAiBusinessTool({effect:setup=>disposers.push(setup())},{id:'fixture.write-probe',name:'fixture_write_probe',description:'仅测试目录的受审批写操作夹具',applicationIds:['workspace'],schema:{type:'object',properties:{},additionalProperties:false},parse:value=>value,risk:()=> 'write',approval:()=>({scopeKey:'fixture-write-target',scopeSummary:'隔离测试目标',summary:'验证一次性审批通知'}),execute:async(_,context)=>{assert.equal(context.userId,'fixture-owner');if(holdWriteTool&&scenario==='pauseDuringTool'){pauseToolSignal=context.signal;await new Promise(resolve=>{releaseWriteTool=resolve;});}writeExecutions++;return {executed:true};}});
       settings.saveUserSettings('fixture-owner','permissions',{mode:'full_access'});
       bodies=[];scenario='pauseBeforeTool';holdPauseResponse=true;releasePauseResponse=undefined;const writesBeforePause=writeExecutions;
@@ -603,6 +624,18 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       assert.equal(followupTurn.history.some(item=>item.role==='user'&&item.content?.includes('此前澄清问题')) ,false,'澄清答案不得合成为用户消息');
       sessions.finishAiAssistantMessage('fixture-owner',askRun.sessionId,followupTurn.assistantMessage.id,'','interrupted');
       settings.saveUserSettings('fixture-owner','plugins',{...settings.defaultSettings.plugins,enabled:true,mcpServers:[]});
+      bodies=[];scenario='recoverPreflight';
+      const preflightRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'准备失败后检查再恢复'},host);
+      await until(()=>runs.getAiRun('fixture-owner',preflightRun.id).status!=='streaming');
+      assert.equal(runs.getAiRun('fixture-owner',preflightRun.id).status,'complete');
+      assert.equal(preflightExecutions,2,'Owner 确认没有副作用且有新检查结果后，同参数可以安全再试');
+      const preflightResults=sessionRecords.allForSession('session_events',preflightRun.sessionId).filter(event=>event.type==='tool/result');
+      assert.equal(preflightResults[0].data.executionState,'not_started');
+      bodies=[];scenario='repeatPreflight';const beforeRepeatedPreflight=preflightExecutions;
+      const noProgress=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'准备失败后没有新证据不得循环'},host);
+      await until(()=>runs.getAiRun('fixture-owner',noProgress.id).status!=='streaming');
+      assert.equal(runs.getAiRun('fixture-owner',noProgress.id).status,'error');
+      assert.equal(preflightExecutions,beforeRepeatedPreflight+1,'没有新结果时，同参数准备只执行一次');
       bodies=[];scenario='repeatFailedTool';
       const repeatedFailure=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'验证失败工具不会被反复执行'},host);
       await until(()=>runs.getAiRun('fixture-owner',repeatedFailure.id).status!=='streaming');
@@ -612,8 +645,25 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       assert.match(runs.getAiRun('fixture-owner',repeatedFailure.id).message.content,/重复请求先前已失败或结果未知/u);
       const failureCalls=sessionRecords.allForSession('session_events',repeatedFailure.sessionId).filter(event=>event.type==='tool/call'&&event.data.name==='fixture_failure_probe');
       assert.deepEqual(failureCalls.map(event=>event.data.dispatched),[true,false,false]);
+      const failedUsage=sessionRecords.allForSession('session_events',repeatedFailure.sessionId).filter(event=>event.type==='usage/record');
+      assert.equal(failedUsage.length,1,'失败轮次也保存用量且不重复记账');
+      assert.equal(failedUsage[0].data.promptTokens,33);assert.equal(failedUsage[0].data.completionTokens,9);
+      for(const scenarioName of ['invalidToolArguments','abortedTool']) {
+        bodies=[];scenario=scenarioName;
+        const protocolRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'核对拒绝与取消的协议配对'},host);
+        await until(()=>runs.getAiRun('fixture-owner',protocolRun.id).status!=='streaming');
+        const protocolEvents=sessionRecords.allForSession('session_events',protocolRun.sessionId);
+        const calls=protocolEvents.filter(event=>event.type==='tool/call');
+        const results=protocolEvents.filter(event=>event.type==='tool/result');
+        assert.equal(calls.length,1,'参数失败也必须记录模型调用，但不能假称派发');
+        assert.equal(results.length,1,'取消仍须保留调用与真实未知结果的配对');
+        assert.equal(calls[0].data.callId,results[0].data.callId);
+        assert.equal(calls[0].data.dispatched,scenarioName==='abortedTool');
+        assert.equal(results[0].data.executionState,scenarioName==='abortedTool'?'unconfirmed':'not_started');
+        if(scenarioName==='abortedTool')assert.equal(bodies.length,1,'取消之后不得继续请求模型或派发操作');
+      }
       scenario='basic';
-      assert.equal(executions,1);for(const dispose of disposers)dispose();await shellFiber.dispose();assert.deepEqual(registry.listRegisteredAiTools().map(tool=>tool.id),['interaction.ask-user']);
+      assert.equal(executions,2,'原子任务和本轮准备恢复各执行一次只读核查');for(const dispose of disposers)dispose();await minecraftToolsFiber.dispose();await promptToolsFiber.dispose();await extensionsFiber.dispose();await shellFiber.dispose();assert.deepEqual(registry.listRegisteredAiTools().map(tool=>tool.id),['interaction.ask-user']);
       await askUserFiber.dispose();assert.equal(registry.listRegisteredAiTools().length,0);await toolsFiber.dispose();
       settings.saveUserSettings('fixture-owner','plugins',settings.defaultSettings.plugins);
       settings.saveUserSettings('fixture-owner','permissions',settings.defaultSettings.permissions);

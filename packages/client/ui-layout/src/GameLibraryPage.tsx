@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Button, Spin, Typography } from "antd";
 import { getErrorMessage, type ApplicationId, type ApplicationMode, type User } from "lfaa-client-connection/src/api.js";
+import { SHARED_WORK_ROUTE } from "lfaa-util-values/src/application-id.js";
 import { loadRuntimeOverview, runRuntimeOperation, loadRuntimeTask, listRuntimeTasks,cancelRuntimeTask, type RuntimeOverview, type RuntimeTask } from "lfaa-client-connection/src/runtime-api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
@@ -59,7 +60,7 @@ export function GameLibraryPage({ user, environments = false, onNavigate, onOpen
     <header className="game-library__header">
       <div><Typography.Title id="game-library-heading" level={1}>{environments ? "运行环境" : "游戏库"}</Typography.Title>
         <Typography.Paragraph>{environments ? "本机与远程设备各自管理环境，Minecraft 和 SteamCMD 共用已验证的运行资源。" : "从环境准备到服务器运行，在同一个入口管理游戏服务。"}</Typography.Paragraph></div>
-      <Button onClick={() => onNavigate(environments ? "/games" : "/")}>{environments ? "返回游戏库" : "返回应用中心"}</Button>
+      <Button onClick={() => onNavigate(environments ? "/games" : SHARED_WORK_ROUTE)}>{environments ? "返回游戏库" : "返回小鱼智能体"}</Button>
     </header>
     {error ? <Alert type="error" showIcon message={error} action={<Button onClick={() => setRevision(value => value + 1)}>重试读取</Button>} /> : null}
     {!environments ? <div className="game-library__grid">
@@ -73,16 +74,16 @@ export function GameLibraryPage({ user, environments = false, onNavigate, onOpen
       <article className="game-library__card game-library__card--primary">
         <span className="game-library__icon"><WorkbenchIcon name="monitor" size={28} /></span>
         <Typography.Title level={2}>Minecraft 开服部署</Typography.Title>
-        <Typography.Paragraph>保留已有实例、世界和配置。手动部署或交给 AI Work 准备并启动。</Typography.Paragraph>
+        <Typography.Paragraph>保留已有实例、世界和配置。手动部署或交给 小鱼智能体 准备并启动。</Typography.Paragraph>
         <p className="game-library__status">已有部署与服务器管理</p>
-        <div className="game-library__actions"><Button type="primary" onClick={() => void onOpenApplication("minecraft", "normal")}>进入 Minecraft</Button><Button onClick={() => void onOpenApplication("minecraft", "ai-work")}>AI Work</Button></div>
+        <div className="game-library__actions"><Button type="primary" onClick={() => void onOpenApplication("minecraft", "normal")}>进入 Minecraft</Button><Button onClick={() => void onOpenApplication("workspace", "ai-work")}>小鱼智能体</Button></div>
       </article>
       <article className="game-library__card">
         <span className="game-library__icon"><WorkbenchIcon name="terminal" size={28} /></span>
         <Typography.Title level={2}>SteamCMD</Typography.Title>
         <Typography.Paragraph>管理 SteamCMD 安装、更新与节点命令，沿用现有游戏服务能力。</Typography.Paragraph>
         <p className="game-library__status">环境与命令已接入 · 游戏开服待接入</p>
-        <div className="game-library__actions"><Button type="primary" onClick={() => void onOpenApplication("steamcmd", "normal")}>进入 SteamCMD</Button><Button onClick={() => void onOpenApplication("steamcmd", "ai-work")}>AI Work</Button></div>
+        <div className="game-library__actions"><Button type="primary" onClick={() => void onOpenApplication("steamcmd", "normal")}>进入 SteamCMD</Button><Button onClick={() => void onOpenApplication("workspace", "ai-work")}>小鱼智能体</Button></div>
       </article>
     </div> : <>
       {overview?<RuntimeEnvironmentPanel overview={overview} targetId={targetId} setTargetId={setTargetId} canOperate={canOperate} operate={operate} task={task} onNavigate={path=>void openMinecraft(path)} onOpenStorage={onOpenStorage} onOpenSteamcmd={()=>void onOpenApplication("steamcmd","normal")} />:!error?<div role="status"><Spin/> 正在读取设备的实际环境…</div>:null}

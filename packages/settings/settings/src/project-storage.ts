@@ -1,10 +1,11 @@
 /**
  * 功能：持有控制端日志、Writing 和 AI 漫剧的默认存储目录。
- * 作用：保留旧目录供已有项目回读，并让新项目按当前 Settings 配置落盘。
+ * 作用：分类目录从唯一 data 根派生，旧分区配置仅用于已有项目与环境回读。
  * 关联文件：settings-controller、writing/local-files、video/ai-video、telemetry/logger。
  */
 import { existsSync, lstatSync, mkdirSync, realpathSync } from "node:fs";
 import { isAbsolute, parse, relative, resolve, sep } from "node:path";
+import { resolveDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
 import { configuration } from "lfaa-storage-domain/src/configuration.js";
 import { config } from "lfaa-launch-environment/src/config.js";
 import { configureFileLogDirectory, logger } from "lfaa-telemetry-logger/src/logger.js";
@@ -37,14 +38,11 @@ interface ProjectStorageRow extends Record<string, unknown> {
 
 export interface RuntimeStorageLocations { runtimeDirectory: string; downloadCacheDirectory: string; temporaryDirectory: string; previousRuntimeDirectories?: string[] }
 
-const defaultProjectStorageLocations = (): ProjectStorageLocations => ({
-  logsDirectory: resolve(config.dataDirectory, "logs"),
-  writingDirectory: resolve(config.dataDirectory),
-  dramaDirectory: resolve(config.dataDirectory),
-  runtimeDirectory: resolve(config.dataDirectory, "environments"),
-  downloadCacheDirectory: resolve(config.dataDirectory, "cache"),
-  temporaryDirectory: resolve(config.dataDirectory, "tmp")
-});
+const defaultProjectStorageLocations = (): ProjectStorageLocations => {
+  const paths = resolveDataPaths(config.dataDirectory);
+  return { logsDirectory: paths.logs, writingDirectory: paths.root, dramaDirectory: paths.root,
+    runtimeDirectory: paths.environments, downloadCacheDirectory: paths.cache, temporaryDirectory: paths.tmp };
+};
 
 function readRow(): ProjectStorageRow | undefined {
   return configuration.get("project_storage_locations", row => row.id === 1) as ProjectStorageRow | undefined;
@@ -88,89 +86,32 @@ function historyFor(row: ProjectStorageRow | undefined, kind: ProjectStorageKind
   return Array.isArray(value) ? value.filter((path): path is string => typeof path === "string" && path.length <= 2_048).map(path => resolve(path)) : [];
 }
 
+/** 分类位置仅从唯一 data 根派生；旧保存字段只供存量数据回读。 */
 export function getProjectStorageLocations(): { settings: ProjectStorageLocations; configured: boolean } {
-  const defaults = defaultProjectStorageLocations();
-  const row = readRow();
-  const settings = {
-    logsDirectory: normalizedSavedPath(row?.logs_directory ?? defaults.logsDirectory, config.dataDirectory, "日志目录"),
-    writingDirectory: normalizedSavedPath(row?.writing_directory ?? defaults.writingDirectory, config.dataDirectory, "写作目录"),
-    dramaDirectory: normalizedSavedPath(row?.drama_directory ?? defaults.dramaDirectory, config.dataDirectory, "漫剧目录"),
-    runtimeDirectory: normalizedSavedPath(row?.runtime_directory ?? defaults.runtimeDirectory, config.dataDirectory, "运行环境目录"),
-    downloadCacheDirectory: normalizedSavedPath(row?.download_cache_directory ?? defaults.downloadCacheDirectory, config.dataDirectory, "下载缓存目录"),
-    temporaryDirectory: normalizedSavedPath(row?.temporary_directory ?? defaults.temporaryDirectory, config.dataDirectory, "临时目录")
-  };
-  return {
-    configured: Boolean(row),
-    settings
-  };
+  return { settings: defaultProjectStorageLocations(), configured: true };
 }
 
 export function getProjectStorageDirectoryCandidates(kind: ProjectStorageKind): string[] {
   const current = getProjectStorageLocations().settings[`${kind}Directory` as keyof ProjectStorageLocations];
-  const history = historyFor(readRow(), kind);
+  const row = readRow();
+  const saved = row?.[`${kind}_directory`];
+  const history = [...(typeof saved === "string" && saved ? [resolve(saved)] : []), ...historyFor(row, kind)];
   return [...new Set([current, ...history])];
 }
 
-export function saveProjectStorageLocations(input: Pick<ProjectStorageLocations,"logsDirectory"|"writingDirectory"|"dramaDirectory"> & Partial<ProjectStorageLocations>): { settings: ProjectStorageLocations; configured: boolean } {
-  const defaults = defaultProjectStorageLocations();
-  const current = getProjectStorageLocations().settings;
-  const next: ProjectStorageLocations = {
-    logsDirectory: normalizedSavedPath(input.logsDirectory, config.dataDirectory, "日志目录"),
-    writingDirectory: normalizedSavedPath(input.writingDirectory, config.dataDirectory, "写作目录"),
-    dramaDirectory: normalizedSavedPath(input.dramaDirectory, config.dataDirectory, "漫剧目录"),
-    runtimeDirectory: normalizedSavedPath(input.runtimeDirectory ?? current.runtimeDirectory, config.dataDirectory, "运行环境目录"),
-    downloadCacheDirectory: normalizedSavedPath(input.downloadCacheDirectory ?? current.downloadCacheDirectory, config.dataDirectory, "下载缓存目录"),
-    temporaryDirectory: normalizedSavedPath(input.temporaryDirectory ?? current.temporaryDirectory, config.dataDirectory, "临时目录")
-  };
-  for (const path of Object.values(next)) ensureRealDirectory(path);
 
-  const previousRow = readRow();
-  const record: ProjectStorageRow = { ...previousRow, id: 1 };
-  for (const kind of ["logs", "writing", "drama"] as const) {
-    const field = `${kind}Directory` as keyof ProjectStorageLocations;
-    const column = `${kind}_directory` as const;
-    const previousColumn = `${kind}_previous_directories` as const;
-    const history = historyFor(previousRow, kind);
-    if (current[field] !== next[field]) {
-      history.unshift(current[field]);
-      const unique = [...new Set(history)];
-      if (unique.length > 32) throw new Error(`${kind === "logs" ? "日志" : kind === "writing" ? "写作" : "漫剧"}存储位置历史已达上限；请先整理旧位置后再修改。`);
-      record[previousColumn] = unique;
-    } else if (history.length) record[previousColumn] = history;
-    record[column] = next[field] === defaults[field] ? null : next[field];
-  }
-  record.runtime_directory = next.runtimeDirectory;
-  record.download_cache_directory = next.downloadCacheDirectory;
-  record.temporary_directory = next.temporaryDirectory;
-  record.runtime_previous_directories = [...new Set([...(current.runtimeDirectory !== next.runtimeDirectory ? [current.runtimeDirectory] : []), ...(previousRow?.runtime_previous_directories ?? [])])];
-  if(record.runtime_previous_directories.length > 32) throw new Error("运行环境历史目录已达上限，请先核查仍被引用的位置。");
-  configuration.save("project_storage_locations", record);
-  configureFileLogDirectory(next.logsDirectory);
-  return getProjectStorageLocations();
-}
-
-/** 本机设置与远端覆盖分开；默认远端路径必须由该设备数据根推导，不能复用控制端绝对路径。 */
+/** 所有分类由该设备 data 根派生；旧节点覆盖只作环境回读候选，不再决定新安装位置。 */
 export function getRuntimeStorageLocations(targetId: string, dataRoot: string, platform: string,localNodeDefaults?:RuntimeStorageLocations): RuntimeStorageLocations {
   const row = readRow();
-  if(targetId === "local") { const current = getProjectStorageLocations().settings; return {runtimeDirectory:current.runtimeDirectory,downloadCacheDirectory:current.downloadCacheDirectory,temporaryDirectory:current.temporaryDirectory,previousRuntimeDirectories:row?.runtime_previous_directories ?? []}; }
-  const saved = row?.runtime_node_locations?.[targetId];
-  if(saved) return structuredClone(saved);
-  if(localNodeDefaults)return structuredClone(localNodeDefaults);
-  // 节点返回自己的目录分隔符；控制端可以在与节点不同的平台运行。
+  const previous = targetId === "local"
+    ? [row?.runtime_directory, ...(row?.runtime_previous_directories ?? [])]
+    : [row?.runtime_node_locations?.[targetId]?.runtimeDirectory, ...(row?.runtime_node_locations?.[targetId]?.previousRuntimeDirectories ?? []), ...(localNodeDefaults?.previousRuntimeDirectories ?? [])];
+  if (!dataRoot) throw new Error("目标设备尚未报告数据根目录。");
   const separator = platform === "win32" ? "\\" : "/";
-  const joinNode = (part:string) => `${dataRoot.replace(/[\\/]$/u,"")}${separator}${part}`;
-  if(!dataRoot) throw new Error("目标设备尚未报告数据根目录。");
-  return {runtimeDirectory:joinNode("environments"),downloadCacheDirectory:joinNode("cache"),temporaryDirectory:joinNode("tmp"),previousRuntimeDirectories:[]};
-}
-
-export function saveRuntimeNodeStorageLocations(targetId:string,input:RuntimeStorageLocations):RuntimeStorageLocations {
-  if(!/^[a-f0-9-]{36}$/iu.test(targetId))throw new Error("运行环境设备标识无效。");
-  const row=readRow();const nodes={...(row?.runtime_node_locations ?? {})};const previous=nodes[targetId];
-  if(!Object.hasOwn(nodes,targetId)&&Object.keys(nodes).length>=128)throw new Error("运行环境设备配置数量已达上限。");
-  nodes[targetId]={...input,previousRuntimeDirectories:[...new Set([...(previous&&previous.runtimeDirectory!==input.runtimeDirectory?[previous.runtimeDirectory]:[]),...(previous?.previousRuntimeDirectories??[]),...(input.previousRuntimeDirectories??[])])]};
-  if(nodes[targetId].previousRuntimeDirectories!.length>32)throw new Error("目标设备运行环境历史目录已达上限。");
-  configuration.save("project_storage_locations",{...row,id:1,runtime_node_locations:nodes});
-  return structuredClone(nodes[targetId]);
+  const joinNode = (part: string) => dataRoot.replace(/[\\/]$/u, "") + separator + part;
+  const runtimeDirectory = joinNode("environments");
+  return { runtimeDirectory, downloadCacheDirectory: joinNode("cache"), temporaryDirectory: joinNode("tmp"),
+    previousRuntimeDirectories: [...new Set(previous.filter((path): path is string => typeof path === "string" && Boolean(path) && path !== runtimeDirectory))] };
 }
 
 export function isOutsideProjectDataDirectory(path: string): boolean {
@@ -189,7 +130,7 @@ try {
   ensureRealDirectory(initialLogDirectory);
   configureFileLogDirectory(initialLogDirectory);
 } catch (error) {
-  // Removable or unavailable user storage must not prevent the control plane from starting; console logging remains active.
+  // 数据盘不可用不应阻止控制端启动，仍保留控制台日志。
   logger.error("控制端日志目录当前不可用，保留控制台日志。", { message: error instanceof Error ? error.message : String(error) });
 }
 

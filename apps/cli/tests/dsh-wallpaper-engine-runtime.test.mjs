@@ -8,6 +8,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { gzipSync, gunzipSync } from 'node:zlib';
 import { runInNewContext } from 'node:vm';
 import { Context } from '@deepseek-ai/cordis';
 
@@ -278,7 +279,7 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
   assert.deepEqual(loaderCalls[0].inject, ['webServer']);
   assert.equal(process.env.DSH_WE_DATA_DIR, join(data, 'plugins', 'runtime-data', 'profiles', 'web', packageId));
 
-  const runtimeCopy = join(data, 'plugins', 'runtime-adapters', 'profiles', 'web', packageId, commit, 'adapter-9');
+  const runtimeCopy = join(data, 'plugins', 'runtime-adapters', 'profiles', 'web', packageId, commit, 'adapter-11');
   const adaptedManifest = JSON.parse(readFileSync(join(runtimeCopy, 'package.json'), 'utf8'));
   assert.deepEqual(adaptedManifest.dsh.client.inject, ['slots', 'shortcuts', 'theme']);
   const host = readFileSync(join(runtimeCopy, 'lib', 'index.js'), 'utf8');
@@ -349,7 +350,7 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
   };
   assert.equal(runtime.supports(nextRecord), true, 'same official DSH v1 contract accepts a new verified version and commit');
   await runtime.enable(nextRecord, nextInstalled);
-  const nextRuntimeCopy = join(data, 'plugins', 'runtime-adapters', 'profiles', 'web', packageId, nextCommit, 'adapter-9');
+  const nextRuntimeCopy = join(data, 'plugins', 'runtime-adapters', 'profiles', 'web', packageId, nextCommit, 'adapter-11');
   const nextAdaptedManifest = JSON.parse(readFileSync(join(nextRuntimeCopy, 'package.json'), 'utf8'));
   const nextMarker = JSON.parse(readFileSync(join(nextRuntimeCopy, 'lfaa-runtime-adapter.json'), 'utf8'));
   assert.equal(nextAdaptedManifest.version, '1.3.0');
@@ -390,7 +391,7 @@ test('LFAA Harness activates the adapted Host through its Cordis Loader and WebS
 
     await runtime.enable(record, installed);
     assert.equal(runtime.isActive(record), true);
-    const hostEntry = [...hostContext.loader.entries()].find(entry => entry.options.name.includes(`${commit}/adapter-9/lib/index.js`));
+    const hostEntry = [...hostContext.loader.entries()].find(entry => entry.options.name.includes(`${commit}/adapter-11/lib/index.js`));
     assert.equal(hostEntry?.fiber?.state, 2);
     assert.equal(carrier.exactRoutes.has('/wallpaper-engine/inventory'), true);
     assert.equal(carrier.prefixRoutes.has('/wallpaper-engine/scene-files'), true, 'scene files stay on the authenticated LFAA Host route');
@@ -515,3 +516,43 @@ test('LFAA exposes reversible DSH sidebar shortcuts and theme changes through ex
   unbindEvents();
 });
 
+
+
+test('official npm artifacts use their verified digest and uninstall clears every runtime revision and private data', async () => {
+  const { DshWallpaperEngineRuntime } = await import('lfaa-plugin-manager/src/dsh-wallpaper-engine-runtime.js');
+  const cleanupData = join(root, 'cleanup-data');
+  const runtime = new DshWallpaperEngineRuntime(context, 'cleanup', cleanupData);
+  const digest = 'd'.repeat(64);
+  const record = { id: recordId, name: packageId, version: '1.3.3', compatibility: 'dsh-v1', source: { kind: 'npm', repository: 'npm:' + packageId, archiveSha256: digest, commit: 'npm:' + packageId + '@1.3.3:' + digest } };
+  assert.equal(runtime.supports(record), true);
+  assert.equal(runtime.supports({ ...record, source: { ...record.source, commit: 'npm:' + packageId + '@1.3.3:' + 'e'.repeat(64) } }), false, 'registry content revision must equal its verified archive digest');
+  assert.equal(runtime.supports({ ...record, source: { ...record.source, repository: 'npm:untrusted' } }), false);
+  assert.equal(runtime.supports({ ...record, source: { kind: 'local', repository: join(root, 'local-package'), archiveSha256: digest, commit: 'local:' + digest } }), true, 'local content uses the same lifecycle without a source-kind rejection');
+  assert.equal(runtime.supports({ ...record, source: { kind: 'local', repository: join(root, 'local-package'), archiveSha256: digest, commit: 'local:' + 'e'.repeat(64) } }), false, 'local snapshot must still match its inspected contents');
+  const targets = ['runtime-adapters', 'runtime-data'].map(category => join(cleanupData, 'plugins', category, 'profiles', 'cleanup', packageId));
+  for (const path of targets) { mkdirSync(join(path, 'old-revision'), { recursive: true }); writeFileSync(join(path, 'old-revision', 'owned'), 'fixture'); }
+  const keep = join(cleanupData, 'plugins', 'runtime-data', 'profiles', 'other', packageId);
+  mkdirSync(keep, { recursive: true });
+  await runtime.remove(record);
+  assert.ok(targets.every(path => !existsSync(path)), 'all adapter revisions and private uploads/settings/cache are removed');
+  assert.ok(existsSync(keep), 'another Profile is outside this uninstall');
+  await runtime.remove(record);
+});
+
+
+test('gzip settings responses still overlay the authenticated account selection and update their length', async () => {
+  const { DshWallpaperEngineRuntime } = await import('lfaa-plugin-manager/src/dsh-wallpaper-engine-runtime.js');
+  new DshWallpaperEngineRuntime(context, 'gzip', join(root, 'gzip-data'));
+  const adapter = registeredRoutes.get('/wallpaper-engine/settings').adapter;
+  const payload = { settings: { id: 'another-profile-selection', glassColor: '#123456', fixture: 'x'.repeat(2048) } };
+  const compressed = gzipSync(Buffer.from(JSON.stringify(payload)));
+  const headers = new Map([['Content-Encoding', 'gzip'], ['Content-Length', compressed.length]]);
+  let result;
+  const response = { getHeader: key => headers.get(key), hasHeader: key => headers.has(key), setHeader: (key,value) => headers.set(key,value), removeHeader: key => headers.delete(key), end: chunk => { result=chunk; } };
+  await adapter({ method: 'GET', auth: { user: { id: 'gzip-account-fixture' } } }, response, async (_request, wrapped) => wrapped.end(compressed));
+  const actual = JSON.parse(gunzipSync(result));
+  assert.equal(actual.settings.id, '', 'a fresh account never inherits another Profile selection even when the response is gzip encoded');
+  assert.equal(actual.settings.glassColor, payload.settings.glassColor);
+  assert.equal(headers.get('Content-Length'), result.length);
+  assert.equal(headers.get('Content-Encoding'), 'gzip');
+});

@@ -150,7 +150,11 @@ try {
   assert.equal(streamedFinished.message.content, "streamed answer fixture");
   console.log("verified:reply-stream");
 
-  const project = { id: randomUUID(), appId: "workspace", nodeId: randomUUID(), path: join(process.env.LFAA_DATA_DIR, "project"), title: "isolated project" };
+  const { createWorkspaceProject } = await import("lfaa-workspace-workspace/src/index.js");
+  const { recordDaemonHeartbeat: registerProjectNode } = await import("lfaa-host-daemon/src/local-daemon.js");
+  const registeredNodeId = randomUUID();
+  registerProjectNode({ id: registeredNodeId, displayName: "isolated project node", platform: process.platform, architecture: "x64", version: "fixture", dataRoot: process.env.LFAA_DATA_DIR, capabilities: ["project-files-v1"], javaRuntimes: [] });
+  const project = createWorkspaceProject({ userId: owner, appId: "workspace", nodeId: registeredNodeId, path: join(process.env.LFAA_DATA_DIR, "project"), platform: process.platform, title: "isolated project" });
   let fixtureScopeExecutions = 0;
   ctx.lfaaTools.registerTool(ctx, { id: "fixture.probe", name: "fixture_scope_probe", coreManaged: true, applicationIds: ["workspace"], description: "scope fixture", schema: { type: "object", properties: {} }, parse: () => ({}), risk: () => "read", approval: () => ({ scopeKey: "fixture", scopeSummary: "fixture", summary: "fixture" }), async execute(_parameters, context) { fixtureScopeExecutions++; assert.equal(context.workspaceProject.path, project.path); return { inherited: true }; } });
 
@@ -210,6 +214,28 @@ try {
   for (let i = 0; i < 70; i++) await manager.start({ driver: "fixture", description: "fixture", prompt: "fixture", appId: "workspace" }, { userId: owner, userRole: "admin", signal: new AbortController().signal, onProgress() {} }).done;
   assert.ok(manager.listRuns(owner).length <= 32); manager.close();
   console.log("verified:subagent");
+
+  // 专家由模型显式选择，跨界面复用真实子 Run；角色正文只进入该子任务。
+  let expertChildRequests = 0;
+  respond = body => {
+    const results = body.messages.filter(message => message.role === "tool");
+    const task = body.messages.find(message => message.role === "user")?.content;
+    if (task === "explicit minecraft expert task") {
+      expertChildRequests++;
+      assert.match(body.messages.find(message => message.role === "system").content, /你是 LFAA Minecraft 领域顾问/u);
+      assert.equal(body.tools, undefined, "专家方法不能扩大明确为空的继承工具范围");
+      return sse({ content: "selected expert evidence" });
+    }
+    assert.doesNotMatch(body.messages.find(message => message.role === "system").content, /你是 LFAA Minecraft 领域顾问/u);
+    if (!results.length) return call("delegate_domain_expert", { task: "explicit minecraft expert task", expertId: "expert.minecraft-hosting", toolNames: [] });
+    assert.match(results.at(-1).content, /selected expert evidence/u);
+    return sse({ content: "explicit expert complete" });
+  };
+  const selectedExpert = runs.startAiRun(owner, "admin", { appId: "workspace", sessionId: null, content: "select a minecraft expert" }, host, { allowedToolNames: ["delegate_domain_expert"] });
+  const selectedExpertResult = await finish(selectedExpert.id);
+  assert.equal(selectedExpertResult.status, "complete", JSON.stringify(selectedExpertResult));
+  assert.equal(expertChildRequests, 1);
+  console.log("verified:lazy-expert");
 
   // 自动摘要请求也走同一请求计数；压缩后本轮的新消息不能因旧索引丢失。
   const storedParent = configuration.get("ai_accounts", row => row.id === account.id);

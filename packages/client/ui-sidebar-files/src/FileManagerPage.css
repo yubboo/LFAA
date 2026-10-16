@@ -30,6 +30,7 @@
 
 .file-manager__header h2 { margin: 0 0 4px !important; }
 .file-manager__header > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.file-manager__root-path { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-manager__node-label { color: var(--color-text-muted); font-size: 12px; }
 .file-manager__header-controls { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
 .file-manager__node-select { display: flex; min-width: 0; align-items: center; gap: 8px; }
@@ -72,6 +73,7 @@
 .file-manager__actions { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
 .file-manager__actions > .ant-input-affix-wrapper { flex: 1 1 260px; max-width: 420px; }
 .file-manager__upload-input { display: none; }
+.file-manager__upload-compact { display: none; }
 .file-manager__filter-panel { display: grid; width: min(480px, calc(100vw - 40px)); gap: 14px; }
 .file-manager__filter-panel > label { display: grid; min-width: 0; gap: 6px; color: var(--color-text-secondary); font-size: 12px; }
 .file-manager__filter-range { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
@@ -84,6 +86,18 @@
 .file-manager__workspace { position: relative; display: flex; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
 .file-manager__tree { width: clamp(190px, 22%, 250px); min-width: 190px; min-height: 0; flex: 0 0 auto; padding: 14px 10px; overflow: auto; border-right: 1px solid var(--color-border-subtle); background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); }
 .file-manager__tree-title { display: block; margin: 0 8px 9px; color: var(--color-text-muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+/* 资源类别独立于物理目录；色彩、表面透明度和字号继承账户外观。 */
+.file-manager__resource-list { display: flex; min-width: 0; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+.file-manager__resource-list button { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-primary); font: inherit; text-align: left; cursor: pointer; }
+.file-manager__resource-list button:hover,
+.file-manager__resource-list button[aria-current="page"] { background: var(--color-surface-hover); color: var(--color-accent); }
+.file-manager__resource-list button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.file-manager__resource-list button:disabled { opacity: .55; cursor: default; }
+.file-manager__resource-context { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 0 0 12px; color: var(--color-text-primary); }
+.file-manager__resource-context > span { min-width: 0; flex: 1; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.file-manager__entry-label { display: flex; min-width: 0; flex-direction: column; gap: 3px; text-align: left; }
+.file-manager__entry-label > span { overflow: hidden; text-overflow: ellipsis; }
+.file-manager__entry-label small { color: var(--color-text-muted); font-size: .85em; overflow-wrap: anywhere; white-space: normal; }
 .file-manager__body { min-width: 0; min-height: 0; flex: 1; padding: 12px 18px; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .file-manager__body .ant-table-wrapper { min-width: 650px; }
 .file-manager__body .ant-table-thead > tr > th { position: sticky; top: 0; z-index: 1; overflow: visible; background: var(--color-surface); }
@@ -188,6 +202,15 @@
 }
 
 @container file-manager (max-width: 620px) {
+  /* 窄分栏/手机将资源导航置于列表上方，目录树有界滚动，不遮住文件操作。 */
+  .file-manager__workspace.is-resources-open { flex-direction: column; }
+  .file-manager__resources { width: 100%; min-width: 0; max-height: 210px; padding: 6px 10px; border-right: 0; border-bottom: 1px solid var(--color-border-subtle); }
+  .file-manager__resource-list { flex-direction: row; margin-bottom: 0; overflow-x: auto; }
+  .file-manager__resource-list button { flex: 0 0 auto; padding: 7px 9px; }
+  .file-manager__resources .ant-tree { max-height: 140px; overflow: auto; }
+  .file-manager__resource-context { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 8px; }
+  .file-manager__resource-context > span { grid-column: 1 / -1; grid-row: 2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .file-manager__resource-context > .ant-btn { grid-column: 2; grid-row: 1; }
   .file-manager__header { gap: 10px; padding: 12px; }
   .file-manager__header-controls { align-items: flex-start; flex-direction: column; }
   .file-manager__node-select { width: 100%; }
@@ -195,8 +218,10 @@
   .file-manager__header-actions { width: 100%; justify-content: flex-start; }
   .file-manager__header-actions .ant-btn { flex: 1 1 auto; }
   .file-manager__toolbar { padding: 8px 10px; }
-  .file-manager__navigation-row { align-items: flex-start; flex-direction: column; }
-  .file-manager__location { width: 100%; }
+  .file-manager__navigation-row { align-items: center; flex-direction: row; gap: 6px; }
+  .file-manager__location { min-width: 0; }
+  .file-manager__upload-full { display: none; }
+  .file-manager__upload-compact { display: inline; }
   .file-manager__actions { width: 100%; }
   .file-manager__actions > .ant-input-affix-wrapper { flex-basis: 100%; max-width: none; }
   .file-manager__filter-panel { width: min(420px, calc(100vw - 32px)); }

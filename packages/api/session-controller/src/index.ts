@@ -1,3 +1,6 @@
+import type { AgentAssociations } from "lfaa-util-values/src/agent-associations.js";
+import { setAiSessionAssociations } from "lfaa-session/src/sessions.js";
+import { agentAssociationsSchema } from "lfaa-api-remotes/src/route-contracts.js";
 /** 功能：提供认证的会话、审批与任务 API。作用：提交任务、查询结果和订阅事件。关联文件：agent-loop/runs.ts、core/session、API Gateway。 */
 import { Router } from "express";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
@@ -26,6 +29,15 @@ router.get("/ai/host-tasks/:taskId", requireAuthentication, (request, response) 
   if (!task || task.createdBy !== request.auth!.user.id) throw new ApiError(404, "ai_host_task_not_found", "找不到当前账户的节点任务。");
   response.json({ task });
 });
+router.patch("/ai/sessions/:sessionId/associations", requireAuthentication, (request, response) => {
+  const userId = request.auth!.user.id;
+  if (!getAiSession(userId, request.params.sessionId)) throw new ApiError(404, "ai_session_not_found", "找不到当前账户的会话。");
+  const associations = parseBody<AgentAssociations>(agentAssociationsSchema, request.body);
+  const session = setAiSessionAssociations(userId, request.params.sessionId, associations);
+  if (!session) throw new ApiError(409, "ai_session_busy", "会话正在运行或已归档，请在空闲时修改关联。");
+  response.json({ session });
+});
+
 router.get("/ai/sessions", requireAuthentication, (request, response) => {
     const archivedValue = request.query.archived;
     const appValue = request.query.appId;
@@ -46,14 +58,24 @@ router.get("/ai/sessions/:sessionId/messages", requireAuthentication, asyncHandl
       const rawLimit = request.query.limit === undefined ? 50 : Number(request.query.limit);
       if (!Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > 100) throw new ApiError(400, "invalid_message_page_size", "会话消息分页大小必须为 1 到 100。");
       if (request.query.cursor !== undefined && (typeof request.query.cursor !== "string" || !/^[A-Za-z0-9_-]{1,512}$/u.test(request.query.cursor))) throw new ApiError(400, "invalid_message_cursor", "会话消息游标无效。");
-      let page;
-      try { page = await getAiSessionMessagesPage(request.auth!.user.id, request.params.sessionId, request.query.cursor as string | undefined, rawLimit); }
-      catch (error) {
-        if (error instanceof InvalidAiSessionMessageCursorError) throw new ApiError(400, "invalid_message_cursor", "会话消息游标无效。");
-        throw error;
+      const controller = new AbortController();
+      const cancelDisconnectedRead = () => { if (!response.writableEnded) controller.abort(); };
+      request.once("aborted", cancelDisconnectedRead);
+      response.once("close", cancelDisconnectedRead);
+      try {
+        let page;
+        try { page = await getAiSessionMessagesPage(request.auth!.user.id, request.params.sessionId, request.query.cursor as string | undefined, rawLimit, controller.signal); }
+        catch (error) {
+          if (controller.signal.aborted) return;
+          if (error instanceof InvalidAiSessionMessageCursorError) throw new ApiError(400, "invalid_message_cursor", "会话消息游标无效。");
+          throw error;
+        }
+        if (!page) throw new ApiError(404, "ai_session_not_found", "找不到此 AI 会话。");
+        response.json(page);
+      } finally {
+        request.off("aborted", cancelDisconnectedRead);
+        response.off("close", cancelDisconnectedRead);
       }
-      if (!page) throw new ApiError(404, "ai_session_not_found", "找不到此 AI 会话。");
-      response.json(page);
       return;
     }
     const messages = getAiSessionMessages(request.auth!.user.id, request.params.sessionId);

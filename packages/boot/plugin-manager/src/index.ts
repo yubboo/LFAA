@@ -1,11 +1,11 @@
 /**
  * 功能：管理当前 LFAA Profile 的第三方插件来源、安装快照和运行状态。
- * 作用：验证固定 GitHub 提交、安全展开源码、原子写入清单，并向 AI Tools 提供通用管理能力。
- * 关联文件：github-source.ts、zip-archive.ts、core/tools、api/plugin-controller；不在控制端主进程加载外部代码。
+ * 作用：固定 GitHub/NPM/本机内容版本，安全展开源码、原子写入清单，并向 AI Tools 提供通用管理能力。
+ * 关联文件：source-resolution.ts、github-source.ts、zip-archive.ts、core/tools、api/plugin-controller；不在控制端主进程加载任意外部代码。
  */
 import { randomUUID } from "node:crypto";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, fsyncSync } from "node:fs";
-import { dirname, resolve, sep } from "node:path";
+import { dirname, isAbsolute, resolve, sep } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import { config } from "lfaa-launch-environment/src/config.js";
 import { atomicWrite } from "lfaa-storage-json/src/index.js";
@@ -13,10 +13,11 @@ import type { CapabilityApplicationId, CapabilityInstallRegistry } from "lfaa-ca
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { WindowsAppContainerPluginRuntime } from "./windows-appcontainer-runtime.js";
 import { DshWallpaperEngineRuntime } from "./dsh-wallpaper-engine-runtime.js";
-import { downloadGithubSnapshot, parseGithubRepositoryUrl, searchGithubRepositories, type GitHubSnapshot } from "./github-source.js";
+import { searchGithubRepositories } from "./github-source.js";
+import { resolvePluginSource, type PluginSourceSnapshot, type PluginSourceType } from "./source-resolution.js";
 import type { PluginArchiveFile } from "./zip-archive.js";
 
-const INVENTORY_VERSION = 3;
+const INVENTORY_VERSION = 4;
 const MAX_INSTALLED_PLUGINS = 128;
 const MAX_ACTIVE_PLUGIN_COUNT = 4;
 const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,119}$/u;
@@ -30,7 +31,7 @@ export interface PluginRecord {
   name: string;
   version: string;
   description: string;
-  source: { repository: string; requestedRef: string; commit: string; archiveSha256: string; license: string | null };
+  source: { kind: PluginSourceType; repository: string; requestedRef: string; commit: string; archiveSha256: string; license: string | null };
   compatibility: PluginCompatibility;
   runtimeEntry: string | null;
   capabilities: string[];
@@ -61,6 +62,8 @@ export interface PluginRuntimeAdapter {
   enable(record: PluginRecord, installedDirectory: string): Promise<void>;
   /** 必须等待对应 Runtime 停止并撤销其资源后返回，供清单更新和后续移除使用。 */
   disable(record: PluginRecord, installedDirectory: string): Promise<void>;
+  /** 停止后删除此 Runtime 独占的运行副本与私有数据；失败时保留安装记录以便重试。 */
+  remove?(record: PluginRecord): Promise<void>;
   /** 进程意外退出后，清单查询必须以实际 Host 状态为准。 */
   isActive?(record: PluginRecord): boolean;
 }
@@ -107,8 +110,8 @@ export class PluginManager {
     })));
   }
 
-  async inspect(repositoryUrl: string, ref?: string, applicationId: CapabilityApplicationId = "workspace") {
-    const snapshot = await downloadGithubSnapshot(repositoryUrl, ref);
+  async inspect(source: string, ref?: string, applicationId: CapabilityApplicationId = "workspace") {
+    const snapshot = await resolvePluginSource(source, ref);
     const detected = inspectSnapshot(snapshot);
     const preview = this.previewRecord(snapshot, detected.record, detected.license, applicationId);
     const adapter = this.adapters.find((item) => item.supports(preview));
@@ -118,7 +121,10 @@ export class PluginManager {
       ...detected.record,
       requirements: inspectRequirements(snapshot),
       repository: snapshot.repository,
+      sourceType: snapshot.sourceType,
+      sourceLocation: snapshot.sourceLocation,
       requestedRef: snapshot.requestedRef,
+      resolvedRef: snapshot.commit,
       resolvedCommit: snapshot.commit,
       archiveSha256: snapshot.archiveSha256,
       applicationIds: [applicationId],
@@ -128,14 +134,16 @@ export class PluginManager {
     };
   }
 
-  async install(repositoryUrl: string, ref: string | undefined, userId: string, applicationId: CapabilityApplicationId = "workspace"): Promise<PluginRecord> {
-    return this.exclusive(() => this.installLocked(repositoryUrl, ref, userId, applicationId));
+  async install(source: string, ref: string | undefined, userId: string, applicationId: CapabilityApplicationId = "workspace"): Promise<PluginRecord> {
+    return this.exclusive(() => this.installLocked(source, ref, userId, applicationId));
   }
 
   /** Install and activate a supported plugin as one serialized Profile mutation. */
-  async installForCapability(repositoryUrl: string, ref: string | undefined, userId: string, applicationId: CapabilityApplicationId = "workspace"): Promise<PluginCapabilityInstallResult> {
+  async installForCapability(source: string, ref: string | undefined, userId: string, applicationId: CapabilityApplicationId = "workspace", expectedResolvedRef?: string, expectedSource?: { kind: PluginSourceType; location: string }): Promise<PluginCapabilityInstallResult> {
     return this.exclusive(async () => {
-      const snapshot = await downloadGithubSnapshot(repositoryUrl, ref);
+      const snapshot = await resolvePluginSource(source, ref);
+      if (expectedResolvedRef !== undefined && snapshot.commit !== expectedResolvedRef) throw new PluginManagerError("plugin_source_changed", "插件来源自检查后发生变化，当前检查凭证已失效；请重新检查来源。没有写入插件清单。");
+      if (expectedSource && (snapshot.sourceType !== expectedSource.kind || normalizePluginSourceLocation(snapshot.sourceLocation, snapshot.sourceType) !== normalizePluginSourceLocation(expectedSource.location, expectedSource.kind))) throw new PluginManagerError("plugin_source_changed", "插件来源与检查凭证不一致；请重新检查来源。没有写入插件清单。");
       const detected = inspectSnapshot(snapshot);
       const existing = this.readInventory().plugins.find((record) => record.id === detected.record.id);
       const plugin = await this.installSnapshotLocked(snapshot, detected, userId, applicationId);
@@ -150,14 +158,14 @@ export class PluginManager {
     });
   }
 
-  private async installLocked(repositoryUrl: string, ref: string | undefined, userId: string, applicationId: CapabilityApplicationId): Promise<PluginRecord> {
-    const snapshot = await downloadGithubSnapshot(repositoryUrl, ref);
+  private async installLocked(source: string, ref: string | undefined, userId: string, applicationId: CapabilityApplicationId): Promise<PluginRecord> {
+    const snapshot = await resolvePluginSource(source, ref);
     const detected = inspectSnapshot(snapshot);
     return this.installSnapshotLocked(snapshot, detected, userId, applicationId);
   }
 
   private async installSnapshotLocked(
-    snapshot: GitHubSnapshot,
+    snapshot: PluginSourceSnapshot,
     detected: ReturnType<typeof inspectSnapshot>,
     userId: string,
     applicationId: CapabilityApplicationId,
@@ -167,10 +175,10 @@ export class PluginManager {
     const adapter = this.adapters.find((item) => item.supports(preview));
     const existing = this.readInventory().plugins.find((record) => record.id === detected.record.id);
     if (existing) {
-      const sameRepository = normalizePluginRepository(existing.source.repository) === normalizePluginRepository(snapshot.repository.url);
+      const sameRepository = samePluginSource(existing.source, snapshot);
       if (existing.source.commit === snapshot.commit && sameRepository && existing.applicationIds.length === 1 && existing.applicationIds[0] === applicationId) return this.viewRecord(existing);
       if (existing.source.commit === snapshot.commit && sameRepository) throw new PluginManagerError("plugin_target_conflict", `插件 ${existing.id} 已登记到 ${existing.applicationIds.join("、")}；不会静默扩大或改变 App 范围。`);
-      if (isWallpaperEngineUpdate(existing, detected.record, snapshot.repository.url)) {
+      if (isWallpaperEngineUpdate(existing, detected.record, snapshot)) {
         const next = this.previewRecord(snapshot, detected.record, detected.license, applicationId);
         const previousAdapter = this.adapters.find((item) => item.supports(existing));
         const nextAdapter = this.adapters.find((item) => item.supports(next));
@@ -191,7 +199,7 @@ export class PluginManager {
     const record: PluginRecord = {
       ...detected.record,
       applicationIds: [applicationId],
-      source: { repository: snapshot.repository.url, requestedRef: snapshot.requestedRef, commit: snapshot.commit, archiveSha256: snapshot.archiveSha256, license: detected.license ?? snapshot.repository.license },
+      source: { kind: snapshot.sourceType, repository: snapshot.sourceLocation, requestedRef: snapshot.requestedRef, commit: snapshot.commit, archiveSha256: snapshot.archiveSha256, license: detected.license ?? snapshot.repository.license },
       state: runtimeSupported ? "installed" : "incompatible",
       reason: detected.reason ?? (runtimeSupported ? null : sourceCheck?.reason ?? runtimeUnavailableReason(detected.record, this.adapters)),
       installedAt: now,
@@ -219,16 +227,17 @@ export class PluginManager {
     }
   }
 
-  async setEnabled(id: string, enabled: boolean, applicationId: CapabilityApplicationId = "workspace"): Promise<PluginRecord> {
-    return this.exclusive(() => this.setEnabledLocked(id, enabled, applicationId));
+  async setEnabled(id: string, enabled: boolean, applicationId: CapabilityApplicationId = "workspace", expectedSourceCommit?: string): Promise<PluginRecord> {
+    return this.exclusive(() => this.setEnabledLocked(id, enabled, applicationId, expectedSourceCommit));
   }
 
-  private async setEnabledLocked(id: string, enabled: boolean, applicationId: CapabilityApplicationId): Promise<PluginRecord> {
+  private async setEnabledLocked(id: string, enabled: boolean, applicationId: CapabilityApplicationId, expectedSourceCommit?: string): Promise<PluginRecord> {
     const inventory = this.readInventory();
     const position = inventory.plugins.findIndex((record) => record.id === id);
     if (position < 0) throw new PluginManagerError("plugin_not_found", "当前 Profile 未安装此插件。");
     const record = inventory.plugins[position]!;
     if (!record.applicationIds.includes(applicationId)) throw new PluginManagerError("plugin_target_mismatch", "该插件没有登记到当前目标 App；没有执行生命周期操作。");
+    if (expectedSourceCommit !== undefined && record.source.commit !== expectedSourceCommit) throw new PluginManagerError("plugin_revision_changed", "插件来源版本已变化；请刷新清单后重试生命周期操作。");
     const adapter = this.adapters.find((item) => item.supports(record));
     if (!adapter && enabled) throw new PluginManagerError("plugin_runtime_unsupported", record.reason ?? "没有适用于此插件的受支持 Runtime Adapter；插件仍保持未启用。");
     if (!adapter) throw new PluginManagerError("plugin_runtime_unavailable", "没有适用于此插件的受支持 Runtime Adapter；清单保持不变。");
@@ -274,11 +283,12 @@ export class PluginManager {
     });
   }
 
-  async remove(id: string, applicationId: CapabilityApplicationId = "workspace"): Promise<void> {
+  async remove(id: string, applicationId: CapabilityApplicationId = "workspace", expectedSourceCommit?: string): Promise<void> {
     return this.exclusive(async () => {
       const inventory = this.readInventory();
       const record = inventory.plugins.find((plugin) => plugin.id === id);
       if (!record) throw new PluginManagerError("plugin_not_found", "当前 Profile 未安装此插件。");
+      if (expectedSourceCommit !== undefined && record.source.commit !== expectedSourceCommit) throw new PluginManagerError("plugin_revision_changed", "插件版本已变化，请刷新后重新卸载。");
       if (!record.applicationIds.includes(applicationId)) throw new PluginManagerError("plugin_target_mismatch", "该插件没有登记到当前目标 App；没有移除任何文件。");
       const adapter = this.adapters.find((item) => item.supports(record));
       const isActive = this.isActive(record, adapter);
@@ -287,6 +297,7 @@ export class PluginManager {
         await adapter.disable(record, this.directory(id));
         this.activeIds.delete(id);
       }
+      await adapter?.remove?.(record);
       const directory = this.directory(id);
       const quarantine = resolve(this.root, `.remove-${randomUUID()}`);
       renameSync(directory, quarantine);
@@ -310,7 +321,7 @@ export class PluginManager {
 
   private replaceVerifiedWallpaperRevision(
     existing: PluginRecord,
-    snapshot: GitHubSnapshot,
+    snapshot: PluginSourceSnapshot,
     detected: Omit<PluginRecord, "source" | "state" | "installedAt" | "installedBy" | "applicationIds">,
     license: string | null,
     userId: string,
@@ -321,7 +332,7 @@ export class PluginManager {
     const nextRecord: PluginRecord = {
       ...detected,
       applicationIds: [...existing.applicationIds],
-      source: { repository: snapshot.repository.url, requestedRef: snapshot.requestedRef, commit: snapshot.commit, archiveSha256: snapshot.archiveSha256, license: license ?? snapshot.repository.license },
+      source: { kind: snapshot.sourceType, repository: snapshot.sourceLocation, requestedRef: snapshot.requestedRef, commit: snapshot.commit, archiveSha256: snapshot.archiveSha256, license: license ?? snapshot.repository.license },
       state: "installed",
       reason: null,
       installedAt: now,
@@ -353,11 +364,11 @@ export class PluginManager {
     return structuredClone(nextRecord);
   }
 
-  private previewRecord(snapshot: GitHubSnapshot, record: Omit<PluginRecord, "source" | "state" | "installedAt" | "installedBy" | "applicationIds">, license: string | null, applicationId: CapabilityApplicationId): PluginRecord {
+  private previewRecord(snapshot: PluginSourceSnapshot, record: Omit<PluginRecord, "source" | "state" | "installedAt" | "installedBy" | "applicationIds">, license: string | null, applicationId: CapabilityApplicationId): PluginRecord {
     return {
       ...record,
       applicationIds: [applicationId],
-      source: { repository: snapshot.repository.url, requestedRef: snapshot.requestedRef, commit: snapshot.commit, archiveSha256: snapshot.archiveSha256, license: license ?? snapshot.repository.license },
+      source: { kind: snapshot.sourceType, repository: snapshot.sourceLocation, requestedRef: snapshot.requestedRef, commit: snapshot.commit, archiveSha256: snapshot.archiveSha256, license: license ?? snapshot.repository.license },
       state: "installed", installedAt: "", installedBy: ""
     };
   }
@@ -393,7 +404,7 @@ export class PluginManager {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version: INVENTORY_VERSION, profile: this.profile, plugins: [] };
       throw new PluginManagerError("plugin_inventory_unreadable", "插件清单无法读取或格式损坏；没有覆盖任何现有插件。" );
     }
-    if (!isRecord(raw) || ![1, 2, INVENTORY_VERSION].includes(Number(raw.version)) || raw.profile !== this.profile || !Array.isArray(raw.plugins) || raw.plugins.length > MAX_INSTALLED_PLUGINS) {
+    if (!isRecord(raw) || ![1, 2, 3, INVENTORY_VERSION].includes(Number(raw.version)) || raw.profile !== this.profile || !Array.isArray(raw.plugins) || raw.plugins.length > MAX_INSTALLED_PLUGINS) {
       throw new PluginManagerError("plugin_inventory_invalid", "插件清单版本不支持或 Profile 不匹配。" );
     }
     const rawVersion = Number(raw.version);
@@ -403,7 +414,15 @@ export class PluginManager {
     return {
       version: INVENTORY_VERSION,
       profile: this.profile,
-      plugins: plugins.map((item) => ({ ...(item as PluginRecord), applicationIds: Array.isArray((item as Partial<PluginRecord>).applicationIds) ? [...(item as PluginRecord).applicationIds!] : [...APPLICATION_IDS], runtimeEntry: typeof (item as Partial<PluginRecord>).runtimeEntry === "string" ? (item as PluginRecord).runtimeEntry : null }))
+      plugins: plugins.map((item) => {
+        const record = item as PluginRecord;
+        return {
+          ...record,
+          source: { ...record.source, kind: record.source.kind ?? "github" },
+          applicationIds: Array.isArray(record.applicationIds) ? [...record.applicationIds] : [...APPLICATION_IDS],
+          runtimeEntry: typeof record.runtimeEntry === "string" ? record.runtimeEntry : null
+        };
+      })
     };
   }
 
@@ -417,12 +436,27 @@ export class PluginManager {
 function isWallpaperEngineUpdate(
   existing: PluginRecord,
   detected: Omit<PluginRecord, "source" | "state" | "installedAt" | "installedBy" | "applicationIds">,
-  repository: string,
+  snapshot: PluginSourceSnapshot,
 ): boolean {
   return existing.id === WALLPAPER_ENGINE_RECORD_ID && existing.name === WALLPAPER_ENGINE_PACKAGE_ID && existing.compatibility === "dsh-v1"
     && detected.id === WALLPAPER_ENGINE_RECORD_ID && detected.name === WALLPAPER_ENGINE_PACKAGE_ID && detected.compatibility === "dsh-v1"
-    && normalizePluginRepository(existing.source.repository) === WALLPAPER_ENGINE_REPOSITORY
-    && normalizePluginRepository(repository) === WALLPAPER_ENGINE_REPOSITORY;
+    && isOfficialWallpaperSource(existing.source.kind, existing.source.repository)
+    && isOfficialWallpaperSource(snapshot.sourceType, snapshot.sourceLocation);
+}
+
+function isOfficialWallpaperSource(kind: PluginSourceType, location: string): boolean {
+  return kind === "github" ? normalizePluginRepository(location) === WALLPAPER_ENGINE_REPOSITORY
+    : kind === "npm" && location === `npm:${WALLPAPER_ENGINE_PACKAGE_ID}`;
+}
+
+function samePluginSource(source: PluginRecord["source"], snapshot: PluginSourceSnapshot): boolean {
+  if (source.kind !== snapshot.sourceType) return false;
+  return normalizePluginSourceLocation(source.repository, source.kind) === normalizePluginSourceLocation(snapshot.sourceLocation, snapshot.sourceType);
+}
+
+function normalizePluginSourceLocation(value: string, kind: PluginSourceType): string {
+  if (kind === "local") return value;
+  return kind === "github" ? normalizePluginRepository(value) : value.toLocaleLowerCase("en-US");
 }
 
 function normalizePluginRepository(repository: string): string {
@@ -434,9 +468,9 @@ function activationFailureSummary(error: unknown): string {
   return "插件已安装，但 Runtime 启动失败；请检查插件状态和控制端日志。";
 }
 
-function inspectSnapshot(snapshot: GitHubSnapshot): { record: Omit<PluginRecord, "source" | "state" | "installedAt" | "installedBy" | "applicationIds">; license: string | null; reason: string | null } {
+function inspectSnapshot(snapshot: PluginSourceSnapshot): { record: Omit<PluginRecord, "source" | "state" | "installedAt" | "installedBy" | "applicationIds">; license: string | null; reason: string | null } {
   const packageFile = snapshot.files.find((file) => file.path === "package.json");
-  if (!packageFile) throw new PluginManagerError("plugin_manifest_missing", "GitHub 仓库根目录缺少 package.json，无法识别插件。");
+  if (!packageFile) throw new PluginManagerError("plugin_manifest_missing", "插件来源根目录缺少 package.json，无法识别插件。");
   let manifest: PackageManifest;
   try { manifest = JSON.parse(packageFile.contents.toString("utf8")) as PackageManifest; }
   catch { throw new PluginManagerError("plugin_manifest_invalid", "插件 package.json 不是有效 JSON。"); }
@@ -447,8 +481,11 @@ function inspectSnapshot(snapshot: GitHubSnapshot): { record: Omit<PluginRecord,
   const dsh = isRecord(manifest.dsh) ? manifest.dsh : null;
   const compat: PluginCompatibility = lfaa?.apiVersion === 1 ? "lfaa-v1" : dsh && hasDshBundle(snapshot.files) ? "dsh-v1" : "unsupported";
   const runtimeEntry = resolvePluginEntry(lfaa?.entry, snapshot.files);
+  const sourceName = snapshot.sourceType !== "github" && manifest.name === WALLPAPER_ENGINE_PACKAGE_ID
+    ? WALLPAPER_ENGINE_RECORD_ID
+    : snapshot.sourceType === "github" ? `${snapshot.repository.owner}-${snapshot.repository.name}` : `${snapshot.sourceType}-${manifest.name}`;
   const sourceId = lfaa && typeof lfaa.id === "string" ? lfaa.id
-    : `${snapshot.repository.owner}-${snapshot.repository.name}`.toLocaleLowerCase("en-US").replace(/[^a-z0-9._-]+/gu, "-").replace(/^[^a-z0-9]+|[^a-z0-9]+$/gu, "");
+    : sourceName.toLocaleLowerCase("en-US").replace(/[^a-z0-9._-]+/gu, "-").replace(/^[^a-z0-9]+|[^a-z0-9]+$/gu, "");
   if (!PLUGIN_ID_PATTERN.test(sourceId)) throw new PluginManagerError("plugin_manifest_invalid", "插件清单没有有效且稳定的 LFAA 插件 ID。");
   const capabilities = lfaa && Array.isArray(lfaa.capabilities)
     ? lfaa.capabilities.filter((item): item is string => typeof item === "string" && /^[a-z][a-z0-9.-]{0,63}$/u.test(item)).slice(0, 32)
@@ -456,7 +493,7 @@ function inspectSnapshot(snapshot: GitHubSnapshot): { record: Omit<PluginRecord,
   if (lfaa && lfaa.apiVersion === 1 && (!Array.isArray(lfaa.capabilities) || capabilities.length !== lfaa.capabilities.length)) throw new PluginManagerError("plugin_manifest_invalid", "LFAA 插件清单的 capability 列表格式无效。");
   const declaredLicense = typeof manifest.license === "string" ? manifest.license : null;
   const license = declaredLicense && /^[A-Za-z0-9.+-]{1,40}$/u.test(declaredLicense) ? declaredLicense : snapshot.repository.license;
-  const reason = compat === "unsupported" ? "仓库没有有效的 LFAA v1 插件合同或可识别的 DSH bundle 清单。" : null;
+  const reason = compat === "unsupported" ? "来源包没有有效的 LFAA v1 插件合同或可识别的 DSH bundle 清单。" : null;
   return {
     record: {
       id: sourceId,
@@ -474,9 +511,9 @@ function inspectSnapshot(snapshot: GitHubSnapshot): { record: Omit<PluginRecord,
 }
 
 /** 从固定源码快照提取可审阅的运行依赖声明；仅读取清单，不导入入口或执行包脚本。 */
-function inspectRequirements(snapshot: GitHubSnapshot): PluginRequirements {
+function inspectRequirements(snapshot: PluginSourceSnapshot): PluginRequirements {
   const packageFile = snapshot.files.find((file) => file.path === "package.json");
-  if (!packageFile) throw new PluginManagerError("plugin_manifest_missing", "GitHub 仓库根目录缺少 package.json，无法读取插件依赖声明。");
+  if (!packageFile) throw new PluginManagerError("plugin_manifest_missing", "插件来源根目录缺少 package.json，无法读取插件依赖声明。");
   let manifest: PackageManifest;
   try { manifest = JSON.parse(packageFile.contents.toString("utf8")) as PackageManifest; }
   catch { throw new PluginManagerError("plugin_manifest_invalid", "插件 package.json 不是有效 JSON，无法读取依赖声明。"); }
@@ -580,11 +617,18 @@ function writeArchiveFiles(staging: string, files: PluginArchiveFile[]): void {
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function isValidRecord(value: unknown, inventoryVersion: number): value is PluginRecord {
   if (!isRecord(value)) return false;
+  const sourceKind = inventoryVersion < 4 ? "github" : isRecord(value.source) ? value.source.kind : undefined;
+  const sourceLocation = isRecord(value.source) ? value.source.repository : undefined;
+  const resolvedRef = isRecord(value.source) ? value.source.commit : undefined;
+  const validSource = sourceKind === "github"
+    ? typeof sourceLocation === "string" && /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(sourceLocation) && typeof resolvedRef === "string" && /^[a-f0-9]{40}$/iu.test(resolvedRef)
+    : sourceKind === "npm"
+      ? typeof sourceLocation === "string" && /^npm:(?:@[a-z0-9][a-z0-9._-]{0,99}\/[a-z0-9][a-z0-9._-]{0,99}|[a-z0-9][a-z0-9._-]{0,99})$/u.test(sourceLocation) && typeof resolvedRef === "string" && /^npm:(?:@[a-z0-9][a-z0-9._-]{0,99}\/[a-z0-9][a-z0-9._-]{0,99}|[a-z0-9][a-z0-9._-]{0,99})@[A-Za-z0-9][A-Za-z0-9.+_-]{0,99}:[a-f0-9]{64}$/u.test(resolvedRef)
+      : sourceKind === "local" && typeof sourceLocation === "string" && sourceLocation.length <= 2048 && !/[\r\n\0]/u.test(sourceLocation) && isAbsolute(sourceLocation) && typeof resolvedRef === "string" && /^local:[a-f0-9]{64}$/iu.test(resolvedRef);
   return typeof value.id === "string" && PLUGIN_ID_PATTERN.test(value.id)
     && typeof value.name === "string" && typeof value.version === "string"
     && typeof value.description === "string" && isRecord(value.source)
-    && typeof value.source.repository === "string" && /^https:\/\/github\.com\//u.test(value.source.repository)
-    && typeof value.source.commit === "string" && /^[a-f0-9]{40}$/iu.test(value.source.commit)
+    && (inventoryVersion < 4 || ["github", "npm", "local"].includes(String(value.source.kind))) && validSource
     && typeof value.source.archiveSha256 === "string" && /^[a-f0-9]{64}$/iu.test(value.source.archiveSha256)
     && ["lfaa-v1", "dsh-v1", "unsupported"].includes(String(value.compatibility))
     && (value.runtimeEntry === undefined || value.runtimeEntry === null || typeof value.runtimeEntry === "string" && isSafePluginEntry(value.runtimeEntry))
@@ -634,22 +678,21 @@ export async function apply(ctx: Context): Promise<void> {
     },
     install: async (source, resolvedRef, applicationId, userId, target, details) => {
       const inspectedPlugin = isRecord(details) && isRecord(details.plugin) ? details.plugin : null;
-      if (Object.keys(target).length || !inspectedPlugin || inspectedPlugin.resolvedCommit !== resolvedRef || !Array.isArray(inspectedPlugin.applicationIds) || inspectedPlugin.applicationIds.length !== 1 || inspectedPlugin.applicationIds[0] !== applicationId) {
+      if (Object.keys(target).length || !inspectedPlugin || inspectedPlugin.resolvedCommit !== resolvedRef || typeof inspectedPlugin.requestedRef !== "string" || !["github", "npm", "local"].includes(String(inspectedPlugin.sourceType)) || typeof inspectedPlugin.sourceLocation !== "string" || !Array.isArray(inspectedPlugin.applicationIds) || inspectedPlugin.applicationIds.length !== 1 || inspectedPlugin.applicationIds[0] !== applicationId) {
         throw new PluginManagerError("plugin_inspection_mismatch", "检查凭证与固定提交或目标 App 不一致；没有安装插件。");
       }
-      return await manager.installForCapability(source, resolvedRef, userId, applicationId);
+      return await manager.installForCapability(source, inspectedPlugin.requestedRef || undefined, userId, applicationId, resolvedRef, { kind: inspectedPlugin.sourceType as PluginSourceType, location: inspectedPlugin.sourceLocation });
     },
-    verifyInstalled: async (installation, source, resolvedRef, applicationId, target, details) => {
+    verifyInstalled: async (installation, _source, resolvedRef, applicationId, target, details) => {
       const installedPlugin = isRecord(installation) && isRecord(installation.plugin) ? installation.plugin : null;
       const inspectedPlugin = isRecord(details) && isRecord(details.plugin) ? details.plugin : null;
-      const repository = inspectedPlugin && isRecord(inspectedPlugin.repository) && typeof inspectedPlugin.repository.url === "string" ? inspectedPlugin.repository.url : null;
-      if (Object.keys(target).length || !installedPlugin || typeof installedPlugin.id !== "string" || !inspectedPlugin || inspectedPlugin.resolvedCommit !== resolvedRef || !repository) {
+      const sourceLocation = inspectedPlugin && typeof inspectedPlugin.sourceLocation === "string" ? inspectedPlugin.sourceLocation : null;
+      const sourceType = inspectedPlugin && typeof inspectedPlugin.sourceType === "string" ? inspectedPlugin.sourceType : null;
+      if (Object.keys(target).length || !installedPlugin || typeof installedPlugin.id !== "string" || !inspectedPlugin || inspectedPlugin.resolvedCommit !== resolvedRef || !sourceLocation || !sourceType) {
         return { status: "unknown", verified: false, summary: "插件安装返回值或检查来源不完整，无法核验 Profile 清单。" };
       }
-      const parsedSource = parseGithubRepositoryUrl(source);
-      const canonicalSource = `https://github.com/${parsedSource.owner}/${parsedSource.name}`;
       const current = manager.get(installedPlugin.id);
-      if (!current || current.source.commit !== resolvedRef || current.source.repository.toLocaleLowerCase("en-US") !== repository.toLocaleLowerCase("en-US") || repository.toLocaleLowerCase("en-US") !== canonicalSource.toLocaleLowerCase("en-US") || current.applicationIds.length !== 1 || current.applicationIds[0] !== applicationId) {
+      if (!current || current.source.kind !== sourceType || current.source.commit !== resolvedRef || normalizePluginSourceLocation(current.source.repository, current.source.kind) !== normalizePluginSourceLocation(sourceLocation, sourceType as PluginSourceType) || current.applicationIds.length !== 1 || current.applicationIds[0] !== applicationId) {
         return { status: "unknown", verified: false, summary: "Profile 清单没有找到与检查来源、固定提交和目标 App 完全匹配的插件记录。" };
       }
       const activationRequired = isRecord(installation) && installation.activationRequired === true;

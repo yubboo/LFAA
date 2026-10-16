@@ -1,5 +1,16 @@
 # Third-party notices
 
+## Ekko Studio capability reference
+
+- Project: [Ekko Studio](https://github.com/EKKOLearnAI/ekko-studio), by EKKOLearnAI.
+- Local reference commit: `1242ac63556491c92ba6dd49d89fd19c91a6bdd5` (reviewed 2026-10-16).
+- Repository license at that revision: [Business Source License 1.1](https://github.com/EKKOLearnAI/ekko-studio/blob/1242ac63556491c92ba6dd49d89fd19c91a6bdd5/LICENSE), with a non-commercial Additional Use Grant and a stated change date of 2029-05-10.
+- Referenced behavior: multi-runtime workspaces, coding-agent dispatch, foreground/background delegation, shared task progress, deliverable skills and customizable templates.
+
+The user selected commercial use with LFAA-authored implementations of the corresponding capabilities. This entry acknowledges the product reference; it does not assert that Ekko Studio source, UI assets, prompts, bundled runtimes or skills have been incorporated or commercially licensed. LFAA continues to use its own Agent Loop, Session, Settings, permission and execution owners. Any later third-party skill or code integration needs its own source/version/license entry; the presence of a separate skill license does not by itself establish the provenance of all files in that directory.
+
+Capability mapping and implementation status: [fusion register](docs/development/ekko-capability-fusion.md).
+
 ## DeepSeek Harness Core reference
 
 - Project: [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)

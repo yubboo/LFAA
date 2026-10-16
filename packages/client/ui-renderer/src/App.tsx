@@ -7,8 +7,8 @@ import { loadClientModule, syncDshClientModulesForAuthentication } from "lfaa-cl
 import { resolveSessionBootstrap } from "./session-bootstrap.js";
 import { preloadWorkbenchForRoute } from "./workbench-preload.js";
 import { clearAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
-import { APPLICATION_ROUTE_PATTERN } from "lfaa-util-values/src/application-id.js";
-import { APPLICATION_ENTRY_STATE_KEY as applicationCenterEntryStateKey, readApplicationEntryIdFromHistory } from "./application-entry-state.js";
+import { APPLICATION_ROUTE_PATTERN, SHARED_WORK_ROUTE, normalizeWorkRoute } from "lfaa-util-values/src/application-id.js";
+import { APPLICATION_ENTRY_STATE_KEY as applicationRouteEntryStateKey, readApplicationEntryIdFromHistory } from "./application-entry-state.js";
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
@@ -70,7 +70,7 @@ function serverStateFromHealth(health: ServerHealth | null, checking: boolean): 
 }
 
 function applicationIdForRoute(path: string): ApplicationId | null {
-  if (path === "/tasks") return "workspace";
+  if (normalizeWorkRoute(path) === SHARED_WORK_ROUTE) return null;
   const match = path.match(APPLICATION_ROUTE_PATTERN);
   return match ? match[1] as ApplicationId : null;
 }
@@ -85,22 +85,22 @@ function routeTo(
     ? { ...(currentState as Record<string, unknown>) }
     : {};
   const targetUrl=new URL(path,window.location.origin);
-  const requestedPath=targetUrl.origin===window.location.origin?targetUrl.pathname:"/";
+  const requestedPath=targetUrl.origin===window.location.origin?normalizeWorkRoute(targetUrl.pathname):SHARED_WORK_ROUTE;
   let nextPath = requestedPath;
   const targetApp = applicationIdForRoute(nextPath);
 
-  if (nextPath === "/") {
-    delete nextState[applicationCenterEntryStateKey];
+  if (nextPath === SHARED_WORK_ROUTE) {
+    delete nextState[applicationRouteEntryStateKey];
   } else if (options.applicationEntryApp) {
     if (targetApp === options.applicationEntryApp) {
-      nextState[applicationCenterEntryStateKey] = options.applicationEntryApp;
+      nextState[applicationRouteEntryStateKey] = options.applicationEntryApp;
     } else {
-      nextPath = "/";
-      delete nextState[applicationCenterEntryStateKey];
+      nextPath = SHARED_WORK_ROUTE;
+      delete nextState[applicationRouteEntryStateKey];
     }
-  } else if (targetApp && nextState[applicationCenterEntryStateKey] !== targetApp) {
-    nextPath = "/";
-    delete nextState[applicationCenterEntryStateKey];
+  } else if (targetApp && nextState[applicationRouteEntryStateKey] !== targetApp) {
+    nextPath = SHARED_WORK_ROUTE;
+    delete nextState[applicationRouteEntryStateKey];
   }
 
   const nextAddress=nextPath===requestedPath&&targetUrl.origin===window.location.origin?`${nextPath}${targetUrl.search}${targetUrl.hash}`:nextPath;
@@ -143,7 +143,6 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [settingsRetryBusy, setSettingsRetryBusy] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
-  const [opening, setOpening] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessionRestoreError, setSessionRestoreError] = useState<string | null>(null);
   const [sessionRestoreAttempt, setSessionRestoreAttempt] = useState(0);
@@ -173,11 +172,11 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       navigationSequence.current += 1;
-      setOpening(null);
-      const nextPath = window.location.pathname;
+      const nextPath = normalizeWorkRoute(window.location.pathname);
+      if (nextPath !== window.location.pathname) { routeTo(nextPath, setRoute, { replace: true }); return; }
       const targetApp = applicationIdForRoute(nextPath);
       if (targetApp && readApplicationEntryIdFromHistory(window.history.state) !== targetApp) {
-        routeTo("/", setRoute, { replace: true });
+        routeTo(SHARED_WORK_ROUTE, setRoute, { replace: true });
         return;
       }
       setRoute(nextPath);
@@ -188,9 +187,11 @@ export default function App() {
 
   useLayoutEffect(() => {
     if (!user) return;
+    const normalized = normalizeWorkRoute(route);
+    if (normalized !== route) { routeTo(normalized, setRoute, { replace: true }); return; }
     const targetApp = applicationIdForRoute(route);
     if (targetApp && readApplicationEntryIdFromHistory(window.history.state) !== targetApp) {
-      routeTo("/", setRoute, { replace: true });
+      routeTo(SHARED_WORK_ROUTE, setRoute, { replace: true });
     }
   }, [route, user?.id]);
 
@@ -210,7 +211,6 @@ export default function App() {
       setUserSettings(null);
       setRequiresSetup(false);
       setAuthNotice(null);
-      setOpening(null);
       setError("登录已失效，请重新登录。");
       routeTo("/", setRoute);
     };
@@ -332,7 +332,7 @@ export default function App() {
     setUser(user);
     const returnRoute = window.location.pathname === "/settings" || window.location.pathname === "/admin/users"
       ? window.location.pathname
-      : "/";
+      : SHARED_WORK_ROUTE;
     routeTo(returnRoute, setRoute);
     if (settingsResult.status === "fulfilled") {
       setUserSettings(settingsResult.value.settings);
@@ -374,21 +374,19 @@ export default function App() {
   const handleOpenApplication = useCallback(async (app: ApplicationId, mode: ApplicationMode) => {
     const owner = currentUserRef.current?.id;
     if (!owner) return;
-    const currentRouteApp = applicationIdForRoute(window.location.pathname);
-    if (window.location.pathname !== "/" && !["/games","/games/environments"].includes(window.location.pathname) && (currentRouteApp !== app || readApplicationEntryIdFromHistory(window.history.state) !== app)) {
-      routeTo("/", setRoute);
-      return;
+    if (mode === "ai-work" || app === "workspace") {
+      navigationSequence.current += 1; setError(null);
+      routeTo(SHARED_WORK_ROUTE, setRoute); return;
     }
     const request = ++navigationSequence.current;
-    const selectedMode = app === "workspace" ? "ai-work" : mode;
-    setOpening(`${app}:${mode}`);
+    const selectedMode = "normal";
     setError(null);
     const isCurrent = () => request === navigationSequence.current && currentUserRef.current?.id === owner;
     // 导航偏好只有一个写入链；跳过被新选择替代的请求，相同偏好直接进入，旧响应不能拉回旧页面。
     const operation = navigationSave.current.then(async () => {
       if (!isCurrent()) return;
-      // 通用任务不覆盖上次选择的业务 App；其入口仍由应用中心提供独立的路由标记。
-      if (app !== "workspace" && (preferencesRef.current.selectedApp !== app || preferencesRef.current.selectedMode !== selectedMode)) {
+      // 应用入口只保存常规 App；共享工作不覆盖上次选择的应用。
+      if (preferencesRef.current.selectedApp !== app || preferencesRef.current.selectedMode !== selectedMode) {
         const result = await savePreferences({ selectedApp: app, selectedMode });
         if (currentUserRef.current?.id !== owner) return;
         preferencesRef.current = result.preferences;
@@ -397,12 +395,10 @@ export default function App() {
       }
       if (isCurrent()) {
         setPreferences(preferencesRef.current);
-        routeTo(app === "workspace" ? "/tasks" : `/apps/${app}/${mode}`, setRoute, { applicationEntryApp: app });
+        routeTo(`/apps/${app}/normal`, setRoute, { applicationEntryApp: app });
       }
     }).catch((saveError: unknown) => {
       if (isCurrent()) setError(getErrorMessage(saveError));
-    }).finally(() => {
-      if (isCurrent()) setOpening(null);
     });
     navigationSave.current = operation;
     await operation;
@@ -411,7 +407,6 @@ export default function App() {
   async function handleLogout(): Promise<void> {
     navigationSequence.current += 1;
     clearClientSnapshots();
-    setOpening(null);
     setError(null);
     try {
       await logout();
@@ -523,11 +518,9 @@ export default function App() {
         serverState={serverState}
         route={route}
         error={error}
-        opening={opening}
         onNavigate={(path) => {
-          if (path === "/") {
+          if (normalizeWorkRoute(path) === SHARED_WORK_ROUTE) {
             navigationSequence.current += 1;
-            setOpening(null);
           }
           routeTo(path, setRoute);
         }}

@@ -39,6 +39,12 @@ export class SubagentManager {
       .map(run => ({ runId: run.runId, driver: run.driver, description: run.description, status: run.status, startedAt: run.startedAt }));
   }
 
+  /** 只返回本账户句柄；等待结果不创建任务，也不取消原任务。 */
+  getRun(userId: string, runId: string): SubagentRunHandle | null {
+    const run = this.runs.get(runId);
+    return run?.userId === userId ? run : null;
+  }
+
   /** 取消某账户的一个活动子任务；幂等。 */
   cancelRun(userId: string, runId: string): boolean {
     const run = this.runs.get(runId);
@@ -84,7 +90,9 @@ export class SubagentManager {
       let result: SubagentRunResult;
       try {
         ctx.onProgress(`子任务「${task.description}」已交由 ${driver.displayName} 启动。`);
+        controller.signal.throwIfAborted();
         result = await driver.run(task, driverContext);
+        if (controller.signal.aborted) result = { ...result, stopReason: "aborted" };
         result = { ...result, runId };
       } catch (error) {
         const aborted = controller.signal.aborted;
@@ -106,7 +114,7 @@ export class SubagentManager {
     })();
 
     Object.defineProperty(handle, "done", { value: done, enumerable: true });
-    done.finally(() => {
+    void done.finally(() => {
       ctx.signal.removeEventListener("abort", forwardAbort);
       // 保留最近完成记录供控制工具查询；卸载时由 close 清空。
     });

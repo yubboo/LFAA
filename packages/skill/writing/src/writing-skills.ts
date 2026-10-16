@@ -1,7 +1,7 @@
 /**
  * 功能：定义 LFAA 写作 Agent 可按需加载的内置创作方法。
  * 作用：提供任务级写作指导；技能不保存或代替作品事实，也不授予业务工具权限。
- * 关联文件：packages/core/tools/src/business-tools.ts、packages/document/writing/src/prompts.ts、packages/preset/agent-preset/src/builtin-catalog.ts。
+ * 关联文件：index.ts、catalog.ts、packages/skill/tool-skill、packages/prompt/writing。
  */
 export const WRITING_SKILLS = [
   {

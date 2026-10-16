@@ -1,9 +1,9 @@
-/** 功能：验证内置 Minecraft Skill 的真实发现、按需正文与撤销。作用：只创建隔离 Cordis 注册表，不下载或启动服务端。关联文件：games/minecraft/setup-skill、assets、skill/skill。 */
+/** 功能：验证内置 Minecraft Skill 的真实发现、按需正文与撤销。作用：只创建隔离 Cordis 注册表，不下载或启动服务端。关联文件：skill/minecraft/setup-skill、assets、skill/skill。 */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
 import SkillRegistry from 'lfaa-skill';
-import { registerMinecraftSetupSkill } from 'lfaa-games-minecraft/src/setup-skill.js';
+import { registerMinecraftSetupSkill } from 'lfaa-skill-minecraft/src/setup-skill.js';
 
 test('Minecraft 开服 Skill 来自随包资源，加载正文后可撤销', async () => {
   const ctx = new Context();

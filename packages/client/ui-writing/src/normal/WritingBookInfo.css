@@ -1,0 +1,24 @@
+/* 功能：作品信息侧栏。作用：沿用工作台主题、字体、强调色与壁纸遮罩；关联文件：WritingBookInfo.tsx。 */
+.writing-book-info__heading { flex: 0 0 auto; }
+.writing-book-info__heading > div { min-width: 0; }
+.writing-book-info { display: grid; align-content: start; gap: 19px; padding: 16px 14px 20px; }
+.writing-book-info__section { display: grid; min-width: 0; gap: 10px; }
+.writing-book-info__section > header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 650; }
+.writing-book-info__status { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 400; }
+.writing-book-info__status.is-open { color: var(--color-status-success-text); }
+.writing-book-info__status i { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--color-text-muted); }
+.writing-book-info__status.is-open i { background: var(--color-status-success); }
+.writing-book-info__book { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: start; gap: 10px; padding: 13px 11px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface-muted); }
+.writing-book-info__book-icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 8px; background: var(--color-brand-subtle); color: var(--settings-accent, var(--color-brand)); }
+.writing-book-info__book > div { display: grid; min-width: 0; gap: 5px; overflow-wrap: anywhere; }
+.writing-book-info__book strong { color: var(--color-text-heading); font-size: var(--font-size-sm); }
+.writing-book-info__book p,
+.writing-book-info__guide p { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.7; }
+.writing-book-info__guide { padding-top: 13px; border-top: 1px solid var(--color-border); }
+
+/* 作品卡片沿用外观设置的壁纸遮罩透明度和模糊强度。 */
+.workbench-shell[data-background-image="true"] .writing-book-info__book {
+  background-color: color-mix(in srgb, var(--color-surface-muted) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}

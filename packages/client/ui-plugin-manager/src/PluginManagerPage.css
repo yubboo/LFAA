@@ -1,0 +1,168 @@
+/* 功能：独立插件管理工作区的容器与来源卡片响应式样式。作用：主内容占满可用区域并保留短屏滚动。 */
+.plugin-manager-stage {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: 64px minmax(0, 1fr);
+  overflow: hidden;
+  background: transparent;
+}
+
+.plugin-manager-page {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--color-canvas) var(--settings-background-surface-opacity), transparent);
+  color: var(--color-text-primary);
+}
+
+.plugin-manager-page--extensions { overflow: hidden; }
+
+.plugin-manager-page__content {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 22px;
+  margin: 0 auto;
+  padding: clamp(20px, 3vw, 38px) clamp(16px, 3vw, 34px) max(28px, env(safe-area-inset-bottom, 0px));
+}
+
+.plugin-manager-page__content--extensions {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  padding-bottom: 18px;
+}
+
+.plugin-manager-page__tabs {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border-subtle);
+  scrollbar-width: thin;
+}
+
+.plugin-manager-page__tabs > button {
+  display: flex;
+  min-height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 620;
+}
+
+.plugin-manager-page__tabs > button.is-active {
+  border-bottom-color: var(--color-brand);
+  color: var(--color-text-heading);
+}
+
+.plugin-manager-page__tabs > button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+.plugin-manager-page__workspace-panel {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
+  align-content: start;
+}
+
+.plugin-manager-page__workspace-panel[hidden] { display: none; }
+
+.plugin-manager-page__workspace-panel--extensions {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.plugin-manager-page__header,
+.plugin-manager-page__header-actions,
+.plugin-manager-page__section-heading,
+.plugin-manager-page__plugin-title,
+.plugin-manager-page__plugin-actions,
+.plugin-manager-page__source-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.plugin-manager-page__header,
+.plugin-manager-page__section-heading {
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.plugin-manager-page__header h2,
+.plugin-manager-page__section-heading h3 { margin: 0 !important; }
+.plugin-manager-page__header p { max-width: 720px; margin: 6px 0 0; color: var(--color-text-secondary); line-height: 1.6; }
+.plugin-manager-page__header-actions,
+.plugin-manager-page__plugin-actions,
+.plugin-manager-page__source-actions { flex-wrap: wrap; gap: 8px; }
+.plugin-manager-page__section { display: grid; min-width: 0; gap: 12px; }
+.plugin-manager-page__section-heading > span { color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.plugin-manager-page__source-card { display: grid; min-width: 0; gap: 14px; padding: clamp(14px, 2vw, 20px); border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); }
+.plugin-manager-page__source-grid { display: grid; min-width: 0; grid-template-columns: minmax(150px, .7fr) minmax(220px, 1.5fr) minmax(180px, 1fr) auto; align-items: start; gap: 10px; }
+.plugin-manager-page__source-grid > * { min-width: 0; }
+.plugin-manager-page__inspection { display: grid; min-width: 0; gap: 10px; padding: 14px; border: 1px solid var(--color-border-subtle); border-radius: 10px; background: var(--color-surface-muted); }
+.plugin-manager-page__inspection h4 { margin: 0; overflow-wrap: anywhere; color: var(--color-text-heading); font-size: var(--font-size-md); }
+.plugin-manager-page__inspection p { margin: 0; color: var(--color-text-secondary); overflow-wrap: anywhere; line-height: 1.55; }
+.plugin-manager-page__inspection-details { display: grid; gap: 5px; color: var(--color-text-muted); font-size: var(--font-size-xs); overflow-wrap: anywhere; }
+.plugin-manager-page__plugin-list { display: grid; min-width: 0; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 12px; }
+.plugin-manager-page__plugin-card { display: grid; min-width: 0; gap: 12px; padding: 16px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); }
+.plugin-manager-page__plugin-heading { display: grid; min-width: 0; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 10px; }
+.plugin-manager-page__plugin-icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 10px; background: var(--color-brand-subtle); color: var(--color-brand); }
+.plugin-manager-page__plugin-title { align-items: flex-start; flex-direction: column; gap: 4px; }
+.plugin-manager-page__plugin-title h4 { margin: 0; color: var(--color-text-heading); font-size: var(--font-size-md); overflow-wrap: anywhere; }
+.plugin-manager-page__plugin-title > span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.plugin-manager-page__plugin-description { min-height: 2.8em; margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.5; overflow-wrap: anywhere; }
+.plugin-manager-page__plugin-meta { display: grid; min-width: 0; gap: 6px; margin: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.plugin-manager-page__plugin-meta div { display: grid; min-width: 0; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; }
+.plugin-manager-page__plugin-meta dt { color: var(--color-text-subtle); }
+.plugin-manager-page__plugin-meta dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.plugin-manager-page__plugin-actions { padding-top: 2px; }
+.plugin-manager-page__empty { display: grid; min-height: 170px; place-items: center; padding: 22px; border: 1px dashed var(--color-border); border-radius: 12px; color: var(--color-text-muted); text-align: center; }
+.plugin-manager-page__permission { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+
+@media (max-width: 800px) {
+  .plugin-manager-page__source-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .plugin-manager-page__source-grid .plugin-manager-page__source-input { grid-column: 1 / -1; }
+}
+
+@media (max-width: 560px) {
+  .plugin-manager-page__content { gap: 18px; padding-top: 18px; }
+  .plugin-manager-page__content--extensions { padding: 14px 12px max(12px, env(safe-area-inset-bottom, 0px)); }
+  .plugin-manager-page__header,
+  .plugin-manager-page__section-heading { align-items: flex-start; flex-direction: column; }
+  .plugin-manager-page__header-actions { width: 100%; }
+  .plugin-manager-page__source-grid { grid-template-columns: minmax(0, 1fr); }
+  .plugin-manager-page__source-grid .plugin-manager-page__source-input { grid-column: auto; }
+  .plugin-manager-page__plugin-heading { grid-template-columns: auto minmax(0, 1fr); }
+  .plugin-manager-page__plugin-heading > :last-child { grid-column: 2; justify-self: start; }
+}
+
+@media (max-width: 420px) {
+  .plugin-manager-stage { grid-template-columns: 48px minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plugin-manager-page *,
+  .plugin-manager-page *::before,
+  .plugin-manager-page *::after { scroll-behavior: auto !important; }
+}

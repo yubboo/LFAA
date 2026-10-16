@@ -569,7 +569,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 
 /* Mobile Overlay 采用浮层时中心内容被面板覆盖；隐藏其文字与焦点，避免半透明表面下叠读。Dock 模式仍保留被挤开的中心列。 */
 .lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="overlay"][data-left-collapsed="false"] .lfaa-workbench__center,
-.lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="false"][data-right-layout="overlay"][data-right-collapsed="false"] .lfaa-workbench__center {
+.lfaa-workbench[data-layout-mode="mobile"][data-right-layout="overlay"][data-right-collapsed="false"] .lfaa-workbench__center {
   visibility: hidden;
   pointer-events: none;
 }

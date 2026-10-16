@@ -5,7 +5,7 @@
  */
 import { deflateRawSync, inflateRawSync } from "node:zlib";
 import type { WritingCatalogKind } from "./service.js";
-import { getWritingSpecialist, type WritingSpecialistId } from "./writing-specialist-library.js";
+import { getWritingSpecialist, type WritingSpecialistId } from "lfaa-domain-experts/src/writing-catalog.js";
 
 export const DEEPWRITE_ZIP_MAX_COMPRESSED_BYTES = 32 * 1024 * 1024;
 export const DEEPWRITE_ZIP_MAX_UNCOMPRESSED_BYTES = 64 * 1024 * 1024;

@@ -9,8 +9,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "lfaa-document-writing": "workspace:*",
-    "lfaa-games-minecraft": "workspace:*",
     "lfaa-settings": "workspace:*"
   },
   "scripts": {

@@ -24,7 +24,7 @@ import { defaultReasoningMode, isSelectableReasoningMode, normalizeAccountReason
 import type { AiModelCatalogEntry, AiModelThinkingControl } from "./model-capabilities.js";
 export type { AiModelCatalogEntry, AiModelThinkingControl } from "./model-capabilities.js";
 
-import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, DEFAULT_USER_SETTINGS, type SettingsCategory, type GeneralSettings, type AppearanceSettings, type AppearanceFonts, type AppearanceAdvancedSettings, type AppearanceBackgroundView, type ShortcutSettings, type UserSettings, type ComputerControlSettings, type PersonalizationSettings, type AiRuntimeSettings, type MinecraftRuntimeSettings, type GitSettings, type PermissionSettings, type UserCapabilityPrompt, type PluginSettings } from "lfaa-util-values/src/settings-contract.js";
+import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, DEFAULT_USER_SETTINGS, type SettingsCategory, type GeneralSettings, type AppearanceSettings, type AppearanceFonts, type AppearanceAdvancedSettings, type AppearanceBackgroundView, type ShortcutSettings, type UserSettings, type ComputerControlSettings, type PersonalizationSettings, type AiRuntimeSettings, type MinecraftRuntimeSettings, type GitSettings, type PermissionSettings, type UserCapabilityPrompt, type PluginSettings } from "lfaa-util-values/src/settings-contract.js";
 export type { SettingsCategory, GeneralSettings, AppearanceSettings, AppearanceFonts, AppearanceAdvancedSettings, AppearanceBackgroundView, ShortcutSettings, UserSettings, ComputerControlSettings, PersonalizationSettings, AiRuntimeSettings, MinecraftRuntimeSettings, GitSettings, PermissionSettings, UserCapabilityPrompt, PluginSettings } from "lfaa-util-values/src/settings-contract.js";
 export const defaultSettings: UserSettings = structuredClone(DEFAULT_USER_SETTINGS);
 
@@ -71,6 +71,7 @@ function readGeneralSettings(value: Record<string, unknown>): GeneralSettings | 
     typeof candidate === "string" && (options as readonly string[]).includes(candidate) ? candidate as T : fallback;
   return {
     ...defaults,
+    // 首页路由固定为小鱼工作台；旧账户字段继续按原值往返，避免其他设置保存时覆盖账户偏好。
     defaultMode: value.defaultMode,
     showServiceStatus: value.showServiceStatus,
     showBottomPanelControl: typeof value.showBottomPanelControl === "boolean" ? value.showBottomPanelControl : defaults.showBottomPanelControl,
@@ -81,6 +82,8 @@ function readGeneralSettings(value: Record<string, unknown>): GeneralSettings | 
     language: choose(value.language, ["system", "zh-CN", "en-US"], defaults.language),
     defaultFullView: typeof value.defaultFullView === "boolean" ? value.defaultFullView : defaults.defaultFullView,
     navigationLayout: choose(value.navigationLayout, ["left-two-column", "three-column", "right-tools", "focus"], defaults.navigationLayout),
+    cardMotionEffect: choose(value.cardMotionEffect, CARD_MOTION_EFFECT_IDS, defaults.cardMotionEffect),
+    dialogMotionEffect: choose(value.dialogMotionEffect, UI_MOTION_EFFECT_IDS, defaults.dialogMotionEffect),
     terminalPosition: choose(value.terminalPosition, ["bottom", "right"], defaults.terminalPosition),
     plainTextEditor: typeof value.plainTextEditor === "boolean" ? value.plainTextEditor : defaults.plainTextEditor,
     sendShortcut: choose(value.sendShortcut, ["enter", "ctrl-enter"], defaults.sendShortcut),
@@ -298,6 +301,9 @@ export function saveUserSettings(
 ): void {
   // 旧客户端提交整类设置时保留后来新增的字段，显式提交仍采用用户新值。
   const submitted = value as unknown as Record<string, unknown>;
+  if (category === "general" && (!Object.hasOwn(submitted, "cardMotionEffect") || !Object.hasOwn(submitted, "dialogMotionEffect"))) {
+    value = { ...getUserSettings(userId).general, ...submitted } as GeneralSettings;
+  }
   if (category === "plugins") value = { ...getUserSettings(userId).plugins, ...submitted } as PluginSettings;
   if (category === "ai-runtime") value = { ...getUserSettings(userId).aiRuntime, ...submitted } as AiRuntimeSettings;
   value = validateSettingsInput(category, value) as unknown as typeof value;

@@ -92,7 +92,7 @@ export function AuthView({ mode, serverState, busy, error, notice, onSubmit, onP
               主机服务与应用，<br />从一个工作台开始。
             </Typography.Title>
             <Typography.Paragraph>
-              先完成账户初始化，随后即可进入应用中心。当前版本提供基础账户、权限和服务状态能力。
+              先完成账户初始化，随后进入小鱼智能体对话区。当前版本提供基础账户、权限和服务状态能力。
             </Typography.Paragraph>
           </div>
           <div className="auth-page__visual-status">

@@ -62,7 +62,17 @@
     "lfaa-typert-registry": "workspace:*",
     "lfaa-tool-ask-user": "workspace:*",
     "lfaa-credentials": "workspace:*",
-    "lfaa-agent-default-model": "workspace:*"
+    "lfaa-agent-default-model": "workspace:*",
+    "lfaa-prompt": "workspace:*",
+    "lfaa-prompt-minecraft": "workspace:*",
+    "lfaa-prompt-writing": "workspace:*",
+    "lfaa-domain-experts": "workspace:*",
+    "lfaa-skill-minecraft": "workspace:*",
+    "lfaa-skill-writing": "workspace:*",
+    "lfaa-tool-minecraft": "workspace:*",
+    "lfaa-tool-steamcmd": "workspace:*",
+    "lfaa-tool-runtime": "workspace:*",
+    "lfaa-tool-writing": "workspace:*"
   },
   "devDependencies": {
     "@types/express": "^4.0.0",

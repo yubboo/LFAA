@@ -19,6 +19,10 @@ export interface AiExtensionManifest {
   applicationIds?: readonly ApplicationId[];
   toolPolicy?: Readonly<{ risk: "read" | "write" | "dangerous"; workspaceBound: boolean }>;
   instructions?: string;
+  /** 内置内容不随可选第三方扩展开关关闭；仍受真实数据与权限 Owner 约束。 */
+  builtIn?: boolean;
+  /** 正文只在模型显式请求时读取；目录和常规上下文不执行此加载器。 */
+  loadInstructions?: () => Promise<string>;
 }
 
 declare module "@deepseek-ai/cordis" {
@@ -76,22 +80,33 @@ export class AiExtensionRegistry extends Service {
   list(kind?: AiExtensionKind): AiExtensionManifest[] {
     return [...this.manifests.values()]
       .filter((manifest) => kind === undefined || manifest.kind === kind)
-      .map(({ instructions: _instructions, ...manifest }) => ({ ...manifest }))
+      .map(({ instructions: _instructions, loadInstructions: _loader, ...manifest }) => ({ ...manifest }))
       .sort((left, right) => left.id.localeCompare(right.id));
   }
 
   getInstructions(applicationId: ApplicationId): string[] {
     return [...this.manifests.values()]
-      .filter((manifest) => manifest.instructions && isApplicationInScope(manifest.applicationIds, applicationId))
+      .filter((manifest) => manifest.id === "agent.ai-work-assistant" && manifest.kind === "agent" && manifest.instructions && isApplicationInScope(manifest.applicationIds, applicationId))
       .sort((left, right) => left.id.localeCompare(right.id))
       .map((manifest) => manifest.instructions!);
   }
 
   listInstructionExtensions(applicationId: ApplicationId): AiExtensionManifest[] {
     return [...this.manifests.values()]
-      .filter((manifest) => manifest.instructions && isApplicationInScope(manifest.applicationIds, applicationId))
-      .map(({ instructions: _instructions, ...manifest }) => ({ ...manifest }))
+      .filter((manifest) => (manifest.instructions || manifest.loadInstructions) && isApplicationInScope(manifest.applicationIds, applicationId))
+      .map(({ instructions: _instructions, loadInstructions: _loader, ...manifest }) => ({ ...manifest }))
       .sort((left, right) => left.id.localeCompare(right.id));
+  }
+
+  /** 加载前后都重验登记身份，插件卸载不能让旧的异步正文进入下一模型请求。 */
+  async loadInstructions(id: string, applicationId: ApplicationId): Promise<AiExtensionManifest & { instructions: string }> {
+    const manifest = this.manifests.get(id);
+    if (!manifest || !isApplicationInScope(manifest.applicationIds, applicationId)) throw new Error("该内容未登记或不在当前上下文范围。");
+    const instructions = manifest.loadInstructions ? await manifest.loadInstructions() : manifest.instructions;
+    if (this.manifests.get(id) !== manifest) throw new Error("内容所属插件已卸载，拒绝返回过期正文。");
+    if (!instructions || Buffer.byteLength(instructions, "utf8") > 64 * 1024) throw new Error("内容正文缺失或超过 64 KiB 加载上限。");
+    const { loadInstructions: _loader, ...metadata } = manifest;
+    return { ...metadata, instructions };
   }
 }
 

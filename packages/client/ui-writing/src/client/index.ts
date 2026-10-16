@@ -3,6 +3,6 @@ import type { Context } from "@deepseek-ai/cordis";
 import "lfaa-client-modules/src/client/index.js";
 export const inject = ["clientModules"];
 export function apply(ctx: Context): void {
-  ctx.clientModules.register(ctx, "lfaa-client-ui-writing/src/ai-work/WritingAiContext.js", () => import("../ai-work/WritingAiContext.js"));
+  ctx.clientModules.register(ctx, "lfaa-client-ui-writing/src/normal/WritingBookInfo.js", () => import("../normal/WritingBookInfo.js"));
   ctx.clientModules.register(ctx, "lfaa-client-ui-writing/src/normal/WritingWorkspace.js", () => import("../normal/WritingWorkspace.js"));
 }

@@ -203,9 +203,7 @@ export function ResizableWorkbench({
     && shouldDockResponsiveRightPane(containerWidth, minCenterWidth, rightLimits.min, responsiveLeftWidth, responsiveRightDock);
   const rightUsesGrid = rightEnabled && (layoutMode === "desktop" || canDockResponsiveRight);
   const rightPaneSwapped = rightEnabled && layoutMode === "desktop" && rightPaneSwappedProp;
-  const responsiveRightCenterFloor = responsiveRightDock && layoutMode !== "desktop"
-    ? Math.min(minCenterWidth, WORKBENCH_LAYOUT_TOKENS.center.applicationRightDockFloor)
-    : minCenterWidth;
+  const responsiveRightCenterFloor = minCenterWidth;
   const responsiveLeftHandleWidth = leftUsesGrid && leftVisible && !leftCollapsed ? HANDLE_WIDTH : 0;
   const rightGridHandleBudget = rightUsesGrid
     ? HANDLE_WIDTH + responsiveLeftHandleWidth

@@ -10,6 +10,14 @@ export interface ManagedFileEntry {
   fileType?: string;
   trashId?: string;
   operations?: readonly FileManagerOperation[];
+  description?: string;
+}
+/** 资源位置仅描述导航，不授予路径权限，也不混入物理目录条目。 */
+export interface FileResourceLocation {
+  id: string;
+  name: string;
+  path: string;
+  description: string;
 }
 export interface FileLibrarySource {
   id: string;

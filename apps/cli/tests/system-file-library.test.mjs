@@ -34,7 +34,9 @@ test("无节点时浏览当前 data并完成创建、摘要编辑、移动、回
   assert.equal(overview.rootDirectory, dataRoot);
   const volumes = await library.operate(actor, "list", {path:"local-drives"});
   assert.ok(volumes.entries.length > 0);
-  for (const volume of volumes.entries) assert.ok(overview.entries.some(entry => entry.path === volume.path), "首页直接显示每个真实可用卷");
+  for (const volume of volumes.entries) assert.equal(overview.entries.some(entry => entry.path === volume.path), false, "真实 data 列表不混入磁盘来源");
+  assert.equal(overview.entries.some(entry => entry.path === "local-drives" || entry.path === ".lfaa-library"), false);
+  assert.ok(library.listLocations(actor).locations.some(location => location.path === "local-drives"));
   await library.operate(actor, "create-folder", { path: "docs" });
   await library.operate(actor, "create-file", { path: "file.txt" });
   const read = await library.operate(actor, "read", { path: "file.txt" });
@@ -135,7 +137,7 @@ test("HTTP 无节点可列 data，未认证拒绝；无节点状态查询和任�
     assert.match(download.headers.get("content-disposition"), /attachment/u);
     const otherSession = createSession("other");
     const otherToken = jwt.sign({ sid: otherSession.sessionId }, config.jwtSecret, { algorithm: "HS256", audience: "lfaa-web", issuer: "lfaa-server", expiresIn: sessionLifetimeSeconds });
-    for (const gate of ["/operations", "/tasks", "/nodes", "/audit", "/system-audit", "/tasks/missing", "/download?path=http.txt", "/upload?path="]) {
+    for (const gate of ["/locations", "/operations", "/tasks", "/nodes", "/audit", "/system-audit", "/tasks/missing", "/download?path=http.txt", "/upload?path="]) {
       const method = ["/operations", "/tasks", "/upload?path="].includes(gate) ? "POST" : "GET";
       const endpoint = url.replace("/operations", gate);
       assert.equal((await fetch(endpoint, { method, headers: { Cookie: `lfaa_session=${otherToken}`, "Content-Type": "application/json" }, ...(method === "POST" ? { body: JSON.stringify({ operation: "list", path: "" }) } : {}) })).status, 403);

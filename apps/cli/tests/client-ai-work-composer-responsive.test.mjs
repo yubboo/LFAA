@@ -1,6 +1,7 @@
 /**
- * 功能：锁定 AI Work 提问框在窄中间栏内的网格收缩规则。
- * 作用：防止 TextArea 的固有最小宽度把输入框撑出聊天列并覆盖右侧栏。
+ * 功能：锁定 AI Work 提问框的网格收缩规则与插入光标可见性。
+ * 作用：防止 TextArea 撑出聊天列，并保证输入光标跟随主题文字颜色。
+ * 关联文件：packages/client/ui-chat/src/ai-work-chat.css；本测试检查其中提问框容器与 TextArea 样式。
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -15,4 +16,8 @@ test("窄中间栏的提问框及 TextArea 随容器收缩，不由隐式 Grid �
   assert.match(composerRule, /grid-template-columns:\s*minmax\(0,\s*1fr\)\s*;/u);
   assert.match(composerInputRule, /width:\s*100%\s*;/u);
   assert.match(composerInputRule, /min-width:\s*0\s*;/u);
+});
+
+test("AI Work 输入光标跟随当前文字颜色，避免浅色背景上不可见", () => {
+  assert.match(composerInputRule, /caret-color:\s*currentColor\s*!important\s*;/u);
 });

@@ -1,0 +1,34 @@
+{
+  "name": "lfaa-tool-steamcmd",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "joi": "^17.0.0",
+    "lfaa-tools": "workspace:*",
+    "lfaa-util-values": "workspace:*",
+    "lfaa-games-steamcmd": "workspace:*",
+    "lfaa-host-daemon": "workspace:*"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  },
+  "lfaa": {
+    "server": {
+      "entry": "./src/index.ts",
+      "inject": [
+        "lfaaTools",
+        "lfaaSteamcmd"
+      ],
+      "required": true,
+      "capabilities": [],
+      "settings": []
+    }
+  }
+}

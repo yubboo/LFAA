@@ -1,5 +1,7 @@
 # LFAA AI Work 聊天
 
+其他 Client 管理页可通过 `aiWorkGoalRequestEventName` 将用户明确点击的目标交给共享 Workbench；本聊天只消费该目标并调用既有 `/ai/chat/stream`。权限审批、工具选择、插件执行和状态回读仍由服务端 Agent Loop、Capability Owner 与 Permission Owner 持有。无活动 Provider 时保留目标在输入框，不伪造执行结果。
+
 `lfaa-client-ui-chat` 展示同一 Agent Run 的公开正文、真实工具活动、用户问题和权限审批，执行与持久化仍归原 Agent Loop、Session 与 Permission Owner。
 
 `response-timeline.ts` 只按正文范围和活动落点形成时间顺序；`AiWorkResponse.tsx` 显示不可展开的运行计时、阶段正文和可折叠工具组。完成后默认折叠过程，分隔线下独立显示最终答案；复制按钮复制最终答案。原记录缺少分段时保留原正文，不按语义猜测拆分。
@@ -8,8 +10,24 @@
 
 普通回答分支从空白新聊天开始；Agent Loop 先让当前 Provider 把所选完整回答之前的有效上下文压缩为记忆，子会话仅持久化版本化记忆与来源关系，不显示或复制父会话问答/工具事件。摘要失败时留在原聊天并显示错误。分支会话在消息首屏展示 JSONL 持久化的“接续自”来源，位于聊天历史末尾和输入框之间；父会话仍可用时点击返回，并同步切回其项目。归档来源保留标题但不可导航。来源与消息分页共享一次受账户/App 校验的完整日志扫描，不新增设置、请求或运行状态订阅；视觉使用现有主题令牌。
 
+历史首屏按账户/App/会话标识去重已完成读取；切换会话或卸载时取消旧首屏请求，`busy` 状态变化不重发已加载会话的相同请求。更早消息继续使用现有游标分页。
+
 正文只保存一份，范围不复制文本；当前流式片段固定显示在最终回复所在区域，Provider 确认的阶段说明才进入过程时间线，避免最终正文在区域间移动而像重复输出。流式期间只格式化已闭合的行内 Markdown，不重排标题、列表和代码块；完成后复用完整 Markdown 渲染。时间线按消息数据变化计算，沿用现有时钟、帧合并、分页与订阅撤销。样式读取设置中心已有主题、颜色、字体、字号、对比度、壁纸、透明度、模糊和减少动态效果令牌，不新增偏好或依赖。
 
 提问输入框由自身 Grid 列约束，内部文本框宽度跟随聊天容器；三栏同时展开导致中心列收窄时，不得用隐式 Grid 最小宽度撑入侧栏。
 
+提问框的插入光标跟随输入文字颜色，并仅在此控件覆盖 Wallpaper Engine 注入的白色全局 `!important` 光标规则，避免浅色主题/表面上消失。页面打开时不抢占键盘焦点，用户点击输入框后显示光标。
+
+活动 DSH Wallpaper Engine 画布时，聊天输入卡、用户消息气泡、审批/交互卡和聊天浮层读取插件生成的 `--we-chat-glass-fill`、浮层逐面令牌及对应的模糊/饱和度/亮度/对比度；视觉按 `data-we-glass-chat` 与 `data-we-glass-floaters` 门控。插件停用或画布不活动后只消费 LFAA 共享令牌，不保留旧玻璃值，也不新增设置或运行状态请求。
+
+输入框支持 `/` 命令菜单和 `@` 关联菜单。命令目录只登记已有入口：`/plan`、`/plan off`、`/side` 复用当前消息解析，`/model` 打开当前模型选择器；`@` 从工作区传入的应用与 Skill/提示词/专家目录筛选，选择后通过现有 Session 关联合同保存，并把名称插入草稿供用户确认。关联能力只是模型参考，不代表自动加载或权限授予。菜单通过方向键、Enter、Tab、Escape 与鼠标操作，外观读取现有共享主题令牌；没有新增设置、目录请求、持久化或执行器。任务合同见 [LFAA-AI-WORK-COMPOSER-SLASH-MENTION-20261015](../../../docs/PROMPTS.md#lfaa-ai-work-composer-slash-mention-20261015)。
+
 定向验证位于 `apps/cli/tests/ai-work-response-timeline.test.mjs`、`client-performance.test.mjs`、`ai-work-activity-duration.test.mjs` 和 `client-ai-work-composer-responsive.test.mjs`。合成事件/SSR 验证与实际 Provider、浏览器、桌面及帧时间验收分别记录。
+
+## 小鱼共享工作入口（2026-10-14）
+
+可选能力引用按服务端真实目录选择，内置 bundled Skill 不受外部插件总开关误禁；引用不授予执行权限。项目关联弹窗可显式刷新项目/节点，父级目录请求支持取消，节点后来上线无需刷新整个工作台。
+
+小鱼只有一个聊天界面；旧会话按原来源继续调用，公共列表不按 App 切分。App/Skill/Prompt/Expert 可选引用，空闲时保存到 Session；正文和工具由模型按需加载。项目选择统一消费账户目录。
+
+构建只写仓库根 dist/packages/client/ui-chat/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。

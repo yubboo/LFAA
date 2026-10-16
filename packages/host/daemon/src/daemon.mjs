@@ -8,6 +8,7 @@ import {fetchRuntimeResource} from "lfaa-runtime-environment/src/network.mjs";
 import {promoteSteamcmdInstallation,initializeSteamcmd} from "./steamcmd-installation.mjs";
 import { createManagedFileService } from "lfaa-fs/src/managed-files.mjs";
 import { protectedDataDirectories } from "lfaa-home-paths/src/reserved-data-paths.mjs";
+import { assertInstanceFileMutation, assertGameMetadataMutable, createInstanceFileService } from "lfaa-fs/src/instance-files.mjs";
 import { randomUUID, createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { execFile, spawn } from "node:child_process";
@@ -350,7 +351,7 @@ async function runLoop() {
           .finally(() => { javaDiscoveryPending = null; javaDiscoveryRefreshAt = Date.now() + 60_000; });
       }
       await refreshEasyTierRuntimeVersion();
-      const capabilities = ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-instance-archive-v1", "java-environment-manager-v1", "runtime-environment-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "agent-shell-v1", "project-files-v1", "git-workspace-v1", EASYTIER_RUNTIME_RELEASE.installCapability, ...(easyTierRuntimeVersion === EASYTIER_RUNTIME_RELEASE.version ? [EASYTIER_RUNTIME_RELEASE.runtimeCapability] : []), ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
+      const capabilities = ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-instance-archive-v1", "java-environment-manager-v1", "runtime-environment-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "agent-shell-v1", "project-files-v1", "git-workspace-v1", EASYTIER_RUNTIME_RELEASE.installCapability, ...(easyTierRuntimeVersion === EASYTIER_RUNTIME_RELEASE.version ? [EASYTIER_RUNTIME_RELEASE.runtimeCapability] : []), ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
       if (await steamcmdExecutableReady(steamcmdSettings.steamcmdDirectory)) capabilities.push("steamcmd-ready-v1");
       const heartbeat = await pollRequest("/daemon/heartbeat", {
         method: "POST",
@@ -932,13 +933,45 @@ async function verifySteamcmd(task) {
   };
 }
 
-const nodeFileService = createManagedFileService({root: dataDirectory, protectedDirectories: protectedDataDirectories, assertCanMutate: assertNoActiveInstanceAffected});
-export async function performNodeFileOperation(operation, payload) { return nodeFileService.operate(operation, payload); }
+function assertNodeFileReadable(path) {
+  const rel = relative(dataDirectory, path);
+  if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return;
+  const parts = rel.split(sep).map(part => part.toLowerCase());
+  if (protectedDataDirectories.includes(parts[0]) || parts[0] === 'plugins' && parts[1] === 'runtime-data') throw new Error('账户或插件私有运行数据由对应 Owner 管理。');
+}
+const nodeFileService = createManagedFileService({root: dataDirectory, protectedDirectories: protectedDataDirectories,
+  assertCanRead: assertNodeFileReadable, assertCanMutate: assertNoActiveInstanceAffected});
+export async function performNodeFileOperation(operation, payload) {
+  if (payload.gameStorageKind !== undefined) {
+    const root = payload.gameStorageKind === 'minecraft' ? getMinecraftStorageRoot(minecraftDirectoryRelative)
+      : payload.gameStorageKind === 'steamcmd' ? resolveSteamcmdGameDirectory(steamcmdSettings.gameDirectory) : null;
+    if (!root) throw new Error('节点游戏存储来源无效。');
+    return createManagedFileService({ root, mutationRoot: dataDirectory, recycleNamespace: payload.recycleNamespace ?? '', assertCanRead: assertNodeFileReadable, assertCanMutate: assertNoActiveInstanceAffected }).operate(operation, payload);
+  }
+  if (payload.minecraftInstanceId !== undefined) {
+    const id = requireInstanceId(payload.minecraftInstanceId);
+    // 只允许当前节点已核验索引，不能以猜测的 UUID 路径或来自浏览器的根目录代替。
+    if (!minecraftInstanceDirectories.has(id)) throw new Error('此节点尚未核验游戏实例目录，请等待节点状态对账。');
+    const root = getInstanceDirectory(id);
+    return createInstanceFileService({ root, mutationRoot: dataDirectory, isStopped: () => !activeServers.has(id), recycleNamespace: payload.recycleNamespace ?? '', assertCanRead: assertNodeFileReadable, assertCanMutate: assertNoActiveInstanceAffected }).operate(operation, payload);
+  }
+  if (payload.recycleNamespace) return createManagedFileService({ root: dataDirectory, protectedDirectories: protectedDataDirectories, recycleNamespace: payload.recycleNamespace,
+    assertCanRead: assertNodeFileReadable,
+    assertCanMutate: assertNoActiveInstanceAffected }).operate(operation, payload);
+  return nodeFileService.operate(operation, payload);
+}
 function resolveManagedFilePath(value, allowRoot = false) { return nodeFileService.resolvePath(value, allowRoot); }
 async function ensureManagedDirectory(directory) { return nodeFileService.ensureDirectory(directory); }
 async function assertManagedPathIsSafe(path, allowMissing = false) { return nodeFileService.assertPath(path, allowMissing); }
 
-function assertNoActiveInstanceAffected(path) {
+async function assertNoActiveInstanceAffected(path) {
+  assertGameMetadataMutable(path);
+  assertNodeFileReadable(path);
+  const plugins = resolve(dataDirectory, 'plugins');
+  const pluginRelative = relative(plugins, path), ancestorRelative = relative(path, plugins);
+  if (!pluginRelative || pluginRelative !== '..' && !pluginRelative.startsWith(`..${sep}`) && !isAbsolute(pluginRelative)
+    || !ancestorRelative || ancestorRelative !== '..' && !ancestorRelative.startsWith(`..${sep}`) && !isAbsolute(ancestorRelative)) throw new Error('扩展插件目录由插件生命周期管理，不能通过普通文件操作修改。');
+  for (const [id, directory] of minecraftInstanceDirectories) await assertInstanceFileMutation(path, directory, !activeServers.has(id));
   for (const instanceId of activeServers.keys()) {
     const instanceDirectory = getInstanceDirectory(instanceId);
     const targetInsideInstance = relative(instanceDirectory, path);

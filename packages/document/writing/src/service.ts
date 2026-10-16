@@ -7,7 +7,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createDeepWriteZip, parseDeepWriteProject, readDeepWriteZip, DEEPWRITE_ZIP_MAX_COMPRESSED_BYTES, DEEPWRITE_ZIP_MAX_ENTRIES, DEEPWRITE_ZIP_MAX_ENTRY_BYTES, DEEPWRITE_ZIP_MAX_UNCOMPRESSED_BYTES } from "./deepwrite-archive.js";
 import { database } from "lfaa-storage-sqlite/src/database.js";
-import { WRITING_SPECIALISTS, getWritingSpecialist, type WritingSpecialistId } from "./writing-specialist-library.js";
+import { WRITING_SPECIALISTS, getWritingSpecialist, type WritingSpecialistId } from "lfaa-domain-experts/src/writing-catalog.js";
 import { countWritingWords } from "./content-utils.js";
 import { ensureWritingProjectFiles, migrateWritingContentToLocalFiles, readWritingLocalText, removeWritingLocalText, removeWritingProjectFiles, writeWritingLocalText, WRITING_LOCAL_FILE_MARKER, type WritingLocalContentRef } from "./local-files.js";
 
@@ -985,27 +985,39 @@ export function getActiveWritingAiContext(userId: string): {
   content: string;
   chapterTruncated: boolean;
 } | null {
-  const state = database.prepare("SELECT active_book_id, active_chapter_id FROM writing_workspace_state WHERE user_id = ?").get(userId) as WorkspaceStateRow | undefined;
-  if (!state?.active_book_id) return null;
-  const book = database.prepare("SELECT id, title, ai_role_id FROM writing_books WHERE user_id = ? AND id = ?").get(userId, state.active_book_id) as { id: string; title: string; ai_role_id: WritingSpecialistId } | undefined;
-  if (!book) return null;
-  const outline = readWritingLocalText(userId, book.id, { kind: "outline" });
-  const chapter = state.active_chapter_id
-    ? database.prepare("SELECT id, title FROM writing_chapters WHERE id = ? AND book_id = ?").get(state.active_chapter_id, book.id) as { id: string; title: string } | undefined
-    : undefined;
-  const chapterContent = chapter ? readWritingLocalText(userId, book.id, { kind: "chapter", id: chapter.id }) : "";
+  const current = getActiveWritingAiMetadata(userId);
+  if (!current) return null;
+  const outline = readWritingLocalText(userId, current.bookId, { kind: "outline" });
+  const chapterContent = current.chapterId ? readWritingLocalText(userId, current.bookId, { kind: "chapter", id: current.chapterId }) : "";
   const limit = 12_000;
   return {
-    bookId: book.id,
-    bookTitle: book.title,
-    aiRoleId: book.ai_role_id,
+    bookId: current.bookId,
+    bookTitle: current.bookTitle,
+    aiRoleId: current.aiRoleId,
     outline: outline.slice(0, limit),
     outlineTruncated: outline.length > limit,
-    chapterId: chapter?.id ?? null,
-    chapterTitle: chapter?.title ?? null,
+    chapterId: current.chapterId,
+    chapterTitle: current.chapterTitle,
     content: chapterContent.slice(0, limit),
     chapterTruncated: chapterContent.length > limit
   };
+}
+
+/** 当前账户作品/章节的轻量元数据，不读取正文；所有消费者共用此归属规则。 */
+export function getActiveWritingAiMetadata(userId: string): { bookId: string; bookTitle: string; aiRoleId: WritingSpecialistId; chapterId: string | null; chapterTitle: string | null } | null {
+  return database.prepare(`
+    SELECT b.id AS bookId, b.title AS bookTitle, b.ai_role_id AS aiRoleId, c.id AS chapterId, c.title AS chapterTitle
+    FROM writing_workspace_state s
+    JOIN writing_books b ON b.id = s.active_book_id AND b.user_id = s.user_id
+    LEFT JOIN writing_chapters c ON c.id = s.active_chapter_id AND c.book_id = b.id
+    WHERE s.user_id = ?
+  `).get(userId) as { bookId: string; bookTitle: string; aiRoleId: WritingSpecialistId; chapterId: string | null; chapterTitle: string | null } | undefined ?? null;
+}
+
+/** Run 绑定只需要稳定 ID，不重复读取大纲/章节正文。 */
+export function getActiveWritingAiTarget(userId: string): { bookId: string; chapterId: string | null } | null {
+  const current = getActiveWritingAiMetadata(userId);
+  return current ? { bookId: current.bookId, chapterId: current.chapterId } : null;
 }
 
 /** 导出当前账户的一部作品为 DeepWrite 原生长篇目录 ZIP，不包含提案、修订与会话数据。 */

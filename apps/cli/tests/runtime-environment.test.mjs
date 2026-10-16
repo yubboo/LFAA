@@ -45,10 +45,10 @@ test("环境任务隔离、重复合并、取消确认及租约未知；旧存�
     assert.equal(jobs.getRuntimeTask(next.id).result.outcome,'unknown');assert.equal(jobs.claimRuntimeTask('local'),null);
     const storage=await import('lfaa-settings/src/project-storage.js');
     const before=storage.getProjectStorageLocations().settings;
-    storage.saveProjectStorageLocations({logsDirectory:before.logsDirectory,writingDirectory:before.writingDirectory,dramaDirectory:before.dramaDirectory});
+    const legacy=join(process.env.LFAA_DATA_DIR,'other-environments');
+    configuration.save('project_storage_locations',{id:1,runtime_directory:legacy});
     assert.equal(storage.getProjectStorageLocations().settings.runtimeDirectory,before.runtimeDirectory);
-    storage.saveProjectStorageLocations({...before,runtimeDirectory:join(process.env.LFAA_DATA_DIR,'other-environments')});
-    assert.ok(storage.getRuntimeStorageLocations('local',process.env.LFAA_DATA_DIR,process.platform).previousRuntimeDirectories.includes(before.runtimeDirectory));
+    assert.ok(storage.getRuntimeStorageLocations('local',process.env.LFAA_DATA_DIR,process.platform).previousRuntimeDirectories.includes(legacy));
     const remote=storage.getRuntimeStorageLocations('00000000-0000-4000-8000-000000000001','E:\\\\remote','win32');assert.equal(remote.runtimeDirectory,'E:\\\\remote\\\\environments');
     migrateRuntimeEnvironmentSchema();assert.equal(database.prepare('PRAGMA user_version').get().user_version,56);
     closeDatabase();

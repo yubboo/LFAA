@@ -20,6 +20,7 @@ export function resolveDataPaths(dataDirectory) {
     lib: path("lib"),
     plugins: path("plugins"),
     cache: path("cache"),
+    tmp: path("tmp"),
     logs: path("logs"),
     backups: path("backups"),
     models: path("models"),

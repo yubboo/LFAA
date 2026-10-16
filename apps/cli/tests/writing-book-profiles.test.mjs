@@ -23,9 +23,12 @@ test("作品角色与 Skills 只作用于当前账户和当前作品，并由模
       const { sessionRecords } = await import('lfaa-session-persistence-jsonl/src/repository.js');
       const { retireLegacyFileTables } = await import('lfaa-storage-domain/src/migration.js');
       retireLegacyFileTables();
-        assert.equal(database.prepare('PRAGMA user_version').get().user_version, 51);
+        // 当前 Storage Owner 的既有迁移链已到 56；本轮角色/工具拆分不改变 Schema。
+        assert.equal(database.prepare('PRAGMA user_version').get().user_version, 56);
       database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('profile-owner',8301,'profile-owner','salt','hash','member',0),('profile-other',8302,'profile-other','salt','hash','member',0)").run();
       const writing = await import('lfaa-document-writing/src/service.js');
+      const { createDomainToolTestHost } = await import('./tests/fixtures/domain-tools.mjs');
+      const domainToolHost = await createDomainToolTestHost(['writing']);
       const { listAiBusinessTools } = await import('lfaa-tools/src/business-tools.js');
       const ownerBook = writing.createWritingBook('profile-owner', '角色作品');
       const ownerBookId = ownerBook.activeBookId;
@@ -62,7 +65,7 @@ test("作品角色与 Skills 只作用于当前账户和当前作品，并由模
       const read = await readTool.execute({ skillId: skill.id }, context);
       assert.equal(read.instructions, skill.instructions);
       assert.equal(read.trust, 'untrusted');
-      assert.equal((await listAiBusinessTools('workspace', 'member', target)).some(tool => tool.name.includes('book_skill')), false);
+      assert.equal(listAiBusinessTools('workspace', 'member', target).some(tool => tool.name.includes('book_skill')), true, '能力共享仍绑定传入的真实作品上下文');
       const otherBookTools = listAiBusinessTools('writing', 'member', { bookId: otherBookId, chapterId: null });
       const otherBookList = await otherBookTools.find(tool => tool.name === 'writing_list_book_skills').execute({}, context);
       assert.deepEqual(otherBookList.skills, []);
@@ -83,6 +86,7 @@ test("作品角色与 Skills 只作用于当前账户和当前作品，并由模
 
       configuration.close();
       sessionRecords.close();
+      await domainToolHost.close();
       closeDatabase();
     `], {
       cwd: cli,

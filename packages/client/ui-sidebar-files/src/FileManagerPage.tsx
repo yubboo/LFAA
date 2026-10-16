@@ -8,9 +8,9 @@ import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { Alert, Button, Dropdown, Empty, Input, Modal, Popover, Select, Space, Spin, Table, Tag, Tree, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { DataNode, EventDataNode } from "antd/es/tree";
-import { getErrorMessage, loadSystemFileAudit, operateSystemFiles, downloadSystemFile, uploadSystemFile, type FileManagerAuditEntry, type FileManagerOperation, type ManagedFileEntry, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { getErrorMessage, loadSystemFileAudit, loadFileResourceLocations, operateSystemFiles, downloadSystemFile, uploadSystemFile, type ApplicationId, type FileManagerAuditEntry, type FileManagerOperation, type ManagedFileEntry, type FileResourceLocation, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import type { ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
-import { GlobalNavigationRail } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
+import { GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { usePointerResize } from "lfaa-client-ui-dockkit/src/ui-resize/use-pointer-resize.js";
 import { createTarArchive } from "./archive.js";
@@ -33,6 +33,8 @@ interface FileManagerPageProps {
   settings: UserSettings;
   serverState: ServiceState;
   homeRoute: string;
+  applications: ApplicationNavigationItem[];
+  onOpenApplication: (app: ApplicationId, mode: "normal") => Promise<void>;
   onNavigate: (path: string) => void;
   onOpenSettings: () => void;
   onLogout: () => void;
@@ -48,8 +50,8 @@ function pathWithin(directory: string, name: string): string {
   return [directory, name].filter(Boolean).join("/");
 }
 
-function directorySnapshotKey(path: string, query: string): string {
-  return JSON.stringify([path, query.trim()]);
+function directorySnapshotKey(path: string, query: string, owner: string): string {
+  return JSON.stringify([owner, path, query.trim()]);
 }
 
 const maximumBatchItems = 50;
@@ -120,23 +122,42 @@ function getFileManagerModalContainer(): HTMLElement {
   return document.querySelector<HTMLElement>(".workbench-shell") ?? document.body;
 }
 
-export function FileManagerPage({ user, settings, serverState, homeRoute, onNavigate, onOpenSettings, onLogout }: FileManagerPageProps) {
+export function FileManagerPage({ user, settings, serverState, homeRoute, applications, onOpenApplication, onNavigate, onOpenSettings, onLogout }: FileManagerPageProps) {
   const [messageApi, messageContext] = message.useMessage();
   const [modalApi, modalContext] = Modal.useModal();
   const fileAccess = user.role === "super_admin" && settings.permissions.mode === "full_access";
   const fileAccessRef = useRef(fileAccess);
   fileAccessRef.current = fileAccess;
-  const cacheKey = `data-v2:${user.id}:${user.role}:${settings.permissions.mode}`;
+  const cacheKey = `resources-v3:${user.id}:${user.role}:${settings.permissions.mode}`;
+  const accountContextRef = useRef(cacheKey);
+  accountContextRef.current = cacheKey;
+  const previousContextRef = useRef(cacheKey);
+  const assertFileContext = () => {
+    if (!fileAccessRef.current || accountContextRef.current !== cacheKey) throw new Error("文件账户或权限已变更，请重新核对设置。");
+  };
   const requestedLocation = useRef(readFileManagerLocation(user.id)).current;
   const cachedSnapshot = useRef(requestedLocation === null ? fileManagerSnapshots.get(cacheKey) ?? null : null).current;
   const [currentPath, setCurrentPath] = useState(() => requestedLocation ?? cachedSnapshot?.currentPath ?? "");
   useEffect(() => { consumeFileManagerLocation(); }, []);
   const [dataRootLabel, setDataRootLabel] = useState("");
+  const [locations, setLocations] = useState<FileResourceLocation[]>([]);
+  const [locationError, setLocationError] = useState("");
+  const [directoryDescription, setDirectoryDescription] = useState("");
+  useEffect(() => {
+    setLocations([]); setLocationError("");
+    if (!fileAccess) return;
+    const controller = new AbortController();
+    void loadFileResourceLocations(controller.signal).then(result => {
+      if (controller.signal.aborted) return;
+      setLocations(result.locations);
+    }).catch(error => { if (!controller.signal.aborted) setLocationError(getErrorMessage(error)); });
+    return () => controller.abort();
+  }, [cacheKey, fileAccess]);
   const [entries, setEntries] = useState<ManagedFileEntry[]>(() => cachedSnapshot?.entries ?? []);
   const [searchText, setSearchText] = useState(() => cachedSnapshot?.searchText ?? "");
   const [searchQuery, setSearchQuery] = useState(() => cachedSnapshot?.searchQuery ?? "");
   const [visibleSnapshotKey, setVisibleSnapshotKey] = useState(() => cachedSnapshot
-    ? directorySnapshotKey(cachedSnapshot.currentPath, cachedSnapshot.searchQuery)
+    ? directorySnapshotKey(cachedSnapshot.currentPath, cachedSnapshot.searchQuery, cacheKey)
     : "");
   const [loading, setLoading] = useState(() => cachedSnapshot === null);
   const [directoryState, setDirectoryState] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -243,13 +264,17 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
   const directoryReadController = useRef<AbortController | null>(null);
   const directorySizeInFlight = useRef(new Set<string>());
   const draggedPathRef = useRef("");
-  const supportsDirectorySize = !currentPath.startsWith(".lfaa-library") || currentPath.startsWith(".lfaa-library/game-servers/");
+  const instanceDirectory = currentPath.startsWith(".lfaa-library/game-instances/") && currentPath.split("/").length >= 3;
+  const gameStorageDirectory = currentPath.startsWith(".lfaa-library/game-storage/") && currentPath.split("/").length >= 4;
+  const supportsDirectorySize = !currentPath.startsWith(".lfaa-library") || currentPath.startsWith(".lfaa-library/game-servers/") || instanceDirectory || gameStorageDirectory;
   const isOnline = fileAccess;
   const directoryReady = directoryState === "ready";
-  const hasCurrentDirectorySnapshot = visibleSnapshotKey === directorySnapshotKey(currentPath, searchQuery);
+  const hasCurrentDirectorySnapshot = visibleSnapshotKey === directorySnapshotKey(currentPath, searchQuery, cacheKey);
   const showCurrentDirectorySnapshot = hasCurrentDirectorySnapshot && isOnline;
   const directoryUsable = directoryReady || showCurrentDirectorySnapshot;
-  const concreteDirectory = !currentPath.startsWith(".lfaa-library") || currentPath.startsWith(".lfaa-library/game-servers/") && currentPath.split("/").length >= 3;
+  const concreteDirectory = currentPath !== "local-drives" && (!currentPath.startsWith(".lfaa-library") || currentPath.startsWith(".lfaa-library/game-servers/") && currentPath.split("/").length >= 3 || instanceDirectory || gameStorageDirectory);
+  const activeLocation = locations.filter(location => currentPath === location.path || location.path && currentPath.startsWith(location.path + "/")).sort((left, right) => right.path.length - left.path.length)[0];
+  const selectLocation = (path: string) => { setCurrentPath(path); setSearchQuery(""); setSearchText(""); setDirectoryDescription(""); setDataRootLabel(""); };
   const canOperate = (operation: FileManagerOperation, entry?: ManagedFileEntry) => entry?.operations ? entry.operations.includes(operation) : availableOperations ? availableOperations.includes(operation) : concreteDirectory;
 
   const runTask = useCallback(async (
@@ -262,21 +287,22 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
     setError("");
     if (locksWorkspace) setTaskMessage("正在处理文件操作…");
     try {
+      if (!fileAccessRef.current || accountContextRef.current !== cacheKey) throw new Error("文件账户或权限已变更，请重新核对设置。");
       const { result } = await operateSystemFiles({ operation, ...input }, signal);
-      if (!fileAccessRef.current) throw new Error("文件权限已变更，请重新核对设置。");
+      if (!fileAccessRef.current || accountContextRef.current !== cacheKey) throw new Error("文件账户或权限已变更，请重新核对设置。");
       return result;
     } catch (taskError) {
-      if (signal?.aborted) throw taskError;
+      if (signal?.aborted || accountContextRef.current !== cacheKey) throw taskError;
       const detail = getErrorMessage(taskError);
       setError(detail);
       throw new Error(detail);
     } finally {
-      if (locksWorkspace) {
+      if (locksWorkspace && accountContextRef.current === cacheKey) {
         setBusy(false);
         setTaskMessage("");
       }
     }
-  }, [isOnline]);
+  }, [cacheKey, isOnline]);
 
   const refresh = useCallback(async () => {
     const request = ++directoryReadSequence.current;
@@ -303,6 +329,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
         : await runTask("list", { path: currentPath }, controller.signal);
       if (request !== directoryReadSequence.current) return;
       if (typeof result.rootDirectory === "string") setDataRootLabel(result.rootDirectory);
+      setDirectoryDescription(typeof result.description === "string" ? result.description : "");
       const nextEntries = Array.isArray(result.entries) ? result.entries as ManagedFileEntry[] : [];
       setEntries(nextEntries);
       const operations = Array.isArray(result.operations) ? result.operations as FileManagerOperation[] : undefined;
@@ -310,7 +337,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
       const nextTruncated = result.truncated === true;
       setTruncated(nextTruncated);
       setDirectoryState("ready");
-      setVisibleSnapshotKey(directorySnapshotKey(currentPath, searchQuery));
+      setVisibleSnapshotKey(directorySnapshotKey(currentPath, searchQuery, cacheKey));
       fileManagerSnapshots.set(cacheKey, {
         currentPath, searchText: searchTextRef.current, searchQuery, entries: nextEntries, truncated: nextTruncated, operations
       });
@@ -340,6 +367,15 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
   useEffect(() => {
     if (!fileAccess) { setPreview(null); setEditorPath(""); setTrashOpen(false); setAuditOpen(false); setCreateKind(null); setRenameEntry(null); }
   }, [fileAccess]);
+  useEffect(() => {
+    if (previousContextRef.current !== cacheKey) {
+      previousContextRef.current = cacheKey;
+      setCurrentPath(""); setSearchQuery(""); setSearchText(""); setDataRootLabel(""); setBusy(false); setTaskMessage(""); setError("");
+    }
+    setPreview(null); setEditorPath(""); setTrashOpen(false); setTrashEntries([]); setAuditOpen(false); setAuditEntries([]);
+    setSelectedPaths([]); setCreateKind(null); setRenameEntry(null); setDirectoryDescription("");
+    setTreeData([{ title: "文件", key: "", isLeaf: false, children: [] }]); setLoadedTreeKeys([]);
+  }, [cacheKey]);
 
   useEffect(() => {
     if (!preview?.dataBase64 || (preview.kind !== "image" && preview.kind !== "pdf")) {
@@ -460,11 +496,13 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
       const files: Array<{ path: string; bytes: Uint8Array }> = [];
       let totalBytes = 0;
       for (const entry of selected) {
+        assertFileContext();
         const result = !entry.path.startsWith(".lfaa-library/") ? null : await runTask("download", { path: entry.path });
         if (result && typeof result.dataBase64 !== "string") throw new Error("文件服务没有返回文件内容。");
         totalBytes += entry.size;
         if (totalBytes > maximumBatchTransferBytes) throw new Error("批量下载总量不能超过 20 MiB；请分批选择。");
         const bytes = result ? Uint8Array.from(window.atob(result.dataBase64 as string), character => character.charCodeAt(0)) : new Uint8Array(await (await downloadSystemFile(entry.path)).arrayBuffer());
+        assertFileContext();
         files.push({ path: entry.path, bytes });
       }
       const url = URL.createObjectURL(createTarArchive(files));
@@ -474,14 +512,15 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       messageApi.success(`已打包下载 ${files.length} 个文件。`);
-    } catch (downloadError) { setError(getErrorMessage(downloadError)); }
+    } catch (downloadError) { if (accountContextRef.current === cacheKey) setError(getErrorMessage(downloadError)); }
   };
 
   const loadTrash = async () => {
     try {
-      const trashRoot = currentPath.startsWith(".lfaa-library/game-servers/")
+      const trashRoot = currentPath.startsWith(".lfaa-library/game-servers/") || instanceDirectory
         ? currentPath.split("/").slice(0, 3).join("/")
-        : currentPath.startsWith("local-drives/") ? currentPath.split("/").slice(0, 2).join("/") : "";
+        : gameStorageDirectory ? currentPath.split("/").slice(0, 4).join("/")
+        : currentPath.startsWith("local-drives/") || currentPath.startsWith(".lfaa-resources/") ? currentPath.split("/").slice(0, 2).join("/") : "";
       const result = await runTask("trash-list", { path: trashRoot });
       setTrashEntries(Array.isArray(result.entries) ? result.entries as ManagedFileEntry[] : []);
       setTrashOpen(true);
@@ -508,11 +547,13 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
   };
 
   const loadAudit = async () => {
-    try { const result = await loadSystemFileAudit(auditQuery); setAuditEntries(result.entries); setAuditOpen(true); }
-    catch (auditError) { setError(getErrorMessage(auditError)); }
+    try { assertFileContext(); const result = await loadSystemFileAudit(auditQuery); assertFileContext(); setAuditEntries(result.entries); setAuditOpen(true); }
+    catch (auditError) { if (accountContextRef.current === cacheKey) setError(getErrorMessage(auditError)); }
   };
 
   const navigateUp = () => {
+    if (activeLocation?.path === currentPath) { selectLocation(""); return; }
+    if (gameStorageDirectory && currentPath.split("/").length === 4) { selectLocation(".lfaa-library/game-storage"); return; }
     setSearchQuery("");
     setSearchText("");
     setCurrentPath(currentPath.includes("/") ? currentPath.slice(0, currentPath.lastIndexOf("/")) : "");
@@ -570,9 +611,11 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
 
   const downloadEntry = async (entry: ManagedFileEntry) => {
     try {
+      assertFileContext();
       const result = !entry.path.startsWith(".lfaa-library/") ? null : await runTask("download", { path: entry.path });
       if (result && typeof result.dataBase64 !== "string") throw new Error("文件服务没有返回文件内容。");
       const blob = result ? new Blob([Uint8Array.from(window.atob(result.dataBase64 as string), character => character.charCodeAt(0))]) : await downloadSystemFile(entry.path);
+      assertFileContext();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -580,7 +623,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (downloadError) {
-      setError(getErrorMessage(downloadError));
+      if (accountContextRef.current === cacheKey) setError(getErrorMessage(downloadError));
     }
   };
 
@@ -593,6 +636,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
       let uploaded = 0;
       let duplicates = 0;
       for (const file of files) {
+        assertFileContext();
         if (file.size > 3 * 1024 * 1024) throw new Error(`“${file.name}”超过 3 MiB 单文件上传上限。`);
         const dataUrl = !currentPath.startsWith(".lfaa-library/") ? "" : await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
@@ -604,14 +648,16 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
         if (separator < 0 && currentPath.startsWith(".lfaa-library/")) throw new Error("上传文件编码无效。");
         const digest = await window.crypto.subtle.digest("SHA-256", await file.arrayBuffer());
         const sha256 = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+        assertFileContext();
         const result = !currentPath.startsWith(".lfaa-library/") ? (await uploadSystemFile(currentPath, file, sha256)).result : await runTask("upload", { path: currentPath, name: file.name, dataBase64: dataUrl.slice(separator + 1), sha256 });
+        assertFileContext();
         uploaded += 1;
         if (result.duplicate === true) duplicates += 1;
       }
       messageApi.success(`已处理 ${uploaded} 个文件，其中 ${duplicates} 个与同名文件内容一致并保留原件。`);
       await refresh();
     } catch (uploadError) {
-      setError(getErrorMessage(uploadError));
+      if (accountContextRef.current === cacheKey) setError(getErrorMessage(uploadError));
     } finally {
       if (uploadInputRef.current) uploadInputRef.current.value = "";
     }
@@ -724,9 +770,9 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
       sorter: (left, right) => left.name.localeCompare(right.name, "zh-CN", { sensitivity: "base" }),
       render: (_value, entry) => {
         const entryUsable = directoryReady || showCurrentDirectorySnapshot && entry.kind === "directory";
-        return <button className="file-manager__name" type="button" draggable={entryUsable && !busy} disabled={busy || !isOnline || !entryUsable} onDragStart={event => { draggedPathRef.current = entry.path; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", entry.path); }} onClick={() => void openEntry(entry)}>
+        return <button className="file-manager__name" type="button" draggable={entryUsable && !busy && canOperate("move", entry)} disabled={busy || !isOnline || !entryUsable} onDragStart={event => { draggedPathRef.current = entry.path; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", entry.path); }} onClick={() => void openEntry(entry)}>
           <WorkbenchIcon name={entry.kind === "directory" ? "folder" : "file"} size={17} />
-          <span>{entry.name}</span>
+          <span className="file-manager__entry-label"><span>{entry.name}</span>{entry.description ? <small>{entry.description}</small> : null}</span>
         </button>;
       }
     },
@@ -771,7 +817,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
     }
   ];
 
-  const crumbs = currentPath ? currentPath.split("/").map((name, index, segments) => ({ name: name === ".lfaa-library" ? "应用资源" : name === "game-servers" ? "游戏服务器" : name === "knowledge" ? "我的资料库" : name === "local-drives" ? "本机磁盘" : segments[index - 1] === "local-drives" && /^[A-Z]$/iu.test(name) ? `${name}:` : name, path: segments.slice(0, index + 1).join("/") })) : [];
+  const crumbs = currentPath ? currentPath.split("/").map((name, index, segments) => ({ name: name === ".lfaa-library" ? "应用资源" : name === ".lfaa-resources" ? "受管资源" : locations.find(location => location.path === segments.slice(0, index + 1).join("/"))?.name ?? (segments[index - 1] === "local-drives" && /^[A-Z]$/iu.test(name) ? `${name}:` : name), path: segments.slice(0, index + 1).join("/") })).filter(crumb => crumb.path !== ".lfaa-resources" && !(crumb.path.startsWith(".lfaa-library/game-storage/") && crumb.path.split("/").length === 3)) : [];
 
   return (
     <div className="module-workbench-stage file-manager-stage">
@@ -784,8 +830,12 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
         shortcuts={settings.shortcuts}
         activePage="files"
         homeLabel="返回来源应用/模式首页"
+        applications={applications}
+        showServiceStatus={settings.general.showServiceStatus}
         onHome={() => onNavigate(homeRoute)}
-        onApplicationsHome={() => onNavigate("/")}
+        onNavigate={onNavigate}
+        onOpenApplication={onOpenApplication}
+        onOpenWork={() => onNavigate("/work")}
         onOpenFiles={() => onNavigate("/files")}
         onOpenSettings={onOpenSettings}
         onLogout={onLogout}
@@ -794,11 +844,12 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
         <header className="file-manager__header">
           <div>
             <Typography.Title id="file-manager-title" level={2}>文件管理</Typography.Title>
-            <Typography.Text type="secondary">浏览 data 文件、应用资源和本机全部可用磁盘。操作记录按账户留存。{dataRootLabel ? ` 数据根：${dataRootLabel}` : ""}</Typography.Text>
+            <Typography.Text type="secondary">管理游戏、备份和运行资源。</Typography.Text>
+            {dataRootLabel ? <Typography.Text className="file-manager__root-path" type="secondary" title={dataRootLabel}>当前存储位置：{dataRootLabel}</Typography.Text> : null}
           </div>
           <div className="file-manager__header-controls">
             <Space wrap className="file-manager__header-actions">
-            <Button disabled={!isOnline || busy} onClick={() => void loadTrash()}>回收站</Button>
+            <Button disabled={!isOnline || busy || !directoryReady || !canOperate("trash-list")} onClick={() => void loadTrash()}>回收站</Button>
             <Button disabled={!fileAccess} onClick={() => void loadAudit()}>操作记录</Button>
 
             </Space>
@@ -807,6 +858,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
 
         {!fileAccess ? <Alert type="warning" showIcon message="文件管理需要同时满足：超级管理员身份、设置中心的完全访问模式。" /> : null}
         {error ? <Alert className="file-manager__alert" type="error" showIcon message={error} closable onClose={() => setError("")} /> : null}
+        {locationError ? <Alert className="file-manager__alert" type="warning" showIcon message={`资源导航读取失败：${locationError}`} /> : null}
         {busy ? <div className="file-manager__task" role="status"><Spin size="small" /><span>{taskMessage || "正在执行文件操作…"}</span></div> : null}
 
         <div className="file-manager__toolbar">
@@ -855,7 +907,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
             ], onClick: ({ key }) => openCreateDialog(key === "folder" ? "folder" : "file") }}>
               <Button disabled={!isOnline || !directoryReady || busy || !canOperate("create-file") && !canOperate("create-folder")}><WorkbenchIcon name="plus" size={15} />新建</Button>
             </Dropdown>
-            <Button type="primary" disabled={!isOnline || !directoryReady || busy || !canOperate("upload")} onClick={() => uploadInputRef.current?.click()}><WorkbenchIcon name="file" size={15} />上传 / 导入</Button>
+            <Button type="primary" aria-label="上传 / 导入" disabled={!isOnline || !directoryReady || busy || !canOperate("upload")} onClick={() => uploadInputRef.current?.click()}><WorkbenchIcon name="file" size={15} /><span className="file-manager__upload-full">上传 / 导入</span><span className="file-manager__upload-compact" aria-hidden="true">上传</span></Button>
             <input ref={uploadInputRef} className="file-manager__upload-input" type="file" multiple onChange={(event) => void uploadSelectedFiles(Array.from(event.target.files ?? []))} />
           </div>
         </div>
@@ -868,15 +920,19 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
           <Button size="small" type="text" onClick={() => setSelectedPaths([])}>清除选择</Button>
         </div> : null}
 
-        <div className={`file-manager__workspace${treeOpen ? " is-tree-open" : ""}`}>
-          <aside id="file-manager-directory-tree" className="file-manager__tree" aria-label="目录树" hidden={!treeOpen}>
-            <Typography.Text className="file-manager__tree-title">目录</Typography.Text>
+        <div className="file-manager__workspace is-resources-open">
+          <aside id="file-manager-directory-tree" className="file-manager__tree file-manager__resources" aria-label="资源导航">
+            <nav className="file-manager__resource-list" aria-label="资源类别">
+              {locations.map(location => <button type="button" key={location.id} title={location.description} aria-current={activeLocation?.id === location.id ? "page" : undefined} disabled={!isOnline || busy} onClick={() => selectLocation(location.path)}><WorkbenchIcon name="folder" size={16} /><span>{location.name}</span></button>)}
+            </nav>
+            {treeOpen ? <><Typography.Text className="file-manager__tree-title">目录树</Typography.Text>
             <Tree key={cacheKey} blockNode treeData={treeData} loadData={loadTreeChildren} loadedKeys={loadedTreeKeys} onLoad={(keys) => setLoadedTreeKeys(keys)} selectedKeys={[currentPath]} onSelect={(keys) => {
               if (!keys.length || busy) return;
               setCurrentPath(String(keys[0])); setSearchQuery(""); setSearchText("");
-            }} />
+            }} /></> : null}
           </aside>
           <div className="file-manager__body" ref={fileManagerBodyRef}>
+          {activeLocation ? <div className="file-manager__resource-context"><strong>{activeLocation.name}</strong><span title={directoryDescription || activeLocation.description}>{directoryDescription || activeLocation.description}</span>{activeLocation.id === "plugins" ? <Button size="small" onClick={onOpenSettings}>管理扩展插件</Button> : null}</div> : null}
           {loading && !showCurrentDirectorySnapshot ? <div className="file-manager__loading" role="status"><Spin /><span>正在读取目录…</span></div>
             : !fileAccess ? <Empty className="file-manager__empty" description="仅超级管理员在完全访问模式下可使用文件管理"><Button onClick={onOpenSettings}>前往设置中心</Button></Empty>
                       : directoryState === "error" ? <div className="file-manager__offline-state" role="status">
@@ -889,7 +945,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, onNavi
                           if (keys.length > maximumBatchItems) { messageApi.warning(`批量操作最多选择 ${maximumBatchItems} 项。`); setSelectedPaths(keys.slice(0, maximumBatchItems).map(String)); }
                           else setSelectedPaths(keys.map(String));
                         } }} pagination={{ pageSize: 20, showSizeChanger: false }} onRow={(entry) => ({ onDoubleClick: () => void openEntry(entry), onDragOver: event => { if (entry.kind === "directory") event.preventDefault(); }, onDrop: event => { event.preventDefault(); void moveOnDrop(entry); } })} />
-                          : <Empty className="file-manager__empty" description={searchQuery ? "没有匹配的文件" : "此目录为空"} />}
+                          : <Empty className="file-manager__empty" description={searchQuery ? "没有匹配的文件" : currentPath === ".lfaa-library/game-instances" ? "没有已登记的游戏实例" : currentPath === ".lfaa-library/game-storage" ? "没有报告文件能力的游戏节点" : "此目录为空"} />}
           {truncated ? <Typography.Text className="file-manager__truncated" type="secondary">当前结果最多显示 500 项，请进入子目录进一步筛选。</Typography.Text> : null}
           </div>
         </div>

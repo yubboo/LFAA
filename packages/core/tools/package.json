@@ -9,22 +9,16 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "lfaa-runtime-manager": "workspace:*",
     "@deepseek-ai/cordis": "4.0.4",
     "joi": "^17.0.0",
     "ajv": "^8.20.0",
     "lfaa-agent-tool-presentation": "workspace:*",
-    "lfaa-document-writing": "workspace:*",
     "lfaa-fs": "workspace:*",
-    "lfaa-games-minecraft": "workspace:*",
-    "lfaa-games-steamcmd": "workspace:*",
     "lfaa-host-daemon": "workspace:*",
     "lfaa-identity-auth": "workspace:*",
     "lfaa-jobs": "workspace:*",
-    "lfaa-launch-environment": "workspace:*",
     "lfaa-settings": "workspace:*",
     "lfaa-scope": "workspace:*",
-    "lfaa-skill-writing": "workspace:*",
     "lfaa-util-values": "workspace:*"
   },
   "devDependencies": {

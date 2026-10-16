@@ -58,7 +58,7 @@
       inject: [apiGateway]
     - id: webserver
       name: lfaa-host-webserver
-      inject: [apiGateway, aiExtensions, aiRuntimeHooks, lfaaSettings, lfaaAuth, lfaaMinecraft, lfaaSteamcmd, lfaaWriting]
+      inject: [apiGateway, skills, aiExtensions, aiRuntimeHooks, lfaaSettings, lfaaAuth, lfaaMinecraft, lfaaSteamcmd, lfaaWriting]
       required: true
     - id: dsh-client-modules
       name: '@deepseek-ai/dsh-client-modules'

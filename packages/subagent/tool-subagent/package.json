@@ -9,6 +9,7 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
+    "lfaa-session": "workspace:*",
     "@deepseek-ai/cordis": "4.0.4",
     "lfaa-tools": "workspace:*",
     "lfaa-subagent": "workspace:*",

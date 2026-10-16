@@ -196,11 +196,17 @@ export const backgroundUploadSchema = Joi.object({
   dataUrl: Joi.string().max(4_200_000).required()
 }).unknown(false);
 
+export const agentAssociationsSchema = Joi.object({
+  applicationIds: Joi.array().items(Joi.string().valid(...APPLICATION_IDS)).max(APPLICATION_IDS.length).unique().required(),
+  capabilityIds: Joi.array().items(Joi.string().pattern(/^[A-Za-z0-9._:/-]{1,180}$/u)).max(16).unique().required()
+}).unknown(false);
+
 export const aiChatMessageSchema = Joi.object({
   appId: Joi.string().valid(...APPLICATION_IDS).required(),
   sessionId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).allow(null).default(null),
   projectId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).allow(null),
   planMode: Joi.boolean(),
+  associations: agentAssociationsSchema,
   content: Joi.string().trim().min(1).max(12000).required()
 }).unknown(false);
 
@@ -306,7 +312,7 @@ export const daemonHeartbeatSchema = Joi.object({
     architecture: Joi.string().valid("x64").required(),
     version: Joi.string().trim().max(40).required(),
     dataRoot: Joi.string().trim().min(3).max(2048).pattern(/^(?:[a-z]:\\|\\\\)/iu).required(),
-    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-instance-archive-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "runtime-environment-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", "git-workspace-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(20).unique().required(),
+    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-instance-archive-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "runtime-environment-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", "git-workspace-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(20).unique().required(),
     javaRuntimes: Joi.array().items(Joi.object({
       version: Joi.string().max(80),
       architecture:Joi.string().max(80),
@@ -443,15 +449,6 @@ export const minecraftStorageSettingsSchema = Joi.object({
 
 export const dataDirectorySettingsSchema = Joi.object({
     directory: Joi.string().trim().min(1).max(2048).required()
-  }).unknown(false);
-
-export const projectStorageLocationsSchema = Joi.object({
-  runtimeDirectory: Joi.string().trim().min(1).max(2048),
-  downloadCacheDirectory: Joi.string().trim().min(1).max(2048),
-  temporaryDirectory: Joi.string().trim().min(1).max(2048),
-    logsDirectory: Joi.string().trim().min(1).max(2048).required(),
-    writingDirectory: Joi.string().trim().min(1).max(2048).required(),
-    dramaDirectory: Joi.string().trim().min(1).max(2048).required()
   }).unknown(false);
 
 export const pluginRuntimeActionSchema = Joi.object({

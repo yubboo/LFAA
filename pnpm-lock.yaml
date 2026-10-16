@@ -748,6 +748,9 @@ importers:
       lfaa-capability-installs:
         specifier: workspace:*
         version: link:../../boot/capability-installs
+      lfaa-permission-presets:
+        specifier: workspace:*
+        version: link:../../interaction/permission-presets
       lfaa-plugin-manager:
         specifier: workspace:*
         version: link:../../boot/plugin-manager
@@ -907,15 +910,18 @@ importers:
       lfaa-conversation-memory:
         specifier: workspace:*
         version: link:../../core/conversation-memory
-      lfaa-fs:
+      lfaa-launch-environment:
         specifier: workspace:*
-        version: link:../../fs/fs
+        version: link:../../util/launch-environment
       lfaa-session:
         specifier: workspace:*
         version: link:../../core/session
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
+      lfaa-skill:
+        specifier: workspace:*
+        version: link:../../skill/skill
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
@@ -1161,6 +1167,9 @@ importers:
       lfaa-games-minecraft:
         specifier: workspace:*
         version: link:../../games/minecraft
+      lfaa-games-steamcmd:
+        specifier: workspace:*
+        version: link:../../games/steamcmd
       lfaa-host-daemon:
         specifier: workspace:*
         version: link:../../host/daemon
@@ -1446,10 +1455,16 @@ importers:
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
+      semver:
+        specifier: 7.8.5
+        version: 7.8.5
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.0
+      '@types/semver':
+        specifier: ^7.8.0
+        version: 7.8.0
 
   packages/bundle/base:
     dependencies:
@@ -1486,6 +1501,9 @@ importers:
       lfaa-document-writing:
         specifier: workspace:*
         version: link:../../document/writing
+      lfaa-domain-experts:
+        specifier: workspace:*
+        version: link:../../preset/domain-experts
       lfaa-fs:
         specifier: workspace:*
         version: link:../../fs/fs
@@ -1525,6 +1543,15 @@ importers:
       lfaa-plugin-manager:
         specifier: workspace:*
         version: link:../../boot/plugin-manager
+      lfaa-prompt:
+        specifier: workspace:*
+        version: link:../../prompt/prompt
+      lfaa-prompt-minecraft:
+        specifier: workspace:*
+        version: link:../../prompt/minecraft
+      lfaa-prompt-writing:
+        specifier: workspace:*
+        version: link:../../prompt/writing
       lfaa-runtime-manager:
         specifier: workspace:*
         version: link:../../games/runtime-manager
@@ -1537,6 +1564,12 @@ importers:
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
+      lfaa-skill-minecraft:
+        specifier: workspace:*
+        version: link:../../skill/minecraft
+      lfaa-skill-writing:
+        specifier: workspace:*
+        version: link:../../skill/writing
       lfaa-storage-domain:
         specifier: workspace:*
         version: link:../../storage/storage-domain
@@ -1552,6 +1585,12 @@ importers:
       lfaa-tool-ask-user:
         specifier: workspace:*
         version: link:../../interaction/tool-ask-user
+      lfaa-tool-minecraft:
+        specifier: workspace:*
+        version: link:../../games/tool-minecraft
+      lfaa-tool-runtime:
+        specifier: workspace:*
+        version: link:../../games/tool-runtime
       lfaa-tool-session-query:
         specifier: workspace:*
         version: link:../../session-query/tool-session-query
@@ -1561,9 +1600,15 @@ importers:
       lfaa-tool-skill:
         specifier: workspace:*
         version: link:../../skill/tool-skill
+      lfaa-tool-steamcmd:
+        specifier: workspace:*
+        version: link:../../games/tool-steamcmd
       lfaa-tool-workflow:
         specifier: workspace:*
         version: link:../../workflow/tool-workflow
+      lfaa-tool-writing:
+        specifier: workspace:*
+        version: link:../../document/tool-writing
       lfaa-tools:
         specifier: workspace:*
         version: link:../../core/tools
@@ -1961,6 +2006,9 @@ importers:
       lfaa-client-ui-settings-models:
         specifier: workspace:*
         version: link:../ui-settings-models
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
       react:
         specifier: ^18.0.0
         version: 18.0.0
@@ -2091,6 +2139,9 @@ importers:
       lfaa-client-ui-minecraft:
         specifier: workspace:*
         version: link:../ui-minecraft
+      lfaa-client-ui-plugin-manager:
+        specifier: workspace:*
+        version: link:../ui-plugin-manager
       lfaa-client-ui-primitives:
         specifier: workspace:*
         version: link:../ui-primitives
@@ -2158,6 +2209,58 @@ importers:
       lfaa-client-ui-workflow:
         specifier: workspace:*
         version: link:../ui-workflow
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+      react:
+        specifier: ^18.0.0
+        version: 18.0.0
+    devDependencies:
+      '@types/express':
+        specifier: ^4.0.0
+        version: 4.17.25
+      '@types/js-yaml':
+        specifier: ^4.0.0
+        version: 4.0.9
+      '@types/jsonwebtoken':
+        specifier: ^9.0.0
+        version: 9.0.10
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+      '@types/react':
+        specifier: ^18.0.0
+        version: 18.3.31
+      '@types/react-dom':
+        specifier: ^18.0.0
+        version: 18.0.0
+
+  packages/client/ui-plugin-manager:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      antd:
+        specifier: ^5.0.0
+        version: 5.29.3(moment@2.31.0)(react-dom@18.0.0(react@18.0.0))(react@18.0.0)
+      lfaa-client-connection:
+        specifier: workspace:*
+        version: link:../connection
+      lfaa-client-modules:
+        specifier: workspace:*
+        version: link:../modules
+      lfaa-client-resources:
+        specifier: workspace:*
+        version: link:../resources
+      lfaa-client-ui-primitives:
+        specifier: workspace:*
+        version: link:../ui-primitives
+      lfaa-client-ui-settings:
+        specifier: workspace:*
+        version: link:../ui-settings
+      lfaa-client-ui-sidebar:
+        specifier: workspace:*
+        version: link:../ui-sidebar
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
@@ -2511,6 +2614,9 @@ importers:
       lfaa-client-ui-primitives:
         specifier: workspace:*
         version: link:../ui-primitives
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
       react:
         specifier: ^18.0.0
         version: 18.0.0
@@ -2778,6 +2884,9 @@ importers:
       lfaa-client-ui-minecraft:
         specifier: workspace:*
         version: link:../ui-minecraft
+      lfaa-client-ui-plugin-manager:
+        specifier: workspace:*
+        version: link:../ui-plugin-manager
       lfaa-client-ui-primitives:
         specifier: workspace:*
         version: link:../ui-primitives
@@ -3070,6 +3179,9 @@ importers:
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
     devDependencies:
       '@types/express':
         specifier: ^4.0.0
@@ -3086,12 +3198,6 @@ importers:
 
   packages/core/system-prompt:
     dependencies:
-      lfaa-document-writing:
-        specifier: workspace:*
-        version: link:../../document/writing
-      lfaa-games-minecraft:
-        specifier: workspace:*
-        version: link:../../games/minecraft
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
@@ -3110,18 +3216,9 @@ importers:
       lfaa-agent-tool-presentation:
         specifier: workspace:*
         version: link:../agent-tool-presentation
-      lfaa-document-writing:
-        specifier: workspace:*
-        version: link:../../document/writing
       lfaa-fs:
         specifier: workspace:*
         version: link:../../fs/fs
-      lfaa-games-minecraft:
-        specifier: workspace:*
-        version: link:../../games/minecraft
-      lfaa-games-steamcmd:
-        specifier: workspace:*
-        version: link:../../games/steamcmd
       lfaa-host-daemon:
         specifier: workspace:*
         version: link:../../host/daemon
@@ -3131,21 +3228,12 @@ importers:
       lfaa-jobs:
         specifier: workspace:*
         version: link:../../jobs/jobs
-      lfaa-launch-environment:
-        specifier: workspace:*
-        version: link:../../util/launch-environment
-      lfaa-runtime-manager:
-        specifier: workspace:*
-        version: link:../../games/runtime-manager
       lfaa-scope:
         specifier: workspace:*
         version: link:../scope
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
-      lfaa-skill-writing:
-        specifier: workspace:*
-        version: link:../../skill/writing
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
@@ -3214,23 +3302,38 @@ importers:
         specifier: ^24.0.0
         version: 24.19.0
 
+  packages/document/tool-writing:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-document-writing:
+        specifier: workspace:*
+        version: link:../writing
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+
   packages/document/writing:
     dependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-domain-experts:
+        specifier: workspace:*
+        version: link:../../preset/domain-experts
       lfaa-home-paths:
         specifier: workspace:*
         version: link:../../util/home-paths
-      lfaa-launch-environment:
-        specifier: workspace:*
-        version: link:../../util/launch-environment
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
-      lfaa-skill-writing:
-        specifier: workspace:*
-        version: link:../../skill/writing
       lfaa-storage-json:
         specifier: workspace:*
         version: link:../../storage/storage-json
@@ -3381,9 +3484,6 @@ importers:
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
-      lfaa-skill:
-        specifier: workspace:*
-        version: link:../../skill/skill
       lfaa-storage-domain:
         specifier: workspace:*
         version: link:../../storage/storage-domain
@@ -3467,6 +3567,72 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.0
+
+  packages/games/tool-minecraft:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-games-minecraft:
+        specifier: workspace:*
+        version: link:../minecraft
+      lfaa-host-daemon:
+        specifier: workspace:*
+        version: link:../../host/daemon
+      lfaa-jobs:
+        specifier: workspace:*
+        version: link:../../jobs/jobs
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+
+  packages/games/tool-runtime:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-runtime-manager:
+        specifier: workspace:*
+        version: link:../runtime-manager
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+
+  packages/games/tool-steamcmd:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-games-steamcmd:
+        specifier: workspace:*
+        version: link:../steamcmd
+      lfaa-host-daemon:
+        specifier: workspace:*
+        version: link:../../host/daemon
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
 
   packages/hooks/hook-protocol:
     dependencies:
@@ -3837,15 +4003,6 @@ importers:
       lfaa-agent:
         specifier: workspace:*
         version: link:../../core/agent
-      lfaa-document-writing:
-        specifier: workspace:*
-        version: link:../../document/writing
-      lfaa-games-minecraft:
-        specifier: workspace:*
-        version: link:../../games/minecraft
-      lfaa-skill-writing:
-        specifier: workspace:*
-        version: link:../../skill/writing
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
@@ -3862,6 +4019,54 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.0
+
+  packages/preset/domain-experts:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+
+  packages/prompt/minecraft:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+
+  packages/prompt/prompt:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-agent:
+        specifier: workspace:*
+        version: link:../../core/agent
+      lfaa-scope:
+        specifier: workspace:*
+        version: link:../../core/scope
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-system-prompt:
+        specifier: workspace:*
+        version: link:../../core/system-prompt
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+
+  packages/prompt/writing:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-skill-writing:
+        specifier: workspace:*
+        version: link:../../skill/writing
 
   packages/sandbox/sandbox:
     dependencies:
@@ -4299,6 +4504,18 @@ importers:
         specifier: ^24.0.0
         version: 24.19.0
 
+  packages/skill/minecraft:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-agent:
+        specifier: workspace:*
+        version: link:../../core/agent
+      lfaa-skill:
+        specifier: workspace:*
+        version: link:../skill
+
   packages/skill/skill:
     dependencies:
       '@deepseek-ai/cordis':
@@ -4373,6 +4590,9 @@ importers:
       lfaa-skill-writing:
         specifier: workspace:*
         version: link:../writing
+      lfaa-system-prompt:
+        specifier: workspace:*
+        version: link:../../core/system-prompt
       lfaa-tools:
         specifier: workspace:*
         version: link:../../core/tools
@@ -4385,6 +4605,16 @@ importers:
         version: 24.19.0
 
   packages/skill/writing:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-agent:
+        specifier: workspace:*
+        version: link:../../core/agent
+      lfaa-skill:
+        specifier: workspace:*
+        version: link:../skill
     devDependencies:
       '@types/express':
         specifier: ^4.0.0
@@ -4616,6 +4846,9 @@ importers:
       lfaa-launch-environment:
         specifier: workspace:*
         version: link:../../util/launch-environment
+      lfaa-session:
+        specifier: workspace:*
+        version: link:../../core/session
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
@@ -4638,6 +4871,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-session:
+        specifier: workspace:*
+        version: link:../../core/session
       lfaa-subagent:
         specifier: workspace:*
         version: link:../subagent
@@ -5104,6 +5340,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-home-paths:
+        specifier: workspace:*
+        version: link:../../util/home-paths
       lfaa-launch-environment:
         specifier: workspace:*
         version: link:../../util/launch-environment
@@ -6482,6 +6721,9 @@ packages:
 
   '@types/responselike@1.0.3':
     resolution: {integrity: sha512-H/+L+UkTV33uf49PH5pCAUBVPNj2nDBXTN+qS1dOwyyg24l3CcicicCA7ca+HMvJBZcFgl5r8e+RR6elsb4Lyw==}
+
+  '@types/semver@7.8.0':
+    resolution: {integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==}
 
   '@types/send@0.17.6':
     resolution: {integrity: sha512-Uqt8rPBE8SY0RK8JB1EzVOIZ32uqy8HwdxCnoCOsYrvnswqmFZ/k+9Ikidlk/ImhsdvBsloHbAlewb2IEBV/Og==}
@@ -9955,6 +10197,8 @@ snapshots:
   '@types/responselike@1.0.3':
     dependencies:
       '@types/node': 24.19.0
+
+  '@types/semver@7.8.0': {}
 
   '@types/send@0.17.6':
     dependencies:

@@ -43,6 +43,26 @@ export interface MinecraftTask {
   finishedAt: string | null;
 }
 
+export interface MinecraftTaskLog {
+  id: number;
+  stream: "stdout" | "stderr" | "system";
+  line: string;
+  createdAt: string;
+}
+
+export interface MinecraftTaskDetails {
+  task: MinecraftTask;
+  logs: MinecraftTaskLog[];
+  logsTruncated: boolean;
+}
+
+export class MinecraftTaskRecordError extends Error {
+  constructor(readonly code: "invalid_task_ids" | "task_not_found" | "task_not_terminal", message: string) {
+    super(message);
+    this.name = "MinecraftTaskRecordError";
+  }
+}
+
 interface TaskRow {
   id: string;
   node_id: string;
@@ -225,6 +245,44 @@ export function getMinecraftTask(taskId: string): MinecraftTask | null {
     WHERE task.id = ?
   `).get(taskId) as TaskRow | undefined;
   return row ? toTask(row) : null;
+}
+
+export function getMinecraftTaskDetails(taskId: string, limit = 1_000): MinecraftTaskDetails | null {
+  const task = getMinecraftTask(taskId);
+  if (!task) return null;
+  const boundedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(1_000, Math.trunc(limit))) : 1_000;
+  const rows = database.prepare(`
+    SELECT id, stream, line, created_at FROM minecraft_task_logs WHERE task_id = ? ORDER BY id DESC LIMIT ?
+  `).all(taskId, boundedLimit + 1) as Array<{ id: number; stream: MinecraftTaskLog["stream"]; line: string; created_at: string }>;
+  const logsTruncated = rows.length > boundedLimit;
+  return {
+    task,
+    logs: rows.slice(0, boundedLimit).reverse().map((row) => ({ id: row.id, stream: row.stream, line: row.line, createdAt: row.created_at })),
+    logsTruncated
+  };
+}
+
+export function deleteMinecraftTaskRecords(taskIds: string[]): number {
+  if (!Array.isArray(taskIds) || taskIds.length < 1 || taskIds.length > 200 || new Set(taskIds).size !== taskIds.length) {
+    throw new MinecraftTaskRecordError("invalid_task_ids", "请选择 1 至 200 条不同的 Minecraft 任务记录。");
+  }
+  const placeholders = taskIds.map(() => "?").join(", ");
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const rows = database.prepare(`SELECT id, status FROM minecraft_tasks WHERE id IN (${placeholders})`).all(...taskIds) as Array<{ id: string; status: MinecraftTaskStatus }>;
+    if (rows.length !== taskIds.length) throw new MinecraftTaskRecordError("task_not_found", "部分任务记录已不存在，请刷新任务列表后重试；本批没有删除。");
+    if (rows.some((row) => row.status !== "succeeded" && row.status !== "failed")) {
+      throw new MinecraftTaskRecordError("task_not_terminal", "排队中或执行中的任务不能删除；请等待任务结束后刷新列表，本批没有删除。");
+    }
+    database.prepare(`DELETE FROM minecraft_task_logs WHERE task_id IN (${placeholders})`).run(...taskIds);
+    const deleted = database.prepare(`DELETE FROM minecraft_tasks WHERE id IN (${placeholders}) AND status IN ('succeeded', 'failed')`).run(...taskIds);
+    if (Number(deleted.changes) !== taskIds.length) throw new MinecraftTaskRecordError("task_not_terminal", "任务状态已变化，本批没有删除；请刷新任务列表后重试。");
+    database.exec("COMMIT;");
+    return Number(deleted.changes);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
 }
 
 export function appendMinecraftTaskLogs(instanceId: string, taskId: string | null, stream: "stdout" | "stderr" | "system", lines: string[]): void {

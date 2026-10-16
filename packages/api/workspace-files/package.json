@@ -14,6 +14,7 @@
     "lfaa-host-daemon": "workspace:*",
     "lfaa-util-values": "workspace:*",
     "lfaa-games-minecraft": "workspace:*",
+    "lfaa-games-steamcmd": "workspace:*",
     "lfaa-launch-environment": "workspace:*"
   },
   "devDependencies": {

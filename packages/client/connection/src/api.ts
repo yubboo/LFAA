@@ -1,3 +1,5 @@
+import type { AgentAssociations } from "lfaa-util-values/src/agent-associations.js";
+export type { AgentAssociations } from "lfaa-util-values/src/agent-associations.js";
 /**
  * 功能：定义前端与 LFAA 控制端之间的 API 类型和请求函数。
  * 作用：统一处理同源请求、HttpOnly Cookie、JSON 响应和服务端错误，合并同时发生的相同只读查询。
@@ -194,7 +196,7 @@ export interface ManagedPluginRecord {
   name: string;
   version: string;
   description: string;
-  source: { repository: string; requestedRef: string; commit: string; archiveSha256: string; license: string | null };
+  source: { kind?: "github" | "npm" | "local"; repository: string; requestedRef: string; commit: string; archiveSha256: string; license: string | null };
   compatibility: "lfaa-v1" | "dsh-v1" | "unsupported";
   runtimeEntry: string | null;
   capabilities: string[];
@@ -240,8 +242,11 @@ export interface ManagedPluginInspection {
   capabilities: string[];
   applicationIds: ApplicationId[];
   reason: string | null;
+  sourceType: "github" | "npm" | "local";
+  sourceLocation: string;
   repository: { owner: string; name: string; fullName: string; description: string; stars: number; license: string | null; defaultBranch: string; url: string };
   requestedRef: string;
+  resolvedRef: string;
   resolvedCommit: string;
   archiveSha256: string;
   requirements: {
@@ -261,6 +266,7 @@ export interface ManagedPluginInspection {
 }
 
 export interface AiSession {
+  associations?: AgentAssociations;
   id: string;
   appId: ApplicationId;
   title: string;
@@ -732,6 +738,12 @@ export interface MinecraftTask {
   finishedAt: string | null;
 }
 
+export interface MinecraftTaskDetails {
+  task: MinecraftTask;
+  logs: MinecraftLog[];
+  logsTruncated: boolean;
+}
+
 export interface FileManagerNode {
   id: string;
   displayName: string;
@@ -784,6 +796,9 @@ export interface MinecraftStorageSettings {
 }
 
 export interface DataDirectorySettings {
+  defaultDirectory: string;
+  recommendedDirectory: string;
+  selection: "default" | "recommended" | "custom";
   configured: boolean;
   currentDirectory: string;
   pendingDirectory: string | null;
@@ -873,8 +888,8 @@ declare global {
   }
 }
 
-import type { ManagedFileEntry, FileManagerOperation, FileOperationInput } from "lfaa-util-values/src/file-manager-contract.js";
-export type { ManagedFileEntry, FileManagerOperation };
+import type { ManagedFileEntry, FileManagerOperation, FileOperationInput, FileResourceLocation } from "lfaa-util-values/src/file-manager-contract.js";
+export type { ManagedFileEntry, FileManagerOperation, FileResourceLocation };
 
 export interface FileManagerAuditEntry {
   id: string;
@@ -1019,6 +1034,10 @@ export function loadHealth(): Promise<ServerHealth> {
 export function loadFileManagerNodes(): Promise<{ nodes: FileManagerNode[] }> {
   return request("/files/nodes");
 }
+/** 资源位置与真实目录分开读取，不枚举磁盘或递归计算大小。 */
+export function loadFileResourceLocations(signal?: AbortSignal): Promise<{ rootDirectory: string; locations: FileResourceLocation[] }> {
+  return request("/files/locations", { signal });
+}
 /** 页面与 AI 共用统一文件 Owner，普通本机操作直接返回，不产生节点任务。 */
 export function operateSystemFiles(input: FileOperationInput & { operation: FileManagerOperation }, signal?: AbortSignal): Promise<{ result: Record<string, unknown> }> {
   return request("/files/operations", { method: "POST", body: JSON.stringify(input), signal });
@@ -1111,6 +1130,9 @@ export function loadDataDirectorySettings(): Promise<{ settings: DataDirectorySe
 export function confirmDataDirectoryLocation(): Promise<{ settings: DataDirectorySettings }> {
   return request("/data-directory/confirm", { method: "POST" });
 }
+export function recommendDataDirectoryLocation(): Promise<{ settings: DataDirectorySettings }> {
+  return request("/data-directory/recommended", { method: "POST" });
+}
 
 export function saveDataDirectorySettings(directory: string): Promise<{ settings: DataDirectorySettings }> {
   return request("/data-directory", { method: "PUT", body: JSON.stringify({ directory }) });
@@ -1124,9 +1146,6 @@ export function loadProjectStorageLocations(): Promise<{ settings: ProjectStorag
   return request("/project-storage-locations");
 }
 
-export function saveProjectStorageLocations(settings: ProjectStorageLocations): Promise<{ settings: ProjectStorageLocations; configured: boolean }> {
-  return request("/project-storage-locations", { method: "PUT", body: JSON.stringify(settings) });
-}
 
 export function isDesktopApp(): boolean {
   return typeof window !== "undefined" && (Boolean(window.lfaaDesktop) || isTauri());
@@ -1367,6 +1386,7 @@ export interface MinecraftCore {
   name: string; category: "pure" | "mod" | "vanilla" | "proxy" | "bedrock"; versions: string[];
   homepage: string; source: "fastmirror" | "mohist"; launchKind: string;
 }
+export function loadMinecraftCoreNames(): Promise<{ cores: string[] }> { return request("/minecraft/core-names"); }
 export interface MinecraftCoreBuild { id: string; updatedAt: string; digest: string; }
 export function loadMinecraftCores(): Promise<{ cores: MinecraftCore[]; errors: string[] }> { return request("/minecraft/cores"); }
 export function loadMinecraftCoreBuilds(core: string, version: string, offset = 0): Promise<{ builds: MinecraftCoreBuild[]; count: number }> {
@@ -1394,6 +1414,14 @@ export function loadMinecraftInstanceLogs(instanceId: string): Promise<{ logs: M
 
 export function loadMinecraftTasks(): Promise<{ tasks: MinecraftTask[] }> {
   return request("/minecraft/tasks");
+}
+
+export function loadMinecraftTaskDetails(taskId: string): Promise<MinecraftTaskDetails> {
+  return request(`/minecraft/tasks/${encodeURIComponent(taskId)}`);
+}
+
+export function deleteMinecraftTaskRecords(taskIds: string[]): Promise<{ deletedCount: number }> {
+  return request("/minecraft/tasks", { method: "DELETE", body: JSON.stringify({ taskIds }) });
 }
 
 export function createMinecraftDeployment(input: { nodeId: string; name: string; serverType: "vanilla"; releaseId: string }): Promise<{ deployment: MinecraftDeployment; task: MinecraftTask }> {
@@ -1673,24 +1701,46 @@ export function loadAiAccounts(): Promise<{ accounts: AiAccount[] }> {
   return request<{ accounts: AiAccount[] }>("/settings/ai/accounts");
 }
 
-export function loadAiExtensions(): Promise<{ plugins: AiRuntimePlugin[]; extensions: AiExtension[]; hooks: AiRuntimeHookInfo[]; hotReloadEnabled: boolean }> {
-  return request<{ plugins: AiRuntimePlugin[]; extensions: AiExtension[]; hooks: AiRuntimeHookInfo[]; hotReloadEnabled: boolean }>("/ai/extensions");
+export function loadAiSkillDirectory(signal?: AbortSignal): Promise<{ skills: Array<{ id: string; name: string; description: string; kind: "skill" }>; truncated: boolean }> {
+  return request("/ai/skills", { signal });
+}
+export function setAiSessionAssociations(sessionId: string, associations: AgentAssociations): Promise<{ session: AiSession }> {
+  return request(`/ai/sessions/${encodeURIComponent(sessionId)}/associations`, { method: "PATCH", body: JSON.stringify(associations) });
 }
 
-export function loadManagedPlugins(): Promise<{ profile: string; plugins: ManagedPluginRecord[] }> {
-  return request("/plugins");
+export function loadAiExtensions(signal?: AbortSignal): Promise<{ plugins: AiRuntimePlugin[]; extensions: AiExtension[]; hooks: AiRuntimeHookInfo[]; hotReloadEnabled: boolean }> {
+  return request<{ plugins: AiRuntimePlugin[]; extensions: AiExtension[]; hooks: AiRuntimeHookInfo[]; hotReloadEnabled: boolean }>("/ai/extensions", signal ? { signal } : {});
+}
+
+export function loadManagedPlugins(signal?: AbortSignal): Promise<{ profile: string; plugins: ManagedPluginRecord[] }> {
+  return request("/plugins", signal ? { signal } : {});
+}
+
+export function setManagedPluginEnabled(pluginId: string, input: { enabled: boolean; targetApplicationId: ApplicationId; expectedSourceCommit: string }): Promise<{ plugin: ManagedPluginRecord }> {
+  return request(`/plugins/${encodeURIComponent(pluginId)}/lifecycle`, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function installManagedPlugin(input: { repositoryUrl: string; ref: string; expectedResolvedRef: string }): Promise<{ plugin: ManagedPluginRecord; activationRequired: boolean; activationError?: string }> {
+  return request("/plugins/install", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function removeManagedPlugin(pluginId: string, input: { targetApplicationId: ApplicationId; expectedSourceCommit: string }): Promise<{ removed: true }> {
+  return request(`/plugins/${encodeURIComponent(pluginId)}/remove`, { method: "POST", body: JSON.stringify(input) });
 }
 
 export function loadCapabilityInstallCatalog(): Promise<{ capabilities: CapabilityInstallCatalogEntry[] }> {
   return request("/capabilities/catalog");
 }
 
-export function searchManagedPlugins(query: string): Promise<{ candidates: ManagedPluginCandidate[] }> {
-  return request("/plugins/search", { method: "POST", body: JSON.stringify({ query }) });
+export function searchManagedPlugins(query: string, signal?: AbortSignal): Promise<{ candidates: ManagedPluginCandidate[] }> {
+  return request("/plugins/search", { method: "POST", body: JSON.stringify({ query }), ...(signal ? { signal } : {}) });
 }
 
-export function inspectManagedPlugin(repositoryUrl: string, ref?: string): Promise<{ plugin: ManagedPluginInspection }> {
-  return request("/plugins/inspect", { method: "POST", body: JSON.stringify({ repositoryUrl, ...(ref ? { ref } : {}) }) });
+export function inspectManagedPlugin(source: string, ref?: string, signal?: AbortSignal): Promise<{ plugin: ManagedPluginInspection }> {
+  return request("/plugins/inspect", { method: "POST", body: JSON.stringify({ repositoryUrl: source, ...(ref ? { ref } : {}) }), ...(signal ? { signal } : {}) });
 }
 
 export function manageAiRuntimePlugin(pluginId: string, action: "start" | "stop" | "reload"): Promise<{ plugins: AiRuntimePlugin[]; hotReloadEnabled: boolean }> {
@@ -1716,17 +1766,17 @@ export function decideAiApproval(approvalId: string, decision: "approved" | "den
   return request<{ approval: AiToolApproval }>(`/ai/approvals/${encodeURIComponent(approvalId)}`, { method: "PATCH", body: JSON.stringify({ decision, remember }) });
 }
 
-export function loadAiSessions(options: { archived?: boolean; appId?: ApplicationId } = {}): Promise<{ sessions: AiSession[] }> {
+export function loadAiSessions(options: { archived?: boolean; appId?: ApplicationId; signal?: AbortSignal } = {}): Promise<{ sessions: AiSession[] }> {
   const query = new URLSearchParams();
   if (options.archived !== undefined) query.set("archived", String(options.archived));
   if (options.appId) query.set("appId", options.appId);
-  return request<{ sessions: AiSession[] }>(`/ai/sessions${query.size ? `?${query}` : ""}`);
+  return request<{ sessions: AiSession[] }>(`/ai/sessions${query.size ? `?${query}` : ""}`, options.signal ? { signal: options.signal } : {});
 }
 
-export function loadAiMessages(sessionId: string, cursor?: string): Promise<{ messages: AiMessage[]; nextCursor: string | null; branchSource?: AiSessionBranchSource }> {
+export function loadAiMessages(sessionId: string, cursor?: string, signal?: AbortSignal): Promise<{ messages: AiMessage[]; nextCursor: string | null; branchSource?: AiSessionBranchSource }> {
   const query = new URLSearchParams({ limit: "50" });
   if (cursor) query.set("cursor", cursor);
-  return request<{ messages: AiMessage[]; nextCursor: string | null; branchSource?: AiSessionBranchSource }>(`/ai/sessions/${encodeURIComponent(sessionId)}/messages?${query}`);
+  return request<{ messages: AiMessage[]; nextCursor: string | null; branchSource?: AiSessionBranchSource }>(`/ai/sessions/${encodeURIComponent(sessionId)}/messages?${query}`, signal ? { signal } : {});
 }
 
 export function submitAiMessageFeedback(sessionId: string, messageId: string, feedback: AiMessageFeedbackInput): Promise<{ feedback: AiMessageFeedback }> {
@@ -1990,6 +2040,7 @@ export function answerAiRunQuestion(runId: string, questionId: string, answer: s
 
 type AiChatStreamInput = {
   runId?: string;
+  associations?: AgentAssociations;
   appId: ApplicationId;
   sessionId: string | null;
   projectId?: string | null;
@@ -2055,7 +2106,7 @@ async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string):
           method: activeRunId ? "GET" : "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-          ...(!activeRunId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, ...(input.projectId ? { projectId: input.projectId } : {}), ...(input.planMode === undefined ? {} : { planMode: input.planMode }), content: input.content }) } : {}),
+          ...(!activeRunId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, ...(input.associations ? { associations: input.associations } : {}), ...(input.projectId ? { projectId: input.projectId } : {}), ...(input.planMode === undefined ? {} : { planMode: input.planMode }), content: input.content }) } : {}),
           signal: input.signal
         });
       } catch (error) {

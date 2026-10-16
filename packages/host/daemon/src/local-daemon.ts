@@ -52,6 +52,8 @@ interface NodeRow {
   last_seen_at: string;
 }
 
+const heartbeatLifetimeMs = 20_000;
+
 function parseJsonList<T>(value: string): T[] {
   try {
     const parsed: unknown = JSON.parse(value);
@@ -68,7 +70,7 @@ function toNode(row: NodeRow): DaemonNode {
     platform: row.platform,
     architecture: row.architecture,
     version: row.daemon_version,
-    status: row.status,
+    status: row.status === "online" && Date.parse(row.last_seen_at) >= Date.now() - heartbeatLifetimeMs ? "online" : "offline",
     capabilities: parseJsonList<string>(row.capabilities_json),
     javaRuntimes: parseJsonList<JavaRuntimeSummary>(row.java_runtimes_json),
     lastSeenAt: row.last_seen_at
@@ -136,7 +138,7 @@ export function getDaemonDataRoot(nodeId: string): string | null {
 }
 
 export function listDaemonNodes(onStatusChanged?: () => void): DaemonNode[] {
-  const staleBefore = new Date(Date.now() - 20_000).toISOString();
+  const staleBefore = new Date(Date.now() - heartbeatLifetimeMs).toISOString();
   const result = database.prepare("UPDATE daemon_nodes SET status = 'offline' WHERE status = 'online' AND last_seen_at < ?").run(staleBefore);
   if (Number(result.changes) > 0) onStatusChanged?.();
   const rows = database.prepare(`

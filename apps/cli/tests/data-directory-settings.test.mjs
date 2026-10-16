@@ -1,7 +1,7 @@
 /** 功能：回归默认用户 data、显式位置和安全迁移。作用：只使用隔离目录和合成文件，不迁移真实用户数据。关联文件：home-paths、workspace/data-directory、apply-data-directory-migration。 */
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -20,6 +20,7 @@ const { sessionRecords } = await import("lfaa-session-persistence-jsonl/src/repo
 const { database, closeDatabase } = await import("lfaa-storage-sqlite/src/database.js");
 const { retireLegacyFileTables } = await import("lfaa-storage-domain/src/migration.js"); retireLegacyFileTables();
 const service = await import("lfaa-workspace-data-directory/src/service.js");
+const { config } = await import("lfaa-launch-environment/src/config.js");
 let closed = false;
 function closeStorage() { if (!closed) { configuration.close(); sessionRecords.close(); closeDatabase(); closed = true; } }
 after(() => { closeStorage(); assert.ok(root.startsWith(join(tmpdir(), "lfaa-data-settings-test-"))); rmSync(root, { recursive: true, force: true }); });
@@ -27,6 +28,60 @@ test("未配置默认用户 .lfaa/data，不随 C/D/H 盘或可移动盘变化�
   for (const project of ["C:\\LFAA", "D:\\apps\\LFAA", "H:\\LFAA"]) for (const driveType of ["Fixed", "Removable"]) assert.equal(resolveDataDirectory(project, "", { platform: "win32", userProfile: "C:\\Users\\Administrator", driveType }), "C:\\Users\\Administrator\\.lfaa\\data");
   assert.equal(resolveDataDirectory("D:\\LFAA", "data", { platform: "win32", userProfile: "C:\\Users\\Administrator" }), "D:\\LFAA\\data");
   assert.equal(resolveDataDirectory("D:\\LFAA", "E:\\Storage\\data", { platform: "win32" }), "E:\\Storage\\data");
+});
+test("默认、推荐和自定义总根分开；显式选择推荐只安排迁移，不改变当前自定义根", () => {
+  const originalRoot=config.repositoryRoot, originalData=config.dataDirectory, originalHome=process.env.USERPROFILE;
+  const testHome=join(root,"home"), defaultData=join(testHome,".lfaa","data");
+  mkdirSync(join(defaultData,"credentials"),{recursive:true});
+  try {
+    process.env.USERPROFILE=testHome; config.repositoryRoot=project; config.dataDirectory=defaultData;
+    const initial=service.getDataDirectorySettings();
+    assert.equal(initial.defaultDirectory,defaultData);assert.equal(initial.recommendedDirectory,join(project,"data"));assert.equal(initial.selection,"default");
+    const pending=service.recommendDataDirectoryLocation();
+    assert.equal(pending.pendingDirectory,join(project,"data"));assert.equal(pending.currentDirectory,defaultData);assert.equal(pending.selection,"recommended");
+    service.cancelDataDirectoryChange();
+    config.dataDirectory=source;
+    assert.equal(service.getDataDirectorySettings().selection,"custom");
+    const fromCustom = service.recommendDataDirectoryLocation();
+    assert.equal(fromCustom.currentDirectory, source);
+    assert.equal(fromCustom.pendingDirectory, join(project, "data"));
+    assert.throws(() => service.requestDataDirectoryChange(defaultData), /不是空目录/u);
+    assert.equal(service.getDataDirectorySettings().pendingDirectory, join(project, "data"));
+    rmdirSync(join(defaultData, "credentials"));
+    const backToDefault = service.requestDataDirectoryChange(defaultData);
+    assert.equal(backToDefault.selection, "default");
+    assert.equal(backToDefault.currentDirectory, source);
+    assert.equal(backToDefault.pendingDirectory, defaultData);
+    const keptCurrent = service.requestDataDirectoryChange(source);
+    assert.equal(keptCurrent.pendingDirectory, null);
+    assert.equal(keptCurrent.configured, true);
+  } finally {
+    service.cancelDataDirectoryChange(); config.repositoryRoot=originalRoot;config.dataDirectory=originalData;
+    if(originalHome===undefined)delete process.env.USERPROFILE;else process.env.USERPROFILE=originalHome;
+  }
+});
+
+test("历史自定义根不叫 data 时，保留当前目录不会误建嵌套迁移", () => {
+  const originalData = config.dataDirectory;
+  const legacyRoot = join(root, "legacy-storage");
+  mkdirSync(join(legacyRoot, "credentials"), { recursive: true });
+  try {
+    config.dataDirectory = legacyRoot;
+    const saved = service.requestDataDirectoryChange(legacyRoot);
+    assert.equal(saved.currentDirectory, legacyRoot);
+    assert.equal(saved.pendingDirectory, null);
+    assert.equal(saved.configured, true);
+  } finally { config.dataDirectory = originalData; }
+});
+
+test("启动配置锁定位置时，默认、自定义及推荐保存均拒绝且不记录迁移", () => {
+  const supported = config.dataDirectoryChangeSupported;
+  try {
+    config.dataDirectoryChangeSupported = false;
+    assert.throws(() => service.recommendDataDirectoryLocation(), error => error.errorCode === "data_directory_change_unavailable");
+    assert.throws(() => service.requestDataDirectoryChange(join(root, "locked")), error => error.errorCode === "data_directory_change_unavailable");
+    assert.equal(service.getDataDirectorySettings().pendingDirectory, null);
+  } finally { config.dataDirectoryChangeSupported = supported; }
 });
 test("确认默认位置并持久化，选择父目录自动使用 data，迁移成功才切换", () => {
   assert.equal(service.getDataDirectorySettings().currentDirectory, source);

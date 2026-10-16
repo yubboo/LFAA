@@ -1,3 +1,4 @@
+import { isAgentAssociations, type AgentAssociations } from "lfaa-util-values/src/agent-associations.js";
 /**
  * LFAA Session 内核：不可变、带序号的事件日志，以及从日志派生的请求和消息视图。
  * 该模块只定义会话语义；身份、持久化、API 和 UI 仍由 LFAA 现有 Owner 管理。
@@ -104,14 +105,30 @@ export class SessionPreparation {
   }
 }
 
+/** 子任务索引只记录来源、状态和有界结果；真实执行与预算归 Subagent/Agent Loop。 */
+export interface SessionSubagentTask {
+  runId: string;
+  parentRunId: string;
+  driver: string;
+  description: string;
+  mode: "foreground" | "background";
+  status: "running" | "completed" | "aborted" | "error";
+  startedAt: string;
+  completedAt: string | null;
+  answer?: string;
+  diagnostic?: string;
+}
+
 export interface SessionEventDataMap {
   "session/created": { ownerId: string; appId: string; createdAt: string };
   "session/title": { title: string };
   "session/project": { projectId: string | null; nodeId: string | null; directory: string | null; title: string | null };
   "session/archived": { archived: boolean };
   "session/plan-mode": { active: boolean };
+  "session/associations": AgentAssociations;
   "session/side-chat": { parentSessionId: string; snapshotSeq: number };
   "session/branch-memory": { sourceSessionId: string; sourceSeq: number; sourceEventId: string; summary: string; version: 1 };
+  "subagent/task": SessionSubagentTask;
   "turn/start": { turnId: string; userMessageId: string; assistantMessageId: string };
   "turn/end": { turnId: string; status: "complete" | "interrupted" | "error" | "forked" };
   "step/start": { turnId: string; step: number };
@@ -154,7 +171,7 @@ export type SessionSurfaceItem = Readonly<{
 
 const knownTypes = new Set<string>([
   "session/created", "session/title", "session/project", "session/archived", "session/plan-mode", "turn/start", "turn/end", "step/start", "step/end",
-  "session/side-chat", "session/branch-memory",
+  "session/side-chat", "session/branch-memory", "session/associations", "subagent/task",
   "user/message", "system/message", "developer/message", "assistant/message", "message/feedback", "assistant/response", "assistant/attempt",
   "request/header", "request/context", "tool/call", "tool/result", "activity/change", "usage/record",
   "session/end-seed"
@@ -227,6 +244,14 @@ function validatePayload(event: SessionEvent): void {
       case "session/project": return [data.projectId, data.nodeId, data.directory, data.title].every(value => value === null || string(value));
       case "session/archived": return typeof data.archived === "boolean";
       case "session/plan-mode": return typeof data.active === "boolean";
+      case "session/associations": return isAgentAssociations(data);
+      case "subagent/task": return [data.runId, data.parentRunId, data.driver, data.description, data.startedAt].every(string)
+        && String(data.runId).length <= 160 && String(data.parentRunId).length <= 160 && String(data.driver).length <= 41 && String(data.description).length <= 120
+        && ["foreground", "background"].includes(String(data.mode)) && ["running", "completed", "aborted", "error"].includes(String(data.status))
+        && Number.isFinite(Date.parse(String(data.startedAt)))
+        && (data.completedAt === null || string(data.completedAt) && Number.isFinite(Date.parse(data.completedAt)))
+        && (data.answer === undefined || string(data.answer) && data.answer.length <= 64000)
+        && (data.diagnostic === undefined || string(data.diagnostic) && data.diagnostic.length <= 4096);
       case "session/side-chat": return string(data.parentSessionId) && Number.isSafeInteger(data.snapshotSeq) && Number(data.snapshotSeq) >= 0;
       case "turn/start": return [data.turnId, data.userMessageId, data.assistantMessageId].every(string);
       case "turn/end": return string(data.turnId) && ["complete", "interrupted", "error", "forked"].includes(String(data.status));

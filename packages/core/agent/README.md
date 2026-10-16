@@ -1,6 +1,6 @@
 # LFAA Agent
 
-本包当前的运行时职责是提供 `AiExtensionRegistry`：登记并按 App 查询 Agent、Provider、Skill、Prompt、Expert 与 Tool 的扩展元数据。Preset 负责登记内置扩展，`app-boot` 和 Agent Loop 读取目录及指令。
+本包当前的运行时职责是提供 `AiExtensionRegistry`：登记并按 App 查询 Agent、Provider、Skill、Prompt、Expert 与 Tool 的扩展元数据。Preset 只登记主/子 Agent；Prompt、Expert 与 Skill 由各独立内容插件持有。内置领域元数据不绑定界面 App，用户内容保留原账户/App 范围。目录不返回正文，loadInstructions 按精确 ID 异步读取并在返回前重验卸载；只有主 Agent 核心指引可自动进入系统消息。
 
 实际对话回合、模型请求、工具派发、审批等待和取消由 `packages/core/agent-loop` 协调；会话事件与恢复由 `packages/core/session` 和 `packages/session/session-persistence-jsonl` 持有；工具参数、执行与风险描述由 `packages/core/tools` 持有。此包不创建第二套 Agent、Session、权限或执行器。
 

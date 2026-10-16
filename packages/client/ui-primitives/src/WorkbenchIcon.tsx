@@ -13,7 +13,7 @@ import type { ReactElement, SVGProps } from "react";
 export type WorkbenchIconName =
   | "archive" | "bolt" | "book" | "branch" | "browser" | "check" | "chevron" | "close" | "copy" | "dots" | "file" | "folder" | "grid" | "history"
   | "help" | "home" | "keyboard" | "microphone" | "moon" | "monitor" | "new" | "panelLeft" | "panelRight" | "plus" | "refresh" | "review" | "search"
-  | "settings" | "shield" | "spark" | "sun" | "terminal" | "thumbDown" | "thumbUp" | "tools" | "trash" | "user" | "bell";
+  | "settings" | "shield" | "spark" | "sun" | "terminal" | "thumbDown" | "thumbUp" | "tools" | "trash" | "user" | "bell" | "extension";
 
 export interface WorkbenchIconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
   name: WorkbenchIconName;
@@ -32,6 +32,7 @@ const paths: Record<WorkbenchIconName, ReactElement> = {
   close: <><path d="m6 6 12 12"/><path d="M18 6 6 18"/></>,
   copy: <><rect x="9" y="9" width="11" height="12" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></>,
   dots: <><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></>,
+  extension: <><path d="M9 3v5a2 2 0 1 1-4 0V7H3v5h5a2 2 0 1 1 0 4H7v5h5v-5a2 2 0 1 1 4 0v1h5v-5h-5a2 2 0 1 1 0-4h1V3h-5v5a2 2 0 1 1-4 0V3Z"/></>,
   file: <><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/></>,
   folder: <><path d="M3 6h7l2 2h9v11H3z"/></>,
   grid: <><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></>,

@@ -118,11 +118,21 @@
 .module-navigation-rail__popover-actions button { display: flex; min-height: 34px; align-items: center; gap: 9px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-secondary); cursor: pointer; font-size: 10px; text-align: left; }
 .module-navigation-rail__popover-actions button:hover { background: var(--color-surface-hover); color: var(--color-brand); }
 .module-navigation-rail__popover-actions button span { flex: 1; }
-/* 最近会话弹层贴近左一中的历史图标；应用页多出一个应用中心按钮，因此顶部位置单独对齐。 */
+/* 应用菜单贴近主导航的应用图标；窄视口内宽度不超过页面可用区域。 */
+.module-navigation-rail__popover--applications { top: 58px; bottom: auto; width: min(280px,calc(100vw - 72px)); max-height: calc(100% - 74px); }
+.module-navigation-rail__application-list { display: grid; gap: 2px; }
+.module-navigation-rail__application-list button { display: flex; width: 100%; min-width: 0; min-height: 42px; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-secondary); cursor: pointer; text-align: left; }
+.module-navigation-rail__application-list button:hover,
+.module-navigation-rail__application-list button:focus-visible { outline: none; background: var(--color-surface-hover); color: var(--color-brand); }
+.module-navigation-rail__application-list button > span { display: grid; min-width: 0; gap: 3px; }
+.module-navigation-rail__application-list strong { overflow: hidden; color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.module-navigation-rail__application-list small { overflow: hidden; color: var(--color-text-subtle); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
+/* 最近会话弹层贴近历史图标；设置与文件页新增应用入口后顺延一个导航项高度。 */
 .module-navigation-rail__popover--recent { width: min(320px, calc(100vw - 92px)); max-height: calc(100% - 122px); }
 .module-navigation-rail__popover--recent-home { top: 106px; bottom: auto; }
 .module-navigation-rail__popover--recent-files,
-.module-navigation-rail__popover--recent-settings { top: 58px; bottom: auto; }
+.module-navigation-rail__popover--recent-plugins,
+.module-navigation-rail__popover--recent-settings { top: 106px; bottom: auto; }
 .module-navigation-rail__recent-list { display: grid; gap: 2px; overflow-y: auto; }
 .module-navigation-rail__recent-item { display: grid; width: 100%; min-width: 0; gap: 5px; padding: 8px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-primary); cursor: pointer; font: inherit; text-align: left; }
 .module-navigation-rail__recent-item:hover,

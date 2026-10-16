@@ -4,14 +4,16 @@
  * 关联文件：index.ts、packages/host/webserver/src/dsh-carrier.ts、packages/settings/settings/src/service.ts。
  */
 import { createHash, randomUUID } from "node:crypto";
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
+import { gunzipSync, gzipSync } from "node:zlib";
 import type { Context } from "@deepseek-ai/cordis";
 import { getUserSettings, saveUserSettings } from "lfaa-settings/src/service.js";
 import type { PluginRecord, PluginRuntimeAdapter } from "./index.js";
 import type { PluginArchiveFile } from "./zip-archive.js";
+import { runPackageProcess } from "./package-process.js";
 
 const REPOSITORY = "https://github.com/elysia395/dsh-wallpaper-engine";
 const PACKAGE_ID = "dsh-plugin-wallpaper-engine";
@@ -22,7 +24,7 @@ const ARCHIVE_SHA256_PATTERN = /^[0-9a-f]{64}$/iu;
 const ROUTE = "/wallpaper-engine/settings";
 const BODY_LIMIT = 64 * 1024;
 const BODY_IDLE_TIMEOUT_MS = 60_000;
-const ADAPTER_REVISION = 9;
+const ADAPTER_REVISION = 11;
 
 interface LoaderEntry {
   fiber?: { state?: number; inertia?: Promise<unknown>; await?: () => Promise<unknown>; dispose?: () => void | Promise<void> };
@@ -60,12 +62,15 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
   }
 
   supports(record: PluginRecord): boolean {
-    return record.id === RECORD_ID
+    const officialSource = record.source.kind === "npm"
+      ? record.source.repository === `npm:${PACKAGE_ID}` && record.source.commit === `npm:${PACKAGE_ID}@${record.version}:${record.source.archiveSha256}`
+      : record.source.kind === "local" ? record.source.commit === `local:${record.source.archiveSha256}`
+      : normalizeRepository(record.source.repository) === REPOSITORY.toLocaleLowerCase("en-US") && COMMIT_PATTERN.test(record.source.commit);
+    return [RECORD_ID, `npm-${PACKAGE_ID}`].includes(record.id)
       && record.name === PACKAGE_ID
       && VERSION_PATTERN.test(record.version)
       && record.compatibility === "dsh-v1"
-      && normalizeRepository(record.source.repository) === REPOSITORY.toLocaleLowerCase("en-US")
-      && COMMIT_PATTERN.test(record.source.commit)
+      && officialSource
       && ARCHIVE_SHA256_PATTERN.test(record.source.archiveSha256);
   }
 
@@ -78,6 +83,7 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
   async enable(record: PluginRecord, installedDirectory: string): Promise<void> {
     if (!this.supports(record)) throw new Error("Wallpaper Engine 仅允许经核验的官方仓库 DSH v1 兼容版本启用。");
     if (this.active.has(record.id)) return;
+    if (this.active.size > 0) throw new Error("此 Profile 已运行壁纸插件，请先停用已有安装。");
     const entrypoint = await this.prepareRuntimeCopy(installedDirectory, record);
     const pluginDataDirectory = resolve(this.dataDirectory, "plugins", "runtime-data", "profiles", this.profile, PACKAGE_ID);
     mkdirSync(pluginDataDirectory, { recursive: true, mode: 0o700 });
@@ -109,10 +115,22 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
 
   isActive(record: PluginRecord): boolean { return this.active.has(record.id); }
 
+  /** 卸载清理当前 Profile 的全部适配版本及插件私有数据；不触及账户外观或 Steam 原文件。 */
+  async remove(record: PluginRecord): Promise<void> {
+    if (!this.supports(record) || this.active.size > 0) throw new Error("壁纸插件尚未安全停止，不能清理文件。");
+    for (const category of ["runtime-adapters", "runtime-data"]) {
+      const root = resolve(this.dataDirectory, "plugins", category, "profiles", this.profile);
+      const target = resolve(root, PACKAGE_ID);
+      if (!target.startsWith(`${root}${sep}`)) throw new Error("插件清理路径越界。");
+      rmSync(target, { recursive: true, force: true });
+    }
+  }
+
   private runtimeRootFor(record: PluginRecord): string {
-    if (!COMMIT_PATTERN.test(record.source.commit)) throw new Error("Wallpaper Engine 来源提交号格式无效。");
+    if (!this.supports(record)) throw new Error("Wallpaper Engine 来源记录无效。");
+    const revision = record.source.kind === "npm" || record.source.kind === "local" ? record.source.archiveSha256 : record.source.commit;
     return resolve(this.dataDirectory, "plugins", "runtime-adapters", "profiles", this.profile, PACKAGE_ID,
-      record.source.commit.toLocaleLowerCase("en-US"), `adapter-${ADAPTER_REVISION}`);
+      revision.toLocaleLowerCase("en-US"), `adapter-${ADAPTER_REVISION}`);
   }
 
   private async stopAll(): Promise<void> {
@@ -140,6 +158,7 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
     const source = resolve(installedDirectory);
     const runtimeRoot = this.runtimeRootFor(record);
     const requiredFiles = ["package.json", "lib/index.js", "lib/client.js", "lib/http-body.js", "lib/settings-schema.js", "lib/routes/scene-serve.js", "lib/routes/scene-frame.js", "cordis.patch.yml"];
+    if (existsSync(resolve(source, "lib", "media-origin.js"))) requiredFiles.push("lib/media-origin.js", "lib/serve.js", "lib/routes/scene-media.js");
     const files: PluginArchiveFile[] = [];
     for (const required of requiredFiles) {
       const file = resolve(source, ...required.split("/"));
@@ -184,6 +203,11 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
       writeFileSync(sceneServePath, inspected.adaptedSceneServe!, { flag: "w", mode: 0o600 });
       const sceneFramePath = resolve(staging, "lib", "routes", "scene-frame.js");
       writeFileSync(sceneFramePath, inspected.adaptedSceneFrame!, { flag: "w", mode: 0o600 });
+      if (inspected.adaptedMediaOrigin) {
+        writeFileSync(resolve(staging, "lib", "media-origin.js"), inspected.adaptedMediaOrigin, { mode: 0o600 });
+        // 新版场景引擎为独立 npm 依赖；按已核验清单准备，不执行安装脚本。
+        await prepareWallpaperDependencies(staging, originalManifest);
+      }
       const contentSha256 = runtimeContentDigest(staging);
       writeFileSync(resolve(staging, "lfaa-runtime-adapter.json"), `${JSON.stringify({
         sourceCommit: record.source.commit.toLocaleLowerCase("en-US"),
@@ -256,6 +280,7 @@ function inspectWallpaperEngineSources(record: PluginRecord, files: readonly Plu
   adaptedClient?: string;
   adaptedSceneServe?: string;
   adaptedSceneFrame?: string;
+  adaptedMediaOrigin?: string;
 } {
   try {
     const byPath = new Map<string, Buffer>();
@@ -267,11 +292,14 @@ function inspectWallpaperEngineSources(record: PluginRecord, files: readonly Plu
     for (const path of required) if (!byPath.has(path)) throw new Error(`Wallpaper Engine 来源缺少普通文件：${path}`);
     const manifest = JSON.parse(byPath.get("package.json")!.toString("utf8")) as Record<string, unknown>;
     verifySourceManifest(manifest, record);
-    const adaptedHost = adaptHostSource(byPath.get("lib/index.js")!.toString("utf8"));
+    const host = byPath.get("lib/index.js")!.toString("utf8");
+    const splitMedia = byPath.get("lib/media-origin.js");
+    const adaptedHost = splitMedia ? adaptSplitHostSource(host, byPath) : adaptHostSource(host);
+    const adaptedMediaOrigin = splitMedia ? adaptMediaOriginSource(splitMedia.toString("utf8")) : undefined;
     const adaptedClient = adaptClientSource(byPath.get("lib/client.js")!.toString("utf8"));
     const adaptedSceneServe = adaptSceneServeSource(byPath.get("lib/routes/scene-serve.js")!.toString("utf8"));
     const adaptedSceneFrame = adaptSceneFrameSource(byPath.get("lib/routes/scene-frame.js")!.toString("utf8"));
-    return { supported: true, reason: null, manifest, adaptedHost, adaptedClient, adaptedSceneServe, adaptedSceneFrame };
+    return { supported: true, reason: null, manifest, adaptedHost, adaptedClient, adaptedSceneServe, adaptedSceneFrame, ...(adaptedMediaOrigin ? { adaptedMediaOrigin } : {}) };
   } catch (error) {
     return { supported: false, reason: error instanceof Error ? error.message : "Wallpaper Engine 来源无法通过兼容合同。" };
   }
@@ -283,14 +311,16 @@ function adaptClientSource(source: string): string {
   const moduleExport = source.match(/^[\t ]*exports\.apply = apply;\r?\n[\t ]*exports\.inject = inject;\r?\n[\t ]*return module\.exports;$/gmu) ?? [];
   const edgeCanvasReadiness = source.match(/^[\t ]*if \(node\.querySelector\("canvas\.we-media--canvas"\)\) return false;$/gmu) ?? [];
   const edgeCanvasDrawSignal = source.match(/^[\t ]*canvas\.dataset\.weDrawn = "1";\r?\n[\t ]*noteLayerContent\(canvas\);$/gmu) ?? [];
+  const upstreamCanvasReady = source.includes('const mirror = node.querySelector("canvas.we-media--canvas");')
+    && source.includes('if (mirror) return !!(mirror.dataset && mirror.dataset.weDrawn === "1");');
   if (ropeDock.length !== 1 || !ropeDock[0]!.includes("ReactDOM.createRoot(host)") || !ropeDock[0]!.includes("RopeDock")
-    || apply.length !== 1 || moduleExport.length !== 1 || edgeCanvasReadiness.length !== 1 || edgeCanvasDrawSignal.length !== 1) {
+    || apply.length !== 1 || moduleExport.length !== 1 || (!upstreamCanvasReady && edgeCanvasReadiness.length !== 1) || edgeCanvasDrawSignal.length !== 1) {
     throw new Error("固定 Wallpaper Engine Client 的 RopeDock/app 导出或 Edge 视频画布就绪锚点不匹配；没有创建第二个 React 根。");
   }
   // Upstream's Edge branch creates a mirror canvas and marks its first actual draw with
   // canvas.dataset.weDrawn, but its layer gate currently rejects every canvas forever.
   // Honor that existing signal so video switching can retire the previous wallpaper after one frame.
-  const withEdgeCanvasReadiness = source.replace(edgeCanvasReadiness[0]!, (anchor) => {
+  const withEdgeCanvasReadiness = upstreamCanvasReady ? source : source.replace(edgeCanvasReadiness[0]!, (anchor) => {
     const indent = anchor.match(/^[\t ]*/u)?.[0] ?? "";
     return `${indent}const canvas = node.querySelector("canvas.we-media--canvas");\n${indent}if (canvas) return Boolean(canvas.dataset && canvas.dataset.weDrawn === "1");`;
   });
@@ -300,6 +330,10 @@ function adaptClientSource(source: string): string {
 }
 
 function verifySourceManifest(manifest: Record<string, unknown>, record: PluginRecord): void {
+  const repository = typeof manifest.repository === "string" ? manifest.repository : asRecord(manifest.repository).url;
+  if ((record.source.kind === "npm" || record.source.kind === "local") && (typeof repository !== "string" || normalizeRepository(repository.replace(/^git\+/u, "")) !== REPOSITORY)) {
+    throw new Error("NPM 壁纸包未声明官方插件仓库。");
+  }
   const exports = asRecord(manifest.exports);
   const clientExport = asRecord(exports["./client"]);
   const dsh = asRecord(manifest.dsh);
@@ -311,6 +345,34 @@ function verifySourceManifest(manifest: Record<string, unknown>, record: PluginR
     || clientExport.default !== "./lib/client.js") {
     throw new Error("Wallpaper Engine 插件清单与已核验安装记录或 DSH v1 兼容合同不匹配。");
   }
+}
+
+function adaptSplitHostSource(source: string, files: Map<string, Buffer>): string {
+  const serve = files.get("lib/serve.js")?.toString("utf8") ?? "";
+  const media = files.get("lib/routes/scene-media.js")?.toString("utf8") ?? "";
+  const anchors = ["const abs = mediaMap.get(token);", "const root = dirname(abs);", "const target = resolve(root, subpath);", "!target.startsWith(root + sep)", "lstatSync(target).isSymbolicLink()", "realpathSync.native(target)", "realpathSync.native(root)", "!realTarget.startsWith(realRoot + sep)"];
+  if (anchors.some(anchor => !serve.includes(anchor)) || !media.includes("error: 'no-scene-audio'")
+    || !source.includes("const mediaOriginApi = createMediaOrigin({") || !source.includes("export default { inject, apply };")) throw new Error("新版 Wallpaper Engine Host 的媒体围栏或生命周期不匹配。");
+  return source.replace("export default { inject, apply };", "export default { inject, apply: (ctx, config) => apply(ctx, config) };");
+}
+
+function adaptMediaOriginSource(source: string): string {
+  const functions = findHostFunction(source, "ensureMediaOrigin");
+  const anchors = ["createServer((req, res) => {", "if (!pathname.startsWith(`${base}/scene-files/`))", "handleSceneFiles(req, res, 'media');", "server.listen(0, '127.0.0.1'", "disposers.push(() => { try { mediaOrigin?.server?.close(); } catch { /* ignore */ } });"];
+  if (functions.length !== 1 || anchors.some(anchor => !source.includes(anchor))) throw new Error("新版 Wallpaper Engine 媒体源结构不匹配。");
+  return source.replace(functions[0]!, "function ensureMediaOrigin() { return Promise.resolve(null); }");
+}
+
+async function prepareWallpaperDependencies(root: string, manifest: Record<string, unknown>): Promise<void> {
+  const project = resolve(root, ".dependencies");
+  mkdirSync(project, { recursive: true, mode: 0o700 });
+  // 只安装上游声明的运行依赖；pnpm 负责完整版本图、可选依赖和完整性，不再维护第二套解析器。
+  writeFileSync(resolve(project, "package.json"), JSON.stringify({ name: "lfaa-plugin-runtime-dependencies", private: true, dependencies: asRecord(manifest.dependencies) }), { mode: 0o600 });
+  await runPackageProcess("pnpm", ["install", "--ignore-workspace", "--prod", "--ignore-scripts", "--config.node-linker=hoisted", "--config.auto-install-peers=false", "--config.package-manager-strict=false", "--store-dir", resolve(project, "store"), "--cache-dir", resolve(project, "cache")], project);
+  renameSync(resolve(project, "node_modules"), resolve(root, "node_modules"));
+  // 缓存/包存储完全属于此次运行副本，安装后删除，卸载不遗留项目内第二份包。
+  rmSync(resolve(project, "store"), { recursive: true, force: true });
+  rmSync(resolve(project, "cache"), { recursive: true, force: true });
 }
 
 function adaptHostSource(source: string): string {
@@ -372,6 +434,11 @@ function adaptHostSource(source: string): string {
 }
 
 function adaptSceneServeSource(source: string): string {
+  if (source.includes("const rootDir = isEngine ? WEBWALLGL_PKG_DIR : WEBWALLGL_DIR;")) {
+    const anchors = ["if (abs === rootDir || !abs.startsWith(rootDir + sep)) {", "path: `${BASE}/scene-live`,", "handler: (req, res) => handleSceneFiles(req, res, 'app')", "if (rest === 'index.html' || rest === 'default-wallpaper/index.html') {"];
+    if (anchors.some(anchor => !source.includes(anchor)) || source.includes("X-Frame-Options")) throw new Error("新版 Scene Renderer 围栏或同源路由不匹配。");
+    return source.replace(anchors[3]!, `${anchors[3]}\n        res.setHeader('X-Frame-Options', 'SAMEORIGIN');`);
+  }
   const sceneRoute = source.match(/^[\t ]*path: `\$\{BASE\}\/scene-live`,$/gmu) ?? [];
   const sceneFence = source.match(/^[\t ]*if \(abs === WEBWALLGL_DIR \|\| !abs\.startsWith\(WEBWALLGL_DIR \+ sep\)\) \{$/gmu) ?? [];
   const htmlCacheHeader = source.match(/^[\t ]*res\.setHeader\('Cache-Control', rest === 'index\.html' \|\| rest === 'default-wallpaper\/index\.html'$/gmu) ?? [];
@@ -427,12 +494,18 @@ function copyRuntimeFiles(source: string, destination: string): void {
 function runtimeContentDigest(root: string): string {
   const base = resolve(root);
   const files: string[] = [];
+  const digestLinks: [string, string][] = [];
   const visit = (directory: string): void => {
     for (const entry of readdirSync(directory).sort()) {
       if (directory === base && entry === "lfaa-runtime-adapter.json") continue;
       const path = resolve(directory, entry);
       const info = lstatSync(path);
-      if (info.isSymbolicLink()) throw new Error("Wallpaper Engine Runtime 副本不能包含符号链接。");
+      if (info.isSymbolicLink()) {
+        const destination = realpathSync(path);
+        if (!path.includes(`${sep}node_modules${sep}`) || !destination.startsWith(`${base}${sep}`)) throw new Error("Wallpaper Engine Runtime 副本包含越界链接。");
+        digestLinks.push([path.slice(base.length + 1), destination.slice(base.length + 1)]);
+        continue;
+      }
       if (info.isDirectory()) visit(path);
       else if (info.isFile()) files.push(path);
       else throw new Error("Wallpaper Engine Runtime 副本含不支持的文件类型。");
@@ -440,6 +513,7 @@ function runtimeContentDigest(root: string): string {
   };
   visit(base);
   const digest = createHash("sha256");
+  for (const [path, target] of digestLinks.sort()) digest.update(path).update("\0link\0").update(target).update("\0");
   for (const file of files.sort()) {
     digest.update(resolve(base, file).slice(base.length + 1).replaceAll("\\", "/"));
     digest.update("\0");
@@ -533,14 +607,22 @@ function withJsonTransform(
       if (property === "end") return (chunk?: unknown, ...args: unknown[]) => {
         if (typeof chunk === "string" || Buffer.isBuffer(chunk)) {
           let payload: unknown;
+          const compressed = target.getHeader("Content-Encoding") === "gzip";
           try {
-            payload = JSON.parse(Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk) as unknown;
+            const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, "utf8");
+            payload = JSON.parse((compressed ? gunzipSync(bytes, { maxOutputLength: BODY_LIMIT }) : bytes).toString("utf8")) as unknown;
           } catch { /* Non-JSON routes retain their upstream response bytes. */ }
           if (isRecord(payload)) {
-            try { chunk = Buffer.from(JSON.stringify(transform(payload)), "utf8"); }
+            try {
+              const bytes = Buffer.from(JSON.stringify(transform(payload)), "utf8");
+              chunk = compressed ? gzipSync(bytes, { level: 1 }) : bytes;
+              if (target.hasHeader("Content-Length")) target.setHeader("Content-Length", (chunk as Buffer).length);
+            }
             catch {
               target.statusCode = 500;
               target.setHeader("Content-Type", "application/json; charset=utf-8");
+              target.removeHeader("Content-Encoding");
+              target.removeHeader("Content-Length");
               chunk = Buffer.from(JSON.stringify({ error: "settings persistence failed" }), "utf8");
             }
           }

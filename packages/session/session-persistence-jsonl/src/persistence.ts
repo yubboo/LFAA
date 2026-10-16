@@ -4,7 +4,7 @@
  * 关联文件：storage-domain 的控制域事务、storage-json 的值编码与 core/session。
  */
 import { createHash, randomUUID } from "node:crypto";
-import { closeSync, constants as fsConstants, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, truncateSync, writeFileSync } from "node:fs";
+import { closeSync, constants as fsConstants, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, statSync, truncateSync, writeFileSync } from "node:fs";
 import { open as openFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { decode, encode, FileLease } from "lfaa-storage-json/src/index.js";
@@ -14,11 +14,12 @@ export type SessionTable = "ai_sessions" | "ai_messages" | "ai_usage" | "session
 export interface SessionChange { table: SessionTable; key: string; value: Record<string, unknown> | null }
 export interface SessionCommit { sessionId: string; transaction: string; changes: SessionChange[] }
 interface SessionEvent { format: 1; sessionId: string; transaction: string; changes: SessionChange[]; sequence: number; previous: string; checksum: string }
+type SessionRevision = { sequence: number; checksum: string; size: number; mtimeMs: number; ctimeMs: number; dev: number; ino: number };
 export interface SessionRewriteResult { rewrittenTransactions: number; commits: SessionCommit[] }
 
 export class JsonlSessionPersistence {
   private readonly applied = new Map<string, Set<string>>();
-  private readonly revisions = new Map<string, { sequence: number; checksum: string }>();
+  private readonly revisions = new Map<string, SessionRevision>();
   private readonly lease: FileLease;
   constructor(readonly root: string, exclusive?: (action: () => void) => void) { mkdirSync(root, { recursive: true, mode: 0o700 }); this.lease = new FileLease(resolve(root, ".writer.lock"), exclusive); }
   private directory(sessionId: string): string {
@@ -39,7 +40,7 @@ export class JsonlSessionPersistence {
     yield* this.readDirectory(this.directory(sessionId));
   }
   /** 消息页保持完整哈希链单遍校验；工作集只含读取缓冲、当前事件与请求页。 */
-  async readMessagePage(sessionId: string, before: { createdAt: string; order: number } | undefined, limit: number, observeEvent?: (event: SessionChange["value"]) => void): Promise<{ items: Array<{ message: SessionChange["value"]; feedback?: SessionChange["value"] }>; hasMore: boolean }> {
+  async readMessagePage(sessionId: string, before: { createdAt: string; order: number } | undefined, limit: number, observeEvent?: (event: SessionChange["value"]) => void, signal?: AbortSignal): Promise<{ items: Array<{ message: SessionChange["value"]; feedback?: SessionChange["value"] }>; hasMore: boolean }> {
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("会话消息分页大小无效。");
     const candidates = new Map<string, Record<string, unknown>>();
     const orderedCandidates: Array<Record<string, unknown>> = [];
@@ -83,7 +84,7 @@ export class JsonlSessionPersistence {
                 }
               }
             }
-    });
+    }, signal);
 
     const ordered = orderedCandidates;
     const hasMore = ordered.length > limit;
@@ -211,17 +212,26 @@ export class JsonlSessionPersistence {
     const boundary = bytes.lastIndexOf(10) + 1;
     // 断电留下的未完成末行从未提交；保留完整事件并截掉末行后由事务记录恢复。
     if (boundary !== bytes.length) truncateSync(path, boundary);
+    let loadedSessionId: string | undefined;
     for (const line of bytes.subarray(0, boundary).toString("utf8").split("\n").filter(Boolean)) {
       const event = decode(line) as SessionEvent;
       if (event?.format !== 1 || typeof event.sessionId !== "string" || typeof event.transaction !== "string" || !Array.isArray(event.changes) || this.directory(event.sessionId) !== directory) throw new Error("会话 JSONL 事件损坏或版本不支持。");
+      if (loadedSessionId && loadedSessionId !== event.sessionId) throw new Error("会话日志目录包含多个会话。");
+      loadedSessionId = event.sessionId;
       const previous = this.revisions.get(event.sessionId) ?? { sequence: 0, checksum: "" };
       const { checksum, ...content } = event;
       if (event.sequence !== previous.sequence + 1 || event.previous !== previous.checksum || checksum !== createHash("sha256").update(encode(content)).digest("hex")) throw new Error("会话事件顺序或完整性校验失败。");
-      this.revisions.set(event.sessionId, { sequence: event.sequence, checksum });
+      this.revisions.set(event.sessionId, { ...(this.revisions.get(event.sessionId) ?? { size: 0, mtimeMs: 0, ctimeMs: 0, dev: 0, ino: 0 }), sequence: event.sequence, checksum });
       const applied = this.applied.get(event.sessionId) ?? new Set<string>();
       if (applied.has(event.transaction)) throw new Error("会话 JSONL 存在重复事务。");
       applied.add(event.transaction); this.applied.set(event.sessionId, applied);
       yield event;
+    }
+    // 冷读取已完成整条链校验，用文件指纹判断后续只读投影是否仍指向这代日志。
+    if (loadedSessionId) {
+      const revision = this.revisions.get(loadedSessionId)!;
+      const current = statSync(path);
+      this.revisions.set(loadedSessionId, { ...revision, size: current.size, mtimeMs: current.mtimeMs, ctimeMs: current.ctimeMs, dev: current.dev, ino: current.ino });
     }
   }
   append(commit: SessionCommit): void {
@@ -237,7 +247,8 @@ export class JsonlSessionPersistence {
       const event: SessionEvent = { ...content, checksum: createHash("sha256").update(encode(content)).digest("hex") };
       writeFileSync(descriptor, `${encode(event).replace(/\n\s*/gu, "")}\n`);
       fsyncSync(descriptor);
-      this.revisions.set(commit.sessionId, { sequence: event.sequence, checksum: event.checksum });
+      const current = statSync(path);
+      this.revisions.set(commit.sessionId, { sequence: event.sequence, checksum: event.checksum, size: current.size, mtimeMs: current.mtimeMs, ctimeMs: current.ctimeMs, dev: current.dev, ino: current.ino });
     } finally { closeSync(descriptor); }
     applied.add(commit.transaction); this.applied.set(commit.sessionId, applied);
   }
@@ -299,10 +310,21 @@ export class JsonlSessionPersistence {
       throw error;
     }
     this.applied.set(sessionId, new Set(rewritten.map(commit => commit.transaction)));
-    this.revisions.set(sessionId, previous);
+    const current = statSync(path);
+    this.revisions.set(sessionId, { ...previous, size: current.size, mtimeMs: current.mtimeMs, ctimeMs: current.ctimeMs, dev: current.dev, ino: current.ino });
     return { rewrittenTransactions: rewritten.length, commits: nextEvents };
   }
   hasTransaction(sessionId: string, transaction: string): boolean { return this.applied.get(sessionId)?.has(transaction) ?? false; }
+  /** 已验证的内存投影只在磁盘仍是同一代文件时可复用。 */
+  isCurrentRevision(sessionId: string): boolean {
+    const revision = this.revisions.get(sessionId);
+    if (!revision) return false;
+    try {
+      const current = lstatSync(resolve(this.directory(sessionId), "events.jsonl"));
+      return current.isFile() && !current.isSymbolicLink() && current.size === revision.size && current.mtimeMs === revision.mtimeMs && current.ctimeMs === revision.ctimeMs
+        && current.dev === revision.dev && current.ino === revision.ino;
+    } catch { return false; }
+  }
   remove(sessionId: string): void { rmSync(this.directory(sessionId), { recursive: true, force: true }); this.applied.delete(sessionId); this.revisions.delete(sessionId); }
   close(): void { this.lease.close(); }
 }

@@ -7,6 +7,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { workspacePackages, workspaceSourceEntry, workspaceTypeScriptPaths, productRuntimePackages } from "./harness-workspace.mjs";
+import { packageResponsibilities } from "./package-responsibilities.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const writing = process.argv.includes("--write");
@@ -14,6 +15,8 @@ const errors = [];
 const readJson = path => JSON.parse(readFileSync(resolve(root, path), "utf8").replace(/^\uFEFF/u, ""));
 const pkgs = workspacePackages(root).sort((a, b) => a.path.localeCompare(b.path, "en"));
 const byName = new Map(pkgs.map(pkg => [pkg.name, pkg]));
+/** 静态调用方用于职责追踪，不能作为实际运行/权限验证的证明。 */
+const consumers = new Map(pkgs.map(pkg => [pkg.name, new Set()]));
 if (byName.size !== pkgs.length) errors.push("存在重复包名");
 function files(directory) {
   if (!existsSync(directory)) return [];
@@ -32,6 +35,7 @@ for (const pkg of pkgs) {
     for (const match of source.matchAll(/(?:from\s*|import\s*(?:\(\s*)?)["'](lfaa-[^"']+)["']/gu)) {
       const name = match[1].split("/")[0];
       if (name === pkg.name) continue;
+      consumers.get(name)?.add(pkg.path);
       if (!byName.has(name)) errors.push(`${relative(root, file)} 引用未知包 ${name}`);
       else if (!pkg.dependencies?.[name] && !pkg.devDependencies?.[name]) errors.push(`${pkg.path} 未声明内部依赖 ${name}`);
     }
@@ -40,6 +44,13 @@ for (const pkg of pkgs) {
     if (version.startsWith("workspace:") && !byName.has(name)) errors.push(`${pkg.path} 的工作区依赖不存在：${name}`);
   }
   for (const directory of ["dist", "build", "target"]) if (existsSync(resolve(root, pkg.path, directory))) errors.push(`${pkg.path} 含包内构建目录 ${directory}`);
+}
+// App 只作入口消费者；同时记录其静态调用链，避免把共享入口包误记为无人使用。
+for (const app of readdirSync(resolve(root, "apps"), { withFileTypes: true }).filter(entry => entry.isDirectory())) {
+  for (const directory of ["src", "bin"]) for (const file of files(resolve(root, "apps", app.name, directory))) {
+    if (!/\.(?:ts|tsx|mjs|cjs)$/u.test(file)) continue;
+    for (const match of readFileSync(file, "utf8").matchAll(/(?:from\s*|import\s*(?:\(\s*)?)["'](lfaa-[^"']+)["']/gu)) consumers.get(match[1].split("/")[0])?.add(`apps/${app.name}`);
+  }
 }
 const visited = new Set();
 function visit(name, stack = []) {
@@ -64,18 +75,28 @@ const previous = readJson(inventoryPath);
 const previousByPath = new Map(previous.packages.map(pkg => [pkg.path, pkg]));
 const directories = readdirSync(resolve(root, "packages"), { withFileTypes: true }).filter(entry => entry.isDirectory()).flatMap(group =>
   readdirSync(resolve(root, "packages", group.name), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => `packages/${group.name}/${entry.name}`)).sort();
+for (const path of directories) if (!packageResponsibilities[path]) errors.push(`${path} 缺少逐包职责注解，不能仅按包组推测`);
+for (const path of Object.keys(packageResponsibilities)) if (!directories.includes(path)) errors.push(`逐包职责注解指向不存在目录：${path}`);
+const bundlePatches = files(resolve(root, "packages/bundle")).filter(path => /\.ya?ml$/u.test(path)).map(path => ({ path: relative(root, path).replaceAll("\\", "/"), content: readFileSync(path, "utf8") }));
 const current = { reference: previous.reference, commit: previous.commit, packages: directories.map(path => {
   const pkg = pkgs.find(item => item.path === path);
   const old = previousByPath.get(path);
-  return { path, name: pkg?.name ?? null, upstreamName: old?.upstreamName ?? null, upstream: old?.upstream ?? false, status: pkg ? "implemented" : "placeholder" };
+  const entry = pkg ? workspaceSourceEntry(root, pkg) : undefined;
+  return { path, name: pkg?.name ?? null, upstreamName: old?.upstreamName ?? null, upstream: old?.upstream ?? false, status: pkg ? "implemented" : "placeholder",
+    responsibility: packageResponsibilities[path] ?? null,
+    evidence: { entry: entry ? `${path}/${entry}` : null, readme: existsSync(resolve(root, path, "README.md")) ? `${path}/README.md` : null,
+      consumers: pkg ? [...consumers.get(pkg.name)].sort() : [],
+      bundleDeclarations: pkg ? bundlePatches.filter(patch => new RegExp(`name:\\s*${pkg.name}(?:\\s|$)`, "u").test(patch.content)).map(patch => patch.path) : [],
+      boundary: pkg ? "仅源接口/静态引用/装配声明，不代表已加载或实测" : "目标职责；占位不可执行" } };
 }) };
 const productCount = pkgs.filter(pkg => pkg.lfaa?.runtime !== false && !pkg.path.startsWith("packages/test-support/")).length;
 const markdown = ["# LFAA Harness 目录对标清单", "", "<!-- 由 scripts/check-workspace.mjs --write 生成，不手工维护计数或路径。 -->", "",
   `参考 [DeepSeek Harness](${current.reference})，上游基线 commit \`${current.commit}\`。`, "",
   `当前 ${directories.length} 个两级目录、${pkgs.length} 个实际 workspace 包（${productCount} 个产品源码/组合包，${pkgs.length - productCount} 个工程/测试包），${directories.length - pkgs.length} 个占位目录。控制端/节点运行树含 ${productRuntimePackages(root).length} 个包；客户端源码包单独进入 Web 构建。`, "",
   "`implemented` 仅表示有 package.json 和源码/装配；不代表已经进入 Profile、通过运行验收或与 DSH 等价。`placeholder` 不可执行。产品能力现状见 [系统总体架构](系统总体架构.md)，历史核验见 [P0 记录](archive/audits/harness-p0-audit.md)。", "",
-  "| 仓库相对目录 | 包名 | 状态 | 来源 |", "|---|---|---|---|",
-  ...current.packages.map(pkg => `| [${pkg.path}](../${pkg.path}) | ${pkg.name ?? "—"} | ${pkg.status} | ${pkg.upstream ? "DSH 同名目录" : "LFAA 扩展"} |`), ""].join("\n");
+  "每个目录单独标注职责，来源为 `scripts/package-responsibilities.mjs`，由 Gate 对实际包树逐项核对；占位行描述目标职责。源码入口、静态消费者和 Bundle 声明完整记录在同名 JSON 中，它们不冒充运行验收。", "",
+  "| 仓库相对目录 | 包名 | 状态 | 专属职责 | 源入口/证据边界 | 来源 |", "|---|---|---|---|---|---|",
+  ...current.packages.map(pkg => `| [${pkg.path}](../${pkg.path}) | ${pkg.name ?? "—"} | ${pkg.status} | ${pkg.responsibility ?? "缺少注解"} | ${pkg.evidence.entry ? `[源码](../${pkg.evidence.entry})；${pkg.evidence.consumers.length} 个静态消费者；${pkg.evidence.bundleDeclarations.length} 个组合声明` : pkg.status === "placeholder" ? "占位不可执行" : "仅组合/清单；未证实运行"} | ${pkg.upstream ? "DSH 同名目录" : "LFAA 扩展"} |`), ""].join("\n");
 if (writing) {
   writeFileSync(resolve(root, inventoryPath), `${JSON.stringify(current, null, 2)}\n`);
   writeFileSync(resolve(root, "docs/harness-packages.md"), markdown);

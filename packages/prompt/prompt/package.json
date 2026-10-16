@@ -1,0 +1,36 @@
+{
+  "name": "lfaa-prompt",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "lfaa-agent": "workspace:*",
+    "lfaa-tools": "workspace:*",
+    "lfaa-settings": "workspace:*",
+    "lfaa-scope": "workspace:*",
+    "lfaa-util-values": "workspace:*",
+    "joi": "^17.0.0",
+    "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-system-prompt": "workspace:*"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  },
+  "lfaa": {
+    "server": {
+      "entry": "./src/index.ts",
+      "inject": [
+        "aiExtensions",
+        "lfaaTools"
+      ],
+      "required": true,
+      "capabilities": [],
+      "settings": []
+    }
+  }
+}

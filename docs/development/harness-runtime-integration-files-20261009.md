@@ -103,9 +103,9 @@
 | 绝对路径 | 本轮职责 |
 | --- | --- |
 | [H:/LFAA1/packages/games/minecraft/src/service.ts](<../../packages/games/minecraft/src/service.ts>) | 控制台动作仅校验真实参数，不建立另一套授权禁令 |
-| [H:/LFAA1/packages/games/minecraft/src/minecraft-prompt-library.ts](<../../packages/games/minecraft/src/minecraft-prompt-library.ts>) | EULA、生命周期与通用工具统一权限 |
-| [H:/LFAA1/packages/document/writing/src/prompts.ts](<../../packages/document/writing/src/prompts.ts>) | 保存目标可生成并应用提案 |
-| [H:/LFAA1/packages/document/writing/src/writing-prompt-library.ts](<../../packages/document/writing/src/writing-prompt-library.ts>) | 专项方法移除强制界面应用门槛 |
+| [H:/LFAA1/packages/games/minecraft/src/minecraft-prompt-library.ts](<../../packages/prompt/minecraft/src/minecraft-prompt-library.ts>) | EULA、生命周期与通用工具统一权限 |
+| [H:/LFAA1/packages/document/writing/src/prompts.ts](<../../packages/prompt/writing/src/prompts.ts>) | 保存目标可生成并应用提案 |
+| [H:/LFAA1/packages/document/writing/src/writing-prompt-library.ts](<../../packages/prompt/writing/src/writing-prompt-library.ts>) | 专项方法移除强制界面应用门槛 |
 | [H:/LFAA1/packages/preset/agent-preset/src/builtin-catalog.ts](<../../packages/preset/agent-preset/src/builtin-catalog.ts>) | 内置顾问使用真实工具与统一权限 |
 | [H:/LFAA1/packages/schedule/schedule/src/index.ts](<../../packages/schedule/schedule/src/index.ts>) | 实例持有调度服务及交付器，卸载等待清理 |
 | [H:/LFAA1/packages/schedule/schedule/src/targets.ts](<../../packages/schedule/schedule/src/targets.ts>) | 持久化真实账户/App/会话与工具范围 |

@@ -34,12 +34,11 @@ test("Mobile 左导航 Dock 复用大屏标准分隔条宽度", () => {
 });
 
 test("Compact/Mobile 右栏空间足够时沿用共享 Dock 与拉伸预算", () => {
-  assert.equal(WORKBENCH_LAYOUT_TOKENS.center.applicationRightDockFloor, 220);
   assert.equal(shouldDockResponsiveRightPane(448, 260, 228, 0, true), false);
-  assert.equal(shouldDockResponsiveRightPane(449, 260, 228, 0, true), true);
-  assert.equal(shouldDockResponsiveRightPane(466, 260, 228, 0, true), true);
+  assert.equal(shouldDockResponsiveRightPane(449, 260, 228, 0, true), false);
+  assert.equal(shouldDockResponsiveRightPane(489, 260, 228, 0, true), true);
   assert.equal(shouldDockResponsiveRightPane(649, 260, 228, 200, true), false);
-  assert.equal(shouldDockResponsiveRightPane(650, 260, 228, 200, true), true);
+  assert.equal(shouldDockResponsiveRightPane(690, 260, 228, 200, true), true);
   assert.equal(shouldDockResponsiveRightPane(850, 440, 228, 0, true), true);
   assert.equal(shouldDockResponsiveRightPane(850, 440, 228, 0, false), false);
 });
@@ -73,4 +72,14 @@ test("窄屏导航使用 Overlay，中屏导航 Dock 后保留完整中心区", 
       assert.ok(threePaneMinimum <= containerWidth, `${viewportWidth}px viewport should preserve all three compact pane minima`);
     }
   }
+});
+
+
+test('760×520 聊天保留中心最小宽度，右栏仅在左栏收起后可 Dock', () => {
+  const metrics = resolveWorkbenchLayoutMetrics(760 - 64, 520, false);
+  assert.equal(metrics.mode, 'compact');
+  assert.ok(metrics.minCenterWidth >= 420);
+  assert.equal(shouldDockResponsiveRightPane(metrics.containerWidth, metrics.minCenterWidth, metrics.right.min, metrics.left.initial, true), false);
+  assert.equal(shouldDockResponsiveRightPane(metrics.containerWidth, metrics.minCenterWidth, metrics.right.min, 0, true), true);
+  assert.ok(metrics.containerWidth - metrics.right.min - WORKBENCH_LAYOUT_TOKENS.separator >= metrics.minCenterWidth);
 });

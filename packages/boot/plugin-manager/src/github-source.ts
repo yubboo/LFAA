@@ -4,6 +4,11 @@
  * 关联文件：index.ts 负责插件合同与持久化；zip-archive.ts 校验源码归档。
  */
 import { createHash } from "node:crypto";
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { resolve } from "node:path";
+import { config } from "lfaa-launch-environment/src/config.js";
+import { runPackageProcess } from "./package-process.js";
+import { packageContentFilter } from "./package-content.js";
 import { downloadPublishedFiles, needsPublishedFiles } from "./npm-source.js";
 import { readGithubZip, type PluginArchiveFile } from "./zip-archive.js";
 
@@ -58,6 +63,17 @@ export async function searchGithubRepositories(query: string): Promise<GitHubCan
 }
 
 export async function downloadGithubSnapshot(repositoryUrl: string, requestedRef?: string): Promise<GitHubSnapshot> {
+  parseGithubRepositoryUrl(repositoryUrl);
+  if (requestedRef && (requestedRef.length > 200 || requestedRef.startsWith("-") || /[\r\n\0]/u.test(requestedRef))) throw new Error("插件版本或分支标识无效。");
+  try { return await downloadGithubHttpSnapshot(repositoryUrl, requestedRef); }
+  catch (error) {
+    // GitHub API 限流和 codeload 连接失败不代表仓库不可安装。沿 DSH 的 Git 传输访问原仓库，绝不查找本项目旧副本。
+    if (!(error instanceof Error) || !(error.name === "TimeoutError" || error.name === "AbortError" || /fetch failed|请求频率受限|源码快照下载失败/u.test(error.message))) throw error;
+    return downloadGithubGitSnapshot(repositoryUrl, requestedRef);
+  }
+}
+
+async function downloadGithubHttpSnapshot(repositoryUrl: string, requestedRef?: string): Promise<GitHubSnapshot> {
   const { owner, name } = parseGithubRepositoryUrl(repositoryUrl);
   const repositoryResponse = await fetch(`${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`, {
     headers: githubHeaders(), redirect: "error", signal: AbortSignal.timeout(20_000)
@@ -74,7 +90,7 @@ export async function downloadGithubSnapshot(repositoryUrl: string, requestedRef
   if (typeof commit !== "string" || !/^[a-f0-9]{40}$/iu.test(commit)) throw new Error("插件引用没有解析为固定的 Git 提交号。");
 
   const archiveUrl = `${ARCHIVE_ROOT}/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/zip/${commit}`;
-  const archiveResponse = await fetch(archiveUrl, { headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/zip" }, redirect: "error", signal: AbortSignal.timeout(60_000) });
+  const archiveResponse = await fetch(archiveUrl, { headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/zip" }, redirect: "error", signal: AbortSignal.timeout(5_000) });
   if (!archiveResponse.ok) throw new Error(`GitHub 源码快照下载失败（HTTP ${archiveResponse.status}）。`);
   const length = Number(archiveResponse.headers.get("content-length"));
   if (Number.isFinite(length) && length > MAX_ARCHIVE_BYTES) throw new Error("插件源码快照超过 64 MiB 限制。");
@@ -105,6 +121,31 @@ export async function downloadGithubSnapshot(repositoryUrl: string, requestedRef
   // Some package repositories intentionally omit generated `lib/` outputs from Git;
   // use the published artifact only when NPM proves it belongs to this exact commit.
   return needsPublishedFiles(snapshot) ? downloadPublishedFiles(snapshot) : snapshot;
+}
+
+/** Git 只取当前引用；按包清单导出发布内容，不把 .git、测试或开发依赖装入 Profile。 */
+async function downloadGithubGitSnapshot(repositoryUrl: string, requestedRef?: string): Promise<GitHubSnapshot> {
+  const { owner, name } = parseGithubRepositoryUrl(repositoryUrl);
+  const temporaryRoot = resolve(config.repositoryRoot, "dist", ".tmp", "plugin-downloads");
+  mkdirSync(temporaryRoot, { recursive: true });
+  const directory = mkdtempSync(resolve(temporaryRoot, "git-"));
+  try {
+    const git = (args: string[], limit?: number) => runPackageProcess("git", ["-c", "protocol.file.allow=never", ...args], directory, limit);
+    await git(["init", "--quiet"]);
+    await git(["remote", "add", "origin", `https://github.com/${owner}/${name}.git`]);
+    await git(["fetch", "--quiet", "--depth=1", "--filter=blob:none", "origin", requestedRef?.trim() || "HEAD"]);
+    const commit = (await git(["rev-parse", "FETCH_HEAD"])).toString("utf8").trim();
+    if (!/^[a-f0-9]{40}$/u.test(commit)) throw new Error("Git 没有返回固定提交。");
+    const manifest = JSON.parse((await git(["show", `${commit}:package.json`])).toString("utf8")) as Record<string, unknown>;
+    const allPaths = (await git(["ls-tree", "-r", "--name-only", commit])).toString("utf8").trim().split("\n");
+    const include = packageContentFilter(manifest);
+    const paths = allPaths.filter(path => include(path));
+    if (!paths.includes("package.json") || paths.length > 512) throw new Error("Git 插件包内容为空或超过安全文件数量限制。");
+    const archive = await git(["archive", "--format=zip", "--prefix=package/", commit, "--", ...paths], MAX_ARCHIVE_BYTES);
+    const repository: GitHubRepository = { owner, name, fullName: `${owner}/${name}`, url: `https://github.com/${owner}/${name}`, description: typeof manifest.description === "string" ? manifest.description.slice(0, 500) : "", stars: 0, license: typeof manifest.license === "string" ? manifest.license : null, defaultBranch: requestedRef?.trim() || "HEAD" };
+    const snapshot: GitHubSnapshot = { repository, requestedRef: requestedRef?.trim() || "HEAD", commit, archiveSha256: createHash("sha256").update(archive).digest("hex"), files: readGithubZip(archive) };
+    return needsPublishedFiles(snapshot) ? downloadPublishedFiles(snapshot) : snapshot;
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
 function githubHeaders(): Record<string, string> { return { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }; }

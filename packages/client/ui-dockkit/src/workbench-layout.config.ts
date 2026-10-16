@@ -77,7 +77,7 @@ export function shouldDockResponsiveLeftPane(containerWidth: number, minCenterWi
     && Math.max(1, Math.round(containerWidth || 0)) >= minCenterWidth + minLeftWidth + WORKBENCH_LAYOUT_TOKENS.separator;
 }
 
-/** Compact/Mobile 应用右栏在右栏和至少 220px 中心区可共存时沿用标准 Dock，否则使用可拉伸 Overlay。 */
+/** 右栏与当前 Surface 的中心最小宽度可共存时沿用标准 Dock，否则使用 Overlay。 */
 export function shouldDockResponsiveRightPane(
   containerWidth: number,
   minCenterWidth: number,
@@ -86,7 +86,7 @@ export function shouldDockResponsiveRightPane(
   enabled: boolean,
 ): boolean {
   const width = Math.max(1, Math.round(containerWidth || 0));
-  const centerFloor = Math.min(minCenterWidth, WORKBENCH_LAYOUT_TOKENS.center.applicationRightDockFloor);
+  const centerFloor = minCenterWidth;
   const leftBudget = Math.max(0, Math.round(leftWidth || 0));
   const handleCount = leftBudget > 0 ? 2 : 1;
   return enabled && width >= centerFloor + minRightWidth + handleCount * WORKBENCH_LAYOUT_TOKENS.separator + leftBudget;

@@ -14,6 +14,20 @@ export interface ClientModuleAuthSyncOptions {
   applyGraph(graph: unknown): Promise<void>;
 }
 
+/** Whether an applied DSH graph contains the Wallpaper Engine client entry. */
+export function hasWallpaperEngineClientEntry(graph: unknown): boolean {
+  if (typeof graph !== "object" || graph === null) return false;
+  const entries = (graph as { entries?: unknown }).entries;
+  return Array.isArray(entries) && entries.some((entry) => typeof entry === "object" && entry !== null
+    && (entry as { id?: unknown }).id === "dsh-plugin-wallpaper-engine");
+}
+
+function isReusableClientModuleGraph(graph: unknown): boolean {
+  if (typeof graph !== "object" || graph === null) return false;
+  const candidate = graph as { entries?: unknown; batches?: unknown };
+  return Array.isArray(candidate.entries) && Array.isArray(candidate.batches);
+}
+
 /** Keep an already-applied graph stable and coalesce concurrent requests for the same auth target. */
 export async function syncClientModuleGraphForAuthentication(
   runtime: ClientModuleAuthState,
@@ -27,7 +41,7 @@ export async function syncClientModuleGraphForAuthentication(
   if (!authenticated) runtime.authenticated = false;
   const operation = (async () => {
     let graph = runtime.graph;
-    if (authenticated) graph = await options.loadAuthenticatedGraph();
+    if (authenticated && !isReusableClientModuleGraph(graph)) graph = await options.loadAuthenticatedGraph();
     if (runtime.revision !== revision) return;
     runtime.graph = graph;
     runtime.authenticated = authenticated;

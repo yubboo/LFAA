@@ -33,6 +33,8 @@ export interface AiPluginHost {
   listInstructionExtensions(applicationId: ApplicationId): AiExtensionManifest[];
   listHooks(): AiRuntimeHookInfo[];
   getSystemInstructions(applicationId: ApplicationId): string[];
+  /** 模型选择正文/专家时使用同一个扩展 Owner，不从 App 自动加载。 */
+  loadInstruction?: (id: string, applicationId: ApplicationId) => Promise<AiExtensionManifest & { instructions: string }>;
   runBeforeInference(event: Parameters<AiRuntimeHookRegistry["beforeInference"]>[0]): AiRuntimeHookResult;
   runAfterInference(event: Parameters<AiRuntimeHookRegistry["afterInference"]>[0]): AiRuntimeHookResult;
   close(): Promise<void>;
@@ -57,6 +59,7 @@ export function createAiPluginHost(context: Context): AiPluginHost {
     listInstructionExtensions: (applicationId) => (context.aiExtensions as AiExtensionRegistry).listInstructionExtensions(applicationId),
     listHooks: () => (context.aiRuntimeHooks as AiRuntimeHookRegistry).list(),
     getSystemInstructions: (applicationId) => (context.aiExtensions as AiExtensionRegistry).getInstructions(applicationId),
+    loadInstruction: (id, applicationId) => (context.aiExtensions as AiExtensionRegistry).loadInstructions(id, applicationId),
     runBeforeInference: (event) => (context.aiRuntimeHooks as AiRuntimeHookRegistry).beforeInference(event),
     runAfterInference: (event) => (context.aiRuntimeHooks as AiRuntimeHookRegistry).afterInference(event),
     close: async () => {

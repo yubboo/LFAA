@@ -4,6 +4,7 @@
  * 关联文件：business-tools.ts、jobs/ai-host-tasks.ts、host/daemon/project-files.mjs；权限由 Agent 执行管线处理。
  */
 import Joi from "joi";
+import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { createHash } from "node:crypto";
 import { getUserSettings } from "lfaa-settings/src/service.js";
 import { createAiHostTask, getAiHostTask, requestAiHostTaskCancellation } from "lfaa-jobs/src/ai-host-tasks.js";
@@ -12,7 +13,7 @@ import type { AiBusinessTool } from "./business-tools.js";
 const schema = Joi.object({ nodeId: Joi.string().uuid(), operation: Joi.string().valid("list", "read", "search", "search_markdown", "create", "create_tree", "write", "replace", "delete", "diff", "discover_skills").required(), rootDirectory: Joi.string().max(32760).allow("").default(""), path: Joi.string().max(32760).allow("").default(""), offset: Joi.number().integer().min(0).max(2 * 1024 * 1024), query: Joi.string().min(1).max(500), content: Joi.string().allow("").max(2 * 1024 * 1024), files: Joi.array().items(Joi.object({ path: Joi.string().min(1).max(512).required(), content: Joi.string().max(2 * 1024 * 1024).required() }).unknown(false)).min(1).max(128).when("operation", { is: "create_tree", then: Joi.required(), otherwise: Joi.forbidden() }), oldText: Joi.string().min(1).max(2 * 1024 * 1024), newText: Joi.string().allow("").max(2 * 1024 * 1024), sha256: Joi.string().pattern(/^[a-f0-9]{64}$/u) }).unknown(false);
 
 export const projectFileTool: AiBusinessTool = {
-  id: "project.files", name: "project_file_operation", applicationIds: ["workspace", "minecraft"],
+  id: "project.files", name: "project_file_operation", applicationIds: [...APPLICATION_IDS],
   description: "在当前会话选中的项目目录中列目录、检索、读写和删除普通文件、原子创建一组 UTF-8 文件、用唯一锚点局部替换或查询 Git 差异；当会话未关联项目时，才需要提供真实在线节点和根目录。discover_skills 发现项目 .agents/skills 和 .lfaa/skills 中的真实 SKILL.md，之后用 read 按需加载。create_tree 只在目标目录不存在时创建完整文件树，失败时清理暂存目录且不覆盖现有内容。覆盖或替换必须提供最近读取的 sha256；delete 仅删除目标根目录内的普通文件，不递归删除目录。",
   schema: { type: "object", additionalProperties: false, properties: { nodeId: { type: "string", format: "uuid" }, operation: { type: "string", enum: ["list", "read", "search", "search_markdown", "create", "create_tree", "write", "replace", "delete", "diff", "discover_skills"] }, rootDirectory: { type: "string" }, path: { type: "string" }, offset: { type: "integer", minimum: 0 }, query: { type: "string" }, content: { type: "string" }, files: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, properties: { path: { type: "string", maxLength: 512 }, content: { type: "string", maxLength: 2097152 } }, required: ["path", "content"] } }, oldText: { type: "string" }, newText: { type: "string" }, sha256: { type: "string", description: "覆盖或替换已有文件时必须使用最近读取返回的摘要。" } }, required: ["operation"] },
   parse(value) {

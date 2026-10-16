@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-const { syncClientModuleGraphForAuthentication } = await import('lfaa-client-modules/src/client/auth-sync.js');
+const { hasWallpaperEngineClientEntry, syncClientModuleGraphForAuthentication } = await import('lfaa-client-modules/src/client/auth-sync.js');
 
 const fullGraph = {
   entries: [{ id: 'lfaa-base-client' }, { id: 'dsh-plugin-wallpaper-engine' }],
@@ -10,6 +10,7 @@ const fullGraph = {
 };
 
 function filterUnauthenticatedGraph(graph) {
+  if (typeof graph !== 'object' || graph === null || !Array.isArray(graph.entries) || !Array.isArray(graph.batches)) return graph;
   return {
     ...graph,
     entries: graph.entries.filter((entry) => entry.id !== 'dsh-plugin-wallpaper-engine'),
@@ -22,7 +23,7 @@ function filterUnauthenticatedGraph(graph) {
 
 function createRuntime() {
   return {
-    graph: filterUnauthenticatedGraph(fullGraph),
+    graph: fullGraph,
     authenticated: false,
     appliedAuthentication: false,
     pending: null,
@@ -30,18 +31,23 @@ function createRuntime() {
   };
 }
 
-test('coalesces authentication sync and preserves the already-started base graph', async () => {
+test('reports Wallpaper Engine availability from the applied DSH graph entry', () => {
+  assert.equal(hasWallpaperEngineClientEntry(fullGraph), true);
+  assert.equal(hasWallpaperEngineClientEntry(filterUnauthenticatedGraph(fullGraph)), false);
+  assert.equal(hasWallpaperEngineClientEntry(null), false);
+});
+
+test('reuses the complete HTML bootstrap graph and coalesces concurrent authentication sync', async () => {
   const runtime = createRuntime();
   const appliedGraphs = [];
   let fetchCalls = 0;
-  let resolveGraph;
   const options = {
     loadAuthenticatedGraph() {
       fetchCalls += 1;
-      return new Promise((resolve) => { resolveGraph = resolve; });
+      return Promise.resolve(fullGraph);
     },
     filterUnauthenticatedGraph,
-    async applyGraph(graph) { appliedGraphs.push(graph); }
+    async applyGraph(graph) { await Promise.resolve(); appliedGraphs.push(graph); }
   };
 
   await syncClientModuleGraphForAuthentication(runtime, false, options);
@@ -49,14 +55,13 @@ test('coalesces authentication sync and preserves the already-started base graph
 
   const firstSync = syncClientModuleGraphForAuthentication(runtime, true, options);
   const duplicateSync = syncClientModuleGraphForAuthentication(runtime, true, options);
-  assert.equal(fetchCalls, 1, 'concurrent requests for the same auth target share one graph read');
-  resolveGraph(fullGraph);
+  assert.equal(fetchCalls, 0, 'the current page already has the same graph in its HTML bootstrap');
   await Promise.all([firstSync, duplicateSync]);
   assert.equal(appliedGraphs.length, 1);
   assert.deepEqual(appliedGraphs[0].entries.map((entry) => entry.id), ['lfaa-base-client', 'dsh-plugin-wallpaper-engine']);
 
   await syncClientModuleGraphForAuthentication(runtime, true, options);
-  assert.equal(fetchCalls, 1, 'an already-applied authenticated graph is not reloaded');
+  assert.equal(fetchCalls, 0, 'an already-applied authenticated graph does not trigger a Host read');
   assert.equal(appliedGraphs.length, 1);
 
   await syncClientModuleGraphForAuthentication(runtime, false, options);
@@ -68,6 +73,7 @@ test('coalesces authentication sync and preserves the already-started base graph
 
 test('a newer logout wins over a pending authenticated graph read', async () => {
   const runtime = createRuntime();
+  runtime.graph = null;
   const appliedGraphs = [];
   let resolveGraph;
   const options = {
@@ -83,11 +89,12 @@ test('a newer logout wins over a pending authenticated graph read', async () => 
   assert.equal(runtime.authenticated, false);
   assert.equal(runtime.appliedAuthentication, false);
   assert.equal(appliedGraphs.length, 1);
-  assert.deepEqual(appliedGraphs[0].entries.map((entry) => entry.id), ['lfaa-base-client']);
+  assert.equal(appliedGraphs[0], null, 'the stale authenticated graph is discarded after logout');
 });
 
 test('a failed authenticated graph read leaves the runtime unauthenticated and retryable', async () => {
   const runtime = createRuntime();
+  runtime.graph = null;
   await assert.rejects(
     syncClientModuleGraphForAuthentication(runtime, true, {
       async loadAuthenticatedGraph() { throw new Error('Host unavailable'); },

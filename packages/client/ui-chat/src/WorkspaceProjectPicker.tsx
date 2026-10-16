@@ -93,7 +93,7 @@ export function WorkspaceProjectPicker({ appId, applicationName, projects, proje
     const timer = window.setTimeout(() => {
       setProjectSearchLoading(true);
       setProjectActionError("");
-      void loadWorkspaceProjects({ appId, query: search, signal: controller.signal }).then(result => {
+      void loadWorkspaceProjects({ query: search, signal: controller.signal }).then(result => {
         if (!controller.signal.aborted) {
           setRemoteProjects(result.projects);
           setProjectSearchTruncated(result.truncated);
@@ -285,7 +285,7 @@ export function WorkspaceProjectPicker({ appId, applicationName, projects, proje
     <Modal className="ai-work-chat__project-modal" title={`关联 ${applicationName} 项目文件夹`} open={createOpen} onCancel={() => { if (!saving) setCreateOpen(false); }} onOk={() => void registerCurrentDirectory()} okText="关联此文件夹" cancelText="取消" okButtonProps={{ disabled: !directoryPath || directoryLoading || saving }} cancelButtonProps={{ disabled: saving }} confirmLoading={saving} destroyOnHidden>
       <div className="ai-work-chat__project-browser">
         <p className="ai-work-chat__project-empty">把现有文件夹登记到当前 {applicationName}，用于归组相关会话并限定 AI 项目文件上下文。这里只登记目录；不会新建应用或 Minecraft 实例。</p>
-        <label>工作位置</label>
+        <div className="ai-work-chat__project-new-folder"><label>工作位置</label><Button size="small" disabled={directoryLoading || saving} onClick={onRetryProjects}>刷新项目与节点</Button></div>
         <Select aria-label="工作位置" value={nodeId || undefined} placeholder="选择在线文件节点" disabled={directoryLoading || saving} options={nodes.map(node => ({ value: node.id, label: `${node.displayName} · ${node.status === "online" ? "在线" : "离线"}`, disabled: node.status !== "online" }))} onChange={value => void selectNode(value)} />
         {locationOptions.length > 1 ? <Select aria-label="计算机位置" value={currentLocation} disabled={directoryLoading || saving} options={locationOptions} onChange={value => void openAbsoluteDirectory(value === "@home" ? homeDirectory : value)} /> : null}
         {directoryPath ? <div className="ai-work-chat__project-path" title={directoryPath}><Button size="small" type="text" disabled={directoryPath === homePath || atVolumeRoot || directoryLoading} onClick={() => void goUp()}>上级</Button><span>{directoryPath}</span></div> : null}

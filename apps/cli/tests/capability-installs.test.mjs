@@ -98,7 +98,8 @@ test('直接 GitHub 插件地址可由模型自主检查，工具说明引导幂
 
   assert.ok(!byName.capability_inspect.schema.required.includes('targetApplicationId'), '未指定目标时沿用当前 App');
   assert.match(byName.capability_inspect.description, /直接.*kind=plugin.*不必先搜索或查询通用目录/u);
-  assert.match(byName.capability_search.description, /已给出 GitHub 插件地址时跳过搜索/u);
+  assert.match(byName.capability_search.description, /已给出.*GitHub HTTPS 仓库.*跳过搜索/u);
+  assert.match(byName.capability_inspect.description, /NPM 包名\/版本.*Host 上的本机绝对路径/u);
   assert.match(byName.capability_list.description, /同源 installed.*canEnable=true.*capability_set_enabled/u);
   assert.match(byName.capability_set_enabled.description, /启用后再次 capability_list/u);
   assert.match(byName.capability_install.description, /不得要求用户手写工具顺序/u);

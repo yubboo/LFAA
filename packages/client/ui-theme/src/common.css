@@ -1,6 +1,6 @@
 /*
- * 功能：定义多个独立前端组件共用的状态样式。
- * 作用：集中维护页面加载、服务连接状态和通用错误提示，不承载单页业务布局。
+ * 功能：定义多个独立前端组件共用的状态样式与界面动效。
+ * 作用：集中维护页面加载、服务连接状态、通用错误提示、已注册卡片和全局弹窗效果，不承载单页业务布局。
  * 关联文件：packages/client/web/src/main.tsx、packages/client/ui-renderer/src/App.tsx、packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-settings-account/src/AdminUsersPage.tsx、packages/client/ui-primitives/src/ServiceStatus.tsx。
  */
 
@@ -73,4 +73,223 @@
 /* 多页面错误提示共用统一的下方留白，颜色与图标由 Ant Design Alert 提供。 */
 .page-alert {
   margin-bottom: var(--space-5);
+}
+
+/* 卡片仅需加入共享卡片类与列表类；效果由工作台根节点的账户设置统一选择。 */
+.workbench-shell[data-card-motion-effect="fluid"] .lfaa-card-motion,
+.workbench-shell[data-card-motion-effect="fade"] .lfaa-card-motion,
+.workbench-shell[data-card-motion-effect="lift"] .lfaa-card-motion {
+  transform-origin: center;
+}
+
+.workbench-shell[data-card-motion-effect="fluid"] .lfaa-card-motion {
+  transition: transform 280ms cubic-bezier(.23, 1, .32, 1), border-color 180ms ease-out, box-shadow 240ms ease-out;
+}
+
+.workbench-shell[data-card-motion-effect="fade"] .lfaa-card-motion {
+  transition: transform 240ms cubic-bezier(.2, .8, .2, 1), border-color 180ms ease-out, box-shadow 220ms ease-out;
+}
+
+.workbench-shell[data-card-motion-effect="lift"] .lfaa-card-motion {
+  transition: transform 320ms cubic-bezier(.22, 1, .36, 1), border-color 180ms ease-out, box-shadow 280ms ease-out;
+}
+
+@keyframes lfaa-card-motion-fluid-enter {
+  from { opacity: 0; transform: translate3d(0, 12px, 0) scale(.985); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes lfaa-card-motion-fade-enter {
+  from { opacity: 0; transform: scale(.975); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes lfaa-card-motion-lift-enter {
+  from { opacity: 0; transform: translate3d(0, 20px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.workbench-shell[data-card-motion-effect="fluid"] .lfaa-card-motion-list > .lfaa-card-motion:nth-child(-n + 6) {
+  animation: lfaa-card-motion-fluid-enter 360ms cubic-bezier(.23, 1, .32, 1) backwards;
+}
+
+.workbench-shell[data-card-motion-effect="fade"] .lfaa-card-motion-list > .lfaa-card-motion:nth-child(-n + 6) {
+  animation: lfaa-card-motion-fade-enter 300ms cubic-bezier(.2, .8, .2, 1) backwards;
+}
+
+.workbench-shell[data-card-motion-effect="lift"] .lfaa-card-motion-list > .lfaa-card-motion:nth-child(-n + 6) {
+  animation: lfaa-card-motion-lift-enter 420ms cubic-bezier(.22, 1, .36, 1) backwards;
+}
+
+.workbench-shell[data-card-motion-effect] .lfaa-card-motion-list > .lfaa-card-motion:nth-child(2) { animation-delay: 24ms; }
+.workbench-shell[data-card-motion-effect] .lfaa-card-motion-list > .lfaa-card-motion:nth-child(3) { animation-delay: 48ms; }
+.workbench-shell[data-card-motion-effect] .lfaa-card-motion-list > .lfaa-card-motion:nth-child(4) { animation-delay: 72ms; }
+.workbench-shell[data-card-motion-effect] .lfaa-card-motion-list > .lfaa-card-motion:nth-child(5) { animation-delay: 96ms; }
+.workbench-shell[data-card-motion-effect] .lfaa-card-motion-list > .lfaa-card-motion:nth-child(6) { animation-delay: 120ms; }
+
+@media (hover: hover) {
+  .workbench-shell[data-card-motion-effect="fluid"] .lfaa-card-motion:not(.is-selected):hover {
+    transform: translateY(-3px) scale(1.005);
+    border-color: color-mix(in srgb, var(--color-brand) 42%, var(--color-border-subtle));
+    box-shadow: 0 10px 24px color-mix(in srgb, var(--color-text-heading) 9%, transparent);
+  }
+
+  .workbench-shell[data-card-motion-effect="fade"] .lfaa-card-motion:not(.is-selected):hover {
+    transform: scale(1.01);
+    border-color: color-mix(in srgb, var(--color-brand) 36%, var(--color-border-subtle));
+    box-shadow: 0 8px 22px color-mix(in srgb, var(--color-text-heading) 7%, transparent);
+  }
+
+  .workbench-shell[data-card-motion-effect="lift"] .lfaa-card-motion:not(.is-selected):hover {
+    transform: translateY(-5px);
+    border-color: color-mix(in srgb, var(--color-brand) 50%, var(--color-border-subtle));
+    box-shadow: 0 16px 30px color-mix(in srgb, var(--color-text-heading) 12%, transparent);
+  }
+}
+
+.workbench-shell[data-card-motion-effect="none"] .lfaa-card-motion,
+.workbench-shell[data-card-motion-effect="none"] .lfaa-card-motion:hover {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* 用户或系统启用减少动态效果时，静态显示所有共享卡片。 */
+.workbench-shell[data-reduced-motion="on"] .lfaa-card-motion,
+.workbench-shell[data-reduced-motion="on"] .lfaa-card-motion:hover {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workbench-shell[data-reduced-motion="system"] .lfaa-card-motion,
+  .workbench-shell[data-reduced-motion="system"] .lfaa-card-motion:hover {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
+/* 工作台设置写在 body 上以覆盖 Ant Design 通过 Portal 挂到页面外层的 Modal 和确认弹窗。 */
+@keyframes lfaa-dialog-fluid-in {
+  from { opacity: 0; transform: translate3d(0, 10px, 0) scale(.975); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes lfaa-dialog-fluid-out {
+  from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  to { opacity: 0; transform: translate3d(0, 8px, 0) scale(.985); }
+}
+
+@keyframes lfaa-dialog-fade-in {
+  from { opacity: 0; transform: scale(.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes lfaa-dialog-fade-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(.985); }
+}
+
+@keyframes lfaa-dialog-lift-in {
+  from { opacity: 0; transform: translate3d(0, 18px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes lfaa-dialog-lift-out {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(0, 10px, 0); }
+}
+
+@keyframes lfaa-dialog-reduced-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes lfaa-dialog-reduced-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+body[data-lfaa-dialog-motion-effect="fluid"] .ant-modal-root .ant-modal.ant-zoom-enter.ant-zoom-enter-active,
+body[data-lfaa-dialog-motion-effect="fluid"] .ant-modal-root .ant-modal.ant-zoom-appear.ant-zoom-appear-active {
+  animation: lfaa-dialog-fluid-in 320ms cubic-bezier(.22, 1, .36, 1) both !important;
+}
+
+body[data-lfaa-dialog-motion-effect="fluid"] .ant-modal-root .ant-modal.ant-zoom-leave.ant-zoom-leave-active {
+  animation: lfaa-dialog-fluid-out 180ms cubic-bezier(.4, 0, 1, 1) both !important;
+}
+
+body[data-lfaa-dialog-motion-effect="fade"] .ant-modal-root .ant-modal.ant-zoom-enter.ant-zoom-enter-active,
+body[data-lfaa-dialog-motion-effect="fade"] .ant-modal-root .ant-modal.ant-zoom-appear.ant-zoom-appear-active {
+  animation: lfaa-dialog-fade-in 220ms cubic-bezier(.2, .8, .2, 1) both !important;
+}
+
+body[data-lfaa-dialog-motion-effect="fade"] .ant-modal-root .ant-modal.ant-zoom-leave.ant-zoom-leave-active {
+  animation: lfaa-dialog-fade-out 150ms cubic-bezier(.4, 0, 1, 1) both !important;
+}
+
+body[data-lfaa-dialog-motion-effect="lift"] .ant-modal-root .ant-modal.ant-zoom-enter.ant-zoom-enter-active,
+body[data-lfaa-dialog-motion-effect="lift"] .ant-modal-root .ant-modal.ant-zoom-appear.ant-zoom-appear-active {
+  animation: lfaa-dialog-lift-in 280ms cubic-bezier(.22, 1, .36, 1) both !important;
+}
+
+body[data-lfaa-dialog-motion-effect="lift"] .ant-modal-root .ant-modal.ant-zoom-leave.ant-zoom-leave-active {
+  animation: lfaa-dialog-lift-out 170ms cubic-bezier(.4, 0, 1, 1) both !important;
+}
+
+/* 用户选择减少动态效果时弹窗只保留短淡入，移除缩放与位移；系统模式跟随系统媒体偏好。 */
+body[data-lfaa-reduced-motion="on"] .ant-modal-root .ant-modal.ant-zoom-enter.ant-zoom-enter-active,
+body[data-lfaa-reduced-motion="on"] .ant-modal-root .ant-modal.ant-zoom-appear.ant-zoom-appear-active {
+  animation: lfaa-dialog-reduced-in 120ms ease-out both !important;
+}
+
+body[data-lfaa-reduced-motion="on"] .ant-modal-root .ant-modal.ant-zoom-leave.ant-zoom-leave-active {
+  animation: lfaa-dialog-reduced-out 100ms ease-in both !important;
+}
+
+body[data-lfaa-reduced-motion="on"] .ant-modal-root .ant-modal-mask.ant-fade-enter.ant-fade-enter-active,
+body[data-lfaa-reduced-motion="on"] .ant-modal-root .ant-modal-mask.ant-fade-appear.ant-fade-appear-active {
+  animation-duration: 120ms !important;
+}
+
+body[data-lfaa-reduced-motion="on"] .ant-modal-root .ant-modal-mask.ant-fade-leave.ant-fade-leave-active {
+  animation-duration: 100ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-lfaa-reduced-motion="system"] .ant-modal-root .ant-modal.ant-zoom-enter.ant-zoom-enter-active,
+  body[data-lfaa-reduced-motion="system"] .ant-modal-root .ant-modal.ant-zoom-appear.ant-zoom-appear-active {
+    animation: lfaa-dialog-reduced-in 120ms ease-out both !important;
+  }
+
+  body[data-lfaa-reduced-motion="system"] .ant-modal-root .ant-modal.ant-zoom-leave.ant-zoom-leave-active {
+    animation: lfaa-dialog-reduced-out 100ms ease-in both !important;
+  }
+
+  body[data-lfaa-reduced-motion="system"] .ant-modal-root .ant-modal-mask.ant-fade-enter.ant-fade-enter-active,
+  body[data-lfaa-reduced-motion="system"] .ant-modal-root .ant-modal-mask.ant-fade-appear.ant-fade-appear-active {
+    animation-duration: 120ms !important;
+  }
+
+  body[data-lfaa-reduced-motion="system"] .ant-modal-root .ant-modal-mask.ant-fade-leave.ant-fade-leave-active {
+    animation-duration: 100ms !important;
+  }
+}
+
+/* 静态是明确选择；它覆盖所有入退场状态，并同步停止遮罩淡变。 */
+body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal.ant-zoom-enter,
+body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal.ant-zoom-appear,
+body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal.ant-zoom-leave {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal-mask.ant-fade-enter,
+body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal-mask.ant-fade-appear,
+body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal-mask.ant-fade-leave {
+  animation: none !important;
+  opacity: 1 !important;
 }

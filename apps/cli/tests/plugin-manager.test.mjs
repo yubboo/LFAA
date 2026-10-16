@@ -5,7 +5,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deflateRawSync, gzipSync } from 'node:zlib';
+import { deflateRawSync, gzipSync, gunzipSync } from 'node:zlib';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -52,6 +52,14 @@ const genericArchive = makeZip({
   'main.mjs': "process.stdout.write(JSON.stringify({ type: 'lfaa.plugin.ready', protocolVersion: 1, pluginId: process.env.LFAA_PLUGIN_ID }) + '\\n');",
   'README.md': 'fixture'
 });
+const registrySourcePackageName = 'lfaa-plugin-registry-source';
+const registrySourceManifest = JSON.stringify({
+  name: registrySourcePackageName, version: '1.0.0', description: 'NPM 来源样例', license: 'MIT',
+  lfaa: { plugin: { apiVersion: 1, id: 'npm-source-sample', name: 'NPM 来源样例', entry: 'main.mjs', capabilities: [] } },
+  scripts: { prepare: 'throw new Error("must not execute")' }
+});
+const registrySourceTarball = makeNpmTarball({ 'package.json': registrySourceManifest, 'main.mjs': 'export {};' });
+const registrySourceIntegrity = `sha512-${createHash('sha512').update(registrySourceTarball).digest('base64')}`;
 const unsupportedArchive = makeZip({ 'package.json': JSON.stringify({ name: 'ordinary-package', version: '1.0.0', license: 'MIT' }) });
 const wallpaperRepository = 'https://github.com/elysia395/dsh-wallpaper-engine';
 let wallpaperVersion = '1.2.0';
@@ -61,6 +69,12 @@ let wallpaperArchive = makeWallpaperArchive(wallpaperVersion);
 
 globalThis.fetch = async input => {
   const url = String(input);
+  if (url === `https://registry.npmjs.org/${registrySourcePackageName}/1.0.0`) return Response.json({
+    name: registrySourcePackageName, version: '1.0.0', dist: {
+      tarball: `https://registry.npmjs.org/${registrySourcePackageName}/-/${registrySourcePackageName}-1.0.0.tgz`, integrity: registrySourceIntegrity
+    }
+  });
+  if (url === `https://registry.npmjs.org/${registrySourcePackageName}/-/${registrySourcePackageName}-1.0.0.tgz`) return new Response(registrySourceTarball, { headers: { 'content-type': 'application/octet-stream' } });
   if (url === 'https://api.github.com/repos/elysia395/dsh-wallpaper-engine') return Response.json({ full_name: 'elysia395/dsh-wallpaper-engine', description: 'Wallpaper Engine', stargazers_count: 20, default_branch: 'main', license: { spdx_id: 'MIT' } });
   if (url === `https://api.github.com/repos/elysia395/dsh-wallpaper-engine/commits/${sourceRef}`) return Response.json({ sha: wallpaperCommit });
   if (url === `https://api.github.com/repos/elysia395/dsh-wallpaper-engine/commits/${wallpaperCommit}`) return Response.json({ sha: wallpaperCommit });
@@ -324,8 +338,9 @@ test('同一管理器识别非 DSH 的 LFAA 插件合同，并在重启后清除
   assert.equal(restartedManager.get('generic-sample').state, 'installed');
   assert.equal((await restartedManager.setEnabled('generic-sample', false)).state, 'installed');
   const migratedInventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
-  assert.equal(migratedInventory.version, 3);
-  assert.deepEqual(migratedInventory.plugins[0].applicationIds, ['steamcmd', 'minecraft', 'connectivity', 'writing', 'workspace']);
+  assert.equal(migratedInventory.version, 4);
+  assert.equal(migratedInventory.plugins[0].source.kind, 'github');
+  assert.deepEqual(migratedInventory.plugins[0].applicationIds, ['steamcmd', 'minecraft', 'connectivity', 'writing', 'workspace', 'aivideo']);
   assert.equal(migratedInventory.plugins[0].runtimeEntry, null);
   assert.equal(migratedInventory.plugins[0].state, 'installed');
   await restartedManager.remove('generic-sample');
@@ -343,6 +358,52 @@ test('ZIP 解包拒绝路径穿越、符号链接和 CRC 被改写的数据', ()
 test('NPM TAR 解包拒绝路径穿越与符号链接', () => {
   assert.throws(() => readNpmTarGzip(makeNpmTarball({ '../escape.txt': 'bad' })), /路径穿越|路径/u);
   assert.throws(() => readNpmTarGzip(makeNpmTarball({ 'linked.txt': { contents: '', type: '2' } })), /链接或特殊文件/u);
+});
+
+test('三类插件来源固定版本；NPM 校验摘要，本机目录与 tarball 固定 Host 内容', async () => {
+  const manager = new PluginManager('install-sources', data);
+  const npmInspection = await manager.inspect(`${registrySourcePackageName}@1.0.0`);
+  assert.equal(npmInspection.sourceType, 'npm');
+  assert.equal(npmInspection.sourceLocation, `npm:${registrySourcePackageName}`);
+  assert.match(npmInspection.resolvedRef, /^npm:lfaa-plugin-registry-source@1\.0\.0:[a-f0-9]{64}$/u);
+  assert.deepEqual(npmInspection.requirements.declaredScripts, ['prepare']);
+  const npmInstall = await manager.installForCapability(`${registrySourcePackageName}@1.0.0`, npmInspection.requestedRef, 'source-admin', 'workspace', npmInspection.resolvedRef, { kind: 'npm', location: npmInspection.sourceLocation });
+  assert.equal(npmInstall.plugin.source.kind, 'npm');
+  assert.equal(npmInstall.plugin.source.archiveSha256, createHash('sha256').update(registrySourceTarball).digest('hex'));
+  assert.equal(npmInstall.plugin.state, 'incompatible', 'install scripts are reported but never executed and no adapter is invented');
+
+  const localDirectory = resolve(data, 'source-fixtures', 'local-directory');
+  mkdirSync(localDirectory, { recursive: true });
+  const localManifest = JSON.stringify({ name: 'lfaa-plugin-local-directory', version: '1.0.0', lfaa: { plugin: { apiVersion: 1, id: 'local-directory-sample', name: '本机目录样例', entry: 'main.mjs', capabilities: [] } } });
+  writeFileSync(join(localDirectory, 'package.json'), localManifest);
+  writeFileSync(join(localDirectory, 'main.mjs'), 'export {};');
+  mkdirSync(join(localDirectory, '.git'), { recursive: true });
+  writeFileSync(join(localDirectory, '.git', 'config'), 'private git metadata is never plugin content');
+  mkdirSync(join(localDirectory, 'node_modules'), { recursive: true });
+  writeFileSync(join(localDirectory, 'node_modules', 'old-dependency.js'), 'not a package source');
+  const localInspection = await manager.inspect(localDirectory);
+  assert.equal(localInspection.sourceType, 'local');
+  assert.equal(localInspection.sourceLocation, localDirectory);
+  assert.equal((await manager.inspect('file:' + localDirectory)).resolvedRef, localInspection.resolvedRef, 'DSH file: path syntax resolves the same source');
+  assert.equal((await manager.inspect('link:' + localDirectory)).resolvedRef, localInspection.resolvedRef, 'DSH link: path syntax resolves the same source');
+  assert.match(localInspection.resolvedRef, /^local:[a-f0-9]{64}$/u);
+  writeFileSync(join(localDirectory, 'main.mjs'), 'export const changed = true;');
+  await assert.rejects(manager.installForCapability(localDirectory, undefined, 'source-admin', 'workspace', localInspection.resolvedRef, { kind: 'local', location: localInspection.sourceLocation }), error => error.code === 'plugin_source_changed');
+  assert.equal(manager.get('local-directory-sample'), null, 'changed Host contents do not create an inventory record');
+  writeFileSync(join(localDirectory, 'main.mjs'), 'export {};');
+  const localInstall = await manager.installForCapability(localDirectory, undefined, 'source-admin', 'workspace', localInspection.resolvedRef, { kind: 'local', location: localInspection.sourceLocation });
+  assert.equal(localInstall.plugin.source.kind, 'local');
+  assert.equal(localInstall.plugin.state, 'incompatible');
+
+  const localArchivePath = resolve(data, 'source-fixtures', 'local-archive.tgz');
+  const localArchiveManifest = JSON.stringify({ name: 'lfaa-plugin-local-archive', version: '1.0.0', lfaa: { plugin: { apiVersion: 1, id: 'local-archive-sample', name: '本机归档样例', entry: 'main.mjs', capabilities: [] } } });
+  const localTarball = makeNpmTarball({ 'package.json': localArchiveManifest, 'main.mjs': 'export {};' });
+  writeFileSync(localArchivePath, localTarball);
+  const archiveInspection = await manager.inspect(localArchivePath);
+  assert.equal(archiveInspection.sourceType, 'local');
+  const archiveInstall = await manager.install(localArchivePath, undefined, 'source-admin');
+  assert.equal(archiveInstall.source.kind, 'local');
+  assert.equal(archiveInstall.source.archiveSha256, createHash('sha256').update(localTarball).digest('hex'));
 });
 
 test('安装器拒绝缺少 LFAA/DSH 合同的普通仓库', async () => {
@@ -672,13 +733,13 @@ function makeZip(files) {
   return Buffer.concat([...localParts, centralDirectory, end]);
 }
 
-function makeNpmTarball(files) {
+function makeNpmTarball(files, packageRoot = "package") {
   const blocks = [];
   for (const [path, value] of Object.entries(files)) {
     const entry = typeof value === 'object' && value !== null ? value : { contents: value };
     const contents = Buffer.from(entry.contents);
     const header = Buffer.alloc(512);
-    Buffer.from(`package/${path}`).copy(header, 0);
+    Buffer.from(`${packageRoot}/${path}`).copy(header, 0);
     writeOctal(header, 100, 8, 0o100644);
     writeOctal(header, 108, 8, 0);
     writeOctal(header, 116, 8, 0);
@@ -709,3 +770,37 @@ function crc32(data) {
   }
   return (value ^ 0xffffffff) >>> 0;
 }
+
+
+test('registry dependencies honor zero-major caret ranges instead of choosing an unrelated latest', async () => {
+  const { downloadCompatibleRegistryPluginPackage } = await import('lfaa-plugin-manager/src/npm-source.js');
+  const previousFetch = globalThis.fetch;
+  const name = '@types/range-fixture';
+  const version = '0.1.12';
+  const tarball = makeNpmTarball({ 'package.json': JSON.stringify({ name, version }), 'index.d.ts': 'export {};' });
+  const integrity = 'sha512-' + createHash('sha512').update(tarball).digest('base64');
+  const requested = [];
+  globalThis.fetch = async input => {
+    const url = String(input); requested.push(url);
+    if (url.endsWith('/%40types%2Frange-fixture')) return Response.json({ versions: { '0.1.11': {}, '0.1.12': {}, '0.2.0': {}, '0.1.13-beta.1': {} } });
+    if (url.endsWith('/0.1.12')) return Response.json({ name, version, dist: { tarball: 'https://registry.npmjs.org/range-fixture.tgz', integrity } });
+    if (url.endsWith('/range-fixture.tgz')) return new Response(tarball);
+    throw new Error('unexpected request: ' + url);
+  };
+  try {
+    assert.equal((await downloadCompatibleRegistryPluginPackage(name, '^0.1.11')).version, version);
+    assert.ok(!requested.some(url => url.endsWith('/latest')));
+    await assert.rejects(downloadCompatibleRegistryPluginPackage(name, 'git+https://github.com/untrusted/package'), /版本范围无效/);
+  } finally { globalThis.fetch = previousFetch; }
+});
+
+
+test('legacy DefinitelyTyped roots remain single-root archives with path and link checks', () => {
+  const legacy = makeNpmTarball({ 'package.json': '{"name":"@types/legacy-fixture","version":"0.1.0"}' }, 'legacy-fixture');
+  assert.deepEqual(readNpmTarGzip(legacy, 'legacy-fixture').map(file => file.path), ['package.json']);
+  assert.throws(() => readNpmTarGzip(legacy), /根目录/);
+  const mixed = gzipSync(Buffer.concat([gunzipSync(legacy).subarray(0, -1024), gunzipSync(makeNpmTarball({ 'unexpected.js': 'fixture' }))]));
+  assert.throws(() => readNpmTarGzip(mixed, 'legacy-fixture'), /根目录/);
+  assert.throws(() => readNpmTarGzip(makeNpmTarball({ '../escape.js': 'fixture' }, 'legacy-fixture'), 'legacy-fixture'), /路径穿越/);
+  assert.throws(() => readNpmTarGzip(makeNpmTarball({ 'link': { contents: 'fixture', type: '2' } }, 'legacy-fixture'), 'legacy-fixture'), /链接或特殊文件/);
+});

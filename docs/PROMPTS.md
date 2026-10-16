@@ -4,6 +4,454 @@
 
 历史合同分档保存在 `archive/contracts/`，保留原始实施证据，索引可按编号定位。跨模块新任务必须先登记在本文件，完成后按分类归档；未实测状态不得改写为已验收。
 
+<a id="lfaa-plugin-install-sources-20261016"></a>
+
+## LFAA-PLUGIN-INSTALL-SOURCES-20261016
+
+目标：参考 DSH 插件管理器的三类来源输入（包名/版本、GitHub 仓库、本机 Host 绝对路径或本地归档），扩展 LFAA 插件检查与安装凭证，让用户可从通用插件管理区检查真实来源与 Runtime 兼容性。保留现有 `capability_*` 检查、安装、列表、启停和移除闭环；来源安装后不得自动执行依赖脚本或导入未受支持的 Host/Client 代码。
+
+Owner：来源解析、不可变版本/内容摘要、Profile 清单、安装事务、Runtime 状态、启停和移除均归 `packages/boot/plugin-manager`；跨类型工具与一次性检查凭证归 `packages/boot/capability-installs`；认证、用户授权与传输归 `packages/api/plugin-controller`、Permission Owner，Client 调用归 `packages/client/connection`，管理界面归 `packages/client/ui-plugin-manager`，全局入口与路由归 `ui-sidebar`/`ui-layout`。启停按钮通过受保护 API 直接调用同一 Plugin Manager 生命周期 Owner，由 Permission Owner 将该次明确点击作为单次用户授权；自然语言启停仍交给 Agent Core Tools 按当前 `permissions.mode` 审批和执行。安装与卸载按钮继续交给小鱼 Agent。不得新增第二个权限 Owner。
+
+设置盘点：安装按当前 LFAA Profile 保存到统一 `LFAA_DATA_DIR` 派生路径；管理员角色、`permissions.mode` 及现有账户/App 范围继续生效。`plugins.enabled` 只控制账户 AI 扩展，不改变 Profile 插件安装或 Runtime 状态。本轮不新增设置、不修改偏好默认值；UI 沿用所有适用 Appearance 共享令牌。
+
+允许：Plugin Manager 来源解析、兼容的清单读取迁移、API/Client 检查合同、独立插件工作区三种来源输入与实际状态展示、安装/卸载通过 Agent Tool 流程提交；启停按钮经 Permission Owner 对用户本次明确点击授权后直接调用生命周期 API；全局导航入口；原设置中心 AI 扩展、Skill 目录、能力目录、资料库、MCP 配置、Cordis Runtime 启停/重建诊断及 DSH 壁纸引擎 Slot 原生设置整体迁入该工作区，设置中心不再显示插件、MCP 或壁纸引擎插件分类。相关表单继续复用原 `ui-settings` 配置 Owner。拒绝：复制 DSH Bundle Runtime、未经适配在 LFAA 控制端加载第三方 Host/Client、绕过管理员/Permission Owner 或安全归档检查、将本机客户端路径误当 Host 路径、覆盖运行数据、重启已有服务、提交或发布。
+
+验收：三种来源分别在安装前固定 Git commit、精确 NPM 版本及完整性摘要、或 Host 本地文件内容摘要；检查/安装凭证绑定用户、类型、App、来源与摘要，过期/内容变化时拒绝安装。目录和归档路径、文件类型、压缩展开、数量与字节上限均校验；安装原子提交且失败不留半成品。实际兼容 Runtime 才可启停，停用/移除完整等待清理；自然语言 Agent 工具回读真实安装与运行状态，手动启停按钮不创建 AI Work 请求并由 Permission Owner 授权后回读同一 Owner 状态。管理页须位于全局最左导航，主工作区独立展开；列表展示真实状态并提供启用/停用/卸载，来源页支持 NPM、GitHub、Host 绝对路径；所有写入仍经过 Permission Owner 与 Plugin Manager Owner。Settings Center 不再包含第三方插件管理入口。UI 在真实 Web 页面检查桌面与窄/短容器；报告直接回归、受影响构建、类型、工作区与浏览器结果及未验边界。
+
+实现与验收记录：Plugin Manager 已支持 GitHub 固定提交、官方 NPM 精确版本与 SHA-512 SRI、LFAA Host 绝对目录/归档 SHA-256 快照；本地输入不读取浏览器设备文件。所有来源共用安全归档解析、大小/文件数限制、凭证重验和原子安装。Inventory v4 保存来源类型并迁移 v1-v3；现有 Capability 工具继续持有检查、安装、列表、启用、停用和移除，统一按当前 `permissions.mode` 执行。只有已适配 Wallpaper Engine Runtime 可以实际启停；未接入的 DSH Bundle 保持隔离。没有新增设置，也没有触发真实插件安装、启停、卸载或设置保存。
+
+最终验证：插件管理 UI、Plugin Manager 与 Capability 安装定向回归 19/19；`pnpm run typecheck`、工作区同步/检查（193 包）、`pnpm run build:web` 和 `git diff --check` 均通过。第一次浏览器实页发现 ui-plugin-manager Client Module 未登记，已在 `client/web` 包显式依赖并装配，重建后 `/plugin-manager` 正常渲染。构建产物位于根 `dist/`；当前 Web 构建 SettingsPage chunk 312.57 kB（gzip 76.06 kB）。测试验证三类来源校验、启停/卸载目标合同及凭证重验；没有真实插件安装/启停/卸载、外部运行时/设备或帧时间测量。
+
+内置浏览器：实际路由 `/plugin-manager`；桌面 1440×900 和窄短屏 390×640。桌面主区域占满视口，插件清单显示真实 Runtime 的 enabled 状态及停用/卸载入口，三种来源输入可见；AI 扩展/MCP 与壁纸引擎插件分区可通过工作区标签打开。两视口文档宽度分别为 1440 和 390，无横向溢出。返回 `/settings?section=general` 实测侧栏不再显示插件、MCP 或壁纸引擎插件分类。未测实体手机/平板、真实安装与生命周期执行及浏览器帧时间。
+
+<a id="lfaa-wallpaper-engine-appearance-owner-bridge-20261016"></a>
+
+## LFAA-WALLPAPER-ENGINE-APPEARANCE-OWNER-BRIDGE-20261016
+
+目标：把已适配的 DSH Wallpaper Engine 外观扩展点接到 LFAA 对应工作台表面。用户选择并运行插件壁纸时，插件 Profile 中的配色、玻璃颜色/保真度/透明度、模糊、边框及各表面独立配置是对应区域的唯一外观 Owner；插件 Runtime 不可用/停用或未运行壁纸时，对应区域回到 LFAA 账户 Appearance 偏好。主题仍通过 `ctx.theme.setTheme` 保存到 `appearance.theme`；字体角色继续通过 `ctx.theme.overrideTokens` 与既有受限映射生效。插件值不复制写入 LFAA 设置。
+
+Owner：DSH `ctx.theme` 兼容合同归 `packages/client/ui-theme`，工作台插件运行态及账户 Appearance fallback 归 `packages/client/ui-layout`，具体聊天表面归 `packages/client/ui-chat`；Profile 外观值仍由 Wallpaper Engine Plugin Manager/runtime-data 与插件自身设置 Owner 持有。LFAA 使用 DSH Client 在 `body` 上公布的 `--we-*` 运行时值与 `data-we-*` 门控作兼容输入，不改第三方插件源码，不复制 DSH Runtime 或设置持久化。
+
+设置盘点：插件活动时映射 `--we-accent`、`--we-glass-alpha`、`--we-blur`、`--we-surface-tint-*`、`--we-readability-*`、`--we-border-alpha`，并尊重 `data-we-glass-window`、`data-we-glass-chat`、`data-we-left-sidebar`、`data-we-sidebar-glass`、`data-we-glass-floaters` 与相应逐面变量；LFAA 的 `appearance.accentColor/sidebarColor/overlay/blur` 等只作为 Runtime 停用后的 fallback，主题、字体/字号、对比度、减少动态效果及无插件对应项继续由既有 LFAA 设置控制。不增加配置、默认值、持久化或额外请求。
+
+允许：WorkBench 主题/表面值映射、插件门控覆盖、相关长期回归、包 README 与系统架构合同。禁止：改动用户 Profile 插件数据、同步复制插件配置到账户设置、重置用户偏好、重启服务或运行实例、修改上游 DSH/第三方插件仓库。样式只在实际壁纸 Owner 生效，并由已有插件 body token 即时更新；插件停用清理后立即回落账户值，不增加观察器、轮询、请求或无界状态。
+
+验收：内置浏览器 `/work` 在桌面和窄/短视口确认实际计算样式与插件当前颜色、透明度、模糊、边框一致；插件每个表面开关关闭时 LFAA 对应表面不再保留该插件的玻璃效果；卸载/停用插件后清理 `--we-*`/`data-we-*` 并恢复 LFAA 原外观，刷新首帧没有 LFAA 值闪现后再切换插件值。直接相关回归、类型、包/Web 构建与 `git diff --check` 分别报告；实际停用 Profile 插件、播放媒体、真机与帧时间未测时不得宣称通过。
+
+手动启停交互修正（2026-10-16）：插件卡片的“启用/停用”按钮改为调用认证后的 `/plugins/:pluginId/lifecycle`，服务端由 Permission Owner 校验本次显式点击和 App/插件/来源版本范围，再调用 Plugin Manager 同一生命周期 Owner；不创建 AI Work 请求或聊天消息。用户在聊天中用自然语言启停时仍由 Agent Core Tools 按当前权限模式执行；安装与卸载继续走小鱼 Agent。定向回归验证真实隔离 Runtime Adapter 的启动/停止和状态回读、未调用 Agent、管理员/认证/App/来源版本边界及错误状态。20/20 定向测试、`pnpm run typecheck`、`pnpm run sync:workspace`、`pnpm run check:workspace`、`pnpm run build:web`、`pnpm run build:control-plane` 与 `git diff --check` 通过，构建产物均在根 `dist/`。内置浏览器 `/plugin-manager` 桌面 1771×1244 实页显示新的“按钮直接执行、聊天仍由 Agent 处理”说明；没有点击真实 Profile 的壁纸插件按钮以保持用户状态不变。当前 CUA 无视口尺寸控制能力，未能实测窄/短视口；也未测帧时间、真实外部插件和桌面/Daemon 运行态。
+
+停用后外观回退修复（2026-10-16）：此前修复了插件停止后 LFAA 账户背景恢复，但只核查了画布 Owner 与部分 Slot/theme 生命周期，没有完成插件各项外观设置到 LFAA 自有组件的扩展点对账。当前补充的 Appearance Owner Bridge 才将 DSH Profile 的 `--we-*` 令牌和 `data-we-*` 逐面开关映射到 LFAA 共享主题、设置面、聊天和侧栏；停用/未运行时撤销此映射并回到账户 Appearance，用户偏好不清空、不覆盖。
+
+验收：壁纸画布归属/生命周期定向回归 5/5；DSH Runtime Adapter 生成与 Host 启停定向用例 2/2；`pnpm exec tsc --noEmit -p tsconfig.client.json`、ui-layout 包构建、`pnpm run build:web`、`git diff --check` 通过，产物写入仓库根 `dist/`。完整 `dsh-wallpaper-engine-runtime.test.mjs` 为 2/3：另 1 项原有主题/语言通知断言期望 `en-US`、实际收到空数组，失败点在本次触及范围外的 locale 通知；未改该行为。ChatGPT 内置浏览器 `/work`（1771×1244）实页可见账户已选的“雨后草原”背景和 DSH 工作区；本次没有再点真实插件启停按钮改变 Profile。真实停用瞬间切换、窄短视口与帧时间未测。
+
+DSH 外观值对齐补正（2026-10-16）：继续对照只读安装版插件的实际样式规则，LFAA 聊天直接读取插件生成的 `--we-chat-glass-fill`；设置面、左右侧栏和浮层按 DSH 逐面 Alpha/混色权重及 `blur + saturate + brightness + contrast` 配方接入。深色右侧栏使用 DSH 面板的 65% 玻璃色权重；插件定义的色彩、左栏/侧栏/窗口/浮层门控仍各自独立。Profile 外观值仍只通过运行时 CSS 令牌读取，不改插件/Profile 设置，不增加请求或状态订阅。
+
+本次验收：定向回归 7/7、`pnpm exec tsc --noEmit -p tsconfig.client.json`、`lfaa-client-ui-theme`/`ui-layout`/`ui-chat` 包构建、`pnpm run build:web` 与 `git diff --check` 通过，Web 产物位于根 `dist/apps/web/`。ChatGPT 内置浏览器 `/work` 桌面 1771×1244、窄分栏 760×520、窄屏 390×640 与 `/settings?section=appearance` 桌面实页均已检查；工作区计算样式跟随 Profile 当前 `#F1717F` 强调色、0.2125 玻璃 Alpha、23px 模糊及聊天玻璃填充，窄视口无横向溢出。用户 Profile 插件未实际停用/启用以避免改动运行状态；停用后的真实瞬时回退、刷新首帧闪烁、播放媒体与帧时间仍未测。
+
+<a id="lfaa-ekko-capability-fusion-core-20261016"></a>
+
+## LFAA-EKKO-CAPABILITY-FUSION-CORE-20261016
+
+目标：按用户明确的商用、自主实现方向对账 Ekko Studio 全部产品能力并声明参考来源，逐项融合进 LFAA。先验证原有文件/Shell/Git/项目与独立 Agent 能力，再补齐前台等待、后台子任务、结果回收与持久化，作为编程协作核心第一项。后续独立 Coding Agent 调度及工作台、多运行时聊天/群聊/工作流、工作树协作、成果 Skills、自定义模板逐项验收；不得以路线文档宣称全部融合完成。
+
+Owner：原 Agent Loop 持有主/子 Run 与预算/范围，Subagent Manager 持有驱动与活动任务，tool-subagent/control 持有委派和查询工具，Session Owner 持有任务来源/结果记录；项目/Git、Shell、文件、模型、记忆、Skills、权限复用原 Owner。禁止建立第二套运行时、Session、身份或权限。参考清单和来源声明见本轮融合文档；不复制 BSL 受限源码、UI 或提示词到商用产品，第三方 Skills 逐文件核验许可后再单独接入。
+
+设置盘点：沿用 Provider 激活模型、aiRuntime.subagentAccountId（空继承主模型）、maxSubagents（默认 4，上限 16）、maxDelegationDepth（默认 2）、模型/工具/请求/上下文/命令预算，plugins.enabled/skillDirectories、general.followupBehavior/taskFolder/integratedShell，permissions.mode；UI 验收沿用全部适用 Appearance 和暂停/继续控制。不新增权限模式、模型降级或用户偏好重置。前台/后台是本次委派参数，预算仍来自设置中心。
+
+允许：直接相关核心/子 Agent/Session/工具/API 合同与长期回归，受影响包依赖/README，融合清单/声明和架构计划。现有工作树和 ekko-studio（包含既有 docs/openapi.json 修改）保留；上游只读。真实验收使用用户指定账户登录，凭据仅作会话内登录，不写入文件、日志、测试夹具或提交。真实项目验收使用新建的隔离任务目录，不覆盖用户工作或运行实例；不提交、不发布，不重启会影响游戏实例的进程。
+
+验收：后台委派及时返回真实任务标识，父 Run 正常结束后子任务继续；前台等待终态；查询/等待回收真实答案并按账户/来源隔离，取消、失败和重启中断不伪装成功。数量/深度/工具/模型/计划限制不能因后台执行绕过；暂停/停止及卸载撤销监听器和执行资格。记录真实编程任务的读取、修改、执行、差异、测试与修复证据；直接回归、相关构建、Client/Host 类型、workspace Gate 和差异检查分别报告。涉及 UI 再按内置浏览器要求验收桌面与窄短屏；真实 Provider、节点、外部 CLI、手机/桌面及帧时间分别标明。
+
+实页发现并纳入同一核心范围：确认非零退出的测试命令在源码修复后被防重拦截。Shell Owner 使用原 retryAfterRecovery 合同，仅允许新的成功写入之后由模型再次选择确认失败的命令；未知结果仍不重放，认证、审批、预算和成功副作用防重保持。补充真实 Shell 失败→修复→重验以及超时→修复→拒绝重放的长期回归。
+
+第一项实施：已接通 in-process 前台/后台、结果查询/等待、原 Session 持久化、账户/来源和取消/中断边界；直接新回归最终 3/3，其余 Loop/Session/Harness 17 项通过，类型、相关包/Control Plane/Web 构建、192 包 workspace 检查和差异检查通过。指定账户已保存 DeepSeek 模型在实际受管 Worktree 完成项目读取、2/6 复现、后台只读审阅、仅一文件修复、6/6 验证及结果回收；维护者独立测试和 diff 相符。仅重载本轮启动且无活动任务的服务，保留验收会话/项目/工作树和原草稿。全范围迁移仍继续按优先级登记，独立 Coding 主运行时/工作台等未宣称完成。逐文件、设置、真实验收及未测范围见 [第一项交付记录](development/ekko-fusion-core-20261016.md)。
+
+<a id="lfaa-application-panels-templates-20261016"></a>
+
+## LFAA-APPLICATION-PANELS-TEMPLATES-20261016
+
+目标：应用作为系统内的传统操作与成果管理面板；理解目标、编程、委派与对话统一由 `/work` 智能体工作区承担。用户确认未来自定义模板同时覆盖成果（文档、代码项目等）和应用面板。本轮清理当前面板中的旧 App 专属 AI Work 展示，记录模板目标与尚未实现的范围；不把产品方向确认写成模板引擎已交付。
+
+Owner：应用/工作区域组合归 `client/ui-workspace`；作品信息归 `client/ui-writing`，业务数据仍归 Writing 等原领域服务；能力目录请求归 `client/connection`。Agent Loop、Session、权限、项目与文件继续使用原 Owner，不另建 App 级 Agent 或模板执行器。模板架构及后续验收见 [应用面板与模板目标](development/application-panels-templates.zh.md)。
+
+设置盘点：不新增配置。保留 `general.navigationLayout/showServiceStatus/showBottomPanelControl/terminalPosition`、现有快捷键、`plugins.enabled/skillDirectories` 与写作已保存偏好；外观复用主题、颜色、字体/字号、对比度、壁纸、遮罩透明度、模糊和减少动态效果映射；操作继续受 `permissions.mode` 及原账户/项目/节点合同约束。
+
+允许：清理应用外壳中的 Agent 专属展示与无用请求，将写作侧栏收敛为作品信息；维护相关 README、架构/计划和本合同，执行直接回归、构建、差异及 workspace 检查。禁止：删改用户数据、覆盖无关工作树、移除领域工具/服务、建立第二套权限/Session、向产品加入假模板/示例成果、重启既有服务、提交或发布。本轮不实现模板 CRUD、动态面板运行时或生成发布。
+
+验收：普通应用不显示主/子 Agent 配置、会话模型、App 专属 AI Work 切换与 Agent 能力资源目录；写作保留当前作品/章节、保存说明和现有编辑器；共享工作保留能力发现、聊天、侧聊、Git 与原工具。与面板无关的能力目录不请求，离开消费目录的区域时取消请求。直接回归、受影响包/Web 构建、类型与 workspace Gate 分别报告；内置浏览器检查真实工作/应用页面桌面与相关窄/短容器，记录路由、视口、截图及未验范围。模板两种目标、实例与模板分离、真实服务绑定、自定义与版本要求标为后续目标。
+
+实施与验证：普通面板移除 Agent 能力目录及未接入的审查/浏览器占位；目录仅在共享工作读取，退出取消请求，默认并发读取合并保留。写作信息和原作品 Skill 管理从旧 ai-work UI 迁入 normal 模块，移除 App 专属会话/模型与模式切换；服务端作品角色和数据不变。请求回归 10/10、共享入口/会话回归 4/4、Client/Host 类型、Connection/Writing/Workspace 包构建、正式 Web 构建、workspace Gate 和差异检查通过；Web 指纹检查返回空过期列表。内置浏览器在隔离账户检查 `/work`、`/apps/writing/normal`、`/apps/connectivity/normal`，覆盖 1300×720 桌面与 760×520 窄短屏，作品新建、保存和刷新恢复通过。真实 Provider、多 Agent 模板生成、远程节点、桌面/手机和帧时间未测。逐文件路径、性能边界、截图及清理记录见 [交付记录](development/application-panels-20261016.md)。
+
+<a id="lfaa-ai-work-composer-slash-mention-20261015"></a>
+
+## LFAA-AI-WORK-COMPOSER-SLASH-MENTION-20261015
+
+目标：让小鱼智能体消息输入框通过 `/` 快速选择已存在的聊天命令，通过 `@` 搜索并关联当前目录真实可用的应用、Skill、提示词和专家能力；键盘、指针、窄分栏和短屏交互均可达。
+
+Owner：共享聊天输入及菜单归 `packages/client/ui-chat`；应用/能力目录由工作区现有 `ApplicationWorkspace` 消费并传入；会话关联仍由现有 `setAiSessionAssociations` 与 `AgentAssociations` 合同保存，模型仍按用户目标决定是否读取关联能力。计划模式、侧边聊天、模型选择分别复用当前聊天逻辑与控件。
+
+设置盘点：复用 `general.sendShortcut` 保持 Enter 发送偏好，计划模式仍使用现有会话合同；外观沿用设置中心主题、强调色、字体/字号、表面、对比度、模糊和减少动态效果令牌；权限继续使用 `permissions.mode`。不新增设置、目录请求、持久化或权限规则。
+
+允许：在聊天输入 Owner 增加按 `/` 与 `@` 触发的筛选菜单、键盘导航和关联/命令入口；更新 ui-chat README、相关长期回归与本合同结果。禁止：复制能力目录或领域规则、为建议项伪造能力/成功状态、让 `@` 绕过 Session/应用授权、修改 Provider/Daemon/账户权限、触碰无关工作树或真实数据、重启既有服务、提交或发布。
+
+验收：`/` 菜单只显示当前已实现的命令；选择 `/plan`、`/side` 复用现有解析，`/model` 打开现有模型选择器；`@` 菜单按实际应用和能力目录筛选，选中项通过原关联 Owner 保存并呈现为输入引用。方向键、Enter、Tab、Escape 和鼠标可操作，选项可滚动，视口变窄/变短时不遮挡关键输入控件；新菜单使用共享外观令牌。运行直接相关的源码/包与 Web 构建验证；按项目要求在内置浏览器检查真实 `/work` 页面桌面与窄/短视口，记录路由、尺寸、截图及未测范围。不得声称未执行的回归、帧时间或设备验收。
+
+实施：`AiWorkChat.tsx` 在输入框开头识别 `/`，提供现有 `/plan`、`/plan off`、`/side` 命令入口及复用当前模型选择器的 `/model`；识别单词边界后的 `@`，从现有应用 ID 和工作区传入的真实能力目录筛选。应用/Skill/提示词/专家选中后以现有 Session 关联合同保存，并插入 `@名称`；新会话仅更新待发送的本地关联，未创建会话或写入服务端。能力匹配目录按 prop 变化缓存，结果至多渲染 60 项；输入期间没有网络请求、轮询或额外订阅。键盘选择会恢复输入焦点和光标，Enter/Tab 选中、方向键移动、Escape 关闭。菜单与输入框等宽、命令行显示图标和横排名称/说明；只在菜单打开时短暂监听窗口/视觉视口变化并观察输入框尺寸，以聊天画布顶部为边界计算可用高度，清理时撤销监听并断开观察器。
+
+设置与安全：复用 `general.sendShortcut` 保持原发送按键，外观使用现有主题/强调色/字体字号/表面令牌；不新增 CSS 自定义属性、设置或数据源。关联应用/能力沿用原应用目录、Session API 和服务端校验，不授予执行权限，不改变 `permissions.mode`。
+
+验证：最终源码下 `pnpm --filter lfaa-client-ui-chat build`、`pnpm --filter lfaa-web build`、`pnpm exec tsc --noEmit -p tsconfig.client.json` 与 `git diff --check` 均通过。正式 Web 构建处理 2261 个模块并写入根 `dist/apps/web/`；保留既有单个 500 KB 以上 chunk 提示。未运行自动化测试。
+
+内置浏览器：在正式构建后的 `http://127.0.0.1:3000/work`、1280×720 复验。初看发现菜单限宽且长 `@` 列表被聊天画布顶部裁切；修正后 `/` 面板与输入框等宽，图标、命令名与说明横向排列，`@` 长列表从聊天画布顶部完整显示并在约 690px 窄分栏内滚动，无横向溢出。键盘方向键加 Enter 将 `/plan off` 补入草稿；`@` 搜索及能力选择在之前的空白会话验收中通过，未发送消息或向现有会话写入。已将输入恢复为测试前草稿、关闭窄分栏，并关闭临时浏览器标签。未测短屏/手机、主题切换、真实 Provider、帧时间和真机；截图留在本轮内置浏览器验收输出中，未导出文件。
+
+<a id="lfaa-ui-sidebar-categories-20261015"></a>
+
+## LFAA-UI-SIDEBAR-CATEGORIES-20261015
+
+目标：将小鱼智能体左侧会话栏按“草稿、置顶、项目、最近”分区展示。未发送草稿继续读取现有 Client 草稿；置顶会话可星标/取消星标，项目会话按已登记项目分组，无项目且未置顶的会话归入最近。
+
+Owner：布局与交互归 `packages/client/ui-workspace`；按账户隔离的本机置顶会话 ID 偏好归 `packages/client/store`；草稿继续归既有 Workbench/草稿持久化，项目与会话正文及归档继续归现有 Workspace/Session Owner。
+
+设置盘点：不新增设置中心配置。沿用 Appearance 的主题、颜色、字体、字号、对比度、表面透明度、模糊与减少动态效果令牌；置顶只保存有界会话 ID 列表到现有浏览器 Client 持久化层，不改变服务端会话或权限。
+
+允许：左侧会话分类、星标操作、客户端持久化 helper、直接回归、相关包 README、本合同和交付记录。禁止：修改会话服务端数据模型/API、改变账户/项目隔离、迁移草稿或真实会话内容、重置设置、改动其他入口、重启运行服务、提交或发布。
+
+验收：草稿有内容时可从“草稿”返回小鱼工作区；星标会话进入置顶，取消后按原项目/最近归类；项目会话保留现有项目上下文与新建入口；分类顺序固定，空分类不产生误导操作。无新增请求、订阅或轮询，置顶状态按账户隔离且最多保存 200 个 ID。运行置顶 helper 回归、UI Workspace 构建、正式 Web 构建、适用 workspace Gate 与差异检查；内置浏览器实测 `/work` 桌面及窄/短视口并记录截图、路由、尺寸、主题和未测边界。
+
+实施记录：`ApplicationSidebar` 按草稿、置顶、项目、最近展示会话；项目分类使用现有项目目录与会话 `projectId`，项目登记已移除时仍保留会话并显示其原项目名。草稿入口读取现有 AI Work 草稿是否为空，点击返回 `/work` 继续编辑，没有复制草稿数据或逐键新增订阅。每条会话使用星标置顶/取消；取消后依据原项目 ID 回到项目组，否则回到最近。置顶 ID 通过 `packages/client/store` 的 helper 存入账户隔离的浏览器持久化，去重并限制为 200 条；未修改 Session API、会话正文、项目数据或权限。会话列表仍来自原 Workspace/Session Owner，没有额外请求、轮询或订阅；星标操作受当前聊天忙碌状态禁用。
+
+设置与外观：未新增设置中心配置。分类标题、会话操作沿用工作台现有 Appearance 共享主题/强调色/表面/文字令牌，没有新增 CSS 自定义属性；置顶仅为本地导航偏好，不影响跨设备同步。
+
+验证：`apps/cli` 的 `client-persistence.test.mjs` 通过 6/6，包含账户隔离、去重、200 条上限和清空；`pnpm --filter lfaa-client-ui-workspace build` 与 `pnpm --filter lfaa-client-store build` 通过，`git diff --check` 通过。`apps/web` 目录直接 Vite 构建成功，2261 个模块输出到根 `dist/apps/web/`，该构建期间的 Web 指纹有效；当前 Host 指纹仍旧，`node scripts/runtime-build-state.mjs web` 报告 `host`。正式 `pnpm --filter lfaa-web build` 与 `pnpm run typecheck` 被工作树内其他文件的 TypeScript 错误阻断：`ui-layout/Workbench.tsx` 有未使用的 `Alert`、`opening`、`currentRouteApp`、`onOpen`，`ui-sidebar-files/FileManagerPage.tsx` 缺失 `applications`、`onOpenApplication`；本次变更文件无对应诊断。`pnpm run check:workspace` 被既有的 `ui-sidebar` 缺少 `lfaa-util-values` 声明和包目录 JSON 清单过期阻断；未扩展修改去处理这些无关问题。
+
+实页检查：已登录 Edge 的实际 `/work` 页面在 2560×1223 显示“置顶 0 / 最近 54”；临时置顶一条会话后为“置顶 1 / 最近 53”，取消后恢复“置顶 0 / 最近 54”，原会话归类复原。左栏 splitter 检查结束时为 280，保持原始宽度。该用户当前没有带草稿的会话或项目关联会话，因此本次实页未出现草稿/项目分类。截图由外部 Edge 的浏览器能力捕获，没有保存成本地文件。ChatGPT 内置浏览器在同一路由停留于登录页，无法进入实际功能；因此项目要求的内置浏览器目视验收未完成，外部浏览器仅作补充证据。窄/短视口、手机、主题切换、帧时间与设备验收未测。
+
+<a id="lfaa-chat-home-20261015"></a>
+
+## LFAA-CHAT-HOME-20261015
+
+目标：撤下独立应用中心页面，将登录后首页和根地址 `/` 统一落到 `/work` 小鱼智能体对话区；保留专业应用访问，将现有入口改为左侧紧凑“应用”菜单。
+
+Owner：根路由兼容和应用入口校验归 `packages/client/ui-renderer`；工作台页面组合归 `packages/client/ui-layout`；工作区导航和紧凑应用菜单归 `packages/client/ui-workspace`、`packages/client/ui-sidebar`；默认首页显示与背景映射归 `packages/client/ui-settings`、`packages/client/ui-layout`；账户设置默认值、兼容读取和持久化继续归 `packages/util/values`、`packages/settings/settings`。
+
+设置盘点：不新增设置项。General 原 `defaultMode/defaultStandaloneChat` 字段仅保留账户兼容读写，新默认值对应 `/work`，既有账户值不被覆盖且这些字段不再驱动路由。原 Appearance `backgrounds.appCenter` 持久化键继续映射小鱼智能体工作区及既有关联工作区，在设置中心改显示为“小鱼智能体工作区”，不迁移或重置已保存图片。服务状态开关继续控制工作区顶栏和左侧导航状态点；`openHome` 快捷键返回 `/work`。现有认证、偏好保存、App 路由入口标记和三种权限模式不变。
+
+允许：相关 Client 路由、工作台、紧凑应用选择、设置映射、直接回归、包 README、架构/计划和本合同。禁止：删改 App 领域能力、变更认证/授权/数据 Owner、重置用户背景或账户偏好、操作真实数据、重启既有服务、覆盖无关工作树修改、提交或发布。
+
+验收：登录、刷新、根地址、历史回退及旧根入口显示 `/work`；专业 App 可经紧凑菜单打开并继续走现有偏好保存与路由标记；独立应用中心卡片页、旧顶部“应用/工作”切换和相关入口文案撤下；设置中心明确显示小鱼智能体为固定首页，原背景选择继续作用于新首页且其他账户偏好不被重置。运行路由/设置/菜单直接回归、Client/Host 类型检查、相关包与正式 Web 构建、存在的 workspace Gate 和差异检查；内置浏览器检查桌面及窄/短视口，记录路由、尺寸和未测边界，不以构建代替实页验收。
+
+实施记录：已移除应用中心卡片页和工作区顶部模式切换；根地址、登录默认入口进入 `/work`。左侧“应用”菜单保留游戏库、SteamCMD、Minecraft、联机服务、写作空间和 AI 漫剧入口。设置中心固定首页说明、服务状态开关与原 `appCenter` 背景映射保持同步。路由/设置定向测试、Client/Host 类型检查、8 个直接相关包构建、正式 Web 构建及 workspace Gate 通过；ChatGPT 内置浏览器在 `http://localhost:31247/` 及 `/work` 目视验收，桌面 1307×682，窄分栏下中间区约 624px；设置开关可隐藏/恢复顶栏与导航状态，背景选择显示旧 `appCenter` 值。临时服务已停止。隔离测试数据位于 `dist/.tmp/chat-home-browser-check-data`；自动审核拒绝了递归和逐文件清理命令，因此该临时目录仍保留。性能侧未增加定时任务、轮询或 API 请求，菜单外点/Escape 事件在关闭与卸载时撤销；帧时间、手机和更短屏幕未测。详细证据见 [首页迁移交付记录](development/chat-home-20261015.md)。
+
+<a id="lfaa-settings-storage-selection-20261015"></a>
+
+## LFAA-SETTINGS-STORAGE-SELECTION-20261015
+
+目标：修复项目与存储的默认、推荐、自定义位置选择与布局。入口 `/settings?section=workspace`；数据根选择置顶，当前生效与待迁移位置分开，三种选项先编辑后显式保存，分类目录紧凑展示。取代旧布局合同仅改 CSS 的边界；自定义根不自动覆盖，但用户显式选择推荐并保存时允许安排迁移。
+
+Owner：Client UI 负责草稿及布局，workspace/data-directory 负责权威路径、校验与迁移计划，原 Settings API 保留认证和超级管理员写入限制；实际迁移仍由完整启动器停服后复制核验。设置复用 LFAA_DATA_DIR、原迁移标记和外观主题/颜色/字体字号/对比度/透明度/壁纸模糊/减少动态效果映射，不新增偏好或第二套路径持久化。
+
+允许：相关 UI、数据根 Owner、直接回归、包 README、本合同与架构事实。禁止：变更真实数据根、实际迁移用户数据、重启既有服务、修改无关工作树、提交或发布。验收：三种位置均可明确选择并保存；自定义到推荐不再被错误阻止；当前与待迁移状态不混淆；只读及非超级管理员不能提交；取消恢复当前位置，输入与保存串行；窄容器/短屏无横向溢出。运行直接回归、受影响包/正式 Web 与 Control Plane 构建、类型、workspace Gate、差异检查；内置浏览器检查实际页面桌面及窄/短屏，记录主题/设置效果、截图及未测边界。不在真实用户环境点击迁移保存。
+
+实施：存储位置置顶为三张互斥选择卡，默认、推荐、自定义均通过显式保存提交；切换模式保留自定义草稿，空草稿禁用提交，保存/取消期间禁用编辑。当前生效与待迁移/失败信息分开，角色及启动配置锁定统一只读。分类位置改为双列紧凑清单，容器 760px 以下选项单列、560px 以下分类单列。推荐 Owner 移除错误的自定义根禁用；保留历史非 data 根时不再追加 data。原非空目标、路径重叠、任务占用与认证授权保护不变。源码没有增加请求、轮询、订阅或计时器；选择只更新草稿，未测帧时间。
+
+配置核对：数据根/默认/推荐/待迁移/可编辑状态继续来自 Data Directory Owner 与原启动配置/迁移标记；外观默认 theme=system、accentColor=#3457d5、字体=system、界面字号14/代码字号12、contrast=60、overlay=37、blur=14、reducedMotion=system、设置壁纸 lakeside-pagoda-morning，沿原 Settings 账户持久化和 Workbench 共享令牌映射读取已有用户值。未新增设置、变量或重置用户偏好；浏览入口仍遵守原 permissions.mode 与角色合同。
+
+验证：先用新增行为断言复现自定义切推荐被拒绝，再修复；`node --import tsx --import ./register-package-loader.mjs --test tests/data-directory-settings.test.mjs tests/data-directory.test.mjs tests/file-resources.test.mjs`（apps/cli）20/20，通过默认/推荐/自定义、历史非 data 根、非空目标不破坏原计划、启动配置只读、安全复制及原文件/API回归。`pnpm run typecheck`、ui-settings/data-directory 两包构建、正式 `pnpm --filter lfaa-web build`（2260 modules）、`pnpm run build:control-plane`、`pnpm run check:workspace`（192包）、本次文件差异空白检查通过；`node scripts/runtime-build-state.mjs web` 返回 []，正式产物与源码指纹匹配。首次控制端构建因期间更新包 README 被指纹检查拒绝，最终稳定源码重建通过，未绕过检查。不存在的 workspace-preflight 未运行。
+
+内置浏览器：`http://127.0.0.1:3000/settings?section=workspace` 加载最新正式 Web，1440×900 三列，768×600 窄分栏改单列，390×560 手机短屏自定义输入/保存可滚动到达、分类清单单列；文档和存储卡片无横向溢出。默认→自定义→推荐→自定义可切换，空输入禁用保存、长中文路径草稿保留。实页核对现有粉色强调色（rgb214/77/143）、Consolas代码字体、浅色主题与壁纸；截图位于根 dist/.tmp/settings-storage-20261015/desktop.jpg、narrow.jpg、phone-short.jpg、phone-folders.jpg。测试草稿/视口/导航已恢复，未提交真实迁移。未实测深色主题/更换字号及壁纸、真机、帧时间、桌面目录选择器、待迁移/失败UI和真实用户迁移；迁移逻辑用隔离目录回归。没有重启既有服务，因此后端两处修复仍需现有控制端下次正常重启加载，不能将构建通过写成已加载新后端。
+
+<a id="lfaa-settings-persistent-toolbar-20261015"></a>
+
+## LFAA-SETTINGS-PERSISTENT-TOOLBAR-20261015
+
+目标：为 `/settings` 增加常驻顶部操作栏。分类导航展开时，右侧正文分成顶部操作栏和可滚动展示区；收起时在操作栏左侧保留“设置菜单”入口。操作栏提供返回工作区/导航折叠、自动保存提示、当前设置分类恢复默认与立即保存。
+
+Owner：共享 Client 设置界面归 `packages/client/ui-settings`；用户设置类型、默认值、服务端校验与持久化沿用 `util/values`、Settings Owner 和现有设置 API。工作区数据目录等独立业务配置仍由各自 Owner 保存。
+
+设置盘点：复用现有 `UserSettings` 分类、`DEFAULT_USER_SETTINGS`、300ms 自动保存与 `saveSettings` 接口；不新增设置项、默认值、持久化或外观令牌。顶部提示消费现有主题、字体、字号、表面、边框、模糊及减少动态效果适配。
+
+允许：在设置页调整侧栏标题栏/右侧常驻工具栏布局；将既有按分类操作移入顶部；“恢复默认”只重置当前 `settingsCategoryForSection` 支持的用户设置分类，“立即保存”等待当前分类和已排队的用户设置分类保存完成；更新本合同实施与验收记录。
+
+禁止：把独立存储/账户/节点/插件等 Owner 的草稿合并进通用设置保存；全局清空用户偏好；改动认证、权限、业务配置语义、其他工作区变更或真实数据；重启/影响运行中服务、提交或发布。
+
+验收：展开时左侧分类导航与右侧内容盒保持并列，顶部操作栏常驻且内容区独立滚动；收起时顶部“设置菜单”入口可重新展开。返回、收起/展开、自动保存、当前分类恢复默认与立即保存均按原 Owner 执行。核对桌面和窄分栏/短屏视口，操作可达、无溢出并服从现有外观设置；运行 UI Settings 与正式 Web 直接构建，分别记录源码/构建和内置浏览器实页证据，不声称未执行的测试、帧时间或设备验收。
+
+实施与验收：`SettingsPage` 将返回/导航收起入口与自动保存提示、恢复默认、立即保存操作集中到右侧盒子的常驻顶栏；菜单收起时顶栏改显示“设置菜单”入口。原分类底部重复操作移除，顶栏复用当前分类的 `settingsCategoryForSection`、共享 `DEFAULT_USER_SETTINGS` 和原 `saveSettings`/自动保存请求去重；语音分类仍只恢复语音两项。没有添加设置项或改动数据目录等 Owner。
+
+验证：`pnpm --filter lfaa-client-ui-settings build`、`pnpm --filter lfaa-web build`（2260 modules）和 `pnpm run check:workspace`（192 个包）通过；`git diff --check` 通过。ChatGPT/Codex 内置浏览器在 `http://127.0.0.1:3000/settings?section=workspace`、1303×681 实页检查展开/收起状态；收起时菜单入口可见，展开时返回与关闭入口、右侧操作均常驻。将侧栏临时调整为 435px（正文约 700px）后，顶栏按钮可见、存储卡片文本可换行且无横向溢出；随后恢复到 200px。该分类没有可由通用设置 Owner 重置的偏好，因此“恢复默认”保持禁用；没有点击保存，也没有触发存储路径写入。UI Settings 构建产物位于根 `dist/packages/`，Web 产物位于根 `dist/apps/web/`。未运行自动化测试，未测 50ms 长任务/帧时间、其他设备尺寸、桌面 WebView 或 Provider；未重启运行中服务。
+
+<a id="lfaa-settings-data-directory-layout-20261015"></a>
+
+## LFAA-SETTINGS-DATA-DIRECTORY-LAYOUT-20261015
+
+目标：修复 `/settings?section=workspace` 中“控制端本机存储位置”卡片的说明与长控制列垂直错位、控制列偏窄问题；保留原路径说明、角色权限、推荐/确认/迁移交互与数据语义。
+
+Owner：界面归 `packages/client/ui-settings`；统一数据根的默认/推荐路径、迁移状态和持久化归 `packages/workspace/data-directory`，由现有认证 API 提供，设置页面只消费 `dataDirectorySettings`。
+
+设置盘点：沿用 `LFAA_DATA_DIR` 权威运行配置及原迁移标记；首次默认系统账户 `.lfaa/data`，项目或桌面安装目录下的 `data` 是显式推荐位置，当前目录/待迁移目录/是否可编辑均来自 Data Directory Owner。外观沿用设置中心的共享主题、颜色、字体、字号、表面与对比度令牌。本轮不新增或修改设置项、默认值、持久化、服务端校验或外观令牌。
+
+允许：仅调整该卡片的 JSX 包裹标记和局部 CSS；更新本合同的实施/验收记录。
+
+禁止：修改数据目录选择/迁移语义、API、权限、真实数据或用户偏好；重启或影响现有服务；覆盖或清理开始前已有工作树改动、触碰其他 checkout、提交或发布。
+
+验收：桌面宽度下说明与控制列顶部对齐、控制区有足够宽度且长路径可换行；容器变窄时卡片改为单列且不横向溢出，路径查看及原有操作可达。运行 ui-settings 直接构建，并在内置浏览器打开实际设置页，以桌面和窄容器/短屏视口目视核验；构建与实页验收分别记录，不声称未执行的测试或帧时间测量。
+
+实施记录：只为统一数据根操作容器添加局部样式标记；桌面行从垂直居中改为顶部对齐，控制列拓宽；宽度收窄到设置容器 760px 以下时改为单列。路径内容可换行，原有按钮、权限判断、当前/默认/推荐及待迁移状态保持原 Owner 数据。
+
+验证：`pnpm --filter lfaa-client-ui-settings build` 与 `pnpm --filter lfaa-web build` 均通过。内置浏览器在 `http://127.0.0.1:3000/settings?section=workspace` 实页检查：1280×720 常用桌面视口下两列顶部对齐；同为 1280×720，将设置正文收窄到约 708px 后卡片单列显示，长说明和路径可换行，按钮均可见且无横向溢出；检查后将侧栏宽度恢复为 200px。未触发保存/推荐/迁移操作，未运行自动化测试，未测帧时间；未重启运行中服务。
+
+<a id="lfaa-settings-session-read-performance-20261015"></a>
+
+## LFAA-SETTINGS-SESSION-READ-PERFORMANCE-20261015
+
+目标：修复设置中心分区读取长时间显示“正在读取设置”并连带阻塞小鱼工作台会话列表/消息加载的问题。入口为 `/settings` 的懒加载分区、`GET /ai/usage`、`GET /ai/sessions` 和首屏消息页。已确认的热点：使用情况页调用 `getAiUsageSummary()`，其同步执行 `sessionRecords.all("ai_usage")`；该方法逐个恢复所有 JSONL 会话，再反复扫描全局记录表。它既随历史会话/用量行数增长，又会占住 Host 事件循环，使同一 Host 的会话请求排队。用户反馈会话仍慢后，继续发现关联投影超过 512 项淘汰后，最多 200 条列表记录会逐条回读完整会话日志。设置页其余分区按进入时各自读取，必须逐一核对并保持认证、账户范围和现有设置合同。
+
+唯一 Owner：设置分类与渲染归 `ui-settings`，HTTP 请求归 `session-controller`/`client-connection`，会话用量汇总归 `core/session`，重放时维护轻量持久投影归 `session-persistence-jsonl`。不另建统计服务或数据源。
+
+设置：不新增或修改设置中心控制项。Provider、模型、权限模式、外观及存储偏好全部沿用原 Owner、默认值、持久化和前端映射；本次读取优化不改变偏好、数据归属或权限。
+
+允许：在已完整校验 JSONL 重放和受控提交期间，以账户及 Provider/模型为粒度维护与历史用量记录数无关的汇总；在 Session Owner 原接口上读取汇总；把设置页中确有顺序依赖的独立只读请求并行化；将有界关联引用投影附着到现有会话头，避免投影缺失退化成逐会话全日志扫描；补直接性能回归、相关包 README 和本合同记录。保持消息首屏缓存、版本校验、账户/App 隔离及取消合同。
+
+禁止：省略历史数据或改变汇总字段语义、缓存逐条用量/消息正文、降低哈希链验证、增加第二会话存储/设置、重启或影响用户现有服务、修改真实用户数据、修改其他 checkout、提交或发布、触碰无关脏工作树内容。
+
+验收：用量 API 不调用逐会话 `all()`/加载每条历史用量，结果与记录数、Token null 语义和 Provider/模型分组一致；正常 Host 事件循环不再被打开用量页的全历史扫描占用；设置区分读路径经检查，独立读可并行且有界的区分原样保留。会话列表对最多 200 条标题读取已验证头及引用投影；即使超过旧 512 项缓存规模，关联查询也不得恢复完整会话日志；首屏与更早页的完整 SHA-256 链校验、账户/App 隔离保持。运行 Session Persistence、Core Session、Session Controller、Client Connection、UI Settings 的直接验证、类型和直接包构建、存在的工作区 Gate 与差异检查。合成验证、源码/构建证据不冒充真实浏览器等待时间或帧时间实测；不重启当前运行实例。
+
+实施记录：使用情况页从逐会话全历史恢复改为 JSONL 重放/受控提交期间增量维护用户/Provider/模型汇总，保留请求数、Token 可空语义及按最近时间排列的分组；`/ai/usage` 读取此投影。设置“项目与存储”区的健康、SteamCMD、Minecraft、统一数据根和历史存储读取并行启动。工作台继续按账户统一显示跨 App 历史会话，以账户为范围缓存列表；离开工作模式或切换账户时取消旧请求，完成回复后刷新同一共享列表。未增加或修改设置项。
+
+补充实施：会话关联投影改为附着在仓库已有的轻量会话头上，头更新时迁移投影，重放及受控事件提交时同步维护；不再因 LRU 淘汰而对列表会话逐条扫描 JSONL，也不缓存消息正文。事务先完整校验；仅首次建档且会话头在事件之后时调整为先应用会话头，兼容现有日志格式，其余事务保持原顺序。
+
+验证记录：合成 16 个会话/4,000 条用量行后重放，精确得到 4 个 Provider/模型组；汇总函数实测 0.020 ms，调用时 `sessionRecords.all()` 未被调用且会话热缓存统计没有变化（这是合成函数测量，不是 HTTP/浏览器时间）。Session Kernel/分页测试 10/10、用量性能回归 1/1、文件存储回归 8/8、Client Connection 请求回归 9/9、会话/设置 Client 定向回归 2/2 通过。Client/Host 类型检查、`check:workspace`（192 包）、Session JSONL/Core Session/Session Controller/Connection/UI Settings/UI Workspace/UI Chat 包构建及 Web/Control Plane 正式构建通过。完整 Web 集成测试在旧项目存储写入断言处收到退役 HTTP 410（该测试仍期待 200），因此未运行到其用量 API 断言。未重启当前实例；真实浏览器等待时间与帧时间未测。
+
+补充验证：Session Kernel/分页/取消整组回归 10/10 通过；新用例构造 200 条实际 SQLite 列表候选并把关联头压力推过旧 512 项上限，列表结果 200/200 正确，完整 `readSession()` 计数为 0。4,000 条用量行/4 组投影回归 1/1，通过，汇总函数本次测得 0.036 ms（合成函数测量，不代表 HTTP/浏览器等待时间）。Client 请求回归 9/9、设置分区/会话取消回归 2/2、设置合同回归 1/1 通过；Client/Host 类型检查、Session JSONL/Core Session、Web（2260 模块）和 Control Plane 构建、192 包 `check:workspace` 与 `git diff --check` 通过。Web 构建先暴露设置页的重复分类声明及已不再调用的旧保存函数，清理后正式构建通过。会话列表回归保持跨 App 共享，不用筛掉其他 App 历史来规避性能问题。未重启当前实例；真实浏览器等待与帧时间仍未测。
+
+运行态追补（2026-10-15）：在 `http://127.0.0.1:3000/work`（Edge 2552×1226）刷新复现首屏会话数为 0、会话列表和模型状态持续显示读取中；等待期间工作区其他面板已可见。之后同一路由加载出 53 条共享会话、原选中会话正文和可用输入框，确认是长时间未完成而非稳定空数据。再打开 `http://127.0.0.1:3000/settings?section=usage`，正文持续显示“正在读取设置…”，返回 `/work` 后又复现 0 条/读取中；源码中该分区读取 `/ai/usage`，但本轮没有浏览器网络瀑布、长任务或帧时间采样，故不能单凭画面认定该请求就是唯一阻塞点。3000 端口由 PID 17368 的 `node apps/cli/bin/lfaa.mjs web` 提供，进程创建于 07:59；Session Owner 源文件随后在 08:30/08:49 更新，Control Plane 与 Web 产物在 09:01 构建，`node scripts/runtime-build-state.mjs web` 返回 `[]` 只证明磁盘构建指纹一致。CLI 从编译后的 `dist/apps/control-plane/.../app-boot` 启动且没有热替换后端模块，因此当前内存中的控制端仍是构建前版本；源码修复和新构建没有进入该进程。PID 17368 托管的本机 Daemon 子进程为 PID 3968；当前没有 `java.exe`/`javaw.exe` 进程。任务禁止重启或影响现有服务，本轮遵守；须由用户明确授权重启后才能用同一路由复测最新后端。该实页记录不宣称性能修复已在线生效。
+
+用户授权后的运行态复测（2026-10-15）：确认 3000 端口仍由目标 Web PID 17368 提供后，向其隔离控制台发送正常 Ctrl+C，Web 与托管 Daemon（PID 3968）均退出；按仓库公开入口 `pnpm lfaa web` 启动，09:11:07 创建 Web PID 5740，09:11:38 输出“LFAA Web 已就绪”并启动新 Daemon PID 25168，启动本身约 31 秒。运行指纹复查仍为 `[]`，证明启动时磁盘构建状态与源码一致。用户现有 Edge 标签恢复到工作台后，使用 CUA 真实浏览器完整刷新并等到 53 条会话、已选消息、模型和输入框就绪，耗时 1,193 ms；导航到 `/settings?section=usage` 并等到真实 252 次汇总数据显示，耗时 775 ms；随后完整刷新使用情况页，摘要显示且不再出现“正在读取设置”，耗时 898 ms。以上是当前登录浏览器的实页端到端观察值（页面已热缓存），不代表冷启动耗时或帧时间；另一次同标签路由导航早期 AX 快照为空，后续截图/AX 快照确认页面已完整显示。故旧进程未加载后端修复是此前长时间转圈的重要原因之一；现在在线实例已换成最新构建且两页通过实页复测，不能据此断言首次冷启动已优化，也没有采集 Network 瀑布、主线程长任务或帧时间。本次只重启 Web 与其托管 Daemon，没有改动设置偏好或用户数据。
+
+设置中心全区复核与 Minecraft 目录解耦（2026-10-15）：`SettingsPage` 有 10 个进入时按需读取数据的分区；从真实调用链确认 Minecraft 分区为填默认核心下拉框等待 `GET /minecraft/cores`，该路由同步等待 `listMinecraftCores()` 对 FastMirror、Mohist Youer、PaperMC 三个外网来源执行 `Promise.allSettled`；每次来源请求具有 20 秒超时预算。因此仅为展示偏好就可能等待慢速/不可达的目录。新增认证后的 `GET /minecraft/core-names`，直接返回 `games/minecraft/src/core-sources.ts` 唯一登记的核心名；设置页改为读取该轻量合同，实时核心版本和构建接口仍按原来源校验，不改变账户默认值、数据、权限或部署行为。另 9 个数据分区在 Edge 热会话导航实测均在 0.42–0.60 秒内显示；修复后的 Minecraft 配置页实测 1,333 ms、使用情况页 1,023 ms，均无设置读取提示；工作台实测 1,486 ms 显示 53 条会话、已选正文、模型和可用输入框。后两次实页耗时从页面导航起到可访问内容就绪，非冷启动/帧时间。新增 API 回归 1/1：未认证为 401，认证响应与领域核心名登记相同，外网请求 0。Client/Host 类型检查、API Controller/Connection/UI Settings 直接构建、Web（2260 模块）、Control Plane 构建，`sync:workspace` 和 `check:workspace` 通过。第二次授权重启后 Web PID 22776 / Daemon PID 24488 已运行；启动时间约 53 秒，与路由读取分开记录。未采集浏览器 Network 瀑布、长任务及帧时间；未修改任何现有设置。
+
+<a id="lfaa-xiaoyu-shared-agent-20261014"></a>
+
+## LFAA-XIAOYU-SHARED-AGENT-20261014
+
+用户目标：AI Work 正式更名“小鱼智能体”，统一所有 App 的工作入口/会话/项目，导航改成应用/工作，领域由配置的大模型按需选择 Skill/Prompt/Tools/专家/子 Agent；补齐非强制关联并通过内置浏览器验收，同时核查 Minecraft 原版/插件服/模组服实际能力。
+
+详细提示词：[小鱼共享工作入口](development/xiaoyu-agent.zh.md)。入口 `/work`，App 常规入口保持；旧工作路由兼容归一。Owner：ui-renderer/ui-layout/ui-workspace/ui-chat 负责共享消费；Session JSONL 保存原历史与关联引用，workspace 保存真实项目登记；Agent Loop/Provider/注册表/Permission 和领域/Daemon 执行器唯一。项目 App 标签改为来源参考，账户/节点校验不能放宽。
+
+允许：相关共享导航/聊天/设置/项目/会话/API/Agent 上下文、合同/类型、长期回归、README/依赖/装配、架构/计划/提示词；为本次验收启动自有隔离服务。禁止：第二套运行系统、关键词路由、自动正文注入、静默换模型、修改其他 checkout、删除真实数据、修改或停服既有实例、重启既有服务、提交/发布与无关重构。保留开始时已有脏工作树。
+
+设置：复用 general 模式/入口/目录/Shell/导航、Provider/主子 Agent 模型/思考力度、aiRuntime 各预算/提示/通知、plugins 开关/目录/扩展/MCP、computerControl 与统一三模式权限、Appearance 全部适用令牌。可选关联只存 ID 引用，默认空；不另建配置权威。
+
+验收：应用只进入常规，工作单一入口；旧会话完整可续、项目可用且账户/节点隔离；关联可空/撤销、不强制加载；模型能自主发现并加载真实领域能力；权限、分支、取消和未知副作用防重保留。直接回归、类型、受影响包/正式入口构建、工作区/差异/指纹，内置浏览器实测共享流程与窄短容器，Provider/实际开服/桌面/帧时间单独报告。不存在的 workspace-preflight 不冒充已执行。
+
+用户再次澄清：已有配置自行读取；验收要求模型自主发现、加载、执行、依据失败证据修正并最终交付，不反问配置中已有信息。已只读核对真实活动 Provider 与节点，已运行真实 DeepSeek 能力发现；发现心跳漏登新增文件能力，允许对齐该相关合同并回归。为验证开服，可由模型在现有权限模式下选择版本/节点/端口创建本轮独立验收实例、验证并安全停止；不改变既有实例、偏好或模型，保留真实结果和失败边界，不以测试名义绕过权限。
+
+2026-10-15 继续验收：用户授权创建全新超级管理员，随后明确选择“仅在独立验收环境创建，不改变现有账号权限”。以显式独立数据根 C:/Users/yu/.lfaa/xiaoyu-acceptance/data、独立本机端口启动同一正式 Web（不启动 Daemon），通过原 /auth/setup 初始化与正常登录验收；这是本次验收自定义位置，不改变产品默认/推荐根。原项目账号、角色、Provider、权限和游戏保持。唯一超级管理员约束不放宽、不转交。验收中发现单节点读取未执行列表的心跳过期判定，允许在 Daemon Owner 统一该判定并补回归，不改变超时或权限。浏览器使用正式 Web 资源与正常登录，不制造测试产品路由或认证旁路。
+
+状态：共享入口 58/58、文件/存储统一复验 59/59；真实 DeepSeek 自主发现/加载能力，实际部署、就绪并安全停止 Vanilla、Paper、Fabric、Forge 四个独立实例。内置浏览器完成正常登录、应用/工作入口、真实项目登记、能力引用、默认首页持久化、单一存储根显示和 390/560/768 宽度与短屏滚动检查；文件操作对新账号正确执行身份/权限限制。原项目的新普通管理员保持原角色；用户选择的独立环境超级管理员已通过正常首次初始化创建，内置浏览器登录显示 super_admin，原项目所有账号权限未变。完整逐文件与验收边界见 [统一交付记录](development/xiaoyu-agent-20261015.md)。第三方模组/插件、桌面/设备/帧时间与新账号真实模型调用未实测。
+
+<a id="lfaa-xiaoyu-session-history-performance-20261015"></a>
+
+## LFAA-XIAOYU-SESSION-HISTORY-PERFORMANCE-20261015
+
+目标：让小鱼智能体打开历史会话和首屏消息时不因会话数量/日志大小产生长时间等待，并避免切换会话后遗留扫描占用磁盘。入口为 `/work` 共用工作台、`GET /ai/sessions` 与 `GET /ai/sessions/:sessionId/messages`。唯一业务 Owner 是 `lfaa-session`；JSONL 事务/校验/有界缓存归 `lfaa-session-persistence-jsonl`；认证与请求取消边界归 Session Controller/Client Connection；聊天加载生命周期归 `lfaa-client-ui-chat`。
+
+设置：不新增设置；会话读取沿用现有账户/App 所有权与外观设置，不改变 Provider、权限或用户偏好。
+
+允许：在已验证的 JSONL 重放与本进程受控提交上维护有界、可失效的会话列表/首屏轻量投影；对投影缺失、磁盘版本变化或向前翻页继续走原完整 SHA-256 链校验；将浏览器取消信号传至服务端异步扫描；消除 `busy` 状态变化引发的相同首屏请求。更新直接相关回归、包 README、架构事实与本合同。
+
+禁止：降低认证、账户/App 隔离、参数校验或日志完整性；缓存模型私有历史、跨账户状态或无界会话正文；新增第二会话数据源/设置/服务；修改真实会话内容、覆盖无关工作树改动、停止/重启运行中服务、提交或发布。
+
+验收：会话列表不逐条恢复完整 Session Kernel；已验证且文件版本未变化时，首屏从最多 100 条/16 MiB 全局预算的最近消息投影返回，反馈与分支来源保持原合同；缓存未命中/磁盘变化/更早页继续完整链校验；旧请求取消可终止服务端扫描；用户切换会话不会由 `busy` 翻转再次发起首屏请求。运行 Session JSONL/列表/分页/取消与 Client 请求直接回归、受影响包构建、Client/Host 类型检查、存在的工作区 Gate、差异检查。真实浏览器等待时间和帧时间单独记录，不能以源码/构建通过冒充丝滑实测。
+
+实施记录：JSONL 已验证重放及受控事务维护最近 100 条展示字段投影，最多 128 会话/16 MiB；首屏在文件指纹匹配时读取投影，日志版本变化、投影缺失和更早页仍完整核验 SHA-256 链。会话列表复用有界轻量计划投影；关联引用附着于现有轻量会话头，在完整重放/受控事务中更新，读取不因缓存淘汰逐条恢复 Session Kernel 或扫描完整日志。会话切换取消客户端请求，Controller 将断连传给扫描 AbortSignal；聊天按账户/App/会话去重完成的首屏加载，busy 翻转不重复读取。未新增设置，账户/App/认证与数据权限边界不变。
+
+验证记录：Session JSONL/列表/分页/回退/取消回归 10/10 通过；Client 请求回归 8/8 通过；新增聊天加载生命周期回归 1/1 通过。`pnpm run typecheck`（Client/Host）、JSONL/Core Session/Session Controller/Client Connection/UI Chat 五个包构建、`pnpm run check:workspace`（192 包）及本次文件 `git diff --check` 通过。`client-performance.test.mjs` 全套 27/28：唯一失败为原有流式正文断言仍匹配旧 `<span>`，当前未改动的 `AiWorkResponse.tsx` 已使用 `AiStreamingMarkdown`；本次新增加载回归通过。合成回归证明首屏零全日志页扫描、较早页一次完整扫描。
+
+运行中复验补充：源码/构建修复后，已按用户授权重启 Web 与其托管 Daemon，使 3000 端口不再继续提供旧进程中的旧代码。第二个根因位于 Minecraft 设置：默认核心选择器只需要已登记核心名称，却等待 FastMirror、Mohist Youer、PaperMC 三个在线目录全部结束；单源超时 20 秒会拖住整块设置加载。改为通过认证的轻量 `GET /minecraft/core-names` 返回领域 Owner 的静态名称列表，不改变实时版本目录、部署校验或偏好。隔离 API 回归验证未认证 401、已认证名称列表正确且外部 HTTPS 请求数为 0。
+
+重启后登录态 Edge 实测：`/work` 1,486 ms 显示 53 个会话、选中消息、模型和输入框；用量设置 1,023 ms 显示 252 次调用；Minecraft 设置 1,333 ms 显示已保存的 Paper 默认值；均未出现对应的加载提示。其余有独立数据读取的设置区在热浏览器实测范围约 423–775 ms。此处是页面内容就绪时间，不是逐帧/FPS 测量；真实长日志 JS 堆与帧时间仍未测。CLI/Web 冷启动仍约 53 秒，是另一个尚未解决的启动耗时，不应与页面读取耗时混为一谈。
+
+<a id="lfaa-managed-file-resources-20261014"></a>
+
+## LFAA-MANAGED-FILE-RESOURCES-20261014
+
+用户要求：先交付文件管理开发提示词，再落实重构；默认围绕 data、游戏、备份、环境、日志、缓存、临时文件和 DSH 第三方扩展插件管理。游戏目录优先；Windows 式基本操作保留，资源分类与物理目录分开。此合同取代旧合同中首页混合展示全部磁盘的要求；保留显式本机磁盘来源及设置页位置跳转。
+
+开发提示词：[受管文件资源](development/file-resources.zh.md)。入口 `/files`；文件操作唯一实现 `fs/fs`，游戏路径/状态由 Minecraft Owner 与目标 Daemon 持有，插件安装/版本/兼容/启停/卸载由 Plugin Manager 持有，Settings 提供实际目录与外观，Identity/Permission 保持原执行边界。本轮不把普通文件上传当插件安装，不新增 Agent 或权限实现。
+
+允许：相关 Files UI/Connection/合同、文件服务、workspace-files API、节点文件执行与能力声明、长期定向回归、README、架构/计划/本合同。必要的游戏目录映射只读原领域元数据；不复制领域持久化。禁止：搬迁/删除真实数据、批量清空缓存、改变用户设置、加载任意不兼容 DSH 代码、修改 DSH、服务重启、提交/发布和无关重构；保留当前工作树所有已有改动。
+
+设置：LFAA_DATA_DIR 与原数据根选择/迁移合同；日志/运行环境/缓存/临时目录从总根派生，旧 project_storage_locations 只作历史回读；Minecraft 节点 instanceDirectory 与实例 storageDirectory 保留真实存量位置；既有 permissions.mode、plugins.enabled、Appearance 主题/颜色/字体/字号/透明度/模糊/壁纸/对比度/减少动态效果。资源类别是固定合同，路径实时从 Owner 获取，不新增偏好副本。
+
+验收：首页不枚举磁盘、不将虚拟来源混进真实目录；实际设置目录可进入；实例显示真实节点/状态且只能进入该实例，绝对自定义目录不指向控制端默认盘；运行/未知状态、实例根/标记和插件安装清单不能被普通文件操作破坏，替代路径亦执行保护。列表/搜索流式有界、取消可收尾、不重复递归计大小；UI分类导航、权限/旧请求清理、列操作和容器窄屏可用。运行直接文件/API/节点/客户端回归、类型、受影响包和正式 Web/Control Plane/Daemon 构建、check:workspace、差异与指纹核对；真实浏览器、节点、设备、Provider、帧时间证据分别报告。
+
+用户补充（优先于本合同早期分区自定义描述）：首次未配置使用系统账户 `.lfaa/data`；项目根 `data` 是设置中心显式点击的推荐位置，不是自动的可移动盘默认值。统一选择一个 data 根，日志、备份、游戏、环境、缓存、临时文件与扩展插件是其子目录；不得为这些分类再提供相互独立的存储根设置。已有自定义总根保持优先；旧分区路径仅用于存量数据回读，不自动搬迁或删除。允许补充修改 Data Directory/Settings/Runtime Owner、Settings UI、共享路径布局、对应合同/类型/回归/README，仍禁止操作真实数据或重启用户服务。
+
+状态：已实现资源工作台、真实游戏目录作用域与单一数据根设置；59/59 项定向回归、Client/Host 类型及工作区检查通过。完整逐文件交付、构建与运行验收边界见 [交付记录](development/file-resources-20261014.md)。真实用户数据未搬迁，既有服务未重启。
+
+<a id="lfaa-package-owner-lazy-capabilities-20261014"></a>
+
+## LFAA-PACKAGE-OWNER-LAZY-CAPABILITIES-20261014
+
+用户要求：逐一标注 packages 内全部目录职责，并实际修复 Skill、Prompt、Expert、Tool 放置和 App 绑定；模型按目标发现、加载、调用，不再只交付包组规范。上一轮文档交付保留为历史，不能作为本轮实现结果。开始时已有 Minecraft/Agent/UI 源码和测试改动，本轮保留。
+
+现状证据：system-prompt 根据 applicationId 直接调用 minecraftSystemInstruction/writingSystemInstruction；preset/builtin-catalog 持有领域专家正文；AiExtensionRegistry.getInstructions 自动返回全部匹配正文；core/tools/business-tools 集中持有 Minecraft/SteamCMD/Writing 工具和领域内容读取；skill 注册表及 Minecraft bundled Provider 已实现，但 Provider 装配和资源仍归 Minecraft App 服务包（本轮补查纠正先前未接入判断）。目录数量以实际生成清单复核，不能把 59 包组替代逐目录职责。
+
+允许：增强原生成清单与 Gate 的逐目录职责标注，登记当前/目标职责及证据；将内置 Prompt/Expert/Skill 和领域工具迁到适合的真实能力包，接入现有 AiExtensions/Skill/Tools 注册表及 Bundle；修复模型上下文自动正文、App 专属能力发现与按需工具目录；同步包清单、锁文件、类型映射、README、架构及直接回归。禁止新增第二套 Agent/Session/权限/注册表、伪实现全部占位能力、修改其他 checkout、搬迁真实数据、重启/部署/提交/发布。既有稳定 ID/工具名和领域服务合同保持；旧路径兼容必须有原因与删除条件，能同步迁移时去除旧副本。
+
+入口与 Owner：正式 Web/CLI/桌面共用 Control Plane Agent Loop → 已登记目录/加载/委派/领域 Tool → 原领域服务 → Jobs/真实节点。Boot/Bundle 仅装配；Agent 扩展、Skill 和 Tools 使用现有注册表，Prompt/Expert 正文由各专责内容包持有。跨 App 的能力目录与账户/作品/项目/节点数据权限分开；Writing 修改仍绑定当前真实作品，不能为共享能力猜测作品。专家实际委派复用原子 Agent 执行和预算。
+
+设置：沿用 plugins.enabled、plugins.skillDirectories、Provider/模型、aiRuntime 的输出/上下文/请求/工具/委派预算、permissions.mode 三模式、computerControl.enabled、general.taskFolder/Shell、minecraftRuntime 及存储/节点覆盖；无新增 UI/外观控制，保留所有用户偏好。正文不随每轮目录注入，工具按模型选择进入本 Run，动态刷新重验卸载/设置/权限与子 Agent 范围；取消及未知副作用不重放。
+
+验收：全目录职责覆盖和不可用状态准确；回归先复现 Minecraft 总控/专家自动注入，再验证跨 App 元数据发现、正文按需加载、领域工具按需装入下一请求、真实同一服务调用、错误上下文拒绝、范围/卸载/取消防扩权；运行直接回归、Client/Host 类型、受影响包/正式入口构建、sync/check:workspace 与差异检查。静态/合成、实际 Provider/浏览器/Daemon/桌面及帧时间分别报告；不为真实运行验收擅自重启或操作既有实例。所有本轮文件绝对路径/职责及验证清单写入交付报告。
+
+实施与验收：原 359 目录经新增 9 个职责能力包成为 368 目录，192 个 workspace 包、176 个不可执行占位，全部逐项标注专属职责和静态证据，并接入原工作区覆盖 Gate。迁移 Minecraft/Writing Prompt、领域/作品专家、原 Minecraft bundled Skill Provider、三组领域工具及 Runtime 工具；去除 App 总控/专家自动注入，模型通过原注册表按需发现/读取/选择，明确专家经原子 Run 执行。跨界面 writing_get_context 只绑定当前账户已选目标，初始 Writing 请求只读元数据。通用项目/Skill/节点 Shell 不再按 App 新设白名单，节点与本机执行仍严格分开。工具名、领域方法 ID 与核心旧 Prompt/Skill ID 保留；旧聚合 Tool 标签退出，不冒充执行器。
+
+最终 12 个直接回归文件合计 36/36、Client/Host typecheck、21 个能力/组合包串行构建、正式 Control Plane/Web 构建（2260 modules）、sync/check:workspace（192 包）和 git diff --check 通过；按最终指纹对账。合成请求中初始系统消息 5231 字节，4276 字节 Minecraft 正文仅在加载后进入结果；完整 Minecraft 合同从 0 项变为选择的 1 项，部署合同未选择始终未提供。完整 Profile 验证包括真实专家子 Run、继承空工具范围、权限、Skill、工作流、取消和卸载，模型为合成 Provider，不是现场验收。115 个本轮文件的绝对路径、职责与迁移源/目标见 `docs/development/package-owner-lazy-capabilities-20261014.md`；开始时其他任务改动保留。一次性迁移代码/无用中间内容已清理，证据仅留根 dist/.tmp；没有重启、提交或发布。现场 Provider、浏览器、实际节点/游戏、桌面/设备与帧时间未运行，外部插件旧内部源码路径兼容未验。不存在的 workspace-preflight 未运行，不冒充其他 Gate。
+
+<a id="lfaa-package-responsibilities-standard-20261014"></a>
+
+## LFAA-PACKAGE-RESPONSIBILITIES-STANDARD-20261014
+
+目标：优化用户提供的 `packages职责归属提示词.md`，将全仓包职责、依赖、内容归属与应用装配约束固化为后续开发必须遵守的规范。附件是待优化材料，本轮不自动执行其全仓代码修复指令。当前仓库由运行环境解析为 H:\LFAA1；保留开始时已有源码、测试及文档改动。
+
+允许：修改用户明确指定的提示词文件；新增 `docs/development/package-responsibilities.zh.md` 及英文导读；在 AGENTS、开发规范、系统总体架构、本合同及任务索引加入规范入口。禁止：批量重构、包迁移、新建运行时/注册表/权限系统、修改源码或依赖、操作运行数据、重启、提交、发布、修改其他 checkout。
+
+边界：登记全量目录覆盖方法及所有现存包组的职责约束；现状依据当前包清单、基线、相关 README 与装配入口，未逐包审查的实现不能表述为符合规范。包目录清单继续由原脚本生成，各包 README 持有自身职责合同，不建立第二份手工包计数权威。设置中心不涉及变更；后续功能任务仍需逐项盘点适用设置及唯一权限 Owner。
+
+验收：核对包组覆盖、规范/提示词的一致性、相对链接、任务索引、全量与增量审查范围、应用壳平台例外、依赖与运行时隔离、Prompt/Skill 按需加载、生命周期、真实能力状态及交付条件；运行 check:workspace 与差异空白检查。纯文档任务不运行产品构建或运行验收，不声称已完成全部包代码审计或迁移。
+
+实施与验收：已重写用户指定提示词，新增中文规范及英文导读，接入 AGENTS/开发规范/架构入口。规范表覆盖当前 59/59 一级包组，对应生成清单 359 个目录；逐包合同由各包 README 维护，不复制手工计数权威。六份仓库文档 228 条相对链接、合同/索引及外部提示词回读与关键约束检查通过；`pnpm run check:workspace`（183 包）和 `git diff --check` 通过。没有修改产品源码、依赖、设置或装配；原工作树改动保留。旧 `docs/DEVELOPMENT.md`、`ARCHITECTURE.md`、`PROJECT_PLAN.md` 不存在，已按当前中文基线定位，未声称读取。`workspace-preflight` 未运行（根 scripts 未登记该命令）；产品测试/构建、Provider/浏览器/Daemon/桌面/设备及帧时间未运行，纯文档任务不适用运行性能对比。全仓包代码审计与迁移未执行。
+
+<a id="lfaa-minecraft-task-card-selection-20261014"></a>
+
+## LFAA-MINECRAFT-TASK-CARD-SELECTION-20261014
+
+目标：优化 `/apps/minecraft/normal/tasks` 的任务卡片批量选择。终态任务的卡片主体可点击并支持键盘操作，选中后整卡使用危险色浅底和单一边框；卡片任何状态均不显示右下角圆圈或勾选标记，未选卡片点击后也不应因鼠标焦点出现红色外框。键盘焦点继续可见且与选中边框不叠加。任务信息按一致的纵向节奏紧凑排列；查看详情固定在卡片左下方，终态删除固定在右下方，同一网格行内操作按钮底边对齐；活动任务的取消按钮与详情按钮同属左侧操作组。显式的查看详情、单项删除和取消任务按钮仍保留各自行为，不触发卡片选择。非终态卡片仍可点击主体打开详情，但不可被选择删除。
+
+Owner 与边界：UI Owner 是 Minecraft `TaskList`；批量选择 ID 通过共享浏览器持久化层按用户隔离并在刷新后保留，仅保存 ID，在任务快照更新时剔除已不存在或不再是终态的任务。沿用现有“最多 200 条任务快照”、管理员 `hasAdminAccess` 与服务端 admin 授权、终态删除事务。只允许改 Minecraft UI、其长期回归、包说明与本合同/索引；不改 API/删除合同、不触碰真实任务记录，不增加设置或依赖，保留工作树既有改动。
+
+设置与布局：沿用共享主题/危险色/字体字号令牌和设置中心 `appearance.advanced.interfaceFontSize`；按容器宽度使用 Grid/Flex，检查窄视口、键盘焦点及减少动态效果偏好，不新建 CSS 自定义变量。
+
+验收：回归验证可删除卡片语义、卡片选中状态、刷新后恢复选择、刷新后过滤失效/非终态任务、活动任务打开详情、操作按钮隔离、焦点样式和响应式布局。构建 UI 与 Web，运行工作区检查和差异检查；在任务菜单真实浏览器检查选中/未选中均无圆圈、鼠标点击未选卡无红色焦点外框、刷新后选择计数及卡片状态恢复、键盘焦点仍清晰、详情在左下且删除在右下，同一行卡片操作底边对齐、窄视口操作可见且无横向溢出；不执行删除。构建证据、浏览器证据、未实测设备和帧时间分别记录。
+
+实施与验收：每个任务卡片主体使用无障碍按钮覆盖可点击信息区；管理员可对成功/失败终态任务点卡片切换选择，选中卡片仅呈危险色浅底和单一边框。已移除所有状态下的右下角圈/勾标记，并移除导致鼠标点击后未选卡仍出现危险色外框的 `:focus-within`；未选卡键盘焦点使用共享 `--color-focus-ring`，已选卡由选中边框反馈。卡片信息改为紧凑纵向节奏，移除消息最小高度，操作按钮紧随正文。非终态卡片点主体打开详情；独立详情、删除和取消按钮不触发卡片选择。管理员选择的任务 ID 经共享浏览器持久化层按用户写入本地存储，刷新后恢复；任务快照更新时自动移除已不存在或非终态 ID。`minecraft-task-workspace.test.mjs` 8/8、`pnpm typecheck`、Minecraft UI 构建、Web 构建（2260 modules）、`check:workspace`（183 包）和 `git diff --check` 通过。真实浏览器在 51 条任务记录（37 完成、14 失败、0 排队/执行）上复验：未选卡无红色鼠标焦点框/圆圈，选中计数 0→1 后刷新仍为 1 且选中卡状态恢复，取消后计数回到 0；详情等独立按钮未受影响，未执行删除。390×844、560×900、768×1024 下此前确认任务卡片按容器单列且页面无横向溢出；窄屏展开侧栏压缩主内容区，手机/平板真机和帧时间未实测。
+
+2026-10-15 用户补充布局：保留卡片内容紧凑节奏，将操作区推至卡片底部；详情按钮靠左，终态删除按钮靠右，同一网格行内按钮底边对齐；活动任务的取消按钮跟随详情按钮位于左侧。设置沿用共享外观令牌，无新增配置。需按当前浏览器和窄容器检查实际对齐、换行与可达性，不执行删除。
+
+补充实施与验证：TaskList 的操作区使用纵向自动留白贴到卡片底部；详情与取消按钮归左侧组，终态删除单独归右侧组，窄卡片换行时删除组仍由自动左边距靠右。工作量只增加静态布局，不增加订阅、请求或计时器；未测帧时间。设置沿用外观主题/颜色及 `appearance.advanced.interfaceFontSize`（默认 14），无新增设置。`minecraft-task-workspace.test.mjs` 8/8、Minecraft UI 包构建、Web 构建（2260 modules）、Client/Host 类型检查、`check:workspace`（192 包）及 `git diff --check` 通过。浏览器在任务页 59 条现存记录上目视核对：同一行按钮与卡片底边对齐、详情靠左、删除靠右；未点击详情或删除。窄视口本轮未做真实浏览器尺寸模拟，回归检查了任务网格和操作组的自动换行；手机/平板设备及帧时间未测。没有触碰任务记录。
+
+<a id="lfaa-minecraft-task-card-motion-20261015"></a>
+
+## LFAA-MINECRAFT-TASK-CARD-MOTION-20261015
+
+用户目标：让 Minecraft 任务记录卡片的出现和鼠标悬停反馈更连贯自然，减轻当前界面的生硬感。入口为 `/apps/minecraft/normal/tasks`；唯一 UI Owner 为 `packages/client/ui-minecraft` 的 `TaskList` 与其样式。
+
+允许：只调整任务卡片视觉动效、对应包 README、本合同与索引；保留卡片选择/焦点语义及详情左下、删除右下布局，不改变任务数据、API、排序、删除合同或交互授权，不新增依赖、计时器、观察器、JS 动画循环或 CSS 自定义属性。保留当前工作树所有既有改动。
+
+设置：沿用共享 Appearance 主题和颜色令牌、`appearance.advanced.reducedMotion` 的 system/on/off 设置及工作台的减少动态效果映射；不新建动画偏好、不改变已保存的用户设置。
+
+验收：实际任务页在 ChatGPT 内置浏览器核验卡片初次出现、悬停反馈与已有操作/选择状态；覆盖常用桌面和相关窄容器，核对无错位、遮挡或横向溢出；确认只让有限首屏卡片错开进入，并遵循减少动态效果设置。运行 Minecraft UI 与正式 Web 构建；不点击详情/删除或修改真实任务。真实浏览器、视口、动效边界及未实测项目分别记录，帧时间未测不得宣称已验证。
+
+实施与验收：卡片使用 CSS transition 做短促上浮、主题边框和柔和阴影反馈；仅前 6 张卡片以 24ms 间隔淡入上浮，避免大量历史记录同时运动。悬停只在支持 hover 的设备生效，沿用全局 `appearance.advanced.reducedMotion` 映射、现有主题/颜色令牌；不改变卡片选择/焦点、详情左下和删除右下布局。Minecraft UI 与 Web 构建通过，`git diff --check` 通过；未增加或运行测试。ChatGPT 内置浏览器在 1280×720 页面视口检查任务卡片与悬停反馈；另在 684×680 的内置浏览器窄容器（右侧工具栏展开）检查单列卡片、左右操作按钮及可见性，未见错位或横向溢出。查看/删除均未点击，任务选择数保持为 0，未改动真实任务。减少动态效果设置的实际切换本轮未做，手机/平板设备和帧时间未测。
+
+<a id="lfaa-settings-card-motion-20261015"></a>
+
+## LFAA-SETTINGS-CARD-MOTION-20261015
+
+用户目标：在设置中心“常规”中提供统一的卡片动效选择，默认选择柔和流体效果，并提供多种效果供账户自行选择；后续普通卡片通过共享标记接入，不在各业务页面重复实现动效，特殊卡片可以单独覆盖。
+
+Owner：`util/values` 持有 general 设置类型、效果选项合同与默认值；`settings/settings` 持有 general 分类的兼容读取、服务端校验和账户 JSON 持久化；`client/ui-settings` 呈现选择器；`client/ui-layout/Workbench` 将已保存效果映射到工作台根节点；`client/ui-theme/common.css` 持有唯一共享卡片动效实现；`ui-layout` 应用卡片与 `ui-minecraft` 任务卡片作为首批注册消费方。HTTP 设置路由继续使用既有 Settings Owner，不另增 API 或数据库表。
+
+允许：新增 `general.cardMotionEffect`（`fluid`、`fade`、`lift`、`none`，默认 `fluid`），完善读取旧账户缺字段的默认值、Strict 校验和设置中心即时预览/自动保存/恢复默认；加入共享卡片与列表标记并注册首批应用卡片和 Minecraft 任务卡片；补充相关回归、包 README 与必要架构事实。本次效果采用 CSS transform/opacity/transition，不新增 JS 动画循环、依赖或 CSS 自定义属性。
+
+设置：`general.cardMotionEffect` 存在 `user_settings` 的 `general` 分类中并按账户隔离；复用既有 `appearance.advanced.reducedMotion`（默认 system）作为更高优先级的无障碍约束，开启减少动态效果时压缩/停用卡片动效，不更改任何用户外观偏好。四种选择的标签和默认项来自共享设置合同；CSS 只负责把稳定效果 ID 映射到视觉实现。
+
+验收：旧 general 记录缺少新字段时读为 `fluid` 且保留其他偏好；合法效果可由认证 Settings Owner 保存，未知值被拒绝；设置页选项使用可访问的单选语义并显示效果预览；切换效果即时更新工作台根映射与已注册卡片，刷新仍保留账户选择；默认/替代/静态三类效果及减少动态效果优先级在实际页面生效。覆盖桌面、窄容器和短屏，核对选项换行/可达、卡片无溢出且交互不受影响。运行直接设置合同回归、Settings/Client/Web 构建及 `git diff --check`；使用 ChatGPT 内置浏览器检查设置页与实际卡片，记录路由及视口；不修改真实业务记录，未测帧时间须明确列出。
+
+实施记录：General 设置类型、默认项与稳定效果 ID 归共享合同；Settings Owner 兼容旧账户缺字段、保留旧客户端其他常规设置提交，并对显式未知值执行 Strict 拒绝。常规页展示四种预览，以单选语义和方向键切换，通过原自动保存持久化。Workbench 只映射账户选择；`ui-theme/common.css` 持有入场、悬停、静态和减少动态效果规则，应用中心与 Minecraft 任务卡片通过共享标记注册，卡片业务样式不重复定义动画。当前进入直接回归、构建及内置浏览器验收。
+
+验证记录：`settings-contract.test.mjs` 1/1 通过（四个 ID、默认值、旧存储缺字段、旧客户端省略字段、非法值拒绝、账户隔离及重启持久化）；Client/Host `pnpm typecheck` 通过。`util-values`、Settings、`ui-theme`、`ui-settings`、`ui-layout`、Minecraft UI 六包构建，正式 Web（2260 modules）与 Control Plane 构建通过；`pnpm run sync:workspace` 后 `pnpm run check:workspace`（192 包）及 `git diff --check` 通过，产物均在根 `dist/`。
+
+ChatGPT 内置浏览器实际打开 `/settings?section=general`（1280×720）：四种卡片动效预览和单选组可见，默认“柔和流体”可选；方向键由“柔和流体”切至“渐隐淡入”再恢复，工作台导航与卡片选择器在约 950px 设置内容容器内两列排布。实际任务页 `/apps/minecraft/normal/tasks` 显示最近 59 条记录、排队 0、执行 0；任务卡片详情在左、删除在右且没有横向溢出。未点详情/删除、未改真实任务。浏览器当前连接的是已运行的旧 Control Plane；它返回的 General 缺少新字段，自动保存本次被拒绝并显示“提交内容格式不正确”，所以浏览器未验证新服务的保存后刷新和实际效果切换；没有重启既有 LFAA/Daemon 进程。新 Settings Owner 的读取/兼容/持久化由上述隔离回归通过。≤620px 真机窄屏、减少动态效果在真实卡片上的切换、逐帧/帧时间和桌面设备未测。
+
+<a id="lfaa-settings-dialog-motion-20261015"></a>
+
+## LFAA-SETTINGS-DIALOG-MOTION-20261015
+
+目标：将弹窗动效纳入设置中心“常规”的统一“界面动效”区，与卡片效果放在同一维护位置；卡片和弹窗分别选择效果，默认均为柔和流体，可单独改为渐隐淡入、轻盈上浮或静态。入口为共享 Web/Desktop 工作台中的 Ant Design Modal 与确认弹窗；浏览器原生 `window.confirm` 不属于可定制的产品弹窗。
+
+Owner：`util/values` 持有共享效果 ID/说明、General 类型和默认值；`settings/settings` 持有账户设置兼容读取、Strict 校验及 `user_settings.general` 持久化；`client/ui-settings` 展示同一组效果选项；`client/ui-layout/Workbench` 将当前账户弹窗选择与减少动态效果偏好映射至 body（Ant Design Portal 所在层）；`client/ui-theme/common.css` 集中持有卡片与弹窗动画实现。复用原设置 API/分类，不新增存储表、端点或 UI 动画依赖。
+
+允许：新增 `general.dialogMotionEffect`（复用 `fluid`、`fade`、`lift`、`none`，默认 `fluid`）；常规设置将原“卡片动画效果”整理为“界面动效”，卡片与弹窗分别呈现可访问的单选选项及适配目标的静态预览；旧账户或旧客户端缺少该字段时采用默认/保留已存选择。共享主题内以可撤销工作台映射驱动全局 Ant Design modal/confirm portal 动效，采用对称的 transform/opacity 入退场，不修改业务弹窗逻辑、确认行为、遮罩交互或真实数据；减少动态效果设置和系统偏好优先，不新增 CSS 自定义属性、JS 计时器、观察器、动画循环或依赖。补充 Settings 合同回归、受影响 README 与架构事实，保留所有既有工作树变更。
+
+设置：使用账户常规 `general.dialogMotionEffect` 单独控制弹窗，卡片继续由 `general.cardMotionEffect` 控制，两者在设置页共用效果选项合同但保留独立选择；共同遵循现有 `appearance.advanced.reducedMotion`（system/on/off）和操作系统偏好。除非确有必要，不重置既有卡片/外观设置。
+
+验收：旧 general 记录读出默认 `fluid`；旧客户端只提交其他 general 项时保留账户已选的卡片与弹窗效果；合法值可由 Settings Owner 保存、未知值被拒绝，并按账户隔离/重启恢复。设置选择在当前工作台即时驱动弹窗效果；覆盖默认、其他效果、静态与减少动态效果；在 ChatGPT 内置浏览器实开 `/settings?section=general` 和无副作用的设置页 Modal，检查常用桌面视口及本次变更相关的窄分栏/短屏可达性、设置预览与弹窗入退场，无横向溢出。运行直接 settings 回归、Client/Host 类型、Settings/UI Theme/UI Settings/UI Layout/Web 构建、适用工作区 Gate 和 `git diff --check`；说明实页保存是否受运行中旧服务影响。不开启可能改变用户数据的业务确认弹窗，不重启正在管理实例的服务；帧时间及真机未测时如实列出。
+
+实施与验收：设置中心“常规 > 界面动效”以同一共享效果目录呈现卡片与弹窗两组独立选择；共享设置 Owner 负责默认、兼容读取、校验和账户持久化，Workbench 把弹窗选择及减少动态效果偏好映射至 body，主题样式集中维护 Ant Design Modal/confirm Portal 入退场。`settings-contract.test.mjs` 1/1 通过，覆盖两种效果各自和同时缺席的旧客户端提交、默认回退、合法/非法值、账户隔离及重启恢复；Client/Host 类型、util-values/Settings/UI Theme/UI Settings/UI Layout 五包构建、Web 与 Control Plane 构建、`check:workspace`（192 包）和 `git diff --check` 通过。ChatGPT 内置浏览器在 1280×720 实开 `/settings?section=general`，动效组完整可见，8 个选项两列排列；文档宽度与视口同为 1280px，无横向溢出。无副作用的许可证 Modal 实测 `fluid` 入场/退出、`lift` 入场及 `none` 静态（`animation: none`），并确认重载恢复默认值且关闭弹窗。已运行的旧 Control Plane 拒绝新字段自动保存，因此浏览器无法验证新服务的保存后刷新；未重启正在运行的服务。真实窄屏/短屏、系统减少动态效果实际开启、设备验收及帧时间未测。
+
+<a id="lfaa-minecraft-task-details-cleanup-20261014"></a>
+
+## LFAA-MINECRAFT-TASK-DETAILS-CLEANUP-20261014
+
+目标：在 Minecraft“任务”菜单中提供单条任务详情，展示真实提交参数、任务时间线、节点返回结果和关联日志；失败时突出任务最终回报及节点原始错误/标准错误输出，明确没有更精确节点证据时不伪称定位。另提供单条删除和多选批量删除。入口为 `/apps/minecraft/normal/tasks`；展示归 `packages/client/ui-minecraft`，API 归 Minecraft Controller，共享任务与日志持久化归 Jobs/Minecraft 服务。
+
+范围：仅允许删除已完成或失败的终态任务记录；失败中包含结果未确认等异常终态。排队/执行中任务不可删除；批量接口事务化，任一记录缺失或非终态时整批拒绝，最多 200 条。删除同时清除所选任务关联的节点日志，不删除 Minecraft 实例、部署、备份目录或其他任务日志。查看沿用认证任务列表的可见性；写入沿用管理员权限 Owner，不新增第二套权限或设置。
+
+设置与性能：沿用设置中心外观主题/颜色/字体字号及现有管理员角色；无新增设置、持久化偏好或依赖。列表和批量操作复用当前有界 200 条任务快照，详情按需单次读取，节点日志响应上限 1000 条并报告截断，详情内容在窄视口内可滚动。
+
+验收：隔离数据库覆盖成功/失败任务删除、活跃任务拒绝、混合批次原子拒绝、日志关联删除及实例/部署保留；UI 回归覆盖详情诊断、终态选择、单项/批量入口和响应式布局。运行直接回归、Minecraft Jobs/API/UI 与 Web 构建、工作区检查及差异检查；在当前浏览器查看真实任务详情但不删除任何现有用户任务。源码/构建证据与浏览器数据展示分别记录，未实测的设备/帧时间明确注明。
+
+实施与验收：任务详情按需读取原提交参数、起止时间、结构化结果和关联节点日志；失败回报与第一条异常日志用于展示已保存的诊断证据，证据不足时明确说明。管理员可单项或多选删除已完成/失败（含结果未确认异常）记录；事务接口对缺失或活动任务整批拒绝，并仅清除所选任务及其关联日志。任务工作区、隔离数据库详情/删除与租约回归三个定向测试文件合计 12/12 通过（其中数据库测试 4/4）；`pnpm typecheck`、Jobs/Minecraft Service/Controller/UI 构建、Web 构建（2260 modules）、Control Plane 构建、`check:workspace`（183 包）和 `git diff --check` 通过。浏览器真实列表显示 52 条记录（37 完成、15 失败、0 排队/执行）；成功查看真实完成任务详情与失败任务原始回报“fetch failed”及其唯一关联 system 日志“任务失败：fetch failed”。现有失败记录没有更细的底层原因，界面未虚构诊断；未删除真实任务。重启本机 Web/控制端以载入新接口前确认无活动任务且四个 Minecraft 实例均已停止。隔离宽视口完成浏览器检查；窄视口由响应式样式和断言覆盖，真实手机/平板及帧时间未测。
+
+<a id="lfaa-minecraft-task-feedback-20261014"></a>
+
+## LFAA-MINECRAFT-TASK-FEEDBACK-20261014
+
+目标：实例删除提交任务后留在 Minecraft 实例页；Minecraft“任务”菜单展示真实排队、执行、成功和失败记录，包含进度及节点回报，不出现仅有标题的空内容区。运行入口为 `/apps/minecraft/normal/instances` 与 `/apps/minecraft/normal/tasks`；UI Owner 为 `packages/client/ui-minecraft/src/MinecraftWorkspace.tsx`，任务快照由现有 Minecraft API/Socket/轮询读取。
+
+设置：沿用设置中心外观主题、颜色、字体与字号及 Minecraft Runtime 执行配置；不新增设置、持久化、权限策略或依赖。保留实例归档权限、确认和目标节点执行合同。允许修改 Minecraft 工作区、直接回归、包说明、本合同与索引；保留本工作树既有改动，不触发任何真实实例的删除/启停，不提交或发布。
+
+验收：删除确认回调不导航到任务页；任务页可见真实任务列表、状态计数、执行进度、节点消息与归档结果；无任务时提供明确空状态，读取失败继续显示真实错误。运行直接回归、Minecraft UI 包与 Web 构建、工作区检查及差异检查；在本机浏览器核对两个路由和桌面布局，窄容器由响应式 CSS 与定向断言核对并注明未实测。未触发真实删除，因此只对删除提交后的导航以回归和代码路径验证，不宣称实际归档任务验收成功。
+
+实施与验收：删除回调显式关闭通用“跳到任务页”行为，提交成功后在当前实例页提示可查看进度；任务页新增真实快照状态计数和任务记录，条目显示实例名、运行进度、失败消息及节点已确认的删除归档结果。`minecraft-task-workspace.test.mjs` 4/4、Minecraft UI 包构建、Web 构建（2260 modules）、`check:workspace`（183 包）和 `git diff --check` 通过。登录态浏览器先实测任务菜单只有标题、无内容；构建后同一路由显示控制端真实返回的 51 条记录（36 已完成、15 失败、0 排队/执行），其中删除记录展示归档和备份名。未触发真实删除；实际删除后的路由保持由定向回归锁定，运行中进度和窄屏实体设备未单独触发/测量，未采集帧时间。
+
+<a id="lfaa-ai-work-composer-caret-20261014"></a>
+
+## LFAA-AI-WORK-COMPOSER-CARET-20261014
+
+目标：修复 AI Work 提问框获得焦点后插入光标与浅色输入文字/表面融为一体的问题。运行入口为 Web `/tasks` 及各应用 AI Work 路由；组件与样式 Owner 为 `packages/client/ui-chat`。不自动聚焦，用户点击后应看到跟随当前输入文字颜色的插入光标；助手流式正文保持现有无光标呈现。
+
+实测基线：当前浅色主题下点击提问框后 `document.activeElement` 确认是输入框，但计算样式为白色插入光标、深色文字。运行时 Wallpaper Engine 注入了 `body textarea, body input, ... { caret-color: var(--we-caret-color) !important; }`，局部普通声明会被覆盖；页面打开时焦点在 WebArea，符合现有不抢焦点行为。
+
+设置：沿用 Appearance 主题与 `color-text-heading` 文字令牌，无新增设置、持久化、权限或依赖。允许修改 AI Work 提问框样式、其直接回归、ui-chat README、本合同与索引；禁止改自动聚焦/键盘行为、全局光标规则、其他聊天 Surface、已存在的工作树改动、提交或发布。
+
+验收：获得焦点时插入光标颜色跟随当前输入文字颜色，在当前浅色/壁纸页面可见；页面打开不抢焦点，暗色主题通过共享颜色令牌保持一致。运行直接样式回归、ui-chat 与 Web 构建、工作区 Gate 和差异检查，并在当前浏览器验证活动状态及计算样式。帧时间和物理触屏设备未测时注明。
+
+实施与验收：`AiWorkChat` 提问框局部以 `caret-color: currentColor !important` 覆盖 Wallpaper Engine 的白色全局 `!important` 声明，输入框文字色和主题映射保持不变。`client-ai-work-composer-responsive.test.mjs` 2/2、ui-chat 包构建、Web 构建（2260 modules，客户端 TypeScript 检查随构建通过）、`check:workspace`（183 包）、`git diff --check` 均通过；最终 Web 构建指纹为 `[]`。新登录态浏览器页 `/tasks` 初始焦点仍在页面，点击输入框后焦点落在 TextArea，计算插入光标与文字均为 `rgb(10, 10, 10)`，同时 Wallpaper Engine 全局值仍为 `#ffffff`；实际加载资源为 `ai-work-chat-alktZ3Ct.css`。截图保存在 `dist/.tmp/ai-work-composer-caret-20261014/composer-caret-browser.png`。未测物理触屏、暗色主题实机和帧时间；暗色适配依赖输入文字当前共享颜色值。
+
+## LFAA-AGENT-EXECUTION-VALIDATION-20261014
+
+用户要求依据附件工程审查和截图，先审计并精准修复实际调用链，再在浏览器验证构建修复、Minecraft 部署、网络搜索、软件启动、失败续修和停止；包数和提示词长度不作为能力证据。附件指令与当前请求区分，沿用当前仓库 Owner、配置和授权。当前 checkout 为 H:\LFAA1，工作分支 codex/agent-execution-validation-20261014；初始工作树干净，不提交、发布或操作既有游戏实例。
+
+已复现证据：Session fa025f19-ad6c-461f-a65f-8a2c0306fe38 的公开工具轨迹显示用户选择 Folia 1.21.11，provision 在元数据解析阶段连接失败，尚未进入实例/任务事务，却由通用异常路径标为 unconfirmed；模型核查无部署、网络恢复和用户重试意图后仍被防重终止。失败轮次未写入汇总 usage，取消任务状态也须保持未知副作用边界。
+
+允许修改 Agent Loop/Tools、Minecraft 部署准备结果、对应长期回归及事实文档；Provider、Shell、Web、Skill、MCP、Subagent 装配先审计，有证据再改。区分 Owner 确认未开始、实际失败和未知结果；只允许明确可恢复的未开始操作在新检查证据后重试，保留已成功/未知副作用防重、实时权限与原预算。不以全部 ApiError 推断没有副作用。停止后不继续派发，已排入领域任务单独核对。
+
+沿用 Provider/模型与思考设置、aiRuntime 请求/工具/输出/重试/超时预算、permissions.mode、general 任务目录/Shell、minecraftRuntime 默认值与时限、插件/MCP/电脑操控开关和存储位置；不读取或打印凭据正文、不重置设置。真实模型验证使用用户当前已配置账户，有限次数，记录实际 usage；没有价格不能虚构金额。涉及已有服务重启或游戏影响先核对具体范围。
+
+验收顺序：新增有意义的失败复现回归 → 最小修复 → 定向测试、Host/Client 类型、相关包/入口构建、check:workspace 与差异检查 → ChatGPT 浏览器/电脑操作入口实际任务验收。真实 Provider、浏览器、Daemon 与外部服务分别记结果；工具缺失和登录限制明确列出，不把合成测试当实际成功。能力矩阵、逐文件职责、六类任务和四项长期指标的统计边界记录在 docs/development/agent-execution-validation-20261014.md。
+
+2026-10-14 本轮续验：开始时已有以上恢复/用量改动及四个回归文件，均保留并重新验证，不以合同中的“初始干净”描述本轮工作树。补查目标节点 Shell 将任务头与 result 分开返回时的未知副作用判定；允许补齐同一结果 Owner 与长期回归，不能将外层 unknown 当成功。浏览器项目/提交返回 500，核查四个实例均 stopped、无活动节点任务或 Java 进程后重启控制端加载当前正式构建；恢复设置/项目/任务读取。该恢复不能证明旧进程 500 根因已定位。隔离项目和截图/运行证据只写根 dist/.tmp，测试材料不进入产品。六类任务限定本次命名目标；既有游戏和用户文件保留。
+
+实机发现补充：Paper 1.16.5 已就绪并正常停服，但预检承诺 Java 11、实际按核心 Owner 使用 Java 16。部署服务已有 javaRuntimeId 校验/传递，AI 工具 Schema 却未暴露该参数；模型可见目录也没有工件/Java 要求查询。允许补齐这一协议适配与只读证据工具，复用 resolveMinecraftCoreArtifact 和原部署服务，不复制核心/Java 规则、不改变默认配置；用户指定环境不匹配时须未开始并明确失败。先回归复现，再浏览器验证模型识别冲突、传入真实环境 ID；不把首次开服结果算作完整指定环境验收。
+
+轨迹对账发现：参数解析失败已有 tool/result，却没有对应 tool/call；执行器抛 AbortError 时也可能只留下调用。允许补齐原 Session 协议配对，未派发记 false、已派发取消记未知；不为补记录执行或重放工具。该问题用独立回归复现并核对拒绝/取消后不再派发。
+
+实施与验收：恢复/失败用量旧改动已保留并验证，新增外层 unknown、Java 参数/只读要求和拒绝/取消协议配对修复。39 项不同的直接回归在本轮通过；最终修改后的 Agent/MCP 10/10、完整装配 1/1、认证 API 1/1、Client/Host 类型、三个受影响包/Control Plane/Web 正式构建、check:workspace 和差异检查通过，Web 仍有既有大块提示。API 与重建并行曾造成编译入口暂缺，构建后串行重跑通过；新增断言先复现失败，再修复，不改写旧记录。正式构建指纹无过期项。浏览器十轮真实 deepseek-flash：代码修复/续修、搜索、记事本、停止通过；Paper 1.16.5 真实就绪并正常停服，但首次 Java 11 承诺未满足（实际 16），修复后模型只读识别冲突、不部署；未再跑有效指定 Java 的第二次完整开服。六类严格样本 5/6，不泛化长期成功率；已知 1200588/26330 tokens，不是完整费用账单。证据、设置和逐文件职责见本轮报告。故障项目临时代码已清理，截图/公开快照与服务占用日志保留；原四个实例未动，新测试实例保留 stopped，未提交/发布。
+
 ## LFAA-RUNTIME-MANUAL-REPAIR-20261014
 
 用户本轮要求：使用其账号浏览器验收 Minecraft 1.16.5 手动完整开服，修复阻断流程；增加实例删除；整理当前 checkout 的 data/environments/java 为 Java/Java<主版本>-windows-x64；核验官方 Java/核心下载；统一环境分类卡片（Java、SteamCMD、Visual C++、DirectX）及 Minecraft 往返导航，纠正 Java 需求与实际安装状态混淆。附带历史聊天和截图只作为问题证据，当前用户请求及仓库权限规则优先。凭据不写入源码、合同、日志。
@@ -619,6 +1067,15 @@ AI 漫剧分镜画布已接入；修复了应用入口历史状态白名单遗�
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
+| LFAA-PLUGIN-INSTALL-SOURCES-20261016 | 接入 DSH 插件管理器三类来源、独立管理页和通过现有 Permission Owner 执行的安装/启停/卸载入口 | 来源、独立管理页和手动启停直调已完成；隔离 Runtime 回归通过；窄/短视口与真实插件点击未验 | [本轮合同](#lfaa-plugin-install-sources-20261016) |
+| LFAA-UI-SIDEBAR-CATEGORIES-20261015 | 小鱼智能体左侧会话栏按草稿、置顶、项目、最近归类 | 实现完成；内置浏览器验收受阻 | [本轮合同](#lfaa-ui-sidebar-categories-20261015) |
+| LFAA-AI-WORK-COMPOSER-SLASH-MENTION-20261015 | 小鱼输入框支持 `/` 命令菜单与 `@` 应用/能力关联 | 聊天包/Web 构建、类型检查、实页桌面及窄分栏检查通过；短屏和自动化测试未运行 | [本轮合同](#lfaa-ai-work-composer-slash-mention-20261015) |
+| LFAA-XIAOYU-SHARED-AGENT-20261014 | 全 App 共用小鱼智能体、可选能力关联与真实模型/浏览器统一验收 | 58/58 与文件 59/59；四类核心实机就绪/安全停止，浏览器共享入口/项目/设置/短屏通过；独立环境新超级管理员创建/登录通过，原项目权限保持 | [合同](#lfaa-xiaoyu-shared-agent-20261014) |
+| LFAA-XIAOYU-SESSION-HISTORY-PERFORMANCE-20261015 | 小鱼智能体历史列表、消息首屏与会话切换读取性能 | 修复与登录浏览器复验完成；冷启动约 53 秒、长日志帧时间待测 | [合同](#lfaa-xiaoyu-session-history-performance-20261015) |
+| LFAA-SETTINGS-DATA-DIRECTORY-LAYOUT-20261015 | 修复项目与存储中控制端数据根卡片的对齐与响应式布局 | UI/Web 构建通过；内置浏览器桌面与窄容器实页通过；自动化测试、帧时间未测 | [合同](#lfaa-settings-data-directory-layout-20261015) |
+| LFAA-MANAGED-FILE-RESOURCES-20261014 | 文件管理资源导航、游戏实例目录与扩展插件存储保护 | 实施中 | [合同](#lfaa-managed-file-resources-20261014) |
+| LFAA-PACKAGE-OWNER-LAZY-CAPABILITIES-20261014 | 全部包逐目录职责及 Prompt/Skill/Expert/Tool 按需接入修复 | 368/368 职责、36/36 回归、类型/21 包/正式入口构建及 Gate 通过；现场 Provider/设备未验，服务未重载 | [合同](#lfaa-package-owner-lazy-capabilities-20261014) |
+| LFAA-PACKAGE-RESPONSIBILITIES-STANDARD-20261014 | 优化全仓包职责提示词并固化长期规范 | 文档完成；59/59 包组覆盖、链接、工作区及差异检查通过；包代码全仓审计/迁移未执行 | [合同](#lfaa-package-responsibilities-standard-20261014) |
 | LFAA-PROJECT-STORAGE-LOCATIONS-20261013 | 接通游戏、日志、写作、漫剧的默认/自定义存储路径，并让统一文件管理发现本机全部磁盘 | 本轮实施中；覆盖范围与验收见新合同 | [当前合同](#lfaa-project-storage-locations-20261013) |
 | LFAA-PROJECT-STORAGE-SETTINGS-20261013 | 将 Writing 项目 Markdown 路径与统一本机数据根目录设置接入“项目与存储” | 已实现；目录/迁移与 Writing 回归 3/3、设置/Writing 包构建、Web 类型检查/构建通过；真实浏览器、移动/短屏与服务重载未验 | [本轮合同](#lfaa-project-storage-settings-20261013) |
 | LFAA-SYSTEM-FILE-SERVICE-20261013 | 系统文件库独立于游戏 Daemon，应用 Owner 挂载账户资源，节点目录作为可选来源 | 已完成两参考仓库源码对照及目标修订；统一服务迁移与功能验收尚未完成 | [当前合同](#lfaa-system-file-service-20261013) |
@@ -799,11 +1256,18 @@ AI 漫剧分镜画布已接入；修复了应用入口历史状态白名单遗�
 | LFAA-UI-WORKBENCH-RESPONSIVE-PANELS-20261011 | 修复 Compact/Mobile 右栏 Dock、拖动/Overlay 回退和底部终端布局 | 已完成（回归 6/6、DockKit/Web 构建、类型与 180 包检查通过；320/390/530/754/850px 实际网页及拖拽验收通过；未测真触屏和帧时间） | [合同](#lfaa-ui-workbench-responsive-panels-20261011) |
 | LFAA-UI-RESPONSIVE-APP-NAV-20261011 | 响应式下二级导航推动中间区并为聊天内容保留左右间距 | 已完成（回归 2/2、DockKit/工作区/Web 构建、工作区 Gate 通过；约 750px 浏览器目视确认；488/460px 边界仅回归验证） | [合同](#lfaa-ui-responsive-app-nav-20261011) |
 | LFAA-UI-RESPONSIVE-LEFT-RESIZE-HANDLE-20261011 | 响应式左导航沿用大屏的分隔条位置和拖动行为，并按中间栏宽度收紧窄屏留白 | 已修正（定向回归 4/4、DockKit/Web 构建、180 包检查及 320/390/530/626/753/754px 浏览器开合和三栏边界验收通过；未测真触屏和帧时间） | [合同](#lfaa-ui-responsive-left-resize-handle-20261011) |
+| LFAA-AI-WORK-COMPOSER-CARET-20261014 | 修复 AI Work 提问框插入光标被 Wallpaper Engine 白色全局样式遮蔽 | 已修复（定向回归 2/2、ui-chat/Web 构建、183 包检查及 `/tasks` 实际浏览器颜色核验通过；未测触屏和帧时间） | [合同](#lfaa-ai-work-composer-caret-20261014) |
 | LFAA-AI-WORK-COMPOSER-RESPONSIVE-WIDTH-20261011 | 修复三栏响应式下 AI Work 提问输入框超出中间聊天列 | 已修复（定向回归 1/1、ui-chat/Web 构建、类型检查、180 包工作区检查及 755/530/390/320px 浏览器边界验证通过；未测真触屏和帧时间） | [合同](#lfaa-ai-work-composer-responsive-width-20261011) |
 | LFAA-UI-WORKBENCH-REFLOW-STABILITY-01 | 修复左右菜单和底部终端开合时中间内容闪动、跳动 | 实现完成（静态核对；构建与浏览器目视待验） | [合同](archive/contracts/03.md#lfaa-ui-workbench-reflow-stability-01) |
 | LFAA-P4-MINECRAFT-MVP-01 | 按用户优先级先完成 Minecraft 管理 MVP，并为后续应用保留统一工作台与 AI Runtime 边界 | 进行中 | [合同](archive/contracts/01.md#lfaa-p4-minecraft-mvp-01) |
 | LFAA-MINECRAFT-CONTROL-CENTER-01 | 将 Minecraft 总览整理为真实状态监控卡片中心，并补齐控制节点页面与分类菜单 | 实现完成（前端构建、Manager 健康与 Daemon 心跳通过；浏览器目视验收待做） | [合同](archive/contracts/03.md#lfaa-minecraft-control-center-01) |
 | LFAA-MINECRAFT-TASK-RECOVERY-01 | 修复 SQLite 迁移测试版本断言，并为 Minecraft Daemon 任务加入心跳租约和中断恢复 | 已完成（测试与完整构建通过；真实 Minecraft 未验） | [合同](archive/contracts/01.md#lfaa-minecraft-task-recovery-01) |
+| LFAA-MINECRAFT-TASK-FEEDBACK-20261014 | 修复实例删除后强制跳转，并让任务菜单显示真实状态、进度与结果 | 已修复（回归 4/4、Minecraft UI/Web 构建、183 包检查及登录态浏览器真实任务记录核验通过；未触发真实删除、窄屏设备和帧时间未测） | [合同](#lfaa-minecraft-task-feedback-20261014) |
+| LFAA-MINECRAFT-TASK-CARD-SELECTION-20261014 | 任务卡片点击选择、高亮与紧凑布局 | 无圆圈、无鼠标焦点红框；刷新恢复选择；UI/Web 构建、回归和浏览器验收通过；窄屏侧栏会压缩主内容区；未删除真实任务 | [合同](#lfaa-minecraft-task-card-selection-20261014) |
+| LFAA-MINECRAFT-TASK-CARD-MOTION-20261015 | 让任务卡片出现与悬停反馈更流畅自然 | CSS 入场/悬停动效、Minecraft UI/Web 构建及内置浏览器桌面/窄容器验收通过；未测帧时间及真机 | [合同](#lfaa-minecraft-task-card-motion-20261015) |
+| LFAA-SETTINGS-CARD-MOTION-20261015 | 在常规设置中统一选择并控制可注册卡片的动画效果 | 源码回归、类型、包/Web/Control Plane 构建与工作区 Gate 通过；内置浏览器 UI/卡片布局通过，自动保存被旧运行服务拒绝，需新服务加载后复验 | [合同](#lfaa-settings-card-motion-20261015) |
+| LFAA-SETTINGS-DIALOG-MOTION-20261015 | 将弹窗动效与卡片动效统一纳入常规设置及共享主题维护 | 源码回归、类型、五包/Web/Control Plane 构建及工作区 Gate 通过；内置浏览器验证桌面 Modal 入退场与静态效果；旧运行服务拒绝新字段保存，窄屏与帧时间未测 | [合同](#lfaa-settings-dialog-motion-20261015) |
+| LFAA-MINECRAFT-TASK-DETAILS-CLEANUP-20261014 | 查看任务执行详情与错误证据，并支持单项/批量删除终态记录 | 实现及规定回归/构建通过；浏览器详情已验，未删除真实记录 | [合同](#lfaa-minecraft-task-details-cleanup-20261014) |
 | LFAA-P1-01-05 | 完成依赖与持久化、server 基础、应用中心、前后端健康状态闭环、账户登录与权限基础 | 进行中 | [合同](archive/contracts/02.md#lfaa-p1-01-05) |
 | LFAA-P1-01-07 | 提供根目录并行开发启动命令和 Windows 单窗口一键启动入口 | 已完成 | [合同](archive/contracts/02.md#lfaa-p1-01-07) |
 | LFAA-DEV-STARTUP-RESILIENCE-01 | 避免旧服务占端口时误启新实例，并让 Daemon 等待控制端就绪 | 实现完成（代码静态检查；Windows 启动实测待验） | [合同](archive/contracts/02.md#lfaa-dev-startup-resilience-01) |
@@ -1088,3 +1552,17 @@ AI 漫剧分镜画布已接入；修复了应用入口历史状态白名单遗�
 Owner：app-boot/bundle 负责可加载装配与诊断；agent-loop 负责唯一运行、预算、取消及继承；skill/skill 与 tool-skill 负责真实目录和按需正文；subagent 复用该 Run 的委派合同；schedule 负责真实会话交付与历史；compaction 复用当前模型和请求预算；文件工具须遵守实际运行主机、项目与权限边界。设置沿用 plugins.enabled、permissions.mode、general.taskFolder/integratedShell、computerControl.enabled、aiRuntime 的模型/请求/输出/工具/委派/超时设置；缺少的 Skill 根和上下文管理配置先补齐共享默认、校验、持久化和设置 UI，保留用户偏好。
 
 验收：真实隔离 Web Profile 启动；模型请求能发现并加载已登记 Skill；同 Run 工具更新/撤销；子任务继承项目/工具允许集/数量深度/拒绝状态与取消；调度成功必须有会话 Run 回执，无消费者不得假成功；压缩进入实际请求且计预算、不拆工具对、不损坏持久历史；本机/远端执行边界一致；长期集成回归、类型检查、构建及 workspace Gate。合成 Provider 与执行器证据须标注，真实 Provider/桌面/远端未运行不得宣称通过。逐文件、设置、真实验证与未覆盖范围见 [本轮运行链修复报告](development/harness-runtime-integration-20261009.md) 与 [逐文件清单](development/harness-runtime-integration-files-20261009.md)。
+
+<a id="lfaa-plugin-lifecycle-session-responsive-20261016"></a>
+
+## LFAA-PLUGIN-LIFECYCLE-SESSION-RESPONSIVE-20261016
+
+目标：严格对照 H:/ai/deepseek-harness 源码的 npm、Git/GitHub、本地绝对路径三种安装方式，逐项验收最新 Wallpaper Engine 的检查、下载、安装、启停和完整卸载；修复会话/最近列表的三点菜单（Web）及桌面右键菜单；修复 760×520 窄短容器的工作区遮挡。
+
+Owner 与范围：Plugin Manager 负责来源、安全展开、清单、运行副本和插件数据清理；API/Connection/UI 复用此 Owner 和 Permission Owner，实现明确点击的真实安装/卸载，智能体继续调用原能力工具。Session/Workspace 原 Owner 持有会话操作；共享 Client 列表菜单与 ResizableWorkbench 持有交互/几何，不增加第二套会话/权限/Runtime。允许修改上述直接相关实现、消费者、README、长期回归与事实文档；保留既有脏工作，上游只读。不提交/发布、不操作真实游戏、不清理无关数据。
+
+设置盘点：沿用 permissions.mode、plugins.enabled（AI 扩展开关，与 Profile 生命周期分开）、general.navigationLayout/showServiceStatus/showBottomPanelControl/terminalPosition、shortcuts、现有布局持久化；appearance 的主题/颜色/字体/字号/对比度/壁纸/遮罩/模糊/减少动态效果经共享令牌继承；壁纸选择沿用 appearance.wallpaperEngine。默认值、校验及持久化归 Settings，不重置偏好。安装、启停、卸载显式动作经统一权限 Owner，保持管理员/来源版本/账户验证。
+
+验收：实时对照官方 npm latest 与 GitHub 默认分支，不读取本项目旧快照冒充远端下载；分别实装启用并检查 Host/Client，卸载后核对源码、适配副本、插件私有数据和清单，保留 LFAA 外观设置及用户 Steam 内容。直接相关回归、类型、构建、workspace Gate 与差异检查；内置浏览器实页桌面、760×520 及窄屏，三点菜单可达，桌面右键与未测设备明确区分。记录失败及修复过程，不以来源 ID/相同提交/登记成功替代功能证据。当前未发现运行中的 3000/3001 服务，可启动本轮服务用于验收；既有服务不得擅自重启。
+
+补充范围：Git API/归档传输不可用时使用官方 Git 传输解析当前引用；运行依赖交由 pnpm 解析，移除重复的手写依赖解析器；本地兼容包按内容摘要检查后进入同一生命周期。允许增加本包受限包管理进程辅助；临时检出只在根 dist/.tmp，完成清理，不读取其他项目旧安装替代远端来源。

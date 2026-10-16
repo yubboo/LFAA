@@ -25,6 +25,8 @@ test("作品资料列表有界分页、按当前账户作品读取且 AI 上下�
       retireLegacyFileTables();
       database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('catalog-owner',8101,'catalog-owner','salt','hash','member',0),('catalog-other',8102,'catalog-other','salt','hash','member',0)").run();
       const writing = await import('lfaa-document-writing/src/service.js');
+      const { createDomainToolTestHost } = await import('./tests/fixtures/domain-tools.mjs');
+      const domainToolHost = await createDomainToolTestHost(['writing']);
       const { listAiBusinessTools } = await import('lfaa-tools/src/business-tools.js');
       const ownerWorkspace = writing.createWritingBook('catalog-owner', '资料作品');
       const otherWorkspace = writing.createWritingBook('catalog-other', '其他作品');
@@ -74,9 +76,10 @@ test("作品资料列表有界分页、按当前账户作品读取且 AI 上下�
       await assert.rejects(() => readTool.execute(readTool.parse({ entryId: createdEntries[0].id }), { ...context, userId: 'catalog-other' }), /找不到本轮当前作品/u);
       await assert.rejects(() => readTool.execute(readTool.parse({ entryId: writing.createWritingCatalogEntry('catalog-other', otherBookId, { kind: 'world-rule', title: '跨作品条目' }).id }), context), /找不到本轮当前作品/u);
       assert.equal(listAiBusinessTools('writing', 'member', null).some(tool => tool.name === 'writing_list_catalog_entries'), false);
-      assert.equal(listAiBusinessTools('minecraft', 'member', { bookId: ownerBookId, chapterId: null }).some(tool => tool.name.startsWith('writing_')), false);
+      assert.equal(listAiBusinessTools('minecraft', 'member', { bookId: ownerBookId, chapterId: null }).some(tool => tool.name.startsWith('writing_')), true, '目录不因界面 App 隐藏已绑定且经 Owner 校验的能力');
       configuration.close();
       sessionRecords.close();
+      await domainToolHost.close();
       closeDatabase();
     `], {
       cwd: cli,

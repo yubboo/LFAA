@@ -11,3 +11,9 @@ SQLite 迁移 38 为项目增加 `app_id`。迁移前的目录保持未分配，
 Git 分支前缀来自账户设置 `git.branchPrefix`。AI Worktree 从独立临时 Git index 捕获源仓库已跟踪及非忽略未跟踪改动，源目录的 HEAD、索引和文件保持不变。恢复只把 LFAA 管理的工作树重置到登记基线并保留 ignored 文件；删除工作树不删源目录，源仓库里的分支与提交历史保留。本包不处理任意 Git 命令、提交、远端、推送、合并或 Pull Request。
 
 移除普通项目登记只解除账户与目录的关联，主机文件、已存在会话、消息和任务都保留。Minecraft 实例仍由 `packages/games/minecraft` 管理。
+
+## 小鱼共享工作入口（2026-10-14）
+
+项目列表默认按账户共享；app_id 为原登记来源，旧 ID、节点与规范路径保持，消费方不重复创建目录。可选历史来源筛选仍存在；共享工作不再以来源标签排除当前账户项目。
+
+构建只写仓库根 dist/packages/workspace/workspace/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。

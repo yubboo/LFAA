@@ -8,4 +8,4 @@ export interface ManagedFileService {
   ensureDirectory(path: string): Promise<string>;
   assertPath(path: string, allowMissing?: boolean): Promise<Stats | null>;
 }
-export function createManagedFileService(options: { root: string; protectedDirectories?: readonly string[]; assertCanRead?: (path: string) => void; assertCanMutate?: (path: string) => void; recycleNamespace?: string }): ManagedFileService;
+export function createManagedFileService(options: { root: string; mutationRoot?: string; signal?: AbortSignal | undefined; protectedDirectories?: readonly string[]; assertCanRead?: (path: string) => void; assertCanMutate?: (path: string) => void | Promise<void>; recycleNamespace?: string }): ManagedFileService;

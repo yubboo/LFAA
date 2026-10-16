@@ -1,0 +1,32 @@
+{
+  "name": "lfaa-tool-runtime",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "joi": "^17.0.0",
+    "lfaa-tools": "workspace:*",
+    "lfaa-runtime-manager": "workspace:*",
+    "lfaa-util-values": "workspace:*"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  },
+  "lfaa": {
+    "server": {
+      "entry": "./src/index.ts",
+      "inject": [
+        "lfaaTools",
+        "lfaaRuntimeManager"
+      ],
+      "required": true,
+      "capabilities": [],
+      "settings": []
+    }
+  }
+}
