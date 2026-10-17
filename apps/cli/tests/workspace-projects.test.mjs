@@ -28,7 +28,7 @@ test("项目登记按账户和节点隔离，搜索结果有界且可查找较�
       "const { sessionRecords } = await import('lfaa-session-persistence-jsonl/src/repository.js');",
       "const { retireLegacyFileTables } = await import('lfaa-storage-domain/src/migration.js');",
       "retireLegacyFileTables();",
-      "assert.equal(database.prepare('PRAGMA user_version').get().user_version, 56);",
+      "assert.equal(database.prepare('PRAGMA user_version').get().user_version, 57);",
       "const owner = 'fixture-workspace-owner';",
       "const otherOwner = 'fixture-workspace-other';",
       "const nodeA = randomUUID();",

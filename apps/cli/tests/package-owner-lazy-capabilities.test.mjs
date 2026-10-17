@@ -39,6 +39,7 @@ test("真实装配从其他 App 按需发现 Minecraft 方法，完整合同只�
   const sessions = await import("lfaa-session/src/sessions.js");
   retireLegacyFileTables();
   const { executeAiTurn } = await import("lfaa-agent-loop/src/execute-turn.js");
+  const { createAiCompletionService } = await import("lfaa-llm/src/completion.js");
   const userId = randomUUID();
   database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES(?,?,'fixture','fixture','admin')").run(userId, `fixture-${userId}`);
   settings.saveUserSettings(userId, "permissions", { mode: "full_access" });
@@ -90,7 +91,7 @@ test("真实装配从其他 App 按需发现 Minecraft 方法，完整合同只�
       }
       return sse({ content: "原领域服务返回真实空列表，未创建实例。" });
     };
-    const host = { listPlugins: () => [], listExtensions: kind => ctx.aiExtensions.list(kind), listInstructionExtensions: app => ctx.aiExtensions.listInstructionExtensions(app), listHooks: () => [], getSystemInstructions: app => ctx.aiExtensions.getInstructions(app), loadInstruction: (id, app) => ctx.aiExtensions.loadInstructions(id, app), runBeforeInference: () => ({ failedHookIds: [] }), runAfterInference: () => ({ failedHookIds: [] }) };
+    const host = { llm: createAiCompletionService(), listPlugins: () => [], listExtensions: kind => ctx.aiExtensions.list(kind), listInstructionExtensions: app => ctx.aiExtensions.listInstructionExtensions(app), listHooks: () => [], getSystemInstructions: app => ctx.aiExtensions.getInstructions(app), loadInstruction: (id, app) => ctx.aiExtensions.loadInstructions(id, app), runBeforeInference: () => ({ failedHookIds: [] }), runAfterInference: () => ({ failedHookIds: [] }) };
     const account = { providerId: "openai", modelId: "fixture", chatUrl: "https://provider.example.test/chat", secret: "invalid-fixture-key", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_completion_tokens", reasoningMode: "default" };
     const turn = sessions.createAiTurn(userId, "workspace", null, "核对 Minecraft 实例", false, null, { applicationIds: ["minecraft"], capabilityIds: ["skill.registry/minecraft-server-setup"] });
     await executeAiTurn({ userId, userRole: "admin", body: { appId: "workspace", sessionId: turn.session.id, content: "核对 Minecraft 实例" }, turn, aiPluginHost: host, abortController: new AbortController(), emit() {}, modelResolver: { resolve: () => account }, memoryEligible: false });

@@ -9,7 +9,7 @@ import { deflateRawSync, gzipSync, gunzipSync } from 'node:zlib';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 
 const data = mkdtempSync(join(tmpdir(), 'lfaa-plugin-manager-'));
@@ -158,6 +158,27 @@ test('仓库插件安装固定到提交并保留真实的不兼容状态', async
   assert.equal(manager.list().length, 1);
   await manager.remove('acme-demo');
   assert.equal(manager.get('acme-demo'), null);
+});
+
+test('复制的 DSH 示例 Bundle 通过静态来源检查后仍被隔离且不能启用', async () => {
+  const manager = new PluginManager('dsh-example', data);
+  const source = fileURLToPath(new URL('./fixtures/dsh-bundle-example', import.meta.url));
+  const inspected = await manager.inspect(source);
+
+  assert.equal(inspected.compatibility, 'dsh-v1');
+  assert.equal(inspected.requirements.bundlePatch, 'cordis.patch.yml');
+  assert.equal(inspected.requirements.hostEntry, 'index.js');
+  assert.equal(inspected.canEnable, false);
+  assert.match(inspected.runtimeReason, /没有匹配.*LFAA 原生适配器/u);
+
+  const installed = await manager.install(source, undefined, 'dsh-fixture-admin');
+  assert.equal(installed.id, 'local--fixture-bundle');
+  assert.equal(installed.state, 'incompatible');
+  assert.deepEqual(installed.capabilities, ['dsh.bundle']);
+  await assert.rejects(manager.setEnabled(installed.id, true), error => error.code === 'plugin_runtime_unsupported');
+  assert.equal(manager.get(installed.id).state, 'incompatible');
+  await manager.remove(installed.id);
+  assert.equal(manager.get(installed.id), null);
 });
 
 test('Wallpaper Engine 只允许停用后经重新检查替换同一官方插件，并保留运行数据', async () => {
@@ -826,6 +847,37 @@ test('registry dependencies honor zero-major caret ranges instead of choosing an
     assert.equal((await downloadCompatibleRegistryPluginPackage(name, '^0.1.11')).version, version);
     assert.ok(!requested.some(url => url.endsWith('/latest')));
     await assert.rejects(downloadCompatibleRegistryPluginPackage(name, 'git+https://github.com/untrusted/package'), /版本范围无效/);
+  } finally { globalThis.fetch = previousFetch; }
+});
+
+test('npmmirror tarball may redirect only to its trusted CDN and still verifies SRI', async () => {
+  const { downloadRegistryPluginPackage } = await import('lfaa-plugin-manager/src/npm-source.js');
+  const previousFetch = globalThis.fetch;
+  const name = 'lfaa-plugin-mirror-redirect-fixture';
+  const version = '1.0.0';
+  const registry = 'https://registry.npmmirror.com/';
+  const tarballUrl = `${registry}${name}/-/${name}-${version}.tgz`;
+  const tarball = makeNpmTarball({ 'package.json': JSON.stringify({ name, version }) });
+  const integrity = 'sha512-' + createHash('sha512').update(tarball).digest('base64');
+  const requested = [];
+  let redirectTarget = 'https://cdn.npmmirror.com/packages/fixture.tgz';
+  globalThis.fetch = async input => {
+    const url = String(input); requested.push(url);
+    if (url === `${registry}${name}/${version}`) return Response.json({ name, version, dist: { tarball: tarballUrl, integrity } });
+    if (url === tarballUrl) return new Response(null, { status: 302, headers: { location: redirectTarget } });
+    if (url === 'https://cdn.npmmirror.com/packages/fixture.tgz') return new Response(tarball);
+    if (url === 'https://evil.example/packages/fixture.tgz') throw new Error('untrusted redirect must not be requested');
+    throw new Error('unexpected request: ' + url);
+  };
+  try {
+    const result = await downloadRegistryPluginPackage(name, version, registry);
+    assert.equal(result.archiveSha256, createHash('sha256').update(tarball).digest('hex'));
+    assert.ok(requested.includes('https://cdn.npmmirror.com/packages/fixture.tgz'));
+
+    requested.length = 0;
+    redirectTarget = 'https://evil.example/packages/fixture.tgz';
+    await assert.rejects(downloadRegistryPluginPackage(name, version, registry), /重定向超出可信来源/u);
+    assert.deepEqual(requested, [`${registry}${name}/${version}`, tarballUrl], 'a cross-origin redirect is rejected before requesting its target');
   } finally { globalThis.fetch = previousFetch; }
 });
 

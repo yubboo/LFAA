@@ -6,7 +6,7 @@
 
 “添加插件”使用居中、短屏可滚动的 Modal。单一输入自动识别 NPM 包名/版本、GitHub HTTPS 地址与 Host 绝对路径；管理员可为 NPM 检查选择中国大陆镜像、官方源或单次自定义 HTTP(S) registry。检查结果回传解析后的 registry，安装重新读取来源时必须匹配同一 registry、来源类型/位置和固定摘要。自定义 registry 不保存到设置、Profile、`.npmrc` 或日志，不支持需认证源。Modal 展示 `dsh-plugin-whale-pet` 示例和插件信任提醒。
 
-安装阶段经 `application/x-ndjson` 消费 Plugin Manager 实际回报：读取来源、固定版本/完整性核验、兼容性检查、安全写入暂存区、原子保存 Profile 清单和最终状态。摘要包含真实文件数、体积与 SHA-256；失败/不兼容保持失败或隔离，不呈现伪造的 pnpm 输出、安装百分比或“已启用”。“立即启用”只有检查结果和安装清单均确认存在兼容 Runtime 时才可用，且成功状态来自真实 Runtime 回读。NPM tarball 保持 SHA-512 SRI 和同 registry origin 校验；安装器不执行包生命周期脚本。
+安装阶段经 `application/x-ndjson` 消费 Plugin Manager 实际回报：读取来源、固定版本/完整性核验、兼容性检查、安全写入暂存区、原子保存 Profile 清单和最终状态。摘要包含真实文件数、体积与 SHA-256；失败/不兼容保持失败或隔离，不呈现伪造的 pnpm 输出、安装百分比或“已启用”。不兼容来源的动作明确标为“保存隔离副本”，并说明插件代码不会运行；兼容来源才显示“开始安装”。“立即启用”只有检查结果和安装清单均确认存在兼容 Runtime 时才可用，且成功状态来自真实 Runtime 回读。NPM tarball 保持 SHA-512 SRI 和同 registry origin 校验；安装器不执行包生命周期脚本。
 
 Host 本机来源输入指运行 LFAA 的 Host 绝对路径，不是浏览器/设备路径。当前只有明确适配的 Runtime 才能启停；无法运行的 DSH Bundle 以真实不兼容状态展示，不会导入控制端或 Client 主 Realm。来源脚本只作声明展示，不由本包执行。
 

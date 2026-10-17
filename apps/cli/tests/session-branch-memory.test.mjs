@@ -27,6 +27,7 @@ const setup = `
 
 test("当前 Provider 以无工具请求压缩分支记忆并记录真实用量", async () => {
   const { summarizeBranchMemory } = await import("lfaa-agent-loop/src/branch-memory.js");
+  const { createAiCompletionService } = await import("lfaa-llm/src/completion.js");
   const originalFetch = globalThis.fetch;
   const requests = [];
   try {
@@ -44,7 +45,8 @@ test("当前 Provider 以无工具请求压缩分支记忆并记录真实用量"
       applicationId: "workspace",
       permissionMode: "full_access",
       settings: { speed: "balanced", maxOutputTokens: 640, contextWindowTokens: 4096, requestTimeoutSeconds: 5 },
-      signal: new AbortController().signal
+      signal: new AbortController().signal,
+      llm: createAiCompletionService()
     });
     assert.equal(requests.length, 1);
     assert.equal(requests[0].url, "https://provider.example/v1/chat/completions");
@@ -129,7 +131,8 @@ test("Agent Loop 摘要成功才创建分支，Provider 失败或工具调用均
       const account={accountId:'fixture-account',providerId:'fixture-provider',modelId:'fixture-model',maxOutputTokens:700,contextWindow:4096,reasoningMode:'default',maxTokensField:'max_tokens',chatUrl:'https://provider.example/v1/chat/completions',keyHeader:'Authorization',keyPrefix:'Bearer ',secret:'fixture-secret'};
       const questions={registerAnswerer:()=>()=>{}};
       const runs=await import('lfaa-agent-loop/src/runs.js');
-      runs.initializeAiRuns({resolve:userId=>userId==='loop-owner'?account:null},{},questions);
+      const {createAiCompletionService}=await import('lfaa-llm/src/completion.js');
+      runs.initializeAiRuns({resolve:userId=>userId==='loop-owner'?account:null},{},questions,createAiCompletionService());
       const frames=[{choices:[{delta:{content:'压缩后的稳定记忆。'},finish_reason:'stop'}],usage:{prompt_tokens:32,completion_tokens:12}},{choices:[],usage:{prompt_tokens:32,completion_tokens:12}}];
       globalThis.fetch=async(_url,options)=>{globalThis.__branchMemoryRequestBody=JSON.parse(options.body);return new Response(frames.map(frame=>'data: '+JSON.stringify(frame)+'\\n\\n').join('')+'data: [DONE]\\n\\n',{headers:{'content-type':'text/event-stream'}})};
       const source=sessions.createAiTurn('loop-owner','workspace',null,'原始问题');

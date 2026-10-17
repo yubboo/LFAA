@@ -122,6 +122,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       const questionsFiber=await pluginContext.plugin(await import('lfaa-user-questions/src/index.js'));
       const settingsFiber=await pluginContext.plugin(await import('lfaa-settings/src/index.js'));
       const modelFiber=await pluginContext.plugin(await import('lfaa-agent-default-model/src/index.js'));
+      await pluginContext.plugin(await import('lfaa-llm'));
       const toolsFiber=await pluginContext.plugin(await import('lfaa-tools/src/index.js'));
       pluginContext.provide('lfaaMinecraft',await import('lfaa-games-minecraft/src/service.js'));
       const extensionsFiber=await pluginContext.plugin((await import('lfaa-agent')).default);
@@ -296,8 +297,8 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       assert.equal(resolvedModelCredential.secret,'fixture-test-key');
       assert.equal(pluginContext.lfaaAgentDefaultModel.resolve('another-owner'),null);
       assert.equal(accountReference.providerId,'lfaa-settings');
-      const host={listPlugins:()=>[],listExtensions:()=>[],listInstructionExtensions:()=>[],listHooks:()=>[],getSystemInstructions:()=>[],runBeforeInference:()=>({failedHookIds:[]}),runAfterInference:()=>({failedHookIds:[]})};
-      const runs=await import('lfaa-agent-loop/src/runs.js');runs.initializeAiRuns(pluginContext.lfaaAgentDefaultModel,pluginContext.lfaaUserApproval,pluginContext.lfaaUserQuestions);
+      const host={llm:pluginContext.lfaaLlm,listPlugins:()=>[],listExtensions:()=>[],listInstructionExtensions:()=>[],listHooks:()=>[],getSystemInstructions:()=>[],runBeforeInference:()=>({failedHookIds:[]}),runAfterInference:()=>({failedHookIds:[]})};
+      const runs=await import('lfaa-agent-loop/src/runs.js');runs.initializeAiRuns(pluginContext.lfaaAgentDefaultModel,pluginContext.lfaaUserApproval,pluginContext.lfaaUserQuestions,pluginContext.lfaaLlm);
       const until=async predicate=>{for(let i=0;i<400;i++){if(predicate())return;await new Promise(resolve=>setTimeout(resolve,5));}throw Error('测试等待超时');};
       block=true;
       const run=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'合成测试目标'},host);

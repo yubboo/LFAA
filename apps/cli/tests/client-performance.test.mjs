@@ -117,8 +117,8 @@ test("AI Work 分段流式正文使用稳定纯文本，终态 Markdown 保留�
   const response = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url), "utf8");
   const styles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
   assert.match(response, /const ResponseText = memo/u);
-  assert.ok(response.includes('streaming ? <span className="ai-work-chat__streaming-text">{content}</span> : <AiMarkdown content={content} />'));
-  assert.match(styles, /\.ai-work-chat__streaming-text\s*\{[^}]*white-space:\s*pre-wrap[^}]*overflow-wrap:\s*anywhere/su);
+  assert.ok(response.includes("streaming ? <AiStreamingMarkdown content={content} /> : <AiMarkdown content={content} />"));
+  assert.match(readFileSync(new URL("../../../packages/client/ui-chat/src/AiMarkdown.tsx", import.meta.url), "utf8"), /AiStreamingMarkdown/u);
   assert.doesNotMatch(styles, /ai-work-chat__message-content--streaming[^\n]*::after/u);
 });
 

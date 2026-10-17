@@ -88,7 +88,7 @@ test("远程身份只保存摘要，轮换撤销失效，拒绝 HTTP 和冒领�
   const issued = identity.issueDaemonCredential("隔离远程测试");
   assert.equal(identity.authenticateDaemonCredential(issued.token).nodeId, issued.nodeId);
   assert.notEqual(database.prepare("SELECT token_hash FROM daemon_credentials WHERE node_id=?").get(issued.nodeId).token_hash, issued.token);
-  const authenticate = (id, secure) => { let result; requireLocalDaemon({ header: () => `Bearer ${issued.token}`, body: { nodeId: id }, secure }, { status: code => ({ json: () => { result = code; } }) }, () => { result = 200; }); return result; };
+  const authenticate = (id, secure) => { let result; requireLocalDaemon({ header: () => `Bearer ${issued.token}`, body: { nodeId: id }, secure }, { status: code => ({ json: () => { result = code; } }) }, error => { result = error?.status ?? error?.statusCode ?? (error ? 500 : 200); }); return result; };
   assert.equal(authenticate(issued.nodeId, true), 200); assert.equal(authenticate(nodeId, true), 401); assert.equal(authenticate(issued.nodeId, false), 403);
   const rotated = identity.issueDaemonCredential(issued.displayName, issued.nodeId); assert.equal(identity.authenticateDaemonCredential(issued.token), null); assert.ok(identity.authenticateDaemonCredential(rotated.token)); identity.revokeDaemonCredential(issued.nodeId); assert.equal(identity.authenticateDaemonCredential(rotated.token), null);
 });

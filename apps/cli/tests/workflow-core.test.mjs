@@ -23,6 +23,67 @@ test("v44 Minecraft 工作流保留并迁移到账户文件，SQLite 只保留 A
     PRAGMA foreign_keys = ON;
     CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL) STRICT;
     CREATE TABLE daemon_nodes (id TEXT PRIMARY KEY NOT NULL) STRICT;
+    -- v44 已包含写作目录结构；这些空表让后续 v51 文件化迁移运行在真实旧版结构上。
+    CREATE TABLE writing_books (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 80),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      outline_content TEXT NOT NULL DEFAULT ''
+    ) STRICT;
+    CREATE TABLE writing_volumes (
+      id TEXT PRIMARY KEY NOT NULL,
+      book_id TEXT NOT NULL REFERENCES writing_books(id) ON DELETE CASCADE,
+      title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 80),
+      sort_order INTEGER NOT NULL CHECK (sort_order >= 0),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      UNIQUE(book_id, sort_order)
+    ) STRICT;
+    CREATE TABLE writing_chapters (
+      id TEXT PRIMARY KEY NOT NULL,
+      book_id TEXT NOT NULL REFERENCES writing_books(id) ON DELETE CASCADE,
+      title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 120),
+      content TEXT NOT NULL DEFAULT '',
+      sort_order INTEGER NOT NULL CHECK (sort_order >= 0),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      volume_id TEXT REFERENCES writing_volumes(id) ON DELETE CASCADE,
+      UNIQUE(book_id, sort_order)
+    ) STRICT;
+    CREATE TABLE writing_chapter_revisions (
+      id TEXT PRIMARY KEY NOT NULL,
+      chapter_id TEXT NOT NULL REFERENCES writing_chapters(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    ) STRICT;
+    CREATE TABLE writing_book_outline_revisions (
+      id TEXT PRIMARY KEY NOT NULL,
+      book_id TEXT NOT NULL REFERENCES writing_books(id) ON DELETE CASCADE,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    ) STRICT;
+    -- v44 已包含早期文件任务队列；v52 会按当前合同扩展操作集合。
+    CREATE TABLE node_file_tasks (
+      id TEXT PRIMARY KEY NOT NULL,
+      node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+      created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      operation TEXT NOT NULL CHECK (operation IN ('list', 'search', 'read', 'write', 'create-file', 'create-folder', 'rename', 'delete', 'upload', 'download')),
+      status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed')),
+      progress INTEGER NOT NULL DEFAULT 0 CHECK (progress BETWEEN 0 AND 100),
+      message TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      result_json TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      started_at TEXT,
+      finished_at TEXT,
+      lease_expires_at TEXT
+    ) STRICT;
+    CREATE INDEX node_file_tasks_node_queue_idx ON node_file_tasks(node_id, status, created_at);
+    CREATE INDEX node_file_tasks_user_recent_idx ON node_file_tasks(created_by, created_at DESC);
+    CREATE INDEX node_file_tasks_lease_idx ON node_file_tasks(status, lease_expires_at);
     CREATE TABLE user_preferences (
       user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       selected_app TEXT NOT NULL CHECK (selected_app IN ('steamcmd', 'minecraft', 'writing')),
@@ -130,7 +191,7 @@ test("v44 Minecraft 工作流保留并迁移到账户文件，SQLite 只保留 A
     const script = [
       "import assert from 'node:assert/strict';",
       "const { database } = await import('lfaa-storage-sqlite/src/database.js');",
-      "assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 50);",
+      "assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 57);",
       "assert.ok(database.prepare('PRAGMA table_info(workflow_runs)').all().some(column => column.name === 'current_node_id'));",
       "assert.equal(database.prepare('SELECT application_id FROM workflow_definitions WHERE id = ?').get('legacy-minecraft').application_id, 'minecraft');",
       "const { createWorkflow, getWorkflow, listWorkflows, updateWorkflow } = await import('lfaa-workflow/src/service.js');",

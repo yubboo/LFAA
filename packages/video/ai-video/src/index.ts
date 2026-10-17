@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { createReadStream, existsSync, lstatSync, mkdirSync, opendirSync, readFileSync, renameSync, rmSync, unlinkSync, type ReadStream } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import type { Context } from "@deepseek-ai/cordis";
 import { resolveUserDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
 import { protectPrivateDirectory } from "lfaa-home-paths/src/private-directory.mjs";
@@ -713,7 +714,7 @@ function writeProject(root: string, canvas: AiVideoCanvas): void {
     atomicWrite(path, projectFile(canvas));
     const readback = readProject(root, canvas.id);
     // 读取时会统一对象字段顺序；比较归一后的内容，避免仅因 JSON 键顺序不同拒绝真实写入。
-    if (!readback || JSON.stringify(readback.canvas) !== JSON.stringify(normalizeStoredCanvas(canvas))) throw new Error("AI 漫剧项目写入回读校验失败。");
+    if (!readback || !isDeepStrictEqual(readback.canvas, normalizeStoredCanvas(canvas))) throw new Error("AI 漫剧项目写入回读校验失败。");
   } catch (error) {
     if (createdDirectory && existsSync(directory)) rmSync(directory, { recursive: true, force: true });
     throw error;
@@ -734,7 +735,7 @@ function migrateLegacyStore(root: string): void {
   const legacyIds = new Set(legacy.canvases.map(canvas => canvas.id));
   for (const canvas of legacy.canvases) {
     const current = existingById.get(canvas.id);
-    if (current && JSON.stringify(current.canvas) !== JSON.stringify(canvas)) {
+    if (current && !isDeepStrictEqual(current.canvas, canvas)) {
       throw new Error("旧版与本地项目的同一画布内容冲突；旧文件已保留，拒绝覆盖。");
     }
   }
@@ -749,7 +750,7 @@ function migrateLegacyStore(root: string): void {
   }
   for (const canvas of legacy.canvases) {
     const readback = readProject(root, canvas.id);
-    if (!readback || JSON.stringify(readback.canvas) !== JSON.stringify(canvas)) throw new Error("旧版分镜迁移回读校验失败；原文件已保留。");
+    if (!readback || !isDeepStrictEqual(readback.canvas, canvas)) throw new Error("旧版分镜迁移回读校验失败；原文件已保留。");
   }
   renameSync(legacyPath, backupPath);
 }

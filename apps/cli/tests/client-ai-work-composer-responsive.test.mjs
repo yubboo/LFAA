@@ -19,6 +19,6 @@ test("窄中间栏的提问框及 TextArea 随容器收缩，不由隐式 Grid �
 });
 
 test("AI Work 输入光标跟随当前文字颜色，避免浅色背景上不可见", () => {
-  assert.match(composerInputRule, /caret-color:\s*currentColor\s*;/u);
+  assert.match(composerInputRule, /caret-color:\s*var\(--we-caret-color,\s*currentColor\)\s*;/u);
   assert.doesNotMatch(composerInputRule, /caret-color:\s*currentColor\s*!important/u);
 });

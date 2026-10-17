@@ -29,7 +29,7 @@ saveUserSettings(actor.userId, 'permissions', { mode: 'full_access' });
 const library = new SystemFileLibrary(data);
 after(async () => { configuration.close(); sessionRecords.close(); closeDatabase(); assert.equal(resolve(root).startsWith(base), true); await rm(root, { recursive: true, force: true }); });
 
-test('资源目录只从 data 派生，旧独立位置保留回读；真实 data 不混入来源，缺失目录不自动创建', async () => {
+test('资源目录只从 data 派生，旧独立位置保留回读；真实 data 不混入来源，访问时创建缺失目录', async () => {
   const external = join(root, 'external-logs');
   await mkdir(external);
   configuration.save('project_storage_locations',{id:1,logs_directory:external,writing_directory:external,runtime_directory:external});
@@ -45,7 +45,9 @@ test('资源目录只从 data 派生，旧独立位置保留回读；真实 data
   assert.equal(logs.rootDirectory, join(data,'logs'));
   assert.ok(logs.entries.some(entry=>entry.path === '.lfaa-resources/logs/actual.log'));
   assert.equal((await library.operate(actor, 'read', { path: '.lfaa-resources/logs/actual.log' })).content, '真实日志');
-  await assert.rejects(library.operate(actor, 'list', { path: '.lfaa-resources/backups' }), /ENOENT/u);
+  const backups = await library.operate(actor, 'list', { path: '.lfaa-resources/backups' });
+  assert.equal(backups.rootDirectory, join(data, 'backups'));
+  assert.ok(Array.isArray(backups.entries));
   await library.operate(actor, 'create-file', { path: '.lfaa-resources/logs/new.log' });
   assert.equal(await readFile(join(data,'logs','new.log'), 'utf8'), '');
 });

@@ -60,7 +60,7 @@ test("管理员可单项或多选删除终态任务；接口校验整批均为�
 });
 
 test("任务卡片主体点击切换终态选择且不显示圆圈标记，非终态打开详情", () => {
-  assert.match(taskList, /className=\{`minecraft-task-card\$\{selected \? " is-selected" : ""\}/u);
+  assert.match(taskList, /className=\{`minecraft-task-card lfaa-card-motion\$\{selected \? " is-selected" : ""\}/u);
   assert.match(taskList, /const selectable = canDelete && terminal/u);
   assert.match(taskList, /aria-pressed=\{selectable \? selected : undefined\}/u);
   assert.match(taskList, /onClick=\{\(\) => selectable \? toggleSelected\(task\.id, !selected\) : onOpenDetails\?\.\(task\.id\)\}/u);

@@ -92,11 +92,22 @@ test("分镜画布按账户持久化，并拒绝过期写入和超界关系", as
   const backupPath = resolve(legacyRoot, "storyboards.v1.migrated.json");
   const migratedProjectPath = resolve(legacyRoot, legacyCanvas.id, "project.json");
   writeFileSync(legacyPath, legacyText, "utf8");
-  assert.deepEqual(owner.listAiVideoCanvases("legacy-account"), [legacyCanvas]);
+  const migratedLegacyCanvases = owner.listAiVideoCanvases("legacy-account");
+  assert.equal(migratedLegacyCanvases.length, 1);
+  const migratedLegacyCanvas = migratedLegacyCanvases[0];
+  assert.equal(migratedLegacyCanvas.id, legacyCanvas.id);
+  assert.equal(migratedLegacyCanvas.title, legacyCanvas.title);
+  assert.equal(migratedLegacyCanvas.script, "");
+  assert.deepEqual(migratedLegacyCanvas.characters, []);
+  assert.deepEqual(migratedLegacyCanvas.locations, []);
+  assert.deepEqual(migratedLegacyCanvas.shots[0], { ...legacyCanvas.shots[0], characterIds: [] });
+  assert.deepEqual(migratedLegacyCanvas.links, []);
+  assert.deepEqual(migratedLegacyCanvas.mediaAssets, []);
+  assert.deepEqual(migratedLegacyCanvas.timelineClips, []);
   assert.equal(existsSync(legacyPath), false);
   assert.equal(readFileSync(backupPath, "utf8"), legacyText);
-  assert.deepEqual(JSON.parse(readFileSync(migratedProjectPath, "utf8")).canvas, legacyCanvas);
-  assert.deepEqual(owner.listAiVideoCanvases("legacy-account"), [legacyCanvas]);
+  assert.deepEqual(JSON.parse(readFileSync(migratedProjectPath, "utf8")).canvas, migratedLegacyCanvas);
+  assert.deepEqual(owner.listAiVideoCanvases("legacy-account"), migratedLegacyCanvases);
 
   const conflictCanvas = owner.createAiVideoCanvas("conflict-account", "本地版本");
   const conflictRoot = resolve(resolveUserDataPaths(process.env.LFAA_DATA_DIR, "conflict-account").projects, "aivideo");

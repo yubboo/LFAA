@@ -18,6 +18,7 @@ const sessions = await import("lfaa-session/src/sessions.js");
 const { sessionRecords } = await import("lfaa-session-persistence-jsonl/src/repository.js");
 retireLegacyFileTables();
 const { executeAiTurn } = await import("lfaa-agent-loop/src/execute-turn.js");
+const { createAiCompletionService } = await import("lfaa-llm/src/completion.js");
 const { assessContextPressure } = await import("lfaa-agent-loop/src/runtime-context.js");
 const { registerAiBusinessTool } = await import("lfaa-tools/src/registry.js");
 const shellTools = await import("lfaa-tool-shell/src/index.js");
@@ -25,7 +26,7 @@ const owner = randomUUID();
 database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role) VALUES(?,1,'fixture-latency','fixture','fixture','admin')").run(owner);
 settings.saveUserSettings(owner, "permissions", { mode: "full_access" });
 settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, maxModelRequests: 4, maxToolCalls: 4, requestRetries: 0 });
-const host = { listPlugins: () => [], listExtensions: () => [], listInstructionExtensions: () => [], getSystemInstructions: () => [], listHooks: () => [], runBeforeInference: () => ({ failedHookIds: [] }), runAfterInference: () => ({ failedHookIds: [] }) };
+const host = { llm: createAiCompletionService(), listPlugins: () => [], listExtensions: () => [], listInstructionExtensions: () => [], getSystemInstructions: () => [], listHooks: () => [], runBeforeInference: () => ({ failedHookIds: [] }), runAfterInference: () => ({ failedHookIds: [] }) };
 const account = { accountId: "fixture-account", providerId: "fixture", modelId: "fixture-selected-model", chatUrl: "https://provider.example.test/chat", secret: "invalid-fixture-key", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_tokens", reasoningMode: "high", thinking: { kind: "effort", parameter: "reasoning_effort", values: ["high"] } };
 const line = delta => `data: ${JSON.stringify({ choices: [{ delta }] })}\n\n`;
 const response = delta => new Response(line(delta) + "data: [DONE]\n\n", { headers: { "Content-Type": "text/event-stream" } });
@@ -91,11 +92,17 @@ test("Shell 非零退出、超时、取消与未知退出码保持事实，并�
         assert.equal(returned.executionState, expected);
         assert.equal(returned.isError, true);
       }
+      if (count === 3) {
+        const returned = JSON.parse(body.messages.findLast(message => message.role === "tool").content);
+        assert.equal(returned.executionState, "not_started");
+        assert.equal(returned.executed, false);
+        return response({ content: "已收到失败证据，没有再次执行命令。" });
+      }
       return response(call(`call-${count}`));
     });
-    assert.equal(result.bodies.length, 2);
+    assert.equal(result.bodies.length, 3);
     assert.equal(shellExecutions - before, 1);
-    assert.equal(result.result.status, "error");
+    assert.equal(result.result.status, "complete");
     const toolResults = sessionRecords.allForSession("session_events", result.turn.session.id).filter(event => event.type === "tool/result");
     assert.deepEqual(toolResults.map(event => event.data.executionState), [expected, "not_started"]);
     assert.ok(result.result.message.activity.some(activity => activity.title === "执行本机命令" && activity.status === (expected === "unconfirmed" ? "unavailable" : "error")));

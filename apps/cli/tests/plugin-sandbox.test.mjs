@@ -63,7 +63,7 @@ test('Windows 插件沙盒只读源码、阻止本地网络并可撤销 ACL', { 
   let cleanupAttempted = false;
   try {
     host = spawn(binary, [
-      '--plugin-run', '--data-root', dataRoot, '--profile', profile, '--plugin-id', pluginId,
+      '--plugin-run', '--plugin-root', join(dataRoot, 'plugins'), '--profile', profile, '--plugin-id', pluginId,
       '--entry', 'main.mjs', '--node', process.execPath, '--readiness-token', token
     ], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, cwd: dirname(process.execPath), env: { ...process.env, JWT_SECRET: 'plugin-sandbox-test-secret' } });
     const stdout = lineSource(host.stdout);
@@ -87,7 +87,7 @@ test('Windows 插件沙盒只读源码、阻止本地网络并可撤销 ACL', { 
 
     cleanupAttempted = true;
     const cleanup = spawn(binary, [
-      '--plugin-forget-profile', '--data-root', dataRoot, '--profile', profile,
+      '--plugin-forget-profile', '--plugin-root', join(dataRoot, 'plugins'), '--profile', profile,
       '--plugin-id', pluginId, '--node', process.execPath
     ], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     const cleanupOutput = await collectProcess(cleanup);
@@ -100,7 +100,7 @@ test('Windows 插件沙盒只读源码、阻止本地网络并可撤销 ACL', { 
     if (!cleaned && !cleanupAttempted && existsSync(pluginRoot)) {
       cleanupAttempted = true;
       const cleanup = spawn(binary, [
-        '--plugin-forget-profile', '--data-root', dataRoot, '--profile', profile,
+        '--plugin-forget-profile', '--plugin-root', join(dataRoot, 'plugins'), '--profile', profile,
         '--plugin-id', pluginId, '--node', process.execPath
       ], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
       await collectProcess(cleanup);
@@ -112,13 +112,15 @@ test('Windows 插件沙盒只读源码、阻止本地网络并可撤销 ACL', { 
 test('通用 LFAA v1 插件适配器完成真实启动、停止握手和 Host 权限回收', { skip: process.platform !== 'win32', timeout: 30_000 }, async () => {
   const priorEnvironment = {
     dataDirectory: process.env.LFAA_DATA_DIR,
+    homeDirectory: process.env.LFAA_HOME,
     nodeEnvironment: process.env.NODE_ENV,
     jwtSecret: process.env.JWT_SECRET
   };
   const dataRoot = mkdtempSync(join(tmpdir(), 'lfaa-plugin-adapter-'));
+  const homeRoot = mkdtempSync(join(tmpdir(), 'lfaa-plugin-adapter-home-'));
   const profile = `adapter-${randomUUID().slice(0, 8)}`;
   const pluginId = 'generic-runtime-smoke';
-  const pluginRoot = join(dataRoot, 'plugins', 'profiles', profile, pluginId);
+  const pluginRoot = join(homeRoot, 'plugins', 'profiles', profile, pluginId);
   mkdirSync(pluginRoot, { recursive: true });
   const entryPath = join(pluginRoot, 'main.mjs');
   writeFileSync(entryPath, `
@@ -149,6 +151,7 @@ test('通用 LFAA v1 插件适配器完成真实启动、停止握手和 Host �
   };
   try {
     process.env.LFAA_DATA_DIR = dataRoot;
+    process.env.LFAA_HOME = homeRoot;
     process.env.NODE_ENV = 'test';
     process.env.JWT_SECRET = '';
     const module = await import('lfaa-plugin-manager/src/windows-appcontainer-runtime.js');
@@ -162,9 +165,11 @@ test('通用 LFAA v1 插件适配器完成真实启动、停止握手和 Host �
   } finally {
     if (runtime?.isActive(record)) await runtime.disable(record, pluginRoot);
     process.env.LFAA_DATA_DIR = priorEnvironment.dataDirectory;
+    process.env.LFAA_HOME = priorEnvironment.homeDirectory;
     process.env.NODE_ENV = priorEnvironment.nodeEnvironment;
     process.env.JWT_SECRET = priorEnvironment.jwtSecret;
     rmSync(dataRoot, { recursive: true, force: true });
+    rmSync(homeRoot, { recursive: true, force: true });
   }
 });
 

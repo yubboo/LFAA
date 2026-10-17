@@ -780,8 +780,8 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
               </li>)}</ol> : null}
             </section> : null}
             <div className="plugin-manager-install-modal__actions">
-              <span>安装只会登记并保存来源快照；启用由对应 Runtime 单独执行。</span>
-              {inspection ? <Button type="primary" disabled={operation !== null || pendingPluginAction !== null} loading={operation === "install"} onClick={() => void submitInstall()}>{contributedInstall ? `安装 ${contributedInstall.title}` : "开始安装"}</Button> : <Button type="primary" disabled={!detectedSourceType || operation !== null || pendingPluginAction !== null || (detectedSourceType === "npm" && registryChoice === "custom" && !activeRegistry)} loading={operation === "inspect"} icon={<WorkbenchIcon name="search" size={15} />} onClick={() => void inspectSource()}>检查来源</Button>}
+              <span>{inspection && !inspection.canEnable ? "当前没有匹配的 LFAA Runtime；保存后仍会隔离，插件代码不会运行。" : "安装只登记并保存来源快照；启用由匹配的 Runtime 单独执行。"}</span>
+              {inspection ? <Button type={inspection.canEnable ? "primary" : "default"} disabled={operation !== null || pendingPluginAction !== null} loading={operation === "install"} onClick={() => void submitInstall()}>{inspection.canEnable ? contributedInstall ? `安装 ${contributedInstall.title}` : "开始安装" : "保存隔离副本"}</Button> : <Button type="primary" disabled={!detectedSourceType || operation !== null || pendingPluginAction !== null || (detectedSourceType === "npm" && registryChoice === "custom" && !activeRegistry)} loading={operation === "inspect"} icon={<WorkbenchIcon name="search" size={15} />} onClick={() => void inspectSource()}>检查来源</Button>}
             </div>
           </>}
         </div>

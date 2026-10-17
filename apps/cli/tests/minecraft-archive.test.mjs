@@ -33,5 +33,5 @@ test("删除拒绝运行状态；未知交由节点核验；缺少归档回执�
   assert.equal(database.prepare("SELECT id FROM minecraft_instances WHERE id=?").get(id),undefined);
   assert.equal(database.prepare("SELECT id FROM minecraft_deployments WHERE id=?").get(deploymentId),undefined);
   assert.equal(queue.getMinecraftTask(next.id).status,"succeeded");assert.equal(queue.getMinecraftTask(next.id).instanceId,null);
-  migrateMinecraftArchiveSchema();assert.equal(database.prepare("PRAGMA user_version").get().user_version,56);assert.deepEqual(database.prepare("PRAGMA foreign_key_check").all(),[]);
+  migrateMinecraftArchiveSchema();assert.equal(database.prepare("PRAGMA user_version").get().user_version,57);assert.deepEqual(database.prepare("PRAGMA foreign_key_check").all(),[]);
 });

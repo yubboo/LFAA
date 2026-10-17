@@ -66,10 +66,7 @@ export async function downloadRegistryPluginPackage(packageName: string, request
   if (tarballUrl.origin !== new URL(registry).origin || tarballUrl.username || tarballUrl.password || tarballUrl.search || tarballUrl.hash) {
     throw new Error("NPM 插件 tarball 必须来自当前选择的 registry，且不能包含认证信息或重定向参数。");
   }
-  const tarballResponse = await fetch(tarballUrl, {
-    headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/octet-stream" },
-    redirect: "error", signal: AbortSignal.timeout(60_000)
-  });
+  const tarballResponse = await fetchRegistryTarball(tarballUrl, registry, AbortSignal.timeout(60_000));
   const tarball = await readBoundedBody(tarballResponse);
   verifyIntegrity(tarball, dist.integrity);
   // DefinitelyTyped 的旧发布包使用类型包名作为单一根目录；仍拒绝混合根、链接和路径穿越。
@@ -198,6 +195,33 @@ async function readJson(response: Response, source: string): Promise<Record<stri
   try { value = JSON.parse(Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), size).toString("utf8")); } catch { throw new Error(`${source} 返回的清单不是有效 JSON。`); }
   if (!isRecord(value)) throw new Error(`${source} 返回的清单格式无效。`);
   return value;
+}
+
+/** Follow registry-local redirects and npmmirror's HTTPS package CDN; reject every other origin. */
+async function fetchRegistryTarball(url: URL, registry: string, signal: AbortSignal): Promise<Response> {
+  const registryUrl = new URL(registry);
+  const allowedOrigins = new Set([registryUrl.origin]);
+  if (registryUrl.protocol === "https:" && registryUrl.hostname.toLocaleLowerCase("en-US") === "registry.npmmirror.com" && !registryUrl.port) {
+    allowedOrigins.add("https://cdn.npmmirror.com");
+  }
+
+  let currentUrl = url;
+  for (let redirectCount = 0; redirectCount <= 4; redirectCount += 1) {
+    const response = await fetch(currentUrl, {
+      headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/octet-stream" },
+      redirect: "manual", signal
+    });
+    if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+    if (redirectCount === 4) throw new Error("NPM 插件 tarball 重定向次数超过 4 次。");
+    const location = response.headers.get("location");
+    if (!location) throw new Error("NPM 插件 tarball 重定向缺少目标地址。");
+    const nextUrl = new URL(location, currentUrl);
+    if (!allowedOrigins.has(nextUrl.origin) || nextUrl.username || nextUrl.password || nextUrl.search || nextUrl.hash) {
+      throw new Error(`NPM 插件 tarball 重定向超出可信来源：${nextUrl.host}。`);
+    }
+    currentUrl = nextUrl;
+  }
+  throw new Error("NPM 插件 tarball 重定向未能完成。");
 }
 
 async function readBoundedBody(response: Response): Promise<Buffer> {

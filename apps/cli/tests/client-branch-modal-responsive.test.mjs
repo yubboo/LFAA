@@ -14,7 +14,7 @@ const branchModal = chatSource.slice(branchModalStart, branchModalEnd);
 const originStart = chatSource.indexOf('branchSource ? <div className="ai-work-chat__branch-origin"');
 const messageListStart = chatSource.indexOf('<div className="ai-work-chat__message-list">');
 const welcomeStart = chatSource.indexOf('className={`ai-work-chat__welcome', messageListStart);
-const composerStart = chatSource.indexOf('<form className="ai-work-chat__composer"', originStart);
+const composerStart = chatSource.indexOf('<form ref={composerFormRef} className="ai-work-chat__composer"', originStart);
 
 test("聊天分支弹窗按工作区宽高居中、限宽并在短屏内可滚动", () => {
   assert.notEqual(branchModalStart, -1);

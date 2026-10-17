@@ -22,6 +22,9 @@ process.env.JWT_SECRET = "realtime-test-secret-0123456789abcdef-0123456789";
 
 const { config } = await import("lfaa-launch-environment/src/config.js");
 const { database, closeDatabase } = await import("lfaa-storage-sqlite/src/database.js");
+const { retireLegacyFileTables } = await import("lfaa-storage-domain/src/migration.js");
+await import("lfaa-session/src/sessions.js");
+retireLegacyFileTables();
 const { createSession, revokeSession } = await import("lfaa-identity-auth/src/service.js");
 const { recordDaemonHeartbeat } = await import("lfaa-host-daemon/src/local-daemon.js");
 const { createRealtimeSocketServer } = await import("lfaa-api-remotes/src/socket-server.js");
@@ -54,7 +57,7 @@ recordDaemonHeartbeat({
   architecture: "x64",
   version: "test",
   dataRoot: dataDirectory,
-  capabilities: ["minecraft-vanilla", "app-sandbox-windows-appcontainer-v1"],
+  capabilities: ["minecraft-vanilla", "java-environment-manager-v1", "app-sandbox-windows-appcontainer-v1"],
   javaRuntimes: []
 });
 const token = jwt.sign({ sid: session.sessionId }, config.jwtSecret, {

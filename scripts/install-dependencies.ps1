@@ -749,6 +749,67 @@ function Get-ProjectReleaseVersion {
     }
 }
 
+function Get-CommitMessageVersion {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$CommitMessage)
+
+    if ($CommitMessage -match '^\s*(?:LFAA\s+)?v?(?<version>\d+\.\d+\.\d+)(?=$|[\s:：-])') {
+        return $Matches['version']
+    }
+
+    return ''
+}
+
+function Test-PushVersionIsNewer {
+    param(
+        [Parameter(Mandatory = $true)][string]$Candidate,
+        [Parameter(Mandatory = $true)][string]$Previous
+    )
+
+    return ([version]$Candidate).CompareTo([version]$Previous) -gt 0
+}
+
+function Resolve-LastPushedVersion {
+    param(
+        [string[]]$RemoteCommitSubjects = @(),
+        [string]$LocalVersion = ''
+    )
+
+    foreach ($subject in $RemoteCommitSubjects) {
+        $version = Get-CommitMessageVersion -CommitMessage $subject
+        if (-not [string]::IsNullOrWhiteSpace($version)) {
+            return [PSCustomObject]@{
+                Number = $version
+                Source = 'GitHub main 最近的版本提交'
+            }
+        }
+    }
+
+    if ($LocalVersion -match '^\d+\.\d+\.\d+$') {
+        return [PSCustomObject]@{
+            Number = $LocalVersion
+            Source = '本机最近一次成功推送记录'
+        }
+    }
+
+    return [PSCustomObject]@{
+        Number = ''
+        Source = '尚无可识别的推送版本记录'
+    }
+}
+
+function Get-LastPushedVersion {
+    $remoteMain = @(Invoke-GitOutput -GitArguments @('ls-remote', '--heads', 'origin', 'refs/heads/main'))
+    if ($remoteMain.Count -eq 0) {
+        return Resolve-LastPushedVersion
+    }
+
+    # 每次推送前从远端 main 读取最新历史；fetch 只更新本地 Git 对象/FETCH_HEAD，不合并工作区。
+    Invoke-GitChecked -GitArguments @('fetch', '--quiet', '--no-tags', 'origin', 'refs/heads/main')
+    $remoteSubjects = @(Invoke-GitOutput -GitArguments @('log', '-n', '50', '--format=%s', 'FETCH_HEAD'))
+    $localVersion = Get-GitConfigValue -Key 'lfaa.lastPushedVersion'
+    return Resolve-LastPushedVersion -RemoteCommitSubjects $remoteSubjects -LocalVersion $localVersion
+}
+
 function Read-Confirmation {
     param(
         [Parameter(Mandatory = $true)][string]$Prompt,
@@ -832,8 +893,17 @@ function Push-GitHubRepository {
         }
 
         Set-GitHubOrigin
+        $lastPushedVersion = Get-LastPushedVersion
+        if ([string]::IsNullOrWhiteSpace($lastPushedVersion.Number)) {
+            Write-Host ("上一次推送版本：未记录（{0}）。" -f $lastPushedVersion.Source) -ForegroundColor Yellow
+        }
+        else {
+            Write-Host ("上一次推送版本：LFAA {0}（来源：{1}）。" -f $lastPushedVersion.Number, $lastPushedVersion.Source) -ForegroundColor Magenta
+        }
+        Write-Host ("当前更新日志版本：{0}（来源：docs\updata-log.md；这是产品版本）。" -f $projectVersion.Label) -ForegroundColor DarkGray
 
         $commitCreated = $false
+        $commitVersion = ''
         $workingChanges = @(Invoke-GitOutput -GitArguments @('status', '--short', '--untracked-files=all'))
         if ($workingChanges.Count -gt 0) {
             Write-Host ''
@@ -896,13 +966,34 @@ function Push-GitHubRepository {
                 }
 
                 Write-Host ''
-                Write-Host ("更新日志版本：{0}（来源：docs\updata-log.md）" -f $projectVersion.Label) -ForegroundColor Magenta
-                # 只问一次提交说明：输入内容原样作为 commit message，不再额外询问版本、也不自动加前缀。
-                Write-Host '本次提交信息：直接输入提交说明即可。' -ForegroundColor Cyan
-                do {
-                    $commitMessage = (Read-Host '【提交说明】【必填】').Trim()
+                if ([string]::IsNullOrWhiteSpace($lastPushedVersion.Number)) {
+                    Write-Host ("上一次推送版本尚未记录；当前更新日志产品版本：{0}。" -f $projectVersion.Label) -ForegroundColor Magenta
                 }
-                while ([string]::IsNullOrWhiteSpace($commitMessage))
+                else {
+                    Write-Host ("上一次推送版本：LFAA {0}；当前更新日志产品版本：{1}。" -f $lastPushedVersion.Number, $projectVersion.Label) -ForegroundColor Magenta
+                }
+                Write-Host '提交说明需以新的源码推送版本开头，可附简短说明，例如：0.0.25 修复插件安装提示。' -ForegroundColor Cyan
+                $validCommitMessage = $false
+                while (-not $validCommitMessage) {
+                    $commitMessage = (Read-Host '【提交说明】【必填】').Trim()
+                    if ([string]::IsNullOrWhiteSpace($commitMessage)) {
+                        Write-Host '提交说明不能为空。' -ForegroundColor Yellow
+                        continue
+                    }
+
+                    $commitVersion = Get-CommitMessageVersion -CommitMessage $commitMessage
+                    if ([string]::IsNullOrWhiteSpace($commitVersion)) {
+                        Write-Host '提交说明必须以三段版本号开头，例如 0.0.25 或 0.0.25 修复插件问题。' -ForegroundColor Yellow
+                        continue
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace($lastPushedVersion.Number) -and -not (Test-PushVersionIsNewer -Candidate $commitVersion -Previous $lastPushedVersion.Number)) {
+                        Write-Host ("版本号必须高于上一次推送版本 LFAA {0}；当前输入为 {1}，请重新填写。" -f $lastPushedVersion.Number, $commitVersion) -ForegroundColor Yellow
+                        continue
+                    }
+
+                    $validCommitMessage = $true
+                }
 
                 Invoke-GitChecked -GitArguments @('commit', '-m', $commitMessage)
                 $commitCreated = $true
@@ -934,6 +1025,15 @@ function Push-GitHubRepository {
             Write-Host '未检测到代码改动，但本地有尚未推送的提交，将继续推送。' -ForegroundColor Yellow
         }
 
+        $headSubject = ((Invoke-GitOutput -GitArguments @('log', '-1', '--format=%s', 'HEAD')) -join '').Trim()
+        $commitVersion = Get-CommitMessageVersion -CommitMessage $headSubject
+        if ([string]::IsNullOrWhiteSpace($commitVersion)) {
+            throw '待推送提交说明没有以三段版本号开头；为避免版本记录混乱，已停止推送。'
+        }
+        if (-not [string]::IsNullOrWhiteSpace($lastPushedVersion.Number) -and -not (Test-PushVersionIsNewer -Candidate $commitVersion -Previous $lastPushedVersion.Number)) {
+            throw ("待推送版本 {0} 不高于上一次推送版本 {1}；已停止推送。" -f $commitVersion, $lastPushedVersion.Number)
+        }
+
         [void](Invoke-GitOutput -GitArguments @('rev-parse', '--verify', 'HEAD'))
 
         $historyObjects = @(Invoke-GitOutput -GitArguments @('rev-list', '--objects', 'HEAD'))
@@ -960,7 +1060,13 @@ function Push-GitHubRepository {
         Write-Host 'HTTPS 传输低于 1 KiB/s 持续 60 秒时会超时退出。' -ForegroundColor DarkGray
         Write-Host '正在执行正常推送：git push origin HEAD:refs/heads/main ……' -ForegroundColor Green
         Invoke-GitChecked -GitArguments @('-c', 'http.lowSpeedLimit=1024', '-c', 'http.lowSpeedTime=60', 'push', 'origin', 'HEAD:refs/heads/main')
-        Write-Host ("GitHub main {0}成功，版本：{1}。" -f $pushModeLabel, $projectVersion.Label) -ForegroundColor Green
+        try {
+            Invoke-GitChecked -GitArguments @('config', '--local', 'lfaa.lastPushedVersion', $commitVersion)
+        }
+        catch {
+            Write-Host ("提示：推送已成功，但无法写入本机版本缓存；下次会从 GitHub main 历史重新读取。原因：{0}" -f $_.Exception.Message) -ForegroundColor Yellow
+        }
+        Write-Host ("GitHub main {0}成功，源码推送版本：LFAA {1}；更新日志产品版本：{2}。" -f $pushModeLabel, $commitVersion, $projectVersion.Label) -ForegroundColor Green
     }
     catch {
         if ($_.Exception.Message -match '(?i)non-fast-forward|fetch first|rejected') {

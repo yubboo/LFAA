@@ -83,6 +83,8 @@ test('manual install, start, stop and uninstall call the authenticated lifecycle
   assert.match(pluginPage, /dsh-plugin-whale-pet/u);
   assert.match(pluginPage, /请只安装你信任的插件来源/u);
   assert.match(pluginPage, /声明脚本（不会执行）/u);
+  assert.match(pluginPage, /保存后仍会隔离，插件代码不会运行/u);
+  assert.match(pluginPage, /"保存隔离副本"/u);
   assert.match(pluginPage, /立即启用/u);
   assert.doesNotMatch(pluginPage, /插件安装来源类型/u);
   assert.match(pluginPageCss, /plugin-manager-install-modal[\s\S]*?max-height: calc\(100dvh - 16px\)/u);
