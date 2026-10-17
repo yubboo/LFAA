@@ -89,6 +89,22 @@ const SETTINGS_LAYOUT_KEY = "lfaa.settings.layout.v2";
 
 type SectionId = "general" | "notifications" | "import" | "profile" | "security" | "appearance" | "wallpaperEngine" | "parental" | "trustedContacts" | "voice" | "about" | "configuration" | "personalization" | "mini" | "shortcuts" | "usage" | "account" | "plugins" | "computerControl" | "snapshots" | "browser" | "hooks" | "connections" | "cloudPreferences" | "codeReview" | "git" | "environment" | "worktrees" | "archived" | "ai" | "minecraft" | "permissions" | "workspace" | "developer";
 type PluginWorkspaceTab = "overview" | "catalog" | "knowledge" | "mcp" | "diagnostics";
+export type StandalonePluginWorkspaceView = "all" | "applications" | "tools" | "skills" | "prompts" | "mcp" | "knowledge" | "diagnostics" | "experts";
+
+function resolveStandalonePluginWorkspaceView(view: StandalonePluginWorkspaceView): { tab: PluginWorkspaceTab; kind: AiExtension["kind"] | "all" } {
+  switch (view) {
+    case "all": return { tab: "catalog", kind: "all" };
+    case "applications": return { tab: "overview", kind: "all" };
+    case "tools": return { tab: "catalog", kind: "tool" };
+    case "skills": return { tab: "catalog", kind: "skill" };
+    case "prompts": return { tab: "catalog", kind: "prompt" };
+    case "mcp": return { tab: "mcp", kind: "all" };
+    case "knowledge": return { tab: "knowledge", kind: "all" };
+    case "diagnostics": return { tab: "diagnostics", kind: "all" };
+    case "experts": return { tab: "catalog", kind: "expert" };
+  }
+}
+
 const PLUGIN_WORKSPACE_TABS: Array<{ id: PluginWorkspaceTab; label: string }> = [
   { id: "overview", label: "总览" },
   { id: "catalog", label: "能力目录" },
@@ -375,6 +391,7 @@ interface SettingsPageProps {
   onUserChange: (user: User) => void;
   onSettingsChange: (settings: UserSettings) => void;
   standalonePluginWorkspace?: boolean;
+  standalonePluginView?: StandalonePluginWorkspaceView;
   standalonePluginSection?: "plugins" | "wallpaperEngine";
 }
 
@@ -449,7 +466,7 @@ function displaySteamcmdPath(node: { dataRoot: string | null } | null, relativeP
 
 
 
-export function SettingsPage({ user, serverState, settings: workbenchSettings, resolvedTheme, initialSection, applications, onOpenApplication, onBack, onNavigate, onOpenSettings, onLogout, onUserChange, onSettingsChange, standalonePluginWorkspace = false, standalonePluginSection = "plugins" }: SettingsPageProps) {
+export function SettingsPage({ user, serverState, settings: workbenchSettings, resolvedTheme, initialSection, applications, onOpenApplication, onBack, onNavigate, onOpenSettings, onLogout, onUserChange, onSettingsChange, standalonePluginWorkspace = false, standalonePluginView, standalonePluginSection = "plugins" }: SettingsPageProps) {
   const [messageApi, messageContext] = message.useMessage();
   const [permissionModal, permissionModalContext] = Modal.useModal();
   const canAdmin = hasAdminAccess(user.role);
@@ -464,8 +481,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   });
   const [activeSection, setActiveSection] = useState<SectionId>(() => getInitialSettingsSection(initialSection, user.id, standalonePluginWorkspace, standalonePluginSection));
   const activeSettingsCategory = settingsCategoryForSection(activeSection);
-  const [pluginWorkspaceTab, setPluginWorkspaceTab] = useState<PluginWorkspaceTab>(() => getInitialSettingsSection(initialSection, user.id, standalonePluginWorkspace, standalonePluginSection) === "connections" ? "mcp" : "overview");
-  const [knowledgeLibraryOpened, setKnowledgeLibraryOpened] = useState(false);
+  const initialStandaloneView = standalonePluginView ? resolveStandalonePluginWorkspaceView(standalonePluginView) : null;
+  const [pluginWorkspaceTab, setPluginWorkspaceTab] = useState<PluginWorkspaceTab>(() => initialStandaloneView?.tab ?? (getInitialSettingsSection(initialSection, user.id, standalonePluginWorkspace, standalonePluginSection) === "connections" ? "mcp" : "overview"));
+  const [knowledgeLibraryOpened, setKnowledgeLibraryOpened] = useState(() => initialStandaloneView?.tab === "knowledge");
   const [minecraftCoreOptions, setMinecraftCoreOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [expandedSettingsGroups, setExpandedSettingsGroups] = useState<Set<string>>(() => readExpandedSettingsGroups(user.id));
   const [searchExpandedSettingsGroups, setSearchExpandedSettingsGroups] = useState<Set<string>>(() => new Set());
@@ -502,7 +520,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [extensions, setExtensions] = useState<AiExtension[]>(() => cachedSettingsData?.extensions ?? []);
   const [capabilityInstallCatalog, setCapabilityInstallCatalog] = useState<CapabilityInstallCatalogEntry[]>(() => cachedSettingsData?.capabilityInstallCatalog ?? []);
   const [extensionSearch, setExtensionSearch] = useState("");
-  const [extensionKindFilter, setExtensionKindFilter] = useState<AiExtension["kind"] | "all">("all");
+  const [extensionKindFilter, setExtensionKindFilter] = useState<AiExtension["kind"] | "all">(() => initialStandaloneView?.kind ?? "all");
   const [runtimePlugins, setRuntimePlugins] = useState<AiRuntimePlugin[]>(() => cachedSettingsData?.runtimePlugins ?? []);
   const [hotReloadEnabled, setHotReloadEnabled] = useState(() => cachedSettingsData?.hotReloadEnabled ?? false);
   const [expandedRuntimePluginGroups, setExpandedRuntimePluginGroups] = useState<Set<string>>(() => new Set());
@@ -599,6 +617,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     for (const extension of extensions) counts.set(extension.kind, (counts.get(extension.kind) ?? 0) + 1);
     return counts;
   }, [extensions]);
+  const extensionKindTotalCount = extensionKindFilter === "all" ? extensions.length : extensionKindCounts.get(extensionKindFilter) ?? 0;
   const extensionCatalogGroups = useMemo(() => {
     const query = extensionSearch.trim().toLocaleLowerCase();
     return EXTENSION_CATEGORIES
@@ -629,6 +648,18 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     "element",
     legacySettingsScrollPositionStorageKey(user.id, activeSection)
   );
+  const standaloneWorkspaceContent = standalonePluginWorkspace && (activeSection === "plugins" || activeSection === "connections");
+  const pluginWorkspacePanelLabelledBy = standaloneWorkspaceContent && standalonePluginView
+    ? `plugin-manager-${standalonePluginView}-tab`
+    : `settings-plugin-tab-${pluginWorkspaceTab}`;
+
+  useEffect(() => {
+    if (!standalonePluginWorkspace || !standalonePluginView) return;
+    const view = resolveStandalonePluginWorkspaceView(standalonePluginView);
+    setPluginWorkspaceTab(view.tab);
+    setExtensionKindFilter(view.kind);
+    if (view.tab === "knowledge") setKnowledgeLibraryOpened(true);
+  }, [standalonePluginWorkspace, standalonePluginView]);
   const settingsNavigationScroll = useScrollRestoration(createScrollRestorationKey(user.id, "settings-navigation"));
 
   useEffect(() => {
@@ -1997,6 +2028,37 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     </SettingGroup>
   );
 
+  const pluginWorkspaceHeader = (
+    <div className="settings-plugin-workspace__header-cards">
+      <div className="settings-plugin-workspace__header-card settings-plugin-workspace__header-card--primary">
+        <header className="settings-content__heading settings-plugin-workspace__heading"><div><span className="settings-eyebrow">{activeSection === "connections" ? "外部服务" : "AI 扩展 · 运行时"}</span><Typography.Title level={2}>{activeSection === "connections" ? "MCP 连接" : "扩展工作台"}</Typography.Title><Typography.Paragraph>{activeSection === "connections" ? "配置 MCP 服务与应用范围；设置保存仍归账户设置 Owner。" : "管理账户 AI 扩展、浏览已登记能力，并检查 MCP 与运行模块状态。"}</Typography.Paragraph></div></header>
+        <nav className="settings-plugin-workspace__tabs" role="tablist" aria-label="扩展与连接分区" onKeyDown={(event) => {
+          const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=tab]"));
+          const currentIndex = tabs.indexOf(event.target as HTMLButtonElement);
+          const nextIndex = event.key === "ArrowRight" ? (currentIndex + 1) % tabs.length
+            : event.key === "ArrowLeft" ? (currentIndex - 1 + tabs.length) % tabs.length
+              : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
+          if (currentIndex >= 0 && nextIndex >= 0) {
+            event.preventDefault();
+            tabs[nextIndex]?.focus();
+            tabs[nextIndex]?.click();
+          }
+        }}>
+          {PLUGIN_WORKSPACE_TABS.map((tab) => <button key={tab.id} id={`settings-plugin-tab-${tab.id}`} type="button" role="tab" tabIndex={pluginWorkspaceTab === tab.id ? 0 : -1} aria-selected={pluginWorkspaceTab === tab.id} aria-controls="settings-plugin-panel" className={pluginWorkspaceTab === tab.id ? "is-active" : ""} onClick={() => {
+            const nextSection: SectionId = tab.id === "mcp" ? "connections" : "plugins";
+            if (activeSection !== nextSection) selectSection(nextSection);
+            if (tab.id === "knowledge") setKnowledgeLibraryOpened(true);
+            setPluginWorkspaceTab(tab.id);
+          }}>{tab.label}{tab.id === "mcp" && settings.plugins.mcpServers.length ? <span className="settings-plugin-workspace__tab-count">{settings.plugins.mcpServers.length}</span> : null}</button>)}
+        </nav>
+      </div>
+      {pluginWorkspaceTab === "catalog" ? <div className="settings-plugin-workspace__header-card settings-plugin-workspace__header-card--catalog" aria-labelledby="settings-extension-catalog-title">
+        <Alert className="settings-inline-alert" type="info" showIcon message="能力安装与运行状态由各自 Owner 提供；此目录展示账户级扩展与连接适配状态。Minecraft 插件和模组仍由 Minecraft Owner 管理。" />
+        <h3 id="settings-extension-catalog-title">能力目录</h3>
+      </div> : null}
+    </div>
+  );
+
   const sectionContent = (() => {
     if (activeSection === "profile") return (
       <section className="settings-content">
@@ -2181,16 +2243,16 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
     if (activeSection === "wallpaperEngine") return (
       <DshSlotOutlet name="settings.section" fallback={(
-        <section className="settings-content">
+        <section className="settings-content settings-wallpaper-engine">
           <header className="settings-content__heading"><div><span className="settings-eyebrow">扩展设置</span><Typography.Title level={2}>壁纸引擎</Typography.Title><Typography.Paragraph>这里显示由 DSH 插件提供的原生设置界面。</Typography.Paragraph></div></header>
-          <Alert
-            className="settings-inline-alert"
-            type="warning"
-            showIcon
-            message="壁纸插件界面尚未加载"
-            description="当前没有 DSH Client 内容提供此设置页。请检查当前 Profile 中插件是否已安装并启用；若插件状态正常，再排查 Client Runtime 或插件入口的加载错误。"
-          />
-          <div className="settings-actions"><Button type="primary" onClick={() => onNavigate("/plugin-manager")}>查看插件状态</Button></div>
+          <div className="settings-wallpaper-engine__fallback" role="group" aria-labelledby="settings-wallpaper-engine-fallback-title">
+            <span className="settings-wallpaper-engine__icon"><WorkbenchIcon name="extension" size={20} /></span>
+            <div className="settings-wallpaper-engine__copy">
+              <strong id="settings-wallpaper-engine-fallback-title">壁纸插件设置页尚未加载</strong>
+              <p>当前没有 DSH Client 内容提供此设置页。请确认 Profile 插件已安装并启用；若插件状态正常，再检查 Client Runtime 或插件入口的加载错误。</p>
+            </div>
+            <Button type="primary" onClick={() => onNavigate("/plugin-manager")}>查看 Profile 插件</Button>
+          </div>
         </section>
       )} />
     );
@@ -2612,86 +2674,58 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     );
 
     if (activeSection === "plugins" || activeSection === "connections") return (
-      <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">{activeSection === "connections" ? "外部服务" : "账户 AI 扩展"}</span><Typography.Title level={2}>{activeSection === "connections" ? "MCP 连接" : "AI 扩展与 MCP"}</Typography.Title><Typography.Paragraph>{activeSection === "connections" ? "配置 MCP 服务与应用范围；设置保存仍归账户设置 Owner。" : "集中管理 AI 扩展开关、能力目录、MCP 连接和运行诊断。 Profile 插件安装与生命周期也在此插件工作区统一管理。"}</Typography.Paragraph></div></header>
-        <nav className="settings-plugin-workspace__tabs" role="tablist" aria-label="扩展与连接分区" onKeyDown={(event) => {
-          const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=tab]"));
-          const currentIndex = tabs.indexOf(event.target as HTMLButtonElement);
-          const nextIndex = event.key === "ArrowRight" ? (currentIndex + 1) % tabs.length
-            : event.key === "ArrowLeft" ? (currentIndex - 1 + tabs.length) % tabs.length
-              : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
-          if (currentIndex >= 0 && nextIndex >= 0) {
-            event.preventDefault();
-            tabs[nextIndex]?.focus();
-            tabs[nextIndex]?.click();
-          }
-        }}>
-          {PLUGIN_WORKSPACE_TABS.map((tab) => <button key={tab.id} id={`settings-plugin-tab-${tab.id}`} type="button" role="tab" tabIndex={pluginWorkspaceTab === tab.id ? 0 : -1} aria-selected={pluginWorkspaceTab === tab.id} aria-controls="settings-plugin-panel" className={pluginWorkspaceTab === tab.id ? "is-active" : ""} onClick={() => {
-            const nextSection: SectionId = tab.id === "mcp" ? "connections" : "plugins";
-            if (activeSection !== nextSection) selectSection(nextSection);
-            if (tab.id === "knowledge") setKnowledgeLibraryOpened(true);
-            setPluginWorkspaceTab(tab.id);
-          }}>{tab.label}{tab.id === "mcp" && settings.plugins.mcpServers.length ? <span className="settings-plugin-workspace__tab-count">{settings.plugins.mcpServers.length}</span> : null}</button>)}
-        </nav>
-        <div id="settings-plugin-panel" className="settings-plugin-workspace__panel" role="tabpanel" aria-labelledby={`settings-plugin-tab-${pluginWorkspaceTab}`}>
+      <section className={`settings-content settings-content--plugin-workspace${standaloneWorkspaceContent ? " settings-content--plugin-workspace-standalone" : ""}`}>
+        {standaloneWorkspaceContent ? null : pluginWorkspaceHeader}
+        <div id="settings-plugin-panel" ref={standaloneWorkspaceContent ? settingsContentScroll.ref : undefined} onScroll={standaloneWorkspaceContent ? settingsContentScroll.onScroll : undefined} className={`settings-plugin-workspace__panel${standaloneWorkspaceContent ? " settings-plugin-workspace__panel--standalone" : ""}`} role="tabpanel" aria-labelledby={pluginWorkspacePanelLabelledBy}>
         {pluginWorkspaceTab === "overview" ? <>
           <div className="settings-plugin-workspace__overview" aria-label="扩展能力概况">
-            <article className="settings-plugin-workspace__overview-card"><span>已登记能力</span><strong>{extensions.length}</strong><small>来自当前运行时目录</small></article>
-            <article className="settings-plugin-workspace__overview-card"><span>MCP 服务</span><strong>{settings.plugins.mcpServers.length}</strong><small>{settings.plugins.mcpServers.filter((server) => server.enabled).length} 个配置为启用</small></article>
-            <article className="settings-plugin-workspace__overview-card"><span>运行模块</span><strong>{activeRuntimePluginCount}<i> / {runtimePlugins.length}</i></strong><small>{runtimePluginHostReady ? "宿主核心状态正常" : "需要检查宿主状态"}</small></article>
+            <article className="settings-plugin-workspace__overview-card">
+              <div className="settings-plugin-workspace__overview-card-heading"><span>已登记能力</span><span className="settings-plugin-workspace__overview-icon"><WorkbenchIcon name="spark" size={18} /></span></div>
+              <strong>{extensions.length}<i>项</i></strong>
+              <small>来自当前运行时目录</small>
+            </article>
+            <article className="settings-plugin-workspace__overview-card">
+              <div className="settings-plugin-workspace__overview-card-heading"><span>MCP 服务</span><span className="settings-plugin-workspace__overview-icon"><WorkbenchIcon name="browser" size={18} /></span></div>
+              <strong>{settings.plugins.mcpServers.length}<i>项</i></strong>
+              <small>{settings.plugins.mcpServers.filter((server) => server.enabled).length} 个配置为启用</small>
+            </article>
+            <article className={`settings-plugin-workspace__overview-card${runtimePluginHostReady ? " is-ready" : " is-attention"}`}>
+              <div className="settings-plugin-workspace__overview-card-heading"><span>运行模块</span><span className="settings-plugin-workspace__overview-icon"><WorkbenchIcon name="tools" size={18} /></span></div>
+              <strong>{activeRuntimePluginCount}<i> / {runtimePlugins.length}</i></strong>
+              <small>{runtimePluginHostReady ? "宿主核心状态正常" : "需要检查宿主状态"}</small>
+            </article>
           </div>
-          <SettingGroup title="运行策略">
-            <SettingRow title="允许 小鱼智能体 使用扩展" description="关闭后，登记的 Skills、Experts、Prompts、Tools 和 MCP 服务不会加入运行时。MCP 工具仍只提供给各自选择的应用。">
-              <SettingsSwitch label="启用扩展" checked={settings.plugins.enabled} onChange={() => updateSettings("plugins", { ...settings.plugins, enabled: !settings.plugins.enabled })} />
-            </SettingRow>
-            <SettingRow title="本机 Skill 目录" description="每行一个绝对目录，最多 16 个。模型可发现其中的 SKILL.md 并按需加载；远程控制端不会把这些路径当成服务器读取授权。">
-              <Input.TextArea aria-label="本机 Skill 目录" autoSize={{ minRows: 2, maxRows: 6 }} value={skillDirectoriesDraft ?? (settings.plugins.skillDirectories ?? []).join("\n")} onChange={event => setSkillDirectoriesDraft(event.target.value)} onBlur={event => { updateSettings("plugins", { ...settings.plugins, skillDirectories: event.target.value.split(/\r?\n/u).map(path => path.trim()).filter(Boolean) }); setSkillDirectoriesDraft(null); }} />
-            </SettingRow>
-          </SettingGroup>
-          <div className="settings-note-card"><strong>状态口径</strong><p>登记、安装、启用和运行分别来自对应目录与 Runtime；MCP“启用”只表示已保存的连接配置，不代表服务当前在线。</p></div>
+          <div className="settings-plugin-workspace__settings-grid">
+            <section className="settings-plugin-workspace__setting-card settings-plugin-workspace__setting-card--switch" aria-labelledby="settings-plugin-policy-title">
+              <div className="settings-plugin-workspace__setting-heading">
+                <span className="settings-plugin-workspace__setting-icon"><WorkbenchIcon name="spark" size={18} /></span>
+                <div><h3 id="settings-plugin-policy-title">运行策略</h3><p>控制账户扩展是否加入小鱼智能体的运行时。</p></div>
+              </div>
+              <div className="settings-plugin-workspace__switch-row">
+                <span><strong>允许小鱼智能体使用扩展</strong><small>关闭后，Skills、Experts、Prompts、Tools 与 MCP 服务不会加入运行时；MCP 工具仍只提供给所选应用。</small></span>
+                <SettingsSwitch label="启用扩展" checked={settings.plugins.enabled} onChange={() => updateSettings("plugins", { ...settings.plugins, enabled: !settings.plugins.enabled })} />
+              </div>
+            </section>
+            <section className="settings-plugin-workspace__setting-card settings-plugin-workspace__setting-card--skills" aria-labelledby="settings-plugin-skills-title">
+              <div className="settings-plugin-workspace__setting-heading">
+                <span className="settings-plugin-workspace__setting-icon"><WorkbenchIcon name="book" size={18} /></span>
+                <div><h3 id="settings-plugin-skills-title">本机 Skill 目录</h3><p>模型可发现其中的 SKILL.md 并按需加载。</p></div>
+              </div>
+              <Input.TextArea className="settings-plugin-workspace__skill-input" aria-label="本机 Skill 目录" autoSize={{ minRows: 2, maxRows: 6 }} value={skillDirectoriesDraft ?? (settings.plugins.skillDirectories ?? []).join("\n")} onChange={event => setSkillDirectoriesDraft(event.target.value)} onBlur={event => { updateSettings("plugins", { ...settings.plugins, skillDirectories: event.target.value.split(/\r?\n/u).map(path => path.trim()).filter(Boolean) }); setSkillDirectoriesDraft(null); }} />
+              <small className="settings-plugin-workspace__setting-hint">每行一个绝对目录，最多 16 个。远程控制端不会把这些路径当成服务器读取授权。</small>
+            </section>
+          </div>
+          <div className="settings-note-card settings-plugin-workspace__status-note"><strong>状态说明</strong><p>登记、安装、启用和运行分别来自对应目录与 Runtime；MCP“启用”只表示已保存的连接配置，不代表服务当前在线。</p></div>
         </> : null}
         {knowledgeLibraryOpened ? <div hidden={pluginWorkspaceTab !== "knowledge"}><KnowledgeLibraryPanel extensionsEnabled={settings.plugins.enabled} /></div> : null}
-        {pluginWorkspaceTab === "catalog" ? <>
-        <Alert className="settings-inline-alert" type="info" showIcon message="能力安装与运行状态由各自 Owner 提供；此目录展示账户级扩展与连接适配状态。Minecraft 插件和模组仍由 Minecraft Owner 管理。" />
-        <SettingGroup title="能力安装接入状态">
-          {visibleCapabilityInstallCatalog.length ? visibleCapabilityInstallCatalog.map((capability) => {
-            const kindLabels: Record<CapabilityInstallCatalogEntry["kind"], string> = { plugin: "第三方插件", skill: "Skills", prompt: "提示词", tool: "Tools", mcp: "MCP 服务", "minecraft-plugin": "Minecraft 插件", "minecraft-mod": "Minecraft 模组" };
-            const applicationLabels: Record<string, string> = { workspace: "通用工作台", steamcmd: "SteamCMD", minecraft: "Minecraft", connectivity: "联机服务", writing: "写作", aivideo: "AI 漫剧" };
-            const operationLabels: Record<string, string> = { search: "搜索", inspect: "检查", install: "安装", list: "清单", enable: "启用", disable: "停用", remove: "移除" };
-            const detail = capability.available
-              ? ["支持 App：", capability.applicationIds.map((id) => applicationLabels[id] ?? id).join("、"), "；操作：", capability.operations.map((operation) => operationLabels[operation] ?? operation).join("、")].join("")
-              : capability.reason ?? "领域 Owner 适配器尚未接入。";
-            return <SettingRow key={capability.kind} title={kindLabels[capability.kind]} description={detail} status={capability.available ? "安装路由已接入" : "安装路由待接入"}>
-              <Tag color={capability.available ? "green" : "default"}>{capability.available ? "可由 AI 路由" : "自然语言安装尚不可用"}</Tag>
-            </SettingRow>;
-          }) : <SettingRow title="没有其它能力安装适配器" description="当前没有其它可用的能力安装适配器。" status="未登记"><Tag>0 项</Tag></SettingRow>}
-        </SettingGroup>
-        <SettingGroup title="已安装的 AI 提示词">
-          {settings.plugins.prompts.length ? settings.plugins.prompts.map((prompt) => {
-            const applicationLabel = prompt.applicationId === "workspace" ? "通用工作台" : prompt.applicationId === "steamcmd" ? "SteamCMD" : prompt.applicationId === "minecraft" ? "Minecraft" : prompt.applicationId === "connectivity" ? "联机服务" : prompt.applicationId === "aivideo" ? "AI 漫剧" : "写作";
-            const status = !prompt.enabled ? "已停用" : settings.plugins.enabled ? "可由 AI 按需加载" : "AI 扩展总开关关闭";
-            return <SettingRow key={`${prompt.applicationId}:${prompt.id}`} title={prompt.name} description={`${applicationLabel} · ${prompt.description || "第三方提示词"} · ${prompt.sourceRepository}/${prompt.sourcePath} · ${prompt.commit.slice(0, 12)} · 内容 SHA-256 ${prompt.contentSha256.slice(0, 12)}`} status={status}>
-              <Tag color={prompt.enabled && settings.plugins.enabled ? "green" : "default"}>{prompt.enabled ? "已登记" : "已停用"}</Tag>
-            </SettingRow>;
-          }) : <SettingRow title="没有已安装提示词" description="你可以在 小鱼智能体 中让模型检查来源并按当前权限模式安装；提示词会绑定到指定账户和目标 App。" status="空清单"><Tag>0 项</Tag></SettingRow>}
-        </SettingGroup>
-        </> : null}
-        {pluginWorkspaceTab === "catalog" ? <SettingGroup title="能力目录">
+        {pluginWorkspaceTab === "catalog" ? <div className="settings-extension-catalog-page">
+        <section className="settings-group settings-extension-catalog-group" aria-label="能力目录">
+          <div className="settings-group__rows">
           {extensions.length ? <div className="settings-extension-catalog">
             <div className="settings-extension-catalog__toolbar">
-              <div className="settings-extension-catalog__filters" role="group" aria-label="按能力类型筛选">
-                <button type="button" className={`settings-extension-catalog__filter${extensionKindFilter === "all" ? " is-active" : ""}`} aria-pressed={extensionKindFilter === "all"} onClick={() => setExtensionKindFilter("all")}>
-                  <span>全部</span><span className="settings-extension-catalog__filter-count">{extensions.length}</span>
-                </button>
-                {EXTENSION_CATEGORIES.map((category) => (
-                  <button key={category.kind} type="button" className={`settings-extension-catalog__filter${extensionKindFilter === category.kind ? " is-active" : ""}`} aria-label={`${category.label}，${extensionKindCounts.get(category.kind) ?? 0} 项`} aria-pressed={extensionKindFilter === category.kind} onClick={() => setExtensionKindFilter(category.kind)}>
-                    <span>{category.label}</span><span className="settings-extension-catalog__filter-count">{extensionKindCounts.get(category.kind) ?? 0}</span>
-                  </button>
-                ))}
-              </div>
               <Input className="settings-extension-catalog__search" aria-label="搜索能力目录" placeholder="搜索能力名称、说明或来源" prefix={<WorkbenchIcon name="search" size={16} />} allowClear value={extensionSearch} onChange={(event) => setExtensionSearch(event.target.value)} />
             </div>
-            <div className="settings-extension-catalog__result-count" role="status" aria-live="polite">显示 {visibleExtensionCount} / {extensions.length} 项</div>
+            <div className="settings-extension-catalog__result-count" role="status" aria-live="polite">显示 {visibleExtensionCount} / {extensionKindTotalCount} 项</div>
             {extensionCatalogGroups.length ? <div className="settings-extension-catalog__groups">
               {extensionCatalogGroups.map((group) => (
                 <section key={group.kind} className="settings-extension-catalog__category" aria-labelledby={`settings-extension-category-${group.kind}`}>
@@ -2705,14 +2739,14 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                   <div className="settings-extension-catalog__list">
                     {group.items.map((extension) => (
                       <article key={extension.id} className="settings-extension-catalog__entry">
-                        <span className="settings-extension-catalog__entry-icon"><WorkbenchIcon name={group.icon} size={21} /></span>
-                        <div className="settings-extension-catalog__entry-copy">
+                        <div className="settings-extension-catalog__entry-heading">
+                          <span className="settings-extension-catalog__entry-icon"><WorkbenchIcon name={group.icon} size={19} /></span>
                           <strong>{extension.name}</strong>
-                          <span>{extension.description || "暂无说明。"}</span>
+                          <span className="settings-extension-catalog__entry-version">v{extension.version}</span>
                         </div>
+                        <p className="settings-extension-catalog__entry-description">{extension.description || "暂无说明。"}</p>
                         <div className="settings-extension-catalog__entry-meta">
-                          <span>v{extension.version}</span>
-                          <span title={`来源：${extension.pluginId}`}>{extension.pluginId}</span>
+                          <span className="settings-extension-catalog__entry-source" title={`来源：${extension.pluginId}`}><span>来源</span>{extension.pluginId}</span>
                         </div>
                       </article>
                     ))}
@@ -2720,17 +2754,50 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                 </section>
               ))}
             </div> : <div className="settings-extension-catalog__empty" role="status">
-              <strong>{extensionKindFilter === "all" ? "没有找到匹配的能力" : `没有找到匹配的${EXTENSION_CATEGORIES.find((category) => category.kind === extensionKindFilter)?.label ?? ""}能力`}</strong>
-              <span>试试其他关键词或类型。</span>
-              <Button type="link" onClick={() => { setExtensionSearch(""); setExtensionKindFilter("all"); }}>清除筛选</Button>
+              <strong>{extensionKindTotalCount === 0 ? `当前没有登记的${extensionKindFilter === "all" ? "扩展" : `${EXTENSION_CATEGORIES.find((category) => category.kind === extensionKindFilter)?.label ?? ""}`}能力` : `没有找到匹配的${extensionKindFilter === "all" ? "能力" : `${EXTENSION_CATEGORIES.find((category) => category.kind === extensionKindFilter)?.label ?? ""}能力`}`}</strong>
+              <span>{extensionSearch.trim() ? "试试其他关键词。" : "该类别暂时没有可展示的内容。"}</span>
+              {extensionSearch.trim() ? <Button type="link" onClick={() => setExtensionSearch("")}>清除搜索</Button> : null}
             </div>}
           </div> : <SettingRow title="暂无扩展登记" description="Cordis 插件加载后，Agent、领域专家、提示词、技能和工具会显示在此。" status="空目录"><Tag>0 项</Tag></SettingRow>}
-        </SettingGroup> : null}
+          </div>
+        </section>
+        <SettingGroup title="能力安装接入状态">
+          {visibleCapabilityInstallCatalog.length ? <div className="settings-capability-route-grid">
+            {visibleCapabilityInstallCatalog.map((capability) => {
+              const kindLabels: Record<CapabilityInstallCatalogEntry["kind"], string> = { plugin: "第三方插件", skill: "Skills", prompt: "提示词", tool: "Tools", mcp: "MCP 服务", "minecraft-plugin": "Minecraft 插件", "minecraft-mod": "Minecraft 模组" };
+              const applicationLabels: Record<string, string> = { workspace: "通用工作台", steamcmd: "SteamCMD", minecraft: "Minecraft", connectivity: "联机服务", writing: "写作", aivideo: "AI 漫剧" };
+              const operationLabels: Record<string, string> = { search: "搜索", inspect: "检查", install: "安装", list: "清单", enable: "启用", disable: "停用", remove: "移除" };
+              const applicationSummary = capability.applicationIds.map((id) => applicationLabels[id] ?? id).join("、");
+              const operationSummary = capability.operations.map((operation) => operationLabels[operation] ?? operation).join("、");
+              return <article key={capability.kind} className="settings-capability-route-card">
+                <header className="settings-capability-route-card__heading">
+                  <strong>{kindLabels[capability.kind]}</strong>
+                  <Tag color={capability.available ? "green" : "default"}>{capability.available ? "可由 AI 路由" : "自然语言安装尚不可用"}</Tag>
+                </header>
+                {capability.available ? <div className="settings-capability-route-card__details">
+                  <div><small>支持 App</small><p>{applicationSummary}</p></div>
+                  <div><small>可用操作</small><p>{operationSummary}</p></div>
+                </div> : <p className="settings-capability-route-card__reason">{capability.reason ?? "领域 Owner 适配器尚未接入。"}</p>}
+                <footer>{capability.available ? "安装路由已接入" : "安装路由待接入"}</footer>
+              </article>;
+            })}
+          </div> : <SettingRow title="没有其它能力安装适配器" description="当前没有其它可用的能力安装适配器。" status="未登记"><Tag>0 项</Tag></SettingRow>}
+        </SettingGroup>
+        <SettingGroup title="已安装的 AI 提示词">
+          {settings.plugins.prompts.length ? settings.plugins.prompts.map((prompt) => {
+            const applicationLabel = prompt.applicationId === "workspace" ? "通用工作台" : prompt.applicationId === "steamcmd" ? "SteamCMD" : prompt.applicationId === "minecraft" ? "Minecraft" : prompt.applicationId === "connectivity" ? "联机服务" : prompt.applicationId === "aivideo" ? "AI 漫剧" : "写作";
+            const status = !prompt.enabled ? "已停用" : settings.plugins.enabled ? "可由 AI 按需加载" : "AI 扩展总开关关闭";
+            return <SettingRow key={`${prompt.applicationId}:${prompt.id}`} title={prompt.name} description={`${applicationLabel} · ${prompt.description || "第三方提示词"} · ${prompt.sourceRepository}/${prompt.sourcePath} · ${prompt.commit.slice(0, 12)} · 内容 SHA-256 ${prompt.contentSha256.slice(0, 12)}`} status={status}>
+              <Tag color={prompt.enabled && settings.plugins.enabled ? "green" : "default"}>{prompt.enabled ? "已登记" : "已停用"}</Tag>
+            </SettingRow>;
+          }) : <SettingRow title="没有已安装提示词" description="你可以在 小鱼智能体 中让模型检查来源并按当前权限模式安装；提示词会绑定到指定账户和目标 App。" status="空清单"><Tag>0 项</Tag></SettingRow>}
+        </SettingGroup>
+        </div> : null}
         {pluginWorkspaceTab === "diagnostics" ? <>
         <SettingGroup title="Cordis 模块管理">
           <SettingRow title="当前运行组合" description={`已运行 ${activeRuntimePluginCount}/${runtimePlugins.length} 个模块；核心依赖 ${runtimePluginHostReady ? "正常" : "未就绪"}。管理员操作立即生效，并保存为此控制端的全局配置。`} status={runtimePluginHostReady ? "核心模块正常" : "需要检查"}><Tag color={runtimePluginHostReady ? "green" : "orange"}>{canAdmin ? "管理员可管理可选模块" : "只读"}</Tag></SettingRow>
           <SettingRow title="源码热重载" description={hotReloadEnabled ? "开发环境源码监听器正在运行；修改 packages/ 内的受信任模块后由 Cordis 自动热替换，进行中的任务仍保留启动时使用的模块版本。" : "当前没有活动的源码监听器。正式运行环境不监听源码；启用开发环境 HMR 模块后才会自动热替换代码。"} status={hotReloadEnabled ? "自动热重载可用" : "未监听源码"}><Tag color={hotReloadEnabled ? "green" : "default"}>{hotReloadEnabled ? "免重启代码热替换" : "不可用"}</Tag></SettingRow>
-          <Alert className="settings-inline-alert" type="warning" showIcon message="停止可选模块会立即撤销其服务和资源；依赖模块或正在执行的相关请求可能受影响。‘重建实例’会重新运行模块，但不会替换已缓存的源码。第三方源码快照在下方单独登记；DSH Host/Client 基础运行时已接入，插件 UI 仍须映射到 LFAA 的设置与工作台 Owner 并通过实际运行验收后才可用。" />
+          <Alert className="settings-inline-alert" type="warning" showIcon message="停止可选模块会立即撤销其服务与资源，并可能影响依赖功能或正在执行的请求。重建实例只重新运行当前已加载的模块，不替换已缓存源码。第三方源码快照单独登记；插件 UI 完成 LFAA Owner 映射与实页验收前保持不可用。" />
           {runtimePluginGroups.map((group) => {
             const expanded = expandedRuntimePluginGroups.has(group.id);
             const groupActiveCount = group.plugins.filter((plugin) => plugin.enabled && plugin.state === "ACTIVE").length;
@@ -2770,7 +2837,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         </SettingGroup>
         </> : null}
         {pluginWorkspaceTab === "mcp" ? <>
-          <SettingGroup title="MCP 服务配置">
+          <div className="settings-plugin-workspace__mcp-config"><SettingGroup title="MCP 服务配置">
+            {settings.plugins.mcpServers.length === 0 ? <div className="settings-plugin-workspace__empty-state" role="status"><span className="settings-plugin-workspace__empty-icon"><WorkbenchIcon name="browser" size={21} /></span><strong>尚未配置 MCP 服务</strong><span>添加一个已运行的 HTTP 服务，或配置允许在本机启动的 stdio 服务。</span></div> : null}
             {settings.plugins.mcpServers.map((server, index) => {
               const commit = (next: typeof server) => updateSettings("plugins", { ...settings.plugins, mcpServers: settings.plugins.mcpServers.map((item, position) => position === index ? next : item) });
               const change = (patch: Partial<typeof server>) => commit({ ...server, ...patch } as typeof server);
@@ -2800,8 +2868,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                 </Space>
               </SettingRow>;
             })}
-            <Button disabled={settings.plugins.mcpServers.length >= 16} onClick={() => updateSettings("plugins", { ...settings.plugins, mcpServers: [...settings.plugins.mcpServers, { id: `m${crypto.randomUUID().slice(0, 12)}`, name: "", transport: "streamable-http", url: "", enabled: false, applicationIds: ["workspace"] }] })}>添加 MCP 服务</Button>
-          </SettingGroup>
+            <Button type="primary" disabled={settings.plugins.mcpServers.length >= 16} onClick={() => updateSettings("plugins", { ...settings.plugins, mcpServers: [...settings.plugins.mcpServers, { id: `m${crypto.randomUUID().slice(0, 12)}`, name: "", transport: "streamable-http", url: "", enabled: false, applicationIds: ["workspace"] }] })}>添加 MCP 服务</Button>
+          </SettingGroup></div>
           <div className="settings-note-card"><strong>运行安全边界</strong><p>扩展工具必须提供真实执行实现；MCP 服务由你配置和运行，其工具沿用项目权限模式，模型不能自行添加连接。stdio 命令只允许在本机桌面、开发或本机 CLI 控制端运行，使用独立可执行文件和参数，不经 Shell；远程生产控制端不会代替你的电脑启动。标为 Computer-Use 的服务还受“电脑操控”账户开关限制。外部服务说明只是能力参考，不能改变用户目标或权限。</p></div>
         </> : null}
         </div>
@@ -3216,7 +3284,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       {messageContext}
       {permissionModalContext}
       {standalonePluginWorkspace ? <div ref={rootRef} className="settings-plugin-standalone">
-        <main ref={settingsContentScroll.ref} className="settings-plugin-standalone__content" onScroll={settingsContentScroll.onScroll}>
+        <main ref={standaloneWorkspaceContent ? undefined : settingsContentScroll.ref} className={`settings-plugin-standalone__content${standaloneWorkspaceContent ? " settings-plugin-standalone__content--workspace" : ""}`} onScroll={standaloneWorkspaceContent ? undefined : settingsContentScroll.onScroll}>
           {activeError ? <Alert className="settings-page-alert" type="error" showIcon message={activeError} closable onClose={() => { setError(""); setSectionErrors((current) => ({ ...current, [activeSection]: undefined })); }} /> : null}
           {loadingSection === activeSection ? <div className="settings-loading"><span className="loading-indicator" /><span>正在读取插件配置…</span></div> : sectionContent}
         </main>

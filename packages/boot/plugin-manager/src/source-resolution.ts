@@ -2,19 +2,20 @@
 import { createHash } from "node:crypto";
 import { constants, closeSync, fstatSync, lstatSync, openSync, readdirSync, realpathSync, readSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { downloadGithubSnapshot, type GitHubRepository, type GitHubSnapshot } from "./github-source.js";
-import { downloadCompatibleRegistryPluginPackage, downloadRegistryPluginPackage } from "./npm-source.js";
+import { downloadCompatibleRegistryPluginPackage, downloadRegistryPluginPackage, normalizeNpmRegistryUrl } from "./npm-source.js";
 import { PLUGIN_ARCHIVE_LIMITS, readNpmTarGzip } from "./npm-archive.js";
 import type { PluginArchiveFile } from "./zip-archive.js";
 import { packageContentFilter } from "./package-content.js";
 
 export type PluginSourceType = "github" | "npm" | "local";
-export interface PluginSourceSnapshot extends GitHubSnapshot { sourceType: PluginSourceType; sourceLocation: string }
+export interface PluginSourceSnapshot extends GitHubSnapshot { sourceType: PluginSourceType; sourceLocation: string; registryUrl?: string }
 
 interface LocalManifest { name?: unknown; version?: unknown; description?: unknown; license?: unknown }
 
 /** Resolve one user source to an immutable Git commit, registry artifact, or local content digest. */
-export async function resolvePluginSource(sourceValue: string, requestedRef?: string): Promise<PluginSourceSnapshot> {
+export async function resolvePluginSource(sourceValue: string, requestedRef?: string, npmRegistry?: string): Promise<PluginSourceSnapshot> {
   const source = sourceValue.trim();
   if (!source || source.length > 2048 || /[\r\n\0]/u.test(source)) throw new Error("插件来源为空或格式无效。");
   if (/^https:\/\//iu.test(source)) {
@@ -24,17 +25,21 @@ export async function resolvePluginSource(sourceValue: string, requestedRef?: st
   if (/^(?:local|file|link):/u.test(source) || isAbsolute(source)) return resolveLocalSource(source);
 
   const spec = parseNpmSpec(source, requestedRef);
-  const artifact = /[~^*<>=| ]/u.test(spec.version) ? await downloadCompatibleRegistryPluginPackage(spec.name, spec.version) : await downloadRegistryPluginPackage(spec.name, spec.version);
+  const registryUrl = normalizeNpmRegistryUrl(npmRegistry);
+  const artifact = /[~^*<>=| ]/u.test(spec.version)
+    ? await downloadCompatibleRegistryPluginPackage(spec.name, spec.version, registryUrl)
+    : await downloadRegistryPluginPackage(spec.name, spec.version, registryUrl);
   const sourceLocation = `npm:${spec.name}`;
   const repository: GitHubRepository = {
     owner: "npm", name: spec.name, fullName: spec.name, description: artifact.description,
     stars: 0, license: artifact.license, defaultBranch: artifact.version,
-    url: `https://registry.npmjs.org/${encodeURIComponent(spec.name)}`
+    url: new URL(encodeURIComponent(spec.name), registryUrl).href
   };
   return {
     repository,
     sourceType: "npm",
     sourceLocation,
+    registryUrl,
     requestedRef: spec.version,
     commit: `npm:${spec.name}@${artifact.version}:${artifact.archiveSha256}`,
     archiveSha256: artifact.archiveSha256,
@@ -53,7 +58,11 @@ function parseNpmSpec(source: string, requestedRef?: string): { name: string; ve
 }
 
 function resolveLocalSource(source: string): PluginSourceSnapshot {
-  const suppliedPath = source.replace(/^(?:local|file|link):/u, "");
+  let suppliedPath: string;
+  if (/^file:\/\//iu.test(source)) {
+    try { suppliedPath = fileURLToPath(source); }
+    catch { throw new Error("file: 插件来源必须是有效的本机文件 URL。"); }
+  } else suppliedPath = source.replace(/^(?:local|file|link):/iu, "");
   if (!isAbsolute(suppliedPath)) throw new Error("本地插件来源必须是 LFAA Host 上的绝对路径。");
   const selected = resolve(suppliedPath);
   const selectedInfo = lstatSync(selected);

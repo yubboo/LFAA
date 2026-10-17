@@ -1,8 +1,12 @@
 # LFAA 插件管理页
 
-本包实现独立插件工作区：Profile 插件分区查看安装清单、检查 NPM/GitHub/Host 绝对路径来源；启用和停用按钮直接调用受认证的生命周期 API，安装和卸载直接调用受认证的管理 API；AI 扩展与运行时分区承载账户扩展开关、Skill 目录、能力目录、资料库、MCP 配置及 Cordis 模块启停/重建诊断；壁纸引擎插件分区承接 DSH Slot 原生设置。页面由 Workbench 在 `/plugin-manager` 路由按需装载；保留 DSH Host 的 `/plugins` 静态资源前缀。
+本包实现独立插件工作区：Profile 插件清单与 AI 扩展工作区共用一排主标签（全部、插件、应用、工具、技能、提示词、MCP 连接、我的知识库、运行诊断、领域专家）；这些标签映射到 `ui-settings` 中真实登记的扩展类别与现有 Owner 页面，不再重复显示内层分类筛选。Profile 清单按真实安装数据展示插件，可搜索名称/描述/来源并按启用状态筛选，空清单时展示真实的 GitHub、NPM、Host 来源入口，不展示虚构的公共商店条目；应用总览、资料库、MCP 配置及 Cordis 模块启停/重建诊断继续复用原 Owner。启用和停用直接调用受认证的生命周期 API，安装和卸载直接调用受认证的管理 API。壁纸引擎设置标签只在 Profile 清单包含固定 Wallpaper Engine 身份记录时显示（稳定记录 ID、包名与 `dsh-v1` 兼容类型需匹配 Runtime 合同）；卸载并刷新清单后，标签和设置面板一起消失。该分区承接 DSH Slot 原生设置，DSH Client 内容未提供壁纸设置页时，由 `ui-settings` 展示真实不可用状态卡，按钮返回插件清单。页面由 Workbench 在 `/plugin-manager` 路由按需装载；保留 DSH Host 的 `/plugins` 静态资源前缀。
 
-插件来源解析、不可变版本、安装事务、真实 Runtime 状态和删除由 `packages/boot/plugin-manager` 持有；启停按钮调用 `packages/api/plugin-controller` 的受认证生命周期 API，由 Permission Owner 将当前明确点击作为单次用户授权并复核管理员身份、目标 App 和固定来源版本，再调用同一 Plugin Manager Owner 并返回真实 Runtime 状态。自然语言启停继续由现有 Agent Loop/Core Tools 按当前 `permissions.mode` 执行；安装和卸载按钮直接调用同一 Owner；安装绑定检查所得固定内容版本，卸载说明包含插件私有数据清理。插件文件位于 `LFAA_DATA_DIR` 派生的 Profile 路径。账户设置 `plugins.enabled` 只控制 AI 扩展，不改变 Profile 插件。
+插件来源解析、不可变版本、安装事务、真实 Runtime 状态和删除由 `packages/boot/plugin-manager` 持有；启停按钮调用 `packages/api/plugin-controller` 的受认证生命周期 API，由 Permission Owner 将当前明确点击作为单次用户授权并复核管理员身份、目标 App 和固定来源版本，再调用同一 Plugin Manager Owner 并返回真实 Runtime 状态。自然语言启停继续由现有 Agent Loop/Core Tools 按当前 `permissions.mode` 执行；安装和卸载按钮直接调用受认证 Owner API；手动安装后显示“立即启用”，单独调用生命周期 API。安装绑定检查所得固定内容版本，卸载说明包含插件私有数据清理。插件文件位于 `LFAA_DATA_DIR` 派生的 Profile 路径。账户设置 `plugins.enabled` 只控制 AI 扩展，不改变 Profile 插件。
+
+“添加插件”使用居中、短屏可滚动的 Modal。单一输入自动识别 NPM 包名/版本、GitHub HTTPS 地址与 Host 绝对路径；管理员可为 NPM 检查选择中国大陆镜像、官方源或单次自定义 HTTP(S) registry。检查结果回传解析后的 registry，安装重新读取来源时必须匹配同一 registry、来源类型/位置和固定摘要。自定义 registry 不保存到设置、Profile、`.npmrc` 或日志，不支持需认证源。Modal 展示 `dsh-plugin-whale-pet` 示例和插件信任提醒。
+
+安装阶段经 `application/x-ndjson` 消费 Plugin Manager 实际回报：读取来源、固定版本/完整性核验、兼容性检查、安全写入暂存区、原子保存 Profile 清单和最终状态。摘要包含真实文件数、体积与 SHA-256；失败/不兼容保持失败或隔离，不呈现伪造的 pnpm 输出、安装百分比或“已启用”。“立即启用”只有检查结果和安装清单均确认存在兼容 Runtime 时才可用，且成功状态来自真实 Runtime 回读。NPM tarball 保持 SHA-512 SRI 和同 registry origin 校验；安装器不执行包生命周期脚本。
 
 Host 本机来源输入指运行 LFAA 的 Host 绝对路径，不是浏览器/设备路径。当前只有明确适配的 Runtime 才能启停；无法运行的 DSH Bundle 以真实不兼容状态展示，不会导入控制端或 Client 主 Realm。来源脚本只作声明展示，不由本包执行。
 

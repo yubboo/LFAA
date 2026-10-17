@@ -12,15 +12,16 @@ import type { PluginManager } from "lfaa-plugin-manager/src/index.js";
 import type { CapabilityInstallRegistry } from "lfaa-capability-installs/src/index.js";
 import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
 import { authorizeExplicitUserAction } from "lfaa-permission-presets/src/permissions.js";
+import { createHash } from "node:crypto";
 
 function record(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
-function repositoryInput(value: unknown): { repositoryUrl: string; ref?: string } {
-  if (!record(value) || Object.keys(value).some((key) => !["repositoryUrl", "ref"].includes(key)) || typeof value.repositoryUrl !== "string" || value.ref !== undefined && typeof value.ref !== "string") {
+function repositoryInput(value: unknown): { repositoryUrl: string; ref?: string; npmRegistry?: string } {
+  if (!record(value) || Object.keys(value).some((key) => !["repositoryUrl", "ref", "npmRegistry"].includes(key)) || typeof value.repositoryUrl !== "string" || value.ref !== undefined && typeof value.ref !== "string" || value.npmRegistry !== undefined && typeof value.npmRegistry !== "string") {
     throw new ApiError(400, "invalid_plugin_source", "插件来源参数无效。");
   }
-  return { repositoryUrl: value.repositoryUrl, ...(typeof value.ref === "string" ? { ref: value.ref } : {}) };
+  return { repositoryUrl: value.repositoryUrl, ...(typeof value.ref === "string" ? { ref: value.ref } : {}), ...(typeof value.npmRegistry === "string" ? { npmRegistry: value.npmRegistry } : {}) };
 }
-function managerError(error: unknown): never {
+function managerFailure(error: unknown): { status: number; code: string; message: string } {
   const candidate = typeof error === "object" && error !== null ? error as { code?: unknown; message?: unknown } : {};
   const code = typeof candidate.code === "string" ? candidate.code : "plugin_operation_failed";
   const message = typeof candidate.message === "string" ? candidate.message : "插件操作失败。";
@@ -29,7 +30,11 @@ function managerError(error: unknown): never {
       : code.includes("invalid") || code.includes("manifest") || code.includes("path") ? 400
         : code.includes("unsupported") ? 422
       : code.includes("source_changed") || code.includes("conflict") || code.includes("in_progress") || code.includes("disable_required") || code.includes("recovery_required") || code.includes("limit") || code.includes("unavailable") || code.includes("disabled") || code.includes("target_mismatch") || code.includes("revision_changed") || code.includes("start_failed") ? 409 : 500;
-  throw new ApiError(status, code, message);
+  return { status, code, message };
+}
+function managerError(error: unknown): never {
+  const failure = managerFailure(error);
+  throw new ApiError(failure.status, failure.code, failure.message);
 }
 
 export function registerRoutes(router: Router, manager: PluginManager, capabilities: CapabilityInstallRegistry): void {
@@ -46,17 +51,39 @@ export function registerRoutes(router: Router, manager: PluginManager, capabilit
   }));
   router.post("/plugins/inspect", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
     const input = repositoryInput(request.body);
-    try { response.json({ plugin: await manager.inspect(input.repositoryUrl, input.ref) }); } catch (error) { managerError(error); }
+    try { response.json({ plugin: await manager.inspect(input.repositoryUrl, input.ref, "workspace", input.npmRegistry) }); } catch (error) { managerError(error); }
   }));
   router.post("/plugins/install", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
     const body = request.body;
-    if (!record(body) || Object.keys(body).some(key => !["repositoryUrl", "ref", "expectedResolvedRef"].includes(key))
-      || typeof body.repositoryUrl !== "string" || typeof body.ref !== "string" || !body.ref || typeof body.expectedResolvedRef !== "string" || !body.expectedResolvedRef || body.expectedResolvedRef.length > 200) throw new ApiError(400, "invalid_plugin_source", "请先检查插件来源再安装。");
+    if (!record(body) || Object.keys(body).some(key => !["repositoryUrl", "ref", "expectedResolvedRef", "expectedSourceType", "expectedSourceLocation", "npmRegistry"].includes(key))
+      || typeof body.repositoryUrl !== "string" || typeof body.ref !== "string" || !body.ref || typeof body.expectedResolvedRef !== "string" || !body.expectedResolvedRef || body.expectedResolvedRef.length > 200
+      || !["github", "npm", "local"].includes(String(body.expectedSourceType)) || typeof body.expectedSourceLocation !== "string" || !body.expectedSourceLocation || body.expectedSourceLocation.length > 2048
+      || body.npmRegistry !== undefined && (typeof body.npmRegistry !== "string" || body.npmRegistry.length > 512 || body.expectedSourceType !== "npm")) throw new ApiError(400, "invalid_plugin_source", "请先检查插件来源再安装。");
     const userId = request.auth!.user.id;
-    const authorization = authorizeExplicitUserAction({ userId, activeApplicationId: "workspace", toolApplicationIds: ["workspace"], toolId: "capabilities.install", toolVersion: "1", risk: "dangerous", scopeKey: `plugin-install:${body.repositoryUrl}:${body.expectedResolvedRef}`, executable: true });
+    const sourceScope = createHash("sha256").update(JSON.stringify([body.repositoryUrl, body.expectedResolvedRef, body.expectedSourceType, body.expectedSourceLocation, body.npmRegistry ?? null])).digest("hex");
+    const authorization = authorizeExplicitUserAction({ userId, activeApplicationId: "workspace", toolApplicationIds: ["workspace"], toolId: "capabilities.install", toolVersion: "1", risk: "dangerous", scopeKey: `plugin-install:${sourceScope}`, executable: true });
     if (authorization !== "allow") throw new ApiError(403, "plugin_user_action_denied", "当前安装未通过 Permission Owner 授权。");
-    try { response.json(await manager.installForCapability(body.repositoryUrl, body.ref, userId, "workspace", body.expectedResolvedRef)); }
-    catch (error) { managerError(error); }
+    response.status(200).set({ "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store, no-transform", "X-Accel-Buffering": "no" });
+    response.flushHeaders();
+    const send = async (event: Record<string, unknown>): Promise<void> => {
+      if (response.destroyed || response.writableEnded) return;
+      try { response.write(`${JSON.stringify(event)}\n`); } catch { return; }
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    };
+    try {
+      const plugin = await manager.install(body.repositoryUrl, body.ref, userId, "workspace", {
+        ...(typeof body.npmRegistry === "string" ? { npmRegistry: body.npmRegistry } : {}),
+        expectedResolvedRef: body.expectedResolvedRef,
+        expectedSource: { kind: body.expectedSourceType as "github" | "npm" | "local", location: body.expectedSourceLocation },
+        onProgress: (progress) => send({ event: "progress", progress })
+      });
+      await send({ event: "result", result: { plugin } });
+    } catch (error) {
+      const failure = managerFailure(error);
+      await send({ event: "error", error: failure });
+    } finally {
+      if (!response.writableEnded) response.end();
+    }
   }));
   router.post("/plugins/:pluginId/remove", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
     const body = request.body;

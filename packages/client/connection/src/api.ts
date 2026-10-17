@@ -244,6 +244,7 @@ export interface ManagedPluginInspection {
   reason: string | null;
   sourceType: "github" | "npm" | "local";
   sourceLocation: string;
+  registryUrl: string | null;
   repository: { owner: string; name: string; fullName: string; description: string; stars: number; license: string | null; defaultBranch: string; url: string };
   requestedRef: string;
   resolvedRef: string;
@@ -263,6 +264,20 @@ export interface ManagedPluginInspection {
   license: string | null;
   canEnable: boolean;
   runtimeReason: string | null;
+}
+
+export interface ManagedPluginInstallProgress {
+  stage: "resolving" | "source-verified" | "compatibility-checked" | "writing-files" | "committing-inventory" | "already-installed" | "installed";
+  message: string;
+  pluginId?: string;
+  name?: string;
+  version?: string;
+  sourceType?: "github" | "npm" | "local";
+  resolvedRef?: string;
+  archiveSha256?: string;
+  fileCount?: number;
+  totalBytes?: number;
+  state?: ManagedPluginRecord["state"];
 }
 
 export interface AiSession {
@@ -1723,8 +1738,79 @@ export function setManagedPluginEnabled(pluginId: string, input: { enabled: bool
   });
 }
 
-export function installManagedPlugin(input: { repositoryUrl: string; ref: string; expectedResolvedRef: string }): Promise<{ plugin: ManagedPluginRecord; activationRequired: boolean; activationError?: string }> {
-  return request("/plugins/install", { method: "POST", body: JSON.stringify(input) });
+export async function installManagedPlugin(
+  input: { repositoryUrl: string; ref: string; expectedResolvedRef: string; expectedSourceType: ManagedPluginInspection["sourceType"]; expectedSourceLocation: string; npmRegistry?: string },
+  onProgress?: (progress: ManagedPluginInstallProgress) => void
+): Promise<{ plugin: ManagedPluginRecord }> {
+  pendingReads.clear();
+  try {
+    const response = await fetch("/api/plugins/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
+      credentials: "include",
+      body: JSON.stringify(input)
+    });
+    if (!response.ok) {
+      const rawBody = await response.text();
+      let responseBody: unknown;
+      try { responseBody = rawBody ? JSON.parse(rawBody) as unknown : undefined; } catch { responseBody = undefined; }
+      const message = typeof responseBody === "object" && responseBody !== null && "message" in responseBody && typeof responseBody.message === "string" ? responseBody.message : "插件安装请求失败，请稍后重试。";
+      const code = typeof responseBody === "object" && responseBody !== null && "error" in responseBody && typeof responseBody.error === "string" ? responseBody.error : undefined;
+      if (response.status === 401 && (code === "authentication_required" || code === "invalid_session") && typeof window !== "undefined") {
+        window.dispatchEvent(new Event(sessionExpiredEventName));
+      }
+      throw new ApiError(response.status, message, code);
+    }
+    if (!response.body) throw new ApiError(response.status, "插件安装服务没有返回进度流。", "plugin_install_stream_missing");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let pendingLine = "";
+    let result: { plugin: ManagedPluginRecord } | null = null;
+    const consumeLine = (line: string): void => {
+      if (!line.trim()) return;
+      let event: unknown;
+      try { event = JSON.parse(line) as unknown; }
+      catch { throw new ApiError(response.status, "插件安装进度格式无效。", "plugin_install_stream_invalid"); }
+      if (typeof event !== "object" || event === null || !("event" in event)) throw new ApiError(response.status, "插件安装进度格式无效。", "plugin_install_stream_invalid");
+      if (event.event === "progress" && "progress" in event && typeof event.progress === "object" && event.progress !== null) {
+        onProgress?.(event.progress as ManagedPluginInstallProgress);
+        return;
+      }
+      if (event.event === "result" && "result" in event && typeof event.result === "object" && event.result !== null && "plugin" in event.result) {
+        result = event.result as { plugin: ManagedPluginRecord };
+        return;
+      }
+      if (event.event === "error" && "error" in event && typeof event.error === "object" && event.error !== null) {
+        const failure = event.error as { status?: unknown; code?: unknown; message?: unknown };
+        throw new ApiError(typeof failure.status === "number" ? failure.status : response.status, typeof failure.message === "string" ? failure.message : "插件安装失败。", typeof failure.code === "string" ? failure.code : "plugin_operation_failed");
+      }
+      throw new ApiError(response.status, "插件安装进度包含未知事件。", "plugin_install_stream_invalid");
+    };
+
+    try {
+      while (true) {
+        const chunk = await reader.read();
+        pendingLine += decoder.decode(chunk.value, { stream: !chunk.done });
+        if (pendingLine.length > 1_048_576) throw new ApiError(response.status, "插件安装进度行超过允许长度。", "plugin_install_stream_invalid");
+        let newline = pendingLine.indexOf("\n");
+        while (newline >= 0) {
+          consumeLine(pendingLine.slice(0, newline));
+          pendingLine = pendingLine.slice(newline + 1);
+          newline = pendingLine.indexOf("\n");
+        }
+        if (chunk.done) break;
+      }
+      consumeLine(pendingLine);
+    } catch (error) {
+      await reader.cancel().catch(() => undefined);
+      throw error;
+    }
+    if (!result) throw new ApiError(response.status, "插件安装进度流结束，但没有收到安装结果。", "plugin_install_result_missing");
+    return result;
+  } finally {
+    pendingReads.clear();
+  }
 }
 
 export function removeManagedPlugin(pluginId: string, input: { targetApplicationId: ApplicationId; expectedSourceCommit: string }): Promise<{ removed: true }> {
@@ -1739,8 +1825,8 @@ export function searchManagedPlugins(query: string, signal?: AbortSignal): Promi
   return request("/plugins/search", { method: "POST", body: JSON.stringify({ query }), ...(signal ? { signal } : {}) });
 }
 
-export function inspectManagedPlugin(source: string, ref?: string, signal?: AbortSignal): Promise<{ plugin: ManagedPluginInspection }> {
-  return request("/plugins/inspect", { method: "POST", body: JSON.stringify({ repositoryUrl: source, ...(ref ? { ref } : {}) }), ...(signal ? { signal } : {}) });
+export function inspectManagedPlugin(source: string, ref?: string, signal?: AbortSignal, npmRegistry?: string): Promise<{ plugin: ManagedPluginInspection }> {
+  return request("/plugins/inspect", { method: "POST", body: JSON.stringify({ repositoryUrl: source, ...(ref ? { ref } : {}), ...(npmRegistry ? { npmRegistry } : {}) }), ...(signal ? { signal } : {}) });
 }
 
 export function manageAiRuntimePlugin(pluginId: string, action: "start" | "stop" | "reload"): Promise<{ plugins: AiRuntimePlugin[]; hotReloadEnabled: boolean }> {

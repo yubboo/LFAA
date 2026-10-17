@@ -1,6 +1,8 @@
 Describe 'LFAA Windows Web startup preflight' {
-    It 'resolves the configured data directory under Windows PowerShell 5.1' {
-        $scriptPath = Join-Path $PSScriptRoot '..\install-dependencies.ps1'
+    function Get-StartupScriptFunctionText {
+        param([string]$Name)
+
+        $scriptPath = Join-Path $PSScriptRoot '..\lfaa-web-startup-preflight.ps1'
         $tokens = $null
         $parseErrors = $null
         $ast = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -9,7 +11,31 @@ Describe 'LFAA Windows Web startup preflight' {
             [ref]$parseErrors
         )
         if ($parseErrors.Count -gt 0) {
-            throw "install-dependencies.ps1 has PowerShell parse errors: $($parseErrors.Count)"
+            throw "lfaa-web-startup-preflight.ps1 has PowerShell parse errors: $($parseErrors.Count)"
+        }
+
+        $function = $ast.Find({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -eq $Name
+        }, $true)
+        if ($null -eq $function) {
+            throw "$Name was not found in lfaa-web-startup-preflight.ps1."
+        }
+        return $function.Extent.Text
+    }
+
+    It 'resolves the configured data directory under Windows PowerShell 5.1' {
+        $scriptPath = Join-Path $PSScriptRoot '..\lfaa-web-startup-preflight.ps1'
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $scriptPath,
+            [ref]$tokens,
+            [ref]$parseErrors
+        )
+        if ($parseErrors.Count -gt 0) {
+            throw "lfaa-web-startup-preflight.ps1 has PowerShell parse errors: $($parseErrors.Count)"
         }
 
         $resolverFunction = $ast.Find({
@@ -18,7 +44,7 @@ Describe 'LFAA Windows Web startup preflight' {
                 $node.Name -eq 'Get-ResolvedDataDirectory'
         }, $true)
         if ($null -eq $resolverFunction) {
-            throw 'Get-ResolvedDataDirectory was not found in install-dependencies.ps1.'
+            throw 'Get-ResolvedDataDirectory was not found in lfaa-web-startup-preflight.ps1.'
         }
 
         $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
@@ -40,5 +66,22 @@ Describe 'LFAA Windows Web startup preflight' {
                 $env:LFAA_DATA_DIR = $previousDataDirectory
             }
         }
+    }
+
+    It 'recognizes the packaged LFAA web CLI and the aligned TypeScript source CLI' {
+        . ([ScriptBlock]::Create((Get-StartupScriptFunctionText 'Test-LfaaWebLockOwnerCommand')))
+
+        (Test-LfaaWebLockOwnerCommand -Name 'node.exe' -CommandLine 'node apps/cli/bin/lfaa.mjs web') | Should Be $true
+        (Test-LfaaWebLockOwnerCommand -Name 'node.exe' -CommandLine 'node --import tsx/esm --import ./apps/cli/register-package-loader.mjs apps/cli/src/bin.ts web') | Should Be $true
+        (Test-LfaaWebLockOwnerCommand -Name 'node.exe' -CommandLine 'node --import tsx --import ./register-package-loader.mjs src/index.ts --profile web') | Should Be $true
+    }
+
+    It 'rejects DSH, other profiles, and unrelated Node processes' {
+        . ([ScriptBlock]::Create((Get-StartupScriptFunctionText 'Test-LfaaWebLockOwnerCommand')))
+
+        (Test-LfaaWebLockOwnerCommand -Name 'node.exe' -CommandLine 'node --import tsx/esm apps/cli/src/bin.ts web') | Should Be $false
+        (Test-LfaaWebLockOwnerCommand -Name 'node.exe' -CommandLine 'node --import tsx --import ./apps/cli/register-package-loader.mjs apps/cli/src/bin.ts daemon') | Should Be $false
+        (Test-LfaaWebLockOwnerCommand -Name 'node.exe' -CommandLine 'node unrelated.js web') | Should Be $false
+        (Test-LfaaWebLockOwnerCommand -Name 'bun.exe' -CommandLine 'node apps/cli/bin/lfaa.mjs web') | Should Be $false
     }
 }

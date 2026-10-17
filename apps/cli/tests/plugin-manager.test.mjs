@@ -9,6 +9,7 @@ import { deflateRawSync, gzipSync, gunzipSync } from 'node:zlib';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 
 const data = mkdtempSync(join(tmpdir(), 'lfaa-plugin-manager-'));
@@ -60,6 +61,11 @@ const registrySourceManifest = JSON.stringify({
 });
 const registrySourceTarball = makeNpmTarball({ 'package.json': registrySourceManifest, 'main.mjs': 'export {};' });
 const registrySourceIntegrity = `sha512-${createHash('sha512').update(registrySourceTarball).digest('base64')}`;
+const customRegistryUrl = 'https://registry.example.test/custom/';
+const customRegistryPackageName = 'lfaa-plugin-custom-registry-source';
+const customRegistryManifest = JSON.stringify({ name: customRegistryPackageName, version: '2.1.0', license: 'MIT', lfaa: { plugin: { apiVersion: 1, id: 'custom-registry-sample', name: '自定义源样例', entry: 'main.mjs', capabilities: [] } } });
+const customRegistryTarball = makeNpmTarball({ 'package.json': customRegistryManifest, 'main.mjs': 'export {};' });
+const customRegistryIntegrity = `sha512-${createHash('sha512').update(customRegistryTarball).digest('base64')}`;
 const unsupportedArchive = makeZip({ 'package.json': JSON.stringify({ name: 'ordinary-package', version: '1.0.0', license: 'MIT' }) });
 const wallpaperRepository = 'https://github.com/elysia395/dsh-wallpaper-engine';
 let wallpaperVersion = '1.2.0';
@@ -75,6 +81,12 @@ globalThis.fetch = async input => {
     }
   });
   if (url === `https://registry.npmjs.org/${registrySourcePackageName}/-/${registrySourcePackageName}-1.0.0.tgz`) return new Response(registrySourceTarball, { headers: { 'content-type': 'application/octet-stream' } });
+  if (url === `${customRegistryUrl}${customRegistryPackageName}/2.1.0`) return Response.json({
+    name: customRegistryPackageName, version: '2.1.0', dist: {
+      tarball: `${customRegistryUrl}${customRegistryPackageName}/-/${customRegistryPackageName}-2.1.0.tgz`, integrity: customRegistryIntegrity
+    }
+  });
+  if (url === `${customRegistryUrl}${customRegistryPackageName}/-/${customRegistryPackageName}-2.1.0.tgz`) return new Response(customRegistryTarball, { headers: { 'content-type': 'application/octet-stream' } });
   if (url === 'https://api.github.com/repos/elysia395/dsh-wallpaper-engine') return Response.json({ full_name: 'elysia395/dsh-wallpaper-engine', description: 'Wallpaper Engine', stargazers_count: 20, default_branch: 'main', license: { spdx_id: 'MIT' } });
   if (url === `https://api.github.com/repos/elysia395/dsh-wallpaper-engine/commits/${sourceRef}`) return Response.json({ sha: wallpaperCommit });
   if (url === `https://api.github.com/repos/elysia395/dsh-wallpaper-engine/commits/${wallpaperCommit}`) return Response.json({ sha: wallpaperCommit });
@@ -385,6 +397,7 @@ test('三类插件来源固定版本；NPM 校验摘要，本机目录与 tarbal
   assert.equal(localInspection.sourceType, 'local');
   assert.equal(localInspection.sourceLocation, localDirectory);
   assert.equal((await manager.inspect('file:' + localDirectory)).resolvedRef, localInspection.resolvedRef, 'DSH file: path syntax resolves the same source');
+  assert.equal((await manager.inspect(pathToFileURL(localDirectory).href)).resolvedRef, localInspection.resolvedRef, 'file: URL resolves the same Host source');
   assert.equal((await manager.inspect('link:' + localDirectory)).resolvedRef, localInspection.resolvedRef, 'DSH link: path syntax resolves the same source');
   assert.match(localInspection.resolvedRef, /^local:[a-f0-9]{64}$/u);
   writeFileSync(join(localDirectory, 'main.mjs'), 'export const changed = true;');
@@ -404,6 +417,25 @@ test('三类插件来源固定版本；NPM 校验摘要，本机目录与 tarbal
   const archiveInstall = await manager.install(localArchivePath, undefined, 'source-admin');
   assert.equal(archiveInstall.source.kind, 'local');
   assert.equal(archiveInstall.source.archiveSha256, createHash('sha256').update(localTarball).digest('hex'));
+});
+
+test('自定义 HTTPS registry 在检查与安装时保持同源并校验 SHA-512，回传真实安装阶段', async () => {
+  const manager = new PluginManager('web', data);
+  const inspected = await manager.inspect(customRegistryPackageName, '2.1.0', 'workspace', customRegistryUrl);
+  assert.equal(inspected.sourceType, 'npm');
+  assert.equal(inspected.registryUrl, customRegistryUrl);
+  assert.equal(inspected.repository.url, `${customRegistryUrl}${customRegistryPackageName}`);
+  const progress = [];
+  const installed = await manager.install(`npm:${customRegistryPackageName}`, inspected.version, 'custom-registry-admin', 'workspace', {
+    npmRegistry: inspected.registryUrl,
+    expectedResolvedRef: inspected.resolvedCommit,
+    expectedSource: { kind: 'npm', location: inspected.sourceLocation },
+    onProgress: event => progress.push(event)
+  });
+  assert.equal(installed.source.kind, 'npm');
+  assert.equal(installed.state, 'incompatible', 'an unadapted plugin remains installed but isolated');
+  assert.deepEqual(progress.map(item => item.stage), ['resolving', 'source-verified', 'compatibility-checked', 'writing-files', 'committing-inventory', 'committing-inventory', 'installed']);
+  assert.equal(progress.find(item => item.stage === 'source-verified').fileCount, 2);
 });
 
 test('安装器拒绝缺少 LFAA/DSH 合同的普通仓库', async () => {

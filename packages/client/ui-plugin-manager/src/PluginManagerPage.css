@@ -1,4 +1,4 @@
-/* 功能：独立插件管理工作区的容器与来源卡片响应式样式。作用：主内容占满可用区域并保留短屏滚动。 */
+/* 功能：独立插件工作区与清单目录的响应式样式。作用：复用账户主题、壁纸表面和动态效果设置。 */
 .plugin-manager-stage {
   display: grid;
   width: 100%;
@@ -29,7 +29,7 @@
   display: grid;
   width: 100%;
   min-width: 0;
-  gap: 22px;
+  gap: clamp(16px, 2vw, 24px);
   margin: 0 auto;
   padding: clamp(20px, 3vw, 38px) clamp(16px, 3vw, 34px) max(28px, env(safe-area-inset-bottom, 0px));
 }
@@ -47,6 +47,7 @@
   min-width: 0;
   gap: 6px;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   border-bottom: 1px solid var(--color-border-subtle);
   scrollbar-width: thin;
 }
@@ -56,7 +57,7 @@
   min-height: 42px;
   flex: 0 0 auto;
   align-items: center;
-  padding: 0 14px;
+  padding: 0 clamp(8px, 1vw, 14px);
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
@@ -65,17 +66,12 @@
   font: inherit;
   font-size: var(--font-size-sm);
   font-weight: 620;
+  transition: color 140ms ease, border-color 140ms ease;
 }
 
-.plugin-manager-page__tabs > button.is-active {
-  border-bottom-color: var(--color-brand);
-  color: var(--color-text-heading);
-}
-
-.plugin-manager-page__tabs > button:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: -2px;
-}
+.plugin-manager-page__tabs > button:hover { color: var(--color-text-primary); }
+.plugin-manager-page__tabs > button.is-active { border-bottom-color: var(--settings-accent, var(--color-brand)); color: var(--color-text-heading); }
+.plugin-manager-page__tabs > button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
 
 .plugin-manager-page__workspace-panel {
   display: grid;
@@ -85,77 +81,227 @@
 }
 
 .plugin-manager-page__workspace-panel[hidden] { display: none; }
-
-.plugin-manager-page__workspace-panel--extensions {
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
+.plugin-manager-page__workspace-panel--extensions { height: 100%; min-height: 0; overflow: hidden; }
 
 .plugin-manager-page__header,
 .plugin-manager-page__header-actions,
 .plugin-manager-page__section-heading,
 .plugin-manager-page__plugin-title,
 .plugin-manager-page__plugin-actions,
-.plugin-manager-page__source-actions {
+.plugin-manager-page__catalog-toolbar,
+.plugin-manager-page__catalog-actions {
   display: flex;
   min-width: 0;
   align-items: center;
 }
 
 .plugin-manager-page__header,
-.plugin-manager-page__section-heading {
-  justify-content: space-between;
-  gap: 14px;
-}
-
+.plugin-manager-page__section-heading { justify-content: space-between; gap: 14px; }
 .plugin-manager-page__header h2,
 .plugin-manager-page__section-heading h3 { margin: 0 !important; }
+.plugin-manager-page__section-heading h4.ant-typography { margin: 0 !important; }
 .plugin-manager-page__header p { max-width: 720px; margin: 6px 0 0; color: var(--color-text-secondary); line-height: 1.6; }
 .plugin-manager-page__header-actions,
 .plugin-manager-page__plugin-actions,
-.plugin-manager-page__source-actions { flex-wrap: wrap; gap: 8px; }
+.plugin-manager-page__catalog-actions { flex-wrap: wrap; gap: 8px; }
+
+.plugin-manager-page__catalog-toolbar {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plugin-manager-page__search { width: min(100%, 360px); }
+.plugin-manager-page__search .ant-input-prefix { color: var(--color-text-subtle); }
+.plugin-manager-page__catalog-actions { justify-content: flex-end; }
+
+.plugin-manager-page__filters {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.plugin-manager-page__filters > button {
+  display: inline-flex;
+  min-height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.plugin-manager-page__filters > button:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
+.plugin-manager-page__filters > button.is-active { border-color: var(--color-border); background: var(--color-surface); color: var(--color-text-heading); font-weight: 620; }
+.plugin-manager-page__filters > button span { color: var(--color-text-subtle); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
+.plugin-manager-page__filters > button.is-active span { color: var(--settings-accent, var(--color-brand)); }
+.plugin-manager-page__filters > button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+
 .plugin-manager-page__section { display: grid; min-width: 0; gap: 12px; }
 .plugin-manager-page__section-heading > span { color: var(--color-text-muted); font-size: var(--font-size-sm); }
-.plugin-manager-page__source-card { display: grid; min-width: 0; gap: 14px; padding: clamp(14px, 2vw, 20px); border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); }
-.plugin-manager-page__source-grid { display: grid; min-width: 0; grid-template-columns: minmax(150px, .7fr) minmax(220px, 1.5fr) minmax(180px, 1fr) auto; align-items: start; gap: 10px; }
-.plugin-manager-page__source-grid > * { min-width: 0; }
-.plugin-manager-page__inspection { display: grid; min-width: 0; gap: 10px; padding: 14px; border: 1px solid var(--color-border-subtle); border-radius: 10px; background: var(--color-surface-muted); }
-.plugin-manager-page__inspection h4 { margin: 0; overflow-wrap: anywhere; color: var(--color-text-heading); font-size: var(--font-size-md); }
-.plugin-manager-page__inspection p { margin: 0; color: var(--color-text-secondary); overflow-wrap: anywhere; line-height: 1.55; }
-.plugin-manager-page__inspection-details { display: grid; gap: 5px; color: var(--color-text-muted); font-size: var(--font-size-xs); overflow-wrap: anywhere; }
-.plugin-manager-page__plugin-list { display: grid; min-width: 0; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 12px; }
-.plugin-manager-page__plugin-card { display: grid; min-width: 0; gap: 12px; padding: 16px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); }
-.plugin-manager-page__plugin-heading { display: grid; min-width: 0; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 10px; }
-.plugin-manager-page__plugin-icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 10px; background: var(--color-brand-subtle); color: var(--color-brand); }
+
+.plugin-manager-page__plugin-list { display: grid; min-width: 0; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); align-items: stretch; gap: 14px; }
+.plugin-manager-page__plugin-card { display: grid; min-width: 0; align-content: start; gap: 14px; padding: 18px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease; }
+.plugin-manager-page__plugin-card:hover { border-color: var(--color-border-strong); background: var(--color-surface-hover); box-shadow: 0 8px 24px var(--color-shadow-float); }
+.plugin-manager-page__plugin-heading { display: grid; min-width: 0; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.plugin-manager-page__plugin-icon { display: grid; width: 44px; height: 44px; flex: 0 0 auto; place-items: center; border: 1px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 22%, var(--color-border)); border-radius: 50%; background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, var(--color-surface)); color: var(--settings-accent, var(--color-brand)); }
 .plugin-manager-page__plugin-title { align-items: flex-start; flex-direction: column; gap: 4px; }
 .plugin-manager-page__plugin-title h4 { margin: 0; color: var(--color-text-heading); font-size: var(--font-size-md); overflow-wrap: anywhere; }
 .plugin-manager-page__plugin-title > span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .plugin-manager-page__plugin-description { min-height: 2.8em; margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.5; overflow-wrap: anywhere; }
-.plugin-manager-page__plugin-meta { display: grid; min-width: 0; gap: 6px; margin: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.plugin-manager-page__plugin-meta { display: grid; min-width: 0; gap: 7px; margin: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .plugin-manager-page__plugin-meta div { display: grid; min-width: 0; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; }
 .plugin-manager-page__plugin-meta dt { color: var(--color-text-subtle); }
 .plugin-manager-page__plugin-meta dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
-.plugin-manager-page__plugin-actions { padding-top: 2px; }
-.plugin-manager-page__empty { display: grid; min-height: 170px; place-items: center; padding: 22px; border: 1px dashed var(--color-border); border-radius: 12px; color: var(--color-text-muted); text-align: center; }
-.plugin-manager-page__permission { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.plugin-manager-page__plugin-actions { padding-top: 4px; }
+
+.plugin-manager-page__empty {
+  display: grid;
+  min-height: 128px;
+  place-items: center;
+  padding: 22px;
+  border: 1px dashed var(--color-border);
+  border-radius: 14px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.plugin-manager-page__empty--compact { min-height: 88px; }
+.plugin-manager-page__empty--catalog { grid-template-columns: auto minmax(0, 1fr); justify-items: start; gap: 8px 16px; padding: 20px 22px; border-style: solid; background: var(--color-surface); text-align: left; }
+.plugin-manager-page__empty-icon { display: grid; width: 42px; height: 42px; grid-row: span 2; place-items: center; border-radius: 12px; background: var(--color-brand-subtle); color: var(--settings-accent, var(--color-brand)); }
+.plugin-manager-page__empty--catalog strong { align-self: end; color: var(--color-text-heading); font-size: var(--font-size-md); }
+.plugin-manager-page__empty--catalog > span:not(.plugin-manager-page__empty-icon) { align-self: start; color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.5; }
+.plugin-manager-page__source-options { display: grid; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.plugin-manager-page__source-option { display: grid; min-width: 0; min-height: 86px; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); color: var(--color-text-primary); cursor: pointer; text-align: left; transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease; }
+.plugin-manager-page__source-option:hover { border-color: var(--color-border-strong); background: var(--color-surface-hover); box-shadow: 0 8px 24px var(--color-shadow-float); }
+.plugin-manager-page__source-option:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.plugin-manager-page__source-option-icon { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 22%, var(--color-border)); border-radius: 50%; background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, var(--color-surface)); color: var(--settings-accent, var(--color-brand)); }
+.plugin-manager-page__source-option-copy { display: grid; min-width: 0; gap: 4px; }
+.plugin-manager-page__source-option-copy strong { color: var(--color-text-heading); font-size: var(--font-size-sm); }
+.plugin-manager-page__source-option-copy > span { color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.45; overflow-wrap: anywhere; }
+.plugin-manager-page__source-option-arrow { color: var(--color-text-subtle); transform: rotate(-90deg); }
+.plugin-manager-page__management-note { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.55; }
+
+@media (max-width: 700px) {
+  .plugin-manager-page__catalog-toolbar { align-items: stretch; flex-direction: column; }
+  .plugin-manager-page__search { width: 100%; }
+  .plugin-manager-page__catalog-actions { justify-content: flex-start; }
+}
 
 @media (max-width: 800px) {
-  .plugin-manager-page__source-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .plugin-manager-page__source-grid .plugin-manager-page__source-input { grid-column: 1 / -1; }
+  .plugin-manager-page__source-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 560px) {
-  .plugin-manager-page__content { gap: 18px; padding-top: 18px; }
+  .plugin-manager-page__content { gap: 16px; padding-top: 18px; }
   .plugin-manager-page__content--extensions { padding: 14px 12px max(12px, env(safe-area-inset-bottom, 0px)); }
   .plugin-manager-page__header,
   .plugin-manager-page__section-heading { align-items: flex-start; flex-direction: column; }
   .plugin-manager-page__header-actions { width: 100%; }
-  .plugin-manager-page__source-grid { grid-template-columns: minmax(0, 1fr); }
-  .plugin-manager-page__source-grid .plugin-manager-page__source-input { grid-column: auto; }
+  .plugin-manager-page__plugin-list { grid-template-columns: minmax(0, 1fr); }
   .plugin-manager-page__plugin-heading { grid-template-columns: auto minmax(0, 1fr); }
   .plugin-manager-page__plugin-heading > :last-child { grid-column: 2; justify-self: start; }
+  .plugin-manager-page__empty--catalog { grid-template-columns: auto minmax(0, 1fr); padding: 16px; }
+  .plugin-manager-page__empty-icon { grid-row: 1 / span 2; }
+  .plugin-manager-page__source-options { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* 插件安装弹窗沿用外观设置中的字体、主题、壁纸透明度和模糊强度。 */
+.plugin-manager-install-modal { max-width: calc(100vw - 28px); }
+.plugin-manager-install-modal .ant-modal-content { display: flex; max-height: min(88vh, 820px); max-height: min(88dvh, 820px); flex-direction: column; overflow: hidden; border: 1px solid var(--color-border); border-radius: 22px; background: var(--color-surface); color: var(--color-text-primary); box-shadow: 0 22px 70px var(--color-shadow-float); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); }
+.workbench-shell[data-background-image="true"] .plugin-manager-install-modal .ant-modal-content,
+body[data-we-wallpaper] .workbench-shell .plugin-manager-install-modal .ant-modal-content { background: color-mix(in srgb, var(--settings-sidebar-color, var(--color-surface)) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
+.plugin-manager-install-modal .ant-modal-header { flex: 0 0 auto; margin: 0; padding: 22px 26px 12px; border: 0; background: transparent; }
+.plugin-manager-install-modal .ant-modal-title { color: var(--color-text-heading); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-lg); font-weight: 650; }
+.plugin-manager-install-modal .ant-modal-close { top: 18px; inset-inline-end: 18px; color: var(--color-text-muted); }
+.plugin-manager-install-modal .ant-modal-body { min-height: 0; overflow: auto; padding: 0 26px 24px; overscroll-behavior: contain; }
+.plugin-manager-install-modal__body { display: grid; min-width: 0; gap: 14px; }
+.plugin-manager-install-modal__intro { margin: 0; color: var(--color-text-secondary); line-height: 1.55; }
+.plugin-manager-install-modal__source-row { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.plugin-manager-install-modal__source-row .ant-input { min-width: 0; min-height: 46px; padding-inline: 15px; border-radius: 11px; font-family: var(--settings-interface-font, var(--font-family-sans)); }
+.plugin-manager-install-modal__source-row .ant-tag { margin: 0; white-space: nowrap; }
+.plugin-manager-install-modal__body > .ant-input { min-height: 40px; font-family: var(--settings-interface-font, var(--font-family-sans)); }
+.plugin-manager-install-modal__registry { display: grid; min-width: 0; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 12px; color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.plugin-manager-install-modal__registry .ant-select { min-width: 0; }
+.plugin-manager-install-modal__registry > small { grid-column: 1 / -1; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.55; }
+.plugin-manager-install-modal__example { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 14px; background: color-mix(in srgb, var(--color-surface-muted) 64%, transparent); }
+.plugin-manager-install-modal__example > div { display: grid; min-width: 0; gap: 5px; }
+.plugin-manager-install-modal__example strong { color: var(--color-text-heading); font-size: var(--font-size-sm); }
+.plugin-manager-install-modal__example span { color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.55; }
+.plugin-manager-install-modal__example code { color: var(--color-text-muted); font-family: var(--settings-code-font, Consolas, monospace); font-size: var(--font-size-xs); overflow-wrap: anywhere; }
+.plugin-manager-install-modal__warning { border-radius: 12px; }
+.plugin-manager-install-modal__warning .ant-alert-message { font-weight: 620; line-height: 1.5; }
+.plugin-manager-install-modal__warning .ant-alert-description { font-size: var(--font-size-xs); line-height: 1.6; }
+.plugin-manager-install-modal__inspection,
+.plugin-manager-install-modal__result { display: grid; min-width: 0; gap: 10px; padding: 15px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface-muted); }
+.plugin-manager-install-modal__inspection-heading,
+.plugin-manager-install-modal__result-heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; }
+.plugin-manager-install-modal__inspection-heading > div,
+.plugin-manager-install-modal__result-heading > div { display: grid; min-width: 0; gap: 4px; }
+.plugin-manager-install-modal__inspection-heading strong,
+.plugin-manager-install-modal__result-heading strong { color: var(--color-text-heading); font-size: var(--font-size-md); overflow-wrap: anywhere; }
+.plugin-manager-install-modal__inspection-heading span,
+.plugin-manager-install-modal__result-heading > div > span { color: var(--color-text-muted); font-size: var(--font-size-xs); overflow-wrap: anywhere; }
+.plugin-manager-install-modal__inspection > p,
+.plugin-manager-install-modal__result > p { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.55; overflow-wrap: anywhere; }
+.plugin-manager-install-modal__inspection > div:last-of-type,
+.plugin-manager-install-modal__result dl { display: grid; min-width: 0; gap: 5px; margin: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.plugin-manager-install-modal__declared-scripts { display: grid; min-width: 0; grid-template-columns: auto minmax(0, 1fr); gap: 6px 10px; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.plugin-manager-install-modal__declared-scripts code { min-width: 0; color: var(--color-text-secondary); font-family: var(--settings-code-font, Consolas, monospace); overflow-wrap: anywhere; }
+.plugin-manager-install-modal__result dl > div { display: grid; min-width: 0; grid-template-columns: 66px minmax(0, 1fr); gap: 8px; }
+.plugin-manager-install-modal__result dt { color: var(--color-text-subtle); }
+.plugin-manager-install-modal__result dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.plugin-manager-install-modal__result-mark { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border: 1px solid color-mix(in srgb, var(--color-status-success) 32%, var(--color-border)); border-radius: 50%; background: color-mix(in srgb, var(--color-status-success) 12%, var(--color-surface)); color: var(--color-status-success); }
+.plugin-manager-install-modal__result-mark.is-warning { border-color: var(--color-border); background: var(--color-status-warning-surface); color: var(--color-status-warning); }
+.plugin-manager-install-modal__progress { display: grid; min-width: 0; gap: 10px; padding: 13px 15px; border: 1px solid var(--color-border-subtle); border-radius: 13px; background: color-mix(in srgb, var(--color-surface) 72%, transparent); }
+.plugin-manager-install-modal__progress-heading { display: flex; align-items: center; gap: 8px; color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 620; }
+.plugin-manager-install-modal__progress-heading button,
+.plugin-manager-install-modal__progress > button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 0; border: 0; background: transparent; color: var(--color-text-secondary); cursor: pointer; font: inherit; font-size: var(--font-size-sm); text-align: left; }
+.plugin-manager-install-modal__progress-heading button { width: auto; margin-left: auto; color: var(--settings-accent, var(--color-brand)); font-size: var(--font-size-xs); }
+.plugin-manager-install-modal__progress ol { display: grid; gap: 11px; margin: 0; padding: 0; list-style: none; }
+.plugin-manager-install-modal__progress li { display: grid; min-width: 0; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: 9px; }
+.plugin-manager-install-modal__step-mark { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 50%; background: var(--color-surface-selected); color: var(--settings-accent, var(--color-brand)); }
+.plugin-manager-install-modal__progress li > div { display: grid; min-width: 0; gap: 3px; }
+.plugin-manager-install-modal__progress li strong { color: var(--color-text-primary); font-size: var(--font-size-xs); }
+.plugin-manager-install-modal__progress li span:not(.plugin-manager-install-modal__step-mark) { color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.5; overflow-wrap: anywhere; }
+.plugin-manager-install-modal__progress li small { color: var(--color-text-muted); font-family: var(--settings-code-font, Consolas, monospace); font-size: 10px; overflow-wrap: anywhere; }
+.plugin-manager-install-modal__actions { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; padding-top: 2px; }
+.plugin-manager-install-modal__actions > span { min-width: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.5; }
+.plugin-manager-install-modal__actions .ant-btn { min-width: 112px; }
+.plugin-manager-install-modal__body :focus-visible { outline-color: var(--color-focus-ring); }
+
+@media (max-width: 560px) {
+  .plugin-manager-install-modal .ant-modal-content { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); border-radius: 18px; }
+  .plugin-manager-install-modal .ant-modal-header { padding: 18px 18px 10px; }
+  .plugin-manager-install-modal .ant-modal-body { padding: 0 18px 18px; }
+  .plugin-manager-install-modal__example { grid-template-columns: minmax(0, 1fr); }
+  .plugin-manager-install-modal__example .ant-btn { justify-self: start; }
+  .plugin-manager-install-modal__actions { align-items: stretch; flex-direction: column; }
+  .plugin-manager-install-modal__actions .ant-btn { width: 100%; }
+}
+
+@media (max-height: 560px) {
+  .plugin-manager-install-modal .ant-modal-content { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plugin-manager-install-modal *,
+  .plugin-manager-install-modal *::before,
+  .plugin-manager-install-modal *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+}
+
+.workbench-shell[data-reduced-motion="on"] .plugin-manager-install-modal *,
+.workbench-shell[data-reduced-motion="on"] .plugin-manager-install-modal *::before,
+.workbench-shell[data-reduced-motion="on"] .plugin-manager-install-modal *::after { transition-duration: 0.01ms !important; }
 
 @media (max-width: 420px) {
   .plugin-manager-stage { grid-template-columns: 48px minmax(0, 1fr); }
@@ -164,5 +310,15 @@
 @media (prefers-reduced-motion: reduce) {
   .plugin-manager-page *,
   .plugin-manager-page *::before,
-  .plugin-manager-page *::after { scroll-behavior: auto !important; }
+  .plugin-manager-page *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+}
+
+.workbench-shell[data-reduced-motion="on"] .plugin-manager-page *,
+.workbench-shell[data-reduced-motion="on"] .plugin-manager-page *::before,
+.workbench-shell[data-reduced-motion="on"] .plugin-manager-page *::after { transition-duration: 0.01ms !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .workbench-shell[data-reduced-motion="system"] .plugin-manager-page *,
+  .workbench-shell[data-reduced-motion="system"] .plugin-manager-page *::before,
+  .workbench-shell[data-reduced-motion="system"] .plugin-manager-page *::after { transition-duration: 0.01ms !important; }
 }

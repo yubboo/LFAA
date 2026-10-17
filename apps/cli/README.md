@@ -1,8 +1,8 @@
 # LFAA CLI
 
-源码入口为根目录 `pnpm lfaa web`，使用 `dist/apps/control-plane` 和 `dist/apps/web`；正式 Web 默认端口 3000，读取 `SERVER_PORT`。Windows Web 默认由现有监督器托管一个本机 Daemon；`--no-local-daemon` 关闭此托管。独立节点使用 `pnpm lfaa daemon`。所有模式装配当前能力包，不读取旧 `dist/server`、`dist/frontend` 或 `dist/daemon`。
+仓库源码 CLI 从根目录 `pnpm lfaa <组合>` 进入 `apps/cli/src/bin.ts`，由 `node --import tsx/esm` 运行，并加载 LFAA 包解析器；它转交给与 npm CLI 共用的运行器 `apps/cli/bin/lfaa.mjs`。Web 使用 `dist/apps/control-plane` 和 `dist/apps/web`；正式 Web 默认端口 3000，读取 `SERVER_PORT`。Windows Web 默认由现有监督器托管一个本机 Daemon；`--no-local-daemon` 关闭此托管。独立节点使用 `pnpm lfaa daemon`。所有模式装配当前能力包，不读取旧 `dist/server`、`dist/frontend` 或 `dist/daemon`。
 
-`lfaa.bat` → `scripts/project-menu.mjs` → `scripts/install-dependencies.ps1` 在当前终端运行菜单。菜单 2 启动前使用 `scripts/runtime-build-state.mjs` 对账源码和输出，只构建过期的 Web/控制端职责；构建期间源码变化会拒绝完成记录。直接调用 `pnpm lfaa` 前由开发者执行 `pnpm run build`。开发模式额外使用 Vite 5173，它不是正式 Web 入口。
+`lfaa.bat` → `scripts/project-menu.mjs` → `scripts/install-dependencies.ps1` 在当前终端运行菜单。菜单 2 启动前使用 `scripts/runtime-build-state.mjs` 对账源码和输出，只构建过期的 Web/控制端职责；构建期间源码变化会拒绝完成记录。菜单和仓库源码 CLI 启动完整 Web 时都会检查当前 `LFAA_DATA_DIR` 的写锁；只有确认由 LFAA Web CLI 持有时才结束该进程并继续启动，无法确认的占用会停止启动。直接调用 `pnpm lfaa` 前由开发者执行 `pnpm run build`。开发模式额外使用 Vite 5173，它不是正式 Web 入口。
 
 启动子菜单中，1 或回车启动完整 Web；2 仅启动独立 Daemon，要求配置绝对路径 `LFAA_DATA_DIR`；4 只启动 Vite 前端并等待已运行的控制端，不能代替 Web 启动。
 

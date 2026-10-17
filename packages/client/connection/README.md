@@ -2,7 +2,7 @@
 
 此包提供已认证控制端 API 和 AI Work SSE 消费协议，不持有模型、Session 或权限业务规则。
 
-插件清单、搜索和来源检查读取可接收 `AbortSignal`；切换页面或放弃检查时可取消未完成读取。插件启用、停用、卸载与安装不经本包调用写路由，管理页面把用户明确目标交给现有 AI Work/Permission 链。
+插件清单、搜索和来源检查读取可接收 `AbortSignal`；切换页面或放弃检查时可取消未完成读取。手动安装通过同源认证的 NDJSON 写入流读取 Plugin Manager Owner 的阶段与最终结果；流解析失败、缺少结果和服务端错误都会作为错误返回，不会推断安装成功。安装请求绑定检查时的来源类型、位置、固定摘要与本次 NPM registry；本包不保存 registry 设置或凭据。插件启用、停用与卸载继续调用受认证的 Permission Owner 管理 API，不创建 AI Work 会话。
 
 `file-manager-location.ts` 将设置中心已保存的本机目录映射到 data 或本机卷来源，通过账户限定的路由历史把浏览目标交给文件页；不把路径当成权限、不在 URL 放入绝对路径，也不读取磁盘。文件页消费目标后移除临时历史字段，后续目录恢复继续使用原有账户缓存。
 
@@ -28,4 +28,4 @@ Minecraft 默认核心设置通过 `loadMinecraftCoreNames()` 读取认证后的
 
 构建只写仓库根 dist/packages/client/connection/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
 
-Profile 插件新增 installManagedPlugin/removeManagedPlugin，调用受认证的显式安装与卸载 API，传入已检查或当前记录的固定版本，返回 Owner 实际结果；不创建 AI 会话或在客户端执行安装规则。
+Profile 插件的 `inspectManagedPlugin()` 可将一次性 NPM registry 传给来源检查；`installManagedPlugin()` 消费 NDJSON 安装流，并在同源 API 请求中提交已检查的来源类型、位置、固定版本/摘要和 registry，向 UI 发出 Owner 的真实阶段及最终插件记录。`removeManagedPlugin()` 调用受认证的卸载 API。三者都不创建 AI 会话或在客户端执行安装规则；注册表不写入账户偏好或 `.npmrc`。

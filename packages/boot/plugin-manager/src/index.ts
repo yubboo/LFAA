@@ -75,6 +75,27 @@ export interface PluginCapabilityInstallResult {
   activationError?: string;
 }
 
+export type PluginInstallProgressStage = "resolving" | "source-verified" | "compatibility-checked" | "writing-files" | "committing-inventory" | "already-installed" | "installed";
+export interface PluginInstallProgress {
+  stage: PluginInstallProgressStage;
+  message: string;
+  pluginId?: string;
+  name?: string;
+  version?: string;
+  sourceType?: PluginSourceType;
+  resolvedRef?: string;
+  archiveSha256?: string;
+  fileCount?: number;
+  totalBytes?: number;
+  state?: PluginRecord["state"];
+}
+export interface PluginInstallOptions {
+  npmRegistry?: string;
+  expectedResolvedRef?: string;
+  expectedSource?: { kind: PluginSourceType; location: string };
+  onProgress?: (progress: PluginInstallProgress) => void | Promise<void>;
+}
+
 export class PluginManagerError extends Error {
   constructor(readonly code: string, message: string) { super(message); this.name = "PluginManagerError"; }
 }
@@ -110,8 +131,8 @@ export class PluginManager {
     })));
   }
 
-  async inspect(source: string, ref?: string, applicationId: CapabilityApplicationId = "workspace") {
-    const snapshot = await resolvePluginSource(source, ref);
+  async inspect(source: string, ref?: string, applicationId: CapabilityApplicationId = "workspace", npmRegistry?: string) {
+    const snapshot = await resolvePluginSource(source, ref, npmRegistry);
     const detected = inspectSnapshot(snapshot);
     const preview = this.previewRecord(snapshot, detected.record, detected.license, applicationId);
     const adapter = this.adapters.find((item) => item.supports(preview));
@@ -123,6 +144,7 @@ export class PluginManager {
       repository: snapshot.repository,
       sourceType: snapshot.sourceType,
       sourceLocation: snapshot.sourceLocation,
+      registryUrl: snapshot.registryUrl ?? null,
       requestedRef: snapshot.requestedRef,
       resolvedRef: snapshot.commit,
       resolvedCommit: snapshot.commit,
@@ -134,8 +156,8 @@ export class PluginManager {
     };
   }
 
-  async install(source: string, ref: string | undefined, userId: string, applicationId: CapabilityApplicationId = "workspace"): Promise<PluginRecord> {
-    return this.exclusive(() => this.installLocked(source, ref, userId, applicationId));
+  async install(source: string, ref: string | undefined, userId: string, applicationId: CapabilityApplicationId = "workspace", options: PluginInstallOptions = {}): Promise<PluginRecord> {
+    return this.exclusive(() => this.installLocked(source, ref, userId, applicationId, options));
   }
 
   /** Install and activate a supported plugin as one serialized Profile mutation. */
@@ -158,10 +180,39 @@ export class PluginManager {
     });
   }
 
-  private async installLocked(source: string, ref: string | undefined, userId: string, applicationId: CapabilityApplicationId): Promise<PluginRecord> {
-    const snapshot = await resolvePluginSource(source, ref);
+  private async installLocked(source: string, ref: string | undefined, userId: string, applicationId: CapabilityApplicationId, options: PluginInstallOptions): Promise<PluginRecord> {
+    const report = options.onProgress;
+    await report?.({ stage: "resolving", message: "正在读取来源清单并获取固定版本。" });
+    const snapshot = await resolvePluginSource(source, ref, options.npmRegistry);
+    if (options.expectedResolvedRef !== undefined && snapshot.commit !== options.expectedResolvedRef) throw new PluginManagerError("plugin_source_changed", "插件来源自检查后发生变化，当前检查凭证已失效；请重新检查来源。没有写入插件清单。");
+    if (options.expectedSource && (snapshot.sourceType !== options.expectedSource.kind || normalizePluginSourceLocation(snapshot.sourceLocation, snapshot.sourceType) !== normalizePluginSourceLocation(options.expectedSource.location, options.expectedSource.kind))) throw new PluginManagerError("plugin_source_changed", "插件来源与检查凭证不一致；请重新检查来源。没有写入插件清单。");
+    await report?.({
+      stage: "source-verified",
+      message: `已锁定 ${snapshot.repository.fullName} 的固定内容版本。`,
+      name: snapshot.repository.fullName,
+      version: snapshot.repository.defaultBranch,
+      sourceType: snapshot.sourceType,
+      resolvedRef: snapshot.commit,
+      archiveSha256: snapshot.archiveSha256,
+      fileCount: snapshot.files.length,
+      totalBytes: snapshot.files.reduce((total, file) => total + file.contents.length, 0)
+    });
     const detected = inspectSnapshot(snapshot);
-    return this.installSnapshotLocked(snapshot, detected, userId, applicationId);
+    const preview = this.previewRecord(snapshot, detected.record, detected.license, applicationId);
+    const adapter = this.adapters.find((item) => item.supports(preview));
+    const sourceCheck = adapter?.inspectSnapshot?.(preview, snapshot.files);
+    const canEnable = Boolean(adapter && (sourceCheck?.supported ?? true));
+    await report?.({
+      stage: "compatibility-checked",
+      message: canEnable ? "来源合同和兼容 Runtime 检查通过。" : detected.reason ?? sourceCheck?.reason ?? runtimeUnavailableReason(preview, this.adapters),
+      pluginId: detected.record.id,
+      name: detected.record.name,
+      version: detected.record.version,
+      state: canEnable ? "installed" : "incompatible"
+    });
+    const plugin = await this.installSnapshotLocked(snapshot, detected, userId, applicationId, report);
+    await report?.({ stage: "installed", message: plugin.state === "incompatible" ? "来源快照已安全写入；插件因当前 Runtime 不兼容而保持隔离。" : "插件已写入 Profile 清单，尚未启动。", pluginId: plugin.id, name: plugin.name, version: plugin.version, state: plugin.state });
+    return plugin;
   }
 
   private async installSnapshotLocked(
@@ -169,6 +220,7 @@ export class PluginManager {
     detected: ReturnType<typeof inspectSnapshot>,
     userId: string,
     applicationId: CapabilityApplicationId,
+    onProgress?: PluginInstallOptions["onProgress"],
   ): Promise<PluginRecord> {
     if (detected.record.compatibility === "unsupported") throw new PluginManagerError("plugin_contract_unsupported", detected.reason ?? "仓库没有可识别的插件合同；未写入插件目录。" );
     const preview = this.previewRecord(snapshot, detected.record, detected.license, applicationId);
@@ -176,7 +228,10 @@ export class PluginManager {
     const existing = this.readInventory().plugins.find((record) => record.id === detected.record.id);
     if (existing) {
       const sameRepository = samePluginSource(existing.source, snapshot);
-      if (existing.source.commit === snapshot.commit && sameRepository && existing.applicationIds.length === 1 && existing.applicationIds[0] === applicationId) return this.viewRecord(existing);
+      if (existing.source.commit === snapshot.commit && sameRepository && existing.applicationIds.length === 1 && existing.applicationIds[0] === applicationId) {
+        await onProgress?.({ stage: "already-installed", message: "相同来源和固定版本已在此 Profile 中登记。", pluginId: existing.id, name: existing.name, version: existing.version, state: existing.state });
+        return this.viewRecord(existing);
+      }
       if (existing.source.commit === snapshot.commit && sameRepository) throw new PluginManagerError("plugin_target_conflict", `插件 ${existing.id} 已登记到 ${existing.applicationIds.join("、")}；不会静默扩大或改变 App 范围。`);
       if (isWallpaperEngineUpdate(existing, detected.record, snapshot)) {
         const next = this.previewRecord(snapshot, detected.record, detected.license, applicationId);
@@ -187,7 +242,10 @@ export class PluginManager {
         if (nextSourceCheck?.supported === false) throw new PluginManagerError("plugin_revision_incompatible", nextSourceCheck.reason ?? "新 Wallpaper Engine 版本不符合当前 Host/Client 兼容适配；原版本保持不变。" );
         if (existing.applicationIds.length !== 1 || existing.applicationIds[0] !== applicationId) throw new PluginManagerError("plugin_target_conflict", `插件 ${existing.id} 已登记到 ${existing.applicationIds.join("、")}；不会静默扩大或改变 App 范围。`);
         if (existing.state === "enabled" || this.isActive(existing, previousAdapter)) throw new PluginManagerError("plugin_disable_required", "更新 Wallpaper Engine 前须先停用当前版本；没有覆盖已启用运行目录。" );
-        return this.replaceVerifiedWallpaperRevision(existing, snapshot, detected.record, detected.license, userId);
+        await onProgress?.({ stage: "writing-files", message: "正在安全写入已检查的新版本文件。", pluginId: existing.id, name: detected.record.name, version: detected.record.version, fileCount: snapshot.files.length });
+        const updated = await this.replaceVerifiedWallpaperRevision(existing, snapshot, detected.record, detected.license, userId);
+        await onProgress?.({ stage: "committing-inventory", message: "插件版本清单已原子更新。", pluginId: updated.id, name: updated.name, version: updated.version, state: updated.state });
+        return updated;
       }
       throw new PluginManagerError("plugin_id_conflict", `插件 ${existing.id} 已安装；当前操作不会覆盖现有版本。`);
     }
@@ -209,14 +267,17 @@ export class PluginManager {
     if (existsSync(destination)) throw new PluginManagerError("plugin_recovery_required", "检测到清单外的同名插件目录；为保留现有文件，本次没有覆盖，请先检查数据目录。");
     const staging = resolve(this.root, `.stage-${randomUUID()}`);
     let moved = false;
+    await onProgress?.({ stage: "writing-files", message: "正在将已验证文件写入安全暂存区；不会运行包内安装脚本。", pluginId: record.id, name: record.name, version: record.version, fileCount: snapshot.files.length });
     mkdirSync(staging, { recursive: false, mode: 0o700 });
     try {
       writeArchiveFiles(staging, snapshot.files);
+      await onProgress?.({ stage: "committing-inventory", message: "文件校验与暂存完成，正在原子登记 Profile 清单。", pluginId: record.id, name: record.name, version: record.version, state: record.state });
       renameSync(staging, destination);
       moved = true;
       const nextInventory = { ...previousInventory, plugins: [...previousInventory.plugins, record] };
       try { atomicWrite(this.inventoryPath, nextInventory); }
       catch (error) { rmSync(destination, { recursive: true, force: true }); throw error; }
+      await onProgress?.({ stage: "committing-inventory", message: "Profile 插件清单已保存。", pluginId: record.id, name: record.name, version: record.version, state: record.state });
       return structuredClone(record);
     } catch (error) {
       rmSync(staging, { recursive: true, force: true });

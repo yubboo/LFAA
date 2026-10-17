@@ -4,6 +4,186 @@
 
 历史合同分档保存在 `archive/contracts/`，保留原始实施证据，索引可按编号定位。跨模块新任务必须先登记在本文件，完成后按分类归档；未实测状态不得改写为已验收。
 
+<a id="lfaa-plugin-install-modal-registry-progress-20261017"></a>
+
+## LFAA-PLUGIN-INSTALL-MODAL-REGISTRY-PROGRESS-20261017
+
+状态：实现与验收进行中（2026-10-17）。
+
+目标：修复 `/plugin-manager` 插件添加入口必须手动选择来源导致 NPM 包名被按 GitHub 拒绝的问题；用单一输入自动识别 NPM 包/版本、GitHub HTTPS 仓库与 LFAA Host 本地绝对路径/归档，并将添加流程改为居中弹窗。弹窗提供真实来源检查、NPM 官方/中国大陆镜像/自定义 registry 选择、安装示例与常驻安全提醒；安装时展示 Plugin Manager Owner 实际执行阶段、固定版本/摘要、文件写入与清单登记结果及可展开详情。“立即启用”是独立且基于真实 Runtime 检查的动作，不把安装显示为已启动，也不显示伪造的 pnpm 命令或进度。
+
+入口与 Owner：`apps/web` 或 Desktop 共用 Client `/plugin-manager` → `packages/client/ui-plugin-manager`；来源识别与输入状态由该 Client 包处理，API 与受保护的流式安装结果由 `packages/api/plugin-controller`/`packages/client/connection` 传递，解析、NPM integrity、GitHub/local 安全快照、原子安装与 Runtime 状态继续唯一归 `packages/boot/plugin-manager`，用户明确安装操作继续经管理员校验和 Permission Owner。只读参考 `H:\ai\deepseek-harness` 的插件管理器三类来源输入、registry 选择和安装任务展示；不复制 DSH Profile/pnpm/Bundle Runtime 实现。
+
+设置盘点：现有 `plugins.enabled` 仅控制账户 AI 扩展，`permissions.mode` 与管理员身份继续控制能力工具及当前权限策略；没有持久化的 NPM registry 设置。官方/npmmirror/自定义 HTTP(S) 地址作为单次安装参数传入检查和安装，不保存为设置或写入 `.npmrc`、Profile 配置与日志；带认证信息的源不支持；沿用 Appearance 主题、表面、圆角、字体/字号、对比度与减少动态效果映射。
+
+允许：修改插件页输入识别、居中响应式安装弹窗与实际进度显示；修改 `packages/boot/plugin-manager` 对单次 NPM registry 的来源解析、metadata/tarball integrity 及其定向回归；修改插件 API/Connection 传输所需的 registry、固定来源及进度事件合同；更新插件管理器、API、Connection 与 Client UI README、直接相关长期回归、本合同及任务索引。安装阶段只能由 Plugin Manager 回报已发生的解析、核验、暂存、原子登记、启用和失败结果；registry URL 不可从安装检查切换到另一个未核验 URL。
+
+禁止：修改 `H:\ai\deepseek-harness`；复制 DSH 的 pnpm/Bundles/插件宿主或其实现代码；浏览器直接访问本机路径或执行安装脚本；绕过管理员/Permission Owner、放宽 archive/path/SSRF/依赖脚本限制、把 NPM 包成功下载说成 Runtime 已兼容；持久化自定义 registry 凭据或写入用户 npm 配置；运行真实第三方插件安装/启停/卸载，重启现有服务，覆盖其他脏工作、提交或发布。
+
+验收：NPM 未作用域与 scoped 包名/版本、GitHub HTTPS URL、本地 Host 绝对目录及 `.tgz/.tar.gz` 可由同一输入正确识别；无效输入在当前字段给出可操作错误。NPM 默认走明确显示的大陆镜像，用户可切至官方或输入自定义 HTTP(S) registry；检查与安装使用同一 registry 与固定版本/摘要，SHA-512 和归档安全校验继续生效。添加弹窗居中、长内容可滚动、ESC/关闭/加载态行为安全、引导示例与安全提醒可见；安装详情来自 Owner 的真实阶段/结果，安装后显式启用动作按实际 Runtime 状态决定可用与结果，失败不伪报成功。运行来源解析/registry/安装/API/UI 定向回归、Client 类型检查、相关包与正式 Web 构建、`check:workspace`、`git diff --check`；在 ChatGPT 内置浏览器 `/plugin-manager` 实页逐轮检查桌面与窄/短视口，记录路由、视口、源状态与未测设备/帧时间。不得触发真实插件写入或服务重启。
+
+<a id="lfaa-plugin-manager-unified-tabs-20261017"></a>
+
+## LFAA-PLUGIN-MANAGER-UNIFIED-TABS-20261017
+
+状态：已完成实现及浏览器验收（2026-10-17）。
+
+目标：重构 `/plugin-manager` 为一排统一主导航：全部、插件、应用、工具、技能、提示词、MCP 连接、我的知识库、运行诊断、领域专家；移除重复的扩展工作台标题/内层标签卡、能力目录提示/标题卡及目录分类胶囊筛选。搜索和真实结果数继续可用。
+
+Owner：`packages/client/ui-plugin-manager` 装配 Profile 插件清单及统一导航；`packages/client/ui-settings` 继续持有 AI 扩展目录、应用概况、知识库、MCP 和运行诊断的真实数据与设置 Owner。统一导航只切换已存在页面/类别，不复制能力数据或执行逻辑。
+
+设置盘点：沿用 `settings.plugins.enabled`、`settings.plugins.skillDirectories`、`settings.plugins.mcpServers`、`settings.computerControl.enabled` 与 Appearance 已有主题、强调色、字体/字号、对比度、壁纸遮罩/透明度、模糊及减少动态效果映射；不新增设置、默认值或持久化。
+
+允许：修改 `PluginManagerPage.tsx/.css`、`SettingsPage.tsx/.css`、插件管理 UI 直接回归、`packages/client/ui-plugin-manager/README.md`（仅当导航说明需同步）及本合同/任务索引。映射为：全部→全类别目录，插件→Profile 插件清单，应用→现有扩展总览，工具/技能/提示词/领域专家→对应真实目录类别，MCP 连接/我的知识库/运行诊断→现有 Owner 页面。壁纸引擎标签仍只在真实 Profile 安装记录匹配时出现。
+
+禁止：改变 Profile 插件生命周期、能力数据/来源、设置更新与权限语义、知识库/MCP/诊断业务行为；增加请求、轮询、订阅、设置或假数据；重启已有服务、覆盖工作树其他改动、提交或发布。
+
+验收：在 ChatGPT 内置浏览器 `/plugin-manager` 检查默认全类别、每个导航项映射、搜索/清除、Profile 插件和条件壁纸标签；桌面与窄/短视口无横向溢出、遮挡或不可达内容，导航自身可横向滚动且键盘可操作。运行插件管理定向回归、Settings UI 构建、Web 构建、`check:workspace` 与 `git diff --check`；记录实页路由、视口与截图证据，不触发写入、Runtime 操作或服务重启。
+
+结果：插件页改为单排主导航，按现有 Owner 直达全部目录、Profile 插件、应用总览、工具、技能、提示词、MCP、知识库、诊断与领域专家；移除了旧工作台标题/内层标签卡、目录提示与标题卡、重复分类胶囊。Wallpaper Engine 标签继续跟随真实 Profile 安装清单显隐。插件管理 UI 回归 5/5、Settings UI 构建、Client TypeScript 检查、Web 构建、193 包 `check:workspace` 与 `git diff --check` 均通过。ChatGPT 内置浏览器 `/plugin-manager` 实页验收：默认 1355×925；窄短 760×520；手机 390×640。十项主导航、各类真实页面映射、目录搜索/清除及空 Profile 隐藏条件壁纸标签通过；390×640 下文档宽度仍为 390px，标签行可横向滚动，末端“领域专家”可选中并完整进入视口，键盘 ArrowRight 可从“全部”切到“插件”，内容卡片收为单列。未测真实设备、桌面 WebView 与帧时间；未重启现有服务、未执行安装/卸载/运行时写入。
+
+<a id="lfaa-plugin-workspace-sticky-cards-20261016"></a>
+
+## LFAA-PLUGIN-WORKSPACE-STICKY-CARDS-20261016
+
+状态：已由 [统一标签任务](#lfaa-plugin-manager-unified-tabs-20261017) 取代；此前圆角卡片方案不再作为当前目标（2026-10-17）。
+
+目标：按用户截图，将插件工作区标题/分区标签与能力目录提示/标题做成两个圆角卡片；两张卡片放在 `/plugin-manager` 最外层插件分区容器中，位于独立设置内容盒子之外，目录/分区正文留在下面的内层内容盒子滚动。
+
+入口与 Owner：实际入口 `/plugin-manager`；`packages/client/ui-plugin-manager` 装配独立设置工作区，`packages/client/ui-settings/src/SettingsPage.tsx` 与对应 CSS 持有工作区内容及样式；滚动继续归现有 `settingsContentScroll`。
+
+设置盘点：不新增或修改任何设置；两张卡继续消费 Appearance 已有表面、圆角、模糊、颜色、字体/字号及减少动态效果令牌。
+
+允许：修改 `PluginManagerPage` 的外层布局插槽、`SettingsPage` 的标题卡 Portal/滚动结构、对应样式、插件管理 UI 直接回归与本合同/任务索引；首卡包含工作区标题、说明、分区标签，第二卡只在能力目录分区包含 Owner 状态提示与“能力目录”标题。两卡必须挂到插件管理外层的卡片容器之外，成为外层分区与内容盒子的兄弟区域；内层工作区内容盒子只负责目录/分区正文滚动并继续复用 `settingsContentScroll`。禁止在内盒子里吸顶或覆盖滚动内容。窄/短视口要保持筛选、搜索和正文可见、可滚动。
+
+禁止：改变能力目录数据、筛选/搜索语义、设置值/保存、其他工作区分区的业务行为、导航或滚动 Owner；不加请求、订阅、定时器或新配置；不重启服务、不覆盖工作树已有改动、不提交或发布。
+
+验收：在内置浏览器 `/plugin-manager` 的能力目录中滚动到多类条目后确认两张卡占位固定、正文不会滚到卡片下方；筛选及搜索仍可用。检查常用桌面与窄/短视口，无横向溢出、卡片遮挡正文或键盘操作；运行插件 UI 相关回归、Settings UI/Web 构建、`check:workspace` 与 `git diff --check`。记录真实视口及未测帧时间/设备边界，不触发设置保存或 Runtime 操作。
+
+<a id="lfaa-plugin-extension-workspace-ui-20261016"></a>
+
+## LFAA-PLUGIN-EXTENSION-WORKSPACE-UI-20261016
+
+状态：已完成（2026-10-16）。
+
+目标：重新设计 `/plugin-manager` 的“扩展 / 运行时”内页，使其成为铺满工作区、层级清晰、密度均衡的插件管理界面；重点修复总览卡片错列、窄内容列与旧式设置行堆叠。能力目录、资料库、MCP、运行诊断保持同一套清晰的工作区排版。
+
+Owner：页面及交互归 `packages/client/ui-settings` 中的 `SettingsPage`；账户 AI 扩展与 MCP 配置继续归现有 Settings Owner；能力/提示词清单、Cordis Runtime 与 Hooks 继续从当前运行时 Owner 读取。Profile 安装及生命周期不在本页复制实现，继续归 `packages/client/ui-plugin-manager` 与 Plugin Manager Owner。
+
+设置盘点：沿用 `settings.plugins.enabled`、`settings.plugins.skillDirectories`、`settings.plugins.mcpServers` 与 `settings.computerControl.enabled` 的既有默认值、账户保存和权限语义；能力目录、运行数、Hooks 与宿主健康继续使用已加载的真实 Owner 数据。外观遵循已保存 Appearance 的主题、强调色、字体/字号、对比度、壁纸遮罩/透明度、模糊及减少动态效果令牌。不新增设置、默认值、持久化或 CSS 自定义属性。
+
+允许：仅调整 `packages/client/ui-settings/src/SettingsPage.tsx`、对应 CSS、直接相关长期回归、`packages/client/ui-settings/README.md` 与本合同/任务索引；为工作区统一容器、页头、标签、概况、策略/目录卡片及其他分区提升视觉层级和响应式布局。保留全部现有数据来源、设置更新/失焦保存、MCP 配置操作、诊断和权限合同。
+
+禁止：加入假插件、市场推荐、下载/使用量、虚构在线状态或假 Runtime 结果；改变设置默认值、保存时机、API、权限、插件生命周期或任何 Owner；重置用户偏好、触发真实 MCP/Runtime/Skill 配置写入、重启已有服务、提交或发布；覆盖工作树既有改动。
+
+验收：桌面及窄/短视口中页头、标签和内容列对齐，三张概况卡均衡展示，配置操作清晰可达且无横向溢出；5 个分区保持可用并只显示真实数据；对比当前源码核实零新增请求/订阅/计时器，未测帧时间须明确报告。运行插件 UI 定向回归、Client 类型检查、UI Settings 与正式 Web 构建、`check:workspace`、`git diff --check`；在 ChatGPT 内置浏览器的实际 `/plugin-manager` 页面逐轮目视验收桌面及一处窄分栏/短屏视口，记录路由、尺寸、设置效果、截图证据及未覆盖边界，不点击会保存设置或改变 Runtime 的控件。
+
+实施与逐轮验收：内页改为完整容器宽度；总览按真实登记能力、MCP 配置和 Cordis 运行快照显示三张均衡卡片，并将扩展开关、本机 Skill 目录改为独立设置卡。能力目录、资料库、MCP 和运行诊断共享改进后的标题/标签和容器布局；MCP 无配置时显示真实空状态和原添加入口。保留五个标签、现有更新/失焦保存行为、MCP 与 Runtime 动作及权限。资料库工具区在窄容器改为可达的单列按钮。未增加产品数据请求、订阅、计时器、观察器或 CSS 自定义属性；未改变任何用户设置，也未点击保存、添加 MCP 或 Runtime 操作。
+
+设置与外观：继续使用 `settings.plugins.enabled`、`settings.plugins.skillDirectories`、`settings.plugins.mcpServers`、`settings.computerControl.enabled` 和真实 Owner 状态。界面消费原 Appearance 主题/强调色、字体与字号、表面透明度/模糊、文字/状态颜色令牌；减少动态效果偏好不受覆盖，未新增或重置设置。
+
+验证：插件管理 UI 定向回归 4/4；`pnpm exec tsc --noEmit -p tsconfig.client.json`、`pnpm --filter lfaa-client-ui-settings build`、`pnpm run build:web`（2266 个模块）、`pnpm run check:workspace`（193 个包）与 `git diff --check` 均通过，构建产物写入根 `dist/`。`node scripts/runtime-build-state.mjs web` 仅返回 `host`；本轮未改 Host，也未重启现有服务。浏览器检查无帧时间/长任务测量。
+
+内置浏览器：实际路由 `/plugin-manager`。默认视口 1355×925；临时复验桌面 1440×900、窄分栏/短屏 760×520 和手机 390×640，完成后恢复默认视口。三张卡在 760 宽度保持同一行且各宽约 195px；该视口文档宽 760、滚动区宽 640，未横向溢出。390 宽度文档宽 390、滚动区宽 308，资料库操作按钮各宽 282px，垂直滚动和操作可达；标签栏只在自身范围内横向滑动。五个分区均实际打开检查；能力目录 53 项、MCP 0 项、资料库 0 项和 Runtime 141/141 均为页面真实数据。现有暗色表面、壁纸、强调色正常显示。没有触发资料库写入、MCP 添加、设置保存或 Runtime 启停；实体手机、平板、桌面 WebView、主题/字号切换、真实服务重启和帧时间未测。截图在本轮内置浏览器验收画面中留存。
+
+<a id="lfaa-plugin-capability-catalog-layout-20261016"></a>
+
+## LFAA-PLUGIN-CAPABILITY-CATALOG-LAYOUT-20261016
+
+状态：已完成（2026-10-16）。
+
+目标：重点重排 `/plugin-manager` →「扩展 / 运行时」→「能力目录」中的真实能力条目。目录作为首要内容置于安装状态等次级区块之前；现有 53 项按 Agent、领域专家、提示词、技能等真实类别分组，改为清晰、可比较、适配工作区宽度的卡片网格；名称、完整说明、版本和来源均保留。
+
+Owner：继续由 `packages/client/ui-settings/src/SettingsPage.tsx` 展示已加载的真实能力目录；不改变能力注册、安装路由、插件 Profile、MCP 或领域 Runtime Owner。
+
+设置盘点：不新增或修改设置；继续消费已保存 Appearance 的主题、强调色、字体/字号、文字和表面令牌、壁纸遮罩/透明度、模糊及减少动态效果偏好。
+
+允许：仅修改 SettingsPage 目录结构/样式、插件管理 UI 直接回归，以及本合同和任务索引。保留类型筛选、搜索、结果数、分类说明和所有真实能力字段；安装路由支持状态采用紧凑信息卡并后置。使用容器宽度响应式布局：宽屏三列、中等工作区两列、窄屏单列。
+
+禁止：伪造/省略能力数据、截断必要说明、改变分类和排序事实、添加安装/启停动作或新设置；不写入账户设置、不重启服务、不提交或发布，并保留工作树内已有修改。
+
+验收：确认 53 项仍来自当前真实目录；打开目录首先看到能力卡片；筛选与搜索可用；宽屏、窄分栏、手机宽度中卡片对齐、说明和来源可读、无页面横向溢出；次级路由状态卡清晰且不抢占目录首屏。运行插件 UI 定向回归、Client 类型检查、UI Settings/Web 构建、`check:workspace` 与 `git diff --check`；在内置浏览器 `/plugin-manager` 的能力目录实际检查桌面、窄分栏和手机视口。截图、视口尺寸、未测范围记录在本合同。
+
+实施与验证（2026-10-16）：能力目录主清单前置；真实能力条目改为分类卡片，显示标题、完整说明、版本和来源；安装路由状态改为信息卡并后置。目录只渲染一份，保留真实分类、筛选、搜索与结果数。内置浏览器实际路由 `/plugin-manager`：默认视口 1355×925，另检查 1440×900、760×520、390×640；网格分别为 3/2/1 列，页面文档宽度与视口一致，无横向溢出；短屏主内容可垂直滚动。提示词筛选为 36/53，搜索“配置差异与验收”为 1/53，已恢复“全部 53/53”。桌面与平板卡片截图、手机滚动到能力卡片后截图均在本轮内置浏览器实页验收中检查。插件 UI 定向回归 5/5、UI Settings 构建、Web 构建（含 Client TypeScript 检查）、`check:workspace` 与 `git diff --check` 通过。未修改或保存任何设置；真实设备、桌面 WebView、帧时间/长任务未测；未重启服务、提交或发布。
+
+<a id="lfaa-plugin-workspace-corner-radius-20261016"></a>
+
+## LFAA-PLUGIN-WORKSPACE-CORNER-RADIUS-20261016
+
+状态：已完成（2026-10-16）。
+
+目标：按用户截图红框所示，为 `/plugin-manager`「扩展 / 运行时」的工作区内容外框增加统一圆角；圆角应包住内层滚动内容并处理顶部滚动条角，不改变卡片、目录或标签布局。
+
+Owner：插件外壳继续由 `packages/client/ui-plugin-manager` 装配；共享设置面板样式由 `packages/client/ui-settings/src/SettingsPage.css` 持有。只调整独立插件工作区容器的外框样式。
+
+设置盘点：不新增或修改设置；继续用既有 Appearance 表面样式和 `--settings-panel-radius` 圆角令牌。
+
+允许：仅修改独立插件工作区外框 CSS 与本合同/任务索引。保留滚动、响应式布局、背景与内容。
+
+禁止：改变能力目录条目及其布局、用户设置、导航/滚动 Owner、其他页面样式或任何运行中服务；不清理工作树既有改动。
+
+验收：在内置浏览器 `/plugin-manager` 实页查看标注的左上/右上外框与滚动条角；检查默认桌面和窄视口无内容裁切或横向溢出；恢复默认视口。运行 Settings UI 构建、`check:workspace` 和 `git diff --check`；未测的设备及帧时间单独记录。
+
+实施与验证（2026-10-16）：`.settings-page--plugin-standalone` 使用已有 `--settings-panel-radius`（14px），保持 `overflow: hidden`，使内层滚动区和滚动条顶角被圆角外框裁切。Settings UI 构建、正式 Web 构建（2266 个模块）、`check:workspace`（193 个包）和 `git diff --check` 通过；未重启服务。内置浏览器实际路由 `/plugin-manager`：默认视口 1355×925 与窄视口 760×520 均目视确认左上、右上为圆角，窄视口无横向溢出；完成后恢复默认视口。未新增/修改设置；实体设备、桌面 WebView 和帧时间未测。
+
+<a id="lfaa-plugin-wallpaper-tab-lifecycle-20261016"></a>
+
+## LFAA-PLUGIN-WALLPAPER-TAB-LIFECYCLE-20261016
+
+用户补充：`/plugin-manager` 中的“壁纸引擎”分区必须跟随当前 Profile 的真实 Plugin Manager 清单；对应 Wallpaper Engine 插件卸载后，标签和设置面板都不再显示。不能用设置偏好或固定页面标签冒充插件安装状态。
+
+入口与 Owner：Web/Desktop 共用 Client 页面 `packages/client/ui-plugin-manager` 消费 `loadManagedPlugins()` 返回的 Profile 安装记录；Profile 清单及插件身份继续归 `packages/boot/plugin-manager` 和 `DshWallpaperEngineRuntime`。UI 仅以当前真实清单中可由该 Runtime 接受的 Wallpaper Engine 记录控制分区显隐；安装/卸载、Runtime 和 Profile 数据都不改。
+
+设置盘点：本次仅读取已加载的 Profile 插件清单，不涉及设置中心配置，不新增或修改任何设置、默认值、持久化或用户偏好。
+
+允许：修改 `PluginManagerPage.tsx`、该包的纯可测试可见性判断、README、插件管理直接回归以及本合同/任务索引。壁纸标签与面板同条件渲染；清单读到无匹配记录时隐藏，成功卸载后通过现有清单刷新消失；只接受当前 Wallpaper Engine Runtime 支持的稳定记录 ID、包名和 DSH v1 兼容记录。
+
+禁止：调用真实卸载、安装、启停或改写 Profile/设置；修改 Plugin Manager Runtime/API/权限合同；重启现有服务、提交或发布、改动无关脏工作树。
+
+验收：回归覆盖清单为空、真实 GitHub/NPM 记录和相似但不匹配记录；Client 类型检查、插件管理包与 Web 构建、`check:workspace`、`git diff --check` 通过。用当前真实页面核实当前 Profile 无壁纸插件时标签与面板均缺席；如无真实已安装样本，不伪造 Profile 数据，也不声称已实测卸载后的真实服务回读。
+
+实施与验证（2026-10-16）：新增纯判断函数，只识别 Wallpaper Engine Runtime 所用的两个稳定记录 ID、包名和 `dsh-v1` 类型；“壁纸引擎”标签、面板及页头说明都由 Profile 清单同一结果控制。清单回读不再包含该记录时，选中分区也会退回 Profile 插件。没有改动安装/卸载、Runtime、API、权限或设置配置。
+
+插件管理回归 3/3；`pnpm exec tsc --noEmit -p tsconfig.client.json`、插件管理包构建、`pnpm run build:web`（2266 modules）、`pnpm run check:workspace`（193 包）和 `git diff --check` 通过，产物写入根 `dist/`。在 ChatGPT 内置浏览器 `/plugin-manager`（1355×924）实页确认当前 Profile web 清单为 0 时只显示 Profile 插件与 AI 扩展/运行时两个标签，壁纸标签和面板均不存在，页头说明不再提壁纸引擎。回归覆盖两个 Runtime 记录 ID、空清单和近似身份拒绝。未实际卸载或构造已安装 Profile 样本，因此真实卸载回读及已安装时标签显示未在本次浏览器实测；未改动任何设置。
+
+<a id="lfaa-plugin-ui-marketplace-20261016"></a>
+
+## LFAA-PLUGIN-UI-MARKETPLACE-20261016
+
+目标：优化 `/plugin-manager` 插件工作区，使 Profile 插件清单、搜索、状态筛选和添加入口形成清晰、紧凑、可响应的管理界面，视觉参考用户提供的插件/技能目录截图。当前没有真实公共插件目录服务，不展示推荐插件、使用人数或虚构插件条目；空状态引导使用现有来源检查流程。
+
+运行入口与 Owner：Web/Desktop 共用 Client 的 `apps/web` → `packages/client/ui-layout` → `packages/client/ui-plugin-manager`。UI 只负责插件清单展示、搜索/筛选与入口交互；来源解析、安装、启停和卸载继续归 `packages/boot/plugin-manager`、`packages/api/plugin-controller` 及 Permission Owner。AI 扩展与壁纸引擎表单/未加载回退归 `packages/client/ui-settings`。
+
+设置盘点：继续消费 `permissions.mode` 的说明，以及外观设置的主题/强调色、窗口表面透明度、背景/壁纸、字体字号和减少动态效果共享映射；不新增或改写设置默认值、持久化和用户偏好。颜色、表面与排版沿用现有共享令牌。
+
+允许：修改 `packages/client/ui-plugin-manager/src/PluginManagerPage.tsx`、对应 CSS、该包 README，以及 `packages/client/ui-settings/src/SettingsPage.tsx` 和对应 CSS、本合同与任务索引。新增仅基于真实插件清单的搜索和状态筛选；将现有来源表单由“添加插件”入口展开；重排实际清单和空状态；空清单时展示 GitHub/NPM/Host 三个现有来源入口卡，点击后预选来源并展开现有检查表单；改进插件卡片与 DSH Client 缺失提示的密度、对齐和响应式布局；让壁纸引擎状态按钮切回 Profile 插件清单。禁止：增加假目录/假数据/下载人数或新的插件能力；修改任何安装、权限、Runtime、设置 Owner、API 或 Profile 数据；改动 DSH/第三方仓库；重启现有服务、提交或发布。
+
+验收：桌面、平板/窄分栏、手机/短屏下操作入口可见、滚动可用且无横向溢出；搜索和筛选只影响当前真实清单并能组合使用；来源入口卡只展开各自真实来源类型；三种来源仍由同一检查/安装逻辑处理；Profile 清单未安装时显示真实状态及添加入口；DSH Client 内容缺失时显示紧凑、可读且真实的不可用状态，按钮回到 Profile 插件清单；其他设置分区与权限行为保持现状。逐轮在 ChatGPT 内置浏览器检查真实 `/plugin-manager` 页面，再按截图修正；运行插件管理定向回归、Client 类型检查、受影响包/Web 构建、`check:workspace` 和 `git diff --check`。验收不触发真实插件安装、启停、卸载或设置写入；未测帧时间、真机、桌面 WebView 的范围需单独说明。
+
+实施与逐轮验收记录（2026-10-16）：Profile 插件区改为真实清单优先，加入名称/描述/来源搜索、按真实状态筛选、收起式来源检查表单及 GitHub/NPM/Host 三个来源入口卡。来源卡只选择现有来源类型并展开同一表单，不提供假推荐条目。空清单显示 Profile 实际状态。壁纸引擎分区沿用 Settings Owner；DSH Client 设置页缺失时显示紧凑状态卡，“查看 Profile 插件”会切回 Profile 标签。沿用 Appearance 共享令牌、窗口表面透明度和减少动态效果；未增加设置，也没有改用户偏好。
+
+直接回归 2/2；`pnpm exec tsc --noEmit -p tsconfig.client.json`、`pnpm --filter lfaa-client-ui-plugin-manager build`、`pnpm --filter lfaa-client-ui-settings build`、`pnpm run build:web`、`pnpm run check:workspace`（193 包）及 `git diff --check` 均通过，构建产物在根 `dist/`。在内置浏览器实际路由 `/plugin-manager` 逐轮验收：1440×900 桌面、760×520 窄分栏、390×640 手机短屏；清单与三类来源入口无横向溢出，窄屏可纵向滚动。390×640 首轮发现壁纸状态卡文案挤压，调整媒体规则顺序后复验通过；点击“NPM 包”来源卡只展开 NPM 表单，点击壁纸状态卡按钮回到 Profile 清单。当前 Profile web 实际插件数为 0，因此没有可用于实测非空清单搜索/状态筛选的真实样本；未触发插件来源请求、安装、启停、卸载或设置保存。帧时间、真机、桌面 WebView 和真实 DSH Client 设置内容未测；壁纸分区仍如实显示 Client 设置页未加载。
+
+<a id="lfaa-cli-dsh-web-startup-alignment-20261016"></a>
+
+## LFAA-CLI-DSH-WEB-STARTUP-ALIGNMENT-20261016
+
+目标：让 LFAA 仓库内 `pnpm lfaa web` 采用与 DSH `pnpm dsh web` 一致的 TypeScript 源码 CLI 入口形态，并保留 LFAA 完整 Web 的构建产物、环境加载、数据目录迁移和本机 Daemon 监督行为；菜单启动与直接 CLI 启动均检查当前数据目录写锁，只结束身份可确认的 LFAA Web 进程，再启动新 Web。无法确认锁持有者时继续拒绝启动。
+
+运行入口：DSH 只读参考为 `pnpm dsh web` → `node --import tsx/esm apps/cli/src/bin.ts web`。LFAA 目标入口为 `pnpm lfaa web` → `node --import tsx/esm --import ./apps/cli/register-package-loader.mjs apps/cli/src/bin.ts web` → Windows 数据锁预检 → 共享 LFAA CLI 运行器；菜单先核对/构建 Web 与控制端，再通过同一 CLI 入口启动。既有开发进程 `src/index.ts --profile web` 需在过渡期可识别。
+
+Owner 与配置：CLI 启动逻辑归 `apps/cli`，配置写锁继续归 `packages/storage/storage-json` 的 `FileLease` 与 `packages/storage/storage-domain`；菜单只协调同一 LFAA 数据目录下可确认的 Web 进程。复用现有 `.env`/进程环境解析出的 `LFAA_DATA_DIR`，不涉及设置中心。
+
+允许：增加 LFAA TypeScript 源码 CLI 转发入口并调整根 `lfaa` 脚本；新增源码 CLI 调用的 Windows Web 锁预检脚本，对已发布 CLI、DSH 风格 LFAA 源码 CLI 与既有开发 Web 入口精确识别；增加隔离的 PowerShell 回归；更新 CLI README、本合同与任务索引。
+
+禁止：修改 `FileLease` 锁协议、数据目录、用户数据、Daemon/桌面生命周期或其他菜单模式；不按端口单独识别或结束进程；不结束 DSH/其他无法确认的 Node 进程或整个进程树；不重启当前真实 Web/Daemon/Minecraft 服务作验收。
+
+验收：`pnpm lfaa web` 从 `apps/cli/src/bin.ts` 进入且保留现有 LFAA 启动器行为；菜单和直接源码 CLI 启动都经过该入口并运行同一锁预检；打包 CLI 与源码 Web 进程均可被锁预检识别，DSH `apps/cli/src/bin.ts web`（无 LFAA 包解析器）和其他 Node/Profile 均不匹配。结束前仍复核锁 PID/identity、进程命令行和创建时间，锁变化时中止。Pester 回归、PowerShell AST、CLI 帮助启动、CLI typecheck 与 `git diff --check` 通过；不终止本机当前真实 PID。
+
+实施与验证记录：根 `pnpm lfaa <组合>` 现在从 `apps/cli/src/bin.ts` 进入，再转交源码与 npm 共用的 CLI 运行器。Windows Web 源码入口先调用 `scripts/lfaa-web-startup-preflight.ps1`；菜单也经同一 CLI 路径启动。预检复用权威数据目录解析，二次核对锁 PID/identity、完整命令行和进程创建时间后，只结束匹配的 LFAA Web PID；无法确认的锁持有者继续阻止启动。未改存储锁协议、运行数据、设置或 DSH 源码。
+
+最终验证：Windows PowerShell Pester 回归 3/3；PowerShell 5.1 在隔离的无锁目录执行预检通过，相关脚本 AST 无错误；`pnpm run lfaa web --help`、`pnpm --filter @yubboo/lfaa typecheck`、`pnpm run check:workspace`（193 包）和 `git diff --check` 通过。没有启动或终止当前真实 Web/Daemon/Minecraft 进程，因此实际旧 Web 结束与重启尚未现场验收。
+
 <a id="lfaa-plugin-install-sources-20261016"></a>
 
 ## LFAA-PLUGIN-INSTALL-SOURCES-20261016
@@ -1067,6 +1247,13 @@ AI 漫剧分镜画布已接入；修复了应用入口历史状态白名单遗�
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
+| LFAA-PLUGIN-MANAGER-UNIFIED-TABS-20261017 | 合并插件工作区导航并移除重复的标题与分类筛选卡 | 已完成 | [当前合同](#lfaa-plugin-manager-unified-tabs-20261017) |
+| LFAA-PLUGIN-WORKSPACE-STICKY-CARDS-20261016 | 将插件工作区标题标签和目录提示卡片移至最外层容器 | 已被统一标签任务取代 | [历史合同](#lfaa-plugin-workspace-sticky-cards-20261016) |
+| LFAA-PLUGIN-WORKSPACE-CORNER-RADIUS-20261016 | 为插件工作区内容外框增加一致圆角并正确裁切滚动区域 | 已完成；Settings UI/Web 构建、193 包 Gate、diff 检查与 1355×925/760×520 内置浏览器验收通过；实体设备、桌面 WebView、帧时间未测 | [当前合同](#lfaa-plugin-workspace-corner-radius-20261016) |
+| LFAA-PLUGIN-CAPABILITY-CATALOG-LAYOUT-20261016 | 重排能力目录真实条目的分组卡片布局并保留筛选/搜索 | 已完成；5/5、UI/Web 构建、193 包 Gate、diff 检查及 1440×900/760×520/390×640 内置浏览器验收通过；真实设备、桌面 WebView、帧时间未测 | [当前合同](#lfaa-plugin-capability-catalog-layout-20261016) |
+| LFAA-PLUGIN-WALLPAPER-TAB-LIFECYCLE-20261016 | 让壁纸引擎插件分区跟随真实 Profile 安装清单显隐 | 已完成；记录身份回归 3/3、Client/Web 构建与 193 包 Gate 通过；内置浏览器 1355×924 证实空 Profile 隐藏，已安装时显示与实际卸载回读未测 | [本轮合同](#lfaa-plugin-wallpaper-tab-lifecycle-20261016) |
+| LFAA-PLUGIN-UI-MARKETPLACE-20261016 | 按用户参考图优化插件工作区与真实 Profile 插件管理列表 | 已完成；Web 构建、193 包 Gate 和 1440×900/760×520/390×640 内置浏览器验收通过；非空插件筛选样本、帧时间、真机与桌面 WebView 未测 | [本轮合同](#lfaa-plugin-ui-marketplace-20261016) |
+| LFAA-PLUGIN-INSTALL-MODAL-REGISTRY-PROGRESS-20261017 | 修复三类插件来源自动识别，增加居中添加/安装详情弹窗及单次 registry 选择 | 实施中 | [本轮合同](#lfaa-plugin-install-modal-registry-progress-20261017) |
 | LFAA-PLUGIN-INSTALL-SOURCES-20261016 | 接入 DSH 插件管理器三类来源、独立管理页和通过现有 Permission Owner 执行的安装/启停/卸载入口 | 来源、独立管理页和手动启停直调已完成；隔离 Runtime 回归通过；窄/短视口与真实插件点击未验 | [本轮合同](#lfaa-plugin-install-sources-20261016) |
 | LFAA-UI-SIDEBAR-CATEGORIES-20261015 | 小鱼智能体左侧会话栏按草稿、置顶、项目、最近归类 | 实现完成；内置浏览器验收受阻 | [本轮合同](#lfaa-ui-sidebar-categories-20261015) |
 | LFAA-AI-WORK-COMPOSER-SLASH-MENTION-20261015 | 小鱼输入框支持 `/` 命令菜单与 `@` 应用/能力关联 | 聊天包/Web 构建、类型检查、实页桌面及窄分栏检查通过；短屏和自动化测试未运行 | [本轮合同](#lfaa-ai-work-composer-slash-mention-20261015) |
@@ -1123,6 +1310,7 @@ AI 漫剧分镜画布已接入；修复了应用入口历史状态白名单遗�
 | LFAA-DESKTOP-UPDATE-RELEASE-01 | 将 Windows Electron 更新能力接入 0.1.2，并发布可供 0.1.1 检测的更新 | 已发布（构建、线上清单与安装包核对通过；0.1.1 实机升级未验） | [合同](archive/contracts/06.md#lfaa-desktop-update-release-01) |
 | LFAA-UI-PLUGIN-WORKSPACE-01 | 将设置中心的插件配置重排为分区工作台，分离总览、能力目录、知识库、第三方插件、MCP 与运行诊断，并复用现有设置 Owner | 已实现（UI 包构建、客户端类型检查和差异检查通过；Web 构建指纹检测到并行源码变更而未登记，浏览器目视未验） | [合同](archive/contracts/08.md#lfaa-ui-plugin-workspace-01) |
 | LFAA-CLI-WEB-LOCK-RECOVERY-01 | Web 菜单启动时识别当前数据目录的存活 LFAA Web 写锁持有者，结束该 CLI 进程后再启动 | 已实现（PowerShell 语法、数据目录解析、差异检查通过；真实 PID 终止与 Web 重启未运行） | [合同](archive/contracts/06.md#lfaa-cli-web-lock-recovery-01) |
+| LFAA-CLI-DSH-WEB-STARTUP-ALIGNMENT-20261016 | 对齐 DSH 源码 CLI 入口形态，并让每次完整 Web 启动安全结束同数据目录下可确认的旧 LFAA Web 后重新启动 | 已实现（Pester 3/3、PowerShell 5.1 预检、CLI typecheck/帮助、check:workspace 193 包和差异检查通过；真实 Web 重启未验） | [当前合同](#lfaa-cli-dsh-web-startup-alignment-20261016) |
 | LFAA-WEB-MENU-STARTUP-PS51-20261009 | 修复 Windows PowerShell 5.1 下完整 Web 启动预检的 Node 参数引号丢失，并明确完整 Web、独立 Daemon 与 Vite 模式的前置条件 | 已修复；PowerShell 5.1 回归 1/1，控制端/Web 构建和隔离目录下实际菜单启动通过；健康与页面 HTTP 200 | [当前合同](#lfaa-web-menu-startup-ps51-20261009) |
 | LFAA-DESKTOP-ELECTRON-AUTO-UPDATE-01 | 为 Electron 桌面端增加 LFAA 更新清单，并接入自动检查、下载与受控安装 | 代码已接入；清单回归和静态检查通过；Electron NSIS 构建被现有 Host TypeScript 错误阻断；真实 Release 下载、签名和安装升级未验 | [合同](archive/contracts/06.md#lfaa-desktop-electron-auto-update-01) |
 | LFAA-DESKTOP-UPDATE-CONSENT-CHECK-01 | 为当前可运行的 Windows Electron 桌面端增加新版本推送、用户选择下载及设置页手动检查 | Windows Electron 源码、定向回归及隔离前端构建通过；真实 Release/桌面安装及 Android、Tauri 未验 | [合同](archive/contracts/07.md#lfaa-desktop-update-consent-check-01) |

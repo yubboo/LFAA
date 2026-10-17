@@ -1,6 +1,6 @@
 /**
  * 功能：读取官方 NPM 插件包，并为 GitHub 插件源码补齐已构建入口。
- * 作用：只接受 registry.npmjs.org tarball，校验 SHA-512 SRI 并安全展开；不运行任何脚本。
+ * 作用：从所选 NPM registry 读取插件包，校验同源 tarball 的 SHA-512 SRI 并安全展开；不运行任何脚本。
  * 关联文件：source-resolution.ts 解析 NPM 来源；github-source.ts 仅在缺少声明产物时调用补齐流程。
  */
 import { createHash, timingSafeEqual } from "node:crypto";
@@ -9,8 +9,21 @@ import { PLUGIN_ARCHIVE_LIMITS, readNpmTarGzip } from "./npm-archive.js";
 import type { GitHubSnapshot } from "./github-source.js";
 import type { PluginArchiveFile } from "./zip-archive.js";
 
-const REGISTRY_ROOT = "https://registry.npmjs.org";
+export const DEFAULT_NPM_REGISTRY = "https://registry.npmjs.org/";
 interface PackageManifest { name?: unknown; version?: unknown; description?: unknown; license?: unknown; repository?: unknown; main?: unknown; exports?: unknown; dsh?: unknown }
+
+export function normalizeNpmRegistryUrl(value?: string): string {
+  if (value === undefined || value.trim() === "") return DEFAULT_NPM_REGISTRY;
+  if (value.length > 512 || /[\r\n\0?#]/u.test(value)) throw Object.assign(new Error("NPM 镜像地址格式无效。"), { code: "invalid_npm_registry" });
+  let url: URL;
+  try { url = new URL(value.trim()); }
+  catch { throw Object.assign(new Error("NPM 镜像地址必须是完整的 HTTP(S) 地址。"), { code: "invalid_npm_registry" }); }
+  if ((url.protocol !== "https:" && url.protocol !== "http:") || !url.hostname || url.username || url.password || url.search || url.hash) {
+    throw Object.assign(new Error("NPM 镜像只接受不含账号、密码、查询参数或片段的 HTTP(S) 地址。"), { code: "invalid_npm_registry" });
+  }
+  url.pathname = `${url.pathname.replace(/\/+$/u, "")}/`;
+  return url.href;
+}
 
 export interface RegistryPluginPackage {
   name: string;
@@ -22,34 +35,36 @@ export interface RegistryPluginPackage {
   files: PluginArchiveFile[];
 }
 
-/** Resolve a dependency's declared semver range from the official registry; never fall back to an unrelated latest. */
-export async function downloadCompatibleRegistryPluginPackage(name: string, range: string): Promise<RegistryPluginPackage> {
+/** Resolve a dependency's declared semver range from the selected registry; never fall back to an unrelated latest. */
+export async function downloadCompatibleRegistryPluginPackage(name: string, range: string, registryValue?: string): Promise<RegistryPluginPackage> {
   if (!isNpmPackageName(name)) throw new Error("插件依赖包名无效。");
   if (range.length > 200 || !validRange(range)) throw new Error(`插件依赖版本范围无效：${name}@${range}`);
-  if (valid(range)) return downloadRegistryPluginPackage(name, range);
-  const metadata = await readJson(await fetch(`${REGISTRY_ROOT}/${encodeURIComponent(name)}`, {
+  const registry = normalizeNpmRegistryUrl(registryValue);
+  if (valid(range)) return downloadRegistryPluginPackage(name, range, registry);
+  const metadata = await readJson(await fetch(new URL(encodeURIComponent(name), registry), {
     headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/json" },
     redirect: "error", signal: AbortSignal.timeout(20_000)
-  }), "NPM registry");
+  }), `NPM registry ${new URL(registry).host}`);
   const version = maxSatisfying(Object.keys(isRecord(metadata.versions) ? metadata.versions : {}), range);
   if (!version) throw new Error(`官方 registry 没有满足范围的插件依赖：${name}@${range}`);
-  return downloadRegistryPluginPackage(name, version);
+  return downloadRegistryPluginPackage(name, version, registry);
 }
 
 /** Resolve one npm package version and verify its registry integrity before reading its manifest. */
-export async function downloadRegistryPluginPackage(packageName: string, requestedVersion: string): Promise<RegistryPluginPackage> {
+export async function downloadRegistryPluginPackage(packageName: string, requestedVersion: string, registryValue?: string): Promise<RegistryPluginPackage> {
   if (!isNpmPackageName(packageName) || !/^[A-Za-z0-9][A-Za-z0-9.+_-]{0,99}$/u.test(requestedVersion)) throw new Error("NPM 插件包名或版本标签格式无效。");
-  const metadataUrl = `${REGISTRY_ROOT}/${encodeURIComponent(packageName)}/${encodeURIComponent(requestedVersion)}`;
+  const registry = normalizeNpmRegistryUrl(registryValue);
+  const metadataUrl = new URL(`${encodeURIComponent(packageName)}/${encodeURIComponent(requestedVersion)}`, registry);
   const metadata = await readJson(await fetch(metadataUrl, {
     headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/json" },
     redirect: "error", signal: AbortSignal.timeout(20_000)
-  }), "NPM registry");
+  }), `NPM registry ${new URL(registry).host}`);
   if (metadata.name !== packageName || typeof metadata.version !== "string" || !isExactVersion(metadata.version)) throw new Error("NPM registry 未返回与请求包名匹配的固定版本。");
   const dist = isRecord(metadata.dist) ? metadata.dist : undefined;
   if (!dist || typeof dist.tarball !== "string" || typeof dist.integrity !== "string") throw new Error("NPM registry 未提供插件 tarball 与 SHA-512 完整性声明。");
   const tarballUrl = new URL(dist.tarball);
-  if (tarballUrl.protocol !== "https:" || tarballUrl.hostname.toLocaleLowerCase("en-US") !== "registry.npmjs.org" || tarballUrl.port || tarballUrl.username || tarballUrl.password || tarballUrl.search || tarballUrl.hash) {
-    throw new Error("NPM 插件 tarball 必须来自官方 registry.npmjs.org。");
+  if (tarballUrl.origin !== new URL(registry).origin || tarballUrl.username || tarballUrl.password || tarballUrl.search || tarballUrl.hash) {
+    throw new Error("NPM 插件 tarball 必须来自当前选择的 registry，且不能包含认证信息或重定向参数。");
   }
   const tarballResponse = await fetch(tarballUrl, {
     headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/octet-stream" },
@@ -87,7 +102,7 @@ export async function downloadPublishedFiles(snapshot: GitHubSnapshot): Promise<
     throw new Error("GitHub 插件缺少可解析的 NPM 包名或固定版本；不能补齐发布产物。");
   }
   const packageName = sourceManifest.name;
-  const metadataUrl = `${REGISTRY_ROOT}/${encodeURIComponent(packageName)}/${encodeURIComponent(sourceManifest.version)}`;
+  const metadataUrl = new URL(`${encodeURIComponent(packageName)}/${encodeURIComponent(sourceManifest.version)}`, DEFAULT_NPM_REGISTRY);
   const metadataResponse = await fetch(metadataUrl, { headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(20_000) });
   const metadata = await readJson(metadataResponse, "NPM registry");
   if (metadata.name !== packageName || metadata.version !== sourceManifest.version || metadata.gitHead !== snapshot.commit) {
@@ -102,7 +117,7 @@ export async function downloadPublishedFiles(snapshot: GitHubSnapshot): Promise<
   const dist = isRecord(metadata.dist) ? metadata.dist : undefined;
   if (!dist || typeof dist.tarball !== "string" || typeof dist.integrity !== "string") throw new Error("NPM registry 未提供发布 tarball 和 SRI 完整性声明。");
   const tarballUrl = new URL(dist.tarball);
-  if (tarballUrl.protocol !== "https:" || tarballUrl.hostname !== "registry.npmjs.org" || tarballUrl.port || tarballUrl.username || tarballUrl.password || tarballUrl.search || tarballUrl.hash) {
+  if (tarballUrl.origin !== new URL(DEFAULT_NPM_REGISTRY).origin || tarballUrl.protocol !== "https:" || tarballUrl.port || tarballUrl.username || tarballUrl.password || tarballUrl.search || tarballUrl.hash) {
     throw new Error("NPM 发布 tarball 必须来自官方 registry.npmjs.org。");
   }
   const tarballResponse = await fetch(tarballUrl, { headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/octet-stream" }, redirect: "error", signal: AbortSignal.timeout(60_000) });
