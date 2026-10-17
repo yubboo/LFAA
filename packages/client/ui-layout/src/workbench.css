@@ -829,7 +829,7 @@ body[data-we-wallpaper][data-we-sidebar-glass] .workbench-shell[data-wallpaper-e
 }
 
 /* DSH floating glass controls apply to equivalent LFAA menus and dialogs, including body-portaled overlays. */
-body[data-we-wallpaper][data-we-glass-floaters] :is(.ant-dropdown-menu, .ant-popover-inner, .ant-select-dropdown, .ant-picker-panel, .ant-modal-content) {
+body[data-we-wallpaper][data-we-glass-floaters] :is(.ant-dropdown-menu, .ant-popover-inner, .ant-select-dropdown, .ant-picker-panel, .ant-modal-content, .module-navigation-rail__popover, .ai-work-chat__anchor-preview, .ai-work-notification-toast, .lfaa-workbench__swap-control::after, .plugin-manager-page__add-menu-list) {
   background-color: var(--settings-wallpaper-floaters-surface, var(--color-surface));
   -webkit-backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
   backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);

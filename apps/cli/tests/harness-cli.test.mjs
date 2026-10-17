@@ -5,10 +5,11 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { dirname, resolve, relative, sep } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 
@@ -34,7 +35,7 @@ async function fixture() {
 function launch(directory, port, args = []) {
   const child = spawn(process.execPath, ["--import", pathToFileURL(resolve(root, "apps/cli/tests/helpers/cli-process.mjs")).href, resolve(root, "apps/cli/bin/lfaa.mjs"), "web", ...args], {
     cwd: root, windowsHide: true, stdio: ["ignore", "pipe", "pipe", "ipc"],
-    env: { ...process.env, NODE_ENV: "production", LFAA_LOCAL_MODE: "true", LFAA_DATA_DIR: resolve(directory, "data"), LFAA_HARNESS_HOME: "", SERVER_HOST: "127.0.0.1", SERVER_PORT: String(port), JWT_SECRET: "" }
+    env: { ...process.env, NODE_ENV: "production", LFAA_LOCAL_MODE: "true", LFAA_HOME: resolve(directory, "home"), LFAA_DATA_DIR: resolve(directory, "data"), LFAA_HARNESS_HOME: "", SERVER_HOST: "127.0.0.1", SERVER_PORT: String(port), JWT_SECRET: "" }
   });
   let output = "";
   child.stdout.on("data", data => { output += data; });
@@ -62,6 +63,35 @@ async function stop(runtime) {
   finally { clearTimeout(timer); }
 }
 
+test("CLI 工作区根目录来自入口文件，不受启动时当前目录影响", () => {
+  const entry = resolve(root, "apps/cli/bin/lfaa.mjs");
+  const result = spawnSync(process.execPath, [entry, "--help"], {
+    cwd: tmpdir(),
+    encoding: "utf8",
+    windowsHide: true,
+    timeout: 5000
+  });
+  assert.equal(result.status, 0, result.stderr || result.error?.message);
+  assert.match(result.stdout, /源码启动：pnpm lfaa web/u);
+});
+
+test("Web 端口被占用时在插件装配前给出明确错误", { timeout: 15_000 }, async () => {
+  const data = await fixture();
+  const blocker = createServer();
+  await new Promise((done, reject) => { blocker.once("error", reject); blocker.listen(0, "127.0.0.1", done); });
+  const port = blocker.address().port;
+  try {
+    const runtime = launch(data.directory, port);
+    const result = await runtime.exited;
+    assert.equal(result.code, 1, runtime.output());
+    assert.match(runtime.output(), /LFAA Web 启动已取消：127\.0\.0\.1:\d+ 已被占用/u);
+    assert.doesNotMatch(runtime.output(), /插件未就绪|Cordis 状态/u);
+  } finally {
+    await new Promise((done, reject) => blocker.close(error => error ? reject(error) : done()));
+    await data.close();
+  }
+});
+
 async function localNodeReady(runtime, directory) {
   if (process.platform !== "win32" || process.arch !== "x64") return;
   // 只读取测试目录内控制面的真实心跳，确认 Web 自动托管节点，而不是只看到进程启动日志。
@@ -85,6 +115,7 @@ test("生产 CLI 真实启动、认证、正常停止及同数据目录重启", 
     for (let i = 0; i < 2; i++) {
       runtime = launch(data.directory, port);
       await ready(runtime, address);
+      assert.equal((await readFile(resolve(data.directory, "home/profiles/web/cordis.patch.yml"), "utf8")).trim().endsWith("[]"), true);
       await localNodeReady(runtime, data.directory);
       assert.equal((await fetch(address)).status, 200);
       assert.equal((await fetch(`${address}/api/ai/sessions`)).status, 401);
@@ -93,6 +124,32 @@ test("生产 CLI 真实启动、认证、正常停止及同数据目录重启", 
     }
   } finally {
     try { if (runtime) await stop(runtime); }
+    finally { await data.close(); }
+  }
+});
+
+test("默认 LFAA_HOME 下的用户 Profile Patch 会被实际装配", { timeout: 25_000 }, async () => {
+  const data = await fixture();
+  const port = await freePort();
+  let runtime;
+  try {
+    const userPatch = resolve(data.directory, "home/profiles/web/cordis.patch.yml");
+    await mkdir(dirname(userPatch), { recursive: true });
+    await writeFile(userPatch, '- insert:\n    - id: regression-user-profile-entry\n      name: lfaa-agent-loop/src/regression-user-profile-entry.js\n');
+    runtime = launch(data.directory, port);
+    const timer = setTimeout(() => runtime.child.kill(), 15_000);
+    try { assert.equal((await runtime.exited).code, 1, runtime.output()); }
+    finally { clearTimeout(timer); }
+    assert.match(runtime.output(), /插件加载失败：regression-user-profile-entry/);
+    assert.match(runtime.output(), /Cannot find module/);
+    assert.doesNotMatch(runtime.output(), /LFAA Web 已就绪/);
+  } finally {
+    try {
+      if (runtime && runtime.child.exitCode === null && runtime.child.signalCode === null) {
+        runtime.child.kill();
+        await runtime.exited;
+      }
+    }
     finally { await data.close(); }
   }
 });

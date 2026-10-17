@@ -5,7 +5,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AiRecoverableRequestError, streamAiCompletion } from "../../../packages/llm/llm/src/completion.ts";
+import { AiRecoverableRequestError, createAiCompletionService, streamAiCompletion } from "../../../packages/llm/llm/src/completion.ts";
 
 function completionInput() {
   return {
@@ -47,6 +47,21 @@ test("HTTP 402 explains the Provider balance/quota issue without exposing its re
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("LLM Provider adapters replace one provider route and are removed with their owner", async () => {
+  const service = createAiCompletionService();
+  const expected = { text: "adapter result", usage: null, toolCalls: [], providerReplay: null };
+  let calls = 0;
+  const adapter = { async stream(input) { calls += 1; assert.equal(input.account.providerId, "fixture-provider"); return expected; } };
+  const dispose = service.registerAdapter("fixture-provider", adapter);
+  assert.deepEqual(service.listAdapters(), ["fixture-provider"]);
+  assert.equal(await service.streamCompletion(completionInput()), expected);
+  assert.equal(calls, 1);
+  assert.throws(() => service.registerAdapter("fixture-provider", adapter), /重复登记/u);
+  dispose();
+  dispose();
+  assert.deepEqual(service.listAdapters(), []);
 });
 
 const sse = (deltas, end = 'data: [DONE]\n\n') => new Response(deltas.map(delta => 'data: ' + JSON.stringify({ choices: [{ delta }] }) + '\n\n').join('') + end, { headers: { 'Content-Type': 'text/event-stream' } });

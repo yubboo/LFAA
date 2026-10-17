@@ -7,8 +7,8 @@ const sessions=await import("lfaa-session/src/sessions.js");const {database}=awa
   const base = `http://127.0.0.1:${process.env.SERVER_PORT}/api`;
   try {
     assert.equal((await fetch(`${base}/ai/skills`)).status, 401);
-    const setup = await fetch(`${base}/auth/setup`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "xiaoyu-isolated", password: "Isolated-Xiaoyu-20261014!" }) });
-    assert.equal(setup.status, 201);
+    const setup = await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "admin", password: "123456" }) });
+    assert.equal(setup.status, 200);
     const result = await setup.json(), userId = result.user.id;
     const headers = { "Content-Type": "application/json", Cookie: setup.headers.get("set-cookie").split(";")[0] };
     const directory = await fetch(`${base}/ai/skills`, { headers }); assert.equal(directory.status, 200);

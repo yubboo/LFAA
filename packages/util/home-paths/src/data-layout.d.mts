@@ -31,4 +31,6 @@ export interface UserDataPaths {
 }
 
 export function resolveDataPaths(dataDirectory: string): DataPaths;
+/** 创建既有数据布局的顶层分类目录并保护 credentials；不创建账户或业务内容。 */
+export function ensureDataDirectories(dataDirectory: string): DataPaths;
 export function resolveUserDataPaths(dataDirectory: string, userId: string): UserDataPaths;

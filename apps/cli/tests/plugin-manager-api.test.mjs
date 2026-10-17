@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 
 const data = mkdtempSync(join(tmpdir(), 'lfaa-plugin-api-'));
 process.env.LFAA_DATA_DIR = data;
+process.env.LFAA_HOME = `${data}-home`;
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = '';
 process.env.SERVER_HOST = '127.0.0.1';
@@ -24,6 +25,7 @@ test.after(async () => {
   if (context) await context.fiber.dispose();
   else if (closeDatabase) closeDatabase();
   rmSync(data, { recursive: true, force: true });
+  rmSync(process.env.LFAA_HOME, { recursive: true, force: true });
 });
 
 test('Web Profile 加载通用能力工具并保护适配器目录与插件 API', async () => {

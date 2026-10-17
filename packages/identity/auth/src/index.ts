@@ -6,23 +6,25 @@
 export {
   authenticateUser,
   changeUserPassword,
+  dismissDefaultCredentialReminder,
+  ensureDefaultAdminAccount,
+  getDefaultCredentialReminder,
   createManagedUser,
-  createInitialAdmin,
   createSession,
   deleteManagedUser,
   findActiveSession,
   searchUsers,
-  requiresInitialSetup,
   revokeSession,
   resetPasswordWithRecoveryKey,
   setRecoveryKey,
   transferSuperAdmin,
   updateManagedUser,
+  updateOwnUsername,
   updateOwnEmail,
   verifyUserPassword,
   sessionLifetimeSeconds
 } from "./service.js";
-export type { AssignableUserRole, ManagedUserInput, ManagedUserUpdate, PublicUser, UserRole, UserSearchFilters } from "./service.js";
+export type { AssignableUserRole, DefaultCredentialReminder, ManagedUserInput, ManagedUserUpdate, PublicUser, UserRole, UserSearchFilters } from "./service.js";
 
 import type { Context } from "@deepseek-ai/cordis";
 import * as capability from "./service.js";

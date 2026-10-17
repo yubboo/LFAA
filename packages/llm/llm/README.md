@@ -1,6 +1,6 @@
 # LFAA LLM
 
-`lfaa-llm` 是唯一 Provider 请求实现，供 Agent Loop 使用。原 `core/agent-loop/src/runtime.ts` 已迁入 `src/completion.ts`，不保留第二份执行逻辑。Bundle 登记 `lfaaLlm` 服务。
+`lfaa-llm` 是唯一 Provider 请求 Owner。Bundle 登记 `lfaaLlm` Cordis 服务；AI 主回答、自动摘要、分支记忆和回复后记忆都注入该服务，不直接选择协议实现。插件可按 Provider ID 登记 `AiCompletionAdapter`；重复 ID 明确失败，注册返回 Fiber 持有的 disposer，卸载后请求回到原有 OpenAI-compatible 实现。原 `core/agent-loop/src/runtime.ts` 已迁入 `src/completion.ts`，不保留第二份执行逻辑。
 
 读取 Settings 的当前模型地址、凭据与能力目录；支持 SSE delta、SSE message 与 JSON message，限制响应大小、超时与输出。隐藏推理、密钥和错误响应正文不发给客户端。空响应提供格式/结束原因诊断；可恢复且尚无可展示输出或工具调用的错误才允许 Agent Loop 按 `aiRuntime.requestRetries`、`retryDelaySeconds` 重试，仍计入请求预算；不重放工具或更换模型。
 

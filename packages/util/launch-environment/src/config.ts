@@ -5,12 +5,13 @@
  */
 import { protectPrivateDirectory } from "lfaa-home-paths/src/private-directory.mjs";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { isIP } from "node:net";
 import { findRepositoryRoot } from "lfaa-home-paths/src/index.mjs";
 import Joi from "joi";
 import { randomBytes } from "node:crypto";
-import { resolveDataDirectory } from "lfaa-home-paths/src/resolve-data-directory.mjs";
+import { resolveDataDirectory, resolveHomeDirectory } from "lfaa-home-paths/src/resolve-data-directory.mjs";
+import { ensureDataDirectories } from "lfaa-home-paths/src/data-layout.mjs";
 
 const repositoryRoot = findRepositoryRoot(import.meta.url);
 const environmentFile = resolve(repositoryRoot, ".env");
@@ -37,6 +38,7 @@ const environmentSchema = Joi.object({
   LFAA_DESKTOP_MODE: Joi.boolean().truthy("1").falsy("0").default(false),
   LFAA_LOCAL_MODE: Joi.boolean().truthy("1").falsy("0").default(false),
   LFAA_SERVE_FRONTEND: Joi.boolean().truthy("1").falsy("0").default(false),
+  LFAA_HOME: Joi.string().trim().allow("").default(""),
   LFAA_DATA_DIR: Joi.string().trim().allow("").default(""),
   JWT_SECRET: Joi.string().allow("").max(512).default(""),
   WEBAUTHN_RP_ID: Joi.string().trim().allow("").max(253).default(""),
@@ -57,6 +59,7 @@ interface ParsedEnvironment {
   LFAA_DESKTOP_MODE: boolean;
   LFAA_LOCAL_MODE: boolean;
   LFAA_SERVE_FRONTEND: boolean;
+  LFAA_HOME: string;
   LFAA_DATA_DIR: string;
   JWT_SECRET: string;
   WEBAUTHN_RP_ID: string;
@@ -170,7 +173,17 @@ if (configuredJwtSecret.length > 0 && configuredJwtSecret.length < 32) {
   throw new Error("JWT_SECRET 至少需要 32 个字符；开发环境可留空以使用本机持久密钥。");
 }
 
-const dataDirectory = resolveDataDirectory(repositoryRoot, environment.LFAA_DATA_DIR);
+function isWithinDirectory(parentDirectory: string, candidateDirectory: string): boolean {
+  const relativePath = relative(resolve(parentDirectory), resolve(candidateDirectory));
+  return relativePath === "" || (relativePath !== ".." && !relativePath.startsWith(`..${sep}`) && !isAbsolute(relativePath));
+}
+
+const homeDirectory = resolveHomeDirectory(repositoryRoot, environment.LFAA_HOME);
+const dataDirectory = resolveDataDirectory(repositoryRoot, environment.LFAA_DATA_DIR, { lfaaHome: homeDirectory });
+const pluginInstallDirectory = resolve(homeDirectory, "plugins");
+if (isWithinDirectory(pluginInstallDirectory, dataDirectory) || isWithinDirectory(dataDirectory, pluginInstallDirectory)) {
+  throw new Error("LFAA_DATA_DIR 与 LFAA_HOME/plugins 不能相互嵌套；请把用户数据根放在插件安装目录之外。");
+}
 
 mkdirSync(dataDirectory, { recursive: true });
 
@@ -236,12 +249,16 @@ const localJwtSecret = configuredJwtSecret.length === 0
   ? loadOrCreateLocalJwtSecret(resolve(dataDirectory, "credentials", "jwt-secret"))
   : "";
 const localDaemonToken = loadOrCreateLocalDaemonToken(resolve(dataDirectory, "credentials", "daemon-token"));
+// 每次控制端首次进入数据根时补齐标准分类；不预建任何账户或业务内容。
+ensureDataDirectories(dataDirectory);
 
 export const config = {
   nodeEnvironment: environment.NODE_ENV,
   host: environment.SERVER_HOST,
   port: environment.SERVER_PORT,
   repositoryRoot,
+  homeDirectory,
+  pluginInstallDirectory,
   dataDirectory,
   dataDirectoryMigrationRequestPath: process.env.LFAA_DATA_DIRECTORY_MIGRATION_REQUEST_PATH?.trim()
     ? resolve(process.env.LFAA_DATA_DIRECTORY_MIGRATION_REQUEST_PATH.trim())

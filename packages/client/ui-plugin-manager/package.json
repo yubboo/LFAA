@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2",
     "antd": "^5.0.0",
     "lfaa-client-connection": "workspace:*",
     "lfaa-client-modules": "workspace:*",
@@ -33,6 +34,7 @@
     "client": {
       "platform": "web",
       "inject": [
+        "@deepseek-ai/dsh-client-ui-primitives",
         "lfaa-client-connection",
         "lfaa-client-modules",
         "lfaa-client-resources",

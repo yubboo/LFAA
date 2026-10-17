@@ -42,12 +42,12 @@ test('账户 Remote 经真实 Host 登录认证并由 Client Connection 调用',
   assert.equal(unauthorized.status, 401);
   assert.equal((await unauthorized.json()).error, 'authentication_required');
 
-  const setup = await fetch(`${base}/api/auth/setup`, {
+  const setup = await fetch(`${base}/api/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: 'p0-admin', password: 'LFAA-Test!2026' })
+    body: JSON.stringify({ username: 'admin', password: '123456' })
   });
-  assert.equal(setup.status, 201);
+  assert.equal(setup.status, 200);
   const setupBody = await setup.json();
   const cookie = setup.headers.get('set-cookie')?.split(';', 1)[0];
   assert.ok(cookie);

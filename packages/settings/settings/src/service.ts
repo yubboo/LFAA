@@ -96,6 +96,7 @@ function readGeneralSettings(value: Record<string, unknown>): GeneralSettings | 
     sessionIssueNotifications: typeof value.sessionIssueNotifications === "boolean" ? value.sessionIssueNotifications : defaults.sessionIssueNotifications,
     notificationSound: choose(value.notificationSound, ["default", "subtle", "off"], defaults.notificationSound),
     setupReminderEnabled: typeof value.setupReminderEnabled === "boolean" ? value.setupReminderEnabled : defaults.setupReminderEnabled,
+    defaultAdminCredentialReminderEnabled: typeof value.defaultAdminCredentialReminderEnabled === "boolean" ? value.defaultAdminCredentialReminderEnabled : defaults.defaultAdminCredentialReminderEnabled,
     confettiEnabled: typeof value.confettiEnabled === "boolean" ? value.confettiEnabled : defaults.confettiEnabled
   };
 }
@@ -301,7 +302,7 @@ export function saveUserSettings(
 ): void {
   // 旧客户端提交整类设置时保留后来新增的字段，显式提交仍采用用户新值。
   const submitted = value as unknown as Record<string, unknown>;
-  if (category === "general" && (!Object.hasOwn(submitted, "cardMotionEffect") || !Object.hasOwn(submitted, "dialogMotionEffect"))) {
+  if (category === "general" && (!Object.hasOwn(submitted, "cardMotionEffect") || !Object.hasOwn(submitted, "dialogMotionEffect") || !Object.hasOwn(submitted, "defaultAdminCredentialReminderEnabled"))) {
     value = { ...getUserSettings(userId).general, ...submitted } as GeneralSettings;
   }
   if (category === "plugins") value = { ...getUserSettings(userId).plugins, ...submitted } as PluginSettings;
@@ -553,6 +554,10 @@ function readAppearanceSettings(value: Record<string, unknown>): AppearanceSetti
         : defaultSettings.appearance.advanced.aiWorkOutputFocusBlurIdleSeconds;
       return {
         ...normalizedAdvanced,
+        // 旧账户尚无登录动画选择时只补内置默认值，保留已保存的主题和其他高级外观偏好。
+        authTransitionPluginId: typeof advanced.authTransitionPluginId === "string" && /^[A-Za-z0-9@._:/-]{1,180}$/u.test(advanced.authTransitionPluginId)
+          ? advanced.authTransitionPluginId
+          : defaultSettings.appearance.advanced.authTransitionPluginId,
         // 旧账户缺少回复虚化字段时只补开关、强度和延迟默认值；旧 px 值换算为百分比并保留其他外观偏好。
         aiWorkOutputFocusBlurEnabled: typeof advanced.aiWorkOutputFocusBlurEnabled === "boolean" ? advanced.aiWorkOutputFocusBlurEnabled : defaultSettings.appearance.advanced.aiWorkOutputFocusBlurEnabled,
         aiWorkOutputFocusBlurPercent: focusBlurPercent,
@@ -620,6 +625,7 @@ function isAppearanceAdvancedSettings(value: unknown): value is AppearanceAdvanc
   return Number.isInteger(advanced.interfaceFontSize) && Number(advanced.interfaceFontSize) >= 10 && Number(advanced.interfaceFontSize) <= 24
     && Number.isInteger(advanced.codeFontSize) && Number(advanced.codeFontSize) >= 8 && Number(advanced.codeFontSize) <= 24
     && ["system", "on", "off"].includes(String(advanced.reducedMotion))
+    && (advanced.authTransitionPluginId === undefined || typeof advanced.authTransitionPluginId === "string" && /^[A-Za-z0-9@._:/-]{1,180}$/u.test(advanced.authTransitionPluginId))
     && typeof advanced.separateModes === "boolean"
     && isAppearanceFonts(advanced.fonts)
     && isModeStyle(modeStyles.light) && isModeStyle(modeStyles.dark)
@@ -671,7 +677,7 @@ const providers: readonly AiProviderDefinition[] = [
 ];
 
 export function listAiProviders(): readonly AiProviderDefinition[] {
-  return providers;
+  return [...providers, ...[...extensionProviders.values()].map(provider => provider.definition)].map(provider => structuredClone(provider));
 }
 
 export interface AiProviderInput {
@@ -686,7 +692,7 @@ export interface AiProviderProbe {
   models: AiModelCatalogEntry[];
 }
 
-interface ProviderConnection {
+export interface ProviderConnection {
   url: string;
   chatUrl: string;
   keyHeader: string;
@@ -694,8 +700,86 @@ interface ProviderConnection {
   maxTokensField: "max_tokens" | "max_completion_tokens";
 }
 
+export interface AiProviderRegistration {
+  definition: AiProviderDefinition;
+  /** Optional generic OpenAI-compatible transport. Custom providers may implement the model-test seam instead. */
+  resolveConnection?(options: Record<string, string>): ProviderConnection;
+  /** Provider-owned catalog retrieval for protocols that are not a standard GET /models response. */
+  discoverModels?(input: AiProviderInput & { signal: AbortSignal }): Promise<unknown>;
+  /** Provider-owned real model test for non-OpenAI-compatible inference protocols. */
+  testModel?(input: AiProviderInput & { modelId: string; reasoningMode: string; model: AiModelCatalogEntry; signal: AbortSignal }): Promise<{ sample: string }>;
+}
+
+const extensionProviders = new Map<string, AiProviderRegistration>();
+
+/** Register a settings/catalog adapter owned by a Cordis plugin; the returned disposer is idempotent. */
+export function registerAiProvider(registration: AiProviderRegistration): () => void {
+  const definition = registration?.definition;
+  if (!definition || !/^[a-z][a-z0-9-]{0,63}$/u.test(definition.id) || !definition.name?.trim()
+    || definition.name.length > 80 || !definition.description || definition.description.length > 500
+    || !["api", "official-list"].includes(definition.discovery)
+    || !Array.isArray(definition.options) || definition.options.length > 16
+    || (definition.discovery === "api" && !registration.resolveConnection)
+    || (definition.discovery === "official-list" && !registration.discoverModels)
+    || (registration.resolveConnection !== undefined && typeof registration.resolveConnection !== "function")
+    || (registration.discoverModels !== undefined && typeof registration.discoverModels !== "function")
+    || (registration.testModel !== undefined && typeof registration.testModel !== "function")) throw new Error("AI Provider 登记无效。");
+  if (providers.some(provider => provider.id === definition.id) || extensionProviders.has(definition.id)) {
+    throw new Error(`AI Provider 重复登记：${definition.id}`);
+  }
+  const optionIds = new Set<string>();
+  for (const option of definition.options) {
+    if (!/^[a-z][a-zA-Z0-9-]{0,63}$/u.test(option.id) || !option.label?.trim() || option.label.length > 80
+      || !Array.isArray(option.choices) || option.choices.length > 100 || optionIds.has(option.id)
+      || option.choices.some(choice => !choice.value || choice.value.length > 160 || !choice.label || choice.label.length > 160)) {
+      throw new Error(`AI Provider 设置项无效：${definition.id}`);
+    }
+    optionIds.add(option.id);
+  }
+  const snapshot = structuredClone(definition);
+  const entry: AiProviderRegistration = { ...registration, definition: snapshot };
+  extensionProviders.set(definition.id, entry);
+  let active = true;
+  return () => {
+    if (!active) return;
+    active = false;
+    if (extensionProviders.get(definition.id) === entry) extensionProviders.delete(definition.id);
+  };
+}
+
 function positiveInteger(value: unknown): number | undefined {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
+function normalizeExtensionOptions(registration: AiProviderRegistration, options: Record<string, string>): Record<string, string> {
+  const declarations = new Map(registration.definition.options.map(option => [option.id, option]));
+  const normalized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(options)) {
+    const declaration = declarations.get(key);
+    if (!declaration || typeof value !== "string" || value.length > 512
+      || (declaration.choices.length > 0 && !declaration.choices.some(choice => choice.value === value))) {
+      throw new Error(`AI Provider 设置项无效：${key}`);
+    }
+    normalized[key] = value;
+  }
+  return normalized;
+}
+
+function normalizeExtensionModels(value: unknown): AiModelCatalogEntry[] {
+  if (!Array.isArray(value)) throw new Error("AI Provider 返回了无效模型目录。");
+  const models = value.slice(0, 500).flatMap((candidate): AiModelCatalogEntry[] => {
+    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return [];
+    const raw = candidate as Record<string, unknown>;
+    const id = typeof raw.id === "string" ? raw.id.trim() : "";
+    if (!id || id.length > 160) return [];
+    const name = typeof raw.name === "string" && raw.name.length <= 160 ? raw.name : id;
+    const contextWindow = positiveInteger(raw.contextWindow);
+    const maxOutputTokens = positiveInteger(raw.maxOutputTokens);
+    const capability = normalizeStoredModelThinking(raw.thinking, raw.thinkingSource, false);
+    return [{ id, name, ...(contextWindow ? { contextWindow } : {}), ...(maxOutputTokens ? { maxOutputTokens } : {}), ...capability }];
+  });
+  if (!models.length) throw new Error("AI Provider 没有返回有效模型目录。");
+  return models;
 }
 
 function normalizeProviderModels(list: unknown[]): AiModelCatalogEntry[] {
@@ -746,6 +830,24 @@ function normalizeSavedModels(providerId: string, value: unknown): AiModelCatalo
 }
 
 function resolveProvider(providerId: string, options: Record<string, string>): ProviderConnection {
+  const extension = extensionProviders.get(providerId);
+  if (extension) {
+    if (!extension.resolveConnection) throw new Error("AI Provider 未提供兼容 HTTP 连接器。");
+    const connection = extension.resolveConnection(Object.freeze(normalizeExtensionOptions(extension, options)));
+    if (!connection || typeof connection !== "object" || !["max_tokens", "max_completion_tokens"].includes(connection.maxTokensField)
+      || !/^[A-Za-z0-9-]{1,80}$/u.test(connection.keyHeader)
+      || (connection.keyPrefix !== undefined && (connection.keyPrefix.length > 80 || !/^[\x20-\x7E]*$/u.test(connection.keyPrefix)))) {
+      throw new Error("AI Provider 返回了无效连接设置。");
+    }
+    for (const endpoint of [connection.url, connection.chatUrl]) {
+      let parsed: URL;
+      try { parsed = new URL(endpoint); } catch { throw new Error("AI Provider 必须返回有效的 HTTPS 接口地址。"); }
+      if (parsed.protocol !== "https:" || parsed.username || parsed.password || endpoint.length > 2048) {
+        throw new Error("AI Provider 接口地址必须使用 HTTPS，且不能包含内嵌凭据。");
+      }
+    }
+    return connection;
+  }
   switch (providerId) {
     case "openai": return { url: "https://api.openai.com/v1/models", chatUrl: "https://api.openai.com/v1/chat/completions", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_completion_tokens" };
     case "deepseek": return { url: "https://api.deepseek.com/models", chatUrl: "https://api.deepseek.com/chat/completions", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_tokens" };
@@ -800,8 +902,18 @@ function resolveProvider(providerId: string, options: Record<string, string>): P
 }
 
 export async function probeAiProvider(input: AiProviderInput): Promise<AiProviderProbe> {
-  if (!providers.some((provider) => provider.id === input.providerId)) throw new Error("AI Provider 不在允许列表中。");
+  const extension = extensionProviders.get(input.providerId);
+  if (!providers.some((provider) => provider.id === input.providerId) && !extension) throw new Error("AI Provider 不在允许列表中。");
   if (!input.secret.trim() || input.secret.length > 4096) throw new Error("请输入有效的 API Key。");
+
+  if (extension?.definition.discovery === "official-list" && extension.discoverModels) {
+    const models = normalizeExtensionModels(await extension.discoverModels({
+      ...input,
+      options: Object.freeze(normalizeExtensionOptions(extension, input.options)),
+      signal: AbortSignal.timeout(12_000)
+    }));
+    return { status: "connected", message: `连接成功，发现 ${models.length} 个模型。`, models };
+  }
 
   const connection = resolveProvider(input.providerId, input.options);
   let response: Response;
@@ -853,6 +965,19 @@ function applyThinkingParameter(body: Record<string, unknown>, control: AiModelT
 }
 
 async function requestAiProviderModel(input: AiProviderInput & { modelId: string; reasoningMode: string }, model: AiModelCatalogEntry): Promise<AiModelTestResult> {
+  const extension = extensionProviders.get(input.providerId);
+  if (extension?.testModel) {
+    const startedAt = Date.now();
+    const result = await extension.testModel({
+      ...input,
+      options: Object.freeze(normalizeExtensionOptions(extension, input.options)),
+      model: structuredClone(model),
+      signal: AbortSignal.timeout(20_000)
+    });
+    if (!result || typeof result.sample !== "string" || !result.sample.trim()) throw new Error("AI Provider 模型测试没有返回有效结果。");
+    const sample = result.sample.trim().slice(0, 240).replaceAll(input.secret, "[已隐藏]");
+    return { status: "connected", modelId: input.modelId, elapsedMs: Date.now() - startedAt, sample };
+  }
   const connection = resolveProvider(input.providerId, input.options);
   const requestedTestTokens = model.maxOutputTokens ? Math.min(1024, model.maxOutputTokens) : 1024;
   const requestBody: Record<string, unknown> = {

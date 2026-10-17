@@ -130,6 +130,11 @@ export const accountEmailSchema = Joi.object({
   email: Joi.string().trim().email().max(254).allow("", null).required()
 }).unknown(false);
 
+export const accountUsernameSchema = Joi.object({
+  currentPassword: Joi.string().min(1).max(128).required(),
+  username: Joi.string().trim().min(3).max(32).pattern(/^[\p{L}\p{N}_.-]+$/u).required()
+}).unknown(false);
+
 export const passkeyRegistrationOptionsSchema = Joi.object({
   currentPassword: Joi.string().min(1).max(128).required()
 }).unknown(false);
@@ -448,7 +453,9 @@ export const minecraftStorageSettingsSchema = Joi.object({
   }).unknown(false);
 
 export const dataDirectorySettingsSchema = Joi.object({
-    directory: Joi.string().trim().min(1).max(2048).required()
+    directory: Joi.string().trim().min(1).max(2048).required(),
+    mode: Joi.string().valid("copy", "adopt", "archive").default("copy"),
+    archivePath: Joi.string().trim().max(2048).allow("").default("")
   }).unknown(false);
 
 export const pluginRuntimeActionSchema = Joi.object({

@@ -7,26 +7,63 @@
     <meta name="theme-color" content="#f3f5f8" />
     <meta name="description" content="LFAA 本机与远程主机应用工作台" />
     <style>
-      /* 刷新时沿用当前标签页的深色画布，避免账户主题返回前出现浅色首帧。 */
+      /* 在 Client CSS 与账户设置到达前先绘制主题中性画布，避免刷新时浏览器默认纯白底闪入。 */
+      html,
+      body {
+        min-width: 0;
+        min-height: 100%;
+        margin: 0;
+        background-color: #f3f5f8;
+        scrollbar-color: rgba(52, 87, 213, .55) transparent;
+        scrollbar-gutter: stable;
+        scrollbar-width: thin;
+      }
+      #root { min-height: 100vh; }
+      html[data-lfaa-bootstrap-theme="light"] {
+        color-scheme: light;
+        background-color: #f3f5f8;
+      }
+      html[data-lfaa-bootstrap-theme="light"] body {
+        color-scheme: light;
+        background-color: #f3f5f8;
+      }
       html[data-lfaa-bootstrap-theme="dark"] {
         color-scheme: dark;
         background-color: #181818;
+        scrollbar-color: rgba(255, 255, 255, .28) transparent;
       }
       html[data-lfaa-bootstrap-theme="dark"] body {
         color-scheme: dark;
-        background: #181818;
+        background-color: #181818;
+      }
+      /* 刷新时短暂复用同路由的公开背景；CSS 变量只存内置图片路径，工作台挂载后由真实主题接管。 */
+      html[data-lfaa-bootstrap-canvas="true"]:not(:has(.workbench-shell)) body {
+        background-image: var(--lfaa-bootstrap-canvas-image, none);
+        background-position: center;
+        background-size: cover;
+        background-repeat: no-repeat;
       }
     </style>
     <script>
       try {
-        const preference = window.sessionStorage.getItem("lfaa.appearance-theme-bootstrap.v1");
+        const cachedPreference = window.sessionStorage.getItem("lfaa.appearance-theme-bootstrap.v1");
+        const preference = cachedPreference === "dark" || cachedPreference === "light" || cachedPreference === "system" ? cachedPreference : "system";
         const isDark = preference === "dark"
           || (preference === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-        if (preference === "dark" || preference === "light" || preference === "system") {
-          const theme = isDark ? "dark" : "light";
-          document.documentElement.dataset.lfaaBootstrapTheme = theme;
-          document.documentElement.style.colorScheme = theme;
-          document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#181818" : "#f3f5f8");
+        const theme = isDark ? "dark" : "light";
+        document.documentElement.dataset.lfaaBootstrapTheme = theme;
+        document.documentElement.style.colorScheme = theme;
+        document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#181818" : "#f3f5f8");
+        const canvasRaw = window.sessionStorage.getItem("lfaa.appearance-canvas-bootstrap.v1");
+        if (canvasRaw) {
+          const canvas = JSON.parse(canvasRaw);
+          const safeRoute = typeof canvas.route === "string" && canvas.route === window.location.pathname;
+          const safeBackground = typeof canvas.background === "string"
+            && /^\/(?:images\/minecraft|backgrounds)\/[A-Za-z0-9/_-]+\.(?:png|jpe?g|webp)$/i.test(canvas.background);
+          if (safeRoute && safeBackground) {
+            document.documentElement.dataset.lfaaBootstrapCanvas = "true";
+            document.documentElement.style.setProperty("--lfaa-bootstrap-canvas-image", `url("${canvas.background}")`);
+          }
         }
       } catch {
         // 首帧提示不可用时继续使用默认画布，认证和权威设置读取不受影响。

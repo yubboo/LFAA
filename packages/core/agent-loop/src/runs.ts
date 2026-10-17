@@ -17,6 +17,7 @@ import { summarizeBranchMemory } from "./branch-memory.js";
 import { AiRunPauseGate, type AiRunPauseState } from "./run-pause.js";
 import { claimWorkspaceProjectApplication, getWorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-workspace-workspace/src/index.js";
 import type { SessionReplyPart } from "lfaa-session/src/kernel.js";
+import type { AiCompletionService } from "lfaa-llm/src/completion.js";
 
 export interface AiRunInput { appId: ApplicationId; sessionId: string | null; content: string; projectId?: string | null; associations?: AgentAssociations; planMode?: boolean }
 interface AiUserQuestion { questionId: string; question: string; options: string[]; resolve: (value: { answer: string; skipped: boolean }) => void; signal: AbortSignal; abort: () => void }
@@ -27,11 +28,13 @@ let modelResolver: AgentDefaultModelResolver | undefined;
 let approvalNotifications: UserApprovalNotifications | undefined;
 let userQuestions: UserQuestionService | undefined;
 let unregisterAgentRunQuestionAnswerer: (() => void) | undefined;
+let completionService: AiCompletionService | undefined;
 
-export function initializeAiRuns(resolver: AgentDefaultModelResolver, approvals: UserApprovalNotifications, questions: UserQuestionService): void {
+export function initializeAiRuns(resolver: AgentDefaultModelResolver, approvals: UserApprovalNotifications, questions: UserQuestionService, llm: AiCompletionService): void {
   modelResolver = resolver;
   approvalNotifications = approvals;
   userQuestions = questions;
+  completionService = llm;
   unregisterAgentRunQuestionAnswerer?.();
   unregisterAgentRunQuestionAnswerer = questions.registerAnswerer({
     id: "agent-run",
@@ -62,7 +65,8 @@ export async function createAiSessionBranchWithMemory(
   options: { projectContext?: AiSessionProjectContext; signal?: AbortSignal } = {}
 ) {
   const resolver = modelResolver;
-  if (!resolver) throw new Error("Agent 模型账户尚未装载。");
+  const llm = completionService;
+  if (!resolver || !llm) throw new Error("Agent 模型账户或 LLM Provider 尚未装载。");
   const settings = getUserSettings(userId);
   const account = resolver.resolve(userId);
   if (!account) throw new Error("请先在设置中心的“AI 与模型”启用一个 Provider 账户，再创建记忆分支。");
@@ -77,7 +81,8 @@ export async function createAiSessionBranchWithMemory(
     applicationId: seed.appId,
     permissionMode: settings.permissions.mode,
     settings: settings.aiRuntime,
-    signal
+    signal,
+    llm
   });
   signal.throwIfAborted();
   return persistAiSessionBranchWithMemory(userId, seed, result.summary, result.usage, options.projectContext);
@@ -331,6 +336,7 @@ export async function closeAiRuns(): Promise<void> {
   await Promise.allSettled(runs.map(run => run.completion));
   unregisterAgentRunQuestionAnswerer?.();
   unregisterAgentRunQuestionAnswerer = undefined;
+  completionService = undefined;
   modelResolver = undefined;
   approvalNotifications = undefined;
   userQuestions = undefined;

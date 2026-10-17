@@ -34,8 +34,8 @@ test("EasyTier 安装 API 限管理员提交且任务只对创建账户可见", 
     rmSync(data, { recursive: true, force: true });
   });
 
-  const setup = await fetch(`${base}/auth/setup`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "connectivity-easytier-admin", password: "Connectivity-EasyTier-Admin-93!" }) });
-  assert.equal(setup.status, 201);
+  const setup = await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "admin", password: "123456" }) });
+  assert.equal(setup.status, 200);
   const setupPayload = await setup.json();
   const adminHeaders = { "Content-Type": "application/json", Cookie: setup.headers.get("set-cookie").split(";")[0] };
   const member = await createManagedUser(setupPayload.user.id, { username: "connectivity-easytier-member", email: "", password: "Connectivity-EasyTier-Member-93!", role: "member" });

@@ -43,6 +43,7 @@ export const generalSettingsSchema = Joi.object({
   sessionIssueNotifications: Joi.boolean().required(),
   notificationSound: Joi.string().valid("default", "subtle", "off").required(),
   setupReminderEnabled: Joi.boolean().required(),
+  defaultAdminCredentialReminderEnabled: Joi.boolean().required(),
   confettiEnabled: Joi.boolean().required()
 }).unknown(false);
 
@@ -203,6 +204,7 @@ export const appearanceSettingsSchema = Joi.object({
     interfaceFontSize: Joi.number().integer().min(10).max(24).required(),
     codeFontSize: Joi.number().integer().min(8).max(24).required(),
     reducedMotion: Joi.string().valid("system", "on", "off").required(),
+    authTransitionPluginId: Joi.string().trim().min(1).max(180).pattern(/^[A-Za-z0-9@._:/-]+$/u).default("builtin"),
     separateModes: Joi.boolean().required(),
     fonts: appearanceFontsSchema.required(),
     modeStyles: Joi.object({

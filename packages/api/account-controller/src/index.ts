@@ -7,34 +7,23 @@ import { requireAuthentication, requireSuperAdmin, clearSessionCookie } from "lf
 import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
-import { authenticateUser, changeUserPassword, createManagedUser, createInitialAdmin, deleteManagedUser, searchUsers, requiresInitialSetup, revokeSession, resetPasswordWithRecoveryKey, setRecoveryKey, transferSuperAdmin, updateManagedUser, updateOwnEmail, verifyUserPassword, type ManagedUserInput, type ManagedUserUpdate, type PublicUser, type UserSearchFilters } from "lfaa-identity-auth/src/service.js";
+import { authenticateUser, changeUserPassword, createManagedUser, dismissDefaultCredentialReminder, ensureDefaultAdminAccount, getDefaultCredentialReminder, deleteManagedUser, searchUsers, revokeSession, resetPasswordWithRecoveryKey, setRecoveryKey, transferSuperAdmin, updateManagedUser, updateOwnEmail, updateOwnUsername, verifyUserPassword, type ManagedUserInput, type ManagedUserUpdate, type PublicUser, type UserSearchFilters } from "lfaa-identity-auth/src/service.js";
 import { completePasskeyAuthentication, completePasskeyRegistration, createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, deleteUserPasskey, getPasskeyAvailability, listUserPasskeys } from "lfaa-identity-auth/src/passkeys.js";
 import { createTypertJsonSchema, defineTypertMethod, type TypertCallContext, type TypertContribution } from "lfaa-typert-protocol/src/index.js";
 import "lfaa-typert-loader/src/index.js";
 import { accountControllerRemoteMethods, accountControllerRemoteSchemas, type AccountControllerRemoteContract } from "./client-contract.generated.js";
-import { asyncHandler, parseBody, issueSession, assertPasskeyRequestOrigin, accountCredentialsSchema, managedUserCreateSchema, managedUserUpdateSchema, userSearchSchema, loginSchema, passwordRecoverySchema, recoveryKeySchema, passwordChangeSchema, accountEmailSchema, passkeyRegistrationOptionsSchema, passkeyRegistrationVerificationSchema, passkeyAuthenticationVerificationSchema, passkeyRemovalSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { asyncHandler, parseBody, issueSession, assertPasskeyRequestOrigin, managedUserCreateSchema, managedUserUpdateSchema, userSearchSchema, loginSchema, passwordRecoverySchema, recoveryKeySchema, passwordChangeSchema, accountEmailSchema, accountUsernameSchema, passkeyRegistrationOptionsSchema, passkeyRegistrationVerificationSchema, passkeyAuthenticationVerificationSchema, passkeyRemovalSchema } from "lfaa-api-remotes/src/route-contracts.js";
 export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, realtime: MinecraftRealtimePublisher): void {
-const limitSetup = createRateLimit(5, 10 * 60 * 1000);
 const limitLogin = createRateLimit(30, 15 * 60 * 1000);
 const limitPasswordRecovery = createRateLimit(5, 15 * 60 * 1000);
 const limitRecoveryKeyChange = createRateLimit(10, 15 * 60 * 1000);
-router.get("/auth/setup-status", (_request, response) => {
-    response.json({ requiresSetup: requiresInitialSetup() });
-  });
-
 router.get("/auth/passkeys/availability", (_request, response) => {
     response.json(getPasskeyAvailability());
   });
 
-router.post("/auth/setup", limitSetup, asyncHandler(async (request, response) => {
-    const body = parseBody<{ username: string; password: string }>(accountCredentialsSchema, request.body);
-    const user = await createInitialAdmin(body.username, body.password);
-    issueSession(response, user.id);
-    response.status(201).json({ user });
-  }));
-
 router.post("/auth/login", limitLogin, asyncHandler(async (request, response) => {
     const body = parseBody<{ username: string; password: string }>(loginSchema, request.body);
+    await ensureDefaultAdminAccount();
     const user = await authenticateUser(body.username, body.password);
 
     if (!user) {
@@ -42,6 +31,22 @@ router.post("/auth/login", limitLogin, asyncHandler(async (request, response) =>
     }
 
     issueSession(response, user.id);
+    response.json({ user });
+  }));
+
+router.get("/auth/default-credential-reminder", requireAuthentication, (request, response) => {
+    response.json(getDefaultCredentialReminder(request.auth!.user.id));
+  });
+
+router.post("/auth/default-credential-reminder/dismiss", requireAuthentication, (request, response) => {
+    dismissDefaultCredentialReminder(request.auth!.user.id);
+    response.status(204).end();
+  });
+
+router.put("/auth/username", requireAuthentication, limitRecoveryKeyChange, asyncHandler(async (request, response) => {
+    const body = parseBody<{ currentPassword: string; username: string }>(accountUsernameSchema, request.body);
+    const user = await updateOwnUsername(request.auth!.user.id, body.currentPassword, body.username);
+    if (!user) throw new ApiError(401, "invalid_current_password", "当前登录密码不正确，请重新确认。");
     response.json({ user });
   }));
 

@@ -50,6 +50,7 @@ export interface GeneralSettings {
   sessionIssueNotifications: boolean;
   notificationSound: "default" | "subtle" | "off";
   setupReminderEnabled: boolean;
+  defaultAdminCredentialReminderEnabled: boolean;
   confettiEnabled: boolean;
 }
 
@@ -82,6 +83,7 @@ export interface AppearanceAdvancedSettings {
   interfaceFontSize: number;
   codeFontSize: number;
   reducedMotion: "system" | "on" | "off";
+  authTransitionPluginId: string;
   separateModes: boolean;
   fonts: AppearanceFonts;
   modeStyles: {
@@ -244,6 +246,7 @@ export const DEFAULT_APPEARANCE_ADVANCED_SETTINGS: AppearanceAdvancedSettings = 
   interfaceFontSize: 14,
   codeFontSize: 12,
   reducedMotion: "system",
+  authTransitionPluginId: "builtin",
   separateModes: false,
   fonts: { interface: "system", content: "system", code: "system" },
   modeStyles: {
@@ -285,9 +288,10 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     sessionIssueNotifications: true,
     notificationSound: "default",
     setupReminderEnabled: true,
+    defaultAdminCredentialReminderEnabled: true,
     confettiEnabled: false
   },
-  appearance: { theme: "system", accentColor: "#3457d5", sidebarColor: "auto", backgrounds: { login: "forest-bridge-evening", appCenter: "cherry-blossom-shore", steamcmd: "ocean-cliff-sunset", minecraft: "cherry-blossom-village", writing: "snowy-cabin-interior", settings: "lakeside-pagoda-morning" }, wallpaperEngine: { enabled: false, projectId: "" }, overlay: 37, blur: 14, updateSurfaceOpacity: 92, advanced: structuredClone(DEFAULT_APPEARANCE_ADVANCED_SETTINGS) },
+  appearance: { theme: "system", accentColor: "#3457d5", sidebarColor: "auto", backgrounds: { login: "forest-bridge-evening", appCenter: "cherry-blossom-shore", steamcmd: "ocean-cliff-sunset", minecraft: "cherry-blossom-village", writing: "snowy-cabin-interior", settings: "lakeside-pagoda-morning" }, wallpaperEngine: { enabled: false, projectId: "" }, overlay: 65, blur: 14, updateSurfaceOpacity: 92, advanced: structuredClone(DEFAULT_APPEARANCE_ADVANCED_SETTINGS) },
   shortcuts: { openSettings: ["Ctrl+,"], openHome: ["Alt+0"], openSteamcmd: ["Ctrl+Alt+1"], openMinecraft: ["Ctrl+Alt+2"], openWriting: ["Ctrl+Alt+3"], toggleSidebar: ["Ctrl+B"], toggleContextPanel: ["Ctrl+Alt+B"], toggleBottomPanel: ["Ctrl+J"], openTerminal: ["Ctrl+`"], switchNormalMode: ["Alt+1"], switchAiWorkMode: ["Alt+2"], openSideChat: ["Ctrl+Alt+S"], wallpaperSidebarToggle: [] },
   aiRuntime: { speed: "balanced", promptSuggestions: true, showContextUsage: false, requestTimeoutSeconds: 90, requestRetries: 1, retryDelaySeconds: 1, maxOutputTokens: 0, maxModelRequests: 0, maxToolCalls: 0, subagentAccountId: "", imageGenerationAccountId: "", imageGenerationModelId: "", videoGenerationAccountId: "", videoGenerationModelId: "", videoGenerationDurationSeconds: 5, videoGenerationRatio: "adaptive", videoGenerationResolution: "720p", videoGenerationGenerateAudio: false, videoGenerationWatermark: true, maxSubagents: 4, maxDelegationDepth: 2, voiceInputEnabled: false, readResponsesAloud: false, commandTimeoutSeconds: 0, autoCompaction: true, contextWindowTokens: 32768 },
   minecraftRuntime: { minecraftReadyTimeoutSeconds: 120, minecraftStopTimeoutSeconds: 30, minecraftDefaultMemoryMb: 4096, minecraftDefaultPort: 25565, minecraftDownloadTimeoutSeconds: 1800, minecraftInstallTimeoutSeconds: 900, minecraftExecutionMode: "native", minecraftDefaultCore: "Paper", minecraftBedrockDefaultPort: 19132 },

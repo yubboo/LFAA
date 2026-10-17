@@ -32,6 +32,8 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       assert.equal(defaultSettings.general.defaultMode,"ai-work","新账户默认进入小鱼工作台");
       assert.equal(defaultSettings.general.defaultStandaloneChat,true,"默认首页固定为小鱼对话区");
       assert.equal(defaultSettings.aiRuntime.maxOutputTokens,0,"新账户默认跟随所选模型输出能力");
+      assert.equal(defaultSettings.appearance.overlay,65,"新账户的默认壁纸表面遮罩保证卡片可读性");
+      assert.equal(defaultSettings.appearance.advanced.authTransitionPluginId,"builtin","新账户默认使用 LFAA 内置登录进入动画");
       assert.equal(defaultSettings.general.cardMotionEffect,"fluid","新账户默认使用柔和流体卡片动效");
       assert.equal(defaultSettings.general.dialogMotionEffect,"fluid","新账户默认使用柔和流体弹窗动效");
       assert.deepEqual(CARD_MOTION_EFFECT_OPTIONS.map(({id})=>id),["fluid","fade","lift","none"]);
@@ -69,10 +71,17 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       configuration.save('user_settings',{user_id:'settings-a',category:'general',value_json:JSON.stringify(legacyStoredPayload)});
       assert.equal(getUserSettings('settings-a').general.cardMotionEffect,"fluid","旧账户缺字段时回落到共享默认动效");
       assert.equal(getUserSettings('settings-a').general.dialogMotionEffect,"fluid","旧账户缺字段时回落到共享弹窗默认动效");
-      saveUserSettings('settings-a','appearance',{...before.appearance,updateSurfaceOpacity:85,advanced:{...before.appearance.advanced,contrast:75,reducedMotion:'on'}});
+      saveUserSettings('settings-a','appearance',{...before.appearance,overlay:42,updateSurfaceOpacity:85,advanced:{...before.appearance.advanced,contrast:75,reducedMotion:'on'}});
+      const legacyAppearance={...getUserSettings('settings-a').appearance,advanced:{...getUserSettings('settings-a').appearance.advanced}};delete legacyAppearance.advanced.authTransitionPluginId;
+      configuration.save('user_settings',{user_id:'settings-a',category:'appearance',value_json:JSON.stringify(legacyAppearance)});
+      const migratedAppearance=getUserSettings('settings-a').appearance;
+      assert.equal(migratedAppearance.advanced.authTransitionPluginId,"builtin","旧账户补充内置动画默认值");
+      assert.equal(migratedAppearance.advanced.contrast,75,"兼容动画字段时保留已保存的外观对比度");
+      assert.equal(migratedAppearance.overlay,42,"兼容动画字段时保留已保存的遮罩偏好");
+      saveUserSettings('settings-a','appearance',{...migratedAppearance,advanced:{...migratedAppearance.advanced,authTransitionPluginId:"user-animation/auth-entry"}});
       saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,cardMotionEffect:"fade",dialogMotionEffect:"lift"});
       saveUserSettings('settings-a','ai-runtime',{...before.aiRuntime,commandTimeoutSeconds:0});close();
     `);
-    run(`const saved=getUserSettings('settings-a');assert.equal(saved.appearance.advanced.contrast,75);assert.equal(saved.appearance.advanced.reducedMotion,'on');assert.equal(saved.appearance.updateSurfaceOpacity,85);assert.equal(saved.general.cardMotionEffect,"fade");assert.equal(saved.general.dialogMotionEffect,"lift");assert.equal(saved.general.defaultMode,"normal");assert.equal(saved.general.defaultStandaloneChat,false);assert.equal(getUserSettings('settings-b').general.cardMotionEffect,"fluid");assert.equal(getUserSettings('settings-b').general.dialogMotionEffect,"fluid");assert.equal(saved.aiRuntime.commandTimeoutSeconds,0);close();`);
+    run(`const saved=getUserSettings('settings-a');assert.equal(saved.appearance.advanced.contrast,75);assert.equal(saved.appearance.advanced.reducedMotion,'on');assert.equal(saved.appearance.advanced.authTransitionPluginId,"user-animation/auth-entry");assert.equal(saved.appearance.overlay,42,'显式保存的旧遮罩偏好不被默认值更改覆盖');assert.equal(saved.appearance.updateSurfaceOpacity,85);assert.equal(saved.general.cardMotionEffect,"fade");assert.equal(saved.general.dialogMotionEffect,"lift");assert.equal(saved.general.defaultMode,"normal");assert.equal(saved.general.defaultStandaloneChat,false);assert.equal(getUserSettings('settings-b').general.cardMotionEffect,"fluid");assert.equal(getUserSettings('settings-b').general.dialogMotionEffect,"fluid");assert.equal(saved.aiRuntime.commandTimeoutSeconds,0);close();`);
   } finally { assert.equal(dirname(data), parent); rmSync(data, { recursive: true, force: true }); }
 });

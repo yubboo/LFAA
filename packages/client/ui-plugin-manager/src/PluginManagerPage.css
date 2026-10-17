@@ -218,8 +218,8 @@
 /* 插件安装弹窗沿用外观设置中的字体、主题、壁纸透明度和模糊强度。 */
 .plugin-manager-install-modal { max-width: calc(100vw - 28px); }
 .plugin-manager-install-modal .ant-modal-content { display: flex; max-height: min(88vh, 820px); max-height: min(88dvh, 820px); flex-direction: column; overflow: hidden; border: 1px solid var(--color-border); border-radius: 22px; background: var(--color-surface); color: var(--color-text-primary); box-shadow: 0 22px 70px var(--color-shadow-float); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); }
-.workbench-shell[data-background-image="true"] .plugin-manager-install-modal .ant-modal-content,
-body[data-we-wallpaper] .workbench-shell .plugin-manager-install-modal .ant-modal-content { background: color-mix(in srgb, var(--settings-sidebar-color, var(--color-surface)) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
+.workbench-shell[data-background-image="true"] .plugin-manager-install-modal .ant-modal-content { background: color-mix(in srgb, var(--settings-sidebar-color, var(--color-surface)) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
+body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell .plugin-manager-install-modal .ant-modal-content { background: var(--settings-wallpaper-floaters-surface, var(--color-surface)); -webkit-backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01); backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01); }
 .plugin-manager-install-modal .ant-modal-header { flex: 0 0 auto; margin: 0; padding: 22px 26px 12px; border: 0; background: transparent; }
 .plugin-manager-install-modal .ant-modal-title { color: var(--color-text-heading); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-lg); font-weight: 650; }
 .plugin-manager-install-modal .ant-modal-close { top: 18px; inset-inline-end: 18px; color: var(--color-text-muted); }
@@ -321,4 +321,46 @@ body[data-we-wallpaper] .workbench-shell .plugin-manager-install-modal .ant-moda
   .workbench-shell[data-reduced-motion="system"] .plugin-manager-page *,
   .workbench-shell[data-reduced-motion="system"] .plugin-manager-page *::before,
   .workbench-shell[data-reduced-motion="system"] .plugin-manager-page *::after { transition-duration: 0.01ms !important; }
+}
+
+.plugin-manager-page__add-menu { display: flex; min-width: 0; align-items: center; gap: 4px; }
+.plugin-manager-page__add-menu-item { display: grid; min-width: 0; gap: 3px; }
+.plugin-manager-page__add-menu-item > span:first-child { color: var(--color-text-heading); font-weight: 620; }
+.plugin-manager-page__add-menu-item > span:last-child { color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.45; }
+.plugin-manager-page__add-menu-list { min-width: min(260px, calc(100vw - 24px)); }
+.plugin-manager-page__extension-error { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
+.plugin-manager-page__extension-error > .ant-alert { min-width: min(320px, 100%); flex: 1 1 320px; }
+.plugin-manager-page__contributed-list { display: grid; min-width: 0; gap: 9px; }
+.plugin-manager-page__contributed-card { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 13px 15px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); }
+.plugin-manager-page__contributed-card > div { display: grid; min-width: 0; gap: 5px; }
+.plugin-manager-page__contributed-card strong { color: var(--color-text-heading); font-size: var(--font-size-sm); overflow-wrap: anywhere; }
+.plugin-manager-page__contributed-card p { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.55; overflow-wrap: anywhere; }
+.plugin-manager-page__contributed-tab-panel { min-height: 0; overflow: auto; }
+.plugin-manager-detail-modal { max-width: calc(100vw - 28px); }
+.plugin-manager-detail-modal .ant-modal-content { display: flex; max-height: min(88vh, 820px); max-height: min(88dvh, 820px); flex-direction: column; overflow: hidden; border: 1px solid var(--color-border); border-radius: 20px; background: var(--color-surface); color: var(--color-text-primary); box-shadow: 0 22px 70px var(--color-shadow-float); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); }
+.plugin-manager-detail-modal .ant-modal-header { flex: 0 0 auto; margin: 0; padding: 22px 26px 12px; border: 0; background: transparent; }
+.plugin-manager-detail-modal .ant-modal-title { color: var(--color-text-heading); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-lg); font-weight: 650; overflow-wrap: anywhere; }
+.plugin-manager-detail-modal .ant-modal-body { min-height: 0; overflow: auto; padding: 0 26px 24px; overscroll-behavior: contain; }
+.plugin-manager-detail-modal__body { display: grid; min-width: 0; gap: 14px; color: var(--color-text-secondary); line-height: 1.55; }
+.plugin-manager-detail-modal__body > p { margin: 0; }
+.plugin-manager-detail-modal__heading { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.plugin-manager-detail-modal__heading > div:first-child { display: grid; min-width: 0; gap: 4px; }
+.plugin-manager-detail-modal__heading strong { color: var(--color-text-heading); font-size: var(--font-size-md); overflow-wrap: anywhere; }
+.plugin-manager-detail-modal__heading span { color: var(--color-text-muted); font-size: var(--font-size-xs); overflow-wrap: anywhere; }
+.plugin-manager-detail-modal__badges, .plugin-manager-detail-modal__actions { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
+.plugin-manager-detail-modal__section { display: grid; min-width: 0; gap: 10px; padding: 14px; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: var(--color-surface-muted); }
+.plugin-manager-detail-modal__section h3 { margin: 0; color: var(--color-text-heading); font-size: var(--font-size-sm); }
+.plugin-manager-detail-modal__section dl { display: grid; min-width: 0; gap: 7px; margin: 0; font-size: var(--font-size-xs); }
+.plugin-manager-detail-modal__section dl > div { display: grid; min-width: 0; grid-template-columns: 80px minmax(0, 1fr); gap: 8px; }
+.plugin-manager-detail-modal__section dt { color: var(--color-text-muted); }
+.plugin-manager-detail-modal__section dd { min-width: 0; margin: 0; color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.plugin-manager-detail-modal__contract-note { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell .plugin-manager-detail-modal .ant-modal-content { background: var(--settings-wallpaper-floaters-surface, var(--color-surface)); -webkit-backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01); backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01); }
+
+@media (max-width: 560px) {
+  .plugin-manager-page__contributed-card { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .plugin-manager-page__contributed-card > .ant-btn { justify-self: start; }
+  .plugin-manager-detail-modal .ant-modal-content { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); border-radius: 18px; }
+  .plugin-manager-detail-modal .ant-modal-header { padding: 18px 18px 10px; }
+  .plugin-manager-detail-modal .ant-modal-body { padding: 0 18px 18px; }
 }

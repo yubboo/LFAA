@@ -73,6 +73,8 @@ Describe 'LFAA Windows Web startup preflight' {
 
         (Test-LfaaWebLockOwnerCommand -Name 'node.exe' -CommandLine 'node apps/cli/bin/lfaa.mjs web') | Should Be $true
         (Test-LfaaWebLockOwnerCommand -Name 'node.exe' -CommandLine 'node --import tsx/esm --import ./apps/cli/register-package-loader.mjs apps/cli/src/bin.ts web') | Should Be $true
+        (Test-LfaaWebLockOwnerCommand -Name 'node.exe' -CommandLine 'node --import tsx/esm --import ./apps/cli/register-package-loader.mjs apps/cli/src/bin.ts "web"') | Should Be $true
+        (Test-LfaaWebLockOwnerCommand -Name 'node.exe' -CommandLine 'node apps/cli/bin/lfaa.mjs "web"') | Should Be $true
         (Test-LfaaWebLockOwnerCommand -Name 'node.exe' -CommandLine 'node --import tsx --import ./register-package-loader.mjs src/index.ts --profile web') | Should Be $true
     }
 

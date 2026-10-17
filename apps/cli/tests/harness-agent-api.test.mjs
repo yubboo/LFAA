@@ -1,6 +1,6 @@
 /**
  * 功能：回归完整 Harness 装配与任务 API。
- * 作用：隔离启动真实 Web Profile，经首次账户初始化和 Cookie 鉴权验证设置、断线运行和会话恢复；测试账户不进入产品数据。
+ * 作用：隔离启动真实 Web Profile，经默认账户登录和 Cookie 鉴权验证设置、断线运行和会话恢复；测试账户不进入产品数据。
  * 关联文件：boot/app-boot、bundle/base、api/session-controller、host/webserver。
  */
 import test from "node:test";
@@ -29,7 +29,7 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         const computerTools=listRegisteredAiTools().filter(tool=>tool.id.startsWith('computer-use.'));
         assert.equal(computerTools.length,process.platform==='win32'?9:0,'only a local Windows loopback Web Profile registers computer-control tools');
         assert.equal((await fetch(base+'/ai/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({appId:'workspace',sessionId:null,content:'test'})})).status,401);
-        const setup=await fetch(base+'/auth/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'fixture-admin',password:'Fixture-test-password-93!'})});assert.equal(setup.status,201);
+        const setup=await fetch(base+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'admin',password:'123456'})});assert.equal(setup.status,200);
         const cookie=setup.headers.get('set-cookie').split(';')[0];const {user}=await setup.json();const headers={'Content-Type':'application/json',Cookie:cookie};
         const {LfaaClient,LfaaApiError}=await import('lfaa-sdk-client');
         const sdk=new LfaaClient({apiUrl:base,authenticationHeaders:()=>({Cookie:cookie})});
@@ -41,7 +41,7 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         const {database}=await import('lfaa-storage-sqlite/src/database.js');
         database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role) VALUES('other-fixture',2,'other-fixture','test','test','member')").run();
         const conversationMemory=await import('lfaa-conversation-memory/src/index.js');
-        assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version),56);
+        assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version),57);
         assert.deepEqual(conversationMemory.getConversationMemorySnapshot(user.id),{memories:[],revision:0});
         assert.equal(conversationMemory.replaceConversationMemories('other-fixture',['另一账户的偏好'],0),true);
         database.prepare("INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,status,last_seen_at) VALUES('fixture-node','测试节点','win32','x64','test','offline','2026-09-30T00:00:00Z')").run();
@@ -49,14 +49,13 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         assert.equal((await fetch(base+'/ai/host-tasks/foreign-task',{headers})).status,404);
         assert.deepEqual((await(await fetch(base+'/ai/host-tasks',{headers})).json()).tasks,[]);
         const settingsResponse=await fetch(base+'/settings',{headers});assert.equal(settingsResponse.status,200);const initial=(await settingsResponse.json()).settings;
+        const dataDirectoryResponse=await fetch(base+'/data-directory',{headers});assert.equal(dataDirectoryResponse.status,200);
+        const dataDirectory=(await dataDirectoryResponse.json()).settings;assert.equal(dataDirectory.currentDirectory,process.env.LFAA_DATA_DIR);
+        const confirmedDirectory=await fetch(base+'/data-directory',{method:'PUT',headers,body:JSON.stringify({directory:dataDirectory.currentDirectory,mode:'copy',archivePath:''})});assert.equal(confirmedDirectory.status,200,await confirmedDirectory.clone().text());
+        assert.equal((await confirmedDirectory.json()).settings.configured,true);
         const storageResponse=await fetch(base+'/project-storage-locations',{headers});assert.equal(storageResponse.status,200);
-        const storageLocations=(await storageResponse.json()).settings;
-        const savedStorage=await fetch(base+'/project-storage-locations',{method:'PUT',headers,body:JSON.stringify(storageLocations)});assert.equal(savedStorage.status,200);
-        assert.deepEqual((await savedStorage.json()).settings,storageLocations);
-        const customStorage={...storageLocations,writingDirectory:join(process.env.LFAA_DATA_DIR,'custom-writing')};
-        const customStorageResponse=await fetch(base+'/project-storage-locations',{method:'PUT',headers,body:JSON.stringify(customStorage)});assert.equal(customStorageResponse.status,200);
-        assert.deepEqual((await(await fetch(base+'/project-storage-locations',{headers})).json()).settings,customStorage);
-        const restoredStorage=await fetch(base+'/project-storage-locations',{method:'PUT',headers,body:JSON.stringify(storageLocations)});assert.equal(restoredStorage.status,200);
+        const storageLocations=(await storageResponse.json()).settings;assert.equal(storageLocations.writingDirectory,dataDirectory.currentDirectory);
+        assert.equal(storageLocations.dramaDirectory,dataDirectory.currentDirectory);
         assert.deepEqual(initial.personalization,{memoryEnabled:false,memoryFromToolChats:false});
         const personalization=await fetch(base+'/settings/personalization',{method:'PUT',headers,body:JSON.stringify({memoryEnabled:true,memoryFromToolChats:false})});assert.equal(personalization.status,200);assert.equal((await personalization.json()).settings.personalization.memoryEnabled,true);
         const updated={...initial.aiRuntime,maxModelRequests:7,maxToolCalls:9,voiceInputEnabled:true};
@@ -114,11 +113,11 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         assert.ok(context.get('lfaaLlm'));assert.ok(context.get('lfaaMcp'));
         const names=context.lfaaTools.listAiBusinessTools('workspace','admin').map(tool=>tool.name);
         for(const name of ['lfaa_capability_status','lfaa_set_capability_enabled','lfaa_skill_load','session_search'])assert.ok(names.includes(name),name);
-        assert.equal(names.includes('host_execute_command'),false,'通用任务 Agent 不应把 Daemon 节点 Shell 当作本机 Shell');
+        assert.equal(names.includes('host_execute_command'),true,'已登记的节点执行工具可供当前应用的模型按目标选择，并由同一权限 Owner 校验');
         assert.ok(context.lfaaTools.listAiBusinessTools('minecraft','admin').some(tool=>tool.name==='host_execute_command'),'游戏 Agent 可由模型选择目标节点 Shell');
       }finally{await context.fiber.dispose();}
       process.stdout.write('完整装配回归通过');
-    `], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: data, SERVER_HOST: "127.0.0.1", JWT_SECRET: "", LOG_LEVEL: "error" }, encoding: "utf8", windowsHide: true, stdio: "pipe", timeout: 25000 });
+    `], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: data, LFAA_HOME: `${data}-home`, LFAA_DATA_DIR_MANAGED_BY_LAUNCHER: "1", LFAA_DATA_DIRECTORY_MIGRATION_SUPPORTED: "1", SERVER_HOST: "127.0.0.1", JWT_SECRET: "", LOG_LEVEL: "error" }, encoding: "utf8", windowsHide: true, stdio: "pipe", timeout: 25000 });
     assert.match(output, /完整装配回归通过/u);
-  } finally { assert.equal(dirname(resolve(data)), parent); rmSync(data, { recursive: true, force: true }); }
+  } finally { assert.equal(dirname(resolve(data)), parent); rmSync(data, { recursive: true, force: true }); rmSync(`${data}-home`, { recursive: true, force: true }); }
 });

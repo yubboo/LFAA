@@ -457,6 +457,7 @@ test('LFAA exposes reversible DSH sidebar shortcuts and theme changes through ex
 
   const { DshLocaleRuntime } = await import('lfaa-client-ui-workspace/src/dsh-locale-runtime.js');
   const locale = new DshLocaleRuntime();
+  locale.setPreference('zh-CN');
   const changes = [];
   const offLocaleListener = locale.subscribe(() => changes.push(locale.getSnapshot().active));
   const offZh = locale.register('wallpaper-engine', 'zh', { '欢迎 {name}': '欢迎 {name}' });

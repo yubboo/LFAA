@@ -262,7 +262,7 @@
       required: true
     - id: agent-loop
       name: lfaa-agent-loop
-      inject: ["lfaaSettings", "lfaaSessions", "lfaaTools", "lfaaAgentDefaultModel", "lfaaUserApproval", "lfaaUserQuestions", "lfaaSchedule", "aiExtensions", "aiRuntimeHooks"]
+      inject: ["lfaaSettings", "lfaaLlm", "lfaaSessions", "lfaaTools", "lfaaAgentDefaultModel", "lfaaUserApproval", "lfaaUserQuestions", "lfaaSchedule", "aiExtensions", "aiRuntimeHooks"]
       required: true
     - id: compaction-basic
       name: lfaa-compaction-basic

@@ -8,12 +8,34 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
+import { createServer } from "node:net";
 import { spawnSync } from "node:child_process";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(readFileSync(resolve(packageRoot, "package.json"), "utf8"));
 const packaged = existsSync(resolve(packageRoot, "dist/apps/control-plane/workspace.json"));
 const runtimeRoot = packaged ? packageRoot : resolve(packageRoot, "../..");
+
+async function assertWebPortAvailable(host, port) {
+  const reservation = createServer();
+  try {
+    await new Promise((resolve, reject) => {
+      reservation.once("error", reject);
+      reservation.listen({ host, port, exclusive: true }, resolve);
+    });
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "EADDRINUSE") {
+      throw new Error(`LFAA Web 启动已取消：${host}:${port} 已被占用。请关闭正在使用该端口的服务后重试，或在当前工作区 .env 中设置 SERVER_PORT。`);
+    }
+    throw error;
+  } finally {
+    if (reservation.listening) {
+      await new Promise((resolve, reject) => {
+        reservation.close(error => error ? reject(error) : resolve());
+      });
+    }
+  }
+}
 
 async function main() {
   const args = process.argv.slice(2);
@@ -30,8 +52,8 @@ async function main() {
   const profile = args[0] === "--profile" ? args[1] : args[0];
   if (!profile || !/^[a-z][a-z0-9-]*$/u.test(profile)) throw new Error("运行组合名称无效；使用 lfaa --help 查看用法。");
   const entry = resolve(runtimeRoot, "dist/apps/control-plane/packages/boot/app-boot/src/index.js");
-  if (!existsSync(entry)) throw new Error("找不到编译后的 LFAA；请先运行 pnpm install 和 pnpm run build。");
-  if (profile === "web" && !existsSync(resolve(runtimeRoot, "dist/apps/web/index.html"))) throw new Error("Web 界面尚未构建；请先运行 pnpm run build:web。");
+  if (!existsSync(entry)) throw new Error(`控制端启动入口缺失：${entry}\n请从当前源码根目录运行 pnpm run build:control-plane，或重新打开 lfaa.bat 后从菜单 2 启动。安装依赖不会替代构建。`);
+  if (profile === "web" && !existsSync(resolve(runtimeRoot, "dist/apps/web/index.html"))) throw new Error(`Web 页面入口缺失：${resolve(runtimeRoot, "dist/apps/web/index.html")}\n请从当前源码根目录运行 pnpm run build:web，或重新打开 lfaa.bat 后从菜单 2 启动。`);
 
   const externalDataDirectoryAtStart = process.env.LFAA_DATA_DIR?.trim() ?? "";
   const environmentFile = resolve(packaged ? process.cwd() : runtimeRoot, ".env");
@@ -73,7 +95,7 @@ async function main() {
     if (!args.includes("--connection-file") || !file) throw new Error("请指定 --connection-file；不要把通信密钥写在命令参数中。");
     const { configureDaemonConnection } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/host/daemon/src/connection-config.mjs")).href);
     const { resolveDataDirectory } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/util/home-paths/src/resolve-data-directory.mjs")).href);
-    const node = await configureDaemonConnection(resolve(file), resolveDataDirectory(runtimeRoot, process.env.LFAA_DATA_DIR?.trim() || ""));
+    const node = await configureDaemonConnection(resolve(file), resolveDataDirectory(runtimeRoot, process.env.LFAA_DATA_DIR?.trim() || "", { lfaaHome: process.env.LFAA_HOME?.trim() || "" }));
     process.stdout.write(`节点连接已保存：${node.displayName}（${node.nodeId}）。运行 lfaa daemon 连接控制端。\n`);
     return;
   }
@@ -82,6 +104,7 @@ async function main() {
   const launchConfig = profile === "web"
     ? (await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/util/launch-environment/src/config.js")).href)).config
     : null;
+  if (profile === "web") await assertWebPortAvailable(launchConfig.host, launchConfig.port);
   const { boot } = await import(pathToFileURL(entry).href);
   const context = await boot(args);
   if (profile === "web") {

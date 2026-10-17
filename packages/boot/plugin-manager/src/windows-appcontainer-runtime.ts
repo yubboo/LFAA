@@ -48,7 +48,7 @@ export class WindowsAppContainerPluginRuntime implements PluginRuntimeAdapter {
     const readinessToken = randomUUID();
     const hostPath = resolve(config.repositoryRoot, ...HOST_RELATIVE_PATH);
     const child = spawn(hostPath, [
-      "--plugin-run", "--data-root", config.dataDirectory, "--profile", recordSourceProfile(installedDirectory, record.id),
+      "--plugin-run", "--plugin-root", config.pluginInstallDirectory, "--profile", recordSourceProfile(installedDirectory, record.id),
       "--plugin-id", record.id, "--entry", record.runtimeEntry, "--node", process.execPath, "--readiness-token", readinessToken
     ], {
       cwd: config.repositoryRoot,
@@ -96,10 +96,9 @@ export class WindowsAppContainerPluginRuntime implements PluginRuntimeAdapter {
 }
 
 function recordSourceProfile(installedDirectory: string, pluginId: string): string {
-  const segments = relative(resolve(config.dataDirectory), resolve(installedDirectory)).split(sep);
-  if (segments.length !== 4 || segments[0]?.toLocaleLowerCase("en-US") !== "plugins"
-    || segments[1]?.toLocaleLowerCase("en-US") !== "profiles" || segments[3] !== pluginId) {
-    throw new Error("插件目录不在当前 LFAA 数据根目录的受管 Profile 路径中。");
+  const segments = relative(resolve(config.pluginInstallDirectory), resolve(installedDirectory)).split(sep);
+  if (segments.length !== 3 || segments[0]?.toLocaleLowerCase("en-US") !== "profiles" || segments[2] !== pluginId) {
+    throw new Error("插件目录不在 LFAA_HOME/plugins 的受管 Profile 路径中。");
   }
   const profile = segments[2] ?? "";
   if (!/^[a-z][a-z0-9-]{0,63}$/u.test(profile)) throw new Error("插件 Profile 标识无效。");
@@ -227,7 +226,7 @@ async function terminateSession(session: RuntimeSession): Promise<void> {
 
 async function forgetPluginProfile(hostPath: string, record: PluginRecord, installedDirectory: string): Promise<void> {
   const child = spawn(hostPath, [
-    "--plugin-forget-profile", "--data-root", config.dataDirectory,
+    "--plugin-forget-profile", "--plugin-root", config.pluginInstallDirectory,
       "--profile", recordSourceProfile(installedDirectory, record.id), "--plugin-id", record.id,
     "--node", process.execPath
   ], { cwd: config.repositoryRoot, windowsHide: true, shell: false, stdio: ["ignore", "pipe", "pipe"] });

@@ -453,7 +453,7 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 .ai-work-chat__project-new-folder { display: flex; gap: 6px; }
 .ai-work-chat__project-error { margin: 0; color: var(--color-danger, #c2413a); font-size: var(--font-size-xs); }
 /* Wallpaper Engine 注入的全局白色光标规则带 !important；仅在 AI Work 提问框内跟随文字颜色覆盖它。 */
-.ai-work-chat__composer .ant-input { width: 100%; min-width: 0; min-height: 52px; resize: none; padding: 7px 3px; border: 0; background: transparent; box-shadow: none; color: var(--color-text-heading); caret-color: currentColor !important; font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.65; }
+.ai-work-chat__composer .ant-input { width: 100%; min-width: 0; min-height: 52px; resize: none; padding: 7px 3px; border: 0; background: transparent; box-shadow: none; color: var(--color-text-heading); caret-color: var(--we-caret-color, currentColor); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.65; }
 .ai-work-chat__composer .ant-input:hover,
 .ai-work-chat__composer .ant-input:focus { border: 0; background: transparent; box-shadow: none; }
 .ai-work-chat__composer .ant-input::placeholder { color: var(--color-text-subtle); }

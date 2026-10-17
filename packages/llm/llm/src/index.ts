@@ -1,6 +1,7 @@
 /** 功能：登记唯一 LLM 请求服务。作用：隔离 Provider 协议与 Agent 工具执行。关联文件：completion.ts、core/agent-loop、Settings Owner。 */
 import type { Context } from "@deepseek-ai/cordis";
-import * as completion from "./completion.js";
+import { createAiCompletionService } from "./completion.js";
+import type { AiCompletionService } from "./completion.js";
 export * from "./completion.js";
 export * from "./image-generation.js";
 export * from "./video-generation.js";
@@ -14,4 +15,10 @@ export * from "./assembler.js";
 export * from "./assistant-stream.js";
 export * from "./sse.js";
 export const name = "lfaaLlm";
-export function apply(ctx: Context): void { ctx.provide(name, completion); }
+declare module "@deepseek-ai/cordis" {
+  interface Context { lfaaLlm: AiCompletionService }
+}
+export function apply(ctx: Context): void {
+  const service = createAiCompletionService();
+  ctx.provide(name, service);
+}

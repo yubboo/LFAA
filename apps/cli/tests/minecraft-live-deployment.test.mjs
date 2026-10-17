@@ -40,8 +40,8 @@ test('真实面板接口 → Daemon → 核心就绪 → 安全停服', { skip: 
     throw new Error(`验收等待超时：${logs.slice(-2000)}`);
   };
   try {
-    const setup = await fetch(`${base}/auth/setup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'isolated-minecraft-test', password: 'Isolated-Minecraft-Fixture-93!' }) });
-    assert.equal(setup.status, 201); const headers = { 'Content-Type': 'application/json', Cookie: setup.headers.get('set-cookie').split(';')[0] };
+    const setup = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'admin', password: '123456' }) });
+    assert.equal(setup.status, 200); const headers = { 'Content-Type': 'application/json', Cookie: setup.headers.get('set-cookie').split(';')[0] };
     if (process.env.LFAA_TEST_MINECRAFT_STOP_SECONDS) {
       const settingsResponse = await fetch(`${base}/settings`, { headers }); assert.equal(settingsResponse.status, 200);
       const saved = await settingsResponse.json();

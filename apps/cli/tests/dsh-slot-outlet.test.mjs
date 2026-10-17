@@ -33,6 +33,7 @@ test('DshSlotOutlet forwards keyed slot fallback to the DSH renderer', () => {
     children: React.createElement(DshSlotOutlet, {
       name: 'sidebar.right.pane.tab',
       entryKey: 'wallpaper-engine',
+      only: 'discover',
       fallback
     })
   }));
@@ -41,6 +42,7 @@ test('DshSlotOutlet forwards keyed slot fallback to the DSH renderer', () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].name, 'sidebar.right.pane.tab');
   assert.equal(calls[0].options.entryKey, 'wallpaper-engine');
+  assert.equal(calls[0].options.only, 'discover');
   assert.equal(calls[0].options.fallback, fallback);
 });
 
@@ -51,10 +53,29 @@ test('Settings and right-panel consumers show actionable empty states; optional 
   const workbench = readFileSync(new URL('packages/client/ui-layout/src/Workbench.tsx', root), 'utf8');
 
   assert.match(settings, /<DshSlotOutlet name="settings\.section" fallback=/u);
-  assert.match(settings, /壁纸插件界面尚未加载/u);
-  assert.match(settings, /selectSection\("plugins"\)/u);
+  assert.match(settings, /壁纸插件设置页尚未加载/u);
+  assert.match(settings, /onNavigate\("\/plugin-manager"\)/u);
   assert.match(workspace, /name: "sidebar\.right\.pane\.tab", entryKey: tab\.id, fallback:/u);
   assert.match(workspace, /扩展面板尚未加载内容/u);
   assert.match(workbench, /<DshSlotOutlet name="shell\.overlay" \/>/u);
+});
+
+test('LFAA declares and consumes every DSH Plugin Manager extension slot', () => {
+  const root = new URL('../../../', import.meta.url);
+  const renderer = readFileSync(new URL('packages/client/ui-renderer/src/render.tsx', root), 'utf8');
+  const pluginManager = readFileSync(new URL('packages/client/ui-plugin-manager/src/PluginManagerPage.tsx', root), 'utf8');
+  const slots = [
+    'plugins.add.actions', 'plugins.tab', 'plugins.bundle.activation', 'plugins.item',
+    'plugins.bundle.config', 'plugins.row.config', 'plugins.detail.actions',
+    'plugins.detail.badge', 'plugins.detail.section'
+  ];
+
+  for (const slot of slots) {
+    assert.ok(renderer.includes(`"${slot}"`), `root does not declare ${slot}`);
+    assert.ok(pluginManager.includes(`name="${slot}"`), `plugin manager does not render ${slot}`);
+  }
+  assert.match(renderer, /typeof options\.key === "string" \? options\.key/u);
+  assert.match(pluginManager, /owner=\{\{ install: openContributedInstall, openPackage: openContributedPackage \}/u);
+  assert.match(pluginManager, /inspection\.version !== contributedInstall\.version/u);
 });
 

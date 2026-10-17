@@ -712,7 +712,8 @@ function writeProject(root: string, canvas: AiVideoCanvas): void {
     rejectSymlinkOrWrongType(path, "file");
     atomicWrite(path, projectFile(canvas));
     const readback = readProject(root, canvas.id);
-    if (!readback || JSON.stringify(readback.canvas) !== JSON.stringify(canvas)) throw new Error("AI 漫剧项目写入回读校验失败。");
+    // 读取时会统一对象字段顺序；比较归一后的内容，避免仅因 JSON 键顺序不同拒绝真实写入。
+    if (!readback || JSON.stringify(readback.canvas) !== JSON.stringify(normalizeStoredCanvas(canvas))) throw new Error("AI 漫剧项目写入回读校验失败。");
   } catch (error) {
     if (createdDirectory && existsSync(directory)) rmSync(directory, { recursive: true, force: true });
     throw error;

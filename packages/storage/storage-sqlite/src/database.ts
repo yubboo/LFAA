@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 56;
+const latestSupportedDatabaseVersion = 57;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -1880,3 +1880,25 @@ export function migrateMinecraftArchiveSchema():void {
   finally{database.exec("PRAGMA foreign_keys=ON;");}
 }
 migrateMinecraftArchiveSchema();
+
+/** 版本 57：记录首次默认超级管理员尚未处理的用户名/密码提醒，不保存明文凭据。 */
+export function migrateDefaultAdminReminderSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  // v1–v30 的空数据根要先由 storage-domain 导入配置并完成 v31–v56；不能提前跳过旧库迁移链。
+  if (version < 56 || version >= 57) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const columns = database.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "default_username_pending")) {
+      database.exec("ALTER TABLE users ADD COLUMN default_username_pending INTEGER NOT NULL DEFAULT 0 CHECK (default_username_pending IN (0, 1));");
+    }
+    if (!columns.some((column) => column.name === "default_password_pending")) {
+      database.exec("ALTER TABLE users ADD COLUMN default_password_pending INTEGER NOT NULL DEFAULT 0 CHECK (default_password_pending IN (0, 1));");
+    }
+    database.exec("PRAGMA user_version = 57; COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateDefaultAdminReminderSchema();

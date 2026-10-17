@@ -29,12 +29,12 @@ test("Minecraft 默认核心名称要求认证且不请求远端版本目录", {
   const base = `http://127.0.0.1:${process.env.SERVER_PORT}/api`;
   try {
     assert.equal((await fetch(`${base}/minecraft/core-names`)).status, 401);
-    const setup = await fetch(`${base}/auth/setup`, {
+    const setup = await fetch(`${base}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: "minecraft-core-names-admin", password: "Minecraft-core-names-test-93!" })
+      body: JSON.stringify({ username: "admin", password: "123456" })
     });
-    assert.equal(setup.status, 201);
+    assert.equal(setup.status, 200);
     const headers = { Cookie: setup.headers.get("set-cookie").split(";")[0] };
 
     const originalFetch = globalThis.fetch;

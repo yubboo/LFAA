@@ -3,7 +3,7 @@
  * 作用：恢复会话时一次读取账户偏好与设置，工作台首次渲染即可采用已保存主题。
  * 关联文件：packages/client/connection/src/api.ts、packages/client/ui-settings-account/src/AuthView.tsx、packages/client/ui-layout/src/Workbench.tsx。
  */
-import { loadClientModule, syncDshClientModulesForAuthentication } from "lfaa-client-modules/src/client/index.js";
+import { loadClientModule, LFAA_AUTH_TRANSITION_SLOT, syncDshClientModulesForAuthentication, useDshSlotEntries, type AuthTransitionPhase } from "lfaa-client-modules/src/client/index.js";
 import { resolveSessionBootstrap } from "./session-bootstrap.js";
 import { preloadWorkbenchForRoute } from "./workbench-preload.js";
 import { clearAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
@@ -11,18 +11,19 @@ import { APPLICATION_ROUTE_PATTERN, SHARED_WORK_ROUTE, normalizeWorkRoute } from
 import { APPLICATION_ENTRY_STATE_KEY as applicationRouteEntryStateKey, readApplicationEntryIdFromHistory } from "./application-entry-state.js";
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
 import { clearClientSnapshots } from "lfaa-client-store/src/snapshot-cache.js";
-import { Alert, Button } from "antd";
+import { Alert, Button, Modal, Typography } from "antd";
 import {
   ApiError,
   getErrorMessage,
-  initializeAdmin,
+  dismissDefaultCredentialReminder,
+  loadDefaultCredentialReminder,
   loadCurrentUser,
   loadHealth,
   loadPreferences,
   loadSettings,
-  loadSetupStatus,
   loginWithPasskey,
   login,
   logout,
@@ -68,6 +69,15 @@ function serverStateFromHealth(health: ServerHealth | null, checking: boolean): 
   }
   return health?.status === "ok" && health.persistence === "ready" ? "online" : "offline";
 }
+
+function shouldReduceMotion(setting: UserSettings["appearance"]["advanced"]["reducedMotion"]): boolean {
+  if (setting === "on") return true;
+  return setting === "system" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+type DocumentWithViewTransition = Document & {
+  startViewTransition?: (callback: () => void) => { finished: Promise<void> };
+};
 
 function applicationIdForRoute(path: string): ApplicationId | null {
   if (normalizeWorkRoute(path) === SHARED_WORK_ROUTE) return null;
@@ -117,6 +127,7 @@ function routeTo(
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const authTransitionPlugins = useDshSlotEntries(LFAA_AUTH_TRANSITION_SLOT);
   const [clientModulesReadyUserId, setClientModulesReadyUserId] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
@@ -127,6 +138,7 @@ export default function App() {
     });
     return () => { active = false; };
   }, [user?.id]);
+
   const [preferences, setPreferences] = useState<UserPreferences>(fallbackPreferences);
   const preferencesRef = useRef(preferences);
   preferencesRef.current = preferences;
@@ -135,12 +147,22 @@ export default function App() {
   const navigationSequence = useRef(0);
   const navigationSave = useRef<Promise<void>>(Promise.resolve());
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
+  const [authTransitionPhase, setAuthTransitionPhase] = useState<AuthTransitionPhase>("idle");
+  const configuredAuthTransitionPluginId = userSettings?.appearance.advanced.authTransitionPluginId ?? "builtin";
+  const authTransitionPluginId = configuredAuthTransitionPluginId === "builtin"
+    || authTransitionPlugins.some((entry) => entry.id === configuredAuthTransitionPluginId)
+    ? configuredAuthTransitionPluginId
+    : "builtin";
+  const authTransitionReducedMotion = userSettings
+    ? shouldReduceMotion(userSettings.appearance.advanced.reducedMotion)
+    : window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const [health, setHealth] = useState<ServerHealth | null>(null);
   const healthRef = useRef<ServerHealth | null>(null);
   const [healthChecking, setHealthChecking] = useState(true);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [requiresSetup, setRequiresSetup] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
+  const [credentialReminder, setCredentialReminder] = useState<{ usernamePending: boolean; passwordPending: boolean } | null>(null);
+  const authRequestInFlightRef = useRef(false);
   const [settingsRetryBusy, setSettingsRetryBusy] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -149,6 +171,47 @@ export default function App() {
   const sessionRestoreResolvedRef = useRef(false);
   const [route, setRoute] = useState(window.location.pathname);
   const serverState = serverStateFromHealth(health, healthChecking);
+
+  useEffect(() => {
+    if (authTransitionPhase !== "preparing" || !user || !userSettings) return;
+    if (userSettings.appearance.wallpaperEngine.enabled && clientModulesReadyUserId !== user.id) return;
+    setAuthTransitionPhase(authTransitionReducedMotion ? "idle" : "entering");
+  }, [authTransitionPhase, authTransitionReducedMotion, clientModulesReadyUserId, user, userSettings]);
+
+  useEffect(() => {
+    if (authTransitionPhase !== "entering" || !user || !userSettings) return;
+    const root = document.documentElement;
+    const animationId = authTransitionPluginId;
+    let cancelled = false;
+    let started = false;
+    const frame = window.requestAnimationFrame(() => {
+      started = true;
+      if (cancelled) return;
+      root.dataset.lfaaAuthEntryAnimation = animationId;
+      const transitionDocument = document as DocumentWithViewTransition;
+      if (typeof transitionDocument.startViewTransition !== "function") {
+        delete root.dataset.lfaaAuthEntryAnimation;
+        setAuthTransitionPhase("idle");
+        return;
+      }
+      try {
+        const transition = transitionDocument.startViewTransition(() => {
+          flushSync(() => setAuthTransitionPhase("idle"));
+        });
+        const cleanup = () => {
+          if (root.dataset.lfaaAuthEntryAnimation === animationId) delete root.dataset.lfaaAuthEntryAnimation;
+        };
+        void transition.finished.then(cleanup, cleanup);
+      } catch {
+        delete root.dataset.lfaaAuthEntryAnimation;
+        setAuthTransitionPhase("idle");
+      }
+    });
+    return () => {
+      cancelled = true;
+      if (!started) window.cancelAnimationFrame(frame);
+    };
+  }, [authTransitionPhase, authTransitionPluginId, user?.id, userSettings]);
 
   const refreshHealth = useCallback(async () => {
     if (!healthRef.current) setHealthChecking(true);
@@ -209,7 +272,6 @@ export default function App() {
       clearClientSnapshots();
       setPreferences(fallbackPreferences);
       setUserSettings(null);
-      setRequiresSetup(false);
       setAuthNotice(null);
       setError("登录已失效，请重新登录。");
       routeTo("/", setRoute);
@@ -247,7 +309,6 @@ export default function App() {
       try {
         const bootstrap = await resolveSessionBootstrap(
           loadCurrentUser,
-          loadSetupStatus,
           (sessionError) => sessionError instanceof ApiError && sessionError.status === 401
         );
         if (!active) {
@@ -256,7 +317,6 @@ export default function App() {
 
         if (bootstrap.kind === "anonymous") {
           clearAppearanceThemeBootstrap();
-          setRequiresSetup(bootstrap.requiresSetup);
           sessionRestoreResolvedRef.current = true;
           setClientModulesReadyUserId(null);
           setUser(null);
@@ -265,7 +325,6 @@ export default function App() {
           return;
         }
 
-        setRequiresSetup(false);
         const [savedResult, settingsResult] = await Promise.allSettled([
           loadPreferences(),
           loadSettings(),
@@ -278,6 +337,7 @@ export default function App() {
           setUser(bootstrap.user);
           if (settingsResult.status === "fulfilled") {
             setUserSettings(settingsResult.value.settings);
+            void updateCredentialReminder(settingsResult.value.settings);
           } else {
             setError(getErrorMessage(settingsResult.reason));
           }
@@ -300,18 +360,18 @@ export default function App() {
   }, [serverState, sessionRestoreAttempt]);
 
   async function handleAuth(username: string, password: string): Promise<void> {
+    if (authRequestInFlightRef.current) return;
+    authRequestInFlightRef.current = true;
     setAuthBusy(true);
-    setError(null);
     setAuthNotice(null);
 
     try {
-      const result = requiresSetup
-        ? await initializeAdmin(username, password)
-        : await login(username, password);
+      const result = await login(username, password);
       await finishAuthentication(result.user);
     } catch (authError) {
       setError(getErrorMessage(authError));
     } finally {
+      authRequestInFlightRef.current = false;
       setAuthBusy(false);
     }
   }
@@ -324,24 +384,51 @@ export default function App() {
       preloadWorkbenchForRoute(window.location.pathname, loadWorkbenchModule, true)
     ]);
     if (savedResult.status === "rejected") throw savedResult.reason;
-    setRequiresSetup(false);
+    setError(null);
     sessionRestoreResolvedRef.current = true;
     setSessionRestoreError(null);
     setPreferences(savedResult.value.preferences);
     setClientModulesReadyUserId(null);
     setUser(user);
+    if (settingsResult.status === "fulfilled") void updateCredentialReminder(settingsResult.value.settings);
     const returnRoute = window.location.pathname === "/settings" || window.location.pathname === "/admin/users"
       ? window.location.pathname
       : SHARED_WORK_ROUTE;
     routeTo(returnRoute, setRoute);
     if (settingsResult.status === "fulfilled") {
+      setAuthTransitionPhase("preparing");
       setUserSettings(settingsResult.value.settings);
     } else {
+      setAuthTransitionPhase("idle");
       setError(getErrorMessage(settingsResult.reason));
     }
   }
 
+  async function updateCredentialReminder(settings: UserSettings): Promise<void> {
+    if (!settings.general.defaultAdminCredentialReminderEnabled) {
+      setCredentialReminder(null);
+      return;
+    }
+    try {
+      const reminder = await loadDefaultCredentialReminder();
+      setCredentialReminder(reminder.usernamePending || reminder.passwordPending ? reminder : null);
+    } catch {
+      setCredentialReminder(null);
+    }
+  }
+
+  async function dismissCredentialReminder(): Promise<void> {
+    try {
+      await dismissDefaultCredentialReminder();
+      setCredentialReminder(null);
+    } catch (reminderError) {
+      setError(getErrorMessage(reminderError));
+    }
+  }
+
   async function handlePasskeyLogin(): Promise<void> {
+    if (authRequestInFlightRef.current) return;
+    authRequestInFlightRef.current = true;
     setAuthBusy(true);
     setError(null);
     setAuthNotice(null);
@@ -351,11 +438,14 @@ export default function App() {
     } catch (authError) {
       setError(getErrorMessage(authError));
     } finally {
+      authRequestInFlightRef.current = false;
       setAuthBusy(false);
     }
   }
 
   async function handlePasswordRecovery(username: string, recoveryKey: string, newPassword: string): Promise<boolean> {
+    if (authRequestInFlightRef.current) return false;
+    authRequestInFlightRef.current = true;
     setAuthBusy(true);
     setError(null);
     setAuthNotice(null);
@@ -367,6 +457,7 @@ export default function App() {
       setError(getErrorMessage(recoveryError));
       return false;
     } finally {
+      authRequestInFlightRef.current = false;
       setAuthBusy(false);
     }
   }
@@ -478,15 +569,17 @@ export default function App() {
     );
   }
 
-  if (!user) {
+  if (!user || authTransitionPhase !== "idle") {
     return (
       <Suspense fallback={<main className="loading-page"><span className="loading-indicator" aria-hidden="true" /></main>}>
         <AuthView
-          mode={requiresSetup ? "setup" : "login"}
           serverState={serverState}
-          busy={authBusy}
-          error={error}
-          notice={authNotice}
+          busy={authBusy || authTransitionPhase !== "idle"}
+          error={user ? null : error}
+          notice={authTransitionPhase !== "idle" ? "登录成功，正在准备并进入工作台…" : authNotice}
+          transitionPhase={authTransitionPhase}
+          transitionPluginId={authTransitionPluginId}
+          reducedMotion={authTransitionReducedMotion}
           onSubmit={(username, password) => void handleAuth(username, password)}
           onPasskeyLogin={() => void handlePasskeyLogin()}
           onRecover={handlePasswordRecovery}
@@ -510,8 +603,9 @@ export default function App() {
   }
 
   return (
-    <Suspense fallback={<main className="loading-page" aria-busy="true" />}>
-      <Workbench
+    <>
+      <Suspense fallback={<main className="loading-page" aria-busy="true" />}>
+        <Workbench
         user={user}
         initialSettings={userSettings}
         preferences={preferences}
@@ -527,7 +621,26 @@ export default function App() {
         onOpenApplication={handleOpenApplication}
         onUserChange={(nextUser) => setUser(nextUser)}
         onLogout={() => void handleLogout()}
-      />
-    </Suspense>
+        />
+      </Suspense>
+      <Modal
+        open={Boolean(credentialReminder)}
+        title="建议修改默认登录凭据"
+        closable={false}
+        maskClosable={false}
+        footer={[
+          <Button key="later" onClick={() => void dismissCredentialReminder()}>稍后再说</Button>,
+          <Button key="settings" type="primary" onClick={() => { setCredentialReminder(null); routeTo("/settings", setRoute); }}>前往设置中心</Button>
+        ]}
+      >
+        <Typography.Paragraph>
+          {credentialReminder?.usernamePending && credentialReminder.passwordPending
+            ? "当前仍在使用系统默认用户名和密码。建议在设置中心的「安全」页面分别修改，之后可使用新凭据登录。"
+            : credentialReminder?.usernamePending
+              ? "当前仍在使用系统默认用户名。建议在设置中心的「安全」页面修改。"
+              : "当前仍在使用系统默认密码。建议在设置中心的「安全」页面修改。"}
+        </Typography.Paragraph>
+      </Modal>
+    </>
   );
 }

@@ -12,7 +12,7 @@ import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { UserRole } from "lfaa-identity-auth/src/service.js";
 import type { ApplicationId } from "lfaa-settings/src/preferences/service.js";
 import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN } from "lfaa-util-values/src/settings-contract.js";
-import { AiOutputLimitError, AiRecoverableRequestError, resolveAiCompletionMaxTokens, streamAiCompletion, type AiCompletionContentPart, type AiCompletionMessage, type AiCompletionUsage } from "lfaa-llm/src/completion.js";
+import { AiOutputLimitError, AiRecoverableRequestError, type AiCompletionContentPart, type AiCompletionMessage, type AiCompletionUsage, type AiCompletionService } from "lfaa-llm/src/completion.js";
 import { domainExpertName, listAiBusinessTools, type AiBusinessTool } from "lfaa-tools/src/business-tools.js";
 import { capabilitySettingsInstruction } from "lfaa-tools/src/capability-settings.js";
 import { discoverMcpTools, type McpServerInstruction } from "lfaa-mcp-client/src/runtime.js";
@@ -597,7 +597,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
         completionTokens = usage.completionTokens;
         emit("usage", { messageId: turn.assistantMessage.id, ...usage, providerId: account.providerId, modelId: account.modelId });
       };
-      const requestModel = async (messages: AiCompletionMessage[], options: { tools?: typeof functionTools; systemPrompt?: string; deltaToUser?: boolean }): Promise<Awaited<ReturnType<typeof streamAiCompletion>> & { text: string }> => {
+      const requestModel = async (messages: AiCompletionMessage[], options: { tools?: typeof functionTools; systemPrompt?: string; deltaToUser?: boolean }): Promise<Awaited<ReturnType<AiCompletionService["streamCompletion"]>> & { text: string }> => {
         await pauseGate.checkpoint(abortController.signal);
         if (requestCount >= maxModelRequests) throw new AiModelRequestBudgetError(maxModelRequests);
         abortController.signal.throwIfAborted();
@@ -618,14 +618,14 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           ? "当前会话处于计划讨论模式。先与用户梳理、讨论和修订方案；只可执行风险判定为 read 的只读工具。运行器会在实际派发边界拒绝所有写入、危险操作、电脑操控和领域子 Agent。只有用户明确批准当前计划并要求执行时，才单独调用 lfaa_approve_plan_and_execute；不要与任务工具并行调用，任务工具会在下一次模型请求中按既有权限执行。用户要求补充、比较或修改计划时继续留在计划模式。"
           : "协作计划意图由你根据完整自然语言语义判断，不使用关键词猜测。只有用户明确要求先讨论计划、等待其批准后才执行时，先单独调用 lfaa_enter_plan_mode；本次响应不要调用任何其他任务工具。不要仅因任务复杂就自动进入计划模式。"];
         const requestExtensions = [...extensionInstructions, ...planModeInstruction];
-        const outputLimit = resolveAiCompletionMaxTokens(settings.aiRuntime, account);
+        const outputLimit = aiPluginHost.llm.resolveMaxTokens(settings.aiRuntime, account);
         const outputLimitDescription = outputLimit === undefined
           ? "输出上限跟随 Provider 默认（模型目录未提供上限）"
           : `有效输出上限 ${outputLimit.toLocaleString("zh-CN")} tokens`;
         providerActivityId = addActivity("status", `请求 ${account.providerId} · ${account.modelId}`, "running", `第 ${requestCount} 次模型请求；${outputLimitDescription}；超时 ${settings.aiRuntime.requestTimeoutSeconds} 秒。`);
-        let result: Awaited<ReturnType<typeof streamAiCompletion>>;
+        let result: Awaited<ReturnType<AiCompletionService["streamCompletion"]>>;
         try {
-          result = await streamAiCompletion({
+          result = await aiPluginHost.llm.streamCompletion({
           account,
           applicationId: body.appId,
           permissionMode,
@@ -1155,7 +1155,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
               }
             });
             let memoryOutput = "";
-            const memoryResult = await streamAiCompletion({
+            const memoryResult = await aiPluginHost.llm.streamCompletion({
               account,
               applicationId: body.appId,
               permissionMode,

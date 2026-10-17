@@ -817,6 +817,8 @@ export interface DataDirectorySettings {
   configured: boolean;
   currentDirectory: string;
   pendingDirectory: string | null;
+  pendingMode: "copy" | "adopt" | "archive" | null;
+  pendingArchivePath: string | null;
   pendingError: string | null;
   editable: boolean;
   unavailableReason: string | null;
@@ -1149,8 +1151,8 @@ export function recommendDataDirectoryLocation(): Promise<{ settings: DataDirect
   return request("/data-directory/recommended", { method: "POST" });
 }
 
-export function saveDataDirectorySettings(directory: string): Promise<{ settings: DataDirectorySettings }> {
-  return request("/data-directory", { method: "PUT", body: JSON.stringify({ directory }) });
+export function saveDataDirectorySettings(directory: string, mode: "copy" | "adopt" | "archive" = "copy", archivePath = ""): Promise<{ settings: DataDirectorySettings }> {
+  return request("/data-directory", { method: "PUT", body: JSON.stringify({ directory, mode, archivePath }) });
 }
 
 export function cancelDataDirectorySettingsChange(): Promise<{ settings: DataDirectorySettings }> {
@@ -1520,8 +1522,17 @@ export function saveMinecraftServerProperties(instanceId: string, properties: Mi
   return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/properties`, { method: "PATCH", body: JSON.stringify({ properties }) });
 }
 
-export function loadSetupStatus(): Promise<{ requiresSetup: boolean }> {
-  return request<{ requiresSetup: boolean }>("/auth/setup-status");
+export interface DefaultCredentialReminder {
+  usernamePending: boolean;
+  passwordPending: boolean;
+}
+
+export function loadDefaultCredentialReminder(): Promise<DefaultCredentialReminder> {
+  return request<DefaultCredentialReminder>("/auth/default-credential-reminder");
+}
+
+export function dismissDefaultCredentialReminder(): Promise<void> {
+  return request<void>("/auth/default-credential-reminder/dismiss", { method: "POST" });
 }
 
 export function loadCurrentUser(): Promise<{ user: User }> {
@@ -1559,13 +1570,6 @@ export async function invokeTypertRemote<Contract extends TypertRemoteClientCont
 
 function isTypertIdentifier(value: string): boolean {
   return value.length <= 128 && /^[a-z0-9][a-z0-9._-]*$/u.test(value);
-}
-
-export function initializeAdmin(username: string, password: string): Promise<{ user: User }> {
-  return request<{ user: User }>("/auth/setup", {
-    method: "POST",
-    body: JSON.stringify({ username, password })
-  });
 }
 
 export function login(username: string, password: string): Promise<{ user: User }> {
@@ -1640,6 +1644,13 @@ export function changeCurrentPassword(input: { currentPassword: string; newPassw
 
 export function updateCurrentUserEmail(input: { currentPassword: string; email: string | null }): Promise<{ user: User }> {
   return request<{ user: User }>("/auth/email", {
+    method: "PUT",
+    body: JSON.stringify(input)
+  });
+}
+
+export function updateCurrentUserUsername(input: { currentPassword: string; username: string }): Promise<{ user: User }> {
+  return request<{ user: User }>("/auth/username", {
     method: "PUT",
     body: JSON.stringify(input)
   });

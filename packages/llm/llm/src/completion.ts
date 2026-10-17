@@ -115,7 +115,7 @@ function readDelta(value: unknown): string {
   }).join("");
 }
 
-export async function streamAiCompletion(input: {
+export interface AiCompletionInput {
   account: ActiveAiModelConfiguration;
   applicationId: ApplicationId;
   permissionMode: PermissionSettings["mode"];
@@ -130,7 +130,9 @@ export async function streamAiCompletion(input: {
   onResponse?: (response: AiCompletionResult) => void;
   onDelta: (delta: string) => void;
   onProgress: (progress: "thinking" | "content") => void;
-}): Promise<AiCompletionResult> {
+}
+
+export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCompletionResult> {
   const maxTokens = resolveAiCompletionMaxTokens(input.settings, input.account);
   const composedSystemPrompt = composeLfaaSystemPrompt(input);
   // DSH 的 replay 接缝保留原生协议。LFAA 在现有 Owner 内适配，仅回传来源匹配的真实字段。
@@ -325,4 +327,41 @@ export async function streamAiCompletion(input: {
   };
   input.onResponse?.(result);
   return result;
+}
+
+/** A provider-specific protocol implementation. The generic OpenAI-compatible stream remains the fallback. */
+export interface AiCompletionAdapter {
+  stream(input: AiCompletionInput): Promise<AiCompletionResult>;
+}
+
+/** Injectable LLM seam used by every inference consumer. Registrations live for their Cordis owner. */
+export interface AiCompletionService {
+  streamCompletion(input: AiCompletionInput): Promise<AiCompletionResult>;
+  resolveMaxTokens(settings: AiRuntimeSettings, account: Pick<ActiveAiModelConfiguration, "maxOutputTokens">): number | undefined;
+  registerAdapter(providerId: string, adapter: AiCompletionAdapter): () => void;
+  listAdapters(): readonly string[];
+}
+
+export function createAiCompletionService(): AiCompletionService {
+  const adapters = new Map<string, AiCompletionAdapter>();
+  return {
+    streamCompletion(input) {
+      return (adapters.get(input.account.providerId)?.stream ?? streamAiCompletion)(input);
+    },
+    resolveMaxTokens: resolveAiCompletionMaxTokens,
+    registerAdapter(providerId, adapter) {
+      if (!/^[a-z][a-z0-9-]{0,63}$/u.test(providerId) || !adapter || typeof adapter.stream !== "function") {
+        throw new Error("LLM Provider Adapter 登记无效。");
+      }
+      if (adapters.has(providerId)) throw new Error(`LLM Provider Adapter 重复登记：${providerId}`);
+      adapters.set(providerId, adapter);
+      let active = true;
+      return () => {
+        if (!active) return;
+        active = false;
+        if (adapters.get(providerId) === adapter) adapters.delete(providerId);
+      };
+    },
+    listAdapters: () => [...adapters.keys()]
+  };
 }

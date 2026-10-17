@@ -3,6 +3,9 @@ import type { Context } from "@deepseek-ai/cordis";
 import * as capability from "./service.js";
 export const name = "lfaaSettings";
 export const inject = ["lfaaCredentials"];
+declare module "@deepseek-ai/cordis" {
+  interface Context { lfaaSettings: typeof capability }
+}
 export function apply(ctx: Context): void {
   ctx.provide(name, capability);
   // AI 密钥和插件凭据记录都由 Settings 加密持有；凭据插件只获得明确登记的读取/存储适配。

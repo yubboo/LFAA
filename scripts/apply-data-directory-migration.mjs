@@ -4,9 +4,12 @@
  * 关联文件：packages/workspace/data-directory/src/service.ts、packages/util/launch-environment/src/config.ts、scripts/start-dev.ps1、apps/desktop-electron/src/main.mjs、apps/desktop-tauri/src-tauri/src/main.rs、根目录 .gitignore。
  */
 import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import { cp, lstat, mkdir, readdir, readFile, realpath, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 const projectRoot = process.argv[2] ? resolve(process.argv[2]) : "";
 if (!projectRoot) throw new Error("用法：node scripts/apply-data-directory-migration.mjs <项目根目录>");
@@ -21,6 +24,13 @@ const requestPath = optionValue("--request")
   : resolve(projectRoot, ".lfaa-data-directory.pending.json");
 const environmentPath = resolve(projectRoot, ".env");
 const desktopMigration = Boolean(desktopConfigurationPath);
+const execFileAsync = promisify(execFile);
+
+function isInstallOnlyPath(path) {
+  const normalized = path.split(sep).join("/").toLocaleLowerCase("en-US");
+  return normalized === "plugins/profiles" || normalized.startsWith("plugins/profiles/")
+    || normalized === "plugins/runtime-adapters" || normalized.startsWith("plugins/runtime-adapters/");
+}
 
 function isWithinDirectory(parentDirectory, candidateDirectory) {
   const pathFromParent = relative(parentDirectory, candidateDirectory);
@@ -45,6 +55,8 @@ async function assertNoSymbolicLinks(rootDirectory) {
       const entryPath = resolve(currentDirectory, entry.name);
       const info = await lstat(entryPath);
       if (info.isSymbolicLink()) throw new Error("源数据目录包含符号链接或目录联接。为避免把数据复制到意外位置，迁移已停止。");
+      const path = relative(rootDirectory, entryPath).split(sep).join("/");
+      if (isInstallOnlyPath(path)) continue;
       if (info.isDirectory()) pendingDirectories.push(entryPath);
     }
   }
@@ -61,11 +73,63 @@ async function collectManifest(rootDirectory) {
       const info = await lstat(entryPath);
       if (info.isSymbolicLink()) throw new Error("数据树在迁移过程中出现符号链接；为保护路径边界，迁移已停止。");
       const path = relative(rootDirectory, entryPath).split(sep).join("/");
-      records.push({ path, type: info.isDirectory() ? "directory" : "file", size: info.isFile() ? info.size : 0 });
+      if (isInstallOnlyPath(path)) continue;
       if (info.isDirectory()) pendingDirectories.push(entryPath);
+      records.push({ path, type: info.isDirectory() ? "directory" : "file", size: info.isFile() ? info.size : 0 });
     }
   }
   return records.sort((left, right) => left.path.localeCompare(right.path, "en"));
+}
+
+async function extractDataArchive(archivePath, temporaryDirectory) {
+  if (process.platform !== "win32") throw new Error("ZIP 导入当前仅支持 Windows 本机启动器和桌面端。");
+  const scriptPath = resolve(dirname(fileURLToPath(import.meta.url)), "extract-data-directory-archive.ps1");
+  try {
+    await execFileAsync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-ArchivePath", archivePath, "-Destination", temporaryDirectory], {
+      windowsHide: true,
+      maxBuffer: 64 * 1024
+    });
+  } catch (error) {
+    const detail = error?.stderr?.trim() || error?.message || "ZIP 解包失败。";
+    throw new Error(`ZIP 备份无法安全导入：${detail}`);
+  }
+  const directDatabase = resolve(temporaryDirectory, "database", "lfaa.sqlite");
+  try { if ((await lstat(directDatabase)).isFile()) return temporaryDirectory; }
+  catch { /* ZIP may contain one wrapper folder; inspect it below. */ }
+  const rootEntries = await readdir(temporaryDirectory, { withFileTypes: true });
+  if (rootEntries.length !== 1 || !rootEntries[0].isDirectory()) throw new Error("ZIP 内未识别到 data 根；请将 data 目录内容放在 ZIP 根，或只增加一个外层文件夹。");
+  const wrappedRoot = resolve(temporaryDirectory, rootEntries[0].name);
+  const wrappedDatabase = resolve(wrappedRoot, "database", "lfaa.sqlite");
+  try { if (!(await lstat(wrappedDatabase)).isFile()) throw new Error(); }
+  catch { throw new Error("ZIP 内缺少 database/lfaa.sqlite；没有切换数据位置。"); }
+  const normalizedDirectory = `${temporaryDirectory}.normalized`;
+  await rename(wrappedRoot, normalizedDirectory);
+  await rm(temporaryDirectory, { recursive: true, force: true });
+  await rename(normalizedDirectory, temporaryDirectory);
+  return temporaryDirectory;
+}
+
+async function removeInstallOnlyPaths(rootDirectory) {
+  for (const path of [resolve(rootDirectory, "plugins", "profiles"), resolve(rootDirectory, "plugins", "runtime-adapters")]) {
+    try {
+      const info = await lstat(path);
+      if (info.isSymbolicLink()) throw new Error("ZIP 内插件安装目录包含链接，拒绝导入。");
+      await rm(path, { recursive: true, force: false });
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+}
+
+async function writeMigrationMarker(rootDirectory, request, sourceDirectory, targetDirectory) {
+  const marker = resolve(rootDirectory, "credentials", `.data-directory-migration-${request.migrationId}.json`);
+  await mkdir(dirname(marker), { recursive: true });
+  await writeFile(marker, `${JSON.stringify({ version: 2, migrationId: request.migrationId, mode: request.mode, sourceDirectory, targetDirectory, completedAt: new Date().toISOString() }, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
+}
+
+async function directoryIsEmpty(path) {
+  try { return (await readdir(path)).length === 0; }
+  catch (error) { if (error?.code === "ENOENT") return true; throw error; }
 }
 
 function hasTable(database, tableName) {
@@ -180,8 +244,15 @@ async function main() {
   } else if (process.env.LFAA_DATA_DIR_MANAGED_BY_LAUNCHER !== "1") {
     throw new Error("当前数据目录由外部环境变量管理；请修改部署配置，不执行项目级迁移。");
   }
-  if (request?.version !== 1 || typeof request.migrationId !== "string" || !/^[0-9a-f-]{36}$/iu.test(request.migrationId) || typeof request.sourceDirectory !== "string" || typeof request.targetDirectory !== "string") {
+  if (![1, 2].includes(Number(request?.version)) || typeof request.migrationId !== "string" || !/^[0-9a-f-]{36}$/iu.test(request.migrationId) || typeof request.sourceDirectory !== "string" || typeof request.targetDirectory !== "string") {
     throw new Error("待处理的数据目录迁移请求格式无效；原目录未改动。");
+  }
+  request.mode = request.version === 1 ? "copy" : request.mode ?? "copy";
+  if (!["copy", "adopt", "archive"].includes(request.mode)) throw new Error("数据目录迁移方式无效；原目录未改动。");
+  if (request.mode === "archive") {
+    if (typeof request.archivePath !== "string" || !isAbsolute(request.archivePath) || !/\.zip$/iu.test(request.archivePath)) throw new Error("ZIP 备份必须使用控制端可访问的绝对 .zip 路径。");
+    const archiveInfo = await lstat(request.archivePath);
+    if (archiveInfo.isSymbolicLink() || !archiveInfo.isFile()) throw new Error("ZIP 备份路径必须是普通文件。");
   }
   const sourceDirectory = resolve(request.sourceDirectory);
   const targetDirectory = resolve(request.targetDirectory);
@@ -235,13 +306,15 @@ async function main() {
     if (entries.length) {
       try {
         const migrationInfo = JSON.parse(await readFile(migrationInfoPath, "utf8"));
-        targetAlreadyCommitted = migrationInfo.version === 1
+        targetAlreadyCommitted = [1, 2].includes(Number(migrationInfo.version))
+          && migrationInfo.migrationId === request.migrationId
+          && migrationInfo.mode === request.mode
           && normalizePath(migrationInfo.sourceDirectory) === normalizePath(sourceDirectory)
           && normalizePath(migrationInfo.targetDirectory) === normalizePath(finalTargetDirectory);
       } catch {
         targetAlreadyCommitted = false;
       }
-      if (!targetAlreadyCommitted) throw new Error("目标目录在迁移前已包含文件；为避免覆盖，迁移已停止且源目录保留。");
+      if (!targetAlreadyCommitted && request.mode !== "adopt") throw new Error("目标目录在迁移前已包含文件；为避免覆盖，迁移已停止且源目录保留。");
     }
   }
 
@@ -255,45 +328,62 @@ async function main() {
       if (error?.code !== "ENOENT") throw error;
     }
     await assertNoSymbolicLinks(sourceDirectory);
-
-    const temporaryDirectory = resolve(realTargetParent, `.${basename(finalTargetDirectory)}.lfaa-migration-${randomUUID()}`);
-    try {
-      await cp(realSourceDirectory, temporaryDirectory, { recursive: true, force: false, errorOnExist: true, preserveTimestamps: true });
+    if (request.mode === "adopt") {
+      if (!existingTarget) throw new Error("手动复制目标目录不存在；请先复制完整数据后再安排切换。");
       const sourceManifest = await collectManifest(realSourceDirectory);
-      const targetManifest = await collectManifest(temporaryDirectory);
+      const targetManifest = await collectManifest(finalTargetDirectory);
       if (JSON.stringify(sourceManifest) !== JSON.stringify(targetManifest)) {
-        throw new Error("迁移副本的文件数量或大小与源目录不一致；原目录保留，没有切换位置。");
+        throw new Error("手动复制的数据与当前来源清单不一致；没有切换位置。请重新复制完整 data 目录后重试。");
       }
-
-      const copiedDatabasePath = resolve(temporaryDirectory, "database", "lfaa.sqlite");
+      assertDatabaseHealthy(resolve(sourceDirectory, "database", "lfaa.sqlite"));
+      assertDatabaseHealthy(resolve(finalTargetDirectory, "database", "lfaa.sqlite"));
+      await writeMigrationMarker(finalTargetDirectory, request, sourceDirectory, finalTargetDirectory);
+    } else {
+      const temporaryDirectory = resolve(realTargetParent, `.${basename(finalTargetDirectory)}.lfaa-migration-${randomUUID()}`);
       try {
-        await stat(copiedDatabasePath);
-        assertDatabaseHealthy(copiedDatabasePath);
+        if (request.mode === "copy") {
+          await cp(realSourceDirectory, temporaryDirectory, {
+            recursive: true, force: false, errorOnExist: true, preserveTimestamps: true,
+            filter: (sourcePath) => {
+              const childPath = relative(realSourceDirectory, sourcePath).split(sep).join("/");
+              return !childPath || !isInstallOnlyPath(childPath);
+            }
+          });
+          const sourceManifest = await collectManifest(realSourceDirectory);
+          const targetManifest = await collectManifest(temporaryDirectory);
+          if (JSON.stringify(sourceManifest) !== JSON.stringify(targetManifest)) throw new Error("迁移副本的文件数量或大小与源目录不一致；原目录保留，没有切换位置。");
+        } else {
+          await extractDataArchive(request.archivePath, temporaryDirectory);
+          await removeInstallOnlyPaths(temporaryDirectory);
+          const importedDatabasePath = resolve(temporaryDirectory, "database", "lfaa.sqlite");
+          if (!(await lstat(importedDatabasePath)).isFile()) throw new Error("ZIP 中缺少 database/lfaa.sqlite；没有切换数据位置。");
+          assertDatabaseHealthy(importedDatabasePath);
+        }
+
+        const copiedDatabasePath = resolve(temporaryDirectory, "database", "lfaa.sqlite");
+        try {
+          await stat(copiedDatabasePath);
+          assertDatabaseHealthy(copiedDatabasePath);
+        } catch (error) { if (error?.code !== "ENOENT") throw error; }
+
+        await writeMigrationMarker(temporaryDirectory, request, sourceDirectory, finalTargetDirectory);
+        if (existingTarget) {
+          if (!await directoryIsEmpty(finalTargetDirectory)) throw new Error("目标目录在迁移期间被写入；为避免覆盖，迁移已停止且源目录保留。");
+          await rmdir(finalTargetDirectory);
+        }
+        await rename(temporaryDirectory, finalTargetDirectory);
       } catch (error) {
-        if (error?.code !== "ENOENT") throw error;
+        await rm(temporaryDirectory, { recursive: true, force: true });
+        throw error;
       }
-
-      const temporaryMigrationInfoPath = resolve(temporaryDirectory, migrationInfoRelativePath);
-      await mkdir(dirname(temporaryMigrationInfoPath), { recursive: true });
-      await writeFile(temporaryMigrationInfoPath, `${JSON.stringify({ version: 1, sourceDirectory, targetDirectory: finalTargetDirectory, completedAt: new Date().toISOString() }, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
-
-      if (existingTarget) {
-        const entries = await readdir(finalTargetDirectory);
-        if (entries.length) throw new Error("目标目录在迁移期间被写入；为避免覆盖，迁移已停止且源目录保留。");
-        await rmdir(finalTargetDirectory);
-      }
-      await rename(temporaryDirectory, finalTargetDirectory);
-    } catch (error) {
-      await rm(temporaryDirectory, { recursive: true, force: true });
-      throw error;
     }
   } else {
     assertDatabaseIdle(resolve(sourceDirectory, "database", "lfaa.sqlite"), sourceDirectory);
     await assertNoSymbolicLinks(sourceDirectory);
-    const sourceManifest = await collectManifest(realSourceDirectory);
-    const targetManifest = (await collectManifest(finalTargetDirectory)).filter((record) => record.path !== migrationInfoRelativePath);
-    if (JSON.stringify(sourceManifest) !== JSON.stringify(targetManifest)) {
-      throw new Error("上次迁移副本与当前源目录内容不一致；为保护新增数据，本次没有切换位置。请选择一个新的空目标目录。");
+    if (request.mode !== "archive") {
+      const sourceManifest = await collectManifest(realSourceDirectory);
+      const targetManifest = (await collectManifest(finalTargetDirectory)).filter((record) => record.path !== migrationInfoRelativePath);
+      if (JSON.stringify(sourceManifest) !== JSON.stringify(targetManifest)) throw new Error("上次迁移目标与当前源目录内容不一致；为保护新增数据，本次没有切换位置。");
     }
     assertDatabaseHealthy(resolve(sourceDirectory, "database", "lfaa.sqlite"));
     assertDatabaseHealthy(resolve(finalTargetDirectory, "database", "lfaa.sqlite"));
@@ -302,7 +392,8 @@ async function main() {
   if (desktopMigration) await updateDesktopConfiguration(finalTargetDirectory);
   else await updateEnvironmentFile(finalTargetDirectory);
   await rm(requestPath, { force: true });
-  process.stdout.write(`数据已复制并通过核对；LFAA_DATA_DIR 已切换为 ${finalTargetDirectory}。旧目录保留：${sourceDirectory}\n`);
+  const modeLabel = request.mode === "adopt" ? "手动复制数据已核验并采用" : request.mode === "archive" ? "ZIP 数据已安全导入并核验" : "数据已复制并核验";
+  process.stdout.write(`${modeLabel}；LFAA_DATA_DIR 已切换为 ${finalTargetDirectory}。旧目录保留：${sourceDirectory}\n`);
 }
 
 async function preserveMigrationError(error) {

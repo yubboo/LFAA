@@ -6,11 +6,12 @@
 import { Context } from "@deepseek-ai/cordis";
 import Loader from "@deepseek-ai/cordis-plugin-loader";
 import Timer from "@deepseek-ai/cordis-plugin-timer";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, lstatSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
+import { config } from "lfaa-launch-environment/src/config.js";
 import { PluginRuntimeManager } from "./plugin-runtime.js";
 interface PluginRow { id: string; name?: string; inject?: string[]; config?: Record<string, unknown>; disabled?: boolean; required?: boolean | undefined }
 interface PatchRow extends PluginRow { insert?: PluginRow[] }
@@ -28,11 +29,30 @@ function applyPatch(rows: Map<string, PluginRow>, path: string): void {
     } else {
       const previous = rows.get(item.id);
       if (!previous) throw new Error(`补丁引用了不存在的插件：${item.id}`);
-      if (previous.required && (item.disabled || (item.name && item.name !== previous.name))) throw new Error(`必需插件不能被移除或替换：${item.id}`);
+      if (previous.required && item.disabled) throw new Error(`必需插件不能被停用：${item.id}`);
+      if (item.name !== undefined && (typeof item.name !== "string" || !item.name.trim())) throw new Error(`插件实现包名无效：${item.id}`);
       rows.set(item.id, { ...previous, ...item, required: previous.required });
     }
   }
 }
+
+function ensureUserProfileDirectory(homeRoot: string, profile: string): string {
+  const profileRoot = resolve(homeRoot, "profiles", profile);
+  mkdirSync(profileRoot, { recursive: true, mode: 0o700 });
+  const profileStat = lstatSync(profileRoot);
+  if (profileStat.isSymbolicLink() || !profileStat.isDirectory()) {
+    throw new Error(`用户 Profile 目录必须是真实目录：${profileRoot}`);
+  }
+
+  const patchPath = resolve(profileRoot, "cordis.patch.yml");
+  try {
+    writeFileSync(patchPath, "# 用户级 Profile 覆盖；可替换已有模块实现或插入受支持的模块。\n[]\n", { encoding: "utf8", flag: "wx", mode: 0o600 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+  return profileRoot;
+}
+
 export async function boot(args: string[] = []): Promise<Context> {
   const profileIndex = args.indexOf("--profile");
   const profile = profileIndex >= 0 ? args[profileIndex + 1] : args[0] && !args[0].startsWith("-") ? args[0] : "web";
@@ -40,11 +60,12 @@ export async function boot(args: string[] = []): Promise<Context> {
   // 源码与控制端编译输出保留同一包目录结构。
   const treeRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
   const homeIndex = args.indexOf("--home");
-  const homeArgument = homeIndex >= 0 ? args[homeIndex + 1] : process.env.LFAA_HARNESS_HOME;
+  const homeArgument = homeIndex >= 0 ? args[homeIndex + 1] : process.env.LFAA_HARNESS_HOME?.trim() || config.homeDirectory;
   if (homeIndex >= 0 && !homeArgument) throw new Error("--home 需要配置目录路径。");
-  const homeRoot = homeArgument ? resolve(homeArgument) : undefined;
-  const localProfile = homeRoot ? resolve(homeRoot, "profiles", profile) : undefined;
-  const profileRoot = localProfile && existsSync(resolve(localProfile, "package.json")) ? localProfile : resolve(treeRoot, "apps/cli/config/profiles", profile);
+  const homeRoot = resolve(homeArgument);
+  const localProfile = ensureUserProfileDirectory(homeRoot, profile);
+  const defaultProfile = resolve(treeRoot, "apps/cli/config/profiles", profile);
+  const profileRoot = existsSync(resolve(localProfile, "package.json")) ? localProfile : defaultProfile;
   const manifest = JSON.parse(readFileSync(resolve(profileRoot, "package.json"), "utf8")) as ProfileManifest;
   const rows = new Map<string, PluginRow>();
   for (const bundle of manifest.lfaa.profile.bundles) {
@@ -53,8 +74,12 @@ export async function boot(args: string[] = []): Promise<Context> {
     const patchPath = resolve(dirname(manifestPath), bundleManifest.lfaa.bundle.patch);
     applyPatch(rows, patchPath);
   }
-  if (manifest.lfaa.profile.patch) applyPatch(rows, resolve(profileRoot, manifest.lfaa.profile.patch));
-  if (homeRoot && existsSync(resolve(homeRoot, "cordis.patch.yml"))) applyPatch(rows, resolve(homeRoot, "cordis.patch.yml"));
+  const declaredProfilePatch = manifest.lfaa.profile.patch ? resolve(profileRoot, manifest.lfaa.profile.patch) : null;
+  if (declaredProfilePatch) applyPatch(rows, declaredProfilePatch);
+  const userProfilePatch = resolve(localProfile, "cordis.patch.yml");
+  if (existsSync(userProfilePatch) && declaredProfilePatch !== userProfilePatch) applyPatch(rows, userProfilePatch);
+  const homePatch = resolve(homeRoot, "cordis.patch.yml");
+  if (existsSync(homePatch)) applyPatch(rows, homePatch);
   for (let i = 0; i < args.length; i += 1) if (args[i] === "--patch") {
     const path = args[++i];
     if (!path) throw new Error("--patch 需要补丁路径。");

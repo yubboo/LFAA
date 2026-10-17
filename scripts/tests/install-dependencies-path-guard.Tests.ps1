@@ -55,4 +55,28 @@ Describe 'Get-BlockedGitPaths first-party credentials package boundary' {
             }
         }
     }
+
+    It 'blocks the active custom data root while leaving ordinary project source eligible' {
+        $projectRoot = Join-Path $env:TEMP 'lfaa-custom-data-root-guard-fixture'
+        $customDataRoot = Join-Path $projectRoot 'private-store\instance data'
+        $blocked = @(Get-BlockedGitPaths -Paths @(
+            'packages/client/src/index.ts',
+            'private-store/instance data/database/lfaa.sqlite',
+            'private-store/instance data/users/profile.json'
+        ) -DataRoot $customDataRoot)
+
+        if ($blocked.Count -ne 2 -or $blocked -contains 'packages/client/src/index.ts') {
+            throw "Custom data-root filtering was incorrect: $($blocked -join ', ')"
+        }
+    }
+
+    It 'blocks all repository paths if the configured data root contains the source checkout' {
+        $projectRoot = Join-Path $env:TEMP 'lfaa-data-root-parent-guard-fixture\source'
+        $dataRoot = Split-Path -Parent $projectRoot
+        $blocked = @(Get-BlockedGitPaths -Paths @('packages/client/src/index.ts') -DataRoot $dataRoot)
+
+        if ($blocked.Count -ne 1) {
+            throw 'A data root containing the source checkout must stop every project path from being pushed.'
+        }
+    }
 }

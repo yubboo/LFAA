@@ -239,9 +239,9 @@ router.post("/data-directory/confirm", requireAuthentication, requireSuperAdmin,
   });
 
 router.put("/data-directory", requireAuthentication, requireSuperAdmin, (request, response) => {
-    const body = parseBody<{ directory: string }>(dataDirectorySettingsSchema, request.body);
+    const body = parseBody<{ directory: string; mode: "copy" | "adopt" | "archive"; archivePath: string }>(dataDirectorySettingsSchema, request.body);
     try {
-      response.json({ settings: requestDataDirectoryChange(body.directory) });
+      response.json({ settings: requestDataDirectoryChange(body.directory, body.mode, body.archivePath) });
     } catch (error) {
       if (error instanceof DataDirectorySettingsError) {
         const statusCode = error.errorCode === "invalid_data_directory" ? 400 : 409;

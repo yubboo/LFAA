@@ -44,12 +44,14 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
   private readonly active = new Map<string, ActivePlugin>();
   private readonly loader: DynamicLoader;
   private readonly dataDirectory: string;
+  private readonly pluginInstallDirectory: string;
   private readonly profile: string;
   private readonly disposeRouteAdapter: () => void;
 
-  constructor(context: Context, profile: string, dataDirectory: string) {
+  constructor(context: Context, profile: string, dataDirectory: string, pluginInstallDirectory = resolve(dataDirectory, "plugins")) {
     this.loader = context.get("loader") as unknown as DynamicLoader;
     this.dataDirectory = resolve(dataDirectory);
+    this.pluginInstallDirectory = resolve(pluginInstallDirectory);
     if (!/^[a-z][a-z0-9-]{0,63}$/u.test(profile)) throw new Error("Wallpaper Engine Runtime 的 Profile 名称无效。");
     this.profile = profile;
     const carrier = context.get("webServer") as unknown as RouteCarrier;
@@ -118,8 +120,8 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
   /** 卸载清理当前 Profile 的全部适配版本及插件私有数据；不触及账户外观或 Steam 原文件。 */
   async remove(record: PluginRecord): Promise<void> {
     if (!this.supports(record) || this.active.size > 0) throw new Error("壁纸插件尚未安全停止，不能清理文件。");
-    for (const category of ["runtime-adapters", "runtime-data"]) {
-      const root = resolve(this.dataDirectory, "plugins", category, "profiles", this.profile);
+    for (const [base, category] of [[this.pluginInstallDirectory, "runtime-adapters"], [resolve(this.dataDirectory, "plugins"), "runtime-adapters"], [resolve(this.dataDirectory, "plugins"), "runtime-data"]] as const) {
+      const root = resolve(base, category, "profiles", this.profile);
       const target = resolve(root, PACKAGE_ID);
       if (!target.startsWith(`${root}${sep}`)) throw new Error("插件清理路径越界。");
       rmSync(target, { recursive: true, force: true });
@@ -129,7 +131,7 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
   private runtimeRootFor(record: PluginRecord): string {
     if (!this.supports(record)) throw new Error("Wallpaper Engine 来源记录无效。");
     const revision = record.source.kind === "npm" || record.source.kind === "local" ? record.source.archiveSha256 : record.source.commit;
-    return resolve(this.dataDirectory, "plugins", "runtime-adapters", "profiles", this.profile, PACKAGE_ID,
+    return resolve(this.pluginInstallDirectory, "runtime-adapters", "profiles", this.profile, PACKAGE_ID,
       revision.toLocaleLowerCase("en-US"), `adapter-${ADAPTER_REVISION}`);
   }
 

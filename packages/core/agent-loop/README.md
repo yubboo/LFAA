@@ -12,6 +12,8 @@ AI Work 每次 Provider 请求的公开正文以稳定 ID 和起止范围标记�
 
 `lfaa-agent-loop` 负责 AI Work 的模型与工具循环。对话记忆仍由 `lfaa-conversation-memory` 持有；循环只检查账户设置，把符合条件的根轮次输入发送给已选 Provider，并通过记忆 Owner 保存已校验结果。
 
+所有文本补全通过注入的 `lfaaLlm` Service；Adapter 选择由 `lfaa-llm` 唯一拥有，分支记忆、回复后记忆及压缩摘要使用相同合同。Agent Loop 不直接导入传输函数或另建 Provider 选择表。插件卸载时由其 Cordis Fiber 撤销 Provider Adapter；仍不存在安全的任意外部插件 Client/Host 运行时。
+
 助手消息、主 Provider 用量和 `done` 事件提交后，才开始记忆提取。提取作为有界后台后处理运行：最多同时处理 4 个账户，每个账户最多 1 个任务；请求不带工具，输出上限为 512 token，超时为 30 秒。同账户已有新轮次或本地并发上限已满时跳过提取，并在活动记录中说明原因。成功提取记为触发该流程的助手消息上的独立 Provider 用量记录。提取错误不会改变已经完成的回答。
 
 发送前，循环会对当前用户消息和最终回答中的常见凭据、个人标识模式做本地启发式过滤；该过滤无法识别所有敏感表达，不处理工具参数、工具结果或较早的 Session 历史。Session Owner 会从持久化的模型快照中移除注入的记忆区块。

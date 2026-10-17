@@ -1,7 +1,7 @@
 ﻿<#
 功能：显示 LFAA 项目主菜单并按用户选择执行操作。
-作用：安装与构建当前包工作区、选择 Harness 运行入口、检查环境、备份源码或推送 GitHub。
-关联文件：lfaa.bat、scripts/project-menu.mjs、scripts/backup-project.ps1、scripts/start-dev.ps1、apps/cli/bin/lfaa.mjs、apps/web/package.json、apps/web/scripts/wait-for-server.mjs、packages/util/home-paths/src/resolve-data-directory.mjs、packages/storage/storage-json/src/index.ts、package.json、pnpm-workspace.yaml。
+作用：安装与构建当前包工作区、选择 Harness 运行入口、检查环境、备份源码、推送或安全更新 GitHub 源码。
+关联文件：lfaa.bat、scripts/project-menu.mjs、scripts/backup-project.ps1、scripts/update-project.ps1、scripts/start-dev.ps1、apps/cli/bin/lfaa.mjs、apps/web/package.json、apps/web/scripts/wait-for-server.mjs、packages/util/home-paths/src/resolve-data-directory.mjs、packages/storage/storage-json/src/index.ts、package.json、pnpm-workspace.yaml。
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -24,6 +24,7 @@ function Show-MainMenu {
     Write-Host '╔══════════════════════════════════════════════╗' -ForegroundColor DarkCyan
     Write-Host '║              LFAA Harness 工作台             ║' -ForegroundColor Cyan
     Write-Host '╚══════════════════════════════════════════════╝' -ForegroundColor DarkCyan
+    Write-Host ("当前源码工作区：{0}" -f $projectRoot) -ForegroundColor DarkGray
     Write-Host ''
     Write-Host '请选择要执行的操作：' -ForegroundColor White
     Write-Host '  【1】安装工作区依赖：pnpm install' -ForegroundColor Green
@@ -32,13 +33,14 @@ function Show-MainMenu {
     Write-Host '  【4】检查环境与实际工作区包' -ForegroundColor Yellow
     Write-Host '  【5】一键生成纯净源码 ZIP（排除依赖与敏感数据）' -ForegroundColor Green
     Write-Host '  【6】一键正常推送 GitHub main（不覆盖远端历史）' -ForegroundColor Green
+    Write-Host '  【8】安全更新本地源码（检查后 fetch + 快进合并）' -ForegroundColor Cyan
     Write-Host '  【0】退出' -ForegroundColor Red
     Write-Host ''
     Write-Host '桌面安装版内置 Control Plane 与本机 Daemon，并自动启动；Web 在 Windows 默认托管本机 Daemon。' -ForegroundColor DarkGray
     Write-Host '独立节点模式用于远程节点或维护；Windows Sandbox Host 由桌面打包自动构建，单独构建命令只针对该原生宿主。' -ForegroundColor DarkGray
     Write-Host '菜单 3 等同 pnpm run build:win；安装包输出：dist/apps/desktop-electron/LFAA-版本号/。' -ForegroundColor DarkGray
     Write-Host '首次沿用待构建版本；之后每次新包会要求填写更新说明并递增版本。' -ForegroundColor DarkGray
-    Write-Host 'Web 启动前检查源码与构建是否一致。' -ForegroundColor DarkGray
+    Write-Host 'Web 启动前检查源码指纹和关键构建文件；缺失或过期时自动重建。' -ForegroundColor DarkGray
     Write-Host '服务在当前终端运行，按 Ctrl+C 停止；不另开服务窗口。' -ForegroundColor DarkGray
     Write-Host ("脚本加载于 {0:yyyy-MM-dd HH:mm}；若刚改过脚本，请按 0 退出并重新打开本菜单。" -f $scriptLoadedAt) -ForegroundColor DarkGray
 }
@@ -90,6 +92,32 @@ function Show-EnvironmentStatus {
     }
     else {
         Write-Host '  pnpm 工作区配置：缺失' -ForegroundColor Red
+    }
+
+    if ($nodeCommand) {
+        $storageResolver = Join-Path $projectRoot 'scripts\resolve-data-directory.mjs'
+        if (Test-Path -LiteralPath $storageResolver -PathType Leaf) {
+            $storageLayoutLines = @(& $nodeCommand.Source $storageResolver $projectRoot '--layout' 2>&1 | ForEach-Object { [string]$_ })
+            if ($LASTEXITCODE -eq 0) {
+                try {
+                    $storageLayout = ($storageLayoutLines -join "`n") | ConvertFrom-Json
+                    Write-Host "  LFAA 安装与插件目录：$($storageLayout.pluginInstallDirectory)" -ForegroundColor DarkGray
+                    Write-Host "  当前用户数据目录：$($storageLayout.dataDirectory)" -ForegroundColor Green
+                    if (-not [System.IO.Path]::GetFullPath($storageLayout.dataDirectory).Equals(
+                        [System.IO.Path]::GetFullPath($storageLayout.defaultDataDirectory),
+                        [System.StringComparison]::OrdinalIgnoreCase
+                    )) {
+                        Write-Host "  默认数据目录（当前未选用）：$($storageLayout.defaultDataDirectory)；不会在两处各建一份数据。" -ForegroundColor DarkGray
+                    }
+                }
+                catch {
+                    Write-Host '  无法读取 LFAA 安装与数据目录布局。' -ForegroundColor Yellow
+                }
+            }
+            else {
+                Write-Host '  无法解析 LFAA 用户数据目录；请检查 LFAA_HOME、LFAA_DATA_DIR 与 .env。' -ForegroundColor Yellow
+            }
+        }
     }
 
     $rustcCommand = Get-Command 'rustc' -ErrorAction SilentlyContinue
@@ -432,14 +460,61 @@ function Get-GitConfigValue {
     return ($lines -join "`n").Trim()
 }
 
+function Get-ConfiguredDataDirectory {
+    $nodeCommand = Get-Command 'node' -ErrorAction SilentlyContinue
+    if (-not $nodeCommand) {
+        throw '无法解析当前配置的数据目录：缺少 Node.js；为避免误推运行数据，已停止推送。'
+    }
+
+    $resolverPath = Join-Path $projectRoot 'scripts\resolve-data-directory.mjs'
+    if (-not (Test-Path -LiteralPath $resolverPath -PathType Leaf)) {
+        throw '缺少唯一数据路径解析器 scripts\resolve-data-directory.mjs；为避免误推运行数据，已停止推送。'
+    }
+
+    $resolvedLines = @(& $nodeCommand.Source $resolverPath $projectRoot 2>&1 | ForEach-Object { [string]$_ })
+    $exitCode = $LASTEXITCODE
+    $resolvedPath = ($resolvedLines -join "`n").Trim()
+    if ($exitCode -ne 0 -or [string]::IsNullOrWhiteSpace($resolvedPath) -or -not [System.IO.Path]::IsPathRooted($resolvedPath)) {
+        throw '无法解析当前 LFAA_DATA_DIR；为避免误推运行数据，已停止推送。'
+    }
+    return [System.IO.Path]::GetFullPath($resolvedPath)
+}
+
 function Get-BlockedGitPaths {
-    param([string[]]$Paths)
+    param(
+        [string[]]$Paths,
+        [string]$DataRoot = ''
+    )
+
+    # 除固定 data/ 约定外，也按唯一数据路径 Owner 的当前结果保护用户自定义数据根。
+    $dataRootCoversProject = $false
+    $dataRootRelative = ''
+    if (-not [string]::IsNullOrWhiteSpace($DataRoot)) {
+        $projectPath = [System.IO.Path]::GetFullPath($projectRoot).TrimEnd([char[]]@('\', '/'))
+        $configuredDataRoot = [System.IO.Path]::GetFullPath($DataRoot).TrimEnd([char[]]@('\', '/'))
+        $projectPrefix = $projectPath + [System.IO.Path]::DirectorySeparatorChar
+        $dataPrefix = $configuredDataRoot + [System.IO.Path]::DirectorySeparatorChar
+        if ($configuredDataRoot.Equals($projectPath, [System.StringComparison]::OrdinalIgnoreCase) -or
+            $projectPath.StartsWith($dataPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $dataRootCoversProject = $true
+        }
+        elseif ($configuredDataRoot.StartsWith($projectPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $dataRootRelative = $configuredDataRoot.Substring($projectPrefix.Length).Replace('\', '/')
+        }
+    }
 
     return @($Paths | Where-Object {
         $path = $_ -replace '\\', '/'
+        $configuredDataPath = $dataRootCoversProject
+        if (-not $configuredDataPath -and -not [string]::IsNullOrWhiteSpace($dataRootRelative)) {
+            $dataPrefix = $dataRootRelative.TrimEnd('/') + '/'
+            $configuredDataPath = $path.Equals($dataRootRelative, [System.StringComparison]::OrdinalIgnoreCase) -or
+                $path.StartsWith($dataPrefix, [System.StringComparison]::OrdinalIgnoreCase)
+        }
         # packages/credentials 是版本化第一方源码包；其他 credentials 目录仍视为本机凭据数据。
         $sourceCredentialsPackage = $path -match '(?i)^packages/credentials(?:/|$)'
         # 运行数据目录一律不得推送：根 data/、server/data/、apps/*/data/。
+        $configuredDataPath -or
         $path -match '(?i)^(data|server/data)/' -or
         $path -match '(?i)^apps/[^/]+/data/' -or
         $path -match '(?i)(^|/)(dist|node_modules|target|build|coverage|\.cache|\.turbo|\.next|\.vite|\.output|\.pnpm-store|\.venv|venv|__pycache__|\.tox|\.nox|bower_components|pods|carthage|vendor|backups|secrets?|database|\.ssh|\.aws|\.azure|\.kube)(/|$)' -or
@@ -634,10 +709,22 @@ function Set-GitHubOrigin {
         Invoke-GitChecked -GitArguments @('remote', 'add', 'origin', $targetUrl)
     }
 
-    Invoke-GitChecked -GitArguments @('config', '--replace-all', 'remote.origin.url', $targetUrl)
-    # 清除可能存在的多个 push URL，保证正常推送只发往用户指定的 GitHub 仓库。
-    Invoke-GitChecked -GitArguments @('config', '--replace-all', 'remote.origin.pushurl', $targetUrl)
-    Write-Host "origin 与推送地址已固定为：$targetUrl" -ForegroundColor Green
+    $normalizeRemote = {
+        param([string]$Url)
+        $normalized = $Url.Trim() -replace '^git@github\.com:', 'https://github.com/'
+        $normalized = $normalized -replace '\.git$', ''
+        return $normalized.TrimEnd('/').ToLowerInvariant()
+    }
+    $configuredUrls = @(Invoke-GitOutput -GitArguments @('remote', 'get-url', '--all', 'origin'))
+    $configuredPushUrls = @(Invoke-GitOutput -GitArguments @('remote', 'get-url', '--push', '--all', 'origin'))
+    $expectedRemote = & $normalizeRemote $targetUrl
+    if ($configuredUrls.Count -ne 1 -or (& $normalizeRemote $configuredUrls[0]) -ne $expectedRemote) {
+        throw 'origin 不是本项目的 GitHub 仓库；为避免推错仓库，脚本没有修改你的远端配置。请先核对 origin。'
+    }
+    if ($configuredPushUrls.Count -ne 1 -or (& $normalizeRemote $configuredPushUrls[0]) -ne $expectedRemote) {
+        throw 'origin 配置了不同或多个推送目标；为避免误推，脚本没有修改远端配置。请先核对 push URL。'
+    }
+    Write-Host '已核对 origin 与 push URL 均指向本项目 GitHub 仓库，未修改你的远端配置。' -ForegroundColor Green
 }
 
 function Get-ProjectReleaseVersion {
@@ -711,6 +798,8 @@ function Push-GitHubRepository {
 
     try {
         $projectVersion = Get-ProjectReleaseVersion
+        $runtimeDataRoot = Get-ConfiguredDataDirectory
+        Write-Host "本地运行数据根（推送排除）：$runtimeDataRoot" -ForegroundColor DarkGray
 
         $gitDirectory = Join-Path $projectRoot '.git'
         if (-not (Test-Path -LiteralPath $gitDirectory)) {
@@ -757,7 +846,7 @@ function Push-GitHubRepository {
 
             # 忽略规则不是安全边界；再次检查暂存区并保留被排除的本地文件。
             $stagedPaths = @(Invoke-GitOutput -GitArguments @('diff', '--cached', '--name-only'))
-            $blockedPaths = @(Get-BlockedGitPaths -Paths $stagedPaths)
+            $blockedPaths = @(Get-BlockedGitPaths -Paths $stagedPaths -DataRoot $runtimeDataRoot)
             $stagedObjectLines = @(Get-GitIndexObjectLines -Paths $stagedPaths)
             $oversizedStagedPaths = @(Get-LargeGitObjectPaths -ObjectLines $stagedObjectLines)
             $oversizedGitPaths = @($oversizedStagedPaths | ForEach-Object { $_ -replace '（[0-9.]+ MiB）$', '' })
@@ -783,7 +872,7 @@ function Push-GitHubRepository {
             }
 
             $stagedPaths = @(Invoke-GitOutput -GitArguments @('diff', '--cached', '--name-only'))
-            $blockedPaths = @(Get-BlockedGitPaths -Paths $stagedPaths)
+            $blockedPaths = @(Get-BlockedGitPaths -Paths $stagedPaths -DataRoot $runtimeDataRoot)
             if ($blockedPaths.Count -gt 0) {
                 throw ("暂存区仍包含本机运行数据或配置，已阻止提交：`n{0}" -f ($blockedPaths -join "`n"))
             }
@@ -854,7 +943,7 @@ function Push-GitHubRepository {
                 $_.Substring($separator + 1)
             }
         })
-        $blockedHistoryPaths = @(Get-BlockedGitPaths -Paths $historyPaths)
+        $blockedHistoryPaths = @(Get-BlockedGitPaths -Paths $historyPaths -DataRoot $runtimeDataRoot)
         if ($blockedHistoryPaths.Count -gt 0) {
             throw ("本地 Git 历史含有运行数据、依赖或敏感文件路径；已阻止推送：`n{0}" -f ($blockedHistoryPaths -join "`n"))
         }
@@ -881,6 +970,14 @@ function Push-GitHubRepository {
     }
 }
 
+function Update-GitHubRepository {
+    $updateScript = Join-Path $PSScriptRoot 'update-project.ps1'
+    if (-not (Test-Path -LiteralPath $updateScript -PathType Leaf)) {
+        throw '缺少安全更新脚本 scripts\update-project.ps1。'
+    }
+    & $updateScript -ProjectRoot $projectRoot
+}
+
 while ($true) {
     Show-MainMenu
     $choice = [string](Read-Host '输入编号并按 Enter')
@@ -894,8 +991,9 @@ while ($true) {
             '4' { Show-EnvironmentStatus; Show-DependencyScope }
             '5' { Start-ProjectBackup }
             '6' { Push-GitHubRepository }
+            '8' { Update-GitHubRepository }
             '0' { Write-Host '已退出 LFAA Harness 工作台。' -ForegroundColor DarkGray; exit 0 }
-            default { Write-Host '无效编号，请选择 0 至 6。' -ForegroundColor Red }
+            default { Write-Host '无效编号，请选择 0 至 6 或 8。' -ForegroundColor Red }
         }
     }
     catch {

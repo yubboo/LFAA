@@ -120,33 +120,80 @@ export function requiresInitialSetup(): boolean {
   return Number(row.count) === 0;
 }
 
-export async function createInitialAdmin(username: string, password: string): Promise<PublicUser> {
-  validateStrongCredential(password, "密码");
-
-  const credentials = await makePasswordHash(password);
-  const user: PublicUser = {
-    id: randomUUID(),
-    uid: 1,
-    username: username.trim(),
-    email: null,
-    role: "super_admin",
-    createdAt: new Date().toISOString()
-  };
-
+/** 空数据库只种入一次可更改的本机默认管理员；已有账户时绝不覆盖或重置。 */
+export async function ensureDefaultAdminAccount(): Promise<void> {
+  if (!requiresInitialSetup()) return;
+  const credentials = await makePasswordHash("123456");
   database.exec("BEGIN IMMEDIATE;");
   try {
     if (!requiresInitialSetup()) {
-      throw new ApiError(409, "setup_completed", "管理员账户已初始化，请使用登录表单。");
+      database.exec("COMMIT;");
+      return;
     }
-
+    const user: PublicUser = {
+      id: randomUUID(),
+      uid: 1,
+      username: "admin",
+      email: null,
+      role: "super_admin",
+      createdAt: new Date().toISOString()
+    };
     database.prepare(`
-      INSERT INTO users (id, uid, username, password_salt, password_hash, role, is_super_admin)
-      VALUES (?, 1, ?, ?, ?, 'admin', 1)
+      INSERT INTO users (id, uid, username, password_salt, password_hash, role, is_super_admin, default_username_pending, default_password_pending)
+      VALUES (?, 1, ?, ?, ?, 'admin', 1, 1, 1)
     `).run(user.id, user.username, credentials.salt, credentials.hash);
     database.exec("COMMIT;");
-    return user;
   } catch (error) {
-    database.exec("ROLLBACK;");
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+
+export interface DefaultCredentialReminder {
+  usernamePending: boolean;
+  passwordPending: boolean;
+}
+
+export function getDefaultCredentialReminder(userId: string): DefaultCredentialReminder {
+  const row = database.prepare("SELECT default_username_pending, default_password_pending FROM users WHERE id = ?").get(userId) as
+    | { default_username_pending: number; default_password_pending: number }
+    | undefined;
+  return row
+    ? { usernamePending: row.default_username_pending === 1, passwordPending: row.default_password_pending === 1 }
+    : { usernamePending: false, passwordPending: false };
+}
+
+export function dismissDefaultCredentialReminder(userId: string): void {
+  database.prepare("UPDATE users SET default_username_pending = 0, default_password_pending = 0 WHERE id = ?").run(userId);
+}
+
+export async function updateOwnUsername(userId: string, currentPassword: string, requestedUsername: string): Promise<PublicUser | null> {
+  const username = requestedUsername.trim();
+  if (username.length < 3 || username.length > 32 || !/^[\p{L}\p{N}_.-]+$/u.test(username)) {
+    throw new ApiError(400, "invalid_username", "用户名需为 3 到 32 个字符，可使用文字、数字、句点、下划线和连字符。");
+  }
+  const existing = database.prepare("SELECT password_salt, password_hash FROM users WHERE id = ?").get(userId) as
+    | Pick<UserRow, "password_salt" | "password_hash">
+    | undefined;
+  if (!existing || !(await passwordMatches(currentPassword, existing.password_salt, existing.password_hash))) return null;
+
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const fresh = database.prepare("SELECT password_salt, password_hash FROM users WHERE id = ?").get(userId) as
+      | Pick<UserRow, "password_salt" | "password_hash">
+      | undefined;
+    if (!fresh || fresh.password_salt !== existing.password_salt || fresh.password_hash !== existing.password_hash) {
+      database.exec("ROLLBACK;");
+      return null;
+    }
+    assertAccountFieldsAvailable(username, null, userId);
+    database.prepare("UPDATE users SET username = ?, default_username_pending = 0 WHERE id = ?").run(username, userId);
+    const updated = database.prepare("SELECT id, uid, username, email, role, is_super_admin, created_at FROM users WHERE id = ?").get(userId) as unknown as AccountRow | undefined;
+    if (!updated) throw new ApiError(404, "user_not_found", "找不到这个账户。");
+    database.exec("COMMIT;");
+    return toPublicAccount(updated);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
     throw error;
   }
 }
@@ -202,7 +249,7 @@ export async function changeUserPassword(userId: string, currentSessionId: strin
   database.exec("BEGIN IMMEDIATE;");
   try {
     const updated = database.prepare(`
-      UPDATE users SET password_salt = ?, password_hash = ?
+      UPDATE users SET password_salt = ?, password_hash = ?, default_password_pending = 0
       WHERE id = ? AND password_salt = ? AND password_hash = ?
     `).run(credentials.salt, credentials.hash, userId, row.password_salt, row.password_hash);
     if (updated.changes === 0) {

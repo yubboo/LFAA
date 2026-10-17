@@ -7,10 +7,10 @@ import { getScheduleTarget } from "lfaa-schedule/src/targets.js";
 import { getAiSession } from "lfaa-session/src/sessions.js";
 import { resolveUserRole } from "lfaa-identity-auth/src/service.js";
 export const name = "lfaaAgentLoop";
-export const inject = ["lfaaSettings", "lfaaSessions", "lfaaTools", "lfaaAgentDefaultModel", "lfaaUserApproval", "lfaaUserQuestions", "lfaaSchedule", "aiExtensions", "aiRuntimeHooks"];
+export const inject = ["lfaaSettings", "lfaaLlm", "lfaaSessions", "lfaaTools", "lfaaAgentDefaultModel", "lfaaUserApproval", "lfaaUserQuestions", "lfaaSchedule", "aiExtensions", "aiRuntimeHooks"];
 export function apply(ctx: Context): void {
   ctx.provide(name, capability);
-  initializeAiRuns(ctx.lfaaAgentDefaultModel, ctx.lfaaUserApproval, ctx.lfaaUserQuestions);
+  initializeAiRuns(ctx.lfaaAgentDefaultModel, ctx.lfaaUserApproval, ctx.lfaaUserQuestions, ctx.lfaaLlm);
   ctx.lfaaSchedule.setFireHandler(task => {
     const target = getScheduleTarget(task.id, task.ownerId);
     const role = resolveUserRole(task.ownerId);

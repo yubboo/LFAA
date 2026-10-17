@@ -11,13 +11,17 @@ import { database } from "lfaa-storage-sqlite/src/database.js";
 import { resolveDataDirectory } from "lfaa-home-paths/src/resolve-data-directory.mjs";
 
 interface DataDirectoryMigrationRequest {
-  version: 1;
+  version: 2;
   migrationId: string;
   sourceDirectory: string;
   targetDirectory: string;
+  mode: DataDirectoryMigrationMode;
+  archivePath?: string;
   requestedAt: string;
   lastError?: string;
 }
+
+export type DataDirectoryMigrationMode = "copy" | "adopt" | "archive";
 
 export interface DataDirectorySettings {
   defaultDirectory: string;
@@ -26,6 +30,8 @@ export interface DataDirectorySettings {
   configured: boolean;
   currentDirectory: string;
   pendingDirectory: string | null;
+  pendingMode: DataDirectoryMigrationMode | null;
+  pendingArchivePath: string | null;
   pendingError: string | null;
   editable: boolean;
   unavailableReason: string | null;
@@ -47,11 +53,11 @@ function readMigrationRequest(): DataDirectoryMigrationRequest | null {
   if (!existsSync(config.dataDirectoryMigrationRequestPath)) return null;
 
   try {
-    const parsed = JSON.parse(readFileSync(config.dataDirectoryMigrationRequestPath, "utf8")) as Partial<DataDirectoryMigrationRequest>;
-    if (parsed.version !== 1 || typeof parsed.migrationId !== "string" || typeof parsed.sourceDirectory !== "string" || typeof parsed.targetDirectory !== "string" || typeof parsed.requestedAt !== "string") {
+    const parsed = JSON.parse(readFileSync(config.dataDirectoryMigrationRequestPath, "utf8")) as { version?: number; migrationId?: string; sourceDirectory?: string; targetDirectory?: string; mode?: unknown; archivePath?: string; requestedAt?: string; lastError?: string };
+    if (![1, 2].includes(Number(parsed.version)) || typeof parsed.migrationId !== "string" || typeof parsed.sourceDirectory !== "string" || typeof parsed.targetDirectory !== "string" || typeof parsed.requestedAt !== "string") {
       throw new Error("invalid request");
     }
-    return parsed as DataDirectoryMigrationRequest;
+    return { ...parsed, version: 2, mode: parsed.version === 1 ? "copy" : isMigrationMode(parsed.mode) ? parsed.mode : "copy" } as DataDirectoryMigrationRequest;
   } catch {
     throw new DataDirectorySettingsError("待处理的数据目录迁移配置无法读取；为保护现有数据，请先检查项目根目录中的迁移标记。", "data_directory_migration_unavailable");
   }
@@ -69,6 +75,8 @@ export function getDataDirectorySettings(): DataDirectorySettings {
     configured: existsSync(resolve(config.dataDirectory, "credentials", "storage-location-confirmed.json")) || pendingRequest !== null,
     currentDirectory: config.dataDirectory,
     pendingDirectory: pendingRequest?.targetDirectory ?? null,
+    pendingMode: pendingRequest?.mode ?? null,
+    pendingArchivePath: pendingRequest?.mode === "archive" ? pendingRequest.archivePath ?? null : null,
     pendingError: pendingRequest?.lastError ?? null,
     editable: config.dataDirectoryChangeSupported,
     unavailableReason: config.dataDirectoryChangeSupported ? null : config.dataDirectoryChangeUnavailableReason
@@ -91,7 +99,7 @@ export function confirmDataDirectoryLocation(): DataDirectorySettings {
   return getDataDirectorySettings();
 }
 
-function normalizeTargetDirectory(value: string): string {
+function normalizeTargetDirectory(value: string, mode: DataDirectoryMigrationMode): string {
   const target = value.trim();
   if (!target || target.length > 2048 || !isAbsolute(target)) {
     throw new DataDirectorySettingsError("请输入有效的绝对目录路径。", "invalid_data_directory");
@@ -99,7 +107,7 @@ function normalizeTargetDirectory(value: string): string {
 
   const resolved = resolve(target);
   // 历史自定义根可能不叫 data，保留当前目录不能被误判为迁移到它的子目录。
-  return samePath(resolved, config.dataDirectory) || basename(resolved).toLocaleLowerCase("en-US") === "data" ? resolved : resolve(resolved, "data");
+  return mode === "adopt" || samePath(resolved, config.dataDirectory) || basename(resolved).toLocaleLowerCase("en-US") === "data" ? resolved : resolve(resolved, "data");
 }
 
 function assertSafeDirectoryPair(sourceDirectory: string, targetDirectory: string): void {
@@ -133,9 +141,12 @@ function samePath(left: string, right: string): boolean {
     : leftResolved === rightResolved;
 }
 
-function assertTargetDirectoryCanBeUsed(targetDirectory: string): void {
+function assertTargetDirectoryCanBeUsed(targetDirectory: string, mode: DataDirectoryMigrationMode): void {
   try {
-    mkdirSync(targetDirectory, { recursive: true });
+    if (mode === "adopt") {
+      const existing = lstatSync(targetDirectory);
+      if (existing.isSymbolicLink() || !existing.isDirectory()) throw new Error("manual target must be an existing directory");
+    } else mkdirSync(targetDirectory, { recursive: true });
     const info = lstatSync(targetDirectory);
     if (info.isSymbolicLink() || !info.isDirectory()) {
       throw new Error("not a regular directory");
@@ -157,7 +168,10 @@ function assertTargetDirectoryCanBeUsed(targetDirectory: string): void {
       }
     }
     const existingEntries = readdirSync(realTargetDirectory);
-    if (existingEntries.length > 0) {
+    if (mode === "adopt" && existingEntries.length === 0) {
+      throw new DataDirectorySettingsError("手动复制模式需要选择已复制完成且包含 LFAA 数据的目录。", "invalid_data_directory");
+    }
+    if (mode !== "adopt" && existingEntries.length > 0) {
       throw new DataDirectorySettingsError("目标目录不是空目录。为避免覆盖其中的文件，请选择一个新的空目录。", "data_directory_target_not_empty");
     }
 
@@ -166,6 +180,9 @@ function assertTargetDirectoryCanBeUsed(targetDirectory: string): void {
     rmSync(probePath);
   } catch (error) {
     if (error instanceof DataDirectorySettingsError) throw error;
+    if (mode === "adopt" && (error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new DataDirectorySettingsError("手动复制目标目录不存在；请先复制完整 data 文件夹。", "invalid_data_directory");
+    }
     throw new DataDirectorySettingsError("无法在目标位置创建或写入文件，请检查磁盘是否已连接以及当前账户的目录权限。", "invalid_data_directory");
   }
 }
@@ -206,12 +223,30 @@ function writeMigrationRequest(request: DataDirectoryMigrationRequest): void {
   }
 }
 
-export function requestDataDirectoryChange(value: string): DataDirectorySettings {
+function isMigrationMode(value: unknown): value is DataDirectoryMigrationMode { return value === "copy" || value === "adopt" || value === "archive"; }
+
+function validateArchivePath(value: string): string {
+  const archivePath = value.trim();
+  if (!archivePath || archivePath.length > 2048 || !isAbsolute(archivePath) || !/\.zip$/iu.test(archivePath)) {
+    throw new DataDirectorySettingsError("请输入控制端可访问的 ZIP 绝对路径。", "invalid_data_directory");
+  }
+  try {
+    const info = lstatSync(archivePath);
+    if (!info.isFile() || info.isSymbolicLink()) throw new Error("not a regular archive");
+  } catch {
+    throw new DataDirectorySettingsError("找不到 ZIP 文件，或它不是普通文件；请填写控制端上的完整路径。", "invalid_data_directory");
+  }
+  return resolve(archivePath);
+}
+
+export function requestDataDirectoryChange(value: string, mode: DataDirectoryMigrationMode = "copy", archivePathValue = ""): DataDirectorySettings {
   if (!config.dataDirectoryChangeSupported) {
     throw new DataDirectorySettingsError(config.dataDirectoryChangeUnavailableReason, "data_directory_change_unavailable");
   }
 
-  const targetDirectory = normalizeTargetDirectory(value);
+  if (!isMigrationMode(mode)) throw new DataDirectorySettingsError("迁移方式无效。", "invalid_data_directory");
+  const targetDirectory = normalizeTargetDirectory(value, mode);
+  const archivePath = mode === "archive" ? validateArchivePath(archivePathValue) : undefined;
   if (samePath(targetDirectory, config.dataDirectory)) {
     cancelDataDirectoryChange();
     return confirmDataDirectoryLocation();
@@ -219,7 +254,7 @@ export function requestDataDirectoryChange(value: string): DataDirectorySettings
 
   assertLocalDataIsIdle();
   assertSafeDirectoryPair(config.dataDirectory, targetDirectory);
-  assertTargetDirectoryCanBeUsed(targetDirectory);
+  assertTargetDirectoryCanBeUsed(targetDirectory, mode);
   const previousRequest = readMigrationRequest();
   const migrationId = previousRequest
     && samePath(previousRequest.sourceDirectory, config.dataDirectory)
@@ -227,10 +262,12 @@ export function requestDataDirectoryChange(value: string): DataDirectorySettings
     ? previousRequest.migrationId
     : randomUUID();
   writeMigrationRequest({
-    version: 1,
+    version: 2,
     migrationId,
     sourceDirectory: config.dataDirectory,
     targetDirectory,
+    mode,
+    ...(archivePath ? { archivePath } : {}),
     requestedAt: new Date().toISOString()
   });
   return getDataDirectorySettings();

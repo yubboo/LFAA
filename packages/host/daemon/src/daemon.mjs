@@ -31,6 +31,7 @@ import { pipeline } from "node:stream/promises";
 import { inflateRawSync } from "node:zlib";
 import { resolveDataDirectory } from "lfaa-home-paths/src/resolve-data-directory.mjs";
 import { protectPrivateDirectory } from "lfaa-home-paths/src/private-directory.mjs";
+import { ensureDataDirectories } from "lfaa-home-paths/src/data-layout.mjs";
 
 const repositoryRoot = findRepositoryRoot(import.meta.url);
 const environmentFile = resolve(repositoryRoot, ".env");
@@ -41,7 +42,7 @@ if (typeof process.loadEnvFile === "function") {
 }
 
 const configuredDataDirectory = process.env.LFAA_DATA_DIR?.trim() || "";
-const dataDirectory = resolveDataDirectory(repositoryRoot, configuredDataDirectory);
+const dataDirectory = resolveDataDirectory(repositoryRoot, configuredDataDirectory, { lfaaHome: process.env.LFAA_HOME?.trim() || "" });
 const credentialsDirectory = resolve(dataDirectory, "credentials");
 let minecraftDirectoryRelative = "games/minecraft";
 let minecraftDirectory = resolve(dataDirectory, "games", "minecraft");
@@ -120,7 +121,8 @@ export async function apply(ctx) {
 }
 
 async function initialize() {
-  for (const directory of [credentialsDirectory, minecraftDirectory, javaDirectory, backupDirectory, downloadDirectory, sandboxMetadataDirectory]) {
+  ensureDataDirectories(dataDirectory);
+  for (const directory of [minecraftDirectory, javaDirectory, backupDirectory, downloadDirectory, sandboxMetadataDirectory]) {
     await mkdir(directory, { recursive: true });
     const info = await lstat(directory);
     if (info.isSymbolicLink() || !info.isDirectory()) throw new Error("LFAA Daemon 数据目录不能是符号链接或非目录路径。");

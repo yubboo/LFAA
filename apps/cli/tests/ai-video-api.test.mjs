@@ -28,18 +28,18 @@ test("AI 漫剧 API 仅向认证账户开放并持久化画布更新", async () 
   try {
     const base = `http://127.0.0.1:${process.env.SERVER_PORT}/api`;
     assert.equal((await fetch(`${base}/ai-video/canvases`)).status, 401);
-    const setup = await fetch(`${base}/auth/setup`, {
+    const setup = await fetch(`${base}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: "fixture-admin", password: "Fixture-test-password-93!" })
+      body: JSON.stringify({ username: "admin", password: "123456" })
     });
-    assert.equal(setup.status, 201);
+    assert.equal(setup.status, 200);
     const cookie = setup.headers.get("set-cookie").split(";")[0];
     const headers = { "Content-Type": "application/json", Cookie: cookie };
     const createdResponse = await fetch(`${base}/ai-video/canvases`, {
       method: "POST", headers, body: JSON.stringify({ title: "第一幕" })
     });
-    assert.equal(createdResponse.status, 201);
+    assert.equal(createdResponse.status, 201, await createdResponse.clone().text());
     const { canvas: created } = await createdResponse.json();
 
     const firstId = randomUUID();

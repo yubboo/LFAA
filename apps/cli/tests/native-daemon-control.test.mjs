@@ -22,7 +22,7 @@ test("真实节点执行、认证读取增量输出和取消确认", { skip: pro
       const until=async action=>{for(let i=0;i<400;i++){const result=await action();if(result)return result;await new Promise(resolve=>setTimeout(resolve,50));}throw Error('真实节点等待超时：'+logs.slice(-1200));};
       try {
         assert.equal((await fetch(base+'/daemon-nodes/credentials',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({displayName:'测试节点'})})).status,401);
-        const setup=await fetch(base+'/auth/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'fixture-native-admin',password:'Fixture-Native-Password-93!'})});assert.equal(setup.status,201);
+        const setup=await fetch(base+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'admin',password:'123456'})});assert.equal(setup.status,200);
         const headers={'Content-Type':'application/json',Cookie:setup.headers.get('set-cookie').split(';')[0]}; const {user}=await setup.json();
         daemon=spawn(process.execPath,['--import','tsx','--import','./register-package-loader.mjs','src/index.ts','daemon'],{cwd:process.cwd(),env:process.env,windowsHide:true,stdio:['ignore','pipe','pipe','ipc']});
         daemonExit=new Promise((resolveExit,rejectExit)=>{daemon.once('error',rejectExit);daemon.once('exit',code=>resolveExit(code));});daemon.stdout.on('data',data=>{logs+=data;});daemon.stderr.on('data',data=>{logs+=data;});

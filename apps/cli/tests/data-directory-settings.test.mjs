@@ -1,7 +1,7 @@
 /** 功能：回归默认用户 data、显式位置和安全迁移。作用：只使用隔离目录和合成文件，不迁移真实用户数据。关联文件：home-paths、workspace/data-directory、apply-data-directory-migration。 */
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -21,6 +21,16 @@ const { database, closeDatabase } = await import("lfaa-storage-sqlite/src/databa
 const { retireLegacyFileTables } = await import("lfaa-storage-domain/src/migration.js"); retireLegacyFileTables();
 const service = await import("lfaa-workspace-data-directory/src/service.js");
 const { config } = await import("lfaa-launch-environment/src/config.js");
+test("空白配置数据根在控制端启动时建立全部标准分类，不虚构账户、游戏或业务数据", () => {
+  const categories = ["database", "users", "sessions", "credentials", "games", "environments", "lib", "plugins", "cache", "tmp", "logs", "backups", "models", "connectivity", "storages"];
+  for (const category of categories) {
+    const directory = join(source, category);
+    const info = lstatSync(directory);
+    assert.ok(info.isDirectory() && !info.isSymbolicLink(), `${category} 应在启动时建立为真实目录`);
+  }
+  assert.deepEqual(readdirSync(join(source, "users")), []);
+  assert.deepEqual(readdirSync(join(source, "games")), []);
+});
 let closed = false;
 function closeStorage() { if (!closed) { configuration.close(); sessionRecords.close(); closeDatabase(); closed = true; } }
 after(() => { closeStorage(); assert.ok(root.startsWith(join(tmpdir(), "lfaa-data-settings-test-"))); rmSync(root, { recursive: true, force: true }); });
@@ -82,6 +92,29 @@ test("启动配置锁定位置时，默认、自定义及推荐保存均拒绝�
     assert.throws(() => service.requestDataDirectoryChange(join(root, "locked")), error => error.errorCode === "data_directory_change_unavailable");
     assert.equal(service.getDataDirectorySettings().pendingDirectory, null);
   } finally { config.dataDirectoryChangeSupported = supported; }
+});
+test("手动复制采用已有目录，ZIP 导入记录归档路径，普通复制仍拒绝非空目标", () => {
+  const manualTarget = join(root, "manual-copy");
+  mkdirSync(manualTarget, { recursive: true });
+  writeFileSync(join(manualTarget, "copied.txt"), "copied-by-user");
+  const manual = service.requestDataDirectoryChange(manualTarget, "adopt");
+  assert.equal(manual.pendingDirectory, manualTarget);
+  assert.equal(manual.pendingMode, "adopt");
+  service.cancelDataDirectoryChange();
+
+  const archive = join(root, "backup.zip");
+  writeFileSync(archive, "synthetic-zip-fixture");
+  const imported = service.requestDataDirectoryChange(join(root, "archive-import"), "archive", archive);
+  assert.equal(imported.pendingDirectory, join(root, "archive-import", "data"));
+  assert.equal(imported.pendingMode, "archive");
+  assert.equal(imported.pendingArchivePath, archive);
+  service.cancelDataDirectoryChange();
+
+  const occupiedCopyTarget = join(root, "occupied-copy", "data");
+  mkdirSync(occupiedCopyTarget, { recursive: true });
+  writeFileSync(join(occupiedCopyTarget, "keep.txt"), "must-not-be-overwritten");
+  assert.throws(() => service.requestDataDirectoryChange(join(root, "occupied-copy"), "copy"), /不是空目录/u);
+  assert.equal(service.getDataDirectorySettings().pendingDirectory, null);
 });
 test("确认默认位置并持久化，选择父目录自动使用 data，迁移成功才切换", () => {
   assert.equal(service.getDataDirectorySettings().currentDirectory, source);

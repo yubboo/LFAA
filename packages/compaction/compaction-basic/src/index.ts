@@ -13,6 +13,7 @@
  */
 import { randomUUID } from "node:crypto";
 import type { Context } from "@deepseek-ai/cordis";
+import type { AiCompletionService } from "lfaa-llm/src/completion.js";
 import { estimateMessagesTokens } from "lfaa-agent-loop/src/runtime-context.js";
 import { FALLBACK_CONTEXT_WINDOW_TOKENS } from "lfaa-agent-loop/src/constants.js";
 import {
@@ -61,6 +62,8 @@ export type { SummarizerDeps } from "./summarizer.js";
  */
 export interface BasicCompactionDeps extends Partial<SummarizerDeps> {
   config?: BasicCompactionConfig;
+  /** Protocol is injected by the LLM Owner so replacement adapters also serve summaries. */
+  streamCompletion?: AiCompletionService["streamCompletion"];
   /** 正式 Agent Run 注入唯一请求器，摘要也计预算、用量和取消。 */
   summarize?: (text: string, instruction: string) => Promise<string>;
 }
@@ -106,8 +109,9 @@ export function createBasicCompactionEngine(deps: BasicCompactionDeps): Compacti
         if (deps.summarize) summary = (await deps.summarize(rangeText, COMPACTION_SUMMARY_INSTRUCTION)).trim();
         else {
         if (!deps.account || !deps.applicationId || !deps.permissionMode || !deps.settings) throw new Error("摘要器未接入当前模型请求上下文。");
+        if (!deps.streamCompletion) throw new Error("摘要器未注入当前 LLM Provider 服务。");
         summary = await summarizeRange(
-          { account: deps.account, applicationId: deps.applicationId, permissionMode: deps.permissionMode, settings: deps.settings },
+          { account: deps.account, applicationId: deps.applicationId, permissionMode: deps.permissionMode, settings: deps.settings, streamCompletion: deps.streamCompletion },
           rangeText,
           input.signal,
           config.summaryMaxChars,

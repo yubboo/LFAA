@@ -1,23 +1,26 @@
 /**
- * 功能：呈现超级管理员首次初始化、登录和恢复密码表单。
- * 作用：通过控制端 API 初始化管理员、验证账户或使用恢复密钥设置新密码，不在浏览器保存凭据。
+ * 功能：呈现默认账户登录和恢复密码表单。
+ * 作用：通过控制端 API 验证账户或使用恢复密钥设置新密码，不在浏览器保存凭据。
  * 关联文件：packages/client/ui-renderer/src/App.tsx、packages/client/connection/src/api.ts、packages/client/ui-settings-account/src/PasswordStrengthIndicator.tsx、packages/client/ui-theme/src/login-background.ts、packages/client/ui-settings-account/src/auth.css。
  */
 import { useEffect, useState } from "react";
-import { Alert, Button, Form, Input, Typography } from "antd";
+import { Alert, Button, ConfigProvider, Form, Input, Typography } from "antd";
 import type { CSSProperties } from "react";
 import { browserSupportsPasskeys } from "@simplewebauthn/browser";
 import { loadPasskeyAvailability } from "lfaa-client-connection/src/api.js";
 import { resolveLoginBackgroundImage } from "lfaa-client-ui-theme/src/login-background.js";
+import { DshSlotOutlet, LFAA_AUTH_TRANSITION_SLOT, type AuthTransitionPhase, type AuthTransitionSlotOwner } from "lfaa-client-modules/src/client/index.js";
 import { isPasswordAcceptable, PasswordStrengthIndicator } from "./PasswordStrengthIndicator.js";
 import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 
 interface AuthViewProps {
-  mode: "setup" | "login";
   serverState: ServiceState;
   busy: boolean;
   error: string | null;
   notice: string | null;
+  transitionPhase: AuthTransitionPhase;
+  transitionPluginId: string;
+  reducedMotion: boolean;
   onSubmit: (username: string, password: string) => void;
   onPasskeyLogin: () => void;
   onRecover: (username: string, recoveryKey: string, newPassword: string) => Promise<boolean>;
@@ -27,24 +30,21 @@ interface AuthViewProps {
 interface AuthFormValues {
   username: string;
   password: string;
-  confirmPassword?: string;
   recoveryKey?: string;
   newPassword?: string;
   confirmNewPassword?: string;
 }
 
-export function AuthView({ mode, serverState, busy, error, notice, onSubmit, onPasskeyLogin, onRecover, onClearMessage }: AuthViewProps) {
-  const isSetup = mode === "setup";
+export function AuthView({ serverState, busy, error, notice, transitionPhase, transitionPluginId, reducedMotion, onSubmit, onPasskeyLogin, onRecover, onClearMessage }: AuthViewProps) {
   const loginBackgroundImage = resolveLoginBackgroundImage();
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [form] = Form.useForm<AuthFormValues>();
-  const password = Form.useWatch("password", form) ?? "";
   const recoveryKey = Form.useWatch("recoveryKey", form) ?? "";
   const newPassword = Form.useWatch("newPassword", form) ?? "";
   const [passkeyLoginAvailable, setPasskeyLoginAvailable] = useState(false);
 
   useEffect(() => {
-    if (mode !== "login" || serverState !== "online") {
+    if (serverState !== "online") {
       setPasskeyLoginAvailable(false);
       return;
     }
@@ -55,7 +55,7 @@ export function AuthView({ mode, serverState, busy, error, notice, onSubmit, onP
       if (active) setPasskeyLoginAvailable(false);
     });
     return () => { active = false; };
-  }, [mode, serverState]);
+  }, [serverState]);
 
   async function handleSubmit(values: AuthFormValues): Promise<void> {
     if (recoveryMode) {
@@ -77,56 +77,51 @@ export function AuthView({ mode, serverState, busy, error, notice, onSubmit, onP
   }
 
   return (
-    <main
-      className="auth-page"
-      style={{ "--auth-background-image": loginBackgroundImage ? `url("${loginBackgroundImage}")` : "none" } as CSSProperties}
-    >
+    <ConfigProvider wave={{ disabled: true }}>
+      <main
+        className="auth-page"
+        style={{ "--auth-background-image": loginBackgroundImage ? `url("${loginBackgroundImage}")` : "none" } as CSSProperties}
+      >
+      {transitionPhase !== "idle" && transitionPluginId !== "builtin" ? (
+        <div className="auth-page__transition-extension" aria-hidden="true">
+          <DshSlotOutlet
+            name={LFAA_AUTH_TRANSITION_SLOT}
+            only={transitionPluginId}
+            owner={{ phase: transitionPhase, reducedMotion } satisfies AuthTransitionSlotOwner}
+          />
+        </div>
+      ) : null}
       <div className="auth-page__split-layout">
-        <section className="auth-page__visual" aria-labelledby="auth-heading">
-          <div className="auth-page__visual-brand">
-            <span className="auth-page__visual-brand-mark" aria-hidden="true">L</span>
-            <span className="auth-page__visual-brand-name">LFAA</span>
-          </div>
-          <div className="auth-page__visual-copy">
-            <Typography.Title id="auth-heading" level={1}>
-              主机服务与应用，<br />从一个工作台开始。
-            </Typography.Title>
-            <Typography.Paragraph>
-              先完成账户初始化，随后进入小鱼智能体对话区。当前版本提供基础账户、权限和服务状态能力。
-            </Typography.Paragraph>
-          </div>
-          <div className="auth-page__visual-status">
-            <ServiceStatus state={serverState} />
-            <span>控制端连接状态</span>
-          </div>
-        </section>
-
         <section className="auth-page__form-panel" aria-labelledby="form-heading">
+          <span className="auth-page__brand-mark" aria-hidden="true">L</span>
+          <Typography.Text className="auth-page__brand-name">LFAA</Typography.Text>
           <div className="auth-page__form-heading">
             <Typography.Text className="auth-page__form-eyebrow">
-              {isSetup ? "首次使用" : recoveryMode ? "账户恢复" : "欢迎回来"}
+              {recoveryMode ? "账户恢复" : "欢迎回来"}
             </Typography.Text>
             <Typography.Title id="form-heading" level={2}>
-              {isSetup ? "创建超级管理员" : recoveryMode ? "找回密码" : "登录 LFAA"}
+              {recoveryMode ? "找回密码" : "登录 LFAA"}
             </Typography.Title>
             <Typography.Paragraph>
-              {isSetup
-                ? "首次初始化只创建一个超级管理员。创建后可在设置中心随机生成并保存账户恢复密钥。"
-                : recoveryMode
-                  ? "使用注册时设置的恢复密钥验证身份，然后设置新密码。系统不会显示原密码。"
-                  : "使用已创建的 LFAA 账户继续。"}
+              {recoveryMode ? "使用账户恢复密钥设置新密码。" : "输入用户名和密码以继续。"}
             </Typography.Paragraph>
           </div>
 
-          {error && <Alert className="auth-page__form-message" type="error" showIcon message={error} />}
-          {notice && <Alert className="auth-page__form-message" type="success" showIcon message={notice} />}
+          {!recoveryMode ? <Typography.Paragraph className="auth-page__default-credentials">默认登录名：<code>admin</code>　默认密码：<code>123456</code></Typography.Paragraph> : null}
+
+          <div className="auth-page__form-message-slot" aria-live="polite" aria-atomic="true">
+            {error && <Alert className="auth-page__form-message" type="error" showIcon message={error} />}
+            {notice && <Alert className="auth-page__form-message" type="success" showIcon message={notice} />}
+          </div>
 
           <Form<AuthFormValues>
             form={form}
             layout="vertical"
             requiredMark={false}
             onFinish={(values) => void handleSubmit(values)}
+            onValuesChange={() => onClearMessage()}
             autoComplete="on"
+            initialValues={{ username: "admin" }}
             className="auth-page__form"
           >
             <Form.Item
@@ -177,45 +172,19 @@ export function AuthView({ mode, serverState, busy, error, notice, onSubmit, onP
                 </Form.Item>
               </>
             ) : (
-              <>
             <Form.Item
               label="密码"
               name="password"
-              extra={isSetup ? <PasswordStrengthIndicator password={password} /> : undefined}
               rules={[
-                { required: true, message: "请输入密码。" },
-                ...(isSetup ? [{ validator: (_: unknown, value: string | undefined) => !value || isPasswordAcceptable(value) ? Promise.resolve() : Promise.reject(new Error("密码强度不足，请至少使用 8 位和 3 类字符。")) }] : [])
+                { required: true, message: "请输入密码。" }
               ]}
             >
               <Input.Password
-                autoComplete={isSetup ? "new-password" : "current-password"}
-                placeholder={isSetup ? "至少 8 位并包含 3 类字符" : "输入密码"}
+                autoComplete="current-password"
+                placeholder="输入密码"
                 size="large"
               />
             </Form.Item>
-
-            {isSetup && (
-              <Form.Item
-                label="确认密码"
-                name="confirmPassword"
-                dependencies={["password"]}
-                rules={[
-                  { required: true, message: "请再次输入密码。" },
-                  ({ getFieldValue }) => ({
-                    validator(_, value: string | undefined) {
-                      if (!value || getFieldValue("password") === value) {
-                        return Promise.resolve();
-                      }
-                      return Promise.reject(new Error("两次输入的密码不一致。"));
-                    }
-                  })
-                ]}
-              >
-                <Input.Password autoComplete="new-password" placeholder="再次输入密码" size="large" />
-              </Form.Item>
-            )}
-
-              </>
             )}
 
             <Button
@@ -223,27 +192,26 @@ export function AuthView({ mode, serverState, busy, error, notice, onSubmit, onP
               type="primary"
               htmlType="submit"
               size="large"
-              loading={busy}
-              disabled={serverState !== "online"}
+              loading={busy ? { delay: 250 } : false}
+              aria-busy={busy}
+              disabled={busy || serverState !== "online"}
             >
-              {isSetup ? "创建超级管理员并进入" : recoveryMode ? "重置密码" : "登录"}
+              {recoveryMode ? "重置密码" : "登录"}
             </Button>
           </Form>
 
-          {passkeyLoginAvailable && !recoveryMode ? <Button block size="large" loading={busy} disabled={serverState !== "online"} onClick={onPasskeyLogin}>使用通行密钥登录</Button> : null}
+          {passkeyLoginAvailable && !recoveryMode ? <Button block size="large" loading={busy} disabled={busy || serverState !== "online"} onClick={onPasskeyLogin}>使用通行密钥登录</Button> : null}
 
-          {!isSetup && <Button type="link" block onClick={toggleRecoveryMode}>{recoveryMode ? "返回登录" : "忘记密码？使用恢复密钥找回"}</Button>}
+          <Button type="link" block disabled={busy} onClick={toggleRecoveryMode}>{recoveryMode ? "返回登录" : "忘记密码？使用恢复密钥找回"}</Button>
 
           <Typography.Paragraph className="auth-page__form-footnote">
-            {isSetup
-              ? "超级管理员仅能在本地数据尚无账户时初始化。登录后请前往设置中心 → 账户生成并保存恢复密钥。"
-              : recoveryMode
-                ? "恢复密钥以加盐哈希保存在本机 SQLite 文件中，请勿与登录密码相同。"
-                : "登录状态由服务端管理；浏览器不会保存你的密码。"}
+            {recoveryMode ? "恢复密钥以加盐哈希保存在本机，不会显示原密码。" : "账户由本机服务管理。"}
           </Typography.Paragraph>
+          <div className="auth-page__service-status"><ServiceStatus state={serverState} /><span>本机服务</span></div>
         </section>
       </div>
-    </main>
+      </main>
+    </ConfigProvider>
   );
 }
 

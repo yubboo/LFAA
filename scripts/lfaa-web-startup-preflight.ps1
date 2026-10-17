@@ -47,11 +47,11 @@ function Test-LfaaWebLockOwnerCommand {
 
     $normalizedCommandLine = $CommandLine.Replace('/', '\')
     $hasLfaaPackageLoader = $normalizedCommandLine -match '(?i)register-package-loader\.mjs'
-    $isPackagedLfaaWeb = $normalizedCommandLine -match '(?i)(?:^|\s)"?[^\"]*apps\\cli\\bin\\lfaa\.mjs"?\s+web(?:\s|$)'
+    $isPackagedLfaaWeb = $normalizedCommandLine -match '(?i)(?:^|\s)"?[^\"]*apps\\cli\\bin\\lfaa\.mjs"?\s+"?web"?(?:\s|$)'
     $isSourceLfaaWeb = $hasLfaaPackageLoader -and
-        $normalizedCommandLine -match '(?i)(?:^|\s)"?[^\"]*apps\\cli\\src\\bin\.ts"?\s+web(?:\s|$)'
+        $normalizedCommandLine -match '(?i)(?:^|\s)"?[^\"]*apps\\cli\\src\\bin\.ts"?\s+"?web"?(?:\s|$)'
     $isLegacySourceLfaaWeb = $hasLfaaPackageLoader -and
-        $normalizedCommandLine -match '(?i)(?:^|\s)"?[^\"]*src\\index\.ts"?\s+--profile\s+web(?:\s|$)'
+        $normalizedCommandLine -match '(?i)(?:^|\s)"?[^\"]*src\\index\.ts"?\s+--profile\s+"?web"?(?:\s|$)'
 
     return $isPackagedLfaaWeb -or $isSourceLfaaWeb -or $isLegacySourceLfaaWeb
 }

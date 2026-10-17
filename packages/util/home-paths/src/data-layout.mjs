@@ -1,10 +1,17 @@
 /**
- * 功能：列出既有 LFAA_DATA_DIR 内的分类目录。
- * 作用：只映射数据根内的用途，不解析或改变安装版、项目版的数据根规则。
+ * 功能：列出既有 LFAA_DATA_DIR 内的用户数据分类目录。
+ * 作用：插件包安装由 LFAA_HOME 管理；此处 plugins 仅承载随数据迁移的插件私有运行数据。
  * 关联文件：storage-domain、settings、workflow、knowledge-library。
  */
 import { createHash } from "node:crypto";
+import { lstatSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { protectPrivateDirectory } from "./private-directory.mjs";
+
+const dataDirectoryKeys = Object.freeze([
+  "database", "users", "sessions", "credentials", "games", "environments", "lib", "plugins",
+  "cache", "tmp", "logs", "backups", "models", "connectivity", "storages"
+]);
 
 export function resolveDataPaths(dataDirectory) {
   const root = resolve(dataDirectory);
@@ -27,6 +34,30 @@ export function resolveDataPaths(dataDirectory) {
     connectivity: path("connectivity"),
     storages: path("storages")
   });
+}
+
+/**
+ * 首次启动或切换到新数据根时，创建完整的顶层存储分类；不会预建账户、项目或业务内容。
+ * 凭据目录使用既有私有目录 Owner 设置系统 ACL，其他目录拒绝符号链接替换。
+ */
+export function ensureDataDirectories(dataDirectory) {
+  const paths = resolveDataPaths(dataDirectory);
+  mkdirSync(paths.root, { recursive: true });
+  const rootInfo = lstatSync(paths.root);
+  if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) {
+    throw new Error("LFAA 数据根必须是实际目录，不能是符号链接或普通文件。");
+  }
+
+  for (const key of dataDirectoryKeys) {
+    const directory = paths[key];
+    if (key === "credentials") protectPrivateDirectory(directory);
+    else mkdirSync(directory, { recursive: true });
+    const info = lstatSync(directory);
+    if (info.isSymbolicLink() || !info.isDirectory()) {
+      throw new Error(`LFAA 数据分类目录无效：${key} 必须是实际目录。`);
+    }
+  }
+  return paths;
 }
 
 export function resolveUserDataPaths(dataDirectory, userId) {

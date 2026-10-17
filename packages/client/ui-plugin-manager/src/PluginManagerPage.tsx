@@ -1,7 +1,9 @@
 /** 功能：呈现 LFAA Profile 插件管理页。作用：直接调用同一 Owner 安装、启停与卸载，显式操作复用 Permission Owner。 */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Alert, Button, Input, Modal, Select, Spin, Tag, Typography } from "antd";
+import { Menu, MenuItemButton } from "@deepseek-ai/dsh-client-ui-primitives";
 import { getErrorMessage, hasAdminAccess, inspectManagedPlugin, installManagedPlugin, removeManagedPlugin, loadManagedPlugins, setManagedPluginEnabled, type ManagedPluginInstallProgress, type ManagedPluginInspection, type ManagedPluginRecord, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { DshSlotOutlet, useDshSlotEntries } from "lfaa-client-modules/src/client/index.js";
 import { GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
 import { SettingsPage, type StandalonePluginWorkspaceView } from "lfaa-client-ui-settings/src/SettingsPage.js";
 import type { ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
@@ -10,6 +12,7 @@ import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 import { type PluginAction } from "./plugin-goals.js";
 import { hasWallpaperEnginePlugin } from "./plugin-visibility.js";
 import { detectPluginSourceInput, pluginSourceInputHint, type PluginSourceInputKind } from "./plugin-source-input.js";
+import { rowConfigPrefix, toPluginPackageRef, type PluginActivationOwner, type PluginConfigOwner, type PluginDetailOwner, type PluginTabInstall, type PluginTabOwner, type PluginsSubject } from "./dsh-plugin-manager-slots.js";
 import "./PluginManagerPage.css";
 
 type PluginManagerWorkspaceTab = StandalonePluginWorkspaceView | "plugins" | "wallpaper";
@@ -67,6 +70,39 @@ const installStageLabels: Record<ManagedPluginInstallProgress["stage"], string> 
   installed: "安装完成"
 };
 
+interface PluginExtensionBoundaryProps { name: string; children: ReactNode }
+interface PluginExtensionBoundaryState { error: boolean }
+
+/** A broken contribution must report visibly without taking down the Plugin Manager. */
+class PluginExtensionBoundary extends Component<PluginExtensionBoundaryProps, PluginExtensionBoundaryState> {
+  state: PluginExtensionBoundaryState = { error: false };
+
+  static getDerivedStateFromError(): Partial<PluginExtensionBoundaryState> { return { error: true }; }
+
+  private retry = () => this.setState({ error: false });
+
+  render() {
+    if (this.state.error) return <div className="plugin-manager-page__extension-error" role="alert">
+      <Alert type="error" showIcon message="插件扩展暂不可用" description={`“${this.props.name}”扩展渲染失败。此区域已隔离，插件管理页仍可继续使用。`} />
+      <Button size="small" onClick={this.retry}>重新加载</Button>
+    </div>;
+    return <>{this.props.children}</>;
+  }
+}
+
+function PluginExtensionSlot({ name, owner, entryKey, only, fallback }: {
+  name: string;
+  owner?: object;
+  entryKey?: string;
+  only?: string;
+  fallback?: ReactNode;
+}) {
+  const identity = `${name}:${entryKey ?? only ?? "all"}`;
+  return <PluginExtensionBoundary key={identity} name={name}>
+    <DshSlotOutlet name={name} owner={owner} entryKey={entryKey} only={only} fallback={fallback} />
+  </PluginExtensionBoundary>;
+}
+
 function formatByteSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -101,13 +137,14 @@ function pluginCompatibilityLabel(value: ManagedPluginRecord["compatibility"]): 
   return value === "lfaa-v1" ? "LFAA Runtime" : value === "dsh-v1" ? "DSH Bundle" : "未知合同";
 }
 
-function PluginCard({ plugin, targetApplicationId, canAdmin, pendingAction, onTargetApplicationChange, onAction }: {
+function PluginCard({ plugin, targetApplicationId, canAdmin, pendingAction, onTargetApplicationChange, onAction, onOpenDetails }: {
   plugin: ManagedPluginRecord;
   targetApplicationId: ApplicationId;
   canAdmin: boolean;
   pendingAction: "enable" | "disable" | "remove" | null;
   onTargetApplicationChange: (app: ApplicationId) => void;
   onAction: (plugin: ManagedPluginRecord, action: PluginAction, app: ApplicationId) => void;
+  onOpenDetails: () => void;
 }) {
   const applicationOptions = plugin.applicationIds.map(id => ({ value: id, label: applicationLabels[id] ?? id }));
   return (
@@ -136,6 +173,7 @@ function PluginCard({ plugin, targetApplicationId, canAdmin, pendingAction, onTa
         onChange={onTargetApplicationChange}
       /> : null}
       <div className="plugin-manager-page__plugin-actions">
+        <Button onClick={onOpenDetails}>设置与详情</Button>
         {plugin.state === "installed" ? <Button type="primary" disabled={!canAdmin || pendingAction !== null} loading={pendingAction === "enable"} onClick={() => onAction(plugin, "enable", targetApplicationId)}>启用</Button> : null}
         {plugin.state === "enabled" ? <Button disabled={!canAdmin || pendingAction !== null} loading={pendingAction === "disable"} onClick={() => onAction(plugin, "disable", targetApplicationId)}>停用</Button> : null}
         <Button danger disabled={!canAdmin || pendingAction !== null} loading={pendingAction === "remove"} onClick={() => onAction(plugin, "remove", targetApplicationId)}>卸载</Button>
@@ -148,6 +186,19 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
   const canAdmin = hasAdminAccess(user.role);
   const [workspaceTab, setWorkspaceTab] = useState<PluginManagerWorkspaceTab>("all");
   const isSettingsWorkspaceTab = workspaceTab !== "plugins" && workspaceTab !== "wallpaper";
+  const pluginTabEntries = useDshSlotEntries("plugins.tab");
+  const activationEntries = useDshSlotEntries("plugins.bundle.activation");
+  const pluginItemEntries = useDshSlotEntries("plugins.item");
+  const bundleConfigEntries = useDshSlotEntries("plugins.bundle.config");
+  const rowConfigEntries = useDshSlotEntries("plugins.row.config");
+  const [selectedPluginTab, setSelectedPluginTab] = useState<string | null>(null);
+  const [selectedPluginDetailsId, setSelectedPluginDetailsId] = useState<string | null>(null);
+  const [selectedPluginItemId, setSelectedPluginItemId] = useState<string | null>(null);
+  const [selectedBundleConfigKey, setSelectedBundleConfigKey] = useState<string | null>(null);
+  const [selectedRowConfigKey, setSelectedRowConfigKey] = useState<string | null>(null);
+  const [activationPlugin, setActivationPlugin] = useState<ManagedPluginRecord | null>(null);
+  const [addActionsOpen, setAddActionsOpen] = useState(false);
+  const [contributedInstall, setContributedInstall] = useState<PluginTabInstall | null>(null);
   const [plugins, setPlugins] = useState<ManagedPluginRecord[]>([]);
   const [profile, setProfile] = useState("");
   const [loading, setLoading] = useState(canAdmin);
@@ -174,6 +225,18 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
   const detectedSourceType = detectPluginSourceInput(source);
   const activeSourceType: PluginSourceInputKind = detectedSourceType ?? sourceType;
   const activeRegistry = registryChoice === "china" ? "https://registry.npmmirror.com/" : registryChoice === "official" ? "https://registry.npmjs.org/" : customRegistry.trim();
+  const visiblePluginTabs = useMemo(() => pluginTabEntries
+    .filter(entry => entry.id && entry.label)
+    .map((entry, index) => ({ ...entry, index }))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.index - b.index), [pluginTabEntries]);
+  const selectedPlugin = plugins.find(plugin => plugin.id === selectedPluginDetailsId) ?? null;
+  const selectedConfigItem = pluginItemEntries.find(entry => entry.id === selectedPluginItemId) ?? null;
+  const selectedBundleConfig = bundleConfigEntries.find(entry => entry.key === selectedBundleConfigKey) ?? null;
+  const selectedRowConfig = rowConfigEntries.find(entry => entry.key === selectedRowConfigKey) ?? null;
+  const selectedPluginSubject: PluginsSubject | null = selectedPlugin ? { kind: "bundle", pkg: toPluginPackageRef(selectedPlugin) } : null;
+  const selectedPluginRowConfigs = selectedPlugin
+    ? rowConfigEntries.filter(entry => entry.key?.startsWith(rowConfigPrefix(selectedPlugin.name)) ?? false)
+    : [];
 
   const enabledCount = useMemo(() => plugins.filter(plugin => plugin.state === "enabled").length, [plugins]);
   const wallpaperEngineInstalled = hasWallpaperEnginePlugin(plugins);
@@ -232,6 +295,14 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
     if (!wallpaperEngineInstalled && workspaceTab === "wallpaper") setWorkspaceTab("all");
   }, [wallpaperEngineInstalled, workspaceTab]);
 
+  useEffect(() => {
+    if (selectedPluginTab && !visiblePluginTabs.some(entry => entry.id === selectedPluginTab)) setSelectedPluginTab(null);
+  }, [selectedPluginTab, visiblePluginTabs]);
+
+  useEffect(() => {
+    if (activationPlugin && !activationEntries.some(entry => entry.key === activationPlugin.name)) setActivationPlugin(null);
+  }, [activationEntries, activationPlugin]);
+
   function resetInspection(): void {
     inspectionControllerRef.current?.abort();
     inspectionControllerRef.current = null;
@@ -248,6 +319,24 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
     setSource("");
     setReference("");
     setRegistryChoice("china");
+    setContributedInstall(null);
+    resetInspection();
+    setInstallerOpen(true);
+  }
+
+  function openContributedInstall(target: PluginTabInstall): void {
+    const kind = detectPluginSourceInput(target.spec);
+    if (!kind) {
+      setError(`扩展提供的安装来源无法识别：${target.spec}`);
+      setSelectedPluginTab(null);
+      return;
+    }
+    setSourceType(kind);
+    setSource(target.spec);
+    setReference("");
+    setRegistryChoice(target.registry ? "custom" : "china");
+    setCustomRegistry(target.registry ?? "");
+    setContributedInstall(target);
     resetInspection();
     setInstallerOpen(true);
   }
@@ -285,7 +374,12 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
 
   async function submitInstall(): Promise<void> {
     if (!canAdmin || !inspection || operation || pendingPluginAction) return;
-    if (inspection.sourceType === "npm" && inspection.registryUrl !== activeRegistry) { setInstallerError("NPM registry 已变化，请重新检查来源后再安装。"); setInspection(null); return; }
+    if (contributedInstall && inspection.version !== contributedInstall.version) {
+      setInstallerError(`扩展请求安装 v${contributedInstall.version}，但来源检查返回 v${inspection.version}；请勿安装不匹配的版本。`);
+      return;
+    }
+    const requestedRegistry = contributedInstall?.registry ?? activeRegistry;
+    if (inspection.sourceType === "npm" && inspection.registryUrl !== requestedRegistry) { setInstallerError("NPM registry 已变化，请重新检查来源后再安装。"); setInspection(null); return; }
     setOperation("install");
     setInstallerError("");
     setInstallProgress([]);
@@ -298,7 +392,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
         expectedResolvedRef: inspection.resolvedCommit,
         expectedSourceType: inspection.sourceType,
         expectedSourceLocation: inspection.sourceLocation,
-        ...(inspection.sourceType === "npm" ? { npmRegistry: inspection.registryUrl ?? activeRegistry } : {})
+        ...(inspection.sourceType === "npm" ? { npmRegistry: inspection.registryUrl ?? requestedRegistry } : {})
       }, progress => {
         if (mountedRef.current) setInstallProgress(current => [...current.slice(-31), progress]);
       });
@@ -329,6 +423,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
       if (mountedRef.current) {
         setPlugins(current => current.map(item => item.id === result.plugin.id ? result.plugin : item));
         setInstallResult(current => current?.id === result.plugin.id ? result.plugin : current);
+        if (action === "enable" && result.plugin.state === "enabled") setActivationPlugin(result.plugin);
       }
     } catch (actionError) {
       if (mountedRef.current) {
@@ -349,6 +444,14 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
     }
     onNavigate(path);
   }, [onNavigate]);
+
+  function openContributedPackage(packageName: string): void {
+    setWorkspaceTab("plugins");
+    setSelectedPluginTab(null);
+    const plugin = plugins.find(item => item.name === packageName);
+    if (plugin) setSelectedPluginDetailsId(plugin.id);
+    else setError(`当前 LFAA Profile 中没有 ${packageName} 的插件记录；已返回插件清单。`);
+  }
 
   return (
     <div className="plugin-manager-stage">
@@ -387,10 +490,17 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
             tabs[nextIndex]?.focus();
             tabs[nextIndex]?.click();
           }}>
-            {PLUGIN_MANAGER_WORKSPACE_TABS.filter(({ id }) => id !== "wallpaper" || wallpaperEngineInstalled).map(({ id, label }) => <button key={id} id={`plugin-manager-${id}-tab`} type="button" role="tab" tabIndex={workspaceTab === id ? 0 : -1} aria-selected={workspaceTab === id} aria-controls={id === "plugins" ? "plugin-manager-profile-panel" : id === "wallpaper" ? "plugin-manager-wallpaper-panel" : "plugin-manager-extensions-panel"} className={workspaceTab === id ? "is-active" : ""} onClick={() => setWorkspaceTab(id)}>{label}</button>)}
+            {PLUGIN_MANAGER_WORKSPACE_TABS.filter(({ id }) => id !== "wallpaper" || wallpaperEngineInstalled).map(({ id, label }) => {
+              const active = workspaceTab === id && (id !== "plugins" || selectedPluginTab === null);
+              return <button key={id} id={`plugin-manager-${id}-tab`} type="button" role="tab" tabIndex={active ? 0 : -1} aria-selected={active} aria-controls={id === "plugins" ? "plugin-manager-profile-panel" : id === "wallpaper" ? "plugin-manager-wallpaper-panel" : "plugin-manager-extensions-panel"} className={active ? "is-active" : ""} onClick={() => { setWorkspaceTab(id); if (id === "plugins") setSelectedPluginTab(null); }}>{label}</button>;
+            })}
+            {workspaceTab === "plugins" ? visiblePluginTabs.map(entry => {
+              const active = selectedPluginTab === entry.id;
+              return <button key={entry.id} id={`plugin-manager-contributed-${encodeURIComponent(entry.id)}-tab`} type="button" role="tab" tabIndex={active ? 0 : -1} aria-selected={active} aria-controls="plugin-manager-contributed-tab-panel" className={active ? "is-active" : ""} onClick={() => setSelectedPluginTab(entry.id)}>{entry.label}</button>;
+            }) : null}
           </nav>
 
-          <div id="plugin-manager-profile-panel" className="plugin-manager-page__workspace-panel" role="tabpanel" aria-labelledby="plugin-manager-plugins-tab" hidden={workspaceTab !== "plugins"}>
+          <div id="plugin-manager-profile-panel" className="plugin-manager-page__workspace-panel" role="tabpanel" aria-labelledby="plugin-manager-plugins-tab" hidden={workspaceTab !== "plugins" || selectedPluginTab !== null}>
           {!canAdmin ? <Alert type="warning" showIcon message="插件管理需要管理员身份。" description="插件清单和来源检查由控制端按当前账户角色授权。" /> : null}
           {error ? <Alert type="error" showIcon closable message={error} onClose={() => setError("")} /> : null}
 
@@ -407,13 +517,30 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
               />
               <div className="plugin-manager-page__catalog-actions">
                 <Button icon={<WorkbenchIcon name="refresh" size={15} />} disabled={loading} loading={loading} onClick={() => void refresh()}>刷新</Button>
-                <Button
-                  type="primary"
-                  aria-haspopup="dialog"
-                  icon={<WorkbenchIcon name="plus" size={15} />}
-                  disabled={operation === "install" || pendingPluginAction !== null}
-                  onClick={() => setInstallerOpen(true)}
-                >添加插件</Button>
+                <span className="plugin-manager-page__add-menu" role="group" aria-label="添加插件">
+                  <Button
+                    type="primary"
+                    aria-haspopup="dialog"
+                    icon={<WorkbenchIcon name="plus" size={15} />}
+                    disabled={operation === "install" || pendingPluginAction !== null}
+                    onClick={() => setInstallerOpen(true)}
+                  >添加插件</Button>
+                  <Menu
+                    open={addActionsOpen}
+                    onClose={() => setAddActionsOpen(false)}
+                    align="end"
+                    side="bottom"
+                    portal
+                    autoFocus
+                    listClassName="plugin-manager-page__add-menu-list"
+                    anchor={<Button disabled={operation === "install" || pendingPluginAction !== null} aria-label="更多插件添加操作" aria-haspopup="menu" aria-expanded={addActionsOpen} onClick={() => setAddActionsOpen(open => !open)}><WorkbenchIcon name="dots" size={15} /></Button>}
+                  >
+                    <MenuItemButton icon={<WorkbenchIcon name="extension" size={14} />} onSelect={() => { setAddActionsOpen(false); setInstallerOpen(true); }}>
+                      <span className="plugin-manager-page__add-menu-item"><span>从来源安装</span><span>检查并安装插件包</span></span>
+                    </MenuItemButton>
+                    <PluginExtensionSlot name="plugins.add.actions" owner={{ onDismiss: () => setAddActionsOpen(false) }} />
+                  </Menu>
+                </span>
               </div>
             </div>
 
@@ -432,6 +559,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
               >{filter.label}<span>{filter.count}</span></button>)}
             </div>
 
+            {selectedPluginTab === null ? <>
             <section className="plugin-manager-page__section" aria-labelledby="plugin-manager-installed-title">
               <div className="plugin-manager-page__section-heading">
                 <Typography.Title id="plugin-manager-installed-title" level={4}>已安装</Typography.Title>
@@ -449,6 +577,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
                       pendingAction={pendingPluginAction?.id === plugin.id ? pendingPluginAction.action : null}
                       onTargetApplicationChange={applicationId => setSelectedApplications(current => ({ ...current, [plugin.id]: applicationId }))}
                       onAction={submitPluginAction}
+                      onOpenDetails={() => setSelectedPluginDetailsId(plugin.id)}
                     />;
                   })}
                 </div> : plugins.length ? <div className="plugin-manager-page__empty plugin-manager-page__empty--compact">没有符合当前搜索和状态筛选的插件。</div>
@@ -472,9 +601,41 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
               </div>
             </section> : null}
 
+            {pluginItemEntries.length ? <section className="plugin-manager-page__section" aria-labelledby="plugin-manager-contributed-items-title">
+              <div className="plugin-manager-page__section-heading">
+                <Typography.Title id="plugin-manager-contributed-items-title" level={4}>插件提供的设置页</Typography.Title>
+                <span>{pluginItemEntries.length} 项</span>
+              </div>
+              <div className="plugin-manager-page__contributed-list">
+                {pluginItemEntries.map(entry => <article key={entry.id} className="plugin-manager-page__contributed-card">
+                  <div><strong>{entry.label ?? entry.id}</strong><p><PluginExtensionSlot name="plugins.item" only={entry.id} owner={{ view: "summary" } satisfies PluginConfigOwner} fallback="此扩展尚未提供摘要。" /></p></div>
+                  <Button onClick={() => setSelectedPluginItemId(entry.id)}>设置</Button>
+                </article>)}
+              </div>
+            </section> : null}
+
+            {bundleConfigEntries.length || rowConfigEntries.length ? <section className="plugin-manager-page__section" aria-labelledby="plugin-manager-contributed-config-title">
+              <div className="plugin-manager-page__section-heading">
+                <Typography.Title id="plugin-manager-contributed-config-title" level={4}>插件配置扩展</Typography.Title>
+                <span>{bundleConfigEntries.length + rowConfigEntries.length} 项</span>
+              </div>
+              <div className="plugin-manager-page__contributed-list">
+                {bundleConfigEntries.filter(entry => entry.key).map(entry => <article key={`bundle:${entry.key}`} className="plugin-manager-page__contributed-card">
+                  <div><strong>{entry.key}</strong><p>插件包配置页</p></div><Button onClick={() => setSelectedBundleConfigKey(entry.key ?? null)}>打开设置</Button>
+                </article>)}
+                {rowConfigEntries.filter(entry => entry.key).map(entry => <article key={`row:${entry.key}`} className="plugin-manager-page__contributed-card">
+                  <div><strong>{entry.key}</strong><p>插件能力配置页</p></div><Button onClick={() => setSelectedRowConfigKey(entry.key ?? null)}>打开设置</Button>
+                </article>)}
+              </div>
+            </section> : null}
+
             <p className="plugin-manager-page__management-note">插件启停和卸载受管理员身份及当前 Permission Owner 保护。卸载会清理插件私有数据，不影响账户外观设置和 Steam 壁纸原文件；自然语言操作仍{permissionDescription}。</p>
+            </> : null}
           </> : null}
           </div>
+          {selectedPluginTab ? <div id="plugin-manager-contributed-tab-panel" className="plugin-manager-page__workspace-panel plugin-manager-page__contributed-tab-panel" role="tabpanel" aria-labelledby={`plugin-manager-contributed-${encodeURIComponent(selectedPluginTab)}-tab`} hidden={workspaceTab !== "plugins"}>
+            <PluginExtensionSlot name="plugins.tab" only={selectedPluginTab} owner={{ install: openContributedInstall, openPackage: openContributedPackage } satisfies PluginTabOwner} fallback={<Alert type="info" showIcon message="插件扩展标签暂不可用" description="该扩展可能已卸载或尚未完成加载。" />} />
+          </div> : null}
           <div id="plugin-manager-extensions-panel" className="plugin-manager-page__workspace-panel plugin-manager-page__workspace-panel--extensions" role="tabpanel" aria-labelledby={`plugin-manager-${workspaceTab}-tab`} hidden={!isSettingsWorkspaceTab}>
             {isSettingsWorkspaceTab ? <SettingsPage
               user={user}
@@ -517,7 +678,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
       </section>
       <Modal
         className="plugin-manager-install-modal"
-        title={<span id="plugin-manager-install-title">{installResult ? (installResult.state === "enabled" ? "已启用" : "已安装") : operation === "install" ? "插件安装中…" : "添加插件"}</span>}
+        title={<span id="plugin-manager-install-title">{installResult ? (installResult.state === "enabled" ? "已启用" : "已安装") : operation === "install" ? "插件安装中…" : contributedInstall ? `安装 ${contributedInstall.title} v${contributedInstall.version}` : "添加插件"}</span>}
         open={installerOpen}
         centered
         width="min(720px, calc(100vw - 28px))"
@@ -557,6 +718,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
               <Button onClick={closeInstaller}>完成</Button>
             </div>
           </> : <>
+            {contributedInstall ? <p className="plugin-manager-install-modal__intro">此版本由插件扩展页指定；来源检查必须与该版本一致，安装前仍需核验固定内容和兼容性。</p> : null}
             <p className="plugin-manager-install-modal__intro">输入插件包名、GitHub 仓库地址或 LFAA Host 上的本机路径，系统会自动识别来源。</p>
             <div className="plugin-manager-install-modal__source-row">
               <Input
@@ -566,7 +728,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
                 value={source}
                 disabled={operation !== null || pendingPluginAction !== null}
                 maxLength={2048}
-                onChange={event => { setSource(event.target.value); resetInspection(); }}
+                onChange={event => { setSource(event.target.value); setContributedInstall(null); resetInspection(); }}
                 onPressEnter={() => void inspectSource()}
               />
               <Tag color={detectedSourceType ? "blue" : undefined}>{detectedSourceType === "npm" ? "NPM 包" : detectedSourceType === "github" ? "GitHub 仓库" : detectedSourceType === "local" ? "Host 本机路径" : source.trim() ? "无法识别" : "自动识别"}</Tag>
@@ -619,10 +781,107 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
             </section> : null}
             <div className="plugin-manager-install-modal__actions">
               <span>安装只会登记并保存来源快照；启用由对应 Runtime 单独执行。</span>
-              {inspection ? <Button type="primary" disabled={operation !== null || pendingPluginAction !== null} loading={operation === "install"} onClick={() => void submitInstall()}>开始安装</Button> : <Button type="primary" disabled={!detectedSourceType || operation !== null || pendingPluginAction !== null || (detectedSourceType === "npm" && registryChoice === "custom" && !activeRegistry)} loading={operation === "inspect"} icon={<WorkbenchIcon name="search" size={15} />} onClick={() => void inspectSource()}>检查来源</Button>}
+              {inspection ? <Button type="primary" disabled={operation !== null || pendingPluginAction !== null} loading={operation === "install"} onClick={() => void submitInstall()}>{contributedInstall ? `安装 ${contributedInstall.title}` : "开始安装"}</Button> : <Button type="primary" disabled={!detectedSourceType || operation !== null || pendingPluginAction !== null || (detectedSourceType === "npm" && registryChoice === "custom" && !activeRegistry)} loading={operation === "inspect"} icon={<WorkbenchIcon name="search" size={15} />} onClick={() => void inspectSource()}>检查来源</Button>}
             </div>
           </>}
         </div>
+      </Modal>
+      <Modal
+        className="plugin-manager-detail-modal"
+        title={selectedPlugin ? `${selectedPlugin.name} · 插件详情与设置` : "插件详情与设置"}
+        open={selectedPlugin !== null}
+        centered
+        width="min(760px, calc(100vw - 28px))"
+        footer={null}
+        getContainer={() => (document.querySelector(".plugin-manager-stage")?.closest(".workbench-shell") as HTMLElement | null) ?? document.body}
+        onCancel={() => setSelectedPluginDetailsId(null)}
+      >
+        {selectedPlugin && selectedPluginSubject ? <div className="plugin-manager-detail-modal__body">
+          <header className="plugin-manager-detail-modal__heading">
+            <div><strong>{selectedPlugin.name}</strong><span>v{selectedPlugin.version} · {pluginStateLabel(selectedPlugin.state)} · {pluginCompatibilityLabel(selectedPlugin.compatibility)}</span></div>
+            <div className="plugin-manager-detail-modal__badges"><PluginExtensionSlot name="plugins.detail.badge" owner={{ subject: selectedPluginSubject } satisfies PluginDetailOwner} /></div>
+          </header>
+          <p>{selectedPlugin.description || "此插件未提供说明。"}</p>
+          {selectedPlugin.reason ? <Alert type="warning" showIcon message={selectedPlugin.reason} /> : null}
+          <div className="plugin-manager-detail-modal__actions"><PluginExtensionSlot name="plugins.detail.actions" owner={{ subject: selectedPluginSubject } satisfies PluginDetailOwner} /></div>
+          {bundleConfigEntries.some(entry => entry.key === selectedPlugin.name) ? <section className="plugin-manager-detail-modal__section" aria-label="插件包配置">
+            <h3>插件包配置</h3>
+            <p className="plugin-manager-detail-modal__contract-note">LFAA 呈现扩展提供的页面，但不伪造 DSH Host ConfigForm；需要该表单的数据由扩展自己的受支持设置 Owner 提供。</p>
+            <PluginExtensionSlot name="plugins.bundle.config" entryKey={selectedPlugin.name} owner={{ view: "page" } satisfies PluginConfigOwner} fallback={<Alert type="info" showIcon message="扩展已登记，但配置内容未加载。" />} />
+          </section> : null}
+          {selectedPluginRowConfigs.length ? <section className="plugin-manager-detail-modal__section" aria-label="插件能力配置">
+            <h3>插件能力配置</h3>
+            <div className="plugin-manager-page__contributed-list">{selectedPluginRowConfigs.map(entry => {
+              const key = entry.key ?? "";
+              const rowLabel = key.slice(rowConfigPrefix(selectedPlugin.name).length);
+              return <article key={key} className="plugin-manager-page__contributed-card"><div><strong>{rowLabel}</strong><p>{key}</p></div><Button onClick={() => setSelectedRowConfigKey(key)}>设置</Button></article>;
+            })}</div>
+          </section> : null}
+          <section className="plugin-manager-detail-modal__section" aria-label="来源与固定版本">
+            <h3>来源与固定版本</h3>
+            <dl><div><dt>来源</dt><dd>{pluginSourceLabel(selectedPlugin)} · {selectedPlugin.source.repository}</dd></div><div><dt>固定版本</dt><dd>{selectedPlugin.source.commit}</dd></div><div><dt>SHA-256</dt><dd>{selectedPlugin.source.archiveSha256}</dd></div></dl>
+          </section>
+          <PluginExtensionSlot name="plugins.detail.section" owner={{ subject: selectedPluginSubject } satisfies PluginDetailOwner} />
+        </div> : null}
+      </Modal>
+      <Modal
+        className="plugin-manager-detail-modal"
+        title={selectedConfigItem ? `${selectedConfigItem.label ?? selectedConfigItem.id} · 设置` : "插件设置"}
+        open={selectedConfigItem !== null}
+        centered
+        width="min(760px, calc(100vw - 28px))"
+        footer={null}
+        getContainer={() => (document.querySelector(".plugin-manager-stage")?.closest(".workbench-shell") as HTMLElement | null) ?? document.body}
+        onCancel={() => setSelectedPluginItemId(null)}
+      >
+        {selectedConfigItem ? <div className="plugin-manager-detail-modal__body">
+          <div className="plugin-manager-detail-modal__badges"><PluginExtensionSlot name="plugins.detail.badge" owner={{ subject: { kind: "item", id: selectedConfigItem.id } } satisfies PluginDetailOwner} /></div>
+          <p><PluginExtensionSlot name="plugins.item" only={selectedConfigItem.id} owner={{ view: "summary" } satisfies PluginConfigOwner} fallback="此扩展尚未提供摘要。" /></p>
+          <p className="plugin-manager-detail-modal__contract-note">设置页由插件提供。LFAA 不代造 DSH Host ConfigForm；只有扩展接入自己的设置 Owner 时，页面更改才可保存。</p>
+          <div className="plugin-manager-detail-modal__actions"><PluginExtensionSlot name="plugins.detail.actions" owner={{ subject: { kind: "item", id: selectedConfigItem.id } } satisfies PluginDetailOwner} /></div>
+          <section className="plugin-manager-detail-modal__section" aria-label="插件设置表单"><PluginExtensionSlot name="plugins.item" only={selectedConfigItem.id} owner={{ view: "page" } satisfies PluginConfigOwner} fallback={<Alert type="info" showIcon message="扩展已登记，但设置页面内容未加载。" />} /></section>
+          <PluginExtensionSlot name="plugins.detail.section" owner={{ subject: { kind: "item", id: selectedConfigItem.id } } satisfies PluginDetailOwner} />
+        </div> : null}
+      </Modal>
+      <Modal
+        className="plugin-manager-detail-modal"
+        title={selectedBundleConfig ? `${selectedBundleConfig.key} · 配置` : "插件包配置"}
+        open={selectedBundleConfig !== null}
+        centered
+        width="min(760px, calc(100vw - 28px))"
+        footer={null}
+        getContainer={() => (document.querySelector(".plugin-manager-stage")?.closest(".workbench-shell") as HTMLElement | null) ?? document.body}
+        onCancel={() => setSelectedBundleConfigKey(null)}
+      >
+        {selectedBundleConfig ? <div className="plugin-manager-detail-modal__body"><p className="plugin-manager-detail-modal__contract-note">设置面板由扩展渲染；LFAA 不提供 DSH Host ConfigForm 或代写插件设置数据。</p><PluginExtensionSlot name="plugins.bundle.config" entryKey={selectedBundleConfig.key} owner={{ view: "page" } satisfies PluginConfigOwner} fallback={<Alert type="info" showIcon message="扩展配置内容未加载。" />} /></div> : null}
+      </Modal>
+      <Modal
+        className="plugin-manager-detail-modal"
+        title={selectedRowConfig ? `${selectedRowConfig.key} · 配置` : "插件能力配置"}
+        open={selectedRowConfig !== null}
+        centered
+        width="min(760px, calc(100vw - 28px))"
+        footer={null}
+        getContainer={() => (document.querySelector(".plugin-manager-stage")?.closest(".workbench-shell") as HTMLElement | null) ?? document.body}
+        onCancel={() => setSelectedRowConfigKey(null)}
+      >
+        {selectedRowConfig ? <div className="plugin-manager-detail-modal__body"><p className="plugin-manager-detail-modal__contract-note">设置面板由扩展渲染；LFAA 不提供 DSH Host ConfigForm 或代写插件设置数据。</p><PluginExtensionSlot name="plugins.row.config" entryKey={selectedRowConfig.key} owner={{ view: "page" } satisfies PluginConfigOwner} fallback={<Alert type="info" showIcon message="扩展配置内容未加载。" />} /></div> : null}
+      </Modal>
+      <Modal
+        className="plugin-manager-detail-modal"
+        title={activationPlugin ? `${activationPlugin.name} · 启用引导` : "插件启用引导"}
+        open={activationPlugin !== null}
+        centered
+        width="min(620px, calc(100vw - 28px))"
+        footer={null}
+        getContainer={() => (document.querySelector(".plugin-manager-stage")?.closest(".workbench-shell") as HTMLElement | null) ?? document.body}
+        onCancel={() => setActivationPlugin(null)}
+      >
+        {activationPlugin ? <div className="plugin-manager-detail-modal__body"><PluginExtensionSlot name="plugins.bundle.activation" entryKey={activationPlugin.name} owner={{
+          packageName: activationPlugin.name,
+          onDismiss: () => setActivationPlugin(null),
+          onOpenDetails: () => { setActivationPlugin(null); setSelectedPluginDetailsId(activationPlugin.id); }
+        } satisfies PluginActivationOwner} fallback={<Alert type="info" showIcon message="插件已启用，当前没有提供启用引导内容。" />} /></div> : null}
       </Modal>
     </div>
   );

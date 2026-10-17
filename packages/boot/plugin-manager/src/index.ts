@@ -13,6 +13,7 @@ import type { CapabilityApplicationId, CapabilityInstallRegistry } from "lfaa-ca
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { WindowsAppContainerPluginRuntime } from "./windows-appcontainer-runtime.js";
 import { DshWallpaperEngineRuntime } from "./dsh-wallpaper-engine-runtime.js";
+import { migrateLegacyPluginStorage } from "./storage-migration.js";
 import { searchGithubRepositories } from "./github-source.js";
 import { resolvePluginSource, type PluginSourceSnapshot, type PluginSourceType } from "./source-resolution.js";
 import type { PluginArchiveFile } from "./zip-archive.js";
@@ -107,9 +108,9 @@ export class PluginManager {
   private readonly activeIds = new Set<string>();
   private mutationActive = false;
 
-  constructor(readonly profile: string, dataDirectory = config.dataDirectory, runtime?: PluginRuntimeAdapter) {
+  constructor(readonly profile: string, dataDirectory = config.dataDirectory, runtime?: PluginRuntimeAdapter, pluginInstallDirectory = resolve(dataDirectory, "plugins")) {
     if (!/^[a-z][a-z0-9-]{0,63}$/u.test(profile)) throw new Error("当前 Profile 名称无效。");
-    this.root = resolve(dataDirectory, "plugins", "profiles", profile);
+    this.root = resolve(pluginInstallDirectory, "profiles", profile);
     this.inventoryPath = resolve(this.root, "inventory.json");
     mkdirSync(this.root, { recursive: true, mode: 0o700 });
     if (runtime) this.registerRuntimeAdapter(runtime);
@@ -710,10 +711,11 @@ declare module "@deepseek-ai/cordis" {
 export const name = "lfaaPluginManager";
 export const inject = ["profileContext", "lfaaCapabilityInstalls", "loader", "webServer"];
 export async function apply(ctx: Context): Promise<void> {
+  await migrateLegacyPluginStorage(config.dataDirectory, config.pluginInstallDirectory, ctx.profileContext.name);
   const runtime = ctx.get("loader") && ctx.get("webServer")
-    ? new DshWallpaperEngineRuntime(ctx, ctx.profileContext.name, config.dataDirectory)
+    ? new DshWallpaperEngineRuntime(ctx, ctx.profileContext.name, config.dataDirectory, config.pluginInstallDirectory)
     : undefined;
-  const manager = new PluginManager(ctx.profileContext.name, config.dataDirectory, runtime);
+  const manager = new PluginManager(ctx.profileContext.name, config.dataDirectory, runtime, config.pluginInstallDirectory);
   if (WindowsAppContainerPluginRuntime.isAvailable()) manager.registerRuntimeAdapter(new WindowsAppContainerPluginRuntime());
   ctx.provide(name, manager);
   ctx.lfaaCapabilityInstalls.register(ctx, {

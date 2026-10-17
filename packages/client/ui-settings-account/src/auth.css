@@ -94,6 +94,13 @@
   background: transparent;
   box-shadow: 0 32px 90px var(--auth-color-shell-shadow), inset 0 1px var(--auth-color-shell-inner-highlight);
 }
+
+.auth-page__transition-extension {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  pointer-events: none;
+}
 /* 登录页：外层与可调变量｜结束 */
 
 /* 登录页：左侧主视觉区域｜开始 */
@@ -245,7 +252,7 @@
 }
 
 .auth-page__form-heading {
-  margin-bottom: clamp(18px, 3.8svh, 34px);
+  margin-bottom: 0;
 }
 
 .auth-page__form-eyebrow {
@@ -272,8 +279,16 @@
   line-height: 1.75;
 }
 
+.auth-page__form-message-slot {
+  /* 始终保留一行反馈位，避免登录失败时新增提示推挤并抖动垂直居中的表单。 */
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+}
+
 .auth-page__form-message {
-  margin-bottom: clamp(12px, 2.2svh, 20px);
+  width: 100%;
+  margin: 0;
 }
 
 .auth-page__form .ant-form-item {
@@ -368,12 +383,16 @@
   font-size: 15px;
   font-weight: 650;
   box-shadow: 0 10px 22px var(--auth-color-form-button-shadow);
-  transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease;
+  /* 登录请求的禁用/恢复状态紧邻错误提示更新；关闭主按钮渐变，避免鼠标仍停在按钮上时闪变阴影和位置。 */
+  transition: none;
 }
 
-.auth-page__form .ant-btn-primary:not(:disabled):hover {
-  box-shadow: 0 13px 26px var(--auth-color-form-button-shadow-hover);
-  transform: translateY(-1px);
+.auth-page__form .ant-btn-primary[aria-busy="true"]:disabled {
+  /* 请求期间沿用当前 Ant Design 主题主色，避免误用工作台强调色覆盖登录按钮主题。 */
+  border-color: transparent !important;
+  background-color: var(--ant-color-primary, var(--color-brand)) !important;
+  color: var(--ant-color-text-light-solid, var(--color-text-inverse)) !important;
+  opacity: 1 !important;
 }
 
 .auth-page__form-panel > .ant-btn-link {
@@ -382,6 +401,43 @@
   color: var(--auth-color-form-recovery-link);
   font-size: 14px;
   font-weight: 600;
+}
+
+.auth-page__form-panel > .ant-btn-link:disabled {
+  /* 请求期间禁用找回入口，但保持原主题文字颜色，避免认证面板中的链接同步闪淡。 */
+  color: var(--auth-color-form-recovery-link) !important;
+  opacity: 1 !important;
+}
+
+/* 成功登录时将登录卡片与工作台根容器作为同一个 View Transition 画面连续缩放接合。 */
+html[data-lfaa-auth-entry-animation="builtin"] .auth-page__split-layout,
+html[data-lfaa-auth-entry-animation="builtin"] .workbench-shell {
+  view-transition-name: lfaa-auth-scene;
+}
+
+html[data-lfaa-auth-entry-animation="builtin"]::view-transition-group(lfaa-auth-scene) {
+  animation-duration: 900ms;
+  animation-timing-function: cubic-bezier(.72, 0, .2, 1);
+}
+
+html[data-lfaa-auth-entry-animation="builtin"]::view-transition-old(lfaa-auth-scene) {
+  z-index: 1;
+  animation: lfaa-auth-scene-out 900ms cubic-bezier(.72, 0, .2, 1) both;
+}
+
+html[data-lfaa-auth-entry-animation="builtin"]::view-transition-new(lfaa-auth-scene) {
+  z-index: 2;
+  animation: lfaa-auth-scene-in 900ms cubic-bezier(.72, 0, .2, 1) both;
+}
+
+@keyframes lfaa-auth-scene-out {
+  0%, 36% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes lfaa-auth-scene-in {
+  0%, 42% { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 .auth-page__form-footnote.ant-typography {
@@ -522,4 +578,184 @@
   }
 }
 /* 登录页：低透明度或高对比度偏好｜结束 */
+
+/* 登录页统一使用共享外观令牌与不透明卡片；移除双栏磨砂层，避免失焦条纹和背景透穿文字。 */
+.auth-page {
+  min-height: 100svh;
+  height: auto;
+  padding: clamp(16px, 4vw, 40px);
+  overflow: visible;
+  background-image:
+    linear-gradient(rgba(8, 13, 22, .48), rgba(8, 13, 22, .48)),
+    var(--auth-background-image, none);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--settings-interface-font-size, var(--font-size-base));
+}
+
+.auth-page .auth-page__split-layout {
+  display: block;
+  width: min(460px, 100%);
+  min-height: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 26px;
+  background: transparent;
+  box-shadow: 0 24px 72px rgba(0, 0, 0, .32);
+}
+
+.auth-page .auth-page__form-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  border: 1px solid var(--color-border, #dedede);
+  border-radius: inherit;
+  padding: clamp(28px, 6vw, 48px);
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .24) inset;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.auth-page__brand-mark {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 12px;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--settings-accent, var(--color-brand));
+  color: #fff;
+  font-size: 27px;
+  font-weight: 750;
+}
+
+.auth-page__brand-name {
+  margin-bottom: 24px;
+  color: var(--color-text-primary, #171717);
+  font-size: calc(var(--settings-interface-font-size, 14px) * 1.25);
+  font-weight: 760;
+  letter-spacing: .12em;
+  text-align: center;
+}
+
+.auth-page .auth-page__form-heading {
+  margin: 0;
+  text-align: center;
+}
+
+.auth-page .auth-page__form-eyebrow {
+  margin-bottom: 6px;
+  color: var(--settings-accent, var(--color-brand));
+}
+
+.auth-page .auth-page__form-heading h2.ant-typography {
+  margin-bottom: 6px;
+  color: var(--color-text-heading, #171717);
+  font-size: calc(var(--settings-interface-font-size, 14px) * 2);
+}
+
+.auth-page .auth-page__form-heading p.ant-typography,
+.auth-page .auth-page__default-credentials,
+.auth-page .auth-page__form-footnote {
+  color: var(--color-text-secondary, #525252);
+}
+
+.auth-page .auth-page__default-credentials {
+  margin: 18px 0 2px;
+  text-align: center;
+}
+
+.auth-page .auth-page__default-credentials code {
+  color: inherit;
+  font-family: var(--settings-code-font, ui-monospace, monospace);
+}
+
+.auth-page .auth-page__form-message-slot {
+  min-height: 56px;
+}
+
+.auth-page .auth-page__form-item,
+.auth-page .auth-page__form .ant-form-item {
+  margin-bottom: 16px;
+}
+
+.auth-page .auth-page__form .ant-input-lg,
+.auth-page .auth-page__form .ant-input-affix-wrapper-lg {
+  min-height: 52px;
+  border-color: var(--color-border, #dedede);
+  border-radius: 10px;
+  background: #fff;
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--settings-interface-font-size, 14px);
+}
+
+.auth-page .auth-page__form .ant-input-affix-wrapper-focused,
+.auth-page .auth-page__form .ant-input-lg:focus {
+  border-color: var(--settings-accent, var(--color-brand));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--settings-accent, var(--color-brand)) 18%, transparent);
+}
+
+.auth-page .auth-page__form .ant-btn-primary,
+.auth-page .auth-page__form .ant-btn-primary:disabled,
+.auth-page .auth-page__form .ant-btn-primary[aria-busy="true"]:disabled {
+  min-height: 52px;
+  margin-top: 8px;
+  border-color: var(--settings-accent, var(--color-brand));
+  border-radius: 10px;
+  background: var(--settings-accent, var(--color-brand));
+  color: #fff;
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  opacity: 1;
+  transition: none;
+}
+
+.auth-page .auth-page__form-panel > .ant-btn-link {
+  align-self: center;
+  color: var(--settings-accent, var(--color-brand));
+}
+
+.auth-page .auth-page__form-panel > .ant-btn-link:disabled {
+  color: var(--settings-accent, var(--color-brand));
+  opacity: 1;
+}
+
+.auth-page .auth-page__form-footnote.ant-typography {
+  margin: 8px 0 0;
+  text-align: center;
+}
+
+.auth-page__service-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+  color: var(--color-text-secondary, #525252);
+  font-size: var(--font-size-sm, 12px);
+}
+
+html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__form-panel {
+  border-color: #414141;
+  background: #242424;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .05) inset;
+}
+
+html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__brand-name,
+html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__form-heading h2.ant-typography {
+  color: #f5f5f5;
+}
+
+html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__form-heading p.ant-typography,
+html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__default-credentials,
+html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__form-footnote,
+html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__service-status {
+  color: #c4c4c4;
+}
+
+@media (max-width: 520px) {
+  .auth-page { padding: 14px; }
+  .auth-page .auth-page__form-panel { padding: 28px 22px; }
+}
 

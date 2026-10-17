@@ -10,10 +10,7 @@
  * 与 DSH 的差异：DSH 复用会话自己的 system prompt / tools / KV 前缀缓存；LFAA 的
  * streamAiCompletion 已经统一组装系统提示，这里只喂"待压缩历史"作为 user 消息。
  */
-import {
-  streamAiCompletion,
-  type AiCompletionMessage,
-} from "lfaa-llm/src/completion.js";
+import type { AiCompletionMessage, AiCompletionService } from "lfaa-llm/src/completion.js";
 import type {
   ActiveAiModelConfiguration,
   AiRuntimeSettings,
@@ -42,6 +39,7 @@ export interface SummarizerDeps {
   applicationId: ApplicationId;
   permissionMode: PermissionSettings["mode"];
   settings: AiRuntimeSettings;
+  streamCompletion: AiCompletionService["streamCompletion"];
 }
 
 /**
@@ -100,7 +98,7 @@ export async function summarizeRange(
   let summary = "";
   const configuredLimit = deps.settings.maxOutputTokens > 0 ? deps.settings.maxOutputTokens : deps.account.maxOutputTokens ?? maxOutputTokens;
   const effectiveMax = Math.min(maxOutputTokens, configuredLimit);
-  const result = await streamAiCompletion({
+  const result = await deps.streamCompletion({
     account: deps.account,
     applicationId: deps.applicationId,
     permissionMode: deps.permissionMode,

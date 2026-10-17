@@ -108,6 +108,12 @@
   box-shadow: 0 14px 36px var(--color-shadow-float);
 }
 
+body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-engine-owner="true"] .module-navigation-rail__popover {
+  background-color: var(--settings-wallpaper-floaters-surface, var(--color-surface));
+  -webkit-backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+  backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+}
+
 .module-navigation-rail__popover > header { display: flex; min-height: 30px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px 8px; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-heading); font-size: 11px; }
 .module-navigation-rail__popover > header > div { display: grid; gap: 3px; }
 .module-navigation-rail__popover > header strong { color: var(--color-text-heading); font-size: 11px; }

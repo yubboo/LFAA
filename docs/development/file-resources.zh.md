@@ -21,7 +21,8 @@
 | 日志 | data/logs；从唯一 data 根派生，不能把读取/下载当停服或日志清理策略 |
 | 缓存、临时文件 | data/cache、data/tmp；从唯一 data 根派生，不自动全盘扫描或批量清除 |
 | 私有状态 | SQLite、账户文件、Session、凭据由原 Owner 持有，不开放通用文件预览 |
-| 扩展插件 | data/plugins；仅供 Harness 扩展，不能与游戏 plugins 混用 |
+| 插件包/受控运行适配副本 | `<LFAA_HOME>/plugins`；由 Plugin Manager 生命周期维护，不能与游戏 `plugins` 混用，也不随用户数据迁移 |
+| 插件私有运行数据 | `<LFAA_DATA_DIR>/plugins/runtime-data`；由对应 Plugin Runtime 按 Profile 隔离，随用户数据迁移 |
 
 SQLite 保存关系、索引、任务和配置；游戏文件/存档、Markdown、大文件与插件源码留在对应主机文件系统。读取投影不能成为第二份权威数据。切换存储位置不自动迁移旧文件；历史目录回读遵循已有 Owner。
 
@@ -29,7 +30,7 @@ SQLite 保存关系、索引、任务和配置；游戏文件/存档、Markdown�
 
 ## DSH 第三方扩展插件
 
-沿用 LFAA Plugin Manager 的布局：`plugins/profiles/<profile>/` 保存安装清单与已核验源码快照；`plugins/runtime-data/profiles/<profile>/<plugin-id>/` 保存运行私有数据；适配运行副本按来源 commit 与 adapter revision 隔离。Profile 清单是安装/启用状态的权威，目录存在不代表启用或兼容。
+沿用 LFAA Plugin Manager 的分层布局：`<LFAA_HOME>/plugins/profiles/<profile>/` 保存安装清单与已核验源码快照；`<LFAA_HOME>/plugins/runtime-adapters/profiles/<profile>/` 保存受控运行适配副本；`<LFAA_DATA_DIR>/plugins/runtime-data/profiles/<profile>/<plugin-id>/` 保存运行私有数据。Profile 清单是安装/启用状态的权威，目录存在不代表启用或兼容。旧版本位于数据根的包和适配目录仅在确认不冲突后复制到安装根，保留源目录。
 
 本机 DSH 只读参考确认：DSH 把依赖装入自己的 Profile，读取 package.json/bundle patch 决定装配。LFAA 使用自己的 Profile/Owner，不能把 DSH 主机或任意包直接放进运行图。保留来源提交、归档摘要、真实运行适配、启停撤销和失败恢复；无法运行的 DSH 包仍明确报告不兼容。普通文件管理可浏览可公开内容，但不能上传替换源码、改安装清单、移动或删除插件根。安装/更新/卸载走现有 capability/Plugin Manager 生命周期与统一权限模式。
 

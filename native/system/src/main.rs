@@ -178,7 +178,7 @@ mod windows_host {
     }
 
     struct PluginLaunchArgs {
-        data_root: PathBuf,
+        plugin_install_root: PathBuf,
         profile: String,
         plugin_id: String,
         entry: String,
@@ -187,7 +187,7 @@ mod windows_host {
     }
 
     struct PluginForgetArgs {
-        data_root: PathBuf,
+        plugin_install_root: PathBuf,
         profile: String,
         plugin_id: String,
         node_path: PathBuf,
@@ -340,7 +340,7 @@ mod windows_host {
             let key = key.into_string().map_err(|_| "插件沙盒参数无效。")?;
             if !matches!(
                 key.as_str(),
-                "--data-root"
+                "--plugin-root"
                     | "--profile"
                     | "--plugin-id"
                     | "--entry"
@@ -356,10 +356,10 @@ mod windows_host {
                 return Err("插件沙盒参数重复。".to_owned());
             }
         }
-        let data_root = PathBuf::from(
+        let plugin_install_root = PathBuf::from(
             values
-                .remove("--data-root")
-                .ok_or_else(|| "缺少 LFAA 数据根目录。".to_owned())?,
+                .remove("--plugin-root")
+                .ok_or_else(|| "缺少 LFAA 插件安装根目录。".to_owned())?,
         );
         let profile = values
             .remove("--profile")
@@ -386,11 +386,11 @@ mod windows_host {
             .and_then(|value| value.into_string().ok())
             .filter(|value| is_uuid(value))
             .ok_or_else(|| "插件沙盒启动确认令牌无效。".to_owned())?;
-        if !values.is_empty() || !data_root.is_absolute() || !node_path.is_absolute() {
+        if !values.is_empty() || !plugin_install_root.is_absolute() || !node_path.is_absolute() {
             return Err("插件沙盒路径参数无效。".to_owned());
         }
         Ok(PluginLaunchArgs {
-            data_root,
+            plugin_install_root,
             profile,
             plugin_id,
             entry,
@@ -408,7 +408,7 @@ mod windows_host {
             let key = key.into_string().map_err(|_| "插件清理参数无效。")?;
             if !matches!(
                 key.as_str(),
-                "--data-root" | "--profile" | "--plugin-id" | "--node"
+                "--plugin-root" | "--profile" | "--plugin-id" | "--node"
             ) {
                 return Err("插件清理参数不受支持。".to_owned());
             }
@@ -419,10 +419,10 @@ mod windows_host {
                 return Err("插件清理参数重复。".to_owned());
             }
         }
-        let data_root = PathBuf::from(
+        let plugin_install_root = PathBuf::from(
             values
-                .remove("--data-root")
-                .ok_or_else(|| "缺少 LFAA 数据根目录。".to_owned())?,
+                .remove("--plugin-root")
+                .ok_or_else(|| "缺少 LFAA 插件安装根目录。".to_owned())?,
         );
         let profile = values
             .remove("--profile")
@@ -439,11 +439,11 @@ mod windows_host {
                 .remove("--node")
                 .ok_or_else(|| "缺少受信任的 Node.js 运行时路径。".to_owned())?,
         );
-        if !values.is_empty() || !data_root.is_absolute() || !node_path.is_absolute() {
+        if !values.is_empty() || !plugin_install_root.is_absolute() || !node_path.is_absolute() {
             return Err("插件清理路径参数无效。".to_owned());
         }
         Ok(PluginForgetArgs {
-            data_root,
+            plugin_install_root,
             profile,
             plugin_id,
             node_path,
@@ -768,13 +768,12 @@ mod windows_host {
     fn validate_plugin_paths(
         args: &PluginLaunchArgs,
     ) -> Result<(PathBuf, PathBuf, PathBuf, PathBuf), String> {
-        let data_root = fs::canonicalize(&args.data_root)
-            .map_err(|_| "LFAA 插件数据根目录无法验证。".to_owned())?;
-        if !data_root.is_dir() {
-            return Err("LFAA 插件数据根目录不是目录。".to_owned());
+        let plugin_install_root = fs::canonicalize(&args.plugin_install_root)
+            .map_err(|_| "LFAA 插件安装根目录无法验证。".to_owned())?;
+        if !plugin_install_root.is_dir() {
+            return Err("LFAA 插件安装根目录不是目录。".to_owned());
         }
-        let plugins_root = canonical_managed_directory(&data_root, "plugins")?;
-        let profiles_root = canonical_managed_directory(&plugins_root, "profiles")?;
+        let profiles_root = canonical_managed_directory(&plugin_install_root, "profiles")?;
         let profile_root = canonical_managed_directory(&profiles_root, &args.profile)?;
         let plugin_root = canonical_managed_directory(&profile_root, &args.plugin_id)?;
         let entry_path = fs::canonicalize(plugin_root.join(&args.entry))
@@ -800,7 +799,7 @@ mod windows_host {
         }
         let node_path = fs::canonicalize(&args.node_path)
             .map_err(|_| "Node.js 运行时路径无法验证。".to_owned())?;
-        Ok((data_root, plugin_root, entry_path, node_path))
+        Ok((plugin_install_root, plugin_root, entry_path, node_path))
     }
 
     fn grant_plugin_source_tree(
@@ -846,10 +845,9 @@ mod windows_host {
     }
 
     fn forget_plugin_profile(args: &PluginForgetArgs) -> Result<(), String> {
-        let data_root = fs::canonicalize(&args.data_root)
-            .map_err(|_| "LFAA 插件数据根目录无法验证。".to_owned())?;
-        let plugins_root = canonical_managed_directory(&data_root, "plugins")?;
-        let profiles_root = canonical_managed_directory(&plugins_root, "profiles")?;
+        let plugin_install_root = fs::canonicalize(&args.plugin_install_root)
+            .map_err(|_| "LFAA 插件安装根目录无法验证。".to_owned())?;
+        let profiles_root = canonical_managed_directory(&plugin_install_root, "profiles")?;
         let profile_root = canonical_managed_directory(&profiles_root, &args.profile)?;
         let plugin_root = canonical_managed_directory(&profile_root, &args.plugin_id)?;
         let node_metadata = fs::symlink_metadata(&args.node_path)

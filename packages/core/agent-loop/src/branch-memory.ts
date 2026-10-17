@@ -6,7 +6,7 @@
 import type { ActiveAiModelConfiguration, AiRuntimeSettings, PermissionSettings } from "lfaa-settings/src/service.js";
 import type { ApplicationId } from "lfaa-settings/src/preferences/service.js";
 import { redactConversationMemorySource } from "lfaa-conversation-memory/src/index.js";
-import { resolveAiCompletionMaxTokens, streamAiCompletion } from "lfaa-llm/src/completion.js";
+import type { AiCompletionService } from "lfaa-llm/src/completion.js";
 import type { AiSessionBranchSeedMessage, AiSessionBranchMemoryUsage } from "lfaa-session/src/sessions.js";
 
 const MAX_SOURCE_CHUNKS = 6;
@@ -76,11 +76,12 @@ export async function summarizeBranchMemory(input: {
   permissionMode: PermissionSettings["mode"];
   settings: AiRuntimeSettings;
   signal: AbortSignal;
+  llm: AiCompletionService;
 }): Promise<BranchMemorySummary> {
   const contextWindow = input.account.contextWindow ?? input.settings.contextWindowTokens ?? 128_000;
   const chunks = sourceChunks(input.messages, contextWindow);
   if (!chunks.length) throw new Error("来源会话没有可整理的上下文。");
-  const configuredOutputLimit = resolveAiCompletionMaxTokens(input.settings, input.account) ?? 2_048;
+  const configuredOutputLimit = input.llm.resolveMaxTokens(input.settings, input.account) ?? 2_048;
   const chunkOutputLimit = Math.max(1, Math.min(768, Math.floor(contextWindow * 0.1), configuredOutputLimit));
   const finalOutputLimit = Math.max(1, Math.min(2_048, Math.floor(contextWindow * 0.15), configuredOutputLimit));
   const usage: AiSessionBranchMemoryUsage[] = [];
@@ -88,7 +89,7 @@ export async function summarizeBranchMemory(input: {
   const complete = async (content: string, instruction: string, maxOutputTokens: number): Promise<string> => {
     input.signal.throwIfAborted();
     let text = "";
-    const result = await streamAiCompletion({
+    const result = await input.llm.streamCompletion({
       account: input.account,
       applicationId: input.applicationId,
       permissionMode: input.permissionMode,

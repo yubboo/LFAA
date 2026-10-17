@@ -5,6 +5,7 @@ export type ResolvedAppearanceTheme = "light" | "dark";
 
 // 此键同时由 apps/web/index.html 的同步首帧脚本读取；只保存主题模式枚举。
 export const APPEARANCE_THEME_BOOTSTRAP_STORAGE_KEY = "lfaa.appearance-theme-bootstrap.v1";
+export const APPEARANCE_CANVAS_BOOTSTRAP_STORAGE_KEY = "lfaa.appearance-canvas-bootstrap.v1";
 
 interface ThemeStorage {
   getItem: (key: string) => string | null;
@@ -13,8 +14,8 @@ interface ThemeStorage {
 }
 
 interface ThemeDocumentRoot {
-  dataset: { lfaaBootstrapTheme?: string };
-  style: { colorScheme: string };
+  dataset: { lfaaBootstrapTheme?: string; lfaaBootstrapCanvas?: string };
+  style: { colorScheme: string; removeProperty?: (name: string) => void };
   removeAttribute: (name: string) => void;
 }
 
@@ -84,6 +85,19 @@ export function applyAppearanceThemeBootstrap(
   if (themeColorMeta) themeColorMeta.content = resolvedTheme === "dark" ? "#181818" : "#f3f5f8";
 }
 
+/** Cache only the last route's bundled public background for a color-stable first paint after refresh. */
+export function cacheAppearanceCanvasBootstrap(route: string, backgroundFile: string | null, storage: ThemeStorage | null = getSessionStorage()): void {
+  if (!/^\/[A-Za-z0-9/_-]{1,240}$/u.test(route)) return;
+  const safeBackground = backgroundFile && /^\/(?:images\/minecraft|backgrounds)\/[A-Za-z0-9/_-]+\.(?:png|jpe?g|webp)$/iu.test(backgroundFile)
+    ? backgroundFile
+    : null;
+  try {
+    storage?.setItem(APPEARANCE_CANVAS_BOOTSTRAP_STORAGE_KEY, JSON.stringify({ route, background: safeBackground }));
+  } catch {
+    // 首帧提示不可用时仍按默认画布启动；账户背景和会话数据不会写入该缓存。
+  }
+}
+
 export function clearAppearanceThemeBootstrap(targets: ThemeBootstrapTargets = {}): void {
   const storage = targets.storage === undefined ? getSessionStorage() : targets.storage;
   const root = targets.root === undefined ? getDocumentRoot() : targets.root;
@@ -91,13 +105,16 @@ export function clearAppearanceThemeBootstrap(targets: ThemeBootstrapTargets = {
 
   try {
     storage?.removeItem(APPEARANCE_THEME_BOOTSTRAP_STORAGE_KEY);
+    storage?.removeItem(APPEARANCE_CANVAS_BOOTSTRAP_STORAGE_KEY);
   } catch {
     // 存储不可用时仍清除当前文档的主题提示。
   }
 
   if (root) {
     root.removeAttribute("data-lfaa-bootstrap-theme");
+    root.removeAttribute("data-lfaa-bootstrap-canvas");
     root.style.colorScheme = "";
+    root.style.removeProperty?.("--lfaa-bootstrap-canvas-image");
   }
   if (themeColorMeta) themeColorMeta.content = "#f3f5f8";
 }

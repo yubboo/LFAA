@@ -11,6 +11,10 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const excluded = new Set(["node_modules", "data", "dist", "target", "gen", ".git"]);
 const outputs = { host: "dist/apps/control-plane", web: "dist/apps/web" };
+const requiredOutputs = {
+  host: ["index.js", "workspace.json", "packages/boot/app-boot/src/index.js"],
+  web: ["index.html"]
+};
 
 function inputs(repository, kind) {
   const files = [];
@@ -59,7 +63,14 @@ export function recordRuntimeBuild(kind, repository = root, expectedFingerprint)
 export function staleRuntimeBuilds(profile = "web", repository = root) {
   return (profile === "web" ? ["host", "web"] : ["host"]).filter(kind => {
     const output = resolve(repository, outputs[kind]);
-    if (!existsSync(resolve(output, kind === "host" ? "index.js" : "index.html"))) return true;
+    if (requiredOutputs[kind].some(path => !existsSync(resolve(output, path)))) return true;
+    if (kind === "web") {
+      const html = readFileSync(resolve(output, "index.html"), "utf8");
+      const assets = [...html.matchAll(/(?:src|href)=["']([^"']+)["']/gu)]
+        .map(([, path]) => path)
+        .filter(path => path.startsWith("/assets/"));
+      if (!assets.length || assets.some(path => !existsSync(resolve(output, `.${path}`)))) return true;
+    }
     try { return JSON.parse(readFileSync(resolve(output, "build-state.json"), "utf8")).fingerprint !== runtimeBuildFingerprint(kind, repository); }
     catch { return true; }
   });

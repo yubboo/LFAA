@@ -2240,6 +2240,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: 0.2.0-rc.2
+        version: 0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)
       antd:
         specifier: ^5.0.0
         version: 5.29.3(moment@2.31.0)(react-dom@18.0.0(react@18.0.0))(react@18.0.0)

@@ -17,7 +17,7 @@ import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { saveSettings, userRoleLabel, type ApplicationId, type ApplicationMode, type DesktopAvailableUpdate, type DesktopUpdateDownloadProgress, type DesktopUpdatePreferences, type DesktopUpdatePrompt, type DesktopUpdatePromptAction, type User, type UserPreferences, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { shortcutMatches } from "lfaa-client-ui-commands/src/shortcuts.js";
 import { appearanceTextFontStacks, appearanceCodeFontStacks } from "lfaa-client-ui-theme/src/fonts.js";
-import { applyAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
+import { applyAppearanceThemeBootstrap, cacheAppearanceCanvasBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
 import { bindDshThemeOwner, dshThemeCompatibility, syncDshThemePreference } from "lfaa-client-ui-theme/src/dsh-theme-bridge.js";
 import { createDshWallpaperAppearanceTokens } from "lfaa-client-ui-theme/src/dsh-wallpaper-appearance.js";
 import { dshLocaleRuntime } from "lfaa-client-ui-workspace/src/dsh-locale-runtime.js";
@@ -701,6 +701,10 @@ export function Workbench({
     // 插件活动时按原 DSH body 令牌即时映射强调色、表面、透明度、模糊和逐面控制；停用时空对象保留 LFAA 偏好。
     ...wallpaperAppearanceTokens
   } as CSSProperties;
+
+  useLayoutEffect(() => {
+    cacheAppearanceCanvasBootstrap(window.location.pathname, backgroundFile && !wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? backgroundFile : null);
+  }, [backgroundFile, route, wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas]);
 
   let pageContent;
   if (isSettingsPage) {

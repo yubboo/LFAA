@@ -3,10 +3,16 @@ export interface DataDirectoryOptions {
   platform?: string;
   driveType?: string;
   userProfile?: string;
+  lfaaHome?: string;
 }
 
 export function resolveDataDirectory(
   projectRoot: string,
   configuredValue?: string,
   options?: DataDirectoryOptions
+): string;
+export function resolveHomeDirectory(
+  projectRoot: string,
+  configuredValue?: string,
+  options?: { platform?: string; userProfile?: string; lfaaHome?: string },
 ): string;

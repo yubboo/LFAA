@@ -10,6 +10,7 @@ import type { AiRuntimeHookInfo, AiRuntimeHookRegistry, AiRuntimeHookResult } fr
 import type { PluginRuntimeSnapshot } from "./plugin-runtime.js";
 import type { SkillLookupOptions, SkillSummary } from "lfaa-skill";
 import type { AiCompletionMessage } from "lfaa-llm/src/completion.js";
+import type { AiCompletionService } from "lfaa-llm/src/completion.js";
 
 /** Host 只适配已装配压缩服务；摘要请求由调用 Run 负责。 */
 export interface HostCompactionInput {
@@ -22,6 +23,8 @@ export interface HostCompactionInput {
 export type AiPluginSnapshot = PluginRuntimeSnapshot;
 
 export interface AiPluginHost {
+  /** All model requests share the active provider registry, including summaries and memory. */
+  llm: AiCompletionService;
   /** 当前请求的目录，正文仍由模型按需调用 Skill 工具。 */
   listSkills?: (options: SkillLookupOptions) => Promise<SkillSummary[]>;
   compactContext?: (input: HostCompactionInput) => Promise<{ messages: AiCompletionMessage[] } | null>;
@@ -42,12 +45,15 @@ export interface AiPluginHost {
 
 export function createAiPluginHost(context: Context): AiPluginHost {
   let closed = false;
+  const llm = context.get("lfaaLlm") as AiCompletionService | undefined;
+  if (!llm) throw new Error("LLM Provider 服务尚未装载。");
   return {
+    llm,
     listSkills: options => context.skills.list(options),
     compactContext: async input => {
       const service = context.get("lfaaCompaction");
       if (!service) return null;
-      return service.createBasicCompactionEngine({ summarize: input.summarize }).compactIfNeeded({ messages: input.messages, contextWindow: input.contextWindow, ...(input.signal ? { signal: input.signal } : {}), trigger: { reason: "pressure" } });
+      return service.createBasicCompactionEngine({ summarize: input.summarize, streamCompletion: llm.streamCompletion }).compactIfNeeded({ messages: input.messages, contextWindow: input.contextWindow, ...(input.signal ? { signal: input.signal } : {}), trigger: { reason: "pressure" } });
     },
     get hotReloadEnabled() {
       return Boolean(context.get("lfaaHotReload")) && context.lfaaPluginRuntime.list().some((plugin) => plugin.id === "hmr" && plugin.enabled);

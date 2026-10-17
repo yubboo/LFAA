@@ -7,7 +7,7 @@
 
 ## 当前决定
 
-2026-10-06 存储职责按数据类型拆分：账户设置和应用偏好使用账户隔离的原子 JSON；Agent 会话事件继续使用 JSONL；关系型业务数据继续使用同一个 SQLite 数据库；图片、工作流图定义和 Markdown 正文使用账户隔离的文件。各类别仍位于既有 `LFAA_DATA_DIR` 内。用户级安装的既定用户目录默认值、项目/便携运行跟随项目目录的规则、环境变量覆盖与迁移入口均保持不变。本次没有搬迁或合并数据根。旧整份 JSON 只作为旧版本导入/回退材料，不再接收运行期配置写入。
+存储职责按数据类型拆分：账户设置和应用偏好使用账户隔离的原子 JSON；Agent 会话事件继续使用 JSONL；关系型业务数据继续使用同一个 SQLite 数据库；图片、工作流图定义和 Markdown 正文使用账户隔离的文件。用户数据由单一、可自定义且可迁移的 `LFAA_DATA_DIR` 承载：默认 `<LFAA_HOME>/data`（通常位于系统用户 `.lfaa/data`），推荐项目/桌面安装根下的 `data`，也可由用户指定其他可写位置；首次启动自动创建标准分类目录，空目录保持空业务状态。插件包与受控运行适配副本由 `LFAA_HOME` 管理，默认 `%USERPROFILE%\\.lfaa` 下的 `plugins/`，不随数据根迁移。Windows 开发/桌面设置中心提供系统复制、手动复制后核验采用与 ZIP 安全导入三种迁移路径，完整重启后才切换。旧整份 JSON 只作为旧版本导入/回退材料，不再接收运行期配置写入。
 
 目录沿用 DSH 的 `storage/storage`、`storage/storage-json`、`storage/storage-domain`、`storage/storage-sqlite`、`session/session-persistence-jsonl`。`lfaa-storage-hub` 仅负责具名后端与数据形式注册；JSON、SQLite 适配器由独立插件装配到 `bundle/base/cordis.patch.yml`。上游目录对标不等于已实现全部上游功能。
 

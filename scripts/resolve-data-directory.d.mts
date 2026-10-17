@@ -3,6 +3,7 @@ export interface DataDirectoryOptions {
   platform?: string;
   driveType?: string;
   userProfile?: string;
+  lfaaHome?: string;
 }
 
 export function resolveDataDirectory(

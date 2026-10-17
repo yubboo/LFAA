@@ -26,7 +26,7 @@ LFAA 现已采用对标 [DeepSeek Harness](https://github.com/deepseek-ai/deepse
 npx @yubboo/lfaa web
 ```
 
-此命令需要 `@yubboo/lfaa` 已发布到 npm。本仓库已提供发布组装和打包命令，未发布的版本不能通过在线 npx 获取。npm 模式默认把数据放在用户目录 `~/.lfaa/data`，不放在 npx 缓存内；当前目录的 `.env` 和显式环境变量可以配置 `LFAA_DATA_DIR`，相对路径按当前目录解析。
+此命令需要 `@yubboo/lfaa` 已发布到 npm。本仓库已提供发布组装和打包命令，未发布的版本不能通过在线 npx 获取。npm 模式默认将插件安装文件放在用户目录 `~/.lfaa/plugins`，用户数据放在 `~/.lfaa/data`，不放在 npx 缓存内；当前目录的 `.env` 和显式环境变量可以分别配置 `LFAA_HOME` 与 `LFAA_DATA_DIR`。`LFAA_HOME` 必须是绝对路径；显式 `LFAA_DATA_DIR` 相对路径按当前目录解析。
 
 ### 方式二：源码仓库
 
@@ -109,7 +109,7 @@ Windows 下双击根目录 `lfaa.bat`，首次依次选择 `1` 安装依赖、`2
 
 当前采用用户确认的混合存储：设置、应用偏好、加密 Provider 配置和节点目录配置保存于 `<LFAA_DATA_DIR>/storages/configuration.json`；Agent 会话、消息、活动与用量追加保存于 `sessions/<会话摘要>/events.jsonl`；账户、登录会话、权限、节点、任务、写作正文与修订继续使用本机 SQLite。Provider 加密密钥仍位于 `credentials/settings.key`，明文不下发前端。旧数据迁移按导入、回读校验、备份后再退役旧权威表的顺序执行；SQLite 迁移版本以 `packages/storage/storage-sqlite/src/database.ts` 为准，当前最高迁移版本以 `packages/storage/storage-sqlite/src/database.ts` 为准（当前 47）。完整归属、备份与恢复见[混合存储合同](docs/subsystems/storage.zh.md)。本机回环 CLI 可持久化自动生成的 JWT 密钥；公网生产继续要求强 `JWT_SECRET` 和绝对数据目录。通行密钥仍需匹配 `WEBAUTHN_RP_ID`、`WEBAUTHN_ORIGIN`。
 
-控制端使用 Node 内置 SQLite。Windows 固定盘开发默认将数据放在当前用户 `%USERPROFILE%\.lfaa\data`；Windows 可移动盘开发和非 Windows 开发环境默认放在项目根目录 `data/`。本机活动数据路径随工作副本、部署方式、环境变量和用户设置而异，必须按本次运行配置确认，不得从仓库目录推断；新克隆仓库不带运行数据，首次启动时才创建，`data/` 已被 Git 忽略。管理员可在“设置 → LFAA 配置 → 项目与存储”自定义本机数据根目录：Windows 完整开发启动器和已安装 Electron 桌面端会在完整重启时停止服务、复制并核对 SQLite、凭据和节点文件，再切换路径；旧目录保留作回退。开发模式下显式系统环境变量 `LFAA_DATA_DIR` 优先，设置页会说明该部署位置由环境变量管理。Linux 生产服务由部署环境配置绝对持久化路径（例如 `/var/lib/lfaa`），Web 设置页不会改写服务器目录。用户 Home 中其他应用的 `config/`、`state/`、`plugins/`、`runtimes/` 不会被扫描或合并。
+控制端使用 Node 内置 SQLite。插件包与受控运行适配副本默认放在当前用户 `%USERPROFILE%\.lfaa\plugins`（非 Windows 为 `~/.lfaa/plugins`）；用户数据默认放在同一 Home 下的 `data/`。`LFAA_HOME` 可用绝对路径覆盖安装 Home，`LFAA_DATA_DIR` 可独立覆盖用户数据根。Windows 完整开发启动器与 Electron/Tauri 桌面端的设置中心支持三种数据迁移方式：系统复制到空目录、用户手动复制后由系统逐项核对并采用、ZIP 备份安全解包后检查。迁移在完整重启后停止服务并通过清单与 SQLite `quick_check` 才切换；旧数据保留。改变 `LFAA_DATA_DIR` 不会移动插件安装文件；用户私有插件运行数据随用户数据根迁移。显式系统环境变量 `LFAA_DATA_DIR` 优先，设置页会说明该部署位置由环境变量管理。Linux 生产服务由部署环境配置绝对持久化路径（例如 `/var/lib/lfaa`），Web 设置页不会改写服务器目录。用户 Home 中其他应用的 `config/`、`state/`、`plugins/`、`runtimes/` 不会被扫描或合并。
 
 ## 首期功能范围
 

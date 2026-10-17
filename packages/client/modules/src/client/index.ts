@@ -14,7 +14,7 @@ import type { DshWindow, ClientModuleLoader } from "@deepseek-ai/dsh-client-modu
 import { installLfaaDshSessionScope } from "./session-scope.js";
 import { hasWallpaperEngineClientEntry, syncClientModuleGraphForAuthentication, type ClientModuleAuthState } from "./auth-sync.js";
 import { initializeStaleChunkRecovery, loadClientModuleWithRecovery } from "./stale-chunk-recovery.js";
-export { DshSlotOutlet, DshSlotRoot, useDshSlotRenderer } from "./slots.js";
+export { DshSlotOutlet, DshSlotRoot, LFAA_AUTH_TRANSITION_SLOT, useDshSlotEntries, useDshSlotRenderer, type AuthTransitionPhase, type AuthTransitionSlotOwner, type DshSlotEntrySummary, type DshSlotRegistryReader, type DshSlotRenderer } from "./slots.js";
 
 interface DshEntriesSync { sync(graph: unknown): Promise<void> }
 interface DshModuleRuntime extends ClientModuleLoader { entries: ClientModuleLoader["entries"] & DshEntriesSync }
