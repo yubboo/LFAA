@@ -54,10 +54,7 @@
     grid-template-rows var(--lfaa-snap-settle-duration) cubic-bezier(.16, .82, .24, 1);
 }
 
-/* Dock 动画和真实拖拽期间暂缓中心卡片容器断点，释放后一次性按最终宽度重排。 */
-.lfaa-workbench:is([data-width-transitioning="true"], [data-dragging="left"], [data-dragging="right"]) .module-center__content {
-  container-type: normal;
-}
+/* 拖动侧栏时中心内容继续按真实可用列宽响应，避免松手后才恢复容器断点并集中跳变。 */
 
 /* ===== 2. 拖拽阶段：Pointer 必须直接跟手 ===== */
 body.lfaa-is-resizing { cursor: col-resize !important; user-select: none !important; }

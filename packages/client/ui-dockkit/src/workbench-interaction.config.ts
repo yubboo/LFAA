@@ -1,7 +1,7 @@
 /**
  * 文件：workbench-interaction.config.ts
  * 作用：集中定义 Workbench 拖拽、吸附、反向释放与键盘缩放的交互参数，避免把手感数字散落在 TSX / CSS。
- * 负责：snap capture 比例、release hysteresis 规则、动画时长、键盘 resize 步长，以及 capture threshold 计算。
+ * 负责：侧栏拖拽增量、snap capture 比例、release hysteresis 规则、动画时长、键盘 resize 步长，以及 capture threshold 计算。
  * 不负责：左右栏 min/max 几何、React 状态、业务内容、具体 CSS 布局。
  * 状态归属：纯配置 / 纯函数，无运行时状态。
  * 对外接口：WORKBENCH_INTERACTION_TOKENS、normalizeSnapCaptureRatio、resolveSnapCaptureThreshold。
@@ -64,6 +64,12 @@ export function normalizeSnapCaptureRatio(value: number): number {
 export function resolveSnapCaptureThreshold(minSize: number, captureRatio: number): number {
   const safeMin = Math.max(0, minSize);
   return Math.round(safeMin * normalizeSnapCaptureRatio(captureRatio));
+}
+
+/** 将指针相对起点的位移换算成侧栏尺寸，避免用工作台绝对坐标造成拖动跳变。 */
+export function resolveSideDragRawSize(side: "left" | "right", startSize: number, pointerStartX: number, pointerX: number): number {
+  const delta = pointerX - pointerStartX;
+  return startSize + (side === "left" ? delta : -delta);
 }
 
 

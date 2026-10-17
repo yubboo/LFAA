@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Modal, Space, Typography } from "antd";
 import { getErrorMessage, hasAdminAccess, loadAiAccounts, loadDataDirectorySettings, loadSteamcmdSettings, saveSettings, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { WorkbenchIcon, type WorkbenchIconName } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { getSetupReminderLocalDay, isSetupReminderSnoozedToday, setSetupReminderSnoozedToday } from "./setup-reminder.js";
 
 interface SetupReminderProps {
@@ -16,6 +17,12 @@ interface SetupReminderProps {
   onOpenSettings: (section: "ai" | "configuration" | "workspace") => void;
 }
 
+const SETUP_REMINDER_COPY: Record<"storage" | "steamcmd" | "ai", { title: string; description: string; action: string; icon: WorkbenchIconName; section: "ai" | "configuration" | "workspace" }> = {
+  storage: { title: "设置数据存储位置", description: "选择适合你的数据目录，随时可以在配置中心迁移。", action: "去配置存储", icon: "folder", section: "workspace" },
+  steamcmd: { title: "配置 SteamCMD", description: "设置安装工具与游戏目录，开始管理 Steam 游戏。", action: "去配置 SteamCMD", icon: "settings", section: "configuration" },
+  ai: { title: "配置 AI 模型", description: "添加并启用一个模型服务，即可开始使用小鱼智能体。", action: "去配置模型", icon: "spark", section: "ai" }
+};
+
 export function SetupReminder({ user, settings, isSettingsPage, onSettingsChange, onOpenSettings }: SetupReminderProps) {
   const [open, setOpen] = useState(false);
   const [missing, setMissing] = useState<Array<"steamcmd" | "ai" | "storage">>([]);
@@ -23,6 +30,7 @@ export function SetupReminder({ user, settings, isSettingsPage, onSettingsChange
   const [saveError, setSaveError] = useState("");
   const [currentLocalDay, setCurrentLocalDay] = useState(() => getSetupReminderLocalDay());
   const shownRef = useRef(false);
+  const currentReminder = missing[0] ? SETUP_REMINDER_COPY[missing[0]] : null;
 
   useEffect(() => {
     // 提醒组件保持挂载时跨过本地午夜，允许新的一天重新检查。
@@ -99,8 +107,9 @@ export function SetupReminder({ user, settings, isSettingsPage, onSettingsChange
       rootClassName="setup-reminder-modal"
       title={(
         <div className="setup-reminder-intro">
-          <Typography.Title level={5} className="setup-reminder-intro__title">完成首次配置</Typography.Title>
-          <Typography.Paragraph className="setup-reminder-intro__description">这些配置完成后，本提醒会自动停止。也可以到“设置中心 → 通知”关闭首次配置提醒。</Typography.Paragraph>
+          <span className="setup-reminder-intro__icon" aria-hidden="true"><WorkbenchIcon name={currentReminder?.icon ?? "spark"} size={22} /></span>
+          <Typography.Title level={5} className="setup-reminder-intro__title">欢迎使用 LFAA</Typography.Title>
+          <Typography.Paragraph className="setup-reminder-intro__description">完成一项配置，就可以继续使用。</Typography.Paragraph>
         </div>
       )}
       open={open}
@@ -115,11 +124,11 @@ export function SetupReminder({ user, settings, isSettingsPage, onSettingsChange
       width={480}
     >
       {saveError ? <Alert type="error" showIcon message={saveError} /> : null}
-      <div className="setup-reminder-list">
-        {missing.includes("storage") ? <div className="setup-reminder-list__item"><Typography.Text strong>本机数据存储位置（默认系统账户 .lfaa/data）</Typography.Text><Button type="primary" size="small" onClick={() => { setOpen(false); onOpenSettings("workspace"); }}>设置存储位置</Button></div> : null}
-        {missing.includes("steamcmd") ? <div className="setup-reminder-list__item"><Typography.Text strong>SteamCMD 安装目录与游戏默认目录</Typography.Text><Button type="primary" size="small" onClick={() => { setOpen(false); onOpenSettings("configuration"); }}>前往配置</Button></div> : null}
-        {missing.includes("ai") ? <div className="setup-reminder-list__item"><Typography.Text strong>AI 模型 API</Typography.Text><Button type="primary" size="small" onClick={() => { setOpen(false); onOpenSettings("ai"); }}>前往配置</Button></div> : null}
-      </div>
+      {currentReminder ? <div className="setup-reminder-card">
+        <Typography.Title level={4} className="setup-reminder-card__title">{currentReminder.title}</Typography.Title>
+        <Typography.Paragraph className="setup-reminder-card__description">{currentReminder.description}</Typography.Paragraph>
+        <Button type="primary" size="large" className="setup-reminder-card__action" onClick={() => { setOpen(false); shownRef.current = false; onOpenSettings(currentReminder.section); }}>{currentReminder.action}</Button>
+      </div> : null}
     </Modal>
   );
 }

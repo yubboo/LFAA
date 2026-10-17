@@ -213,6 +213,8 @@ const sections: Array<{ id: SectionId; title: string; group: string; icon: Workb
   { id: "workspace", title: "项目与存储", group: "LFAA 配置", icon: "folder" },
   { id: "developer", title: "开发者", group: "LFAA 配置", icon: "terminal" }
 ];
+const LFAA_CONFIGURATION_SECTION_IDS = new Set<SectionId>(["configuration", "ai", "minecraft", "permissions", "workspace", "developer"]);
+const LFAA_CONFIGURATION_SECTIONS = sections.filter((section) => LFAA_CONFIGURATION_SECTION_IDS.has(section.id));
 const SETTINGS_NAV_GROUPS = [...new Set(sections.map((section) => section.group))];
 
 const SETTINGS_ACTIVE_SECTION_STORAGE_KEY = "lfaa.settings.active-section.v1";
@@ -1146,8 +1148,28 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const visibleSections = useMemo(() => {
     const value = search.trim().toLocaleLowerCase();
     const settingsSections = sections.filter((section) => section.id !== "plugins" && section.id !== "connections" && section.id !== "wallpaperEngine");
-    return value ? settingsSections.filter((section) => `${section.title} ${section.group}`.toLocaleLowerCase().includes(value)) : settingsSections;
-  }, [search]);
+    const isConfigurationMatch = (section: typeof settingsSections[number]) => LFAA_CONFIGURATION_SECTION_IDS.has(section.id)
+      && (`${section.title} ${section.group}`.toLocaleLowerCase().includes(value) || "配置中心".includes(value));
+    const matchingConfigurationSections = settingsSections.filter((section) => LFAA_CONFIGURATION_SECTION_IDS.has(section.id) && (!value || isConfigurationMatch(section)));
+    const showConfigurationCenter = !value || matchingConfigurationSections.length > 0;
+    const configurationEntrySection = matchingConfigurationSections.some((section) => section.id === activeSection)
+      ? activeSection
+      : matchingConfigurationSections[0]?.id ?? (LFAA_CONFIGURATION_SECTION_IDS.has(activeSection) ? activeSection : "ai");
+    const configurationEntry = { id: configurationEntrySection, title: "配置中心", group: "LFAA 配置", icon: "settings" as const };
+    const visible: typeof settingsSections = [];
+    let configurationEntryAdded = false;
+    for (const section of settingsSections) {
+      if (LFAA_CONFIGURATION_SECTION_IDS.has(section.id)) {
+        if (!configurationEntryAdded && showConfigurationCenter) {
+          visible.push(configurationEntry);
+          configurationEntryAdded = true;
+        }
+        continue;
+      }
+      if (!value || `${section.title} ${section.group}`.toLocaleLowerCase().includes(value)) visible.push(section);
+    }
+    return visible;
+  }, [activeSection, search]);
 
   // 搜索时临时展开命中分类；清空后恢复用户保存的分组展开状态。
   function updateSettingsSearch(value: string): void {
@@ -3320,7 +3342,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                 <button type="button" className="settings-nav__group" aria-expanded={isExpanded} aria-controls={groupId} onClick={() => toggleSettingsGroup(group)}><span>{group}</span></button>
                 <div id={groupId} className="settings-nav__items" aria-hidden={!isExpanded}>
                   <div className="settings-nav__items-inner">
-                    {groupSections.map((item) => <button key={item.id} type="button" tabIndex={isExpanded ? 0 : -1} className={activeSection === item.id ? "is-active" : ""} onClick={() => selectSection(item.id)}><WorkbenchIcon name={item.icon} size={18} />{item.title}</button>)}
+                    {groupSections.map((item) => {
+                      const isConfigurationCenterEntry = item.group === "LFAA 配置" && item.title === "配置中心";
+                      const isActive = isConfigurationCenterEntry
+                        ? LFAA_CONFIGURATION_SECTION_IDS.has(activeSection)
+                        : activeSection === item.id;
+                      return <button key={item.id} type="button" tabIndex={isExpanded ? 0 : -1} className={isActive ? "is-active" : ""} aria-current={isActive ? "page" : undefined} onClick={() => selectSection(item.id)}><WorkbenchIcon name={item.icon} size={18} />{item.title}</button>;
+                    })}
                   </div>
                 </div>
               </section>
@@ -3349,6 +3377,12 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       </header>
       <main ref={settingsContentScroll.ref} className="settings-main__content" onScroll={settingsContentScroll.onScroll}>
         {activeError ? <Alert className="settings-page-alert" type="error" showIcon message={activeError} closable onClose={() => { setError(""); setSectionErrors((current) => ({ ...current, [activeSection]: undefined })); }} /> : null}
+        {LFAA_CONFIGURATION_SECTION_IDS.has(activeSection) ? <nav className="settings-configuration-nav" aria-label="LFAA 配置中心">
+          {LFAA_CONFIGURATION_SECTIONS.map((section) => <button key={section.id} type="button" aria-current={activeSection === section.id ? "page" : undefined} className={activeSection === section.id ? "is-active" : ""} onClick={() => selectSection(section.id)}>
+            <WorkbenchIcon name={section.icon} size={16} />
+            <span>{section.title}</span>
+          </button>)}
+        </nav> : null}
         {loadingSection === activeSection ? <div className="settings-loading"><span className="loading-indicator" /><span>正在读取设置…</span></div> : sectionContent}
       </main>
     </div>

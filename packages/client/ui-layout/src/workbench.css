@@ -4,43 +4,41 @@
  关联文件：packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-settings-general/src/SetupReminder.tsx、packages/client/ui-theme/src/responsive.css。
 */
 
-.setup-reminder-list {
-  display: grid;
-  gap: 10px;
-}
-
-.setup-reminder-list__item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 10px;
-  background: var(--color-surface-muted);
-}
-
-/* 首次配置弹窗统一标题区与正文内边距，避免两部分看起来像分离的面板。 */
+/* 首次配置弹窗聚焦当前一项，并沿用主题、强调色与字号设置。 */
 .setup-reminder-modal .ant-modal-header {
   margin-bottom: 0;
-  padding: 20px 24px 12px;
+  padding: 28px 24px 12px;
   border-bottom: 0;
   background: transparent;
 }
 
 .setup-reminder-modal .ant-modal-body {
-  padding: 0 24px 22px;
+  padding: 0 24px 24px;
 }
 
 .setup-reminder-modal .setup-reminder-intro {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
   margin-right: 30px;
+  text-align: center;
+}
+
+.setup-reminder-modal .setup-reminder-intro__icon {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--color-brand-subtle);
+  color: var(--color-brand-deep);
 }
 
 .setup-reminder-modal .setup-reminder-intro__title.ant-typography {
-  margin: 0 0 8px;
+  margin: 0;
   color: var(--color-text-heading);
   font-family: var(--settings-interface-font, var(--font-family-sans));
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
   line-height: 1.4;
 }
 
@@ -50,6 +48,57 @@
   font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans)));
   font-size: var(--font-size-base);
   line-height: 1.55;
+}
+
+.setup-reminder-modal .ant-modal-footer {
+  display: flex;
+  justify-content: center;
+  padding: 8px 24px 24px;
+  border-top: 0;
+}
+
+.setup-reminder-modal .setup-reminder-card {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  padding: 16px 8px 0;
+  text-align: center;
+}
+
+.setup-reminder-modal .setup-reminder-card__title.ant-typography {
+  margin: 0;
+  color: var(--color-text-heading);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--font-size-xl);
+  line-height: 1.4;
+}
+
+.setup-reminder-modal .setup-reminder-card__description.ant-typography {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans)));
+  font-size: var(--font-size-base);
+  line-height: 1.65;
+}
+
+.setup-reminder-modal .setup-reminder-card__action.ant-btn {
+  min-width: min(100%, 220px);
+  min-height: 48px;
+}
+
+@media (max-width: 480px) {
+  .setup-reminder-modal .ant-modal-footer {
+    padding-inline: 16px;
+  }
+
+  .setup-reminder-modal .ant-modal-footer .ant-space {
+    justify-content: center;
+  }
+
+  .setup-reminder-modal .ant-modal-footer .ant-btn {
+    padding-inline: 10px;
+  }
 }
 
 /* 工作台：顶部品牌与返回按钮｜开始 */

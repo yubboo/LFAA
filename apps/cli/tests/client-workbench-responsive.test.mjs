@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveWorkbenchLayoutMetrics, shouldDockResponsiveLeftPane, shouldDockResponsiveRightPane, WORKBENCH_LAYOUT_TOKENS } from "../../../packages/client/ui-dockkit/src/workbench-layout.config.ts";
+import { resolveSideDragRawSize } from "../../../packages/client/ui-dockkit/src/workbench-interaction.config.ts";
 
 test("AI Work 在 Compact/Mobile 保留 260px 中心下限，通用 Surface 保持原断点", () => {
   const applicationCompact = resolveWorkbenchLayoutMetrics(850, 800, true);
@@ -82,4 +83,14 @@ test('760×520 聊天保留中心最小宽度，右栏仅在左栏收起后可 D
   assert.equal(shouldDockResponsiveRightPane(metrics.containerWidth, metrics.minCenterWidth, metrics.right.min, metrics.left.initial, true), false);
   assert.equal(shouldDockResponsiveRightPane(metrics.containerWidth, metrics.minCenterWidth, metrics.right.min, 0, true), true);
   assert.ok(metrics.containerWidth - metrics.right.min - WORKBENCH_LAYOUT_TOKENS.separator >= metrics.minCenterWidth);
+});
+
+test("侧栏拖动从当前实际宽度起算，指针按下时不跳变且左右方向一致", () => {
+  assert.equal(resolveSideDragRawSize("left", 280, 365, 365), 280);
+  assert.equal(resolveSideDragRawSize("left", 280, 365, 401), 316);
+  assert.equal(resolveSideDragRawSize("left", 280, 365, 329), 244);
+
+  assert.equal(resolveSideDragRawSize("right", 250, 900, 900), 250);
+  assert.equal(resolveSideDragRawSize("right", 250, 900, 936), 214);
+  assert.equal(resolveSideDragRawSize("right", 250, 900, 864), 286);
 });

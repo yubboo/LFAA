@@ -1857,12 +1857,6 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
             <span className="ai-work-chat__composer-app"><WorkbenchIcon name="folder" size={13} />{applicationNameFor(appId)}</span>
             <Typography.Text className="ai-work-chat__composer-count" aria-label={`已输入 ${draft.length}，最多 12000 个字符`}>{draft.length}<span>/12000</span></Typography.Text>
           </div>
-          <div className="ai-work-chat__associations">
-            <Select mode="multiple" optionFilterProp="label" allowClear maxCount={APPLICATION_IDS.length} aria-label="关联应用（可选）" placeholder="关联应用（可选）" disabled={busy || associationsBusy} value={associations.applicationIds} options={APPLICATION_IDS.filter(id => id !== "workspace").map(id => ({ value: id, label: applicationAssociationLabels[id] }))} onChange={applicationIds => void changeAssociations({ ...associations, applicationIds })} />
-            <Select mode="multiple" optionFilterProp="label" allowClear maxCount={16} aria-label="关联能力（可选）" placeholder="Skill / 提示词 / 专家（可选）" disabled={busy || associationsBusy || capabilities.length === 0} value={associations.capabilityIds} options={capabilities.map(item => ({ value: item.id, label: item.name }))} onChange={capabilityIds => void changeAssociations({ ...associations, capabilityIds })} />
-            <Typography.Text type="secondary">关联只提供参考，小鱼按目标决定是否加载。</Typography.Text>
-            {capabilitiesError ? <Typography.Text type="danger">Skill 目录读取失败：{capabilitiesError}</Typography.Text> : null}
-          </div>
           {composerMenu ? <div className="ai-work-chat__composer-menu" data-trigger={composerMenu.trigger} style={composerMenuMaxHeight === null ? undefined : { maxHeight: `${composerMenuMaxHeight}px` }} onMouseDown={event => event.preventDefault()}>
             <div className="ai-work-chat__composer-menu-heading">
               <strong>{composerMenu.trigger === "/" ? "命令" : "关联到本次对话"}</strong>
@@ -1916,7 +1910,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
             disabled={projectBusy || associationsBusy || Boolean(editingMessage) || pendingInteraction?.kind === "question" || !activeAccount && !busy}
           />
           <div className="ai-work-chat__composer-actions">
-            <div className="ai-work-chat__composer-actions-group" aria-label="添加与权限">
+            <div className="ai-work-chat__composer-actions-group" aria-label="添加、权限与关联">
               <Dropdown
                 trigger={["click"]}
                 placement="topLeft"
@@ -1965,6 +1959,11 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
                   <WorkbenchIcon name="chevron" size={12} />
                 </Button>
               </Dropdown>
+              <div className="ai-work-chat__associations" aria-label="本次对话的可选关联">
+                <Select mode="multiple" optionFilterProp="label" allowClear maxCount={APPLICATION_IDS.length} aria-label="关联应用（可选）" aria-description="关联只提供参考，小鱼按目标决定是否加载。" title="关联只提供参考，小鱼按目标决定是否加载。" placeholder="关联应用（可选）" disabled={busy || associationsBusy} value={associations.applicationIds} options={APPLICATION_IDS.filter(id => id !== "workspace").map(id => ({ value: id, label: applicationAssociationLabels[id] }))} onChange={applicationIds => void changeAssociations({ ...associations, applicationIds })} />
+                <Select className="ai-work-chat__association-select--capability" mode="multiple" optionFilterProp="label" allowClear maxCount={16} aria-label="关联能力（可选）" aria-description="关联只提供参考，小鱼按目标决定是否加载。" title="关联只提供参考，小鱼按目标决定是否加载。" placeholder="Skill / 提示词 / 专家（可选）" disabled={busy || associationsBusy || capabilities.length === 0} value={associations.capabilityIds} options={capabilities.map(item => ({ value: item.id, label: item.name }))} onChange={capabilityIds => void changeAssociations({ ...associations, capabilityIds })} />
+                {capabilitiesError ? <Typography.Text type="danger">Skill 目录读取失败：{capabilitiesError}</Typography.Text> : null}
+              </div>
             </div>
             <div className="ai-work-chat__composer-actions-group ai-work-chat__composer-actions-group--right" aria-label="模型、推理与发送">
               <Popover

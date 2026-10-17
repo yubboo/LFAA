@@ -472,6 +472,56 @@
   overscroll-behavior: contain;
 }
 
+.settings-configuration-nav {
+  display: flex;
+  width: min(100%, var(--settings-content-max-width));
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto var(--settings-section-gap);
+  padding: 0 0 10px;
+}
+
+.settings-configuration-nav button {
+  display: flex;
+  min-height: 38px;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 9px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.settings-configuration-nav button > svg {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+}
+
+.settings-configuration-nav button:hover,
+.settings-configuration-nav button:focus-visible {
+  border-color: var(--settings-accent, var(--color-brand));
+  color: var(--settings-accent, var(--color-brand));
+  outline: none;
+}
+
+.settings-configuration-nav button.is-active {
+  border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 42%, var(--color-border));
+  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 12%, var(--color-surface));
+  color: var(--settings-accent, var(--color-brand));
+  font-weight: 650;
+}
+
+.settings-configuration-nav button.is-active > svg {
+  color: currentColor;
+}
+
 /* 设置页的滚动正文与导航并列，导航无需实时模糊采样正文或壁纸。 */
 .workbench-shell.workbench-shell--settings[data-translucent-sidebar="true"] .settings-sidebar {
   -webkit-backdrop-filter: none;

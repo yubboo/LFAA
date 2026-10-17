@@ -31,6 +31,7 @@ import {
 } from "react";
 import {
   WORKBENCH_INTERACTION_TOKENS,
+  resolveSideDragRawSize,
   resolveSnapCaptureThreshold,
   resolveSnapDragFrame,
 } from "./workbench-interaction.config.ts";
@@ -61,8 +62,6 @@ interface SnapDragState {
 
 interface SideDragState extends SnapDragState {
   side: "left" | "right";
-  rectLeft: number;
-  rectRight: number;
   pointerStartX: number;
   startSize: number;
 }
@@ -436,16 +435,18 @@ export function ResizableWorkbench({
     const effectiveMax = getDynamicMax(side);
     const effectiveMin = Math.min(staticMin, effectiveMax);
     const rawCurrent = side === "left" ? leftWidth : rightWidthForLayout;
-    const current = side === "right" && layoutMode === "mobile" && !rightUsesGrid
-      ? Math.min(rawCurrent, Math.max(0, rect.width - 12))
-      : rawCurrent;
+    const paneSelector = side === "left" ? ".lfaa-workbench__pane--left" : ".lfaa-workbench__pane--right";
+    const renderedPaneWidth = root.querySelector<HTMLElement>(paneSelector)?.getBoundingClientRect().width;
+    const current = typeof renderedPaneWidth === "number" && Number.isFinite(renderedPaneWidth) && renderedPaneWidth > 0
+      ? renderedPaneWidth
+      : side === "right" && layoutMode === "mobile" && !rightUsesGrid
+        ? Math.min(rawCurrent, Math.max(0, rect.width - 12))
+        : rawCurrent;
 
     sideDragRef.current = {
       side,
       pointerId: event.pointerId,
       target: event.currentTarget,
-      rectLeft: rect.left,
-      rectRight: rect.right,
       pointerStartX: event.clientX,
       startSize: current,
       min: effectiveMin,
@@ -466,9 +467,7 @@ export function ResizableWorkbench({
   const onSidePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = sideDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    const raw = drag.side === "left"
-      ? event.clientX - drag.rectLeft
-      : drag.rectRight - event.clientX;
+    const raw = resolveSideDragRawSize(drag.side, drag.startSize, drag.pointerStartX, event.clientX);
     schedule(raw);
   }, [schedule]);
 

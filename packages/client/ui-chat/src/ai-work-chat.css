@@ -53,7 +53,7 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 /* 滚动视口铺满中间工作区，消息列表与输入框共用居中窄列，滚动条因此贴在视口最右边。 */
 .ai-work-chat__message-stage { position: relative; display: flex; width: 100%; min-width: 0; min-height: 0; flex: 1 1 0; align-self: stretch; flex-direction: column; }
 .ai-work-chat__messages { display: block; width: 100%; min-width: 0; min-height: 0; flex: 1 1 auto; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; box-sizing: border-box; }
-.ai-work-chat__message-list { display: flex; width: min(100%, 920px); min-height: 100%; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 26px; margin-inline: auto; padding: 22px clamp(10px, 2vw, 20px) 12px; box-sizing: border-box; }
+.ai-work-chat__message-list { display: flex; width: min(100%, 920px); min-height: 100%; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 26px; margin-inline: auto; padding: 22px clamp(20px, 3%, 32px) 12px; box-sizing: border-box; }
 /* 空闲与恢复状态同步过渡回复区；仅在状态变化时运行有限 CSS 过渡，不创建逐帧脚本。 */
 .workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat .ai-work-chat__messages,
 .workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat .ai-work-chat__anchors,
@@ -458,9 +458,9 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 .ai-work-chat__composer .ant-input:focus { border: 0; background: transparent; box-shadow: none; }
 .ai-work-chat__composer .ant-input::placeholder { color: var(--color-text-subtle); }
 .ai-work-chat__composer .ant-input:disabled { color: var(--color-text-muted); cursor: not-allowed; }
-.ai-work-chat__composer-actions { display: flex; min-height: 36px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 1px; }
-.ai-work-chat__composer-actions-group { display: flex; min-width: 0; align-items: center; gap: 3px; }
-.ai-work-chat__composer-actions-group--right { margin-left: auto; }
+.ai-work-chat__composer-actions { display: flex; min-height: 36px; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; padding: 0 1px; }
+.ai-work-chat__composer-actions-group { display: flex; min-width: 0; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: 3px; }
+.ai-work-chat__composer-actions-group--right { flex: 0 1 auto; margin-left: auto; }
 .ai-work-chat__composer-disabled-wrap { display: inline-flex; flex: 0 0 auto; }
 .ai-work-chat__composer-control.ant-btn { display: inline-flex; max-width: 230px; height: 34px; flex: 0 1 auto; align-items: center; justify-content: center; gap: 5px; padding: 0 7px; overflow: hidden; border-radius: 9px; color: var(--color-text-secondary); }
 .ai-work-chat__composer-control.ant-btn:hover:not(:disabled) { background: var(--color-surface-muted); color: var(--settings-accent, var(--color-brand)); }
@@ -680,7 +680,8 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 .ai-work-side-chat__composer small { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .ai-work-side-chat__composer .ant-btn { min-width: 64px; }
 
-/* 可选关联在输入区内随容器换行，颜色/字号继续继承账户外观令牌。 */
-.ai-work-chat__associations { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0; min-width: 0; }
-.ai-work-chat__associations .ant-select { flex: 1 1 170px; min-width: 0; max-width: 100%; }
-.ai-work-chat__associations > .ant-typography { flex-basis: 100%; font-size: var(--font-size-sm); }
+/* 关联选择器与权限控制同行；窄容器内按项换行，文字样式继续继承设置中心的主题令牌。 */
+.ai-work-chat__associations { display: flex; min-width: 0; flex: 1 1 220px; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0; }
+.ai-work-chat__associations .ant-select { width: 158px; min-width: min(124px, 100%); max-width: min(100%, 174px); flex: 0 1 158px; }
+.ai-work-chat__associations .ai-work-chat__association-select--capability { width: 192px; max-width: min(100%, 192px); flex-basis: 192px; }
+.ai-work-chat__associations > .ant-typography { flex: 1 1 100%; min-width: 0; font-size: var(--font-size-xs); }
