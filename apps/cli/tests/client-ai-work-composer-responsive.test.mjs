@@ -1,7 +1,7 @@
 /**
- * 功能：锁定 AI Work 提问框的网格收缩规则与插入光标可见性。
- * 作用：防止 TextArea 撑出聊天列，并保证输入光标跟随主题文字颜色。
- * 关联文件：packages/client/ui-chat/src/ai-work-chat.css；本测试检查其中提问框容器与 TextArea 样式。
+ * 功能：锁定 AI Work 提问框的网格收缩、操作栏容器响应和插入光标可见性。
+ * 作用：防止 TextArea 撑出聊天列，关联选择器随真实中间栏宽度排布，并保证光标跟随主题文字颜色。
+ * 关联文件：packages/client/ui-chat/src/ai-work-chat.css；本测试检查提问框、关联操作栏与 TextArea 样式。
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -33,16 +33,31 @@ test("窄聊天列为正文增加容器比例留白，锚点仍固定在消息�
   assert.match(anchorRule, /left:\s*0\s*;/u);
 });
 
-test("权限、应用和能力关联位于同一操作组，窄宽时操作行可换行", () => {
-  const leftGroupStart = chatSource.indexOf('aria-label="添加、权限与关联"');
+test("应用和能力选择放进紧凑的更多菜单，权限与模型操作继续可见", () => {
+  const leftGroupStart = chatSource.indexOf('aria-label="添加、权限与更多操作"');
   const rightGroupStart = chatSource.indexOf('aria-label="模型、推理与发送"');
   const permissionControl = chatSource.indexOf("ai-work-chat__composer-control--permission", leftGroupStart);
-  const associationControls = chatSource.indexOf("ai-work-chat__associations", leftGroupStart);
+  const moreControl = chatSource.indexOf("ai-work-chat__composer-control--more", leftGroupStart);
+  const moreContentStart = chatSource.indexOf("const composerMoreContent");
   const actionsRule = chatStyles.match(/^\.ai-work-chat__composer-actions\s*\{([^}]*)\}/mu)?.[1] ?? "";
 
   assert.ok(leftGroupStart >= 0 && rightGroupStart > leftGroupStart);
-  assert.ok(permissionControl > leftGroupStart && associationControls > permissionControl && associationControls < rightGroupStart);
+  assert.ok(permissionControl > leftGroupStart && moreControl > permissionControl && moreControl < rightGroupStart);
+  assert.ok(moreContentStart >= 0 && moreContentStart < leftGroupStart);
+  assert.ok(chatSource.includes('composerMoreSection === "applications" ? "关联应用" : "Skill / 提示词 / 专家"'));
+  assert.match(chatSource, /overlayClassName="ai-work-chat__more-overlay"/u);
   assert.match(actionsRule, /flex-wrap:\s*wrap\s*;/u);
-  assert.match(chatStyles, /\.ai-work-chat__association-select--capability\s*\{[^}]*flex-basis:\s*192px\s*;/u);
   assert.match(chatSource, /aria-description="关联只提供参考，小鱼按目标决定是否加载。"/u);
+});
+
+test("更多菜单采用纵向操作行，选择面板限制最大宽高并跟随视口滚动", () => {
+  assert.match(chatStyles, /\.ai-work-chat__more-menu\s*\{[^}]*display:\s*grid/u);
+  assert.match(chatStyles, /\.ai-work-chat__more-menu-item\s*\{[^}]*grid-template-columns:\s*20px\s+minmax\(0,\s*1fr\)\s+auto\s+14px/u);
+  assert.match(chatStyles, /\.workbench-shell \.ai-work-chat__more-overlay \.ant-popover-inner\s*\{[^}]*max-height:\s*min\(420px,\s*calc\(100dvh - 24px\)\)/u);
+  assert.match(chatStyles, /\.ai-work-chat__more-menu-picker > \.ant-select\s*\{[^}]*width:\s*100%[^}]*min-width:\s*0/u);
+  assert.match(chatStyles, /data-we-glass-floaters[^\n]*ai-work-chat__more-overlay \.ant-popover-inner/u);
+  assert.match(chatStyles, /data-background-image="true"[^\n]*ai-work-chat__more-overlay/u);
+  assert.ok(chatStyles.includes('.workbench-shell[data-reduced-motion="on"] .ai-work-chat__more-overlay'));
+  assert.doesNotMatch(chatStyles, /@container ai-work-composer/u);
+  assert.doesNotMatch(composerRule, /container:\s*ai-work-composer/u);
 });

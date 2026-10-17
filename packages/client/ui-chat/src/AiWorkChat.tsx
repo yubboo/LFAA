@@ -294,6 +294,8 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
   const [composerSelectionRevision, setComposerSelectionRevision] = useState(0);
   const [associations, setAssociations] = useState<AgentAssociations>({ applicationIds: [], capabilityIds: [] });
   const [associationsBusy, setAssociationsBusy] = useState(false);
+  const [composerMoreOpen, setComposerMoreOpen] = useState(false);
+  const [composerMoreSection, setComposerMoreSection] = useState<"applications" | "capabilities" | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectId ?? null : newSessionProjectId);
   const [projectBusy, setProjectBusy] = useState(false);
   const [planModeBusy, setPlanModeBusy] = useState(false);
@@ -1668,6 +1670,35 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
     </div>
   );
 
+  const composerMoreContent = (
+    <div className="ai-work-chat__more-menu" aria-label="更多输入操作">
+      {composerMoreSection === null ? <>
+        <button className="ai-work-chat__more-menu-item" type="button" onClick={() => setComposerMoreSection("applications")}>
+          <WorkbenchIcon name="folder" size={17} />
+          <span>关联应用</span>
+          <small>{associations.applicationIds.length ? `已选 ${associations.applicationIds.length}` : "可选"}</small>
+          <WorkbenchIcon className="ai-work-chat__more-menu-chevron" name="chevron" size={13} />
+        </button>
+        <button className="ai-work-chat__more-menu-item" type="button" onClick={() => setComposerMoreSection("capabilities")}>
+          <WorkbenchIcon name="extension" size={17} />
+          <span>Skill / 提示词 / 专家</span>
+          <small>{associations.capabilityIds.length ? `已选 ${associations.capabilityIds.length}` : "可选"}</small>
+          <WorkbenchIcon className="ai-work-chat__more-menu-chevron" name="chevron" size={13} />
+        </button>
+      </> : <div className="ai-work-chat__more-menu-picker">
+        <button className="ai-work-chat__more-menu-back" type="button" onClick={() => setComposerMoreSection(null)}>
+          <WorkbenchIcon name="chevron" size={14} />更多
+        </button>
+        <strong>{composerMoreSection === "applications" ? "关联应用" : "Skill / 提示词 / 专家"}</strong>
+        {composerMoreSection === "applications"
+          ? <Select mode="multiple" optionFilterProp="label" allowClear maxCount={APPLICATION_IDS.length} aria-label="关联应用（可选）" aria-description="关联只提供参考，小鱼按目标决定是否加载。" title="关联只提供参考，小鱼按目标决定是否加载。" placeholder="搜索并选择应用" disabled={busy || associationsBusy} value={associations.applicationIds} options={APPLICATION_IDS.filter(id => id !== "workspace").map(id => ({ value: id, label: applicationAssociationLabels[id] }))} onChange={applicationIds => void changeAssociations({ ...associations, applicationIds })} />
+          : <Select mode="multiple" optionFilterProp="label" allowClear maxCount={16} aria-label="关联能力（可选）" aria-description="关联只提供参考，小鱼按目标决定是否加载。" title="关联只提供参考，小鱼按目标决定是否加载。" placeholder="搜索并选择能力" disabled={busy || associationsBusy || capabilities.length === 0} value={associations.capabilityIds} options={capabilities.map(item => ({ value: item.id, label: item.name }))} onChange={capabilityIds => void changeAssociations({ ...associations, capabilityIds })} />}
+        <small>关联只提供参考，小鱼按目标决定是否加载。</small>
+        {composerMoreSection === "capabilities" && capabilitiesError ? <Typography.Text type="danger">Skill 目录读取失败：{capabilitiesError}</Typography.Text> : null}
+      </div>}
+    </div>
+  );
+
   return (
     <section ref={setOutputFocusRegionElement} className={`ai-work-chat ai-work-chat--${appId}${composerMenu ? " ai-work-chat--composer-menu-open" : ""}`} data-output-idle="false" aria-label="小鱼智能体会话">
       {permissionModalContext}
@@ -1910,7 +1941,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
             disabled={projectBusy || associationsBusy || Boolean(editingMessage) || pendingInteraction?.kind === "question" || !activeAccount && !busy}
           />
           <div className="ai-work-chat__composer-actions">
-            <div className="ai-work-chat__composer-actions-group" aria-label="添加、权限与关联">
+            <div className="ai-work-chat__composer-actions-group" aria-label="添加、权限与更多操作">
               <Dropdown
                 trigger={["click"]}
                 placement="topLeft"
@@ -1959,11 +1990,21 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
                   <WorkbenchIcon name="chevron" size={12} />
                 </Button>
               </Dropdown>
-              <div className="ai-work-chat__associations" aria-label="本次对话的可选关联">
-                <Select mode="multiple" optionFilterProp="label" allowClear maxCount={APPLICATION_IDS.length} aria-label="关联应用（可选）" aria-description="关联只提供参考，小鱼按目标决定是否加载。" title="关联只提供参考，小鱼按目标决定是否加载。" placeholder="关联应用（可选）" disabled={busy || associationsBusy} value={associations.applicationIds} options={APPLICATION_IDS.filter(id => id !== "workspace").map(id => ({ value: id, label: applicationAssociationLabels[id] }))} onChange={applicationIds => void changeAssociations({ ...associations, applicationIds })} />
-                <Select className="ai-work-chat__association-select--capability" mode="multiple" optionFilterProp="label" allowClear maxCount={16} aria-label="关联能力（可选）" aria-description="关联只提供参考，小鱼按目标决定是否加载。" title="关联只提供参考，小鱼按目标决定是否加载。" placeholder="Skill / 提示词 / 专家（可选）" disabled={busy || associationsBusy || capabilities.length === 0} value={associations.capabilityIds} options={capabilities.map(item => ({ value: item.id, label: item.name }))} onChange={capabilityIds => void changeAssociations({ ...associations, capabilityIds })} />
-                {capabilitiesError ? <Typography.Text type="danger">Skill 目录读取失败：{capabilitiesError}</Typography.Text> : null}
-              </div>
+              <Popover
+                trigger="click"
+                placement="topLeft"
+                arrow={false}
+                overlayClassName="ai-work-chat__more-overlay"
+                getPopupContainer={(trigger) => trigger.closest<HTMLElement>(".ai-work-chat__composer") ?? trigger.closest<HTMLElement>(".workbench-shell") ?? document.body}
+                open={composerMoreOpen}
+                onOpenChange={(open) => {
+                  setComposerMoreOpen(open);
+                  if (!open) setComposerMoreSection(null);
+                }}
+                content={composerMoreContent}
+              >
+                <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--more" type="text" aria-haspopup="dialog" aria-expanded={composerMoreOpen} aria-label="更多输入操作" title="关联应用和能力" icon={<WorkbenchIcon name="grid" size={15} />}>更多</Button>
+              </Popover>
             </div>
             <div className="ai-work-chat__composer-actions-group ai-work-chat__composer-actions-group--right" aria-label="模型、推理与发送">
               <Popover
