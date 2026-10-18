@@ -33,7 +33,7 @@ export function evaluateContextPressure(
 ): ContextPressure {
   const capability = lookupDoubaoCapability(modelId);
   const contextWindow = capability?.contextWindow ?? 128_000;
-  const estimatedPromptTokens = estimatePromptTokens([...messages], tools === undefined ? undefined : [...tools]);
+  const estimatedPromptTokens = estimatePromptTokens(messages, tools);
   const remainingTokens = contextWindow - estimatedPromptTokens;
   return {
     modelId,

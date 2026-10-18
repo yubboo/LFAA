@@ -18,7 +18,6 @@ import { Alert, Button } from "antd";
 import {
   ApiError,
   getErrorMessage,
-  dismissDefaultCredentialReminder,
   loadDefaultCredentialReminder,
   loadCurrentUser,
   loadHealth,
@@ -507,13 +506,9 @@ export default function App() {
     }
   }
 
-  async function dismissCredentialReminder(): Promise<void> {
-    try {
-      await dismissDefaultCredentialReminder();
-      setCredentialReminder(null);
-    } catch (reminderError) {
-      setError(getErrorMessage(reminderError));
-    }
+  function dismissCredentialReminder(): void {
+    // “稍后再说”只收起本次提醒；账户状态保持待处理，下次登录会重新检查。
+    setCredentialReminder(null);
   }
 
   async function handlePasskeyLogin(): Promise<void> {

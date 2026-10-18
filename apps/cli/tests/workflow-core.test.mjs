@@ -23,6 +23,30 @@ test("v44 Minecraft 工作流保留并迁移到账户文件，SQLite 只保留 A
     PRAGMA foreign_keys = ON;
     CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL) STRICT;
     CREATE TABLE daemon_nodes (id TEXT PRIMARY KEY NOT NULL) STRICT;
+    -- v44 的 Minecraft 执行队列表仍由 Minecraft Owner 持有；后续 v55/v56 迁移会扩展它。
+    CREATE TABLE minecraft_instances (id TEXT PRIMARY KEY NOT NULL) STRICT;
+    CREATE TABLE minecraft_deployments (id TEXT PRIMARY KEY NOT NULL) STRICT;
+    CREATE TABLE minecraft_tasks (
+      id TEXT PRIMARY KEY NOT NULL,
+      node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+      instance_id TEXT REFERENCES minecraft_instances(id) ON DELETE SET NULL,
+      created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      kind TEXT NOT NULL CHECK (kind IN ('install', 'start', 'stop', 'properties', 'backup', 'java-install', 'restart', 'console')),
+      status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed')),
+      progress INTEGER NOT NULL DEFAULT 0 CHECK (progress BETWEEN 0 AND 100),
+      message TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      result_json TEXT,
+      created_at TEXT NOT NULL,
+      started_at TEXT,
+      finished_at TEXT,
+      lease_expires_at TEXT,
+      deployment_id TEXT REFERENCES minecraft_deployments(id) ON DELETE SET NULL
+    ) STRICT;
+    CREATE INDEX minecraft_tasks_node_queue_idx ON minecraft_tasks(node_id, status, created_at);
+    CREATE INDEX minecraft_tasks_recent_idx ON minecraft_tasks(created_at DESC);
+    CREATE INDEX minecraft_tasks_lease_idx ON minecraft_tasks(status, lease_expires_at);
+    CREATE INDEX minecraft_tasks_deployment_idx ON minecraft_tasks(deployment_id, created_at DESC);
     -- v44 已包含写作目录结构；这些空表让后续 v51 文件化迁移运行在真实旧版结构上。
     CREATE TABLE writing_books (
       id TEXT PRIMARY KEY NOT NULL,

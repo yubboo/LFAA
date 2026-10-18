@@ -63,20 +63,29 @@ test("大量历史用量可在重放后 O(Provider/模型组) 汇总，且不恢
       const before=sessionRecords.cacheStats();
       const originalAll=sessionRecords.all;
       sessionRecords.all=()=>{throw new Error('用量汇总不应逐会话加载历史记录');};
-      const startedAt=performance.now();
-      const actual=sessions.getAiUsageSummary('usage-owner');
-      const summaryDurationMs=performance.now()-startedAt;
+      for(let index=0;index<5;index++) assert.deepEqual(sessions.getAiUsageSummary('usage-owner'),expected);
+      const summarySamples=[];
+      let actual;
+      for(let index=0;index<31;index++){
+        const startedAt=performance.now();
+        actual=sessions.getAiUsageSummary('usage-owner');
+        summarySamples.push(performance.now()-startedAt);
+        assert.deepEqual(actual,expected);
+      }
       sessionRecords.all=originalAll;
-      assert.deepEqual(actual,expected);
       assert.deepEqual(sessionRecords.cacheStats(),before);
+      summarySamples.sort((a,b)=>a-b);
+      const percentile=value=>summarySamples[Math.ceil(value*summarySamples.length)-1];
+      const summaryDurationMs={p50:percentile(0.5),p95:percentile(0.95)};
       console.log(JSON.stringify({requestCount:actual.requestCount,providerModelGroups:actual.providers.length,summaryDurationMs}));
       close();
     `);
     const measurement = JSON.parse(result);
     assert.equal(measurement.requestCount, 4000);
     assert.equal(measurement.providerModelGroups, 4);
-    assert.ok(Number.isFinite(measurement.summaryDurationMs));
-    t.diagnostic(`4,000 条历史用量、4 个分组：汇总读取 ${measurement.summaryDurationMs.toFixed(3)} ms；未恢复会话缓存。`);
+    assert.ok(Number.isFinite(measurement.summaryDurationMs.p50));
+    assert.ok(Number.isFinite(measurement.summaryDurationMs.p95));
+    t.diagnostic(`4,000 条历史用量、4 个分组：汇总读取 P50 ${measurement.summaryDurationMs.p50.toFixed(3)} ms / P95 ${measurement.summaryDurationMs.p95.toFixed(3)} ms；未恢复会话缓存。`);
   } finally {
     assert.equal(dirname(resolve(data)), parent);
     assert.ok(basename(data).startsWith("lfaa-session-usage-summary-"));

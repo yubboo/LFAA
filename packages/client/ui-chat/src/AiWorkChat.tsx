@@ -14,7 +14,8 @@ import { Alert, Button, Dropdown, Empty, Input, Modal, Popover, Select, Spin, Ta
 import { appendAiTextDelta, answerAiRunQuestion, appendAiRunInput, applyWritingEditProposal, ApiError, cancelAiRun, createWorkspaceGitWorktree, createAiSessionBranchFromMessage, createAiSessionBranchFromMessageInWorktree, decideAiApproval, forkAiSessionBeforeUserMessage, getErrorMessage, loadSettings, loadAiAccounts, loadWritingEditProposal, loadAiMessages, loadAiSessions, loadWritingWorkspace, pauseAiRun, rejectWritingEditProposal, resumeAiRun, saveSettings, setAiSessionPlanMode, setAiSessionProject, streamAiChat, submitAiMessageFeedback, updateAiAccountModel, updateAiAccountReasoningMode, type AiAccount, type AiActivityItem, type AiMessage, type AiMessageFeedbackInput, type AiRunPauseState, type AiSession, type AiSessionBranchSource, type ApplicationId, type UserSettings, type WritingEditProposal, type WritingWorkspace, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
 import { notifyAiWorkAction, notifyAiWorkCompletion, type AiWorkGoalRequest, type AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
-import { AiWorkResponse } from "./AiWorkResponse.js";
+import { AiLiveActivityDuration, AiWorkResponse } from "./AiWorkResponse.js";
+import { aiActivityClock } from "./activity-clock.js";
 import { buildResponseTimeline } from "./response-timeline.js";
 import { formatAiActivityDuration, getAiActivityDisplayStatus, getAiActivityDurationSeconds, getAiActivitySummary } from "./activity-duration.js";
 import { buildConversationAnchors, conversationAnchorLabel, conversationAnchorReply, type ConversationAnchorPreview } from "./conversation-anchor-preview.js";
@@ -323,7 +324,6 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
     if (stopGuardTimerRef.current) clearTimeout(stopGuardTimerRef.current);
   }, []);
   useEffect(() => { if (!settings.aiRuntime.voiceInputEnabled) { stopListening.current?.(); stopListening.current = null; setListening(false); } if (!settings.aiRuntime.readResponsesAloud) stopVoicePlayback(); }, [settings.aiRuntime.voiceInputEnabled, settings.aiRuntime.readResponsesAloud]);
-  const [activityClock, setActivityClock] = useState(() => Date.now());
   const [expandedActivitySteps, setExpandedActivitySteps] = useState<{ messageId: string; activityIds: ReadonlySet<string> } | null>(null);
   function toggleActivityStep(messageId: string, activityId: string): void {
     setExpandedActivitySteps(current => {
@@ -790,9 +790,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
 
   useEffect(() => {
     if (!busy) return;
-    setActivityClock(Date.now());
-    const timer = window.setInterval(() => setActivityClock(Date.now()), 1000);
-    return () => window.clearInterval(timer);
+    return aiActivityClock.start();
   }, [busy]);
 
   useEffect(() => () => onBusyChange(false), [onBusyChange]);
@@ -1723,7 +1721,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
               {hasOlderMessages ? <div className="ai-work-chat__older-messages"><Button loading={loadingOlderMessages} onClick={() => void loadEarlierMessages()}>加载更早消息</Button></div> : null}
               {loading ? <Spin /> : messages.length ? messages.map((item, messageIndex) => {
             const usage = usageByMessage[item.id];
-            const activitySummary = getAiActivitySummary(item, activityClock);
+            const activitySummary = getAiActivitySummary(item);
             const pairedAssistant = item.role === "user" ? messages[messageIndex + 1] : undefined;
             const isEditingMessage = editingMessage?.messageId === item.id;
             const canEditMessage = item.role === "user" && pairedAssistant?.role === "assistant" && pairedAssistant.status !== "queued"
@@ -1734,10 +1732,12 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
             const renderActivity = (activity: AiActivityItem) => {
                   const activityExpanded = expandedActivitySteps?.messageId === item.id && expandedActivitySteps.activityIds.has(activity.id);
                   const activityDetailId = `ai-work-chat-activity-detail-${item.id}-${activity.id}`;
+                  const liveActivityDuration = busy && item.status === "streaming" && activity.status === "running"
+                    && typeof activity.durationMs !== "number" && !activity.completedAt;
                   return <div className={`ai-work-chat__activity-row ai-work-chat__activity-row--${activity.status}`} key={activity.id}>
                     <Button className="ai-work-chat__activity-step-toggle" type="text" aria-expanded={activityExpanded} aria-controls={activityDetailId} onClick={() => toggleActivityStep(item.id, activity.id)}>
                       <WorkbenchIcon name={activity.status === "running" ? "spark" : activity.status === "approval_required" ? "shield" : activity.status === "waiting_input" || activity.status === "unavailable" ? "help" : activity.status === "error" ? "close" : "review"} size={14} />
-                      <span className="ai-work-chat__activity-heading"><strong>{activity.title}</strong><span className={`ai-work-chat__activity-status ai-work-chat__activity-status--${activity.status}`}>{getAiActivityDisplayStatus(activity)}</span><span className="ai-work-chat__activity-duration">{formatAiActivityDuration(getAiActivityDurationSeconds(activity, activityClock))}</span></span>
+                      <span className="ai-work-chat__activity-heading"><strong>{activity.title}</strong><span className={`ai-work-chat__activity-status ai-work-chat__activity-status--${activity.status}`}>{getAiActivityDisplayStatus(activity)}</span><span className="ai-work-chat__activity-duration">{liveActivityDuration ? <AiLiveActivityDuration activity={activity} /> : formatAiActivityDuration(getAiActivityDurationSeconds(activity))}</span></span>
                       <WorkbenchIcon name="chevron" size={13} />
                     </Button>
                       {activity.fileChanges?.map((change, index) => {
@@ -1819,7 +1819,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
                     <Button size="small" disabled={editingMessage.phase === "sending"} onClick={cancelMessageEditing}>取消</Button>
                     <Button size="small" type="primary" loading={editingMessage.phase === "sending"} disabled={editingMessage.phase !== "ready" || !editingMessage.content.trim()} onClick={() => void submitEditedMessage()}>发送</Button>
                   </div>
-                </div> : item.role === "assistant" ? <AiWorkResponse message={item} now={activityClock} pauseLabel={messagePauseState === "paused" ? "已暂停" : messagePauseState === "pausing" ? "正在暂停" : undefined} renderActivity={renderActivity} renderInteraction={renderInteraction} /> : item.content}
+                </div> : item.role === "assistant" ? <AiWorkResponse message={item} pauseLabel={messagePauseState === "paused" ? "已暂停" : messagePauseState === "pausing" ? "正在暂停" : undefined} renderActivity={renderActivity} renderInteraction={renderInteraction} /> : item.content}
               </div>
               {item.role === "assistant" && settings.aiRuntime.showContextUsage && usage ? <small className="ai-work-chat__usage">{`${usage.promptTokens ?? "?"} 输入 · ${usage.completionTokens ?? "?"} 输出 tokens · ${usage.providerId} / ${usage.modelId}`}</small> : null}
               {item.role === "user" && item.content && !isEditingMessage ? <div className="ai-work-chat__message-actions ai-work-chat__message-actions--user">

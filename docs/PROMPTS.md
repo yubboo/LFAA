@@ -117,11 +117,44 @@
 | 105-外观主题与首屏画布-20261018 | 修复浅色/深色/跟随系统未同步生效，以及刷新时壁纸画布闪黑；校准现有遮罩与模糊映射 | 源码回归与构建完成；内置浏览器确认当前“跟随系统”刷新后保持深色，三主题交互及首帧帧时间仍待验 | [当前合同](#lfaa-appearance-theme-canvas-first-paint-20261018) |
 | 106-通知总开关与数据根核对-20261018 | 增加默认开启的弹出通知总开关，并核对隔离验收目录与产品数据根的区别 | 总开关关闭态恢复入口与类别暂停状态已修；定向回归、类型和 Web 构建通过；真实 admin 浏览器验收因默认 Home 不存在且 3000 端口为隔离服务而未运行；workspace Gate 有 10 项既存错误 | [当前合同](#lfaa-notification-master-switch-and-data-root-20261018) |
 | 108-共享弹窗视觉收敛-20261018 | 统一对话框表面、间距、标题和按钮；压缩首次配置/安全提醒重复文案，完整沿用 Appearance | 实施中 | [当前合同](#lfaa-shared-dialog-visual-unification-20261018) |
+| 109-AI Work与工作台渲染优化-20261019 | 减少设置页无意后台预载与 AI Work 秒级计时导致的整段历史消息重渲染 | 已实现；内置浏览器空闲资源核对通过；帧时间未测 | [实施记录](#lfaa-ai-work-timer-render-isolation-20261019) |
+| 110-SteamCMD收拢与分类提醒偏好-20261019 | 将 SteamCMD 安装/存储设置并入“项目与存储”，移除其首次配置弹窗；按类别保存 AI、业务存储提醒偏好，安全提醒“稍后再说”只关闭本次 | 已实现；窄屏未验收 | [当前合同](#lfaa-steamcmd-workspace-and-category-reminders-20261019) |
+| 111-LFAA全仓性能安全与可维护性优化-20261019 | 按用户给定的性能优化任务书审计全仓，以可复核基线驱动分批优化 | 第一轮基线、无语义数组分配削减、全量构建和核心回归完成；全仓后续热点审计仍进行中；全量回归与 workspace Gate 有既有失败 | [当前合同](#lfaa-whole-workspace-performance-security-maintainability-20261019) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
 | LFAA-REMAINING-GAP-REPAIR-20261008 | 修复 Tauri 兼容壳安全停机、Session 分页、MCP 会话复用和 Web 大块；分开记录运行验收边界 | 源码、定向回归、类型检查及隔离构建通过；仍有约 501 kB 懒加载 C++ 语法块告警。真实桌面/游戏/浏览器帧时间/远端 CI 未验收 | [当前合同](#lfaa-remaining-gap-repair-20261008) |
 | LFAA-WORKSPACE-AUDIT-REPAIR-20261008 | 核验 GLM 审查、修复运行风险与权威重复、整理中英文分类文档和自动门禁 | 整改与本地验证完成；实机退出/升级、长日志等缺口明确保留 | [当前合同](#lfaa-workspace-audit-repair-20261008) |
+
+<a id="lfaa-whole-workspace-performance-security-maintainability-20261019"></a>
+
+## 111-LFAA全仓性能安全与可维护性优化-20261019
+
+目标：按用户提供的《lfaa性能优化提示词.md》审计当前 `E:\lfaa1\lfaa` checkout，面向全仓检查性能、安全、重复/冲突逻辑及冗长热路径；先建立基线，再只实施有数据支持、可回归和可回滚的高收益优化。不是全量格式化或未经验证的架构重写。
+
+基线：仓库根 `E:\lfaa1\lfaa`；分支 `main`；HEAD `2e687211772973a7fd13302ca6b6cffc34a66f0b`。开始时工作树包含 AI Work/Workbench 计时和预载改动及其他既有修改；这些差异均须保留，触及前对照源码并注明归属。Web 正式入口是仓库 `pnpm lfaa web`，当前 3000 监听进程为 PID 38312，命令行指向本 checkout 的 `apps/cli/src/bin.ts web --no-local-daemon`。Node `v24.16.0`、pnpm `11.17.0`。用户已授权在核验归属、确认没有需保护的活动 Run 后重启该 LFAA 服务并以现有 `admin` 会话验收；不得创建账号、管理员、临时测试路由或使用替代账户。
+
+Owner 与边界：UI/SSE 为 `packages/client/connection` 与 `packages/client/ui-chat`；Agent 循环/上下文/工具派发为 `packages/core/agent-loop` 和各自 Context/Tool Owner；模型请求和 Token Meter 为 `packages/llm`；Session JSONL、投影与遥测为各 `packages/session/*` Owner；DAG 为 `packages/workflow/dag-engine`；应用入口由 `apps/*` 装配。用户身份、权限审批、取消、App/账户/节点隔离、Provider/模型选择、Settings Owner、Session 哈希链/fsync 提交语义和真实执行结果都不得被缓存或优化绕过。按当前代码确认实际所有权，不能把此导航列表当成实现事实。
+
+允许：登记全仓包/目录审查覆盖表；测量 SSE→React、Agent 请求→工具→续接、Session commit→fsync、Context/Schema 请求准备四条路径，报告样本、规模、冷/热状态及 P50/P95；盘点现有缓存、帧合并、压缩、重试、Profiler/Telemetry、测试及构建分包；对由测量证实的问题按独立批次修改单一职责域，补长期回归、受影响 README/架构/合同；复核依赖和代码安全边界；通过只读核验后的正式 3000 服务重启及现有登录态内置浏览器验收。
+
+禁止：修改或清理真实用户数据、凭据、游戏/项目数据、插件安装、正式备份或其他工作树；在热路径跳过模型推理、切换模型/思考参数、吞掉请求、绕过动态权限/审批、提前确认未持久化写入、重放未知写操作、并发未登记为安全的副作用；删除 fsync/哈希链/账户校验；新建第二套 Agent、工具、Session、缓存或权限 Owner；擅自升级技术栈/依赖或增加服务；改动无证据的问题、整仓格式化、清理既有差异；提交、推送、发布或部署。
+
+分批验收：B0 记录只读环境与当前真实链路，并对四条基线使用同一条件的可复现测量；实时 Provider latency 与合成测量分列。B1 仅在 UI Profiler/帧数据指出热点后优化 React/SSE，守住正文顺序/断线续接/分页/滚动；B2 仅在请求准备数据指出重复开销后优化 Context/静态 Schema 复用，执行时仍读最新权限、插件、账户和目标状态；B3 仅在 fsync/事件循环数据证实阻塞时考虑 Session 改造，并保留耐久确认、顺序、重放、哈希与崩溃恢复，否则记录保持现状的理由；B4 仅对现有 DAG Owner 中有依赖/资源/风险证明安全的节点考虑可配置有界并发；B5 按正式 Web 产物和真实加载瀑布调整代码分包、预载或资源清理。每批先复核、实现、直接回归/类型/构建，再在当前运行页面可达时做实页验收。变更一经实测无收益或有正确性/安全退化即停止并回滚该批。
+
+安全审计范围：逐目录盘点以 `docs/harness-packages.json` 与生成脚本为权威，区分占位/工程/产品包；安全扫描仅作线索，须沿 Controller→Owner→Daemon 实现校验认证、授权、路径/输入围栏、秘密脱敏、账户隔离和未知结果合同。任何未读目录或未扫描依赖均标明范围，不声称“全仓无漏洞”。所有产物写根 `dist/`，所有合成数据只用现有隔离测试设施。
+
+验收与报告：沿当前主链记录 Owner 时序与状态（已装配/未装配/待实测）；提供四条路径的基线和相同环境的优化后比较、样本数与 P50/P95，无法获取的 React commit、Provider、CPU/内存或帧数据明确记未测，不推算提升率。运行直接回归、Client/Host TypeScript、受影响包和 Web 构建、`pnpm run check:workspace`、`git diff --check` 与可用安全审计；真实页面至少常用桌面与窄/短视口，记录 `/work`、交互与服务重启结果。回滚方法为仅撤销本合同新增差异，不触碰开始时既有脏文件。分批追加实施记录，最终列全仓覆盖与剩余项；若未完成所有可独立证明的批次，保持进行中并明确下一步，不把局部优化宣称为整个项目彻底完成。
+
+第一轮基线与实施记录（2026-10-19）：`docs/harness-packages.json` 共登记 368 条包/目录（193 implemented、175 placeholder）；这是清单覆盖，不代表已逐个审计完成。沿性能 Owner 阅读既有基建后确认 UI 同帧合并、会话缓存边界、Agent 动态工具/权限重查、Session JSONL 哈希链与 fsync、DAG 输出上限和 Web 懒加载拆包已存在；没有在这些机制上重复造缓存或替代 Owner。一个可直接证明的冗余是 `evaluateContextPressure` 将 readonly messages 与可选 tools 分别浅拷贝后，`estimatePromptTokens` 又遍历两份全量数组；删除这两份临时数组传递，输入只读类型和估算语义不变。相同 Node 24.16 合成压力条件（1,000 条消息、约 523,890 字符、32 个工具 schema、每轮 50 次估算）基线 P50/P95 为 0.713/1.232 ms，修改后 0.689/1.591 ms。中位数仅低约 3.4%，尾延迟更高且运行波动，故只记录消除两次数组分配，不宣称稳定延迟提升或十倍加速；没有语义变化，因此保留这项低风险去冗余。
+
+新增/修正的直接回归：设置页工作区读取当前由项目存储 Owner 一次加载，更新性能合同测试去掉过期的独立 `loadDataDirectorySettings()` 期待；修正 v44 workflow 迁移夹具，使它包含后续 v55/v56 迁移实际依赖的 Minecraft 任务表和索引，不改生产迁移。用量汇总性能回归改为 5 次预热、31 次采样并报 P50/P95；4,000 条合成历史用量、4 个 Provider/模型组热查询约为 P50 0.001 ms / P95 0.008 ms，接近计时器分辨率，只证明读取现有账户汇总且不重放 Session。隔离 Session JSONL 299 字节提交实测：首次 4.333 ms，31 次热提交 P50 4.037 ms / P95 4.735 ms；fsync 属于耐久性合同，未删减。既有 1,000 个同帧 SSE 片段合并为单次更新的工作量回归通过；没有 React Profiler，因此未得到 React commit 或浏览器帧时间。
+
+直接验证（2026-10-19）：Client/Host TypeScript、`pnpm run build:control-plane`、`pnpm run build:web` 均通过；Web 构建转译 2,257 个模块并只写根 `dist/`，最大语言高亮块 501.30 KB（gzip 33.54 KB），工作区块 382.91 KB（gzip 100.95 KB），现有重资源已分块，尚无浏览器加载瀑布证据，未改拆包。核心回归命令 `node --import tsx --import ./register-package-loader.mjs --test tests/agent-response-latency.test.mjs tests/session-usage-summary-performance.test.mjs tests/client-performance.test.mjs tests/ai-work-sse-lifecycle.test.mjs tests/agent-runtime.test.mjs tests/workflow-core.test.mjs tests/execution-control.test.mjs`：59/59 通过。完整 CLI 回归 510 项中 491 通过、18 失败、1 跳过；失败涉及既有后台任务超时、AI 漫剧画布夹具、3 项 Portal/对话框旧样式断言、文件资源/权限/路径测试、完整 Web Profile 任务、Windows 沙盒构建产物、Remote Schema 合同和 Writing 迁移异常断言，均未通过放宽断言处理。`pnpm run check:workspace` 有 10 项既有错误：缺失职责路径、过期包清单、4 个历史截图和 2 条失效包链接；与本批无关。`git diff --check` 通过。
+
+安全核查范围与限制：`pnpm audit --prod --audit-level=high --registry=https://registry.npmjs.org` 通过，npm 官方 registry 未发现已知漏洞；仓库默认镜像不提供 audit bulk 接口。对 `packages/`、`apps/` 做了 shell:true、危险 HTML 注入和动态 eval sink 模式扫描，未发现实际产品 sink；唯一文本命中是 Git 审查界面展示的用户可复制命令字符串。该模式扫描不等于完整源代码安全审计，Controller→Owner→Daemon 全调用链尚未逐目录验证；后续逐域审计仍需覆盖身份/权限/路径/秘密/账户隔离。
+
+真实页面与重启验收（2026-10-19）：重启前核实端口为 `127.0.0.1:3000`，PID 38312 的可执行文件与命令行均属于当前 `E:\lfaa1\lfaa` Web CLI；ChatGPT 内置浏览器 1240×925 只读检查 `/settings?section=workspace` 与 `/work`，当前登录用户显示 admin，无活动 Run，Provider/模型只显示现有选择，未发送请求、保存偏好或写入业务数据。按用户授权停止该 PID 后，从同一 checkout 以原 Web CLI 命令重启，端口现由 PID 33104 持有；`http://127.0.0.1:3000/work` 返回 HTTP 200。重启后内置浏览器同一 1240×925 视口打开 `/work`，仍显示现有 admin 登录态、控制端已连接和同一 Provider/模型选择，空会话输入区可用，无错误/提醒弹窗，也没有发送模型请求；截图为本轮 CUA 验收结果。该次服务 stdout/stderr 文件时间戳未作为证据。常用桌面视口已检查；浏览器窄/短屏、帧时间/长任务、React Profiler、真实 Provider latency、CPU/内存曲线、Desktop/WebView 和所有 368 包逐目录安全审计未完成，本任务保持进行中。
 | LFAA-DESKTOP-UPDATE-DOWNLOAD-FLOW-01 | 修复 Electron 更新清单代理超时；增加真实下载进度、取消与完成后“重启并安装”闭环；将唯一发行文件输出到版本目录 | 进行中 | [当前合同](#lfaa-desktop-update-download-flow-01) |
 | LFAA-DESKTOP-UPDATE-HOVER-APPEARANCE-LATEST-01 | 完善桌面更新入口的悬浮日志卡片、点击提示、外观设置映射、瞬时检查失败恢复，并验证旧版直达最新稳定版 | 进行中 | [当前合同](#lfaa-desktop-update-hover-appearance-latest-01) |
 | LFAA-DESKTOP-UPDATE-CHECK-UI-UNBLOCK-01 | 修复桌面端更新检查在新版提示等待用户操作期间持续转圈的问题，让检查先明确返回发现版本，再独立等待下载选择 | 已实现（38 项定向回归、Windows x64 构建、包内版本/界面与更新清单对账通过；安装器未签名；弹窗交互和真实升级未验，未发布） | [合同](archive/contracts/09.md#lfaa-desktop-update-check-ui-unblock-01) |
@@ -2358,3 +2391,35 @@ Owner 与设置：共享外观由 `packages/client/ui-theme/src/common.css` 持�
 禁止：改变提醒策略、总开关、账户安全“更改/不更改”和当日暂停操作、内容位置选择/持久化、Modal 打开/关闭/确认行为、权限与数据 Owner；改变 Appearance 或 General 用户偏好；引入新颜色/间距 CSS 变量、依赖、GSAP 或新的浮层系统；创建测试账户/超级管理员、改动真实数据、结束归属不明服务、提交或发布。
 
 验收：定向 UI 回归覆盖提醒原有操作仍在、提醒单一标题、共享 Modal 主题/字号/壁纸/动效映射及窄短视口可滚动；运行相关类型检查和 `ui-theme`、`ui-layout`、Web 构建及 `git diff --check`。按当前源码工作区正式启动 Web，在 ChatGPT 内置浏览器 `/work` 检查提醒弹窗，以及一个普通表单/确认弹窗；检查桌面和窄/短视口的统一外框、滚动和按钮可达，不保存设置或触发内容/权限副作用。记录截图、路由、视口、源码/构建结果与浏览器工具限制；未完成实页检查不得记为通过。
+
+<a id="lfaa-ai-work-timer-render-isolation-20261019"></a>
+
+## 109-AI Work计时渲染优化-20261019
+
+目标：减少工作台可避免的后台加载与 AI Work 运行时的秒级渲染工作量。设置页仅在直接进入设置路由或用户对设置导航表达加载意图时预热；AI Work 仍保留秒级整轮/步骤耗时显示，但时钟更新与 `AiWorkChat` 主组件及历史消息映射隔离。
+
+Owner 与设置：`packages/client/ui-layout` 持有页面路由和设置页预热时机；`packages/client/ui-renderer` 保留直达设置路由的预热；`packages/client/ui-chat` 持有 AI Work 消息与活动的展示计时；消息状态和起止时间继续来自现有 Session/Agent API。无新增设置、持久化或依赖；继续沿用现有外观令牌。
+
+允许：设置页仅由直达路由或设置导航的鼠标悬停/键盘聚焦预热，移除与用户意图无关的空闲定时预载；由 AI Work 生命周期启动/停止可撤销的共享外部时钟，只让耗时文本消费时钟，摘要标签/色调仍由消息和活动数据决定；补充路由预热及计时生命周期/渲染隔离回归。保留流式内容、活动状态、等待审批/澄清和消息排序语义。
+
+禁止：更改 Provider/Agent/Session/权限逻辑、消息读取和持久化、用户设置；新增每条消息计时器或高频订阅、动态性能覆盖层、测试路由/假账户；重启或结束现有服务、操作真实数据、提交或发布。
+
+验收：工作台打开且用户未操作设置导航时不主动下载设置页；鼠标悬停/键盘聚焦设置导航仍可预热，直接打开设置路由仍预热。忙碌期间只有共享时钟每秒更新；`AiWorkChat` 不再持有秒级计时状态，时长标签仍随秒更新，消息正文/工具组/历史行不订阅时钟；空闲时不启动时钟，取消/卸载时撤销计时器。构造 1,000 个无订阅历史行与 2 个耗时订阅者，验证一次滴答只通知 2 个订阅者；标明这是时钟工作量/结构回归，不是 React 浏览器帧时间。运行路由预热与 AI Work 计时定向回归、Client 类型、ui-layout/ui-chat/Web 构建及 `git diff --check`；在 ChatGPT 内置浏览器实际 `/work` 核对设置模块未因空闲预载、页面可交互和无回归；不触发 Provider、保存偏好或改变真实数据。帧时间、50ms 长任务和桌面/移动设备未测时明确说明，不宣称十倍或全应用无卡顿。
+
+实施记录（2026-10-19）：`/work` 空闲预热移除后，内置浏览器 1240×925 的当前资源清单为 93 项（此前同路由记录 105 项），`modulepreload` 为 66 个（此前 78 个）；设置页和管理员页资源均未加载。页面可交互，未发送 Provider 请求或保存任何设置。设置页直达/导航预热回归、AI Work 计时呈现回归共 19/19 通过；共享计时器工作量回归 1/1 通过；Client 类型检查、`ui-layout`/`ui-chat` 包构建、Web 构建及差异空白检查通过。Web 构建仍报告多个大于 500 KiB 的代码块。`check:workspace` 因两处逐包职责路径、包目录清单、四个历史截图链接和两处目录链接共 10 项与本次无关的问题失败；仓库未提供 `workspace-preflight` 脚本。真实 Provider 运行中的计时显示、浏览器长任务/帧时间、桌面及移动设备未测，因此本记录不声称达到十倍或全应用无卡顿。
+
+<a id="lfaa-steamcmd-workspace-and-category-reminders-20261019"></a>
+
+## 110-SteamCMD收拢与分类提醒偏好-20261019
+
+目标：把 SteamCMD 工具安装配置、Steam 游戏目录与安装/校验入口集中在“项目与存储”；保留 SteamCMD 领域 Owner 与节点数据根路径语义，不再为 SteamCMD 单独弹首次配置提醒。AI Provider 与业务内容存储提醒各自可按天暂停、永久关闭或稍后再说；账户安全提醒的“稍后再说”只关闭当前会话中的这次提醒，下次登录仍按账户状态显示。
+
+Owner 与设置：设置页面由 `packages/client/ui-settings` 持有；SteamCMD 安装/游戏目录配置和任务继续经现有 SteamCMD API/Owner 保存、校验和派发，本机 Steam 游戏默认目录跟随当前业务内容根，远端节点使用自己的 `LFAA_DATA_DIR`；SteamCMD 工具目录独立使用节点 `LFAA_DATA_DIR` 下的 `lib/steamcmd`。General Settings Owner 持有 `general.aiProviderReminderEnabled`（新增，默认 true）和既有 `general.setupReminderEnabled`（保留为业务内容存储提醒）；旧账户缺少新字段时沿用旧 `setupReminderEnabled`，避免覆盖已保存的关闭偏好。每日暂停仅写当前账户浏览器本地、按提醒类别隔离的日期标记。`general.notificationPopupsEnabled` 仍是全局弹出通知总开关；`general.defaultAdminCredentialReminderEnabled` 继续控制安全提醒。Modal 外观和共享样式不在本任务修改范围。
+
+允许：将 SteamCMD 配置范围、在线/手动安装模式、工具目录、安装目标/校验操作及 Steam 游戏目录节点选择与编辑放在“项目与存储”；从设置导航移除独立 SteamCMD 配置分类，旧 `section=configuration` 链接归一到 `section=workspace`。去掉首次配置提醒对 SteamCMD 状态的检查与弹窗项。首次配置弹窗按 AI Provider 与业务内容存储分别读取长期开关和当日暂停；“不再提醒”只关闭当前类别，“稍后再说”只关闭本次显示；保留内容根迁移和 SteamCMD Owner 边界。账户安全提醒稍后动作只清除当前 Renderer 内存状态，不调用凭据确认 API。更新直接回归、受影响 README、架构事实及本合同/索引。
+
+禁止：更改 SteamCMD/游戏目录数据 Owner、把 SteamCMD 工具目录混入业务内容迁移、改动 `LFAA_HOME`/系统数据根、迁移真实数据、调用 Provider 或执行 SteamCMD 安装/校验任务、重置或写入真实 admin 偏好、修改弹窗视觉/布局、创建账户/超级管理员、测试路由/假数据、重启或结束未知服务、提交或发布。
+
+验收：以直接回归覆盖 General Settings 新字段默认/旧值归一化/写入校验、SteamCMD 页面归并与旧分类路由兼容、SteamCMD/游戏目录仍走原 Owner、SteamCMD 不再触发弹窗、AI 与内容存储“今天/永久/稍后”按类别生效、账户安全“稍后”下次登录仍可提醒。运行受影响回归、Client 类型检查、`ui-settings`/`ui-settings-general`/Renderer/Web 构建、`git diff --check` 和适用 workspace Gate。按仓库要求在 ChatGPT 内置浏览器以现有 admin 账号只读检查 `/settings?section=workspace` 与 `/work` 的实际源码页面，不保存账户设置、不点提醒偏好、不触发内容迁移或 SteamCMD 任务；记录视口、交互与未测项目。帧时间、真实节点安装、Desktop 和真实账户持久化未测时明确说明。
+
+实施与验证记录（2026-10-19）：SteamCMD 设置与入口已归并到“项目与存储”，SteamCMD 独立设置导航项和首配弹窗已移除；原 SteamCMD API/Owner 与本机业务内容根、远程节点 `LFAA_DATA_DIR` 路径语义保留。分类提醒使用独立长期偏好与按类别每日暂停标记；安全提醒“稍后再说”仅清除当前 Renderer 会话状态。内置浏览器使用当前已登录的 `admin` 会话只读检查 `/settings?section=workspace`（1240×925）与 `/work`：设置页展示当前业务目录 `C:\Users\yu\.lfaa\data` 和 SteamCMD 配置组；当前默认游戏路径显示为 `C:\Users\yu\.lfaa\data\games\steamcmd`；工作台没有 SteamCMD 首配弹窗；访问旧 `/settings?section=configuration` 自动归一到 workspace。未点击保存/提醒偏好、未修改真实设置、未执行 SteamCMD 任务或 Provider 请求。Web 服务由仓库 LFAA Web 命令的现有进程提供，未重启服务。视口缩放 API 不在当前内置浏览器能力内，窄/短屏及 Desktop 实机未验收；没有 Daemon 注册，因此安装/校验操作保持禁用。分类提醒/旧字段回归筛选 11/11 通过，`pnpm typecheck`、受影响包构建、`pnpm run build:web` 和 `git diff --check` 通过。完整直接回归有 1 项既有 Portal reduced-motion 选择器断言失败，与本任务无关且未改弹窗样式；`pnpm check:workspace` 仍有 10 项既有目录职责、清单及历史链接问题。构建输出仅到根 `dist/`，Web 构建另有现存大 chunk 警告。

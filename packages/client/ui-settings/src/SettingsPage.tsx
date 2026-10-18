@@ -6,7 +6,7 @@ import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-me
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-update.mjs";
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
-import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, reprobeAiAccount, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, reprobeAiAccount, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { minecraftSceneBackgrounds } from "lfaa-util-values/src/builtin-backgrounds.js";
 import { cacheLoginBackground } from "lfaa-client-ui-theme/src/login-background.js";
 import { getBrowserNotificationPermission, playNotificationSound, requestBrowserNotificationPermission, sendBrowserNotification, type BrowserNotificationPermission } from "lfaa-client-resources/src/notification-runtime.js";
@@ -120,7 +120,7 @@ const PLUGIN_WORKSPACE_TABS: Array<{ id: PluginWorkspaceTab; label: string }> = 
   { id: "diagnostics", label: "运行诊断" }
 ];
 // 只在进入需要真实数据的分类时请求专属数据，避免首次打开设置就并发加载全部分类。
-const SETTINGS_DATA_SECTIONS = new Set<SectionId>(["configuration", "appearance", "usage", "plugins", "archived", "ai", "minecraft", "permissions", "workspace", "developer"]);
+const SETTINGS_DATA_SECTIONS = new Set<SectionId>(["appearance", "usage", "plugins", "archived", "ai", "minecraft", "permissions", "workspace", "developer"]);
 
 const EXTENSION_CATEGORIES: Array<{ kind: AiExtension["kind"]; label: string; description: string; icon: WorkbenchIconName }> = [
   { kind: "agent", label: "Agent", description: "承担任务规划与执行的 Agent 配置。", icon: "spark" },
@@ -194,7 +194,6 @@ const sections: Array<{ id: SectionId; title: string; group: string; icon: Workb
   { id: "trustedContacts", title: "受信任联系人", group: "个人", icon: "user" },
   { id: "voice", title: "语音", group: "个人", icon: "spark" },
   { id: "about", title: "关于与更新", group: "个人", icon: "refresh" },
-  { id: "configuration", title: "SteamCMD 配置", group: "LFAA 配置", icon: "settings" },
   { id: "personalization", title: "个性化", group: "个人", icon: "sun" },
   { id: "mini", title: "Mini 与虚拟宠物", group: "个人", icon: "bolt" },
   { id: "shortcuts", title: "键盘快捷键", group: "个人", icon: "keyboard" },
@@ -218,7 +217,7 @@ const sections: Array<{ id: SectionId; title: string; group: string; icon: Workb
   { id: "workspace", title: "项目与存储", group: "LFAA 配置", icon: "folder" },
   { id: "developer", title: "开发者", group: "LFAA 配置", icon: "terminal" }
 ];
-const LFAA_CONFIGURATION_SECTION_IDS = new Set<SectionId>(["configuration", "ai", "minecraft", "permissions", "workspace", "developer"]);
+const LFAA_CONFIGURATION_SECTION_IDS = new Set<SectionId>(["ai", "minecraft", "permissions", "workspace", "developer"]);
 const LFAA_CONFIGURATION_SECTIONS = sections.filter((section) => LFAA_CONFIGURATION_SECTION_IDS.has(section.id));
 const SETTINGS_NAV_GROUPS = [...new Set(sections.map((section) => section.group))];
 
@@ -232,7 +231,11 @@ const SETTINGS_BACKGROUND_TARGETS = ["login", "appCenter", "steamcmd", "minecraf
 type SettingsBackgroundTarget = typeof SETTINGS_BACKGROUND_TARGETS[number];
 
 function isSettingsSection(value: string | null): value is SectionId {
-  return sections.some((section) => section.id === value);
+  return value === "configuration" || sections.some((section) => section.id === value);
+}
+
+function resolveSettingsSection(section: SectionId): SectionId {
+  return section === "configuration" ? "workspace" : section;
 }
 
 function settingsCategoryForSection(section: SectionId): keyof UserSettings | null {
@@ -302,12 +305,12 @@ function readSettingsBackgroundTarget(userId: string): SettingsBackgroundTarget 
 function getInitialSettingsSection(initialSection: SectionId | undefined, userId: string, standalonePluginWorkspace = false, standalonePluginSection: "plugins" | "wallpaperEngine" = "plugins"): SectionId {
   if (standalonePluginWorkspace) return standalonePluginSection;
   const querySection = new URLSearchParams(window.location.search).get("section");
-  if (isSettingsSection(querySection) && querySection !== "plugins" && querySection !== "connections" && querySection !== "wallpaperEngine") return querySection;
-  if (initialSection && initialSection !== "plugins" && initialSection !== "connections" && initialSection !== "wallpaperEngine") return initialSection;
+  if (isSettingsSection(querySection) && querySection !== "plugins" && querySection !== "connections" && querySection !== "wallpaperEngine") return resolveSettingsSection(querySection);
+  if (initialSection && initialSection !== "plugins" && initialSection !== "connections" && initialSection !== "wallpaperEngine") return resolveSettingsSection(initialSection);
 
   try {
     const storedSection = window.localStorage.getItem(settingsSectionStorageKey(userId));
-    if (isSettingsSection(storedSection) && storedSection !== "plugins" && storedSection !== "connections" && storedSection !== "wallpaperEngine") return storedSection;
+    if (isSettingsSection(storedSection) && storedSection !== "plugins" && storedSection !== "connections" && storedSection !== "wallpaperEngine") return resolveSettingsSection(storedSection);
   } catch {
     // 浏览器禁用本地存储时仍可通过 URL 保留当前分类。
   }
@@ -460,6 +463,16 @@ function displaySteamcmdPath(node: { dataRoot: string | null } | null, relativeP
   return root ? `${root}${separator}${relativePath.split("/").join(separator)}` : `LFAA_DATA_DIR/${relativePath}`;
 }
 
+/** 本机默认 Steam 游戏目录跟随业务内容根；节点覆盖或远端默认仍按节点根展示。 */
+function displaySteamcmdGamePath(node: { dataRoot: string | null } | null, relativePath: string, contentDirectory?: string): string {
+  if (/^[a-z]:[\\/]/iu.test(relativePath) || relativePath.startsWith("/")) return relativePath;
+  if (node) return displaySteamcmdPath(node, relativePath);
+  const root = contentDirectory?.replace(/[\\/]+$/u, "");
+  if (!root) return displaySteamcmdPath(null, relativePath);
+  const separator = root.includes("\\") ? "\\" : "/";
+  return `${root}${separator}${relativePath.split(/[\\/]/u).join(separator)}`;
+}
+
 
 
 
@@ -501,7 +514,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [settings, setSettings] = useState<UserSettings>(workbenchSettings);
   const [skillDirectoriesDraft, setSkillDirectoriesDraft] = useState<string | null>(null);
   const [setupReminderLocalDay, setSetupReminderLocalDay] = useState(() => getSetupReminderLocalDay());
-  const [setupReminderPausedToday, setSetupReminderPausedToday] = useState(() => isSetupReminderSnoozedToday(user.id));
+  const [contentStorageReminderPausedToday, setContentStorageReminderPausedToday] = useState(() => isSetupReminderSnoozedToday(user.id, getSetupReminderLocalDay(), "content-storage"));
+  const [aiProviderReminderPausedToday, setAiProviderReminderPausedToday] = useState(() => isSetupReminderSnoozedToday(user.id, getSetupReminderLocalDay(), "ai-provider"));
   const settingsRef = useRef(settings);
   const settingsRevisionRef = useRef(new Map<keyof UserSettings, number>());
   const settingsAutoSaveTimersRef = useRef(new Map<keyof UserSettings, number>());
@@ -580,7 +594,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [minecraftStorageDefaults, setMinecraftStorageDefaults] = useState<MinecraftStorageSettings>(() => cachedSettingsData?.minecraftStorageDefaults ?? { instanceDirectory: "games/minecraft" });
   const [minecraftStorageDraft, setMinecraftStorageDraft] = useState<MinecraftStorageSettings>(() => cachedSettingsData?.minecraftStorageDraft ?? { instanceDirectory: "games/minecraft" });
   const [steamcmdTask, setSteamcmdTask] = useState<SteamcmdTask | null>(null);
-  const [steamcmdAction, setSteamcmdAction] = useState<"save" | "install" | "verify" | null>(null);
+  const [steamcmdAction, setSteamcmdAction] = useState<"save-configuration" | "save-storage" | "install" | "verify" | null>(null);
   const [uploadedBackgrounds, setUploadedBackgrounds] = useState<AppearanceBackground[]>(() => cachedSettingsData?.uploadedBackgrounds ?? []);
   const [backgroundTarget, setBackgroundTarget] = useState<SettingsBackgroundTarget>(() => readSettingsBackgroundTarget(user.id));
   const [uploadingBackground, setUploadingBackground] = useState(false);
@@ -857,7 +871,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   }, []);
 
   useEffect(() => {
-    setSetupReminderPausedToday(isSetupReminderSnoozedToday(user.id, setupReminderLocalDay));
+    setContentStorageReminderPausedToday(isSetupReminderSnoozedToday(user.id, setupReminderLocalDay, "content-storage"));
+    setAiProviderReminderPausedToday(isSetupReminderSnoozedToday(user.id, setupReminderLocalDay, "ai-provider"));
   }, [setupReminderLocalDay, user.id]);
 
   useEffect(() => {
@@ -894,10 +909,11 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   useEffect(() => {
     const requestedSection = sectionRequest?.section;
     if (standalonePluginWorkspace || !requestedSection) return;
-    setActiveSection(requestedSection);
-    const group = sections.find((item) => item.id === requestedSection)?.group;
+    const targetSection = resolveSettingsSection(requestedSection);
+    setActiveSection(targetSection);
+    const group = sections.find((item) => item.id === targetSection)?.group;
     if (group) setExpandedSettingsGroups((current) => new Set(current).add(group));
-    persistSettingsSection(requestedSection, user.id);
+    persistSettingsSection(targetSection, user.id);
   }, [sectionRequest?.requestId, standalonePluginWorkspace, user.id]);
 
   useEffect(() => {
@@ -1043,22 +1059,6 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             setUploadedBackgrounds(result.backgrounds);
             break;
           }
-          case "configuration": {
-            if (canAdmin) {
-              const steamcmdResult = await loadSteamcmdSettings();
-              setSteamcmdNodes(steamcmdResult.nodes);
-              setSteamcmdConfigurationDefaultsConfigured(steamcmdResult.configurationDefaultsConfigured);
-              setSteamcmdConfigurationDefaults(steamcmdResult.configurationDefaults);
-              setSteamcmdConfigurationDraft(steamcmdResult.configurationDefaults);
-              setSteamcmdStorageDefaultsConfigured(steamcmdResult.storageDefaultsConfigured);
-              setSteamcmdStorageDefaults(steamcmdResult.storageDefaults);
-              setSteamcmdStorageDraft(steamcmdResult.storageDefaults);
-              setSelectedSteamcmdConfigurationNodeId("");
-              setSelectedSteamcmdStorageNodeId("");
-              setSelectedSteamcmdInstallNodeId("");
-            }
-            break;
-          }
           case "ai": {
             if (!cachedSettingsData?.loadedSections.has("ai")) setAiAccountsLoadState("loading");
             try {
@@ -1120,12 +1120,17 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                 ? "recommended"
                 : projectStorageResult.settings.contentDirectory === projectStorageResult.settings.defaultContentDirectory ? "default" : "custom");
               setSteamcmdNodes(steamcmdResult.nodes);
+              setSteamcmdConfigurationDefaultsConfigured(steamcmdResult.configurationDefaultsConfigured);
+              setSteamcmdConfigurationDefaults(steamcmdResult.configurationDefaults);
+              setSteamcmdConfigurationDraft(steamcmdResult.configurationDefaults);
+              setSelectedSteamcmdConfigurationNodeId("");
               setSteamcmdStorageDefaultsConfigured(steamcmdResult.storageDefaultsConfigured);
               setSteamcmdStorageDefaults(steamcmdResult.storageDefaults);
               setMinecraftStorageNodes(minecraftResult.nodes);
               setMinecraftStorageDefaultsConfigured(minecraftResult.defaultsConfigured);
               setMinecraftStorageDefaults(minecraftResult.defaults);
               setSelectedSteamcmdStorageNodeId("");
+              setSelectedSteamcmdInstallNodeId("");
               setSteamcmdStorageDraft(steamcmdResult.storageDefaults);
               setMinecraftStorageDraft(minecraftResult.defaults);
             } else await loadHealthOnce();
@@ -1200,6 +1205,10 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const selectedSteamcmdStorageNode = steamcmdNodes.find((node) => node.id === selectedSteamcmdStorageNodeId) ?? null;
   const selectedMinecraftStorageNode = minecraftStorageNodes.find((node) => node.id === selectedMinecraftStorageNodeId) ?? null;
   const selectedSteamcmdInstallNode = steamcmdNodes.find((node) => node.id === selectedSteamcmdInstallNodeId) ?? null;
+  const steamcmdGameDirectoryToDisplay = selectedSteamcmdStorageNode && !selectedSteamcmdStorageNode.storageConfigured
+    ? selectedSteamcmdStorageNode.storage.gameDirectory
+    : steamcmdStorageDraft.gameDirectory;
+  const displayedSteamcmdGameDirectory = displaySteamcmdGamePath(selectedSteamcmdStorageNode, steamcmdGameDirectoryToDisplay, projectStorageLocations?.contentDirectory);
   const selectedSteamcmdInstallNodeCanRunTasks = Boolean(selectedSteamcmdInstallNode
     && selectedSteamcmdInstallNode.status === "online"
     && selectedSteamcmdInstallNode.platform === "win32"
@@ -1232,7 +1241,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     const node = steamcmdNodes.find((item) => item.id === nodeId);
     if (!node) return;
     setSelectedSteamcmdStorageNodeId(nodeId);
-    setSteamcmdStorageDraft({ ...node.storage });
+    // 节点未覆盖时保留相对默认值，让本机路径继续跟随当前业务内容根。
+    setSteamcmdStorageDraft(node.storageConfigured ? { ...node.storage } : { ...steamcmdStorageDefaults });
   }
 
   function selectMinecraftStorageNode(nodeId: string): void {
@@ -1358,10 +1368,36 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   }
 
   async function saveSteamcmdConfiguration(): Promise<void> {
-    setSteamcmdAction("save");
+    setSteamcmdAction("save-configuration");
     try {
       await persistSteamcmdConfigurationDraft();
       messageApi.success(selectedSteamcmdConfigurationNodeId ? "当前 daemon 节点的 SteamCMD 安装配置已保存。" : "SteamCMD 默认安装配置已保存；新 daemon 节点会继承。");
+    } catch (saveError) {
+      messageApi.error(getErrorMessage(saveError));
+    } finally {
+      setSteamcmdAction(null);
+    }
+  }
+
+  async function saveSteamcmdStorage(): Promise<void> {
+    setSteamcmdAction("save-storage");
+    try {
+      if (!selectedSteamcmdStorageNodeId) {
+        const { settings: savedSettings } = await saveSteamcmdStorageDefaults(steamcmdStorageDraft);
+        setSteamcmdStorageDefaults(savedSettings);
+        setSteamcmdStorageDraft(savedSettings);
+        setSteamcmdStorageDefaultsConfigured(true);
+        const refreshedSettings = await loadSteamcmdSettings();
+        setSteamcmdNodes(refreshedSettings.nodes);
+        messageApi.success("Steam 游戏默认目录已保存；未单独覆盖的节点会继承此位置。");
+      } else {
+        const { settings: savedSettings } = await saveSteamcmdNodeStorageSettings(selectedSteamcmdStorageNodeId, steamcmdStorageDraft);
+        setSteamcmdStorageDraft({ gameDirectory: savedSettings.gameDirectory });
+        setSteamcmdNodes(current => current.map(node => node.id === selectedSteamcmdStorageNodeId
+          ? { ...node, storage: { ...node.storage, ...savedSettings }, storageConfigured: true }
+          : node));
+        messageApi.success("当前 daemon 节点的 Steam 游戏目录已保存。");
+      }
     } catch (saveError) {
       messageApi.error(getErrorMessage(saveError));
     } finally {
@@ -1540,16 +1576,18 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     updateSettings("general", { ...settings.general, ...patch });
   }
 
-  function updateSetupReminderSnooze(paused: boolean): void {
+  function updateSetupReminderSnooze(category: "ai-provider" | "content-storage", paused: boolean): void {
     const saved = paused
-      ? setSetupReminderSnoozedToday(user.id, setupReminderLocalDay)
-      : clearSetupReminderSnooze(user.id);
+      ? setSetupReminderSnoozedToday(user.id, setupReminderLocalDay, category)
+      : clearSetupReminderSnooze(user.id, category);
     if (!saved) {
       messageApi.error("浏览器当前无法保存本地提醒状态，请检查本地存储权限后重试。");
       return;
     }
-    setSetupReminderPausedToday(paused);
-    messageApi.success(paused ? "首次配置提醒今天已暂停。" : "已恢复今天的首次配置提醒。");
+    if (category === "ai-provider") setAiProviderReminderPausedToday(paused);
+    else setContentStorageReminderPausedToday(paused);
+    const categoryLabel = category === "ai-provider" ? "AI Provider 配置提醒" : "业务内容存储提醒";
+    messageApi.success(paused ? `${categoryLabel}今天已暂停。` : `已恢复今天的${categoryLabel}。`);
   }
 
   function updateAppearanceAdvanced(patch: Partial<UserSettings["appearance"]["advanced"]>): void {
@@ -2124,7 +2162,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         {notificationPermission === "default" ? <Button onClick={() => void enableBrowserNotifications()}>启用通知</Button> : null}
         {notificationPermission === "granted" ? <Button onClick={sendNotificationTest} disabled={!settings.general.notificationPopupsEnabled}>发送测试通知</Button> : null}
       </SettingRow>
-      <SettingRow title="默认账户安全提醒" description="首次使用系统默认账户登录后，提醒你更改用户名和密码；修改完成或选择稍后再说后不会重复弹出。" status={notificationCategoryStatus(settings.general.defaultAdminCredentialReminderEnabled)}>
+      <SettingRow title="默认账户安全提醒" description="首次使用系统默认账户登录后，提醒你更改用户名和密码；修改完成或选择不更改后停止提醒，稍后再说会在后续登录时再次提醒。" status={notificationCategoryStatus(settings.general.defaultAdminCredentialReminderEnabled)}>
         <SettingsSwitch label="默认账户安全提醒" checked={settings.general.defaultAdminCredentialReminderEnabled} onChange={() => updateGeneral({ defaultAdminCredentialReminderEnabled: !settings.general.defaultAdminCredentialReminderEnabled })} />
       </SettingRow>
       <SettingRow title="小鱼智能体 回复完成" description="回复完成后在工作台通知栏和右下角提醒；浏览器系统通知按下方策略投递。" status={notificationCategoryStatus(settings.general.completionNotification !== "never", completionNotificationLabel)}>
@@ -2133,11 +2171,17 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       <SettingRow title="小鱼智能体 会话出错" description="回复生成失败时，在通知栏和右下角显示提醒；点击可返回出错的会话查看详情。" status={notificationCategoryStatus(settings.general.sessionIssueNotifications)}>
         <SettingsSwitch label="会话问题提醒" checked={settings.general.sessionIssueNotifications} onChange={() => updateGeneral({ sessionIssueNotifications: !settings.general.sessionIssueNotifications })} />
       </SettingRow>
-      <SettingRow title="首次配置提醒" description="当 AI Provider、SteamCMD 或业务内容存储位置尚未配置时，在工作台提示；完成配置后自动停止。关闭此项只停用首次配置提醒，不影响其他类别。" status={notificationCategoryStatus(settings.general.setupReminderEnabled)}>
-        <SettingsSwitch label="首次配置提醒" checked={settings.general.setupReminderEnabled} onChange={() => updateGeneral({ setupReminderEnabled: !settings.general.setupReminderEnabled })} />
+      <SettingRow title="AI Provider 配置提醒" description="没有可用 Provider 账户时在工作台提醒；添加并启用账户后自动停止。关闭此项只停用 AI Provider 提醒。" status={notificationCategoryStatus(settings.general.aiProviderReminderEnabled)}>
+        <SettingsSwitch label="AI Provider 配置提醒" checked={settings.general.aiProviderReminderEnabled} onChange={() => updateGeneral({ aiProviderReminderEnabled: !settings.general.aiProviderReminderEnabled })} />
       </SettingRow>
-      <SettingRow title="今日不再提醒" description="仅对当前账户和此浏览器生效，暂停到本地今天结束，明天自动恢复；不会更改各类别的长期开关。" status={!settings.general.notificationPopupsEnabled ? "通知总开关已关闭" : !settings.general.setupReminderEnabled ? "首次配置提醒已关闭" : setupReminderPausedToday ? "今日已暂停" : "今日未暂停"}>
-        <SettingsSwitch label="今日不再提醒" checked={setupReminderPausedToday} disabled={!settings.general.notificationPopupsEnabled || !settings.general.setupReminderEnabled} onChange={() => updateSetupReminderSnooze(!setupReminderPausedToday)} />
+      <SettingRow title="业务内容存储提醒" description="尚未选择游戏、小说与漫剧内容目录时在工作台提醒；确认默认、推荐或自定义位置后自动停止。关闭此项只停用该类别。" status={notificationCategoryStatus(settings.general.setupReminderEnabled)}>
+        <SettingsSwitch label="业务内容存储提醒" checked={settings.general.setupReminderEnabled} onChange={() => updateGeneral({ setupReminderEnabled: !settings.general.setupReminderEnabled })} />
+      </SettingRow>
+      <SettingRow title="AI Provider 今日不再提醒" description="仅对当前账户和此浏览器生效，暂停到本地今天结束，明天自动恢复；不更改 AI Provider 长期开关。" status={!settings.general.notificationPopupsEnabled ? "通知总开关已关闭" : !settings.general.aiProviderReminderEnabled ? "AI Provider 提醒已关闭" : aiProviderReminderPausedToday ? "今日已暂停" : "今日未暂停"}>
+        <SettingsSwitch label="AI Provider 今日不再提醒" checked={aiProviderReminderPausedToday} disabled={!settings.general.notificationPopupsEnabled || !settings.general.aiProviderReminderEnabled} onChange={() => updateSetupReminderSnooze("ai-provider", !aiProviderReminderPausedToday)} />
+      </SettingRow>
+      <SettingRow title="业务存储今日不再提醒" description="仅对当前账户和此浏览器生效，暂停到本地今天结束，明天自动恢复；不更改业务存储提醒长期开关。" status={!settings.general.notificationPopupsEnabled ? "通知总开关已关闭" : !settings.general.setupReminderEnabled ? "业务存储提醒已关闭" : contentStorageReminderPausedToday ? "今日已暂停" : "今日未暂停"}>
+        <SettingsSwitch label="业务存储今日不再提醒" checked={contentStorageReminderPausedToday} disabled={!settings.general.notificationPopupsEnabled || !settings.general.setupReminderEnabled} onChange={() => updateSetupReminderSnooze("content-storage", !contentStorageReminderPausedToday)} />
       </SettingRow>
       <SettingRow title="AI 工具权限请求" description="审批操作统一在当前 小鱼智能体 输入框上方处理；此开关控制通知栏和后台系统通知提醒，不会隐藏当前会话中的待处理审批。" status={notificationCategoryStatus(settings.general.permissionNotifications)}>
         <SettingsSwitch label="审批提醒" checked={settings.general.permissionNotifications} onChange={() => updateGeneral({ permissionNotifications: !settings.general.permissionNotifications })} />
@@ -3116,7 +3160,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
     if (activeSection === "workspace") return (
       <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">业务数据</span><Typography.Title level={2}>项目与存储</Typography.Title><Typography.Paragraph>本页只设置游戏、小说与漫剧内容目录。默认使用 LFAA Home 下的 data；推荐位置按当前项目或安装根生成 data。账户、Provider、会话和设置仍由本机 LFAA Home 管理，插件由各自 Profile 管理。</Typography.Paragraph></div></header>
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">业务数据</span><Typography.Title level={2}>项目与存储</Typography.Title><Typography.Paragraph>集中设置游戏、小说与漫剧的业务 data 目录，以及 SteamCMD 工具和 Steam 游戏目录。SteamCMD 和游戏文件仍由目标节点的游戏 Owner 管理；账户、Provider、会话和设置仍由本机 LFAA Home 管理，插件由各自 Profile 管理。</Typography.Paragraph></div></header>
         {!canAdmin ? <Alert className="settings-inline-alert" type="warning" showIcon message="应用存储路径由管理员配置。" /> : null}
         {canAdmin && projectStorageLocations ? <SettingGroup title="业务内容存储位置">
           <div className="settings-storage-panel">
@@ -3169,12 +3213,52 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             </div>}
           </div>
         </SettingGroup> : null}
+        {canAdmin ? <SettingGroup title="SteamCMD 工具配置">
+          <SettingRow title="编辑配置范围" description="选择全局默认或一个节点的安装配置。全局默认供未单独覆盖的节点使用；只决定编辑和保存哪份配置。" status={selectedSteamcmdConfigurationNode ? "节点覆盖" : "全局默认"}>
+            <Select value={selectedSteamcmdConfigurationNodeId || "__defaults__"} options={[{ value: "__defaults__", label: "全局默认设置" }, ...steamcmdNodes.map(node => ({ value: node.id, label: `${node.displayName} · ${node.status === "online" ? "在线" : "离线"}` }))]} onChange={selectSteamcmdConfigurationNode} />
+          </SettingRow>
+          <SettingRow title="当前安装配置" description={selectedSteamcmdConfigurationNode ? `${selectedSteamcmdConfigurationNode.displayName} · ${selectedSteamcmdConfigurationNode.status === "online" ? "在线；任务目标在下方选择。" : "节点离线；仍可保存此节点配置。"}` : "所有未单独覆盖的节点使用此默认配置。"} status={selectedSteamcmdConfigurationNode?.configurationConfigured ? "节点已覆盖" : steamcmdConfigurationDefaultsConfigured ? "默认配置已保存" : "推荐默认值"}>
+            <Tag color={selectedSteamcmdConfigurationNode?.configurationConfigured || steamcmdConfigurationDefaultsConfigured ? "blue" : "default"}>{selectedSteamcmdConfigurationNode?.configurationConfigured ? "节点已覆盖" : steamcmdConfigurationDefaultsConfigured ? "默认配置已保存" : "推荐默认值"}</Tag>
+          </SettingRow>
+          <SettingRow title="安装模式" description={steamcmdConfigurationDraft.installMode === "online" ? "从 Valve 官方 CDN 下载并安装 SteamCMD。" : "使用目录中已有的 steamcmd.exe，并在校验时启动它。"}>
+            <Radio.Group value={steamcmdConfigurationDraft.installMode} disabled={steamcmdAction !== null} onChange={event => updateSteamcmdConfigurationDraft("installMode", event.target.value)} optionType="button" buttonStyle="solid" options={[{ label: "在线安装", value: "online" }, { label: "手动指定", value: "manual" }]} />
+          </SettingRow>
+          <SettingRow title="SteamCMD 工具目录" description={`完整位置：${displaySteamcmdPath(selectedSteamcmdConfigurationNode, steamcmdConfigurationDraft.steamcmdDirectory || "lib/steamcmd")}。目录相对于目标节点的 LFAA_DATA_DIR，与业务内容根分开保存。`}>
+            <Input value={steamcmdConfigurationDraft.steamcmdDirectory} disabled={steamcmdAction !== null} onChange={event => updateSteamcmdConfigurationDraft("steamcmdDirectory", event.target.value)} placeholder="lib/steamcmd" />
+          </SettingRow>
+          <SettingRow title="保存工具配置" description="只保存所选范围的 SteamCMD 安装方式和工具目录，不移动游戏文件。">
+            <Space wrap>
+              <Button disabled={steamcmdAction !== null} onClick={() => setSteamcmdConfigurationDraft({ installMode: "online", steamcmdDirectory: "lib/steamcmd" })}>恢复推荐配置</Button>
+              <Button type="primary" loading={steamcmdAction === "save-configuration"} disabled={steamcmdAction !== null} onClick={() => void saveSteamcmdConfiguration()}>{selectedSteamcmdConfigurationNode ? "保存当前节点配置" : "保存默认配置"}</Button>
+            </Space>
+          </SettingRow>
+        </SettingGroup> : null}
+        {canAdmin ? <>
+          <SettingGroup title="SteamCMD 安装与校验">
+            <SettingRow title="安装目标节点" description="单独选择实际执行任务的 Windows x64 节点。任务读取目标节点当前生效的已保存配置；不会自动保存上方正在编辑的草稿。" status={selectedSteamcmdInstallNode ? selectedSteamcmdInstallNode.status === "online" ? "已选择" : "节点离线" : "尚未选择"}>
+              <Select allowClear placeholder="选择安装目标节点" value={selectedSteamcmdInstallNodeId || undefined} options={steamcmdNodes.map(node => ({ value: node.id, label: `${node.displayName} · ${node.status === "online" ? "在线" : "离线"}` }))} onChange={nodeId => { setSelectedSteamcmdInstallNodeId(nodeId ?? ""); setSteamcmdTask(null); }} />
+            </SettingRow>
+            <SettingRow title="目标节点当前状态" description={selectedSteamcmdInstallNode ? `${selectedSteamcmdInstallNode.configuration.installMode === "online" ? "在线安装" : "手动指定"} · ${displaySteamcmdPath(selectedSteamcmdInstallNode, selectedSteamcmdInstallNode.configuration.steamcmdDirectory)}${selectedSteamcmdInstallNode.configurationConfigured ? " · 节点覆盖" : " · 使用全局默认"}` : "选择目标节点后显示其生效模式和安装目录。"} status={selectedSteamcmdInstallNode?.steamcmdInstalled ? "SteamCMD 已安装" : selectedSteamcmdInstallNodeCanRunTasks ? "可执行任务" : "等待可用节点"}>
+              <Tag color={selectedSteamcmdInstallNode?.steamcmdInstalled ? "green" : selectedSteamcmdInstallNodeCanRunTasks ? "blue" : "default"}>{selectedSteamcmdInstallNode?.steamcmdInstalled ? "已安装" : selectedSteamcmdInstallNodeCanRunTasks ? "在线" : selectedSteamcmdInstallNode ? "不可执行" : "未选择"}</Tag>
+            </SettingRow>
+            <SettingRow title="操作" description={selectedSteamcmdInstallNodeCanRunTasks ? "安装和校验任务提交到上方所选节点。" : "请选择在线且支持 SteamCMD 任务的 Windows x64 Daemon。"}>
+              <Space wrap>
+                <Button loading={steamcmdAction === "verify"} disabled={!selectedSteamcmdInstallNodeCanRunTasks || steamcmdAction !== null} onClick={() => void submitSteamcmdTask("verify")}>校验 SteamCMD</Button>
+                <Button type="primary" loading={steamcmdAction === "install"} disabled={!selectedSteamcmdInstallNodeCanRunTasks || selectedSteamcmdInstallNode?.configuration.installMode !== "online" || steamcmdAction !== null} onClick={() => void submitSteamcmdTask("install")}>开始安装</Button>
+              </Space>
+            </SettingRow>
+            {selectedSteamcmdInstallNode && steamcmdTask?.nodeId === selectedSteamcmdInstallNode.id ? <SettingRow title="最近任务" description={steamcmdTask.message} status="安装任务"><Progress percent={steamcmdTask.progress} status={steamcmdTask.status === "failed" ? "exception" : steamcmdTask.status === "succeeded" ? "success" : "active"} /></SettingRow> : null}
+          </SettingGroup>
+          {steamcmdNodes.length === 0 ? <Alert className="settings-inline-alert" type="info" showIcon message={loadingSection === "workspace" ? "正在读取 daemon 节点…" : "当前没有已登记的 Windows x64 Daemon"} description="仍可保存 SteamCMD 全局默认配置；节点上线后可选择安装目标或设置节点覆盖。" /> : null}
+        </> : null}
         {canAdmin ? <>
           <SettingGroup title="游戏节点数据位置">
             <SettingRow title="Minecraft 所属节点" description="查看领域 Owner 已登记的位置。默认在该节点 data/games/minecraft，已有自定义实例位置保留，不在此另设一套存储根。"><Select value={selectedMinecraftStorageNodeId || "__defaults__"} options={[{value:"__defaults__",label:"默认目录"},...minecraftStorageNodes.map(node=>({value:node.id,label:node.displayName}))]} onChange={selectMinecraftStorageNode}/></SettingRow>
             <SettingRow title="Minecraft 实例目录" description="实例 ID、节点与实际目录由游戏 Owner 持有；在文件管理的游戏实例入口进入。"><Typography.Text code copyable>{displaySteamcmdPath(selectedMinecraftStorageNode,minecraftStorageDraft.instanceDirectory)}</Typography.Text></SettingRow>
             <SettingRow title="Steam 游戏所属节点" description="默认在该节点 data/games/steamcmd；展示现有真实配置，不能用控制端盘符代替远端位置。"><Select value={selectedSteamcmdStorageNodeId || "__defaults__"} options={[{value:"__defaults__",label:"默认目录"},...steamcmdNodes.map(node=>({value:node.id,label:node.displayName}))]} onChange={selectSteamcmdStorageNode}/></SettingRow>
-            <SettingRow title="Steam 游戏目录" description="游戏文件继续留在其所属节点，已有位置不自动搬迁。"><Typography.Text code copyable>{displaySteamcmdPath(selectedSteamcmdStorageNode,steamcmdStorageDraft.gameDirectory)}</Typography.Text></SettingRow>
+            <SettingRow title="Steam 游戏目录" description={`完整位置：${displayedSteamcmdGameDirectory}。本机默认目录跟随当前业务内容根；远端节点相对路径使用自己的 LFAA_DATA_DIR。只影响后续 Steam 游戏文件，不自动搬迁已有内容。`} status={selectedSteamcmdStorageNode?.storageConfigured ? "节点覆盖" : steamcmdStorageDefaultsConfigured ? "默认目录已保存" : "推荐默认值"}>
+              <Space wrap><Input value={steamcmdStorageDraft.gameDirectory} disabled={steamcmdAction !== null} onChange={event => setSteamcmdStorageDraft({ gameDirectory: event.target.value })} placeholder="games/steamcmd" /><Button type="primary" loading={steamcmdAction === "save-storage"} disabled={steamcmdAction !== null} onClick={() => void saveSteamcmdStorage()}>保存 Steam 游戏目录</Button></Space>
+            </SettingRow>
           </SettingGroup>
         </> : null}
       </section>
@@ -3184,58 +3268,6 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       <section className="settings-content">
         <header className="settings-content__heading"><div><span className="settings-eyebrow">账户管理</span><Typography.Title level={2}>账户</Typography.Title><Typography.Paragraph>查看和管理本机 LFAA 用户账户。</Typography.Paragraph></div></header>
         {user.role === "super_admin" ? <AdminUsersPage userId={user.id} /> : <Alert type="warning" showIcon message="只有超级管理员可以管理本机账户。" />}
-      </section>
-    );
-
-    if (activeSection === "configuration") return (
-      <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">SteamCMD 专项配置</span><Typography.Title level={2}>SteamCMD 配置</Typography.Title><Typography.Paragraph>管理 SteamCMD 安装方式和工具目录。工具目录相对于目标节点自己的 LFAA_DATA_DIR；Steam 游戏与 Minecraft 存储目录在“项目与存储”中独立管理。</Typography.Paragraph></div></header>
-        {!canAdmin ? <Alert className="settings-inline-alert" type="warning" showIcon message="SteamCMD 安装配置由管理员管理。" /> : null}
-        {canAdmin ? <>
-          <SettingGroup title="SteamCMD 配置范围">
-            <SettingRow title="编辑配置" description="选择全局默认或一个节点的安装配置。全局默认供未单独覆盖的节点使用；这个选择只决定编辑和保存哪份配置。" status={selectedSteamcmdConfigurationNode ? "节点覆盖" : "全局默认"}>
-              <Select value={selectedSteamcmdConfigurationNodeId || "__defaults__"} options={[{ value: "__defaults__", label: "全局默认设置" }, ...steamcmdNodes.map((node) => ({ value: node.id, label: node.displayName + " · " + (node.status === "online" ? "在线" : "离线") }))]} onChange={selectSteamcmdConfigurationNode} />
-            </SettingRow>
-          </SettingGroup>
-        </> : null}
-        {canAdmin && steamcmdNodes.length === 0 ? <Alert className="settings-inline-alert" type="info" showIcon message={loadingSection === "configuration" ? "正在读取 daemon 节点…" : "当前没有已登记的 Windows x64 Daemon"} description="仍可保存 SteamCMD 全局默认配置；节点上线后可在下方选择安装目标。" /> : null}
-        {canAdmin ? <>
-          <SettingGroup title={selectedSteamcmdConfigurationNode ? "SteamCMD 节点配置" : "SteamCMD 默认配置"}>
-            <SettingRow title="当前状态" description={selectedSteamcmdConfigurationNode ? selectedSteamcmdConfigurationNode.displayName + " · " + (selectedSteamcmdConfigurationNode.status === "online" ? "在线；可在下方单独选择安装目标。" : "节点离线；仍可保存此节点配置。") : "所有未单独覆盖的节点使用此默认配置；安装目标在下方独立选择。"} status="安装配置">
-              <Tag color={selectedSteamcmdConfigurationNode?.configurationConfigured ? "blue" : steamcmdConfigurationDefaultsConfigured ? "blue" : "default"}>{selectedSteamcmdConfigurationNode?.configurationConfigured ? "节点已覆盖" : steamcmdConfigurationDefaultsConfigured ? "默认配置已保存" : "推荐默认值"}</Tag>
-            </SettingRow>
-            <SettingRow title="安装模式" description={steamcmdConfigurationDraft.installMode === "online" ? "从 Valve 官方 CDN 下载并安装 SteamCMD。" : "使用目录中已有的 steamcmd.exe，并在校验时启动它。"}>
-              <Radio.Group value={steamcmdConfigurationDraft.installMode} onChange={(event) => updateSteamcmdConfigurationDraft("installMode", event.target.value)} optionType="button" buttonStyle="solid" options={[{ label: "在线安装", value: "online" }, { label: "手动指定", value: "manual" }]} />
-            </SettingRow>
-            <SettingRow title="SteamCMD 安装目录" description={"完整位置：" + displaySteamcmdPath(selectedSteamcmdConfigurationNode, steamcmdConfigurationDraft.steamcmdDirectory || "lib/steamcmd") + "。目录必须在目标节点 LFAA_DATA_DIR 内。"}>
-              <Input value={steamcmdConfigurationDraft.steamcmdDirectory} onChange={(event) => updateSteamcmdConfigurationDraft("steamcmdDirectory", event.target.value)} placeholder="lib/steamcmd" disabled={steamcmdAction !== null} />
-            </SettingRow>
-            <SettingRow title="操作" description="保存此范围的 SteamCMD 专项配置，不会修改游戏文件或 Minecraft 实例目录。">
-              <Space wrap>
-                <Button onClick={() => setSteamcmdConfigurationDraft({ installMode: "online", steamcmdDirectory: "lib/steamcmd" })}>恢复推荐配置</Button>
-                <Button type="primary" loading={steamcmdAction === "save"} disabled={steamcmdAction !== null} onClick={() => void saveSteamcmdConfiguration()}>{selectedSteamcmdConfigurationNode ? "保存当前节点配置" : "保存默认配置"}</Button>
-              </Space>
-            </SettingRow>
-          </SettingGroup>
-          <SettingGroup title="安装与校验">
-            <SettingRow title="安装目标节点" description="单独选择实际执行任务的 Windows x64 节点。任务读取目标节点当前生效的已保存配置；不会自动保存上方正在编辑的草稿。" status={selectedSteamcmdInstallNode ? selectedSteamcmdInstallNode.status === "online" ? "已选择" : "节点离线" : "尚未选择"}>
-              <Select allowClear placeholder="选择安装目标节点" value={selectedSteamcmdInstallNodeId || undefined} options={steamcmdNodes.map((node) => ({ value: node.id, label: node.displayName + " · " + (node.status === "online" ? "在线" : "离线") }))} onChange={(nodeId) => { setSelectedSteamcmdInstallNodeId(nodeId ?? ""); setSteamcmdTask(null); }} />
-            </SettingRow>
-            <SettingRow title="目标节点当前生效配置" description={selectedSteamcmdInstallNode ? (selectedSteamcmdInstallNode.configuration.installMode === "online" ? "在线安装" : "手动指定") + " · " + displaySteamcmdPath(selectedSteamcmdInstallNode, selectedSteamcmdInstallNode.configuration.steamcmdDirectory) + (selectedSteamcmdInstallNode.configurationConfigured ? " · 节点覆盖" : " · 使用全局默认") : "选择目标节点后显示其生效模式和安装目录。"} status={selectedSteamcmdInstallNode?.steamcmdInstalled ? "SteamCMD 已安装" : selectedSteamcmdInstallNodeCanRunTasks ? "可执行任务" : "等待可用节点"}>
-              <Tag color={selectedSteamcmdInstallNode?.steamcmdInstalled ? "green" : selectedSteamcmdInstallNodeCanRunTasks ? "blue" : "default"}>{selectedSteamcmdInstallNode?.steamcmdInstalled ? "已安装" : selectedSteamcmdInstallNodeCanRunTasks ? "在线" : selectedSteamcmdInstallNode ? "不可执行" : "未选择"}</Tag>
-            </SettingRow>
-            <SettingRow title="操作" description={selectedSteamcmdInstallNodeCanRunTasks ? "安装和校验任务提交到上方所选节点。" : "请选择在线且支持 SteamCMD 任务的 Windows x64 Daemon。"}>
-              <Space wrap>
-                <Button loading={steamcmdAction === "verify"} disabled={!selectedSteamcmdInstallNodeCanRunTasks || steamcmdAction !== null} onClick={() => void submitSteamcmdTask("verify")}>校验 SteamCMD</Button>
-                <Button type="primary" loading={steamcmdAction === "install"} disabled={!selectedSteamcmdInstallNodeCanRunTasks || selectedSteamcmdInstallNode?.configuration.installMode !== "online" || steamcmdAction !== null} onClick={() => void submitSteamcmdTask("install")}>开始安装</Button>
-              </Space>
-            </SettingRow>
-            {selectedSteamcmdInstallNode && steamcmdTask?.nodeId === selectedSteamcmdInstallNode.id ? <SettingRow title="最近任务" description={steamcmdTask.message} status="安装任务">
-              <Progress percent={steamcmdTask.progress} status={steamcmdTask.status === "failed" ? "exception" : steamcmdTask.status === "succeeded" ? "success" : "active"} />
-            </SettingRow> : null}
-          </SettingGroup>
-          {steamcmdNodes.length === 0 ? <Alert className="settings-inline-alert" type="info" showIcon message={loadingSection === "configuration" ? "正在读取 daemon 节点…" : "当前没有已登记的 Windows x64 Daemon"} description="仍可保存 SteamCMD 全局默认配置；节点上线后可在“安装目标节点”中选择它。" /> : null}
-        </> : null}
       </section>
     );
 

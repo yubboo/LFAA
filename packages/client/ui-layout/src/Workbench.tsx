@@ -612,19 +612,6 @@ export function Workbench({
   }, []);
 
   useEffect(() => {
-    const idleWindow = window as Window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    };
-    if (idleWindow.requestIdleCallback) {
-      const idleHandle = idleWindow.requestIdleCallback(preloadSettingsPageModule, { timeout: 1500 });
-      return () => idleWindow.cancelIdleCallback?.(idleHandle);
-    }
-    const timeoutHandle = window.setTimeout(preloadSettingsPageModule, 1000);
-    return () => window.clearTimeout(timeoutHandle);
-  }, []);
-
-  useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat || isEditableTarget(event.target)) return;
       const entries: Array<[keyof UserSettings["shortcuts"], () => void]> = [

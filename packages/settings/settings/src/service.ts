@@ -96,6 +96,7 @@ function readGeneralSettings(value: Record<string, unknown>): GeneralSettings | 
     questionNotifications: typeof value.questionNotifications === "boolean" ? value.questionNotifications : defaults.questionNotifications,
     sessionIssueNotifications: typeof value.sessionIssueNotifications === "boolean" ? value.sessionIssueNotifications : defaults.sessionIssueNotifications,
     notificationSound: choose(value.notificationSound, ["default", "subtle", "off"], defaults.notificationSound),
+    aiProviderReminderEnabled: typeof value.aiProviderReminderEnabled === "boolean" ? value.aiProviderReminderEnabled : typeof value.setupReminderEnabled === "boolean" ? value.setupReminderEnabled : defaults.aiProviderReminderEnabled,
     setupReminderEnabled: typeof value.setupReminderEnabled === "boolean" ? value.setupReminderEnabled : defaults.setupReminderEnabled,
     defaultAdminCredentialReminderEnabled: typeof value.defaultAdminCredentialReminderEnabled === "boolean" ? value.defaultAdminCredentialReminderEnabled : defaults.defaultAdminCredentialReminderEnabled,
     confettiEnabled: typeof value.confettiEnabled === "boolean" ? value.confettiEnabled : defaults.confettiEnabled
@@ -303,7 +304,7 @@ export function saveUserSettings(
 ): void {
   // 旧客户端提交整类设置时保留后来新增的字段，显式提交仍采用用户新值。
   const submitted = value as unknown as Record<string, unknown>;
-  if (category === "general" && (!Object.hasOwn(submitted, "cardMotionEffect") || !Object.hasOwn(submitted, "dialogMotionEffect") || !Object.hasOwn(submitted, "defaultAdminCredentialReminderEnabled") || !Object.hasOwn(submitted, "notificationPopupsEnabled"))) {
+  if (category === "general" && (!Object.hasOwn(submitted, "cardMotionEffect") || !Object.hasOwn(submitted, "dialogMotionEffect") || !Object.hasOwn(submitted, "defaultAdminCredentialReminderEnabled") || !Object.hasOwn(submitted, "notificationPopupsEnabled") || !Object.hasOwn(submitted, "aiProviderReminderEnabled"))) {
     value = { ...getUserSettings(userId).general, ...submitted } as GeneralSettings;
   }
   if (category === "plugins") value = { ...getUserSettings(userId).plugins, ...submitted } as PluginSettings;

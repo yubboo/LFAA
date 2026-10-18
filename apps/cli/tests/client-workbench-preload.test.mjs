@@ -4,12 +4,15 @@
  * 关联文件：packages/client/ui-renderer/src/workbench-preload.ts、App.tsx、ui-layout/src/Workbench.tsx。
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   preloadWorkbenchForRoute,
   shouldPreloadSettingsPageForRoute,
   shouldPreloadWorkbenchForRoute
 } from "../../../packages/client/ui-renderer/src/workbench-preload.ts";
+
+const workbenchSource = readFileSync(new URL("../../../packages/client/ui-layout/src/Workbench.tsx", import.meta.url), "utf8");
 
 test("设置与旧账户管理直达路由先加载 Workbench 再预热 SettingsPage", async () => {
   for (const pathname of ["/settings", "/admin/users"]) {
@@ -36,6 +39,13 @@ test("其他直接工作区路由只预热共享 Workbench", async () => {
     });
     assert.deepEqual(calls, ["workbench"]);
   }
+});
+
+test("设置页只在直达路由或设置导航意图时预热，不在工作台空闲时主动加载", () => {
+  assert.match(workbenchSource, /onMouseEnter=\{preloadSettingsPageModule\}/u);
+  assert.match(workbenchSource, /onFocus=\{preloadSettingsPageModule\}/u);
+  assert.doesNotMatch(workbenchSource, /requestIdleCallback\(preloadSettingsPageModule/u);
+  assert.doesNotMatch(workbenchSource, /setTimeout\(preloadSettingsPageModule/u);
 });
 
 test("登录页和应用中心不在认证前下载工作台，认证后则可预热", async () => {

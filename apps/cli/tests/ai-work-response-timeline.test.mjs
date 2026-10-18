@@ -45,10 +45,10 @@ test("真实组件运行计时不可展开，工具组可展开；完成后过�
     const require=createRequire(${JSON.stringify(new URL("../../web/package.json", import.meta.url).href)});
     const {createElement}=require('react');const {renderToStaticMarkup}=require('react-dom/server');
     const {AiWorkResponse}=await import(${JSON.stringify(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url).href)});
-    console.log(renderToStaticMarkup(createElement(AiWorkResponse,{message:${JSON.stringify(message)},now:Date.parse('2026-10-11T01:01:05Z'),renderActivity:item=>createElement('span',{key:item.id},item.id),renderInteraction:item=>createElement('section',null,item.question,item.detail)})));
+    console.log(renderToStaticMarkup(createElement(AiWorkResponse,{message:${JSON.stringify(message)},renderActivity:item=>createElement('span',{key:item.id},item.id),renderInteraction:item=>createElement('section',null,item.question,item.detail)})));
   `], { cwd: fileURLToPath(new URL("..", import.meta.url)), env: { ...process.env, TSX_TSCONFIG_PATH: fileURLToPath(new URL("../../../tsconfig.client.json", import.meta.url)) }, encoding: "utf8" }).trim();
   const running = render(fixture("streaming"));
-  assert.match(running, /response-duration" role="status">已处理 1 分钟 5 秒<\/div>/u);
+  assert.match(running, /response-duration" role="status">已处理 \d+ (?:小时|分钟|秒)/u);
   assert.doesNotMatch(running, /response-history/u);
   assert.match(running, /<details class="ai-work-chat__tool-group">/u);
   const liveStart = running.indexOf('class="ai-work-chat__response-live"');

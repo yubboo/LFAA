@@ -125,7 +125,10 @@ test("通知总开关关闭自动提醒与 AI 弹出通知，但不影响会话�
   assert.match(settings, /message="所有弹出提醒已暂停"/u);
   assert.match(settings, /onClick=\{\(\) => updateGeneral\(\{ notificationPopupsEnabled: true \}\)\}>恢复通知/u);
   assert.match(settings, /\$\{enabledLabel\}（总开关已暂停）/u);
-  assert.match(settings, /title="首次配置提醒"[\s\S]*?status=\{notificationCategoryStatus\(settings\.general\.setupReminderEnabled\)\}/u);
+  assert.match(settings, /title="AI Provider 配置提醒"[\s\S]*?settings\.general\.aiProviderReminderEnabled/u);
+  assert.match(settings, /title="业务内容存储提醒"[\s\S]*?settings\.general\.setupReminderEnabled/u);
+  assert.match(settings, /title="AI Provider 今日不再提醒"[\s\S]*?updateSetupReminderSnooze\("ai-provider"/u);
+  assert.match(settings, /title="业务存储今日不再提醒"[\s\S]*?updateSetupReminderSnooze\("content-storage"/u);
   assert.match(setupReminder, /if \(!settings\.general\.notificationPopupsEnabled\)\s*\{\s*shownRef\.current = false;\s*setOpen\(false\);/u);
   assert.match(setupReminder, /open=\{settings\.general\.notificationPopupsEnabled && \(Boolean\(activePriorityPrompt\) \|\| open\)\}/u);
   assert.match(workbench, /if \(!settings\.general\.notificationPopupsEnabled\) return;/u);
@@ -135,6 +138,17 @@ test("通知总开关关闭自动提醒与 AI 弹出通知，但不影响会话�
   assert.match(passkeyPrompt, /open=\{notificationPopupsEnabled && open\}/u);
 });
 
+test("SteamCMD 配置并入项目与存储，兼容旧分类链接且不再触发首次提醒", () => {
+  assert.doesNotMatch(settings.match(/const sections:[\s\S]*?const SETTINGS_NAV_GROUPS/u)?.[0] ?? "", /id: "configuration", title: "SteamCMD 配置"/u);
+  assert.match(settings, /function resolveSettingsSection\(section: SectionId\): SectionId\s*\{\s*return section === "configuration" \? "workspace" : section;/u);
+  assert.match(settings, /if \(activeSection === "workspace"\)[\s\S]*?SettingGroup title="SteamCMD 工具配置"[\s\S]*?SettingGroup title="SteamCMD 安装与校验"[\s\S]*?SettingGroup title="游戏节点数据位置"/u);
+  assert.match(settings, /saveSteamcmdConfigurationDefaults[\s\S]*saveSteamcmdStorageDefaults[\s\S]*saveSteamcmdNodeStorageSettings/u);
+  assert.match(settings, /node\.storageConfigured \? \{ \.\.\.node\.storage \} : \{ \.\.\.steamcmdStorageDefaults \}/u);
+  assert.match(settings, /function displaySteamcmdGamePath\([\s\S]*if \(node\) return displaySteamcmdPath\(node, relativePath\)[\s\S]*contentDirectory/u);
+  assert.match(settings, /displaySteamcmdGamePath\(selectedSteamcmdStorageNode, steamcmdGameDirectoryToDisplay, projectStorageLocations\?\.contentDirectory\)/u);
+  assert.doesNotMatch(setupReminder, /SteamCMD|loadSteamcmdSettings|createSteamcmdTask/u);
+});
+
 test("账户安全提醒主按钮进入安全分类，包括已挂载的外观设置页", () => {
   assert.match(renderer, /onOpenCredentialSettings=\{\(\) => setCredentialReminder\(null\)\}/u);
   assert.match(workbench, /onAction: \(\) => \{ onOpenCredentialSettings\(\); openSettings\("security"\); \}/u);
@@ -142,7 +156,7 @@ test("账户安全提醒主按钮进入安全分类，包括已挂载的外观�
   assert.match(workbench, /setSettingsSectionRequest\(\{ section, requestId: \+\+settingsSectionRequestSequenceRef\.current \}\)/u);
   assert.match(workbench, /sectionRequest=\{settingsSectionRequest\}/u);
   assert.match(settings, /sectionRequest\?: \{ section: "security"; requestId: number \} \| null/u);
-  assert.match(settings, /const requestedSection = sectionRequest\?\.section;[\s\S]*?setActiveSection\(requestedSection\);[\s\S]*?persistSettingsSection\(requestedSection, user\.id\);/u);
+  assert.match(settings, /const requestedSection = sectionRequest\?\.section;[\s\S]*?const targetSection = resolveSettingsSection\(requestedSection\);[\s\S]*?setActiveSection\(targetSection\);[\s\S]*?persistSettingsSection\(targetSection, user\.id\);/u);
   assert.match(settings, /url\.searchParams\.set\("section", section\)/u);
 });
 
@@ -157,6 +171,8 @@ test("账户安全提醒弹窗明确提供更改与不更改，并使用统一�
   assert.doesNotMatch(workbenchStyles, /setup-reminder-modal--priority|setup-reminder-intro/u);
   assert.match(workbenchStyles, /\.setup-reminder-modal \.setup-reminder-card__actions\.ant-space\s*\{[^}]*flex-wrap:\s*wrap;/u);
   assert.match(workbenchStyles, /var\(--settings-background-surface-opacity\)[\s\S]*var\(--settings-glass-blur\)/u);
+  assert.match(renderer, /function dismissCredentialReminder\(\): void \{\s*\/\/.*?\s*setCredentialReminder\(null\);/u);
+  assert.doesNotMatch(renderer, /dismissDefaultCredentialReminder\(/u);
 });
 
 test("所有 Ant Design Portal 弹窗继承当前 Appearance 令牌并适配窄短屏", () => {

@@ -1,6 +1,6 @@
 /**
  * 功能：维护首次配置与默认凭据安全提醒的本地“今日暂停”状态。
- * 作用：按账户和提醒类型隔离浏览器当日暂停标记，日期过期后自然恢复。
+ * 作用：按账户、提醒类别隔离浏览器当日暂停标记，日期过期后自然恢复。
  * 关联文件：packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-settings/src/SettingsPage.tsx。
  */
 
@@ -12,31 +12,56 @@ export function getSetupReminderLocalDay(date: Date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-function setupReminderSnoozeKey(userId: string): string {
-  return `lfaa:setup-reminder-snooze:${userId}`;
+export type SetupReminderCategory = "ai-provider" | "content-storage";
+
+function setupReminderSnoozeKey(userId: string, category: SetupReminderCategory): string {
+  return `lfaa:setup-reminder-snooze:${userId}:${category}`;
 }
 
-// 标记仅暂停该账户在此浏览器中的当天提醒；日期过期后无需清理即可自然恢复。
-export function isSetupReminderSnoozedToday(userId: string, today = getSetupReminderLocalDay()): boolean {
+// 旧版本只有一个首次配置暂停标记，兼容它在当天暂停两个原有类别。
+function hasLegacySetupReminderSnooze(userId: string, today: string): boolean {
   try {
-    return window.localStorage.getItem(setupReminderSnoozeKey(userId)) === today;
+    return window.localStorage.getItem(`lfaa:setup-reminder-snooze:${userId}`) === today;
   } catch {
     return false;
   }
 }
 
-export function setSetupReminderSnoozedToday(userId: string, today = getSetupReminderLocalDay()): boolean {
+// 旧标记暂停了原来的全部配置提醒；用户操作任一新类别前先拆分，保留另一类别的当天状态。
+function migrateLegacySetupReminderSnooze(userId: string): void {
+  const legacyKey = `lfaa:setup-reminder-snooze:${userId}`;
+  const legacyDay = window.localStorage.getItem(legacyKey);
+  if (!legacyDay) return;
+  for (const category of ["ai-provider", "content-storage"] as const) {
+    const key = setupReminderSnoozeKey(userId, category);
+    if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, legacyDay);
+  }
+  window.localStorage.removeItem(legacyKey);
+}
+
+// 标记仅暂停该账户、此浏览器和此类别的当天提醒；日期过期后无需清理即可自然恢复。
+export function isSetupReminderSnoozedToday(userId: string, today = getSetupReminderLocalDay(), category: SetupReminderCategory = "content-storage"): boolean {
   try {
-    window.localStorage.setItem(setupReminderSnoozeKey(userId), today);
+    return window.localStorage.getItem(setupReminderSnoozeKey(userId, category)) === today || hasLegacySetupReminderSnooze(userId, today);
+  } catch {
+    return false;
+  }
+}
+
+export function setSetupReminderSnoozedToday(userId: string, today = getSetupReminderLocalDay(), category: SetupReminderCategory = "content-storage"): boolean {
+  try {
+    migrateLegacySetupReminderSnooze(userId);
+    window.localStorage.setItem(setupReminderSnoozeKey(userId, category), today);
     return true;
   } catch {
     return false;
   }
 }
 
-export function clearSetupReminderSnooze(userId: string): boolean {
+export function clearSetupReminderSnooze(userId: string, category: SetupReminderCategory = "content-storage"): boolean {
   try {
-    window.localStorage.removeItem(setupReminderSnoozeKey(userId));
+    migrateLegacySetupReminderSnooze(userId);
+    window.localStorage.removeItem(setupReminderSnoozeKey(userId, category));
     return true;
   } catch {
     return false;

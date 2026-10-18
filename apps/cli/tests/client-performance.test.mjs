@@ -1,7 +1,7 @@
 /**
- * 功能：长期回归共享界面读取调度、流式消息合并、AI Work 滚动跟随和工作台存储故障。
- * 作用：使用隔离的事件、计时器和协议夹具验证请求数量、顺序与撤销，不伪造真实浏览器帧性能。
- * 关联文件：connection/{read-poller,stream-deltas,api}、ui-chat/conversation-scroll、ui-dockkit/workbench-preferences。
+ * 功能：长期回归共享界面调度、AI Work 计时订阅/流式消息/滚动和工作台存储故障。
+ * 作用：使用隔离的事件、计时器和协议夹具验证工作量、顺序与撤销，不伪造真实浏览器帧性能。
+ * 关联文件：connection/{read-poller,stream-deltas,api}、ui-chat/{activity-clock,conversation-scroll}、ui-dockkit/workbench-preferences。
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -12,6 +12,7 @@ import { createStreamDeltas } from "../../../packages/client/connection/src/stre
 import { pauseAiRun, resumeAiRun, streamAiChat } from "../../../packages/client/connection/src/api.ts";
 import { saveWorkbenchLeftWidth } from "../../../packages/client/ui-dockkit/src/workbench-preferences.ts";
 import { createSnapshotCache, clearClientSnapshots } from "../../../packages/client/store/src/snapshot-cache.ts";
+import { createAiActivityClockStore } from "../../../packages/client/ui-chat/src/activity-clock.ts";
 import { observeWorkbenchMetrics } from "../../../packages/client/ui-dockkit/src/use-workbench-metrics.ts";
 import { buildConversationAnchors, conversationAnchorReply } from "../../../packages/client/ui-chat/src/conversation-anchor-preview.ts";
 import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, updateConversationAnchorPointerTarget } from "../../../packages/client/ui-chat/src/conversation-scroll.ts";
@@ -113,6 +114,38 @@ test("1000 个同帧文本片段只更新一次，跨消息和终止保持原始
   assert.equal(emitted.length, 3); assert.equal(animation.pending.size, 0);
 });
 
+test("AI Work共享秒表只通知耗时订阅者，并在最后一个工作区停止后清理", () => {
+  let now = 1000, timerCallback, starts = 0, clears = 0;
+  const clock = createAiActivityClockStore({
+    now: () => now,
+    setInterval: callback => { starts += 1; timerCallback = callback; return starts; },
+    clearInterval: () => { clears += 1; }
+  });
+  const historicalRows = Array.from({ length: 1000 }, () => ({ updates: 0 }));
+  const elapsedLabels = [{ updates: 0 }, { updates: 0 }];
+  const unsubscribeLabels = elapsedLabels.map(label => clock.subscribe(() => { label.updates += 1; }));
+  assert.equal(starts, 0, "空闲时不创建计时器");
+
+  const stopFirst = clock.start();
+  const stopSecond = clock.start();
+  assert.equal(starts, 1, "多个工作区共用一个秒表");
+  now = 2000;
+  timerCallback();
+  assert.equal(clock.getSnapshot(), now);
+  assert.deepEqual(elapsedLabels.map(label => label.updates), [1, 1]);
+  assert.equal(historicalRows.reduce((sum, row) => sum + row.updates, 0), 0, "历史行没有订阅秒表");
+
+  unsubscribeLabels[1]();
+  now = 3000;
+  timerCallback();
+  assert.deepEqual(elapsedLabels.map(label => label.updates), [2, 1]);
+  stopFirst(); stopFirst();
+  assert.equal(clears, 0, "其他工作区仍在使用时不清理共享计时器");
+  stopSecond();
+  assert.equal(clears, 1, "最后一个工作区退出后只清理一次");
+  unsubscribeLabels[0]();
+});
+
 test("AI Work 分段流式正文使用稳定纯文本，终态 Markdown 保留且无光标", () => {
   const response = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url), "utf8");
   const styles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
@@ -136,7 +169,8 @@ test("设置中心独立工作区读取并发启动，共享会话列表按账�
   const workspaceStart = settings.indexOf('case "workspace":');
   const workspaceEnd = settings.indexOf('case "developer":', workspaceStart);
   const workspaceCase = settings.slice(workspaceStart, workspaceEnd);
-  assert.match(workspaceCase, /Promise\.all\(\[\s*loadHealthOnce\(\),\s*loadSteamcmdSettings\(\),\s*loadMinecraftStorageSettings\(\),\s*loadDataDirectorySettings\(\),\s*loadProjectStorageLocations\(\)/u);
+  assert.match(workspaceCase, /Promise\.all\(\[\s*loadHealthOnce\(\),\s*loadSteamcmdSettings\(\),\s*loadMinecraftStorageSettings\(\),\s*loadProjectStorageLocations\(\)/u);
+  assert.doesNotMatch(workspaceCase, /loadDataDirectorySettings\(/u, "业务内容目录由项目存储 Owner 一次读取，不再重复请求独立目录设置");
 
   const appWorkspace = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
   assert.ok(appWorkspace.includes("loadAiSessions({ signal: controller.signal })"));
@@ -149,7 +183,11 @@ test("AI Work 主聊挂载唯一分段展示，沿用原活动展开和完成清
   const chat = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
   const response = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url), "utf8");
   const styles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
-  assert.ok(chat.includes('<AiWorkResponse message={item} now={activityClock}'));
+  assert.ok(chat.includes('return aiActivityClock.start();'));
+  assert.ok(chat.includes('import { aiActivityClock } from "./activity-clock.js";'));
+  assert.doesNotMatch(chat, /const \[activityClock|setActivityClock|setInterval/u);
+  assert.ok(chat.includes('<AiWorkResponse message={item} pauseLabel='));
+  assert.ok(chat.includes('<AiLiveActivityDuration activity={activity} />'));
   assert.ok(chat.includes('renderActivity={renderActivity} renderInteraction={renderInteraction}'));
   assert.ok(chat.includes('appendAiTextDelta(item, value)'));
   assert.match(chat, /onPresentation:/u);
@@ -158,6 +196,8 @@ test("AI Work 主聊挂载唯一分段展示，沿用原活动展开和完成清
   assert.ok(chat.includes('activityExpanded ? <div className="ai-work-chat__activity-step-detail"'));
   assert.match(response, /summary\.durationText/u);
   assert.ok(response.includes('className="ai-work-chat__response-duration" role="status"'));
+  assert.match(response, /useSyncExternalStore\(aiActivityClock\.subscribe/u);
+  assert.ok(response.includes('<AiLiveResponseDuration message={message} />'));
   assert.ok(response.includes('pauseLabel ?? summary.label'));
   assert.match(styles, /response-divider[^}]*border-top: 1px solid var\(--color-border-subtle\)/u);
 });

@@ -1,12 +1,12 @@
 /**
  * 功能：提示用户完成首次配置。
- * 作用：独立检查 AI 与 SteamCMD 配置并管理提醒弹窗状态，避免弹窗交互触发整个工作台重新渲染。
+ * 作用：独立检查 AI 与业务内容存储配置并管理提醒弹窗状态，避免弹窗交互触发整个工作台重新渲染。
  * 关联文件：packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-settings-general/src/setup-reminder.ts、packages/client/connection/src/api.ts、packages/client/ui-layout/src/workbench.css。
  */
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Modal, Space, Typography } from "antd";
-import { getErrorMessage, hasAdminAccess, loadAiAccounts, loadProjectStorageLocations, loadSteamcmdSettings, saveProjectContentDirectory, saveSettings, type ProjectStorageLocations, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
-import { getSetupReminderLocalDay, isCredentialReminderSnoozedToday, isSetupReminderSnoozedToday, setCredentialReminderSnoozedToday, setSetupReminderSnoozedToday } from "./setup-reminder.js";
+import { getErrorMessage, hasAdminAccess, loadAiAccounts, loadProjectStorageLocations, saveProjectContentDirectory, saveSettings, type ProjectStorageLocations, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { getSetupReminderLocalDay, isCredentialReminderSnoozedToday, isSetupReminderSnoozedToday, setCredentialReminderSnoozedToday, setSetupReminderSnoozedToday, type SetupReminderCategory } from "./setup-reminder.js";
 
 interface SetupReminderProps {
   user: User;
@@ -14,7 +14,7 @@ interface SetupReminderProps {
   isSettingsPage: boolean;
   suspended: boolean;
   onSettingsChange: (settings: UserSettings) => void;
-  onOpenSettings: (section: "ai" | "configuration" | "workspace") => void;
+  onOpenSettings: (section: "ai" | "workspace") => void;
   priorityPrompt?: SetupReminderPrompt | null;
 }
 
@@ -27,15 +27,14 @@ interface SetupReminderPrompt {
   onSnoozedTodayChange: (snoozed: boolean) => void;
 }
 
-const SETUP_REMINDER_COPY: Record<"storage" | "steamcmd" | "ai", { title: string; description: string; action: string; section: "ai" | "configuration" | "workspace" }> = {
-  storage: { title: "选择内容数据存储位置", description: "此选择只决定游戏、小说和漫剧内容写入哪个 data 目录。默认位置在 LFAA 用户目录下；系统推荐会使用当前项目或安装目录下的 data。账户、模型配置、会话和插件位置不受影响。", action: "去配置存储", section: "workspace" },
-  steamcmd: { title: "配置 SteamCMD", description: "设置安装工具与游戏目录，开始管理 Steam 游戏。", action: "去配置 SteamCMD", section: "configuration" },
-  ai: { title: "配置 AI 模型", description: "添加并启用一个模型服务，即可开始使用小鱼智能体。", action: "去配置模型", section: "ai" }
+const SETUP_REMINDER_COPY: Record<"storage" | "ai", { title: string; description: string; action: string; section: "ai" | "workspace"; category: SetupReminderCategory }> = {
+  storage: { title: "选择内容数据存储位置", description: "此选择只决定游戏、小说和漫剧内容写入哪个 data 目录。默认位置在 LFAA 用户目录下；系统推荐会使用当前项目或安装目录下的 data。账户、模型配置、会话和插件位置不受影响。", action: "去配置存储", section: "workspace", category: "content-storage" },
+  ai: { title: "配置 AI 模型", description: "添加并启用一个模型服务，即可开始使用小鱼智能体。", action: "去配置模型", section: "ai", category: "ai-provider" }
 };
 
 export function SetupReminder({ user, settings, isSettingsPage, suspended, onSettingsChange, onOpenSettings, priorityPrompt = null }: SetupReminderProps) {
   const [open, setOpen] = useState(false);
-  const [missing, setMissing] = useState<Array<"steamcmd" | "ai" | "storage">>([]);
+  const [missing, setMissing] = useState<Array<"ai" | "storage">>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [storageLocations, setStorageLocations] = useState<ProjectStorageLocations | null>(null);
@@ -80,31 +79,23 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
       setOpen(false);
       return;
     }
-    if (!settings.general.setupReminderEnabled || isSettingsPage || isSetupReminderSnoozedToday(user.id, currentLocalDay)) {
+    if ((!settings.general.setupReminderEnabled && !settings.general.aiProviderReminderEnabled) || isSettingsPage) {
       setOpen(false);
       return;
     }
 
     let active = true;
-    const steamcmdRequest = hasAdminAccess(user.role) ? loadSteamcmdSettings() : Promise.resolve(null);
-    const storageRequest = hasAdminAccess(user.role) ? loadProjectStorageLocations() : Promise.resolve(null);
-    void Promise.allSettled([loadAiAccounts(), steamcmdRequest, storageRequest]).then(([accountsResult, steamcmdResult, storageResult]) => {
+    const shouldCheckStorage = hasAdminAccess(user.role) && settings.general.setupReminderEnabled && !isSetupReminderSnoozedToday(user.id, currentLocalDay, "content-storage");
+    const storageRequest = shouldCheckStorage ? loadProjectStorageLocations() : Promise.resolve(null);
+    const accountsRequest = settings.general.aiProviderReminderEnabled ? loadAiAccounts() : Promise.resolve(null);
+    void Promise.allSettled([accountsRequest, storageRequest]).then(([accountsResult, storageResult]) => {
       if (!active) return;
-      const nextMissing: Array<"steamcmd" | "ai" | "storage"> = [];
-      if (storageResult.status === "fulfilled" && storageResult.value) {
+      const nextMissing: Array<"ai" | "storage"> = [];
+      if (settings.general.setupReminderEnabled && !isSetupReminderSnoozedToday(user.id, currentLocalDay, "content-storage") && storageResult.status === "fulfilled" && storageResult.value) {
         setStorageLocations(storageResult.value.settings);
         if (!storageResult.value.configured) nextMissing.push("storage");
       }
-      if (accountsResult.status === "fulfilled" && accountsResult.value.accounts.length === 0) nextMissing.push("ai");
-      if (steamcmdResult.status === "fulfilled" && steamcmdResult.value) {
-        const { configurationDefaultsConfigured, storageDefaultsConfigured, nodes } = steamcmdResult.value;
-        const hasConfiguredDefaults = configurationDefaultsConfigured && storageDefaultsConfigured;
-        const hasConfiguredNode = nodes.some((node) =>
-          (configurationDefaultsConfigured || node.configurationConfigured)
-          && (storageDefaultsConfigured || node.storageConfigured)
-        );
-        if (!hasConfiguredDefaults && !hasConfiguredNode) nextMissing.push("steamcmd");
-      }
+      if (settings.general.aiProviderReminderEnabled && !isSetupReminderSnoozedToday(user.id, currentLocalDay, "ai-provider") && accountsResult.status === "fulfilled" && accountsResult.value?.accounts.length === 0) nextMissing.push("ai");
       if (nextMissing.length === 0) {
         setOpen(false);
       } else if (!shownRef.current) {
@@ -115,11 +106,15 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
     });
 
     return () => { active = false; };
-  }, [currentLocalDay, isSettingsPage, settings.general.notificationPopupsEnabled, settings.general.setupReminderEnabled, suspended, user.id, user.role]);
+  }, [currentLocalDay, isSettingsPage, settings.general.aiProviderReminderEnabled, settings.general.notificationPopupsEnabled, settings.general.setupReminderEnabled, suspended, user.id, user.role]);
 
   const dismissForToday = () => {
     // 浏览器不允许本地存储时，当前组件状态仍避免再次弹出。
-    setSetupReminderSnoozedToday(user.id, currentLocalDay);
+    if (!currentReminder || !setSetupReminderSnoozedToday(user.id, currentLocalDay, currentReminder.category)) {
+      setSaveError("浏览器无法保存当日提醒状态，请检查本地存储权限后重试。");
+      return;
+    }
+    setSaveError("");
     shownRef.current = true;
     setOpen(false);
   };
@@ -128,7 +123,10 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
     setSaving(true);
     setSaveError("");
     try {
-      const { settings: savedSettings } = await saveSettings("general", { ...settings.general, setupReminderEnabled: false });
+      const settingPatch = currentReminder?.category === "ai-provider"
+        ? { aiProviderReminderEnabled: false }
+        : { setupReminderEnabled: false };
+      const { settings: savedSettings } = await saveSettings("general", { ...settings.general, ...settingPatch });
       onSettingsChange(savedSettings);
       shownRef.current = true;
       setOpen(false);
@@ -198,8 +196,6 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
           <Button disabled={saving} onClick={dismissCredentialReminderForToday}>今日不再提醒</Button>
           <Button disabled={saving} onClick={activePriorityPrompt.onDismiss}>稍后再说</Button>
         </Space>
-        : missing[0] === "storage"
-          ? <Space wrap><Button disabled={saving} onClick={() => setOpen(false)}>稍后再说</Button></Space>
         : <Space wrap>
           <Button disabled={saving} onClick={dismissForToday}>今日不再提醒</Button>
           <Button loading={saving} onClick={() => void disableReminder()}>不再提醒</Button>

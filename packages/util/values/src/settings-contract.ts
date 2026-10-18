@@ -50,6 +50,7 @@ export interface GeneralSettings {
   questionNotifications: boolean;
   sessionIssueNotifications: boolean;
   notificationSound: "default" | "subtle" | "off";
+  aiProviderReminderEnabled: boolean;
   setupReminderEnabled: boolean;
   defaultAdminCredentialReminderEnabled: boolean;
   confettiEnabled: boolean;
@@ -289,6 +290,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     questionNotifications: true,
     sessionIssueNotifications: true,
     notificationSound: "default",
+    aiProviderReminderEnabled: true,
     setupReminderEnabled: true,
     defaultAdminCredentialReminderEnabled: true,
     confettiEnabled: false

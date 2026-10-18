@@ -3,23 +3,34 @@
  * 作用：运行时连续展示真实过程；完成后默认折叠过程，分隔线下展示最终答案。
  * 关联文件：response-timeline.ts、activity-duration.ts；AiWorkChat 提供原权限/提问/差异交互。
  */
-import { memo, useMemo, type ReactNode } from "react";
+import { memo, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import type { AiActivityItem, AiMessage } from "lfaa-client-connection/src/api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { AiMarkdown, AiStreamingMarkdown } from "./AiMarkdown.js";
-import { getAiActivitySummary } from "./activity-duration.js";
+import { formatAiActivityDuration, getAiActivityDurationSeconds, getAiActivitySummary } from "./activity-duration.js";
+import { aiActivityClock } from "./activity-clock.js";
 import { buildResponseTimeline, responseToolGroupLabel } from "./response-timeline.js";
+
+export function AiLiveActivityDuration({ activity }: { activity: AiActivityItem }) {
+  const now = useSyncExternalStore(aiActivityClock.subscribe, aiActivityClock.getSnapshot, aiActivityClock.getSnapshot);
+  return <>{formatAiActivityDuration(getAiActivityDurationSeconds(activity, now))}</>;
+}
+
+function AiLiveResponseDuration({ message }: { message: AiMessage }) {
+  const now = useSyncExternalStore(aiActivityClock.subscribe, aiActivityClock.getSnapshot, aiActivityClock.getSnapshot);
+  return <>{getAiActivitySummary(message, now).durationText}</>;
+}
 
 const ResponseText = memo(function ResponseText({ content, streaming }: { content: string; streaming: boolean }) {
   return streaming ? <AiStreamingMarkdown content={content} /> : <AiMarkdown content={content} />;
 });
 
-export function AiWorkResponse({ message, now, pauseLabel, renderActivity, renderInteraction }: {
-  message: AiMessage; now: number; pauseLabel?: string;
+export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInteraction }: {
+  message: AiMessage; pauseLabel?: string;
   renderActivity: (activity: AiActivityItem) => ReactNode;
   renderInteraction: (activity: AiActivityItem) => ReactNode;
 }) {
-  const summary = getAiActivitySummary(message, now);
+  const summary = getAiActivitySummary(message);
   const presentation = useMemo(() => buildResponseTimeline(message), [message.content, message.parts, message.activity, message.status]);
   const finished = message.status !== "streaming" && message.status !== "queued";
   const liveBlock = !finished ? presentation.blocks.find(block => block.kind === "text" && block.streaming) : undefined;
@@ -42,7 +53,7 @@ export function AiWorkResponse({ message, now, pauseLabel, renderActivity, rende
       <hr className="ai-work-chat__response-divider" />
       <div className="ai-work-chat__response-final"><ResponseText content={presentation.finalText} streaming={false} /></div>
     </> : <>
-      <div className="ai-work-chat__response-duration" role="status">{summary.durationText}</div>
+      <div className="ai-work-chat__response-duration" role="status"><AiLiveResponseDuration message={message} /></div>
       {process}
       {liveBlock?.kind === "text" ? <div className="ai-work-chat__response-live"><ResponseText content={liveBlock.content} streaming /></div> : null}
       <div className="ai-work-chat__activity-current-action--static" role="status" aria-live="polite">{pauseLabel ?? summary.label}</div>
