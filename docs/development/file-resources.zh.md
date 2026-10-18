@@ -4,7 +4,9 @@
 
 ## 产品设计
 
-统一根规则（用户补充，优先于旧分区配置）：首次未配置使用当前账户 `.lfaa/data`，Windows 当前账户示例为 `C:\Users\yu\.lfaa\data`。项目内 `H:\LFAA1\data` 是推荐位置，只有设置中心点击推荐才选择；自定义总根保持优先。分类入口只是既有 data 子目录的导航，不创建第二套物理目录，也不为每个类别另设存储根。迁移依旧由原 Data Directory Owner 复制、核验后切换，运行中不能直接换数据库；不覆盖非空目标，不合并真实用户数据。
+系统账户数据根与业务内容根严格分开。账户、Provider/加密凭据、会话、用户设置和 SQLite 使用本机 LFAA 系统数据根；Windows 默认在 `%USERPROFILE%\.lfaa\system-data`，显式 `LFAA_DATA_DIR` 仍由部署配置决定。系统根不由业务内容设置迁移或改写。
+
+业务内容根只保存游戏、小说与 AI 漫剧项目及其素材。Windows 默认是 `%USERPROFILE%\.lfaa\data`；系统推荐位置动态解析为当前项目或安装根下的 `data` 子目录；自定义位置直接使用用户选择的目录。保存位置只影响后续业务内容写入。复制覆盖、手动核对和 ZIP 导入/导出只处理受管业务子树，不处理系统账户数据、缓存、环境、日志、插件 Profile 或远程节点。系统根与业务根不能相同或互相嵌套。
 
 采用资源工作台：左侧按资源导航，右侧使用熟悉的目录、面包屑、排序、搜索、预览、摘要编辑、上传下载、移动、回收站与操作记录。默认展示受管 data，游戏实例入口放在资源导航前部。物理目录列表只展示真实文件；磁盘是显式切换的来源，不插入 data 子目录。空目录、离线节点、请求失败、旧节点不兼容必须分开说明。
 
@@ -14,23 +16,23 @@
 
 | 数据 | 默认位置及管理者 |
 |---|---|
-| 游戏 | 节点 data/games/minecraft、games/steamcmd；实际路径读节点设置/实例记录。文件由节点执行，元数据由领域 Owner 管理 |
+| 游戏 | 本机使用业务内容根下 games/minecraft、games/steamcmd；远程节点使用其 data/games/...；实际路径读节点设置/实例记录。文件由节点执行，元数据由领域 Owner 管理 |
 | 备份 | data/backups；生成/恢复通过游戏/备份 Owner，普通文件操作不能冒充恢复 |
 | 环境 | data/environments；从目标节点唯一 data 根派生，安装/移除由 Runtime Manager |
 | 工具 | data/lib；SteamCMD 等工具的生命周期由各工具 Owner |
 | 日志 | data/logs；从唯一 data 根派生，不能把读取/下载当停服或日志清理策略 |
 | 缓存、临时文件 | data/cache、data/tmp；从唯一 data 根派生，不自动全盘扫描或批量清除 |
 | 私有状态 | SQLite、账户文件、Session、凭据由原 Owner 持有，不开放通用文件预览 |
-| 插件包/受控运行适配副本 | `<LFAA_HOME>/plugins`；由 Plugin Manager 生命周期维护，不能与游戏 `plugins` 混用，也不随用户数据迁移 |
-| 插件私有运行数据 | `<LFAA_DATA_DIR>/plugins/runtime-data`；由对应 Plugin Runtime 按 Profile 隔离，随用户数据迁移 |
+| 插件源码、清单/受控运行适配副本 | `<LFAA_HOME>/profiles/<Profile>`；由 Plugin Manager 生命周期维护，不能与游戏 `plugins` 混用，也不随系统数据位置变化 |
+| 插件私有运行数据 | 默认 `<LFAA_HOME>/profiles/<Profile>/runtime-data/<plugin-id>/`；插件自己的存储位置配置（如果有）由对应 Plugin/Runtime Owner 生效 |
 
-SQLite 保存关系、索引、任务和配置；游戏文件/存档、Markdown、大文件与插件源码留在对应主机文件系统。读取投影不能成为第二份权威数据。切换存储位置不自动迁移旧文件；历史目录回读遵循已有 Owner。
+SQLite 保存关系、索引、任务和配置；游戏文件/存档、Markdown、大文件与插件源码留在对应主机文件系统。读取投影不能成为第二份权威数据。业务内容位置切换只有经用户选择的业务内容迁移操作才复制并核验受管内容；系统数据与历史目录回读继续遵循各自 Owner。
 
 旧日志/写作/漫剧/运行环境的分类根配置不再用于新内容，原写入 API 明确退役；旧作品根与 Java 环境根保留为只读回读候选。游戏实例已经登记的自定义路径继续由领域 Owner 和节点索引解释，普通设置页只展示实际位置，不另创建路径配置。当前游戏记录的位置与元数据不能根据新默认值猜测或重写。
 
 ## DSH 第三方扩展插件
 
-沿用 LFAA Plugin Manager 的分层布局：`<LFAA_HOME>/plugins/profiles/<profile>/` 保存安装清单与已核验源码快照；`<LFAA_HOME>/plugins/runtime-adapters/profiles/<profile>/` 保存受控运行适配副本；`<LFAA_DATA_DIR>/plugins/runtime-data/profiles/<profile>/<plugin-id>/` 保存运行私有数据。Profile 清单是安装/启用状态的权威，目录存在不代表启用或兼容。旧版本位于数据根的包和适配目录仅在确认不冲突后复制到安装根，保留源目录。
+Plugin Manager 将源码快照、`inventory.json` 和 Cordis Profile 配置放在 `<LFAA_HOME>/profiles/<Profile>/`；受控运行适配副本和默认插件私有运行数据分别放在同一 Profile 的 `runtime-adapters/<plugin-id>/` 与 `runtime-data/<plugin-id>/`。插件自己的存储位置配置（如果有）由对应 Plugin/Runtime Owner 生效，系统 data 和业务内容根不覆盖插件配置。Profile 清单是安装/启用状态的权威，目录存在不代表启用或兼容。旧 `<LFAA_HOME>/plugins` 与 `<LFAA_DATA_DIR>/plugins` 不再作为当前入口；旧文件保留原位，系统数据初始化/迁移和文件管理不创建、复制或读取旧目录。
 
 本机 DSH 只读参考确认：DSH 把依赖装入自己的 Profile，读取 package.json/bundle patch 决定装配。LFAA 使用自己的 Profile/Owner，不能把 DSH 主机或任意包直接放进运行图。保留来源提交、归档摘要、真实运行适配、启停撤销和失败恢复；无法运行的 DSH 包仍明确报告不兼容。普通文件管理可浏览可公开内容，但不能上传替换源码、改安装清单、移动或删除插件根。安装/更新/卸载走现有 capability/Plugin Manager 生命周期与统一权限模式。
 

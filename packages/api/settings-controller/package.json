@@ -10,6 +10,7 @@
     "lfaa-api-remotes": "workspace:*",
     "lfaa-app-boot": "workspace:*",
     "lfaa-authorization": "workspace:*",
+    "lfaa-permission-presets": "workspace:*",
     "lfaa-conversation-memory": "workspace:*",
     "lfaa-session": "workspace:*",
     "lfaa-settings": "workspace:*",

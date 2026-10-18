@@ -1,8 +1,8 @@
 # Settings API
 
-本包登记认证后的设置路由，不复制身份、配置或数据迁移规则。总根与推荐调用 workspace/data-directory，分类目录读取 settings/project-storage 的派生投影；总根写入沿用原超级管理员合同。
+本包登记认证后的设置路由，不复制身份、配置或数据迁移规则。系统数据根只读启动配置，由 workspace/data-directory 提供状态；系统数据迁移入口禁用。游戏、Writing、AI Video 的业务内容根及其复制/核对/ZIP 操作由 settings/project-storage 与 content-storage-migration 持有。
 
-POST /data-directory/recommended 由 Owner 选择项目 data，并返回真实当前/待迁移状态；已有自定义总根不会被推荐覆盖。旧 PUT /project-storage-locations 返回 independent_storage_retired，不再落盘六套分类根；GET 保留派生目录供现有 Consumer 展示。没有增加新审批模式或重置账户偏好。
+业务内容迁移路由要求管理员身份；写入、复制切换、手动核对切换及归档导入/导出均经过 Permission Owner 的 `authorizeExplicitUserAction`，页面上的明确操作按钮构成单次授权。系统复制只覆盖受管业务树并保留目标备份，手动模式核对 SHA-256，ZIP 脚本仅解包 `games/` 与账户项目目录。系统账号、AI Provider、会话、设置、环境、缓存、插件 Profile 和远端节点路径不由这些路由处理。
 
 构建仅写根 dist/packages/api/settings-controller；[数据与文件合同](../../../docs/development/file-resources.zh.md)。真实服务重载与数据迁移不由构建代替。
 

@@ -26,10 +26,9 @@ const environmentPath = resolve(projectRoot, ".env");
 const desktopMigration = Boolean(desktopConfigurationPath);
 const execFileAsync = promisify(execFile);
 
-function isInstallOnlyPath(path) {
+function isLegacyPluginPath(path) {
   const normalized = path.split(sep).join("/").toLocaleLowerCase("en-US");
-  return normalized === "plugins/profiles" || normalized.startsWith("plugins/profiles/")
-    || normalized === "plugins/runtime-adapters" || normalized.startsWith("plugins/runtime-adapters/");
+  return normalized === "plugins" || normalized.startsWith("plugins/");
 }
 
 function isWithinDirectory(parentDirectory, candidateDirectory) {
@@ -56,7 +55,7 @@ async function assertNoSymbolicLinks(rootDirectory) {
       const info = await lstat(entryPath);
       if (info.isSymbolicLink()) throw new Error("源数据目录包含符号链接或目录联接。为避免把数据复制到意外位置，迁移已停止。");
       const path = relative(rootDirectory, entryPath).split(sep).join("/");
-      if (isInstallOnlyPath(path)) continue;
+      if (isLegacyPluginPath(path)) continue;
       if (info.isDirectory()) pendingDirectories.push(entryPath);
     }
   }
@@ -73,7 +72,7 @@ async function collectManifest(rootDirectory) {
       const info = await lstat(entryPath);
       if (info.isSymbolicLink()) throw new Error("数据树在迁移过程中出现符号链接；为保护路径边界，迁移已停止。");
       const path = relative(rootDirectory, entryPath).split(sep).join("/");
-      if (isInstallOnlyPath(path)) continue;
+      if (isLegacyPluginPath(path)) continue;
       if (info.isDirectory()) pendingDirectories.push(entryPath);
       records.push({ path, type: info.isDirectory() ? "directory" : "file", size: info.isFile() ? info.size : 0 });
     }
@@ -109,15 +108,14 @@ async function extractDataArchive(archivePath, temporaryDirectory) {
   return temporaryDirectory;
 }
 
-async function removeInstallOnlyPaths(rootDirectory) {
-  for (const path of [resolve(rootDirectory, "plugins", "profiles"), resolve(rootDirectory, "plugins", "runtime-adapters")]) {
-    try {
-      const info = await lstat(path);
-      if (info.isSymbolicLink()) throw new Error("ZIP 内插件安装目录包含链接，拒绝导入。");
-      await rm(path, { recursive: true, force: false });
-    } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
-    }
+async function removeLegacyPluginPaths(rootDirectory) {
+  const path = resolve(rootDirectory, "plugins");
+  try {
+    const info = await lstat(path);
+    if (info.isSymbolicLink()) throw new Error("ZIP 内旧插件数据目录包含链接，拒绝导入。");
+    await rm(path, { recursive: true, force: false });
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
   }
 }
 
@@ -346,7 +344,7 @@ async function main() {
             recursive: true, force: false, errorOnExist: true, preserveTimestamps: true,
             filter: (sourcePath) => {
               const childPath = relative(realSourceDirectory, sourcePath).split(sep).join("/");
-              return !childPath || !isInstallOnlyPath(childPath);
+              return !childPath || !isLegacyPluginPath(childPath);
             }
           });
           const sourceManifest = await collectManifest(realSourceDirectory);
@@ -354,7 +352,7 @@ async function main() {
           if (JSON.stringify(sourceManifest) !== JSON.stringify(targetManifest)) throw new Error("迁移副本的文件数量或大小与源目录不一致；原目录保留，没有切换位置。");
         } else {
           await extractDataArchive(request.archivePath, temporaryDirectory);
-          await removeInstallOnlyPaths(temporaryDirectory);
+          await removeLegacyPluginPaths(temporaryDirectory);
           const importedDatabasePath = resolve(temporaryDirectory, "database", "lfaa.sqlite");
           if (!(await lstat(importedDatabasePath)).isFile()) throw new Error("ZIP 中缺少 database/lfaa.sqlite；没有切换数据位置。");
           assertDatabaseHealthy(importedDatabasePath);

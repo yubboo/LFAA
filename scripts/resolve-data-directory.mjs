@@ -16,7 +16,7 @@ const dataDirectory = resolveDataDirectory(projectRoot, configuredValueArgument 
 if (printLayout) {
   process.stdout.write(`${JSON.stringify({
     homeDirectory,
-    pluginInstallDirectory: resolve(homeDirectory, "plugins"),
+    pluginInstallDirectory: resolve(homeDirectory, "profiles"),
     defaultDataDirectory: resolve(homeDirectory, "data"),
     dataDirectory
   })}\n`);

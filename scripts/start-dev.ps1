@@ -161,8 +161,6 @@ function Initialize-LfaaDataDirectory {
             }
         }
     }
-    if (-not $configuredDataDirectory) { $configuredDataDirectory = 'data' }
-
     $nodeCommand = Get-Command 'node' -ErrorAction Stop
     $resolverPath = Join-Path $projectRoot 'scripts/resolve-data-directory.mjs'
     $resolverOutput = @(& $nodeCommand.Source $resolverPath $projectRoot $configuredDataDirectory 2>&1)
@@ -183,17 +181,7 @@ function Initialize-LfaaDataDirectory {
 function Complete-LfaaDataDirectoryMigration {
     $requestPath = Join-Path $projectRoot '.lfaa-data-directory.pending.json'
     if (-not (Test-Path -LiteralPath $requestPath -PathType Leaf)) { return }
-    if ($Mode -eq 'Service') {
-        throw '检测到待迁移的数据目录。请停止各个 LFAA 服务窗口，并通过项目启动器完整启动，以便安全复制共享数据。'
-    }
-
-    $nodeCommand = Get-Command 'node' -ErrorAction Stop
-    $migrationScript = Join-Path $projectRoot 'scripts/apply-data-directory-migration.mjs'
-    Write-Host '正在复制并核对 LFAA 本机数据目录；源目录会保留作回退。' -ForegroundColor Cyan
-    & $nodeCommand.Source $migrationScript $projectRoot
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host '数据目录迁移没有完成；将继续使用当前目录启动，原数据仍可在设置中心管理迁移请求。' -ForegroundColor Yellow
-    }
+    Write-Host '检测到旧的系统数据迁移请求；为避免移动账户/Provider/会话数据，本次不会执行。业务 data 请在设置中心迁移。' -ForegroundColor Yellow
 }
 
 function Get-ListeningProcessIds {
@@ -297,12 +285,22 @@ function Get-ManagedDevelopmentProcesses {
             }
         }
     }
-    if (-not $configuredDataDirectory) { $configuredDataDirectory = 'data' }
-    if ([System.IO.Path]::IsPathRooted($configuredDataDirectory)) {
-        $dataDirectory = [System.IO.Path]::GetFullPath($configuredDataDirectory)
+    if ($configuredDataDirectory) {
+        if ([System.IO.Path]::IsPathRooted($configuredDataDirectory)) {
+            $dataDirectory = [System.IO.Path]::GetFullPath($configuredDataDirectory)
+        }
+        else {
+            $dataDirectory = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $configuredDataDirectory))
+        }
     }
     else {
-        $dataDirectory = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $configuredDataDirectory))
+        $nodeCommand = Get-Command 'node' -ErrorAction Stop
+        $resolverPath = Join-Path $projectRoot 'scripts/resolve-data-directory.mjs'
+        $resolverOutput = @(& $nodeCommand.Source $resolverPath $projectRoot 2>&1)
+        if ($LASTEXITCODE -ne 0 -or $resolverOutput.Count -eq 0) {
+            throw '无法解析当前用户的系统数据目录，未启动或停止任何 Daemon。'
+        }
+        $dataDirectory = [System.IO.Path]::GetFullPath(([string]($resolverOutput | Select-Object -Last 1)).Trim())
     }
     $daemonDataDirectories = @($dataDirectory)
     $pendingMigrationPath = Join-Path $projectRoot '.lfaa-data-directory.pending.json'

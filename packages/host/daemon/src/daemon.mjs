@@ -52,7 +52,7 @@ const defaultSteamcmdSettings = { installMode: "online", steamcmdDirectory: "lib
 const fileTaskPollIntervalMilliseconds = 1000;
 const javaDirectory = resolve(dataDirectory, "environments", "Java");
 const customJavaPathsPath = resolve(javaDirectory, "custom-paths.json");
-const backupDirectory = resolve(dataDirectory, "backups", "minecraft");
+let backupDirectory = resolve(dataDirectory, "backups", "minecraft");
 const downloadDirectory = resolve(dataDirectory, "cache", "minecraft-downloads");
 const sandboxMetadataDirectory = resolve(dataDirectory, "environments", "sandbox", "minecraft");
 const sandboxHostPath = resolve(repositoryRoot, "dist", "apps", "daemon", "target", "x86_64-pc-windows-msvc", "release", "lfaa-sandbox-host.exe");
@@ -513,6 +513,10 @@ async function getExistingMinecraftStorageRoot(storageDirectory) {
 // 心跳接收当前目录及所有已记录路径；只创建当前默认目录，历史实例仍按原根目录扫描。
 async function applyMinecraftStorageSettings(settings) {
   const currentDirectory = validateMinecraftStorageDirectory(settings.instanceDirectory);
+  if (typeof settings.backupDirectory === "string") {
+    const configuredBackupDirectory = validateMinecraftStorageDirectory(settings.backupDirectory);
+    backupDirectory = await ensureStorageDirectory(getMinecraftStorageRoot(configuredBackupDirectory));
+  }
   const listedDirectories = Array.isArray(settings.knownDirectories) ? settings.knownDirectories : [];
   const directories = new Set([currentDirectory, "games/minecraft"]);
   for (const item of listedDirectories) directories.add(validateMinecraftStorageDirectory(item));
@@ -939,7 +943,7 @@ function assertNodeFileReadable(path) {
   const rel = relative(dataDirectory, path);
   if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return;
   const parts = rel.split(sep).map(part => part.toLowerCase());
-  if (protectedDataDirectories.includes(parts[0]) || parts[0] === 'plugins' && parts[1] === 'runtime-data') throw new Error('账户或插件私有运行数据由对应 Owner 管理。');
+  if (protectedDataDirectories.includes(parts[0]) || parts[0] === 'plugins') throw new Error('账户或旧插件私有数据由对应 Owner 管理。');
 }
 const nodeFileService = createManagedFileService({root: dataDirectory, protectedDirectories: protectedDataDirectories,
   assertCanRead: assertNodeFileReadable, assertCanMutate: assertNoActiveInstanceAffected});

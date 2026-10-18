@@ -12,6 +12,6 @@
 
 菜单 8 使用 `scripts/update-project.ps1`：按菜单脚本自身位置定位仓库，仅 fetch `origin/main`，工作区有未提交变化、分支分叉、远端改动触及当前数据根或远端历史回退时停止；否则展示待更新内容并只执行 `merge --ff-only`。它不运行 `reset`、`clean`、强制推送或数据迁移；选项 7 当前未定义。更新后仍需按项目要求安装依赖、重建/启动和验收；源码更新不会自动替换或清理本机运行数据。
 
-数据路径由 `packages/util/home-paths` 和启动配置统一解析。菜单 4 显示当前 `LFAA_HOME`、插件安装目录和唯一有效 `LFAA_DATA_DIR`，并标出未选用的默认目录；例如当前 `.env` 选择仓库 `data` 时，`%USERPROFILE%\.lfaa\data` 不会再生成一份空数据。Profile 覆盖位于 `<LFAA_HOME>/profiles/<Profile>/cordis.patch.yml`，插件安装源码位于 `<LFAA_HOME>/plugins/profiles/<Profile>`，运行数据分类位于所选 `LFAA_DATA_DIR`；两类根互不合并。权限、用户会话和节点凭据继续由领域 Owner 校验。日志级别读取 `LOG_LEVEL`；成功的节点领取/心跳为 debug，失败保持可见。
+数据路径由 `packages/util/home-paths` 和启动配置统一解析。菜单 4 显示当前 `LFAA_HOME`、插件安装目录和唯一有效 `LFAA_DATA_DIR`，并标出未选用的默认目录；例如当前 `.env` 选择仓库 `data` 时，`%USERPROFILE%\.lfaa\data` 不会再生成一份空数据。Profile 覆盖、插件源码和清单位于 `<LFAA_HOME>/profiles/<Profile>`，受控适配副本与默认私有运行数据位于该 Profile；插件自有存储配置由对应 Plugin/Runtime Owner 生效。旧 `<LFAA_HOME>/plugins` 与 `<LFAA_DATA_DIR>/plugins` 不再作为入口。系统数据根、插件 Profile 与业务内容根分别管理；权限、用户会话和节点凭据继续由领域 Owner 校验。日志级别读取 `LOG_LEVEL`；成功的节点领取/心跳为 debug，失败保持可见。
 
 长期回归在 `tests/`，通过根 `pnpm test` 执行。全仓维护记录见 [审计](../../docs/archive/audits/workspace-audit.md)，性能合同见 [性能维护](../../docs/development/performance.zh.md)。

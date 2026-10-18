@@ -13,7 +13,6 @@ import type { CapabilityApplicationId, CapabilityInstallRegistry } from "lfaa-ca
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { WindowsAppContainerPluginRuntime } from "./windows-appcontainer-runtime.js";
 import { DshWallpaperEngineRuntime } from "./dsh-wallpaper-engine-runtime.js";
-import { migrateLegacyPluginStorage } from "./storage-migration.js";
 import { searchGithubRepositories } from "./github-source.js";
 import { resolvePluginSource, type PluginSourceSnapshot, type PluginSourceType } from "./source-resolution.js";
 import type { PluginArchiveFile } from "./zip-archive.js";
@@ -22,6 +21,7 @@ const INVENTORY_VERSION = 4;
 const MAX_INSTALLED_PLUGINS = 128;
 const MAX_ACTIVE_PLUGIN_COUNT = 4;
 const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,119}$/u;
+const RESERVED_PROFILE_ENTRIES = new Set(["cordis.patch.yml", "package.json", "inventory.json", "runtime-adapters"]);
 const WALLPAPER_ENGINE_REPOSITORY = "https://github.com/elysia395/dsh-wallpaper-engine";
 const WALLPAPER_ENGINE_RECORD_ID = "elysia395-dsh-wallpaper-engine";
 const WALLPAPER_ENGINE_PACKAGE_ID = "dsh-plugin-wallpaper-engine";
@@ -108,9 +108,12 @@ export class PluginManager {
   private readonly activeIds = new Set<string>();
   private mutationActive = false;
 
-  constructor(readonly profile: string, dataDirectory = config.dataDirectory, runtime?: PluginRuntimeAdapter, pluginInstallDirectory = resolve(dataDirectory, "plugins")) {
+  readonly installationDirectory: string;
+
+  constructor(readonly profile: string, pluginInstallDirectory = config.pluginInstallDirectory, runtime?: PluginRuntimeAdapter) {
     if (!/^[a-z][a-z0-9-]{0,63}$/u.test(profile)) throw new Error("当前 Profile 名称无效。");
-    this.root = resolve(pluginInstallDirectory, "profiles", profile);
+    this.installationDirectory = resolve(pluginInstallDirectory, profile);
+    this.root = this.installationDirectory;
     this.inventoryPath = resolve(this.root, "inventory.json");
     mkdirSync(this.root, { recursive: true, mode: 0o700 });
     if (runtime) this.registerRuntimeAdapter(runtime);
@@ -375,7 +378,7 @@ export class PluginManager {
   }
 
   private directory(id: string): string {
-    if (!PLUGIN_ID_PATTERN.test(id)) throw new PluginManagerError("plugin_id_invalid", "插件标识无效。");
+    if (!PLUGIN_ID_PATTERN.test(id) || RESERVED_PROFILE_ENTRIES.has(id)) throw new PluginManagerError("plugin_id_invalid", "插件标识无效或与 Profile 控制文件冲突。");
     const path = resolve(this.root, id);
     if (!path.startsWith(`${this.root}${sep}`)) throw new PluginManagerError("plugin_path_invalid", "插件目录超出当前 Profile 范围。");
     return path;
@@ -711,11 +714,10 @@ declare module "@deepseek-ai/cordis" {
 export const name = "lfaaPluginManager";
 export const inject = ["profileContext", "lfaaCapabilityInstalls", "loader", "webServer"];
 export async function apply(ctx: Context): Promise<void> {
-  await migrateLegacyPluginStorage(config.dataDirectory, config.pluginInstallDirectory, ctx.profileContext.name);
   const runtime = ctx.get("loader") && ctx.get("webServer")
-    ? new DshWallpaperEngineRuntime(ctx, ctx.profileContext.name, config.dataDirectory, config.pluginInstallDirectory)
+    ? new DshWallpaperEngineRuntime(ctx, ctx.profileContext.name, config.pluginInstallDirectory)
     : undefined;
-  const manager = new PluginManager(ctx.profileContext.name, config.dataDirectory, runtime, config.pluginInstallDirectory);
+  const manager = new PluginManager(ctx.profileContext.name, config.pluginInstallDirectory, runtime);
   if (WindowsAppContainerPluginRuntime.isAvailable()) manager.registerRuntimeAdapter(new WindowsAppContainerPluginRuntime());
   ctx.provide(name, manager);
   ctx.lfaaCapabilityInstalls.register(ctx, {

@@ -108,6 +108,14 @@
 | 96-可迁移启动路径-20261017 | 可迁移启动路径 | 见合同 | [本轮合同](#lfaa-relocatable-workspace-launch-20261017) |
 | 97-默认账号与登录-20261017 | 默认账号与登录 | 见合同 | [本轮合同](#02-默认账号与登录-20261017) |
 | 98-输入框窄栏响应式-20261017 | 参考紧凑“更多”菜单，把关联应用和能力选择从常驻底栏移入纵向操作菜单，适配窄聊天列 | 定向回归、客户端类型检查及 Web 构建通过；内置浏览器目视未验 | [本轮合同](#98-输入框窄栏响应式-20261017) |
+| 99-弹窗叠层与主题修复-20261017 | 修复提醒弹窗入场透字，并统一首次配置与账户安全提醒的弹窗、主题和提醒操作 | 批次 H/I/J 已完成；定向回归、类型、相关包/Web 构建及桌面/窄屏内置浏览器验收通过；workspace Gate 保留 10 项既有错误；仅实测当前深色主题 | [本轮合同](#lfaa-modal-stacking-theme-repair-20261017) |
+| 100-登录动画完成门控-20261017 | 工作台内容等登录转场完整结束后再出现，并改善登录品牌到工作台的衔接 | 全屏仅淡出、小卡片轻移；定向回归/类型/Web 构建及内置浏览器桌面/窄屏登录验收通过；workspace Gate 仍有 10 项既有问题，帧时间/自定义插件未测 | [本轮合同](#lfaa-auth-transition-completion-gate-20261017) |
+| 101-插件来源弹窗布局-20261017 | 修复插件来源检查卡片、固定来源长串和兼容告警横向溢出 | 定向回归 7/7、类型与插件包/Web 构建通过；内置浏览器桌面和窄短屏验收通过；workspace Gate 有 10 项既存错误 | [本轮合同](#lfaa-plugin-inspection-modal-layout-20261017) |
+| 102-系统与内容存储分离-20261017 | 固定系统数据根，独立配置游戏、小说、漫剧内容根；切换不复制系统数据 | 实施中 | [当前合同](#lfaa-content-storage-separation-20261017) |
+| 103-插件 Profile 安装位置-20261017 | 插件直接安装到 LFAA_HOME 的 Profile 根，不再使用旧全局 plugins 树；真实 DSH 示例保持不可运行 | 实施中 | [当前合同](#lfaa-plugin-profile-install-location-20261017) |
+| 104-插件安装引导折叠-20261018 | 将添加插件弹窗的 npm 示例与完整安全说明收进可展开区，安装源与展开控制并列 | 代码已实现；UI 回归、类型及包/Web 构建通过；内置浏览器验收待完成；workspace Gate 有 10 项既有错误 | [当前合同](#lfaa-plugin-install-guide-disclosure-20261018) |
+| 105-外观主题与首屏画布-20261018 | 修复浅色/深色/跟随系统未同步生效，以及刷新时壁纸画布闪黑；校准现有遮罩与模糊映射 | 源码回归与构建完成；内置浏览器确认当前“跟随系统”刷新后保持深色，三主题交互及首帧帧时间仍待验 | [当前合同](#lfaa-appearance-theme-canvas-first-paint-20261018) |
+| 106-通知总开关与数据根核对-20261018 | 增加默认开启的弹出通知总开关，并核对隔离验收目录与产品数据根的区别 | 源码、定向回归、类型和构建通过；内置浏览器桌面核对完成，隔离设置当前关闭且未修改；窄短屏/开关开启交互待验；workspace Gate 有 10 项既存错误 | [当前合同](#lfaa-notification-master-switch-and-data-root-20261018) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
@@ -2088,7 +2096,13 @@ Owner 与边界：`storage-sqlite` 负责向后兼容迁移并保存“默认凭
 
 逐批验收：A. 隔离 SQLite 验证空库得到 admin、123456 与单个超级管理员，非空旧库不变，重复调用幂等；B. 登录 UI 桌面/窄屏实页、坏密码反馈稳定和默认凭据提示；C. 提醒设置读写/旧值兼容，首次登录只提醒带待确认标记的默认账户，跳过或改名/改密后不再提示；D. 账户安全设置实际改名与改密并验证旧凭据失败、新凭据成功、当前会话保留；运行 auth/settings/迁移定向回归、类型检查、相关构建与 `git diff --check`。ChatGPT 内置浏览器实页验收需记录路由、视口和结果；宿主项目登记指向旧路径时明确记录限制，不用外部浏览器冒充。
 
-实施记录：待实施与验收。
+实施记录（2026-10-17，卡顿修复批次）：复核确认原默认路径在 `startViewTransition` 回调中 `flushSync` 挂载完整 Workbench，并捕获/动画完整登录页与工作台快照；这把较重的首屏 React 提交与全屏快照合成压在同一动画窗口，结合浏览器实测中的掉帧反馈，判定为卡顿来源。此为代码路径诊断，未采到原版本或修复版的 FPS/Long Task 数值。
+
+修复：默认路径先让 Workbench 首屏挂载，期间通过 `visibility:hidden`、`aria-hidden` 和 `inert` 保持不可见/不可交互；Workbench 提交并经过两次 `requestAnimationFrame` 后，登录覆盖层运行 820ms 的 CSS `transform`/`opacity` 动画。末帧透明度保留 34%，避免淡成近黑画面；动画覆盖层不重复读取通行密钥状态。只在动画结束后揭开 Workbench 和提醒。自定义动画仍使用原 View Transition/SLOT 路径。
+
+源码与构建：认证反馈/转场回归 5/5、`pnpm typecheck`、`pnpm build:web`、`git diff --check` 通过。`pnpm check:workspace` 仍失败于 11 项仓库级既存问题：两条职责注解指向缺失目录、包目录 JSON/Markdown 清单过期、四条归档截图链接缺失、一份中文开发文档缺少英文配对入口、两条文档链接指向缺失目录；与本批登录代码无关。
+
+ChatGPT 内置浏览器：当前构建实际加载 `http://127.0.0.1:3000/work`。桌面 1355×925 与窄短屏 390×640 均通过退出/重新登录；动画期间可读到 `data-lfaa-auth-entry-animation="builtin"`、工作台隐藏门控、`aria-hidden=true` 与 `inert`，动画结束后这些门控清理并显示完整工作台。桌面文档滚动宽度 1345/1355；窄屏 380/390，均无横向溢出。首次配置提醒只在动画后出现；仅临时点“稍后再说”关闭当前弹窗，未写入任何偏好。截图在本轮内置浏览器中捕获。帧间隔/超过 50ms 主线程长任务未测（IAB 页面评估接口不暴露 Performance API）；自定义插件、Reduced Motion 开关、真实桌面 WebView 和低端设备未测。
 
 <a id="98-输入框窄栏响应式-20261017"></a>
 
@@ -2103,3 +2117,225 @@ Owner 与边界：`packages/client/ui-chat` 持有聊天输入区结构和样式
 验收：运行 `client-ai-work-composer-responsive.test.mjs`、ui-chat 构建、Web 类型检查与构建、`git diff --check`；ChatGPT 内置浏览器打开 `http://127.0.0.1:3000/work`，在常用桌面视口及窄中间列检查紧凑底栏、纵向菜单、选择交互、横向溢出和操作可达性。记录实际视口与无法覆盖范围，不以源码或构建检查代替实页验收。
 
 实施记录（2026-10-17）：最初尝试在窄栏里压缩和换行两个常驻选择器；收到“更多”菜单参考图后，改为底栏保留附件、权限、更多、模型、语音和发送，两个关联入口放入纵向菜单，再分别进入原多选器。定向回归 5/5、ui-chat 构建、客户端类型检查、Web 生产构建及 `git diff --check` 通过；ChatGPT 内置浏览器控制器启动失败（`目录名称无效 (os error 267)`），所以实际页面与桌面/窄视口目视验收未完成；帧时间未测。新增仅两个本地 React 状态，无请求、订阅、计时器或观察器；未新增设置，沿用主题令牌与 Session 关联合同。
+
+<a id="lfaa-modal-stacking-theme-repair-20261017"></a>
+
+## 99-弹窗叠层与主题修复-20261017
+
+目标：首次登录时默认凭据提醒与首次配置提醒不得同时显示；凭据提醒使用工作台现有主题、字体、对比度和弹窗效果，保证标题/正文/按钮清晰，并适配窄屏和短屏。
+
+Owner 与边界：`ui-renderer` 保留认证提醒的读取与确认状态；`ui-layout` 把凭据提醒状态及原有回调传给 `SetupReminder`，由该组件复用同一个 Modal 呈现两类提醒；`SetupReminder` 继续独立判断首次配置条件、设置开关和当日暂停。不得改认证、提醒写入、账户数据或其他弹窗语义。
+
+设置盘点：不新增或写入设置。复用 `general.defaultAdminCredentialReminderEnabled`、`general.setupReminderEnabled`、`general.dialogMotionEffect`，以及 Appearance 的主题、强调色、字体/字号、对比度、壁纸表面透明度/模糊和减少动态效果映射。
+
+验收批次：单批完成弹窗排队、主题表面/文字/按钮修复及窄屏布局；立即运行直接相关的客户端类型检查、ui-layout/Web 构建、`check:workspace` 和差异检查，再用 ChatGPT 内置浏览器打开按当前仓库启动器运行的源码 Web，在桌面与窄屏/短屏检查首次配置弹窗不与凭据提醒重叠、凭据提醒文字对比、按钮可达及切换后首次配置提醒按原配置出现。只进行认证和界面查看，不保存真实账户设置、不确认或永久关闭提醒；记录实际地址、视口、截图和帧时间未测项。
+
+实施记录（2026-10-17）：`pnpm build:web`、`git diff --check` 通过；为 `ui-settings-general` 补齐其对 `ui-primitives` 的既有直接依赖并同步锁文件。`pnpm check:workspace` 中该依赖问题已消失，仍有 11 项与本弹窗无关的全仓问题：两条职责注解指向缺失目录、包目录 JSON/Markdown 清单过期、四个归档截图链接缺失、一个中文文档缺少英文配对入口、两条文档链接指向缺失目录。
+
+ChatGPT 内置浏览器验收：使用当前源码构建和 `pnpm lfaa web --no-local-daemon`，实际地址 `http://127.0.0.1:3000/work`，当前数据目录 `E:\lfaa1\lfaa\data`。桌面视口 1355×925：默认凭据提醒单独显示，标题与正文清晰，按钮和壁纸下的半透明/模糊表面符合工作台主题；截图已在本轮内置浏览器输出。窄屏短屏 390×640：凭据弹窗宽约 356px、左右留白约 12px，按钮完整可达，无横向溢出；点“前往设置中心”后不保存设置，返回 `/work` 后首次配置提醒单独显示，窄屏弹窗约 364×476px、操作区完整可见，截图已在本轮内置浏览器输出。测试后刷新回凭据提醒并保留页面供查看。只读检查 `general.defaultAdminCredentialReminderEnabled`、`general.setupReminderEnabled`、`general.dialogMotionEffect` 和现有 Appearance 映射；未写入设置、未点击任何提醒关闭/延后按钮，未测帧时间及 Desktop。
+
+追加验收批次：修复弹窗入场时先透出底层文字、之后才呈现完整模糊效果的问题。动效根因在共享 Ant Design 入场透明度，因此让所有弹窗面板在入场时保持最终不透明度，由 `general.dialogMotionEffect` 继续控制轻量位移/缩放，由 `appearance.advanced.reducedMotion` 控制减弱/静态行为；退场效果保持原样。凭据玻璃面板继续读取 Appearance 壁纸表面透明度和模糊映射；不写入或重置设置。添加共享 CSS 合同的直接回归；用 ChatGPT 内置浏览器观察默认凭据提醒初始帧到稳定态，并在桌面及窄屏/短屏核实面板、文字和按钮。不得改变提醒确认或账户数据。
+
+实施记录（2026-10-17，弹窗透明度批次）：`ui-theme/common.css` 将 fluid/fade/lift 入场动画收敛为 transform-only，并在 Ant Design `zoom-enter`/`zoom-appear` 初始类阶段固定面板 `opacity:1`；遮罩淡入、退场动画、`general.dialogMotionEffect` 选项和 `appearance.advanced.reducedMotion` 优先级保留。凭据弹窗仍使用 `--settings-background-surface-opacity` 与 `--settings-glass-blur`，没有新增或写入设置。定向 CSS 回归 1/1、`pnpm typecheck`、`pnpm run build:web`、`git diff --check` 通过；产物 `dist/apps/web/assets/render-CE5fGKKH.css` 含稳定不透明入场规则及凭据表面令牌。`pnpm check:workspace` 仍失败于 10 项既有问题：两条职责注解指向缺失目录、包目录 JSON/Markdown 清单过期、4 个归档截图缺失、两条文档链接指向缺失目录。
+
+ChatGPT 内置浏览器：实际路由 `http://127.0.0.1:3000/work`，桌面 1355×925 加载 `render-CE5fGKKH.css`；当前视图显示首次配置存储提醒而非默认凭据提醒，因此本轮无法目视凭据玻璃弹窗本身。共享规则在 CSSOM 确认为 `opacity: 1 !important`；首次配置弹窗在桌面和 390×640 窄短屏均完整显示标题、正文和按钮，稳定态未见底层文字穿透；浏览器最后恢复默认尺寸。只读读取账户设置映射为 `dialogMotionEffect=fluid`、`reducedMotion=system`、背景表面透明度 65%、模糊 14px；没有更改设置。凭据玻璃弹窗本身、帧时间未测。
+
+实施记录（2026-10-17，共享弹窗批次）：`Workbench` 移除独立凭据 Modal，把凭据文案与原回调作为 `priorityPrompt` 交给现有 `SetupReminder`；首次配置和凭据提醒现在共用一个 Modal、标题区、内容卡片、主按钮、短屏滚动及外观样式。首次配置检查/当日暂停/关闭设置仍在 `SetupReminder`；凭据状态仍由 Renderer 管理，保留“前往设置中心”和“稍后再说”原行为。壁纸时共享面板读取 Appearance 的表面透明度和模糊令牌，没有新增或写入设置。
+
+定向认证与提醒回归 6/6、`pnpm typecheck`、`pnpm run build:web`、`git diff --check` 通过。`pnpm check:workspace` 仍有 10 项既有清单/归档截图错误：两条职责注解缺失目录、JSON/Markdown 包清单过期、4 个历史截图不存在、2 条包目录链接失效。
+
+ChatGPT 内置浏览器验收：从当前源码构建启动正式 Web，实际地址 `http://127.0.0.1:3000/work`。默认凭据提醒桌面视口 1240×925：单个 480×457 Modal，主按钮与“稍后再说”均可见；CSSOM 表面为 65% 透明度及 14px 模糊。窄屏短屏 390×640：Modal 356×449，左右各 12px，按钮在边界内，正文完整且无横向溢出。点击“前往设置中心”到 `/settings`，未保存设置；经设置页原返回入口回 `/work` 后首次配置提醒单独出现，390×640 下 Modal 356×497、主操作与三枚提醒按钮完整可达。随后恢复默认 1240×925 视口并留在 `/work`；桌面与窄屏截图见本批内置浏览器输出。设置未改写，未点击“稍后再说”或持久关闭提醒；未测帧时间及 Desktop。
+
+追加验收批次：默认凭据提醒复用现有 `SetupReminder` 的同一 Modal、内容卡片、主操作按钮和响应式样式，移除 `Workbench` 中的重复 Modal/CSS；`ui-renderer` 仍持有凭据提醒状态，`ui-layout` 仅传递状态和原有回调。首次配置提醒的读取、关闭、当日暂停及全局关闭语义保持不变；凭据提醒保留“稍后再说”和打开安全设置行为，不增加或写入提醒设置。先运行相关回归、类型检查与 Web 构建，再在 ChatGPT 内置浏览器桌面及窄短屏检查两类提醒的布局、按钮和互斥状态；不通过点击关闭/延后动作改变真实账户提醒状态。
+
+追加批次 G：改善账户安全提醒的重复弹窗体验。继续复用同一 `SetupReminder` Modal；增加“今日不再提醒”（按账户与本地日历日保存在浏览器，第二天自然恢复）、“不再提醒”（经 Settings Owner 保存 `general.defaultAdminCredentialReminderEnabled=false`）并保留“稍后再说”（现有 Account Owner 确认语义）及前往安全设置。关闭设置只在保存成功后生效，失败时保留弹窗并显示错误；当日暂停不确认/清除服务端凭据标记，也不影响首次配置提醒的暂停状态。允许修改 `ui-renderer/App.tsx`、`ui-layout/Workbench.tsx`、`ui-settings-general/SetupReminder.tsx`、其当日提醒状态 helper、相关直接回归、受影响包 README 与本合同/索引；不改 Account API/数据库凭据状态，不写真实账户偏好，不改首次配置提醒语义。读取和复用现有 `general.defaultAdminCredentialReminderEnabled`、`general.dialogMotionEffect` 与 Appearance 主题/字体/字号/对比度/玻璃模糊/透明度/减少动态效果映射；不新增设置。
+
+验收批次 G：运行账户提醒/共享弹窗直接回归、客户端类型检查、正式 Web 构建和 `git diff --check`；检查 workspace Gate 并准确记录既有失败。自行确认正式 Web 当前源码指纹后，用 ChatGPT 内置浏览器访问 `/work`，在桌面及 390×640 窄短屏检查按钮换行、操作可达、无横向溢出和同一 Modal 外观。不得点击“今日不再提醒”或“不再提醒”写入真实浏览器/账户偏好；这些写入行为由隔离回归验证。记录页面、视口、交互、截图及帧时间、Desktop、真实账户持久化等未测边界。
+
+实施与验收记录（2026-10-18，批次 G）：账户安全提醒继续复用唯一 `SetupReminder` Modal，新增“今日不再提醒”和“不再提醒”，保留“稍后再说”及“前往设置中心”。当日暂停按账户及本地日期写入独立浏览器键，第二天自动恢复；设置保存关闭继续使用 `general.defaultAdminCredentialReminderEnabled`，失败时保留提醒并显示错误。验收过程中补正暂停后的队列切换：安全提醒不再展示后，普通首次配置提醒能够使用自身标题、文案和操作，不沿用安全提醒内容。`node --import tsx --import ./register-package-loader.mjs --test tests/client-auth-feedback-layout.test.mjs` 7/7、`pnpm run typecheck`、`pnpm run build:web`、`git diff --check` 通过。Web 构建保留现有超过 500KB 的 C++ chunk 提示。`pnpm run check:workspace` 未通过，仍报 10 项既有问题：两条职责注解指向缺失目录、JSON/Markdown 包目录清单过期、4 张历史验收截图缺失、两条文档链接指向缺失包目录。
+
+ChatGPT 内置浏览器验收：从当前源码构建启动隔离数据服务 `http://127.0.0.1:56444/work` 与 `http://127.0.0.1:56445/work`，未更改真实账户。最新构建在 1355×925 下显示 480×457 弹窗，三个操作横向完整且无页面溢出；390×640 下弹窗约 356×489，三个按钮全部可见、操作区换行且无水平溢出。点击“今日不再提醒”后，账户安全提醒消失并显示普通首次配置存储提醒；在另一隔离来源点击“不再提醒”后，进入 `/settings?section=notifications` 确认“默认账户安全提醒”状态为“已关闭”。截图已在本轮内置浏览器验收输出记录。帧时间、打包 Desktop、真实账户持久化未测；隔离账户保存结果仅证明 Settings Owner 保存链路。
+
+追加批次 H：修复账户安全提醒“前往设置中心”没有进入安全分类的缺陷。沿用 `ui-renderer` 清除当前提醒状态，导航目标由 `ui-layout/Workbench` 指定为 `security`，`SettingsPage` 对挂载后的有效入口分类变化更新当前分类并同步地址；首次进入设置时仍使用相同 `security` 入口。不得调用“稍后再说”的 Account 确认，不得写入提醒开关或任何账户/认证数据。允许修改 `packages/client/ui-renderer/src/App.tsx`、`packages/client/ui-layout/src/Workbench.tsx`、`packages/client/ui-settings/src/SettingsPage.tsx`、提醒/路由直接回归、受影响包 README 与本合同/索引。
+
+验收批次 H：直接回归检查 Workbench 将安全分类请求传到 SettingsPage，以及 SettingsPage 响应分类请求并同步 URL；运行客户端类型检查、受影响 UI 包/Web 构建和 `git diff --check`。ChatGPT 内置浏览器从已挂载的 `/settings?section=appearance` 点击提醒主按钮，确认安全分类可见且路由已更新；不得提交用户名/密码、保存提醒偏好或确认凭据状态。记录真实路由、视口及未测边界。
+
+批次 H 根因（2026-10-18）：`App` 的 `onOpenCredentialSettings` 仅调用 `routeTo("/settings")`，丢失安全分类目标；并且 `SettingsPage.activeSection` 只在挂载时读取入口，因此已在设置页时即使入口分类变化也不会切换。现由 Workbench 为每次安全设置请求发出带序号的分类请求，已挂载的 SettingsPage 切到 `security` 并同步 URL；提醒由共享弹窗的路由动作关闭，没有调用“稍后再说”的账户确认。
+
+实施与验收记录（2026-10-18，批次 H）：定向源码回归 8/8、客户端类型检查、Renderer/Layout/Settings 包构建、正式 Web 构建及 `git diff --check` 均通过。Web 构建保留既有 C++ chunk 超过 500KB 提示。内置浏览器在 `http://127.0.0.1:3000/settings?section=appearance`、1240×925 视口中点击“前往设置中心”；实际地址更新为 `/settings?section=security`，安全分类选中，安全页的登录用户名、密码修改、恢复密钥和通行密钥内容可见。截图确认提醒浮层已关闭。未提交用户名/密码，未保存提醒偏好或确认凭据状态。首次从工作区打开设置、`pnpm run check:workspace`、窄屏/短屏、帧时间、Desktop 和真实凭据修改流程未在批次 H 验收。
+
+追加批次 I：账户安全高优先级提醒继续复用唯一 `SetupReminder` Modal，明确提供“更改”和“不更改”两种决定。“更改”进入安全分类，不自动修改用户名或密码；“不更改”保存已有 `general.defaultAdminCredentialReminderEnabled=false` 并保留当前凭据，之后不再弹出凭据提醒；继续保留“今日不再提醒”和“稍后再说”的既有独立语义。只优化该提醒的弹窗尺寸、标题居中和主操作层级，不影响普通首次配置弹窗。延续 `general.dialogMotionEffect`、`appearance.advanced.reducedMotion`、主题/强调色/字体字号/对比度和壁纸表面透明度/模糊的现有映射，不新增 CSS 自定义属性或设置。允许修改 `packages/client/ui-settings-general/src/SetupReminder.tsx`、`packages/client/ui-layout/src/workbench.css`、弹窗直接回归及本合同/索引。
+
+验收批次 I：直接回归确认“更改”仅导航到安全分类，“不更改”只保存现有凭据提醒开关、不写用户名或密码，优先提醒专属样式不影响普通配置弹窗；运行客户端类型检查、ui-layout 构建、正式 Web 构建、`pnpm run check:workspace` 和 `git diff --check`。在 ChatGPT 内置浏览器 `/work` 以 1240×925 和 390×640 检查弹窗层级、选择按钮与辅助操作可读可达、无横向溢出；不点击会保存提醒偏好的“不更改”，不提交任何凭据。记录设置只读值及帧时间/桌面端未测项。
+
+追加批次 J（用户扩展范围）：为所有 Ant Design Modal 与确认弹窗建立一致的表面、文字、尺寸和滚动基础，沿用各业务弹窗已有的专属内容布局；将 Workbench 已解析的主题、强调色、字体字号、对比度、壁纸表面透明度/模糊和背景存在状态同步到 `body` Portal，使其跟随外观设置，不再靠写死深色弹窗颜色。同步修订外观页说明。普通背景与 Wallpaper Engine 专属浮层继续由各自已存在的 Appearance/插件令牌控制。不得改变提醒语义、设置值、插件行为或业务弹窗内容。允许修改 `ui-layout/Workbench.tsx`、`ui-layout/workbench.css`、`ui-theme/common.css`、`ui-settings/SettingsPage.tsx`、相关包 README、弹窗直接回归及本合同/索引。
+
+验收批次 J：用直接回归覆盖主题令牌同步、body Portal 浅/深主题、壁纸透明度/模糊读取、通用弹窗窄屏宽度/短屏滚动和局部业务样式可覆盖；运行客户端类型检查、相关包构建、正式 Web 构建、workspace Gate 与 `git diff --check`。在 ChatGPT 内置浏览器 `/work` 检查当前账户主题下凭据提醒；用浏览器视口能力覆盖 390×640 并恢复原尺寸，另检查当前主题 CSS/DOM 令牌到 Portal 的实际映射。不得切换或保存真实用户主题、提醒、账号或其他偏好；未实测的另一个主题/设备需如实列出。
+
+实施与验收记录（2026-10-18）：批次 I 将“更改”接到安全设置分类，将“不更改”接到既有凭据提醒开关且不触碰账号字段，保留“今日不再提醒”和“稍后再说”的原有语义；批次 J 为通用 Ant Design Modal/确认框补齐统一表面、文字、滚动和响应式规则，Workbench 把已解析 Appearance 令牌同步到 body Portal，壁纸弹窗使用外观中的表面透明度/模糊，Wallpaper Engine 活跃时仍读取插件浮层令牌。设置值、账号和提醒操作均未提交。
+
+直接回归 `apps/cli/tests/client-auth-feedback-layout.test.mjs` 通过 10/10；`pnpm exec tsc --noEmit -p tsconfig.client.json`、`lfaa-client-ui-theme`/`lfaa-client-ui-layout`/`lfaa-client-ui-settings` 构建、`pnpm run build:web`、`git diff --check` 均通过。Web 构建仅报告既有 C++ chunk 501.30 kB 超出 500 kB 提示。`pnpm run check:workspace` 仍有 10 项既有错误：两个包 Owner 注释指向不存在目录、包 JSON/Markdown 清单陈旧、四张历史截图缺失及 `docs/harness-packages.md` 两个失效链接。
+
+内置浏览器 `/work` 当前登录页以 1240×925 检查深色主题，body Portal 与 Workbench 均解析为深色，弹窗表面透明度 65%、模糊 14px，弹窗 640×528，页面无横向溢出；390×640 下弹窗 356×539、操作按钮纵向排列、文案与底部按钮可见、页面无横向溢出。实点“更改”后进入 `/settings?section=security`，安全页已显示且弹窗关闭；未填写或提交任何账号字段。视口已恢复 1240×925。未切换真实主题偏好，因此浅色/跟随系统仅由共享 Appearance 令牌和主题同步代码覆盖，未做浏览器实切验收；未测其他设备及帧时间。
+
+<a id="lfaa-auth-transition-completion-gate-20261017"></a>
+
+## 100-登录动画完成门控-20261017
+
+目标：登录成功后，工作台页面、凭据提醒及首次配置提醒必须等当前登录转场完整结束后才显现；改善登录品牌到工作台的连续衔接。错误登录、恢复密码失败、会话恢复与减少动态效果的语义不变。
+
+Owner 与边界：`ui-renderer` 持有认证转场状态、目标页面提交与完成信号；`ui-settings-account/AuthView` 继续持有 `auth.transition` Slot Outlet，且自定义动画贡献在 View Transition 完成前保持挂载；`ui-layout/Workbench` 仍持有工作台品牌和提醒显示，转场期间不得露出业务内容或弹窗。沿用 `docs/development/auth-transition-plugins.zh.md`。不改账户、会话、插件生命周期或提醒确认语义。
+
+设置盘点：沿用 `appearance.advanced.reducedMotion`（`system|on|off`）和 `appearance.advanced.authTransitionPluginId`（默认 `builtin`，自定义 ID 来自已装配 `auth.transition`）；品牌、主题和背景沿用 Appearance 共享映射。不新增设置，不写入/重置偏好。
+
+允许：仅修改 Renderer 转场阶段门控、AuthView 动画层、Workbench 首屏预热回调/转场期可见性与提醒显隐、登录转场样式及直接回归/插件合同。本地内置浏览器可退出后用当前已有账户重新登录；不确认/关闭默认凭据提醒，不操作其他账户数据。禁止：改变认证 API/会话或插件安装状态，触发其他设置写入，提交/发布或覆盖无关工作。
+
+验收批次：默认动画不对完整页面启动 View Transition。登录覆盖层保持全屏背景，仅以约 820ms `opacity` 淡出；只有小面积登录卡片做 `translateY` 轻移，不缩放全屏背景。Workbench 在覆盖层后以 `visibility:hidden`/不可交互状态预热，动画完成后由同一次 React 更新卸载覆盖层并解除门控，避免内容提前露出或多一帧闪现。自定义动画继续使用现有 View Transition 插件合同。每批运行认证转场定向回归、客户端类型检查和正式 Web 构建；在当前 ChatGPT 内置浏览器 `http://127.0.0.1:3000/work` 退出/登录实测桌面视口与 390×640 窄短屏，确认内容与提醒始终隐藏到动画结束，页面随后完整可用、无溢出，并记录截图和帧时间/设备边界；若无法获得可靠帧时间数据，应标为未测，不以静态分析代替实测。当前仅验收已装配默认动画；若没有自定义插件或无法切换减少动态效果，不改变偏好并明确记为未测。不得把源码或构建结果冒充浏览器验收。
+
+实施记录（2026-10-17）：内置动画已改为全屏透明度合成 + 登录卡片小范围位移，不再缩放整张壁纸；动画结束事件只请求 Renderer 切换到 idle，由同一 React 提交卸载覆盖层并解除工作台可见性门控。`node --import tsx --import ./register-package-loader.mjs --test tests/client-auth-feedback-layout.test.mjs` 5/5、`pnpm typecheck`、`pnpm run build:web` 与 `git diff --check` 通过。正式资产 `render-Cb3WJz2H.css` 的 HTTP 200 内容与 `dist/apps/web` 构建文件一致。ChatGPT 内置浏览器 `http://127.0.0.1:3000/work` 以 1355×925 和 390×640 完成退出/登录：认证阶段覆盖层存在时工作台门控为 true；动画结束后覆盖层和门控均清除，首次配置提醒随后显示；窄屏 `scrollWidth=380`、视口宽 390，无水平溢出。设置只读核对为 `authTransitionPluginId=builtin`、`reducedMotion=system` 且系统减少动态效果关闭；登录背景使用现有“林间桥影”偏好。窄屏测试只点“稍后再说”临时收起首次配置提醒，未保存提醒偏好。`pnpm check:workspace` 仍有 10 项：两条职责注解缺失目录、包目录 JSON/Markdown 清单过期、4 个归档截图缺失、两条包链接失效。帧时间、实体设备与自定义动画插件未测。
+
+<a id="lfaa-plugin-inspection-modal-layout-20261017"></a>
+
+## 101-插件来源弹窗布局-20261017
+
+状态：已实现并完成实页验收（2026-10-17）。
+
+目标：修复 `/plugin-manager` 添加插件弹窗内来源检查卡片右溢出、NPM 固定来源/摘要长串横向溢出，以及不兼容告警宽于卡片的问题；长内容应在卡片内换行，短屏仍由弹窗正文滚动承载。
+
+入口与 Owner：Web/Desktop 共用 `/plugin-manager` 由 `packages/client/ui-plugin-manager` 持有；来源检查真实结果仍来自现有 API 和 `packages/boot/plugin-manager`，本批仅调整客户端展示结构与样式，不修改来源解析、检查或安装 Owner。
+
+设置盘点：不新增设置，不写入账户偏好。继续沿用 Appearance 的主题、字体/字号、对比度、壁纸表面透明度与模糊、减少动态效果共享映射；registry 选择仍为单次检查参数，不持久化。
+
+允许：修改 `packages/client/ui-plugin-manager/src/PluginManagerPage.tsx/.css`、`apps/cli/tests/plugin-manager-ui.test.mjs` 和本合同/任务索引；只有需要同步包内真实 UI 合同时才改对应 README。
+
+禁止：修改插件来源/API/安装/Runtime/权限行为；点击“开始安装”“保存隔离副本”“立即启用”、停用或卸载；保存/重置任何用户设置；重启现有服务、提交或发布；覆盖登录动效等已有脏工作。
+
+验收批次：单批修正 inspection 卡片的显式单列收缩、固定来源元数据专属样式及告警框内收缩，再运行 `plugin-manager-ui.test.mjs`、`pnpm typecheck`、ui-plugin-manager/Web 构建、`pnpm check:workspace` 与 `git diff --check`。在 ChatGPT 内置浏览器实际页面只读检查来源结果：桌面 1355×925、窄短 390×640，卡片标题/状态、固定来源长串、SHA、兼容告警均不超出边框，页面及弹窗无横向溢出、短屏滚动和关闭按钮可达。来源检查不得进入安装阶段；记录实际路由/视口/截图及未测设备、帧时间范围。
+
+实施记录：`plugin-manager-ui.test.mjs` 新增卡片溢出回归；`PluginManagerPage.tsx` 为固定来源/摘要列表提供专属 class；CSS 为 Modal 内容与检查卡片声明 `minmax(0, 1fr)` 轨道、允许长串任意断行，并把告警框保持为 Ant Design 原有 flex 布局。此前 `.inspection > div:last-of-type` 因 Ant Alert 根节点也是 `div` 而命中告警框，已由专属元数据选择器移除歧义。没有增加设置或 CSS 自定义属性。
+
+源码与构建：定向 UI 回归 7/7、`pnpm typecheck`、`pnpm --filter lfaa-client-ui-plugin-manager run build`、`pnpm run build:web`、`git diff --check` 通过；插件包产物位于根 `dist/packages/client/ui-plugin-manager/`。`pnpm run check:workspace` 未通过，报告 10 项全仓既存问题：两个职责注解指向缺失目录、JSON/Markdown 包目录清单过期、四张历史验收截图缺失、两条指向缺失包目录的文档链接。构建有既有大 chunk 提示。未运行 `workspace-preflight`（仓库未声明该脚本）。
+
+ChatGPT 内置浏览器：当前源码工作区 Web 进程 PID 23680 监听 `127.0.0.1:3000`，页面 HTTP 200；构建后刷新原服务，无重启。`/plugin-manager` 以用户截图中的 `dsh-plugin-whale-pet` 执行只读来源检查，结果仍显示“安装后保持隔离”；仅检查了来源，Profile 清单仍为 0 项，未按“保存隔离副本”或其他生命周期按钮。桌面视口 1355×925：文档 `scrollWidth=1345`；检查卡片 `607/607px`，固定内容区 `577/577px`，告警 `577/577px`，均在边界内。窄短屏 390×640：文档 `380/390px`，Modal 宽约 352px；来源检查卡片 `255/255px`，告警 `223/223px`；弹窗正文 `scrollHeight=1169px`、`clientHeight=530px`，滚动到末端后隔离按钮可见，关闭按钮保持在可视区。截图见本批内置浏览器输出。未测实体设备、桌面 WebView 和帧时间。
+
+<a id="lfaa-content-storage-separation-20261017"></a>
+
+## 102-系统与内容存储分离-20261017
+
+历史状态（2026-10-18）：本节中“业务内容默认与系统根相同”及“系统数据根迁移”的方案已被 107 合同废止。当前规则为系统数据根与业务 `data` 根独立，只有业务内容受管子树参与迁移；以本文件 107 合同为准。
+
+目标：系统数据根保持当前 `LFAA_HOME/data`（Windows 默认 `%USERPROFILE%\\.lfaa\\data`，并继续尊重部署显式设置的 `LFAA_DATA_DIR`）；账户、AI Provider/凭据、登录状态、设置、AI 对话与会话不随内容位置变化。新增独立业务内容根，只服务 Minecraft/Steam 游戏内容、小说 Writing 项目、AI 漫剧项目及媒体资产。推荐根根据当前仓库/安装根动态解析为其 `data` 子目录；自定义选择器返回用户所选完整目录，不附加第二个 `data`。内容根配置保存在系统数据 Owner 中，首次默认与系统数据根相同；更改内容根不迁移系统文件，嵌套重叠路径拒绝。
+
+Owner 与边界：`settings/settings` 的项目存储 Owner 持有内容根解析、保存、历史回读候选及 Writing/漫剧目标；游戏域 Owner 继续持有每个游戏实例/节点的真实路径，Daemon 只执行登记的实例路径。`workspace/data-directory`、`LFAA_DATA_DIR` 与系统数据库路径保持原有解析；业务内容根首次默认指向系统根，保存业务选择不会更改系统根。既有作品、漫剧和实例不移动、不复制、不删除；切换后新内容写入所选内容根，旧内容由原路径记录/候选继续读取。工作流、知识库、账户资源、AI 配置、会话、凭据、日志、运行环境和下载缓存仍归原 System/Domain Owner，不能顺带迁移或写进内容根。插件安装、适配副本和插件私有运行数据归各自 Plugin Profile/Runtime Owner，位于 `<LFAA_HOME>/profiles/<Profile>/` 下；系统数据根迁移不复制、清理或接管旧 `plugins/` 子树。系统根与内容根可以配置为完全相同，但分别由各自 Owner 管理文件；不得共享同一文件。
+
+设置盘点：复用 `project_storage_locations` 配置记录，但新增明确的内容根字段并由 Settings API 做管理员权限、绝对路径和目录安全校验；使用现有外观令牌，不新增主题偏好。推荐根随当前 `repositoryRoot` 推导，不写死盘符。桌面 Windows 使用现有 native folder picker；Web 明确显示当前运行环境不支持原生选择时保留可用路径输入，不伪装选择成功。选择目录不得静默搬运数据。
+
+允许：修改项目存储 Owner、Minecraft/SteamCMD 新内容默认目录解析及 Daemon 已有路径合同、Writing/AI 漫剧内容根和 legacy 读取候选、Settings API/Client/设置中心/首次存储提醒、直接长期回归、受影响 README 与存储规范及本合同/索引。禁止：更改系统 `dataDirectory` 或账户/AI Provider/会话/设置数据库，自动复制/迁移/合并 C/E 盘或任一真实用户目录，删除/覆盖旧内容，重启或结束未知服务，修改 DSH，提交或发布，覆盖与本任务无关的已有脏工作。
+
+验收批次：A) 内容根 Owner/API/设置 UI：合成路径验证推荐根随仓库根变化、自定义完整路径、首次内容根与系统根相同，推荐根动态变化，自定义路径原样保存；设置中心可读写内容选择，不访问真实内容。定向回归、受影响类型检查和 Web 构建后，在 ChatGPT 内置浏览器 `/settings?section=workspace` 验收桌面及窄短视口；确认“不更改”保存系统默认根、“系统推荐”保存动态推荐根、自定义原样保存，三者都不改系统路径。B) Writing/漫剧：以隔离账户和临时文件验证新建/保存进入内容根、旧路径项目仍能读且不复制，系统用户数据保持原位；每批测试/构建后立即验收实际业务路由。C) 游戏：合成节点/实例验证新建目录进入内容根，既有相对及自定义绝对实例仍指向原目录，系统凭据/环境/Daemon 根保持不变；运行游戏域/Daemon 定向回归并验收游戏入口。D) 插件归属：验证插件自己的存储配置由对应 Plugin/Runtime Owner 解释，不被系统或业务内容位置覆盖；没有插件专属配置的私有运行数据随 Profile 存放；系统 data 初始化和迁移不创建/复制旧 `plugins/runtime-data`。每批记录路由、视口、操作、截图、性能证据与未测边界；所有隔离数据与 C/E 真实数据分离，不对真实目录执行写入。
+
+续接批次 E（2026-10-18）：系统默认数据根按当前 Home/显式部署配置解析（本机默认 `C:\Users\yu\.lfaa\data`），业务内容根只服务游戏、小说和漫剧，插件安装/默认私有数据只服务当前 Profile；核对实际启动配置和设置中心展示路径，不访问、搬动或删除真实目录内容。首次内容提醒仅在 Owner 返回 `configured=false` 时显示。“不更改”保存系统默认 data 根（本机默认 `C:\Users\yu\.lfaa\data`），“系统推荐”保存当前项目/安装根下的 `data`，自定义打开设置中心。设置中心保存默认、推荐或自定义位置后，同一 Owner 持久化选择，后续启动不再提示内容位置。保存失败显示错误并允许重试，不假装确认成功。此确认只影响业务内容根，不影响系统根、账户/AI/会话和插件 Profile；不得复制或迁移既有数据。使用隔离运行数据验证选择及重复启动抑制；Web 在 `/work` 与 `/settings?section=workspace` 只读验收桌面及窄短视口，不在真实用户目录点击会持久更改路径的操作。
+
+追加验收记录（2026-10-18）：首次读取 `127.0.0.1:3000/api/project-storage-locations` 时，正在运行的旧 Web API 未返回 `contentDirectory`、`defaultContentDirectory`、`recommendedContentDirectory`，导致页面路径空白且推荐项状态错误。启动预检确认锁 PID 属于 LFAA Web 后，以当前源码工作区的标准 `pnpm lfaa web` 重启；最终 Web PID 10748，托管 Daemon PID 544。重启后只读 API 返回当前/默认内容根 `C:\Users\yu\.lfaa\data`、推荐根 `E:\lfaa1\lfaa\data`、`configured=false`；账户与模型仍在工作台显示，未写入或迁移任何数据。
+
+ChatGPT 内置浏览器实页验收：`/settings?section=workspace` 桌面 1240×925 显示上述默认、推荐和系统数据根；默认 radio 已选中。自定义输入可接受临时草稿 `E:\lfaa1\custom-storage-probe`，保存按钮启用；未点保存，之后恢复默认选项。Web 不能调用 Windows 文件夹选择器，设置页已明确提示输入 LFAA 控制端可访问的绝对路径；桌面版选择器入口仍由原生桥接提供，本轮未测 Desktop。390×640 下存储卡片纵向排列，输入和说明无横向溢出（文档宽 380px），轻微滚动即可看见保存按钮。`/work` 窄屏首次弹窗显示“不更改”“系统推荐”“自定义位置”“稍后再说”，并分别展示 `C:\Users\yu\.lfaa\data` 与 `E:\lfaa1\lfaa\data`；仅点击“自定义位置”确认跳转到设置页，未触发存储写入。定向回归 43/43、`pnpm run typecheck`、`pnpm run build:web`、`git diff --check` 通过；全仓 `check:workspace` 此前仍有 10 项无关清单/归档链接错误，未因本次文案变更重跑。未测 Desktop、内容实际写入与帧时间。
+
+续接批次 F（2026-10-18）：首次内容位置弹窗必须把“是否更改 data 位置”作为显式选择；默认仍是 `%USERPROFILE%\\.lfaa\\data`（本机 `C:\Users\yu\.lfaa\data`）。“不更改”确认并保存 Owner 返回的 `defaultContentDirectory`；“更改为系统推荐”保存 Owner 动态返回的 `recommendedContentDirectory`。两者都只设置业务内容根，不移动任何文件、不修改系统根，并在成功保存后停止再次提示；自定义仍跳转配置中心。设置 Owner、持久化与已有账户设置不改。允许修改首次提醒按钮文案、对应长期回归、Workbench 装配说明和本合同。验收：以隔离 Owner 回归覆盖默认/推荐的真实写入结果和 `configured` 状态；运行定向回归、`pnpm typecheck`、正式 Web 构建与差异检查；ChatGPT 内置浏览器 `/work` 桌面与窄短屏只读确认两个按钮、路径与自定义入口，不能在真实账户点击会持久改变位置的按钮。记录现存用户数据、桌面文件夹选择器和帧时间未测。
+
+续接批次 F 实施与验收记录（2026-10-18）：按钮明确标为“不更改”和“更改为系统推荐”；两者分别向同一内容存储 Owner 提交默认与推荐路径，原有“自定义位置”仍打开配置中心。`client-setup-storage-reminder.test.mjs` 与 `file-resources.test.mjs` 共 13/13、`pnpm run typecheck`、`pnpm run build:web` 和 `git diff --check` 通过；`runtime-build-state.mjs web` 返回 `[]`，当前 Web PID 10748 服务 `/work`。ChatGPT 内置浏览器 `/work`：1240×925 桌面视口显示两按钮及 `C:\Users\yu\.lfaa\data` / `E:\lfaa1\lfaa\data`，页面宽 1230px；390×640 窄短视口弹窗宽约 356px，页面宽 380px，两个选择、自定义入口和稍后再说均可见/可达。点击“自定义位置”只导航到 `/settings?section=workspace`；选中自定义并输入隔离草稿 `E:\lfaa1\custom-storage-probe` 后，保存按钮启用，未点击保存。截图已在验收会话中记录。没有点击真实账户的保存动作；Owner 的默认/推荐/自定义路径保存及 `configured=true` 在隔离数据回归中验证，真实用户目录写入、桌面原生选择器和帧时间未测。Web 构建保留超过 500KB chunk 警告。`pnpm run check:workspace` 未通过，仍有 10 项仓库级问题：两条职责注解指向缺失目录、JSON/Markdown 包目录清单过期、四张历史验收截图缺失、两条文档链接指向缺失包目录；这些不属于本批改动。仓库未声明 `workspace-preflight` 脚本。
+
+续接批次 G（2026-10-18）：复核“更改为系统推荐”指向已有文件的 `data` 目录时的拒绝问题。业务内容目录由 `settings/settings` Owner 保存，推荐位置已存在且非空时允许记录为后续内容根，不调用 `workspace/data-directory` 总根迁移，不复制、覆盖或删除任何文件；系统数据根保持原值，账户、AI、会话和插件 Profile 不变。逐段核对报错对应的实际调用链和当前 Web 构建指纹，区分旧系统迁移界面/服务与当前内容位置界面；若当前源码链路已正确，则修复造成旧界面仍可见的入口/构建/服务问题，不把空目录迁移限制加到内容 Owner。允许改动内容根 Owner 的直接回归、当前 data-layout 对旧 `plugins/` 不再创建的直接断言、确有根因的 UI/API/构建接线、相关 README 与本批记录；禁止真实目录写入或迁移、修改系统根和其他数据、重启或结束归属不明的服务、覆盖其他脏工作。验收：在隔离 Owner 中预置非空推荐目录和哨兵文件，保存后确认配置指向推荐目录、哨兵内容不变、系统 data 路径不变；同时确认系统 data 目录初始化不再创建旧 `plugins/`；运行直接回归、类型、正式 Web 构建和差异检查。按仓库启动当前源码 Web，在 ChatGPT 内置浏览器 `/settings?section=workspace` 以桌面及窄短视口确认只有内容位置选择、非空推荐目标可保存且无系统迁移空目录提示；记录源码版本、路由、视口、截图和未测边界，不在真实用户账户点击保存。
+
+批次 G 实施与验收记录（2026-10-18）：沿调用链确认，截图中的“目标目录不是空目录”只由 `workspace/data-directory` 的系统总根复制迁移校验抛出；当前 `SettingsPage` 的内容位置保存调用 `settings/settings` 的 `saveProjectContentDirectory`，该 Owner 允许非空业务目录，不调用系统迁移。截图所示的“迁移方式”区块不在当前源码页面。初始内置浏览器 `:3000` 无法访问；Web 构建指纹检查先返回 `host`，重建 Control Plane 后为 `[]`。使用正式 `pnpm lfaa web --no-local-daemon` 启动隔离服务（临时 `LFAA_HOME`、系统 data 与安装根），在临时推荐根预置 `preserve-me.txt` 后，通过 ChatGPT 内置浏览器 `http://127.0.0.1:3000/settings?section=workspace`（1240×925）选择并保存“系统推荐”：页面显示成功提示，内容根更新到临时 `install/data`，系统 data 仍是临时 `system-data`；刷新后推荐项保持选中。磁盘回读确认哨兵原文不变、目标仍只有原文件。当前页面没有系统迁移选项或空目录报错。截图已在本轮内置浏览器画面中捕获；当前 CUA 没有视口尺寸覆盖能力，未完成窄短视口实页检查；未写真实用户目录/账户。`file-resources.test.mjs` 11/11，`data-directory-settings.test.mjs` 与 `data-directory-migration-modes.test.mjs` 共 10/10（普通系统复制仍拒绝非空目标），`pnpm run typecheck`、`pnpm run build:control-plane`、`pnpm run build:web`、`runtime-build-state.mjs web` (`[]`) 与 `git diff --check` 通过。Web 保留既有 C++ chunk 超 500 KB 警告。`pnpm run check:workspace` 未通过，报告 10 项既有问题：两条职责注解指向缺失目录、包目录 JSON/Markdown 清单过期、4 张归档验收截图缺失、两条文档链接指向缺失包。仓库未声明 `workspace-preflight` 脚本。
+
+<a id="lfaa-plugin-profile-install-location-20261017"></a>
+
+## 103-插件 Profile 安装位置-20261017
+
+目标：把每个 LFAA Profile 的第三方插件源码与安装清单直接放到 `<LFAA_HOME>/profiles/<Profile>`；Windows 默认示例为 `%USERPROFILE%\\.lfaa\\profiles\\desktop`。插件受控 Runtime adapter 和该插件的私有运行数据也归当前 Profile/插件 Runtime Owner 管理，默认数据位置为 `<LFAA_HOME>/profiles/<Profile>/runtime-adapters/<plugin-id>/` 与 `<LFAA_HOME>/profiles/<Profile>/runtime-data/<plugin-id>/`。若插件本身提供了存储位置配置，必须由该插件 Runtime/配置 Owner 按其配置读写；LFAA 的系统数据或游戏/小说/漫剧内容位置不得覆盖插件设置。没有专属位置配置时才使用上述 Profile 默认位置。旧 `<LFAA_HOME>/plugins` 与 `<LFAA_DATA_DIR>/plugins` 均不再创建、读取、复制或作为运行入口；已有旧目录保留原状。Web/Profile 名称按实际活动值解析，不写死 `desktop`。
+
+参考与 Owner：只读参考 `E:\\lfaa1\\deepseek-harness` 与现存 `C:\\Users\\yu\\.dsh` 的 Profile 安装理念；不修改 DSH。LFAA `launch-environment` 持有 Home/Profile 根，`plugin-manager` 持有包、清单及 Runtime adapter 生命周期，App Boot 仍持有 Profile Cordis Patch，Windows Sandbox Host 只接受受管 Profile 插件目录。插件源码目录与 Profile Patch 同层，Plugin Manager 保留清单文件并拒绝与 Profile 控制文件冲突的插件 ID；UI 显示的安装基目录为 Profile 根。
+
+设置盘点：不新增全局插件存储设置。沿用 `LFAA_HOME`、活动 `profileContext.name`、插件自身已存在的存储配置（如果有）、Appearance 映射、现有插件管理员权限和 `permissions.mode`。`LFAA_DATA_DIR` 与业务内容根都不决定插件私有数据位置。Wallpaper Engine 的 `DSH_WE_DATA_DIR`、`DSH_WE_CACHE_DIR`、`DSH_WE_UPLOAD_DIR` 和插件设置页保存的 cache/upload 路径属于插件配置，Runtime 必须尊重显式值；只有未设置整插件数据根时，才用 Profile 私有目录作为 `DSH_WE_DATA_DIR` 默认值。
+
+允许：修改 launch-environment 插件安装路径合同、Plugin Manager Profile 根和 Runtime 私有数据路径、Windows AppContainer Host 路径校验、data 初始化/迁移对旧插件路径的忽略、文件资源旧路径保护、直接长期回归及相关 README/文件资源规范。本用户明确要求使用真实 `dsh-plugin-whale-pet` NPM 包作为示例，可在新的 LFAA Desktop Profile 中通过现有来源核验/安装 Owner 保存其固定真实快照；不启用、不执行 DSH Host/Client 代码，界面如实标记 `incompatible`。不得写入 `.dsh`。
+
+禁止：创建、读取、复制或删除旧 `<LFAA_HOME>/plugins` 或 `<LFAA_DATA_DIR>/plugins` 内容；移动或删除现有旧目录文件；把插件包或插件私有运行数据放进系统 data 或业务内容根；把游戏/小说/漫剧内容放进插件 Profile；覆盖已有 Profile 文件或插件版本冲突；新增重复的全局插件目录设置；启用 DSH 插件；修改 DSH、真实业务内容、用户偏好；停止/重启现有服务、提交或发布、覆盖无关脏工作。
+
+验收批次：A) 配置与 Owner：用合成 Home/Profile 验证 desktop/web 插件包与清单分别落在 `<home>/profiles/<profile>`、Runtime 私有数据落在对应 Profile；内容根/data 根不变；`ensureDataDirectories` 不再创建 `data/plugins`，系统数据复制/ZIP 导入不复制旧插件子树，旧目录文件保持原状且文件管理器不再将其列为插件位置。运行 Plugin Manager、数据布局/迁移、文件资源、AppContainer Rust 直接回归及受影响类型/构建，然后在 ChatGPT 内置浏览器 `/plugin-manager` 桌面与窄短视口只读检查安装路径文本、状态和无溢出。B) 真实示例：通过现有来源核验/安装 Owner 写入真实固定快照到指定 Desktop Profile；核对 inventory、来源版本/摘要与真实磁盘路径；保持 `incompatible`/disabled，不调用 enable、不导入/执行 DSH 代码；同时证明 SQLite、登录、AI Provider/Session 和游戏/小说/漫剧数据目录没有因安装被迁移/覆盖。每批测试、构建后立即实页验收；记录实际路由/视口、交互、截图与未测范围。若内置浏览器无法加载本批源码版本，明确标为未验收，不重启/替换现有监听进程。
+
+<a id="lfaa-plugin-install-guide-disclosure-20261018"></a>
+
+## 104-插件安装引导折叠-20261018
+
+目标：调整 `/plugin-manager` 的“添加插件”弹窗。将 NPM 包名说明、填入示例按钮和完整来源安全提醒收进可展开/收起的“插件安装引导和示例”区域；NPM 安装源选择器与展开控制在同一行，来源选择功能继续可用。收起时保留精简信任提示；来源检查结果、错误、进度、安装动作及其他来源输入行为不变。
+
+Owner 与边界：Web/Desktop 共用安装弹窗由 `packages/client/ui-plugin-manager` 持有；Plugin Manager、来源检查 API、安装与 Runtime Owner 保持不变。本批只改展示结构、样式、直接 UI 回归、该 UI README 和本合同/索引，不更改来源识别、registry 解析/持久化、检查请求或生命周期。
+
+设置盘点：复用现有 Appearance 主题、字体/字号、对比度、壁纸/遮罩透明度与模糊、减少动态效果映射；不新增或写入设置。NPM registry 仍是单次检查选择，不持久化。
+
+允许：修改 `packages/client/ui-plugin-manager/src/PluginManagerPage.tsx/.css`、`apps/cli/tests/plugin-manager-ui.test.mjs`、`packages/client/ui-plugin-manager/README.md` 和本合同/任务索引。细节区按钮须键盘可用并正确暴露 `aria-expanded`/`aria-controls`；窄弹窗与短屏保持可滚动、无横向溢出。
+
+禁止：删除或改变填入示例、安装源选择、自定义 registry 输入/安全说明、来源检查告警/详情、错误/进度/安装能力；更改 Plugin Manager/API/Runtime/权限/数据 Owner；触发来源网络检查、安装、启用、停用或卸载；改动账户或 Appearance 偏好；修改其他已有任务文件、重启/结束未知服务、提交或发布。
+
+验收批次：唯一 UI 批次先跑插件管理 UI 定向回归、客户端类型检查、插件 UI 包构建和正式 Web 构建；构建后从当前源码工作区按仓库正式入口启动服务，在 ChatGPT 内置浏览器 `/plugin-manager` 验收添加弹窗的收起/展开与 NPM registry 并列布局、示例填充可见性、警告文案、键盘/ARIA、弹窗滚动、桌面及可达的窄短视口边界。只打开弹窗与切换细节，不请求来源检查或安装。再运行 `pnpm run check:workspace` 和 `git diff --check`，准确记录全仓既有问题；记录截图、视口和帧时间/设备等未测范围。
+
+实现与静态验证记录（2026-10-18）：`PluginManagerPage` 为安装引导增加独立展开状态；“插件安装引导和示例”按钮用 `aria-expanded`/`aria-controls` 控制示例卡与完整安全提醒，NPM registry 控件与按钮并列，收起时仍显示简短信任提示。示例填充、自定义 registry、来源检查结果、安装进度和安装动作保持原逻辑。无新增设置或 CSS 自定义属性。`node --import tsx --import ./register-package-loader.mjs --test tests/plugin-manager-ui.test.mjs` 8/8、`pnpm run typecheck`、`pnpm --filter lfaa-client-ui-plugin-manager run build`、`pnpm run build:web` 和 `git diff --check` 通过；Web 构建有现存 C++ chunk 超过 500KB 提示。`pnpm run check:workspace` 未通过，报 10 项全仓问题：两条职责注解指向缺失目录、包目录 JSON/Markdown 清单过期、4 张历史验收截图缺失、两条文档链接指向缺失包目录。`node scripts/runtime-build-state.mjs web` 返回 `[]`；隔离 Home/Data 的正式 Web 服务 PID 696 监听 127.0.0.1:3000，`/plugin-manager` HTTP 200。ChatGPT 内置浏览器安全策略拒绝本轮对该 URL 的代理导航，故未能观察实际渲染、视口/交互或截图；已请用户在内置浏览器直接打开该地址，等待完成剩余实页验收。隔离数据根为 `%TEMP%\lfaa-plugin-guide-ui-acceptance-20261018-085050`，未触碰用户账户/偏好、插件清单或业务数据。帧时间、窄短屏、Desktop/WebView 和实体设备未测。
+
+<a id="lfaa-appearance-theme-canvas-first-paint-20261018"></a>
+
+## 105-外观主题与首屏画布-20261018
+
+目标：修复设置中心“浅色/深色/跟随系统”在即时渲染或刷新后未保持的问题，并消除刷新时先出现壁纸、随后画布闪黑的交接。使壁纸遮罩、透明度和模糊呈现协调、稳定。
+
+Owner 与设置：`settings/settings` 持久化账户 `appearance.theme`；`ui-layout/Workbench` 解析主题与系统偏好并提供共享主题/背景令牌；`ui-theme` 负责首帧提示与通用主题样式；`ui-settings` 负责控件。只复用现有 `appearance.theme`、当前路由背景、`appearance.overlay`、`appearance.blur`、`appearance.advanced.reducedMotion` 与既有字体/颜色映射；不新增配置、不重置偏好。Wallpaper Engine 如持有画布，继续由插件配置和其 Runtime Owner 控制，不覆盖其独立壁纸/玻璃设置。
+
+允许：先查明主题事件、账户设置读取/保存、系统主题变化监听、HTML 首帧脚本、Workbench 画布接管和壁纸遮罩/模糊的实际调用链；然后只修改以上 Owner 中已证实的根因、其直接长期回归和必要 README/本合同/索引。可以更新首帧同步与工作台背景层交接，调整现有配置映射，但不得用额外全屏滤镜/全树动画或逐帧 JavaScript 补偿。
+
+禁止：改动用户当前主题、背景选择、遮罩/模糊及其他账户偏好；写死主题替代设置、改变默认值、复制背景资产、改变 Wallpaper Engine 专属配置/Owner；顺手修改登录转场、弹窗、存储、插件或无关脏工作；新增依赖；结束归属不明的服务、提交或发布。
+
+验收批次：A) 用定向回归覆盖浅色→深色→跟随系统、系统 `prefers-color-scheme` 变化、设置保存/回读，以及刷新首帧缓存和权威账户设置不一致时的安全交接；随后类型检查、受影响 UI 包构建和正式 Web 构建。在 ChatGPT 内置浏览器 `/settings?section=appearance` 实际核对三种主题即时效果、刷新后首帧不先闪错主题/黑底；只读使用当前设置，不点击写入偏好。B) 核对壁纸背景所有权、遮罩不透明度与模糊令牌的组合：工作台背景连续可见、主题色随配置一致，模糊只作用于现有指定表面，不对整页/整棵树重复采样。浏览器覆盖常用桌面与窄分栏/短屏，记录真实视口、交互、截图、50ms 长任务/帧时间测量与尚未测的设备/Wallpaper Engine 范围。每批在继续前完成本批定向回归、类型、构建和实页验收；如果内置浏览器工具仍只返回连接错误页，保留该批未验状态并记录已核实的本机服务/控制工具差别。最后运行 `git diff --check` 与适用工作区 Gate，并把既有 Gate 失败与本任务结果分开记录。
+
+实现与源码验证记录（2026-10-18）：确认设置页主题按钮立即更新 SettingsPage 与 Workbench 状态；`Workbench` 解析 `system` 并监听 `prefers-color-scheme`，设置保存仍走既有 `saveSettings("appearance", ...)`。首帧画布缓存此前只保存图片，未保存 `appearance.overlay`，所以 HTML 先画无罩壁纸，挂载后再切到带账户遮罩的画布；工作台默认 CSS 遮罩/表面透明度又写成 37%，与 `DEFAULT_USER_SETTINGS.appearance.overlay=65` 不一致。修复为画布缓存 v2 保存受校验的公开图片路径和 0–75 整数遮罩；HTML 首帧用已缓存主题及同一透明度合成遮罩，并让旧 v1 缓存失效。工作台默认遮罩回退校准到现有 65% 设置；玻璃模糊仍只使用原有 `appearance.blur=14` 表面令牌，没有增加全屏模糊或动态补偿。Wallpaper Engine 持有画布时仍不缓存 LFAA 背景。长期回归执行 `node --import tsx --import ./register-package-loader.mjs --test tests/client-appearance-theme-bootstrap.test.mjs`，7/7 通过，覆盖三种主题的首帧解析、system 深浅、缓存遮罩、路由与路径校验、旧缓存失效及存储清理；`pnpm exec tsc --noEmit -p tsconfig.client.json`、`pnpm --filter lfaa-client-ui-theme run build`、`pnpm run build:web`、`git diff --check` 均通过。Web 构建写入根 `dist/apps/web/`；仍有既有 500KB 大 chunk 警告。`pnpm run check:workspace` 未通过，共 10 项：两个职责注解指向缺失目录、JSON/Markdown 包目录清单过期、4 张历史验收截图缺失、两条包目录文档链接失效；这些路径与本任务改动文件无关。
+
+浏览器验收状态（2026-10-18）：用户在 ChatGPT 内置浏览器打开 `http://127.0.0.1:3000/settings?section=appearance` 后，只读查看并刷新。刷新前后外观控件均显示“跟随系统”选中（强调色 #3457d5、登录背景“林间桥影”也只读核对）；当前页面及刷新后可见的设置卡片均呈深色，刷新后截图未见先亮色再转黑或画布黑屏。CUA 在刷新后曾先读到“正在读取设置…”，随后截图中页面内容已恢复；截图同时被账户安全提醒浮层遮挡，未点击浮层按钮或写入任何偏好。截图视口 1240×925，已记录于本轮内置浏览器观察。由于本轮没有连续帧/性能采样能力，不能据静态截图断言过渡期间完全无闪烁，首帧逐帧行为、50ms 长任务/帧时间、三种主题的浏览器内即时切换，以及窄分栏/短屏、Wallpaper Engine、WebView/实体设备仍未验；主题解析和首帧组合由定向回归覆盖。为落实用户先前的重启要求，尝试按 PID 696 的已登记 Web 启动命令重启；本机执行策略在命令执行前拒绝该操作，进程未停止或重启。随后只读确认 PID 696 仍监听 127.0.0.1:3000。
+
+<a id="lfaa-notification-master-switch-and-data-root-20261018"></a>
+
+## 106-通知总开关与数据根核对-20261018
+
+目标：通知设置增加默认开启的总开关；关闭后抑制所有自动弹出的工作台/系统通知（含安全、首次配置、AI 完成、错误、审批与澄清提醒），但保留会话内审批和澄清内容卡及消息状态。核实 Provider 未配置提示与隔离验收数据根的关系，避免把验收路径当成产品默认路径。
+
+Owner 与设置：General Settings/Settings Owner 持有新增 `general.notificationPopupsEnabled` 的类型、默认值、校验和持久化；SetupReminder 持有首次配置与账户安全弹窗；Workbench 持有工作台通知中心/Toast；notification-runtime 与 AiWorkChat 持有 AI 工作通知副作用。复用并保留现有各类别通知开关、`general.setupReminderEnabled`、`general.defaultAdminCredentialReminderEnabled`、声音与浏览器授权语义；不重置用户偏好。Conversation/Approval Owner 继续持有会话内卡片。产品系统 data 默认按当前 USERPROFILE 的 `.lfaa/data` 解析，推荐业务内容根按实际运行项目/安装根动态生成 `<root>/data`；隔离验收目录仅用于隔离服务，不能作为产品默认、不能覆盖真实数据或 Provider 配置。
+
+允许：为总开关增加 Settings 控件与中英文描述、GeneralSettings 默认/校验/向后兼容合并、通知副作用统一门控、直接回归及相关包 README/本合同记录；只读检查运行中的验收服务、真实系统默认路径和 admin Provider 元数据。保留当前 PID 696 服务和验收目录，不迁移/删除/复制/覆盖任何数据，不读出密钥。
+
+禁止：改动 Provider 账户/秘密、系统数据根或用户保存的内容路径；以测试为由改变真实通知偏好；删除或重启未知/运行中服务；抑制会话内卡片、审批/澄清工作流；更改 Wallpaper Engine 或插件通知 Owner；提交、发布。
+
+验收批次：A) General Settings 新默认值为 true；校验要求布尔；旧客户端缺失该字段保存其他 general 值时保留已存值；类别开关仍独立持久化。B) 关闭总开关时不产生自动 Toast/通知中心项目、浏览器系统通知或声音，工作台安全/首次配置弹窗不出现，AI 审批/澄清消息卡仍留在会话；开启后现有类别与静音设置继续有效。每批运行直接回归、类型检查、受影响包构建及正式 Web 构建后，在 ChatGPT 内置浏览器 `/settings?section=notifications`、`/work` 检查桌面及窄/短视口；不修改真实账户偏好。若运行中服务无法安全热更新，明确保持浏览器批次未验，不结束 PID 696，也不新增临时数据根。最后运行 `git diff --check` 和适用 workspace Gate，区分已有错误。
+
+核查记录（2026-10-18）：内置浏览器 `127.0.0.1:3000` 由 PID 696 的 LFAA Web 服务提供，当前进程使用 `C:\Users\yu\AppData\Local\Temp\lfaa-plugin-guide-ui-acceptance-20261018-085050` 隔离验收 Home/Data；该目录仍在使用，因此保留。该隔离数据库没有 Provider，导致 `/work` 显示“尚未配置活动 Provider”；它不是产品默认路径。**事后只读核对更正：** `C:\Users\yu\.lfaa\data` 当前不存在；原有 `E:\lfaa1\lfaa\data` 存在，其 SQLite 中 admin 的 `ai_accounts` 记录为活动状态且具有 Provider、模型和加密凭据字段，另有 2 个登录会话；未读取秘密值。先前记录称 Provider 在 C 盘 `.lfaa\data` 的结论错误，不能作为实测证据。产品默认仍应动态解析为 `%USERPROFILE%\.lfaa\data`；业务内容推荐位置使用运行时 `desktopInstallDirectory || repositoryRoot` 动态解析，因此本 checkout 的显示值为 `E:\lfaa1\lfaa\data`，没有把该盘符写死。用户要求浏览器实页验收使用原有数据后，允许仅重启已确认归属的 PID 696 并以 E 盘原有 data 做只读页面验收；隔离 Temp 数据保留，不复制、覆盖或删除真实数据。
+
+实现与验证记录（2026-10-18）：`general.notificationPopupsEnabled` 在 General Settings 缺省为 `true`，服务端校验为布尔值；旧客户端未提交该字段时保留已存值。总开关接入工作台通知/Toast、浏览器通知与声音、首次配置/账户安全/通行密钥提示；审批与澄清会话卡片保持由会话 Owner 渲染。设置默认、旧客户端兼容及类型校验回归通过；通知运行时关闭路径确认不触发回调、浏览器通知或提示音。直接回归命令：`node --import tsx --import ./register-package-loader.mjs --test tests/settings-contract.test.mjs`（1/1），`node --import tsx --import ./register-package-loader.mjs --test tests/client-auth-feedback-layout.test.mjs tests/client-setup-storage-reminder.test.mjs`（13/13），`node --import tsx --import ./register-package-loader.mjs --test tests/client-notification-runtime.test.mjs`（1/1）。`pnpm typecheck`、受影响的 8 个包构建和 `pnpm run build:web` 通过，产物位于根 `dist/apps/web`；`git diff --check` 待本次合同更新后复核。`pnpm run check:workspace` 本次未通过：10 项目录职责注解、过期清单及缺失历史截图/包链接错误，与本合同改动无关。
+
+内置浏览器（2026-10-18）：只读打开 `/settings?section=notifications`（1240×925），刷新后展示新总开关及更新后的描述，分类项仍可见；当前隔离验收设置里的总开关已保存为关闭，因此显示“已关闭”，未切换或保存任何设置。转到 `/work` 后，隔离库因没有 Provider 显示页内“尚未配置活动 Provider”横幅；没有安全/首次配置模态弹窗。此页面属于 PID 696 的隔离 Home，不能代表真实账户 Provider 状态。未验证开关开启态的浏览器交互、窄/短屏布局及会话卡片实页；开关默认与通知副作用由上述回归覆盖。未结束或重启 PID 696，未改变 Provider、通知偏好或数据目录。
+
+续接验收纠正：上段关于把 PID 696 切换到 E 盘 data 的计划已被用户明确撤销。保留隔离验收根与 E 盘旧目录原样，不将 E 盘作为产品默认、迁移来源或实页验收数据；不得复制、覆盖、导入、导出或删除这两处数据。后续实页验收使用显式标记的隔离测试运行根。
+
+<a id="lfaa-content-storage-migration-20261018"></a>
+
+## 107-业务内容 data 迁移与归档-20261018
+
+目标：设置中心的业务内容位置更改要能把已有游戏、小说和 AI 漫剧内容带到新位置，并支持系统复制覆盖、手动复制后逐项核对、ZIP 导入识别与 ZIP 导出。迁移对象只包括业务内容根中各领域 Owner 管理的内容路径，不移动/复制/覆盖系统数据库、账户、AI Provider 凭据、会话、设置、环境、缓存、日志、插件 Profile 或远程节点目录。系统账户、Provider、会话和系统设置使用单一 LFAA Home（默认 `%USERPROFILE%\\.lfaa`），并各自在 Home 下的系统分类目录保存；业务内容默认使用 Home 下单独的 `data` 子目录（默认 `%USERPROFILE%\\.lfaa\\data`）。源目录始终保留；覆盖目标前保留可恢复备份；执行后比对路径、类型、文件大小与 SHA-256，核对失败不切换生效位置。
+
+Owner 与路径：`packages/settings/settings/src/project-storage.ts` 持有业务内容根；游戏内容由 Minecraft/SteamCMD Owner 管理，小说路径为 `users/<账户哈希>/projects/writing/`，漫剧路径为 `users/<账户哈希>/projects/aivideo/`。迁移器只复制这四类受管子树（`games/`、各账户的 Writing 与 AI Video 项目树），不得照搬同级系统数据目录。系统账户路径与业务 `data` 分别使用各自解析 Owner，不得让内容存储设置改写系统数据根。设置 API 执行认证、管理员角色和 Permission Owner 的显式用户操作授权；UI 复用当前主题、字号、动效、响应式与既有路径选择设置，不增加或重置账户偏好。
+
+允许修改：Settings 内容存储 Owner、系统数据与业务内容路径解析、设置 API/route contract、client connection、设置中心 UI、ZIP 读写辅助脚本、相关长期回归和受影响 README/总体架构/开发合同；系统数据使用本机 `%USERPROFILE%\\.lfaa` Home 本身，不创建 `system-data` 子目录；游戏/小说/漫剧业务默认内容根为 `%USERPROFILE%\\.lfaa\\data`，系统推荐位置按当前项目/安装根动态解析为 `<root>/data`，自定义路径按用户选择使用。删除开发者页的临时存储展示及独立临时启动入口。浏览器验收只使用用户指定的现有 `admin / 123456` 测试账号；不创建任何账号或超级管理员。自动化回归只操作合成业务文件，不读取、迁移或写入真实业务内容及系统数据。
+
+禁止：对真实用户目录或 `E:\\lfaa1\\lfaa\\data` 执行复制、覆盖、导入、导出、迁移、清理或删除；迁移系统数据/插件/远端节点；输出凭据密钥；创建新账号/超级管理员；改写用户 Provider、主题或通知设置；启动独立临时 Web 服务；杀掉归属不明的进程，提交、发布。
+
+验收批次：A) 内容清单只发现业务根内 `games/` 与 `users/<64 hex>/projects/{writing,aivideo}/`，文件和目录均列入，符号链接、特殊文件、相交源/目标和危险 ZIP 路径拒绝；Home 的数据库、用户、凭据、会话、环境、缓存、日志、Profiles 哨兵始终不进入备份或迁移；默认系统根 `%USERPROFILE%\\.lfaa` 是 LFAA Home，默认业务根 `%USERPROFILE%\\.lfaa\\data` 是其单独子目录，系统分类目录仍受保护，推荐根动态解析为当前项目/安装根的 `data`。B) 系统复制采用同卷暂存与目标快照备份，源保留；目标已有内容按源文件覆盖、目标独有内容保留；提交前对源条目做 SHA-256 回读核验，失败保持源生效且可恢复备份留存。C) 手动复制只在内容路径清单及文件 SHA-256 核对通过后切换；ZIP 支持 LFAA 内容备份清单、data 根/单层包装目录识别，只导入业务子树并核对校验和；导出压缩包只含业务路径和版本化内容清单。D) API 限管理员并通过 Permission Owner 显式操作授权；设置页切换路径后实际使用新根，源始终保留且有覆盖备份说明。用直接回归、类型检查和相关构建核对实现；内置浏览器用现有 `admin / 123456` 测试账号只读检查 `/settings?section=workspace`，不切换路径、不触发迁移或写入真实业务内容。不得创建账号/超级管理员或启动独立临时 Web 服务。最后跑 `git diff --check` 与适用 workspace Gate，准确记录既有失败。
+
+续接批次 H（2026-10-18）：按 DSH Home 设计收敛存储设置。系统默认根是本机 `%USERPROFILE%\\.lfaa` 本身，由 Home/账户/插件各自 Owner 管理，不创建或呈现独立 `system-data` 管理层；系统账号、Provider、会话、设置和插件 Profile 不受业务内容位置选择影响。设置中心“项目与存储”只管理游戏、小说和漫剧业务 `data` 根及游戏 Owner 的节点/实例位置，不展示系统根、系统运行目录、控制端数据库目录或系统缓存，也不为这些展示额外读取系统目录 API。默认业务路径为 `<LFAA_HOME>/data`，系统推荐路径按当前项目/安装根解析为 `<root>/data`，自定义路径使用用户选择的完整目录。保留已有内容复制/覆盖、手动核对、ZIP 导入/导出能力和游戏节点真实位置；不新增测试模式、临时账号或超级管理员。新增 `apps/cli/tests/client-project-storage-scope.test.mjs` 防止系统目录管理展示回归。验收仅用现有 `admin / 123456` 在正式源码 Web 服务只读检查，不保存目录、不触发迁移；不得启动临时测试服务或写入真实数据。
+
+实施与验证记录（2026-10-18）：“项目与存储”移除独立系统数据位置、系统运行目录和控制端数据组，并停止额外读取系统目录设置 API；页面保留业务 `data` 选择/迁移与 Minecraft/Steam 节点实际路径。Home 解析、启动入口和默认/推荐业务根沿用本合同前文实现。存储定向回归 24/24、页面范围回归 1/1、客户端/Host 类型检查、Web 构建和 `git diff --check` 通过；Web 构建仅有现存大 chunk 警告。`pnpm run check:workspace` 未通过，报告 10 项既有职责注解、包目录清单、历史截图和包链接问题，与本批改动无关。内置浏览器未验收：当前 `%USERPROFILE%\\.lfaa` 不存在，3000 端口仍由 PID 696 的既有隔离验收服务占用；未使用该临时数据登录，未在 LFAA Home 或浏览器账户中创建账户/超级管理员，未启动替代服务或写入目录。自动化回归使用仓库已有、会自动清理的隔离 SQLite 夹具。待现有 `.lfaa` Home 与指定测试账户可用后再验真实页面。

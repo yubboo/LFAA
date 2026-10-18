@@ -14,6 +14,7 @@ import { getDaemonDataRoot, getDaemonNode, listDaemonNodes, type DaemonNode } fr
 import { createMinecraftTask, deleteMinecraftTaskRecords as deleteMinecraftTaskRows, getMinecraftTaskDetails, listMinecraftLogs, listMinecraftTasks, MinecraftTaskRecordError, type MinecraftTask, type MinecraftTaskDetails } from "lfaa-jobs/src/minecraft-queue.js";
 import { getMinecraftReleaseArtifact, listMinecraftReleases } from "./catalog.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
+import { getLocalProjectContentPath } from "lfaa-settings/src/project-storage.js";
 import type { MinecraftCoreName } from "./core-sources.js";
 
 const sandboxCapability = "app-sandbox-windows-appcontainer-v1";
@@ -74,7 +75,11 @@ function hasMinecraftNodeStorageOverride(nodeId: string): boolean {
 
 export function getMinecraftNodeStorageSettings(nodeId: string): MinecraftStorageSettings & { nodeId: string } {
   const row = configuration.get("minecraft_storage_node_settings", row => (row.node_id === nodeId)) as { instance_directory: string } | undefined;
-  return { nodeId, instanceDirectory: row?.instance_directory ?? getMinecraftStorageDefaults().settings.instanceDirectory };
+  const configuredDirectory = row?.instance_directory ?? getMinecraftStorageDefaults().settings.instanceDirectory;
+  const localContentDirectory = !win32.isAbsolute(configuredDirectory)
+    ? getLocalProjectContentPath(getDaemonDataRoot(nodeId), configuredDirectory)
+    : null;
+  return { nodeId, instanceDirectory: validateMinecraftStorageDirectory(localContentDirectory ?? configuredDirectory) };
 }
 
 export function saveMinecraftNodeStorageSettings(nodeId: string, input: MinecraftStorageSettings): MinecraftStorageSettings & { nodeId: string } {
@@ -85,8 +90,9 @@ export function saveMinecraftNodeStorageSettings(nodeId: string, input: Minecraf
 }
 
 /** 心跳同时携带当前默认目录和实例/部署已记录目录，Daemon 因此能继续找到未迁移的旧数据。 */
-export function getMinecraftNodeStorageDirectories(nodeId: string): { instanceDirectory: string; knownDirectories: string[] } {
+export function getMinecraftNodeStorageDirectories(nodeId: string): { instanceDirectory: string; backupDirectory?: string; knownDirectories: string[] } {
   const instanceDirectory = getMinecraftNodeStorageSettings(nodeId).instanceDirectory;
+  const backupDirectory = getLocalProjectContentPath(getDaemonDataRoot(nodeId), "games/minecraft-backups");
   const rows = database.prepare(`
     SELECT storage_directory FROM minecraft_instances WHERE node_id = ?
     UNION SELECT storage_directory FROM minecraft_deployments WHERE node_id = ?
@@ -96,7 +102,7 @@ export function getMinecraftNodeStorageDirectories(nodeId: string): { instanceDi
     try { knownDirectories.add(validateMinecraftStorageDirectory(row.storage_directory)); }
     catch { knownDirectories.add(defaultMinecraftStorageDirectory); }
   }
-  return { instanceDirectory, knownDirectories: [...knownDirectories] };
+  return { instanceDirectory, ...(backupDirectory ? { backupDirectory } : {}), knownDirectories: [...knownDirectories] };
 }
 
 export function getMinecraftStorageSettingsOverview() {

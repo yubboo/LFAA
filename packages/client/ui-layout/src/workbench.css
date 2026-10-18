@@ -4,16 +4,70 @@
  关联文件：packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-settings-general/src/SetupReminder.tsx、packages/client/ui-theme/src/responsive.css。
 */
 
-/* 首次配置弹窗聚焦当前一项，并沿用主题、强调色与字号设置。 */
+/* 首次配置与账户安全提醒共用工作台弹窗；短屏时仅内容区滚动，按钮始终可达。 */
+.setup-reminder-modal .ant-modal {
+  max-width: calc(100vw - 32px);
+  margin-inline: auto;
+}
+
+.setup-reminder-modal .ant-modal-content {
+  display: flex;
+  max-height: calc(100dvh - 32px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  box-shadow: 0 18px 52px var(--color-shadow-float);
+}
+
 .setup-reminder-modal .ant-modal-header {
+  flex: 0 0 auto;
   margin-bottom: 0;
   padding: 28px 24px 12px;
-  border-bottom: 0;
   background: transparent;
 }
 
 .setup-reminder-modal .ant-modal-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
   padding: 0 24px 24px;
+  color: var(--color-text-secondary);
+}
+
+.setup-reminder-modal .ant-modal-footer {
+  flex: 0 0 auto;
+  margin-top: 0;
+  background: transparent;
+}
+
+/* 壁纸背景下，两类提醒共用外观设置中的表面透明度和模糊强度。 */
+.workbench-shell[data-background-image="true"] .setup-reminder-modal .ant-modal-content {
+  background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}
+
+@media (max-width: 520px) {
+  .setup-reminder-modal .ant-modal {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px);
+    margin-inline: auto;
+  }
+
+  .setup-reminder-modal .ant-modal-header {
+    padding: 20px 18px 12px;
+  }
+
+  .setup-reminder-modal .ant-modal-body {
+    padding-inline: 18px;
+  }
+
+  .setup-reminder-modal .ant-modal-footer {
+    padding: 8px 18px 18px;
+  }
 }
 
 .setup-reminder-modal .setup-reminder-intro {
@@ -82,6 +136,28 @@
   line-height: 1.65;
 }
 
+.setup-reminder-modal .setup-reminder-card__locations {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 38rem);
+  text-align: left;
+}
+
+.setup-reminder-modal .setup-reminder-card__locations > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.setup-reminder-modal .setup-reminder-card__locations .ant-typography-code {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .setup-reminder-modal .setup-reminder-card__action.ant-btn {
   min-width: min(100%, 220px);
   min-height: 48px;
@@ -98,6 +174,115 @@
 
   .setup-reminder-modal .ant-modal-footer .ant-btn {
     padding-inline: 10px;
+  }
+}
+
+/* 账户安全提醒需要明确的“更改/不更改”选择；尺寸与层级仅覆盖高优先级提醒。 */
+.setup-reminder-modal--priority .ant-modal-content {
+  border-radius: 22px;
+}
+
+.setup-reminder-modal--priority .ant-modal-header {
+  padding: 32px 36px 14px;
+}
+
+.setup-reminder-modal--priority .ant-modal-body {
+  padding: 0 36px 18px;
+}
+
+.setup-reminder-modal--priority .ant-modal-footer {
+  padding: 8px 32px 28px;
+}
+
+.setup-reminder-modal--priority .setup-reminder-intro {
+  gap: 12px;
+  margin-right: 0;
+}
+
+.setup-reminder-modal--priority .setup-reminder-intro__icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+}
+
+.setup-reminder-modal--priority .setup-reminder-card {
+  gap: 18px;
+  padding: 12px 12px 0;
+}
+
+.setup-reminder-modal--priority .setup-reminder-card__title.ant-typography {
+  font-size: calc(var(--font-size-xl) * 1.15);
+  line-height: 1.35;
+}
+
+.setup-reminder-modal--priority .setup-reminder-card__description.ant-typography {
+  max-width: 42ch;
+  font-size: var(--font-size-lg);
+}
+
+.setup-reminder-modal--priority .setup-reminder-card__actions.ant-space {
+  display: grid;
+  width: 100%;
+  max-width: 492px;
+  grid-template-columns: minmax(0, 320px) minmax(0, 160px);
+  margin-inline: auto;
+  justify-content: center;
+  gap: 10px 12px !important;
+}
+
+.setup-reminder-modal--priority .setup-reminder-card__actions .ant-btn {
+  width: 100%;
+  min-width: 0;
+  min-height: 56px;
+  padding-inline: 24px;
+}
+
+.setup-reminder-modal--priority .setup-reminder-card__choice-note.ant-typography {
+  max-width: 44ch;
+  text-align: center;
+  line-height: 1.6;
+}
+
+@media (max-width: 520px) {
+  .setup-reminder-modal--priority .ant-modal-header {
+    padding: 20px 18px 10px;
+  }
+
+  .setup-reminder-modal--priority .ant-modal-body {
+    padding: 0 18px 16px;
+  }
+
+  .setup-reminder-modal--priority .ant-modal-footer {
+    padding: 8px 14px 18px;
+  }
+
+  .setup-reminder-modal--priority .setup-reminder-intro__icon {
+    width: 56px;
+    height: 56px;
+  }
+
+  .setup-reminder-modal--priority .setup-reminder-card {
+    gap: 14px;
+    padding: 10px 0 0;
+  }
+
+  .setup-reminder-modal--priority .setup-reminder-card__title.ant-typography {
+    font-size: var(--font-size-xl);
+  }
+
+  .setup-reminder-modal--priority .setup-reminder-card__description.ant-typography {
+    max-width: 34ch;
+    font-size: var(--font-size-base);
+  }
+
+  .setup-reminder-modal--priority .setup-reminder-card__actions.ant-space {
+    max-width: 320px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px !important;
+  }
+
+  .setup-reminder-modal--priority .setup-reminder-card__actions .ant-btn {
+    min-height: 48px;
   }
 }
 
@@ -165,9 +350,9 @@
 @keyframes lfaa-update-spin { to { transform: rotate(360deg); } }
 /* 工作台：顶部品牌与返回按钮｜结束 */
 .workbench-shell {
-  --settings-background-surface-opacity: 37%; /* 工作区有壁纸时主要表面的默认主题底色透明度；与前后端 appearance.overlay 默认值一致。 */
+  --settings-background-surface-opacity: 65%; /* 工作区有壁纸时主要表面使用 65% 主题底色透明度，与 appearance.overlay 默认值一致。 */
   --settings-glass-blur: 14px; /* 工作区玻璃表面的默认背景模糊强度；与前后端 appearance.blur 默认值一致。 */
-  --settings-background-overlay: rgba(255, 255, 255, .37); /* 浅色工作区默认使用 37% 纯白壁纸遮罩，账户外观设置加载后由 Workbench 覆盖。 */
+  --settings-background-overlay: rgba(255, 255, 255, .65); /* 浅色工作区默认使用 65% 纯白壁纸遮罩，与 appearance.overlay 默认值一致。 */
   min-height: 100vh;
   font-family: var(--settings-interface-font, var(--font-family-sans));
   font-size: var(--settings-interface-font-size, var(--font-size-base));
@@ -182,7 +367,7 @@
 }
 
 .workbench-shell[data-theme="dark"] {
-  --settings-background-overlay: rgba(24, 24, 24, .37); /* 深色工作区默认使用 37% 中性深灰壁纸遮罩，账户外观设置加载后由 Workbench 覆盖。 */
+  --settings-background-overlay: rgba(24, 24, 24, .65); /* 深色工作区默认使用 65% 中性深灰壁纸遮罩，与 appearance.overlay 默认值一致。 */
 }
 
 /* 引擎启用并选中项目时，LFAA 账户背景仍保留为偏好，但首帧由 Wallpaper Engine 独占壁纸画布。 */
@@ -519,26 +704,26 @@
   background: var(--color-surface-hover);
 }
 
-body:has(.workbench-shell[data-theme="dark"]) .ant-select-dropdown,
-body:has(.workbench-shell[data-theme="dark"]) .ant-dropdown-menu,
-body:has(.workbench-shell[data-theme="dark"]) .ant-popover-inner,
-body:has(.workbench-shell[data-theme="dark"]) .ant-modal-content,
-body:has(.workbench-shell[data-theme="dark"]) .ant-picker-panel {
-  border-color: #3a3a3a;
-  background: #202020;
-  color: #e5e5e5;
+body[data-lfaa-theme] .ant-select-dropdown,
+body[data-lfaa-theme] .ant-dropdown-menu,
+body[data-lfaa-theme] .ant-popover-inner,
+body[data-lfaa-theme] .ant-modal-content,
+body[data-lfaa-theme] .ant-picker-panel {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
 }
 
-body:has(.workbench-shell[data-theme="dark"]) .ant-select-item,
-body:has(.workbench-shell[data-theme="dark"]) .ant-dropdown-menu-item,
-body:has(.workbench-shell[data-theme="dark"]) .ant-popover-title,
-body:has(.workbench-shell[data-theme="dark"]) .ant-modal-title {
-  color: #e5e5e5;
+body[data-lfaa-theme] .ant-select-item,
+body[data-lfaa-theme] .ant-dropdown-menu-item,
+body[data-lfaa-theme] .ant-popover-title,
+body[data-lfaa-theme] .ant-modal-title {
+  color: var(--color-text-heading);
 }
 
-body:has(.workbench-shell[data-theme="dark"]) .ant-select-item-option-active:not(.ant-select-item-option-disabled),
-body:has(.workbench-shell[data-theme="dark"]) .ant-dropdown-menu-item:hover {
-  background: #303030;
+body[data-lfaa-theme] .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+body[data-lfaa-theme] .ant-dropdown-menu-item:hover {
+  background: var(--color-surface-hover);
 }
 
 .lfaa-permission-mode-confirm .ant-modal-content {

@@ -63,7 +63,7 @@ async function main() {
     // npm 缓存会随版本更换；运行数据使用用户目录或调用目录下显式配置的路径。
     process.env.LFAA_DATA_DIR = process.env.LFAA_DATA_DIR?.trim()
       ? resolve(process.cwd(), process.env.LFAA_DATA_DIR.trim())
-      : resolve(homedir(), ".lfaa", "data");
+      : resolve(homedir(), ".lfaa");
   }
   if (profile === "web") {
     process.env.LFAA_SERVE_FRONTEND = "true";
@@ -73,12 +73,7 @@ async function main() {
       process.env.LFAA_DATA_DIRECTORY_MIGRATION_SUPPORTED = "1";
       process.env.LFAA_DATA_DIR_MANAGED_BY_LAUNCHER = "1";
       const requestPath = resolve(runtimeRoot, ".lfaa-data-directory.pending.json");
-      if (existsSync(requestPath)) {
-        const request = JSON.parse(readFileSync(requestPath, "utf8"));
-        const migration = spawnSync(process.execPath, [resolve(runtimeRoot, "scripts/apply-data-directory-migration.mjs"), runtimeRoot], { stdio: "inherit", windowsHide: true, env: process.env });
-        if (migration.status !== 0) throw new Error("数据迁移未完成，保留原目录；请先停止旧 Web、Daemon 和游戏进程，再完整重启。");
-        process.env.LFAA_DATA_DIR = request.targetDirectory;
-      }
+      if (existsSync(requestPath)) process.stderr.write("检测到旧的系统数据迁移请求；为避免移动账户/Provider/会话数据，本次不会执行。业务 data 请在项目与存储中迁移。\n");
     }
   }
   if (profile === "daemon" && args[1] === "export") {

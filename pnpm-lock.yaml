@@ -913,6 +913,9 @@ importers:
       lfaa-launch-environment:
         specifier: workspace:*
         version: link:../../util/launch-environment
+      lfaa-permission-presets:
+        specifier: workspace:*
+        version: link:../../interaction/permission-presets
       lfaa-session:
         specifier: workspace:*
         version: link:../../core/session
@@ -2518,6 +2521,9 @@ importers:
       lfaa-client-modules:
         specifier: workspace:*
         version: link:../modules
+      lfaa-client-ui-primitives:
+        specifier: workspace:*
+        version: link:../ui-primitives
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
@@ -3551,6 +3557,9 @@ importers:
       lfaa-host-daemon:
         specifier: workspace:*
         version: link:../../host/daemon
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
       lfaa-storage-domain:
         specifier: workspace:*
         version: link:../../storage/storage-domain

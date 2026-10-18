@@ -825,12 +825,39 @@ export interface DataDirectorySettings {
 }
 
 export interface ProjectStorageLocations {
+  contentDirectory: string;
+  defaultContentDirectory: string;
+  recommendedContentDirectory: string;
   logsDirectory: string;
   writingDirectory: string;
   dramaDirectory: string;
   runtimeDirectory: string;
   downloadCacheDirectory: string;
   temporaryDirectory: string;
+}
+
+export interface ProjectContentComparison {
+  sourceDirectory: string;
+  targetDirectory: string;
+  sourceEntryCount: number;
+  targetEntryCount: number;
+  sourceFileCount: number;
+  targetFileCount: number;
+  sourceBytes: number;
+  targetBytes: number;
+  matching: boolean;
+  differenceCount: number;
+  differences: Array<{ path: string; kind: "missing" | "extra" | "type" | "size" | "hash" }>;
+}
+
+export interface ProjectContentMigrationResult {
+  sourceDirectory: string;
+  targetDirectory: string;
+  copiedFiles: number;
+  copiedBytes: number;
+  backupDirectory: string | null;
+  comparison: ProjectContentComparison;
+  settings: { settings: ProjectStorageLocations; configured: boolean };
 }
 
 export interface DesktopUpdateRuntimeInfo {
@@ -1161,6 +1188,34 @@ export function cancelDataDirectorySettingsChange(): Promise<{ settings: DataDir
 
 export function loadProjectStorageLocations(): Promise<{ settings: ProjectStorageLocations; configured: boolean }> {
   return request("/project-storage-locations");
+}
+
+export function saveProjectContentDirectory(contentDirectory: string): Promise<{ settings: ProjectStorageLocations; configured: boolean }> {
+  return request("/project-storage-locations", { method: "PUT", body: JSON.stringify({ contentDirectory }) });
+}
+
+export function compareProjectContentDirectories(targetDirectory: string): Promise<ProjectContentComparison> {
+  return request("/project-storage-locations/compare", { method: "POST", body: JSON.stringify({ targetDirectory }) });
+}
+
+export function copyProjectContentToDirectory(targetDirectory: string): Promise<ProjectContentMigrationResult> {
+  return request("/project-storage-locations/copy", { method: "POST", body: JSON.stringify({ targetDirectory }) });
+}
+
+export function adoptProjectContentDirectory(targetDirectory: string): Promise<ProjectContentMigrationResult> {
+  return request("/project-storage-locations/adopt", { method: "POST", body: JSON.stringify({ targetDirectory }) });
+}
+
+export function importProjectContentArchive(archivePath: string, targetDirectory: string): Promise<ProjectContentMigrationResult> {
+  return request("/project-storage-locations/archive/import", { method: "POST", body: JSON.stringify({ archivePath, targetDirectory }) });
+}
+
+export function downloadProjectContentArchive(): Promise<Blob> {
+  return requestBinary("/project-storage-locations/archive/export", { method: "POST" });
+}
+
+export function confirmProjectContentDirectory(): Promise<{ settings: ProjectStorageLocations; configured: boolean }> {
+  return request("/project-storage-locations/confirm", { method: "POST" });
 }
 
 
@@ -1738,7 +1793,7 @@ export function loadAiExtensions(signal?: AbortSignal): Promise<{ plugins: AiRun
   return request<{ plugins: AiRuntimePlugin[]; extensions: AiExtension[]; hooks: AiRuntimeHookInfo[]; hotReloadEnabled: boolean }>("/ai/extensions", signal ? { signal } : {});
 }
 
-export function loadManagedPlugins(signal?: AbortSignal): Promise<{ profile: string; plugins: ManagedPluginRecord[] }> {
+export function loadManagedPlugins(signal?: AbortSignal): Promise<{ profile: string; installationDirectory: string; plugins: ManagedPluginRecord[] }> {
   return request("/plugins", signal ? { signal } : {});
 }
 

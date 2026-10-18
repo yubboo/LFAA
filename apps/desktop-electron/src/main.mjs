@@ -5,7 +5,7 @@
  */
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createServer as createTcpServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -129,40 +129,20 @@ function resolveDesktopDataDirectory(runtimeRoot) {
     return { directory, managedByDesktop: true };
   }
 
-  const defaultDirectory = join(app.getPath("home"), ".lfaa", "data");
+  const defaultDirectory = join(app.getPath("home"), ".lfaa");
   if (canUseDataDirectory(defaultDirectory)) {
     const directory = resolve(defaultDirectory);
     saveDesktopDataDirectory(directory);
     return { directory, managedByDesktop: true };
   }
 
-  throw new Error("无法在当前系统账户的 .lfaa/data 创建可写 LFAA 数据目录。请检查磁盘权限或设置 LFAA_DATA_DIR。");
+  throw new Error("无法在当前系统账户的 .lfaa Home 创建可写 LFAA 系统目录。请检查磁盘权限或设置 LFAA_DATA_DIR。");
 }
 
-async function applyPendingDesktopStorageMigration(runtimeRoot) {
+async function applyPendingDesktopStorageMigration() {
   const requestPath = getDesktopStorageMigrationRequestPath();
-  if (!existsSync(requestPath)) return;
-
-  if (process.env.LFAA_DATA_DIR?.trim()) {
-    await writeLog("数据迁移", "发现待迁移请求，但系统环境变量 LFAA_DATA_DIR 优先；保留请求并继续使用环境变量目录。");
-    return;
-  }
-
-  const nodePath = getPackagedNodePath(runtimeRoot);
-  const migrationScript = join(runtimeRoot, "scripts", "apply-data-directory-migration.mjs");
-  const result = spawnSync(nodePath, [migrationScript, runtimeRoot, "--desktop-config", getDesktopStorageSettingsPath(), "--request", requestPath], {
-    encoding: "utf8",
-    windowsHide: true,
-    env: {
-      ...process.env,
-      LFAA_DESKTOP_MODE: "true",
-      LFAA_DATA_DIRECTORY_MIGRATION_SUPPORTED: "1"
-    }
-  });
-  if (result.stdout) await writeLog("数据迁移", String(result.stdout).trim());
-  if (result.stderr) await writeLog("数据迁移", String(result.stderr).trim());
-  if (result.error || result.status !== 0) {
-    await writeLog("数据迁移", "本次未切换数据目录，应用会继续从原目录启动；可在设置中心处理原因后重试。");
+  if (existsSync(requestPath)) {
+    await writeLog("数据迁移", "发现旧的系统数据迁移请求；为避免移动账户/Provider/会话数据，本次不会执行。业务 data 请在项目与存储中迁移。");
   }
 }
 
@@ -754,7 +734,7 @@ if (singleInstance) {
     try {
       const runtimeRoot = getRuntimeRoot();
       if (app.isPackaged) {
-        await applyPendingDesktopStorageMigration(runtimeRoot);
+        await applyPendingDesktopStorageMigration();
         await startLocalServices(runtimeRoot);
       }
       await createMainWindow();

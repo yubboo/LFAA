@@ -5,7 +5,9 @@ export type ResolvedAppearanceTheme = "light" | "dark";
 
 // 此键同时由 apps/web/index.html 的同步首帧脚本读取；只保存主题模式枚举。
 export const APPEARANCE_THEME_BOOTSTRAP_STORAGE_KEY = "lfaa.appearance-theme-bootstrap.v1";
-export const APPEARANCE_CANVAS_BOOTSTRAP_STORAGE_KEY = "lfaa.appearance-canvas-bootstrap.v1";
+// 画布缓存版本 2 同时保存遮罩透明度，避免刷新首帧先显示未遮罩壁纸。
+export const APPEARANCE_CANVAS_BOOTSTRAP_STORAGE_KEY = "lfaa.appearance-canvas-bootstrap.v2";
+const LEGACY_APPEARANCE_CANVAS_BOOTSTRAP_STORAGE_KEY = "lfaa.appearance-canvas-bootstrap.v1";
 
 interface ThemeStorage {
   getItem: (key: string) => string | null;
@@ -85,14 +87,16 @@ export function applyAppearanceThemeBootstrap(
   if (themeColorMeta) themeColorMeta.content = resolvedTheme === "dark" ? "#181818" : "#f3f5f8";
 }
 
-/** Cache only the last route's bundled public background for a color-stable first paint after refresh. */
-export function cacheAppearanceCanvasBootstrap(route: string, backgroundFile: string | null, storage: ThemeStorage | null = getSessionStorage()): void {
+/** Cache only the route's bundled public background and configured mask for a stable first paint after refresh. */
+export function cacheAppearanceCanvasBootstrap(route: string, backgroundFile: string | null, overlay: number, storage: ThemeStorage | null = getSessionStorage()): void {
   if (!/^\/[A-Za-z0-9/_-]{1,240}$/u.test(route)) return;
+  if (!Number.isInteger(overlay) || overlay < 0 || overlay > 75) return;
   const safeBackground = backgroundFile && /^\/(?:images\/minecraft|backgrounds)\/[A-Za-z0-9/_-]+\.(?:png|jpe?g|webp)$/iu.test(backgroundFile)
     ? backgroundFile
     : null;
   try {
-    storage?.setItem(APPEARANCE_CANVAS_BOOTSTRAP_STORAGE_KEY, JSON.stringify({ route, background: safeBackground }));
+    storage?.setItem(APPEARANCE_CANVAS_BOOTSTRAP_STORAGE_KEY, JSON.stringify({ route, background: safeBackground, overlay }));
+    storage?.removeItem(LEGACY_APPEARANCE_CANVAS_BOOTSTRAP_STORAGE_KEY);
   } catch {
     // 首帧提示不可用时仍按默认画布启动；账户背景和会话数据不会写入该缓存。
   }
@@ -106,6 +110,7 @@ export function clearAppearanceThemeBootstrap(targets: ThemeBootstrapTargets = {
   try {
     storage?.removeItem(APPEARANCE_THEME_BOOTSTRAP_STORAGE_KEY);
     storage?.removeItem(APPEARANCE_CANVAS_BOOTSTRAP_STORAGE_KEY);
+    storage?.removeItem(LEGACY_APPEARANCE_CANVAS_BOOTSTRAP_STORAGE_KEY);
   } catch {
     // 存储不可用时仍清除当前文档的主题提示。
   }

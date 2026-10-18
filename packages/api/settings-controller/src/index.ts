@@ -1,9 +1,12 @@
 import { config } from "lfaa-launch-environment/src/config.js";
+import { createHash } from "node:crypto";
+import { resolve } from "node:path";
 import { isModelInvocable } from "lfaa-skill";
 /** 功能：登记 settings-controller 的现有接口。作用：保留迁移前的行为并按包维护。关联文件：API Gateway、设置中心或工作台对应入口。 */
 import { Router } from "express";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication, requireRole, requireSuperAdmin } from "lfaa-authorization/src/middleware.js";
+import { authorizeExplicitUserAction } from "lfaa-permission-presets/src/permissions.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import { PluginRuntimeError } from "lfaa-app-boot/src/plugin-runtime.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
@@ -12,9 +15,25 @@ import { clearConversationMemories, getConversationMemorySnapshot, replaceConver
 import { redactConversationMemoryContexts } from "lfaa-session/src/sessions.js";
 import { activateAiAccount, deleteAiAccount, deleteUserBackground, getUserBackground, getUserSettings, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, reprobeAiAccount, saveAiAccount, saveUserBackground, saveUserSettings, updateAiAccountModel, updateAiAccountReasoningMode, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
 import { cancelDataDirectoryChange, confirmDataDirectoryLocation, recommendDataDirectoryLocation, DataDirectorySettingsError, getDataDirectorySettings, requestDataDirectoryChange } from "lfaa-workspace-data-directory/src/service.js";
-import { getProjectStorageLocations } from "lfaa-settings/src/project-storage.js";
-import { asyncHandler, parseBody, preferencesSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { confirmProjectContentDirectory, getProjectStorageLocations, saveProjectContentDirectory } from "lfaa-settings/src/project-storage.js";
+import { adoptProjectContentDirectory, compareProjectContentDirectories, copyProjectContentToDirectory, createProjectContentArchive, importProjectContentArchive } from "lfaa-settings/src/content-storage-migration.js";
+import { asyncHandler, parseBody, preferencesSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, projectContentStorageSchema, projectContentMigrationSchema, projectContentArchiveImportSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
 export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher): void {
+
+function authorizeBusinessContentAction(userId: string, action: string, targetDirectory: string): void {
+  const targetHash = createHash("sha256").update(resolve(targetDirectory).toLocaleLowerCase("en-US")).digest("hex");
+  const authorization = authorizeExplicitUserAction({
+    userId,
+    activeApplicationId: "workspace",
+    toolApplicationIds: ["workspace"],
+    toolId: `settings.business-content.${action}`,
+    toolVersion: "1",
+    risk: "dangerous",
+    scopeKey: `business-content:${targetHash}`,
+    executable: true
+  });
+  if (authorization !== "allow") throw new ApiError(403, "business_content_action_denied", "此业务内容操作未通过 Permission Owner 授权。请从设置中心的对应操作按钮发起。" );
+}
 
 router.get("/ai/skills", requireAuthentication, asyncHandler(async (request, response) => {
   if (!aiPluginHost.listSkills) throw new ApiError(503, "skill_directory_unavailable", "Skill 注册表尚未装配。");
@@ -227,9 +246,60 @@ router.get("/data-directory", requireAuthentication, requireRole("admin"), (_req
 router.get("/project-storage-locations", requireAuthentication, requireRole("admin"), (_request, response) => {
     response.json(getProjectStorageLocations());
   });
-router.put("/project-storage-locations", requireAuthentication, requireRole("admin"), () => {
-    throw new ApiError(410, "independent_storage_retired", "各分类目录统一从 data 根派生，请在统一数据根设置中选择存储位置。");
+router.put("/project-storage-locations", requireAuthentication, requireRole("admin"), (request, response) => {
+    const body = parseBody<{ contentDirectory: string }>(projectContentStorageSchema, request.body);
+    try {
+      authorizeBusinessContentAction(request.auth!.user.id, "select-location", body.contentDirectory);
+      response.json(saveProjectContentDirectory(body.contentDirectory));
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(400, "invalid_content_storage_location", error instanceof Error ? error.message : "内容存储位置无效。");
+    }
   });
+router.post("/project-storage-locations/confirm", requireAuthentication, requireRole("admin"), (_request, response) => {
+    try {
+      authorizeBusinessContentAction(_request.auth!.user.id, "keep-location", getProjectStorageLocations().settings.contentDirectory);
+      response.json(confirmProjectContentDirectory());
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(400, "invalid_content_storage_location", error instanceof Error ? error.message : "内容存储位置无效。");
+    }
+  });
+router.post("/project-storage-locations/compare", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
+    const body = parseBody<{ targetDirectory: string }>(projectContentMigrationSchema, request.body);
+    try { response.json(await compareProjectContentDirectories(body.targetDirectory)); }
+    catch (error) { throw new ApiError(422, "project_content_compare_failed", error instanceof Error ? error.message : "业务内容核对失败。"); }
+  }));
+router.post("/project-storage-locations/copy", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
+    const body = parseBody<{ targetDirectory: string }>(projectContentMigrationSchema, request.body);
+    try { authorizeBusinessContentAction(request.auth!.user.id, "copy-and-switch", body.targetDirectory); response.json(await copyProjectContentToDirectory(body.targetDirectory)); }
+    catch (error) { throw new ApiError(422, "project_content_copy_failed", error instanceof Error ? error.message : "业务内容复制失败；原内容位置仍保持生效。"); }
+  }));
+router.post("/project-storage-locations/adopt", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
+    const body = parseBody<{ targetDirectory: string }>(projectContentMigrationSchema, request.body);
+    try { authorizeBusinessContentAction(request.auth!.user.id, "verify-and-switch", body.targetDirectory); response.json(await adoptProjectContentDirectory(body.targetDirectory)); }
+    catch (error) { throw new ApiError(422, "project_content_adopt_failed", error instanceof Error ? error.message : "手动复制后的业务内容核对失败。"); }
+  }));
+router.post("/project-storage-locations/archive/import", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
+    const body = parseBody<{ targetDirectory: string; archivePath: string }>(projectContentArchiveImportSchema, request.body);
+    try { authorizeBusinessContentAction(request.auth!.user.id, "import-and-switch", body.targetDirectory); response.json(await importProjectContentArchive(body.archivePath, body.targetDirectory)); }
+    catch (error) { throw new ApiError(422, "project_content_archive_import_failed", error instanceof Error ? error.message : "业务 ZIP 导入失败；当前内容目录仍保持生效。"); }
+  }));
+router.post("/project-storage-locations/archive/export", requireAuthentication, requireRole("admin"), asyncHandler(async (_request, response, next) => {
+    authorizeBusinessContentAction(_request.auth!.user.id, "export-archive", getProjectStorageLocations().settings.contentDirectory);
+    const artifact = await createProjectContentArchive();
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      void artifact.cleanup();
+    };
+    response.once("close", cleanup);
+    response.download(artifact.path, artifact.fileName, error => {
+      cleanup();
+      if (error && !response.headersSent) next(error);
+    });
+  }));
 router.post("/data-directory/recommended", requireAuthentication, requireSuperAdmin, (_request, response) => {
     try { response.json({ settings: recommendDataDirectoryLocation() }); }
     catch (error) { if (error instanceof DataDirectorySettingsError) throw new ApiError(409, error.errorCode, error.message); throw error; }

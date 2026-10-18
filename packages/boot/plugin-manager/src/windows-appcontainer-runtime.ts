@@ -97,10 +97,10 @@ export class WindowsAppContainerPluginRuntime implements PluginRuntimeAdapter {
 
 function recordSourceProfile(installedDirectory: string, pluginId: string): string {
   const segments = relative(resolve(config.pluginInstallDirectory), resolve(installedDirectory)).split(sep);
-  if (segments.length !== 3 || segments[0]?.toLocaleLowerCase("en-US") !== "profiles" || segments[2] !== pluginId) {
-    throw new Error("插件目录不在 LFAA_HOME/plugins 的受管 Profile 路径中。");
+  if (segments.length !== 2 || segments[1] !== pluginId) {
+    throw new Error("插件目录不在 LFAA_HOME/profiles 的受管 Profile 路径中。");
   }
-  const profile = segments[2] ?? "";
+  const profile = segments[0] ?? "";
   if (!/^[a-z][a-z0-9-]{0,63}$/u.test(profile)) throw new Error("插件 Profile 标识无效。");
   return profile;
 }

@@ -195,6 +195,9 @@ const context = new Context();
 context.provide('loader', loader);
 context.provide('webServer', carrier);
 const previousDataDirectory = process.env.DSH_WE_DATA_DIR;
+const previousCacheDirectory = process.env.DSH_WE_CACHE_DIR;
+const previousUploadDirectory = process.env.DSH_WE_UPLOAD_DIR;
+delete process.env.DSH_WE_DATA_DIR;
 
 test.after(async () => {
   await context.fiber.dispose();
@@ -206,12 +209,16 @@ test.after(async () => {
   else process.env.LFAA_DATA_DIR = previousLfaaDataDirectory;
   if (previousDataDirectory === undefined) delete process.env.DSH_WE_DATA_DIR;
   else process.env.DSH_WE_DATA_DIR = previousDataDirectory;
+  if (previousCacheDirectory === undefined) delete process.env.DSH_WE_CACHE_DIR;
+  else process.env.DSH_WE_CACHE_DIR = previousCacheDirectory;
+  if (previousUploadDirectory === undefined) delete process.env.DSH_WE_UPLOAD_DIR;
+  else process.env.DSH_WE_UPLOAD_DIR = previousUploadDirectory;
   rmSync(root, { recursive: true, force: true });
 });
 
 test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes', async () => {
   const { DshWallpaperEngineRuntime } = await import('lfaa-plugin-manager/src/dsh-wallpaper-engine-runtime.js');
-  const runtime = new DshWallpaperEngineRuntime(context, 'web', data);
+  const runtime = new DshWallpaperEngineRuntime(context, 'web', join(data, 'profiles'));
   const record = {
     id: recordId,
     name: packageId,
@@ -277,9 +284,9 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
   assert.equal(registeredRoutes.has('/wallpaper-engine/settings'), true);
   assert.equal(loaderCalls.length, 1);
   assert.deepEqual(loaderCalls[0].inject, ['webServer']);
-  assert.equal(process.env.DSH_WE_DATA_DIR, join(data, 'plugins', 'runtime-data', 'profiles', 'web', packageId));
+  assert.equal(process.env.DSH_WE_DATA_DIR, join(data, 'profiles', 'web', 'runtime-data', packageId));
 
-  const runtimeCopy = join(data, 'plugins', 'runtime-adapters', 'profiles', 'web', packageId, commit, 'adapter-11');
+  const runtimeCopy = join(data, 'profiles', 'web', 'runtime-adapters', packageId, commit, 'adapter-11');
   const adaptedManifest = JSON.parse(readFileSync(join(runtimeCopy, 'package.json'), 'utf8'));
   assert.deepEqual(adaptedManifest.dsh.client.inject, ['slots', 'shortcuts', 'theme']);
   const host = readFileSync(join(runtimeCopy, 'lib', 'index.js'), 'utf8');
@@ -331,7 +338,7 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
   await runtime.disable(record);
   assert.equal(runtime.isActive(record), false);
   assert.deepEqual(removedEntries, ['wallpaper-test-entry']);
-  assert.equal(process.env.DSH_WE_DATA_DIR, previousDataDirectory);
+  assert.equal(process.env.DSH_WE_DATA_DIR, undefined, 'the Profile default is scoped to the active Runtime lifecycle');
 
   writeFileSync(join(runtimeCopy, 'lib', 'client.js'), `${client}\n// changed after staging\n`);
   await assert.rejects(runtime.enable(record, installed), /Runtime 副本与当前来源\/适配版本不匹配/u);
@@ -350,7 +357,7 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
   };
   assert.equal(runtime.supports(nextRecord), true, 'same official DSH v1 contract accepts a new verified version and commit');
   await runtime.enable(nextRecord, nextInstalled);
-  const nextRuntimeCopy = join(data, 'plugins', 'runtime-adapters', 'profiles', 'web', packageId, nextCommit, 'adapter-11');
+  const nextRuntimeCopy = join(data, 'profiles', 'web', 'runtime-adapters', packageId, nextCommit, 'adapter-11');
   const nextAdaptedManifest = JSON.parse(readFileSync(join(nextRuntimeCopy, 'package.json'), 'utf8'));
   const nextMarker = JSON.parse(readFileSync(join(nextRuntimeCopy, 'lfaa-runtime-adapter.json'), 'utf8'));
   assert.equal(nextAdaptedManifest.version, '1.3.0');
@@ -358,6 +365,25 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
   assert.equal(nextMarker.sourceVersion, '1.3.0');
   assert.equal(existsSync(runtimeCopy), true, 'creating a new revision never overwrites an older runtime snapshot');
   await runtime.disable(nextRecord);
+  const configuredDataDirectory = join(root, 'plugin-configured-data');
+  const configuredCacheDirectory = join(root, 'plugin-configured-cache');
+  const configuredUploadDirectory = join(root, 'plugin-configured-uploads');
+  process.env.DSH_WE_DATA_DIR = configuredDataDirectory;
+  process.env.DSH_WE_CACHE_DIR = configuredCacheDirectory;
+  process.env.DSH_WE_UPLOAD_DIR = configuredUploadDirectory;
+  await runtime.enable(nextRecord, nextInstalled);
+  assert.equal(process.env.DSH_WE_DATA_DIR, configuredDataDirectory, 'an explicit plugin storage setting takes precedence over the LFAA Profile default');
+  assert.equal(existsSync(configuredDataDirectory), true, 'the plugin Runtime creates its explicitly configured storage root');
+  assert.equal(process.env.DSH_WE_CACHE_DIR, configuredCacheDirectory, 'the plugin cache location remains under its own setting');
+  assert.equal(process.env.DSH_WE_UPLOAD_DIR, configuredUploadDirectory, 'the plugin upload location remains under its own setting');
+  await runtime.disable(nextRecord);
+  assert.equal(process.env.DSH_WE_DATA_DIR, configuredDataDirectory, 'the plugin setting is restored after the Runtime stops');
+  if (previousDataDirectory === undefined) delete process.env.DSH_WE_DATA_DIR;
+  else process.env.DSH_WE_DATA_DIR = previousDataDirectory;
+  if (previousCacheDirectory === undefined) delete process.env.DSH_WE_CACHE_DIR;
+  else process.env.DSH_WE_CACHE_DIR = previousCacheDirectory;
+  if (previousUploadDirectory === undefined) delete process.env.DSH_WE_UPLOAD_DIR;
+  else process.env.DSH_WE_UPLOAD_DIR = previousUploadDirectory;
 
   const mismatchedInstalled = join(root, 'installed-mismatch', packageId);
   cpSync(nextInstalled, mismatchedInstalled, { recursive: true });
@@ -365,7 +391,7 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
   mismatchedManifest.version = '1.4.0';
   writeFileSync(join(mismatchedInstalled, 'package.json'), JSON.stringify(mismatchedManifest));
   await assert.rejects(runtime.enable({ ...nextRecord, source: { ...nextRecord.source, commit: 'c'.repeat(40) } }, mismatchedInstalled), /清单与已核验安装记录/u);
-  assert.equal(loaderCalls.length, 2, 'manifest mismatch fails before Loader import');
+  assert.equal(loaderCalls.length, 3, 'manifest mismatch fails before Loader import');
 });
 
 test('LFAA Harness activates the adapted Host through its Cordis Loader and WebServer Carrier', async () => {
@@ -380,7 +406,7 @@ test('LFAA Harness activates the adapted Host through its Cordis Loader and WebS
     await hostContext.plugin(Loader, { baseUrl: import.meta.url });
     const carrier = new DshWebServerCarrier(hostContext, '127.0.0.1', 0);
     carrier.provide();
-    const runtime = new DshWallpaperEngineRuntime(hostContext, 'web', integrationData);
+    const runtime = new DshWallpaperEngineRuntime(hostContext, 'web', join(integrationData, 'profiles'));
     const record = {
       id: recordId,
       name: packageId,
@@ -522,7 +548,7 @@ test('LFAA exposes reversible DSH sidebar shortcuts and theme changes through ex
 test('official npm artifacts use their verified digest and uninstall clears every runtime revision and private data', async () => {
   const { DshWallpaperEngineRuntime } = await import('lfaa-plugin-manager/src/dsh-wallpaper-engine-runtime.js');
   const cleanupData = join(root, 'cleanup-data');
-  const runtime = new DshWallpaperEngineRuntime(context, 'cleanup', cleanupData);
+  const runtime = new DshWallpaperEngineRuntime(context, 'cleanup', join(cleanupData, 'profiles'));
   const digest = 'd'.repeat(64);
   const record = { id: recordId, name: packageId, version: '1.3.3', compatibility: 'dsh-v1', source: { kind: 'npm', repository: 'npm:' + packageId, archiveSha256: digest, commit: 'npm:' + packageId + '@1.3.3:' + digest } };
   assert.equal(runtime.supports(record), true);
@@ -530,20 +556,38 @@ test('official npm artifacts use their verified digest and uninstall clears ever
   assert.equal(runtime.supports({ ...record, source: { ...record.source, repository: 'npm:untrusted' } }), false);
   assert.equal(runtime.supports({ ...record, source: { kind: 'local', repository: join(root, 'local-package'), archiveSha256: digest, commit: 'local:' + digest } }), true, 'local content uses the same lifecycle without a source-kind rejection');
   assert.equal(runtime.supports({ ...record, source: { kind: 'local', repository: join(root, 'local-package'), archiveSha256: digest, commit: 'local:' + 'e'.repeat(64) } }), false, 'local snapshot must still match its inspected contents');
-  const targets = ['runtime-adapters', 'runtime-data'].map(category => join(cleanupData, 'plugins', category, 'profiles', 'cleanup', packageId));
+  const adapterTarget = join(cleanupData, 'profiles', 'cleanup', 'runtime-adapters', packageId);
+  const dataTarget = join(cleanupData, 'profiles', 'cleanup', 'runtime-data', packageId);
+  const targets = [adapterTarget, dataTarget];
   for (const path of targets) { mkdirSync(join(path, 'old-revision'), { recursive: true }); writeFileSync(join(path, 'old-revision', 'owned'), 'fixture'); }
-  const keep = join(cleanupData, 'plugins', 'runtime-data', 'profiles', 'other', packageId);
+  const legacyData = join(cleanupData, 'plugins', 'runtime-data', 'profiles', 'cleanup', packageId);
+  mkdirSync(legacyData, { recursive: true });
+  writeFileSync(join(legacyData, 'preserve-me'), 'legacy');
+  const legacyHomePlugin = join(root, 'cleanup-legacy-home', 'plugins', 'dsh-plugin-wallpaper-engine');
+  mkdirSync(legacyHomePlugin, { recursive: true });
+  writeFileSync(join(legacyHomePlugin, 'preserve-me'), 'legacy-home');
+  const keep = join(cleanupData, 'profiles', 'other', 'runtime-data', packageId);
   mkdirSync(keep, { recursive: true });
+  const configuredData = join(root, 'cleanup-custom-data');
+  mkdirSync(configuredData, { recursive: true });
+  writeFileSync(join(configuredData, 'user-owned'), 'preserve');
+  const previousConfiguredData = process.env.DSH_WE_DATA_DIR;
+  process.env.DSH_WE_DATA_DIR = configuredData;
   await runtime.remove(record);
   assert.ok(targets.every(path => !existsSync(path)), 'all adapter revisions and private uploads/settings/cache are removed');
   assert.ok(existsSync(keep), 'another Profile is outside this uninstall');
+  assert.equal(readFileSync(join(legacyData, 'preserve-me'), 'utf8'), 'legacy', 'legacy data-root plugin path is not read or removed');
+  assert.equal(readFileSync(join(legacyHomePlugin, 'preserve-me'), 'utf8'), 'legacy-home', 'legacy Home plugin tree is not read or removed');
+  assert.equal(readFileSync(join(configuredData, 'user-owned'), 'utf8'), 'preserve', 'uninstall does not delete a plugin-configured custom data root');
+  if (previousConfiguredData === undefined) delete process.env.DSH_WE_DATA_DIR;
+  else process.env.DSH_WE_DATA_DIR = previousConfiguredData;
   await runtime.remove(record);
 });
 
 
 test('gzip settings responses still overlay the authenticated account selection and update their length', async () => {
   const { DshWallpaperEngineRuntime } = await import('lfaa-plugin-manager/src/dsh-wallpaper-engine-runtime.js');
-  new DshWallpaperEngineRuntime(context, 'gzip', join(root, 'gzip-data'));
+  new DshWallpaperEngineRuntime(context, 'gzip', join(root, 'gzip-data', 'profiles'));
   const adapter = registeredRoutes.get('/wallpaper-engine/settings').adapter;
   const payload = { settings: { id: 'another-profile-selection', glassColor: '#123456', fixture: 'x'.repeat(2048) } };
   const compressed = gzipSync(Buffer.from(JSON.stringify(payload)));

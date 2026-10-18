@@ -9,6 +9,11 @@ import test from "node:test";
 const authView = readFileSync(new URL("../../../packages/client/ui-settings-account/src/AuthView.tsx", import.meta.url), "utf8");
 const authStyles = readFileSync(new URL("../../../packages/client/ui-settings-account/src/auth.css", import.meta.url), "utf8");
 const renderer = readFileSync(new URL("../../../packages/client/ui-renderer/src/App.tsx", import.meta.url), "utf8");
+const workbench = readFileSync(new URL("../../../packages/client/ui-layout/src/Workbench.tsx", import.meta.url), "utf8");
+const setupReminder = readFileSync(new URL("../../../packages/client/ui-settings-general/src/SetupReminder.tsx", import.meta.url), "utf8");
+const passkeyPrompt = readFileSync(new URL("../../../packages/client/ui-settings-account/src/PasskeySetupPrompt.tsx", import.meta.url), "utf8");
+const workbenchStyles = readFileSync(new URL("../../../packages/client/ui-layout/src/workbench.css", import.meta.url), "utf8");
+const sharedThemeStyles = readFileSync(new URL("../../../packages/client/ui-theme/src/common.css", import.meta.url), "utf8");
 const settings = readFileSync(new URL("../../../packages/client/ui-settings/src/SettingsPage.tsx", import.meta.url), "utf8");
 const slotRoot = readFileSync(new URL("../../../packages/client/ui-renderer/src/render.tsx", import.meta.url), "utf8");
 const htmlEntry = readFileSync(new URL("../../../apps/web/index.html", import.meta.url), "utf8");
@@ -37,27 +42,162 @@ test("重复登录期间保留原错误反馈，按钮不因悬停而位移或�
   assert.match(authView, /<Button type="link" block disabled=\{busy\} onClick=\{toggleRecoveryMode\}>/u);
 });
 
-test("认证成功后保持当前页面等待目标就绪，再执行设置控制的一镜到底转场", () => {
+test("认证成功后先隐藏预热工作台，再播放轻量内置动画；提醒只在完成后出现", () => {
   assert.match(renderer, /authTransitionPhase !== "preparing" \|\| !user \|\| !userSettings/u);
   assert.match(renderer, /wallpaperEngine\.enabled && clientModulesReadyUserId !== user\.id/u);
-  assert.match(renderer, /startViewTransition\(\(\) =>\s*\{\s*flushSync\(\(\) => setAuthTransitionPhase\("idle"\)\);/u);
+  assert.match(renderer, /authTransitionPluginId === "builtin"\)\s*\{\s*setAuthTransitionSceneReady\(true\);/u);
+  assert.match(renderer, /onAuthTransitionWarmupReady=\{authTransitionPhase === "preparing" && authTransitionSceneReady && authTransitionPluginId === "builtin" \? handleWorkbenchAuthWarmupReady : undefined\}/u);
+  assert.match(renderer, /authTransitionStaging=\{authTransitionPhase !== "idle"\}/u);
+  assert.match(renderer, /setAuthTransitionPhase\(\(current\) => current === "preparing" \? "entering" : current\)/u);
+  assert.match(renderer, /animationName === "lfaa-auth-login-exit"/u);
+  const builtinPath = renderer.match(/if \(animationId === "builtin"\) \{([\s\S]*?)\n    \}\s+let started/u)?.[1] ?? "";
+  assert.ok(builtinPath, "the built-in transition must have its own lightweight path");
+  assert.doesNotMatch(builtinPath, /startViewTransition|flushSync/u);
+  assert.match(renderer, /startViewTransition\(\(\) =>\s*\{\s*flushSync\(\(\) => setAuthTransitionSceneReady\(true\)\);/u);
+  assert.match(renderer, /transition\.finished\.then\(cleanup, cleanup\)/u);
+  assert.match(renderer, /if \(!cancelled\) setAuthTransitionPhase\("idle"\)/u);
+  assert.match(renderer, /authTransitionPhase !== "idle" && !authTransitionSceneReady/u);
+  assert.match(renderer, /credentialReminder=\{authTransitionPhase === "idle" \? credentialReminder : null\}/u);
+  assert.match(renderer, /suspendSetupReminder=\{credentialReminderChecking \|\| authTransitionPhase !== "idle"\}/u);
+  assert.match(renderer, /transitionOnly/u);
   assert.match(renderer, /shouldReduceMotion\(userSettings\.appearance\.advanced\.reducedMotion\)/u);
   assert.match(renderer, /configuredAuthTransitionPluginId[\s\S]*authTransitionPlugins\.some/u);
+  assert.match(workbench, /useLayoutEffect\(\(\) => onAuthTransitionWarmupReady\?\.\(\), \[onAuthTransitionWarmupReady\]\)/u);
+  assert.match(workbench, /shell\.toggleAttribute\("inert", authTransitionStaging\)/u);
+  assert.match(workbench, /shell\.setAttribute\("aria-hidden", "true"\)/u);
   assert.match(slotRoot, /\[LFAA_AUTH_TRANSITION_SLOT\]: \{ kind: "list", scope: "root" \}/u);
+  assert.match(authView, /if \(transitionOnly\) \{\s*return transitionPluginId === "builtin" \|\| transitionPhase === "idle" \? null :/u);
+  assert.match(authView, /if \(transitionOnly \|\| transitionOverlay \|\| serverState !== "online"\)/u);
   assert.match(authView, /name=\{LFAA_AUTH_TRANSITION_SLOT\}[\s\S]*owner=\{\{ phase: transitionPhase, reducedMotion \}/u);
   assert.doesNotMatch(authView.match(/owner=\{\{([^}]+)\}\}/u)?.[1] ?? "", /password|credential|token/iu);
   assert.match(settings, /title="登录进入动画"[\s\S]*authTransitionPluginId/u);
   assert.match(settings, /useDshSlotEntries\(LFAA_AUTH_TRANSITION_SLOT\)/u);
   assert.match(settings, /title="减少动态效果" description="开启后跳过登录进入动画/u);
-  assert.match(authStyles, /::view-transition-group\(lfaa-auth-scene\)[\s\S]*animation-duration:\s*900ms/u);
-  assert.doesNotMatch(authStyles, /auth-page-enter|auth-page__split-layout\s*\{[^}]*animation:/u);
+  assert.match(authStyles, /html\[data-lfaa-auth-entry-animation\]:not\(\[data-lfaa-auth-entry-animation="builtin"\]\) \.auth-page,[\s\S]*html\[data-lfaa-auth-entry-animation\]:not\(\[data-lfaa-auth-entry-animation="builtin"\]\) \.workbench-shell\s*\{\s*view-transition-name:\s*lfaa-auth-scene;/u);
+  assert.match(renderer, /transition\.ready\.then\(\(\)\s*=>\s*\{\s*if \(!cancelled\) root\.dataset\.lfaaAuthTransitionCaptured = "true";/u);
+  assert.match(authStyles, /html\[data-lfaa-auth-transition-captured="true"\] \.workbench-shell\s*\{\s*visibility:\s*hidden;/u);
+  assert.match(authStyles, /::view-transition-new\(lfaa-auth-scene\)\s*\{\s*opacity:\s*0 !important;\s*visibility:\s*hidden !important;/u);
+  assert.match(authStyles, /html\[data-lfaa-auth-workbench-hidden="true"\] \.workbench-shell,[\s\S]*html\[data-lfaa-auth-transition-captured="true"\] \.workbench-shell\s*\{\s*visibility:\s*hidden;/u);
+  assert.match(authStyles, /\.auth-page--transition-overlay\s*\{\s*position:\s*fixed;[\s\S]*inset:\s*0;/u);
+  assert.match(authStyles, /\.auth-page--transition-exiting\s*\{[\s\S]*animation:\s*lfaa-auth-login-exit 820ms[\s\S]*will-change:\s*opacity;/u);
+  assert.match(authStyles, /\.auth-page--transition-exiting \.auth-page__split-layout\s*\{[\s\S]*animation:\s*lfaa-auth-login-card-exit 820ms[\s\S]*will-change:\s*transform;/u);
+  const sceneMotion = authStyles.match(/@keyframes lfaa-auth-login-exit\s*\{([\s\S]*?)\n\}/u)?.[1] ?? "";
+  assert.match(sceneMotion, /opacity:/u);
+  assert.match(sceneMotion, /100%\s*\{\s*opacity:\s*0;/u);
+  assert.doesNotMatch(sceneMotion, /transform:|filter:|border-radius:/u);
+  const cardMotion = authStyles.match(/@keyframes lfaa-auth-login-card-exit\s*\{([\s\S]*?)\n\}/u)?.[1] ?? "";
+  assert.match(cardMotion, /translate3d\(0, -10px, 0\)/u);
+  assert.doesNotMatch(cardMotion, /scale\(|filter:|border-radius:/u);
+  assert.match(renderer, /overlay\.removeEventListener\("animationend", handleAnimationEnd\);\s*overlay\.removeEventListener\("animationcancel", finish\);\s*if \(root\.dataset\.lfaaAuthEntryAnimation === "builtin"\) delete root\.dataset\.lfaaAuthEntryAnimation;\s*setAuthTransitionPhase\("idle"\);/u);
+  assert.doesNotMatch(authStyles, /view-transition-name:\s*lfaa-auth-brand|1500ms/u);
+});
+
+test("默认凭据提醒复用首次配置提醒的弹窗、卡片与操作区", () => {
+  assert.match(workbench, /<SetupReminder[\s\S]*?priorityPrompt=\{credentialReminder \? \{/u);
+  assert.doesNotMatch(workbench, /credential-reminder-modal|title="建议修改默认登录凭据"/u);
+  assert.equal((setupReminder.match(/<Modal\b/gu) ?? []).length, 1);
+  assert.match(setupReminder, /const activePriorityPrompt = priorityPrompt\s+&& settings\.general\.notificationPopupsEnabled\s+&& settings\.general\.defaultAdminCredentialReminderEnabled\s+&& !isCredentialReminderSnoozedToday\(user\.id, currentLocalDay\)/u);
+  assert.match(setupReminder, /open=\{settings\.general\.notificationPopupsEnabled && \(Boolean\(activePriorityPrompt\) \|\| open\)\}/u);
+  assert.match(setupReminder, /introTitle = activePriorityPrompt\?\.introTitle/u);
+  assert.match(setupReminder, /WorkbenchIcon name=\{activePriorityPrompt\?\.icon/u);
+  assert.match(setupReminder, /activePriorityPrompt\.onAction\(\)/u);
+  assert.match(setupReminder, /activePriorityPrompt\.onDismiss\}/u);
+  assert.match(setupReminder, /今日不再提醒/u);
+  assert.match(setupReminder, /priorityPrompt\.onSnoozedTodayChange\(true\)/u);
+  assert.match(setupReminder, /priorityPrompt\.onSnoozedTodayChange\(isCredentialReminderSnoozedToday\(user\.id, currentLocalDay\)\)/u);
+  assert.match(setupReminder, /saveSettings\("general", \{ \.\.\.settings\.general, defaultAdminCredentialReminderEnabled: false \}\)/u);
+  assert.match(setupReminder, /不再提醒/u);
+  assert.match(workbench, /suspended=\{suspendSetupReminder \|\| \(Boolean\(credentialReminder\) && settings\.general\.defaultAdminCredentialReminderEnabled && !credentialReminderSnoozedToday\)\}/u);
+  assert.match(setupReminder, /activePriorityPrompt = priorityPrompt[\s\S]*settings\.general\.notificationPopupsEnabled[\s\S]*settings\.general\.defaultAdminCredentialReminderEnabled\s*&& !isCredentialReminderSnoozedToday/u);
+  const reminderState = readFileSync(new URL("../../../packages/client/ui-settings-general/src/setup-reminder.ts", import.meta.url), "utf8");
+  assert.match(reminderState, /lfaa:credential-reminder-snooze:\$\{userId\}/u);
+  assert.match(reminderState, /凭据安全提醒单独暂停，不能连带隐藏首次配置提醒/u);
+  assert.match(workbenchStyles, /\.setup-reminder-modal \.setup-reminder-card__action\.ant-btn/u);
+  assert.doesNotMatch(workbenchStyles, /\.credential-reminder-modal/u);
+});
+
+test("通知总开关关闭自动提醒与 AI 弹出通知，但不影响会话内卡片", () => {
+  assert.match(settings, /title="通知总开关" description="关闭后停止工作台提醒、浏览器系统通知和通知提示音/u);
+  assert.match(settings, /checked=\{settings\.general\.notificationPopupsEnabled\} onChange=\{\(\) => updateGeneral\(\{ notificationPopupsEnabled: !settings\.general\.notificationPopupsEnabled \}\)\}/u);
+  assert.match(setupReminder, /if \(!settings\.general\.notificationPopupsEnabled\)\s*\{\s*shownRef\.current = false;\s*setOpen\(false\);/u);
+  assert.match(setupReminder, /open=\{settings\.general\.notificationPopupsEnabled && \(Boolean\(activePriorityPrompt\) \|\| open\)\}/u);
+  assert.match(workbench, /if \(!settings\.general\.notificationPopupsEnabled\) return;/u);
+  assert.match(workbench, /notificationToast && settings\.general\.notificationPopupsEnabled \?/u);
+  assert.match(workbench, /<PasskeySetupPrompt[\s\S]*notificationPopupsEnabled=\{settings\.general\.notificationPopupsEnabled\}/u);
+  assert.match(passkeyPrompt, /if \(!notificationPopupsEnabled \|\| isSettingsPage/u);
+  assert.match(passkeyPrompt, /open=\{notificationPopupsEnabled && open\}/u);
+});
+
+test("账户安全提醒主按钮进入安全分类，包括已挂载的外观设置页", () => {
+  assert.match(renderer, /onOpenCredentialSettings=\{\(\) => setCredentialReminder\(null\)\}/u);
+  assert.match(workbench, /onAction: \(\) => \{ onOpenCredentialSettings\(\); openSettings\("security"\); \}/u);
+  assert.match(workbench, /const \[settingsSectionRequest, setSettingsSectionRequest\] = useState<\{ section: "security"; requestId: number \} \| null>\(null\)/u);
+  assert.match(workbench, /setSettingsSectionRequest\(\{ section, requestId: \+\+settingsSectionRequestSequenceRef\.current \}\)/u);
+  assert.match(workbench, /sectionRequest=\{settingsSectionRequest\}/u);
+  assert.match(settings, /sectionRequest\?: \{ section: "security"; requestId: number \} \| null/u);
+  assert.match(settings, /const requestedSection = sectionRequest\?\.section;[\s\S]*?setActiveSection\(requestedSection\);[\s\S]*?persistSettingsSection\(requestedSection, user\.id\);/u);
+  assert.match(settings, /url\.searchParams\.set\("section", section\)/u);
+});
+
+test("账户安全提醒弹窗明确提供更改与不更改，并只放大安全提醒", () => {
+  assert.match(setupReminder, /rootClassName=\{activePriorityPrompt \? "setup-reminder-modal setup-reminder-modal--priority"/u);
+  assert.match(setupReminder, /width=\{activePriorityPrompt \? 640 : 480\}/u);
+  assert.match(setupReminder, /<Button loading=\{saving\} disabled=\{saving\} onClick=\{\(\) => void disableCredentialReminder\(\)\}>不更改<\/Button>/u);
+  assert.match(setupReminder, /<Button type="primary" size="large" onClick=\{\(\) => \{[\s\S]*?activePriorityPrompt\.onAction\(\);[\s\S]*?\}\}>更改<\/Button>/u);
+  assert.match(setupReminder, /defaultAdminCredentialReminderEnabled: false/u);
+  assert.match(setupReminder, /不更改会保留当前登录凭据，并关闭后续提醒；更改会打开安全设置，不会自动修改/u);
+  assert.match(workbenchStyles, /\.setup-reminder-modal--priority \.setup-reminder-intro\s*\{[^}]*margin-right:\s*0;/u);
+  assert.match(workbenchStyles, /\.setup-reminder-modal--priority \.setup-reminder-card__actions\.ant-space\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 320px\) minmax\(0, 160px\);/u);
+  assert.match(workbenchStyles, /\.setup-reminder-modal--priority \.setup-reminder-card__actions \.ant-btn\s*\{[^}]*width:\s*100%;/u);
+  assert.match(workbenchStyles, /@media \(max-width: 520px\)\s*\{[\s\S]*?\.setup-reminder-modal--priority \.setup-reminder-card__actions\.ant-space\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/u);
+  assert.match(workbenchStyles, /var\(--settings-background-surface-opacity\)[\s\S]*var\(--settings-glass-blur\)/u);
+});
+
+test("所有 Ant Design Portal 弹窗继承当前 Appearance 令牌并适配窄短屏", () => {
+  assert.match(workbench, /const PORTAL_APPEARANCE_VARIABLES = \[[\s\S]*?"--color-surface"[\s\S]*?"--settings-background-surface-opacity"[\s\S]*?"--settings-glass-blur"/u);
+  assert.match(workbench, /window\.getComputedStyle\(shell\)[\s\S]*?body\.style\.setProperty\(property, resolvedValue\)[\s\S]*?body\.setAttribute\("data-lfaa-theme", resolvedTheme\)[\s\S]*?body\.setAttribute\("data-lfaa-dialog-wallpaper"/u);
+  assert.match(workbench, /\[resolvedTheme, settings\.appearance, wallpaperCanvasOwnership\.hasWallpaperBackground\]/u);
+  const portalSurfaceRule = workbenchStyles.match(/body\[data-lfaa-theme\][^\{]*\{([^}]+)\}/u)?.[1];
+  assert.ok(portalSurfaceRule, "body Portal overlay tokens must have a shared surface rule");
+  assert.match(portalSurfaceRule, /border-color:\s*var\(--color-border\);\s*background:\s*var\(--color-surface\);\s*color:\s*var\(--color-text-primary\);/u);
+  assert.doesNotMatch(workbenchStyles, /body\[data-lfaa-theme\][\s\S]{0,220}#(?:202020|e5e5e5)/u);
+  assert.match(sharedThemeStyles, /\.ant-modal-root \.ant-modal\s*\{[^}]*max-width:\s*calc\(100vw - 32px\);[^}]*max-height:\s*calc\(100dvh - 24px\);/u);
+  assert.match(sharedThemeStyles, /\.ant-modal-root \.ant-modal-body\s*\{[^}]*overflow:\s*auto;[^}]*overscroll-behavior:\s*contain;/u);
+  assert.match(sharedThemeStyles, /body\[data-lfaa-dialog-wallpaper="true"\]:not\(\[data-we-wallpaper\]\)[\s\S]*?var\(--settings-background-surface-opacity\)[\s\S]*?var\(--settings-glass-blur\)/u);
+  assert.match(sharedThemeStyles, /@media \(max-width: 520px\)[\s\S]*?\.ant-modal-root \.ant-modal\s*\{[^}]*max-width:\s*calc\(100vw - 16px\);[^}]*max-height:\s*calc\(100dvh - 16px\);/u);
+  assert.match(settings, /弹窗玻璃表面的底色透明度/u);
+  assert.match(settings, /壁纸上的弹窗表面模糊强度/u);
+});
+
+test("账户凭据提醒的今日暂停按账户和本地日期隔离，不影响首次配置暂停", async () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const values = new Map();
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: { localStorage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, String(value)),
+      removeItem: (key) => values.delete(key)
+    } }
+  });
+  try {
+    const { isCredentialReminderSnoozedToday, isSetupReminderSnoozedToday, setCredentialReminderSnoozedToday } = await import("../../../packages/client/ui-settings-general/src/setup-reminder.ts");
+    assert.equal(setCredentialReminderSnoozedToday("user-a", "2026-10-18"), true);
+    assert.equal(isCredentialReminderSnoozedToday("user-a", "2026-10-18"), true);
+    assert.equal(isCredentialReminderSnoozedToday("user-a", "2026-10-19"), false);
+    assert.equal(isCredentialReminderSnoozedToday("user-b", "2026-10-18"), false);
+    assert.equal(isSetupReminderSnoozedToday("user-a", "2026-10-18"), false);
+  } finally {
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+    else delete globalThis.window;
+  }
 });
 
 test("刷新首帧不使用浏览器默认白底，工作区仅回用同一路由的内置图片提示", () => {
   assert.match(htmlEntry, /html,\s*body\s*\{[^}]*background-color:\s*#f3f5f8;[^}]*scrollbar-gutter:\s*stable;/su);
   assert.match(htmlEntry, /preference = cachedPreference === "dark" \|\| cachedPreference === "light" \|\| cachedPreference === "system" \? cachedPreference : "system"/u);
   assert.match(htmlEntry, /safeRoute && safeBackground/u);
-  assert.match(htmlEntry, /lfaa\.appearance-canvas-bootstrap\.v1/u);
+  assert.match(htmlEntry, /lfaa\.appearance-canvas-bootstrap\.v2/u);
   assert.match(htmlEntry, /html\[data-lfaa-bootstrap-canvas="true"\]:not\(:has\(\.workbench-shell\)\) body/u);
   assert.match(htmlEntry, /document\.documentElement\.dataset\.lfaaBootstrapCanvas\s*=\s*"true"/u);
   assert.match(htmlEntry, /setProperty\("--lfaa-bootstrap-canvas-image"/u);

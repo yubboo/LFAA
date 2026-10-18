@@ -1,6 +1,6 @@
 /**
- * 功能：维护首次配置提醒的本地“今日暂停”状态。
- * 作用：让工作台弹窗与设置中心读取、设置和清除同一账户的当日提醒暂停标记。
+ * 功能：维护首次配置与默认凭据安全提醒的本地“今日暂停”状态。
+ * 作用：按账户和提醒类型隔离浏览器当日暂停标记，日期过期后自然恢复。
  * 关联文件：packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-settings/src/SettingsPage.tsx。
  */
 
@@ -37,6 +37,28 @@ export function setSetupReminderSnoozedToday(userId: string, today = getSetupRem
 export function clearSetupReminderSnooze(userId: string): boolean {
   try {
     window.localStorage.removeItem(setupReminderSnoozeKey(userId));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function credentialReminderSnoozeKey(userId: string): string {
+  return `lfaa:credential-reminder-snooze:${userId}`;
+}
+
+// 凭据安全提醒单独暂停，不能连带隐藏首次配置提醒。
+export function isCredentialReminderSnoozedToday(userId: string, today = getSetupReminderLocalDay()): boolean {
+  try {
+    return window.localStorage.getItem(credentialReminderSnoozeKey(userId)) === today;
+  } catch {
+    return false;
+  }
+}
+
+export function setCredentialReminderSnoozedToday(userId: string, today = getSetupReminderLocalDay()): boolean {
+  try {
+    window.localStorage.setItem(credentialReminderSnoozeKey(userId), today);
     return true;
   } catch {
     return false;

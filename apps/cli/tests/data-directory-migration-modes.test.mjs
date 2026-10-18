@@ -67,20 +67,19 @@ test.after(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("系统复制排除插件安装文件，保留运行数据并完整核对用户文件", { skip: process.platform !== "win32" }, () => {
+test("系统复制忽略旧插件目录且不复制插件运行数据，保留源目录原样", { skip: process.platform !== "win32" }, () => {
   createDataRoot(source);
   const target = join(root, "copy-target", "data");
   mkdirSync(target, { recursive: true });
   writeRequest("copy", target);
   assert.match(applyMigration(), /数据已复制并核验/u);
   assert.equal(readFileSync(join(target, "profile.json"), "utf8"), "{\"fixture\":true}\n");
-  assert.equal(existsSync(join(target, "plugins", "profiles", "web", "example")), false);
-  assert.equal(existsSync(join(target, "plugins", "runtime-adapters", "profiles", "web", "example")), false);
-  assert.equal(existsSync(join(target, "plugins", "runtime-data", "profiles", "web", "settings.json")), true);
+  assert.equal(existsSync(join(target, "plugins")), false, "新系统数据根不会接收任何旧插件子树");
+  assert.equal(existsSync(join(source, "plugins", "runtime-data", "profiles", "web", "settings.json")), true, "旧源文件留在原位");
   assert.equal(existsSync(join(source, "profile.json")), true);
 });
 
-test("用户手动复制后，系统核对文件清单和 SQLite 再采用已有目标", { skip: process.platform !== "win32" }, () => {
+test("用户手动复制后，系统核对时忽略旧插件目录并保留现有文件", { skip: process.platform !== "win32" }, () => {
   createDataRoot(source);
   const target = join(root, "manual-target");
   cpSync(source, target, { recursive: true, errorOnExist: true, force: false });
@@ -88,10 +87,11 @@ test("用户手动复制后，系统核对文件清单和 SQLite 再采用已有
   assert.match(applyMigration(), /手动复制数据已核验并采用/u);
   assert.equal(readFileSync(join(target, "profile.json"), "utf8"), readFileSync(join(source, "profile.json"), "utf8"));
   assert.equal(existsSync(join(target, "credentials")), true, "采用标记记录在目标数据根内");
+  assert.equal(existsSync(join(target, "plugins", "runtime-data", "profiles", "web", "settings.json")), true, "手动复制已经带入的旧插件数据不被删除或接管");
   assert.equal(existsSync(join(source, "profile.json")), true);
 });
 
-test("ZIP 备份安全解包到空目标，移除旧插件包目录并检查数据库", { skip: process.platform !== "win32" }, () => {
+test("ZIP 导入忽略旧插件目录并检查数据库", { skip: process.platform !== "win32" }, () => {
   createDataRoot(source);
   const archive = join(root, "lfaa-data.zip");
   createZip(source, archive);
@@ -101,7 +101,7 @@ test("ZIP 备份安全解包到空目标，移除旧插件包目录并检查数�
   assert.match(applyMigration(), /ZIP 数据已安全导入并核验/u);
   assert.equal(readFileSync(join(target, "profile.json"), "utf8"), "{\"fixture\":true}\n");
   assert.equal(existsSync(join(target, "database", "lfaa.sqlite")), true);
-  assert.equal(existsSync(join(target, "plugins", "profiles")), false);
-  assert.equal(existsSync(join(target, "plugins", "runtime-data", "profiles", "web", "settings.json")), true);
+  assert.equal(existsSync(join(target, "plugins")), false, "导入后的新系统根不保留旧插件目录");
+  assert.equal(existsSync(join(source, "plugins", "runtime-data", "profiles", "web", "settings.json")), true, "源目录数据不受 ZIP 导入影响");
   assert.equal(readdirSync(target).includes("credentials"), true);
 });

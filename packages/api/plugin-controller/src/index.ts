@@ -39,7 +39,7 @@ function managerError(error: unknown): never {
 
 export function registerRoutes(router: Router, manager: PluginManager, capabilities: CapabilityInstallRegistry): void {
   router.get("/capabilities/catalog", requireAuthentication, (_request, response) => response.json({ capabilities: capabilities.catalog() }));
-  router.get("/plugins", requireAuthentication, requireRole("admin"), (_request, response) => response.json({ profile: manager.profile, plugins: manager.list() }));
+  router.get("/plugins", requireAuthentication, requireRole("admin"), (_request, response) => response.json({ profile: manager.profile, installationDirectory: manager.installationDirectory, plugins: manager.list() }));
   router.get("/plugins/:pluginId", requireAuthentication, requireRole("admin"), (request, response) => {
     const plugin = manager.get(request.params.pluginId);
     if (!plugin) throw new ApiError(404, "plugin_not_found", "当前 Profile 未安装此插件。");

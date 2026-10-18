@@ -14,7 +14,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import { flushSync } from "react-dom";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
 import { clearClientSnapshots } from "lfaa-client-store/src/snapshot-cache.js";
-import { Alert, Button, Modal, Typography } from "antd";
+import { Alert, Button } from "antd";
 import {
   ApiError,
   getErrorMessage,
@@ -76,7 +76,7 @@ function shouldReduceMotion(setting: UserSettings["appearance"]["advanced"]["red
 }
 
 type DocumentWithViewTransition = Document & {
-  startViewTransition?: (callback: () => void) => { finished: Promise<void> };
+  startViewTransition?: (callback: () => void) => { ready: Promise<void>; finished: Promise<void> };
 };
 
 function applicationIdForRoute(path: string): ApplicationId | null {
@@ -148,6 +148,7 @@ export default function App() {
   const navigationSave = useRef<Promise<void>>(Promise.resolve());
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [authTransitionPhase, setAuthTransitionPhase] = useState<AuthTransitionPhase>("idle");
+  const [authTransitionSceneReady, setAuthTransitionSceneReady] = useState(false);
   const configuredAuthTransitionPluginId = userSettings?.appearance.advanced.authTransitionPluginId ?? "builtin";
   const authTransitionPluginId = configuredAuthTransitionPluginId === "builtin"
     || authTransitionPlugins.some((entry) => entry.id === configuredAuthTransitionPluginId)
@@ -162,6 +163,7 @@ export default function App() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [authBusy, setAuthBusy] = useState(false);
   const [credentialReminder, setCredentialReminder] = useState<{ usernamePending: boolean; passwordPending: boolean } | null>(null);
+  const [credentialReminderChecking, setCredentialReminderChecking] = useState(false);
   const authRequestInFlightRef = useRef(false);
   const [settingsRetryBusy, setSettingsRetryBusy] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
@@ -175,41 +177,122 @@ export default function App() {
   useEffect(() => {
     if (authTransitionPhase !== "preparing" || !user || !userSettings) return;
     if (userSettings.appearance.wallpaperEngine.enabled && clientModulesReadyUserId !== user.id) return;
-    setAuthTransitionPhase(authTransitionReducedMotion ? "idle" : "entering");
-  }, [authTransitionPhase, authTransitionReducedMotion, clientModulesReadyUserId, user, userSettings]);
+    if (authTransitionReducedMotion) {
+      setAuthTransitionPhase("idle");
+      return;
+    }
+    if (authTransitionPluginId === "builtin") {
+      setAuthTransitionSceneReady(true);
+      return;
+    }
+    setAuthTransitionPhase("entering");
+  }, [authTransitionPhase, authTransitionPluginId, authTransitionReducedMotion, clientModulesReadyUserId, user, userSettings]);
+
+  const authTransitionActive = Boolean(user) && authTransitionPhase !== "idle";
+  const builtinAuthTransitionActive = authTransitionPluginId === "builtin" && authTransitionActive;
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    if (authTransitionActive) {
+      root.dataset.lfaaAuthWorkbenchHidden = "true";
+    } else delete root.dataset.lfaaAuthWorkbenchHidden;
+    if (builtinAuthTransitionActive) root.dataset.lfaaAuthEntryAnimation = "builtin";
+    else if (root.dataset.lfaaAuthEntryAnimation === "builtin") delete root.dataset.lfaaAuthEntryAnimation;
+    return () => {
+      delete root.dataset.lfaaAuthWorkbenchHidden;
+      if (root.dataset.lfaaAuthEntryAnimation === "builtin") delete root.dataset.lfaaAuthEntryAnimation;
+    };
+  }, [authTransitionActive, builtinAuthTransitionActive]);
+
+  const handleWorkbenchAuthWarmupReady = useCallback(() => {
+    let firstFrame = 0;
+    let secondFrame = 0;
+    firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        setAuthTransitionPhase((current) => current === "preparing" ? "entering" : current);
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, []);
 
   useEffect(() => {
     if (authTransitionPhase !== "entering" || !user || !userSettings) return;
     const root = document.documentElement;
     const animationId = authTransitionPluginId;
     let cancelled = false;
+    if (animationId === "builtin") {
+      const overlay = document.querySelector<HTMLElement>(".auth-page--transition-overlay");
+      if (!overlay) {
+        setAuthTransitionPhase("idle");
+        return;
+      }
+      let fallbackTimer: number | undefined;
+      const finish = () => {
+        if (cancelled) return;
+        cancelled = true;
+        if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer);
+        overlay.removeEventListener("animationend", handleAnimationEnd);
+        overlay.removeEventListener("animationcancel", finish);
+        if (root.dataset.lfaaAuthEntryAnimation === "builtin") delete root.dataset.lfaaAuthEntryAnimation;
+        setAuthTransitionPhase("idle");
+      };
+      const handleAnimationEnd = (event: AnimationEvent) => {
+        if (event.target === overlay && event.animationName === "lfaa-auth-login-exit") finish();
+      };
+      fallbackTimer = window.setTimeout(finish, 1100);
+      overlay.addEventListener("animationend", handleAnimationEnd);
+      overlay.addEventListener("animationcancel", finish);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(fallbackTimer);
+        overlay.removeEventListener("animationend", handleAnimationEnd);
+        overlay.removeEventListener("animationcancel", finish);
+        if (root.dataset.lfaaAuthEntryAnimation === "builtin") delete root.dataset.lfaaAuthEntryAnimation;
+        delete root.dataset.lfaaAuthWorkbenchHidden;
+      };
+    }
     let started = false;
     const frame = window.requestAnimationFrame(() => {
       started = true;
       if (cancelled) return;
+      delete root.dataset.lfaaAuthTransitionCaptured;
       root.dataset.lfaaAuthEntryAnimation = animationId;
       const transitionDocument = document as DocumentWithViewTransition;
       if (typeof transitionDocument.startViewTransition !== "function") {
         delete root.dataset.lfaaAuthEntryAnimation;
+        delete root.dataset.lfaaAuthTransitionCaptured;
+        setAuthTransitionSceneReady(true);
         setAuthTransitionPhase("idle");
         return;
       }
       try {
         const transition = transitionDocument.startViewTransition(() => {
-          flushSync(() => setAuthTransitionPhase("idle"));
+          flushSync(() => setAuthTransitionSceneReady(true));
         });
         const cleanup = () => {
           if (root.dataset.lfaaAuthEntryAnimation === animationId) delete root.dataset.lfaaAuthEntryAnimation;
+          delete root.dataset.lfaaAuthTransitionCaptured;
+          if (!cancelled) setAuthTransitionPhase("idle");
         };
+        void transition.ready.then(() => {
+          if (!cancelled) root.dataset.lfaaAuthTransitionCaptured = "true";
+        }, () => undefined);
         void transition.finished.then(cleanup, cleanup);
       } catch {
         delete root.dataset.lfaaAuthEntryAnimation;
+        delete root.dataset.lfaaAuthTransitionCaptured;
+        setAuthTransitionSceneReady(true);
         setAuthTransitionPhase("idle");
       }
     });
     return () => {
       cancelled = true;
       if (!started) window.cancelAnimationFrame(frame);
+      if (root.dataset.lfaaAuthEntryAnimation === animationId) delete root.dataset.lfaaAuthEntryAnimation;
+      delete root.dataset.lfaaAuthTransitionCaptured;
     };
   }, [authTransitionPhase, authTransitionPluginId, user?.id, userSettings]);
 
@@ -266,6 +349,8 @@ export default function App() {
       }
 
       setUser(null);
+      setAuthTransitionSceneReady(false);
+      setAuthTransitionPhase("idle");
       setClientModulesReadyUserId(null);
       clearAppearanceThemeBootstrap();
       navigationSequence.current += 1;
@@ -388,6 +473,7 @@ export default function App() {
     sessionRestoreResolvedRef.current = true;
     setSessionRestoreError(null);
     setPreferences(savedResult.value.preferences);
+    setAuthTransitionSceneReady(false);
     setClientModulesReadyUserId(null);
     setUser(user);
     if (settingsResult.status === "fulfilled") void updateCredentialReminder(settingsResult.value.settings);
@@ -405,8 +491,10 @@ export default function App() {
   }
 
   async function updateCredentialReminder(settings: UserSettings): Promise<void> {
+    setCredentialReminderChecking(true);
     if (!settings.general.defaultAdminCredentialReminderEnabled) {
       setCredentialReminder(null);
+      setCredentialReminderChecking(false);
       return;
     }
     try {
@@ -414,6 +502,8 @@ export default function App() {
       setCredentialReminder(reminder.usernamePending || reminder.passwordPending ? reminder : null);
     } catch {
       setCredentialReminder(null);
+    } finally {
+      setCredentialReminderChecking(false);
     }
   }
 
@@ -507,6 +597,7 @@ export default function App() {
       }
     } finally {
       clearAppearanceThemeBootstrap();
+      setAuthTransitionSceneReady(false);
       setClientModulesReadyUserId(null);
       setUser(null);
       setPreferences(fallbackPreferences);
@@ -569,7 +660,7 @@ export default function App() {
     );
   }
 
-  if (!user || authTransitionPhase !== "idle") {
+  if (!user || (authTransitionPhase !== "idle" && !authTransitionSceneReady)) {
     return (
       <Suspense fallback={<main className="loading-page"><span className="loading-indicator" aria-hidden="true" /></main>}>
         <AuthView
@@ -604,6 +695,24 @@ export default function App() {
 
   return (
     <>
+      {authTransitionPhase !== "idle" && authTransitionSceneReady && authTransitionPluginId !== "builtin" ? (
+        <Suspense fallback={null}>
+          <AuthView
+            serverState={serverState}
+            busy
+            error={null}
+            notice={null}
+            transitionPhase={authTransitionPhase}
+            transitionPluginId={authTransitionPluginId}
+            reducedMotion={authTransitionReducedMotion}
+            transitionOnly
+            onSubmit={() => undefined}
+            onPasskeyLogin={() => undefined}
+            onRecover={async () => false}
+            onClearMessage={() => undefined}
+          />
+        </Suspense>
+      ) : null}
       <Suspense fallback={<main className="loading-page" aria-busy="true" />}>
         <Workbench
         user={user}
@@ -621,26 +730,33 @@ export default function App() {
         onOpenApplication={handleOpenApplication}
         onUserChange={(nextUser) => setUser(nextUser)}
         onLogout={() => void handleLogout()}
+        credentialReminder={authTransitionPhase === "idle" ? credentialReminder : null}
+        suspendSetupReminder={credentialReminderChecking || authTransitionPhase !== "idle"}
+        onDismissCredentialReminder={() => void dismissCredentialReminder()}
+        onOpenCredentialSettings={() => setCredentialReminder(null)}
+        authTransitionStaging={authTransitionPhase !== "idle"}
+        onAuthTransitionWarmupReady={authTransitionPhase === "preparing" && authTransitionSceneReady && authTransitionPluginId === "builtin" ? handleWorkbenchAuthWarmupReady : undefined}
         />
       </Suspense>
-      <Modal
-        open={Boolean(credentialReminder)}
-        title="建议修改默认登录凭据"
-        closable={false}
-        maskClosable={false}
-        footer={[
-          <Button key="later" onClick={() => void dismissCredentialReminder()}>稍后再说</Button>,
-          <Button key="settings" type="primary" onClick={() => { setCredentialReminder(null); routeTo("/settings", setRoute); }}>前往设置中心</Button>
-        ]}
-      >
-        <Typography.Paragraph>
-          {credentialReminder?.usernamePending && credentialReminder.passwordPending
-            ? "当前仍在使用系统默认用户名和密码。建议在设置中心的「安全」页面分别修改，之后可使用新凭据登录。"
-            : credentialReminder?.usernamePending
-              ? "当前仍在使用系统默认用户名。建议在设置中心的「安全」页面修改。"
-              : "当前仍在使用系统默认密码。建议在设置中心的「安全」页面修改。"}
-        </Typography.Paragraph>
-      </Modal>
+      {authTransitionPhase !== "idle" && authTransitionSceneReady && authTransitionPluginId === "builtin" ? (
+        <Suspense fallback={null}>
+          <AuthView
+            serverState={serverState}
+            busy
+            error={null}
+            notice="登录成功，正在进入工作台…"
+            transitionPhase={authTransitionPhase}
+            transitionPluginId={authTransitionPluginId}
+            reducedMotion={authTransitionReducedMotion}
+            transitionOverlay
+            transitionExiting={authTransitionPhase === "entering"}
+            onSubmit={() => undefined}
+            onPasskeyLogin={() => undefined}
+            onRecover={async () => false}
+            onClearMessage={() => undefined}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 }

@@ -149,6 +149,28 @@ test('plugin manager exposes one unified tab row and keeps existing settings own
   assert.doesNotMatch(settingsCss, /\.settings-plugin-workspace__overview\s*\{[^}]*repeat\(4,/su);
 });
 
+test('plugin inspection confines long source metadata and warning alerts to the card grid', () => {
+  assert.match(pluginPage, /className="plugin-manager-install-modal__inspection-meta"/u);
+  assert.match(pluginPageCss, /\.plugin-manager-install-modal__body\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/su);
+  assert.match(pluginPageCss, /\.plugin-manager-install-modal__inspection,\s*\.plugin-manager-install-modal__result\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/su);
+  assert.match(pluginPageCss, /\.plugin-manager-install-modal__inspection-meta\s*\{[^}]*overflow-wrap:\s*anywhere/su);
+  assert.doesNotMatch(pluginPageCss, /\.plugin-manager-install-modal__inspection\s*>\s*div:last-of-type/u);
+  assert.match(pluginPageCss, /\.plugin-manager-install-modal__inspection\s*>\s*\.ant-alert\s*\{[^}]*min-width:\s*0/su);
+});
+
+test('plugin install guide disclosure keeps registry, example and full safety guidance available', () => {
+  assert.match(pluginPage, /aria-expanded=\{installGuideOpen\}/u);
+  assert.match(pluginPage, /aria-controls="plugin-manager-install-guide"/u);
+  assert.match(pluginPage, /id="plugin-manager-install-guide"[^>]*hidden=\{!installGuideOpen\}/u);
+  assert.match(pluginPage, /plugin-manager-install-modal__guide-row[\s\S]*?plugin-manager-install-modal__registry/u);
+  assert.match(pluginPage, /plugin-manager-install-modal__guide-content[\s\S]*?填入示例/u);
+  assert.match(pluginPage, /plugin-manager-install-modal__guide-content[\s\S]*?来源检查会展示版本、完整性、兼容性/u);
+  assert.match(pluginPage, /plugin-manager-install-modal__warning--summary/u);
+  assert.match(pluginPageCss, /\.plugin-manager-install-modal__guide-content\[hidden\]\s*\{\s*display:\s*none\s*;\s*\}/u);
+  assert.match(pluginPageCss, /\.plugin-manager-install-modal__guide-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/su);
+  assert.match(pluginPageCss, /@media\s*\(max-width:\s*560px\)[\s\S]*?\.plugin-manager-install-modal__guide-row\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\)/u);
+});
+
 test('capability catalog presents readable responsive cards and keeps all entry metadata', () => {
   assert.equal((settingsPage.match(/className="settings-group settings-extension-catalog-group" aria-label="能力目录"/gu) ?? []).length, 1);
   assert.match(settingsPage, /className="settings-extension-catalog-page"/u);

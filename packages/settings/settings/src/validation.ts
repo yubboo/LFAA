@@ -37,6 +37,7 @@ export const generalSettingsSchema = Joi.object({
   followupBehavior: Joi.string().valid("queue", "steer").required(),
   popupShortcut: Joi.string().max(48).allow("").required(),
   defaultStandaloneChat: Joi.boolean().required(),
+  notificationPopupsEnabled: Joi.boolean().required(),
   completionNotification: Joi.string().valid("always", "unfocused", "never").required(),
   permissionNotifications: Joi.boolean().required(),
   questionNotifications: Joi.boolean().required(),

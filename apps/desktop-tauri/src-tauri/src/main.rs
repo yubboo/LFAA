@@ -152,81 +152,25 @@ fn resolve_data_directory(
         return Ok((saved_directory, true));
     }
 
-    // 首次运行默认使用当前系统账户 .lfaa/data；已保存位置和显式部署配置保持优先。
+    // 首次运行默认使用当前系统账户 .lfaa Home；业务内容单独使用 .lfaa/data。
     let home = env::var_os("USERPROFILE")
         .ok_or_else(|| "Windows 未提供系统账户主目录，请设置 LFAA_DATA_DIR。".to_string())?;
-    let default_directory = PathBuf::from(home).join(".lfaa").join("data");
+    let default_directory = PathBuf::from(home).join(".lfaa");
     if writable_data_directory(&default_directory) {
         let directory = fs::canonicalize(&default_directory).unwrap_or(default_directory);
         save_data_directory(configuration_path, &directory)?;
         return Ok((directory, true));
     }
-    Err("无法在系统账户 .lfaa/data 创建可写数据目录，请检查目录权限。".to_string())
+    Err("无法在系统账户 .lfaa Home 创建可写系统目录，请检查目录权限。".to_string())
 }
 
-fn run_pending_data_migration(
-    runtime_root: &Path,
-    node_path: &Path,
-    configuration_path: &Path,
-    request_path: &Path,
-    log_file: &Arc<Mutex<File>>,
-) {
-    if !request_path.exists() {
-        return;
-    }
-    if env::var("LFAA_DATA_DIR")
-        .map(|value| !value.trim().is_empty())
-        .unwrap_or(false)
-    {
+fn run_pending_data_migration(request_path: &Path, log_file: &Arc<Mutex<File>>) {
+    if request_path.exists() {
         log_line(
             log_file,
             "数据迁移",
-            "发现待迁移请求，但系统环境变量 LFAA_DATA_DIR 优先；保留请求并继续使用环境变量目录。",
+            "发现旧的系统数据迁移请求；为避免移动账户/Provider/会话数据，本次不会执行。业务 data 请在设置中心迁移。",
         );
-        return;
-    }
-    let migration_script = runtime_root
-        .join("scripts")
-        .join("apply-data-directory-migration.mjs");
-    let output = Command::new(node_path)
-        .arg(migration_script)
-        .arg(runtime_root)
-        .arg("--desktop-config")
-        .arg(configuration_path)
-        .arg("--request")
-        .arg(request_path)
-        .env("LFAA_DESKTOP_MODE", "true")
-        .env("LFAA_DATA_DIRECTORY_MIGRATION_SUPPORTED", "1")
-        .output();
-    match output {
-        Ok(result) => {
-            if !result.stdout.is_empty() {
-                log_line(
-                    log_file,
-                    "数据迁移",
-                    &String::from_utf8_lossy(&result.stdout),
-                );
-            }
-            if !result.stderr.is_empty() {
-                log_line(
-                    log_file,
-                    "数据迁移 错误",
-                    &String::from_utf8_lossy(&result.stderr),
-                );
-            }
-            if !result.status.success() {
-                log_line(
-                    log_file,
-                    "数据迁移",
-                    "本次未切换数据目录，应用会继续从原目录启动；可在设置中心处理原因后重试。",
-                );
-            }
-        }
-        Err(error) => log_line(
-            log_file,
-            "数据迁移 错误",
-            &format!("无法启动数据迁移程序：{error}"),
-        ),
     }
 }
 
@@ -397,13 +341,7 @@ fn start_local_services(
     log_file: &Arc<Mutex<File>>,
 ) -> Result<(LocalServices, u16), String> {
     let node_path = runtime_root.join("node.exe");
-    run_pending_data_migration(
-        runtime_root,
-        &node_path,
-        configuration_path,
-        request_path,
-        log_file,
-    );
+    run_pending_data_migration(request_path, log_file);
     let (data_directory, managed_by_desktop) =
         resolve_data_directory(runtime_root, configuration_path)?;
     let listener = TcpListener::bind(("localhost", 0))

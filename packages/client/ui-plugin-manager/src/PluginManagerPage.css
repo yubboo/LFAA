@@ -224,12 +224,18 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell .plugin-manager
 .plugin-manager-install-modal .ant-modal-title { color: var(--color-text-heading); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-lg); font-weight: 650; }
 .plugin-manager-install-modal .ant-modal-close { top: 18px; inset-inline-end: 18px; color: var(--color-text-muted); }
 .plugin-manager-install-modal .ant-modal-body { min-height: 0; overflow: auto; padding: 0 26px 24px; overscroll-behavior: contain; }
-.plugin-manager-install-modal__body { display: grid; min-width: 0; gap: 14px; }
+.plugin-manager-install-modal__body { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .plugin-manager-install-modal__intro { margin: 0; color: var(--color-text-secondary); line-height: 1.55; }
 .plugin-manager-install-modal__source-row { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
 .plugin-manager-install-modal__source-row .ant-input { min-width: 0; min-height: 46px; padding-inline: 15px; border-radius: 11px; font-family: var(--settings-interface-font, var(--font-family-sans)); }
 .plugin-manager-install-modal__source-row .ant-tag { margin: 0; white-space: nowrap; }
 .plugin-manager-install-modal__body > .ant-input { min-height: 40px; font-family: var(--settings-interface-font, var(--font-family-sans)); }
+.plugin-manager-install-modal__guide-row { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 10px 16px; }
+.plugin-manager-install-modal__guide-toggle { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border: 0; background: transparent; color: var(--color-text-secondary); cursor: pointer; font: inherit; font-size: var(--font-size-sm); text-align: left; }
+.plugin-manager-install-modal__guide-toggle > span:first-child { color: var(--color-text-heading); font-weight: 620; }
+.plugin-manager-install-modal__guide-toggle > span:last-child { flex: 0 0 auto; color: var(--color-text-muted); }
+.plugin-manager-install-modal__guide-content { display: grid; min-width: 0; gap: 12px; }
+.plugin-manager-install-modal__guide-content[hidden] { display: none; }
 .plugin-manager-install-modal__registry { display: grid; min-width: 0; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 12px; color: var(--color-text-secondary); font-size: var(--font-size-sm); }
 .plugin-manager-install-modal__registry .ant-select { min-width: 0; }
 .plugin-manager-install-modal__registry > small { grid-column: 1 / -1; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.55; }
@@ -241,10 +247,11 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell .plugin-manager
 .plugin-manager-install-modal__warning { border-radius: 12px; }
 .plugin-manager-install-modal__warning .ant-alert-message { font-weight: 620; line-height: 1.5; }
 .plugin-manager-install-modal__warning .ant-alert-description { font-size: var(--font-size-xs); line-height: 1.6; }
+.plugin-manager-install-modal__warning--summary .ant-alert-message { font-size: var(--font-size-xs); }
 .plugin-manager-install-modal__inspection,
-.plugin-manager-install-modal__result { display: grid; min-width: 0; gap: 10px; padding: 15px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface-muted); }
+.plugin-manager-install-modal__result { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 15px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface-muted); }
 .plugin-manager-install-modal__inspection-heading,
-.plugin-manager-install-modal__result-heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; }
+.plugin-manager-install-modal__result-heading { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .plugin-manager-install-modal__inspection-heading > div,
 .plugin-manager-install-modal__result-heading > div { display: grid; min-width: 0; gap: 4px; }
 .plugin-manager-install-modal__inspection-heading strong,
@@ -253,8 +260,11 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell .plugin-manager
 .plugin-manager-install-modal__result-heading > div > span { color: var(--color-text-muted); font-size: var(--font-size-xs); overflow-wrap: anywhere; }
 .plugin-manager-install-modal__inspection > p,
 .plugin-manager-install-modal__result > p { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.55; overflow-wrap: anywhere; }
-.plugin-manager-install-modal__inspection > div:last-of-type,
+.plugin-manager-install-modal__inspection-meta { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 5px; margin: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); overflow-wrap: anywhere; }
 .plugin-manager-install-modal__result dl { display: grid; min-width: 0; gap: 5px; margin: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.plugin-manager-install-modal__inspection-meta > span { min-width: 0; overflow-wrap: anywhere; }
+.plugin-manager-install-modal__inspection > .ant-alert { min-width: 0; max-width: 100%; }
+.plugin-manager-install-modal__inspection > .ant-alert .ant-alert-content { min-width: 0; overflow-wrap: anywhere; }
 .plugin-manager-install-modal__declared-scripts { display: grid; min-width: 0; grid-template-columns: auto minmax(0, 1fr); gap: 6px 10px; color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .plugin-manager-install-modal__declared-scripts code { min-width: 0; color: var(--color-text-secondary); font-family: var(--settings-code-font, Consolas, monospace); overflow-wrap: anywhere; }
 .plugin-manager-install-modal__result dl > div { display: grid; min-width: 0; grid-template-columns: 66px minmax(0, 1fr); gap: 8px; }
@@ -283,6 +293,7 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell .plugin-manager
   .plugin-manager-install-modal .ant-modal-content { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); border-radius: 18px; }
   .plugin-manager-install-modal .ant-modal-header { padding: 18px 18px 10px; }
   .plugin-manager-install-modal .ant-modal-body { padding: 0 18px 18px; }
+  .plugin-manager-install-modal__guide-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .plugin-manager-install-modal__example { grid-template-columns: minmax(0, 1fr); }
   .plugin-manager-install-modal__example .ant-btn { justify-self: start; }
   .plugin-manager-install-modal__actions { align-items: stretch; flex-direction: column; }

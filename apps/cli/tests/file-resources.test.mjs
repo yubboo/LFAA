@@ -17,22 +17,64 @@ const { retireLegacyFileTables } = await import('lfaa-storage-domain/src/migrati
 const { sessionRecords } = await import('lfaa-session-persistence-jsonl/src/repository.js');
 retireLegacyFileTables();
 const { saveUserSettings } = await import('lfaa-settings/src/service.js');
-const { getProjectStorageLocations, getProjectStorageDirectoryCandidates, getRuntimeStorageLocations } = await import('lfaa-settings/src/project-storage.js');
+const { config } = await import('lfaa-launch-environment/src/config.js');
+const originalRepositoryRoot = config.repositoryRoot;
+const originalDesktopInstallDirectory = config.desktopInstallDirectory;
+const originalHomeDirectory = config.homeDirectory;
+config.repositoryRoot = join(root, 'project');
+config.desktopInstallDirectory = null;
+config.homeDirectory = join(root, 'lfaa-home');
+await mkdir(config.repositoryRoot, { recursive: true });
+const contentRoot = join(root, 'business-content');
+const { confirmProjectContentDirectory, getProjectStorageLocations, getProjectStorageDirectoryCandidates, getRuntimeStorageLocations, saveProjectContentDirectory } = await import('lfaa-settings/src/project-storage.js');
 const { SystemFileLibrary } = await import('lfaa-fs/src/library.js');
 const { createManagedFileService } = await import('lfaa-fs/src/managed-files.mjs');
 const { createInstanceFileService } = await import('lfaa-fs/src/instance-files.mjs');
 const { gameInstanceFileMount, gameStorageFileMount } = await import('lfaa-api-workspace-files/src/index.js');
 const queue = await import('lfaa-fs/src/queue.js');
-const actor = { userId: randomUUID(), role: 'super_admin' };
-database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES(?,9901,'resources-test','test','test','admin',1)").run(actor.userId);
+const actor = { userId: randomUUID(), role: 'admin' };
+database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES(?,9901,'resources-test','test','test','admin',0)").run(actor.userId);
 saveUserSettings(actor.userId, 'permissions', { mode: 'full_access' });
 const library = new SystemFileLibrary(data);
-after(async () => { configuration.close(); sessionRecords.close(); closeDatabase(); assert.equal(resolve(root).startsWith(base), true); await rm(root, { recursive: true, force: true }); });
+after(async () => { config.repositoryRoot = originalRepositoryRoot; config.desktopInstallDirectory = originalDesktopInstallDirectory; config.homeDirectory = originalHomeDirectory; configuration.close(); sessionRecords.close(); closeDatabase(); assert.equal(resolve(root).startsWith(base), true); await rm(root, { recursive: true, force: true }); });
+
+test('系统数据根与业务内容根从 Home 分开；推荐目录按运行项目动态生成且不迁移系统数据', async () => {
+  const initial = getProjectStorageLocations();
+  assert.equal(initial.configured, false);
+  assert.equal(initial.settings.defaultContentDirectory, join(config.homeDirectory, 'data'));
+  assert.equal(initial.settings.recommendedContentDirectory, join(config.repositoryRoot, 'data'));
+  assert.notEqual(initial.settings.defaultContentDirectory, data);
+  assert.notEqual(initial.settings.recommendedContentDirectory, initial.settings.defaultContentDirectory);
+  assert.equal(initial.settings.contentDirectory, initial.settings.defaultContentDirectory, 'no change uses the LFAA user business data directory');
+  assert.equal(config.dataDirectory, data);
+  assert.equal(getProjectStorageDirectoryCandidates('writing').includes(data), false, 'business discovery must not scan the system root');
+  const defaultChoice = saveProjectContentDirectory(initial.settings.defaultContentDirectory);
+  assert.equal(defaultChoice.configured, true);
+  assert.equal(defaultChoice.settings.contentDirectory, initial.settings.defaultContentDirectory);
+
+  await mkdir(initial.settings.recommendedContentDirectory, { recursive: true });
+  const existingRecommendedContent = join(initial.settings.recommendedContentDirectory, 'existing-content.md');
+  await writeFile(existingRecommendedContent, 'keep existing content');
+  const recommendedChoice = saveProjectContentDirectory(initial.settings.recommendedContentDirectory);
+  assert.equal(recommendedChoice.settings.contentDirectory, join(config.repositoryRoot, 'data'));
+  assert.equal(config.dataDirectory, data, 'recommended business location leaves system data root in place');
+  assert.equal(await readFile(existingRecommendedContent, 'utf8'), 'keep existing content', 'an existing non-empty recommended root is selected without migrating or overwriting its contents');
+
+  const saved = saveProjectContentDirectory(contentRoot);
+  assert.equal(saved.configured, true);
+  assert.equal(saved.settings.contentDirectory, contentRoot);
+  assert.equal(config.dataDirectory, data, 'changing business content leaves the system root in place');
+  const confirmed = confirmProjectContentDirectory();
+  assert.equal(confirmed.configured, true, 'choosing not to change is still a persisted choice');
+  assert.equal(confirmed.settings.contentDirectory, contentRoot);
+  assert.throws(() => saveProjectContentDirectory(data), /系统数据目录/u);
+  assert.throws(() => saveProjectContentDirectory(join(data, 'nested-content')), /系统数据目录/u);
+});
 
 test('资源目录只从 data 派生，旧独立位置保留回读；真实 data 不混入来源，访问时创建缺失目录', async () => {
   const external = join(root, 'external-logs');
   await mkdir(external);
-  configuration.save('project_storage_locations',{id:1,logs_directory:external,writing_directory:external,runtime_directory:external});
+  configuration.save('project_storage_locations',{...(configuration.get('project_storage_locations',row=>row.id===1) ?? {}),id:1,logs_directory:external,writing_directory:external,runtime_directory:external});
   assert.equal(getProjectStorageLocations().settings.logsDirectory, join(data,'logs'));
   assert.ok(getProjectStorageDirectoryCandidates('writing').includes(external));
   assert.equal(getRuntimeStorageLocations('local',data,process.platform).runtimeDirectory,join(data,'environments'));
@@ -40,6 +82,7 @@ test('资源目录只从 data 派生，旧独立位置保留回读；真实 data
   await writeFile(join(data,'logs','actual.log'), '真实日志');
   const overview = await library.operate(actor, 'list', { path: '' });
   assert.ok(overview.locations.some(item => item.id === 'logs'));
+  assert.equal(overview.locations.some(item => item.id === 'plugins'), false, '插件 Profile 不再伪装成 data 下的通用位置');
   assert.equal(overview.entries.some(entry => entry.path.startsWith('local-drives')), false);
   const logs = await library.operate(actor, 'list', { path: '.lfaa-resources/logs' });
   assert.equal(logs.rootDirectory, join(data,'logs'));
@@ -52,24 +95,22 @@ test('资源目录只从 data 派生，旧独立位置保留回读；真实 data
   assert.equal(await readFile(join(data,'logs','new.log'), 'utf8'), '');
 });
 
-test('第三方扩展清单经 data、资源与磁盘替代路径均不能改动，私有运行数据不能读取', async () => {
+test('旧插件 data 子树不再作为扩展入口，文件管理既不列出也不读取或修改', async () => {
   await mkdir(join(data,'unregistered-game'));
   await assert.rejects(library.operate(actor,'create-file',{path:'unregistered-game/lfaa-instance.json'}),/元数据/u);
   const plugin = join(data, 'plugins/profiles/web'); await mkdir(plugin, { recursive: true });
   const privateRoot = join(data, 'plugins/runtime-data/profiles/web'); await mkdir(privateRoot, { recursive: true });
   await writeFile(join(plugin, 'installed.json'), '{}'); await writeFile(join(privateRoot, 'private.txt'), '私有内容');
-  const resource = '.lfaa-resources/plugins/profiles/web/installed.json';
-  const paths = ['plugins/profiles/web/installed.json', resource, storageFileManagerPath(join(plugin, 'installed.json'), join(root, 'different-data'))];
+  const paths = ['plugins/profiles/web/installed.json', storageFileManagerPath(join(plugin, 'installed.json'), join(root, 'different-data'))];
   for (const path of paths) {
-    const read = await library.operate(actor, 'read', { path });
-    await assert.rejects(library.operate(actor, 'write', { path, content: '破坏清单', expectedSha256: read.sha256 }), /插件.*管理/u);
-    await assert.rejects(library.operate(actor, 'delete', { path }), /插件.*管理/u);
+    await assert.rejects(library.operate(actor, 'read', { path }), /旧插件私有数据/u);
+    await assert.rejects(library.operate(actor, 'write', { path, content: '破坏清单' }), /旧插件私有数据/u);
+    await assert.rejects(library.operate(actor, 'delete', { path }), /旧插件私有数据/u);
   }
   assert.equal(await readFile(join(plugin, 'installed.json'), 'utf8'), '{}');
-  const listing = await library.operate(actor, 'list', { path: '.lfaa-resources/plugins' });
-  assert.equal(listing.operations.includes('upload'), false);
-  assert.equal(listing.entries.some(entry => entry.name === 'runtime-data'), false);
-  for (const path of ['plugins/runtime-data/profiles/web/private.txt', '.lfaa-resources/plugins/runtime-data/profiles/web/private.txt', storageFileManagerPath(join(privateRoot, 'private.txt'), join(root, 'different-data'))]) await assert.rejects(library.openDownload(actor, path), /私有/u);
+  const rootListing = await library.operate(actor, 'list', { path: '' });
+  assert.equal(rootListing.entries.some(entry => entry.name === 'plugins'), false, '旧 data/plugins 不会通过根目录重新暴露');
+  for (const path of ['plugins/runtime-data/profiles/web/private.txt', '.lfaa-resources/plugins/runtime-data/profiles/web/private.txt', storageFileManagerPath(join(privateRoot, 'private.txt'), join(root, 'different-data'))]) await assert.rejects(library.openDownload(actor, path), /资源文件不存在|私有/u);
 });
 
 test('自定义实例目录按范围读写；根、标记、运行与未确认状态和路径逃逸拒绝', async () => {
@@ -191,7 +232,7 @@ test('取消只回收本账户排队中的只读任务，不能伪称写入已�
   assert.equal(queue.cancelQueuedNodeFileReadTask(write.id,actor.userId),false);
   assert.equal(queue.getNodeFileTask(write.id).status,'queued');
 });
-test('收拢独立根后真实旧作品仍可回读，新作品使用统一 data 根',async()=>{
+test('真实旧作品仍可回读，新作品使用已选业务内容根',async()=>{
   const writing=await import('lfaa-document-writing/src/service.js');
   const local=await import('lfaa-document-writing/src/local-files.js');
   const {resolveUserDataPaths}=await import('lfaa-home-paths/src/data-layout.mjs');
@@ -204,9 +245,9 @@ test('收拢独立根后真实旧作品仍可回读，新作品使用统一 data
   writing.updateWritingBookOutline(actor.userId,bookId,'原 Owner 保存后正文');
   assert.equal(local.readWritingLocalText(actor.userId,bookId,{kind:'outline'}),'原 Owner 保存后正文');
   const fresh=writing.createWritingBook(actor.userId,'新作品');
-  assert.equal(local.ensureWritingProjectFiles(actor.userId,fresh.activeBookId),join(resolveUserDataPaths(data,actor.userId).projects,'writing',fresh.activeBookId));
+  assert.equal(local.ensureWritingProjectFiles(actor.userId,fresh.activeBookId),join(resolveUserDataPaths(contentRoot,actor.userId).projects,'writing',fresh.activeBookId));
 });
-test('认证 API 返回默认/推荐/当前总根，旧分类根写入退役且不改历史配置',async()=>{
+test('认证 API 保持系统数据根不变，并允许独立设置业务内容根',async()=>{
   const {default:express}=await import('express');const {default:jwt}=await import('jsonwebtoken');
   const {config}=await import('lfaa-launch-environment/src/config.js');
   const {resolveDataDirectory}=await import('lfaa-home-paths/src/resolve-data-directory.mjs');
@@ -218,13 +259,25 @@ test('认证 API 返回默认/推荐/当前总根，旧分类根写入退役且�
   const server=app.listen(0,'127.0.0.1');await new Promise(done=>server.once('listening',done));
   const session=createSession(actor.userId),token=jwt.sign({sid:session.sessionId},config.jwtSecret,{algorithm:'HS256',audience:'lfaa-web',issuer:'lfaa-server',expiresIn:sessionLifetimeSeconds});
   const url=`http://127.0.0.1:${server.address().port}/api`,headers={Cookie:`lfaa_session=${token}`,'Content-Type':'application/json'};
+  const previous=configuration.get('project_storage_locations',row=>row.id===1);
   try {
     assert.equal((await fetch(url+'/data-directory/recommended',{method:'POST'})).status,401);
     const response=await fetch(url+'/data-directory',{headers}),settings=(await response.json()).settings;
-    assert.equal(settings.currentDirectory,data);assert.equal(settings.defaultDirectory,resolveDataDirectory(config.repositoryRoot));assert.equal(settings.recommendedDirectory,join(config.repositoryRoot,'data'));assert.equal(settings.selection,'custom');
+    assert.equal(settings.currentDirectory,data);assert.equal(settings.defaultDirectory,resolveDataDirectory(config.repositoryRoot));assert.equal(settings.recommendedDirectory,resolveDataDirectory(config.repositoryRoot));assert.equal(settings.selection,'custom');
     assert.equal((await fetch(url+'/data-directory/recommended',{method:'POST',headers})).status,409);
-    const previous=JSON.stringify(configuration.get('project_storage_locations',row=>row.id===1));
-    for(const endpoint of ['/project-storage-locations','/runtime-environments/storage/local'])assert.equal((await fetch(url+endpoint,{method:'PUT',headers,body:JSON.stringify({runtimeDirectory:'E:/wrong'})})).status,410);
-    assert.equal(JSON.stringify(configuration.get('project_storage_locations',row=>row.id===1)),previous);
-  }finally{await new Promise(done=>server.close(done));}
+    const contentDirectory=join(root,'business-content');
+    const contentResponse=await fetch(url+'/project-storage-locations',{method:'PUT',headers,body:JSON.stringify({contentDirectory})});
+    assert.equal(contentResponse.status,200,await contentResponse.clone().text());
+    const contentSettings=await contentResponse.json();
+    assert.equal(contentSettings.configured,true);
+    assert.equal(contentSettings.settings.contentDirectory,contentDirectory);
+    assert.ok(getProjectStorageDirectoryCandidates('writing').includes(join(config.homeDirectory, 'data')));
+    const systemResponse=await fetch(url+'/data-directory',{headers});
+    assert.equal((await systemResponse.json()).settings.currentDirectory,data);
+    assert.equal((await fetch(url+'/runtime-environments/storage/local',{method:'PUT',headers,body:JSON.stringify({runtimeDirectory:'E:/wrong'})})).status,410);
+  }finally{
+    if(previous) configuration.save('project_storage_locations',previous);
+    else configuration.remove('project_storage_locations',row=>row.id===1);
+    await new Promise(done=>server.close(done));
+  }
 });

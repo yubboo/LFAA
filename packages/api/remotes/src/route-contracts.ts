@@ -452,6 +452,19 @@ export const minecraftStorageSettingsSchema = Joi.object({
     instanceDirectory: Joi.string().trim().min(1).max(512).required()
   }).unknown(false);
 
+export const projectContentStorageSchema = Joi.object({
+    contentDirectory: Joi.string().trim().min(1).max(2_048).required()
+  }).unknown(false);
+
+export const projectContentMigrationSchema = Joi.object({
+    targetDirectory: Joi.string().trim().min(1).max(2_048).required()
+  }).unknown(false);
+
+export const projectContentArchiveImportSchema = Joi.object({
+    targetDirectory: Joi.string().trim().min(1).max(2_048).required(),
+    archivePath: Joi.string().trim().min(1).max(2_048).required()
+  }).unknown(false);
+
 export const dataDirectorySettingsSchema = Joi.object({
     directory: Joi.string().trim().min(1).max(2048).required(),
     mode: Joi.string().valid("copy", "adopt", "archive").default("copy"),

@@ -47,9 +47,9 @@ test("分类目录使用既有数据根且不改用户级/项目级根解析", (
   assert.equal(owner.workflows("minecraft"), join(owner.root, "projects", "minecraft", "workflows"));
   assert.notEqual(owner.root, resolveUserDataPaths(root, "other-owner").root);
   assert.throws(() => owner.workflows("../outside"));
-  assert.equal(resolveDataDirectory("H:\\project", "", { platform: "win32", driveType: "Fixed", userProfile: "C:\\Users\\yu" }), "C:\\Users\\yu\\.lfaa\\data");
-  assert.equal(resolveDataDirectory("H:\\project", "", { platform: "win32", driveType: "Removable", userProfile: "C:\\Users\\yu" }), "C:\\Users\\yu\\.lfaa\\data");
-  assert.equal(resolveDataDirectory("/repo", "", { platform: "linux", userProfile: "/home/lfaa" }), "/home/lfaa/.lfaa/data");
+  assert.equal(resolveDataDirectory("H:\\project", "", { platform: "win32", driveType: "Fixed", userProfile: "C:\\Users\\yu" }), "C:\\Users\\yu\\.lfaa");
+  assert.equal(resolveDataDirectory("H:\\project", "", { platform: "win32", driveType: "Removable", userProfile: "C:\\Users\\yu" }), "C:\\Users\\yu\\.lfaa");
+  assert.equal(resolveDataDirectory("/repo", "", { platform: "linux", userProfile: "/home/lfaa" }), "/home/lfaa/.lfaa");
 });
 
 test("AI Work 回复聚焦虚化外观设置通过账户保存，旧设置补默认并保留其他偏好", () => {

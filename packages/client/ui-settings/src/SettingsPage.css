@@ -1130,8 +1130,7 @@
   padding: var(--settings-panel-padding);
 }
 .settings-storage-panel > .ant-typography,
-.settings-storage-pending p,
-.settings-storage-note .ant-typography {
+.settings-storage-pending p {
   margin-bottom: 0;
 }
 .settings-storage-current,
@@ -1151,8 +1150,7 @@
   gap: var(--space-2);
 }
 .settings-storage-current .ant-typography,
-.settings-storage-panel .ant-typography,
-.settings-storage-folder .ant-typography {
+.settings-storage-panel .ant-typography {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -1187,8 +1185,7 @@
   overflow-wrap: anywhere;
 }
 .settings-storage-option__copy > span,
-.settings-storage-custom > .ant-typography,
-.settings-storage-note {
+.settings-storage-custom > .ant-typography {
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
 }
@@ -1207,45 +1204,63 @@
 .settings-storage-pending > .ant-btn {
   justify-self: start;
 }
-.settings-storage-note {
-  padding: var(--space-3) var(--settings-row-inline-padding);
-}
-/* 分类目录使用两列紧凑清单，不再重复六组大行与相同说明。 */
-.settings-storage-folders {
+.settings-storage-migration {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  padding: 0 var(--settings-row-inline-padding);
-}
-.settings-storage-folder {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
   min-width: 0;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--settings-panel-radius);
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
 }
-.settings-storage-folder > div {
+.settings-storage-migration__heading {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--space-2);
-  grid-column: 1 / -1;
 }
-.settings-storage-folder > .ant-btn {
-  align-self: start;
+.settings-storage-migration > .ant-radio-group {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.settings-storage-migration .ant-radio-wrapper {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--settings-panel-radius);
+  color: var(--color-text-primary);
+  background: var(--settings-panel-background);
+}
+.settings-storage-migration .ant-radio-wrapper-checked {
+  border-color: var(--settings-accent, var(--color-brand));
+  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 8%, var(--settings-panel-background));
+}
+.settings-storage-migration .ant-radio-wrapper > span:last-child,
+.settings-storage-migration .ant-radio-wrapper > span:last-child > span {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+.settings-storage-migration .ant-radio-wrapper small {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+.settings-storage-migration .ant-alert-description {
+  overflow-wrap: anywhere;
 }
 @container settings-main (max-width: 760px) {
   .settings-storage-options {
     grid-template-columns: minmax(0, 1fr);
   }
-}
-@container settings-main (max-width: 560px) {
-  .settings-storage-folders {
+  .settings-storage-migration > .ant-radio-group {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+@container settings-main (max-width: 560px) {
   .settings-storage-actions > .ant-btn {
     width: 100%;
     white-space: normal;

@@ -114,11 +114,12 @@ export function playNotificationSound(sound: NotificationSound): boolean {
 
 export function notifyAiWorkCompletion(input: {
   notification: AiWorkNotificationInput;
+  enabled: boolean;
   policy: "always" | "unfocused" | "never";
   sound: NotificationSound;
   onNotification: (notification: AiWorkNotificationInput) => void;
 }): boolean {
-  if (input.policy === "never") return false;
+  if (!input.enabled || input.policy === "never") return false;
   input.onNotification(input.notification);
   // 完成提醒已进入工作台通知中心；焦点状态只影响系统通知，不应抑制这条提醒音效。
   if (input.sound !== "off") playNotificationSound(input.sound);
@@ -133,9 +134,11 @@ export function notifyAiWorkCompletion(input: {
 
 export function notifyAiWorkAction(input: {
   notification: AiWorkNotificationInput;
+  enabled: boolean;
   sound: NotificationSound;
   onNotification: (notification: AiWorkNotificationInput) => void;
 }): void {
+  if (!input.enabled) return;
   if (input.sound !== "off") playNotificationSound(input.sound);
   input.onNotification(input.notification);
   if (document.visibilityState !== "visible" || !document.hasFocus()) {

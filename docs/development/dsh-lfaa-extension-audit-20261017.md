@@ -27,7 +27,7 @@ DSH 的要点不是在每个页面手写一个“插件开关”，而是把可�
 | `.dsh/profiles/web/pnpm-lock.yaml`、`pnpm-workspace.yaml` | 固定安装版本和本机 workspace 包查找规则。 | LFAA 插件清单固定来源摘要；产品源码依赖仍由根 `pnpm-lock.yaml` 管。LFAA 当前不为用户插件运行任意包安装脚本。 |
 | `.dsh/profiles/web/cordis.patch.yml` | 用户按插件 ID 覆盖模型/Provider 与模型目录、禁用 Wallpaper Engine、修改实验插件开关。 | `<LFAA_HOME>/profiles/<Profile>/cordis.patch.yml`；基线 Bundle 后依次叠加 Profile、Home 与显式 Patch。本轮允许 required 插件替换实现，仍禁止停用 required 插件。 |
 | `.dsh/profiles/web/cordis.yml` | Profile 的 Loader 配置文件。 | LFAA 运行组合以 Profile/Bundle Patch 为权威，不复制 DSH 专有序列化格式。 |
-| `.dsh/profiles/web/.plugin-manager/` | 用户安装目录存在 Plugin Manager 操作状态目录。 | LFAA `<LFAA_HOME>/plugins/profiles/<Profile>/inventory.json` 是安装状态权威；真实运行诊断由 Runtime/Diagnostics Owner 提供，不伪造一份 DSH 日志树。 |
+| `.dsh/profiles/web/.plugin-manager/` | 用户安装目录存在 Plugin Manager 操作状态目录。 | LFAA `<LFAA_HOME>/profiles/<Profile>/inventory.json` 是安装状态权威；真实运行诊断由 Runtime/Diagnostics Owner 提供，不伪造一份 DSH 日志树。 |
 | `.dsh/.credentials.yaml` | 用户凭据文件；本次只确认文件存在，未读取其值。 | LFAA Settings/Credentials 加密账户与插件凭据 Owner。 |
 | `.dsh/storages/workspace.json` | 用户工作区持久化数据。 | LFAA Workspace/Storage Owner。 |
 | `.dsh/node_modules/`、`logs/`、`sessions/` | 已安装依赖、运行日志和会话数据目录。本次没有逐项读取其内容。 | LFAA 分离产品代码、运行插件快照、日志和用户数据。 |
@@ -39,9 +39,9 @@ DSH 的要点不是在每个页面手写一个“插件开关”，而是把可�
 | 数据 Owner | 默认/可配置位置 | 本机观察与 LFAA 处理方式 |
 |---|---|---|
 | DSH Harness Home | DSH 源码 `packages/util/home-paths` 以 `DSH_HOME` 优先覆盖、最后回退到系统账户 `~/.dsh`；一个 Home 承载 Profile、安装依赖、锁文件、日志、会话、Storage 和凭据。 | 本机 `C:\Users\Administrator\.dsh` 有 `profiles/web`、Profile `node_modules`、`pnpm-lock.yaml`、workspace 清单、Cordis 配置与独立的 logs/sessions/storages。凭据文件仅核对存在与大小，未读内容。DSH Home 属于独立 DSH 进程的 Owner，LFAA 不读取其凭据、不移动其依赖或改写 DSH_HOME。 |
-| LFAA 安装 Home | `LFAA_HOME`；未配置时默认 `%USERPROFILE%\.lfaa`（非 Windows 为 `~/.lfaa`），可用绝对路径覆盖。Profile 覆盖在 `<LFAA_HOME>/profiles/<Profile>`；插件包与受控运行适配副本在 `<LFAA_HOME>/plugins`。 | 与用户数据迁移分离；插件安装不会因更改 `LFAA_DATA_DIR` 而移动。Profile 插件快照和适配副本首次启动会从旧数据根复制并校验，旧来源保留；内容冲突时拒绝覆盖。Profile 只写入空 Cordis Patch 模板，不会复制 DSH 配置、依赖、凭据或会话。 |
+| LFAA 安装 Home | `LFAA_HOME`；未配置时默认 `%USERPROFILE%\.lfaa`（非 Windows 为 `~/.lfaa`），可用绝对路径覆盖。Profile 覆盖在 `<LFAA_HOME>/profiles/<Profile>`；插件源码、清单、受控运行适配副本和默认私有运行数据都归各自 Profile。 | 与系统 data/业务内容根分离；插件配置按对应 Plugin/Runtime Owner 生效，默认运行数据不会因更改 `LFAA_DATA_DIR` 而移动。旧 `<LFAA_HOME>/plugins` 与 `<LFAA_DATA_DIR>/plugins` 不再创建、读取或迁移，旧文件留在原处。Profile 只写入空 Cordis Patch 模板，不会复制 DSH 配置、依赖、凭据或会话。 |
 | LFAA Harness 数据根 | `LFAA_DATA_DIR`；未配置时默认 `<LFAA_HOME>/data`。设置中心可选默认、推荐或自定义绝对路径；Windows 开发/桌面通过完整启动器登记系统复制、手动复制后核验采用或 ZIP 导入，停止服务后验证再切换。 | 当前 checkout 的 `.env` 显式指向 `E:\lfaa1\lfaa\data`；这是本机文件的当前内容，不证明另一个运行进程的环境变量。 |
-| LFAA 子目录 | `packages/util/home-paths/src/data-layout.mjs` 从唯一有效数据根派生 `database`、`users`、`sessions`、`credentials`、`games`、`environments`、`lib`、`plugins`、`cache`、`tmp`、`logs`、`backups`、`models`、`connectivity` 与 `storages`。用户背景/知识/工作流等再由账户哈希目录隔离。 | 只有未配置/默认选择时数据根才是 `<LFAA_HOME>/data`；显式推荐 `data` 或自定义位置会作为唯一根，不会再生成一份空的 `.lfaa/data`。插件安装快照位于 `<LFAA_HOME>/plugins`，仅插件私有运行数据随 `LFAA_DATA_DIR` 迁移。 |
+| LFAA 子目录 | `packages/util/home-paths/src/data-layout.mjs` 从唯一有效数据根派生 `database`、`users`、`sessions`、`credentials`、`games`、`environments`、`lib`、`cache`、`tmp`、`logs`、`backups`、`models`、`connectivity` 与 `storages`。用户背景/知识/工作流等再由账户哈希目录隔离。 | 只有未配置/默认选择时数据根才是 `<LFAA_HOME>/data`；显式推荐 `data` 或自定义位置会作为唯一根，不会再生成一份空的 `.lfaa/data`。插件安装快照与默认私有运行数据都位于 `<LFAA_HOME>/profiles/<Profile>`；插件自身存储配置由对应 Runtime Owner 使用。 |
 
 因此 LFAA 的安装插件文件由 `LFAA_HOME` 管理，用户数据由单个可自定义的 `LFAA_DATA_DIR` 管理；DSH 的完整 `~/.dsh` 保留在它自己的 `DSH_HOME` Owner 下，避免两个程序共用同名目录。LFAA 的三种迁移仅切换用户数据，不操作 DSH Home 或插件安装根。
 

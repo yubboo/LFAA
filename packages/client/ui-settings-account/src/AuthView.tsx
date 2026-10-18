@@ -21,6 +21,9 @@ interface AuthViewProps {
   transitionPhase: AuthTransitionPhase;
   transitionPluginId: string;
   reducedMotion: boolean;
+  transitionOnly?: boolean;
+  transitionOverlay?: boolean;
+  transitionExiting?: boolean;
   onSubmit: (username: string, password: string) => void;
   onPasskeyLogin: () => void;
   onRecover: (username: string, recoveryKey: string, newPassword: string) => Promise<boolean>;
@@ -35,7 +38,7 @@ interface AuthFormValues {
   confirmNewPassword?: string;
 }
 
-export function AuthView({ serverState, busy, error, notice, transitionPhase, transitionPluginId, reducedMotion, onSubmit, onPasskeyLogin, onRecover, onClearMessage }: AuthViewProps) {
+export function AuthView({ serverState, busy, error, notice, transitionPhase, transitionPluginId, reducedMotion, transitionOnly = false, transitionOverlay = false, transitionExiting = false, onSubmit, onPasskeyLogin, onRecover, onClearMessage }: AuthViewProps) {
   const loginBackgroundImage = resolveLoginBackgroundImage();
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [form] = Form.useForm<AuthFormValues>();
@@ -44,7 +47,7 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
   const [passkeyLoginAvailable, setPasskeyLoginAvailable] = useState(false);
 
   useEffect(() => {
-    if (serverState !== "online") {
+    if (transitionOnly || transitionOverlay || serverState !== "online") {
       setPasskeyLoginAvailable(false);
       return;
     }
@@ -55,7 +58,7 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
       if (active) setPasskeyLoginAvailable(false);
     });
     return () => { active = false; };
-  }, [serverState]);
+  }, [serverState, transitionOnly, transitionOverlay]);
 
   async function handleSubmit(values: AuthFormValues): Promise<void> {
     if (recoveryMode) {
@@ -76,10 +79,22 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
     setRecoveryMode((current) => !current);
   }
 
+  if (transitionOnly) {
+    return transitionPluginId === "builtin" || transitionPhase === "idle" ? null : (
+      <div className="auth-page__transition-extension" aria-hidden="true">
+        <DshSlotOutlet
+          name={LFAA_AUTH_TRANSITION_SLOT}
+          only={transitionPluginId}
+          owner={{ phase: transitionPhase, reducedMotion } satisfies AuthTransitionSlotOwner}
+        />
+      </div>
+    );
+  }
+
   return (
     <ConfigProvider wave={{ disabled: true }}>
       <main
-        className="auth-page"
+        className={`auth-page${transitionOverlay ? " auth-page--transition-overlay" : ""}${transitionExiting ? " auth-page--transition-exiting" : ""}`}
         style={{ "--auth-background-image": loginBackgroundImage ? `url("${loginBackgroundImage}")` : "none" } as CSSProperties}
       >
       {transitionPhase !== "idle" && transitionPluginId !== "builtin" ? (

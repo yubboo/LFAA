@@ -201,6 +201,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
   const [contributedInstall, setContributedInstall] = useState<PluginTabInstall | null>(null);
   const [plugins, setPlugins] = useState<ManagedPluginRecord[]>([]);
   const [profile, setProfile] = useState("");
+  const [installationDirectory, setInstallationDirectory] = useState("");
   const [loading, setLoading] = useState(canAdmin);
   const [error, setError] = useState("");
   const [sourceType, setSourceType] = useState<PluginSourceType>("github");
@@ -211,6 +212,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
   const [pluginQuery, setPluginQuery] = useState("");
   const [pluginFilter, setPluginFilter] = useState<PluginFilter>("all");
   const [installerOpen, setInstallerOpen] = useState(false);
+  const [installGuideOpen, setInstallGuideOpen] = useState(false);
   const [inspection, setInspection] = useState<ManagedPluginInspection | null>(null);
   const [installerError, setInstallerError] = useState("");
   const [installProgress, setInstallProgress] = useState<ManagedPluginInstallProgress[]>([]);
@@ -262,6 +264,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
       const result = await loadManagedPlugins(controller.signal);
       if (!controller.signal.aborted && mountedRef.current) {
         setProfile(result.profile);
+        setInstallationDirectory(result.installationDirectory);
         setPlugins(result.plugins);
         setSelectedApplications(current => {
           const next = { ...current };
@@ -315,6 +318,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
   }
 
   function openSourceForm(nextSourceType: PluginSourceType): void {
+    setInstallGuideOpen(false);
     setSourceType(nextSourceType);
     setSource("");
     setReference("");
@@ -331,6 +335,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
       setSelectedPluginTab(null);
       return;
     }
+    setInstallGuideOpen(false);
     setSourceType(kind);
     setSource(target.spec);
     setReference("");
@@ -343,6 +348,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
 
   function closeInstaller(): void {
     if (operation === "install") return;
+    setInstallGuideOpen(false);
     setInstallerOpen(false);
   }
 
@@ -523,7 +529,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
                     aria-haspopup="dialog"
                     icon={<WorkbenchIcon name="plus" size={15} />}
                     disabled={operation === "install" || pendingPluginAction !== null}
-                    onClick={() => setInstallerOpen(true)}
+                    onClick={() => { setInstallGuideOpen(false); setInstallerOpen(true); }}
                   >添加插件</Button>
                   <Menu
                     open={addActionsOpen}
@@ -535,7 +541,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
                     listClassName="plugin-manager-page__add-menu-list"
                     anchor={<Button disabled={operation === "install" || pendingPluginAction !== null} aria-label="更多插件添加操作" aria-haspopup="menu" aria-expanded={addActionsOpen} onClick={() => setAddActionsOpen(open => !open)}><WorkbenchIcon name="dots" size={15} /></Button>}
                   >
-                    <MenuItemButton icon={<WorkbenchIcon name="extension" size={14} />} onSelect={() => { setAddActionsOpen(false); setInstallerOpen(true); }}>
+                    <MenuItemButton icon={<WorkbenchIcon name="extension" size={14} />} onSelect={() => { setAddActionsOpen(false); setInstallGuideOpen(false); setInstallerOpen(true); }}>
                       <span className="plugin-manager-page__add-menu-item"><span>从来源安装</span><span>检查并安装插件包</span></span>
                     </MenuItemButton>
                     <PluginExtensionSlot name="plugins.add.actions" owner={{ onDismiss: () => setAddActionsOpen(false) }} />
@@ -698,6 +704,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
               </div>
               <p>{installResult.description || "此插件未提供说明。"}</p>
               <dl>
+                <div><dt>安装位置</dt><dd>{installationDirectory}</dd></div>
                 <div><dt>安装来源</dt><dd>{pluginSourceLabel(installResult)}</dd></div>
                 <div><dt>固定版本</dt><dd title={installResult.source.commit}>{installResult.source.commit}</dd></div>
                 <div><dt>SHA-256</dt><dd>{installResult.source.archiveSha256}</dd></div>
@@ -735,30 +742,50 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
             </div>
             {source.trim() && !detectedSourceType ? <Alert type="error" showIcon message="无法识别插件来源" description="请填写 npm 包名（如 dsh-plugin-whale-pet）、GitHub HTTPS 仓库地址，或 LFAA Host 上的本机绝对路径。" /> : null}
             {detectedSourceType === "github" ? <Input aria-label="GitHub 分支、标签或提交" placeholder="分支、标签或提交；留空使用默认分支" value={reference} disabled={operation !== null} maxLength={200} onChange={event => { setReference(event.target.value); resetInspection(); }} /> : null}
-            {activeSourceType === "npm" ? <div className="plugin-manager-install-modal__registry">
-              <label htmlFor="plugin-manager-npm-registry">安装源</label>
-              <Select
-                id="plugin-manager-npm-registry"
-                aria-label="NPM 安装源"
-                value={registryChoice}
-                disabled={operation !== null}
-                options={npmRegistryChoices.map(choice => ({ value: choice.value, label: choice.label }))}
-                onChange={(value: "china" | "official" | "custom") => { setRegistryChoice(value); resetInspection(); }}
+            <div className="plugin-manager-install-modal__guide-row">
+              <button
+                type="button"
+                className="plugin-manager-install-modal__guide-toggle"
+                aria-expanded={installGuideOpen}
+                aria-controls="plugin-manager-install-guide"
+                onClick={() => setInstallGuideOpen(open => !open)}
+              >
+                <span>{installGuideOpen ? "收起引导" : "插件安装引导和示例"}</span>
+                <span aria-hidden="true">{installGuideOpen ? "⌃" : "⌄"}</span>
+              </button>
+              {activeSourceType === "npm" ? <div className="plugin-manager-install-modal__registry">
+                <label htmlFor="plugin-manager-npm-registry">安装源</label>
+                <Select
+                  id="plugin-manager-npm-registry"
+                  aria-label="NPM 安装源"
+                  value={registryChoice}
+                  disabled={operation !== null}
+                  options={npmRegistryChoices.map(choice => ({ value: choice.value, label: choice.label }))}
+                  onChange={(value: "china" | "official" | "custom") => { setRegistryChoice(value); resetInspection(); }}
+                />
+                {registryChoice === "custom" ? <Input aria-label="自定义 NPM registry URL" placeholder="https://registry.example.com/" value={customRegistry} disabled={operation !== null} maxLength={512} onChange={event => { setCustomRegistry(event.target.value); resetInspection(); }} /> : null}
+                {registryChoice === "custom" ? <small>支持自定义 HTTP(S) registry；HTTP 不加密，需认证的源暂不支持，请勿在地址中填写 token 或密码。</small> : null}
+              </div> : null}
+            </div>
+            <div id="plugin-manager-install-guide" className="plugin-manager-install-modal__guide-content" hidden={!installGuideOpen}>
+              {activeSourceType === "npm" || !source.trim() ? <div className="plugin-manager-install-modal__example">
+                <div><strong>填入插件 npm 包名</strong><span>npm 包名支持普通包、作用域包和版本后缀。社区插件 README 中 `dsh plugin add` 或 `pnpm add` 后面的内容也可以直接粘贴。</span><code>dsh-plugin-whale-pet</code></div>
+                <Button disabled={operation !== null} onClick={() => { setSource("dsh-plugin-whale-pet"); setSourceType("npm"); setReference(""); resetInspection(); }}>填入示例</Button>
+              </div> : null}
+              <Alert
+                className="plugin-manager-install-modal__warning"
+                type="warning"
+                showIcon
+                message="请只安装你信任的插件来源。插件可能以 LFAA Host 的运行权限访问文件和网络。"
+                description="来源检查会展示版本、完整性、兼容性和声明脚本；不会运行包内安装脚本。自定义 HTTP registry 未加密，认证型 registry 暂不支持。"
               />
-              {registryChoice === "custom" ? <Input aria-label="自定义 NPM registry URL" placeholder="https://registry.example.com/" value={customRegistry} disabled={operation !== null} maxLength={512} onChange={event => { setCustomRegistry(event.target.value); resetInspection(); }} /> : null}
-              {registryChoice === "custom" ? <small>支持自定义 HTTP(S) registry；HTTP 不加密，需认证的源暂不支持，请勿在地址中填写 token 或密码。</small> : null}
-            </div> : null}
-            {activeSourceType === "npm" || !source.trim() ? <div className="plugin-manager-install-modal__example">
-              <div><strong>填入插件 npm 包名</strong><span>npm 包名支持普通包、作用域包和版本后缀。社区插件 README 中 `dsh plugin add` 或 `pnpm add` 后面的内容也可以直接粘贴。</span><code>dsh-plugin-whale-pet</code></div>
-              <Button disabled={operation !== null} onClick={() => { setSource("dsh-plugin-whale-pet"); setSourceType("npm"); setReference(""); resetInspection(); }}>填入示例</Button>
-            </div> : null}
-            <Alert
-              className="plugin-manager-install-modal__warning"
+            </div>
+            {!installGuideOpen ? <Alert
+              className="plugin-manager-install-modal__warning plugin-manager-install-modal__warning--summary"
               type="warning"
               showIcon
               message="请只安装你信任的插件来源。插件可能以 LFAA Host 的运行权限访问文件和网络。"
-              description="来源检查会展示版本、完整性、兼容性和声明脚本；不会运行包内安装脚本。自定义 HTTP registry 未加密，认证型 registry 暂不支持。"
-            />
+            /> : null}
             {installerError ? <Alert type="error" showIcon closable message={installerError} onClose={() => setInstallerError("")} /> : null}
             {inspection ? <article className="plugin-manager-install-modal__inspection" aria-label="插件来源检查结果">
               <div className="plugin-manager-install-modal__inspection-heading">
@@ -766,7 +793,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
                 <Tag color={inspection.canEnable ? "green" : "orange"}>{inspection.canEnable ? "兼容 Runtime" : "安装后保持隔离"}</Tag>
               </div>
               <p>{inspection.description || "来源未提供说明。"}</p>
-              <div><span>固定内容：{inspection.resolvedRef}</span><span>SHA-256：{inspection.archiveSha256}</span><span>许可证：{inspection.license ?? "未确认"}</span></div>
+              <div className="plugin-manager-install-modal__inspection-meta"><span>固定内容：{inspection.resolvedRef}</span><span>SHA-256：{inspection.archiveSha256}</span><span>许可证：{inspection.license ?? "未确认"}</span></div>
               <div className="plugin-manager-install-modal__declared-scripts"><span>声明脚本（不会执行）</span><code>{inspection.requirements.declaredScripts.length ? inspection.requirements.declaredScripts.join(" · ") : "无"}</code></div>
               {inspection.runtimeReason ? <Alert type="warning" showIcon message={inspection.runtimeReason} /> : null}
             </article> : null}

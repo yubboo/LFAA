@@ -31,6 +31,7 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       assert.deepEqual(defaultSettings,DEFAULT_USER_SETTINGS);assert.deepEqual(clientDefaults,DEFAULT_USER_SETTINGS);
       assert.equal(defaultSettings.general.defaultMode,"ai-work","新账户默认进入小鱼工作台");
       assert.equal(defaultSettings.general.defaultStandaloneChat,true,"默认首页固定为小鱼对话区");
+      assert.equal(defaultSettings.general.notificationPopupsEnabled,true,"通知总开关默认开启");
       assert.equal(defaultSettings.aiRuntime.maxOutputTokens,0,"新账户默认跟随所选模型输出能力");
       assert.equal(defaultSettings.appearance.overlay,65,"新账户的默认壁纸表面遮罩保证卡片可读性");
       assert.equal(defaultSettings.appearance.advanced.authTransitionPluginId,"builtin","新账户默认使用 LFAA 内置登录进入动画");
@@ -67,10 +68,17 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,defaultMode:"normal",defaultStandaloneChat:false});
       assert.equal(getUserSettings('settings-a').general.defaultMode,"normal","固定首页不覆盖账户原有模式偏好");
       assert.equal(getUserSettings('settings-a').general.defaultStandaloneChat,false,"固定首页不覆盖账户原有独立会话偏好");
+      saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,notificationPopupsEnabled:false});
+      const legacyNotificationPayload={...getUserSettings('settings-a').general};delete legacyNotificationPayload.notificationPopupsEnabled;
+      saveUserSettings('settings-a','general',legacyNotificationPayload);
+      assert.equal(getUserSettings('settings-a').general.notificationPopupsEnabled,false,"旧客户端缺失总开关字段时保留已保存的关闭状态");
+      assert.throws(()=>saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,notificationPopupsEnabled:"false"}),/格式/);
       const legacyStoredPayload={...getUserSettings('settings-a').general};delete legacyStoredPayload.cardMotionEffect;delete legacyStoredPayload.dialogMotionEffect;
+      delete legacyStoredPayload.notificationPopupsEnabled;
       configuration.save('user_settings',{user_id:'settings-a',category:'general',value_json:JSON.stringify(legacyStoredPayload)});
       assert.equal(getUserSettings('settings-a').general.cardMotionEffect,"fluid","旧账户缺字段时回落到共享默认动效");
       assert.equal(getUserSettings('settings-a').general.dialogMotionEffect,"fluid","旧账户缺字段时回落到共享弹窗默认动效");
+      assert.equal(getUserSettings('settings-a').general.notificationPopupsEnabled,true,"旧账户缺少通知总开关时采用默认开启");
       saveUserSettings('settings-a','appearance',{...before.appearance,overlay:42,updateSurfaceOpacity:85,advanced:{...before.appearance.advanced,contrast:75,reducedMotion:'on'}});
       const legacyAppearance={...getUserSettings('settings-a').appearance,advanced:{...getUserSettings('settings-a').appearance.advanced}};delete legacyAppearance.advanced.authTransitionPluginId;
       configuration.save('user_settings',{user_id:'settings-a',category:'appearance',value_json:JSON.stringify(legacyAppearance)});

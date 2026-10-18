@@ -21,7 +21,7 @@ test('Windows 插件沙盒只读源码、阻止本地网络并可撤销 ACL', { 
   const dataRoot = mkdtempSync(join(tmpdir(), 'lfaa-plugin-sandbox-'));
   const profile = `smoke-${randomUUID().slice(0, 8)}`;
   const pluginId = 'sandbox-smoke';
-  const pluginRoot = join(dataRoot, 'plugins', 'profiles', profile, pluginId);
+  const pluginRoot = join(dataRoot, 'profiles', profile, pluginId);
   mkdirSync(pluginRoot, { recursive: true });
 
   const loopback = createServer(socket => socket.end('unexpected'));
@@ -63,7 +63,7 @@ test('Windows 插件沙盒只读源码、阻止本地网络并可撤销 ACL', { 
   let cleanupAttempted = false;
   try {
     host = spawn(binary, [
-      '--plugin-run', '--plugin-root', join(dataRoot, 'plugins'), '--profile', profile, '--plugin-id', pluginId,
+      '--plugin-run', '--plugin-root', join(dataRoot, 'profiles'), '--profile', profile, '--plugin-id', pluginId,
       '--entry', 'main.mjs', '--node', process.execPath, '--readiness-token', token
     ], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, cwd: dirname(process.execPath), env: { ...process.env, JWT_SECRET: 'plugin-sandbox-test-secret' } });
     const stdout = lineSource(host.stdout);
@@ -87,7 +87,7 @@ test('Windows 插件沙盒只读源码、阻止本地网络并可撤销 ACL', { 
 
     cleanupAttempted = true;
     const cleanup = spawn(binary, [
-      '--plugin-forget-profile', '--plugin-root', join(dataRoot, 'plugins'), '--profile', profile,
+      '--plugin-forget-profile', '--plugin-root', join(dataRoot, 'profiles'), '--profile', profile,
       '--plugin-id', pluginId, '--node', process.execPath
     ], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     const cleanupOutput = await collectProcess(cleanup);
@@ -100,7 +100,7 @@ test('Windows 插件沙盒只读源码、阻止本地网络并可撤销 ACL', { 
     if (!cleaned && !cleanupAttempted && existsSync(pluginRoot)) {
       cleanupAttempted = true;
       const cleanup = spawn(binary, [
-        '--plugin-forget-profile', '--plugin-root', join(dataRoot, 'plugins'), '--profile', profile,
+        '--plugin-forget-profile', '--plugin-root', join(dataRoot, 'profiles'), '--profile', profile,
         '--plugin-id', pluginId, '--node', process.execPath
       ], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
       await collectProcess(cleanup);
@@ -120,7 +120,7 @@ test('通用 LFAA v1 插件适配器完成真实启动、停止握手和 Host �
   const homeRoot = mkdtempSync(join(tmpdir(), 'lfaa-plugin-adapter-home-'));
   const profile = `adapter-${randomUUID().slice(0, 8)}`;
   const pluginId = 'generic-runtime-smoke';
-  const pluginRoot = join(homeRoot, 'plugins', 'profiles', profile, pluginId);
+  const pluginRoot = join(homeRoot, 'profiles', profile, pluginId);
   mkdirSync(pluginRoot, { recursive: true });
   const entryPath = join(pluginRoot, 'main.mjs');
   writeFileSync(entryPath, `

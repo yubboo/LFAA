@@ -773,8 +773,7 @@ mod windows_host {
         if !plugin_install_root.is_dir() {
             return Err("LFAA 插件安装根目录不是目录。".to_owned());
         }
-        let profiles_root = canonical_managed_directory(&plugin_install_root, "profiles")?;
-        let profile_root = canonical_managed_directory(&profiles_root, &args.profile)?;
+        let profile_root = canonical_managed_directory(&plugin_install_root, &args.profile)?;
         let plugin_root = canonical_managed_directory(&profile_root, &args.plugin_id)?;
         let entry_path = fs::canonicalize(plugin_root.join(&args.entry))
             .map_err(|_| "插件入口文件无法验证。".to_owned())?;
@@ -847,8 +846,7 @@ mod windows_host {
     fn forget_plugin_profile(args: &PluginForgetArgs) -> Result<(), String> {
         let plugin_install_root = fs::canonicalize(&args.plugin_install_root)
             .map_err(|_| "LFAA 插件安装根目录无法验证。".to_owned())?;
-        let profiles_root = canonical_managed_directory(&plugin_install_root, "profiles")?;
-        let profile_root = canonical_managed_directory(&profiles_root, &args.profile)?;
+        let profile_root = canonical_managed_directory(&plugin_install_root, &args.profile)?;
         let plugin_root = canonical_managed_directory(&profile_root, &args.plugin_id)?;
         let node_metadata = fs::symlink_metadata(&args.node_path)
             .map_err(|_| "受信任的 Node.js 运行时无法读取。".to_owned())?;

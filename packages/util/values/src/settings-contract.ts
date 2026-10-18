@@ -44,6 +44,7 @@ export interface GeneralSettings {
   followupBehavior: "queue" | "steer";
   popupShortcut: string;
   defaultStandaloneChat: boolean;
+  notificationPopupsEnabled: boolean;
   completionNotification: "always" | "unfocused" | "never";
   permissionNotifications: boolean;
   questionNotifications: boolean;
@@ -282,6 +283,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     followupBehavior: "queue",
     popupShortcut: "",
     defaultStandaloneChat: true,
+    notificationPopupsEnabled: true,
     completionNotification: "unfocused",
     permissionNotifications: true,
     questionNotifications: true,

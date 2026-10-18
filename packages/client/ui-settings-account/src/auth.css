@@ -409,35 +409,54 @@
   opacity: 1 !important;
 }
 
-/* 成功登录时将登录卡片与工作台根容器作为同一个 View Transition 画面连续缩放接合。 */
-html[data-lfaa-auth-entry-animation="builtin"] .auth-page__split-layout,
-html[data-lfaa-auth-entry-animation="builtin"] .workbench-shell {
+/* 自定义动画插件可选择浏览器 View Transition；内置动画不创建整页快照。 */
+html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builtin"]) .auth-page,
+html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builtin"]) .workbench-shell {
   view-transition-name: lfaa-auth-scene;
 }
 
-html[data-lfaa-auth-entry-animation="builtin"]::view-transition-group(lfaa-auth-scene) {
-  animation-duration: 900ms;
-  animation-timing-function: cubic-bezier(.72, 0, .2, 1);
+/* 登录时先隐藏并禁用已预热的工作台，直到登录覆盖层完成动画。 */
+html[data-lfaa-auth-workbench-hidden="true"] .workbench-shell,
+html[data-lfaa-auth-transition-captured="true"] .workbench-shell {
+  visibility: hidden;
 }
 
-html[data-lfaa-auth-entry-animation="builtin"]::view-transition-old(lfaa-auth-scene) {
-  z-index: 1;
-  animation: lfaa-auth-scene-out 900ms cubic-bezier(.72, 0, .2, 1) both;
+html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builtin"])::view-transition-new(lfaa-auth-scene) {
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
-html[data-lfaa-auth-entry-animation="builtin"]::view-transition-new(lfaa-auth-scene) {
-  z-index: 2;
-  animation: lfaa-auth-scene-in 900ms cubic-bezier(.72, 0, .2, 1) both;
+html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builtin"])::view-transition {
+  background: radial-gradient(circle at 50% 44%, color-mix(in srgb, var(--color-brand) 18%, var(--color-canvas)), var(--color-canvas) 72%);
 }
 
-@keyframes lfaa-auth-scene-out {
-  0%, 36% { opacity: 1; }
+.auth-page--transition-overlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+}
+
+.auth-page--transition-exiting {
+  /* 全屏背景只做透明度合成，避免缩放背景图反复栅格化；工作台保持隐藏到动画结束。 */
+  animation: lfaa-auth-login-exit 820ms cubic-bezier(.22, .72, .22, 1) both;
+  will-change: opacity;
+  pointer-events: none;
+}
+
+.auth-page--transition-exiting .auth-page__split-layout {
+  /* 只让小面积登录卡片轻移，避免整张壁纸跟随变换。 */
+  animation: lfaa-auth-login-card-exit 820ms cubic-bezier(.22, .72, .22, 1) both;
+  will-change: transform;
+}
+
+@keyframes lfaa-auth-login-exit {
+  0%, 14% { opacity: 1; }
   100% { opacity: 0; }
 }
 
-@keyframes lfaa-auth-scene-in {
-  0%, 42% { opacity: 0; }
-  100% { opacity: 1; }
+@keyframes lfaa-auth-login-card-exit {
+  0%, 14% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(0, -10px, 0); }
 }
 
 .auth-page__form-footnote.ant-typography {

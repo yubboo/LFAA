@@ -38,6 +38,12 @@ interface WorkbenchProps {
   onOpenApplication: (app: ApplicationId, mode: ApplicationMode) => Promise<void>;
   onUserChange: (user: User) => void;
   onLogout: () => void;
+  credentialReminder: { usernamePending: boolean; passwordPending: boolean } | null;
+  suspendSetupReminder: boolean;
+  onDismissCredentialReminder: () => void;
+  onOpenCredentialSettings: () => void;
+  authTransitionStaging?: boolean;
+  onAuthTransitionWarmupReady?: () => void | (() => void);
 }
 
 interface AiWorkUiState {
@@ -47,6 +53,18 @@ interface AiWorkUiState {
 let settingsPageModulePromise: Promise<typeof import("lfaa-client-ui-settings/src/SettingsPage.js")> | null = null;
 let fileManagerPageModulePromise: Promise<typeof import("lfaa-client-ui-sidebar-files/src/FileManagerPage.js")> | null = null;
 let pluginManagerPageModulePromise: Promise<typeof import("lfaa-client-ui-plugin-manager/src/PluginManagerPage.js")> | null = null;
+
+const PORTAL_APPEARANCE_VARIABLES = [
+  "--settings-accent", "--settings-interface-font", "--settings-content-font", "--settings-code-font",
+  "--settings-interface-font-size", "--settings-code-font-size", "--settings-contrast-strong-mix", "--settings-contrast-soft-mix",
+  "--settings-background-surface-opacity", "--settings-update-surface-opacity", "--settings-glass-blur", "--settings-background-overlay",
+  "--settings-wallpaper-floaters-surface", "--settings-wallpaper-floaters-blur",
+  "--font-family-sans", "--font-size-xs", "--font-size-sm", "--font-size-md", "--font-size-base", "--font-size-lg", "--font-size-xl",
+  "--color-brand", "--color-brand-hover", "--color-brand-deep", "--color-focus-ring", "--color-shadow-float",
+  "--color-text-primary", "--color-text-heading", "--color-text-secondary", "--color-text-muted", "--color-text-caption", "--color-text-subtle", "--color-text-inverse",
+  "--color-surface", "--color-canvas", "--color-surface-muted", "--color-surface-hover", "--color-surface-selected",
+  "--color-border", "--color-border-strong", "--color-border-subtle", "--color-border-soft", "--color-border-muted"
+] as const;
 
 function loadFileManagerPageModule() {
   if (!fileManagerPageModulePromise) {
@@ -290,7 +308,13 @@ export function Workbench({
   onNavigate,
   onOpenApplication,
   onUserChange,
-  onLogout
+  onLogout,
+  credentialReminder,
+  suspendSetupReminder,
+  onDismissCredentialReminder,
+  onOpenCredentialSettings,
+  authTransitionStaging = false,
+  onAuthTransitionWarmupReady
 }: WorkbenchProps) {
   const appRoute = normalizeWorkRoute(route) === SHARED_WORK_ROUTE ? [route, "workspace", "ai-work", "overview"] : route.match(APPLICATION_ROUTE_PATTERN);
   const isFileManagerPage = route === "/files";
@@ -317,14 +341,25 @@ export function Workbench({
   const fileManagerHomeRoute = applicationModeHomeRoute(fileManagerSourceRoute ?? "")
     ?? `/apps/${preferences.selectedApp}/${preferences.selectedMode}`;
   const settingsReturnBackgroundRef = useRef<HTMLImageElement | null>(null);
-  const [settingsInitialSection, setSettingsInitialSection] = useState<"ai" | "permissions" | "configuration" | "account" | "workspace" | undefined>();
+  const [settingsInitialSection, setSettingsInitialSection] = useState<"ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | undefined>();
+  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ section: "security"; requestId: number } | null>(null);
+  const settingsSectionRequestSequenceRef = useRef(0);
   const [settings, setSettings] = useState<UserSettings>(initialSettings);
+  const [credentialReminderSnoozedToday, setCredentialReminderSnoozedToday] = useState(false);
   const [wallpaperEngineClientAvailable, setWallpaperEngineClientAvailable] = useState(() => document.body.hasAttribute("data-lfaa-wallpaper-engine-client"));
   const shortcutSettingsRef = useRef(settings.shortcuts);
   useLayoutEffect(() => { shortcutSettingsRef.current = settings.shortcuts; }, [settings.shortcuts]);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const workbenchShellRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => onAuthTransitionWarmupReady?.(), [onAuthTransitionWarmupReady]);
+  useLayoutEffect(() => {
+    const shell = workbenchShellRef.current;
+    if (!shell) return;
+    shell.toggleAttribute("inert", authTransitionStaging);
+    if (authTransitionStaging) shell.setAttribute("aria-hidden", "true");
+    else shell.removeAttribute("aria-hidden");
+  }, [authTransitionStaging]);
   useEffect(() => {
     const body = document.body;
     const syncWallpaperClientAvailability = () => {
@@ -437,8 +472,9 @@ export function Workbench({
     if (current?.userId === user.id) current.writer.schedule(draft); else writeAiWorkDraft(user.id, "workspace", draft);
   }, [user.id]);
   const [systemDark, setSystemDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
-  const openSettings = useCallback((section?: "ai" | "permissions" | "configuration" | "account" | "workspace") => {
+  const openSettings = useCallback((section?: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security") => {
     setSettingsInitialSection(section);
+    if (section === "security") setSettingsSectionRequest({ section, requestId: ++settingsSectionRequestSequenceRef.current });
     if (route !== "/settings" && route !== "/admin/users") setSettingsReturnRoute(route);
     onNavigate("/settings");
   }, [onNavigate, route]);
@@ -450,6 +486,7 @@ export function Workbench({
     setAiWorkUiState(current => ({ ...current, ...update }));
   };
   const addAiWorkNotification = useCallback((input: AiWorkNotificationInput) => {
+    if (!settings.general.notificationPopupsEnabled) return;
     notificationSequence.current += 1;
     const notification: AiWorkNotification = {
       ...input,
@@ -459,7 +496,7 @@ export function Workbench({
     };
     setNotifications((current) => [notification, ...current].slice(0, 8));
     if (input.kind !== "approval" && input.kind !== "question") setNotificationToast(notification);
-  }, []);
+  }, [settings.general.notificationPopupsEnabled]);
   const markNotificationsRead = useCallback(() => {
     setNotifications((current) => current.map((notification) => notification.read ? notification : { ...notification, read: true }));
   }, []);
@@ -542,6 +579,10 @@ export function Workbench({
     const timeout = window.setTimeout(() => setNotificationToast((current) => current?.id === toastId ? null : current), 8000);
     return () => window.clearTimeout(timeout);
   }, [notificationToast?.id]);
+
+  useEffect(() => {
+    if (!settings.general.notificationPopupsEnabled) setNotificationToast(null);
+  }, [settings.general.notificationPopupsEnabled]);
 
   useEffect(() => {
     cacheLoginBackground(initialSettings.appearance.backgrounds.login);
@@ -703,14 +744,45 @@ export function Workbench({
   } as CSSProperties;
 
   useLayoutEffect(() => {
-    cacheAppearanceCanvasBootstrap(window.location.pathname, backgroundFile && !wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? backgroundFile : null);
-  }, [backgroundFile, route, wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas]);
+    const shell = workbenchShellRef.current;
+    if (!shell) return;
+    const body = document.body;
+    const previousValues = new Map<string, { value: string; priority: string }>();
+    const computedShellStyle = window.getComputedStyle(shell);
+    for (const property of PORTAL_APPEARANCE_VARIABLES) {
+      previousValues.set(property, {
+        value: body.style.getPropertyValue(property),
+        priority: body.style.getPropertyPriority(property)
+      });
+      const resolvedValue = computedShellStyle.getPropertyValue(property).trim();
+      if (resolvedValue) body.style.setProperty(property, resolvedValue);
+      else body.style.removeProperty(property);
+    }
+    const previousTheme = body.getAttribute("data-lfaa-theme");
+    const previousWallpaper = body.getAttribute("data-lfaa-dialog-wallpaper");
+    body.setAttribute("data-lfaa-theme", resolvedTheme);
+    body.setAttribute("data-lfaa-dialog-wallpaper", wallpaperCanvasOwnership.hasWallpaperBackground ? "true" : "false");
+    return () => {
+      for (const [property, previous] of previousValues) {
+        if (previous.value) body.style.setProperty(property, previous.value, previous.priority);
+        else body.style.removeProperty(property);
+      }
+      if (previousTheme === null) body.removeAttribute("data-lfaa-theme");
+      else body.setAttribute("data-lfaa-theme", previousTheme);
+      if (previousWallpaper === null) body.removeAttribute("data-lfaa-dialog-wallpaper");
+      else body.setAttribute("data-lfaa-dialog-wallpaper", previousWallpaper);
+    };
+  }, [resolvedTheme, settings.appearance, wallpaperCanvasOwnership.hasWallpaperBackground]);
+
+  useLayoutEffect(() => {
+    cacheAppearanceCanvasBootstrap(window.location.pathname, backgroundFile && !wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? backgroundFile : null, settings.appearance.overlay);
+  }, [backgroundFile, route, settings.appearance.overlay, wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas]);
 
   let pageContent;
   if (isSettingsPage) {
     pageContent = (
       <Suspense fallback={<div className="loading-page loading-page--compact" aria-busy="true" />}>
-        <SettingsPage user={user} serverState={serverState} settings={settings} resolvedTheme={resolvedTheme} initialSection={isLegacyAccountsRoute ? "account" : settingsInitialSection} applications={applicationNavigationItems} onOpenApplication={onOpenApplication} onBack={() => onNavigate(settingsReturnRoute)} onNavigate={onNavigate} onOpenSettings={openSettings} onLogout={onLogout} onUserChange={onUserChange} onSettingsChange={updateWorkbenchSettings} />
+        <SettingsPage user={user} serverState={serverState} settings={settings} resolvedTheme={resolvedTheme} initialSection={isLegacyAccountsRoute ? "account" : settingsInitialSection} sectionRequest={settingsSectionRequest} applications={applicationNavigationItems} onOpenApplication={onOpenApplication} onBack={() => onNavigate(settingsReturnRoute)} onNavigate={onNavigate} onOpenSettings={openSettings} onLogout={onLogout} onUserChange={onUserChange} onSettingsChange={updateWorkbenchSettings} />
       </Suspense>
     );
   } else if (isFileManagerPage) {
@@ -963,7 +1035,7 @@ export function Workbench({
       </Modal> : null}
       {/* DSH overlay 依赖当前应用工作台的右侧栏 Owner；设置页没有该面板，不挂载不可用的入口。 */}
       {appRoute ? <DshSlotOutlet name="shell.overlay" /> : null}
-      {notificationToast ? <aside className={`ai-work-notification-toast ai-work-notification-toast--${notificationToast.kind}`} role={notificationToast.kind === "complete" ? "status" : "alert"} aria-live={notificationToast.kind === "complete" ? "polite" : "assertive"}>
+      {notificationToast && settings.general.notificationPopupsEnabled ? <aside className={`ai-work-notification-toast ai-work-notification-toast--${notificationToast.kind}`} role={notificationToast.kind === "complete" ? "status" : "alert"} aria-live={notificationToast.kind === "complete" ? "polite" : "assertive"}>
         <div className="ai-work-notification-toast__main">
           <button className="ai-work-notification-toast__open" type="button" onClick={() => openNotification(notificationToast)} aria-label={`${notificationToast.title}，点击打开${notificationToast.applicationName}会话`}>
             <span className="ai-work-notification-toast__icon"><WorkbenchIcon name={notificationToast.kind === "complete" ? "spark" : "close"} size={17} /></span>
@@ -972,8 +1044,29 @@ export function Workbench({
           <button className="ai-work-notification-toast__close" type="button" onClick={() => setNotificationToast(null)} aria-label="关闭会话提醒"><WorkbenchIcon name="close" size={14} /></button>
         </div>
       </aside> : null}
-      <SetupReminder user={user} settings={settings} isSettingsPage={isSettingsPage} onSettingsChange={setSettings} onOpenSettings={openSettings} />
-      <PasskeySetupPrompt user={user} isSettingsPage={isSettingsPage} onOpenSettings={openSettings} />
+      <SetupReminder
+        user={user}
+        settings={settings}
+        isSettingsPage={isSettingsPage}
+        suspended={suspendSetupReminder || (Boolean(credentialReminder) && settings.general.defaultAdminCredentialReminderEnabled && !credentialReminderSnoozedToday)}
+        onSettingsChange={setSettings}
+        onOpenSettings={openSettings}
+        priorityPrompt={credentialReminder ? {
+          introTitle: "账户安全提醒",
+          title: "建议修改默认登录凭据",
+          description: credentialReminder.usernamePending && credentialReminder.passwordPending
+            ? "当前仍在使用系统默认用户名和密码。建议在设置中心的「安全」页面分别修改，之后可使用新凭据登录。"
+            : credentialReminder.usernamePending
+              ? "当前仍在使用系统默认用户名。建议在设置中心的「安全」页面修改。"
+              : "当前仍在使用系统默认密码。建议在设置中心的「安全」页面修改。",
+          action: "前往设置中心",
+          icon: "settings",
+          onAction: () => { onOpenCredentialSettings(); openSettings("security"); },
+          onDismiss: onDismissCredentialReminder,
+          onSnoozedTodayChange: setCredentialReminderSnoozedToday
+        } : null}
+      />
+      <PasskeySetupPrompt user={user} isSettingsPage={isSettingsPage} notificationPopupsEnabled={settings.general.notificationPopupsEnabled} onOpenSettings={openSettings} />
       {!isSettingsPage ? <footer className={`workbench-footer${appRoute || isFileManagerPage || isPluginManagerPage ? " workbench-footer--module" : ""}`}>
         <span>LFAA 本机与远程主机应用工作台</span>
         <span>当前阶段：小鱼智能体工作台</span>

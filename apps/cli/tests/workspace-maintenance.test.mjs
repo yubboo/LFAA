@@ -143,7 +143,7 @@ test("存储布局检查显示安装 Home 与唯一有效数据根", t => {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.deepEqual(JSON.parse(result.stdout), {
     homeDirectory: home,
-    pluginInstallDirectory: join(home, "plugins"),
+    pluginInstallDirectory: join(home, "profiles"),
     defaultDataDirectory: join(home, "data"),
     dataDirectory: join(root, "data")
   });

@@ -1,4 +1,3 @@
-import {RuntimeStorageSettings} from "./RuntimeStorageSettings.js";
 /** 功能：呈现现有设置中心。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
@@ -7,9 +6,8 @@ import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-me
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-update.mjs";
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
-import { activateAiAccount, cancelDataDirectorySettingsChange, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadDataDirectorySettings, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, reprobeAiAccount, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveDataDirectorySettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type ConversationMemorySnapshot, type DataDirectorySettings, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, reprobeAiAccount, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { minecraftSceneBackgrounds } from "lfaa-util-values/src/builtin-backgrounds.js";
-import { setFileManagerLocation, storageFileManagerPath } from "lfaa-client-connection/src/file-manager-location.js";
 import { cacheLoginBackground } from "lfaa-client-ui-theme/src/login-background.js";
 import { getBrowserNotificationPermission, playNotificationSound, requestBrowserNotificationPermission, sendBrowserNotification, type BrowserNotificationPermission } from "lfaa-client-resources/src/notification-runtime.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
@@ -85,6 +83,15 @@ function generateRecoveryKey(): string {
 
 const SETTINGS_LAYOUT_KEY = "lfaa.settings.layout.v2";
 
+function formatStorageBytes(value: number): string {
+  if (value < 1_024) return `${value} B`;
+  const units = ["KiB", "MiB", "GiB", "TiB"];
+  let amount = value;
+  let unit = -1;
+  while (amount >= 1_024 && unit < units.length - 1) { amount /= 1_024; unit += 1; }
+  return `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 }).format(amount)} ${units[unit]}`;
+}
+
 
 
 type SectionId = "general" | "notifications" | "import" | "profile" | "security" | "appearance" | "wallpaperEngine" | "parental" | "trustedContacts" | "voice" | "about" | "configuration" | "personalization" | "mini" | "shortcuts" | "usage" | "account" | "plugins" | "computerControl" | "snapshots" | "browser" | "hooks" | "connections" | "cloudPreferences" | "codeReview" | "git" | "environment" | "worktrees" | "archived" | "ai" | "minecraft" | "permissions" | "workspace" | "developer";
@@ -139,8 +146,6 @@ interface SettingsDataSnapshot {
   archivedSessions: AiSession[];
   health: ServerHealth | null;
   steamcmdNodes: SteamcmdSettingsNode[];
-  dataDirectorySettings: DataDirectorySettings | null;
-  dataDirectoryDraft: string;
   projectStorageLocations: ProjectStorageLocations | null;
   steamcmdConfigurationDefaultsConfigured: boolean;
   steamcmdConfigurationDefaults: SteamcmdConfigurationValues;
@@ -165,7 +170,7 @@ function createEmptySettingsDataSnapshot(): SettingsDataSnapshot {
   return {
     loadedSections: new Set(), providers: [], accounts: [], extensions: [], runtimePlugins: [], capabilityInstallCatalog: [], hotReloadEnabled: false, runtimeHooks: [],
     usage: null, pendingApprovals: [], permissionGrants: [], archivedSessions: [], health: null, steamcmdNodes: [],
-    dataDirectorySettings: null, dataDirectoryDraft: "", projectStorageLocations: null,
+    projectStorageLocations: null,
     steamcmdConfigurationDefaultsConfigured: false, steamcmdConfigurationDefaults: { installMode: "online", steamcmdDirectory: "lib/steamcmd" }, selectedSteamcmdConfigurationNodeId: "",
     steamcmdConfigurationDraft: { installMode: "online", steamcmdDirectory: "lib/steamcmd" }, steamcmdStorageDefaultsConfigured: false,
     steamcmdStorageDefaults: { gameDirectory: "games/steamcmd" }, selectedSteamcmdStorageNodeId: "", selectedSteamcmdInstallNodeId: "",
@@ -384,6 +389,7 @@ interface SettingsPageProps {
   settings: UserSettings;
   resolvedTheme: "light" | "dark";
   initialSection?: SectionId;
+  sectionRequest?: { section: "security"; requestId: number } | null;
   applications: ApplicationNavigationItem[];
   onOpenApplication: (app: ApplicationId, mode: "normal") => Promise<void>;
   onBack: () => void;
@@ -468,7 +474,7 @@ function displaySteamcmdPath(node: { dataRoot: string | null } | null, relativeP
 
 
 
-export function SettingsPage({ user, serverState, settings: workbenchSettings, resolvedTheme, initialSection, applications, onOpenApplication, onBack, onNavigate, onOpenSettings, onLogout, onUserChange, onSettingsChange, standalonePluginWorkspace = false, standalonePluginView, standalonePluginSection = "plugins" }: SettingsPageProps) {
+export function SettingsPage({ user, serverState, settings: workbenchSettings, resolvedTheme, initialSection, sectionRequest = null, applications, onOpenApplication, onBack, onNavigate, onOpenSettings, onLogout, onUserChange, onSettingsChange, standalonePluginWorkspace = false, standalonePluginView, standalonePluginSection = "plugins" }: SettingsPageProps) {
   const authTransitionPlugins = useDshSlotEntries(LFAA_AUTH_TRANSITION_SLOT);
   const [messageApi, messageContext] = message.useMessage();
   const [permissionModal, permissionModalContext] = Modal.useModal();
@@ -545,14 +551,14 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [checkingWebUpdates, setCheckingWebUpdates] = useState(false);
   const webUpdateRequestRef = useRef<AbortController | null>(null);
   const webUpdateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [dataDirectorySettings, setDataDirectorySettings] = useState<DataDirectorySettings | null>(() => cachedSettingsData?.dataDirectorySettings ?? null);
-  const [dataDirectoryDraft, setDataDirectoryDraft] = useState(() => cachedSettingsData?.dataDirectoryDraft ?? "");
-  const [dataDirectorySelection, setDataDirectorySelection] = useState<DataDirectorySettings["selection"]>(() => cachedSettingsData?.dataDirectorySettings?.selection ?? "custom");
-  const [dataDirectoryMigrationMode, setDataDirectoryMigrationMode] = useState<"copy" | "adopt" | "archive">(() => cachedSettingsData?.dataDirectorySettings?.pendingMode ?? "copy");
-  const [dataDirectoryArchiveDraft, setDataDirectoryArchiveDraft] = useState(() => cachedSettingsData?.dataDirectorySettings?.pendingArchivePath ?? "");
-  const [dataDirectoryAction, setDataDirectoryAction] = useState<"save" | "cancel" | null>(null);
-  const canEditDataDirectory = user.role === "super_admin" && dataDirectorySettings?.editable === true && dataDirectoryAction === null;
   const [projectStorageLocations, setProjectStorageLocations] = useState<ProjectStorageLocations | null>(() => cachedSettingsData?.projectStorageLocations ?? null);
+  const [contentDirectorySelection, setContentDirectorySelection] = useState<"default" | "recommended" | "custom">("default");
+  const [contentDirectoryDraft, setContentDirectoryDraft] = useState(() => cachedSettingsData?.projectStorageLocations?.contentDirectory ?? "");
+  const [contentStorageAction, setContentStorageAction] = useState<"save" | "compare" | "import" | "export" | null>(null);
+  const [contentMigrationMode, setContentMigrationMode] = useState<"copy" | "adopt" | "archive">("copy");
+  const [contentArchivePath, setContentArchivePath] = useState("");
+  const [contentComparison, setContentComparison] = useState<ProjectContentComparison | null>(null);
+  const canEditContentDirectory = canAdmin && contentStorageAction === null;
   const [deletingConversationMemories, setDeletingConversationMemories] = useState(false);
   const [conversationMemorySnapshot, setConversationMemorySnapshot] = useState<ConversationMemorySnapshot | null>(null);
   const [conversationMemoryDraft, setConversationMemoryDraft] = useState("");
@@ -886,6 +892,15 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   }, [activeSection, standalonePluginWorkspace, user.id]);
 
   useEffect(() => {
+    const requestedSection = sectionRequest?.section;
+    if (standalonePluginWorkspace || !requestedSection) return;
+    setActiveSection(requestedSection);
+    const group = sections.find((item) => item.id === requestedSection)?.group;
+    if (group) setExpandedSettingsGroups((current) => new Set(current).add(group));
+    persistSettingsSection(requestedSection, user.id);
+  }, [sectionRequest?.requestId, standalonePluginWorkspace, user.id]);
+
+  useEffect(() => {
     if (activeSection !== "account") return;
     // 账户页也能从外部入口打开；进入时清空旧筛选，恢复完整的设置分类导航。
     setSearch("");
@@ -922,7 +937,6 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     Object.assign(snapshot, {
       providers, accounts, extensions, runtimePlugins, capabilityInstallCatalog, hotReloadEnabled, runtimeHooks, usage, pendingApprovals, permissionGrants,
       archivedSessions, health, steamcmdNodes, steamcmdConfigurationDefaultsConfigured, steamcmdConfigurationDefaults,
-      dataDirectorySettings, dataDirectoryDraft,
       projectStorageLocations,
       selectedSteamcmdConfigurationNodeId, steamcmdConfigurationDraft, steamcmdStorageDefaultsConfigured, steamcmdStorageDefaults,
       selectedSteamcmdStorageNodeId, selectedMinecraftStorageNodeId, selectedSteamcmdInstallNodeId, steamcmdStorageDraft,
@@ -930,7 +944,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       uploadedBackgrounds
     });
     settingsDataSnapshots.set(cacheKey, snapshot);
-  }, [accounts, archivedSessions, cacheKey, capabilityInstallCatalog, dataDirectoryDraft, dataDirectorySettings, extensions, health, hotReloadEnabled, minecraftStorageDefaults, minecraftStorageDefaultsConfigured, minecraftStorageDraft, minecraftStorageNodes, pendingApprovals, permissionGrants, projectStorageLocations, providers, runtimeHooks, runtimePlugins, selectedMinecraftStorageNodeId, selectedSteamcmdConfigurationNodeId, selectedSteamcmdInstallNodeId, selectedSteamcmdStorageNodeId, steamcmdConfigurationDefaults, steamcmdConfigurationDefaultsConfigured, steamcmdConfigurationDraft, steamcmdNodes, steamcmdStorageDefaults, steamcmdStorageDefaultsConfigured, steamcmdStorageDraft, uploadedBackgrounds, usage]);
+  }, [accounts, archivedSessions, cacheKey, capabilityInstallCatalog, extensions, health, hotReloadEnabled, minecraftStorageDefaults, minecraftStorageDefaultsConfigured, minecraftStorageDraft, minecraftStorageNodes, pendingApprovals, permissionGrants, projectStorageLocations, providers, runtimeHooks, runtimePlugins, selectedMinecraftStorageNodeId, selectedSteamcmdConfigurationNodeId, selectedSteamcmdInstallNodeId, selectedSteamcmdStorageNodeId, steamcmdConfigurationDefaults, steamcmdConfigurationDefaultsConfigured, steamcmdConfigurationDraft, steamcmdNodes, steamcmdStorageDefaults, steamcmdStorageDefaultsConfigured, steamcmdStorageDraft, uploadedBackgrounds, usage]);
 
   function selectSection(section: SectionId): void {
     // 账户安全页含有多个凭据输入项；离开分类筛选状态，避免浏览器把用户名填入搜索框后隐藏全部导航分类。
@@ -1094,19 +1108,17 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           }
           case "workspace": {
             if (canAdmin) {
-              const [, steamcmdResult, minecraftResult, dataDirectoryResult, projectStorageResult] = await Promise.all([
+              const [, steamcmdResult, minecraftResult, projectStorageResult] = await Promise.all([
                 loadHealthOnce(),
                 loadSteamcmdSettings(),
                 loadMinecraftStorageSettings(),
-                loadDataDirectorySettings(),
                 loadProjectStorageLocations()
               ]);
-              setDataDirectorySettings(dataDirectoryResult.settings);
-              setDataDirectorySelection(dataDirectoryResult.settings.selection);
-              setDataDirectoryDraft(dataDirectoryResult.settings.pendingDirectory ?? dataDirectoryResult.settings.currentDirectory);
-              setDataDirectoryMigrationMode(dataDirectoryResult.settings.pendingMode ?? "copy");
-              setDataDirectoryArchiveDraft(dataDirectoryResult.settings.pendingArchivePath ?? "");
               setProjectStorageLocations(projectStorageResult.settings);
+              setContentDirectoryDraft(projectStorageResult.settings.contentDirectory);
+              setContentDirectorySelection(projectStorageResult.settings.contentDirectory === projectStorageResult.settings.recommendedContentDirectory
+                ? "recommended"
+                : projectStorageResult.settings.contentDirectory === projectStorageResult.settings.defaultContentDirectory ? "default" : "custom");
               setSteamcmdNodes(steamcmdResult.nodes);
               setSteamcmdStorageDefaultsConfigured(steamcmdResult.storageDefaultsConfigured);
               setSteamcmdStorageDefaults(steamcmdResult.storageDefaults);
@@ -1254,68 +1266,96 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
 
 
-  async function saveDataDirectoryConfiguration(): Promise<void> {
-    if (!dataDirectorySettings || !canEditDataDirectory) return;
-      const directory = dataDirectorySelection === "default" ? dataDirectorySettings.defaultDirectory : dataDirectorySelection === "recommended" ? dataDirectorySettings.recommendedDirectory : dataDirectoryDraft;
-    setDataDirectoryAction("save");
+  function selectedContentDirectory(): string {
+    if (!projectStorageLocations) return "";
+    return contentDirectorySelection === "default"
+      ? projectStorageLocations.defaultContentDirectory
+      : contentDirectorySelection === "recommended"
+      ? projectStorageLocations.recommendedContentDirectory
+      : contentDirectoryDraft;
+  }
+
+  function applyContentStorageResult(saved: ProjectStorageLocations): void {
+    setProjectStorageLocations(saved);
+    setContentDirectoryDraft(saved.contentDirectory);
+    setContentDirectorySelection(saved.contentDirectory === saved.recommendedContentDirectory
+      ? "recommended"
+      : saved.contentDirectory === saved.defaultContentDirectory ? "default" : "custom");
+    setContentComparison(null);
+  }
+
+  async function saveContentStorageSelection(): Promise<void> {
+    if (!projectStorageLocations || !canEditContentDirectory) return;
+    const directory = selectedContentDirectory();
+    if (!directory.trim()) return;
+    if (directory.toLocaleLowerCase() === projectStorageLocations.contentDirectory.toLocaleLowerCase()) {
+      messageApi.info("当前已经使用这个业务内容目录，无需迁移。");
+      return;
+    }
+    setContentStorageAction(contentMigrationMode === "archive" ? "import" : "save");
     try {
-      const { settings: savedSettings } = await saveDataDirectorySettings(directory, dataDirectoryMigrationMode, dataDirectoryArchiveDraft);
-      setDataDirectorySettings(savedSettings);
-      setDataDirectorySelection(savedSettings.selection);
-      setDataDirectoryDraft(savedSettings.pendingDirectory ?? savedSettings.currentDirectory);
-      setDataDirectoryMigrationMode(savedSettings.pendingMode ?? "copy");
-      setDataDirectoryArchiveDraft(savedSettings.pendingArchivePath ?? "");
-      const restartAction = isDesktopApp()
-        ? "退出并重新打开 LFAA 桌面程序"
-        : "使用项目启动器完整重启";
-      messageApi.success(savedSettings.pendingDirectory
-        ? `迁移请求已保存。${restartAction}后，系统会按所选方式检查数据并切换到新目录；旧目录会保留。`
-        : "数据根目录保持当前设置。");
+      const result = contentMigrationMode === "copy"
+        ? await copyProjectContentToDirectory(directory)
+        : contentMigrationMode === "adopt"
+        ? await adoptProjectContentDirectory(directory)
+        : await importProjectContentArchive(contentArchivePath, directory);
+      if (!result.settings.configured) throw new Error("内容目录复制、核对成功，但新位置未保存；原位置仍保持生效。");
+      applyContentStorageResult(result.settings.settings);
+      if (contentMigrationMode === "copy") {
+        messageApi.success(result.backupDirectory
+          ? `业务内容已复制、校验并切换。源目录保留；目标原内容备份在 ${result.backupDirectory}`
+          : "业务内容已复制、校验并切换；源目录保留。目标没有需要备份的旧业务文件。");
+      } else if (contentMigrationMode === "adopt") messageApi.success("手动复制的业务内容已通过 SHA-256 核对并切换；原目录保留。");
+      else messageApi.success("ZIP 中的业务内容已导入、校验并切换；系统数据与插件 Profile 未导入。");
     } catch (saveError) {
       messageApi.error(getErrorMessage(saveError));
     } finally {
-      setDataDirectoryAction(null);
+      setContentStorageAction(null);
     }
   }
 
-  function browseSavedStorage(directory: string): void {
-    if (user.role !== "super_admin" || settings.permissions.mode !== "full_access" || !dataDirectorySettings) return;
+  async function compareSelectedContentDirectory(): Promise<void> {
+    const directory = selectedContentDirectory();
+    if (!directory.trim() || !canEditContentDirectory) return;
+    setContentStorageAction("compare");
     try {
-      setFileManagerLocation(user.id, storageFileManagerPath(directory, dataDirectorySettings.currentDirectory));
-      onNavigate("/files");
-    } catch (error) { void messageApi.error(getErrorMessage(error)); }
+      const comparison = await compareProjectContentDirectories(directory);
+      setContentComparison(comparison);
+      messageApi[comparison.matching ? "success" : "warning"](comparison.matching
+        ? "文件和文件夹清单及 SHA-256 全部一致，可以切换位置。"
+        : `发现 ${comparison.differenceCount} 处差异；核对通过前不会切换位置。`);
+    } catch (compareError) { messageApi.error(getErrorMessage(compareError)); }
+    finally { setContentStorageAction(null); }
   }
 
-
-
-  async function cancelDataDirectoryConfiguration(): Promise<void> {
-    if (!canEditDataDirectory) return;
-    setDataDirectoryAction("cancel");
+  async function exportProjectContentArchive(): Promise<void> {
+    if (!canEditContentDirectory) return;
+    setContentStorageAction("export");
     try {
-      const { settings: savedSettings } = await cancelDataDirectorySettingsChange();
-      setDataDirectorySettings(savedSettings);
-      setDataDirectorySelection(savedSettings.selection);
-      setDataDirectoryDraft(savedSettings.currentDirectory);
-      setDataDirectoryMigrationMode("copy");
-      setDataDirectoryArchiveDraft("");
-      messageApi.success("待处理的数据目录迁移已取消；原目录仍在使用。");
-    } catch (cancelError) {
-      messageApi.error(getErrorMessage(cancelError));
-    } finally {
-      setDataDirectoryAction(null);
-    }
+      const archive = await downloadProjectContentArchive();
+      const url = URL.createObjectURL(archive);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `lfaa-business-content-${new Date().toISOString().slice(0, 10)}.zip`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      messageApi.success("业务内容 ZIP 已生成并开始下载。");
+    } catch (exportError) { messageApi.error(getErrorMessage(exportError)); }
+    finally { setContentStorageAction(null); }
   }
 
-  async function chooseDataDirectoryConfiguration(): Promise<void> {
-    if (!canEditDataDirectory) return;
+  async function chooseContentDirectory(): Promise<void> {
+    if (!canEditContentDirectory) return;
     try {
       const selectedDirectory = await selectDesktopDataDirectory();
-      if (selectedDirectory) setDataDirectoryDraft(selectedDirectory);
+      if (selectedDirectory) {
+        setContentDirectoryDraft(selectedDirectory);
+        setContentDirectorySelection("custom");
+      }
     } catch (selectionError) {
       messageApi.error(getErrorMessage(selectionError));
     }
   }
-
 
   async function saveSteamcmdConfiguration(): Promise<void> {
     setSteamcmdAction("save");
@@ -1978,6 +2018,10 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     }
   }
 
+  async function refreshDeveloperStatus(): Promise<void> {
+    await refreshHealth();
+  }
+
   async function addBackground(file: File): Promise<void> {
     setUploadingBackground(true);
     setError("");
@@ -2022,11 +2066,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   }
 
   function sendNotificationTest(): void {
+    if (!settings.general.notificationPopupsEnabled) return;
     if (sendBrowserNotification("LFAA 通知测试", "浏览器已成功接收 LFAA 通知。")) messageApi.success("测试通知已发送。");
     else messageApi.error("测试通知未发送，请检查浏览器通知授权。");
   }
 
   function testNotificationSound(): void {
+    if (!settings.general.notificationPopupsEnabled) return;
     if (playNotificationSound(settings.general.notificationSound)) messageApi.info("已触发提示音试听；实际音量受浏览器和系统设置控制。");
     else messageApi.warning(settings.general.notificationSound === "off" ? "提示音当前已关闭。" : "当前浏览器无法播放提示音。");
   }
@@ -2056,9 +2102,12 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   };
   const notificationGroup = (
     <SettingGroup title="LFAA 通知">
+      <SettingRow title="通知总开关" description="关闭后停止工作台提醒、浏览器系统通知和通知提示音；会话里的审批与澄清卡片仍会保留。重新开启后，各类别开关按原设置生效。" status={settings.general.notificationPopupsEnabled ? "已开启" : "已关闭"}>
+        <SettingsSwitch label="通知总开关" checked={settings.general.notificationPopupsEnabled} onChange={() => updateGeneral({ notificationPopupsEnabled: !settings.general.notificationPopupsEnabled })} />
+      </SettingRow>
       <SettingRow title="浏览器通知权限" description={notificationPermissionDescriptions[notificationPermission]} status={notificationPermissionLabels[notificationPermission]}>
         {notificationPermission === "default" ? <Button onClick={() => void enableBrowserNotifications()}>启用通知</Button> : null}
-        {notificationPermission === "granted" ? <Button onClick={sendNotificationTest}>发送测试通知</Button> : null}
+        {notificationPermission === "granted" ? <Button onClick={sendNotificationTest} disabled={!settings.general.notificationPopupsEnabled}>发送测试通知</Button> : null}
       </SettingRow>
       <SettingRow title="默认账户安全提醒" description="首次使用系统默认账户登录后，提醒你更改用户名和密码；修改完成或选择稍后再说后不会重复弹出。" status={settings.general.defaultAdminCredentialReminderEnabled ? "已开启" : "已关闭"}>
         <SettingsSwitch label="默认账户安全提醒" checked={settings.general.defaultAdminCredentialReminderEnabled} onChange={() => updateGeneral({ defaultAdminCredentialReminderEnabled: !settings.general.defaultAdminCredentialReminderEnabled })} />
@@ -2069,11 +2118,11 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       <SettingRow title="小鱼智能体 会话出错" description="回复生成失败时，在通知栏和右下角显示提醒；点击可返回出错的会话查看详情。" status={settings.general.sessionIssueNotifications ? "已开启" : "已关闭"}>
         <SettingsSwitch label="会话问题提醒" checked={settings.general.sessionIssueNotifications} onChange={() => updateGeneral({ sessionIssueNotifications: !settings.general.sessionIssueNotifications })} />
       </SettingRow>
-      <SettingRow title="首次配置提醒" description="永久总开关。SteamCMD 安装目录、游戏默认目录或 AI API 尚未配置时，在工作台显示提醒；配置完成后自动停止。只想暂停今天时，使用下方的临时开关。" status={settings.general.setupReminderEnabled ? "已开启" : "已关闭"}>
+      <SettingRow title="首次配置提醒" description="当 AI Provider、SteamCMD 或业务内容存储位置尚未配置时，在工作台提示；完成配置后自动停止。关闭此项只停用首次配置提醒，不影响其他类别。" status={settings.general.setupReminderEnabled ? "已开启" : "已关闭"}>
         <SettingsSwitch label="首次配置提醒" checked={settings.general.setupReminderEnabled} onChange={() => updateGeneral({ setupReminderEnabled: !settings.general.setupReminderEnabled })} />
       </SettingRow>
-      <SettingRow title="今日不再提醒" description="仅对当前账户和此浏览器生效，暂停到本地今天结束；明天自动恢复，不会关闭上方的永久总开关。可随时关闭此开关以恢复今天的提醒。" status={!settings.general.setupReminderEnabled ? setupReminderPausedToday ? "总开关已关闭，今日也已暂停" : "总开关已关闭" : setupReminderPausedToday ? "今日已暂停" : "今日未暂停"}>
-        <SettingsSwitch label="今日不再提醒" checked={setupReminderPausedToday} disabled={!settings.general.setupReminderEnabled} onChange={() => updateSetupReminderSnooze(!setupReminderPausedToday)} />
+      <SettingRow title="今日不再提醒" description="仅对当前账户和此浏览器生效，暂停到本地今天结束，明天自动恢复；不会更改各类别的长期开关。" status={!settings.general.notificationPopupsEnabled ? "通知总开关已关闭" : !settings.general.setupReminderEnabled ? "首次配置提醒已关闭" : setupReminderPausedToday ? "今日已暂停" : "今日未暂停"}>
+        <SettingsSwitch label="今日不再提醒" checked={setupReminderPausedToday} disabled={!settings.general.notificationPopupsEnabled || !settings.general.setupReminderEnabled} onChange={() => updateSetupReminderSnooze(!setupReminderPausedToday)} />
       </SettingRow>
       <SettingRow title="AI 工具权限请求" description="审批操作统一在当前 小鱼智能体 输入框上方处理；此开关控制通知栏和后台系统通知提醒，不会隐藏当前会话中的待处理审批。" status={settings.general.permissionNotifications ? "已开启" : "已关闭"}>
         <SettingsSwitch label="审批提醒" checked={settings.general.permissionNotifications} onChange={() => updateGeneral({ permissionNotifications: !settings.general.permissionNotifications })} />
@@ -2084,7 +2133,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       <SettingRow title="通知提示音" description="选择 小鱼智能体 回复完成、审批请求、澄清问题和会话错误的提示音；试听音量受浏览器和系统音量控制。" status="已接入">
         <Space>
           <Select value={settings.general.notificationSound} options={[{ value: "default", label: "默认" }, { value: "subtle", label: "轻柔" }, { value: "off", label: "关闭" }]} onChange={(value) => updateGeneral({ notificationSound: value })} />
-          <Button onClick={testNotificationSound} disabled={settings.general.notificationSound === "off"}>试听</Button>
+          <Button onClick={testNotificationSound} disabled={!settings.general.notificationPopupsEnabled || settings.general.notificationSound === "off"}>试听</Button>
         </Space>
       </SettingRow>
     </SettingGroup>
@@ -2422,8 +2471,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         </SettingGroup>
         {uploadedBackgrounds.length ? <SettingGroup title="自定义背景库">{uploadedBackgrounds.map((background) => <SettingRow key={background.id} title={background.name} description={`${background.mimeType} · 上传于 ${new Date(background.createdAt).toLocaleDateString("zh-CN")}`} status="账户私有"><Popconfirm title="删除这张背景图片？" description="如果正在使用，对应位置将恢复为纯色。" okText="删除" cancelText="取消" onConfirm={() => void removeBackground(background)}><Button danger size="small">删除</Button></Popconfirm></SettingRow>)}</SettingGroup> : null}
         <SettingGroup title="背景显示">
-          <SettingRow title="背景遮罩" description="统一控制整张工作区壁纸的遮罩透明度，设置和应用的顶部栏、导航及 小鱼智能体 输入区等独立表面同步使用该值；0% 时壁纸最清晰，数值越高整体底色越明显。新账户默认 65%，提高壁纸上的卡片可读性；已有账户设置保持原值。消息画布不另加局部遮罩。" status="已接入"><div className="settings-slider"><Slider min={0} max={75} value={settings.appearance.overlay} onChange={(overlay) => updateSettings("appearance", { ...settings.appearance, overlay })} /><output>{settings.appearance.overlay}%</output></div></SettingRow>
-          <SettingRow title="玻璃模糊" description="调整顶栏、半透明导航栏、小鱼智能体 输入区和写作上下文作品卡片的玻璃模糊强度；消息画布保持透明并显示工作区壁纸，设置正文不做实时模糊。" status="已接入"><div className="settings-slider"><Slider min={0} max={32} value={settings.appearance.blur} onChange={(blur) => updateSettings("appearance", { ...settings.appearance, blur })} /><output>{settings.appearance.blur}px</output></div></SettingRow>
+          <SettingRow title="背景遮罩" description="统一控制工作区壁纸遮罩和弹窗玻璃表面的底色透明度，设置和应用的顶部栏、导航及 小鱼智能体 输入区等独立表面也同步使用；0% 时壁纸最清晰，数值越高整体底色越明显。新账户默认 65%，提高壁纸上的内容可读性；已有账户设置保持原值。消息画布不另加局部遮罩。" status="已接入"><div className="settings-slider"><Slider min={0} max={75} value={settings.appearance.overlay} onChange={(overlay) => updateSettings("appearance", { ...settings.appearance, overlay })} /><output>{settings.appearance.overlay}%</output></div></SettingRow>
+          <SettingRow title="玻璃模糊" description="调整顶栏、半透明导航栏、小鱼智能体 输入区、写作上下文作品卡片和壁纸上的弹窗表面模糊强度；消息画布保持透明并显示工作区壁纸，设置正文不做实时模糊。" status="已接入"><div className="settings-slider"><Slider min={0} max={32} value={settings.appearance.blur} onChange={(blur) => updateSettings("appearance", { ...settings.appearance, blur })} /><output>{settings.appearance.blur}px</output></div></SettingRow>
           <SettingRow title="更新界面不透明度" description="控制顶栏更新悬浮卡片和更新确认弹窗的清晰度；默认 92%，数值越高壁纸透出越少，并继续跟随当前主题的玻璃模糊设置。" status="实时预览"><div className="settings-slider"><Slider min={70} max={100} value={settings.appearance.updateSurfaceOpacity} onChange={(updateSurfaceOpacity) => updateSettings("appearance", { ...settings.appearance, updateSurfaceOpacity })} /><output>{settings.appearance.updateSurfaceOpacity}%</output></div></SettingRow>
         </SettingGroup>
         <SettingGroup title="小鱼智能体 空闲虚化">
@@ -3052,54 +3101,56 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
     if (activeSection === "workspace") return (
       <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">数据与目录</span><Typography.Title level={2}>项目与存储</Typography.Title><Typography.Paragraph>用户数据使用独立的 LFAA_DATA_DIR；插件包与受控运行适配文件保存在默认安装根 .lfaa/plugins，不随数据目录迁移。数据默认位于 .lfaa/data，可选择系统复制、手动复制后识别或 ZIP 备份导入。</Typography.Paragraph></div></header>
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">业务数据</span><Typography.Title level={2}>项目与存储</Typography.Title><Typography.Paragraph>本页只设置游戏、小说与漫剧内容目录。默认使用 LFAA Home 下的 data；推荐位置按当前项目或安装根生成 data。账户、Provider、会话和设置仍由本机 LFAA Home 管理，插件由各自 Profile 管理。</Typography.Paragraph></div></header>
         {!canAdmin ? <Alert className="settings-inline-alert" type="warning" showIcon message="应用存储路径由管理员配置。" /> : null}
-        {canAdmin && dataDirectorySettings ? <SettingGroup title="存储位置">
+        {canAdmin && projectStorageLocations ? <SettingGroup title="业务内容存储位置">
           <div className="settings-storage-panel">
             <div className="settings-storage-current">
-              <div><Typography.Text strong>当前生效目录</Typography.Text><Tag>{dataDirectorySettings.pendingDirectory ? "迁移前继续使用" : "使用中"}</Tag></div>
-              <Typography.Text code copyable>{dataDirectorySettings.currentDirectory}</Typography.Text>
+              <div><Typography.Text strong>当前内容目录</Typography.Text><Tag>使用中</Tag></div>
+              <Typography.Text code copyable>{projectStorageLocations.contentDirectory}</Typography.Text>
             </div>
-            <Typography.Paragraph type="secondary">此目录保存本机账户、设置、会话、作品、游戏、备份和环境等用户数据。插件包不放在这里；远端节点使用各自的数据根。</Typography.Paragraph>
-            <Radio.Group className="settings-storage-options" aria-label="存储位置选择" value={dataDirectorySelection} disabled={!canEditDataDirectory} onChange={event => setDataDirectorySelection(event.target.value)}>
-              <Radio value="default" disabled={!canEditDataDirectory || !dataDirectorySettings.defaultDirectory}>
-                <span className="settings-storage-option__copy"><strong>默认存储位置</strong><span>系统账户的 .lfaa/data，不随项目所在盘符改变</span><code>{dataDirectorySettings.defaultDirectory || "当前服务未提供默认路径"}</code></span>
+            <Typography.Paragraph type="secondary">只迁移 games/ 与账户项目下的 Writing/AI 漫剧文件。账号、模型凭据、会话、AI 对话、用户设置、运行环境与缓存不在迁移清单内；插件数据由插件 Profile 管理。</Typography.Paragraph>
+            <Radio.Group className="settings-storage-options" aria-label="业务内容存储位置选择" value={contentDirectorySelection} disabled={!canEditContentDirectory} onChange={event => { setContentDirectorySelection(event.target.value); setContentComparison(null); }}>
+              <Radio value="default" disabled={!canEditContentDirectory}>
+                <span className="settings-storage-option__copy"><strong>默认存储位置</strong><span>使用 LFAA 用户目录下的业务 data；已有内容由下方迁移方式处理</span><code>{projectStorageLocations.defaultContentDirectory}</code></span>
               </Radio>
-              <Radio value="recommended" disabled={!canEditDataDirectory || !dataDirectorySettings.recommendedDirectory}>
-                <span className="settings-storage-option__copy"><strong>推荐存储位置</strong><span>项目或安装目录下的 data</span><code>{dataDirectorySettings.recommendedDirectory || "当前服务未提供推荐路径"}</code></span>
+              <Radio value="recommended" disabled={!canEditContentDirectory || !projectStorageLocations.recommendedContentDirectory}>
+                <span className="settings-storage-option__copy"><strong>系统推荐位置</strong><span>按当前项目或安装位置动态生成 data 目录</span><code>{projectStorageLocations.recommendedContentDirectory}</code></span>
               </Radio>
-              <Radio value="custom">
-                <span className="settings-storage-option__copy"><strong>自定义存储位置</strong><span>选择控制端上的其他磁盘或目录</span><span>已有位置会保留，保存后才安排切换</span></span>
+              <Radio value="custom" disabled={!canEditContentDirectory}>
+                <span className="settings-storage-option__copy"><strong>自定义存储位置</strong><span>输入绝对路径；桌面版可通过文件夹选择器选取</span></span>
               </Radio>
             </Radio.Group>
-            {dataDirectorySelection === "custom" ? <div className="settings-storage-custom">
-              <label htmlFor="settings-data-directory">自定义位置</label>
+            {contentDirectorySelection === "custom" ? <div className="settings-storage-custom">
+              <label htmlFor="settings-content-directory">自定义内容位置</label>
               <div className="settings-storage-custom__input">
-                <Input id="settings-data-directory" aria-label="LFAA 数据根目录" aria-describedby="settings-data-directory-help" value={dataDirectoryDraft} maxLength={2048} placeholder="输入控制端的绝对目录路径" disabled={dataDirectoryAction !== null || user.role !== "super_admin" || !dataDirectorySettings.editable} onChange={event => setDataDirectoryDraft(event.target.value)} />
-                {isDesktopApp() ? <Button disabled={dataDirectoryAction !== null || user.role !== "super_admin" || !dataDirectorySettings.editable} onClick={() => void chooseDataDirectoryConfiguration()}>选择文件夹</Button> : null}
+                <Input id="settings-content-directory" aria-label="业务内容存储目录" aria-describedby="settings-content-directory-help" value={contentDirectoryDraft} maxLength={2048} placeholder="输入 LFAA 控制端可访问的绝对路径" disabled={!canEditContentDirectory} onChange={event => { setContentDirectoryDraft(event.target.value); setContentComparison(null); }} />
+                {isDesktopApp() ? <Button disabled={!canEditContentDirectory} onClick={() => void chooseContentDirectory()}>打开文件管理器选择</Button> : null}
               </div>
-              <Typography.Text id="settings-data-directory-help" type="secondary">选择父目录时自动使用其中的 data 子目录；手动复制时请选已经复制完的 data 目录，ZIP 导入时请选空目标。</Typography.Text>
+              <Typography.Text id="settings-content-directory-help" type="secondary">{isDesktopApp() ? "所选目录直接作为内容根，不会再附加 data 子目录。保存时按下方方式迁移或核对已有业务内容。" : "当前为 Web 运行模式，浏览器无法打开 Windows 文件夹选择器，请输入 LFAA 控制端可访问的绝对路径。该目录直接作为内容根，不会再附加 data 子目录；已有内容按下方方式迁移或核对。"}</Typography.Text>
             </div> : null}
             <div className="settings-storage-migration">
-              <Typography.Text strong>迁移方式</Typography.Text>
-              <Radio.Group className="settings-storage-options" aria-label="数据迁移方式" value={dataDirectoryMigrationMode} disabled={!canEditDataDirectory} onChange={event => setDataDirectoryMigrationMode(event.target.value)}>
-                <Radio value="copy" disabled={!canEditDataDirectory}><span className="settings-storage-option__copy"><strong>系统复制到新位置</strong><span>停止服务后复制并校验完整数据，目标必须为空</span></span></Radio>
-                <Radio value="adopt" disabled={!canEditDataDirectory}><span className="settings-storage-option__copy"><strong>我已手动复制，检查后切换</strong><span>先复制完整数据文件夹；系统逐项核对源与目标后采用，不覆盖目标内容</span></span></Radio>
-                <Radio value="archive" disabled={!canEditDataDirectory}><span className="settings-storage-option__copy"><strong>导入 ZIP 备份到新位置</strong><span>系统安全解包并检查数据结构和数据库，完成后才切换</span></span></Radio>
+              <div className="settings-storage-migration__heading"><Typography.Text strong>已有业务内容怎么处理</Typography.Text><Typography.Text type="secondary">切换前只处理业务文件；源目录始终保留。</Typography.Text></div>
+              <Radio.Group aria-label="业务内容迁移方式" value={contentMigrationMode} disabled={!canEditContentDirectory} onChange={event => { setContentMigrationMode(event.target.value); setContentComparison(null); }}>
+                <Radio value="copy"><span><strong>系统复制并覆盖</strong><small>复制源文件，目标冲突先备份；目标独有文件保留</small></span></Radio>
+                <Radio value="adopt"><span><strong>手动复制后核对</strong><small>先在资源管理器复制，再按文件清单和 SHA-256 比对</small></span></Radio>
+                <Radio value="archive"><span><strong>从 ZIP 备份导入</strong><small>仅识别并导入 games、Writing 与 AI 漫剧项目树</small></span></Radio>
               </Radio.Group>
-              {dataDirectoryMigrationMode === "archive" ? <div className="settings-storage-custom">
-                <label htmlFor="settings-data-archive">控制端上的 ZIP 备份路径</label>
-                <Input id="settings-data-archive" aria-label="LFAA 数据 ZIP 备份路径" value={dataDirectoryArchiveDraft} maxLength={2048} placeholder="例如 E:\\备份\\lfaa-data.zip" disabled={dataDirectoryAction !== null || !canEditDataDirectory} onChange={event => setDataDirectoryArchiveDraft(event.target.value)} />
-                <Typography.Text type="secondary">ZIP 内需包含 data 根目录，或一个顶层文件夹中包含 database/lfaa.sqlite。此处填写运行 LFAA 的这台电脑可访问的绝对路径。</Typography.Text>
+              {contentMigrationMode === "archive" ? <div className="settings-storage-custom">
+                <label htmlFor="settings-content-archive-path">ZIP 备份路径</label>
+                <Input id="settings-content-archive-path" aria-label="业务内容 ZIP 备份路径" value={contentArchivePath} maxLength={2048} placeholder="输入 LFAA 控制端可访问的 .zip 绝对路径" disabled={!canEditContentDirectory} onChange={event => setContentArchivePath(event.target.value)} />
               </div> : null}
+              {contentMigrationMode === "adopt" ? <div className="settings-storage-actions">
+                <Typography.Text type="secondary">手动复制模式不会写入目标；差异为 0 后才允许切换。</Typography.Text>
+                <Button loading={contentStorageAction === "compare"} disabled={!canEditContentDirectory || !selectedContentDirectory().trim()} onClick={() => void compareSelectedContentDirectory()}>比对文件和文件夹</Button>
+              </div> : null}
+              {contentComparison ? <Alert className="settings-inline-alert" type={contentComparison.matching ? "success" : "warning"} showIcon message={contentComparison.matching ? "手动复制核对通过" : `发现 ${contentComparison.differenceCount} 处差异`} description={`源：${contentComparison.sourceFileCount} 个文件，${formatStorageBytes(contentComparison.sourceBytes)}；目标：${contentComparison.targetFileCount} 个文件，${formatStorageBytes(contentComparison.targetBytes)}。${contentComparison.differences.slice(0, 12).map(item => ` ${item.kind}: ${item.path}`).join("；")}${contentComparison.differenceCount > 12 ? "；其余差异已省略" : ""}`} /> : null}
+              <Alert className="settings-inline-alert" type="info" showIcon message="只操作业务 data" description="不会迁移系统账号、AI Provider/凭据、会话、设置、日志、缓存、运行环境、插件 Profile 或远端节点目录。目标冲突文件的备份保留在目标 data/.lfaa-content-migration-backups/。" />
             </div>
-            {dataDirectorySettings.pendingDirectory ? <div className="settings-storage-pending">
-              <Alert type={dataDirectorySettings.pendingError ? "error" : "warning"} showIcon message={dataDirectorySettings.pendingError ? "迁移尚未完成" : "已保存，等待完整重启迁移"} description={<><Typography.Text code copyable>{dataDirectorySettings.pendingDirectory}</Typography.Text><p>方式：{dataDirectorySettings.pendingMode === "adopt" ? "检查手动复制" : dataDirectorySettings.pendingMode === "archive" ? "ZIP 备份导入" : "系统复制"}</p>{dataDirectorySettings.pendingArchivePath ? <Typography.Text code copyable>{dataDirectorySettings.pendingArchivePath}</Typography.Text> : null}<p>{dataDirectorySettings.pendingError || "当前仍使用上方目录。完整停止本机实例和任务后，启动器会执行所选迁移并验证成功才切换；原数据保留。"}</p></>} />
-              {user.role === "super_admin" && dataDirectorySettings.editable ? <Button loading={dataDirectoryAction === "cancel"} disabled={dataDirectoryAction !== null} onClick={() => void cancelDataDirectoryConfiguration()}>取消待处理迁移</Button> : null}
-            </div> : null}
-            {!dataDirectorySettings.editable ? <Alert type="info" showIcon message="此运行环境由启动配置管理数据位置" description={dataDirectorySettings.unavailableReason ?? "请修改 LFAA_DATA_DIR 部署配置并使用持久化目录。"} /> : user.role !== "super_admin" ? <Typography.Text type="secondary">仅超级管理员可更改本机存储位置。</Typography.Text> : <div className="settings-storage-actions">
-              <Typography.Text type="secondary">选择不会立即生效；更换目录需完整重启，原数据保留。</Typography.Text>
-              <Button type="primary" loading={dataDirectoryAction === "save"} disabled={dataDirectoryAction !== null || (dataDirectorySelection === "custom" && !dataDirectoryDraft.trim()) || (dataDirectorySelection === "default" && !dataDirectorySettings.defaultDirectory) || (dataDirectorySelection === "recommended" && !dataDirectorySettings.recommendedDirectory) || (dataDirectoryMigrationMode === "archive" && !dataDirectoryArchiveDraft.trim())} onClick={() => void saveDataDirectoryConfiguration()}>{dataDirectorySettings.pendingDirectory ? "保存迁移目标" : "保存存储位置"}</Button>
+            {!canAdmin ? <Typography.Text type="secondary">需要管理员账户才能更改本机内容存储目录。</Typography.Text> : <div className="settings-storage-actions">
+              <Button loading={contentStorageAction === "export"} disabled={!canEditContentDirectory} onClick={() => void exportProjectContentArchive()}>导出业务 ZIP</Button>
+              <Typography.Text type="secondary">复制/导入成功且 SHA-256 校验通过后才切换；原目录保留。手动模式须先完成比对。</Typography.Text>
+              <Button type="primary" loading={contentStorageAction === "save" || contentStorageAction === "import"} disabled={!canEditContentDirectory || (contentDirectorySelection === "custom" && !contentDirectoryDraft.trim()) || (contentMigrationMode === "archive" && !contentArchivePath.trim()) || (contentMigrationMode === "adopt" && !(contentComparison?.matching && contentComparison.targetDirectory.toLocaleLowerCase() === selectedContentDirectory().toLocaleLowerCase()))} onClick={() => void saveContentStorageSelection()}>{contentStorageAction === "save" || contentStorageAction === "import" ? "正在迁移并校验…" : contentMigrationMode === "adopt" ? "核对并切换位置" : contentMigrationMode === "archive" ? "导入 ZIP 并切换" : "复制并切换位置"}</Button>
             </div>}
           </div>
         </SettingGroup> : null}
@@ -3110,24 +3161,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             <SettingRow title="Steam 游戏所属节点" description="默认在该节点 data/games/steamcmd；展示现有真实配置，不能用控制端盘符代替远端位置。"><Select value={selectedSteamcmdStorageNodeId || "__defaults__"} options={[{value:"__defaults__",label:"默认目录"},...steamcmdNodes.map(node=>({value:node.id,label:node.displayName}))]} onChange={selectSteamcmdStorageNode}/></SettingRow>
             <SettingRow title="Steam 游戏目录" description="游戏文件继续留在其所属节点，已有位置不自动搬迁。"><Typography.Text code copyable>{displaySteamcmdPath(selectedSteamcmdStorageNode,steamcmdStorageDraft.gameDirectory)}</Typography.Text></SettingRow>
           </SettingGroup>
-          {user.role!=="member"?<RuntimeStorageSettings/>:null}
-          <SettingGroup title="data 内的目录结构">
-            <Typography.Paragraph className="settings-storage-note" type="secondary">以下是当前生效目录的子目录，会随数据根统一管理，无需单独设置。</Typography.Paragraph>
-            {projectStorageLocations ? <>
-              <div className="settings-storage-folders">
-              {([
-                ["runtimeDirectory", "运行环境", "environments"], ["logsDirectory", "控制端日志", "logs"],
-                ["downloadCacheDirectory", "下载缓存", "cache"], ["temporaryDirectory", "临时文件", "tmp"]] as const).map(([field, title, child]) => <div className="settings-storage-folder" key={field}><div><Typography.Text strong>{title}</Typography.Text><Typography.Text type="secondary">{child}/</Typography.Text></div><Typography.Text code copyable>{projectStorageLocations[field]}</Typography.Text>{user.role === "super_admin" && settings.permissions.mode === "full_access" ? <Button size="small" disabled={!dataDirectorySettings} onClick={() => browseSavedStorage(projectStorageLocations[field])}>浏览</Button> : null}</div>)}
-              </div>
-              <div className="settings-storage-note"><Typography.Paragraph>游戏 games · 备份 backups · 工具 lib · 插件私有数据 plugins/runtime-data</Typography.Paragraph><Typography.Text type="secondary">作品、资料与会话按账户隔离保存。插件包安装在独立的 LFAA_HOME，不随此数据根迁移；游戏文件由所属节点管理，旧的已登记位置继续读取，不自动搬迁。</Typography.Text></div>
-            </> : <SettingRow title="分类目录" description="正在读取统一数据根的分类位置。"><Tag>读取中</Tag></SettingRow>}
-          </SettingGroup>
         </> : null}
-        <SettingGroup title="控制端数据">
-          <SettingRow title="账户与设置数据库" description="保存账户、会话、用户偏好和加密后的 AI Provider 配置。" status={health?.persistence === "ready" ? "已连接" : "不可用"}><Tag>{health?.persistence === "ready" ? "SQLite · 已连接" : "SQLite · 未连接"}</Tag></SettingRow>
-          <SettingRow title="游戏服务器文件" description="SteamCMD、Minecraft 实例、Java 环境、插件、日志和备份由各自 Daemon 节点管理；应用存储设置决定新内容使用的默认目录。" status="按节点管理"><Tag>节点数据目录</Tag></SettingRow>
-          {!canAdmin ? <SettingRow title="本机数据位置" description="由管理员在本页“控制端本机存储位置”配置；普通账户不会收到主机绝对路径。" status="管理员管理"><Tag>按控制端设置</Tag></SettingRow> : null}
-        </SettingGroup>
       </section>
     );
 
@@ -3315,13 +3349,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
     return (
       <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">运行信息</span><Typography.Title level={2}>开发者</Typography.Title><Typography.Paragraph>查看客户端与控制端连接状态。</Typography.Paragraph></div><Button onClick={() => void refreshHealth()}>刷新状态</Button></header>
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">运行信息</span><Typography.Title level={2}>开发者</Typography.Title><Typography.Paragraph>查看客户端与控制端连接状态。</Typography.Paragraph></div><Button onClick={() => void refreshDeveloperStatus()}>刷新状态</Button></header>
         <SettingGroup title="运行环境">
           <SettingRow title="项目版本" description="LFAA 当前项目版本。" status="当前版本"><Tag>LFAA {lfaaProjectBuildInfo?.currentVersion ?? "未知"}</Tag></SettingRow>
           <SettingRow title="控制端" description={health?.timestamp ? `最近检查：${new Date(health.timestamp).toLocaleString("zh-CN")}` : "尚未获取检查时间。"} status={serverState === "checking" ? "检查中" : health?.status === "ok" ? "运行中" : "未连接"}><Tag color={health?.status === "ok" ? "green" : "red"}>{serverState === "checking" ? "检查中" : health?.status === "ok" ? "在线" : "离线"}</Tag></SettingRow>
           <SettingRow title="当前客户端" description={`${navigator.platform} · ${window.location.origin}`} status="已连接"><Tag>Web 界面</Tag></SettingRow>
         </SettingGroup>
-        <div className="settings-note-card"><strong>诊断信息</strong><p>日志、运行时配置编辑和开发工具暂未接入设置中心。密钥与本机绝对路径不会显示在浏览器诊断信息中。</p></div>
+        <div className="settings-note-card"><strong>诊断信息</strong><p>日志、运行时配置编辑和开发工具暂未接入设置中心。仅管理员可查看存储路径；密钥不会显示在诊断信息中。</p></div>
       </section>
     );
   })();

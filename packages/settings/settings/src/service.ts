@@ -90,6 +90,7 @@ function readGeneralSettings(value: Record<string, unknown>): GeneralSettings | 
     followupBehavior: choose(value.followupBehavior, ["queue", "steer"], defaults.followupBehavior),
     popupShortcut: typeof value.popupShortcut === "string" && value.popupShortcut.length <= 48 ? value.popupShortcut : defaults.popupShortcut,
     defaultStandaloneChat: typeof value.defaultStandaloneChat === "boolean" ? value.defaultStandaloneChat : defaults.defaultStandaloneChat,
+    notificationPopupsEnabled: typeof value.notificationPopupsEnabled === "boolean" ? value.notificationPopupsEnabled : defaults.notificationPopupsEnabled,
     completionNotification: choose(value.completionNotification, ["always", "unfocused", "never"], defaults.completionNotification),
     permissionNotifications: typeof value.permissionNotifications === "boolean" ? value.permissionNotifications : defaults.permissionNotifications,
     questionNotifications: typeof value.questionNotifications === "boolean" ? value.questionNotifications : defaults.questionNotifications,
@@ -302,7 +303,7 @@ export function saveUserSettings(
 ): void {
   // 旧客户端提交整类设置时保留后来新增的字段，显式提交仍采用用户新值。
   const submitted = value as unknown as Record<string, unknown>;
-  if (category === "general" && (!Object.hasOwn(submitted, "cardMotionEffect") || !Object.hasOwn(submitted, "dialogMotionEffect") || !Object.hasOwn(submitted, "defaultAdminCredentialReminderEnabled"))) {
+  if (category === "general" && (!Object.hasOwn(submitted, "cardMotionEffect") || !Object.hasOwn(submitted, "dialogMotionEffect") || !Object.hasOwn(submitted, "defaultAdminCredentialReminderEnabled") || !Object.hasOwn(submitted, "notificationPopupsEnabled"))) {
     value = { ...getUserSettings(userId).general, ...submitted } as GeneralSettings;
   }
   if (category === "plugins") value = { ...getUserSettings(userId).plugins, ...submitted } as PluginSettings;

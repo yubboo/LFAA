@@ -36,7 +36,7 @@
         color-scheme: dark;
         background-color: #181818;
       }
-      /* 刷新时短暂复用同路由的公开背景；CSS 变量只存内置图片路径，工作台挂载后由真实主题接管。 */
+      /* 首帧复用公开壁纸与账户遮罩；变量保存含主题遮罩的背景图层，工作台挂载后与其令牌连续交接。 */
       html[data-lfaa-bootstrap-canvas="true"]:not(:has(.workbench-shell)) body {
         background-image: var(--lfaa-bootstrap-canvas-image, none);
         background-position: center;
@@ -54,15 +54,18 @@
         document.documentElement.dataset.lfaaBootstrapTheme = theme;
         document.documentElement.style.colorScheme = theme;
         document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#181818" : "#f3f5f8");
-        const canvasRaw = window.sessionStorage.getItem("lfaa.appearance-canvas-bootstrap.v1");
+        const canvasRaw = window.sessionStorage.getItem("lfaa.appearance-canvas-bootstrap.v2");
         if (canvasRaw) {
           const canvas = JSON.parse(canvasRaw);
           const safeRoute = typeof canvas.route === "string" && canvas.route === window.location.pathname;
           const safeBackground = typeof canvas.background === "string"
             && /^\/(?:images\/minecraft|backgrounds)\/[A-Za-z0-9/_-]+\.(?:png|jpe?g|webp)$/i.test(canvas.background);
-          if (safeRoute && safeBackground) {
+          const safeOverlay = Number.isInteger(canvas.overlay) && canvas.overlay >= 0 && canvas.overlay <= 75;
+          if (safeRoute && safeBackground && safeOverlay) {
+            const maskColor = isDark ? "24, 24, 24" : "255, 255, 255";
+            const mask = `rgba(${maskColor}, ${canvas.overlay / 100})`;
             document.documentElement.dataset.lfaaBootstrapCanvas = "true";
-            document.documentElement.style.setProperty("--lfaa-bootstrap-canvas-image", `url("${canvas.background}")`);
+            document.documentElement.style.setProperty("--lfaa-bootstrap-canvas-image", `linear-gradient(${mask}, ${mask}), url("${canvas.background}")`);
           }
         }
       } catch {

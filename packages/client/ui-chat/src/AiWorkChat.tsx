@@ -1083,6 +1083,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
                 title: "回复已完成",
                 body: `${applicationNameFor(appId)} 会话已完成回复，点击查看。`
               },
+              enabled: settings.general.notificationPopupsEnabled,
               policy: settings.general.completionNotification,
               sound: settings.general.notificationSound,
               onNotification
@@ -1163,6 +1164,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
     notifiedTurnEvents.current.add(key);
     notifyAiWorkAction({
       notification: { appId, applicationName: applicationNameFor(appId), sessionId, kind, title, body },
+      enabled: settings.general.notificationPopupsEnabled,
       sound: settings.general.notificationSound,
       onNotification
     });

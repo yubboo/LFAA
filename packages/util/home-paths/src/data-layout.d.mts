@@ -8,7 +8,6 @@ export interface DataPaths {
   games: string;
   environments: string;
   lib: string;
-  plugins: string;
   cache: string;
   tmp: string;
   logs: string;

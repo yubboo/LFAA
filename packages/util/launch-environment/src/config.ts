@@ -11,18 +11,14 @@ import { findRepositoryRoot } from "lfaa-home-paths/src/index.mjs";
 import Joi from "joi";
 import { randomBytes } from "node:crypto";
 import { resolveDataDirectory, resolveHomeDirectory } from "lfaa-home-paths/src/resolve-data-directory.mjs";
-import { ensureDataDirectories } from "lfaa-home-paths/src/data-layout.mjs";
+import { ensureDataDirectories, resolveDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
 
 const repositoryRoot = findRepositoryRoot(import.meta.url);
 const environmentFile = resolve(repositoryRoot, ".env");
 // 保留 .env 加载前的值，以区分部署显式覆盖和项目启动器注入的解析结果。
 const externallyConfiguredDataDirectory = process.env.LFAA_DATA_DIR?.trim() ?? "";
 const dataDirectoryWasResolvedByProjectLauncher = process.env.LFAA_DATA_DIR_MANAGED_BY_LAUNCHER === "1";
-const fullLauncherSupportsDataDirectoryMigration = process.env.LFAA_DATA_DIRECTORY_MIGRATION_SUPPORTED === "1";
 const dataDirectoryWasResolvedByDesktopShell = process.env.LFAA_DATA_DIR_MANAGED_BY_DESKTOP === "1";
-const desktopShellSupportsDataDirectoryMigration = process.env.LFAA_DESKTOP_MODE === "true"
-  && process.env.LFAA_DATA_DIRECTORY_MIGRATION_SUPPORTED === "1"
-  && dataDirectoryWasResolvedByDesktopShell;
 const dataDirectoryIsExternallyManaged = Boolean(externallyConfiguredDataDirectory)
   && !dataDirectoryWasResolvedByProjectLauncher
   && !dataDirectoryWasResolvedByDesktopShell;
@@ -89,22 +85,11 @@ const environment = validation.value as ParsedEnvironment;
 // 本机 CLI 只在回环监听地址使用持久签名密钥；外部监听仍遵循生产部署配置要求。
 const loopbackHost = environment.SERVER_HOST.toLocaleLowerCase();
 const localCliMode = environment.LFAA_LOCAL_MODE && isLoopbackHost(loopbackHost);
-const dataDirectoryChangeSupported = process.platform === "win32"
-  && ((localCliMode && fullLauncherSupportsDataDirectoryMigration && dataDirectoryWasResolvedByProjectLauncher)
-    || (environment.NODE_ENV === "development"
-    && fullLauncherSupportsDataDirectoryMigration
-    && (!externallyConfiguredDataDirectory || dataDirectoryWasResolvedByProjectLauncher))
-    || (environment.LFAA_DESKTOP_MODE && desktopShellSupportsDataDirectoryMigration
-      && (!externallyConfiguredDataDirectory || dataDirectoryWasResolvedByDesktopShell)));
+// 系统账户/Provider/会话根固定由本机部署配置管理；可迁移的数据只在 Settings 的业务内容 Owner 中操作。
+const dataDirectoryChangeSupported = false;
 const dataDirectoryChangeUnavailableReason = dataDirectoryIsExternallyManaged
   ? "LFAA_DATA_DIR 由启动进程的环境变量显式指定；请修改该部署配置。"
-  : environment.NODE_ENV === "production"
-    ? environment.LFAA_DESKTOP_MODE
-      ? "桌面端数据位置由平台外壳管理；请重启 LFAA 桌面程序后再修改。"
-      : "服务器数据目录由部署环境配置管理；Linux 服务请在持久化卷上设置绝对路径 LFAA_DATA_DIR。"
-    : process.platform !== "win32"
-      ? "当前运行环境不支持通过设置页迁移数据目录；请在启动环境中配置 LFAA_DATA_DIR。"
-      : "请通过项目启动器完整启动 Windows 开发服务后，再从设置页修改；完整启动器会在服务停止后执行数据迁移。";
+  : "系统账户数据位置由本机启动配置管理；设置中心的迁移只作用于游戏、小说与漫剧业务 data。";
 // 未配置时使用系统账户持久目录；显式生产部署路径仍必须为绝对路径，避免数据依赖启动工作目录。
 if (environment.NODE_ENV === "production" && !localCliMode && environment.LFAA_DATA_DIR && !isAbsolute(environment.LFAA_DATA_DIR)) {
   throw new Error("生产环境必须将 LFAA_DATA_DIR 配置为绝对路径并指向持久化目录。");
@@ -180,9 +165,14 @@ function isWithinDirectory(parentDirectory: string, candidateDirectory: string):
 
 const homeDirectory = resolveHomeDirectory(repositoryRoot, environment.LFAA_HOME);
 const dataDirectory = resolveDataDirectory(repositoryRoot, environment.LFAA_DATA_DIR, { lfaaHome: homeDirectory });
-const pluginInstallDirectory = resolve(homeDirectory, "plugins");
-if (isWithinDirectory(pluginInstallDirectory, dataDirectory) || isWithinDirectory(dataDirectory, pluginInstallDirectory)) {
-  throw new Error("LFAA_DATA_DIR 与 LFAA_HOME/plugins 不能相互嵌套；请把用户数据根放在插件安装目录之外。");
+const defaultBusinessContentDirectory = resolve(homeDirectory, "data");
+const pluginInstallDirectory = resolve(homeDirectory, "profiles");
+const systemDirectories = resolve(dataDirectory) === resolve(homeDirectory)
+  ? Object.entries(resolveDataPaths(dataDirectory)).filter(([name]) => name !== "root").map(([, path]) => path)
+  : [dataDirectory];
+if (systemDirectories.some(path => isWithinDirectory(path, defaultBusinessContentDirectory) || isWithinDirectory(defaultBusinessContentDirectory, path))
+  || isWithinDirectory(pluginInstallDirectory, defaultBusinessContentDirectory) || isWithinDirectory(defaultBusinessContentDirectory, pluginInstallDirectory)) {
+  throw new Error("LFAA_HOME/data 必须避开系统数据分类目录与 LFAA_HOME/profiles；请分别选择目录。");
 }
 
 mkdirSync(dataDirectory, { recursive: true });

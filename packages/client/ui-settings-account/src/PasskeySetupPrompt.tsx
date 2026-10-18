@@ -11,6 +11,7 @@ import { loadPasskeyAvailability, loadUserPasskeys, type User } from "lfaa-clien
 interface PasskeySetupPromptProps {
   user: User;
   isSettingsPage: boolean;
+  notificationPopupsEnabled: boolean;
   onOpenSettings: (section: "account") => void;
 }
 
@@ -26,7 +27,7 @@ function wasDismissed(userId: string): boolean {
   }
 }
 
-export function PasskeySetupPrompt({ user, isSettingsPage, onOpenSettings }: PasskeySetupPromptProps) {
+export function PasskeySetupPrompt({ user, isSettingsPage, notificationPopupsEnabled, onOpenSettings }: PasskeySetupPromptProps) {
   const [open, setOpen] = useState(false);
   const dismissedRef = useRef(false);
   const dismissedUserIdRef = useRef(user.id);
@@ -37,7 +38,7 @@ export function PasskeySetupPrompt({ user, isSettingsPage, onOpenSettings }: Pas
       dismissedUserIdRef.current = user.id;
       dismissedRef.current = false;
     }
-    if (isSettingsPage || dismissedRef.current || wasDismissed(user.id)) return;
+    if (!notificationPopupsEnabled || isSettingsPage || dismissedRef.current || wasDismissed(user.id)) return;
 
     let active = true;
     const timer = window.setTimeout(() => {
@@ -53,7 +54,7 @@ export function PasskeySetupPrompt({ user, isSettingsPage, onOpenSettings }: Pas
       active = false;
       window.clearTimeout(timer);
     };
-  }, [isSettingsPage, user.id]);
+  }, [isSettingsPage, notificationPopupsEnabled, user.id]);
 
   function dismiss(): void {
     dismissedRef.current = true;
@@ -73,7 +74,7 @@ export function PasskeySetupPrompt({ user, isSettingsPage, onOpenSettings }: Pas
   return (
     <Modal
       title="使用通行密钥保护账户"
-      open={open}
+      open={notificationPopupsEnabled && open}
       onCancel={dismiss}
       getContainer={() => document.querySelector<HTMLElement>(".workbench-shell") ?? document.body}
       footer={<Space wrap>

@@ -19,7 +19,7 @@ process.env.JWT_SECRET = '';
 const { PluginManager } = await import('lfaa-plugin-manager/src/index.js');
 const { config } = await import('lfaa-launch-environment/src/config.js');
 config.dataDirectory = data;
-config.pluginInstallDirectory = join(data, 'plugin-install');
+config.pluginInstallDirectory = join(data, 'profiles');
 const { readGithubZip } = await import('lfaa-plugin-manager/src/zip-archive.js');
 const { readNpmTarGzip } = await import('lfaa-plugin-manager/src/npm-archive.js');
 const originalFetch = globalThis.fetch;
@@ -123,7 +123,10 @@ test.after(async () => {
 });
 
 test('仓库插件安装固定到提交并保留真实的不兼容状态', async () => {
-  const manager = new PluginManager('web', data);
+  const defaultManager = new PluginManager('default-profile');
+  assert.equal(defaultManager.installationDirectory, resolve(config.pluginInstallDirectory, 'default-profile'), '默认路径必须来自 LFAA_HOME/Profile 设置，不从 LFAA_DATA_DIR 推导');
+  const manager = new PluginManager('web', join(data, 'profiles'));
+  assert.equal(manager.installationDirectory, resolve(data, 'profiles', 'web'));
   const candidates = await manager.search('wallpaper');
   assert.equal(candidates[0].fullName, 'acme/demo');
   assert.equal(candidates[0].requiresInspection, true);
@@ -148,11 +151,11 @@ test('仓库插件安装固定到提交并保留真实的不兼容状态', async
   assert.deepEqual(installed.applicationIds, ['workspace']);
   assert.equal(installed.source.commit, commit);
   assert.equal(installed.source.archiveSha256, createHash('sha256').update(archive).digest('hex'));
-  assert.equal(readFileSync(resolve(data, 'plugins/profiles/web/acme-demo/cordis.patch.yml'), 'utf8'), '# fixture');
+  assert.equal(readFileSync(resolve(data, 'profiles/web/acme-demo/cordis.patch.yml'), 'utf8'), '# fixture');
   assert.deepEqual(manager.list().map(item => item.id), ['acme-demo']);
   await assert.rejects(manager.setEnabled('acme-demo', true), error => error.code === 'plugin_runtime_unsupported');
   assert.equal(manager.get('acme-demo').state, 'incompatible');
-  assert.deepEqual(new PluginManager('desktop', data).list(), []);
+  assert.deepEqual(new PluginManager('desktop', join(data, 'profiles')).list(), []);
 
   await manager.install('https://github.com/acme/demo', sourceRef, 'admin-fixture');
   assert.equal(manager.list().length, 1);
@@ -161,7 +164,7 @@ test('仓库插件安装固定到提交并保留真实的不兼容状态', async
 });
 
 test('复制的 DSH 示例 Bundle 通过静态来源检查后仍被隔离且不能启用', async () => {
-  const manager = new PluginManager('dsh-example', data);
+  const manager = new PluginManager('dsh-example', join(data, 'profiles'));
   const source = fileURLToPath(new URL('./fixtures/dsh-bundle-example', import.meta.url));
   const inspected = await manager.inspect(source);
 
@@ -182,7 +185,7 @@ test('复制的 DSH 示例 Bundle 通过静态来源检查后仍被隔离且不�
 });
 
 test('Wallpaper Engine 只允许停用后经重新检查替换同一官方插件，并保留运行数据', async () => {
-  const manager = new PluginManager('wallpaper-update', data);
+  const manager = new PluginManager('wallpaper-update', join(data, 'profiles'));
   let active = false;
   manager.registerRuntimeAdapter({
     supports: plugin => plugin.id === 'elysia395-dsh-wallpaper-engine' && plugin.name === 'dsh-plugin-wallpaper-engine'
@@ -225,7 +228,7 @@ test('Wallpaper Engine 只允许停用后经重新检查替换同一官方插件
   assert.equal(manager.get(installed.id).source.commit, originalCommit, 'an enabled plugin is never replaced in place');
   await manager.setEnabled(installed.id, false);
 
-  const runtimeData = resolve(data, 'plugins/runtime-data/profiles/wallpaper-update/dsh-plugin-wallpaper-engine');
+  const runtimeData = resolve(data, 'profiles/wallpaper-update/runtime-data/dsh-plugin-wallpaper-engine');
   const userFile = resolve(runtimeData, 'settings.json');
   mkdirSync(runtimeData, { recursive: true });
   writeFileSync(userFile, '{"playlist":"preserved"}');
@@ -234,7 +237,7 @@ test('Wallpaper Engine 只允许停用后经重新检查替换同一官方插件
   assert.equal(updated.version, '1.3.0');
   assert.equal(updated.source.commit, wallpaperCommit);
   assert.equal(updated.state, 'installed', 'updates remain disabled until explicitly enabled');
-  assert.equal(JSON.parse(readFileSync(resolve(data, 'plugins/profiles/wallpaper-update/elysia395-dsh-wallpaper-engine/package.json'), 'utf8')).version, '1.3.0');
+  assert.equal(JSON.parse(readFileSync(resolve(data, 'profiles/wallpaper-update/elysia395-dsh-wallpaper-engine/package.json'), 'utf8')).version, '1.3.0');
   assert.equal(readFileSync(userFile, 'utf8'), '{"playlist":"preserved"}', 'Profile runtime data is outside the replaceable source directory');
 });
 
@@ -244,7 +247,7 @@ test('对话安装自动启用兼容插件、更新后保持停用，启用失�
   const previousArchive = wallpaperArchive;
   let active = false;
   let failEnable = false;
-  const manager = new PluginManager('capability-lifecycle', data);
+  const manager = new PluginManager('capability-lifecycle', join(data, 'profiles'));
   manager.registerRuntimeAdapter({
     supports: plugin => plugin.id === 'elysia395-dsh-wallpaper-engine' && plugin.name === 'dsh-plugin-wallpaper-engine'
       && plugin.compatibility === 'dsh-v1' && plugin.source.repository.toLowerCase() === wallpaperRepository,
@@ -267,7 +270,7 @@ test('对话安装自动启用兼容插件、更新后保持停用，启用失�
 
     active = false; // Simulate process exit without changing the persisted enabled flag.
     let restoredActive = false;
-    const restartedManager = new PluginManager('capability-lifecycle', data);
+    const restartedManager = new PluginManager('capability-lifecycle', join(data, 'profiles'));
     restartedManager.registerRuntimeAdapter({
       supports: plugin => plugin.id === 'elysia395-dsh-wallpaper-engine' && plugin.name === 'dsh-plugin-wallpaper-engine'
         && plugin.compatibility === 'dsh-v1' && plugin.source.repository.toLowerCase() === wallpaperRepository,
@@ -291,7 +294,7 @@ test('对话安装自动启用兼容插件、更新后保持停用，启用失�
     assert.equal(updated.activationRequired, false, 'a new revision follows the existing disabled-after-update contract');
     assert.equal(active, false);
 
-    const failing = new PluginManager('capability-activation-failure', data);
+    const failing = new PluginManager('capability-activation-failure', join(data, 'profiles'));
     failEnable = true;
     failing.registerRuntimeAdapter({
       supports: plugin => plugin.id === 'elysia395-dsh-wallpaper-engine' && plugin.compatibility === 'dsh-v1',
@@ -313,7 +316,7 @@ test('对话安装自动启用兼容插件、更新后保持停用，启用失�
 });
 
 test('GitHub 源码缺少发布构建文件时，仅复用 gitHead 完全匹配且通过 SRI 校验的官方 NPM tarball', async () => {
-  const manager = new PluginManager('published', data);
+  const manager = new PluginManager('published', join(data, 'profiles'));
   const inspected = await manager.inspect('https://github.com/acme/published', sourceRef);
   assert.equal(inspected.resolvedCommit, commit);
   assert.equal(inspected.requirements.hostEntry, 'lib/index.js');
@@ -321,13 +324,13 @@ test('GitHub 源码缺少发布构建文件时，仅复用 gitHead 完全匹配�
   assert.equal(inspected.archiveSha256, createHash('sha256').update(publishedTarball).digest('hex'));
   const installed = await manager.install('https://github.com/acme/published', sourceRef, 'admin-fixture');
   assert.equal(installed.source.commit, commit);
-  assert.equal(readFileSync(resolve(data, 'plugins/profiles/published/acme-published/lib/client.js'), 'utf8'), 'export function apply() {}');
-  assert.equal(readFileSync(resolve(data, 'plugins/profiles/published/acme-published/package.json'), 'utf8'), publishedPackageJson);
+  assert.equal(readFileSync(resolve(data, 'profiles/published/acme-published/lib/client.js'), 'utf8'), 'export function apply() {}');
+  assert.equal(readFileSync(resolve(data, 'profiles/published/acme-published/package.json'), 'utf8'), publishedPackageJson);
   assert.equal(installed.state, 'incompatible', 'verified package files do not imply a loaded runtime');
 });
 
 test('NPM 发布产物的 gitHead 或 SHA-512 SRI 不匹配时拒绝补齐', async () => {
-  const manager = new PluginManager('published-mismatch', data);
+  const manager = new PluginManager('published-mismatch', join(data, 'profiles'));
   publishedGitHead = 'b'.repeat(40);
   await assert.rejects(manager.inspect('https://github.com/acme/published', sourceRef), /gitHead/u);
   publishedGitHead = commit;
@@ -349,7 +352,7 @@ test('NPM 发布产物的 gitHead 或 SHA-512 SRI 不匹配时拒绝补齐', asy
 });
 
 test('同一管理器识别非 DSH 的 LFAA 插件合同，并在重启后清除过期启用记录', async () => {
-  const manager = new PluginManager('generic', data);
+  const manager = new PluginManager('generic', join(data, 'profiles'));
   const inspected = await manager.inspect('https://github.com/acme/generic', sourceRef);
   assert.equal(inspected.id, 'generic-sample');
   assert.equal(inspected.compatibility, 'lfaa-v1');
@@ -363,13 +366,13 @@ test('同一管理器识别非 DSH 的 LFAA 插件合同，并在重启后清除
   assert.equal(manager.get('generic-sample').state, 'enabled');
   assert.equal((await manager.install('https://github.com/acme/generic', sourceRef, 'admin-fixture')).state, 'enabled', '重复安装返回当前真实运行状态');
 
-  const inventoryPath = resolve(data, 'plugins/profiles/generic/inventory.json');
+  const inventoryPath = resolve(data, 'profiles/generic/inventory.json');
   const legacyInventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
   legacyInventory.version = 1;
   delete legacyInventory.plugins[0].runtimeEntry;
   delete legacyInventory.plugins[0].applicationIds;
   writeFileSync(inventoryPath, JSON.stringify(legacyInventory), 'utf8');
-  const restartedManager = new PluginManager('generic', data);
+  const restartedManager = new PluginManager('generic', join(data, 'profiles'));
   restartedManager.registerRuntimeAdapter(adapter);
   assert.equal(restartedManager.get('generic-sample').state, 'installed');
   assert.equal((await restartedManager.setEnabled('generic-sample', false)).state, 'installed');
@@ -397,7 +400,7 @@ test('NPM TAR 解包拒绝路径穿越与符号链接', () => {
 });
 
 test('三类插件来源固定版本；NPM 校验摘要，本机目录与 tarball 固定 Host 内容', async () => {
-  const manager = new PluginManager('install-sources', data);
+  const manager = new PluginManager('install-sources', join(data, 'profiles'));
   const npmInspection = await manager.inspect(`${registrySourcePackageName}@1.0.0`);
   assert.equal(npmInspection.sourceType, 'npm');
   assert.equal(npmInspection.sourceLocation, `npm:${registrySourcePackageName}`);
@@ -444,7 +447,7 @@ test('三类插件来源固定版本；NPM 校验摘要，本机目录与 tarbal
 });
 
 test('自定义 HTTPS registry 在检查与安装时保持同源并校验 SHA-512，回传真实安装阶段', async () => {
-  const manager = new PluginManager('web', data);
+  const manager = new PluginManager('web', join(data, 'profiles'));
   const inspected = await manager.inspect(customRegistryPackageName, '2.1.0', 'workspace', customRegistryUrl);
   assert.equal(inspected.sourceType, 'npm');
   assert.equal(inspected.registryUrl, customRegistryUrl);
@@ -463,13 +466,13 @@ test('自定义 HTTPS registry 在检查与安装时保持同源并校验 SHA-51
 });
 
 test('安装器拒绝缺少 LFAA/DSH 合同的普通仓库', async () => {
-  const manager = new PluginManager('unsupported', data);
+  const manager = new PluginManager('unsupported', join(data, 'profiles'));
   await assert.rejects(manager.install('https://github.com/acme/unsupported', sourceRef, 'admin-fixture'), error => error.code === 'plugin_contract_unsupported');
   assert.deepEqual(manager.list(), []);
 });
 
 test('插件适配器按目标 App 隔离；旧记录迁移为原有全 App 范围', async () => {
-  const manager = new PluginManager('app-scope', data);
+  const manager = new PluginManager('app-scope', join(data, 'profiles'));
   const inspected = await manager.inspect('https://github.com/acme/generic', sourceRef, 'minecraft');
   assert.deepEqual(inspected.applicationIds, ['minecraft']);
   const installed = await manager.install('https://github.com/acme/generic', sourceRef, 'admin-fixture', 'minecraft');

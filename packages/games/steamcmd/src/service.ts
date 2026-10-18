@@ -8,7 +8,8 @@ import { win32 } from "node:path";
 import { protectedDataDirectories } from "lfaa-home-paths/src/reserved-data-paths.mjs";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { configuration } from "lfaa-storage-domain/src/configuration.js";
-import { getDaemonNode } from "lfaa-host-daemon/src/local-daemon.js";
+import { getDaemonDataRoot, getDaemonNode } from "lfaa-host-daemon/src/local-daemon.js";
+import { getLocalProjectContentPath } from "lfaa-settings/src/project-storage.js";
 
 const taskLeaseDurationMilliseconds = 30_000;
 
@@ -223,7 +224,11 @@ export function getSteamcmdNodeConfiguration(nodeId: string): SteamcmdConfigurat
 export function getSteamcmdNodeStorageSettings(nodeId: string): SteamcmdStorageNodeSettings {
   const row = readStorageRow(nodeId);
   const defaults = getSteamcmdStorageDefaults().settings;
-  return { nodeId, gameDirectory: row?.game_directory ?? defaults.gameDirectory };
+  const configuredDirectory = row?.game_directory ?? defaults.gameDirectory;
+  const localContentDirectory = !row && !win32.isAbsolute(configuredDirectory)
+    ? getLocalProjectContentPath(getDaemonDataRoot(nodeId), configuredDirectory)
+    : null;
+  return { nodeId, gameDirectory: validateSteamcmdGameDirectory(localContentDirectory ?? configuredDirectory) };
 }
 
 export function getSteamcmdNodeSettings(nodeId: string): SteamcmdNodeSettings {

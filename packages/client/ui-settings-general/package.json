@@ -14,6 +14,7 @@
     "antd": "^5.0.0",
     "lfaa-client-connection": "workspace:*",
     "lfaa-client-modules": "workspace:*",
+    "lfaa-client-ui-primitives": "workspace:*",
     "react": "^18.0.0",
     "lfaa-util-values": "workspace:*"
   },

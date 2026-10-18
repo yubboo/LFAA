@@ -1,6 +1,6 @@
 /**
- * 功能：列出既有 LFAA_DATA_DIR 内的用户数据分类目录。
- * 作用：插件包安装由 LFAA_HOME 管理；此处 plugins 仅承载随数据迁移的插件私有运行数据。
+ * 功能：列出既有 LFAA_DATA_DIR 内的系统数据分类目录。
+ * 作用：游戏、小说与漫剧业务内容由 Settings 内容根管理；插件包、适配副本和私有运行数据由 LFAA_HOME/Profile 与对应 Plugin Runtime 管理。
  * 关联文件：storage-domain、settings、workflow、knowledge-library。
  */
 import { createHash } from "node:crypto";
@@ -9,7 +9,7 @@ import { resolve } from "node:path";
 import { protectPrivateDirectory } from "./private-directory.mjs";
 
 const dataDirectoryKeys = Object.freeze([
-  "database", "users", "sessions", "credentials", "games", "environments", "lib", "plugins",
+  "database", "users", "sessions", "credentials", "games", "environments", "lib",
   "cache", "tmp", "logs", "backups", "models", "connectivity", "storages"
 ]);
 
@@ -25,7 +25,6 @@ export function resolveDataPaths(dataDirectory) {
     games: path("games"),
     environments: path("environments"),
     lib: path("lib"),
-    plugins: path("plugins"),
     cache: path("cache"),
     tmp: path("tmp"),
     logs: path("logs"),

@@ -179,7 +179,7 @@ async function prepareRuntime() {
 
   await copyDirectory(webBuild, resolve(runtimeRoot, "dist", "apps", "web"));
   await copyDirectory(controlPlaneBuild, resolve(runtimeRoot, "dist", "apps", "control-plane"));
-  for (const filename of ["resolve-data-directory.mjs", "apply-data-directory-migration.mjs", "extract-data-directory-archive.ps1", "get-project-drive-type.ps1"]) {
+  for (const filename of ["resolve-data-directory.mjs", "apply-data-directory-migration.mjs", "extract-data-directory-archive.ps1", "create-business-content-archive.ps1", "extract-business-content-archive.ps1", "get-project-drive-type.ps1"]) {
     await cp(resolve(repositoryRoot, "scripts", filename), resolve(runtimeRoot, "scripts", filename));
   }
   for (const filename of ["package.json", "register-package-loader.mjs", "package-loader.mjs"]) {

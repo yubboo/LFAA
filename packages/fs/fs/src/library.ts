@@ -87,7 +87,6 @@ export class SystemFileLibrary {
       { id: "environments", name: "运行环境", root: saved.runtimeDirectory, description: "data/environments，跟随统一数据根" },
       { id: "lib", name: "工具目录", root: resolve(this.dataRoot, "lib"), description: "SteamCMD 等运行工具" },
       { id: "logs", name: "日志", root: saved.logsDirectory, description: "data/logs，跟随统一数据根" },
-      { id: "plugins", name: "扩展插件", root: resolve(this.dataRoot, "plugins"), description: "Harness / DSH 第三方扩展；安装、更新、启停和卸载由插件管理器处理" },
       { id: "cache", name: "缓存", root: saved.downloadCacheDirectory, description: "data/cache，跟随统一数据根，不自动清理" },
       { id: "tmp", name: "临时文件", root: saved.temporaryDirectory, description: "data/tmp，跟随统一数据根，不自动清理" }
     ];
@@ -107,7 +106,7 @@ export class SystemFileLibrary {
     const rel = relative(this.dataRoot, path);
     if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return;
     const segments = rel.split(sep).map(segment => segment.toLocaleLowerCase());
-    if (protectedDataDirectories.includes(segments[0] ?? "") || segments[0] === "plugins" && segments[1] === "runtime-data") throw new ApiError(403, "file_private_path", "该系统或插件私有数据由对应 Owner 管理。");
+    if (protectedDataDirectories.includes(segments[0] ?? "") || segments[0] === "plugins") throw new ApiError(403, "file_private_path", "该系统或旧插件私有数据由对应 Owner 管理。");
   }
   private async assertLocalMutable(path: string) {
     assertGameMetadataMutable(path);

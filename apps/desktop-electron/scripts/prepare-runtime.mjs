@@ -98,6 +98,8 @@ async function prepareRuntime() {
   await cp(resolve(repositoryRoot, "scripts", "resolve-data-directory.mjs"), resolve(runtimeRoot, "scripts", "resolve-data-directory.mjs"));
   await cp(resolve(repositoryRoot, "scripts", "apply-data-directory-migration.mjs"), resolve(runtimeRoot, "scripts", "apply-data-directory-migration.mjs"));
   await cp(resolve(repositoryRoot, "scripts", "extract-data-directory-archive.ps1"), resolve(runtimeRoot, "scripts", "extract-data-directory-archive.ps1"));
+  await cp(resolve(repositoryRoot, "scripts", "create-business-content-archive.ps1"), resolve(runtimeRoot, "scripts", "create-business-content-archive.ps1"));
+  await cp(resolve(repositoryRoot, "scripts", "extract-business-content-archive.ps1"), resolve(runtimeRoot, "scripts", "extract-business-content-archive.ps1"));
   await cp(resolve(repositoryRoot, "scripts", "get-project-drive-type.ps1"), resolve(runtimeRoot, "scripts", "get-project-drive-type.ps1"));
   await cp(resolve(repositoryRoot, "apps", "cli", "package.json"), resolve(runtimeRoot, "apps", "cli", "package.json"));
   await cp(resolve(repositoryRoot, "apps", "cli", "register-package-loader.mjs"), resolve(runtimeRoot, "apps", "cli", "register-package-loader.mjs"));
