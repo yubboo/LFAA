@@ -1914,32 +1914,10 @@
   line-height: 1.55;
 }
 
-/* 弹窗遮罩对后方设置页做中等强度模糊，保持弹窗内容清晰且可读。 */
-.settings-ai-provider-modal .ant-modal-mask {
-  background: rgba(11, 15, 24, .48);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-}
-
 .settings-ai-provider-modal .ant-modal-content {
   max-height: calc(100vh - 48px);
   max-height: calc(100dvh - 48px);
   overflow: hidden;
-  overflow-y: auto;
-  border: 1px solid var(--color-border);
-  border-radius: 18px;
-  background: var(--color-surface);
-  box-shadow: 0 24px 72px rgba(0, 0, 0, .22);
-}
-
-.settings-ai-provider-modal .ant-modal-header {
-  background: transparent;
-}
-
-.settings-ai-provider-modal .ant-modal-title {
-  color: var(--color-text-heading);
-  font-size: var(--font-size-lg);
-  font-weight: 700;
 }
 
 .ai-provider-modal__content {

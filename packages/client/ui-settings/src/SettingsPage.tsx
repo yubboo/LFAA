@@ -2100,8 +2100,23 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     insecure: "浏览器通知要求 HTTPS 或 localhost 安全连接。",
     unsupported: "此浏览器或桌面容器没有提供 Notifications API。"
   };
+  const notificationCategoryStatus = (enabled: boolean, enabledLabel = "已开启"): string => {
+    if (!enabled) return "已关闭";
+    return settings.general.notificationPopupsEnabled ? enabledLabel : `${enabledLabel}（总开关已暂停）`;
+  };
+  const completionNotificationLabel = settings.general.completionNotification === "always"
+    ? "始终提醒"
+    : "仅工作台未聚焦时提醒";
   const notificationGroup = (
     <SettingGroup title="LFAA 通知">
+      {!settings.general.notificationPopupsEnabled ? <Alert
+        className="settings-notification-paused"
+        type="warning"
+        showIcon
+        message="所有弹出提醒已暂停"
+        description="各类别开关和偏好仍保留。恢复总开关后，工作台提醒、系统通知和提示音会按原设置继续生效；会话中的审批与澄清卡片不受影响。"
+        action={<Button size="small" type="primary" onClick={() => updateGeneral({ notificationPopupsEnabled: true })}>恢复通知</Button>}
+      /> : null}
       <SettingRow title="通知总开关" description="关闭后停止工作台提醒、浏览器系统通知和通知提示音；会话里的审批与澄清卡片仍会保留。重新开启后，各类别开关按原设置生效。" status={settings.general.notificationPopupsEnabled ? "已开启" : "已关闭"}>
         <SettingsSwitch label="通知总开关" checked={settings.general.notificationPopupsEnabled} onChange={() => updateGeneral({ notificationPopupsEnabled: !settings.general.notificationPopupsEnabled })} />
       </SettingRow>
@@ -2109,28 +2124,28 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         {notificationPermission === "default" ? <Button onClick={() => void enableBrowserNotifications()}>启用通知</Button> : null}
         {notificationPermission === "granted" ? <Button onClick={sendNotificationTest} disabled={!settings.general.notificationPopupsEnabled}>发送测试通知</Button> : null}
       </SettingRow>
-      <SettingRow title="默认账户安全提醒" description="首次使用系统默认账户登录后，提醒你更改用户名和密码；修改完成或选择稍后再说后不会重复弹出。" status={settings.general.defaultAdminCredentialReminderEnabled ? "已开启" : "已关闭"}>
+      <SettingRow title="默认账户安全提醒" description="首次使用系统默认账户登录后，提醒你更改用户名和密码；修改完成或选择稍后再说后不会重复弹出。" status={notificationCategoryStatus(settings.general.defaultAdminCredentialReminderEnabled)}>
         <SettingsSwitch label="默认账户安全提醒" checked={settings.general.defaultAdminCredentialReminderEnabled} onChange={() => updateGeneral({ defaultAdminCredentialReminderEnabled: !settings.general.defaultAdminCredentialReminderEnabled })} />
       </SettingRow>
-      <SettingRow title="小鱼智能体 回复完成" description="回复完成后在工作台通知栏和右下角提醒；浏览器系统通知按下方策略投递。" status="已接入">
+      <SettingRow title="小鱼智能体 回复完成" description="回复完成后在工作台通知栏和右下角提醒；浏览器系统通知按下方策略投递。" status={notificationCategoryStatus(settings.general.completionNotification !== "never", completionNotificationLabel)}>
         <Select value={settings.general.completionNotification} options={[{ value: "always", label: "始终" }, { value: "unfocused", label: "仅在工作台未聚焦时" }, { value: "never", label: "关闭" }]} onChange={(value) => updateGeneral({ completionNotification: value })} />
       </SettingRow>
-      <SettingRow title="小鱼智能体 会话出错" description="回复生成失败时，在通知栏和右下角显示提醒；点击可返回出错的会话查看详情。" status={settings.general.sessionIssueNotifications ? "已开启" : "已关闭"}>
+      <SettingRow title="小鱼智能体 会话出错" description="回复生成失败时，在通知栏和右下角显示提醒；点击可返回出错的会话查看详情。" status={notificationCategoryStatus(settings.general.sessionIssueNotifications)}>
         <SettingsSwitch label="会话问题提醒" checked={settings.general.sessionIssueNotifications} onChange={() => updateGeneral({ sessionIssueNotifications: !settings.general.sessionIssueNotifications })} />
       </SettingRow>
-      <SettingRow title="首次配置提醒" description="当 AI Provider、SteamCMD 或业务内容存储位置尚未配置时，在工作台提示；完成配置后自动停止。关闭此项只停用首次配置提醒，不影响其他类别。" status={settings.general.setupReminderEnabled ? "已开启" : "已关闭"}>
+      <SettingRow title="首次配置提醒" description="当 AI Provider、SteamCMD 或业务内容存储位置尚未配置时，在工作台提示；完成配置后自动停止。关闭此项只停用首次配置提醒，不影响其他类别。" status={notificationCategoryStatus(settings.general.setupReminderEnabled)}>
         <SettingsSwitch label="首次配置提醒" checked={settings.general.setupReminderEnabled} onChange={() => updateGeneral({ setupReminderEnabled: !settings.general.setupReminderEnabled })} />
       </SettingRow>
       <SettingRow title="今日不再提醒" description="仅对当前账户和此浏览器生效，暂停到本地今天结束，明天自动恢复；不会更改各类别的长期开关。" status={!settings.general.notificationPopupsEnabled ? "通知总开关已关闭" : !settings.general.setupReminderEnabled ? "首次配置提醒已关闭" : setupReminderPausedToday ? "今日已暂停" : "今日未暂停"}>
         <SettingsSwitch label="今日不再提醒" checked={setupReminderPausedToday} disabled={!settings.general.notificationPopupsEnabled || !settings.general.setupReminderEnabled} onChange={() => updateSetupReminderSnooze(!setupReminderPausedToday)} />
       </SettingRow>
-      <SettingRow title="AI 工具权限请求" description="审批操作统一在当前 小鱼智能体 输入框上方处理；此开关控制通知栏和后台系统通知提醒，不会隐藏当前会话中的待处理审批。" status={settings.general.permissionNotifications ? "已开启" : "已关闭"}>
+      <SettingRow title="AI 工具权限请求" description="审批操作统一在当前 小鱼智能体 输入框上方处理；此开关控制通知栏和后台系统通知提醒，不会隐藏当前会话中的待处理审批。" status={notificationCategoryStatus(settings.general.permissionNotifications)}>
         <SettingsSwitch label="审批提醒" checked={settings.general.permissionNotifications} onChange={() => updateGeneral({ permissionNotifications: !settings.general.permissionNotifications })} />
       </SettingRow>
-      <SettingRow title="小鱼智能体 澄清问题" description="当模型判断关键信息不足时，可暂停当前任务并提供选项或自定义回答；此开关控制通知栏和后台系统通知，不会隐藏当前会话中的问题卡。" status={settings.general.questionNotifications ? "已开启" : "已关闭"}>
+      <SettingRow title="小鱼智能体 澄清问题" description="当模型判断关键信息不足时，可暂停当前任务并提供选项或自定义回答；此开关控制通知栏和后台系统通知，不会隐藏当前会话中的问题卡。" status={notificationCategoryStatus(settings.general.questionNotifications)}>
         <SettingsSwitch label="澄清问题提醒" checked={settings.general.questionNotifications} onChange={() => updateGeneral({ questionNotifications: !settings.general.questionNotifications })} />
       </SettingRow>
-      <SettingRow title="通知提示音" description="选择 小鱼智能体 回复完成、审批请求、澄清问题和会话错误的提示音；试听音量受浏览器和系统音量控制。" status="已接入">
+      <SettingRow title="通知提示音" description="选择 小鱼智能体 回复完成、审批请求、澄清问题和会话错误的提示音；试听音量受浏览器和系统音量控制。" status={notificationCategoryStatus(settings.general.notificationSound !== "off", "提示音已开启")}>
         <Space>
           <Select value={settings.general.notificationSound} options={[{ value: "default", label: "默认" }, { value: "subtle", label: "轻柔" }, { value: "off", label: "关闭" }]} onChange={(value) => updateGeneral({ notificationSound: value })} />
           <Button onClick={testNotificationSound} disabled={!settings.general.notificationPopupsEnabled || settings.general.notificationSound === "off"}>试听</Button>
@@ -2311,7 +2326,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
               onChange={(cardMotionEffect) => updateGeneral({ cardMotionEffect })}
             />
           </SettingRow>
-          <SettingRow title="弹窗动效" description="统一控制应用内对话框与确认弹窗；特殊页面可另行定制。减少动态效果设置优先。">
+          <SettingRow title="弹窗动效" description="统一控制应用对话框、确认弹窗和确认气泡；减少动态效果偏好优先。">
             <MotionEffectSelector
               ariaLabel="弹窗动画效果"
               previewKind="dialog"

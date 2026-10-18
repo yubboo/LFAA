@@ -173,8 +173,8 @@
 
 /* 工作台设置写在 body 上以覆盖 Ant Design 通过 Portal 挂到页面外层的 Modal 和确认弹窗。 */
 @keyframes lfaa-dialog-fluid-in {
-  from { transform: translate3d(0, 10px, 0) scale(.975); }
-  to { transform: translate3d(0, 0, 0) scale(1); }
+  from { opacity: 0; transform: translate3d(0, 10px, 0) scale(.975); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
 
 @keyframes lfaa-dialog-fluid-out {
@@ -183,8 +183,8 @@
 }
 
 @keyframes lfaa-dialog-fade-in {
-  from { transform: scale(.97); }
-  to { transform: scale(1); }
+  from { opacity: 0; transform: scale(.97); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 @keyframes lfaa-dialog-fade-out {
@@ -193,8 +193,8 @@
 }
 
 @keyframes lfaa-dialog-lift-in {
-  from { transform: translate3d(0, 18px, 0); }
-  to { transform: translate3d(0, 0, 0); }
+  from { opacity: 0; transform: translate3d(0, 18px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
 @keyframes lfaa-dialog-lift-out {
@@ -203,18 +203,60 @@
 }
 
 @keyframes lfaa-dialog-reduced-in {
-  from { opacity: 1; }
+  from { opacity: .96; }
   to { opacity: 1; }
 }
 
 @keyframes lfaa-dialog-reduced-out {
   from { opacity: 1; }
-  to { opacity: 0; }
+  to { opacity: .96; }
+}
+
+/* 通用弹窗动效只保存在一个共享效果表中；单个 Modal 可用 rootClassName 覆写。 */
+body[data-lfaa-dialog-motion-effect="fluid"] {
+  --lfaa-dialog-motion-enter: lfaa-dialog-fluid-in 320ms cubic-bezier(.22, 1, .36, 1) both; /* 所有弹窗内容以轻微淡入、缩放和下落进入。 */
+  --lfaa-dialog-motion-exit: lfaa-dialog-fluid-out 180ms cubic-bezier(.4, 0, 1, 1) both; /* 所有弹窗内容以轻微淡出和下沉退出。 */
+}
+
+body[data-lfaa-dialog-motion-effect="fade"] {
+  --lfaa-dialog-motion-enter: lfaa-dialog-fade-in 220ms cubic-bezier(.2, .8, .2, 1) both; /* 所有弹窗内容以淡入和轻微缩放进入。 */
+  --lfaa-dialog-motion-exit: lfaa-dialog-fade-out 150ms cubic-bezier(.4, 0, 1, 1) both; /* 所有弹窗内容以淡出和轻微缩放退出。 */
+}
+
+body[data-lfaa-dialog-motion-effect="lift"] {
+  --lfaa-dialog-motion-enter: lfaa-dialog-lift-in 280ms cubic-bezier(.22, 1, .36, 1) both; /* 所有弹窗内容从下方淡入并上浮。 */
+  --lfaa-dialog-motion-exit: lfaa-dialog-lift-out 170ms cubic-bezier(.4, 0, 1, 1) both; /* 所有弹窗内容淡出并轻轻下沉。 */
+}
+
+body[data-lfaa-dialog-motion-effect="none"] {
+  --lfaa-dialog-motion-enter: none; /* 所有弹窗内容静态出现，不播放入场动画。 */
+  --lfaa-dialog-motion-exit: none; /* 所有弹窗内容静态关闭，不播放退场动画。 */
+}
+
+/* 将以下稳定类名传给 Ant Design Modal/确认框的 rootClassName，即可独立覆写该弹窗。 */
+body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--fluid {
+  --lfaa-dialog-motion-enter: lfaa-dialog-fluid-in 320ms cubic-bezier(.22, 1, .36, 1) both; /* 当前弹窗单独使用轻柔流体入场。 */
+  --lfaa-dialog-motion-exit: lfaa-dialog-fluid-out 180ms cubic-bezier(.4, 0, 1, 1) both; /* 当前弹窗单独使用轻柔流体退场。 */
+}
+
+body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--fade {
+  --lfaa-dialog-motion-enter: lfaa-dialog-fade-in 220ms cubic-bezier(.2, .8, .2, 1) both; /* 当前弹窗单独使用渐隐淡入效果。 */
+  --lfaa-dialog-motion-exit: lfaa-dialog-fade-out 150ms cubic-bezier(.4, 0, 1, 1) both; /* 当前弹窗单独使用渐隐淡出效果。 */
+}
+
+body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--lift {
+  --lfaa-dialog-motion-enter: lfaa-dialog-lift-in 280ms cubic-bezier(.22, 1, .36, 1) both; /* 当前弹窗单独使用轻盈上浮入场。 */
+  --lfaa-dialog-motion-exit: lfaa-dialog-lift-out 170ms cubic-bezier(.4, 0, 1, 1) both; /* 当前弹窗单独使用轻盈下沉退场。 */
+}
+
+body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none {
+  --lfaa-dialog-motion-enter: none; /* 当前弹窗单独静态出现。 */
+  --lfaa-dialog-motion-exit: none; /* 当前弹窗单独静态关闭。 */
 }
 
 /* Ant Design 弹窗共用 Appearance 令牌；业务包可在更具体的类中保留专属内容布局。 */
 .ant-modal-root .ant-modal {
-  max-width: calc(100vw - 32px);
+  max-width: min(calc(100vw - 24px), calc(100% - 24px));
   max-height: calc(100dvh - 24px);
   margin-inline: auto;
   padding-bottom: 0;
@@ -232,32 +274,42 @@
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: 18px;
+  border-radius: 12px;
   background: var(--color-surface);
   color: var(--color-text-primary);
-  box-shadow: 0 20px 60px var(--color-shadow-float);
+  box-shadow: 0 14px 36px var(--color-shadow-float);
   font-family: var(--settings-interface-font, var(--font-family-sans));
   font-size: var(--settings-interface-font-size, var(--font-size-base));
 }
 
 .ant-modal-root .ant-modal-header {
   flex: 0 0 auto;
+  margin: 0;
+  padding: 16px 18px 8px;
+  border: 0;
   background: transparent;
 }
 
 .ant-modal-root .ant-modal-title {
   color: var(--color-text-heading);
   font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--settings-interface-font-size, var(--font-size-base));
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .ant-modal-root .ant-modal-body {
   min-width: 0;
   min-height: 0;
+  padding: 0 18px 14px;
   overflow: auto;
   overflow-wrap: anywhere;
   overscroll-behavior: contain;
   color: var(--color-text-primary);
   font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans)));
+  font-size: var(--settings-interface-font-size, var(--font-size-base));
+  line-height: 1.55;
 }
 
 .ant-modal-root .ant-modal-footer {
@@ -267,22 +319,134 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  margin: 0;
+  padding: 0 18px 16px;
+  border: 0;
   background: transparent;
 }
 
 .ant-modal-root .ant-modal-footer .ant-btn {
   margin-inline-start: 0;
+  border-radius: 8px;
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--settings-interface-font-size, var(--font-size-base));
 }
 
-body[data-lfaa-dialog-wallpaper="true"]:not([data-we-wallpaper]) .ant-modal-root .ant-modal-content {
+.ant-modal-root .ant-modal-confirm .ant-modal-content {
+  padding: 16px 18px;
+}
+
+.ant-modal-root .ant-modal-confirm .ant-modal-confirm-title {
+  color: var(--color-text-heading);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--settings-interface-font-size, var(--font-size-base));
+  font-weight: 650;
+}
+
+.ant-modal-root .ant-modal-confirm .ant-modal-confirm-content {
+  color: var(--color-text-secondary);
+  font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans)));
+  font-size: var(--settings-interface-font-size, var(--font-size-base));
+  line-height: 1.55;
+}
+
+.ant-modal-root .ant-modal-confirm .ant-modal-confirm-btns {
+  margin-top: 16px;
+}
+
+.ant-modal-root .ant-modal-confirm .ant-modal-confirm-btns .ant-btn {
+  min-height: 36px;
+  border-radius: 8px;
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--settings-interface-font-size, var(--font-size-base));
+}
+
+/* Settings 写在 body、Modal 由 Portal 挂载；以较高共享优先级压过页面遗留外框样式。 */
+body[data-lfaa-theme] .ant-modal-root .ant-modal:not(.git-change-review-modal):not(.lfaa-update-modal) > .ant-modal-content {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  box-shadow: 0 14px 36px var(--color-shadow-float);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--settings-interface-font-size, var(--font-size-base));
+}
+
+body[data-lfaa-theme] .ant-modal-root .ant-modal:not(.git-change-review-modal):not(.lfaa-update-modal) > .ant-modal-content > .ant-modal-header {
+  margin: 0;
+  padding: 16px 18px 8px;
+  border: 0;
+  background: transparent;
+}
+
+body[data-lfaa-theme] .ant-modal-root .ant-modal:not(.git-change-review-modal):not(.lfaa-update-modal) .ant-modal-title {
+  color: var(--color-text-heading);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--settings-interface-font-size, var(--font-size-base));
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+body[data-lfaa-theme] .ant-modal-root .ant-modal:not(.git-change-review-modal):not(.lfaa-update-modal) > .ant-modal-content > .ant-modal-body {
+  min-width: 0;
+  padding: 0 18px 14px;
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans)));
+  font-size: var(--settings-interface-font-size, var(--font-size-base));
+  line-height: 1.55;
+}
+
+body[data-lfaa-theme] .ant-modal-root .ant-modal:not(.git-change-review-modal):not(.lfaa-update-modal) > .ant-modal-content > .ant-modal-footer {
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0;
+  padding: 0 18px 16px;
+  border: 0;
+  background: transparent;
+}
+
+body[data-lfaa-theme] .ant-modal-root .ant-modal:not(.git-change-review-modal):not(.lfaa-update-modal) .ant-modal-close {
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--color-text-muted);
+}
+
+body[data-lfaa-theme] .ant-modal-root .ant-modal:not(.git-change-review-modal):not(.lfaa-update-modal) .ant-modal-close:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-heading);
+}
+
+body[data-lfaa-theme] .ant-modal-root .ant-modal:not(.git-change-review-modal):not(.lfaa-update-modal) .ant-modal-footer .ant-btn {
+  min-height: 36px;
+  margin-inline-start: 0;
+  border-radius: 8px;
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--settings-interface-font-size, var(--font-size-base));
+}
+
+body[data-lfaa-dialog-wallpaper="true"]:not([data-we-wallpaper]) .ant-modal-root .ant-modal:not(.git-change-review-modal):not(.lfaa-update-modal) > .ant-modal-content {
   background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
   -webkit-backdrop-filter: blur(var(--settings-glass-blur));
   backdrop-filter: blur(var(--settings-glass-blur));
 }
 
+/* Wallpaper Engine 浮层也使用共享弹窗表面令牌，保持透明度和模糊设置一致。 */
+body[data-we-wallpaper][data-we-glass-floaters] .ant-modal-root .ant-modal:not(.git-change-review-modal):not(.lfaa-update-modal) > .ant-modal-content {
+  background: var(--settings-wallpaper-floaters-surface, var(--color-surface));
+  -webkit-backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+  backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+}
+
 @media (max-width: 520px) {
   .ant-modal-root .ant-modal {
-    max-width: calc(100vw - 16px);
+    max-width: min(calc(100vw - 16px), calc(100% - 16px));
     max-height: calc(100dvh - 16px);
   }
 
@@ -293,38 +457,41 @@ body[data-lfaa-dialog-wallpaper="true"]:not([data-we-wallpaper]) .ant-modal-root
   .ant-modal-root .ant-modal-content {
     max-height: calc(100dvh - 16px);
   }
+
+  .ant-modal-root .ant-modal-confirm .ant-modal-content {
+    padding: 14px;
+  }
+
+  body[data-lfaa-theme] .ant-modal-root .ant-modal:not(.git-change-review-modal):not(.lfaa-update-modal) > .ant-modal-content > .ant-modal-header {
+    padding: 14px 14px 8px;
+  }
+
+  body[data-lfaa-theme] .ant-modal-root .ant-modal:not(.git-change-review-modal):not(.lfaa-update-modal) > .ant-modal-content > .ant-modal-body {
+    padding: 0 14px 12px;
+  }
+
+  body[data-lfaa-theme] .ant-modal-root .ant-modal:not(.git-change-review-modal):not(.lfaa-update-modal) > .ant-modal-content > .ant-modal-footer {
+    padding: 0 14px 14px;
+  }
 }
 
-body[data-lfaa-dialog-motion-effect="fluid"] .ant-modal-root .ant-modal.ant-zoom-enter.ant-zoom-enter-active,
-body[data-lfaa-dialog-motion-effect="fluid"] .ant-modal-root .ant-modal.ant-zoom-appear.ant-zoom-appear-active {
-  animation: lfaa-dialog-fluid-in 320ms cubic-bezier(.22, 1, .36, 1) both !important;
+body[data-lfaa-dialog-motion-effect] .ant-modal-root .ant-modal.ant-zoom-enter.ant-zoom-enter-active,
+body[data-lfaa-dialog-motion-effect] .ant-modal-root .ant-modal.ant-zoom-appear.ant-zoom-appear-active {
+  animation: var(--lfaa-dialog-motion-enter) !important;
 }
 
-body[data-lfaa-dialog-motion-effect="fluid"] .ant-modal-root .ant-modal.ant-zoom-leave.ant-zoom-leave-active {
-  animation: lfaa-dialog-fluid-out 180ms cubic-bezier(.4, 0, 1, 1) both !important;
+body[data-lfaa-dialog-motion-effect] .ant-modal-root .ant-modal.ant-zoom-leave.ant-zoom-leave-active {
+  animation: var(--lfaa-dialog-motion-exit) !important;
 }
 
-/* Ant Design 先挂载的 enter/appear 类带有透明起始态；共享面板从首帧保持最终 Alpha，遮罩仍按原动效淡入。 */
-.ant-modal-root .ant-modal:is(.ant-zoom-enter, .ant-zoom-appear) {
-  opacity: 1 !important;
+/* 同一设置还控制确认气泡的入退场；菜单、下拉框和普通 Popover 保持各自交互动效。 */
+body[data-lfaa-dialog-motion-effect] .ant-popover.ant-zoom-big-enter.ant-zoom-big-enter-active:has(.ant-popconfirm),
+body[data-lfaa-dialog-motion-effect] .ant-popover.ant-zoom-big-appear.ant-zoom-big-appear-active:has(.ant-popconfirm) {
+  animation: var(--lfaa-dialog-motion-enter) !important;
 }
 
-body[data-lfaa-dialog-motion-effect="fade"] .ant-modal-root .ant-modal.ant-zoom-enter.ant-zoom-enter-active,
-body[data-lfaa-dialog-motion-effect="fade"] .ant-modal-root .ant-modal.ant-zoom-appear.ant-zoom-appear-active {
-  animation: lfaa-dialog-fade-in 220ms cubic-bezier(.2, .8, .2, 1) both !important;
-}
-
-body[data-lfaa-dialog-motion-effect="fade"] .ant-modal-root .ant-modal.ant-zoom-leave.ant-zoom-leave-active {
-  animation: lfaa-dialog-fade-out 150ms cubic-bezier(.4, 0, 1, 1) both !important;
-}
-
-body[data-lfaa-dialog-motion-effect="lift"] .ant-modal-root .ant-modal.ant-zoom-enter.ant-zoom-enter-active,
-body[data-lfaa-dialog-motion-effect="lift"] .ant-modal-root .ant-modal.ant-zoom-appear.ant-zoom-appear-active {
-  animation: lfaa-dialog-lift-in 280ms cubic-bezier(.22, 1, .36, 1) both !important;
-}
-
-body[data-lfaa-dialog-motion-effect="lift"] .ant-modal-root .ant-modal.ant-zoom-leave.ant-zoom-leave-active {
-  animation: lfaa-dialog-lift-out 170ms cubic-bezier(.4, 0, 1, 1) both !important;
+body[data-lfaa-dialog-motion-effect] .ant-popover.ant-zoom-big-leave.ant-zoom-big-leave-active:has(.ant-popconfirm) {
+  animation: var(--lfaa-dialog-motion-exit) !important;
 }
 
 /* 用户选择减少动态效果时弹窗只保留短淡入，移除缩放与位移；系统模式跟随系统媒体偏好。 */
@@ -334,6 +501,15 @@ body[data-lfaa-reduced-motion="on"] .ant-modal-root .ant-modal.ant-zoom-appear.a
 }
 
 body[data-lfaa-reduced-motion="on"] .ant-modal-root .ant-modal.ant-zoom-leave.ant-zoom-leave-active {
+  animation: lfaa-dialog-reduced-out 100ms ease-in both !important;
+}
+
+body[data-lfaa-reduced-motion="on"] .ant-popover.ant-zoom-big-enter.ant-zoom-big-enter-active:has(.ant-popconfirm),
+body[data-lfaa-reduced-motion="on"] .ant-popover.ant-zoom-big-appear.ant-zoom-big-appear-active:has(.ant-popconfirm) {
+  animation: lfaa-dialog-reduced-in 120ms ease-out both !important;
+}
+
+body[data-lfaa-reduced-motion="on"] .ant-popover.ant-zoom-big-leave.ant-zoom-big-leave-active:has(.ant-popconfirm) {
   animation: lfaa-dialog-reduced-out 100ms ease-in both !important;
 }
 
@@ -356,6 +532,15 @@ body[data-lfaa-reduced-motion="on"] .ant-modal-root .ant-modal-mask.ant-fade-lea
     animation: lfaa-dialog-reduced-out 100ms ease-in both !important;
   }
 
+  body[data-lfaa-reduced-motion="system"] .ant-popover.ant-zoom-big-enter.ant-zoom-big-enter-active:has(.ant-popconfirm),
+  body[data-lfaa-reduced-motion="system"] .ant-popover.ant-zoom-big-appear.ant-zoom-big-appear-active:has(.ant-popconfirm) {
+    animation: lfaa-dialog-reduced-in 120ms ease-out both !important;
+  }
+
+  body[data-lfaa-reduced-motion="system"] .ant-popover.ant-zoom-big-leave.ant-zoom-big-leave-active:has(.ant-popconfirm) {
+    animation: lfaa-dialog-reduced-out 100ms ease-in both !important;
+  }
+
   body[data-lfaa-reduced-motion="system"] .ant-modal-root .ant-modal-mask.ant-fade-enter.ant-fade-enter-active,
   body[data-lfaa-reduced-motion="system"] .ant-modal-root .ant-modal-mask.ant-fade-appear.ant-fade-appear-active {
     animation-duration: 120ms !important;
@@ -375,9 +560,24 @@ body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal.ant-zoom-
   transform: none !important;
 }
 
+body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal.ant-zoom-enter,
+body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal.ant-zoom-appear,
+body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal.ant-zoom-leave {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
 body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal-mask.ant-fade-enter,
 body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal-mask.ant-fade-appear,
 body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal-mask.ant-fade-leave {
+  animation: none !important;
+  opacity: 1 !important;
+}
+
+body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal-mask.ant-fade-enter,
+body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal-mask.ant-fade-appear,
+body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal-mask.ant-fade-leave {
   animation: none !important;
   opacity: 1 !important;
 }

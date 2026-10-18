@@ -6,10 +6,8 @@
 .writing-catalog-panel__launcher { flex: 0 0 auto; padding: 8px 10px; border-top: 1px solid var(--color-border-subtle); }
 .writing-catalog-panel__launcher .ant-btn { height: 31px; border-color: var(--color-border); background: var(--color-surface); color: var(--color-text-secondary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-xs); }
 .writing-catalog-panel__launcher .ant-btn:hover:not(:disabled) { border-color: var(--settings-accent, var(--color-brand)); color: var(--settings-accent, var(--color-brand)); }
-.writing-catalog-panel__modal .ant-modal-content { display: flex; max-height: min(86vh, 900px); flex-direction: column; overflow: hidden; background: var(--color-surface); color: var(--color-text-primary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); }
-.workbench-shell[data-background-image="true"] .writing-catalog-panel__modal .ant-modal-content { background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
-body[data-we-wallpaper] .workbench-shell .writing-catalog-panel__modal .ant-modal-content { background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
-.writing-catalog-panel__modal .ant-modal-header { flex: 0 0 auto; background: transparent; }
+.writing-catalog-panel__modal .ant-modal-content { display: flex; max-height: min(86vh, 900px); flex-direction: column; overflow: hidden; }
+.writing-catalog-panel__modal .ant-modal-header { flex: 0 0 auto; }
 .writing-catalog-panel__modal .ant-modal-body { min-height: 0; overflow: auto; }
 .writing-catalog-panel__toolbar { display: grid; grid-template-columns: minmax(190px, .8fr) minmax(220px, 1.2fr); gap: 10px; }
 .writing-catalog-panel__create { display: flex; gap: 8px; margin-top: 10px; }

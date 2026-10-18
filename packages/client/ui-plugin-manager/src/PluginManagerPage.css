@@ -216,14 +216,9 @@
 }
 
 /* 插件安装弹窗沿用外观设置中的字体、主题、壁纸透明度和模糊强度。 */
-.plugin-manager-install-modal { max-width: calc(100vw - 28px); }
-.plugin-manager-install-modal .ant-modal-content { display: flex; max-height: min(88vh, 820px); max-height: min(88dvh, 820px); flex-direction: column; overflow: hidden; border: 1px solid var(--color-border); border-radius: 22px; background: var(--color-surface); color: var(--color-text-primary); box-shadow: 0 22px 70px var(--color-shadow-float); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); }
-.workbench-shell[data-background-image="true"] .plugin-manager-install-modal .ant-modal-content { background: color-mix(in srgb, var(--settings-sidebar-color, var(--color-surface)) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
-body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell .plugin-manager-install-modal .ant-modal-content { background: var(--settings-wallpaper-floaters-surface, var(--color-surface)); -webkit-backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01); backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01); }
-.plugin-manager-install-modal .ant-modal-header { flex: 0 0 auto; margin: 0; padding: 22px 26px 12px; border: 0; background: transparent; }
-.plugin-manager-install-modal .ant-modal-title { color: var(--color-text-heading); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-lg); font-weight: 650; }
-.plugin-manager-install-modal .ant-modal-close { top: 18px; inset-inline-end: 18px; color: var(--color-text-muted); }
-.plugin-manager-install-modal .ant-modal-body { min-height: 0; overflow: auto; padding: 0 26px 24px; overscroll-behavior: contain; }
+.plugin-manager-install-modal .ant-modal-content { display: flex; max-height: min(88vh, 820px); max-height: min(88dvh, 820px); flex-direction: column; overflow: hidden; }
+.plugin-manager-install-modal .ant-modal-header { flex: 0 0 auto; }
+.plugin-manager-install-modal .ant-modal-body { min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .plugin-manager-install-modal__body { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .plugin-manager-install-modal__intro { margin: 0; color: var(--color-text-secondary); line-height: 1.55; }
 .plugin-manager-install-modal__source-row { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
@@ -290,9 +285,7 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell .plugin-manager
 .plugin-manager-install-modal__body :focus-visible { outline-color: var(--color-focus-ring); }
 
 @media (max-width: 560px) {
-  .plugin-manager-install-modal .ant-modal-content { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); border-radius: 18px; }
-  .plugin-manager-install-modal .ant-modal-header { padding: 18px 18px 10px; }
-  .plugin-manager-install-modal .ant-modal-body { padding: 0 18px 18px; }
+  .plugin-manager-install-modal .ant-modal-content { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
   .plugin-manager-install-modal__guide-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .plugin-manager-install-modal__example { grid-template-columns: minmax(0, 1fr); }
   .plugin-manager-install-modal__example .ant-btn { justify-self: start; }
@@ -348,10 +341,10 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell .plugin-manager
 .plugin-manager-page__contributed-card p { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.55; overflow-wrap: anywhere; }
 .plugin-manager-page__contributed-tab-panel { min-height: 0; overflow: auto; }
 .plugin-manager-detail-modal { max-width: calc(100vw - 28px); }
-.plugin-manager-detail-modal .ant-modal-content { display: flex; max-height: min(88vh, 820px); max-height: min(88dvh, 820px); flex-direction: column; overflow: hidden; border: 1px solid var(--color-border); border-radius: 20px; background: var(--color-surface); color: var(--color-text-primary); box-shadow: 0 22px 70px var(--color-shadow-float); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); }
-.plugin-manager-detail-modal .ant-modal-header { flex: 0 0 auto; margin: 0; padding: 22px 26px 12px; border: 0; background: transparent; }
-.plugin-manager-detail-modal .ant-modal-title { color: var(--color-text-heading); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-lg); font-weight: 650; overflow-wrap: anywhere; }
-.plugin-manager-detail-modal .ant-modal-body { min-height: 0; overflow: auto; padding: 0 26px 24px; overscroll-behavior: contain; }
+.plugin-manager-detail-modal .ant-modal-content { display: flex; max-height: min(88vh, 820px); max-height: min(88dvh, 820px); flex-direction: column; overflow: hidden; }
+.plugin-manager-detail-modal .ant-modal-header { flex: 0 0 auto; }
+.plugin-manager-detail-modal .ant-modal-title { overflow-wrap: anywhere; }
+.plugin-manager-detail-modal .ant-modal-body { min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .plugin-manager-detail-modal__body { display: grid; min-width: 0; gap: 14px; color: var(--color-text-secondary); line-height: 1.55; }
 .plugin-manager-detail-modal__body > p { margin: 0; }
 .plugin-manager-detail-modal__heading { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -366,12 +359,9 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell .plugin-manager
 .plugin-manager-detail-modal__section dt { color: var(--color-text-muted); }
 .plugin-manager-detail-modal__section dd { min-width: 0; margin: 0; color: var(--color-text-secondary); overflow-wrap: anywhere; }
 .plugin-manager-detail-modal__contract-note { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); }
-body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell .plugin-manager-detail-modal .ant-modal-content { background: var(--settings-wallpaper-floaters-surface, var(--color-surface)); -webkit-backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01); backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01); }
 
 @media (max-width: 560px) {
   .plugin-manager-page__contributed-card { grid-template-columns: minmax(0, 1fr); align-items: start; }
   .plugin-manager-page__contributed-card > .ant-btn { justify-self: start; }
-  .plugin-manager-detail-modal .ant-modal-content { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); border-radius: 18px; }
-  .plugin-manager-detail-modal .ant-modal-header { padding: 18px 18px 10px; }
-  .plugin-manager-detail-modal .ant-modal-body { padding: 0 18px 18px; }
+  .plugin-manager-detail-modal .ant-modal-content { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
 }

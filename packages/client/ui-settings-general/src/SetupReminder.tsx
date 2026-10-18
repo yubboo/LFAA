@@ -6,7 +6,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Modal, Space, Typography } from "antd";
 import { getErrorMessage, hasAdminAccess, loadAiAccounts, loadProjectStorageLocations, loadSteamcmdSettings, saveProjectContentDirectory, saveSettings, type ProjectStorageLocations, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
-import { WorkbenchIcon, type WorkbenchIconName } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { getSetupReminderLocalDay, isCredentialReminderSnoozedToday, isSetupReminderSnoozedToday, setCredentialReminderSnoozedToday, setSetupReminderSnoozedToday } from "./setup-reminder.js";
 
 interface SetupReminderProps {
@@ -20,21 +19,18 @@ interface SetupReminderProps {
 }
 
 interface SetupReminderPrompt {
-  introTitle?: string;
-  introDescription?: string;
   title: string;
   description: string;
   action: string;
-  icon?: WorkbenchIconName;
   onAction: () => void;
   onDismiss: () => void;
   onSnoozedTodayChange: (snoozed: boolean) => void;
 }
 
-const SETUP_REMINDER_COPY: Record<"storage" | "steamcmd" | "ai", { title: string; description: string; action: string; icon: WorkbenchIconName; section: "ai" | "configuration" | "workspace" }> = {
-  storage: { title: "选择内容数据存储位置", description: "此选择只决定游戏、小说和漫剧内容写入哪个 data 目录。默认位置在 LFAA 用户目录下；系统推荐会使用当前项目或安装目录下的 data。账户、模型配置、会话和插件位置不受影响。", action: "去配置存储", icon: "folder", section: "workspace" },
-  steamcmd: { title: "配置 SteamCMD", description: "设置安装工具与游戏目录，开始管理 Steam 游戏。", action: "去配置 SteamCMD", icon: "settings", section: "configuration" },
-  ai: { title: "配置 AI 模型", description: "添加并启用一个模型服务，即可开始使用小鱼智能体。", action: "去配置模型", icon: "spark", section: "ai" }
+const SETUP_REMINDER_COPY: Record<"storage" | "steamcmd" | "ai", { title: string; description: string; action: string; section: "ai" | "configuration" | "workspace" }> = {
+  storage: { title: "选择内容数据存储位置", description: "此选择只决定游戏、小说和漫剧内容写入哪个 data 目录。默认位置在 LFAA 用户目录下；系统推荐会使用当前项目或安装目录下的 data。账户、模型配置、会话和插件位置不受影响。", action: "去配置存储", section: "workspace" },
+  steamcmd: { title: "配置 SteamCMD", description: "设置安装工具与游戏目录，开始管理 Steam 游戏。", action: "去配置 SteamCMD", section: "configuration" },
+  ai: { title: "配置 AI 模型", description: "添加并启用一个模型服务，即可开始使用小鱼智能体。", action: "去配置模型", section: "ai" }
 };
 
 export function SetupReminder({ user, settings, isSettingsPage, suspended, onSettingsChange, onOpenSettings, priorityPrompt = null }: SetupReminderProps) {
@@ -52,8 +48,6 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
     && !isCredentialReminderSnoozedToday(user.id, currentLocalDay)
     ? priorityPrompt
     : null;
-  const introTitle = activePriorityPrompt?.introTitle ?? "欢迎使用 LFAA";
-  const introDescription = activePriorityPrompt ? activePriorityPrompt.introDescription : "完成一项配置，就可以继续使用。";
   const promptTitle = activePriorityPrompt?.title ?? currentReminder?.title;
   const promptDescription = activePriorityPrompt?.description ?? currentReminder?.description;
   const promptAction = activePriorityPrompt?.action ?? currentReminder?.action;
@@ -191,14 +185,8 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
 
   return (
     <Modal
-      rootClassName={activePriorityPrompt ? "setup-reminder-modal setup-reminder-modal--priority" : "setup-reminder-modal"}
-      title={(
-        <div className="setup-reminder-intro">
-          <span className="setup-reminder-intro__icon" aria-hidden="true"><WorkbenchIcon name={activePriorityPrompt?.icon ?? currentReminder?.icon ?? "spark"} size={22} /></span>
-          <Typography.Title level={5} className="setup-reminder-intro__title">{introTitle}</Typography.Title>
-          {introDescription ? <Typography.Paragraph className="setup-reminder-intro__description">{introDescription}</Typography.Paragraph> : null}
-        </div>
-      )}
+      rootClassName="setup-reminder-modal"
+      title={promptTitle}
       open={settings.general.notificationPopupsEnabled && (Boolean(activePriorityPrompt) || open)}
       onCancel={() => setOpen(false)}
       closable={!activePriorityPrompt}
@@ -218,11 +206,10 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
           <Button disabled={saving} onClick={() => setOpen(false)}>稍后再说</Button>
         </Space>}
       centered
-      width={activePriorityPrompt ? 640 : 480}
+      width={480}
     >
       {saveError ? <Alert type="error" showIcon message={saveError} /> : null}
-      {promptTitle && promptDescription && promptAction ? <div className="setup-reminder-card">
-        <Typography.Title level={4} className="setup-reminder-card__title">{promptTitle}</Typography.Title>
+      {promptDescription && promptAction ? <div className="setup-reminder-card">
         <Typography.Paragraph className="setup-reminder-card__description">{promptDescription}</Typography.Paragraph>
         {missing[0] === "storage" && !activePriorityPrompt && storageLocations ? <div className="setup-reminder-card__locations">
           <div><Typography.Text strong>不更改</Typography.Text><Typography.Text code>{storageLocations.defaultContentDirectory}</Typography.Text></div>
@@ -234,14 +221,14 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
           <Button disabled={saving} onClick={() => { setOpen(false); onOpenSettings("workspace"); }}>自定义位置</Button>
         </Space> : activePriorityPrompt ? <>
           <Space wrap className="setup-reminder-card__actions">
-            <Button type="primary" size="large" onClick={() => {
+            <Button type="primary" onClick={() => {
               setOpen(false);
               activePriorityPrompt.onAction();
             }}>更改</Button>
             <Button loading={saving} disabled={saving} onClick={() => void disableCredentialReminder()}>不更改</Button>
           </Space>
           <Typography.Text className="setup-reminder-card__choice-note" type="secondary">不更改会保留当前登录凭据，并关闭后续提醒；更改会打开安全设置，不会自动修改。</Typography.Text>
-        </> : <Button type="primary" size="large" className="setup-reminder-card__action" onClick={() => {
+        </> : <Button type="primary" className="setup-reminder-card__action" onClick={() => {
           setOpen(false);
           shownRef.current = false;
           if (currentReminder) onOpenSettings(currentReminder.section);

@@ -1052,7 +1052,6 @@ export function Workbench({
         onSettingsChange={setSettings}
         onOpenSettings={openSettings}
         priorityPrompt={credentialReminder ? {
-          introTitle: "账户安全提醒",
           title: "建议修改默认登录凭据",
           description: credentialReminder.usernamePending && credentialReminder.passwordPending
             ? "当前仍在使用系统默认用户名和密码。建议在设置中心的「安全」页面分别修改，之后可使用新凭据登录。"
@@ -1060,7 +1059,6 @@ export function Workbench({
               ? "当前仍在使用系统默认用户名。建议在设置中心的「安全」页面修改。"
               : "当前仍在使用系统默认密码。建议在设置中心的「安全」页面修改。",
           action: "前往设置中心",
-          icon: "settings",
           onAction: () => { onOpenCredentialSettings(); openSettings("security"); },
           onDismiss: onDismissCredentialReminder,
           onSnoozedTodayChange: setCredentialReminderSnoozedToday

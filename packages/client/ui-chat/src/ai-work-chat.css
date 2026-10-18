@@ -211,9 +211,6 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__file-change-path { color: var(--color-text-muted); }
 .ai-work-chat__writing-review-trigger.ant-btn { align-self: start; width: fit-content; height: 26px; margin: 3px 0 0 -7px; padding-inline: 7px; color: var(--settings-accent, var(--color-brand)); font: var(--dsw-font-xs-13); }
 .ai-work-chat__writing-review-trigger.ant-btn:hover { color: var(--color-brand-hover); }
-.ai-work-chat__writing-review-modal .ant-modal-content { border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); color: var(--color-text-primary); box-shadow: 0 18px 54px var(--color-shadow-float); }
-.ai-work-chat__writing-review-modal .ant-modal-header { background: transparent; }
-.ai-work-chat__writing-review-modal .ant-modal-title { color: var(--color-text-heading); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); }
 .ai-work-chat__writing-review-body { display: grid; max-height: calc(100vh - 190px); gap: 14px; overflow: auto; }
 .ai-work-chat__writing-review-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--color-text-secondary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-sm); }
 .ai-work-chat__writing-review-columns { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -224,13 +221,6 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__writing-review-loading { display: grid; min-height: 260px; place-items: center; }
 .ai-work-chat__writing-review-error { margin-bottom: 12px; }
 .ai-work-chat__writing-review-footer { display: flex; justify-content: flex-end; gap: 8px; }
-.workbench-shell[data-background-image="true"] .ai-work-chat__writing-review-modal .ant-modal-content { background-color: color-mix(in srgb, var(--settings-sidebar-color, var(--color-surface)) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
-.ai-work-chat__feedback-modal .ant-modal-content,
-.ai-work-chat__branch-modal .ant-modal-content { border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); color: var(--color-text-primary); box-shadow: 0 18px 54px var(--color-shadow-float); }
-.ai-work-chat__feedback-modal .ant-modal-header,
-.ai-work-chat__branch-modal .ant-modal-header { background: transparent; }
-.ai-work-chat__feedback-modal .ant-modal-title,
-.ai-work-chat__branch-modal .ant-modal-title { color: var(--color-text-heading); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); font-weight: 650; }
 .ai-work-chat__branch-modal-root .ant-modal-wrap { display: grid; box-sizing: border-box; place-items: center; padding: 16px; }
 .ai-work-chat__branch-modal.ant-modal { top: auto; max-width: 100%; max-height: 100%; margin: 0; padding-bottom: 0; overflow-y: auto; }
 .ai-work-chat__feedback-prompt { margin: 0 0 14px; color: var(--color-text-secondary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); }
@@ -261,8 +251,6 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__branch-origin-link.ant-btn { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; padding-inline: 0; color: var(--settings-accent, var(--color-brand)); text-overflow: ellipsis; white-space: nowrap; }
 .ai-work-chat__branch-origin-title { overflow: hidden; min-width: 0; color: var(--color-text-primary); text-overflow: ellipsis; white-space: nowrap; }
 .ai-work-chat__branch-origin-status { flex: 0 0 auto; }
-.workbench-shell[data-background-image="true"] .ai-work-chat__feedback-modal .ant-modal-content,
-.workbench-shell[data-background-image="true"] .ai-work-chat__branch-modal .ant-modal-content { background-color: color-mix(in srgb, var(--settings-sidebar-color, var(--color-surface)) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
 .workbench-shell[data-reduced-motion="true"] .ai-work-chat__activity-step-toggle > svg:last-child,
 .workbench-shell[data-reduced-motion="true"] .ai-work-chat__question-record-summary > svg:last-child { transition-duration: 0ms; }
 /* 审批与澄清卡片嵌入真实过程落点，并沿用账户外观、壁纸遮罩和模糊设置。 */
@@ -441,7 +429,6 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 .ai-work-chat__project-empty { padding: 9px 7px; color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .workbench-shell .ai-work-chat__project-create.ant-btn, .workbench-shell .ai-work-chat__project-none.ant-btn { justify-content: flex-start; height: 32px; padding-inline: 7px; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
 .workbench-shell .ai-work-chat__project-create.ant-btn { border-top: 1px solid var(--color-border); border-radius: 0; color: var(--settings-accent, var(--color-brand)); }
-.workbench-shell .ai-work-chat__project-modal .ant-modal-content { background: var(--color-surface); color: var(--color-text-primary); }
 .ai-work-chat__project-browser { display: grid; gap: 9px; }
 .ai-work-chat__project-browser > label { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 600; }
 .ai-work-chat__project-path { display: flex; min-width: 0; align-items: center; gap: 6px; }

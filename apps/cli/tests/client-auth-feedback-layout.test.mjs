@@ -14,6 +14,9 @@ const setupReminder = readFileSync(new URL("../../../packages/client/ui-settings
 const passkeyPrompt = readFileSync(new URL("../../../packages/client/ui-settings-account/src/PasskeySetupPrompt.tsx", import.meta.url), "utf8");
 const workbenchStyles = readFileSync(new URL("../../../packages/client/ui-layout/src/workbench.css", import.meta.url), "utf8");
 const sharedThemeStyles = readFileSync(new URL("../../../packages/client/ui-theme/src/common.css", import.meta.url), "utf8");
+const pluginModalStyles = readFileSync(new URL("../../../packages/client/ui-plugin-manager/src/PluginManagerPage.css", import.meta.url), "utf8");
+const aiWorkModalStyles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
+const writingModalStyles = `${readFileSync(new URL("../../../packages/client/ui-writing/src/normal/WritingBookSkillsPanel.css", import.meta.url), "utf8")}\n${readFileSync(new URL("../../../packages/client/ui-writing/src/normal/WritingCatalogPanel.css", import.meta.url), "utf8")}`;
 const settings = readFileSync(new URL("../../../packages/client/ui-settings/src/SettingsPage.tsx", import.meta.url), "utf8");
 const slotRoot = readFileSync(new URL("../../../packages/client/ui-renderer/src/render.tsx", import.meta.url), "utf8");
 const htmlEntry = readFileSync(new URL("../../../apps/web/index.html", import.meta.url), "utf8");
@@ -98,8 +101,9 @@ test("默认凭据提醒复用首次配置提醒的弹窗、卡片与操作区",
   assert.equal((setupReminder.match(/<Modal\b/gu) ?? []).length, 1);
   assert.match(setupReminder, /const activePriorityPrompt = priorityPrompt\s+&& settings\.general\.notificationPopupsEnabled\s+&& settings\.general\.defaultAdminCredentialReminderEnabled\s+&& !isCredentialReminderSnoozedToday\(user\.id, currentLocalDay\)/u);
   assert.match(setupReminder, /open=\{settings\.general\.notificationPopupsEnabled && \(Boolean\(activePriorityPrompt\) \|\| open\)\}/u);
-  assert.match(setupReminder, /introTitle = activePriorityPrompt\?\.introTitle/u);
-  assert.match(setupReminder, /WorkbenchIcon name=\{activePriorityPrompt\?\.icon/u);
+  assert.match(setupReminder, /title=\{promptTitle\}/u);
+  assert.doesNotMatch(setupReminder, /introTitle|introDescription|setup-reminder-intro|WorkbenchIcon/u);
+  assert.doesNotMatch(workbench, /introTitle:|icon: "settings"/u);
   assert.match(setupReminder, /activePriorityPrompt\.onAction\(\)/u);
   assert.match(setupReminder, /activePriorityPrompt\.onDismiss\}/u);
   assert.match(setupReminder, /今日不再提醒/u);
@@ -112,13 +116,16 @@ test("默认凭据提醒复用首次配置提醒的弹窗、卡片与操作区",
   const reminderState = readFileSync(new URL("../../../packages/client/ui-settings-general/src/setup-reminder.ts", import.meta.url), "utf8");
   assert.match(reminderState, /lfaa:credential-reminder-snooze:\$\{userId\}/u);
   assert.match(reminderState, /凭据安全提醒单独暂停，不能连带隐藏首次配置提醒/u);
-  assert.match(workbenchStyles, /\.setup-reminder-modal \.setup-reminder-card__action\.ant-btn/u);
   assert.doesNotMatch(workbenchStyles, /\.credential-reminder-modal/u);
 });
 
 test("通知总开关关闭自动提醒与 AI 弹出通知，但不影响会话内卡片", () => {
   assert.match(settings, /title="通知总开关" description="关闭后停止工作台提醒、浏览器系统通知和通知提示音/u);
   assert.match(settings, /checked=\{settings\.general\.notificationPopupsEnabled\} onChange=\{\(\) => updateGeneral\(\{ notificationPopupsEnabled: !settings\.general\.notificationPopupsEnabled \}\)\}/u);
+  assert.match(settings, /message="所有弹出提醒已暂停"/u);
+  assert.match(settings, /onClick=\{\(\) => updateGeneral\(\{ notificationPopupsEnabled: true \}\)\}>恢复通知/u);
+  assert.match(settings, /\$\{enabledLabel\}（总开关已暂停）/u);
+  assert.match(settings, /title="首次配置提醒"[\s\S]*?status=\{notificationCategoryStatus\(settings\.general\.setupReminderEnabled\)\}/u);
   assert.match(setupReminder, /if \(!settings\.general\.notificationPopupsEnabled\)\s*\{\s*shownRef\.current = false;\s*setOpen\(false\);/u);
   assert.match(setupReminder, /open=\{settings\.general\.notificationPopupsEnabled && \(Boolean\(activePriorityPrompt\) \|\| open\)\}/u);
   assert.match(workbench, /if \(!settings\.general\.notificationPopupsEnabled\) return;/u);
@@ -139,17 +146,16 @@ test("账户安全提醒主按钮进入安全分类，包括已挂载的外观�
   assert.match(settings, /url\.searchParams\.set\("section", section\)/u);
 });
 
-test("账户安全提醒弹窗明确提供更改与不更改，并只放大安全提醒", () => {
-  assert.match(setupReminder, /rootClassName=\{activePriorityPrompt \? "setup-reminder-modal setup-reminder-modal--priority"/u);
-  assert.match(setupReminder, /width=\{activePriorityPrompt \? 640 : 480\}/u);
+test("账户安全提醒弹窗明确提供更改与不更改，并使用统一尺寸和单一标题", () => {
+  assert.match(setupReminder, /rootClassName="setup-reminder-modal"/u);
+  assert.match(setupReminder, /title=\{promptTitle\}/u);
+  assert.match(setupReminder, /width=\{480\}/u);
   assert.match(setupReminder, /<Button loading=\{saving\} disabled=\{saving\} onClick=\{\(\) => void disableCredentialReminder\(\)\}>不更改<\/Button>/u);
-  assert.match(setupReminder, /<Button type="primary" size="large" onClick=\{\(\) => \{[\s\S]*?activePriorityPrompt\.onAction\(\);[\s\S]*?\}\}>更改<\/Button>/u);
+  assert.match(setupReminder, /<Button type="primary" onClick=\{\(\) => \{[\s\S]*?activePriorityPrompt\.onAction\(\);[\s\S]*?\}\}>更改<\/Button>/u);
   assert.match(setupReminder, /defaultAdminCredentialReminderEnabled: false/u);
   assert.match(setupReminder, /不更改会保留当前登录凭据，并关闭后续提醒；更改会打开安全设置，不会自动修改/u);
-  assert.match(workbenchStyles, /\.setup-reminder-modal--priority \.setup-reminder-intro\s*\{[^}]*margin-right:\s*0;/u);
-  assert.match(workbenchStyles, /\.setup-reminder-modal--priority \.setup-reminder-card__actions\.ant-space\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 320px\) minmax\(0, 160px\);/u);
-  assert.match(workbenchStyles, /\.setup-reminder-modal--priority \.setup-reminder-card__actions \.ant-btn\s*\{[^}]*width:\s*100%;/u);
-  assert.match(workbenchStyles, /@media \(max-width: 520px\)\s*\{[\s\S]*?\.setup-reminder-modal--priority \.setup-reminder-card__actions\.ant-space\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/u);
+  assert.doesNotMatch(workbenchStyles, /setup-reminder-modal--priority|setup-reminder-intro/u);
+  assert.match(workbenchStyles, /\.setup-reminder-modal \.setup-reminder-card__actions\.ant-space\s*\{[^}]*flex-wrap:\s*wrap;/u);
   assert.match(workbenchStyles, /var\(--settings-background-surface-opacity\)[\s\S]*var\(--settings-glass-blur\)/u);
 });
 
@@ -161,10 +167,23 @@ test("所有 Ant Design Portal 弹窗继承当前 Appearance 令牌并适配窄�
   assert.ok(portalSurfaceRule, "body Portal overlay tokens must have a shared surface rule");
   assert.match(portalSurfaceRule, /border-color:\s*var\(--color-border\);\s*background:\s*var\(--color-surface\);\s*color:\s*var\(--color-text-primary\);/u);
   assert.doesNotMatch(workbenchStyles, /body\[data-lfaa-theme\][\s\S]{0,220}#(?:202020|e5e5e5)/u);
-  assert.match(sharedThemeStyles, /\.ant-modal-root \.ant-modal\s*\{[^}]*max-width:\s*calc\(100vw - 32px\);[^}]*max-height:\s*calc\(100dvh - 24px\);/u);
+  assert.match(sharedThemeStyles, /\.ant-modal-root \.ant-modal\s*\{[^}]*max-width:\s*min\(calc\(100vw - 24px\), calc\(100% - 24px\)\);[^}]*max-height:\s*calc\(100dvh - 24px\);/u);
   assert.match(sharedThemeStyles, /\.ant-modal-root \.ant-modal-body\s*\{[^}]*overflow:\s*auto;[^}]*overscroll-behavior:\s*contain;/u);
+  assert.match(sharedThemeStyles, /body\[data-lfaa-theme\] \.ant-modal-root \.ant-modal:not\(\.git-change-review-modal\):not\(\.lfaa-update-modal\)[\s\S]*?border-radius:\s*12px;[\s\S]*?\.ant-modal-header[\s\S]*?padding:\s*16px 18px 8px;[\s\S]*?\.ant-modal-body[\s\S]*?padding:\s*0 18px 14px;[\s\S]*?\.ant-modal-footer[\s\S]*?padding:\s*0 18px 16px;/u);
   assert.match(sharedThemeStyles, /body\[data-lfaa-dialog-wallpaper="true"\]:not\(\[data-we-wallpaper\]\)[\s\S]*?var\(--settings-background-surface-opacity\)[\s\S]*?var\(--settings-glass-blur\)/u);
-  assert.match(sharedThemeStyles, /@media \(max-width: 520px\)[\s\S]*?\.ant-modal-root \.ant-modal\s*\{[^}]*max-width:\s*calc\(100vw - 16px\);[^}]*max-height:\s*calc\(100dvh - 16px\);/u);
+  assert.match(sharedThemeStyles, /body\[data-we-wallpaper\]\[data-we-glass-floaters\] \.ant-modal-root \.ant-modal:not\(\.git-change-review-modal\):not\(\.lfaa-update-modal\)[\s\S]*?settings-wallpaper-floaters-surface[\s\S]*?settings-wallpaper-floaters-blur/u);
+  assert.match(workbench, /body\.setAttribute\("data-lfaa-dialog-motion-effect", settings\.general\.dialogMotionEffect/u);
+  assert.match(sharedThemeStyles, /data-lfaa-dialog-motion-effect="fluid"[\s\S]*?data-lfaa-dialog-motion-effect="fade"[\s\S]*?data-lfaa-dialog-motion-effect="lift"[\s\S]*?data-lfaa-dialog-motion-effect="none"/u);
+  assert.match(sharedThemeStyles, /\.ant-modal-root\.lfaa-dialog-motion--fluid[\s\S]*?\.ant-modal-root\.lfaa-dialog-motion--fade[\s\S]*?\.ant-modal-root\.lfaa-dialog-motion--lift[\s\S]*?\.ant-modal-root\.lfaa-dialog-motion--none/u);
+  assert.match(sharedThemeStyles, /\.ant-popover\.ant-zoom-big-enter[^\{]*:has\(\.ant-popconfirm\)[\s\S]*?var\(--lfaa-dialog-motion-enter\)/u);
+  assert.match(sharedThemeStyles, /data-lfaa-reduced-motion="on" \.ant-popover\.ant-zoom-big-enter[^\{]*:has\(\.ant-popconfirm\)[\s\S]*?lfaa-dialog-reduced-in/u);
+  assert.match(sharedThemeStyles, /data-lfaa-reduced-motion="system" \.ant-popover\.ant-zoom-big-leave[^\{]*:has\(\.ant-popconfirm\)[\s\S]*?lfaa-dialog-reduced-out/u);
+  assert.match(settings, /统一控制应用对话框、确认弹窗和确认气泡/u);
+  assert.doesNotMatch(workbenchStyles, /:is\([^)]*\.ant-modal-content/u);
+  assert.doesNotMatch(pluginModalStyles, /\.plugin-manager-(?:install|detail)-modal \.ant-modal-content\s*\{[^}]*border-radius:/u);
+  assert.doesNotMatch(aiWorkModalStyles, /\.ai-work-chat__(?:writing-review|feedback|branch)-modal \.ant-modal-content\s*\{/u);
+  assert.doesNotMatch(writingModalStyles, /\.writing-(?:book-skills|catalog-panel)__modal \.ant-modal-content\s*\{[^}]*border-radius:/u);
+  assert.match(sharedThemeStyles, /@media \(max-width: 520px\)[\s\S]*?\.ant-modal-root \.ant-modal\s*\{[^}]*max-width:\s*min\(calc\(100vw - 16px\), calc\(100% - 16px\)\);[^}]*max-height:\s*calc\(100dvh - 16px\);/u);
   assert.match(settings, /弹窗玻璃表面的底色透明度/u);
   assert.match(settings, /壁纸上的弹窗表面模糊强度/u);
 });

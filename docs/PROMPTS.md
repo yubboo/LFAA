@@ -115,7 +115,8 @@
 | 103-插件 Profile 安装位置-20261017 | 插件直接安装到 LFAA_HOME 的 Profile 根，不再使用旧全局 plugins 树；真实 DSH 示例保持不可运行 | 实施中 | [当前合同](#lfaa-plugin-profile-install-location-20261017) |
 | 104-插件安装引导折叠-20261018 | 将添加插件弹窗的 npm 示例与完整安全说明收进可展开区，安装源与展开控制并列 | 代码已实现；UI 回归、类型及包/Web 构建通过；内置浏览器验收待完成；workspace Gate 有 10 项既有错误 | [当前合同](#lfaa-plugin-install-guide-disclosure-20261018) |
 | 105-外观主题与首屏画布-20261018 | 修复浅色/深色/跟随系统未同步生效，以及刷新时壁纸画布闪黑；校准现有遮罩与模糊映射 | 源码回归与构建完成；内置浏览器确认当前“跟随系统”刷新后保持深色，三主题交互及首帧帧时间仍待验 | [当前合同](#lfaa-appearance-theme-canvas-first-paint-20261018) |
-| 106-通知总开关与数据根核对-20261018 | 增加默认开启的弹出通知总开关，并核对隔离验收目录与产品数据根的区别 | 源码、定向回归、类型和构建通过；内置浏览器桌面核对完成，隔离设置当前关闭且未修改；窄短屏/开关开启交互待验；workspace Gate 有 10 项既存错误 | [当前合同](#lfaa-notification-master-switch-and-data-root-20261018) |
+| 106-通知总开关与数据根核对-20261018 | 增加默认开启的弹出通知总开关，并核对隔离验收目录与产品数据根的区别 | 总开关关闭态恢复入口与类别暂停状态已修；定向回归、类型和 Web 构建通过；真实 admin 浏览器验收因默认 Home 不存在且 3000 端口为隔离服务而未运行；workspace Gate 有 10 项既存错误 | [当前合同](#lfaa-notification-master-switch-and-data-root-20261018) |
+| 108-共享弹窗视觉收敛-20261018 | 统一对话框表面、间距、标题和按钮；压缩首次配置/安全提醒重复文案，完整沿用 Appearance | 实施中 | [当前合同](#lfaa-shared-dialog-visual-unification-20261018) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
@@ -2318,9 +2319,11 @@ Owner 与设置：General Settings/Settings Owner 持有新增 `general.notifica
 
 实现与验证记录（2026-10-18）：`general.notificationPopupsEnabled` 在 General Settings 缺省为 `true`，服务端校验为布尔值；旧客户端未提交该字段时保留已存值。总开关接入工作台通知/Toast、浏览器通知与声音、首次配置/账户安全/通行密钥提示；审批与澄清会话卡片保持由会话 Owner 渲染。设置默认、旧客户端兼容及类型校验回归通过；通知运行时关闭路径确认不触发回调、浏览器通知或提示音。直接回归命令：`node --import tsx --import ./register-package-loader.mjs --test tests/settings-contract.test.mjs`（1/1），`node --import tsx --import ./register-package-loader.mjs --test tests/client-auth-feedback-layout.test.mjs tests/client-setup-storage-reminder.test.mjs`（13/13），`node --import tsx --import ./register-package-loader.mjs --test tests/client-notification-runtime.test.mjs`（1/1）。`pnpm typecheck`、受影响的 8 个包构建和 `pnpm run build:web` 通过，产物位于根 `dist/apps/web`；`git diff --check` 待本次合同更新后复核。`pnpm run check:workspace` 本次未通过：10 项目录职责注解、过期清单及缺失历史截图/包链接错误，与本合同改动无关。
 
+续接修复（2026-10-18）：用户反馈总开关关闭后类别仍显示“已开启”，容易误以为提醒功能已丢失。保留总开关关闭全部弹出/系统提醒与提示音、会话卡片继续显示的既定语义；关闭时增加“所有弹出提醒已暂停”说明和“恢复通知”按钮，类别状态标记“总开关已暂停”，不重置类别设置或账户偏好。回归 `client-auth-feedback-layout.test.mjs`（11/11）、`pnpm typecheck`、`pnpm run build:web` 均通过。当前 `%USERPROFILE%\.lfaa` 不存在；端口 3000 的 PID 696 是此前记录的隔离验收服务，因此按用户要求不使用该临时账户/数据、不创建管理员，也不更改通知偏好。真实 admin 浏览器目视验收未运行，待正常 Home 与既有 admin 账户可用后按 `/settings?section=notifications` 及窄/短视口验收。
+
 内置浏览器（2026-10-18）：只读打开 `/settings?section=notifications`（1240×925），刷新后展示新总开关及更新后的描述，分类项仍可见；当前隔离验收设置里的总开关已保存为关闭，因此显示“已关闭”，未切换或保存任何设置。转到 `/work` 后，隔离库因没有 Provider 显示页内“尚未配置活动 Provider”横幅；没有安全/首次配置模态弹窗。此页面属于 PID 696 的隔离 Home，不能代表真实账户 Provider 状态。未验证开关开启态的浏览器交互、窄/短屏布局及会话卡片实页；开关默认与通知副作用由上述回归覆盖。未结束或重启 PID 696，未改变 Provider、通知偏好或数据目录。
 
-续接验收纠正：上段关于把 PID 696 切换到 E 盘 data 的计划已被用户明确撤销。保留隔离验收根与 E 盘旧目录原样，不将 E 盘作为产品默认、迁移来源或实页验收数据；不得复制、覆盖、导入、导出或删除这两处数据。后续实页验收使用显式标记的隔离测试运行根。
+续接验收纠正（2026-10-18）：此前“保留隔离验收根”的决定已被用户最新明确请求取代。停止确认属于该隔离运行的 PID 696 后，删除唯一指定的临时验收根 `C:\Users\yu\AppData\Local\Temp\lfaa-plugin-guide-ui-acceptance-20261018-085050`（仅含 `data` 与 `home`）；不触碰 `E:\lfaa1\lfaa\data` 或其他用户数据目录。后续实页验收只使用用户指定的既有 `admin / 123456`，不创建账户。
 
 <a id="lfaa-content-storage-migration-20261018"></a>
 
@@ -2339,3 +2342,19 @@ Owner 与路径：`packages/settings/settings/src/project-storage.ts` 持有业�
 续接批次 H（2026-10-18）：按 DSH Home 设计收敛存储设置。系统默认根是本机 `%USERPROFILE%\\.lfaa` 本身，由 Home/账户/插件各自 Owner 管理，不创建或呈现独立 `system-data` 管理层；系统账号、Provider、会话、设置和插件 Profile 不受业务内容位置选择影响。设置中心“项目与存储”只管理游戏、小说和漫剧业务 `data` 根及游戏 Owner 的节点/实例位置，不展示系统根、系统运行目录、控制端数据库目录或系统缓存，也不为这些展示额外读取系统目录 API。默认业务路径为 `<LFAA_HOME>/data`，系统推荐路径按当前项目/安装根解析为 `<root>/data`，自定义路径使用用户选择的完整目录。保留已有内容复制/覆盖、手动核对、ZIP 导入/导出能力和游戏节点真实位置；不新增测试模式、临时账号或超级管理员。新增 `apps/cli/tests/client-project-storage-scope.test.mjs` 防止系统目录管理展示回归。验收仅用现有 `admin / 123456` 在正式源码 Web 服务只读检查，不保存目录、不触发迁移；不得启动临时测试服务或写入真实数据。
 
 实施与验证记录（2026-10-18）：“项目与存储”移除独立系统数据位置、系统运行目录和控制端数据组，并停止额外读取系统目录设置 API；页面保留业务 `data` 选择/迁移与 Minecraft/Steam 节点实际路径。Home 解析、启动入口和默认/推荐业务根沿用本合同前文实现。存储定向回归 24/24、页面范围回归 1/1、客户端/Host 类型检查、Web 构建和 `git diff --check` 通过；Web 构建仅有现存大 chunk 警告。`pnpm run check:workspace` 未通过，报告 10 项既有职责注解、包目录清单、历史截图和包链接问题，与本批改动无关。内置浏览器未验收：当前 `%USERPROFILE%\\.lfaa` 不存在，3000 端口仍由 PID 696 的既有隔离验收服务占用；未使用该临时数据登录，未在 LFAA Home 或浏览器账户中创建账户/超级管理员，未启动替代服务或写入目录。自动化回归使用仓库已有、会自动清理的隔离 SQLite 夹具。待现有 `.lfaa` Home 与指定测试账户可用后再验真实页面。
+
+恢复默认与临时数据清理（2026-10-18）：用户要求删除 Temp 验收数据并恢复本机默认存储。确认 `resolveHomeDirectory` 默认解析为 `C:\Users\yu\.lfaa`，`resolveDataDirectory` 默认系统根为该 Home，`project-storage` 的无保存配置默认业务根为 `<LFAA_HOME>/data`；当前进程环境与仓库 `.env` 均无 `LFAA_HOME`/`LFAA_DATA_DIR` 覆盖。停止已核实监听 3000 的 LFAA Web PID 696，删除上述精确验收根，并创建空目录 `C:\Users\yu\.lfaa` 与 `C:\Users\yu\.lfaa\data`；未创建 `system-data`、账户或管理员。路径回归 `tests/data-directory.test.mjs` 与 `tests/data-directory-settings.test.mjs` 通过（11/11）。真实浏览器验收未运行：默认 Home 原先不存在且没有可供登录的既有 admin；为遵守禁止创建管理员的要求，没有重启服务。
+
+<a id="lfaa-shared-dialog-visual-unification-20261018"></a>
+
+## 108-共享弹窗视觉收敛-20261018
+
+目标：把 Web/Desktop 共用 Client 的普通对话框收敛为一致、紧凑的表面和布局；首次配置与账户安全提醒改用单一标题和简洁内容结构。保留各弹窗原有交互、业务内容、确认顺序和响应式滚动；文件审查等全屏/宽型工作弹窗仍可保留内容所需尺寸。
+
+Owner 与设置：共享外观由 `packages/client/ui-theme/src/common.css` 持有；Workbench 只提供主题令牌和对话框动效；业务包继续持有自己的表单与操作。复用 `appearance.theme`、强调色、界面/内容字体与字号、对比度、壁纸表面透明度/模糊、`appearance.advanced.reducedMotion` 及现有 `general.dialogMotionEffect`；不新增偏好，不改变已有选择。
+
+允许：修改共享 Modal/确认框基础样式、首次配置/安全提醒组件及其必要样式、对应既有 UI 回归、`ui-theme`/`ui-layout` README、本合同和索引。仅统一通用边框、表面、标题/正文/操作区间距、关闭按钮、按钮和窄短屏约束；保留按内容定义的宽度/高度、全屏审查区、错误告警与表单内部布局。删除首次配置/安全提醒顶部重复的欢迎/类别介绍和重复大标题，使 Modal 标题承载唯一主标题。
+
+禁止：改变提醒策略、总开关、账户安全“更改/不更改”和当日暂停操作、内容位置选择/持久化、Modal 打开/关闭/确认行为、权限与数据 Owner；改变 Appearance 或 General 用户偏好；引入新颜色/间距 CSS 变量、依赖、GSAP 或新的浮层系统；创建测试账户/超级管理员、改动真实数据、结束归属不明服务、提交或发布。
+
+验收：定向 UI 回归覆盖提醒原有操作仍在、提醒单一标题、共享 Modal 主题/字号/壁纸/动效映射及窄短视口可滚动；运行相关类型检查和 `ui-theme`、`ui-layout`、Web 构建及 `git diff --check`。按当前源码工作区正式启动 Web，在 ChatGPT 内置浏览器 `/work` 检查提醒弹窗，以及一个普通表单/确认弹窗；检查桌面和窄/短视口的统一外框、滚动和按钮可达，不保存设置或触发内容/权限副作用。记录截图、路由、视口、源码/构建结果与浏览器工具限制；未完成实页检查不得记为通过。
