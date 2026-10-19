@@ -753,6 +753,13 @@ function positiveInteger(value: unknown): number | undefined {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
 
+function normalizeModelVersionTag(value: unknown): string | undefined {
+  const tag = typeof value === "string" ? value.trim()
+    : typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? String(value)
+      : "";
+  return tag.length <= 32 && /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(tag) ? tag : undefined;
+}
+
 function normalizeExtensionOptions(registration: AiProviderRegistration, options: Record<string, string>): Record<string, string> {
   const declarations = new Map(registration.definition.options.map(option => [option.id, option]));
   const normalized: Record<string, string> = {};
@@ -775,10 +782,11 @@ function normalizeExtensionModels(value: unknown): AiModelCatalogEntry[] {
     const id = typeof raw.id === "string" ? raw.id.trim() : "";
     if (!id || id.length > 160) return [];
     const name = typeof raw.name === "string" && raw.name.length <= 160 ? raw.name : id;
+    const versionTag = normalizeModelVersionTag(raw.version_tag ?? raw.versionTag ?? raw.version);
     const contextWindow = positiveInteger(raw.contextWindow);
     const maxOutputTokens = positiveInteger(raw.maxOutputTokens);
     const capability = normalizeStoredModelThinking(raw.thinking, raw.thinkingSource, false);
-    return [{ id, name, ...(contextWindow ? { contextWindow } : {}), ...(maxOutputTokens ? { maxOutputTokens } : {}), ...capability }];
+    return [{ id, name, ...(versionTag ? { versionTag } : {}), ...(contextWindow ? { contextWindow } : {}), ...(maxOutputTokens ? { maxOutputTokens } : {}), ...capability }];
   });
   if (!models.length) throw new Error("AI Provider 没有返回有效模型目录。");
   return models;
@@ -790,6 +798,7 @@ function normalizeProviderModels(list: unknown[]): AiModelCatalogEntry[] {
     const id = typeof item === "string" ? item : typeof raw.id === "string" ? raw.id : "";
     if (!id || id.length > 160) return [];
     const name = typeof raw.name === "string" ? raw.name : id;
+    const versionTag = normalizeModelVersionTag(raw.version_tag ?? raw.versionTag ?? raw.version);
     const contextWindow = positiveInteger(raw.context_window);
     const maxOutputTokens = positiveInteger(raw.max_output_tokens)
       ?? positiveInteger(raw.maxOutputTokens)
@@ -798,12 +807,53 @@ function normalizeProviderModels(list: unknown[]): AiModelCatalogEntry[] {
     return [{
       id,
       name,
+      ...(versionTag ? { versionTag } : {}),
       ...(contextWindow ? { contextWindow } : {}),
       ...(maxOutputTokens ? { maxOutputTokens } : {}),
       thinking,
       thinkingSource: thinking ? PROVIDER_MODEL_CAPABILITY_SOURCE : null
     }];
   }).slice(0, 500);
+}
+
+let deepSeekUpdatesSourceCache: { expiresAt: number; source: string } | undefined;
+let deepSeekUpdatesSourcePending: Promise<string | undefined> | undefined;
+
+async function readDeepSeekUpdatesSource(): Promise<string | undefined> {
+  if (deepSeekUpdatesSourceCache && deepSeekUpdatesSourceCache.expiresAt > Date.now()) return deepSeekUpdatesSourceCache.source;
+  if (deepSeekUpdatesSourcePending) return deepSeekUpdatesSourcePending;
+  deepSeekUpdatesSourcePending = (async () => {
+    try {
+      const response = await fetch("https://api-docs.deepseek.com/zh-cn/updates/", {
+        headers: { Accept: "text/html" },
+        signal: AbortSignal.timeout(5000),
+        redirect: "error"
+      });
+      if (!response.ok) return undefined;
+      const source = await response.text();
+      if (source.length > 2_000_000) return undefined;
+      deepSeekUpdatesSourceCache = { expiresAt: Date.now() + 5 * 60_000, source };
+      return source;
+    } catch {
+      return undefined;
+    }
+  })();
+  try {
+    return await deepSeekUpdatesSourcePending;
+  } finally {
+    deepSeekUpdatesSourcePending = undefined;
+  }
+}
+
+async function addDeepSeekOfficialVersionTags(models: AiModelCatalogEntry[]): Promise<AiModelCatalogEntry[]> {
+  const source = await readDeepSeekUpdatesSource();
+  if (!source) return models;
+  return models.map(model => {
+    if (model.versionTag) return model;
+    const escapedName = model.name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const versionTag = new RegExp(`${escapedName}-(\\d{1,8})(?!\\d)`, "u").exec(source)?.[1];
+    return versionTag ? { ...model, versionTag } : model;
+  });
 }
 
 function normalizeSavedModels(providerId: string, value: unknown): AiModelCatalogEntry[] {
@@ -814,6 +864,7 @@ function normalizeSavedModels(providerId: string, value: unknown): AiModelCatalo
     const id = typeof raw.id === "string" ? raw.id : "";
     if (!id || id.length > 160) return [];
     const name = typeof raw.name === "string" ? raw.name : id;
+    const versionTag = normalizeModelVersionTag(raw.versionTag ?? raw.version_tag ?? raw.version);
     const contextWindow = positiveInteger(raw.contextWindow) ?? positiveInteger(raw.context_window);
     const maxOutputTokens = positiveInteger(raw.maxOutputTokens)
       ?? positiveInteger(raw.max_output_tokens)
@@ -823,6 +874,7 @@ function normalizeSavedModels(providerId: string, value: unknown): AiModelCatalo
     return [{
       id,
       name,
+      ...(versionTag ? { versionTag } : {}),
       ...(contextWindow ? { contextWindow } : {}),
       ...(maxOutputTokens ? { maxOutputTokens } : {}),
       thinking: capability.thinking,
@@ -939,8 +991,9 @@ export async function probeAiProvider(input: AiProviderInput): Promise<AiProvide
   try { payload = JSON.parse(raw) as unknown; } catch { throw new Error("Provider 返回的数据不是有效 JSON。"); }
   const record = typeof payload === "object" && payload !== null ? payload as Record<string, unknown> : {};
   const list = Array.isArray(record.data) ? record.data : Array.isArray(record.models) ? record.models : Array.isArray(record.model_list) ? record.model_list : [];
-  const models = normalizeProviderModels(list);
-  if (!models.length) throw new Error("连接已成功，但 Provider 没有返回可用模型目录。");
+  const normalizedModels = normalizeProviderModels(list);
+  if (!normalizedModels.length) throw new Error("连接已成功，但 Provider 没有返回可用模型目录。");
+  const models = input.providerId === "deepseek" ? await addDeepSeekOfficialVersionTags(normalizedModels) : normalizedModels;
   return { status: "connected", message: `连接成功，发现 ${models.length} 个模型。`, models };
 }
 
@@ -1238,25 +1291,34 @@ export async function saveAiAccount(userId: string, input: AiProviderInput & { d
   return mapAccount(row);
 }
 
-export async function reprobeAiAccount(userId: string, accountId: string): Promise<AiProviderProbe> {
+export async function refreshAiAccountModelCatalog(userId: string, accountId: string): Promise<AiProviderProbe> {
   const row = configuration.get("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId))) as ({ provider_id: string; options_json: string; model_id: string; reasoning_mode: string; secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
   if (!row) throw new Error("找不到该 AI 账户。");
   const result = await probeAiProvider({ providerId: row.provider_id, options: JSON.parse(row.options_json) as Record<string, string>, secret: decryptSecret(row) });
-  const nextModel = result.models.some((model) => model.id === row.model_id) ? row.model_id : result.models[0]?.id;
-  const nextModelDetails = result.models.find((model) => model.id === nextModel);
-  const nextReasoningMode = nextModel === row.model_id && nextModelDetails
-    ? normalizeAccountReasoningMode(nextModelDetails.thinking, row.reasoning_mode)
-    : defaultReasoningMode(nextModelDetails?.thinking ?? null);
-  if (!nextModel || !nextModelDetails) throw new Error("Provider 官方目录中没有可用于模型测试的项目。");
-  await requestAiProviderModel({
+  configuration.update("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId)), { models_json: JSON.stringify(result.models) });
+  const selectedModelAvailable = result.models.some(model => model.id === row.model_id);
+  return {
+    ...result,
+    message: selectedModelAvailable
+      ? `${result.message}目录已更新；未发起模型推理，当前模型与思考设置保持不变。`
+      : `${result.message}目录已更新；当前模型“${row.model_id}”不在最新目录中，已保留原选择，请手动选择目录中的型号。`
+  };
+}
+
+export async function testSavedAiAccountModel(userId: string, accountId: string): Promise<AiModelTestResult> {
+  const row = configuration.get("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId))) as ({ provider_id: string; options_json: string; model_id: string; models_json: string; reasoning_mode: string; secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
+  if (!row) throw new Error("找不到该 AI 账户。");
+  let models: AiModelCatalogEntry[] = [];
+  try { models = normalizeSavedModels(row.provider_id, JSON.parse(row.models_json) as unknown); } catch { /* 损坏或旧目录不能推断模型能力。 */ }
+  const model = models.find(candidate => candidate.id === row.model_id);
+  if (!model) throw new Error("当前模型没有有效的目录能力信息，请先更新模型目录并选择可用型号。");
+  return requestAiProviderModel({
     providerId: row.provider_id,
     options: JSON.parse(row.options_json) as Record<string, string>,
     secret: decryptSecret(row),
-    modelId: nextModel,
-    reasoningMode: nextReasoningMode
-  }, nextModelDetails);
-  configuration.update("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId)), { models_json: JSON.stringify(result.models), model_id: nextModel, reasoning_mode: nextReasoningMode });
-  return { ...result, message: `${result.message}；当前模型已通过真实请求测试。` };
+    modelId: row.model_id,
+    reasoningMode: normalizeAccountReasoningMode(model.thinking, row.reasoning_mode)
+  }, model);
 }
 
 export async function updateAiAccountModel(userId: string, accountId: string, modelId: string): Promise<AiAccountView> {

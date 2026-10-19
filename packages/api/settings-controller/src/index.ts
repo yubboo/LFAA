@@ -13,7 +13,7 @@ import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-ser
 import { getUserPreferences, saveUserPreferences, type ApplicationId, type ApplicationMode } from "lfaa-settings/src/preferences/service.js";
 import { clearConversationMemories, getConversationMemorySnapshot, replaceConversationMemories, validateConversationMemoriesInput } from "lfaa-conversation-memory/src/index.js";
 import { redactConversationMemoryContexts } from "lfaa-session/src/sessions.js";
-import { activateAiAccount, deleteAiAccount, deleteUserBackground, getUserBackground, getUserSettings, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, reprobeAiAccount, saveAiAccount, saveUserBackground, saveUserSettings, updateAiAccountModel, updateAiAccountReasoningMode, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
+import { activateAiAccount, deleteAiAccount, deleteUserBackground, getUserBackground, getUserSettings, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, saveUserBackground, saveUserSettings, updateAiAccountModel, updateAiAccountReasoningMode, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
 import { cancelDataDirectoryChange, confirmDataDirectoryLocation, recommendDataDirectoryLocation, DataDirectorySettingsError, getDataDirectorySettings, requestDataDirectoryChange } from "lfaa-workspace-data-directory/src/service.js";
 import { confirmProjectContentDirectory, getProjectStorageLocations, saveProjectContentDirectory } from "lfaa-settings/src/project-storage.js";
 import { adoptProjectContentDirectory, compareProjectContentDirectories, copyProjectContentToDirectory, createProjectContentArchive, importProjectContentArchive } from "lfaa-settings/src/content-storage-migration.js";
@@ -201,11 +201,19 @@ router.post("/settings/ai/accounts", requireAuthentication, asyncHandler(async (
     }
   }));
 
-router.post("/settings/ai/accounts/:accountId/retest", requireAuthentication, asyncHandler(async (request, response) => {
+router.post("/settings/ai/accounts/:accountId/refresh-models", requireAuthentication, asyncHandler(async (request, response) => {
     try {
-      response.json({ result: await reprobeAiAccount(request.auth!.user.id, request.params.accountId) });
+      response.json({ result: await refreshAiAccountModelCatalog(request.auth!.user.id, request.params.accountId) });
     } catch (error) {
-      throw new ApiError(422, "ai_account_probe_failed", error instanceof Error ? error.message : "AI 账户重测失败。");
+      throw new ApiError(422, "ai_account_probe_failed", error instanceof Error ? error.message : "AI 模型目录更新失败。");
+    }
+  }));
+
+router.post("/settings/ai/accounts/:accountId/test-model", requireAuthentication, asyncHandler(async (request, response) => {
+    try {
+      response.json({ result: await testSavedAiAccountModel(request.auth!.user.id, request.params.accountId) });
+    } catch (error) {
+      throw new ApiError(422, "ai_model_test_failed", error instanceof Error ? error.message : "模型测试失败。");
     }
   }));
 

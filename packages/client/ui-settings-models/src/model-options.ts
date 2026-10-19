@@ -58,11 +58,14 @@ export function modelParameterSummary(model: AiModel | undefined): string {
   return details.length ? details.join(" · ") : "官方模型目录未提供上下文与输出上限元数据";
 }
 
-export function modelOptionLabel(providerId: string, model: AiModel): string {
-  const modelId = providerId === "deepseek" && model.id === "deepseek-v4-pro"
-    ? `${model.id}（当前请求路由至 DeepSeek-V4.1-Flash）`
-    : model.id;
-  return model.name === model.id ? modelId : `${model.name} · ${modelId}`;
+export function modelOptionLabel(_providerId: string, model: AiModel): string {
+  // Provider 目录的显示名和调用 ID 都是权威值；标签只做分隔，不改写二者。
+  return model.name === model.id ? model.id : `${model.name} · ${model.id}`;
+}
+
+/** Provider 单独提供版本标记时原样显示，不把版本拼进模型名或调用 ID。 */
+export function modelOptionVersionTag(model: AiModel): string | undefined {
+  return model.versionTag;
 }
 
 export function fixedThinkingLabel(model: AiModel): string {

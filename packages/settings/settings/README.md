@@ -2,6 +2,8 @@
 
 `registerAiProvider` 是 Provider 设置目录的 Cordis 扩展合同：插件可提供受校验的 Provider 选项、模型发现与真实模型测试处理器，列表 API 返回防篡改副本，注销会移除该插件的目录定义。静态账户凭据仍由本包及 Credentials Owner 管理；Provider 连接 URL 必须使用 HTTPS 且不得内嵌身份信息。该扩展接口不改变当前外部插件 Runtime 的隔离边界。
 
+已保存账户的“更新目录”只重新读取并保存 Provider 官方模型目录，不发起模型推理，也不更改已选模型 ID 或 `reasoning_mode`；若当前型号已从新目录移除，保留原选择并提示用户手动选择。“重测模型”只对当前已选型号发起真实请求，可能产生 Provider 用量。两个动作共用本包的账户隔离、加密凭据与 Provider 目录 Owner，不新增配置。
+
 账户偏好、Provider 凭据引用和权限继续由本包原服务持有，位于 LFAA Home 的系统分类目录（默认 `%USERPROFILE%\\.lfaa`，不增加 `system-data` 子目录）。`project-storage.ts` 负责保存游戏、小说和漫剧的业务内容根，首次默认 `<LFAA_HOME>/data`（Windows 默认示例 `%USERPROFILE%\\.lfaa\\data`）。系统推荐路径根据当前项目或安装根动态解析为其 `data` 子目录，自定义路径按用户所选绝对路径使用。Home 中各系统分类路径受保护；仅游戏、小说和漫剧业务内容写入/迁移业务内容根。该操作只影响业务 Owner；迁移、覆盖备份和 ZIP 归档由本包业务内容迁移合同实施，绝不复制系统数据库、账号、AI 配置、会话或系统运行数据。自动化回归用合成数据，浏览器验收使用现有 `admin` 测试账号，不增加临时存储模式或测试账号。远端环境位置由该节点真实 data 根与平台推导，不能复用控制端盘符。
 
 常规设置中的 `general.cardMotionEffect` 与 `general.dialogMotionEffect` 由此处执行 Strict 校验、按账户持久化和旧值兼容；旧记录缺字段时分别回落到共享默认值，旧客户端省略动效字段保存其他常规设置时保留已选效果。

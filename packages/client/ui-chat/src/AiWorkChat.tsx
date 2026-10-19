@@ -25,7 +25,7 @@ import { AI_RUN_CONTROL_GUARD_MS, canControlAiRun } from "./run-stop-guard.js";
 import { supportsVoiceInput, startVoiceInput, readResponseAloud, stopVoicePlayback } from "./voice.js";
 import { WorkbenchIcon, type WorkbenchIconName } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { WorkspaceProjectPicker } from "./WorkspaceProjectPicker.js";
-import { effectiveReasoningMode, fixedThinkingLabel, modelParameterSummary, reasoningDefaultLabel, reasoningModeLabel, reasoningOptions } from "lfaa-client-ui-settings-models/src/model-options.js";
+import { effectiveReasoningMode, fixedThinkingLabel, modelOptionVersionTag, modelParameterSummary, reasoningDefaultLabel, reasoningModeLabel, reasoningOptions } from "lfaa-client-ui-settings-models/src/model-options.js";
 import "./ai-work-chat.css";
 
 const MODEL_PICKER_RESULT_LIMIT = 60;
@@ -686,7 +686,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
     : reasoningModeLabel(activeReasoningMode);
   const matchingModels = useMemo(() => {
     const query = modelSearch.trim().toLocaleLowerCase("zh-CN");
-    return (activeAccount?.models ?? []).filter((model) => !query || `${model.name} ${model.id}`.toLocaleLowerCase("zh-CN").includes(query));
+    return (activeAccount?.models ?? []).filter((model) => !query || `${model.name} ${modelOptionVersionTag(model) ?? ""} ${model.id}`.toLocaleLowerCase("zh-CN").includes(query));
   }, [activeAccount?.models, modelSearch]);
   const visibleModels = matchingModels.slice(0, MODEL_PICKER_RESULT_LIMIT);
 
@@ -1662,7 +1662,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
             aria-pressed={model.id === activeAccount?.modelId}
             disabled={modelBusy || busy}
             onClick={() => model.id === activeAccount?.modelId ? setModelPickerOpen(false) : void selectModel(model.id)}
-          ><span><strong>{model.name}</strong><small>{model.id}</small></span>{model.id === activeAccount?.modelId ? <span aria-hidden="true">✓</span> : null}</button>)}
+          ><span><strong><span className="ai-work-chat__model-card-model-name">{model.name}</span>{modelOptionVersionTag(model) ? <Tag color="blue">{modelOptionVersionTag(model)}</Tag> : null}</strong><small>{model.id}</small></span>{model.id === activeAccount?.modelId ? <span aria-hidden="true">✓</span> : null}</button>)}
           {!visibleModels.length ? <span className="ai-work-chat__model-card-empty">没有匹配的模型</span> : null}
         </div>
         {matchingModels.length > visibleModels.length ? <span className="ai-work-chat__model-card-limit">显示前 {MODEL_PICKER_RESULT_LIMIT} 个匹配结果，请继续输入以缩小范围。</span> : null}

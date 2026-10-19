@@ -406,7 +406,9 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 .ai-work-chat__model-card-models button > span:first-child { display: grid; min-width: 0; gap: 1px; }
 .ai-work-chat__model-card-models button strong,
 .ai-work-chat__model-card-models button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ai-work-chat__model-card-models button strong { color: var(--color-text-heading); font-size: .76em; font-weight: 560; }
+.ai-work-chat__model-card-models button strong { display: flex; min-width: 0; align-items: center; gap: 5px; color: var(--color-text-heading); font-size: .76em; font-weight: 560; }
+.ai-work-chat__model-card-model-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__model-card-models button strong .ant-tag { flex: 0 0 auto; margin: 0; font-size: .78em; line-height: 1.45; }
 .ai-work-chat__model-card-models button small { color: var(--color-text-muted); font-size: .63em; }
 .ai-work-chat__model-card-models button > span:last-child { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); font-size: .8em; }
 .ai-work-chat__model-card-empty,

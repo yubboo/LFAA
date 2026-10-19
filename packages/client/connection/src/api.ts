@@ -101,6 +101,7 @@ export interface AiProvider {
 export interface AiModel {
   id: string;
   name: string;
+  versionTag?: string;
   contextWindow?: number;
   maxOutputTokens?: number;
   thinking: AiModelThinkingControl | null;
@@ -2388,8 +2389,12 @@ export function saveAiAccount(input: { providerId: string; secret: string; optio
   return request<{ account: AiAccount }>("/settings/ai/accounts", { method: "POST", body: JSON.stringify(input) });
 }
 
-export function reprobeAiAccount(accountId: string): Promise<{ result: AiProviderProbe }> {
-  return request<{ result: AiProviderProbe }>(`/settings/ai/accounts/${encodeURIComponent(accountId)}/retest`, { method: "POST" });
+export function refreshAiAccountModelCatalog(accountId: string): Promise<{ result: AiProviderProbe }> {
+  return request<{ result: AiProviderProbe }>(`/settings/ai/accounts/${encodeURIComponent(accountId)}/refresh-models`, { method: "POST" });
+}
+
+export function testSavedAiAccountModel(accountId: string): Promise<{ result: AiModelTestResult }> {
+  return request<{ result: AiModelTestResult }>(`/settings/ai/accounts/${encodeURIComponent(accountId)}/test-model`, { method: "POST" });
 }
 
 export function updateAiAccountModel(accountId: string, modelId: string): Promise<{ account: AiAccount }> {

@@ -2040,6 +2040,33 @@
   margin-bottom: 0;
 }
 
+.settings-ai-model-option {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settings-ai-model-option__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-ai-model-option__id {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.settings-ai-model-option .ant-tag {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
 .ai-account-item__actions {
   display: flex;
   flex-wrap: wrap;

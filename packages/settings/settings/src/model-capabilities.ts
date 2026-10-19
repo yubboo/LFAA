@@ -15,6 +15,7 @@ export type AiModelThinkingControl =
 export interface AiModelCatalogEntry {
   id: string;
   name: string;
+  versionTag?: string;
   contextWindow?: number;
   maxOutputTokens?: number;
   thinking: AiModelThinkingControl | null;
