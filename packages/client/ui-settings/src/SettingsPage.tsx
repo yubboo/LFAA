@@ -18,6 +18,7 @@ import { WorkbenchIcon, type WorkbenchIconName } from "lfaa-client-ui-primitives
 import { isPasswordAcceptable, PasswordStrengthIndicator } from "lfaa-client-ui-settings-account/src/PasswordStrengthIndicator.js";
 import { AdminUsersPage } from "lfaa-client-ui-settings-account/src/AdminUsersPage.js";
 import { GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH, GLOBAL_NAVIGATION_RAIL_WIDTH, GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
+import { SecondaryNavigation } from "lfaa-client-ui-sidebar/src/SecondaryNavigation.js";
 import { PasskeyManager } from "lfaa-client-ui-settings-account/src/PasskeyManager.js";
 import "./SettingsPage.css";
 import { hasShortcutConflicts, ShortcutRow } from "lfaa-client-ui-shortcuts/src/settings-shortcuts.js";
@@ -46,6 +47,7 @@ function aiModelSelectOption(providerId: string, model: AiModel): { value: strin
 import { GitWorktreesSettings } from "./GitWorktreesSettings.js";
 import { KnowledgeLibraryPanel } from "./KnowledgeLibraryPanel.js";
 import { isComputerControlEnabled } from "./computer-control-settings.js";
+import { ManagedPluginsSettings } from "./ManagedPluginsSettings.js";
 
 
 
@@ -103,7 +105,8 @@ function formatStorageBytes(value: number): string {
 
 
 
-type SectionId = "general" | "notifications" | "import" | "profile" | "security" | "appearance" | "wallpaperEngine" | "parental" | "trustedContacts" | "voice" | "about" | "configuration" | "personalization" | "mini" | "shortcuts" | "usage" | "account" | "plugins" | "computerControl" | "snapshots" | "browser" | "hooks" | "connections" | "cloudPreferences" | "codeReview" | "git" | "environment" | "worktrees" | "archived" | "ai" | "minecraft" | "permissions" | "workspace" | "developer";
+type SectionId = "general" | "notifications" | "import" | "profile" | "security" | "appearance" | "wallpaperEngine" | "parental" | "trustedContacts" | "voice" | "about" | "configuration" | "personalization" | "mini" | "shortcuts" | "usage" | "account" | "plugins" | "profilePlugins" | "computerControl" | "snapshots" | "browser" | "hooks" | "connections" | "cloudPreferences" | "codeReview" | "git" | "environment" | "worktrees" | "archived" | "ai" | "minecraft" | "permissions" | "workspace" | "developer";
+type AccountSettingsSectionId = Extract<SectionId, "profile" | "security" | "account">;
 type PluginWorkspaceTab = "overview" | "catalog" | "knowledge" | "mcp" | "diagnostics";
 export type StandalonePluginWorkspaceView = "all" | "applications" | "tools" | "skills" | "prompts" | "mcp" | "knowledge" | "diagnostics" | "experts";
 
@@ -128,6 +131,50 @@ const PLUGIN_WORKSPACE_TABS: Array<{ id: PluginWorkspaceTab; label: string }> = 
   { id: "mcp", label: "MCP 连接" },
   { id: "diagnostics", label: "运行诊断" }
 ];
+const ACCOUNT_SETTINGS_TABS: Array<{ id: AccountSettingsSectionId; label: string }> = [
+  { id: "profile", label: "个人资料" },
+  { id: "security", label: "安全" },
+  { id: "account", label: "账号管理" }
+];
+
+function isAccountSettingsSection(section: SectionId): section is AccountSettingsSectionId {
+  return section === "profile" || section === "security" || section === "account";
+}
+
+function getSettingsSectionSearchText(section: { id: string; title: string; group: string }): string {
+  const aliases = section.id === "account" ? "账户 个人资料 安全 账号管理" : "";
+  return `${section.title} ${section.group} ${aliases}`.trim();
+}
+
+function AccountSettingsTabs({ activeSection, onSelect }: { activeSection: AccountSettingsSectionId; onSelect: (section: AccountSettingsSectionId) => void }) {
+  return (
+    <div className="settings-account-tabs" role="tablist" aria-label="账号设置分类" onKeyDown={(event) => {
+      const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=tab]"));
+      if (tabs.length === 0) return;
+      const currentIndex = tabs.indexOf(event.target as HTMLButtonElement);
+      const nextIndex = event.key === "ArrowRight" ? (currentIndex + 1) % tabs.length
+        : event.key === "ArrowLeft" ? (currentIndex - 1 + tabs.length) % tabs.length
+          : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
+      if (currentIndex >= 0 && nextIndex >= 0) {
+        event.preventDefault();
+        tabs[nextIndex]?.focus();
+        tabs[nextIndex]?.click();
+      }
+    }}>
+      {ACCOUNT_SETTINGS_TABS.map((tab) => <button
+        key={tab.id}
+        id={`settings-account-tab-${tab.id}`}
+        type="button"
+        role="tab"
+        tabIndex={activeSection === tab.id ? 0 : -1}
+        aria-selected={activeSection === tab.id}
+        aria-controls="settings-account-panel"
+        className={activeSection === tab.id ? "is-active" : ""}
+        onClick={() => onSelect(tab.id)}
+      >{tab.label}</button>)}
+    </div>
+  );
+}
 // 只在进入需要真实数据的分类时请求专属数据，避免首次打开设置就并发加载全部分类。
 const SETTINGS_DATA_SECTIONS = new Set<SectionId>(["appearance", "usage", "plugins", "archived", "ai", "minecraft", "permissions", "workspace", "developer"]);
 
@@ -207,8 +254,9 @@ const sections: Array<{ id: SectionId; title: string; group: string; icon: Workb
   { id: "mini", title: "Mini 与虚拟宠物", group: "个人", icon: "bolt" },
   { id: "shortcuts", title: "键盘快捷键", group: "个人", icon: "keyboard" },
   { id: "usage", title: "使用情况和计费", group: "个人", icon: "bolt" },
-  { id: "account", title: "账户", group: "个人", icon: "user" },
+  { id: "account", title: "账号", group: "个人", icon: "user" },
   { id: "plugins", title: "AI 扩展与 MCP", group: "集成", icon: "grid" },
+  { id: "profilePlugins", title: "插件", group: "集成", icon: "extension" },
   { id: "computerControl", title: "电脑操控", group: "集成", icon: "tools" },
   { id: "snapshots", title: "应用快照", group: "集成", icon: "archive" },
   { id: "browser", title: "浏览器", group: "集成", icon: "browser" },
@@ -244,7 +292,9 @@ function isSettingsSection(value: string | null): value is SectionId {
 }
 
 function resolveSettingsSection(section: SectionId): SectionId {
-  return section === "configuration" ? "workspace" : section;
+  if (section === "configuration") return "workspace";
+  if (section === "plugins") return "profilePlugins";
+  return section;
 }
 
 function settingsCategoryForSection(section: SectionId): keyof UserSettings | null {
@@ -314,12 +364,12 @@ function readSettingsBackgroundTarget(userId: string): SettingsBackgroundTarget 
 function getInitialSettingsSection(initialSection: SectionId | undefined, userId: string, standalonePluginWorkspace = false, standalonePluginSection: "plugins" | "wallpaperEngine" = "plugins"): SectionId {
   if (standalonePluginWorkspace) return standalonePluginSection;
   const querySection = new URLSearchParams(window.location.search).get("section");
-  if (isSettingsSection(querySection) && querySection !== "plugins" && querySection !== "connections" && querySection !== "wallpaperEngine") return resolveSettingsSection(querySection);
-  if (initialSection && initialSection !== "plugins" && initialSection !== "connections" && initialSection !== "wallpaperEngine") return resolveSettingsSection(initialSection);
+  if (isSettingsSection(querySection) && querySection !== "connections" && querySection !== "wallpaperEngine") return resolveSettingsSection(querySection);
+  if (initialSection && initialSection !== "connections" && initialSection !== "wallpaperEngine") return resolveSettingsSection(initialSection);
 
   try {
     const storedSection = window.localStorage.getItem(settingsSectionStorageKey(userId));
-    if (isSettingsSection(storedSection) && storedSection !== "plugins" && storedSection !== "connections" && storedSection !== "wallpaperEngine") return resolveSettingsSection(storedSection);
+    if (isSettingsSection(storedSection) && storedSection !== "connections" && storedSection !== "wallpaperEngine") return resolveSettingsSection(storedSection);
   } catch {
     // 浏览器禁用本地存储时仍可通过 URL 保留当前分类。
   }
@@ -334,9 +384,10 @@ function persistSettingsSection(section: SectionId, userId: string): void {
   }
 
   try {
+    const routeSection = section === "profilePlugins" ? "plugins" : section;
     const url = new URL(window.location.href);
-    if (url.searchParams.get("section") === section) return;
-    url.searchParams.set("section", section);
+    if (url.searchParams.get("section") === routeSection) return;
+    url.searchParams.set("section", routeSection);
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   } catch {
     // URL 更新失败不影响设置分类切换。
@@ -349,7 +400,7 @@ const pendingSections: Partial<Record<SectionId, { description: string; status: 
   trustedContacts: { description: "管理账户恢复和信任联系人。当前账户恢复通过管理员与恢复密钥完成。", status: "恢复联系人待接入" },
   voice: { description: "浏览器语音输入与完成回复播报由账户设置控制；宿主需支持 Web Speech API。", status: "浏览器语音已接入" },
   mini: { description: "轻量窗口和虚拟宠物尚未进入 LFAA 的桌面产品规划。", status: "桌面能力待接入" },
-  account: { description: "由超级管理员查看和管理本机账户。", status: "账户管理已接入" },
+  account: { description: "由超级管理员查看和管理本机账号。", status: "账号管理已接入" },
   snapshots: { description: "应用快照用于保存与恢复工作区状态，当前版本尚未接入快照存储。", status: "快照服务待接入" },
   browser: { description: "浏览器工具需要受控浏览器宿主，尚未与 LFAA Agent Runtime 连接。", status: "浏览器宿主待接入" },
   hooks: { description: "此处是编码工作流钩子设置；AI 对话推理生命周期钩子由“插件”管理。编码任务 Runtime 尚未接入。", status: "编码任务 Runtime 待接入" },
@@ -401,7 +452,7 @@ interface SettingsPageProps {
   settings: UserSettings;
   resolvedTheme: "light" | "dark";
   initialSection?: SectionId;
-  sectionRequest?: { section: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security"; requestId: number } | null;
+  sectionRequest?: { section: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins"; requestId: number } | null;
   applications: ApplicationNavigationItem[];
   onOpenApplication: (app: ApplicationId, mode: "normal") => Promise<void>;
   onBack: () => void;
@@ -911,8 +962,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   }, [sectionRequest?.requestId, standalonePluginWorkspace, user.id]);
 
   useEffect(() => {
-    if (activeSection !== "account") return;
-    // 账户页也能从外部入口打开；进入时清空旧筛选，恢复完整的设置分类导航。
+    if (!isAccountSettingsSection(activeSection)) return;
+    // 账号页也能从外部入口打开；进入时清空旧筛选，恢复完整的设置分类导航。
     setSearch("");
     setSearchExpandedSettingsGroups(new Set());
   }, [activeSection]);
@@ -957,12 +1008,14 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   }, [accounts, archivedSessions, cacheKey, capabilityInstallCatalog, extensions, health, hotReloadEnabled, minecraftStorageDefaults, minecraftStorageDefaultsConfigured, minecraftStorageDraft, minecraftStorageNodes, pendingApprovals, permissionGrants, projectStorageLocations, providers, runtimeHooks, runtimePlugins, selectedMinecraftStorageNodeId, selectedSteamcmdConfigurationNodeId, selectedSteamcmdInstallNodeId, selectedSteamcmdStorageNodeId, steamcmdConfigurationDefaults, steamcmdConfigurationDefaultsConfigured, steamcmdConfigurationDraft, steamcmdNodes, steamcmdStorageDefaults, steamcmdStorageDefaultsConfigured, steamcmdStorageDraft, uploadedBackgrounds, usage]);
 
   function selectSection(section: SectionId): void {
-    // 账户安全页含有多个凭据输入项；离开分类筛选状态，避免浏览器把用户名填入搜索框后隐藏全部导航分类。
-    if (section === "account" && search) {
+    // 账号页含有多个凭据输入项；进入该组时清除旧搜索，避免浏览器自动填充后隐藏导航分类。
+    if (isAccountSettingsSection(section) && search) {
       setSearch("");
       setSearchExpandedSettingsGroups(new Set());
     }
     setActiveSection(section);
+    // 手机布局将分类导航作为覆盖层；选择分类后回到正文，避免页面保持隐藏状态。
+    if (layout.mode === "mobile") setSidebarCollapsed(true);
     if (section === "plugins") setPluginWorkspaceTab("overview");
     if (section === "connections") setPluginWorkspaceTab("mcp");
     const group = sections.find((item) => item.id === section)?.group;
@@ -1158,9 +1211,12 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
   const visibleSections = useMemo(() => {
     const value = search.trim().toLocaleLowerCase();
-    const settingsSections = sections.filter((section) => section.id !== "plugins" && section.id !== "connections" && section.id !== "wallpaperEngine");
+    const settingsSections = sections.filter((section) => section.id !== "plugins" && section.id !== "connections" && section.id !== "wallpaperEngine" && section.id !== "profile" && section.id !== "security");
+    const matchesSettingsSection = (section: typeof settingsSections[number]) => {
+      return getSettingsSectionSearchText(section).toLocaleLowerCase().includes(value);
+    };
     const isConfigurationMatch = (section: typeof settingsSections[number]) => LFAA_CONFIGURATION_SECTION_IDS.has(section.id)
-      && (`${section.title} ${section.group}`.toLocaleLowerCase().includes(value) || "配置中心".includes(value));
+      && (matchesSettingsSection(section) || "配置中心".includes(value));
     const matchingConfigurationSections = settingsSections.filter((section) => LFAA_CONFIGURATION_SECTION_IDS.has(section.id) && (!value || isConfigurationMatch(section)));
     const showConfigurationCenter = !value || matchingConfigurationSections.length > 0;
     const configurationEntrySection = matchingConfigurationSections.some((section) => section.id === activeSection)
@@ -1177,7 +1233,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         }
         continue;
       }
-      if (!value || `${section.title} ${section.group}`.toLocaleLowerCase().includes(value)) visible.push(section);
+      if (!value || matchesSettingsSection(section)) visible.push(section);
     }
     return visible;
   }, [activeSection, search]);
@@ -1191,7 +1247,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       return;
     }
     setSearchExpandedSettingsGroups(new Set(sections
-      .filter((section) => `${section.title} ${section.group}`.toLocaleLowerCase().includes(normalized))
+      .filter((section) => getSettingsSectionSearchText(section).toLocaleLowerCase().includes(normalized))
       .map((section) => section.group)));
   }
 
@@ -2153,7 +2209,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         description="重新开启后，其他工作台提醒、系统通知和提示音会按原设置继续生效；会话中的审批与澄清卡片不受影响。"
         action={<Button size="small" type="primary" onClick={() => updateGeneral({ notificationPopupsEnabled: true })}>恢复通知</Button>}
       /> : null}
-      <SettingRow title="通知总开关" description="关闭后停止工作台提醒、浏览器系统通知和通知提示音；会话里的审批与澄清卡片仍会保留。重新开启后，各类别开关按原设置生效。" status={settings.general.notificationPopupsEnabled ? "已开启" : "已关闭"}>
+      <SettingRow title="通知总开关" description="关闭后停止工作台提醒、浏览器系统通知和通知提示音；会话里的审批与澄清卡片仍会保留。重新开启后按原偏好继续提醒。" status={settings.general.notificationPopupsEnabled ? "已开启" : "已关闭"}>
         <SettingsSwitch label="通知总开关" checked={settings.general.notificationPopupsEnabled} onChange={() => updateGeneral({ notificationPopupsEnabled: !settings.general.notificationPopupsEnabled })} />
       </SettingRow>
       <SettingRow title="浏览器通知权限" description={notificationPermissionDescriptions[notificationPermission]} status={notificationPermissionLabels[notificationPermission]}>
@@ -2214,8 +2270,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
   const sectionContent = (() => {
     if (activeSection === "profile") return (
-      <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">当前账户</span><Typography.Title level={2}>个人资料</Typography.Title><Typography.Paragraph>显示当前登录账户的资料。切换登录账号后，这里会对应显示新账号的信息。</Typography.Paragraph></div></header>
+      <section className="settings-content settings-content--account" role="tabpanel" id="settings-account-panel" aria-labelledby="settings-account-tab-profile" tabIndex={0}>
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">个人与账户</span><Typography.Title level={2}>账号</Typography.Title><Typography.Paragraph>管理个人资料、登录安全和本机账号。</Typography.Paragraph></div></header>
+        <AccountSettingsTabs activeSection={activeSection} onSelect={selectSection} />
         {/* 个人资料直接使用当前认证会话中的用户对象，避免从跨账号共享状态读取身份信息。 */}
         <SettingGroup title="账户资料">
           <SettingRow title="用户名" description="当前账户的登录名称。" status="当前账户"><Typography.Text>{user.username}</Typography.Text></SettingRow>
@@ -2228,8 +2285,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     );
 
     if (activeSection === "security") return (
-      <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">账户保护</span><Typography.Title level={2}>安全</Typography.Title><Typography.Paragraph>集中管理当前账户的邮箱、登录密码、恢复密钥和通行密钥。更改邮箱或密码时需要重新验证当前密码。</Typography.Paragraph></div></header>
+      <section className="settings-content settings-content--account" role="tabpanel" id="settings-account-panel" aria-labelledby="settings-account-tab-security" tabIndex={0}>
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">个人与账户</span><Typography.Title level={2}>账号</Typography.Title><Typography.Paragraph>管理个人资料、登录安全和本机账号。</Typography.Paragraph></div></header>
+        <AccountSettingsTabs activeSection={activeSection} onSelect={selectSection} />
         <SettingGroup title="登录用户名">
           <SettingRow title="账户用户名" description="用户名用于登录，修改前需要重新验证当前密码。" status={user.username}>
             <Space direction="vertical" size="small" style={{ width: "100%" }}>
@@ -2398,7 +2456,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     if (activeSection === "notifications") return (
       <section className="settings-content">
         <header className="settings-content__heading"><div><Typography.Title level={2}>通知</Typography.Title></div></header>
-        <Alert className="settings-inline-alert" type="info" showIcon message="当前接入 LFAA 自身通知" description="小鱼智能体 成功回复已接入。ChatGPT/Codex 任务、用量重置、健康数据、群聊、营销、资料库和项目邀请属于外部产品事件，LFAA 当前没有相应连接器或事件源。" />
+        <Alert className="settings-inline-alert" type="info" showIcon message="当前接入 LFAA 自身通知" description="目前仅接入小鱼智能体回复通知；ChatGPT/Codex 等外部事件暂无连接器。" />
         {notificationGroup}
       </section>
     );
@@ -2851,10 +2909,12 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       </section>
     );
 
+    if (activeSection === "profilePlugins") return <ManagedPluginsSettings user={user} applications={applications} onNavigate={onNavigate} />;
+
     if (activeSection === "plugins" || activeSection === "connections") return (
       <section className={`settings-content settings-content--plugin-workspace${standaloneWorkspaceContent ? " settings-content--plugin-workspace-standalone" : ""}`}>
         {standaloneWorkspaceContent ? null : pluginWorkspaceHeader}
-        <div id="settings-plugin-panel" ref={standaloneWorkspaceContent ? settingsContentScroll.ref : undefined} onScroll={standaloneWorkspaceContent ? settingsContentScroll.onScroll : undefined} className={`settings-plugin-workspace__panel${standaloneWorkspaceContent ? " settings-plugin-workspace__panel--standalone" : ""}`} role="tabpanel" aria-labelledby={pluginWorkspacePanelLabelledBy}>
+        <div id="settings-plugin-panel" ref={standaloneWorkspaceContent ? settingsContentScroll.ref : undefined} onScroll={standaloneWorkspaceContent ? settingsContentScroll.onScroll : undefined} className={`settings-plugin-workspace__panel${standaloneWorkspaceContent ? " settings-plugin-workspace__panel--standalone" : ""}`} role={standaloneWorkspaceContent ? "region" : "tabpanel"} aria-labelledby={pluginWorkspacePanelLabelledBy}>
         {pluginWorkspaceTab === "overview" ? <>
           <div className="settings-plugin-workspace__overview" aria-label="扩展能力概况">
             <article className="settings-plugin-workspace__overview-card">
@@ -3251,8 +3311,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     );
 
     if (activeSection === "account") return (
-      <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">账户管理</span><Typography.Title level={2}>账户</Typography.Title><Typography.Paragraph>查看和管理本机 LFAA 用户账户。</Typography.Paragraph></div></header>
+      <section className="settings-content settings-content--account" role="tabpanel" id="settings-account-panel" aria-labelledby="settings-account-tab-account" tabIndex={0}>
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">个人与账户</span><Typography.Title level={2}>账号</Typography.Title><Typography.Paragraph>管理个人资料、登录安全和本机账号。</Typography.Paragraph></div></header>
+        <AccountSettingsTabs activeSection={activeSection} onSelect={selectSection} />
         {user.role === "super_admin" ? <AdminUsersPage userId={user.id} /> : <Alert type="warning" showIcon message="只有超级管理员可以管理本机账户。" />}
       </section>
     );
@@ -3404,30 +3465,30 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         <form className="settings-search-form" role="search" autoComplete="off" onSubmit={(event) => event.preventDefault()}>
           <Input type="search" name="settings-category-search" autoComplete="off" allowClear placeholder="搜索设置" value={search} onChange={(event) => updateSettingsSearch(event.target.value)} aria-label="搜索设置分类" />
         </form>
-        <nav ref={settingsNavigationScroll.ref} onScroll={settingsNavigationScroll.onScroll} className="settings-nav" aria-label="设置分类">
-          {[...new Set(visibleSections.map((item) => item.group))].map((group, index) => {
+        <SecondaryNavigation
+          scrollRef={settingsNavigationScroll.ref}
+          onScroll={settingsNavigationScroll.onScroll}
+          ariaLabel="设置分类"
+          emptyState={visibleSections.length === 0 ? <p className="settings-empty-search">没有匹配的设置分类。</p> : null}
+          groups={[...new Set(visibleSections.map((item) => item.group))].map((group, index) => {
             const groupId = `settings-nav-items-${index}`;
             const groupSections = visibleSections.filter((item) => item.group === group);
             const isExpanded = (search.trim() ? searchExpandedSettingsGroups : expandedSettingsGroups).has(group);
-            return (
-              <section key={group} className={isExpanded ? "settings-nav__section is-expanded" : "settings-nav__section"}>
-                <button type="button" className="settings-nav__group" aria-expanded={isExpanded} aria-controls={groupId} onClick={() => toggleSettingsGroup(group)}><span>{group}</span></button>
-                <div id={groupId} className="settings-nav__items" aria-hidden={!isExpanded}>
-                  <div className="settings-nav__items-inner">
-                    {groupSections.map((item) => {
-                      const isConfigurationCenterEntry = item.group === "LFAA 配置" && item.title === "配置中心";
-                      const isActive = isConfigurationCenterEntry
-                        ? LFAA_CONFIGURATION_SECTION_IDS.has(activeSection)
-                        : activeSection === item.id;
-                      return <button key={item.id} type="button" tabIndex={isExpanded ? 0 : -1} className={isActive ? "is-active" : ""} aria-current={isActive ? "page" : undefined} onClick={() => selectSection(item.id)}><WorkbenchIcon name={item.icon} size={18} />{item.title}</button>;
-                    })}
-                  </div>
-                </div>
-              </section>
-            );
+            return {
+              id: groupId,
+              label: group,
+              expanded: isExpanded,
+              onToggle: () => toggleSettingsGroup(group),
+              items: groupSections.map((item) => {
+                const isConfigurationCenterEntry = item.group === "LFAA 配置" && item.title === "配置中心";
+                const active = isConfigurationCenterEntry
+                  ? LFAA_CONFIGURATION_SECTION_IDS.has(activeSection)
+                  : (item.id === "account" && isAccountSettingsSection(activeSection)) || activeSection === item.id;
+                return { id: item.id, label: item.title, icon: item.icon, active, onSelect: () => selectSection(item.id) };
+              })
+            };
           })}
-          {visibleSections.length === 0 ? <p className="settings-empty-search">没有匹配的设置分类。</p> : null}
-        </nav>
+        />
         <div className="settings-sidebar__account"><span className="settings-avatar">{user.username.slice(0, 1).toLocaleUpperCase()}</span><span><strong>{user.username}</strong><small>{userRoleLabel(user.role)}</small></span></div>
     </aside>
   );

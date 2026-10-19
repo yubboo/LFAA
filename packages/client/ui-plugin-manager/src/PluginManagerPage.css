@@ -11,8 +11,43 @@
   background: transparent;
 }
 
+.plugin-manager-layout {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.plugin-manager-layout .lfaa-workbench { height: 100%; background: transparent; }
+.plugin-manager-layout .lfaa-workbench__handle--left,
+.plugin-manager-layout .lfaa-workbench__handle--left::before { background: transparent; }
+.plugin-manager-layout .lfaa-workbench__handle--left:hover::before,
+.plugin-manager-layout .lfaa-workbench__handle--left:focus-visible::before { background: var(--color-border-strong); }
+
+.plugin-manager-sidebar {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 18px;
+  padding: 23px 14px 14px;
+  overflow: hidden;
+  background: var(--color-surface-muted);
+  color: var(--color-text-heading);
+}
+
+.plugin-manager-sidebar__header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
+.plugin-manager-sidebar__header h4.ant-typography { min-width: 0; margin: 0 8px; color: var(--color-text-heading); font-size: var(--font-size-xl); }
+.plugin-manager-sidebar__collapse { flex: 0 0 auto; color: var(--color-text-muted); }
+.plugin-manager-sidebar__collapse:hover { color: var(--settings-accent, var(--color-brand)) !important; }
+.plugin-manager-sidebar .secondary-navigation { gap: 12px; }
+
 .plugin-manager-page {
   display: flex;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   flex: 1;
@@ -38,40 +73,9 @@
   width: 100%;
   height: 100%;
   min-height: 0;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   padding-bottom: 18px;
 }
-
-.plugin-manager-page__tabs {
-  display: flex;
-  min-width: 0;
-  gap: 6px;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  border-bottom: 1px solid var(--color-border-subtle);
-  scrollbar-width: thin;
-}
-
-.plugin-manager-page__tabs > button {
-  display: flex;
-  min-height: 42px;
-  flex: 0 0 auto;
-  align-items: center;
-  padding: 0 clamp(8px, 1vw, 14px);
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: 620;
-  transition: color 140ms ease, border-color 140ms ease;
-}
-
-.plugin-manager-page__tabs > button:hover { color: var(--color-text-primary); }
-.plugin-manager-page__tabs > button.is-active { border-bottom-color: var(--settings-accent, var(--color-brand)); color: var(--color-text-heading); }
-.plugin-manager-page__tabs > button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
 
 .plugin-manager-page__workspace-panel {
   display: grid;
@@ -84,6 +88,7 @@
 .plugin-manager-page__workspace-panel--extensions { height: 100%; min-height: 0; overflow: hidden; }
 
 .plugin-manager-page__header,
+.plugin-manager-page__header-main,
 .plugin-manager-page__header-actions,
 .plugin-manager-page__section-heading,
 .plugin-manager-page__plugin-title,
@@ -97,6 +102,9 @@
 
 .plugin-manager-page__header,
 .plugin-manager-page__section-heading { justify-content: space-between; gap: 14px; }
+.plugin-manager-page__header-main { align-items: center; gap: 12px; }
+.plugin-manager-page__header-main > div { min-width: 0; }
+.plugin-manager-page__header-main > .ant-btn { flex: 0 0 auto; }
 .plugin-manager-page__header h2,
 .plugin-manager-page__section-heading h3 { margin: 0 !important; }
 .plugin-manager-page__section-heading h4.ant-typography { margin: 0 !important; }
@@ -113,6 +121,8 @@
 .plugin-manager-page__search { width: min(100%, 360px); }
 .plugin-manager-page__search .ant-input-prefix { color: var(--color-text-subtle); }
 .plugin-manager-page__catalog-actions { justify-content: flex-end; }
+.plugin-manager-page__settings-button.ant-btn { width: 36px; min-width: 36px; height: 36px; padding: 0; color: var(--color-text-muted); }
+.plugin-manager-page__settings-button.ant-btn:hover { color: var(--color-text-primary); }
 
 .plugin-manager-page__filters {
   display: flex;
@@ -309,6 +319,8 @@
 
 @media (max-width: 420px) {
   .plugin-manager-stage { grid-template-columns: 48px minmax(0, 1fr); }
+  .plugin-manager-sidebar { gap: 11px; padding: 12px; }
+  .plugin-manager-sidebar__header h4.ant-typography { margin-inline: 4px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

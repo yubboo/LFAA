@@ -7,13 +7,13 @@ const reminder = readFileSync(new URL('../../../packages/client/ui-settings-gene
 const reminderStyles = readFileSync(new URL('../../../packages/client/ui-layout/src/workbench.css', import.meta.url), 'utf8');
 
 test('内容存储提醒将系统推荐和自定义位置收敛到设置入口', () => {
-  assert.match(reminder, /<Button type="primary" disabled=\{saving\} onClick=\{\(\) => openReminderSettings\("workspace"\)\}>去配置存储<\/Button>/u);
+  assert.match(reminder, /<Button type="primary" disabled=\{saving\} onClick=\{\(\) => openReminderSettings\("workspace"\)\}>\{promptAction\}<\/Button>/u);
   assert.doesNotMatch(reminder, /chooseContentLocation|saveProjectContentDirectory|>更改为系统推荐<|>自定义位置</u);
   assert.match(reminder, /点击“去配置存储”后，可在“项目与存储”选择系统推荐或自定义位置/u);
 });
 
 test('设置导航会立即收起提醒，且设置路由不显示凭据提醒', () => {
-  assert.match(reminder, /const openReminderSettings = \(section: "ai" \| "workspace"\) => \{\s*setOpen\(false\);\s*shownRef\.current = false;\s*onOpenSettings\(section\);/u);
+  assert.match(reminder, /const openReminderSettings = \(section: "ai" \| "workspace"\) => \{\s*setOpen\(false\);\s*onOpenSettings\(section\);/u);
   assert.match(reminder, /open=\{settings\.general\.notificationPopupsEnabled && !isSettingsPage && \(Boolean\(activePriorityPrompt\) \|\| !suspended && open\)\}/u);
   assert.match(reminder, /const activePriorityPrompt = priorityPrompt\s*&& settings\.general\.notificationPopupsEnabled\s*&& !isSettingsPage/u);
   assert.match(reminder, /onClick=\{\(\) => openReminderSettings\("ai"\)\}>\{promptAction\}<\/Button>/u);
@@ -32,15 +32,27 @@ test('关键提醒把长期关闭合并到“不更改”，并提供当日暂�
 
   assert.match(reminder, /saveReminderDisabled\(currentReminder\.category\)/u);
   assert.match(reminder, /onClick=\{\(\) => void disableReminder\(\)\}>不更改/u);
-  assert.match(reminder, /const disableReminder = async \(\) => \{[\s\S]*await saveReminderDisabled\(currentReminder\.category\);\s*shownRef\.current = false;\s*setOpen\(false\);/u);
+  assert.match(reminder, /const disableReminder = async \(\) => \{[\s\S]*await saveReminderDisabled\(currentReminder\.category\);\s*advanceVisibleQueue\(currentReminder\.category\);/u);
   assert.doesNotMatch(reminder.match(/const disableReminder = async \(\) => \{[\s\S]*?\n  \};/u)?.[0] ?? "", /onOpenSettings|onNavigate/u);
   assert.match(reminder, /onClick=\{\(\) => void disableCredentialReminder\(\)\}>不更改/u);
   assert.match(reminder, /关闭后续业务内容存储提醒/u);
   assert.match(reminder, /关闭后续 AI Provider 提醒/u);
   assert.match(reminder, /const REMIND_LATER_DELAY_MS = 5 \* 60 \* 1000/u);
   assert.match(reminder, /setRemindLaterUntil\(\(current\) => \(\{ \.\.\.current, \[reminder\]: Date\.now\(\) \+ REMIND_LATER_DELAY_MS \}\)\)/u);
-  assert.match(reminder, /window\.setTimeout\(\(\) => \{[\s\S]*shownRef\.current = false;[\s\S]*\}, Math\.max\(0, nextReminderAt - now\)\)/u);
+  assert.match(reminder, /window\.setTimeout\(\(\) => \{[\s\S]*setReminderRetryRevision\(\(revision\) => revision \+ 1\);[\s\S]*\}, Math\.max\(0, nextReminderAt - now\)\)/u);
   assert.match(reminder, /return \(\) => window\.clearTimeout\(timer\)/u);
+  assert.doesNotMatch(reminder, /shownRef/u, '提醒队列不应使用一个共享显示标记压住后续类别');
+});
+
+test('首次提醒只检查模型与业务内容目录，逐项暂停或稍后会推进到下一项', () => {
+  assert.match(reminder, /loadStatusOnce\("ai-provider", loadAiAccounts\)/u);
+  assert.match(reminder, /loadStatusOnce\("content-storage", loadProjectStorageLocations\)/u);
+  assert.match(reminder, /if \(shouldCheckAi[\s\S]*?nextMissing\.push\("ai"\);[\s\S]*?nextMissing\.push\("storage"\);/u);
+  assert.match(reminder, /function advanceVisibleQueue\(category: SetupReminderCategory\): void \{[\s\S]*setMissing\(nextMissing\);\s*setOpen\(nextMissing\.length > 0\);/u);
+  assert.match(reminder, /const settingPatch = category === "ai-provider"\s*\? \{ aiProviderReminderEnabled: false \}\s*:\s*\{ setupReminderEnabled: false \}/u);
+  assert.doesNotMatch(reminder, /SteamCMD|steamcmd|游戏安装位置/u);
+  assert.match(reminder, /const dismissCredentialReminderForToday = \(\) => \{[\s\S]*setCredentialReminderSnoozedToday\(user\.id, currentLocalDay\)[\s\S]*setReminderRetryRevision\(\(revision\) => revision \+ 1\);/u);
+  assert.doesNotMatch(reminder, /createSteamcmdTask|saveSteamcmdStorageDefaults|saveProjectContentDirectory/u);
 });
 
 test('凭据和 AI 提醒将“不更改”放左侧，配置操作放右侧', () => {

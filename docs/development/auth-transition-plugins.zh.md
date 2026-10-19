@@ -1,16 +1,16 @@
 # 登录进入动画插件合同
 
-LFAA 的登录进入动画是可替换的 Client 扩展点。默认实现由 LFAA 根 Renderer 提供：先在登录覆盖层后挂载并预热隐藏的 Workbench，待首屏提交后，登录覆盖层只运行全屏 `opacity` 淡出；轻微 `translateY` 只作用于面积较小的登录卡片，不缩放全屏壁纸。动画完成后才显示工作台。默认路径不捕获整页快照，也不在动画期间同步挂载 Workbench。安装并装配的 DSH Client 插件可以贡献 `auth.transition`，用户从设置中心选择实际动画来源。
+LFAA 的登录进入动画是可替换的 Client 扩展点。默认实现由 LFAA 根 Renderer 提供：先在登录覆盖层后挂载并预热隐藏的 Workbench，再播放内置的壁纸引力透镜与登录卡片吸入动画。动画到达事件视界后，Workbench 在覆盖层后变为可见但继续保持 `inert` 和 `aria-hidden`；覆盖层用 240ms `opacity` 淡出后才解除门控并显示提醒。登录卡片使用首尾减速的 `transform` 缓动，不缩放整屏壁纸。默认路径不捕获整页快照，也不在动画期间同步挂载 Workbench。安装并装配的 DSH Client 插件可以贡献 `auth.transition`，用户从设置中心选择实际动画来源。
 
 ## Slot 与输入
 
 - 名称：`auth.transition`
 - 类型：`list`，范围：`root`
 - 注册 ID：插件为本项贡献提供稳定且唯一的 ID，并通过 `options.label` 提供设置中心显示名。
-- `owner.phase`：`preparing` 表示登录成功、设置和工作台依赖仍在准备；`entering` 表示目标场景已就绪且转场正在运行。自定义插件路径持续到浏览器 `ViewTransition.finished`；默认动画持续到登录覆盖层 CSS 动画结束。两种路径都保持工作台页面和提醒隐藏。
+- `owner.phase`：`preparing` 表示登录成功、设置和工作台依赖仍在准备；`entering` 表示目标场景已就绪且转场正在运行。自定义插件路径持续到浏览器 `ViewTransition.finished`；默认动画还会在主动画结束后淡出覆盖层，再解除工作台交互门控。提醒只在完整收尾后显示。
 - `owner.reducedMotion`：当前「减少动态效果」设置对本次进入动画的最终判断。值为 `true` 时插件不能启动动态效果。
 
-组件通过 DSH Slot 收到 `owner`。自定义插件可在 `entering` 阶段为 `::view-transition-group(lfaa-auth-scene)` 和 `::view-transition-old(lfaa-auth-scene)` 提供自己的 CSS；Renderer 在 `ViewTransition.ready` 后隐藏底层真实工作台并隐藏新场景快照，直到 `finished` 后才揭开页面、显示提醒并释放动画贡献。插件不得覆盖此约束或提前显示工作台内容。内置动画不创建 View Transition 快照：Workbench 首次挂载期间保持 `visibility:hidden`、`aria-hidden` 和 `inert`；随后只淡出全屏登录覆盖层，并轻移小面积登录卡片，不对全屏壁纸做 `transform` 缩放。动画完成时，Renderer 在同一 React 提交中卸载覆盖层并揭开工作台。未选择插件或插件已不可用时使用内置动画；旧选择保留在设置中，用户可重新选择。
+组件通过 DSH Slot 收到 `owner`。自定义插件可在 `entering` 阶段为 `::view-transition-group(lfaa-auth-scene)` 和 `::view-transition-old(lfaa-auth-scene)` 提供自己的 CSS；Renderer 在 `ViewTransition.ready` 后隐藏底层真实工作台并隐藏新场景快照，直到 `finished` 后才揭开页面、显示提醒并释放动画贡献。插件不得覆盖此约束或提前显示工作台内容。内置动画不创建 View Transition 快照：Workbench 首次挂载及主动画期间保持 `visibility:hidden`、`aria-hidden` 和 `inert`；最后 240ms 在登录覆盖层后显现并淡入，期间仍不可交互。淡出结束后，Renderer 才卸载覆盖层、解除 Workbench 门控并显示提醒。未选择插件或插件已不可用时使用内置动画；旧选择保留在设置中，用户可重新选择。
 
 ## 生命周期示例
 

@@ -18,6 +18,10 @@ Web/Desktop 共用的应用工作区 UI。除通用 Workspace 外，`AiVideoCanv
 
 根地址与默认首页进入 `/work` 小鱼智能体对话区。左侧全局导航提供紧凑“应用”菜单，保留游戏库及 SteamCMD、Minecraft、LFAA 联机服务、写作空间和 AI 漫剧常规入口。应用切换继续调用 Workbench/Client Renderer 已有打开与路由标记，不在菜单复制业务规则。
 
+`/work` 和专业应用使用四栏组合：全局导航轨、应用二级菜单/会话侧栏、中间工作区、右侧工具资源栏。全局“应用”按钮直接切换现有左 Dock；应用条目复用 Workbench 注入的 `applicationNavigationItems`，由 `SecondaryNavigation` 展示，并调用现有路由或 App 打开回调。右侧和左右 Dock 尺寸、拖动、收起及响应式行为继续归 `ResizableWorkbench`；左栏同时容纳 App 导航、AI Work 会话和应用自己的分区菜单。
+
+首次桌面三栏工作区默认展开右侧资源栏以组成四个可见区域；用户已有面板开合状态继续优先。`general.navigationLayout`、Appearance 共享令牌和 DockKit 的左栏宽度偏好保持现有设置 Owner，不新增或重置配置。
+
 工作区顶栏状态与左侧导航状态点共同消费设置中心 `general.showServiceStatus`；Appearance 的字体、颜色、壁纸、遮罩、模糊、字号、对比度和减少动态效果继续读取工作台共享令牌。
 
 应用仅组合原常规界面，共享工作组合一个聊天/项目/会话 UI。项目和旧 App 会话按账户统一查询，公共会话列表不随当前 App 分区；列表在账户间隔离、按账户缓存，并在离开工作模式或切换账户时取消过期请求。游戏“交给小鱼”进入公共工作；容器布局仍归 ResizableWorkbench。

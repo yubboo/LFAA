@@ -71,7 +71,7 @@
 | [packages/client/ui-deliverables](../packages/client/ui-deliverables) | — | placeholder | 真实交付物与产物展示界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-directory-picker-browse](../packages/client/ui-directory-picker-browse) | — | placeholder | 通过服务浏览目录的选择界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-directory-picker-native](../packages/client/ui-directory-picker-native) | — | placeholder | 平台原生目录选择的客户端适配 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/ui-dockkit](../packages/client/ui-dockkit) | lfaa-client-ui-dockkit | implemented | 共享容器尺寸、Dock/Overlay、拖拽和面板布局 | [源码](../packages/client/ui-dockkit/src/index.ts)；4 个静态消费者；0 个组合声明 | DSH 同名目录 |
+| [packages/client/ui-dockkit](../packages/client/ui-dockkit) | lfaa-client-ui-dockkit | implemented | 共享容器尺寸、Dock/Overlay、拖拽和面板布局 | [源码](../packages/client/ui-dockkit/src/index.ts)；5 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-goal](../packages/client/ui-goal) | — | placeholder | 目标状态和操作展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-input-trigger](../packages/client/ui-input-trigger) | — | placeholder | 输入触发器与快捷交互组件 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-jobs](../packages/client/ui-jobs) | — | placeholder | 后台任务及节点真实进度展示 | 占位不可执行 | DSH 同名目录 |

@@ -2258,6 +2258,9 @@ importers:
       lfaa-client-resources:
         specifier: workspace:*
         version: link:../resources
+      lfaa-client-ui-dockkit:
+        specifier: workspace:*
+        version: link:../ui-dockkit
       lfaa-client-ui-primitives:
         specifier: workspace:*
         version: link:../ui-primitives

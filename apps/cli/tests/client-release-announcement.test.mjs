@@ -28,6 +28,7 @@ test('公告确认按账户隔离并记录已确认的产品版本', () => {
 test('公告使用发布元数据、通知总开关并等待其他弹窗结束', () => {
   assert.match(workbench, /lfaaProjectBuildInfo\.releaseNotes\.map/u);
   assert.match(workbench, /settings\.general\.notificationPopupsEnabled/u);
+  assert.doesNotMatch(workbench, /releaseAnnouncementEnabled/u);
   assert.match(workbench, /setupReminderBusy \|\| passkeyPromptBusy \|\| desktopUpdateActivity/u);
   assert.match(workbench, /<Button type="primary" onClick=\{acknowledgeReleaseAnnouncement\}>我知道了<\/Button>/u);
   assert.match(workbench, /rootClassName="release-announcement-modal"/u);

@@ -25,6 +25,54 @@ Describe 'LFAA Windows Web startup preflight' {
         return $function.Extent.Text
     }
 
+    function Get-InstallDependenciesFunctionText {
+        param([string]$Name)
+
+        $scriptPath = Join-Path $PSScriptRoot '..\install-dependencies.ps1'
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $scriptPath,
+            [ref]$tokens,
+            [ref]$parseErrors
+        )
+        if ($parseErrors.Count -gt 0) {
+            throw "install-dependencies.ps1 has PowerShell parse errors: $($parseErrors.Count)"
+        }
+
+        $function = $ast.Find({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -eq $Name
+        }, $true)
+        if ($null -eq $function) {
+            throw "$Name was not found in install-dependencies.ps1."
+        }
+        return $function.Extent.Text
+    }
+
+    It 'detects stale Control Plane and Web outputs under Windows PowerShell 5.1 array parsing' {
+        . ([ScriptBlock]::Create((Get-InstallDependenciesFunctionText 'ConvertFrom-StaleRuntimeBuildJson')))
+
+        $staleBuilds = @(ConvertFrom-StaleRuntimeBuildJson -Json '["host","web"]')
+        $staleBuilds.Count | Should Be 2
+        $staleBuilds[0] | Should Be 'host'
+        $staleBuilds[1] | Should Be 'web'
+        ($staleBuilds -contains 'host') | Should Be $true
+
+        $missingControlPlane = @(ConvertFrom-StaleRuntimeBuildJson -Json '["host"]')
+        $missingControlPlane.Count | Should Be 1
+        ($missingControlPlane -contains 'host') | Should Be $true
+
+        $currentBuilds = @(ConvertFrom-StaleRuntimeBuildJson -Json '[]')
+        $currentBuilds.Count | Should Be 0
+    }
+
+    It 'builds stale runtime outputs and rechecks them before launching the CLI' {
+        $startHarness = Get-InstallDependenciesFunctionText 'Start-Harness'
+        $startHarness | Should Match 'ConvertFrom-StaleRuntimeBuildJson[\s\S]*build:control-plane[\s\S]*build:web[\s\S]*remainingBuilds\.Count -gt 0[\s\S]*Invoke-WorkspacePnpm -Arguments'
+    }
+
     It 'resolves the configured data directory under Windows PowerShell 5.1' {
         $scriptPath = Join-Path $PSScriptRoot '..\lfaa-web-startup-preflight.ps1'
         $tokens = $null

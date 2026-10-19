@@ -1,6 +1,6 @@
 /**
- * 功能：提示用户完成首次配置。
- * 作用：独立检查 AI 与业务内容存储配置并管理提醒弹窗状态，避免弹窗交互触发整个工作台重新渲染。
+ * 功能：提示用户完成首次登录所需配置。
+ * 作用：串联账户凭据、AI 和业务内容目录提醒，并管理共享弹窗状态，避免弹窗交互触发整个工作台重新渲染。
  * 关联文件：packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-settings-general/src/setup-reminder.ts、packages/client/connection/src/api.ts、packages/client/ui-layout/src/workbench.css。
  */
 import { useEffect, useRef, useState } from "react";
@@ -26,25 +26,39 @@ interface SetupReminderPrompt {
   onAction: () => void;
 }
 
+type SetupReminderItem = "ai" | "storage";
 type SetupReminderId = SetupReminderCategory | "credential";
 
 const REMIND_LATER_DELAY_MS = 5 * 60 * 1000;
 
-const SETUP_REMINDER_COPY: Record<"storage" | "ai", { title: string; description: string; action: string; choiceNote: string; section: "ai" | "workspace"; category: SetupReminderCategory }> = {
-  storage: { title: "选择内容数据存储位置", description: "此选择只决定游戏、小说和漫剧内容写入哪个 data 目录。默认位置在 LFAA 用户目录下；系统推荐会使用当前项目或安装目录下的 data。账户、模型配置、会话和插件位置不受影响。", action: "去配置存储", choiceNote: "不更改会保留默认目录并关闭后续业务内容存储提醒；点击“去配置存储”后，可在“项目与存储”选择系统推荐或自定义位置。", section: "workspace", category: "content-storage" },
+const SETUP_REMINDER_COPY: Record<SetupReminderItem, { title: string; description: string; action: string; choiceNote: string; section: "ai" | "workspace"; category: SetupReminderCategory }> = {
+  storage: { title: "选择业务内容数据目录", description: "此目录用于保存游戏、小说和漫剧的业务内容数据。可在“项目与存储”统一查看或调整默认位置；账户、模型配置、会话和插件位置不受影响。", action: "去配置存储", choiceNote: "不更改会保留当前默认目录并关闭后续业务内容存储提醒；点击“去配置存储”后，可在“项目与存储”选择系统推荐或自定义位置。", section: "workspace", category: "content-storage" },
   ai: { title: "尚未配置大模型", description: "请前往设置中心完成配置。", action: "去配置模型", choiceNote: "不更改会关闭后续 AI Provider 提醒；去配置模型会打开设置页面。", section: "ai", category: "ai-provider" }
 };
 
 export function SetupReminder({ user, settings, isSettingsPage, suspended, onSettingsChange, onOpenSettings, onModalActivityChange, priorityPrompt = null }: SetupReminderProps) {
   const [open, setOpen] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [missing, setMissing] = useState<Array<"ai" | "storage">>([]);
+  const [missing, setMissing] = useState<SetupReminderItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [storageLocations, setStorageLocations] = useState<ProjectStorageLocations | null>(null);
   const [currentLocalDay, setCurrentLocalDay] = useState(() => getSetupReminderLocalDay());
   const [remindLaterUntil, setRemindLaterUntil] = useState<Partial<Record<SetupReminderId, number>>>({});
-  const shownRef = useRef(false);
+  const [reminderRetryRevision, setReminderRetryRevision] = useState(0);
+  const statusRequestsRef = useRef(new Map<string, Promise<unknown>>());
+
+  function loadStatusOnce<T>(key: string, load: () => Promise<T>): Promise<T> {
+    const pending = statusRequestsRef.current.get(key);
+    if (pending) return pending as Promise<T>;
+    const request = Promise.resolve().then(load);
+    statusRequestsRef.current.set(key, request);
+    const clear = () => {
+      if (statusRequestsRef.current.get(key) === request) statusRequestsRef.current.delete(key);
+    };
+    void request.then(clear, clear);
+    return request;
+  }
 
   function isReminderSnoozedForLater(reminder: SetupReminderId): boolean {
     return (remindLaterUntil[reminder] ?? 0) > Date.now();
@@ -90,24 +104,18 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
       setRemindLaterUntil((current) => Object.fromEntries(
         Object.entries(current).filter(([, until]) => typeof until === "number" && until > currentTime)
       ) as Partial<Record<SetupReminderId, number>>);
-      shownRef.current = false;
+      setReminderRetryRevision((revision) => revision + 1);
     }, Math.max(0, nextReminderAt - now));
     return () => window.clearTimeout(timer);
   }, [remindLaterUntil]);
 
   useEffect(() => {
-    shownRef.current = false;
-  }, [currentLocalDay, user.id]);
-
-  useEffect(() => {
     if (!settings.general.notificationPopupsEnabled) {
-      shownRef.current = false;
       setChecking(false);
       setOpen(false);
       return;
     }
     if (suspended) {
-      shownRef.current = false;
       setChecking(false);
       setOpen(false);
       return;
@@ -124,11 +132,11 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
       && settings.general.setupReminderEnabled
       && !isSetupReminderSnoozedToday(user.id, currentLocalDay, "content-storage")
       && !isReminderSnoozedForLater("content-storage");
-    const storageRequest = shouldCheckStorage ? loadProjectStorageLocations() : Promise.resolve(null);
     const shouldCheckAi = settings.general.aiProviderReminderEnabled
       && !isSetupReminderSnoozedToday(user.id, currentLocalDay, "ai-provider")
       && !isReminderSnoozedForLater("ai-provider");
-    const accountsRequest = shouldCheckAi ? loadAiAccounts() : Promise.resolve(null);
+    const storageRequest = shouldCheckStorage ? loadStatusOnce("content-storage", loadProjectStorageLocations) : Promise.resolve(null);
+    const accountsRequest = shouldCheckAi ? loadStatusOnce("ai-provider", loadAiAccounts) : Promise.resolve(null);
     if (!shouldCheckStorage && !shouldCheckAi) {
       setChecking(false);
       setOpen(false);
@@ -138,28 +146,33 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
     void Promise.allSettled([accountsRequest, storageRequest]).then(([accountsResult, storageResult]) => {
       if (!active) return;
       setChecking(false);
-      const nextMissing: Array<"ai" | "storage"> = [];
+      const nextMissing: SetupReminderItem[] = [];
+      if (shouldCheckAi && accountsResult.status === "fulfilled" && !accountsResult.value?.accounts.some(account => account.active)) nextMissing.push("ai");
       if (shouldCheckStorage && storageResult.status === "fulfilled" && storageResult.value) {
         setStorageLocations(storageResult.value.settings);
         if (!storageResult.value.configured) nextMissing.push("storage");
       }
-      if (shouldCheckAi && accountsResult.status === "fulfilled" && !accountsResult.value?.accounts.some(account => account.active)) nextMissing.push("ai");
       if (nextMissing.length === 0) {
         setOpen(false);
-      } else if (!shownRef.current) {
-        shownRef.current = true;
+      } else {
         setMissing(nextMissing);
         setOpen(true);
       }
     });
 
     return () => { active = false; setChecking(false); };
-  }, [activePriorityPrompt, currentLocalDay, isSettingsPage, remindLaterUntil, settings.general.aiProviderReminderEnabled, settings.general.notificationPopupsEnabled, settings.general.setupReminderEnabled, suspended, user.id, user.role]);
+  }, [activePriorityPrompt, currentLocalDay, isSettingsPage, reminderRetryRevision, settings.general.aiProviderReminderEnabled, settings.general.notificationPopupsEnabled, settings.general.setupReminderEnabled, suspended, user.id, user.role]);
+
+  function advanceVisibleQueue(category: SetupReminderCategory): void {
+    const nextMissing = missing.filter((id) => SETUP_REMINDER_COPY[id].category !== category);
+    setMissing(nextMissing);
+    setOpen(nextMissing.length > 0);
+  }
 
   function remindLater(reminder: SetupReminderId): void {
-    shownRef.current = true;
     setRemindLaterUntil((current) => ({ ...current, [reminder]: Date.now() + REMIND_LATER_DELAY_MS }));
-    setOpen(false);
+    if (reminder === "credential") setOpen(false);
+    else advanceVisibleQueue(reminder);
     setSaveError("");
   }
 
@@ -176,8 +189,7 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
       return;
     }
     setSaveError("");
-    shownRef.current = true;
-    setOpen(false);
+    advanceVisibleQueue(currentReminder.category);
   };
 
   const saveReminderDisabled = async (category: SetupReminderCategory) => {
@@ -194,8 +206,7 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
     setSaveError("");
     try {
       await saveReminderDisabled(currentReminder.category);
-      shownRef.current = false;
-      setOpen(false);
+      advanceVisibleQueue(currentReminder.category);
     } catch (error) {
       setSaveError(getErrorMessage(error));
     } finally {
@@ -210,8 +221,8 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
       return;
     }
     setSaveError("");
-    shownRef.current = false;
     setOpen(false);
+    setReminderRetryRevision((revision) => revision + 1);
   };
 
   const disableCredentialReminder = async () => {
@@ -221,7 +232,6 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
     try {
       const { settings: savedSettings } = await saveSettings("general", { ...settings.general, defaultAdminCredentialReminderEnabled: false });
       onSettingsChange(savedSettings);
-      shownRef.current = false;
       setOpen(false);
     } catch (error) {
       setSaveError(getErrorMessage(error));
@@ -232,7 +242,6 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
 
   const openReminderSettings = (section: "ai" | "workspace") => {
     setOpen(false);
-    shownRef.current = false;
     onOpenSettings(section);
   };
 
@@ -268,7 +277,7 @@ export function SetupReminder({ user, settings, isSettingsPage, suspended, onSet
         {missing[0] === "storage" && !activePriorityPrompt ? <>
           <Space wrap className="setup-reminder-card__actions">
             <Button loading={saving} disabled={saving} onClick={() => void disableReminder()}>不更改</Button>
-            <Button type="primary" disabled={saving} onClick={() => openReminderSettings("workspace")}>去配置存储</Button>
+            <Button type="primary" disabled={saving} onClick={() => openReminderSettings("workspace")}>{promptAction}</Button>
           </Space>
           <Typography.Text className="setup-reminder-card__choice-note" type="secondary">{currentReminder?.choiceNote}</Typography.Text>
         </> : activePriorityPrompt ? <>

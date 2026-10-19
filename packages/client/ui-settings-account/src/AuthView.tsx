@@ -27,6 +27,8 @@ interface AuthViewProps {
   transitionOnly?: boolean;
   transitionOverlay?: boolean;
   transitionExiting?: boolean;
+  transitionSettling?: boolean;
+  onTransitionSettle?: () => void;
   onSubmit: (username: string, password: string) => void;
   onPasskeyLogin: () => void;
   onRecover: (username: string, recoveryKey: string, newPassword: string) => Promise<boolean>;
@@ -41,7 +43,7 @@ interface AuthFormValues {
   confirmNewPassword?: string;
 }
 
-export function AuthView({ serverState, busy, error, notice, transitionPhase, transitionPluginId, reducedMotion, transitionOnly = false, transitionOverlay = false, transitionExiting = false, onSubmit, onPasskeyLogin, onRecover, onClearMessage }: AuthViewProps) {
+export function AuthView({ serverState, busy, error, notice, transitionPhase, transitionPluginId, reducedMotion, transitionOnly = false, transitionOverlay = false, transitionExiting = false, transitionSettling = false, onTransitionSettle, onSubmit, onPasskeyLogin, onRecover, onClearMessage }: AuthViewProps) {
   const [systemDark, setSystemDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [form] = Form.useForm<AuthFormValues>();
@@ -134,7 +136,10 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
   return (
     <ConfigProvider wave={{ disabled: true }}>
       <main
-        className={`auth-page${transitionOverlay ? " auth-page--transition-overlay" : ""}${transitionExiting ? " auth-page--transition-exiting" : ""}`}
+        className={`auth-page${transitionOverlay ? " auth-page--transition-overlay" : ""}${transitionExiting ? " auth-page--transition-exiting" : ""}${transitionSettling ? " auth-page--transition-settling" : ""}`}
+        onTransitionEnd={(event) => {
+          if (transitionSettling && event.target === event.currentTarget && event.propertyName === "opacity") onTransitionSettle?.();
+        }}
         data-theme={resolvedLoginAppearance.theme}
         data-reduced-motion={loginAppearance.advanced.reducedMotion}
         style={authAppearanceStyle}

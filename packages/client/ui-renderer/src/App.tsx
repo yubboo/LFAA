@@ -148,6 +148,7 @@ export default function App() {
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [authTransitionPhase, setAuthTransitionPhase] = useState<AuthTransitionPhase>("idle");
   const [authTransitionSceneReady, setAuthTransitionSceneReady] = useState(false);
+  const [authTransitionSettling, setAuthTransitionSettling] = useState(false);
   const configuredAuthTransitionPluginId = userSettings?.appearance.advanced.authTransitionPluginId ?? "builtin";
   const authTransitionPluginId = configuredAuthTransitionPluginId === "builtin"
     || authTransitionPlugins.some((entry) => entry.id === configuredAuthTransitionPluginId)
@@ -197,10 +198,14 @@ export default function App() {
 
   const authTransitionActive = Boolean(user) && authTransitionPhase !== "idle";
   const builtinAuthTransitionActive = authTransitionPluginId === "builtin" && authTransitionActive;
+  const finishBuiltinAuthTransition = useCallback(() => {
+    setAuthTransitionSettling(false);
+    setAuthTransitionPhase("idle");
+  }, []);
 
   useLayoutEffect(() => {
     const root = document.documentElement;
-    if (authTransitionActive) {
+    if (authTransitionActive && !authTransitionSettling) {
       root.dataset.lfaaAuthWorkbenchHidden = "true";
     } else delete root.dataset.lfaaAuthWorkbenchHidden;
     if (builtinAuthTransitionActive) root.dataset.lfaaAuthEntryAnimation = "builtin";
@@ -209,7 +214,7 @@ export default function App() {
       delete root.dataset.lfaaAuthWorkbenchHidden;
       if (root.dataset.lfaaAuthEntryAnimation === "builtin") delete root.dataset.lfaaAuthEntryAnimation;
     };
-  }, [authTransitionActive, builtinAuthTransitionActive]);
+  }, [authTransitionActive, authTransitionSettling, builtinAuthTransitionActive]);
 
   const handleWorkbenchAuthWarmupReady = useCallback(() => {
     let firstFrame = 0;
@@ -226,7 +231,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (authTransitionPhase !== "entering" || !user || !userSettings) return;
+    if (authTransitionPhase !== "entering" || !authTransitionSettling || authTransitionPluginId !== "builtin") return;
+    const fallbackTimer = window.setTimeout(finishBuiltinAuthTransition, 480);
+    return () => window.clearTimeout(fallbackTimer);
+  }, [authTransitionPhase, authTransitionPluginId, authTransitionSettling, finishBuiltinAuthTransition]);
+
+  useEffect(() => {
+    if (authTransitionPhase !== "entering" || !user || !userSettings || authTransitionSettling) return;
     const root = document.documentElement;
     const animationId = authTransitionPluginId;
     let cancelled = false;
@@ -234,30 +245,29 @@ export default function App() {
       const overlay = document.querySelector<HTMLElement>(".auth-page--transition-overlay");
       const vortex = overlay?.querySelector<HTMLElement>(".auth-page__transition-vortex");
       if (!overlay || !vortex) {
-        setAuthTransitionPhase("idle");
+        finishBuiltinAuthTransition();
         return;
       }
       let fallbackTimer: number | undefined;
-      const finish = () => {
+      const beginSettling = () => {
         if (cancelled) return;
         cancelled = true;
         if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer);
         vortex.removeEventListener("animationend", handleAnimationEnd);
-        vortex.removeEventListener("animationcancel", finish);
-        if (root.dataset.lfaaAuthEntryAnimation === "builtin") delete root.dataset.lfaaAuthEntryAnimation;
-        setAuthTransitionPhase("idle");
+        vortex.removeEventListener("animationcancel", beginSettling);
+        setAuthTransitionSettling(true);
       };
       const handleAnimationEnd = (event: AnimationEvent) => {
-        if (event.target === vortex && event.animationName === "lfaa-auth-vortex-veil") finish();
+        if (event.target === vortex && event.animationName === "lfaa-auth-vortex-veil") beginSettling();
       };
-      fallbackTimer = window.setTimeout(finish, 2600);
+      fallbackTimer = window.setTimeout(beginSettling, 2250);
       vortex.addEventListener("animationend", handleAnimationEnd);
-      vortex.addEventListener("animationcancel", finish);
+      vortex.addEventListener("animationcancel", beginSettling);
       return () => {
         cancelled = true;
         window.clearTimeout(fallbackTimer);
         vortex.removeEventListener("animationend", handleAnimationEnd);
-        vortex.removeEventListener("animationcancel", finish);
+        vortex.removeEventListener("animationcancel", beginSettling);
         if (root.dataset.lfaaAuthEntryAnimation === "builtin") delete root.dataset.lfaaAuthEntryAnimation;
         delete root.dataset.lfaaAuthWorkbenchHidden;
       };
@@ -302,7 +312,7 @@ export default function App() {
       if (root.dataset.lfaaAuthEntryAnimation === animationId) delete root.dataset.lfaaAuthEntryAnimation;
       delete root.dataset.lfaaAuthTransitionCaptured;
     };
-  }, [authTransitionPhase, authTransitionPluginId, user?.id, userSettings]);
+  }, [authTransitionPhase, authTransitionPluginId, authTransitionSettling, finishBuiltinAuthTransition, user?.id, userSettings]);
 
   const refreshHealth = useCallback(async () => {
     if (!healthRef.current) setHealthChecking(true);
@@ -358,6 +368,7 @@ export default function App() {
 
       setUser(null);
       setAuthTransitionSceneReady(false);
+      setAuthTransitionSettling(false);
       setAuthTransitionPhase("idle");
       setClientModulesReadyUserId(null);
       clearAppearanceThemeBootstrap();
@@ -490,9 +501,11 @@ export default function App() {
       : SHARED_WORK_ROUTE;
     routeTo(returnRoute, setRoute);
     if (settingsResult.status === "fulfilled") {
+      setAuthTransitionSettling(false);
       setAuthTransitionPhase("preparing");
       setUserSettings(settingsResult.value.settings);
     } else {
+      setAuthTransitionSettling(false);
       setAuthTransitionPhase("idle");
       setError(getErrorMessage(settingsResult.reason));
     }
@@ -747,6 +760,8 @@ export default function App() {
             reducedMotion={authTransitionReducedMotion}
             transitionOverlay
             transitionExiting={authTransitionPhase === "entering"}
+            transitionSettling={authTransitionSettling}
+            onTransitionSettle={finishBuiltinAuthTransition}
             onSubmit={() => undefined}
             onPasskeyLogin={() => undefined}
             onRecover={async () => false}

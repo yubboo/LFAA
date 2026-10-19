@@ -55,9 +55,11 @@ interface GlobalNavigationRailProps {
   onOpenSettings: () => void;
   onLogout: () => void;
   onToggleTools?: () => void;
+  applicationsExpanded?: boolean;
+  onToggleApplications?: () => void;
 }
 
-export function GlobalNavigationRail({ username, role, serverState, shortcuts, activePage, homeLabel, applications, showServiceStatus, onHome, onNavigate, onOpenApplication, onOpenFiles, onOpenWork, onOpenSettings, onLogout, onToggleTools }: GlobalNavigationRailProps) {
+export function GlobalNavigationRail({ username, role, serverState, shortcuts, activePage, homeLabel, applications, showServiceStatus, onHome, onNavigate, onOpenApplication, onOpenFiles, onOpenWork, onOpenSettings, onLogout, onToggleTools, applicationsExpanded = false, onToggleApplications }: GlobalNavigationRailProps) {
   const [openPopover, setOpenPopover] = useState<"applications" | "menu" | "recent" | "shortcuts" | "profile" | null>(null);
   const [recentSessions, setRecentSessions] = useState<AiSession[]>([]);
   const [recentSessionsLoading, setRecentSessionsLoading] = useState(false);
@@ -82,6 +84,15 @@ export function GlobalNavigationRail({ username, role, serverState, shortcuts, a
     window.dispatchEvent(new CustomEvent<AiWorkSessionTarget>(aiWorkSessionOpenEventName, { detail: target }));
   };
 
+  const toggleApplications = () => {
+    if (onToggleApplications) {
+      setOpenPopover(null);
+      onToggleApplications();
+      return;
+    }
+    setOpenPopover(current => current === "applications" ? null : "applications");
+  };
+
   useEffect(() => {
     if (!openPopover) return;
     const dismissOutside = (event: PointerEvent) => {
@@ -102,7 +113,7 @@ export function GlobalNavigationRail({ username, role, serverState, shortcuts, a
     <nav className="module-navigation-rail" aria-label="LFAA 主导航" ref={railRef}>
       <div className="module-navigation-rail__primary">
         <button className={`module-navigation-rail__button${activePage === "home" ? " is-active" : ""}`} type="button" aria-label={homeLabel} aria-current={activePage === "home" ? "page" : undefined} title={homeLabel} onClick={() => { setOpenPopover(null); onHome(); }}><WorkbenchIcon name="home" size={19} /></button>
-        <button className={`module-navigation-rail__button${openPopover === "applications" ? " is-active" : ""}`} type="button" aria-label="应用" title="应用" aria-haspopup="dialog" aria-expanded={openPopover === "applications"} aria-controls={openPopover === "applications" ? "module-navigation-rail-applications" : undefined} onClick={() => setOpenPopover(current => current === "applications" ? null : "applications")}><WorkbenchIcon name="grid" size={19} /></button>
+        <button className={`module-navigation-rail__button${(onToggleApplications ? applicationsExpanded : openPopover === "applications") ? " is-active" : ""}`} type="button" aria-label="应用" title="应用" aria-haspopup={onToggleApplications ? undefined : "dialog"} aria-expanded={onToggleApplications ? applicationsExpanded : openPopover === "applications"} aria-controls={onToggleApplications ? "module-sidebar-applications" : openPopover === "applications" ? "module-navigation-rail-applications" : undefined} onClick={toggleApplications}><WorkbenchIcon name="grid" size={19} /></button>
         {onOpenWork ? <button className="module-navigation-rail__button" type="button" aria-label="工作 · 小鱼智能体" title="工作 · 小鱼智能体" onClick={() => { setOpenPopover(null); onOpenWork(); }}><WorkbenchIcon name="spark" size={19} /></button> : null}
         <button className={`module-navigation-rail__button${openPopover === "recent" ? " is-active" : ""}`} type="button" aria-label="最近会话" title="最近会话" aria-haspopup="dialog" aria-expanded={openPopover === "recent"} aria-controls={openPopover === "recent" ? "module-navigation-rail-recent-sessions" : undefined} onClick={() => {
           if (openPopover === "recent") setOpenPopover(null);
@@ -130,7 +141,7 @@ export function GlobalNavigationRail({ username, role, serverState, shortcuts, a
                 })}
               </div> : <p className="module-navigation-rail__recent-state">暂无未归档的 小鱼智能体 会话。</p>}
         </section> : null}
-        {openPopover === "applications" ? <section className="module-navigation-rail__popover module-navigation-rail__popover--applications" id="module-navigation-rail-applications" role="dialog" aria-label="应用">
+        {!onToggleApplications && openPopover === "applications" ? <section className="module-navigation-rail__popover module-navigation-rail__popover--applications" id="module-navigation-rail-applications" role="dialog" aria-label="应用">
           <header><div><strong>应用</strong><span>打开专业工作区</span></div><button type="button" aria-label="关闭应用菜单" onClick={() => setOpenPopover(null)}><WorkbenchIcon name="close" size={14} /></button></header>
           <div className="module-navigation-rail__application-list">
             {applications.map(application => <button key={application.id} type="button" onClick={() => {
@@ -146,7 +157,7 @@ export function GlobalNavigationRail({ username, role, serverState, shortcuts, a
         {openPopover === "menu" ? <section className="module-navigation-rail__popover" role="dialog" aria-label="更多入口">
           <header><strong>更多入口</strong><button type="button" aria-label="关闭更多入口" onClick={() => setOpenPopover(null)}><WorkbenchIcon name="close" size={14} /></button></header>
           <div className="module-navigation-rail__popover-actions">
-            <button type="button" onClick={() => setOpenPopover("applications")}><WorkbenchIcon name="grid" size={16} /><span>应用</span></button>
+            <button type="button" onClick={onToggleApplications ? toggleApplications : () => setOpenPopover("applications")}><WorkbenchIcon name="grid" size={16} /><span>应用</span></button>
             {onOpenWork ? <button type="button" onClick={() => { setOpenPopover(null); onOpenWork(); }}><WorkbenchIcon name="spark" size={16} /><span>小鱼智能体</span></button> : null}
             <button type="button" onClick={() => { setOpenPopover(null); onOpenFiles(); }}><WorkbenchIcon name="folder" size={16} /><span>文件管理</span></button>
             {onToggleTools ? <button type="button" onClick={() => { setOpenPopover(null); onToggleTools(); }}><WorkbenchIcon name="tools" size={16} /><span>工具与资源</span></button> : null}

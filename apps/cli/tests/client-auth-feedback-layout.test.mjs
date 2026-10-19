@@ -35,6 +35,9 @@ test("认证反馈始终占据固定消息位，错误提示不改变表单纵�
   assert.match(authStyles, /\.auth-page\[data-reduced-motion="on"\] \.auth-page__black-hole::before[\s\S]*?animation:\s*none;/u);
   assert.match(authStyles, /prefers-reduced-motion:\s*reduce[\s\S]*?data-reduced-motion="system"[\s\S]*?animation:\s*none;/u);
   assert.match(authView, /transitionExiting \? \([\s\S]*?<LoginTransitionScene[\s\S]*?backgroundImage=\{loginBackgroundImage\}[\s\S]*?overlay=\{resolvedLoginAppearance\.overlay\}[\s\S]*?className="auth-page__transition-vortex"[\s\S]*?auth-page__transition-vortex-core[\s\S]*?auth-page__transition-vortex-orbit/u);
+  assert.match(authView, /transitionSettling \? " auth-page--transition-settling"/u);
+  assert.match(authView, /event\.target === event\.currentTarget && event\.propertyName === "opacity"\) onTransitionSettle\?\.\(\)/u);
+  assert.match(authStyles, /\.auth-page--transition-settling\s*\{[^}]*opacity:\s*0;[^}]*transition:\s*opacity 240ms cubic-bezier\(\.42, 0, \.58, 1\);/su);
   assert.match(authStyles, /\.auth-page\.auth-page--transition-exiting \.auth-page__split-layout\s*\{[^}]*animation:\s*lfaa-auth-login-card-absorb 2200ms cubic-bezier\([^)]*\) both[^}]*overflow:\s*hidden;[^}]*isolation:\s*isolate;/u);
   assert.match(authStyles, /\.auth-page\.auth-page--transition-exiting \.auth-page__split-layout\s*\{[^}]*perspective:\s*1100px;/u);
   assert.match(authStyles, /\.auth-page__transition-scene\s*\{[^}]*position:\s*absolute;[^}]*z-index:\s*0;[^}]*pointer-events:\s*none;/u);
@@ -123,10 +126,13 @@ test("认证成功后先隐藏预热工作台，再把卡片吸入全屏视界�
   assert.match(renderer, /authTransitionPluginId === "builtin"\)\s*\{\s*setAuthTransitionSceneReady\(true\);/u);
   assert.match(renderer, /onAuthTransitionWarmupReady=\{authTransitionPhase === "preparing" && authTransitionSceneReady && authTransitionPluginId === "builtin" \? handleWorkbenchAuthWarmupReady : undefined\}/u);
   assert.match(renderer, /authTransitionStaging=\{authTransitionPhase !== "idle"\}/u);
+  assert.match(renderer, /if \(authTransitionActive && !authTransitionSettling\)/u);
   assert.match(renderer, /setAuthTransitionPhase\(\(current\) => current === "preparing" \? "entering" : current\)/u);
   assert.match(renderer, /const vortex = overlay\?\.querySelector<HTMLElement>\("\.auth-page__transition-vortex"\)/u);
   assert.match(renderer, /event\.target === vortex && event\.animationName === "lfaa-auth-vortex-veil"/u);
-  assert.match(renderer, /setTimeout\(finish, 2600\)/u);
+  assert.match(renderer, /setTimeout\(beginSettling, 2250\)/u);
+  assert.match(renderer, /setAuthTransitionSettling\(true\)/u);
+  assert.match(renderer, /setTimeout\(finishBuiltinAuthTransition, 480\)/u);
   const builtinPath = renderer.match(/if \(animationId === "builtin"\) \{([\s\S]*?)\n    \}\s+let started/u)?.[1] ?? "";
   assert.ok(builtinPath, "the built-in transition must have its own lightweight path");
   assert.doesNotMatch(builtinPath, /startViewTransition|flushSync/u);
@@ -156,11 +162,12 @@ test("认证成功后先隐藏预热工作台，再把卡片吸入全屏视界�
   assert.match(authStyles, /::view-transition-new\(lfaa-auth-scene\)\s*\{\s*opacity:\s*0 !important;\s*visibility:\s*hidden !important;/u);
   assert.match(authStyles, /html\[data-lfaa-auth-workbench-hidden="true"\] \.workbench-shell,[\s\S]*html\[data-lfaa-auth-transition-captured="true"\] \.workbench-shell\s*\{\s*visibility:\s*hidden;/u);
   assert.match(authStyles, /\.auth-page--transition-overlay\s*\{\s*position:\s*fixed;[\s\S]*inset:\s*0;/u);
-  assert.match(renderer, /vortex\.removeEventListener\("animationend", handleAnimationEnd\);\s*vortex\.removeEventListener\("animationcancel", finish\);\s*if \(root\.dataset\.lfaaAuthEntryAnimation === "builtin"\) delete root\.dataset\.lfaaAuthEntryAnimation;\s*setAuthTransitionPhase\("idle"\);/u);
+  assert.match(renderer, /vortex\.removeEventListener\("animationend", handleAnimationEnd\);\s*vortex\.removeEventListener\("animationcancel", beginSettling\);\s*setAuthTransitionSettling\(true\);/u);
+  assert.match(renderer, /transitionSettling=\{authTransitionSettling\}[\s\S]*onTransitionSettle=\{finishBuiltinAuthTransition\}/u);
   const cardMotion = authStyles.match(/@keyframes lfaa-auth-login-card-absorb\s*\{([\s\S]*?)\n\}/u)?.[1] ?? "";
   assert.match(cardMotion, /transform:\s*perspective\(900px\) translateZ\(-560px\) rotateX\(28deg\) rotateY\(-22deg\) scale\(\.075\) rotateZ\(24deg\)/u);
   assert.equal((cardMotion.match(/transform:/gu) ?? []).length, 2, "the card's 3D path must not stop at intermediate transform keyframes");
-  assert.match(authStyles, /animation:\s*lfaa-auth-login-card-absorb 2200ms cubic-bezier\(\.45, 0, \.82, \.62\) both, lfaa-auth-login-card-fade 2200ms linear both/u);
+  assert.match(authStyles, /animation:\s*lfaa-auth-login-card-absorb 2200ms cubic-bezier\(\.42, 0, \.58, 1\) both, lfaa-auth-login-card-fade 2200ms linear both/u);
   assert.match(authStyles, /@keyframes lfaa-auth-login-card-fade\s*\{\s*0%, 78% \{ opacity: 1; \}\s*100% \{ opacity: 0; \}/u);
   assert.match(authView, /<div className="auth-page__split-layout">\s*\{transitionExiting \? \([\s\S]*auth-page__transition-shards[\s\S]*auth-page__transition-particles[\s\S]*?<section/u);
   assert.match(authView, /Array\.from\(\{ length: 12 \}[\s\S]*auth-page__transition-shard/u);
@@ -241,9 +248,10 @@ test("通知总开关关闭自动提醒与 AI 弹出通知，但不影响会话�
   assert.match(settings, /onClick=\{\(\) => updateGeneral\(\{ notificationPopupsEnabled: true \}\)\}>恢复通知/u);
   assert.match(settings, /\$\{enabledLabel\}（总开关已暂停）/u);
   const notificationGroup = settings.match(/const notificationGroup = \([\s\S]*?\n  \);/u)?.[0] ?? "";
-  assert.doesNotMatch(notificationGroup, /AI Provider 配置提醒|业务内容存储提醒/u, "长期配置提醒开关不应留在通知页，防止误触重新启用");
-  assert.doesNotMatch(settings, /defaultAdminCredentialReminderEnabled|aiProviderReminderEnabled|setupReminderEnabled|AI Provider 配置提醒|业务内容存储提醒|AI Provider 今日不再提醒|业务存储今日不再提醒/u, "提醒状态由程序管理，设置页不应暴露提醒开关或当日暂停开关");
-  assert.match(setupReminder, /if \(!settings\.general\.notificationPopupsEnabled\)\s*\{\s*shownRef\.current = false;\s*setChecking\(false\);\s*setOpen\(false\);/u);
+  assert.doesNotMatch(notificationGroup, /首次登录提醒|defaultAdminCredentialReminderEnabled|aiProviderReminderEnabled|setupReminderEnabled/u, "首次登录类别偏好由弹窗交互处理，不新增设置中心开关");
+  assert.doesNotMatch(settings, /releaseAnnouncementEnabled/u, "版本公告仍使用通知总开关及按账户/版本确认记录");
+  assert.doesNotMatch(settings, /AI Provider 今日不再提醒|业务存储今日不再提醒/u, "按日暂停仍由弹窗按账户和日期记录");
+  assert.match(setupReminder, /if \(!settings\.general\.notificationPopupsEnabled\)\s*\{\s*setChecking\(false\);\s*setOpen\(false\);/u);
   assert.match(setupReminder, /open=\{settings\.general\.notificationPopupsEnabled && !isSettingsPage && \(Boolean\(activePriorityPrompt\) \|\| !suspended && open\)\}/u);
   assert.match(workbench, /if \(!settings\.general\.notificationPopupsEnabled\) return;/u);
   assert.match(workbench, /notificationToast && settings\.general\.notificationPopupsEnabled \?/u);
@@ -262,7 +270,7 @@ test("General 设置保存失败恢复到最后一次服务端确认值", () => 
   assert.match(settings, /catch \(saveError\) \{\s*if \(\(settingsRevisionRef\.current\.get\(category\) \?\? 0\) !== revision\) continue;\s*restorePersistedSettings\(category, revision\);\s*throw saveError;/u);
 });
 
-test("SteamCMD 配置并入项目与存储，兼容旧分类链接且不再触发首次提醒", () => {
+test("SteamCMD 配置并入项目与存储，首次登录只提醒业务内容数据目录", () => {
   assert.doesNotMatch(settings.match(/const sections:[\s\S]*?const SETTINGS_NAV_GROUPS/u)?.[0] ?? "", /id: "configuration", title: "SteamCMD 配置"/u);
   assert.match(settings, /function resolveSettingsSection\(section: SectionId\): SectionId\s*\{\s*return section === "configuration" \? "workspace" : section;/u);
   assert.match(settings, /if \(activeSection === "workspace"\)[\s\S]*?SettingGroup title="SteamCMD 工具配置"[\s\S]*?SettingGroup title="SteamCMD 安装与校验"[\s\S]*?SettingGroup title="游戏节点数据位置"/u);
@@ -270,7 +278,10 @@ test("SteamCMD 配置并入项目与存储，兼容旧分类链接且不再触�
   assert.match(settings, /node\.storageConfigured \? \{ \.\.\.node\.storage \} : \{ \.\.\.steamcmdStorageDefaults \}/u);
   assert.match(settings, /function displaySteamcmdGamePath\([\s\S]*if \(node\) return displaySteamcmdPath\(node, relativePath\)[\s\S]*contentDirectory/u);
   assert.match(settings, /displaySteamcmdGamePath\(selectedSteamcmdStorageNode, steamcmdGameDirectoryToDisplay, projectStorageLocations\?\.contentDirectory\)/u);
-  assert.doesNotMatch(setupReminder, /SteamCMD|loadSteamcmdSettings|createSteamcmdTask/u);
+  assert.match(settings, /SettingGroup title="SteamCMD 工具配置"[\s\S]*?SettingGroup title="SteamCMD 安装与校验"[\s\S]*?SettingGroup title="游戏节点数据位置"/u);
+  assert.match(setupReminder, /选择业务内容数据目录/u);
+  assert.doesNotMatch(setupReminder, /SteamCMD|Steam 游戏目录|游戏安装位置|loadSteamcmdSettings|storageDefaultsConfigured/u);
+  assert.doesNotMatch(settings, /steamcmdGameDirectoryReminderEnabled/u);
 });
 
 test("账户安全提醒主按钮进入安全分类，包括已挂载的外观设置页", () => {

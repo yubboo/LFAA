@@ -190,6 +190,11 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
   @keyframes module-notification-enter { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
 }
 .module-sidebar__section-title { display: flex; min-height: 34px; align-items: center; justify-content: space-between; padding: 0 17px; color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 650; }
+.module-sidebar__application-navigation { display: flex; min-height: 0; flex: 0 1 42%; flex-direction: column; max-height: 42%; margin: 5px 8px 0; overflow: hidden; border-bottom: 1px solid var(--color-border-subtle); }
+.module-sidebar__application-navigation-list { gap: 2px; padding: 0 3px 7px 0; margin: 0; overflow-x: hidden; }
+.module-sidebar__application-navigation-list .secondary-navigation__group-label { min-height: 28px; padding-inline: 10px; }
+.module-sidebar__application-navigation-list .secondary-navigation__items-inner { gap: 2px; }
+.module-sidebar__application-navigation-list .secondary-navigation__item { min-height: 36px; gap: 9px; padding-inline: 9px; }
 .module-sidebar__writing-library-portal { display: flex; min-height: 0; flex: 1 1 auto; margin-top: 10px; overflow: hidden; border-top: 1px solid var(--color-border-subtle); }
 .module-sidebar__app-menu { min-height: 0; flex: 1 1 auto; margin-top: 10px; padding: 7px 0 12px; overflow-x: hidden; overflow-y: auto; border-top: 0; }
 .module-sidebar__app-menu .module-sidebar__section-title { min-height: 34px; }

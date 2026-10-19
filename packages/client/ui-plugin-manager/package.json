@@ -14,6 +14,7 @@
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2",
     "antd": "^5.0.0",
     "lfaa-client-connection": "workspace:*",
+    "lfaa-client-ui-dockkit": "workspace:*",
     "lfaa-client-modules": "workspace:*",
     "lfaa-client-resources": "workspace:*",
     "lfaa-client-ui-primitives": "workspace:*",
@@ -38,6 +39,7 @@
         "lfaa-client-connection",
         "lfaa-client-modules",
         "lfaa-client-resources",
+        "lfaa-client-ui-dockkit",
         "lfaa-client-ui-primitives",
         "lfaa-client-ui-sidebar",
         "lfaa-client-ui-settings"

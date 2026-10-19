@@ -1088,6 +1088,7 @@
         "entry": "packages/client/ui-dockkit/src/index.ts",
         "readme": "packages/client/ui-dockkit/README.md",
         "consumers": [
+          "packages/client/ui-plugin-manager",
           "packages/client/ui-settings",
           "packages/client/ui-sidebar-files",
           "packages/client/ui-workspace",

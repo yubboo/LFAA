@@ -22,6 +22,7 @@ import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-st
 import { MAX_PINNED_AI_SESSIONS, readPinnedAiSessionIds, writePinnedAiSessionIds } from "lfaa-client-store/src/ai-session-pins.js";
 import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH, GLOBAL_NAVIGATION_RAIL_WIDTH, GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
+import { SecondaryNavigation, type SecondaryNavigationGroup } from "lfaa-client-ui-sidebar/src/SecondaryNavigation.js";
 import { resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { TaskTerminal } from "./TaskTerminal.js";
@@ -117,7 +118,7 @@ function initialMetrics(responsiveRightDock = false): WorkbenchLayoutMetrics {
 function defaultChrome(mode: WorkbenchLayoutMode): ChromeState {
   if (mode === "mobile") return { leftCollapsed: true, rightCollapsed: true, rightSwapped: false, terminalOpen: false };
   if (mode === "compact") return { leftCollapsed: false, rightCollapsed: true, rightSwapped: false, terminalOpen: false };
-  return { leftCollapsed: false, rightCollapsed: true, rightSwapped: false, terminalOpen: false };
+  return { leftCollapsed: false, rightCollapsed: false, rightSwapped: false, terminalOpen: false };
 }
 
 function readChrome(mode: WorkbenchLayoutMode, responsiveRightDock = false): ChromeState {
@@ -167,7 +168,9 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
-interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userId" | "app" | "mode" | "section" | "apps" | "onNavigate" | "onOpenApplication" | "onOpenSelectedApplication"> {
+interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userId" | "app" | "mode" | "section" | "apps" | "applicationNavigationItems" | "onNavigate" | "onOpenApplication" | "onOpenSelectedApplication"> {
+  idPrefix: string;
+  expandAfterApplicationSelection?: boolean;
   layoutMode: WorkbenchLayoutMode;
   showWritingLibraryPortal: boolean;
   onWritingLibraryPortalTargetChange: (target: HTMLDivElement | null) => void;
@@ -193,7 +196,7 @@ interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userI
   onArchiveSession: (session: AiSession) => void;
 }
 
-function ApplicationSidebar({ userId, app, mode, section, apps, layoutMode, showWritingLibraryPortal, onNavigate, onOpenApplication, onOpenSelectedApplication, onWritingLibraryPortalTargetChange, onToggleLeft, notifications, onMarkNotificationsRead, onClearNotifications, onOpenNotification, sessions, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, chatBusy, providerStatus, onNewSession, onSelectSession, onArchiveSession }: ApplicationSidebarProps) {
+function ApplicationSidebar({ idPrefix, expandAfterApplicationSelection = false, userId, app, mode, section, apps, applicationNavigationItems, layoutMode, showWritingLibraryPortal, onNavigate, onOpenApplication, onOpenSelectedApplication, onWritingLibraryPortalTargetChange, onToggleLeft, notifications, onMarkNotificationsRead, onClearNotifications, onOpenNotification, sessions, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, chatBusy, providerStatus, onNewSession, onSelectSession, onArchiveSession }: ApplicationSidebarProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sessionMenuId, setSessionMenuId] = useState<string | null>(null);
   useEffect(() => { setSessionMenuId(null); }, [layoutMode]);
@@ -237,6 +240,28 @@ function ApplicationSidebar({ userId, app, mode, section, apps, layoutMode, show
   const nextMode: ApplicationMode = mode === "normal" ? "ai-work" : "normal";
   const nextModeLabel = nextMode === "normal" ? "应用" : "工作";
   const unreadNotifications = notifications.filter((notification) => !notification.read).length;
+  const applicationNavigationGroups = useMemo<SecondaryNavigationGroup[]>(() => [{
+    id: `${idPrefix}-applications-group`,
+    label: "应用",
+    collapsible: false,
+    items: applicationNavigationItems.map((item) => ({
+      id: `${idPrefix}-application-${item.id}`,
+      label: item.title,
+      description: item.description,
+      icon: item.id === "games" ? "grid"
+        : item.id === "steamcmd" ? "terminal"
+          : item.id === "minecraft" ? "monitor"
+            : item.id === "connectivity" ? "branch"
+              : item.id === "writing" ? "book" : "spark",
+      trailingIcon: "chevron",
+      active: Boolean(item.applicationId && item.applicationId === app),
+      onSelect: () => {
+        if (item.route) onNavigate(item.route);
+        else if (item.applicationId) void onOpenApplication(item.applicationId, "normal").catch(() => undefined);
+        if (layoutMode === "mobile" || expandAfterApplicationSelection) onToggleLeft();
+      },
+    })),
+  }], [app, applicationNavigationItems, expandAfterApplicationSelection, idPrefix, layoutMode, onNavigate, onOpenApplication, onToggleLeft]);
   const renderSession = (session: AiSession, nested = false) => {
     const isPinned = pinnedSessionSet.has(session.id);
     const menu = { items: [
@@ -310,6 +335,9 @@ function ApplicationSidebar({ userId, app, mode, section, apps, layoutMode, show
         </div>
       </header>
       {showWritingLibraryPortal && app === "writing" && mode === "normal" ? <div ref={onWritingLibraryPortalTargetChange} className="module-sidebar__writing-library-portal" /> : null}
+      <div className="module-sidebar__application-navigation" id={`${idPrefix}-applications`}>
+        <SecondaryNavigation ariaLabel="应用导航" className="module-sidebar__application-navigation-list" groups={applicationNavigationGroups} activateOnArrow />
+      </div>
       {app === "minecraft" && mode === "normal" ? <nav ref={appMenuScroll.ref} onScroll={appMenuScroll.onScroll} className="module-sidebar__app-menu" aria-label="Minecraft 工作区菜单">
         <div className="module-sidebar__section-title"><span>Minecraft 工作区</span></div>
         <div className="module-sidebar__menu-tabs" role="group" aria-label="Minecraft 工作区分类">
@@ -782,11 +810,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     }
   };
   const sidebarProps: ApplicationSidebarProps = {
+    idPrefix: "module-sidebar",
     userId,
     app,
     mode,
     section,
     apps,
+    applicationNavigationItems,
     onOpenSelectedApplication,
     layoutMode: metrics.mode,
     onWritingLibraryPortalTargetChange: setWritingLibraryPortalTarget,
@@ -816,7 +846,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   };
   const left = <ApplicationSidebar {...sidebarProps} />;
   // 折叠态预览不挂写作 Portal 宿主，避免与主侧栏重复注册目标。
-  const leftPreview = <ApplicationSidebar {...sidebarProps} showWritingLibraryPortal={false} />;
+  const leftPreview = <ApplicationSidebar {...sidebarProps} idPrefix="module-sidebar-preview" expandAfterApplicationSelection showWritingLibraryPortal={false} />;
   const center = (
     <div className="module-center">
       <header className="module-center__header" data-layout-mode={metrics.mode}>
@@ -974,7 +1004,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   const previewStyle = { "--module-left-preview-width": `${leftPaneWidth}px` } as CSSProperties;
   return (
     <div className="module-workbench-stage" style={previewStyle} data-layout-mode={metrics.mode}>
-      <GlobalNavigationRail username={username} role={role} serverState={serverState} shortcuts={shortcuts} activePage="home" homeLabel="返回当前模式首页" applications={applicationNavigationItems} showServiceStatus={settings.general.showServiceStatus} onHome={onSelectedModeHome} onNavigate={onNavigate} onOpenApplication={openApplication} onOpenWork={() => void openApplication("workspace", "ai-work")} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={toggleRight} />
+      <GlobalNavigationRail username={username} role={role} serverState={serverState} shortcuts={shortcuts} activePage="home" homeLabel="返回当前模式首页" applications={applicationNavigationItems} showServiceStatus={settings.general.showServiceStatus} onHome={onSelectedModeHome} onNavigate={onNavigate} onOpenApplication={openApplication} onOpenWork={() => void openApplication("workspace", "ai-work")} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={toggleRight} applicationsExpanded={!chrome.leftCollapsed} onToggleApplications={toggleLeft} />
       <div ref={layoutRef} className="module-workbench-layout" data-layout-mode={metrics.mode}>
         {chrome.leftCollapsed && metrics.mode !== "mobile" ? <div className={`module-left-preview${leftPreviewOpen ? " is-visible" : ""}`} data-layout-mode={metrics.mode} aria-hidden={!leftPreviewOpen} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview}>{leftPreview}</div> : null}
         <ResizableWorkbench

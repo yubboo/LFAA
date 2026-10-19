@@ -3,10 +3,6 @@
  作用：让设置中心全部功能分类共用布局、字号与控件尺寸，并适配浅色、深色与窄屏窗口。
  关联文件：packages/client/ui-settings/src/SettingsPage.tsx、packages/client/ui-settings-account/src/AdminUsersPage.tsx、packages/client/ui-layout/src/Workbench.tsx。
 */
-.settings-nav button.is-active:before {
-  background: var(--settings-accent, var(--color-brand));
-}
-
 .workbench-content--settings {
   display: flex;
   width: 100%;
@@ -209,145 +205,12 @@
   border-radius: 9px;
 }
 
-.settings-nav {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 19px;
-  padding-inline-end: 10px; /* 导航条目与右侧滚动条之间留出清晰间距。 */
-  margin-inline-end: -6px; /* 将滚动条向侧栏外缘移动 6px，同时保留条目内侧留白。 */
-  scrollbar-gutter: stable; /* 内容不溢出时也保留滚动条槽位，避免导航项宽度跳变。 */
-  overflow-y: auto;
-}
-
-.settings-nav__section {
-  display: grid;
-  gap: 3px;
-}
-
-.settings-nav button.settings-nav__group {
-  display: flex;
-  width: 100%;
-  min-height: 32px;
-  align-items: center;
-  gap: 7px;
-  padding: 0 10px;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--settings-accent, var(--color-brand));
-  font: inherit;
-  font-size: var(--font-size-xs);
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-align: left;
-}
-
-.settings-nav button.settings-nav__group::before {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
-  border-radius: 50%;
-  background: var(--settings-accent, var(--color-brand));
-  content: "";
-}
-
-.settings-nav button.settings-nav__group::after {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
-  margin-left: auto;
-  transform: rotate(45deg) translate(-1px, -1px);
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  content: "";
-  transition: transform 180ms ease;
-}
-
-.settings-nav button.settings-nav__group[aria-expanded="true"]::after {
-  transform: rotate(225deg) translate(-1px, -1px);
-}
-
-/* 分类条目通过纵向网格轨道展开收起，隐藏后同步退出键盘和辅助技术导航。 */
-.settings-nav__items {
-  display: grid;
-  min-height: 0;
-  overflow: hidden;
-  grid-template-rows: 1fr;
-  opacity: 1;
-  visibility: visible;
-  transition: grid-template-rows 180ms ease, opacity 150ms ease, visibility 0s linear;
-}
-
-.settings-nav__items-inner {
-  display: grid;
-  min-height: 0;
-  gap: 3px;
-  overflow: hidden;
-}
-
-.settings-nav__section:not(.is-expanded) .settings-nav__items {
-  grid-template-rows: 0fr;
-  opacity: 0;
-  visibility: hidden;
-  transition: grid-template-rows 180ms ease, opacity 150ms ease, visibility 0s linear 180ms;
-}
-
 .workbench-shell[data-reduced-motion="on"] .settings-save-feedback__card { animation: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .workbench-shell[data-reduced-motion="system"] .settings-save-feedback__card {
     animation: none;
   }
-
-  .settings-nav__items,
-  .settings-nav button.settings-nav__group::after {
-    transition: none;
-  }
-}
-
-.settings-nav button {
-  position: relative;
-  display: flex;
-  min-height: 39px;
-  align-items: center;
-  gap: 12px;
-  padding: 0 11px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  text-align: left;
-}
-
-.settings-nav button > svg {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  color: var(--color-text-muted);
-}
-
-.settings-nav button:hover {
-  background: var(--color-brand-subtle);
-  color: var(--settings-accent, var(--color-brand));
-}
-
-.settings-nav button.is-active {
-  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, var(--color-surface));
-  color: var(--settings-accent, var(--color-brand));
-  font-weight: 650;
-}
-
-.settings-nav button.is-active > svg {
-  color: var(--settings-accent, var(--color-brand));
-}
-
-.settings-nav button.is-active:before {
-  position: absolute;
-  inset: 8px auto 8px 0;
-  width: 3px;
-  border-radius: 0 4px 4px 0;
-  content: "";
 }
 
 .settings-sidebar__account {
@@ -918,6 +781,49 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-base);
   line-height: 1.75;
+}
+
+.settings-account-tabs {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  gap: var(--space-2);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border-bottom: 1px solid var(--color-border-subtle);
+  scrollbar-width: thin;
+}
+
+.settings-account-tabs > button {
+  display: flex;
+  min-height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.settings-account-tabs > button:hover,
+.settings-account-tabs > button.is-active {
+  color: var(--settings-accent, var(--color-brand));
+}
+
+.settings-account-tabs > button.is-active {
+  border-bottom-color: var(--settings-accent, var(--color-brand));
+}
+
+.settings-account-tabs > button:focus-visible {
+  outline: 2px solid var(--settings-accent, var(--color-brand));
+  outline-offset: -2px;
 }
 
 .settings-wallpaper-engine { gap: clamp(16px, 2.4vw, 24px); }
@@ -2350,16 +2256,8 @@
     padding: 12px;
   }
 
-  .settings-nav button.settings-nav__group {
-    min-height: 30px;
-  }
-
   .settings-sidebar__account {
     display: none;
-  }
-
-  .settings-nav button {
-    white-space: nowrap;
   }
 
   .settings-page {
@@ -3109,14 +3007,20 @@
     padding-block: var(--space-2);
   }
 
-  .settings-toolbar__start,
-  .settings-toolbar__actions {
+  .settings-toolbar__start {
     flex-wrap: wrap;
     justify-content: flex-start;
   }
 
+  .settings-toolbar__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+  }
+
   .settings-toolbar__actions > small {
-    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
   }
 
   .settings-row,
@@ -3164,6 +3068,20 @@
 
   .settings-content .account-user-filter-bar {
     flex-wrap: wrap;
+  }
+}
+
+@container settings-main (max-width: 380px) {
+  .settings-toolbar__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-toolbar__actions > small {
+    grid-column: 1 / -1;
+  }
+
+  .settings-toolbar__actions > .ant-btn {
+    width: 100%;
   }
 }
 
@@ -3412,4 +3330,110 @@
   .settings-wallpaper-engine__fallback { grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 12px; padding: 16px; }
   .settings-wallpaper-engine__icon { grid-row: 1 / span 2; }
   .settings-wallpaper-engine__fallback > .ant-btn { grid-column: 2; grid-row: auto; justify-self: start; }
+}
+
+.settings-profile-plugins__toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.settings-profile-plugins__toolbar .ant-input-search {
+  width: min(100%, 440px);
+}
+
+.settings-profile-plugins__error {
+  margin-bottom: var(--space-3);
+}
+
+.settings-profile-plugin-row__description {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.settings-profile-plugin-row__copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.settings-profile-plugin-row__icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--settings-control-radius);
+  background: var(--color-surface-secondary);
+  color: var(--color-brand);
+}
+
+.settings-profile-plugin-row__reason {
+  color: var(--color-warning);
+}
+
+.settings-profile-plugin-row__controls {
+  display: flex;
+  width: min(100%, var(--settings-control-width));
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.settings-profile-plugin-row__controls .ant-select {
+  width: min(100%, var(--settings-control-width));
+}
+
+.settings-profile-plugins__state {
+  display: grid;
+  min-height: 180px;
+  justify-items: center;
+  align-content: center;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.settings-profile-plugins__state > svg {
+  color: var(--color-brand);
+}
+
+.settings-profile-plugins__state strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+}
+
+@container settings-main (max-width: 620px) {
+  .settings-profile-plugins__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-profile-plugins__toolbar .ant-input-search {
+    width: 100%;
+  }
+
+  .settings-profile-plugin-row__description {
+    align-items: flex-start;
+  }
+
+  .settings-profile-plugin-row__icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .settings-profile-plugin-row__controls {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
 }

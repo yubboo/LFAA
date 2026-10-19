@@ -34,7 +34,7 @@ pnpm lfaa web
 
 启动子菜单中，1 或回车启动完整 Web（控制端和编译前端）；2 仅启动独立 Daemon 节点，必须配置绝对路径 `LFAA_DATA_DIR`；4 只启动 Vite 前端并等待已有控制端，不会启动 LFAA 服务。
 
-首次本地 Web 使用顺序为 1 → 2 → Enter；正式启动自动核对源码/构建指纹，过期先构建。Web 使用编译后的控制端与前端；Windows x64 本机模式按上文规则托管本机 Daemon。需要源码热更新时，在启动子菜单选择 4：等待当前控制端 `/api/health` 就绪后运行 `pnpm --filter lfaa-web run dev`，Vite 固定监听 `127.0.0.1:5173`，将 API 与 Socket.IO 代理到现有控制端，并读取 DSH 页面注入。此入口只启动前端，不重启控制端或 Daemon；用 `http://127.0.0.1:5173` 打开页面，按 `Ctrl+C` 停止 Vite。若 5173 已由本工作区 Vite 占用，菜单核对进程身份和 AI Work 页面响应后复用现有实例；其他占用会报告进程名和 PID 并停止，不会杀进程或静默换端口。节点原生 Host 先通过 `pnpm run build:windows-sandbox-host` 单独构建。
+首次本地 Web 使用顺序为 1 → 2 → Enter；工作台正式启动会检查 Control Plane 与 Web 的关键产物和源码指纹，缺失或过期时分别自动运行 `pnpm run build:control-plane`、`pnpm run build:web`，构建后仍未通过复核则停止启动。Web 使用编译后的控制端与前端；Windows x64 本机模式按上文规则托管本机 Daemon。需要源码热更新时，在启动子菜单选择 4：等待当前控制端 `/api/health` 就绪后运行 `pnpm --filter lfaa-web run dev`，Vite 固定监听 `127.0.0.1:5173`，将 API 与 Socket.IO 代理到现有控制端，并读取 DSH 页面注入。此入口只启动前端，不重启控制端或 Daemon；用 `http://127.0.0.1:5173` 打开页面，按 `Ctrl+C` 停止 Vite。若 5173 已由本工作区 Vite 占用，菜单核对进程身份和 AI Work 页面响应后复用现有实例；其他占用会报告进程名和 PID 并停止，不会杀进程或静默换端口。节点原生 Host 先通过 `pnpm run build:windows-sandbox-host` 单独构建。
 
 Web 启动前检查当前数据目录的配置写锁：若锁 PID 仍对应 LFAA Web CLI，只结束该 PID 后按原命令启动；锁已陈旧时交由存储模块安全回收。进程身份无法确认或停止失败时中止启动；不会删除锁文件或结束整棵进程树。
 

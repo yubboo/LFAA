@@ -9,7 +9,11 @@ const { detectPluginSourceInput } = await import('lfaa-client-ui-plugin-manager/
 const pluginPage = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-plugin-manager/src/PluginManagerPage.tsx', import.meta.url)), 'utf8');
 const pluginPageCss = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-plugin-manager/src/PluginManagerPage.css', import.meta.url)), 'utf8');
 const settingsPage = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-settings/src/SettingsPage.tsx', import.meta.url)), 'utf8');
+const managedPluginsSettings = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-settings/src/ManagedPluginsSettings.tsx', import.meta.url)), 'utf8');
+const workbenchPage = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-layout/src/Workbench.tsx', import.meta.url)), 'utf8');
 const settingsCss = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-settings/src/SettingsPage.css', import.meta.url)), 'utf8');
+const sidebarNavigation = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-sidebar/src/SecondaryNavigation.tsx', import.meta.url)), 'utf8');
+const sidebarNavigationCss = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-sidebar/src/SecondaryNavigation.css', import.meta.url)), 'utf8');
 
 test('wallpaper settings section follows the installed Profile plugin identity', () => {
   assert.equal(hasWallpaperEnginePlugin([]), false);
@@ -95,19 +99,32 @@ test('manual install, start, stop and uninstall call the authenticated lifecycle
   assert.match(remove, /目标 App：workspace/u);
   assert.match(remove, /不要安装、更新或移除其他插件/u);
   assert.throws(() => buildPluginRemoveGoal(plugin, 'minecraft'), /没有登记到所选目标 App/u);
-  assert.match(pluginPage, /id=\{`plugin-manager-\$\{id\}-tab`\}/u);
+  assert.match(pluginPage, /domId: .*plugin-manager-\$\{id\}-tab/u);
   assert.match(pluginPage, /id: "wallpaper", label: "壁纸引擎"/u);
   assert.match(pluginPage, /wallpaperEngineInstalled \? <div id="plugin-manager-wallpaper-panel"/u);
 });
 
-test('plugin manager exposes one unified tab row and keeps existing settings owners', () => {
+test('plugin manager uses the shared three-column navigation and keeps existing settings owners', () => {
   const workspaceTabs = ['全部', '插件', '应用', '工具', '技能', '提示词', 'MCP 连接', '我的知识库', '运行诊断', '领域专家'];
   for (const label of workspaceTabs) assert.ok(pluginPage.includes(`label: "${label}"`), `missing plugin workspace tab: ${label}`);
   assert.match(pluginPage, /useState<PluginManagerWorkspaceTab>\("all"\)/u);
   assert.match(pluginPage, /standalonePluginView=\{workspaceTab\}/u);
-  assert.match(pluginPage, /id=\{`plugin-manager-\$\{id\}-tab`\}/u);
+  assert.match(pluginPage, /domId: .*plugin-manager-\$\{id\}-tab/u);
+  assert.match(pluginPage, /<GlobalNavigationRail/u);
+  assert.match(pluginPage, /<ResizableWorkbench/u);
+  assert.match(pluginPage, /<SecondaryNavigation ariaLabel="插件工作区分类" groups=\{navigationGroups\} activateOnArrow/u);
+  assert.match(pluginPage, /leftWidth=\{leftWidth\}[\s\S]*?leftCollapsed=\{leftCollapsed\}/u);
+  assert.match(pluginPage, /setWorkspaceTab\(id\)/u);
+  assert.match(pluginPage, /visiblePluginTabs\.map\(entry/u);
+  assert.doesNotMatch(pluginPage, /plugin-manager-page__tabs|role="tablist"/u);
+  assert.doesNotMatch(pluginPage, /role="tabpanel"/u);
   assert.doesNotMatch(pluginPage, /extensions-header|standalonePluginWorkspaceHeaderTarget|plugin-manager-extensions-tab|plugin-manager-profile-tab/u);
   assert.match(pluginPage, /wallpaperEngineInstalled \? <div id="plugin-manager-wallpaper-panel"/u);
+  assert.match(sidebarNavigation, /export function SecondaryNavigation/u);
+  assert.match(sidebarNavigation, /aria-current=\{item\.active \? "page"/u);
+  assert.match(sidebarNavigationCss, /\.secondary-navigation\s*\{[^}]*overflow-y:\s*auto/su);
+  assert.match(settingsPage, /<SecondaryNavigation/u);
+  assert.match(settingsPage, /role=\{standaloneWorkspaceContent \? "region" : "tabpanel"\}/u);
 
   assert.match(settingsPage, /className=\{`settings-content settings-content--plugin-workspace\$\{standaloneWorkspaceContent \? " settings-content--plugin-workspace-standalone" : ""\}`\}/u);
   assert.doesNotMatch(settingsPage, /createPortal|standalonePluginWorkspaceHeaderTarget/u);
@@ -134,12 +151,11 @@ test('plugin manager exposes one unified tab row and keeps existing settings own
   assert.match(settingsPage, /尚未配置 MCP 服务/u);
   assert.match(settingsPage, /扩展工作台/u);
   assert.match(settingsPage, /插件 UI 完成 LFAA Owner 映射与实页验收前保持不可用/u);
-  assert.match(pluginPageCss, /grid-template-rows:\s*auto auto minmax\(0,\s*1fr\)/u);
+  assert.match(pluginPageCss, /grid-template-rows:\s*auto minmax\(0,\s*1fr\)/u);
   assert.doesNotMatch(pluginPageCss, /plugin-manager-page__extensions-header/u);
   assert.match(settingsCss, /\.settings-content--plugin-workspace\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*none;/su);
   assert.match(settingsCss, /\.settings-plugin-standalone__content--workspace\s*\{[^}]*overflow:\s*hidden;/su);
   assert.match(settingsCss, /\.settings-plugin-workspace__panel--standalone\s*\{[^}]*overflow:\s*auto;/su);
-  assert.match(pluginPageCss, /overscroll-behavior-x:\s*contain/u);
   assert.doesNotMatch(settingsCss, /settings-extension-catalog__filters|settings-extension-catalog__filter/u);
   assert.doesNotMatch(settingsCss, /@container plugin-manager-extension-header/u);
   assert.match(settingsCss, /\.settings-plugin-workspace__overview\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/su);
@@ -147,6 +163,39 @@ test('plugin manager exposes one unified tab row and keeps existing settings own
   assert.match(settingsCss, /@container settings-main \(max-width: 420px\)/u);
   assert.match(settingsCss, /container:\s*settings-main\s*\/\s*inline-size/u);
   assert.doesNotMatch(settingsCss, /\.settings-plugin-workspace__overview\s*\{[^}]*repeat\(4,/su);
+});
+
+test('plugin settings gear opens the existing SettingsPage plugins section and keeps route return', () => {
+  assert.match(pluginPage, /aria-label="打开插件设置"[^>]*onClick=\{\(\) => onOpenSettings\("plugins"\)\}/u);
+  assert.match(pluginPage, /plugin-manager-page__settings-button/u);
+  assert.match(pluginPageCss, /\.plugin-manager-page__settings-button\.ant-btn\s*\{[^}]*width:\s*36px[^}]*height:\s*36px/su);
+  assert.match(workbenchPage, /settingsInitialSection, setSettingsInitialSection\] = useState<"ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security" \| "plugins"/u);
+  assert.match(workbenchPage, /settingsSectionRequest, setSettingsSectionRequest\] = useState<\{ section: "ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security" \| "plugins";/u);
+  assert.match(workbenchPage, /const openSettings = useCallback\(\(section\?: "ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security" \| "plugins"\)/u);
+  assert.match(workbenchPage, /setSettingsReturnRoute\(route\)/u);
+  assert.match(workbenchPage, /onNavigate\(section \? `\/settings\?section=\$\{encodeURIComponent\(section\)\}` : "\/settings"\)/u);
+  assert.match(workbenchPage, /onOpenSettings=\{openSettings\}/u);
+  assert.match(settingsPage, /sectionRequest\?: \{ section: "ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security" \| "plugins";/u);
+});
+
+test('Settings Center exposes Profile plugins under Integrations and reuses authenticated lifecycle state', () => {
+  assert.match(settingsPage, /\{ id: "profilePlugins", title: "插件", group: "集成", icon: "extension" \}/u);
+  assert.match(settingsPage, /if \(section === "plugins"\) return "profilePlugins"/u);
+  assert.match(settingsPage, /const routeSection = section === "profilePlugins" \? "plugins" : section/u);
+  assert.match(settingsPage, /if \(activeSection === "profilePlugins"\) return <ManagedPluginsSettings/u);
+  assert.match(settingsPage, /section\.id !== "plugins" && section\.id !== "connections"/u);
+  assert.match(managedPluginsSettings, /loadManagedPlugins\(controller\.signal\)/u);
+  assert.match(managedPluginsSettings, /setManagedPluginEnabled\(plugin\.id/u);
+  assert.match(managedPluginsSettings, /expectedSourceCommit: plugin\.source\.commit/u);
+  assert.match(managedPluginsSettings, /targetApplicationId/u);
+  assert.match(managedPluginsSettings, /<SettingRow/u);
+  assert.match(managedPluginsSettings, /<SettingsSwitch/u);
+  assert.match(managedPluginsSettings, /plugin\.state === "incompatible"/u);
+  assert.match(managedPluginsSettings, /hasAdminAccess\(user\.role\)/u);
+  assert.doesNotMatch(managedPluginsSettings, /className="settings-row settings-profile-plugin-row"/u);
+  assert.match(settingsCss, /\.settings-profile-plugin-row__icon\s*\{/u);
+  assert.match(settingsCss, /@container settings-main \(max-width: 620px\)/u);
+  assert.doesNotMatch(managedPluginsSettings, /settings\.plugins\.enabled/u);
 });
 
 test('plugin inspection confines long source metadata and warning alerts to the card grid', () => {

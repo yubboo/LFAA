@@ -341,8 +341,8 @@ export function Workbench({
   const fileManagerHomeRoute = applicationModeHomeRoute(fileManagerSourceRoute ?? "")
     ?? `/apps/${preferences.selectedApp}/${preferences.selectedMode}`;
   const settingsReturnBackgroundRef = useRef<HTMLImageElement | null>(null);
-  const [settingsInitialSection, setSettingsInitialSection] = useState<"ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | undefined>();
-  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ section: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security"; requestId: number } | null>(null);
+  const [settingsInitialSection, setSettingsInitialSection] = useState<"ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins" | undefined>();
+  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ section: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins"; requestId: number } | null>(null);
   const settingsSectionRequestSequenceRef = useRef(0);
   const [settings, setSettings] = useState<UserSettings>(initialSettings);
   const [wallpaperEngineClientAvailable, setWallpaperEngineClientAvailable] = useState(() => document.body.hasAttribute("data-lfaa-wallpaper-engine-client"));
@@ -514,7 +514,7 @@ export function Workbench({
     if (current?.userId === user.id) current.writer.schedule(draft); else writeAiWorkDraft(user.id, "workspace", draft);
   }, [user.id]);
   const [systemDark, setSystemDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
-  const openSettings = useCallback((section?: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security") => {
+  const openSettings = useCallback((section?: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins") => {
     setSettingsInitialSection(section);
     if (section) setSettingsSectionRequest({ section, requestId: ++settingsSectionRequestSequenceRef.current });
     if (route !== "/settings" && route !== "/admin/users") setSettingsReturnRoute(route);
@@ -823,7 +823,7 @@ export function Workbench({
   } else if (isPluginManagerPage) {
     pageContent = (
       <Suspense fallback={<div className="loading-page loading-page--compact"><span className="loading-indicator" aria-hidden="true" /></div>}>
-        <PluginManagerPage user={user} settings={settings} resolvedTheme={resolvedTheme} serverState={serverState} applications={applicationNavigationItems} onNavigate={onNavigate} onOpenApplication={onOpenApplication} onOpenSettings={() => openSettings()} onLogout={onLogout} onUserChange={onUserChange} onSettingsChange={updateWorkbenchSettings} />
+        <PluginManagerPage user={user} settings={settings} resolvedTheme={resolvedTheme} serverState={serverState} applications={applicationNavigationItems} onNavigate={onNavigate} onOpenApplication={onOpenApplication} onOpenSettings={openSettings} onLogout={onLogout} onUserChange={onUserChange} onSettingsChange={updateWorkbenchSettings} />
       </Suspense>
     );
   } else if (appRoute) {

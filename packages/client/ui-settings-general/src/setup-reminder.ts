@@ -1,5 +1,5 @@
 /**
- * 功能：维护首次配置与默认凭据安全提醒的本地“今日暂停”状态。
+ * 功能：维护凭据、AI 和业务内容提醒的本地“今日暂停”状态。
  * 作用：按账户、提醒类别隔离浏览器当日暂停标记，日期过期后自然恢复。
  * 关联文件：packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-settings/src/SettingsPage.tsx。
  */
@@ -42,7 +42,8 @@ function migrateLegacySetupReminderSnooze(userId: string): void {
 // 标记仅暂停该账户、此浏览器和此类别的当天提醒；日期过期后无需清理即可自然恢复。
 export function isSetupReminderSnoozedToday(userId: string, today = getSetupReminderLocalDay(), category: SetupReminderCategory = "content-storage"): boolean {
   try {
-    return window.localStorage.getItem(setupReminderSnoozeKey(userId, category)) === today || hasLegacySetupReminderSnooze(userId, today);
+    return window.localStorage.getItem(setupReminderSnoozeKey(userId, category)) === today
+      || hasLegacySetupReminderSnooze(userId, today);
   } catch {
     return false;
   }

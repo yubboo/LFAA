@@ -499,6 +499,21 @@ html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builti
   inset: 0;
 }
 
+.auth-page--transition-settling {
+  opacity: 0;
+  transition: opacity 240ms cubic-bezier(.42, 0, .58, 1);
+}
+
+.auth-page[data-reduced-motion="on"].auth-page--transition-settling {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-page[data-reduced-motion="system"].auth-page--transition-settling {
+    transition: none;
+  }
+}
+
 .auth-page--transition-exiting {
   /* 保持登录页可见背景，由 GPU 画布实时绘制同一张壁纸的引力透镜变化。 */
   pointer-events: none;
@@ -518,7 +533,7 @@ html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builti
 .auth-page.auth-page--transition-exiting .auth-page__split-layout {
   /* 登录卡片留在视口中心，被吸入后由卡片内部碎片继续向事件视界汇聚。 */
   z-index: 3;
-  animation: lfaa-auth-login-card-absorb 2200ms cubic-bezier(.45, 0, .82, .62) both, lfaa-auth-login-card-fade 2200ms linear both;
+  animation: lfaa-auth-login-card-absorb 2200ms cubic-bezier(.42, 0, .58, 1) both, lfaa-auth-login-card-fade 2200ms linear both;
   transform-origin: center center;
   transform-style: preserve-3d;
   perspective: 1100px;

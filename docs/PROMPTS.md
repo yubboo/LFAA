@@ -128,6 +128,15 @@
 | 120-登录与工作台输入区响应式修复-20261019 | 修复登录状态悬停导致窄屏重排、工作台输入区显示异常并统一提醒按钮顺序 | `/work` 的 1077×900 实页“更多”按钮 hover 检查中，输入卡前后均为 489.8×152.3px，阴影、滤镜和位移均无；定向回归及 Web/控制端构建通过，帧时间未测 | [本轮合同](#lfaa-login-and-workbench-responsive-repair-20261019) |
 | 121-配置提醒生命周期与窄屏引导修复-20261019 | 明确三类配置提醒的关闭条件与长期偏好位置，修复模型未配置引导在窄屏挤压和文案不清的问题 | 按用户澄清修正并完成；定向回归、类型、包/Web 构建和隔离实页验收通过 | [本轮合同](#lfaa-setup-reminder-lifecycle-and-narrow-workbench-20261019) |
 | 122-模型目录刷新与容量错误隔离-20261019 | 分离已保存 Provider 账户的官方目录刷新和真实模型请求；显示官方版本标签且保留原始名称与调用 ID | 定向回归 7/7、Client 类型、受影响包/Web/Control Plane 构建及 193 包工作区检查通过；内置浏览器控制超时，未完成目视验收 | [本轮合同](#lfaa-ai-model-catalog-refresh-20261019) |
+| 123-Web 启动自动补建修复-20261019 | 修复 Windows PowerShell 5.1 将运行树 JSON 数组嵌套解析，导致菜单未识别缺失 Control Plane 产物的问题 | 已修复；PS 5.1 回归 5/5、Control Plane/Web 构建与指纹复核通过；工作区清单 Gate 失败，旧 setup 路由断言阻断编译启动回归 | [本轮合同](#lfaa-web-startup-auto-rebuild-20261019) |
+| 124-登录转场连续性修复-20261019 | 消除黑洞登录动画到工作台的末帧切换感，并让卡片运动首尾平滑 | 已实现；直接回归、类型检查、包/Web 构建与桌面/窄屏内置浏览器登录验收通过；未测帧时间 | [本轮合同](#lfaa-login-transition-continuity-20261019) |
+| 125-设置中心账号页合并-20261019 | 将个人资料、安全和账号管理收拢到“账号”入口，以页内 Tab 分类 | B1/B2 完成；完整补验修复账号搜索命中组未展开；回归、Client/Host 类型、Settings/Web/Control Plane 构建、桌面/平板/手机视口及工作区 Gate 通过 | [本轮合同](#lfaa-ui-settings-account-tabs-20261019) |
+| 126-首次登录提醒队列与通知开关修复-20261019 | 修复首次登录提醒队列及版本公告显示；保留提醒功能，仅使用通知总开关，不在设置中心增加分类提醒开关 | 已完成 | [本轮合同](#lfaa-first-login-reminder-queue-and-preferences-20261019) |
+| 127-设置中心窄视口工具栏排版修复-20261019 | 修复设置页分栏容器变窄时保存操作孤立换行及通知说明卡过高的问题 | 直接回归 2/2、Client 类型、设置包/Web 构建、193 包 Gate 与桌面/分栏/窄屏验收通过；临时数据目录因策略限制未清理 | [本轮合同](#lfaa-settings-narrow-toolbar-layout-20261019) |
+| 128-插件管理三栏工作区-20261019 | 插件管理页复用现有全局导航、二级侧栏菜单与 ResizableWorkbench，形成可拉伸的三栏布局 | 已实现；三栏、响应式布局、菜单切换、分隔条拖动与收起/恢复已验；内滚动未单独验 | [本轮合同](#lfaa-plugin-manager-three-column-workspace-20261019) |
+| 129-插件管理页设置中心齿轮入口-20261020 | 在插件管理页工具栏增加齿轮入口，打开设置中心集成插件菜单 | 用户实页验收指出该路由显示扩展工作台、设置侧栏没有插件菜单；本轮按 #131 修正 | [本轮合同](#lfaa-plugin-manager-open-settings-20261020) |
+| 130-应用工作区四栏导航整合-20261020 | 应用工作区复用现有全局导航、二级应用菜单、可拉伸工作区与右侧资源栏，形成四栏布局 | 已实现；定向回归、类型、包/Web 构建与工作区 Gate 通过；内置浏览器桌面及窄视口布局/路由验收通过 | [本轮合同](#lfaa-application-workspace-four-column-navigation-20261020) |
+| 131-设置中心集成插件菜单统一-20261020 | 将插件管理齿轮接入设置中心“集成 → 插件”，用设置页标准行和真实开关呈现 Profile 插件 | 定向回归、类型/包/Web 构建、193 包 Gate 与内置浏览器桌面/窄屏验收通过；Profile 当前无已安装插件，实页无开关行可操作 | [本轮合同](#lfaa-settings-profile-plugins-integration-20261020) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
@@ -2704,3 +2713,256 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 - `lfaa-settings`、`lfaa-api-settings-controller`、`lfaa-client-connection`、`lfaa-client-ui-settings-models`、`lfaa-client-ui-settings`、`lfaa-client-ui-chat` 包构建及 Web、Control Plane 正式构建通过；Client TypeScript、`check:workspace`（193 packages）和 `git diff --check` 通过。Web 构建保留既有 cpp 资源块超过 500 kB 的提示。
 - 用户后续明确提供 API 并授权真实验证：只在临时进程环境中请求官方 `GET /models` 与一次最小 `POST /chat/completions`，两者均返回 HTTP 200；响应对应 `deepseek-flash / DeepSeek-V4.1-Flash` 与 `deepseek-v4-pro / DeepSeek-V4-Pro`。当前版本徽标另从官方更新日志读取，不依赖模型目录响应是否含版本字段。凭据未写入仓库、账户设置或文件，临时环境已清除；未保存/改动真实账户与偏好。
 - Web 与 Control Plane 当前构建指纹均为空差异；隔离正式服务 `http://127.0.0.2:49687/settings?section=ai` 返回 HTTP 200。ChatGPT 内置浏览器状态确认该路由的标签标题为“LFAA 工作台”，但多次读取页面 AX 状态/截图均因 `cua_repl` 执行超时重置内核，无法确认设置页正文渲染或完成操作；因此桌面、窄/短视口、交互与帧时间未验收，未标为通过。隔离服务已停止；测试目录 `dist/.tmp/ai-model-catalog-acceptance-20261019-a` 因本机执行策略拒绝递归清理命令而保留。原 `127.0.0.1:3000` 用户服务未重启或改动。
+
+<a id="lfaa-web-startup-auto-rebuild-20261019"></a>
+
+## 123-Web 启动自动补建修复-20261019
+
+### 目标、Owner 与设置
+
+- 修复 Windows 工作台菜单 2 → 子菜单 1/回车时，Control Plane 关键构建入口缺失却继续运行 `pnpm lfaa web` 的问题；缺失或过期时先自动运行 `pnpm run build:control-plane`，之后再检查 Web 构建并启动。
+- 已确认根因：`runtime-build-state.mjs web` 正确报告 `host` 与 `web` 构建过期；Windows PowerShell 5.1 的 `ConvertFrom-Json` 将顶层 JSON 数组作为单个嵌套数组对象返回，原来的 `-contains 'host'` 判断因而为假。PowerShell 7 的相同解析方式不会复现。
+- Owner：正式构建状态由 `scripts/runtime-build-state.mjs` 判断；Windows 菜单预检与命令编排由 `scripts/install-dependencies.ps1` 持有。Web、Control Plane 与 Daemon 运行职责不变。
+- 设置中心配置：不涉及。沿用当前源码、`dist/apps/control-plane` / `dist/apps/web` 关键输出、构建指纹和根目录 pnpm 工作区。
+
+### 允许、禁止与验收
+
+- 允许修改菜单启动预检、对应 Windows PowerShell 回归、本合同及必要 CLI 启动文档。
+- 缺失或过期的 Control Plane 必须在 Web CLI 之前构建；需要时再构建 Web。构建失败或重建后仍有过期输出时停止启动并保留诊断信息。
+- 禁止绕过构建、忽略关键输出、改写真实运行数据、停止未知服务/Daemon/实例、改变设置或扩展菜单其他模式。
+- 使用 Windows PowerShell 5.1 与当前 PowerShell 回归 JSON 数组解析；核验构建命令次序、Control Plane/Web 指纹与关键产物；执行 `git diff --check`。本任务不是 UI 变更，不做浏览器视口验收；如运行完整 Web，仅允许使用隔离端口与隔离数据并关闭本机 Daemon。
+
+### 实施与验证
+
+- `ConvertFrom-StaleRuntimeBuildJson` 展开 Windows PowerShell 5.1 `ConvertFrom-Json` 返回的嵌套顶层数组，使缺失/过期的 `host` 与 `web` 状态能进入原有自动构建分支；依次构建控制端、Web 后重新核对运行树，仍缺失或过期时中止，不运行 CLI。
+- Windows PowerShell 5.1 Pester 定向回归 `scripts/tests/install-dependencies-startup.Tests.ps1`：5/5 通过，覆盖 `host` 单项、`host` + `web`、空数组，以及构建/复核先于 CLI 的顺序。
+- `pnpm run build:control-plane`、`pnpm run build:web` 均通过；Web 构建保留既有约 501 kB C++ chunk 提示。`node scripts/runtime-build-state.mjs web` 返回 `[]`，Control Plane 关键入口与 Web `index.html` 均存在；`git diff --check` 通过。
+- `node --test scripts/tests/compiled-web-startup.test.mjs` 启动隔离 CLI 后健康接口和首页检查通过，但在既有 `POST /api/auth/setup` 断言处得到 404 而非 201，后续认证/设置断言未执行；本轮未改认证路由。`pnpm run check:workspace` 失败于 `docs/harness-packages.md` 包目录 Markdown 清单过期；该清单不在本轮改动范围。仓库要求的 `workspace-preflight` 脚本当前不存在。未运行完整菜单启动、未进行浏览器/设备验收；没有启动或修改用户 Web/Daemon 服务及用户数据。
+
+<a id="lfaa-login-transition-continuity-20261019"></a>
+
+## 124-登录转场连续性修复-20261019
+
+### 目标、Owner 与设置
+
+- 修复黑洞式登录转场结束时覆盖层与工作台同帧切换造成的顿挫，并让登录卡片吸入曲线起止速度平滑。
+- Renderer 持有登录阶段、工作台预热与交互门控；`ui-settings-account` 持有登录覆盖层和内置视觉；认证、设置/会话与工作台业务 Owner 不变。
+- 沿用 `appearance.advanced.reducedMotion`、`appearance.advanced.authTransitionPluginId`，以及现有主题、登录背景、强调色和遮罩映射；不新增设置、不修改或写入用户偏好。
+
+### 允许、禁止与验收
+
+- 允许：仅修改 Renderer 内置转场收尾阶段、登录覆盖层淡出与卡片缓动、对应直接回归及登录转场合同/包 README。
+- 禁止：改变登录 API、身份/会话行为、插件生命周期、设置默认值或工作台提醒语义；不得操作真实账户偏好、重启/停止来源不明服务、覆盖已有脏工作、提交或发布。
+- 验收：直接回归证明动画结束先进入重叠收尾、工作台在视觉淡出期间仍 inert/aria-hidden、覆盖层 transitionend 后再解除门控；卡片 easing 首尾减速；认证和减少动态效果路径不变。运行直接回归、Client 类型及所属包/Web 构建和 `git diff --check`；用当前源码服务在 ChatGPT 内置浏览器检查真实登录/登录成功转场的桌面和窄短屏，记录路由、视口、交互、截图和未测范围。实页使用隔离端口与隔离数据，不写真实账户或设置。
+
+### 实施与验证
+
+- `App.tsx` 增加内置转场收尾态：黑洞主动画结束、取消或 2250ms 兜底时先让预热 Workbench 在覆盖层后显现；`authTransitionPhase` 保持 `entering`，因此淡出期间 Workbench 仍保持 `inert`/`aria-hidden`。登录覆盖层执行 240ms `opacity` 淡出，根覆盖层收到 `transitionend` 后再解除门控；480ms 兜底覆盖减少动态效果或浏览器未派发结束事件的情况。卡片吸入曲线改为首尾减速的 `cubic-bezier(.42, 0, .58, 1)`。减少动态效果路径禁用淡出动画。
+- `client-auth-feedback-layout.test.mjs` 定向回归 17/17 通过；Client `tsc --noEmit`、`ui-settings-account` 与 `ui-renderer` 包构建、`pnpm run build:web` 通过；Web 与 Control Plane `runtime-build-state.mjs` 均返回 `[]`，`git diff --check` 通过。Web 构建提示既有 C++ chunk 约 501 kB。`pnpm run check:workspace` 首次报告包目录 Markdown 清单过期；同步清单后再次检查通过（193 个包）。
+- 当前 checkout 的源码 Web 服务使用隔离地址 `http://127.0.0.2:31324/`、隔离 Home/Data 与 `--no-local-daemon` 启动，首页 HTTP 200。ChatGPT 内置浏览器在 1440×900 查看登录页并提交隔离测试账户登录，成功进入 `/work`；另在 390×640 查看登录表单无横向溢出，并重新登录成功进入 `/work`。`/work` 窄屏截图中登录提醒弹窗完整位于视口内。截图在本轮内置浏览器中查看，未另存到仓库。默认视口已恢复为 1280×720；本轮 PID 26120 已按命令行核实后停止，31324 端口已释放；原 3000 端口服务未触碰。
+- 已验收源码/构建及桌面、窄屏实际登录链路；没有录制或量测动画逐帧时间，因此“丝滑”依赖曲线与覆盖层收尾的实现及实页流程观察，不声称帧时间验收。未测试真实账户、桌面安装包、真机触屏与不同刷新率设备。未修改登录 API、认证信息或用户偏好；未提交或发布。
+
+<a id="lfaa-ui-settings-account-tabs-20261019"></a>
+
+## 125-设置中心账号页合并-20261019
+
+### 目标、Owner 与设置
+
+- 将“个人资料”“安全”“账户”三个设置入口合并为单一“账号”入口，并在页面内用“个人资料 / 安全 / 账号管理”三个 Tab 分类展示。
+- 设置 UI Owner 为 `packages/client/ui-settings`；个人资料继续读取当前认证会话用户，邮箱/用户名/密码/恢复密钥/通行密钥继续经现有 Account Owner，账号管理继续由 `AdminUsersPage` 调用现有管理 API。
+- 不新增、修改或持久化设置项。沿用当前 Appearance 共享主题与布局令牌；Tab 分类仅为界面导航状态。
+- 兼容既有 `section=profile`、`section=security`、`section=account` 深链和外部安全设置入口，让它们进入账号页对应 Tab。
+
+### 允许、禁止与验收
+
+- 允许：修改设置页共享导航与账号页 Tab、直接相关样式、`ui-settings` 包职责说明、必要回归和本合同。
+- 批次 B1：在三类现有页面加入同一组可键盘操作的页内 Tab，并共用“账号”页标题；逐一确认旧路由仍选中对应 Tab、内容及原 Owner 操作不变。运行直接回归、Client 类型和 `ui-settings` 构建，并用 ChatGPT 内置浏览器检查当前源码页面。
+- 批次 B2：侧栏只保留“账号”一项，移除“个人资料/安全”独立项；将原“账户”入口命名为“账号”，三种旧分类状态均高亮同一入口，搜索仍可用个人资料/安全关键词找到账号页。重复运行直接回归、Client 类型、`ui-settings` 与 Web 构建，并在内置浏览器桌面和窄/短视口检查导航、Tab 切换、溢出和滚动。
+- 浏览器验收使用隔离数据，不写入真实账户设置、凭据或用户管理记录；完整记录路由、视口、交互、截图及未测范围。执行 `git diff --check` 和适用工作区 Gate；不得把构建结果当作实页验收。
+- 禁止：改变认证/API/Account Owner 或 `AdminUsersPage` 管理合同，修改账号数据、设置默认值/持久化、主题偏好，重启未知服务、提交或发布。
+
+### 实施与验证
+
+- 批次 B1 已在三类页面统一显示“账号”标题和“个人资料 / 安全 / 账号管理”键盘可操作 Tab；原账户资料、Account 安全表单与 AdminUsersPage 内容各自保留。旧 `section=profile/security/account` 状态仍可直达对应 Tab。
+- `apps/cli/tests/client-settings-account-tabs.test.mjs` 1/1、`pnpm exec tsc --noEmit -p tsconfig.client.json`、`pnpm --filter lfaa-client-ui-settings run build` 与 `pnpm run build:web` 通过；Web 运行指纹为 `[]`。
+- 隔离 Web `http://127.0.0.1:31402/settings?section=profile` 的 ChatGPT 内置浏览器实测 755×647：个人资料页面、点选安全 Tab 后账户名/邮箱/密码/恢复密钥/通行密钥控件显示、点选账号管理 Tab 后 AdminUsersPage 显示隔离 super_admin 列表。B1 截图在验收输出中捕获；未输入或保存账号凭据、未执行新增/编辑/删除。
+- 完整补验在侧栏分组原本折叠时发现“账号管理”别名虽过滤出账号项、分组却未自动展开；搜索框和候选过滤曾使用不同的匹配词。现由 `getSettingsSectionSearchText` 统一匹配与分组展开，并补充回归断言。重新实测“个人资料”“安全”“账号管理”“账户”均只显示一个可见的“账号”项，自动展开“个人”组；点击结果清空搜索并进入账号页。三种旧链接直接打开各自 Tab，实际按下 ArrowRight、Home、End 后选中项及 URL 正确同步。
+- 最新 Client/Host 类型检查（`pnpm run typecheck`）、定向回归 2/2、`lfaa-client-ui-settings` 构建、Web 与 Control Plane 构建、`pnpm run check:workspace`（193 个包）和 `git diff --check` 均通过；`node scripts/runtime-build-state.mjs web` 返回 `[]`。Web 构建仍提示 C++ 语法块约 501.3 kB，属于既有分块告警。
+- ChatGPT 内置浏览器验收当前源码 Web 路由：桌面 1440×900、平板请求 768×1024（实际浏览器 `innerHeight=1025`）、手机 320×520。各视口均检查单一侧栏“账号”入口和三项 Tab；手机文档宽度 310px / 320px、标签栏 224px / 224px 无横向溢出，个人资料与安全内容能在 252px 宽正文中纵向滚动；账号管理正文滚动高度 756px、可视高度 379px，实际滚动到 376.9px。手机打开导航并选择“账号”后覆盖层收起、正文恢复；搜索命中组原先折叠时，四种别名均能展开并显示“账号”。截图已在验收输出中捕获。实页使用隔离数据；未修改凭据、设置偏好或用户记录。实际设备、帧时间未测；浏览器控制台日志能力不可用，未读取客户端日志。隔离服务停止后记录 PID 27564 的 3000 端口原服务未重启或停止。
+- 本任务复用现有 Appearance 令牌；未新增设置项。隔离验收目录清理曾被自动审批策略拒绝，目录仍保留；共享工作树中的其他既有修改未触碰。
+
+<a id="lfaa-first-login-reminder-queue-and-preferences-20261019"></a>
+
+## 126-首次登录提醒队列与偏好修复-20261019
+
+### 目标、Owner 与设置
+
+- 修复全新隔离账户首次登录后只显示默认凭据提醒，后续 AI Provider、业务内容目录提醒及版本公告没有按顺序显示的问题。
+- 队列顺序：默认凭据 → AI Provider → 业务内容 `data` 目录；所有待处理项结束或按用户偏好关闭后，Workbench 再显示未确认的当前版本公告。不再单独弹出“游戏安装位置”提醒；SteamCMD 默认安装路径继续沿用“项目与存储”的现有配置入口。
+- Owner：凭据状态归 Account Owner、`ui-renderer` 读取；AI Provider 状态归 Settings/AI Account Owner；业务内容目录归 Project Storage Owner；队列/Modal 归 `ui-settings-general`；版本公告归 `ui-layout/Workbench`；偏好持久化归 Settings Owner，入口归 `ui-settings`。
+- 设置盘点：复用 General 中的 `defaultAdminCredentialReminderEnabled`、`aiProviderReminderEnabled`、`setupReminderEnabled` 和全局 `notificationPopupsEnabled`。前三个类别状态由对应提醒弹窗的“不更改”操作保存到 Settings Owner；设置中心不展示首次登录提醒分类开关。公告只使用通知总开关，并按账户/版本在浏览器本地保存“我知道了”确认，不新增公告偏好设置。已有类别状态和当日暂停记录不重置。
+- 业务内容 `data` 目录提醒统一指向“项目与存储”。不再为“游戏安装位置”增加单独的首次登录提示。版本公告只服从通知总开关和账户/版本确认记录；真实桌面更新器发出的可选下载/安装对话框及强制更新仍由更新器 Owner 管理。
+
+### 允许、禁止与验收
+
+- 允许：修复当前提醒队列的共享显示门控；确保 SteamCMD 游戏安装位置不进入首次登录提醒检查；设置中心只保留既有全局通知总开关，不增加首次登录分类开关；版本公告服从全局通知总开关和账户/版本确认记录；补充直接回归与相关 Owner README/合同。
+- 队列动作须只影响当前类别：暂缓/今日暂停后继续下一项，五分钟后/次日该类别再重试；“去配置”只导航并在返回后按真实 Owner 状态复查；“不更改”只关闭对应类别长期偏好。默认优先级凭据在前，之后模型、业务内容目录。
+- 禁止：读取/修改真实用户偏好、Provider 凭据或账户，调用真实 Provider、迁移业务数据、执行 SteamCMD 安装/校验，改变账户认证或更新器 mandatory 合同，重启/停止未知服务、覆盖已有并行修改、提交或发布。
+- 批次 B1：修复队列推进和 AI/Project Storage Owner 检查/失败处理；直接回归覆盖凭据暂停后继续、逐项“今日不再提醒”、暂缓到期重现、配置未完成返回后继续、弹窗偏好关闭后不检查对应 Owner、公告等待队列完成，并确认 SteamCMD Owner 不被首次登录提醒读取。复核 Settings schema/default/归一化只使用既有提醒偏好与通知总开关，不新增安装目录提醒偏好。
+- 批次 B2：通知设置不显示首次登录分类开关，既有总开关仍统一暂停/恢复提醒；弹窗“不更改”分类状态继续由 Settings Owner 保存，公告确认按账户/版本记录。运行 B1/B2 回归、Client/Host 类型、受影响包构建、正式 Web/Control Plane 构建、构建指纹、`git diff --check` 与适用 workspace Gate。
+- ChatGPT 内置浏览器使用隔离 Home/Data 与隔离账户完整走首次登录队列：凭据、模型、业务内容目录、版本公告按序显示，SteamCMD 游戏安装位置不弹提醒；检查 `/settings?section=notifications` 中没有首次登录分类开关且总开关能够暂停/恢复弹窗，弹窗内的“不更改”只关闭对应类别，其余类别继续；改动设置只写隔离账户。检查 `/settings?section=notifications`、`/work` 桌面及 `320×520` 窄短屏；记录实际路由、视口、操作、截图及未测项。真实 Provider/安装任务/用户账户、桌面更新器/设备与帧时间不因实页验收而触发，单独标记未测。
+
+### 实施与验收记录（2026-10-19）
+
+- 按用户最新要求彻底移除独立“游戏安装位置”首次登录提醒及其队列检查/暂停类别；保留业务内容数据目录提醒。SteamCMD 相关配置仍由“项目与存储”现有入口管理。通知页没有首次登录分类开关，仅保留既有“通知总开关”。
+- 内置浏览器隔离服务 `http://127.0.0.2:31328` 使用 `dist/.tmp/first-login-reminder-acceptance-20261019-b2/home` 与 `data`。`/work` 在 320×520 与 1246×925 实测队列均为默认凭据 → AI Provider → 业务内容数据目录 → LFAA 0.0.8 版本公告；业务目录弹窗文案/路径可见，页面没有 Steam/游戏安装位置提示。逐项点击“今日不再提醒”仅写隔离浏览器本地状态，随后公告接续显示。
+- `/settings?section=notifications` 在桌面 1245×925 与窄短屏 320×520 验收：未显示首次登录类别开关；窄屏 document/body 宽 310px，小于 320px 视口，无横向溢出。通知总开关关闭后出现“所有弹出提醒已暂停”，点击“恢复通知”后开关重新为开启。仅隔离账户状态被切换，结束时已恢复开启。
+- 截图在 ChatGPT 内置浏览器验收输出中捕获：凭据弹窗、业务数据目录桌面及窄屏弹窗、通知设置桌面与窄屏。截图未另存为仓库文件。
+- 第二个独立隔离副本验证长期“不更改”：分别在凭据、AI Provider、业务内容目录弹窗点击“不更改”，每次都进入下一类别，三次 `/api/settings/general` 写入均返回 200，之后版本公告显示。服务重启后 `/work` 再载入正常且无 Modal；已关闭的三类提醒没有重现，AI 未配置仍保留工作台内联状态提示。所有偏好只写 B3 隔离副本。
+- 定向回归 `client-setup-storage-reminder.test.mjs`、`settings-contract.test.mjs`、`client-release-announcement.test.mjs`、`client-auth-feedback-layout.test.mjs` 共 28/28 通过；`pnpm run typecheck`、Settings/General/UI Settings/Layout/Renderer 包构建、Control Plane/Web 构建、`pnpm run check:workspace`（193 个包）、`runtime-build-state.mjs web`（`[]`）及 `git diff --check` 均通过。Web 构建有既有 C++ chunk 501.3KB 体积提示。
+- 未调用真实 AI Provider、SteamCMD 安装/校验或真实账户；未验收桌面更新器、实体设备和帧时间。隔离服务停止后，未触碰端口 3000 的既有服务。
+- 最后复核时共享工作树新出现 UI Plugin Manager 与 Sidebar 源码/package 变更；当前 `pnpm run check:workspace` 因包目录 JSON/Markdown 清单过期失败，`runtime-build-state.mjs web` 当前返回 `['host','web']`。这两项在新增共享变更出现前均通过；没有覆盖或修正其他工作中的包清单/构建输出。该并行源码变更后的构建未运行，因此本文的构建与浏览器证据对应本任务源码当时的构建快照。
+
+<a id="lfaa-settings-narrow-toolbar-layout-20261019"></a>
+
+## 127-设置中心窄视口工具栏排版修复-20261019
+
+### 目标、Owner 与设置
+
+- 修复设置中心在窄分栏/嵌入视口中，工具栏状态标签占据过大的 flex 基准宽度，导致“立即保存”单独掉行；缩短通知页说明卡内容，避免提示在窄栏中过高。
+- UI Owner 为 `packages/client/ui-settings` 的 `SettingsPage` 与其样式；外层全局导航和 `ResizableWorkbench` 的职责及宽度合同不变。
+- 设置盘点：不新增或修改配置；沿用 `general.notificationPopupsEnabled` 与当前 Appearance 共享主题令牌。不写入设置或偏好。
+
+### 允许、禁止与验收
+
+- 允许：按 `settings-main` 容器宽度为工具栏状态标签、恢复默认和立即保存安排稳定的网格断点；精简通知页现有说明的等义文案；补充直接回归、`ui-settings` README 与本合同。
+- 禁止：改变保存/恢复默认行为或顺序、设置值/默认值/持久化、其他设置页面布局、全局导航/ResizableWorkbench 布局、主题与用户偏好；不覆盖工作树中已有的并行修改，不操作端口 3000 的服务，不提交或发布。
+- 直接回归覆盖窄容器断点、按钮同排/成组换行、通知说明仍准确，运行 Client 类型检查、`lfaa-client-ui-settings` 与 Web 构建、适用 workspace Gate 和 `git diff --check`。
+- ChatGPT 内置浏览器对当前源码 `/settings?section=notifications` 检查桌面 `1440×900`、分栏 `410×736`、窄栏 `360×736` 与短屏 `320×520`；记录真实视口、工具栏/说明卡尺寸、横向溢出、纵向滚动和操作可达性。验收使用隔离 Home/Data/账户，不点击保存或恢复、不改变通知开关；同时目视查看“通知”页与一处其他设置页，确保只修复本次目标。
+
+### 基线（2026-10-19）
+
+- 当前源码隔离服务 `http://127.0.0.1:31422/settings?section=notifications`，隔离 Home/Data 位于根目录 `dist/.tmp/settings-responsive-acceptance-20261019/`。实际页面初次登录后以真实通知页路由验收，未修改设置值。
+- `360×736`：页面无横向溢出；`.settings-main` 宽 302px，工具栏高 141px，操作行高 80px，“恢复默认”位于 y=52、“立即保存”位于 y=96，主要操作被孤立换行；通知说明卡高 229px。`410×736` 中操作均能位于同排，证明断点与内容宽度有关。
+- 当前 Web 构建指纹检查为 `[]`；未触碰既有 `127.0.0.1:3000` 服务。本合同开始时源码尚未修改。
+
+### 实施与验收记录（2026-10-19）
+
+- `SettingsPage.css` 按 `settings-main` 容器宽度将窄栏工具栏改为网格；`380px` 以下自动保存说明独占一行，两项操作同排等宽显示。410px 分栏仍按容器规则稳定排列；桌面布局未变。通知页保留接入状态与含义，删去重复列举的外部事件，只说明小鱼智能体回复通知已接入、外部事件暂无连接器。
+- `client-settings-responsive-toolbar.test.mjs` 定向回归 2/2 通过；`pnpm exec tsc --noEmit -p tsconfig.client.json`、`pnpm --filter lfaa-client-ui-settings run build`、`pnpm run build:web`、`pnpm run check:workspace`（193 包）、`git diff --check` 均通过。Web 构建指纹为 `[]`。Web 输出只写到根 `dist/apps/web` 与包输出 `dist/packages`。
+- ChatGPT 内置浏览器当前源码路由 `/settings?section=notifications`：桌面 `1440×900` 工具栏 58px、说明卡 97px；分栏 `410×736` 工具栏 119px、说明卡 141px；窄栏 `360×736` 工具栏从 141px 降至 119px、说明卡从 229px 降至 141px，`立即保存` 不再孤立换行。短屏 `320×520` 文档宽 310px、小于视口；正文容器可滚动至 `scrollTop=1295px`，通知“试听”按钮可见且可用。通知总开关保持开启，保存/恢复按钮仅检查可见和可用，没有点击或写入设置。
+- 同一内置浏览器在 `360×736` 查看 `/settings?section=general`：页面宽 350px，小于视口；工具栏操作可见，正文按内部滚动。截图在内置浏览器验收输出中捕获，未写入源码仓库；临时视口已恢复为 `1280×720`。
+- 样式/文案改动未新增订阅、请求、观察器或交互状态；未做帧时间测量。隔离 Web 服务 `31422` 已停止；原 `3000` 服务未操作。清理隔离数据目录 `E:\\lfaa1\\lfaa\\dist\\.tmp\\settings-responsive-acceptance-20261019` 的递归删除被命令策略拒绝，目录保留且仅含本次隔离验收数据。
+- 最后复核时共享工作树新出现 UI Plugin Manager 与 Sidebar 源码/package 变更；当前 `pnpm run check:workspace` 因包目录 JSON/Markdown 清单过期失败，`runtime-build-state.mjs web` 当前返回 `['host','web']`。这两项在新增共享变更出现前均通过；没有覆盖或修正其他工作中的包清单/构建输出。该并行源码变更后的构建未运行，因此本文的构建与浏览器证据对应本任务源码当时的构建快照。
+
+<a id="lfaa-plugin-manager-three-column-workspace-20261019"></a>
+
+## 128-插件管理三栏工作区-20261019
+
+### 目标、Owner 与设置
+
+- 将 `/plugin-manager` 从“全局左导航轨 + 右侧内容区”调整为“全局导航轨 + 插件二级菜单 + 展示区”，按 ChatGPT 三栏模式组织；左侧菜单提供当前插件分类与已登记的插件扩展入口。
+- 复用 `packages/client/ui-sidebar` 的 `GlobalNavigationRail` 与抽取后的共享 `SecondaryNavigation`，使用 `packages/client/ui-dockkit` 的 `ResizableWorkbench` 承担二级栏宽度、拖拽、吸附、收起和窄屏 Overlay；分类选择继续由 `PluginManagerPage` 单一 `workspaceTab/selectedPluginTab` 状态持有。
+- 二级导航菜单抽取自 `packages/client/ui-settings/src/SettingsPage.tsx`，设置页继续消费同一菜单组件，保留原分组展开、滚动、键盘与当前项语义；插件分类映射继续复用 `ui-settings` 与各能力 Owner，不复制表单、数据或权限逻辑。
+- 设置盘点：不新增设置或改偏好；沿用 Appearance 的主题、侧栏颜色、字体/字号、对比度、壁纸/遮罩/模糊和减少动态效果映射。二级侧栏宽度沿用 DockKit 已有共享宽度偏好；`general.navigationLayout` 继续只由应用工作区消费，本路由按用户要求保留三栏。
+- 生命周期：不增加订阅、轮询或网络读取；现有插件清单读取、设置按需加载和取消逻辑不变。拖拽、观察器与事件清理由 DockKit 现有 Owner 负责。
+
+### 允许、禁止与验收
+
+- 允许：修改 `packages/client/ui-sidebar` 的共享二级导航组件/样式与导出；修改 `packages/client/ui-settings/src/SettingsPage.tsx/.css` 使设置侧栏继续复用抽取组件；修改 `packages/client/ui-plugin-manager/src/PluginManagerPage.tsx/.css` 及其 `package.json` 接入 DockKit；更新相关包 README、本架构事实、此合同/索引和 `apps/cli/tests/plugin-manager-ui.test.mjs`。
+- 禁止：改变插件分类顺序/名称、动态插件入口、筛选/设置内容和现有 Owner；复制分类状态、服务、数据、权限或设置；新增用户偏好或 CSS 自定义属性；修改真实插件清单、启停/安装/卸载插件、改真实偏好；覆盖其他未提交工作；重启或结束无法确认归属的服务；提交或发布。
+- 验收：定向 UI 回归证明两页共用同一二级菜单组件、全局导航仍由原组件持有、插件分类只有一个状态源且支持动态入口；运行 Client 类型检查、ui-sidebar/ui-settings/ui-plugin-manager 包构建、正式 Web 构建、适用 workspace Gate、构建指纹与 `git diff --check`。工作区包依赖变更时运行 `sync:workspace` 并审查生成差异。
+- ChatGPT 内置浏览器对当前源码 `/plugin-manager` 检查桌面 `1440×900`、窄短 `390×640` 与 `320×520`；记录实际三列/Overlay 尺寸、菜单选择、拖动/收起交互、滚动与横向溢出，以及截图证据。实页只浏览，不触发插件检查、安装、启停、卸载或设置保存；明确区分构建、实页、桌面 WebView、实体设备和帧时间证据。
+
+### 实施与验收记录（2026-10-19）
+
+- `plugin-manager-ui.test.mjs` 定向回归 8/8 通过；`pnpm exec tsc --noEmit -p tsconfig.client.json`、`lfaa-client-ui-sidebar` / `lfaa-client-ui-settings` / `lfaa-client-ui-plugin-manager` 包构建、`pnpm run build:web`、`pnpm run sync:workspace`、`pnpm run check:workspace`（193 包）、`runtime-build-state.mjs web`（`[]`）和 `git diff --check` 均通过。正式 Web 输出写入根 `dist/apps/web` 与 `dist/packages`。
+- ChatGPT 内置浏览器在当前源码 `/plugin-manager` 实测桌面 `1440×900`：全局导航轨宽 64px，二级菜单在 x=78px 起，DockKit 分隔条位于 x=270px，ARIA 当前宽度值为 206px；中央区域正常显示，文档无横向溢出。点击“插件”二级菜单后，当前项和中央分类内容同步切换。桌面截图在内置浏览器验收输出中捕获，未写入仓库。
+- `390×640` 窄屏：全局导航轨宽 48px，主区宽 332px；二级菜单收至左侧 Overlay，宽约 279px，闭合时由 x=60px 的“展开插件导航”入口打开；无横向溢出。`320×520` 短屏：全局导航轨宽 48px，主区宽 262px，Overlay 宽约 240px，页面文档宽 310px、小于 320px 视口；浏览器截图显示公告弹窗占据内容区。
+- Web 服务由仓库正式菜单启动，归属当前 checkout；`/` 与 `/plugin-manager` 均返回 HTTP 200，13 个入口资源全部存在，构建指纹 `[]`。加载延迟出现的版本公告遮挡了分隔条和收起入口，因此没有关闭公告（关闭会写入已读偏好），也没有完成拖拽/收起的实页交互、内部滚动覆盖；DockKit Owner 已接入，源码/包构建通过不等于这两项浏览器交互已验收。
+- 未测 Electron/Tauri 桌面、实体设备、帧时间或实际插件操作。未新增设置或 CSS 自定义属性，未修改真实插件数据或设置偏好；沿用 Appearance 主题映射、GlobalNavigationRail 与 DockKit 已有共享宽度偏好。
+
+### 后续补充验收（2026-10-20）
+
+- 当前正式 Web `/plugin-manager` 的内置浏览器 `1246×925` 视口：DockKit 分隔条 ARIA 宽度从 `206px` 拖至 `256px`，再拖回 `206px`；分别点击“收起插件导航”和“展开插件导航”，最后恢复为展开状态。没有改变原宽度或栏开合偏好。
+- 该补验确认了现有分隔条指针拖动与收起/恢复行为。插件目录内部滚动未专项测量；前述公告阻挡的旧轮次记录保留为历史事实。桌面 WebView、实体设备和帧时间未测。
+
+<a id="lfaa-plugin-manager-open-settings-20261020"></a>
+
+## 129-插件管理页设置中心齿轮入口-20261020
+
+### 目标、Owner 与设置
+
+- 在 `/plugin-manager` 插件目录工具栏图二红框位置增加齿轮按钮，外观参考图三；按钮打开 LFAA 自有设置中心现有 `plugins` 分区，入口沿用 SettingsPage 的主题和导航样式。
+- 调用链：`PluginManagerPage` 持有图标按钮；`ui-layout/Workbench` 的 `openSettings("plugins")` 负责设置路由、更新设置分区请求并保存返回 `/plugin-manager` 的路径；`ui-settings/SettingsPage` 继续持有设置分区与能力内容 Owner。复用现有设置页，不复制插件清单、能力状态或开关。
+- 设置盘点：不新增设置项或改变 `plugins.enabled`；进入分区时沿用 SettingsPage 既有行为，将“上次打开的设置分区”记为 `plugins`。该导航记忆不改变插件配置。共享 Appearance 外观由 Workbench/SettingsPage 继续提供。
+
+### 允许、禁止与验收
+
+- 允许：修改 `ui-plugin-manager/PluginManagerPage.tsx/.css`、`ui-layout/Workbench.tsx` 与 README、`ui-settings/SettingsPage.tsx` 的设置分区请求类型、相关包 README、`docs/系统总体架构.md`、本合同/索引和直接 UI 回归。
+- 禁止：新建第二个插件设置页面、重做设置中心能力数据、增加假连接器/逐插件开关、改变 `plugins.enabled` 与 Settings Owner 存储、插件安装/启停/卸载或设置保存；保留工作树其他改动，不提交或发布。
+- 直接回归确认齿轮位于工具栏红框位置且有可访问名称、调用 `openSettings("plugins")`，Workbench 将 `plugins` 路由请求传给 SettingsPage，并保留插件管理返回路由。运行 Client 类型检查、相关包构建、正式 Web 构建、适用 workspace Gate、Web 构建指纹和 `git diff --check`。
+- ChatGPT 内置浏览器验收当前源码 `/plugin-manager` 桌面与窄短视口：确认齿轮位置、可见性与键盘/点击行为；点击后落到设置中心 `plugins` 分区并呈现现有真实内容；通过返回入口回到 `/plugin-manager`。不点设置开关、不保存、不操作插件；截图、尺寸、实际路由与任何阻塞条件记录在实施验收。
+
+### 实施与验收记录（2026-10-20）
+
+- `plugin-manager-ui.test.mjs` 定向回归 9/9、`pnpm exec tsc --noEmit -p tsconfig.client.json`、插件管理/设置/布局 Client 包构建、`pnpm run build:web`、`pnpm run check:workspace`（193 包）、`runtime-build-state.mjs web`（`[]`）和 `git diff --check` 均通过；产物写入根 `dist/packages` 与 `dist/apps/web`。
+- 重新从当前源码工作区通过正式项目菜单启动 Web。启动预检识别并重启本 checkout 的 LFAA Web 锁持有进程，当前 `http://127.0.0.1:3000` 已加载最新 `/plugin-manager`。内置浏览器已看到真实插件页与“打开插件设置”齿轮按钮；延迟出现的版本提醒遮住了页面交互。为避免确认提醒改变账户偏好，没有关闭弹窗，因此齿轮跳转、目标分区、返回路径、窄视口与该批截图尚未验收。
+- 按钮跳转会经过 SettingsPage 既有的分区导航记忆逻辑，选择后将 `plugins` 写入对应账户的本地上次访问分区；插件配置、连接器数据和插件生命周期不受影响。后续若执行点击验收，必须保留/恢复原分区值，不改变用户偏好。
+- 桌面 WebView、设备或帧时间未测；未提交或发布。
+
+### 实页结果与用户纠正（2026-10-20）
+
+- 当前正式 Web `http://127.0.0.1:3000/plugin-manager`，内置浏览器桌面 `1440×900` 可见齿轮；点击实际进入 `/settings?section=plugins`，但显示的是“扩展工作台”总览及运行策略、本机 Skill 目录。该结果证明齿轮可导航，不代表目标菜单正确。用户随后指出设置中心没有“集成 → 插件”菜单、页面样式和开关与其他设置不一致；本合同目标未验收，由 #131 完成修正。
+- 当时未点开关、保存或操作插件。插件页窄/短视口下的齿轮、键盘操作、桌面 WebView、实体设备与帧时间未测；未提交或发布。
+
+<a id="lfaa-application-workspace-four-column-navigation-20261020"></a>
+
+## 130-应用工作区四栏导航整合-20261020
+
+### 目标、Owner 与设置
+
+- `/work` 及应用工作区按截图组成四栏：最左全局导航轨、左二应用/会话二级导航、中间业务或小鱼智能体工作区、右侧工具与资源栏。应用清单进入左二栏，沿用原 `GlobalNavigationRail` 所消费的 `applicationNavigationItems` 和原路由/`onOpenApplication` 调用链；应用图标负责展开/收起现有左侧 Dock。
+- Owner：`ui-workspace/ApplicationWorkspace` 组合页面；`ui-sidebar/GlobalNavigationRail` 持有通用全局导航；`ui-sidebar/SecondaryNavigation` 呈现左二应用列表；`ui-dockkit/ResizableWorkbench` 持有分栏、宽度、收起、拖拽和窄视口 Overlay/Dock；Workbench 继续注入应用清单与业务路由。中间应用功能和右侧资源由现有模块与扩展 Owner 管理。
+- 设置盘点：复用 `general.navigationLayout`；Appearance 的主题、字体、颜色、字号、对比度、壁纸、遮罩、模糊及减少动态效果沿用共享令牌。左栏宽度继续读写 DockKit 的 `lfaa.workbench.left-width.v3` 兼容偏好；面板开合继续用 `lfaa.module-workbench.chrome.v2`，保留已有记录。仅首次默认使用三栏工作区布局时展开右栏，以呈现用户要求的第四个物理列；`left-two-column`、`right-tools`、`focus` 与移动/窄视口仍由现有设置和响应式规则决定。不增设置项，不重置用户记录。
+
+### 允许、禁止与验收
+
+- 允许：修改 `packages/client/ui-workspace/src/ApplicationWorkspace.tsx` 与 `module-workbench.css`、`packages/client/ui-sidebar/src/GlobalNavigationRail.tsx`、`SecondaryNavigation.tsx/.css`、直接 UI 回归、相关包 README、`docs/系统总体架构.md` 和本合同/索引。
+- 禁止：另建导航栏或分栏系统、复制应用数据/业务跳转、重做右侧资源 Owner、增加第五栏、增加导航/宽度设置或改变保存的用户开合/宽度偏好；保留现有脏工作区，不提交或发布。
+- 直接回归确认应用清单只来自 Workbench 现有清单、全局应用图标在应用工作区切换现有左栏、列表项仍调用现有路由/应用打开回调、左二栏与既有会话/应用菜单共存、右侧仍由 ResizableWorkbench 管理，且既有共享二级菜单行为不变。运行 Client 类型、受影响包构建、正式 Web 构建、适用 workspace Gate、构建指纹与 `git diff --check`。
+- ChatGPT 内置浏览器实际 `/work` 验收桌面 `1440×900` 与窄短分栏 `760×520`：记录四栏、应用图标展开/收起、菜单导航、桌面右栏与窄视口 Overlay/Dock、内滚动和横向溢出；截取可核实布局的画面。不得确认版本提醒或改写 Appearance、布局、应用数据等偏好；若提醒遮挡交互，保留弹窗并如实记录受阻项。桌面 WebView、实体设备与帧时间分开记录。
+
+### 实施与验收记录（2026-10-20）
+
+- 新增四栏直接回归 `client-app-workspace-four-column.test.mjs` 4/4；`pnpm exec tsc --noEmit -p tsconfig.client.json`、`lfaa-client-ui-sidebar` 与 `lfaa-client-ui-workspace` 构建、`pnpm run build:web`、`pnpm run check:workspace`（193 包）和 `git diff --check` 通过，正式产物位于根 `dist/`。
+- 正式菜单启动后的内置浏览器 `/work` 桌面 `1440×900` 实见全局导航、应用/会话二级菜单、中间工作区、右侧工具资源四栏。展开两侧后截屏核对；点击应用图标和左二栏 `Minecraft 管理` 实际打开 `/apps/minecraft/normal`，应用内容、二级导航与右栏仍由现有 Owner 提供。验收后恢复原先收起面板状态。
+- `/work` 窄短容器 `760×520` 下，左二应用菜单按现有 DockKit Overlay 打开；选择 Minecraft 菜单后实际跳转到 `/apps/minecraft/normal`。右侧上下文栏在该窄宽度按既有响应式策略收起以保留工作区空间；退出后恢复原面板状态。该轮未改 Appearance、布局、宽度或应用数据偏好。
+- 未测平板/手机实体设备、桌面 WebView、拖动分隔条帧时间与真实业务写入；未新增设置项或 CSS 自定义属性；未提交或发布。
+
+<a id="lfaa-settings-profile-plugins-integration-20261020"></a>
+
+## 131-设置中心集成插件菜单统一-20261020
+
+### 目标、Owner 与设置
+
+- 修正插件管理齿轮目标：`/plugin-manager` 的齿轮进入现有设置中心“集成 → 插件”，路由保持 `/settings?section=plugins`。普通设置页显示 Profile 已安装插件的标准设置行、说明、搜索和启停开关；风格复用设置中心的 SettingRow/SettingsSwitch、共享 Appearance 令牌及现有侧栏/工具栏。
+- 保留 `SettingsPage` 的独立插件扩展工作区语义，避免把 AI 扩展 `plugins.enabled`、MCP 配置或 Cordis 模块管理混成 Profile 插件状态。标准设置页路由 `section=plugins` 映射到新的 Profile 插件设置视图；插件管理器内部的独立工作区继续使用原扩展能力视图。
+- Profile 插件清单和启停仍由 Plugin Manager Owner 提供：Client 使用 `loadManagedPlugins` 读取当前 Profile，使用 `setManagedPluginEnabled` 携带插件固定来源提交及所选目标 App 请求变更；后端继续验证管理员身份、Permission Owner 授权和 Runtime 结果。多 App 插件在行内提供目标 App 选择。不可启用/不兼容项显示真实禁用状态，不构造模拟开关。
+- 设置盘点：不新增设置项，不更改 `plugins.enabled`、用户启停状态、Profile 或外观偏好。显式启停按钮继续由 Permission Owner 校验管理员本次点击；只有自然语言操作使用 `permissions.mode`。页面消费 Appearance 主题/字体/颜色/字号/对比度/壁纸/遮罩/模糊/减少动态效果共享令牌；本轮不改这些设置。
+
+### 允许、禁止与验收
+
+- 允许：修改 `packages/client/ui-settings/src/SettingsPage.tsx/.css`，新增设置页内 Profile 插件列表视图组件，修改 `packages/client/ui-plugin-manager/README.md`、`packages/client/ui-settings/README.md`、`docs/系统总体架构.md`、本合同/索引及 `apps/cli/tests/plugin-manager-ui.test.mjs`。
+- 禁止：另建设置中心、复制 Profile 插件或生命周期 Owner、改变插件安装/删除或审批合同、在验收时启停插件/保存设置/改真实用户偏好、改账户级 `plugins.enabled`、改变已有 `computerControl` 等分区偏好、覆盖其他未提交工作、重启来源不明服务、提交或发布。
+- 直接回归验证 `plugins` 在普通设置侧栏“集成”组显示为“插件”、`/settings?section=plugins` 选中该菜单并显示 Profile 插件行、AI 扩展工作区仍只在独立插件工作区保留、列表开关读取真实 `ManagedPluginRecord.state` 且调用原认证生命周期 API、非管理员/不兼容项禁用、多个目标 App 可选、搜索和空/加载/错误状态可访问。
+- 按仓库要求运行 Client 类型检查、直接 UI 回归、受影响 Client 包构建、正式 Web 构建、适用 workspace Gate、Web 指纹及 `git diff --check`；构建产物只写仓库根 `dist/`。
+- ChatGPT 内置浏览器验收真实 `/plugin-manager` 与 `/settings?section=plugins`，检查桌面与相关窄/短视口；验证齿轮可达、插件菜单在“集成”下选中、普通设置行与搜索/滚动布局一致、目标 App 选择可用。只读取真实状态，不点开关，不安装/卸载，不保存偏好；进入前后恢复当前用户原路由和分区。截图和视口写入验收记录；桌面 WebView、设备和帧时间分别标明。
+
+### 实施与验收记录
+
+- `apps/cli/tests/plugin-manager-ui.test.mjs` 定向回归 10/10 通过；`pnpm exec tsc --noEmit -p tsconfig.client.json`、`lfaa-client-ui-settings` 构建、`pnpm run build:web`、`pnpm run check:workspace`（193 包）、`node scripts/runtime-build-state.mjs web`（`[]`）、`GET /settings?section=plugins`（HTTP 200）与 `git diff --check` 均通过。构建产物在仓库根 `dist/packages` 和 `dist/apps/web`；Web 保留既有 C++ chunk 大于 500 kB 的 Vite 提示。
+- 从当前 checkout 通过 `pnpm lfaa web` 启动正式 Web；启动预检只停止了写锁中确认的 LFAA Web PID，构建完成后重新启动本轮服务。ChatGPT 内置浏览器桌面 `1440×900` 实际打开 `/plugin-manager`，分类中选择“插件”后点击齿轮，进入 `/settings?section=plugins`；设置中心侧栏“集成”下的“插件”处于选中态，显示标准设置内容区、搜索、刷新、插件管理入口和已安装清单。实际 Profile `web` 返回 0 个已安装插件，故正确显示空态；没有真实开关行，未触发插件变更。
+- 同页窄短视口 `760×520` 的设置内容可纵向滚动，`documentElement.scrollWidth` 为 750，无横向溢出；另在 `/plugin-manager` 窄视口确认齿轮仍可见。桌面与窄视口截图已在本任务内置浏览器验收中捕获并核对。浏览器控制台无错误。
+- 为恢复进入前的设置分类偏好，验收中临时选择“电脑操控”，随后按“返回工作区”确认回到 `/plugin-manager`；设置分类恢复为原来的 `computerControl`。未点开关、安装/卸载、保存设置或更改外观、Profile 与账户扩展状态。视口测试覆盖已重置为默认值。
+- 真实插件开关行（因 Profile 空清单）、桌面 WebView、平板/手机设备、拖动帧时间和真实生命周期写入均未验；未提交或发布。

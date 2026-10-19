@@ -4,7 +4,12 @@ import { Alert, Button, Input, Modal, Select, Spin, Tag, Typography } from "antd
 import { Menu, MenuItemButton } from "@deepseek-ai/dsh-client-ui-primitives";
 import { getErrorMessage, hasAdminAccess, inspectManagedPlugin, installManagedPlugin, removeManagedPlugin, loadManagedPlugins, setManagedPluginEnabled, type ManagedPluginInstallProgress, type ManagedPluginInspection, type ManagedPluginRecord, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { DshSlotOutlet, useDshSlotEntries } from "lfaa-client-modules/src/client/index.js";
-import { GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
+import { ResizableWorkbench } from "lfaa-client-ui-dockkit/src/ResizableWorkbench.js";
+import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
+import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-metrics.js";
+import { readWorkbenchLeftWidth, saveWorkbenchLeftWidth } from "lfaa-client-ui-dockkit/src/workbench-preferences.js";
+import { GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH, GLOBAL_NAVIGATION_RAIL_WIDTH, GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
+import { SecondaryNavigation, type SecondaryNavigationGroup } from "lfaa-client-ui-sidebar/src/SecondaryNavigation.js";
 import { SettingsPage, type StandalonePluginWorkspaceView } from "lfaa-client-ui-settings/src/SettingsPage.js";
 import type { ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
@@ -16,6 +21,28 @@ import { rowConfigPrefix, toPluginPackageRef, type PluginActivationOwner, type P
 import "./PluginManagerPage.css";
 
 type PluginManagerWorkspaceTab = StandalonePluginWorkspaceView | "plugins" | "wallpaper";
+
+const PLUGIN_MANAGER_LAYOUT_KEY = "lfaa.plugin-manager.layout.v1";
+
+const pluginWorkspaceTabIcons: Record<PluginManagerWorkspaceTab, "book" | "branch" | "extension" | "file" | "grid" | "help" | "monitor" | "spark" | "tools" | "sun"> = {
+  all: "grid",
+  plugins: "extension",
+  applications: "grid",
+  tools: "tools",
+  skills: "spark",
+  prompts: "file",
+  mcp: "branch",
+  knowledge: "book",
+  diagnostics: "monitor",
+  experts: "help",
+  wallpaper: "sun"
+};
+
+function initialPluginManagerMetrics(): WorkbenchLayoutMetrics {
+  if (typeof window === "undefined") return resolveWorkbenchLayoutMetrics(1280 - GLOBAL_NAVIGATION_RAIL_WIDTH, 800);
+  const railWidth = window.innerWidth <= 420 ? GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH : GLOBAL_NAVIGATION_RAIL_WIDTH;
+  return resolveWorkbenchLayoutMetrics(window.innerWidth - railWidth, window.innerHeight);
+}
 
 const PLUGIN_MANAGER_WORKSPACE_TABS: Array<{ id: PluginManagerWorkspaceTab; label: string }> = [
   { id: "all", label: "全部" },
@@ -39,7 +66,7 @@ export interface PluginManagerPageProps {
   applications: ApplicationNavigationItem[];
   onNavigate: (path: string) => void;
   onOpenApplication: (app: ApplicationId, mode: "normal") => Promise<void>;
-  onOpenSettings: () => void;
+  onOpenSettings: (section?: "plugins") => void;
   onLogout: () => void;
   onUserChange: (user: User) => void;
   onSettingsChange: (settings: UserSettings) => void;
@@ -184,6 +211,13 @@ function PluginCard({ plugin, targetApplicationId, canAdmin, pendingAction, onTa
 
 export function PluginManagerPage({ user, settings, resolvedTheme, serverState, applications, onNavigate, onOpenApplication, onOpenSettings, onLogout, onUserChange, onSettingsChange }: PluginManagerPageProps) {
   const canAdmin = hasAdminAccess(user.role);
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const layout = useWorkbenchMetrics(layoutRef, initialPluginManagerMetrics);
+  const [leftCollapsed, setLeftCollapsed] = useState(() => initialPluginManagerMetrics().mode === "mobile");
+  const [leftWidth, setLeftWidth] = useState(() => {
+    const initial = initialPluginManagerMetrics();
+    return readWorkbenchLeftWidth(initial.left, initial.containerWidth);
+  });
   const [workspaceTab, setWorkspaceTab] = useState<PluginManagerWorkspaceTab>("all");
   const isSettingsWorkspaceTab = workspaceTab !== "plugins" && workspaceTab !== "wallpaper";
   const pluginTabEntries = useDshSlotEntries("plugins.tab");
@@ -231,6 +265,43 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
     .filter(entry => entry.id && entry.label)
     .map((entry, index) => ({ ...entry, index }))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.index - b.index), [pluginTabEntries]);
+  const wallpaperEngineInstalled = hasWallpaperEnginePlugin(plugins);
+  const navigationGroups = useMemo<SecondaryNavigationGroup[]>(() => {
+    const items = PLUGIN_MANAGER_WORKSPACE_TABS
+      .filter(({ id }) => id !== "wallpaper" || wallpaperEngineInstalled)
+      .map(({ id, label }) => ({
+        id,
+        label,
+        icon: pluginWorkspaceTabIcons[id],
+        active: workspaceTab === id && (id !== "plugins" || selectedPluginTab === null),
+        domId: `plugin-manager-${id}-tab`,
+        onSelect: () => {
+          setWorkspaceTab(id);
+          if (id === "plugins") setSelectedPluginTab(null);
+          if (layout.mode === "mobile") setLeftCollapsed(true);
+        }
+      }));
+    const groups: SecondaryNavigationGroup[] = [{ id: "plugin-manager-nav-workspace", label: "工作区", collapsible: false, items }];
+    if (workspaceTab === "plugins" && visiblePluginTabs.length) {
+      groups.push({
+        id: "plugin-manager-nav-contributed",
+        label: "插件扩展",
+        collapsible: false,
+        items: visiblePluginTabs.map(entry => ({
+          id: `contributed:${entry.id}`,
+          domId: `plugin-manager-contributed-${encodeURIComponent(entry.id)}-tab`,
+          label: entry.label ?? entry.id,
+          active: selectedPluginTab === entry.id,
+          onSelect: () => {
+            setWorkspaceTab("plugins");
+            setSelectedPluginTab(entry.id);
+            if (layout.mode === "mobile") setLeftCollapsed(true);
+          }
+        }))
+      });
+    }
+    return groups;
+  }, [layout.mode, selectedPluginTab, visiblePluginTabs, wallpaperEngineInstalled, workspaceTab]);
   const selectedPlugin = plugins.find(plugin => plugin.id === selectedPluginDetailsId) ?? null;
   const selectedConfigItem = pluginItemEntries.find(entry => entry.id === selectedPluginItemId) ?? null;
   const selectedBundleConfig = bundleConfigEntries.find(entry => entry.key === selectedBundleConfigKey) ?? null;
@@ -241,7 +312,6 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
     : [];
 
   const enabledCount = useMemo(() => plugins.filter(plugin => plugin.state === "enabled").length, [plugins]);
-  const wallpaperEngineInstalled = hasWallpaperEnginePlugin(plugins);
   const filteredPlugins = useMemo(() => {
     const query = pluginQuery.trim().toLocaleLowerCase();
     return plugins.filter(plugin => {
@@ -293,6 +363,14 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
       inspectionControllerRef.current?.abort();
     };
   }, [refresh]);
+
+  useEffect(() => {
+    saveWorkbenchLeftWidth(leftWidth, layout.left);
+  }, [layout.left.max, layout.left.min, leftWidth]);
+
+  useEffect(() => {
+    if (layout.mode === "mobile") setLeftCollapsed(true);
+  }, [layout.mode]);
 
   useEffect(() => {
     if (!wallpaperEngineInstalled && workspaceTab === "wallpaper") setWorkspaceTab("all");
@@ -478,120 +556,117 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
         onOpenSettings={onOpenSettings}
         onLogout={onLogout}
       />
-      <section className={`plugin-manager-page${workspaceTab !== "plugins" ? " plugin-manager-page--extensions" : ""}`} aria-labelledby="plugin-manager-title">
-        <div className={`plugin-manager-page__content${workspaceTab !== "plugins" ? " plugin-manager-page__content--extensions" : ""}`}>
-          <header className="plugin-manager-page__header">
-            <div>
-              <Typography.Title id="plugin-manager-title" level={2}>插件</Typography.Title>
-              <p>{wallpaperEngineInstalled ? "管理已安装插件、应用扩展、能力与运行状态。" : "管理已安装插件、应用扩展与 AI 能力。"}</p>
-            </div>
-          </header>
+      <div ref={layoutRef} className="plugin-manager-layout">
+        <ResizableWorkbench
+          storageKey={PLUGIN_MANAGER_LAYOUT_KEY}
+          containerWidth={layout.containerWidth}
+          left={<aside className="plugin-manager-sidebar">
+            <header className="plugin-manager-sidebar__header">
+              <Typography.Title level={4}>插件导航</Typography.Title>
+              <Button type="text" className="plugin-manager-sidebar__collapse" aria-label="收起插件导航" title="收起插件导航" onClick={() => setLeftCollapsed(true)}><WorkbenchIcon name="panelLeft" size={16} /></Button>
+            </header>
+            <SecondaryNavigation ariaLabel="插件工作区分类" groups={navigationGroups} activateOnArrow />
+          </aside>}
+          center={
+            <section className={`plugin-manager-page${workspaceTab !== "plugins" ? " plugin-manager-page--extensions" : ""}`} aria-labelledby="plugin-manager-title">
+            <div className={`plugin-manager-page__content${workspaceTab !== "plugins" ? " plugin-manager-page__content--extensions" : ""}`}>
+              <header className="plugin-manager-page__header">
+                <div className="plugin-manager-page__header-main">
+                  {leftCollapsed ? <Button type="text" aria-label="展开插件导航" title="展开插件导航" onClick={() => setLeftCollapsed(false)}><WorkbenchIcon name="panelLeft" size={16} />菜单</Button> : null}
+                  <div>
+                  <Typography.Title id="plugin-manager-title" level={2}>插件</Typography.Title>
+                  <p>{wallpaperEngineInstalled ? "管理已安装插件、应用扩展、能力与运行状态。" : "管理已安装插件、应用扩展与 AI 能力。"}</p>
+                  </div>
+                </div>
+              </header>
 
-          <nav className="plugin-manager-page__tabs" role="tablist" aria-label="插件工作区" onKeyDown={(event) => {
-            if (event.key !== "ArrowRight" && event.key !== "ArrowLeft" && event.key !== "Home" && event.key !== "End") return;
-            event.preventDefault();
-            const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=tab]"));
-            const currentIndex = tabs.indexOf(event.target as HTMLButtonElement);
-            const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : event.key === "ArrowRight" ? (currentIndex + 1) % tabs.length : (currentIndex - 1 + tabs.length) % tabs.length;
-            tabs[nextIndex]?.focus();
-            tabs[nextIndex]?.click();
-          }}>
-            {PLUGIN_MANAGER_WORKSPACE_TABS.filter(({ id }) => id !== "wallpaper" || wallpaperEngineInstalled).map(({ id, label }) => {
-              const active = workspaceTab === id && (id !== "plugins" || selectedPluginTab === null);
-              return <button key={id} id={`plugin-manager-${id}-tab`} type="button" role="tab" tabIndex={active ? 0 : -1} aria-selected={active} aria-controls={id === "plugins" ? "plugin-manager-profile-panel" : id === "wallpaper" ? "plugin-manager-wallpaper-panel" : "plugin-manager-extensions-panel"} className={active ? "is-active" : ""} onClick={() => { setWorkspaceTab(id); if (id === "plugins") setSelectedPluginTab(null); }}>{label}</button>;
-            })}
-            {workspaceTab === "plugins" ? visiblePluginTabs.map(entry => {
-              const active = selectedPluginTab === entry.id;
-              return <button key={entry.id} id={`plugin-manager-contributed-${encodeURIComponent(entry.id)}-tab`} type="button" role="tab" tabIndex={active ? 0 : -1} aria-selected={active} aria-controls="plugin-manager-contributed-tab-panel" className={active ? "is-active" : ""} onClick={() => setSelectedPluginTab(entry.id)}>{entry.label}</button>;
-            }) : null}
-          </nav>
+              <div id="plugin-manager-profile-panel" className="plugin-manager-page__workspace-panel" role="region" aria-labelledby="plugin-manager-plugins-tab" hidden={workspaceTab !== "plugins" || selectedPluginTab !== null}>
+              {!canAdmin ? <Alert type="warning" showIcon message="插件管理需要管理员身份。" description="插件清单和来源检查由控制端按当前账户角色授权。" /> : null}
+              {error ? <Alert type="error" showIcon closable message={error} onClose={() => setError("")} /> : null}
 
-          <div id="plugin-manager-profile-panel" className="plugin-manager-page__workspace-panel" role="tabpanel" aria-labelledby="plugin-manager-plugins-tab" hidden={workspaceTab !== "plugins" || selectedPluginTab !== null}>
-          {!canAdmin ? <Alert type="warning" showIcon message="插件管理需要管理员身份。" description="插件清单和来源检查由控制端按当前账户角色授权。" /> : null}
-          {error ? <Alert type="error" showIcon closable message={error} onClose={() => setError("")} /> : null}
+              {canAdmin ? <>
+                <div className="plugin-manager-page__catalog-toolbar">
+                  <Input
+                    className="plugin-manager-page__search"
+                    aria-label="搜索插件"
+                    placeholder="搜索插件"
+                    prefix={<WorkbenchIcon name="search" size={16} />}
+                    allowClear
+                    value={pluginQuery}
+                    onChange={event => setPluginQuery(event.target.value)}
+                  />
+                  <div className="plugin-manager-page__catalog-actions">
+                    <Button type="text" className="plugin-manager-page__settings-button" aria-label="打开插件设置" title="打开插件设置" onClick={() => onOpenSettings("plugins")}><WorkbenchIcon name="settings" size={16} /></Button>
+                    <Button icon={<WorkbenchIcon name="refresh" size={15} />} disabled={loading} loading={loading} onClick={() => void refresh()}>刷新</Button>
+                    <span className="plugin-manager-page__add-menu" role="group" aria-label="添加插件">
+                      <Button
+                        type="primary"
+                        aria-haspopup="dialog"
+                        icon={<WorkbenchIcon name="plus" size={15} />}
+                        disabled={operation === "install" || pendingPluginAction !== null}
+                        onClick={() => { setInstallGuideOpen(false); setInstallerOpen(true); }}
+                      >添加插件</Button>
+                      <Menu
+                        open={addActionsOpen}
+                        onClose={() => setAddActionsOpen(false)}
+                        align="end"
+                        side="bottom"
+                        portal
+                        autoFocus
+                        listClassName="plugin-manager-page__add-menu-list"
+                        anchor={<Button disabled={operation === "install" || pendingPluginAction !== null} aria-label="更多插件添加操作" aria-haspopup="menu" aria-expanded={addActionsOpen} onClick={() => setAddActionsOpen(open => !open)}><WorkbenchIcon name="dots" size={15} /></Button>}
+                      >
+                        <MenuItemButton icon={<WorkbenchIcon name="extension" size={14} />} onSelect={() => { setAddActionsOpen(false); setInstallGuideOpen(false); setInstallerOpen(true); }}>
+                          <span className="plugin-manager-page__add-menu-item"><span>从来源安装</span><span>检查并安装插件包</span></span>
+                        </MenuItemButton>
+                        <PluginExtensionSlot name="plugins.add.actions" owner={{ onDismiss: () => setAddActionsOpen(false) }} />
+                      </Menu>
+                    </span>
+                  </div>
+                </div>
 
-          {canAdmin ? <>
-            <div className="plugin-manager-page__catalog-toolbar">
-              <Input
-                className="plugin-manager-page__search"
-                aria-label="搜索插件"
-                placeholder="搜索插件"
-                prefix={<WorkbenchIcon name="search" size={16} />}
-                allowClear
-                value={pluginQuery}
-                onChange={event => setPluginQuery(event.target.value)}
-              />
-              <div className="plugin-manager-page__catalog-actions">
-                <Button icon={<WorkbenchIcon name="refresh" size={15} />} disabled={loading} loading={loading} onClick={() => void refresh()}>刷新</Button>
-                <span className="plugin-manager-page__add-menu" role="group" aria-label="添加插件">
-                  <Button
-                    type="primary"
-                    aria-haspopup="dialog"
-                    icon={<WorkbenchIcon name="plus" size={15} />}
-                    disabled={operation === "install" || pendingPluginAction !== null}
-                    onClick={() => { setInstallGuideOpen(false); setInstallerOpen(true); }}
-                  >添加插件</Button>
-                  <Menu
-                    open={addActionsOpen}
-                    onClose={() => setAddActionsOpen(false)}
-                    align="end"
-                    side="bottom"
-                    portal
-                    autoFocus
-                    listClassName="plugin-manager-page__add-menu-list"
-                    anchor={<Button disabled={operation === "install" || pendingPluginAction !== null} aria-label="更多插件添加操作" aria-haspopup="menu" aria-expanded={addActionsOpen} onClick={() => setAddActionsOpen(open => !open)}><WorkbenchIcon name="dots" size={15} /></Button>}
-                  >
-                    <MenuItemButton icon={<WorkbenchIcon name="extension" size={14} />} onSelect={() => { setAddActionsOpen(false); setInstallGuideOpen(false); setInstallerOpen(true); }}>
-                      <span className="plugin-manager-page__add-menu-item"><span>从来源安装</span><span>检查并安装插件包</span></span>
-                    </MenuItemButton>
-                    <PluginExtensionSlot name="plugins.add.actions" owner={{ onDismiss: () => setAddActionsOpen(false) }} />
-                  </Menu>
-                </span>
-              </div>
-            </div>
+                <div className="plugin-manager-page__filters" role="group" aria-label="按插件状态筛选">
+                  {([
+                    { key: "all", label: "全部", count: plugins.length },
+                    { key: "enabled", label: "已启用", count: enabledCount },
+                    { key: "installed", label: "未启用", count: plugins.filter(plugin => plugin.state === "installed").length },
+                    { key: "incompatible", label: "不兼容", count: plugins.filter(plugin => plugin.state === "incompatible").length }
+                  ] as const).map(filter => <button
+                    key={filter.key}
+                    type="button"
+                    className={pluginFilter === filter.key ? "is-active" : ""}
+                    aria-pressed={pluginFilter === filter.key}
+                    onClick={() => setPluginFilter(filter.key)}
+                  >{filter.label}<span>{filter.count}</span></button>)}
+                </div>
 
-            <div className="plugin-manager-page__filters" role="group" aria-label="按插件状态筛选">
-              {([
-                { key: "all", label: "全部", count: plugins.length },
-                { key: "enabled", label: "已启用", count: enabledCount },
-                { key: "installed", label: "未启用", count: plugins.filter(plugin => plugin.state === "installed").length },
-                { key: "incompatible", label: "不兼容", count: plugins.filter(plugin => plugin.state === "incompatible").length }
-              ] as const).map(filter => <button
-                key={filter.key}
-                type="button"
-                className={pluginFilter === filter.key ? "is-active" : ""}
-                aria-pressed={pluginFilter === filter.key}
-                onClick={() => setPluginFilter(filter.key)}
-              >{filter.label}<span>{filter.count}</span></button>)}
-            </div>
-
-            {selectedPluginTab === null ? <>
-            <section className="plugin-manager-page__section" aria-labelledby="plugin-manager-installed-title">
-              <div className="plugin-manager-page__section-heading">
-                <Typography.Title id="plugin-manager-installed-title" level={4}>已安装</Typography.Title>
-                <span>{plugins.length} 项 · {enabledCount} 项已启用{profile ? ` · Profile ${profile}` : ""}</span>
-              </div>
-              {loading && !plugins.length ? <div className="plugin-manager-page__empty"><Spin />正在读取 Profile 插件清单…</div>
-                : filteredPlugins.length ? <div className="plugin-manager-page__plugin-list">
-                  {filteredPlugins.map(plugin => {
-                    const targetApplicationId = selectedApplications[plugin.id] ?? plugin.applicationIds[0] ?? "workspace";
-                    return <PluginCard
-                      key={plugin.id}
-                      plugin={plugin}
-                      targetApplicationId={targetApplicationId}
-                      canAdmin={canAdmin && operation === null && pendingPluginAction === null}
-                      pendingAction={pendingPluginAction?.id === plugin.id ? pendingPluginAction.action : null}
-                      onTargetApplicationChange={applicationId => setSelectedApplications(current => ({ ...current, [plugin.id]: applicationId }))}
-                      onAction={submitPluginAction}
-                      onOpenDetails={() => setSelectedPluginDetailsId(plugin.id)}
-                    />;
-                  })}
-                </div> : plugins.length ? <div className="plugin-manager-page__empty plugin-manager-page__empty--compact">没有符合当前搜索和状态筛选的插件。</div>
-                  : <div className="plugin-manager-page__empty plugin-manager-page__empty--catalog">
-                    <span className="plugin-manager-page__empty-icon"><WorkbenchIcon name="extension" size={22} /></span>
-                    <strong>这个 Profile 还没有插件</strong>
-                    <span>添加 NPM 包、GitHub 仓库或 Host 本机来源。检查完成后会先显示真实兼容状态。</span>
-                  </div>}
+                {selectedPluginTab === null ? <>
+                <section className="plugin-manager-page__section" aria-labelledby="plugin-manager-installed-title">
+                  <div className="plugin-manager-page__section-heading">
+                    <Typography.Title id="plugin-manager-installed-title" level={4}>已安装</Typography.Title>
+                    <span>{plugins.length} 项 · {enabledCount} 项已启用{profile ? ` · Profile ${profile}` : ""}</span>
+                  </div>
+                  {loading && !plugins.length ? <div className="plugin-manager-page__empty"><Spin />正在读取 Profile 插件清单…</div>
+                    : filteredPlugins.length ? <div className="plugin-manager-page__plugin-list">
+                      {filteredPlugins.map(plugin => {
+                        const targetApplicationId = selectedApplications[plugin.id] ?? plugin.applicationIds[0] ?? "workspace";
+                        return <PluginCard
+                          key={plugin.id}
+                          plugin={plugin}
+                          targetApplicationId={targetApplicationId}
+                          canAdmin={canAdmin && operation === null && pendingPluginAction === null}
+                          pendingAction={pendingPluginAction?.id === plugin.id ? pendingPluginAction.action : null}
+                          onTargetApplicationChange={applicationId => setSelectedApplications(current => ({ ...current, [plugin.id]: applicationId }))}
+                          onAction={submitPluginAction}
+                          onOpenDetails={() => setSelectedPluginDetailsId(plugin.id)}
+                        />;
+                      })}
+                    </div> : plugins.length ? <div className="plugin-manager-page__empty plugin-manager-page__empty--compact">没有符合当前搜索和状态筛选的插件。</div>
+                      : <div className="plugin-manager-page__empty plugin-manager-page__empty--catalog">
+                        <span className="plugin-manager-page__empty-icon"><WorkbenchIcon name="extension" size={22} /></span>
+                        <strong>这个 Profile 还没有插件</strong>
+                        <span>添加 NPM 包、GitHub 仓库或 Host 本机来源。检查完成后会先显示真实兼容状态。</span>
+                      </div>}
             </section>
 
             {!plugins.length && !loading ? <section className="plugin-manager-page__section" aria-labelledby="plugin-manager-sources-title">
@@ -639,10 +714,10 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
             </> : null}
           </> : null}
           </div>
-          {selectedPluginTab ? <div id="plugin-manager-contributed-tab-panel" className="plugin-manager-page__workspace-panel plugin-manager-page__contributed-tab-panel" role="tabpanel" aria-labelledby={`plugin-manager-contributed-${encodeURIComponent(selectedPluginTab)}-tab`} hidden={workspaceTab !== "plugins"}>
+          {selectedPluginTab ? <div id="plugin-manager-contributed-tab-panel" className="plugin-manager-page__workspace-panel plugin-manager-page__contributed-tab-panel" role="region" aria-labelledby={`plugin-manager-contributed-${encodeURIComponent(selectedPluginTab)}-tab`} hidden={workspaceTab !== "plugins"}>
             <PluginExtensionSlot name="plugins.tab" only={selectedPluginTab} owner={{ install: openContributedInstall, openPackage: openContributedPackage } satisfies PluginTabOwner} fallback={<Alert type="info" showIcon message="插件扩展标签暂不可用" description="该扩展可能已卸载或尚未完成加载。" />} />
           </div> : null}
-          <div id="plugin-manager-extensions-panel" className="plugin-manager-page__workspace-panel plugin-manager-page__workspace-panel--extensions" role="tabpanel" aria-labelledby={`plugin-manager-${workspaceTab}-tab`} hidden={!isSettingsWorkspaceTab}>
+          <div id="plugin-manager-extensions-panel" className="plugin-manager-page__workspace-panel plugin-manager-page__workspace-panel--extensions" role="region" aria-labelledby={`plugin-manager-${workspaceTab}-tab`} hidden={!isSettingsWorkspaceTab}>
             {isSettingsWorkspaceTab ? <SettingsPage
               user={user}
               serverState={serverState}
@@ -661,7 +736,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
               standalonePluginView={workspaceTab}
             /> : null}
           </div>
-          {wallpaperEngineInstalled ? <div id="plugin-manager-wallpaper-panel" className="plugin-manager-page__workspace-panel plugin-manager-page__workspace-panel--extensions" role="tabpanel" aria-labelledby="plugin-manager-wallpaper-tab" hidden={workspaceTab !== "wallpaper"}>
+          {wallpaperEngineInstalled ? <div id="plugin-manager-wallpaper-panel" className="plugin-manager-page__workspace-panel plugin-manager-page__workspace-panel--extensions" role="region" aria-labelledby="plugin-manager-wallpaper-tab" hidden={workspaceTab !== "wallpaper"}>
             {workspaceTab === "wallpaper" ? <SettingsPage
               user={user}
               serverState={serverState}
@@ -681,7 +756,23 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
             /> : null}
           </div> : null}
         </div>
-      </section>
+            </section>
+          }
+          leftLimits={layout.left}
+          rightLimits={layout.right}
+          bottomLimits={layout.bottom}
+          leftWidth={leftWidth}
+          onLeftWidthChange={setLeftWidth}
+          leftCollapsed={leftCollapsed}
+          onLeftCollapsedChange={setLeftCollapsed}
+          snapCaptureRatio={layout.snapCaptureRatio}
+          snapHysteresis={layout.snapHysteresis}
+          minCenterWidth={layout.minCenterWidth}
+          layoutMode={layout.mode}
+          rightCollapsed
+          bottomOpen={false}
+        />
+      </div>
       <Modal
         className="plugin-manager-install-modal"
         title={<span id="plugin-manager-install-title">{installResult ? (installResult.state === "enabled" ? "已启用" : "已安装") : operation === "install" ? "插件安装中…" : contributedInstall ? `安装 ${contributedInstall.title} v${contributedInstall.version}` : "添加插件"}</span>}

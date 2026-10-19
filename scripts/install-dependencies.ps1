@@ -163,6 +163,21 @@ function Show-DependencyScope {
     Write-Host '  【不由 pnpm 管理】Daemon Windows AppContainer Sandbox Host 需要 Rust；普通 Web 安装、构建和启动不需要 Rust。' -ForegroundColor DarkYellow
 }
 
+function ConvertFrom-StaleRuntimeBuildJson {
+    param([Parameter(Mandatory = $true)][string]$Json)
+
+    # Windows PowerShell 5.1 把 JSON 顶层数组作为一个嵌套数组对象返回；逐层展开，
+    # 确保 host/web 状态与 PowerShell 7 一样可用 -contains 判断。
+    $parsedBuilds = ConvertFrom-Json -InputObject $Json -ErrorAction Stop
+    $builds = @()
+    foreach ($entry in $parsedBuilds) {
+        foreach ($build in $entry) {
+            if ($null -ne $build) { $builds += [string]$build }
+        }
+    }
+    return $builds
+}
+
 function Start-Harness {
     Write-Host '【启动模式】' -ForegroundColor Cyan
     Write-Host '  【1】完整 Web（控制端 + 编译前端，自动托管本机 Daemon；默认）'
@@ -196,14 +211,25 @@ function Start-Harness {
     $nodeCommand = Get-Command 'node' -ErrorAction Stop
     $staleJson = & $nodeCommand.Source (Join-Path $projectRoot 'scripts/runtime-build-state.mjs') $profile
     if ($LASTEXITCODE -ne 0) { throw '无法检查正式运行树，请先执行菜单 3 构建。' }
-    $staleBuilds = @($staleJson | ConvertFrom-Json)
+    $staleBuilds = @(ConvertFrom-StaleRuntimeBuildJson -Json ([string]::Join("`n", @($staleJson))))
+    $rebuilt = $false
     if ($staleBuilds -contains 'host') {
         Write-Host '控制端构建缺失或源码已更新，正在构建当前实现。' -ForegroundColor Yellow
         Invoke-WorkspacePnpm -Arguments @('run', 'build:control-plane')
+        $rebuilt = $true
     }
     if ($staleBuilds -contains 'web') {
         Write-Host 'Web 构建缺失或源码已更新，正在构建当前实现。' -ForegroundColor Yellow
         Invoke-WorkspacePnpm -Arguments @('run', 'build:web')
+        $rebuilt = $true
+    }
+    if ($rebuilt) {
+        $remainingJson = & $nodeCommand.Source (Join-Path $projectRoot 'scripts/runtime-build-state.mjs') $profile
+        if ($LASTEXITCODE -ne 0) { throw '构建后无法复核正式运行树，已停止启动。' }
+        $remainingBuilds = @(ConvertFrom-StaleRuntimeBuildJson -Json ([string]::Join("`n", @($remainingJson))))
+        if ($remainingBuilds.Count -gt 0) {
+            throw "构建后仍检测到缺失或过期的运行树输出：$($remainingBuilds -join ', ')。已停止启动。"
+        }
     }
     Invoke-WorkspacePnpm -Arguments @('lfaa', $profile)
 }
