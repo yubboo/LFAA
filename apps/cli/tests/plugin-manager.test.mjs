@@ -48,9 +48,17 @@ const publishedTarball = makeNpmTarball({
 });
 const publishedIntegrity = `sha512-${createHash('sha512').update(publishedTarball).digest('base64')}`;
 const publishedZip = makeZip({ 'package.json': publishedPackageJson, 'cordis.patch.yml': '# published fixture' });
+const unpublishedPackageJson = JSON.stringify({
+  ...JSON.parse(publishedPackageJson),
+  name: 'dsh-plugin-unpublished',
+  repository: { type: 'git', url: 'git+https://github.com/acme/unpublished.git' }
+});
+const unpublishedZip = makeZip({ 'package.json': unpublishedPackageJson, 'cordis.patch.yml': '# GitHub-only DSH bundle' });
 let publishedGitHead = commit;
 let publishedIntegrityValue = publishedIntegrity;
 let publishedTarballValue = publishedTarball;
+let publicRegistryRequests = [];
+let failMirrorConnection = false;
 const genericArchive = makeZip({
   'package.json': JSON.stringify({ name: 'lfaa-plugin-generic-sample', version: '2.0.0', license: 'MIT', lfaa: { plugin: { apiVersion: 1, id: 'generic-sample', name: '通用示例', entry: 'main.mjs', capabilities: [] } } }),
   'main.mjs': "process.stdout.write(JSON.stringify({ type: 'lfaa.plugin.ready', protocolVersion: 1, pluginId: process.env.LFAA_PLUGIN_ID }) + '\\n');",
@@ -78,6 +86,11 @@ let wallpaperArchive = makeWallpaperArchive(wallpaperVersion);
 
 globalThis.fetch = async input => {
   const url = String(input);
+  if (url.startsWith('https://registry.npmjs.org/') || url.startsWith('https://registry.npmmirror.com/')) publicRegistryRequests.push(url);
+  if (failMirrorConnection && url === `https://registry.npmmirror.com/${registrySourcePackageName}/1.0.0`) {
+    failMirrorConnection = false;
+    throw new TypeError('fetch failed');
+  }
   if (url === `https://registry.npmjs.org/${registrySourcePackageName}/1.0.0`) return Response.json({
     name: registrySourcePackageName, version: '1.0.0', dist: {
       tarball: `https://registry.npmjs.org/${registrySourcePackageName}/-/${registrySourcePackageName}-1.0.0.tgz`, integrity: registrySourceIntegrity
@@ -108,6 +121,14 @@ globalThis.fetch = async input => {
     dist: { tarball: 'https://registry.npmjs.org/dsh-plugin-published/-/dsh-plugin-published-3.0.0.tgz', integrity: publishedIntegrityValue }
   });
   if (url === 'https://registry.npmjs.org/dsh-plugin-published/-/dsh-plugin-published-3.0.0.tgz') return new Response(publishedTarballValue, { headers: { 'content-type': 'application/octet-stream' } });
+  if (url === 'https://registry.npmjs.org/dsh-plugin-unpublished/3.0.0') return Response.json({ error: 'Not found' }, { status: 404 });
+  if (url === 'https://api.github.com/repos/acme/unpublished') return Response.json({ full_name: 'acme/unpublished', description: 'GitHub-only DSH bundle', stargazers_count: 0, default_branch: 'main', license: { spdx_id: 'MIT' } });
+  if (url === `https://api.github.com/repos/acme/unpublished/commits/${sourceRef}`) return Response.json({ sha: commit });
+  if (url === `https://codeload.github.com/acme/unpublished/zip/${commit}`) return new Response(unpublishedZip, { headers: { 'content-type': 'application/zip' } });
+  if (url === `https://registry.npmmirror.com/${registrySourcePackageName}/1.0.0`) return Response.json({ error: 'Not found' }, { status: 404 });
+  if (url === `https://registry.npmmirror.com/${registrySourcePackageName}`) return Response.json({ versions: { '0.9.0': {} } });
+  if (url === `https://registry.npmjs.org/${registrySourcePackageName}`) return Response.json({ versions: { '1.0.0': {} } });
+  if (url === `${customRegistryUrl}private-miss/1.0.0`) return Response.json({ error: 'Not found' }, { status: 404 });
   if (url === 'https://api.github.com/repos/acme/unsupported') return Response.json({ full_name: 'acme/unsupported', description: 'Fixture', stargazers_count: 0, default_branch: 'main', license: { spdx_id: 'MIT' } });
   if (url === `https://api.github.com/repos/acme/unsupported/commits/${sourceRef}`) return Response.json({ sha: commit });
   if (url === `https://codeload.github.com/acme/unsupported/zip/${commit}`) return new Response(unsupportedArchive, { headers: { 'content-type': 'application/zip' } });
@@ -329,6 +350,63 @@ test('GitHub 源码缺少发布构建文件时，仅复用 gitHead 完全匹配�
   assert.equal(installed.state, 'incompatible', 'verified package files do not imply a loaded runtime');
 });
 
+test('GitHub-only DSH bundle 在官方 NPM 返回 404 时仍可检查并隔离安装原始源码快照', async () => {
+  const manager = new PluginManager('github-only', join(data, 'profiles'));
+  const inspected = await manager.inspect('https://github.com/acme/unpublished', sourceRef);
+  assert.equal(inspected.resolvedCommit, commit);
+  assert.equal(inspected.compatibility, 'dsh-v1');
+  assert.equal(inspected.requirements.bundlePatch, 'cordis.patch.yml');
+  assert.equal(inspected.requirements.hostEntry, null);
+  assert.equal(inspected.requirements.clientEntry, null);
+  assert.equal(inspected.canEnable, false);
+  assert.match(inspected.runtimeReason, /没有匹配其固定来源和版本的 LFAA 原生适配器/u);
+  const installed = await manager.install('https://github.com/acme/unpublished', sourceRef, 'admin-fixture');
+  assert.equal(installed.source.commit, commit);
+  assert.equal(installed.source.archiveSha256, inspected.archiveSha256);
+  assert.equal(installed.state, 'incompatible');
+  assert.equal(readFileSync(resolve(data, 'profiles/github-only/acme-unpublished/package.json'), 'utf8'), unpublishedPackageJson);
+  assert.equal(readFileSync(resolve(data, 'profiles/github-only/acme-unpublished/cordis.patch.yml'), 'utf8'), '# GitHub-only DSH bundle');
+  assert.equal(publicRegistryRequests.filter(url => url === 'https://registry.npmjs.org/dsh-plugin-unpublished/3.0.0').length, 2, 'inspection and installation check only the declared package and never substitute another package');
+});
+
+test('公开 NPM registry 404 回退后检查与安装固定到同一实际 registry', async () => {
+  const manager = new PluginManager('registry-fallback', join(data, 'profiles'));
+  publicRegistryRequests = [];
+  const inspected = await manager.inspect(`${registrySourcePackageName}@1.0.0`, undefined, 'workspace', 'https://registry.npmmirror.com/');
+  assert.equal(inspected.registryUrl, 'https://registry.npmjs.org/');
+  assert.deepEqual(publicRegistryRequests.slice(0, 2), [
+    `https://registry.npmmirror.com/${registrySourcePackageName}/1.0.0`,
+    `https://registry.npmjs.org/${registrySourcePackageName}/1.0.0`
+  ]);
+  const installed = await manager.install(`${registrySourcePackageName}@1.0.0`, inspected.requestedRef, 'admin-fixture', 'workspace', {
+    npmRegistry: inspected.registryUrl,
+    expectedResolvedRef: inspected.resolvedCommit,
+    expectedSource: { kind: 'npm', location: inspected.sourceLocation }
+  });
+  assert.equal(installed.source.archiveSha256, createHash('sha256').update(registrySourceTarball).digest('hex'));
+  assert.equal(publicRegistryRequests.at(-1), `https://registry.npmjs.org/${registrySourcePackageName}/-/${registrySourcePackageName}-1.0.0.tgz`);
+});
+
+test('公开 NPM registry 无匹配版本或网络不可达时按 DSH 顺序回退', async () => {
+  const manager = new PluginManager('registry-range-fallback', join(data, 'profiles'));
+  publicRegistryRequests = [];
+  const ranged = await manager.inspect(`${registrySourcePackageName}@^1.0.0`, undefined, 'workspace', 'https://registry.npmmirror.com/');
+  assert.equal(ranged.registryUrl, 'https://registry.npmjs.org/');
+  assert.deepEqual(publicRegistryRequests.slice(0, 2), [
+    `https://registry.npmmirror.com/${registrySourcePackageName}`,
+    `https://registry.npmjs.org/${registrySourcePackageName}`
+  ]);
+
+  publicRegistryRequests = [];
+  failMirrorConnection = true;
+  const networkFallback = await manager.inspect(`${registrySourcePackageName}@1.0.0`, undefined, 'workspace', 'https://registry.npmmirror.com/');
+  assert.equal(networkFallback.registryUrl, 'https://registry.npmjs.org/');
+  assert.deepEqual(publicRegistryRequests.slice(0, 2), [
+    `https://registry.npmmirror.com/${registrySourcePackageName}/1.0.0`,
+    `https://registry.npmjs.org/${registrySourcePackageName}/1.0.0`
+  ]);
+});
+
 test('NPM 发布产物的 gitHead 或 SHA-512 SRI 不匹配时拒绝补齐', async () => {
   const manager = new PluginManager('published-mismatch', join(data, 'profiles'));
   publishedGitHead = 'b'.repeat(40);
@@ -463,6 +541,9 @@ test('自定义 HTTPS registry 在检查与安装时保持同源并校验 SHA-51
   assert.equal(installed.state, 'incompatible', 'an unadapted plugin remains installed but isolated');
   assert.deepEqual(progress.map(item => item.stage), ['resolving', 'source-verified', 'compatibility-checked', 'writing-files', 'committing-inventory', 'committing-inventory', 'installed']);
   assert.equal(progress.find(item => item.stage === 'source-verified').fileCount, 2);
+  publicRegistryRequests = [];
+  await assert.rejects(manager.inspect('private-miss', '1.0.0', 'workspace', customRegistryUrl), /HTTP 404/u);
+  assert.deepEqual(publicRegistryRequests, [], 'a private or custom registry miss is never sent to a public registry');
 });
 
 test('安装器拒绝缺少 LFAA/DSH 合同的普通仓库', async () => {

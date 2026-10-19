@@ -9,7 +9,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "nod
 import { dirname, basename, join, resolve } from "node:path";
 import test from "node:test";
 import express from "express";
-import { requestLogLevel, serveFrontend } from "lfaa-host-webserver/src/http-delivery.js";
+import { captureRuntimeBuildIdentity, requestLogLevel, runtimeBuildCompatibilityGuard, serveFrontend } from "lfaa-host-webserver/src/http-delivery.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "../../..");
 const temporaryParent = resolve(repositoryRoot, "dist/.tmp");
@@ -33,11 +33,32 @@ const server = createServer(app);
 await new Promise((ready, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", ready); });
 const baseUrl = `http://127.0.0.1:${server.address().port}`;
 
+const runtimeRoot = mkdtempSync(join(temporaryParent, "http-build-guard-"));
+const hostOutput = join(runtimeRoot, "dist", "apps", "control-plane");
+const webOutput = join(runtimeRoot, "dist", "apps", "web");
+mkdirSync(hostOutput, { recursive: true });
+mkdirSync(webOutput, { recursive: true });
+writeFileSync(join(hostOutput, "build-state.json"), JSON.stringify({ kind: "host", fingerprint: "host-start" }));
+writeFileSync(join(webOutput, "build-state.json"), JSON.stringify({ kind: "web", fingerprint: "web-start" }));
+writeFileSync(join(webOutput, "index.html"), "<!doctype html><title>已启动的 Web</title>");
+const runtimeIdentity = captureRuntimeBuildIdentity(runtimeRoot);
+const guardedApp = express();
+guardedApp.use(runtimeBuildCompatibilityGuard(runtimeRoot, runtimeIdentity));
+guardedApp.get("/settings", (_request, response) => response.send("settings page"));
+guardedApp.put("/api/settings/:category", (_request, response) => response.sendStatus(204));
+const guardedServer = createServer(guardedApp);
+await new Promise((ready, reject) => { guardedServer.once("error", reject); guardedServer.listen(0, "127.0.0.1", ready); });
+const guardedBaseUrl = `http://127.0.0.1:${guardedServer.address().port}`;
+
 test.after(async () => {
   await new Promise((done) => server.close(done));
+  await new Promise((done) => guardedServer.close(done));
   assert.equal(dirname(resolve(frontendDirectory)), temporaryParent);
   assert.ok(basename(frontendDirectory).startsWith("http-delivery-"));
   rmSync(frontendDirectory, { recursive: true, force: true });
+  assert.equal(dirname(resolve(runtimeRoot)), temporaryParent);
+  assert.ok(basename(runtimeRoot).startsWith("http-build-guard-"));
+  rmSync(runtimeRoot, { recursive: true, force: true });
 });
 
 test("内容哈希 JS/CSS 可长期复用，带 ETag 的请求返回无正文 304", async () => {
@@ -81,6 +102,25 @@ test("运行期间替换构建入口后，新页面读取当前哈希资源清�
   assert.match(body, /新构建入口/u);
   assert.match(body, /\/assets\/index-current\.js/u);
   assert.match(body, /window\.__DSH_BOOT__=\{\}/u);
+});
+
+test("控制端或 Web 构建在启动后变化时拦截 General 写入并提示重启", async () => {
+  const accepted = await fetch(`${guardedBaseUrl}/api/settings/general`, { method: "PUT" });
+  assert.equal(accepted.status, 204);
+
+  writeFileSync(join(hostOutput, "build-state.json"), JSON.stringify({ kind: "host", fingerprint: "host-next" }));
+  const blockedWrite = await fetch(`${guardedBaseUrl}/api/settings/general`, { method: "PUT" });
+  assert.equal(blockedWrite.status, 503);
+  assert.deepEqual(await blockedWrite.json(), {
+    error: "runtime_build_changed",
+    message: "LFAA Web 或控制端构建文件在服务运行期间已更新。为避免设置写入失败，请停止并重新启动 LFAA Web 后重试。"
+  });
+
+  writeFileSync(join(hostOutput, "build-state.json"), JSON.stringify({ kind: "host", fingerprint: "host-start" }));
+  writeFileSync(join(webOutput, "index.html"), "<!doctype html><title>新 Web 构建</title>");
+  const blockedDocument = await fetch(`${guardedBaseUrl}/settings`, { headers: { accept: "text/html" } });
+  assert.equal(blockedDocument.status, 503);
+  assert.match(await blockedDocument.text(), /LFAA 需要重新启动/u);
 });
 
 test("显式图标和默认图标地址都不会返回 HTML", async () => {

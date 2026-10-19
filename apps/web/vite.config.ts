@@ -19,7 +19,8 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 const projectBuildMetadata = createProjectBuildMetadata({
   projectPackage: JSON.parse(readFileSync(resolve(repositoryRoot, "apps/cli/package.json"), "utf8")),
   webPackage: JSON.parse(readFileSync(resolve(repositoryRoot, "apps/web/package.json"), "utf8")),
-  electronPackage: JSON.parse(readFileSync(resolve(repositoryRoot, "apps/desktop-electron/package.json"), "utf8"))
+  electronPackage: JSON.parse(readFileSync(resolve(repositoryRoot, "apps/desktop-electron/package.json"), "utf8")),
+  releaseManifest: JSON.parse(readFileSync(resolve(repositoryRoot, "update.json"), "utf8"))
 });
 
 function createBackendProxyLogger(): { logger: Logger; markBackendAvailable: () => void } {

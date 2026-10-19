@@ -1,7 +1,7 @@
 const STABLE_VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 const RELEASE_FEED_SUFFIX = "/releases/latest/download";
 
-export function createProjectBuildMetadata({ projectPackage, webPackage, electronPackage }) {
+export function createProjectBuildMetadata({ projectPackage, webPackage, electronPackage, releaseManifest }) {
   const currentVersion = readStableVersion(projectPackage?.version, "apps/cli/package.json");
   for (const [manifest, label] of [
     [webPackage, "apps/web/package.json"],
@@ -33,13 +33,36 @@ export function createProjectBuildMetadata({ projectPackage, webPackage, electro
   if (!repository) throw new Error("LFAA 仓库名称缺失。");
   const releasePage = `https://github.com/${owner}/${repository}/releases`;
   const feedUrl = `https://github.com/${owner}/${repository}${RELEASE_FEED_SUFFIX}/`;
+  const announcement = readReleaseAnnouncement(releaseManifest, currentVersion);
 
   return Object.freeze({
     currentVersion,
+    publishedAt: announcement.publishedAt,
+    releaseNotes: announcement.releaseNotes,
     updateManifestUrl: `https://raw.githubusercontent.com/${owner}/${repository}/main/update.json`,
     feedUrl,
     releasePage
   });
+}
+
+function readReleaseAnnouncement(manifest, currentVersion) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)
+    || manifest.version !== currentVersion || manifest.title !== `LFAA ${currentVersion}`) {
+    throw new Error("update.json 必须提供与当前产品版本一致的公告内容。");
+  }
+  const publishedAt = manifest.publishedAt;
+  if (typeof publishedAt !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(publishedAt)
+    || Number.isNaN(Date.parse(`${publishedAt}T00:00:00Z`))
+    || new Date(`${publishedAt}T00:00:00Z`).toISOString().slice(0, 10) !== publishedAt) {
+    throw new Error("update.json 公告发布日期无效。");
+  }
+  const releaseNotes = manifest.releaseNotes;
+  if (!Array.isArray(releaseNotes) || releaseNotes.length < 1 || releaseNotes.length > 32
+    || releaseNotes.some(note => typeof note !== "string" || !note.trim())
+    || releaseNotes.reduce((total, note) => total + note.length, 0) > 12_000) {
+    throw new Error("update.json 公告内容必须是 1 至 32 条非空文本，合计不超过 12000 字符。");
+  }
+  return Object.freeze({ publishedAt, releaseNotes: Object.freeze(releaseNotes.map(note => note.trim())) });
 }
 
 function readStableVersion(value, label) {

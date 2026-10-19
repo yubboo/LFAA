@@ -193,16 +193,57 @@ test("Windows 本地源码更新只快进并保留数据根内容", { skip: proc
   assert.equal(git(fixture.local, ["status", "--porcelain"]), "");
 });
 
-test("Windows 本地源码更新在工作区有改动时停止且保留本地文件", { skip: process.platform !== "win32" }, t => {
+test("Windows 当前分支已最新时仍安全快进未检出的本地 main 引用", { skip: process.platform !== "win32" }, t => {
+  const fixture = createUpdateFixture(t);
+  writeFileSync(join(fixture.writer, "latest-source.ts"), "latest upstream source\n");
+  git(fixture.writer, ["add", "latest-source.ts"]);
+  git(fixture.writer, ["commit", "-m", "upstream update"]);
+  git(fixture.writer, ["push", "origin", "main"]);
+  git(fixture.local, ["fetch", "origin", "refs/heads/main:refs/remotes/origin/main"]);
+  git(fixture.local, ["checkout", "-b", "codex/current-source", "origin/main"]);
+
+  const currentRevision = git(fixture.local, ["rev-parse", "HEAD"]);
+  const oldMainRevision = git(fixture.local, ["rev-parse", "main"]);
+  assert.notEqual(oldMainRevision, currentRevision);
+
+  const result = updateProject(fixture);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(git(fixture.local, ["branch", "--show-current"]), "codex/current-source");
+  assert.equal(git(fixture.local, ["rev-parse", "HEAD"]), currentRevision);
+  assert.equal(git(fixture.local, ["rev-parse", "main"]), git(fixture.local, ["rev-parse", "origin/main"]));
+  assert.equal(readFileSync(join(fixture.local, "latest-source.ts"), "utf8").replace(/\r\n/g, "\n"), "latest upstream source\n");
+  assert.equal(git(fixture.local, ["status", "--porcelain"]), "");
+});
+
+test("Windows 本地源码更新在工作区有改动但没有待更新提交时成功检查并保留本地文件", { skip: process.platform !== "win32" }, t => {
   const fixture = createUpdateFixture(t);
   const before = git(fixture.local, ["rev-parse", "HEAD"]);
   writeFileSync(join(fixture.local, "unfinished-change.ts"), "keep this change\n");
 
   const result = updateProject(fixture);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(git(fixture.local, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(fixture.local, ["rev-parse", "origin/main"]), before);
+  assert.equal(readFileSync(join(fixture.local, "unfinished-change.ts"), "utf8"), "keep this change\n");
+});
+
+test("Windows 本地源码更新在工作区有改动且确有更新时停止合并并保留两边内容", { skip: process.platform !== "win32" }, t => {
+  const fixture = createUpdateFixture(t);
+  const before = git(fixture.local, ["rev-parse", "HEAD"]);
+  writeFileSync(join(fixture.local, "unfinished-change.ts"), "keep this change\n");
+  writeFileSync(join(fixture.writer, "latest-source.ts"), "latest upstream source\n");
+  git(fixture.writer, ["add", "latest-source.ts"]);
+  git(fixture.writer, ["commit", "-m", "upstream update"]);
+  git(fixture.writer, ["push", "origin", "main"]);
+  const upstreamRevision = git(fixture.writer, ["rev-parse", "HEAD"]);
+
+  const result = updateProject(fixture);
   assert.notEqual(result.status, 0);
   assert.match(result.stdout + result.stderr, /unfinished-change\.ts/u);
   assert.equal(git(fixture.local, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(fixture.local, ["rev-parse", "origin/main"]), upstreamRevision);
   assert.equal(readFileSync(join(fixture.local, "unfinished-change.ts"), "utf8"), "keep this change\n");
+  assert.equal(existsSync(join(fixture.local, "latest-source.ts")), false);
 });
 
 test("Windows 本地源码更新拒绝远端改动触及自定义数据根", { skip: process.platform !== "win32" }, t => {

@@ -1,6 +1,6 @@
 /**
- * 功能：锁定 AI Work 提问框的网格收缩、操作栏容器响应和插入光标可见性。
- * 作用：防止 TextArea 撑出聊天列，关联选择器随真实中间栏宽度排布，并保证光标跟随主题文字颜色。
+ * 功能：锁定 AI Work 提问框的网格收缩、悬停反馈几何稳定、操作栏容器响应和插入光标可见性。
+ * 作用：防止 TextArea 撑出聊天列，悬停不改变输入卡尺寸，关联选择器随真实中间栏宽度排布，并保证光标跟随主题文字颜色。
  * 关联文件：packages/client/ui-chat/src/ai-work-chat.css；本测试检查提问框、关联操作栏与 TextArea 样式。
  */
 import assert from "node:assert/strict";
@@ -10,6 +10,7 @@ import test from "node:test";
 const chatStyles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
 const chatSource = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
 const composerRule = chatStyles.match(/^\.ai-work-chat__composer\s*\{([^}]*)\}/mu)?.[1] ?? "";
+const composerFocusRule = chatStyles.match(/^\.ai-work-chat__composer:focus-within\s*\{([^}]*)\}/mu)?.[1] ?? "";
 const composerInputRule = chatStyles.match(/^\.ai-work-chat__composer \.ant-input\s*\{([^}]*)\}/mu)?.[1] ?? "";
 const messageStageRule = chatStyles.match(/^\.ai-work-chat__message-stage\s*\{([^}]*)\}/mu)?.[1] ?? "";
 const messageListRule = chatStyles.match(/^\.ai-work-chat__message-list\s*\{([^}]*)\}/mu)?.[1] ?? "";
@@ -27,10 +28,37 @@ test("AI Work 输入光标跟随当前文字颜色，避免浅色背景上不可
   assert.doesNotMatch(composerInputRule, /caret-color:\s*currentColor\s*!important/u);
 });
 
+test("中屏输入区悬停不触发卡片变化、无阴影且空闲时不虚化操作", () => {
+  const controlRule = chatStyles.match(/^\.ai-work-chat__composer-control\.ant-btn\s*\{([^}]*)\}/mu)?.[1] ?? "";
+  const submitRule = chatStyles.match(/^\.ai-work-chat__composer-submit\.ant-btn\s*\{([^}]*)\}/mu)?.[1] ?? "";
+  const outputBlurTransitionRule = chatStyles.match(/\.workbench-shell\[data-ai-work-output-focus-blur="true"\] \.ai-work-chat \.ai-work-chat__messages,[\s\S]*?\{\s*transition:\s*filter[^}]*\}/u)?.[0] ?? "";
+  const outputBlurIdleRule = chatStyles.match(/\.workbench-shell\[data-ai-work-output-focus-blur="true"\] \.ai-work-chat\[data-output-idle="true"\] \.ai-work-chat__messages,[\s\S]*?\{[^}]*filter:\s*blur/u)?.[0] ?? "";
+
+  assert.match(composerRule, /box-shadow:\s*none\s*;/u);
+  assert.match(composerRule, /transition:\s*border-color 200ms cubic-bezier\(\.2,\.8,\.2,1\)/u);
+  assert.doesNotMatch(chatStyles, /^\.ai-work-chat__composer:hover\s*\{/mu);
+  assert.doesNotMatch(composerFocusRule, /box-shadow:/u);
+  assert.doesNotMatch(composerFocusRule, /(?:display|position|width|height|min-width|max-width|padding|margin|transform|inset|top|left|right|bottom)\s*:/u);
+  assert.match(controlRule, /transition:\s*background-color 200ms cubic-bezier\(\.2,\.8,\.2,1\)/u);
+  assert.match(submitRule, /transition:\s*background-color 200ms cubic-bezier\(\.2,\.8,\.2,1\)/u);
+  assert.doesNotMatch(outputBlurTransitionRule, /composer-(?:context|actions)/u);
+  assert.doesNotMatch(outputBlurIdleRule, /composer-(?:context|actions)/u);
+  assert.match(chatStyles, /\.workbench-shell\[data-reduced-motion="on"\] \.ai-work-chat__composer-control/u);
+  assert.match(chatStyles, /\.workbench-shell\[data-reduced-motion="on"\] \.ai-work-chat__composer-submit/u);
+  assert.match(chatStyles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.ai-work-chat__composer-control\.ant-btn[\s\S]*transition-duration:\s*0ms/u);
+});
+
 test("窄聊天列为正文增加容器比例留白，锚点仍固定在消息舞台左侧", () => {
   assert.match(messageStageRule, /position:\s*relative\s*;/u);
   assert.match(messageListRule, /padding:\s*22px\s+clamp\(20px,\s*3%,\s*32px\)\s+12px\s*;/u);
   assert.match(anchorRule, /left:\s*0\s*;/u);
+});
+
+test("模型缺失提示文案简洁，窄容器内操作另起说明行并跳转到 AI 与模型配置", () => {
+  assert.match(chatSource, /className="ai-work-chat__provider-setup-alert"[\s\S]*message="尚未配置大模型"[\s\S]*description=\{<Button className="ai-work-chat__provider-setup-action" size="small" onClick=\{\(\) => onOpenSettings\("ai"\)\}>去配置模型<\/Button>\}/u);
+  assert.doesNotMatch(chatSource, /配置后即可开始使用小鱼智能体/u);
+  assert.match(chatStyles, /\.ai-work-chat__provider-setup-alert\s*\{[^}]*width:\s*100%[^}]*min-width:\s*0/u);
+  assert.match(chatStyles, /\.ai-work-chat__provider-setup-action\s*\{[^}]*max-width:\s*100%/u);
 });
 
 test("应用和能力选择放进紧凑的更多菜单，权限与模型操作继续可见", () => {

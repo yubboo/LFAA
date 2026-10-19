@@ -173,8 +173,8 @@
 
 /* 工作台设置写在 body 上以覆盖 Ant Design 通过 Portal 挂到页面外层的 Modal 和确认弹窗。 */
 @keyframes lfaa-dialog-fluid-in {
-  from { opacity: 0; transform: translate3d(0, 10px, 0) scale(.975); }
-  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  from { transform: translate3d(0, 10px, 0) scale(.975); }
+  to { transform: translate3d(0, 0, 0) scale(1); }
 }
 
 @keyframes lfaa-dialog-fluid-out {
@@ -183,8 +183,8 @@
 }
 
 @keyframes lfaa-dialog-fade-in {
-  from { opacity: 0; transform: scale(.97); }
-  to { opacity: 1; transform: scale(1); }
+  from { transform: scale(.97); }
+  to { transform: scale(1); }
 }
 
 @keyframes lfaa-dialog-fade-out {
@@ -193,8 +193,8 @@
 }
 
 @keyframes lfaa-dialog-lift-in {
-  from { opacity: 0; transform: translate3d(0, 18px, 0); }
-  to { opacity: 1; transform: translate3d(0, 0, 0); }
+  from { transform: translate3d(0, 18px, 0); }
+  to { transform: translate3d(0, 0, 0); }
 }
 
 @keyframes lfaa-dialog-lift-out {
@@ -210,6 +210,11 @@
 @keyframes lfaa-dialog-reduced-out {
   from { opacity: 1; }
   to { opacity: .96; }
+}
+
+@keyframes lfaa-dialog-static {
+  from { opacity: 1; transform: none; }
+  to { opacity: 1; transform: none; }
 }
 
 /* 通用弹窗动效只保存在一个共享效果表中；单个 Modal 可用 rootClassName 覆写。 */
@@ -229,8 +234,8 @@ body[data-lfaa-dialog-motion-effect="lift"] {
 }
 
 body[data-lfaa-dialog-motion-effect="none"] {
-  --lfaa-dialog-motion-enter: none; /* 所有弹窗内容静态出现，不播放入场动画。 */
-  --lfaa-dialog-motion-exit: none; /* 所有弹窗内容静态关闭，不播放退场动画。 */
+  --lfaa-dialog-motion-enter: lfaa-dialog-static 64ms steps(1, end) both; /* 所有弹窗内容无可见变化地静态出现，并为 rc-motion 监听器保留 64ms 结束事件。 */
+  --lfaa-dialog-motion-exit: lfaa-dialog-static 64ms steps(1, end) both; /* 所有弹窗内容无可见变化地静态关闭，并为 rc-motion 监听器保留 64ms 结束事件。 */
 }
 
 /* 将以下稳定类名传给 Ant Design Modal/确认框的 rootClassName，即可独立覆写该弹窗。 */
@@ -250,8 +255,8 @@ body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--lift {
 }
 
 body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none {
-  --lfaa-dialog-motion-enter: none; /* 当前弹窗单独静态出现。 */
-  --lfaa-dialog-motion-exit: none; /* 当前弹窗单独静态关闭。 */
+  --lfaa-dialog-motion-enter: lfaa-dialog-static 64ms steps(1, end) both; /* 当前弹窗单独静态出现并为 rc-motion 监听器保留 64ms 结束事件。 */
+  --lfaa-dialog-motion-exit: lfaa-dialog-static 64ms steps(1, end) both; /* 当前弹窗单独静态关闭并为 rc-motion 监听器保留 64ms 结束事件。 */
 }
 
 /* Ant Design 弹窗共用 Appearance 令牌；业务包可在更具体的类中保留专属内容布局。 */
@@ -484,6 +489,11 @@ body[data-lfaa-dialog-motion-effect] .ant-modal-root .ant-modal.ant-zoom-leave.a
   animation: var(--lfaa-dialog-motion-exit) !important;
 }
 
+/* 保持玻璃弹窗内容在入场首帧不透明；柔化表面透明度只由 Appearance 设置控制。 */
+.ant-modal-root .ant-modal:is(.ant-zoom-enter, .ant-zoom-appear) {
+  opacity: 1 !important;
+}
+
 /* 同一设置还控制确认气泡的入退场；菜单、下拉框和普通 Popover 保持各自交互动效。 */
 body[data-lfaa-dialog-motion-effect] .ant-popover.ant-zoom-big-enter.ant-zoom-big-enter-active:has(.ant-popconfirm),
 body[data-lfaa-dialog-motion-effect] .ant-popover.ant-zoom-big-appear.ant-zoom-big-appear-active:has(.ant-popconfirm) {
@@ -551,33 +561,51 @@ body[data-lfaa-reduced-motion="on"] .ant-modal-root .ant-modal-mask.ant-fade-lea
   }
 }
 
-/* 静态是明确选择；它覆盖所有入退场状态，并同步停止遮罩淡变。 */
+/* 静态模式保持视觉不变，但用 1ms 无变化动画通知 rc-motion 完成弹窗/遮罩生命周期。 */
 body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal.ant-zoom-enter,
-body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal.ant-zoom-appear,
+body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal.ant-zoom-appear {
+  animation: var(--lfaa-dialog-motion-enter) !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
 body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal.ant-zoom-leave {
-  animation: none !important;
+  animation: var(--lfaa-dialog-motion-exit) !important;
   opacity: 1 !important;
   transform: none !important;
 }
 
 body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal.ant-zoom-enter,
-body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal.ant-zoom-appear,
+body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal.ant-zoom-appear {
+  animation: var(--lfaa-dialog-motion-enter) !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
 body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal.ant-zoom-leave {
-  animation: none !important;
+  animation: var(--lfaa-dialog-motion-exit) !important;
   opacity: 1 !important;
   transform: none !important;
 }
 
 body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal-mask.ant-fade-enter,
-body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal-mask.ant-fade-appear,
+body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal-mask.ant-fade-appear {
+  animation: var(--lfaa-dialog-motion-enter) !important;
+  opacity: 1 !important;
+}
+
 body[data-lfaa-dialog-motion-effect="none"] .ant-modal-root .ant-modal-mask.ant-fade-leave {
-  animation: none !important;
+  animation: var(--lfaa-dialog-motion-exit) !important;
   opacity: 1 !important;
 }
 
 body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal-mask.ant-fade-enter,
-body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal-mask.ant-fade-appear,
+body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal-mask.ant-fade-appear {
+  animation: var(--lfaa-dialog-motion-enter) !important;
+  opacity: 1 !important;
+}
+
 body[data-lfaa-dialog-motion-effect] .ant-modal-root.lfaa-dialog-motion--none .ant-modal-mask.ant-fade-leave {
-  animation: none !important;
+  animation: var(--lfaa-dialog-motion-exit) !important;
   opacity: 1 !important;
 }

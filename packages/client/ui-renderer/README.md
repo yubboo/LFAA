@@ -6,4 +6,4 @@
 
 构建只写仓库根 dist/packages/client/ui-renderer/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
 
-Renderer 持有默认凭据提醒的服务端读取和“稍后再说”确认状态；对话框的当日暂停与关闭总开关由 `ui-settings-general/SetupReminder` 复用本地日期标记和 Settings Owner 保存。Workbench 管理当日暂停期间的提醒排队；Renderer 不会因本地暂停而确认或修改服务端凭据状态。
+Renderer 从 Account Owner 读取默认凭据待处理状态，并在用户离开设置路由后重新读取；修改仍未完成时提醒继续出现。`ui-settings-general/SetupReminder` 管理按账户/本地日期隔离的当日暂停、当前工作区五分钟稍后重试，以及由 Settings Owner 保存的内部“不更改”标记。设置中心不提供凭据提醒开关。Renderer 不会因本地暂停或稍后重试而确认或修改服务端凭据状态。

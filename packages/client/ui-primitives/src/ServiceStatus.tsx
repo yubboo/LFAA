@@ -7,6 +7,7 @@ export type ServiceState = "checking" | "online" | "offline";
 
 interface ServiceStatusProps {
   state: ServiceState;
+  compact?: boolean;
 }
 
 const stateLabels: Record<ServiceState, string> = {
@@ -15,11 +16,24 @@ const stateLabels: Record<ServiceState, string> = {
   offline: "无法连接服务"
 };
 
-export function ServiceStatus({ state }: ServiceStatusProps) {
+const compactStateLabels: Record<ServiceState, string> = {
+  checking: "正在检查服务器",
+  online: "服务器正常",
+  offline: "服务器未连接"
+};
+
+export function ServiceStatus({ state, compact = false }: ServiceStatusProps) {
+  const label = compact ? compactStateLabels[state] : stateLabels[state];
   return (
-    <span className={`service-status service-status--${state}`} role="status" aria-live="polite">
+    <span
+      className={`service-status service-status--${state}${compact ? " service-status--compact" : ""}`}
+      role="status"
+      aria-live="polite"
+      aria-label={compact ? label : undefined}
+      tabIndex={compact ? 0 : undefined}
+    >
       <span className="service-status__dot" aria-hidden="true" />
-      <span>{stateLabels[state]}</span>
+      <span className="service-status__label">{label}</span>
     </span>
   );
 }

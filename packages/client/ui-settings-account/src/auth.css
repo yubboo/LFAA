@@ -286,6 +286,69 @@
   align-items: center;
 }
 
+.auth-page__login-wait {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-inline: auto;
+  color: var(--auth-color-form-copy);
+  font-size: var(--font-size-sm, 12px);
+  line-height: 1.4;
+}
+
+.auth-page__black-hole {
+  position: relative;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+  perspective: 48px;
+}
+
+.auth-page__black-hole::before,
+.auth-page__black-hole::after {
+  position: absolute;
+  inset: 3px 0;
+  border: 2px solid transparent;
+  border-top-color: var(--settings-accent, var(--color-brand));
+  border-bottom-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 54%, white);
+  border-radius: 50%;
+  content: "";
+  transform-style: preserve-3d;
+  animation: lfaa-login-black-hole-orbit 900ms linear infinite;
+}
+
+.auth-page__black-hole::before {
+  transform: rotateX(64deg);
+}
+
+.auth-page__black-hole::after {
+  inset: 5px 2px;
+  border-width: 1px;
+  border-top-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 64%, white);
+  border-bottom-color: var(--settings-accent, var(--color-brand));
+  animation-direction: reverse;
+  animation-duration: 1250ms;
+}
+
+.auth-page__black-hole-core {
+  z-index: 1;
+  width: 7px;
+  height: 7px;
+  border: 1px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 72%, transparent);
+  border-radius: 50%;
+  background: #050507;
+  box-shadow: 0 0 7px color-mix(in srgb, var(--settings-accent, var(--color-brand)) 62%, transparent);
+}
+
+@keyframes lfaa-login-black-hole-orbit {
+  from { transform: rotateX(64deg) rotateZ(0deg); }
+  to { transform: rotateX(64deg) rotateZ(360deg); }
+}
+
 .auth-page__form-message {
   width: 100%;
   margin: 0;
@@ -437,26 +500,306 @@ html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builti
 }
 
 .auth-page--transition-exiting {
-  /* 全屏背景只做透明度合成，避免缩放背景图反复栅格化；工作台保持隐藏到动画结束。 */
-  animation: lfaa-auth-login-exit 820ms cubic-bezier(.22, .72, .22, 1) both;
-  will-change: opacity;
+  /* 保持登录页可见背景，由 GPU 画布实时绘制同一张壁纸的引力透镜变化。 */
   pointer-events: none;
 }
 
-.auth-page--transition-exiting .auth-page__split-layout {
-  /* 只让小面积登录卡片轻移，避免整张壁纸跟随变换。 */
-  animation: lfaa-auth-login-card-exit 820ms cubic-bezier(.22, .72, .22, 1) both;
+.auth-page__transition-scene {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.auth-page.auth-page--transition-exiting .auth-page__split-layout {
+  /* 登录卡片留在视口中心，被吸入后由卡片内部碎片继续向事件视界汇聚。 */
+  z-index: 3;
+  animation: lfaa-auth-login-card-absorb 2200ms cubic-bezier(.45, 0, .82, .62) both, lfaa-auth-login-card-fade 2200ms linear both;
+  transform-origin: center center;
+  transform-style: preserve-3d;
+  perspective: 1100px;
+  overflow: hidden;
+  isolation: isolate;
+  will-change: transform, opacity;
+}
+
+.auth-page__transition-vortex {
+  /* 视界遮暗完整登录页，中央保持透亮以显出大尺寸黑洞，不缩放整屏制造闪烁。 */
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(ellipse at center, transparent 0 15%, rgba(0, 0, 0, .16) 28%, rgba(0, 0, 0, .48) 64%, rgba(0, 0, 0, .76) 100%);
+  opacity: 0;
+  pointer-events: none;
+  animation: lfaa-auth-vortex-veil 2200ms linear both;
+}
+
+.auth-page__transition-horizon {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+  pointer-events: none;
+}
+
+.auth-page__transition-vortex-core {
+  position: absolute;
+  width: min(900px, max(300px, 72vmin), calc(100vw - 16px));
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, #000 0 43%, rgba(0, 0, 0, .98) 48%, rgba(2, 3, 8, .86) 54%, rgba(7, 10, 24, .58) 61%, rgba(15, 20, 45, .22) 68%, transparent 76%);
+  box-shadow: 0 0 44px 4px rgba(0, 0, 0, .9), 0 0 86px color-mix(in srgb, var(--settings-accent, var(--color-brand)) 22%, transparent);
+  transform: scale(.96);
+  animation: lfaa-auth-vortex-core 2200ms linear both;
   will-change: transform;
 }
 
-@keyframes lfaa-auth-login-exit {
-  0%, 14% { opacity: 1; }
+.auth-page__transition-vortex-orbit {
+  position: absolute;
+  width: min(calc(100vw - 16px), 960px);
+  height: min(50vmin, 380px);
+  background: conic-gradient(from 0deg,
+    transparent 0deg 28deg,
+    color-mix(in srgb, var(--settings-accent, var(--color-brand)) 52%, #b8c2dc) 42deg 58deg,
+    transparent 74deg 158deg,
+    color-mix(in srgb, var(--settings-accent, var(--color-brand)) 42%, #8792ad) 178deg 194deg,
+    color-mix(in srgb, var(--settings-accent, var(--color-brand)) 68%, #111827) 202deg 218deg,
+    transparent 238deg 360deg);
+  -webkit-mask: radial-gradient(ellipse at center, transparent 0 41%, #000 44% 61%, transparent 65%);
+  mask: radial-gradient(ellipse at center, transparent 0 41%, #000 44% 61%, transparent 65%);
+  opacity: 0;
+  transform: perspective(1000px) rotateX(58deg) rotateZ(-12deg) scale(.9);
+  animation: lfaa-auth-vortex-orbit 2200ms linear both, lfaa-auth-vortex-orbit-fade 2200ms linear both;
+  will-change: transform, opacity;
+}
+
+.auth-page__transition-shards,
+.auth-page__transition-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.auth-page__transition-shards {
+  z-index: 4;
+}
+
+.auth-page__transition-shards::before {
+  /* 低亮度裂纹先切开卡片表面，亮度低于品牌强调色，避免闪屏感。 */
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(153deg, transparent 0 28%, rgba(204, 215, 238, .16) 28.15% 28.35%, transparent 28.5% 100%),
+    linear-gradient(27deg, transparent 0 41%, rgba(204, 215, 238, .12) 41.12% 41.3%, transparent 41.45% 100%),
+    linear-gradient(82deg, transparent 0 57%, rgba(204, 215, 238, .14) 57.12% 57.3%, transparent 57.45% 100%),
+    linear-gradient(128deg, transparent 0 67%, rgba(204, 215, 238, .1) 67.12% 67.28%, transparent 67.42% 100%);
+  content: "";
+  opacity: 0;
+  animation: lfaa-auth-shard-cracks 2200ms ease-out both;
+}
+
+.auth-page__transition-shard {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(18px, 3vw, 44px);
+  height: clamp(20px, 3.6vh, 40px);
+  border: 1px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 50%, rgba(220, 231, 255, .42));
+  border-radius: 1px;
+  background:
+    linear-gradient(145deg, rgba(186, 198, 226, .28) 0 4%, rgba(70, 81, 108, .2) 8% 16%, transparent 42%),
+    linear-gradient(25deg, #020307 6%, color-mix(in srgb, var(--settings-accent, var(--color-brand)) 18%, #080b13) 46%, rgba(2, 3, 8, .98) 78%);
+  opacity: 0;
+  transform-origin: center;
+  --auth-shard-turn: 18deg; /* 碎片旋转方向，让卡片碎屑旋入黑洞。 */
+  animation: lfaa-auth-shard-collapse 1780ms linear 320ms both, lfaa-auth-shard-fade 1780ms linear 320ms both;
+}
+
+.auth-page__transition-shard--1 {
+  --auth-shard-start-x: clamp(-190px, -15vw, -36px); /* 左上卡片碎片从卡片边缘斜向中心移动。 */
+  --auth-shard-start-y: clamp(-270px, -30vh, -68px); /* 左上卡片碎片从上缘向黑洞汇入。 */
+}
+
+.auth-page__transition-shard--2 {
+  --auth-shard-start-x: clamp(-82px, -6vw, -28px); /* 上部偏左碎片向卡片中部汇入。 */
+  --auth-shard-start-y: clamp(-280px, -31vh, -72px); /* 上部偏左碎片从卡片顶部向下汇入。 */
+}
+
+.auth-page__transition-shard--3 {
+  --auth-shard-start-x: clamp(30px, 6vw, 82px); /* 上部偏右碎片向卡片中部汇入。 */
+  --auth-shard-start-y: clamp(-280px, -31vh, -72px); /* 上部偏右碎片从卡片顶部向下汇入。 */
+}
+
+.auth-page__transition-shard--4 {
+  --auth-shard-start-x: clamp(36px, 15vw, 190px); /* 右上碎片从卡片右缘向中心汇入。 */
+  --auth-shard-start-y: clamp(-265px, -29vh, -66px); /* 右上碎片从卡片顶部向下汇入。 */
+}
+
+.auth-page__transition-shard--5 {
+  --auth-shard-start-x: clamp(-220px, -18vw, -58px); /* 左侧碎片沿卡片表面向右侧中心汇入。 */
+  --auth-shard-start-y: clamp(-145px, -9vh, -34px); /* 左侧上半碎片斜向事件视界汇入。 */
+}
+
+.auth-page__transition-shard--6 {
+  --auth-shard-start-x: clamp(-118px, -9vw, -34px); /* 卡片左中碎片沿短弧线向中心汇入。 */
+  --auth-shard-start-y: clamp(-105px, -7vh, -24px); /* 卡片左中碎片轻微向上移入事件视界。 */
+}
+
+.auth-page__transition-shard--7 {
+  --auth-shard-start-x: clamp(34px, 9vw, 118px); /* 卡片右中碎片沿短弧线向中心汇入。 */
+  --auth-shard-start-y: clamp(-105px, -7vh, -24px); /* 卡片右中碎片轻微向上移入事件视界。 */
+}
+
+.auth-page__transition-shard--8 {
+  --auth-shard-start-x: clamp(58px, 18vw, 220px); /* 右侧碎片从卡片右缘横向向中心汇入。 */
+  --auth-shard-start-y: clamp(-148px, -9vh, -34px); /* 右侧上半碎片斜向事件视界汇入。 */
+}
+
+.auth-page__transition-shard--9 {
+  --auth-shard-start-x: clamp(-220px, -18vw, -58px); /* 左下碎片从卡片左缘向右侧中心汇入。 */
+  --auth-shard-start-y: clamp(34px, 9vh, 148px); /* 左下碎片从卡片下半区域向上汇入。 */
+}
+
+.auth-page__transition-shard--10 {
+  --auth-shard-start-x: clamp(-112px, -8vw, -30px); /* 下部偏左碎片沿卡片表面向中心汇入。 */
+  --auth-shard-start-y: clamp(38px, 12vh, 184px); /* 下部偏左碎片从卡片下缘向上汇入。 */
+}
+
+.auth-page__transition-shard--11 {
+  --auth-shard-start-x: clamp(30px, 8vw, 112px); /* 下部偏右碎片沿卡片表面向中心汇入。 */
+  --auth-shard-start-y: clamp(38px, 12vh, 184px); /* 下部偏右碎片从卡片下缘向上汇入。 */
+}
+
+.auth-page__transition-shard--12 {
+  --auth-shard-start-x: clamp(58px, 18vw, 220px); /* 右下碎片从卡片右缘向左侧中心汇入。 */
+  --auth-shard-start-y: clamp(34px, 9vh, 148px); /* 右下碎片从卡片下半区域向上汇入。 */
+}
+
+.auth-page__transition-shard:nth-child(4n + 1) { --auth-shard-turn: -26deg; /* 第一组碎片逆时针翻转，形成不同的碎片朝向。 */ }
+.auth-page__transition-shard:nth-child(4n + 2) { --auth-shard-turn: 22deg; /* 第二组碎片顺时针翻转并向黑洞汇入。 */ }
+.auth-page__transition-shard:nth-child(4n + 3) { --auth-shard-turn: 34deg; /* 第三组碎片较大角度翻转，打散整齐拼板感。 */ }
+.auth-page__transition-shard:nth-child(3n + 2) { width: clamp(14px, 2vw, 28px); height: clamp(18px, 2.8vh, 32px); }
+.auth-page__transition-shard:nth-child(3n) { width: clamp(22px, 3.4vw, 46px); height: clamp(15px, 2.8vh, 32px); }
+
+.auth-page__transition-shard:nth-child(4n + 1) { clip-path: polygon(50% 0, 100% 64%, 18% 100%, 0 29%); }
+.auth-page__transition-shard:nth-child(4n + 2) { clip-path: polygon(14% 0, 100% 38%, 71% 100%, 0 74%); }
+.auth-page__transition-shard:nth-child(4n + 3) { clip-path: polygon(0 14%, 84% 0, 100% 71%, 34% 100%); }
+.auth-page__transition-shard:nth-child(4n) { clip-path: polygon(0 0, 100% 28%, 78% 100%, 17% 68%); }
+
+.auth-page__transition-particles {
+  z-index: 5;
+}
+
+.auth-page__transition-particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border: 1px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 52%, #737987);
+  border-radius: 38% 62% 54% 46%;
+  background: radial-gradient(circle at 32% 26%, #707789 0 8%, #242a39 20%, #06080f 48%, #000 82%);
+  opacity: 0;
+  transform: translate(calc(var(--auth-particle-x) - 50%), calc(var(--auth-particle-y) - 50%)) scale(.25);
+  animation: lfaa-auth-particle-absorb 1410ms linear both, lfaa-auth-particle-fade 1410ms linear both;
+}
+
+.auth-page__transition-particle--1 { --auth-particle-x: clamp(-120px, -15vw, -34px); /* 左上黑色粒子从登录卡片表面向中心吸入。 */ --auth-particle-y: clamp(-150px, -20vh, -54px); /* 左上粒子斜向事件视界下方汇入。 */ }
+.auth-page__transition-particle--2 { --auth-particle-x: clamp(-64px, -8vw, -24px); /* 上部偏左黑色粒子向中心吸入。 */ --auth-particle-y: clamp(-160px, -22vh, -58px); /* 上部粒子向事件视界下方汇入。 */ }
+.auth-page__transition-particle--3 { --auth-particle-x: clamp(24px, 8vw, 64px); /* 上部偏右黑色粒子向中心吸入。 */ --auth-particle-y: clamp(-160px, -22vh, -58px); /* 上部粒子向事件视界下方汇入。 */ }
+.auth-page__transition-particle--4 { --auth-particle-x: clamp(34px, 15vw, 120px); /* 右上粒子从卡片表面斜向中心吸入。 */ --auth-particle-y: clamp(-150px, -20vh, -54px); /* 右上粒子向事件视界下方汇入。 */ }
+.auth-page__transition-particle--5 { --auth-particle-x: clamp(38px, 17vw, 136px); /* 右上侧黑色粒子向中心横向吸入。 */ --auth-particle-y: clamp(-60px, -7vh, -22px); /* 右上侧粒子略向上切入事件视界。 */ }
+.auth-page__transition-particle--6 { --auth-particle-x: clamp(38px, 18vw, 142px); /* 右侧黑色粒子向中心横向吸入。 */ --auth-particle-y: clamp(20px, 6vh, 46px); /* 右侧粒子轻微下沉后进入事件视界。 */ }
+.auth-page__transition-particle--7 { --auth-particle-x: clamp(34px, 15vw, 120px); /* 右下粒子向中心斜向吸入。 */ --auth-particle-y: clamp(54px, 19vh, 148px); /* 右下粒子向事件视界上方汇入。 */ }
+.auth-page__transition-particle--8 { --auth-particle-x: clamp(24px, 8vw, 64px); /* 下部偏右粒子向中心吸入。 */ --auth-particle-y: clamp(62px, 22vh, 164px); /* 下部粒子向事件视界上方汇入。 */ }
+.auth-page__transition-particle:nth-child(3n + 2) { width: 8px; height: 14px; }
+.auth-page__transition-particle:nth-child(3n) { width: 17px; height: 10px; }
+.auth-page--transition-exiting .auth-page__transition-particle {
+  animation-duration: 1410ms;
+  animation-delay: 560ms;
+}
+
+.auth-page--transition-exiting .auth-page__transition-shard:nth-child(4n + 1) { animation-delay: 230ms; }
+.auth-page--transition-exiting .auth-page__transition-shard:nth-child(4n + 2) { animation-delay: 270ms; }
+.auth-page--transition-exiting .auth-page__transition-shard:nth-child(4n + 3) { animation-delay: 310ms; }
+.auth-page--transition-exiting .auth-page__transition-shard:nth-child(4n) { animation-delay: 350ms; }
+.auth-page--transition-exiting .auth-page__transition-particle:nth-child(4n + 1) { animation-delay: 420ms; }
+.auth-page--transition-exiting .auth-page__transition-particle:nth-child(4n + 2) { animation-delay: 450ms; }
+.auth-page--transition-exiting .auth-page__transition-particle:nth-child(4n + 3) { animation-delay: 480ms; }
+.auth-page--transition-exiting .auth-page__transition-particle:nth-child(4n) { animation-delay: 510ms; }
+
+@keyframes lfaa-auth-vortex-veil {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes lfaa-auth-vortex-core {
+  0% { transform: scale(.96); }
+  100% { transform: scale(1.04); }
+}
+
+@keyframes lfaa-auth-vortex-orbit {
+  0% { transform: perspective(1000px) rotateX(58deg) rotateZ(0deg) scale(.9); }
+  100% { transform: perspective(1000px) rotateX(58deg) rotateZ(360deg) scale(1.04); }
+}
+
+@keyframes lfaa-auth-vortex-orbit-fade {
+  0% { opacity: 0; }
+  22% { opacity: .62; }
+  54% { opacity: .88; }
+  82% { opacity: .66; }
   100% { opacity: 0; }
 }
 
-@keyframes lfaa-auth-login-card-exit {
-  0%, 14% { transform: translate3d(0, 0, 0); }
-  100% { transform: translate3d(0, -10px, 0); }
+@keyframes lfaa-auth-shard-cracks {
+  0% { opacity: 0; }
+  28% { opacity: .9; }
+  48% { opacity: .72; }
+  72% { opacity: .34; }
+  100% { opacity: 0; }
+}
+
+@keyframes lfaa-auth-shard-collapse {
+  0% { transform: perspective(760px) translate3d(calc(var(--auth-shard-start-x) - 50%), calc(var(--auth-shard-start-y) - 50%), -90px) rotateX(-42deg) rotateY(38deg) rotateZ(var(--auth-shard-turn)) scale(.24); }
+  100% { transform: perspective(760px) translate3d(-50%, -50%, -430px) rotateX(285deg) rotateY(-240deg) rotateZ(calc(var(--auth-shard-turn) + 286deg)) scale(.01); }
+}
+
+@keyframes lfaa-auth-shard-fade {
+  0%, 12% { opacity: 0; }
+  26% { opacity: .94; }
+  54% { opacity: .88; }
+  78% { opacity: .62; }
+  100% { opacity: 0; }
+}
+
+@keyframes lfaa-auth-particle-absorb {
+  0% { transform: perspective(680px) translate3d(calc(var(--auth-particle-x) - 50%), calc(var(--auth-particle-y) - 50%), 12px) rotateX(-24deg) rotateY(30deg) scale(.18) rotateZ(0deg); }
+  100% { transform: perspective(680px) translate3d(-50%, -50%, -460px) rotateX(330deg) rotateY(-300deg) scale(.015) rotateZ(540deg); }
+}
+
+@keyframes lfaa-auth-particle-fade {
+  0%, 12% { opacity: 0; }
+  34% { opacity: .98; }
+  72% { opacity: .9; }
+  100% { opacity: 0; }
+}
+
+@keyframes lfaa-auth-login-card-absorb {
+  0% { transform: perspective(900px) translateZ(0) rotateX(0deg) rotateY(0deg) scale(1) rotateZ(0deg); }
+  100% { transform: perspective(900px) translateZ(-560px) rotateX(28deg) rotateY(-22deg) scale(.075) rotateZ(24deg); }
+}
+
+@keyframes lfaa-auth-login-card-fade {
+  0%, 78% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .auth-page__form-footnote.ant-typography {
@@ -604,8 +947,9 @@ html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builti
   height: auto;
   padding: clamp(16px, 4vw, 40px);
   overflow: visible;
+  background-color: var(--color-canvas, #f3f5f8);
   background-image:
-    linear-gradient(rgba(8, 13, 22, .48), rgba(8, 13, 22, .48)),
+    linear-gradient(var(--settings-background-overlay, rgba(8, 13, 22, .48)), var(--settings-background-overlay, rgba(8, 13, 22, .48))),
     var(--auth-background-image, none);
   font-family: var(--settings-interface-font, var(--font-family-sans));
   font-size: var(--settings-interface-font-size, var(--font-size-base));
@@ -628,10 +972,10 @@ html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builti
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  border: 1px solid var(--color-border, #dedede);
+  border: 1px solid color-mix(in srgb, var(--color-border, #dedede), var(--color-text-primary, #171717) var(--settings-contrast-strong-mix, 0%));
   border-radius: inherit;
   padding: clamp(28px, 6vw, 48px);
-  background: #fff;
+  background: var(--color-surface, #fff);
   box-shadow: 0 1px 0 rgba(255, 255, 255, .24) inset;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
@@ -641,7 +985,7 @@ html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builti
   display: grid;
   width: 54px;
   height: 54px;
-  margin: 0 auto 12px;
+  margin: 0 auto 8px;
   place-items: center;
   border-radius: 16px;
   background: var(--settings-accent, var(--color-brand));
@@ -651,7 +995,7 @@ html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builti
 }
 
 .auth-page__brand-name {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   color: var(--color-text-primary, #171717);
   font-size: calc(var(--settings-interface-font-size, 14px) * 1.25);
   font-weight: 760;
@@ -665,14 +1009,18 @@ html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builti
 }
 
 .auth-page .auth-page__form-eyebrow {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   color: var(--settings-accent, var(--color-brand));
 }
 
 .auth-page .auth-page__form-heading h2.ant-typography {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   color: var(--color-text-heading, #171717);
   font-size: calc(var(--settings-interface-font-size, 14px) * 2);
+}
+
+.auth-page .auth-page__form-heading p.ant-typography {
+  margin: 0 0 6px;
 }
 
 .auth-page .auth-page__form-heading p.ant-typography,
@@ -682,7 +1030,7 @@ html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builti
 }
 
 .auth-page .auth-page__default-credentials {
-  margin: 18px 0 2px;
+  margin: 10px 0 0;
   text-align: center;
 }
 
@@ -692,7 +1040,41 @@ html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builti
 }
 
 .auth-page .auth-page__form-message-slot {
-  min-height: 56px;
+  min-height: 30px;
+}
+
+.auth-page[data-reduced-motion="on"] .auth-page__black-hole::before,
+.auth-page[data-reduced-motion="on"] .auth-page__black-hole::after {
+  animation: none;
+}
+
+.auth-page[data-reduced-motion="on"] .auth-page__transition-vortex,
+.auth-page[data-reduced-motion="on"] .auth-page__transition-horizon,
+.auth-page[data-reduced-motion="on"] .auth-page__transition-vortex-core,
+.auth-page[data-reduced-motion="on"] .auth-page__transition-vortex-orbit,
+.auth-page[data-reduced-motion="on"] .auth-page__transition-shards::before,
+.auth-page[data-reduced-motion="on"] .auth-page__transition-shard,
+.auth-page[data-reduced-motion="on"] .auth-page__transition-particle,
+.auth-page[data-reduced-motion="on"] .auth-page--transition-exiting .auth-page__split-layout {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-page[data-reduced-motion="system"] .auth-page__black-hole::before,
+  .auth-page[data-reduced-motion="system"] .auth-page__black-hole::after {
+    animation: none;
+  }
+
+  .auth-page[data-reduced-motion="system"] .auth-page__transition-vortex,
+  .auth-page[data-reduced-motion="system"] .auth-page__transition-horizon,
+  .auth-page[data-reduced-motion="system"] .auth-page__transition-vortex-core,
+  .auth-page[data-reduced-motion="system"] .auth-page__transition-vortex-orbit,
+  .auth-page[data-reduced-motion="system"] .auth-page__transition-shards::before,
+  .auth-page[data-reduced-motion="system"] .auth-page__transition-shard,
+  .auth-page[data-reduced-motion="system"] .auth-page__transition-particle,
+  .auth-page[data-reduced-motion="system"] .auth-page--transition-exiting .auth-page__split-layout {
+    animation: none;
+  }
 }
 
 .auth-page .auth-page__form-item,
@@ -703,9 +1085,9 @@ html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builti
 .auth-page .auth-page__form .ant-input-lg,
 .auth-page .auth-page__form .ant-input-affix-wrapper-lg {
   min-height: 52px;
-  border-color: var(--color-border, #dedede);
+  border-color: color-mix(in srgb, var(--auth-color-form-input-edge, #dedede), var(--color-text-primary, #171717) var(--settings-contrast-strong-mix, 0%));
   border-radius: 10px;
-  background: #fff;
+  background: var(--auth-color-form-input, var(--color-surface, #fff));
   font-family: var(--settings-interface-font, var(--font-family-sans));
   font-size: var(--settings-interface-font-size, 14px);
 }
@@ -730,51 +1112,184 @@ html[data-lfaa-auth-entry-animation]:not([data-lfaa-auth-entry-animation="builti
   transition: none;
 }
 
-.auth-page .auth-page__form-panel > .ant-btn-link {
-  align-self: center;
+.auth-page__form-support-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+  /* 支持行容器决定恢复入口文案；状态在左，恢复入口在右并保持同一行。 */
+  container: auth-recovery-link / inline-size;
+}
+
+.auth-page__form-support-row > .ant-btn-link {
+  min-width: 0;
+  flex: 0 1 auto;
+  padding-inline: 4px;
   color: var(--settings-accent, var(--color-brand));
 }
 
-.auth-page .auth-page__form-panel > .ant-btn-link:disabled {
+.auth-page__form-support-row > .ant-btn-link:disabled {
   color: var(--settings-accent, var(--color-brand));
   opacity: 1;
 }
 
+.auth-page__recovery-link-copy {
+  position: relative;
+  display: inline-block;
+  overflow: clip;
+}
+
+.auth-page__recovery-label--full {
+  display: inline-block;
+}
+
+.auth-page__recovery-label--compact {
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(2px);
+}
+
+.auth-page[data-reduced-motion="off"] .auth-page__recovery-label,
+.auth-page[data-reduced-motion="system"] .auth-page__recovery-label {
+  transition: opacity 140ms ease, transform 140ms ease, visibility 140ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-page[data-reduced-motion="system"] .auth-page__recovery-label {
+    transition: none;
+  }
+}
+
+@container auth-recovery-link (max-width: 280px) {
+  .auth-page__recovery-label--full {
+    position: absolute;
+    top: 0;
+    inset-inline-start: 0;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-2px);
+  }
+
+  .auth-page__recovery-label--compact {
+    position: relative;
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+}
+
+.auth-page__form-support-row .service-status--compact {
+  position: relative;
+  width: auto;
+  min-width: 0;
+  height: 20px;
+  flex: 0 0 auto;
+  gap: 6px;
+  overflow: visible;
+  font-size: var(--font-size-sm, 12px);
+  white-space: nowrap;
+}
+
+.auth-page__form-support-row .service-status--compact .service-status__dot {
+  box-shadow: none;
+}
+
+.auth-page__form-support-row .service-status--compact .service-status__label {
+  position: static;
+  z-index: auto;
+  display: block;
+  width: auto;
+  max-width: none;
+  overflow: visible;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .auth-page__form-support-row {
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .auth-page__form-support-row > .ant-btn-link {
+    flex: 0 0 auto;
+    padding-inline: 0;
+    white-space: nowrap;
+  }
+
+}
+
+@media (max-width: 260px) {
+  .auth-page__form-support-row > .ant-btn-link {
+    font-size: var(--font-size-sm, 12px);
+  }
+}
+
+.auth-page__form-support-row .service-status--compact:focus-visible {
+  outline: 2px solid var(--settings-accent, var(--color-brand));
+  outline-offset: 4px;
+}
+
 .auth-page .auth-page__form-footnote.ant-typography {
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   text-align: center;
 }
 
-.auth-page__service-status {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 18px;
-  color: var(--color-text-secondary, #525252);
-  font-size: var(--font-size-sm, 12px);
+/* 登录页深色主题令牌：复用现有语义变量；正文 #e5e5e5、标题 #f5f5f5、次级文字 #c7c7c7、卡片 #242424。 */
+.auth-page[data-theme="dark"] {
+  color-scheme: dark;
+  --color-canvas: #181818; /* 无背景图片时登录页使用中性深灰 #181818 画布。 */
+  --color-text-primary: #e5e5e5; /* 登录页深色表单正文使用浅灰 #e5e5e5。 */
+  --color-text-heading: #f5f5f5; /* 登录页深色标题使用近白色 #f5f5f5。 */
+  --color-text-secondary: #c7c7c7; /* 登录页深色说明使用浅中灰 #c7c7c7。 */
+  --color-surface: #242424; /* 登录表单深色卡片使用中性深灰 #242424。 */
+  --color-border: color-mix(in srgb, #3a3a3a, #e5e5e5 var(--settings-contrast-strong-mix, 0%)); /* 登录页深色控件边界从 #3a3a3a 按对比度混入正文浅灰。 */
+  --auth-color-form-input: #202020; /* 登录页深色输入框使用近黑灰 #202020。 */
+  --auth-color-form-input-edge: #414141; /* 登录页深色输入框边缘使用中性灰 #414141。 */
+  --auth-color-form-label: #e5e5e5; /* 登录页深色表单标签使用浅灰 #e5e5e5。 */
+  --auth-color-form-placeholder: #a0a0a0; /* 登录页深色占位提示使用中灰 #a0a0a0。 */
 }
 
-html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__form-panel {
-  border-color: #414141;
-  background: #242424;
+.auth-page[data-theme="dark"] .auth-page__form-panel {
+  border-color: var(--color-border);
+  background: var(--color-surface);
   box-shadow: 0 1px 0 rgba(255, 255, 255, .05) inset;
 }
 
-html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__brand-name,
-html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__form-heading h2.ant-typography {
-  color: #f5f5f5;
+.auth-page[data-theme="dark"] .auth-page__form-heading h2.ant-typography {
+  color: var(--color-text-heading);
 }
 
-html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__form-heading p.ant-typography,
-html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__default-credentials,
-html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__form-footnote,
-html[data-lfaa-bootstrap-theme="dark"] .auth-page .auth-page__service-status {
-  color: #c4c4c4;
+.auth-page[data-theme="dark"] .auth-page__form-heading p.ant-typography,
+.auth-page[data-theme="dark"] .auth-page__default-credentials,
+.auth-page[data-theme="dark"] .auth-page__form-footnote {
+  color: var(--color-text-secondary);
+}
+
+.auth-page[data-theme="dark"] .auth-page__form .ant-form-item-label > label,
+.auth-page[data-theme="dark"] .auth-page__form .ant-input,
+.auth-page[data-theme="dark"] .auth-page__form .ant-input-affix-wrapper {
+  color: var(--color-text-primary);
+}
+
+.auth-page[data-theme="dark"] .auth-page__form .ant-input-affix-wrapper,
+.auth-page[data-theme="dark"] .auth-page__form .ant-input-affix-wrapper .ant-input {
+  background: var(--auth-color-form-input);
+}
+
+.auth-page[data-theme="dark"] .auth-page__form .ant-input-password-icon {
+  color: #a0a0a0;
 }
 
 @media (max-width: 520px) {
   .auth-page { padding: 14px; }
-  .auth-page .auth-page__form-panel { padding: 28px 22px; }
+  .auth-page .auth-page__form-panel { padding: 28px 22px 40px; }
 }
 

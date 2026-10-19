@@ -171,7 +171,15 @@ export default function App() {
   const [sessionRestoreAttempt, setSessionRestoreAttempt] = useState(0);
   const sessionRestoreResolvedRef = useRef(false);
   const [route, setRoute] = useState(window.location.pathname);
+  const wasInSettingsRouteRef = useRef(route === "/settings");
   const serverState = serverStateFromHealth(health, healthChecking);
+
+  useEffect(() => {
+    const isSettingsRoute = route === "/settings";
+    const returnedFromSettings = wasInSettingsRouteRef.current && !isSettingsRoute;
+    wasInSettingsRouteRef.current = isSettingsRoute;
+    if (returnedFromSettings && user && userSettings) void updateCredentialReminder(userSettings);
+  }, [route, user?.id, userSettings]);
 
   useEffect(() => {
     if (authTransitionPhase !== "preparing" || !user || !userSettings) return;
@@ -224,7 +232,8 @@ export default function App() {
     let cancelled = false;
     if (animationId === "builtin") {
       const overlay = document.querySelector<HTMLElement>(".auth-page--transition-overlay");
-      if (!overlay) {
+      const vortex = overlay?.querySelector<HTMLElement>(".auth-page__transition-vortex");
+      if (!overlay || !vortex) {
         setAuthTransitionPhase("idle");
         return;
       }
@@ -233,22 +242,22 @@ export default function App() {
         if (cancelled) return;
         cancelled = true;
         if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer);
-        overlay.removeEventListener("animationend", handleAnimationEnd);
-        overlay.removeEventListener("animationcancel", finish);
+        vortex.removeEventListener("animationend", handleAnimationEnd);
+        vortex.removeEventListener("animationcancel", finish);
         if (root.dataset.lfaaAuthEntryAnimation === "builtin") delete root.dataset.lfaaAuthEntryAnimation;
         setAuthTransitionPhase("idle");
       };
       const handleAnimationEnd = (event: AnimationEvent) => {
-        if (event.target === overlay && event.animationName === "lfaa-auth-login-exit") finish();
+        if (event.target === vortex && event.animationName === "lfaa-auth-vortex-veil") finish();
       };
-      fallbackTimer = window.setTimeout(finish, 1100);
-      overlay.addEventListener("animationend", handleAnimationEnd);
-      overlay.addEventListener("animationcancel", finish);
+      fallbackTimer = window.setTimeout(finish, 2600);
+      vortex.addEventListener("animationend", handleAnimationEnd);
+      vortex.addEventListener("animationcancel", finish);
       return () => {
         cancelled = true;
         window.clearTimeout(fallbackTimer);
-        overlay.removeEventListener("animationend", handleAnimationEnd);
-        overlay.removeEventListener("animationcancel", finish);
+        vortex.removeEventListener("animationend", handleAnimationEnd);
+        vortex.removeEventListener("animationcancel", finish);
         if (root.dataset.lfaaAuthEntryAnimation === "builtin") delete root.dataset.lfaaAuthEntryAnimation;
         delete root.dataset.lfaaAuthWorkbenchHidden;
       };
@@ -506,11 +515,6 @@ export default function App() {
     }
   }
 
-  function dismissCredentialReminder(): void {
-    // “稍后再说”只收起本次提醒；账户状态保持待处理，下次登录会重新检查。
-    setCredentialReminder(null);
-  }
-
   async function handlePasskeyLogin(): Promise<void> {
     if (authRequestInFlightRef.current) return;
     authRequestInFlightRef.current = true;
@@ -727,8 +731,6 @@ export default function App() {
         onLogout={() => void handleLogout()}
         credentialReminder={authTransitionPhase === "idle" ? credentialReminder : null}
         suspendSetupReminder={credentialReminderChecking || authTransitionPhase !== "idle"}
-        onDismissCredentialReminder={() => void dismissCredentialReminder()}
-        onOpenCredentialSettings={() => setCredentialReminder(null)}
         authTransitionStaging={authTransitionPhase !== "idle"}
         onAuthTransitionWarmupReady={authTransitionPhase === "preparing" && authTransitionSceneReady && authTransitionPluginId === "builtin" ? handleWorkbenchAuthWarmupReady : undefined}
         />

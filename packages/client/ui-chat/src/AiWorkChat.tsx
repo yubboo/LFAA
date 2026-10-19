@@ -1704,7 +1704,13 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
       {permissionModalContext}
       <div className="ai-work-chat__conversation">
         <div className="ai-work-chat__alerts">
-          {accountLoadState === "ready" && !activeAccount ? <Alert type="warning" showIcon message="尚未配置活动 Provider" description="先在 AI 与模型中添加并启用一个 Provider 账户。" action={<Button size="small" onClick={() => onOpenSettings("ai")}>打开 AI 与模型</Button>} /> : null}
+          {accountLoadState === "ready" && !activeAccount ? <Alert
+            className="ai-work-chat__provider-setup-alert"
+            type="warning"
+            showIcon
+            message="尚未配置大模型"
+            description={<Button className="ai-work-chat__provider-setup-action" size="small" onClick={() => onOpenSettings("ai")}>去配置模型</Button>}
+          /> : null}
           {error ? <Alert type="error" showIcon closable message={error} onClose={() => setError("")} /> : null}
           {messageActionError ? <Alert type="error" showIcon closable message={messageActionError} onClose={() => setMessageActionError("")} /> : null}
           {!busy && messages.some(item => item.role === "assistant" && (item.status === "streaming" || item.status === "queued")) ? <Button onClick={() => { const run = messages.find(item => item.role === "assistant" && (item.status === "streaming" || item.status === "queued")); if (run) void sendMessage("", run.id); }}>恢复任务跟随</Button> : null}

@@ -120,6 +120,14 @@
 | 109-AI Work与工作台渲染优化-20261019 | 减少设置页无意后台预载与 AI Work 秒级计时导致的整段历史消息重渲染 | 已实现；内置浏览器空闲资源核对通过；帧时间未测 | [实施记录](#lfaa-ai-work-timer-render-isolation-20261019) |
 | 110-SteamCMD收拢与分类提醒偏好-20261019 | 将 SteamCMD 安装/存储设置并入“项目与存储”，移除其首次配置弹窗；按类别保存 AI、业务存储提醒偏好，安全提醒“稍后再说”只关闭本次 | 已实现；窄屏未验收 | [当前合同](#lfaa-steamcmd-workspace-and-category-reminders-20261019) |
 | 111-LFAA全仓性能安全与可维护性优化-20261019 | 按用户给定的性能优化任务书审计全仓，以可复核基线驱动分批优化 | 第一轮基线、无语义数组分配削减、全量构建和核心回归完成；全仓后续热点审计仍进行中；全量回归与 workspace Gate 有既有失败 | [当前合同](#lfaa-whole-workspace-performance-security-maintainability-20261019) |
+| 112-菜单源码更新同步本地main-20261019 | 修复菜单 8 只更新当前检出分支、遗漏本地 main 引用的问题，并让脏工作区可安全检查无更新状态 | 已实现；Windows 源码更新回归与差异检查通过；需重开菜单加载脚本 | [当前合同](#lfaa-menu-source-update-local-main-20261019) |
+| 113-静态弹窗关闭与工作区门禁修复-20261019 | 修复静态弹窗离场卡住，并清除 GitHub 工作区检查中的失效目录声明和截图链接 | 修复与验证完成；临时验收目录清理被自动审批策略拒绝；未推送 | [当前合同](#lfaa-static-dialog-and-workspace-gate-repair-20261019) |
+| 117-关键提醒导航与弹窗关闭修复-20261019 | 将内容存储提醒的路径选择移入设置中心，修复三类关键提醒进入设置时仍被遮罩的问题，并核验四种弹窗动效 | 实现完成；源码回归与真实页面验收记录见合同 | [本轮合同](#lfaa-key-reminder-navigation-and-dismissal-20261019) |
+| 118-登录页外观设置同步-20261019 | 登录页外观、响应式布局与黑洞式全屏登录转场 | B1–B5 完成；登录成功转场已迭代为设置驱动的整页 WebGL 背景透镜与黑洞吸入；源码、构建及桌面/窄短屏内置浏览器验证通过；帧时间和 Desktop 未测 | [本轮合同](#lfaa-login-appearance-settings-20261019) |
+| 119-DSH 插件来源安装修复-20261019 | 对齐 DSH 的 Git 来源与公开 registry 回退，修复 GitHub 插件未发布 NPM 构建产物时检查失败 | 已实现；插件管理器定向回归 20/20、包构建及差异检查通过；任意 DSH Runtime 仍不受支持 | [本轮合同](#lfaa-dsh-plugin-source-install-20261019) |
+| 120-登录与工作台输入区响应式修复-20261019 | 修复登录状态悬停导致窄屏重排、工作台输入区显示异常并统一提醒按钮顺序 | `/work` 的 1077×900 实页“更多”按钮 hover 检查中，输入卡前后均为 489.8×152.3px，阴影、滤镜和位移均无；定向回归及 Web/控制端构建通过，帧时间未测 | [本轮合同](#lfaa-login-and-workbench-responsive-repair-20261019) |
+| 121-配置提醒生命周期与窄屏引导修复-20261019 | 明确三类配置提醒的关闭条件与长期偏好位置，修复模型未配置引导在窄屏挤压和文案不清的问题 | 按用户澄清修正并完成；定向回归、类型、包/Web 构建和隔离实页验收通过 | [本轮合同](#lfaa-setup-reminder-lifecycle-and-narrow-workbench-20261019) |
+| 122-模型目录刷新与容量错误隔离-20261019 | 分离已保存 Provider 账户的官方目录刷新和真实模型请求；显示官方版本标签且保留原始名称与调用 ID | 定向回归 7/7、Client 类型、受影响包/Web/Control Plane 构建及 193 包工作区检查通过；内置浏览器控制超时，未完成目视验收 | [本轮合同](#lfaa-ai-model-catalog-refresh-20261019) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
@@ -173,6 +181,7 @@ Owner 与边界：UI/SSE 为 `packages/client/connection` 与 `packages/client/u
 | LFAA-DESKTOP-ELECTRON-BUILD-MENU-01 | 将工作台菜单 3 与 `pnpm run build:win` 接入 Windows Electron 安装包构建；保留 `0.0.4` 已生成事实，之后每次新包递增版本并同步更新日志、产品元数据与更新清单 | 构建入口、版本登记与回归完成；现有 `0.0.4` 安装器匹配核验通过；未生成新包 | [合同](archive/contracts/09.md#lfaa-desktop-electron-build-menu-01) |
 | LFAA-GIT-PUSH-CREDENTIAL-PATH-GUARD-01 | 修复正常推送前历史路径扫描将第一方 `packages/credentials` 目录树节点误判为敏感数据，同时保留其他敏感路径、内容和大对象阻断 | Pester 2/2、完整历史安全门禁通过；正常快进推送至 GitHub main；远端 `update.json` 与 `latest.yml` 均为 0.0.4；应用内手动检测待用户复验 | [合同](archive/contracts/09.md#lfaa-git-push-credential-path-guard-01) |
 | LFAA-WEB-VERSION-UPDATE-CHECK-01 | 在 Web 设置页显示构建版本，并手动检查官方更新清单、展示更新说明和发布页 | Web 构建、定向回归、TypeScript 与登录态浏览器验收通过；桌面下载安装不属于 Web 验收 | [合同](archive/contracts/09.md#lfaa-web-version-update-check-01) |
+| LFAA-RELEASE-ANNOUNCEMENT-DIALOG-01 | 新增独立的版本更新公告弹窗，按已安装版本首次展示，沿用官方发布说明并避开其他提醒弹窗 | 实现与验证记录见本文件当前任务合同；真实 Web 页面按桌面/窄短屏实测 | [合同](#lfaa-release-announcement-dialog-20261019) |
 | LFAA-DESKTOP-ELECTRON-STARTUP-INSTALLER-01 | 修复桌面安装包缺少 CUA Driver 导致启动失败，并补齐 LFAA 安装图标、强制确认、安装详情和桌面快捷方式 | 源码、Windows x64 安装包及随包插件导入验收通过；实际安装交互与快捷方式目视待用户安装确认 | [合同](archive/contracts/08.md#lfaa-desktop-electron-startup-installer-01) |
 | LFAA-DESKTOP-ELECTRON-LICENSE-ENCODING-01 | 修复 Windows NSIS 安装须知中文乱码并重建独立候选安装包 | 源码与构建资源编码核验、Windows x64 NSIS 构建及随包运行树验收通过；安装器界面未安装/目视，候选未签名 | [合同](archive/contracts/08.md#lfaa-desktop-electron-license-encoding-01) |
 | LFAA-DESKTOP-ELECTRON-INSTALL-PROGRESS-01 | 修复 NSIS 安装文件复制期间详情区为空，显示实际写入文件，同时保留总进度与静默安装行为 | 已实现；安装器定向回归、Windows x64 NSIS 构建与随包运行树检查通过；实际安装器界面未打开 | [合同](archive/contracts/08.md#lfaa-desktop-electron-install-progress-01) |
@@ -2423,3 +2432,275 @@ Owner 与设置：设置页面由 `packages/client/ui-settings` 持有；SteamCM
 验收：以直接回归覆盖 General Settings 新字段默认/旧值归一化/写入校验、SteamCMD 页面归并与旧分类路由兼容、SteamCMD/游戏目录仍走原 Owner、SteamCMD 不再触发弹窗、AI 与内容存储“今天/永久/稍后”按类别生效、账户安全“稍后”下次登录仍可提醒。运行受影响回归、Client 类型检查、`ui-settings`/`ui-settings-general`/Renderer/Web 构建、`git diff --check` 和适用 workspace Gate。按仓库要求在 ChatGPT 内置浏览器以现有 admin 账号只读检查 `/settings?section=workspace` 与 `/work` 的实际源码页面，不保存账户设置、不点提醒偏好、不触发内容迁移或 SteamCMD 任务；记录视口、交互与未测项目。帧时间、真实节点安装、Desktop 和真实账户持久化未测时明确说明。
 
 实施与验证记录（2026-10-19）：SteamCMD 设置与入口已归并到“项目与存储”，SteamCMD 独立设置导航项和首配弹窗已移除；原 SteamCMD API/Owner 与本机业务内容根、远程节点 `LFAA_DATA_DIR` 路径语义保留。分类提醒使用独立长期偏好与按类别每日暂停标记；安全提醒“稍后再说”仅清除当前 Renderer 会话状态。内置浏览器使用当前已登录的 `admin` 会话只读检查 `/settings?section=workspace`（1240×925）与 `/work`：设置页展示当前业务目录 `C:\Users\yu\.lfaa\data` 和 SteamCMD 配置组；当前默认游戏路径显示为 `C:\Users\yu\.lfaa\data\games\steamcmd`；工作台没有 SteamCMD 首配弹窗；访问旧 `/settings?section=configuration` 自动归一到 workspace。未点击保存/提醒偏好、未修改真实设置、未执行 SteamCMD 任务或 Provider 请求。Web 服务由仓库 LFAA Web 命令的现有进程提供，未重启服务。视口缩放 API 不在当前内置浏览器能力内，窄/短屏及 Desktop 实机未验收；没有 Daemon 注册，因此安装/校验操作保持禁用。分类提醒/旧字段回归筛选 11/11 通过，`pnpm typecheck`、受影响包构建、`pnpm run build:web` 和 `git diff --check` 通过。完整直接回归有 1 项既有 Portal reduced-motion 选择器断言失败，与本任务无关且未改弹窗样式；`pnpm check:workspace` 仍有 10 项既有目录职责、清单及历史链接问题。构建输出仅到根 `dist/`，Web 构建另有现存大 chunk 警告。
+
+<a id="lfaa-menu-source-update-local-main-20261019"></a>
+
+## 112-菜单源码更新同步本地 main-20261019
+
+目标：修复 Harness 菜单 8 在当前检出 Codex 分支时只更新该分支、却把本地 `main` 留在旧提交的问题。用户确认后，当前工作分支和本地目标分支均可安全快进到 `origin/main`；不能切换分支、覆盖本地独有提交、修改其他工作区或触碰用户数据。
+
+Owner 与入口：`lfaa.bat` → `scripts/project-menu.mjs` → `scripts/install-dependencies.ps1` → `scripts/update-project.ps1` 是 Windows 菜单唯一执行链；更新行为归 `scripts/update-project.ps1`。数据根仍由 `scripts/resolve-data-directory.mjs` 解析。无设置中心配置、数据迁移或产品运行时变更。
+
+允许：只修改 `scripts/update-project.ps1`、`scripts/install-dependencies.ps1`、`apps/cli/tests/workspace-maintenance.test.mjs` 与本合同/索引。远端 fetch 后识别当前工作分支及本地 `$Branch` 引用；当前检出分支按现有快进合同更新；本地 `$Branch` 只有在未被其他工作区检出且确为远端祖先时才以原子 fast-forward 更新。两者均已同步时明确报告；本地目标分支领先、分叉、缺失或正在其他工作区使用时保留并给出原因。无更新时允许脏工作区完成只读状态检查并保留本地改动；确有工作区快进待应用时仍拒绝合并，提示先备份或提交，不要求推送。确认提示须说明将更新的引用，保持数据根保护。
+
+禁止：切换 checkout、reset/clean/force push、重置或删除任何本地提交、修改其他 worktree 文件、自动创建本地分支、处理用户数据、安装依赖、构建桌面/应用、提交或发布。
+
+验收：回归覆盖当前分支已是 `origin/main` 但本地 `main` 落后时，选项 8 仍提示并快进本地 `main` 引用，当前检出分支与工作文件不切换；工作区有本地改动但远端无新提交时允许检查成功并保留改动；若确有当前工作区更新则停止合并、已 fetch 远端记录且保留本地与远端内容。执行 `workspace-maintenance.test.mjs` 对应 Windows 更新用例及 `git diff --check`；按需核对 `HEAD`、`main`、`origin/main` 提交关系。无 UI、设置、构建或真实服务验收要求。
+
+实施与验证记录（2026-10-19）：菜单 8 现在在当前分支已与远端一致时仍检查本地 `main`；仅当 `main` 未在其他 worktree 检出且是 `origin/main` 的祖先时，才在用户确认后用比较并交换的 `git update-ref` 安全快进。确认信息展示实际将移动的分支；本地分支领先、分叉、缺失或在其他 worktree 使用时予以保留并说明。菜单选项文字同步说明会更新当前分支和可安全快进的本地 `main`。后续修正为先 fetch 并判断是否存在待应用更新：脏工作区没有更新时成功结束并保留本地改动；确有快进时仍停止合并，提示备份或提交本地改动而不误导推送。`node --test apps/cli/tests/workspace-maintenance.test.mjs` 在 Windows 11/11 通过，`git diff --check` 通过。没有设置中心配置、UI、构建、后台服务或真实用户数据变更；额外检查只在用户启动菜单 8 时执行，不进入持续运行链路。当前已打开的菜单仍加载旧脚本，须按 0 退出并重新打开后使用修复。
+
+<a id="lfaa-static-dialog-and-workspace-gate-repair-20261019"></a>
+
+## 113-静态弹窗关闭与工作区门禁修复-20261019
+
+目标：修复用户选择静态弹窗效果后，Ant Design Modal/Popconfirm 离场动画被 CSS 完全取消、rc-motion 收不到结束事件而长期保留弹窗/遮罩的问题；并修复 GitHub Actions `check:workspace` 对不存在的包目录声明与未入库截图引用的失败。Git 推送流程不在本轮范围。
+
+Owner 与入口：设置由 `settings/settings` Owner 校验、持久化，`util/values` 提供 `general.dialogMotionEffect`（默认 `fluid`）选项；`ui-layout/Workbench` 映射到账户工作台 body，`ui-theme/common.css` 为 Ant Design Modal、遮罩与 Popconfirm 提供共享动效，`ui-settings-general/SetupReminder` 是用户截图中的实际弹窗。静态模式不得修改设置值或更改设置中心持久化。CI 入口为 `.github/workflows/check.yml` 的 `pnpm run check:workspace`，目录职责来自 `scripts/package-responsibilities.mjs`，生成清单为 `docs/harness-packages.json/.md`。
+
+允许：修改 `packages/client/ui-theme/src/common.css`、对应 CSS 回归、受影响包 README、`scripts/package-responsibilities.mjs`、生成清单 `docs/harness-packages.json/.md`、`docs/development/application-panels-20261016.md`、`docs/development/ekko-fusion-core-20261016.md` 与本合同。恢复流体/淡入/上浮弹窗入场的不透明首帧，只变换位置/缩放；静态效果保持视觉不变，但保留有界 CSS 动画结束事件供 Modal/Popconfirm 正常完成生命周期；移除 Git 树中不存在的 `guard/authorization` 和 `sandbox/permission-presets` 目录声明及当前 checkout 对应的空占位目录，并重新生成目录清单；历史验收截图若只存在于忽略的根 `dist/` 且不在当前仓库，则移除失效 Markdown 链接并明确记录其本机、未入库状态，不生成伪造截图。
+
+禁止：改动设置中心默认值、保存或清除真实用户偏好，改认证/授权/数据根，恢复不存在的占位包，修改 Git 推送/更新脚本，删除或重写无关工作树改动，提交或推送。实页验收仅可在 `dist/.tmp/dialog-motion-check-20261019/` 隔离账户保存静态动效设置，结束后停止该服务并清除该临时数据。
+
+验收：直接 CSS 回归确认三种动态入场保持不透明并只变换位置/缩放，静态样式对 Modal 内容、遮罩及 Popconfirm 使用可完成的 64ms 无视觉变化动画；四种设置选项均沿同一映射工作。运行对应测试、`pnpm run sync:workspace`、`pnpm run check:workspace`、Web 构建和差异检查；启动当前 checkout 的正式 Web，在 ChatGPT 内置浏览器查看真实路由，确认设置映射为静态时弹窗可用关闭按钮/键盘退出且遮罩及时清除，并覆盖桌面与窄/短屏。记录实际路由、视口、交互和截图证据；不改变真实账户设置。帧时间若无法测量如实标记未测。CI 远端新运行不由本轮触发（禁止推送）。
+
+实施与验证记录（2026-10-19）：静态模式原先将 `animation` 设为 `none`，rc-motion 等不到结束事件；第一轮 1ms 无变化动画在实页仍出现监听器错过事件，弹窗保持 `ant-zoom-leave-active`。现改为 64ms 无变化关键帧，确保结束事件可被入场/离场监听捕获；Fluid/Fade/Lift 入场恢复为只变换位置或缩放，并让玻璃弹窗从首帧保持不透明。Modal 内容与遮罩、Popconfirm 都继续消费统一设置令牌。目录职责移除 Git 树不存在的 `guard/authorization`、`sandbox/permission-presets`，本 checkout 对应的空占位目录已清理；同步清单现为 366 个两级目录、193 个 workspace 包、173 个占位目录。两篇历史验收文档里的四个 `dist/reports` 图片链接已删除，并说明截图只留在当时的本机忽略目录、没有入库。设置中心未改默认值；只在本轮临时隔离账户中通过“常规 → 弹窗动效”保存 `general.dialogMotionEffect=none`，原测试 `appearance.advanced.reducedMotion=system`，真实用户账户设置未动。
+
+内置浏览器实页为 `http://127.0.0.1:31316/plugin-manager`。桌面 `1440×900`：首次配置存储弹窗保持静态，CSS 关键帧结束后 X 关闭在 2 秒内完成，Modal 随后 `display:none` 且遮罩数量为 0；Escape 关闭也通过。窄短屏 `390×640`：弹窗 `348×527`、左边距 16px、顶边距 56px，最后一个按钮底边 547px，X 可见、文档没有横向溢出；关闭后遮罩从 DOM 移除。桌面和窄屏截图在本轮内置浏览器验收输出中捕获；没有另存进源码仓库。帧时间未测。验收运行在 `dist/.tmp/dialog-motion-check-20261019/` 临时数据根；服务已停止且端口 31316 无监听。自动审批策略拒绝了清除此临时目录的递归删除，隔离数据仍留在该目录（仅 2 个直接子项）；真实 `data/` 和账户设置未动，需用户手动删除该临时验收目录。原有 3000 端口服务未重启。
+
+验证：`node --import tsx --import ./register-package-loader.mjs --test apps/cli/tests/client-dialog-motion-opacity.test.mjs` 2/2 通过；`pnpm run sync:workspace` 与 `pnpm run check:workspace` 通过（193 个包）；`pnpm --filter lfaa-client-ui-theme build`、`pnpm run build:web`（2268 modules，产物在根 `dist/apps/web/`）、`pnpm run build:control-plane` 通过；`node scripts/runtime-build-state.mjs web` 返回 `[]`。Web 仍报告 `cpp` chunk 501.30 kB 的体积提示。差异空白检查最后复核。没有提交或推送，因此本轮没有触发新的 GitHub Actions 远端运行。
+
+<a id="lfaa-notification-settings-runtime-build-mismatch-20261019"></a>
+
+## 114-通知设置运行构建不一致保护-20261019
+
+目标：修复通知总开关/“恢复通知”显示已开启但提交失败的问题。已知现场证据是 3000 端口控制端进程启动于 08:31，控制端和 Web 构建产物分别在 08:39、08:43 更新；`http-delivery.ts` 每次读取新 HTML，使仍在内存运行的旧 API 与新前端混用。设置 PUT 因旧版校验拒绝新前端的 General 字段并只显示通用格式错误。
+
+Owner 与设置：`packages/host/webserver` 持有 Web/控制端进程内版本一致性与 HTTP 交付；`packages/client/ui-settings/SettingsPage.tsx` 持有账户设置乐观展示与保存反馈。通知继续由 Settings Owner 保存 `general.notificationPopupsEnabled` 及原有分类开关，默认值和持久化不变；浏览器通知权限仍为浏览器本地权限，不与账户开关联动。
+
+允许：对运行中正式 Web 服务记录启动时 host/web 构建指纹；在 General 设置写入前检查已发布构建状态，若产物在启动后被替换，返回明确的“重启 Web 后重试”错误，避免误报保存成功；General 保存失败时恢复到最近一次服务端确认值；补充 HTTP/通知相关回归与本合同。更新受影响 README。
+
+禁止：修改真实账户设置、默认值、认证/授权/数据根、通知类别偏好、浏览器权限或活动会话；重启/结束用户 3000 端口服务；提交、推送或改 Git 更新流程；改动不相关工作树文件。实页保存只允许使用已有隔离数据目录 `dist/.tmp/dialog-motion-check-20261019/`，并记录对该隔离账户的原值与恢复结果。
+
+验收：回归验证从启动到请求期间构建相同可保存；host 构建被移除/替换、web 指纹或入口变化时，General PUT 不进入 Settings Owner 且返回可读重启提示。直接回归确认失败保存时通知总开关和暂停提示回到服务端确认状态，成功保存后缓存更新。运行定向回归、Client 类型、Web 与控制端构建、差异检查；启动当前 checkout 的正式 Web 于空闲 loopback 端口，在 ChatGPT 内置浏览器实际检查 `/settings?section=notifications`，隔离账户中验证暂停→恢复、错误消失、值持久化，并检查桌面和窄/短屏布局。保留真实 3000 服务及真实账户设置；报告帧时间/其他设备未测范围。
+
+实施与验证记录（2026-10-19）：现场 Web 进程 PID 7784 于 08:31 启动；控制端与 Web 构建产物分别在 08:39、08:43 更新。旧进程的静态交付逻辑重新读取了新 `index.html`，因此浏览器加载新 Client 时仍由内存中的旧控制端 API 接收 General 写入，页面把服务端失败留在乐观开关状态。现由 Web Host 在启动时捕获 host/web `build-state.json` 指纹和 Web `index.html` 哈希；文档导航及 General Settings PUT 检查运行时身份，发现构建被替换即在进入 Settings Owner 前返回 503 重启提示。SettingsPage 对 General 保存错误恢复最近一次服务端确认的该类别值；成功保存后更新确认缓存。未新增设置，继续使用 `general.notificationPopupsEnabled` 与 General 整类设置持久化。
+
+实际页面在正式 Web 测试实例 `http://127.0.0.1:31317/settings?section=notifications` 验收，使用现有隔离数据目录 `dist/.tmp/dialog-motion-check-20261019/` 的 admin 测试账号。桌面视口 `1440×900` 验证总开关初始开启、关闭后出现暂停说明、点击恢复后提示消失且分类偏好恢复；窄短视口 `390×640` 验证暂停提示与“恢复通知”操作可见可达、恢复后开关为开启。刷新后确认总开关仍开启、分类值保留，页面没有“提交内容格式不正确”。内置浏览器截图在本轮验收输出中捕获；没有保存到源码仓库。帧时间及真实用户账号未测试。隔离服务已停止；用户 3000 端口服务未重启，当前 PID 7784 仍需在后续重启 Web 后才能载入本修复。隔离数据仍位于上述既有临时目录。
+
+验证：HTTP 交付回归 7/7、通知保存/回滚筛选 2/2、Host 与 Client TypeScript 检查、`pnpm run build:control-plane`、`pnpm run build:web`、`node scripts/runtime-build-state.mjs web`（返回 `[]`）及 `git diff --check` 通过。Web 构建 2268 个模块；现存 `cpp` 大 chunk 体积提示仍在。完整 `client-auth-feedback-layout` 文件 12 项通过，另 1 项既有 Portal reduced-motion 选择器断言失败；该断言属于先前共享动效样式变更，与本通知修复无关，本轮没有改它。构建产物仅写入仓库根 `dist/`。没有提交或推送。
+
+<a id="lfaa-key-reminder-choice-layout-unification-20261019"></a>
+
+## 115-关键配置提醒选择与响应式布局统一-20261019
+
+目标：把默认凭据、AI Provider、业务内容存储三类关键提醒的决定区与辅助操作收敛成图三的清晰结构。长期“不再提醒”合并到对应的“不更改”主操作；弹窗底部只保留“今日不再提醒”和“稍后再说”。不同提醒继续保留各自真正的主操作和内容目录选项；工作区其他 Modal、系统通知与 Toast 样式不随本次调整。
+
+Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/ui-settings-general/SetupReminder`；默认凭据提醒状态仍由 Renderer/Account Owner 提供。长期提醒布尔值由 Settings Owner 持有：`general.defaultAdminCredentialReminderEnabled`、`general.aiProviderReminderEnabled`、`general.setupReminderEnabled`，三者默认均为 true；全局门控继续使用 `general.notificationPopupsEnabled`（默认 true）。当日暂停继续用按账户/类别隔离的浏览器本地日期标记；内容目录仍只经项目存储 Owner 的 `saveProjectContentDirectory` 写入。沿用 `general.dialogMotionEffect` 和现有 Appearance Portal 令牌，不新增设置或 CSS 自定义属性。
+
+允许：调整 `packages/client/ui-settings-general/src/SetupReminder.tsx` 的操作、辅助说明和提示顺序，使三类提醒语义一致；“不更改”对当前提醒对应的长期开关设为 false，保存成功后才关闭；内容存储仍先由项目存储 Owner 保存当前默认目录，再关闭其提醒开关，任一写入失败均留在弹窗中显示错误。“今日不再提醒”只写当日标记，“稍后再说”只结束本次显示。仅调整 `packages/client/ui-layout/src/workbench.css` 中 `.setup-reminder-modal` 的内容区与窄屏排列，其他弹窗仍可单独维护样式。更新直接回归、`ui-settings-general`/`ui-layout` README 与本合同。
+
+禁止：改任何默认值、设置 Owner 校验/持久化、Account 凭据和账户状态、内容目录推荐/迁移规则、全局通知或当日暂停语义；修改 `ui-theme/common.css` 等所有 Modal 的共享外观；改变其他业务弹窗；写入真实账户/浏览器偏好、创建测试账户、提交或推送。
+
+验收批次：先运行提醒选择与布局回归、Client 类型检查、`lfaa-client-ui-settings-general`/`lfaa-client-ui-layout` 及 Web 构建、`git diff --check`；再用仓库正式 Web 和 ChatGPT 内置浏览器实际检查 `/work`，在隔离数据账号中分别验证凭据、AI、内容存储提醒的“ 不更改 ”保存目标与统一的两个底部操作。于桌面、平板宽度和 `390×640` 窄短屏确认按钮可达、文案换行、弹窗内滚动有效且无横向溢出；记录截图和未测项。关闭减少动态、主题或提醒之外的真实设置不得作为验收操作。
+
+实施与验证记录（2026-10-19）：默认凭据、AI Provider 与内容存储提醒均在“不更改”主操作中保存各自长期提醒开关；内容存储先由项目存储 Owner 保存默认目录。三个弹窗底部统一为“今日不再提醒 / 稍后再说”，说明与按钮布局只作用于 `.setup-reminder-modal`。成功保存内容提醒后按原队列直接显示下一条 AI 提醒，不要求重载。直接回归筛选 6/6 通过，Client 类型检查、`ui-settings-general`/`ui-layout` 包构建、Web 构建、运行指纹检查及 `git diff --check` 通过。正式 Web 的隔离数据实例在内置浏览器 `/work` 验收：1240×925 默认凭据和 AI 弹窗显示统一结构；768×900 弹窗宽 480 px、各操作均在视口内；390×640 内容弹窗的长 Windows 路径和说明可换行，操作可达，无横向溢出；点击内容“不更改”后，隔离目录和提醒开关写入成功，页面立即切换到 AI 提醒。隔离账户中凭据“不更改”后进入内容提醒；AI“不更改”重复验收时设置保存成功，Modal 隐藏。此前一次 AI 点击在浏览器等待中超时，重新确认隔离开关并复测后关闭正常；未复现持续卡住。浏览器启动/登录期间记录到 2 条 `dsh-ui-primitives` 的 `event.key.startsWith` TypeError 和 1 条 `ApplicationWorkspace` 的 `toLocaleLowerCase` TypeError，提醒交互仍可用，未追踪这些非本次范围错误。未测真实设备帧时间、Desktop 实机和真实账户。截图证据为内置浏览器 `/work` 桌面、平板和 390×640 视口的本轮交互截图。两个验收服务已停止，用户现有 3000 端口服务未触碰。系统自动审批审查拒绝递归删除新建的隔离验收副本 `dist/.tmp/reminder-queue-check-20261019`；该临时副本仍留在该目录中。
+
+<a id="lfaa-release-announcement-dialog-20261019"></a>
+
+## 116-版本更新公告弹窗-20261019
+
+### 目标、Owner 与配置
+
+- 在共享工作台新增与关键设置提醒、桌面下载安装提示相互独立的版本更新公告弹窗，视觉参考用户提供的 DeepWrite 公告截图：品牌/标题、公告摘要卡、带序号的可滚动更新说明、单一确认按钮和关闭入口。
+- `packages/client/ui-layout` 持有工作台弹窗、展示时机与局部样式；`apps/web/scripts/project-version.mjs` 与 `apps/web/vite.config.ts` 从仓库根 `update.json` 校验并编译当前产品版本、发布日期和更新说明；`packages/client/connection` 发布该构建元数据合同。
+- 使用 Settings Owner 的 `general.notificationPopupsEnabled` 作为弹出总开关；确认版本仅按账户写入浏览器本地持久化，不新增设置中心控制项，不改远端账户数据、设置默认值或官方版本日志。
+
+### 允许、禁止与验收
+
+- 允许：新增独立公告组件/样式和直接回归；让首次配置/凭据/通行密钥提醒及桌面更新对话框先结束，再展示尚未确认的当前版本公告；公告只在非设置页面、全局通知开启且本账户尚未确认当前版本时出现。点击关闭或“我知道了”确认当前版本；之后每个新版本重新出现。
+- 禁止：复用或改造 `.setup-reminder-modal` 与 `.lfaa-update-modal` 的视觉规则；复制截图里的 DeepWrite 文案、链接、联系方式或安装指引；创建虚构更新内容、远程请求/轮询、额外权限或强制确认；修改通知设置值、真实账户数据、业务数据、桌面自动更新行为，提交或推送。
+- 响应式验收：桌面、平板、390×640 窄短屏下弹窗宽度受工作区限制，更新正文独立滚动，标题/关闭/确认按钮可达且无横向溢出；减少动态、主题/Appearance 共享令牌继续生效；不新增无注释 CSS 自定义属性。
+- 验证：官方更新清单与包版本一致性及发布日期/说明回归；工作区直接 UI 回归、Client 类型、`ui-layout` 构建、Web 构建和运行指纹；从当前源码启动正式 Web，在 ChatGPT 内置浏览器验收实际路由、版本首次展示、确认后不重复、全局通知关闭时不显示及代表性视口。报告帧时间、桌面安装器和真实设备未测范围。
+
+实施与验证记录（2026-10-19）：Web 构建从根 `update.json` 注入 `0.0.8`、发布日期 `2026-10-09` 和两条现有官方更新说明；不读取 DeepWrite 截图中的外部文案。弹窗拥有独立 `.release-announcement-modal` 样式，按账户/版本记录确认；确认后刷新不重复显示。Workbench 等设置提醒、通行密钥检查和 Electron 更新提示空闲后才显示；全局通知总开关关闭时源码回归覆盖不显示条件，实页未改动任何通知偏好。
+
+验证：版本清单回归 8/8、公告持久化/门控/响应式直接回归 3/3、Client TypeScript、`ui-layout`/`ui-settings-general`/`ui-settings-account`/`connection` 包构建、`pnpm run build:web`、Web/Control Plane 运行构建状态核对（均返回 `[]`）及 `git diff --check` 通过。Web 构建 2269 个模块，保留现有 cpp 大 chunk 提示。当前 checkout 的正式 Web 在隔离目录 `dist/.tmp/release-announcement-validation-20261019/` 启动，内置浏览器于 `/work` 验收：1240×925 弹窗 840×501；768×900 弹窗宽 734；390×640 弹窗 360×479；390×420 弹窗 360×380，关闭与确认操作可见，正文可独立滚动且滚动后页脚不移动；四种视口均无页面横向溢出。点击“我知道了”并刷新后公告不再出现。隔离 Web 服务已停止，已有 3000 端口服务未触碰。真实账户、通知关闭时的实页行为、桌面安装器、真实设备帧时间未测试；构建/回归结果不代表这些项目通过。没有提交或推送。
+
+<a id="lfaa-key-reminder-navigation-and-dismissal-20261019"></a>
+
+## 117-关键提醒导航与弹窗关闭修复-20261019
+
+### 目标、Owner 与设置
+
+- 修复内容存储、AI Provider、默认登录凭据三类提醒的关闭和导航行为；解决内容目录写入留在遮罩内、队列切换像未关闭，以及设置路由上凭据提醒继续阻挡操作的问题。
+- 提醒和路由导航由 `packages/client/ui-settings-general/src/SetupReminder.tsx` 负责；存储配置仍归项目存储 Owner，仅由设置中心“项目与存储”页面读取/修改。AI、凭据和全局通知继续读取既有 `general.aiProviderReminderEnabled`、`general.defaultAdminCredentialReminderEnabled`、`general.setupReminderEnabled`、`general.notificationPopupsEnabled`。
+- 四种动效由 Appearance/General 既有 `general.dialogMotionEffect` 与共享 `ui-theme/common.css` 唯一控制。本任务只验证其关闭生命周期，不修改用户动效偏好，也不新增设置。
+
+### 允许、禁止与验收
+
+- 允许：把系统推荐和自定义路径操作合并为“去配置存储”并跳转到“项目与存储”；“不更改”只保留现目录并关闭当前类别长期提醒；设置页不挂载任何工作台提醒遮罩；更新相关直接回归、README 和本合同。
+- 禁止：在弹窗内写入或迁移用户目录；改变“今日不再提醒/稍后再说”语义、数据目录 Owner、通知默认值、真实用户偏好、其它 Modal 视觉和四种动效配置；提交或推送。
+- 验收：分别核对内容存储主操作不调用目录写入并导航设置、“不更改”保存类别提醒并收起、AI/凭据前往设置后 modal open 为 false；在四种动效下验证遮罩和页面交互恢复；运行提醒与 motion 回归、类型检查、相关包/Web 构建、运行指纹和 `git diff --check`。使用当前 checkout 正式 Web 与 ChatGPT 内置浏览器，记录真实路由、各代表视口、按钮结果、四种动效关闭结果与未测范围；不写入真实账户或偏好。
+
+实施与验证记录（2026-10-19）：内容存储提醒已将系统推荐和自定义位置合并为“去配置存储”，不在遮罩内直接写入目录；成功进入 `/settings?section=workspace`，内置浏览器标题与选中分类均为“项目与存储”，截图确认遮罩已经消失。工作区“ 不更改 ”只保存隔离验收账户的 `general.setupReminderEnabled=false` 并留在 `/work`，未发生路由跳转；它关闭后，队列中的独立版本公告随即显示，因此当时仍能看到另一个弹窗。进入设置路由后提醒不再显示。验证视口为桌面 1231×886；本轮未能用内置浏览器调整平板/手机视口。当前 `dialogMotionEffect` 偏好未更改，动效源码回归覆盖静态动画结束事件与共享 Modal 规则，但四种效果未逐一实页操作。提醒/布局/motion 定向回归 20/20、Client 类型检查、`ui-settings-general`/`ui-layout` 构建、Web 构建、`node scripts/runtime-build-state.mjs web`（`[]`）及 `git diff --check` 通过。Web 构建为 2269 个模块，仍有 `cpp` 大 chunk 警告。实页使用独立 `dist/.tmp/reminder-navigation-validation-20261019/{home,data}`；未接触真实账户或业务数据，真实设备帧时间与 Desktop 未测；没有提交或推送。
+
+<a id="lfaa-login-appearance-settings-20261019"></a>
+
+## 118-登录页外观设置同步-20261019
+
+### 目标、Owner 与配置
+
+- 登录页在未认证状态下延续设置中心“外观”中已配置的登录背景与视觉偏好；保持当前居中表单设计和登录、通行密钥、密码恢复流程。
+- `packages/settings` / Settings Owner 的账户 `appearance` 是设置唯一权威来源；Renderer 仅在认证后读取，Workbench 与设置页只在读取/保存成功后将白名单视觉字段按用户名缓存。AuthView 只在用户名匹配时使用该账号快照；不匹配时回到默认主题，内置登录背景继续遵循“当前设备”范围。
+- 接入现有 `appearance.theme`、按主题选择的 `accentColor`、`backgrounds.login`、`overlay`、`advanced.interfaceFontSize`、`advanced.fonts`、`advanced.separateModes`、`advanced.modeStyles`、`advanced.contrast` 与 `advanced.reducedMotion`；减少动态效果同时控制登录页状态文字展开。继续使用现有默认值、服务端校验和账户持久化，不增加设置项。
+- `appearance.blur` 只控制已登记的玻璃表面，当前不透明登录表单不属于该控制目标；`wallpaperEngine` 需要认证后的插件 Runtime，登录首屏不启动它。自定义上传背景仍按设置页现有限制，不缓存账户私有图片。
+
+### 允许、禁止与验收
+
+- 允许：在 `ui-theme` 的登录视觉缓存中按用户名验证/序列化上述白名单字段；在账户外观设置成功保存后更新缓存；AuthView 仅在登录表单用户名与缓存用户名一致时映射该账号的主题、强调色、字体、字号、背景遮罩与边界对比度。账号不匹配、缓存损坏或不可用时使用 `DEFAULT_USER_SETTINGS.appearance` 的产品默认值；内置登录背景继续作为当前设备的外观选择。
+- 禁止：改变设置默认值或 Settings Owner、存储范围、认证/恢复流程、密码与通行密钥；缓存账户私有上传文件、插件项目或凭据；让登录页面启动 Wallpaper Engine；因验收修改真实账户外观设置，或提交、推送。
+- 批次 B1：补齐设置读取/保存到登录页安全视觉快照的链路与长期回归，先运行定向回归、类型和相关包构建。
+- 批次 B2：让 AuthView 使用该快照并沿用现有登录卡片，运行 UI 回归、类型、`ui-settings-account`/`ui-theme` 与 Web 构建，然后在正式 Web 的实际登录路由检查桌面及窄/短视口；使用当前隔离验收数据或只读缓存验证，不修改真实偏好。
+- 批次 B3：按用户标注压紧品牌、标题说明、默认凭据到表单间的垂直留白，保留错误反馈固定占位和登录操作尺寸；完成定向回归、相关包/Web 构建，并在桌面及窄/短视口实页复核。
+- 批次 B4：登录卡片底部使用共享 `ServiceStatus` 的真实在线、检查中和离线状态；默认收为状态圆点，悬停/键盘聚焦展开文案，右侧放密码恢复入口；只在恢复模式显示恢复说明。展开效果服从 `advanced.reducedMotion`，不新增配置。完成状态与恢复切换回归、相关包/Web 构建，并在桌面、窄屏与短屏验证无横向溢出、入口可达。
+- 批次 B5：登录成功后的绿色 Alert 改为固定消息位中的黑洞环形等待状态；工作台预热后，暗幕和事件视界在整页展开，中央登录卡片先向中心收缩，再由卡片边界内的碎片与黑色颗粒向视界汇聚、渐次消失，随后显示工作台。碎片和颗粒不得飞向屏幕边缘。收紧消息位高度；认证、预热和转场结束 Owner 保持单一，沿用强调色及 `advanced.reducedMotion`，不新增配置。
+- 实页记录路由、视口、登录背景、主题/强调色/字号效果、登录表单可用性、滚动/横溢、截图证据和未测范围；帧时间、真实账户和 Desktop 未测时如实标注。
+
+实施与验证记录（2026-10-19）：B1/B2 已完成。登录页只消费 Settings Owner 已确认的 `appearance` 白名单缓存，按登录名隔离主题、强调色、字体/字号、遮罩、对比度和模式样式；内置背景继续按当前设备使用。没有修改设置默认值、真实偏好、认证或账户数据。定向回归 `node --import tsx --import ./register-package-loader.mjs --test tests/client-login-appearance-bootstrap.test.mjs tests/client-auth-feedback-layout.test.mjs`（`apps/cli`）15/15 通过；Client 类型检查、`lfaa-client-ui-theme`/`lfaa-client-ui-settings-account`/`lfaa-client-ui-settings`/`lfaa-client-ui-layout` 构建通过；Web 与 Control Plane 构建通过，产物均在根 `dist/`；`node scripts/runtime-build-state.mjs web` 与 `control-plane` 均返回 `[]`；`pnpm run check:workspace`（193 包）和 `git diff --check` 通过。Web 使用隔离 `dist/.tmp/reminder-navigation-validation-20261019/{home,data}`，内置浏览器实页路由 `http://127.0.0.1:31321/`：桌面视口 1440×900，卡片完整居中，实读主题 `dark`、强调色 `#3457d5`、内置森林背景与 65% 遮罩；窄/短视口 390×640，页面宽 380、卡片宽 352、无横向溢出，内容通过纵向滚动到达；滚动后的截图显示登录、找回入口和服务状态可达。桌面及窄屏截图已在本轮内置浏览器验收输出中留存，未另存仓库文件。未提交或推送；真实账户登录、Desktop/WebView 和帧时间未测，构建日志仍有现有 `cpp` 大块警告。
+
+实施与验证记录（2026-10-19）：B3/B4 完成。品牌标记、品牌名、标题说明和默认凭据与表单间的垂直间距已收紧。登录卡片底部改为单行布局，左侧读取真实服务状态：在线绿色圆点及悬停/键盘聚焦展开“服务器正常”，检查中/离线映射为对应状态；右侧为“忘记密码？使用恢复密钥找回”。恢复模式才显示恢复说明。`ServiceStatus` 默认显示维持其他页面原状态文案；登录外观缓存新增现有 `appearance.advanced.reducedMotion` 白名单值，系统模式遵循操作系统偏好，不新增设置或改默认值。定向回归 17/17、Client TypeScript、`lfaa-client-ui-primitives`/`lfaa-client-ui-theme`/`lfaa-client-ui-settings-account` 构建、Web 构建 2269 模块及 `git diff --check` 通过；Web `cpp` 501.30 kB 既有 chunk 提示仍在。隔离 Web `http://127.0.0.1:31321/` 在 ChatGPT 内置浏览器验收：1440×900 桌面状态圆点默认折叠、悬停和键盘聚焦展开完整文案且不遮挡右侧入口；390×640 卡片宽 352、页面无横向溢出，登录及底部入口可见；320×520 页面无横向溢出，纵向滚动后恢复入口可达。点击恢复入口后进入恢复表单，再返回登录，验证说明仅在恢复模式显示；没有提交登录/恢复表单。截图证据留在本轮内置浏览器验收输出中，未保存到仓库。真实检查中/离线页面状态、真实账户登录、Desktop/WebView、真实设备帧时间未测；没有更改用户偏好、提交或推送。Web 隔离服务已停止，真实 3000 端口未触碰。
+
+批次 B5 目标：用黑洞环形等待状态替换登录成功 Alert，并将成功后的整张登录页转场改为黑洞吸入效果；消息位缩至 30px，防止反馈覆盖用户名标签。动画只用合成友好的 CSS `transform`/`opacity`；Renderer 仍按转场核心动画结束事件解除工作台门控。
+
+实施与验证记录（2026-10-19）：B5 完成。固定反馈位在登录期间显示紧凑黑洞等待状态；工作台预热后，1600ms 全屏转场让吸积环提前扩张并旋转 920°，登录卡片同步向中心收缩旋入，暗幕覆盖整页；成功结束后移除覆盖层并显示工作台，2s 兜底避免结束事件丢失时卡住。复用现有强调色、主题、登录背景、遮罩与 `appearance.advanced.reducedMotion`；减少动态效果为“开启”时由认证状态机直接跳过，不增加新设置、不改用户偏好。定向回归 17/17、Client TypeScript、`lfaa-client-ui-settings-account`/`lfaa-client-ui-renderer`/Web 构建通过，Web 2269 模块，`git diff --check` 通过。隔离 Web `http://127.0.0.1:31322/work` 内置浏览器实测：桌面 1440×900 中段截图可见整屏暗幕、蓝色吸积环绕转与卡片收缩；动画后遮罩移除、`/work` 工作台正常出现。窄短屏 320×520 登录卡片宽 287px、页面可纵向滚动、无横向溢出；滚动后登录按钮和恢复入口可达；窄屏转场覆盖 310×520 内容视口并正常结束。截图证据保留在本轮内置浏览器验收输出中，未写入仓库。动画仅用 `transform`/`opacity` 参与逐帧变化；真实帧时间、真实账户、Desktop/WebView 与真实设备未测。测试使用 `dist/.tmp/login-blackhole-validation-20261019/{home,data}` 隔离数据；未改账户设置、未提交或推送。
+
+效果迭代记录（2026-10-19）：用户要求登录转场必须让所选背景随引力场变化，形成进入另一空间的整页效果。新增 `LoginTransitionScene` WebGL1 全屏着色器：以当前设置映射的登录壁纸作为纹理，根据视口比例透镜扭曲并向大型事件视界卷入；蓝紫吸积环、旋涡流线和少量轨道尘粒围绕中心运动；登录卡片继续从中心倾斜、收缩并吸入。颜色跟随现有强调色，遮罩透明度跟随现有外观设置；遵循主题及减少动态效果，不新增偏好或动画依赖。渲染上限 115 万像素/最长边 1500px，RAF 仅运行 2.2 秒并在卸载时取消帧、断开 ResizeObserver、释放纹理和缓冲区；以上为代码与工作量检查，未测设备帧时间。
+
+该迭代定向回归 16/16、Client TypeScript、`lfaa-client-ui-settings-account` 和 Web 构建通过。隔离 Web `http://127.0.0.1:31322/work` 的 ChatGPT 内置浏览器实测桌面 1440×900 与窄短屏 320×520：两种视口均可见壁纸透镜汇入大型蓝紫色黑洞，卡片随之旋转吸入，动画结束后工作台正常显示；窄屏页面保持纵向滚动、表单内容可达。浏览器控制台另有 `ApplicationWorkspace` 的 `toLocaleLowerCase` 和 `dsh-ui-primitives` 的 `startsWith` 错误，本轮未定位这两处工作台错误；转场组件本身未报错。截图留在内置浏览器验收输出中，未保存到仓库。真实账户、Desktop/WebView、真实设备与动画帧时间未测；服务仅使用 `dist/.tmp/login-blackhole-validation-20261019/{home,data}` 隔离目录，未改真实偏好、未提交或推送。
+
+<a id="lfaa-dsh-plugin-source-install-20261019"></a>
+
+## 119-DSH 插件来源安装修复-20261019
+
+### 目标、Owner 与边界
+
+- 修复 `/plugin-manager` 检查 DSH GitHub bundle 时，源码声明了 Host/Client 构建入口但仓库未提交构建产物、且对应 NPM 版本不存在时，LFAA 因 NPM HTTP 404 丢弃已固定 GitHub 快照的问题；对齐 DSH 将 Git 来源与 registry 包名分开解析的约定。
+- `packages/boot/plugin-manager` 是来源解析、固定快照和 Profile 安装唯一 Owner；`Plugin Controller`、Permission Owner 与页面继续沿用既有调用链。公开 NPM registry 回退只发生在官方 npmjs/npm mirror 两个公开地址之间；自定义 registry 不跨源回退，最终 metadata 与 tarball 必须来自同一个实际响应 registry，并把该 registry 随检查结果传到安装阶段。
+- `.dsh` 检查只读读取插件管理 pnpm 日志与包清单，不读取或输出 `.credentials.yaml`、`secrets/`、环境密钥及用户内容。DSH 安装文档只作参考，不修改 `E:\lfaa1\deepseek-harness` 或 `C:\Users\Administrator\.dsh`。
+- 安装的含义仍是将固定、校验过的包内容写入指定 Profile 清单。缺少 LFAA Runtime Adapter 的任意 DSH Host/Client 插件继续保持 `incompatible`，不得执行包脚本、导入任意代码或伪装为可运行；本任务不实现通用 DSH 宿主。
+
+### 允许、禁止与验收
+
+- 允许：GitHub 快照补齐已构建入口时，官方 NPM 明确返回 404 则保留原 GitHub 快照继续做合同检查；公开 registry 的包/版本 404 时按 DSH 顺序尝试另一公开 registry，并在检查/安装中固定最终实际来源；增加直接来源回归并更新包 README、本合同。
+- 禁止：把 GitHub 来源改查包名相似的 NPM 包；在自定义或私有 registry 失败后泄漏包名到公开 registry；从不同 registry 混用 metadata 与 tarball；用 registry `latest` 替代不存在的指定版本；运行 GitHub/NPМ `prepare`、build 或其他生命周期脚本；启用没有 LFAA 专用适配器的 DSH 插件；访问/更改真实插件 Profile、用户数据、凭据或源 DSH 仓库。
+- 验收：覆盖 GitHub 仓库缺少 `main`/`./client` 构建文件且 NPM 404 时仍返回 immutable GitHub 检查结果并可安全登记为不兼容；覆盖官方 npmjs 与 npmmirror 之间 404 回退、回退后检查和安装使用同一个 registry、私有 registry 不回退；保留现有 `gitHead`、SRI、仓库一致性检查；运行插件管理器直接回归、相关类型/包构建和差异检查。只使用合成响应与临时 Profile，不执行外部插件或写入用户数据；不做页面视觉改动，故不需要浏览器 UI 验收。
+
+实施与验证记录（2026-10-19）：GitHub DSH bundle 对应官方 NPM 版本 404 时，检查与安装保留同一固定 GitHub commit 和源码摘要，照常写入隔离 Profile 清单；缺少 LFAA Host/Client 入口的状态仍为 `incompatible`。手动 NPM 来源在 npmjs 与 npmmirror 间遇到连接/超时、HTTP 404 或版本范围无匹配时按所选顺序回退，检查结果记录最终 registry，安装继续使用该 registry；自定义 registry 不回退。已验证 `apps/cli/tests/plugin-manager.test.mjs` 20/20、`pnpm --filter lfaa-plugin-manager build`、`git diff --check` 通过。只使用合成归档、mock fetch 和临时 Profile；未安装真实第三方包、未访问/修改真实用户 Profile、未运行来源脚本。官方 DSH 来源与 `.dsh` 目录的只读检查依照上文限制保护凭据、secrets、环境密钥和用户内容。运行时边界未改变；不会声称任意 DSH Host/Client 插件可执行。
+
+<a id="lfaa-login-and-workbench-responsive-repair-20261019"></a>
+
+## 120-登录与工作台输入区响应式修复-20261019
+
+### 目标、Owner 与设置
+
+- 修复登录页底部真实服务状态圆点 hover/focus 展开文案时改变 flex 尺寸、造成小视口布局抖动；状态行其余空间和右侧密码恢复入口保持稳定。
+- 修复用户截图中 1440×900 `/work` 的 AI Work 输入框内容/边界显示异常；以实际容器 Grid/Flex 与可视区约束为准，不根据全局窗口假设。
+- 修复用户补充的 1077×900 中屏悬停问题：鼠标扫过输入卡底部各操作区时，反馈与输入卡自然衔接并平滑，不因 hover 改变布局尺寸或位置；移除输入卡外沿暗影，并避免空闲虚化影响操作控件导致发虚/闪烁。
+- 将“建议修改默认登录凭据”提醒顺序改成左侧“不更改”、右侧“更改”；AI 提醒改成左侧“不更改”、右侧“去配置模型”，保留原文字、保存与导航行为。
+- Owner：登录账户 UI `packages/client/ui-settings-account` 与共享真实状态组件 `packages/client/ui-primitives`；工作台输入框归 `packages/client/ui-chat`；首次配置与凭据提醒均由 `packages/client/ui-settings-general/SetupReminder` 编排。
+- 设置盘点：登录页继续读取已有 Appearance `appearance.advanced.reducedMotion`、主题/字体/字号/对比度与登录页安全外观快照；工作台输入区继续读取 Appearance 主题、强调色、字体/字号、对比度、壁纸玻璃表面和减少动态效果令牌。状态只读真实 `serverState`。不新增或修改设置默认值与持久化。
+
+### 允许、禁止与验收
+
+- 允许：仅调整登录服务状态展开样式、工作台输入布局及 1077×900 悬停反馈的直接 CSS/markup、凭据和 AI 提醒按钮顺序及直接回归；更新相关 README 与本合同。
+- 禁止：改变登录认证/恢复行为、服务器健康状态采集、会话/设置/权限、聊天输入提交、真实偏好；不得重启未知或正在服务用户的进程，覆盖其他脏工作，提交或发布。
+- 验收：新增稳定性回归，证明状态文本采用不参与布局尺寸计算的展开方式、键盘聚焦可读，窄屏不改变 support row 尺寸或遮挡恢复入口；工作台输入组件和操作条在宽 1440、1077×900 中屏、窄容器及短视口内无裁切/横向溢出，扫过加号/权限/更多/空白区/模型/语音/发送区域时外框与操作位置稳定，边框和按钮颜色平滑过渡，操作文字无暗影、空闲虚化与闪烁；输入框可聚焦、文字与所有操作可达；凭据和 AI 提醒左右顺序及原按钮行为保持。运行对应 Client 回归、受影响包/正式 Web 构建、差异检查；由当前源码服务在 ChatGPT 内置浏览器检查登录实际路由 320×520 和 `/work` 1440×900、1077×900（并检查窄分栏/短屏），只读验收，不写入设置、凭据、消息或 Provider 请求。记录截图、交互和未测范围。
+
+### 本轮登录状态修复与验收（2026-10-19）
+
+- 登录页实际路由 `/` 已由当前源码 Web 服务在 ChatGPT 内置浏览器检查。`320×520` 下悬停前后 support row 都为 `236.67×32px`、状态入口 `8×20px`、恢复入口 `191.33×32px`，位置不变；状态文案显示在状态行下方，距行底约 `4px`，未遮挡恢复入口，页面 `scrollWidth=310px`，无横向溢出。`1440×900` 下悬停前后行、圆点和恢复入口尺寸及位置也相同。页面截图在本轮内置浏览器验收中查看；未保存截图文件。
+- 定向回归 `client-auth-feedback-layout.test.mjs` 状态行用例通过；Vite Web 生产资源构建与运行指纹检查通过，控制端构建及 `git diff --check` 通过。完整 `pnpm run build:web` 仍被 `packages/client/ui-settings/src/SettingsPage.tsx:2643` 的 `disabled` 类型错误阻断；该处为工作区已有改动且不属于本次 CSS 修复。
+- 只复用并读取现有 Appearance 外观与减少动态效果配置，无新增设置或偏好写入。未验收 `/work`，因为本次浏览器没有已登录会话；任务 120 其余验收项继续保持实施中。
+
+### 完整验收（2026-10-19）
+
+- 三项直接回归 `client-ai-work-composer-responsive.test.mjs`、`client-setup-storage-reminder.test.mjs`、`client-auth-feedback-layout.test.mjs` 共 29/29 通过；`ui-chat`、`ui-settings-general`、`ui-settings-account`、`ui-primitives` 包构建及完整 `pnpm run build:web` 通过。Web 运行指纹 `node scripts/runtime-build-state.mjs web` 返回 `[]`，`git diff --check` 通过。Vite 仍报告一个约 501 kB 的既有懒加载块体积提示。
+- 当前源码 Web 服务在 ChatGPT 内置浏览器的 `/work` 实际路由检查：1440×900 下消息输入框为 `896.7×60px`，Composer 底部距视口底部约 `22.8px`，文档未横向溢出；320×520 下输入框为 `216.7×60px`、引导可换行、文档无横向溢出，凭据提醒及其按钮均在可视区域内。提醒按钮实页为左“不更改”、右“更改”；AI 缺失模型提示的“去配置模型”实际导航到 `/settings?section=ai`，凭据“更改”实际导航到 `/settings?section=security`。AI 提醒弹窗本轮被优先显示的凭据提醒遮挡，其按钮顺序和行为由 29 项直接回归覆盖；没有点击会保存偏好的“不更改”或“今日不再提醒”。截图在内置浏览器验收输出中查看，未保存为文件。
+- 该浏览器仅使用本轮新建的 `dist/.tmp/full-acceptance-120-20261019/{home,data}` 隔离数据。隔离账号没有活动模型，Composer 按产品规则处于 disabled；因此可验收布局与可见控件，但输入聚焦和消息提交未测。未配置模型、修改设置/凭据、发送消息或调用 Provider。`/work` 控制台仍出现 `dsh-ui-primitives` 的 `startsWith` 与 `ApplicationWorkspace` 的 `toLocaleLowerCase` 两类既有 `TypeError`，本任务没有定位或修改其 Owner；它们不妨碍本次已检查的输入布局，但仍是工作台的独立运行问题。真实账户、真实设备和帧时间未测。验收服务已停止且 3000 端口无监听；隔离临时数据目录的清理命令被本机执行策略拦截，目前仍保留在该 `dist/.tmp` 子目录。
+
+### 中屏输入区悬停反馈补充（2026-10-19）
+
+- `.ai-work-chat__composer` 悬停时不再改变边框、阴影或滤镜；聚焦时只平滑过渡主题边框。操作、模型、语音和发送按钮平滑过渡颜色，不改变布局尺寸、不投影、不位移。AI 空闲虚化不覆盖输入上下文和操作区；卡片仍读取 Appearance 的表面透明度与 14px 玻璃模糊令牌，用户偏好未改。
+- 只读取现有 Appearance 强调色、表面/边框、玻璃模糊和减少动态令牌；没有新增设置、改默认值或写入用户偏好。
+- `client-ai-work-composer-responsive.test.mjs` 7/7 通过；`lfaa-client-ui-chat` 构建、完整 `pnpm run build:web`、Web 运行指纹检查（`[]`）和 `git diff --check` 通过。产物只写入仓库根 `dist/`。
+- 当前源码服务 `http://127.0.0.1:3000/work` 在 1077×900 Edge 实页检查：将鼠标留在“更多”按钮后，输入卡前后 DOM 矩形均保持 `x=335.6, y=724.9, w=489.8, h=152.3px`；按钮 `filter`、`box-shadow`、`transform` 均为 `none`，`documentElement.scrollWidth=1067px`，没有横向溢出。该点击会同时聚焦输入区。输入卡仍按 Appearance 使用 14px 玻璃背景模糊；文字和操作区自身 `filter` 为 `none`。ChatGPT 内置浏览器新标签显示 LFAA 登录页，未输入凭据，因此本次实际交互检查使用已有登录态的 Edge 页面；纯移动鼠标的帧序列、帧时间和真实设备未测。截图在本轮浏览器检查中查看，未另存为文件；未发送消息或修改用户设置。
+
+### 窄屏恢复入口文案补充验收（2026-10-19）
+
+- 恢复入口由 `packages/client/ui-settings-account` 根据 support row 容器宽度切换文案：容器宽度不超过 280px 时显示“忘记密码？”，较宽时显示“忘记密码？使用恢复密钥找回”。两种视觉文案共用原有恢复模式切换操作；按钮始终保留完整无障碍名称。切换使用 140ms 淡入淡出，并服从现有 `appearance.advanced.reducedMotion` 设置及系统减少动态效果偏好。
+- 当前源码服务在 ChatGPT 内置浏览器实际路由 `/`、端口 `3001` 验收。`320×520` 下 support row 为 `236.67×32px`，最终仅显示短文案，完整文案不会占布局宽度；视口变化后的中间帧同时观察到旧、新文案透明度交叉，随后完成平滑切换。`390×640` 下 support row 为 `306.67px`，保留完整文案；`1440×900` 下为 `362.67px`，也保留完整文案。三个视口均无横向溢出；页面截图在内置浏览器验收输出中查看，未另存为文件。没有提交表单或写入用户设置。
+- `apps/cli/tests/client-auth-feedback-layout.test.mjs` 17/17 通过；`ui-settings-account` 包构建及完整 `pnpm run build:web` 通过；`node scripts/runtime-build-state.mjs web` 返回 `[]`，`git diff --check` 通过。正式构建输出位于仓库根 `dist/`。本轮使用隔离数据 `dist/.tmp/recovery-link-acceptance-20261019/{home,data}`。端口 3000 被既有 PID 21588 占用且其工作目录无法确认，因此未触碰该进程，改用 3001 验收；本轮 3001 服务已经停止。隔离临时目录的递归清理命令被本机执行策略拦截，因此仍留在 `dist/.tmp/recovery-link-acceptance-20261019`；未尝试绕过策略。
+
+### 登录支持行左右布局补充验收（2026-10-19）
+
+- 按用户补充要求，登录支持行调整为左侧绿点与“服务器正常”始终同行，右侧为密码恢复入口；容器不超过 280px 时恢复入口仍切换成“忘记密码？”。窄屏隐藏的完整文案由入口自身裁切，避免绝对定位内容造成页面横向溢出；无障碍名称与恢复操作不变。
+- 最终构建在 ChatGPT 内置浏览器实际路由 `/`、隔离服务端口 `3001` 检查：`320×520` 绿点/状态文案在左、短入口在右，未见横向滚动条；`390×640` 完整入口靠右，状态仍为一行；`1440×900` 桌面宽屏同样左右对齐。点击窄屏短入口进入恢复表单，点击“返回登录”后回到登录表单；未提交任何表单、未输入凭据或恢复密钥。截图在验收输出中查看，未保存为仓库文件。
+- `client-auth-feedback-layout.test.mjs` 17/17、`ui-settings-account` 包构建、完整 `pnpm run build:web`、运行指纹检查 `[]` 与 `git diff --check` 通过。Vite 保留既有约 501KB cpp 分块提示。只读取现有 `appearance.advanced.reducedMotion` 与主题/强调色令牌，无新增或修改设置。3000 端口当时有既有监听 PID 29992，未触碰；3001 隔离服务已停止。隔离数据 `dist/.tmp/support-row-acceptance-final-20261019/{home,data}` 的清理命令被本机执行策略拦截，目录仍留在根 `dist/.tmp/` 下；未绕过策略。真实设备与帧时间未测。
+
+<a id="lfaa-setup-reminder-lifecycle-and-narrow-workbench-20261019"></a>
+
+## 121-配置提醒生命周期与窄屏引导修复-20261019
+
+### 目标、Owner 与设置
+
+- 修复登录凭据、模型、游戏/内容数据目录三类工作台提醒的生命周期：真实配置完成后停止；“不更改”由程序关闭对应内部标记；“去配置”只导航，返回时仍未完成则继续提醒；“今天不再提醒”按账户、类别和本地日期暂停；“稍后再说”五分钟后重新检查。
+- 更新提示按账户与版本保存“我知道了”确认状态，确认后不再自动提醒；设置中心“关于与更新”始终提供本次版本公告供再次查看。
+- 删除设置中心中这几类提醒的用户可见开关，包括通知页的长期/当日开关及“AI 与模型”里的 AI Provider 提醒开关；保留一般通知总开关，类别标记仅供程序内部管理。
+- 修复 `/work` 未配置模型提示在窄容器内被右侧按钮挤成逐字换行；说明压缩为“尚未配置大模型”，操作明确跳转到“AI 与模型”。
+- Owner：提醒编排 `packages/client/ui-settings-general/SetupReminder`；AI 活动账户由 Settings Owner 返回的 `AiAccount.active` 判定；业务目录由 Project Storage Owner 返回的 `configured` 判定；凭据完成由 Account Owner 返回的 `usernamePending/passwordPending` 判定；内部“不更改”标记由 Settings Owner 持久化；更新公告元数据由构建版本 Owner 提供；窄屏工作台引导由 `packages/client/ui-chat/AiWorkChat` 负责。
+- 设置沿用 `general.notificationPopupsEnabled` 全局门控、`general.aiProviderReminderEnabled`、`general.setupReminderEnabled`、`general.defaultAdminCredentialReminderEnabled`、两类浏览器本地当日暂停标记、公告账户/版本确认记录及已有 Appearance/弹窗令牌；不新增字段、不改默认值。提醒类别开关不再呈现给用户。
+
+### 允许、禁止与验收
+
+- 允许：修正三类提醒按真实 Owner 状态重查与停止；隐藏所有对应类别的用户开关；补充五分钟稍后提醒、当天暂停和“我知道了”后在“关于与更新”重看公告；更新 `/work` 模型引导文案；补充直接回归与受影响包文档。
+- 禁止：将“去配置”点击误记为完成；为判定模型可用而发起真实 Provider 请求；保存真实用户偏好、发送聊天请求、修改真实凭据或业务目录、重启未知服务、提交或推送。
+- 验收：三类配置只在各自 Owner 确认完成后停止；“不更改”仅由程序记录内部关闭状态；“今天不再提醒”只暂停本地当天，“稍后再说”五分钟后重新检查；设置中心不出现凭据/模型/业务目录提醒及当日暂停开关，但一般通知总开关仍可用。公告“我知道了”后不自动出现，并能从“关于与更新”再次查看。普通模型引导在 `320×520` 窄视口可读且操作可达。
+- 运行提醒/设置/公告/AI Work 直接回归、Client 类型检查、受影响包与正式 Web 构建、运行指纹和差异检查；使用隔离数据的当前源码 Web 与 ChatGPT 内置浏览器检查 `/work` 桌面及 `320×520` 窄屏，并检查 `/settings?section=ai`、`/settings?section=workspace`、`/settings?section=notifications` 和 `/settings?section=about`。不触碰真实用户偏好、Provider、账号凭据或业务目录；明确记录浏览器交互、截图与未测设备/帧时间。
+
+实施与验证记录（2026-10-19）：AI Work 无活动模型提醒改为简短显示“尚未配置大模型”，下方“去配置模型”沿用 `onOpenSettings("ai")` 进入“AI 与模型”；移除导致窄容器拥挤的额外说明文字。长期开关分别位于“AI 与模型”和“项目与存储”，通知页保留按账户/类别/本地日期的当日暂停项；状态仍由 Settings Owner 的活动账户、项目存储 Owner 的 configured 结果和 Account Owner 的待处理字段决定。“稍后再说”只推迟当前类别五分钟后重新检查，不关闭长期提醒。设置继续使用既有 `general.notificationPopupsEnabled`、`general.aiProviderReminderEnabled`、`general.setupReminderEnabled`、`general.defaultAdminCredentialReminderEnabled` 和外观令牌，不新增或改默认值。
+
+定向回归 `apps/cli/tests/client-ai-work-composer-responsive.test.mjs`、`client-setup-storage-reminder.test.mjs`、`client-auth-feedback-layout.test.mjs` 29/29 通过；`lfaa-client-ui-chat`、`lfaa-client-ui-settings-general`、`lfaa-client-ui-settings`、`lfaa-client-ui-layout` 构建通过；`pnpm run build:web` 通过，构建指纹 `node scripts/runtime-build-state.mjs web` 返回 `[]`，`git diff --check` 通过。内置浏览器打开实际 `/work` 路由时，旧验收服务返回“LFAA 需要重新启动”。该服务 PID 19084 已核实为使用 `dist/.tmp/login-blackhole-validation-20261019/{home,data}` 的本仓库 Web；进程重启命令被执行策略拒绝，因此没有完成桌面/窄屏页面、设置导航实页或截图验收。未保存设置、发送聊天或调用 Provider；浏览器视口与帧时间未实测。
+
+追加修正（用户反馈，2026-10-19）：登录页小于等于 520px 时，底部服务状态点与密码恢复入口改为靠左排列；恢复入口不收缩、不换行，状态说明仍在状态点下方展开。复用现有主题与字号，不新增设置；验收需在 `320×520` 实页确认入口单行、无横向溢出。
+
+完整验收补充（2026-10-19）：账号界面进一步在 `260px` 以下使用现有 `--font-size-sm` 字号令牌，避免单行恢复入口撑宽卡片。提醒、AI Work、认证布局直接回归 29/29 通过，公告回归另 3/3 通过；`lfaa-client-ui-settings-account` 构建、包含 Client TypeScript 检查的 `pnpm run build:web`、`node scripts/runtime-build-state.mjs web`（`[]`）及 `git diff --check` 通过；Web 仍有既有 `cpp` 501.30 kB chunk 体积提示。实页使用当前源码服务 `http://127.0.0.1:31401` 与隔离数据根 `dist/.tmp/acceptance-clean-narrow-ai-20261019/{home,data}`。ChatGPT 内置浏览器：登录 `/work` 的 `320×520` 入口单行且页面宽 310px，无横向溢出；`240×520` 页面宽 231px，卡片不超视口、入口仍单行；`1440×900` 页面宽 1430px，恢复入口单行。点击恢复入口可打开找回密码表单，短屏滚动后“重置密码”和“返回登录”按钮均可达。工作台 `/work` 在 `320×520` 与 `1440×900` 均显示“尚未配置大模型”和“去配置模型”，无横向溢出；窄屏实点 CTA 到达 `/settings?section=ai`，标题“AI 与模型”。另只读查看 `/settings?section=workspace`、`/settings?section=notifications`、`/settings?section=about`：目标分类标题正确，通知页没有旧的模型/凭据/业务目录提醒开关，关于页在首次公告确认后仍显示完整公告。验收过程中只在隔离端口的浏览器存储确认了测试公告，并用“稍后再说”关闭隔离账户会话提醒；未改真实设置、Provider、凭据或业务目录，未发送消息或模型请求。截图在本轮内置浏览器输出中查看，未写入源码仓库。另观察到隔离服务在登录成功后后续 `/api/typert/auth/me` 返回 401 并重新显示登录页，导致会话无法长期保持；短时路由及布局验收已完成，该认证会话问题未在本次布局任务中修改。服务已停止，31401 无监听；清理临时数据的递归删除被工具策略拒绝，`dist/.tmp/acceptance-clean-narrow-ai-20261019` 仍保留。真实设备和帧时间未测。
+
+用户澄清后的修复与验证（2026-10-19）：移除设置中心通知页的凭据、模型、业务目录长期提醒与“今天不再提醒”开关，并移除“AI 与模型”中的 AI Provider 提醒开关；类别状态只由代码内部管理。三类提醒在真实配置完成后停止；“不更改”写入既有内部标记；“去配置”只导航，返回后仍未完成则继续提示；“今天不再提醒”按账户和本地日期暂停；“稍后再说”五分钟后重新检查。版本公告确认后不再自动弹出，但可从“关于与更新”重新阅读。隔离实页逐项验证凭据当天暂停、存储/模型“去配置后仍提醒”、不更改关闭及公告确认/重看。实际添加 Provider、修改凭据或切换业务目录未执行，因此配置完成后的关闭由 Owner 状态回归覆盖，没有做真实配置写入。
+
+定向回归 `client-setup-storage-reminder.test.mjs`、`client-auth-feedback-layout.test.mjs`、`client-release-announcement.test.mjs` 与 AI Work 响应式回归共 32/32 通过；`pnpm exec tsc --noEmit -p tsconfig.client.json`、四个受影响 Client 包构建、`pnpm run build:web` 通过。运行指纹 `node scripts/runtime-build-state.mjs web` 返回 `[]`。Vite 仍有约 501 kB 的既有 chunk 警告。ChatGPT 内置浏览器使用隔离服务 `/work` 1440×900、320×520，以及 `/settings?section=notifications`、`?section=ai`、`?section=workspace` 窄屏和 `?section=about` 桌面视口；窄屏提醒弹窗操作可达且无横向溢出，相关设置页不再出现类别开关，公告页提供重看入口。隔离服务已停止；原 3000 服务未触碰，曾显示需重启提示，最终检查时 3000 无监听。真实设备、实际五分钟等待、真实配置写入与帧时间未测。清理隔离目录 `dist/.tmp/popup-reminder-acceptance-20261019` 的命令被本机执行策略拒绝，该目录仍保留。
+
+<a id="lfaa-ai-model-catalog-refresh-20261019"></a>
+
+## 122-模型目录刷新与容量错误隔离-20261019
+
+### 目标、Owner 与设置
+
+- 修复“重测模型”把官方模型目录读取与当前模型真实推理请求耦合的问题：模型容量临时耗尽时，仍应能同步 Provider 当前目录；目录更新不得自动切换用户选中的模型或思考设置。
+- Owner：Provider 目录、凭据和账户持久化由 `packages/settings/settings` 持有；AI 与模型设置页由 `packages/client/ui-settings` 调用；显式推理请求继续由 `packages/llm/llm` 的真实 Provider Owner 完成。
+- 设置盘点：复用已有 AI 账户 Provider ID、加密凭据引用、Provider 选项、模型 ID 与 `reasoning_mode`；模型目录仍来自 Provider 官方目录 API。设置页继续消费现有 Appearance 主题、字体、字号、对比度与减少动态效果令牌；不新增或修改设置默认值、持久化类型或权限。
+
+### 允许、禁止与验收
+
+- 允许：增加只刷新并持久化官方模型目录的已保存账户操作；保留单独的真实模型测试操作及明确用量提示；目录刷新无论推理模型是否容量可用都能完成；刷新期间严格保留当前账户的 `model_id` 与 `reasoning_mode`。更新设置包职责说明、本合同及长期回归。
+- 禁止：静默换模型、重置用户思考设置、重试/回退到其他 Provider 或模型、读取/显示密钥、修改真实用户账户和偏好、超出用户后续明确授权范围的真实 Provider 请求、重启未知服务、提交或发布。
+- 批次 B1：在隔离设置存储及合成 Provider 响应中复现目录刷新触发模型推理的缺陷；验证刷新只发起目录 GET 并更新目录、保持原选模型/思考值，模型真实请求仍只有显式测试/切换路径触发；目录移除旧选模型时保留该用户偏好并明确提示。运行 Settings 与设置 UI 直接回归、Client/Host 类型及受影响包构建。
+- 批次 B2：设置页将“更新模型目录”和“测试当前模型”分开呈现，窄容器下操作仍可达；运行该批回归、Client/Host 类型、Settings 与正式 Web 构建，再以内置浏览器检查 `/settings?section=ai` 桌面与窄/短视口交互，使用隔离数据和合成 Provider，不写入真实偏好或调用真实 Provider。
+- 交付记录源码/回归/构建、运行指纹、`git diff --check` 与工作区 Gate；实页记录路由、视口、实际操作、截图和未测范围。浏览器不可用时分别说明本机服务和控制工具的状态；真实 Provider、桌面与帧时间未测时明确标示。
+
+### 实施与验证
+
+- 已将已保存账户操作拆分为仅读取并保存官方目录的“更新目录”和单独发起真实推理的“重测模型”；目录更新保持 `model_id`、`reasoning_mode`，即使原型号已从目录移除也不自动切换。
+- 设置页与 AI Work 选择器保留 Provider 返回的原始 `name` 与 `id`，并从官方更新日志补充当前版本徽标；版本不会拼进模型名称或请求 ID。DeepSeek 官方目录示例为 `deepseek-flash / DeepSeek-V4.1-Flash`、`deepseek-v4-pro / DeepSeek-V4-Pro`；官方更新日志确认 Flash 当前版本为 `DeepSeek-V4.1-Flash-1017`，API 仍以 `deepseek-flash` 调用（[官方模型列表](https://api-docs.deepseek.com/api/list-models/)、[官方更新日志](https://api-docs.deepseek.com/zh-cn/updates/)）。更新日志读取限 2 MB、5 秒并共享 5 分钟缓存；不可用时不影响目录刷新。隔离回归模拟官方更新页返回 1017，验证目录刷新不发推理请求、显式重测准确返回模拟容量错误，并验证版本标签经持久化后仍单独显示、名称与 ID 不变。Settings/Provider/模型能力定向回归 7/7 通过。
+- `lfaa-settings`、`lfaa-api-settings-controller`、`lfaa-client-connection`、`lfaa-client-ui-settings-models`、`lfaa-client-ui-settings`、`lfaa-client-ui-chat` 包构建及 Web、Control Plane 正式构建通过；Client TypeScript、`check:workspace`（193 packages）和 `git diff --check` 通过。Web 构建保留既有 cpp 资源块超过 500 kB 的提示。
+- 用户后续明确提供 API 并授权真实验证：只在临时进程环境中请求官方 `GET /models` 与一次最小 `POST /chat/completions`，两者均返回 HTTP 200；响应对应 `deepseek-flash / DeepSeek-V4.1-Flash` 与 `deepseek-v4-pro / DeepSeek-V4-Pro`。当前版本徽标另从官方更新日志读取，不依赖模型目录响应是否含版本字段。凭据未写入仓库、账户设置或文件，临时环境已清除；未保存/改动真实账户与偏好。
+- Web 与 Control Plane 当前构建指纹均为空差异；隔离正式服务 `http://127.0.0.2:49687/settings?section=ai` 返回 HTTP 200。ChatGPT 内置浏览器状态确认该路由的标签标题为“LFAA 工作台”，但多次读取页面 AX 状态/截图均因 `cua_repl` 执行超时重置内核，无法确认设置页正文渲染或完成操作；因此桌面、窄/短视口、交互与帧时间未验收，未标为通过。隔离服务已停止；测试目录 `dist/.tmp/ai-model-catalog-acceptance-20261019-a` 因本机执行策略拒绝递归清理命令而保留。原 `127.0.0.1:3000` 用户服务未重启或改动。

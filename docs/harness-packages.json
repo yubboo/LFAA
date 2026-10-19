@@ -1388,7 +1388,7 @@
       "responsibility": "账户及 Provider 凭据配置界面",
       "evidence": {
         "entry": "packages/client/ui-settings-account/src/index.ts",
-        "readme": null,
+        "readme": "packages/client/ui-settings-account/README.md",
         "consumers": [
           "packages/client/ui-layout",
           "packages/client/ui-renderer",
@@ -1423,7 +1423,7 @@
       "responsibility": "通用偏好、任务目录和交互设置界面",
       "evidence": {
         "entry": "packages/client/ui-settings-general/src/index.ts",
-        "readme": null,
+        "readme": "packages/client/ui-settings-general/README.md",
         "consumers": [
           "packages/client/ui-layout",
           "packages/client/ui-settings",
@@ -1443,7 +1443,7 @@
       "responsibility": "模型/思考档位的共享选项和设置映射",
       "evidence": {
         "entry": null,
-        "readme": null,
+        "readme": "packages/client/ui-settings-models/README.md",
         "consumers": [
           "packages/client/ui-chat",
           "packages/client/ui-settings"
@@ -3165,21 +3165,6 @@
       }
     },
     {
-      "path": "packages/guard/authorization",
-      "name": null,
-      "upstreamName": null,
-      "upstream": false,
-      "status": "placeholder",
-      "responsibility": "执行保护的统一授权接入",
-      "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
-        "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
-      }
-    },
-    {
       "path": "packages/guard/repeat-tool-reminder",
       "name": null,
       "upstreamName": "@deepseek-ai/dsh-repeat-tool-reminder",
@@ -3517,6 +3502,7 @@
         "consumers": [
           "packages/api/plugin-controller",
           "packages/api/session-controller",
+          "packages/api/settings-controller",
           "packages/api/terminal-controller",
           "packages/core/agent-loop"
         ],
@@ -4087,21 +4073,6 @@
       "upstream": true,
       "status": "placeholder",
       "responsibility": "运行不变量和诊断证据检查",
-      "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
-        "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
-      }
-    },
-    {
-      "path": "packages/sandbox/permission-presets",
-      "name": null,
-      "upstreamName": null,
-      "upstream": false,
-      "status": "placeholder",
-      "responsibility": "隔离执行权限预设的适配合同",
       "evidence": {
         "entry": null,
         "readme": null,
@@ -4733,6 +4704,7 @@
           "packages/fs/fs",
           "packages/games/minecraft",
           "packages/games/runtime-manager",
+          "packages/games/steamcmd",
           "packages/games/tool-minecraft",
           "packages/hooks/hook-protocol",
           "packages/interaction/permission-presets",
@@ -5314,7 +5286,6 @@
           "packages/storage/storage-domain",
           "packages/video/ai-video",
           "packages/workflow/workflow",
-          "packages/workspace/data-directory",
           "packages/workspace/workspace"
         ],
         "bundleDeclarations": [

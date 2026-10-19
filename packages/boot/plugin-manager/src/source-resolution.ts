@@ -4,7 +4,7 @@ import { constants, closeSync, fstatSync, lstatSync, openSync, readdirSync, real
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { downloadGithubSnapshot, type GitHubRepository, type GitHubSnapshot } from "./github-source.js";
-import { downloadCompatibleRegistryPluginPackage, downloadRegistryPluginPackage, normalizeNpmRegistryUrl } from "./npm-source.js";
+import { downloadPluginPackageFromRegistry, normalizeNpmRegistryUrl } from "./npm-source.js";
 import { PLUGIN_ARCHIVE_LIMITS, readNpmTarGzip } from "./npm-archive.js";
 import type { PluginArchiveFile } from "./zip-archive.js";
 import { packageContentFilter } from "./package-content.js";
@@ -25,10 +25,8 @@ export async function resolvePluginSource(sourceValue: string, requestedRef?: st
   if (/^(?:local|file|link):/u.test(source) || isAbsolute(source)) return resolveLocalSource(source);
 
   const spec = parseNpmSpec(source, requestedRef);
-  const registryUrl = normalizeNpmRegistryUrl(npmRegistry);
-  const artifact = /[~^*<>=| ]/u.test(spec.version)
-    ? await downloadCompatibleRegistryPluginPackage(spec.name, spec.version, registryUrl)
-    : await downloadRegistryPluginPackage(spec.name, spec.version, registryUrl);
+  const artifact = await downloadPluginPackageFromRegistry(spec.name, spec.version, normalizeNpmRegistryUrl(npmRegistry));
+  const registryUrl = artifact.registryUrl;
   const sourceLocation = `npm:${spec.name}`;
   const repository: GitHubRepository = {
     owner: "npm", name: spec.name, fullName: spec.name, description: artifact.description,

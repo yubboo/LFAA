@@ -1,5 +1,7 @@
 export interface LfaaProjectBuildInfo {
   currentVersion: string;
+  publishedAt: string;
+  releaseNotes: readonly string[];
   updateManifestUrl: string;
   feedUrl: string;
   releasePage: string;

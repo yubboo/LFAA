@@ -1,7 +1,7 @@
 /**
  * 功能：登记随 Web 交付的场景图片与背景名称。
  * 作用：作为登录、工作台和设置中心的纯数据清单，主题无需依赖业务 UI。
- * 关联文件：apps/web/public/images/minecraft、client/ui-theme/src/login-background.ts、client/ui-settings/src/SettingsPage.tsx。
+ * 关联文件：apps/web/public/images/minecraft、client/ui-theme/src/login-appearance.ts、client/ui-settings/src/SettingsPage.tsx。
  */
 export const minecraftSceneImages = {
   forestBridgeEvening: "/images/minecraft/forest-bridge-evening.png",

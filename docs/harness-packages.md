@@ -4,7 +4,7 @@
 
 参考 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，上游基线 commit `639ed015397290b3745d163aafe02ffee4aa3f84`。
 
-当前 368 个两级目录、193 个实际 workspace 包（191 个产品源码/组合包，2 个工程/测试包），175 个占位目录。控制端/节点运行树含 166 个包；客户端源码包单独进入 Web 构建。
+当前 366 个两级目录、193 个实际 workspace 包（191 个产品源码/组合包，2 个工程/测试包），173 个占位目录。控制端/节点运行树含 166 个包；客户端源码包单独进入 Web 构建。
 
 `implemented` 仅表示有 package.json 和源码/装配；不代表已经进入 Profile、通过运行验收或与 DSH 等价。`placeholder` 不可执行。产品能力现状见 [系统总体架构](系统总体架构.md)，历史核验见 [P0 记录](archive/audits/harness-p0-audit.md)。
 
@@ -194,7 +194,6 @@
 | [packages/goal/goal](../packages/goal/goal) | — | placeholder | 目标状态及生命周期合同 | 占位不可执行 | DSH 同名目录 |
 | [packages/goal/goal-round-driver](../packages/goal/goal-round-driver) | — | placeholder | 目标驱动回合调度适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/goal/tool-goal](../packages/goal/tool-goal) | — | placeholder | 目标创建/查询/控制工具 | 占位不可执行 | DSH 同名目录 |
-| [packages/guard/authorization](../packages/guard/authorization) | — | placeholder | 执行保护的统一授权接入 | 占位不可执行 | LFAA 扩展 |
 | [packages/guard/repeat-tool-reminder](../packages/guard/repeat-tool-reminder) | — | placeholder | 重复工具行动提醒，不替代领域防重 | 占位不可执行 | DSH 同名目录 |
 | [packages/guard/timeout-policy](../packages/guard/timeout-policy) | — | placeholder | 执行超时策略合同 | 占位不可执行 | DSH 同名目录 |
 | [packages/hooks/hook-protocol](../packages/hooks/hook-protocol) | lfaa-hook-protocol | implemented | 模型请求前后钩子与可撤销事件协议 | [源码](../packages/hooks/hook-protocol/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
@@ -214,7 +213,7 @@
 | [packages/identity/anonymous-user-id](../packages/identity/anonymous-user-id) | — | placeholder | 匿名用户标识来源适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/identity/auth](../packages/identity/auth) | lfaa-identity-auth | implemented | 账户身份、认证和账户隔离权威 | [源码](../packages/identity/auth/src/index.ts)；10 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/interaction/commands](../packages/interaction/commands) | — | placeholder | 通用交互命令登记协议 | 占位不可执行 | DSH 同名目录 |
-| [packages/interaction/permission-presets](../packages/interaction/permission-presets) | lfaa-permission-presets | implemented | 三模式授权、审批记忆与执行范围权威 | [源码](../packages/interaction/permission-presets/src/index.ts)；4 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/interaction/permission-presets](../packages/interaction/permission-presets) | lfaa-permission-presets | implemented | 三模式授权、审批记忆与执行范围权威 | [源码](../packages/interaction/permission-presets/src/index.ts)；5 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/interaction/tool-ask-user](../packages/interaction/tool-ask-user) | lfaa-tool-ask-user | implemented | 模型结构化澄清工具 | [源码](../packages/interaction/tool-ask-user/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/interaction/user-approval](../packages/interaction/user-approval) | lfaa-user-approval | implemented | 用户审批请求、通知及真实决定服务 | [源码](../packages/interaction/user-approval/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/interaction/user-questions](../packages/interaction/user-questions) | lfaa-user-questions | implemented | 账户/Run 范围的问题等待和答案路由 | [源码](../packages/interaction/user-questions/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
@@ -248,7 +247,6 @@
 | [packages/ptc-runtime/ptc-runtime](../packages/ptc-runtime/ptc-runtime) | — | placeholder | Programmatic Tool Calling 隔离执行合同 | 占位不可执行 | DSH 同名目录 |
 | [packages/ptc-runtime/ptc-runtime-node](../packages/ptc-runtime/ptc-runtime-node) | — | placeholder | Node.js PTC 执行提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/runtime-diagnostics/invariants](../packages/runtime-diagnostics/invariants) | — | placeholder | 运行不变量和诊断证据检查 | 占位不可执行 | DSH 同名目录 |
-| [packages/sandbox/permission-presets](../packages/sandbox/permission-presets) | — | placeholder | 隔离执行权限预设的适配合同 | 占位不可执行 | LFAA 扩展 |
 | [packages/sandbox/sandbox](../packages/sandbox/sandbox) | lfaa-sandbox | implemented | 隔离执行服务与能力报告合同 | [源码](../packages/sandbox/sandbox/src/index.ts)；3 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/sandbox/sandbox-local](../packages/sandbox/sandbox-local) | — | placeholder | 本机隔离执行提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/sandbox/sandbox-policy](../packages/sandbox/sandbox-policy) | lfaa-sandbox-policy | implemented | 隔离策略和真实能力校验 | [源码](../packages/sandbox/sandbox-policy/src/index.ts)；4 个静态消费者；0 个组合声明 | DSH 同名目录 |
@@ -283,7 +281,7 @@
 | [packages/session/session-title-first-prompt-llm](../packages/session/session-title-first-prompt-llm) | lfaa-session-title-first-prompt-llm | implemented | 首轮提示的模型标题提供方 | [源码](../packages/session/session-title-first-prompt-llm/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/session/session-title-llm](../packages/session/session-title-llm) | lfaa-session-title-llm | implemented | 通用模型标题生成适配 | [源码](../packages/session/session-title-llm/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/session/session-turn-outline](../packages/session/session-turn-outline) | lfaa-session-turn-outline | implemented | 会话回合大纲投影 | [源码](../packages/session/session-turn-outline/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
-| [packages/settings/settings](../packages/settings/settings) | lfaa-settings | implemented | 账户设置类型、默认值、校验、持久化和能力映射权威 | [源码](../packages/settings/settings/src/index.ts)；35 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/settings/settings](../packages/settings/settings) | lfaa-settings | implemented | 账户设置类型、默认值、校验、持久化和能力映射权威 | [源码](../packages/settings/settings/src/index.ts)；36 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/shell/bash-local](../packages/shell/bash-local) | lfaa-bash-local | implemented | 本机 Bash Shell 提供方 | [源码](../packages/shell/bash-local/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/shell/bash-sandbox](../packages/shell/bash-sandbox) | lfaa-bash-sandbox | implemented | 隔离 Bash Shell 提供方 | [源码](../packages/shell/bash-sandbox/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/shell/pwsh-local](../packages/shell/pwsh-local) | lfaa-pwsh-local | implemented | 本机 PowerShell 提供方 | [源码](../packages/shell/pwsh-local/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
@@ -313,7 +311,7 @@
 | [packages/storage/storage](../packages/storage/storage) | lfaa-storage-hub | implemented | 存储 Hub、命名空间和后端登记 | [源码](../packages/storage/storage/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/storage/storage-domain](../packages/storage/storage-domain) | lfaa-storage-domain | implemented | 领域存储协调、配置事务及迁移 | [源码](../packages/storage/storage-domain/src/index.ts)；8 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/storage/storage-json](../packages/storage/storage-json) | lfaa-storage-json | implemented | 受控 JSON 配置存储提供方 | [源码](../packages/storage/storage-json/src/index.ts)；11 个静态消费者；1 个组合声明 | DSH 同名目录 |
-| [packages/storage/storage-sqlite](../packages/storage/storage-sqlite) | lfaa-storage-sqlite | implemented | SQLite 连接、Schema、事务与持久化后端 | [源码](../packages/storage/storage-sqlite/src/index.ts)；21 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/storage/storage-sqlite](../packages/storage/storage-sqlite) | lfaa-storage-sqlite | implemented | SQLite 连接、Schema、事务与持久化后端 | [源码](../packages/storage/storage-sqlite/src/index.ts)；20 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/subagent/subagent](../packages/subagent/subagent) | lfaa-subagent | implemented | 委派任务状态、驱动登记与结果合同 | [源码](../packages/subagent/subagent/src/index.ts)；4 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/subagent/subagent-acp](../packages/subagent/subagent-acp) | — | placeholder | ACP 外部 Agent 驱动 | 占位不可执行 | DSH 同名目录 |
 | [packages/subagent/subagent-claude-code](../packages/subagent/subagent-claude-code) | lfaa-subagent-claude-code | implemented | Claude Code 外部 Agent 驱动 | [源码](../packages/subagent/subagent-claude-code/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |

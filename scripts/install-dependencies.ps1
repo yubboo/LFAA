@@ -33,7 +33,7 @@ function Show-MainMenu {
     Write-Host '  【4】检查环境与实际工作区包' -ForegroundColor Yellow
     Write-Host '  【5】一键生成纯净源码 ZIP（排除依赖与敏感数据）' -ForegroundColor Green
     Write-Host '  【6】一键正常推送 GitHub main（不覆盖远端历史）' -ForegroundColor Green
-    Write-Host '  【8】安全更新本地源码（检查后 fetch + 快进合并）' -ForegroundColor Cyan
+    Write-Host '  【8】安全更新本地源码（检查后同步当前分支及可安全快进的本地 main）' -ForegroundColor Cyan
     Write-Host '  【0】退出' -ForegroundColor Red
     Write-Host ''
     Write-Host '桌面安装版内置 Control Plane 与本机 Daemon，并自动启动；Web 在 Windows 默认托管本机 Daemon。' -ForegroundColor DarkGray

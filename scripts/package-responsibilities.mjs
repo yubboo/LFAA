@@ -187,8 +187,7 @@ tool-steamcmd:SteamCMD 模型工具与原节点任务服务适配`,
 goal:目标状态及生命周期合同
 goal-round-driver:目标驱动回合调度适配
 tool-goal:目标创建/查询/控制工具`,
-  guard: `authorization:执行保护的统一授权接入
-repeat-tool-reminder:重复工具行动提醒，不替代领域防重
+  guard: `repeat-tool-reminder:重复工具行动提醒，不替代领域防重
 timeout-policy:执行超时策略合同`,
   hooks: `hook-protocol:模型请求前后钩子与可撤销事件协议
 hooks-claude-code:Claude Code 生命周期钩子适配
@@ -241,8 +240,7 @@ writing:写作任务提示词正文 Owner、摘要及按需加载登记`,
   "ptc-runtime": `ptc-runtime:Programmatic Tool Calling 隔离执行合同
 ptc-runtime-node:Node.js PTC 执行提供方`,
   "runtime-diagnostics": `invariants:运行不变量和诊断证据检查`,
-  sandbox: `permission-presets:隔离执行权限预设的适配合同
-sandbox:隔离执行服务与能力报告合同
+  sandbox: `sandbox:隔离执行服务与能力报告合同
 sandbox-local:本机隔离执行提供方
 sandbox-policy:隔离策略和真实能力校验
 sandbox-windows-acl:Windows ACL 隔离执行提供方`,

@@ -150,7 +150,7 @@
 | [packages/client/ui-settings/src/SettingsPage.tsx](../../packages/client/ui-settings/src/SettingsPage.tsx) | `H:/LFAA1/packages/client/ui-settings/src/SettingsPage.tsx` | 消费共享背景，保持现有设置界面与偏好 |
 | [packages/client/ui-sidebar-files/package.json](../../packages/client/ui-sidebar-files/package.json) | `H:/LFAA1/packages/client/ui-sidebar-files/package.json` | 实际依赖/公开入口/主线命令对账，不改变产品发行版本 |
 | [packages/client/ui-theme/package.json](../../packages/client/ui-theme/package.json) | `H:/LFAA1/packages/client/ui-theme/package.json` | 实际依赖/公开入口/主线命令对账，不改变产品发行版本 |
-| [packages/client/ui-theme/src/login-background.ts](../../packages/client/ui-theme/src/login-background.ts) | `H:/LFAA1/packages/client/ui-theme/src/login-background.ts` | 内置背景元数据移至纯数据 Owner，保留兼容导出 |
+| [packages/client/ui-theme/src/login-appearance.ts](../../packages/client/ui-theme/src/login-appearance.ts) | `H:/LFAA1/packages/client/ui-theme/src/login-background.ts` | 历史登录背景入口现映射到登录页安全外观缓存 |
 | [packages/client/ui-workflow/package.json](../../packages/client/ui-workflow/package.json) | `H:/LFAA1/packages/client/ui-workflow/package.json` | 实际依赖/公开入口/主线命令对账，不改变产品发行版本 |
 | [packages/core/session/src/sessions.ts](../../packages/core/session/src/sessions.ts) | `H:/LFAA1/packages/core/session/src/sessions.ts` | JSONL 冷缓存/完整性、轻量计划状态与有界账户列表 |
 | packages/credentials/credentials/.gitkeep（删除/移出） | `H:/LFAA1/packages/credentials/credentials/.gitkeep` | 删除已实现包内的无用空标记 |

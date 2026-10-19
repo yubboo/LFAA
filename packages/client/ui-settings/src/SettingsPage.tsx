@@ -8,10 +8,9 @@ import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-updat
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
 import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { minecraftSceneBackgrounds } from "lfaa-util-values/src/builtin-backgrounds.js";
-import { cacheLoginBackground } from "lfaa-client-ui-theme/src/login-background.js";
+import { cacheLoginAppearance } from "lfaa-client-ui-theme/src/login-appearance.js";
 import { getBrowserNotificationPermission, playNotificationSound, requestBrowserNotificationPermission, sendBrowserNotification, type BrowserNotificationPermission } from "lfaa-client-resources/src/notification-runtime.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
-import { clearSetupReminderSnooze, getSetupReminderLocalDay, isSetupReminderSnoozedToday, setSetupReminderSnoozedToday } from "lfaa-client-ui-settings-general/src/setup-reminder.js";
 import { ResizableWorkbench } from "lfaa-client-ui-dockkit/src/ResizableWorkbench.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
 import { readWorkbenchLeftWidth, saveWorkbenchLeftWidth } from "lfaa-client-ui-dockkit/src/workbench-preferences.js";
@@ -402,7 +401,7 @@ interface SettingsPageProps {
   settings: UserSettings;
   resolvedTheme: "light" | "dark";
   initialSection?: SectionId;
-  sectionRequest?: { section: "security"; requestId: number } | null;
+  sectionRequest?: { section: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security"; requestId: number } | null;
   applications: ApplicationNavigationItem[];
   onOpenApplication: (app: ApplicationId, mode: "normal") => Promise<void>;
   onBack: () => void;
@@ -523,10 +522,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [appearanceAdvancedOpen, setAppearanceAdvancedOpen] = useState(() => readSettingsAppearanceAdvancedOpen(user.id));
   const [settings, setSettings] = useState<UserSettings>(workbenchSettings);
   const [skillDirectoriesDraft, setSkillDirectoriesDraft] = useState<string | null>(null);
-  const [setupReminderLocalDay, setSetupReminderLocalDay] = useState(() => getSetupReminderLocalDay());
-  const [contentStorageReminderPausedToday, setContentStorageReminderPausedToday] = useState(() => isSetupReminderSnoozedToday(user.id, getSetupReminderLocalDay(), "content-storage"));
-  const [aiProviderReminderPausedToday, setAiProviderReminderPausedToday] = useState(() => isSetupReminderSnoozedToday(user.id, getSetupReminderLocalDay(), "ai-provider"));
   const settingsRef = useRef(settings);
+  const persistedSettingsRef = useRef(workbenchSettings);
   const settingsRevisionRef = useRef(new Map<keyof UserSettings, number>());
   const settingsAutoSaveTimersRef = useRef(new Map<keyof UserSettings, number>());
   const settingsSaveRequestsRef = useRef(new Map<keyof UserSettings, Promise<void>>());
@@ -867,23 +864,10 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
   useEffect(() => {
     if (settingsRef.current === workbenchSettings) return;
+    persistedSettingsRef.current = workbenchSettings;
     settingsRef.current = workbenchSettings;
     setSettings(workbenchSettings);
   }, [workbenchSettings]);
-
-  useEffect(() => {
-    // 设置中心保持打开跨过本地午夜时，自动清除“今日暂停”的展示状态。
-    const timer = window.setInterval(() => {
-      const today = getSetupReminderLocalDay();
-      setSetupReminderLocalDay((current) => current === today ? current : today);
-    }, 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    setContentStorageReminderPausedToday(isSetupReminderSnoozedToday(user.id, setupReminderLocalDay, "content-storage"));
-    setAiProviderReminderPausedToday(isSetupReminderSnoozedToday(user.id, setupReminderLocalDay, "ai-provider"));
-  }, [setupReminderLocalDay, user.id]);
 
   useEffect(() => {
     setEmailDraft(user.email ?? "");
@@ -1466,6 +1450,18 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     settingsAutoSaveTimersRef.current.delete(category);
   }
 
+  function restorePersistedSettings<K extends keyof UserSettings>(category: K, failedRevision: number): void {
+    if ((settingsRevisionRef.current.get(category) ?? 0) !== failedRevision) return;
+    const next = { ...settingsRef.current, [category]: persistedSettingsRef.current[category] } as UserSettings;
+    settingsRevisionRef.current.set(category, failedRevision + 1);
+    clearSettingsAutoSave(category);
+    settingsRef.current = next;
+    if (settingsPageMountedRef.current) {
+      setSettings(next);
+      onSettingsChange(next);
+    }
+  }
+
   function persistLatestSettings<K extends keyof UserSettings>(category: K): Promise<void> {
     const existingRequest = settingsSaveRequestsRef.current.get(category);
     if (existingRequest) return existingRequest;
@@ -1483,11 +1479,14 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           result = await saveSettings(category, value);
         } catch (saveError) {
           if ((settingsRevisionRef.current.get(category) ?? 0) !== revision) continue;
+          restorePersistedSettings(category, revision);
           throw saveError;
         }
 
         if ((settingsRevisionRef.current.get(category) ?? 0) !== revision) continue;
 
+        persistedSettingsRef.current = { ...persistedSettingsRef.current, [category]: result.settings[category] } as UserSettings;
+        if (category === "appearance") cacheLoginAppearance(user.username, result.settings.appearance);
         const nextSettings: UserSettings = { ...settingsRef.current, [category]: result.settings[category] };
         settingsRef.current = nextSettings;
         if (settingsPageMountedRef.current) {
@@ -1500,7 +1499,6 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           setSettings(nextSettings);
           onSettingsChange(nextSettings);
           if (category === "permissions") setPersistedPermissionMode(result.settings.permissions.mode);
-          if (category === "appearance") cacheLoginBackground(result.settings.appearance.backgrounds.login);
         }
         return;
       }
@@ -1584,20 +1582,6 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
   function updateGeneral(patch: Partial<UserSettings["general"]>): void {
     updateSettings("general", { ...settings.general, ...patch });
-  }
-
-  function updateSetupReminderSnooze(category: "ai-provider" | "content-storage", paused: boolean): void {
-    const saved = paused
-      ? setSetupReminderSnoozedToday(user.id, setupReminderLocalDay, category)
-      : clearSetupReminderSnooze(user.id, category);
-    if (!saved) {
-      messageApi.error("浏览器当前无法保存本地提醒状态，请检查本地存储权限后重试。");
-      return;
-    }
-    if (category === "ai-provider") setAiProviderReminderPausedToday(paused);
-    else setContentStorageReminderPausedToday(paused);
-    const categoryLabel = category === "ai-provider" ? "AI Provider 配置提醒" : "业务内容存储提醒";
-    messageApi.success(paused ? `${categoryLabel}今天已暂停。` : `已恢复今天的${categoryLabel}。`);
   }
 
   function updateAppearanceAdvanced(patch: Partial<UserSettings["appearance"]["advanced"]>): void {
@@ -1991,14 +1975,18 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     }
   }
 
-  async function runAccountAction(account: AiAccount, action: "activate" | "retest" | "delete", modelId?: string): Promise<void> {
+  async function runAccountAction(account: AiAccount, action: "activate" | "refresh" | "retest" | "delete", modelId?: string): Promise<void> {
     setAiBusy(`${action}:${account.id}`);
     setError("");
     try {
       if (action === "activate") await activateAiAccount(account.id);
-      if (action === "retest") {
-        const result = await reprobeAiAccount(account.id);
+      if (action === "refresh") {
+        const result = await refreshAiAccountModelCatalog(account.id);
         messageApi.success(result.result.message);
+      }
+      if (action === "retest") {
+        const result = await testSavedAiAccountModel(account.id);
+        messageApi.success(`当前模型真实请求通过（${result.result.elapsedMs} ms）`);
       }
       if (action === "delete") await deleteAiAccount(account.id);
       if (action === "activate" || action === "delete") messageApi.success(action === "activate" ? "已设为当前模型" : "AI 账户已删除");
@@ -2162,7 +2150,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         type="warning"
         showIcon
         message="所有弹出提醒已暂停"
-        description="各类别开关和偏好仍保留。恢复总开关后，工作台提醒、系统通知和提示音会按原设置继续生效；会话中的审批与澄清卡片不受影响。"
+        description="重新开启后，其他工作台提醒、系统通知和提示音会按原设置继续生效；会话中的审批与澄清卡片不受影响。"
         action={<Button size="small" type="primary" onClick={() => updateGeneral({ notificationPopupsEnabled: true })}>恢复通知</Button>}
       /> : null}
       <SettingRow title="通知总开关" description="关闭后停止工作台提醒、浏览器系统通知和通知提示音；会话里的审批与澄清卡片仍会保留。重新开启后，各类别开关按原设置生效。" status={settings.general.notificationPopupsEnabled ? "已开启" : "已关闭"}>
@@ -2172,26 +2160,11 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         {notificationPermission === "default" ? <Button onClick={() => void enableBrowserNotifications()}>启用通知</Button> : null}
         {notificationPermission === "granted" ? <Button onClick={sendNotificationTest} disabled={!settings.general.notificationPopupsEnabled}>发送测试通知</Button> : null}
       </SettingRow>
-      <SettingRow title="默认账户安全提醒" description="首次使用系统默认账户登录后，提醒你更改用户名和密码；修改完成或选择不更改后停止提醒，稍后再说会在后续登录时再次提醒。" status={notificationCategoryStatus(settings.general.defaultAdminCredentialReminderEnabled)}>
-        <SettingsSwitch label="默认账户安全提醒" checked={settings.general.defaultAdminCredentialReminderEnabled} onChange={() => updateGeneral({ defaultAdminCredentialReminderEnabled: !settings.general.defaultAdminCredentialReminderEnabled })} />
-      </SettingRow>
       <SettingRow title="小鱼智能体 回复完成" description="回复完成后在工作台通知栏和右下角提醒；浏览器系统通知按下方策略投递。" status={notificationCategoryStatus(settings.general.completionNotification !== "never", completionNotificationLabel)}>
         <Select value={settings.general.completionNotification} options={[{ value: "always", label: "始终" }, { value: "unfocused", label: "仅在工作台未聚焦时" }, { value: "never", label: "关闭" }]} onChange={(value) => updateGeneral({ completionNotification: value })} />
       </SettingRow>
       <SettingRow title="小鱼智能体 会话出错" description="回复生成失败时，在通知栏和右下角显示提醒；点击可返回出错的会话查看详情。" status={notificationCategoryStatus(settings.general.sessionIssueNotifications)}>
         <SettingsSwitch label="会话问题提醒" checked={settings.general.sessionIssueNotifications} onChange={() => updateGeneral({ sessionIssueNotifications: !settings.general.sessionIssueNotifications })} />
-      </SettingRow>
-      <SettingRow title="AI Provider 配置提醒" description="没有可用 Provider 账户时在工作台提醒；添加并启用账户后自动停止。关闭此项只停用 AI Provider 提醒。" status={notificationCategoryStatus(settings.general.aiProviderReminderEnabled)}>
-        <SettingsSwitch label="AI Provider 配置提醒" checked={settings.general.aiProviderReminderEnabled} onChange={() => updateGeneral({ aiProviderReminderEnabled: !settings.general.aiProviderReminderEnabled })} />
-      </SettingRow>
-      <SettingRow title="业务内容存储提醒" description="尚未选择游戏、小说与漫剧内容目录时在工作台提醒；确认默认、推荐或自定义位置后自动停止。关闭此项只停用该类别。" status={notificationCategoryStatus(settings.general.setupReminderEnabled)}>
-        <SettingsSwitch label="业务内容存储提醒" checked={settings.general.setupReminderEnabled} onChange={() => updateGeneral({ setupReminderEnabled: !settings.general.setupReminderEnabled })} />
-      </SettingRow>
-      <SettingRow title="AI Provider 今日不再提醒" description="仅对当前账户和此浏览器生效，暂停到本地今天结束，明天自动恢复；不更改 AI Provider 长期开关。" status={!settings.general.notificationPopupsEnabled ? "通知总开关已关闭" : !settings.general.aiProviderReminderEnabled ? "AI Provider 提醒已关闭" : aiProviderReminderPausedToday ? "今日已暂停" : "今日未暂停"}>
-        <SettingsSwitch label="AI Provider 今日不再提醒" checked={aiProviderReminderPausedToday} disabled={!settings.general.notificationPopupsEnabled || !settings.general.aiProviderReminderEnabled} onChange={() => updateSetupReminderSnooze("ai-provider", !aiProviderReminderPausedToday)} />
-      </SettingRow>
-      <SettingRow title="业务存储今日不再提醒" description="仅对当前账户和此浏览器生效，暂停到本地今天结束，明天自动恢复；不更改业务存储提醒长期开关。" status={!settings.general.notificationPopupsEnabled ? "通知总开关已关闭" : !settings.general.setupReminderEnabled ? "业务存储提醒已关闭" : contentStorageReminderPausedToday ? "今日已暂停" : "今日未暂停"}>
-        <SettingsSwitch label="业务存储今日不再提醒" checked={contentStorageReminderPausedToday} disabled={!settings.general.notificationPopupsEnabled || !settings.general.setupReminderEnabled} onChange={() => updateSetupReminderSnooze("content-storage", !contentStorageReminderPausedToday)} />
       </SettingRow>
       <SettingRow title="AI 工具权限请求" description="审批操作统一在当前 小鱼智能体 输入框上方处理；此开关控制通知栏和后台系统通知提醒，不会隐藏当前会话中的待处理审批。" status={notificationCategoryStatus(settings.general.permissionNotifications)}>
         <SettingsSwitch label="审批提醒" checked={settings.general.permissionNotifications} onChange={() => updateGeneral({ permissionNotifications: !settings.general.permissionNotifications })} />
@@ -3369,6 +3342,11 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             description={updateResult.releaseNotes?.length ? updateResult.releaseNotes.join("；") : undefined}
             action={webUpdateResult?.status === "available" ? <Button type="link" href={lfaaProjectBuildInfo?.releasePage} target="_blank" rel="noreferrer">打开官方发布页</Button> : undefined}
           /> : null}
+          {lfaaProjectBuildInfo?.releaseNotes.length ? <div className="settings-note-card">
+            <strong>本次版本公告 · LFAA {currentVersion}</strong>
+            <p>发布日期：{lfaaProjectBuildInfo.publishedAt}。关闭首次公告后，也可以随时在这里重新查看。</p>
+            <ul>{lfaaProjectBuildInfo.releaseNotes.map((note, index) => <li key={`${index}-${note}`}>{note}</li>)}</ul>
+          </div> : null}
         </section>
       );
     }

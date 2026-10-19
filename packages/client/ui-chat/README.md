@@ -1,6 +1,6 @@
 # LFAA AI Work 聊天
 
-其他 Client 管理页可通过 `aiWorkGoalRequestEventName` 将用户明确点击的目标交给共享 Workbench；本聊天只消费该目标并调用既有 `/ai/chat/stream`。权限审批、工具选择、插件执行和状态回读仍由服务端 Agent Loop、Capability Owner 与 Permission Owner 持有。无活动 Provider 时保留目标在输入框，不伪造执行结果。
+其他 Client 管理页可通过 `aiWorkGoalRequestEventName` 将用户明确点击的目标交给共享 Workbench；本聊天只消费该目标并调用既有 `/ai/chat/stream`。权限审批、工具选择、插件执行和状态回读仍由服务端 Agent Loop、Capability Owner 与 Permission Owner 持有。无活动 Provider 时保留目标在输入框，不伪造执行结果；设置读取完成后若没有可用账户，提示仅显示“尚未配置大模型”，并由“去配置模型”直接打开“AI 与模型”设置区。
 
 `lfaa-client-ui-chat` 展示同一 Agent Run 的公开正文、真实工具活动、用户问题和权限审批，执行与持久化仍归原 Agent Loop、Session 与 Permission Owner。
 
@@ -21,6 +21,8 @@
 消息正文在窄聊天列中保留随容器宽度伸缩的两侧留白，提问锚点仍固定在消息舞台左边缘。权限操作常驻输入框底部；应用关联与 Skill/提示词/专家选择通过“更多”菜单访问，关联仍只是模型参考，不代表自动加载或授予权限。
 
 提问框的插入光标跟随输入文字颜色，并仅在此控件覆盖 Wallpaper Engine 注入的白色全局 `!important` 光标规则，避免浅色主题/表面上消失。页面打开时不抢占键盘焦点，用户点击输入框后显示光标。
+
+输入卡在鼠标悬停时保持静止，聚焦时只平滑过渡主题边框；底部操作按钮平滑过渡颜色，不改变输入卡或操作区的布局尺寸，也不投外沿阴影。空闲虚化只作用于 AI 回复区域，输入上下文和操作按钮始终清晰；设置中心的减少动态效果和系统减少动态偏好会关闭过渡。
 
 活动 DSH Wallpaper Engine 画布时，聊天输入卡、用户消息气泡、审批/交互卡和聊天浮层读取插件生成的 `--we-chat-glass-fill`、浮层逐面令牌及对应的模糊/饱和度/亮度/对比度；视觉按 `data-we-glass-chat` 与 `data-we-glass-floaters` 门控。插件停用或画布不活动后只消费 LFAA 共享令牌，不保留旧玻璃值，也不新增设置或运行状态请求。
 

@@ -14,7 +14,7 @@ import { config } from "lfaa-launch-environment/src/config.js";
 import { logger } from "lfaa-telemetry-logger/src/logger.js";
 import { createAiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import { createRealtimeSocketServer } from "lfaa-api-remotes/src/socket-server.js";
-import { requestLogLevel, serveFrontend } from "./http-delivery.js";
+import { captureRuntimeBuildIdentity, requestLogLevel, runtimeBuildCompatibilityGuard, serveFrontend } from "./http-delivery.js";
 import { DshWebServerCarrier, mountDshWebRoutes } from "./dsh-carrier.js";
 
 export const name = "lfaaWebserver";
@@ -22,6 +22,8 @@ export const inject = ["apiGateway", "skills", "aiExtensions", "aiRuntimeHooks",
 export async function apply(ctx: Context): Promise<void> {
 const app = express();
 app.disable("x-powered-by");
+const servesFrontend = process.env.LFAA_SERVE_FRONTEND === "true" || process.env.LFAA_SERVE_FRONTEND === "1";
+const runtimeBuildIdentity = servesFrontend ? captureRuntimeBuildIdentity(config.repositoryRoot) : null;
 // 远程节点使用 HTTPS；仅在部署明确启用时信任本机 TLS 反向代理，拒绝任意来源伪造转发协议。
 if (process.env.LFAA_TRUST_LOOPBACK_PROXY === "true") app.set("trust proxy", "loopback");
 
@@ -50,6 +52,9 @@ app.use((request, response, next) => {
   next();
 });
 
+// 正式 Web 运行中若构建产物被替换，不能把新前端交给内存中的旧控制端处理设置写入。
+if (runtimeBuildIdentity) app.use(runtimeBuildCompatibilityGuard(config.repositoryRoot, runtimeBuildIdentity));
+
 // API routes consume JSON here; DSH plugin routes retain their raw request stream
 // for bounded host-side adapters such as Wallpaper Engine settings.
 app.use("/api", express.json({ limit: "5mb" }));
@@ -73,7 +78,7 @@ app.get("/__dsh/index-injections", (_request, response) => {
 });
 mountDshWebRoutes(dshWebServer, app);
 
-if (process.env.LFAA_SERVE_FRONTEND === "true" || process.env.LFAA_SERVE_FRONTEND === "1") {
+if (servesFrontend) {
   serveFrontend(app, resolve(config.repositoryRoot, "dist", "apps", "web"), (html) => dshWebServer.renderIndex(html));
 }
 

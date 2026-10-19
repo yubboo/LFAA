@@ -3,10 +3,79 @@
  * 作用：让带内容哈希的资源复用浏览器缓存，入口与普通资源可重新校验，缺失资源不返回页面 HTML。
  * 关联文件：server.ts 装配这些规则；apps/web/index.html 声明图标；apps/cli/tests/http-delivery.test.mjs 验证真实 HTTP 响应。
  */
-import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
-import express, { type Express } from "express";
+import express, { type Express, type RequestHandler } from "express";
+
+export interface RuntimeBuildIdentity {
+  hostFingerprint: string;
+  webFingerprint: string;
+  webEntryHash: string;
+}
+
+function readBuildFingerprint(path: string, expectedKind: "host" | "web"): string {
+  try {
+    const value: unknown = JSON.parse(readFileSync(path, "utf8"));
+    if (!value || typeof value !== "object" || (value as { kind?: unknown }).kind !== expectedKind
+      || typeof (value as { fingerprint?: unknown }).fingerprint !== "string") throw new Error("invalid build state");
+    return (value as { fingerprint: string }).fingerprint;
+  } catch (error) {
+    throw new Error(`无法读取 ${expectedKind === "host" ? "控制端" : "Web"} 构建指纹：${path}`, { cause: error });
+  }
+}
+
+function hashFile(path: string): string {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+/** Capture the server and Web bundle versions when this process starts. */
+export function captureRuntimeBuildIdentity(repositoryRoot: string): RuntimeBuildIdentity {
+  const hostDirectory = resolve(repositoryRoot, "dist", "apps", "control-plane");
+  const webDirectory = resolve(repositoryRoot, "dist", "apps", "web");
+  return {
+    hostFingerprint: readBuildFingerprint(resolve(hostDirectory, "build-state.json"), "host"),
+    webFingerprint: readBuildFingerprint(resolve(webDirectory, "build-state.json"), "web"),
+    webEntryHash: hashFile(resolve(webDirectory, "index.html"))
+  };
+}
+
+/** Check only on document loads and settings writes, so normal polling does no extra disk work. */
+export function isRuntimeBuildIdentityCurrent(repositoryRoot: string, identity: RuntimeBuildIdentity): boolean {
+  try {
+    return readBuildFingerprint(resolve(repositoryRoot, "dist", "apps", "control-plane", "build-state.json"), "host") === identity.hostFingerprint
+      && readBuildFingerprint(resolve(repositoryRoot, "dist", "apps", "web", "build-state.json"), "web") === identity.webFingerprint
+      && hashFile(resolve(repositoryRoot, "dist", "apps", "web", "index.html")) === identity.webEntryHash;
+  } catch {
+    // A build removes/replaces its output before recording the new fingerprint.
+    // Treat that interval as incompatible too, so a partial build cannot accept writes.
+    return false;
+  }
+}
+
+export function runtimeBuildCompatibilityGuard(repositoryRoot: string, identity: RuntimeBuildIdentity): RequestHandler {
+  return (request, response, next) => {
+    const isSettingsWrite = request.method === "PUT" && /^\/api\/settings\/[^/]+$/u.test(request.path);
+    const isDocument = (request.method === "GET" || request.method === "HEAD")
+      && !["/api", "/assets", "/images", "/backgrounds", "/socket.io", "/__dsh", "/wallpaper-engine"]
+        .some(prefix => request.path === prefix || request.path.startsWith(`${prefix}/`))
+      && !extname(request.path)
+      && Boolean(request.accepts("html"));
+    if ((!isSettingsWrite && !isDocument) || isRuntimeBuildIdentityCurrent(repositoryRoot, identity)) {
+      next();
+      return;
+    }
+
+    const message = "LFAA Web 或控制端构建文件在服务运行期间已更新。为避免设置写入失败，请停止并重新启动 LFAA Web 后重试。";
+    response.status(503).setHeader("Cache-Control", "no-store");
+    if (isDocument) {
+      response.type("html").send(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>LFAA 需要重新启动</title></head><body><main><h1>LFAA 需要重新启动</h1><p>${message}</p></main></body></html>`);
+      return;
+    }
+    response.json({ error: "runtime_build_changed", message });
+  };
+}
 
 export function requestLogLevel(method: string, path: string, statusCode: number, expectedWallpaperMiss = false): "debug" | "info" | "warn" | "error" {
   if (statusCode >= 500) return "error";

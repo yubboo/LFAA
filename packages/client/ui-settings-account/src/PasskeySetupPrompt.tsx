@@ -13,6 +13,7 @@ interface PasskeySetupPromptProps {
   isSettingsPage: boolean;
   notificationPopupsEnabled: boolean;
   onOpenSettings: (section: "account") => void;
+  onPromptActivityChange?: (active: boolean) => void;
 }
 
 function dismissalKey(userId: string): string {
@@ -27,10 +28,17 @@ function wasDismissed(userId: string): boolean {
   }
 }
 
-export function PasskeySetupPrompt({ user, isSettingsPage, notificationPopupsEnabled, onOpenSettings }: PasskeySetupPromptProps) {
+export function PasskeySetupPrompt({ user, isSettingsPage, notificationPopupsEnabled, onOpenSettings, onPromptActivityChange }: PasskeySetupPromptProps) {
   const [open, setOpen] = useState(false);
+  const [checking, setChecking] = useState(false);
   const dismissedRef = useRef(false);
   const dismissedUserIdRef = useRef(user.id);
+  const promptActive = notificationPopupsEnabled && !isSettingsPage && (checking || open);
+
+  useEffect(() => {
+    onPromptActivityChange?.(promptActive);
+    return () => onPromptActivityChange?.(false);
+  }, [onPromptActivityChange, promptActive]);
 
   useEffect(() => {
     setOpen(false);
@@ -38,21 +46,26 @@ export function PasskeySetupPrompt({ user, isSettingsPage, notificationPopupsEna
       dismissedUserIdRef.current = user.id;
       dismissedRef.current = false;
     }
-    if (!notificationPopupsEnabled || isSettingsPage || dismissedRef.current || wasDismissed(user.id)) return;
+    if (!notificationPopupsEnabled || isSettingsPage || dismissedRef.current || wasDismissed(user.id)) {
+      setChecking(false);
+      return;
+    }
 
     let active = true;
+    setChecking(true);
     const timer = window.setTimeout(() => {
       void Promise.all([loadPasskeyAvailability(), loadUserPasskeys(), browserSupportsPasskeys()]).then(([availability, result, supported]) => {
         if (active && supported && availability.enabled
           && availability.origin === window.location.origin && result.passkeys.length === 0) {
           setOpen(true);
         }
-      }).catch(() => undefined);
+      }).catch(() => undefined).finally(() => { if (active) setChecking(false); });
     }, 5000);
 
     return () => {
       active = false;
       window.clearTimeout(timer);
+      setChecking(false);
     };
   }, [isSettingsPage, notificationPopupsEnabled, user.id]);
 

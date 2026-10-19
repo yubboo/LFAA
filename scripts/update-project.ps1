@@ -67,13 +67,6 @@ $remoteNames = @(Invoke-GitOutput -GitArguments @('remote'))
 if ($remoteNames -notcontains $Remote) { throw "找不到 Git 远端 $Remote；没有修改本地源码。" }
 
 $worktreeChanges = @(Invoke-GitOutput -GitArguments @('status', '--porcelain=v1', '--untracked-files=all', '--ignore-submodules=none'))
-if ($worktreeChanges.Count -gt 0) {
-    Write-Host '工作区存在尚未提交的源码变化；为保护它们，没有执行 fetch 或更新：' -ForegroundColor Yellow
-    $worktreeChanges | Select-Object -First 40 | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
-    if ($worktreeChanges.Count -gt 40) { Write-Host ("  ……还有 {0} 项" -f ($worktreeChanges.Count - 40)) -ForegroundColor Yellow }
-    throw '请先完成选项 6 推送，或自行备份并提交工作区变化后重试。'
-}
-
 $gitDirectory = ((Invoke-GitOutput -GitArguments @('rev-parse', '--git-dir')) -join "`n").Trim()
 if (-not [System.IO.Path]::IsPathRooted($gitDirectory)) { $gitDirectory = Join-Path $projectPath $gitDirectory }
 foreach ($stateName in @('MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'rebase-merge', 'rebase-apply')) {
@@ -105,12 +98,48 @@ $remoteRef = "refs/remotes/$Remote/$Branch"
 $headRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', 'HEAD')) -join '').Trim()
 $remoteRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', $remoteRef)) -join '').Trim()
 
-if ($headRevision -eq $remoteRevision) {
-    Write-Host '本地源码已经与 GitHub main 一致，无需更新。' -ForegroundColor Green
-    return
+$targetBranchRef = "refs/heads/$Branch"
+$targetBranchSyncState = 'not-needed'
+$targetBranchRevision = ''
+$targetBranchIncomingCount = 0
+if ($branchName -eq $Branch) {
+    $targetBranchSyncState = 'current-branch'
+}
+else {
+    & git @gitCommonArguments show-ref --verify --quiet $targetBranchRef 2>$null
+    $targetBranchLookupExitCode = $LASTEXITCODE
+    if ($targetBranchLookupExitCode -eq 0) {
+        $targetBranchRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', '--verify', $targetBranchRef)) -join '').Trim()
+        if ($targetBranchRevision -eq $remoteRevision) {
+            $targetBranchSyncState = 'up-to-date'
+        }
+        else {
+            $worktreeRecords = @(Invoke-GitOutput -GitArguments @('worktree', 'list', '--porcelain'))
+            if ($worktreeRecords -contains "branch $targetBranchRef") {
+                $targetBranchSyncState = 'checked-out-elsewhere'
+            }
+            else {
+                & git @gitCommonArguments merge-base --is-ancestor $targetBranchRef $remoteRef 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    $targetBranchSyncState = 'fast-forward'
+                    $targetBranchIncomingCount = [int](((Invoke-GitOutput -GitArguments @('rev-list', '--count', ("{0}..{1}" -f $targetBranchRef, $remoteRef))) -join '').Trim())
+                }
+                else {
+                    $targetBranchSyncState = 'preserve-local-history'
+                }
+            }
+        }
+    }
+    elseif ($targetBranchLookupExitCode -eq 1) {
+        $targetBranchSyncState = 'missing'
+    }
+    else {
+        throw ("无法检查本地分支 {0}；没有移动任何分支引用。" -f $Branch)
+    }
 }
 
-if (-not [string]::IsNullOrWhiteSpace($dataRelativePath)) {
+$needsCurrentUpdate = $headRevision -ne $remoteRevision
+if ($needsCurrentUpdate -and -not [string]::IsNullOrWhiteSpace($dataRelativePath)) {
     $dataChanges = @(Invoke-GitOutput -GitArguments (@('diff', '--name-only', 'HEAD', $remoteRef, '--', $dataRelativePath)))
     if ($dataChanges.Count -gt 0) {
         Write-Host '远端提交触及当前用户数据目录；为保护本地数据，已停止更新：' -ForegroundColor Red
@@ -119,35 +148,98 @@ if (-not [string]::IsNullOrWhiteSpace($dataRelativePath)) {
     }
 }
 
-& git @gitCommonArguments merge-base --is-ancestor HEAD $remoteRef 2>$null
-$localIsAncestor = $LASTEXITCODE -eq 0
-if (-not $localIsAncestor) {
-    & git @gitCommonArguments merge-base --is-ancestor $remoteRef HEAD 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host '本地分支含有 GitHub 尚未包含的提交；为保留本地历史，没有移动分支。' -ForegroundColor Yellow
-        return
+if ($needsCurrentUpdate) {
+    & git @gitCommonArguments merge-base --is-ancestor HEAD $remoteRef 2>$null
+    $localIsAncestor = $LASTEXITCODE -eq 0
+    if (-not $localIsAncestor) {
+        & git @gitCommonArguments merge-base --is-ancestor $remoteRef HEAD 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host '本地分支含有 GitHub 尚未包含的提交；为保留本地历史，没有移动分支。' -ForegroundColor Yellow
+            return
+        }
+        throw '本地与 GitHub main 已分叉；快进更新不适用，没有合并或覆盖任何提交。请先单独核对两个分支。'
     }
-    throw '本地与 GitHub main 已分叉；快进更新不适用，没有合并或覆盖任何提交。请先单独核对两个分支。'
 }
 
-$incomingCount = [int](((Invoke-GitOutput -GitArguments @('rev-list', '--count', ("HEAD..{0}" -f $remoteRef))) -join '').Trim())
-$changeSummary = @(Invoke-GitOutput -GitArguments @('diff', '--name-status', 'HEAD', $remoteRef, '--'))
-Write-Host ("GitHub 有 {0} 个新提交，文件变化如下：" -f $incomingCount) -ForegroundColor Cyan
-$changeSummary | Select-Object -First 40 | ForEach-Object { Write-Host "  $_" }
-if ($changeSummary.Count -gt 40) { Write-Host ("  ……还有 {0} 项" -f ($changeSummary.Count - 40)) -ForegroundColor DarkGray }
-Write-Host '更新只执行快进合并；不会 reset、clean、强制覆盖或删除本地数据。' -ForegroundColor Green
+$currentIncomingCount = 0
+$changeSummary = @()
+if ($needsCurrentUpdate) {
+    $currentIncomingCount = [int](((Invoke-GitOutput -GitArguments @('rev-list', '--count', ("HEAD..{0}" -f $remoteRef))) -join '').Trim())
+    $changeSummary = @(Invoke-GitOutput -GitArguments @('diff', '--name-status', 'HEAD', $remoteRef, '--'))
+    Write-Host ("当前分支有 {0} 个 GitHub 新提交，文件变化如下：" -f $currentIncomingCount) -ForegroundColor Cyan
+    $changeSummary | Select-Object -First 40 | ForEach-Object { Write-Host "  $_" }
+    if ($changeSummary.Count -gt 40) { Write-Host ("  ……还有 {0} 项" -f ($changeSummary.Count - 40)) -ForegroundColor DarkGray }
+}
+else {
+    Write-Host '当前工作分支已经与 GitHub main 一致。' -ForegroundColor Green
+}
+
+if ($targetBranchSyncState -eq 'fast-forward') {
+    Write-Host ("本地 {0} 分支另有 {1} 个可安全快进提交；确认后将一并更新该分支引用。" -f $Branch, $targetBranchIncomingCount) -ForegroundColor Cyan
+}
+elseif ($targetBranchSyncState -eq 'checked-out-elsewhere') {
+    Write-Host ("本地 {0} 正在其他工作区检出；为避免只移动分支指针，保留该工作区不动。" -f $Branch) -ForegroundColor Yellow
+}
+elseif ($targetBranchSyncState -eq 'preserve-local-history') {
+    Write-Host ("本地 {0} 含有 GitHub main 未包含的历史；为保留本地提交，不移动该分支引用。" -f $Branch) -ForegroundColor Yellow
+}
+elseif ($targetBranchSyncState -eq 'missing') {
+    Write-Host ("本地尚未创建 {0} 分支；不会自动创建分支。" -f $Branch) -ForegroundColor DarkGray
+}
+
+$willUpdateTargetBranch = $targetBranchSyncState -eq 'fast-forward'
+if (-not $needsCurrentUpdate -and -not $willUpdateTargetBranch) {
+    if ($worktreeChanges.Count -gt 0) {
+        Write-Host '没有可安全应用的本地更新；未提交的源码变化已保留。' -ForegroundColor Green
+        return
+    }
+    Write-Host '没有可安全应用的本地更新。' -ForegroundColor Green
+    return
+}
+
+if ($worktreeChanges.Count -gt 0) {
+    Write-Host '工作区存在尚未提交的源码变化；为保护它们，本次不会执行快进合并：' -ForegroundColor Yellow
+    $worktreeChanges | Select-Object -First 40 | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+    if ($worktreeChanges.Count -gt 40) { Write-Host ("  ……还有 {0} 项" -f ($worktreeChanges.Count - 40)) -ForegroundColor Yellow }
+    throw '已检查远端，但因当前确有待应用更新而停止。请先备份或提交本地改动后重试；无需推送到 GitHub。'
+}
+
+Write-Host '更新只执行快进；不会 reset、clean、强制覆盖或删除本地数据。' -ForegroundColor Green
 
 if (-not $Yes) {
-    $answer = (Read-Host '确认更新到 origin/main？输入 y 继续，其他输入取消').Trim()
+    $updateTargets = @()
+    if ($needsCurrentUpdate) { $updateTargets += "当前分支 $branchName" }
+    if ($willUpdateTargetBranch) { $updateTargets += "本地分支 $Branch" }
+    $answer = (Read-Host ("确认将 {0} 快进到 {1}/{2}？输入 y 继续，其他输入取消" -f ($updateTargets -join ' 和 '), $Remote, $Branch)).Trim()
     if ($answer -notmatch '^(y|yes|是)$') { Write-Host '已取消更新；fetch 只刷新了远端提交记录，本地源码未改变。' -ForegroundColor DarkGray; return }
 }
 
-Invoke-GitChecked -GitArguments @('merge', '--ff-only', '--no-edit', $remoteRef)
+if ($needsCurrentUpdate) {
+    Invoke-GitChecked -GitArguments @('merge', '--ff-only', '--no-edit', $remoteRef)
+}
 $updatedRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', 'HEAD')) -join '').Trim()
 if ($updatedRevision -ne $remoteRevision) { throw '更新后 HEAD 与已核验的 origin/main 不一致；请检查仓库状态。' }
+
+if ($willUpdateTargetBranch) {
+    $worktreeRecords = @(Invoke-GitOutput -GitArguments @('worktree', 'list', '--porcelain'))
+    if ($worktreeRecords -contains "branch $targetBranchRef") {
+        $targetBranchSyncState = 'checked-out-elsewhere'
+        Write-Host ("本地 {0} 刚在其他工作区检出；为避免影响其工作文件，跳过该分支引用更新。" -f $Branch) -ForegroundColor Yellow
+    }
+    else {
+        Invoke-GitChecked -GitArguments @('update-ref', $targetBranchRef, $remoteRevision, $targetBranchRevision)
+        $targetBranchRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', '--verify', $targetBranchRef)) -join '').Trim()
+        if ($targetBranchRevision -ne $remoteRevision) { throw ("本地 {0} 分支未能与已核验的远端提交对齐。" -f $Branch) }
+        $targetBranchSyncState = 'updated'
+    }
+}
+
 if ($dataRootExisted -and -not (Test-Path -LiteralPath $dataRoot -PathType Container)) {
     throw '更新后检测到原用户数据目录不可见；请停止启动服务并立即检查磁盘/路径，本脚本未运行清理或重置命令。'
 }
 $finalChanges = @(Invoke-GitOutput -GitArguments @('status', '--porcelain=v1', '--untracked-files=all', '--ignore-submodules=none'))
 if ($finalChanges.Count -gt 0) { throw '源码已快进，但更新后工作区未保持干净；未执行任何自动清理，请检查上面列出的本地变化。' }
-Write-Host ("本地源码已安全快进到 {0}；用户数据目录仍为 {1}。" -f $updatedRevision.Substring(0, [Math]::Min(12, $updatedRevision.Length)), $dataRoot) -ForegroundColor Green
+Write-Host ("当前工作分支已核对到 {0}；用户数据目录仍为 {1}。" -f $updatedRevision.Substring(0, [Math]::Min(12, $updatedRevision.Length)), $dataRoot) -ForegroundColor Green
+if ($targetBranchSyncState -eq 'updated') {
+    Write-Host ("本地 {0} 分支也已安全快进到同一提交。" -f $Branch) -ForegroundColor Green
+}

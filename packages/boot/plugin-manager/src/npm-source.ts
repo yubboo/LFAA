@@ -10,6 +10,7 @@ import type { GitHubSnapshot } from "./github-source.js";
 import type { PluginArchiveFile } from "./zip-archive.js";
 
 export const DEFAULT_NPM_REGISTRY = "https://registry.npmjs.org/";
+const NPMMIRROR_REGISTRY = "https://registry.npmmirror.com/";
 interface PackageManifest { name?: unknown; version?: unknown; description?: unknown; license?: unknown; repository?: unknown; main?: unknown; exports?: unknown; dsh?: unknown }
 
 export function normalizeNpmRegistryUrl(value?: string): string {
@@ -30,9 +31,33 @@ export interface RegistryPluginPackage {
   version: string;
   description: string;
   license: string | null;
+  registryUrl: string;
   integrity: string;
   archiveSha256: string;
   files: PluginArchiveFile[];
+}
+
+/** Resolve a plugin from the selected registry, following DSH's public fallback on reachability or package misses. */
+export async function downloadPluginPackageFromRegistry(packageName: string, requestedVersion: string, registryValue?: string): Promise<RegistryPluginPackage> {
+  const selected = normalizeNpmRegistryUrl(registryValue);
+  const registryPlan = selected === DEFAULT_NPM_REGISTRY
+    ? [selected, NPMMIRROR_REGISTRY]
+    : selected === NPMMIRROR_REGISTRY
+      ? [selected, DEFAULT_NPM_REGISTRY]
+      : [selected];
+  for (let index = 0; index < registryPlan.length; index += 1) {
+    const registry = registryPlan[index]!;
+    try {
+      const artifact = /[~^*<>=| ]/u.test(requestedVersion)
+        ? await downloadCompatibleRegistryPluginPackage(packageName, requestedVersion, registry)
+        : await downloadRegistryPluginPackage(packageName, requestedVersion, registry);
+      return { ...artifact, registryUrl: registry };
+    } catch (error) {
+      if (index < registryPlan.length - 1 && isRegistryFallbackEligible(error)) continue;
+      throw error;
+    }
+  }
+  throw new Error("所有受信任的公开 NPM registry 均未找到插件包或版本。");
 }
 
 /** Resolve a dependency's declared semver range from the selected registry; never fall back to an unrelated latest. */
@@ -46,7 +71,7 @@ export async function downloadCompatibleRegistryPluginPackage(name: string, rang
     redirect: "error", signal: AbortSignal.timeout(20_000)
   }), `NPM registry ${new URL(registry).host}`);
   const version = maxSatisfying(Object.keys(isRecord(metadata.versions) ? metadata.versions : {}), range);
-  if (!version) throw new Error(`官方 registry 没有满足范围的插件依赖：${name}@${range}`);
+  if (!version) throw Object.assign(new Error(`NPM registry ${new URL(registry).host} 没有满足范围的插件依赖：${name}@${range}`), { code: "npm_registry_no_matching_version" });
   return downloadRegistryPluginPackage(name, version, registry);
 }
 
@@ -78,6 +103,7 @@ export async function downloadRegistryPluginPackage(packageName: string, request
     version: metadata.version,
     description: typeof manifest.description === "string" ? safeManifestText(manifest.description, 500) : "",
     license: typeof manifest.license === "string" && /^[A-Za-z0-9.+-]{1,40}$/u.test(manifest.license) ? manifest.license : null,
+    registryUrl: registry,
     integrity: dist.integrity,
     archiveSha256: createHash("sha256").update(tarball).digest("hex"),
     files
@@ -101,6 +127,9 @@ export async function downloadPublishedFiles(snapshot: GitHubSnapshot): Promise<
   const packageName = sourceManifest.name;
   const metadataUrl = new URL(`${encodeURIComponent(packageName)}/${encodeURIComponent(sourceManifest.version)}`, DEFAULT_NPM_REGISTRY);
   const metadataResponse = await fetch(metadataUrl, { headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(20_000) });
+  // A GitHub-only release is still a valid source snapshot. The caller records its
+  // missing entrypoints and keeps it incompatible; it must not substitute another package.
+  if (metadataResponse.status === 404) return snapshot;
   const metadata = await readJson(metadataResponse, "NPM registry");
   if (metadata.name !== packageName || metadata.version !== sourceManifest.version || metadata.gitHead !== snapshot.commit) {
     throw new Error("NPM 发布包未声明与已检查 GitHub 提交一致的 gitHead；拒绝用其他版本产物补齐。");
@@ -172,7 +201,11 @@ function readRepositoryUrl(value: unknown): string | null {
 }
 
 async function readJson(response: Response, source: string): Promise<Record<string, unknown>> {
-  if (!response.ok) throw new Error(`${source} 请求失败（HTTP ${response.status}）；未写入插件文件。`);
+  if (!response.ok) {
+    const error = new Error(`${source} 请求失败（HTTP ${response.status}）；未写入插件文件。`);
+    if (response.status === 404) Object.assign(error, { code: "npm_registry_not_found" });
+    throw error;
+  }
   const contentLength = Number(response.headers.get("content-length"));
   if (Number.isFinite(contentLength) && contentLength > 2 * 1024 * 1024) throw new Error(`${source} 清单超过 2 MiB 限制。`);
   if (!response.body) throw new Error(`${source} 未返回清单内容。`);
@@ -266,6 +299,14 @@ function safeManifestText(value: string, limit: number): string {
 
 function isExactVersion(value: string): boolean { return value.length <= 100 && /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(value); }
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
+function isRegistryFallbackEligible(error: unknown): boolean {
+  if (!isRecord(error)) return error instanceof TypeError;
+  return error.code === "npm_registry_not_found"
+    || error.code === "npm_registry_no_matching_version"
+    || error.name === "AbortError"
+    || error.name === "TimeoutError"
+    || error instanceof TypeError;
+}
 
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;

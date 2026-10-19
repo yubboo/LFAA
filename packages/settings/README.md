@@ -12,6 +12,8 @@
 
 保存模型目录时保留来源标记，账户查询、切换模型和 Agent Runtime 都从该目录解析同一组档位。账户参数写入前由 Settings Owner 校验；Agent Runtime 只发送当前模型目录明确支持的值。Provider 凭据仍由服务端加密保存，不随目录元数据返回客户端。
 
+已保存账户的官方目录刷新与模型推理测试分开：刷新只读取并保存当前目录，保留原模型和思考设置；真实测试单独请求当前所选模型，可能产生 Provider 用量。
+
 ## 个性化设置
 
 `personalization` 是账户级设置分类，由 `settings/src/service.ts` 提供默认值、读取归一化和持久化。`memoryEnabled` 与 `memoryFromToolChats` 均默认关闭；Agent Loop 只读取这两个权威设置决定记忆读取和生成资格。记忆正文由独立 `lfaa-conversation-memory` Owner 保存，不能并入此设置 JSON、工具审批授权或 Markdown 知识库。

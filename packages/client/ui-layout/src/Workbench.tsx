@@ -8,13 +8,14 @@ import { SetupReminder } from "lfaa-client-ui-settings-general/src/SetupReminder
 import { DEFAULT_USER_SETTINGS, resolveAppearanceBackgrounds, resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { PasskeySetupPrompt } from "lfaa-client-ui-settings-account/src/PasskeySetupPrompt.js";
 import { minecraftSceneBackgrounds } from "lfaa-util-values/src/builtin-backgrounds.js";
-import { cacheLoginBackground } from "lfaa-client-ui-theme/src/login-background.js";
+import { cacheLoginAppearance } from "lfaa-client-ui-theme/src/login-appearance.js";
 import { aiWorkGoalRequestEventName, aiWorkSessionOpenEventName, type AiWorkGoalRequest, type AiWorkNotification, type AiWorkNotificationInput, type AiWorkSessionTarget } from "lfaa-client-resources/src/notification-runtime.js";
 import { createAiWorkDraftPersistence, readAiWorkDraft, writeAiWorkDraft } from "lfaa-client-store/src/ai-work-drafts.js";
 import { createBrowserPersistence, createDebouncedPersistenceWriter, stringPersistenceCodec, type DebouncedPersistenceWriter } from "lfaa-client-store/src/browser-persistence.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { saveSettings, userRoleLabel, type ApplicationId, type ApplicationMode, type DesktopAvailableUpdate, type DesktopUpdateDownloadProgress, type DesktopUpdatePreferences, type DesktopUpdatePrompt, type DesktopUpdatePromptAction, type User, type UserPreferences, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { shortcutMatches } from "lfaa-client-ui-commands/src/shortcuts.js";
 import { appearanceTextFontStacks, appearanceCodeFontStacks } from "lfaa-client-ui-theme/src/fonts.js";
 import { applyAppearanceThemeBootstrap, cacheAppearanceCanvasBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
@@ -23,6 +24,7 @@ import { createDshWallpaperAppearanceTokens } from "lfaa-client-ui-theme/src/dsh
 import { dshLocaleRuntime } from "lfaa-client-ui-workspace/src/dsh-locale-runtime.js";
 import { resolveWallpaperCanvasOwnership } from "./wallpaper-canvas-ownership.js";
 import { appearanceBackgroundSlotForRoute } from "./appearance-background-slot.js";
+import { createReleaseAnnouncementPersistence } from "./release-announcement.js";
 const GameLibraryPage = lazy(() => import("./GameLibraryPage.js").then(module => ({ default: module.GameLibraryPage })));
 
 
@@ -40,8 +42,6 @@ interface WorkbenchProps {
   onLogout: () => void;
   credentialReminder: { usernamePending: boolean; passwordPending: boolean } | null;
   suspendSetupReminder: boolean;
-  onDismissCredentialReminder: () => void;
-  onOpenCredentialSettings: () => void;
   authTransitionStaging?: boolean;
   onAuthTransitionWarmupReady?: () => void | (() => void);
 }
@@ -311,8 +311,6 @@ export function Workbench({
   onLogout,
   credentialReminder,
   suspendSetupReminder,
-  onDismissCredentialReminder,
-  onOpenCredentialSettings,
   authTransitionStaging = false,
   onAuthTransitionWarmupReady
 }: WorkbenchProps) {
@@ -321,6 +319,8 @@ export function Workbench({
   const isPluginManagerPage = route === "/plugin-manager";
   const isLegacyAccountsRoute = route === "/admin/users";
   const isSettingsPage = route === "/settings" || isLegacyAccountsRoute;
+  const [setupReminderBusy, setSetupReminderBusy] = useState(() => !isSettingsPage && initialSettings.general.notificationPopupsEnabled);
+  const [passkeyPromptBusy, setPasskeyPromptBusy] = useState(() => !isSettingsPage && initialSettings.general.notificationPopupsEnabled);
   // 文件页房子返回来源 App/模式根；从设置进入时再追溯设置页保存的来源路由。
   const previousRoute = useRef(route);
   const fileManagerEntryRoute = route === "/files" && previousRoute.current !== "/files" ? previousRoute.current : null;
@@ -342,16 +342,20 @@ export function Workbench({
     ?? `/apps/${preferences.selectedApp}/${preferences.selectedMode}`;
   const settingsReturnBackgroundRef = useRef<HTMLImageElement | null>(null);
   const [settingsInitialSection, setSettingsInitialSection] = useState<"ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | undefined>();
-  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ section: "security"; requestId: number } | null>(null);
+  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ section: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security"; requestId: number } | null>(null);
   const settingsSectionRequestSequenceRef = useRef(0);
   const [settings, setSettings] = useState<UserSettings>(initialSettings);
-  const [credentialReminderSnoozedToday, setCredentialReminderSnoozedToday] = useState(false);
   const [wallpaperEngineClientAvailable, setWallpaperEngineClientAvailable] = useState(() => document.body.hasAttribute("data-lfaa-wallpaper-engine-client"));
   const shortcutSettingsRef = useRef(settings.shortcuts);
   useLayoutEffect(() => { shortcutSettingsRef.current = settings.shortcuts; }, [settings.shortcuts]);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const workbenchShellRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (isSettingsPage || !settings.general.notificationPopupsEnabled) return;
+    setSetupReminderBusy(true);
+    setPasskeyPromptBusy(true);
+  }, [isSettingsPage, settings.general.notificationPopupsEnabled, user.id]);
   useLayoutEffect(() => onAuthTransitionWarmupReady?.(), [onAuthTransitionWarmupReady]);
   useLayoutEffect(() => {
     const shell = workbenchShellRef.current;
@@ -390,6 +394,7 @@ export function Workbench({
       const accepted = { ...latest, appearance: { ...result.settings.appearance, ...latest.appearance, theme: result.settings.appearance.theme } };
       settingsRef.current = accepted;
       setSettings(accepted);
+      cacheLoginAppearance(user.username, result.settings.appearance);
     } catch (error) {
       if (wallpaperThemeSaveRevision.current === revision && settingsRef.current.appearance.theme === theme) {
         const latest = settingsRef.current;
@@ -415,6 +420,7 @@ export function Workbench({
   const [notificationToast, setNotificationToast] = useState<AiWorkNotification | null>(null);
   const [desktopUpdatePrompt, setDesktopUpdatePrompt] = useState<DesktopUpdatePrompt | null>(null);
   const [desktopAvailableUpdate, setDesktopAvailableUpdate] = useState<DesktopAvailableUpdate | null>(null);
+  const [desktopUpdateAvailabilityLoaded, setDesktopUpdateAvailabilityLoaded] = useState(() => !window.lfaaDesktop);
   const [desktopUpdateDownloadProgress, setDesktopUpdateDownloadProgress] = useState<DesktopUpdateDownloadProgress | null>(null);
   const [downloadProgressOpen, setDownloadProgressOpen] = useState(false);
   const [updateDownloadCancelError, setUpdateDownloadCancelError] = useState("");
@@ -422,8 +428,18 @@ export function Workbench({
   const [desktopUpdatePreferenceSaving, setDesktopUpdatePreferenceSaving] = useState(false);
   const [desktopUpdatePreferenceError, setDesktopUpdatePreferenceError] = useState("");
   const [updatePopoverOpen, setUpdatePopoverOpen] = useState(false);
+  const [releaseAnnouncementOpen, setReleaseAnnouncementOpen] = useState(false);
   const updateAvailabilityRevision = useRef(0);
   const updateDownloadProgressRevision = useRef(0);
+  const dismissedReleaseAnnouncementRef = useRef<{ userId: string; version: string } | null>(null);
+  const releaseAnnouncementPersistence = useMemo(() => createReleaseAnnouncementPersistence(user.id), [user.id]);
+  const releaseAnnouncementVersion = lfaaProjectBuildInfo?.currentVersion ?? "";
+  const setSetupReminderActivity = useCallback((active: boolean) => {
+    setSetupReminderBusy(current => current === active ? current : active);
+  }, []);
+  const setPasskeyPromptActivity = useCallback((active: boolean) => {
+    setPasskeyPromptBusy(current => current === active ? current : active);
+  }, []);
   const notificationSequence = useRef(0);
   const aiWorkDraftWriters = useRef<{ userId: string; writer: DebouncedPersistenceWriter<string> } | null>(null);
   const aiWorkDraftState = useRef<{ userId: string; value: string } | null>(null);
@@ -435,6 +451,7 @@ export function Workbench({
     const unsubscribe = desktop.onUpdatePrompt(setDesktopUpdatePrompt);
     const unsubscribeAvailability = desktop.onUpdateAvailable(update => {
       updateAvailabilityRevision.current += 1;
+      setDesktopUpdateAvailabilityLoaded(true);
       setDesktopAvailableUpdate(update);
     });
     const unsubscribeDownloadProgress = desktop.onUpdateDownloadProgress(progress => {
@@ -444,8 +461,9 @@ export function Workbench({
       setUpdateDownloadCancelError("");
     });
     void desktop.getUpdateAvailability().then(update => {
+      setDesktopUpdateAvailabilityLoaded(true);
       if (updateAvailabilityRevision.current === 0) setDesktopAvailableUpdate(update);
-    }).catch(() => undefined);
+    }).catch(() => setDesktopUpdateAvailabilityLoaded(true));
     void desktop.getUpdateDownloadProgress().then(progress => {
       if (updateDownloadProgressRevision.current === 0) {
         setDesktopUpdateDownloadProgress(progress);
@@ -462,6 +480,30 @@ export function Workbench({
     };
   }, []);
   useEffect(() => {
+    const version = releaseAnnouncementVersion;
+    const sessionAcknowledged = dismissedReleaseAnnouncementRef.current?.userId === user.id
+      && dismissedReleaseAnnouncementRef.current.version === version;
+    const desktopUpdateActivity = Boolean(window.lfaaDesktop)
+      && (!desktopUpdateAvailabilityLoaded || Boolean(desktopAvailableUpdate || desktopUpdatePrompt || desktopUpdateDownloadProgress || downloadProgressOpen));
+    if (!version || !settings.general.notificationPopupsEnabled || isSettingsPage || authTransitionStaging
+      || setupReminderBusy || passkeyPromptBusy || desktopUpdateActivity) {
+      setReleaseAnnouncementOpen(false);
+      return;
+    }
+    if (sessionAcknowledged || releaseAnnouncementPersistence.read() === version) {
+      dismissedReleaseAnnouncementRef.current = { userId: user.id, version };
+      setReleaseAnnouncementOpen(false);
+      return;
+    }
+    setReleaseAnnouncementOpen(true);
+  }, [authTransitionStaging, desktopAvailableUpdate, desktopUpdateAvailabilityLoaded, desktopUpdateDownloadProgress, desktopUpdatePrompt, downloadProgressOpen, isSettingsPage, passkeyPromptBusy, releaseAnnouncementPersistence, releaseAnnouncementVersion, settings.general.notificationPopupsEnabled, setupReminderBusy, user.id]);
+  const acknowledgeReleaseAnnouncement = useCallback(() => {
+    if (!releaseAnnouncementVersion) return;
+    dismissedReleaseAnnouncementRef.current = { userId: user.id, version: releaseAnnouncementVersion };
+    releaseAnnouncementPersistence.write(releaseAnnouncementVersion);
+    setReleaseAnnouncementOpen(false);
+  }, [releaseAnnouncementPersistence, releaseAnnouncementVersion, user.id]);
+  useEffect(() => {
     const writer = createDebouncedPersistenceWriter(createAiWorkDraftPersistence(user.id, "workspace"), { delayMs: AI_WORK_DRAFT_SAVE_DELAY_MS, removeWhen: draft => draft.length === 0 });
     writer.bindPageLifecycle(); const state = { userId: user.id, writer }; aiWorkDraftWriters.current = state;
     return () => { writer.dispose(); if (aiWorkDraftWriters.current === state) aiWorkDraftWriters.current = null; };
@@ -474,9 +516,9 @@ export function Workbench({
   const [systemDark, setSystemDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
   const openSettings = useCallback((section?: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security") => {
     setSettingsInitialSection(section);
-    if (section === "security") setSettingsSectionRequest({ section, requestId: ++settingsSectionRequestSequenceRef.current });
+    if (section) setSettingsSectionRequest({ section, requestId: ++settingsSectionRequestSequenceRef.current });
     if (route !== "/settings" && route !== "/admin/users") setSettingsReturnRoute(route);
-    onNavigate("/settings");
+    onNavigate(section ? `/settings?section=${encodeURIComponent(section)}` : "/settings");
   }, [onNavigate, route]);
   const openApplicationFromCurrentPage = useCallback((targetApp: ApplicationId) => {
     void onOpenApplication(targetApp, "normal").catch(() => undefined);
@@ -585,8 +627,8 @@ export function Workbench({
   }, [settings.general.notificationPopupsEnabled]);
 
   useEffect(() => {
-    cacheLoginBackground(initialSettings.appearance.backgrounds.login);
-  }, [initialSettings.appearance.backgrounds.login]);
+    cacheLoginAppearance(user.username, initialSettings.appearance);
+  }, [initialSettings.appearance]);
 
   useEffect(() => {
     if (!isSettingsPage) return;
@@ -1020,6 +1062,42 @@ export function Workbench({
           </footer>
         </section>
       </Modal> : null}
+      {lfaaProjectBuildInfo && releaseAnnouncementOpen ? <Modal
+        rootClassName="release-announcement-modal"
+        open
+        centered
+        width={840}
+        footer={null}
+        title={null}
+        closable
+        maskClosable={false}
+        keyboard
+        getContainer={() => workbenchShellRef.current ?? document.body}
+        onCancel={acknowledgeReleaseAnnouncement}
+      >
+        <section className="release-announcement" aria-labelledby="release-announcement-title">
+          <header className="release-announcement__header">
+            <span className="release-announcement__brand">LFAA</span>
+            <Typography.Title id="release-announcement-title" level={2}>温馨提醒</Typography.Title>
+          </header>
+          <div className="release-announcement__body">
+            <section className="release-announcement__hero" aria-label={`LFAA ${releaseAnnouncementVersion} 本次公告`}>
+              <span className="release-announcement__badge">本次公告</span>
+              <Typography.Title level={3}>LFAA {releaseAnnouncementVersion} 版本更新</Typography.Title>
+              <Typography.Text>发布日期：{lfaaProjectBuildInfo.publishedAt}</Typography.Text>
+            </section>
+            <div className="release-announcement__notes" aria-label="更新内容">
+              {lfaaProjectBuildInfo.releaseNotes.map((note, index) => <article className="release-announcement__note" key={`${index}-${note}`}>
+                <span className="release-announcement__number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                <p>{note}</p>
+              </article>)}
+            </div>
+          </div>
+          <footer className="release-announcement__footer">
+            <Button type="primary" onClick={acknowledgeReleaseAnnouncement}>我知道了</Button>
+          </footer>
+        </section>
+      </Modal> : null}
       {/* DSH overlay 依赖当前应用工作台的右侧栏 Owner；设置页没有该面板，不挂载不可用的入口。 */}
       {appRoute ? <DshSlotOutlet name="shell.overlay" /> : null}
       {notificationToast && settings.general.notificationPopupsEnabled ? <aside className={`ai-work-notification-toast ai-work-notification-toast--${notificationToast.kind}`} role={notificationToast.kind === "complete" ? "status" : "alert"} aria-live={notificationToast.kind === "complete" ? "polite" : "assertive"}>
@@ -1035,9 +1113,10 @@ export function Workbench({
         user={user}
         settings={settings}
         isSettingsPage={isSettingsPage}
-        suspended={suspendSetupReminder || (Boolean(credentialReminder) && settings.general.defaultAdminCredentialReminderEnabled && !credentialReminderSnoozedToday)}
+        suspended={suspendSetupReminder}
         onSettingsChange={setSettings}
         onOpenSettings={openSettings}
+        onModalActivityChange={setSetupReminderActivity}
         priorityPrompt={credentialReminder ? {
           title: "建议修改默认登录凭据",
           description: credentialReminder.usernamePending && credentialReminder.passwordPending
@@ -1046,12 +1125,10 @@ export function Workbench({
               ? "当前仍在使用系统默认用户名。建议在设置中心的「安全」页面修改。"
               : "当前仍在使用系统默认密码。建议在设置中心的「安全」页面修改。",
           action: "前往设置中心",
-          onAction: () => { onOpenCredentialSettings(); openSettings("security"); },
-          onDismiss: onDismissCredentialReminder,
-          onSnoozedTodayChange: setCredentialReminderSnoozedToday
+          onAction: () => openSettings("security")
         } : null}
       />
-      <PasskeySetupPrompt user={user} isSettingsPage={isSettingsPage} notificationPopupsEnabled={settings.general.notificationPopupsEnabled} onOpenSettings={openSettings} />
+      <PasskeySetupPrompt user={user} isSettingsPage={isSettingsPage} notificationPopupsEnabled={settings.general.notificationPopupsEnabled} onOpenSettings={openSettings} onPromptActivityChange={setPasskeyPromptActivity} />
       {!isSettingsPage ? <footer className={`workbench-footer${appRoute || isFileManagerPage || isPluginManagerPage ? " workbench-footer--module" : ""}`}>
         <span>LFAA 本机与远程主机应用工作台</span>
         <span>当前阶段：小鱼智能体工作台</span>
