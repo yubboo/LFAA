@@ -34,7 +34,10 @@ interface FileManagerPageProps {
   serverState: ServiceState;
   homeRoute: string;
   applications: ApplicationNavigationItem[];
+  navigationApplications?: ApplicationNavigationItem[];
   onOpenApplication: (app: ApplicationId, mode: "normal") => Promise<void>;
+  onOpenApplications?: () => void;
+  onOpenRecentSessions: () => void;
   onNavigate: (path: string) => void;
   onOpenSettings: () => void;
   onLogout: () => void;
@@ -122,7 +125,7 @@ function getFileManagerModalContainer(): HTMLElement {
   return document.querySelector<HTMLElement>(".workbench-shell") ?? document.body;
 }
 
-export function FileManagerPage({ user, settings, serverState, homeRoute, applications, onOpenApplication, onNavigate, onOpenSettings, onLogout }: FileManagerPageProps) {
+export function FileManagerPage({ user, settings, serverState, homeRoute, applications, navigationApplications = applications, onOpenApplication, onOpenApplications, onOpenRecentSessions, onNavigate, onOpenSettings, onLogout }: FileManagerPageProps) {
   const [messageApi, messageContext] = message.useMessage();
   const [modalApi, modalContext] = Modal.useModal();
   const fileAccess = user.role === "super_admin" && settings.permissions.mode === "full_access";
@@ -831,8 +834,11 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
         activePage="files"
         homeLabel="返回来源应用/模式首页"
         applications={applications}
+        navigationApplications={navigationApplications}
         showServiceStatus={settings.general.showServiceStatus}
         onHome={() => onNavigate(homeRoute)}
+        onToggleApplications={onOpenApplications ?? (() => onNavigate("/work"))}
+        onOpenRecentSessions={onOpenRecentSessions}
         onNavigate={onNavigate}
         onOpenApplication={onOpenApplication}
         onOpenWork={() => onNavigate("/work")}

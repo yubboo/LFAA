@@ -37,8 +37,8 @@ const displayMessageFields = ["id", "session_id", "_order", "role", "content", "
 const emptyAssociationProjection = (): { seq: number; value: unknown } => ({ seq: -1, value: { applicationIds: [], capabilityIds: [] } });
 const compareMessages = (left: SessionRecord, right: SessionRecord) => String(left.created_at).localeCompare(String(right.created_at)) || Number(left._order) - Number(right._order);
 export class SessionRepository {
-  private readonly persistence = new JsonlSessionPersistence(resolve(config.dataDirectory, "sessions"), action => withControlLock(database, action));
-  private readonly metadata = new JsonStorageBackend(resolve(config.dataDirectory, "storages"));
+  private readonly persistence = new JsonlSessionPersistence(resolve(config.homeDirectory, "sessions"), action => withControlLock(database, action));
+  private readonly metadata = new JsonStorageBackend(resolve(config.homeDirectory, "storages"));
   private records = new Map<SessionTable, Map<string, SessionRecord>>(tables.map(table => [table, new Map()]));
   private readonly sessionEventsBySession = new Map<string, Map<string, SessionRecord>>();
   // 只保留轻量会话头和消息定位；正文缓存受会话数与编码字节预算约束。

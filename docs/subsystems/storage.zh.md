@@ -7,7 +7,7 @@
 
 ## 当前决定
 
-存储职责按数据类型拆分：账户设置和应用偏好使用账户隔离的原子 JSON；Agent 会话事件继续使用 JSONL；关系型业务数据继续使用同一个 SQLite 数据库；图片、工作流图定义和 Markdown 正文使用账户隔离的文件。用户数据由单一、可自定义且可迁移的 `LFAA_DATA_DIR` 承载：默认 `<LFAA_HOME>/data`（通常位于系统用户 `.lfaa/data`），推荐项目/桌面安装根下的 `data`，也可由用户指定其他可写位置；首次启动自动创建标准分类目录，空目录保持空业务状态。插件包与受控运行适配副本由 `LFAA_HOME` 管理，默认 `%USERPROFILE%\\.lfaa` 下的 `plugins/`，不随数据根迁移。Windows 开发/桌面设置中心提供系统复制、手动复制后核验采用与 ZIP 安全导入三种迁移路径，完整重启后才切换。旧整份 JSON 只作为旧版本导入/回退材料，不再接收运行期配置写入。
+存储职责按数据类型拆分：账户设置和应用偏好使用账户隔离的原子 JSON；Agent 会话事件使用 JSONL；关系型账户、权限、任务和配置数据使用 Home 下的 SQLite；图片、工作流图定义和 Markdown 正文使用账户隔离文件。`LFAA_HOME` 是账户/控制根，默认 `%USERPROFILE%\\.lfaa`；`LFAA_DATA_DIR` 是唯一业务 Data 根，首次默认 `<LFAA_HOME>/data`，由设置中心“项目与存储”选择，权威选择保存在 `<LFAA_HOME>/storages/data-directory.json`。显式部署 `LFAA_DATA_DIR` 优先。Data 根首次启动创建 `users/`、`games/`、`environments/`、`lib/`、`cache/`、`tmp/`、`logs/`、`backups/`、`models/` 和 `connectivity/`；Home 创建数据库、账户文件、会话、凭据和控制配置。切换业务根只创建新分类并保留旧目录，重启后控制端与本机 Daemon 统一读取新值。插件包与受控运行适配副本由 `<LFAA_HOME>/profiles/<Profile>/` 管理，不随 Data 根迁移。项目与存储的内容复制、手动核对和 ZIP 导入仅处理游戏、Writing 和漫剧受管业务子树，不搬迁 Home 账户数据。
 
 目录沿用 DSH 的 `storage/storage`、`storage/storage-json`、`storage/storage-domain`、`storage/storage-sqlite`、`session/session-persistence-jsonl`。`lfaa-storage-hub` 仅负责具名后端与数据形式注册；JSON、SQLite 适配器由独立插件装配到 `bundle/base/cordis.patch.yml`。上游目录对标不等于已实现全部上游功能。
 
@@ -15,17 +15,17 @@
 
 | 内容 | 权威载体 | 实现与边界 |
 |---|---|---|
-| 用户分域设置与应用/模式偏好 | `<数据根>/users/<账户 SHA-256>/settings/settings.json` | `storage-domain/configuration.ts` 是唯一业务 Owner；按账户校验、版本化 JSON、同目录原子替换。设置中心分类、默认值和前端映射不变 |
+| 用户分域设置与应用/模式偏好 | `<LFAA_HOME>/users/<账户 SHA-256>/settings/settings.json` | `storage-domain/configuration.ts` 是唯一业务 Owner；按账户校验、版本化 JSON、同目录原子替换。设置中心分类、默认值和前端映射不变 |
 | Provider 密文、Minecraft/SteamCMD 默认目录和节点覆盖 | SQLite `configuration_records`、`configuration_credentials` | 继续由既有 Configuration Owner 按记录事务写入，保持账户归属、节点约束和 Provider 单激活规则 |
-| 背景图片二进制 | `<数据根>/users/<账户 SHA-256>/assets/backgrounds/` | Settings Owner 校验 MIME/尺寸并验证 SHA-256；SQLite `appearance_backgrounds` 保留账户隔离媒体元数据，`image_data` 迁移后为零字节 |
+| 背景图片二进制 | `<LFAA_HOME>/users/<账户 SHA-256>/assets/backgrounds/` | Settings Owner 校验 MIME/尺寸并验证 SHA-256；SQLite `appearance_backgrounds` 保留账户隔离媒体元数据，`image_data` 迁移后为零字节 |
 | 工作流图定义 | `<数据根>/users/<账户 SHA-256>/projects/<appId>/workflows/` | `lfaa-workflow` 是唯一 Owner；SQLite 保留账户/App 索引、标题/时间、运行记录与关联，`definition_json` 留 schema 允许的 `{}` 占位值 |
 | Markdown 知识/Skill/Prompt 正文 | `<数据根>/users/<账户 SHA-256>/knowledge/<scope>/` | `knowledge-library` 是唯一 Owner；SQLite 保留账户/App/类型/标题/摘要/哈希和项目来源关系，正文列留 schema 允许的单空格标记；读写校验 SHA-256 |
-| Cordis 可选模块停用覆盖 | `<数据根>/storages/plugin-runtime.json` | `boot/app-boot/plugin-runtime.ts`；`version: 1`、`disabledPluginIds: []` 默认继承 Profile 启用状态；仅管理员可改，系统级共享，启动时读取并在运行中原子写入 |
-| 会话头、消息、Agent 活动、真实 Token 用量 | `<数据根>/sessions/<会话 ID SHA-256>/events.jsonl` | `session-persistence-jsonl`；追加变更、同步刷盘、序列与前序校验和、幂等迁移和重放 |
-| 账户、登录会话、角色与权限、审批/授权、节点、实例与任务、写作关系/元数据、领域索引/关系和通用插件 KV | `<数据根>/database/lfaa.sqlite` | `storage-sqlite`；事务、外键、账户与任务业务合同继续有效；通用存储 Hub 的具名单元与 KV 记录使用隔离表，不接管上述领域 Owner |
+| Cordis 可选模块停用覆盖 | `<LFAA_HOME>/storages/plugin-runtime.json` | `boot/app-boot/plugin-runtime.ts`；`version: 1`、`disabledPluginIds: []` 默认继承 Profile 启用状态；仅管理员可改，系统级共享，启动时读取并在运行中原子写入 |
+| 会话头、消息、Agent 活动、真实 Token 用量 | `<LFAA_HOME>/sessions/<会话 ID SHA-256>/events.jsonl` | `session-persistence-jsonl`；追加变更、同步刷盘、序列与前序校验和、幂等迁移和重放 |
+| 账户、登录会话、角色与权限、审批/授权、节点、实例与任务、写作关系/元数据、领域索引/关系和通用插件 KV | `<LFAA_HOME>/database/lfaa.sqlite` | `storage-sqlite`；事务、外键、账户与任务业务合同继续有效；通用存储 Hub 的具名单元与 KV 记录使用隔离表，不接管上述领域 Owner |
 | Writing 大纲、章节、资料、作品 Skills 指令与修订正文 | `<数据根>/users/<账户 SHA-256>/projects/writing/<作品 UUID>/` | `packages/document/writing` 是唯一业务 Owner；使用原子 Markdown 文件并从账户/作品身份派生路径；设置中心沿用统一本机数据根目录设置，不设 Daemon 或单独 Writing 根目录 |
 | 会话头的权限外键与已提交日志修订 | SQLite `ai_sessions` | JSONL 的投影，用于现有审批外键及完整性检查；消息和用量不写回数据库 |
-| JWT、节点 Token、Provider 加密密钥 | `<数据根>/credentials/` | 保留原凭据；Provider 密文存入 SQLite，明文不下发前端或日志 |
+| JWT、节点 Token、Provider 加密密钥 | `<LFAA_HOME>/credentials/` | 保留原凭据；Provider 密文存入 SQLite，明文不下发前端或日志 |
 | 节点游戏文件、世界存档、运行环境、节点备份 | 对应节点自己的内容目录 | Daemon 执行；配置改名和存储迁移不移动游戏数据 |
 
 没有安装 PostgreSQL、Cosmos DB、向量数据库或可选全文索引。SQLite 在这个混合方案中承担控制面关系数据权威存储，并非仅搜索索引。写作关系与元数据保存在 SQLite，正文和修订由 Writing Owner 保存为账户隔离的 Markdown 文件；Markdown 知识正文与工作流图正文按各自领域文件保存；JSONL 权威日志范围是 Agent 会话与轨迹。

@@ -1,0 +1,28 @@
+{
+  "name": "lfaa-skill-rea",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "lfaa-skill": "workspace:*",
+    "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-agent": "workspace:*"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  },
+  "lfaa": {
+    "server": {
+      "entry": "./src/index.ts",
+      "inject": ["skills", "aiExtensions"],
+      "required": true,
+      "capabilities": [],
+      "settings": []
+    }
+  }
+}

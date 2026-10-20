@@ -103,6 +103,23 @@
       }
     },
     {
+      "path": "packages/api/github-connection-controller",
+      "name": "lfaa-api-github-connection-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "GitHub OAuth 授权状态和只读仓库资源的认证 API 适配",
+      "evidence": {
+        "entry": "packages/api/github-connection-controller/src/index.ts",
+        "readme": "packages/api/github-connection-controller/README.md",
+        "consumers": [],
+        "bundleDeclarations": [
+          "packages/bundle/web-app/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
       "path": "packages/api/job-controller",
       "name": "lfaa-api-job-controller",
       "upstreamName": "@deepseek-ai/dsh-api-job-controller",
@@ -189,6 +206,7 @@
           "packages/api/ai-video-controller",
           "packages/api/connectivity-controller",
           "packages/api/gateway",
+          "packages/api/github-connection-controller",
           "packages/api/job-controller",
           "packages/api/knowledge-controller",
           "packages/api/minecraft-controller",
@@ -858,7 +876,6 @@
           "packages/client/ui-chat",
           "packages/client/ui-layout",
           "packages/client/ui-settings",
-          "packages/client/ui-sidebar",
           "packages/client/ui-workspace"
         ],
         "bundleDeclarations": [],
@@ -1571,6 +1588,7 @@
         "entry": "packages/client/ui-sidebar/src/index.ts",
         "readme": "packages/client/ui-sidebar/README.md",
         "consumers": [
+          "packages/client/ui-layout",
           "packages/client/ui-plugin-manager",
           "packages/client/ui-settings",
           "packages/client/ui-sidebar-files",
@@ -2271,6 +2289,7 @@
           "packages/api/ai-video-controller",
           "packages/api/connectivity-controller",
           "packages/api/gateway",
+          "packages/api/github-connection-controller",
           "packages/api/job-controller",
           "packages/api/knowledge-controller",
           "packages/api/minecraft-controller",
@@ -2320,6 +2339,7 @@
         "consumers": [
           "packages/core/agent-default-model",
           "packages/credentials/credential-flows",
+          "packages/integrations/github",
           "packages/network/game-connectivity",
           "packages/settings/settings",
           "packages/video/ai-video"
@@ -3476,6 +3496,25 @@
       }
     },
     {
+      "path": "packages/integrations/github",
+      "name": "lfaa-github-integration",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "GitHub App Device Flow、账户令牌与只读 REST 数据 Owner",
+      "evidence": {
+        "entry": "packages/integrations/github/src/index.ts",
+        "readme": "packages/integrations/github/README.md",
+        "consumers": [
+          "packages/api/github-connection-controller"
+        ],
+        "bundleDeclarations": [
+          "packages/bundle/base/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
       "path": "packages/interaction/commands",
       "name": null,
       "upstreamName": "@deepseek-ai/dsh-commands",
@@ -3854,7 +3893,7 @@
       "upstreamName": "@deepseek-ai/dsh-mcp-client",
       "upstream": true,
       "status": "implemented",
-      "responsibility": "MCP 连接池、发现、调用和账户/配置回收",
+      "responsibility": "MCP 连接池、发现、按需目录/调用和账户/配置回收",
       "evidence": {
         "entry": "packages/mcp/mcp-client/src/index.ts",
         "readme": "packages/mcp/mcp-client/README.md",
@@ -4935,6 +4974,23 @@
       }
     },
     {
+      "path": "packages/skill/rea",
+      "name": "lfaa-skill-rea",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "REA 逆向分析的 LFAA authored Skill 摘要与按需工作流正文",
+      "evidence": {
+        "entry": "packages/skill/rea/src/index.ts",
+        "readme": "packages/skill/rea/README.md",
+        "consumers": [],
+        "bundleDeclarations": [
+          "packages/bundle/base/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
       "path": "packages/skill/skill",
       "name": "lfaa-skill",
       "upstreamName": "@deepseek-ai/dsh-skill",
@@ -4948,6 +5004,7 @@
           "packages/api/settings-controller",
           "packages/boot/app-boot",
           "packages/skill/minecraft",
+          "packages/skill/rea",
           "packages/skill/skill-filesystem",
           "packages/skill/skill-office",
           "packages/skill/tool-skill",
@@ -5934,8 +5991,7 @@
           "packages/storage/storage-domain",
           "packages/util/launch-environment",
           "packages/video/ai-video",
-          "packages/workflow/workflow",
-          "packages/workspace/data-directory"
+          "packages/workflow/workflow"
         ],
         "bundleDeclarations": [],
         "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
@@ -5980,6 +6036,7 @@
           "packages/host/daemon",
           "packages/host/webserver",
           "packages/identity/auth",
+          "packages/integrations/github",
           "packages/knowledge/knowledge-library",
           "packages/mcp/mcp-client",
           "packages/network/game-connectivity",
@@ -6104,6 +6161,7 @@
           "packages/api/account-controller",
           "packages/api/ai-video-controller",
           "packages/api/connectivity-controller",
+          "packages/api/github-connection-controller",
           "packages/api/job-controller",
           "packages/api/knowledge-controller",
           "packages/api/minecraft-controller",

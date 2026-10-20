@@ -2,6 +2,10 @@
 
 `Workbench` 将认证后的 `/plugins` 路由懒加载到 `ui-plugin-manager`，并把它作为独立模块工作区显示。页面的全局导航归 `ui-sidebar`，插件来源/状态展示与动作意图归 `ui-plugin-manager`；Workbench 只装配该页面，不持有插件规则。插件目录工具栏齿轮调用 `openSettings("plugins")` 路由到设置中心现有插件分区，并保留返回来源；设置内容仍归 `ui-settings`。
 
+Workbench 还负责把设置、文件和插件页面的“最近会话”请求送入 `/work`；请求 ID 只在内存中暂存，由 `ApplicationWorkspace` 消费并确认后清除。会话列表、刷新和 Dock 展开仍归工作区 Owner，不由 Workbench 复制。
+
+Workbench 提供唯一的 `applicationNavigationItems` 应用清单。`ApplicationWorkspace` 在右侧 Dock 呈现“应用”视图和原工具/资源视图；设置、文件、插件页的全局“应用”入口向 Workbench 提交一次性打开请求，进入 `/work` 后展开右侧应用视图。当前视图选择由 Workbench 保持，使应用切换路由后仍留在应用菜单；左 Dock 只呈现会话与项目。
+
 设置页只在 `/settings`、`/admin/users` 直达路由或用户悬停/聚焦设置导航时预热；工作台空闲时不主动下载整页，避免后台模块加载占用首屏资源。
 
 ## 小鱼共享工作入口（2026-10-14）
@@ -19,3 +23,7 @@ Workbench 把凭据待处理状态（由 `ui-renderer` 从 Account Owner 读取�
 版本公告独立读取构建元数据中的官方发行版本、发布日期和 `update.json` 更新说明；按账户和版本在浏览器本地记录已确认状态，并受 `general.notificationPopupsEnabled` 控制。“我知道了”确认后不再自动显示该版本公告；设置中心“关于与更新”保留当前版本公告，供用户再次查看。Workbench 等提醒队列、通行密钥与桌面更新对话框收起后再展示公告；弹窗提醒不改变更新器下载/安装及强制更新合同。公告使用独立 `.release-announcement-modal` 样式和 Appearance 共享令牌。
 
 壁纸画布仍消费 Settings Owner 的 `appearance.backgrounds` 与 `appearance.wallpaperEngine` 偏好。首帧根据账户启用状态、项目 ID 与已应用的 DSH Profile Client 图选择 Owner，避免刷新时先绘制账户背景再切到插件壁纸；Profile Client 图移除引擎后恢复账户背景，不改写用户保存的偏好。插件拥有活动壁纸画布时，Workbench 将 `--we-accent`、玻璃色/保真度/透明度、模糊、边框和逐面设置映射到 LFAA 共享 Appearance 令牌；插件停用或壁纸未运行时不装配该映射，回到账户 Appearance。Settings、左右侧栏、聊天和浮层分别读取 DSH 的 `data-we-*` 开关及逐面变量；玻璃滤镜沿用插件的模糊、饱和度、亮度和对比度，深色右侧栏沿用 65% 玻璃色权重；不复制插件配置、不增加请求或状态订阅。主题与字体角色继续分别使用 Theme Owner 和受限 DSH Token Bridge。
+
+AI Work 的右 Dock 正在拖动时，Workbench 根据 DockKit 的 `data-dragging` 状态临时关闭大面积聊天/上下文表面的 `backdrop-filter`，减少 Grid 宽度逐帧变化时的重复背景采样；拖动完成、取消或失焦后由现有 DockKit 生命周期立即恢复，不改 Appearance 偏好、表面颜色或透明度。
+
+Workbench 的 `allApplicationNavigationItems` 是内置应用菜单项的单一清单。设置中心的 `general.hiddenApplicationNavigationIds` 仅过滤传给应用菜单的可见项，所有页面仍持有完整清单用于设置展示和恢复；清单变化不更改路由、授权、应用运行状态或安装内容。

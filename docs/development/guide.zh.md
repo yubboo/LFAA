@@ -4,6 +4,8 @@
 
 修改前读取根 [AGENTS](../../AGENTS.md)、[开发规范](../../开发规范.md)、[架构](../系统总体架构.md)、[当前计划](../开发计划.md)、[任务合同](../PROMPTS.md) 与目标包 README。先登记运行入口、设置、数据/权限 Owner、允许修改范围和验收条件，再编码。
 
+每项新功能、修复或架构调整都先在 `docs/PROMPTS.md` 登记任务合同，完成后把实际实现和验收结果写回同一合同。用户可以直接用自然语言描述目标；AI 应从当前源码核实入口和 Owner。可复制的提示词和逐栏记录说明见[项目内开发手册](handbook.zh.md)的“怎么开发与验收”。
+
 ```sh
 pnpm run check:workspace
 pnpm run typecheck

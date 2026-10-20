@@ -141,6 +141,15 @@ test("旧外观背景 BLOB 校验后迁入用户素材目录，新图片不在 S
       const uploaded=settings.saveUserBackground('background-owner','data:image/png;base64,'+image.toString('base64'),'新背景');
       assert.ok(settings.getUserBackground('background-owner',uploaded.id).data.equals(image));
       assert.equal(database.prepare("SELECT length(image_data) AS size FROM appearance_backgrounds WHERE id=?").get(uploaded.id).size,0);
+      const mislabeledJpeg=Buffer.from([255,216,255,192,0,7,8,0,1,0,1]);
+      const normalized=settings.saveUserBackground('background-owner','data:image/png;base64,'+mislabeledJpeg.toString('base64'),'浏览器误标 JPEG');
+      assert.equal(normalized.mimeType,'image/jpeg','格式应由实际文件签名判定，而非 File.type 标签');
+      assert.ok(settings.getUserBackground('background-owner',normalized.id).data.equals(mislabeledJpeg));
+      const normalizedPath=resolve(directory,normalized.id+'.jpg');
+      assert.ok(existsSync(normalizedPath),'应按实际 JPEG 格式生成素材路径');
+      settings.deleteUserBackground('background-owner',normalized.id);
+      assert.equal(existsSync(normalizedPath),false);
+      assert.throws(()=>settings.saveUserBackground('background-owner','data:image/png;base64,'+Buffer.from('not an image').toString('base64'),'无效格式'),/无法识别图片内容/);
       const path=resolve(directory,uploaded.id+'.png');
       const original=readFileSync(path); writeFileSync(path,Buffer.alloc(24));
       assert.throws(()=>settings.getUserBackground('background-owner',uploaded.id),/摘要不匹配/);

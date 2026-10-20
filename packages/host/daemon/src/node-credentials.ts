@@ -13,9 +13,9 @@ export function issueDaemonCredential(displayName: string, existingNodeId?: stri
   if (controlPlaneUrl) {
     const url = new URL(controlPlaneUrl);
     if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !["/", "/api", "/api/"].includes(url.pathname)) throw new Error("远程节点须使用合法的 HTTPS 控制端地址。");
-    const directory = resolve(config.dataDirectory, "credentials", "node-connections");
+    const directory = resolve(config.homeDirectory, "credentials", "node-connections");
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    if (lstatSync(directory).isSymbolicLink() || lstatSync(resolve(config.dataDirectory, "credentials")).isSymbolicLink()) throw new Error("节点凭据目录不能是链接。");
+    if (lstatSync(directory).isSymbolicLink() || lstatSync(resolve(config.homeDirectory, "credentials")).isSymbolicLink()) throw new Error("节点凭据目录不能是链接。");
     const temporary = resolve(directory, `.connection-${randomUUID()}.tmp`);
     try {
       writeFileSync(temporary, JSON.stringify({ nodeId, token, displayName: name, controlPlaneUrl: `${url.origin}/api` }), { flag: "wx", mode: 0o600 });
@@ -29,8 +29,8 @@ export function issueDaemonCredential(displayName: string, existingNodeId?: stri
 /** 在控制端 OS 账户下导出受保护的连接文件；既不打印密钥，也不将其发给浏览器。 */
 export function exportDaemonConnection(nodeId: string, destination: string): void {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(nodeId)) throw new Error("节点 ID 无效。");
-  const source = resolve(config.dataDirectory, "credentials", "node-connections", `${nodeId}.json`);
-  if (lstatSync(resolve(config.dataDirectory, "credentials")).isSymbolicLink() || lstatSync(resolve(config.dataDirectory, "credentials", "node-connections")).isSymbolicLink()) throw new Error("节点凭据目录不能是链接。");
+  const source = resolve(config.homeDirectory, "credentials", "node-connections", `${nodeId}.json`);
+  if (lstatSync(resolve(config.homeDirectory, "credentials")).isSymbolicLink() || lstatSync(resolve(config.homeDirectory, "credentials", "node-connections")).isSymbolicLink()) throw new Error("节点凭据目录不能是链接。");
   const info = lstatSync(source);
   if (info.isSymbolicLink() || !info.isFile() || info.nlink > 1) throw new Error("节点连接文件必须是受保护的普通文件。");
   const content = readFileSync(source);

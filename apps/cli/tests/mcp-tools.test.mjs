@@ -196,6 +196,60 @@ test("MCP 资源与工具共用连接，分页、正文与撤销配置保持真�
   } finally { await discovered.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 });
 
+test("MCP 大工具目录使用按需发现和调用并验证 2020 tuple schema", async () => {
+  const remoteCalls = [];
+  const remoteTools = Array.from({ length: 207 }, (_, index) => ({
+    name: index === 42 ? "inspect_binary" : `rea_tool_${String(index).padStart(3, "0")}`,
+    description: index === 42 ? "Inspect a binary with a bounded selector." : `REA analysis tool ${index}`,
+    inputSchema: index === 42
+      ? { type: "object", properties: { directions: { type: "array", prefixItems: [{ type: "string", enum: ["callers", "callees"] }], minItems: 1, maxItems: 1 } }, required: ["directions"], additionalProperties: false }
+      : { type: "object", properties: { limit: { type: "integer", minimum: 0, maximum: 10 } }, additionalProperties: false }
+  }));
+  const server = createServer(async (request, response) => {
+    if (request.method === "DELETE") { response.writeHead(204).end(); return; }
+    let text = ""; for await (const chunk of request) text += chunk;
+    const message = JSON.parse(text);
+    const send = result => { response.writeHead(200, { "Content-Type": "application/json", ...(message.method === "initialize" ? { "MCP-Session-Id": "rea-large-fixture" } : {}) }); response.end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result })); };
+    if (message.method === "initialize") { send({ protocolVersion: "2025-11-25", capabilities: { tools: {} }, serverInfo: { name: "rea", version: "6.7.0" } }); return; }
+    if (message.method === "notifications/initialized") { response.writeHead(202).end(); return; }
+    if (message.method === "tools/list") { send({ tools: remoteTools }); return; }
+    if (message.method === "tools/call") { remoteCalls.push(message.params); send({ content: [{ type: "text", text: "REA Evidence fixture" }], isError: false }); return; }
+    response.writeHead(404).end();
+  });
+  server.listen(0, "127.0.0.1"); await once(server, "listening");
+  const configuration = { id: "rea", name: "REA", transport: "streamable-http", url: `http://127.0.0.1:${server.address().port}/mcp`, enabled: true, applicationIds: ["workspace"] };
+  saveUserSettings("fixture-user", "plugins", { enabled: true, mcpServers: [configuration] });
+  const controller = new AbortController();
+  const context = { userId: "fixture-user", userRole: "admin", applicationId: "workspace", signal: controller.signal, onProgress() {} };
+  const discovered = await discoverMcpTools([configuration], "workspace", "fixture-user", controller.signal, 10);
+  try {
+    assert.deepEqual(discovered.errors, []);
+    assert.equal(discovered.serverStates[0].toolCount, 207, "服务状态保留真实远端工具总数");
+    assert.equal(discovered.tools.length, 3, "模型只接收按需目录、schema 和调用入口");
+    const search = discovered.tools.find(tool => tool.name === "mcp_rea_tool_search");
+    const schema = discovered.tools.find(tool => tool.name === "mcp_rea_tool_schema");
+    const call = discovered.tools.find(tool => tool.name === "mcp_rea_tool_call");
+    assert.ok(search && schema && call);
+    assert.equal(search.risk({}), "read");
+    assert.equal(call.risk({}), "dangerous");
+    const page = await search.execute(search.parse({ query: "inspect_binary" }), context);
+    assert.equal(page.totalCount, 1);
+    assert.equal(page.tools[0].name, "inspect_binary");
+    const toolSchema = await schema.execute(schema.parse({ toolName: "inspect_binary" }), context);
+    assert.deepEqual(toolSchema.inputSchema.properties.directions.prefixItems[0].enum, ["callers", "callees"]);
+    await assert.rejects(call.execute(call.parse({ toolName: "inspect_binary", arguments: { directions: [42] } }), context), /工具约束/u, "MCP 2020 tuple input is validated before dispatch");
+    assert.equal(remoteCalls.length, 0);
+    const validArguments = { directions: ["callers"] };
+    const approval = call.approval({ toolName: "inspect_binary", arguments: validArguments });
+    assert.match(approval.summary, /inspect_binary/u);
+    const result = await call.execute(call.parse({ toolName: "inspect_binary", arguments: validArguments }), context);
+    assert.equal(result.content[0].text, "REA Evidence fixture");
+    assert.deepEqual(remoteCalls, [{ name: "inspect_binary", arguments: validArguments }]);
+    saveUserSettings("fixture-user", "plugins", { enabled: false, mcpServers: [configuration] });
+    await assert.rejects(search.execute(search.parse({ query: "rea_tool" }), context), /停用/u, "已撤销的设置不能继续读取旧工具目录");
+  } finally { await discovered.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+});
+
 test("本机 stdio MCP 经模型能力目录返回图像并在当前租约结束后关闭", async () => {
   const previousSecret = process.env.LFAA_MCP_FIXTURE_SECRET;
   process.env.LFAA_MCP_FIXTURE_SECRET = "must-not-leak";

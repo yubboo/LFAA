@@ -92,7 +92,9 @@ Write-Host "用户数据目录：$dataRoot" -ForegroundColor DarkGray
 Write-Host '更新目标：origin/main（只快进，不强制覆盖）' -ForegroundColor Cyan
 
 Write-Host '正在读取 GitHub 最新提交……' -ForegroundColor Cyan
-Invoke-GitChecked -GitArguments @('fetch', '--no-tags', $Remote, ("refs/heads/{0}:refs/remotes/{1}/{0}" -f $Branch, $Remote))
+# 只允许远端跟踪引用跟随服务器历史；本地分支仍由下面的快进与分叉检查保护。
+$remoteRefspec = "+refs/heads/{0}:refs/remotes/{1}/{0}" -f $Branch, $Remote
+Invoke-GitChecked -GitArguments @('fetch', '--no-tags', $Remote, $remoteRefspec)
 $remoteRef = "refs/remotes/$Remote/$Branch"
 [void](Invoke-GitOutput -GitArguments @('rev-parse', '--verify', $remoteRef))
 $headRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', 'HEAD')) -join '').Trim()

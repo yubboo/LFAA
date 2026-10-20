@@ -50,7 +50,7 @@ export class PluginRuntimeManager {
   private readonly definitions = new Map<string, PluginRuntimeDefinition>();
   private readonly runtimeIds = new Map<string, string>();
   private busyPluginId: string | null = null;
-  private readonly storage = new JsonStorageBackend(resolve(config.dataDirectory, "storages"));
+  private readonly storage = new JsonStorageBackend(resolve(config.homeDirectory, "storages"));
   private disabledPluginIds: Set<string>;
 
   constructor(private readonly context: Context, definitions: readonly PluginRuntimeDefinition[]) {

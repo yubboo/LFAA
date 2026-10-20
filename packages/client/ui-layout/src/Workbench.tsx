@@ -1,5 +1,5 @@
 /** 功能：呈现现有工作台。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
-import { APPLICATION_ROUTE_PATTERN, SHARED_WORK_ROUTE, normalizeWorkRoute } from "lfaa-util-values/src/application-id.js";
+import { APPLICATION_ROUTE_PATTERN, SHARED_WORK_ROUTE, normalizeWorkRoute, type ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
 import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Button, Checkbox, ConfigProvider, Modal, Popover, Tag, Typography, theme as antdTheme } from "antd";
@@ -15,6 +15,7 @@ import { createBrowserPersistence, createDebouncedPersistenceWriter, stringPersi
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { saveSettings, userRoleLabel, type ApplicationId, type ApplicationMode, type DesktopAvailableUpdate, type DesktopUpdateDownloadProgress, type DesktopUpdatePreferences, type DesktopUpdatePrompt, type DesktopUpdatePromptAction, type User, type UserPreferences, type UserSettings } from "lfaa-client-connection/src/api.js";
+import type { ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { shortcutMatches } from "lfaa-client-ui-commands/src/shortcuts.js";
 import { appearanceTextFontStacks, appearanceCodeFontStacks } from "lfaa-client-ui-theme/src/fonts.js";
@@ -255,7 +256,7 @@ function customSidebarStyle(background: string, accent: string): CSSProperties {
 }
 
 const applicationCards: Array<{
-  id: ApplicationId;
+  id: Exclude<ApplicationId, "workspace">;
   title: string;
   initials: string;
   color: "blue" | "green" | "plum";
@@ -292,7 +293,7 @@ const applicationCards: Array<{
   }
 ];
 
-const applicationNavigationItems = [
+const allApplicationNavigationItems: ApplicationNavigationItem[] = [
   { id: "games", title: "游戏库", description: "运行环境 · Minecraft · SteamCMD", route: "/games" },
   ...applicationCards
     .map((application) => ({ id: application.id, title: application.title, applicationId: application.id }))
@@ -344,7 +345,17 @@ export function Workbench({
   const [settingsInitialSection, setSettingsInitialSection] = useState<"ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins" | undefined>();
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ section: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins"; requestId: number } | null>(null);
   const settingsSectionRequestSequenceRef = useRef(0);
+  const [recentSessionsOpenRequestId, setRecentSessionsOpenRequestId] = useState<number | null>(null);
+  const recentSessionsOpenRequestSequenceRef = useRef(0);
+  const [workspaceRightPanelSection, setWorkspaceRightPanelSection] = useState<"context" | "applications">("context");
+  const [applicationsOpenRequestId, setApplicationsOpenRequestId] = useState<number | null>(null);
+  const applicationsOpenRequestSequenceRef = useRef(0);
   const [settings, setSettings] = useState<UserSettings>(initialSettings);
+  const hiddenApplicationNavigationIds = settings.general.hiddenApplicationNavigationIds ?? [];
+  const applicationNavigationItems = useMemo(() => {
+    const hidden = new Set<ApplicationNavigationId>(hiddenApplicationNavigationIds);
+    return allApplicationNavigationItems.filter(application => !hidden.has(application.id));
+  }, [hiddenApplicationNavigationIds]);
   const [wallpaperEngineClientAvailable, setWallpaperEngineClientAvailable] = useState(() => document.body.hasAttribute("data-lfaa-wallpaper-engine-client"));
   const shortcutSettingsRef = useRef(settings.shortcuts);
   useLayoutEffect(() => { shortcutSettingsRef.current = settings.shortcuts; }, [settings.shortcuts]);
@@ -520,6 +531,23 @@ export function Workbench({
     if (route !== "/settings" && route !== "/admin/users") setSettingsReturnRoute(route);
     onNavigate(section ? `/settings?section=${encodeURIComponent(section)}` : "/settings");
   }, [onNavigate, route]);
+  const requestRecentSessionsOpen = useCallback(() => {
+    const requestId = ++recentSessionsOpenRequestSequenceRef.current;
+    setRecentSessionsOpenRequestId(requestId);
+    onNavigate(SHARED_WORK_ROUTE);
+  }, [onNavigate]);
+  const handleRecentSessionsOpenRequest = useCallback((requestId: number) => {
+    setRecentSessionsOpenRequestId(current => current === requestId ? null : current);
+  }, []);
+  const requestApplicationsOpen = useCallback(() => {
+    setWorkspaceRightPanelSection("applications");
+    const requestId = ++applicationsOpenRequestSequenceRef.current;
+    setApplicationsOpenRequestId(requestId);
+    onNavigate(SHARED_WORK_ROUTE);
+  }, [onNavigate]);
+  const handleApplicationsOpenRequest = useCallback((requestId: number) => {
+    setApplicationsOpenRequestId(current => current === requestId ? null : current);
+  }, []);
   const openApplicationFromCurrentPage = useCallback((targetApp: ApplicationId) => {
     void onOpenApplication(targetApp, "normal").catch(() => undefined);
   }, [onOpenApplication]);
@@ -811,19 +839,19 @@ export function Workbench({
   if (isSettingsPage) {
     pageContent = (
       <Suspense fallback={<div className="loading-page loading-page--compact" aria-busy="true" />}>
-        <SettingsPage user={user} serverState={serverState} settings={settings} resolvedTheme={resolvedTheme} initialSection={isLegacyAccountsRoute ? "account" : settingsInitialSection} sectionRequest={settingsSectionRequest} applications={applicationNavigationItems} onOpenApplication={onOpenApplication} onBack={() => onNavigate(settingsReturnRoute)} onNavigate={onNavigate} onOpenSettings={openSettings} onLogout={onLogout} onUserChange={onUserChange} onSettingsChange={updateWorkbenchSettings} />
+        <SettingsPage user={user} serverState={serverState} settings={settings} resolvedTheme={resolvedTheme} initialSection={isLegacyAccountsRoute ? "account" : settingsInitialSection} sectionRequest={settingsSectionRequest} applications={allApplicationNavigationItems} navigationApplications={applicationNavigationItems} onOpenApplication={onOpenApplication} onOpenApplications={requestApplicationsOpen} onOpenRecentSessions={requestRecentSessionsOpen} onBack={() => onNavigate(settingsReturnRoute)} onNavigate={onNavigate} onOpenSettings={openSettings} onLogout={onLogout} onUserChange={onUserChange} onSettingsChange={updateWorkbenchSettings} />
       </Suspense>
     );
   } else if (isFileManagerPage) {
     pageContent = (
       <Suspense fallback={<div className="loading-page loading-page--compact"><span className="loading-indicator" aria-hidden="true" /></div>}>
-        <FileManagerPage user={user} settings={settings} serverState={serverState} homeRoute={fileManagerHomeRoute} applications={applicationNavigationItems} onOpenApplication={onOpenApplication} onNavigate={onNavigate} onOpenSettings={() => openSettings()} onLogout={onLogout} />
+        <FileManagerPage user={user} settings={settings} serverState={serverState} homeRoute={fileManagerHomeRoute} applications={allApplicationNavigationItems} navigationApplications={applicationNavigationItems} onOpenApplication={onOpenApplication} onOpenApplications={requestApplicationsOpen} onOpenRecentSessions={requestRecentSessionsOpen} onNavigate={onNavigate} onOpenSettings={() => openSettings()} onLogout={onLogout} />
       </Suspense>
     );
   } else if (isPluginManagerPage) {
     pageContent = (
       <Suspense fallback={<div className="loading-page loading-page--compact"><span className="loading-indicator" aria-hidden="true" /></div>}>
-        <PluginManagerPage user={user} settings={settings} resolvedTheme={resolvedTheme} serverState={serverState} applications={applicationNavigationItems} onNavigate={onNavigate} onOpenApplication={onOpenApplication} onOpenSettings={openSettings} onLogout={onLogout} onUserChange={onUserChange} onSettingsChange={updateWorkbenchSettings} />
+        <PluginManagerPage user={user} settings={settings} resolvedTheme={resolvedTheme} serverState={serverState} applications={allApplicationNavigationItems} navigationApplications={applicationNavigationItems} onNavigate={onNavigate} onOpenApplication={onOpenApplication} onOpenApplications={requestApplicationsOpen} onOpenRecentSessions={requestRecentSessionsOpen} onOpenSettings={openSettings} onLogout={onLogout} onUserChange={onUserChange} onSettingsChange={updateWorkbenchSettings} />
       </Suspense>
     );
   } else if (appRoute) {
@@ -851,6 +879,12 @@ export function Workbench({
           onNavigate={onNavigate}
           onOpenSettings={openSettings}
           onOpenApplication={onOpenApplication}
+          recentSessionsOpenRequestId={recentSessionsOpenRequestId}
+          onRecentSessionsOpenRequestHandled={handleRecentSessionsOpenRequest}
+          rightPanelSection={workspaceRightPanelSection}
+          onRightPanelSectionChange={setWorkspaceRightPanelSection}
+          applicationsOpenRequestId={applicationsOpenRequestId}
+          onApplicationsOpenRequestHandled={handleApplicationsOpenRequest}
           activeAiSessionId={aiState.activeSessionId}
           aiDraft={aiWorkDraft}
           aiWorkGoal={app === "workspace" && appRoute[2] === "ai-work" ? pendingAiWorkGoal : null}

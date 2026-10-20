@@ -13,12 +13,12 @@ import { dirname, resolve } from "node:path";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { configuration, ConfigurationConflict } from "lfaa-storage-domain/src/configuration.js";
 import { config } from "lfaa-launch-environment/src/config.js";
-import { resolveUserDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
+import { resolveUserAccountPaths } from "lfaa-home-paths/src/data-layout.mjs";
 import { protectPrivateDirectory } from "lfaa-home-paths/src/private-directory.mjs";
 import { atomicWrite, atomicWriteBytes, decode } from "lfaa-storage-json/src/index.js";
 import { withControlLock } from "lfaa-storage-domain/src/control-lock.js";
 import { validateSettingsInput } from "./validation.js";
-import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
+import { APPLICATION_IDS, APPLICATION_NAVIGATION_IDS, type ApplicationId, type ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
 import { credentialReference, normalizeCredentialRecord, type CredentialRecord, type CredentialRecordMetadata } from "lfaa-credentials/src/index.js";
 import { defaultReasoningMode, isSelectableReasoningMode, normalizeAccountReasoningMode, normalizeProviderModelThinking, normalizeStoredModelThinking, PROVIDER_MODEL_CAPABILITY_SOURCE } from "./model-capabilities.js";
 import type { AiModelCatalogEntry, AiModelThinkingControl } from "./model-capabilities.js";
@@ -82,6 +82,9 @@ function readGeneralSettings(value: Record<string, unknown>): GeneralSettings | 
     language: choose(value.language, ["system", "zh-CN", "en-US"], defaults.language),
     defaultFullView: typeof value.defaultFullView === "boolean" ? value.defaultFullView : defaults.defaultFullView,
     navigationLayout: choose(value.navigationLayout, ["left-two-column", "three-column", "right-tools", "focus"], defaults.navigationLayout),
+    hiddenApplicationNavigationIds: Array.isArray(value.hiddenApplicationNavigationIds)
+      ? [...new Set(value.hiddenApplicationNavigationIds.filter((id): id is ApplicationNavigationId => typeof id === "string" && (APPLICATION_NAVIGATION_IDS as readonly string[]).includes(id)))].slice(0, APPLICATION_NAVIGATION_IDS.length)
+      : defaults.hiddenApplicationNavigationIds,
     cardMotionEffect: choose(value.cardMotionEffect, CARD_MOTION_EFFECT_IDS, defaults.cardMotionEffect),
     dialogMotionEffect: choose(value.dialogMotionEffect, UI_MOTION_EFFECT_IDS, defaults.dialogMotionEffect),
     terminalPosition: choose(value.terminalPosition, ["bottom", "right"], defaults.terminalPosition),
@@ -294,7 +297,10 @@ function readPluginSettings(value: Record<string, unknown>): PluginSettings | nu
     }];
   }).filter((prompt, index, all) => all.findIndex(candidate => candidate.id === prompt.id) === index).slice(0, 16) : [];
   const skillDirectories = Array.isArray(value.skillDirectories) ? [...new Set(value.skillDirectories.filter((path): path is string => typeof path === "string" && path.length <= 32760 && /^(?:[A-Za-z]:[\\/]|\/|\\\\)/u.test(path) && !path.includes("\0")))].slice(0, 16) : [];
-  return { enabled: value.enabled, mcpServers, prompts, skillDirectories };
+  const disabledSkillNames = Array.isArray(value.disabledSkillNames)
+    ? [...new Set(value.disabledSkillNames.filter((name): name is string => typeof name === "string" && name.length <= 512 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(name)))].slice(0, 200)
+    : [];
+  return { enabled: value.enabled, mcpServers, prompts, skillDirectories, disabledSkillNames };
 }
 
 export function saveUserSettings(
@@ -304,7 +310,7 @@ export function saveUserSettings(
 ): void {
   // 旧客户端提交整类设置时保留后来新增的字段，显式提交仍采用用户新值。
   const submitted = value as unknown as Record<string, unknown>;
-  if (category === "general" && (!Object.hasOwn(submitted, "cardMotionEffect") || !Object.hasOwn(submitted, "dialogMotionEffect") || !Object.hasOwn(submitted, "defaultAdminCredentialReminderEnabled") || !Object.hasOwn(submitted, "notificationPopupsEnabled") || !Object.hasOwn(submitted, "aiProviderReminderEnabled"))) {
+  if (category === "general" && (!Object.hasOwn(submitted, "cardMotionEffect") || !Object.hasOwn(submitted, "dialogMotionEffect") || !Object.hasOwn(submitted, "defaultAdminCredentialReminderEnabled") || !Object.hasOwn(submitted, "notificationPopupsEnabled") || !Object.hasOwn(submitted, "aiProviderReminderEnabled") || !Object.hasOwn(submitted, "hiddenApplicationNavigationIds"))) {
     value = { ...getUserSettings(userId).general, ...submitted } as GeneralSettings;
   }
   if (category === "plugins") value = { ...getUserSettings(userId).plugins, ...submitted } as PluginSettings;
@@ -394,6 +400,14 @@ function updateUserCapabilityPrompt(userId: string, id: string, applicationId: A
   return result;
 }
 
+function detectBackgroundMimeType(data: Buffer): string {
+  // 浏览器的 File.type 可能与文件内容不一致；用签名确定存储类型，避免把可支持图片误解析为另一格式。
+  if (data.length >= 8 && data.toString("hex", 0, 8) === "89504e470d0a1a0a") return "image/png";
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) return "image/jpeg";
+  if (data.length >= 12 && data.toString("ascii", 0, 4) === "RIFF" && data.toString("ascii", 8, 12) === "WEBP") return "image/webp";
+  throw new Error("无法识别图片内容；仅支持有效的 PNG、JPEG 或 WebP 图片。");
+}
+
 export function imageDimensions(data: Buffer, mimeType: string): { width: number; height: number } {
   // 根据文件头与编码尺寸复核图片内容，不能只信任浏览器声明的 MIME 类型或像素值。
   if (mimeType === "image/png") {
@@ -441,7 +455,7 @@ const backgroundExtensions: Record<string, string> = { "image/png": "png", "imag
 function backgroundPath(userId: string, id: string, mimeType: string): string {
   const extension = backgroundExtensions[mimeType];
   if (!extension || !/^user-[0-9a-f-]{36}$/iu.test(id)) throw new Error("背景素材标识无效。");
-  return resolve(resolveUserDataPaths(config.dataDirectory, userId).backgrounds, `${id}.${extension}`);
+  return resolve(resolveUserAccountPaths(config.homeDirectory, userId).backgrounds, `${id}.${extension}`);
 }
 
 function backgroundMetadataPath(userId: string, id: string, mimeType: string): string {
@@ -494,11 +508,11 @@ function readBackgroundMetadata(path: string): string | null {
 
 export function saveUserBackground(userId: string, dataUrl: string, displayName: string): AppearanceBackgroundView {
   if (dataUrl.length > 4_200_000) throw new Error("背景图片不能超过 3 MiB。");
-  const match = /^data:(image\/png|image\/jpeg|image\/webp);base64,([A-Za-z0-9+/]+={0,2})$/u.exec(dataUrl);
+  const match = /^data:[^;,]*;base64,([A-Za-z0-9+/]+={0,2})$/u.exec(dataUrl);
   if (!match) throw new Error("背景图片仅支持 PNG、JPEG 或 WebP 格式。");
-  const mimeType = match[1]!;
-  const data = Buffer.from(match[2]!, "base64");
+  const data = Buffer.from(match[1]!, "base64");
   if (data.length === 0 || data.length > 3 * 1024 * 1024) throw new Error("背景图片不能超过 3 MiB。");
+  const mimeType = detectBackgroundMimeType(data);
   const { width, height } = imageDimensions(data, mimeType);
   if (width < 1 || height < 1 || width > 8192 || height > 8192 || width * height > 20_000_000) throw new Error("背景图片尺寸不能超过 8192 像素边长或 2000 万像素。");
   const id = `user-${randomUUID()}`;
@@ -1132,7 +1146,7 @@ export function listAiAccounts(userId: string): AiAccountView[] {
 
 function getEncryptionKey(): Buffer {
   // 使用数据根目录中的稳定密钥文件，避免服务重启后无法解密已保存的 Provider 凭证。
-  const keyPath = resolve(config.dataDirectory, "credentials", "settings.key");
+  const keyPath = resolve(config.homeDirectory, "credentials", "settings.key");
   protectPrivateDirectory(dirname(keyPath));
   try {
     const key = readFileSync(keyPath);

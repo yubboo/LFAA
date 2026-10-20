@@ -1,0 +1,223 @@
+/*
+ 功能：定义设置中心内开发手册的区域图、目录和专题正文样式。
+ 作用：复用设置页的 Appearance 颜色、字体与间距令牌，并按 settings-main 实际宽度重排。
+ 关联文件：packages/client/ui-settings/src/DeveloperHandbook.tsx、SettingsPage.css。
+*/
+.developer-handbook {
+  display: grid;
+  width: min(100%, var(--settings-content-max-width));
+  min-width: 0;
+  gap: var(--space-5);
+  margin-inline: auto;
+  padding: var(--space-5) var(--settings-page-padding-inline) calc(var(--space-5) + var(--space-4));
+  color: var(--color-text-primary);
+}
+
+.developer-handbook__header,
+.developer-handbook__section-heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.developer-handbook__header {
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+}
+
+.developer-handbook__heading { display: grid; min-width: 0; gap: var(--space-2); }
+.developer-handbook__back { justify-self: start; margin: -8px 0 2px -10px; color: var(--color-text-secondary); }
+.developer-handbook__eyebrow,
+.developer-handbook__card-index,
+.developer-handbook__toc-label {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.developer-handbook h1,
+.developer-handbook h2,
+.developer-handbook h3,
+.developer-handbook h4,
+.developer-handbook p { min-width: 0; margin: 0; }
+.developer-handbook h1 { color: var(--color-text-heading); font-size: clamp(var(--font-size-xl), 3vw, var(--font-size-2xl)); line-height: 1.15; }
+.developer-handbook h2 { color: var(--color-text-heading); font-size: clamp(var(--font-size-lg), 2.4vw, var(--font-size-xl)); line-height: 1.25; }
+.developer-handbook h3 { color: var(--color-text-heading); font-size: var(--font-size-lg); line-height: 1.35; }
+.developer-handbook h4 { color: var(--color-text-heading); font-size: var(--font-size-base); line-height: 1.4; }
+.developer-handbook p { color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.75; overflow-wrap: anywhere; }
+.developer-handbook__heading > p { max-width: 780px; font-size: var(--font-size-base); }
+
+.developer-handbook__header-mark {
+  display: grid;
+  flex: 0 0 auto;
+  align-content: center;
+  gap: 6px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-family: var(--settings-code-font, var(--font-family-mono, monospace));
+  font-size: var(--font-size-xs);
+}
+
+.developer-handbook__map-card,
+.developer-handbook__toc,
+.developer-handbook__article-heading,
+.developer-handbook__problem,
+.developer-handbook__owner,
+.developer-handbook__implementation,
+.developer-handbook__detail-card,
+.developer-handbook__records,
+.developer-handbook__files {
+  min-width: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+}
+
+.developer-handbook__map-card { display: grid; gap: var(--space-4); padding: var(--space-5); }
+.developer-handbook__section-heading { align-items: flex-end; }
+.developer-handbook__section-heading > div { display: grid; min-width: 0; gap: var(--space-1); }
+.developer-handbook__section-heading > p { max-width: 420px; text-align: right; }
+.developer-handbook__map {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(56px, .65fr) minmax(100px, 1.05fr) minmax(180px, 2.2fr) minmax(100px, 1.05fr);
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-canvas);
+}
+
+.developer-handbook__map-lane {
+  display: grid;
+  min-width: 0;
+  min-height: 112px;
+  align-content: space-between;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 9px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.developer-handbook__map-lane:hover { transform: translateY(-1px); border-color: var(--color-brand); }
+.developer-handbook__map-lane.is-active { border-color: var(--color-brand); background: color-mix(in srgb, var(--color-brand) 10%, var(--color-surface)); }
+.developer-handbook__map-number { color: var(--color-text-subtle); font-family: var(--settings-code-font, var(--font-family-mono, monospace)); font-size: var(--font-size-xs); }
+.developer-handbook__map-lane strong { font-size: var(--font-size-base); }
+.developer-handbook__map-lane > span:last-child { color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.45; overflow-wrap: anywhere; }
+.developer-handbook__map-lane--1 { border-top: 3px solid var(--color-brand); }
+.developer-handbook__map-lane--2 { border-top: 3px solid var(--color-brand); }
+.developer-handbook__map-lane--3 { border-top: 3px solid var(--color-status-success); }
+.developer-handbook__map-lane--4 { border-top: 3px solid var(--color-status-warning); }
+.developer-handbook__map-caption { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.developer-handbook__map-caption > span::before { content: "•"; margin-right: 7px; color: var(--color-brand); }
+.developer-handbook__map-caption button { margin-left: auto; padding: 4px 0; border: 0; background: none; color: var(--color-brand); font: inherit; cursor: pointer; }
+
+.developer-handbook__body { display: grid; min-width: 0; grid-template-columns: minmax(180px, 230px) minmax(0, 1fr); align-items: start; gap: var(--space-4); }
+.developer-handbook__toc { position: sticky; top: var(--space-3); display: grid; gap: 4px; padding: var(--space-3); }
+.developer-handbook__toc-label { padding: 6px 10px 8px; }
+.developer-handbook__toc-item { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--color-text-secondary); text-align: left; font: inherit; cursor: pointer; }
+.developer-handbook__toc-item > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.developer-handbook__toc-item > span:last-child { flex: 0 0 auto; color: var(--color-text-subtle); }
+.developer-handbook__toc-item:hover { background: var(--color-surface-muted); color: var(--color-text-primary); }
+.developer-handbook__toc-item.is-active { border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-border)); background: color-mix(in srgb, var(--color-brand) 9%, var(--color-surface)); color: var(--color-brand); font-weight: 650; }
+.developer-handbook__toc-note { display: grid; gap: 6px; margin-top: var(--space-3); padding: var(--space-3); border-top: 1px solid var(--color-border-subtle); }
+.developer-handbook__toc-note strong { color: var(--color-text-heading); font-size: var(--font-size-xs); }
+.developer-handbook__toc-note p { font-size: var(--font-size-xs); }
+
+.developer-handbook__article { display: grid; min-width: 0; gap: var(--space-3); }
+.developer-handbook__article-heading { display: grid; gap: var(--space-2); padding: var(--space-5); }
+.developer-handbook__article-heading h2 { max-width: 850px; }
+.developer-handbook__article-heading p { max-width: 880px; font-size: var(--font-size-base); }
+.developer-handbook__overview-grid { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.developer-handbook__overview-card { display: grid; min-width: 0; align-content: start; gap: 9px; padding: var(--space-4); border: 1px solid var(--color-border-subtle); border-radius: 12px; background: color-mix(in srgb, var(--color-surface) 78%, transparent); color: var(--color-text-primary); text-align: left; cursor: pointer; }
+.developer-handbook__overview-card:hover { border-color: var(--color-brand); }
+.developer-handbook__overview-card > span:first-child { color: var(--color-text-subtle); font-family: var(--font-family-mono); font-size: var(--font-size-xs); }
+.developer-handbook__overview-card strong { color: var(--color-text-heading); }
+.developer-handbook__overview-card > span:last-child { color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.65; }
+
+.developer-handbook__problem,
+.developer-handbook__owner,
+.developer-handbook__detail-card,
+.developer-handbook__records,
+.developer-handbook__files { display: grid; align-content: start; gap: var(--space-2); padding: var(--space-4); }
+.developer-handbook__problem { border-left: 3px solid var(--color-status-warning); }
+.developer-handbook__owner { border-left: 3px solid var(--color-brand); }
+.developer-handbook__implementation { display: grid; gap: var(--space-3); padding: var(--space-4); }
+.developer-handbook__implementation .developer-handbook__section-heading { align-items: center; }
+.developer-handbook__step-count { flex: 0 0 auto; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.developer-handbook__implementation-list { display: grid; min-width: 0; }
+.developer-handbook__implementation-item { display: grid; min-width: 0; grid-template-columns: 38px minmax(0, 1fr); gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--color-border-subtle); }
+.developer-handbook__implementation-number { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 9px; background: var(--color-surface-muted); color: var(--color-brand); font-family: var(--font-family-mono); font-size: var(--font-size-xs); }
+.developer-handbook__implementation-item > div { display: grid; min-width: 0; align-content: start; gap: 5px; }
+.developer-handbook__detail-grid { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.developer-handbook__prompt-example { display: grid; min-width: 0; gap: var(--space-2); padding: var(--space-4); border: 1px solid var(--color-border-subtle); border-radius: 12px; background: color-mix(in srgb, var(--color-surface) 82%, transparent); }
+.developer-handbook__prompt-example h3 { margin: 5px 0 0; }
+.developer-handbook__prompt-example p { margin: 5px 0 0; }
+.developer-handbook__prompt-example pre { max-height: 560px; overflow: auto; margin: 0; padding: var(--space-3); border: 1px solid var(--color-border-subtle); border-radius: 9px; background: var(--color-surface-muted); color: var(--color-text-primary); font-family: var(--settings-code-font, var(--font-family-mono, monospace)); font-size: var(--settings-code-font-size, var(--font-size-sm)); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.developer-handbook__prompt-example code { font: inherit; }
+.developer-handbook__records ul { display: grid; gap: 8px; margin: 0; padding-left: 20px; color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.7; }
+.developer-handbook__records li { padding-left: 2px; overflow-wrap: anywhere; }
+.developer-handbook__verification { display: grid; gap: 6px; margin-top: var(--space-2); padding: var(--space-3); border-radius: 9px; background: var(--color-surface-muted); }
+.developer-handbook__verification strong { color: var(--color-text-heading); font-size: var(--font-size-xs); }
+.developer-handbook__verification span { color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.65; overflow-wrap: anywhere; }
+.developer-handbook__file-list { display: flex; min-width: 0; flex-wrap: wrap; gap: 7px; }
+.developer-handbook__file-list code { max-width: 100%; padding: 6px 8px; border: 1px solid var(--color-border-subtle); border-radius: 6px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-family: var(--settings-code-font, var(--font-family-mono, monospace)); font-size: var(--settings-code-font-size, var(--font-size-xs)); line-height: 1.5; overflow-wrap: anywhere; }
+
+@container settings-main (max-width: 920px) {
+  .developer-handbook__body { grid-template-columns: minmax(150px, 190px) minmax(0, 1fr); gap: var(--space-2); }
+  .developer-handbook__map { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .developer-handbook__map-lane { padding: 10px; }
+}
+
+@container settings-main (max-width: 760px) {
+  .developer-handbook__header { padding: var(--space-4); }
+  .developer-handbook__header-mark { display: none; }
+  .developer-handbook__map-card { padding: var(--space-4); }
+  .developer-handbook__map { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .developer-handbook__map-lane { min-height: 94px; }
+  .developer-handbook__body { grid-template-columns: minmax(0, 1fr); }
+  .developer-handbook__toc { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .developer-handbook__toc-label,
+  .developer-handbook__toc-note { grid-column: 1 / -1; }
+  .developer-handbook__toc-note { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
+}
+
+@container settings-main (max-width: 560px) {
+  .developer-handbook { gap: var(--space-3); padding: var(--space-3) 12px var(--space-5); }
+  .developer-handbook__header,
+  .developer-handbook__map-card,
+  .developer-handbook__article-heading { padding: var(--space-3); }
+  .developer-handbook__section-heading { align-items: flex-start; flex-direction: column; }
+  .developer-handbook__section-heading > p { text-align: left; }
+  .developer-handbook__map-caption { align-items: flex-start; flex-direction: column; }
+  .developer-handbook__map-caption button { margin-left: 0; }
+  .developer-handbook__toc { grid-template-columns: minmax(0, 1fr); }
+  .developer-handbook__toc-note { grid-template-columns: minmax(0, 1fr); }
+  .developer-handbook__overview-grid,
+  .developer-handbook__detail-grid { grid-template-columns: minmax(0, 1fr); }
+  .developer-handbook__problem,
+  .developer-handbook__owner,
+  .developer-handbook__implementation,
+  .developer-handbook__prompt-example,
+  .developer-handbook__detail-card,
+  .developer-handbook__records,
+  .developer-handbook__files { padding: var(--space-3); }
+  .developer-handbook__prompt-example pre { max-height: none; }
+  .developer-handbook__implementation-item { grid-template-columns: 30px minmax(0, 1fr); gap: var(--space-2); }
+  .developer-handbook__implementation-number { width: 28px; height: 28px; }
+  .developer-handbook__step-count { align-self: flex-start; }
+}

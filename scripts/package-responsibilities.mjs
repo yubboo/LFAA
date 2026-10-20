@@ -9,6 +9,7 @@ const annotations = {
   api: `account-controller:账户认证、个人资料与身份 API，调用身份 Owner
 ai-video-controller:账户 AI 视频项目与生成任务的认证 API
 connectivity-controller:联机目标、连接配置与节点网络操作 API
+github-connection-controller:GitHub OAuth 授权状态和只读仓库资源的认证 API 适配
 gateway:共享认证 API Gateway 与 Controller 路由承载
 job-controller:节点任务查询、派发与取消的协议适配
 knowledge-controller:账户知识库和 Markdown 资料来源管理 API
@@ -205,6 +206,7 @@ runtime-environment:Host 配置与运行位置服务合同
 webserver:共享 HTTP/Socket 服务和静态资源承载`,
   identity: `anonymous-user-id:匿名用户标识来源适配
 auth:账户身份、认证和账户隔离权威`,
+  integrations: `github:GitHub App Device Flow、账户令牌与只读 REST 数据 Owner`,
   interaction: `commands:通用交互命令登记协议
 permission-presets:三模式授权、审批记忆与执行范围权威
 tool-ask-user:模型结构化澄清工具
@@ -226,7 +228,7 @@ token-meter:模型上下文/输出令牌估算合同`,
   lsp: `lsp:语言服务协议与服务合同
 lsp-stdio:stdio 语言服务进程提供方
 tool-lsp:代码导航和语言服务工具`,
-  mcp: `mcp-client:MCP 连接池、发现、调用和账户/配置回收
+  mcp: `mcp-client:MCP 连接池、发现、按需目录/调用和账户/配置回收
 mcp-resources:MCP 资源列表与按需读取适配`,
   network: `game-connectivity:游戏联机目标、连接配置及节点网络任务领域`,
   plan: `plan-mode:计划模式状态与执行范围合同`,
@@ -287,6 +289,7 @@ tool-pwsh:PowerShell 命令模型工具适配
 tool-pwsh-persistent:持久 PowerShell 会话模型工具适配
 tool-shell:目标节点与本机 Shell 的模型工具合同`,
   skill: `minecraft:Minecraft bundled SKILL.md 资源及独立按需 Provider
+rea:REA 逆向分析的 LFAA authored Skill 摘要与按需工作流正文
 skill:统一 Skill Provider 注册、摘要合并和按需正文加载
 skill-badge:内置 badge 方法资源和 Provider
 skill-filesystem:账户/项目目录 Skill 来源发现、缓存与加载

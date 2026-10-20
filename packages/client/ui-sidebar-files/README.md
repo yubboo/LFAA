@@ -10,6 +10,10 @@ Connection 读取资源合同，Settings/领域/节点决定实际位置、状�
 
 ## 小鱼共享工作入口（2026-10-14）
 
-文件页全局导航共享紧凑“应用”菜单，可继续打开游戏库与专业 App；文件与单根存储合同保持，房子仍返回来源工作区。
+文件页全局导航的“应用”入口直接导航到 `/work`，由 Workbench 展示唯一应用清单和四栏布局，不打开紧凑应用弹层；房子仍返回来源工作区，文件与单根存储合同保持。
+
+全局“最近会话”入口独立调用 Workbench 的跨页打开请求，进入 `/work` 后由 `ApplicationWorkspace` 展开并刷新同一会话 Dock；文件页不持有会话列表或展开状态。
+
+设置页可向全局导航传入由 Workbench Settings 快照派生的可见应用项；应用显示/隐藏来自 `general.hiddenApplicationNavigationIds`，本包不另存清单或开关。
 
 构建只写仓库根 dist/packages/client/ui-sidebar-files/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。

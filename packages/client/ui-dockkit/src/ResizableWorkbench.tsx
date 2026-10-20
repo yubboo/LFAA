@@ -9,8 +9,8 @@
  * 修改注意事项：
  * - min 表示视觉展开态最小宽度；Pointer 越过 min 后视觉宽度保持 min，只累计“超拖距离”。
  * - 默认超拖达到 min 的 50% 才进入吸附预览，降低误触；Pointer 不松手仍可反向拉出。
- * - Pointer Up 后 separator 不允许反向展开，只能由显式按钮/快捷键恢复。
- * - 本组件只容纳布局级窗格交换控制；业务按钮由各 Pane 自己拥有，受控/非受控状态必须保持一致。
+ * - 已吸附后 Pointer 不松手仍可从同一分隔条反向拉出；松手收起后，分隔条保留透明命中带供再次拖出。
+ * - 本组件只管理 Pane 几何和分隔条交互；业务按钮由各 Pane 自己拥有，受控/非受控状态必须保持一致。
  *
  * Grid 结构：
  * ┌──── left ────┬ handle ┬──────── center ────────┬ handle ┬── right ──┐
@@ -64,6 +64,7 @@ interface SideDragState extends SnapDragState {
   side: "left" | "right";
   pointerStartX: number;
   startSize: number;
+  activated: boolean;
 }
 
 interface BottomDragState extends SnapDragState {
@@ -110,7 +111,7 @@ function loadState(
       bottomHeight: bottom.initial,
       leftCollapsed: false,
       rightCollapsed: true,
-      layoutDefaultsVersion: 3,
+      layoutDefaultsVersion: 4,
     };
   }
 
@@ -133,7 +134,7 @@ function loadState(
       bottomHeight: clamp(Number(parsed.bottomHeight) || bottom.initial, bottom.min, bottom.max),
       leftCollapsed: Boolean(parsed.leftCollapsed),
       rightCollapsed: usesPreviousDefaults ? true : Boolean(parsed.rightCollapsed),
-      layoutDefaultsVersion: 3,
+      layoutDefaultsVersion: 4,
     };
   } catch {
     return {
@@ -142,7 +143,7 @@ function loadState(
       bottomHeight: bottom.initial,
       leftCollapsed: false,
       rightCollapsed: true,
-      layoutDefaultsVersion: 3,
+      layoutDefaultsVersion: 4,
     };
   }
 }
@@ -153,8 +154,6 @@ export function ResizableWorkbench({
   center,
   leftVisible = true,
   right,
-  rightPaneSwapped: rightPaneSwappedProp = false,
-  onSwapPanes,
   bottom,
   storageKey = "lfaa.workbench.layout.v5",
   leftLimits = DEFAULT_LEFT,
@@ -185,7 +184,6 @@ export function ResizableWorkbench({
     [bottomLimits, containerWidth, leftLimits, rightLimits, storageKey],
   );
   const [internalLeftWidth, setInternalLeftWidth] = useState(initial.leftWidth);
-  const [rightWidth, setRightWidth] = useState(initial.rightWidth);
   const [bottomHeight, setBottomHeight] = useState(initial.bottomHeight);
   const [internalLeftCollapsed, setInternalLeftCollapsed] = useState(initial.leftCollapsed);
   const [internalRightCollapsed, setInternalRightCollapsed] = useState(initial.rightCollapsed);
@@ -201,9 +199,8 @@ export function ResizableWorkbench({
     && layoutMode !== "desktop"
     && shouldDockResponsiveRightPane(containerWidth, minCenterWidth, rightLimits.min, responsiveLeftWidth, responsiveRightDock);
   const rightUsesGrid = rightEnabled && (layoutMode === "desktop" || canDockResponsiveRight);
-  const rightPaneSwapped = rightEnabled && layoutMode === "desktop" && rightPaneSwappedProp;
   const responsiveRightCenterFloor = minCenterWidth;
-  const responsiveLeftHandleWidth = leftUsesGrid && leftVisible && !leftCollapsed ? HANDLE_WIDTH : 0;
+  const responsiveLeftHandleWidth = leftUsesGrid && leftVisible ? HANDLE_WIDTH : 0;
   const rightGridHandleBudget = rightUsesGrid
     ? HANDLE_WIDTH + responsiveLeftHandleWidth
     : 0;
@@ -211,6 +208,7 @@ export function ResizableWorkbench({
     - responsiveRightCenterFloor
     - (leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth : 0)
     - rightGridHandleBudget);
+  const [rightWidth, setRightWidth] = useState(initial.rightWidth);
   const rightWidthForLayout = rightUsesGrid ? Math.min(rightWidth, maxRightGridWidth) : rightWidth;
 
   // 受控模式下父组件拥有 leftWidth；非受控模式下组件自己保存。
@@ -281,7 +279,8 @@ export function ResizableWorkbench({
     const rect = root.getBoundingClientRect();
     const staticMax = side === "left" ? leftLimits.max : rightLimits.max;
     if (side === "right" && layoutMode === "mobile" && !rightUsesGrid) {
-      const leftDockBudget = leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth + HANDLE_WIDTH : 0;
+      const leftDockBudget = (leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth : 0)
+        + (leftUsesGrid && leftVisible ? HANDLE_WIDTH : 0);
       return Math.max(0, Math.min(staticMax, rect.width - leftDockBudget - 12));
     }
     const otherWidth = side === "left"
@@ -291,10 +290,11 @@ export function ResizableWorkbench({
           ? (responsiveRightDock && layoutMode !== "desktop" ? rightLimits.min : rightWidthForLayout)
           : 0)
       : (leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth : 0);
-    const leftHandleWidth = leftUsesGrid && leftVisible && !leftCollapsed ? HANDLE_WIDTH : 0;
+    const leftHandleWidth = leftUsesGrid && leftVisible ? HANDLE_WIDTH : 0;
+    const rightHandleWidth = rightUsesGrid ? HANDLE_WIDTH : 0;
     const handleBudget = rightUsesGrid
-      ? HANDLE_WIDTH + leftHandleWidth
-      : (leftUsesGrid && side === "left" ? HANDLE_WIDTH : 0);
+      ? rightHandleWidth + leftHandleWidth
+      : leftHandleWidth;
     const centerFloor = side === "right" ? responsiveRightCenterFloor : minCenterWidth;
     const available = rect.width - otherWidth - centerFloor - handleBudget;
     return Math.max(0, Math.min(staticMax, available));
@@ -330,7 +330,7 @@ export function ResizableWorkbench({
       bottomHeight,
       leftCollapsed,
       rightCollapsed,
-      layoutDefaultsVersion: 3,
+      layoutDefaultsVersion: 4,
     });
     try {
       if (window.localStorage.getItem(storageKey) !== saved) window.localStorage.setItem(storageKey, saved);
@@ -423,12 +423,11 @@ export function ResizableWorkbench({
     frameRef.current = window.requestAnimationFrame(flushPending);
   }, [flushPending]);
 
-  // Pointer Down 记录本次拖拽的几何边界。已吸附栏位禁止从 separator 反向展开。
+  // Pointer Down 只记录起点；点击不会改变视觉或布局状态。已收起栏不接受新的拖动会话。
   const onSidePointerDown = useCallback((event: PointerEvent<HTMLDivElement>, side: "left" | "right") => {
     const root = rootRef.current;
     if (!root) return;
     const collapsed = side === "left" ? leftCollapsed : rightCollapsed;
-    // 吸附收起后分隔条只保留边界，不允许反向拖拽展开；必须通过对应 UI 控件重新打开。
     if (collapsed) return;
     const rect = root.getBoundingClientRect();
     const staticMin = side === "left" ? leftLimits.min : rightLimits.min;
@@ -437,11 +436,13 @@ export function ResizableWorkbench({
     const rawCurrent = side === "left" ? leftWidth : rightWidthForLayout;
     const paneSelector = side === "left" ? ".lfaa-workbench__pane--left" : ".lfaa-workbench__pane--right";
     const renderedPaneWidth = root.querySelector<HTMLElement>(paneSelector)?.getBoundingClientRect().width;
-    const current = typeof renderedPaneWidth === "number" && Number.isFinite(renderedPaneWidth) && renderedPaneWidth > 0
-      ? renderedPaneWidth
-      : side === "right" && layoutMode === "mobile" && !rightUsesGrid
-        ? Math.min(rawCurrent, Math.max(0, rect.width - 12))
-        : rawCurrent;
+    const current = collapsed
+      ? 0
+      : typeof renderedPaneWidth === "number" && Number.isFinite(renderedPaneWidth) && renderedPaneWidth > 0
+        ? renderedPaneWidth
+        : side === "right" && layoutMode === "mobile" && !rightUsesGrid
+          ? Math.min(rawCurrent, Math.max(0, rect.width - 12))
+          : rawCurrent;
 
     sideDragRef.current = {
       side,
@@ -449,31 +450,63 @@ export function ResizableWorkbench({
       target: event.currentTarget,
       pointerStartX: event.clientX,
       startSize: current,
+      activated: false,
       min: effectiveMin,
       max: effectiveMax,
       lastRaw: current,
       captureThreshold: resolveSnapCaptureThreshold(effectiveMin, snapCaptureRatio),
-      snapped: false,
+      snapped: collapsed,
       releaseStartedAt: null,
     };
 
-    root.dataset.dragging = side;
-    root.dataset.snapPreview = "none";
-    root.dataset.autoSnap = "none";
     event.currentTarget.setPointerCapture(event.pointerId);
-    document.body.classList.add("lfaa-is-resizing");
   }, [getDynamicMax, layoutMode, leftCollapsed, leftLimits.min, leftWidth, rightCollapsed, rightLimits.min, rightUsesGrid, rightWidth, rightWidthForLayout, snapCaptureRatio]);
 
   const onSidePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = sideDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!drag.activated) {
+      if (Math.abs(event.clientX - drag.pointerStartX) < WORKBENCH_INTERACTION_TOKENS.pointer.activationDistancePx) return;
+      const root = rootRef.current;
+      if (!root) return;
+      const paneSelector = drag.side === "left" ? ".lfaa-workbench__pane--left" : ".lfaa-workbench__pane--right";
+      const renderedPaneWidth = root.querySelector<HTMLElement>(paneSelector)?.getBoundingClientRect().width;
+      const current = drag.snapped
+        ? 0
+        : typeof renderedPaneWidth === "number" && Number.isFinite(renderedPaneWidth) && renderedPaneWidth > 0
+          ? renderedPaneWidth
+          : drag.startSize;
+      const limits = drag.side === "left" ? leftLimits : rightLimits;
+      drag.min = Math.min(limits.min, getDynamicMax(drag.side));
+      drag.max = getDynamicMax(drag.side);
+      drag.startSize = current;
+      drag.lastRaw = current;
+      drag.pointerStartX = event.clientX;
+      drag.captureThreshold = resolveSnapCaptureThreshold(drag.min, snapCaptureRatio);
+      drag.activated = true;
+      const columnName = drag.side === "left" ? "--lfaa-left-column" : "--lfaa-right-column";
+      const sizeName = drag.side === "left" ? "--lfaa-left-size" : "--lfaa-right-size";
+      root.style.setProperty(columnName, `${current}px`);
+      root.style.setProperty(sizeName, `${current}px`);
+      root.dataset.dragging = drag.side;
+      root.dataset.snapPreview = drag.snapped ? drag.side : "none";
+      root.dataset.autoSnap = drag.snapped ? drag.side : "none";
+      document.body.classList.add("lfaa-is-resizing");
+      return;
+    }
     const raw = resolveSideDragRawSize(drag.side, drag.startSize, drag.pointerStartX, event.clientX);
     schedule(raw);
-  }, [schedule]);
+  }, [getDynamicMax, leftLimits, rightLimits, schedule, snapCaptureRatio]);
 
   const finishSideDrag = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = sideDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
+
+    if (!drag.activated) {
+      sideDragRef.current = null;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      return;
+    }
 
     if (frameRef.current !== null) {
       window.cancelAnimationFrame(frameRef.current);
@@ -620,7 +653,7 @@ export function ResizableWorkbench({
     }
     pendingRef.current = null;
 
-    if (root && sideDrag) {
+    if (root && sideDrag?.activated) {
       const columnName = sideDrag.side === "left" ? "--lfaa-left-column" : "--lfaa-right-column";
       const sizeName = sideDrag.side === "left" ? "--lfaa-left-size" : "--lfaa-right-size";
       root.style.setProperty(columnName, `${sideDrag.startSize}px`);
@@ -668,8 +701,6 @@ export function ResizableWorkbench({
     const limits = side === "left" ? leftLimits : rightLimits;
     const max = getDynamicMax(side);
     const min = Math.min(limits.min, max);
-    // 已吸附的栏位不能从 resize separator 反向展开；使用外部显式控件或快捷键。
-    if (collapsed) return;
     const step = event.shiftKey
       ? WORKBENCH_INTERACTION_TOKENS.keyboard.fastStepPx
       : WORKBENCH_INTERACTION_TOKENS.keyboard.stepPx;
@@ -677,8 +708,10 @@ export function ResizableWorkbench({
     const expandKey = side === "left" ? "ArrowRight" : "ArrowLeft";
     if (event.key === "Home") {
       event.preventDefault();
-      if (side === "left") setResolvedLeftCollapsed(true);
-      else setResolvedRightCollapsed(true);
+      if (!collapsed) {
+        if (side === "left") setResolvedLeftCollapsed(true);
+        else setResolvedRightCollapsed(true);
+      }
       return;
     }
     if (event.key === "End") {
@@ -693,13 +726,14 @@ export function ResizableWorkbench({
       return;
     }
     if (event.key !== collapseKey && event.key !== expandKey) return;
+    if (collapsed && event.key !== expandKey) return;
     event.preventDefault();
     if (side === "left") {
       setResolvedLeftCollapsed(false);
-      setResolvedLeftWidth((value) => clamp(value + (event.key === expandKey ? step : -step), min, max));
+      setResolvedLeftWidth((value) => clamp(collapsed ? Math.max(value, min) + step : value + (event.key === expandKey ? step : -step), min, max));
     } else {
       setResolvedRightCollapsed(false);
-      setRightWidth(clamp(rightWidthForLayout + (event.key === expandKey ? step : -step), min, max));
+      setRightWidth(clamp(collapsed ? Math.max(rightWidthForLayout, min) + step : rightWidthForLayout + (event.key === expandKey ? step : -step), min, max));
     }
   }, [getDynamicMax, leftCollapsed, leftLimits, rightCollapsed, rightLimits, rightWidthForLayout, setResolvedLeftCollapsed, setResolvedLeftWidth, setResolvedRightCollapsed]);
 
@@ -707,9 +741,9 @@ export function ResizableWorkbench({
   // 普通开合由 CSS Grid 完成；拖动尺寸由共用 Pointer 帧处理直接写入或执行释放缓动。
   const style = {
     "--lfaa-left-size": `${leftWidth}px`,
-    // 收起侧栏时同步收起分隔器列，避免主内容边缘留下空隙或悬浮细线。
-    "--lfaa-left-handle-width": `${leftVisible && !leftCollapsed ? HANDLE_WIDTH : 0}px`,
-    "--lfaa-right-handle-width": `${rightEnabled && !rightCollapsed ? HANDLE_WIDTH : 0}px`,
+    // 收起侧栏时保留透明的 1px 分隔轨道供拖回；边线默认隐藏，悬停时才显示。
+    "--lfaa-left-handle-width": `${leftVisible && leftUsesGrid ? HANDLE_WIDTH : 0}px`,
+    "--lfaa-right-handle-width": `${rightEnabled && rightUsesGrid ? HANDLE_WIDTH : 0}px`,
     "--lfaa-right-size": `${rightWidthForLayout}px`,
     "--lfaa-left-column": `${leftCollapsed ? 0 : leftWidth}px`,
     "--lfaa-right-column": `${rightEnabled && !rightCollapsed ? rightWidthForLayout : 0}px`,
@@ -724,7 +758,7 @@ export function ResizableWorkbench({
   const rightPane = rightEnabled ? <aside className="lfaa-workbench__pane lfaa-workbench__pane--right" aria-label="右侧工作区">{right}</aside> : null;
 
   // ===== 8. DOM 结构 =====
-  // 交换时同步交换 DOM 顺序，保证视觉顺序、键盘焦点顺序与辅助技术阅读顺序一致。
+  // DOM 顺序固定为左栏、中间区、右侧栏，与视觉顺序和辅助技术阅读顺序一致。
   return (
     <div
       ref={rootRef}
@@ -732,7 +766,6 @@ export function ResizableWorkbench({
       style={style}
       data-left-collapsed={leftCollapsed}
       data-right-collapsed={rightCollapsed}
-      data-right-swapped={rightPaneSwapped}
       data-bottom-open={Boolean(bottom && bottomOpen)}
       data-layout-transitioning="false"
       data-width-transitioning="false"
@@ -750,11 +783,11 @@ export function ResizableWorkbench({
         role="separator"
         aria-orientation="vertical"
         aria-label="调整左侧栏宽度"
-        aria-valuemin={leftLimits.min}
+        aria-valuemin={leftCollapsed ? 0 : leftLimits.min}
         aria-valuemax={leftLimits.max}
         aria-valuenow={leftCollapsed ? 0 : leftWidth}
-        tabIndex={leftCollapsed ? -1 : 0}
-        aria-disabled={leftCollapsed}
+        tabIndex={0}
+        aria-disabled={false}
         onPointerDown={(event) => onSidePointerDown(event, "left")}
         onPointerMove={onSidePointerMove}
         onPointerUp={finishSideDrag}
@@ -763,28 +796,18 @@ export function ResizableWorkbench({
         onKeyDown={(event) => keyboardResize(event, "left")}
       /> : null}
 
-      {rightPaneSwapped ? rightPane : centerPane}
-
-      {rightEnabled && layoutMode === "desktop" && !rightCollapsed && onSwapPanes ? <button
-        className="lfaa-workbench__swap-control"
-        type="button"
-        aria-label={rightPaneSwapped ? "恢复左右窗格" : "交换中间区与工具资源栏"}
-        aria-pressed={rightPaneSwapped}
-        title={rightPaneSwapped ? "恢复左右窗格" : "交换左右窗格"}
-        data-tooltip={rightPaneSwapped ? "恢复左右窗格" : "交换左右窗格"}
-        onClick={onSwapPanes}
-      ><span aria-hidden="true">↔</span></button> : null}
+      {centerPane}
 
       {rightEnabled ? <div
         className="lfaa-workbench__handle lfaa-workbench__handle--right"
         role="separator"
         aria-orientation="vertical"
         aria-label="调整中间区与侧栏宽度"
-        aria-valuemin={rightLimits.min}
+        aria-valuemin={rightCollapsed ? 0 : rightLimits.min}
         aria-valuemax={rightLimits.max}
         aria-valuenow={rightCollapsed ? 0 : rightWidth}
-        tabIndex={rightCollapsed ? -1 : 0}
-        aria-disabled={rightCollapsed}
+        tabIndex={0}
+        aria-disabled={false}
         onPointerDown={(event) => onSidePointerDown(event, "right")}
         onPointerMove={onSidePointerMove}
         onPointerUp={finishSideDrag}
@@ -793,7 +816,7 @@ export function ResizableWorkbench({
         onKeyDown={(event) => keyboardResize(event, "right")}
       /> : null}
 
-      {rightPaneSwapped ? centerPane : rightPane}
+      {rightPane}
 
       {bottom ? (
         <section className="lfaa-workbench__bottom" aria-label="底部面板">

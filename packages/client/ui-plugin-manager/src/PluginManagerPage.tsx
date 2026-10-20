@@ -58,14 +58,23 @@ const PLUGIN_MANAGER_WORKSPACE_TABS: Array<{ id: PluginManagerWorkspaceTab; labe
   { id: "wallpaper", label: "壁纸引擎" }
 ];
 
+function initialPluginManagerWorkspaceTab(): PluginManagerWorkspaceTab {
+  if (typeof window === "undefined") return "all";
+  const view = new URLSearchParams(window.location.search).get("view");
+  return view === "applications" || view === "mcp" || view === "skills" ? view : "all";
+}
+
 export interface PluginManagerPageProps {
   user: User;
   settings: UserSettings;
   resolvedTheme: "light" | "dark";
   serverState: ServiceState;
   applications: ApplicationNavigationItem[];
+  navigationApplications?: ApplicationNavigationItem[];
   onNavigate: (path: string) => void;
   onOpenApplication: (app: ApplicationId, mode: "normal") => Promise<void>;
+  onOpenApplications?: () => void;
+  onOpenRecentSessions: () => void;
   onOpenSettings: (section?: "plugins") => void;
   onLogout: () => void;
   onUserChange: (user: User) => void;
@@ -209,7 +218,7 @@ function PluginCard({ plugin, targetApplicationId, canAdmin, pendingAction, onTa
   );
 }
 
-export function PluginManagerPage({ user, settings, resolvedTheme, serverState, applications, onNavigate, onOpenApplication, onOpenSettings, onLogout, onUserChange, onSettingsChange }: PluginManagerPageProps) {
+export function PluginManagerPage({ user, settings, resolvedTheme, serverState, applications, navigationApplications = applications, onNavigate, onOpenApplication, onOpenApplications, onOpenRecentSessions, onOpenSettings, onLogout, onUserChange, onSettingsChange }: PluginManagerPageProps) {
   const canAdmin = hasAdminAccess(user.role);
   const layoutRef = useRef<HTMLDivElement>(null);
   const layout = useWorkbenchMetrics(layoutRef, initialPluginManagerMetrics);
@@ -218,7 +227,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
     const initial = initialPluginManagerMetrics();
     return readWorkbenchLeftWidth(initial.left, initial.containerWidth);
   });
-  const [workspaceTab, setWorkspaceTab] = useState<PluginManagerWorkspaceTab>("all");
+  const [workspaceTab, setWorkspaceTab] = useState<PluginManagerWorkspaceTab>(initialPluginManagerWorkspaceTab);
   const isSettingsWorkspaceTab = workspaceTab !== "plugins" && workspaceTab !== "wallpaper";
   const pluginTabEntries = useDshSlotEntries("plugins.tab");
   const activationEntries = useDshSlotEntries("plugins.bundle.activation");
@@ -277,6 +286,10 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
         domId: `plugin-manager-${id}-tab`,
         onSelect: () => {
           setWorkspaceTab(id);
+          const nextAddress = new URL(window.location.href);
+          if (id === "all") nextAddress.searchParams.delete("view");
+          else nextAddress.searchParams.set("view", id);
+          window.history.replaceState(window.history.state, "", `${nextAddress.pathname}${nextAddress.search}${nextAddress.hash}`);
           if (id === "plugins") setSelectedPluginTab(null);
           if (layout.mode === "mobile") setLeftCollapsed(true);
         }
@@ -547,8 +560,11 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
         activePage="plugins"
         homeLabel="返回小鱼智能体工作区"
         applications={applications}
+        navigationApplications={navigationApplications}
         showServiceStatus={settings.general.showServiceStatus}
         onHome={() => onNavigate("/work")}
+        onToggleApplications={onOpenApplications ?? (() => onNavigate("/work"))}
+        onOpenRecentSessions={onOpenRecentSessions}
         onNavigate={onNavigate}
         onOpenApplication={onOpenApplication}
         onOpenWork={() => onNavigate("/work")}
@@ -726,6 +742,8 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
               initialSection="plugins"
               applications={applications}
               onOpenApplication={onOpenApplication}
+              onOpenApplications={onOpenApplications}
+              onOpenRecentSessions={onOpenRecentSessions}
               onBack={() => onNavigate("/work")}
               onNavigate={navigateFromPluginSettings}
               onOpenSettings={onOpenSettings}
@@ -746,6 +764,8 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
               standalonePluginSection="wallpaperEngine"
               applications={applications}
               onOpenApplication={onOpenApplication}
+              onOpenApplications={onOpenApplications}
+              onOpenRecentSessions={onOpenRecentSessions}
               onBack={() => onNavigate("/work")}
               onNavigate={navigateFromPluginSettings}
               onOpenSettings={onOpenSettings}

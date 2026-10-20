@@ -11,7 +11,7 @@ import { findRepositoryRoot } from "lfaa-home-paths/src/index.mjs";
 import Joi from "joi";
 import { randomBytes } from "node:crypto";
 import { resolveDataDirectory, resolveHomeDirectory } from "lfaa-home-paths/src/resolve-data-directory.mjs";
-import { ensureDataDirectories, resolveDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
+import { ensureDataDirectories, ensureHomeDirectories, resolveDataPaths, resolveHomePaths } from "lfaa-home-paths/src/data-layout.mjs";
 
 const repositoryRoot = findRepositoryRoot(import.meta.url);
 const environmentFile = resolve(repositoryRoot, ".env");
@@ -19,13 +19,18 @@ const environmentFile = resolve(repositoryRoot, ".env");
 const externallyConfiguredDataDirectory = process.env.LFAA_DATA_DIR?.trim() ?? "";
 const dataDirectoryWasResolvedByProjectLauncher = process.env.LFAA_DATA_DIR_MANAGED_BY_LAUNCHER === "1";
 const dataDirectoryWasResolvedByDesktopShell = process.env.LFAA_DATA_DIR_MANAGED_BY_DESKTOP === "1";
-const dataDirectoryIsExternallyManaged = Boolean(externallyConfiguredDataDirectory)
+const dataDirectoryIsConfiguredByDeployment = process.env.LFAA_DATA_DIR_CONFIGURED === "1";
+const dataDirectoryAtProcessStartIsExternal = Boolean(externallyConfiguredDataDirectory)
   && !dataDirectoryWasResolvedByProjectLauncher
   && !dataDirectoryWasResolvedByDesktopShell;
 
 if (existsSync(environmentFile)) {
   process.loadEnvFile(environmentFile);
 }
+const dataDirectoryLoadedFromEnvironmentFile = !externallyConfiguredDataDirectory && Boolean(process.env.LFAA_DATA_DIR?.trim());
+const dataDirectoryIsExternallyManaged = dataDirectoryAtProcessStartIsExternal
+  || dataDirectoryIsConfiguredByDeployment
+  || dataDirectoryLoadedFromEnvironmentFile;
 
 const environmentSchema = Joi.object({
   NODE_ENV: Joi.string().valid("development", "test", "production").default("development"),
@@ -39,6 +44,8 @@ const environmentSchema = Joi.object({
   JWT_SECRET: Joi.string().allow("").max(512).default(""),
   WEBAUTHN_RP_ID: Joi.string().trim().allow("").max(253).default(""),
   WEBAUTHN_ORIGIN: Joi.string().trim().allow("").max(512).default(""),
+  LFAA_GITHUB_APP_CLIENT_ID: Joi.string().trim().allow("").max(128).pattern(/^[A-Za-z0-9_-]*$/u).default(""),
+  LFAA_GITHUB_APP_CLIENT_SECRET: Joi.string().trim().allow("").max(512),
   LOG_LEVEL: Joi.string().valid("error", "warn", "info", "http", "verbose", "debug", "silly").default("info")
 }).unknown(true);
 
@@ -60,6 +67,8 @@ interface ParsedEnvironment {
   JWT_SECRET: string;
   WEBAUTHN_RP_ID: string;
   WEBAUTHN_ORIGIN: string;
+  LFAA_GITHUB_APP_CLIENT_ID: string;
+  LFAA_GITHUB_APP_CLIENT_SECRET?: string;
   LOG_LEVEL: string;
 }
 
@@ -85,11 +94,11 @@ const environment = validation.value as ParsedEnvironment;
 // 本机 CLI 只在回环监听地址使用持久签名密钥；外部监听仍遵循生产部署配置要求。
 const loopbackHost = environment.SERVER_HOST.toLocaleLowerCase();
 const localCliMode = environment.LFAA_LOCAL_MODE && isLoopbackHost(loopbackHost);
-// 系统账户/Provider/会话根固定由本机部署配置管理；可迁移的数据只在 Settings 的业务内容 Owner 中操作。
+// 账户/Provider/会话根固定由本机 Home 管理；可选业务内容由 Settings Owner 管理。
 const dataDirectoryChangeSupported = false;
 const dataDirectoryChangeUnavailableReason = dataDirectoryIsExternallyManaged
   ? "LFAA_DATA_DIR 由启动进程的环境变量显式指定；请修改该部署配置。"
-  : "系统账户数据位置由本机启动配置管理；设置中心的迁移只作用于游戏、小说与漫剧业务 data。";
+  : "业务 Data 根由设置中心的项目与存储配置管理；账户数据固定保存在 LFAA Home。";
 // 未配置时使用系统账户持久目录；显式生产部署路径仍必须为绝对路径，避免数据依赖启动工作目录。
 if (environment.NODE_ENV === "production" && !localCliMode && environment.LFAA_DATA_DIR && !isAbsolute(environment.LFAA_DATA_DIR)) {
   throw new Error("生产环境必须将 LFAA_DATA_DIR 配置为绝对路径并指向持久化目录。");
@@ -164,18 +173,21 @@ function isWithinDirectory(parentDirectory: string, candidateDirectory: string):
 }
 
 const homeDirectory = resolveHomeDirectory(repositoryRoot, environment.LFAA_HOME);
-const dataDirectory = resolveDataDirectory(repositoryRoot, environment.LFAA_DATA_DIR, { lfaaHome: homeDirectory });
-const defaultBusinessContentDirectory = resolve(homeDirectory, "data");
+const dataDirectory = resolveDataDirectory(repositoryRoot, environment.LFAA_DATA_DIR, {
+  lfaaHome: homeDirectory,
+  useStoredDataDirectory: !dataDirectoryIsExternallyManaged
+});
+const homePaths = resolveHomePaths(homeDirectory);
 const pluginInstallDirectory = resolve(homeDirectory, "profiles");
-const systemDirectories = resolve(dataDirectory) === resolve(homeDirectory)
-  ? Object.entries(resolveDataPaths(dataDirectory)).filter(([name]) => name !== "root").map(([, path]) => path)
-  : [dataDirectory];
-if (systemDirectories.some(path => isWithinDirectory(path, defaultBusinessContentDirectory) || isWithinDirectory(defaultBusinessContentDirectory, path))
-  || isWithinDirectory(pluginInstallDirectory, defaultBusinessContentDirectory) || isWithinDirectory(defaultBusinessContentDirectory, pluginInstallDirectory)) {
-  throw new Error("LFAA_HOME/data 必须避开系统数据分类目录与 LFAA_HOME/profiles；请分别选择目录。");
+const accountDirectories = Object.entries(homePaths).filter(([name]) => name !== "root").map(([, path]) => path);
+const businessDirectories = Object.entries(resolveDataPaths(dataDirectory)).filter(([name]) => name !== "root").map(([, path]) => path);
+if (accountDirectories.some(path => isWithinDirectory(path, dataDirectory) || isWithinDirectory(dataDirectory, path))
+  || businessDirectories.some(path => isWithinDirectory(pluginInstallDirectory, path) || isWithinDirectory(path, pluginInstallDirectory))) {
+  throw new Error("LFAA_DATA_DIR 必须与账户分类目录和 LFAA_HOME/profiles 分开；默认位置为 LFAA_HOME/data。");
 }
 
 mkdirSync(dataDirectory, { recursive: true });
+ensureHomeDirectories(homeDirectory);
 
 function readLocalJwtSecret(secretPath: string): string {
   const secret = readFileSync(secretPath, "utf8").trim();
@@ -233,13 +245,13 @@ function loadOrCreateLocalDaemonToken(tokenPath: string): string {
   }
 }
 
-// 开发、桌面和回环监听的本机 CLI 持久保存签名密钥，避免重启使所有会话失效。
+// 开发、桌面和回环监听的本机 CLI 持久保存签名密钥在账户 Home，避免重启使所有会话失效。
 const localJwtSecret = configuredJwtSecret.length === 0
   && (environment.NODE_ENV === "development" || environment.LFAA_DESKTOP_MODE || localCliMode)
-  ? loadOrCreateLocalJwtSecret(resolve(dataDirectory, "credentials", "jwt-secret"))
+  ? loadOrCreateLocalJwtSecret(resolve(homePaths.credentials, "jwt-secret"))
   : "";
-const localDaemonToken = loadOrCreateLocalDaemonToken(resolve(dataDirectory, "credentials", "daemon-token"));
-// 每次控制端首次进入数据根时补齐标准分类；不预建任何账户或业务内容。
+const localDaemonToken = loadOrCreateLocalDaemonToken(resolve(homePaths.credentials, "daemon-token"));
+// 账户分类只进入 Home；游戏、环境、缓存和日志等业务分类只进入 Data 根。
 ensureDataDirectories(dataDirectory);
 
 export const config = {
@@ -250,6 +262,7 @@ export const config = {
   homeDirectory,
   pluginInstallDirectory,
   dataDirectory,
+  dataDirectoryExternallyManaged: dataDirectoryIsExternallyManaged,
   dataDirectoryMigrationRequestPath: process.env.LFAA_DATA_DIRECTORY_MIGRATION_REQUEST_PATH?.trim()
     ? resolve(process.env.LFAA_DATA_DIRECTORY_MIGRATION_REQUEST_PATH.trim())
     : resolve(repositoryRoot, ".lfaa-data-directory.pending.json"),
@@ -264,9 +277,13 @@ export const config = {
   desktopInstallDirectory: process.env.LFAA_DESKTOP_INSTALL_DIRECTORY?.trim()
     ? resolve(process.env.LFAA_DESKTOP_INSTALL_DIRECTORY.trim())
     : null,
-  databasePath: resolve(dataDirectory, "database", "lfaa.sqlite"),
+  databasePath: resolve(homePaths.database, "lfaa.sqlite"),
   daemonToken: localDaemonToken,
   logLevel: environment.LOG_LEVEL,
   webauthn: webauthnConfiguration,
+  githubApp: {
+    clientId: environment.LFAA_GITHUB_APP_CLIENT_ID,
+    clientSecret: environment.LFAA_GITHUB_APP_CLIENT_SECRET?.trim() ?? ""
+  },
   jwtSecret: configuredJwtSecret || localJwtSecret || randomBytes(48).toString("base64url")
 };

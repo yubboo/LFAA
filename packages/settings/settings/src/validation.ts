@@ -5,7 +5,7 @@
  */
 import Joi from "joi";
 import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, DEFAULT_USER_SETTINGS } from "lfaa-util-values/src/settings-contract.js";
-import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
+import { APPLICATION_IDS, APPLICATION_NAVIGATION_IDS } from "lfaa-util-values/src/application-id.js";
 import type { SettingsCategory } from "lfaa-util-values/src/settings-contract.js";
 
 export const appearanceBackgroundIdSchema = Joi.alternatives().try(
@@ -29,6 +29,7 @@ export const generalSettingsSchema = Joi.object({
   language: Joi.string().valid("system", "zh-CN", "en-US").required(),
   defaultFullView: Joi.boolean().required(),
   navigationLayout: Joi.string().valid("left-two-column", "three-column", "right-tools", "focus").required(),
+  hiddenApplicationNavigationIds: Joi.array().unique().items(Joi.string().valid(...APPLICATION_NAVIGATION_IDS)).max(APPLICATION_NAVIGATION_IDS.length).default([]),
   cardMotionEffect: Joi.string().valid(...CARD_MOTION_EFFECT_IDS),
   dialogMotionEffect: Joi.string().valid(...UI_MOTION_EFFECT_IDS),
   terminalPosition: Joi.string().valid("bottom", "right").required(),
@@ -115,6 +116,7 @@ export const permissionsSettingsSchema = Joi.object({
 export const pluginsSettingsSchema = Joi.object({
   enabled: Joi.boolean().required(),
   skillDirectories: Joi.array().max(16).unique().items(Joi.string().trim().min(1).max(32760).custom((value, helpers) => /^(?:[A-Za-z]:[\\/]|\/|\\\\)/u.test(value) && !value.includes("\0") ? value : helpers.error("any.invalid"))).default([]),
+  disabledSkillNames: Joi.array().max(200).unique().items(Joi.string().min(1).max(512).pattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u)).default([]),
   mcpServers: Joi.array().max(16).unique("id").items(Joi.alternatives().try(
     Joi.object({
       id: Joi.string().pattern(/^[a-z0-9][a-z0-9_-]{0,23}$/u).required(),

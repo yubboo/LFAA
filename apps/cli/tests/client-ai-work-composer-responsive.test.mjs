@@ -9,6 +9,7 @@ import test from "node:test";
 
 const chatStyles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
 const chatSource = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+const projectPickerSource = readFileSync(new URL("../../../packages/client/ui-chat/src/WorkspaceProjectPicker.tsx", import.meta.url), "utf8");
 const composerRule = chatStyles.match(/^\.ai-work-chat__composer\s*\{([^}]*)\}/mu)?.[1] ?? "";
 const composerFocusRule = chatStyles.match(/^\.ai-work-chat__composer:focus-within\s*\{([^}]*)\}/mu)?.[1] ?? "";
 const composerInputRule = chatStyles.match(/^\.ai-work-chat__composer \.ant-input\s*\{([^}]*)\}/mu)?.[1] ?? "";
@@ -88,4 +89,19 @@ test("更多菜单采用纵向操作行，选择面板限制最大宽高并跟�
   assert.ok(chatStyles.includes('.workbench-shell[data-reduced-motion="on"] .ai-work-chat__more-overlay'));
   assert.doesNotMatch(chatStyles, /@container ai-work-composer/u);
   assert.doesNotMatch(composerRule, /container:\s*ai-work-composer/u);
+});
+
+test("输入列不超过 380px 时，项目、权限、更多和模型操作压缩为带可访问名称的图标", () => {
+  const compactRule = chatStyles.match(/@container ai-work-chat \(max-width: 380px\)\s*\{([\s\S]*?)^\}/mu)?.[1] ?? "";
+
+  assert.match(chatStyles, /^\.ai-work-chat\s*\{[^}]*container-type:\s*inline-size[^}]*container-name:\s*ai-work-chat/mu);
+  assert.ok(compactRule.length > 0);
+  assert.match(compactRule, /\.ai-work-chat__project-trigger-label\s*\{\s*display:\s*none;/u);
+  assert.match(compactRule, /\.ai-work-chat__composer-control-label,[\s\S]*?display:\s*none;/u);
+  assert.match(compactRule, /\.ai-work-chat__composer-control\.ant-btn\s*\{[^}]*width:\s*30px[^}]*flex:\s*0\s+0\s+30px/u);
+  assert.match(chatSource, /className="ai-work-chat__composer-app" aria-label=\{`当前应用：\$\{applicationNameFor\(appId\)\}`\} title=\{applicationNameFor\(appId\)\}/u);
+  assert.match(chatSource, /className="ai-work-chat__composer-control ai-work-chat__composer-control--permission"[^>]*aria-label=/u);
+  assert.match(chatSource, /className="ai-work-chat__composer-control ai-work-chat__composer-control--more"[^>]*aria-label="更多输入操作" title="关联应用和能力"/u);
+  assert.match(chatSource, /className="ai-work-chat__composer-control ai-work-chat__composer-control--model"[^>]*aria-label=\{`模型：/u);
+  assert.match(projectPickerSource, /className="ai-work-chat__project-trigger"[^>]*aria-label=/u);
 });

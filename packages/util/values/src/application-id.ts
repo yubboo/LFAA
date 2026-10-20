@@ -6,6 +6,10 @@
 export const APPLICATION_IDS = ["steamcmd", "minecraft", "connectivity", "writing", "workspace", "aivideo"] as const;
 export type ApplicationId = typeof APPLICATION_IDS[number];
 
+/** 工作台“应用”菜单的真实入口 ID；与 App ID 区分，保留游戏库这一聚合入口。 */
+export const APPLICATION_NAVIGATION_IDS = ["games", "steamcmd", "minecraft", "connectivity", "writing", "aivideo"] as const;
+export type ApplicationNavigationId = typeof APPLICATION_NAVIGATION_IDS[number];
+
 /** 项目目录仅接入这两个 App；范围是能力合同，不等同于所有可切换应用。 */
 export const WORKSPACE_PROJECT_APPLICATION_IDS = ["workspace", "minecraft"] as const satisfies readonly ApplicationId[];
 export type WorkspaceProjectApplicationId = typeof WORKSPACE_PROJECT_APPLICATION_IDS[number];

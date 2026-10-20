@@ -29,12 +29,13 @@ import { promisify } from "node:util";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { inflateRawSync } from "node:zlib";
-import { resolveDataDirectory } from "lfaa-home-paths/src/resolve-data-directory.mjs";
+import { resolveDataDirectory, resolveHomeDirectory } from "lfaa-home-paths/src/resolve-data-directory.mjs";
 import { protectPrivateDirectory } from "lfaa-home-paths/src/private-directory.mjs";
-import { ensureDataDirectories } from "lfaa-home-paths/src/data-layout.mjs";
+import { ensureDataDirectories, ensureHomeDirectories } from "lfaa-home-paths/src/data-layout.mjs";
 
 const repositoryRoot = findRepositoryRoot(import.meta.url);
 const environmentFile = resolve(repositoryRoot, ".env");
+const dataDirectoryAtProcessStart = process.env.LFAA_DATA_DIR?.trim() || "";
 if (typeof process.loadEnvFile === "function") {
   try { process.loadEnvFile(environmentFile); } catch (error) {
     if (error?.code !== "ENOENT") throw error;
@@ -42,8 +43,16 @@ if (typeof process.loadEnvFile === "function") {
 }
 
 const configuredDataDirectory = process.env.LFAA_DATA_DIR?.trim() || "";
-const dataDirectory = resolveDataDirectory(repositoryRoot, configuredDataDirectory, { lfaaHome: process.env.LFAA_HOME?.trim() || "" });
-const credentialsDirectory = resolve(dataDirectory, "credentials");
+const homeDirectory = resolveHomeDirectory(repositoryRoot, process.env.LFAA_HOME?.trim() || "");
+const dataDirectoryWasManaged = process.env.LFAA_DATA_DIR_MANAGED_BY_LAUNCHER === "1" || process.env.LFAA_DATA_DIR_MANAGED_BY_DESKTOP === "1";
+const dataDirectoryIsExplicit = process.env.LFAA_DATA_DIR_CONFIGURED === "1"
+  || Boolean(dataDirectoryAtProcessStart && !dataDirectoryWasManaged)
+  || Boolean(!dataDirectoryAtProcessStart && configuredDataDirectory && !dataDirectoryWasManaged);
+const dataDirectory = resolveDataDirectory(repositoryRoot, configuredDataDirectory, {
+  lfaaHome: homeDirectory,
+  useStoredDataDirectory: !dataDirectoryIsExplicit
+});
+const credentialsDirectory = resolve(homeDirectory, "credentials");
 let minecraftDirectoryRelative = "games/minecraft";
 let minecraftDirectory = resolve(dataDirectory, "games", "minecraft");
 const knownMinecraftDirectories = new Set([minecraftDirectoryRelative]);
@@ -121,6 +130,7 @@ export async function apply(ctx) {
 }
 
 async function initialize() {
+  ensureHomeDirectories(homeDirectory);
   ensureDataDirectories(dataDirectory);
   for (const directory of [minecraftDirectory, javaDirectory, backupDirectory, downloadDirectory, sandboxMetadataDirectory]) {
     await mkdir(directory, { recursive: true });

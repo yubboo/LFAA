@@ -137,9 +137,11 @@ function Get-ConfiguredServerPort {
 
 function Initialize-LfaaDataDirectory {
     $configuredDataDirectory = ''
+    $dataDirectoryConfiguredByDeployment = $false
     $launcherManagesDataDirectory = $true
     if ($script:InitialLfaaDataDirectory -and -not $script:InitialLfaaDataDirectoryManagedByLauncher) {
         $configuredDataDirectory = $script:InitialLfaaDataDirectory
+        $dataDirectoryConfiguredByDeployment = $true
         $launcherManagesDataDirectory = $false
     }
     else {
@@ -148,14 +150,17 @@ function Initialize-LfaaDataDirectory {
             foreach ($line in Get-Content -LiteralPath $environmentFile -Encoding UTF8) {
                 if ($line -match '^\s*(?:export\s+)?LFAA_DATA_DIR\s*=\s*"([^"]*)"\s*(?:#.*)?$') {
                     $configuredDataDirectory = $Matches[1].Trim()
+                    $dataDirectoryConfiguredByDeployment = [bool]$configuredDataDirectory
                     break
                 }
                 if ($line -match "^\s*(?:export\s+)?LFAA_DATA_DIR\s*=\s*'([^']*)'\s*(?:#.*)?`$") {
                     $configuredDataDirectory = $Matches[1].Trim()
+                    $dataDirectoryConfiguredByDeployment = [bool]$configuredDataDirectory
                     break
                 }
                 if ($line -match '^\s*(?:export\s+)?LFAA_DATA_DIR\s*=\s*([^#]+?)\s*(?:#.*)?$') {
                     $configuredDataDirectory = $Matches[1].Trim()
+                    $dataDirectoryConfiguredByDeployment = [bool]$configuredDataDirectory
                     break
                 }
             }
@@ -174,6 +179,7 @@ function Initialize-LfaaDataDirectory {
     if (-not $resolvedDataDirectory) { throw '数据目录解析器未返回有效路径。' }
     $env:LFAA_DATA_DIR = $resolvedDataDirectory
     $env:LFAA_DATA_DIR_MANAGED_BY_LAUNCHER = if ($launcherManagesDataDirectory) { '1' } else { '0' }
+    $env:LFAA_DATA_DIR_CONFIGURED = if ($dataDirectoryConfiguredByDeployment) { '1' } else { '0' }
     $env:LFAA_DATA_DIRECTORY_MIGRATION_SUPPORTED = if ($Mode -eq 'Launch' -and $launcherManagesDataDirectory) { '1' } else { '0' }
     Write-Host "本机运行数据目录：$resolvedDataDirectory" -ForegroundColor DarkGray
 }
@@ -272,37 +278,19 @@ function Get-ManagedDevelopmentProcesses {
         }
     }
 
-    # Daemon 命令行使用相对入口；同时检查迁移请求记录的旧目录锁文件。
-    $configuredDataDirectory = [string]$env:LFAA_DATA_DIR
-    if (-not $configuredDataDirectory) {
-        $environmentFile = Join-Path $projectRoot '.env'
-        if (Test-Path -LiteralPath $environmentFile) {
-            foreach ($line in Get-Content -LiteralPath $environmentFile -Encoding UTF8) {
-                if ($line -match '^\s*LFAA_DATA_DIR\s*=\s*([^#]+)') {
-                    $configuredDataDirectory = $Matches[1].Trim().Trim('"').Trim("'")
-                    break
-                }
-            }
-        }
+    # Daemon 命令行使用相对入口；从唯一解析器读取 Home/Data，并同时检查旧 Home 与旧数据根的锁文件。
+    $nodeCommand = Get-Command 'node' -ErrorAction Stop
+    $resolverPath = Join-Path $projectRoot 'scripts/resolve-data-directory.mjs'
+    $layoutOutput = @(& $nodeCommand.Source $resolverPath $projectRoot --layout 2>&1)
+    if ($LASTEXITCODE -ne 0 -or $layoutOutput.Count -eq 0) {
+        throw '无法解析当前 LFAA Home/Data 目录，未启动或停止任何 Daemon。'
     }
-    if ($configuredDataDirectory) {
-        if ([System.IO.Path]::IsPathRooted($configuredDataDirectory)) {
-            $dataDirectory = [System.IO.Path]::GetFullPath($configuredDataDirectory)
-        }
-        else {
-            $dataDirectory = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $configuredDataDirectory))
-        }
-    }
-    else {
-        $nodeCommand = Get-Command 'node' -ErrorAction Stop
-        $resolverPath = Join-Path $projectRoot 'scripts/resolve-data-directory.mjs'
-        $resolverOutput = @(& $nodeCommand.Source $resolverPath $projectRoot 2>&1)
-        if ($LASTEXITCODE -ne 0 -or $resolverOutput.Count -eq 0) {
-            throw '无法解析当前用户的系统数据目录，未启动或停止任何 Daemon。'
-        }
-        $dataDirectory = [System.IO.Path]::GetFullPath(([string]($resolverOutput | Select-Object -Last 1)).Trim())
-    }
-    $daemonDataDirectories = @($dataDirectory)
+    try { $layout = ([string]($layoutOutput | Select-Object -Last 1)) | ConvertFrom-Json -ErrorAction Stop }
+    catch { throw 'LFAA Home/Data 布局信息无效，未启动或停止任何 Daemon。' }
+    $dataDirectory = [System.IO.Path]::GetFullPath([string]$layout.dataDirectory)
+    $homeDirectory = [System.IO.Path]::GetFullPath([string]$layout.homeDirectory)
+    if (-not $dataDirectory -or -not $homeDirectory) { throw 'LFAA Home/Data 路径缺失，未启动或停止任何 Daemon。' }
+    $daemonDataDirectories = @($dataDirectory, $homeDirectory)
     $pendingMigrationPath = Join-Path $projectRoot '.lfaa-data-directory.pending.json'
     if (Test-Path -LiteralPath $pendingMigrationPath -PathType Leaf) {
         try {

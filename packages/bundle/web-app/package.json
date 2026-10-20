@@ -26,6 +26,8 @@
     "lfaa-api-session-controller": "workspace:*",
     "lfaa-user-approval": "workspace:*",
     "lfaa-api-settings-controller": "workspace:*",
+    "lfaa-api-github-connection-controller": "workspace:*",
+    "lfaa-github-integration": "workspace:*",
     "lfaa-api-steamcmd-controller": "workspace:*",
     "lfaa-api-workspace-files": "workspace:*",
     "lfaa-api-workspace-controller": "workspace:*",

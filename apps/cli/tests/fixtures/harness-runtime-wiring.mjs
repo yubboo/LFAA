@@ -101,8 +101,37 @@ try {
   assert.equal(skillAnswer.run.status, "complete");
   assert.equal(skillAnswer.run.message.content, "skill loaded", "Provider 最终文字必须进入助手消息");
   assert.equal((await ctx.skills.list({ userId: other, customSkillDirs: [], allowHostFilesystem: true })).some(item => item.name === "runtime-fixture"), false);
+  settings.saveUserSettings(owner, "plugins", { ...settings.getUserSettings(owner).plugins, disabledSkillNames: ["runtime-fixture", "outline-planning"] });
+  let disabledStep = 0;
+  respond = body => {
+    const text = JSON.stringify(body.messages);
+    if (disabledStep++ === 0) return call("lfaa_skill_list", { source: "registry" });
+    assert.doesNotMatch(text, /runtime-fixture|outline-planning|BODY-ONLY-AFTER-LOAD/u, "UI 登记的 skillId 与 Registry 规范名相同，已停用 Skill 不再出现在模型目录中");
+    return sse({ content: "disabled skill hidden" });
+  };
+  assert.equal((await execute("check available skills")).run.status, "complete");
+  disabledStep = 0;
+  respond = body => {
+    const text = JSON.stringify(body.messages);
+    if (disabledStep++ === 0) return call("lfaa_skill_load", { source: "registry", name: "runtime-fixture" });
+    assert.match(text, /当前账户可见目录没有该 Skill/u, "已停用 Skill 的正文加载会被拒绝");
+    assert.doesNotMatch(text, /BODY-ONLY-AFTER-LOAD/u);
+    return sse({ content: "disabled skill blocked" });
+  };
+  assert.equal((await execute("check disabled skill load")).run.status, "complete");
+  const { apply: registerSkillTools } = await import("lfaa-tool-skill/src/index.js");
+  const capturedSkillTools = [];
+  registerSkillTools({ skills: { registerProvider() {} }, get() { return undefined; }, lfaaTools: { registerTool(_context, registeredTool) { capturedSkillTools.push(registeredTool); } } });
+  const writingSkillTool = capturedSkillTools.find(item => item.name === "writing_load_skill");
+  assert.ok(writingSkillTool, "Writing Skill 工具已登记");
+  await assert.rejects(
+    () => writingSkillTool.execute({ skillId: "outline-planning" }, { userId: owner, signal: new AbortController().signal }),
+    /该 Skill 已在设置中心停用/u,
+    "专用 Writing Skill 加载也遵循逐项停用"
+  );
   settings.saveUserSettings(owner, "plugins", { enabled: true, mcpServers: [] });
   assert.deepEqual(settings.getUserSettings(owner).plugins.skillDirectories, [skillRoot], "旧客户端保存不能擦除新目录设置");
+  assert.deepEqual(settings.getUserSettings(owner).plugins.disabledSkillNames, ["runtime-fixture", "outline-planning"], "旧客户端保存不能擦除逐项 Skill 停用设置");
   console.log("verified:skill");
 
   // 未被模型选择的目录摘要不得拖住普通回答；无 Provider 前置异常时应保留准确活动诊断。

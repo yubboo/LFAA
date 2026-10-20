@@ -1,6 +1,6 @@
 # LFAA 插件管理页
 
-本包实现独立三栏插件工作区：最左复用 `ui-sidebar/GlobalNavigationRail`，二级分类与动态插件入口复用 `ui-sidebar/SecondaryNavigation`，其拖动、宽度、吸附收起和窄屏 Overlay 由 `ui-dockkit/ResizableWorkbench` 管理；分类仍由本页面单一状态源选择。菜单保留全部、插件、应用、工具、技能、提示词、MCP 连接、我的知识库、运行诊断、领域专家；壁纸引擎入口只在 Profile 清单包含固定 Wallpaper Engine 身份记录时显示。以上分类映射到 `ui-settings` 中真实登记的扩展类别与现有 Owner 页面，不重复显示内层分类筛选。Profile 清单按真实安装数据展示插件，可搜索名称/描述/来源并按启用状态筛选，空清单时展示真实的 GitHub、NPM、Host 来源入口，不展示虚构的公共商店条目；应用总览、资料库、MCP 配置及 Cordis 模块启停/重建诊断继续复用原 Owner。启用和停用直接调用受认证的生命周期 API，安装和卸载直接调用受认证的管理 API。卸载并刷新清单后，壁纸引擎菜单和设置面板一起消失。该分区承接 DSH Slot 原生设置，DSH Client 内容未提供壁纸设置页时，由 `ui-settings` 展示真实不可用状态卡，按钮返回插件清单。页面由 Workbench 在 `/plugin-manager` 路由按需装载；保留 DSH Host 的 `/plugins` 静态资源前缀。
+本包实现独立三栏插件工作区：最左复用 `ui-sidebar/GlobalNavigationRail`，二级分类与动态插件入口复用 `ui-sidebar/SecondaryNavigation`，其拖动、宽度、吸附收起和窄屏 Overlay 由 `ui-dockkit/ResizableWorkbench` 管理；分类仍由本页面单一状态源选择。菜单保留全部、插件、应用、工具、技能、提示词、MCP 连接、我的知识库、运行诊断、领域专家；壁纸引擎入口只在 Profile 清单包含固定 Wallpaper Engine 身份记录时显示。以上分类映射到 `ui-settings` 中真实登记的扩展类别与现有 Owner 页面，不重复显示内层分类筛选。Profile 清单按真实安装数据展示插件，可搜索名称/描述/来源并按启用状态筛选，空清单时展示真实的 GitHub、NPM、Host 来源入口，不展示虚构的公共商店条目；应用总览、资料库、MCP 配置及 Cordis 模块启停/重建诊断继续复用原 Owner。启用和停用直接调用受认证的生命周期 API，安装和卸载直接调用受认证的管理 API。卸载并刷新清单后，壁纸引擎菜单和设置面板一起消失。该分区承接 DSH Slot 原生设置，DSH Client 内容未提供壁纸设置页时，由 `ui-settings` 展示真实不可用状态卡，按钮返回插件清单。页面由 Workbench 在 `/plugin-manager` 路由按需装载；从设置中心“集成”分类进入应用、MCP、技能时使用 `?view=applications|mcp|skills` 深链选中现有分类，并由本地导航保持地址中的分类同步；保留 DSH Host 的 `/plugins` 静态资源前缀。
 
 插件来源解析、不可变版本、安装事务、真实 Runtime 状态和删除由 `packages/boot/plugin-manager` 持有；启停按钮调用 `packages/api/plugin-controller` 的受认证生命周期 API，由 Permission Owner 将当前明确点击作为单次用户授权并复核管理员身份、目标 App 和固定来源版本，再调用同一 Plugin Manager Owner 并返回真实 Runtime 状态。自然语言启停继续由现有 Agent Loop/Core Tools 按当前 `permissions.mode` 执行；安装和卸载按钮直接调用受认证 Owner API；手动安装后显示“立即启用”，单独调用生命周期 API。安装绑定检查所得固定内容版本，卸载清理 Profile 默认私有数据；插件明确配置到外部的目录继续归对应 Plugin/Runtime Owner 管理。插件源码与清单位于 `<LFAA_HOME>/profiles/<Profile>/`，Wallpaper Engine 适配副本与默认私有运行数据位于该 Profile 的 `runtime-adapters/<plugin-id>/` 与 `runtime-data/<plugin-id>/`。插件自己的存储配置（如果有）由对应 Plugin/Runtime Owner 生效；系统 data 和业务内容存储设置不覆盖它。旧 `<LFAA_HOME>/plugins` 与 `<LFAA_DATA_DIR>/plugins` 不再作为插件入口。账户设置 `plugins.enabled` 只控制 AI 扩展，不改变 Profile 插件。
 
@@ -13,6 +13,12 @@ Host 本机来源输入指运行 LFAA 的 Host 绝对路径，不是浏览器/�
 页面读取 `permissions.mode` 显示当前授权模式，并消费现有角色、主题/字体/字号、对比度、壁纸/遮罩、模糊及减少动态效果共享映射；不新增设置或偏好。设置分类导航不再列出插件或 MCP，相关设置表单仅以独立模式嵌入本插件工作区。Profile 清单读取在进入分区时执行一次，用户可显式刷新；退出分区时中止未完成读取，没有后台轮询。
 
 插件目录工具栏的齿轮按钮通过 `ui-layout/Workbench.openSettings("plugins")` 打开设置中心“集成 → 插件”；地址仍为 `/settings?section=plugins`，普通设置页将其解析为 Profile 插件菜单，使用设置中心标准行和真实生命周期开关。Workbench 保存 `/plugin-manager` 返回路由；`ui-settings` 使用同一受认证 Plugin Manager API，不复制插件清单或生命周期规则。旧 AI 扩展、MCP、Skill 与 Cordis 工作区仍由此页面通过 SettingsPage standalone 模式展示，不与 Profile 插件启停状态混用。
+
+五类集成 Tab 只存在于设置中心页面内；用户在应用、MCP 或技能 Tab 间切换时不导航回左侧独立插件工作区。页面的全局应用菜单继续消费 Workbench 提供的 `navigationApplications`，不由插件管理器保存另一份菜单状态。
+
+插件管理页左侧全局导航的“应用”入口直接导航到 `/work`，由 Workbench 展示唯一应用清单及四栏布局，不打开旧应用弹层；行为与设置中心入口一致。
+
+“最近会话”通过 Workbench 单独传递打开请求，进入 `/work` 后展开共享会话 Dock；插件管理页不复制会话数据，也不把该入口回退成普通工作区导航。
 
 添加与详情弹窗的外框、标题、操作区和窄屏滚动由 `ui-theme` 共享样式统一管理；本包只保留来源表单和内容区的布局约束。
 

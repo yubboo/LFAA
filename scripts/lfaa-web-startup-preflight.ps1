@@ -17,6 +17,19 @@ function Get-ResolvedDataDirectory {
     return $dataDirectory.Trim()
 }
 
+function Get-ResolvedHomeDirectory {
+    $nodeCommand = Get-Command 'node' -ErrorAction Stop
+    $resolverFile = Join-Path $projectRoot 'scripts\resolve-data-directory.mjs'
+    $layoutOutput = @(& $nodeCommand.Source $resolverFile $projectRoot '--layout' 2>&1)
+    if ($LASTEXITCODE -ne 0 -or $layoutOutput.Count -eq 0) {
+        throw "无法解析当前 LFAA Home：$($layoutOutput -join ' ')"
+    }
+    try { $layout = ([string]($layoutOutput | Select-Object -Last 1)) | ConvertFrom-Json -ErrorAction Stop }
+    catch { throw 'LFAA Home 布局信息无效，已停止 Web 启动。' }
+    if ([string]::IsNullOrWhiteSpace([string]$layout.homeDirectory)) { throw 'LFAA Home 解析没有返回路径，已停止 Web 启动。' }
+    return ([string]$layout.homeDirectory).Trim()
+}
+
 function Read-ConfigurationLockRecord {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -58,8 +71,8 @@ function Test-LfaaWebLockOwnerCommand {
 
 function Stop-ExistingLfaaWebLockOwner {
     # 只协调可确认的 Web 写锁持有者；锁释放仍由存储 Owner 事务处理。
-    $dataDirectory = Get-ResolvedDataDirectory
-    $lockPath = Join-Path (Join-Path $dataDirectory 'storages') '.configuration.lock'
+    $homeDirectory = Get-ResolvedHomeDirectory
+    $lockPath = Join-Path (Join-Path $homeDirectory 'storages') '.configuration.lock'
     $lockRecord = Read-ConfigurationLockRecord -Path $lockPath
     if ($null -eq $lockRecord) { return }
 

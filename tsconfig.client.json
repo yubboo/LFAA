@@ -76,6 +76,12 @@
       "lfaa-api-gateway/src/*": [
         "packages/api/gateway/src/*"
       ],
+      "lfaa-api-github-connection-controller": [
+        "packages/api/github-connection-controller/src/index.ts"
+      ],
+      "lfaa-api-github-connection-controller/src/*": [
+        "packages/api/github-connection-controller/src/*"
+      ],
       "lfaa-api-job-controller": [
         "packages/api/job-controller/src/index.ts"
       ],
@@ -442,6 +448,12 @@
       "lfaa-games-steamcmd/src/*": [
         "packages/games/steamcmd/src/*"
       ],
+      "lfaa-github-integration": [
+        "packages/integrations/github/src/index.ts"
+      ],
+      "lfaa-github-integration/src/*": [
+        "packages/integrations/github/src/*"
+      ],
       "lfaa-hmr": [
         "packages/boot/hmr/src/index.ts"
       ],
@@ -795,6 +807,12 @@
       ],
       "lfaa-skill-office/src/*": [
         "packages/skill/skill-office/src/*"
+      ],
+      "lfaa-skill-rea": [
+        "packages/skill/rea/src/index.ts"
+      ],
+      "lfaa-skill-rea/src/*": [
+        "packages/skill/rea/src/*"
       ],
       "lfaa-skill-writing": [
         "packages/skill/writing/src/index.ts"

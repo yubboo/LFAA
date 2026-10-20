@@ -30,6 +30,6 @@ export function registerMinecraftSetupSkill(ctx: Context): void {
     }
   }));
   // 扩展面仅是同一 Provider 的摘要投影，既有插件/能力界面可见，正文不自动注入。
-  ctx.get("aiExtensions")?.register(ctx, { id: "skill.minecraft-server-setup", pluginId: "lfaa-skill-minecraft", kind: "skill", name: "Minecraft 开服方法", version: "1.0.0", description: candidate.description, builtIn: true,
+  ctx.get("aiExtensions")?.register(ctx, { id: "skill.minecraft-server-setup", skillId: candidate.name, pluginId: "lfaa-skill-minecraft", kind: "skill", name: "Minecraft 开服方法", version: "1.0.0", description: candidate.description, builtIn: true,
     loadInstructions: () => loadContent() });
 }

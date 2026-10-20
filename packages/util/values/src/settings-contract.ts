@@ -3,7 +3,7 @@
  * 作用：提供不依赖 Node/数据库/React 的纯数据合同，兼容补值由 Settings Owner 负责。
  * 关联文件：settings/settings/src/service.ts、client/connection/src/api.ts、ui-settings-general/src/default-settings.ts。
  */
-import type { ApplicationId } from "./application-id.js";
+import type { ApplicationId, ApplicationNavigationId } from "./application-id.js";
 
 export type AppearanceTextFont = "system" | "sans" | "serif";
 export type AppearanceCodeFont = "system" | "cascadia" | "consolas" | "jetbrains";
@@ -36,6 +36,7 @@ export interface GeneralSettings {
   language: "system" | "zh-CN" | "en-US";
   defaultFullView: boolean;
   navigationLayout: "left-two-column" | "three-column" | "right-tools" | "focus";
+  hiddenApplicationNavigationIds: ApplicationNavigationId[];
   cardMotionEffect: CardMotionEffect;
   dialogMotionEffect: DialogMotionEffect;
   terminalPosition: "bottom" | "right";
@@ -228,6 +229,8 @@ export interface PluginSettings {
   enabled: boolean;
   /** 当前账户主动配置的本机 Skill 根；不作为远端服务器文件访问授权。 */
   skillDirectories?: string[];
+  /** 当前账户主动停用的 Skill 名称；只影响模型目录与加载，不改 Skill 来源文件。 */
+  disabledSkillNames: string[];
   mcpServers: Array<McpServerSetting>;
   prompts: UserCapabilityPrompt[];
 }
@@ -276,6 +279,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     language: "system",
     defaultFullView: true,
     navigationLayout: "three-column",
+    hiddenApplicationNavigationIds: [],
     cardMotionEffect: "fluid",
     dialogMotionEffect: "fluid",
     terminalPosition: "bottom",
@@ -301,7 +305,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   minecraftRuntime: { minecraftReadyTimeoutSeconds: 120, minecraftStopTimeoutSeconds: 30, minecraftDefaultMemoryMb: 4096, minecraftDefaultPort: 25565, minecraftDownloadTimeoutSeconds: 1800, minecraftInstallTimeoutSeconds: 900, minecraftExecutionMode: "native", minecraftDefaultCore: "Paper", minecraftBedrockDefaultPort: 19132 },
   git: { branchPrefix: "codex/" },
   permissions: { mode: "ask" },
-  plugins: { enabled: false, mcpServers: [], prompts: [], skillDirectories: [] },
+  plugins: { enabled: false, mcpServers: [], prompts: [], skillDirectories: [], disabledSkillNames: [] },
   personalization: { memoryEnabled: false, memoryFromToolChats: false },
   computerControl: { enabled: false }
 };

@@ -4,7 +4,7 @@
 
 参考 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，上游基线 commit `639ed015397290b3745d163aafe02ffee4aa3f84`。
 
-当前 366 个两级目录、193 个实际 workspace 包（191 个产品源码/组合包，2 个工程/测试包），173 个占位目录。控制端/节点运行树含 166 个包；客户端源码包单独进入 Web 构建。
+当前 369 个两级目录、196 个实际 workspace 包（194 个产品源码/组合包，2 个工程/测试包），173 个占位目录。控制端/节点运行树含 169 个包；客户端源码包单独进入 Web 构建。
 
 `implemented` 仅表示有 package.json 和源码/装配；不代表已经进入 Profile、通过运行验收或与 DSH 等价。`placeholder` 不可执行。产品能力现状见 [系统总体架构](系统总体架构.md)，历史核验见 [P0 记录](archive/audits/harness-p0-audit.md)。
 
@@ -17,6 +17,7 @@
 | [packages/api/ai-video-controller](../packages/api/ai-video-controller) | lfaa-api-ai-video-controller | implemented | 账户 AI 视频项目与生成任务的认证 API | [源码](../packages/api/ai-video-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/api/connectivity-controller](../packages/api/connectivity-controller) | lfaa-api-connectivity-controller | implemented | 联机目标、连接配置与节点网络操作 API | [源码](../packages/api/connectivity-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/api/gateway](../packages/api/gateway) | lfaa-api-gateway | implemented | 共享认证 API Gateway 与 Controller 路由承载 | [源码](../packages/api/gateway/src/index.ts)；13 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/api/github-connection-controller](../packages/api/github-connection-controller) | lfaa-api-github-connection-controller | implemented | GitHub OAuth 授权状态和只读仓库资源的认证 API 适配 | [源码](../packages/api/github-connection-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/api/job-controller](../packages/api/job-controller) | lfaa-api-job-controller | implemented | 节点任务查询、派发与取消的协议适配 | [源码](../packages/api/job-controller/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/api/knowledge-controller](../packages/api/knowledge-controller) | lfaa-api-knowledge-controller | implemented | 账户知识库和 Markdown 资料来源管理 API | [源码](../packages/api/knowledge-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/api/minecraft-controller](../packages/api/minecraft-controller) | lfaa-api-minecraft-controller | implemented | Minecraft 核心、实例、部署、配置和任务 API | [源码](../packages/api/minecraft-controller/src/index.ts)；1 个静态消费者；1 个组合声明 | LFAA 扩展 |
@@ -100,7 +101,7 @@
 | [packages/client/ui-settings-subagent](../packages/client/ui-settings-subagent) | — | placeholder | 子 Agent 模型、数量和委派设置界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-settings-web-search](../packages/client/ui-settings-web-search) | — | placeholder | 网页搜索 Provider 设置界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-shortcuts](../packages/client/ui-shortcuts) | lfaa-client-ui-shortcuts | implemented | 账户快捷键配置控件 | 仅组合/清单；未证实运行 | DSH 同名目录 |
-| [packages/client/ui-sidebar](../packages/client/ui-sidebar) | lfaa-client-ui-sidebar | implemented | 共享侧栏及导航树组件 | [源码](../packages/client/ui-sidebar/src/index.ts)；5 个静态消费者；0 个组合声明 | DSH 同名目录 |
+| [packages/client/ui-sidebar](../packages/client/ui-sidebar) | lfaa-client-ui-sidebar | implemented | 共享侧栏及导航树组件 | [源码](../packages/client/ui-sidebar/src/index.ts)；6 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-sidebar-browser](../packages/client/ui-sidebar-browser) | — | placeholder | 浏览器侧栏内容展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-sidebar-documentpreview](../packages/client/ui-sidebar-documentpreview) | — | placeholder | 文档预览侧栏展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-sidebar-files](../packages/client/ui-sidebar-files) | lfaa-client-ui-sidebar-files | implemented | 统一文件列表、预览、编辑与回收站界面 | [源码](../packages/client/ui-sidebar-files/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
@@ -141,7 +142,7 @@
 | [packages/core/tools](../packages/core/tools) | lfaa-tools | implemented | 公共工具合同、参数校验、可撤销注册与 Run 工具发现 | [源码](../packages/core/tools/src/index.ts)；27 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/credentials/authorization](../packages/credentials/authorization) | lfaa-authorization | implemented | 凭据访问授权合同 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/credentials/credential-flows](../packages/credentials/credential-flows) | lfaa-credential-flows | implemented | 凭据获取/连接流程适配 | [源码](../packages/credentials/credential-flows/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
-| [packages/credentials/credentials](../packages/credentials/credentials) | lfaa-credentials | implemented | 受保护秘密存储与访问服务 | [源码](../packages/credentials/credentials/src/index.ts)；5 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/credentials/credentials](../packages/credentials/credentials) | lfaa-credentials | implemented | 受保护秘密存储与访问服务 | [源码](../packages/credentials/credentials/src/index.ts)；6 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/credentials/credentials-local](../packages/credentials/credentials-local) | — | placeholder | 本机凭据存储提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/credentials/deepseek-account](../packages/credentials/deepseek-account) | — | placeholder | DeepSeek 账户认证来源适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/credentials/deepseek-account-platform](../packages/credentials/deepseek-account-platform) | — | placeholder | DeepSeek 平台账户凭据适配 | 占位不可执行 | DSH 同名目录 |
@@ -212,6 +213,7 @@
 | [packages/host/webserver](../packages/host/webserver) | lfaa-host-webserver | implemented | 共享 HTTP/Socket 服务和静态资源承载 | [源码](../packages/host/webserver/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/identity/anonymous-user-id](../packages/identity/anonymous-user-id) | — | placeholder | 匿名用户标识来源适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/identity/auth](../packages/identity/auth) | lfaa-identity-auth | implemented | 账户身份、认证和账户隔离权威 | [源码](../packages/identity/auth/src/index.ts)；10 个静态消费者；1 个组合声明 | LFAA 扩展 |
+| [packages/integrations/github](../packages/integrations/github) | lfaa-github-integration | implemented | GitHub App Device Flow、账户令牌与只读 REST 数据 Owner | [源码](../packages/integrations/github/src/index.ts)；1 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/interaction/commands](../packages/interaction/commands) | — | placeholder | 通用交互命令登记协议 | 占位不可执行 | DSH 同名目录 |
 | [packages/interaction/permission-presets](../packages/interaction/permission-presets) | lfaa-permission-presets | implemented | 三模式授权、审批记忆与执行范围权威 | [源码](../packages/interaction/permission-presets/src/index.ts)；5 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/interaction/tool-ask-user](../packages/interaction/tool-ask-user) | lfaa-tool-ask-user | implemented | 模型结构化澄清工具 | [源码](../packages/interaction/tool-ask-user/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
@@ -233,7 +235,7 @@
 | [packages/lsp/lsp](../packages/lsp/lsp) | — | placeholder | 语言服务协议与服务合同 | 占位不可执行 | DSH 同名目录 |
 | [packages/lsp/lsp-stdio](../packages/lsp/lsp-stdio) | — | placeholder | stdio 语言服务进程提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/lsp/tool-lsp](../packages/lsp/tool-lsp) | — | placeholder | 代码导航和语言服务工具 | 占位不可执行 | DSH 同名目录 |
-| [packages/mcp/mcp-client](../packages/mcp/mcp-client) | lfaa-mcp-client | implemented | MCP 连接池、发现、调用和账户/配置回收 | [源码](../packages/mcp/mcp-client/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/mcp/mcp-client](../packages/mcp/mcp-client) | lfaa-mcp-client | implemented | MCP 连接池、发现、按需目录/调用和账户/配置回收 | [源码](../packages/mcp/mcp-client/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/mcp/mcp-resources](../packages/mcp/mcp-resources) | — | placeholder | MCP 资源列表与按需读取适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/network/game-connectivity](../packages/network/game-connectivity) | lfaa-game-connectivity | implemented | 游戏联机目标、连接配置及节点网络任务领域 | [源码](../packages/network/game-connectivity/src/index.ts)；4 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/plan/plan-mode](../packages/plan/plan-mode) | — | placeholder | 计划模式状态与执行范围合同 | 占位不可执行 | DSH 同名目录 |
@@ -294,7 +296,8 @@
 | [packages/shell/tool-pwsh-persistent](../packages/shell/tool-pwsh-persistent) | — | placeholder | 持久 PowerShell 会话模型工具适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/shell/tool-shell](../packages/shell/tool-shell) | lfaa-tool-shell | implemented | 目标节点与本机 Shell 的模型工具合同 | [源码](../packages/shell/tool-shell/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/skill/minecraft](../packages/skill/minecraft) | lfaa-skill-minecraft | implemented | Minecraft bundled SKILL.md 资源及独立按需 Provider | [源码](../packages/skill/minecraft/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
-| [packages/skill/skill](../packages/skill/skill) | lfaa-skill | implemented | 统一 Skill Provider 注册、摘要合并和按需正文加载 | [源码](../packages/skill/skill/src/index.ts)；7 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/skill/rea](../packages/skill/rea) | lfaa-skill-rea | implemented | REA 逆向分析的 LFAA authored Skill 摘要与按需工作流正文 | [源码](../packages/skill/rea/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
+| [packages/skill/skill](../packages/skill/skill) | lfaa-skill | implemented | 统一 Skill Provider 注册、摘要合并和按需正文加载 | [源码](../packages/skill/skill/src/index.ts)；8 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/skill/skill-badge](../packages/skill/skill-badge) | — | placeholder | 内置 badge 方法资源和 Provider | 占位不可执行 | DSH 同名目录 |
 | [packages/skill/skill-filesystem](../packages/skill/skill-filesystem) | lfaa-skill-filesystem | implemented | 账户/项目目录 Skill 来源发现、缓存与加载 | [源码](../packages/skill/skill-filesystem/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/skill/skill-office](../packages/skill/skill-office) | lfaa-skill-office | implemented | Office 文档方法资源及按需 Provider | [源码](../packages/skill/skill-office/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
@@ -349,7 +352,7 @@
 | [packages/util/code-language](../packages/util/code-language) | — | placeholder | 代码语言与扩展名纯映射 | 占位不可执行 | DSH 同名目录 |
 | [packages/util/crypto](../packages/util/crypto) | — | placeholder | 通用摘要/加密基础辅助 | 占位不可执行 | DSH 同名目录 |
 | [packages/util/deque](../packages/util/deque) | — | placeholder | 双端队列数据结构 | 占位不可执行 | DSH 同名目录 |
-| [packages/util/home-paths](../packages/util/home-paths) | lfaa-home-paths | implemented | LFAA Home/Profile 路径解析权威 | [源码](../packages/util/home-paths/src/index.mjs)；14 个静态消费者；0 个组合声明 | DSH 同名目录 |
+| [packages/util/home-paths](../packages/util/home-paths) | lfaa-home-paths | implemented | LFAA Home/Profile 路径解析权威 | [源码](../packages/util/home-paths/src/index.mjs)；13 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/util/http-proxy](../packages/util/http-proxy) | — | placeholder | HTTP 代理配置辅助 | 占位不可执行 | DSH 同名目录 |
 | [packages/util/launch-environment](../packages/util/launch-environment) | lfaa-launch-environment | implemented | 启动环境、数据根和进程配置解析 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/util/lazy-require](../packages/util/lazy-require) | — | placeholder | 延迟模块加载辅助 | 占位不可执行 | DSH 同名目录 |

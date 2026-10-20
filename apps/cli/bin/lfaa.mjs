@@ -58,12 +58,25 @@ async function main() {
   const externalDataDirectoryAtStart = process.env.LFAA_DATA_DIR?.trim() ?? "";
   const environmentFile = resolve(packaged ? process.cwd() : runtimeRoot, ".env");
   if (existsSync(environmentFile)) process.loadEnvFile(environmentFile);
+  const dataDirectoryLoadedFromEnvironmentFile = !externalDataDirectoryAtStart && Boolean(process.env.LFAA_DATA_DIR?.trim());
+  process.env.LFAA_DATA_DIR_CONFIGURED = externalDataDirectoryAtStart || dataDirectoryLoadedFromEnvironmentFile
+    ? "1"
+    : process.env.LFAA_DATA_DIR_CONFIGURED ?? "0";
   process.env.NODE_ENV ??= "production";
   if (packaged) {
     // npm 缓存会随版本更换；运行数据使用用户目录或调用目录下显式配置的路径。
-    process.env.LFAA_DATA_DIR = process.env.LFAA_DATA_DIR?.trim()
-      ? resolve(process.cwd(), process.env.LFAA_DATA_DIR.trim())
-      : resolve(homedir(), ".lfaa");
+    const configuredDataDirectory = process.env.LFAA_DATA_DIR?.trim() ?? "";
+    if (configuredDataDirectory) {
+      process.env.LFAA_DATA_DIR = resolve(process.cwd(), configuredDataDirectory);
+      process.env.LFAA_DATA_DIR_CONFIGURED = "1";
+    } else {
+      const homeDirectory = process.env.LFAA_HOME?.trim()
+        ? resolve(process.env.LFAA_HOME.trim())
+        : resolve(homedir(), ".lfaa");
+      process.env.LFAA_DATA_DIR = resolve(homeDirectory, "data");
+      process.env.LFAA_DATA_DIR_MANAGED_BY_LAUNCHER = "1";
+      process.env.LFAA_DATA_DIR_CONFIGURED = "0";
+    }
   }
   if (profile === "web") {
     process.env.LFAA_SERVE_FRONTEND = "true";
@@ -89,8 +102,8 @@ async function main() {
     const file = args[args.indexOf("--connection-file") + 1];
     if (!args.includes("--connection-file") || !file) throw new Error("请指定 --connection-file；不要把通信密钥写在命令参数中。");
     const { configureDaemonConnection } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/host/daemon/src/connection-config.mjs")).href);
-    const { resolveDataDirectory } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/util/home-paths/src/resolve-data-directory.mjs")).href);
-    const node = await configureDaemonConnection(resolve(file), resolveDataDirectory(runtimeRoot, process.env.LFAA_DATA_DIR?.trim() || "", { lfaaHome: process.env.LFAA_HOME?.trim() || "" }));
+    const { resolveHomeDirectory } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/util/home-paths/src/resolve-data-directory.mjs")).href);
+    const node = await configureDaemonConnection(resolve(file), resolveHomeDirectory(runtimeRoot, process.env.LFAA_HOME?.trim() || ""));
     process.stdout.write(`节点连接已保存：${node.displayName}（${node.nodeId}）。运行 lfaa daemon 连接控制端。\n`);
     return;
   }
@@ -111,7 +124,7 @@ async function main() {
         : "本机 Windows 电脑操控没有登记工具；请检查本次启动时记录的适配器错误。\n");
     }
     if (process.platform === "win32" && process.arch === "x64" && !args.includes("--no-local-daemon")) {
-      const connectionConfigured = existsSync(resolve(launchConfig.dataDirectory, "credentials/daemon-connection.json"));
+      const connectionConfigured = existsSync(resolve(launchConfig.homeDirectory, "credentials/daemon-connection.json"));
       const { superviseLocalDaemon } = await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/host/daemon/src/supervisor.mjs")).href);
       if (connectionConfigured) process.stderr.write("此数据目录已配置远程节点连接；未将它作为本机节点托管。控制端和远程执行器应使用各自的数据目录。\n");
       else {

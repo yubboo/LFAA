@@ -2,7 +2,7 @@
 
 迁移并复用原 registerMinecraftSetupSkill Provider 与原 SKILL.md，不另写执行器。Minecraft App 服务不再负责挂载 Skill。
 
-公共合同：minecraft-server-setup、lfaa-minecraft Provider；元数据跨界面发现，正文经 lfaa_skill_load 的 registry 来源异步读取。
+公共合同：minecraft-server-setup、lfaa-minecraft Provider；元数据跨界面发现，正文经 lfaa_skill_load 的 registry 来源异步读取。AI 扩展登记的 `skillId` 使用相同 `minecraft-server-setup` 名称，设置中心与插件工作区因此展示同一条能力并共用停用状态。
 
 运行位置：Control Plane 的 Cordis 插件或内部合同库，由 base Bundle 装配；不运行在浏览器，不将凭据或节点进程带入客户端。依赖以本包 package.json 为准，真实消费者见生成包清单的静态证据。源码/装配声明与现场运行验收分别记录。
 

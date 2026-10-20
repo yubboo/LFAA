@@ -10,6 +10,9 @@ const pluginPage = readFileSync(fileURLToPath(new URL('../../../packages/client/
 const pluginPageCss = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-plugin-manager/src/PluginManagerPage.css', import.meta.url)), 'utf8');
 const settingsPage = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-settings/src/SettingsPage.tsx', import.meta.url)), 'utf8');
 const managedPluginsSettings = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-settings/src/ManagedPluginsSettings.tsx', import.meta.url)), 'utf8');
+const githubConnectionSettings = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-settings/src/GitHubConnectionSettings.tsx', import.meta.url)), 'utf8');
+const connectionApi = readFileSync(fileURLToPath(new URL('../../../packages/client/connection/src/api.ts', import.meta.url)), 'utf8');
+const mcpConnectionsSettings = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-settings/src/McpConnectionsSettings.tsx', import.meta.url)), 'utf8');
 const workbenchPage = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-layout/src/Workbench.tsx', import.meta.url)), 'utf8');
 const settingsCss = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-settings/src/SettingsPage.css', import.meta.url)), 'utf8');
 const sidebarNavigation = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-sidebar/src/SecondaryNavigation.tsx', import.meta.url)), 'utf8');
@@ -107,7 +110,8 @@ test('manual install, start, stop and uninstall call the authenticated lifecycle
 test('plugin manager uses the shared three-column navigation and keeps existing settings owners', () => {
   const workspaceTabs = ['全部', '插件', '应用', '工具', '技能', '提示词', 'MCP 连接', '我的知识库', '运行诊断', '领域专家'];
   for (const label of workspaceTabs) assert.ok(pluginPage.includes(`label: "${label}"`), `missing plugin workspace tab: ${label}`);
-  assert.match(pluginPage, /useState<PluginManagerWorkspaceTab>\("all"\)/u);
+  assert.match(pluginPage, /useState<PluginManagerWorkspaceTab>\(initialPluginManagerWorkspaceTab\)/u);
+  assert.match(pluginPage, /function initialPluginManagerWorkspaceTab\(\)[\s\S]*?view === "applications" \|\| view === "mcp" \|\| view === "skills"/u);
   assert.match(pluginPage, /standalonePluginView=\{workspaceTab\}/u);
   assert.match(pluginPage, /domId: .*plugin-manager-\$\{id\}-tab/u);
   assert.match(pluginPage, /<GlobalNavigationRail/u);
@@ -147,8 +151,11 @@ test('plugin manager uses the shared three-column navigation and keeps existing 
   assert.match(settingsPage, /settings\.plugins\.enabled/u);
   assert.match(settingsPage, /settings\.plugins\.skillDirectories/u);
   assert.match(settingsPage, /settings\.plugins\.mcpServers/u);
-  assert.match(settingsPage, /settings\.computerControl\.enabled/u);
-  assert.match(settingsPage, /尚未配置 MCP 服务/u);
+  assert.match(mcpConnectionsSettings, /settings\.computerControl\.enabled/u);
+  assert.match(mcpConnectionsSettings, /尚未配置 MCP 服务/u);
+  assert.match(mcpConnectionsSettings, /添加官方 REA \{REA_PACKAGE_VERSION\}（Windows）/u);
+  assert.match(mcpConnectionsSettings, /REA_PACKAGE_VERSION = "6\.7\.0"/u);
+  assert.match(mcpConnectionsSettings, /npx -y rea-agents@\$\{REA_PACKAGE_VERSION\} mcp/u);
   assert.match(settingsPage, /扩展工作台/u);
   assert.match(settingsPage, /插件 UI 完成 LFAA Owner 映射与实页验收前保持不可用/u);
   assert.match(pluginPageCss, /grid-template-rows:\s*auto minmax\(0,\s*1fr\)/u);
@@ -195,7 +202,61 @@ test('Settings Center exposes Profile plugins under Integrations and reuses auth
   assert.doesNotMatch(managedPluginsSettings, /className="settings-row settings-profile-plugin-row"/u);
   assert.match(settingsCss, /\.settings-profile-plugin-row__icon\s*\{/u);
   assert.match(settingsCss, /@container settings-main \(max-width: 620px\)/u);
-  assert.doesNotMatch(managedPluginsSettings, /settings\.plugins\.enabled/u);
+  assert.match(managedPluginsSettings, /允许 Agent 使用账户扩展/u);
+  assert.match(managedPluginsSettings, /settings\.plugins\.enabled/u);
+});
+
+test('Settings integration tabs stay in place and each category uses its real owner state', () => {
+  for (const label of ['插件', '应用', 'MCP', '技能', '市场']) assert.ok(managedPluginsSettings.includes(`label: "${label}"`), `missing integration category: ${label}`);
+  assert.match(managedPluginsSettings, /<nav className="settings-profile-plugins__categories" role="tablist" aria-label="集成分类"/u);
+  assert.match(managedPluginsSettings, /onClick=\{\(\) => setActiveCategory\(category\.id\)\}/u);
+  assert.doesNotMatch(managedPluginsSettings, /plugin-manager\?view=/u);
+  assert.match(managedPluginsSettings, /LFAA 内置应用/u);
+  assert.match(managedPluginsSettings, /hiddenApplicationNavigationIds/u);
+  assert.match(managedPluginsSettings, /<GitHubConnectionSettings searchQuery=\{query\} \/>/u);
+  assert.match(githubConnectionSettings, /beginGitHubAuthorization/u);
+  assert.match(githubConnectionSettings, /listGitHubRepositories/u);
+  assert.match(githubConnectionSettings, /listGitHubIssues/u);
+  assert.match(githubConnectionSettings, /listGitHubPullRequests/u);
+  assert.match(githubConnectionSettings, /只读取这些资料/u);
+  assert.doesNotMatch(githubConnectionSettings, /createGitHub|updateGitHub|mergeGitHub|commentGitHub/u);
+  assert.match(managedPluginsSettings, /onPluginSettingsChange\(\{ \.\.\.settings\.plugins, disabledSkillNames: \[\.\.\.disabled\] \}\)/u);
+  assert.match(managedPluginsSettings, /loadAiExtensions\(controller\.signal\)/u);
+  assert.match(managedPluginsSettings, /result\.extensions\.filter\(extension => extension\.kind === "skill"\)/u);
+  assert.doesNotMatch(managedPluginsSettings, /loadAiSkillDirectory/u);
+  assert.match(managedPluginsSettings, /skill\.skillId/u);
+  assert.match(connectionApi, /skillId\?: string;/u);
+  assert.match(managedPluginsSettings, /<McpConnectionsSettings settings=\{settings\} onChange=\{onPluginSettingsChange\} searchQuery=\{query\} \/>/u);
+  assert.match(mcpConnectionsSettings, /SettingsSwitch label=\{`连接 \$\{server\.name \|\| "MCP 服务"\}`\}/u);
+  assert.match(mcpConnectionsSettings, /mcpServers: servers\.map/u);
+  assert.match(managedPluginsSettings, /市场暂未接入/u);
+  assert.match(managedPluginsSettings, /LFAA 当前没有可浏览的公共市场目录/u);
+  assert.match(managedPluginsSettings, /onClick=\{openPluginManager\}>插件管理/u);
+  assert.match(pluginPage, /searchParams\.set\("view", id\)/u);
+  assert.match(pluginPage, /searchParams\.delete\("view"\)/u);
+});
+
+test('Settings integrations align title actions and place plugin search at toolbar end', () => {
+  assert.match(managedPluginsSettings, /<Space className="settings-profile-plugins__actions" wrap>/u);
+  assert.match(managedPluginsSettings, /settings-profile-plugins__count[\s\S]*?<Input\.Search aria-label=\{searchLabel\}/u);
+  assert.match(settingsCss, /\.settings-profile-plugins__toolbar\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto\s+minmax\(180px,\s*320px\)/su);
+  assert.match(settingsCss, /\.settings-profile-plugins__actions\s*\{[^}]*justify-content:\s*flex-end/su);
+});
+
+test('Settings integrations keep title actions left-aligned and stack search cleanly on narrow containers', () => {
+  assert.match(settingsCss, /@container settings-main \(max-width: 620px\)[\s\S]*?\.settings-profile-plugins \.settings-content__heading\s*\{[^}]*flex-direction:\s*column;/u);
+  assert.match(settingsCss, /\.settings-profile-plugins__actions\s*\{[^}]*align-self:\s*flex-start;[^}]*justify-content:\s*flex-start/su);
+  assert.match(settingsCss, /\.settings-profile-plugins__toolbar\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)[^}]*gap:\s*var\(--space-2\)[^}]*margin-block:\s*0/su);
+  assert.match(settingsCss, /\.settings-profile-plugins__categories,\s*\.settings-profile-plugins__toolbar \.ant-input-search\s*\{[^}]*min-width:\s*0;[^}]*width:\s*100%/su);
+  assert.match(settingsCss, /@container settings-main \(max-width: 340px\)[\s\S]*?\.settings-profile-plugins__category\s*\{[^}]*padding-inline:\s*var\(--space-1\)/u);
+});
+
+test('Settings toolbar keeps menu and save status together above paired narrow-screen actions', () => {
+  assert.match(settingsPage, /<div className="settings-toolbar__status"><small>更新会自动保存<\/small><\/div>/u);
+  assert.match(settingsCss, /@container settings-main \(max-width: 760px\)[\s\S]*?\.settings-toolbar\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/u);
+  assert.match(settingsCss, /\.settings-toolbar__status\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*1/su);
+  assert.match(settingsCss, /\.settings-toolbar__actions\s*\{[^}]*grid-column:\s*1\s*\/\s*-1;[^}]*grid-row:\s*2;[^}]*grid-template-columns:\s*repeat\(2,/su);
+  assert.match(settingsCss, /\.settings-toolbar__actions\s*>\s*\.ant-btn\s*\{\s*width:\s*100%;/su);
 });
 
 test('plugin inspection confines long source metadata and warning alerts to the card grid', () => {

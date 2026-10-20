@@ -132,6 +132,37 @@ fn writable_data_directory(directory: &Path) -> bool {
     }
 }
 
+fn same_windows_path(left: &Path, right: &Path) -> bool {
+    left.to_string_lossy()
+        .trim_end_matches(&['\\', '/'][..])
+        .eq_ignore_ascii_case(right.to_string_lossy().trim_end_matches(&['\\', '/'][..]))
+}
+
+fn read_home_data_directory(home_directory: &Path) -> Result<Option<PathBuf>, String> {
+    let preference_path = home_directory.join("storages").join("data-directory.json");
+    let content = match fs::read_to_string(&preference_path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("LFAA Home 项目与存储配置无法读取：{error}")),
+    };
+    let preference: Value = serde_json::from_str(&content)
+        .map_err(|error| format!("LFAA Home 项目与存储配置格式错误：{error}"))?;
+    if preference.get("version").and_then(Value::as_i64) != Some(1) {
+        return Err("LFAA Home 项目与存储配置版本无效。".to_string());
+    }
+    let directory = preference
+        .get("directory")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .ok_or_else(|| "LFAA Home 项目与存储配置中的业务根无效。".to_string())?;
+    if !directory.is_absolute() || same_windows_path(&directory, home_directory) {
+        return Err("LFAA Home 项目与存储配置必须指向 Home 以外的绝对业务根。".to_string());
+    }
+    Ok(Some(directory))
+}
+
 fn resolve_data_directory(
     _runtime_root: &Path,
     configuration_path: &Path,
@@ -142,7 +173,43 @@ fn resolve_data_directory(
             return Ok((PathBuf::from(external_directory), false));
         }
     }
+    let configured_home = env::var_os("LFAA_HOME");
+    let home_directory = if let Some(home) = configured_home {
+        let path = PathBuf::from(home);
+        if !path.is_absolute() {
+            return Err("LFAA_HOME 必须是绝对路径。".to_string());
+        }
+        path
+    } else {
+        let home = env::var_os("USERPROFILE").ok_or_else(|| {
+            "Windows 未提供系统账户主目录，请设置 LFAA_HOME 或 LFAA_DATA_DIR。".to_string()
+        })?;
+        PathBuf::from(home).join(".lfaa")
+    };
+    let default_directory = home_directory.join("data");
+    if let Some(selected_directory) = read_home_data_directory(&home_directory)? {
+        if !selected_directory.exists() || !writable_data_directory(&selected_directory) {
+            return Err(format!(
+                "项目与存储配置指向的业务 Data 根不可用或不可写：{}。",
+                selected_directory.display()
+            ));
+        }
+        let directory = fs::canonicalize(&selected_directory).unwrap_or(selected_directory);
+        save_data_directory(configuration_path, &directory)?;
+        return Ok((directory, true));
+    }
     if let Some(saved_directory) = read_saved_data_directory(configuration_path)? {
+        if same_windows_path(&saved_directory, &home_directory) {
+            if !writable_data_directory(&default_directory) {
+                return Err(format!(
+                    "无法创建可写业务 Data 目录：{}。账户数据仍保留在 Home。",
+                    default_directory.display()
+                ));
+            }
+            let directory = fs::canonicalize(&default_directory).unwrap_or(default_directory);
+            save_data_directory(configuration_path, &directory)?;
+            return Ok((directory, true));
+        }
         if !saved_directory.exists() || !writable_data_directory(&saved_directory) {
             return Err(format!(
                 "已保存的数据目录不可用或不可写：{}。请连接原磁盘后重启，或修复目录权限。",
@@ -152,16 +219,13 @@ fn resolve_data_directory(
         return Ok((saved_directory, true));
     }
 
-    // 首次运行默认使用当前系统账户 .lfaa Home；业务内容单独使用 .lfaa/data。
-    let home = env::var_os("USERPROFILE")
-        .ok_or_else(|| "Windows 未提供系统账户主目录，请设置 LFAA_DATA_DIR。".to_string())?;
-    let default_directory = PathBuf::from(home).join(".lfaa");
+    // 首次运行账户数据保存在 .lfaa Home；业务 data 与其分开。
     if writable_data_directory(&default_directory) {
         let directory = fs::canonicalize(&default_directory).unwrap_or(default_directory);
         save_data_directory(configuration_path, &directory)?;
         return Ok((directory, true));
     }
-    Err("无法在系统账户 .lfaa Home 创建可写系统目录，请检查目录权限。".to_string())
+    Err("无法在系统账户 .lfaa/data 创建可写业务数据目录，请检查目录权限。".to_string())
 }
 
 fn run_pending_data_migration(request_path: &Path, log_file: &Arc<Mutex<File>>) {
@@ -193,6 +257,10 @@ fn service_environment(
         (
             "LFAA_DATA_DIR_MANAGED_BY_DESKTOP".to_string(),
             if managed_by_desktop { "1" } else { "0" }.to_string(),
+        ),
+        (
+            "LFAA_DATA_DIR_CONFIGURED".to_string(),
+            if managed_by_desktop { "0" } else { "1" }.to_string(),
         ),
         (
             "LFAA_DATA_DIRECTORY_MIGRATION_SUPPORTED".to_string(),

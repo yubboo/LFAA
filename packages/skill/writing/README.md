@@ -2,7 +2,7 @@
 
 持有原写作方法稳定 ID、纯摘要 catalog 和正文库，接入同一 Skill Registry；不读写作品内容。
 
-公共合同：lfaa-writing Provider；列表只加载 catalog，get 按需导入 writing-skills。保留 writing_load_skill 调用名。
+公共合同：lfaa-writing Provider；列表只加载 catalog，get 按需导入 writing-skills。AI 扩展登记 `skillId` 与 Provider 目录使用相同稳定方法 ID，设置中心与插件工作区展示同一能力并共用停用状态。保留 writing_load_skill 调用名。
 
 运行位置：Control Plane 的 Cordis 插件或内部合同库，由 base Bundle 装配；不运行在浏览器，不将凭据或节点进程带入客户端。依赖以本包 package.json 为准，真实消费者见生成包清单的静态证据。源码/装配声明与现场运行验收分别记录。
 

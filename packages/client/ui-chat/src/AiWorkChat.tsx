@@ -1893,7 +1893,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
           <div className="ai-work-chat__composer-context" aria-label="当前对话上下文">
             <WorkspaceProjectPicker appId="workspace" applicationName="小鱼智能体" projects={workspaceProjects} projectListTruncated={workspaceProjectsTruncated} projectLoadError={workspaceProjectsError} onRetryProjects={onRetryWorkspaceProjects} nodes={workspaceNodes} value={selectedProjectId} selectedProjectTitle={activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectTitle : null} defaultDirectory={settings.general.taskFolder} disabled={busy || projectBusy || associationsBusy || Boolean(editingMessage)} onChange={project => void changeWorkspaceProject(project)} onProjectsChange={onWorkspaceProjectsChange} />
 
-            <span className="ai-work-chat__composer-app"><WorkbenchIcon name="folder" size={13} />{applicationNameFor(appId)}</span>
+            <span className="ai-work-chat__composer-app" aria-label={`当前应用：${applicationNameFor(appId)}`} title={applicationNameFor(appId)}><WorkbenchIcon name="spark" size={13} /><span className="ai-work-chat__composer-app-label">{applicationNameFor(appId)}</span></span>
             <Typography.Text className="ai-work-chat__composer-count" aria-label={`已输入 ${draft.length}，最多 12000 个字符`}>{draft.length}<span>/12000</span></Typography.Text>
           </div>
           {composerMenu ? <div className="ai-work-chat__composer-menu" data-trigger={composerMenu.trigger} style={composerMenuMaxHeight === null ? undefined : { maxHeight: `${composerMenuMaxHeight}px` }} onMouseDown={event => event.preventDefault()}>
@@ -1995,7 +1995,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
                 <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--permission" type="text" aria-label={`LFAA 权限模式：${permissionModeLabels[settings.permissions.mode]}`} title="切换 LFAA 项目权限模式" disabled={toolbarBusy === "permissions"}>
                   <WorkbenchIcon name="shield" size={15} />
                   <span className="ai-work-chat__composer-control-label">{permissionModeLabels[settings.permissions.mode]}</span>
-                  <WorkbenchIcon name="chevron" size={12} />
+                  <WorkbenchIcon className="ai-work-chat__composer-control-chevron" name="chevron" size={12} />
                 </Button>
               </Dropdown>
               <Popover
@@ -2011,7 +2011,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
                 }}
                 content={composerMoreContent}
               >
-                <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--more" type="text" aria-haspopup="dialog" aria-expanded={composerMoreOpen} aria-label="更多输入操作" title="关联应用和能力" icon={<WorkbenchIcon name="grid" size={15} />}>更多</Button>
+                <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--more" type="text" aria-haspopup="dialog" aria-expanded={composerMoreOpen} aria-label="更多输入操作" title="关联应用和能力" icon={<WorkbenchIcon name="grid" size={15} />}><span className="ai-work-chat__composer-control-label">更多</span></Button>
               </Popover>
             </div>
             <div className="ai-work-chat__composer-actions-group ai-work-chat__composer-actions-group--right" aria-label="模型、推理与发送">
@@ -2034,7 +2034,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
                 <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--model" type="text" aria-haspopup="dialog" aria-expanded={modelPickerOpen} aria-label={`模型：${activeAccount?.modelId ?? (accountLoadState === "loading" ? "读取中" : accountLoadState === "error" ? "状态不可用" : "未配置")}`} title={activeAccount ? `${activeAccount.displayName} · ${activeAccount.modelId}` : accountLoadState === "loading" ? "正在读取活动模型" : accountLoadState === "error" ? "模型状态不可用，请查看错误提示" : "请先在设置中心配置活动模型"} disabled={!activeAccount || !activeAccount.models.length || modelBusy || busy}>
                   <WorkbenchIcon name="spark" size={14} />
                   <span className="ai-work-chat__composer-control-label">{modelBusy ? "保存中…" : activeModel?.name ?? activeAccount?.modelId ?? (accountLoadState === "loading" ? "模型" : accountLoadState === "error" ? "不可用" : "模型未配置")}</span>
-                  <WorkbenchIcon name="chevron" size={12} />
+                  <WorkbenchIcon className="ai-work-chat__composer-control-chevron" name="chevron" size={12} />
                 </Button>
               </Popover>
               <Tooltip title={!settings.aiRuntime.voiceInputEnabled ? "请在设置中心的语音页面开启语音输入" : !supportsVoiceInput() ? "当前宿主不支持语音识别" : listening ? "停止语音输入" : "语音输入，识别后由你发送"}>

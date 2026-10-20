@@ -20,6 +20,7 @@ import { AdminUsersPage } from "lfaa-client-ui-settings-account/src/AdminUsersPa
 import { GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH, GLOBAL_NAVIGATION_RAIL_WIDTH, GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
 import { SecondaryNavigation } from "lfaa-client-ui-sidebar/src/SecondaryNavigation.js";
 import { PasskeyManager } from "lfaa-client-ui-settings-account/src/PasskeyManager.js";
+import { McpConnectionsSettings } from "./McpConnectionsSettings.js";
 import "./SettingsPage.css";
 import { hasShortcutConflicts, ShortcutRow } from "lfaa-client-ui-shortcuts/src/settings-shortcuts.js";
 import { defaultReasoningMode, effectiveReasoningMode, reasoningOptions, modelParameterSummary, modelOptionLabel, modelOptionVersionTag, fixedThinkingLabel } from "lfaa-client-ui-settings-models/src/model-options.js";
@@ -27,13 +28,6 @@ import { DEFAULT_USER_SETTINGS } from "lfaa-client-ui-settings-general/src/defau
 import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, UI_MOTION_EFFECT_OPTIONS, type UiMotionEffect } from "lfaa-util-values/src/settings-contract.js";
 import { SettingGroup, AdvancedGroup, SettingRow, SettingsSwitch } from "lfaa-client-ui-primitives/src/settings-controls.js";
 import { DshSlotOutlet, LFAA_AUTH_TRANSITION_SLOT, useDshSlotEntries } from "lfaa-client-modules/src/client/index.js";
-
-const mcpApplicationOptions = [
-  { value: "workspace", label: "通用工作区" },
-  { value: "minecraft", label: "Minecraft" },
-  { value: "steamcmd", label: "SteamCMD 开服" },
-  { value: "writing", label: "写作工作区" }
-] as const;
 
 function aiModelSelectOption(providerId: string, model: AiModel): { value: string; label: ReactNode; title: string; disabled: boolean } {
   const versionTag = modelOptionVersionTag(model);
@@ -48,6 +42,7 @@ import { GitWorktreesSettings } from "./GitWorktreesSettings.js";
 import { KnowledgeLibraryPanel } from "./KnowledgeLibraryPanel.js";
 import { isComputerControlEnabled } from "./computer-control-settings.js";
 import { ManagedPluginsSettings } from "./ManagedPluginsSettings.js";
+import { DeveloperHandbook } from "./DeveloperHandbook.js";
 
 
 
@@ -454,7 +449,10 @@ interface SettingsPageProps {
   initialSection?: SectionId;
   sectionRequest?: { section: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins"; requestId: number } | null;
   applications: ApplicationNavigationItem[];
+  navigationApplications?: ApplicationNavigationItem[];
   onOpenApplication: (app: ApplicationId, mode: "normal") => Promise<void>;
+  onOpenApplications?: () => void;
+  onOpenRecentSessions: () => void;
   onBack: () => void;
   onNavigate: (path: string) => void;
   onOpenSettings: () => void;
@@ -547,7 +545,7 @@ function displaySteamcmdGamePath(node: { dataRoot: string | null } | null, relat
 
 
 
-export function SettingsPage({ user, serverState, settings: workbenchSettings, resolvedTheme, initialSection, sectionRequest = null, applications, onOpenApplication, onBack, onNavigate, onOpenSettings, onLogout, onUserChange, onSettingsChange, standalonePluginWorkspace = false, standalonePluginView, standalonePluginSection = "plugins" }: SettingsPageProps) {
+export function SettingsPage({ user, serverState, settings: workbenchSettings, resolvedTheme, initialSection, sectionRequest = null, applications, navigationApplications = applications, onOpenApplication, onOpenApplications, onOpenRecentSessions, onBack, onNavigate, onOpenSettings, onLogout, onUserChange, onSettingsChange, standalonePluginWorkspace = false, standalonePluginView, standalonePluginSection = "plugins" }: SettingsPageProps) {
   const authTransitionPlugins = useDshSlotEntries(LFAA_AUTH_TRANSITION_SLOT);
   const [messageApi, messageContext] = message.useMessage();
   const [permissionModal, permissionModalContext] = Modal.useModal();
@@ -562,6 +560,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     return readWorkbenchLeftWidth(initial.left, initial.containerWidth);
   });
   const [activeSection, setActiveSection] = useState<SectionId>(() => getInitialSettingsSection(initialSection, user.id, standalonePluginWorkspace, standalonePluginSection));
+  const [developerHandbookOpen, setDeveloperHandbookOpen] = useState(false);
   const activeSettingsCategory = settingsCategoryForSection(activeSection);
   const initialStandaloneView = standalonePluginView ? resolveStandalonePluginWorkspaceView(standalonePluginView) : null;
   const [pluginWorkspaceTab, setPluginWorkspaceTab] = useState<PluginWorkspaceTab>(() => initialStandaloneView?.tab ?? (getInitialSettingsSection(initialSection, user.id, standalonePluginWorkspace, standalonePluginSection) === "connections" ? "mcp" : "overview"));
@@ -630,7 +629,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [contentMigrationMode, setContentMigrationMode] = useState<"copy" | "adopt" | "archive">("copy");
   const [contentArchivePath, setContentArchivePath] = useState("");
   const [contentComparison, setContentComparison] = useState<ProjectContentComparison | null>(null);
-  const canEditContentDirectory = canAdmin && contentStorageAction === null;
+  const canEditContentDirectory = canAdmin && contentStorageAction === null && !projectStorageLocations?.dataDirectoryExternallyManaged;
   const [deletingConversationMemories, setDeletingConversationMemories] = useState(false);
   const [conversationMemorySnapshot, setConversationMemorySnapshot] = useState<ConversationMemorySnapshot | null>(null);
   const [conversationMemoryDraft, setConversationMemoryDraft] = useState("");
@@ -656,6 +655,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [uploadedBackgrounds, setUploadedBackgrounds] = useState<AppearanceBackground[]>(() => cachedSettingsData?.uploadedBackgrounds ?? []);
   const [backgroundTarget, setBackgroundTarget] = useState<SettingsBackgroundTarget>(() => readSettingsBackgroundTarget(user.id));
   const [uploadingBackground, setUploadingBackground] = useState(false);
+  const [backgroundActionError, setBackgroundActionError] = useState("");
   const [providerId, setProviderId] = useState("openai");
   const [providerModalOpen, setProviderModalOpen] = useState(false);
   const [providerOptions, setProviderOptions] = useState<Record<string, Record<string, string>>>({});
@@ -1014,6 +1014,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       setSearchExpandedSettingsGroups(new Set());
     }
     setActiveSection(section);
+    setDeveloperHandbookOpen(false);
     // 手机布局将分类导航作为覆盖层；选择分类后回到正文，避免页面保持隐藏状态。
     if (layout.mode === "mobile") setSidebarCollapsed(true);
     if (section === "plugins") setPluginWorkspaceTab("overview");
@@ -1328,11 +1329,15 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
   function selectedContentDirectory(): string {
     if (!projectStorageLocations) return "";
-    return contentDirectorySelection === "default"
-      ? projectStorageLocations.defaultContentDirectory
-      : contentDirectorySelection === "recommended"
-      ? projectStorageLocations.recommendedContentDirectory
-      : contentDirectoryDraft;
+    if (contentDirectorySelection === "default") return projectStorageLocations.defaultContentDirectory;
+    if (contentDirectorySelection === "recommended") return projectStorageLocations.recommendedContentDirectory;
+    const draft = contentDirectoryDraft.trim();
+    if (!draft) return "";
+    if (draft.toLocaleLowerCase() === projectStorageLocations.contentDirectory.toLocaleLowerCase()) return draft;
+    const separator = draft.includes("\\") ? "\\" : "/";
+    const trimmed = draft.replace(/[\\/]+$/u, "") || (draft.startsWith("/") ? "/" : "");
+    const finalSegment = trimmed.split(/[\\/]/u).pop()?.toLocaleLowerCase() ?? "";
+    return finalSegment === "data" ? trimmed : `${trimmed}${separator}data`;
   }
 
   function applyContentStorageResult(saved: ProjectStorageLocations): void {
@@ -1361,12 +1366,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         : await importProjectContentArchive(contentArchivePath, directory);
       if (!result.settings.configured) throw new Error("内容目录复制、核对成功，但新位置未保存；原位置仍保持生效。");
       applyContentStorageResult(result.settings.settings);
+      const restartMessage = result.settings.settings.restartRequired ? "重启 LFAA 后，控制端和本机 Daemon 才会统一使用新业务 Data 根。" : "当前运行已使用所选业务 Data 根。";
       if (contentMigrationMode === "copy") {
         messageApi.success(result.backupDirectory
-          ? `业务内容已复制、校验并切换。源目录保留；目标原内容备份在 ${result.backupDirectory}`
-          : "业务内容已复制、校验并切换；源目录保留。目标没有需要备份的旧业务文件。");
-      } else if (contentMigrationMode === "adopt") messageApi.success("手动复制的业务内容已通过 SHA-256 核对并切换；原目录保留。");
-      else messageApi.success("ZIP 中的业务内容已导入、校验并切换；系统数据与插件 Profile 未导入。");
+          ? `业务内容已复制、校验并切换。源目录保留；目标原内容备份在 ${result.backupDirectory}。${restartMessage}`
+          : `业务内容已复制、校验并切换；源目录保留。目标没有需要备份的旧业务文件。${restartMessage}`);
+      } else if (contentMigrationMode === "adopt") messageApi.success(`手动复制的业务内容已通过 SHA-256 核对并切换；原目录保留。${restartMessage}`);
+      else messageApi.success(`ZIP 中的业务内容已导入、校验并切换；系统数据与插件 Profile 未导入。${restartMessage}`);
     } catch (saveError) {
       messageApi.error(getErrorMessage(saveError));
     } finally {
@@ -2116,20 +2122,26 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
   async function addBackground(file: File): Promise<void> {
     setUploadingBackground(true);
+    setBackgroundActionError("");
     setError("");
     try {
       const result = await uploadAppearanceBackground(file);
       setUploadedBackgrounds((current) => [result.background, ...current]);
       updateSettings("appearance", { ...settingsRef.current.appearance, backgrounds: { ...settingsRef.current.appearance.backgrounds, [backgroundTarget]: result.background.id } });
-      messageApi.success("背景图片已上传，选择会自动保存后应用");
+      clearSettingsAutoSave("appearance");
+      await persistLatestSettings("appearance");
+      messageApi.success("背景图片已上传并应用到所选工作区");
     } catch (uploadError) {
-      setError(getErrorMessage(uploadError));
+      const detail = getErrorMessage(uploadError);
+      setBackgroundActionError(detail);
+      messageApi.error(detail);
     } finally {
       setUploadingBackground(false);
     }
   }
 
   async function removeBackground(background: AppearanceBackground): Promise<void> {
+    setBackgroundActionError("");
     setError("");
     try {
       const backgrounds = Object.fromEntries(Object.entries(settingsRef.current.appearance.backgrounds).map(([target, value]) => [target, value === background.id ? "none" : value])) as UserSettings["appearance"]["backgrounds"];
@@ -2140,7 +2152,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       setUploadedBackgrounds((current) => current.filter((item) => item.id !== background.id));
       messageApi.success("背景图片已删除");
     } catch (deleteError) {
-      setError(getErrorMessage(deleteError));
+      const detail = getErrorMessage(deleteError);
+      setBackgroundActionError(detail);
+      messageApi.error(detail);
     }
   }
 
@@ -2169,9 +2183,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     else messageApi.warning(settings.general.notificationSound === "off" ? "提示音当前已关闭。" : "当前浏览器无法播放提示音。");
   }
 
-  const backgroundChoices = [
+  const backgroundChoices: Array<{ id: string; name: string; file?: string; uploadedBackground?: AppearanceBackground }> = [
     ...appearanceBackgrounds,
-    ...uploadedBackgrounds.map((background) => ({ id: background.id, name: `自定义 · ${background.name}`, file: background.url }))
+    ...uploadedBackgrounds.map((background) => ({ id: background.id, name: `自定义 · ${background.name}`, file: background.url, uploadedBackground: background }))
   ];
   const visibleBackgroundChoices = backgroundTarget === "login"
     ? backgroundChoices.filter((background) => !background.id.startsWith("user-"))
@@ -2542,9 +2556,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <div className="settings-background-picker" role="group" aria-label={`${backgroundTargets.find((item) => item.id === backgroundTarget)?.label ?? "工作区"}背景图片`}>
             {visibleBackgroundChoices.map((item) => {
               const selected = selectedBackgroundForTarget === item.id;
-              return (
+              const backgroundToRemove = item.uploadedBackground;
+              return <div key={item.id} className="settings-background-choice">
                 <button
-                  key={item.id}
                   type="button"
                   className={`settings-background-card${selected ? " is-selected" : ""}${item.file ? "" : " settings-background-card--plain"}`}
                   aria-pressed={selected}
@@ -2553,12 +2567,16 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                 >
                   {item.file ? <img className="settings-background-card__image" src={item.file} alt="" aria-hidden="true" loading="lazy" decoding="async" /> : null}
                   <span className="settings-background-card__check" aria-hidden="true">{selected ? "✓" : ""}</span>
-                  <span className="settings-background-card__name">{item.name}</span>
+                  <span className="settings-background-card__name" title={backgroundToRemove?.name ?? item.name}>{backgroundToRemove?.name ?? item.name}</span>
                 </button>
-              );
+                {backgroundToRemove ? <Popconfirm title="删除这张背景图片？" description="如果正在使用，对应位置将恢复为纯色。" okText="删除" cancelText="取消" onConfirm={() => void removeBackground(backgroundToRemove)}>
+                  <Button className="settings-background-choice__delete" type="text" size="small" aria-label={`删除自定义背景 ${backgroundToRemove.name}`}>删除</Button>
+                </Popconfirm> : null}
+              </div>;
             })}
           </div>
           <p className="settings-background-hint">图片卡片会显示背景预览；Minecraft 常规与 小鱼智能体 共用同一张 Minecraft 工作区背景，设置中心、小鱼智能体和各应用工作区分别保存。当前图片应用于：{backgroundTargets.find((item) => item.id === backgroundTarget)?.label}。登录页只使用内置图片，自定义上传仍限于登录后的工作区。</p>
+          {backgroundActionError ? <Alert className="settings-inline-alert" type="error" showIcon message="背景图片操作失败" description={backgroundActionError} /> : null}
           {backgroundTarget === "login" ? (
             <SettingRow title="上传背景图片" description="登录页只支持内置图片；切换到其他位置后可上传账户私有背景。" status="仅内置图片">
               <Tag>不适用于登录页</Tag>
@@ -2569,7 +2587,6 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             </SettingRow>
           )}
         </SettingGroup>
-        {uploadedBackgrounds.length ? <SettingGroup title="自定义背景库">{uploadedBackgrounds.map((background) => <SettingRow key={background.id} title={background.name} description={`${background.mimeType} · 上传于 ${new Date(background.createdAt).toLocaleDateString("zh-CN")}`} status="账户私有"><Popconfirm title="删除这张背景图片？" description="如果正在使用，对应位置将恢复为纯色。" okText="删除" cancelText="取消" onConfirm={() => void removeBackground(background)}><Button danger size="small">删除</Button></Popconfirm></SettingRow>)}</SettingGroup> : null}
         <SettingGroup title="背景显示">
           <SettingRow title="背景遮罩" description="统一控制工作区壁纸遮罩和弹窗玻璃表面的底色透明度，设置和应用的顶部栏、导航及 小鱼智能体 输入区等独立表面也同步使用；0% 时壁纸最清晰，数值越高整体底色越明显。新账户默认 65%，提高壁纸上的内容可读性；已有账户设置保持原值。消息画布不另加局部遮罩。" status="已接入"><div className="settings-slider"><Slider min={0} max={75} value={settings.appearance.overlay} onChange={(overlay) => updateSettings("appearance", { ...settings.appearance, overlay })} /><output>{settings.appearance.overlay}%</output></div></SettingRow>
           <SettingRow title="玻璃模糊" description="调整顶栏、半透明导航栏、小鱼智能体 输入区、写作上下文作品卡片和壁纸上的弹窗表面模糊强度；消息画布保持透明并显示工作区壁纸，设置正文不做实时模糊。" status="已接入"><div className="settings-slider"><Slider min={0} max={32} value={settings.appearance.blur} onChange={(blur) => updateSettings("appearance", { ...settings.appearance, blur })} /><output>{settings.appearance.blur}px</output></div></SettingRow>
@@ -2909,7 +2926,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       </section>
     );
 
-    if (activeSection === "profilePlugins") return <ManagedPluginsSettings user={user} applications={applications} onNavigate={onNavigate} />;
+    if (activeSection === "profilePlugins") return <ManagedPluginsSettings user={user} applications={applications} settings={settings} onPluginSettingsChange={plugins => updateSettings("plugins", plugins)} onGeneralSettingsChange={general => updateSettings("general", general)} onNavigate={onNavigate} />;
 
     if (activeSection === "plugins" || activeSection === "connections") return (
       <section className={`settings-content settings-content--plugin-workspace${standaloneWorkspaceContent ? " settings-content--plugin-workspace-standalone" : ""}`}>
@@ -3075,40 +3092,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         </SettingGroup>
         </> : null}
         {pluginWorkspaceTab === "mcp" ? <>
-          <div className="settings-plugin-workspace__mcp-config"><SettingGroup title="MCP 服务配置">
-            {settings.plugins.mcpServers.length === 0 ? <div className="settings-plugin-workspace__empty-state" role="status"><span className="settings-plugin-workspace__empty-icon"><WorkbenchIcon name="browser" size={21} /></span><strong>尚未配置 MCP 服务</strong><span>添加一个已运行的 HTTP 服务，或配置允许在本机启动的 stdio 服务。</span></div> : null}
-            {settings.plugins.mcpServers.map((server, index) => {
-              const commit = (next: typeof server) => updateSettings("plugins", { ...settings.plugins, mcpServers: settings.plugins.mcpServers.map((item, position) => position === index ? next : item) });
-              const change = (patch: Partial<typeof server>) => commit({ ...server, ...patch } as typeof server);
-              const transport = server.transport ?? "streamable-http";
-              const stdioServer = server.transport === "stdio" ? server : null;
-              const manifestState = server.manifestSha256 ? "已固定工具合同 SHA-256 " + server.manifestSha256.slice(0, 16) : "尚未固定工具合同";
-              return <SettingRow key={server.id} title={server.name || "MCP 服务"} description={(transport === "stdio"
-                ? "本机 MCP 程序在 LFAA Control Plane 所在机器启动，配置只能启动用户填写的可执行文件和参数，不经过 Shell；远程生产控制端拒绝启动。"
-                : "连接已运行的 Streamable HTTP 服务。地址不能包含密钥；需要认证的服务须先配置本机代理。")
-                + "只有选择的应用会向模型提供此服务的工具，工具调用仍遵循当前权限模式。 " + manifestState + "。"}>
-                <Space direction="vertical">
-                  <Input aria-label="MCP 服务名称" value={server.name} maxLength={80} onChange={event => change({ name: event.target.value })} />
-                  <Select aria-label="MCP 传输方式" value={transport} options={[{ value: "streamable-http", label: "Streamable HTTP" }, { value: "stdio", label: "本机 stdio" }]} onChange={(value: "streamable-http" | "stdio") => {
-                    const base = { id: server.id, name: server.name, enabled: server.enabled, applicationIds: server.applicationIds };
-                    commit(value === "stdio"
-                      ? { ...base, transport: "stdio", command: "", args: [], computerUse: false }
-                      : { ...base, transport: "streamable-http", url: "" });
-                  }} />
-                  {stdioServer ? <>
-                    <Input aria-label="MCP 可执行文件" value={stdioServer.command} maxLength={1024} placeholder="open-computer-use.exe 或 node.exe" onChange={event => change({ command: event.target.value } as Partial<typeof server>)} />
-                    <Input.TextArea aria-label="MCP 参数（每行一个）" value={stdioServer.args.join("\n")} autoSize={{ minRows: 2, maxRows: 6 }} onChange={event => change({ args: event.target.value ? event.target.value.split(/\r?\n/u).slice(0, 32) : [] } as Partial<typeof server>)} placeholder={'mcp\n或 node 脚本路径和 mcp'} />
-                    <SettingsSwitch label="这是本机 Computer-Use 服务" checked={stdioServer.computerUse === true} onChange={() => change({ computerUse: stdioServer.computerUse !== true } as Partial<typeof server>)} />
-                    {stdioServer.computerUse === true ? <Typography.Text type={settings.computerControl.enabled ? "secondary" : "warning"}>{settings.computerControl.enabled ? "还需同时开启设置中心的“电脑操控”，Agent 才会发现和调用此服务。" : "电脑操控当前关闭；此 MCP 不会启动或向 Agent 暴露工具。"}</Typography.Text> : null}
-                  </> : <Input aria-label="MCP 服务地址" value={server.transport === "stdio" ? "" : server.url} maxLength={1024} placeholder="http://127.0.0.1:端口/mcp" onChange={event => change({ transport: "streamable-http", url: event.target.value })} />}
-                  <Select mode="multiple" aria-label="MCP 可用应用范围" value={server.applicationIds} options={[...mcpApplicationOptions]} onChange={(values: string[]) => change({ applicationIds: values.filter((value): value is typeof mcpApplicationOptions[number]["value"] => mcpApplicationOptions.some(option => option.value === value)) })} placeholder="选择可用应用" />
-                  <Space><SettingsSwitch label="连接 MCP" checked={server.enabled} onChange={() => change({ enabled: !server.enabled })} /><Button onClick={() => updateSettings("plugins", { ...settings.plugins, mcpServers: settings.plugins.mcpServers.filter(item => item.id !== server.id) })}>移除</Button></Space>
-                </Space>
-              </SettingRow>;
-            })}
-            <Button type="primary" disabled={settings.plugins.mcpServers.length >= 16} onClick={() => updateSettings("plugins", { ...settings.plugins, mcpServers: [...settings.plugins.mcpServers, { id: `m${crypto.randomUUID().slice(0, 12)}`, name: "", transport: "streamable-http", url: "", enabled: false, applicationIds: ["workspace"] }] })}>添加 MCP 服务</Button>
-          </SettingGroup></div>
-          <div className="settings-note-card"><strong>运行安全边界</strong><p>扩展工具必须提供真实执行实现；MCP 服务由你配置和运行，其工具沿用项目权限模式，模型不能自行添加连接。stdio 命令只允许在本机桌面、开发或本机 CLI 控制端运行，使用独立可执行文件和参数，不经 Shell；远程生产控制端不会代替你的电脑启动。标为 Computer-Use 的服务还受“电脑操控”账户开关限制。外部服务说明只是能力参考，不能改变用户目标或权限。</p></div>
+          <McpConnectionsSettings settings={settings} onChange={plugins => updateSettings("plugins", plugins)} />
+          <div className="settings-note-card"><strong>运行安全边界</strong><p>扩展工具必须提供真实执行实现；MCP 服务由你配置和运行，其工具沿用项目权限模式，模型不能自行添加连接。外部服务说明只是能力参考，不能改变用户目标或权限。</p></div>
         </> : null}
         </div>
       </section>
@@ -3206,36 +3191,43 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
     if (activeSection === "workspace") return (
       <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">业务数据</span><Typography.Title level={2}>项目与存储</Typography.Title><Typography.Paragraph>集中设置游戏、小说与漫剧的业务 data 目录，以及 SteamCMD 工具和 Steam 游戏目录。SteamCMD 和游戏文件仍由目标节点的游戏 Owner 管理；账户、Provider、会话和设置仍由本机 LFAA Home 管理，插件由各自 Profile 管理。</Typography.Paragraph></div></header>
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">业务数据</span><Typography.Title level={2}>项目与存储</Typography.Title><Typography.Paragraph>这里选择的业务 Data 根统一承载游戏与项目、运行环境、工具、缓存、临时文件、日志、备份、模型和联机配置。默认位置是 LFAA Home 下的 data；账户数据库、凭据、会话和账户设置留在 Home，插件由各自 Profile 管理。</Typography.Paragraph></div></header>
         {!canAdmin ? <Alert className="settings-inline-alert" type="warning" showIcon message="应用存储路径由管理员配置。" /> : null}
+        {canAdmin && projectStorageLocations?.dataDirectoryExternallyManaged ? <Alert className="settings-inline-alert" type="warning" showIcon message="业务 Data 根由部署配置控制" description={projectStorageLocations.changeUnavailableReason ?? "请修改 LFAA_DATA_DIR 部署配置后重启；此页面只读显示实际业务目录。"} /> : null}
+        {canAdmin && projectStorageLocations?.restartRequired ? <Alert className="settings-inline-alert" type="warning" showIcon message="业务 Data 根已保存，尚未对齐当前运行进程" description="重启 LFAA 后，控制端与本机 Daemon 会从 LFAA Home 中读取同一条项目与存储配置，并在新 Data 根创建业务目录。旧目录和已有文件会保留。" /> : null}
         {canAdmin && projectStorageLocations ? <SettingGroup title="业务内容存储位置">
           <div className="settings-storage-panel">
             <div className="settings-storage-current">
-              <div><Typography.Text strong>当前内容目录</Typography.Text><Tag>使用中</Tag></div>
+              <div><Typography.Text strong>当前业务 Data 根</Typography.Text><Tag>使用中</Tag></div>
               <Typography.Text code copyable>{projectStorageLocations.contentDirectory}</Typography.Text>
+              <Typography.Text type="secondary">此根目录下的业务分类由同一个 Owner 创建和解析：</Typography.Text>
+              <Space direction="vertical" size={4} style={{ width: "100%" }}>
+                {projectStorageLocations.businessDirectories.map(directory => <Typography.Text key={directory.path} style={{ display: "block", overflowWrap: "anywhere" }}>{directory.name}：<Typography.Text code copyable>{directory.path}</Typography.Text></Typography.Text>)}
+              </Space>
             </div>
-            <Typography.Paragraph type="secondary">只迁移 games/ 与账户项目下的 Writing/AI 漫剧文件。账号、模型凭据、会话、AI 对话、用户设置、运行环境与缓存不在迁移清单内；插件数据由插件 Profile 管理。</Typography.Paragraph>
+            <Typography.Paragraph type="secondary">选择新位置时，旧根和其中已有文件保持原样；新根会创建上述业务分类。下方复制、核对和 ZIP 选项只处理已有游戏、Writing 与 AI 漫剧项目文件，不复制运行环境、缓存、日志和备份；账户数据与插件 Profile 始终留在各自 Home/Profile 位置。</Typography.Paragraph>
             <Radio.Group className="settings-storage-options" aria-label="业务内容存储位置选择" value={contentDirectorySelection} disabled={!canEditContentDirectory} onChange={event => { setContentDirectorySelection(event.target.value); setContentComparison(null); }}>
               <Radio value="default" disabled={!canEditContentDirectory}>
-                <span className="settings-storage-option__copy"><strong>默认存储位置</strong><span>使用 LFAA 用户目录下的业务 data；已有内容由下方迁移方式处理</span><code>{projectStorageLocations.defaultContentDirectory}</code></span>
+                <span className="settings-storage-option__copy"><strong>默认存储位置</strong><span>使用 LFAA Home 下的业务 data；已有项目内容按下方方式处理</span><code>{projectStorageLocations.defaultContentDirectory}</code></span>
               </Radio>
               <Radio value="recommended" disabled={!canEditContentDirectory || !projectStorageLocations.recommendedContentDirectory}>
                 <span className="settings-storage-option__copy"><strong>系统推荐位置</strong><span>按当前项目或安装位置动态生成 data 目录</span><code>{projectStorageLocations.recommendedContentDirectory}</code></span>
               </Radio>
               <Radio value="custom" disabled={!canEditContentDirectory}>
-                <span className="settings-storage-option__copy"><strong>自定义存储位置</strong><span>输入绝对路径；桌面版可通过文件夹选择器选取</span></span>
+                <span className="settings-storage-option__copy"><strong>自定义存储位置</strong><span>选择或输入位置，LFAA 会在其中创建 data 目录</span></span>
               </Radio>
             </Radio.Group>
             {contentDirectorySelection === "custom" ? <div className="settings-storage-custom">
-              <label htmlFor="settings-content-directory">自定义内容位置</label>
+              <label htmlFor="settings-content-directory">自定义存储位置</label>
               <div className="settings-storage-custom__input">
-                <Input id="settings-content-directory" aria-label="业务内容存储目录" aria-describedby="settings-content-directory-help" value={contentDirectoryDraft} maxLength={2048} placeholder="输入 LFAA 控制端可访问的绝对路径" disabled={!canEditContentDirectory} onChange={event => { setContentDirectoryDraft(event.target.value); setContentComparison(null); }} />
+                <Input id="settings-content-directory" aria-label="业务数据存储位置" aria-describedby="settings-content-directory-help" value={contentDirectoryDraft} maxLength={2048} placeholder="输入 LFAA 控制端可访问的绝对路径" disabled={!canEditContentDirectory} onChange={event => { setContentDirectoryDraft(event.target.value); setContentComparison(null); }} />
                 {isDesktopApp() ? <Button disabled={!canEditContentDirectory} onClick={() => void chooseContentDirectory()}>打开文件管理器选择</Button> : null}
               </div>
-              <Typography.Text id="settings-content-directory-help" type="secondary">{isDesktopApp() ? "所选目录直接作为内容根，不会再附加 data 子目录。保存时按下方方式迁移或核对已有业务内容。" : "当前为 Web 运行模式，浏览器无法打开 Windows 文件夹选择器，请输入 LFAA 控制端可访问的绝对路径。该目录直接作为内容根，不会再附加 data 子目录；已有内容按下方方式迁移或核对。"}</Typography.Text>
+              <Typography.Text id="settings-content-directory-help" type="secondary">{isDesktopApp() ? "选择一个存储位置，LFAA 会在其中创建 data 目录，再在 data 下创建游戏、环境、工具、缓存、日志、备份等业务分类。" : "当前为 Web 运行模式，浏览器无法打开 Windows 文件夹选择器，请输入 LFAA 控制端可访问的绝对路径。LFAA 会在所选位置下创建 data 目录，再创建各业务分类。"}</Typography.Text>
+              <Typography.Text type="secondary" style={{ display: "block", overflowWrap: "anywhere" }}>新业务 Data 根：<Typography.Text code copyable>{selectedContentDirectory()}</Typography.Text></Typography.Text>
             </div> : null}
             <div className="settings-storage-migration">
-              <div className="settings-storage-migration__heading"><Typography.Text strong>已有业务内容怎么处理</Typography.Text><Typography.Text type="secondary">切换前只处理业务文件；源目录始终保留。</Typography.Text></div>
+              <div className="settings-storage-migration__heading"><Typography.Text strong>已有项目内容怎么处理</Typography.Text><Typography.Text type="secondary">只处理游戏与项目文件；源目录始终保留。</Typography.Text></div>
               <Radio.Group aria-label="业务内容迁移方式" value={contentMigrationMode} disabled={!canEditContentDirectory} onChange={event => { setContentMigrationMode(event.target.value); setContentComparison(null); }}>
                 <Radio value="copy"><span><strong>系统复制并覆盖</strong><small>复制源文件，目标冲突先备份；目标独有文件保留</small></span></Radio>
                 <Radio value="adopt"><span><strong>手动复制后核对</strong><small>先在资源管理器复制，再按文件清单和 SHA-256 比对</small></span></Radio>
@@ -3250,7 +3242,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                 <Button loading={contentStorageAction === "compare"} disabled={!canEditContentDirectory || !selectedContentDirectory().trim()} onClick={() => void compareSelectedContentDirectory()}>比对文件和文件夹</Button>
               </div> : null}
               {contentComparison ? <Alert className="settings-inline-alert" type={contentComparison.matching ? "success" : "warning"} showIcon message={contentComparison.matching ? "手动复制核对通过" : `发现 ${contentComparison.differenceCount} 处差异`} description={`源：${contentComparison.sourceFileCount} 个文件，${formatStorageBytes(contentComparison.sourceBytes)}；目标：${contentComparison.targetFileCount} 个文件，${formatStorageBytes(contentComparison.targetBytes)}。${contentComparison.differences.slice(0, 12).map(item => ` ${item.kind}: ${item.path}`).join("；")}${contentComparison.differenceCount > 12 ? "；其余差异已省略" : ""}`} /> : null}
-              <Alert className="settings-inline-alert" type="info" showIcon message="只操作业务 data" description="不会迁移系统账号、AI Provider/凭据、会话、设置、日志、缓存、运行环境、插件 Profile 或远端节点目录。目标冲突文件的备份保留在目标 data/.lfaa-content-migration-backups/。" />
+              <Alert className="settings-inline-alert" type="info" showIcon message="账户数据与业务数据分开保管" description="这里切换的是本机业务 Data 根。账户、Provider/凭据、会话和设置留在 LFAA Home；插件 Profile 与远端节点目录不受影响。业务运行分类在新根创建，已有项目文件只按上方选择的方式处理；冲突文件备份保留在目标 data/.lfaa-content-migration-backups/。" />
             </div>
             {!canAdmin ? <Typography.Text type="secondary">需要管理员账户才能更改本机内容存储目录。</Typography.Text> : <div className="settings-storage-actions">
               <Button loading={contentStorageAction === "export"} disabled={!canEditContentDirectory} onClick={() => void exportProjectContentArchive()}>导出业务 ZIP</Button>
@@ -3334,6 +3326,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     }
 
     if (activeSection === "about") {
+      if (developerHandbookOpen) return <DeveloperHandbook onBack={() => setDeveloperHandbookOpen(false)} />;
       const isWebUpdateRuntime = !isDesktopApp();
       const webUpdateSupported = isWebUpdateRuntime && Boolean(lfaaProjectBuildInfo?.currentVersion && lfaaProjectBuildInfo.updateManifestUrl);
       const updateStatusLabel = webUpdateResult?.status === "available" ? "发现新版"
@@ -3408,6 +3401,11 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             <p>发布日期：{lfaaProjectBuildInfo.publishedAt}。关闭首次公告后，也可以随时在这里重新查看。</p>
             <ul>{lfaaProjectBuildInfo.releaseNotes.map((note, index) => <li key={`${index}-${note}`}>{note}</li>)}</ul>
           </div> : null}
+          <SettingGroup title="项目文档">
+            <SettingRow title="LFAA 开发手册" description="按左一导航、左二侧栏、中间工作区、右侧菜单和设置中心浏览功能实现、Owner、相关开发记录与验收边界。" status="项目内可查看">
+              <Button type="primary" onClick={() => setDeveloperHandbookOpen(true)}>打开开发手册</Button>
+            </SettingRow>
+          </SettingGroup>
         </section>
       );
     }
@@ -3502,8 +3500,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             <Button className="settings-toolbar__collapse" type="text" aria-label="收起设置导航" title="收起设置导航" onClick={() => setSidebarCollapsed(true)}>×</Button>
           </>}
         </div>
+        <div className="settings-toolbar__status"><small>更新会自动保存</small></div>
         <div className="settings-toolbar__actions">
-          <small>更新会自动保存</small>
           <Button disabled={!activeSettingsCategory || saving !== null} onClick={resetActiveSettings}>恢复默认</Button>
           <Button type="primary" loading={saving === "toolbar"} disabled={saving !== null} onClick={() => void persistToolbarSettingsNow()}>立即保存</Button>
         </div>
@@ -3539,10 +3537,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           activePage="settings"
           homeLabel="返回进入设置前的位置"
           applications={applications}
+          navigationApplications={navigationApplications}
           showServiceStatus={settings.general.showServiceStatus}
           onHome={onBack}
           onNavigate={onNavigate}
           onOpenApplication={onOpenApplication}
+          onOpenRecentSessions={onOpenRecentSessions}
+          onToggleApplications={onOpenApplications ?? (() => onNavigate("/work"))}
           onOpenWork={() => onNavigate("/work")}
           onOpenFiles={() => onNavigate("/files")}
           onOpenSettings={onOpenSettings}

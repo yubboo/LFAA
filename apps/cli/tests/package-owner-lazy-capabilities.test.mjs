@@ -50,11 +50,19 @@ test("真实装配从其他 App 按需发现 Minecraft 方法，完整合同只�
     // 提供真实 Owner 函数用于隔离合同验证；完整 Profile 另验实际服务 Fiber。
     for (const [service, source] of [["lfaaMinecraft", "lfaa-games-minecraft/src/service.js"], ["lfaaSteamcmd", "lfaa-games-steamcmd/src/service.js"], ["lfaaWriting", "lfaa-document-writing/src/service.js"]]) ctx.provide(service, await import(source));
     ctx.provide("lfaaRuntimeManager", (await import("lfaa-runtime-manager/src/service.js")).runtimeManager);
-    for (const name of ["lfaa-agent", "lfaa-tools", "lfaa-skill", "lfaa-prompt-minecraft", "lfaa-prompt-writing", "lfaa-domain-experts", "lfaa-skill-minecraft", "lfaa-skill-writing", "lfaa-prompt", "lfaa-tool-skill", "lfaa-tool-minecraft", "lfaa-tool-steamcmd", "lfaa-tool-runtime", "lfaa-tool-writing"]) { const plugin = await import(name); fibers.push(await ctx.plugin(plugin.apply ? plugin : plugin.default)); }
+    for (const name of ["lfaa-agent", "lfaa-tools", "lfaa-skill", "lfaa-prompt-minecraft", "lfaa-prompt-writing", "lfaa-domain-experts", "lfaa-skill-minecraft", "lfaa-skill-writing", "lfaa-skill-rea", "lfaa-prompt", "lfaa-tool-skill", "lfaa-tool-minecraft", "lfaa-tool-steamcmd", "lfaa-tool-runtime", "lfaa-tool-writing"]) { const plugin = await import(name); fibers.push(await ctx.plugin(plugin.apply ? plugin : plugin.default)); }
     const context = { userId, userRole: "admin", applicationId: "writing", agentRunId: randomUUID(), signal: new AbortController().signal, onProgress() {} };
     const promptTools = (await import("lfaa-prompt")).createInstructionTools(ctx.aiExtensions);
     assert.ok(ctx.aiExtensions.list("prompt").some(entry => entry.id === "prompt.capability-honesty"), "保留原核心 Prompt 稳定 ID");
     assert.ok(ctx.aiExtensions.list("skill").some(entry => entry.id === "skill.application-context"), "保留原核心 Skill 稳定 ID");
+    const registeredSkillExtensions = ctx.aiExtensions.list("skill");
+    const registrySkills = await ctx.skills.list({ allowHostFilesystem: false });
+    assert.equal(registeredSkillExtensions.length, 7, "插件工作区和设置中心共用相同的七条已登记 Skill 能力");
+    assert.deepEqual(
+      registeredSkillExtensions.map(entry => entry.skillId).sort(),
+      registrySkills.map(entry => entry.name).sort(),
+      "每条 Skill 能力的 skillId 都指向同一 Skill Registry 条目"
+    );
     const list = promptTools.find(tool => tool.name === "lfaa_prompt_list");
     const metadata = await list.execute(list.parse({ query: "minecraft" }), context);
     assert.ok(metadata.entries.some(entry => entry.id === "prompt.minecraft.minecraft-server-controller"));
@@ -66,6 +74,10 @@ test("真实装配从其他 App 按需发现 Minecraft 方法，完整合同只�
     assert.equal(skill.provider, "lfaa-minecraft");
     assert.equal(skill.content, undefined);
     assert.match((await ctx.skills.get(skill.name, { allowHostFilesystem: false })).content, /minecraft_provision_server/);
+    const reaSkill = (await ctx.skills.list({ allowHostFilesystem: false })).find(entry => entry.name === "reverse-engineer-anything");
+    assert.equal(reaSkill.provider, "lfaa-rea");
+    assert.equal(reaSkill.content, undefined, "REA 工作流正文在模型选择前不进入目录");
+    assert.match((await ctx.skills.get(reaSkill.name, { allowHostFilesystem: false })).content, /Evidence ID/u);
 
     const requests = [];
     const sse = delta => new Response(`data: ${JSON.stringify({ choices: [{ delta }], usage: { prompt_tokens: 1, completion_tokens: 1 } })}\n\ndata: [DONE]\n\n`, { headers: { "Content-Type": "text/event-stream" } });

@@ -51,15 +51,17 @@ export const WORKBENCH_LAYOUT_TOKENS = Object.freeze({
     initial: { ratio: 0.16, floor: 200, ceiling: 340 },
     max: { ratio: 0.34, floor: 360, ceiling: 560 },
   } satisfies PaneRuleSet,
+  applicationLeftMax: { ratio: 0.26, floor: 320, ceiling: 440 },
   right: {
     min: { ratio: 0.20, floor: 228, ceiling: 288 },
     initial: { ratio: 0.22, floor: 240, ceiling: 340 },
     max: { ratio: 0.40, floor: 360, ceiling: 640 },
   } satisfies PaneRuleSet,
+  applicationRightMax: { ratio: 0.90, floor: 360, ceiling: 8192 },
   center: {
     comfortable: { ratio: 0.50, floor: 440, ceiling: 720 },
     compactFloor: 420,
-    applicationCompactFloor: 260,
+    applicationCompactFloor: 300,
     applicationRightDockFloor: 220,
     minimumHeight: 168, // 底部终端打开时为主工作区保留的最小高度。
   },
@@ -140,8 +142,12 @@ export function resolveWorkbenchLayoutMetrics(containerWidth: number, containerH
   const height = Math.max(1, Math.round(containerHeight || 0));
   const separator = WORKBENCH_LAYOUT_TOKENS.separator;
 
-  const left = resolvePane(width, WORKBENCH_LAYOUT_TOKENS.left);
-  const right = resolvePane(width, WORKBENCH_LAYOUT_TOKENS.right);
+  const left = resolvePane(width, responsiveRightDock
+    ? { ...WORKBENCH_LAYOUT_TOKENS.left, max: WORKBENCH_LAYOUT_TOKENS.applicationLeftMax }
+    : WORKBENCH_LAYOUT_TOKENS.left);
+  const right = resolvePane(width, responsiveRightDock
+    ? { ...WORKBENCH_LAYOUT_TOKENS.right, max: WORKBENCH_LAYOUT_TOKENS.applicationRightMax }
+    : WORKBENCH_LAYOUT_TOKENS.right);
   const requestedBottom = resolvePane(height, WORKBENCH_LAYOUT_TOKENS.bottom);
   // 底部终端只使用主工作区保留区以外的高度，避免矮窗下挤没应用内容。
   const bottomBudget = Math.max(0, height - WORKBENCH_LAYOUT_TOKENS.center.minimumHeight);
@@ -161,7 +167,7 @@ export function resolveWorkbenchLayoutMetrics(containerWidth: number, containerH
   const compactNeed = responsiveRightDock
     ? left.initial + right.min + compactCenterFloor + separator * 2
     : left.initial + Math.min(centerComfortable, WORKBENCH_LAYOUT_TOKENS.center.compactFloor + 60) + separator;
-  const minCenterWidth = responsiveRightDock && width < desktopNeed
+  const minCenterWidth = responsiveRightDock
     ? compactCenterFloor
     : Math.min(centerComfortable, Math.max(compactCenterFloor, Math.round(width * 0.62)));
 

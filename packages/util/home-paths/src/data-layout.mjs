@@ -1,6 +1,6 @@
 /**
- * 功能：列出既有 LFAA_DATA_DIR 内的系统数据分类目录。
- * 作用：游戏、小说与漫剧业务内容由 Settings 内容根管理；插件包、适配副本和私有运行数据由 LFAA_HOME/Profile 与对应 Plugin Runtime 管理。
+ * 功能：集中解析账户 Home 与业务 Data 的目录布局。
+ * 作用：账户/控制数据由 Home 管理；游戏、环境、工具、缓存、日志、备份和模型等业务数据由 LFAA_DATA_DIR 管理。
  * 关联文件：storage-domain、settings、workflow、knowledge-library。
  */
 import { createHash } from "node:crypto";
@@ -8,13 +8,11 @@ import { lstatSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { protectPrivateDirectory } from "./private-directory.mjs";
 
-const dataDirectoryKeys = Object.freeze([
-  "database", "users", "sessions", "credentials", "games", "environments", "lib",
-  "cache", "tmp", "logs", "backups", "models", "connectivity", "storages"
-]);
+const accountDirectoryKeys = Object.freeze(["database", "users", "sessions", "credentials", "storages"]);
+const businessDirectoryKeys = Object.freeze(["users", "games", "environments", "lib", "cache", "tmp", "logs", "backups", "models", "connectivity"]);
 
-export function resolveDataPaths(dataDirectory) {
-  const root = resolve(dataDirectory);
+export function resolveHomePaths(homeDirectory) {
+  const root = resolve(homeDirectory);
   const path = (name) => resolve(root, name);
   return Object.freeze({
     root,
@@ -22,6 +20,16 @@ export function resolveDataPaths(dataDirectory) {
     users: path("users"),
     sessions: path("sessions"),
     credentials: path("credentials"),
+    storages: path("storages")
+  });
+}
+
+export function resolveDataPaths(dataDirectory) {
+  const root = resolve(dataDirectory);
+  const path = (name) => resolve(root, name);
+  return Object.freeze({
+    root,
+    users: path("users"),
     games: path("games"),
     environments: path("environments"),
     lib: path("lib"),
@@ -30,41 +38,55 @@ export function resolveDataPaths(dataDirectory) {
     logs: path("logs"),
     backups: path("backups"),
     models: path("models"),
-    connectivity: path("connectivity"),
-    storages: path("storages")
+    connectivity: path("connectivity")
   });
 }
 
 /**
- * 首次启动或切换到新数据根时，创建完整的顶层存储分类；不会预建账户、项目或业务内容。
- * 凭据目录使用既有私有目录 Owner 设置系统 ACL，其他目录拒绝符号链接替换。
+ * 首次启动或切换到新 Home 时创建账户/控制分类；凭据由私有目录 Owner 保护。
  */
-export function ensureDataDirectories(dataDirectory) {
-  const paths = resolveDataPaths(dataDirectory);
+export function ensureHomeDirectories(homeDirectory) {
+  const paths = resolveHomePaths(homeDirectory);
   mkdirSync(paths.root, { recursive: true });
   const rootInfo = lstatSync(paths.root);
   if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) {
-    throw new Error("LFAA 数据根必须是实际目录，不能是符号链接或普通文件。");
+    throw new Error("LFAA Home 必须是实际目录，不能是符号链接或普通文件。");
   }
 
-  for (const key of dataDirectoryKeys) {
+  for (const key of accountDirectoryKeys) {
     const directory = paths[key];
     if (key === "credentials") protectPrivateDirectory(directory);
     else mkdirSync(directory, { recursive: true });
     const info = lstatSync(directory);
     if (info.isSymbolicLink() || !info.isDirectory()) {
-      throw new Error(`LFAA 数据分类目录无效：${key} 必须是实际目录。`);
+      throw new Error(`LFAA Home 分类目录无效：${key} 必须是实际目录。`);
     }
   }
   return paths;
 }
 
-export function resolveUserDataPaths(dataDirectory, userId) {
-  if (typeof userId !== "string" || !userId.trim() || userId.length > 160 || userId.includes("\0")) {
-    throw new Error("用户数据目录标识无效。");
-  }
+/** 首次启动或切换到新业务 Data 根时创建业务分类；不会创建账户、项目或实际内容。 */
+export function ensureDataDirectories(dataDirectory) {
   const paths = resolveDataPaths(dataDirectory);
-  const userRoot = resolve(paths.users, createHash("sha256").update(userId, "utf8").digest("hex"));
+  mkdirSync(paths.root, { recursive: true });
+  const rootInfo = lstatSync(paths.root);
+  if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) {
+    throw new Error("LFAA 业务数据根必须是实际目录，不能是符号链接或普通文件。");
+  }
+  for (const key of businessDirectoryKeys) {
+    const directory = paths[key];
+    mkdirSync(directory, { recursive: true });
+    const info = lstatSync(directory);
+    if (info.isSymbolicLink() || !info.isDirectory()) {
+      throw new Error(`LFAA 业务数据分类目录无效：${key} 必须是实际目录。`);
+    }
+  }
+  return paths;
+}
+
+/** 用户设置、偏好和外观素材属于账户 Home；不混入业务 Data 根。 */
+export function resolveUserAccountPaths(homeDirectory, userId) {
+  const userRoot = resolve(resolveHomePaths(homeDirectory).users, createUserDirectoryId(userId));
   const withinUser = (...segments) => resolve(userRoot, ...segments);
   return Object.freeze({
     root: userRoot,
@@ -72,7 +94,16 @@ export function resolveUserDataPaths(dataDirectory, userId) {
     preferences: withinUser("settings", "preferences.json"),
     settingsDocument: withinUser("settings", "settings.json"),
     assets: withinUser("assets"),
-    backgrounds: withinUser("assets", "backgrounds"),
+    backgrounds: withinUser("assets", "backgrounds")
+  });
+}
+
+export function resolveUserDataPaths(dataDirectory, userId) {
+  const paths = resolveDataPaths(dataDirectory);
+  const userRoot = resolve(paths.users, createUserDirectoryId(userId));
+  const withinUser = (...segments) => resolve(userRoot, ...segments);
+  return Object.freeze({
+    root: userRoot,
     projects: withinUser("projects"),
     workflows: (applicationId) => {
       if (typeof applicationId !== "string" || !/^[a-z][a-z0-9-]{0,31}$/u.test(applicationId)) {
@@ -82,4 +113,11 @@ export function resolveUserDataPaths(dataDirectory, userId) {
     },
     knowledge: withinUser("knowledge")
   });
+}
+
+function createUserDirectoryId(userId) {
+  if (typeof userId !== "string" || !userId.trim() || userId.length > 160 || userId.includes("\0")) {
+    throw new Error("用户数据目录标识无效。");
+  }
+  return createHash("sha256").update(userId, "utf8").digest("hex");
 }

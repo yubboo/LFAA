@@ -44,6 +44,11 @@ export function isSkillName(name: string): boolean {
   return SKILL_NAME.test(name);
 }
 
+/** 判断账户级 Skill 停用名单是否禁止模型发现或加载指定条目。 */
+export function isSkillDisabled(name: string, disabledSkillNames: readonly string[] | undefined): boolean {
+  return disabledSkillNames?.includes(name) ?? false;
+}
+
 /** Skill 来源桶；该值会进入给模型看的元数据，本身不代表优先级。 */
 export type SkillSource =
   | "project-lfaa"

@@ -8,6 +8,6 @@
 
 ## 小鱼共享工作入口（2026-10-14）
 
-GET /ai/skills 通过实际 Skill Registry 返回当前账户可见摘要，隐藏绝对路径、资源基址和正文；按插件开关过滤，连接关闭撤销发现。
+GET /ai/skills 通过实际 Skill Registry 返回当前账户可见摘要、来源和账户 `plugins.disabledSkillNames` 派生的 `enabled` 状态；隐藏绝对路径、资源基址和正文。插件总开关仍按原规则过滤非内置技能；单项停用由 Skill Tool Owner 在目录和正文加载时执行。
 
 构建只写仓库根 dist/packages/api/settings-controller/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。

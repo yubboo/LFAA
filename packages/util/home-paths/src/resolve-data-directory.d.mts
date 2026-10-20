@@ -4,6 +4,7 @@ export interface DataDirectoryOptions {
   driveType?: string;
   userProfile?: string;
   lfaaHome?: string;
+  useStoredDataDirectory?: boolean;
 }
 
 export function resolveDataDirectory(
@@ -11,6 +12,8 @@ export function resolveDataDirectory(
   configuredValue?: string,
   options?: DataDirectoryOptions
 ): string;
+export function readStoredDataDirectory(homeDirectory: string, platform?: string): string;
+export function saveStoredDataDirectory(homeDirectory: string, directory: string, platform?: string): string;
 export function resolveHomeDirectory(
   projectRoot: string,
   configuredValue?: string,

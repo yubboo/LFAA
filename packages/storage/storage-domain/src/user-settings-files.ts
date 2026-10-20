@@ -4,7 +4,7 @@
  * 关联文件：configuration.ts、settings/settings、util/home-paths/data-layout.mjs。
  */
 import { existsSync, lstatSync, readFileSync, rmSync } from "node:fs";
-import { resolveUserDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
+import { resolveUserAccountPaths } from "lfaa-home-paths/src/data-layout.mjs";
 import { config } from "lfaa-launch-environment/src/config.js";
 import { atomicWrite, decode, encode } from "lfaa-storage-json/src/index.js";
 
@@ -21,7 +21,7 @@ const emptyDocument = (): UserSettingsFileDocument => ({ version: 1, revision: 0
 
 export class UserSettingsFiles {
   read(userId: string): UserSettingsFileDocument | null {
-    const path = resolveUserDataPaths(config.dataDirectory, userId).settingsDocument;
+    const path = resolveUserAccountPaths(config.homeDirectory, userId).settingsDocument;
     if (!existsSync(path)) return null;
     const file = lstatSync(path);
     if (!file.isFile() || file.isSymbolicLink()) throw new Error("用户设置文件类型无效；拒绝跟随链接读取。 ");
@@ -56,7 +56,7 @@ export class UserSettingsFiles {
       settings: structuredClone(settings),
       preferences: preferences === null ? null : structuredClone(preferences)
     };
-    const path = resolveUserDataPaths(config.dataDirectory, userId).settingsDocument;
+    const path = resolveUserAccountPaths(config.homeDirectory, userId).settingsDocument;
     atomicWrite(path, next);
     const actual = this.read(userId);
     if (!actual || encode(actual) !== encode(next)) throw new Error("用户设置文件回读校验失败。 ");
@@ -64,7 +64,7 @@ export class UserSettingsFiles {
   }
 
   removeSettings(userId: string): void {
-    const path = resolveUserDataPaths(config.dataDirectory, userId).settingsDocument;
+    const path = resolveUserAccountPaths(config.homeDirectory, userId).settingsDocument;
     if (!existsSync(path)) return;
     const file = lstatSync(path);
     if (!file.isFile() || file.isSymbolicLink()) throw new Error("用户设置文件类型无效；拒绝删除链接目标。 ");
@@ -72,7 +72,7 @@ export class UserSettingsFiles {
   }
 
   removeUserDirectory(userId: string): void {
-    const path = resolveUserDataPaths(config.dataDirectory, userId).root;
+    const path = resolveUserAccountPaths(config.homeDirectory, userId).root;
     if (existsSync(path)) rmSync(path, { recursive: true, force: true });
   }
 }

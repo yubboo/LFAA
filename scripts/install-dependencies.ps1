@@ -1,7 +1,7 @@
 ﻿<#
 功能：显示 LFAA 项目主菜单并按用户选择执行操作。
-作用：安装与构建当前包工作区、选择 Harness 运行入口、检查环境、备份源码、推送或安全更新 GitHub 源码。
-关联文件：lfaa.bat、scripts/project-menu.mjs、scripts/backup-project.ps1、scripts/update-project.ps1、scripts/start-dev.ps1、apps/cli/bin/lfaa.mjs、apps/web/package.json、apps/web/scripts/wait-for-server.mjs、packages/util/home-paths/src/resolve-data-directory.mjs、packages/storage/storage-json/src/index.ts、package.json、pnpm-workspace.yaml。
+作用：安装与构建当前包工作区、选择 Harness 运行入口、检查环境、备份源码、推送 GitHub 源码、发布 npm CLI 或安全更新源码。
+关联文件：lfaa.bat、scripts/project-menu.mjs、scripts/backup-project.ps1、scripts/update-project.ps1、scripts/start-dev.ps1、scripts/package-cli.mjs、apps/cli/bin/lfaa.mjs、apps/web/package.json、apps/web/scripts/wait-for-server.mjs、packages/util/home-paths/src/resolve-data-directory.mjs、packages/storage/storage-json/src/index.ts、package.json、pnpm-workspace.yaml。
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -33,6 +33,7 @@ function Show-MainMenu {
     Write-Host '  【4】检查环境与实际工作区包' -ForegroundColor Yellow
     Write-Host '  【5】一键生成纯净源码 ZIP（排除依赖与敏感数据）' -ForegroundColor Green
     Write-Host '  【6】一键正常推送 GitHub main（不覆盖远端历史）' -ForegroundColor Green
+    Write-Host '  【7】一键发布 npm CLI（检查登录与版本，确认后构建并发布）' -ForegroundColor Green
     Write-Host '  【8】安全更新本地源码（检查后同步当前分支及可安全快进的本地 main）' -ForegroundColor Cyan
     Write-Host '  【0】退出' -ForegroundColor Red
     Write-Host ''
@@ -40,7 +41,7 @@ function Show-MainMenu {
     Write-Host '独立节点模式用于远程节点或维护；Windows Sandbox Host 由桌面打包自动构建，单独构建命令只针对该原生宿主。' -ForegroundColor DarkGray
     Write-Host '菜单 3 等同 pnpm run build:win；安装包输出：dist/apps/desktop-electron/LFAA-版本号/。' -ForegroundColor DarkGray
     Write-Host '首次沿用待构建版本；之后每次新包会要求填写更新说明并递增版本。' -ForegroundColor DarkGray
-    Write-Host 'Web 启动前检查源码指纹和关键构建文件；缺失或过期时自动重建。' -ForegroundColor DarkGray
+    Write-Host '完整 Web 每次启动前自动重建 Control Plane/Harness 与 Web；独立 Daemon 按源码指纹补建。' -ForegroundColor DarkGray
     Write-Host '服务在当前终端运行，按 Ctrl+C 停止；不另开服务窗口。' -ForegroundColor DarkGray
     Write-Host ("脚本加载于 {0:yyyy-MM-dd HH:mm}；若刚改过脚本，请按 0 退出并重新打开本菜单。" -f $scriptLoadedAt) -ForegroundColor DarkGray
 }
@@ -213,13 +214,17 @@ function Start-Harness {
     if ($LASTEXITCODE -ne 0) { throw '无法检查正式运行树，请先执行菜单 3 构建。' }
     $staleBuilds = @(ConvertFrom-StaleRuntimeBuildJson -Json ([string]::Join("`n", @($staleJson))))
     $rebuilt = $false
-    if ($staleBuilds -contains 'host') {
-        Write-Host '控制端构建缺失或源码已更新，正在构建当前实现。' -ForegroundColor Yellow
+    $alwaysBuildWeb = $profile -eq 'web'
+    if ($alwaysBuildWeb) {
+        Write-Host '完整 Web 每次启动前都会按当前源码重新构建 Control Plane/Harness 与 Web。' -ForegroundColor Cyan
+    }
+    if ($alwaysBuildWeb -or ($staleBuilds -contains 'host')) {
+        Write-Host '正在构建当前 Control Plane/Harness 实现。' -ForegroundColor Yellow
         Invoke-WorkspacePnpm -Arguments @('run', 'build:control-plane')
         $rebuilt = $true
     }
-    if ($staleBuilds -contains 'web') {
-        Write-Host 'Web 构建缺失或源码已更新，正在构建当前实现。' -ForegroundColor Yellow
+    if ($alwaysBuildWeb -or ($staleBuilds -contains 'web')) {
+        Write-Host '正在构建当前 Web 实现。' -ForegroundColor Yellow
         Invoke-WorkspacePnpm -Arguments @('run', 'build:web')
         $rebuilt = $true
     }
@@ -854,6 +859,52 @@ function Read-Confirmation {
     }
 }
 
+function Publish-NpmCli {
+    $cliManifestPath = Join-Path $projectRoot 'apps\cli\package.json'
+    if (-not (Test-Path -LiteralPath $cliManifestPath -PathType Leaf)) {
+        throw '找不到 apps\cli\package.json，无法确定 npm 发布包名和版本。'
+    }
+
+    $cliManifest = Get-Content -LiteralPath $cliManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $packageName = [string]$cliManifest.name
+    $packageVersion = [string]$cliManifest.version
+    if ([string]::IsNullOrWhiteSpace($packageName) -or [string]::IsNullOrWhiteSpace($packageVersion)) {
+        throw 'CLI package.json 缺少发布包名或版本。'
+    }
+
+    $registry = 'https://registry.npmjs.org/'
+    Write-Host ''
+    Write-Host '【npm CLI 发布】' -ForegroundColor Green
+    Write-Host "包：$packageName@$packageVersion" -ForegroundColor Cyan
+    Write-Host "Registry：$registry" -ForegroundColor Cyan
+    Write-Host '流程：检查 npm 登录与版本占用 → 构建根 dist/npm 发布目录 → 发布公共包。' -ForegroundColor DarkGray
+    if (-not (Read-Confirmation -Prompt "确认构建并发布 $packageName@$packageVersion 到 npm？")) {
+        Write-Host '已取消 npm 发布。' -ForegroundColor DarkGray
+        return
+    }
+
+    $npmCommand = Get-Command 'npm' -ErrorAction SilentlyContinue
+    if (-not $npmCommand) { throw '未检测到 npm，请先安装 Node.js 并确认 npm 位于 PATH。' }
+
+    $identityOutput = @(& $npmCommand.Source 'whoami' "--registry=$registry" 2>&1 | ForEach-Object { [string]$_ })
+    $identityExitCode = $LASTEXITCODE
+    if ($identityExitCode -ne 0) {
+        throw '尚未登录 npm 官方 registry。请先在终端运行 npm login，再重试菜单 7。'
+    }
+
+    $publishedVersionOutput = @(& $npmCommand.Source 'view' "$packageName@$packageVersion" 'version' '--json' "--registry=$registry" 2>&1 | ForEach-Object { [string]$_ })
+    $publishedVersionExitCode = $LASTEXITCODE
+    if ($publishedVersionExitCode -eq 0) {
+        throw "$packageName@$packageVersion 已存在于 npm 官方 registry；请先按发布流程更新版本。"
+    }
+    $versionLookupError = $publishedVersionOutput -join "`n"
+    if ($versionLookupError -notmatch '\bE404\b') {
+        throw "无法确认 npm 版本是否已发布，已停止：$versionLookupError"
+    }
+
+    Invoke-WorkspacePnpm -Arguments @('run', 'publish:cli')
+}
+
 function Push-GitHubRepository {
     $pushModeLabel = '正常推送'
     Write-Host ''
@@ -1123,9 +1174,10 @@ while ($true) {
             '4' { Show-EnvironmentStatus; Show-DependencyScope }
             '5' { Start-ProjectBackup }
             '6' { Push-GitHubRepository }
+            '7' { Publish-NpmCli }
             '8' { Update-GitHubRepository }
             '0' { Write-Host '已退出 LFAA Harness 工作台。' -ForegroundColor DarkGray; exit 0 }
-            default { Write-Host '无效编号，请选择 0 至 6 或 8。' -ForegroundColor Red }
+            default { Write-Host '无效编号，请选择 0 至 8。' -ForegroundColor Red }
         }
     }
     catch {

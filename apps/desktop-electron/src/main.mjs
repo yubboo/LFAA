@@ -7,7 +7,7 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { createServer as createTcpServer } from "node:net";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, net } from "electron";
 import electronUpdater from "electron-updater";
@@ -94,6 +94,22 @@ function readSavedDataDirectory() {
   }
 }
 
+function readHomeDataDirectory() {
+  const configuredHome = process.env.LFAA_HOME?.trim();
+  const homeDirectory = configuredHome ? resolve(configuredHome) : join(app.getPath("home"), ".lfaa");
+  const preferencePath = join(homeDirectory, "storages", "data-directory.json");
+  try {
+    const preference = JSON.parse(readFileSync(preferencePath, "utf8"));
+    if (preference?.version !== 1 || typeof preference.directory !== "string" || !isAbsolute(preference.directory)) {
+      throw new Error("invalid");
+    }
+    return resolve(preference.directory);
+  } catch (error) {
+    if (error?.code === "ENOENT") return "";
+    throw new Error("LFAA Home 中的项目与存储配置无法读取或格式无效。");
+  }
+}
+
 function saveDesktopDataDirectory(directory) {
   const settingsPath = getDesktopStorageSettingsPath();
   mkdirSync(dirname(settingsPath), { recursive: true });
@@ -116,27 +132,45 @@ function saveDesktopDataDirectory(directory) {
   }
 }
 
+function sameWindowsDirectory(left, right) {
+  const normalize = value => resolve(value).replace(/[\\/]+$/u, "").toLocaleLowerCase("en-US");
+  return process.platform === "win32" ? normalize(left) === normalize(right) : resolve(left) === resolve(right);
+}
+
 function resolveDesktopDataDirectory(runtimeRoot) {
   const externalDataDirectory = process.env.LFAA_DATA_DIR?.trim() ?? "";
   if (externalDataDirectory) return { directory: externalDataDirectory, managedByDesktop: false };
 
+  const configuredHomeDirectory = process.env.LFAA_HOME?.trim() ?? "";
+  if (configuredHomeDirectory && !isAbsolute(configuredHomeDirectory)) throw new Error("LFAA_HOME 必须是绝对路径。");
+  const defaultHomeDirectory = configuredHomeDirectory ? resolve(configuredHomeDirectory) : join(app.getPath("home"), ".lfaa");
+  const defaultDirectory = join(defaultHomeDirectory, "data");
+  const homeStoredDataDirectory = readHomeDataDirectory();
+  if (homeStoredDataDirectory) {
+    if (!existsSync(homeStoredDataDirectory) || !canUseDataDirectory(homeStoredDataDirectory)) {
+      throw new Error(`项目与存储配置指向的业务 Data 根不可用或不可写：${homeStoredDataDirectory}。`);
+    }
+    saveDesktopDataDirectory(homeStoredDataDirectory);
+    return { directory: homeStoredDataDirectory, managedByDesktop: true };
+  }
   const savedDirectory = readSavedDataDirectory();
   if (savedDirectory) {
-    const directory = resolve(savedDirectory);
+    const legacyHomeRoot = sameWindowsDirectory(savedDirectory, defaultHomeDirectory);
+    const directory = resolve(legacyHomeRoot ? defaultDirectory : savedDirectory);
     if (!existsSync(directory) || !canUseDataDirectory(directory)) {
       throw new Error(`已保存的数据目录不可用或不可写：${directory}。请连接原磁盘后重启，或修复该目录权限。`);
     }
+    if (legacyHomeRoot) saveDesktopDataDirectory(directory);
     return { directory, managedByDesktop: true };
   }
 
-  const defaultDirectory = join(app.getPath("home"), ".lfaa");
   if (canUseDataDirectory(defaultDirectory)) {
     const directory = resolve(defaultDirectory);
     saveDesktopDataDirectory(directory);
     return { directory, managedByDesktop: true };
   }
 
-  throw new Error("无法在当前系统账户的 .lfaa Home 创建可写 LFAA 系统目录。请检查磁盘权限或设置 LFAA_DATA_DIR。");
+  throw new Error("无法在当前系统账户的 .lfaa/data 创建可写 LFAA 业务数据目录。请检查磁盘权限或设置 LFAA_DATA_DIR。");
 }
 
 async function applyPendingDesktopStorageMigration() {
@@ -219,6 +253,7 @@ function createServiceEnvironment(port, runtimeRoot) {
     JWT_SECRET: "",
     LFAA_DATA_DIR: dataDirectory,
     LFAA_DATA_DIR_MANAGED_BY_DESKTOP: managedByDesktop ? "1" : "0",
+    LFAA_DATA_DIR_CONFIGURED: managedByDesktop ? "0" : "1",
     LFAA_DATA_DIRECTORY_MIGRATION_SUPPORTED: managedByDesktop ? "1" : "0",
     LFAA_DESKTOP_INSTALL_DIRECTORY: dirname(app.getPath("exe")),
     LFAA_DATA_DIRECTORY_MIGRATION_REQUEST_PATH: getDesktopStorageMigrationRequestPath(),

@@ -8,7 +8,7 @@ Use the topic index below. Architecture, releases and task contracts each have o
 |---|---|---|
 | User guides | [CLI and startup](user/cli.md) | Web, nodes, development and packaging |
 | Subsystems | [Architecture overview](subsystems/architecture.md), [storage](subsystems/storage.md), [execution control](subsystems/execution-control.md) | Owners, data, authorization and lifecycle |
-| Development | [Contributor workflow](development/guide.md), [performance](development/performance.md), [workspace review](development/workspace-audit-20261008.md) | Checks, evidence and limitations |
+| Development | [Developer handbook](development/handbook.md), [contributor workflow](development/guide.md), [performance](development/performance.md), [workspace review](development/workspace-audit-20261008.md) | In-app UI manual: Settings → About & Updates; feature areas, owners, implementation records and evidence |
 | Reference | [Repository layout](reference/repository-layout.md), [generated package inventory](harness-packages.md), [prompt materials](reference/prompts/README.md) | Paths, implementation status and reference content |
 | Languages | [Translation conventions](i18n/README.md) | Paired documents and source authority |
 | History | [Archive index](archive/README.md) | Audits, superseded plans and completed contracts |

@@ -1,8 +1,14 @@
 # 共享设置界面
 
-“个人资料 / 安全 / 账号管理”集中在单一“账号”设置入口并通过页内 Tab 切换；资料仍读取当前认证会话，凭据继续调用 Account Owner，账号列表继续使用 `AdminUsersPage` 与管理 API。旧 `section=profile/security/account` 深链映射到对应 Tab；页面继续消费 Appearance 共享令牌，不新增账户设置偏好。设置工具栏按 `settings-main` 实际容器宽度排列；窄容器中先显示自动保存状态，再并排显示两项操作，避免主操作孤立换行。通知页提示保持现有接入边界，并使用适合窄栏阅读的短文案。
+设置中心全局导航轨的“应用”图标直接进入 `/work`，使用应用工作区已有四栏布局和左二 `SecondaryNavigation`，不在设置页弹出第二套应用列表。
 
-设置中心“集成 → 插件”使用本包的标准设置内容区与 `SettingRow`/`SettingsSwitch` 呈现当前 Profile 的真实已安装插件；清单通过 Connection API 按需读取，启停复用受认证的 Profile Plugin Manager 生命周期 API，携带固定来源提交和目标 App，并继续经过 Permission Owner。多 App 插件在行内选择目标 App；搜索只过滤当前真实清单，不新增设置或插件状态。齿轮沿用 `/settings?section=plugins`，普通 SettingsPage 将该路由映射到 Profile 插件菜单。AI 扩展开关、Skill 目录、能力目录、资料库、MCP 配置、Cordis 启停/重建诊断与 DSH 壁纸引擎 Slot 设置仍由本包持有表单和 Owner 调用，但只通过 `lfaa-client-ui-plugin-manager` 的独立模式挂载在最左侧“插件”入口。插件管理器的二级菜单选择本包的总览、能力类别、资料库、MCP 与诊断视图，不在内容区重复显示分类筛选；Profile 来源检查与安装清单也在那里展示。独立工作区的旧 `plugins` 分区仍显示账户 AI 扩展与 MCP 内容，`plugins.enabled` 仅控制账户 AI 扩展。设置页保留自己的分组搜索与导航状态，并通过 `lfaa-client-ui-sidebar/SecondaryNavigation` 与插件页复用同一菜单呈现组件；分组展开、选中项与导航仍归本包，栏宽和拖动归 `ui-dockkit`。
+设置中心的全局“最近会话”入口调用 Workbench 专属导航回调：进入 `/work` 后展开唯一的会话 Dock；普通“工作·小鱼智能体”入口不代替此请求。
+
+“个人资料 / 安全 / 账号管理”集中在单一“账号”设置入口并通过页内 Tab 切换；资料仍读取当前认证会话，凭据继续调用 Account Owner，账号列表继续使用 `AdminUsersPage` 与管理 API。旧 `section=profile/security/account` 深链映射到对应 Tab；页面继续消费 Appearance 共享令牌，不新增账户设置偏好。设置工具栏按 `settings-main` 实际容器宽度排列；窄容器中设置菜单与自动保存状态并排，恢复默认和立即保存按钮在下一行并排铺满。通知页提示保持现有接入边界，并使用适合窄栏阅读的短文案。
+
+设置中心“集成”在 `/settings?section=plugins` 内提供“插件、应用、MCP、技能、市场”五个页内 Tab，不切换到 `/plugin-manager` 路由。插件清单读取真实 Profile 状态，启停复用受认证的 Profile Plugin Manager 生命周期 API，携带固定来源提交和目标 App，并继续经过 Permission Owner；账户 AI 扩展总开关仍由 `plugins.enabled` 保存。MCP 复用账户 `plugins.mcpServers` 配置、服务范围与开关；原 MCP 设置表单由 `McpConnectionsSettings` 提供，独立插件工作区继续复用该组件。技能列表与左侧插件工作区共用认证后的 `/ai/extensions` 清单，并按 `kind=skill` 原样显示；`skillId` 指向同一 Skill Registry 规范名称，`plugins.disabledSkillNames` 持久化逐项停用并由 Skill Owner 在模型目录和按需加载中执行。`/ai/skills` 仍是模型运行时目录，不再被当作第二套设置页清单。应用 Tab 的内置入口复用 Workbench 同一应用清单，开关使用 `general.hiddenApplicationNavigationIds` 仅显示/隐藏全局菜单，不改变权限或运行状态；外部应用首批接入 GitHub App Device Flow，展示当前账户可访问的仓库、Issue 和 PR 只读数据，真实 token 由 GitHub Integration 通过现有加密凭据 Owner 持有。缺少服务端 GitHub App Client ID 时如实显示未配置。市场明确标注暂未接入，不显示示例条目。标签、列表、表单沿用 Appearance 主题与容器宽度断点。AI 扩展开关、Skill 目录、能力目录、资料库、Cordis 启停/重建诊断与 DSH 壁纸引擎 Slot 设置仍由本包持有表单和 Owner 调用，但只通过 `lfaa-client-ui-plugin-manager` 的独立模式挂载在最左侧“插件”入口；独立工作区的旧 `plugins` 分区仍显示账户 AI 扩展与 MCP 内容，`plugins.enabled` 仅控制账户 AI 扩展。设置页分组搜索、导航状态、栏宽和拖动仍归各自 Owner。
+
+五分类都在当前设置页内切换；窄容器下标题动作、分类、计数和搜索按容器宽度重排，极窄容器收紧分类按钮留白避免孤立换行。页面消费 Appearance 与共享间距令牌，不增加 CSS 自定义变量。
 
 独立插件工作区沿用 `plugins.enabled`、`plugins.skillDirectories`、`plugins.mcpServers` 与 `computerControl.enabled` 的既有保存和权限合同；运行概况只读取已登记扩展、MCP 配置和 Cordis Runtime 快照。插件工作区使用完整容器宽度与容器断点排版，卡片和表单仍消费 Appearance 共享主题、强调色、字体/字号、表面、模糊及减少动态效果令牌，不另建设置或视觉配置。
 
@@ -25,3 +31,13 @@ Minecraft 默认核心下拉框只依赖领域 Owner 登记的本地核心名称
 默认首页固定为 `/work` 小鱼智能体对话区；设置页展示固定首页说明，专业 App 由全局导航紧凑应用菜单进入。旧 `general.defaultMode/defaultStandaloneChat` 字段继续按原值读取和保存，避免设置其他项时覆盖账户数据，但不再决定路由。`general.showServiceStatus` 控制可见顶栏和全局导航连接状态点。原 Appearance `backgrounds.appCenter` 键保留，其设置标签改为“小鱼智能体工作区”，现有壁纸继续映射到 `/work`。Provider、主/子模型、预算、能力、权限与外观继续由原设置中心管理。
 
 构建只写仓库根 dist/packages/client/ui-settings/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
+
+外观背景选择器将内置图片与账户私有上传图片放在同一网格，上传图片接在内置卡片之后，并在对应卡片提供删除入口。上传后先持久化当前目标槽位，再提示成功；删除前先将所有引用该图片的槽位清空并保存，再删除素材。登录页仍只支持内置背景。
+
+“关于与更新”提供项目内 LFAA 开发手册入口；点击后在现有设置正文中打开并可返回，不新增账户开关、API 或本地持久化。手册图示与专题正文由 `src/developer-handbook-content.ts` 结构化提供，页面由 `src/DeveloperHandbook.tsx` 呈现，覆盖左一全局导航、左二工作区导航、中间区域、右侧 Dock、设置中心和业务页。说明中的现状与历史验收以当前源码、系统架构及 `docs/PROMPTS.md` 合同为准。页面按 `settings-main` 实际容器宽度重排，复用 Appearance 主题/字体/字号及共享间距令牌；不新增 CSS 自定义属性，不请求用户数据，不更改设置。构建只写仓库根 `dist/packages/client/ui-settings/`。
+
+“怎么开发与验收”专题提供可直接改写的功能提示词和任务合同字段；新功能/修复的决策与实测结果仍以 `docs/PROMPTS.md` 唯一任务记录为准，手册不持有第二份任务历史。
+
+## MCP 连接预设
+
+`McpConnectionsSettings` 提供官方 `rea-agents@6.7.0` Windows stdio 预设，写入现有 `plugins.mcpServers`，默认只关联 `workspace` App。用户可以修改、停用或移除；预设不改全局 `plugins.enabled`。服务启用且 AI Work 启动连接后，Windows 控制端由既有 MCP Runtime 调用 `npx` 启动；macOS/Linux 用户需按本机控制端平台编辑 launcher。工具调用仍逐项走现有 `permissions.mode`。

@@ -15,13 +15,13 @@ export function validateDaemonConnection(value) {
     || typeof value.displayName !== "string" || !value.displayName.trim() || value.displayName.length > 80 || /[\u0000-\u001f\u007f]/u.test(value.displayName)) throw new Error("远程节点需要合法的 HTTPS 地址、节点身份和通信密钥。");
   return { controlPlaneUrl: `${url.origin}/api`, nodeId: value.nodeId, displayName: value.displayName.trim(), token: value.token };
 }
-export async function configureDaemonConnection(filePath, dataDirectory) {
+export async function configureDaemonConnection(filePath, homeDirectory) {
   const content = await readFile(filePath, "utf8");
   let parsed;
   // JSON 解析错误可能包含原始片段；凭据文件不能把解析片段带到终端日志。
   try { parsed = JSON.parse(content); } catch { throw new Error("节点连接文件不是有效 JSON。"); }
   const value = validateDaemonConnection(parsed);
-  const directory = resolve(dataDirectory, "credentials");
+  const directory = resolve(homeDirectory, "credentials");
   await mkdir(directory, { recursive: true, mode: 0o700 });
   if ((await lstat(directory)).isSymbolicLink()) throw new Error("凭据目录不能是链接。");
   try { await lstat(resolve(directory, "daemon.lock")); throw new Error("请先停止当前节点，再导入连接配置。"); } catch (error) { if (error?.code !== "ENOENT") throw error; }

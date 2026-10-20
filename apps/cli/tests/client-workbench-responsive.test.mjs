@@ -3,60 +3,94 @@
  * 作用：防止应用右 Dock 改动意外压窄 Settings 等复用 ResizableWorkbench 的单栏页面。
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { resolveWorkbenchLayoutMetrics, shouldDockResponsiveLeftPane, shouldDockResponsiveRightPane, WORKBENCH_LAYOUT_TOKENS } from "../../../packages/client/ui-dockkit/src/workbench-layout.config.ts";
-import { resolveSideDragRawSize } from "../../../packages/client/ui-dockkit/src/workbench-interaction.config.ts";
+import { resolveSideDragRawSize, resolveSnapDragFrame, WORKBENCH_INTERACTION_TOKENS } from "../../../packages/client/ui-dockkit/src/workbench-interaction.config.ts";
 
-test("AI Work 在 Compact/Mobile 保留 260px 中心下限，通用 Surface 保持原断点", () => {
+test("AI Work 在所有布局保留 300px 中心下限，通用 Surface 保持原断点", () => {
+  const applicationDesktop = resolveWorkbenchLayoutMetrics(1536, 900, true);
+  assert.equal(applicationDesktop.mode, "desktop");
+  assert.equal(applicationDesktop.minCenterWidth, 300);
+  assert.ok(applicationDesktop.right.max >= applicationDesktop.containerWidth
+    - applicationDesktop.left.initial
+    - applicationDesktop.minCenterWidth
+    - WORKBENCH_LAYOUT_TOKENS.separator * 2);
+
   const applicationCompact = resolveWorkbenchLayoutMetrics(850, 800, true);
   assert.equal(applicationCompact.mode, "compact");
-  assert.equal(applicationCompact.minCenterWidth, 260);
+  assert.equal(applicationCompact.minCenterWidth, 300);
 
   const applicationMobile = resolveWorkbenchLayoutMetrics(488, 800, true);
   assert.equal(applicationMobile.mode, "mobile");
-  assert.equal(applicationMobile.minCenterWidth, 260);
+  assert.equal(applicationMobile.minCenterWidth, 300);
 
   const sharedWorkbench = resolveWorkbenchLayoutMetrics(850, 800);
   assert.equal(sharedWorkbench.mode, "compact");
   assert.equal(sharedWorkbench.minCenterWidth, 440);
+
+  const sharedDesktop = resolveWorkbenchLayoutMetrics(1536, 900);
+  assert.equal(sharedDesktop.minCenterWidth, 720);
+  assert.equal(applicationDesktop.left.min, sharedDesktop.left.min);
+  assert.equal(applicationDesktop.left.initial, sharedDesktop.left.initial);
+  assert.equal(applicationDesktop.left.max, 399);
+  assert.equal(sharedDesktop.left.max, 522);
+  assert.ok(applicationDesktop.left.max < applicationDesktop.right.max);
+  assert.deepEqual(
+    { min: applicationDesktop.right.min, initial: applicationDesktop.right.initial },
+    { min: sharedDesktop.right.min, initial: sharedDesktop.right.initial },
+  );
+  assert.ok(sharedDesktop.right.max < applicationDesktop.right.max);
 });
 
 test("响应式应用工作区仅在中心区和左栏下限都放得下时将二级导航改为 Dock", () => {
-  assert.equal(shouldDockResponsiveLeftPane(750, 260, 200, true), true);
-  assert.equal(shouldDockResponsiveLeftPane(488, 260, 200, true), true);
-  assert.equal(shouldDockResponsiveLeftPane(460, 260, 200, true), false);
-  assert.equal(shouldDockResponsiveLeftPane(750, 260, 200, false), false);
+  assert.equal(shouldDockResponsiveLeftPane(750, 300, 200, true), true);
+  assert.equal(shouldDockResponsiveLeftPane(500, 300, 200, true), false);
+  assert.equal(shouldDockResponsiveLeftPane(501, 300, 200, true), true);
+  assert.equal(shouldDockResponsiveLeftPane(750, 300, 200, false), false);
 });
 
 test("Mobile 左导航 Dock 复用大屏标准分隔条宽度", () => {
   assert.equal(WORKBENCH_LAYOUT_TOKENS.separator, 1);
-  assert.equal(shouldDockResponsiveLeftPane(461, 260, 200, true), true);
-  assert.equal(shouldDockResponsiveLeftPane(460, 260, 200, true), false);
+  assert.equal(shouldDockResponsiveLeftPane(501, 300, 200, true), true);
+  assert.equal(shouldDockResponsiveLeftPane(500, 300, 200, true), false);
+});
+
+test("Mobile 工作区标题栏只保留一行，并与菜单 Overlay 顶边对齐", () => {
+  const workspaceCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/module-workbench.css", import.meta.url), "utf8");
+  const mobileHeader = workspaceCss.match(/\.module-center__header\[data-layout-mode="mobile"\]\s*\{([^}]+)\}/u)?.[1];
+
+  assert.ok(mobileHeader, "mobile chat header should have a responsive rule");
+  assert.doesNotMatch(mobileHeader, /display:|grid-template-|min-height:/u);
+  assert.equal([...workspaceCss.matchAll(/--agent-shell-header-h:\s*3rem/gu)].length, 1);
+  assert.doesNotMatch(workspaceCss, /\.module-center__header\[data-layout-mode="mobile"\]\s+\.module-center__(?:heading|actions)/u);
+  assert.match(workspaceCss, /\.module-left-preview\s*\{[\s\S]*?top:\s*var\(--agent-shell-header-h\)/u);
+  assert.match(workspaceCss, /\.module-sidebar__brand-row\s*\{[\s\S]*?min-height:\s*var\(--agent-shell-header-h,\s*3rem\)/u);
 });
 
 test("Compact/Mobile 右栏空间足够时沿用共享 Dock 与拉伸预算", () => {
-  assert.equal(shouldDockResponsiveRightPane(448, 260, 228, 0, true), false);
-  assert.equal(shouldDockResponsiveRightPane(449, 260, 228, 0, true), false);
-  assert.equal(shouldDockResponsiveRightPane(489, 260, 228, 0, true), true);
-  assert.equal(shouldDockResponsiveRightPane(649, 260, 228, 200, true), false);
-  assert.equal(shouldDockResponsiveRightPane(690, 260, 228, 200, true), true);
+  assert.equal(shouldDockResponsiveRightPane(528, 300, 228, 0, true), false);
+  assert.equal(shouldDockResponsiveRightPane(529, 300, 228, 0, true), true);
+  assert.equal(shouldDockResponsiveRightPane(729, 300, 228, 200, true), false);
+  assert.equal(shouldDockResponsiveRightPane(730, 300, 228, 200, true), true);
   assert.equal(shouldDockResponsiveRightPane(850, 440, 228, 0, true), true);
   assert.equal(shouldDockResponsiveRightPane(850, 440, 228, 0, false), false);
 });
 
 test("极窄屏右栏才退回共享 Overlay", () => {
-  assert.equal(shouldDockResponsiveRightPane(342, 260, 228, 0, true), false);
-  assert.equal(shouldDockResponsiveRightPane(272, 260, 228, 0, true), false);
+  assert.equal(shouldDockResponsiveRightPane(382, 300, 228, 0, true), false);
+  assert.equal(shouldDockResponsiveRightPane(272, 300, 228, 0, true), false);
 });
 
 test("窄屏导航使用 Overlay，中屏导航 Dock 后保留完整中心区", () => {
   const cases = [
     { viewportWidth: 320, railWidth: 48, expected: "overlay", mode: "mobile" },
     { viewportWidth: 390, railWidth: 48, expected: "overlay", mode: "mobile" },
-    { viewportWidth: 530, railWidth: 64, expected: "dock", mode: "mobile" },
+    { viewportWidth: 530, railWidth: 64, expected: "overlay", mode: "mobile" },
     { viewportWidth: 626, railWidth: 64, expected: "dock", mode: "mobile" },
     { viewportWidth: 753, railWidth: 64, expected: "dock", mode: "mobile" },
-    { viewportWidth: 754, railWidth: 64, expected: "dock", mode: "compact" },
+    { viewportWidth: 793, railWidth: 64, expected: "dock", mode: "mobile" },
+    { viewportWidth: 794, railWidth: 64, expected: "dock", mode: "compact" },
   ];
 
   for (const { viewportWidth, railWidth, expected, mode } of cases) {
@@ -93,4 +127,68 @@ test("侧栏拖动从当前实际宽度起算，指针按下时不跳变且左�
   assert.equal(resolveSideDragRawSize("right", 250, 900, 900), 250);
   assert.equal(resolveSideDragRawSize("right", 250, 900, 936), 214);
   assert.equal(resolveSideDragRawSize("right", 250, 900, 864), 286);
+
+  assert.equal(WORKBENCH_INTERACTION_TOKENS.pointer.activationDistancePx, 3);
+});
+
+test("工作台 DOM 固定左栏、中间区与右菜单顺序，点击分隔线无变化且已收起的 Dock 不接受新拖动", () => {
+  const dockkitCss = readFileSync(new URL("../../../packages/client/ui-dockkit/src/workbench.css", import.meta.url), "utf8");
+  const pointerOwner = readFileSync(new URL("../../../packages/client/ui-dockkit/src/ResizableWorkbench.tsx", import.meta.url), "utf8");
+  const workspaceOwner = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
+  const workspaceCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/module-workbench.css", import.meta.url), "utf8");
+  const pointerMove = pointerOwner.slice(pointerOwner.indexOf("const onSidePointerMove"), pointerOwner.indexOf("const finishSideDrag"));
+  const pointerDown = pointerOwner.slice(pointerOwner.indexOf("const onSidePointerDown"), pointerOwner.indexOf("const onSidePointerMove"));
+  const finishPointer = pointerOwner.slice(pointerOwner.indexOf("const finishSideDrag"), pointerOwner.indexOf("// ===== 5."));
+
+  assert.match(dockkitCss, /\.lfaa-workbench__center \{ grid-column: 3; grid-row: 1; \}/u);
+  assert.match(dockkitCss, /\.lfaa-workbench__handle--right \{ grid-column: 4; grid-row: 1; \}/u);
+  assert.match(dockkitCss, /\.lfaa-workbench__pane--right \{ grid-column: 5; grid-row: 1; \}/u);
+  assert.doesNotMatch(`${dockkitCss}\n${pointerOwner}\n${workspaceOwner}\n${workspaceCss}`, /right-swapped|rightSwapped|rightPaneSwapped|swap-control|onSwapPanes|togglePaneOrder/u);
+  assert.match(pointerMove, /if \(!drag\.activated\)[\s\S]*activationDistancePx[\s\S]*drag\.activated = true/u);
+  assert.match(finishPointer, /if \(!drag\.activated\)[\s\S]*sideDragRef\.current = null;[\s\S]*return;/u);
+  assert.match(pointerDown, /if \(collapsed\) return;/u);
+  assert.ok(dockkitCss.includes('.lfaa-workbench[data-left-collapsed="true"]:not([data-dragging="left"]) .lfaa-workbench__handle--left'));
+  assert.ok(dockkitCss.includes('.lfaa-workbench[data-right-collapsed="true"]:not([data-dragging="right"]) .lfaa-workbench__handle--right'));
+  assert.match(dockkitCss, /pointer-events: none;\s*cursor: default;/u);
+  assert.match(pointerOwner, /"--lfaa-left-handle-width": `\$\{leftVisible && leftUsesGrid \? HANDLE_WIDTH : 0\}px`/u);
+  assert.match(pointerOwner, /"--lfaa-right-handle-width": `\$\{rightEnabled && rightUsesGrid \? HANDLE_WIDTH : 0\}px`/u);
+  assert.ok(dockkitCss.includes('.lfaa-workbench[data-dragging="left"]:not([data-snap-preview="left"]) .lfaa-workbench__pane--left'));
+  assert.match(pointerOwner, /const collapseKey = side === "left" \? "ArrowLeft" : "ArrowRight"/u);
+  assert.match(pointerOwner, /const expandKey = side === "left" \? "ArrowRight" : "ArrowLeft"/u);
+});
+
+test("一次按住拖动可吸附后反向展开；pointerup 后不可另起拖动拉出", () => {
+  const captured = resolveSnapDragFrame({ rawSize: 80, minSize: 200, maxSize: 700, captureThreshold: 100, snapped: false, releaseHysteresis: 24 });
+  const releasedBeforePointerUp = resolveSnapDragFrame({ rawSize: 224, minSize: 200, maxSize: 700, captureThreshold: 100, snapped: captured.snapped, releaseHysteresis: 24 });
+
+  assert.equal(captured.snapped, true);
+  assert.equal(releasedBeforePointerUp.snapped, false);
+  assert.equal(releasedBeforePointerUp.visualSize, 224);
+  assert.equal(WORKBENCH_INTERACTION_TOKENS.pointer.activationDistancePx, 3);
+
+  const pointerOwner = readFileSync(new URL("../../../packages/client/ui-dockkit/src/ResizableWorkbench.tsx", import.meta.url), "utf8");
+  const pointerDown = pointerOwner.slice(pointerOwner.indexOf("const onSidePointerDown"), pointerOwner.indexOf("const onSidePointerMove"));
+  const pointerMove = pointerOwner.slice(pointerOwner.indexOf("const onSidePointerMove"), pointerOwner.indexOf("const finishSideDrag"));
+  const finishPointer = pointerOwner.slice(pointerOwner.indexOf("const finishSideDrag"), pointerOwner.indexOf("// ===== 5."));
+  assert.match(pointerDown, /if \(collapsed\) return;[\s\S]*setPointerCapture\(event\.pointerId\)/u);
+  assert.match(pointerMove, /activationDistancePx[\s\S]*drag\.activated = true/u);
+  assert.match(pointerMove, /drag\.snapped \? drag\.side : "none"/u);
+  assert.match(finishPointer, /if \(drag\.snapped\)[\s\S]*setResolvedLeftCollapsed\(true\)/u);
+  assert.match(finishPointer, /sideDragRef\.current = null;[\s\S]*root\.dataset\.dragging = "none"/u);
+});
+
+test("仅 AI Work 右 Dock 拖动期间停用大面积毛玻璃，并复用 DockKit 清理恢复", () => {
+  const workbenchCss = readFileSync(new URL("../../../packages/client/ui-layout/src/workbench.css", import.meta.url), "utf8");
+  const pointerOwner = readFileSync(new URL("../../../packages/client/ui-dockkit/src/ResizableWorkbench.tsx", import.meta.url), "utf8");
+  const override = workbenchCss.match(/body\.lfaa-is-resizing \.workbench-shell \.lfaa-workbench\[data-dragging="right"\]:has\(\.ai-work-chat\) :is\(([\s\S]*?)\)\s*\{([^}]+)\}/u);
+
+  assert.ok(override, "right-drag override should be scoped to a Workbench containing AI Work");
+  assert.match(override[1], /\.module-context/u);
+  assert.match(override[1], /\.ai-work-chat/u);
+  assert.match(override[1], /\.ai-work-chat__composer/u);
+  assert.match(override[2], /-webkit-backdrop-filter:\s*none/u);
+  assert.match(override[2], /backdrop-filter:\s*none/u);
+  assert.match(pointerOwner, /document\.body\.classList\.remove\("lfaa-is-resizing"\)/u);
+  assert.match(pointerOwner, /root\.dataset\.dragging = "none";/u);
+  assert.match(pointerOwner, /const cancelPointerInteractions = useCallback/u);
 });

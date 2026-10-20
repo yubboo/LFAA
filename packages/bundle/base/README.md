@@ -9,3 +9,7 @@
 Profile 决定启动组合，账户和业务设置仍归各原 Owner；本包不覆盖用户偏好，不按界面 App 复制实现，也不扩大权限或节点能力。组合必需性、依赖与卸载使用原 Boot/Loader 合同。构建输出为根 `dist/packages/bundle/base/`。
 
 完整 Web Profile 回归位于 `apps/cli/tests/harness-runtime-wiring.test.mjs`，覆盖真实插件装配及合成 Provider 执行链；现场 Provider、浏览器、桌面和远端验收另行记录。
+
+`lfaa-github-integration` 作为可选外部服务能力在基础组合中登记 GitHub App 授权与只读 API Owner，并在关闭时撤销服务；令牌加密仍依赖现有 Settings 与 Credentials Owner。未设置 GitHub App Client ID 时该能力保持未配置状态。
+
+`lfaa-skill-rea` 将 REA 逆向分析方法作为按需 bundled Skill 登记到 Agent；MCP 协议、用户选择的 REA 连接和权限仍由 `lfaa-mcp-client` 与既有 Settings/Permission Owner 管理，本 Bundle 不安装或启动 REA。

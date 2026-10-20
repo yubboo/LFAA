@@ -35,6 +35,9 @@
       name: lfaa-api-settings-controller
       inject: [apiGateway]
       required: true
+    - id: api-github-connection-controller
+      name: lfaa-api-github-connection-controller
+      inject: [apiGateway, lfaaGithubIntegration]
     - id: api-minecraft-controller
       name: lfaa-api-minecraft-controller
       inject: [apiGateway]

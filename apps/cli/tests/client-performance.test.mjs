@@ -176,7 +176,10 @@ test("设置中心独立工作区读取并发启动，共享会话列表按账�
   assert.ok(appWorkspace.includes("loadAiSessions({ signal: controller.signal })"));
   assert.ok(appWorkspace.includes("const cacheKey = userId;"));
   assert.ok(!appWorkspace.includes("loadAiSessions({ appId: app, signal: controller.signal })"));
-  assert.ok(appWorkspace.includes("return () => { alive = false; controller.abort(); };"));
+  assert.ok(appWorkspace.includes("const aiSessionsRequestRef = useRef<{ userId: string; controller: AbortController } | null>(null);"));
+  assert.ok(appWorkspace.includes("if (pendingRequest?.userId === userId && !pendingRequest.controller.signal.aborted) return;"));
+  assert.match(appWorkspace, /if \(pendingRequest\?\.userId === userId\) \{\s*pendingRequest\.controller\.abort\(\);\s*aiSessionsRequestRef\.current = null;\s*\}/u);
+  assert.ok(appWorkspace.includes("if (controller.signal.aborted || aiSessionsRequestRef.current !== request) return;"));
 });
 
 test("AI Work 主聊挂载唯一分段展示，沿用原活动展开和完成清理", () => {

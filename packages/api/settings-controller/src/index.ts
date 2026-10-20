@@ -1,7 +1,7 @@
 import { config } from "lfaa-launch-environment/src/config.js";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
-import { isModelInvocable } from "lfaa-skill";
+import { isModelInvocable, isSkillDisabled } from "lfaa-skill";
 /** 功能：登记 settings-controller 的现有接口。作用：保留迁移前的行为并按包维护。关联文件：API Gateway、设置中心或工作台对应入口。 */
 import { Router } from "express";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
@@ -44,7 +44,7 @@ router.get("/ai/skills", requireAuthentication, asyncHandler(async (request, res
     const settings = getUserSettings(request.auth!.user.id);
     const visible = (await aiPluginHost.listSkills({ userId: request.auth!.user.id, customSkillDirs: settings.plugins.enabled ? settings.plugins.skillDirectories ?? [] : [], allowHostFilesystem: settings.plugins.enabled && config.localHostExecution, signal: controller.signal }))
       .filter(skill => isModelInvocable(skill) && (settings.plugins.enabled || skill.source === "bundled"));
-    if (!controller.signal.aborted) response.json({ skills: visible.slice(0, 200).map(skill => ({ id: "skill.registry/" + skill.name, name: skill.name, description: skill.description, kind: "skill" })), truncated: visible.length > 200 });
+    if (!controller.signal.aborted) response.json({ skills: visible.slice(0, 200).map(skill => ({ id: "skill.registry/" + skill.name, name: skill.name, description: skill.description, kind: "skill", source: skill.source, enabled: !isSkillDisabled(skill.name, settings.plugins.disabledSkillNames) })), truncated: visible.length > 200 });
   } finally { response.off("close", cancel); }
 }));
 

@@ -145,6 +145,8 @@ export interface AiExtension {
   name: string;
   version: string;
   description: string;
+  /** Stable SkillRegistry key for skill entries; used by Settings to toggle the same capability. */
+  skillId?: string;
   applicationIds?: ApplicationId[];
   toolPolicy?: { risk: "read" | "write" | "dangerous"; workspaceBound: boolean };
 }
@@ -835,6 +837,10 @@ export interface ProjectStorageLocations {
   runtimeDirectory: string;
   downloadCacheDirectory: string;
   temporaryDirectory: string;
+  businessDirectories: Array<{ name: string; path: string }>;
+  restartRequired: boolean;
+  dataDirectoryExternallyManaged: boolean;
+  changeUnavailableReason: string | null;
 }
 
 export interface ProjectContentComparison {
@@ -1783,7 +1789,7 @@ export function loadAiAccounts(): Promise<{ accounts: AiAccount[] }> {
   return request<{ accounts: AiAccount[] }>("/settings/ai/accounts");
 }
 
-export function loadAiSkillDirectory(signal?: AbortSignal): Promise<{ skills: Array<{ id: string; name: string; description: string; kind: "skill" }>; truncated: boolean }> {
+export function loadAiSkillDirectory(signal?: AbortSignal): Promise<{ skills: Array<{ id: string; name: string; description: string; kind: "skill"; source: string; enabled: boolean }>; truncated: boolean }> {
   return request("/ai/skills", { signal });
 }
 export function setAiSessionAssociations(sessionId: string, associations: AgentAssociations): Promise<{ session: AiSession }> {
@@ -1882,6 +1888,60 @@ export async function installManagedPlugin(
 
 export function removeManagedPlugin(pluginId: string, input: { targetApplicationId: ApplicationId; expectedSourceCommit: string }): Promise<{ removed: true }> {
   return request(`/plugins/${encodeURIComponent(pluginId)}/remove`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export interface GitHubConnectionStatus {
+  configured: boolean;
+  connected: boolean;
+  login: string | null;
+  connectedAt: string | null;
+  expiresAt: string | null;
+  remoteRevocationAvailable: boolean;
+}
+export interface GitHubRepository {
+  id: number;
+  fullName: string;
+  description: string | null;
+  private: boolean;
+  url: string;
+  defaultBranch: string;
+  updatedAt: string;
+}
+export interface GitHubIssue {
+  number: number;
+  title: string;
+  state: string;
+  author: string | null;
+  url: string;
+  updatedAt: string;
+  labels: string[];
+}
+export interface GitHubPullRequest extends GitHubIssue { baseBranch: string; headBranch: string }
+
+export function getGitHubConnectionStatus(signal?: AbortSignal): Promise<{ connection: GitHubConnectionStatus }> {
+  return request("/integrations/github/status", signal ? { signal } : {});
+}
+export function beginGitHubAuthorization(): Promise<{ device: { attemptId: string; verificationUri: string; userCode: string; expiresAt: string; intervalSeconds: number } }> {
+  return request("/integrations/github/device", { method: "POST", body: "{}" });
+}
+export function pollGitHubAuthorization(attemptId: string, signal?: AbortSignal): Promise<{ result: { status: "pending"; retryAfterSeconds: number } | { status: "authorized"; login: string } | { status: "expired" } | { status: "cancelled" } }> {
+  return request("/integrations/github/device/poll", { method: "POST", body: JSON.stringify({ attemptId }), ...(signal ? { signal } : {}) });
+}
+export function cancelGitHubAuthorization(attemptId: string): Promise<void> {
+  return request(`/integrations/github/device/${encodeURIComponent(attemptId)}`, { method: "DELETE" });
+}
+export function disconnectGitHub(): Promise<{ disconnected: true; remoteRevoked: boolean }> {
+  return request("/integrations/github", { method: "DELETE" });
+}
+export function listGitHubRepositories(page = 1, signal?: AbortSignal): Promise<{ repositories: GitHubRepository[]; truncated: boolean }> {
+  const query = new URLSearchParams({ page: String(page) });
+  return request(`/integrations/github/repositories?${query}`, signal ? { signal } : {});
+}
+export function listGitHubIssues(owner: string, name: string, signal?: AbortSignal): Promise<{ issues: GitHubIssue[] }> {
+  return request(`/integrations/github/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/issues`, signal ? { signal } : {});
+}
+export function listGitHubPullRequests(owner: string, name: string, signal?: AbortSignal): Promise<{ pullRequests: GitHubPullRequest[] }> {
+  return request(`/integrations/github/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/pulls`, signal ? { signal } : {});
 }
 
 export function loadCapabilityInstallCatalog(): Promise<{ capabilities: CapabilityInstallCatalogEntry[] }> {

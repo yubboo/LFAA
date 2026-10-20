@@ -30,6 +30,8 @@ pnpm lfaa web
 | 4 | 检查 Node/pnpm、可选 Rust 工具链，并列出实际包清单；占位目录不算安装包 |
 | 5 | 生成 `dist/backups/LFAA 版本号.zip` 源码备份，排除运行数据及凭据 |
 | 6 | 经版本确认、暂存检查和凭据检查后正常提交并推送 GitHub main |
+| 7 | 确认后检查 npm 登录与版本占用，复用 `pnpm run publish:cli` 构建并发布 `@yubboo/lfaa` |
+| 8 | 检查后安全更新当前分支及可安全快进的本地 main |
 | 0 | 退出工作台 |
 
 启动子菜单中，1 或回车启动完整 Web（控制端和编译前端）；2 仅启动独立 Daemon 节点，必须配置绝对路径 `LFAA_DATA_DIR`；4 只启动 Vite 前端并等待已有控制端，不会启动 LFAA 服务。
@@ -59,6 +61,8 @@ pnpm run publish:cli
 ```
 
 发布名从 `apps/cli/package.json` 读取，固定为 `@yubboo/lfaa`。源码清单是私有工作区包；生成的 `dist/npm/lfaa/package.json` 才是公共发布清单，去除 `workspace:*` 依赖。包只携带编译后的产品运行树、前端资源、CLI 和长期路径工具；不携带测试支持、真实数据、凭据、备份和原生 Windows Sandbox Host。
+
+Windows 工作台菜单 7 发布 `apps/cli/package.json` 中的当前版本到 npm 官方 registry。菜单默认取消；确认后先检查 npm 登录状态和精确版本占用。未登录、版本已发布或版本查询遇到非 404 错误时停止；其余情况复用根 `publish:cli`，先构建并将公共发布目录写入 `dist/npm/lfaa/`，再执行 npm publish。菜单不会自动改版本或修改 npm 凭据。
 
 ## 配置与数据
 

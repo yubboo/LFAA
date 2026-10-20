@@ -7,3 +7,5 @@
 Bundle 生命周期管理工具登记；构建输出为根 `dist/packages/skill/tool-skill/`。项目实际 Daemon 读取需在目标节点验收。
 
 Minecraft 与 Writing bundled Provider 已独立装配到同一注册表，目录跨界面提供方法摘要；插件总开关关闭时只允许 bundled 方法，不读取账户目录。保留 writing_load_skill 调用名，正文仍来自原 writing 方法 Owner。
+
+设置中心与插件工作区共享 AI 扩展登记清单；Skill 扩展用 `skillId` 指向此包/对应 Provider 注册到 Skill Registry 的规范名称。设置中心通过账户 `plugins.disabledSkillNames` 管理单项停用。`lfaa_skill_list` 与 `lfaa_skill_load` 对停用项执行同一过滤，加载前复核当前设置；`writing_load_skill` 也检查对应稳定 Skill ID。页面只展示摘要与来源，不读取正文或更改 Skill 文件。

@@ -96,6 +96,9 @@ importers:
       lfaa-api-gateway:
         specifier: workspace:*
         version: link:../../packages/api/gateway
+      lfaa-api-github-connection-controller:
+        specifier: workspace:*
+        version: link:../../packages/api/github-connection-controller
       lfaa-api-job-controller:
         specifier: workspace:*
         version: link:../../packages/api/job-controller
@@ -189,6 +192,9 @@ importers:
       lfaa-settings:
         specifier: workspace:*
         version: link:../../packages/settings/settings
+      lfaa-skill-rea:
+        specifier: workspace:*
+        version: link:../../packages/skill/rea
       lfaa-skill-writing:
         specifier: workspace:*
         version: link:../../packages/skill/writing
@@ -568,6 +574,43 @@ importers:
       '@types/jsonwebtoken':
         specifier: ^9.0.0
         version: 9.0.10
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/api/github-connection-controller:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      express:
+        specifier: ^4.0.0
+        version: 4.22.3(supports-color@7.1.0)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-api-gateway:
+        specifier: workspace:*
+        version: link:../gateway
+      lfaa-api-remotes:
+        specifier: workspace:*
+        version: link:../remotes
+      lfaa-authorization:
+        specifier: workspace:*
+        version: link:../../credentials/authorization
+      lfaa-github-integration:
+        specifier: workspace:*
+        version: link:../../integrations/github
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+    devDependencies:
+      '@types/express':
+        specifier: ^4.0.0
+        version: 4.17.25
+      '@types/js-yaml':
+        specifier: ^4.0.0
+        version: 4.0.9
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.0
@@ -1516,6 +1559,9 @@ importers:
       lfaa-games-steamcmd:
         specifier: workspace:*
         version: link:../../games/steamcmd
+      lfaa-github-integration:
+        specifier: workspace:*
+        version: link:../../integrations/github
       lfaa-hmr:
         specifier: workspace:*
         version: link:../../boot/hmr
@@ -1570,6 +1616,9 @@ importers:
       lfaa-skill-minecraft:
         specifier: workspace:*
         version: link:../../skill/minecraft
+      lfaa-skill-rea:
+        specifier: workspace:*
+        version: link:../../skill/rea
       lfaa-skill-writing:
         specifier: workspace:*
         version: link:../../skill/writing
@@ -1707,6 +1756,9 @@ importers:
       lfaa-api-gateway:
         specifier: workspace:*
         version: link:../../api/gateway
+      lfaa-api-github-connection-controller:
+        specifier: workspace:*
+        version: link:../../api/github-connection-controller
       lfaa-api-job-controller:
         specifier: workspace:*
         version: link:../../api/job-controller
@@ -1743,6 +1795,9 @@ importers:
       lfaa-game-connectivity:
         specifier: workspace:*
         version: link:../../network/game-connectivity
+      lfaa-github-integration:
+        specifier: workspace:*
+        version: link:../../integrations/github
       lfaa-host-webserver:
         specifier: workspace:*
         version: link:../../host/webserver
@@ -2157,6 +2212,9 @@ importers:
       lfaa-client-ui-settings-general:
         specifier: workspace:*
         version: link:../ui-settings-general
+      lfaa-client-ui-sidebar:
+        specifier: workspace:*
+        version: link:../ui-sidebar
       lfaa-client-ui-sidebar-files:
         specifier: workspace:*
         version: link:../ui-sidebar-files
@@ -3803,6 +3861,25 @@ importers:
         specifier: ^24.0.0
         version: 24.19.0
 
+  packages/integrations/github:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-credentials:
+        specifier: workspace:*
+        version: link:../../credentials/credentials
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
+    devDependencies:
+      '@types/js-yaml':
+        specifier: ^4.0.0
+        version: 4.0.9
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
   packages/interaction/permission-presets:
     dependencies:
       '@deepseek-ai/cordis':
@@ -4520,6 +4597,18 @@ importers:
         version: 24.19.0
 
   packages/skill/minecraft:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-agent:
+        specifier: workspace:*
+        version: link:../../core/agent
+      lfaa-skill:
+        specifier: workspace:*
+        version: link:../skill
+
+  packages/skill/rea:
     dependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.4

@@ -41,7 +41,7 @@ function recordKey(table: ConfigurationTable, record: ConfigurationRecord): stri
 function credentialKey(row: EncryptedCredentialRecordRow): string { return JSON.stringify([row.user_id, row.provider_id, row.record_id]); }
 
 export class ConfigurationDomain {
-  private readonly backend = new JsonStorageBackend(resolve(config.dataDirectory, "storages"));
+  private readonly backend = new JsonStorageBackend(resolve(config.homeDirectory, "storages"));
   private readonly lease = new FileLease(resolve(this.backend.root, ".configuration.lock"), action => withControlLock(database, action));
   private document: ConfigurationDocument;
   private mode: "legacy-json" | "sqlite" = "legacy-json";

@@ -8,4 +8,6 @@ Web 与桌面共用的服务端应用装配包，负责加载认证 API、AI 漫
 
 小鱼共用原服务装配；Webserver 显式依赖 skills，能力目录随服务生命周期撤销，不增加运行系统。
 
+`lfaa-api-github-connection-controller` 向 Web API Gateway 登记认证 GitHub 连接路由，并注入基础组合中的 GitHub Integration Owner。控制器不持有 OAuth 或 REST 业务规则、客户端密钥或账户 token。
+
 构建只写仓库根 dist/packages/bundle/web-app/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。

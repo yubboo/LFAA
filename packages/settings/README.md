@@ -4,7 +4,7 @@
 
 账户设置类型/默认值权威位于 `util/values/src/settings-contract.ts`，客户端与服务端克隆后消费。`settings/src/validation.ts` 拥有十个分类的严格写入 schema，HTTP 层重导出同一对象；服务直接保存也校验未知/非法值。旧快捷键新增项仍按共享默认值补全，读归一化保留旧记录兼容，不重置偏好。`appearance.updateSurfaceOpacity` 70–100% 校验与控件/类型一致。AI 漫剧图像使用 `aiRuntime.imageGenerationAccountId` / `imageGenerationModelId`；视频使用独立的 `videoGenerationAccountId` / `videoGenerationModelId`，以及 `videoGenerationDurationSeconds`、`videoGenerationRatio`、`videoGenerationResolution`、`videoGenerationGenerateAudio`、`videoGenerationWatermark`。视频默认账号/模型为空，5 秒、自适应、720p、关闭音频、保留水印。服务商仍决定具体模型支持的参数组合。AI Key 由 Settings/Credentials Owner 加密持有，只给已登记的 `lfaa-ai-video` 服务端消费者读取。
 
-账户设置分类和应用/模式偏好由 Settings API 与 Storage Domain 校验，按账户保存在既有 `LFAA_DATA_DIR/users/<账户 SHA-256>/settings/settings.json`。写入使用同目录原子替换；应用启动时会把 v47 SQLite 中的旧设置/偏好逐账户迁移并读回校验。Provider 密文及 Minecraft/SteamCMD 默认目录、节点覆盖继续由 SQLite 关系配置 Owner 管理。此存储调整不增加设置中心选项，也不改变默认值、主题映射或数据根目录解析。
+账户设置分类和应用/模式偏好由 Settings API 与 Storage Domain 校验，按账户保存在 `<LFAA_HOME>/users/<账户 SHA-256>/settings/settings.json`。写入使用同目录原子替换；应用启动时会把 v47 SQLite 中的旧设置/偏好逐账户迁移并读回校验。Provider 密文、数据库、凭据与会话留在 Home；游戏、环境、日志、备份以及 Writing/工作流/知识等业务文件位于设置中心统一选择的 `LFAA_DATA_DIR` 根。Minecraft/SteamCMD 默认目录与节点覆盖继续由 SQLite 关系配置 Owner 管理。
 
 ## AI 模型思考能力
 

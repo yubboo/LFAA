@@ -25,9 +25,6 @@ export interface ResizableWorkbenchProps {
   leftVisible?: boolean;
   /** 可选右栏；省略时不渲染右栏与右侧 separator，供 Settings 等单侧导航 Surface 复用同一几何能力。 */
   right?: ReactNode;
-  /** 可选中间/右栏位置交换；状态由调用方拥有，供 desktop 双 Dock 的业务工作台启用。 */
-  rightPaneSwapped?: boolean;
-  onSwapPanes?: () => void;
   bottom?: ReactNode;
   storageKey?: string;
   leftLimits?: WorkbenchPaneLimits;

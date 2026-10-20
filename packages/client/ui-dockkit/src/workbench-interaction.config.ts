@@ -20,6 +20,10 @@ interface ResponsiveScalarRule {
 }
 
 export const WORKBENCH_INTERACTION_TOKENS = Object.freeze({
+  pointer: {
+    /** 分隔条需超过该指针位移才从按下态进入真实拖动，普通点击不会截断布局过渡。 */
+    activationDistancePx: 3,
+  },
   snap: {
     /**
      * 吸附捕获比例：侧栏视觉宽度到达 minWidth 后保持不变；Pointer 仍可继续向内“超拖”。
@@ -69,7 +73,8 @@ export function resolveSnapCaptureThreshold(minSize: number, captureRatio: numbe
 /** 将指针相对起点的位移换算成侧栏尺寸，避免用工作台绝对坐标造成拖动跳变。 */
 export function resolveSideDragRawSize(side: "left" | "right", startSize: number, pointerStartX: number, pointerX: number): number {
   const delta = pointerX - pointerStartX;
-  return startSize + (side === "left" ? delta : -delta);
+  const growsToRight = side === "left";
+  return startSize + (growsToRight ? delta : -delta);
 }
 
 

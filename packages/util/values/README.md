@@ -17,3 +17,7 @@
 构建只写仓库根 dist/packages/util/values/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
 
 `settings-contract.ts` 是首次登录提醒与通知的唯一默认值来源，包含凭据、AI Provider、业务内容目录的提醒状态及全局通知开关；SteamCMD 游戏安装位置不触发首次登录提醒，版本公告确认按账户/版本保存在浏览器本地，不作为 General 设置。旧账户缺少新增字段时由 Settings Owner 使用共享默认值补齐。
+
+`PluginSettings.disabledSkillNames` 是账户级逐 Skill 停用列表，唯一默认值为 `[]`。持久化、严格校验、读取和运行时执行由 Settings/Skill Owners 负责；本包不创建 UI 状态或第二份设置存储。
+
+`GeneralSettings.hiddenApplicationNavigationIds` 保存被用户从全局“应用”菜单隐藏的内置导航 ID，唯一默认值为 `[]`。此偏好仅控制菜单可见项，不授予或撤销应用权限、不卸载应用；ID 白名单与 Workbench 应用导航清单保持一致。

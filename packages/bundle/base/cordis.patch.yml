@@ -107,6 +107,9 @@
       name: lfaa-credential-flows
       inject: ["lfaaCredentials"]
       required: true
+    - id: github-integration
+      name: lfaa-github-integration
+      inject: ["lfaaCredentials"]
     - id: agent-default-model
       name: lfaa-agent-default-model
       inject: ["lfaaCredentials", "lfaaSettings"]
@@ -411,6 +414,10 @@
       required: true
     - id: skill-writing
       name: lfaa-skill-writing
+      inject: ["skills", "aiExtensions"]
+      required: true
+    - id: skill-rea
+      name: lfaa-skill-rea
       inject: ["skills", "aiExtensions"]
       required: true
     - id: tool-minecraft

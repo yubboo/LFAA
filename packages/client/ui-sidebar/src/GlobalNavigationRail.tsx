@@ -1,13 +1,12 @@
 /**
  * 文件：GlobalNavigationRail.tsx
  * 功能：提供应用工作区、文件页和设置中心共用的全局导航轨。
- * 作用：统一首页、应用菜单、最近 小鱼智能体 会话、工具、设置、快捷键、账户状态与退出登录入口；会话列表从既有 API 读取，打开操作交给工作台处理。
+ * 作用：统一首页、应用菜单、最近 小鱼智能体 会话、工具、设置、快捷键、账户状态与退出登录入口；最近会话展开共享工作区 Dock，不持有会话列表副本。
  * 关联文件：packages/client/ui-sidebar/src/GlobalNavigationRail.css、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-settings/src/SettingsPage.tsx、packages/client/ui-sidebar-files/src/FileManagerPage.tsx、packages/client/connection/src/api.ts、packages/client/resources/src/notification-runtime.ts。
  */
 import { useEffect, useRef, useState } from "react";
-import { getErrorMessage, loadAiSessions, userRoleLabel, type AiSession, type UserRole, type UserSettings } from "lfaa-client-connection/src/api.js";
-import { aiWorkSessionOpenEventName, type AiWorkSessionTarget } from "lfaa-client-resources/src/notification-runtime.js";
-import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
+import { userRoleLabel, type UserRole, type UserSettings } from "lfaa-client-connection/src/api.js";
+import type { ApplicationId, ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
 import type { ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import "./GlobalNavigationRail.css";
@@ -15,23 +14,8 @@ import "./GlobalNavigationRail.css";
 export const GLOBAL_NAVIGATION_RAIL_WIDTH = 64;
 export const GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH = 48;
 
-const applicationLabels: Record<AiSession["appId"], string> = {
-  workspace: "小鱼智能体",
-  steamcmd: "SteamCMD 游戏服务",
-  minecraft: "Minecraft 管理",
-  connectivity: "LFAA 联机服务",
-  writing: "写作空间",
-  aivideo: "AI 漫剧"
-};
-
-function formatSessionUpdatedAt(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "更新时间未知";
-  return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
-}
-
 export interface ApplicationNavigationItem {
-  id: string;
+  id: ApplicationNavigationId;
   title: string;
   description?: string;
   route?: string;
@@ -46,6 +30,8 @@ interface GlobalNavigationRailProps {
   activePage: "home" | "files" | "plugins" | "settings";
   homeLabel: string;
   applications: ApplicationNavigationItem[];
+  navigationApplications?: ApplicationNavigationItem[];
+  onOpenRecentSessions: () => void;
   showServiceStatus: boolean;
   onHome: () => void;
   onNavigate: (path: string) => void;
@@ -56,33 +42,13 @@ interface GlobalNavigationRailProps {
   onLogout: () => void;
   onToggleTools?: () => void;
   applicationsExpanded?: boolean;
+  applicationsTargetId?: string;
   onToggleApplications?: () => void;
 }
 
-export function GlobalNavigationRail({ username, role, serverState, shortcuts, activePage, homeLabel, applications, showServiceStatus, onHome, onNavigate, onOpenApplication, onOpenFiles, onOpenWork, onOpenSettings, onLogout, onToggleTools, applicationsExpanded = false, onToggleApplications }: GlobalNavigationRailProps) {
-  const [openPopover, setOpenPopover] = useState<"applications" | "menu" | "recent" | "shortcuts" | "profile" | null>(null);
-  const [recentSessions, setRecentSessions] = useState<AiSession[]>([]);
-  const [recentSessionsLoading, setRecentSessionsLoading] = useState(false);
-  const [recentSessionsError, setRecentSessionsError] = useState("");
+export function GlobalNavigationRail({ username, role, serverState, shortcuts, activePage, homeLabel, applications, navigationApplications = applications, onOpenRecentSessions, showServiceStatus, onHome, onNavigate, onOpenApplication, onOpenFiles, onOpenWork, onOpenSettings, onLogout, onToggleTools, applicationsExpanded = false, applicationsTargetId = "module-sidebar-applications", onToggleApplications }: GlobalNavigationRailProps) {
+  const [openPopover, setOpenPopover] = useState<"applications" | "menu" | "shortcuts" | "profile" | null>(null);
   const railRef = useRef<HTMLElement>(null);
-
-  const loadRecentSessions = () => {
-    setRecentSessionsError("");
-    setRecentSessionsLoading(true);
-    void loadAiSessions({ archived: false }).then(({ sessions }) => {
-      setRecentSessions(sessions.slice(0, 20));
-    }).catch((error: unknown) => {
-      setRecentSessionsError(getErrorMessage(error));
-    }).finally(() => {
-      setRecentSessionsLoading(false);
-    });
-  };
-
-  const openRecentSession = (session: AiSession) => {
-    setOpenPopover(null);
-    const target: AiWorkSessionTarget = { appId: session.appId, sessionId: session.id };
-    window.dispatchEvent(new CustomEvent<AiWorkSessionTarget>(aiWorkSessionOpenEventName, { detail: target }));
-  };
 
   const toggleApplications = () => {
     if (onToggleApplications) {
@@ -113,14 +79,11 @@ export function GlobalNavigationRail({ username, role, serverState, shortcuts, a
     <nav className="module-navigation-rail" aria-label="LFAA 主导航" ref={railRef}>
       <div className="module-navigation-rail__primary">
         <button className={`module-navigation-rail__button${activePage === "home" ? " is-active" : ""}`} type="button" aria-label={homeLabel} aria-current={activePage === "home" ? "page" : undefined} title={homeLabel} onClick={() => { setOpenPopover(null); onHome(); }}><WorkbenchIcon name="home" size={19} /></button>
-        <button className={`module-navigation-rail__button${(onToggleApplications ? applicationsExpanded : openPopover === "applications") ? " is-active" : ""}`} type="button" aria-label="应用" title="应用" aria-haspopup={onToggleApplications ? undefined : "dialog"} aria-expanded={onToggleApplications ? applicationsExpanded : openPopover === "applications"} aria-controls={onToggleApplications ? "module-sidebar-applications" : openPopover === "applications" ? "module-navigation-rail-applications" : undefined} onClick={toggleApplications}><WorkbenchIcon name="grid" size={19} /></button>
+        <button className={`module-navigation-rail__button${(onToggleApplications ? applicationsExpanded : openPopover === "applications") ? " is-active" : ""}`} type="button" aria-label="应用" title="应用" aria-haspopup={onToggleApplications ? undefined : "dialog"} aria-expanded={onToggleApplications ? applicationsExpanded : openPopover === "applications"} aria-controls={onToggleApplications ? applicationsTargetId : openPopover === "applications" ? "module-navigation-rail-applications" : undefined} onClick={toggleApplications}><WorkbenchIcon name="grid" size={19} /></button>
         {onOpenWork ? <button className="module-navigation-rail__button" type="button" aria-label="工作 · 小鱼智能体" title="工作 · 小鱼智能体" onClick={() => { setOpenPopover(null); onOpenWork(); }}><WorkbenchIcon name="spark" size={19} /></button> : null}
-        <button className={`module-navigation-rail__button${openPopover === "recent" ? " is-active" : ""}`} type="button" aria-label="最近会话" title="最近会话" aria-haspopup="dialog" aria-expanded={openPopover === "recent"} aria-controls={openPopover === "recent" ? "module-navigation-rail-recent-sessions" : undefined} onClick={() => {
-          if (openPopover === "recent") setOpenPopover(null);
-          else {
-            setOpenPopover("recent");
-            loadRecentSessions();
-          }
+        <button className="module-navigation-rail__button" type="button" aria-label="最近会话" title="最近会话" aria-expanded={applicationsExpanded} aria-controls={applicationsExpanded ? "module-sidebar-applications" : undefined} onClick={() => {
+          setOpenPopover(null);
+          onOpenRecentSessions();
         }}><WorkbenchIcon name="history" size={19} /></button>
         <button className={`module-navigation-rail__button${activePage === "files" ? " is-active" : ""}`} type="button" aria-label="文件管理" aria-current={activePage === "files" ? "page" : undefined} title="文件管理" onClick={() => { setOpenPopover(null); onOpenFiles(); }}><WorkbenchIcon name="folder" size={19} /></button>
         <button className={`module-navigation-rail__button${activePage === "plugins" ? " is-active" : ""}`} type="button" aria-label="插件" aria-current={activePage === "plugins" ? "page" : undefined} title="插件" onClick={() => { setOpenPopover(null); onNavigate("/plugin-manager"); }}><WorkbenchIcon name="extension" size={19} /></button>
@@ -128,23 +91,10 @@ export function GlobalNavigationRail({ username, role, serverState, shortcuts, a
         <button className={`module-navigation-rail__button${activePage === "settings" ? " is-active" : ""}`} type="button" aria-label="设置中心" aria-current={activePage === "settings" ? "page" : undefined} title="设置中心" aria-keyshortcuts="Control+, Meta+," onClick={() => { setOpenPopover(null); onOpenSettings(); }}><WorkbenchIcon name="settings" size={19} /></button>
       </div>
       <div className="module-navigation-rail__footer">
-        {openPopover === "recent" ? <section className={`module-navigation-rail__popover module-navigation-rail__popover--recent module-navigation-rail__popover--recent-${activePage}`} id="module-navigation-rail-recent-sessions" role="dialog" aria-label="最近会话">
-          <header><div><strong>最近会话</strong><span>当前账户最近更新的 小鱼智能体 会话</span></div><button type="button" aria-label="关闭最近会话" onClick={() => setOpenPopover(null)}><WorkbenchIcon name="close" size={14} /></button></header>
-          {recentSessionsLoading ? <p className="module-navigation-rail__recent-state" role="status">正在读取最近会话…</p>
-            : recentSessionsError ? <div className="module-navigation-rail__recent-state module-navigation-rail__recent-state--error" role="alert"><span>读取失败：{recentSessionsError}</span><button type="button" onClick={loadRecentSessions}>重试</button></div>
-              : recentSessions.length ? <div className="module-navigation-rail__recent-list">
-                {recentSessions.map((session) => {
-                  const updatedAt = formatSessionUpdatedAt(session.updatedAt);
-                  return <button className="module-navigation-rail__recent-item" key={session.id} type="button" title={`${applicationLabels[session.appId]} · ${session.title}`} aria-label={`${applicationLabels[session.appId]}：${session.title}，${updatedAt}，打开会话`} onClick={() => openRecentSession(session)}>
-                    <strong>{session.title || "未命名会话"}</strong><span><span>{applicationLabels[session.appId]}</span><time>{updatedAt}</time></span>
-                  </button>;
-                })}
-              </div> : <p className="module-navigation-rail__recent-state">暂无未归档的 小鱼智能体 会话。</p>}
-        </section> : null}
         {!onToggleApplications && openPopover === "applications" ? <section className="module-navigation-rail__popover module-navigation-rail__popover--applications" id="module-navigation-rail-applications" role="dialog" aria-label="应用">
           <header><div><strong>应用</strong><span>打开专业工作区</span></div><button type="button" aria-label="关闭应用菜单" onClick={() => setOpenPopover(null)}><WorkbenchIcon name="close" size={14} /></button></header>
           <div className="module-navigation-rail__application-list">
-            {applications.map(application => <button key={application.id} type="button" onClick={() => {
+            {navigationApplications.length === 0 ? <div className="module-navigation-rail__application-empty"><span>暂无显示中的应用</span><button type="button" onClick={() => { setOpenPopover(null); onOpenSettings(); }}>前往设置</button></div> : navigationApplications.map(application => <button key={application.id} type="button" onClick={() => {
               setOpenPopover(null);
               if (application.route) onNavigate(application.route);
               else if (application.applicationId) void onOpenApplication(application.applicationId, "normal").catch(() => undefined);

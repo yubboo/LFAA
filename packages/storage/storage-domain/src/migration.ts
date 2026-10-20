@@ -17,9 +17,9 @@ export function retireLegacyFileTables(): void {
     configuration.activateSqliteStorage();
     return;
   }
-  const metadata = new JsonStorageBackend(resolve(config.dataDirectory, "storages"));
+  const metadata = new JsonStorageBackend(resolve(config.homeDirectory, "storages"));
   if (!metadata.read("configuration") || !metadata.read("session-migration")) throw new Error("文件存储迁移尚未完成，拒绝退役旧表。");
-  const directory = resolve(config.dataDirectory, "credentials", "storage-migration-backups");
+  const directory = resolve(config.homeDirectory, "credentials", "storage-migration-backups");
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const path = resolve(directory, `storage-before-file-migration-${randomUUID()}.sqlite`);
   database.prepare("VACUUM INTO ?").run(path); chmodSync(path, 0o600);

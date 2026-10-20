@@ -18,7 +18,7 @@ AI 回复使用一份 `content` 和可选 `parts` 正文范围；`delta` 携带�
 
 `loadAiSessions()` 支持显式 App 筛选并接收可选 AbortSignal；小鱼共享工作区按当前账户读取跨 App 会话列表，在离开工作模式或切换账户时取消过期请求。
 
-`loadAiExtensions()` 支持可选 AbortSignal；共享工作区退出或账户切换时取消自身目录请求，其他调用方的默认并发读取仍使用原请求合并合同。普通应用面板不为展示 Agent 资源而读取此目录。
+`loadAiExtensions()` 支持可选 AbortSignal；插件工作区与设置中心技能 Tab 共用其扩展清单，后者只筛选 `kind=skill`，不复制 Skill 数据目录。Skill 项的 `skillId` 是指向 Skill Registry 的稳定规范名称，设置页停用仍提交给原账户设置 Owner。共享工作区退出或账户切换时取消自身目录请求，其他调用方的默认并发读取仍使用原请求合并合同。普通应用面板不为展示 Agent 资源而读取此目录。
 
 Minecraft 默认核心设置通过 `loadMinecraftCoreNames()` 读取认证后的本地核心名称合同；实时版本和构建仍使用 `loadMinecraftCores()`，避免展示偏好等待外部来源。
 
@@ -26,8 +26,10 @@ Minecraft 默认核心设置通过 `loadMinecraftCoreNames()` 读取认证后的
 
 ## 小鱼共享工作入口（2026-10-14）
 
-提供可选关联、真实 Skill 摘要和原 Session/API 类型；新请求仅传引用，关联不启用能力或改权限。
+提供可选关联、真实 Skill 摘要、来源、启用状态和原 Session/API 类型；`loadAiSkillDirectory()` 传递可选 AbortSignal，离开设置分类或工作区时可取消目录请求。新请求仅传引用，关联不启用能力或改权限。
 
 构建只写仓库根 dist/packages/client/connection/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
 
 Profile 插件的 `inspectManagedPlugin()` 可将一次性 NPM registry 传给来源检查；`installManagedPlugin()` 消费 NDJSON 安装流，并在同源 API 请求中提交已检查的来源类型、位置、固定版本/摘要和 registry，向 UI 发出 Owner 的真实阶段及最终插件记录。`removeManagedPlugin()` 调用受认证的卸载 API。三者都不创建 AI 会话或在客户端执行安装规则；注册表不写入账户偏好或 `.npmrc`。
+
+GitHub 连接 Client API 仅调用认证的 `/integrations/github/*` 路由，返回去除 token 的状态与规范化仓库、Issue、PR 字段；Device Flow 验证码仅在用户主动连接时显示。断开与列表读取均支持 AbortSignal，页面卸载或切换资源时取消当前请求，不在 Client 中持有 OAuth token 或设置第二个凭据存储。

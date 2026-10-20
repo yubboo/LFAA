@@ -7,23 +7,24 @@ import {config} from "lfaa-launch-environment/src/config.js";
 import {findRepositoryRoot} from "lfaa-home-paths/src/index.mjs";
 import {getDaemonDataRoot,getDaemonNode,listDaemonNodes} from "lfaa-host-daemon/src/local-daemon.js";
 import {database} from "lfaa-storage-sqlite/src/database.js";
-import {getRuntimeStorageLocations,type RuntimeStorageLocations} from "lfaa-settings/src/project-storage.js";
+import {getProjectStorageLocations,getRuntimeStorageLocations,type RuntimeStorageLocations} from "lfaa-settings/src/project-storage.js";
 import {getUserSettings} from "lfaa-settings/src/service.js";
 import {createRuntimeExecutor} from "lfaa-runtime-environment/src/executor.mjs";
 import {cancelRuntimeTask,claimRuntimeTask,completeRuntimeTask,createRuntimeTask,getRuntimeTask,listRuntimeTasks,progressRuntimeTask,renewRuntimeTask,type RuntimeOperation,type RuntimeTask} from "lfaa-jobs/src/runtime-environment-tasks.js";
 import {ApiError} from "lfaa-util-values/src/http-error.js";
 import type {ApplicationId} from "lfaa-util-values/src/application-id.js";
 
-function localNodeId():string|null {try{const value=readFileSync(resolve(config.dataDirectory,"credentials","daemon-node-id"),"utf8").trim();return /^[a-f0-9-]{36}$/iu.test(value)?value:null;}catch{return null;}}
+function localNodeId():string|null {try{const value=readFileSync(resolve(config.homeDirectory,"credentials","daemon-node-id"),"utf8").trim();return /^[a-f0-9-]{36}$/iu.test(value)?value:null;}catch{return null;}}
 export function assertRuntimeUnused(targetId:string,major:number):void {
   const id=targetId==="local"?localNodeId():targetId;if(!id)return;
   const instance=database.prepare("SELECT name FROM minecraft_instances WHERE node_id=? AND java_major=? AND state IN ('installing','starting','running','stopping','unknown') LIMIT 1").get(id,major) as {name:string}|undefined;
   if(instance)throw new ApiError(409,"runtime_in_use",`实例“${instance.name}”正在使用 Java ${major} 或状态未确认，暂不能卸载/更新。`);
 }
 export function runtimeStorageFor(targetId:string):RuntimeStorageLocations {
-  if(targetId==="local")return getRuntimeStorageLocations("local",config.dataDirectory,process.platform);
+  const localDataRoot=getProjectStorageLocations().settings.contentDirectory;
+  if(targetId==="local")return getRuntimeStorageLocations("local",localDataRoot,process.platform);
   const node=getDaemonNode(targetId);const root=getDaemonDataRoot(targetId);if(!node||!root)throw new ApiError(404,"runtime_target_not_found","找不到已登记的运行环境设备。");
-  return getRuntimeStorageLocations(targetId,root,node.platform,targetId===localNodeId()&&resolve(root)===resolve(config.dataDirectory)?getRuntimeStorageLocations("local",config.dataDirectory,process.platform):undefined);
+  return getRuntimeStorageLocations(targetId,root,node.platform,targetId===localNodeId()?getRuntimeStorageLocations("local",localDataRoot,process.platform):undefined);
 }
 
 export class RuntimeManager {

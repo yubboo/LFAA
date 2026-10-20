@@ -16,6 +16,8 @@ export interface AiExtensionManifest {
   name: string;
   version: string;
   description: string;
+  /** Stable key shared with SkillRegistry; lets Settings toggle this exact Skill entry. */
+  skillId?: string;
   applicationIds?: readonly ApplicationId[];
   toolPolicy?: Readonly<{ risk: "read" | "write" | "dangerous"; workspaceBound: boolean }>;
   instructions?: string;
@@ -52,6 +54,9 @@ export class AiExtensionRegistry extends Service {
       }
       if (manifest.kind === "tool" && (!manifest.applicationIds?.length || !manifest.toolPolicy)) {
         throw new Error("AI 工具扩展必须声明应用范围和风险策略。");
+      }
+      if (manifest.skillId !== undefined && (manifest.kind !== "skill" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(manifest.skillId))) {
+        throw new Error("AI Skill 扩展的 Skill ID 无效。");
       }
       if (manifest.applicationIds?.some((applicationId) => !APPLICATION_IDS.includes(applicationId))) {
         throw new Error("AI 扩展声明了无效的应用范围。");

@@ -32,6 +32,7 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       assert.equal(defaultSettings.general.defaultMode,"ai-work","新账户默认进入小鱼工作台");
       assert.equal(defaultSettings.general.defaultStandaloneChat,true,"默认首页固定为小鱼对话区");
       assert.equal(defaultSettings.general.notificationPopupsEnabled,true,"通知总开关默认开启");
+      assert.deepEqual(defaultSettings.general.hiddenApplicationNavigationIds,[],"新账户默认显示全部内置应用入口");
       assert.equal(defaultSettings.general.aiProviderReminderEnabled,true,"AI Provider 提醒默认开启");
       assert.equal(defaultSettings.general.setupReminderEnabled,true,"业务内容存储提醒默认开启");
       assert.equal(defaultSettings.aiRuntime.maxOutputTokens,0,"新账户默认跟随所选模型输出能力");
@@ -39,6 +40,7 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       assert.equal(defaultSettings.appearance.advanced.authTransitionPluginId,"builtin","新账户默认使用 LFAA 内置登录进入动画");
       assert.equal(defaultSettings.general.cardMotionEffect,"fluid","新账户默认使用柔和流体卡片动效");
       assert.equal(defaultSettings.general.dialogMotionEffect,"fluid","新账户默认使用柔和流体弹窗动效");
+      assert.deepEqual(defaultSettings.plugins.disabledSkillNames,[],'新账户默认没有停用 Skill');
       assert.deepEqual(CARD_MOTION_EFFECT_OPTIONS.map(({id})=>id),["fluid","fade","lift","none"]);
       clientDefaults.appearance.advanced.contrast=75;assert.notEqual(defaultSettings.appearance.advanced.contrast,75);
       for(const [category,key] of Object.entries({'general':'general','appearance':'appearance','shortcuts':'shortcuts','ai-runtime':'aiRuntime','minecraft-runtime':'minecraftRuntime','git':'git','permissions':'permissions','plugins':'plugins','personalization':'personalization','computer-control':'computerControl'})){
@@ -53,8 +55,25 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       assert.throws(()=>saveUserSettings('settings-a','permissions',{...before.permissions,mode:'invalid'}),/格式/);
       assert.throws(()=>saveUserSettings('settings-a','general',{...before.general,unknown:true}),/格式/);
       assert.throws(()=>validateSettingsInput('__proto__',{}),/分类/);
-      assert.deepEqual(getUserSettings('settings-a'),before);
-      saveUserSettings('settings-a','general',{...before.general,cardMotionEffect:"lift",dialogMotionEffect:"fade"});
+      const hiddenApplicationsPayload={...before.general,hiddenApplicationNavigationIds:['minecraft','writing']};
+      assert.equal(settingsSchemas.general.validate(hiddenApplicationsPayload,{convert:false}).error,undefined,'应用菜单只接受登记的内置入口 ID');
+      assert.ok(settingsSchemas.general.validate({...before.general,hiddenApplicationNavigationIds:['not-an-app']},{convert:false}).error,'应用入口名单拒绝未登记 ID');
+      assert.ok(settingsSchemas.general.validate({...before.general,hiddenApplicationNavigationIds:['minecraft','minecraft']},{convert:false}).error,'应用入口名单拒绝重复项');
+      saveUserSettings('settings-a','general',hiddenApplicationsPayload);
+      assert.deepEqual(getUserSettings('settings-a').general.hiddenApplicationNavigationIds,['minecraft','writing'],'内置应用可见性按账户持久化');
+      const legacyApplicationPayload={...getUserSettings('settings-a').general};delete legacyApplicationPayload.hiddenApplicationNavigationIds;
+      saveUserSettings('settings-a','general',legacyApplicationPayload);
+      assert.deepEqual(getUserSettings('settings-a').general.hiddenApplicationNavigationIds,['minecraft','writing'],'旧客户端保存其他常规项不会重置应用菜单选择');
+      const expectedWithApplicationVisibility=structuredClone(before);expectedWithApplicationVisibility.general.hiddenApplicationNavigationIds=['minecraft','writing'];
+      assert.deepEqual(getUserSettings('settings-a'),expectedWithApplicationVisibility);
+      assert.equal(settingsSchemas.plugins.validate({...before.plugins,disabledSkillNames:['runtime-fixture']},{convert:false}).error,undefined,'Skill 停用名单接受规范名称');
+      assert.ok(settingsSchemas.plugins.validate({...before.plugins,disabledSkillNames:['../escape']},{convert:false}).error,'Skill 名称不能包含路径');
+      assert.ok(settingsSchemas.plugins.validate({...before.plugins,disabledSkillNames:['runtime-fixture','runtime-fixture']},{convert:false}).error,'Skill 停用名单必须唯一');
+      saveUserSettings('settings-a','plugins',{...before.plugins,disabledSkillNames:['runtime-fixture']});
+      const legacyPluginPayload={...getUserSettings('settings-a').plugins};delete legacyPluginPayload.disabledSkillNames;
+      saveUserSettings('settings-a','plugins',legacyPluginPayload);
+      assert.deepEqual(getUserSettings('settings-a').plugins.disabledSkillNames,['runtime-fixture'],'旧客户端省略新字段不能清除已保存的 Skill 停用项');
+      saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,cardMotionEffect:"lift",dialogMotionEffect:"fade"});
       const clientWithoutDialogEffect={...getUserSettings('settings-a').general};delete clientWithoutDialogEffect.dialogMotionEffect;
       saveUserSettings('settings-a','general',clientWithoutDialogEffect);
       assert.equal(getUserSettings('settings-a').general.dialogMotionEffect,"fade","只认识卡片动效的旧客户端不能重置弹窗动效");
@@ -98,6 +117,6 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,cardMotionEffect:"fade",dialogMotionEffect:"lift"});
       saveUserSettings('settings-a','ai-runtime',{...before.aiRuntime,commandTimeoutSeconds:0});close();
     `);
-    run(`const saved=getUserSettings('settings-a');assert.equal(saved.appearance.advanced.contrast,75);assert.equal(saved.appearance.advanced.reducedMotion,'on');assert.equal(saved.appearance.advanced.authTransitionPluginId,"user-animation/auth-entry");assert.equal(saved.appearance.overlay,42,'显式保存的旧遮罩偏好不被默认值更改覆盖');assert.equal(saved.appearance.updateSurfaceOpacity,85);assert.equal(saved.general.cardMotionEffect,"fade");assert.equal(saved.general.dialogMotionEffect,"lift");assert.equal(saved.general.defaultMode,"normal");assert.equal(saved.general.defaultStandaloneChat,false);assert.equal(saved.general.aiProviderReminderEnabled,true,'AI Provider 提醒偏好重启后保留');assert.equal(saved.general.setupReminderEnabled,false,'业务存储提醒偏好重启后保留');assert.equal(getUserSettings('settings-b').general.cardMotionEffect,"fluid");assert.equal(getUserSettings('settings-b').general.dialogMotionEffect,"fluid");assert.equal(saved.aiRuntime.commandTimeoutSeconds,0);close();`);
+    run(`const saved=getUserSettings('settings-a');assert.equal(saved.appearance.advanced.contrast,75);assert.equal(saved.appearance.advanced.reducedMotion,'on');assert.equal(saved.appearance.advanced.authTransitionPluginId,"user-animation/auth-entry");assert.equal(saved.appearance.overlay,42,'显式保存的旧遮罩偏好不被默认值更改覆盖');assert.equal(saved.appearance.updateSurfaceOpacity,85);assert.equal(saved.general.cardMotionEffect,"fade");assert.equal(saved.general.dialogMotionEffect,"lift");assert.deepEqual(saved.general.hiddenApplicationNavigationIds,['minecraft','writing'],'内置应用开关重启后保留');assert.equal(saved.general.defaultMode,"normal");assert.equal(saved.general.defaultStandaloneChat,false);assert.equal(saved.general.aiProviderReminderEnabled,true,'AI Provider 提醒偏好重启后保留');assert.equal(saved.general.setupReminderEnabled,false,'业务存储提醒偏好重启后保留');assert.deepEqual(saved.plugins.disabledSkillNames,['runtime-fixture'],'Skill 停用偏好重启后保留');assert.equal(getUserSettings('settings-b').general.cardMotionEffect,"fluid");assert.equal(getUserSettings('settings-b').general.dialogMotionEffect,"fluid");assert.equal(saved.aiRuntime.commandTimeoutSeconds,0);close();`);
   } finally { assert.equal(dirname(data), parent); rmSync(data, { recursive: true, force: true }); }
 });

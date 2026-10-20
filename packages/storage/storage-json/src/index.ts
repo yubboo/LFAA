@@ -113,7 +113,7 @@ export const name = "storage-json";
 export const inject = ["lfaaStorageHub"];
 export function apply(ctx: Context): void {
   ctx.provide("lfaaStorageJson", { JsonStorageBackend });
-  const backend = new JsonStorageKvBackend(new JsonStorageBackend(resolve(config.dataDirectory, "storages")));
+  const backend = new JsonStorageKvBackend(new JsonStorageBackend(resolve(config.homeDirectory, "storages")));
   const unregister = ctx.lfaaStorageHub.backend.register("json", backend);
   ctx.effect(() => async () => { unregister(); await backend.close(); });
 }

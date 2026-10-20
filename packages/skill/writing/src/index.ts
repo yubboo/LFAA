@@ -11,7 +11,7 @@ export const inject = ["skills"];
 export function apply(ctx: Context): void {
   const candidates: SkillCandidate[] = WRITING_SKILL_CATALOG.map(entry => ({ name: entry.id, description: entry.description, invocation: { modelInvocable: true, userInvocable: true }, source: "bundled", provider: "lfaa-writing", rank: BUNDLED_SKILL_RANK, resourceBase: { kind: "opaque", description: "写作内置方法，作品内容由 Writing Owner 读取" }, locator: entry.id }));
   // 保留原稳定扩展 ID；摘要和正文仍引用同一个方法 Owner。
-  for (const entry of WRITING_SKILL_CATALOG) ctx.get("aiExtensions")?.register(ctx, { id: "skill.writing." + entry.id, pluginId: "lfaa-skill-writing", kind: "skill", name: entry.name, description: entry.description, version: "1.0.0", builtIn: true,
+  for (const entry of WRITING_SKILL_CATALOG) ctx.get("aiExtensions")?.register(ctx, { id: "skill.writing." + entry.id, skillId: entry.id, pluginId: "lfaa-skill-writing", kind: "skill", name: entry.name, description: entry.description, version: "1.0.0", builtIn: true,
     loadInstructions: async () => { const source = await import("./writing-skills.js"); const skill = source.getWritingSkill(entry.id); if (!skill) throw new Error("写作 Skill 正文缺失。"); return skill.instructions; } });
   ctx.skills.registerProvider(() => ({ name: "lfaa-writing", list: async () => candidates, get: async (candidate, options) => {
     options.signal?.throwIfAborted();

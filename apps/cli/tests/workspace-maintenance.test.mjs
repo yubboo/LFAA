@@ -193,6 +193,52 @@ test("Windows 本地源码更新只快进并保留数据根内容", { skip: proc
   assert.equal(git(fixture.local, ["status", "--porcelain"]), "");
 });
 
+test("Windows 本地源码更新在远端 main 重写但本地仍可快进时应用最新源码", { skip: process.platform !== "win32" }, t => {
+  const fixture = createUpdateFixture(t);
+  const commonRevision = git(fixture.local, ["rev-parse", "HEAD"]);
+  writeFileSync(join(fixture.writer, "rewound-source.ts"), "removed by rewritten history\n");
+  git(fixture.writer, ["add", "rewound-source.ts"]);
+  git(fixture.writer, ["commit", "-m", "upstream commit later removed"]);
+  git(fixture.writer, ["push", "origin", "main"]);
+  git(fixture.local, ["fetch", "origin", "refs/heads/main:refs/remotes/origin/main"]);
+
+  git(fixture.writer, ["reset", "--hard", commonRevision]);
+  writeFileSync(join(fixture.writer, "latest-source.ts"), "latest rewritten source\n");
+  git(fixture.writer, ["add", "latest-source.ts"]);
+  git(fixture.writer, ["commit", "-m", "replacement upstream commit"]);
+  git(fixture.writer, ["push", "--force", "origin", "main"]);
+  const remoteRevision = git(fixture.writer, ["rev-parse", "HEAD"]);
+
+  const result = updateProject(fixture);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(git(fixture.local, ["rev-parse", "HEAD"]), remoteRevision);
+  assert.equal(git(fixture.local, ["rev-parse", "origin/main"]), remoteRevision);
+  assert.equal(readFileSync(join(fixture.local, "latest-source.ts"), "utf8").replace(/\r\n/g, "\n"), "latest rewritten source\n");
+  assert.equal(existsSync(join(fixture.local, "rewound-source.ts")), false);
+  assert.equal(readFileSync(join(fixture.local, "data", "must-survive.txt"), "utf8"), "local user data\n");
+  assert.equal(git(fixture.local, ["status", "--porcelain"]), "");
+});
+
+test("Windows 本地源码更新先读取被重写的远端 main 并保留分叉本地历史", { skip: process.platform !== "win32" }, t => {
+  const fixture = createUpdateFixture(t);
+  const localRevision = git(fixture.local, ["rev-parse", "HEAD"]);
+  git(fixture.writer, ["checkout", "--orphan", "replacement-main"]);
+  git(fixture.writer, ["rm", "-rf", "."]);
+  writeFileSync(join(fixture.writer, "package.json"), JSON.stringify({ name: "lfaa-replacement-fixture" }));
+  writeFileSync(join(fixture.writer, "replacement-source.ts"), "latest rewritten source\n");
+  git(fixture.writer, ["add", "-A"]);
+  git(fixture.writer, ["commit", "-m", "replacement upstream history"]);
+  git(fixture.writer, ["push", "--force", "origin", "replacement-main:main"]);
+  const remoteRevision = git(fixture.writer, ["rev-parse", "HEAD"]);
+
+  const result = updateProject(fixture);
+  assert.notEqual(result.status, 0);
+  assert.equal(git(fixture.local, ["rev-parse", "HEAD"]), localRevision);
+  assert.equal(git(fixture.local, ["rev-parse", "refs/heads/main"]), localRevision);
+  assert.equal(git(fixture.local, ["rev-parse", "origin/main"]), remoteRevision);
+  assert.equal(git(fixture.local, ["status", "--porcelain"]), "");
+});
+
 test("Windows 当前分支已最新时仍安全快进未检出的本地 main 引用", { skip: process.platform !== "win32" }, t => {
   const fixture = createUpdateFixture(t);
   writeFileSync(join(fixture.writer, "latest-source.ts"), "latest upstream source\n");
