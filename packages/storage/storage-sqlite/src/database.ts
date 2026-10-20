@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 58;
+const latestSupportedDatabaseVersion = 59;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -1926,3 +1926,38 @@ export function migrateWorkspaceDefaultProjectSchema(): void {
   }
 }
 migrateWorkspaceDefaultProjectSchema();
+
+/** 版本 59：Agent Git 仓库登记与会话绑定独立于 WorkspaceProject/Daemon 节点。 */
+export function migrateAgentGitWorkspaceSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 58 || version >= 59) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE agent_git_repositories (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        path TEXT NOT NULL,
+        path_key TEXT NOT NULL,
+        title TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (user_id, path_key)
+      ) STRICT;
+      CREATE INDEX agent_git_repositories_user_idx ON agent_git_repositories(user_id, updated_at DESC);
+      CREATE TABLE agent_git_session_bindings (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        session_id TEXT PRIMARY KEY NOT NULL REFERENCES ai_sessions(id) ON DELETE CASCADE,
+        repository_id TEXT NOT NULL REFERENCES agent_git_repositories(id) ON DELETE CASCADE,
+        updated_at TEXT NOT NULL
+      ) STRICT;
+      CREATE INDEX agent_git_session_bindings_repository_idx ON agent_git_session_bindings(repository_id);
+      PRAGMA user_version = 59;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateAgentGitWorkspaceSchema();

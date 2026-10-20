@@ -306,7 +306,7 @@ try {
   const { recordDaemonHeartbeat } = await import("lfaa-host-daemon/src/local-daemon.js");
   recordDaemonHeartbeat({ id: nodeId, displayName: "fixture", platform: process.platform, architecture: "x64", version: "fixture", dataRoot: "", capabilities: ["project-files-v1"], javaRuntimes: [] });
   const tasks = await import("lfaa-jobs/src/ai-host-tasks.js");
-  const { executeProjectFile } = await import("../../../../packages/host/daemon/src/project-files.mjs");
+  const { executeProjectFile } = await import("../../../../packages/host/project-files/src/project-files.mjs");
   const fileContext = { userId: owner, userRole: "admin", applicationId: "workspace", agentRunId: randomUUID(), signal: new AbortController().signal, onProgress() {}, workspaceProject: { id: randomUUID(), appId: "workspace", nodeId, path: root, title: "fixture" } };
   const fileCall = async (name, args) => {
     const current = tool(name), parsed = current.prepare(current.parse(args), fileContext);

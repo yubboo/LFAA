@@ -358,16 +358,23 @@ export interface WorkspaceDaemonNode {
   status: "online" | "offline";
   lastSeenAt: string;
   local?: boolean;
-  gitWorkspaceSupported?: boolean;
 }
 
 export interface WorkspaceGitStatus {
-  repository: string;
+  repositoryState: "not-repository" | "unborn" | "ready";
+  repository: string | null;
   projectRelativePath: string;
   worktreeId: string | null;
   branch: string;
-  head: string;
-  baseline: string;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  remotes: string[];
+  authenticatedRemotes?: string[];
+  credentialCapableRemotes?: string[];
+  syncCapableRemotes?: string[];
+  head: string | null;
+  baseline: string | null;
   clean: boolean;
   changedFileCount: number;
   shownFileCount: number;
@@ -378,6 +385,104 @@ export interface WorkspaceGitStatus {
   diff: string;
   diffTruncated: boolean;
   statusTruncated: boolean;
+}
+
+export interface AgentGitRepository {
+  id: string;
+  userId: string;
+  path: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceGitCommit {
+  hash: string;
+  shortHash: string;
+  subject: string;
+  author: string;
+  authoredAt: string;
+  parents: string[];
+}
+
+export interface WorkspaceGitBranch {
+  name: string;
+  head: string;
+  current: boolean;
+}
+
+export type WorkspaceGitOperationInput =
+  | { operation: "stage" | "unstage"; paths?: string[] }
+  | { operation: "commit"; message: string }
+  | { operation: "history"; limit?: number }
+  | { operation: "branches" }
+  | { operation: "branch-create" | "branch-switch" | "branch-delete"; branch: string }
+  | { operation: "fetch"; remote?: string }
+  | { operation: "pull" | "push" }
+  | { operation: "push-upstream" | "remote-remove"; remote: string }
+  | { operation: "remote-add"; remote: string; url: string; username?: string; token?: string };
+
+export type WorkspaceGitOperationResult =
+  | { status: WorkspaceGitStatus }
+  | { commits: WorkspaceGitCommit[] }
+  | { branches: WorkspaceGitBranch[]; head: string | null };
+
+export function loadAgentGitRepositories(signal?: AbortSignal): Promise<{ repositories: AgentGitRepository[] }> {
+  return request("/agent/git/repositories", signal ? { signal } : {});
+}
+
+export function registerAgentGitRepository(path: string, title = ""): Promise<{ repository: AgentGitRepository }> {
+  return request("/agent/git/repositories", { method: "POST", body: JSON.stringify({ path, title }) });
+}
+
+export function removeAgentGitRepository(repositoryId: string): Promise<void> {
+  return request(`/agent/git/repositories/${encodeURIComponent(repositoryId)}`, { method: "DELETE" });
+}
+
+export function loadAgentGitSessionRepository(sessionId: string): Promise<{ repository: AgentGitRepository | null }> {
+  return request(`/agent/git/sessions/${encodeURIComponent(sessionId)}/repository`);
+}
+
+export function ensureAgentGitSessionRepository(sessionId: string): Promise<{ repository: AgentGitRepository | null }> {
+  return request(`/agent/git/sessions/${encodeURIComponent(sessionId)}/repository/ensure`, { method: "POST" });
+}
+
+export function bindAgentGitSessionRepository(sessionId: string, repositoryId: string | null): Promise<{ repository: AgentGitRepository | null }> {
+  return request(`/agent/git/sessions/${encodeURIComponent(sessionId)}/repository`, { method: "PUT", body: JSON.stringify({ repositoryId }) });
+}
+
+export function loadAgentGitStatus(repositoryId: string, signal?: AbortSignal): Promise<{ status: WorkspaceGitStatus }> {
+  return request(`/agent/git/repositories/${encodeURIComponent(repositoryId)}/status`, { method: "POST", ...(signal ? { signal } : {}) });
+}
+
+export function loadAgentGitFileDiff(repositoryId: string, path: string, options: { ignoreWhitespace?: boolean; wordDiff?: boolean } = {}): Promise<{ diff: WorkspaceGitFileDiff }> {
+  return request(`/agent/git/repositories/${encodeURIComponent(repositoryId)}/file-diff`, { method: "POST", body: JSON.stringify({ path, ...options }) });
+}
+
+export function loadAgentGitFile(repositoryId: string, path: string, options: { offset?: number; limit?: number } = {}): Promise<{ file: WorkspaceProjectTextFile }> {
+  return request(`/agent/git/repositories/${encodeURIComponent(repositoryId)}/file`, { method: "POST", body: JSON.stringify({ operation: "read", path, ...options }) });
+}
+
+export function saveAgentGitFile(repositoryId: string, path: string, content: string, sha256: string): Promise<{ file: WorkspaceProjectTextFile }> {
+  return request(`/agent/git/repositories/${encodeURIComponent(repositoryId)}/file`, { method: "POST", body: JSON.stringify({ operation: "write", path, content, sha256 }) });
+}
+
+export function initializeAgentGitRepository(repositoryId: string): Promise<{ status: WorkspaceGitStatus }> {
+  return request(`/agent/git/repositories/${encodeURIComponent(repositoryId)}/initialize`, { method: "POST" });
+}
+
+export function runAgentGitOperation(repositoryId: string, input: WorkspaceGitOperationInput): Promise<WorkspaceGitOperationResult> {
+  return request(`/agent/git/repositories/${encodeURIComponent(repositoryId)}/operation`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function saveAgentGitRemoteCredential(repositoryId: string, remote: string, username: string, token: string): Promise<void> {
+  return request(`/agent/git/repositories/${encodeURIComponent(repositoryId)}/remotes/${encodeURIComponent(remote)}/credential`, {
+    method: "PUT", body: JSON.stringify({ username, token })
+  });
+}
+
+export function removeAgentGitRemoteCredential(repositoryId: string, remote: string): Promise<void> {
+  return request(`/agent/git/repositories/${encodeURIComponent(repositoryId)}/remotes/${encodeURIComponent(remote)}/credential`, { method: "DELETE" });
 }
 
 export interface WorkspaceGitFileDiff {
@@ -2094,6 +2199,14 @@ export function loadWorkspaceGitStatus(projectId: string, appId: WorkspaceProjec
   return request<{ status: WorkspaceGitStatus }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/status`, { method: "POST", body: JSON.stringify({ appId }) });
 }
 
+export function initializeWorkspaceGitRepository(projectId: string, appId: WorkspaceProjectApplicationId): Promise<{ status: WorkspaceGitStatus }> {
+  return request<{ status: WorkspaceGitStatus }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/initialize`, { method: "POST", body: JSON.stringify({ appId }) });
+}
+
+export function runWorkspaceGitOperation(projectId: string, appId: WorkspaceProjectApplicationId, input: WorkspaceGitOperationInput): Promise<WorkspaceGitOperationResult> {
+  return request<WorkspaceGitOperationResult>(`/workspace/projects/${encodeURIComponent(projectId)}/git/operation`, { method: "POST", body: JSON.stringify({ appId, ...input }) });
+}
+
 export function loadWorkspaceGitFileDiff(projectId: string, appId: WorkspaceProjectApplicationId, path: string, options: { ignoreWhitespace?: boolean; wordDiff?: boolean } = {}): Promise<{ file: WorkspaceGitFileDiff }> {
   return request<{ file: WorkspaceGitFileDiff }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/file-diff`, { method: "POST", body: JSON.stringify({ appId, path, ignoreWhitespace: options.ignoreWhitespace === true, wordDiff: options.wordDiff === true }) });
 }
@@ -2270,6 +2383,7 @@ type AiChatStreamInput = {
   appId: ApplicationId;
   sessionId: string | null;
   projectId?: string | null;
+  gitRepositoryId?: string | null;
   content: string;
   planMode?: boolean;
   signal: AbortSignal;
@@ -2332,7 +2446,7 @@ async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string):
           method: activeRunId ? "GET" : "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-          ...(!activeRunId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, ...(input.associations ? { associations: input.associations } : {}), ...(input.projectId ? { projectId: input.projectId } : {}), ...(input.planMode === undefined ? {} : { planMode: input.planMode }), content: input.content }) } : {}),
+          ...(!activeRunId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, ...(input.associations ? { associations: input.associations } : {}), ...(input.projectId ? { projectId: input.projectId } : {}), ...(!input.sessionId && input.gitRepositoryId ? { gitRepositoryId: input.gitRepositoryId } : {}), ...(input.planMode === undefined ? {} : { planMode: input.planMode }), content: input.content }) } : {}),
           signal: input.signal
         });
       } catch (error) {

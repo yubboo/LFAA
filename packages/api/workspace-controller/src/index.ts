@@ -3,7 +3,7 @@ import { WORKSPACE_PROJECT_APPLICATION_IDS } from "lfaa-util-values/src/applicat
  * 功能：提供账户隔离的项目目录、节点浏览与 Git Worktree API。
  * 作用：在真实 Daemon 上浏览、校验目录并登记项目，登记删除只解除目录关联。
  * 不负责：全局数据文件管理、Minecraft 实例、模型权限模式或直接访问控制端文件系统。
- * 关联文件：packages/workspace/workspace/src/index.ts、packages/host/daemon/src/project-files.mjs、packages/core/session/src/sessions.ts。
+ * 关联文件：packages/workspace/workspace/src/index.ts、packages/host/project-files/src/project-files.mjs、packages/core/session/src/sessions.ts。
  */
 import { Router } from "express";
 import Joi from "joi";
@@ -11,8 +11,10 @@ import { randomUUID } from "node:crypto";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
 import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
+import { authorizeExplicitUserAction } from "lfaa-permission-presets/src/permissions.js";
 import { listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
 import { isRemoteDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
+import { executeGitWorkspace } from "lfaa-host-git";
 import { createAiHostTask, getAiHostTask } from "lfaa-jobs/src/ai-host-tasks.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
@@ -20,7 +22,7 @@ import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-ser
 import { asyncHandler, parseBody } from "lfaa-api-remotes/src/route-contracts.js";
 import { createAiSessionBranchWithMemory } from "lfaa-agent-loop/src/runs.js";
 import { getAiSession, listAiSessions, setAiSessionProject, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
-import { claimWorkspaceProjectApplication, createWorkspaceGitWorktree, createWorkspaceProject, getDefaultWorkspaceProjectId, getWorkspaceProject, hasWorkspaceGitWorktrees, listWorkspaceProjects, searchWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, setDefaultWorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-workspace-workspace/src/index.js";
+import { claimWorkspaceProjectApplication, createWorkspaceGitWorktree, createWorkspaceProject, getDefaultWorkspaceProjectId, getWorkspaceProject, hasWorkspaceGitWorktrees, listWorkspaceProjects, searchWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, setDefaultWorkspaceProject, updateDefaultWorkspaceProjectPath, type WorkspaceProjectApplicationId } from "lfaa-workspace-workspace/src/index.js";
 
 const projectAppIdSchema = Joi.string().valid(...WORKSPACE_PROJECT_APPLICATION_IDS).required();
 const limitAiBranchMemory = createRateLimit(12, 60 * 1000);
@@ -43,6 +45,25 @@ const projectRelativeFilePathSchema = Joi.string().min(1).max(32760).custom((val
   if (value.startsWith("/") || value.includes("\\") || /[\u0000-\u001f\u007f]/u.test(value) || segments.some((segment: string) => !segment || segment === "." || segment === "..")) return helpers.error("string.pattern.base");
   return value;
 }).messages({ "string.pattern.base": "项目文件必须使用安全的项目相对路径。 " });
+const gitWorkspaceOperationSchema = Joi.object({
+  appId: projectAppIdSchema,
+  operation: Joi.string().valid("stage", "unstage", "commit", "history", "branches", "branch-create", "branch-switch", "branch-delete").required(),
+  paths: Joi.array().items(projectRelativeFilePathSchema).max(200).unique(),
+  message: Joi.string().trim().min(1).max(5000),
+  branch: Joi.string().trim().min(1).max(250),
+  limit: Joi.number().integer().min(1).max(50)
+}).custom((value: Record<string, unknown>, helpers) => {
+  const operation = value.operation;
+  const allowed = operation === "stage" || operation === "unstage" ? ["appId", "operation", "paths"]
+    : operation === "commit" ? ["appId", "operation", "message"]
+      : operation === "history" ? ["appId", "operation", "limit"]
+        : operation === "branches" ? ["appId", "operation"]
+          : ["appId", "operation", "branch"];
+  if (Object.keys(value).some(key => !allowed.includes(key))) return helpers.error("object.unknown");
+  if (operation === "commit" && typeof value.message !== "string") return helpers.error("any.required");
+  if (["branch-create", "branch-switch", "branch-delete"].includes(String(operation)) && typeof value.branch !== "string") return helpers.error("any.required");
+  return value;
+}).unknown(false);
 const projectFileReadSchema = Joi.object({ appId: projectAppIdSchema, path: projectRelativeFilePathSchema.required(), offset: Joi.number().integer().min(0).max(2 * 1024 * 1024).default(0), limit: Joi.number().integer().min(1).max(100000).default(40000) }).unknown(false);
 const projectFileWriteSchema = Joi.object({ appId: projectAppIdSchema, path: projectRelativeFilePathSchema.required(), sha256: Joi.string().pattern(/^[a-f0-9]{64}$/u).required(), content: Joi.string().max(2 * 1024 * 1024).required() }).unknown(false);
 const gitFileDiffSchema = Joi.object({ appId: projectAppIdSchema, path: projectRelativeFilePathSchema.required(), ignoreWhitespace: Joi.boolean().default(false), wordDiff: Joi.boolean().default(false) }).unknown(false);
@@ -88,7 +109,19 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
     const initializedProjectId = getDefaultWorkspaceProjectId(userId);
     if (initializedProjectId) {
       const project = getWorkspaceProject(userId, initializedProjectId, "workspace");
-      response.json({ project, defaultProjectId: project?.id ?? null });
+      if (!project) {
+        response.json({ project: null, defaultProjectId: null });
+        return;
+      }
+      const node = listDaemonNodes().find(item => item.id === project.nodeId && item.status === "online" && item.capabilities.includes("project-files-v1") && !isRemoteDaemonIdentity(item.id));
+      if (!node) throw new ApiError(409, "workspace_default_node_unavailable", "默认工作区所在的本机节点离线；项目登记和旧目录保持不变。 ");
+      const initialized = await runDirectoryOperation(userId, "workspace", node.id, { operation: "initialize_default_workspace" }) as { path?: unknown };
+      if (typeof initialized.path !== "string") throw new ApiError(502, "workspace_default_path_invalid", "本机 Daemon 没有返回已创建的默认工作区目录。 ");
+      const relocated = project.path === initialized.path
+        ? project
+        : updateDefaultWorkspaceProjectPath(userId, project.id, project.path, initialized.path, node.platform);
+      if (!relocated) throw new ApiError(409, "workspace_default_project_changed", "默认工作区登记在恢复期间发生变化；已创建的目录和原目录均保留，请刷新后重试。 ");
+      response.json({ project: relocated, defaultProjectId: relocated.id });
       return;
     }
     if (listWorkspaceProjects(userId).length || listAiSessions(userId, false).length || listAiSessions(userId, true).length) {
@@ -123,7 +156,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
     const projects = query.appId ? filterLegacyProjectsForApp(request.auth!.user.id, query.appId, result.projects) : result.projects;
     const initializedProjectId = query.appId === "minecraft" ? null : getDefaultWorkspaceProjectId(request.auth!.user.id);
     const defaultProjectId = initializedProjectId && getWorkspaceProject(request.auth!.user.id, initializedProjectId, "workspace") ? initializedProjectId : null;
-    response.json({ ...result, projects, defaultProjectId, nodes: nodes.map(({ id, displayName, platform, architecture, version, status, lastSeenAt, capabilities }) => ({ id, displayName, platform, architecture, version, status, lastSeenAt, local: !isRemoteDaemonIdentity(id), gitWorkspaceSupported: capabilities.includes("git-workspace-v1") })) });
+    response.json({ ...result, projects, defaultProjectId, nodes: nodes.map(({ id, displayName, platform, architecture, version, status, lastSeenAt }) => ({ id, displayName, platform, architecture, version, status, lastSeenAt, local: !isRemoteDaemonIdentity(id) })) });
   });
 
   router.post("/workspace/projects/browse", requireAuthentication, asyncHandler(async (request, response) => {
@@ -154,29 +187,75 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
     response.json({ project });
   });
 
+  router.post("/workspace/projects/:projectId/git/initialize", requireAuthentication, asyncHandler(async (request, response) => {
+    const body = parseBody<{ appId: WorkspaceProjectApplicationId }>(projectActionSchema, request.body);
+    const userId = request.auth!.user.id;
+    const project = requireProjectForApp(userId, request.params.projectId, body.appId);
+    const node = requireLocalGitProject(project);
+    const authorization = authorizeExplicitUserAction({
+      userId,
+      activeApplicationId: body.appId,
+      toolApplicationIds: [body.appId],
+      toolId: "workspace.git.initialize",
+      toolVersion: "1",
+      risk: "dangerous",
+      scopeKey: `${node.id}:${project.id}`,
+      executable: true
+    });
+    if (authorization !== "allow") throw new ApiError(403, "workspace_git_operation_not_authorized", "当前账户或应用无权初始化此项目 Git 仓库。 ");
+    const status = await runLocalGitOperation(project, { operation: "initialize", projectDirectory: project.path });
+    response.status(201).json({ status });
+  }));
+
   router.post("/workspace/projects/:projectId/git/status", requireAuthentication, asyncHandler(async (request, response) => {
     const body = parseBody<{ appId: WorkspaceProjectApplicationId }>(projectActionSchema, request.body);
     const userId = request.auth!.user.id;
     const project = requireProjectForApp(userId, request.params.projectId, body.appId);
     if (!project) throw new ApiError(404, "workspace_project_not_found", "找不到此账户的项目。 ");
-    const worktree = project.gitWorktree;
-    const operation = worktree
-      ? { operation: "git-workspace", gitOperation: "status", worktreeId: worktree.worktreeId, baseline: worktree.baseCommit, projectRelativePath: worktree.projectRelativePath }
-      : { operation: "git-workspace", gitOperation: "status", projectDirectory: project.path };
-    response.json({ status: await runGitOperation(userId, body.appId, project.nodeId, operation, 20) });
+    response.json({ status: await runLocalGitOperation(project, { operation: "status" }) });
+  }));
+
+  router.post("/workspace/projects/:projectId/git/operation", requireAuthentication, asyncHandler(async (request, response) => {
+    const body = parseBody<{ appId: WorkspaceProjectApplicationId; operation: string; paths?: string[]; message?: string; branch?: string; limit?: number }>(gitWorkspaceOperationSchema, request.body);
+    const userId = request.auth!.user.id;
+    const project = requireProjectForApp(userId, request.params.projectId, body.appId);
+    const node = requireLocalGitProject(project);
+    const readOnly = body.operation === "history" || body.operation === "branches";
+    const risk = body.operation === "commit" || body.operation === "branch-delete" || body.operation === "branch-switch" ? "dangerous" : "write";
+    if (!readOnly) {
+      const authorization = authorizeExplicitUserAction({
+        userId,
+        activeApplicationId: body.appId,
+        toolApplicationIds: [body.appId],
+        toolId: `workspace.git.${body.operation}`,
+        toolVersion: "1",
+        risk,
+        scopeKey: `${node.id}:${project.id}`,
+        executable: true
+      });
+      if (authorization !== "allow") throw new ApiError(403, "workspace_git_operation_not_authorized", "当前账户或应用无权执行此 Git 操作。 ");
+    }
+    let branch = body.branch;
+    if (body.operation === "branch-create" && branch) {
+      const prefix = getUserSettings(userId).git.branchPrefix;
+      if (!branch.startsWith(prefix)) branch = `${prefix}${branch}`;
+    }
+    const result = await runLocalGitOperation(project, {
+      operation: body.operation,
+      ...(body.paths ? { paths: body.paths } : {}), ...(body.message ? { message: body.message } : {}),
+      ...(branch ? { branch } : {}), ...(body.limit ? { limit: body.limit } : {})
+    });
+    if (body.operation === "history" || body.operation === "branches") response.json(result);
+    else response.json({ status: result });
   }));
 
   router.post("/workspace/projects/:projectId/git/file-diff", requireAuthentication, asyncHandler(async (request, response) => {
     const body = parseBody<{ appId: WorkspaceProjectApplicationId; path: string; ignoreWhitespace: boolean; wordDiff: boolean }>(gitFileDiffSchema, request.body);
     const userId = request.auth!.user.id;
     const project = requireProjectForApp(userId, request.params.projectId, body.appId);
-    requireGitNode(project.nodeId);
-    const operation = project.gitWorktree
-      ? { operation: "git-workspace", gitOperation: "file-diff", worktreeId: project.gitWorktree.worktreeId, baseline: project.gitWorktree.baseCommit,
-        projectRelativePath: project.gitWorktree.projectRelativePath, path: body.path, ignoreWhitespace: body.ignoreWhitespace, wordDiff: body.wordDiff }
-      : { operation: "git-workspace", gitOperation: "file-diff", projectDirectory: project.path, path: body.path,
-        ignoreWhitespace: body.ignoreWhitespace, wordDiff: body.wordDiff };
-    response.json({ file: await runGitOperation(userId, body.appId, project.nodeId, operation, 20) });
+    requireLocalGitProject(project);
+    response.json({ file: await runLocalGitOperation(project, { operation: "file-diff", path: body.path,
+      ignoreWhitespace: body.ignoreWhitespace, wordDiff: body.wordDiff }) });
   }));
 
   router.post("/workspace/projects/:projectId/files/read", requireAuthentication, asyncHandler(async (request, response) => {
@@ -203,18 +282,18 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
     const source = requireProjectForApp(userId, request.params.projectId, body.appId);
     if (!source) throw new ApiError(404, "workspace_project_not_found", "找不到此账户的项目。 ");
     if (source.gitWorktree) throw new ApiError(409, "workspace_git_nested_worktree_unsupported", "请从原始项目创建 AI Worktree。 ");
-    const node = requireGitNode(source.nodeId);
+    const node = requireLocalGitProject(source);
     const worktreeId = randomUUID();
     const settings = getUserSettings(userId);
-    const result = await runGitOperation(userId, body.appId, node.id, {
-      operation: "git-workspace", gitOperation: "create-worktree", worktreeId,
+    const result = await runLocalGitOperation(source, {
+      operation: "create-worktree", worktreeId,
       projectDirectory: source.path, projectTitle: source.title, branchPrefix: settings.git.branchPrefix
-    }, 90) as { projectDirectory?: unknown; worktreeRoot?: unknown; projectRelativePath?: unknown; branch?: unknown; baseline?: unknown; sourceHead?: unknown };
+    }) as { projectDirectory?: unknown; worktreeRoot?: unknown; projectRelativePath?: unknown; branch?: unknown; baseline?: unknown; sourceHead?: unknown };
     if (typeof result.projectDirectory !== "string" || typeof result.worktreeRoot !== "string" || typeof result.projectRelativePath !== "string"
       || typeof result.branch !== "string" || typeof result.baseline !== "string" || typeof result.sourceHead !== "string") {
       let cleanupError: unknown = null;
       if (typeof result.branch === "string") {
-        try { await runGitOperation(userId, body.appId, node.id, { operation: "git-workspace", gitOperation: "remove-worktree", worktreeId, sourceDirectory: source.path, branch: result.branch }, 60); }
+        try { await runLocalGitOperation(source, { operation: "remove-worktree", worktreeId, sourceDirectory: source.path, branch: result.branch }); }
         catch (error) { cleanupError = error; }
       }
       const residualPath = typeof result.worktreeRoot === "string" ? result.worktreeRoot : `<LFAA_DATA_DIR>/git-worktrees/${worktreeId}`;
@@ -228,7 +307,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
       response.status(201).json({ project });
     } catch (error) {
       try {
-        await runGitOperation(userId, body.appId, node.id, { operation: "git-workspace", gitOperation: "remove-worktree", worktreeId, sourceDirectory: source.path, branch: result.branch }, 60);
+        await runLocalGitOperation(source, { operation: "remove-worktree", worktreeId, sourceDirectory: source.path, branch: result.branch });
       } catch (cleanupError) {
         throw new ApiError(502, "workspace_git_worktree_cleanup_unconfirmed", `项目登记失败，且 Daemon 未确认清理工作树：${error instanceof Error ? error.message : "登记错误"}。请检查节点 ${node.displayName} 的 ${result.worktreeRoot}（工作树 ${worktreeId}）。`);
       }
@@ -243,7 +322,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
     const worktree = project?.gitWorktree;
     if (!project) throw new ApiError(404, "workspace_project_not_found", "找不到此账户的项目。 ");
     if (!worktree) throw new ApiError(409, "workspace_git_reset_not_managed", "只有 LFAA 管理的 AI Worktree 可以使用安全恢复。 ");
-    response.json({ status: await runGitOperation(userId, body.appId, project.nodeId, { operation: "git-workspace", gitOperation: "reset-worktree", worktreeId: worktree.worktreeId, baseline: worktree.baseCommit }, 60) });
+    response.json({ status: await runLocalGitOperation(project, { operation: "reset-worktree", worktreeId: worktree.worktreeId, baseline: worktree.baseCommit }) });
   }));
 
   router.delete("/workspace/projects/:projectId", requireAuthentication, asyncHandler(async (request, response) => {
@@ -254,7 +333,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
     if (project.gitWorktree) {
       if (!body.deleteManagedWorktree) throw new ApiError(409, "workspace_git_worktree_confirmation_required", "删除 AI Worktree 会移除其中的文件；请在界面确认后重试。 ");
       const source = requireProjectForApp(userId, project.gitWorktree.sourceProjectId, body.appId);
-      await runGitOperation(userId, body.appId, project.nodeId, { operation: "git-workspace", gitOperation: "remove-worktree", worktreeId: project.gitWorktree.worktreeId, sourceDirectory: source.path, branch: project.gitWorktree.branch }, 60);
+      await runLocalGitOperation(source, { operation: "remove-worktree", worktreeId: project.gitWorktree.worktreeId, sourceDirectory: source.path, branch: project.gitWorktree.branch });
     } else if (hasWorkspaceGitWorktrees(userId, project.id)) {
       throw new ApiError(409, "workspace_git_source_has_worktrees", "请先删除此原始项目关联的 AI Worktree，再移除项目登记。 ");
     } else if (body.deleteManagedWorktree) {
@@ -316,23 +395,32 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
   }));
 }
 
-async function runDirectoryOperation(userId: string, appId: WorkspaceProjectApplicationId, nodeId: string, operation: Record<string, unknown>): Promise<unknown> {
+async function runDirectoryOperation(userId: string, appId: WorkspaceProjectApplicationId, nodeId: string, operation: Record<string, unknown>, timeoutSeconds = 15): Promise<unknown> {
   const node = listDaemonNodes().find(item => item.id === nodeId);
   if (!node || node.status !== "online" || !node.capabilities.includes("project-files-v1")) throw new ApiError(409, "workspace_directory_node_unavailable", "所选节点离线或未提供项目目录能力。 ");
-  return runProjectTask(userId, appId, nodeId, operation, 15, "workspace_directory");
+  return runProjectTask(userId, appId, nodeId, operation, timeoutSeconds, "workspace_directory");
 }
 
-function requireGitNode(nodeId: string) {
-  const node = listDaemonNodes().find(item => item.id === nodeId);
-  if (!node || node.status !== "online" || !node.capabilities.includes("project-files-v1") || !node.capabilities.includes("git-workspace-v1")) {
-    throw new ApiError(409, "workspace_git_node_unavailable", "所选 Daemon 离线或尚未提供 Git 工作树能力。 ");
+function requireLocalGitProject(project: WorkspaceProjectForApp) {
+  const node = listDaemonNodes().find(item => item.id === project.nodeId);
+  if (isRemoteDaemonIdentity(project.nodeId) || !node || node.platform !== process.platform) {
+    throw new ApiError(409, "workspace_git_local_repository_required", "此 Agent 绑定的是远程项目；Git 管理器只操作 LFAA 本机应用进程可访问的仓库，请切换到本机项目。 ");
   }
   return node;
 }
 
-async function runGitOperation(userId: string, appId: WorkspaceProjectApplicationId, nodeId: string, operation: Record<string, unknown>, timeoutSeconds: number): Promise<unknown> {
-  requireGitNode(nodeId);
-  return runProjectTask(userId, appId, nodeId, operation, timeoutSeconds, "workspace_git");
+async function runLocalGitOperation(project: WorkspaceProjectForApp, input: Record<string, unknown>): Promise<unknown> {
+  requireLocalGitProject(project);
+  const worktree = project.gitWorktree;
+  const target = worktree
+    ? { worktreeId: worktree.worktreeId, baseline: worktree.baseCommit, projectRelativePath: worktree.projectRelativePath }
+    : { projectDirectory: project.path };
+  try {
+    return await executeGitWorkspace({ ...input, ...target });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "LFAA 本机 Git 操作失败。";
+    throw new ApiError(409, "workspace_git_operation_failed", message);
+  }
 }
 
 async function runProjectTask(userId: string, appId: WorkspaceProjectApplicationId, nodeId: string, operation: Record<string, unknown>, timeoutSeconds: number, errorPrefix: "workspace_directory" | "workspace_git"): Promise<unknown> {

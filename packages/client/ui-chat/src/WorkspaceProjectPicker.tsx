@@ -12,6 +12,7 @@ interface WorkspaceProjectPickerProps {
   appId: WorkspaceProjectApplicationId;
   applicationName: string;
   projects: WorkspaceProject[];
+  projectListStatus: "loading" | "ready" | "error";
   projectListTruncated: boolean;
   projectLoadError: string;
   onRetryProjects: () => void;
@@ -41,7 +42,7 @@ function directoryName(path: string): string {
   return path.replace(/[\\/]+$/u, "").split(/[\\/]/u).at(-1) || path;
 }
 
-export function WorkspaceProjectPicker({ appId, applicationName, projects, projectListTruncated, projectLoadError, onRetryProjects, nodes, value, selectedProjectTitle, defaultDirectory, disabled = false, onChange, onProjectsChange }: WorkspaceProjectPickerProps) {
+export function WorkspaceProjectPicker({ appId, applicationName, projects, projectListStatus, projectListTruncated, projectLoadError, onRetryProjects, nodes, value, selectedProjectTitle, defaultDirectory, disabled = false, onChange, onProjectsChange }: WorkspaceProjectPickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -67,6 +68,18 @@ export function WorkspaceProjectPicker({ appId, applicationName, projects, proje
   const [projectSearchTruncated, setProjectSearchTruncated] = useState(false);
   const [projectSearchLoading, setProjectSearchLoading] = useState(false);
   const selected = projects.find(project => project.id === value) ?? null;
+  const unresolvedProjectTitle = selectedProjectTitle ?? (value ? "当前项目" : null);
+  const unresolvedProjectStatus = projectListStatus === "loading" ? "正在确认" : projectListStatus === "error" ? "暂不可确认" : "已移除";
+  const unresolvedProjectLabel = unresolvedProjectTitle
+    ? `${unresolvedProjectStatus} · ${unresolvedProjectTitle}`
+    : projectListStatus === "loading" ? "正在读取项目…" : "选择项目文件夹";
+  const unresolvedProjectDescription = projectListStatus === "loading"
+    ? "正在读取项目目录登记，完成后再确认当前会话项目状态。"
+    : projectListStatus === "error"
+      ? "项目目录登记读取失败；当前会话项目状态暂不可确认。"
+      : unresolvedProjectTitle
+        ? `项目登记已移除；会话仍保留原目录上下文：${unresolvedProjectTitle}`
+        : `选择或关联 ${applicationName} 文件夹`;
   const selectedNode = nodes.find(node => node.id === nodeId) ?? null;
   const onlineNodes = nodes.filter(node => node.status === "online");
   const nodesById = useMemo(() => new Map(nodes.map(node => [node.id, node])), [nodes]);
@@ -272,7 +285,7 @@ export function WorkspaceProjectPicker({ appId, applicationName, projects, proje
         <button type="button" aria-pressed={project.id === value} onClick={() => { onProjectsChange([project, ...projects.filter(item => item.id !== project.id)]); onChange(project); setOpen(false); }} title={`${nodesById.get(project.nodeId)?.displayName ?? "Daemon 节点"} · ${project.path}`}><WorkbenchIcon name="folder" size={15} /><span><strong>{project.title}{project.appId === null ? " · 待归属" : ""}</strong><small>{nodesById.get(project.nodeId)?.displayName ?? "Daemon 节点"} · {project.path}</small></span>{project.id === value ? <span className="ai-work-chat__project-check" aria-label="当前项目">✓</span> : null}</button>
         <div className="ai-work-chat__project-option-actions">
           {project.gitWorktree ? <span title={`分支 ${project.gitWorktree.branch}`}>Worktree</span> : null}
-          {!project.gitWorktree ? <Button type="text" size="small" loading={worktreeLoadingId === project.id} disabled={Boolean(worktreeLoadingId) || nodesById.get(project.nodeId)?.status !== "online" || !nodesById.get(project.nodeId)?.gitWorkspaceSupported} title={nodesById.get(project.nodeId)?.gitWorkspaceSupported ? "创建隔离 AI Worktree，不修改源项目" : "此 Daemon 尚未提供 Git Worktree 能力"} onClick={() => void createWorktree(project)}>创建 Worktree</Button> : null}
+          {!project.gitWorktree ? <Button type="text" size="small" loading={worktreeLoadingId === project.id} disabled={Boolean(worktreeLoadingId) || !nodesById.get(project.nodeId)?.local} title={nodesById.get(project.nodeId)?.local ? "在 LFAA 本机数据目录创建隔离 AI Worktree" : "AI Worktree 仅支持 LFAA 本机可访问的仓库"} onClick={() => void createWorktree(project)}>创建 Worktree</Button> : null}
           <button type="button" aria-label={`重命名 ${project.title}`} title="重命名项目" onClick={() => { setError(""); setRenameTarget(project); setRenameDraft(project.title); setOpen(false); }}>改名</button>
           <Popconfirm title={project.gitWorktree ? "删除 AI Worktree？" : "从项目列表移除？"} description={project.gitWorktree ? `下一步会再次确认删除工作树中的文件；源项目不变。分支 ${project.gitWorktree.branch} 的 Git 历史会保留。` : "只移除目录登记；磁盘文件和已有会话会保留。"} okText={project.gitWorktree ? "下一步" : "移除登记"} cancelText="取消" onConfirm={() => { if (project.gitWorktree) { setDeleteWorktreeTarget(project); setDeleteWorktreeConfirmed(false); setProjectActionError(""); } else void unregister(project, false); }}>
             <button type="button" aria-label={project.gitWorktree ? `删除 AI Worktree ${project.title}` : `移除 ${project.title}`} title={project.gitWorktree ? "删除受管 AI 工作树" : "移除项目登记"}>移除</button>
@@ -289,7 +302,7 @@ export function WorkspaceProjectPicker({ appId, applicationName, projects, proje
 
   return <>
     <Popover open={open} onOpenChange={next => { setOpen(next); if (!next) setQuery(""); }} trigger="click" placement="topLeft" arrow={false} overlayClassName="ai-work-chat__project-overlay" content={projectMenu} getPopupContainer={trigger => trigger.closest<HTMLElement>(".workbench-shell") ?? trigger.parentElement ?? document.body}>
-      <Button className="ai-work-chat__project-trigger" type="text" disabled={disabled} aria-label={selected ? `当前项目：${selected.title}` : selectedProjectTitle ? `当前会话绑定已移除项目：${selectedProjectTitle}` : `选择 ${applicationName} 项目文件夹`} title={selected?.path ?? (selectedProjectTitle ? `项目登记已移除；会话仍保留原目录上下文：${selectedProjectTitle}` : `选择或关联 ${applicationName} 文件夹`)} icon={<WorkbenchIcon name="folder" size={13} />}><span className="ai-work-chat__project-trigger-label">{selected?.title ?? (selectedProjectTitle ? `已移除 · ${selectedProjectTitle}` : "选择项目文件夹")}</span></Button>
+      <Button className="ai-work-chat__project-trigger" type="text" disabled={disabled} aria-label={selected ? `当前项目：${selected.title}` : unresolvedProjectTitle ? `当前会话项目${unresolvedProjectStatus}：${unresolvedProjectTitle}` : `选择 ${applicationName} 项目文件夹`} title={selected?.path ?? unresolvedProjectDescription} icon={<WorkbenchIcon name="folder" size={13} />}><span className="ai-work-chat__project-trigger-label">{selected?.title ?? unresolvedProjectLabel}</span></Button>
     </Popover>
     <Modal className="ai-work-chat__project-modal" title={`关联 ${applicationName} 项目文件夹`} open={createOpen} onCancel={() => { if (!saving) setCreateOpen(false); }} onOk={() => void registerCurrentDirectory()} okText="关联此文件夹" cancelText="取消" okButtonProps={{ disabled: !directoryPath || directoryLoading || saving }} cancelButtonProps={{ disabled: saving }} confirmLoading={saving} destroyOnHidden>
       <div className="ai-work-chat__project-browser">

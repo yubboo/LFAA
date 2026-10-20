@@ -7,6 +7,7 @@
 const annotations = {
   acp: `acp:外部 Agent Client Protocol 互操作合同与接入适配`,
   api: `account-controller:账户认证、个人资料与身份 API，调用身份 Owner
+agent-git-controller:Agent 本机 Git 仓库登记、会话绑定与固定操作认证 API
 ai-video-controller:账户 AI 视频项目与生成任务的认证 API
 connectivity-controller:联机目标、连接配置与节点网络操作 API
 github-connection-controller:GitHub OAuth 授权状态和只读仓库资源的认证 API 适配
@@ -199,9 +200,11 @@ directory-picker-auto:目录选择提供方自动适配
 directory-picker-browse:服务端目录浏览选择适配
 directory-picker-native:平台原生目录选择提供方
 frontend-static:前端静态资源托管适配
+git:本机 Git 状态、差异、提交和分支固定操作执行 Owner
 open-in-app:平台应用打开能力提供方
 plugin-inventory:Host 插件清单和能力检查
 product-telemetry-otel:产品指标 OpenTelemetry 提供方
+project-files:本机与 Daemon 共用的受限文件执行器
 runtime-environment:Host 配置与运行位置服务合同
 webserver:共享 HTTP/Socket 服务和静态资源承载`,
   identity: `anonymous-user-id:匿名用户标识来源适配
@@ -372,7 +375,8 @@ tool-ralph:Ralph 迭代工作流工具适配
 tool-workflow:模型工作流发现、保存、运行和跟踪工具
 workflow:账户工作流定义、运行与节点结果服务
 workflow-ptc:PTC 执行工作流节点适配`,
-  workspace: `data-directory:配置数据目录与工作区资源协调
+  workspace: `agent-git:账户隔离的本机 Git 仓库登记与 Agent Session 绑定 Owner
+data-directory:配置数据目录与工作区资源协调
 workspace:账户项目、受管工作区、Worktree 与 Session 项目绑定`
 };
 

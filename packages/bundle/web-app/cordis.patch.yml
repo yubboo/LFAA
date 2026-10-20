@@ -56,6 +56,9 @@
     - id: api-workspace-controller
       name: lfaa-api-workspace-controller
       inject: [apiGateway]
+    - id: api-agent-git-controller
+      name: lfaa-api-agent-git-controller
+      inject: [apiGateway]
     - id: api-job-controller
       name: lfaa-api-job-controller
       inject: [apiGateway]

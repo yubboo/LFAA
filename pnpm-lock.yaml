@@ -458,6 +458,64 @@ importers:
         specifier: workspace:*
         version: link:../../typert/generator
 
+  packages/api/agent-git-controller:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      express:
+        specifier: ^4.0.0
+        version: 4.22.3(supports-color@7.1.0)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-api-gateway:
+        specifier: workspace:*
+        version: link:../gateway
+      lfaa-api-remotes:
+        specifier: workspace:*
+        version: link:../remotes
+      lfaa-authorization:
+        specifier: workspace:*
+        version: link:../../credentials/authorization
+      lfaa-credentials:
+        specifier: workspace:*
+        version: link:../../credentials/credentials
+      lfaa-host-daemon:
+        specifier: workspace:*
+        version: link:../../host/daemon
+      lfaa-host-git:
+        specifier: workspace:*
+        version: link:../../host/git
+      lfaa-host-project-files:
+        specifier: workspace:*
+        version: link:../../host/project-files
+      lfaa-permission-presets:
+        specifier: workspace:*
+        version: link:../../interaction/permission-presets
+      lfaa-session:
+        specifier: workspace:*
+        version: link:../../core/session
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+      lfaa-workspace-agent-git:
+        specifier: workspace:*
+        version: link:../../workspace/agent-git
+      lfaa-workspace-workspace:
+        specifier: workspace:*
+        version: link:../../workspace/workspace
+    devDependencies:
+      '@types/express':
+        specifier: ^4.0.0
+        version: 4.17.25
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
   packages/api/ai-video-controller:
     dependencies:
       '@deepseek-ai/cordis':
@@ -1158,9 +1216,15 @@ importers:
       lfaa-host-daemon:
         specifier: workspace:*
         version: link:../../host/daemon
+      lfaa-host-git:
+        specifier: workspace:*
+        version: link:../../host/git
       lfaa-jobs:
         specifier: workspace:*
         version: link:../../jobs/jobs
+      lfaa-permission-presets:
+        specifier: workspace:*
+        version: link:../../interaction/permission-presets
       lfaa-session:
         specifier: workspace:*
         version: link:../../core/session
@@ -1170,6 +1234,9 @@ importers:
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
+      lfaa-workspace-agent-git:
+        specifier: workspace:*
+        version: link:../../workspace/agent-git
       lfaa-workspace-workspace:
         specifier: workspace:*
         version: link:../../workspace/workspace
@@ -1311,6 +1378,15 @@ importers:
       lfaa-hook-protocol:
         specifier: workspace:*
         version: link:../../hooks/hook-protocol
+      lfaa-host-daemon:
+        specifier: workspace:*
+        version: link:../../host/daemon
+      lfaa-host-git:
+        specifier: workspace:*
+        version: link:../../host/git
+      lfaa-host-project-files:
+        specifier: workspace:*
+        version: link:../../host/project-files
       lfaa-launch-environment:
         specifier: workspace:*
         version: link:../../util/launch-environment
@@ -1747,6 +1823,9 @@ importers:
       lfaa-api-account-controller:
         specifier: workspace:*
         version: link:../../api/account-controller
+      lfaa-api-agent-git-controller:
+        specifier: workspace:*
+        version: link:../../api/agent-git-controller
       lfaa-api-ai-video-controller:
         specifier: workspace:*
         version: link:../../api/ai-video-controller
@@ -3188,6 +3267,9 @@ importers:
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
+      lfaa-workspace-agent-git:
+        specifier: workspace:*
+        version: link:../../workspace/agent-git
       lfaa-workspace-workspace:
         specifier: workspace:*
         version: link:../../workspace/workspace
@@ -3292,6 +3374,9 @@ importers:
       lfaa-host-daemon:
         specifier: workspace:*
         version: link:../../host/daemon
+      lfaa-host-git:
+        specifier: workspace:*
+        version: link:../../host/git
       lfaa-identity-auth:
         specifier: workspace:*
         version: link:../../identity/auth
@@ -3307,6 +3392,9 @@ importers:
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
+      lfaa-workspace-agent-git:
+        specifier: workspace:*
+        version: link:../../workspace/agent-git
     devDependencies:
       '@types/express':
         specifier: ^4.0.0
@@ -3743,6 +3831,9 @@ importers:
       lfaa-home-paths:
         specifier: workspace:*
         version: link:../../util/home-paths
+      lfaa-host-project-files:
+        specifier: workspace:*
+        version: link:../project-files
       lfaa-launch-environment:
         specifier: workspace:*
         version: link:../../util/launch-environment
@@ -3768,6 +3859,22 @@ importers:
       '@types/jsonwebtoken':
         specifier: ^9.0.0
         version: 9.0.10
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/host/git:
+    dependencies:
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
+
+  packages/host/project-files:
+    dependencies:
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
+    devDependencies:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.0
@@ -5434,6 +5541,16 @@ importers:
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/workspace/agent-git:
+    dependencies:
+      lfaa-storage-sqlite:
+        specifier: workspace:*
+        version: link:../../storage/storage-sqlite
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

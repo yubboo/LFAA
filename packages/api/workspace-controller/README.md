@@ -1,14 +1,16 @@
 # Workspace Controller
 
-本包提供认证后的共享工作项目目录 API：`workspace` 按账户有界列出和搜索全部来源项目，旧 `minecraft` 专用调用保留来源筛选；返回实际具备项目文件能力的 Daemon 节点，委托 Daemon 浏览/检查/新建一级目录，登记/改名/移除真实项目并切换空闲会话的项目归属。支持 Git 节点时，还提供真实 Git 状态、受管 Worktree 创建/恢复/删除路由。
+本包提供认证后的共享工作项目目录 API：`workspace` 按账户有界列出和搜索全部来源项目，旧 `minecraft` 专用调用保留来源筛选；返回实际具备项目文件能力的 Daemon 节点，委托 Daemon 浏览/检查/新建一级目录，登记/改名/移除真实项目并切换空闲会话的项目归属。支持 Git 节点时，还提供真实 Git 状态、显式初始化、本地变更暂存/撤销暂存/提交、历史/分支读取、分支创建/切换/删除及受管 Worktree 创建/恢复/删除路由。
 
-`POST /workspace/projects/initialize-default` 实现 DSH 式首次工作区初始化：仅当账户没有项目与活动/归档会话时，请求在线本机 Daemon 在系统“文档”下创建 `LFAA/default-workspace` 并登记为 AI Work 默认项目；远程节点不会被误当成本机 Documents。默认项目身份由 Workspace Owner 单独持久化，移除登记后不自动重建。桌面选中的任意目录仍经过同一 Daemon 检查和规范路径登记；Web 与远程节点继续使用节点目录浏览 API。
+`POST /workspace/projects/initialize-default` 实现 DSH 式默认工作区初始化：在线本机 Daemon/Project Files Host 从操作系统动态解析“文档”位置，在其下创建 `lfaa/default-workspace`；不写死盘符或本机路径，远程节点不会被误当成本机 Documents。首次初始化仍只在账户没有项目与活动/归档会话时创建。若既有默认项目登记到其他路径，Controller 只创建规范文件夹并由 Workspace Owner 更新项目路径登记；旧目录内容、Session 记录、会话文件及 `.lfaa` 数据保持原样，不复制或移动。默认项目身份单独持久化，移除登记后不自动重建。桌面选中的任意目录仍经过同一 Daemon 检查和规范路径登记；Web 与远程节点继续使用节点目录浏览 API。
 
-控制器校验账户、实际项目与会话来源、节点在线状态和 `project-files-v1` 能力；共享调用允许同账户的历史来源记录，专用调用保留相应来源检查。它不直接访问控制端文件系统，不提供云端节点，也不改变项目权限。项目提供文件夹登记、会话归组和文件上下文，不创建 App 或 Minecraft 实例。真实目录操作由 `packages/host/daemon` 执行，登记由 `packages/workspace/workspace` 持久化；Minecraft 实例和全局管理员文件管理继续由现有 Owner 管理。Wallpaper Engine/DSH Bundle 不属于本控制器或 Daemon 能力。旧项目的空来源标签仅在原登记流程中显式认领，不改写已标记来源。
+控制器校验账户、实际项目与会话来源、节点在线状态和 `project-files-v1` 能力；共享调用允许同账户的历史来源记录，专用调用保留相应来源检查。它不直接访问控制端文件系统，不提供云端节点，也不改变项目权限。项目提供文件夹登记、会话归组和文件上下文，不创建 App 或 Minecraft 实例。真实目录操作由 `packages/host/project-files` 经 Daemon 适配器执行，登记由 `packages/workspace/workspace` 持久化，会话快照由 Session Owner 持久化；Minecraft 实例和全局管理员文件管理继续由现有 Owner 管理。Wallpaper Engine/DSH Bundle 不属于本控制器或 Daemon 能力。旧项目的空来源标签仅在原登记流程中显式认领，不改写已标记来源。
 
-本地 Git 路由还要求节点在线并报告 `git-workspace-v1`。分支前缀读取账户 `git` 设置；创建结果登记失败时尝试由同一 Daemon 清理，并在无法确认时回报节点与受管目录位置。恢复和删除只接受账户已登记的工作树，不接收模型/浏览器提供的绝对路径；不提供任意 Git 命令、提交、远端、推送、合并或 PR。
+本地 Git 路由还要求节点在线并报告 `git-workspace-v1`。显式初始化只在当前已登记目录创建 `.git` 元数据，不自动暂存或提交；stage/unstage 与提交使用项目相对路径，提交仅接受暂存变更，并拒绝提交当前登记子目录之外的暂存文件。分支前缀读取账户 `git` 设置；分支切换/删除只允许仓库根项目，避免通过子目录登记改变仓库其他项目；AI Worktree 的分支名由 Workspace Owner 管理。所有写操作通过 Permission Owner 的显式用户操作授权。恢复和删除只接受账户已登记的工作树，不接收模型/浏览器提供的绝对路径；不提供任意 Git 命令、远端 Git、推送、合并或 PR。GitHub OAuth 仍是只读 API 凭据，不可用于 Git transport。
 
 变更审阅通过 `POST /workspace/projects/:projectId/git/file-diff` 返回单文件 Git 差异；`/files/read` 提供分段 UTF-8 文本读取，`/files/write` 只接受带 SHA-256 的用户主动编辑保存。三条路由均从认证账户、App 项目登记和目标 Daemon 解析真实根目录，不接受任意绝对路径。文件读写继续由 `project-files-v1` 执行器校验路径、符号链接、文本类型、2 MiB 上限和并发摘要；编辑器 API 不加入模型 `project-tools` 的操作合同。
+
+以上是可选 `WorkspaceProject` 项目能力，不是 Agent Git 管理器。Agent 本机 Git 仓库由独立的 `packages/api/agent-git-controller` 管理，不依赖本控制器、项目登记或 Daemon 节点。
 
 `POST /workspace/sessions/:sessionId/fork` 只接受消息 ID、目标受管项目 ID 和 App。控制器验证源会话属于当前账户/App 且绑定原始项目，并验证目标 Worktree 的源项目、Daemon 与 App 完全对应；随后由 Agent Loop 使用当前 Provider 整理至完成回答的对话记忆，Session Owner 在创建新 Session 时只保存该记忆与来源关系，并绑定已校验的 Worktree 项目。该接口不接受客户端目录或任意会话上下文，也不复制父消息或重放工具。
 

@@ -33,3 +33,5 @@ Minecraft 默认核心设置通过 `loadMinecraftCoreNames()` 读取认证后的
 Profile 插件的 `inspectManagedPlugin()` 可将一次性 NPM registry 传给来源检查；`installManagedPlugin()` 消费 NDJSON 安装流，并在同源 API 请求中提交已检查的来源类型、位置、固定版本/摘要和 registry，向 UI 发出 Owner 的真实阶段及最终插件记录。`removeManagedPlugin()` 调用受认证的卸载 API。三者都不创建 AI 会话或在客户端执行安装规则；注册表不写入账户偏好或 `.npmrc`。
 
 GitHub 连接 Client API 仅调用认证的 `/integrations/github/*` 路由，返回去除 token 的状态与规范化仓库、Issue、PR 字段；Device Flow 验证码仅在用户主动连接时显示。断开与列表读取均支持 AbortSignal，页面卸载或切换资源时取消当前请求，不在 Client 中持有 OAuth token 或设置第二个凭据存储。
+
+Agent Git API 使用账户隔离的本机仓库 ID 与会话绑定 ID调用认证 Agent Git Controller；不发送绝对目录、Daemon `nodeId` 或任意 Git 命令。当前会话的项目目录由 Session/Workspace Owner 解析并自动关联；该只读登记不会创建 `.git`。Agent 首次获准创建或写入项目文件时，文件 Tool 会在同一权限结果内对非仓库目录执行一次 `git init`。Client 不持有或回读 Git 凭据；HTTPS 远端凭据通过用户显式填写交给 Credentials Owner 加密保存，并只把是否已配置的状态返回 Client。Git 状态、差异、暂存/取消暂存、提交、历史、分支、remote、fetch、快进 pull、push 和文件审阅均调用本机 Host 的固定操作合同；SSH 同步与 Pull Request 写 API 尚未接入。

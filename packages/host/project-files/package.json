@@ -1,0 +1,10 @@
+{
+  "name": "lfaa-host-project-files",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": { "./src/*": "./src/*", "./package.json": "./package.json" },
+  "dependencies": { "lfaa-launch-environment": "workspace:*" },
+  "devDependencies": { "@types/node": "^24.0.0" },
+  "scripts": { "build": "node ../../../scripts/build-harness.mjs package" }
+}

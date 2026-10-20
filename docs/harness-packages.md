@@ -4,7 +4,7 @@
 
 参考 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，上游基线 commit `639ed015397290b3745d163aafe02ffee4aa3f84`。
 
-当前 369 个两级目录、196 个实际 workspace 包（194 个产品源码/组合包，2 个工程/测试包），173 个占位目录。控制端/节点运行树含 169 个包；客户端源码包单独进入 Web 构建。
+当前 373 个两级目录、200 个实际 workspace 包（198 个产品源码/组合包，2 个工程/测试包），173 个占位目录。控制端/节点运行树含 173 个包；客户端源码包单独进入 Web 构建。
 
 `implemented` 仅表示有 package.json 和源码/装配；不代表已经进入 Profile、通过运行验收或与 DSH 等价。`placeholder` 不可执行。产品能力现状见 [系统总体架构](系统总体架构.md)，历史核验见 [P0 记录](archive/audits/harness-p0-audit.md)。
 
@@ -14,6 +14,7 @@
 |---|---|---|---|---|---|
 | [packages/acp/acp](../packages/acp/acp) | — | placeholder | 外部 Agent Client Protocol 互操作合同与接入适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/api/account-controller](../packages/api/account-controller) | lfaa-api-account-controller | implemented | 账户认证、个人资料与身份 API，调用身份 Owner | [源码](../packages/api/account-controller/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/api/agent-git-controller](../packages/api/agent-git-controller) | lfaa-api-agent-git-controller | implemented | Agent 本机 Git 仓库登记、会话绑定与固定操作认证 API | [源码](../packages/api/agent-git-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/api/ai-video-controller](../packages/api/ai-video-controller) | lfaa-api-ai-video-controller | implemented | 账户 AI 视频项目与生成任务的认证 API | [源码](../packages/api/ai-video-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/api/connectivity-controller](../packages/api/connectivity-controller) | lfaa-api-connectivity-controller | implemented | 联机目标、连接配置与节点网络操作 API | [源码](../packages/api/connectivity-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/api/gateway](../packages/api/gateway) | lfaa-api-gateway | implemented | 共享认证 API Gateway 与 Controller 路由承载 | [源码](../packages/api/gateway/src/index.ts)；13 个静态消费者；1 个组合声明 | DSH 同名目录 |
@@ -137,12 +138,12 @@
 | [packages/core/agent-tool-presentation](../packages/core/agent-tool-presentation) | lfaa-agent-tool-presentation | implemented | 注册工具到模型函数协议的单一映射 | [源码](../packages/core/agent-tool-presentation/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/core/conversation-memory](../packages/core/conversation-memory) | lfaa-conversation-memory | implemented | 账户对话记忆提取、校验和持久化协调 | [源码](../packages/core/conversation-memory/src/index.ts)；2 个静态消费者；0 个组合声明 | LFAA 扩展 |
 | [packages/core/scope](../packages/core/scope) | lfaa-scope | implemented | 能力可见范围与 Cordis 作用域合同 | [源码](../packages/core/scope/src/index.ts)；4 个静态消费者；0 个组合声明 | DSH 同名目录 |
-| [packages/core/session](../packages/core/session) | lfaa-session | implemented | 账户会话事务、事件与 JSONL 恢复门面 | [源码](../packages/core/session/src/index.ts)；10 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/core/session](../packages/core/session) | lfaa-session | implemented | 账户会话事务、事件与 JSONL 恢复门面 | [源码](../packages/core/session/src/index.ts)；11 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/core/system-prompt](../packages/core/system-prompt) | lfaa-system-prompt | implemented | 核心指令/权限/上下文组合，不按 App 注入领域全文 | [源码](../packages/core/system-prompt/src/index.ts)；3 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/core/tools](../packages/core/tools) | lfaa-tools | implemented | 公共工具合同、参数校验、可撤销注册与 Run 工具发现 | [源码](../packages/core/tools/src/index.ts)；27 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/credentials/authorization](../packages/credentials/authorization) | lfaa-authorization | implemented | 凭据访问授权合同 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/credentials/credential-flows](../packages/credentials/credential-flows) | lfaa-credential-flows | implemented | 凭据获取/连接流程适配 | [源码](../packages/credentials/credential-flows/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
-| [packages/credentials/credentials](../packages/credentials/credentials) | lfaa-credentials | implemented | 受保护秘密存储与访问服务 | [源码](../packages/credentials/credentials/src/index.ts)；6 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/credentials/credentials](../packages/credentials/credentials) | lfaa-credentials | implemented | 受保护秘密存储与访问服务 | [源码](../packages/credentials/credentials/src/index.ts)；7 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/credentials/credentials-local](../packages/credentials/credentials-local) | — | placeholder | 本机凭据存储提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/credentials/deepseek-account](../packages/credentials/deepseek-account) | — | placeholder | DeepSeek 账户认证来源适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/credentials/deepseek-account-platform](../packages/credentials/deepseek-account-platform) | — | placeholder | DeepSeek 平台账户凭据适配 | 占位不可执行 | DSH 同名目录 |
@@ -200,22 +201,24 @@
 | [packages/hooks/hook-protocol](../packages/hooks/hook-protocol) | lfaa-hook-protocol | implemented | 模型请求前后钩子与可撤销事件协议 | [源码](../packages/hooks/hook-protocol/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/hooks/hooks-claude-code](../packages/hooks/hooks-claude-code) | — | placeholder | Claude Code 生命周期钩子适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/hooks/hooks-codex](../packages/hooks/hooks-codex) | — | placeholder | Codex 生命周期钩子适配 | 占位不可执行 | DSH 同名目录 |
-| [packages/host/daemon](../packages/host/daemon) | lfaa-host-daemon | implemented | 节点身份、心跳、任务领取、进程/文件执行与回报 | [源码](../packages/host/daemon/src/index.ts)；14 个静态消费者；1 个组合声明 | LFAA 扩展 |
+| [packages/host/daemon](../packages/host/daemon) | lfaa-host-daemon | implemented | 节点身份、心跳、任务领取、进程/文件执行与回报 | [源码](../packages/host/daemon/src/index.ts)；17 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/host/directory-picker](../packages/host/directory-picker) | — | placeholder | Host 目录选择服务合同 | 占位不可执行 | DSH 同名目录 |
 | [packages/host/directory-picker-auto](../packages/host/directory-picker-auto) | — | placeholder | 目录选择提供方自动适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/host/directory-picker-browse](../packages/host/directory-picker-browse) | — | placeholder | 服务端目录浏览选择适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/host/directory-picker-native](../packages/host/directory-picker-native) | — | placeholder | 平台原生目录选择提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/host/frontend-static](../packages/host/frontend-static) | — | placeholder | 前端静态资源托管适配 | 占位不可执行 | DSH 同名目录 |
+| [packages/host/git](../packages/host/git) | lfaa-host-git | implemented | 本机 Git 状态、差异、提交和分支固定操作执行 Owner | [源码](../packages/host/git/src/index.ts)；4 个静态消费者；0 个组合声明 | LFAA 扩展 |
 | [packages/host/open-in-app](../packages/host/open-in-app) | — | placeholder | 平台应用打开能力提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/host/plugin-inventory](../packages/host/plugin-inventory) | — | placeholder | Host 插件清单和能力检查 | 占位不可执行 | DSH 同名目录 |
 | [packages/host/product-telemetry-otel](../packages/host/product-telemetry-otel) | — | placeholder | 产品指标 OpenTelemetry 提供方 | 占位不可执行 | DSH 同名目录 |
+| [packages/host/project-files](../packages/host/project-files) | lfaa-host-project-files | implemented | 本机与 Daemon 共用的受限文件执行器 | 仅组合/清单；未证实运行 | LFAA 扩展 |
 | [packages/host/runtime-environment](../packages/host/runtime-environment) | lfaa-runtime-environment | implemented | Host 配置与运行位置服务合同 | [源码](../packages/host/runtime-environment/src/java-runtime.mjs)；3 个静态消费者；0 个组合声明 | LFAA 扩展 |
 | [packages/host/webserver](../packages/host/webserver) | lfaa-host-webserver | implemented | 共享 HTTP/Socket 服务和静态资源承载 | [源码](../packages/host/webserver/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/identity/anonymous-user-id](../packages/identity/anonymous-user-id) | — | placeholder | 匿名用户标识来源适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/identity/auth](../packages/identity/auth) | lfaa-identity-auth | implemented | 账户身份、认证和账户隔离权威 | [源码](../packages/identity/auth/src/index.ts)；10 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/integrations/github](../packages/integrations/github) | lfaa-github-integration | implemented | GitHub App Device Flow、账户令牌与只读 REST 数据 Owner | [源码](../packages/integrations/github/src/index.ts)；1 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/interaction/commands](../packages/interaction/commands) | — | placeholder | 通用交互命令登记协议 | 占位不可执行 | DSH 同名目录 |
-| [packages/interaction/permission-presets](../packages/interaction/permission-presets) | lfaa-permission-presets | implemented | 三模式授权、审批记忆与执行范围权威 | [源码](../packages/interaction/permission-presets/src/index.ts)；5 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/interaction/permission-presets](../packages/interaction/permission-presets) | lfaa-permission-presets | implemented | 三模式授权、审批记忆与执行范围权威 | [源码](../packages/interaction/permission-presets/src/index.ts)；7 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/interaction/tool-ask-user](../packages/interaction/tool-ask-user) | lfaa-tool-ask-user | implemented | 模型结构化澄清工具 | [源码](../packages/interaction/tool-ask-user/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/interaction/user-approval](../packages/interaction/user-approval) | lfaa-user-approval | implemented | 用户审批请求、通知及真实决定服务 | [源码](../packages/interaction/user-approval/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/interaction/user-questions](../packages/interaction/user-questions) | lfaa-user-questions | implemented | 账户/Run 范围的问题等待和答案路由 | [源码](../packages/interaction/user-questions/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
@@ -283,7 +286,7 @@
 | [packages/session/session-title-first-prompt-llm](../packages/session/session-title-first-prompt-llm) | lfaa-session-title-first-prompt-llm | implemented | 首轮提示的模型标题提供方 | [源码](../packages/session/session-title-first-prompt-llm/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/session/session-title-llm](../packages/session/session-title-llm) | lfaa-session-title-llm | implemented | 通用模型标题生成适配 | [源码](../packages/session/session-title-llm/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/session/session-turn-outline](../packages/session/session-turn-outline) | lfaa-session-turn-outline | implemented | 会话回合大纲投影 | [源码](../packages/session/session-turn-outline/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
-| [packages/settings/settings](../packages/settings/settings) | lfaa-settings | implemented | 账户设置类型、默认值、校验、持久化和能力映射权威 | [源码](../packages/settings/settings/src/index.ts)；36 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/settings/settings](../packages/settings/settings) | lfaa-settings | implemented | 账户设置类型、默认值、校验、持久化和能力映射权威 | [源码](../packages/settings/settings/src/index.ts)；37 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/shell/bash-local](../packages/shell/bash-local) | lfaa-bash-local | implemented | 本机 Bash Shell 提供方 | [源码](../packages/shell/bash-local/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/shell/bash-sandbox](../packages/shell/bash-sandbox) | lfaa-bash-sandbox | implemented | 隔离 Bash Shell 提供方 | [源码](../packages/shell/bash-sandbox/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/shell/pwsh-local](../packages/shell/pwsh-local) | lfaa-pwsh-local | implemented | 本机 PowerShell 提供方 | [源码](../packages/shell/pwsh-local/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
@@ -314,7 +317,7 @@
 | [packages/storage/storage](../packages/storage/storage) | lfaa-storage-hub | implemented | 存储 Hub、命名空间和后端登记 | [源码](../packages/storage/storage/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/storage/storage-domain](../packages/storage/storage-domain) | lfaa-storage-domain | implemented | 领域存储协调、配置事务及迁移 | [源码](../packages/storage/storage-domain/src/index.ts)；8 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/storage/storage-json](../packages/storage/storage-json) | lfaa-storage-json | implemented | 受控 JSON 配置存储提供方 | [源码](../packages/storage/storage-json/src/index.ts)；11 个静态消费者；1 个组合声明 | DSH 同名目录 |
-| [packages/storage/storage-sqlite](../packages/storage/storage-sqlite) | lfaa-storage-sqlite | implemented | SQLite 连接、Schema、事务与持久化后端 | [源码](../packages/storage/storage-sqlite/src/index.ts)；20 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/storage/storage-sqlite](../packages/storage/storage-sqlite) | lfaa-storage-sqlite | implemented | SQLite 连接、Schema、事务与持久化后端 | [源码](../packages/storage/storage-sqlite/src/index.ts)；21 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/subagent/subagent](../packages/subagent/subagent) | lfaa-subagent | implemented | 委派任务状态、驱动登记与结果合同 | [源码](../packages/subagent/subagent/src/index.ts)；4 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/subagent/subagent-acp](../packages/subagent/subagent-acp) | — | placeholder | ACP 外部 Agent 驱动 | 占位不可执行 | DSH 同名目录 |
 | [packages/subagent/subagent-claude-code](../packages/subagent/subagent-claude-code) | lfaa-subagent-claude-code | implemented | Claude Code 外部 Agent 驱动 | [源码](../packages/subagent/subagent-claude-code/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
@@ -379,5 +382,6 @@
 | [packages/workflow/tool-workflow](../packages/workflow/tool-workflow) | lfaa-tool-workflow | implemented | 模型工作流发现、保存、运行和跟踪工具 | [源码](../packages/workflow/tool-workflow/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/workflow/workflow](../packages/workflow/workflow) | lfaa-workflow | implemented | 账户工作流定义、运行与节点结果服务 | [源码](../packages/workflow/workflow/src/index.ts)；4 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/workflow/workflow-ptc](../packages/workflow/workflow-ptc) | — | placeholder | PTC 执行工作流节点适配 | 占位不可执行 | DSH 同名目录 |
+| [packages/workspace/agent-git](../packages/workspace/agent-git) | lfaa-workspace-agent-git | implemented | 账户隔离的本机 Git 仓库登记与 Agent Session 绑定 Owner | [源码](../packages/workspace/agent-git/src/index.ts)；3 个静态消费者；0 个组合声明 | LFAA 扩展 |
 | [packages/workspace/data-directory](../packages/workspace/data-directory) | lfaa-workspace-data-directory | implemented | 配置数据目录与工作区资源协调 | [源码](../packages/workspace/data-directory/src/index.ts)；1 个静态消费者；1 个组合声明 | LFAA 扩展 |
-| [packages/workspace/workspace](../packages/workspace/workspace) | lfaa-workspace-workspace | implemented | 账户项目、受管工作区、Worktree 与 Session 项目绑定 | [源码](../packages/workspace/workspace/src/index.ts)；4 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/workspace/workspace](../packages/workspace/workspace) | lfaa-workspace-workspace | implemented | 账户项目、受管工作区、Worktree 与 Session 项目绑定 | [源码](../packages/workspace/workspace/src/index.ts)；5 个静态消费者；1 个组合声明 | DSH 同名目录 |

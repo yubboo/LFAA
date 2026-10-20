@@ -18,9 +18,12 @@
     "lfaa-authorization": "workspace:*",
     "lfaa-agent-loop": "workspace:*",
     "lfaa-host-daemon": "workspace:*",
+    "lfaa-host-git": "workspace:*",
     "lfaa-jobs": "workspace:*",
+    "lfaa-permission-presets": "workspace:*",
     "lfaa-session": "workspace:*",
     "lfaa-settings": "workspace:*",
+    "lfaa-workspace-agent-git": "workspace:*",
     "lfaa-util-values": "workspace:*",
     "lfaa-workspace-workspace": "workspace:*"
   },

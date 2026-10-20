@@ -6,7 +6,7 @@
  */
 import type { Context } from "@deepseek-ai/cordis";
 import { randomUUID } from "node:crypto";
-import { basename, isAbsolute } from "node:path";
+import { basename, isAbsolute, resolve } from "node:path";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 
 import type { WorkspaceProjectApplicationId } from "lfaa-util-values/src/application-id.js";
@@ -131,6 +131,25 @@ export function setDefaultWorkspaceProject(userId: string, projectId: string): s
   return registered;
 }
 
+/** 原子更新既有默认项目路径；只接受默认项目 ID 和 Host 已校验的路径，并以旧路径做并发保护。 */
+export function updateDefaultWorkspaceProjectPath(userId: string, projectId: string, expectedPath: string, nextPathInput: string, platform: string): WorkspaceProject | null {
+  if (getDefaultWorkspaceProjectId(userId) !== projectId) return null;
+  const current = getWorkspaceProject(userId, projectId, "workspace");
+  if (!current || current.gitWorktree || !isAbsolute(expectedPath) || !isAbsolute(nextPathInput) || nextPathInput.length > 32760) return null;
+  const nextPath = resolve(nextPathInput);
+  if (current.path === nextPath) return current;
+  const collision = database.prepare(`
+    SELECT 1 FROM workspace_projects
+    WHERE user_id = ? AND app_id = 'workspace' AND node_id = ? AND path_key = ? AND id <> ? LIMIT 1
+  `).get(userId, current.nodeId, pathKey(nextPath, platform), projectId);
+  if (collision) throw new Error("规范默认工作区路径已登记为另一个项目；未改动原登记。 ");
+  const result = database.prepare(`
+    UPDATE workspace_projects SET path = ?, path_key = ?, updated_at = ?
+    WHERE user_id = ? AND id = ? AND app_id = 'workspace' AND node_id = ? AND path = ?
+  `).run(nextPath, pathKey(nextPath, platform), new Date().toISOString(), userId, projectId, current.nodeId, expectedPath);
+  return Number(result.changes) ? getWorkspaceProject(userId, projectId, "workspace") : null;
+}
+
 export function createWorkspaceProject(input: { userId: string; appId: WorkspaceProjectApplicationId; nodeId: string; path: string; platform: string; title?: string }): WorkspaceProject {
   const path = input.path.trim();
   if (!isAbsolute(path) || path.length > 32760) throw new Error("项目目录必须是 Daemon 返回的绝对路径。");
@@ -233,6 +252,7 @@ export const workspaceProjectService = {
   hasGitWorktrees: hasWorkspaceGitWorktrees,
   create: createWorkspaceProject,
   createGitWorktree: createWorkspaceGitWorktree,
+  updateDefaultPath: updateDefaultWorkspaceProjectPath,
   rename: renameWorkspaceProject,
   claimApplication: claimWorkspaceProjectApplication,
   remove: removeWorkspaceProject

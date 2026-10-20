@@ -144,7 +144,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       });
       mcpServer.listen(0,'127.0.0.1');await once(mcpServer,'listening');const mcpUrl='http://127.0.0.1:'+mcpServer.address().port+'/mcp';
       retireLegacyFileTables();
-      assert.equal(database.prepare('PRAGMA user_version').get().user_version,58);
+      assert.equal(database.prepare('PRAGMA user_version').get().user_version,59);
       const {aiRuntimeSettingsSchema}=await import('lfaa-api-remotes/src/route-contracts.js');
       const {AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN,AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN}=await import('lfaa-util-values/src/settings-contract.js');
       assert.equal(aiRuntimeSettingsSchema.validate({...settings.defaultSettings.aiRuntime,maxModelRequests:0,maxToolCalls:0}).error,undefined);
@@ -677,7 +677,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       process.stdout.write('后台执行回归通过');
     `;
     writeFileSync(childScript, source, "utf8");
-    const output = execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", childScript], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: data, JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe", timeout: 20000 });
+    const output = execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", childScript], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: join(data, "lfaa-home"), LFAA_DATA_DIR: join(data, "business-data"), JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe", timeout: 20000 });
     assert.match(output, /后台执行回归通过/);
   } finally {
     assert.equal(dirname(resolve(childScript)), parent);

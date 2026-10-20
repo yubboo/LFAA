@@ -10,8 +10,8 @@ import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/
 import { sidebarRightRuntime, useSidebarRightSnapshot } from "./sidebar-right-runtime.js";
 
 import { createElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Alert, Dropdown, Popover, Tag, Typography } from "antd";
-import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadWorkspaceProjects, loadWritingWorkspace, userRoleLabel, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
+import { Alert, Button, Dropdown, Popover, Tag, Typography } from "antd";
+import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadWorkspaceProjects, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import type { AiWorkGoalRequest, AiWorkNotification, AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
 import type { WorkbenchLayoutMode } from "lfaa-client-ui-dockkit/src/workbench-layout.types.js";
@@ -448,15 +448,29 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   const [workspaceNodes, setWorkspaceNodes] = useState<WorkspaceDaemonNode[]>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.nodes ?? []);
   const [workspaceProjectsTruncated, setWorkspaceProjectsTruncated] = useState(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.truncated ?? false);
   const [defaultWorkspaceProjectId, setDefaultWorkspaceProjectId] = useState<string | null>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.defaultProjectId ?? null);
+  const [workspaceProjectsLoadStatus, setWorkspaceProjectsLoadStatus] = useState<"loading" | "ready" | "error">(() => workspaceProjectSnapshots.has(`${userId}:${app}`) ? "ready" : "loading");
   const [workspaceProjectsError, setWorkspaceProjectsError] = useState("");
   const [workspaceProjectsRevision, setWorkspaceProjectsRevision] = useState(0);
   const [aiSessionsLoading, setAiSessionsLoading] = useState(() => mode === "ai-work" && !aiSessionSnapshots.has(userId));
   const [aiSessionsError, setAiSessionsError] = useState("");
   const [aiChatBusy, setAiChatBusy] = useState(false);
+  const [agentGitRepositoryState, setAgentGitRepositoryState] = useState<{ userId: string; repositories: AgentGitRepository[] }>({ userId, repositories: [] });
+  const agentGitRepositories = agentGitRepositoryState.userId === userId ? agentGitRepositoryState.repositories : [];
+  const [agentGitRepositoriesLoading, setAgentGitRepositoriesLoading] = useState(false);
+  const [agentGitRepositoriesError, setAgentGitRepositoriesError] = useState("");
+  const [sessionGitBinding, setSessionGitBinding] = useState<{ sessionId: string; repositoryId: string | null; loading: boolean }>({ sessionId: "", repositoryId: null, loading: false });
+  const [gitStatusSnapshot, setGitStatusSnapshot] = useState<{ repositoryId: string | null; status: WorkspaceGitStatus | null; loading: boolean; error: string }>({ repositoryId: null, status: null, loading: false, error: "" });
+  const [gitManagerRepositoryState, setGitManagerRepositoryState] = useState<{ userId: string; repositoryId: string | null }>({ userId, repositoryId: null });
+  const [gitSummaryOpen, setGitSummaryOpen] = useState(false);
+  const [gitSummaryStatuses, setGitSummaryStatuses] = useState<Record<string, { status?: WorkspaceGitStatus; error?: string }>>({});
+  const gitStatusRequestRevision = useRef(0);
+  const gitEnsureRequests = useRef(new Map<string, Promise<AgentGitRepository | null>>());
   const [sideChatOpen, setSideChatOpen] = useState(false);
   const [sideChatInitialQuestion, setSideChatInitialQuestion] = useState("");
   const [sideChatQuestionRevision, setSideChatQuestionRevision] = useState(0);
   const [gitRefreshRevision, setGitRefreshRevision] = useState(0);
+  const [aiWorkView, setAiWorkView] = useState<"chat" | "git">("chat");
+  const [gitRepositoryChangeError, setGitRepositoryChangeError] = useState("");
   const [fileReviewRequest, setFileReviewRequest] = useState<{ projectId: string; path: string; requestId: number } | null>(null);
   const [aiProviderStatus, setAiProviderStatus] = useState<string | null>(null);
   const [newAiSessionKey, setNewAiSessionKey] = useState(0);
@@ -553,8 +567,113 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   const terminalPanelAvailable = app !== "writing";
   const activeAiSessionTitle = aiSessions.find((session) => session.id === activeAiSessionId)?.title ?? null;
   const activeAiSession = aiSessions.find((session) => session.id === activeAiSessionId) ?? null;
-  const selectedGitProjectId = activeAiSession?.projectId ?? (!activeAiSessionId ? newAiSessionProjectId : null);
-  const selectedGitProject = workspaceProjects.find((project) => project.id === selectedGitProjectId) ?? null;
+  const gitManagerAvailable = mode === "ai-work";
+  const activeSessionGitRepositoryId = activeAiSessionId && sessionGitBinding.sessionId === activeAiSessionId ? sessionGitBinding.repositoryId : null;
+  const selectedAgentGitRepositoryId = gitManagerRepositoryState.userId === userId && gitManagerRepositoryState.repositoryId
+    ? gitManagerRepositoryState.repositoryId
+    : activeSessionGitRepositoryId;
+  const selectedAgentGitRepository = agentGitRepositories.find(repository => repository.id === selectedAgentGitRepositoryId) ?? null;
+  const refreshGitStatus = useCallback(async (repository: AgentGitRepository | null): Promise<void> => {
+    const revision = ++gitStatusRequestRevision.current;
+    if (!repository) {
+      setGitStatusSnapshot({ repositoryId: null, status: null, loading: false, error: "" });
+      return;
+    }
+    setGitStatusSnapshot((current) => ({ repositoryId: repository.id, status: current.repositoryId === repository.id ? current.status : null, loading: true, error: "" }));
+    try {
+      const result = await loadAgentGitStatus(repository.id);
+      if (gitStatusRequestRevision.current !== revision) return;
+      setGitStatusSnapshot({ repositoryId: repository.id, status: result.status, loading: false, error: "" });
+    } catch (loadError) {
+      if (gitStatusRequestRevision.current !== revision) return;
+      setGitStatusSnapshot((current) => ({ repositoryId: repository.id, status: current.repositoryId === repository.id ? current.status : null, loading: false, error: getErrorMessage(loadError) }));
+    }
+  }, []);
+  const updateGitStatus = useCallback((repositoryId: string, status: WorkspaceGitStatus) => {
+    setGitStatusSnapshot((current) => current.repositoryId === repositoryId ? { repositoryId, status, loading: false, error: "" } : current);
+  }, []);
+  const refreshSelectedGitStatus = useCallback(() => refreshGitStatus(selectedAgentGitRepository), [refreshGitStatus, selectedAgentGitRepository]);
+  const ensureSessionGitRepository = useCallback((sessionId: string): Promise<AgentGitRepository | null> => {
+    const pending = gitEnsureRequests.current.get(sessionId);
+    if (pending) return pending;
+    setGitRepositoryChangeError("");
+    setSessionGitBinding({ sessionId, repositoryId: null, loading: true });
+    const request = ensureAgentGitSessionRepository(sessionId).then(({ repository }) => {
+      if (activeAiSessionIdRef.current === sessionId) {
+        setSessionGitBinding({ sessionId, repositoryId: repository?.id ?? null, loading: false });
+        if (repository) {
+          setAgentGitRepositoryState(current => {
+            const previous = current.userId === userId ? current.repositories : [];
+            return { userId, repositories: [repository, ...previous.filter(item => item.id !== repository.id)] };
+          });
+          setGitManagerRepositoryState({ userId, repositoryId: repository.id });
+        }
+      }
+      return repository;
+    }).catch(error => {
+      if (activeAiSessionIdRef.current === sessionId) {
+        setSessionGitBinding({ sessionId, repositoryId: null, loading: false });
+        const expectedBusy = typeof error === "object" && error !== null && "code" in error && error.code === "agent_git_session_busy";
+        if (!expectedBusy) setGitRepositoryChangeError(getErrorMessage(error));
+      }
+      return null;
+    }).finally(() => {
+      if (gitEnsureRequests.current.get(sessionId) === request) gitEnsureRequests.current.delete(sessionId);
+    });
+    gitEnsureRequests.current.set(sessionId, request);
+    return request;
+  }, [userId]);
+  const visibleGitStatus = gitStatusSnapshot.repositoryId === selectedAgentGitRepository?.id ? gitStatusSnapshot : { repositoryId: selectedAgentGitRepository?.id ?? null, status: null, loading: false, error: "" };
+  const gitSummaryText = !selectedAgentGitRepository ? "当前会话尚未写入项目文件" : visibleGitStatus.loading && !visibleGitStatus.status ? "读取中…" : visibleGitStatus.error ? "读取失败" : !visibleGitStatus.status ? "等待状态" : visibleGitStatus.status.repositoryState === "not-repository" ? "等待 Agent 首次写入" : visibleGitStatus.status.repositoryState === "unborn" ? `新仓库 · ${visibleGitStatus.status.changedFileCount} 项` : visibleGitStatus.status.clean ? "工作区干净" : `${visibleGitStatus.status.changedFileCount} 项 · +${visibleGitStatus.status.insertions} −${visibleGitStatus.status.deletions}`;
+  useEffect(() => {
+    if (mode !== "ai-work") {
+      return;
+    }
+    const controller = new AbortController();
+    setAgentGitRepositoriesLoading(true);
+    setAgentGitRepositoriesError("");
+    void loadAgentGitRepositories(controller.signal).then(({ repositories }) => setAgentGitRepositoryState({ userId, repositories })).catch(error => {
+      if (!controller.signal.aborted) setAgentGitRepositoriesError(getErrorMessage(error));
+    }).finally(() => { if (!controller.signal.aborted) setAgentGitRepositoriesLoading(false); });
+    return () => controller.abort();
+  }, [gitRefreshRevision, mode, userId]);
+  useEffect(() => {
+    if (mode !== "ai-work" || !activeAiSessionId) {
+      setSessionGitBinding({ sessionId: "", repositoryId: null, loading: false });
+      return;
+    }
+    setGitManagerRepositoryState({ userId, repositoryId: null });
+    void ensureSessionGitRepository(activeAiSessionId);
+  }, [activeAiSessionId, ensureSessionGitRepository, gitRefreshRevision, mode, userId]);
+  useEffect(() => {
+    if (mode !== "ai-work" || !selectedAgentGitRepository) {
+      gitStatusRequestRevision.current += 1;
+      setGitStatusSnapshot({ repositoryId: null, status: null, loading: false, error: "" });
+      return;
+    }
+    void refreshGitStatus(selectedAgentGitRepository);
+    return () => { gitStatusRequestRevision.current += 1; };
+  }, [gitRefreshRevision, mode, refreshGitStatus, selectedAgentGitRepository?.id]);
+  useEffect(() => {
+    if (!gitSummaryOpen || mode !== "ai-work") return;
+    const controller = new AbortController();
+    let active = true;
+    const visibleRepositories = agentGitRepositories.slice(0, 12);
+    setGitSummaryStatuses({});
+    void Promise.all(visibleRepositories.map(async repository => {
+      try {
+        const { status } = await loadAgentGitStatus(repository.id, controller.signal);
+        if (active) setGitSummaryStatuses(current => ({ ...current, [repository.id]: { status } }));
+      } catch (error) {
+        if (active && !controller.signal.aborted) setGitSummaryStatuses(current => ({ ...current, [repository.id]: { error: getErrorMessage(error) } }));
+      }
+    }));
+    return () => { active = false; controller.abort(); };
+  }, [agentGitRepositories, gitSummaryOpen, mode]);
+  const handleGitSummaryOpenChange = useCallback((open: boolean) => {
+    setGitSummaryOpen(open);
+    if (open && mode === "ai-work" && activeAiSessionId) void ensureSessionGitRepository(activeAiSessionId);
+  }, [activeAiSessionId, ensureSessionGitRepository, mode]);
   const fileReviewProject = fileReviewRequest ? workspaceProjects.find(project => project.id === fileReviewRequest.projectId && (app === "workspace" || !project.appId || project.appId === app)) ?? null : null;
   const statusLabel = serverState === "online" ? "控制端已连接" : serverState === "checking" ? "正在检查控制端" : "控制端未连接";
   const contextLabel = writingNormal ? "作品信息" : mode === "ai-work" ? "工具与资源" : "应用工具";
@@ -659,6 +778,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
       setWorkspaceProjects([]);
       setWorkspaceNodes([]);
       setWorkspaceProjectsTruncated(false);
+      setWorkspaceProjectsLoadStatus("ready");
       return;
     }
     const cacheKey = `${userId}:${app}`;
@@ -668,8 +788,12 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     setWorkspaceProjectsTruncated(cached?.truncated ?? false);
     setDefaultWorkspaceProjectId(cached?.defaultProjectId ?? null);
     setWorkspaceProjectsError("");
-    if (mode !== "ai-work") return;
+    if (mode !== "ai-work") {
+      setWorkspaceProjectsLoadStatus(cached ? "ready" : "loading");
+      return;
+    }
     const controller = new AbortController();
+    setWorkspaceProjectsLoadStatus("loading");
     setWorkspaceProjectsError("");
     void (async () => {
       let initializationError = "";
@@ -688,9 +812,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
         setWorkspaceNodes(nodes);
         setWorkspaceProjectsTruncated(truncated);
         setDefaultWorkspaceProjectId(defaultProjectId ?? null);
+        setWorkspaceProjectsLoadStatus("ready");
         setWorkspaceProjectsError(initializationError);
       } catch (projectError) {
-        if (!controller.signal.aborted) setWorkspaceProjectsError(initializationError || getErrorMessage(projectError));
+        if (!controller.signal.aborted) {
+          setWorkspaceProjectsLoadStatus("error");
+          setWorkspaceProjectsError(initializationError || getErrorMessage(projectError));
+        }
       }
     })();
     return () => controller.abort();
@@ -743,12 +871,26 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   const showRightPanelSection = useCallback((nextSection: "context" | "applications") => {
     onRightPanelSectionChange(nextSection);
     sidebarRightRuntime.select(null);
+    if (nextSection === "applications") setAiWorkView("chat");
     setChrome((current) => ({
       ...current,
       rightCollapsed: false,
       ...(metrics.mode !== "desktop" ? { leftCollapsed: true } : {}),
     }));
   }, [metrics.mode, onRightPanelSectionChange]);
+  const openGitManager = useCallback((repositoryId?: string) => {
+    const targetRepositoryId = repositoryId ?? selectedAgentGitRepositoryId ?? agentGitRepositories[0]?.id ?? null;
+    if (targetRepositoryId) setGitManagerRepositoryState({ userId, repositoryId: targetRepositoryId });
+    setSideChatOpen(false);
+    setGitSummaryOpen(false);
+    showRightPanelSection("context");
+    setAiWorkView("git");
+    if (!targetRepositoryId && activeAiSessionId) {
+      void ensureSessionGitRepository(activeAiSessionId).then(repository => {
+        if (repository && activeAiSessionIdRef.current === activeAiSessionId) setGitManagerRepositoryState({ userId, repositoryId: repository.id });
+      });
+    }
+  }, [activeAiSessionId, agentGitRepositories, ensureSessionGitRepository, selectedAgentGitRepositoryId, showRightPanelSection, userId]);
   const toggleApplicationsPanel = useCallback(() => {
     if (rightPanelSection === "applications" && !chrome.rightCollapsed) {
       setChrome((current) => ({ ...current, rightCollapsed: true }));
@@ -757,12 +899,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     showRightPanelSection("applications");
   }, [chrome.rightCollapsed, rightPanelSection, showRightPanelSection]);
   const openToolsPanel = useCallback(() => {
-    if (rightPanelSection === "context" && !chrome.rightCollapsed) {
+    if (rightPanelSection === "context" && !chrome.rightCollapsed && aiWorkView !== "git") {
       setChrome((current) => ({ ...current, rightCollapsed: true }));
       return;
     }
+    setAiWorkView("chat");
     showRightPanelSection("context");
-  }, [chrome.rightCollapsed, rightPanelSection, showRightPanelSection]);
+  }, [aiWorkView, chrome.rightCollapsed, rightPanelSection, showRightPanelSection]);
   const showRecentSessions = useCallback(() => {
     setChrome((current) => ({
       ...current,
@@ -792,6 +935,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   const openSideChat = useCallback((initialQuestion = "") => {
     onRightPanelSectionChange("context");
     sidebarRightRuntime.select(null);
+    setAiWorkView("chat");
     setSideChatOpen(true);
     setSideChatInitialQuestion(initialQuestion);
     setSideChatQuestionRevision((revision) => revision + 1);
@@ -955,6 +1099,46 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
         </div>
         <div className="module-center__actions">
           {settings.general.showServiceStatus ? <span className={`module-runtime-state${serverState === "online" ? " is-connected" : ""}`}><i aria-hidden="true" />{statusLabel}</span> : null}
+          {gitManagerAvailable ? <div className="module-center__work-tabs" aria-label="Agent Git">
+            <button type="button" aria-pressed={aiWorkView === "git"} className={aiWorkView === "git" ? "is-active" : ""} onClick={() => openGitManager()} title={`当前 Agent 的 Git 变更：${gitSummaryText}`}>
+              <WorkbenchIcon name="branch" size={14} />变更{visibleGitStatus.status && visibleGitStatus.status.repositoryState !== "not-repository" ? <span>+{visibleGitStatus.status.insertions} −{visibleGitStatus.status.deletions}</span> : null}
+            </button>
+            <Popover
+              arrow={false}
+              content={<section className="module-git-summary" aria-label="Git 摘要">
+                <header><strong>Git 摘要</strong><span>{agentGitRepositories.length} 个 Agent 项目</span></header>
+                {agentGitRepositoriesLoading ? <p className="module-git-summary__empty">正在读取项目 Git 状态…</p> : null}
+                {agentGitRepositoriesError ? <p className="module-git-summary__error" role="alert">{agentGitRepositoriesError}</p> : null}
+                {!agentGitRepositoriesLoading && !agentGitRepositories.length && !agentGitRepositoriesError ? <p className="module-git-summary__empty">Agent 首次获准在项目文件夹写入时，会自动初始化 Git 并开始版本管理。</p> : null}
+                <div className="module-git-summary__list">
+                  {agentGitRepositories.slice(0, 12).map(repository => {
+                    const entry = gitSummaryStatuses[repository.id];
+                    const status = entry?.status;
+                    const branch = entry?.error ? "状态读取失败" : !status ? "读取中…" : status.repositoryState === "not-repository" ? "未初始化" : status.branch || "无分支";
+                    const changeSummary = entry?.error ? entry.error : !status ? "正在读取仓库状态…" : status.repositoryState === "not-repository" ? "Agent 首次写入时自动初始化" : status.clean ? "工作区干净" : `${status.changedFileCount} 项变更`;
+                    return <article className="module-git-summary__repository" key={repository.id}>
+                      <header><strong className="module-git-summary__item-name" title={repository.title || repository.path}>{repository.title || repository.path}</strong><span className="module-git-summary__branch" title={status?.upstream ? `${status.branch} → ${status.upstream}` : branch}>{status?.repositoryState !== "not-repository" && status?.branch ? `${status.branch}${status.upstream ? ` → ${status.upstream}` : ""}` : branch}</span></header>
+                      <div className="module-git-summary__repository-actions">
+                        <Button className="module-git-summary__change" type="text" icon={<WorkbenchIcon name="review" size={15} />} onClick={() => openGitManager(repository.id)}>变更</Button>
+                        <span className="module-git-summary__item-state" title={repository.path}>{changeSummary}</span>
+                        {status && status.repositoryState !== "not-repository" && !entry?.error ? <span className="module-git-summary__counts"><b>+{status.insertions}</b><i>−{status.deletions}</i></span> : null}
+                        <WorkbenchIcon name="branch" size={15} className="module-git-summary__branch-icon" />
+                      </div>
+                    </article>;
+                  })}
+                </div>
+                {agentGitRepositories.length > 12 ? <p className="module-git-summary__footnote">摘要显示最近 12 个项目；打开变更面板可切换其他项目。</p> : null}
+              </section>}
+              getPopupContainer={trigger => trigger.closest(".module-workbench-stage") ?? document.body}
+              onOpenChange={handleGitSummaryOpenChange}
+              open={gitSummaryOpen}
+              overlayClassName="module-git-summary-popover"
+              placement="bottomRight"
+              trigger="click"
+            >
+          <Button className="module-git-summary-trigger" type="text" aria-label="打开 Git 摘要" title="Git 摘要" aria-haspopup="dialog" aria-expanded={gitSummaryOpen}><WorkbenchIcon name="summary" size={17} /></Button>
+            </Popover>
+          </div> : null}
           {terminalPanelAvailable && settings.general.showBottomPanelControl && (chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
           {(chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="panelRight" title="上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
         </div>
@@ -962,6 +1146,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
       <main ref={moduleContentScroll.ref} onScroll={moduleContentScroll.onScroll} className={`module-center__content${mode === "ai-work" ? " module-center__content--ai-work" : ""}${writingNormal ? " module-center__content--writing-normal" : ""}${aiVideoNormal ? " module-center__content--aivideo" : ""}`} aria-label={mode === "ai-work" ? "小鱼智能体对话" : writingNormal ? "写作正文编辑区" : aiVideoNormal ? "AI 漫剧分镜画布" : undefined} aria-labelledby={mode === "normal" && app !== "minecraft" && !writingNormal && !aiVideoNormal ? "module-heading" : undefined}>
         {mode === "ai-work" ? <>
           {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
+          <div className="module-ai-work-chat">
           <Suspense fallback={<ApplicationContentLoading />}>
             <AiWorkChat
               userId={userId}
@@ -977,8 +1162,10 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
               sessions={aiSessions}
               activeSessionId={activeAiSessionId}
               newSessionProjectId={newAiSessionProjectId}
+              newSessionGitRepositoryId={null}
               defaultWorkspaceProjectId={defaultWorkspaceProjectId}
               workspaceProjects={workspaceProjects}
+              workspaceProjectsLoadStatus={workspaceProjectsLoadStatus}
               workspaceProjectsTruncated={workspaceProjectsTruncated}
               workspaceNodes={workspaceNodes}
               workspaceProjectsError={workspaceProjectsError}
@@ -1008,6 +1195,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
               onOpenProjectFileReview={openProjectFileReview}
             />
           </Suspense>
+          </div>
         </> : app === "minecraft" ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkspace onPrepareWithAi={prompt=>{onAiDraftChange(aiDraft.trim()?`${aiDraft}\n\n${prompt}`:prompt);void openApplication("workspace", "ai-work");}} userId={userId} section={section} role={role} settings={settings} onNavigate={navigateWithinApplication} onOpenConnectivity={() => { void openApplication("connectivity", "normal"); }} onContentReady={setMinecraftContentReady} /></Suspense> : app === "connectivity" && mode === "normal" ? <Suspense fallback={<ApplicationContentLoading />}><ConnectivityWorkspace section={section} isAdmin={hasAdminAccess(role)} /></Suspense> : writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingWorkspace workspace={writingWorkspace} loading={writingWorkspaceLoading} loadError={writingWorkspaceError} libraryPortalTarget={writingLibraryPortalTarget} onRetry={() => { void retryWritingWorkspace(); }} onWorkspaceChange={setWritingWorkspace} onRegisterFlush={registerWritingFlush} /></Suspense> : aiVideoNormal ? <Suspense fallback={<ApplicationContentLoading />}><AiVideoCanvasWorkspace /></Suspense> : <>
           <div className={`module-heading module-heading--workspace module-heading--${app}`}>
             <div className="module-heading__labels"><Tag className="development-tag">开发中</Tag><Tag className="module-mode-tag">{modeLabel}</Tag></div>
@@ -1024,6 +1212,28 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
       </main>
     </div>
   );
+
+  const gitManagerPanel = gitManagerAvailable && aiWorkView === "git" ? <section className="module-git-manager" aria-label="当前 Agent Git 变更管理">
+    <header className="module-git-manager__header">
+      <div className="module-git-manager__title"><strong>{selectedAgentGitRepository?.title || "Git"}</strong><span>{activeAiSessionTitle ? `当前 Agent · ${activeAiSessionTitle}` : "管理 Agent 已工作的项目文件夹"}</span></div>
+      <div className="module-git-manager__repository"><span title={selectedAgentGitRepository?.path ?? "首次项目写入后自动关联 Git"}>{selectedAgentGitRepository?.path ?? (sessionGitBinding.loading ? "正在读取当前项目…" : "项目文件夹会随 Agent 会话自动关联")}</span>
+        {agentGitRepositories.length > 1 ? <Popover
+          arrow={false}
+          content={<div className="module-git-summary__list" role="listbox" aria-label="切换 Git 项目">{agentGitRepositories.map(repository => <button className="module-git-summary__item" key={repository.id} type="button" onClick={() => setGitManagerRepositoryState({ userId, repositoryId: repository.id })}><span className="module-git-summary__item-name">{repository.title || repository.path}</span><span className="module-git-summary__item-state">{repository.id === selectedAgentGitRepositoryId ? "当前管理" : "打开变更"}</span></button>)}</div>}
+          getPopupContainer={trigger => trigger.closest(".module-workbench-stage") ?? document.body}
+          placement="bottomRight"
+          trigger="click"
+        ><Button size="small">切换项目</Button></Popover> : null}
+      </div>
+    </header>
+    {gitRepositoryChangeError || agentGitRepositoriesError ? <Alert className="module-git-manager__error" type="warning" showIcon message={gitRepositoryChangeError || agentGitRepositoriesError} /> : null}
+    {!selectedAgentGitRepository && !agentGitRepositoriesLoading && !agentGitRepositoriesError ? <Alert className="module-git-manager__empty" type="info" showIcon message="当前 Agent 尚未产生 Git 仓库" description="Agent 首次在项目文件夹执行获准的创建或写入操作时，会自动初始化 Git；当前聊天仍可继续使用。" /> : null}
+    <div className="module-git-manager__body">
+      {selectedAgentGitRepository ? <Suspense fallback={<ApplicationContentLoading />}>
+        <GitChangeSummary key={selectedAgentGitRepository.id} embedded repositoryId={selectedAgentGitRepository.id} repositoryTitle={selectedAgentGitRepository.title} status={visibleGitStatus.status} loading={visibleGitStatus.loading} loadError={visibleGitStatus.error} onRefresh={refreshSelectedGitStatus} onStatusChange={(status) => updateGitStatus(selectedAgentGitRepository.id, status)} />
+      </Suspense> : null}
+    </div>
+  </section> : null;
 
   const right = (
     <aside className="module-context" aria-label={contextLabel} data-layout-mode={metrics.mode}>
@@ -1048,17 +1258,18 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
       <div className="module-context__default-content" hidden={mode === "ai-work" && sideChatOpen}>
       {terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "right" ? <div style={{ height: metrics.bottom.initial }}><TaskTerminal appId={app} settings={settings} sessionId={activeAiSessionId} role={role} onClose={toggleTerminal} /></div> : null}
       <nav className="module-context__tabs" aria-label="右侧菜单">
-        <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "context" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "context"} onClick={() => showRightPanelSection("context")}>{contextLabel}</button>
+        <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView !== "git" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView !== "git"} onClick={() => { setAiWorkView("chat"); showRightPanelSection("context"); }}>{contextLabel}</button>
+        {gitManagerAvailable ? <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "git" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "git"} onClick={() => openGitManager()}>变更</button> : null}
         <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "applications" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "applications"} aria-controls="module-context-applications" onClick={() => showRightPanelSection("applications")}>应用</button>
         {sidebarRight.tabs.flatMap((tab) => {
           const guideItems = [...(tab.guide ?? [])].sort((first, second) => first.order - second.order);
           if (guideItems.length === 0) {
-            return [<button key={tab.id} type="button" className={sidebarRight.activeId === tab.id ? "is-active" : ""} aria-pressed={sidebarRight.activeId === tab.id} onClick={() => { onRightPanelSectionChange("context"); sidebarRightRuntime.control.openTab(tab.kind); }}>{typeof tab.title === "function" ? tab.title() : tab.title}</button>];
+            return [<button key={tab.id} type="button" className={sidebarRight.activeId === tab.id ? "is-active" : ""} aria-pressed={sidebarRight.activeId === tab.id} onClick={() => { setAiWorkView("chat"); onRightPanelSectionChange("context"); sidebarRightRuntime.control.openTab(tab.kind); }}>{typeof tab.title === "function" ? tab.title() : tab.title}</button>];
           }
           return guideItems.map((guide) => {
             const title = typeof guide.title === "function" ? guide.title() : guide.title;
             const description = typeof guide.description === "function" ? guide.description() : guide.description;
-            return <button key={`${tab.id}:${guide.id}`} type="button" className={`module-context__tab-guide${sidebarRight.activeId === tab.id ? " is-active" : ""}`} aria-label={title} aria-pressed={sidebarRight.activeId === tab.id} title={description ? `${title} — ${description}` : title} onClick={() => { onRightPanelSectionChange("context"); sidebarRightRuntime.control.openTab(tab.kind); }}>
+            return <button key={`${tab.id}:${guide.id}`} type="button" className={`module-context__tab-guide${sidebarRight.activeId === tab.id ? " is-active" : ""}`} aria-label={title} aria-pressed={sidebarRight.activeId === tab.id} title={description ? `${title} — ${description}` : title} onClick={() => { setAiWorkView("chat"); onRightPanelSectionChange("context"); sidebarRightRuntime.control.openTab(tab.kind); }}>
               {guide.icon ? createElement(guide.icon, { size: 16, className: "module-context__tab-guide-icon" }) : title}
             </button>;
           });
@@ -1066,14 +1277,14 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
       </nav>
       {sidebarRight.tabs.map((tab) => tab.keepMounted || sidebarRight.activeId === tab.id ? <div key={tab.id} className="module-context__tab-panel" hidden={sidebarRight.activeId !== tab.id} aria-hidden={sidebarRight.activeId !== tab.id}>{createElement(DshSlotOutlet, { name: "sidebar.right.pane.tab", entryKey: tab.id, fallback: <Alert type="warning" showIcon message="扩展面板尚未加载内容" description="此入口已登记，但当前没有 DSH Client 内容提供面板。请检查当前 Profile 的插件状态及 Client 入口加载错误。" /> })}</div> : null)}
       <ApplicationNavigationPanel userId={userId} app={app} mode={mode} section={section} applicationNavigationItems={applicationNavigationItems} onNavigate={navigateWithinApplication} onOpenApplication={openSidebarMode} onWritingLibraryPortalTargetChange={setWritingLibraryPortalTarget} hidden={rightPanelSection !== "applications" || sidebarRight.activeId !== null} />
-      {sidebarRight.activeId === null && rightPanelSection === "context" ? writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingBookInfo
+      {sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "git" ? gitManagerPanel : null}
+      {sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView !== "git" ? writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingBookInfo
         workspace={writingWorkspace}
         workspaceLoading={writingWorkspaceLoading}
         onWorkspaceChange={setWritingWorkspace}
         onClose={toggleRight}
       /></Suspense> : <>
       <header className="module-context__heading"><div><strong>{contextLabel}</strong><span>{mode === "ai-work" ? "当前可用能力" : "手动操作与管理"}</span></div><span className={`module-context__connection module-context__connection--${serverState}`}><i aria-hidden="true" />{serverState === "online" ? "已连接" : serverState === "checking" ? "检查中" : "未连接"}</span><button className="module-shell-icon-button module-context__close" type="button" aria-label={`收起${contextLabel}`} title={`收起${contextLabel}`} onClick={toggleRight}><WorkbenchIcon name="close" size={15} /></button></header>
-        {(app === "workspace" || app === "minecraft") && mode === "ai-work" ? <Suspense fallback={<div className="module-context__git-loading"><span>正在准备 Git 摘要…</span></div>}><GitChangeSummary appId={selectedGitProject?.appId ?? "workspace"} project={selectedGitProject} refreshRevision={gitRefreshRevision} /></Suspense> : null}
         <div className="module-context__tools">
           {terminalPanelAvailable && settings.general.showBottomPanelControl ? <button type="button" onClick={openTerminal} aria-keyshortcuts={shortcuts.openTerminal.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="terminal" size={16} /><span>终端</span><kbd>{shortcuts.openTerminal.join(" / ") || "未分配"}</kbd></button> : null}
           {mode === "ai-work" ? <button type="button" className="module-context__side-chat-action" onClick={() => openSideChat()} title="主聊天任务会继续运行；侧聊使用已记录的上下文快照。" aria-keyshortcuts={sideChatShortcuts.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="help" size={16} /><span>侧边聊天</span><kbd>{sideChatShortcuts.join(" / ") || "未分配"}</kbd></button> : null}

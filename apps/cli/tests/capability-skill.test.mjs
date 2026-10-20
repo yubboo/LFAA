@@ -1,7 +1,7 @@
 /**
  * 功能：回归项目 Skill 的 GitHub 快照检查、项目目标隔离、真实 Owner 文件树与安装后发现。
  * 作用：以固定归档和 Daemon Owner 契约验证通用能力路由可覆盖插件以外的类型。
- * 关联文件：packages/boot/capability-skill/src/index.ts、core/tools/project-tools.ts、host/daemon/project-files.mjs。
+ * 关联文件：packages/boot/capability-skill/src/index.ts、core/tools/project-tools.ts、host/project-files/project-files.mjs。
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';

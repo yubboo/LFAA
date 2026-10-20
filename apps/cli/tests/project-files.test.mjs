@@ -1,7 +1,7 @@
 /**
  * 功能：回归真实项目文件执行器。
  * 作用：在临时目录验证 UTF-8、唯一锚点、摘要冲突、越界拒绝及 Node 标准输入执行，结束后清理夹具。
- * 关联文件：packages/host/daemon/src/project-files.mjs、core/tools/project-tools.ts。
+ * 关联文件：packages/host/project-files/src/project-files.mjs、core/tools/project-tools.ts。
  */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -9,25 +9,68 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { createDefaultWorkspaceDirectory, executeProjectFile } from "../../../packages/host/daemon/src/project-files.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { createDefaultWorkspaceDirectory, executeProjectFile, inspectDefaultWorkspaceDirectory, resolveWindowsDocumentsDirectory } from "../../../packages/host/project-files/src/project-files.mjs";
+
+test("Windows 文档目录使用 Unicode 路径并正确展开注册表变量", () => {
+  const documents = resolve(tmpdir(), "用户文档");
+  const profile = resolve(tmpdir(), "用户配置");
+  assert.equal(resolveWindowsDocumentsDirectory(documents, {}), documents);
+  assert.equal(resolveWindowsDocumentsDirectory("%USERPROFILE%\\我的文档", { USERPROFILE: profile }), resolve(profile, "我的文档"));
+  assert.throws(() => resolveWindowsDocumentsDirectory("%MISSING%\\文档", {}), /路径无效/u);
+});
 
 test("首次默认项目目录创建在系统文档下并可安全重复", async () => {
   const parent = resolve(tmpdir());
   const root = mkdtempSync(join(parent, "lfaa-default-workspace-"));
   const documents = join(root, "My Documents");
   try {
+    mkdirSync(documents, { recursive: true });
     const resolveDocuments = () => documents;
+    assert.deepEqual(await inspectDefaultWorkspaceDirectory(resolveDocuments), { path: join(documents, "lfaa", "default-workspace"), directory: false });
     const first = await createDefaultWorkspaceDirectory(resolveDocuments);
     const second = await createDefaultWorkspaceDirectory(resolveDocuments);
-    assert.equal(first, join(documents, "LFAA", "default-workspace"));
+    assert.equal(first, join(documents, "lfaa", "default-workspace"));
     assert.equal(second, first);
+    assert.deepEqual(await inspectDefaultWorkspaceDirectory(resolveDocuments), { path: first, directory: true });
+    const directDocuments = join(root, "Direct Documents");
+    const directDataRoot = join(root, "direct-data");
+    mkdirSync(directDocuments);
+    mkdirSync(directDataRoot);
+    const directScript = `import { createDefaultWorkspaceDirectory } from ${JSON.stringify(new URL("../../../packages/host/project-files/src/project-files.mjs", import.meta.url).href)}; process.stdout.write(await createDefaultWorkspaceDirectory(() => ${JSON.stringify(directDocuments)}));`;
+    const directCreated = execFileSync(process.execPath, ["--input-type=module", "-e", directScript], {
+      encoding: "utf8", windowsHide: true, env: { ...process.env, NODE_OPTIONS: "", LFAA_DAEMON_DATA_ROOT: directDataRoot }
+    });
+    assert.equal(directCreated, join(directDocuments, "lfaa", "default-workspace"), "Daemon 子进程不加载包解析器时也能创建默认目录");
     const dataRoot = join(root, "protected-data");
     const blockedDocuments = join(dataRoot, "Documents");
-    const moduleUrl = new URL("../../../packages/host/daemon/src/project-files.mjs", import.meta.url).href;
+    const moduleUrl = new URL("../../../packages/host/project-files/src/project-files.mjs", import.meta.url).href;
     const script = `import { createDefaultWorkspaceDirectory } from ${JSON.stringify(moduleUrl)}; await createDefaultWorkspaceDirectory(() => ${JSON.stringify(blockedDocuments)});`;
-    assert.throws(() => execFileSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", windowsHide: true, env: { ...process.env, LFAA_DAEMON_DATA_ROOT: dataRoot } }), /LFAA_DATA_DIR/u);
+    const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+    const loaderUrl = pathToFileURL(resolve(cli, "register-package-loader.mjs")).href;
+    assert.throws(() => execFileSync(process.execPath, ["--import", loaderUrl, "--input-type=module", "-e", script], { encoding: "utf8", windowsHide: true, env: { ...process.env, LFAA_DAEMON_DATA_ROOT: dataRoot } }), /LFAA_DATA_DIR/u);
     assert.equal(existsSync(blockedDocuments), false, "拒绝位于 LFAA_DATA_DIR 内的默认项目路径前不创建目录");
+  } finally { assert.equal(dirname(resolve(root)), parent); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("默认工作区只在动态系统文档目录创建，不复制乱码旧目录内容", async () => {
+  const parent = resolve(tmpdir());
+  const root = mkdtempSync(join(parent, "lfaa-default-workspace-restore-"));
+  const documents = join(root, "系统文档");
+  const source = join(root, "ϵͳ", "�ĵ�", "LFAA", "default-workspace");
+  try {
+    mkdirSync(documents, { recursive: true });
+    mkdirSync(join(source, ".git"), { recursive: true });
+    writeFileSync(join(source, ".git", "HEAD"), "ref: refs/heads/main\n");
+    writeFileSync(join(source, "index.html"), "<!doctype html><title>保留</title>\n");
+    const resolveDocuments = () => documents;
+    const initialized = await createDefaultWorkspaceDirectory(resolveDocuments);
+    assert.equal(initialized, join(documents, "lfaa", "default-workspace"));
+    assert.deepEqual(await inspectDefaultWorkspaceDirectory(resolveDocuments), { path: initialized, directory: true });
+    assert.equal(existsSync(join(source, ".git", "HEAD")), true, "乱码旧目录保持原样");
+    assert.equal(existsSync(join(source, "index.html")), true, "不读取或复制乱码旧目录内容");
+    assert.equal(existsSync(join(initialized, ".git", "HEAD")), false, "新默认工作区只创建目录");
+    assert.equal(existsSync(join(initialized, "index.html")), false, "新目录不包含旧目录文件");
   } finally { assert.equal(dirname(resolve(root)), parent); rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -56,8 +99,10 @@ test("项目文本操作返回真实证据且拒绝覆盖、重复锚点和越�
     await assert.rejects(executeProjectFile({ ...base, path: "../outside.txt", operation: "create", content: "越界" }), /超出/u);
     writeFileSync(join(root, "bom.txt"), "\ufeff保留 BOM");
     assert.equal((await executeProjectFile({ ...base, path: "bom.txt", operation: "read" })).content, "\ufeff保留 BOM");
-    const runner = fileURLToPath(new URL("../../../packages/host/daemon/src/project-files.mjs", import.meta.url));
-    const result = execFileSync(process.execPath, [runner], { input: JSON.stringify({ ...base, operation: "read" }), encoding: "utf8", windowsHide: true });
+    const runner = fileURLToPath(new URL("../../../packages/host/project-files/src/project-files.mjs", import.meta.url));
+    const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+    const loaderUrl = pathToFileURL(resolve(cli, "register-package-loader.mjs")).href;
+    const result = execFileSync(process.execPath, ["--import", loaderUrl, runner], { input: JSON.stringify({ ...base, operation: "read" }), encoding: "utf8", windowsHide: true });
     assert.equal(JSON.parse(result).sha256, current.sha256);
     const page = await executeProjectFile({ ...base, operation: "read", offset: 1, limit: 3 });
     assert.equal(page.content, current.content.slice(1, 4));
@@ -116,9 +161,11 @@ test("项目目录选择只列一级文件夹，且不会暴露或进入 LFAA_DA
   const dataRoot = join(root, "lfaa-data");
   mkdirSync(dataRoot);
   writeFileSync(join(dataRoot, "private.txt"), "受保护的数据");
-  const runner = fileURLToPath(new URL("../../../packages/host/daemon/src/project-files.mjs", import.meta.url));
+  const runner = fileURLToPath(new URL("../../../packages/host/project-files/src/project-files.mjs", import.meta.url));
   const env = { ...process.env, LFAA_DAEMON_DATA_ROOT: dataRoot };
-  const run = input => JSON.parse(execFileSync(process.execPath, [runner], { input: JSON.stringify(input), encoding: "utf8", windowsHide: true, env, stdio: ["pipe", "pipe", "pipe"] }));
+  const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  const loaderUrl = pathToFileURL(resolve(cli, "register-package-loader.mjs")).href;
+  const run = input => JSON.parse(execFileSync(process.execPath, ["--import", loaderUrl, runner], { input: JSON.stringify(input), encoding: "utf8", windowsHide: true, env, stdio: ["pipe", "pipe", "pipe"] }));
   const assertProtectedPathRejected = input => {
     let failure;
     try { run(input); } catch (error) { failure = error; }

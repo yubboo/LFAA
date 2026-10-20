@@ -1,7 +1,7 @@
 /**
  * 功能：将 GitHub 项目 Skill 安装适配到现有项目目录与 Daemon 文件 Owner。
  * 作用：固定提交、校验单个 Skill 文件树、仅写入当前选中项目并通过真实目录发现核验。
- * 关联文件：capability-installs、plugin-manager/github-source.ts、core/tools/project-tools.ts、host/daemon/project-files.mjs。
+ * 关联文件：capability-installs、plugin-manager/github-source.ts、core/tools/project-tools.ts、host/project-files/project-files.mjs。
  */
 import type { Context } from "@deepseek-ai/cordis";
 import { createHash } from "node:crypto";

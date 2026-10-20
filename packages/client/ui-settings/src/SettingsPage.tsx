@@ -3190,22 +3190,27 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     );
 
     if (activeSection === "workspace") return (
-      <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">业务数据</span><Typography.Title level={2}>项目与存储</Typography.Title><Typography.Paragraph>这里选择的业务 Data 根统一承载游戏与项目、运行环境、工具、缓存、临时文件、日志、备份、模型和联机配置。默认位置是 LFAA Home 下的 data；账户数据库、凭据、会话和账户设置留在 Home，插件由各自 Profile 管理。</Typography.Paragraph></div></header>
+      <section className="settings-content settings-content--storage">
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">业务数据</span><Typography.Title level={2}>项目与存储</Typography.Title><Typography.Paragraph>管理本机业务 Data 根、SteamCMD 工具目录和游戏存储位置。账户、会话和设置保留在 LFAA Home；本页更改通过对应区块单独保存。</Typography.Paragraph></div></header>
         {!canAdmin ? <Alert className="settings-inline-alert" type="warning" showIcon message="应用存储路径由管理员配置。" /> : null}
         {canAdmin && projectStorageLocations?.dataDirectoryExternallyManaged ? <Alert className="settings-inline-alert" type="warning" showIcon message="业务 Data 根由部署配置控制" description={projectStorageLocations.changeUnavailableReason ?? "请修改 LFAA_DATA_DIR 部署配置后重启；此页面只读显示实际业务目录。"} /> : null}
         {canAdmin && projectStorageLocations?.restartRequired ? <Alert className="settings-inline-alert" type="warning" showIcon message="业务 Data 根已保存，尚未对齐当前运行进程" description="重启 LFAA 后，控制端与本机 Daemon 会从 LFAA Home 中读取同一条项目与存储配置，并在新 Data 根创建业务目录。旧目录和已有文件会保留。" /> : null}
         {canAdmin && projectStorageLocations ? <SettingGroup title="业务内容存储位置">
           <div className="settings-storage-panel">
             <div className="settings-storage-current">
-              <div><Typography.Text strong>当前业务 Data 根</Typography.Text><Tag>使用中</Tag></div>
-              <Typography.Text code copyable>{projectStorageLocations.contentDirectory}</Typography.Text>
-              <Typography.Text type="secondary">此根目录下的业务分类由同一个 Owner 创建和解析：</Typography.Text>
-              <Space direction="vertical" size={4} style={{ width: "100%" }}>
-                {projectStorageLocations.businessDirectories.map(directory => <Typography.Text key={directory.path} style={{ display: "block", overflowWrap: "anywhere" }}>{directory.name}：<Typography.Text code copyable>{directory.path}</Typography.Text></Typography.Text>)}
-              </Space>
+              <div className="settings-storage-current__heading">
+                <div><Typography.Text strong>当前业务 Data 根</Typography.Text><Typography.Text type="secondary">新建的业务文件与运行目录使用此位置</Typography.Text></div>
+                <Tag>正在使用</Tag>
+              </div>
+              <Typography.Text className="settings-storage-current__path" code copyable>{projectStorageLocations.contentDirectory}</Typography.Text>
+              <div className="settings-storage-directory-grid" aria-label="当前业务子目录">
+                {projectStorageLocations.businessDirectories.map(directory => <div className="settings-storage-directory" key={directory.path}>
+                  <span>{directory.name}</span>
+                  <Typography.Text className="settings-storage-directory__path" code copyable>{directory.path}</Typography.Text>
+                </div>)}
+              </div>
             </div>
-            <Typography.Paragraph type="secondary">选择新位置时，旧根和其中已有文件保持原样；新根会创建上述业务分类。下方复制、核对和 ZIP 选项只处理已有游戏、Writing 与 AI 漫剧项目文件，不复制运行环境、缓存、日志和备份；账户数据与插件 Profile 始终留在各自 Home/Profile 位置。</Typography.Paragraph>
+            <Typography.Paragraph className="settings-storage-scope" type="secondary">切换时新根会创建上述业务分类，旧根和其中的文件保持原样。复制、核对与 ZIP 只处理已有游戏、Writing 和 AI 漫剧项目文件，不复制运行环境、缓存、日志与备份。</Typography.Paragraph>
             <Radio.Group className="settings-storage-options" aria-label="业务内容存储位置选择" value={contentDirectorySelection} disabled={!canEditContentDirectory} onChange={event => { setContentDirectorySelection(event.target.value); setContentComparison(null); }}>
               <Radio value="default" disabled={!canEditContentDirectory}>
                 <span className="settings-storage-option__copy"><strong>默认存储位置</strong><span>使用 LFAA Home 下的业务 data；已有项目内容按下方方式处理</span><code>{projectStorageLocations.defaultContentDirectory}</code></span>
@@ -3244,7 +3249,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
               {contentComparison ? <Alert className="settings-inline-alert" type={contentComparison.matching ? "success" : "warning"} showIcon message={contentComparison.matching ? "手动复制核对通过" : `发现 ${contentComparison.differenceCount} 处差异`} description={`源：${contentComparison.sourceFileCount} 个文件，${formatStorageBytes(contentComparison.sourceBytes)}；目标：${contentComparison.targetFileCount} 个文件，${formatStorageBytes(contentComparison.targetBytes)}。${contentComparison.differences.slice(0, 12).map(item => ` ${item.kind}: ${item.path}`).join("；")}${contentComparison.differenceCount > 12 ? "；其余差异已省略" : ""}`} /> : null}
               <Alert className="settings-inline-alert" type="info" showIcon message="账户数据与业务数据分开保管" description="这里切换的是本机业务 Data 根。账户、Provider/凭据、会话和设置留在 LFAA Home；插件 Profile 与远端节点目录不受影响。业务运行分类在新根创建，已有项目文件只按上方选择的方式处理；冲突文件备份保留在目标 data/.lfaa-content-migration-backups/。" />
             </div>
-            {!canAdmin ? <Typography.Text type="secondary">需要管理员账户才能更改本机内容存储目录。</Typography.Text> : <div className="settings-storage-actions">
+            {!canAdmin ? <Typography.Text type="secondary">需要管理员账户才能更改本机内容存储目录。</Typography.Text> : <div className="settings-storage-actions settings-storage-final-actions">
               <Button loading={contentStorageAction === "export"} disabled={!canEditContentDirectory} onClick={() => void exportProjectContentArchive()}>导出业务 ZIP</Button>
               <Typography.Text type="secondary">复制/导入成功且 SHA-256 校验通过后才切换；原目录保留。手动模式须先完成比对。</Typography.Text>
               <Button type="primary" loading={contentStorageAction === "save" || contentStorageAction === "import"} disabled={!canEditContentDirectory || (contentDirectorySelection === "custom" && !contentDirectoryDraft.trim()) || (contentMigrationMode === "archive" && !contentArchivePath.trim()) || (contentMigrationMode === "adopt" && !(contentComparison?.matching && contentComparison.targetDirectory.toLocaleLowerCase() === selectedContentDirectory().toLocaleLowerCase()))} onClick={() => void saveContentStorageSelection()}>{contentStorageAction === "save" || contentStorageAction === "import" ? "正在迁移并校验…" : contentMigrationMode === "adopt" ? "核对并切换位置" : contentMigrationMode === "archive" ? "导入 ZIP 并切换" : "复制并切换位置"}</Button>
@@ -3412,13 +3417,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
     if (activeSection === "git") return (
       <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">本地版本管理</span><Typography.Title level={2}>Git</Typography.Title><Typography.Paragraph>在 小鱼智能体 项目中查看真实 Git 差异，并从原项目创建隔离 Worktree。此设置只影响本地分支命名；远端、Pull Request 和推送功能尚未接入。</Typography.Paragraph></div></header>
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">Agent 项目版本管理</span><Typography.Title level={2}>Git</Typography.Title><Typography.Paragraph>Agent 会自动管理当前项目文件夹的 Git 版本。这里的设置控制新建隔离 Worktree 的分支前缀；Agent Git 摘要支持查看变更、分支、提交历史，以及 HTTPS 远端同步。</Typography.Paragraph></div></header>
         <SettingGroup title="AI Worktree 分支">
           <SettingRow title="分支前缀" description="创建 AI Worktree 时添加在分支名称前。必须以斜线结尾；Git 会再次校验完整分支名。" status="账户设置">
             <Input value={settings.git.branchPrefix} maxLength={65} placeholder="codex/" onChange={(event) => updateSettings("git", { ...settings.git, branchPrefix: event.target.value })} />
           </SettingRow>
         </SettingGroup>
-        <div className="settings-note-card"><strong>变更与恢复</strong><p>小鱼智能体 右侧摘要读取目标 Daemon 的 Git 状态和 diff。隔离 Worktree 可恢复到创建时的基线；源项目不会被该恢复操作修改。</p></div>
+        <div className="settings-note-card"><strong>变更与恢复</strong><p>Agent 右侧 Git 摘要读取当前项目文件夹的本机 Git 状态和差异。隔离 Worktree 可恢复到创建时的基线；源项目不会被该恢复操作修改。</p></div>
       </section>
     );
 
@@ -3493,17 +3498,17 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const activeError = (providerModalOpen ? undefined : error) || sectionErrors[activeSection] || (activeSettingsCategory ? settingsSaveErrors[activeSettingsCategory] : undefined);
   const main = (
     <div className="settings-main">
-      <header className="settings-toolbar">
+      <header className={`settings-toolbar${activeSection === "workspace" ? " settings-toolbar--storage" : ""}`}>
         <div className="settings-toolbar__start">
           {sidebarCollapsed ? <Button className="settings-sidebar-open" aria-label="展开设置导航" onClick={() => setSidebarCollapsed(false)}>☰ 设置菜单</Button> : <>
             <Button className="settings-toolbar__back" type="text" onClick={onBack}>← 返回工作区</Button>
             <Button className="settings-toolbar__collapse" type="text" aria-label="收起设置导航" title="收起设置导航" onClick={() => setSidebarCollapsed(true)}>×</Button>
           </>}
         </div>
-        <div className="settings-toolbar__status"><small>更新会自动保存</small></div>
+        <div className="settings-toolbar__status"><small>{activeSection === "workspace" ? "本页配置由各区块单独保存" : "更新会自动保存"}</small></div>
         <div className="settings-toolbar__actions">
-          <Button disabled={!activeSettingsCategory || saving !== null} onClick={resetActiveSettings}>恢复默认</Button>
-          <Button type="primary" loading={saving === "toolbar"} disabled={saving !== null} onClick={() => void persistToolbarSettingsNow()}>立即保存</Button>
+          {activeSection !== "workspace" ? <Button disabled={!activeSettingsCategory || saving !== null} onClick={resetActiveSettings}>恢复默认</Button> : null}
+          <Button type="primary" loading={saving === "toolbar"} disabled={saving !== null} onClick={() => void persistToolbarSettingsNow()}>{activeSection === "workspace" ? "保存待处理偏好" : "立即保存"}</Button>
         </div>
       </header>
       <main ref={settingsContentScroll.ref} className="settings-main__content" onScroll={settingsContentScroll.onScroll}>

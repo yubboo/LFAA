@@ -50,7 +50,7 @@ test("环境任务隔离、重复合并、取消确认及租约未知；旧存�
     assert.equal(storage.getProjectStorageLocations().settings.runtimeDirectory,before.runtimeDirectory);
     assert.ok(storage.getRuntimeStorageLocations('local',process.env.LFAA_DATA_DIR,process.platform).previousRuntimeDirectories.includes(legacy));
     const remote=storage.getRuntimeStorageLocations('00000000-0000-4000-8000-000000000001','E:\\\\remote','win32');assert.equal(remote.runtimeDirectory,'E:\\\\remote\\\\environments');
-    migrateRuntimeEnvironmentSchema();assert.equal(database.prepare('PRAGMA user_version').get().user_version,58);
+    migrateRuntimeEnvironmentSchema();assert.equal(database.prepare('PRAGMA user_version').get().user_version,59);
     closeDatabase();
   `],{cwd:join(root,"apps/cli"),env:{...process.env,NODE_ENV:"test",LFAA_DATA_DIR:data,JWT_SECRET:""},encoding:"utf8",stdio:"pipe"});}
   finally {rmSync(data,{recursive:true,force:true});}

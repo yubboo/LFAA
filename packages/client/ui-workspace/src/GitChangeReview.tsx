@@ -1,24 +1,28 @@
 /**
  * 功能：在 AI Work 项目中审阅真实 Git 差异，并按用户操作查看或编辑项目文本文件。
- * 作用：Git 差异由 Daemon Git Owner 提供；文件读写绑定已登记项目并使用 SHA-256 防覆盖。
+ * 作用：Git 差异由 LFAA 本机 Git Owner 提供；文件读写绑定已登记项目并使用 SHA-256 防覆盖。
  * 不负责：执行 Git 命令、应用补丁、提交、推送或修改项目登记。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Button, Input, Modal, Spin, Tag, message } from "antd";
+import { Alert, Button, Dropdown, Input, Modal, Select, Spin, Tag, message } from "antd";
 import { AiMarkdown } from "lfaa-client-ui-chat/src/AiMarkdown.js";
-import { getErrorMessage, loadWorkspaceGitFileDiff, readWorkspaceProjectTextFile, writeWorkspaceProjectTextFile, type WorkspaceGitFileDiff, type WorkspaceGitStatus, type WorkspaceProject, type WorkspaceProjectApplicationId, type WorkspaceProjectTextFile } from "lfaa-client-connection/src/api.js";
+import { getErrorMessage, loadAgentGitFile, loadAgentGitFileDiff, loadWorkspaceGitFileDiff, readWorkspaceProjectTextFile, saveAgentGitFile, writeWorkspaceProjectTextFile, type WorkspaceGitFileDiff, type WorkspaceGitStatus, type WorkspaceProjectApplicationId, type WorkspaceProjectTextFile } from "lfaa-client-connection/src/api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 
 type DiffKind = "context" | "added" | "removed" | "meta";
 interface DiffRow { text: string; kind: DiffKind }
 interface SplitRow { left: DiffRow | null; right: DiffRow | null }
+type GitFileFilter = "all" | "unstaged" | "staged" | "untracked" | "committed";
 
 interface GitChangeReviewProps {
-  appId: WorkspaceProjectApplicationId;
-  project: WorkspaceProject;
+  appId?: WorkspaceProjectApplicationId;
+  projectId: string;
+  projectTitle: string;
+  repositoryId?: string;
   status: WorkspaceGitStatus;
   initialPath: string;
   open: boolean;
+  embedded?: boolean;
   onClose: () => void;
   onRefresh: () => Promise<void>;
 }
@@ -96,9 +100,10 @@ function encodeBase64(value: string): string {
   return btoa(binary);
 }
 
-export function GitChangeReview({ appId, project, status, initialPath, open, onClose, onRefresh }: GitChangeReviewProps) {
+export function GitChangeReview({ appId, projectId, projectTitle, repositoryId, status, initialPath, open, embedded = false, onClose, onRefresh }: GitChangeReviewProps) {
   const [selectedPath, setSelectedPath] = useState(initialPath);
   const [filter, setFilter] = useState("");
+  const [fileFilter, setFileFilter] = useState<GitFileFilter>("all");
   const [showFiles, setShowFiles] = useState(true);
   const [fullScreen, setFullScreen] = useState(false);
   const [wrapLines, setWrapLines] = useState(false);
@@ -125,6 +130,7 @@ export function GitChangeReview({ appId, project, status, initialPath, open, onC
   const fileRequest = useRef(0);
   const selected = status.files.find(file => file.path === selectedPath);
   const projectFilePath = selected?.projectPath ?? selectedPath;
+  const fileIsInRegisteredProject = !status.projectRelativePath || selectedPath === status.projectRelativePath || selectedPath.startsWith(`${status.projectRelativePath}/`);
 
   useEffect(() => {
     if (!open) return;
@@ -140,7 +146,7 @@ export function GitChangeReview({ appId, project, status, initialPath, open, onC
     setDraft("");
     setFileError("");
     setDiffError("");
-  }, [open, project.id]);
+  }, [open, projectId]);
 
   useEffect(() => {
     if (open) return;
@@ -150,36 +156,47 @@ export function GitChangeReview({ appId, project, status, initialPath, open, onC
 
   useEffect(() => {
     if (!open || !selectedPath || showSource) return;
-    const request = ++diffRequest.current;
+    const requestId = ++diffRequest.current;
     let active = true;
     setDiffLoading(true);
     setDiffError("");
     setFileDiff(null);
-    void loadWorkspaceGitFileDiff(project.id, appId, selectedPath, { ignoreWhitespace: hideWhitespace, wordDiff })
-      .then(result => { if (active && request === diffRequest.current) setFileDiff(result.file); })
-      .catch(error => { if (active && request === diffRequest.current) setDiffError(getErrorMessage(error)); })
-      .finally(() => { if (active && request === diffRequest.current) setDiffLoading(false); });
+    const load = repositoryId
+      ? loadAgentGitFileDiff(repositoryId, selectedPath, { ignoreWhitespace: hideWhitespace, wordDiff }).then(({ diff }) => ({ file: diff }))
+      : loadWorkspaceGitFileDiff(projectId, appId!, selectedPath, { ignoreWhitespace: hideWhitespace, wordDiff });
+    void load
+      .then(result => { if (active && requestId === diffRequest.current) setFileDiff(result.file); })
+      .catch(error => { if (active && requestId === diffRequest.current) setDiffError(getErrorMessage(error)); })
+      .finally(() => { if (active && requestId === diffRequest.current) setDiffLoading(false); });
     return () => { active = false; };
-  }, [open, project.id, appId, selectedPath, hideWhitespace, wordDiff, showSource, version]);
+  }, [open, projectId, repositoryId, appId, selectedPath, hideWhitespace, wordDiff, showSource, version]);
 
   useEffect(() => {
     if (!open || !selectedPath || !showSource || fileRead) return;
-    const request = ++fileRequest.current;
+    const requestId = ++fileRequest.current;
     let active = true;
     setReadLoading(true);
     setFileError("");
-    void readWorkspaceProjectTextFile(project.id, appId, projectFilePath, 0, 40000)
+    const load = repositoryId ? loadAgentGitFile(repositoryId, projectFilePath, { offset: 0, limit: 40000 }) : readWorkspaceProjectTextFile(projectId, appId!, projectFilePath, 0, 40000);
+    void load
       .then(result => {
-        if (!active || request !== fileRequest.current) return;
+        if (!active || requestId !== fileRequest.current) return;
         setFileRead(result.file);
         setDraft(normalizeEditorText(result.file.content));
       })
-      .catch(error => { if (active && request === fileRequest.current) setFileError(getErrorMessage(error)); })
-      .finally(() => { if (active && request === fileRequest.current) setReadLoading(false); });
+      .catch(error => { if (active && requestId === fileRequest.current) setFileError(getErrorMessage(error)); })
+      .finally(() => { if (active && requestId === fileRequest.current) setReadLoading(false); });
     return () => { active = false; };
-  }, [open, project.id, appId, selectedPath, projectFilePath, showSource, fileRead]);
+  }, [open, projectId, repositoryId, appId, selectedPath, projectFilePath, showSource, fileRead]);
 
-  const filteredFiles = useMemo(() => status.files.filter(file => file.displayPath.toLocaleLowerCase().includes(filter.toLocaleLowerCase())), [status.files, filter]);
+  const filteredFiles = useMemo(() => status.files.filter(file => {
+    const matchesName = file.displayPath.toLocaleLowerCase().includes(filter.toLocaleLowerCase());
+    const matchesStatus = fileFilter === "all" || fileFilter === "untracked" && file.status === "??"
+      || fileFilter === "committed" && file.status === "C"
+      || fileFilter === "staged" && file.status !== "??" && file.status[0] !== " "
+      || fileFilter === "unstaged" && (file.status === "??" || file.status[1] !== " ");
+    return matchesName && matchesStatus;
+  }), [fileFilter, filter, status.files]);
   const hunks = useMemo(() => displayLines(fileDiff?.diff ?? "", hideImports), [fileDiff?.diff, hideImports]);
   const dirty = editMode && fileRead !== null && draft !== normalizeEditorText(fileRead.content);
   const canEdit = fileRead !== null && !fileRead.truncated && selected?.status !== "D";
@@ -241,7 +258,7 @@ export function GitChangeReview({ appId, project, status, initialPath, open, onC
       let content = fileRead.content;
       let offset = content.length;
       while (offset < fileRead.totalCharacters) {
-        const result = await readWorkspaceProjectTextFile(project.id, appId, projectFilePath, offset, 100000);
+        const result = repositoryId ? await loadAgentGitFile(repositoryId, projectFilePath, { offset, limit: 100000 }) : await readWorkspaceProjectTextFile(projectId, appId!, projectFilePath, offset, 100000);
         if (request !== fileRequest.current) return;
         if (result.file.sha256 !== fileRead.sha256 || result.file.totalCharacters !== fileRead.totalCharacters) throw new Error("文件在分段读取期间发生变化，请重新加载后再编辑。");
         if (!result.file.content.length) throw new Error("文件读取不完整，已停止继续加载。");
@@ -278,8 +295,11 @@ export function GitChangeReview({ appId, project, status, initialPath, open, onC
     setFileError("");
     setSavingConflict(false);
     try {
-      const result = await writeWorkspaceProjectTextFile(project.id, appId, projectFilePath, content, fileRead.sha256);
-      setFileRead({ ...fileRead, content, sha256: result.result.sha256, truncated: false });
+      const result = repositoryId
+        ? await saveAgentGitFile(repositoryId, projectFilePath, content, fileRead.sha256)
+        : await writeWorkspaceProjectTextFile(projectId, appId!, projectFilePath, content, fileRead.sha256);
+      const sha256 = "file" in result ? result.file.sha256 : result.result.sha256;
+      setFileRead({ ...fileRead, content, sha256, truncated: false });
       setDraft(normalizeEditorText(content));
       setEditMode(false);
       await onRefresh();
@@ -302,56 +322,53 @@ export function GitChangeReview({ appId, project, status, initialPath, open, onC
 
   const renderedDiff = (row: DiffRow | null, side: "left" | "right" | "unified", index: number) => <div className={`git-review__line git-review__line--${row?.kind ?? "empty"}`} data-diff-type={row?.kind} key={`${side}-${index}`}><code>{row?.text ?? " "}</code></div>;
 
-  return <Modal
-    open={open}
-    title={null}
-    footer={null}
-    onCancel={handleClose}
-    width={fullScreen ? "calc(100vw - 24px)" : 1120}
-    style={fullScreen ? { top: 12, maxWidth: "none", paddingBottom: 0 } : { top: 32, maxWidth: "calc(100vw - 48px)" }}
-    wrapClassName={`git-change-review-modal${fullScreen ? " is-fullscreen" : ""}`}
-    destroyOnClose
-    keyboard={!dirty}
-    maskClosable={!dirty}
-    getContainer={() => document.querySelector(".workbench-shell") ?? document.body}
-  >
-    <div className="git-review" aria-label="Git 变更审阅器">
+  const optionsMenu = [
+    { key: "load-full", label: "加载完整文件", disabled: !showSource || !fileRead?.truncated, onClick: () => void showCompleteFile() },
+    { key: "render-preview", label: markdownPreview ? "显示 Markdown 源码" : "渲染预览", disabled: !showSource || !fileRead || !isMarkdown(selectedPath), onClick: () => setMarkdownPreview(value => !value) },
+    { type: "divider" as const },
+    { key: "word-diff", label: `${wordDiff ? "✓ " : "　"}词级差异`, onClick: () => setWordDiff(value => !value) },
+    { key: "whitespace", label: `${hideWhitespace ? "✓ " : "　"}隐藏空白字符`, onClick: () => setHideWhitespace(value => !value) },
+    { key: "imports", label: `${hideImports ? "✓ " : "　"}隐藏导入内容`, onClick: () => setHideImports(value => !value) },
+    { type: "divider" as const },
+    { key: "copy-patch", label: "复制完整补丁文本", disabled: !canCopyPatch, onClick: () => fileDiff && void copyText(fileDiff.diff, "已复制 Git 补丁文本") },
+    { key: "copy-apply", label: "复制 git apply 命令", disabled: !canCopyPatch, onClick: () => void copyGitApplyCommand() },
+  ];
+
+  const reviewContent = <div className={`git-review${embedded ? " is-embedded" : ""}`} aria-label="Git 变更审阅器">
       <header className="git-review__header">
-        <div className="git-review__title"><WorkbenchIcon name="branch" size={17} /><div><strong>{project.title || "项目变更"}</strong><span title={status.repository}>{status.branch} · {status.worktreeId ? "AI Worktree" : "源项目"} · {status.changedFileCount} 个文件</span></div></div>
+        <div className="git-review__title"><WorkbenchIcon name="branch" size={17} /><div><strong>{projectTitle || "项目变更"}</strong><span title={status.repository ?? undefined}>{status.branch} · {status.worktreeId ? "AI Worktree" : "仓库"} · {status.changedFileCount} 个文件</span></div></div>
         <div className="git-review__header-actions">
           <Button size="small" icon={<WorkbenchIcon name="refresh" size={14} />} loading={refreshing} onClick={() => void refresh()}>刷新</Button>
-          <Button size="small" aria-label={fullScreen ? "退出完整视图" : "进入完整视图"} title="完整视图 · Ctrl+Shift+F" onClick={() => setFullScreen(value => !value)}>{fullScreen ? "退出完整视图" : "完整视图"}</Button>
-            <Button size="small" aria-label="关闭变更审阅" icon={<WorkbenchIcon name="close" size={14} />} disabled={saveBusy} onClick={handleClose} />
+          {!embedded ? <Button size="small" aria-label={fullScreen ? "退出完整视图" : "进入完整视图"} title="完整视图 · Ctrl+Shift+F" onClick={() => setFullScreen(value => !value)}>{fullScreen ? "退出完整视图" : "完整视图"}</Button> : null}
+          <Button size="small" aria-label="关闭变更审阅" icon={<WorkbenchIcon name="close" size={14} />} disabled={saveBusy} onClick={handleClose} />
         </div>
       </header>
-      <div className="git-review__summary"><span>基线 {status.baseline.slice(0, 8)}</span><span className="is-added">+{status.insertions}</span><span className="is-removed">−{status.deletions}</span><span>{status.unknownLineCounts ? `${status.unknownLineCounts} 个文件未统计行数` : "真实 Git 差异"}</span></div>
+      <div className="git-review__summary"><span>基线 {status.baseline?.slice(0, 8) ?? "首次提交前"}</span><span className="is-added">+{status.insertions}</span><span className="is-removed">−{status.deletions}</span><span>{status.unknownLineCounts ? `${status.unknownLineCounts} 个文件未统计行数` : "真实 Git 差异"}</span></div>
       <div className="git-review__body">
         {showFiles ? <aside className="git-review__files">
           <div className="git-review__files-heading"><strong>变更文件</strong><span>{status.files.length}{status.statusTruncated ? "+" : ""}</span><Button size="small" type="text" title="隐藏文件列表" aria-label="隐藏文件列表" onClick={() => setShowFiles(false)}><WorkbenchIcon name="panelLeft" size={15} /></Button></div>
           <Input size="small" allowClear placeholder="筛选文件" value={filter} onChange={event => setFilter(event.target.value)} />
+          <Select aria-label="按 Git 状态筛选" size="small" value={fileFilter} onChange={value => setFileFilter(value)} options={[{ value: "all", label: "全部变更" }, { value: "unstaged", label: "未暂存" }, { value: "staged", label: "已暂存" }, { value: "untracked", label: "未跟踪" }, { value: "committed", label: "基线差异" }]} />
           <nav aria-label="Git 变更文件列表">{filteredFiles.map(file => <button type="button" disabled={saveBusy} className={`git-review__file${selectedPath === file.path ? " is-selected" : ""}`} key={file.path} title={file.displayPath} onClick={() => selectFile(file.path)}>
             <span className="git-review__file-name"><WorkbenchIcon name="file" size={14} /><code>{file.displayPath}</code></span>
             <span className="git-review__file-stats"><Tag>{statusText(file.status)}</Tag><span className="is-added">{file.insertions === null ? "·" : `+${file.insertions}`}</span><span className="is-removed">{file.deletions === null ? "·" : `−${file.deletions}`}</span></span>
           </button>)}</nav>
-          {status.statusTruncated ? <p className="git-review__truncated">Daemon 最多返回 200 个文件；当前列表已截断。</p> : null}
+          {status.statusTruncated ? <p className="git-review__truncated">Git 管理器最多返回 200 个文件；当前列表已截断。</p> : null}
         </aside> : null}
         <main className="git-review__main">
           <div className="git-review__toolbar">
             {!showFiles ? <Button size="small" title="显示文件" aria-label="显示文件" onClick={() => setShowFiles(true)}><WorkbenchIcon name="panelLeft" size={15} /></Button> : null}
             <strong title={selectedPath}>{selected?.displayPath ?? selectedPath ?? "选择一个变更文件"}</strong>
             <span className="git-review__toolbar-spacer" />
-            <Button size="small" disabled={!canCopyPatch} title={!canCopyPatch ? "请使用未过滤、未截断的统一差异后再复制" : "复制完整补丁文本；不会自动执行"} onClick={() => fileDiff && void copyText(fileDiff.diff, "已复制 Git 补丁文本")}>复制补丁</Button>
-            <Button size="small" disabled={!canCopyPatch} title={!canCopyPatch ? "请使用未过滤、未截断的统一差异后再复制" : "复制命令，不会自动执行；执行前确认终端位于目标仓库根目录"} onClick={() => void copyGitApplyCommand()}>复制 git apply 命令</Button>
-            <Button size="small" title="自动换行" type={wrapLines ? "primary" : "default"} onClick={() => setWrapLines(value => !value)}>换行</Button>
-            <Button size="small" title="隐藏空白差异" type={hideWhitespace ? "primary" : "default"} onClick={() => setHideWhitespace(value => !value)}>空白</Button>
-            <Button size="small" title="隐藏 import/export 差异" type={hideImports ? "primary" : "default"} onClick={() => setHideImports(value => !value)}>隐藏导入</Button>
-            <Button size="small" title="单词级差异" type={wordDiff ? "primary" : "default"} onClick={() => setWordDiff(value => !value)}>词级</Button>
-            <Button size="small" title={expandHunks ? "折叠全部差异区块" : "展开全部差异区块"} onClick={() => setExpandHunks(value => !value)}>{expandHunks ? "折叠区块" : "展开区块"}</Button>
-            <Button size="small" title="统一/并排视图" type={splitView ? "primary" : "default"} onClick={() => setSplitView(value => !value)}>{splitView ? "并排" : "统一"}</Button>
+            <Button size="small" type="text" aria-label="刷新差异" title="刷新差异" loading={refreshing} onClick={() => void refresh()}><WorkbenchIcon name="refresh" size={15} /></Button>
+            <Button size="small" type={wrapLines ? "primary" : "text"} aria-label="自动换行" title="自动换行" onClick={() => setWrapLines(value => !value)}>↵</Button>
+            <Button size="small" type="text" aria-label={expandHunks ? "折叠全部差异" : "展开全部差异"} title={expandHunks ? "折叠全部差异区块" : "展开全部差异区块"} onClick={() => setExpandHunks(value => !value)}>{expandHunks ? "折叠" : "展开"}</Button>
+            <Button size="small" type={splitView ? "primary" : "text"} aria-label="切换统一或并排差异" title="统一/并排视图" onClick={() => setSplitView(value => !value)}>{splitView ? "并排" : "统一"}</Button>
+            <Dropdown menu={{ items: optionsMenu }} trigger={["click"]} placement="bottomRight"><Button size="small" type="text" aria-label="差异选项" title="差异选项"><WorkbenchIcon name="dots" size={16} /></Button></Dropdown>
           </div>
           {selectedPath ? <div className="git-review__view-tabs">
             <Button size="small" type={!showSource ? "primary" : "text"} onClick={() => { setShowSource(false); setEditMode(false); }}>差异</Button>
-            <Button size="small" type={showSource ? "primary" : "text"} onClick={() => { setShowSource(true); setMarkdownPreview(false); }}>完整文件</Button>
+            <Button size="small" type={showSource ? "primary" : "text"} disabled={!fileIsInRegisteredProject} title={!fileIsInRegisteredProject ? "此文件位于仓库根的其他目录；文件读写仍限定在当前 Agent 登记的项目目录内。" : undefined} onClick={() => { setShowSource(true); setMarkdownPreview(false); }}>完整文件</Button>
             {showSource && isMarkdown(selectedPath) ? <Button size="small" disabled={editMode} type={markdownPreview ? "primary" : "text"} onClick={() => setMarkdownPreview(value => !value)}>{markdownPreview ? "源码" : "渲染预览"}</Button> : null}
             {showSource && fileRead?.truncated ? <Button size="small" loading={readLoading} onClick={() => void showCompleteFile()}>加载完整文件</Button> : null}
             {showSource && fileRead && !editMode && canEdit ? <Button size="small" type="primary" onClick={() => { setDraft(normalizeEditorText(fileRead.content)); setEditMode(true); }}>编辑文件</Button> : null}
@@ -367,7 +384,7 @@ export function GitChangeReview({ appId, project, status, initialPath, open, onC
             {!showSource && diffLoading ? <div className="git-review__loading"><Spin size="small" />正在读取文件差异…</div> : null}
             {!showSource && diffError ? <Alert type="warning" showIcon message={diffError} /> : null}
             {!showSource && fileDiff ? <>
-              {fileDiff.diffTruncated ? <Alert type="warning" showIcon message="此文件差异超过 Daemon 返回上限，显示内容已截断；完整补丁和复制操作已禁用。" /> : null}
+              {fileDiff.diffTruncated ? <Alert type="warning" showIcon message="此文件差异超过本机 Git 管理器返回上限，显示内容已截断；完整补丁和复制操作已禁用。" /> : null}
               {fileDiff.diff ? hunks.map((hunk, index) => <details className="git-review__hunk" open={expandHunks} key={`${selectedPath}-${index}`}>
                 <summary>{hunk[0]?.text ?? `差异区块 ${index + 1}`}</summary>
                 {splitView ? <div className="git-review__split">{splitHunk(hunk).map((row, rowIndex) => <div className="git-review__split-row" key={rowIndex}>{renderedDiff(row.left, "left", rowIndex)}{renderedDiff(row.right, "right", rowIndex)}</div>)}</div>
@@ -380,9 +397,23 @@ export function GitChangeReview({ appId, project, status, initialPath, open, onC
             {showSource && fileRead?.truncated ? <p className="git-review__truncated">当前内容仅为文件开头的一段；加载完整文件后才能编辑或复制。</p> : null}
             {showSource && fileRead && editMode && bytes > 2 * 1024 * 1024 ? <Alert type="error" showIcon message="UTF-8 文件内容超过 2 MiB，无法保存。" /> : null}
           </section>
-          {fileDiff?.diffTruncated ? <footer className="git-review__footer">差异已截断；文件读取仍会由 Daemon 单独校验并限制为普通 UTF-8 文本。</footer> : null}
+          {fileDiff?.diffTruncated ? <footer className="git-review__footer">差异已截断；文件读取仍由项目文件 Owner 单独校验并限制为普通 UTF-8 文本。</footer> : null}
         </main>
       </div>
-    </div>
-  </Modal>;
+    </div>;
+
+  if (embedded) return open ? <div className="git-review-inline">{reviewContent}</div> : null;
+  return <Modal
+    open={open}
+    title={null}
+    footer={null}
+    onCancel={handleClose}
+    width={fullScreen ? "calc(100vw - 24px)" : 1120}
+    style={fullScreen ? { top: 12, maxWidth: "none", paddingBottom: 0 } : { top: 32, maxWidth: "calc(100vw - 48px)" }}
+    wrapClassName={`git-change-review-modal${fullScreen ? " is-fullscreen" : ""}`}
+    destroyOnClose
+    keyboard={!dirty}
+    maskClosable={!dirty}
+    getContainer={() => document.querySelector(".workbench-shell") ?? document.body}
+  >{reviewContent}</Modal>;
 }

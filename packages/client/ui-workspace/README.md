@@ -14,6 +14,8 @@ Web/Desktop 共用的应用工作区 UI。除通用 Workspace 外，`AiVideoCanv
 
 工作区终端可切换真实交互式会话和 Agent 任务输出；交互页选择已连接的本机/远程 Daemon，使用 xterm 处理输入、ANSI、中文、尺寸变化和 Ctrl+C。沿用 `general.integratedShell/taskFolder/terminalPosition/showBottomPanelControl`、统一权限模式及工作台主题、代码字体/字号、强调色、壁纸/遮罩/模糊和减少动态效果。容器 ResizeObserver 合并一帧内的缩放，输入与缩放分别串行发送；绘制容量 512 Ki 字符、历史 2000 行，超限失败关闭。卸载关闭会话并撤销 SSE、观察器与动画帧；节点状态查询复用可见性控制的串行轮询。
 
+AI Work 的聊天始终留在中心工作区。顶栏 Git 菜单打开项目摘要悬浮卡，按仓库显示分支和真实变更统计；卡片及右侧菜单中的“变更”入口联动打开右侧 Git 管理面板，不替换聊天或输入区。Agent Git 管理器管理多个完整本机项目仓库，并随 Agent 会话绑定；不要求用户手工添加仓库，也不依赖 Daemon 节点。默认工作区启用本地 Git 版本管理；用户项目在 Agent 首次获准实际创建或写入文件时自动初始化，Git init 与本次文件操作共用 Permission Owner 授权。状态、变更统计、差异、文本查看/编辑、暂存、提交历史与分支操作都基于真实仓库根。本地执行由 Agent Git Controller、Permission Owner 与 LFAA Host 负责。分支前缀读取账户 `git.branchPrefix`，Appearance 继续使用工作台共享主题。HTTPS remote 支持 fetch、干净工作区快进 pull、当前分支 push 和发布分支；凭据按账户加密保存。SSH 同步与 PR 写入未接入。Agent 的可选 Daemon 项目仍只表示节点任务目标。
+
 ## 小鱼共享工作入口（2026-10-14）
 
 根地址与默认首页进入 `/work` 小鱼智能体对话区。全局导航的“应用”入口打开右侧 Dock 的“应用”视图，保留游戏库及 SteamCMD、Minecraft、LFAA 联机服务、写作空间和 AI 漫剧常规入口。应用切换继续调用 Workbench/Client Renderer 已有打开与路由标记，不在菜单复制业务规则；应用视图选择状态由 Workbench 持有，切换 App 路由后保持可用。

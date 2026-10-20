@@ -158,6 +158,9 @@
 | 151-工作台换位残留与重复响应式规则清理-20261020 | 清理固定栏序迁移后的过期换位说明、冗余移动栏覆盖和重复回归断言，不改变拖拽/吸附行为 | 已清理；定向回归 12/12、Client 类型、正式 Control Plane/Web 构建、内置浏览器 `/work` 桌面页通过；构建后有其他源码更新，当前全仓指纹为 `[host, web]` 过期；窄视口未测 | [本轮合同](#lfaa-workbench-layout-cleanup-20261020) |
 | 152-REA逆向分析能力融合-20261020 | 将官方 REA 逆向分析 MCP 与证据优先工作流接入 LFAA Agent；兼容 207 项大工具目录，提供按需工具发现/调用和账户级可选连接预设 | 已实现；定向回归、类型、构建及内置浏览器桌面页通过；窄屏实页与真实 REA 运行未验 | [本轮合同](#lfaa-rea-agent-integration-20261020) |
 | 153-DSH式默认与自选项目工作区-20261020 | 按 DSH 首次使用语义建立系统“文档”下的默认项目目录，并允许桌面通过资源管理器、Web 通过 Daemon 浏览器登记用户选定的单个真实文件夹 | 实现、构建与 `/work` 桌面/窄视口验收完成；Electron 原生对话框未实测 | [本轮合同](#lfaa-dsh-style-project-workspace-20261020) |
+| 154-AI Work 内置 Git 操作补齐-20261020 | 按 Agent 管理多个完整本机项目仓库：仓库随 Agent 会话绑定，主工作区提供状态、分支、变更、差异和日常 Git 操作；Agent 首次写入非 Git 项目时按权限初始化仓库；修复乱码默认工作区并审计预览台 | 核心 Git UI/操作已实现；定向回归 25/25、Client/Host 类型检查、200 包 Gate、Harness/Control Plane/Web 构建通过；内置浏览器 `/work` 联动和真实差异实页通过（1003×924）。常用宽屏与第二仓库切换未在本次实页复验；SSH 同步和 PR 未接入 | [本轮合同](#lfaa-ai-work-git-operations-20261020) |
+| 155-项目与存储界面整体优化-20261020 | 优化设置中心“项目与存储”的层级、路径呈现、保存提示及窄视口布局，保留现有 Data、SteamCMD 与游戏目录 Owner 和操作语义 | 已实现；Client/Web 构建、workspace Gate、内置浏览器桌面/窄视口验收通过；回归与帧时间未测 | [本轮合同](#lfaa-project-storage-ui-20261020) |
+| 156-LFAA默认工作区刷新与路径大小写修复-20261020 | 刷新时项目列表尚未返回不能误报“已移除”；规范目录名改为小写 `lfaa/default-workspace`，文档位置继续从系统动态解析 | 已修复；Host/Client 定向构建、Control Plane/Web 正式构建、工作区合同检查通过；正式 Web `/work` 刷新后会话与默认项目恢复，系统动态路径目录存在；未运行测试套件 | [本轮合同](#lfaa-default-workspace-refresh-20261020) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
@@ -3688,7 +3691,7 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 
 ### 目标、入口与 Owner
 
-- 将 DSH 的单文件夹项目工作区方案落到 LFAA：首次使用在目标本机 Daemon 的系统“文档”目录下创建并登记 `LFAA/default-workspace`；桌面用户可通过原生资源管理器选真实文件夹，Web 用户继续通过目标 Daemon 目录浏览器选择。每个项目仍是一个实际目录，不扩展 ChatGPT 式多文件夹项目。
+- 将 DSH 的单文件夹项目工作区方案落到 LFAA：首次使用在目标本机 Daemon 的系统“文档”目录下创建并登记 `lfaa/default-workspace`；桌面用户可通过原生资源管理器选真实文件夹，Web 用户继续通过目标 Daemon 目录浏览器选择。每个项目仍是一个实际目录，不扩展 ChatGPT 式多文件夹项目。
 - 默认初始化遵循 DSH 条件：只有当前账号尚无项目登记且没有任何已存/归档会话历史时才自动创建；用户移除默认登记后不自动重建。若已有项目或会话，不迁移、不重绑历史，由用户手动选目录。可用默认项目仅作为新建 AI Work 会话的默认项目；已存在会话项目上下文不变。
 - 运行入口：`/work` → `ApplicationWorkspace` → `WorkspaceProjectPicker` → Client Connection → 认证 `Workspace Controller` → SQLite Workspace Owner / 目标 Daemon `project-files-v1`。Session Owner 继续只保存当前账号会话及其项目快照。
 - 设置盘点：不新增设置。`general.taskFolder` 继续只控制 Shell 起始目录；“项目与存储”里的 `LFAA_DATA_DIR` 继续只控制业务数据根。本轮默认项目根不放入 `.lfaa` 或 `data`，使用系统“文档”目录；沿用现有权限模式、Daemon 认证/路径验证和外观共享令牌。
@@ -3703,8 +3706,126 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 
 ### 实施与验收记录
 
-- 已实现：新账户首次使用且没有项目/会话历史时，在系统“文档”下创建并登记 `LFAA/default-workspace`；默认身份按账户持久保存，移除项目登记后不自动重建；新 AI Work 会话默认使用该项目，已有会话保持原上下文。桌面接入原生目录选择并通过 Daemon 校验；Web/远程节点沿用 Daemon 目录浏览。
+- 已实现：新账户首次使用且没有项目/会话历史时，在系统“文档”下创建并登记 `lfaa/default-workspace`；默认身份按账户持久保存，移除项目登记后不自动重建；新 AI Work 会话默认使用该项目，已有会话保持原上下文。桌面接入原生目录选择并通过 Daemon 校验；Web/远程节点沿用 Daemon 目录浏览。
 - 定向回归 5/5、Host/Client TypeScript、Electron 主进程与 preload 语法、Control Plane/Web 构建及 `git diff --check` 已通过；构建只输出根 `dist/apps/control-plane/`、`dist/apps/web/` 和根 `dist/packages/`，运行指纹检查报告 host/web 为最新。
 - ChatGPT 内置浏览器实际打开 `http://127.0.0.1:3000/work`：桌面视口 1646×1244，项目选择器显示“默认工作区”及 `D:\Documents\LFAA\default-workspace`，新会话上下文也显示该项目；窄视口 390×844，页面文档宽度 380，没有横向溢出，弹窗宽 348 且留有边距。窄视口只检查主页面和登录提醒，不代表项目选择弹层已在窄视口实测。空默认目录不是 Git 仓库，既有 Git 状态面板会显示 Git 不可用的真实诊断。
 - 回归首次误将临时业务 `LFAA_DATA_DIR` 与真实账户 Home 混用，模拟旧版迁移后留下 38 版本号和专用测试记录。已修正夹具同时隔离临时 `LFAA_HOME` 与 Data，并仅按唯一测试账户、测试目录、测试会话标识清理了夹具数据；将数据库版本恢复为 58，回读确认测试账户/项目/会话均为 0 后，Web 成功启动。真实账户其余数据未搬移或清理。
 - Windows Electron/Tauri 原生文件夹对话框未在真实桌面运行中验收；已完成共享 API 类型、Electron IPC/preload 源码语法检查。单独运行的渲染恢复回归因缺少 `lfaa-client-ui-settings-general` 包无法启动；AI Work 输入区响应式回归 8/8 通过。该包加载问题不属于本轮工作区改动。
+
+<a id="lfaa-ai-work-git-operations-20261020"></a>
+
+## 154-AI Work 内置 Git 操作补齐-20261020
+
+### 当前用户目标与已核实故障
+
+- 用户给出的 Codex 截图是目标产品形态：每个 Agent/任务有自己的仓库上下文；可切换仓库/分支并看到真实变更数、文件清单和差异。右上角 Git 菜单点击后显示悬浮摘要卡；每个项目的“变更”进入与右侧菜单联动的 Git 管理面板。聊天区和输入框始终留在中心，不被 Git 页面替换。它不是 AI Work 项目/目标 Daemon 的附属功能。
+- DSH `packages/deliverables/workspace-changes` 可参考 Agent 轮次摘要与逐文件差异；它不管理仓库注册、分支、暂存、提交或远端，因此不作为完整 Git 管理器移植。LFAA 继续复用自己的 `lfaa-workspace-agent-git`、`lfaa-host-git`、`AgentGitController`、`GitChangeSummary` 与 `GitChangeReview`。
+- Agent 会话与仓库/工作树绑定；不同 Agent 可使用不同完整本机仓库。Git 状态、分支、变更和差异必须属于当前 Agent 绑定的仓库根，不能因切换会话串状态；登记在仓库子目录时仍按整个 Git 仓库管理。
+- 用户最新明确的产品语义：默认工作区由内置 Git 自动版本管理；用户选择项目文件夹后，Agent 首次在该目录实际工作时自动完成一次 `git init`。用户不需要再手工登记 Git 仓库；项目文件夹选择和 Git 管理是同一 Agent 项目上下文。
+- 用户要求修复默认工作区乱码故障，并明确 Windows “文档”路径必须动态解析，不能写死 `D:\系统\文档` 或任何本机盘符。LFAA 只在动态解析的系统“文档”下创建自己的 `lfaa/default-workspace`，不复制乱码目录的内容；需要时仅更新默认项目的路径登记，账号、会话记录和 `.lfaa` 数据位置保持不变。DSH 的 `deepseek-harness/default-workspace` 是另一目录，不复用或覆盖。
+
+### 当前有效实现合同
+
+- 产品主体是 AI Agent。聊天、代码工具、文件读写、Git 和任务执行由 Agent Loop 按目标调度；Daemon 是可选的已连接节点应用，只在模型选择节点能力时参与，不能成为 Agent、Git、本机仓库或本机文件工具的前置条件。
+- 顶栏 Git 菜单只打开悬浮摘要卡：按项目文件夹显示仓库名、分支、真实变更统计和“变更”入口；点击“变更”在现有右侧菜单中切换到完整变更/差异/分支管理，并同步右侧菜单选中状态。中心聊天与输入框始终显示、可继续使用；不再把 Git 管理器嵌入或替换聊天主画布，也不要求用户先添加 Git 仓库。
+- 每个 Agent 使用当前选定的项目文件夹作为 Git 工作目录，多个文件夹分别管理；复用 `WorkspaceProject` 保存的目录身份，但 Git 命令由独立的本机 Agent Git Owner/Host 执行，不复用 Daemon Git。进入 Agent 会话时自动关联该文件夹，不显示“必须添加仓库”的空状态；Agent 首次在本机项目目录执行实际文件操作时自动登记仓库，并在首次获准的创建/写入/替换前对非仓库目录执行一次 `git init`。只读对话不初始化、不自动暂存/提交/推送；远端 Daemon 项目仍使用节点文件能力，不误建本机仓库。
+- Agent Loop 执行既有会话时，可用私有 Session 快照中的项目 ID 向 Workspace Owner 只读解析当前登记路径；仅当账户、项目 ID、节点身份一致时采用登记路径，登记已移除或身份不匹配则保留原快照语义。此解析不改写 Session JSONL/数据库快照，避免陈旧目录快照把文件写入乱码旧路径。
+- 进入本机项目会话或用户打开 Git 摘要/变更面板时，可自动校验并登记 Agent Git 项目元数据、绑定当前会话和读取真实 Git 状态；这一步不初始化、不修改项目文件。首次实际获准文件写操作仍由项目文件工具与同一权限结果共同完成必要的 `git init`。
+- 唯一 Git 命令执行者归 LFAA 本机 Control Plane/桌面伴随进程。API 以认证账户、当前 Agent 会话和独立登记的本机仓库 ID 解析目标，不接受浏览器或模型传入任意绝对路径或 Git 参数。
+- 当前 Git 能力包括摘要卡、状态、分支/上游、变更与 diff、stage/unstage、commit、history、branch 管理、remote 管理，以及 fetch、干净工作区快进 pull、当前分支 push 和发布分支。HTTPS 用户名/token 经现有 Credentials Owner 按 LFAA 账户加密保存，只在本机 Git 子进程内短暂使用；认证清除系统共享 credential helper 并禁止重定向。SSH 同步和 PR 创建/审查/合并尚未接入，不显示为可用操作；Git 项目来自 Agent 已选项目，不要求用户另行登记。
+- 现有设置仅有 `git.branchPrefix`；沿用 `permissions.mode` 和 Appearance。显式 UI Git 写操作继续走 Permission Owner；Agent 首次文件写入触发的 `git init` 与同一次文件 Tool 共用统一 Permission Owner 授权。禁止空闲后台初始化、自动暂存/提交/推送、强制覆盖和对普通源仓库执行 `reset --hard`/`clean`。
+- UI 使用 Web/Desktop 共用 Client；每一批先执行直接回归/类型/构建，再通过 ChatGPT 内置浏览器验收 `/work` 桌面与窄视口，切换 Agent 验证仓库状态隔离。
+- 默认工作区从 Windows 系统“文档”注册表的 Unicode 路径动态解析，禁止硬编码本机文档路径；已有乱码路径时通过受限 Project Files Host 只创建规范目录，再由 Workspace Owner 更新默认项目路径登记。不得读取、复制或删除旧目录内容；Session Owner 不参与，会话记录与 `.lfaa` 数据保持原样。Agent 在本机工作区或 `general.taskFolder` 中读写时必须走 LFAA 本机受限 Host；只有会话明确选中远端节点时才派发 Daemon 任务。
+- “预览台”是 Agent 工作区里的真实浏览器查看/操控能力，不等同于电脑操控截图，也不能以禁用的“浏览器待接入”按钮表示完成。接入前须定位浏览器运行 Owner、来源/目标隔离、真实导航与交互工具及统一 `permissions.mode`；不能绕过浏览器安全边界或新增第二套审批。
+
+### 早期审计与实现记录（部分结论已被当前合同替代）
+
+- 本合同之前的 UI/API 草案曾把 Git 仓库绑定到 `WorkspaceProject` 并通过 workspace controller 操作；该方案与本合同冲突，已由用户明确否定。相关改动仅作为待修正工作树保留，不代表正确架构或已验收能力。修正时不得把 Agent 的本机文件能力继续留在 Daemon 前置条件后。
+
+- 当前能力为真实 Git 状态/diff、单文件差异审阅和 SHA-256 并发保护的显式文本编辑，以及 AI Worktree 创建/恢复/删除；没有仓库初始化、暂存/提交、历史、分支管理、远端同步等完整工作流。
+- GitHub OAuth/仓库/Issue/PR API 属于独立只读集成，不能作为 Git transport 或推送凭据。
+- 唯一 Git 执行 Owner 继续为目标在线 Daemon `packages/host/daemon/src/git-workspace.mjs`；Workspace Controller 负责认证账户、App 项目、目标节点能力及输入校验；Workspace 包负责项目与受管 Worktree 登记；Client 提供 AI Work 的 Git 页面与交互；设置沿用账户级 `git.branchPrefix`（默认 `codex/`）、`permissions.mode` 与 Appearance 令牌。
+- 新增写操作由 Permission Owner 按当前账户、App、Git 工具版本、风险及稳定目标授权；明确 UI 点击仍经 `authorizeExplicitUserAction`。模型触发的操作继续走统一 AI Tool 审批闭环。不得把审批绕过加入 Git Host。
+- 用户明确要求远端 Git 采用 ChatGPT/DSH 的产品形态。已只读检查 `E:\lfaa1\deepseek-harness`：DSH `packages/deliverables/workspace-changes` 提供本地变更摘要，`packages/experimental/worktree` 提供隔离分支工作树，未发现其提供远端 fetch/push/PR 凭据实现。OpenAI 官方公开资料确认 ChatGPT GitHub App 为只读，Codex 产品支持 push/PR，但未公开桌面 Git 凭据的具体传输实现（[连接 GitHub](https://help.openai.com/en/articles/11145903-connecting-github-to-chatgpt)、[Codex Enterprise 指南](https://help.openai.com/en/articles/11390924)）。因此不臆测或伪称复用内部 OAuth 细节。
+- 远端凭据仍必须由 `lfaa-credentials` 与 Settings 的加密存储按账户持有；秘密不得放入浏览器状态、URL、普通日志或持久化的 AiHostTask command/result。当前 LFAA GitHub Device Flow 权限为只读；任何 Git transport/PR 写权限和控制端到目标 Daemon 的安全凭据通道都未实现，不把系统 Git Credential Manager 的 OS 共享身份冒充账户隔离，也不把现有只读 token 用于推送。远端阶段待设计出满足该边界的 Owner/通道后再实现。
+
+### 分阶段范围与边界
+
+- 用户提供的产品参考包含：项目变更数摘要与来源入口；Git 设置中的分支前缀、PR 合并方式、强制推送选项、默认草稿 PR、审查结果呈现方式、PR 自动合并条件文本、提交信息指令和 PR 指令。LFAA 先确认已有变更摘要/审阅入口和设置 Owner，再逐项接入真实行为；未接入真实执行能力的偏好不得显示为可用开关。
+- 本地基础阶段：为普通目录与无首次提交仓库提供稳定诊断；默认工作区初始化 Git，其他项目在 Agent 首次获准实际创建/写入文件时随同该文件操作自动 `git init`；实现日常本地工作流所需的 stage/unstage、commit、log/history、分支列表/创建/切换/删除及已有 Git Worktree 流程。所有操作仍走固定参数化 Git Owner，不执行任意 Shell/任意 Git 参数；提交信息指令须实际进入提交信息辅助流程。
+- 远端阶段（按后续实现更新）：已接入 remote 管理、fetch、干净工作区快进 pull、当前分支 push 和发布分支；HTTPS 凭据使用现有 Credentials Owner 加密存储并按 LFAA 账户隔离，系统共享 Git Credential Manager 不参与认证。SSH 凭据和 GitHub Pull Request 写入仍待独立 Owner/权限合同，不把只读 GitHub OAuth 冒充推送凭据。
+- 禁止后台或只读对话触发初始化；首次实际文件写入所需的 `git init` 与该文件操作共用统一权限审批，不要求用户另行手工登记仓库。禁止自动提交、自动推送、强制覆盖、对普通源仓库执行 `reset --hard`/`clean`、绕过 Git/hooks 安全设置、远端令牌跨账户共享或将任意 Git 命令暴露给模型/浏览器。
+- 创建 AI Worktree 时仓库级快照可能包含已登记子目录之外的仓库文件；需在 UI/合同说明这一真实 Git 行为并限制 AI 文件工具仍只能在登记项目根内工作。
+- 所有变更保持 Web/Desktop 共用 Client；响应式覆盖桌面与窄分栏/短屏。任何界面批次须按仓库规则先运行定向回归/构建，再用 ChatGPT 内置浏览器验收正式 `/work` 页面。
+
+### 审计记录与验收
+
+- 已审计：Daemon Git Host、Workspace Controller、Workspace 元数据、AI Work Git 摘要/审阅器、Git/Worktrees 设置、凭据/Permission Owner 文档、GitHub Integration、架构文档与现有回归。
+- 审计发现：新建默认工作区不是仓库；Git 可执行文件由目标 Daemon PATH 提供且心跳当前无条件声明 `git-workspace-v1`；仓库内子目录创建 Worktree 会在仓库根范围构造快照；状态命令关闭 rename detection；现有直接回归只有 2 个测试，未覆盖非仓库/空仓库/初始化/暂存/提交/分支/远端/权限路由。
+- 直接相关的长期回归覆盖新增本地 Git 操作和非仓库诊断；类型与包构建后运行适用 workspace Gate。所有构建只写根 `dist/`。
+- UI 每个批次记录正式 Web 源码指纹、`/work` 实际路由、桌面和窄视口宽高、关键 Git 交互、截图证据与未测范围；真实 Daemon、桌面 WebView 和远端 Provider 结果分别报告。
+- 现有设置 Owner 仅保存 `git.branchPrefix`（默认 `codex/`），目前没有截图中 PR/提交偏好字段；新增项须同步默认值、验证、账户持久化、前端映射，并由对应真实 Git/PR 行为消费。
+- 第一批实现：Daemon Git Owner 新增普通目录诊断、显式初始化、stage/unstage、提交、最近 50 条内的有界历史读取、分支列表/创建/切换/安全删除；Commit 使用项目所在 OS Git identity，只消费 index 暂存内容。仓库子目录登记下，暂存和提交受路径范围约束；分支切换/删除仅在仓库根登记项目开放。AI Worktree 仍由 Workspace Owner 持有分支，不允许操作员脱离登记修改。
+- Workspace Controller 新增 `/git/initialize` 与固定枚举 `/git/operation`，所有本地写操作经认证项目/App/在线 Git 节点校验；init/commit/branch mutations 由 `authorizeExplicitUserAction` 绑定账户、App、工具版本、风险和节点/项目目标。Client Connection 只传项目 ID、相对路径和固定操作；工作台提供暂存/取消暂存、提交、历史和分支 UI，不提供任意 Git argv/命令。
+- 新增直接 Git Host 回归覆盖普通目录、未出生仓库、显式 init 不触碰源文件、stage/unstage、commit identity、历史与分支 lifecycle；`apps/cli` 定向回归 4/4。API Workspace Controller、Client Connection、Client UI Workspace 包构建通过；`pnpm check:workspace` 通过；`pnpm build:web` 首次发现两处 nullable 类型错误并修正，第二次 Web tsc/Vite 构建通过，输出只位于根 `dist/`。
+- 运行中服务验收：重启前 `/health` 返回 503；用户明确授权后通过仓库 `pnpm lfaa web` 启动入口重启，预检识别并结束当时 LFAA Web PID；启动日志确认 Control Plane、本机 Daemon 已启动，`/health` 返回 200。首轮验收发现 Git 摘要仅在可收起的右侧栏中，用户反馈顶栏没有摘要。修复后 ChatGPT 内置浏览器实际打开 `http://127.0.0.1:3000/work`：1440×900 桌面和 390×844 窄视口均在右侧栏收起时显示“Git · 未初始化”；点击桌面顶栏摘要可展开右侧详情，显示普通目录诊断与显式“初始化 Git 仓库”按钮；窄屏标题栏摘要仍可见。浏览器实际请求 `/api/workspace/projects/a5e4362d-d0d5-4c85-91ff-a7e95c0a7107/git/status` 返回 200，耗时 3484ms；未点击初始化，未改动默认工作区。验收截图见本轮内置浏览器页面观察。恢复前的临时视口覆盖后，工作区上下文栏保持收起；桌面 WebView、真实远端 Git Provider 与 PR 流程未测。
+- 外部 Bug 排查按用户许可进行：社交媒体结果与当前普通工作区错误无关；Stack Overflow 有一个 VS Code 非仓库目录的相似 `rev-parse` 报错案例，但回答指向不同的 `.code-workspace` 复用问题，不能直接作为 LFAA 修复方案（[案例](https://stackoverflow.com/questions/79570675/vscode-showing-fatal-not-a-git-repository-message-when-opening-files-in-a-non-g)）。Git 官方文档说明 `rev-parse --show-toplevel` 需要处在工作树中，否则会报错（[git-rev-parse](https://git-scm.com/docs/git-rev-parse)）；LFAA 根因由本仓库默认普通目录与自动状态读取调用链、以及定向回归确认。
+- 本轮复核当前 Windows 默认“文档”路径由注册表动态返回；账户数据库却已保存乱码路径，该源目录存在，规范目标目前不存在。修复只在动态目标创建文件夹，并通过 Workspace Owner 更新默认项目路径登记；不读取或复制旧目录内容，不改会话记录或 `.lfaa/data`。
+- 最新 Agent 故障图中的“待批准”符合 LFAA `permissions.mode=requestApproval`，不是 Codex 外层“完全访问”的授权；这条权限链不得绕过。已复核的具体代码问题还包括 `retireLegacyFileTables` 漏跑 v59 Agent Git 迁移、Git 文件审阅未先检查登记子目录边界、以及本机默认项目文件工具曾向 Daemon 派发。本轮已修复并以定向回归覆盖；当前浏览器服务与 Web 构建指纹不一致，源码 UI 尚未完成实页验收。
+- 默认工作区恢复修复：Windows 实机只读检查由用户 Documents 注册表动态解析到系统“文档”下的 `LFAA/default-workspace`，当前目录不存在；实现只创建规范文件夹并由 Workspace Owner 更新项目路径登记，不复制旧目录文件、不触碰 Session Owner 或 `.lfaa/data`。随后菜单启动暴露共享工作区内进行中的 Agent Git 代码编译错误，旧 Web PID 26816 尚未停止，真实账户路径登记和目标文件夹创建尚未执行；定向回归与构建待该共享源码恢复可编译后重跑。运行时不新增或更改设置。
+- 本轮 Agent Git 后续批次：已补上受限 HTTPS remote、账户隔离凭据加密保存，以及 fetch/快进 pull/当前分支 push/发布分支；Git Host 固定参数执行，认证不使用机器共享 helper，不跟随 HTTP 重定向。SSH 同步与 PR 写入仍为未接入；源码/回归/构建/内置浏览器验收结果待完成后续追加。
+- 最终实页验收：通过仓库正式入口 `pnpm lfaa web` 重启；数据锁预检只识别并重启当前源码仓库的 LFAA Web，`GET /api/health` 返回 200，`node scripts/runtime-build-state.mjs web` 返回 `[]`。ChatGPT 内置浏览器重新加载 `http://127.0.0.1:3000/work` 后正常运行，实页视口 1003×924。顶栏 Git 摘要显示“默认工作区 / main / 1 项变更 / +72 −0”；点击“变更”后右侧切至当前 Agent Git 管理与真实 unified diff，中心对话和输入区仍可见；提交历史、分支弹窗及参考图中的差异选项菜单均可打开。当前样本是尚无首次提交、无 remote 的新仓库，所以历史/分支列表为空且同步操作禁用，状态与本机 Git 一致。验收仅读取既有 `lfaa-default-workspace-check.html` 差异，没有暂存、提交、初始化或修改文件；截图保留在本轮内置浏览器观察中。常用宽屏桌面、第二个仓库切换、真实远端 Provider、桌面 WebView、SSH 同步和 PR 写入未验；SSH/PR 当前仍不显示为可用能力。
+
+<a id="lfaa-default-workspace-refresh-20261020"></a>
+
+## 156-LFAA默认工作区刷新与路径大小写修复-20261020
+
+### 目标与现象
+
+- 用户在 `/work` 刷新后短暂看到输入区显示“已移除 · 默认工作区”，随后又恢复默认工作区。截图证明该状态会在真实页面出现；会话列表与项目列表并行加载，项目列表初值为空，项目选择器曾在没有项目登记可匹配时立即将历史标题标成“已移除”。
+- 将项目列表状态区分为加载中、成功和失败；加载中/请求失败时不得推断项目已移除，只有成功读取项目列表后才显示真实缺失状态。刷新不得改变会话绑定或删除项目登记。
+- 默认文件夹为动态解析的系统“文档”位置下的 `lfaa/default-workspace`；不写死盘符和“文档”物理路径。已有路径仅做大小写归一显示/解析，不迁移、复制、删除或重命名目录内容。
+
+### Owner 与边界
+
+- Client 页面数据装配 Owner：`packages/client/ui-workspace/src/ApplicationWorkspace.tsx`；状态展示 Owner：`packages/client/ui-chat/src/AiWorkChat.tsx` 与 `WorkspaceProjectPicker.tsx`。
+- 规范默认目录 Owner：`packages/host/project-files/src/project-files.mjs`，经现有 Workspace Controller/Daemon 固定操作调用；Session Owner、Workspace 项目登记语义和权限不变。
+- 允许修改上述状态呈现/传递、默认目录子路径、对应既有文档与路径断言。禁止直接读取或改写实际账户数据库、会话记录、`.lfaa`、业务 Data、DSH 工作区或用户目录；正式 `/work` 页面只使用用户已有登录态和已有会话进行只读视觉验收。允许应用按既有初始化流程创建缺失的默认文件夹；不执行项目移除、新会话创建、会话重绑、目录迁移/复制/重命名；不写死任何盘符。
+- 不新增设置中心配置，沿用 `permissions.mode`、现有工作区项目与 Session Owner、Windows Documents 注册表及其他平台系统文档解析规则。
+
+### 验收
+
+- 静态核对：项目选择状态仅在成功列表不含绑定项目时报告已移除；失败或加载中使用中性状态。Windows 默认路径相对系统“文档”为 `lfaa/default-workspace`，路径其他组成部分仍动态解析。
+- 验证：`pnpm --filter lfaa-client-ui-chat run build`、`pnpm --filter lfaa-client-ui-workspace run build`、`pnpm --filter lfaa-host-project-files run build`、正式启动入口的 `pnpm run build:control-plane` 与 `pnpm run build:web`、`pnpm run check:workspace`、`git diff --check` 均通过；未运行测试套件。
+- 正式 Web 使用仓库菜单启动，内置浏览器路由 `http://127.0.0.1:3000/work` 刷新后，原会话“帮我写个简单的 html”和项目“默认工作区”均恢复；输入区不再显示“已移除”，项目帮助文本显示系统动态解析路径 `D:\系统\文档\lfaa\default-workspace`。Host 的只读 `resolve_default_workspace` 返回 `directory: true`。视口 `1003 × 925`；已观察内置浏览器截图，窄手机视口与独立桌面端未测。刷新触发既有默认工作区初始化并创建缺失目录；若既有默认项目登记路径不符，Controller 会由 Workspace Owner 更新该项目路径登记，不改 Session 绑定或内容。本轮未直接读取数据库判断路径字段是否被更新；未搬迁、复制或重命名任何目录内容。
+- 更新实现/验证结果，明确没有读取 `.lfaa` 数据；未运行的回归、真实设备、桌面 WebView 和帧时间分别标注。
+
+<a id="lfaa-project-storage-ui-20261020"></a>
+
+## 155-项目与存储界面整体优化-20261020
+
+### 问题与目标
+
+- `/settings?section=workspace` 当前把十个业务子目录呈现为一列内联文本，窄容器中路径与名称对齐不稳；业务存储区与 SteamCMD/游戏节点区连续堆叠，页面很长。通用工具栏写“更新会自动保存”，与本页使用各区块显式保存按钮的实际行为不清楚。
+- 目标是让当前根目录、各业务目录、位置选择、内容处理方式、SteamCMD 与游戏节点位置有清晰层级和一致对齐；窄视口下内容自然换行、操作仍可达。保留当前所有功能、说明边界、权限、默认值和保存方式。
+
+### Owner、配置与范围
+
+- 运行入口：设置中心“配置中心 → 项目与存储”，`/settings?section=workspace`。视图 Owner 为 `packages/client/ui-settings/src/SettingsPage.tsx` 与 `SettingsPage.css`。
+- 业务 Data 根及推荐/默认/分类路径由 `packages/settings/settings/src/project-storage.ts` 返回，持久化仍由 Settings Owner 写入 `<LFAA_HOME>/storages/data-directory.json`；显式 `LFAA_DATA_DIR` 仍只读。SteamCMD 配置继续调用其领域 Owner，Minecraft/Steam 游戏目录继续显示各游戏 Owner 返回的真实配置；不在 Client 新建存储规则。
+- 不新增或修改设置。页面沿用 Appearance 的主题、强调色、字体/字号、表面和减少动态效果令牌，以及现有容器断点。浏览器验收只读，不更改存储选择或执行复制、导入、导出、安装、核验和保存。
+- 允许：本页面局部 JSX/CSS、当前任务合同和索引。禁止：改设置/路径 API、Owner、权限、数据格式、默认值及持久化；迁移、复制或检查业务文件；改账号、会话、LFAA Home/Data 内容与其他未提交工作。
+
+### 分批与验收
+
+- B1：统一本页信息层级与路径卡片；修复业务子目录展示对齐；让存储位置与内容处理方案、SteamCMD 操作和节点位置在窄容器中保持可读和可操作。此批覆盖完整项目与存储页面，行为与保存接口不变。
+- 构建仅写根 `dist/`。执行设置 Client 类型/包构建、正式 Web 构建和适用工作区 Gate；依仓库规则从当前源码启动正式 Web，在 ChatGPT 内置浏览器检查实际路由、桌面与窄/短视口、页面滚动、控件可达和视觉层级，并保留截图证据。未执行的回归、帧时间、设备和桌面 WebView 验收必须如实标明。
+
+### 实施与验证结果
+
+- B1 已完成：当前 Data 根以独立状态卡呈现；业务分类目录按响应式网格展示，标签与路径稳定对齐；顶部提示明确本页配置分区保存；窄栏工具栏与目录卡片不再被通用 flex 样式拉伸或挤压。Data、SteamCMD、Minecraft/Steam 目录 Owner、配置值、保存接口和操作语义均未更改，没有新增设置中心配置。
+- 设置中心配置：沿用 `projectStorageLocations` / `<LFAA_HOME>` Data 根及分类目录、既有 SteamCMD 和游戏目录 Owner 返回值，以及 Appearance 主题、强调色、字体/字号、表面与减少动态效果令牌和共享容器断点；未新增持久化项。
+- 改动文件：`packages/client/ui-settings/src/SettingsPage.tsx`（本页结构、说明与目录卡片）；`packages/client/ui-settings/src/SettingsPage.css`（主题令牌下的卡片、网格及响应式布局）；`docs/PROMPTS.md`（本任务索引和合同）。
+- 验证：`pnpm --filter lfaa-client-ui-settings run build` 通过；经当前仓库 `lfaa.bat` 项目菜单完成正式 Web 构建并启动，`node scripts/runtime-build-state.mjs web` 返回 `[]`；`pnpm run check:workspace` 通过（200 个包、版本 0.0.8）；`git diff --check` 通过。
+- 内置浏览器实页：`http://127.0.0.1:3000/settings?section=workspace`。1440×900 桌面下目录卡片两列、布局完整；390×844 手机下卡片和选项堆叠、路径可读、操作可达；320×520 窄短视口下导航与内容换行，测得 `documentWidth=310`、`innerWidth=320`，无横向溢出且可纵向滚动。随后恢复默认视口、设置导航展开状态和页面顶部；各项存储操作未触发。验收截图由本轮内置浏览器实页检查留存在会话工具结果中，未另存为仓库文件。
+- 未运行回归测试；未测量帧时间，未在真实移动设备或 Desktop WebView 验收。以上未测范围不由构建或浏览器截图替代。

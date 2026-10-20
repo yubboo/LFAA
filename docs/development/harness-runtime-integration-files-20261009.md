@@ -86,7 +86,7 @@
 | [H:/LFAA1/packages/fs/tool-fs/src/write.ts](<../../packages/fs/tool-fs/src/write.ts>) | 写入参数与元数据 |
 | [H:/LFAA1/packages/fs/tool-fs-search/src/index.ts](<../../packages/fs/tool-fs-search/src/index.ts>) | 检索工具转交统一文件 Owner |
 | [H:/LFAA1/packages/fs/tool-str-replace-editor/src/index.ts](<../../packages/fs/tool-str-replace-editor/src/index.ts>) | 替换工具转交统一文件 Owner |
-| [H:/LFAA1/packages/host/daemon/src/project-files.mjs](<../../packages/host/daemon/src/project-files.mjs>) | 分页、图片、文件名搜索、摘要校验和替换真实执行 |
+| [packages/host/project-files/src/project-files.mjs](<../../packages/host/project-files/src/project-files.mjs>) | 本机与节点共享的分页、图片、文件名搜索、摘要校验和替换执行 |
 | [H:/LFAA1/packages/host/daemon/src/daemon.mjs](<../../packages/host/daemon/src/daemon.mjs>) | 控制台参数校验不另设生命周期命令禁令 |
 | [H:/LFAA1/packages/shell/tool-shell/src/index.ts](<../../packages/shell/tool-shell/src/index.ts>) | 本机能力位置、任务目录、账户超时及统一审批 |
 | [H:/LFAA1/packages/shell/tool-shell/package.json](<../../packages/shell/tool-shell/package.json>) | 运行环境依赖 |

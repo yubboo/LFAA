@@ -5,8 +5,8 @@
 让模型驱动的 Agent 在所有已登记 App 中，能通过自然语言目标选择真实文件工具，查询/读取、新建、整篇更新、局部修复和删除普通项目文件，并根据 Daemon 返回的执行证据继续判断。文件 CRUD 是通用 Agent 能力，不按具体 App 写关键词流程。
 
 - 运行入口：`packages/core/agent-loop`，模型可见工具由 `packages/fs/tool-fs`、`packages/fs/tool-fs-search`、`packages/fs/tool-str-replace-editor` 注册。
-- 模型参数翻译与现有权限接入由 `packages/core/tools/src/project-tools.ts` 维护；目标节点上的通用文件执行由 Daemon 的 `project-files` 任务处理器 `packages/host/daemon/src/project-files.mjs` 唯一完成。它是节点通用文件能力，不属于 Minecraft 生命周期或开服服务；控制端不直接读写目标主机文件。
-- 复用已有项目绑定、在线 Daemon `project-files-v1` 能力、`general.taskFolder`、`permissions.mode` 与 Permission Owner。`general.taskFolder` 默认空值；无项目上下文且未设置该目录时，工具通过现有参数合同要求真实 `nodeId` 与 `rootDirectory`。不新增设置项、工具外审批规则或 App 专属授权。
+- 模型参数翻译与权限接入由 `packages/core/tools/src/project-tools.ts` 维护；共享受限文件执行器位于 `packages/host/project-files`。Agent 会话绑定独立本机 Git 仓库时，由 LFAA 本机 Host 执行；模型明确选择节点目标时，Daemon 作为可选执行适配器调用同一实现。
+- 本机 Agent 仓库、可选 `WorkspaceProject` 与 Daemon 节点目标是分开的上下文。复用 `permissions.mode`、Permission Owner、`general.taskFolder` 和现有数据/路径边界，不新增设置项、工具外审批规则或 App 专属授权。
 - 所有 `APPLICATION_IDS` 均可发现通用文件工具；执行时目标项目/节点及其真实文件系统状态仍由现有 Owner 校验。
 
 ## 范围与边界

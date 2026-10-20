@@ -16,6 +16,7 @@
     "lfaa-game-connectivity": "workspace:*",
     "lfaa-home-paths": "workspace:*",
     "lfaa-launch-environment": "workspace:*",
+    "lfaa-host-project-files": "workspace:*",
     "lfaa-subprocess-local": "workspace:*",
     "lfaa-terminal-bash": "workspace:*",
     "lfaa-storage-sqlite": "workspace:*"

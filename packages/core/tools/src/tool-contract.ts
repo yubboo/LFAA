@@ -26,6 +26,10 @@ export interface AiBusinessToolContext {
   signal: AbortSignal;
   onProgress: (detail: string) => void;
   workspaceProject?: { nodeId: string; path: string; title: string } | null;
+  /** Agent Git Workspace Owner 解析出的可信本机仓库上下文，与 workspaceProject/Daemon 节点无关。 */
+  agentGitRepository?: { id: string; path: string; title: string } | null;
+  /** 由 LFAA 本机 Host 注入的共享受限文件执行器；Daemon 模式下不提供。 */
+  executeLocalProjectFile?: (input: Record<string, unknown>) => Promise<unknown>;
   /** Run 从 Writing Owner 重读当前账户上下文；参数由 Owner 决定，不接受模型注入 ID。 */
   refreshWritingContext?: () => void;
   /** 仅提供给明确声明问题通道的插件工具，回答仍由当前 Agent Run 管理。 */
@@ -55,7 +59,7 @@ export interface AiBusinessTool {
   schema: Record<string, unknown>;
   risk: (parameters: Record<string, unknown>) => AiBusinessToolRisk;
   approval: (parameters: Record<string, unknown>, context: Pick<AiBusinessToolContext, "userId" | "applicationId">) => { scopeKey: string; scopeSummary: string; summary: string };
-  prepare?: (parameters: Record<string, unknown>, context: Pick<AiBusinessToolContext, "userId" | "workspaceProject">) => Record<string, unknown>;
+  prepare?: (parameters: Record<string, unknown>, context: Pick<AiBusinessToolContext, "userId" | "workspaceProject" | "agentGitRepository">) => Record<string, unknown>;
   parse: (value: unknown) => Record<string, unknown>;
   execute: (parameters: Record<string, unknown>, context: AiBusinessToolContext) => Promise<unknown>;
   delegation?: "domain-expert";

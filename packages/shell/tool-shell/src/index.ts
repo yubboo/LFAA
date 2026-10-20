@@ -167,7 +167,7 @@ function buildLocalTools(ctx: Context): AiBusinessTool[] {
         timeoutSeconds: { type: "integer", minimum: 1, maximum: 600 }
       }, ["command"]),
       parse: (value) => parseWithSchema(localCommandSchema, value),
-      prepare: (parameters, context) => ({ ...parameters, workingDirectory: parameters.workingDirectory || getUserSettings(context.userId).general.taskFolder || process.cwd() }),
+      prepare: (parameters, context) => ({ ...parameters, workingDirectory: parameters.workingDirectory || context.agentGitRepository?.path || getUserSettings(context.userId).general.taskFolder || process.cwd() }),
       risk: () => "dangerous",
       approval: (parameters) => {
         const workingDirectory = String(parameters.workingDirectory ?? "");

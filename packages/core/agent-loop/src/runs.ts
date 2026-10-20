@@ -11,15 +11,18 @@ import type { AgentDefaultModelResolver } from "lfaa-agent-default-model/src/ind
 import type { UserApprovalNotifications } from "lfaa-user-approval/src/index.js";
 import type { UserQuestionService } from "lfaa-user-questions/src/index.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
-import { appendAiSteeringInput, createAiSessionBranchWithMemory as persistAiSessionBranchWithMemory, createAiTurn, getAiSessionPlanMode, getAiSideChatParentSessionId, getAiSessionWorkspaceContext, prepareAiSessionBranchSeed, refreshAiTurnHistory, saveAiAssistantActivity, setAiSessionPlanMode, startQueuedAiTurn, finishAiAssistantMessage, getAiRun as readRun, interruptOrphanedAiRuns, listAiSessions, type AiModelMessage, type AiRunView, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
+import { appendAiSteeringInput, createAiSessionBranchWithMemory as persistAiSessionBranchWithMemory, createAiTurn, getAiSessionPlanMode, getAiSideChatParentSessionId, prepareAiSessionBranchSeed, refreshAiTurnHistory, saveAiAssistantActivity, setAiSessionPlanMode, startQueuedAiTurn, finishAiAssistantMessage, getAiRun as readRun, interruptOrphanedAiRuns, listAiSessions, type AiModelMessage, type AiRunView, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
+import { logger } from "lfaa-telemetry-logger/src/logger.js";
 import { executeAiTurn } from "./execute-turn.js";
 import { summarizeBranchMemory } from "./branch-memory.js";
 import { AiRunPauseGate, type AiRunPauseState } from "./run-pause.js";
 import { claimWorkspaceProjectApplication, getWorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-workspace-workspace/src/index.js";
+import { bindAgentGitSessionRepository, getAgentGitRepository, getAgentGitSessionRepository, registerAgentGitRepository } from "lfaa-workspace-agent-git";
 import type { SessionReplyPart } from "lfaa-session/src/kernel.js";
 import type { AiCompletionService } from "lfaa-llm/src/completion.js";
+import { resolveAiSessionWorkspaceContext } from "./workspace-context.js";
 
-export interface AiRunInput { appId: ApplicationId; sessionId: string | null; content: string; projectId?: string | null; associations?: AgentAssociations; planMode?: boolean }
+export interface AiRunInput { appId: ApplicationId; sessionId: string | null; content: string; projectId?: string | null; gitRepositoryId?: string | null; associations?: AgentAssociations; planMode?: boolean }
 interface AiUserQuestion { questionId: string; question: string; options: string[]; resolve: (value: { answer: string; skipped: boolean }) => void; signal: AbortSignal; abort: () => void }
 type Listener = (event: string, data: Record<string, unknown>) => void;
 interface LiveRun { id: string; userId: string; applicationId: ApplicationId; sessionId: string; canAskUser: boolean; controller: AbortController; pauseGate: AiRunPauseGate; children: Set<string>; pendingApprovals: Set<string>; listeners: Set<Listener>; completion: Promise<void>; content: string; parts: SessionReplyPart[]; inbox: AiModelMessage[]; pendingQuestion?: AiUserQuestion }
@@ -53,7 +56,7 @@ export function initializeAiRuns(resolver: AgentDefaultModelResolver, approvals:
 }
 export function getAiRun(userId: string, runId: string): AiRunView | null { const run = readRun(userId, runId); const live = liveRuns.get(runId); return run && live?.userId === userId ? { ...run, message: { ...run.message, content: live.content, parts: live.parts.map(part => ({ ...part })) } } : run; }
 
-interface RunOptions { depth?: number; modelAccountId?: string; allowedToolNames?: string[]; systemPrompt?: string; delegationBudget?: { used: number; maximum: number }; writeGate?: { denied: boolean }; canAskUser?: boolean; requestUserInput?: (input: { questionId: string; question: string; options: string[] }) => Promise<{ answer: string; skipped: boolean }>; memoryEligible?: boolean; workspaceProject?: AiSessionProjectContext | null }
+interface RunOptions { depth?: number; modelAccountId?: string; allowedToolNames?: string[]; systemPrompt?: string; delegationBudget?: { used: number; maximum: number }; writeGate?: { denied: boolean }; canAskUser?: boolean; requestUserInput?: (input: { questionId: string; question: string; options: string[] }) => Promise<{ answer: string; skipped: boolean }>; memoryEligible?: boolean; workspaceProject?: AiSessionProjectContext | null; gitRepositoryId?: string | null }
 
 const sideChatSystemPrompt = "你是当前 AI Work 会话的侧边解释助手。用户会在主任务仍可能执行时向你提问。你只解释侧边聊天创建时已记录的会话上下文和一般知识；不要执行或声称执行文件、命令、项目、Daemon、审批或工具操作，也不要改变主聊天任务。上下文快照不含主聊天未完成的流式输出和实时进度；遇到相关问题时请明确说明你看不到未记录的部分。";
 
@@ -113,6 +116,7 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
   if (body.planMode !== undefined && sideChat) throw new Error("侧边聊天不能切换计划模式。");
   if (body.planMode !== undefined && previous) throw new Error("当前会话仍有活动任务，不能在排队消息中切换计划模式。");
   if (body.projectId && body.sessionId) throw new Error("只能为新会话选择项目；已有会话请从项目菜单切换。 ");
+  if (body.gitRepositoryId && body.sessionId) throw new Error("已有 Agent 会话的 Git 仓库只能通过仓库管理器切换。 ");
   if (body.projectId && body.appId !== "workspace" && body.appId !== "minecraft") throw new Error("当前应用不支持通用项目目录。 ");
   const projectAppId = body.appId === "workspace" || body.appId === "minecraft" ? body.appId as WorkspaceProjectApplicationId : undefined;
   let registeredProject = body.projectId && projectAppId ? getWorkspaceProject(userId, body.projectId, projectAppId === "workspace" ? undefined : projectAppId) : null;
@@ -128,8 +132,13 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
     const owned = getWorkspaceProject(userId, runOptions.workspaceProject.id);
     if (!owned || owned.nodeId !== runOptions.workspaceProject.nodeId || owned.path !== runOptions.workspaceProject.path) throw new Error("子 Agent 项目不属于当前账户或节点目录已变更，已拒绝执行。");
   }
-  const workspaceProject = runOptions.workspaceProject ?? (registeredProject && projectAppId ? { id: registeredProject.id, appId: projectAppId, nodeId: registeredProject.nodeId, path: registeredProject.path, title: registeredProject.title } : null);
+  const workspaceProject = runOptions.workspaceProject
+    ?? (registeredProject && projectAppId ? { id: registeredProject.id, appId: projectAppId, nodeId: registeredProject.nodeId, path: registeredProject.path, title: registeredProject.title } : null)
+    ?? (body.sessionId ? resolveAiSessionWorkspaceContext(userId, body.sessionId) : null);
+  const requestedGitRepositoryId = body.sessionId ? null : body.gitRepositoryId ?? runOptions.gitRepositoryId ?? null;
+  if (requestedGitRepositoryId && !getAgentGitRepository(userId, requestedGitRepositoryId)) throw new Error("Agent Git 仓库不属于当前账户或已移除。 ");
   const turn = createAiTurn(userId, body.appId, body.sessionId, body.content, Boolean(previous), workspaceProject, body.associations);
+  if (!body.sessionId && requestedGitRepositoryId && !bindAgentGitSessionRepository(userId, turn.session.id, requestedGitRepositoryId)) throw new Error("新 Agent 会话未能绑定已登记的 Git 仓库。 ");
   if (body.planMode !== undefined) setAiSessionPlanMode(userId, turn.session.id, body.planMode, { allowActiveRun: true });
   const id = turn.assistantMessage.id;
   let run!: LiveRun;
@@ -165,6 +174,17 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
     if (previous) startQueuedAiTurn(userId, turn.session.id, turn.userMessage.id, id);
     refreshAiTurnHistory(userId, turn);
     finishAiAssistantMessage(userId, turn.session.id, id, "", "streaming");
+    if (workspaceProject && !getAgentGitSessionRepository(userId, turn.session.id) && aiPluginHost.resolveLocalAgentGitDirectory) {
+      try {
+        const directory = await aiPluginHost.resolveLocalAgentGitDirectory(workspaceProject.nodeId, workspaceProject.path);
+        if (directory) {
+          const repository = registerAgentGitRepository({ userId, path: directory, title: workspaceProject.title });
+          if (!bindAgentGitSessionRepository(userId, turn.session.id, repository.id)) throw new Error("当前 Agent 项目无法绑定到会话。");
+        }
+      } catch (error) {
+        logger.warn("AI Work 自动关联本机 Agent Git 失败；继续运行对话", { userId, sessionId: turn.session.id, errorName: error instanceof Error ? error.name : "UnknownError" });
+      }
+    }
     return executeAiTurn({ userId, userRole, body, turn, aiPluginHost, abortController: run.controller, pauseGate: run.pauseGate, emit, takeInputs: () => run.inbox.splice(0), modelAccountId: account.accountId, modelResolver: resolver, approvalNotifications: approvals, writeGate, memoryEligible: runOptions.memoryEligible ?? (depth === 0 && !getAiSessionPlanMode(userId, turn.session.id)), planModeEnabled: depth === 0 && !sideChat,
       ...(requestUserInput ? { requestUserInput } : {}),
       ...(runOptions.systemPrompt ? { systemPrompt: runOptions.systemPrompt } : {}),
@@ -180,7 +200,7 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
         let childStarted = false; const startChild = async (signal?: AbortSignal) => { if (childStarted) throw new Error("同一委派只允许启动一个子任务。"); childStarted = true;
         run.controller.signal.throwIfAborted();
         signal?.throwIfAborted();
-        const child = startAiRun(userId, userRole, { appId: body.appId, sessionId: null, content: String(parameters.task) }, aiPluginHost, { depth: depth + 1, modelAccountId: typeof parameters.modelAccountId === "string" ? parameters.modelAccountId : currentRuntime.subagentAccountId || account.accountId, allowedToolNames: requested, systemPrompt: ["你是主 Agent 委派的子 Agent。围绕本次子任务自主选择工具、检查结果和完成验证；返回产物、执行证据和未解决事项。", typeof parameters.expertInstructions === "string" ? parameters.expertInstructions : ""].filter(Boolean).join("\n\n"), delegationBudget: budget, writeGate, canAskUser: false, workspaceProject: getAiSessionWorkspaceContext(userId, turn.session.id) });
+        const child = startAiRun(userId, userRole, { appId: body.appId, sessionId: null, content: String(parameters.task) }, aiPluginHost, { depth: depth + 1, modelAccountId: typeof parameters.modelAccountId === "string" ? parameters.modelAccountId : currentRuntime.subagentAccountId || account.accountId, allowedToolNames: requested, systemPrompt: ["你是主 Agent 委派的子 Agent。围绕本次子任务自主选择工具、检查结果和完成验证；返回产物、执行证据和未解决事项。", typeof parameters.expertInstructions === "string" ? parameters.expertInstructions : ""].filter(Boolean).join("\n\n"), delegationBudget: budget, writeGate, canAskUser: false, workspaceProject, gitRepositoryId: getAgentGitSessionRepository(userId, turn.session.id)?.id ?? null });
         const childLive = liveRuns.get(child.id)!;
         run.children.add(child.id);
         const abortChild = () => childLive.controller.abort();

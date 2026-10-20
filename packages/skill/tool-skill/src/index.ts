@@ -1,7 +1,7 @@
 /**
  * 功能：提供统一的 Skill 目录与按需正文读取。
  * 作用：复用写作 Skill 与项目文件 Daemon Owner，项目路径/审批仍采用现有合同。
- * 关联文件：skill/writing、core/tools/project-tools.ts、host/daemon/project-files.mjs；不执行 Skill 内指令。
+ * 关联文件：skill/writing、core/tools/project-tools.ts、host/project-files/project-files.mjs；不执行 Skill 内指令。
  */
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import type { Context } from "@deepseek-ai/cordis";

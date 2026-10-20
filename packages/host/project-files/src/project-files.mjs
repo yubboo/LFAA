@@ -1,27 +1,37 @@
 /**
  * 功能：执行项目文件的真实读取、检索、创建、修改、删除和唯一锚点编辑。
  * 作用：验证规范路径、拒绝越界符号链接，使用文件摘要检测并发修改，返回可核对的内容与差异。
- * 关联文件：daemon.mjs 的 project-files 任务执行器、git-workspace.mjs、core/tools/project-tools.ts；可作为独立 Node 任务运行。
+ * 关联文件：daemon.mjs 的 project-files 任务执行器、core/tools/project-tools.ts；可作为独立 Node 任务运行。
  */
+import { createReadStream } from "node:fs";
 import { readFile, writeFile, realpath, stat, lstat, readdir, mkdir, opendir, rename, rm, unlink } from "node:fs/promises";
-import { resolve, relative, dirname, isAbsolute, sep, parse } from "node:path";
+import { resolve, relative, dirname, basename, join, isAbsolute, sep, parse } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
-import { executeGitWorkspace } from "./git-workspace.mjs";
 
 const textLimit = 2 * 1024 * 1024;
 const digest = text => createHash("sha256").update(text).digest("hex");
-const protectedDataRoot = process.env.LFAA_DAEMON_DATA_ROOT ? resolve(process.env.LFAA_DAEMON_DATA_ROOT) : null;
+let protectedDataRoot = process.env.LFAA_DAEMON_DATA_ROOT?.trim() ? resolve(process.env.LFAA_DAEMON_DATA_ROOT.trim()) : "";
+let protectedDataRootPromise;
 let protectedDataRootRealPath;
+async function getProtectedDataRoot() {
+  const daemonDataRoot = process.env.LFAA_DAEMON_DATA_ROOT?.trim();
+  if (daemonDataRoot) return resolve(daemonDataRoot);
+  if (protectedDataRoot) return protectedDataRoot;
+  protectedDataRootPromise ??= import("lfaa-launch-environment/src/config.js").then(({ config }) => resolve(config.dataDirectory));
+  protectedDataRoot = await protectedDataRootPromise;
+  return protectedDataRoot;
+}
 function assertWithin(root, path) {
   const value = relative(root, path);
   if (value === ".." || value.startsWith(`..${sep}`) || isAbsolute(value)) throw new Error("文件路径超出本次项目根目录。");
 }
 async function assertOutsideDataRoot(path) {
-  if (!protectedDataRoot) return;
-  protectedDataRootRealPath ??= realpath(protectedDataRoot).catch(() => protectedDataRoot);
+  const dataRoot = await getProtectedDataRoot();
+  if (!dataRoot) return;
+  protectedDataRootRealPath ??= realpath(dataRoot).catch(() => dataRoot);
   let candidate = resolve(path);
   try { candidate = await realpath(candidate); } catch { /* 新建目标在检查前不存在；调用方先校验其现有父目录。 */ }
   const value = relative(await protectedDataRootRealPath, candidate);
@@ -49,22 +59,35 @@ async function assertNearestPathOutsideDataRoot(path) {
     }
   }
 }
+function readWindowsDocumentsRegistryValue() {
+  const script = [
+    "$ProgressPreference = 'SilentlyContinue'",
+    "$utf8 = [System.Text.UTF8Encoding]::new($false)",
+    "$OutputEncoding = $utf8",
+    "[Console]::OutputEncoding = $utf8",
+    "$value = (Get-ItemProperty -LiteralPath 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders').Personal",
+    "[Console]::Out.Write([Environment]::ExpandEnvironmentVariables([string]$value))"
+  ].join("\n");
+  return execFileSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], {
+    encoding: "utf8", windowsHide: true, timeout: 3000, maxBuffer: 16 * 1024
+  }).trim();
+}
+
+export function resolveWindowsDocumentsDirectory(value, environment = process.env) {
+  const variables = new Map(Object.entries(environment).map(([key, variable]) => [key.toLocaleUpperCase("en-US"), variable ?? ""]));
+  let unresolved = false;
+  const directory = String(value ?? "").trim().replace(/%([^%]+)%/gu, (_token, name) => {
+    const expanded = variables.get(name.toLocaleUpperCase("en-US"));
+    if (!expanded) unresolved = true;
+    return expanded ?? "";
+  });
+  if (unresolved || !isAbsolute(directory)) throw new Error("Windows 系统“文档”目录路径无效。 ");
+  return resolve(directory);
+}
+
 function resolveSystemDocumentsDirectory() {
   if (process.platform === "win32") {
-    const output = execFileSync("reg.exe", ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders", "/v", "Personal"], {
-      encoding: "utf8", windowsHide: true, timeout: 3000, maxBuffer: 16 * 1024
-    });
-    const match = output.match(/^\s*Personal\s+REG_\w+\s+(.+)\s*$/imu);
-    if (!match) throw new Error("无法读取 Windows 系统“文档”目录。 ");
-    const environment = new Map(Object.entries(process.env).map(([key, value]) => [key.toLocaleUpperCase("en-US"), value ?? ""]));
-    let unresolved = false;
-    const directory = match[1].replace(/%([^%]+)%/gu, (_token, name) => {
-      const value = environment.get(name.toLocaleUpperCase("en-US"));
-      if (!value) unresolved = true;
-      return value ?? "";
-    });
-    if (unresolved || !isAbsolute(directory)) throw new Error("Windows 系统“文档”目录路径无效。 ");
-    return resolve(directory);
+    return resolveWindowsDocumentsDirectory(readWindowsDocumentsRegistryValue());
   }
   if (process.platform === "darwin") return resolve(homedir(), "Documents");
   if (process.platform === "linux") {
@@ -75,22 +98,56 @@ function resolveSystemDocumentsDirectory() {
   throw new Error(`当前平台无法解析系统“文档”目录：${process.platform}`);
 }
 
-/** 创建 DSH 式首次默认项目目录；解析器参数仅供隔离回归注入，不接受任务输入。 */
-export async function createDefaultWorkspaceDirectory(resolveDocuments = resolveSystemDocumentsDirectory) {
+/** 动态解析系统“文档”目录下 lfaa 默认工作区；解析器仅供隔离回归注入，不接受任务输入。 */
+export async function resolveDefaultWorkspaceDirectory(resolveDocuments = resolveSystemDocumentsDirectory) {
   const documents = resolveDocuments();
   if (typeof documents !== "string" || !isAbsolute(documents)) throw new Error("系统“文档”目录必须是绝对路径。 ");
   await assertNearestPathOutsideDataRoot(documents);
-  await mkdir(documents, { recursive: true });
   const canonicalDocuments = await realpath(documents);
   await assertOutsideDataRoot(canonicalDocuments);
-  const requested = resolve(canonicalDocuments, "LFAA", "default-workspace");
+  const requested = resolve(canonicalDocuments, "lfaa", "default-workspace");
   await assertNearestPathOutsideDataRoot(requested);
+  try {
+    const details = await lstat(requested);
+    if (details.isSymbolicLink()) throw new Error("默认工作区目标不能是符号链接；为保护目录归属，未继续。 ");
+    if (!details.isDirectory()) throw new Error("默认工作区路径不是文件夹。 ");
+    const canonical = await realpath(requested);
+    await assertOutsideDataRoot(canonical);
+    if (!samePath(canonical, requested)) throw new Error("默认工作区目标解析到其他位置；为保护目录归属，未继续。 ");
+    return requested;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    return requested;
+  }
+}
+
+/** 解析默认工作区路径并报告其是否真实存在；读取路径时不自动创建目录。 */
+export async function inspectDefaultWorkspaceDirectory(resolveDocuments = resolveSystemDocumentsDirectory) {
+  const path = await resolveDefaultWorkspaceDirectory(resolveDocuments);
+  try { return { path, directory: (await stat(path)).isDirectory() }; }
+  catch (error) {
+    if (error.code === "ENOENT") return { path, directory: false };
+    throw error;
+  }
+}
+
+/** 创建首次默认项目目录；系统“文档”由运行时解析，不接受用户传入的目标绝对路径。 */
+export async function createDefaultWorkspaceDirectory(resolveDocuments = resolveSystemDocumentsDirectory) {
+  const requested = await resolveDefaultWorkspaceDirectory(resolveDocuments);
+  await assertNearestPathOutsideDataRoot(requested);
+  await mkdir(dirname(requested), { recursive: true });
   await mkdir(requested, { recursive: true });
   const canonical = await realpath(requested);
   await assertOutsideDataRoot(canonical);
   if (!(await stat(canonical)).isDirectory()) throw new Error("默认工作区路径不是文件夹。 ");
-  return canonical;
+  return requested;
 }
+
+function samePath(left, right) {
+  const a = resolve(left), b = resolve(right);
+  return process.platform === "win32" ? a.toLocaleLowerCase("en-US") === b.toLocaleLowerCase("en-US") : a === b;
+}
+
 async function readBoundedDirectory(path, limit = 5000) {
   const directory = await opendir(path);
   const entries = [];
@@ -125,7 +182,7 @@ async function readText(path) {
 }
 
 export async function executeProjectFile(input) {
-  if (input?.operation === "git-workspace") return executeGitWorkspace({ ...input, operation: input.gitOperation });
+  if (input?.operation === "resolve_default_workspace") return await inspectDefaultWorkspaceDirectory();
   if (input?.operation === "initialize_default_workspace") return { path: await createDefaultWorkspaceDirectory() };
   if (input?.operation === "home") {
     const home = await realpath(homedir());

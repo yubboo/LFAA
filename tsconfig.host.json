@@ -57,6 +57,12 @@
       "lfaa-api-account-controller/src/*": [
         "packages/api/account-controller/src/*"
       ],
+      "lfaa-api-agent-git-controller": [
+        "packages/api/agent-git-controller/src/index.ts"
+      ],
+      "lfaa-api-agent-git-controller/src/*": [
+        "packages/api/agent-git-controller/src/*"
+      ],
       "lfaa-api-ai-video-controller": [
         "packages/api/ai-video-controller/src/index.ts"
       ],
@@ -476,6 +482,15 @@
       ],
       "lfaa-host-daemon/src/*": [
         "packages/host/daemon/src/*"
+      ],
+      "lfaa-host-git": [
+        "packages/host/git/src/index.ts"
+      ],
+      "lfaa-host-git/src/*": [
+        "packages/host/git/src/*"
+      ],
+      "lfaa-host-project-files/src/*": [
+        "packages/host/project-files/src/*"
       ],
       "lfaa-host-webserver": [
         "packages/host/webserver/src/index.ts"
@@ -1142,6 +1157,12 @@
       ],
       "lfaa-workflow/src/*": [
         "packages/workflow/workflow/src/*"
+      ],
+      "lfaa-workspace-agent-git": [
+        "packages/workspace/agent-git/src/index.ts"
+      ],
+      "lfaa-workspace-agent-git/src/*": [
+        "packages/workspace/agent-git/src/*"
       ],
       "lfaa-workspace-data-directory": [
         "packages/workspace/data-directory/src/index.ts"

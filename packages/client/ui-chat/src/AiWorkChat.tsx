@@ -80,9 +80,11 @@ interface AiWorkChatProps {
   sessions: AiSession[];
   activeSessionId: string | null;
   newSessionProjectId: string | null;
+  newSessionGitRepositoryId: string | null;
   defaultWorkspaceProjectId: string | null;
   onSelectedProjectChange: (projectId: string | null) => void;
   workspaceProjects: WorkspaceProject[];
+  workspaceProjectsLoadStatus: "loading" | "ready" | "error";
   workspaceProjectsTruncated: boolean;
   workspaceNodes: WorkspaceDaemonNode[];
   workspaceProjectsError: string;
@@ -272,7 +274,7 @@ const runtimeSpeedOptions: Array<{ value: UserSettings["aiRuntime"]["speed"]; la
   { value: "deep", label: "深入", description: "按模型/自定义上限" }
 ];
 
-function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, newSessionProjectId, defaultWorkspaceProjectId, onSelectedProjectChange, workspaceProjects, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFileReview, onWritingWorkspaceChange }: AiWorkChatProps) {
+function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, newSessionProjectId, newSessionGitRepositoryId, defaultWorkspaceProjectId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFileReview, onWritingWorkspaceChange }: AiWorkChatProps) {
   const currentScrollConversationKey = `${appId}:${activeSessionId ?? "new-session"}`;
   const outputFocusRegionElementRef = useRef<HTMLElement | null>(null);
   const setOutputFocusRegionElement = useCallback((node: HTMLElement | null) => {
@@ -675,7 +677,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
   const branchSourceNode = branchSourceProject ? workspaceNodes.find(node => node.id === branchSourceProject.nodeId) ?? null : null;
   const canCreateWorktreeBranch = (appId === "workspace" || appId === "minecraft")
     && Boolean(branchSourceProject && (appId === "workspace" || branchSourceProject.appId === appId) && !branchSourceProject.gitWorktree
-      && branchSourceNode?.status === "online" && branchSourceNode.gitWorkspaceSupported);
+      && branchSourceNode?.local);
   const activeModel = activeAccount?.models.find((model) => model.id === activeAccount.modelId);
   const activeModelReasoningOptions = reasoningOptions(activeModel);
   const activeReasoningMode = effectiveReasoningMode(activeModel, activeAccount?.reasoningMode ?? "default");
@@ -1013,6 +1015,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
         appId,
         sessionId: requestSessionId,
         ...(!requestSessionId && requestProjectId ? { projectId: requestProjectId } : {}),
+        ...(!requestSessionId && newSessionGitRepositoryId ? { gitRepositoryId: newSessionGitRepositoryId } : {}),
         ...(!requestSessionId ? { associations } : {}),
         content,
         ...(requestedPlanMode === undefined ? {} : { planMode: requestedPlanMode }),
@@ -1902,7 +1905,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
         </section> : null}
         <form ref={composerFormRef} className="ai-work-chat__composer" aria-label="小鱼智能体 消息输入" onSubmit={(event) => { event.preventDefault(); void sendMessage(); }}>
           <div className="ai-work-chat__composer-context" aria-label="当前对话上下文">
-            <WorkspaceProjectPicker appId="workspace" applicationName="小鱼智能体" projects={workspaceProjects} projectListTruncated={workspaceProjectsTruncated} projectLoadError={workspaceProjectsError} onRetryProjects={onRetryWorkspaceProjects} nodes={workspaceNodes} value={selectedProjectId} selectedProjectTitle={activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectTitle : null} defaultDirectory={settings.general.taskFolder} disabled={busy || projectBusy || associationsBusy || Boolean(editingMessage)} onChange={project => void changeWorkspaceProject(project)} onProjectsChange={onWorkspaceProjectsChange} />
+            <WorkspaceProjectPicker appId="workspace" applicationName="小鱼智能体" projects={workspaceProjects} projectListStatus={workspaceProjectsLoadStatus} projectListTruncated={workspaceProjectsTruncated} projectLoadError={workspaceProjectsError} onRetryProjects={onRetryWorkspaceProjects} nodes={workspaceNodes} value={selectedProjectId} selectedProjectTitle={activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectTitle : null} defaultDirectory={settings.general.taskFolder} disabled={busy || projectBusy || associationsBusy || Boolean(editingMessage)} onChange={project => void changeWorkspaceProject(project)} onProjectsChange={onWorkspaceProjectsChange} />
 
             <span className="ai-work-chat__composer-app" aria-label={`当前应用：${applicationNameFor(appId)}`} title={applicationNameFor(appId)}><WorkbenchIcon name="spark" size={13} /><span className="ai-work-chat__composer-app-label">{applicationNameFor(appId)}</span></span>
             <Typography.Text className="ai-work-chat__composer-count" aria-label={`已输入 ${draft.length}，最多 12000 个字符`}>{draft.length}<span>/12000</span></Typography.Text>

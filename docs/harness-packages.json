@@ -38,6 +38,23 @@
       }
     },
     {
+      "path": "packages/api/agent-git-controller",
+      "name": "lfaa-api-agent-git-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "Agent 本机 Git 仓库登记、会话绑定与固定操作认证 API",
+      "evidence": {
+        "entry": "packages/api/agent-git-controller/src/index.ts",
+        "readme": "packages/api/agent-git-controller/README.md",
+        "consumers": [],
+        "bundleDeclarations": [
+          "packages/bundle/web-app/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
       "path": "packages/api/ai-video-controller",
       "name": "lfaa-api-ai-video-controller",
       "upstreamName": null,
@@ -203,6 +220,7 @@
         "readme": "packages/api/remotes/README.md",
         "consumers": [
           "packages/api/account-controller",
+          "packages/api/agent-git-controller",
           "packages/api/ai-video-controller",
           "packages/api/connectivity-controller",
           "packages/api/gateway",
@@ -2193,6 +2211,7 @@
         "entry": "packages/core/session/src/index.ts",
         "readme": "packages/core/session/README.md",
         "consumers": [
+          "packages/api/agent-git-controller",
           "packages/api/session-controller",
           "packages/api/settings-controller",
           "packages/api/terminal-controller",
@@ -2286,6 +2305,7 @@
         "readme": null,
         "consumers": [
           "packages/api/account-controller",
+          "packages/api/agent-git-controller",
           "packages/api/ai-video-controller",
           "packages/api/connectivity-controller",
           "packages/api/gateway",
@@ -2337,6 +2357,7 @@
         "entry": "packages/credentials/credentials/src/index.ts",
         "readme": "packages/credentials/credentials/README.md",
         "consumers": [
+          "packages/api/agent-git-controller",
           "packages/core/agent-default-model",
           "packages/credentials/credential-flows",
           "packages/integrations/github",
@@ -3275,6 +3296,7 @@
         "entry": "packages/host/daemon/src/index.ts",
         "readme": "packages/host/daemon/README.md",
         "consumers": [
+          "packages/api/agent-git-controller",
           "packages/api/connectivity-controller",
           "packages/api/job-controller",
           "packages/api/minecraft-controller",
@@ -3283,6 +3305,8 @@
           "packages/api/terminal-controller",
           "packages/api/workspace-controller",
           "packages/api/workspace-files",
+          "packages/boot/app-boot",
+          "packages/core/tools",
           "packages/games/minecraft",
           "packages/games/runtime-manager",
           "packages/games/steamcmd",
@@ -3372,6 +3396,26 @@
       }
     },
     {
+      "path": "packages/host/git",
+      "name": "lfaa-host-git",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "本机 Git 状态、差异、提交和分支固定操作执行 Owner",
+      "evidence": {
+        "entry": "packages/host/git/src/index.ts",
+        "readme": "packages/host/git/README.md",
+        "consumers": [
+          "packages/api/agent-git-controller",
+          "packages/api/workspace-controller",
+          "packages/boot/app-boot",
+          "packages/core/tools"
+        ],
+        "bundleDeclarations": [],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
       "path": "packages/host/open-in-app",
       "name": null,
       "upstreamName": "@deepseek-ai/dsh-host-open-in-app",
@@ -3414,6 +3458,24 @@
         "consumers": [],
         "bundleDeclarations": [],
         "boundary": "目标职责；占位不可执行"
+      }
+    },
+    {
+      "path": "packages/host/project-files",
+      "name": "lfaa-host-project-files",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "本机与 Daemon 共用的受限文件执行器",
+      "evidence": {
+        "entry": null,
+        "readme": "packages/host/project-files/README.md",
+        "consumers": [
+          "packages/api/agent-git-controller",
+          "packages/boot/app-boot"
+        ],
+        "bundleDeclarations": [],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -3540,10 +3602,12 @@
         "entry": "packages/interaction/permission-presets/src/index.ts",
         "readme": "packages/interaction/permission-presets/README.md",
         "consumers": [
+          "packages/api/agent-git-controller",
           "packages/api/plugin-controller",
           "packages/api/session-controller",
           "packages/api/settings-controller",
           "packages/api/terminal-controller",
+          "packages/api/workspace-controller",
           "packages/core/agent-loop"
         ],
         "bundleDeclarations": [
@@ -4723,6 +4787,7 @@
         "entry": "packages/settings/settings/src/index.ts",
         "readme": "packages/settings/settings/README.md",
         "consumers": [
+          "packages/api/agent-git-controller",
           "packages/api/minecraft-controller",
           "packages/api/remotes",
           "packages/api/session-controller",
@@ -5344,6 +5409,7 @@
           "packages/storage/storage-domain",
           "packages/video/ai-video",
           "packages/workflow/workflow",
+          "packages/workspace/agent-git",
           "packages/workspace/workspace"
         ],
         "bundleDeclarations": [
@@ -6034,6 +6100,8 @@
           "packages/fs/fs",
           "packages/games/runtime-manager",
           "packages/host/daemon",
+          "packages/host/git",
+          "packages/host/project-files",
           "packages/host/webserver",
           "packages/identity/auth",
           "packages/integrations/github",
@@ -6159,6 +6227,7 @@
         "readme": "packages/util/values/README.md",
         "consumers": [
           "packages/api/account-controller",
+          "packages/api/agent-git-controller",
           "packages/api/ai-video-controller",
           "packages/api/connectivity-controller",
           "packages/api/github-connection-controller",
@@ -6525,6 +6594,25 @@
       }
     },
     {
+      "path": "packages/workspace/agent-git",
+      "name": "lfaa-workspace-agent-git",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "账户隔离的本机 Git 仓库登记与 Agent Session 绑定 Owner",
+      "evidence": {
+        "entry": "packages/workspace/agent-git/src/index.ts",
+        "readme": "packages/workspace/agent-git/README.md",
+        "consumers": [
+          "packages/api/agent-git-controller",
+          "packages/core/agent-loop",
+          "packages/core/tools"
+        ],
+        "bundleDeclarations": [],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
       "path": "packages/workspace/data-directory",
       "name": "lfaa-workspace-data-directory",
       "upstreamName": null,
@@ -6554,6 +6642,7 @@
         "entry": "packages/workspace/workspace/src/index.ts",
         "readme": "packages/workspace/workspace/README.md",
         "consumers": [
+          "packages/api/agent-git-controller",
           "packages/api/workspace-controller",
           "packages/boot/knowledge-library",
           "packages/core/agent-loop",

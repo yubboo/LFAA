@@ -13,7 +13,7 @@ import type { ReactElement, SVGProps } from "react";
 export type WorkbenchIconName =
   | "archive" | "bolt" | "book" | "branch" | "browser" | "check" | "chevron" | "close" | "copy" | "dots" | "file" | "folder" | "grid" | "history"
   | "help" | "home" | "keyboard" | "microphone" | "moon" | "monitor" | "new" | "panelLeft" | "panelRight" | "plus" | "refresh" | "review" | "search"
-  | "settings" | "shield" | "spark" | "sun" | "terminal" | "thumbDown" | "thumbUp" | "tools" | "trash" | "user" | "bell" | "extension";
+  | "settings" | "shield" | "spark" | "summary" | "sun" | "terminal" | "thumbDown" | "thumbUp" | "tools" | "trash" | "user" | "bell" | "extension";
 
 export interface WorkbenchIconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
   name: WorkbenchIconName;
@@ -53,6 +53,7 @@ const paths: Record<WorkbenchIconName, ReactElement> = {
   settings: <><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.4 3.1a7 7 0 0 0-1.7 1l-2.4-1-2 3.4L5 11a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.4 3.1h5l.4-3.1a7 7 0 0 0 1.7-1l2.4 1 2-3.4L19 13a7 7 0 0 0 0-1Z"/></>,
   shield: <><path d="M12 3 19 6v5c0 4.6-2.8 8-7 10-4.2-2-7-5.4-7-10V6l7-3Z"/><path d="M12 8v5"/><path d="M12 16h.01"/></>,
   spark: <><path d="m12 3 1.3 4.1L17 9l-3.7 1.9L12 15l-1.3-4.1L7 9l3.7-1.9L12 3Z"/><path d="m18 15 .7 2.3L21 18l-2.3.7L18 21l-.7-2.3L15 18l2.3-.7L18 15Z"/></>,
+  summary: <><circle cx="6" cy="7" r="1.4"/><path d="M11 7h8"/><circle cx="6" cy="12" r="1.4"/><path d="M11 12h8"/><circle cx="6" cy="17" r="1.4"/><path d="M11 17h8"/></>,
   sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.9 4.9 1.4 1.4"/><path d="m17.7 17.7 1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m4.9 19.1 1.4-1.4"/><path d="m17.7 6.3 1.4-1.4"/></>,
   terminal: <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3"/><path d="M12 15h5"/></>,
   thumbDown: <g transform="rotate(180 12 12)"><path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h3Z"/><path d="M7 10 12 3a2 2 0 0 1 2 2v4h5a2 2 0 0 1 2 2l-2 8a2 2 0 0 1-2 2H7"/></g>,

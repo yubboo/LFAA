@@ -40,7 +40,7 @@ Provider 协议归 `lfaa-llm`，MCP 协议归 `lfaa-mcp-client`。每次模型�
 
 Provider 请求、隐藏推理与正文接收按当前活动 ID 顺序结束；阶段只结束一次，保留真实时长，不在正文开始或整轮完成后遗留“推理中”。本机 Shell 的失败和结果未知状态由 Tool Owner 返回；循环将它们分别记为 `failed`、`unconfirmed`，不当作成功写入。Shell 标记 retryAfterRecovery，仅在确认失败且其后有新的成功写入修复时允许模型再次选择同一命令；没有修复、结果未知及成功副作用仍按原规则防重。模型与思考力度仍取用户设置，任务规模指引不改变执行权限或工具范围。
 
-项目文件 CRUD 活动只从成功的 Daemon `project-files-v1` 结果记录操作类型和经校验的项目相对路径；Session 不保存正文、replace 片段或原始结果。`ui-chat` 可把绑定项目的记录交给 `ui-workspace`，由其核对 Git 状态并复用现有差异审阅器；无项目绑定时只显示路径，不开放路径跳转。
+项目文件 CRUD 活动只从成功的 Host/Daemon 文件执行结果记录操作类型和经校验的项目相对路径；Session 不保存正文、replace 片段或原始结果。Agent 绑定独立本机 Git 仓库时，文件与 Shell 默认使用该仓库，由 LFAA 本机 Host 执行；模型明确选择 Daemon 节点目标时才走节点任务。Git 上下文、文件目标与可选 Daemon 项目彼此分开，均服从同一 Agent Loop、Tool 和 Permission Owner。
 
 `workspace` 与 `minecraft` 会话每轮从 Session Owner 读取当前项目绑定，并把经过文本转义、有界的项目标题/目录作为模型请求上下文；无绑定时也明确告知模型。上下文说明项目目录与聊天历史存储相互独立，且不会透露会话存储物理路径。文件和 Shell 工具仍从 Session 绑定准备节点/根目录，操作继续服从既有权限、路径校验和节点检查；上下文仅用于帮助模型识别当前目标，不授予权限。子 Agent 通过已验证的 Session 项目绑定继承同一上下文。
 
