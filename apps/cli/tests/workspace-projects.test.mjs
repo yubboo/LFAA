@@ -16,6 +16,7 @@ const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 test("项目登记按账户和节点隔离，搜索结果有界且可查找较早项目", () => {
   const parent = resolve(tmpdir());
   const data = mkdtempSync(join(parent, "lfaa-workspace-projects-"));
+  const home = mkdtempSync(join(parent, "lfaa-workspace-project-home-"));
   const directory = mkdtempSync(join(parent, "lfaa-project-paths-"));
   try {
     const script = [
@@ -28,7 +29,7 @@ test("项目登记按账户和节点隔离，搜索结果有界且可查找较�
       "const { sessionRecords } = await import('lfaa-session-persistence-jsonl/src/repository.js');",
       "const { retireLegacyFileTables } = await import('lfaa-storage-domain/src/migration.js');",
       "retireLegacyFileTables();",
-      "assert.equal(database.prepare('PRAGMA user_version').get().user_version, 57);",
+      "assert.equal(database.prepare('PRAGMA user_version').get().user_version, 58);",
       "const owner = 'fixture-workspace-owner';",
       "const otherOwner = 'fixture-workspace-other';",
       "const nodeA = randomUUID();",
@@ -39,7 +40,7 @@ test("项目登记按账户和节点隔离，搜索结果有界且可查找较�
       "assert.equal(settings.getUserSettings(owner).git.branchPrefix, 'feature/');",
       "assert.equal(settings.getUserSettings(otherOwner).git.branchPrefix, 'codex/');",
       "for (const [id, name] of [[nodeA, 'Fixture A'], [nodeB, 'Fixture B']]) database.prepare(\"INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,status,last_seen_at) VALUES (?,?, 'linux','x64','test','offline','2026-10-01T00:00:00.000Z')\").run(id, name);",
-      "const { createWorkspaceProject, createWorkspaceGitWorktree, listWorkspaceGitWorktrees, listWorkspaceProjects, hasWorkspaceGitWorktrees, getWorkspaceProject, searchWorkspaceProjects, removeWorkspaceProject, claimWorkspaceProjectApplication } = await import('lfaa-workspace-workspace/src/index.js');",
+      "const { createWorkspaceProject, createWorkspaceGitWorktree, listWorkspaceGitWorktrees, listWorkspaceProjects, hasWorkspaceGitWorktrees, getWorkspaceProject, getDefaultWorkspaceProjectId, setDefaultWorkspaceProject, searchWorkspaceProjects, removeWorkspaceProject, claimWorkspaceProjectApplication } = await import('lfaa-workspace-workspace/src/index.js');",
       "const { migrateWorkspaceProjectApplicationSchema } = await import('lfaa-storage-sqlite/src/database.js');",
       "const sessions = await import('lfaa-session/src/sessions.js');",
       "const root = process.env.PROJECT_FIXTURE_ROOT;",
@@ -55,6 +56,8 @@ test("项目登记按账户和节点隔离，搜索结果有界且可查找较�
       "assert.equal(getWorkspaceProject(owner, legacyId, 'minecraft'), null);",
       "const firstPath = join(root, 'ProjectAlpha');",
       "const first = createWorkspaceProject({ userId: owner, appId: 'workspace', nodeId: nodeA, path: firstPath, platform: 'win32' });",
+      "assert.equal(setDefaultWorkspaceProject(owner, first.id), first.id);",
+      "assert.equal(getDefaultWorkspaceProjectId(otherOwner), null);",
       "const duplicate = createWorkspaceProject({ userId: owner, appId: 'workspace', nodeId: nodeA, path: firstPath.toUpperCase(), platform: 'win32', title: 'duplicate' });",
       "assert.equal(duplicate.id, first.id);",
       "const minecraftProject = createWorkspaceProject({ userId: owner, appId: 'minecraft', nodeId: nodeA, path: firstPath, platform: 'win32' });",
@@ -96,6 +99,7 @@ test("项目登记按账户和节点隔离，搜索结果有界且可查找较�
       "assert.equal(older.truncated, false);",
       "assert.equal(removeWorkspaceProject(owner, first.id, 'workspace'), true);",
       "assert.equal(getWorkspaceProject(owner, first.id), null);",
+      "assert.equal(getDefaultWorkspaceProjectId(owner), first.id, '移除默认目录登记后仍记住首次初始化身份');",
       "assert.equal(sessions.getAiSession(owner, turn.session.id).projectTitle, first.title);",
       "assert.equal(sessions.getAiSessionWorkspaceContext(owner, turn.session.id).path, firstPath);",
       "configuration.close();",
@@ -104,13 +108,15 @@ test("项目登记按账户和节点隔离，搜索结果有界且可查找较�
       "process.stdout.write('项目目录登记回归通过');"
     ].join("\n");
     const output = execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", script], {
-      cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: data, PROJECT_FIXTURE_ROOT: directory }, encoding: "utf8", stdio: "pipe", timeout: 20000
+      cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: home, LFAA_DATA_DIR: data, PROJECT_FIXTURE_ROOT: directory }, encoding: "utf8", stdio: "pipe", timeout: 20000
     });
     assert.match(output, /项目目录登记回归通过/);
   } finally {
     assert.equal(dirname(resolve(data)), parent);
+    assert.equal(dirname(resolve(home)), parent);
     assert.equal(dirname(resolve(directory)), parent);
     rmSync(data, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
     rmSync(directory, { recursive: true, force: true });
   }
 });

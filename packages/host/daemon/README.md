@@ -6,6 +6,8 @@ Minecraft 自动部署的 Java 准备继续使用 `resolveMinecraftJavaRuntime`�
 
 Daemon Host 是目标节点本机能力的执行 Owner。通用项目文件操作由 `src/project-files.mjs` 在调用方提供的已登记根目录内执行：读取限定为普通 UTF-8 文本并支持分页；创建文件不覆盖既有内容，更新按 SHA-256 检查并发修改，删除仅对普通文件调用单文件 unlink，不递归删除目录。Agent Tool 可用的操作仍由 `packages/core/tools/src/project-tools.ts` 单独列明。
 
+`project-files` 的 `initialize_default_workspace` 只供认证 Workspace Controller 调用，在本机 OS 账户的系统“文档”下创建 `LFAA/default-workspace` 并返回 Daemon 规范路径；Windows 从用户 Documents 注册表位置读取，Linux 使用 `xdg-user-dir DOCUMENTS`，macOS 使用账户 Documents。创建前后都检查真实路径，禁止落入 `LFAA_DATA_DIR`；它不初始化或搬迁业务数据目录。
+
 全局管理员文件工作台由 `src/daemon.mjs` 执行。本机与远程节点通用 `node-filesystem-directory-size-v1` 能力只在管理员显式请求目录大小时遍历目标目录；遍历限定为数据根内最多 20,000 项和 64 层，按小批量异步检查文件元数据，拒绝越界路径，不进入数据根的受保护目录，不跟随链接/目录联接，不读取文件内容；预算用尽或目录正在变化时失败且不返回部分总和。列表读取不计算目录大小。
 
 成功的 `create`、`create_tree`、`write`、`replace` 与 `delete` 结果附带以 `/` 分隔的项目相对 `relativePath`（文件树还为每个文件返回该字段），供 Session 活动和已登记项目 Git 审阅映射；既有 `path`、摘要和内容结果保持原义。此字段不授权额外文件读取，也不替代 Workspace Controller 对项目和节点的认证校验。

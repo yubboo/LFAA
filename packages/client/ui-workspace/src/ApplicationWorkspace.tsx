@@ -11,7 +11,7 @@ import { sidebarRightRuntime, useSidebarRightSnapshot } from "./sidebar-right-ru
 
 import { createElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Alert, Dropdown, Popover, Tag, Typography } from "antd";
-import { archiveAiSession, getErrorMessage, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadWorkspaceProjects, loadWritingWorkspace, userRoleLabel, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
+import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadWorkspaceProjects, loadWritingWorkspace, userRoleLabel, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import type { AiWorkGoalRequest, AiWorkNotification, AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
 import type { WorkbenchLayoutMode } from "lfaa-client-ui-dockkit/src/workbench-layout.types.js";
@@ -106,7 +106,7 @@ const LEGACY_CHROME_KEY = "lfaa.module-workbench.chrome.v1";
 const LAYOUT_KEY = "lfaa.module-workbench.layout.v1";
 const aiExtensionSnapshots = new Map<string, AiExtension[]>();
 const aiSessionSnapshots = new Map<string, AiSession[]>();
-const workspaceProjectSnapshots = new Map<string, { projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean }>();
+const workspaceProjectSnapshots = new Map<string, { projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean; defaultProjectId?: string | null }>();
 type NavigationLayout = UserSettings["general"]["navigationLayout"];
 
 interface ChromeStorageMetadata {
@@ -447,6 +447,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   const [workspaceProjects, setWorkspaceProjects] = useState<WorkspaceProject[]>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.projects ?? []);
   const [workspaceNodes, setWorkspaceNodes] = useState<WorkspaceDaemonNode[]>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.nodes ?? []);
   const [workspaceProjectsTruncated, setWorkspaceProjectsTruncated] = useState(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.truncated ?? false);
+  const [defaultWorkspaceProjectId, setDefaultWorkspaceProjectId] = useState<string | null>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.defaultProjectId ?? null);
   const [workspaceProjectsError, setWorkspaceProjectsError] = useState("");
   const [workspaceProjectsRevision, setWorkspaceProjectsRevision] = useState(0);
   const [aiSessionsLoading, setAiSessionsLoading] = useState(() => mode === "ai-work" && !aiSessionSnapshots.has(userId));
@@ -665,19 +666,33 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     setWorkspaceProjects(cached?.projects ?? []);
     setWorkspaceNodes(cached?.nodes ?? []);
     setWorkspaceProjectsTruncated(cached?.truncated ?? false);
+    setDefaultWorkspaceProjectId(cached?.defaultProjectId ?? null);
     setWorkspaceProjectsError("");
     if (mode !== "ai-work") return;
     const controller = new AbortController();
     setWorkspaceProjectsError("");
-    void loadWorkspaceProjects({ signal: controller.signal }).then(({ projects, nodes, truncated }) => {
-      if (controller.signal.aborted) return;
-      workspaceProjectSnapshots.set(cacheKey, { projects, nodes, truncated });
-      setWorkspaceProjects(projects);
-      setWorkspaceNodes(nodes);
-      setWorkspaceProjectsTruncated(truncated);
-    }).catch(projectError => {
-      if (!controller.signal.aborted) setWorkspaceProjectsError(getErrorMessage(projectError));
-    });
+    void (async () => {
+      let initializationError = "";
+      if (app === "workspace") {
+        try { await initializeDefaultWorkspace(controller.signal); }
+        catch (projectError) {
+          if (controller.signal.aborted) return;
+          initializationError = `默认工作区初始化失败：${getErrorMessage(projectError)}`;
+        }
+      }
+      try {
+        const { projects, nodes, truncated, defaultProjectId } = await loadWorkspaceProjects({ signal: controller.signal });
+        if (controller.signal.aborted) return;
+        workspaceProjectSnapshots.set(cacheKey, { projects, nodes, truncated, defaultProjectId });
+        setWorkspaceProjects(projects);
+        setWorkspaceNodes(nodes);
+        setWorkspaceProjectsTruncated(truncated);
+        setDefaultWorkspaceProjectId(defaultProjectId ?? null);
+        setWorkspaceProjectsError(initializationError);
+      } catch (projectError) {
+        if (!controller.signal.aborted) setWorkspaceProjectsError(initializationError || getErrorMessage(projectError));
+      }
+    })();
     return () => controller.abort();
   }, [userId, app, mode, workspaceProjectsRevision]);
 
@@ -886,7 +901,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   }, [metrics.mode, onNavigate]);
   const startNewAiSession = (projectId?: string) => {
     onActiveAiSessionChange(null);
-    setNewAiSessionProjectId(projectId ?? null);
+    setNewAiSessionProjectId(projectId ?? defaultWorkspaceProjectId);
     setNewAiSessionKey((current) => current + 1);
     setAiSessionsError("");
   };
@@ -962,6 +977,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
               sessions={aiSessions}
               activeSessionId={activeAiSessionId}
               newSessionProjectId={newAiSessionProjectId}
+              defaultWorkspaceProjectId={defaultWorkspaceProjectId}
               workspaceProjects={workspaceProjects}
               workspaceProjectsTruncated={workspaceProjectsTruncated}
               workspaceNodes={workspaceNodes}
@@ -969,7 +985,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
               onRetryWorkspaceProjects={retryWorkspaceProjects}
               onWorkspaceProjectsChange={(projects) => {
                 const truncated = workspaceProjectsTruncated || projects.length > 200;
-                workspaceProjectSnapshots.set(`${userId}:${app}`, { projects: projects.slice(0, 200), nodes: workspaceNodes, truncated });
+                workspaceProjectSnapshots.set(`${userId}:${app}`, { projects: projects.slice(0, 200), nodes: workspaceNodes, truncated, defaultProjectId: defaultWorkspaceProjectId });
                 setWorkspaceProjects(projects.slice(0, 200));
                 setWorkspaceProjectsTruncated(truncated);
               }}

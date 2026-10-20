@@ -42,6 +42,7 @@ ipcRenderer.on("lfaa:desktop:update-download-progress", (_event, progress) => {
 
 contextBridge.exposeInMainWorld("lfaaDesktop", {
   selectDataDirectory: () => ipcRenderer.invoke("lfaa:select-data-directory"),
+  selectWorkspaceDirectory: () => ipcRenderer.invoke("lfaa:select-workspace-directory"),
   getUpdateRuntimeInfo: () => ipcRenderer.invoke("lfaa:desktop:update-runtime"),
   getUpdatePreferences: () => ipcRenderer.invoke("lfaa:desktop:update-preferences"),
   setAutoUpdateAndInstall: (enabled) => ipcRenderer.invoke("lfaa:desktop:update-preferences:set-auto", enabled),

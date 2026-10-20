@@ -12,6 +12,7 @@ import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
 import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
 import { listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
+import { isRemoteDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
 import { createAiHostTask, getAiHostTask } from "lfaa-jobs/src/ai-host-tasks.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
@@ -19,7 +20,7 @@ import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-ser
 import { asyncHandler, parseBody } from "lfaa-api-remotes/src/route-contracts.js";
 import { createAiSessionBranchWithMemory } from "lfaa-agent-loop/src/runs.js";
 import { getAiSession, listAiSessions, setAiSessionProject, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
-import { claimWorkspaceProjectApplication, createWorkspaceGitWorktree, createWorkspaceProject, getWorkspaceProject, hasWorkspaceGitWorktrees, searchWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-workspace-workspace/src/index.js";
+import { claimWorkspaceProjectApplication, createWorkspaceGitWorktree, createWorkspaceProject, getDefaultWorkspaceProjectId, getWorkspaceProject, hasWorkspaceGitWorktrees, listWorkspaceProjects, searchWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, setDefaultWorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-workspace-workspace/src/index.js";
 
 const projectAppIdSchema = Joi.string().valid(...WORKSPACE_PROJECT_APPLICATION_IDS).required();
 const limitAiBranchMemory = createRateLimit(12, 60 * 1000);
@@ -82,12 +83,47 @@ function requireProjectForApp(userId: string, projectId: string, appId: Workspac
 
 
 export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher): void {
+  router.post("/workspace/projects/initialize-default", requireAuthentication, asyncHandler(async (request, response) => {
+    const userId = request.auth!.user.id;
+    const initializedProjectId = getDefaultWorkspaceProjectId(userId);
+    if (initializedProjectId) {
+      const project = getWorkspaceProject(userId, initializedProjectId, "workspace");
+      response.json({ project, defaultProjectId: project?.id ?? null });
+      return;
+    }
+    if (listWorkspaceProjects(userId).length || listAiSessions(userId, false).length || listAiSessions(userId, true).length) {
+      response.json({ project: null, defaultProjectId: null });
+      return;
+    }
+    const node = listDaemonNodes().find(item => item.status === "online" && item.capabilities.includes("project-files-v1") && !isRemoteDaemonIdentity(item.id));
+    if (!node) {
+      response.json({ project: null, defaultProjectId: null });
+      return;
+    }
+    const created = await runDirectoryOperation(userId, "workspace", node.id, { operation: "initialize_default_workspace" }) as { path?: unknown };
+    if (typeof created.path !== "string") throw new ApiError(502, "workspace_default_path_invalid", "本机 Daemon 没有返回默认工作区目录。");
+    const inspected = await runDirectoryOperation(userId, "workspace", node.id, { operation: "inspect_directory", path: created.path }) as { path?: unknown; directory?: unknown };
+    if (typeof inspected.path !== "string" || inspected.directory !== true) throw new ApiError(400, "workspace_default_directory_invalid", "默认工作区路径未通过本机 Daemon 校验。");
+    // 首次目录解析期间允许新会话正常创建；若用户已开始工作，就不把新目录追加入旧历史。
+    if (listWorkspaceProjects(userId).length || listAiSessions(userId, false).length || listAiSessions(userId, true).length) {
+      response.json({ project: null, defaultProjectId: null });
+      return;
+    }
+    const project = createWorkspaceProject({ userId, appId: "workspace", nodeId: node.id, path: inspected.path, platform: node.platform, title: "默认工作区" });
+    const defaultProjectId = setDefaultWorkspaceProject(userId, project.id);
+    const defaultProject = getWorkspaceProject(userId, defaultProjectId, "workspace");
+    if (!defaultProject) throw new ApiError(500, "workspace_default_registration_missing", "默认工作区目录已创建，但项目登记未能读取。");
+    response.status(201).json({ project: defaultProject, defaultProjectId });
+  }));
+
   router.get("/workspace/projects", requireAuthentication, (request, response) => {
     const nodes = listDaemonNodes().filter(node => node.capabilities.includes("project-files-v1"));
     const query = parseBody<{ appId?: WorkspaceProjectApplicationId; query?: string }>(projectsQuerySchema, request.query);
     const result = searchWorkspaceProjects(request.auth!.user.id, query.appId, query.query);
     const projects = query.appId ? filterLegacyProjectsForApp(request.auth!.user.id, query.appId, result.projects) : result.projects;
-    response.json({ ...result, projects, nodes: nodes.map(({ id, displayName, platform, architecture, version, status, lastSeenAt, capabilities }) => ({ id, displayName, platform, architecture, version, status, lastSeenAt, gitWorkspaceSupported: capabilities.includes("git-workspace-v1") })) });
+    const initializedProjectId = query.appId === "minecraft" ? null : getDefaultWorkspaceProjectId(request.auth!.user.id);
+    const defaultProjectId = initializedProjectId && getWorkspaceProject(request.auth!.user.id, initializedProjectId, "workspace") ? initializedProjectId : null;
+    response.json({ ...result, projects, defaultProjectId, nodes: nodes.map(({ id, displayName, platform, architecture, version, status, lastSeenAt, capabilities }) => ({ id, displayName, platform, architecture, version, status, lastSeenAt, local: !isRemoteDaemonIdentity(id), gitWorkspaceSupported: capabilities.includes("git-workspace-v1") })) });
   });
 
   router.post("/workspace/projects/browse", requireAuthentication, asyncHandler(async (request, response) => {

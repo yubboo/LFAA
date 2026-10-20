@@ -215,7 +215,7 @@ test("v44 Minecraft 工作流保留并迁移到账户文件，SQLite 只保留 A
     const script = [
       "import assert from 'node:assert/strict';",
       "const { database } = await import('lfaa-storage-sqlite/src/database.js');",
-      "assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 57);",
+      "assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 58);",
       "assert.ok(database.prepare('PRAGMA table_info(workflow_runs)').all().some(column => column.name === 'current_node_id'));",
       "assert.equal(database.prepare('SELECT application_id FROM workflow_definitions WHERE id = ?').get('legacy-minecraft').application_id, 'minecraft');",
       "const { createWorkflow, getWorkflow, listWorkflows, updateWorkflow } = await import('lfaa-workflow/src/service.js');",

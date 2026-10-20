@@ -80,6 +80,7 @@ interface AiWorkChatProps {
   sessions: AiSession[];
   activeSessionId: string | null;
   newSessionProjectId: string | null;
+  defaultWorkspaceProjectId: string | null;
   onSelectedProjectChange: (projectId: string | null) => void;
   workspaceProjects: WorkspaceProject[];
   workspaceProjectsTruncated: boolean;
@@ -271,7 +272,7 @@ const runtimeSpeedOptions: Array<{ value: UserSettings["aiRuntime"]["speed"]; la
   { value: "deep", label: "深入", description: "按模型/自定义上限" }
 ];
 
-function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, newSessionProjectId, onSelectedProjectChange, workspaceProjects, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFileReview, onWritingWorkspaceChange }: AiWorkChatProps) {
+function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, newSessionProjectId, defaultWorkspaceProjectId, onSelectedProjectChange, workspaceProjects, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFileReview, onWritingWorkspaceChange }: AiWorkChatProps) {
   const currentScrollConversationKey = `${appId}:${activeSessionId ?? "new-session"}`;
   const outputFocusRegionElementRef = useRef<HTMLElement | null>(null);
   const setOutputFocusRegionElement = useCallback((node: HTMLElement | null) => {
@@ -297,7 +298,9 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
   const [associationsBusy, setAssociationsBusy] = useState(false);
   const [composerMoreOpen, setComposerMoreOpen] = useState(false);
   const [composerMoreSection, setComposerMoreSection] = useState<"applications" | "capabilities" | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectId ?? null : newSessionProjectId);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectId ?? null : newSessionProjectId ?? defaultWorkspaceProjectId);
+  const projectSelectionExplicitRef = useRef(Boolean(newSessionProjectId));
+  const projectSelectionSessionKeyRef = useRef(newSessionKey);
   const [projectBusy, setProjectBusy] = useState(false);
   const [planModeBusy, setPlanModeBusy] = useState(false);
   const [planModeOverride, setPlanModeOverride] = useState<{ sessionId: string | null; active: boolean } | null>(null);
@@ -691,11 +694,18 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
   const visibleModels = matchingModels.slice(0, MODEL_PICKER_RESULT_LIMIT);
 
   useEffect(() => {
-    if (!activeSessionId) {
-      setSelectedProjectId(newSessionProjectId);
-      onSelectedProjectChange(newSessionProjectId);
+    if (projectSelectionSessionKeyRef.current !== newSessionKey) {
+      projectSelectionSessionKeyRef.current = newSessionKey;
+      projectSelectionExplicitRef.current = Boolean(newSessionProjectId);
     }
-  }, [activeSessionId, newSessionKey, newSessionProjectId, onSelectedProjectChange]);
+    if (!activeSessionId) {
+      const projectId = newSessionProjectId ?? (projectSelectionExplicitRef.current ? null : defaultWorkspaceProjectId);
+      setSelectedProjectId(projectId);
+      onSelectedProjectChange(projectId);
+    } else {
+      projectSelectionExplicitRef.current = true;
+    }
+  }, [activeSessionId, defaultWorkspaceProjectId, newSessionKey, newSessionProjectId, onSelectedProjectChange]);
 
   useEffect(() => {
     if (!activeSessionId) return;
@@ -708,6 +718,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
 
   async function changeWorkspaceProject(project: WorkspaceProject | null): Promise<void> {
     if (busy || projectBusy) return;
+    projectSelectionExplicitRef.current = true;
     setProjectBusy(true);
     try {
       if (activeSessionId) {

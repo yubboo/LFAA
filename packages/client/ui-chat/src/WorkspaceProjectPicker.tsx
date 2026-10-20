@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { Button, Checkbox, Input, Modal, Popconfirm, Popover, Select, Spin } from "antd";
-import { browseWorkspaceDirectory, createWorkspaceGitWorktree, createWorkspaceProject, getErrorMessage, loadWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
+import { browseWorkspaceDirectory, createWorkspaceGitWorktree, createWorkspaceProject, getErrorMessage, isDesktopApp, loadWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, selectDesktopWorkspaceDirectory, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 
 interface WorkspaceProjectPickerProps {
@@ -194,6 +194,15 @@ export function WorkspaceProjectPicker({ appId, applicationName, projects, proje
     finally { setDirectoryLoading(false); }
   }
 
+  async function selectFromExplorer(): Promise<void> {
+    if (!selectedNode?.local || !isDesktopApp()) return;
+    setError("");
+    try {
+      const path = await selectDesktopWorkspaceDirectory();
+      if (path) await openAbsoluteDirectory(path);
+    } catch (selectionError) { setError(getErrorMessage(selectionError)); }
+  }
+
   async function addFolder(): Promise<void> {
     if (!selectedNode || !directoryPath || !newFolderName.trim()) return;
     setSaving(true);
@@ -287,6 +296,7 @@ export function WorkspaceProjectPicker({ appId, applicationName, projects, proje
         <p className="ai-work-chat__project-empty">把现有文件夹登记到当前 {applicationName}，用于归组相关会话并限定 AI 项目文件上下文。这里只登记目录；不会新建应用或 Minecraft 实例。</p>
         <div className="ai-work-chat__project-new-folder"><label>工作位置</label><Button size="small" disabled={directoryLoading || saving} onClick={onRetryProjects}>刷新项目与节点</Button></div>
         <Select aria-label="工作位置" value={nodeId || undefined} placeholder="选择在线文件节点" disabled={directoryLoading || saving} options={nodes.map(node => ({ value: node.id, label: `${node.displayName} · ${node.status === "online" ? "在线" : "离线"}`, disabled: node.status !== "online" }))} onChange={value => void selectNode(value)} />
+        {selectedNode?.local && isDesktopApp() ? <Button block disabled={directoryLoading || saving} onClick={() => void selectFromExplorer()}>通过资源管理器选择本机文件夹</Button> : null}
         {locationOptions.length > 1 ? <Select aria-label="计算机位置" value={currentLocation} disabled={directoryLoading || saving} options={locationOptions} onChange={value => void openAbsoluteDirectory(value === "@home" ? homeDirectory : value)} /> : null}
         {directoryPath ? <div className="ai-work-chat__project-path" title={directoryPath}><Button size="small" type="text" disabled={directoryPath === homePath || atVolumeRoot || directoryLoading} onClick={() => void goUp()}>上级</Button><span>{directoryPath}</span></div> : null}
         <div className="ai-work-chat__project-directories" aria-label="文件夹">

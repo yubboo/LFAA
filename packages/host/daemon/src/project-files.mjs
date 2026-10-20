@@ -35,6 +35,62 @@ async function assertOutsideDataRoot(path) {
     }
   }
 }
+async function assertNearestPathOutsideDataRoot(path) {
+  await assertOutsideDataRoot(resolve(path));
+  let ancestor = resolve(path);
+  while (true) {
+    try {
+      const canonical = await realpath(ancestor);
+      await assertOutsideDataRoot(canonical);
+      return;
+    } catch (error) {
+      if (error.code !== "ENOENT" || dirname(ancestor) === ancestor) throw error;
+      ancestor = dirname(ancestor);
+    }
+  }
+}
+function resolveSystemDocumentsDirectory() {
+  if (process.platform === "win32") {
+    const output = execFileSync("reg.exe", ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders", "/v", "Personal"], {
+      encoding: "utf8", windowsHide: true, timeout: 3000, maxBuffer: 16 * 1024
+    });
+    const match = output.match(/^\s*Personal\s+REG_\w+\s+(.+)\s*$/imu);
+    if (!match) throw new Error("无法读取 Windows 系统“文档”目录。 ");
+    const environment = new Map(Object.entries(process.env).map(([key, value]) => [key.toLocaleUpperCase("en-US"), value ?? ""]));
+    let unresolved = false;
+    const directory = match[1].replace(/%([^%]+)%/gu, (_token, name) => {
+      const value = environment.get(name.toLocaleUpperCase("en-US"));
+      if (!value) unresolved = true;
+      return value ?? "";
+    });
+    if (unresolved || !isAbsolute(directory)) throw new Error("Windows 系统“文档”目录路径无效。 ");
+    return resolve(directory);
+  }
+  if (process.platform === "darwin") return resolve(homedir(), "Documents");
+  if (process.platform === "linux") {
+    const directory = execFileSync("xdg-user-dir", ["DOCUMENTS"], { encoding: "utf8", windowsHide: true, timeout: 3000 }).trim();
+    if (!isAbsolute(directory) || resolve(directory) === resolve(homedir())) throw new Error("系统没有启用“文档”目录，请在项目选择器中手动关联文件夹。 ");
+    return resolve(directory);
+  }
+  throw new Error(`当前平台无法解析系统“文档”目录：${process.platform}`);
+}
+
+/** 创建 DSH 式首次默认项目目录；解析器参数仅供隔离回归注入，不接受任务输入。 */
+export async function createDefaultWorkspaceDirectory(resolveDocuments = resolveSystemDocumentsDirectory) {
+  const documents = resolveDocuments();
+  if (typeof documents !== "string" || !isAbsolute(documents)) throw new Error("系统“文档”目录必须是绝对路径。 ");
+  await assertNearestPathOutsideDataRoot(documents);
+  await mkdir(documents, { recursive: true });
+  const canonicalDocuments = await realpath(documents);
+  await assertOutsideDataRoot(canonicalDocuments);
+  const requested = resolve(canonicalDocuments, "LFAA", "default-workspace");
+  await assertNearestPathOutsideDataRoot(requested);
+  await mkdir(requested, { recursive: true });
+  const canonical = await realpath(requested);
+  await assertOutsideDataRoot(canonical);
+  if (!(await stat(canonical)).isDirectory()) throw new Error("默认工作区路径不是文件夹。 ");
+  return canonical;
+}
 async function readBoundedDirectory(path, limit = 5000) {
   const directory = await opendir(path);
   const entries = [];
@@ -70,6 +126,7 @@ async function readText(path) {
 
 export async function executeProjectFile(input) {
   if (input?.operation === "git-workspace") return executeGitWorkspace({ ...input, operation: input.gitOperation });
+  if (input?.operation === "initialize_default_workspace") return { path: await createDefaultWorkspaceDirectory() };
   if (input?.operation === "home") {
     const home = await realpath(homedir());
     const roots = process.platform === "win32"

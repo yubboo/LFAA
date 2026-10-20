@@ -38,4 +38,6 @@
 
 小鱼只有一个聊天界面；旧会话按原来源继续调用，公共列表不按 App 切分。App/Skill/Prompt/Expert 可选引用，空闲时保存到 Session；正文和工具由模型按需加载。项目选择统一消费账户目录。
 
+AI Work 首次使用沿用 DSH 默认项目语义；可用默认项目成为新会话的初始项目，既有会话不重绑。Electron/Tauri 桌面在本机节点提供原生文件夹选择器，路径随后由该 Daemon 校验；Web 与远程节点用现有目录浏览器选择一个真实目录。项目仍是单文件夹登记，项目与存储设置和 `LFAA_DATA_DIR` 不参与这条路径。
+
 构建只写仓库根 dist/packages/client/ui-chat/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。

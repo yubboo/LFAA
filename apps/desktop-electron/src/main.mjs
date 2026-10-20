@@ -678,6 +678,18 @@ if (singleInstance) {
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
 
+  ipcMain.handle("lfaa:select-workspace-directory", async (event) => {
+    const ownerWindow = BrowserWindow.fromWebContents(event.sender);
+    const options = {
+      title: "选择 LFAA 项目工作区文件夹",
+      properties: ["openDirectory", "createDirectory"]
+    };
+    const result = ownerWindow
+      ? await dialog.showOpenDialog(ownerWindow, options)
+      : await dialog.showOpenDialog(options);
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+
   ipcMain.handle("lfaa:desktop:update-runtime", (event) => {
     assertTrustedUpdateRenderer(event);
     return getDesktopUpdateRuntimeInfo();

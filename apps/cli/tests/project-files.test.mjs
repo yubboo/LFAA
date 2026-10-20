@@ -5,12 +5,31 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { executeProjectFile } from "../../../packages/host/daemon/src/project-files.mjs";
+import { createDefaultWorkspaceDirectory, executeProjectFile } from "../../../packages/host/daemon/src/project-files.mjs";
+
+test("首次默认项目目录创建在系统文档下并可安全重复", async () => {
+  const parent = resolve(tmpdir());
+  const root = mkdtempSync(join(parent, "lfaa-default-workspace-"));
+  const documents = join(root, "My Documents");
+  try {
+    const resolveDocuments = () => documents;
+    const first = await createDefaultWorkspaceDirectory(resolveDocuments);
+    const second = await createDefaultWorkspaceDirectory(resolveDocuments);
+    assert.equal(first, join(documents, "LFAA", "default-workspace"));
+    assert.equal(second, first);
+    const dataRoot = join(root, "protected-data");
+    const blockedDocuments = join(dataRoot, "Documents");
+    const moduleUrl = new URL("../../../packages/host/daemon/src/project-files.mjs", import.meta.url).href;
+    const script = `import { createDefaultWorkspaceDirectory } from ${JSON.stringify(moduleUrl)}; await createDefaultWorkspaceDirectory(() => ${JSON.stringify(blockedDocuments)});`;
+    assert.throws(() => execFileSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", windowsHide: true, env: { ...process.env, LFAA_DAEMON_DATA_ROOT: dataRoot } }), /LFAA_DATA_DIR/u);
+    assert.equal(existsSync(blockedDocuments), false, "拒绝位于 LFAA_DATA_DIR 内的默认项目路径前不创建目录");
+  } finally { assert.equal(dirname(resolve(root)), parent); rmSync(root, { recursive: true, force: true }); }
+});
 
 test("项目文本操作返回真实证据且拒绝覆盖、重复锚点和越界", async () => {
   const parent = resolve(tmpdir());

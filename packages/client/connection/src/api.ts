@@ -357,6 +357,7 @@ export interface WorkspaceDaemonNode {
   version: string;
   status: "online" | "offline";
   lastSeenAt: string;
+  local?: boolean;
   gitWorkspaceSupported?: boolean;
 }
 
@@ -922,6 +923,7 @@ declare global {
   interface Window {
     lfaaDesktop?: {
       selectDataDirectory: () => Promise<string | null>;
+      selectWorkspaceDirectory: () => Promise<string | null>;
       getUpdateRuntimeInfo: () => Promise<DesktopUpdateRuntimeInfo>;
       getUpdatePreferences: () => Promise<DesktopUpdatePreferences>;
       setAutoUpdateAndInstall: (enabled: boolean) => Promise<DesktopUpdatePreferences>;
@@ -1234,6 +1236,13 @@ export async function selectDesktopDataDirectory(): Promise<string | null> {
   if (window.lfaaDesktop) return window.lfaaDesktop.selectDataDirectory();
   if (!isTauri()) return null;
   const selectedDirectory = await open({ multiple: false, directory: true });
+  return typeof selectedDirectory === "string" ? selectedDirectory : null;
+}
+
+export async function selectDesktopWorkspaceDirectory(): Promise<string | null> {
+  if (window.lfaaDesktop) return window.lfaaDesktop.selectWorkspaceDirectory();
+  if (!isTauri()) return null;
+  const selectedDirectory = await open({ title: "选择项目工作区文件夹", multiple: false, directory: true });
   return typeof selectedDirectory === "string" ? selectedDirectory : null;
 }
 
@@ -2024,12 +2033,16 @@ export function setAiSessionPlanMode(sessionId: string, active: boolean): Promis
   return request<{ session: AiSession }>(`/ai/sessions/${encodeURIComponent(sessionId)}/plan-mode`, { method: "PATCH", body: JSON.stringify({ active }) });
 }
 
-export function loadWorkspaceProjects(options: { appId?: WorkspaceProjectApplicationId; query?: string; signal?: AbortSignal } = {}): Promise<{ projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean }> {
+export function loadWorkspaceProjects(options: { appId?: WorkspaceProjectApplicationId; query?: string; signal?: AbortSignal } = {}): Promise<{ projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean; defaultProjectId?: string | null }> {
   const parameters = new URLSearchParams();
   if (options.appId) parameters.set("appId", options.appId);
   if (options.query?.trim()) parameters.set("query", options.query.trim());
   const suffix = parameters.size ? `?${parameters.toString()}` : "";
-  return request<{ projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean }>(`/workspace/projects${suffix}`, options.signal ? { signal: options.signal } : {});
+  return request<{ projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean; defaultProjectId?: string | null }>(`/workspace/projects${suffix}`, options.signal ? { signal: options.signal } : {});
+}
+
+export function initializeDefaultWorkspace(signal?: AbortSignal): Promise<{ project: WorkspaceProject | null; defaultProjectId: string | null }> {
+  return request<{ project: WorkspaceProject | null; defaultProjectId: string | null }>("/workspace/projects/initialize-default", { method: "POST", ...(signal ? { signal } : {}) });
 }
 
 export function loadKnowledgeLibrary(applicationId?: ApplicationId): Promise<{ items: KnowledgeLibraryItemSummary[]; sources: KnowledgeLibraryProjectSource[]; usage: KnowledgeLibraryUsage }> {

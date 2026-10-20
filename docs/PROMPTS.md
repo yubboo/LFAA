@@ -157,6 +157,7 @@
 | 150-移动工作区标题栏空白-20261020 | 移除 Mobile AI Work 标题栏无内容的第二行，保持菜单遮罩起点与标题栏对齐 | 代码修复完成；服务重启与实页验收受阻 | [本轮合同](#lfaa-mobile-workbench-empty-header-row-20261020) |
 | 151-工作台换位残留与重复响应式规则清理-20261020 | 清理固定栏序迁移后的过期换位说明、冗余移动栏覆盖和重复回归断言，不改变拖拽/吸附行为 | 已清理；定向回归 12/12、Client 类型、正式 Control Plane/Web 构建、内置浏览器 `/work` 桌面页通过；构建后有其他源码更新，当前全仓指纹为 `[host, web]` 过期；窄视口未测 | [本轮合同](#lfaa-workbench-layout-cleanup-20261020) |
 | 152-REA逆向分析能力融合-20261020 | 将官方 REA 逆向分析 MCP 与证据优先工作流接入 LFAA Agent；兼容 207 项大工具目录，提供按需工具发现/调用和账户级可选连接预设 | 已实现；定向回归、类型、构建及内置浏览器桌面页通过；窄屏实页与真实 REA 运行未验 | [本轮合同](#lfaa-rea-agent-integration-20261020) |
+| 153-DSH式默认与自选项目工作区-20261020 | 按 DSH 首次使用语义建立系统“文档”下的默认项目目录，并允许桌面通过资源管理器、Web 通过 Daemon 浏览器登记用户选定的单个真实文件夹 | 实现、构建与 `/work` 桌面/窄视口验收完成；Electron 原生对话框未实测 | [本轮合同](#lfaa-dsh-style-project-workspace-20261020) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
@@ -3680,3 +3681,30 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 - 回归与源码检查：`node --test apps/cli/tests/client-workbench-responsive.test.mjs` 12/12 通过；`pnpm exec tsc --noEmit -p tsconfig.client.json` 通过；DockKit/Workspace 包构建已通过；`git diff --check` 通过。全仓生产搜索没有工作台 pane swap 命中；Mobile header 规则只覆盖间距、运行状态可见性和按钮尺寸，3rem 高度只定义一次。
 - 正式 Web 与实页：通过根 `node scripts/project-menu.mjs` → 菜单 2 → 1 完整重建 Control Plane/Harness 和 Web；Web 构建转换 2267 个模块，`http://127.0.0.1:3000/api/health` 返回 `status=ok`、`persistence=ready`。ChatGPT 内置浏览器实际打开并刷新 `/work`，页面加载会话、消息输入框和右侧工具/资源菜单；截图确认四栏顺序与单行顶栏。没有更改菜单状态、宽度设置或会话内容。
 - 构建边界：上述正式构建完成后，其他任务继续更新 MCP、基础包和技能源码；`node scripts/runtime-build-state.mjs web` 当前报告 `["host","web"]`，故**当前全仓运行指纹已过期**，不能宣称当前所有源码都对应已启动服务。与本合同相关的 DockKit、Workspace、测试文件时间早于该次构建，浏览器所见包含本轮布局 CSS；未为刷新全仓指纹再次覆盖可能正在运行的其他改动。浏览器 CUA 未提供视口覆盖，本轮只测内置浏览器默认桌面视口；窄分栏/短屏、拖动帧时间、真触屏和 Desktop WebView 未测。
+
+<a id="lfaa-dsh-style-project-workspace-20261020"></a>
+
+## 153-DSH式默认与自选项目工作区-20261020
+
+### 目标、入口与 Owner
+
+- 将 DSH 的单文件夹项目工作区方案落到 LFAA：首次使用在目标本机 Daemon 的系统“文档”目录下创建并登记 `LFAA/default-workspace`；桌面用户可通过原生资源管理器选真实文件夹，Web 用户继续通过目标 Daemon 目录浏览器选择。每个项目仍是一个实际目录，不扩展 ChatGPT 式多文件夹项目。
+- 默认初始化遵循 DSH 条件：只有当前账号尚无项目登记且没有任何已存/归档会话历史时才自动创建；用户移除默认登记后不自动重建。若已有项目或会话，不迁移、不重绑历史，由用户手动选目录。可用默认项目仅作为新建 AI Work 会话的默认项目；已存在会话项目上下文不变。
+- 运行入口：`/work` → `ApplicationWorkspace` → `WorkspaceProjectPicker` → Client Connection → 认证 `Workspace Controller` → SQLite Workspace Owner / 目标 Daemon `project-files-v1`。Session Owner 继续只保存当前账号会话及其项目快照。
+- 设置盘点：不新增设置。`general.taskFolder` 继续只控制 Shell 起始目录；“项目与存储”里的 `LFAA_DATA_DIR` 继续只控制业务数据根。本轮默认项目根不放入 `.lfaa` 或 `data`，使用系统“文档”目录；沿用现有权限模式、Daemon 认证/路径验证和外观共享令牌。
+
+### 允许、禁止与验收
+
+- 允许：workspace SQLite 迁移与 Owner、Workspace Controller、Daemon 项目目录执行器、Client Connection、Electron/Tauri 文件选择器桥接、AI Work 与项目选择 UI、直接回归、相关 README、系统架构与本合同。
+- 禁止：修改 DSH；重置或迁移账号、会话、项目目录、设置或用户数据；改变 `LFAA_HOME`/`LFAA_DATA_DIR`、项目与存储设置、Permission Owner、Shell 起始目录；把多文件夹挂载加入项目模型；对其他项目或布局偏好作无关修改。
+- 首次使用仅在空项目/空会话历史条件下创建系统文档路径并持久登记；初始化可重试、并发幂等；目录创建或节点不可用不伪报成功。登记移除只解除关系，保留磁盘文件和历史会话，并阻止默认目录自动重建。
+- 新建聊天默认绑定已登记的默认工作区；从项目分组新建会话优先使用该项目；旧会话仍按原保存路径运行。桌面原生选目录后须经目标 Daemon `inspect_directory` 验证并登记规范真实路径；远程节点/Web 继续走其实际节点目录浏览器。
+- 运行 Workspace/Daemon/Client 定向回归、TypeScript、相关包及 Control Plane/Web 构建，检查根 `dist/`、运行指纹与 `git diff --check`。UI 按仓库要求逐批在 ChatGPT 内置浏览器验收 `/work` 桌面和窄视口；原生对话框另外做源码/构建边界核对，真实设备或 Desktop WebView 未测时明确说明。
+
+### 实施与验收记录
+
+- 已实现：新账户首次使用且没有项目/会话历史时，在系统“文档”下创建并登记 `LFAA/default-workspace`；默认身份按账户持久保存，移除项目登记后不自动重建；新 AI Work 会话默认使用该项目，已有会话保持原上下文。桌面接入原生目录选择并通过 Daemon 校验；Web/远程节点沿用 Daemon 目录浏览。
+- 定向回归 5/5、Host/Client TypeScript、Electron 主进程与 preload 语法、Control Plane/Web 构建及 `git diff --check` 已通过；构建只输出根 `dist/apps/control-plane/`、`dist/apps/web/` 和根 `dist/packages/`，运行指纹检查报告 host/web 为最新。
+- ChatGPT 内置浏览器实际打开 `http://127.0.0.1:3000/work`：桌面视口 1646×1244，项目选择器显示“默认工作区”及 `D:\Documents\LFAA\default-workspace`，新会话上下文也显示该项目；窄视口 390×844，页面文档宽度 380，没有横向溢出，弹窗宽 348 且留有边距。窄视口只检查主页面和登录提醒，不代表项目选择弹层已在窄视口实测。空默认目录不是 Git 仓库，既有 Git 状态面板会显示 Git 不可用的真实诊断。
+- 回归首次误将临时业务 `LFAA_DATA_DIR` 与真实账户 Home 混用，模拟旧版迁移后留下 38 版本号和专用测试记录。已修正夹具同时隔离临时 `LFAA_HOME` 与 Data，并仅按唯一测试账户、测试目录、测试会话标识清理了夹具数据；将数据库版本恢复为 58，回读确认测试账户/项目/会话均为 0 后，Web 成功启动。真实账户其余数据未搬移或清理。
+- Windows Electron/Tauri 原生文件夹对话框未在真实桌面运行中验收；已完成共享 API 类型、Electron IPC/preload 源码语法检查。单独运行的渲染恢复回归因缺少 `lfaa-client-ui-settings-general` 包无法启动；AI Work 输入区响应式回归 8/8 通过。该包加载问题不属于本轮工作区改动。

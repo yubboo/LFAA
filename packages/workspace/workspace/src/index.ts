@@ -111,6 +111,26 @@ export function getWorkspaceProject(userId: string, projectId: string, appId?: W
   return row ? mapProject(row) : null;
 }
 
+/** 默认项目标记不外键引用目录登记：移除登记后仍记住曾初始化，避免下次访问自动重建。 */
+export function getDefaultWorkspaceProjectId(userId: string): string | null {
+  const row = database.prepare("SELECT project_id FROM workspace_default_projects WHERE user_id = ? AND app_id = 'workspace'").get(userId) as { project_id?: unknown } | undefined;
+  return typeof row?.project_id === "string" ? row.project_id : null;
+}
+
+/** 只登记当前账户真实存在的 AI Work 项目；并发首次初始化只保留第一个持久身份。 */
+export function setDefaultWorkspaceProject(userId: string, projectId: string): string {
+  const project = getWorkspaceProject(userId, projectId, "workspace");
+  if (!project || project.appId !== "workspace") throw new Error("默认工作区必须属于当前账户的小鱼智能体项目。 ");
+  database.prepare(`
+    INSERT INTO workspace_default_projects (user_id, app_id, project_id, created_at)
+    VALUES (?, 'workspace', ?, ?)
+    ON CONFLICT (user_id, app_id) DO NOTHING
+  `).run(userId, project.id, new Date().toISOString());
+  const registered = getDefaultWorkspaceProjectId(userId);
+  if (!registered) throw new Error("默认工作区身份未能保存。 ");
+  return registered;
+}
+
 export function createWorkspaceProject(input: { userId: string; appId: WorkspaceProjectApplicationId; nodeId: string; path: string; platform: string; title?: string }): WorkspaceProject {
   const path = input.path.trim();
   if (!isAbsolute(path) || path.length > 32760) throw new Error("项目目录必须是 Daemon 返回的绝对路径。");

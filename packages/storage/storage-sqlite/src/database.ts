@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 57;
+const latestSupportedDatabaseVersion = 58;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -1902,3 +1902,27 @@ export function migrateDefaultAdminReminderSchema(): void {
   }
 }
 migrateDefaultAdminReminderSchema();
+
+/** 版本 58：为 AI Work 保存首次 DSH 式默认工作区身份；项目登记移除后仍保留标记，防止自动重建。 */
+export function migrateWorkspaceDefaultProjectSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 57 || version >= 58) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE workspace_default_projects (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        app_id TEXT NOT NULL CHECK (app_id = 'workspace'),
+        project_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, app_id)
+      ) STRICT;
+      PRAGMA user_version = 58;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateWorkspaceDefaultProjectSchema();

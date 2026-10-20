@@ -2,6 +2,8 @@
 
 本包提供认证后的共享工作项目目录 API：`workspace` 按账户有界列出和搜索全部来源项目，旧 `minecraft` 专用调用保留来源筛选；返回实际具备项目文件能力的 Daemon 节点，委托 Daemon 浏览/检查/新建一级目录，登记/改名/移除真实项目并切换空闲会话的项目归属。支持 Git 节点时，还提供真实 Git 状态、受管 Worktree 创建/恢复/删除路由。
 
+`POST /workspace/projects/initialize-default` 实现 DSH 式首次工作区初始化：仅当账户没有项目与活动/归档会话时，请求在线本机 Daemon 在系统“文档”下创建 `LFAA/default-workspace` 并登记为 AI Work 默认项目；远程节点不会被误当成本机 Documents。默认项目身份由 Workspace Owner 单独持久化，移除登记后不自动重建。桌面选中的任意目录仍经过同一 Daemon 检查和规范路径登记；Web 与远程节点继续使用节点目录浏览 API。
+
 控制器校验账户、实际项目与会话来源、节点在线状态和 `project-files-v1` 能力；共享调用允许同账户的历史来源记录，专用调用保留相应来源检查。它不直接访问控制端文件系统，不提供云端节点，也不改变项目权限。项目提供文件夹登记、会话归组和文件上下文，不创建 App 或 Minecraft 实例。真实目录操作由 `packages/host/daemon` 执行，登记由 `packages/workspace/workspace` 持久化；Minecraft 实例和全局管理员文件管理继续由现有 Owner 管理。Wallpaper Engine/DSH Bundle 不属于本控制器或 Daemon 能力。旧项目的空来源标签仅在原登记流程中显式认领，不改写已标记来源。
 
 本地 Git 路由还要求节点在线并报告 `git-workspace-v1`。分支前缀读取账户 `git` 设置；创建结果登记失败时尝试由同一 Daemon 清理，并在无法确认时回报节点与受管目录位置。恢复和删除只接受账户已登记的工作树，不接收模型/浏览器提供的绝对路径；不提供任意 Git 命令、提交、远端、推送、合并或 PR。
