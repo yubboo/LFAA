@@ -105,7 +105,7 @@ export interface BrowserProviderSummary {
   name: string;
   available: boolean;
   reason?: string;
-  isolation: "new-profile" | "user-profile";
+  isolation: "app-session" | "new-profile" | "user-profile";
 }
 export interface BrowserTabSummary { tabId: number; title: string; url: string; active: boolean; state: string }
 export interface BrowserSessionSnapshot {
@@ -120,6 +120,25 @@ export interface BrowserSessionSnapshot {
   screenshot: { mimeType: "image/jpeg"; dataBase64: string; width: number; height: number } | null;
 }
 export interface BrowserRevision { revision: number; url: string; title: string }
+export interface NativeBrowserTab {
+  id: string;
+  targetId: string;
+  title: string;
+  url: string;
+  loading: boolean;
+  error: string | null;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  zoomFactor: number;
+  active: boolean;
+}
+export interface NativeBrowserState { tabs: NativeBrowserTab[]; activeTabId: string | null; visible: boolean }
+export interface NativeBrowserInspection {
+  url: string;
+  title: string;
+  text: string;
+  controls: Array<{ role: string; name: string; type: string; disabled: boolean }>;
+}
 
 export interface AiModel {
   id: string;
@@ -1103,6 +1122,28 @@ export interface DesktopUpdateCheckResult {
 declare global {
   interface Window {
     lfaaDesktop?: {
+      nativeBrowser: {
+        getState: () => Promise<NativeBrowserState>;
+        ensureTab: () => Promise<NativeBrowserState>;
+        createTab: (url?: string) => Promise<NativeBrowserState>;
+        selectTab: (id: string) => Promise<NativeBrowserState>;
+        closeTab: (id: string) => Promise<NativeBrowserState>;
+        navigate: (id: string, url: string) => Promise<NativeBrowserState>;
+        back: (id: string) => Promise<NativeBrowserState>;
+        forward: (id: string) => Promise<NativeBrowserState>;
+        reload: (id: string) => Promise<NativeBrowserState>;
+        stop: (id: string) => Promise<NativeBrowserState>;
+        copyAddress: (id: string) => Promise<string>;
+        find: (id: string, text: string, forward: boolean) => Promise<{ matches: number; activeMatch: number } | NativeBrowserState>;
+        inspect: (id: string) => Promise<NativeBrowserInspection>;
+        clearData: () => Promise<{ cleared: boolean }>;
+        setZoom: (id: string, zoom: number) => Promise<NativeBrowserState>;
+        print: (id: string) => Promise<void>;
+        setBounds: (bounds: { x: number; y: number; width: number; height: number }) => Promise<void>;
+        setVisible: (visible: boolean) => Promise<void>;
+        onState: (listener: (state: NativeBrowserState) => void) => () => void;
+        onShortcut: (listener: (shortcut: "find" | "address") => void) => () => void;
+      };
       selectDataDirectory: () => Promise<string | null>;
       selectWorkspaceDirectory: () => Promise<string | null>;
       getUpdateRuntimeInfo: () => Promise<DesktopUpdateRuntimeInfo>;
@@ -1219,6 +1260,10 @@ export function claimBrowserTab(sessionId: string, providerId: BrowserProviderId
 
 export function loadBrowserRevision(sessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ session: BrowserRevision | null }> {
   return request(`/browser/sessions/${encodeURIComponent(sessionId)}/revision?${new URLSearchParams({ providerId })}`, signal ? { signal } : {});
+}
+
+export function setNativeBrowserActiveTarget(sessionId: string, targetId: string, signal?: AbortSignal): Promise<{ active: true }> {
+  return request(`/browser/sessions/${encodeURIComponent(sessionId)}/native-active`, { method: "POST", body: JSON.stringify({ providerId: "lfaa-native-browser", targetId }), ...(signal ? { signal } : {}) });
 }
 
 export function navigateBrowser(sessionId: string, providerId: BrowserProviderId, url: string, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot }> {

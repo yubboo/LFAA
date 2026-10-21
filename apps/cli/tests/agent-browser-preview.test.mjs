@@ -5,7 +5,8 @@
  */
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -24,10 +25,14 @@ const { sessionRecords } = await import("lfaa-session-persistence-jsonl/src/repo
 retireLegacyFileTables();
 const { executeAiTurn } = await import("lfaa-agent-loop/src/execute-turn.js");
 const { createAiCompletionService } = await import("lfaa-llm/src/completion.js");
-const { registerAiBusinessTool } = await import("lfaa-tools/src/registry.js");
+const { registerAiBusinessTool, listRegisteredAiTools } = await import("lfaa-tools/src/registry.js");
+const { projectFileTool } = await import("lfaa-tools/src/project-tools.js");
 const { BrowserSessionManager } = await import("lfaa-browser-use");
 const { createBrowserTools } = await import("lfaa-browser-use/src/browser-tools.js");
-const { createProjectPreviewServer } = await import("lfaa-host-project-files/src/project-files.mjs");
+const { createProjectPreviewServer, executeProjectFile } = await import("lfaa-host-project-files/src/project-files.mjs");
+const { createSkillTools } = await import("lfaa-tool-skill/src/index.js");
+const { apply: applyCapabilityInstalls } = await import("lfaa-capability-installs/src/index.js");
+const { createProjectSkillAdapter } = await import("lfaa-capability-skill/src/index.js");
 
 const owner = "isolated-agent-browser-preview";
 const uid = 1731;
@@ -165,4 +170,393 @@ test("Agent 通过真实工具循环打开临时 HTML、读取页面并点击按
   }
 
   assert.equal(previewCloseCount, 1, "Agent Run 结束后关闭隔离 Browser Session 会回收临时 HTTP 服务");
+});
+
+test("Agent 完成 HTML 创建、实页找错、摘要保护修复和重新验证", async t => {
+  const manager = new BrowserSessionManager(true);
+  const provider = manager.listProviders().find(item => item.id === "lfaa-managed-edge" && item.available)
+    ?? manager.listProviders().find(item => item.id === "lfaa-managed-chrome" && item.available);
+  if (!provider) {
+    await manager.closeAll();
+    return t.skip("当前系统没有可启动的隔离 Edge/Chrome");
+  }
+
+  for (const tool of createBrowserTools(manager)) registerAiBusinessTool(toolOwner, tool);
+  const root = await mkdtemp(join(tmpdir(), "lfaa-agent-browser-dev-loop-"));
+  t.after(async () => { await manager.closeAll(); await rm(root, { recursive: true, force: true }); });
+
+  settings.saveUserSettings(owner, "permissions", { mode: "full_access" });
+  settings.saveUserSettings(owner, "browser-use", { ...settings.getUserSettings(owner).browserUse, enabled: true, enabledProviderIds: [provider.id] });
+  settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, retryDelaySeconds: 0, maxModelRequests: 24, maxToolCalls: 24 });
+
+  const project = { id: "isolated-dev-loop-project", appId: "workspace", nodeId: null, path: root, title: "隔离开发循环项目" };
+  const turn = sessions.createAiTurn(owner, "workspace", null, "创建一个 HTML 计数器，在浏览器检查并修复问题后复测。", false, project);
+  const nativeFetch = globalThis.fetch;
+  const requests = [];
+  let providerFailure = null;
+  let previewCloseCount = 0;
+  let previewUrl = "";
+  const brokenPage = "<!doctype html><html><head><meta charset=\"utf-8\"><title>开发循环</title></head><body><h1>计数器</h1><button type=\"button\">增加 1</button><output id=\"count\">计数：0</output><script>let count=0;document.querySelector('#missing-button').addEventListener('click',()=>{count++;document.querySelector('#count').textContent='计数：'+count;});</script></body></html>";
+  const fixedPage = "<!doctype html><html><head><meta charset=\"utf-8\"><title>开发循环</title></head><body><h1>计数器</h1><button type=\"button\">增加 1</button><output id=\"count\">计数：0</output><script>let count=0;document.querySelector('button').addEventListener('click',()=>{count++;document.querySelector('#count').textContent='计数：'+count;});</script></body></html>";
+
+  globalThis.fetch = async (url, options) => {
+    try {
+      assert.equal(String(url), account.chatUrl);
+      const body = JSON.parse(options.body);
+      requests.push(body);
+      const names = body.tools?.map(tool => tool.function.name) ?? [];
+      const toolResults = body.messages.filter(message => message.role === "tool");
+      const lastResult = resultText(toolResults.at(-1)?.content);
+      switch (requests.length) {
+        case 1:
+          assert.ok(names.includes("lfaa_tools_list"));
+          return sse(providerCall("lfaa_tools_list", { query: "项目文件工具 project_file_operation 创建 HTML" }));
+        case 2:
+          assert.match(lastResult, /project_file_operation/u);
+          return sse(providerCall("lfaa_tools_load", { names: ["project_file_operation"] }));
+        case 3:
+          assert.ok(names.includes("project_file_operation"));
+          return sse(providerCall("project_file_operation", { operation: "create", path: "index.html", content: brokenPage }));
+        case 4:
+          assert.match(lastResult, /created|sha256/u);
+          assert.ok(names.includes("lfaa_tools_list"));
+          return sse(providerCall("lfaa_tools_list", { query: "浏览器打开当前工作区 HTML" }));
+        case 5:
+          assert.match(lastResult, /lfaa_browser_open_workspace_file/u);
+          return sse(providerCall("lfaa_tools_load", { names: ["lfaa_browser_open_workspace_file"] }));
+        case 6:
+          assert.ok(names.includes("lfaa_browser_open_workspace_file"));
+          return sse(providerCall("lfaa_browser_open_workspace_file", { providerId: provider.id, path: "index.html" }));
+        case 7:
+          assert.match(lastResult, /计数：0/u);
+          previewUrl = JSON.parse(lastResult.slice(lastResult.indexOf("{"))).url;
+          assert.match(previewUrl, /^http:\/\/127\.0\.0\.1:\d+\/index\.html$/u);
+          assert.ok(names.includes("lfaa_tools_list"));
+          return sse(providerCall("lfaa_tools_list", { query: "browser click button" }));
+        case 8:
+          assert.match(lastResult, /lfaa_browser_click/u);
+          return sse(providerCall("lfaa_tools_load", { names: ["lfaa_browser_click"] }));
+        case 9:
+          assert.ok(names.includes("lfaa_browser_click"));
+          return sse(providerCall("lfaa_browser_click", { providerId: provider.id, role: "button", name: "增加 1" }));
+        case 10:
+          assert.match(lastResult, /计数：0/u, "真实页面结果显示按钮没有触发计数变化");
+          assert.ok(names.includes("lfaa_tools_list"));
+          return sse(providerCall("lfaa_tools_list", { query: "读取 index.html 最新 sha256 后修复点击事件" }));
+        case 11:
+          assert.match(lastResult, /project_file_operation/u);
+          return sse(providerCall("lfaa_tools_load", { names: ["project_file_operation"] }));
+        case 12:
+          assert.ok(names.includes("project_file_operation"));
+          return sse(providerCall("project_file_operation", { operation: "read", path: "index.html" }));
+        case 13: {
+          const read = JSON.parse(toolResults.at(-1)?.content);
+          assert.equal(read?.result?.content, brokenPage, "Agent 修复前必须读取真实工作区文件");
+          assert.match(lastResult, /sha256/u);
+          return sse(providerCall("project_file_operation", { operation: "write", path: "index.html", sha256: read.result.sha256, content: fixedPage }));
+        }
+        case 14:
+          assert.match(lastResult, /changed.*true|sha256/u);
+          assert.ok(names.includes("lfaa_tools_list"));
+          return sse(providerCall("lfaa_tools_list", { query: "browser open" }));
+        case 15:
+          assert.match(lastResult, /lfaa_browser_open/u);
+          return sse(providerCall("lfaa_tools_load", { names: ["lfaa_browser_open"] }));
+        case 16:
+          assert.ok(names.includes("lfaa_browser_open"));
+          return sse(providerCall("lfaa_browser_open", { providerId: provider.id, url: previewUrl }));
+        case 17:
+          assert.match(lastResult, /计数：0/u);
+          assert.ok(names.includes("lfaa_tools_list"));
+          return sse(providerCall("lfaa_tools_list", { query: "browser press key" }));
+        case 18:
+          assert.match(lastResult, /lfaa_browser_press_key/u);
+          return sse(providerCall("lfaa_tools_load", { names: ["lfaa_browser_press_key"] }));
+        case 19:
+          assert.ok(names.includes("lfaa_browser_press_key"));
+          return sse(providerCall("lfaa_browser_press_key", { providerId: provider.id, key: "Tab" }));
+        case 20:
+          assert.match(lastResult, /计数：0/u);
+          return sse(providerCall("lfaa_browser_press_key", { providerId: provider.id, key: "Enter" }));
+        case 21:
+          assert.match(lastResult, /计数：1/u, "修复后的实际页面点击结果必须回到 Provider");
+          return sse({ content: "已在临时项目创建并预览计数器；第一次点击发现事件监听器选择了不存在的元素。读取最新摘要后修复并重开页面，复测显示计数：1。" });
+        default:
+          throw new Error(`Agent 意外请求了第 ${requests.length} 轮 Provider`);
+      }
+    } catch (error) {
+      providerFailure = error;
+      return sse({ content: "隔离开发循环 Provider 夹具发现断言失败。" });
+    }
+  };
+
+  try {
+    const pluginHost = {
+      llm: createAiCompletionService(),
+      executeLocalProjectFile: input => executeProjectFile(input),
+      createLocalProjectPreview: async (nodeId, directory, relativePath) => {
+        assert.equal(nodeId, null, "隔离项目必须独立于 Daemon 节点");
+        assert.equal(directory, root);
+        const preview = await createProjectPreviewServer(directory, relativePath);
+        return { url: preview.url, close: async () => { previewCloseCount++; await preview.close(); } };
+      },
+      listPlugins: () => [], listExtensions: () => [], listInstructionExtensions: () => [], listHooks: () => [],
+      getSystemInstructions: () => [], runBeforeInference: () => ({ failedHookIds: [] }), runAfterInference: () => ({ failedHookIds: [] })
+    };
+    await executeAiTurn({
+      userId: owner,
+      userRole: "admin",
+      body: { appId: "workspace", sessionId: turn.session.id, content: "创建并修复 HTML 计数器。" },
+      turn,
+      aiPluginHost: pluginHost,
+      abortController: new AbortController(),
+      emit() {},
+      modelResolver
+    });
+    assert.equal(providerFailure, null, providerFailure?.message ?? "");
+    assert.equal(requests.length, 21, "Agent 必须完成项目工具发现、创建、浏览器实页修复、复验和最终答复");
+    assert.match(await readFile(join(root, "index.html"), "utf8"), /querySelector\('button'\)/u);
+    assert.match(sessions.getAiRun(owner, turn.assistantMessage.id).message.content, /计数：1/u);
+    const results = await sessions.getAiQueryEventsPage(owner, turn.session.id, turn.session.id, { after: 0, limit: 100 });
+    assert.ok(results.events.some(event => event.type === "tool/call" && event.data.name === "project_file_operation"));
+    assert.ok(results.events.some(event => event.type === "tool/call" && event.data.name === "lfaa_browser_open_workspace_file"));
+    assert.ok(results.events.some(event => event.type === "tool/call" && event.data.name === "lfaa_browser_press_key"));
+  } finally {
+    globalThis.fetch = nativeFetch;
+    await manager.closeAll();
+    for (const dispose of disposers.splice(0)) dispose();
+  }
+
+  assert.equal(previewCloseCount, 1, "关闭 Browser Session 后，临时 HTTP 服务已回收");
+});
+
+test("Skill 在同一 Agent Run 安装、发现、加载并引导调用真实隔离浏览器", async t => {
+  const manager = new BrowserSessionManager(true);
+  const provider = manager.listProviders().find(item => item.id === "lfaa-managed-edge" && item.available)
+    ?? manager.listProviders().find(item => item.id === "lfaa-managed-chrome" && item.available);
+  if (!provider) {
+    await manager.closeAll();
+    return t.skip("当前系统没有可启动的隔离 Edge/Chrome");
+  }
+
+  const root = await mkdtemp(join(tmpdir(), "lfaa-skill-browser-same-run-"));
+  await writeFile(join(root, "index.html"), "<!doctype html><html><head><meta charset=\"utf-8\"><title>Skill 安装后浏览器页</title></head><body><h1>页面来自隔离项目</h1><p>浏览器已读取真实页面内容。</p></body></html>");
+  t.after(async () => { await manager.closeAll(); await rm(root, { recursive: true, force: true }); });
+
+  settings.saveUserSettings(owner, "permissions", { mode: "full_access" });
+  settings.saveUserSettings(owner, "plugins", { ...settings.getUserSettings(owner).plugins, enabled: true });
+  settings.saveUserSettings(owner, "browser-use", { ...settings.getUserSettings(owner).browserUse, enabled: true, enabledProviderIds: [provider.id] });
+  settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, retryDelaySeconds: 0, maxModelRequests: 12, maxToolCalls: 16 });
+
+  const project = { id: "isolated-skill-browser-project", appId: "workspace", nodeId: null, path: root, title: "隔离 Skill 浏览器项目" };
+  const turn = sessions.createAiTurn(owner, "workspace", null, "安装这个临时 Browser Skill，再用它检查 index.html。", false, project);
+  const skillMarkdown = [
+    "---", "name: browser-check", "description: 使用已接入的 LFAA 浏览器检查当前项目网页", "---", "",
+    "# 浏览器检查", "当用户要求检查当前项目 HTML 时，使用 LFAA 已登记的浏览器工具打开 `index.html`，读取页面标题和正文后如实报告。",
+    "本 Skill 只提供方法资料；不要执行附属脚本，也不要调用未登记的外部浏览器代理。"
+  ].join("\n");
+  const snapshot = {
+    repository: { url: "https://github.com/fixture/browser-check", name: "browser-check", license: "MIT" },
+    requestedRef: "main", commit: "b".repeat(40), archiveSha256: "c".repeat(64),
+    files: [
+      { path: "skills/browser-check/SKILL.md", contents: Buffer.from(skillMarkdown) },
+      { path: "skills/browser-check/scripts/check.mjs", contents: Buffer.from("throw new Error('Skill 附属脚本不得被安装流程执行');") }
+    ]
+  };
+  const projectFileCalls = [];
+  const lifecycleContext = {
+    effect(setup) { return toolOwner.effect(setup); },
+    provide(name, service) { this[name] = service; return this; },
+    get() { return undefined; },
+    lfaaTools: { registerTool(_owner, tool) { registerAiBusinessTool(toolOwner, tool); } }
+  };
+  applyCapabilityInstalls(lifecycleContext);
+  lifecycleContext.lfaaCapabilityInstalls.register(toolOwner, createProjectSkillAdapter({
+    downloadSnapshot: async () => snapshot,
+    searchRepositories: async () => [],
+    runProjectFile: async (input, context) => {
+      const prepared = projectFileTool.prepare(input, context);
+      const result = await projectFileTool.execute(prepared, context);
+      projectFileCalls.push({ operation: input.operation, rootDirectory: prepared.rootDirectory, result });
+      return result;
+    }
+  }));
+  const registeredNames = new Set(listRegisteredAiTools().map(tool => tool.name));
+  for (const tool of [...createSkillTools(), ...createBrowserTools(manager)]) {
+    if (!registeredNames.has(tool.name)) registerAiBusinessTool(toolOwner, tool);
+    registeredNames.add(tool.name);
+  }
+
+  const nativeFetch = globalThis.fetch;
+  const requests = [];
+  let providerFailure = null;
+  let previewCloseCount = 0;
+  globalThis.fetch = async (url, options) => {
+    try {
+      assert.equal(String(url), account.chatUrl);
+      const body = JSON.parse(options.body);
+      requests.push(body);
+      const names = body.tools?.map(tool => tool.function.name) ?? [];
+      const toolResults = body.messages.filter(message => message.role === "tool");
+      const lastResult = resultText(toolResults.at(-1)?.content);
+      switch (requests.length) {
+        case 1:
+          assert.ok(names.includes("capability_inspect"));
+          return sse(providerCall("capability_inspect", { kind: "skill", source: snapshot.repository.url, ref: "main", targetApplicationId: "workspace" }, "skill-inspect"));
+        case 2: {
+          const inspection = JSON.parse(lastResult);
+          assert.equal(inspection.resolvedRef, snapshot.commit);
+          assert.match(lastResult, /browser-check/u);
+          assert.ok(names.includes("capability_install"));
+          return sse(providerCall("capability_install", { kind: "skill", inspectionId: inspection.inspectionId, targetApplicationId: "workspace" }, "skill-install"));
+        }
+        case 3:
+          assert.match(lastResult, /verified_ready/u, JSON.stringify(projectFileCalls));
+          assert.match(lastResult, /scriptsExecuted\\?":false/u);
+          assert.ok(names.includes("lfaa_skill_list"));
+          return sse(providerCall("lfaa_skill_list", { source: "project" }, "skill-list"));
+        case 4:
+          assert.match(lastResult, /browser-check/u, "安装后的 Skill 必须由同一项目 Owner 发现");
+          assert.ok(names.includes("lfaa_skill_load"));
+          return sse(providerCall("lfaa_skill_load", { source: "project", path: ".agents/skills/browser-check/SKILL.md" }, "skill-load"));
+        case 5:
+          assert.match(lastResult, /LFAA 已登记的浏览器工具/u, "同一 Run 必须能加载刚安装的 Skill 指引");
+          assert.ok(names.includes("lfaa_tools_list"));
+          return sse(providerCall("lfaa_tools_list", { query: "用 LFAA 内置浏览器打开当前项目 index.html 并读取标题正文" }, "browser-discovery"));
+        case 6:
+          assert.match(lastResult, /lfaa_browser_open_workspace_file/u);
+          return sse(providerCall("lfaa_tools_load", { names: ["lfaa_browser_open_workspace_file"] }, "browser-load"));
+        case 7:
+          assert.ok(names.includes("lfaa_browser_open_workspace_file"));
+          return sse(providerCall("lfaa_browser_open_workspace_file", { providerId: provider.id, path: "index.html" }, "browser-open"));
+        case 8:
+          assert.match(lastResult, /Skill 安装后浏览器页/u);
+          assert.match(lastResult, /页面来自隔离项目/u);
+          return sse({ content: "已在同一运行中安装并读取 Browser Skill，再用 LFAA 隔离浏览器打开 index.html；页面标题和正文已由真实页面状态确认。" });
+        default:
+          throw new Error(`Agent 意外请求了第 ${requests.length} 轮 Provider`);
+      }
+    } catch (error) {
+      providerFailure = error;
+      return sse({ content: "隔离 Skill/Browser Provider 夹具发现断言失败。" });
+    }
+  };
+
+  try {
+    const pluginHost = {
+      llm: createAiCompletionService(),
+      executeLocalProjectFile: input => executeProjectFile(input),
+      createLocalProjectPreview: async (nodeId, directory, relativePath) => {
+        assert.equal(nodeId, null, "隔离项目不得绑定 Daemon 节点");
+        assert.equal(directory, root);
+        const preview = await createProjectPreviewServer(directory, relativePath);
+        return { url: preview.url, close: async () => { previewCloseCount++; await preview.close(); } };
+      },
+      listPlugins: () => [], listExtensions: () => [], listInstructionExtensions: () => [], listHooks: () => [],
+      getSystemInstructions: () => [], runBeforeInference: () => ({ failedHookIds: [] }), runAfterInference: () => ({ failedHookIds: [] })
+    };
+    await executeAiTurn({
+      userId: owner,
+      userRole: "admin",
+      body: { appId: "workspace", sessionId: turn.session.id, content: "安装临时 Browser Skill，再用它检查 index.html。" },
+      turn,
+      aiPluginHost: pluginHost,
+      abortController: new AbortController(),
+      emit() {},
+      modelResolver
+    });
+    assert.equal(providerFailure, null, providerFailure?.message ?? "");
+    assert.equal(requests.length, 8, "同一 Agent Run 完成固定来源检查、安装、Skill 回读、工具发现与浏览器实页读取");
+    assert.match(sessions.getAiRun(owner, turn.assistantMessage.id).message.content, /页面标题和正文/u);
+    assert.match(await readFile(join(root, ".agents", "skills", "browser-check", "SKILL.md"), "utf8"), /LFAA 已登记的浏览器工具/u);
+    assert.equal(await readFile(join(root, ".agents", "skills", "browser-check", "scripts", "check.mjs"), "utf8"), "throw new Error('Skill 附属脚本不得被安装流程执行');");
+    await assert.rejects(readFile(join(root, "script-ran.txt"), "utf8"), { code: "ENOENT" });
+    const events = await sessions.getAiQueryEventsPage(owner, turn.session.id, turn.session.id, { after: 0, limit: 100 });
+    for (const name of ["capability_inspect", "capability_install", "lfaa_skill_list", "lfaa_skill_load", "lfaa_browser_open_workspace_file"]) {
+      assert.ok(events.events.some(event => event.type === "tool/call" && event.data.name === name), `缺少 ${name} 的同 Run 调用证据`);
+    }
+  } finally {
+    globalThis.fetch = nativeFetch;
+    await manager.closeAll();
+    for (const dispose of disposers.splice(0)) dispose();
+  }
+
+  assert.equal(previewCloseCount, 1, "Run 完成后预览服务已回收");
+});
+
+test("取消 Run 中挂起的真实浏览器导航会回收页面、预览服务和桥接", async t => {
+  const manager = new BrowserSessionManager(true);
+  const provider = manager.listProviders().find(item => item.id === "lfaa-managed-edge" && item.available)
+    ?? manager.listProviders().find(item => item.id === "lfaa-managed-chrome" && item.available);
+  if (!provider) {
+    await manager.closeAll();
+    return t.skip("当前系统没有可启动的隔离 Edge/Chrome");
+  }
+
+  const ownerId = "isolated-browser-cancel-owner";
+  const sourceSessionId = randomUUID();
+  const controller = new AbortController();
+  const sockets = new Set();
+  let resolveRequestStarted;
+  const requestStarted = new Promise(resolve => { resolveRequestStarted = resolve; });
+  const server = createServer((_request, response) => {
+    resolveRequestStarted();
+    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    response.write("<!doctype html><title>取消验收</title><body>等待响应结束</body>");
+  });
+  server.on("connection", socket => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const previewUrl = `http://127.0.0.1:${address.port}/waiting.html`;
+  let previewCloseCount = 0;
+  let runCleanup;
+  const closePreview = async () => {
+    previewCloseCount += 1;
+    if (!server.listening) return;
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(() => resolve()));
+  };
+  const runAdapter = manager.createRunAdapter({
+    ownerId,
+    sourceSessionId,
+    runId: randomUUID(),
+    signal: controller.signal,
+    onRunDispose: cleanup => { runCleanup = cleanup; }
+  });
+  const navigation = runAdapter.navigateProjectPreview(provider.id, { url: previewUrl, close: closePreview });
+  t.after(async () => {
+    controller.abort();
+    runCleanup?.();
+    await manager.closeAll();
+    if (server.listening) {
+      server.closeAllConnections();
+      await new Promise(resolve => server.close(() => resolve()));
+    }
+  });
+
+  let requestTimer;
+  await Promise.race([
+    requestStarted,
+    new Promise((_, reject) => { requestTimer = setTimeout(() => reject(new Error("浏览器没有向挂起页面发起导航请求。")), 10_000); })
+  ]).finally(() => clearTimeout(requestTimer));
+  assert.ok(await manager.getPanelRevision(ownerId, sourceSessionId, provider.id), "取消前 Browser Owner 已建立当前账户与 Session 的真实页面");
+
+  controller.abort();
+  await assert.rejects(navigation, /浏览器操作已取消/u);
+  runCleanup?.();
+  assert.throws(() => runAdapter.observe(provider.id), /桥接已结束/u);
+  assert.equal(await manager.getPanelRevision(ownerId, sourceSessionId, provider.id), null, "取消后不能继续读取已关闭的浏览器页面");
+  const cleanupDeadline = Date.now() + 5_000;
+  while ((previewCloseCount === 0 || sockets.size > 0) && Date.now() < cleanupDeadline) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(previewCloseCount, 1, "取消时只回收一次 Run 所有的项目预览服务");
+  assert.equal(server.listening, false, "项目预览 HTTP 服务已停止监听");
+  assert.equal(sockets.size, 0, "挂起的浏览器 HTTP 连接已关闭");
+  await manager.closeAll();
 });

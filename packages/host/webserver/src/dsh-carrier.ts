@@ -57,6 +57,7 @@ export class DshWebServerCarrier {
   private readonly upgradeRoutes = new Map<string, WebUpgradeRoute>();
   private readonly indexTransforms: Array<(html: string) => string> = [];
   private readonly handlerAdapters = new Map<string, { owner: object; adapter: DshHandlerAdapter }>();
+  private readonly authenticatedClientModules = new Map<string, object>();
   private server: Server | undefined;
   private readonly publicApi: WebServerFacade;
 
@@ -76,7 +77,10 @@ export class DshWebServerCarrier {
       collectIndexInjections: () => carrier.collectIndexInjections(),
       renderIndex: (html) => carrier.renderIndex(html)
     };
-    Object.assign(this.publicApi, { registerHandlerAdapter: (owner: object, path: string, adapter: DshHandlerAdapter) => carrier.registerHandlerAdapter(owner, path, adapter) });
+    Object.assign(this.publicApi, {
+      registerHandlerAdapter: (owner: object, path: string, adapter: DshHandlerAdapter) => carrier.registerHandlerAdapter(owner, path, adapter),
+      registerAuthenticatedClientModule: (owner: object, moduleId: string) => carrier.registerAuthenticatedClientModule(owner, moduleId)
+    });
   }
 
   get port(): number {
@@ -140,7 +144,26 @@ export class DshWebServerCarrier {
   collectIndexInjections(): IndexInjection[] {
     const rows: IndexInjection[] = [];
     this.context.emit("webserver/index-inject", rows);
-    return rows.map(normalizeDshBundleInjection);
+    const authenticatedClientModules = [...this.authenticatedClientModules.keys()].sort();
+    return rows.map((row) => {
+      const normalized = normalizeDshBundleInjection(row);
+      if (row.kind !== "global" || row.name !== "__DSH_BOOT__" || !isRecord(row.value)) return normalized;
+      return {
+        ...normalized,
+        value: { ...row.value, lfaaAuthenticatedClientModules: authenticatedClientModules }
+      };
+    });
+  }
+
+  /** Mark one active DSH Client bundle as requiring an authenticated LFAA session. */
+  registerAuthenticatedClientModule(owner: object, moduleId: string): () => void {
+    if (!owner || typeof owner !== "object" || !isSafeClientModuleId(moduleId)) throw new Error("需要有效的 Runtime Owner 和 DSH Client 模块 ID。");
+    if (this.authenticatedClientModules.size >= 128 && !this.authenticatedClientModules.has(moduleId)) throw new Error("当前最多登记 128 个需要认证的 DSH Client 模块。");
+    if (this.authenticatedClientModules.has(moduleId)) throw new Error(`需要认证的 DSH Client 模块重复登记：${moduleId}`);
+    this.authenticatedClientModules.set(moduleId, owner);
+    return () => {
+      if (this.authenticatedClientModules.get(moduleId) === owner) this.authenticatedClientModules.delete(moduleId);
+    };
   }
 
   renderIndex(html: string): string {
@@ -199,4 +222,12 @@ export class DshWebServerCarrier {
 
 export function mountDshWebRoutes(carrier: DshWebServerCarrier, app: import("express").Express): void {
   app.use(carrier.middleware());
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isSafeClientModuleId(value: string): boolean {
+  return value.length <= 200 && /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/iu.test(value);
 }

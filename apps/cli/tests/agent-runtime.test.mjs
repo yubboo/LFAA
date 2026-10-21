@@ -208,7 +208,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       settings.saveUserSettings('fixture-owner','general',{...settings.defaultSettings.general,taskFolder:'/fixture/default'});
       const settingsPrepared=shellTool.prepare(shellTool.parse({nodeId:projectNode,command:'Get-Location'}),{userId:'fixture-owner',workspaceProject:null});
       assert.equal(settingsPrepared.workingDirectory,'/fixture/default');settings.saveUserSettings('fixture-owner','general',settings.defaultSettings.general);
-      let bodies=[]; let block=false; let release; let scenario='basic'; let holdChild=false; let executions=0; let holdPauseResponse=false; let releasePauseResponse; let pauseRequestSignal; let holdWriteTool=false; let releaseWriteTool; let pauseToolSignal; let routeHookEnabled=false; let routeAccountId=''; let routeEvents=[]; let routeAuthorization=null;
+      let bodies=[]; let block=false; let release; let scenario='basic'; let holdChild=false; let executions=0; let holdPauseResponse=false; let releasePauseResponse; let pauseRequestSignal; let holdWriteTool=false; let releaseWriteTool; let pauseToolSignal; let routeHookEnabled=false; let routeAccountId=''; let routeModelId=''; let routeEvents=[]; let routeAuthorization=null; let mcpApprovalDecision='approved';
       const nativeFetch=globalThis.fetch;
       globalThis.fetch=async (url,options={})=>{
         if(String(url).startsWith(mcpUrl))return nativeFetch(url,options);
@@ -259,6 +259,12 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
           if(toolResults.length===0){assert.ok(body.tools.some(tool=>tool.function.name==='capability_install'));assert.ok(!body.tools.some(tool=>tool.function.name.startsWith('mcp_loopmcp_')));delta={tool_calls:[{index:0,id:'fixture-install',type:'function',function:{name:'capability_install',arguments:JSON.stringify({kind:'mcp'})}}]};}
           else if(toolResults.length===1){const mcpTool=body.tools.find(tool=>tool.function.name.startsWith('mcp_loopmcp_'));assert.ok(mcpTool,'安装后的工具必须进入下一次 Provider 请求');delta={tool_calls:[{index:0,id:'fixture-mcp',type:'function',function:{name:mcpTool.function.name,arguments:'{}'}}]};}
           else{assert.ok(toolResults.some(item=>item.content.includes('实际 MCP 工具结果')));delta={content:'已安装并调用 MCP'};}
+        }else if(scenario==='mcpPermission'){
+          const toolResults=body.messages.filter(message=>message.role==='tool');
+          if(toolResults.length===0){const mcpTool=body.tools.find(tool=>tool.function.name.startsWith('mcp_loopmcp_'));assert.ok(mcpTool,'已安装 MCP 必须通过正常工具目录进入 Agent Loop');delta={tool_calls:[{index:0,id:'fixture-mcp-permission',type:'function',function:{name:mcpTool.function.name,arguments:'{}'}}]};}
+          else if(mcpApprovalDecision==='denied'&&toolResults.length===1){const result=JSON.parse(toolResults.at(-1).content);assert.equal(result.executed,false);assert.match(result.error,/拒绝/u);const fallback=body.tools.find(tool=>tool.function.name==='fixture_write_probe');assert.ok(fallback,'MCP 拒绝后普通写工具仍可见，验证共享派发门禁');delta={tool_calls:[{index:0,id:'fixture-mcp-denied-fallback',type:'function',function:{name:fallback.function.name,arguments:'{}'}}]};}
+          else if(mcpApprovalDecision==='denied'){const result=JSON.parse(toolResults.at(-1).content);assert.equal(result.executed,false);assert.equal(result.executionState,'not_started');assert.match(result.error,/已有写操作被拒绝/u);delta={content:'MCP 拒绝后替代写工具也已停止'};}
+          else{assert.ok(toolResults.at(-1).content.includes('实际 MCP 工具结果'));delta={content:'MCP 调用已在批准后完成'};}
         }else if(scenario==='stdioComputerUse'){
           const toolResults=body.messages.filter(message=>message.role==='tool');
           if(toolResults.length===0){const system=body.messages.find(message=>message.role==='system')?.content??'';assert.match(system,/untrusted-mcp-instructions/u);assert.match(system,/先调用 get_app_state/u);const observe=body.tools.find(tool=>tool.function.name.startsWith('mcp_stdio_cua_'));assert.ok(observe,'已登记的本机 Computer-Use MCP 工具必须按自然语言目标进入模型目录');delta={tool_calls:[{index:0,id:'fixture-stdio-observe',type:'function',function:{name:observe.function.name,arguments:JSON.stringify({app:'当前窗口'})}}]};}
@@ -307,7 +313,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       settings.activateAiAccount('fixture-owner',account.id);
       const childAccount=await settings.saveAiAccount('fixture-owner',{providerId:'openai',secret:'fixture-child-test-key',options:{},displayName:'合成子模型',modelId:'fixture-child',reasoningMode:'default'});
       const hookProtocolFiber=await pluginContext.plugin((await import('lfaa-hook-protocol')).default);
-      const routeHookFiber=await pluginContext.plugin({name:'fixture-model-router',inject:['aiRuntimeHooks'],apply(ctx){ctx.aiRuntimeHooks.register(ctx,'fixture.model-router',{requestRoute(event){if(!routeHookEnabled)return;routeEvents.push(event);return {accountId:routeAccountId};}});}});
+      const routeHookFiber=await pluginContext.plugin({name:'fixture-model-router',inject:['aiRuntimeHooks'],apply(ctx){ctx.aiRuntimeHooks.register(ctx,'fixture.model-router',{requestRoute(event){if(!routeHookEnabled)return;routeEvents.push(event);return {accountId:routeAccountId,...(routeModelId?{modelId:routeModelId}:{})};}});}});
       const credentials=await import('lfaa-credentials/src/index.js');
       const accountReference=credentials.credentialReference('lfaa-settings',account.id);
       const resolvedModelCredential=pluginContext.lfaaAgentDefaultModel.resolve('fixture-owner');
@@ -370,9 +376,26 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       assert.equal(routeAuthorization,'Bearer fixture-child-test-key','切换模型必须经凭据 Owner 读取目标账户密钥');
       assert.equal(routeEvents.length,1);assert.equal(routeEvents[0].latestUserText,'按本轮请求切换到已配置子模型');
       assert.equal(Object.isFrozen(routeEvents[0]),true);assert.equal(Object.isFrozen(routeEvents[0].routeOptions),true);assert.equal(Object.isFrozen(routeEvents[0].routeOptions[0]),true);assert.equal(Object.isFrozen(routeEvents[0].routeOptions[0].reasoningModes),true);
-      assert.deepEqual(routeEvents[0].routeOptions.map(option=>option.accountId).sort(),[account.id,childAccount.id].sort());
+      assert.equal(routeEvents[0].routeOptions.length,4,'路由目录应列出账户模型目录中的全部已配置模型');
+      assert.ok(routeEvents[0].routeOptions.some(option=>option.accountId===account.id&&option.modelId==='fixture-child'));
+      assert.deepEqual([...new Set(routeEvents[0].routeOptions.map(option=>option.accountId))].sort(),[account.id,childAccount.id].sort());
       assert.doesNotMatch(JSON.stringify(routeEvents),/fixture-test-key|fixture-child-test-key/u,'钩子目录和事件不得泄露 Provider 密钥');
       assert.ok(runs.getAiRun('fixture-owner',routedRun.id).message.activity.some(item=>item.title==='模型请求路由'&&item.detail.includes('fixture-child')));
+      routeAccountId=account.id;routeModelId='fixture-child';routeEvents=[];routeAuthorization=null;bodies=[];
+      const sameAccountModelRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'在同一账户切换到目录内的另一个模型'},host);
+      await until(()=>runs.getAiRun('fixture-owner',sameAccountModelRun.id).status!=='streaming');
+      assert.equal(runs.getAiRun('fixture-owner',sameAccountModelRun.id).status,'complete');
+      assert.equal(bodies.length,1);assert.equal(bodies[0].model,'fixture-child','路由必须支持在同一 Provider 账户内选择模型目录中的另一模型');
+      assert.equal(routeAuthorization,'Bearer fixture-test-key','同账户模型切换仍使用该账户的凭据 Owner');
+      assert.ok(runs.getAiRun('fixture-owner',sameAccountModelRun.id).message.activity.some(item=>item.title==='模型请求路由'&&item.detail.includes('fixture-child')));
+      routeModelId='not-in-provider-catalog';routeEvents=[];routeAuthorization=null;bodies=[];
+      const rejectedModelRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'拒绝未配置目录中的模型路由建议'},host);
+      await until(()=>runs.getAiRun('fixture-owner',rejectedModelRun.id).status!=='streaming');
+      assert.equal(runs.getAiRun('fixture-owner',rejectedModelRun.id).status,'complete');
+      assert.equal(bodies.length,1);assert.equal(bodies[0].model,'fixture-model','未配置目录内的模型必须回退到用户所选模型');
+      assert.equal(routeAuthorization,'Bearer fixture-test-key');
+      assert.ok(runs.getAiRun('fixture-owner',rejectedModelRun.id).message.activity.some(item=>item.title==='模型请求路由'&&item.status==='error'));
+      routeModelId='';
       routeAccountId='unconfigured-account';routeEvents=[];routeAuthorization=null;bodies=[];
       const rejectedRouteRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'忽略未配置的模型路由建议'},host);
       await until(()=>runs.getAiRun('fixture-owner',rejectedRouteRun.id).status!=='streaming');
@@ -598,6 +621,31 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       assert.ok(bodies[installRequestIndex+2].messages.some(message=>message.role==='tool'&&message.content.includes('实际 MCP 工具结果')));
       assert.match(runs.getAiRun('fixture-owner',capabilityRun.id).message.content,/已安装并调用 MCP/u);
       assert.ok(runs.getAiRun('fixture-owner',capabilityRun.id).message.activity.some(item=>item.detail.includes('加入当前 Agent Run 的下一次模型请求')));
+      settings.saveUserSettings('fixture-owner','permissions',{mode:'ask'});
+      mcpApprovalDecision='approved';bodies=[];scenario='mcpPermission';
+      const mcpApprovedRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'调用已安装的 MCP'},host);
+      await until(()=>runs.getAiRun('fixture-owner',mcpApprovedRun.id).message.activity.some(item=>item.status==='approval_required'));
+      const mcpApprovedRequest=permissionPresets.listAiToolApprovals('fixture-owner','pending').find(item=>item.sessionId===mcpApprovedRun.sessionId);
+      assert.ok(mcpApprovedRequest);assert.equal(mcpExecutions,1,'审批等待期间不得派发 MCP 副作用');
+      assert.equal(permissionPresets.decideAiToolApproval('fixture-owner',mcpApprovedRequest.id,'approved',false)?.status,'approved');
+      pluginContext.lfaaUserApproval.notify('fixture-owner',mcpApprovedRequest.id);
+      await until(()=>runs.getAiRun('fixture-owner',mcpApprovedRun.id).status!=='streaming');
+      assert.equal(runs.getAiRun('fixture-owner',mcpApprovedRun.id).status,'complete');assert.equal(mcpExecutions,2,'批准后 MCP 副作用只派发一次');
+      assert.ok(runs.getAiRun('fixture-owner',mcpApprovedRun.id).message.activity.some(item=>item.approvalAnswer==='approved'));
+      mcpApprovalDecision='denied';bodies=[];
+      const mcpDeniedRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'再次调用已安装的 MCP'},host);
+      await until(()=>runs.getAiRun('fixture-owner',mcpDeniedRun.id).message.activity.some(item=>item.status==='approval_required'));
+      const mcpDeniedRequest=permissionPresets.listAiToolApprovals('fixture-owner','pending').find(item=>item.sessionId===mcpDeniedRun.sessionId);
+      assert.ok(mcpDeniedRequest);assert.equal(mcpExecutions,2,'拒绝前 MCP 服务仍未收到新调用');
+      const writeBeforeMcpDenial=writeExecutions;
+      assert.equal(permissionPresets.decideAiToolApproval('fixture-owner',mcpDeniedRequest.id,'denied',false)?.status,'denied');
+      pluginContext.lfaaUserApproval.notify('fixture-owner',mcpDeniedRequest.id);
+      await until(()=>runs.getAiRun('fixture-owner',mcpDeniedRun.id).status!=='streaming');
+      assert.equal(runs.getAiRun('fixture-owner',mcpDeniedRun.id).status,'complete');assert.equal(mcpExecutions,2,'拒绝后不得派发 MCP 副作用');
+      const deniedFallbackResult=JSON.parse(bodies.at(-1).messages.find(item=>item.role==='tool'&&item.tool_call_id==='fixture-mcp-denied-fallback').content);
+      assert.equal(deniedFallbackResult.executionState,'not_started');assert.equal(writeExecutions,writeBeforeMcpDenial,'拒绝 MCP 后改用普通写工具也不得执行');
+      assert.ok(runs.getAiRun('fixture-owner',mcpDeniedRun.id).message.activity.some(item=>item.approvalAnswer==='denied'));
+      settings.saveUserSettings('fixture-owner','permissions',{mode:'full_access'});
        settings.saveUserSettings('fixture-owner','computer-control',{enabled:true});
        settings.saveUserSettings('fixture-owner','plugins',{enabled:true,mcpServers:[{id:'stdio_cua',name:'本机 Computer-Use',transport:'stdio',command:process.execPath,args:[stdioMcpFixture],enabled:true,applicationIds:['workspace'],computerUse:true}]});
        bodies=[];scenario='stdioComputerUse';

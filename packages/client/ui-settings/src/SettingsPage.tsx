@@ -3471,7 +3471,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         }
       };
       return <section className="settings-content" role="tabpanel" id="settings-browser-panel" aria-labelledby="settings-browser-tab" tabIndex={0}>
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">{selectedSection?.group}</span><Typography.Title level={2}>浏览器</Typography.Title><Typography.Paragraph>接入 LFAA 内置隔离浏览器或 Tabbit 浏览器，并选择是否向 Agent 开放浏览器工具。接入只登记可用入口；个人浏览器标签仍需在本轮任务中明确选择。</Typography.Paragraph></div></header>
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">{selectedSection?.group}</span><Typography.Title level={2}>浏览器</Typography.Title><Typography.Paragraph>管理桌面端原生 Chromium、隔离 Edge/Chrome 和 Tabbit 接入。Electron 桌面端的原生网页可由你直接操作；原生标签已接入认证的 Browser Owner，桌面实页验收完成后才确认运行可用。浏览器操作遵循统一权限模式。</Typography.Paragraph></div></header>
         <SettingGroup title="Agent 浏览器控制">
           <SettingRow title="让 Agent 控制浏览器" description="开启后，Agent 可以使用已接入且当前 Host 可用的浏览器，查看页面、JSON 与交互元素，并按权限模式执行有限操作。关闭只停用 Agent 工具，你仍可直接操作右侧浏览器工作区。" status={settings.browserUse.enabled ? "已开启" : "默认关闭"}>
             <SettingsSwitch label="允许 Agent 使用浏览器" checked={settings.browserUse.enabled} onChange={() => updateSettings("browserUse", { ...settings.browserUse, enabled: !settings.browserUse.enabled })} />
@@ -3485,20 +3485,35 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           {browserProviders.providers.map(provider => {
             const linked = settings.browserUse.enabledProviderIds.includes(provider.id);
             const personalControlMissing = provider.isolation === "user-profile" && !settings.computerControl.enabled;
-            return <SettingRow key={provider.id} title={provider.name} description={provider.isolation === "new-profile" ? "LFAA 为每个会话启动独立浏览器上下文；不读取系统浏览器 Cookie 或个人 Profile。" : "接入后可在工作区显式查看并选择 Tabbit 标签；不会自动读取标签、登录状态或历史记录。个人会话还要求开启电脑操控并由本轮用户目标明确指定。"} status={!provider.available ? "不可用" : personalControlMissing ? "需启用电脑操控" : linked ? "已接入 LFAA" : "未接入"}>
+            const description = provider.isolation === "app-session"
+              ? "桌面端原生 Chromium 页面在右侧工作区运行。源码已通过认证 Browser Owner 按账户、LFAA Session 和当前标签 Target 接入 Agent；启用后可控制同一标签。桌面运行验收待做；登录、站点授权和验证码由你在页面中完成。"
+              : provider.isolation === "new-profile"
+                ? "LFAA 为每个会话启动独立浏览器上下文；不读取系统浏览器 Cookie 或个人 Profile。"
+                : "接入后可在工作区显式查看并选择 Tabbit 标签；不会自动读取标签、登录状态或历史记录。个人会话还要求开启电脑操控并由本轮用户目标明确指定。";
+            const providerStatus = !provider.available ? "不可用" : personalControlMissing ? "需启用电脑操控" : provider.isolation === "app-session" ? linked ? "已接入 LFAA · 桌面实测待验" : "源码已接入 · 桌面实测待验" : linked ? "已接入 LFAA" : "未接入";
+            return <SettingRow key={provider.id} title={provider.name} description={description} status={providerStatus}>
               {!linked && personalControlMissing ? <Button onClick={() => selectSection("computerControl")}>前往电脑操控设置</Button> : <SettingsSwitch label={linked ? "断开" : "接入"} checked={linked} disabled={!provider.available} onChange={() => void toggleBrowserProvider(provider, linked)} />}
             </SettingRow>;
           })}
         </SettingGroup>
         <SettingGroup title="地址栏">
+          <SettingRow title="默认搜索引擎" description="地址栏输入普通文字时使用；明确输入 HTTP(S) 网址仍直接导航。此选择由账户设置保存，并在桌面原生浏览器和 Web 浏览器工作区共用。" status={settings.browserUse.searchEngine === "google" ? "Google" : settings.browserUse.searchEngine === "duckduckgo" ? "DuckDuckGo" : "Bing"}>
+            <Select value={settings.browserUse.searchEngine} options={[{ value: "bing", label: "Bing" }, { value: "google", label: "Google" }, { value: "duckduckgo", label: "DuckDuckGo" }]} onChange={(searchEngine: UserSettings["browserUse"]["searchEngine"]) => updateSettings("browserUse", { ...settings.browserUse, searchEngine })} />
+          </SettingRow>
           <SettingRow title="显示完整网址" description="开启后在 Browser Dock 地址栏展示路径、查询参数和片段；关闭时地址栏只显示站点来源，实际导航地址和 JSON 数据保持完整。" status={settings.browserUse.showFullUrl ? "完整地址" : "仅显示站点"}>
             <SettingsSwitch label="显示完整网址" checked={settings.browserUse.showFullUrl} onChange={() => updateSettings("browserUse", { ...settings.browserUse, showFullUrl: !settings.browserUse.showFullUrl })} />
           </SettingRow>
         </SettingGroup>
+        <SettingGroup title="浏览数据">
+          <SettingRow title="清除网站数据" description="清除 LFAA 原生浏览器本次运行期间的 Cookie、缓存、本地站点数据和网站权限决定；不会触碰系统 Edge/Chrome 个人资料。原生网站数据不跨应用重启保存；当前版本未提供浏览历史和下载历史管理。" status={window.lfaaDesktop?.nativeBrowser ? "仅本次运行数据" : "桌面端可用"}>
+            <Button disabled={!window.lfaaDesktop?.nativeBrowser} onClick={() => void window.lfaaDesktop?.nativeBrowser.clearData().then(result => { if (result.cleared) message.success("LFAA 浏览器网站数据已清除。"); }).catch(reason => message.error(getErrorMessage(reason)))}>清除数据</Button>
+          </SettingRow>
+        </SettingGroup>
         <SettingGroup title="当前版本支持范围">
-          <SettingRow title="浏览器工作区与人工接管" description="你和 Agent 共用当前会话页面。可点击、输入、拖动和滚动；网页登录、授权和验证码由你在页面中手动完成，Agent 不绕过验证。页面正文和截图只保留在运行时。" status="已接入"><Tag color="green">已接入</Tag></SettingRow>
-          <SettingRow title="历史记录、密码/联系信息、扩展和下载管理" description="这些浏览器服务尚未接入 LFAA 设置与数据 Owner，目前不提供管理控件。" status="未接入"><Tag>未接入</Tag></SettingRow>
-          <SettingRow title="网站摄像头/麦克风权限、WebMCP 与完整 CDP" description="站点权限与 WebMCP 尚未接入；完整 CDP 不开放，Agent 只使用 LFAA 登记的受限浏览器操作。" status="未接入"><Tag>未接入</Tag></SettingRow>
+          <SettingRow title="Electron 原生浏览器工作区" description="源码包含 Chromium 原生页面、多标签、地址导航、前进后退、停止/刷新、页面查找、缩放、打印与下载入口；真实桌面窗口尚未运行验收。" status="桌面实页待验"><Tag>桌面实页待验</Tag></SettingRow>
+          <SettingRow title="页面观察、网站权限与下载" description="源码包含页面信息读取、网站权限请求处理和系统下载对话框；摄像头、麦克风、位置、通知等真实桌面弹窗及下载结果尚未验收。网页登录、OAuth 授权和验证码由用户手动完成。" status="桌面实页待验"><Tag>桌面实页待验</Tag></SettingRow>
+          <SettingRow title="历史、书签、密码/联系信息、扩展和下载历史管理" description="这些服务尚未接入独立的设置与数据 Owner；目前没有历史、书签、扩展及下载记录的管理控件。" status="尚未接入"><Tag>尚未接入</Tag></SettingRow>
+          <SettingRow title="Agent 原生页面控制" description="源码已接入：受信 Electron Host 的回环 CDP 只用于 Browser Owner 按账户、LFAA Session 和用户当前选中的 Target 绑定；调用仍经认证 API 与 Permission Owner。CDP 端点不提供给 Renderer 或 Agent Tool；桌面实际操作尚未验收。" status="源码已接入 · 桌面实测待验"><Tag>桌面实测待验</Tag></SettingRow>
         </SettingGroup>
       </section>;
     }

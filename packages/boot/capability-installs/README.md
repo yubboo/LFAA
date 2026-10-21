@@ -8,6 +8,6 @@
 
 每个 Owner 还须提供 `revalidateTarget`，安装前根据当前会话/实例重新确认凭证目标仍有效且未变化。检查的可读摘要、来源、固定版本和 Owner 目标摘要会显示在危险操作审批范围里；检查返回的目标摘要不会向模型泄漏服务端内部路径。
 
-未登记的 Prompts、Tools、MCP 安装路由、Minecraft 插件或模组类型会被明确报告为通用自然语言安装未接入，不会落入通用插件目录或伪报安装成功。项目 Skill 适配器由 lfaa-capability-skill 提供：只安装固定 GitHub 快照中的单个 UTF-8 文本 Skill，经 Daemon 项目文件 Owner 写入当前选择的项目并由核心再次回读发现状态，不运行仓库脚本。MCP 现有的账户设置与 Agent 连接 Runtime 仍由原 Owner 提供，本目录暂未管理其服务发现和新增。未来适配器仍需由对应领域 Owner 提供真实检查、固定版本、安装与状态核验，不可只实现通用接口包装。
+未登记的 Prompts、Tools、Minecraft 插件或模组类型会被明确报告为通用自然语言安装未接入，不会落入通用插件目录或伪报安装成功。项目 Skill 适配器由 lfaa-capability-skill 提供：只安装固定 GitHub 快照中的单个 UTF-8 文本 Skill，经 Project Files Owner 写入当前选择的项目并由核心再次回读发现状态，不运行仓库脚本。MCP 安装由 lfaa-capability-mcp 提供：HTTP 检查只读 initialize/tools/list；stdio 检查若用户明确提交 command/argv，则由动态危险风险触发现有 Permission Owner 审批后启动准确本机命令，绝不解析 Shell 字符串；状态仍由 Settings 与 MCP Runtime Owner 回读。远程生产 Host 拒绝本机 stdio。未来适配器仍需由对应领域 Owner 提供真实检查、固定版本、安装与状态核验，不可只实现通用接口包装。
 
-当前已注册 plugin（lfaa-plugin-manager）和 skill（lfaa-capability-skill）适配器。Skill 更新、覆盖、启停和删除尚不支持；二进制 Skill 资源及 Prompt、Tool、MCP、Minecraft 插件/模组适配仍待对应领域 Owner 实现。所有类型都须先提供真实检查、固定版本、安装与状态核验，再接入对应 App、Settings 与 Agent Runtime。
+当前已注册 plugin（lfaa-plugin-manager）、skill（lfaa-capability-skill）和 MCP（lfaa-capability-mcp）适配器。MCP stdio 检查/安装使用用户明示的本机命令，不安装或下载程序；HTTP/stdio 真实用户服务仍待现场验收。Skill 更新、覆盖、启停和删除尚不支持；二进制 Skill 资源及 Prompt、Tool、Minecraft 插件/模组适配仍待对应领域 Owner 实现。所有类型都须先提供真实检查、固定版本、安装与状态核验，再接入对应 App、Settings 与 Agent Runtime。

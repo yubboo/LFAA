@@ -1,7 +1,7 @@
 /**
- * 功能：锁定 AI Work 提问框的网格收缩、悬停反馈几何稳定、操作栏容器响应和插入光标可见性。
- * 作用：防止 TextArea 撑出聊天列，悬停不改变输入卡尺寸，关联选择器随真实中间栏宽度排布，并保证光标跟随主题文字颜色。
- * 关联文件：packages/client/ui-chat/src/ai-work-chat.css；本测试检查提问框、关联操作栏与 TextArea 样式。
+ * 功能：锁定 AI Work 提问框响应、悬停提示避让、操作栏排布与插入光标可见性。
+ * 作用：防止 TextArea 撑出聊天列或被 Tooltip 遮盖，关联选择器随容器排布，并保证光标跟随主题文字颜色。
+ * 关联文件：packages/client/ui-chat/src/AiWorkChat.tsx、AiUsageFooter.tsx 与 ai-work-chat.css。
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -119,22 +119,29 @@ test("输入列不超过 380px 时，项目、权限、更多和模型操作压�
   assert.match(compactRule, /\.ai-work-chat__project-trigger-label\s*\{\s*display:\s*none;/u);
   assert.match(compactRule, /\.ai-work-chat__composer-control-label,[\s\S]*?display:\s*none;/u);
   assert.match(compactRule, /\.ai-work-chat__composer-control\.ant-btn\s*\{[^}]*width:\s*30px[^}]*flex:\s*0\s+0\s+30px/u);
-  assert.match(chatSource, /className="ai-work-chat__composer-app" aria-label=\{`当前应用：\$\{applicationNameFor\(appId\)\}`\} title=\{applicationNameFor\(appId\)\}/u);
+  assert.match(chatSource, /Tooltip trigger=\{\["hover"\]\} placement="top" title=\{applicationNameFor\(appId\)\}>\s*<span className="ai-work-chat__composer-app" aria-label=\{`当前应用：\$\{applicationNameFor\(appId\)\}`\}/u);
   assert.match(chatSource, /className="ai-work-chat__composer-control ai-work-chat__composer-control--permission"[^>]*aria-label=/u);
-  assert.match(chatSource, /<Tooltip trigger=\{\["hover", "focus"\]\} placement="top" title="关联应用、Skill、提示词和专家">\s*<Button className="ai-work-chat__composer-control ai-work-chat__composer-control--more"[^>]*aria-label="更多输入操作"/u);
+  assert.match(chatSource, /<Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title="关联应用、Skill、提示词和专家">\s*<Button className="ai-work-chat__composer-control ai-work-chat__composer-control--more"[^>]*aria-label="更多输入操作"/u);
   assert.match(chatSource, /className="ai-work-chat__composer-control ai-work-chat__composer-control--model"[^>]*aria-label=\{activeAccount \? `模型：/u);
-  assert.match(projectPickerSource, /className="ai-work-chat__project-trigger"[^>]*aria-label=/u);
+  assert.match(projectPickerSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="top" title=\{disabled \? undefined : selected\?\.path \?\? unresolvedProjectDescription\}>\s*<Button className="ai-work-chat__project-trigger"[^>]*aria-label=/u);
 });
 
 test("输入操作与用量指标为鼠标和键盘提供真实状态提示，点击详情仍由原 Popover/Dropdown 处理", () => {
-  assert.match(chatSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="top" title="添加文件等内容 · 附件功能尚未接入"/u);
-  assert.match(chatSource, /title=\{`更改权限 · 当前为\$\{permissionModeLabels\[settings\.permissions\.mode\]\}`\}/u);
-  assert.match(chatSource, /title="关联应用、Skill、提示词和专家"/u);
-  assert.match(chatSource, /title=\{activeAccount \? `选择模型/u);
-  assert.match(chatSource, /Tooltip trigger=\{\["hover", "focus"\]\} title=\{!settings\.aiRuntime\.voiceInputEnabled/u);
+  const actionsStart = chatSource.indexOf('aria-label="添加、权限与更多操作"');
+  const actionsEnd = chatSource.indexOf("</form>", actionsStart);
+  const composerActions = chatSource.slice(actionsStart, actionsEnd);
+
+  assert.ok(actionsStart >= 0 && actionsEnd > actionsStart);
+  assert.doesNotMatch(composerActions, /<Tooltip[^>]*placement="top(?:Left|Right)?"/u);
+  assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title="添加文件等内容 · 附件功能尚未接入"/u);
+  assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title=\{`更改权限 · 当前为\$\{permissionModeLabels\[settings\.permissions\.mode\]\}`\}/u);
+  assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title="关联应用、Skill、提示词和专家"/u);
+  assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title=\{activeAccount \? `选择模型/u);
+  assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title=\{!settings\.aiRuntime\.voiceInputEnabled/u);
   assert.match(chatSource, /settings\.general\.sendShortcut === "enter" \? "发送消息 · Enter" : "发送消息 · Ctrl\+Enter"/u);
-  assert.match(usageFooterSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="top" title=\{`会话 Token 用量/u);
-  assert.match(usageFooterSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="top" title=\{`\$\{contextTooltipText\(contextUsage\)\}/u);
+  assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title=\{settings\.general\.sendShortcut === "enter"/u);
+  assert.match(usageFooterSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="right" title=\{`会话 Token 用量/u);
+  assert.match(usageFooterSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="right" title=\{`\$\{contextTooltipText\(contextUsage\)\}/u);
   assert.match(usageFooterSource, /function contextTooltipText\(context: AiContextUsage \| null\)/u);
   assert.match(usageFooterSource, /Popover trigger="click"/u);
   assert.match(chatSource, /menu=\{\{[\s\S]*?onClick: \(\{ key \}\) => selectPermissionMode/u);

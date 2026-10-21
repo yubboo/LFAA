@@ -17,7 +17,7 @@ import { searchGithubRepositories } from "./github-source.js";
 import { resolvePluginSource, type PluginSourceSnapshot, type PluginSourceType } from "./source-resolution.js";
 import type { PluginArchiveFile } from "./zip-archive.js";
 
-const INVENTORY_VERSION = 4;
+const INVENTORY_VERSION = 5;
 const MAX_INSTALLED_PLUGINS = 128;
 const MAX_ACTIVE_PLUGIN_COUNT = 4;
 const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,119}$/u;
@@ -35,6 +35,8 @@ export interface PluginRecord {
   source: { kind: PluginSourceType; repository: string; requestedRef: string; commit: string; archiveSha256: string; license: string | null };
   compatibility: PluginCompatibility;
   runtimeEntry: string | null;
+  /** 固定来源快照中读取并校验的 DSH Host/Client 装配合同；不代表其依赖已运行或能力已授权。 */
+  requirements: PluginRequirements;
   capabilities: string[];
   applicationIds: CapabilityApplicationId[];
   state: "installed" | "enabled" | "incompatible";
@@ -144,7 +146,7 @@ export class PluginManager {
     const canEnable = Boolean(adapter && (sourceCheck?.supported ?? true));
     return {
       ...detected.record,
-      requirements: inspectRequirements(snapshot),
+      requirements: detected.record.requirements,
       repository: snapshot.repository,
       sourceType: snapshot.sourceType,
       sourceLocation: snapshot.sourceLocation,
@@ -469,7 +471,7 @@ export class PluginManager {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version: INVENTORY_VERSION, profile: this.profile, plugins: [] };
       throw new PluginManagerError("plugin_inventory_unreadable", "插件清单无法读取或格式损坏；没有覆盖任何现有插件。" );
     }
-    if (!isRecord(raw) || ![1, 2, 3, INVENTORY_VERSION].includes(Number(raw.version)) || raw.profile !== this.profile || !Array.isArray(raw.plugins) || raw.plugins.length > MAX_INSTALLED_PLUGINS) {
+    if (!isRecord(raw) || ![1, 2, 3, 4, INVENTORY_VERSION].includes(Number(raw.version)) || raw.profile !== this.profile || !Array.isArray(raw.plugins) || raw.plugins.length > MAX_INSTALLED_PLUGINS) {
       throw new PluginManagerError("plugin_inventory_invalid", "插件清单版本不支持或 Profile 不匹配。" );
     }
     const rawVersion = Number(raw.version);
@@ -485,7 +487,8 @@ export class PluginManager {
           ...record,
           source: { ...record.source, kind: record.source.kind ?? "github" },
           applicationIds: Array.isArray(record.applicationIds) ? [...record.applicationIds] : [...APPLICATION_IDS],
-          runtimeEntry: typeof record.runtimeEntry === "string" ? record.runtimeEntry : null
+          runtimeEntry: typeof record.runtimeEntry === "string" ? record.runtimeEntry : null,
+          requirements: rawVersion >= 5 ? record.requirements : emptyPluginRequirements()
         };
       })
     };
@@ -567,6 +570,7 @@ function inspectSnapshot(snapshot: PluginSourceSnapshot): { record: Omit<PluginR
       description: typeof lfaa?.description === "string" ? lfaa.description.slice(0, 500) : typeof manifest.description === "string" ? manifest.description.slice(0, 500) : "",
       compatibility: compat,
       runtimeEntry,
+      requirements: inspectRequirements(snapshot),
       capabilities,
       reason
     },
@@ -647,6 +651,39 @@ function safeManifestText(value: string, limit: number): string {
   return value.replace(/[\r\n\0]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, limit);
 }
 
+function emptyPluginRequirements(): PluginRequirements {
+  return { dshVersion: null, hostEntry: null, bundlePatch: null, clientEntry: null, clientPlatform: null, clientInject: [], peerDependencies: {}, packageDependencies: [], declaredScripts: [] };
+}
+
+function isSafeRequirementPath(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\\") && !value.startsWith("/")
+    && value.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== ".." && segment.length <= 120);
+}
+
+function isSafeRequirementPathList(value: unknown): boolean {
+  if (typeof value === "string") return isSafeRequirementPath(value);
+  return Array.isArray(value) && value.length > 0 && value.length <= 16 && value.every(isSafeRequirementPath) && new Set(value).size === value.length;
+}
+
+function isBoundedStringList(value: unknown, maxCount: number, maxLength: number, pattern: RegExp): value is string[] {
+  return Array.isArray(value) && value.length <= maxCount && value.every((item) => typeof item === "string" && item.length <= maxLength && pattern.test(item));
+}
+
+function isPluginRequirements(value: unknown): value is PluginRequirements {
+  if (!isRecord(value)) return false;
+  const peerDependencies = value.peerDependencies;
+  return (value.dshVersion === null || typeof value.dshVersion === "string" && value.dshVersion.length <= 120)
+    && (value.hostEntry === null || isSafeRequirementPath(value.hostEntry))
+    && (value.bundlePatch === null || isSafeRequirementPathList(value.bundlePatch))
+    && (value.clientEntry === null || isSafeRequirementPath(value.clientEntry))
+    && (value.clientPlatform === null || typeof value.clientPlatform === "string" && value.clientPlatform.length <= 40)
+    && isBoundedStringList(value.clientInject, 24, 120, /^[A-Za-z0-9@][A-Za-z0-9@._/-]{0,119}$/u)
+    && isRecord(peerDependencies) && Object.keys(peerDependencies).length <= 64
+    && Object.entries(peerDependencies).every(([key, item]) => /^[A-Za-z0-9@._/-]{1,120}$/u.test(key) && typeof item === "string" && item.length <= 120)
+    && isBoundedStringList(value.packageDependencies, 64, 120, /^[A-Za-z0-9@._/-]{1,120}$/u)
+    && isBoundedStringList(value.declaredScripts, 64, 120, /^[A-Za-z0-9@._/-]{1,120}$/u);
+}
+
 function hasDshBundle(files: PluginArchiveFile[]): boolean {
   const packageFile = files.find((file) => file.path === "package.json");
   if (!packageFile) return false;
@@ -706,6 +743,7 @@ function isValidRecord(value: unknown, inventoryVersion: number): value is Plugi
     && typeof value.source.archiveSha256 === "string" && /^[a-f0-9]{64}$/iu.test(value.source.archiveSha256)
     && ["lfaa-v1", "dsh-v1", "unsupported"].includes(String(value.compatibility))
     && (value.runtimeEntry === undefined || value.runtimeEntry === null || typeof value.runtimeEntry === "string" && isSafePluginEntry(value.runtimeEntry))
+    && (inventoryVersion < 5 || isPluginRequirements(value.requirements))
     && Array.isArray(value.capabilities) && value.capabilities.every((item) => typeof item === "string")
     && (inventoryVersion < 3 && value.applicationIds === undefined || Array.isArray(value.applicationIds) && value.applicationIds.length > 0 && value.applicationIds.every((item) => APPLICATION_IDS.includes(item as CapabilityApplicationId)) && new Set(value.applicationIds).size === value.applicationIds.length)
     && ["installed", "enabled", "incompatible"].includes(String(value.state))

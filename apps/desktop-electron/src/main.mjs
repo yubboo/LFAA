@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 import { createServer as createTcpServer } from "node:net";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain, net } from "electron";
+import { app, BrowserWindow, WebContentsView, dialog, ipcMain, net, session } from "electron";
 import electronUpdater from "electron-updater";
 import builderUtilRuntime from "builder-util-runtime";
 import { requestServiceShutdown } from "./service-shutdown.mjs";
@@ -19,6 +19,8 @@ import { fetchLfaaUpdateManifest } from "./update-manifest-fetch.mjs";
 import { createInitialDesktopUpdateDownloadProgress, normalizeDesktopUpdateDownloadProgress } from "./update-download-progress.mjs";
 import { createDesktopUpdatePromptBroker } from "./update-prompt-broker.mjs";
 import { createDesktopUpdatePreferencesStore } from "./update-preferences.mjs";
+import { NativeBrowserWorkspace } from "./native-browser-workspace.mjs";
+import { isTrustedFrontendUrl } from "./trusted-frontend.mjs";
 
 const { autoUpdater } = electronUpdater;
 const { CancellationError, CancellationToken } = builderUtilRuntime;
@@ -27,8 +29,18 @@ const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1_000;
 
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
+let nativeBrowserCdpPort = null;
+if (singleInstance) {
+  // Chromium treats port 0 as disabled in this Electron build. Reserve a loopback port before ready,
+  // then publish it to Browser Owner only after the actual DevTools endpoint responds.
+  nativeBrowserCdpPort = await findAvailableLocalPort();
+  app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1");
+  app.commandLine.appendSwitch("remote-debugging-port", String(nativeBrowserCdpPort));
+  rmSync(join(app.getPath("userData"), "DevToolsActivePort"), { force: true });
+}
 
 let mainWindow = null;
+let nativeBrowserWorkspace = null;
 const desktopUpdatePromptBroker = createDesktopUpdatePromptBroker();
 let desktopUpdatePreferencesStore = null;
 let availableDesktopUpdate = null;
@@ -37,6 +49,7 @@ let daemonProcess = null;
 let serviceShutdownPromise = null;
 let serviceShutdownComplete = false;
 let packagedFrontendUrl = "";
+let trustedFrontendUrl = "";
 let logFilePath = "";
 let updateCheckTimer = null;
 let activeUpdateManifest = null;
@@ -203,7 +216,7 @@ function findAvailableLocalPort() {
   return new Promise((resolvePort, reject) => {
     const probe = createTcpServer();
     probe.once("error", reject);
-    probe.listen(0, "localhost", () => {
+    probe.listen(0, "127.0.0.1", () => {
       const address = probe.address();
       if (!address || typeof address === "string") {
         probe.close(() => reject(new Error("无法分配本机服务端口。")));
@@ -220,6 +233,23 @@ function findAvailableLocalPort() {
 
 function wait(milliseconds) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
+}
+
+async function waitForNativeBrowserCdp(port) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(500) });
+      if (response.ok) {
+        const payload = await response.json();
+        if (typeof payload?.webSocketDebuggerUrl === "string" && payload.webSocketDebuggerUrl.startsWith(`ws://127.0.0.1:${port}/`)) return true;
+      }
+    } catch {
+      // Chromium starts its loopback DevTools server during Electron readiness.
+    }
+    await wait(100);
+  }
+  return false;
 }
 
 async function waitForControlPlane(child, port) {
@@ -256,6 +286,8 @@ function createServiceEnvironment(port, runtimeRoot) {
     LFAA_DATA_DIR_CONFIGURED: managedByDesktop ? "0" : "1",
     LFAA_DATA_DIRECTORY_MIGRATION_SUPPORTED: managedByDesktop ? "1" : "0",
     LFAA_DESKTOP_INSTALL_DIRECTORY: dirname(app.getPath("exe")),
+    LFAA_ELECTRON_CDP_PORT_FILE: join(app.getPath("userData"), "DevToolsActivePort"),
+    LFAA_ELECTRON_BROWSER_APP_ORIGIN: `http://localhost:${port}`,
     LFAA_DATA_DIRECTORY_MIGRATION_REQUEST_PATH: getDesktopStorageMigrationRequestPath(),
     SERVER_HOST: "localhost",
     SERVER_PORT: String(port),
@@ -313,6 +345,16 @@ async function createMainWindow() {
   });
 
   mainWindow.once("ready-to-show", () => mainWindow?.show());
+  nativeBrowserWorkspace = new NativeBrowserWorkspace({
+    window: mainWindow,
+    WebContentsView,
+    session,
+    dialog,
+    onState: state => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.webContents.send("lfaa:native-browser:state", state);
+    }
+  });
   const rendererId = mainWindow.webContents.id;
   mainWindow.webContents.on("did-start-loading", () => desktopUpdatePromptBroker.setRendererNotReady(rendererId));
   mainWindow.on("session-end", event => {
@@ -322,10 +364,17 @@ async function createMainWindow() {
   mainWindow.on("closed", () => {
     desktopUpdatePromptBroker.setRendererNotReady(rendererId);
     desktopUpdatePromptBroker.cancelAll();
+    nativeBrowserWorkspace?.dispose();
+    nativeBrowserWorkspace = null;
     mainWindow = null;
   });
 
   const frontendUrl = app.isPackaged ? packagedFrontendUrl : "http://localhost:5173";
+  trustedFrontendUrl = frontendUrl;
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (!isTrustedFrontendUrl(url, trustedFrontendUrl)) event.preventDefault();
+  });
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   await mainWindow.loadURL(frontendUrl);
 }
 
@@ -646,9 +695,36 @@ function getDesktopUpdateRuntimeInfo() {
 
 function assertTrustedUpdateRenderer(event) {
   if (!mainWindow || event.sender !== mainWindow.webContents
-    || (event.senderFrame && event.senderFrame !== mainWindow.webContents.mainFrame)) {
+    || (event.senderFrame && event.senderFrame !== mainWindow.webContents.mainFrame)
+    || !isTrustedFrontendUrl(event.senderFrame?.url ?? event.sender.getURL(), trustedFrontendUrl)) {
     throw new Error("拒绝未授权窗口访问桌面更新能力。");
   }
+}
+
+function registerNativeBrowserIpc() {
+  const callWorkspace = (event, operation) => {
+    assertTrustedUpdateRenderer(event);
+    if (!nativeBrowserWorkspace) throw new Error("LFAA 浏览器工作区尚未就绪。");
+    return operation(nativeBrowserWorkspace);
+  };
+  ipcMain.handle("lfaa:native-browser:state", event => callWorkspace(event, workspace => workspace.getState()));
+  ipcMain.handle("lfaa:native-browser:ensure", event => callWorkspace(event, workspace => workspace.ensureTab()));
+  ipcMain.handle("lfaa:native-browser:create-tab", (event, url) => callWorkspace(event, workspace => workspace.createTab(typeof url === "string" ? url : "about:blank")));
+  ipcMain.handle("lfaa:native-browser:select-tab", (event, id) => callWorkspace(event, workspace => workspace.selectTab(id)));
+  ipcMain.handle("lfaa:native-browser:close-tab", (event, id) => callWorkspace(event, workspace => workspace.closeTab(id)));
+  ipcMain.handle("lfaa:native-browser:navigate", (event, input) => callWorkspace(event, workspace => workspace.navigate(input?.id, input?.url)));
+  ipcMain.handle("lfaa:native-browser:back", (event, id) => callWorkspace(event, workspace => workspace.back(id)));
+  ipcMain.handle("lfaa:native-browser:forward", (event, id) => callWorkspace(event, workspace => workspace.forward(id)));
+  ipcMain.handle("lfaa:native-browser:reload", (event, id) => callWorkspace(event, workspace => workspace.reload(id)));
+  ipcMain.handle("lfaa:native-browser:stop", (event, id) => callWorkspace(event, workspace => workspace.stop(id)));
+  ipcMain.handle("lfaa:native-browser:copy-address", (event, id) => callWorkspace(event, workspace => workspace.copyAddress(id)));
+  ipcMain.handle("lfaa:native-browser:find", (event, input) => callWorkspace(event, workspace => workspace.find(input?.id, input?.text, input?.forward)));
+  ipcMain.handle("lfaa:native-browser:inspect", (event, id) => callWorkspace(event, workspace => workspace.inspect(id)));
+  ipcMain.handle("lfaa:native-browser:clear-data", event => callWorkspace(event, workspace => workspace.clearData()));
+  ipcMain.handle("lfaa:native-browser:zoom", (event, input) => callWorkspace(event, workspace => workspace.setZoom(input?.id, input?.zoom)));
+  ipcMain.handle("lfaa:native-browser:print", (event, id) => callWorkspace(event, workspace => workspace.print(id)));
+  ipcMain.handle("lfaa:native-browser:bounds", (event, bounds) => callWorkspace(event, workspace => workspace.setBounds(bounds)));
+  ipcMain.handle("lfaa:native-browser:visible", (event, visible) => callWorkspace(event, workspace => workspace.setVisible(visible)));
 }
 
 async function runDesktopUpdateCheck({ manual = false } = {}) {
@@ -666,6 +742,7 @@ function scheduleDesktopUpdateCheck(delay = INITIAL_UPDATE_CHECK_DELAY_MS) {
 }
 
 if (singleInstance) {
+  registerNativeBrowserIpc();
   ipcMain.handle("lfaa:select-data-directory", async (event) => {
     const ownerWindow = BrowserWindow.fromWebContents(event.sender);
     const options = {
@@ -777,6 +854,12 @@ if (singleInstance) {
     await mkdir(logDirectory, { recursive: true });
     logFilePath = join(logDirectory, "desktop.log");
     desktopUpdatePreferencesStore = createDesktopUpdatePreferencesStore(join(app.getPath("userData"), "update-preferences.json"));
+    if (nativeBrowserCdpPort && await waitForNativeBrowserCdp(nativeBrowserCdpPort)) {
+      writeFileSync(join(app.getPath("userData"), "DevToolsActivePort"), `${nativeBrowserCdpPort}\n`, { encoding: "utf8", mode: 0o600 });
+      await writeLog("原生浏览器", `同页 Agent 通道已就绪（回环端口 ${nativeBrowserCdpPort}）。`);
+    } else {
+      await writeLog("原生浏览器 错误", "Chromium 回环 DevTools 通道未就绪；Agent 原生标签连接保持不可用，普通页面仍可运行。");
+    }
 
     try {
       const runtimeRoot = getRuntimeRoot();

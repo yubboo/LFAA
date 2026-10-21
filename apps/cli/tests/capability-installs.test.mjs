@@ -8,8 +8,8 @@ import assert from 'node:assert/strict';
 
 const { CapabilityInstallRegistry } = await import('lfaa-capability-installs/src/index.js');
 
-function context(path = 'C:\\Projects\\sample') {
-  return { userId: 'user-1', userRole: 'admin', applicationId: 'workspace', signal: new AbortController().signal, onProgress() {}, workspaceProject: { nodeId: '00000000-0000-4000-8000-000000000001', path, title: '示例项目' } };
+function context(path = 'C:\\Projects\\sample', userId = 'user-1') {
+  return { userId, userRole: 'admin', applicationId: 'workspace', signal: new AbortController().signal, onProgress() {}, workspaceProject: { nodeId: '00000000-0000-4000-8000-000000000001', path, title: '示例项目' } };
 }
 
 test('通用能力检查票据固定来源与目标，审批可读且安装前重新核验上下文', async () => {
@@ -44,6 +44,39 @@ test('通用能力检查票据固定来源与目标，审批可读且安装前�
   assert.deepEqual(result.verification, { status: 'ready', verified: true, summary: 'Owner 清单已回读。' });
   assert.equal(installed[0].target.projectPath, 'C:\\Projects\\sample');
   await assert.rejects(registry.install('skill', second.inspectionId, 'workspace', 'user-1', context()), /不存在、已过期/u);
+});
+
+test('能力检查票据不能跨账户审批或安装，拒绝后原账户仍可完成安装', async () => {
+  const registry = new CapabilityInstallRegistry();
+  const installed = [];
+  const adapter = {
+    kind: 'skill', applicationIds: ['workspace'], targetSchema: { type: 'object', properties: {}, additionalProperties: false },
+    validateTarget: (_target, _app, current) => ({ projectPath: current.workspaceProject.path }),
+    revalidateTarget: (_target, _app, current) => ({ projectPath: current.workspaceProject.path }),
+    targetSummary: target => `项目 ${target.projectPath}`,
+    search: async () => ({ candidates: [] }),
+    inspect: async source => ({ resolvedRef: 'd'.repeat(40), summary: '隔离测试 Skill', details: { source } }),
+    install: async (_source, _ref, _app, userId, target) => { installed.push({ userId, target }); return { installed: true }; },
+    verifyInstalled: async () => ({ status: 'ready', verified: true, summary: 'Owner 清单已回读。' }),
+    list: async () => []
+  };
+  registry.register({ effect(callback) { return callback(); } }, adapter);
+
+  const inspected = await registry.inspect('skill', 'https://github.com/acme/isolation', undefined, 'workspace', {}, context());
+  assert.throws(() => registry.installApproval('skill', inspected.inspectionId, 'workspace', 'user-2'), /不属于当前用户/u);
+  await assert.rejects(
+    registry.install('skill', inspected.inspectionId, 'workspace', 'user-2', context('C:\\Projects\\user-two', 'user-2')),
+    /不属于当前用户/u
+  );
+  assert.deepEqual(installed, [], '跨账户请求在领域 Owner 写入前被拒绝');
+
+  const approval = registry.installApproval('skill', inspected.inspectionId, 'workspace', 'user-1');
+  assert.match(approval.summary, /隔离测试 Skill/u);
+  const result = await registry.install('skill', inspected.inspectionId, 'workspace', 'user-1', context());
+  assert.equal(result.outcome, 'verified_ready');
+  assert.equal(installed.length, 1);
+  assert.equal(installed[0].userId, 'user-1');
+  assert.equal(installed[0].target.projectPath, 'C:\\Projects\\sample');
 });
 
 test('Owner 无法回读时安装明确返回未确认且已消费凭证不能重放', async () => {
@@ -104,4 +137,24 @@ test('直接 GitHub 插件地址可由模型自主检查，工具说明引导幂
   assert.match(byName.capability_set_enabled.description, /启用后再次 capability_list/u);
   assert.match(byName.capability_install.description, /不得要求用户手写工具顺序/u);
   assert.match(byName.capability_install.description, /不重试安装/u);
+});
+
+test('stdio MCP 来源检查在统一 Permission Owner 中标为危险并将批准范围绑定准确命令', async () => {
+  const { apply } = await import('lfaa-capability-installs/src/index.js');
+  const tools = [];
+  const owner = { effect(callback) { return callback(); } };
+  const pluginContext = { ...owner, provide() {}, lfaaTools: { registerTool(_owner, tool) { tools.push(tool); } } };
+  apply(pluginContext);
+  const inspect = tools.find(tool => tool.name === 'capability_inspect');
+  const approvalContext = { userId: 'user-1', applicationId: 'workspace' };
+  const stdio = { kind: 'mcp', source: 'stdio://local', target: { transport: 'stdio', command: 'node', args: ['server.mjs'] } };
+  const approval = inspect.approval(stdio, approvalContext);
+
+  assert.equal(inspect.risk(stdio), 'dangerous');
+  assert.match(approval.summary, /启动并检查.*本机 MCP stdio/u);
+  assert.match(approval.scopeSummary, /node.*server\.mjs/u);
+  assert.notEqual(approval.scopeKey, inspect.approval({ ...stdio, target: { ...stdio.target, args: ['other.mjs'] } }, approvalContext).scopeKey, '审批记忆范围必须绑定准确命令和 argv');
+  assert.notEqual(approval.scopeKey, inspect.approval(stdio, { ...approvalContext, applicationId: 'minecraft' }).scopeKey, '审批范围不得跨 App 复用');
+  assert.equal(inspect.risk({ kind: 'mcp', source: 'https://example.test/mcp' }), 'read', 'HTTP initialize/tools/list 保持只读风险');
+  assert.match(inspect.description, /远程生产 Host 会拒绝/u);
 });

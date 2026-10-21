@@ -480,8 +480,8 @@ async function acquireMcpConnection(server: PluginSettings["mcpServers"][number]
 }
 
 /** 外部声明的只读标记不是授权依据；每次外部执行均走高风险权限合同。 */
-export async function discoverMcpTools(servers: PluginSettings["mcpServers"], applicationId: ApplicationId, userId: string, signal: AbortSignal, timeoutSeconds: number): Promise<{ tools: AiBusinessTool[]; errors: string[]; serverStates: McpServerRuntimeState[]; instructions: McpServerInstruction[]; close: () => Promise<void> }> {
-  reconcileMcpScope(userId, applicationId, servers);
+export async function discoverMcpTools(servers: PluginSettings["mcpServers"], applicationId: ApplicationId, userId: string, signal: AbortSignal, timeoutSeconds: number, options: { reconcile?: boolean } = {}): Promise<{ tools: AiBusinessTool[]; errors: string[]; serverStates: McpServerRuntimeState[]; instructions: McpServerInstruction[]; close: () => Promise<void> }> {
+  if (options.reconcile !== false) reconcileMcpScope(userId, applicationId, servers);
   const leases: Array<{ connection: McpConnection; signal: AbortSignal; invalidate: () => void; release: () => Promise<void> }> = [];
   const tools: AiBusinessTool[] = [], errors: string[] = [], serverStates: McpServerRuntimeState[] = [], instructions: McpServerInstruction[] = [];
   const ajvOptions = { strict: false, allErrors: true, validateFormats: false, ownProperties: true } as const;

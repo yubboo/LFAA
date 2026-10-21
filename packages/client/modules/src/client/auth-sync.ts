@@ -22,6 +22,55 @@ export function hasWallpaperEngineClientEntry(graph: unknown): boolean {
     && (entry as { id?: unknown }).id === "dsh-plugin-wallpaper-engine");
 }
 
+/** Filter Host-declared authenticated Client modules and every module that injects them. */
+export function filterUnauthenticatedClientModules(graph: unknown): unknown {
+  if (typeof graph !== "object" || graph === null || !Array.isArray((graph as { entries?: unknown }).entries)
+    || !Array.isArray((graph as { batches?: unknown }).batches)) return graph;
+  const source = graph as { rev?: unknown; entries: unknown[]; batches: unknown[]; lfaaAuthenticatedClientModules?: unknown };
+  const declared = source.lfaaAuthenticatedClientModules;
+  if (declared === undefined) return graph;
+  if (!Array.isArray(declared) || declared.length > 128 || declared.some((id) => typeof id !== "string" || id.length > 200)) {
+    throw new Error("DSH 启动图中的 LFAA Client 认证声明无效。");
+  }
+
+  const present = new Set(source.entries.flatMap((entry) => isRecord(entry) && typeof entry.id === "string" ? [entry.id] : []));
+  const blocked = new Set((declared as string[]).filter((id) => present.has(id)));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const entry of source.entries) {
+      if (!isRecord(entry) || typeof entry.id !== "string" || blocked.has(entry.id) || !Array.isArray(entry.inject)) continue;
+      if (entry.inject.some((id) => typeof id === "string" && blocked.has(id))) {
+        blocked.add(entry.id);
+        changed = true;
+      }
+    }
+  }
+  if (blocked.size === 0) return graph;
+
+  const entries = source.entries.filter((entry) => !isRecord(entry) || typeof entry.id !== "string" || !blocked.has(entry.id));
+  const batches = source.batches.flatMap((batch) => {
+    if (!isRecord(batch) || !Array.isArray(batch.entries)) return [batch];
+    const selected = batch.entries.filter((id) => typeof id !== "string" || !blocked.has(id));
+    return selected.length ? [{ ...batch, entries: selected }] : [];
+  });
+  const revision = typeof source.rev === "string" ? `${source.rev}.lfaa-anon-${authModuleRevision([...blocked].sort())}` : source.rev;
+  return { ...source, rev: revision, entries, batches };
+}
+
+function authModuleRevision(moduleIds: readonly string[]): string {
+  let hash = 14695981039346656037n;
+  for (const character of JSON.stringify(moduleIds)) {
+    hash ^= BigInt(character.codePointAt(0) ?? 0);
+    hash = BigInt.asUintN(64, hash * 1099511628211n);
+  }
+  return hash.toString(16).padStart(16, "0");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function isReusableClientModuleGraph(graph: unknown): boolean {
   if (typeof graph !== "object" || graph === null) return false;
   const candidate = graph as { entries?: unknown; batches?: unknown };

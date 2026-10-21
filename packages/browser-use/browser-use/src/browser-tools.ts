@@ -86,11 +86,11 @@ function providerListTool(manager: BrowserSessionManager): AiBusinessTool {
 }
 
 function providerConnectionTool(manager: BrowserSessionManager): AiBusinessTool {
-  const schema = Joi.object({ providerId: Joi.string().valid("lfaa-managed-edge", "lfaa-managed-chrome").required(), enabled: Joi.boolean().required() }).unknown(false);
+  const schema = Joi.object({ providerId: Joi.string().valid("lfaa-native-browser", "lfaa-managed-edge", "lfaa-managed-chrome").required(), enabled: Joi.boolean().required() }).unknown(false);
   return makeTool({
     id: "browser-use.provider-connection", name: "lfaa_browser_set_provider_connection", coreManaged: true, onDemand: true, requiresBrowserUse: true,
-    description: "仅在用户明确要求使用 LFAA 内置隔离 Edge/Chrome 时，修改该内置提供方在设置中心的接入偏好。只更新 browserUse.enabledProviderIds，不会读取个人浏览器、启动页面或更改 computerControl。Tabbit 个人浏览器不允许用此工具接入。操作经过统一 Permission Owner。",
-    applicationIds: [...APPLICATION_IDS], schema: strictObject({ providerId: { type: "string", enum: ["lfaa-managed-edge", "lfaa-managed-chrome"] }, enabled: { type: "boolean" } }, ["providerId", "enabled"]),
+    description: "仅在用户明确要求使用某个 LFAA 浏览器时，修改原生 Chromium/隔离 Edge/Chrome 在设置中心的 Agent 接入偏好。只更新 browserUse.enabledProviderIds，不会读取个人浏览器、启动页面或更改 computerControl。Tabbit 个人浏览器不允许用此工具接入。操作经过统一 Permission Owner。",
+    applicationIds: [...APPLICATION_IDS], schema: strictObject({ providerId: { type: "string", enum: ["lfaa-native-browser", "lfaa-managed-edge", "lfaa-managed-chrome"] }, enabled: { type: "boolean" } }, ["providerId", "enabled"]),
     parse: value => parseWithSchema(schema, value),
     risk: () => "write",
     approval: (parameters, context) => ({
@@ -122,11 +122,11 @@ function projectPreviewTool(manager: BrowserSessionManager): AiBusinessTool {
     if (normalized.startsWith("/") || /^[a-z]:/iu.test(normalized) || normalized.split("/").some((part: string) => part === ".." || part === "")) return helpers.error("string.pattern.base");
     return normalized;
   });
-  const schema = Joi.object({ providerId: Joi.string().valid("lfaa-managed-edge", "lfaa-managed-chrome").required(), path: relativePathSchema.required() }).unknown(false);
+  const schema = Joi.object({ providerId: Joi.string().valid("lfaa-native-browser", "lfaa-managed-edge", "lfaa-managed-chrome").required(), path: relativePathSchema.required() }).unknown(false);
   return makeTool({
     id: "browser-use.open-workspace-file", name: "lfaa_browser_open_workspace_file", coreManaged: true, onDemand: true, requiresBrowserUse: true,
-    description: "当用户要求在 LFAA 内置浏览器打开当前会话绑定工作区中的 HTML/HTM 文件并检查或交互时使用。path 必须相对当前 LFAA 工作区根目录，例如 index.html；不接受绝对路径或目录跳转。通过 Project Files Owner 启动仅监听 127.0.0.1 的短期只读页面服务，支持同目录资源；不调用 Shell/Python，不访问其他本机文件，也不连接个人浏览器。",
-    applicationIds: [...APPLICATION_IDS], schema: strictObject({ providerId: { type: "string", enum: ["lfaa-managed-edge", "lfaa-managed-chrome"] }, path: { type: "string", minLength: 1, maxLength: 1024 } }, ["providerId", "path"]),
+    description: "当用户要求在 LFAA 浏览器打开当前会话绑定工作区中的 HTML/HTM 文件并检查或交互时使用。path 必须相对当前 LFAA 工作区根目录，例如 index.html；不接受绝对路径或目录跳转。通过 Project Files Owner 启动仅监听 127.0.0.1 的短期只读页面服务，支持同目录资源；不调用 Shell/Python，不访问其他本机文件，也不连接个人浏览器。原生浏览器会在用户可见的当前标签中打开此页面。",
+    applicationIds: [...APPLICATION_IDS], schema: strictObject({ providerId: { type: "string", enum: ["lfaa-native-browser", "lfaa-managed-edge", "lfaa-managed-chrome"] }, path: { type: "string", minLength: 1, maxLength: 1024 } }, ["providerId", "path"]),
     parse: value => parseWithSchema(schema, value),
     risk: () => "dangerous",
     approval: approval("open-workspace-file", parameters => `在 LFAA 隔离浏览器中打开当前工作区 HTML：${String(parameters.path).slice(0, 180)}`),
@@ -208,7 +208,7 @@ export function createBrowserTools(manager: BrowserSessionManager): AiBusinessTo
     tabbitTabsTool(manager),
     tabbitClaimTool(manager),
     makeBrowserTool(manager, {
-      id: "open", name: "lfaa_browser_open", description: "在指定的 LFAA 隔离浏览器提供方中打开 HTTP(S) 页面。内部会话不继承本机个人浏览器登录态；本机/环回地址按危险操作走统一 Permission Owner。",
+      id: "open", name: "lfaa_browser_open", description: "在指定的 LFAA 浏览器中打开 HTTP(S) 页面。原生 Chromium provider 与用户可见标签共享页面和登录会话；隔离 Edge/Chrome 不继承本机个人浏览器登录态。本机/环回地址按危险操作走统一 Permission Owner。",
       properties: { url: { type: "string", maxLength: MAX_URL_LENGTH } }, required: ["url"], schema: openSchema,
       risk: parameters => localTarget(String(parameters.url)) ? "dangerous" : "read",
       approval: approval("open", parameters => `在 LFAA 隔离浏览器中打开 ${String(parameters.url).slice(0, 180)}`, parameters => digest("open", { providerId: parameters.providerId, url: parameters.url })),

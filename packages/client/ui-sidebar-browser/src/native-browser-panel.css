@@ -1,0 +1,378 @@
+.lfaa-native-browser {
+  container-name: lfaa-native-browser;
+  container-type: size;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+  font-size: var(--font-size-sm);
+}
+
+.lfaa-native-browser button,
+.lfaa-native-browser input {
+  min-width: 0;
+  color: inherit;
+  font: inherit;
+}
+
+.lfaa-native-browser button {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: .45rem;
+  padding: .28rem .5rem;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.lfaa-native-browser button:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.lfaa-native-browser button:focus-visible,
+.lfaa-native-browser input:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.lfaa-native-browser button:disabled {
+  cursor: default;
+  opacity: .48;
+}
+
+.lfaa-native-browser__tab-strip,
+.lfaa-native-browser__toolbar,
+.lfaa-native-browser__find,
+.lfaa-native-browser__views,
+.lfaa-native-browser__footer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: .4rem;
+  padding: .4rem .55rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.lfaa-native-browser__tab-strip {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.lfaa-native-browser__tab {
+  display: grid;
+  min-width: 0;
+  max-width: 15rem;
+  flex: 1 1 8rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .25rem;
+}
+
+.lfaa-native-browser__tab > button:first-child {
+  min-width: 0;
+  justify-content: flex-start;
+  overflow: hidden;
+  border-color: transparent;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-native-browser__tab.is-active > button:first-child {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+.lfaa-native-browser__tab-close,
+.lfaa-native-browser__new-tab,
+.lfaa-native-browser__tool {
+  width: 2rem;
+  flex: 0 0 auto;
+  padding-inline: .25rem !important;
+}
+
+.lfaa-native-browser__strip-spacer,
+.lfaa-native-browser__view-spacer {
+  flex: 1 1 auto;
+}
+
+.lfaa-native-browser__settings {
+  flex: 0 0 auto;
+}
+
+.lfaa-native-browser__navigation {
+  display: flex;
+  flex: 0 0 auto;
+  gap: .25rem;
+}
+
+.lfaa-native-browser__navigation button {
+  width: 2rem;
+  padding-inline: .2rem;
+  font-size: 1.1em;
+}
+
+.lfaa-native-browser__address {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .35rem;
+  border: 1px solid var(--color-border);
+  border-radius: .55rem;
+  padding: .2rem .35rem;
+  background: var(--color-surface-muted);
+}
+
+.lfaa-native-browser__address > span {
+  color: var(--color-text-muted);
+}
+
+.lfaa-native-browser__address > span.is-secure {
+  color: var(--color-status-success);
+}
+
+.lfaa-native-browser__address input,
+.lfaa-native-browser__find input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2rem;
+  border: 0;
+  padding: .3rem .4rem;
+  outline: 0;
+  background: transparent;
+}
+
+.lfaa-native-browser__address input:focus-visible,
+.lfaa-native-browser__find input:focus-visible {
+  outline: 0;
+}
+
+.lfaa-native-browser__address button {
+  min-height: 1.9rem;
+}
+
+.lfaa-native-browser__find input {
+  flex: 1 1 auto;
+  border: 1px solid var(--color-border);
+  border-radius: .45rem;
+  background: var(--color-surface-muted);
+}
+
+.lfaa-native-browser__views {
+  gap: .25rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.lfaa-native-browser__views button.is-active {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+.lfaa-native-browser__zoom {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.lfaa-native-browser__refresh-info {
+  flex: 0 0 auto;
+}
+
+.lfaa-native-browser__body {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.lfaa-native-browser__native-page {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.lfaa-native-browser__native-page[hidden] {
+  display: none;
+}
+
+.lfaa-native-browser__data,
+.lfaa-native-browser__elements {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  padding: .8rem;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.lfaa-native-browser__elements {
+  display: grid;
+  align-content: start;
+  gap: .35rem;
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+}
+
+.lfaa-native-browser__elements > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(3.5rem, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .45rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: .5rem;
+  padding: .5rem;
+  background: var(--color-surface-muted);
+}
+
+.lfaa-native-browser__elements code {
+  color: var(--color-brand);
+}
+
+.lfaa-native-browser__elements span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lfaa-native-browser__elements small,
+.lfaa-native-browser__elements p {
+  color: var(--color-text-muted);
+}
+
+.lfaa-native-browser__empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: .55rem;
+  padding: 1rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  pointer-events: none;
+}
+
+.lfaa-native-browser__empty strong {
+  color: var(--color-text-primary);
+}
+
+.lfaa-native-browser__error {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+  padding: .45rem .65rem;
+  color: var(--color-status-error);
+  background: var(--color-surface-muted);
+  overflow-wrap: anywhere;
+}
+
+.lfaa-native-browser__error button {
+  flex: 0 0 auto;
+}
+
+.lfaa-native-browser__footer {
+  justify-content: space-between;
+  gap: .5rem;
+  border-top: 1px solid var(--color-border-subtle);
+  border-bottom: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-native-browser__footer span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-native-browser__footer button {
+  flex: 0 0 auto;
+}
+
+@container lfaa-native-browser (max-width: 380px) {
+  .lfaa-native-browser__tab-strip,
+  .lfaa-native-browser__toolbar,
+  .lfaa-native-browser__find,
+  .lfaa-native-browser__views,
+  .lfaa-native-browser__footer {
+    gap: .25rem;
+    padding-inline: .35rem;
+  }
+
+  .lfaa-native-browser__address {
+    gap: .1rem;
+    padding-inline: .2rem;
+  }
+
+  .lfaa-native-browser__address button {
+    padding-inline: .3rem;
+  }
+
+  .lfaa-native-browser__tool,
+  .lfaa-native-browser__navigation button {
+    width: 1.75rem;
+  }
+
+  .lfaa-native-browser__views button {
+    padding-inline: .35rem;
+  }
+}
+
+@container lfaa-native-browser (max-width: 300px) {
+  .lfaa-native-browser__settings,
+  .lfaa-native-browser__footer button {
+    display: none;
+  }
+
+  .lfaa-native-browser__tab {
+    max-width: 11rem;
+  }
+
+  .lfaa-native-browser__navigation button {
+    width: 1.55rem;
+    padding-inline: .1rem;
+  }
+
+  .lfaa-native-browser__views button {
+    padding-inline: .25rem;
+  }
+}
+
+@container lfaa-native-browser (max-height: 520px) {
+  .lfaa-native-browser__tab-strip,
+  .lfaa-native-browser__toolbar,
+  .lfaa-native-browser__views,
+  .lfaa-native-browser__footer {
+    padding-block: .25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lfaa-native-browser button,
+  .lfaa-native-browser input {
+    scroll-behavior: auto;
+    transition: none;
+  }
+}

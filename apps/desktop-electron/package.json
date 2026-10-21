@@ -7,6 +7,7 @@
   "description": "LFAA Windows 本机一体版桌面外壳",
   "scripts": {
     "dev": "electron .",
+    "test:native-browser-workspace": "node --test tests/native-browser-workspace.test.mjs",
     "test:update-manifest": "node --test tests/update-manifest.test.mjs tests/update-manifest-fetch.test.mjs tests/update-download-progress.test.mjs tests/update-flow.test.mjs tests/update-prompt-broker.test.mjs tests/update-preferences.test.mjs tests/desktop-package-version.test.mjs ../../scripts/tests/desktop-package-artifacts.test.mjs",
     "validate:update-manifest": "node scripts/update-manifest.mjs validate",
     "package:win": "pnpm --dir ../.. run build:win",

@@ -36,13 +36,15 @@ interface DynamicLoader {
 }
 interface RouteCarrier {
   registerHandlerAdapter(owner: object, path: string, adapter: (request: import("express").Request, response: import("express").Response, dispatch: (request?: import("express").Request, response?: import("express").Response) => void | Promise<void>) => void | Promise<void>): () => void;
+  registerAuthenticatedClientModule(owner: object, moduleId: string): () => void;
 }
-interface ActivePlugin { entryId: string; restoreDataDirectory: string | undefined }
+interface ActivePlugin { entryId: string; restoreDataDirectory: string | undefined; disposeClientAuthentication: () => void }
 
 /** Official-repository DSH v1 adapter. It never runs arbitrary DSH plugin records. */
 export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
   private readonly active = new Map<string, ActivePlugin>();
   private readonly loader: DynamicLoader;
+  private readonly webServer: RouteCarrier;
   private readonly pluginInstallDirectory: string;
   private readonly profile: string;
   private readonly disposeRouteAdapter: () => void;
@@ -53,11 +55,12 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
     if (!/^[a-z][a-z0-9-]{0,63}$/u.test(profile)) throw new Error("Wallpaper Engine Runtime 的 Profile 名称无效。");
     this.profile = profile;
     const carrier = context.get("webServer") as unknown as RouteCarrier;
-    if (!carrier || typeof carrier.registerHandlerAdapter !== "function") throw new Error("Wallpaper Engine Runtime 需要 LFAA DSH WebServer Carrier。");
+    if (!carrier || typeof carrier.registerHandlerAdapter !== "function" || typeof carrier.registerAuthenticatedClientModule !== "function") throw new Error("DSH Runtime 需要 LFAA WebServer Carrier 与 Client 认证登记服务。");
+    this.webServer = carrier;
     this.disposeRouteAdapter = carrier.registerHandlerAdapter(this, ROUTE, (request, response, dispatch) => this.adaptSettingsRequest(request, response, dispatch));
     context.effect(() => async () => {
-      await this.stopAll();
-      this.disposeRouteAdapter();
+      try { await this.stopAll(); }
+      finally { this.disposeRouteAdapter(); }
     });
   }
 
@@ -98,7 +101,8 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
       const entry = this.loader.resolve(entryId);
       await entry?.fiber?.await?.();
       if (!entry?.fiber || entry.fiber.state !== 2) throw new Error("DSH Wallpaper Engine Host 未进入 Cordis ACTIVE 状态。");
-      this.active.set(record.id, { entryId, restoreDataDirectory: oldDataDirectory });
+      const disposeClientAuthentication = this.webServer.registerAuthenticatedClientModule(this, PACKAGE_ID);
+      this.active.set(record.id, { entryId, restoreDataDirectory: oldDataDirectory, disposeClientAuthentication });
     } catch (error) {
       if (entryId) await this.removeLoaderEntry(entryId);
       restoreEnvironment("DSH_WE_DATA_DIR", oldDataDirectory);
@@ -110,6 +114,7 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
     const active = this.active.get(record.id);
     if (!active) return;
     await this.removeLoaderEntry(active.entryId);
+    active.disposeClientAuthentication();
     this.active.delete(record.id);
     restoreEnvironment("DSH_WE_DATA_DIR", active.restoreDataDirectory);
   }
@@ -143,9 +148,13 @@ export class DshWallpaperEngineRuntime implements PluginRuntimeAdapter {
 
   private async stopAll(): Promise<void> {
     for (const [id, active] of [...this.active]) {
-      await this.removeLoaderEntry(active.entryId).catch(() => undefined);
-      this.active.delete(id);
-      restoreEnvironment("DSH_WE_DATA_DIR", active.restoreDataDirectory);
+      try {
+        await this.removeLoaderEntry(active.entryId);
+      } finally {
+        active.disposeClientAuthentication();
+        this.active.delete(id);
+        restoreEnvironment("DSH_WE_DATA_DIR", active.restoreDataDirectory);
+      }
     }
   }
 

@@ -801,6 +801,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           for (const proposal of routeResult.proposals) {
             const next = modelResolver.resolveRoute(userId, {
               accountId: proposal.selection.accountId ?? selected.accountId,
+              ...(proposal.selection.modelId !== undefined ? { modelId: proposal.selection.modelId } : {}),
               ...(proposal.selection.reasoningMode !== undefined ? { reasoningMode: proposal.selection.reasoningMode } : {})
             });
             if (!next) {
@@ -812,7 +813,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           account = selected;
           if (failedHookIds.length) logger.warn("AI Runtime 模型路由钩子返回无效选择或执行失败", { failedHookIds });
           if (routeResult.proposals.length || failedHookIds.length) {
-            const changed = selected.accountId !== initialAccount.accountId || selected.reasoningMode !== initialAccount.reasoningMode;
+            const changed = selected.accountId !== initialAccount.accountId || selected.modelId !== initialAccount.modelId || selected.reasoningMode !== initialAccount.reasoningMode;
             addActivity("status", "模型请求路由", failedHookIds.length ? "error" : "complete", failedHookIds.length
               ? `有 ${failedHookIds.length} 个模型路由钩子失败或返回了未配置的模型/思考档位；其选择已忽略。${changed ? ` 本次使用 ${selected.providerId} · ${selected.modelId}（${selected.reasoningMode}）。` : " 本次继续使用用户所选模型。"}`
               : `当前 LFAA Agent 使用 ${selected.providerId} · ${selected.modelId}（${selected.reasoningMode}）发起真实请求。`);

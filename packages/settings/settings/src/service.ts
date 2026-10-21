@@ -252,7 +252,10 @@ function readBrowserUseSettings(value: Record<string, unknown>): BrowserUseSetti
   return {
     enabled: typeof value.enabled === "boolean" ? value.enabled : defaultSettings.browserUse.enabled,
     enabledProviderIds,
-    showFullUrl: typeof value.showFullUrl === "boolean" ? value.showFullUrl : defaultSettings.browserUse.showFullUrl
+    showFullUrl: typeof value.showFullUrl === "boolean" ? value.showFullUrl : defaultSettings.browserUse.showFullUrl,
+    searchEngine: value.searchEngine === "google" || value.searchEngine === "duckduckgo" || value.searchEngine === "bing"
+      ? value.searchEngine
+      : defaultSettings.browserUse.searchEngine
   };
 }
 
@@ -1174,16 +1177,27 @@ export function listAiAccounts(userId: string): AiAccountView[] {
 
 /** 返回当前账户实际配置的模型路由目录；不根据模型名称猜测思考能力。 */
 export function listAiModelRoutes(userId: string): AiModelRouteOption[] {
-  return listAiAccounts(userId).slice(0, 128).map(account => {
-    const model = account.models.find(candidate => candidate.id === account.modelId);
-    return {
-      accountId: account.id,
-      providerId: account.providerId,
-      modelId: account.modelId,
-      reasoningMode: account.reasoningMode,
-      reasoningModes: ["default", ...selectableReasoningValues(model?.thinking ?? null)]
-    };
-  });
+  const routes: AiModelRouteOption[] = [];
+  const rows = accountRows(userId)
+    .sort((left, right) => Number(right.is_active) - Number(left.is_active) || left.created_at.localeCompare(right.created_at))
+    .slice(0, 128);
+  for (const row of rows) {
+    let rawModels: unknown = [];
+    try { rawModels = JSON.parse(row.models_json) as unknown; } catch { /* 损坏目录不阻断其余账户的路由项。 */ }
+    const models = normalizeSavedModels(row.provider_id, rawModels)
+      .sort((left, right) => Number(right.id === row.model_id) - Number(left.id === row.model_id));
+    for (const model of models) {
+      routes.push({
+        accountId: row.id,
+        providerId: row.provider_id,
+        modelId: model.id,
+        reasoningMode: model.id === row.model_id ? normalizeAccountReasoningMode(model.thinking, row.reasoning_mode) : "default",
+        reasoningModes: ["default", ...selectableReasoningValues(model.thinking)]
+      });
+      if (routes.length >= 128) return routes;
+    }
+  }
+  return routes;
 }
 
 function getEncryptionKey(): Buffer {
@@ -1326,11 +1340,38 @@ export function resolveActiveAiModelConfiguration(userId: string, accountId?: st
   return secret === null ? null : { ...details, secret };
 }
 
-/** 在不改写用户账户偏好的前提下，核验本次请求所选模型与目录支持的思考档位。 */
-export function resolveAiModelRouteDetails(userId: string, accountId: string, reasoningMode?: string): ActiveAiModelDetails | null {
-  const details = resolveActiveAiModelDetails(userId, accountId);
-  if (!details || (reasoningMode !== undefined && !isSelectableReasoningMode(details.thinking, reasoningMode))) return null;
-  return { ...details, ...(reasoningMode !== undefined ? { reasoningMode } : {}) };
+/** 在不改写用户账户偏好的前提下，核验本次请求所选账户、目录模型与思考档位。 */
+export function resolveAiModelRouteDetails(userId: string, route: { accountId: string; modelId?: string; reasoningMode?: string }): ActiveAiModelDetails | null {
+  const row = configuration.get("ai_accounts", candidate => ((candidate.user_id === userId) && (candidate.id === route.accountId))) as ({ id: string; provider_id: string; options_json: string; model_id: string; models_json: string; reasoning_mode: string } | undefined);
+  if (!row) return null;
+  let options: Record<string, string>;
+  let models: AiModelCatalogEntry[];
+  try {
+    options = JSON.parse(row.options_json) as Record<string, string>;
+    models = normalizeSavedModels(row.provider_id, JSON.parse(row.models_json) as unknown);
+  } catch {
+    return null;
+  }
+  const modelId = route.modelId ?? row.model_id;
+  const selectedModel = models.find(candidate => candidate.id === modelId);
+  if (!selectedModel) return null;
+  const connection = resolveProvider(row.provider_id, options);
+  const selectedReasoningMode = route.reasoningMode
+    ?? (modelId === row.model_id ? normalizeAccountReasoningMode(selectedModel.thinking, row.reasoning_mode) : "default");
+  if (!isSelectableReasoningMode(selectedModel.thinking, selectedReasoningMode)) return null;
+  return {
+    accountId: row.id,
+    providerId: row.provider_id,
+    modelId,
+    chatUrl: connection.chatUrl,
+    keyHeader: connection.keyHeader,
+    keyPrefix: connection.keyPrefix ?? "",
+    maxTokensField: connection.maxTokensField,
+    ...(selectedModel.maxOutputTokens ? { maxOutputTokens: selectedModel.maxOutputTokens } : {}),
+    ...(selectedModel.contextWindow ? { contextWindow: selectedModel.contextWindow } : {}),
+    reasoningMode: selectedReasoningMode,
+    thinking: selectedModel.thinking
+  };
 }
 
 export async function saveAiAccount(userId: string, input: AiProviderInput & { displayName: string; modelId: string; reasoningMode: string }): Promise<AiAccountView> {

@@ -175,7 +175,8 @@ export const computerControlSettingsSchema = Joi.object({
 export const browserUseSettingsSchema = Joi.object({
   enabled: Joi.boolean().required(),
   enabledProviderIds: Joi.array().items(Joi.string().valid(...BROWSER_PROVIDER_IDS)).unique().max(BROWSER_PROVIDER_IDS.length).required(),
-  showFullUrl: Joi.boolean().required()
+  showFullUrl: Joi.boolean().required(),
+  searchEngine: Joi.string().valid("bing", "google", "duckduckgo").default("bing")
 }).unknown(false);
 
 export const appearanceFontsSchema = Joi.object({

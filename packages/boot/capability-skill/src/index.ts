@@ -29,13 +29,33 @@ interface SkillDetails {
   files: Array<{ path: string; sha256: string; bytes: number }>;
   runtimeAudit: {
     scriptFiles: string[];
+    declaredNodeMajor: number | null;
     packageManifest: "absent" | "valid" | "invalid";
     dependencies: string[];
     devDependencies: string[];
     packageScriptNames: string[];
+    riskSignals: SkillRuntimeRiskSignal[];
   };
   untrustedSkillMarkdown: string;
 }
+
+type SkillRuntimeRiskSignal = "background-process" | "browser-remote-debugging" | "arbitrary-page-script" | "local-file-access" | "user-profile-persistence";
+
+const runtimeRiskSignals: Array<{ id: SkillRuntimeRiskSignal; pattern: RegExp }> = [
+  { id: "background-process", pattern: /\bdetached\s*:\s*true\b|\.unref\s*\(/iu },
+  { id: "browser-remote-debugging", pattern: /DevToolsActivePort|remote[- ]debugging|Chrome DevTools Protocol|\bCDP\b/iu },
+  { id: "arbitrary-page-script", pattern: /\/eval(?:\?|["'\s]|$)|Runtime\.evaluate/iu },
+  { id: "local-file-access", pattern: /\/setFiles(?:\?|["'\s]|$)|DOM\.setFileInputFiles|setFileInputFiles/iu },
+  { id: "user-profile-persistence", pattern: /%USERPROFILE%|process\.env\.(?:HOME|USERPROFILE)|\.web-access\/|config\.env|site-patterns\//iu }
+];
+
+const runtimeRiskLabels: Record<SkillRuntimeRiskSignal, string> = {
+  "background-process": "后台进程生命周期",
+  "browser-remote-debugging": "浏览器远程调试/CDP",
+  "arbitrary-page-script": "任意页面脚本执行接口",
+  "local-file-access": "本机文件路径操作接口",
+  "user-profile-persistence": "用户目录持久配置/数据"
+};
 
 export interface ProjectSkillAdapterDependencies {
   searchRepositories?: typeof searchGithubRepositories;
@@ -135,7 +155,8 @@ export function createProjectSkillAdapter(dependencies: ProjectSkillAdapterDepen
       }
       const skills = await adapter.list(applicationId, target, context);
       const expectedPath = `.agents/skills/${plan.name}/SKILL.md`;
-      const registered = skills.some(item => isRecord(item) && item.name === plan.name && item.path === expectedPath);
+      const registered = skills.some(item => isRecord(item) && item.name === plan.name
+        && typeof item.path === "string" && item.path.replaceAll("\\", "/") === expectedPath);
       if (!registered) return { status: "unknown", verified: false, summary: "项目文件 Owner 未在当前项目发现刚安装的 Skill；先查询能力清单，不要重放安装。" };
       return {
         status: "ready",
@@ -148,10 +169,12 @@ export function createProjectSkillAdapter(dependencies: ProjectSkillAdapterDepen
           state: "installed-and-discovered",
           fileCount: plan.files.length,
           scriptFiles: plan.runtimeAudit.scriptFiles,
+          declaredNodeMajor: plan.runtimeAudit.declaredNodeMajor,
           packageManifest: plan.runtimeAudit.packageManifest,
           dependencies: plan.runtimeAudit.dependencies,
           devDependencies: plan.runtimeAudit.devDependencies,
           packageScriptNames: plan.runtimeAudit.packageScriptNames,
+          riskSignals: plan.runtimeAudit.riskSignals,
           scriptsExecuted: false,
           dependenciesInstalled: false,
           externalRuntimeVerified: false
@@ -184,7 +207,7 @@ function findSkillRoots(files: PluginArchiveFile[]): string[] {
 
 function selectSkillFiles(files: PluginArchiveFile[], sourcePath: string): PluginArchiveFile[] {
   const prefix = sourcePath ? `${sourcePath}/` : "";
-  const selected = files.filter(file => sourcePath ? file.path.startsWith(prefix) : !file.path.includes("/"));
+  const selected = files.filter(file => !prefix || file.path.startsWith(prefix));
   if (!selected.length || selected.length > maximumSkillFiles) throw new Error(`所选 Skill 文件数量必须为 1–${maximumSkillFiles}。`);
   let total = 0;
   for (const file of selected) {
@@ -198,30 +221,40 @@ function selectSkillFiles(files: PluginArchiveFile[], sourcePath: string): Plugi
 
 function inspectSkillRuntime(files: PluginArchiveFile[], sourcePath: string): SkillDetails["runtimeAudit"] {
   const relativeFiles = files.map(file => ({ file, path: relativeSkillPath(file.path, sourcePath) }));
+  const content = relativeFiles.map(({ file }) => decodeSkillText(file)).join("\n");
+  const riskSignals = runtimeRiskSignals.filter(({ pattern }) => pattern.test(content)).map(({ id }) => id);
+  const textualNodeMajors = [...content.matchAll(/\bNode(?:\.js)?\s+(?:v)?(\d+)\s*\+/giu)].map(match => Number(match[1]));
   const scriptFiles = relativeFiles
     .filter(({ path }) => /\.(?:[cm]?js|[cm]?ts|jsx|tsx|sh|bash|ps1|bat|cmd|py|rb|pl|php)$/iu.test(path))
     .map(({ path }) => path)
     .slice(0, 128);
   const manifest = relativeFiles.find(({ path }) => path.toLocaleLowerCase("en-US") === "package.json")?.file;
-  if (!manifest) return { scriptFiles, packageManifest: "absent", dependencies: [], devDependencies: [], packageScriptNames: [] };
+  if (!manifest) return { scriptFiles, declaredNodeMajor: textualNodeMajors.length ? Math.max(...textualNodeMajors) : null, packageManifest: "absent", dependencies: [], devDependencies: [], packageScriptNames: [], riskSignals };
   try {
     const value: unknown = JSON.parse(decodeSkillText(manifest));
     if (!isRecord(value)) throw new Error("package.json root is not an object");
     const keys = (field: string): string[] => isRecord(value[field]) ? Object.keys(value[field] as Record<string, unknown>).map(name => safeText(name, 120)).filter(Boolean).slice(0, 64) : [];
+    const engineNode = isRecord(value.engines) && typeof value.engines.node === "string" ? value.engines.node : "";
+    const engineMinimum = engineNode.match(/(?:^|>=|>|~|\^|=)\s*v?(\d+)/u);
+    const declaredNodeMajor = Math.max(...textualNodeMajors, ...(engineMinimum ? [Number(engineMinimum[1])] : []));
     return {
       scriptFiles,
+      declaredNodeMajor: Number.isFinite(declaredNodeMajor) ? declaredNodeMajor : null,
       packageManifest: "valid",
       dependencies: keys("dependencies"),
       devDependencies: keys("devDependencies"),
-      packageScriptNames: keys("scripts")
+      packageScriptNames: keys("scripts"),
+      riskSignals
     };
   } catch {
-    return { scriptFiles, packageManifest: "invalid", dependencies: [], devDependencies: [], packageScriptNames: [] };
+    return { scriptFiles, declaredNodeMajor: textualNodeMajors.length ? Math.max(...textualNodeMajors) : null, packageManifest: "invalid", dependencies: [], devDependencies: [], packageScriptNames: [], riskSignals };
   }
 }
 
 function inspectionSummary(details: SkillDetails): string {
   const parts = [details.name, details.description || "项目 Skill", `许可证 ${details.license ?? "未声明"}`];
+  if (details.runtimeAudit.declaredNodeMajor !== null) parts.splice(1, 0, `来源声明最低 Node.js ${details.runtimeAudit.declaredNodeMajor}+`);
+  if (details.runtimeAudit.riskSignals.length) parts.splice(1, 0, `静态线索（未执行，需核验）：${details.runtimeAudit.riskSignals.map(signal => runtimeRiskLabels[signal]).join("、")}`);
   if (details.runtimeAudit.scriptFiles.length) parts.push(`含 ${details.runtimeAudit.scriptFiles.length} 个脚本文件，安装只复制文本，不执行`);
   if (details.runtimeAudit.packageManifest === "valid") {
     const dependencyCount = details.runtimeAudit.dependencies.length + details.runtimeAudit.devDependencies.length;

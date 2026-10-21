@@ -13,6 +13,9 @@ import express from 'express';
 import { Context } from '@deepseek-ai/cordis';
 
 const data = mkdtempSync(join(tmpdir(), 'lfaa-dsh-carrier-'));
+const home = mkdtempSync(join(tmpdir(), 'lfaa-dsh-carrier-home-'));
+const previousHome = process.env.LFAA_HOME;
+process.env.LFAA_HOME = home;
 process.env.LFAA_DATA_DIR = data;
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = '';
@@ -56,6 +59,9 @@ test.after(async () => {
   await context.fiber.dispose();
   closeDatabase();
   rmSync(data, { recursive: true, force: true });
+  rmSync(home, { recursive: true, force: true });
+  if (previousHome === undefined) delete process.env.LFAA_HOME;
+  else process.env.LFAA_HOME = previousHome;
 });
 
 test('DSH bundle route is public for GET/HEAD, while writes and extension routes require an LFAA session', async () => {
@@ -112,4 +118,32 @@ test('DSH bundle injection URLs stay rooted when the entry page is nested', () =
   } finally {
     release();
   }
+});
+
+test('Client authentication requirements are injected from active Runtime registrations and are revocable', () => {
+  const release = context.on('webserver/index-inject', rows => {
+    rows.push({
+      kind: 'global',
+      name: '__DSH_BOOT__',
+      value: { rev: 'dsh-revision', entries: [{ id: '@example/one' }], batches: [{ entries: ['@example/one'] }] }
+    });
+  });
+  const firstOwner = {};
+  const secondOwner = {};
+  const removeFirst = carrier.registerAuthenticatedClientModule(firstOwner, '@example/one');
+  const removeSecond = carrier.registerAuthenticatedClientModule(secondOwner, 'vendor-two');
+  try {
+    const boot = carrier.collectIndexInjections().find(row => row.kind === 'global' && row.name === '__DSH_BOOT__').value;
+    assert.deepEqual(boot.lfaaAuthenticatedClientModules, ['@example/one', 'vendor-two']);
+    assert.deepEqual(boot.entries, [{ id: '@example/one' }], 'the Host graph remains unchanged apart from LFAA policy metadata');
+    assert.throws(() => carrier.registerAuthenticatedClientModule({}, '@example/one'), /重复登记/u);
+    assert.throws(() => carrier.registerAuthenticatedClientModule({}, '../escape'), /有效/u);
+    removeFirst();
+    assert.deepEqual(carrier.collectIndexInjections().find(row => row.kind === 'global' && row.name === '__DSH_BOOT__').value.lfaaAuthenticatedClientModules, ['vendor-two']);
+  } finally {
+    removeFirst();
+    removeSecond();
+    release();
+  }
+  assert.deepEqual(carrier.collectIndexInjections(), [], 'no auth metadata remains after Runtime disposal');
 });

@@ -12,7 +12,7 @@ import * as UiPrimitives from "@deepseek-ai/dsh-client-ui-primitives";
 import * as UiDockkit from "@deepseek-ai/dsh-client-ui-dockkit";
 import type { DshWindow, ClientModuleLoader } from "@deepseek-ai/dsh-client-modules/client";
 import { installLfaaDshSessionScope } from "./session-scope.js";
-import { hasWallpaperEngineClientEntry, syncClientModuleGraphForAuthentication, type ClientModuleAuthState } from "./auth-sync.js";
+import { filterUnauthenticatedClientModules, hasWallpaperEngineClientEntry, syncClientModuleGraphForAuthentication, type ClientModuleAuthState } from "./auth-sync.js";
 import { initializeStaleChunkRecovery, loadClientModuleWithRecovery } from "./stale-chunk-recovery.js";
 export { DshSlotOutlet, DshSlotRoot, LFAA_AUTH_TRANSITION_SLOT, useDshSlotEntries, useDshSlotRenderer, type AuthTransitionPhase, type AuthTransitionSlotOwner, type DshSlotEntrySummary, type DshSlotRegistryReader, type DshSlotRenderer } from "./slots.js";
 
@@ -76,7 +76,7 @@ export async function bootDshClientModules(context: Context): Promise<ClientModu
     "@deepseek-ai/dsh-client-ui-dockkit": UiDockkit
   };
   const fullGraph = dshWindow.__DSH_BOOT__;
-  const initialGraph = graphWithoutWallpaperEngine(fullGraph);
+  const initialGraph = filterUnauthenticatedClientModules(fullGraph);
   const modules = target.create({ boot: initialGraph, staticModules }) as DshModuleRuntime;
   const rawSync = modules.entries.sync.bind(modules.entries);
   const syncWallpaperEngineAvailability = (graph: unknown) => {
@@ -94,7 +94,7 @@ export async function bootDshClientModules(context: Context): Promise<ClientModu
   };
   modules.entries.sync = (graph: unknown) => {
     authRuntime.graph = graph;
-    const effectiveGraph = authRuntime.authenticated ? graph : graphWithoutWallpaperEngine(graph);
+    const effectiveGraph = authRuntime.authenticated ? graph : filterUnauthenticatedClientModules(graph);
     return rawSync(effectiveGraph).then(() => syncWallpaperEngineAvailability(effectiveGraph));
   };
   dshAuthRuntime = authRuntime;
@@ -137,7 +137,7 @@ export async function syncDshClientModulesForAuthentication(authenticated: boole
       if (!graph) throw new Error("DSH Host 未返回有效的 Client Module 启动图。");
       return graph;
     },
-    filterUnauthenticatedGraph: graphWithoutWallpaperEngine,
+    filterUnauthenticatedGraph: filterUnauthenticatedClientModules,
     async applyGraph(graph) {
       await runtime.rawSync(graph);
       if (typeof document !== "undefined" && document.body) {
@@ -146,17 +146,4 @@ export async function syncDshClientModulesForAuthentication(authenticated: boole
       }
     }
   });
-}
-
-function graphWithoutWallpaperEngine(graph: unknown): unknown {
-  if (typeof graph !== "object" || graph === null || !Array.isArray((graph as { entries?: unknown }).entries)
-    || !Array.isArray((graph as { batches?: unknown }).batches)) return graph;
-  const source = graph as { entries: Array<Record<string, unknown>>; batches: Array<Record<string, unknown>> };
-  const entries = source.entries.filter((entry) => entry.id !== "dsh-plugin-wallpaper-engine");
-  const batches = source.batches.flatMap((batch) => {
-    if (!Array.isArray(batch.entries)) return [batch];
-    const selected = batch.entries.filter((id): id is string => typeof id === "string" && id !== "dsh-plugin-wallpaper-engine");
-    return selected.length ? [{ ...batch, entries: selected }] : [];
-  });
-  return { ...graph, entries, batches };
 }

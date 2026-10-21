@@ -26,8 +26,11 @@ const owner = randomUUID(), other = randomUUID();
 for (const [id, uid] of [[owner, 1], [other, 2]]) database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role) VALUES(?, ?, ?, 'fixture', 'fixture', 'admin')").run(id, uid, `fixture-${uid}`);
 const disposers = [];
 let executions = 0;
+let alternateWriteExecutions = 0;
 const candidateTool = { id: "fixture.computer", name: "fixture_computer", description: "隔离桌面动作夹具", coreManaged: true, requiresComputerControl: true, applicationIds: ["workspace"], schema: { type: "object", properties: {}, additionalProperties: false }, parse: value => value, risk: () => "read", approval: () => ({ scopeKey: "fixture", scopeSummary: "fixture", summary: "fixture" }), execute: async (_, context) => { executions++; assert.ok(context.sessionId); return { observed: "真实夹具计数", executions }; } };
 registerAiBusinessTool({ effect: setup => { const dispose = setup(); disposers.push(dispose); return dispose; } }, candidateTool);
+const alternateWriteTool = { id: "fixture.alternate-write", name: "fixture_alternate_write", description: "审批拒绝后验证替代写工具也被封锁", coreManaged: true, applicationIds: ["workspace"], schema: { type: "object", properties: {}, additionalProperties: false }, parse: value => value, risk: () => "write", approval: () => ({ scopeKey: "fixture-alternate", scopeSummary: "fixture", summary: "fixture alternate write" }), execute: async () => { alternateWriteExecutions++; return { executed: true }; } };
+registerAiBusinessTool({ effect: setup => { const dispose = setup(); disposers.push(dispose); return dispose; } }, alternateWriteTool);
 const browserConnectionTool = {
   id: "browser-use.provider-connection", name: "fixture_browser_connection", description: "隔离浏览器接入设置夹具", coreManaged: true, requiresBrowserUse: true, applicationIds: ["workspace"],
   schema: { type: "object", properties: { providerId: { type: "string" }, enabled: { type: "boolean" } }, required: ["providerId", "enabled"], additionalProperties: false },
@@ -46,7 +49,7 @@ const call = (name, argumentsValue, id = name) => ({ tool_calls: [{ index: 0, id
 const sse = delta => new Response(`data: ${JSON.stringify({ choices: [{ delta }] })}\n\ndata: [DONE]\n\n`, { headers: { "Content-Type": "text/event-stream" } });
 test.after(async () => { for (const dispose of disposers) dispose(); await approvalFiber.dispose(); });
 
-async function runFixture(mode, decide = "approved", remember = false, scope) {
+async function runFixture(mode, decide = "approved", remember = false, scope, tryAlternativeAfterDenial = false) {
   settings.saveUserSettings(owner, "permissions", { mode });
   settings.saveUserSettings(owner, "computer-control", { enabled: false });
   settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, retryDelaySeconds: 0 });
@@ -63,7 +66,15 @@ async function runFixture(mode, decide = "approved", remember = false, scope) {
       assert.ok(!names.includes("fixture_computer"));
       return sse(call("lfaa_set_capability_enabled", { capability: "computerControl", enabled: true }));
     }
-    if (scope || decide === "denied") { assert.ok(!settings.getUserSettings(owner).computerControl.enabled); return sse({ content: "未执行被拒绝的操作" }); }
+    if (decide === "denied") {
+      assert.ok(!settings.getUserSettings(owner).computerControl.enabled);
+      if (results.length === 1 && tryAlternativeAfterDenial) {
+        assert.ok(names.includes("fixture_alternate_write"), "独立写工具仍在目录中，验证派发门禁而非目录隐藏");
+        return sse(call("fixture_alternate_write", {}, "fallback-write"));
+      }
+      return sse({ content: "未执行被拒绝的操作" });
+    }
+    if (scope) { assert.ok(!settings.getUserSettings(owner).computerControl.enabled); return sse({ content: "受限工具范围没有修改设置" }); }
     if (results.length === 1) { assert.ok(names.includes("fixture_computer")); return sse(call("fixture_computer", {})); }
     if (results.length === 2) return sse(call("lfaa_set_capability_enabled", { capability: "computerControl", enabled: false }, "disable"));
     assert.ok(!names.includes("fixture_computer"));
@@ -98,9 +109,19 @@ test("ask、记忆授权和完全权限可在同一运行启用/调用/撤销能
   assert.equal(settings.getUserSettings(owner).computerControl.enabled, false);
 });
 
-test("拒绝审批和继承工具范围不能被开关工具绕过", async () => {
+test("拒绝审批后改选其他写工具仍被同一任务门禁拦截；继承工具范围不能绕过", async () => {
   const before = executions;
-  assert.equal((await runFixture("ask", "denied")).approvals, 1);
+  const alternateBefore = alternateWriteExecutions;
+  const denied = await runFixture("ask", "denied", false, undefined, true);
+  assert.equal(denied.approvals, 1);
+  assert.ok(denied.bodies[1].tools.some(tool => tool.function.name === "fixture_alternate_write"), "拒绝后 Provider 仍看到替代工具，避免把目录过滤误当作派发门禁");
+  const fallbackResult = denied.bodies[2].messages.find(message => message.role === "tool" && message.tool_call_id === "fallback-write");
+  assert.ok(fallbackResult);
+  const fallbackOutcome = JSON.parse(fallbackResult.content);
+  assert.equal(fallbackOutcome.executed, false);
+  assert.equal(fallbackOutcome.executionState, "not_started");
+  assert.match(fallbackOutcome.error, /已有写操作被拒绝/u);
+  assert.equal(alternateWriteExecutions, alternateBefore);
   const restricted = await runFixture("full_access", "approved", false, ["fixture_computer"]);
   assert.equal(restricted.approvals, 0);
   assert.equal(executions, before);

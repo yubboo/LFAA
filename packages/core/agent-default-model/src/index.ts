@@ -14,7 +14,7 @@ export const inject = ["lfaaCredentials", "lfaaSettings"];
 export interface AgentDefaultModelResolver {
   resolve(userId: string, accountId?: string): ActiveAiModelConfiguration | null;
   listRoutes(userId: string): AiModelRouteOption[];
-  resolveRoute(userId: string, route: { accountId: string; reasoningMode?: string }): ActiveAiModelConfiguration | null;
+  resolveRoute(userId: string, route: { accountId: string; modelId?: string; reasoningMode?: string }): ActiveAiModelConfiguration | null;
 }
 
 declare module "@deepseek-ai/cordis" {
@@ -34,8 +34,8 @@ export function createAgentDefaultModelResolver(credentials: CredentialRegistry,
     listRoutes(userId: string) {
       return listAiModelRoutes(userId);
     },
-    resolveRoute(userId: string, route: { accountId: string; reasoningMode?: string }) {
-      const details = resolveAiModelRouteDetails(userId, route.accountId, route.reasoningMode);
+    resolveRoute(userId: string, route: { accountId: string; modelId?: string; reasoningMode?: string }) {
+      const details = resolveAiModelRouteDetails(userId, route);
       if (!details) return null;
       const secret = consumer.resolve(userId, credentialReference("lfaa-settings", details.accountId));
       return secret === null ? null : { ...details, secret };

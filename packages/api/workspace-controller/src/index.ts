@@ -13,7 +13,7 @@ import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
 import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
 import { authorizeExplicitUserAction } from "lfaa-permission-presets/src/permissions.js";
 import { listDaemonNodes, type DaemonNode } from "lfaa-host-daemon/src/local-daemon.js";
-import { isLocalDaemonIdentity, isRemoteDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
+import { getLocalDaemonNodeId, isLocalDaemonIdentity, isRemoteDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
 import { executeGitWorkspace } from "lfaa-host-git";
 import { createAiHostTask, getAiHostTask } from "lfaa-jobs/src/ai-host-tasks.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
@@ -22,7 +22,7 @@ import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-ser
 import { asyncHandler, parseBody } from "lfaa-api-remotes/src/route-contracts.js";
 import { createAiSessionBranchWithMemory } from "lfaa-agent-loop/src/runs.js";
 import { getAiSession, listAiSessions, setAiSessionProject, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
-import { claimWorkspaceProjectApplication, createWorkspaceGitWorktree, createWorkspaceProject, getDefaultWorkspaceProjectId, getWorkspaceProject, hasWorkspaceGitWorktrees, listWorkspaceProjects, searchWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, setDefaultWorkspaceProject, updateDefaultWorkspaceProjectPath, type WorkspaceProjectApplicationId } from "lfaa-workspace-workspace/src/index.js";
+import { claimLegacyLocalDefaultWorkspace, claimWorkspaceProjectApplication, createWorkspaceGitWorktree, createWorkspaceProject, getDefaultWorkspaceProjectId, getWorkspaceProject, hasWorkspaceGitWorktrees, listWorkspaceProjects, searchWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, setDefaultWorkspaceProject, updateDefaultWorkspaceProjectPath, type WorkspaceProjectApplicationId } from "lfaa-workspace-workspace/src/index.js";
 
 const projectAppIdSchema = Joi.string().valid(...WORKSPACE_PROJECT_APPLICATION_IDS).required();
 const limitAiBranchMemory = createRateLimit(12, 60 * 1000);
@@ -106,7 +106,11 @@ function requireProjectForApp(userId: string, projectId: string, appId: Workspac
 export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher): void {
   router.post("/workspace/projects/initialize-default", requireAuthentication, asyncHandler(async (request, response) => {
     const userId = request.auth!.user.id;
-    const initializedProjectId = getDefaultWorkspaceProjectId(userId);
+    let initializedProjectId = getDefaultWorkspaceProjectId(userId);
+    if (!initializedProjectId) {
+      const localNodeId = getLocalDaemonNodeId();
+      if (localNodeId) initializedProjectId = claimLegacyLocalDefaultWorkspace(userId, localNodeId)?.id ?? null;
+    }
     if (initializedProjectId) {
       const project = getWorkspaceProject(userId, initializedProjectId, "workspace");
       if (!project) {

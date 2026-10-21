@@ -2063,7 +2063,9 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
           <div className="ai-work-chat__composer-context" aria-label="当前对话上下文">
             <WorkspaceProjectPicker appId="workspace" applicationName="小鱼智能体" projects={workspaceProjects} projectListStatus={workspaceProjectsLoadStatus} projectListTruncated={workspaceProjectsTruncated} projectLoadError={workspaceProjectsError} onRetryProjects={onRetryWorkspaceProjects} nodes={workspaceNodes} value={selectedProjectId} selectedProjectTitle={activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectTitle : null} defaultDirectory={settings.general.taskFolder} disabled={busy || projectBusy || associationsBusy || Boolean(editingMessage)} onChange={project => void changeWorkspaceProject(project)} onProjectsChange={onWorkspaceProjectsChange} />
 
-            <span className="ai-work-chat__composer-app" aria-label={`当前应用：${applicationNameFor(appId)}`} title={applicationNameFor(appId)}><WorkbenchIcon name="spark" size={13} /><span className="ai-work-chat__composer-app-label">{applicationNameFor(appId)}</span></span>
+            <Tooltip trigger={["hover"]} placement="top" title={applicationNameFor(appId)}>
+              <span className="ai-work-chat__composer-app" aria-label={`当前应用：${applicationNameFor(appId)}`}><WorkbenchIcon name="spark" size={13} /><span className="ai-work-chat__composer-app-label">{applicationNameFor(appId)}</span></span>
+            </Tooltip>
             <Typography.Text className="ai-work-chat__composer-count" aria-label={`已输入 ${draft.length}，最多 12000 个字符`}>{draft.length}<span>/12000</span></Typography.Text>
           </div>
           {composerMenu ? <div className="ai-work-chat__composer-menu" data-trigger={composerMenu.trigger} style={composerMenuMaxHeight === null ? undefined : { maxHeight: `${composerMenuMaxHeight}px` }} onMouseDown={event => event.preventDefault()}>
@@ -2125,7 +2127,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
                 placement="topLeft"
                 menu={{ items: [{ key: "attachment-unavailable", label: "文件和文件夹 · 暂未接入", disabled: true }] }}
               >
-                <Tooltip trigger={["hover", "focus"]} placement="top" title="添加文件等内容 · 附件功能尚未接入">
+                <Tooltip trigger={["hover", "focus"]} placement="bottom" title="添加文件等内容 · 附件功能尚未接入">
                   <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--icon" type="text" aria-label="添加附件；当前未接入" icon={<WorkbenchIcon name="plus" size={18} />} />
                 </Tooltip>
               </Dropdown>
@@ -2164,7 +2166,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
                   onClick: ({ key }) => selectPermissionMode(key as UserSettings["permissions"]["mode"])
                 }}
               >
-                <Tooltip trigger={["hover", "focus"]} placement="top" title={`更改权限 · 当前为${permissionModeLabels[settings.permissions.mode]}`}>
+                <Tooltip trigger={["hover", "focus"]} placement="bottom" title={`更改权限 · 当前为${permissionModeLabels[settings.permissions.mode]}`}>
                   <span className="ai-work-chat__composer-disabled-wrap" tabIndex={toolbarBusy === "permissions" ? 0 : -1}>
                     <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--permission" type="text" aria-label={`LFAA 权限模式：${permissionModeLabels[settings.permissions.mode]}`} disabled={toolbarBusy === "permissions"}>
                       <WorkbenchIcon name="shield" size={15} />
@@ -2187,7 +2189,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
                 }}
                 content={composerMoreContent}
               >
-                <Tooltip trigger={["hover", "focus"]} placement="top" title="关联应用、Skill、提示词和专家">
+                <Tooltip trigger={["hover", "focus"]} placement="bottom" title="关联应用、Skill、提示词和专家">
                   <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--more" type="text" aria-haspopup="dialog" aria-expanded={composerMoreOpen} aria-label="更多输入操作" icon={<WorkbenchIcon name="grid" size={15} />}><span className="ai-work-chat__composer-control-label">更多</span></Button>
                 </Tooltip>
               </Popover>
@@ -2210,7 +2212,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
                 }}
                 content={modelPickerContent}
               >
-                <Tooltip trigger={["hover", "focus"]} placement="top" title={activeAccount ? `选择模型 · ${activeAccount.displayName} · ${activeModel ? `${modelSelectorDisplayLabel(activeModel)} · ${activeAccount.modelId}` : activeAccount.modelId}` : accountLoadState === "loading" ? "模型正在读取当前配置" : accountLoadState === "error" ? "模型状态不可用，请查看错误提示" : "请先在设置中心配置活动模型"}>
+                <Tooltip trigger={["hover", "focus"]} placement="bottom" title={activeAccount ? `选择模型 · ${activeAccount.displayName} · ${activeModel ? `${modelSelectorDisplayLabel(activeModel)} · ${activeAccount.modelId}` : activeAccount.modelId}` : accountLoadState === "loading" ? "模型正在读取当前配置" : accountLoadState === "error" ? "模型状态不可用，请查看错误提示" : "请先在设置中心配置活动模型"}>
                   <span className="ai-work-chat__composer-disabled-wrap" tabIndex={!activeAccount || !activeAccount.models.length || modelBusy || busy ? 0 : -1}>
                     <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--model" type="text" aria-haspopup="dialog" aria-expanded={modelPickerOpen} aria-busy={accountLoadState === "loading" || modelBusy} aria-label={activeAccount ? `模型：${activeModel ? modelSelectorDisplayLabel(activeModel) : activeAccount.modelId} · ${activeAccount.modelId}` : accountLoadState === "loading" ? "模型：正在读取当前配置" : accountLoadState === "error" ? "模型：状态不可用" : "模型：未配置"} disabled={!activeAccount || !activeAccount.models.length || modelBusy || busy}>
                       <WorkbenchIcon name="spark" size={14} />
@@ -2220,7 +2222,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
                   </span>
                 </Tooltip>
               </Popover>
-              <Tooltip trigger={["hover", "focus"]} title={!settings.aiRuntime.voiceInputEnabled ? "请在设置中心的语音页面开启语音输入" : !supportsVoiceInput() ? "当前宿主不支持语音识别" : listening ? "停止语音输入" : "语音输入，识别后由你发送"}>
+              <Tooltip trigger={["hover", "focus"]} placement="bottom" title={!settings.aiRuntime.voiceInputEnabled ? "请在设置中心的语音页面开启语音输入" : !supportsVoiceInput() ? "当前宿主不支持语音识别" : listening ? "停止语音输入" : "语音输入，识别后由你发送"}>
                 <span className="ai-work-chat__composer-disabled-wrap">
                   <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--icon" type="text" aria-label={listening ? "停止语音输入" : "语音输入"} aria-pressed={listening} disabled={Boolean(editingMessage) || !settings.aiRuntime.voiceInputEnabled || !supportsVoiceInput()} onClick={toggleVoiceInput} icon={<WorkbenchIcon name="microphone" size={17} />} />
                 </span>
@@ -2229,18 +2231,18 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
             {settings.aiRuntime.readResponsesAloud ? <Button type="text" onClick={stopVoicePlayback}>停止播报</Button> : null}
             {busy
                 ? <>
-                  <Tooltip trigger={["hover", "focus"]} placement="topRight" title={runPauseState?.state === "pausing" ? "继续运行（取消待暂停请求）" : runPauseState?.state === "paused" ? "继续当前任务" : "暂停任务；当前模型或工具操作完成后会在安全检查点暂停"}>
+                  <Tooltip trigger={["hover", "focus"]} placement="bottom" title={runPauseState?.state === "pausing" ? "继续运行（取消待暂停请求）" : runPauseState?.state === "paused" ? "继续当前任务" : "暂停任务；当前模型或工具操作完成后会在安全检查点暂停"}>
                     <span className="ai-work-chat__composer-disabled-wrap" tabIndex={Boolean(editingMessage) || runPauseBusy || !canControlAiRun(activeRunRef.current, stopGuardStartedAtRef.current, Date.now()) || !stopGuardElapsed ? 0 : -1}>
                       <Button className="ai-work-chat__composer-submit ai-work-chat__composer-submit--pause" type="primary" shape="circle" aria-label={runPauseState?.state === "running" || runPauseState?.runId !== activeRunRef.current ? "暂停任务" : "继续任务"} aria-pressed={runPauseState?.state === "paused"} disabled={Boolean(editingMessage) || runPauseBusy || !canControlAiRun(activeRunRef.current, stopGuardStartedAtRef.current, Date.now()) || !stopGuardElapsed} icon={<span className={`ai-work-chat__composer-pause-icon${runPauseState?.state === "running" || runPauseState?.runId !== activeRunRef.current ? "" : " ai-work-chat__composer-pause-icon--resume"}`} aria-hidden="true" />} onClick={() => void toggleAiRunPause()} />
                     </span>
                   </Tooltip>
-                  <Tooltip trigger={["hover", "focus"]} placement="topRight" title="停止并终止当前任务">
+                  <Tooltip trigger={["hover", "focus"]} placement="bottom" title="停止并终止当前任务">
                     <span className="ai-work-chat__composer-disabled-wrap" tabIndex={Boolean(editingMessage) || !activeRunRef.current ? 0 : -1}>
                       <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--icon" type="text" aria-label="停止并终止当前任务" disabled={Boolean(editingMessage) || !activeRunRef.current} icon={<WorkbenchIcon name="close" size={15} />} onClick={() => { const runId = activeRunRef.current; if (runId) void cancelAiRun(runId).catch(stopError => setError(`停止任务失败：${getErrorMessage(stopError)}`)); }} />
                     </span>
                   </Tooltip>
                 </>
-                : <Tooltip trigger={["hover", "focus"]} placement="topRight" title={settings.general.sendShortcut === "enter" ? "发送消息 · Enter" : "发送消息 · Ctrl+Enter"}>
+                : <Tooltip trigger={["hover", "focus"]} placement="bottom" title={settings.general.sendShortcut === "enter" ? "发送消息 · Enter" : "发送消息 · Ctrl+Enter"}>
                   <span className="ai-work-chat__composer-disabled-wrap" tabIndex={!draft.trim() || !activeAccount ? 0 : -1}>
                     <Button className="ai-work-chat__composer-submit" type="primary" shape="circle" htmlType="submit" aria-label="发送消息" icon={<WorkbenchIcon name="spark" size={15} />} disabled={!draft.trim() || !activeAccount} />
                   </span>

@@ -37,6 +37,7 @@ export interface AiRequestRouteEvent {
 /** 插件只可建议当前账户已配置的模型账户及其模型目录支持的思考档位。 */
 export interface AiRequestRouteSelection {
   accountId?: string;
+  modelId?: string;
   reasoningMode?: string;
 }
 
@@ -124,10 +125,11 @@ export class AiRuntimeHookRegistry extends Service {
         const selection = selectionResult.value;
         if (selection === undefined) continue;
         if (!isRecord(selection)
-          || Object.keys(selection).some(key => key !== "accountId" && key !== "reasoningMode")
+          || Object.keys(selection).some(key => key !== "accountId" && key !== "modelId" && key !== "reasoningMode")
           || selection.accountId !== undefined && (typeof selection.accountId !== "string" || selection.accountId.length > 160)
+          || selection.modelId !== undefined && (typeof selection.modelId !== "string" || selection.modelId.length < 1 || selection.modelId.length > 200)
           || selection.reasoningMode !== undefined && (typeof selection.reasoningMode !== "string" || selection.reasoningMode.length > 32)
-          || selection.accountId === undefined && selection.reasoningMode === undefined) {
+          || selection.accountId === undefined && selection.modelId === undefined && selection.reasoningMode === undefined) {
           failedHookIds.push(id);
           continue;
         }

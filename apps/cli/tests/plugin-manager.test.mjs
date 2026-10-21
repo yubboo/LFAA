@@ -12,14 +12,16 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 
-const data = mkdtempSync(join(tmpdir(), 'lfaa-plugin-manager-'));
+const data = mkdtempSync(join(tmpdir(), 'lfaa-plugin-manager-data-'));
+const home = mkdtempSync(join(tmpdir(), 'lfaa-plugin-manager-home-'));
+process.env.LFAA_HOME = home;
 process.env.LFAA_DATA_DIR = data;
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = '';
 const { PluginManager } = await import('lfaa-plugin-manager/src/index.js');
 const { config } = await import('lfaa-launch-environment/src/config.js');
 config.dataDirectory = data;
-config.pluginInstallDirectory = join(data, 'profiles');
+config.pluginInstallDirectory = join(home, 'profiles');
 const { readGithubZip } = await import('lfaa-plugin-manager/src/zip-archive.js');
 const { readNpmTarGzip } = await import('lfaa-plugin-manager/src/npm-archive.js');
 const originalFetch = globalThis.fetch;
@@ -141,6 +143,7 @@ test.after(async () => {
   const { closeDatabase } = await import('lfaa-storage-sqlite/src/database.js');
   closeDatabase();
   rmSync(data, { recursive: true, force: true });
+  rmSync(home, { recursive: true, force: true });
 });
 
 test('仓库插件安装固定到提交并保留真实的不兼容状态', async () => {
@@ -172,8 +175,13 @@ test('仓库插件安装固定到提交并保留真实的不兼容状态', async
   assert.deepEqual(installed.applicationIds, ['workspace']);
   assert.equal(installed.source.commit, commit);
   assert.equal(installed.source.archiveSha256, createHash('sha256').update(archive).digest('hex'));
+  assert.deepEqual(installed.requirements, inspected.requirements, '安装记录持久化刚才检查的固定来源合同');
   assert.equal(readFileSync(resolve(data, 'profiles/web/acme-demo/cordis.patch.yml'), 'utf8'), '# fixture');
   assert.deepEqual(manager.list().map(item => item.id), ['acme-demo']);
+  assert.deepEqual(new PluginManager('web', join(data, 'profiles')).get('acme-demo').requirements, inspected.requirements, '重建 Plugin Manager 后仍从 Profile 清单读取已校验合同');
+  const installedInventory = JSON.parse(readFileSync(resolve(data, 'profiles/web/inventory.json'), 'utf8'));
+  assert.equal(installedInventory.version, 5);
+  assert.deepEqual(installedInventory.plugins[0].requirements.bundlePatch, 'cordis.patch.yml');
   await assert.rejects(manager.setEnabled('acme-demo', true), error => error.code === 'plugin_runtime_unsupported');
   assert.equal(manager.get('acme-demo').state, 'incompatible');
   assert.deepEqual(new PluginManager('desktop', join(data, 'profiles')).list(), []);
@@ -199,6 +207,8 @@ test('复制的 DSH 示例 Bundle 通过静态来源检查后仍被隔离且不�
   assert.equal(installed.id, 'local--fixture-bundle');
   assert.equal(installed.state, 'incompatible');
   assert.deepEqual(installed.capabilities, ['dsh.bundle']);
+  assert.deepEqual(installed.requirements.bundlePatch, ['cordis.patch.yml', 'cordis.extra.patch.yml']);
+  assert.deepEqual(new PluginManager('dsh-example', join(data, 'profiles')).get(installed.id).requirements.bundlePatch, ['cordis.patch.yml', 'cordis.extra.patch.yml'], '重启后保留多 patch 的声明顺序');
   assert.equal(readFileSync(resolve(data, 'profiles/dsh-example/local--fixture-bundle/cordis.extra.patch.yml'), 'utf8'), '# second ordered fixture patch\n');
   await assert.rejects(manager.setEnabled(installed.id, true), error => error.code === 'plugin_runtime_unsupported');
   assert.equal(manager.get(installed.id).state, 'incompatible');
@@ -450,18 +460,37 @@ test('同一管理器识别非 DSH 的 LFAA 插件合同，并在重启后清除
   legacyInventory.version = 1;
   delete legacyInventory.plugins[0].runtimeEntry;
   delete legacyInventory.plugins[0].applicationIds;
+  delete legacyInventory.plugins[0].requirements;
   writeFileSync(inventoryPath, JSON.stringify(legacyInventory), 'utf8');
   const restartedManager = new PluginManager('generic', join(data, 'profiles'));
   restartedManager.registerRuntimeAdapter(adapter);
   assert.equal(restartedManager.get('generic-sample').state, 'installed');
   assert.equal((await restartedManager.setEnabled('generic-sample', false)).state, 'installed');
   const migratedInventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
-  assert.equal(migratedInventory.version, 4);
+  assert.equal(migratedInventory.version, 5);
   assert.equal(migratedInventory.plugins[0].source.kind, 'github');
   assert.deepEqual(migratedInventory.plugins[0].applicationIds, ['steamcmd', 'minecraft', 'connectivity', 'writing', 'workspace', 'aivideo']);
   assert.equal(migratedInventory.plugins[0].runtimeEntry, null);
+  const emptyRequirements = {
+    dshVersion: null, hostEntry: null, bundlePatch: null, clientEntry: null, clientPlatform: null,
+    clientInject: [], peerDependencies: {}, packageDependencies: [], declaredScripts: []
+  };
+  assert.deepEqual(migratedInventory.plugins[0].requirements, emptyRequirements);
   assert.equal(migratedInventory.plugins[0].state, 'installed');
-  await restartedManager.remove('generic-sample');
+
+  const versionFourInventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
+  versionFourInventory.version = 4;
+  delete versionFourInventory.plugins[0].requirements;
+  writeFileSync(inventoryPath, JSON.stringify(versionFourInventory), 'utf8');
+  const versionFourManager = new PluginManager('generic', join(data, 'profiles'));
+  versionFourManager.registerRuntimeAdapter(adapter);
+  assert.equal(versionFourManager.get('generic-sample').state, 'installed');
+  assert.equal((await versionFourManager.setEnabled('generic-sample', true)).state, 'enabled');
+  assert.equal((await versionFourManager.setEnabled('generic-sample', false)).state, 'installed');
+  const migratedVersionFour = JSON.parse(readFileSync(inventoryPath, 'utf8'));
+  assert.equal(migratedVersionFour.version, 5);
+  assert.deepEqual(migratedVersionFour.plugins[0].requirements, emptyRequirements);
+  await versionFourManager.remove('generic-sample');
 });
 
 test('ZIP 解包拒绝路径穿越、符号链接和 CRC 被改写的数据', () => {
@@ -581,7 +610,7 @@ test('通用能力安装工具跨应用装配，未接入类型明确报告', as
     resolve(id) { return loaderEntries.get(id); },
     remove(id) { loaderEntries.delete(id); }
   });
-  context.provide('webServer', { registerHandlerAdapter: () => () => undefined });
+  context.provide('webServer', { registerHandlerAdapter: () => () => undefined, registerAuthenticatedClientModule: () => () => undefined });
   context.provide('lfaaTools', { registerTool: registerAiBusinessTool });
   applyCapabilityInstalls(context);
   let restartContext;
@@ -677,7 +706,7 @@ test('通用能力安装工具跨应用装配，未接入类型明确报告', as
       resolve(id) { return restartedLoaderEntries.get(id); },
       remove(id) { restartedLoaderEntries.delete(id); }
     });
-    restartContext.provide('webServer', { registerHandlerAdapter: () => () => undefined });
+    restartContext.provide('webServer', { registerHandlerAdapter: () => () => undefined, registerAuthenticatedClientModule: () => () => undefined });
     await applyPluginManager(restartContext);
     assert.equal(restartedLoaderCalls.length, 1, 'a new Control Plane restores the persisted enabled plugin from its Profile inventory');
     assert.equal(restartContext.lfaaPluginManager.get(wallpaperId).state, 'enabled');

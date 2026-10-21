@@ -4,7 +4,7 @@
  * 关联文件：index.ts、packages/api/browser-controller、packages/client/ui-sidebar-browser。
  */
 import { randomUUID, createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { isPublicMcpAddress, resolveMcpEndpoint } from "lfaa-mcp-client/src/network.js";
@@ -25,7 +25,7 @@ const SENSITIVE_FIELD = /(?:password|passcode|secret|token|api[\s_-]?key|authori
 export const BROWSER_ALLOWED_KEYS = ["Enter", "Tab", "Shift+Tab", "Escape", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Home", "End", "PageDown", "PageUp", "Space", "Backspace", "Delete", "Control+A", "Meta+A", "Control+C", "Control+V", "Control+X", "Control+Z", "Control+Y", "Meta+C", "Meta+V", "Meta+X", "Meta+Z", "Meta+Y"] as const;
 const BROWSER_ALLOWED_KEY_SET: ReadonlySet<string> = new Set(BROWSER_ALLOWED_KEYS);
 
-export interface BrowserProviderSummary { id: BrowserProviderId; name: string; available: boolean; reason?: string; isolation: "new-profile" | "user-profile" }
+export interface BrowserProviderSummary { id: BrowserProviderId; name: string; available: boolean; reason?: string; isolation: "app-session" | "new-profile" | "user-profile" }
 export interface BrowserTabSummary { id: string; title: string; url: string; active: boolean }
 export interface BrowserSnapshot {
   sessionId: string;
@@ -73,6 +73,9 @@ interface BrowserSession {
   operationTail: Promise<void>;
   allowedLocalOrigin: string | null;
   projectPreview: { url: string; close: () => Promise<void> } | null;
+  ownsContext: boolean;
+  nativePageHandlers?: Map<Page, { domcontentloaded: () => void; close: () => void; framenavigated: (frame: import("playwright-core").Frame) => void }>;
+  nativePageListener?: (page: Page) => void;
   disposed: boolean;
 }
 
@@ -116,8 +119,11 @@ export class BrowserSessionManager {
   private readonly runAdapters = new Map<string, { adapter: BrowserRunAdapter; signal: AbortSignal; dispose: () => void }>();
   private readonly channels = availableChannels();
   private readonly sweepTimer = setInterval(() => { void Promise.all([this.sweepExpired(), this.tabbit.sweepExpired()]).catch(() => undefined); }, SESSION_SWEEP_MS);
-  private readonly browsers = new Map<"msedge" | "chrome", Promise<Browser>>();
+  private readonly browsers = new Map<"msedge" | "chrome" | "native", Promise<Browser>>();
+  private readonly nativeActiveTargets = new Map<string, string>();
   private readonly tabbit: TabbitBrowserProvider;
+  private readonly nativeCdpPortFile = process.env.LFAA_ELECTRON_CDP_PORT_FILE?.trim() ?? "";
+  private readonly nativeAppOrigin = process.env.LFAA_ELECTRON_BROWSER_APP_ORIGIN?.trim() ?? "";
   private disposed = false;
 
   constructor(private readonly localHostExecution: boolean) {
@@ -187,8 +193,52 @@ export class BrowserSessionManager {
         isolation: "new-profile" as const
       };
     });
+    if (this.nativeCdpPortFile) {
+      const port = this.readNativeCdpPort();
+      providers.unshift({
+        id: "lfaa-native-browser",
+        name: "LFAA 原生浏览器",
+        available: port !== null,
+        ...(port === null ? { reason: "Electron 原生浏览器的本机连接尚未就绪。" } : {}),
+        isolation: "app-session"
+      });
+    }
     providers.push({ id: "tabbit-personal", name: "Tabbit Browser · 个人会话", available: this.tabbit.isAvailable(), ...(!this.tabbit.isAvailable() ? { reason: "未在当前账户稳定启动器位置发现 Tabbit LocalAgent。" } : {}), isolation: "user-profile" as const });
     return providers;
+  }
+
+  async setNativeActiveTarget(ownerId: string, sourceSessionId: string, targetId: string): Promise<void> {
+    if (!this.nativeCdpPortFile || !/^[a-zA-Z0-9_-]{1,128}$/u.test(targetId)) throw new Error("原生浏览器标签标识无效。");
+    const key = sessionKey(ownerId, sourceSessionId, "lfaa-native-browser");
+    const existingId = this.sessionKeys.get(key);
+    const existing = existingId ? this.sessions.get(existingId) : undefined;
+    if (existing && !existing.disposed) {
+      await this.exclusive(existing, async () => {
+        const match = await this.findNativePageInBrowser(existing.browser, targetId);
+        if (!match) throw new Error("当前活动的原生浏览器标签尚未出现在 Chromium 中。");
+        if (match.context !== existing.context) {
+          if (existing.nativePageListener) existing.context.off("page", existing.nativePageListener);
+          for (const [watchedPage, handlers] of existing.nativePageHandlers ?? []) {
+            watchedPage.off("domcontentloaded", handlers.domcontentloaded);
+            watchedPage.off("close", handlers.close);
+            watchedPage.off("framenavigated", handlers.framenavigated);
+          }
+          existing.context = match.context;
+          existing.nativePageHandlers = new Map();
+          for (const watchedPage of match.context.pages()) this.watchNativePage(existing, watchedPage);
+          existing.nativePageListener = watchedPage => this.watchNativePage(existing, watchedPage);
+          match.context.on("page", existing.nativePageListener);
+        }
+        const page = match.page;
+        existing.page = page;
+        this.watchNativePage(existing, page);
+        existing.revision += 1;
+        this.touch(existing);
+      });
+    }
+    this.nativeActiveTargets.delete(key);
+    this.nativeActiveTargets.set(key, targetId);
+    while (this.nativeActiveTargets.size > 128) this.nativeActiveTargets.delete(this.nativeActiveTargets.keys().next().value!);
   }
 
   async listTabs(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<TabbitTabSummary[]> {
@@ -206,11 +256,12 @@ export class BrowserSessionManager {
     const key = sessionKey(ownerId, sourceSessionId, providerId), id = this.sessionKeys.get(key);
     const session = id ? this.sessions.get(id) : undefined;
     if (!session || session.disposed) return null;
-    return this.exclusive(session, () => this.observe(session, includeScreenshot));
+    return this.exclusive(session, () => this.observe(session, providerId === "lfaa-native-browser" ? false : includeScreenshot));
   }
 
   async resizeViewport(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, width: number, height: number, signal?: AbortSignal): Promise<BrowserSnapshot | null> {
     if (providerId === "tabbit-personal") throw new Error("Tabbit 个人浏览器的视口由用户控制，LFAA 不会调整其窗口尺寸。");
+    if (providerId === "lfaa-native-browser") throw new Error("原生浏览器视口由当前工作区布局控制。");
     if (!Number.isInteger(width) || width < 320 || width > MAX_IMAGE_DIMENSION || !Number.isInteger(height) || height < 400 || height > 1600) {
       throw new Error("浏览器工作区视口尺寸超出允许范围。");
     }
@@ -235,7 +286,7 @@ export class BrowserSessionManager {
     const session = id ? this.sessions.get(id) : undefined;
     if (!session || session.disposed || session.page.isClosed()) return null;
     this.touch(session);
-    return { revision: session.revision, url: session.page.url().slice(0, 2048), title: "" };
+    return { revision: session.revision, url: session.page.url().slice(0, 2048), title: await session.page.title().catch(() => "") };
   }
 
   async navigate(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, value: string, signal?: AbortSignal): Promise<BrowserSnapshot> {
@@ -244,8 +295,12 @@ export class BrowserSessionManager {
     const session = await this.getOrCreate(ownerId, sourceSessionId, providerId);
     signal?.throwIfAborted();
     return this.exclusive(session, async () => {
-      await this.closeProjectPreview(session);
-      session.allowedLocalOrigin = null;
+      const keepsProjectPreview = session.projectPreview !== null && url.origin === new URL(session.projectPreview.url).origin;
+      if (keepsProjectPreview) session.allowedLocalOrigin = url.origin;
+      else {
+        await this.closeProjectPreview(session);
+        session.allowedLocalOrigin = null;
+      }
       await this.assertTarget(session, url, true);
       if (await this.isPrivateOrigin(url)) session.allowedLocalOrigin = url.origin;
       await session.page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 20_000 });
@@ -398,9 +453,11 @@ export class BrowserSessionManager {
   private async getOrCreate(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId): Promise<BrowserSession> {
     if (this.disposed || !this.localHostExecution) throw new Error("LFAA 隔离浏览器只在本机 Web/Desktop Host 中可用。");
     if (sourceSessionId.length < 1 || sourceSessionId.length > 160) throw new Error("浏览器会话必须绑定当前 LFAA Session。");
+    const isNativeProvider = providerId === "lfaa-native-browser";
     const provider = this.channels.find(item => item.id === providerId);
-    if (!provider) throw new Error("所选隔离浏览器提供方不受当前 Host 支持。");
-    if (!provider.paths.some(path => existsSync(path))) throw new Error(`未发现 ${provider.name} 的已安装浏览器。`);
+    if (!provider && !isNativeProvider) throw new Error("所选浏览器提供方不受当前 Host 支持。");
+    if (provider && !provider.paths.some(path => existsSync(path))) throw new Error(`未发现 ${provider.name} 的已安装浏览器。`);
+    if (isNativeProvider && this.readNativeCdpPort() === null) throw new Error("LFAA Electron 原生浏览器连接尚未就绪。");
     const key = sessionKey(ownerId, sourceSessionId, providerId), existingId = this.sessionKeys.get(key);
     const existing = existingId ? this.sessions.get(existingId) : undefined;
     if (existing && !existing.disposed && !existing.page.isClosed()) { this.touch(existing); return existing; }
@@ -408,13 +465,37 @@ export class BrowserSessionManager {
     if (this.sessions.size >= MAX_SESSIONS || [...this.sessions.values()].filter(session => session.ownerId === ownerId).length >= MAX_SESSIONS_PER_USER) {
       throw new Error("浏览器会话达到当前账户的并发上限；先关闭不再使用的浏览器会话。");
     }
-    const browser = await this.getBrowser(provider.channel);
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, serviceWorkers: "block" });
+    const browser = await this.getBrowser(isNativeProvider ? "native" : provider!.channel);
+    const nativeTargetId = this.nativeActiveTargets.get(key) ?? "";
+    if (isNativeProvider && !nativeTargetId) throw new Error("请在浏览器工作区选择要交给 Agent 操作的标签页。");
+    let context: BrowserContext;
+    let page: Page | null;
+    if (isNativeProvider) {
+      const match = await this.findNativePageInBrowser(browser, nativeTargetId);
+      if (!match) throw new Error("当前活动的原生浏览器标签尚未出现在 Chromium 中；切回浏览器标签后重试。");
+      context = match.context;
+      page = match.page;
+    } else {
+      context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, serviceWorkers: "block" });
+      page = await context.newPage();
+    }
+    if (!page) throw new Error("原生浏览器里没有可接管的网页标签；先在右侧工作区打开一个标签。");
     const session: BrowserSession = {
       id: randomUUID(), ownerId, sourceSessionId, providerId, browser, context,
-      page: await context.newPage(), lastUsedAt: Date.now(), revision: 0,
-      operationTail: Promise.resolve(), allowedLocalOrigin: null, projectPreview: null, disposed: false
+      page, lastUsedAt: Date.now(), revision: 0,
+      operationTail: Promise.resolve(), allowedLocalOrigin: null, projectPreview: null,
+      ownsContext: !isNativeProvider, disposed: false
     };
+    if (isNativeProvider) {
+      session.nativePageHandlers = new Map();
+      const watchPage = (watchedPage: Page) => this.watchNativePage(session, watchedPage);
+      session.nativePageListener = watchedPage => watchPage(watchedPage);
+      for (const watchedPage of context.pages()) watchPage(watchedPage);
+      context.on("page", session.nativePageListener);
+      this.sessions.set(session.id, session);
+      this.sessionKeys.set(key, session.id);
+      return session;
+    }
     let lastChangeNotificationAt = 0;
     await context.exposeBinding("__lfaaBrowserChanged", () => {
       const now = Date.now();
@@ -442,16 +523,76 @@ export class BrowserSessionManager {
     return session;
   }
 
-  private async getBrowser(channel: "msedge" | "chrome"): Promise<Browser> {
+  private async getBrowser(channel: "msedge" | "chrome" | "native"): Promise<Browser> {
     let browserPromise = this.browsers.get(channel);
     if (!browserPromise) {
-      browserPromise = chromium.launch({ channel, headless: true, timeout: 15_000 }).catch(error => {
+      browserPromise = channel === "native"
+        ? this.connectNativeBrowser()
+        : chromium.launch({ channel, headless: true, timeout: 15_000 }).catch(error => {
         this.browsers.delete(channel);
         throw new Error(`隔离浏览器启动失败：${error instanceof Error ? error.message : "未知错误"}`);
       });
       this.browsers.set(channel, browserPromise);
     }
     return browserPromise;
+  }
+
+  private readNativeCdpPort(): number | null {
+    if (!this.nativeCdpPortFile || !existsSync(this.nativeCdpPortFile)) return null;
+    try {
+      const port = Number(readFileSync(this.nativeCdpPortFile, "utf8").split(/\r?\n/u, 1)[0]);
+      return Number.isInteger(port) && port >= 1 && port <= 65_535 ? port : null;
+    } catch { return null; }
+  }
+
+  private async connectNativeBrowser(): Promise<Browser> {
+    const port = this.readNativeCdpPort();
+    if (!port) throw new Error("LFAA Electron 原生浏览器调试端口尚未就绪。");
+    try { return await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 8_000 }); }
+    catch (error) { throw new Error(`连接 LFAA 原生浏览器失败：${error instanceof Error ? error.message : "未知错误"}`); }
+  }
+
+  private watchNativePage(session: BrowserSession, page: Page): void {
+    if (session.disposed || page.isClosed() || this.isNativeAppPage(page) || session.nativePageHandlers?.has(page)) return;
+    const handlers = {
+      domcontentloaded: () => { if (!session.disposed) session.revision += 1; },
+      close: () => { if (!session.disposed) session.revision += 1; },
+      framenavigated: (frame: import("playwright-core").Frame) => { if (!session.disposed && frame === page.mainFrame()) session.revision += 1; }
+    };
+    session.nativePageHandlers?.set(page, handlers);
+    page.on("domcontentloaded", handlers.domcontentloaded);
+    page.on("close", handlers.close);
+    page.on("framenavigated", handlers.framenavigated);
+  }
+
+  private isNativeAppPage(page: Page): boolean {
+    if (!this.nativeAppOrigin) return false;
+    try { return new URL(page.url()).origin === this.nativeAppOrigin; } catch { return false; }
+  }
+
+  private async readPageTargetId(page: Page): Promise<string> {
+    let client;
+    try {
+      client = await page.context().newCDPSession(page);
+      const result = await client.send("Target.getTargetInfo");
+      return typeof result?.targetInfo?.targetId === "string" ? result.targetInfo.targetId : "";
+    } catch { return ""; }
+    finally { await client?.detach().catch(() => undefined); }
+  }
+
+  private async findNativePage(context: BrowserContext, targetId: string): Promise<Page | null> {
+    const pages = context.pages().filter(page => !page.isClosed() && !this.isNativeAppPage(page));
+    for (const page of pages) if (await this.readPageTargetId(page) === targetId) return page;
+    return null;
+  }
+
+  private async findNativePageInBrowser(browser: Browser, targetId: string): Promise<{ context: BrowserContext; page: Page } | null> {
+    if (!targetId) return null;
+    for (const context of browser.contexts()) {
+      const page = await this.findNativePage(context, targetId);
+      if (page) return { context, page };
+    }
+    return null;
   }
 
   private async isPrivateOrigin(url: URL): Promise<boolean> {
@@ -509,7 +650,7 @@ export class BrowserSessionManager {
         return { role, name: type === "password" || /password|passcode|secret|token|api[\s_-]?key|authorization|验证码|密码|密钥|令牌/iu.test(name) ? "受保护的敏感字段" : name, ...(type && type !== "password" ? { type } : {}), disabled: node.hasAttribute("disabled") || node.getAttribute("aria-disabled") === "true" };
       }).filter(item => item.name).slice(0, limit), MAX_INTERACTIVE_ITEMS).catch(() => [] as BrowserSnapshot["controls"]),
       includeScreenshot ? this.captureScreenshot(page) : Promise.resolve(null),
-      Promise.all(session.context.pages().slice(0, MAX_PAGE_COUNT).map(async (tab, index) => ({ id: String(index), title: await tab.title().catch(() => ""), url: tab.url().slice(0, 2048), active: tab === page })))
+      Promise.all(session.context.pages().filter(tab => session.providerId !== "lfaa-native-browser" || !this.isNativeAppPage(tab)).slice(0, MAX_PAGE_COUNT).map(async (tab, index) => ({ id: String(index), title: await tab.title().catch(() => ""), url: tab.url().slice(0, 2048), active: tab === page })))
     ]);
     const normalizedText = pageText.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").slice(0, MAX_PAGE_TEXT);
     return { sessionId: session.id, providerId: session.providerId, revision: session.revision, url: page.url().slice(0, 2048), title: title.slice(0, 300), pageText: normalizedText, controls, tabs, screenshot };
@@ -562,8 +703,17 @@ export class BrowserSessionManager {
     if (session.disposed) return;
     session.disposed = true;
     this.sessions.delete(session.id);
-    this.sessionKeys.delete(sessionKey(session.ownerId, session.sourceSessionId, session.providerId));
-    await session.context.close().catch(() => undefined);
+    const key = sessionKey(session.ownerId, session.sourceSessionId, session.providerId);
+    this.sessionKeys.delete(key);
+    if (session.providerId === "lfaa-native-browser") this.nativeActiveTargets.delete(key);
+    if (session.nativePageListener) session.context.off("page", session.nativePageListener);
+    for (const [page, handlers] of session.nativePageHandlers ?? []) {
+      page.off("domcontentloaded", handlers.domcontentloaded);
+      page.off("close", handlers.close);
+      page.off("framenavigated", handlers.framenavigated);
+    }
+    session.nativePageHandlers?.clear();
+    if (session.ownsContext) await session.context.close().catch(() => undefined);
     await this.closeProjectPreview(session);
     await session.operationTail.catch(() => undefined);
   }

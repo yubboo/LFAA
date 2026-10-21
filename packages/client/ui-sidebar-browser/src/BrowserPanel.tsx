@@ -6,6 +6,8 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type WheelEvent } from "react";
 import { actOnBrowser, claimBrowserTab, closeBrowserProviderSessions, closeBrowserSession, connectTabbitBrowser, getErrorMessage, loadBrowserProviders, loadBrowserRevision, loadBrowserSession, loadBrowserTabs, navigateBrowser, resizeBrowserViewport, saveSettings, type BrowserProviderId, type BrowserProviderSummary, type BrowserSessionSnapshot, type BrowserTabSummary, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
+import { NativeBrowserPanel } from "./NativeBrowserPanel.js";
+import { resolveBrowserAddress } from "./browser-address.js";
 import "./browser-panel.css";
 
 type BrowserPanelProps = { sessionId: string | null; settings: UserSettings };
@@ -28,15 +30,6 @@ function pagePoint(image: HTMLImageElement, width: number, height: number, clien
   };
 }
 
-function normalizeAddress(value: string): string {
-  const candidate = value.trim();
-  if (!candidate) throw new Error("请输入 HTTP 或 HTTPS 地址。");
-  const address = /^[a-z][a-z\d+.-]*:/iu.test(candidate) ? candidate : `https://${candidate}`;
-  const parsed = new URL(address);
-  if (!new Set(["http:", "https:"]).has(parsed.protocol) || parsed.username || parsed.password) throw new Error("浏览器只支持不含账号密码的 HTTP(S) 地址。");
-  return parsed.toString();
-}
-
 function shortProviderName(provider: BrowserProviderSummary): string {
   if (provider.id === "lfaa-managed-edge") return "LFAA Edge";
   if (provider.id === "lfaa-managed-chrome") return "LFAA Chrome";
@@ -47,7 +40,7 @@ function originOnly(value: string): string {
   try { return new URL(value).origin; } catch { return value; }
 }
 
-export function BrowserPanel({ sessionId, settings }: BrowserPanelProps) {
+function BrowserUsePanel({ sessionId, settings }: BrowserPanelProps) {
   const [providers, setProviders] = useState<BrowserProviderSummary[]>([]);
   const [browserSettings, setBrowserSettings] = useState<UserSettings["browserUse"]>(settings.browserUse);
   const computerControlEnabled = settings.computerControl.enabled;
@@ -380,11 +373,11 @@ export function BrowserPanel({ sessionId, settings }: BrowserPanelProps) {
     event.preventDefault();
     if (!sessionId || !providerId || !providerConnected) return;
     try {
-      const url = normalizeAddress(address);
+      const url = resolveBrowserAddress(address, browserSettings.searchEngine);
       setAddress(url);
       void runAction(() => navigateBrowser(sessionId, providerId, url));
     } catch (reason) { setError(getErrorMessage(reason)); }
-  }, [address, providerConnected, providerId, runAction, sessionId]);
+  }, [address, browserSettings.searchEngine, providerConnected, providerId, runAction, sessionId]);
 
   const onPreviewPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
     if (!sessionId || !providerId || !snapshot?.screenshot || !imageRef.current || !event.isPrimary || event.button !== 0) return;
@@ -584,7 +577,7 @@ export function BrowserPanel({ sessionId, settings }: BrowserPanelProps) {
         <div className="lfaa-browser-panel__nav">
           {(["back", "forward", "reload"] as const).map(action => <button key={action} type="button" aria-label={action === "back" ? "后退" : action === "forward" ? "前进" : "刷新"} title={action === "back" ? "后退" : action === "forward" ? "前进" : "刷新"} disabled={loading || !snapshot || !providerId} onClick={() => { if (providerId) void runAction(() => actOnBrowser(sessionId, providerId, { action })); }}>{action === "reload" ? <WorkbenchIcon name="refresh" size={15} /> : action === "back" ? "‹" : "›"}</button>)}
         </div>
-        <input aria-label="浏览器地址" type="text" inputMode="url" autoComplete="url" spellCheck={false} value={shownAddress} onFocus={() => setAddressFocused(true)} onBlur={() => setAddressFocused(false)} onChange={event => setAddress(event.currentTarget.value)} placeholder="输入 HTTP(S) 网址" disabled={loading} />
+        <input aria-label="浏览器地址" type="text" inputMode="url" autoComplete="url" spellCheck={false} value={shownAddress} onFocus={() => setAddressFocused(true)} onBlur={() => setAddressFocused(false)} onChange={event => setAddress(event.currentTarget.value)} placeholder="搜索网页或输入网址" disabled={loading} />
         <button type="submit" aria-label="打开网页" title="打开网页" disabled={loading}>打开</button>
       </form>
       {providerId === "tabbit-personal" ? <p className="lfaa-browser-panel__notice">网页操作会作用于所选的真实 Tabbit 标签。不要在本轮未明确要求时切换或读取个人浏览器。</p> : null}
@@ -604,4 +597,11 @@ export function BrowserPanel({ sessionId, settings }: BrowserPanelProps) {
       {snapshot ? <footer className="lfaa-browser-panel__footer"><span title={browserSettings?.showFullUrl ? snapshot.url : originOnly(snapshot.url)}>{browserSettings?.showFullUrl ? snapshot.url : originOnly(snapshot.url)}</span><button type="button" disabled={loading} onClick={() => void closeBrowserSession(sessionId, snapshot.providerId).then(() => { setSnapshot(null); setAddress(""); }).catch(reason => setError(getErrorMessage(reason)))}>关闭会话</button></footer> : null}
     </> : null}
   </section>;
+}
+
+export function BrowserPanel(props: BrowserPanelProps) {
+  if (typeof window !== "undefined" && window.lfaaDesktop?.nativeBrowser) {
+    return <NativeBrowserPanel {...props} />;
+  }
+  return <BrowserUsePanel {...props} />;
 }

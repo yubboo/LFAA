@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { BrowserSessionManager } from "../../../packages/browser-use/browser-use/src/session-manager.ts";
 
@@ -61,6 +65,83 @@ function useFakeEdge(manager, browser) {
   manager.channels = [{ id: "lfaa-managed-edge", name: "Fake Edge", channel: "msedge", paths: [process.execPath] }];
   manager.getBrowser = async () => browser;
 }
+
+function makeNativeBrowser() {
+  const context = new EventEmitter();
+  const pages = [];
+  context.pages = () => [...pages];
+  context.newCDPSession = async page => ({
+    send: async method => method === "Target.getTargetInfo" ? { targetInfo: { targetId: page.targetId } } : {},
+    detach: async () => undefined
+  });
+  context.closeCount = 0;
+  context.close = async () => { context.closeCount += 1; };
+  const addPage = (targetId, url, title, text) => {
+    const page = new EventEmitter();
+    page.targetId = targetId;
+    page.isClosed = () => false;
+    page.url = () => url;
+    page.title = async () => title;
+    page.context = () => context;
+    page.mainFrame = () => ({ page });
+    page.locator = selector => selector === "body"
+      ? { innerText: async () => text }
+      : { evaluateAll: async () => [] };
+    pages.push(page);
+    return page;
+  };
+  const appPage = addPage("target-app", "http://localhost:3000/work", "LFAA", "app shell");
+  const nativePage = addPage("target-native", "https://example.com/", "Example", "native page");
+  const browser = { contexts: () => [context], close: async () => undefined };
+  return { browser, context, appPage, nativePage };
+}
+
+test("native Browser Owner binds only the selected non-app Target to its authenticated LFAA session", async () => {
+  const tempDirectory = await mkdtemp(join(tmpdir(), "lfaa-native-browser-test-"));
+  const portFile = join(tempDirectory, "DevToolsActivePort");
+  const previousPortFile = process.env.LFAA_ELECTRON_CDP_PORT_FILE;
+  const previousAppOrigin = process.env.LFAA_ELECTRON_BROWSER_APP_ORIGIN;
+  await writeFile(portFile, "43210\n/devtools/browser/test\n", "utf8");
+  process.env.LFAA_ELECTRON_CDP_PORT_FILE = portFile;
+  process.env.LFAA_ELECTRON_BROWSER_APP_ORIGIN = "http://localhost:3000";
+
+  const manager = new BrowserSessionManager(true);
+  const { browser, context, appPage, nativePage } = makeNativeBrowser();
+  manager.getBrowser = async channel => {
+    assert.equal(channel, "native");
+    return browser;
+  };
+  try {
+    await manager.setNativeActiveTarget("user-a", "session-a", "target-app");
+    await assert.rejects(manager.observeForRun("user-a", "session-a", "lfaa-native-browser"), /当前活动的原生浏览器标签尚未出现在 Chromium 中/u);
+    assert.equal(appPage.listenerCount("framenavigated"), 0, "LFAA app pages are never exposed as native browser targets");
+
+    await manager.setNativeActiveTarget("user-a", "session-a", "target-native");
+    const snapshot = await manager.observeForRun("user-a", "session-a", "lfaa-native-browser");
+    assert.equal(snapshot.url, "https://example.com/");
+    assert.equal(snapshot.pageText, "native page");
+    assert.equal(snapshot.screenshot, null, "native pages are observed without a screenshot interaction surface");
+    assert.equal(nativePage.listenerCount("framenavigated"), 1);
+    assert.equal(snapshot.tabs.length, 1, "the LFAA app page is not included in the Agent's native browser tab snapshot");
+    assert.equal(appPage.listenerCount("framenavigated"), 0, "the LFAA app page is not tracked as a browser tab");
+    await assert.rejects(manager.observeForRun("user-b", "session-a", "lfaa-native-browser"), /请在浏览器工作区选择要交给 Agent 操作的标签页/u);
+    await assert.rejects(manager.setNativeActiveTarget("user-a", "session-a", "missing-target"), /当前活动的原生浏览器标签尚未出现在 Chromium 中/u);
+
+    const afterRejectedTarget = await manager.getPanelSnapshot("user-a", "session-a", "lfaa-native-browser", false);
+    assert.equal(afterRejectedTarget?.url, "https://example.com/", "a rejected Target cannot replace the active page");
+  } finally {
+    try {
+      await manager.closeAll();
+      assert.equal(context.closeCount, 0, "Browser Owner must not close Electron's shared native context");
+    } finally {
+      if (previousPortFile === undefined) delete process.env.LFAA_ELECTRON_CDP_PORT_FILE;
+      else process.env.LFAA_ELECTRON_CDP_PORT_FILE = previousPortFile;
+      if (previousAppOrigin === undefined) delete process.env.LFAA_ELECTRON_BROWSER_APP_ORIGIN;
+      else process.env.LFAA_ELECTRON_BROWSER_APP_ORIGIN = previousAppOrigin;
+      await rm(tempDirectory, { recursive: true, force: true });
+    }
+  }
+});
 
 test("Browser Owner enforces isolated account/session contexts and strict navigation URLs", async () => {
   const manager = new BrowserSessionManager(true);

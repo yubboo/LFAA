@@ -8,4 +8,6 @@
 
 HTTP 池最多 32 连接，空闲 30 秒回收；stdio 最后租约结束即关闭。Run 取消只影响当前调用，宿主卸载撤销连接，不缓存/重放副作用。Settings 的 plugins.enabled、mcpServers、computerControl.enabled 与现有权限管线共同控制范围；不安装未知 MCP 或自动获取凭据。
 
+`discoverMcpTools` 默认对账当前用户/App 的启用列表，属于 Agent 能力发现的权威入口。来源检查及安装适配器的安装前探测/状态回读传入 `{ reconcile: false }`：它们只借用或临时租赁指定候选连接，不会因候选清单不完整而关闭其他 MCP 会话；调用者仍须在 `finally` 释放返回的租约。取消信号和账户、App 绑定不变。
+
 构建输出为根 `dist/packages/mcp/mcp-client/`。协议夹具覆盖工具、资源、取消、图片、撤销及 207 项大目录的按需检索/调用和 2020-12 参数校验；真实 REA npm MCP、Provider、目标程序和桌面未实测。

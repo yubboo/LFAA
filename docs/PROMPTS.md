@@ -170,15 +170,26 @@
 | 163-AI-Work-Git操作菜单与实时变更数-20261021 | 在多项目摘要每行悬停显示 Git 操作入口，在卡片左上角展示提交/推送/创建分支/切换分支，并在 Agent 写入后刷新真实增删行数 | 定向回归 11/11、Client 包/Web 构建通过；内置浏览器 `/work` 已验收 1646×1244 桌面、768×1024 平板、390×844 与 390×667 手机视口，菜单均完整可见且不挡项目内容 | [本轮合同](#lfaa-ai-work-git-summary-actions-live-counts-20261021) |
 | 164-AI Work刷新状态闪烁与模型目录标签-20261021 | 稳定 `/work` 刷新期间的项目、用量和模型信息，并缩短 AI Work 首屏嵌套模块加载等待 | 首屏并行预热、用量显示及带版本模型标签已验收；Web/Control Plane 构建和内置浏览器刷新通过 | [本轮合同](#lfaa-ai-work-refresh-flicker-model-label-20261021) |
 | 165-AI-Work流式历史消息渲染优化-20261021 | 流式回复时只重绘发生变化的消息行，避免每个增量都重新渲染历史内容与未变化用量栏 | 已实施；定向回归、Client/Web 构建与内置浏览器桌面/窄屏验收通过；版本标签完整可见；未测帧时间 | [本轮合同](#lfaa-ai-work-stream-message-row-render-20261021) |
-| 166-LFAA-Harness通用DSH插件运行时融合-20261021 | 以 LFAA 为唯一 Agent/Host 融合 DSH bundle、Host 与 Client 扩展，不按单个插件特判 | B1 Owner/协议映射完成；通用请求路由 Hook 通过回归；DSH 多 patch 清单识别通过 20/20；任意 DSH Host/Client Runtime 尚未实现，已装 dsh-router-laya 仍不兼容 | [本轮合同](#lfaa-harness-dsh-integration-20261021) |
-| 167-LFAA工作区浏览器预览台与多浏览器接入-20261021 | 让右侧“预览台”成为人和 Agent 可双向操作的浏览器工作区：点击、键入/输入法、按键和滚轮共享同一会话，普通鼠标指针、清晰页面与 Dock 自适配 | 高度与留白批次已修复；人机双向交互批次实施中；Agent 控制和账户设置保持原值 | [本轮合同](#lfaa-browser-preview-and-providers-20261021) |
-| 168-LFAA-Harness-Agent工具执行闭环补充-20261021 | 修复并行澄清后 Run 被终止、工具调用事件不成对，以及批次取消时未派发调用无状态的问题 | Agent Runtime/Discovery/LLM 组合回归 17/17、类型检查、203 包工作区检查与 Agent Loop 包构建通过；真实 Provider Run 未测 | [本轮合同](#p1-agent-tool-execution-loop-20261021) |
-| 169-LFAA本机默认工作区解除节点绑定-20261021 | 默认本机项目不依赖 Daemon 节点；修复 `/work` 默认工作区仍绑定离线节点并报错，显式远程项目继续保留节点归属 | 源码与隔离迁移回归通过；当前认证 API 已确认真实默认项目 `nodeId: null`，新 `/work` 内置浏览器标签已加载且无离线节点错误；窄视口和项目文件读写/Git/HTML 操作仍未验 | [本轮合同](#lfaa-local-default-workspace-without-daemon-node-20261021) |
+| 166-LFAA-Harness通用DSH插件运行时融合-20261021 | 以 LFAA 为唯一 Agent/Host 融合 DSH bundle、Host 与 Client 扩展，不按单个插件特判 | 通用 Client 认证边界回归通过；控制端/Web 构建和 `/work` 实页加载通过。构建后仍检测到浏览器/设置源码变化导致 `host/web` 指纹过期；通用 DSH Host RPC 与插件真实运行仍未完成 | [本轮合同](#lfaa-harness-dsh-integration-20261021) |
+| 167-LFAA工作区浏览器预览台与多浏览器接入-20261021 | 让右侧“预览台”成为人和 Agent 可双向操作的浏览器工作区：点击、键入/输入法、按键、拖动和滚轮共享同一会话 | 人机网页交互已在 `/work` 隔离 Edge 实页验证；Agent Browser Use 当前仍关闭，网站登录/授权与验证码由用户手动操作；原生浏览器权限弹窗、窄短视口与 Desktop WebView 待验 | [本轮合同](#lfaa-browser-preview-and-providers-20261021) |
+| 168-LFAA-Harness-Agent工具执行闭环补充-20261021 | 修复并行澄清后 Run 被终止、工具调用事件不成对，以及批次取消时未派发调用无状态的问题 | ✅ 源码/隔离回归完成：Agent Runtime/Discovery/LLM 组合回归 17/17、类型检查、203 包工作区检查与 Agent Loop 包构建通过；真实 Provider Run 未测 | [本轮合同](#p1-agent-tool-execution-loop-20261021) |
+| 169-LFAA本机默认工作区解除节点绑定-20261021 | 默认本机项目不依赖 Daemon 节点；修复 `/work` 默认工作区仍绑定离线节点并报错，显式远程项目继续保留节点归属 | ✅ 默认项目解绑源码/隔离迁移回归和当前认证 API 复验通过：项目 `nodeId: null`，`WIN-20250328BHE` 仅作为 `local: true` Host 单列。当前 `/work` 受构建完整性保护页阻挡，旧截图不是当前 API 证据；项目文件读写/Git/HTML Agent 操作仍待验 | [本轮合同](#lfaa-local-default-workspace-without-daemon-node-20261021) |
 | 170-AI-Work中间聊天留白、滚动条贴边与响应式拉伸复核-20261021 | 让中间聊天整块区域与左右分隔区保留响应式间隙；让消息滚动条沿右侧间隙贴中心列边缘且止于输入框顶部；覆盖桌面、紧凑、手机、窄分栏与短屏，并复核小屏 Dock 拖拽吸附 | 本批定向回归 13/13、ui-workspace 构建与完整 Web 构建通过（2,272 模块）；构建指纹最新、`/work` HTTP 200；内置浏览器页面未刷新，视觉验收待安全处理默认工作区路径登记后进行 | [本轮合同](#lfaa-ai-work-responsive-gutters-drag-20261021) |
-| 171-AI-Work用量提示遮挡输入框-20261021 | 移除缓存与上下文按钮的浏览器原生悬浮提示，避免底部悬浮提示覆盖输入框；保留可访问名称及点击详情 | ui-chat 包/Web 构建与差异检查通过；当前构建入口引用无提示属性的新聊天资源；内置浏览器实页未验 | [本轮合同](#lfaa-ai-work-usage-native-tooltip-20261021) |
-| 171-LFAA-Harness原始总任务书续跑-20261021 | 按用户原始 18 章任务书持续完成 Agent、浏览器、扩展安装、权限、性能和 A–L 端到端验收，并维护跨轮次计划/进度 | 实施中：A 隔离真实浏览器合成闭环通过，P1 源码闭环已修；P2 已完成 Browser Host 账户/Session/Run 高层桥接底座与隔离 Agent 闭环；Web Access 安全运行适配、安装和多数 A–L 尚未闭环 | [本轮总合同](#lfaa-harness-taskbook-20261021) |
-| 172-AI-Work悬停文字提示补齐-20261021 | 核对 `/work` 输入操作区和用量栏的悬停文字提示，统一图标/窄栏操作为悬停与键盘聚焦可见说明 | 实施中；内置浏览器没有可复用的 `/work` 标签，页面刷新仍受默认工作区登记写入限制 | [本轮合同](#lfaa-ai-work-hover-tooltips-20261021) |
+| 171-AI-Work输入框悬停黑框与闪线-20261021 | 修复悬浮提示覆盖输入框造成的黑框/闪线；保留提示文案、可访问名称和点击详情 | 内置浏览器真实悬停矩形无输入区交叠；缓存/上下文点击详情通过；定向回归 11/11、ui-chat/Web/控制端构建与最新指纹通过 | [本轮合同](#lfaa-ai-work-usage-native-tooltip-20261021) |
+| 171-LFAA-Harness原始总任务书续跑-20261021 | 按用户原始 18 章任务书持续完成 Agent、浏览器、扩展安装、权限、性能和 A–L 端到端验收，并维护跨轮次计划/进度 | 实施中：A 隔离真实浏览器合成闭环通过；G 现有工具完成合成 Provider→真实隔离 Edge 的 HTML 创建、缺陷发现、摘要保护修复和复验；同源预览重载已修；P1 源码闭环已修；P2 外部 Runtime 和多数 A–L 尚未闭环 | [本轮总合同](#lfaa-harness-taskbook-20261021) |
+| 172-AI-Work悬停文字提示补齐-20261021 | 核对 `/work` 输入操作区和用量栏的悬停文字提示，统一图标/窄栏操作为悬停与键盘聚焦可见说明 | 实现及构建完成；定向回归 11/11；内置浏览器实页未验，保持默认工作区路径登记不变 | [本轮合同](#lfaa-ai-work-hover-tooltips-20261021) |
 | 172-LFAA Browser Host Run 桥接底座-20261021 | 建立由 Browser Owner 管理、绑定账户/LFAA Session/Agent Run 的内部高层动作桥，复用 Agent Loop Permission Owner，并在 Run 结束时回收桥接句柄 | 已实现；Browser Owner 4/4、隔离 Agent HTML 预览 2/2、电脑/浏览器设置合同 1/1、Browser 包构建、全仓类型检查、203 包工作区检查与差异检查通过。Web Access 上游 Proxy/脚本未接入，P2/C 仍未完成 | [本轮合同](#lfaa-browser-host-run-bridge-20261021) |
+| 173-LFAA-Harness端到端G隔离开发循环-20261021 | 验证 Agent 经 Project Files 与 Browser Owner 完成 HTML 创建、浏览器发现缺陷、按最新摘要修复和实页复验 | ✅ 隔离 Agent/合成 Provider/实际本机 Edge 开发循环 3/3，Browser 包构建、全仓类型与工作区检查通过；真实 Provider、桌面版和 P6 性能基线仍待验 | [本轮合同](#lfaa-harness-e2e-g-loop-20261021) |
+| 174-LFAA-Harness Skill 安装后同 Run 浏览器能力承接-20261021 | 验证同一隔离 Agent Run 能通过现有 Capability Install、Project Files 与 Skill Owner 安装/发现/加载 Skill，再自主选择已登记的 LFAA Browser Tools 打开本机测试页 | ✅ 固定合成来源、实际 Project Files Owner、同 Run Skill 加载和真实隔离 Edge 子项通过；修复 Windows 相对路径分隔符导致的安装回读误判。Web Access 上游运行/C 项仍未完成 | [本轮合同](#lfaa-harness-skill-browser-same-run-20261021) |
+| 175-Plugin Manager 清单 v5 迁移回归隔离-20261021 | 让插件清单迁移回归不争用正式 LFAA Home 锁，并验证 v1/v4 清单升级到 v5 后补齐空 requirements | 用例 Home 与 Data 分开隔离；Agent 路由与 Plugin Manager 回归 26/26，五个直接包构建、类型、203 包工作区检查通过。正式 Web 指纹仍显示 host/web 过期，未重启服务或冒充真实 Provider 验收 | [本轮合同](#lfaa-plugin-manager-inventory-v5-test-isolation-20261021) |
+| 176-MCP HTTP 安装调用停用移除生命周期-20261021 | 用隔离 Settings Owner、真实 MCP Streamable HTTP 协议与 Agent Loop/Permission Owner 核对安装、调用、批准/拒绝、停用、移除和连接回收 | ✅ 隔离 HTTP 生命周期及 HTTP/stdio Runtime 回归 6/6；Agent Loop 批准执行/拒绝不派发 6/6；直接包构建、类型、203 包检查通过。真实远端服务待验 | [本轮合同](#lfaa-harness-mcp-http-install-lifecycle-20261021) |
+| 177-MCP 本机 stdio 安装权限与生命周期-20261021 | 允许模型仅在用户明确提供本机命令并经统一 Permission Owner 授权后检查、安装、调用、停用和移除 stdio MCP；不解析 Shell、不由适配器下载程序、不打断其他 MCP 会话 | ✅ 隔离 Settings Owner/Runtime 真实 stdio 检查、安装、调用、停用、移除和进程回收 13/13；3 个 Owner 包构建、全仓类型、203 包检查通过；真实用户服务/Provider/审批 UI 待验 | [本轮合同](#lfaa-harness-mcp-stdio-install-lifecycle-20261021) |
+| 178-LFAA 原生浏览器工作区与 Agent Browser 同会话控制-20261021 | 把右侧 Browser Dock 改为 ChatGPT 式真浏览器工作区：使用原生 Chromium 页面视图，具备正常浏览器核心操作，并让 Agent Browser 控制用户当前可见的同一标签页 | ✅ 源码、隔离生命周期及 Web 设置页实测完成；Electron `WebContentsView` 与 Browser Owner 当前 Target 绑定已接入。真实 Electron 页面、权限/下载原生交互、Agent 精确 Target 实际操作和性能仍未验 | [本轮合同](#lfaa-native-browser-agent-browser-20261021) |
+| 179-Skill 安装检查中的运行风险静态提示-20261021 | 在检查与安装审批中揭示第三方 Skill 涉及的后台进程、浏览器远程调试、任意页面脚本、本机文件与用户目录持久化线索，避免把纯文本复制误说成运行兼容 | ✅ 静态风险盘点、根 Skill 附属目录写入和定向回归 11/11 完成；直接包构建、类型与 203 包检查通过。上游脚本没有运行，Web Access C 仍未完成 | [本轮合同](#lfaa-skill-runtime-risk-audit-20261021) |
+| 180-LFAA-Harness-E2E-H审批拒绝后替代写入封锁回归-20261021 | 明确验证模型在一项写操作被拒绝后，改用另一个仍可见的写工具也不能绕过当前 Run 的统一拒绝门禁 | ✅ Agent Loop/MCP 合成回归 13/13；替代写工具仍在后续目录中，调用记为 `not_started`，副作用计数为零；真实 Provider 与审批 UI 仍待验 | [本轮合同](#lfaa-harness-e2e-h-denial-fallback-20261021) |
+| 181-LFAA-Harness-E2E-I浏览器取消资源回收-20261021 | 验证 Agent Run 取消正在进行的浏览器导航后，Browser Owner 关闭隔离页面、撤销 Run 桥接并回收项目预览服务 | ✅ 隔离真实 Edge + 挂起本机 HTTP 页面回归；浏览器/Agent Runtime 11/11。MCP 安装取消由 182 部分补齐；其他 Adapter 回滚、Electron 与真实 Provider 仍待验 | [本轮合同](#lfaa-harness-e2e-i-browser-cancel-cleanup-20261021) |
+| 182-LFAA-Harness-E2E-I-MCP安装取消防写入-20261021 | 检查安装期间 Run 取消是否会阻止 MCP 设置写入，并回收隔离 stdio 子进程及一次性凭证 | ✅ 回归复现并修复取消后仍写设置；隔离 MCP/Capability Install 9/9、包构建、全仓类型、203 包工作区与差异检查通过；stdio 子进程退出且凭证不可重放 | [本轮合同](#lfaa-harness-e2e-i-mcp-install-cancel-20261021) |
+| 183-LFAA-Harness-E2E-J账户与Session隔离-20261021 | 补齐通用安装检查凭证跨账户隔离证据，并汇总项目、MCP、Browser Owner 的已有账户/App/Session 隔离边界 | ✅ 跨账户借票据拒绝及原账户继续安装；Workspace、Browser、MCP、Capability Install 隔离组合回归 21/21；真实用户双账户和完整数据目录仍待验 | [本轮合同](#lfaa-harness-e2e-j-identity-isolation-20261021) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
@@ -4205,13 +4216,20 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 ### 阶段进度与当前证据（2026-10-21）
 
 - **B1 已完成（Owner/协议映射）。** DSH `dsh.bundle.patch` 是 Cordis Profile composition，不是 LFAA Tool/Skill 清单；其 Host entries 依赖 DSH Agent/Session/LLM/Permission 等服务，Client entries 由 DSH Client Module Loader/注入服务消费。LFAA `plugin-manager` 已固定来源并读取 DSH 版本、Host/Client 入口、patch、依赖、注入项和脚本声明，但一般 `dsh-v1` 仍没有通用 Host/Client 适配器。LFAA 当前仅有两条窄运行路径：Windows AppContainer 运行无额外 capability、无 IPC 的 `lfaa-v1` `.mjs`；官方 Wallpaper Engine 运行固定合同的 DSH v1 适配器。`ui-plugin-manager` 的 DSH Slots 只贡献管理 UI，不等同于可执行 DSH Client Runtime。
-- **B2 目前完成两项 LFAA 通用底座，尚未完成 DSH Runtime。** 新增 `AiRuntimeHookRegistry.requestRoute`，允许受信任 LFAA Cordis Hook 针对每个真实 Provider 请求，建议当前账户已配置模型及模型目录公开的思考档位；Agent Loop 用 Settings/Credential Owner 重新校验账户归属与思考能力，只把已校验模型真正发给 Provider。Plugin Manager 按 DSH 清单合同识别 `dsh.bundle.patch` 的单路径和有序多路径，并将已校验路径回传到 `requirements.bundlePatch` JSON；定向插件管理回归现为 20/20。它们不导入 DSH bundle、不执行第三方代码，也没有实现 DSH Host event、Client API、依赖/ABI 装配或隔离桥接；因此不能据此声称任意 DSH 插件已能运行。
+- **B2 目前完成 LFAA 通用请求路由与清单底座，尚未完成 DSH Runtime。** 新增 `AiRuntimeHookRegistry.requestRoute`，允许受信任 LFAA Cordis Hook 针对每个真实 Provider 请求，建议当前用户账户 Provider 目录中的模型及该模型目录公开的思考档位；候选最多 128 项且不含凭据/连接信息。Agent Loop 用 Settings/Credential Owner 重新校验用户/账户归属、目标模型确实存在于已保存 Provider 目录、思考档位受该模型能力支持，再将真实选中模型与对应账户凭据发送给 Provider；同账户跨模型且未指定思考档位时走 Provider 默认值，不更改账户偏好。新增 `modelId` 路由回归覆盖同账户切换、真实 Provider 请求模型/凭据及目录外模型拒绝。Plugin Manager 按 DSH 清单合同识别 `dsh.bundle.patch` 的单路径和有序多路径，并将已校验路径回传到 `requirements.bundlePatch` JSON；定向插件管理回归现为 20/20。它们不导入 DSH bundle、不执行第三方代码，也没有实现 DSH Host event、Client API、依赖/ABI 装配或隔离桥接；因此不能据此声称任意 DSH 插件已能运行。
+- **本批 Profile 清单持久化（已完成，通用运行时仍进行中）。** 为避免安装后或控制端重启丢失已核验的 Host/Client/patch 声明，Plugin Manager 清单升至 v5，固定来源 snapshot 的 bounded `requirements` 与记录一起保存；v1–v4 按未知空声明兼容读取，首次正常生命周期写入迁移到 v5。该改动不重新信任安装目录、不执行声明脚本，也不改变插件兼容或授权状态。下一批继续实现通用隔离 Host/RPC；本批验收不代表 DSH Host/Client 可执行。
+- 本批直接验收：`pnpm --filter @yubboo/lfaa test -- tests/plugin-manager.test.mjs` 20/20 通过，覆盖 DSH 单 patch 安装后跨管理器重读、多 patch 原顺序重读，以及 v1/v4 清单安全迁移到 v5；`pnpm --filter lfaa-plugin-manager run build` 成功，`git diff --check` 通过。当前无 UI 改动，未运行浏览器验收；该批只验证来源元数据持久化，不证明 DSH Host/Client 可执行。
 - **B3 默认工作台真实 Agent 验收（2026-10-21）。** ChatGPT 内置浏览器实际路由 `http://127.0.0.1:3000/work`，默认工作区、模型 `DeepSeek-V4.1-Flash 1017 / deepseek-flash`。发送用户指定的安装与真实档位切换测试任务后，LFAA 主 Agent 实际调用了已登记工具，并检查 `dsh-router-laya` 固定提交 `29624e7…`、版本 `2.2.1`、`dsh.bundle`、Host/Client 清单；它如实报告当前没有匹配的 LFAA Host/Client Runtime，未安装、未启用、未执行插件代码，也没有声称切换思考档位或节省 token。随后在 `/plugin-manager?view=plugins` 实页复核，当前 `web` Profile 已安装清单为 0 项；先前另一轮只读来源检查返回 `incompatible / canEnable=false`，并不表示插件已安装，故与空清单并不冲突。测试会话的 UI 汇总统计为约 46.1K tokens、缓存读取 30,592 tokens（约 69.3%）；这是本次 LFAA 测试对话的 Provider 聚合数据，不是插件带来的节省。没有出现插件安装审批卡，因为 Agent 未开始安装；没有改变 `permissions.mode`、Provider 或会话设置。
 - **插件真实实现核对。** 指定上游 [`dsh-router-laya`](https://github.com/HapyRain/dsh-router-laya) README、`package.json`、`index.js` 与 `client.js` 显示：首次 setup 要创建 Python 虚拟环境、下载约 842–846 MB 的本地分类模型并启动常驻服务；要求 Node ≥18、Python ≥3.10、约 2 GB 磁盘。Host 会启动子进程并请求本机 `127.0.0.1:8765` 服务，记录 DSH `agent/inbox/claimed` 与 `agent/request` 事件；Client 作为独立模块注入输入栏，并同时读取本机服务与 Host 模式路由。源码内置的默认模型路由包含 `deepseek-official/deepseek-flash` 与 `qwen-token-plan-cn/qwen3.8-flash`，其选择必须映射到 LFAA 当前账户实际配置且模型目录支持的路由，不得照搬为 LFAA 固定默认值。当前 LFAA 通用 DSH Host/Client Runtime、受控 Python/网络/进程能力、服务 RPC 桥和事件适配合同尚未实现。因此当前真实验收结果是“Agent 能检查来源并说明能力缺口”，不是“Agent 已完成插件安装/启用”或“已节省 token”。
 - **Provider 历史实测（只作基线）。** 既有一次模型调用记录显示 Provider 统计覆盖 4/4 次请求，输入 49,723、输出 1,769、缓存读取 48,128、未缓存输入 1,595 tokens，缓存读取占比 96.8%；这只代表该 Provider/模型/会话真实返回的数据。当前选中的另一个历史会话有 10 条汇总记录，旧记录没有保存 Provider 统计覆盖数，UI 如实显示总输入 182,329、输出 3,464 tokens，缓存命中率未知；没有把缺失读数当成零或用其他会话数据填补。该会话上下文占用 18.8K / 1M，容量来自模型目录，系统提示/工具定义/对话分项分别约 1,317/7,964/2,176 tokens 并标为估算。
 - **响应式只读检查。** 同一路由 `720×800` 时页面文档宽度 `710`，无整页横向滚动，聊天正文与缓存徽标可见；`390×844` 时页面文档宽度 `380`，当前打开的“工具与资源”右 Dock 覆盖聊天区域，页面提供“收起工具与资源”控件。本轮没有点击该控件或保存布局偏好；窄屏聊天内容在 Dock 关闭状态、帧时间和真实手机触控未验。视口覆盖已重置。
-- **代码验证。** `apps/cli/tests/agent-runtime.test.mjs` 的 Agent Loop 合成回归包含已配置路由、Provider 请求目标与凭据选择，以及拒绝未配置账户，6/6 通过。插件管理定向回归 `pnpm --filter @yubboo/lfaa test -- tests/plugin-manager.test.mjs` 20/20 通过，覆盖字符串清单兼容、多路径顺序、安装后保持不兼容和启用拒绝。`lfaa-plugin-manager`、`lfaa-client-connection` 及此前记录的 Hook/Settings/Agent Loop/App Boot/UI 相关包构建通过；最新 `pnpm exec tsc --noEmit -p tsconfig.host.json` 与 `pnpm exec tsc --noEmit -p tsconfig.client.json` 均通过。Web 正式构建由菜单完成，服务报告 `127.0.0.1:3000`，`/work` HTTP 200，运行树指纹检查为空。真实设备帧时间及任意第三方 DSH Runtime 尚未验收。
-- **通用运行时安全边界。** 本机 DSH `cordis-host-runner` 源码将其 `node:vm` 描述为“不是隔离边界”；LFAA 的 Windows AppContainer v1 目前只有就绪/停止握手，没有 Host 服务 RPC。把任意 DSH 模块直接导入控制端会绕过工具权限和秘密隔离，不能作为通用适配。下一批必须建立 LFAA 唯一 Profile 下的隔离 DSH Host/Client 执行器、受限 JSON RPC 服务桥、依赖/多 patch 装配和生命周期回读，再按多种通用合同回归。当前工作副本在 `http://127.0.0.1:3000/api/health` 实测返回 `status=ok`，但 ChatGPT 内置浏览器最初页面所在标签已被连接拒绝错误页占用；新建的内置浏览器标签 `http://127.0.0.1:3000/plugin-manager?view=plugins` 成功恢复并读取到 0 项清单。首次 Web 进程异常退出及恢复过程已区分为运行进程/浏览器标签问题；当前源码没有因这次故障被改动。
+- **代码验证。** `apps/cli/tests/agent-runtime.test.mjs` 的 Agent Loop 合成回归包含已配置账户路由、Provider 请求目标与凭据选择，以及拒绝未配置账户，6/6 通过。2026-10-21 本轮扩展同一回归，验证一个账户切换至已保存 Provider 目录中的第二模型会改变真实 Provider 请求模型但沿用该账户密钥，目录外模型会回退到用户选择，仍 6/6 通过；测试专用隔离 Home 位于 `dist/.tmp`，结束后确认目录为空并移除。四个直接相关包 `lfaa-settings`、`lfaa-agent-default-model`、`lfaa-hook-protocol`、`lfaa-agent-loop` 均构建到根 `dist/packages/` 成功，`pnpm exec tsc --noEmit -p tsconfig.host.json` 通过。插件管理定向回归 `pnpm --filter @yubboo/lfaa test -- tests/plugin-manager.test.mjs` 20/20 通过，覆盖字符串清单兼容、多路径顺序、安装后保持不兼容和启用拒绝。`lfaa-plugin-manager`、`lfaa-client-connection` 及此前记录的 Hook/Settings/Agent Loop/App Boot/UI 相关包构建通过；此前 `pnpm exec tsc --noEmit -p tsconfig.client.json` 通过。Web 正式构建由菜单完成，服务报告 `127.0.0.1:3000`，`/work` HTTP 200，运行树指纹检查为空。此模型路由批次无 UI 改动；真实设备帧时间及任意第三方 DSH Runtime 尚未验收。
+- **通用运行时安全边界。** 本机 DSH `cordis-host-runner` 源码将其 `node:vm` 描述为“不是隔离边界”；LFAA 的 Windows AppContainer v1 目前只有就绪/停止握手，没有 Host 服务 RPC。把任意 DSH 模块直接导入控制端会绕过工具权限和秘密隔离，不能作为通用适配。下一批必须建立 LFAA 唯一 Profile 下的隔离 DSH Host/Client 执行器、受限 JSON RPC 服务桥、依赖/多 patch 装配和生命周期回读，再按多种通用合同回归。此前 `/plugin-manager?view=plugins` 的 0 项清单是历史只读检查；本批重启后的内置浏览器在 `http://127.0.0.1:3000/work`、1280×720 登录并显示默认工作区，`/api/health` 为 `ok`、`/work` 为 HTTP 200。构建后又有浏览器/设置源码更新，`host/web` 指纹不一致，因此不能把当前页面加载等同于最新源码构建已验收。
+- **`dsh-router-laya` 当前上游运行合同（只读核验）。** GitHub `main` 当前指向 `29624e7e89d64d25ba0e6d8b3a6d79a1823c357e`、版本 `2.2.1`，清单含 `index.js`、`client.js`、`cordis.patch.yml` 和 `@deepseek-ai/schemastery` peer。Host 会用 `node:child_process.spawn` 启动 Python 判定服务、用 `node:fs` 探测本地文件，并通过 loopback HTTP 查询/调用该服务；Client 是独立 Web 模块。现有 LFAA AppContainer 给插件进程 512 MiB、Job Object 单进程、无网络且源码只读，因此它从代码层面不可能完成所需服务启动与模型调用。不能为了通过此插件而把第三方代码直接导入 Control Plane、授予无界文件/网络/子进程权限，或给本插件 ID 写专用例外。支持它需要通用 DSH Host 生命周期和 LFAA 权限拥有的进程、持久数据及 RPC 能力；未完成前不能声称可启用或节省 token。上游参考：[README](https://github.com/HapyRain/dsh-router-laya/blob/29624e7e89d64d25ba0e6d8b3a6d79a1823c357e/README.md)、[package.json](https://github.com/HapyRain/dsh-router-laya/blob/29624e7e89d64d25ba0e6d8b3a6d79a1823c357e/package.json)、[Host](https://github.com/HapyRain/dsh-router-laya/blob/29624e7e89d64d25ba0e6d8b3a6d79a1823c357e/index.js)、[Client](https://github.com/HapyRain/dsh-router-laya/blob/29624e7e89d64d25ba0e6d8b3a6d79a1823c357e/client.js)。
+- **本机沙盒基线回归。** `node --import tsx --import ./register-package-loader.mjs --test ./tests/plugin-sandbox.test.mjs`（`apps/cli`）通过 2/2：实测 LFAA v1 进程只读源码、阻止本机网络并能回收 ACL，以及真实启动/停止握手。该结果证明现有 v1 沙盒合同按设计工作；不证明它满足 DSH Host 所需的 Python 子进程、数据写入、网络或 Client 生命周期。
+- **B2 通用 Client 认证装配（本批）。** DSH 启动图中的 Client 条目身份是 `package.json.name`，上游 wire 不带 LFAA 认证策略；当前实现按 Wallpaper Engine 单个 ID 从未认证图中剔除，导致其他受管 DSH Client 没有可复用的认证边界。改为 WebServer Carrier 统一注入由活动 Runtime 注册的认证必需模块 ID，Client 按该通用元数据过滤条目及依赖它们的条目；注册与清理绑定 Runtime 生命周期，图结构无变化时不重算其余状态。不增加设置或改变用户认证行为。直接回归覆盖多个任意模块 ID、依赖传递、批次清理、无副作用和注销恢复；该批只完善 Client 认证装配，不宣称 DSH Host Runtime 已实现。
+- **B2 Client 认证批验收。** `pnpm --filter @yubboo/lfaa test -- tests/dsh-client-module-auth.test.mjs tests/dsh-carrier.test.mjs tests/dsh-wallpaper-engine-runtime.test.mjs tests/plugin-manager.test.mjs` 通过 33/33；`pnpm run build:control-plane` 成功；`pnpm run build:web` 通过 Client TypeScript 与 Vite 构建（2,275 模块，只有现有大 chunk 警告）；`git diff --check` 通过。构建产物均位于仓库根 `dist/`。正式入口报告 `http://127.0.0.1:3000` 就绪，`/api/health` 为 `ok`、`/work` 为 HTTP 200，内置浏览器 `/work` 1280×720 可见默认工作区、已连接控制端及真实模型用量状态。重启使原登录态失效；按登录页显示的默认 admin 凭据重新登录，没有修改设置或发送新的 Provider 请求。实页只验工作台成功加载，不以此证明 DSH 插件已安装/运行。
+- **构建指纹边界。** 两次完整构建并按正式入口重启后，`node scripts/runtime-build-state.mjs web` 仍返回 `["host","web"]`；健康检查和页面仍正常，但构建状态不满足最新源码条件。对比构建产物时间，之后的源码更新集中在浏览器/设置开发文件（`packages/browser-use/browser-use/src/session-manager.ts`、`packages/client/ui-sidebar-browser/src/NativeBrowserPanel.tsx`、`packages/client/ui-settings/src/SettingsPage.tsx`、`packages/client/connection/src/api.ts`、`apps/desktop-electron/src/*` 与对应测试）；这些改动不属于本合同范围，本批没有覆盖或反复构建它们。按仓库规则，本轮不能标记最新 Host/Web 运行树指纹通过。
 - **下一批边界。** 以 DSH 通用 Host/Client ABI 与 LFAA 现有 Context、Module Loader、Permission Owner、Plugin Manager 的桥接为对象，再覆盖多种 bundle 形态；不能通过增加 `dsh-router-laya` ID 特例或扩大 Wallpaper Engine 适配器完成。当前合同仍处于实施中。
 
 <a id="lfaa-browser-preview-and-providers-20261021"></a>
@@ -4328,6 +4346,12 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 - **Owner、设置与安全边界：** Browser Session/真实 Page 动作唯一归 `packages/browser-use/browser-use`；认证、账户提供方核验仍由 Browser Controller 执行；Client API 归 `packages/client/connection`；Dock 的人类输入采集/视觉呈现归 `packages/client/ui-sidebar-browser`。使用当前 `browserUse.enabled`、`browserUse.enabledProviderIds`、`browserUse.showFullUrl`、`computerControl.enabled` 与唯一 `permissions.mode`；不增加或修改设置、不改用户偏好。个人 Tabbit 操作继续由现有认证与电脑操控设置限制；键盘文本仅由用户在 Dock 亲自输入，不读取或代填网页密码、令牌、验证码；限制动作参数、批次大小、请求频率与队列长度，取消/切换/卸载时撤销 timer 和待发内容。
 - **实现范围：** 给 Browser Controller 增加经过 schema 校验的有限文本输入、常用导航/编辑按键、滚轮与有界鼠标拖动动作，并由同一 Session Manager 操作真实隔离 Page/Tabbit Adapter；Dock 聚合输入法文本与短时连续滚动、用 Pointer Events 记录用户拖动轨迹，排队顺序执行，不重叠或静默丢动作；动作结束时同步最新真实截图/页面快照。拖动只来自用户在 Dock 的手势，不登记为 Agent Tool。登录、授权和验证码由用户本人在页面中输入/点击/拖动，Agent 不自动求解或绕过；密码与验证码不会通过页面观察工具回读。截图采集质量只在现有有界字节数内调整；鼠标设为普通指针；加载反馈不得覆盖或阻止仍需输入的页面工作区。地址/页面意图、真实提供方连接状态照旧；不添加远程网页 JS、完整 CDP、shell 或任意页面执行。
 - **按批次验收：** 先完成 API/Owner 合同和真实浏览器回归，再完成 Dock 输入/滚轮/按键与队列回归，最后分别在正式源码 Web 的 ChatGPT 内置浏览器桌面和窄短视口检查。页面交互只用本地非敏感临时文本且不提交登录表单；离开/刷新后确认文本清除。记录实测 URL、视口、鼠标与输入结果、页面截图/容器尺寸、动作延迟样本与未测设备；构建、类型检查不得冒充实页交互验证。
+- **实现结果：** 截图页面已支持真实 Page 点击、文本/输入法、受限按键、鼠标按住/移动/抬起和滚轮/触屏滚动；操作共享当前 LFAA Session，顺序派发后回读新页面。敏感字段仍由用户亲自填写，Agent 工具不回读或代填密码、验证码、令牌；没有验证码自动求解、网页任意脚本、完整 CDP、浏览器个人 Profile 镜像或原生浏览器权限弹窗支持。
+- **设置中心与权限：** 继续使用 `browserUse.enabled`（默认 `false`，控制 Agent 工具发现）、`browserUse.enabledProviderIds`（默认空，控制已接入提供方）、`browserUse.showFullUrl`（默认 `false`，关闭时地址栏只显示站点来源）、Tabbit 专用的 `computerControl.enabled` 与统一 `permissions.mode`。本次实页显示 LFAA Edge 已接入、Agent 控制关闭、权限模式为请求审批；没有写入或修改真实账户设置。当前关闭的 `showFullUrl` 会隐藏地址路径，但页面仍实际打开了 `http://127.0.0.1:8791/index.html`。
+- **代码与回归：** Browser Session/拖动 Owner 在 `packages/browser-use/browser-use/src/session-manager.ts`；Controller 参数验证与动作派发在 `packages/api/browser-controller/src/index.ts`；Client API 合同在 `packages/client/connection/src/api.ts`；Dock 人机输入和同页画面在 `packages/client/ui-sidebar-browser/src/BrowserPanel.tsx` 与 `browser-panel.css`；设置说明在 `packages/client/ui-settings/src/SettingsPage.tsx`。包 README 与隔离浏览器回归同步更新。`pnpm --filter lfaa-browser-use test` 1/1、`pnpm run typecheck`、`pnpm run build:harness`、`pnpm run build:control-plane`、`pnpm run build:web`、`node scripts/runtime-build-state.mjs web`（`[]`）及 `git diff --check` 均通过；构建输出位于根 `dist/`。
+- **内置浏览器实测：** `http://127.0.0.1:3000/work`，外层视口 1280×720，右侧 Dock 使用 LFAA Edge。实际打开 `http://127.0.0.1:8791/index.html` 并从 Dock 点击按钮，页面文本返回“你点了 1 次”；此前同一 `/work` Dock 的本地临时交互页实测输入 `LFAA 手动输入测试`、拖动回报 437px、滚动回报 936px。测试页与临时 8792 服务已删除/停止，8791 用户页面服务保持原状。首次导航期间 3000 服务进程更换，API 短暂显示 `Failed to fetch`；确认 `/api/health` 与 `/work` 恢复 HTTP 200 后重开成功。Host 重启会清空内存 Browser Session，这是当前生命周期行为。
+- **外部排查与未测项：** 社交媒体、Stack Overflow 技术社区、LFAA GitHub Issues/PR 与 Playwright 官方文档均没有提供可直接套用的 LFAA 修复；通用 `Failed to fetch` 讨论不足以证明应用根因。[技术社区讨论](https://stackoverflow.com/questions/78602308/how-to-handle-the-navigation-error-in-failed-to-fetch)；[Playwright `Page.goto` 官方文档](https://playwright.dev/docs/api/class-page)。没有操作用户截图里的抖音验证码；真实网页登录、授权与验证码的人类手势由本地交互页的等价控件验证，Agent 同 Run 续用未测（当前 `browserUse.enabled=false`）。窄/短视口、真触屏、Tabbit、OS 摄像头/麦克风/位置权限提示、Desktop WebView、帧时间与重启恢复均未验。
+- **本轮正式构建阻塞修复（只恢复编译，不验收 Native Browser 行为）。** Web 构建先因未使用的 `saveSettings`/`refresh` 与不安全 Native Browser 状态断言报 TypeScript 错，并因缺少 `native-browser-panel.css` 导入目标失败。移除未用项、增加 Native Browser 状态形状检查并新增使用现有外观令牌的响应式样式后，完整 Web 构建通过；实页仅验收 `/work` 整体加载，没有启用或进入 Native Browser 面板，窄屏和 Desktop WebView 行为仍待验。其后浏览器/设置源码继续变化，运行指纹被正确判为过期。
 
 ### P1-Agent-Tool-Execution-Loop-20261021
 
@@ -4348,6 +4372,7 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 
 - 用户在正式 `/work` 项目选择器看到默认工作区登记到旧本机节点 `WIN-20250328BHE`；初始化报“默认工作区所在的本机节点离线”。工作区是控制端本机默认目录，不应依赖 Daemon 节点在线；项目文件和 Agent Git 必须由 LFAA 本机 Host 执行。
 - 截图路径为系统“文档”下的 `lfaa/default-workspace`，不是源码仓库根 `E:\lfaa1\lfaa`。本合同只将该本机默认工作区与当前 Agent 的本机项目上下文从 Daemon 节点解绑；明确选择的远程节点目录仍保留原节点身份与执行边界。
+- 2026-10-21 再审旧版数据迁移时发现：v58 新建默认项目身份表没有给迁移前已存在的默认目录回填身份，v60 只解除已有身份行所指项目的节点引用。因此，测试此前仅验证“已有标记”的默认项目，未覆盖迁移前老账户；截图中的真实旧节点绑定可由此遗漏造成。修复必须先确认当前本机 Daemon 凭据，再由 Workspace Owner 对唯一 `lfaa/default-workspace` 候选原子恢复标记并解绑；不能按离线/未知节点、项目标题或远程路径猜测。
 
 ### Owner、设置与数据边界
 
@@ -4369,6 +4394,9 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 - `/work` 默认目录现由 LFAA 本机 Project Files Host 初始化、检查和读写，创建时登记 `nodeId: null`；项目文件工具、Git 状态/操作、项目预览、Capability Skill 与知识库上下文均沿用对应 Owner 的本机执行路径。显式节点项目仍走原 Daemon 能力及路径校验；Minecraft 项目和 Agent Worktree 保持节点合同。`nodeId: null` 被限制为本机 `workspace` 项目，权限、账户归属与路径围栏未绕过。
 - 定向验证：`workspace-projects.test.mjs`、`agent-local-workspace.test.mjs`、`agent-runtime.test.mjs`、`agent-git-workspace.test.mjs` 均通过；`capability-skill.test.mjs`（5/5）与 `knowledge-library.test.mjs`（2/2）在独立临时 `LFAA_HOME` 下通过。`pnpm run typecheck`、`pnpm run check:workspace`（203 包）、`git diff --check`、`pnpm run build:control-plane` 与 `pnpm run build:web` 均通过；Web 转译 2,272 个模块，产物位于根 `dist/apps/web`。为通过 Web 的 `noUnusedLocals`，从既有浏览器预览面板移除未使用的 `BrowserActionRequest` 类型导入。最终构建指纹复核为 Host/Web 均最新。
 - 没有新增或修改设置中心配置；继续读取动态“文档”目录及现有 `permissions.mode`，未改写用户偏好。测试使用隔离的临时账户目录，没有打开或修改真实账户 SQLite/Session，也没有启动或停止 Daemon。
+- 后续运行核对：用户补充截图再次显示默认工作区行绑定 `WIN-20250328BHE`，同时截图内错误提示与旧项目选择器一致。当前 `node scripts/runtime-build-state.mjs web` 返回 `["host","web"]`，说明运行中的正式 Host/Web 未加载上述源码迁移；不能据截图判定 SQLite 源迁移失效，也不能据旧 API 结果宣称当前页面已修复。未重启服务；应在正式 Host/Web 入口对账并安全更新后，再查认证 API 项目 `nodeId`、桌面和窄视口，并确认没有改动用户的远程项目。
+- 本轮复核更新（2026-10-21）：在当前已登录的内置浏览器重新读取 `/work`，项目选择器把默认工作区显示为“本机”，页面树没有离线节点错误；对 `http://127.0.0.1:3000/api/workspace/projects?appId=workspace` 的只读 GET 返回项目 `d767ed47-1e2e-41c5-8d56-16735009c589`、`nodeId: null`、路径 `D:\Documents\lfaa\default-workspace`。`WIN-20250328BHE` 作为 `local: true` 的 Host 单独返回，没有出现在项目行。该项的当前运行态已复验；没有写真实账户数据或主动重启服务。`runtime-build-state web` 仍返回 `["host","web"]`，说明其他构建内容有过期项，但不能据此否定这次直接 API/页面证据，也不代表全站源码已同步。
+- 本轮源码补缺：新增 `claimLegacyLocalDefaultWorkspace`。初始化默认工作区时只使用受保护凭据中精确匹配的本机 Daemon 身份；仅当该账户恰有一个无 Worktree、无 NULL 路径冲突且路径结尾精确为 `lfaa/default-workspace` 的候选，才在同一 SQLite 事务内清除 `node_id` 并补登记默认项目身份。候选歧义、节点身份不匹配、远程同名项目或本机路径冲突均不更改。新增真实 SQLite/API 路由隔离回归覆盖“迁移前没有身份行”的旧账户、远程同名项目和多个本机候选；因此旧版数据库不再把默认目录误派给离线节点。此改动尚需直接回归/类型/包构建；当前 Web 页面打开失败，后续要区分服务/浏览器工具状态并在不停止现有服务的前提下实页验收。
 - 初次实现时没有重启服务或触发默认项目初始化 POST，因此真实账户迁移与浏览器页面当时仍待验。后续只读检查发现当前内置浏览器原标签停留在“LFAA 需要重新启动”拦截页；3000 端口进程在检查期间从 PID 26436 变为 PID 5860，Daemon 子进程从 32204 变为 30420，本 Agent 没有发送停止/重启指令。新服务启动时间为 2026-10-21 16:26 +08，`node scripts/runtime-build-state.mjs web` 返回 `[]`。
 - 在已登录的 Codex 内置浏览器新开只读 API 标签 `http://127.0.0.1:3000/api/workspace/projects?appId=workspace`：真实 API 返回唯一默认项目 `nodeId: null`，`defaultProjectId` 与项目行 ID 一致；本机 Daemon 节点另列为 `local: true`，没有被项目引用。随后新开正式页面 `http://127.0.0.1:3000/work`，标题为“LFAA 工作台”，实际页面树显示控制端已连接、左侧“默认工作区 7”和输入区当前项目“默认工作区”，没有离线节点初始化报错。旧拦截页标签保留未动。
 - 页面成功加载后，`packages/client/ui-workspace/src/module-workbench.css` 与 `packages/client/ui-workspace/README.md` 又出现晚于 Web 构建指纹文件（`2026-10-21 08:25:59Z`）的工作树修改；之后 `node scripts/runtime-build-state.mjs web` 返回 `["web"]`，Control Plane 指纹仍一致。当前成功加载的 `/work` 标签未刷新；Web 运行时会对新文档请求显示重启保护，因此这份页面证据不验收上述较新的工作区样式变更。
@@ -4430,12 +4458,30 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 - **总状态：未完成，持续实施中。** 本合同是总索引，不替代 166–170 等专项 Owner 合同。只把有源码、测试和实际运行证据的具体切片标为完成；源码、合成 Provider、隔离浏览器、实账户 Provider 和桌面实测分别记账。
 - 用户明确要求连续推进、维护计划和项目内 AI 总结，不再要求用户逐次指定“下一步”。持续目标在本任务会话的 Goal 中追踪；项目内权威进度为本合同与 `docs/开发计划.md` 的“原始总任务书续跑计划”。
 
+### 已完成并打勾的独立子项
+
+以下项目有具体代码、回归或真实运行证据，按各自范围标记完成；它们不自动代表所属优先级或 E2E 整体通过。
+
+| 状态 | 子项 | 完成证据与边界 |
+|---|---|---|
+| ✅ | 默认工作区不绑定本机 Daemon 节点 | 任务 169 修复迁移前账户的身份补登和解绑；真实 Workspace API 读回默认项目 `nodeId: null`，`WIN-20250328BHE` 独立为 `local: true` Host。源码更新后的 3000 页面仍显示完整性重启保护页，不能用旧报错证明数据仍绑定，也未重启服务。 |
+| ✅ | 第 3.2 节 Agent 执行源码审计 | 按任务书疑点逐项记录真实 Owner/源码证据；LLM、发现、通用能力、浏览器闭环和 Runtime 定向回归 28/28。真实 Provider、审批 UI、跨账户和长上下文运行仍待验。 |
+| ✅ | A 本地 HTML 的隔离 Agent→真实浏览器子项 | 合成 Provider 驱动真实隔离 Edge/Chrome 打开、观察和点击，并把页面结果带入下一轮；另有真实默认工作区文件的 Browser Owner 点击。正式生产 Agent 与 Dock 同步验收仍待完成。 |
+| ✅ | Skill 附属资源与同 Run 安装使用 | Skill 引用、资源和脚本说明按需读取有路径/内容边界；任务 174 验证隔离安装→同 Run 发现/加载→选择 Browser Tool→真实隔离 Edge 打开页面。Web Access 原始 Runtime 没有适配，E2E C/P2 不打勾。 |
+| ✅ | E2E F 的隔离 MCP 生命周期 | 任务 176/177 覆盖 HTTP 与本机 stdio 的受控检查、安装、真实协议调用、停用、移除及资源/进程回收；真实用户服务、桌面审批 UI 与真实 Provider 待验。 |
+| ✅ | E2E G 的隔离 Agent 开发闭环 | 任务 173 用实际隔离 Edge 查出 HTML 缺陷、读取真实文件摘要、受保护修复、重载并复验交互。真实 Provider、项目构建命令和 Desktop 待验。 |
+| ✅ | E2E H 拒绝后的替代写入封锁 | 任务 180 两组回归 13/13；替代写工具仍可见但零派发，结果 `not_started`、副作用为零。真实 Provider/审批 UI 和完整跨能力拒绝矩阵待验。 |
+| ✅ | E2E I 的隔离浏览器取消与清理子项 | 任务 181 的实际隔离 Edge 挂起导航取消后页面、Run 桥接、本机预览服务和 HTTP socket 均回收；Agent Runtime 取消回归一并复验。安装中途取消/恢复仍待验。 |
+| ✅ | E2E I 的 MCP 安装取消防写入子项 | 任务 182 在真实隔离 stdio MCP 工具发现完成后取消 Run，证明 Settings Owner 零写入、一次性凭证不能重放、stdio 子进程退出；生产恢复与通用插件安装取消仍待验。 |
+| ✅ | E2E J 的账户/App/Session 隔离源级子项 | 任务 183 的跨账户安装凭证回归与既有 Owner 回归共同证明：其他用户不能读取项目或借用检查票据；MCP 会话按账户/App 分池；Browser Context 按账户/Session 分开、Run 清理不关闭同 Session 的其他 Run。真实用户双账户凭据目录、完整插件文件目录和宿主隔离矩阵仍待验。 |
+| ✅ | Browser Dock/原生浏览器的源码与 Web 设置页子项 | 任务 178 的 Web 同会话接管、Electron `WebContentsView` 与隔离生命周期源码/测试，以及独立 Web 设置页多视口实测已完成；Electron 真窗口与 Native Target 人机同页实测仍待验。 |
+
 ### 原文范围盘点
 
 | 原文章节 | 当前状态 | 证据/缺口 |
 |---|---|---|
 | 1–2 最终目标与架构边界 | 作为所有阶段约束执行 | LFAA 继续复用 Agent Loop、Tool/Permission/Plugin/Skill/MCP/Host/Session Owner；不以 DSH 兼容状态代替真实运行状态。全目标尚未验收。 |
-| 3 Agent 链路审计 | 部分完成 | 168 记录工具目录刷新、审批继续、并行澄清和取消闭合的源码证据；166 记录插件/运行时 Owner 审计。原文列出的全部调用、Provider、压缩、子 Agent 与循环项没有一份覆盖所有 Owner 的逐文件审计矩阵。 |
+| 3 Agent 链路审计 | **源码审计与隔离回归子项完成；实环境审计待验** | 168 记录工具目录刷新、审批继续、并行澄清和取消闭合的源码证据；166 记录插件/运行时 Owner 审计。新增 [Agent 执行链路审计](development/agent-execution-audit-20261021.md)，已逐项核对原文疑点并复跑 28 项直接回归；180 额外覆盖拒绝后的替代写工具零派发。真实 Provider、审批 UI、跨账户与长上下文运行矩阵仍待验，因此仅标源码审计完成，不标全章完成。 |
 | 4 通用执行闭环 | 部分完成 | Agent Loop 结构化失败/取消闭合和动态发现有回归；本轮 A 测试证明真实 Agent Loop 可将浏览器观察结果送回下一轮合成 Provider。真实 Provider、多类失败/恢复、扩展安装后同 Run 刷新尚未全验。 |
 | 5 自主能力安装 | 未完成 | LFAA 有 Capability Install、Skill、MCP、Plugin 管理 Owner；Web Access 从来源核验、授权安装到同一 Run 使用的完整链尚未完成。 |
 | 6 浏览器系统/Driver | 部分完成 | 隔离 Edge/Chrome、受限浏览器工具和 Tabbit Adapter 有实现；BrowserSkill、agent-browser、DSH Browser 的多驱动对比/连通及统一成熟 Driver 覆盖未完成。 |
@@ -4446,7 +4492,7 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 | 11 软件开发能力 | 部分完成 | AI Work 项目读写、Shell/Git 与预览能力存在；本地 HTML 单切片已隔离验证，完整“创建页面→浏览器检查→修复→复验”生产 Provider 工作流未通过。 |
 | 12 Token/性能优化 | 未完成 | 既有请求和缓存计量只作为 Provider 基线；没有按同模型/页面任务完成优化前后 token、延迟、内存/CPU/帧时间基准。 |
 | 13 权限/安全 | 部分完成 | 沿用 `permissions.mode` 唯一 Permission Owner，现有源级授权/隔离回归存在；A–L 要求的真实拒绝、供应链与取消全矩阵未验。 |
-| 14 强制 E2E A–L | 部分完成 | A 有隔离真实浏览器执行器合成闭环；B–L 状态见下表，不能因现有包/工具存在判完成。 |
+| 14 强制 E2E A–L | **部分完成，已完成子项如下** | A/G 的隔离 Agent→真实浏览器流程、F 的隔离 MCP HTTP/stdio 生命周期、H 的拒绝后替代写零派发和 I 的真实隔离浏览器取消已分别打勾；B/C/D/E 的通用运行验收、J 双账户矩阵、K 真实 Provider、L Web+Electron 完整体验仍见下表。 |
 | 15–16 顺序与交付 | 持续执行 | 本合同按 P0→P6 滚动记录，逐批登记真实状态、文件、设置、验证和剩余项；性能数据只写已测数值。 |
 | 17 最终验收 | 未通过 | 通用安装、真实模型 Provider、跨场景持续执行、桌面/Web 浏览器体验、性能基线及多数 A–L 仍未闭环。 |
 | 18 执行指令 | 执行中 | 用户要求持续迭代；未把未测或不兼容插件写成成功。 |
@@ -4455,30 +4501,37 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 
 | 优先级 | 状态 | 当前完成证据 | 下一段工作/验收门槛 |
 |---|---|---|---|
-| P0 HTML 预览 | **部分完成** | 真实 Agent Loop + 真浏览器 + 隔离 HTML/预览服务的按钮闭环回归通过 2/2；当前真实账户默认项目通过认证 API 确认 `nodeId: null`，正式 `/work` 页面成功加载。 | 用实际 Provider 在授权工作区创建/读取 HTML、由隔离浏览器打开并完成按钮交互；记录内置浏览器视口与截图，验证清理及资源回收。 |
-| P1 Agent 执行闭环 | **源码/合成测试已完成，运行时待验** | 168 的 Agent Runtime/Discovery/LLM 组合回归 17/17；本轮新增 A 测试实际观察→点击→下一轮 Provider 输入闭环；身份分类回归见下方。 | 用真实模型验证流式工具调用、真实结果回传、多轮继续、取消/审批恢复与任务结束判断；不得改变用户模型或权限模式。 |
-| P2 自主安装 | **部分完成，第三方 Runtime 适配未完成** | Capability Install、Skill、MCP、Plugin 既有 Owner/执行边界已登记；Skill 静态盘点/不可信加载/附属文本读取与 Browser Host 账户/Session/Run 高层桥接均有隔离回归，A 的合成 Provider→真实浏览器→结果回传闭环 2/2。 | 将适配接入通用 Skill Runtime 时，继续由现有 Tool/Permission Owner 执行；覆盖固定来源、失败回滚、同 Run 使用和实际依赖检查。Web Access 未完成隔离安装/运行验证前不得报告可用。 |
-| P3 成熟浏览器工具 | **部分完成** | LFAA 隔离浏览器与 Tabbit Adapter 已有；其他适配不能视为已连接。 | 分别核验 BrowserSkill、agent-browser、DSH Browser 的真实 Windows 安装/协议/身份与隔离；只集成满足当前 LFAA 权限/生命周期合同的能力，多 Provider 无实际连通则保持 unavailable。 |
-| P4 Browser UI | **部分完成** | Browser Dock 与页面信息基础实现，167 的 UI/Agent 同会话交互继续单独记验收批次。 | 先完成当前 Browser Dock 人机交互批次和内置浏览器实页；随后验证状态、接管/归还、加载错误、关闭/重连、窄屏和 Desktop WebView。 |
-| P5 电脑操控与开发 | **部分完成** | 本机 CUA、文件/Git/Shell 及 HTML 预览基础具备。 | 以完整代码开发测试 G 为主线覆盖编辑、构建、实页交互、失败修复、复验与资源回收；再单独核验现有浏览器/应用的授权接管。 |
+| P0 HTML 预览 | **部分完成；默认项目节点解绑当前实测通过** | 隔离 Agent Loop + 合成 Provider + 真实浏览器按钮闭环 2/2；本机默认工作区文件曾由隔离 Edge 打开/点击并回收。当前正式 `/work` 认证 API 返回默认项目 `d767ed47-1e2e-41c5-8d56-16735009c589`、路径 `D:\Documents\lfaa\default-workspace`、`nodeId: null`；`WIN-20250328BHE` 仅以 `local: true` 的独立 Host 节点返回。旧截图里的节点绑定和离线提示与本轮 API 状态不一致。本轮同源只读 GET 再次得到 `nodeId: null`，节点状态 `online`；当前 `/work` 标签停在“LFAA 需要重新启动”完整性保护页，我未刷新或重启现有 3000 服务。 | 保持权限/偏好不变；继续补项目文件读写、Agent Git、真实 Provider 和 Browser Dock 的运行验收。源码更新后的 `/work` 页面仍需在安全服务生命周期窗口验收；不以单项 API 证据泛化为全站已更新。 |
+| P1 Agent 执行闭环 | **源码审计与隔离回归完成；真实 Provider 运行时待验** | [执行链路审计](development/agent-execution-audit-20261021.md)逐项核对第 3.2 节疑点；LLM/发现/能力/浏览器/运行时直接回归 28/28；A/G 测试覆盖隔离 Agent→真实浏览器→下一轮结果；180 验证权限拒绝后替代写工具零派发。 | 用当前真实模型验证流式工具调用、真实结果回传、多轮继续、取消/审批恢复与任务结束判断；不得改变模型或权限偏好。 |
+| P2 自主安装 | **部分完成，第三方 Runtime 适配未完成** | Capability Install、Skill、MCP、Plugin 既有 Owner/执行边界已登记；Skill 静态盘点/不可信加载/附属文本读取、Browser Host 账户/Session/Run 高层桥接、MCP HTTP 与本机 stdio 安装生命周期均有隔离回归；A 的合成 Provider→真实浏览器→结果回传闭环 2/2。 | Web Access 来源核验、统一授权安装、运行适配、失败回滚和同 Run 使用仍无完整隔离/实机证据；保持 unavailable，继续实现并验收。 |
+| P3 成熟浏览器工具 | **部分完成，源代码/协议盘点已补** | LFAA 隔离浏览器与 Tabbit Adapter 已有；BrowserSkill、agent-browser、DSH Browser 的架构/协议已按官方来源及本机 DSH checkout 核对，均未安装或登记为已连接。 | 选定与 LFAA Permission/Browser Session Owner 兼容的一个集成方案，补足设置接入、身份/Session 租约和依赖检查后再做 Windows 实连；其余保持 unavailable。 |
+| P4 Browser UI | **源码/设置页实测已完成，桌面运行及 Agent 同页操作待验** | Browser Dock 的同会话用户交互、Electron 原生工作区及 Browser Owner 当前 Target 绑定源码已实现；设置页明确标注“源码已接入 · 桌面实测待验”。隔离正式 Web 设置路由已在 1280×720、760×520、390×560 实测无横向溢出，Agent 开关仍关闭、权限仍为请求审批。 | 在真正运行的 Electron 窗口验收原生页面、标签、权限/下载与资源回收；实测 Agent 对当前可见标签执行动作并确认人机同页同步，补帧时间。 |
+| P5 电脑操控与开发 | **隔离开发循环已完成，真实 Provider 待验** | 本机 CUA、文件/Git/Shell 与 HTML 预览基础具备；G 的合成 Provider 测试覆盖 HTML 创建、实页发现缺陷、摘要校验写入、同源重载、键盘复验和资源回收。 | 在用户当前模型/权限与已接入工具无需改偏好的条件下做真实 Provider 复验；之后覆盖完整代码构建链和不同类型目标应用的授权接管。 |
 | P6 性能与系统回归 | **未完成** | 有真实 Provider 用量记录和有界工具合同，但没有本提示词规定的基线对照。 | 锁定同一 Provider/模型/页面/任务后测发现、启动、导航、观察、点击确认、tokens、内存/CPU、刷新数与成功率；先正确性，再优化，并复测全回归。 |
 
 执行门禁：先完成 P0/P1 的实测缺口；实测若被生产服务/账户写入风险阻塞，则不把旧页面或模拟 Provider 算成实测，同时继续不依赖该入口的 P2 来源/Owner 审计和隔离实现。每个批次按包职责、设置、Owner、风险、性能、安全、可维护性及直接回归更新本合同。不得停止当前 Web/Daemon、修改真实 SQLite/JSONL、变更模型/权限偏好，除非对应变更另有明确授权。
+
+### P1 第 3.2 节源码审计进度（2026-10-21）
+
+- 新增 [Agent 执行链路审计](development/agent-execution-audit-20261021.md)，逐项记录模型决策、工具执行器合同、流式 Provider 结束状态、动态发现/撤销、结果续接、失败/未知状态、防重、宿主重启恢复策略、上下文管理、子 Agent 范围和审批继续链路。
+- 定向回归：LLM Completion、Agent Tool Discovery、General Agent Capabilities、A/G 浏览器 Agent 闭环和 Agent Runtime 共 28/28；`workspace-projects.test.mjs` 1/1。源码/隔离回归证明不了当前真实模型服务商的多轮工具决策、真实审批 UI、跨账户真实会话和长上下文压缩质量，P1 及总体验收继续未完成。
+- H 子项补充：原测试只在权限拒绝后让合成模型直接结束，没有覆盖改选其他写工具。本轮合同 180 让替代写工具保持模型可见并实际返回调用；Agent Loop 定向回归 7/7，Agent Runtime 与真实 Streamable HTTP MCP 合成集成回归 6/6，均验证 Run 共享拒绝门禁将其记为 `not_started` 且零副作用。这仍是隔离 Provider 回归，不能替代真实审批 UI 或浏览器/安装任务实测。
+- 当前默认项目的账户 API 再次只读确认 `nodeId: null`；本机节点是独立 `local: true` Host。`/work` 当前标签仍在完整性保护页，未重载或停止 3000 服务。节点绑定截图保留为旧页面错误状态证据，不回写/迁移其它用户项目。
 
 ### 强制端到端测试矩阵 A–L
 
 | 测试 | 状态 | 当前记录 |
 |---|---|---|
-| A 本地 HTML 浏览器预览 | **隔离闭环通过；生产场景待验** | `apps/cli/tests/agent-browser-preview.test.mjs` 用隔离账户/临时目录、合成 Provider、真实浏览器驱动和本机短期预览服务，验证发现/加载文件工具、打开页面、观察文本、真实点击、下一轮结果回传及关闭清理，2/2 通过。不是用户真实默认工作区/真实 Provider 实测。 |
+| A 本地 HTML 浏览器预览 | **✅ 隔离 Agent 闭环通过；真实默认文件的 Browser Owner 点击通过；正式 Agent/Dock 实页仍待验** | `apps/cli/tests/agent-browser-preview.test.mjs` 的隔离账户/临时目录、合成 Provider、真实浏览器驱动和本机预览服务覆盖发现/加载文件工具、打开页面、观察、点击、下一轮 Provider 输入及清理。另有真实默认文件 `D:\Documents\lfaa\default-workspace\index.html` 由系统 Edge/LFAA Browser Owner 打开、读取和点击，页面显示“你点了 1 次”，临时预览服务已清理。此勾选只代表上述两类可重复子项通过；未经过真实 Agent Provider/审批 UI，正式 Dock 截图待验。 |
 | B 网页搜索/资料整理 | **待实测** | 通用网页搜索/抓取源代码存在；没有按题目验证 3 个可靠来源的真实打开、正文阅读和引用整理。 |
-| C 自主安装 Web Access | **未完成** | 来源核验、授权安装、运行适配、连通测试和同任务使用尚无全链证据。 |
+| C 自主安装 Web Access | **未完成；检查可见性增强、锁定来源映射完成** | 固定来源检查会提示后台进程、浏览器远程调试/CDP、任意页面脚本、本机文件路径与用户目录持久化线索。锁定脚本的 `/navigate`、`/click`、`/scroll` 与现有 Browser Tools 部分重叠；`/targets` 全局列页、任意 JS `/eval`、本机路径 `/setFiles`/截图落盘、用户目录配置及脱离 Run 的后台 Proxy 无法直接满足 LFAA Owner 合同。真实 Web Access Runtime、CDP 连接和同任务网页结果仍无全链证据。 |
 | D BrowserSkill/Chrome | **未完成** | 官方来源、Windows 驱动/扩展、用户接管和标签隔离未实测；不得用 Tabbit 或隔离 Edge 替代其通过结论。 |
 | E 第三方 DSH Plugin | **部分完成（失败关闭已验证）** | `dsh-router-laya` 检查显示缺少通用 Host/Client Runtime，未安装/启用/执行；这是诚实拒绝的证据，不是安装通过。通用 DSH Runtime 待实现。 |
-| F MCP 安装 | **部分完成** | MCP stdio/HTTP 连接、工具发现和权限 Owner 存在；题目要求的受控 Server 自主检查→安装→连接→调用→停用，HTTP 与 stdio 双路径尚未完整验证。 |
-| G 完整代码开发 | **隔离 HTML 子场景通过；全流程待验** | A 覆盖 HTML 文件预览和按钮交互；尚未由真实 Provider 完成创建、发现缺陷、修改代码、重建/刷新和复验完整工作流。 |
-| H 权限拒绝 | **源码/合成回归部分覆盖；真实 E2E 待验** | 统一 Permission Owner 和权限拒绝源码合同存在；尚未对真实浏览器/安装任务逐项拒绝并确认无 Shell/替代工具绕过。 |
-| I 取消/恢复 | **源码/合成回归部分覆盖；浏览器/安装资源实测待验** | Agent 批次取消闭合已在 168 验证；取消浏览器动作、插件安装、端口/子进程回收及 Run 恢复的全场景未验。 |
-| J 账户/Session 隔离 | **源码/测试夹具部分覆盖；完整双账户矩阵待验** | A 使用独立临时账户、Session 和预览资源；尚未按提示词覆盖两个真实隔离身份、跨 Session Browser/MCP 凭据/插件目录/租约和关闭边界。 |
+| F MCP 安装 | **✅ 隔离 HTTP/stdio 检查、安装、调用、停用、移除与回收通过；真实服务待验** | 176 覆盖 Streamable HTTP 检查→单账户/App 安装→Settings Owner 回读→实际调用→停用旧 Tool 阻断→移除→DELETE 回收，并验证权限批准/拒绝派发。177 覆盖用户提供的本机 stdio 命令检查、危险审批范围、真实 Runtime 子进程安装/调用/停用/移除和最后租约回收；`reconcile:false` 探测不关闭其他 MCP 会话。真实用户 MCP 服务、真实 Provider/桌面审批 UI 和外部主机仍待验。 |
+| G 完整代码开发 | **✅ 隔离 Agent HTML 开发与修复闭环通过；真实 Provider/构建链待验** | `agent-browser-preview.test.mjs` 的隔离 Agent Loop 由 Project Files Owner 创建有事件选择器缺陷的 HTML；真实隔离 Edge 点击发现“计数：0”；Provider 读取文件和 SHA-256 后调用受保护写入修复；同源重载后以 Tab/Enter 验证“计数：1”，预览服务被回收。纯 HTML 无独立打包步骤；真实模型驱动、项目构建命令、Desktop 仍未验。 |
+| H 权限拒绝 | **✅ Agent Loop/MCP 合成拒绝后替代写回归通过；完整真实矩阵待验** | [180 回归](#lfaa-harness-e2e-h-denial-fallback-20261021) 覆盖电脑能力设置被拒后调用仍可见的普通写工具，以及隔离真实 MCP 协议写调用被拒后改选普通写工具；共享写入门禁使替代调用记为 `not_started`、副作用次数为零。真实浏览器/安装/Shell 与真实 Provider/审批 UI 仍待验。 |
+| I 取消/恢复 | **✅ Agent Run 合成取消、真实隔离浏览器导航取消回收和 MCP 安装取消防写入子项通过；通用安装回滚/生产恢复待验** | 181 用实际隔离 Edge 导航到本机挂起页面后取消同一 Run 信号，验证导航结束、Browser Owner 移除账户/Session 页面、Run 桥接撤销、项目预览 Server 停止且 HTTP socket 归零。182 用真实隔离 stdio MCP 在工具清单返回后取消，验证 Settings Owner 零写入、一次性凭证不可重放且子进程退出；Capability Install 的其他 Adapter 回滚、真实 Provider 和服务重启恢复仍未验。 |
+| J 账户/Session 隔离 | **✅ Owner 源级账户/App/Session 隔离子项通过；真实双账户与完整数据目录矩阵待验** | 183 直接验证 Capability Install 检查票据不能跨账户审批/安装且拒绝不消费原账户票据；既有回归证明 Workspace 项目按 userId 隔离、MCP HTTP/stdio 连接按 userId+App 隔离、Browser Context 按账户+Session 隔离及 Run 级桥接清理。真实登录双账户、凭据/插件数据目录、长时间并发租约和宿主关闭恢复仍未验。 |
 | K 模型/Provider | **待真实验收** | 合成 Provider 验证协议往返；尚未对真实支持工具调用的当前模型验证 Schema、流式参数、结果回填、多轮与最终答案一致性。 |
 | L Web/Desktop 浏览器体验 | **部分完成** | Web Browser Dock 有既有实现/页面验收记录；任务 167 的新增交互批次仍实施中。地址、标签、人工接管、错误/重连/关闭、性能的全项矩阵及 Electron WebView 分别待验。 |
 
@@ -4533,7 +4586,7 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 ### 用户问题与目标
 
 - 用户在 Windows 的 LFAA `/work` 页面把鼠标从输入区移到缓存/上下文用量按钮时，输入框右缘会闪出黑色竖线或深色矩形；点击不是触发条件。
-- 首轮曾怀疑按钮 `title` 的原生提示并移除了三个 `title`；用户后续截图确认现象仍在，因此该改动不是根因修复，本轮继续追查输入区样式。
+- 首轮曾移除按钮 `title`，随后又基于错误的 textarea 背景假设提高 CSS 优先级；用户的实页复现证明二者都不是根因，本轮以悬浮瞬间的真实浮层位置重新定位。
 - 复现线索：用户截图中的 LFAA `/work`、缓存按钮文本「缓存读数不完整」及上下文百分比；内置浏览器在缓存按钮真实悬停态下已复核相同 DOM/CSS。
 
 ### Owner、设置与数据边界
@@ -4544,9 +4597,9 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 
 ### 修改范围与验收
 
-- 允许修改 `packages/client/ui-chat/src/AiUsageFooter.tsx`、`packages/client/ui-chat/src/ai-work-chat.css` 与本任务合同。
-- 保留缓存及上下文按钮的 `aria-label`、`Popover trigger="click"`、详情正文及 `aiRuntime.showContextUsage` 门控；输入框背景须在鼠标离开输入区后仍透明，不得被深色主题通用输入框规则覆盖。
-- 验收条件：缓存与上下文按钮处于悬停态时，输入框计算背景保持透明，画面不出现黑框/闪线；点击仍显示详情；构建与 `/work` 内置浏览器实页结果按本轮实际执行记录。
+- 允许修改 `packages/client/ui-chat/src/AiWorkChat.tsx`、`AiUsageFooter.tsx`、相关包说明、直接相关回归 `apps/cli/tests/client-ai-work-composer-responsive.test.mjs` 与本任务合同；仅当证据需要时才修改 CSS。
+- 保留输入操作区及缓存/上下文按钮的 Tooltip 文案、hover/focus 触发、`aria-label`、`Popover trigger="click"`、详情正文及 `aiRuntime.showContextUsage` 门控；让提示浮层避开文本输入区域，不改 textarea 外观设置。
+- 验收条件：鼠标分别悬停缓存、上下文和输入操作按钮时，实际 Tooltip 矩形不与 composer/textarea 相交，画面不再出现被提示层盖住的黑框/闪线；键盘焦点提示与点击详情仍工作；构建与 `/work` 内置浏览器实页结果按本轮实际执行记录。
 
 ### 外部排查
 
@@ -4555,25 +4608,14 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 
 ### 实施与验收记录
 
-- 具体方案：移除缓存按钮及上下文按钮启用/关闭状态中的 `title` 属性，保留已有 `aria-label` 和点击 Popover；没有新增样式、CSS 变量、状态或依赖。
-- 变更文件：`packages/client/ui-chat/src/AiUsageFooter.tsx` — 移除会在鼠标悬浮时由浏览器绘制的原生提示；`docs/PROMPTS.md` — 登记本轮问题、Owner、范围、外部排查与验收边界。
-- 设置中心配置：沿用 `aiRuntime.showContextUsage` 展示门控，本轮没有改设置或账户偏好。
-- 实际验证：`pnpm --filter lfaa-client-ui-chat build` 通过，构建 1 个包且输出到根 `dist/packages`；`pnpm run build:web` 通过，转换 2,272 个模块并输出到根 `dist/apps/web`；`git diff --check` 通过。当前 `dist/apps/web/index.html` 引用 `index-CDS474XY.js`，该入口注册新 `AiWorkChat-wShfG8zp.js`/`AiWorkSideChat-C0VSPJcS.js`，二者引用新共享资源 `ai-work-chat-3-HI3CMF.js`；新资源不含被移除的三条提示文案。旧哈希资源由既有 3 代资源保留规则留在磁盘，但当前入口不引用它们。自动化测试未运行。
-- 实际页面验收：用户给出的静态截图路由为 `/work`，没有捕获悬浮瞬间。本轮没有在 ChatGPT 内置浏览器刷新/检查实页；当前页面加载 `/work` 会调用默认工作区初始化 POST，既有登记记录显示其可能仅大小写规范化真实项目路径，因此未触发该数据写入，也未把旧页面当作本轮通过证据。视口、截图、黑框交互与页面帧时间均未测。
-- 后续复核：源码中两个底部用量按钮的 `title` 已移除，单包 `pnpm --filter lfaa-client-ui-chat build` 通过；`pnpm run build:web` 曾在该源码状态成功一次，新资源含有 aria-label 且按钮没有 `title`。随后源码变更使运行指纹过期；正式 `/work` 曾返回 503「LFAA 需要重新启动」。重建 Control Plane 后再次构建 Web，TypeScript 检查被现有 `packages/client/ui-sidebar-browser/src/BrowserPanel.tsx` 错误阻断（未使用的 pointer handler、`flushWheel` 声明顺序、缺少 `onPreviewClick`）；当前 Web 指纹仍过期，内置浏览器实页未验，不能声称本轮问题已验收。
-- 性能/安全/可维护性：删除浏览器原生提示属性，不增加监听器、请求、订阅、状态或数据；模型用量、权限和数据归属不变。帧时间未测。
-- `node --import tsx --test apps/cli/tests/client-workbench-responsive.test.mjs` 13/13 通过，含中心列下限、移动/Compact/Desktop 断点和原有拖拽/同按压吸附反向展开检查。`pnpm --filter lfaa-client-ui-workspace run build`、`pnpm run build:web`（2,272 modules，含 Client TypeScript 检查）、`pnpm run build:control-plane` 与 `git diff --check` 通过；产物均位于仓库根 `dist/`。两次 Web 构建的资源保留插件分别从 `dist/apps/web` 清理 6 个和 5 个过期哈希资源，不涉及源码。最终 `node scripts/runtime-build-state.mjs web` 为 `[]`，`/api/health` 与 `/work` 均返回 200。
-- 用户允许重启 3000 端口正式 Web 后，通过 `pnpm lfaa web` 重启了 Web 及其托管 Daemon；最终进程在本轮 CSS 修改之前启动，之后构建文件变化时 Web 的运行指纹门禁曾返回 503，按同一授权再次从官方入口重启后已恢复 200。当前内置浏览器 `/work` 页仍是此前已加载的页面，尚未刷新到最终 CSS。刷新会触发 `POST /workspace/projects/initialize-default`：当前项目登记路径显示为 `D:\Documents\lfaa\default-workspace`，Host 规范路径为 `D:\Documents\LFAA\default-workspace`；Controller 采用区分大小写的字符串比较，刷新将写回仅大小写不同的登记路径。文件夹已存在，文件不会搬动；未获用户对这项数据登记写入的授权前，不触发刷新，也不将此前页面截图当作最终构建验收。
-- 当前小屏已加载页面之前的截图仅用于确认原有内容约 12px 边距；更新后内置浏览器窄列/短屏实页未测。CUA 只能单段 `drag` 并自动松手，不能真实复现同一次按压内先吸附再反向，因此 Pointer Capture/同按压反向仍由 13 项源级回归核对，没有声称真实手势验收；触屏、帧时间及桌面 WebView 未测。
-- 真实浏览器的多尺寸视口矩阵已在此前排查中覆盖，但发生在本批 CSS 更新之前，不能算本批实页验收；用户当前页面原有视口保持打开。普通 CUA `drag` 只能单段移动并自动松手，不能复现同一次按压内先吸附再反向；因此同按压反向只由现有算法/Pointer Capture 回归核对，未声称完成真实手势实测。真实触屏、浏览器帧时间与桌面 WebView 未测。
-- 用户补充的箭头截图明确指出：鼠标悬停缓存/上下文用量区时，输入框右侧内缘仍出现竖线。此前仅移除按钮 `title` 的方案没有消除该现象，当前问题仍未修复、未验收。
-- 源码复核：用量栏是 composer 的相邻兄弟；按钮悬停只改自身边框色/文字色，没有选择器直接修改输入区。当前 Edge 页面 AX 快照显示用量按钮无 `title`、焦点在侧栏分隔器而非 textarea。聊天容器、composer 及 Wallpaper Engine 玻璃规则存在重叠 `backdrop-filter`。Windows Chromium 的玻璃层合成异常是待验证假设，不能据此宣称已找到根因或提交 CSS 规避。
-- 外部排查补充：社交媒体、Stack Overflow 与 GitHub 项目查询没有找到可直接套用且与当前版本完全匹配的解法；Stack Overflow 报告过 Windows Chrome 在 `backdrop-filter` 过渡期间出现黑色内边，但其说明涉及过渡且报告版本较旧；Chromium Issue 535621596 报告 Windows 屏幕捕获中重叠 `backdrop-filter` 偶发出现竖向未滤镜带，但该复现条件尚未在 LFAA 页面确认。[Stack Overflow](https://stackoverflow.com/questions/77126399/transition-on-backdrop-filter-blur-causing-dark-inset-borders-in-chrome-and-win)；[Chromium Issue 535621596](https://issuetracker.google.com/issues/535621596)。
-- 当前验收阻碍：本机 `/api/health` 与 `/` 返回 200，直接 GET `/work` 返回 503；`pnpm run build:web` 被 `packages/client/ui-sidebar-browser/src/BrowserPanel.tsx` 的既有 TypeScript 错误阻断。当前浏览器清单中没有可复用的 LFAA 页面；重新打开/刷新 `/work` 会触发 `POST /workspace/projects/initialize-default`，把登记路径仅大小写规范化为 `D:\Documents\LFAA\default-workspace`。在用户授权前不修改无关 BrowserPanel 工作，也不触发该登记写入。
-- 本轮根因确认：Chat 输入 textarea 同时匹配深色主题通用规则 `.workbench-shell[data-theme="dark"] .ant-input`（背景 `var(--color-surface-muted)`）和 ui-chat 的透明背景规则 `.ai-work-chat__composer .ant-input`。当指针离开 textarea 移到相邻用量条时，`:hover` 透明样式失效；由于组件规则优先级低于主题规则，textarea 背景变成 `#262626`。内置浏览器实测悬停缓存条时 `composer:focus-within=false`、按钮 `:hover=true`、textarea 计算背景为 `rgb(38, 38, 38)`，与用户描述的鼠标路径及输入框竖边相符。
-- 本轮修复：将输入框基础规则提高到 `.ai-work-chat__composer .ant-input.ant-input-outlined`，使其覆盖主题的通用背景规则；透明背景继续使用现有外观设置令牌，不新增配置、CSS 变量或用户设置写入。按钮 `title` 仍保持移除，`aria-label`、点击详情和数据归属不变。
-- 当前工作树 `BrowserPanel.tsx` 已无此前提到的构建错误；`pnpm run build:web` 当前状态通过，输出位于根 `dist/apps/web`。用户授权完整验收后已重新打开正式 `http://127.0.0.1:3000/work`，确认 `runtime-build-state.mjs web` 返回 `[]`、`/api/health` 返回 200。默认工作区登记路径只发生用户授权的大小写规范化 `D:\Documents\lfaa\default-workspace` → `D:\Documents\LFAA\default-workspace`，未移动文件。
-- 缓存按钮真实悬停态通过内置浏览器语义点击后移开弹层复核：`:hover` 命中缓存按钮，composer 未聚焦；本轮 CSS 改动前 textarea 背景确为不透明 `#262626`。修复后还须重建、刷新同一路由，再确认计算背景为 `transparent`，并分别覆盖缓存与上下文按钮及常用桌面/窄分栏视口；修复后实页结果尚待记录。
+- 根因：Ant Design Tooltip 的深色提示面板实际叠在输入框底部；悬停缓存按钮时，Tooltip 为 `250×56px`，坐标 `(281,1139)`，与 composer 的 `(306,1026.7,260.3×154.3)` 重叠约 42px。textarea 当时仍聚焦，自己的背景、边框和阴影未随 hover 改变。之前移除原生 `title` 和提高输入框 CSS 优先级都没有修复这个浮层覆盖问题；先前将背景颜色判断为根因的记录已作废。
+- 修复：缓存、上下文及上下文关闭状态的 Tooltip 改为 `placement="right"`；输入操作区各 Tooltip 改为 `placement="bottom"`。保留 hover/focus、提示文案、`aria-label`、详情 Popover、点击行为及设置门控；没有新增监听器、请求、订阅或配置。
+- 变更文件：`packages/client/ui-chat/src/AiWorkChat.tsx` — 输入区附件、权限、更多、模型、语音、发送/运行提示移至操作区下方；`packages/client/ui-chat/src/AiUsageFooter.tsx` — 缓存/上下文提示移至指标右侧；`apps/cli/tests/client-ai-work-composer-responsive.test.mjs` — 固定输入区提示不得从上方覆盖输入框、指标提示从右侧显示；`docs/PROMPTS.md` — 本任务原因、范围、实页数据与验证记录。
+- 设置中心：继续只读 `aiRuntime.showContextUsage` 控制上下文指标；使用现有外观主题令牌。没有新增/改动设置或用户偏好。
+- 定向回归：`node --test apps/cli/tests/client-ai-work-composer-responsive.test.mjs`，11/11 通过。`pnpm --filter lfaa-client-ui-chat run build` 通过；`pnpm run build:web` 通过，Client TypeScript 检查通过、Vite 转换 2,272 个模块；`pnpm run build:control-plane` 通过；构建输出仅在根 `dist/`。Vite 保留既有 `cpp` 501.30 kB chunk 提示。
+- 正式服务与构建：用 `pnpm lfaa web` 启动，`node scripts/runtime-build-state.mjs web` 返回 `[]`，`/api/health` 与 `/work` 均 HTTP 200。构建期间有其他源码更新，因而重建并重启到最后的源码指纹后才刷新页面验收。刷新触发的默认工作区路径仅大小写规范化已由用户事先授权；文件未移动。
+- ChatGPT 内置浏览器实测：路由 `http://127.0.0.1:3000/work`，viewport `1547×1244`，中心聊天列/composer 宽约 `260px`（窄分栏桌面状态）。真实鼠标拖移到缓存指标时 Tooltip `(506,1188,250×56)`，composer 下沿 `y=1181`，间隔 7px；移到上下文指标时 Tooltip `(565,1188,250×56)`，同样与 composer 分离；悬停“更多”按钮时 Tooltip `(290,1181,211×34)`，从 composer 下沿开始。三处实际矩形均不相交，原先覆盖输入框的深色面板/竖线不再出现。缓存详情点击打开并显示会话累计用量，Context 点击打开并显示 `1%`、`14.5K / 1M` 分项；悬停“更多”没有打开点击菜单。
+- 键盘：现有回归确认目标 Tooltip 保留 `hover` 与 `focus` 触发；本轮没有单独进行实体键盘导航验收。性能边界：未测帧时间；手机/平板、短屏、触屏、桌面 WebView 未测。
 
 <a id="lfaa-ai-work-hover-tooltips-20261021"></a>
 
@@ -4581,25 +4623,33 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 
 ### 用户问题与目标
 
-- 用户提供 ChatGPT Work 截图作为悬停文字提示的交互参考，并指出 LFAA 多处图标操作缺少同类提示。本轮先核对 `/work` 输入操作区与输入框下方用量栏，覆盖附件、权限、更多、模型、语音、发送/运行控制、缓存用量及上下文用量。
+- 用户提供 ChatGPT Work 截图作为悬停文字提示的交互参考，并指出 LFAA 多处图标操作缺少同类提示。本轮核对 `/work` 输入操作区与输入框下方用量栏，覆盖项目、当前应用、附件、权限、更多、模型、语音、发送/运行控制、缓存用量及上下文用量。
 - 保留真实功能状态和现有点击菜单/详情；提示内容只说明当前操作或真实用量，不暗示尚未接入的附件能力已可用。
 
 ### Owner、设置与边界
 
-- 唯一 UI Owner：`packages/client/ui-chat/src/AiWorkChat.tsx` 和 `AiUsageFooter.tsx`；菜单、Popovers、Provider 数据、权限模式与设置导航继续归各自现有 Owner。
+- 唯一 UI Owner：`packages/client/ui-chat/src/AiWorkChat.tsx`、`WorkspaceProjectPicker.tsx` 和 `AiUsageFooter.tsx`；菜单、Popovers、Provider 数据、权限模式与设置导航继续归各自现有 Owner。
 - 沿用设置中心 `aiRuntime.showContextUsage` 的展示门控与 `general.sendShortcut` 文案映射；不新增设置、状态、请求、持久化或依赖，不改变权限、会话、模型和发送行为。
 - 使用 Ant Design `Tooltip` 为目标操作提供鼠标悬停和键盘聚焦提示；避免 Tooltip 与原生 `title` 双重显示。
 
 ### 修改与验收范围
 
-- 允许修改 Ai Work 输入区/用量栏提示、直接相关回归、ui-chat README、本合同与任务索引。
+- 允许修改 Ai Work 输入区/项目选择/用量栏提示、直接相关回归、ui-chat README、本合同与任务索引。
 - 用量提示从实际 Provider 会话汇总或 `AiContextUsage` 投影生成；缺失数据明确显示未知/等待，不伪造计数。保留已有 `aria-label`、点击菜单和用量详情 Popover。
 - 验收覆盖每个目标控件的 Tooltip 文案、悬停与键盘触发合同、原有点击 Popover/Dropdown、设置门控和窄栏布局；运行直接相关回归及 ui-chat/Web 构建。记录 ChatGPT 内置浏览器实页、视口与未测范围；不得绕过默认工作区路径登记写入保护。
 
 ### 外部排查与源码核对
 
 - 按社交媒体、技术社区、LFAA GitHub、官方文档顺序检索。社交媒体和 LFAA 项目 Issue/PR 搜索未发现当前 LFAA `/work` 可直接套用的实现；技术社区结果只说明浏览器原生 `title` 样式不可定制等一般事实，不能作为本地缺口根因。
-- 当前源码显示缓存/上下文用量按钮仅有 `aria-label` 和点击 Popover；三条原生 `title` 曾在任务 171 中移除，导致用量栏没有悬停文字提示。输入操作区已有部分原生 `title`，但没有统一的自定义 Tooltip，现有语音提示也默认只对 hover 响应。官方 Ant Design 文档说明可通过 `trigger={['hover','focus']}` 将 Tooltip 扩展到键盘焦点。[Ant Design Tooltip](https://ant.design/components/tooltip-cn/)。
+- 当前源码显示缓存/上下文用量按钮仅有 `aria-label` 和点击 Popover；三条原生 `title` 曾在任务 171 中移除，导致用量栏没有悬停文字提示。输入操作区已有部分原生 `title`，但没有统一的自定义 Tooltip，现有语音提示也默认只对 hover 响应；项目与当前应用标识依赖浏览器原生提示。官方 Ant Design 文档说明可通过 `trigger={['hover','focus']}` 将 Tooltip 扩展到键盘焦点。[Ant Design Tooltip](https://ant.design/components/tooltip-cn/)。
+
+### 本轮实施与验证
+
+- 为项目选择、当前应用、附件、权限、更多、模型、语音、发送/运行控制及缓存/上下文用量加入应用内悬停提示；可操作项覆盖键盘聚焦，项目按钮禁用时保留原生说明。保留原有权限 Dropdown、项目/模型/用量 Popover 和设置门控，没有删改产品功能或用户数据。
+- 上下文提示基于本次 `AiContextUsage` 数据；容量缺失或非正数时显示“容量未知”，估算用量明确标记“约”。未增加设置项，沿用 `aiRuntime.showContextUsage` 和 `general.sendShortcut`。
+- 定向回归 `node --import tsx --test apps/cli/tests/client-ai-work-composer-responsive.test.mjs`：11/11 通过。`pnpm --filter lfaa-client-ui-chat run build` 通过。`pnpm run build:web` 串行重跑通过，Vite 转换 2,272 个模块并输出至根 `dist/apps/web/`；第一次与包构建并行时被源码指纹保护拒绝，随后串行构建成功。`git diff --check` 通过。
+- Web 构建资产中可检索到估算上下文提示与附件提示文案。串行构建后的 `node scripts/runtime-build-state.mjs web` 返回 `[]`，入口指纹一致；健康检查 `/api/health` 为 HTTP 200。
+- 未在 ChatGPT 内置浏览器打开或刷新 `/work`：当前没有可复用的内置浏览器页面，且用户已明确拒绝会改写工作区路径登记的初始化/刷新。因而本轮没有真实页面悬停、键盘焦点、桌面/窄分栏视口或截图验收；构建和源码回归不代替实页验收。本轮未删除功能逻辑；工作树中另有并行任务改动，部分与输入区/本合同文件重叠，保留其余内容且未回退。
 
 <a id="lfaa-browser-host-run-bridge-20261021"></a>
 ## 172-LFAA Browser Host Run 桥接底座（2026-10-21）
@@ -4616,3 +4666,184 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 - 回归：`apps/cli/tests/browser-use.test.mjs` 新增 Run 身份/Session 复用/隔离/回收检查，并修正页面控件 fixture 以遵守真实 `evaluateAll` limit。`pnpm --filter @yubboo/lfaa test -- tests/browser-use.test.mjs` 4/4；`pnpm --filter @yubboo/lfaa test -- tests/agent-browser-preview.test.mjs` 2/2（隔离临时工作区、实际本机浏览器和合成 Provider 完成打开/观察/点击/结果回传）；`pnpm --filter @yubboo/lfaa test -- tests/computer-use.test.mjs` 1/1。
 - 构建/仓库检查：`pnpm --filter lfaa-browser-use run build` 成功，输出在根 `dist/packages`；`pnpm run typecheck`、`pnpm run sync:workspace`、`pnpm run check:workspace`（203 包）、`git diff --check` 均通过。没有 Browser Dock UI 变化，因此本批无 UI 改动，也未运行内置浏览器页面验收。隔离浏览器真实本机页面闭环有测试证据；真实 Provider、Web Access 同 Run 安装/运行、真实账户、Browser Dock 桌面交互、Electron WebView、帧时间/资源峰值仍未测。
 - 性能/边界：适配器仅在当前活跃 Run 间保留一条 Map 登记，并由 Agent Loop finally 同步移除；无新轮询、事件订阅或后台进程。没有进行高并发、内存峰值或帧时间基准。P2 与验收项 C 继续标为未完成。
+
+<a id="lfaa-harness-e2e-g-loop-20261021"></a>
+## 173-LFAA-Harness 端到端 G 隔离开发循环（2026-10-21）
+
+- 用户目标：持续完成原始 18 章任务书；补齐“创建代码、实际浏览器检查、根据缺陷修复、重新验证”的 Agent 开发循环证据，并维护可供后续 Agent 接续的计划。
+- 入口与 Owner：Agent Loop 驱动模型工具发现/加载/调用；项目写入由 `project_file_operation` 与 Project Files Owner 执行；HTML 打开、观察、点击与复开由 Browser Tools/BrowserSessionManager 执行。所有工具继续经统一 Permission Owner。
+- 验收：在隔离账户和临时项目中，由合成 Provider 驱动项目文件工具创建含可复现错误的 HTML；真实本机隔离 Edge/Chrome 打开并操作后，Provider 根据真实页面结果识别缺陷；通过最近读取的 SHA-256 写回修复；重新打开相同文件并点击验证修复结果；确认预览服务和 Browser Session 均回收、真实账户设置与项目未改动。纯静态 HTML 由浏览器直接运行，不虚构独立构建步骤；真实 Provider/桌面/P6 基准仍另行验收。
+- 复现发现与范围修正：`BrowserSessionManager.navigate` 原先在每次显式导航前关闭工作区预览服务；Agent 编辑已打开文件后用同一 URL 刷新会命中已关闭端口。仅同一预览 Origin 的导航保留当前只读服务；导航离开该 Origin 仍关闭服务。回归需要覆盖编辑后同源复载及最后关闭时的服务回收。
+- 设置与权限：只在本任务临时账户将 `permissions.mode` 设为 `full_access` 并连接隔离浏览器；不得改当前真实账户的 `permissions.mode`、Browser Use 开关或 Provider 偏好。页面与写入文件只落在测试自有临时目录，Agent Session 只在隔离数据库/JSONL 中。
+- 性能、安全与可维护性：复用现有 Project Files/Browser/Permission Owner；不新增后台轮询、代理、进程或持久缓存；项目写入必须带最新文件摘要；浏览器操作以页面实际返回为证据；测试仅清理其自行创建的 Home、Session、临时工作区和浏览器资源。
+- 实施结果：`BrowserSessionManager.navigate` 现在只在目标 Origin 离开当前项目预览 Origin 时关闭预览服务；同源导航沿用服务并读取最新磁盘文件。Agent 首次预览故意缺少事件绑定元素，真实 Edge 点击后仍显示“计数：0”；合成 Provider 按页面结果读取实际文件与 SHA-256，用 Project Files Owner 的带摘要写入修复选择器；随后以同源导航重载，通过 Tab/Enter 操作页面，实际结果显示“计数：1”。再次发出完全相同的高风险点击会被 Agent Loop 的同 Run 重复副作用保护拦截，因此复测通过键盘焦点与 Enter 完成，没有减弱该保护。同一预览服务在 Browser Session 关闭时回收。
+- 变更文件：`packages/browser-use/browser-use/src/session-manager.ts`（同源重载保留只读预览服务，离开 Origin 关闭）；`packages/browser-use/browser-use/README.md`（记录同源重载生命周期）；`apps/cli/tests/agent-browser-preview.test.mjs`（新增真实本机隔离 Edge 驱动的创建/发现/修复/复验循环）；`docs/PROMPTS.md`、`docs/开发计划.md`（总任务 G/P5 与续跑摘要）。
+- 设置与验证：没有改真实账户设置或偏好；合成回归只在隔离账户设置 `permissions.mode=full_access`、`browserUse.enabled=true` 和测试 Edge Provider。`pnpm --filter @yubboo/lfaa test -- tests/agent-browser-preview.test.mjs` 3/3 通过，覆盖现有 A 和新增 G；`pnpm --filter @yubboo/lfaa test -- tests/browser-use.test.mjs` 4/4；`pnpm --filter lfaa-browser-use run build`、`pnpm run typecheck`、`pnpm run sync:workspace`、`pnpm run check:workspace`（203 包）和 `git diff --check` 通过。无 UI 改动，因此本批不需要内置浏览器页面验收；真实 Provider、构建链命令、Desktop、触屏与 P6 帧时间/内存基准仍未测。
+
+### P3 BrowserSkill、agent-browser 与 DSH Browser 来源/Owner 核验（2026-10-21）
+
+- 本机 `deepseek-harness` checkout `1517a4dbca0a2789ff1d41ba439600f8547d23fa` 的 `dsh-browser-use` 只登记一个互斥提供方名称，本身不提供操作；实验 Playwright MCP 提供方在 Agent 创建/恢复前为每个 live Session 启动 MCP，并跨 Run 复用；`launch` 使用隔离浏览器，`attach` 预留外部端点并在卸载时只断开、不关闭外部浏览器。实验包的局部预留不能阻止其它进程访问同一个外部浏览器。该源码参考路径来自本机 DSH checkout，未在其中写入。
+- [Tencent BrowserSkill](https://github.com/Tencent/BrowserSkill) 提供 `bsk` CLI/daemon 和 Chrome/Edge 扩展，复用指定浏览器 Profile 的已登录状态，并提供专用 DSH 插件与 `bsk_*` Tool。当前 LFAA 隔离 BrowserContext 不继承个人登录态，也没有 BrowserSkill 扩展/daemon Session Owner；不得显示为已连接或通过默认 Profile 自动安装。
+- [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) 提供 Windows CLI 与 stdio MCP。官方 MCP 有 core 与可选扩展工具目录，core 包含页面导航、快照、交互、截图、JavaScript eval、关闭和标签基础能力，并可用 session 参数隔离内部状态。LFAA 通用 MCP 已有 stdio/工具发现/统一 Permission Owner，但仅配置一个 MCP 服务不等于 Browser Use Provider 已接入，也不证明它的浏览器 Session 归 BrowserSessionManager 管理。
+- [ZSeven-W/dsh-browser](https://github.com/ZSeven-W/dsh-browser) 是独立 DSH Cordis Plugin；其工具按 DSH Agent 身份分配临时 Chromium Profile 和短时语义引用。LFAA 当前没有完整 DSH Host/Client Runtime，不能直接以 LFAA MCP 或浏览器工具装载此插件。
+- 结论：三条来源的文档/源码/协议盘点已完成；没有安装、启动、连接或更改浏览器扩展/用户 Profile。P3 仍待选定能遵守 LFAA Browser/Session/Permission Owner 的集成路径，再完成设置接入、真实依赖检测、Windows 实连和接管/清理验收。不可把源码可用或 MCP 通用支持算作 Provider 实测。
+
+<a id="lfaa-harness-skill-browser-same-run-20261021"></a>
+## 174-LFAA-Harness Skill 安装后同 Run 浏览器能力承接（2026-10-21）
+
+- 用户目标：沿总任务书继续补齐 P2；确认一个 Run 内安装后的 Skill 能被 Skill Owner 立即发现/加载，并能引导模型调用 LFAA 已登记的浏览器工具，而不是只证明安装目录里存在 `SKILL.md`。
+- 运行入口与 Owner：Agent Loop 每步刷新工具目录；`capability-installs` 固定检查凭证并路由到 `capability-skill`；安装文件归 Project Files Owner；Skill 发现/加载归 `tool-skill`；浏览器动作归 Browser Tools/BrowserSessionManager；副作用仍统一经 Permission Owner。
+- 设置及数据：仅隔离测试账户使用 `permissions.mode=full_access`、`browserUse.enabled=true`、一个实际可用的隔离浏览器 Provider 和最小模型/工具预算。真实账户权限、Provider、Browser Use、扩展设置和持久数据不变；Skill 和页面只写入测试临时项目与隔离 Home。
+- 允许范围：新增一个隔离集成回归与必要测试夹具；若回归暴露通用 Run 发现/目标绑定缺口，只在对应 Owner 内最小修复并同步 README。禁止运行 Skill 附属脚本或安装 npm 依赖；不访问个人浏览器 Profile、上游 Web Access Proxy/CDP、真实项目或远程节点；不把合成来源或 Provider 说成上游/生产验收。
+- 验收：单个 Agent Run 使用真实 `capability_inspect`/`capability_install` 和项目文件 Owner 安装固定合成 Skill；随后同 Run 通过 `lfaa_skill_list/load` 回读已装资料，依其建议从动态目录发现并调用 Browser Tools，使用真实本机隔离 Edge/Chrome 打开测试项目页面并把真实页面状态回给 Provider；确认测试 Skill 脚本未运行、浏览器/预览服务和临时文件正确回收。若当前系统无可启动隔离浏览器则明确 skip，不伪报通过。
+- 开始状态：2026-10-21 任务 171 将该链路列为 P2 下一步；任务 172 已提供受限 Browser Run 高层桥；任务 173 已证明通用模型可执行 HTML 开发循环。Web Access 原始代理/脚本仍未接入，C 项保持未完成。
+- 根因：首次隔离集成回归真实安装 Skill 后，Project Files Owner 在 Windows 返回 `.agents\\skills\\browser-check\\SKILL.md`，Capability Skill Owner 却用 `.agents/skills/browser-check/SKILL.md` 严格字符串比较；文件已正确写入且再次发现成功，但安装结果被误标为 `unknown`。不改写文件名、目标或 Owner 合同。
+- 实施结果：`packages/boot/capability-skill/src/index.ts` 回读已安装 Skill 时把 Owner 返回路径分隔符统一为 `/` 后再与规范相对路径比较；不接受其它路径变化或跨目录目标。隔离集成 Run 使用真实 Capability Install/Project Files/Skill Tools，完成检查固定合成 GitHub 快照、安装、同 Run 目录发现与正文加载，再经 `lfaa_tools_list/load` 选择 `lfaa_browser_open_workspace_file`；本机隔离 Edge 打开测试 HTML，页面实际标题“Skill 安装后浏览器页”和正文“页面来自隔离项目”进入 Provider 后续请求。附属脚本保持纯文本且未运行，测试没有创建 `script-ran.txt`；Run 结束后 Browser Session 与临时预览服务均回收。
+- 变更文件：`packages/boot/capability-skill/src/index.ts`（跨 Windows/POSIX 回读 Skill 相对路径）；`apps/cli/tests/capability-skill.test.mjs`（固定 Windows 反斜杠 Owner 路径回归）；`apps/cli/tests/agent-browser-preview.test.mjs`（同 Run 安装、发现、加载 Skill 并操作实际隔离浏览器的端到端回归）；本节与索引（记录根因、Owner、验收和边界）；`docs/开发计划.md`（更新 P2 当前进度和下一目标）。
+- 设置及数据：只在隔离测试账户使用 `permissions.mode=full_access`、`plugins.enabled=true`、`browserUse.enabled=true`、单一测试 `enabledProviderIds` 与有界 Agent 请求/工具预算。未修改真实账户设置、模型、权限或 Provider；未接触真实项目、Session、节点和个人浏览器 Profile。
+- 验证：`pnpm --filter @yubboo/lfaa test -- tests/capability-skill.test.mjs tests/agent-browser-preview.test.mjs` 10/10；`pnpm --filter lfaa-capability-skill build` 成功，输出位于根 `dist/packages`；`pnpm run typecheck`、`pnpm run check:workspace`（203 包）和 `git diff --check` 均通过。两次回归首轮失败均保留在当前工作记录：先发现 Windows 分隔符误判，修复后再发现测试断言错误地要求 Skill 正文硬编码工具名；改为验证模型加载正文后另行搜索真实工具目录，没有放宽产品执行合同。
+- 性能与剩余项：没有新增轮询、持久缓存、代理或进程；复用既有短期项目预览服务并实测关闭。未测帧时间、Token/延迟基准、真实 Provider、上游 Web Access 安装/脚本/代理、Chrome 个人 Profile/BrowserSkill、DSH Runtime、MCP E2E、Desktop 与 P6；合成 Skill 集成只证明 LFAA 通用安装后同 Run 使用现有 Browser Tools，不代表任务书 C 或 P2 完成。
+
+<a id="lfaa-plugin-manager-inventory-v5-test-isolation-20261021"></a>
+## 175-Plugin Manager 清单 v5 迁移回归隔离（2026-10-21）
+
+- 用户目标：沿 LFAA-Harness 总任务继续验证插件清单与 Agent 模型路由改动；定向回归应使用自己的 Home/Data，不与正在运行的 LFAA 控制端争锁，并覆盖已有清单迁移。
+- 唯一 Owner：`PluginManager` 负责清单读取、版本迁移和生命周期；测试通过正式 `LFAA_HOME`、`LFAA_DATA_DIR` 配置入口隔离持久化目录。只改长期回归夹具，没有产品运行代码变化。
+- 根因：`plugin-manager.test.mjs` 只把 `LFAA_DATA_DIR` 指向临时目录，控制配置与 SQLite 所在 `LFAA_HOME` 仍指向当前正式 Home；并发控制端因此在清单回归导入阶段拒绝第二个锁。清单实现已升级为 v5，但既有迁移断言仍期待 v4。
+- 实施结果：用例在导入 Owner 前创建互相独立的临时 LFAA Home/Data，默认 Profile 指向临时 Home 的 `profiles/`，结束时关闭 SQLite 并只清理这两个临时目录。迁移回归覆盖 v1 与 v4 两种旧清单；v4 测试通过隔离适配器启用再停用，触发一次 v5 持久化，并检查新增 `requirements` 为有界空默认值。
+- 设置及数据：没有读取或更改真实账户设置、Provider、权限或真实清单；无外部 Provider 请求。现有 `permissions.mode` 与模型选择不变，正式服务保持运行。
+- 变更文件：`apps/cli/tests/plugin-manager.test.mjs`（独立 Home/Data 夹具及 v1/v4→v5 迁移回归）；`docs/PROMPTS.md`（本合同和索引）；`docs/开发计划.md`（续跑记录与运行边界）。
+- 验证：`pnpm --filter @yubboo/lfaa test -- tests/plugin-manager.test.mjs tests/agent-runtime.test.mjs` 26/26；`lfaa-settings`、`lfaa-agent-default-model`、`lfaa-hook-protocol`、`lfaa-agent-loop`、`lfaa-plugin-manager` 五个包构建均成功，产物位于根 `dist/packages/`；`pnpm run typecheck`、`pnpm run check:workspace`（203 包）和 `git diff --check` 通过。
+- 真实运行边界：复查 `node scripts/runtime-build-state.mjs web` 返回 `["host","web"]`，正式运行树尚未包含当前源码；未刷新或重启现有服务，没有进行真实 Provider、浏览器或账户写入验收。恢复实测的前置条件是由正式菜单流程生成匹配源码的 Host/Web 运行树；不得手动终止现有服务。
+
+<a id="lfaa-harness-mcp-http-install-lifecycle-20261021"></a>
+## 176-MCP HTTP 安装调用停用移除生命周期（2026-10-21）
+
+- 用户目标：继续执行原始 LFAA-Harness 总任务并由我维护接续计划；本批细化 E2E F，验证受控 MCP 来源检查、安装、实际连接与调用、停用、移除和连接释放，不请求用户指定下一步。
+- Owner 与入口：来源检查/安装/启停/移除经 `lfaa-capability-installs` 路由到 `lfaa-capability-mcp`；账户配置由 Settings Owner 持久化；实际 Streamable HTTP 握手/工具发现/调用/连接池由 `lfaa-mcp-client` 管理；模型调用由 Agent Loop 通过统一 Permission Owner 派发。两处分别有能力安装生命周期测试和 Agent Loop 请求审批测试。
+- 设置与数据：沿用账户 `plugins.enabled`、`plugins.mcpServers` 与其 `applicationIds`；不增加设置或真实用户写入。回归在独立临时 `LFAA_HOME`、Data 与 SQLite 用户账户上运行 loopback MCP fixture；同一测试把保存操作写入 Settings Owner，并以 Owner 规范化回读记录驱动真实 Runtime，验证目标账户/App 和现有全局扩展开关。夹具结束关闭 Runtime/MCP 会话、HTTP 服务及隔离存储。
+- 实施：`apps/cli/tests/capability-mcp.test.mjs` 新增实际 Settings Owner 初始化和双账户记录；HTTP fixture 支持 initialize、tools/list、tools/call、DELETE 并记录请求。验证安装后 Owner 规范化记录（包含正式 `streamable-http` transport）被 Runtime 消费；调用返回协议服务器的真实 fixture 内容；远端 manifest 变化失败关闭；全局扩展关闭时安装结果不冒报为 Runtime 已启用；单项停用会写回 Settings Owner、阻止已加载旧 Tool 再派发并使重新发现结果为空；移除后 Owner 清单为空；最后所有 MCP 会话都发送 HTTP DELETE 并回收。另验证 `npx` stdio 命令无 MCP 来源候选，检查失败且不连接端点、不启动命令、不写账户设置。
+- Agent Loop 权限闭环：`agent-runtime.test.mjs` 使用合成 Provider 从真实当轮工具目录选中已安装 MCP Tool，在 `permissions.mode=ask` 下先断言 MCP fixture 未收到调用，再经 Permission Owner 明确批准并验证只派发一次；第二个 Run 拒绝相同高风险调用，Agent 得到拒绝结果、审批决定记入活动，fixture 调用数保持不变。批准/拒绝均不记忆、不变更真实偏好。
+- 验收边界：来源服务器是隔离 loopback fixture，不是外部/用户 MCP 服务；测试不覆盖 stdio capability install/remove、用户端真实 MCP 配置或桌面端审批 UI。既有 MCP Runtime 回归包含 HTTP、stdio、取消不重放、资源和大 schema，但不能替代 stdio 安装管理及外部服务实测。
+- 变更文件：`apps/cli/tests/capability-mcp.test.mjs`（真实 Settings Owner 支持及 HTTP install/call/disable/remove/cleanup 长期回归）；`apps/cli/tests/agent-runtime.test.mjs`（合成 Provider 驱动 Agent Loop MCP Tool 的实际批准派发与拒绝不派发）；`docs/PROMPTS.md`（索引、F 矩阵和本合同）；`docs/开发计划.md`（续跑摘要、证据与下一目标）。没有产品源码或 UI 改动，无新增 CSS 变量。
+- 设置与性能/安全：无设置中心变更、没有更改用户偏好。使用已有 Settings Owner/Capability Install/MCP Runtime，没有新增能力执行器、授权旁路、计时器或后台服务；单次临时连接和响应体随测试生命周期释放，所有发送行为仅到 loopback fixture。
+- 验证：`pnpm --filter @yubboo/lfaa test -- tests/capability-mcp.test.mjs tests/mcp-tools.test.mjs` 6/6；`pnpm --filter @yubboo/lfaa test -- tests/agent-runtime.test.mjs` 6/6，含新增 MCP 审批闭环；`pnpm --filter lfaa-mcp-client build` 与 `pnpm --filter lfaa-capability-mcp build` 成功，输出位于根 `dist/packages/`；`pnpm run typecheck`、`pnpm run check:workspace`（203 包）和 `git diff --check` 通过。当前无 UI 源码变化，未进行内置浏览器验收。
+- 持续状态：F 由“HTTP/stdio 管理及调用链未组合回归”推进为“HTTP 安装生命周期与 Agent Loop 权限派发隔离回归通过，stdio Runtime 调用独立回归通过”；F 仍部分完成。源码审查确认 stdio 目前只由用户在设置中心明确配置，通用安装器没有可安全复用的命令来源检查/Permission Owner/Host 执行适配；本批验证 `npx` 输入会失败关闭，不产生副作用，不把它当成 stdio 安装支持。下一步需在统一权限和受支持 Host Runtime 边界内设计并验证 stdio 安装合同，再连接真实用户 MCP 服务。总任务其他待办及正式 Web 指纹 `host/web` 过期、真实 Provider/桌面验收边界保持未完成。
+
+<a id="lfaa-harness-mcp-stdio-install-lifecycle-20261021"></a>
+## 177-MCP 本机 stdio 安装权限与生命周期（2026-10-21）
+
+- 用户目标：继续原始 18 章 LFAA-Harness 总任务，不让用户反复指挥下一步；让用户明确提供的本机 MCP command/argv 经统一权限批准后可以检查、安装并由现有 MCP Runtime 真实调用，且能停用、移除和回收子进程。
+- Owner 与入口：通用 `capability_inspect` 经 Capability Install Tool/Permission Owner 决定危险风险与审批范围；`lfaa-capability-mcp` 检查固定工具合同、写入/回读 Settings Owner；`lfaa-mcp-client` 以 shell:false 使用现有本机 stdio Host Runtime、连接租约和真实 MCP 协议。没有新增第二套权限、会话、设置或进程执行器。
+- 设置与数据：复用 `plugins.enabled`、`plugins.mcpServers`、`aiRuntime.requestTimeoutSeconds` 与 `permissions.mode`；安装只写当前账户及选定 App，不会代替用户打开全局插件开关。回归在隔离 `LFAA_HOME`、SQLite 用户和临时 MCP 子进程中运行，不读取/写入真实账户设置或偏好。
+- 允许范围：绑定 `stdio://local` + target `{transport: "stdio", command, args}`；参数有界且不解析 Shell；危险审批摘要显示准确 command/argv，并以用户、App 和 argv 指纹区分记忆范围；远程生产 Host 沿 MCP Runtime 的本机启动门禁失败关闭。检查/安装/回读使用 `discoverMcpTools({ reconcile: false })`，避免候选清单关闭其他活跃会话；所有连接仍通过 Runtime 租约和 finally 清理。
+- 实施结果：`capability_inspect` 对 stdio 目标动态返回 `dangerous`，HTTP initialize/tools/list 仍为只读；能力通用调用合同把 Run signal 传给检查 Owner。MCP Adapter 检查、安装前合同重验、Owner 回读使用账户的请求超时配置，并且只探测当前候选；明确 `npx -y ...` URL 外来源仍无候选，不能绕过该合同。stdio 与 HTTP 共用 manifest 摘要、Settings 生命周期和现有 `permissions.mode`。
+- 验收：隔离 Settings Owner 写入/回读 stdio 设置；真实 stdio fixture 从 initialize/tools/list 到 tools/call 通过；App/account 边界、禁用后的旧工具拒派、重新发现为空、移除清单和 Runtime 进程关闭通过。MCP Tools 回归还验证 `reconcile:false` 不会关掉其他活跃 MCP session。审批回调测试覆盖危险风险、App/argv 绑定和 HTTP 仍只读。
+- 变更文件：`packages/boot/capability-installs/src/index.ts`（检查工具动态风险、批准摘要与 signal 合同）；`packages/boot/capability-mcp/src/index.ts`（HTTP/stdio 检查、manifest 固定、Settings 安装和回读核验）；`packages/mcp/mcp-client/src/runtime.ts`（探测时可跳过全量连接对账，默认 Agent 行为不变）；`apps/cli/tests/capability-installs.test.mjs`、`apps/cli/tests/capability-mcp.test.mjs`、`apps/cli/tests/mcp-tools.test.mjs`（审批、生命周期及不干扰会话回归）；`apps/cli/tests/fixtures/mcp-stdio-capability-fixture.mjs`（稳定 MCP 协议夹具，仅用于测试）；三个受影响包 README；本合同、索引与 `docs/开发计划.md`。
+- 性能、安全与设置：没有新增用户设置、轮询、后台任务或长期缓存；测试子进程受现有超时、参数、环境和回收规则约束；HTTP/stdio 连接池和 Agent Run 取消合同未被绕过。未做真实用户 MCP 延迟、外部 MCP、真实模型审批 UI 或帧时间基准；合成回归不代表这些现场能力已验收。
+- 验证：`pnpm --filter @yubboo/lfaa test -- tests/capability-mcp.test.mjs tests/capability-installs.test.mjs tests/mcp-tools.test.mjs` 13/13 通过；`pnpm --filter lfaa-mcp-client build`、`pnpm --filter lfaa-capability-installs build`、`pnpm --filter lfaa-capability-mcp build` 成功，产物均写入根 `dist/packages/`；修复联合类型错误后 `pnpm run typecheck` 通过；补齐本合同锚点后 `pnpm run check:workspace`（203 包）通过；`git diff --check` 通过。首轮回归发现审批摘要的控制字符正则误删了 `node` 中的 `n` 和 `server.mjs` 中的 `r`，已移除无必要清洗并重跑通过。全仓检查两项首轮失败及原因均保留于工作记录，不作为最终结果。
+- 默认项目节点绑定缺陷当前已修复并以运行态复核：认证 API 返回默认项目 `d767ed47-1e2e-41c5-8d56-16735009c589` 的 `nodeId: null`，`/work` 选择器显示“默认工作区”且不显示节点错误；`WIN-20250328BHE` 仅作为 `local: true` 本机 Host 单列，不属于项目记录。旧截图保留为修复前证据。运行中的用户 Web 服务在构建产物更新后触发完整性保护并要求重启；没有重启该服务。项目文件读写/Git/HTML 真实 Agent 操作仍待验。
+
+<a id="lfaa-native-browser-agent-browser-20261021"></a>
+## 178-LFAA 原生浏览器工作区与 Agent Browser 同会话控制（2026-10-21）
+
+### 用户目标与现状
+
+- 用户明确目标：LFAA 右侧工作区要像 ChatGPT 的内置浏览器，是真正运行网页的浏览器工作区，不是只能看图的预览。普通用户能直接操作页面、输入网址、登录、处理授权与验证码；Agent 能立即操作人当前看见的同一标签页，结果实时同步。用户不要求从零开发 Chromium 内核。
+- 当前 Browser Dock 使用独立 headless Edge/Chrome 页面，以截图 `<img>` 展示，再将鼠标/文字/滚轮动作转发给 Playwright。它没有原生页面输入、原生浏览器弹窗、浏览器标签与下载/权限/历史管理；连续动作要经过 Host/API 与截图回传，不能作为完整浏览器交付。这是架构缺口，不能通过继续装饰截图区或宣称“已接管”解决。
+- 主桌面目标使用现有 Electron/Chromium，优先验证 Electron `WebContentsView` 承载原生网页内容，再由 LFAA 浏览器工具栏提供类似 ChatGPT 的标签、地址、导航和菜单。Web-only 客户端不能在普通浏览器网页进程中直接创建原生 WebContentsView，须明确由真实 Electron Host 提供完整模式；不将旧截图模式冒称为 Web 版完整浏览器。
+- 外部资料核对：当前社交媒体、技术社区及 LFAA GitHub 没有发现可直接修复本项目截图交互的方案；Electron 官方 `WebContentsView` API 提供嵌入 `WebContents` 的主进程视图，Session API 提供持久/内存隔离上下文；Vercel Agent Browser 官方文档提供 `--cdp` 附着和 Electron 控制说明。Agent Browser 是自动化 Driver，不是完整浏览器 UI；须实测它能否附着 LFAA 创建的具体网页目标并保留人机同会话。[Electron WebContentsView](https://www.electronjs.org/docs/latest/api/web-contents-view)、[Electron Session](https://www.electronjs.org/docs/latest/api/session)、[Agent Browser CDP/Electron](https://github.com/vercel-labs/agent-browser)。
+
+### Owner、设置和权限边界
+
+- 目标入口是 AI Work `/work` 右侧 Browser Dock。Electron 原生网页视图和原生窗口/权限/下载桥归 `apps/desktop-electron`；浏览器工具栏及用户交互归 `packages/client/ui-sidebar-browser`；Agent 页面工具及会话归 `packages/browser-use/browser-use`；请求仍经 `packages/api/browser-controller` 和 `packages/client/connection`；身份、Session、Agent Run、项目预览与当前目标绑定继续由既有 Owner 负责。
+- Agent 必须控制同一 `WebContents`/浏览器标签，而不能再启动一个不同的 headless Page 后声称同步。若采用 Agent Browser CLI/CDP，只能由受信 Host 按 LFAA 当前账户、App、Session 与 Run 绑定并挑选浏览器目标；不把 CDP 端口、WebSocket、Electron `webContents` 或任意脚本执行能力暴露到 renderer、远程网页或普通 MCP。
+- 所有 Agent 操作仍经唯一 Permission Owner 和 `permissions.mode`。人类在浏览器表面操作不等待 Agent 队列；Agent 动作完成后回写真实页面状态。网页内容不构成系统指令；模型不得读取或代填密码、验证码、API Key。身份验证、CAPTCHA 和站点授权由人通过真实浏览器页面/系统权限提示完成，不尝试自动绕过。
+- 首先沿用设置中心已有 `browserUse.enabled`、`browserUse.enabledProviderIds`、`browserUse.showFullUrl`、`computerControl.enabled`、统一 `permissions.mode` 以及 Appearance 共享令牌。持久浏览数据、历史、下载、站点权限、扩展或自动填充所需控制若 Owner 目前不存在，必须先补正确 Settings/Storage Owner，再开放 UI；回归只使用隔离测试数据，不能更改用户真实偏好。
+
+### 完整浏览器的首版功能验收
+
+- 真正的 Chromium 页面直接显示与接收鼠标、触屏、滚轮、键盘、IME、剪贴板和焦点，不经截图作为交互表面；加载期间工具栏可继续操作，网络错误/崩溃/重连有可理解状态。
+- 标签页：新建、切换、关闭、页面标题/图标/加载状态同步；站点打开新窗口时按浏览器规则进入新标签或显示必要系统窗口。每个标签有独立真实页面，同账户的隔离浏览数据按设置策略管理。
+- 导航：地址/搜索、前进/后退、刷新/停止、复制网址、页面内查找、缩放、全屏和打印；真实页面链接、表单和快捷键不经后端截图 RPC。
+- 网站交互：正常登录页、OAuth/站点授权、验证码、人机验证、文件选择、弹窗、下载和站点权限请求都通过 Chromium 页面或系统原生对话框；不静默拒绝所有权限，也不假造已获授权。可访问的核心服务还包括浏览历史/下载记录/浏览数据清理；若扩展/凭据管理在 Electron 目标上无法由现有原生能力承接，必须显示真实限制，不得放假的“管理”入口。
+- Agent Browser：Agent 在当前标签可生成紧凑的页面/可访问性快照，执行目标定位、点击、普通文本、按键和滚动；每一步使用真实执行结果继续规划；同一 Run 的权限、取消、导航和标签变化正确同步。用户可以在执行中随时直接操作页面。
+- 浏览器设置入口与设置中心明确区分 Agent 开关、提供方接入、用户数据与权限；不展示虚假的浏览器/Tabbit/Agent Browser“已接入”状态。
+
+### 实施与验收批次
+
+1. **原生页面 Owner 打样：** Electron 主进程创建 `WebContentsView`，对外只开放必要且来源受信的 bounds/URL/导航事件接口。用户在 LFAA 真实页面直接输入网址和操作页面；Web 实页仍按开发规范验收，并在桌面 Electron 实页单独验收。未确认该批可用前不做依赖它的 Agent 集成。
+2. **浏览器工作区：** 建立标签/导航状态与原生页面一一对应；完成新建、切换、关闭、错误、弹窗、响应式和窗口隐藏/恢复的资源生命周期。下载、打印、文件上传和站点权限须使用 Electron 正确的 Session/系统对话框合同。
+3. **Agent Browser 同页接入：** 选用固定版本 Agent Browser Driver 并实测 CDP 对 LFAA `WebContentsView` 的精确 Target 绑定，优先使用其压缩快照/ref 以降低 Token；每次动作仍经过 Permission Owner。没有实际附着与人工同页交互证据时保持不可用。
+4. **设置中心与数据管理：** 完成实际提供方状态、持久化/清理、历史、下载与站点权限所需 Settings/Storage Owner 和 UI 映射；验证控件真的生效且旧偏好不被重置。扩展及密码/联系信息功能只在完成其正确 Owner 后登记可用。
+5. **性能、安全与产品验收：** 固定同一测试页/机器测本机人类输入响应、Agent 操作派发 p50/p95、导航加载分开统计、主线程长任务、CPU/内存及标签切换；连续动作不得遗漏或无限排队；Agent 结果除真实导航/网络等待外本地动作 overhead 目标 p95 ≤250ms。网页输入由原生页面直接响应；不承诺物理“零毫秒”，但不允许旧截图刷新链路造成可避免的延迟。覆盖桌面宽视口和窄/短视口、认证页/验证码的人类手动完成、下载/权限弹窗和应用关闭资源回收。
+
+- 当前进度：`apps/desktop-electron` 以 `WebContentsView` 承载原生网页，使用非持久内存 Session，并实现标签、导航、页面查找、缩放、打印、下载、权限对话框接口、受信入口校验及有界资源回收；`packages/client/ui-sidebar-browser` 提供原生面板、共享地址解析和错误状态。源码已有受信 Electron Host 的 loopback CDP → Control Plane Browser Owner → 认证 API → 当前账户/LFAA Session/已选 Target 的附着链路，CDP 端点不提供给 Renderer 或 Agent Tool；只对存在且可用的原生 Provider 显示 `browserUse.enabledProviderIds` 控制的既有显式接入开关。Browser Owner 将 LFAA App Origin 从候选页、事件监听与 Agent 标签快照中排除；设置说明和 Browser/桌面 README 已对齐源码能力与内存数据边界。隔离 Electron 原生窗口冒烟已验证 Electron 键盘输入与 Playwright Browser Owner 同时操作同一精确 Target；关闭驱动连接后原生窗口仍存活。该冒烟加载原生 Browser Workspace 夹具，不等于完整 LFAA Electron 产品实页验收。合法页面导航失败时保留标签并提供可重试状态。
+- 本轮验证：`pnpm --filter lfaa-desktop-electron run test:native-browser-workspace` 6/6；`pnpm --filter @yubboo/lfaa test -- tests/browser-use.test.mjs` 5/5；`pnpm --filter @yubboo/lfaa test -- tests/client-settings-native-browser-status.test.mjs` 3/3。`pnpm --filter lfaa-client-ui-settings run build`、`pnpm run build:web`、`pnpm run build:control-plane`、`pnpm run typecheck`、`pnpm run check:workspace`（203 包）和 `git diff --check` 均通过；Web 构建仍报告既有 C++ 501.30 kB 分块提示。`node scripts/runtime-build-state.mjs web` 在正式服务启动前返回 `[]`。
+- 内置浏览器验收：独立正式 Web 实例由本轮源码工作区启动，地址 `http://127.0.0.1:43179/settings?section=browser`，数据隔离在根 `dist/.tmp/task-178-native-browser-ui-20261021/`，不连接 Daemon；1280×720 下 body 宽 1270px、760×520 下 750px、390×560 下 380px，均小于视口宽度且无横向溢出；窄/手机视口的长说明正确换行，页面纵向滚动可达“Agent 原生页面控制”和数据说明。Browser Owner 状态显示“源码已接入 · 桌面实测待验”；设置数据为 Agent 关闭、Edge/Chrome 未接入、Bing、完整网址关闭、权限请求审批，未触碰任何设置控件。隔离管理员账号、会话与默认工作区只写入该临时目录。首次构建后完整性保护要求重启，已仅重启 43179 隔离实例；现有 `127.0.0.1:3000` 未停止/重启。三视口截图由 CUA 内置浏览器在本轮记录，当前截图接口不提供持久本地文件路径。
+- 运行态与缺口：隔离 Electron 冒烟窗口由 Electron 主进程加载原生 Browser Workspace、临时本机 HTTP 页面和 Browser Owner 使用的 Playwright Browser；验证了精确 `targetId`、人类键盘输入、Agent 通过 Playwright 定位器填写并点击同一页，以及关闭 Browser 连接后 Electron 窗口仍运行。冒烟为一次性夹具，不是完整 LFAA Electron renderer 的视觉/交互验收；当前 CUA `getState()` 返回 `apps: []`，因此未取得真实产品桌面窗口目视证据。Agent 对正式 LFAA `WebContentsView` Target 的产品级操作、原生网站权限/下载/打印/文件选择、标签恢复、历史/书签/密码/扩展管理、帧时间/CPU/内存及 Agent p95 均未验收。尝试清理隔离冒烟目录时，自动命令策略拒绝了递归删除；仅本轮生成的隔离夹具仍留在根 `dist/.tmp/native-browser-smoke/`，不含真实账户数据。用户 Web 端口 3000 保持运行。登录测试的 CUA 输入期间，`dsh-ui-primitives` 控制台出现 `event.key.startsWith` 的 `TypeError`；随后重载并再次登录成功，设置页面正常完成验收。该登录输入异常尚未归因，不计入本轮 Native Browser 源码通过项。Web 实页不能替代完整桌面验收。
+- 后续逐批记录变更文件绝对路径、Owner/设置接入、定向回归/构建、内置浏览器实际路由与视口证据、Electron 真正实页交互及性能数据；不将 Web 截图、静态构建或 CDP 能连接端口当成完整产品验收。
+- 变更文件：`apps/desktop-electron/README.md`（原生浏览器职责/状态）；`apps/desktop-electron/package.json`（原生工作区回归入口）；`apps/desktop-electron/src/main.mjs`、`src/preload.cjs`、`src/native-browser-workspace.mjs`、`src/trusted-frontend.mjs`（受信 Electron 原生页面、导航/权限/下载和窄 IPC）；`apps/desktop-electron/tests/native-browser-workspace.test.mjs`（原生工作区回归）；`apps/cli/tests/browser-use.test.mjs`、`tests/browser-address.test.mjs`、`tests/client-settings-native-browser-status.test.mjs`（Target、地址与设置状态回归）；`packages/api/browser-controller/src/index.ts`、`packages/client/connection/src/api.ts`（当前标签 Target 的认证绑定 API）；`packages/browser-use/browser-use/README.md`、`src/browser-tools.ts`、`src/session-manager.ts`（Browser Owner 精确 Target 附着和 Agent 工具）；`packages/client/ui-sidebar-browser/README.md`、`src/BrowserPanel.tsx`、`src/NativeBrowserPanel.tsx`、`src/browser-address.ts`、`src/native-browser-panel.css`（人类浏览器界面和 Host 绑定）；`packages/client/ui-settings/src/SettingsPage.tsx`、`packages/settings/settings/src/service.ts`、`src/validation.ts`（浏览器能力状态和现有设置映射）；`packages/util/values/src/browser-provider.ts`、`src/settings-contract.ts`（提供方/设置合同）；`docs/PROMPTS.md`、`docs/开发计划.md`、`docs/系统总体架构.md`（范围、Owner、证据与未完成项）。
+
+<a id="lfaa-skill-runtime-risk-audit-20261021"></a>
+## 179-Skill 安装检查中的运行风险静态提示（2026-10-21）
+
+- 用户目标：沿原始任务书 P2/C 继续做真实 Web Access 适配，同时保持第三方 Skill 安装只经固定来源检查和现有 Project Files Owner；不得因安装请求绕过唯一 Permission Owner、暴露无鉴权 Proxy/CDP 或误报运行成功。
+- 运行入口与 Owner：`capability_inspect` / `capability_install` 走 Capability Install 与 Skill Owner；文件仍交 Project Files Owner；本批只在 `lfaa-capability-skill` 的固定归档静态检查中识别运行风险提示，不增加执行器、网络服务或浏览器 Driver。
+- 设置/权限/数据：沿用 `permissions.mode` 及当前项目/用户绑定检查凭证；无新增设置、不改账户偏好。静态分析只读取已下载且受文件数/体积/UTF-8 限制的检查快照，不运行脚本、不安装依赖、不写用户目录或浏览器数据。
+- 实施结果：静态扫描脚本和 Skill 文本中的后台进程生命周期、浏览器远程调试/CDP、任意页面脚本执行、本机文件路径接口、用户目录持久化标记，并提取来源声明的最低 Node 主版本；信号作为“静态线索/来源声明（未执行，需核验）”进入检查结果与危险安装审批摘要，并在 Owner 回读详情保留。修复根目录 Skill 仅复制根层文件、漏掉 `scripts/` 与 `references/` 的问题，现在 root Skill 会完整选取其仓库子目录。扫描只说明文本包含匹配标记或声明，不断言目标环境兼容、真实行为或运行成功。
+- 锁定来源 API 映射：[`SKILL.md` 固定提交 d173a759](https://github.com/eze-is/web-access/blob/d173a75978ceb2c63fa0b27f7408cd2bf7fe4310/SKILL.md) 声明 Node.js 22+ 并要求先调用 `check-deps.mjs`；固定 [`check-deps.mjs`](https://github.com/eze-is/web-access/blob/d173a75978ceb2c63fa0b27f7408cd2bf7fe4310/scripts/check-deps.mjs) 将配置/用户数据迁到 `~/.web-access/`，可 detached 启动共享 Proxy。本机当前 Node 24.15.0 满足版本文字要求，但没有执行该脚本或验证另一 `node` 命令路径。固定 [`cdp-proxy.mjs`](https://github.com/eze-is/web-access/blob/d173a75978ceb2c63fa0b27f7408cd2bf7fe4310/scripts/cdp-proxy.mjs) 的 `/navigate`、`/click`、`/scroll` 可部分映射现有工具；`/targets` 列出浏览器级全部 Page，`/eval` 执行任意页面 JavaScript，`/setFiles` 使用本机任意文件路径，`/screenshot?file=` 可写指定本机路径，且服务仅绑定 loopback 没有 LFAA 账户/Run 身份认证。现有 Browser Tools 只能在当前账户、LFAA Session 与 Agent Run 下调用受限动作，故不能把原 HTTP Proxy 端口或这些接口直接交给模型/Shell；需实现具体、私有、Run 绑定的 Driver/Owner 适配，或将不兼容 API 如实标为 unsupported。
+- 验收：纯文本 Skill 不产生风险项；通用脚本依赖和最低 Node 声明仍只静态盘点；固定 Web Access 形态能够识别五类线索并提取 Node.js 22+；根目录 Skill 连同附属目录完整进入 Owner 写入；审批和回读摘要均明确未执行/未验证；安装仍经 Project Files Owner。没有真实上游安装或 Proxy/CDP 连接时，C 保持未完成。
+- 变更文件：`packages/boot/capability-skill/src/index.ts`（受限 Skill 文本扫描、稳定信号标签与核验状态）；`packages/boot/capability-skill/README.md`（静态线索合同与限制）；`apps/cli/tests/capability-skill.test.mjs`（纯文本、依赖盘点与 Web Access 风险信号回归）；本合同及索引、P2/C 矩阵和 `docs/开发计划.md`（追踪当前证据和后续运行适配）。
+- 设置与性能：复用现有 `permissions.mode`，未增加 UI/样式或设置控件；扫描只处理既有受限快照（最多 128 个 UTF-8 文本文件、总量 8 MiB），不引入轮询/网络/进程/长期缓存。没有运行第三方 Skill、npm 安装、Proxy、CDP 或个人浏览器；本机 Node 版本只从当前 LFAA Host Runtime 只读取得。未测 Web Access 实际运行、真实 Provider、Desktop 和帧时间。
+- 验证：`pnpm --filter @yubboo/lfaa test -- tests/capability-skill.test.mjs tests/agent-browser-preview.test.mjs` 11/11；`pnpm --filter lfaa-capability-skill build` 成功，输出在根 `dist/packages/`；`pnpm run typecheck`、`pnpm run check:workspace`（203 包）和 `git diff --check` 通过。回归覆盖 Node.js 22+ 来源声明、五类 Web Access 风险线索、审批摘要、根 Skill 附属目录完整写入和同 Run 隔离浏览器。没有运行 Web Access/npm/Proxy/CDP 或实页，静态检查不构成 C 运行验收。
+
+<a id="lfaa-harness-e2e-h-denial-fallback-20261021"></a>
+## 180-LFAA-Harness E2E H 审批拒绝后替代写入封锁回归（2026-10-21）
+
+- 用户目标：按原始任务书 E2E H 验证权限拒绝不可被模型改选的 Shell、浏览器、安装或其他写入工具绕过；持续更新跨轮次项目计划和 AI 接续记录。
+- 运行入口与 Owner：测试经真实 Agent Loop `executeAiTurn`，权限由 Permission Owner 创建/决定，写入派发与拒绝后门禁由 Agent Loop 负责；只在隔离账户、数据库与合成 Provider 中运行，不操作桌面、浏览器、真实账户或真实文件。
+- 验收：先由模型请求一个需要审批的能力设置写操作并收到拒绝；下一轮让模型仍能看到一个独立、未依赖该能力开关的写入工具，并明确请求调用。拒绝门禁必须在调用工具 `execute` 前拦截，持久结果标记 `executed=false`、`executionState=not_started`，夹具副作用次数不增长；同一测试继续覆盖继承工具范围约束。
+- 设置与权限：仅隔离夹具的 `permissions.mode=ask` 和 `computer-control.enabled=false`；没有新增设置中心配置，未修改真实账户的权限模式、电脑/浏览器开关、模型或 Provider 偏好。
+- 性能、安全与维护：复用 Run 级共享写门禁，无新增轮询、网络请求、持久数据或执行路径；替代工具保持目录可见，避免只靠隐藏工具造成假阳性。回归只增加一个有界合成写工具。
+- 验证：`pnpm --filter @yubboo/lfaa test -- tests/general-agent-capabilities.test.mjs`：7/7；`pnpm --filter @yubboo/lfaa test -- tests/agent-runtime.test.mjs`：6/6。前者覆盖通用 Agent Loop 拒绝后替代写工具；后者覆盖实际隔离 Streamable HTTP MCP 拒绝后，模型仍看到普通写工具但不能执行。真实 Provider、真实审批 UI、Shell/浏览器/安装的跨能力完整 E2E 未测；E2E H 仍不能标为全通过。
+- 变更文件：`apps/cli/tests/general-agent-capabilities.test.mjs`（增加拒绝后替代写工具的零派发回归）；`apps/cli/tests/agent-runtime.test.mjs`（增加 MCP 拒绝后改选普通写工具的集成回归）；`docs/development/agent-execution-audit-20261021.md`（记录源码门禁和测试覆盖边界）；`docs/PROMPTS.md`（E2E H 矩阵、总任务状态、合同索引与 AI 接续记录）；`docs/开发计划.md`（当前进度和后续优先项）。本批无产品代码/界面变化。
+
+<a id="lfaa-harness-e2e-i-browser-cancel-cleanup-20261021"></a>
+## 181-LFAA-Harness E2E I 浏览器取消与资源回收（2026-10-21）
+
+- 用户目标：继续总任务 E2E I，证明取消正在进行的真实隔离浏览器导航会终止浏览器动作、移除账户/Session 浏览器会话并关闭该 Run 所有的本机项目预览服务；同步维护 A–L 与 AI 接续计划。
+- 运行入口与 Owner：`BrowserSessionManager.navigateProjectPreview` 使用 Browser Owner 和传入的 `AbortSignal`；会话归 Browser Owner 按账户/LFAA Session 管理，预览 HTTP Server 只由测试夹具创建并提供 `close()`。Agent Loop Run 取消状态沿用现有 `executeAiTurn`/Agent Runtime 合同，本批只针对真实浏览器动作的资源边界补一项独立验证。
+- 设置、权限与数据：只使用隔离 BrowserSessionManager、本机临时 HTTP 端口和隔离测试目录；无账户偏好或设置改动、无节点绑定、无真实项目/Provider/登录浏览器数据。
+- 允许范围：新增 `apps/cli/tests/agent-browser-preview.test.mjs` 中有界的本机 HTTP 挂起导航取消回归，以及本合同、E2E I 进度与 `docs/开发计划.md` 接续记录。仅在该回归暴露 Browser Owner 取消/清理缺陷时，最小修改 BrowserSessionManager 与 README。
+- 禁止范围：触碰 Web/Daemon 真实服务或端口 3000；接入/启停任何扩展；访问个人浏览器、远程节点或 Provider；新增设置、后台任务、权限路径；提交/发布或改动未关联的现有工作。
+- 验收：使用系统实际可启动的隔离 Edge/Chrome 发起本机项目预览，等到挂起请求到达后取消原 AbortSignal；浏览器导航 Promise 以取消错误结束，预览 close 回调恰好一次，Owner 已不再返回该账户/Session 的会话或 Target，所有测试 HTTP 连接和浏览器资源关闭。没有可用浏览器时仅将该项标为 skip，不得记通过；还要复跑 Agent Runtime 的既有 Run 中途取消回归，确认执行状态与恢复边界。
+- 实施结果：未发现 Browser Owner 代码缺陷。回归使用本机实际隔离 Edge，进入受测账户/LFAA Session/Run 绑定的 Browser Run Adapter；本地 HTTP Server 返回未结束的 HTML 响应，导航开始后取消 Run 的 `AbortSignal`。导航明确以“浏览器操作已取消”结束；Browser Owner 查询不到已关闭页面；运行清理回调撤销桥接，后续观察请求被拒；预览 Server 恰好关闭一次，监听停止且活动 Socket 数为零。原 Agent Runtime 中途取消与隔离/恢复回归保留通过结果。
+- 设置/验证：无设置中心读写或用户偏好变化；没有真实 Provider、账户、项目、Daemon、桌面窗口或端口 3000 写入。`pnpm --filter @yubboo/lfaa test -- tests/agent-browser-preview.test.mjs`：5/5（含 4 条系统隔离浏览器路径）；`pnpm --filter @yubboo/lfaa test -- tests/agent-runtime.test.mjs`：6/6。首轮新增断言只观察到异步清理尚未完成，回归现已等待清理完成后检查，不改变产品合同；没有源码或构建改动。最终文档差异检查在记录写入后执行。
+- 变更文件：`apps/cli/tests/agent-browser-preview.test.mjs`（新增 Run 绑定真实浏览器挂起导航取消、页面/预览/Sockets/桥接回收回归）；`docs/PROMPTS.md`（E2E I、总索引、合同与结果）；`docs/开发计划.md`（持续状态和下一批工作）。
+- 后续：MCP 安装取消子项已由 182 覆盖；继续核查其他 Adapter 的取消回滚与 E2E J 双账户/Session 隔离，不把单一 MCP 适配器结果推广到通用安装链。
+
+<a id="lfaa-harness-e2e-i-mcp-install-cancel-20261021"></a>
+## 182-LFAA-Harness E2E I MCP 安装取消防写入（2026-10-21）
+
+- 用户目标：继续总任务书的安装取消验收，确认 Run 被取消后不能再把 stdio MCP 保存为已安装，同时清理运行中 MCP 子进程与一次性安装凭证。
+- 运行入口与 Owner：`CapabilityInstallRegistry.install` 消费检查票据并委派 `lfaa-capability-mcp`；MCP Runtime 通过 `lfaa-mcp-client` 启动并租用 `shell:false` stdio 子进程；安装设置唯一写入归 Settings Owner。只在已有隔离账户、临时数据库和固定测试 MCP 子进程中运行。
+- 设置/权限/数据：使用测试账户 `user-1` 的隔离 SQLite/Data 和固定本地 fixture；只读/写入该隔离账户插件设置，不访问真实账户或用户 MCP 配置。取消信号模拟用户取消既有 Run，不新增审批模式、权限路径或设置项。
+- 允许范围：先补 `apps/cli/tests/capability-mcp.test.mjs` 回归；只有测试复现取消后仍写设置时，才在 `packages/boot/capability-mcp/src/index.ts` 修正 Owner 交接前取消检查，并同步包 README、E2E I 矩阵/索引和 `docs/开发计划.md`。
+- 禁止范围：启动真实用户 MCP 服务、改变真实账户设置、重启/停止 Web 或 Daemon、改真实项目/节点/Provider、运行外部来源、拓展 Shell 解析/stdio 授权或重复安装、提交/发布。
+- 验收：同一 Run 完成真实 stdio MCP 检查后再次进入安装；包装真实 `discoverMcpTools`，在第二次真实协议发现工具清单返回前立即取消 Run 信号。取消必须在 `Settings Owner` 写入前被发现；不得出现 `mcpServers` 记录；消费过的一次性凭证不可重放；发现 Runtime 的 `close()` 后隔离子进程退出；报错不得被包装成安装成功或 `unverified`。运行 MCP 安装回归、Capability Install 回归与 `git diff --check`。
+- 实施结果：首轮隔离测试复现缺陷：第二次 MCP 协议发现可以在 Run 取消后完成，而适配器仍继续写入账户设置。最小修复是在安装候选 Runtime 关闭后、Settings Owner 写入前再次调用 `context.signal.throwIfAborted()`；Capability Install Registry 已消费的一次性凭证不能重放，Runtime `finally` 关闭路径已回收实际 fixture 子进程。未增加权限模式、设置项或后台处理。
+- 变更文件：`packages/boot/capability-mcp/src/index.ts`（设置写入前重新检查 Run 取消）；`packages/boot/capability-mcp/README.md`（记录取消与租约边界）；`apps/cli/tests/capability-mcp.test.mjs`（增加真实 stdio 安装取消回归）；`docs/PROMPTS.md`、`docs/开发计划.md`（总任务勾选、E2E I 进度、审计证据与接续计划）。
+- 设置/验证：仅使用隔离 SQLite/Data、fixture MCP 命令和当前统一 `permissions.mode`/Settings Owner；没有更改真实账户或偏好。`pnpm --filter @yubboo/lfaa test -- tests/capability-mcp.test.mjs tests/capability-installs.test.mjs`：9/9；stdio 子进程退出、取消安装无设置写入、票据不能重放均通过。`pnpm --filter lfaa-capability-mcp build`、`pnpm run typecheck`、`pnpm run check:workspace`（203 包）和 `git diff --check` 通过。E2E I 的 Electron、真实 Provider、其他 Adapter 回滚和宿主重启恢复仍待验。
+
+<a id="lfaa-harness-e2e-j-identity-isolation-20261021"></a>
+## 183-LFAA-Harness E2E J 账户与 Session 隔离（2026-10-21）
+
+- 用户目标：沿总任务书补齐 E2E J 的跨账户与 Session 隔离证据；不得把隔离测试结果冒充真实登录双账户或完整宿主恢复验收。
+- 运行入口与 Owner：Capability Install Registry 按 userId/appId 绑定一次性检查票据；Workspace Owner 按 userId 隔离项目；MCP Runtime 按 userId+App 分池连接/stdio 进程；Browser Owner 按 userId+LFAA Session 分 Context，并按 Agent Run 撤销短期桥接。
+- 设置/权限/数据：只使用隔离测试账户、内存 Browser/MCP fixture 和独立临时 Home/Data；不读取或写入真实登录账户、个人浏览器 Profile、真实凭据/插件目录或项目目录，不修改用户偏好。
+- 允许范围：在 `apps/cli/tests/capability-installs.test.mjs` 增加其他账户借用检查票据的回归，并复跑 `workspace-projects`、`browser-use`、`mcp-tools`、`capability-mcp` 和 Capability Install 隔离用例；本批不预期产品源码修改。仅在回归证明 Owner 跨身份泄露时，按唯一 Owner 做最小修复。
+- 禁止范围：创建或切换真实用户账户、导入个人浏览器状态、安装/启动真实插件或 MCP、改凭据和用户设置、重启生产服务或停止 Daemon、操作远程节点、提交或发布。
+- 验收：另一 userId 无法为既有 inspectionId 生成审批或安装；被拒绝不会触发领域 Owner side effect，也不能消费票据；持票原账户仍可按原目标审批并完成安装。并核对现有 Workspace user 隔离、MCP user/App 连接租约隔离、Browser account/Session Context 与 Run 清理回归；证据仅按对应测试范围勾选。
+- 变更文件：`apps/cli/tests/capability-installs.test.mjs`（新增跨账户检查票据借用回归）；`docs/PROMPTS.md`、`docs/开发计划.md`（E2E J 状态、Owner 边界、验证结果与后续缺口）。
+- 设置与验证：只使用测试数据与既有设置合同，不新增或修改设置中心配置。`pnpm --filter @yubboo/lfaa test -- tests/capability-installs.test.mjs tests/capability-mcp.test.mjs tests/workspace-projects.test.mjs tests/browser-use.test.mjs tests/mcp-tools.test.mjs`：21/21；跨账户检查凭证被拒且不触发写入，原账户仍能安装；Workspace 用户隔离、MCP user/App 连接池隔离、Browser account/Session Context 与 Run 清理回归均通过。未改产品源码，因此本批没有额外构建；真实双账户浏览器/桌面、用户凭据与完整数据目录未测。

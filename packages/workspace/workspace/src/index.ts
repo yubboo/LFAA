@@ -137,6 +137,69 @@ export function setDefaultWorkspaceProject(userId: string, projectId: string): s
   return registered;
 }
 
+/**
+ * 仅恢复 v58 默认项目身份引入前遗留的本机默认目录。
+ * 调用方必须先以受保护凭据确认 nodeId 是当前 LFAA 本机 Daemon；这里再限定唯一目录后缀，避免认领普通或远程项目。
+ */
+export function claimLegacyLocalDefaultWorkspace(userId: string, localNodeId: string): WorkspaceProject | null {
+  const defaultProjectId = getDefaultWorkspaceProjectId(userId);
+  if (defaultProjectId) return null;
+  const candidates = database.prepare(`
+    ${selectProject}
+    WHERE p.user_id = ? AND p.app_id = 'workspace' AND p.node_id = ?
+      AND lower(replace(p.path, char(92), '/')) LIKE '%/lfaa/default-workspace'
+      AND NOT EXISTS (SELECT 1 FROM workspace_git_worktrees w WHERE w.project_id = p.id)
+    ORDER BY p.id LIMIT 2
+  `).all(userId, localNodeId) as unknown as WorkspaceProjectRow[];
+  if (candidates.length !== 1) return null;
+  const candidate = candidates[0];
+  const normalizedPath = candidate.path.replace(/[\\/]+/gu, "/").toLocaleLowerCase("en-US").replace(/\/+$/u, "");
+  if (!normalizedPath.endsWith("/lfaa/default-workspace")) return null;
+
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    if (getDefaultWorkspaceProjectId(userId)) {
+      database.exec("ROLLBACK;");
+      return null;
+    }
+    const currentCandidates = database.prepare(`
+      SELECT id, path, path_key FROM workspace_projects p
+      WHERE p.user_id = ? AND p.app_id = 'workspace' AND p.node_id = ?
+        AND lower(replace(p.path, char(92), '/')) LIKE '%/lfaa/default-workspace'
+        AND NOT EXISTS (SELECT 1 FROM workspace_git_worktrees w WHERE w.project_id = p.id)
+      ORDER BY p.id LIMIT 2
+    `).all(userId, localNodeId) as Array<{ id: string; path: string; path_key: string }>;
+    if (currentCandidates.length !== 1 || currentCandidates[0].id !== candidate.id) {
+      database.exec("ROLLBACK;");
+      return null;
+    }
+    const collision = database.prepare(`
+      SELECT 1 FROM workspace_projects
+      WHERE user_id = ? AND app_id = 'workspace' AND node_id IS NULL AND path_key = ? AND id <> ? LIMIT 1
+    `).get(userId, candidate.path_key, candidate.id);
+    if (collision) {
+      database.exec("ROLLBACK;");
+      return null;
+    }
+    const result = database.prepare(`
+      UPDATE workspace_projects SET node_id = NULL
+      WHERE user_id = ? AND id = ? AND app_id = 'workspace' AND node_id = ?
+    `).run(userId, candidate.id, localNodeId);
+    if (!Number(result.changes)) throw new Error("旧默认工作区登记在恢复期间发生变化。 ");
+    database.prepare(`
+      INSERT INTO workspace_default_projects (user_id, app_id, project_id, created_at)
+      VALUES (?, 'workspace', ?, ?)
+      ON CONFLICT (user_id, app_id) DO NOTHING
+    `).run(userId, candidate.id, new Date().toISOString());
+    if (getDefaultWorkspaceProjectId(userId) !== candidate.id) throw new Error("旧默认工作区身份无法安全恢复。 ");
+    database.exec("COMMIT;");
+    return getWorkspaceProject(userId, candidate.id, "workspace");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+
 /** 原子更新既有默认项目路径；只接受默认项目 ID 和 Host 已校验的路径，并以旧路径做并发保护。 */
 export function updateDefaultWorkspaceProjectPath(userId: string, projectId: string, expectedPath: string, nextPathInput: string, platform: string): WorkspaceProject | null {
   if (getDefaultWorkspaceProjectId(userId) !== projectId) return null;

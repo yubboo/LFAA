@@ -2,24 +2,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-const { hasWallpaperEngineClientEntry, syncClientModuleGraphForAuthentication } = await import('lfaa-client-modules/src/client/auth-sync.js');
+const { filterUnauthenticatedClientModules, hasWallpaperEngineClientEntry, syncClientModuleGraphForAuthentication } = await import('lfaa-client-modules/src/client/auth-sync.js');
 
 const fullGraph = {
-  entries: [{ id: 'lfaa-base-client' }, { id: 'dsh-plugin-wallpaper-engine' }],
-  batches: [{ entries: ['lfaa-base-client', 'dsh-plugin-wallpaper-engine'] }]
+  rev: 'fixture-graph',
+  lfaaAuthenticatedClientModules: ['dsh-plugin-wallpaper-engine', '@example/router-client'],
+  entries: [
+    { id: 'lfaa-base-client', inject: [] },
+    { id: 'dsh-plugin-wallpaper-engine', inject: [] },
+    { id: '@example/router-client', inject: [] },
+    { id: '@example/consumer-client', inject: ['@example/router-client'] }
+  ],
+  batches: [
+    { entries: ['lfaa-base-client'] },
+    { entries: ['dsh-plugin-wallpaper-engine', '@example/router-client', '@example/consumer-client'] }
+  ]
 };
-
-function filterUnauthenticatedGraph(graph) {
-  if (typeof graph !== 'object' || graph === null || !Array.isArray(graph.entries) || !Array.isArray(graph.batches)) return graph;
-  return {
-    ...graph,
-    entries: graph.entries.filter((entry) => entry.id !== 'dsh-plugin-wallpaper-engine'),
-    batches: graph.batches.map((batch) => ({
-      ...batch,
-      entries: batch.entries.filter((id) => id !== 'dsh-plugin-wallpaper-engine')
-    }))
-  };
-}
 
 function createRuntime() {
   return {
@@ -31,10 +29,17 @@ function createRuntime() {
   };
 }
 
-test('reports Wallpaper Engine availability from the applied DSH graph entry', () => {
+test('filters all Host-marked authenticated client bundles and their dependent modules', () => {
   assert.equal(hasWallpaperEngineClientEntry(fullGraph), true);
-  assert.equal(hasWallpaperEngineClientEntry(filterUnauthenticatedGraph(fullGraph)), false);
+  const filtered = filterUnauthenticatedClientModules(fullGraph);
+  assert.deepEqual(filtered.entries.map((entry) => entry.id), ['lfaa-base-client']);
+  assert.deepEqual(filtered.batches.map((batch) => batch.entries), [['lfaa-base-client']]);
+  assert.notEqual(filtered.rev, fullGraph.rev, 'the filtered graph has a distinct revision for the DSH loader');
+  assert.deepEqual(fullGraph.entries.map((entry) => entry.id), ['lfaa-base-client', 'dsh-plugin-wallpaper-engine', '@example/router-client', '@example/consumer-client'], 'filtering does not mutate the Host-owned graph');
+  assert.equal(hasWallpaperEngineClientEntry(filtered), false);
   assert.equal(hasWallpaperEngineClientEntry(null), false);
+  assert.equal(filterUnauthenticatedClientModules({ entries: [], batches: [] }).entries.length, 0, 'legacy graphs without auth metadata remain compatible');
+  assert.throws(() => filterUnauthenticatedClientModules({ ...fullGraph, lfaaAuthenticatedClientModules: ['x'.repeat(201)] }), /认证声明无效/u);
 });
 
 test('reuses the complete HTML bootstrap graph and coalesces concurrent authentication sync', async () => {
@@ -46,7 +51,7 @@ test('reuses the complete HTML bootstrap graph and coalesces concurrent authenti
       fetchCalls += 1;
       return Promise.resolve(fullGraph);
     },
-    filterUnauthenticatedGraph,
+    filterUnauthenticatedGraph: filterUnauthenticatedClientModules,
     async applyGraph(graph) { await Promise.resolve(); appliedGraphs.push(graph); }
   };
 
@@ -58,7 +63,7 @@ test('reuses the complete HTML bootstrap graph and coalesces concurrent authenti
   assert.equal(fetchCalls, 0, 'the current page already has the same graph in its HTML bootstrap');
   await Promise.all([firstSync, duplicateSync]);
   assert.equal(appliedGraphs.length, 1);
-  assert.deepEqual(appliedGraphs[0].entries.map((entry) => entry.id), ['lfaa-base-client', 'dsh-plugin-wallpaper-engine']);
+  assert.deepEqual(appliedGraphs[0].entries.map((entry) => entry.id), fullGraph.entries.map((entry) => entry.id));
 
   await syncClientModuleGraphForAuthentication(runtime, true, options);
   assert.equal(fetchCalls, 0, 'an already-applied authenticated graph does not trigger a Host read');
@@ -78,7 +83,7 @@ test('a newer logout wins over a pending authenticated graph read', async () => 
   let resolveGraph;
   const options = {
     loadAuthenticatedGraph: () => new Promise((resolve) => { resolveGraph = resolve; }),
-    filterUnauthenticatedGraph,
+    filterUnauthenticatedGraph: filterUnauthenticatedClientModules,
     async applyGraph(graph) { appliedGraphs.push(graph); }
   };
 
@@ -98,7 +103,7 @@ test('a failed authenticated graph read leaves the runtime unauthenticated and r
   await assert.rejects(
     syncClientModuleGraphForAuthentication(runtime, true, {
       async loadAuthenticatedGraph() { throw new Error('Host unavailable'); },
-      filterUnauthenticatedGraph,
+      filterUnauthenticatedGraph: filterUnauthenticatedClientModules,
       async applyGraph() { assert.fail('a missing authenticated graph must not be applied'); }
     }),
     /Host unavailable/u

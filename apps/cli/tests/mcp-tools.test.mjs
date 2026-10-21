@@ -107,6 +107,10 @@ test("MCP 按真实协议发现和执行工具，取消不重放", async () => {
     assert.equal(discovered.serverStates[0].status, "ready");
     assert.match(discovered.serverStates[0].manifestSha256, /^[a-f0-9]{64}$/u);
     const tool = discovered.tools[0];
+    const nonReconciledProbe = await discoverMcpTools([], "workspace", "fixture-user", controller.signal, 10, { reconcile: false });
+    assert.deepEqual(nonReconciledProbe.errors, []);
+    await nonReconciledProbe.close();
+    assert.equal((await tool.execute(tool.parse({ path: "probe-does-not-close-peer" }), { userId: "fixture-user", userRole: "admin", applicationId: "workspace", signal: controller.signal, onProgress() {} })).content[0].text, "真实协议结果", "安装探测不能因候选清单不完整关闭其他活跃 MCP 会话");
     assert.equal(tool.risk({}), "dangerous");
     assert.throws(() => tool.parse({ path: 1 }), /约束/u);
     const context = { userId: "fixture-user", userRole: "admin", applicationId: "workspace", signal: controller.signal, onProgress() {} };

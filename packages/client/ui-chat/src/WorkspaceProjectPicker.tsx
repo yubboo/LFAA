@@ -4,7 +4,7 @@
  * 不负责：Minecraft 实例管理、模型授权或全局 LFAA 数据目录管理。
  */
 import { useEffect, useMemo, useState } from "react";
-import { Button, Checkbox, Input, Modal, Popconfirm, Popover, Select, Spin } from "antd";
+import { Button, Checkbox, Input, Modal, Popconfirm, Popover, Select, Spin, Tooltip } from "antd";
 import { browseWorkspaceDirectory, createWorkspaceGitWorktree, createWorkspaceProject, getErrorMessage, isDesktopApp, loadWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, selectDesktopWorkspaceDirectory, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 
@@ -307,7 +307,9 @@ export function WorkspaceProjectPicker({ appId, applicationName, projects, proje
 
   return <>
     <Popover open={open} onOpenChange={next => { setOpen(next); if (!next) setQuery(""); }} trigger="click" placement="topLeft" arrow={false} overlayClassName="ai-work-chat__project-overlay" content={projectMenu} getPopupContainer={trigger => trigger.closest<HTMLElement>(".workbench-shell") ?? trigger.parentElement ?? document.body}>
-      <Button className="ai-work-chat__project-trigger" type="text" disabled={disabled} aria-label={selected ? `当前项目：${selected.title}` : unresolvedProjectTitle ? `当前会话项目${projectListStatus === "loading" ? "正在确认登记" : unresolvedProjectStatus}：${unresolvedProjectTitle}` : `选择 ${applicationName} 项目文件夹`} title={selected?.path ?? unresolvedProjectDescription} icon={<WorkbenchIcon name="folder" size={13} />}><span className="ai-work-chat__project-trigger-label">{selected?.title ?? unresolvedProjectLabel}</span></Button>
+      <Tooltip trigger={["hover", "focus"]} placement="top" title={disabled ? undefined : selected?.path ?? unresolvedProjectDescription}>
+        <Button className="ai-work-chat__project-trigger" type="text" disabled={disabled} aria-label={selected ? `当前项目：${selected.title}` : unresolvedProjectTitle ? `当前会话项目${projectListStatus === "loading" ? "正在确认登记" : unresolvedProjectStatus}：${unresolvedProjectTitle}` : `选择 ${applicationName} 项目文件夹`} title={disabled ? selected?.path ?? unresolvedProjectDescription : undefined} icon={<WorkbenchIcon name="folder" size={13} />}><span className="ai-work-chat__project-trigger-label">{selected?.title ?? unresolvedProjectLabel}</span></Button>
+      </Tooltip>
     </Popover>
     <Modal className="ai-work-chat__project-modal" title={`关联 ${applicationName} 项目文件夹`} open={createOpen} onCancel={() => { if (!saving) setCreateOpen(false); }} onOk={() => void registerCurrentDirectory()} okText="关联此文件夹" cancelText="取消" okButtonProps={{ disabled: !directoryPath || directoryLoading || saving }} cancelButtonProps={{ disabled: saving }} confirmLoading={saving} destroyOnHidden>
       <div className="ai-work-chat__project-browser">

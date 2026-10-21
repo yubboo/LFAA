@@ -39,6 +39,7 @@ const actionSchema = Joi.object({
 const providerQuerySchema = Joi.object({ providerId: providerSchema }).unknown(false);
 const claimSchema = Joi.object({ providerId: providerSchema.valid("tabbit-personal"), tabId: Joi.number().integer().min(0).required() }).unknown(false);
 const tabbitConnectSchema = Joi.object({ sourceSessionId: sessionSchema }).unknown(false);
+const nativeActiveTargetSchema = Joi.object({ providerId: providerSchema.valid("lfaa-native-browser"), targetId: Joi.string().trim().min(1).max(128).pattern(/^[A-Za-z0-9_-]+$/u).required() }).unknown(false);
 
 function readSessionId(value: unknown): string {
   const result = sessionSchema.validate(value, { convert: false });
@@ -94,6 +95,13 @@ function registerRoutes(router: Router, manager: BrowserSessionManager): void {
     assertProviderLinked(request.auth!.user.id, providerId);
     const session = await manager.getPanelRevision(request.auth!.user.id, sourceSessionId, providerId);
     response.json({ session });
+  }));
+  router.post("/browser/sessions/:sourceSessionId/native-active", ...auth, actionLimit, asyncHandler(async (request, response) => {
+    const sourceSessionId = readSessionId(request.params.sourceSessionId);
+    const body = parseBody<{ providerId: BrowserProviderId; targetId: string }>(nativeActiveTargetSchema, request.body);
+    assertProviderLinked(request.auth!.user.id, body.providerId);
+    await manager.setNativeActiveTarget(request.auth!.user.id, sourceSessionId, body.targetId);
+    response.json({ active: true });
   }));
   router.post("/browser/sessions/:sourceSessionId/navigate", ...auth, actionLimit, asyncHandler(async (request, response) => {
     const sourceSessionId = readSessionId(request.params.sourceSessionId);

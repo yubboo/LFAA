@@ -17,9 +17,12 @@ const recordId = 'elysia395-dsh-wallpaper-engine';
 const commit = '0e9171817530272685f42b66e007a0831e2035c9';
 const repository = 'https://github.com/elysia395/dsh-wallpaper-engine';
 const root = mkdtempSync(join(tmpdir(), 'lfaa-wallpaper-runtime-'));
+const home = join(root, 'home');
 const data = join(root, 'data');
 const installed = join(root, 'installed', packageId);
+const previousLfaaHome = process.env.LFAA_HOME;
 const previousLfaaDataDirectory = process.env.LFAA_DATA_DIR;
+process.env.LFAA_HOME = home;
 process.env.LFAA_DATA_DIR = data;
 mkdirSync(join(installed, 'lib'), { recursive: true });
 writeFileSync(join(installed, 'package.json'), JSON.stringify({
@@ -185,10 +188,15 @@ const loader = {
   remove(id) { removedEntries.push(id); }
 };
 const registeredRoutes = new Map();
+const registeredClientModules = new Map();
 const carrier = {
   registerHandlerAdapter(owner, path, adapter) {
     registeredRoutes.set(path, { owner, adapter });
     return () => registeredRoutes.delete(path);
+  },
+  registerAuthenticatedClientModule(owner, moduleId) {
+    registeredClientModules.set(moduleId, owner);
+    return () => { if (registeredClientModules.get(moduleId) === owner) registeredClientModules.delete(moduleId); };
   }
 };
 const context = new Context();
@@ -207,6 +215,8 @@ test.after(async () => {
   closeDatabase();
   if (previousLfaaDataDirectory === undefined) delete process.env.LFAA_DATA_DIR;
   else process.env.LFAA_DATA_DIR = previousLfaaDataDirectory;
+  if (previousLfaaHome === undefined) delete process.env.LFAA_HOME;
+  else process.env.LFAA_HOME = previousLfaaHome;
   if (previousDataDirectory === undefined) delete process.env.DSH_WE_DATA_DIR;
   else process.env.DSH_WE_DATA_DIR = previousDataDirectory;
   if (previousCacheDirectory === undefined) delete process.env.DSH_WE_CACHE_DIR;
@@ -281,6 +291,7 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
 
   await runtime.enable(record, installed);
   assert.equal(runtime.isActive(record), true);
+  assert.equal(registeredClientModules.has(packageId), true, 'active DSH Client bundle is marked as requiring an LFAA session');
   assert.equal(registeredRoutes.has('/wallpaper-engine/settings'), true);
   assert.equal(loaderCalls.length, 1);
   assert.deepEqual(loaderCalls[0].inject, ['webServer']);
@@ -337,6 +348,7 @@ test('verified official DSH v1 revisions are adapted into isolated LFAA runtimes
 
   await runtime.disable(record);
   assert.equal(runtime.isActive(record), false);
+  assert.equal(registeredClientModules.has(packageId), false, 'Client authentication registration is removed with its Runtime');
   assert.deepEqual(removedEntries, ['wallpaper-test-entry']);
   assert.equal(process.env.DSH_WE_DATA_DIR, undefined, 'the Profile default is scoped to the active Runtime lifecycle');
 

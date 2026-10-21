@@ -36,7 +36,7 @@ test('单个 GitHub Skill 固定归档后写入当前项目并通过 Owner 发�
     runProjectFile: async input => {
       calls.push(input);
       if (input.operation === 'create_tree') return { taskId: 'task-1', result: { created: true, files: input.files.map(file => ({ path: file.path, sha256: createHash('sha256').update(file.content).digest('hex') })) } };
-      return { taskId: 'task-2', result: { skills: [{ name: 'reviewer', path: '.agents/skills/reviewer/SKILL.md' }] } };
+      return { taskId: 'task-2', result: { skills: [{ name: 'reviewer', path: '.agents\\skills\\reviewer\\SKILL.md' }] } };
     }
   });
   const registry = new CapabilityInstallRegistry();
@@ -54,7 +54,7 @@ test('单个 GitHub Skill 固定归档后写入当前项目并通过 Owner 发�
   assert.equal(installed.outcome, 'verified_ready');
   assert.deepEqual(installed.verification.details, {
     skill: 'reviewer', path: '.agents/skills/reviewer/SKILL.md', project: '样例项目', state: 'installed-and-discovered', fileCount: 2,
-    scriptFiles: [], packageManifest: 'absent', dependencies: [], devDependencies: [], packageScriptNames: [], scriptsExecuted: false,
+    scriptFiles: [], declaredNodeMajor: null, packageManifest: 'absent', dependencies: [], devDependencies: [], packageScriptNames: [], riskSignals: [], scriptsExecuted: false,
     dependenciesInstalled: false, externalRuntimeVerified: false
   });
   assert.equal(calls[0].path, '.agents/skills/reviewer');
@@ -88,7 +88,7 @@ test('Skill 检查静态盘点脚本与依赖并明确不会执行或安装它�
   const context = makeContext();
   const reviewed = await registry.inspect('skill', 'https://github.com/acme/skills', 'main', 'workspace', {}, context);
   assert.deepEqual(reviewed.details.skill.runtimeAudit, {
-    scriptFiles: ['scripts/check.mjs'], packageManifest: 'valid', dependencies: ['playwright'], devDependencies: ['typescript'], packageScriptNames: ['check']
+    scriptFiles: ['scripts/check.mjs'], declaredNodeMajor: null, packageManifest: 'valid', dependencies: ['playwright'], devDependencies: ['typescript'], packageScriptNames: ['check'], riskSignals: []
   });
   const approval = registry.installApproval('skill', reviewed.inspectionId, 'workspace', 'user-1');
   assert.match(approval.summary, /含 1 个脚本文件，安装只复制文本，不执行/u);
@@ -101,6 +101,43 @@ test('Skill 检查静态盘点脚本与依赖并明确不会执行或安装它�
   assert.equal(installed.verification.details.dependenciesInstalled, false);
   assert.equal(installed.verification.details.externalRuntimeVerified, false);
   assert.deepEqual(calls[0].files.map(file => file.path), ['package.json', 'references/checklist.md', 'scripts/check.mjs', 'SKILL.md']);
+});
+
+test('Skill 检查标出 Web Access 类运行风险，安装审批只呈现静态线索', async () => {
+  const webAccessSnapshot = {
+    ...snapshot,
+    repository: { url: 'https://github.com/eze-is/web-access', name: 'web-access', license: 'MIT' },
+    files: [
+      { path: 'SKILL.md', contents: Buffer.from('---\nname: web-access\ndescription: 浏览器联网 Skill\n---\nRequires Node.js 22+ and browser remote debugging via CDP and DevToolsActivePort.') },
+      { path: 'scripts/check-deps.mjs', contents: Buffer.from('spawn(process.execPath, args, { detached: true }); child.unref(); process.env.USERPROFILE;') },
+      { path: 'scripts/cdp-proxy.mjs', contents: Buffer.from('POST /eval uses Runtime.evaluate. POST /setFiles uses DOM.setFileInputFiles.') }
+    ]
+  };
+  const adapter = createProjectSkillAdapter({
+    downloadSnapshot: async () => webAccessSnapshot,
+    runProjectFile: async input => input.operation === 'create_tree'
+      ? { result: { created: true, files: input.files.map(file => ({ path: file.path })) } }
+      : { result: { skills: [{ name: 'web-access', path: '.agents/skills/web-access/SKILL.md' }] } }
+  });
+  const registry = new CapabilityInstallRegistry();
+  registry.register({ effect(callback) { return callback(); } }, adapter);
+  const context = makeContext({ ...project, nodeId: null });
+  const inspected = await registry.inspect('skill', webAccessSnapshot.repository.url, 'main', 'workspace', {}, context);
+  const expected = ['background-process', 'browser-remote-debugging', 'arbitrary-page-script', 'local-file-access', 'user-profile-persistence'];
+  assert.deepEqual(inspected.details.skill.runtimeAudit.riskSignals, expected);
+  assert.equal(inspected.details.skill.runtimeAudit.declaredNodeMajor, 22);
+  assert.match(inspected.summary, /静态线索（未执行，需核验）/u);
+  assert.match(inspected.summary, /来源声明最低 Node.js 22\+/u);
+  assert.match(inspected.summary, /后台进程生命周期/u);
+  assert.match(inspected.summary, /任意页面脚本执行接口/u);
+  const approval = registry.installApproval('skill', inspected.inspectionId, 'workspace', 'user-1');
+  assert.match(approval.summary, /静态线索（未执行，需核验）/u);
+  assert.match(approval.summary, /浏览器远程调试\/CDP/u);
+  const installed = await registry.install('skill', inspected.inspectionId, 'workspace', 'user-1', context);
+  assert.deepEqual(installed.verification.details.riskSignals, expected);
+  assert.equal(installed.verification.details.declaredNodeMajor, 22);
+  assert.equal(installed.verification.details.scriptsExecuted, false);
+  assert.equal(installed.verification.details.externalRuntimeVerified, false);
 });
 
 test('多 Skill 仓库要求显式选择目录，检查后项目变化或归档摘要变化时拒绝写入', async () => {
@@ -153,6 +190,7 @@ test('仓库根目录的单个 Skill 可固定为 Owner 目标并安装', async 
   assert.equal(verification.status, 'ready');
   assert.equal(verification.verified, true);
   assert.equal(writes[0].path, '.agents/skills/root-review');
+  assert.deepEqual(writes[0].files.map(file => file.path), ['references/checklist.md', 'SKILL.md'], '仓库根目录 Skill 必须保留其附属目录');
   assert.equal(writes[1].operation, 'discover_skills');
 });
 

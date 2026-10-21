@@ -7,11 +7,20 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { once } from "node:events";
+import { fileURLToPath } from "node:url";
 import { isolateData } from "./isolated-data.mjs";
 isolateData(test, "capability-mcp");
 const { CapabilityInstallRegistry } = await import("lfaa-capability-installs/src/index.js");
 const { createMcpCapabilityAdapter } = await import("lfaa-capability-mcp/src/index.js");
-const { discoverMcpTools } = await import("lfaa-mcp-client/src/runtime.js");
+await import("lfaa-session/src/sessions.js");
+const { retireLegacyFileTables } = await import("lfaa-storage-domain/src/migration.js");
+retireLegacyFileTables();
+const { closeMcpConnections, discoverMcpTools } = await import("lfaa-mcp-client/src/runtime.js");
+const { getUserSettings, saveUserSettings } = await import("lfaa-settings/src/service.js");
+const { database } = await import("lfaa-storage-sqlite/src/database.js");
+for (const [id, uid] of [["user-1", 1], ["user-2", 2]]) {
+  database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role) VALUES(?,?,?,'fixture','fixture','admin')").run(id, uid, id);
+}
 
 function settings(enabled = true) {
   return { plugins: { enabled, mcpServers: [] }, aiRuntime: { requestTimeoutSeconds: 5 } };
@@ -24,8 +33,10 @@ function makeContext(userId = "user-1", applicationId = "workspace") {
 test("MCP 来源经真实协议检查后安装到单一 App，并由同一 Runtime 核对工具清单", async () => {
   let remoteTools = [{ name: "read_status", description: "读取当前状态", inputSchema: { type: "object", properties: {}, additionalProperties: false } }];
   const calls = [];
+  let initializeCount = 0;
+  let deleteCount = 0;
   const server = createServer(async (request, response) => {
-    if (request.method === "DELETE") { response.writeHead(204).end(); return; }
+    if (request.method === "DELETE") { deleteCount += 1; response.writeHead(204).end(); return; }
     let bodyText = "";
     for await (const chunk of request) bodyText += chunk;
     const body = JSON.parse(bodyText);
@@ -34,9 +45,10 @@ test("MCP 来源经真实协议检查后安装到单一 App，并由同一 Runti
       response.writeHead(200, { "Content-Type": "application/json", ...(body.method === "initialize" ? { "MCP-Session-Id": "fixture-session" } : {}) });
       response.end(JSON.stringify({ jsonrpc: "2.0", id: body.id, result }));
     };
-    if (body.method === "initialize") { send({ protocolVersion: "2025-11-25", capabilities: { tools: {} }, serverInfo: { name: "fixture", version: "1" } }); return; }
+    if (body.method === "initialize") { initializeCount += 1; send({ protocolVersion: "2025-11-25", capabilities: { tools: {} }, serverInfo: { name: "fixture", version: "1" } }); return; }
     if (body.method === "notifications/initialized") { response.writeHead(202).end(); return; }
     if (body.method === "tools/list") { send({ tools: remoteTools }); return; }
+    if (body.method === "tools/call") { send({ content: [{ type: "text", text: "真实 MCP 工具调用结果" }], isError: false }); return; }
     response.writeHead(404).end();
   });
   server.listen(0, "127.0.0.1");
@@ -49,11 +61,19 @@ test("MCP 来源经真实协议检查后安装到单一 App，并由同一 Runti
     saveSettings(userId, category, value) {
       assert.equal(category, "plugins");
       const current = users.get(userId) ?? settings();
-      users.set(userId, { ...current, plugins: structuredClone(value) });
+      const next = structuredClone(value);
+      users.set(userId, { ...current, plugins: next });
+      saveUserSettings(userId, category, next);
     }
   }));
   const context = makeContext();
   try {
+    const stdioSearch = await registry.search("mcp", "npx -y @example/mcp-server", "workspace", context);
+    assert.deepEqual(stdioSearch.candidates, [], "当前没有 stdio 命令来源目录，不得臆造可安装候选");
+    await assert.rejects(registry.inspect("mcp", "npx -y @example/mcp-server", undefined, "workspace", { name: "测试 stdio" }, context), /不是有效 URL/u);
+    assert.equal(calls.length, 0, "拒绝 stdio 检查不能启动命令或连接来源");
+    assert.deepEqual(users.get("user-1").plugins.mcpServers, []);
+
     const search = await registry.search("mcp", url, "workspace", context);
     assert.equal(search.candidates[0].source, url);
     assert.equal(search.candidates[0].requiresInspection, true);
@@ -66,18 +86,27 @@ test("MCP 来源经真实协议检查后安装到单一 App，并由同一 Runti
     const installed = await registry.install("mcp", inspected.inspectionId, "workspace", "user-1", context);
     assert.equal(installed.outcome, "verified_ready");
     assert.equal(installed.verification.details.runtimeEnabled, true);
-    const entry = users.get("user-1").plugins.mcpServers[0];
+    const entry = getUserSettings("user-1").plugins.mcpServers[0];
     assert.equal(entry.enabled, true);
     assert.deepEqual(entry.applicationIds, ["workspace"]);
     assert.equal(entry.manifestSha256, inspected.details.mcp.manifestSha256);
     assert.deepEqual(users.get("user-2").plugins.mcpServers, [], "安装只写当前用户的设置");
 
-    const runtime = await discoverMcpTools(users.get("user-1").plugins.mcpServers, "workspace", "user-1", new AbortController().signal, 5);
+    const runtime = await discoverMcpTools(getUserSettings("user-1").plugins.mcpServers, "workspace", "user-1", new AbortController().signal, 5);
+    const toolContext = { ...context, userRole: "admin", signal: new AbortController().signal };
+    let installedTool;
     try {
       assert.equal(runtime.errors.length, 0);
       assert.equal(runtime.tools.length, 1);
       assert.equal(runtime.serverStates[0].status, "ready");
       assert.equal(runtime.serverStates[0].manifestSha256, entry.manifestSha256);
+      assert.equal(getUserSettings("user-1").plugins.enabled, true, "Runtime 必须读取已写入 Settings Owner 的全局扩展开关");
+      assert.deepEqual(getUserSettings("user-1").plugins.mcpServers[0], entry, "Runtime 必须消费 Settings Owner 的规范化记录");
+      installedTool = runtime.tools[0];
+      assert.equal(installedTool.risk({}), "dangerous");
+      const result = await installedTool.execute(installedTool.parse({}), toolContext);
+      assert.equal(result.content[0].text, "真实 MCP 工具调用结果");
+      assert.equal(calls.filter(method => method === "tools/call").length, 1);
     } finally { await runtime.close(); }
 
     const writingContext = makeContext("user-1", "writing");
@@ -103,8 +132,122 @@ test("MCP 来源经真实协议检查后安装到单一 App，并由同一 Runti
     assert.equal(gated.outcome, "verified_installed");
     assert.equal(gated.verification.status, "installed");
     assert.equal(users.get("user-1").plugins.enabled, false, "安装不能替用户打开全局扩展开关");
+
+    const disabled = await registry.setEnabled("mcp", entry.id, false, "workspace", {}, context);
+    assert.equal(disabled.enabled, false);
+    assert.equal(users.get("user-1").plugins.mcpServers[0].enabled, false);
+    assert.equal(getUserSettings("user-1").plugins.mcpServers[0].enabled, false, "停用写入必须经 Settings Owner 并被 Runtime 回读");
+    await assert.rejects(installedTool.execute(installedTool.parse({}), toolContext), /停用/u);
+    assert.equal(calls.filter(method => method === "tools/call").length, 1, "停用后已加载的旧 Tool 不得再次派发");
+    const afterDisable = await discoverMcpTools(getUserSettings("user-1").plugins.mcpServers, "workspace", "user-1", new AbortController().signal, 5);
+    try { assert.equal(afterDisable.tools.length, 0); }
+    finally { await afterDisable.close(); }
+
+    const removed = await registry.remove("mcp", entry.id, "workspace", {}, context);
+    assert.equal(removed.removedApplicationId, "workspace");
+    assert.deepEqual(users.get("user-1").plugins.mcpServers, []);
+    assert.deepEqual(getUserSettings("user-1").plugins.mcpServers, []);
   } finally {
+    await closeMcpConnections();
+    assert.equal(deleteCount, initializeCount, "所有真实 MCP Runtime 会话都必须在回归结束前关闭");
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
   }
+});
+
+test("用户提供的本机 stdio MCP 经 Settings Owner 安装、真实调用、停用和移除", async () => {
+  const current = getUserSettings("user-1");
+  saveUserSettings("user-1", "plugins", { ...current.plugins, enabled: true, mcpServers: [] });
+  const fixturePath = fileURLToPath(new URL("./fixtures/mcp-stdio-capability-fixture.mjs", import.meta.url));
+  const registry = new CapabilityInstallRegistry();
+  registry.register({ effect(callback) { return callback(); } }, createMcpCapabilityAdapter());
+  const target = { name: "隔离 stdio 测试服务", transport: "stdio", command: process.execPath, args: [fixturePath] };
+  let runtime;
+  let childPid;
+  try {
+    const inspected = await registry.inspect("mcp", "stdio://local", undefined, "workspace", target, makeContext());
+    assert.match(inspected.resolvedRef, /^tools-sha256:[a-f0-9]{64}$/u);
+    assert.equal(inspected.details.mcp.transport, "stdio");
+    assert.equal(inspected.details.mcp.command, process.execPath);
+    assert.deepEqual(inspected.details.mcp.args, [fixturePath]);
+
+    const installed = await registry.install("mcp", inspected.inspectionId, "workspace", "user-1", makeContext());
+    assert.equal(installed.outcome, "verified_ready");
+    const entry = getUserSettings("user-1").plugins.mcpServers[0];
+    assert.equal(entry.transport, "stdio");
+    assert.equal(entry.command, process.execPath);
+    assert.deepEqual(entry.args, [fixturePath]);
+    assert.equal(entry.computerUse, false);
+    assert.deepEqual(entry.applicationIds, ["workspace"]);
+    assert.deepEqual(getUserSettings("user-2").plugins.mcpServers, [], "stdio 安装只写当前账户");
+
+    runtime = await discoverMcpTools(getUserSettings("user-1").plugins.mcpServers, "workspace", "user-1", new AbortController().signal, 5);
+    assert.equal(runtime.errors.length, 0);
+    assert.equal(runtime.tools.length, 1);
+    childPid = Number(/PID=(\d+)/u.exec(runtime.instructions[0]?.instructions ?? "")?.[1]);
+    assert.ok(Number.isInteger(childPid) && childPid > 0, "测试 MCP 真实子进程必须由 Runtime 握手返回");
+    const tool = runtime.tools[0];
+    const toolContext = { ...makeContext(), userRole: "admin" };
+    const result = await tool.execute(tool.parse({}), toolContext);
+    assert.equal(result.content[0].text, "stdio 安装生命周期真实调用结果");
+
+    const disabled = await registry.setEnabled("mcp", entry.id, false, "workspace", {}, makeContext());
+    assert.equal(disabled.enabled, false);
+    assert.equal(getUserSettings("user-1").plugins.mcpServers[0].enabled, false);
+    await assert.rejects(tool.execute(tool.parse({}), toolContext), /停用/u);
+    const afterDisable = await discoverMcpTools(getUserSettings("user-1").plugins.mcpServers, "workspace", "user-1", new AbortController().signal, 5);
+    try { assert.equal(afterDisable.tools.length, 0); }
+    finally { await afterDisable.close(); }
+
+    const removed = await registry.remove("mcp", entry.id, "workspace", {}, makeContext());
+    assert.equal(removed.removedApplicationId, "workspace");
+    assert.deepEqual(getUserSettings("user-1").plugins.mcpServers, []);
+  } finally {
+    await runtime?.close();
+    await closeMcpConnections();
+  }
+  assert.throws(() => process.kill(childPid, 0), error => error.code === "ESRCH", "stdio MCP 子进程在最后租约结束后退出");
+});
+
+test("stdio MCP 安装期间取消会阻止设置写入并回收 Runtime 子进程", async () => {
+  const current = getUserSettings("user-1");
+  saveUserSettings("user-1", "plugins", { ...current.plugins, enabled: true, mcpServers: [] });
+  const fixturePath = fileURLToPath(new URL("./fixtures/mcp-stdio-capability-fixture.mjs", import.meta.url));
+  const controller = new AbortController();
+  const nativeDiscover = discoverMcpTools;
+  let discoverCalls = 0;
+  let settingsWrites = 0;
+  let childPid;
+  const adapter = createMcpCapabilityAdapter({
+    async discover(...args) {
+      const result = await nativeDiscover(...args);
+      discoverCalls += 1;
+      if (discoverCalls === 2) {
+        childPid = Number(/PID=(\d+)/u.exec(result.instructions[0]?.instructions ?? "")?.[1]);
+        assert.ok(Number.isInteger(childPid) && childPid > 0, "安装检查后实际启动的隔离 MCP 子进程可追踪");
+        controller.abort(new DOMException("用户取消本次 MCP 安装", "AbortError"));
+      }
+      return result;
+    },
+    saveSettings(userId, category, value) {
+      settingsWrites += 1;
+      saveUserSettings(userId, category, value);
+    }
+  });
+  const registry = new CapabilityInstallRegistry();
+  registry.register({ effect(callback) { return callback(); } }, adapter);
+  const context = { ...makeContext(), signal: controller.signal };
+  try {
+    const target = { name: "取消安装隔离服务", transport: "stdio", command: process.execPath, args: [fixturePath] };
+    const inspected = await registry.inspect("mcp", "stdio://local", undefined, "workspace", target, context);
+    assert.equal(discoverCalls, 1);
+    await assert.rejects(registry.install("mcp", inspected.inspectionId, "workspace", "user-1", context), /用户取消本次 MCP 安装/u);
+    assert.equal(controller.signal.aborted, true);
+    assert.equal(settingsWrites, 0, "Run 取消后安装适配器不得调用 Settings Owner 写入");
+    assert.deepEqual(getUserSettings("user-1").plugins.mcpServers, [], "已取消安装不能留下 MCP 服务记录");
+    await assert.rejects(registry.install("mcp", inspected.inspectionId, "workspace", "user-1", context), /不存在、已过期/u, "不确定的取消结果不能重放一次性检查凭证");
+  } finally {
+    await closeMcpConnections();
+  }
+  assert.throws(() => process.kill(childPid, 0), error => error.code === "ESRCH", "取消后 Runtime 的最后 stdio 租约会回收隔离子进程");
 });

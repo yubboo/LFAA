@@ -5,7 +5,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -22,6 +22,7 @@ test("项目登记按账户和节点隔离，搜索结果有界且可查找较�
     const script = [
       "import assert from 'node:assert/strict';",
       "import { randomUUID } from 'node:crypto';",
+      "import { mkdirSync, writeFileSync } from 'node:fs';",
       "import { join } from 'node:path';",
       "const { database, closeDatabase } = await import('lfaa-storage-sqlite/src/database.js');",
       "const settings = await import('lfaa-settings/src/service.js');",
@@ -40,7 +41,7 @@ test("项目登记按账户和节点隔离，搜索结果有界且可查找较�
       "assert.equal(settings.getUserSettings(owner).git.branchPrefix, 'feature/');",
       "assert.equal(settings.getUserSettings(otherOwner).git.branchPrefix, 'codex/');",
       "for (const [id, name] of [[nodeA, 'Fixture A'], [nodeB, 'Fixture B']]) database.prepare(\"INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,status,last_seen_at) VALUES (?,?, 'linux','x64','test','offline','2026-10-01T00:00:00.000Z')\").run(id, name);",
-      "const { createWorkspaceProject, createWorkspaceGitWorktree, listWorkspaceGitWorktrees, listWorkspaceProjects, hasWorkspaceGitWorktrees, getWorkspaceProject, getDefaultWorkspaceProjectId, setDefaultWorkspaceProject, updateDefaultWorkspaceProjectPath, searchWorkspaceProjects, removeWorkspaceProject, claimWorkspaceProjectApplication } = await import('lfaa-workspace-workspace/src/index.js');",
+      "const { createWorkspaceProject, createWorkspaceGitWorktree, listWorkspaceGitWorktrees, listWorkspaceProjects, hasWorkspaceGitWorktrees, getWorkspaceProject, getDefaultWorkspaceProjectId, setDefaultWorkspaceProject, updateDefaultWorkspaceProjectPath, searchWorkspaceProjects, removeWorkspaceProject, claimLegacyLocalDefaultWorkspace, claimWorkspaceProjectApplication } = await import('lfaa-workspace-workspace/src/index.js');",
       "const { migrateWorkspaceLocalDefaultSchema, migrateWorkspaceProjectApplicationSchema } = await import('lfaa-storage-sqlite/src/database.js');",
       "const { resolveAiSessionWorkspaceContext } = await import('lfaa-agent-loop/src/workspace-context.js');",
       "const sessions = await import('lfaa-session/src/sessions.js');",
@@ -94,6 +95,21 @@ test("项目登记按账户和节点隔离，搜索结果有界且可查找较�
       "assert.equal(sessions.getAiSessionWorkspaceContext(owner, busyTurn.session.id).path, firstPath);",
       "const otherNode = createWorkspaceProject({ userId: owner, appId: 'workspace', nodeId: nodeB, path: firstPath, platform: 'win32' });",
       "assert.notEqual(otherNode.id, first.id);",
+      "const localNodeId = randomUUID();",
+      "database.prepare(\"INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,status,last_seen_at) VALUES (?, 'Local fixture','win32','x64','test','offline','2026-10-01T00:00:00.000Z')\").run(localNodeId);",
+      "const legacyOwner = 'fixture-workspace-legacy-default';",
+      "database.prepare(\"INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES (?,3,?,'salt','hash','admin',0)\").run(legacyOwner, legacyOwner);",
+      "const legacyDefaultPath = join(root, 'Documents', 'LFAA', 'default-workspace');",
+      "const legacyDefault = createWorkspaceProject({ userId: legacyOwner, appId: 'workspace', nodeId: localNodeId, path: legacyDefaultPath, platform: 'win32', title: '默认工作区' });",
+      "const legacyRemotePath = join(root, 'Remote', 'LFAA', 'default-workspace');",
+      "const legacyRemote = createWorkspaceProject({ userId: legacyOwner, appId: 'workspace', nodeId: nodeB, path: legacyRemotePath, platform: 'win32', title: '默认工作区' });",
+      "const ambiguousOwner = 'fixture-workspace-ambiguous-default';",
+      "database.prepare(\"INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES (?,4,?,'salt','hash','admin',0)\").run(ambiguousOwner, ambiguousOwner);",
+      "const ambiguousA = createWorkspaceProject({ userId: ambiguousOwner, appId: 'workspace', nodeId: localNodeId, path: join(root, 'DriveA', 'LFAA', 'default-workspace'), platform: 'win32' });",
+      "const ambiguousB = createWorkspaceProject({ userId: ambiguousOwner, appId: 'workspace', nodeId: localNodeId, path: join(root, 'DriveB', 'LFAA', 'default-workspace'), platform: 'win32' });",
+      "assert.equal(claimLegacyLocalDefaultWorkspace(ambiguousOwner, localNodeId), null, '多个本机默认目录候选时拒绝自动认领');",
+      "assert.equal(getWorkspaceProject(ambiguousOwner, ambiguousA.id).nodeId, localNodeId);",
+      "assert.equal(getWorkspaceProject(ambiguousOwner, ambiguousB.id).nodeId, localNodeId);",
       "database.exec('PRAGMA user_version = 59');",
       "migrateWorkspaceLocalDefaultSchema();",
       "assert.equal(database.prepare('PRAGMA user_version').get().user_version, 60);",
@@ -107,6 +123,8 @@ test("项目登记按账户和节点隔离，搜索结果有界且可查找较�
       "assert.equal(migratedSessionContext.nodeId, null, '旧会话运行时切换到本机 Host 目标');",
       "assert.equal(migratedSessionContext.path, relocatedPath);",
       "assert.equal(sessions.getAiSessionWorkspaceContext(owner, turn.session.id).nodeId, nodeA, '迁移不重写 JSONL 历史节点快照');",
+      "mkdirSync(join(process.env.LFAA_HOME, 'credentials'), { recursive: true });",
+      "writeFileSync(join(process.env.LFAA_HOME, 'credentials', 'daemon-node-id'), localNodeId, { flag: 'w' });",
       "const { registerRoutes } = await import('lfaa-api-workspace-controller/src/index.js');",
       "const migratedPath = join(root, 'Documents', 'LFAA', 'default-workspace-v2');",
       "let initializeDefaultHandler = null;",
@@ -129,6 +147,17 @@ test("项目登记按账户和节点隔离，搜索结果有界且可查找较�
       "if (routeError) throw routeError;",
       "assert.equal(response.body.defaultProjectId, first.id, '项目 API 返回已登记的默认项目');",
       "assert.equal(response.body.projects.find(project => project.id === first.id).nodeId, null, '项目选择器收到本机默认项目身份，而不是旧节点 ID');",
+      "response.body = null;",
+      "routeError = null;",
+      "initializeDefaultHandler({ auth: { user: { id: legacyOwner } }, body: {} }, response, error => { routeError = error; });",
+      "await new Promise(resolve => setImmediate(resolve));",
+      "if (routeError) throw routeError;",
+      "assert.equal(response.body.project.id, legacyDefault.id, '恢复只认领唯一的本机旧版默认目录');",
+      "assert.equal(response.body.project.nodeId, null, '旧版默认目录从本机节点解绑');",
+      "assert.equal(response.body.project.path, migratedPath, '旧目录登记按本机 Host 返回的规范路径恢复');",
+      "assert.equal(getDefaultWorkspaceProjectId(legacyOwner), legacyDefault.id);",
+      "assert.equal(getWorkspaceProject(legacyOwner, legacyRemote.id).nodeId, nodeB, '同名远程项目继续保持原节点绑定');",
+      "assert.equal(claimLegacyLocalDefaultWorkspace(ambiguousOwner, localNodeId), null, '多个候选目录不会被自动恢复');",
       "const localCollision = createWorkspaceProject({ userId: owner, appId: 'workspace', nodeId: null, path: join(root, 'local-collision'), platform: 'win32' });",
       "assert.throws(() => updateDefaultWorkspaceProjectPath(owner, first.id, migratedPath, localCollision.path, 'win32'), /另一个项目/u);",
       "assert.equal(removeWorkspaceProject(owner, localCollision.id, 'workspace'), true);",
