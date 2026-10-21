@@ -16,7 +16,7 @@ import {waitForNativeMinecraftReady,downloadCoreArtifact,buildMinecraftWindowsLa
 const root=resolve(dirname(fileURLToPath(import.meta.url)),"../../..");
 const parent=join(root,"dist/.tmp");mkdirSync(parent,{recursive:true});
 test("环境任务隔离、重复合并、取消确认及租约未知；旧存储字段保持兼容",()=>{
-  const data=mkdtempSync(join(parent,"runtime-owner-"));
+  const data=mkdtempSync(join(parent,"runtime-owner-")),home=mkdtempSync(join(parent,"runtime-owner-home-"));
   try {execFileSync(process.execPath,["--import","tsx","--import","./register-package-loader.mjs","--input-type=module","-e",`
     import assert from 'node:assert/strict';import {join} from 'node:path';
     const {database,migrateRuntimeEnvironmentSchema,closeDatabase}=await import('lfaa-storage-sqlite/src/database.js');
@@ -50,10 +50,10 @@ test("环境任务隔离、重复合并、取消确认及租约未知；旧存�
     assert.equal(storage.getProjectStorageLocations().settings.runtimeDirectory,before.runtimeDirectory);
     assert.ok(storage.getRuntimeStorageLocations('local',process.env.LFAA_DATA_DIR,process.platform).previousRuntimeDirectories.includes(legacy));
     const remote=storage.getRuntimeStorageLocations('00000000-0000-4000-8000-000000000001','E:\\\\remote','win32');assert.equal(remote.runtimeDirectory,'E:\\\\remote\\\\environments');
-    migrateRuntimeEnvironmentSchema();assert.equal(database.prepare('PRAGMA user_version').get().user_version,59);
+    migrateRuntimeEnvironmentSchema();assert.equal(database.prepare('PRAGMA user_version').get().user_version,60);
     closeDatabase();
-  `],{cwd:join(root,"apps/cli"),env:{...process.env,NODE_ENV:"test",LFAA_DATA_DIR:data,JWT_SECRET:""},encoding:"utf8",stdio:"pipe"});}
-  finally {rmSync(data,{recursive:true,force:true});}
+  `],{cwd:join(root,"apps/cli"),env:{...process.env,NODE_ENV:"test",LFAA_HOME:home,LFAA_DATA_DIR:data,JWT_SECRET:""},encoding:"utf8",stdio:"pipe"});}
+  finally {rmSync(data,{recursive:true,force:true});rmSync(home,{recursive:true,force:true});}
 });
 test("共享 Java 探测保留完整版本；托管解析不依赖 PATH 或网络",async()=>{
   const data=await mkdtemp(join(parent,"runtime-java-"));

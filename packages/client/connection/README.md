@@ -22,7 +22,7 @@ AI Work 消息分页除单条 `AiMessage.usage` 外，还返回该会话累计�
 
 `loadAiSessions()` 支持显式 App 筛选并接收可选 AbortSignal；小鱼共享工作区按当前账户读取跨 App 会话列表，在离开工作模式或切换账户时取消过期请求。
 
-Browser Panel 的 provider、snapshot、revision、navigate、click 与 close 请求只调用认证的 `/browser/*` API，并将读取取消信号传到底层请求；不在 Connection 中缓存页面数据或保存登录态。Provider 能力由当前 Host 实际返回。
+Browser Panel 的 provider、snapshot、revision、navigate、视口调整、坐标点击、用户文字/按键/滚轮动作与 close 请求只调用认证的 `/browser/*` API，并将读取取消信号传到底层请求；高频输入/滚动动作可选择暂缓截图，由 Dock 空闲后读取同一真实页面的新截图；不在 Connection 中缓存页面数据或保存登录态。Provider 能力由当前 Host 实际返回。
 
 `loadAiExtensions()` 支持可选 AbortSignal；插件工作区与设置中心技能 Tab 共用其扩展清单，后者只筛选 `kind=skill`，不复制 Skill 数据目录。Skill 项的 `skillId` 是指向 Skill Registry 的稳定规范名称，设置页停用仍提交给原账户设置 Owner。共享工作区退出或账户切换时取消自身目录请求，其他调用方的默认并发读取仍使用原请求合并合同。普通应用面板不为展示 Agent 资源而读取此目录。
 

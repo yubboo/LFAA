@@ -9,7 +9,7 @@ import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { listRegisteredAiTools } from "./registry.js";
 import type { AiBusinessTool, AiBusinessToolContext } from "./business-tools.js";
 
-export const capabilitySettingsInstruction = "通用能力：按用户目标选择已登记能力。用户明确要求浏览网页/预览页面而 Browser Use 关闭时，先检查 lfaa_capability_status；若本机已登记浏览器工具但账户开关关闭，按 permissions.mode 调用 lfaa_set_capability_enabled 开启 browserUse，下一次模型请求刷新真实工具。没有接入浏览器时，引导用户到设置中心 > 浏览器接入；不得把仅检测到安装当成已连接。只有用户本轮明确点名 Tabbit、个人 Chrome/Edge 或要求访问自己的本机浏览器时才可读取个人页面，且还须启用 computerControl 并遵循当前 permissions.mode。打开现有应用不需要专属 MCP/Skill；用户明确要求电脑交互时复用已登记的真实工具。开启设置不代表任务已完成；不要扩大用户目标或改变权限模式。";
+export const capabilitySettingsInstruction = "通用能力：按用户目标选择已登记能力。用户明确要求网页浏览或页面预览而 Browser Use 关闭时，先检查 lfaa_capability_status，再按当前 permissions.mode 使用 lfaa_set_capability_enabled 开启 browserUse；不要为 LFAA 隔离 Edge/Chrome 开启 computerControl。Browser Use 开启后先用 lfaa_browser_list_providers 检查 Host 实际可用性；仅当用户明确要求使用某个可用的内置浏览器且它尚未接入时，才用 lfaa_browser_set_provider_connection 更新设置中心偏好。用户可在设置中心断开，也可完全不连接。用户要求打开当前会话工作区内的 HTML/HTM 时，使用 lfaa_browser_open_workspace_file 的相对路径，不要启动 Shell/Python 静态服务器。只有用户本轮明确点名 Tabbit、个人 Chrome/Edge 或要求访问自己的本机浏览器时才可读取个人页面，且还须启用 computerControl 并遵循当前 permissions.mode。打开现有应用不需要专属 MCP/Skill。开启设置、连接浏览器或得到工具返回都不等于任务完成；必须检查浏览器实际页面结果再报告。不得扩大用户目标或改变权限模式。";
 
 function parse(schema: Joi.ObjectSchema, value: unknown): Record<string, unknown> {
   const result = schema.validate(value, { convert: false, abortEarly: false });
@@ -26,7 +26,7 @@ export function capabilitySettingsStatus(context: Pick<AiBusinessToolContext, "u
     permissionMode: settings.permissions.mode,
     plugins: { enabled: settings.plugins.enabled, registeredToolCount: registered.filter(tool => !tool.coreManaged).length },
     computerControl: { enabled: settings.computerControl.enabled, registeredTools: registered.filter(tool => tool.requiresComputerControl).map(tool => tool.name), available: settings.computerControl.enabled && registered.some(tool => tool.requiresComputerControl) },
-    browserUse: { enabled: settings.browserUse.enabled, enabledProviderIds: [...settings.browserUse.enabledProviderIds], registeredTools: registered.filter(tool => tool.requiresBrowserUse).map(tool => tool.name), available: settings.browserUse.enabled && settings.browserUse.enabledProviderIds.length > 0 && registered.some(tool => tool.requiresBrowserUse) },
+    browserUse: { enabled: settings.browserUse.enabled, enabledProviderIds: [...settings.browserUse.enabledProviderIds], registeredTools: registered.filter(tool => tool.requiresBrowserUse).map(tool => tool.name), available: settings.browserUse.enabled && registered.some(tool => tool.requiresBrowserUse), needsProviderConnection: settings.browserUse.enabled && settings.browserUse.enabledProviderIds.length === 0 && registered.some(tool => tool.requiresBrowserUse) },
     mcpServers: settings.plugins.mcpServers.filter(server => server.applicationIds.includes(context.applicationId)).map(server => ({ id: server.id, name: server.name, enabled: server.enabled, computerUse: server.computerUse === true, blockedBy: [...(!settings.plugins.enabled ? ["plugins"] : []), ...(!server.enabled ? ["server"] : []), ...(server.computerUse && !settings.computerControl.enabled ? ["computerControl"] : [])] })),
     instruction: capabilitySettingsInstruction
   };

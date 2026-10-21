@@ -1,6 +1,6 @@
 /**
  * 功能：验证 Agent 的本机项目文件工具不经由本机 Daemon 节点。
- * 作用：绑定本地 WorkspaceProject 时使用 LFAA Host；Agent Git 仓库则复用同一受限本机执行器。
+ * 作用：绑定 nodeId 为 NULL 的本机 WorkspaceProject 时使用 LFAA Host；Agent Git 仓库则复用同一受限本机执行器。
  * 关联文件：packages/core/tools/src/project-tools.ts、packages/host/project-files/src/project-files.mjs。
  */
 import test from "node:test";
@@ -33,7 +33,7 @@ test("本机 Agent 首次写入前初始化 Git 并绑定会话，不创建 Daem
       "database.prepare(\"INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('agent-local-workspace',731,'agent-local-workspace','salt','hash','admin',0)\").run();",
       "const root = process.env.AGENT_LOCAL_WORKSPACE_ROOT;",
       "const session = sessions.createAiTurn('agent-local-workspace', 'workspace', null, '创建一个文件').session;",
-      "const context = { userId: 'agent-local-workspace', sessionId: session.id, applicationId: 'workspace', workspaceProject: { nodeId: 'local-node-id', path: root, title: '默认工作区' } };",
+      "const context = { userId: 'agent-local-workspace', sessionId: session.id, applicationId: 'workspace', workspaceProject: { nodeId: null, path: root, title: '默认工作区' } };",
       "const prepared = projectFileTool.prepare({ operation: 'create', path: 'index.html', content: '<h1>hello</h1>' }, context);",
       "assert.equal(prepared.localExecution, true);",
       "assert.equal(prepared.rootDirectory, root);",

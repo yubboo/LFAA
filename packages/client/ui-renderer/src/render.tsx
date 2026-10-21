@@ -42,6 +42,7 @@ if (dsh.slots && dsh.uiRenderer) {
       [LFAA_AUTH_TRANSITION_SLOT]: { kind: "list", scope: "root" },
       "sidebar.right.pane.tab": { kind: "keyed", scope: "root" },
       "shell.overlay": { kind: "list", scope: "root" },
+      "conversation.input.right": { kind: "list", scope: "root" },
       "plugins.add.actions": { kind: "list", scope: "root" },
       "plugins.tab": { kind: "list", scope: "root" },
       "plugins.bundle.activation": { kind: "keyed", scope: "root" },

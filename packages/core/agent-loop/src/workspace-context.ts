@@ -4,13 +4,14 @@
  * 关联文件：runs.ts、execute-turn.ts、lfaa-workspace-workspace。
  */
 import { getAiSessionWorkspaceContext, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
-import { getWorkspaceProject } from "lfaa-workspace-workspace/src/index.js";
+import { getWorkspaceProject, isDefaultWorkspaceProject } from "lfaa-workspace-workspace/src/index.js";
 
 export function resolveAiSessionWorkspaceContext(userId: string, sessionId: string): AiSessionProjectContext | null {
   const snapshot = getAiSessionWorkspaceContext(userId, sessionId);
   if (!snapshot) return null;
   const registered = getWorkspaceProject(userId, snapshot.id);
-  if (!registered || registered.nodeId !== snapshot.nodeId || registered.appId && registered.appId !== snapshot.appId) return snapshot;
+  const migratedDefaultProject = registered?.nodeId === null && isDefaultWorkspaceProject(userId, snapshot.id) && snapshot.nodeId !== null;
+  if (!registered || (registered.nodeId !== snapshot.nodeId && !migratedDefaultProject) || (registered.appId && registered.appId !== snapshot.appId)) return snapshot;
   return {
     id: registered.id,
     appId: registered.appId === "minecraft" ? "minecraft" : snapshot.appId,

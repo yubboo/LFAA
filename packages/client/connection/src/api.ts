@@ -330,7 +330,7 @@ export interface WorkspaceProject {
   id: string;
   userId: string;
   appId: WorkspaceProjectApplicationId | null;
-  nodeId: string;
+  nodeId: string | null;
   path: string;
   title: string;
   createdAt: string;
@@ -1225,8 +1225,20 @@ export function navigateBrowser(sessionId: string, providerId: BrowserProviderId
   return request(`/browser/sessions/${encodeURIComponent(sessionId)}/navigate`, { method: "POST", body: JSON.stringify({ providerId, url }), ...(signal ? { signal } : {}) });
 }
 
-export function actOnBrowser(sessionId: string, providerId: BrowserProviderId, action: "back" | "forward" | "reload" | "clickAt", coordinates?: { x: number; y: number }, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot }> {
-  return request(`/browser/sessions/${encodeURIComponent(sessionId)}/action`, { method: "POST", body: JSON.stringify({ providerId, action, ...(coordinates ?? {}) }), ...(signal ? { signal } : {}) });
+export function resizeBrowserViewport(sessionId: string, providerId: BrowserProviderId, width: number, height: number, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot | null }> {
+  return request(`/browser/sessions/${encodeURIComponent(sessionId)}/viewport`, { method: "POST", body: JSON.stringify({ providerId, width, height }), ...(signal ? { signal } : {}) });
+}
+
+export type BrowserActionRequest =
+  | { action: "back" | "forward" | "reload" }
+  | { action: "clickAt"; x: number; y: number }
+  | { action: "dragAt"; x: number; y: number; points: Array<{ x: number; y: number; delayMs: number }> }
+  | { action: "typeText"; text: string; includeScreenshot?: boolean }
+  | { action: "pressKey"; key: string; includeScreenshot?: boolean }
+  | { action: "scroll"; direction: "up" | "down"; amount: number; includeScreenshot?: boolean };
+
+export function actOnBrowser(sessionId: string, providerId: BrowserProviderId, action: BrowserActionRequest, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot }> {
+  return request(`/browser/sessions/${encodeURIComponent(sessionId)}/action`, { method: "POST", body: JSON.stringify({ providerId, ...action }), ...(signal ? { signal } : {}) });
 }
 
 export function closeBrowserSession(sessionId: string, providerId: BrowserProviderId): Promise<{ closed: boolean }> {

@@ -13,8 +13,8 @@ import type { AiCompletionMessage } from "lfaa-llm/src/completion.js";
 import type { AiCompletionService } from "lfaa-llm/src/completion.js";
 import { config } from "lfaa-launch-environment/src/config.js";
 import { resolveGitProjectDirectory } from "lfaa-host-git";
-import { isRemoteDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
-import { executeProjectFile } from "lfaa-host-project-files/src/project-files.mjs";
+import { isLocalDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
+import { createProjectPreviewServer, executeProjectFile } from "lfaa-host-project-files/src/project-files.mjs";
 
 /** Host 只适配已装配压缩服务；摘要请求由调用 Run 负责。 */
 export interface HostCompactionInput {
@@ -31,8 +31,10 @@ export interface AiPluginHost {
   llm: AiCompletionService;
   /** 仅本机 Host Profile 装配；Agent Git 仓库文件操作复用同一受限文件执行器。 */
   executeLocalProjectFile?: (input: Record<string, unknown>) => Promise<unknown>;
+  /** 仅本机 Host 为当前会话绑定的工作区提供受限 HTML 预览。 */
+  createLocalProjectPreview?: (nodeId: string | null, rootDirectory: string, relativePath: string) => Promise<{ url: string; close: () => Promise<void> }>;
   /** 为当前 Agent 项目只读校验本机目录；远程节点身份返回 null，不会经 Daemon 执行 Git。 */
-  resolveLocalAgentGitDirectory?: (nodeId: string, directory: string) => Promise<string | null>;
+  resolveLocalAgentGitDirectory?: (nodeId: string | null, directory: string) => Promise<string | null>;
   /** 当前请求的目录，正文仍由模型按需调用 Skill 工具。 */
   listSkills?: (options: SkillLookupOptions) => Promise<SkillSummary[]>;
   compactContext?: (input: HostCompactionInput) => Promise<{ messages: AiCompletionMessage[] } | null>;
@@ -58,8 +60,14 @@ export function createAiPluginHost(context: Context): AiPluginHost {
   if (!llm) throw new Error("LLM Provider 服务尚未装载。");
   return {
     llm,
-    ...(config.localHostExecution ? { executeLocalProjectFile: (input: Record<string, unknown>) => executeProjectFile(input) } : {}),
-    ...(config.localHostExecution ? { resolveLocalAgentGitDirectory: async (nodeId: string, directory: string) => isRemoteDaemonIdentity(nodeId) ? null : resolveGitProjectDirectory(directory) } : {}),
+    ...(config.localHostExecution ? {
+      executeLocalProjectFile: (input: Record<string, unknown>) => executeProjectFile(input),
+      createLocalProjectPreview: (nodeId: string | null, rootDirectory: string, relativePath: string) => {
+        if (nodeId !== null && !isLocalDaemonIdentity(nodeId)) throw new Error("远程或身份未确认的节点项目不能通过本机 Browser Host 预览；请使用对应节点提供的真实 HTTP 地址。");
+        return createProjectPreviewServer(rootDirectory, relativePath);
+      }
+    } : {}),
+    ...(config.localHostExecution ? { resolveLocalAgentGitDirectory: async (nodeId: string | null, directory: string) => nodeId !== null && !isLocalDaemonIdentity(nodeId) ? null : resolveGitProjectDirectory(directory) } : {}),
     listSkills: options => context.skills.list(options),
     compactContext: async input => {
       const service = context.get("lfaaCompaction");

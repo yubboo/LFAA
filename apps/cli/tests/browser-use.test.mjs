@@ -14,7 +14,7 @@ function makePage(state = {}) {
     on(event, listener) { listeners.set(event, listener); },
     locator(selector) {
       if (selector === "body") return { innerText: async () => state.pageText ?? "body" };
-      return { evaluateAll: async () => state.controls ?? [] };
+      return { evaluateAll: async (_map, limit) => (state.controls ?? []).slice(0, limit) };
     },
     async goto(url) {
       state.started?.();
@@ -82,6 +82,46 @@ test("Browser Owner enforces isolated account/session contexts and strict naviga
     for (const url of ["file:///etc/passwd", "javascript:alert(1)", "https://user:secret@example.test", `https://example.test/${"a".repeat(2050)}`]) {
       await assert.rejects(manager.navigate("user-a", "invalid-session", "lfaa-managed-edge", url), /HTTP\(S\)|HTTP 或 HTTPS/u);
     }
+  } finally {
+    await manager.closeAll();
+  }
+});
+
+test("Browser Run adapter is account/session/run bound and released with the Run", async () => {
+  const manager = new BrowserSessionManager(true);
+  const browser = makeBrowser();
+  useFakeEdge(manager, browser);
+  const controllerA = new AbortController();
+  const controllerB = new AbortController();
+  const controllerOther = new AbortController();
+  const cleanupsA = [];
+  const cleanupsB = [];
+  const cleanupsOther = [];
+  const bindingA = { ownerId: "user-a", sourceSessionId: "session-a", runId: "run-a", signal: controllerA.signal, onRunDispose: cleanup => cleanupsA.push(cleanup) };
+  try {
+    const runA = manager.createRunAdapter(bindingA);
+    const sameRun = manager.createRunAdapter({ ...bindingA, onRunDispose: cleanup => cleanupsA.push(cleanup) });
+    const nextRun = manager.createRunAdapter({ ...bindingA, runId: "run-b", signal: controllerB.signal, onRunDispose: cleanup => cleanupsB.push(cleanup) });
+    const otherAccount = manager.createRunAdapter({ ...bindingA, ownerId: "user-b", signal: controllerOther.signal, onRunDispose: cleanup => cleanupsOther.push(cleanup) });
+
+    assert.strictEqual(sameRun, runA, "the same account/session/Run reuses one adapter");
+    assert.notStrictEqual(nextRun, runA, "a separate Agent Run receives its own adapter");
+    assert.notStrictEqual(otherAccount, runA, "another account receives a separate adapter");
+    assert.deepEqual(Object.keys(runA).sort(), ["claimTab", "click", "fill", "listTabs", "navigate", "navigateProjectPreview", "observe", "pressKey", "runId", "scroll"], "the adapter exposes only bounded browser actions");
+
+    const pageA = await runA.navigate("lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
+    const pageNextRun = await nextRun.navigate("lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
+    const pageOtherAccount = await otherAccount.navigate("lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
+    assert.equal(pageA.sessionId, pageNextRun.sessionId, "Browser Session remains shared across Runs in the same LFAA session");
+    assert.notEqual(pageA.sessionId, pageOtherAccount.sessionId, "Browser Session stays isolated by account");
+    assert.equal(browser.contexts.length, 2);
+    assert.equal(cleanupsA.length, 1, "the Run registers only one cleanup callback");
+
+    cleanupsA[0]();
+    assert.throws(() => runA.observe("lfaa-managed-edge"), /Run.*浏览器桥接已结束/u);
+    assert.match((await nextRun.observe("lfaa-managed-edge")).pageText, /body/u, "disposing one Run leaves the Session context available to another Run");
+    const replacement = manager.createRunAdapter({ ...bindingA, signal: new AbortController().signal, onRunDispose: cleanup => cleanupsA.push(cleanup) });
+    assert.notStrictEqual(replacement, runA, "disposed bridge registration is removed");
   } finally {
     await manager.closeAll();
   }

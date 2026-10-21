@@ -360,14 +360,21 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 @container (max-width: 200px) {
   [data-layout-mode="mobile"].module-git-summary .module-git-summary__operations-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-.module-ai-work-chat { display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; }
-.module-center__content--ai-work .module-ai-work-chat > .ai-work-chat { width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; margin: 0; padding-inline: clamp(12px, 2cqi, 24px); box-sizing: border-box; border: 0; border-radius: 0; background-clip: content-box; }
-/* 聊天表面和正文按中心列自身宽度内缩 12–24px；外层仍铺满中心列，让提问锚点贴近左二菜单。 */
-.module-center__content--ai-work > .module-ai-work-chat { width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; }
-/* 消息舞台延伸到中心列边缘承载锚点；滚动视口与提示仍缩进同样的两侧留白。 */
-.module-center__content--ai-work .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation { width: calc(100% + 2 * clamp(12px, 2cqi, 24px)); margin-inline: calc(-1 * clamp(12px, 2cqi, 24px)); }
-.module-center__content--ai-work .ai-work-chat__alerts,
-.module-center__content--ai-work .ai-work-chat__messages { width: calc(100% - 2 * clamp(12px, 2cqi, 24px)); margin-inline: auto; }
+.module-ai-work-chat {
+  /* 控制 AI Work 聊天表面相对中栏的左右间隙及滚动轨道右移量：分别为 20–32px 与 10–16px，按中栏宽度响应。 */
+  --ai-work-chat-inline-gap: clamp(20px, 6cqi, 32px);
+  --ai-work-chat-inline-gap-half: clamp(10px, 3cqi, 16px);
+  display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0;
+}
+/* 中栏整体聊天区域按中栏容器内缩 20–32px，消息、输入框和锚点随整块区域一起移动。 */
+.module-center__content--ai-work > .module-ai-work-chat { width: calc(100% - 2 * var(--ai-work-chat-inline-gap)); height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; align-self: center; box-sizing: border-box; }
+/* 允许消息轨道进入右侧留白到达中栏边缘，同时保持原聊天表面的尺寸与纵向裁切。 */
+.module-center__content--ai-work .module-ai-work-chat > .ai-work-chat { width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; margin: 0; padding-inline: 0; box-sizing: border-box; overflow-x: visible; overflow-y: clip; border: 0; border-radius: 0; background-clip: border-box; }
+/* 对话滚动列向右延伸一个间隙；消息舞台、提示与输入区仍维持原有内缩宽度。 */
+.module-center__content--ai-work .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation { width: calc(100% + var(--ai-work-chat-inline-gap)); margin-inline: 0; }
+.module-center__content.module-center__content--ai-work .ai-work-chat__message-stage { width: calc(100% - var(--ai-work-chat-inline-gap)); align-self: flex-start; }
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages { width: calc(100% + var(--ai-work-chat-inline-gap)); padding-inline-end: var(--ai-work-chat-inline-gap); box-sizing: border-box; }
+.module-center__content.module-center__content--ai-work :is(.ai-work-chat__composer, .ai-work-chat__usage-footer) { width: min(calc(100% - var(--ai-work-chat-inline-gap)), 920px); align-self: center; position: relative; left: calc(-1 * var(--ai-work-chat-inline-gap-half)); }
 /* AI 对话滚动条贴中间区右边缘；默认只留透明轨道，指针移入或键盘聚焦后显出滑块。 */
 .module-center__content.module-center__content--ai-work .ai-work-chat__messages { scrollbar-width: thin !important; scrollbar-color: transparent transparent !important; -ms-overflow-style: auto !important; }
 .module-center__content.module-center__content--ai-work .ai-work-chat__message-stage:is(:hover, :focus-within) .ai-work-chat__messages { scrollbar-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 55%, transparent) transparent !important; }

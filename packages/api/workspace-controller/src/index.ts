@@ -12,8 +12,8 @@ import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
 import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
 import { authorizeExplicitUserAction } from "lfaa-permission-presets/src/permissions.js";
-import { listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
-import { isRemoteDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
+import { listDaemonNodes, type DaemonNode } from "lfaa-host-daemon/src/local-daemon.js";
+import { isLocalDaemonIdentity, isRemoteDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
 import { executeGitWorkspace } from "lfaa-host-git";
 import { createAiHostTask, getAiHostTask } from "lfaa-jobs/src/ai-host-tasks.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
@@ -103,7 +103,7 @@ function requireProjectForApp(userId: string, projectId: string, appId: Workspac
 }
 
 
-export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher): void {
+export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher): void {
   router.post("/workspace/projects/initialize-default", requireAuthentication, asyncHandler(async (request, response) => {
     const userId = request.auth!.user.id;
     const initializedProjectId = getDefaultWorkspaceProjectId(userId);
@@ -113,13 +113,10 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
         response.json({ project: null, defaultProjectId: null });
         return;
       }
-      const node = listDaemonNodes().find(item => item.id === project.nodeId && item.status === "online" && item.capabilities.includes("project-files-v1") && !isRemoteDaemonIdentity(item.id));
-      if (!node) throw new ApiError(409, "workspace_default_node_unavailable", "默认工作区所在的本机节点离线；项目登记和旧目录保持不变。 ");
-      const initialized = await runDirectoryOperation(userId, "workspace", node.id, { operation: "initialize_default_workspace" }) as { path?: unknown };
-      if (typeof initialized.path !== "string") throw new ApiError(502, "workspace_default_path_invalid", "本机 Daemon 没有返回已创建的默认工作区目录。 ");
+      const initialized = await initializeLocalDefaultWorkspace(aiPluginHost);
       const relocated = project.path === initialized.path
         ? project
-        : updateDefaultWorkspaceProjectPath(userId, project.id, project.path, initialized.path, node.platform);
+        : updateDefaultWorkspaceProjectPath(userId, project.id, project.path, initialized.path, process.platform);
       if (!relocated) throw new ApiError(409, "workspace_default_project_changed", "默认工作区登记在恢复期间发生变化；已创建的目录和原目录均保留，请刷新后重试。 ");
       response.json({ project: relocated, defaultProjectId: relocated.id });
       return;
@@ -128,21 +125,13 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
       response.json({ project: null, defaultProjectId: null });
       return;
     }
-    const node = listDaemonNodes().find(item => item.status === "online" && item.capabilities.includes("project-files-v1") && !isRemoteDaemonIdentity(item.id));
-    if (!node) {
-      response.json({ project: null, defaultProjectId: null });
-      return;
-    }
-    const created = await runDirectoryOperation(userId, "workspace", node.id, { operation: "initialize_default_workspace" }) as { path?: unknown };
-    if (typeof created.path !== "string") throw new ApiError(502, "workspace_default_path_invalid", "本机 Daemon 没有返回默认工作区目录。");
-    const inspected = await runDirectoryOperation(userId, "workspace", node.id, { operation: "inspect_directory", path: created.path }) as { path?: unknown; directory?: unknown };
-    if (typeof inspected.path !== "string" || inspected.directory !== true) throw new ApiError(400, "workspace_default_directory_invalid", "默认工作区路径未通过本机 Daemon 校验。");
+    const created = await initializeLocalDefaultWorkspace(aiPluginHost);
     // 首次目录解析期间允许新会话正常创建；若用户已开始工作，就不把新目录追加入旧历史。
     if (listWorkspaceProjects(userId).length || listAiSessions(userId, false).length || listAiSessions(userId, true).length) {
       response.json({ project: null, defaultProjectId: null });
       return;
     }
-    const project = createWorkspaceProject({ userId, appId: "workspace", nodeId: node.id, path: inspected.path, platform: node.platform, title: "默认工作区" });
+    const project = createWorkspaceProject({ userId, appId: "workspace", nodeId: null, path: created.path, platform: process.platform, title: "默认工作区" });
     const defaultProjectId = setDefaultWorkspaceProject(userId, project.id);
     const defaultProject = getWorkspaceProject(userId, defaultProjectId, "workspace");
     if (!defaultProject) throw new ApiError(500, "workspace_default_registration_missing", "默认工作区目录已创建，但项目登记未能读取。");
@@ -199,7 +188,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
       toolId: "workspace.git.initialize",
       toolVersion: "1",
       risk: "dangerous",
-      scopeKey: `${node.id}:${project.id}`,
+      scopeKey: `${node?.id ?? "local"}:${project.id}`,
       executable: true
     });
     if (authorization !== "allow") throw new ApiError(403, "workspace_git_operation_not_authorized", "当前账户或应用无权初始化此项目 Git 仓库。 ");
@@ -230,7 +219,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
         toolId: `workspace.git.${body.operation}`,
         toolVersion: "1",
         risk,
-        scopeKey: `${node.id}:${project.id}`,
+        scopeKey: `${node?.id ?? "local"}:${project.id}`,
         executable: true
       });
       if (authorization !== "allow") throw new ApiError(403, "workspace_git_operation_not_authorized", "当前账户或应用无权执行此 Git 操作。 ");
@@ -261,7 +250,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
   router.post("/workspace/projects/:projectId/files/read", requireAuthentication, asyncHandler(async (request, response) => {
     const body = parseBody<{ appId: WorkspaceProjectApplicationId; path: string; offset: number; limit: number }>(projectFileReadSchema, request.body);
     const project = requireProjectForApp(request.auth!.user.id, request.params.projectId, body.appId);
-    const result = await runDirectoryOperation(request.auth!.user.id, body.appId, project.nodeId, {
+    const result = await runProjectFileOperation(aiPluginHost, request.auth!.user.id, body.appId, project, {
       operation: "read", rootDirectory: project.path, path: body.path, offset: body.offset, limit: body.limit
     });
     response.json({ file: result });
@@ -270,7 +259,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
   router.post("/workspace/projects/:projectId/files/write", requireAuthentication, asyncHandler(async (request, response) => {
     const body = parseBody<{ appId: WorkspaceProjectApplicationId; path: string; sha256: string; content: string }>(projectFileWriteSchema, request.body);
     const project = requireProjectForApp(request.auth!.user.id, request.params.projectId, body.appId);
-    const result = await runDirectoryOperation(request.auth!.user.id, body.appId, project.nodeId, {
+    const result = await runProjectFileOperation(aiPluginHost, request.auth!.user.id, body.appId, project, {
       operation: "write", rootDirectory: project.path, path: body.path, sha256: body.sha256, content: body.content
     });
     response.json({ result });
@@ -283,6 +272,7 @@ export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, _rea
     if (!source) throw new ApiError(404, "workspace_project_not_found", "找不到此账户的项目。 ");
     if (source.gitWorktree) throw new ApiError(409, "workspace_git_nested_worktree_unsupported", "请从原始项目创建 AI Worktree。 ");
     const node = requireLocalGitProject(source);
+    if (!node) throw new ApiError(409, "workspace_git_worktree_node_required", "当前本机工作区不绑定 Daemon；此可选 Worktree 功能仍要求显式本机节点项目。 ");
     const worktreeId = randomUUID();
     const settings = getUserSettings(userId);
     const result = await runLocalGitOperation(source, {
@@ -401,9 +391,25 @@ async function runDirectoryOperation(userId: string, appId: WorkspaceProjectAppl
   return runProjectTask(userId, appId, nodeId, operation, timeoutSeconds, "workspace_directory");
 }
 
-function requireLocalGitProject(project: WorkspaceProjectForApp) {
+async function initializeLocalDefaultWorkspace(aiPluginHost: AiPluginHost): Promise<{ path: string }> {
+  if (!aiPluginHost.executeLocalProjectFile) throw new ApiError(503, "workspace_local_host_unavailable", "当前 LFAA Host 未提供本机工作区能力；默认项目未绑定或切换到任何节点。 ");
+  const result = await aiPluginHost.executeLocalProjectFile({ operation: "initialize_default_workspace" }) as { path?: unknown };
+  if (typeof result?.path !== "string") throw new ApiError(502, "workspace_default_path_invalid", "LFAA 本机 Host 没有返回已创建的默认工作区目录。 ");
+  return { path: result.path };
+}
+
+async function runProjectFileOperation(aiPluginHost: AiPluginHost, userId: string, appId: WorkspaceProjectApplicationId, project: WorkspaceProjectForApp, operation: Record<string, unknown>): Promise<unknown> {
+  if (project.nodeId === null) {
+    if (!aiPluginHost.executeLocalProjectFile) throw new ApiError(503, "workspace_local_host_unavailable", "当前 LFAA Host 未提供本机项目文件能力。 ");
+    return aiPluginHost.executeLocalProjectFile(operation);
+  }
+  return runDirectoryOperation(userId, appId, project.nodeId, operation);
+}
+
+function requireLocalGitProject(project: WorkspaceProjectForApp): DaemonNode | null {
+  if (project.nodeId === null) return null;
   const node = listDaemonNodes().find(item => item.id === project.nodeId);
-  if (isRemoteDaemonIdentity(project.nodeId) || !node || node.platform !== process.platform) {
+  if ((project.nodeId !== null && !isLocalDaemonIdentity(project.nodeId)) || !node || node.platform !== process.platform) {
     throw new ApiError(409, "workspace_git_local_repository_required", "此 Agent 绑定的是远程项目；Git 管理器只操作 LFAA 本机应用进程可访问的仓库，请切换到本机项目。 ");
   }
   return node;

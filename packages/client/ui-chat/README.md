@@ -4,6 +4,8 @@
 
 `lfaa-client-ui-chat` 展示同一 Agent Run 的公开正文、真实工具活动、用户问题和权限审批，执行与持久化仍归原 Agent Loop、Session 与 Permission Owner。
 
+主聊天输入栏在模型按钮左侧消费 DSH `conversation.input.right` Slot，并把当前主会话 `sessionId` 作为 Slot owner 属性传给扩展；没有启用扩展时该位置为空，不保留占位。Slot 只提供 LFAA 已装配 Client 扩展的显示入口，不创建会话、授权或模型路由能力。
+
 消息历史按单条消息行记忆；流式增量只更新内容或交互状态实际变化的行，历史正文不会跟着每个文本批次重新渲染。用量栏也按真实用量、上下文或显示状态变化更新，不随消息文本增量重复渲染。
 
 `AiWorkChat` 可把当前已加载会话消息中的真实 `activity.fileChanges` 通知共享工作区；切换会话时先隔离旧消息，输出与来源摘要由工作区按新建/修改和读取分别归类。此活动记录不代表通用附件已接入。
@@ -57,3 +59,5 @@ AI Work 首次使用沿用 DSH 默认项目语义；可用默认项目成为新�
 `aiRuntime.showContextUsage` 开启时，两个输入框下方也显示最近一次实际模型请求的上下文占用环。上下文容量取请求使用的模型目录；目录缺失时使用 `aiRuntime.contextWindowTokens`，明细明确标记容量来自模型目录或设置中心兜底。请求发出前按真实系统提示、工具 Schema 和消息估算分项，Provider 返回后总量更新为实际 prompt tokens。分项明确标为估算，图片 token 成本只纳入 Provider 实际总量。主聊与侧聊均从 Session 页面投影恢复累计用量和最近上下文快照，SSE 逐请求更新当前状态；不根据界面常数生成数据。
 
 当 `aiRuntime.showContextUsage` 关闭时，输入框下方保留“上下文已关闭”提示；点击后可直接跳转到设置中心“AI 与模型”的对应开关并定位到该行，不自动开启或修改账户设置。关闭只隐藏上下文占用详情，不影响 Provider Token 与缓存统计。
+
+输入操作栏的附件、权限、更多、模型、语音、发送和运行控制在鼠标悬停或键盘聚焦时显示对应说明；禁用态提示通过可聚焦包装保持可达。会话用量与上下文指标的悬停说明来自当前 Provider 用量/上下文投影，点击仍打开原有详情 Popover；上下文关闭提示继续由 `aiRuntime.showContextUsage` 控制。

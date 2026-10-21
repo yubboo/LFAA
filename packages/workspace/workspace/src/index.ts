@@ -16,7 +16,8 @@ export interface WorkspaceProject {
   id: string;
   userId: string;
   appId: WorkspaceProjectApplicationId | null;
-  nodeId: string;
+  /** null 表示项目由 LFAA 本机 Host 管理；只有显式节点目录才保存 Daemon 身份。 */
+  nodeId: string | null;
   path: string;
   title: string;
   createdAt: string;
@@ -41,7 +42,7 @@ interface WorkspaceProjectRow {
   id: string;
   user_id: string;
   app_id: WorkspaceProjectApplicationId | null;
-  node_id: string;
+  node_id: string | null;
   path: string;
   path_key: string;
   title: string;
@@ -111,6 +112,11 @@ export function getWorkspaceProject(userId: string, projectId: string, appId?: W
   return row ? mapProject(row) : null;
 }
 
+/** 默认项目身份用于在本机 Host 接管后识别并规范化旧会话的历史 Daemon 快照。 */
+export function isDefaultWorkspaceProject(userId: string, projectId: string): boolean {
+  return getDefaultWorkspaceProjectId(userId) === projectId;
+}
+
 /** 默认项目标记不外键引用目录登记：移除登记后仍记住曾初始化，避免下次访问自动重建。 */
 export function getDefaultWorkspaceProjectId(userId: string): string | null {
   const row = database.prepare("SELECT project_id FROM workspace_default_projects WHERE user_id = ? AND app_id = 'workspace'").get(userId) as { project_id?: unknown } | undefined;
@@ -138,33 +144,48 @@ export function updateDefaultWorkspaceProjectPath(userId: string, projectId: str
   if (!current || current.gitWorktree || !isAbsolute(expectedPath) || !isAbsolute(nextPathInput) || nextPathInput.length > 32760) return null;
   const nextPath = resolve(nextPathInput);
   if (current.path === nextPath) return current;
-  const collision = database.prepare(`
-    SELECT 1 FROM workspace_projects
-    WHERE user_id = ? AND app_id = 'workspace' AND node_id = ? AND path_key = ? AND id <> ? LIMIT 1
-  `).get(userId, current.nodeId, pathKey(nextPath, platform), projectId);
+  const collision = current.nodeId === null
+    ? database.prepare(`
+      SELECT 1 FROM workspace_projects
+      WHERE user_id = ? AND app_id = 'workspace' AND node_id IS NULL AND path_key = ? AND id <> ? LIMIT 1
+    `).get(userId, pathKey(nextPath, platform), projectId)
+    : database.prepare(`
+      SELECT 1 FROM workspace_projects
+      WHERE user_id = ? AND app_id = 'workspace' AND node_id = ? AND path_key = ? AND id <> ? LIMIT 1
+    `).get(userId, current.nodeId, pathKey(nextPath, platform), projectId);
   if (collision) throw new Error("规范默认工作区路径已登记为另一个项目；未改动原登记。 ");
-  const result = database.prepare(`
-    UPDATE workspace_projects SET path = ?, path_key = ?, updated_at = ?
-    WHERE user_id = ? AND id = ? AND app_id = 'workspace' AND node_id = ? AND path = ?
-  `).run(nextPath, pathKey(nextPath, platform), new Date().toISOString(), userId, projectId, current.nodeId, expectedPath);
+  const result = current.nodeId === null
+    ? database.prepare(`
+      UPDATE workspace_projects SET path = ?, path_key = ?, updated_at = ?
+      WHERE user_id = ? AND id = ? AND app_id = 'workspace' AND node_id IS NULL AND path = ?
+    `).run(nextPath, pathKey(nextPath, platform), new Date().toISOString(), userId, projectId, expectedPath)
+    : database.prepare(`
+      UPDATE workspace_projects SET path = ?, path_key = ?, updated_at = ?
+      WHERE user_id = ? AND id = ? AND app_id = 'workspace' AND node_id = ? AND path = ?
+    `).run(nextPath, pathKey(nextPath, platform), new Date().toISOString(), userId, projectId, current.nodeId, expectedPath);
   return Number(result.changes) ? getWorkspaceProject(userId, projectId, "workspace") : null;
 }
 
-export function createWorkspaceProject(input: { userId: string; appId: WorkspaceProjectApplicationId; nodeId: string; path: string; platform: string; title?: string }): WorkspaceProject {
+export function createWorkspaceProject(input: { userId: string; appId: WorkspaceProjectApplicationId; nodeId?: string | null; path: string; platform: string; title?: string }): WorkspaceProject {
   const path = input.path.trim();
-  if (!isAbsolute(path) || path.length > 32760) throw new Error("项目目录必须是 Daemon 返回的绝对路径。");
+  if (!isAbsolute(path) || path.length > 32760) throw new Error("项目目录必须是对应 Host 校验的绝对路径。 ");
+  const nodeId = input.nodeId ?? null;
+  if (nodeId === null && input.appId !== "workspace") throw new Error("只有本机工作区项目可以不绑定 Daemon 节点。 ");
   const title = (input.title?.trim() || basename(path) || path).replace(/\s+/gu, " ");
   if (!title || title.length > 120) throw new Error("项目名称必须为 1 至 120 个字符。");
   const now = new Date().toISOString();
-  const project: WorkspaceProject = { id: randomUUID(), userId: input.userId, appId: input.appId, nodeId: input.nodeId, path, title, createdAt: now, updatedAt: now, gitWorktree: null };
+  const project: WorkspaceProject = { id: randomUUID(), userId: input.userId, appId: input.appId, nodeId, path, title, createdAt: now, updatedAt: now, gitWorktree: null };
   const result = database.prepare(`
       INSERT INTO workspace_projects (id, user_id, app_id, node_id, path, path_key, title, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT DO NOTHING
-    `).run(project.id, input.userId, input.appId, input.nodeId, path, pathKey(path, input.platform), title, now, now);
+    `).run(project.id, input.userId, input.appId, nodeId, path, pathKey(path, input.platform), title, now, now);
   if (Number(result.changes) === 0) {
-    const existing = database.prepare("SELECT id, user_id, app_id, node_id, path, path_key, title, created_at, updated_at FROM workspace_projects WHERE user_id = ? AND app_id = ? AND node_id = ? AND path_key = ?")
-      .get(input.userId, input.appId, input.nodeId, pathKey(path, input.platform)) as WorkspaceProjectRow | undefined;
+    const existing = nodeId === null
+      ? database.prepare("SELECT id, user_id, app_id, node_id, path, path_key, title, created_at, updated_at FROM workspace_projects WHERE user_id = ? AND app_id = ? AND node_id IS NULL AND path_key = ?")
+        .get(input.userId, input.appId, pathKey(path, input.platform)) as WorkspaceProjectRow | undefined
+      : database.prepare("SELECT id, user_id, app_id, node_id, path, path_key, title, created_at, updated_at FROM workspace_projects WHERE user_id = ? AND app_id = ? AND node_id = ? AND path_key = ?")
+        .get(input.userId, input.appId, nodeId, pathKey(path, input.platform)) as WorkspaceProjectRow | undefined;
     if (existing) return mapProject(existing);
     throw new Error("项目目录登记未能完成。");
   }

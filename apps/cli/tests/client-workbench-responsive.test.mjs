@@ -1,6 +1,6 @@
 /**
- * 功能：锁定 AI Work 窄屏工作台的最小中心宽度与通用 Surface 断点隔离。
- * 作用：防止应用右 Dock 改动意外压窄 Settings 等复用 ResizableWorkbench 的单栏页面。
+ * 功能：锁定 AI Work 窄屏工作台的最小中心宽度、滚动条边界与通用 Surface 断点隔离。
+ * 作用：防止应用右 Dock 改动意外压窄 Settings 等复用 ResizableWorkbench 的单栏页面或破坏聊天内缩。
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -41,6 +41,42 @@ test("AI Work 在所有布局保留 300px 中心下限，通用 Surface 保持�
     { min: sharedDesktop.right.min, initial: sharedDesktop.right.initial },
   );
   assert.ok(sharedDesktop.right.max < applicationDesktop.right.max);
+});
+
+test("AI Work 中间聊天整体内缩；消息滚动条贴中栏右边，正文与输入区保留间隙", () => {
+  const workspaceCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/module-workbench.css", import.meta.url), "utf8");
+  const chatCss = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
+  const gapTokens = workspaceCss.match(/\.module-ai-work-chat\s*\{([^}]+)\}/u)?.[1];
+  const chatWrapperRule = workspaceCss.match(/\.module-center__content--ai-work\s*>\s*\.module-ai-work-chat\s*\{([^}]+)\}/u)?.[1];
+  const surfaceRule = workspaceCss.match(/\.module-center__content--ai-work\s+\.module-ai-work-chat\s*>\s*\.ai-work-chat\s*\{([^}]+)\}/u)?.[1];
+  const conversationRule = workspaceCss.match(/\.module-center__content--ai-work\s+\.module-ai-work-chat\s*>\s*\.ai-work-chat\s*>\s*\.ai-work-chat__conversation\s*\{([^}]+)\}/u)?.[1];
+  const messageStageRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work\s+\.ai-work-chat__message-stage\s*\{([^}]+)\}/u)?.[1];
+  const messagesRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work\s+\.ai-work-chat__messages\s*\{([^}]+)\}/u)?.[1];
+  const insetControlsRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work\s+:is\(\.ai-work-chat__composer,\s*\.ai-work-chat__usage-footer\)\s*\{([^}]+)\}/u)?.[1];
+  const composerRule = chatCss.match(/\.ai-work-chat__composer\s*\{([^}]+)\}/u)?.[1];
+
+  assert.ok(gapTokens, "AI Work should define its responsive chat gap tokens");
+  assert.ok(chatWrapperRule, "AI Work should inset the whole central chat wrapper");
+  assert.ok(surfaceRule, "AI Work chat surface should fill the inset wrapper");
+  assert.ok(conversationRule, "AI Work conversation should extend through the right gap to the pane edge");
+  assert.ok(messageStageRule, "AI Work message stage should retain the inset content width");
+  assert.ok(messagesRule, "AI Work message scroller should extend to the pane edge");
+  assert.ok(insetControlsRule, "AI Work composer and usage footer should retain the inset width and alignment");
+  assert.ok(composerRule, "AI Work composer should fill its conversation column by default");
+  assert.match(gapTokens, /--ai-work-chat-inline-gap:\s*clamp\(20px,\s*6cqi,\s*32px\)/u);
+  assert.match(gapTokens, /--ai-work-chat-inline-gap-half:\s*clamp\(10px,\s*3cqi,\s*16px\)/u);
+  assert.match(chatWrapperRule, /width:\s*calc\(100% - 2 \* var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.match(chatWrapperRule, /align-self:\s*center/u);
+  assert.match(surfaceRule, /overflow-x:\s*visible/u);
+  assert.match(surfaceRule, /overflow-y:\s*clip/u);
+  assert.match(conversationRule, /width:\s*calc\(100% \+ var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.match(messageStageRule, /width:\s*calc\(100% - var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.match(messagesRule, /width:\s*calc\(100% \+ var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.match(messagesRule, /padding-inline-end:\s*var\(--ai-work-chat-inline-gap\)/u);
+  assert.match(insetControlsRule, /width:\s*min\(calc\(100% - var\(--ai-work-chat-inline-gap\)\),\s*920px\)/u);
+  assert.match(insetControlsRule, /left:\s*calc\(-1 \* var\(--ai-work-chat-inline-gap-half\)\)/u);
+  assert.match(composerRule, /width:\s*min\(100%,\s*920px\)/u);
+  assert.match(chatCss, /\.ai-work-chat__messages\s*\{[^}]*scrollbar-gutter:\s*stable/su);
 });
 
 test("响应式应用工作区仅在中心区和左栏下限都放得下时将二级导航改为 Dock", () => {

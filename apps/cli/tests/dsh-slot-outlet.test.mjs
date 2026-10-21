@@ -46,6 +46,26 @@ test('DshSlotOutlet forwards keyed slot fallback to the DSH renderer', () => {
   assert.equal(calls[0].options.fallback, fallback);
 });
 
+test('conversation input slot receives the current LFAA session identity', () => {
+  const calls = [];
+  const renderer = (name, owner) => {
+    calls.push({ name, owner });
+    return null;
+  };
+  const owner = { sessionId: 'session-current' };
+  renderToStaticMarkup(React.createElement(DshSlotRoot, {
+    renderer,
+    children: React.createElement(DshSlotOutlet, {
+      name: 'conversation.input.right',
+      owner
+    })
+  }));
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, 'conversation.input.right');
+  assert.equal(calls[0].owner, owner);
+});
+
 test('Settings and right-panel consumers show actionable empty states; optional overlay stays silent', () => {
   const root = new URL('../../../', import.meta.url);
   const settings = readFileSync(new URL('packages/client/ui-settings/src/SettingsPage.tsx', root), 'utf8');
@@ -77,5 +97,15 @@ test('LFAA declares and consumes every DSH Plugin Manager extension slot', () =>
   assert.match(renderer, /typeof options\.key === "string" \? options\.key/u);
   assert.match(pluginManager, /owner=\{\{ install: openContributedInstall, openPackage: openContributedPackage \}/u);
   assert.match(pluginManager, /inspection\.version !== contributedInstall\.version/u);
+});
+
+test('LFAA declares the generic conversation input slot and binds it to the active session', () => {
+  const root = new URL('../../../', import.meta.url);
+  const renderer = readFileSync(new URL('packages/client/ui-renderer/src/render.tsx', root), 'utf8');
+  const chat = readFileSync(new URL('packages/client/ui-chat/src/AiWorkChat.tsx', root), 'utf8');
+
+  assert.match(renderer, /"conversation\.input\.right": \{ kind: "list", scope: "root" \}/u);
+  assert.match(chat, /conversationInputSlotOwner = useMemo\(\(\) => \(\{ sessionId: activeSessionId \}\), \[activeSessionId\]\)/u);
+  assert.match(chat, /<DshSlotOutlet name="conversation\.input\.right" owner=\{conversationInputSlotOwner\} \/>/u);
 });
 

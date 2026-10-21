@@ -28,6 +28,8 @@ Windows Electron 桌面安装包内置本机 Daemon，并由桌面主进程自�
 
 Agent Git 管理使用 `packages/host/git`，由 LFAA 本机 Control Plane 执行；Daemon 不拥有 Agent 仓库清单、会话绑定或 Git 管理 UI。目标节点项目和 Worktree 路由属于可选项目能力。所有 Git 操作仍只接受固定参数化操作，不执行任意 Git 命令或补丁；写入关闭仓库 hooks、禁用终端提示并剔除可重定向仓库/索引/配置的继承环境变量。Agent Git 通过 Credentials Owner 使用账户隔离的 HTTPS 凭据进行 remote 同步；Daemon Git 不承载这些认证信息。SSH 同步与 PR 写入尚未接入。
 
+本机身份只由受保护的 `credentials/daemon-node-id` 精确确认；只有已登记的远端凭据才作为远端身份。未知的非空 `nodeId` 不可推断为本机；本机项目登记以 `nodeId: null` 表示，本机 Host/Git/HTML 预览对显式节点只接受精确匹配的本机 Daemon 身份。
+
 `src/easytier-runtime.mjs` 只接受 Connectivity Owner 派发的固定 EasyTier v2.6.4 安装操作，复用 Daemon 的数据根目录围栏、官方 HTTPS 资产摘要/大小验证和 ZIP 路径检查。安装包保存在 `environments/easytier/v2.6.4`，安装任务使用唯一暂存目录、拒绝覆盖无效已有目标，并通过核心程序 `--version` 输出确认后才加入节点心跳能力。该能力不启动 EasyTier、修改虚拟网卡或上报网络/对等连接状态；组网实例管理 RPC 尚未接入。
 
 ## 游戏文件资源范围（2026-10-14）

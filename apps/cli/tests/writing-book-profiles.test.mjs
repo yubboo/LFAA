@@ -24,7 +24,7 @@ test("作品角色与 Skills 只作用于当前账户和当前作品，并由模
       const { retireLegacyFileTables } = await import('lfaa-storage-domain/src/migration.js');
       retireLegacyFileTables();
         // 当前 Storage Owner 的既有迁移链已到 58；本轮角色/工具拆分不改变 Schema。
-        assert.equal(database.prepare('PRAGMA user_version').get().user_version, 59);
+        assert.equal(database.prepare('PRAGMA user_version').get().user_version, 60);
       database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('profile-owner',8301,'profile-owner','salt','hash','member',0),('profile-other',8302,'profile-other','salt','hash','member',0)").run();
       const writing = await import('lfaa-document-writing/src/service.js');
       const { createDomainToolTestHost } = await import('./tests/fixtures/domain-tools.mjs');

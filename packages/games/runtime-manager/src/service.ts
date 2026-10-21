@@ -1,11 +1,10 @@
 /** 功能：运行环境控制与本机任务执行 Owner。作用：共享任务/设置/设备身份，模型负责选择，执行器返回真实证据。 */
 import {windowsRuntimeCatalog} from "lfaa-runtime-environment/src/windows-runtimes.mjs";
 import {hostname} from "node:os";
-import {readFileSync} from "node:fs";
-import {resolve} from "node:path";
 import {config} from "lfaa-launch-environment/src/config.js";
 import {findRepositoryRoot} from "lfaa-home-paths/src/index.mjs";
 import {getDaemonDataRoot,getDaemonNode,listDaemonNodes} from "lfaa-host-daemon/src/local-daemon.js";
+import {getLocalDaemonNodeId} from "lfaa-host-daemon/src/node-credentials.js";
 import {database} from "lfaa-storage-sqlite/src/database.js";
 import {getProjectStorageLocations,getRuntimeStorageLocations,type RuntimeStorageLocations} from "lfaa-settings/src/project-storage.js";
 import {getUserSettings} from "lfaa-settings/src/service.js";
@@ -14,7 +13,7 @@ import {cancelRuntimeTask,claimRuntimeTask,completeRuntimeTask,createRuntimeTask
 import {ApiError} from "lfaa-util-values/src/http-error.js";
 import type {ApplicationId} from "lfaa-util-values/src/application-id.js";
 
-function localNodeId():string|null {try{const value=readFileSync(resolve(config.homeDirectory,"credentials","daemon-node-id"),"utf8").trim();return /^[a-f0-9-]{36}$/iu.test(value)?value:null;}catch{return null;}}
+function localNodeId():string|null {return getLocalDaemonNodeId();}
 export function assertRuntimeUnused(targetId:string,major:number):void {
   const id=targetId==="local"?localNodeId():targetId;if(!id)return;
   const instance=database.prepare("SELECT name FROM minecraft_instances WHERE node_id=? AND java_major=? AND state IN ('installing','starting','running','stopping','unknown') LIMIT 1").get(id,major) as {name:string}|undefined;

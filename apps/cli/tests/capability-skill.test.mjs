@@ -52,12 +52,55 @@ test('单个 GitHub Skill 固定归档后写入当前项目并通过 Owner 发�
   assert.equal(context.workspaceProject.nodeId, project.nodeId);
   const installed = await registry.install('skill', reviewed.inspectionId, 'workspace', 'user-1', context);
   assert.equal(installed.outcome, 'verified_ready');
-  assert.deepEqual(installed.verification.details, { skill: 'reviewer', path: '.agents/skills/reviewer/SKILL.md', project: '样例项目', state: 'installed-and-discovered', fileCount: 2 });
+  assert.deepEqual(installed.verification.details, {
+    skill: 'reviewer', path: '.agents/skills/reviewer/SKILL.md', project: '样例项目', state: 'installed-and-discovered', fileCount: 2,
+    scriptFiles: [], packageManifest: 'absent', dependencies: [], devDependencies: [], packageScriptNames: [], scriptsExecuted: false,
+    dependenciesInstalled: false, externalRuntimeVerified: false
+  });
   assert.equal(calls[0].path, '.agents/skills/reviewer');
   assert.deepEqual(calls[0].files.map(file => file.path), ['references/checklist.md', 'SKILL.md']);
   assert.equal(calls[1].operation, 'discover_skills');
   assert.equal((await registry.list('skill', 'workspace', {}, context)).length, 1);
   assert.equal(calls[2].operation, 'discover_skills', '通用安装核验复用 Owner 清单读取合同');
+});
+
+test('Skill 检查静态盘点脚本与依赖并明确不会执行或安装它们', async () => {
+  const runtimeSnapshot = {
+    ...snapshot,
+    files: [
+      ...selectedFiles,
+      { path: 'skills/reviewer/scripts/check.mjs', contents: Buffer.from('throw new Error("must not execute during install");') },
+      { path: 'skills/reviewer/package.json', contents: Buffer.from(JSON.stringify({ dependencies: { playwright: '^1.0.0' }, devDependencies: { typescript: '^5.0.0' }, scripts: { check: 'node scripts/check.mjs' } })) }
+    ]
+  };
+  const calls = [];
+  const adapter = createProjectSkillAdapter({
+    downloadSnapshot: async () => runtimeSnapshot,
+    runProjectFile: async input => {
+      calls.push(input);
+      return input.operation === 'create_tree'
+        ? { result: { created: true, files: input.files.map(file => ({ path: file.path })) } }
+        : { result: { skills: [{ name: 'reviewer', path: '.agents/skills/reviewer/SKILL.md' }] } };
+    }
+  });
+  const registry = new CapabilityInstallRegistry();
+  registry.register({ effect(callback) { return callback(); } }, adapter);
+  const context = makeContext();
+  const reviewed = await registry.inspect('skill', 'https://github.com/acme/skills', 'main', 'workspace', {}, context);
+  assert.deepEqual(reviewed.details.skill.runtimeAudit, {
+    scriptFiles: ['scripts/check.mjs'], packageManifest: 'valid', dependencies: ['playwright'], devDependencies: ['typescript'], packageScriptNames: ['check']
+  });
+  const approval = registry.installApproval('skill', reviewed.inspectionId, 'workspace', 'user-1');
+  assert.match(approval.summary, /含 1 个脚本文件，安装只复制文本，不执行/u);
+  assert.match(approval.summary, /静态读取 2 个依赖项，未安装/u);
+  const installed = await registry.install('skill', reviewed.inspectionId, 'workspace', 'user-1', context);
+  assert.equal(installed.verification.status, 'ready', 'ready 只表示 SKILL.md 已被真实项目 Owner 发现');
+  assert.deepEqual(installed.verification.details.scriptFiles, ['scripts/check.mjs']);
+  assert.deepEqual(installed.verification.details.dependencies, ['playwright']);
+  assert.equal(installed.verification.details.scriptsExecuted, false);
+  assert.equal(installed.verification.details.dependenciesInstalled, false);
+  assert.equal(installed.verification.details.externalRuntimeVerified, false);
+  assert.deepEqual(calls[0].files.map(file => file.path), ['package.json', 'references/checklist.md', 'scripts/check.mjs', 'SKILL.md']);
 });
 
 test('多 Skill 仓库要求显式选择目录，检查后项目变化或归档摘要变化时拒绝写入', async () => {
@@ -111,4 +154,30 @@ test('仓库根目录的单个 Skill 可固定为 Owner 目标并安装', async 
   assert.equal(verification.verified, true);
   assert.equal(writes[0].path, '.agents/skills/root-review');
   assert.equal(writes[1].operation, 'discover_skills');
+});
+
+test('本机默认工作区的 Skill 目标保持无节点身份', async () => {
+  const calls = [];
+  const localProject = { ...project, nodeId: null };
+  const adapter = createProjectSkillAdapter({
+    downloadSnapshot: async () => snapshot,
+    runProjectFile: async input => {
+      calls.push(input);
+      return input.operation === 'create_tree'
+        ? { result: { created: true, files: [] } }
+        : { result: { skills: [{ name: 'reviewer', path: '.agents/skills/reviewer/SKILL.md' }] } };
+    }
+  });
+  const context = makeContext(localProject);
+  const target = adapter.validateTarget({}, 'workspace', context);
+  assert.equal(target.nodeId, null);
+  const plan = await adapter.inspect('https://github.com/acme/skills', 'main', 'workspace', target);
+  const installedTarget = adapter.validateTarget(plan.resolvedTarget, 'workspace', context);
+  const installed = await adapter.install('https://github.com/acme/skills', plan.resolvedRef, 'workspace', 'user-1', installedTarget, plan.details, context);
+  const verification = await adapter.verifyInstalled(installed, 'https://github.com/acme/skills', plan.resolvedRef, 'workspace', installedTarget, plan.details, context);
+  assert.equal(installed.project, '样例项目');
+  assert.equal(verification.status, 'ready');
+  assert.equal(calls[0].operation, 'create_tree');
+  assert.equal(calls[1].operation, 'discover_skills');
+  assert.equal(context.workspaceProject.nodeId, null);
 });

@@ -12,7 +12,7 @@ import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { BROWSER_PROVIDER_IDS } from "lfaa-util-values/src/browser-provider.js";
 import { getUserSettings, saveUserSettings } from "lfaa-settings/src/service.js";
-import type { BrowserSessionManager } from "lfaa-browser-use/src/session-manager.js";
+import { BROWSER_ALLOWED_KEYS, type BrowserSessionManager } from "lfaa-browser-use/src/session-manager.js";
 import type { BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 
 declare module "@deepseek-ai/cordis" {
@@ -25,10 +25,16 @@ declare module "@deepseek-ai/cordis" {
 const providerSchema = Joi.string().valid(...BROWSER_PROVIDER_IDS).required();
 const sessionSchema = Joi.string().trim().min(1).max(160).pattern(/^[A-Za-z0-9._-]+$/u).required();
 const navigateSchema = Joi.object({ providerId: providerSchema, url: Joi.string().uri({ scheme: ["http", "https"] }).max(2048).required() }).unknown(false);
+const viewportSchema = Joi.object({ providerId: providerSchema.valid("lfaa-managed-edge", "lfaa-managed-chrome"), width: Joi.number().integer().min(320).max(1280).required(), height: Joi.number().integer().min(400).max(1600).required() }).unknown(false);
 const actionSchema = Joi.object({
   providerId: providerSchema,
-  action: Joi.string().valid("back", "forward", "reload", "clickAt").required(),
-  x: Joi.number().min(0).max(4096), y: Joi.number().min(0).max(4096)
+  action: Joi.string().valid("back", "forward", "reload", "clickAt", "dragAt", "typeText", "pressKey", "scroll").required(),
+  x: Joi.number().min(0).max(4096), y: Joi.number().min(0).max(4096),
+  points: Joi.array().items(Joi.object({ x: Joi.number().min(0).max(4096).required(), y: Joi.number().min(0).max(4096).required(), delayMs: Joi.number().integer().min(0).max(1000).required() }).unknown(false)).min(1).max(128),
+  text: Joi.string().min(1).max(2000),
+  key: Joi.string().valid(...BROWSER_ALLOWED_KEYS),
+  direction: Joi.string().valid("up", "down"), amount: Joi.number().integer().min(1).max(600),
+  includeScreenshot: Joi.boolean()
 }).unknown(false);
 const providerQuerySchema = Joi.object({ providerId: providerSchema }).unknown(false);
 const claimSchema = Joi.object({ providerId: providerSchema.valid("tabbit-personal"), tabId: Joi.number().integer().min(0).required() }).unknown(false);
@@ -54,7 +60,7 @@ function assertProviderLinked(userId: string, providerId: BrowserProviderId): vo
 
 function registerRoutes(router: Router, manager: BrowserSessionManager): void {
   const auth = [requireAuthentication];
-  const actionLimit = createRateLimit(90, 60_000);
+  const actionLimit = createRateLimit(600, 60_000);
   router.get("/browser/providers", ...auth, (_request, response) => response.json({ providers: manager.listProviders(), personalBrowsersInspected: false }));
   router.post("/browser/providers/tabbit-personal/connect", ...auth, actionLimit, asyncHandler(async (request, response) => {
     const body = parseBody<{ sourceSessionId: string }>(tabbitConnectSchema, request.body);
@@ -96,6 +102,13 @@ function registerRoutes(router: Router, manager: BrowserSessionManager): void {
     const session = await manager.navigate(request.auth!.user.id, sourceSessionId, body.providerId, body.url);
     response.json({ session });
   }));
+  router.post("/browser/sessions/:sourceSessionId/viewport", ...auth, actionLimit, asyncHandler(async (request, response) => {
+    const sourceSessionId = readSessionId(request.params.sourceSessionId);
+    const body = parseBody<{ providerId: BrowserProviderId; width: number; height: number }>(viewportSchema, request.body);
+    assertProviderLinked(request.auth!.user.id, body.providerId);
+    const session = await manager.resizeViewport(request.auth!.user.id, sourceSessionId, body.providerId, body.width, body.height);
+    response.json({ session });
+  }));
   router.post("/browser/sessions/:sourceSessionId/claim", ...auth, actionLimit, asyncHandler(async (request, response) => {
     const sourceSessionId = readSessionId(request.params.sourceSessionId);
     const body = parseBody<{ providerId: BrowserProviderId; tabId: number }>(claimSchema, request.body);
@@ -105,16 +118,25 @@ function registerRoutes(router: Router, manager: BrowserSessionManager): void {
   }));
   router.post("/browser/sessions/:sourceSessionId/action", ...auth, actionLimit, asyncHandler(async (request, response) => {
     const sourceSessionId = readSessionId(request.params.sourceSessionId);
-    const body = parseBody<{ providerId: BrowserProviderId; action: "back" | "forward" | "reload" | "clickAt"; x?: number; y?: number }>(actionSchema, request.body);
+      const body = parseBody<{ providerId: BrowserProviderId; action: "back" | "forward" | "reload" | "clickAt" | "dragAt" | "typeText" | "pressKey" | "scroll"; x?: number; y?: number; points?: Array<{ x: number; y: number; delayMs: number }>; text?: string; key?: string; direction?: "up" | "down"; amount?: number; includeScreenshot?: boolean }>(actionSchema, request.body);
     assertProviderLinked(request.auth!.user.id, body.providerId);
-    if (body.action === "clickAt" && (body.x === undefined || body.y === undefined) || body.action !== "clickAt" && (body.x !== undefined || body.y !== undefined)) {
+    const fieldsByAction: Record<typeof body.action, string[]> = {
+        back: [], forward: [], reload: [], clickAt: ["x", "y"], dragAt: ["x", "y", "points"], typeText: ["text"], pressKey: ["key"], scroll: ["direction", "amount"]
+    };
+    const allowedFields = new Set(["providerId", "action", "includeScreenshot", ...fieldsByAction[body.action]]);
+    if (Object.keys(body).some(key => !allowedFields.has(key)) || fieldsByAction[body.action].some(key => body[key as keyof typeof body] === undefined)) {
       throw new ApiError(400, "browser_action_invalid", "浏览器交互参数与动作不匹配。");
     }
     const ownerId = request.auth!.user.id;
+    const includeScreenshot = body.includeScreenshot !== false;
     const session = body.action === "back" ? await manager.back(ownerId, sourceSessionId, body.providerId)
       : body.action === "forward" ? await manager.forward(ownerId, sourceSessionId, body.providerId)
         : body.action === "reload" ? await manager.reload(ownerId, sourceSessionId, body.providerId)
-          : await manager.clickAt(ownerId, sourceSessionId, body.providerId, body.x!, body.y!);
+          : body.action === "clickAt" ? await manager.clickAt(ownerId, sourceSessionId, body.providerId, body.x!, body.y!)
+            : body.action === "dragAt" ? await manager.dragAt(ownerId, sourceSessionId, body.providerId, body.x!, body.y!, body.points!)
+              : body.action === "typeText" ? await manager.typeText(ownerId, sourceSessionId, body.providerId, body.text!, undefined, includeScreenshot)
+              : body.action === "pressKey" ? await manager.pressKey(ownerId, sourceSessionId, body.providerId, body.key!, undefined, includeScreenshot)
+                : await manager.scroll(ownerId, sourceSessionId, body.providerId, body.direction!, body.amount!, undefined, includeScreenshot);
     response.json({ session });
   }));
   router.delete("/browser/sessions/:sourceSessionId", ...auth, actionLimit, asyncHandler(async (request, response) => {

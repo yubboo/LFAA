@@ -13,7 +13,7 @@ const usageFooterSource = readFileSync(new URL("../../../packages/client/ui-chat
 const projectPickerSource = readFileSync(new URL("../../../packages/client/ui-chat/src/WorkspaceProjectPicker.tsx", import.meta.url), "utf8");
 const composerRule = chatStyles.match(/^\.ai-work-chat__composer\s*\{([^}]*)\}/mu)?.[1] ?? "";
 const composerFocusRule = chatStyles.match(/^\.ai-work-chat__composer:focus-within\s*\{([^}]*)\}/mu)?.[1] ?? "";
-const composerInputRule = chatStyles.match(/^\.ai-work-chat__composer \.ant-input\s*\{([^}]*)\}/mu)?.[1] ?? "";
+const composerInputRule = chatStyles.match(/^\.ai-work-chat__composer \.ant-input(?:\.[\w-]+)*\s*\{([^}]*)\}/mu)?.[1] ?? "";
 const messageStageRule = chatStyles.match(/^\.ai-work-chat__message-stage\s*\{([^}]*)\}/mu)?.[1] ?? "";
 const messageListRule = chatStyles.match(/^\.ai-work-chat__message-list\s*\{([^}]*)\}/mu)?.[1] ?? "";
 const anchorRule = chatStyles.match(/^\.ai-work-chat__anchors\s*\{([^}]*)\}/mu)?.[1] ?? "";
@@ -121,7 +121,22 @@ test("输入列不超过 380px 时，项目、权限、更多和模型操作压�
   assert.match(compactRule, /\.ai-work-chat__composer-control\.ant-btn\s*\{[^}]*width:\s*30px[^}]*flex:\s*0\s+0\s+30px/u);
   assert.match(chatSource, /className="ai-work-chat__composer-app" aria-label=\{`当前应用：\$\{applicationNameFor\(appId\)\}`\} title=\{applicationNameFor\(appId\)\}/u);
   assert.match(chatSource, /className="ai-work-chat__composer-control ai-work-chat__composer-control--permission"[^>]*aria-label=/u);
-  assert.match(chatSource, /className="ai-work-chat__composer-control ai-work-chat__composer-control--more"[^>]*aria-label="更多输入操作" title="关联应用和能力"/u);
-  assert.match(chatSource, /className="ai-work-chat__composer-control ai-work-chat__composer-control--model"[^>]*aria-label=\{`模型：/u);
+  assert.match(chatSource, /<Tooltip trigger=\{\["hover", "focus"\]\} placement="top" title="关联应用、Skill、提示词和专家">\s*<Button className="ai-work-chat__composer-control ai-work-chat__composer-control--more"[^>]*aria-label="更多输入操作"/u);
+  assert.match(chatSource, /className="ai-work-chat__composer-control ai-work-chat__composer-control--model"[^>]*aria-label=\{activeAccount \? `模型：/u);
   assert.match(projectPickerSource, /className="ai-work-chat__project-trigger"[^>]*aria-label=/u);
+});
+
+test("输入操作与用量指标为鼠标和键盘提供真实状态提示，点击详情仍由原 Popover/Dropdown 处理", () => {
+  assert.match(chatSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="top" title="添加文件等内容 · 附件功能尚未接入"/u);
+  assert.match(chatSource, /title=\{`更改权限 · 当前为\$\{permissionModeLabels\[settings\.permissions\.mode\]\}`\}/u);
+  assert.match(chatSource, /title="关联应用、Skill、提示词和专家"/u);
+  assert.match(chatSource, /title=\{activeAccount \? `选择模型/u);
+  assert.match(chatSource, /Tooltip trigger=\{\["hover", "focus"\]\} title=\{!settings\.aiRuntime\.voiceInputEnabled/u);
+  assert.match(chatSource, /settings\.general\.sendShortcut === "enter" \? "发送消息 · Enter" : "发送消息 · Ctrl\+Enter"/u);
+  assert.match(usageFooterSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="top" title=\{`会话 Token 用量/u);
+  assert.match(usageFooterSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="top" title=\{`\$\{contextTooltipText\(contextUsage\)\}/u);
+  assert.match(usageFooterSource, /function contextTooltipText\(context: AiContextUsage \| null\)/u);
+  assert.match(usageFooterSource, /Popover trigger="click"/u);
+  assert.match(chatSource, /menu=\{\{[\s\S]*?onClick: \(\{ key \}\) => selectPermissionMode/u);
+  assert.doesNotMatch(usageFooterSource, /ai-work-chat__usage-trigger[^\n]*title=/u);
 });

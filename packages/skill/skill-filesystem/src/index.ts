@@ -21,7 +21,7 @@
  */
 
 import { access, opendir, open, realpath, stat } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import type { Context } from "@deepseek-ai/cordis";
 import chokidar from "chokidar";
@@ -30,6 +30,8 @@ import yaml from "js-yaml";
 import {
   BUNDLED_SKILL_RANK,
   isSkillName,
+  MAX_SKILL_RESOURCE_BYTES,
+  normalizeSkillResourcePath,
   type SkillCandidate,
   type SkillDefinition,
   type SkillInvocationPolicy,
@@ -37,6 +39,7 @@ import {
   type SkillProvider,
   type SkillProviderControl,
   type SkillProviderObservation,
+  type SkillResourceDocument,
   type SkillSource,
 } from "lfaa-skill";
 
@@ -225,6 +228,44 @@ export class FileSystemSkillProvider implements SkillProvider {
       ...parsed.metadata !== undefined ? { metadata: parsed.metadata } : {},
       content: parsed.content,
     };
+  }
+
+  /** 按需读取 Skill 目录中的小型文本资源；绝对路径、目录跳转、二进制和越界链接均拒绝。 */
+  async readResource(candidate: SkillCandidate, resourcePath: string, options: SkillLookupOptions): Promise<SkillResourceDocument | undefined> {
+    const path = normalizeSkillResourcePath(resourcePath);
+    const locator = candidate.locator as LocalLocator;
+    if (basename(locator.path) !== "SKILL.md") throw new Error("扁平 Skill 没有可读取的附属资源目录。");
+    options.signal?.throwIfAborted();
+    try {
+      const root = await realpath(locator.directory);
+      const target = await realpath(resolve(root, ...path.split("/")));
+      const child = relative(root, target);
+      if (child === ".." || child.startsWith(`..${sep}`) || isAbsolute(child)) throw new Error("Skill 资源解析后超出 Skill 目录。");
+      const info = await stat(target);
+      if (!info.isFile()) throw new Error("Skill 资源不是普通文件。");
+      if (info.size > MAX_SKILL_RESOURCE_BYTES) throw new Error("Skill 文本资源超过 96 KiB 上限。");
+      const handle = await open(target, "r");
+      try {
+        const current = await handle.stat();
+        if (!current.isFile() || current.size > MAX_SKILL_RESOURCE_BYTES) throw new Error("Skill 文本资源超过 96 KiB 上限。");
+        const bytes = Buffer.alloc(MAX_SKILL_RESOURCE_BYTES + 1);
+        let used = 0;
+        while (used < bytes.length) {
+          options.signal?.throwIfAborted();
+          const { bytesRead } = await handle.read(bytes, used, bytes.length - used, used);
+          if (!bytesRead) break;
+          used += bytesRead;
+        }
+        if (used > MAX_SKILL_RESOURCE_BYTES) throw new Error("Skill 文本资源超过 96 KiB 上限。");
+        const content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, used));
+        if (content.includes("\0")) throw new Error("Skill 资源含二进制数据，不能作为文本加载。");
+        return { path, content, bytes: used };
+      } finally { await handle.close(); }
+    } catch (error) {
+      options.signal?.throwIfAborted();
+      if (isAbsentPathError(error)) return undefined;
+      throw error;
+    }
   }
 
   /**

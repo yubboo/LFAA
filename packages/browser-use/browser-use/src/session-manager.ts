@@ -22,6 +22,8 @@ const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1280;
 const PAGE_ACTION_TIMEOUT_MS = 8_000;
 const SENSITIVE_FIELD = /(?:password|passcode|secret|token|api[\s_-]?key|authorization|验证码|密码|密钥|令牌)/iu;
+export const BROWSER_ALLOWED_KEYS = ["Enter", "Tab", "Shift+Tab", "Escape", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Home", "End", "PageDown", "PageUp", "Space", "Backspace", "Delete", "Control+A", "Meta+A", "Control+C", "Control+V", "Control+X", "Control+Z", "Control+Y", "Meta+C", "Meta+V", "Meta+X", "Meta+Z", "Meta+Y"] as const;
+const BROWSER_ALLOWED_KEY_SET: ReadonlySet<string> = new Set(BROWSER_ALLOWED_KEYS);
 
 export interface BrowserProviderSummary { id: BrowserProviderId; name: string; available: boolean; reason?: string; isolation: "new-profile" | "user-profile" }
 export interface BrowserTabSummary { id: string; title: string; url: string; active: boolean }
@@ -37,6 +39,26 @@ export interface BrowserSnapshot {
   screenshot: { mimeType: "image/jpeg"; dataBase64: string; width: number; height: number } | null;
 }
 export interface BrowserRevision { revision: number; url: string; title: string }
+export interface BrowserDragPoint { x: number; y: number; delayMs: number }
+export interface BrowserRunAdapterContext {
+  ownerId: string;
+  sourceSessionId: string;
+  runId: string;
+  signal: AbortSignal;
+  onRunDispose: (cleanup: () => void) => void;
+}
+export interface BrowserRunAdapter {
+  readonly runId: string;
+  listTabs(): Promise<TabbitTabSummary[]>;
+  claimTab(tabId: number): Promise<BrowserSnapshot>;
+  navigate(providerId: BrowserProviderId, url: string): Promise<BrowserSnapshot>;
+  navigateProjectPreview(providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }): Promise<BrowserSnapshot>;
+  observe(providerId: BrowserProviderId): Promise<BrowserSnapshot>;
+  click(providerId: BrowserProviderId, role: string, name: string): Promise<BrowserSnapshot>;
+  fill(providerId: BrowserProviderId, label: string, value: string): Promise<BrowserSnapshot>;
+  pressKey(providerId: BrowserProviderId, key: string): Promise<BrowserSnapshot>;
+  scroll(providerId: BrowserProviderId, direction: "up" | "down", amount: number): Promise<BrowserSnapshot>;
+}
 
 interface BrowserSession {
   id: string;
@@ -50,6 +72,7 @@ interface BrowserSession {
   revision: number;
   operationTail: Promise<void>;
   allowedLocalOrigin: string | null;
+  projectPreview: { url: string; close: () => Promise<void> } | null;
   disposed: boolean;
 }
 
@@ -90,6 +113,7 @@ function isSensitiveField(label: string, type?: string): boolean {
 export class BrowserSessionManager {
   private readonly sessions = new Map<string, BrowserSession>();
   private readonly sessionKeys = new Map<string, string>();
+  private readonly runAdapters = new Map<string, { adapter: BrowserRunAdapter; signal: AbortSignal; dispose: () => void }>();
   private readonly channels = availableChannels();
   private readonly sweepTimer = setInterval(() => { void Promise.all([this.sweepExpired(), this.tabbit.sweepExpired()]).catch(() => undefined); }, SESSION_SWEEP_MS);
   private readonly browsers = new Map<"msedge" | "chrome", Promise<Browser>>();
@@ -99,6 +123,56 @@ export class BrowserSessionManager {
   constructor(private readonly localHostExecution: boolean) {
     this.tabbit = new TabbitBrowserProvider(localHostExecution);
     this.sweepTimer.unref?.();
+  }
+
+  createRunAdapter(binding: BrowserRunAdapterContext): BrowserRunAdapter {
+    const { ownerId, sourceSessionId, runId, signal, onRunDispose } = binding;
+    if (this.disposed) throw new Error("Browser Owner 已关闭。");
+    if (!ownerId || ownerId.length > 256 || ownerId.includes("\0") || !sourceSessionId || sourceSessionId.length > 160 || sourceSessionId.includes("\0") || !runId || runId.length > 160 || runId.includes("\0")) {
+      throw new Error("浏览器 Run 必须绑定有效账户、LFAA Session 与 Agent Run。");
+    }
+    if (!signal || typeof signal.addEventListener !== "function" || typeof onRunDispose !== "function") {
+      throw new Error("当前 Agent Run 缺少取消信号或资源清理入口。");
+    }
+    signal.throwIfAborted();
+    const key = createHash("sha256").update(JSON.stringify([ownerId, sourceSessionId, runId])).digest("hex");
+    const existing = this.runAdapters.get(key);
+    if (existing) {
+      if (existing.signal !== signal) throw new Error("同一浏览器 Run 收到了不一致的取消信号。");
+      return existing.adapter;
+    }
+
+    let active = true;
+    const invoke = <T>(operation: () => Promise<T>): Promise<T> => {
+      if (!active || this.disposed) throw new Error("当前 Agent Run 的浏览器桥接已结束。");
+      signal.throwIfAborted();
+      return operation();
+    };
+    const adapter: BrowserRunAdapter = Object.freeze({
+      runId,
+      listTabs: (): Promise<TabbitTabSummary[]> => invoke(() => this.listTabs(ownerId, sourceSessionId, "tabbit-personal", signal)),
+      claimTab: (tabId: number): Promise<BrowserSnapshot> => invoke(() => this.claimTab(ownerId, sourceSessionId, "tabbit-personal", tabId, signal)),
+      navigate: (providerId: BrowserProviderId, url: string): Promise<BrowserSnapshot> => invoke(() => this.navigate(ownerId, sourceSessionId, providerId, url, signal)),
+      navigateProjectPreview: (providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }): Promise<BrowserSnapshot> => invoke(() => this.navigateProjectPreview(ownerId, sourceSessionId, providerId, preview, signal)),
+      observe: (providerId: BrowserProviderId): Promise<BrowserSnapshot> => invoke(() => this.observeForRun(ownerId, sourceSessionId, providerId, signal)),
+      click: (providerId: BrowserProviderId, role: string, name: string): Promise<BrowserSnapshot> => invoke(() => this.click(ownerId, sourceSessionId, providerId, role, name, signal)),
+      fill: (providerId: BrowserProviderId, label: string, value: string): Promise<BrowserSnapshot> => invoke(() => this.fill(ownerId, sourceSessionId, providerId, label, value, signal)),
+      pressKey: (providerId: BrowserProviderId, key: string): Promise<BrowserSnapshot> => invoke(() => this.pressKey(ownerId, sourceSessionId, providerId, key, signal)),
+      scroll: (providerId: BrowserProviderId, direction: "up" | "down", amount: number): Promise<BrowserSnapshot> => invoke(() => this.scroll(ownerId, sourceSessionId, providerId, direction, amount, signal))
+    });
+    const dispose = () => {
+      if (!active) return;
+      active = false;
+      if (this.runAdapters.get(key)?.adapter === adapter) this.runAdapters.delete(key);
+    };
+    this.runAdapters.set(key, { adapter, signal, dispose });
+    try {
+      onRunDispose(dispose);
+    } catch (error) {
+      dispose();
+      throw error;
+    }
+    return adapter;
   }
 
   listProviders(): BrowserProviderSummary[] {
@@ -128,11 +202,31 @@ export class BrowserSessionManager {
   }
 
   async getPanelSnapshot(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, includeScreenshot = true): Promise<BrowserSnapshot | null> {
-    if (providerId === "tabbit-personal") return this.tabbit.getPanelSnapshot(ownerId, sourceSessionId);
+    if (providerId === "tabbit-personal") return this.tabbit.getPanelSnapshot(ownerId, sourceSessionId, includeScreenshot);
     const key = sessionKey(ownerId, sourceSessionId, providerId), id = this.sessionKeys.get(key);
     const session = id ? this.sessions.get(id) : undefined;
     if (!session || session.disposed) return null;
     return this.exclusive(session, () => this.observe(session, includeScreenshot));
+  }
+
+  async resizeViewport(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, width: number, height: number, signal?: AbortSignal): Promise<BrowserSnapshot | null> {
+    if (providerId === "tabbit-personal") throw new Error("Tabbit 个人浏览器的视口由用户控制，LFAA 不会调整其窗口尺寸。");
+    if (!Number.isInteger(width) || width < 320 || width > MAX_IMAGE_DIMENSION || !Number.isInteger(height) || height < 400 || height > 1600) {
+      throw new Error("浏览器工作区视口尺寸超出允许范围。");
+    }
+    const key = sessionKey(ownerId, sourceSessionId, providerId), id = this.sessionKeys.get(key);
+    const session = id ? this.sessions.get(id) : undefined;
+    if (!session || session.disposed) return null;
+    signal?.throwIfAborted();
+    return this.exclusive(session, async () => {
+      const current = session.page.viewportSize();
+      if (current?.width !== width || current?.height !== height) {
+        await session.page.setViewportSize({ width, height });
+        session.revision += 1;
+      }
+      this.touch(session);
+      return this.observe(session, true);
+    }, signal);
   }
 
   async getPanelRevision(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<BrowserRevision | null> {
@@ -150,12 +244,36 @@ export class BrowserSessionManager {
     const session = await this.getOrCreate(ownerId, sourceSessionId, providerId);
     signal?.throwIfAborted();
     return this.exclusive(session, async () => {
+      await this.closeProjectPreview(session);
       session.allowedLocalOrigin = null;
       await this.assertTarget(session, url, true);
       if (await this.isPrivateOrigin(url)) session.allowedLocalOrigin = url.origin;
       await session.page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 20_000 });
       this.touch(session);
       return this.observe(session, true);
+    }, signal);
+  }
+
+  async navigateProjectPreview(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }, signal?: AbortSignal): Promise<BrowserSnapshot> {
+    if (providerId === "tabbit-personal") throw new Error("工作区文件只能在 LFAA 隔离浏览器中预览，不会传给个人浏览器。");
+    const url = validateNavigationUrl(preview.url);
+    if (url.hostname !== "127.0.0.1" || typeof preview.close !== "function") throw new Error("项目预览源必须是受限的本机只读服务。");
+    const session = await this.getOrCreate(ownerId, sourceSessionId, providerId);
+    signal?.throwIfAborted();
+    return this.exclusive(session, async () => {
+      await this.closeProjectPreview(session);
+      session.allowedLocalOrigin = url.origin;
+      session.projectPreview = preview;
+      try {
+        await this.assertTarget(session, url, true);
+        await session.page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 20_000 });
+        this.touch(session);
+        return await this.observe(session, true);
+      } catch (error) {
+        await this.closeProjectPreview(session);
+        session.allowedLocalOrigin = null;
+        throw error;
+      }
     }, signal);
   }
 
@@ -203,23 +321,48 @@ export class BrowserSessionManager {
     }, signal);
   }
 
-  async pressKey(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, key: string, signal?: AbortSignal): Promise<BrowserSnapshot> {
-    if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "press-key", { key }, signal);
-    const allowedKeys = new Set(["Enter", "Tab", "Escape", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Space", "Backspace", "Delete", "Control+A", "Meta+A"]);
-    if (!allowedKeys.has(key)) throw new Error("此按键不在浏览器工具允许列表中。");
-    return this.usePage(ownerId, sourceSessionId, providerId, page => page.keyboard.press(key), signal);
+  async typeText(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, text: string, signal?: AbortSignal, includeScreenshot = true): Promise<BrowserSnapshot> {
+    if (!text || text.length > 2000) throw new Error("单次输入文字需在 1–2000 个字符内。");
+    if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "type-text", { text }, signal, includeScreenshot);
+    return this.usePage(ownerId, sourceSessionId, providerId, page => page.keyboard.insertText(text), signal, includeScreenshot);
   }
 
-  async scroll(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, direction: "up" | "down", amount: number, signal?: AbortSignal): Promise<BrowserSnapshot> {
-    if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "scroll", { direction, amount }, signal);
+  async pressKey(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, key: string, signal?: AbortSignal, includeScreenshot = true): Promise<BrowserSnapshot> {
+    if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "press-key", { key }, signal, includeScreenshot);
+    if (!BROWSER_ALLOWED_KEY_SET.has(key)) throw new Error("此按键不在浏览器工具允许列表中。");
+    return this.usePage(ownerId, sourceSessionId, providerId, page => page.keyboard.press(key), signal, includeScreenshot);
+  }
+
+  async scroll(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, direction: "up" | "down", amount: number, signal?: AbortSignal, includeScreenshot = true): Promise<BrowserSnapshot> {
+    if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "scroll", { direction, amount }, signal, includeScreenshot);
     if (!Number.isInteger(amount) || amount < 1 || amount > 600) throw new Error("滚动距离必须在 1–600 像素内。");
-    return this.usePage(ownerId, sourceSessionId, providerId, page => page.mouse.wheel(0, direction === "down" ? amount : -amount), signal);
+    return this.usePage(ownerId, sourceSessionId, providerId, page => page.mouse.wheel(0, direction === "down" ? amount : -amount), signal, includeScreenshot);
   }
 
   async clickAt(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, x: number, y: number, signal?: AbortSignal): Promise<BrowserSnapshot> {
     if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "clickAt", { x, y }, signal);
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > 4096 || y > 4096) throw new Error("坐标超出浏览器视口边界。");
     return this.usePage(ownerId, sourceSessionId, providerId, page => page.mouse.click(x, y), signal);
+  }
+
+  async dragAt(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, x: number, y: number, points: readonly BrowserDragPoint[], signal?: AbortSignal): Promise<BrowserSnapshot> {
+    const validPoint = (point: BrowserDragPoint) => Number.isFinite(point.x) && Number.isFinite(point.y) && point.x >= 0 && point.y >= 0 && point.x <= 4096 && point.y <= 4096 && Number.isInteger(point.delayMs) && point.delayMs >= 0 && point.delayMs <= 1000;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > 4096 || y > 4096 || points.length < 1 || points.length > 128 || points.some(point => !validPoint(point)) || points.reduce((total, point) => total + point.delayMs, 0) > 15_000) {
+      throw new Error("网页拖动路径无效或超出长度、坐标与时间限制。");
+    }
+    if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "dragAt", { x, y, points }, signal);
+    return this.usePage(ownerId, sourceSessionId, providerId, async page => {
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      try {
+        for (const point of points) {
+          if (point.delayMs) await page.waitForTimeout(point.delayMs);
+          await page.mouse.move(point.x, point.y);
+        }
+      } finally {
+        if (!page.isClosed()) await page.mouse.up().catch(() => undefined);
+      }
+    }, signal);
   }
 
   async closeSession(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId): Promise<void> {
@@ -243,6 +386,8 @@ export class BrowserSessionManager {
     if (this.disposed) return;
     this.disposed = true;
     clearInterval(this.sweepTimer);
+    for (const entry of this.runAdapters.values()) entry.dispose();
+    this.runAdapters.clear();
     await this.tabbit.closeAll();
     await Promise.all([...this.sessions.values()].map(session => this.disposeSession(session)));
     const browsers = await Promise.all([...this.browsers.values()].map(browser => browser.catch(() => null)));
@@ -261,14 +406,14 @@ export class BrowserSessionManager {
     if (existing && !existing.disposed && !existing.page.isClosed()) { this.touch(existing); return existing; }
     if (existing && !existing.disposed) await this.disposeSession(existing);
     if (this.sessions.size >= MAX_SESSIONS || [...this.sessions.values()].filter(session => session.ownerId === ownerId).length >= MAX_SESSIONS_PER_USER) {
-      throw new Error("浏览器会话达到当前账户的并发上限；先关闭不再使用的浏览器预览。");
+      throw new Error("浏览器会话达到当前账户的并发上限；先关闭不再使用的浏览器会话。");
     }
     const browser = await this.getBrowser(provider.channel);
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, serviceWorkers: "block" });
     const session: BrowserSession = {
       id: randomUUID(), ownerId, sourceSessionId, providerId, browser, context,
       page: await context.newPage(), lastUsedAt: Date.now(), revision: 0,
-      operationTail: Promise.resolve(), allowedLocalOrigin: null, disposed: false
+      operationTail: Promise.resolve(), allowedLocalOrigin: null, projectPreview: null, disposed: false
     };
     let lastChangeNotificationAt = 0;
     await context.exposeBinding("__lfaaBrowserChanged", () => {
@@ -330,17 +475,20 @@ export class BrowserSessionManager {
 
   private async guardRequest(session: BrowserSession, input: string): Promise<void> {
     const url = validateNavigationUrl(input);
+    if (session.projectPreview && url.origin !== new URL(session.projectPreview.url).origin) {
+      throw new Error("工作区 HTML 预览只加载当前项目文件；打开外部网址需由 Agent 或用户明确导航。");
+    }
     if (session.allowedLocalOrigin && url.origin === session.allowedLocalOrigin) return;
     await this.assertTarget(session, url);
   }
 
-  private async usePage(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, action: (page: Page) => Promise<unknown>, signal?: AbortSignal): Promise<BrowserSnapshot> {
+  private async usePage(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, action: (page: Page) => Promise<unknown>, signal?: AbortSignal, includeScreenshot = true): Promise<BrowserSnapshot> {
     const session = await this.getOrCreate(ownerId, sourceSessionId, providerId);
     signal?.throwIfAborted();
     return this.exclusive(session, async () => {
       await action(session.page);
       this.touch(session);
-      return this.observe(session, true);
+      return this.observe(session, includeScreenshot);
     }, signal);
   }
 
@@ -351,7 +499,15 @@ export class BrowserSessionManager {
     const [title, pageText, controls, screenshot, tabs] = await Promise.all([
       page.title().catch(() => ""),
       page.locator("body").innerText({ timeout: 4_000 }).catch(() => ""),
-      page.locator("a,button,input,textarea,select,[role=button],[role=link],[role=textbox]").evaluateAll<BrowserSnapshot["controls"], void>(`elements => elements.slice(0, ${MAX_INTERACTIVE_ITEMS}).map(node => { const input = node instanceof HTMLInputElement ? node : null; const label = node.getAttribute("aria-label") || node.innerText || input?.placeholder || node.getAttribute("title") || ""; const name = label.replace(/[\\u0000-\\u001f\\u007f]/gu, " ").trim().slice(0, 160); const type = input?.type; const role = node.getAttribute("role") || ({A:"link",BUTTON:"button",INPUT:input?.type === "checkbox" ? "checkbox" : input?.type === "radio" ? "radio" : "textbox",TEXTAREA:"textbox",SELECT:"combobox"})[node.tagName] || node.tagName.toLowerCase(); return { role, name: type === "password" || /password|passcode|secret|token|api[\\s_-]?key|authorization|验证码|密码|密钥|令牌/iu.test(name) ? "受保护的敏感字段" : name, ...(type && type !== "password" ? {type} : {}), disabled: node.disabled === true || node.getAttribute("aria-disabled") === "true" }; }).filter(item => item.name).slice(0, ${MAX_INTERACTIVE_ITEMS})`).then(items => items.slice(0, MAX_INTERACTIVE_ITEMS)).catch(() => [] as BrowserSnapshot["controls"]),
+      page.locator("a,button,input,textarea,select,[role=button],[role=link],[role=textbox]").evaluateAll<BrowserSnapshot["controls"], number>((elements, limit) => elements.slice(0, limit).filter(node => node.getClientRects().length > 0 && !node.closest('[aria-hidden="true"]')).map(node => {
+        const isInput = node.tagName === "INPUT";
+        const innerText = (node as typeof node & { innerText?: string }).innerText;
+        const label = node.getAttribute("aria-label") || innerText || (isInput ? node.getAttribute("placeholder") : null) || node.getAttribute("title") || "";
+        const name = label.replace(/[\u0000-\u001f\u007f]/gu, " ").trim().slice(0, 160);
+        const type = isInput ? node.getAttribute("type") || "text" : undefined;
+        const role = node.getAttribute("role") || (node.tagName === "A" ? "link" : node.tagName === "BUTTON" ? "button" : node.tagName === "INPUT" ? (type === "checkbox" ? "checkbox" : type === "radio" ? "radio" : "textbox") : node.tagName === "TEXTAREA" ? "textbox" : node.tagName === "SELECT" ? "combobox" : node.tagName.toLowerCase());
+        return { role, name: type === "password" || /password|passcode|secret|token|api[\s_-]?key|authorization|验证码|密码|密钥|令牌/iu.test(name) ? "受保护的敏感字段" : name, ...(type && type !== "password" ? { type } : {}), disabled: node.hasAttribute("disabled") || node.getAttribute("aria-disabled") === "true" };
+      }).filter(item => item.name).slice(0, limit), MAX_INTERACTIVE_ITEMS).catch(() => [] as BrowserSnapshot["controls"]),
       includeScreenshot ? this.captureScreenshot(page) : Promise.resolve(null),
       Promise.all(session.context.pages().slice(0, MAX_PAGE_COUNT).map(async (tab, index) => ({ id: String(index), title: await tab.title().catch(() => ""), url: tab.url().slice(0, 2048), active: tab === page })))
     ]);
@@ -361,7 +517,8 @@ export class BrowserSessionManager {
 
   private async captureScreenshot(page: Page): Promise<BrowserSnapshot["screenshot"]> {
     try {
-      const data = await page.screenshot({ type: "jpeg", quality: 60, animations: "disabled", fullPage: false, timeout: 5_000 });
+      let data = await page.screenshot({ type: "jpeg", quality: 68, animations: "disabled", fullPage: false, timeout: 5_000 });
+      if (data.byteLength > MAX_SCREENSHOT_BYTES) data = await page.screenshot({ type: "jpeg", quality: 60, animations: "disabled", fullPage: false, timeout: 5_000 });
       if (!data.byteLength || data.byteLength > MAX_SCREENSHOT_BYTES) return null;
       const viewport = page.viewportSize() ?? { width: MAX_IMAGE_DIMENSION, height: 800 };
       return { mimeType: "image/jpeg", dataBase64: data.toString("base64"), width: Math.min(viewport.width, MAX_IMAGE_DIMENSION), height: viewport.height };
@@ -390,6 +547,12 @@ export class BrowserSessionManager {
 
   private touch(session: BrowserSession): void { session.lastUsedAt = Date.now(); }
 
+  private async closeProjectPreview(session: BrowserSession): Promise<void> {
+    const preview = session.projectPreview;
+    session.projectPreview = null;
+    if (preview) await preview.close().catch(() => undefined);
+  }
+
   private async sweepExpired(): Promise<void> {
     const now = Date.now();
     for (const session of this.sessions.values()) if (now - session.lastUsedAt > SESSION_IDLE_TTL_MS) await this.disposeSession(session);
@@ -401,6 +564,7 @@ export class BrowserSessionManager {
     this.sessions.delete(session.id);
     this.sessionKeys.delete(sessionKey(session.ownerId, session.sourceSessionId, session.providerId));
     await session.context.close().catch(() => undefined);
+    await this.closeProjectPreview(session);
     await session.operationTail.catch(() => undefined);
   }
 }

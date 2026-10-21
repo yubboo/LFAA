@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Button, Popover } from "antd";
+import { Button, Popover, Tooltip } from "antd";
 import type { AiContextUsage, AiSessionUsageModelSummary, AiSessionUsageSummary } from "lfaa-client-connection/src/api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { projectAiSessionUsageDisplay } from "./usage-summary.js";
@@ -9,6 +9,14 @@ const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFra
 const tokenCount = (value: number | null): string => value === null ? "Provider 未提供" : `${integer.format(value)} tokens`;
 const compactCount = (value: number | null): string => value === null ? "用量未知" : `${compact.format(value)} tok`;
 const total = (left: number | null, right: number | null): number | null => left === null || right === null ? null : left + right;
+
+function contextTooltipText(context: AiContextUsage | null): string {
+  if (!context) return "背景信息窗口：发送消息后显示本次模型请求用量";
+  const used = context.promptTokens ?? context.estimatedPromptTokens;
+  const amount = `${context.promptTokens === null ? "约 " : ""}${compact.format(used)} tokens`;
+  if (context.contextWindow === null) return `背景信息窗口：容量未知 · 已用 ${amount}`;
+  return `背景信息窗口：${Math.round(used / context.contextWindow * 100)}% 已用 · ${amount} / ${compact.format(context.contextWindow)} tokens`;
+}
 
 export type AiUsageLoadState = "loading" | "ready" | "error";
 
@@ -102,21 +110,27 @@ export const AiUsageFooter = memo(function AiUsageFooter({ usageSummary, context
         : hasAssistantMessage ? "Provider 未返回用量" : "发送消息后显示用量";
   return <div className="ai-work-chat__usage-footer" aria-label="会话模型用量">
     {usageSummary?.models.length ? <Popover trigger="click" placement="top" overlayClassName="ai-work-chat__usage-popover-overlay" content={<CacheDetails summary={usageSummary} />}>
-      <button className="ai-work-chat__usage-trigger" type="button" aria-label="查看会话 Token 与缓存用量" title="支持缓存的 Provider 会自动管理缓存；此处只显示其实际返回的缓存读取计数">
-        <WorkbenchIcon name="spark" size={13} />
-        <span>{compactCount(display?.totalTokens ?? null)} · {display?.cacheLabel ?? "缓存命中未知"}</span>
-      </button>
+      <Tooltip trigger={["hover", "focus"]} placement="top" title={`会话 Token 用量：${compactCount(display?.totalTokens ?? null)} · ${display?.cacheLabel ?? "缓存命中未知"} · 点击查看明细`}>
+        <button className="ai-work-chat__usage-trigger" type="button" aria-label="查看会话 Token 与缓存用量">
+          <WorkbenchIcon name="spark" size={13} />
+          <span>{compactCount(display?.totalTokens ?? null)} · {display?.cacheLabel ?? "缓存命中未知"}</span>
+        </button>
+      </Tooltip>
     </Popover> : <span className="ai-work-chat__usage-empty">{emptyLabel}</span>}
     {showContextUsage ? <Popover trigger="click" placement="top" overlayClassName="ai-work-chat__usage-popover-overlay" content={<ContextDetails context={contextUsage} />}>
-      <button className="ai-work-chat__usage-trigger ai-work-chat__usage-trigger--context" type="button" aria-label="查看上下文占用与估算分项" title="上下文按本次请求的模型容量和实际用量显示">
-        {contextUsage?.contextWindow ? <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" pathLength="100" /><circle className="ai-work-chat__context-ring-value" cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${Math.min(100, Math.max(0, (contextUsage.promptTokens ?? contextUsage.estimatedPromptTokens) / contextUsage.contextWindow * 100))} 100`} /></svg> : <WorkbenchIcon name="spark" size={13} />}
-        <span>{contextUsage ? `${contextUsage.promptTokens === null ? "约 " : ""}${contextUsage.contextWindow ? `${Math.min(100, Math.round((contextUsage.promptTokens ?? contextUsage.estimatedPromptTokens) / contextUsage.contextWindow * 100))}%` : "上下文"}` : "上下文"}</span>
-      </button>
+      <Tooltip trigger={["hover", "focus"]} placement="top" title={`${contextTooltipText(contextUsage)} · 点击查看分项`}>
+        <button className="ai-work-chat__usage-trigger ai-work-chat__usage-trigger--context" type="button" aria-label="查看上下文占用与估算分项">
+          {contextUsage?.contextWindow ? <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" pathLength="100" /><circle className="ai-work-chat__context-ring-value" cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${Math.min(100, Math.max(0, (contextUsage.promptTokens ?? contextUsage.estimatedPromptTokens) / contextUsage.contextWindow * 100))} 100`} /></svg> : <WorkbenchIcon name="spark" size={13} />}
+          <span>{contextUsage ? `${contextUsage.promptTokens === null ? "约 " : ""}${contextUsage.contextWindow ? `${Math.min(100, Math.round((contextUsage.promptTokens ?? contextUsage.estimatedPromptTokens) / contextUsage.contextWindow * 100))}%` : "上下文"}` : "上下文"}</span>
+        </button>
+      </Tooltip>
     </Popover> : <Popover trigger="click" placement="top" overlayClassName="ai-work-chat__usage-popover-overlay" content={<ContextDisabledDetails onOpenSettings={onOpenContextSettings} />}>
-      <button className="ai-work-chat__usage-trigger ai-work-chat__usage-trigger--context" type="button" aria-label="上下文用量当前已关闭" title="上下文用量当前已关闭；点击查看开启位置">
-        <WorkbenchIcon name="spark" size={13} />
-        <span>上下文已关闭</span>
-      </button>
+      <Tooltip trigger={["hover", "focus"]} placement="top" title="背景信息窗口已关闭 · 点击查看设置中心的开启位置">
+        <button className="ai-work-chat__usage-trigger ai-work-chat__usage-trigger--context" type="button" aria-label="上下文用量当前已关闭">
+          <WorkbenchIcon name="spark" size={13} />
+          <span>上下文已关闭</span>
+        </button>
+      </Tooltip>
     </Popover>}
   </div>;
 });

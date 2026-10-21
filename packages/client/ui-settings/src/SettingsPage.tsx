@@ -398,7 +398,7 @@ const pendingSections: Partial<Record<SectionId, { description: string; status: 
   mini: { description: "轻量窗口和虚拟宠物尚未进入 LFAA 的桌面产品规划。", status: "桌面能力待接入" },
   account: { description: "由超级管理员查看和管理本机账号。", status: "账号管理已接入" },
   snapshots: { description: "应用快照用于保存与恢复工作区状态，当前版本尚未接入快照存储。", status: "快照服务待接入" },
-  browser: { description: "AI Work 浏览器预览台已接入 LFAA 隔离浏览器。Agent 浏览器工具复用“电脑操控”能力开关与现有权限模式；个人浏览器仅在用户本轮明确指定时使用。", status: "隔离浏览器已接入" },
+  browser: { description: "AI Work 浏览器工作区可由你与 Agent 共同操作。Agent 浏览器工具复用设置中心开关与现有权限模式；个人浏览器仅在用户本轮明确指定时使用。", status: "隔离浏览器已接入" },
   hooks: { description: "此处是编码工作流钩子设置；AI 对话推理生命周期钩子由“插件”管理。编码任务 Runtime 尚未接入。", status: "编码任务 Runtime 待接入" },
   cloudPreferences: { description: "当前设置由本机控制端保存，暂未提供云端偏好同步。", status: "云端同步待接入" },
   codeReview: { description: "代码审查工具会在 LFAA 的编码工作台接入后提供。", status: "编码工作台待接入" },
@@ -3473,7 +3473,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       return <section className="settings-content" role="tabpanel" id="settings-browser-panel" aria-labelledby="settings-browser-tab" tabIndex={0}>
         <header className="settings-content__heading"><div><span className="settings-eyebrow">{selectedSection?.group}</span><Typography.Title level={2}>浏览器</Typography.Title><Typography.Paragraph>接入 LFAA 内置隔离浏览器或 Tabbit 浏览器，并选择是否向 Agent 开放浏览器工具。接入只登记可用入口；个人浏览器标签仍需在本轮任务中明确选择。</Typography.Paragraph></div></header>
         <SettingGroup title="Agent 浏览器控制">
-          <SettingRow title="让 Agent 控制浏览器" description="开启后，Agent 可以使用已接入且当前 Host 可用的浏览器，查看页面、JSON 与交互元素，并按权限模式执行有限操作。关闭只停用 Agent 工具，右侧预览台仍可由你直接使用。" status={settings.browserUse.enabled ? "已开启" : "默认关闭"}>
+          <SettingRow title="让 Agent 控制浏览器" description="开启后，Agent 可以使用已接入且当前 Host 可用的浏览器，查看页面、JSON 与交互元素，并按权限模式执行有限操作。关闭只停用 Agent 工具，你仍可直接操作右侧浏览器工作区。" status={settings.browserUse.enabled ? "已开启" : "默认关闭"}>
             <SettingsSwitch label="允许 Agent 使用浏览器" checked={settings.browserUse.enabled} onChange={() => updateSettings("browserUse", { ...settings.browserUse, enabled: !settings.browserUse.enabled })} />
           </SettingRow>
           <SettingRow title="Agent 操作权限" description="浏览器点击、输入和导航统一遵循此权限模式；不为浏览器另设站点白名单或审批规则。" status={settings.permissions.mode === "ask" ? "请求审批" : settings.permissions.mode === "approve_remembered" ? "替我审批" : "完全访问"}><Button onClick={() => selectSection("permissions")}>管理权限模式</Button></SettingRow>
@@ -3496,7 +3496,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           </SettingRow>
         </SettingGroup>
         <SettingGroup title="当前版本支持范围">
-          <SettingRow title="页面预览与检查" description="在工作区查看当前会话页面截图、文本、可访问元素和 JSON；页面与截图仅保留在运行时。" status="已接入"><Tag color="green">已接入</Tag></SettingRow>
+          <SettingRow title="浏览器工作区与人工接管" description="你和 Agent 共用当前会话页面。可点击、输入、拖动和滚动；网页登录、授权和验证码由你在页面中手动完成，Agent 不绕过验证。页面正文和截图只保留在运行时。" status="已接入"><Tag color="green">已接入</Tag></SettingRow>
           <SettingRow title="历史记录、密码/联系信息、扩展和下载管理" description="这些浏览器服务尚未接入 LFAA 设置与数据 Owner，目前不提供管理控件。" status="未接入"><Tag>未接入</Tag></SettingRow>
           <SettingRow title="网站摄像头/麦克风权限、WebMCP 与完整 CDP" description="站点权限与 WebMCP 尚未接入；完整 CDP 不开放，Agent 只使用 LFAA 登记的受限浏览器操作。" status="未接入"><Tag>未接入</Tag></SettingRow>
         </SettingGroup>

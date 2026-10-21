@@ -5,6 +5,7 @@
  */
 import { createReadStream } from "node:fs";
 import { readFile, writeFile, realpath, stat, lstat, readdir, mkdir, opendir, rename, rm, unlink } from "node:fs/promises";
+import { createServer } from "node:http";
 import { resolve, relative, dirname, basename, join, isAbsolute, sep, parse } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { execFile, execFileSync } from "node:child_process";
@@ -16,6 +17,7 @@ const textLimit = 2 * 1024 * 1024;
 const projectDiffLimit = 2 * 1024 * 1024;
 const projectDiffUntrackedFileLimit = 200;
 const projectDiffUntrackedByteLimit = 1024 * 1024;
+const projectPreviewFileLimit = 64 * 1024 * 1024;
 const digest = text => createHash("sha256").update(text).digest("hex");
 const execFileAsync = promisify(execFile);
 let protectedDataRoot = process.env.LFAA_DAEMON_DATA_ROOT?.trim() ? resolve(process.env.LFAA_DAEMON_DATA_ROOT.trim()) : "";
@@ -184,6 +186,112 @@ async function readText(path) {
   const bytes = await readFile(path);
   if (bytes.includes(0)) throw new Error("文件包含二进制数据，不能按文本处理。");
   return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+}
+
+const projectPreviewContentTypes = new Map([
+  [".avif", "image/avif"], [".css", "text/css; charset=utf-8"], [".gif", "image/gif"], [".htm", "text/html; charset=utf-8"],
+  [".html", "text/html; charset=utf-8"], [".ico", "image/x-icon"], [".jpeg", "image/jpeg"], [".jpg", "image/jpeg"],
+  [".js", "text/javascript; charset=utf-8"], [".json", "application/json; charset=utf-8"], [".mjs", "text/javascript; charset=utf-8"],
+  [".mp3", "audio/mpeg"], [".mp4", "video/mp4"], [".png", "image/png"], [".svg", "image/svg+xml"], [".txt", "text/plain; charset=utf-8"],
+  [".webp", "image/webp"], [".woff", "font/woff"], [".woff2", "font/woff2"]
+]);
+
+/**
+ * 为当前已授权的工作区 HTML 建立只读、仅回环可访问的短期预览源。
+ * 所有资源路径仍通过 Project Files Owner 校验，服务不提供目录列表或写入方法。
+ */
+export async function createProjectPreviewServer(rootDirectory, entryPath) {
+  if (typeof rootDirectory !== "string" || !isAbsolute(rootDirectory) || typeof entryPath !== "string" || !entryPath.trim()) {
+    throw new Error("项目预览必须绑定有效的工作区根目录和 HTML 文件。");
+  }
+  const root = await realpath(resolve(rootDirectory));
+  await assertOutsideDataRoot(root);
+  if (!(await stat(root)).isDirectory()) throw new Error("项目预览根目录不是现有文件夹。");
+  const entry = await checkedPath(root, entryPath);
+  const canonicalEntry = await realpath(entry);
+  assertWithin(root, canonicalEntry);
+  await assertOutsideDataRoot(canonicalEntry);
+  const entryDetails = await stat(canonicalEntry);
+  if (!entryDetails.isFile() || !new Set([".html", ".htm"]).has(parse(canonicalEntry).ext.toLowerCase())) {
+    throw new Error("项目预览只支持工作区内的普通 HTML/HTM 文件。");
+  }
+
+  let port = 0;
+  let closed = false;
+  const server = createServer((request, response) => {
+    void (async () => {
+      const host = request.headers.host;
+      if (host !== `127.0.0.1:${port}` || !["GET", "HEAD"].includes(request.method ?? "")) {
+        response.writeHead(host === `127.0.0.1:${port}` ? 405 : 421, { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+        response.end();
+        return;
+      }
+      let pathname;
+      try { pathname = decodeURIComponent(new URL(request.url ?? "/", `http://${host}`).pathname); }
+      catch { response.writeHead(400, { "Cache-Control": "no-store" }); response.end(); return; }
+      const relativePath = pathname.replace(/^\/+/, "");
+      if (!relativePath || relativePath.includes("\\") || relativePath.includes("\0")) {
+        response.writeHead(404, { "Cache-Control": "no-store" }); response.end(); return;
+      }
+      let candidate = resolve(root, ...relativePath.split("/"));
+      try {
+        assertWithin(root, candidate);
+        let canonical = await realpath(candidate);
+        assertWithin(root, canonical);
+        await assertOutsideDataRoot(canonical);
+        let details = await stat(canonical);
+        if (details.isDirectory()) {
+          candidate = resolve(canonical, "index.html");
+          canonical = await realpath(candidate);
+          assertWithin(root, canonical);
+          await assertOutsideDataRoot(canonical);
+          details = await stat(canonical);
+        }
+        if (!details.isFile() || details.size > projectPreviewFileLimit) {
+          response.writeHead(details.size > projectPreviewFileLimit ? 413 : 404, { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+          response.end();
+          return;
+        }
+        const headers = {
+          "Cache-Control": "no-store",
+          "Content-Length": String(details.size),
+          "Content-Security-Policy": "default-src 'self' data: blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; form-action 'self'; frame-src 'self' data: blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+          "Content-Type": projectPreviewContentTypes.get(parse(canonical).ext.toLowerCase()) ?? "application/octet-stream",
+          "Referrer-Policy": "no-referrer",
+          "X-Content-Type-Options": "nosniff"
+        };
+        response.writeHead(200, headers);
+        if (request.method === "HEAD") { response.end(); return; }
+        const stream = createReadStream(canonical);
+        stream.on("error", () => { if (!response.headersSent) response.writeHead(404); response.destroy(); });
+        stream.pipe(response);
+      } catch (error) {
+        const status = error?.code === "ENOENT" ? 404 : 403;
+        response.writeHead(status, { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+        response.end();
+      }
+    })();
+  });
+  await new Promise((resolveListen, rejectListen) => {
+    server.once("error", rejectListen);
+    server.listen(0, "127.0.0.1", () => {
+      server.removeListener("error", rejectListen);
+      const address = server.address();
+      if (!address || typeof address === "string") { rejectListen(new Error("项目预览服务没有取得有效的本机端口。")); return; }
+      port = address.port;
+      resolveListen();
+    });
+  });
+  server.unref();
+  const relativeEntry = relative(root, canonicalEntry).split(sep).map(encodeURIComponent).join("/");
+  return {
+    url: `http://127.0.0.1:${port}/${relativeEntry}`,
+    async close() {
+      if (closed) return;
+      closed = true;
+      await new Promise(resolveClose => server.close(() => resolveClose()));
+    }
+  };
 }
 
 function projectGitEnvironment() {

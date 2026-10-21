@@ -25,11 +25,13 @@ export interface AiBusinessToolContext {
   onRunDispose?: (cleanup: () => void) => void;
   signal: AbortSignal;
   onProgress: (detail: string) => void;
-  workspaceProject?: { nodeId: string; path: string; title: string } | null;
+  workspaceProject?: { nodeId: string | null; path: string; title: string } | null;
   /** Agent Git Workspace Owner 解析出的可信本机仓库上下文，与 workspaceProject/Daemon 节点无关。 */
   agentGitRepository?: { id: string; path: string; title: string } | null;
   /** 由 LFAA 本机 Host 注入的共享受限文件执行器；Daemon 模式下不提供。 */
   executeLocalProjectFile?: (input: Record<string, unknown>) => Promise<unknown>;
+  /** 由受信任本机 Project Files Owner 为当前工作区 HTML 建立短期只读预览源。 */
+  createLocalProjectPreview?: (relativePath: string) => Promise<{ url: string; close: () => Promise<void> }>;
   /** Run 从 Writing Owner 重读当前账户上下文；参数由 Owner 决定，不接受模型注入 ID。 */
   refreshWritingContext?: () => void;
   /** 仅提供给明确声明问题通道的插件工具，回答仍由当前 Agent Run 管理。 */

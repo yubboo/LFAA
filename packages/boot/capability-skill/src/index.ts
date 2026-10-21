@@ -1,5 +1,5 @@
 /**
- * 功能：将 GitHub 项目 Skill 安装适配到现有项目目录与 Daemon 文件 Owner。
+ * 功能：将 GitHub 项目 Skill 安装适配到现有项目目录与文件 Owner。
  * 作用：固定提交、校验单个 Skill 文件树、仅写入当前选中项目并通过真实目录发现核验。
  * 关联文件：capability-installs、plugin-manager/github-source.ts、core/tools/project-tools.ts、host/project-files/project-files.mjs。
  */
@@ -27,6 +27,13 @@ interface SkillDetails {
   name: string;
   description: string;
   files: Array<{ path: string; sha256: string; bytes: number }>;
+  runtimeAudit: {
+    scriptFiles: string[];
+    packageManifest: "absent" | "valid" | "invalid";
+    dependencies: string[];
+    devDependencies: string[];
+    packageScriptNames: string[];
+  };
   untrustedSkillMarkdown: string;
 }
 
@@ -53,7 +60,7 @@ export function createProjectSkillAdapter(dependencies: ProjectSkillAdapterDepen
     validateTarget(target, applicationId, context) {
       if (!applications.includes(applicationId)) throw new Error("项目 Skill 仅接入 Workspace 与 Minecraft 项目会话。");
       const project = context.workspaceProject;
-      if (!project || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(project.nodeId) || !isAbsolute(project.path) || !project.title.trim()) {
+      if (!project || project.nodeId !== null && !isUuid(project.nodeId) || !isAbsolute(project.path) || !project.title.trim()) {
         throw new Error("安装项目 Skill 前，请先在当前会话选择真实项目；不会写入默认任务目录或其他项目。");
       }
       const input = target === undefined ? {} : asRecord(target, "Skill target");
@@ -89,6 +96,7 @@ export function createProjectSkillAdapter(dependencies: ProjectSkillAdapterDepen
       const markdown = decodeSkillText(skillFile);
       const metadata = parseSkillMetadata(markdown, sourcePath || snapshot.repository.name);
       const files = selectedFiles.map(file => ({ path: relativeSkillPath(file.path, sourcePath), sha256: sha256(file.contents), bytes: file.contents.length }));
+      const runtimeAudit = inspectSkillRuntime(selectedFiles, sourcePath);
       const details: SkillDetails = {
         repository: snapshot.repository.url,
         license: snapshot.repository.license,
@@ -98,9 +106,10 @@ export function createProjectSkillAdapter(dependencies: ProjectSkillAdapterDepen
         name: metadata.name,
         description: metadata.description,
         files,
+        runtimeAudit,
         untrustedSkillMarkdown: markdown.slice(0, 8000)
       };
-      return { resolvedRef: snapshot.commit, resolvedTarget: { sourcePath: sourcePath || "." }, summary: `${metadata.name} · ${metadata.description || "项目 Skill"} · 许可证 ${details.license ?? "未声明"}`, details: { skill: details } };
+      return { resolvedRef: snapshot.commit, resolvedTarget: { sourcePath: sourcePath || "." }, summary: inspectionSummary(details), details: { skill: details } };
     },
     async install(source, resolvedRef, _applicationId, _userId, target, details, context) {
       const project = currentProject(context);
@@ -131,8 +140,22 @@ export function createProjectSkillAdapter(dependencies: ProjectSkillAdapterDepen
       return {
         status: "ready",
         verified: true,
-        summary: `项目文件 Owner 已在“${safeText(project.title, 120)}”发现 ${plan.name}；对应 Agent 可按需读取该 Skill。`,
-        details: { skill: plan.name, path: expectedPath, project: safeText(project.title, 120), state: "installed-and-discovered", fileCount: plan.files.length }
+        summary: `项目文件 Owner 已在“${safeText(project.title, 120)}”发现 ${plan.name}；SKILL.md 可按需加载。此状态只确认 Skill 已发现，不代表附带脚本、依赖或外部服务已运行。`,
+        details: {
+          skill: plan.name,
+          path: expectedPath,
+          project: safeText(project.title, 120),
+          state: "installed-and-discovered",
+          fileCount: plan.files.length,
+          scriptFiles: plan.runtimeAudit.scriptFiles,
+          packageManifest: plan.runtimeAudit.packageManifest,
+          dependencies: plan.runtimeAudit.dependencies,
+          devDependencies: plan.runtimeAudit.devDependencies,
+          packageScriptNames: plan.runtimeAudit.packageScriptNames,
+          scriptsExecuted: false,
+          dependenciesInstalled: false,
+          externalRuntimeVerified: false
+        }
       };
     },
     async list(_applicationId, target, context) {
@@ -145,10 +168,14 @@ export function createProjectSkillAdapter(dependencies: ProjectSkillAdapterDepen
   return adapter;
 }
 
-function currentProject(context: AiBusinessToolContext): { nodeId: string; path: string; title: string } {
+function currentProject(context: AiBusinessToolContext): { nodeId: string | null; path: string; title: string } {
   const project = context.workspaceProject;
-  if (!project || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(project.nodeId) || !isAbsolute(project.path)) throw new Error("当前会话没有可验证的项目目标。");
+  if (!project || project.nodeId !== null && !isUuid(project.nodeId) || !isAbsolute(project.path)) throw new Error("当前会话没有可验证的项目目标。");
   return { nodeId: project.nodeId, path: project.path, title: project.title };
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value);
 }
 
 function findSkillRoots(files: PluginArchiveFile[]): string[] {
@@ -167,6 +194,42 @@ function selectSkillFiles(files: PluginArchiveFile[], sourcePath: string): Plugi
     if (total > maximumSkillBytes) throw new Error("Skill 文本文件总大小超过 8 MiB；没有安装。");
   }
   return selected.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+function inspectSkillRuntime(files: PluginArchiveFile[], sourcePath: string): SkillDetails["runtimeAudit"] {
+  const relativeFiles = files.map(file => ({ file, path: relativeSkillPath(file.path, sourcePath) }));
+  const scriptFiles = relativeFiles
+    .filter(({ path }) => /\.(?:[cm]?js|[cm]?ts|jsx|tsx|sh|bash|ps1|bat|cmd|py|rb|pl|php)$/iu.test(path))
+    .map(({ path }) => path)
+    .slice(0, 128);
+  const manifest = relativeFiles.find(({ path }) => path.toLocaleLowerCase("en-US") === "package.json")?.file;
+  if (!manifest) return { scriptFiles, packageManifest: "absent", dependencies: [], devDependencies: [], packageScriptNames: [] };
+  try {
+    const value: unknown = JSON.parse(decodeSkillText(manifest));
+    if (!isRecord(value)) throw new Error("package.json root is not an object");
+    const keys = (field: string): string[] => isRecord(value[field]) ? Object.keys(value[field] as Record<string, unknown>).map(name => safeText(name, 120)).filter(Boolean).slice(0, 64) : [];
+    return {
+      scriptFiles,
+      packageManifest: "valid",
+      dependencies: keys("dependencies"),
+      devDependencies: keys("devDependencies"),
+      packageScriptNames: keys("scripts")
+    };
+  } catch {
+    return { scriptFiles, packageManifest: "invalid", dependencies: [], devDependencies: [], packageScriptNames: [] };
+  }
+}
+
+function inspectionSummary(details: SkillDetails): string {
+  const parts = [details.name, details.description || "项目 Skill", `许可证 ${details.license ?? "未声明"}`];
+  if (details.runtimeAudit.scriptFiles.length) parts.push(`含 ${details.runtimeAudit.scriptFiles.length} 个脚本文件，安装只复制文本，不执行`);
+  if (details.runtimeAudit.packageManifest === "valid") {
+    const dependencyCount = details.runtimeAudit.dependencies.length + details.runtimeAudit.devDependencies.length;
+    parts.push(`package.json 已静态读取 ${dependencyCount} 个依赖项，未安装`);
+  } else if (details.runtimeAudit.packageManifest === "invalid") {
+    parts.push("package.json 无法解析，运行依赖未确认");
+  }
+  return parts.join(" · ").slice(0, 500);
 }
 
 function relativeSkillPath(path: string, sourcePath: string): string {

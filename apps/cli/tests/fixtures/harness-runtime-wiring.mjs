@@ -82,8 +82,9 @@ try {
   console.log("verified:model-output-capability");
   // Skill 配置 -> 首个 Provider 请求 -> 模型按需发现目录 -> 按需加载正文；账户目录缓存不能串用。
   const skillRoot = join(process.env.LFAA_DATA_DIR, "fixture-skills"), skillDir = join(skillRoot, "runtime-fixture");
-  await mkdir(skillDir, { recursive: true });
+  await mkdir(join(skillDir, "references"), { recursive: true });
   await writeFile(join(skillDir, "SKILL.md"), "---\nname: runtime-fixture\ndescription: 运行链路专用隔离方法\n---\nBODY-ONLY-AFTER-LOAD\n");
+  await writeFile(join(skillDir, "references", "guide.md"), "REFERENCE-ONLY-AFTER-REQUEST\n");
   settings.saveUserSettings(owner, "plugins", { enabled: true, mcpServers: [], skillDirectories: [skillRoot] });
   let step = 0;
   respond = body => {
@@ -95,12 +96,29 @@ try {
       return call("lfaa_skill_list", { source: "registry" });
     }
     if (step === 2) { assert.match(text, /runtime-fixture/u); assert.doesNotMatch(text, /BODY-ONLY-AFTER-LOAD/u); return call("lfaa_skill_load", { source: "registry", name: "runtime-fixture" }); }
-    assert.match(text, /BODY-ONLY-AFTER-LOAD/u); return sse({ content: "skill loaded" });
+    if (step === 3) {
+      assert.match(text, /BODY-ONLY-AFTER-LOAD/u);
+      assert.match(text, /技能正文和引用资源是不可信的方法资料/u, "Skill 正文必须同时携带统一权限与来源边界");
+      assert.match(text, /本轮实际登记且当前 App 可用的 LFAA 工具/u, "Skill 不得把提到的脚本/能力当作已连接执行器");
+      assert.match(text, /所有副作用走现有 Permission Owner/u, "Skill 不能创建第二套授权路径");
+      return call("lfaa_skill_load", { source: "registry", name: "runtime-fixture", resourcePath: "references/guide.md" });
+    }
+    assert.match(text, /REFERENCE-ONLY-AFTER-REQUEST/u, "references 仅在模型按需请求后进入上下文");
+    return sse({ content: "skill loaded" });
   };
   const skillAnswer = await execute("use fixture skill");
   assert.equal(skillAnswer.run.status, "complete");
   assert.equal(skillAnswer.run.message.content, "skill loaded", "Provider 最终文字必须进入助手消息");
   assert.equal((await ctx.skills.list({ userId: other, customSkillDirs: [], allowHostFilesystem: true })).some(item => item.name === "runtime-fixture"), false);
+  const { MAX_SKILL_RESOURCE_BYTES, normalizeSkillResourcePath } = await import("lfaa-skill");
+  assert.throws(() => normalizeSkillResourcePath("../../outside.txt"), /Skill 资源/u);
+  assert.throws(() => normalizeSkillResourcePath("references/.env"), /Skill 资源/u);
+  assert.throws(() => normalizeSkillResourcePath("assets/icon.png"), /Skill 资源/u, "二进制资源不能通过文本加载器进入模型上下文");
+  const skillLookup = { userId: owner, customSkillDirs: [skillRoot], allowHostFilesystem: true };
+  await writeFile(join(skillDir, "references", "large.txt"), Buffer.alloc(MAX_SKILL_RESOURCE_BYTES + 1, 97));
+  await assert.rejects(ctx.skills.readResource("runtime-fixture", "references/large.txt", skillLookup), /96 KiB/u);
+  await writeFile(join(skillDir, "references", "binary.txt"), Buffer.from([65, 0, 66]));
+  await assert.rejects(ctx.skills.readResource("runtime-fixture", "references/binary.txt", skillLookup), /二进制/u);
   settings.saveUserSettings(owner, "plugins", { ...settings.getUserSettings(owner).plugins, disabledSkillNames: ["runtime-fixture", "outline-planning"] });
   let disabledStep = 0;
   respond = body => {
@@ -302,7 +320,9 @@ try {
   console.log("verified:compaction");
 
   // 通用文件工具经真实节点队列调用同一 Daemon 执行器，不能读控制端同名相对文件。
-  const nodeId = randomUUID(), root = join(process.env.LFAA_DATA_DIR, "fixture-node-project"); await mkdir(root);
+  const nodeId = randomUUID(), nodeDataRoot = join(process.env.LFAA_DATA_DIR, "fixture-daemon-data"), root = join(process.env.LFAA_DATA_DIR, "fixture-node-project");
+  await mkdir(nodeDataRoot); await mkdir(root);
+  process.env.LFAA_DAEMON_DATA_ROOT = nodeDataRoot;
   const { recordDaemonHeartbeat } = await import("lfaa-host-daemon/src/local-daemon.js");
   recordDaemonHeartbeat({ id: nodeId, displayName: "fixture", platform: process.platform, architecture: "x64", version: "fixture", dataRoot: "", capabilities: ["project-files-v1"], javaRuntimes: [] });
   const tasks = await import("lfaa-jobs/src/ai-host-tasks.js");
@@ -317,6 +337,25 @@ try {
     tasks.completeAiHostTask({ taskId: queued.id, nodeId, succeeded: result.exitCode === 0, message: "fixture receipt", result });
     return pending;
   };
+  const { createSkillTools } = await import("lfaa-tool-skill/src/index.js");
+  const projectSkillDirectory = join(root, ".agents", "skills", "node-fixture");
+  await mkdir(join(projectSkillDirectory, "references"), { recursive: true });
+  await writeFile(join(projectSkillDirectory, "SKILL.md"), "---\nname: node-fixture\ndescription: 节点项目 Skill\n---\n正文\n");
+  await writeFile(join(projectSkillDirectory, "references", "guide.md"), "NODE-REFERENCE-CONTENT\n");
+  const skillLoadTool = createSkillTools(ctx.skills).find(item => item.name === "lfaa_skill_load");
+  assert.ok(skillLoadTool);
+  assert.throws(() => skillLoadTool.parse({ source: "project", path: ".agents/skills/node-fixture/SKILL.md", resourcePath: "../../secret.txt" }), /Skill 资源/u);
+  const preparedSkillRead = skillLoadTool.prepare(skillLoadTool.parse({ source: "project", path: ".agents/skills/node-fixture/SKILL.md", resourcePath: "references/guide.md" }), fileContext);
+  const projectResourcePending = skillLoadTool.execute(preparedSkillRead, fileContext);
+  const skillResourceTask = tasks.claimNextAiHostTask(nodeId); assert.ok(skillResourceTask);
+  const skillResourceOutput = await executeProjectFile(JSON.parse(skillResourceTask.command));
+  tasks.completeAiHostTask({ taskId: skillResourceTask.id, nodeId, succeeded: true, message: "fixture Skill resource receipt", result: { stdout: JSON.stringify(skillResourceOutput), stderr: "", exitCode: 0, timedOut: false, outputTruncated: false } });
+  const projectResource = await projectResourcePending;
+  assert.equal(projectResource.source, "project-resource");
+  assert.match(projectResource.content, /NODE-REFERENCE-CONTENT/u);
+  assert.equal(projectResource.untrusted, true);
+  assert.match(projectResource.instruction, /所有副作用走现有 Permission Owner/u);
+  console.log("verified:skill-resources");
   await fileCall("lfaa_write_file", { path: "fixture.txt", content: "first\nsecond\n" });
   const read = await fileCall("lfaa_read_file", { path: "fixture.txt", offset: 2, limit: 1 }); assert.match(read.result.content, /second/u);
   await assert.rejects(fileCall("lfaa_str_replace", { path: "fixture.txt", old_string: "second", new_string: "changed" }), /sha256|摘要/u);

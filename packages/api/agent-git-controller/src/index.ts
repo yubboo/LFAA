@@ -12,13 +12,13 @@ import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
 import { authorizeExplicitUserAction } from "lfaa-permission-presets/src/permissions.js";
 import { executeGitWorkspace, readGitRemoteUrl, resolveGitProjectDirectory, resolveGitWorkspaceDirectory } from "lfaa-host-git";
-import { isRemoteDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
+import { isLocalDaemonIdentity, isRemoteDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
 import { executeProjectFile } from "lfaa-host-project-files/src/project-files.mjs";
 import { getAiSession, getAiSessionMessages, getAiSessionWorkspaceContext } from "lfaa-session/src/sessions.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
 import { asyncHandler, parseBody } from "lfaa-api-remotes/src/route-contracts.js";
 import { bindAgentGitSessionRepository, getAgentGitRepository, getAgentGitSessionRepository, listAgentGitRepositories, registerAgentGitRepository, removeAgentGitRepository } from "lfaa-workspace-agent-git";
-import { getWorkspaceProject } from "lfaa-workspace-workspace/src/index.js";
+import { getWorkspaceProject, isDefaultWorkspaceProject } from "lfaa-workspace-workspace/src/index.js";
 
 const repositoryPathSchema = Joi.object({ path: Joi.string().trim().min(1).max(32760).required(), title: Joi.string().trim().max(120).allow("") }).unknown(false);
 const bindRepositorySchema = Joi.object({ repositoryId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).allow(null).required() }).unknown(false);
@@ -83,7 +83,8 @@ async function ensureSessionProjectRepository(userId: string, sessionId: string)
   const snapshot = getAiSessionWorkspaceContext(userId, sessionId);
   if (!snapshot) return null;
   const project = getWorkspaceProject(userId, snapshot.id);
-  if (!project || project.nodeId !== snapshot.nodeId || project.appId && project.appId !== snapshot.appId || isRemoteDaemonIdentity(project.nodeId)) return null;
+  const migratedDefaultProject = project?.nodeId === null && isDefaultWorkspaceProject(userId, snapshot.id) && !isRemoteDaemonIdentity(snapshot.nodeId);
+  if (!project || (project.nodeId !== snapshot.nodeId && !migratedDefaultProject) || (project.appId && project.appId !== snapshot.appId) || (project.nodeId !== null && !isLocalDaemonIdentity(project.nodeId))) return null;
   let directory: string;
   try { directory = await resolveGitProjectDirectory(project.path); }
   catch (error) { throw new ApiError(400, "agent_git_project_path_invalid", error instanceof Error ? error.message : "本机会话项目目录不可用。 "); }

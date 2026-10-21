@@ -28,6 +28,17 @@ const disposers = [];
 let executions = 0;
 const candidateTool = { id: "fixture.computer", name: "fixture_computer", description: "隔离桌面动作夹具", coreManaged: true, requiresComputerControl: true, applicationIds: ["workspace"], schema: { type: "object", properties: {}, additionalProperties: false }, parse: value => value, risk: () => "read", approval: () => ({ scopeKey: "fixture", scopeSummary: "fixture", summary: "fixture" }), execute: async (_, context) => { executions++; assert.ok(context.sessionId); return { observed: "真实夹具计数", executions }; } };
 registerAiBusinessTool({ effect: setup => { const dispose = setup(); disposers.push(dispose); return dispose; } }, candidateTool);
+const browserConnectionTool = {
+  id: "browser-use.provider-connection", name: "fixture_browser_connection", description: "隔离浏览器接入设置夹具", coreManaged: true, requiresBrowserUse: true, applicationIds: ["workspace"],
+  schema: { type: "object", properties: { providerId: { type: "string" }, enabled: { type: "boolean" } }, required: ["providerId", "enabled"], additionalProperties: false },
+  parse: value => value, risk: () => "write", approval: () => ({ scopeKey: "fixture-browser", scopeSummary: "fixture", summary: "fixture" }),
+  execute: async (parameters, context) => {
+    const current = settings.getUserSettings(context.userId);
+    settings.saveUserSettings(context.userId, "browser-use", { ...current.browserUse, enabledProviderIds: parameters.enabled ? [parameters.providerId] : [] });
+    return { providerId: parameters.providerId, connected: parameters.enabled };
+  }
+};
+registerAiBusinessTool({ effect: setup => { const dispose = setup(); disposers.push(dispose); return dispose; } }, browserConnectionTool);
 const host = { llm: createAiCompletionService(), listPlugins: () => [], listExtensions: () => [], listInstructionExtensions: () => [], listHooks: () => [], getSystemInstructions: () => [], runBeforeInference: () => ({ failedHookIds: [] }), runAfterInference: () => ({ failedHookIds: [] }) };
 const account = { providerId: "openai", modelId: "fixture", chatUrl: "https://provider.example.test/chat", secret: "invalid-fixture-key", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_completion_tokens", reasoningMode: "default" };
 const modelResolver = { resolve: () => account };
@@ -97,6 +108,32 @@ test("拒绝审批和继承工具范围不能被开关工具绕过", async () =>
   const tool = capabilitySettingsTools.find(tool => tool.name === "lfaa_set_capability_enabled");
   assert.throws(() => tool.parse({ capability: "permissions", enabled: true }));
   assert.throws(() => tool.parse({ capability: "mcpServer", enabled: true, serverId: "test", command: "unknown" }));
+});
+
+test("Browser Provider 设置工具会通知 Client 重新读取账户设置", async () => {
+  const previousBrowserUse = settings.getUserSettings(owner).browserUse;
+  settings.saveUserSettings(owner, "permissions", { mode: "full_access" });
+  settings.saveUserSettings(owner, "browser-use", { ...previousBrowserUse, enabled: true, enabledProviderIds: [] });
+  settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, retryDelaySeconds: 0 });
+  const turn = sessions.createAiTurn(owner, "workspace", null, "浏览器设置事件回归");
+  const native = globalThis.fetch, events = [];
+  globalThis.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    const toolResults = body.messages.filter(message => message.role === "tool");
+    if (!toolResults.length) {
+      assert.ok(body.tools.some(tool => tool.function.name === "fixture_browser_connection"));
+      return sse(call("fixture_browser_connection", { providerId: "lfaa-managed-edge", enabled: true }));
+    }
+    return sse({ content: "浏览器设置事件回归完成" });
+  };
+  try {
+    await executeAiTurn({ userId: owner, userRole: "admin", body: { appId: "workspace", sessionId: turn.session.id, content: "fixture" }, turn, aiPluginHost: host, abortController: new AbortController(), emit(event, data) { events.push({ event, data }); }, modelResolver, approvalNotifications: ctx.lfaaUserApproval });
+    assert.deepEqual(settings.getUserSettings(owner).browserUse.enabledProviderIds, ["lfaa-managed-edge"]);
+    assert.equal(events.filter(item => item.event === "capability-settings" && item.data.changed === true).length, 1);
+  } finally {
+    globalThis.fetch = native;
+    settings.saveUserSettings(owner, "browser-use", previousBrowserUse);
+  }
 });
 
 test("空响应只重试模型请求，已有工具不重放；JSON message 格式正常返回", async () => {

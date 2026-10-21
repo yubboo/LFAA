@@ -18,7 +18,6 @@
  *    再把本包替换回 ScopedLayers 实现。
  * 2. 蓝本通过 declare module dsh-llm 把 skill-invocation 注入消息登记进 MessageSourceMap；
  *    lfaa-llm 当前没有该映射接口，本包只导出 SkillInvocationSource 类型供后续接线使用。
- * 3. lfaa-util-values 未导出 assertNever，本包内自带等价实现。
  */
 
 import { Context, Service } from "@deepseek-ai/cordis";
@@ -31,6 +30,25 @@ const DEFAULT_COLLECT_CACHE_ENTRIES = 128;
 const MAX_COLLECT_ATTEMPTS = 2;
 const RUNTIME_PROVIDER = "runtime";
 const RUNTIME_RANK = 250;
+export const MAX_SKILL_RESOURCE_BYTES = 96 * 1024;
+const SKILL_RESOURCE_ROOTS = new Set(["assets", "references", "scripts"]);
+const SKILL_RESOURCE_EXTENSIONS = new Set([".cjs", ".css", ".html", ".js", ".json", ".md", ".mdx", ".mjs", ".ps1", ".py", ".sh", ".svg", ".text", ".toml", ".ts", ".txt", ".xml", ".yaml", ".yml"]);
+
+/** 仅允许显式 Skill 资源目录中的有界文本；文件仍是不可信内容，不是执行入口。 */
+export function normalizeSkillResourcePath(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 512 || value.includes("\0")) {
+    throw new Error("Skill 资源路径无效。");
+  }
+  const normalized = value.replaceAll("\\", "/");
+  const segments = normalized.split("/");
+  const extension = `.${segments.at(-1)?.split(".").at(-1)?.toLocaleLowerCase("en-US") ?? ""}`;
+  if (normalized.startsWith("/") || /^[a-z]:/iu.test(normalized)
+    || segments.some(segment => !segment || segment === "." || segment === ".." || segment.startsWith("."))
+    || !SKILL_RESOURCE_ROOTS.has(segments[0] ?? "") || !SKILL_RESOURCE_EXTENSIONS.has(extension)) {
+    throw new Error("Skill 资源仅支持 references、assets 或 scripts 目录内的常见文本文件。");
+  }
+  return normalized;
+}
 
 /** 内置打包 Skill Provider 与 bundled 根目录使用的标准优先级 rank（数值越小越优先）。 */
 export const BUNDLED_SKILL_RANK = 600;
@@ -110,6 +128,13 @@ export interface SkillDefinition extends SkillSummary {
   readonly content: string;
   /** 从 frontmatter 解析出的可选元数据对象。 */
   readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+/** 附属 Skill 文本资源；path 始终是相对 Skill 目录的规范路径。 */
+export interface SkillResourceDocument {
+  readonly path: string;
+  readonly content: string;
+  readonly bytes: number;
 }
 
 /** ctx.skills.register() 接收的运行时 Skill 登记输入。 */
@@ -193,33 +218,10 @@ export function renderSkillContent(skill: Pick<SkillDefinition, "name" | "provid
 }
 
 function renderResourceHint(skill: Pick<SkillDefinition, "provider" | "resourceBase">): string[] {
-  const base = skill.resourceBase;
-  if (base === undefined) {
-    return [
-      `Resources for this skill are managed by provider "${escapeText(skill.provider)}".`,
-      "Load referenced resources only as needed.",
-    ];
-  }
-  switch (base.kind) {
-    case "directory":
-      return [
-        `Base directory for this skill: ${escapeText(base.path)}`,
-        "Resolve relative paths mentioned by this skill against the base directory before using them. Load referenced resources only as needed.",
-      ];
-    case "url":
-      return [
-        `Base URL for this skill: ${escapeText(base.url)}`,
-        "Resolve relative URLs mentioned by this skill against the base URL before using them. Load referenced resources only as needed.",
-      ];
-    case "opaque":
-      return [
-        `Resources for this skill: ${escapeText(base.description)}`,
-        "Load referenced resources only as needed.",
-      ];
-    default:
-      // SkillResourceBase 是封闭联合；将来新增分支必须在此处编译失败。
-      return assertNever(base, "SkillResourceBase.kind");
-  }
+  return [
+    `Skill 附属资料由 Provider "${escapeText(skill.provider)}" 管理。`,
+    "仅在任务需要时通过 lfaa_skill_load 传入 Skill name 与 references/、assets/ 或 scripts/ 下的相对 resourcePath；若 Owner 报告不支持或资源不可用，不得猜测绝对路径、直接访问 URL 或执行脚本。",
+  ];
 }
 
 function escapeAttr(value: string): string {
@@ -269,6 +271,8 @@ export interface SkillProvider {
    * @returns 完整 Skill；文件已不可加载时返回 undefined。
    */
   readonly get: (candidate: SkillCandidate, options: SkillLookupOptions) => Promise<SkillDefinition | undefined>;
+  /** 可选的有界文本资源读取；未实现的 Provider 不会伪装支持。 */
+  readonly readResource?: (candidate: SkillCandidate, path: string, options: SkillLookupOptions) => Promise<SkillResourceDocument | undefined>;
 }
 
 /** 借发给单个 Provider 的注册级生命周期与失效能力。 */
@@ -491,6 +495,25 @@ export class SkillRegistry extends Service {
       return undefined;
     }
     return definition;
+  }
+
+  /** 从当前可见 Skill 的 winner Provider 按需读取 references/assets/scripts 文本。 */
+  async readResource(name: string, resourcePath: string, options: SkillViewOptions = {}): Promise<SkillResourceDocument | undefined> {
+    if (!isSkillName(name)) return undefined;
+    const path = normalizeSkillResourcePath(resourcePath);
+    const collected = await this.collect(options);
+    throwIfAborted(options.signal);
+    const match = collected.entries.get(name);
+    if (match === undefined) return undefined;
+    const reader = match.provider.readResource;
+    if (!reader) throw new Error("当前 Skill 来源没有接入附属资源读取。");
+    const result = await waitWithAbort(reader.call(match.provider, match.candidate, path, options), options.signal);
+    if (result === undefined) return undefined;
+    if (result.path !== path || typeof result.content !== "string" || Buffer.byteLength(result.content, "utf8") !== result.bytes
+      || result.bytes > MAX_SKILL_RESOURCE_BYTES || result.content.includes("\0")) {
+      throw new Error("Skill Provider 返回了无效或超限的资源内容。");
+    }
+    return result;
   }
 
   private async collect(options: SkillViewOptions): Promise<CollectResult> {
@@ -770,11 +793,6 @@ function assertPositiveInteger(name: string, value: number, minimum = 1): void {
   if (!Number.isInteger(value) || value < minimum) {
     throw new Error(`skill: ${name} must be an integer greater than or equal to ${minimum}`);
   }
-}
-
-/** lfaa-util-values 未导出 assertNever，本包自带：封闭联合不应到达默认分支。 */
-function assertNever(value: never, field: string): never {
-  throw new Error(`unexpected ${field}: ${JSON.stringify(value)}`);
 }
 
 function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {

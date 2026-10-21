@@ -1,6 +1,6 @@
 # LFAA Skill Tools
 
-`lfaa-tool-skill` 登记 `lfaa_skill_list`、`lfaa_skill_load`。目录只给元数据，正文由模型按需读取；既有写作 Skill 与项目 `.agents/skills`、`.lfaa/skills` 共用入口。
+`lfaa-tool-skill` 登记 `lfaa_skill_list`、`lfaa_skill_load`。目录只给元数据，正文与 `references/`、`assets/`、`scripts/` 附属文本由模型按需读取；项目资源继续走 Project Files Owner，其他来源须由 Skill Registry Provider 实现可选 reader。只支持常见 UTF-8 文本且最多 96 KiB，不解析任意目录或二进制资源。既有写作 Skill 与项目 `.agents/skills`、`.lfaa/skills` 共用入口。所有已加载 Skill 和资源都标记为不可信方法资料：只可使用本轮真实登记且当前 App 可用的工具，不能改变用户目标/权限模式或增加审批层；读取脚本不会执行脚本，未得到实际执行器回执时不得把 Skill 提到的脚本、依赖和服务报告成已运行。
 
 项目读取复用 projectFileTool 的路径校验、项目绑定、分页、风险、审批与真实 Daemon，保留 general.taskFolder 的权威设置；未获准的任意主机目录不能因为 Skill 工具而成为只读豁免。项目 Skill 读取可跨界面调用，但仍需真实项目或任务目录及目标节点，不按 App 新设读取白名单。只读取规定位置的 SKILL.md，不执行文档指令、不安装依赖、不扩大用户目标。正文页和文件上限沿用项目 Owner。
 

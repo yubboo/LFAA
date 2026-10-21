@@ -10,6 +10,8 @@ AI Work 每次 Provider 请求的公开正文以稳定 ID 和起止范围标记�
 
 网页活动显示经过校验和有界遮蔽的实际搜索查询，读取 URL 移除身份凭据、查询串与片段；不显示网页正文或原始结果。工具类型只控制展示摘要，不决定调用或权限。
 
+Browser Use 只在设置中心 `browserUse.enabled` 开启后暴露 Agent 工具。模型可读取实际 Host 浏览器目录；用户明确要求内置隔离浏览器时，由统一 Permission Owner 管理接入偏好，Tabbit 个人会话仍单独受 `computerControl.enabled` 与 `permissions.mode` 约束。当前会话绑定本机工作区时，Agent Loop 只把 Project Files Owner 的相对路径预览回调提供给 Browser Tools；预览结果通过相同账户/Session 的 Browser Owner 返回，右 Dock 在会话刚创建时也会继续轮询并发现它。
+
 `lfaa-agent-loop` 负责 AI Work 的模型与工具循环。对话记忆仍由 `lfaa-conversation-memory` 持有；循环只检查账户设置，把符合条件的根轮次输入发送给已选 Provider，并通过记忆 Owner 保存已校验结果。
 
 所有文本补全通过注入的 `lfaaLlm` Service；Adapter 选择由 `lfaa-llm` 唯一拥有，分支记忆、回复后记忆及压缩摘要使用相同合同。Agent Loop 不直接导入传输函数或另建 Provider 选择表。插件卸载时由其 Cordis Fiber 撤销 Provider Adapter；仍不存在安全的任意外部插件 Client/Host 运行时。
@@ -30,6 +32,8 @@ AI Work 每次 Provider 请求的公开正文以稳定 ID 和起止范围标记�
 
 计划协作模式复用同一 Session 和 Agent Loop。模型可根据自然语言判断是否进入 `/plan` 计划讨论；讨论阶段只允许实际风险为 `read` 的普通工具，电脑操控与领域子 Agent 也在派发边界拒绝。模式转换优先于同一 Provider 响应里的其他工具调用，未执行调用记为 `not_started`。用户明确批准后退出计划模式，后续工具仍通过原权限模式和审批流程。
 
+可选 AI Runtime Hook 注册表在推理前或请求路由阶段不可用时，记录对应的 `unavailable` 活动后继续当前用户已选模型账户；不会静默换账户，也不会改变工具范围、权限模式或凭据。Hook 注册表恢复后，后续 Run 可再次使用其真实建议。
+
 ## Run 安全暂停与继续
 
 AI Work 运行按钮通过认证 Run API 请求暂停或继续同一 Run，旁边的显式停止控件仍调用 cancel 终止当前任务。`AiRunPauseGate` 在队列开始前、Provider 响应前后和每个工具派发前/结果后提供检查点；待审批和 `lfaa_ask_user` 等待不派发副作用，可立即确认暂停，交互结果到达后仍须继续才越过检查点。暂停请求本身不 abort Provider 请求、已派发工具或节点任务，当前不可撤销操作会真实结束后再挂起执行栈。暂停期间保留原 Run ID 与模型/工具上下文；继续只唤醒原执行栈，已返回的工具结果不会重放。状态由 Run SSE 的 `pause-state` 事件发送，不使用轮询。暂停门闩只在 Control Plane 当前进程内，服务重启后的未完成 Run 仍按现有规则转为中断。
@@ -37,6 +41,8 @@ AI Work 运行按钮通过认证 Run API 请求暂停或继续同一 Run，旁�
 ## 通用能力与请求恢复
 
 Provider 协议归 `lfaa-llm`，MCP 协议归 `lfaa-mcp-client`。每次模型请求、工具派发及审批返回重新对账工具目录、插件说明和当前账户开关；相同 MCP 配置复用租约，变化关闭旧租约。新增能力同一 Run 的下一次请求即可使用；关闭、卸载或合同变化拒绝旧调用，保留计划工具和子 Agent 的继承范围。异步发现结束后再读最新设置，权限模式变更或记忆授权撤销时拒绝未派发操作。
+
+若 Provider 同批返回需要用户澄清的工具和其他工具，Agent Loop 不派发该批调用；它为每个 `tool_call_id` 记录 `not_started` 并回传配对结果，让当前模型继续选择单独的澄清请求。在整批拒绝或取消路径中，已派发调用保留真实结果或 `unconfirmed`，同批尚未派发的调用记录 `not_started`，每条调用事件都有对应结果。
 
 能力状态/有限开关工具始终可见，开启仍复用现有三种权限模式。模型不得修改权限模式、凭据或节点范围，开启设置不等于目标已执行。`requestRetries`、`retryDelaySeconds` 控制无输出/无工具调用的可恢复请求；每次尝试计入 maxModelRequests，总 token 用量累计，取消可打断等待。每轮模型请求最多 64 次、工具调用最多 128 次；`aiRuntime.maxModelRequests` 与 `aiRuntime.maxToolCalls` 的 0 使用产品上限，正数可收紧，两项都在 Settings Owner 和共享设置合同中校验。每轮工具响应若整体超出剩余预算，则整批未派发并以预算终态结束。只重复 Provider 请求，不换模型。`tool-outcome.ts` 统一判定顶层与嵌套任务，失败/排队/未知结果不计为成功写入。同参数的失败/未知或成功写调用首次拦截后，将未派发反馈交回模型纠正或交付；继续重复相同被拦调用才停止。仅标明 `retryAfterRecovery` 且实际重验互斥/状态的领域工具，可在另一写工具成功后重试已确认失败；未知结果始终不重放，成功副作用仍不重复。失败签名保存有界，其他签名/修复记录受工具预算约束。工具目录更新活动只在有变化时生成；设置变更事件使 UI 合并刷新权威设置，不按流式 token 发请求。
 

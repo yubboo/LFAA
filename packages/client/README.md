@@ -52,6 +52,8 @@ Agent Loop 只将 Daemon 成功返回的新建/修改/删除路径记录到助�
 
 `ui-workspace/src/sidebar-right-runtime.ts` 负责 DSH `sidebarRightTabs` 的登记、选择和展开；`ApplicationWorkspace.tsx` 渲染上游 tab 的 `guide` 图标入口，点击后通过同一 Runtime 激活并展开该 tab。`ui-layout/src/Workbench.tsx` 在存在右侧上下文栏的应用路由消费 `shell.overlay`，使浮动扩展留在 `.workbench-shell` 的 LFAA 外观继承树中。插件正文仍通过 `DshSlotOutlet` 渲染上游组件；共享主题、强调色、字体、字号、模糊、遮罩、对比度和减少动态效果由 LFAA Settings Owner 提供。
 
+`ui-renderer` 注册通用 `conversation.input.right` DSH Client Slot；主聊天的 `ui-chat` 在模型选择器前消费该 Slot 并透传当前 Session ID。该接缝只在 Host 已装配并授权相应 Client 扩展后呈现内容。
+
 `client/modules/src/client/session-scope.ts` 为 DSH Renderer 提供稳定的无 DSH Session 投影，因为 LFAA 不把自己的会话模型伪装成 DSH Session。当前根级 DSH Slots（包括 Wallpaper Engine Settings 和右侧栏）可正常渲染；显式 DSH Session target 与要求 `SessionProvider` 的扩展仍不可用。若后续正式装配 DSH `uiSession` Owner，该 Owner 保持唯一作用域来源。
 
 `DshSlotOutlet` 透传上游 `renderSlot` 的 `fallback` 选项；Settings 与已登记的右侧扩展 tab 在 Client renderer 缺失或 Slot 没有内容时展示真实未就绪原因。可选 `shell.overlay` 不设 fallback，避免将正常的无浮层状态误报为插件故障。

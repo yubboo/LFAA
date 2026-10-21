@@ -126,7 +126,7 @@ async function searchProjectSources(context: AiBusinessToolContext, query: strin
       const response = await projectFileTool.execute(prepared, { ...context, workspaceProject: projectContext });
       const result = response && typeof response === "object" && "result" in response ? (response as { result: unknown }).result : null;
       if (!result || typeof result !== "object" || !Array.isArray((result as { matches?: unknown }).matches)) {
-        unavailableSources.push({ id: source.id, title: source.title, reason: "节点未返回可验证的 Markdown 搜索结果；未读取缓存内容。" });
+        unavailableSources.push({ id: source.id, title: source.title, reason: "项目文件 Owner 未返回可验证的 Markdown 搜索结果；未读取缓存内容。" });
         continue;
       }
       if ((result as { truncated?: unknown }).truncated === true) truncatedSources.push(source.title);
@@ -138,7 +138,7 @@ async function searchProjectSources(context: AiBusinessToolContext, query: strin
       }
     } catch {
       if (context.signal.aborted) context.signal.throwIfAborted();
-      unavailableSources.push({ id: source.id, title: source.title, reason: "节点离线或来源当前不可读；未使用缓存内容。" });
+      unavailableSources.push({ id: source.id, title: source.title, reason: "项目来源当前不可读；未使用缓存内容。" });
     }
   }
   return { applicationId: context.applicationId, items: matches.slice(0, KNOWLEDGE_LIBRARY_LIMITS.searchResults), unavailableSources, truncatedSources, trust: "untrusted" };
@@ -159,7 +159,7 @@ async function readProjectMarkdown(context: AiBusinessToolContext, sourceId: str
   const prepared = projectFileTool.prepare!(parameters, { userId: context.userId, workspaceProject: projectContext });
   const response = await projectFileTool.execute(prepared, { ...context, workspaceProject: projectContext });
   const wrapped = response && typeof response === "object" && "result" in response ? (response as { result: unknown }).result : null;
-  if (!wrapped || typeof wrapped !== "object" || typeof (wrapped as Record<string, unknown>).content !== "string") throw new Error("Daemon 没有返回 Markdown 正文。");
+  if (!wrapped || typeof wrapped !== "object" || typeof (wrapped as Record<string, unknown>).content !== "string") throw new Error("项目文件 Owner 没有返回 Markdown 正文。");
   const result = wrapped as Record<string, unknown>;
   const full = String(result.content);
   const contentMarkdown = full.slice(0, KNOWLEDGE_LIBRARY_LIMITS.readCharacters);

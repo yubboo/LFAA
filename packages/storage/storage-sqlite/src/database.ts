@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 59;
+const latestSupportedDatabaseVersion = 60;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -1961,3 +1961,51 @@ export function migrateAgentGitWorkspaceSchema(): void {
   }
 }
 migrateAgentGitWorkspaceSchema();
+
+/** 版本 60：本机默认工作区由 LFAA Host 管理，不再绑定本机 Daemon 身份。 */
+export function migrateWorkspaceLocalDefaultSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 59 || version >= 60) return;
+  database.exec("PRAGMA foreign_keys = OFF;");
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE workspace_projects_v60 (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        node_id TEXT REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+        path TEXT NOT NULL,
+        path_key TEXT NOT NULL,
+        title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 120),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        app_id TEXT CHECK (app_id IN ('workspace', 'minecraft'))
+      ) STRICT;
+      INSERT INTO workspace_projects_v60 (id, user_id, node_id, path, path_key, title, created_at, updated_at, app_id)
+        SELECT id, user_id, node_id, path, path_key, title, created_at, updated_at, app_id FROM workspace_projects;
+      DROP TABLE workspace_projects;
+      ALTER TABLE workspace_projects_v60 RENAME TO workspace_projects;
+      CREATE UNIQUE INDEX workspace_projects_user_app_node_path_idx
+        ON workspace_projects(user_id, app_id, node_id, path_key) WHERE app_id IS NOT NULL;
+      CREATE UNIQUE INDEX workspace_projects_user_legacy_node_path_idx
+        ON workspace_projects(user_id, node_id, path_key) WHERE app_id IS NULL;
+      CREATE UNIQUE INDEX workspace_projects_user_app_local_path_idx
+        ON workspace_projects(user_id, app_id, path_key) WHERE app_id IS NOT NULL AND node_id IS NULL;
+      CREATE INDEX workspace_projects_user_app_recent_idx
+        ON workspace_projects(user_id, app_id, updated_at DESC, id);
+      UPDATE workspace_projects
+        SET node_id = NULL
+        WHERE app_id = 'workspace' AND id IN (
+          SELECT project_id FROM workspace_default_projects WHERE user_id = workspace_projects.user_id AND app_id = 'workspace'
+        );
+    `);
+    if (database.prepare("PRAGMA foreign_key_check").all().length) throw new Error("本机默认工作区迁移外键校验失败。");
+    database.exec("PRAGMA user_version = 60; COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  } finally {
+    database.exec("PRAGMA foreign_keys = ON;");
+  }
+}
+migrateWorkspaceLocalDefaultSchema();

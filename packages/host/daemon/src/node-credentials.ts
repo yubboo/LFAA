@@ -45,8 +45,18 @@ export function authenticateDaemonCredential(token: string): { nodeId: string; d
   const row = database.prepare("SELECT node_id, display_name FROM daemon_credentials WHERE token_hash = ? AND revoked = 0").get(hash(token));
   return row ? { nodeId: String(row.node_id), displayName: String(row.display_name) } : null;
 }
-export function isRemoteDaemonIdentity(nodeId: string): boolean {
-  return Boolean(database.prepare("SELECT 1 FROM daemon_credentials WHERE node_id = ?").get(nodeId));
+/** 本机 Daemon 身份由受保护的本地凭据文件提供；未知非空 nodeId 不能据此推断为本机。 */
+export function getLocalDaemonNodeId(): string | null {
+  try {
+    const value = readFileSync(resolve(config.homeDirectory, "credentials", "daemon-node-id"), "utf8").trim();
+    return /^[a-f0-9-]{36}$/iu.test(value) ? value : null;
+  } catch { return null; }
+}
+export function isLocalDaemonIdentity(nodeId: string | null): boolean {
+  return nodeId !== null && getLocalDaemonNodeId() === nodeId;
+}
+export function isRemoteDaemonIdentity(nodeId: string | null): boolean {
+  return nodeId !== null && Boolean(database.prepare("SELECT 1 FROM daemon_credentials WHERE node_id = ?").get(nodeId));
 }
 export function listDaemonCredentials(): Array<{ nodeId: string; displayName: string; revoked: boolean }> {
   return database.prepare("SELECT node_id, display_name, revoked FROM daemon_credentials ORDER BY created_at DESC").all().map(row => ({ nodeId: String(row.node_id), displayName: String(row.display_name), revoked: row.revoked === 1 }));

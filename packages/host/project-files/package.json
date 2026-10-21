@@ -6,5 +6,5 @@
   "exports": { "./src/*": "./src/*", "./package.json": "./package.json" },
   "dependencies": { "lfaa-launch-environment": "workspace:*" },
   "devDependencies": { "@types/node": "^24.0.0" },
-  "scripts": { "build": "node ../../../scripts/build-harness.mjs package" }
+  "scripts": { "build": "node ../../../scripts/build-harness.mjs package", "test": "node --import tsx/esm --test test/*.test.mjs" }
 }

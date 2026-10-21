@@ -144,7 +144,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       });
       mcpServer.listen(0,'127.0.0.1');await once(mcpServer,'listening');const mcpUrl='http://127.0.0.1:'+mcpServer.address().port+'/mcp';
       retireLegacyFileTables();
-      assert.equal(database.prepare('PRAGMA user_version').get().user_version,59);
+      assert.equal(database.prepare('PRAGMA user_version').get().user_version,60);
       const {aiRuntimeSettingsSchema}=await import('lfaa-api-remotes/src/route-contracts.js');
       const {AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN,AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN}=await import('lfaa-util-values/src/settings-contract.js');
       assert.equal(aiRuntimeSettingsSchema.validate({...settings.defaultSettings.aiRuntime,maxModelRequests:0,maxToolCalls:0}).error,undefined);
@@ -242,6 +242,18 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
           const toolResults=body.messages.filter(message=>message.role==='tool');
           if(toolResults.length===0){assert.ok(body.tools.some(tool=>tool.function.name==='lfaa_ask_user'),'问题插件即使扩展开关关闭也应由 Core 保持可用');delta={tool_calls:[{index:0,id:'fixture-question-call',type:'function',function:{name:'lfaa_ask_user',arguments:JSON.stringify({question:'选择要启动的实例',options:['生存服','测试服']})}}]};}
             else{const answer=JSON.parse(toolResults.at(-1).content);assert.deepEqual(answer,{answer:'启动生存服',skipped:false});delta={content:'已按你的选择继续'};}
+        }else if(scenario==='askUserParallelRetry'){
+          const toolResults=body.messages.filter(message=>message.role==='tool');
+          if(toolResults.length===0){const siblingTool=body.tools.find(tool=>tool.function.name!=='lfaa_ask_user');assert.ok(siblingTool,'并行澄清场景需要一个当轮真实提供的兄弟工具');delta={tool_calls:[{index:0,id:'fixture-question-parallel',type:'function',function:{name:'lfaa_ask_user',arguments:JSON.stringify({question:'选择目标实例',options:['生产服','测试服']})}},{index:1,id:'fixture-read-parallel',type:'function',function:{name:siblingTool.function.name,arguments:'{}'}}]};}
+          else if(toolResults.some(item=>item.tool_call_id==='fixture-question-parallel')&&!toolResults.some(item=>item.tool_call_id==='fixture-question-retry')){
+            assert.equal(toolResults.length,2,'拒绝并行澄清请求时必须为整批工具调用回传结构化结果');
+            for(const callId of ['fixture-question-parallel','fixture-read-parallel']){
+              const result=toolResults.find(item=>item.tool_call_id===callId);
+              assert.ok(result,'缺少拒绝结果: '+callId);
+              assert.equal(JSON.parse(result.content).executionState,'not_started');
+            }
+            delta={tool_calls:[{index:0,id:'fixture-question-retry',type:'function',function:{name:'lfaa_ask_user',arguments:JSON.stringify({question:'选择目标实例',options:['生产服','测试服']})}}]};
+          }else{const answer=JSON.parse(toolResults.at(-1).content);assert.deepEqual(answer,{answer:'生产服',skipped:false});delta={content:'已按你的选择继续'};}
         }else if(scenario==='capabilityLoop'){
           const toolResults=body.messages.filter(message=>message.role==='tool');
           if(toolResults.length===0){assert.ok(body.tools.some(tool=>tool.function.name==='capability_install'));assert.ok(!body.tools.some(tool=>tool.function.name.startsWith('mcp_loopmcp_')));delta={tool_calls:[{index:0,id:'fixture-install',type:'function',function:{name:'capability_install',arguments:JSON.stringify({kind:'mcp'})}}]};}
@@ -269,7 +281,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
           delta=scenario==='recoverPreflight'&&count>=3?{content:'准备失败后核查并完成。'}:{tool_calls:[{index:0,id:'fixture-preflight-'+count,type:'function',function:{name,arguments:'{}'}}]};
         }else if(scenario==='invalidToolArguments'||scenario==='abortedTool'){
           const name=scenario==='invalidToolArguments'?'fixture_read_probe':'fixture_abort_probe';
-          delta=hasResult?{content:'已如实报告工具没有完成'}:{tool_calls:[{index:0,id:'fixture-protocol-pair',type:'function',function:{name,arguments:scenario==='invalidToolArguments'?'{':'{}'}}]};
+          delta=hasResult?{content:'已如实报告工具没有完成'}:scenario==='abortedTool'?{tool_calls:[{index:0,id:'fixture-protocol-abort',type:'function',function:{name,arguments:'{}'}},{index:1,id:'fixture-protocol-pending',type:'function',function:{name:'fixture_read_probe',arguments:'{}'}}]}:{tool_calls:[{index:0,id:'fixture-protocol-pair',type:'function',function:{name,arguments:'{'}}]};
         }else if(scenario==='repeatFailedTool'){
           assert.ok(body.tools.some(tool=>tool.function.name==='fixture_failure_probe'));
           delta={tool_calls:[{index:0,id:'fixture-failure-'+body.messages.filter(message=>message.role==='tool').length,type:'function',function:{name:'fixture_failure_probe',arguments:'{}'}}]};
@@ -650,6 +662,28 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       assert.equal(JSON.parse(clarificationToolResult.content).answer,'启动生存服');
       assert.equal(followupTurn.history.some(item=>item.role==='user'&&item.content?.includes('此前澄清问题')) ,false,'澄清答案不得合成为用户消息');
       sessions.finishAiAssistantMessage('fixture-owner',askRun.sessionId,followupTurn.assistantMessage.id,'','interrupted');
+      bodies=[];scenario='askUserParallelRetry';const readsBeforeParallelQuestion=executions;
+      const parallelQuestionRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'先核实状态，再询问我要选择哪个实例'},host);
+      await until(()=>runs.getAiRun('fixture-owner',parallelQuestionRun.id).message.activity.some(item=>item.kind==='question'&&item.status==='waiting_input'));
+      assert.equal(bodies.length,2,'拒绝并行工具请求后，模型应收到结构化结果并重新选择单独的澄清工具');
+      const parallelRejectedResults=bodies[1].messages.filter(item=>item.role==='tool');
+      assert.equal(parallelRejectedResults.length,2);
+      assert.deepEqual(parallelRejectedResults.map(item=>item.tool_call_id).sort(),['fixture-question-parallel','fixture-read-parallel']);
+      for(const result of parallelRejectedResults)assert.equal(JSON.parse(result.content).executionState,'not_started');
+      assert.equal(executions,readsBeforeParallelQuestion,'被拒绝的并行只读调用不得派发');
+      const parallelEvents=sessionRecords.allForSession('session_events',parallelQuestionRun.sessionId);
+      for(const callId of ['fixture-question-parallel','fixture-read-parallel']){
+        const call=parallelEvents.find(event=>event.type==='tool/call'&&event.data.callId===callId);
+        const result=parallelEvents.find(event=>event.type==='tool/result'&&event.data.callId===callId);
+        assert.ok(call&&result,'模型调用必须有调用/结果事件配对: '+callId);
+        assert.equal(call.data.dispatched,false);
+        assert.equal(result.data.executionState,'not_started');
+      }
+      const parallelQuestion=runs.getAiRun('fixture-owner',parallelQuestionRun.id).message.activity.find(item=>item.kind==='question'&&item.status==='waiting_input');
+      runs.answerAiRunQuestion('fixture-owner',parallelQuestionRun.id,parallelQuestion.questionId,'生产服',false);
+      await until(()=>runs.getAiRun('fixture-owner',parallelQuestionRun.id).status!=='streaming');
+      assert.equal(runs.getAiRun('fixture-owner',parallelQuestionRun.id).status,'complete');
+      assert.match(runs.getAiRun('fixture-owner',parallelQuestionRun.id).message.content,/已按你的选择继续/u);
       settings.saveUserSettings('fixture-owner','plugins',{...settings.defaultSettings.plugins,enabled:true,mcpServers:[]});
       bodies=[];scenario='recoverPreflight';
       const preflightRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'准备失败后检查再恢复'},host);
@@ -682,11 +716,23 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
         const protocolEvents=sessionRecords.allForSession('session_events',protocolRun.sessionId);
         const calls=protocolEvents.filter(event=>event.type==='tool/call');
         const results=protocolEvents.filter(event=>event.type==='tool/result');
-        assert.equal(calls.length,1,'参数失败也必须记录模型调用，但不能假称派发');
-        assert.equal(results.length,1,'取消仍须保留调用与真实未知结果的配对');
-        assert.equal(calls[0].data.callId,results[0].data.callId);
-        assert.equal(calls[0].data.dispatched,scenarioName==='abortedTool');
-        assert.equal(results[0].data.executionState,scenarioName==='abortedTool'?'unconfirmed':'not_started');
+        const expectedProtocolCalls=scenarioName==='abortedTool'?2:1;
+        assert.equal(calls.length,expectedProtocolCalls,'每个模型调用都必须记录，未派发项不能假称执行');
+        assert.equal(results.length,expectedProtocolCalls,'取消或参数失败都必须完整配对调用/结果');
+        for(const call of calls){
+          const result=results.find(item=>item.data.callId===call.data.callId);
+          assert.ok(result,'每个工具调用都必须有同 ID 结果');
+          if(call.data.name==='fixture_abort_probe'){
+            assert.equal(call.data.dispatched,true);
+            assert.equal(result.data.executionState,'unconfirmed');
+          }else if(call.data.name==='fixture_read_probe'){
+            assert.equal(call.data.dispatched,false);
+            assert.equal(result.data.executionState,'not_started');
+          }else{
+            assert.equal(call.data.dispatched,false);
+            assert.equal(result.data.executionState,'not_started');
+          }
+        }
         if(scenarioName==='abortedTool')assert.equal(bodies.length,1,'取消之后不得继续请求模型或派发操作');
       }
       scenario='basic';

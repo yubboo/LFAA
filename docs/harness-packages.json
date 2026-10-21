@@ -5100,7 +5100,7 @@
       "responsibility": "统一 Skill Provider 注册、摘要合并和按需正文加载",
       "evidence": {
         "entry": "packages/skill/skill/src/index.ts",
-        "readme": null,
+        "readme": "packages/skill/skill/README.md",
         "consumers": [
           "packages/api/settings-controller",
           "packages/boot/app-boot",
@@ -5141,7 +5141,7 @@
       "responsibility": "账户/项目目录 Skill 来源发现、缓存与加载",
       "evidence": {
         "entry": "packages/skill/skill-filesystem/src/index.ts",
-        "readme": null,
+        "readme": "packages/skill/skill-filesystem/README.md",
         "consumers": [],
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"

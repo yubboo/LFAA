@@ -74,8 +74,10 @@ const controls = await page.locator("a,button,input,textarea,select,[role=button
 const ownedPages = pages().slice(0, ${MAX_TABS});
 const tabs = await Promise.all(ownedPages.map(async (tab, index) => ({id:String(index), title:(await tab.title().catch(() => "")).slice(0,300), url:tab.url().slice(0,2048), active:tab === page})));
 const size = page.viewportSize() || {width:1280,height:800};
-const image = await page.screenshot({type:"jpeg",quality:55,animations:"disabled",timeout:5000}).catch(() => null);
+let image = await page.screenshot({type:"jpeg",quality:68,animations:"disabled",timeout:5000}).catch(() => null);
+if(image && image.byteLength > ${MAX_SCREENSHOT_BYTES}) image = await page.screenshot({type:"jpeg",quality:55,animations:"disabled",timeout:5000}).catch(() => null);
 return {title,url,pageText,controls,tabs,screenshotBase64:image ? image.toString("base64") : "",screenshotWidth:size.width,screenshotHeight:size.height};`;
+const READ_SNAPSHOT_WITHOUT_IMAGE = READ_SNAPSHOT.replace(`let image = await page.screenshot({type:"jpeg",quality:68,animations:"disabled",timeout:5000}).catch(() => null);\nif(image && image.byteLength > ${MAX_SCREENSHOT_BYTES}) image = await page.screenshot({type:"jpeg",quality:55,animations:"disabled",timeout:5000}).catch(() => null);`, "const image = null;");
 
 export class TabbitBrowserProvider {
   private readonly sessions = new Map<string, Promise<TabbitSession>>();
@@ -139,28 +141,34 @@ export class TabbitBrowserProvider {
   async observe(ownerId: string, sourceSessionId: string, signal?: AbortSignal): Promise<BrowserSnapshot> {
     const session = await this.getSession(ownerId, sourceSessionId, signal);
     return this.exclusive(session, async () => {
-      if (!session.initialized) throw new Error("请先查看 Tabbit 标签并连接目标标签，或在预览台输入网址打开新标签。");
+      if (!session.initialized) throw new Error("请先查看 Tabbit 标签并连接目标标签，或在浏览器工作区地址栏输入网址。");
       const receipt = await this.sendFrame(session, { op: "run", requestId: this.nextRequestId(session), code: READ_SNAPSHOT });
       return this.saveSnapshot(session, this.receiptValue(receipt));
     }, signal);
   }
 
-  async action(ownerId: string, sourceSessionId: string, operation: "back" | "forward" | "reload" | "click" | "fill" | "press-key" | "scroll" | "clickAt", args: Record<string, unknown> = {}, signal?: AbortSignal): Promise<BrowserSnapshot> {
+  async action(ownerId: string, sourceSessionId: string, operation: "back" | "forward" | "reload" | "click" | "fill" | "press-key" | "scroll" | "clickAt" | "dragAt" | "type-text", args: Record<string, unknown> = {}, signal?: AbortSignal, includeScreenshot = true): Promise<BrowserSnapshot> {
     const session = await this.getSession(ownerId, sourceSessionId, signal);
     return this.exclusive(session, async () => {
       if (!session.initialized) throw new Error("Tabbit 尚未连接当前 LFAA Session 的浏览器标签。");
-      const code = this.actionCode(operation, args);
+      const code = this.actionCode(operation, args, includeScreenshot);
       const receipt = await this.sendFrame(session, { op: "run", requestId: this.nextRequestId(session), mutation: operation === "back" || operation === "forward" || operation === "reload" || operation === "scroll" ? "possible" : "possible", code });
       return this.saveSnapshot(session, this.receiptValue(receipt));
     }, signal);
   }
 
-  async getPanelSnapshot(ownerId: string, sourceSessionId: string): Promise<BrowserSnapshot | null> {
+  async getPanelSnapshot(ownerId: string, sourceSessionId: string, includeScreenshot = true): Promise<BrowserSnapshot | null> {
     const key = sessionKey(ownerId, sourceSessionId), id = this.sessionIds.get(key), pending = id ? this.sessions.get(id) : undefined;
     if (!pending) return null;
     const session = await pending;
     if (!session.initialized || session.closed) return null;
     this.touch(session);
+    if (includeScreenshot) {
+      return this.exclusive(session, async () => {
+        const receipt = await this.sendFrame(session, { op: "run", requestId: this.nextRequestId(session), code: READ_SNAPSHOT });
+        return this.saveSnapshot(session, this.receiptValue(receipt));
+      });
+    }
     return session.snapshot ? structuredClone(session.snapshot) : null;
   }
 
@@ -211,20 +219,36 @@ export class TabbitBrowserProvider {
     }
   }
 
-  private actionCode(operation: string, args: Record<string, unknown>): string {
+  private actionCode(operation: string, args: Record<string, unknown>, includeScreenshot: boolean): string {
     const stringArg = (key: string) => typeof args[key] === "string" ? args[key] as string : "";
-    if (operation === "back") return `await page.goBack({waitUntil:"domcontentloaded",timeout:10000});${READ_SNAPSHOT}`;
-    if (operation === "forward") return `await page.goForward({waitUntil:"domcontentloaded",timeout:10000});${READ_SNAPSHOT}`;
-    if (operation === "reload") return `await page.reload({waitUntil:"domcontentloaded",timeout:15000});${READ_SNAPSHOT}`;
-    if (operation === "click") return `await page.getByRole(${jsString(stringArg("role"))},{name:${jsString(stringArg("name"))},exact:true}).first().click({timeout:8000});${READ_SNAPSHOT}`;
+    const snapshot = includeScreenshot ? READ_SNAPSHOT : READ_SNAPSHOT_WITHOUT_IMAGE;
+    if (operation === "back") return `await page.goBack({waitUntil:"domcontentloaded",timeout:10000});${snapshot}`;
+    if (operation === "forward") return `await page.goForward({waitUntil:"domcontentloaded",timeout:10000});${snapshot}`;
+    if (operation === "reload") return `await page.reload({waitUntil:"domcontentloaded",timeout:15000});${snapshot}`;
+    if (operation === "click") return `await page.getByRole(${jsString(stringArg("role"))},{name:${jsString(stringArg("name"))},exact:true}).first().click({timeout:8000});${snapshot}`;
     if (operation === "fill") {
       const label = stringArg("label"), value = stringArg("value");
       if (SENSITIVE.test(label)) throw new Error("密码、验证码、令牌和密钥需由用户自行输入，LFAA 不代填或读取。");
-      return `const target=page.getByRole("textbox",{name:${jsString(label)},exact:true}).first();const type=await target.getAttribute("type",{timeout:8000}).catch(()=>null);if(type==="password"||/password|secret|token|api[\\s_-]?key|验证码|密码|密钥|令牌/iu.test(${jsString(label)}))throw new Error("protected field");await target.fill(${jsString(value)},{timeout:8000});${READ_SNAPSHOT}`;
+      return `const target=page.getByRole("textbox",{name:${jsString(label)},exact:true}).first();const type=await target.getAttribute("type",{timeout:8000}).catch(()=>null);if(type==="password"||/password|secret|token|api[\\s_-]?key|验证码|密码|密钥|令牌/iu.test(${jsString(label)}))throw new Error("protected field");await target.fill(${jsString(value)},{timeout:8000});${snapshot}`;
     }
-    if (operation === "press-key") return `await page.keyboard.press(${jsString(stringArg("key"))});${READ_SNAPSHOT}`;
-    if (operation === "scroll") return `await page.mouse.wheel(0,${stringArg("direction") === "down" ? 1 : -1}*${Number(args.amount) || 0});${READ_SNAPSHOT}`;
-    if (operation === "clickAt") return `await page.mouse.click(${Number(args.x) || 0},${Number(args.y) || 0});${READ_SNAPSHOT}`;
+    if (operation === "type-text") return `await page.keyboard.insertText(${jsString(stringArg("text"))});${snapshot}`;
+    if (operation === "press-key") return `await page.keyboard.press(${jsString(stringArg("key"))});${snapshot}`;
+    if (operation === "scroll") return `await page.mouse.wheel(0,${stringArg("direction") === "down" ? 1 : -1}*${Number(args.amount) || 0});${snapshot}`;
+    if (operation === "clickAt") return `await page.mouse.click(${Number(args.x) || 0},${Number(args.y) || 0});${snapshot}`;
+    if (operation === "dragAt") {
+      const startX = Number(args.x), startY = Number(args.y);
+      const points = Array.isArray(args.points) ? args.points as Array<Record<string, unknown>> : [];
+      if (!Number.isFinite(startX) || !Number.isFinite(startY) || points.length < 1 || points.length > 128) throw new Error("网页拖动路径无效。");
+      let totalDelay = 0;
+      const moves = points.map(point => {
+        const x = Number(point.x), y = Number(point.y), delayMs = Number(point.delayMs);
+        if (![x, y, delayMs].every(Number.isFinite) || x < 0 || y < 0 || x > 4096 || y > 4096 || !Number.isInteger(delayMs) || delayMs < 0 || delayMs > 1000) throw new Error("网页拖动路径点无效。");
+        totalDelay += delayMs;
+        return `${delayMs ? `await page.waitForTimeout(${delayMs});` : ""}await page.mouse.move(${x},${y});`;
+      }).join("");
+      if (totalDelay > 15_000) throw new Error("网页拖动路径超出时长限制。");
+      return `await page.mouse.move(${startX},${startY});await page.mouse.down();try{${moves}}finally{await page.mouse.up();}${snapshot}`;
+    }
     throw new Error("Tabbit 浏览器动作不受支持。");
   }
 
@@ -234,7 +258,7 @@ export class TabbitBrowserProvider {
     if (!sourceSessionId || sourceSessionId.length > 160) throw new Error("浏览器会话必须绑定当前 LFAA Session。");
     const key = sessionKey(ownerId, sourceSessionId), existingId = this.sessionIds.get(key), existing = existingId ? this.sessions.get(existingId) : undefined;
     if (existing) { signal?.throwIfAborted(); return existing; }
-    if (this.sessions.size >= 8) throw new Error("Tabbit 浏览器连接达到当前 Host 并发上限；先关闭不再使用的浏览器预览。");
+    if (this.sessions.size >= 8) throw new Error("Tabbit 浏览器连接达到当前 Host 并发上限；先关闭不再使用的浏览器会话。");
     const id = randomUUID();
     const taskName = `LFAA Browser ${createHash("sha256").update(key).digest("hex").slice(0, 8)}`;
     const pending = this.startSession(id, ownerId, sourceSessionId, taskName);

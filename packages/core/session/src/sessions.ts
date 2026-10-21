@@ -732,13 +732,13 @@ function mapSession(row: SessionRow, planMode = planModeForSession(row)): AiSess
   return { id: row.id, appId: row.app_id, title: row.title, archived: row.archived === 1, createdAt: row.created_at, updatedAt: row.updated_at, projectId: row.workspace_project_id ?? null, projectTitle: row.workspace_title ?? null, planMode, associations: associationsForSession(row) };
 }
 
-export interface AiSessionProjectContext { id: string; appId: Extract<ApplicationId, "workspace" | "minecraft">; nodeId: string; path: string; title: string }
+export interface AiSessionProjectContext { id: string; appId: Extract<ApplicationId, "workspace" | "minecraft">; nodeId: string | null; path: string; title: string }
 
 /** 私有执行上下文不通过会话展示 API 返回，工具调用必须始终绑定该会话记录。 */
 export function getAiSessionWorkspaceContext(userId: string, sessionId: string): AiSessionProjectContext | null {
   const row = sessionRow(userId, sessionId);
-  if (!row || !row.workspace_project_id || !row.workspace_node_id || !row.workspace_directory || !row.workspace_title) return null;
-  return { id: row.workspace_project_id, appId: row.app_id === "minecraft" ? "minecraft" : "workspace", nodeId: row.workspace_node_id, path: row.workspace_directory, title: row.workspace_title };
+  if (!row || !row.workspace_project_id || !row.workspace_directory || !row.workspace_title) return null;
+  return { id: row.workspace_project_id, appId: row.app_id === "minecraft" ? "minecraft" : "workspace", nodeId: row.workspace_node_id ?? null, path: row.workspace_directory, title: row.workspace_title };
 }
 
 /** 只有空闲的通用 AI 会话可改绑；目录注册与会话历史是独立记录。 */

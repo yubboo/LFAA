@@ -90,7 +90,7 @@ export function WorkspaceProjectPicker({ appId, applicationName, projects, proje
   const atVolumeRoot = roots.some(root => root.toLocaleLowerCase() === directoryPath.toLocaleLowerCase());
   const locationOptions = [...(homeDirectory ? [{ value: "@home", label: `用户主目录 · ${homeDirectory}` }] : []), ...roots.map(root => ({ value: root, label: `此计算机 · ${root}` }))];
   const visibleProjects = (query.trim() ? remoteProjects ?? [] : projects).filter(project => {
-    const text = `${project.title} ${project.path} ${nodesById.get(project.nodeId)?.displayName ?? ""}`.toLocaleLowerCase();
+    const text = `${project.title} ${project.path} ${project.nodeId ? nodesById.get(project.nodeId)?.displayName ?? "" : "本机"}`.toLocaleLowerCase();
     return text.includes(query.trim().toLocaleLowerCase());
   });
 
@@ -281,17 +281,22 @@ export function WorkspaceProjectPicker({ appId, applicationName, projects, proje
     {projectLoadError ? <div className="ai-work-chat__project-error" role="alert">项目目录加载失败：{projectLoadError}<Button type="link" size="small" onClick={onRetryProjects}>重试</Button></div> : null}
     {projectActionError ? <p className="ai-work-chat__project-error" role="alert">{projectActionError}</p> : null}
     <div className="ai-work-chat__project-list" role="group" aria-label="项目目录">
-      {projectSearchLoading ? <Spin size="small" /> : visibleProjects.map(project => <div className={`ai-work-chat__project-option${project.id === value ? " is-selected" : ""}`} key={project.id}>
-        <button type="button" aria-pressed={project.id === value} onClick={() => { onProjectsChange([project, ...projects.filter(item => item.id !== project.id)]); onChange(project); setOpen(false); }} title={`${nodesById.get(project.nodeId)?.displayName ?? "Daemon 节点"} · ${project.path}`}><WorkbenchIcon name="folder" size={15} /><span><strong>{project.title}{project.appId === null ? " · 待归属" : ""}</strong><small>{nodesById.get(project.nodeId)?.displayName ?? "Daemon 节点"} · {project.path}</small></span>{project.id === value ? <span className="ai-work-chat__project-check" aria-label="当前项目">✓</span> : null}</button>
+      {projectSearchLoading ? <Spin size="small" /> : visibleProjects.map(project => {
+        const node = project.nodeId ? nodesById.get(project.nodeId) : null;
+        const locationLabel = project.nodeId ? node?.displayName ?? "Daemon 节点" : "本机";
+        const canCreateWorktree = Boolean(project.nodeId && node?.local);
+        return <div className={`ai-work-chat__project-option${project.id === value ? " is-selected" : ""}`} key={project.id}>
+        <button type="button" aria-pressed={project.id === value} onClick={() => { onProjectsChange([project, ...projects.filter(item => item.id !== project.id)]); onChange(project); setOpen(false); }} title={`${locationLabel} · ${project.path}`}><WorkbenchIcon name="folder" size={15} /><span><strong>{project.title}{project.appId === null ? " · 待归属" : ""}</strong><small>{locationLabel} · {project.path}</small></span>{project.id === value ? <span className="ai-work-chat__project-check" aria-label="当前项目">✓</span> : null}</button>
         <div className="ai-work-chat__project-option-actions">
           {project.gitWorktree ? <span title={`分支 ${project.gitWorktree.branch}`}>Worktree</span> : null}
-          {!project.gitWorktree ? <Button type="text" size="small" loading={worktreeLoadingId === project.id} disabled={Boolean(worktreeLoadingId) || !nodesById.get(project.nodeId)?.local} title={nodesById.get(project.nodeId)?.local ? "在 LFAA 本机数据目录创建隔离 AI Worktree" : "AI Worktree 仅支持 LFAA 本机可访问的仓库"} onClick={() => void createWorktree(project)}>创建 Worktree</Button> : null}
+          {!project.gitWorktree ? <Button type="text" size="small" loading={worktreeLoadingId === project.id} disabled={Boolean(worktreeLoadingId) || !canCreateWorktree} title={canCreateWorktree ? "在 LFAA 本机数据目录创建隔离 AI Worktree" : project.nodeId === null ? "本机项目不绑定 Daemon；当前隔离 Worktree 仅支持已登记的本机节点项目" : "AI Worktree 仅支持 LFAA 本机可访问的仓库"} onClick={() => void createWorktree(project)}>创建 Worktree</Button> : null}
           <button type="button" aria-label={`重命名 ${project.title}`} title="重命名项目" onClick={() => { setError(""); setRenameTarget(project); setRenameDraft(project.title); setOpen(false); }}>改名</button>
           <Popconfirm title={project.gitWorktree ? "删除 AI Worktree？" : "从项目列表移除？"} description={project.gitWorktree ? `下一步会再次确认删除工作树中的文件；源项目不变。分支 ${project.gitWorktree.branch} 的 Git 历史会保留。` : "只移除目录登记；磁盘文件和已有会话会保留。"} okText={project.gitWorktree ? "下一步" : "移除登记"} cancelText="取消" onConfirm={() => { if (project.gitWorktree) { setDeleteWorktreeTarget(project); setDeleteWorktreeConfirmed(false); setProjectActionError(""); } else void unregister(project, false); }}>
             <button type="button" aria-label={project.gitWorktree ? `删除 AI Worktree ${project.title}` : `移除 ${project.title}`} title={project.gitWorktree ? "删除受管 AI 工作树" : "移除项目登记"}>移除</button>
           </Popconfirm>
         </div>
-      </div>)}
+      </div>;
+      })}
       {!projectSearchLoading && !visibleProjects.length ? <span className="ai-work-chat__project-empty">{query.trim() ? "没有匹配的项目" : projects.length ? "没有匹配的项目" : "还没有项目"}</span> : null}
     </div>
     {query.trim() && projectSearchTruncated ? <span className="ai-work-chat__project-empty">结果超过 200 个，请继续缩小搜索范围</span> : null}
