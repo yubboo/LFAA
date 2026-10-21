@@ -54,6 +54,7 @@ interface AiWorkUiState {
 let settingsPageModulePromise: Promise<typeof import("lfaa-client-ui-settings/src/SettingsPage.js")> | null = null;
 let fileManagerPageModulePromise: Promise<typeof import("lfaa-client-ui-sidebar-files/src/FileManagerPage.js")> | null = null;
 let pluginManagerPageModulePromise: Promise<typeof import("lfaa-client-ui-plugin-manager/src/PluginManagerPage.js")> | null = null;
+let aiWorkChatPreloadPromise: Promise<void> | null = null;
 
 const PORTAL_APPEARANCE_VARIABLES = [
   "--settings-accent", "--settings-interface-font", "--settings-content-font", "--settings-code-font",
@@ -106,6 +107,19 @@ export function preloadSettingsPageForRoute(): Promise<void> {
 // 后台预热失败不打断工作台；真实打开设置页时仍会进入 Suspense 加载流程。
 function preloadSettingsPageModule(): void {
   void preloadSettingsPageForRoute().catch(() => undefined);
+}
+
+// AI Work 路由与应用工作区并行预热聊天模块，避免嵌套懒加载串行等待。
+function preloadAiWorkChatModule(): Promise<void> {
+  if (!aiWorkChatPreloadPromise) {
+    aiWorkChatPreloadPromise = loadClientModule<typeof import("lfaa-client-ui-chat/src/AiWorkChat.js")>("lfaa-client-ui-chat/src/AiWorkChat.js")
+      .then(() => undefined)
+      .catch((error: unknown) => {
+        aiWorkChatPreloadPromise = null;
+        throw error;
+      });
+  }
+  return aiWorkChatPreloadPromise;
 }
 
 function formatDesktopUpdateBytes(bytes: number): string {
@@ -316,6 +330,7 @@ export function Workbench({
   onAuthTransitionWarmupReady
 }: WorkbenchProps) {
   const appRoute = normalizeWorkRoute(route) === SHARED_WORK_ROUTE ? [route, "workspace", "ai-work", "overview"] : route.match(APPLICATION_ROUTE_PATTERN);
+  const isAiWorkRoute = appRoute?.[1] === "workspace" && appRoute?.[2] === "ai-work";
   const isFileManagerPage = route === "/files";
   const isPluginManagerPage = route === "/plugin-manager";
   const isLegacyAccountsRoute = route === "/admin/users";
@@ -328,6 +343,9 @@ export function Workbench({
   useEffect(() => {
     if (route !== "/files") previousRoute.current = route;
   }, [route]);
+  useEffect(() => {
+    if (isAiWorkRoute) void preloadAiWorkChatModule().catch(() => undefined);
+  }, [isAiWorkRoute]);
   useScrollRestoration(
     isSettingsPage || appRoute || isFileManagerPage ? "" : createScrollRestorationKey(user.id, "workbench-page", route),
     true,
@@ -343,7 +361,7 @@ export function Workbench({
     ?? `/apps/${preferences.selectedApp}/${preferences.selectedMode}`;
   const settingsReturnBackgroundRef = useRef<HTMLImageElement | null>(null);
   const [settingsInitialSection, setSettingsInitialSection] = useState<"ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins" | undefined>();
-  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ section: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins"; requestId: number } | null>(null);
+  const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ section: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins"; requestId: number; focusTarget?: string } | null>(null);
   const settingsSectionRequestSequenceRef = useRef(0);
   const [recentSessionsOpenRequestId, setRecentSessionsOpenRequestId] = useState<number | null>(null);
   const recentSessionsOpenRequestSequenceRef = useRef(0);
@@ -525,9 +543,9 @@ export function Workbench({
     if (current?.userId === user.id) current.writer.schedule(draft); else writeAiWorkDraft(user.id, "workspace", draft);
   }, [user.id]);
   const [systemDark, setSystemDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
-  const openSettings = useCallback((section?: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins") => {
+  const openSettings = useCallback((section?: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins", focusTarget?: string) => {
     setSettingsInitialSection(section);
-    if (section) setSettingsSectionRequest({ section, requestId: ++settingsSectionRequestSequenceRef.current });
+    if (section) setSettingsSectionRequest({ section, requestId: ++settingsSectionRequestSequenceRef.current, ...(focusTarget ? { focusTarget } : {}) });
     if (route !== "/settings" && route !== "/admin/users") setSettingsReturnRoute(route);
     onNavigate(section ? `/settings?section=${encodeURIComponent(section)}` : "/settings");
   }, [onNavigate, route]);

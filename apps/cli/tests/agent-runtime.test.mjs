@@ -208,20 +208,23 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       settings.saveUserSettings('fixture-owner','general',{...settings.defaultSettings.general,taskFolder:'/fixture/default'});
       const settingsPrepared=shellTool.prepare(shellTool.parse({nodeId:projectNode,command:'Get-Location'}),{userId:'fixture-owner',workspaceProject:null});
       assert.equal(settingsPrepared.workingDirectory,'/fixture/default');settings.saveUserSettings('fixture-owner','general',settings.defaultSettings.general);
-      let bodies=[]; let block=false; let release; let scenario='basic'; let holdChild=false; let executions=0; let holdPauseResponse=false; let releasePauseResponse; let pauseRequestSignal; let holdWriteTool=false; let releaseWriteTool; let pauseToolSignal;
+      let bodies=[]; let block=false; let release; let scenario='basic'; let holdChild=false; let executions=0; let holdPauseResponse=false; let releasePauseResponse; let pauseRequestSignal; let holdWriteTool=false; let releaseWriteTool; let pauseToolSignal; let routeHookEnabled=false; let routeAccountId=''; let routeEvents=[]; let routeAuthorization=null;
       const nativeFetch=globalThis.fetch;
       globalThis.fetch=async (url,options={})=>{
         if(String(url).startsWith(mcpUrl))return nativeFetch(url,options);
         if(String(url).endsWith('/models'))return Response.json({data:[{id:'fixture-model'},{id:'fixture-child'}]});
         assert.equal(String(url),'https://api.openai.com/v1/chat/completions');
         const body=JSON.parse(options.body);bodies.push(body);
+        if(scenario==='route')routeAuthorization=options.headers.Authorization;
         const isChild=body.messages.some(message=>message.role==='user'&&message.content==='child-target');
         if(holdPauseResponse&&scenario==='pauseBeforeTool'){pauseRequestSignal=options.signal;await new Promise(resolve=>{releasePauseResponse=resolve;});}
         if(block||(holdChild&&isChild))await new Promise((resolve,reject)=>{release=resolve;options.signal.addEventListener('abort',()=>reject(new DOMException('已取消','AbortError')),{once:true});});
         const hasResult=body.messages.some(message=>message.role==='tool');
         if(isChild){assert.equal(body.model,'fixture-child');assert.deepEqual(body.tools.map(tool=>tool.function.name),['fixture_read_probe']);}
         let delta;
-        if(scenario==='pauseBeforeTool'||scenario==='pauseDuringTool'){
+        if(scenario==='route'){
+          delta={content:'使用路由后的真实模型回复'};
+        }else if(scenario==='pauseBeforeTool'||scenario==='pauseDuringTool'){
           const toolResults=body.messages.filter(message=>message.role==='tool');
           if(toolResults.length===0){delta={tool_calls:[{index:0,id:'fixture-pause-write',type:'function',function:{name:'fixture_write_probe',arguments:'{}'}}]};}
           else{delta={content:'同一 Run 已恢复并完成'};}
@@ -286,18 +289,20 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
           const argumentsText=name==='delegate_domain_expert' ? JSON.stringify({task:'child-target',toolNames:['fixture_read_probe']}) : '{}';
           delta=hasResult||!body.tools ? {content:'合成测试回答'} : {tool_calls:[{index:0,id:'fixture-call',type:'function',function:{name,arguments:argumentsText}}]};
         }
-        return new Response('data: '+JSON.stringify({choices:[{delta}],...(scenario==='repeatFailedTool'?{usage:{prompt_tokens:11,completion_tokens:3}}:{})})+'\\n\\ndata: [DONE]\\n\\n',{headers:{'Content-Type':'text/event-stream'}});
+        return new Response('data: '+JSON.stringify({choices:[{delta}],...(scenario==='repeatFailedTool'?{usage:{prompt_tokens:11,completion_tokens:3,prompt_cache_hit_tokens:4}}:{})})+'\\n\\ndata: [DONE]\\n\\n',{headers:{'Content-Type':'text/event-stream'}});
       };
       const account=await settings.saveAiAccount('fixture-owner',{providerId:'openai',secret:'fixture-test-key',options:{},displayName:'合成测试模型',modelId:'fixture-model',reasoningMode:'default'});
       settings.activateAiAccount('fixture-owner',account.id);
       const childAccount=await settings.saveAiAccount('fixture-owner',{providerId:'openai',secret:'fixture-child-test-key',options:{},displayName:'合成子模型',modelId:'fixture-child',reasoningMode:'default'});
+      const hookProtocolFiber=await pluginContext.plugin((await import('lfaa-hook-protocol')).default);
+      const routeHookFiber=await pluginContext.plugin({name:'fixture-model-router',inject:['aiRuntimeHooks'],apply(ctx){ctx.aiRuntimeHooks.register(ctx,'fixture.model-router',{requestRoute(event){if(!routeHookEnabled)return;routeEvents.push(event);return {accountId:routeAccountId};}});}});
       const credentials=await import('lfaa-credentials/src/index.js');
       const accountReference=credentials.credentialReference('lfaa-settings',account.id);
       const resolvedModelCredential=pluginContext.lfaaAgentDefaultModel.resolve('fixture-owner');
       assert.equal(resolvedModelCredential.secret,'fixture-test-key');
       assert.equal(pluginContext.lfaaAgentDefaultModel.resolve('another-owner'),null);
       assert.equal(accountReference.providerId,'lfaa-settings');
-      const host={llm:pluginContext.lfaaLlm,listPlugins:()=>[],listExtensions:()=>[],listInstructionExtensions:()=>[],listHooks:()=>[],getSystemInstructions:()=>[],runBeforeInference:()=>({failedHookIds:[]}),runAfterInference:()=>({failedHookIds:[]})};
+      const host={llm:pluginContext.lfaaLlm,listPlugins:()=>[],listExtensions:()=>[],listInstructionExtensions:()=>[],listHooks:()=>pluginContext.aiRuntimeHooks.list(),getSystemInstructions:()=>[],runBeforeInference:event=>pluginContext.aiRuntimeHooks.beforeInference(event),runAfterInference:event=>pluginContext.aiRuntimeHooks.afterInference(event),runRequestRoute:event=>pluginContext.aiRuntimeHooks.requestRoute(event)};
       const runs=await import('lfaa-agent-loop/src/runs.js');runs.initializeAiRuns(pluginContext.lfaaAgentDefaultModel,pluginContext.lfaaUserApproval,pluginContext.lfaaUserQuestions,pluginContext.lfaaLlm);
       const until=async predicate=>{for(let i=0;i<400;i++){if(predicate())return;await new Promise(resolve=>setTimeout(resolve,5));}throw Error('测试等待超时');};
       block=true;
@@ -343,6 +348,27 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       assert.ok(persistedHistory.some(item=>item.role==='tool'&&item.content===rawHistory[1].content),'原始工具结果仍留在持久化模型记录');
       assert.throws(()=>sessions.createAiTurn('fixture-owner','workspace',run.sessionId,'重复目标'),/活动任务/);
       sessions.finishAiAssistantMessage('fixture-owner',run.sessionId,next.assistantMessage.id,'','interrupted');
+      const pluginsBeforeRoute=settings.getUserSettings('fixture-owner').plugins;
+      settings.saveUserSettings('fixture-owner','plugins',{...pluginsBeforeRoute,enabled:true});
+      routeHookEnabled=true;routeAccountId=childAccount.id;routeEvents=[];routeAuthorization=null;bodies=[];scenario='route';
+      const routedRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'按本轮请求切换到已配置子模型'},host);
+      await until(()=>runs.getAiRun('fixture-owner',routedRun.id).status!=='streaming');
+      assert.equal(runs.getAiRun('fixture-owner',routedRun.id).status,'complete',JSON.stringify({content:runs.getAiRun('fixture-owner',routedRun.id).message.content,models:bodies.map(body=>body.model),hookCalls:routeEvents.length}));
+      assert.equal(bodies.length,1);assert.equal(bodies[0].model,'fixture-child','路由结果必须改变真实 Provider 请求模型');
+      assert.equal(routeAuthorization,'Bearer fixture-child-test-key','切换模型必须经凭据 Owner 读取目标账户密钥');
+      assert.equal(routeEvents.length,1);assert.equal(routeEvents[0].latestUserText,'按本轮请求切换到已配置子模型');
+      assert.equal(Object.isFrozen(routeEvents[0]),true);assert.equal(Object.isFrozen(routeEvents[0].routeOptions),true);assert.equal(Object.isFrozen(routeEvents[0].routeOptions[0]),true);assert.equal(Object.isFrozen(routeEvents[0].routeOptions[0].reasoningModes),true);
+      assert.deepEqual(routeEvents[0].routeOptions.map(option=>option.accountId).sort(),[account.id,childAccount.id].sort());
+      assert.doesNotMatch(JSON.stringify(routeEvents),/fixture-test-key|fixture-child-test-key/u,'钩子目录和事件不得泄露 Provider 密钥');
+      assert.ok(runs.getAiRun('fixture-owner',routedRun.id).message.activity.some(item=>item.title==='模型请求路由'&&item.detail.includes('fixture-child')));
+      routeAccountId='unconfigured-account';routeEvents=[];routeAuthorization=null;bodies=[];
+      const rejectedRouteRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'忽略未配置的模型路由建议'},host);
+      await until(()=>runs.getAiRun('fixture-owner',rejectedRouteRun.id).status!=='streaming');
+      assert.equal(runs.getAiRun('fixture-owner',rejectedRouteRun.id).status,'complete');
+      assert.equal(bodies.length,1);assert.equal(bodies[0].model,'fixture-model','未配置的路由目标必须回退到用户选择模型');
+      assert.equal(routeAuthorization,'Bearer fixture-test-key');
+      assert.ok(runs.getAiRun('fixture-owner',rejectedRouteRun.id).message.activity.some(item=>item.title==='模型请求路由'&&item.status==='error'));
+      settings.saveUserSettings('fixture-owner','plugins',pluginsBeforeRoute);routeHookEnabled=false;scenario='basic';
       block=true;release=undefined;bodies=[];
       const first=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'排队前任务'},host);
       await until(()=>!!release);
@@ -648,7 +674,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       assert.deepEqual(failureCalls.map(event=>event.data.dispatched),[true,false,false]);
       const failedUsage=sessionRecords.allForSession('session_events',repeatedFailure.sessionId).filter(event=>event.type==='usage/record');
       assert.equal(failedUsage.length,1,'失败轮次也保存用量且不重复记账');
-      assert.equal(failedUsage[0].data.promptTokens,33);assert.equal(failedUsage[0].data.completionTokens,9);
+      assert.equal(failedUsage[0].data.promptTokens,33);assert.equal(failedUsage[0].data.completionTokens,9);assert.equal(failedUsage[0].data.cacheReadTokens,12);
       for(const scenarioName of ['invalidToolArguments','abortedTool']) {
         bodies=[];scenario=scenarioName;
         const protocolRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'核对拒绝与取消的协议配对'},host);
@@ -673,7 +699,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       const cancelled=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'取消目标'},host);
       await until(()=>!!release);assert.equal(runs.cancelAiRun('another-owner',cancelled.id),false);assert.equal(runs.cancelAiRun('fixture-owner',cancelled.id),true);
       await until(()=>runs.getAiRun('fixture-owner',cancelled.id).status!=='streaming');assert.equal(runs.getAiRun('fixture-owner',cancelled.id).status,'interrupted');
-      await runs.closeAiRuns();await questionsFiber.dispose();await modelFiber.dispose();await settingsFiber.dispose();await approvalFiber.dispose();assert.equal(pluginContext.lfaaCredentials.providers().includes('lfaa-settings'),false);await credentialsFiber.dispose();mcpServer.closeAllConnections();await new Promise(resolve=>mcpServer.close(resolve));configuration.close();sessionRecords.close();closeDatabase();
+      await runs.closeAiRuns();await routeHookFiber.dispose();await hookProtocolFiber.dispose();await questionsFiber.dispose();await modelFiber.dispose();await settingsFiber.dispose();await approvalFiber.dispose();assert.equal(pluginContext.lfaaCredentials.providers().includes('lfaa-settings'),false);await credentialsFiber.dispose();mcpServer.closeAllConnections();await new Promise(resolve=>mcpServer.close(resolve));configuration.close();sessionRecords.close();closeDatabase();
       process.stdout.write('后台执行回归通过');
     `;
     writeFileSync(childScript, source, "utf8");

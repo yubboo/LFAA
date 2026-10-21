@@ -32,6 +32,8 @@ export interface AiCompletionMessage {
 export interface AiCompletionUsage {
   promptTokens: number | null;
   completionTokens: number | null;
+  /** DeepSeek/兼容 Provider 返回的提示词缓存命中数；未上报时保持未知。 */
+  cacheReadTokens: number | null;
 }
 
 export interface AiCompletionTool {
@@ -57,14 +59,14 @@ export interface AiCompletionResult {
 
 /** 只有未收到正文或工具选择的失败可以在请求边界恢复，不能重放已提交工具。 */
 export class AiRecoverableRequestError extends Error {
-  constructor(message: string, readonly usage: AiCompletionUsage = { promptTokens: null, completionTokens: null }) {
+  constructor(message: string, readonly usage: AiCompletionUsage = { promptTokens: null, completionTokens: null, cacheReadTokens: null }) {
     super(message); this.name = "AiRecoverableRequestError";
   }
 }
 
 /** Provider 已明确截断输出；重试相同请求和上限只会重复消耗预算，不能视为完整回答。 */
 export class AiOutputLimitError extends Error {
-  constructor(readonly usage: AiCompletionUsage = { promptTokens: null, completionTokens: null }) {
+  constructor(readonly usage: AiCompletionUsage = { promptTokens: null, completionTokens: null, cacheReadTokens: null }) {
     super("Provider 因达到模型输出 token 上限而截断了响应。本轮内容不完整；可检查用户输出上限、模型目录能力或改用输出能力更高的模型。");
     this.name = "AiOutputLimitError";
   }
@@ -94,7 +96,26 @@ function readUsage(value: unknown): AiCompletionUsage | null {
   const completionTokens = usage.completion_tokens;
   if (typeof promptTokens !== "number" || !Number.isInteger(promptTokens) || promptTokens < 0) return null;
   if (typeof completionTokens !== "number" || !Number.isInteger(completionTokens) || completionTokens < 0) return null;
-  return { promptTokens, completionTokens };
+  const details = typeof usage.prompt_tokens_details === "object" && usage.prompt_tokens_details !== null
+    ? usage.prompt_tokens_details as Record<string, unknown>
+    : null;
+  const nestedCacheReadTokens = details?.cached_tokens;
+  const validCacheCount = (candidate: unknown): candidate is number => typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0;
+  const cacheMissTokens = usage.prompt_cache_miss_tokens;
+  const cacheReadTokens = validCacheCount(usage.prompt_cache_hit_tokens)
+    ? usage.prompt_cache_hit_tokens
+    : validCacheCount(nestedCacheReadTokens) ? nestedCacheReadTokens
+      : validCacheCount(cacheMissTokens) && cacheMissTokens <= promptTokens ? promptTokens - cacheMissTokens : null;
+  return { promptTokens, completionTokens, cacheReadTokens };
+}
+
+function mergeUsage(previous: AiCompletionUsage | null, next: AiCompletionUsage | null): AiCompletionUsage | null {
+  if (!next) return previous;
+  return {
+    promptTokens: next.promptTokens,
+    completionTokens: next.completionTokens,
+    cacheReadTokens: next.cacheReadTokens ?? previous?.cacheReadTokens ?? null
+  };
 }
 
 function readDelta(value: unknown): string {
@@ -237,7 +258,7 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
       // 错误帧可能包含请求正文或秘密；只报告协议失败，不能吞掉后继续把半截内容标为成功。
       throw new Error("Provider 流返回错误；本轮输出不完整，未派发其中的工具。请检查 Provider 状态与接口协议。");
     }
-    usage = readUsage((payload as Record<string, unknown> | null)?.usage) ?? usage;
+    usage = mergeUsage(usage, readUsage((payload as Record<string, unknown> | null)?.usage));
     const choices = Array.isArray((payload as Record<string, unknown> | null)?.choices) ? (payload as Record<string, unknown>).choices as unknown[] : [];
     const first = typeof choices[0] === "object" && choices[0] !== null ? choices[0] as Record<string, unknown> : null;
     if (typeof first?.finish_reason === "string") finishReason = first.finish_reason;
@@ -322,7 +343,7 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
     return call;
   });
   const result: AiCompletionResult = {
-    usage: usage ?? { promptTokens: null, completionTokens: null }, toolCalls: completedCalls,
+    usage: usage ?? { promptTokens: null, completionTokens: null, cacheReadTokens: null }, toolCalls: completedCalls,
     ...(reasoningContent !== undefined ? { providerReplay: { accountId: input.account.accountId, providerId: input.account.providerId, modelId: input.account.modelId, reasoningContent } } : {})
   };
   input.onResponse?.(result);

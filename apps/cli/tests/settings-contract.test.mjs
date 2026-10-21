@@ -21,11 +21,12 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
     const close=()=>{sessionRecords.close();configuration.close();closeDatabase();};
   `;
   const run = source => execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", imports + source], {
-    cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: data, JWT_SECRET: "", LFAA_HARNESS_HOME: "" }, encoding: "utf8", stdio: "pipe", timeout: 30_000
+    cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: join(data, "home"), LFAA_DATA_DIR: join(data, "data"), JWT_SECRET: "", LFAA_HARNESS_HOME: "" }, encoding: "utf8", stdio: "pipe", timeout: 30_000
   });
   try {
     run(`
       database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES('settings-a','settings-a','salt','hash','admin')").run();
+      database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES('settings-b','settings-b','salt','hash','member')").run();
       const {DEFAULT_USER_SETTINGS:clientDefaults}=await import('lfaa-client-ui-settings-general/src/default-settings.js');
       const {settingsSchemas,validateSettingsInput}=await import('lfaa-settings/src/validation.js');
       assert.deepEqual(defaultSettings,DEFAULT_USER_SETTINGS);assert.deepEqual(clientDefaults,DEFAULT_USER_SETTINGS);
@@ -43,11 +44,20 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       assert.deepEqual(defaultSettings.plugins.disabledSkillNames,[],'新账户默认没有停用 Skill');
       assert.deepEqual(CARD_MOTION_EFFECT_OPTIONS.map(({id})=>id),["fluid","fade","lift","none"]);
       clientDefaults.appearance.advanced.contrast=75;assert.notEqual(defaultSettings.appearance.advanced.contrast,75);
-      for(const [category,key] of Object.entries({'general':'general','appearance':'appearance','shortcuts':'shortcuts','ai-runtime':'aiRuntime','minecraft-runtime':'minecraftRuntime','git':'git','permissions':'permissions','plugins':'plugins','personalization':'personalization','computer-control':'computerControl'})){
+      for(const [category,key] of Object.entries({'general':'general','appearance':'appearance','shortcuts':'shortcuts','ai-runtime':'aiRuntime','minecraft-runtime':'minecraftRuntime','git':'git','permissions':'permissions','plugins':'plugins','personalization':'personalization','computer-control':'computerControl','browser-use':'browserUse'})){
         assert.equal(settingsSchemas[category].validate(DEFAULT_USER_SETTINGS[key],{convert:false}).error,undefined);
         saveUserSettings('settings-a',category,structuredClone(DEFAULT_USER_SETTINGS[key]));
       }
       const before=getUserSettings('settings-a');
+      assert.equal(before.browserUse.enabled,false,'new accounts keep Agent browser control disabled');
+      assert.deepEqual(before.browserUse.enabledProviderIds,[],'new accounts connect no browser by default');
+      assert.equal(settingsSchemas['browser-use'].validate({...before.browserUse,enabledProviderIds:['lfaa-managed-edge']},{convert:false}).error,undefined);
+      assert.ok(settingsSchemas['browser-use'].validate({...before.browserUse,enabledProviderIds:['unknown-browser']},{convert:false}).error,'browser connection IDs come from the shared provider catalog');
+      assert.ok(settingsSchemas['browser-use'].validate({...before.browserUse,enabledProviderIds:['lfaa-managed-edge','lfaa-managed-edge']},{convert:false}).error,'duplicate browser connections are rejected');
+      saveUserSettings('settings-a','browser-use',{enabled:true,enabledProviderIds:['lfaa-managed-edge'],showFullUrl:true});
+      assert.deepEqual(getUserSettings('settings-a').browserUse,{enabled:true,enabledProviderIds:['lfaa-managed-edge'],showFullUrl:true},'Browser Use preferences persist per account');
+      assert.equal(getUserSettings('settings-b').browserUse.enabled,false,'another account keeps its disabled browser default');
+      saveUserSettings('settings-a','browser-use',structuredClone(DEFAULT_USER_SETTINGS.browserUse));
       for(const {id} of UI_MOTION_EFFECT_OPTIONS){
         assert.equal(settingsSchemas.general.validate({...before.general,cardMotionEffect:id},{convert:false}).error,undefined);
         assert.equal(settingsSchemas.general.validate({...before.general,dialogMotionEffect:id},{convert:false}).error,undefined);

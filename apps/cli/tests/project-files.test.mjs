@@ -132,6 +132,34 @@ test("项目文本操作返回真实证据且拒绝覆盖、重复锚点和越�
   } finally { assert.equal(dirname(resolve(root)), parent); rmSync(root, { recursive: true, force: true }); }
 });
 
+test("项目差异支持根目录、已跟踪修改和未跟踪文本文件", async () => {
+  const parent = resolve(tmpdir());
+  const root = mkdtempSync(join(parent, "lfaa-project-diff-"));
+  const trackedPath = join(root, "tracked.txt");
+  const untrackedPath = "新增 文件/示例.ts";
+  try {
+    execFileSync("git", ["-C", root, "init", "--quiet"], { windowsHide: true });
+    writeFileSync(trackedPath, "原始内容\n");
+    execFileSync("git", ["-C", root, "add", "--", "tracked.txt"], { windowsHide: true });
+    execFileSync("git", ["-c", "user.name=LFAA Test", "-c", "user.email=lfaa-test@example.invalid", "-C", root, "commit", "--quiet", "-m", "fixture"], { windowsHide: true });
+    writeFileSync(trackedPath, "原始内容\n已修改\n");
+    await executeProjectFile({ rootDirectory: root, path: untrackedPath, operation: "create", content: "export const answer = 42;\n" });
+
+    const rootDiff = await executeProjectFile({ rootDirectory: root, path: ".", operation: "diff" });
+    assert.match(rootDiff.diff, /diff --git a\/tracked\.txt b\/tracked\.txt/u);
+    assert.match(rootDiff.diff, /\+已修改/u);
+    assert.match(rootDiff.diff, /\+export const answer = 42;/u);
+    assert.equal(rootDiff.diffTruncated, false);
+
+    const directoryDiff = await executeProjectFile({ rootDirectory: root, path: "新增 文件", operation: "diff" });
+    assert.match(directoryDiff.diff, /\+export const answer = 42;/u);
+    assert.equal(directoryDiff.diffTruncated, false);
+
+    const emptyDiff = await executeProjectFile({ rootDirectory: root, operation: "diff" });
+    assert.equal(emptyDiff.diff, rootDiff.diff);
+  } finally { assert.equal(dirname(resolve(root)), parent); rmSync(root, { recursive: true, force: true }); }
+});
+
 test("Skill 文件树只在新目录内原子创建并拒绝路径穿越或覆盖", async () => {
   const parent = resolve(tmpdir());
   const root = mkdtempSync(join(parent, "lfaa-project-skill-tree-"));

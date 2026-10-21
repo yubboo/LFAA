@@ -54,7 +54,7 @@ const delegationTool: AiBusinessTool = makeTool({
   execute: async () => { throw new Error("子 Agent 由 AI Runtime 调用循环执行。"); }
 });
 
-export function listAiBusinessTools(applicationId: ApplicationId, userRole: UserRole, writingTarget: AiWritingToolTarget | null = null, permissionMode: "ask" | "approve_remembered" | "full_access" = "ask", includeExtensions = false, includeInstalledPrompts = false, includeComputerControl = false): AiBusinessTool[] {
+export function listAiBusinessTools(applicationId: ApplicationId, userRole: UserRole, writingTarget: AiWritingToolTarget | null = null, permissionMode: "ask" | "approve_remembered" | "full_access" = "ask", includeExtensions = false, includeInstalledPrompts = false, includeComputerControl = false, includeBrowserUse = false): AiBusinessTool[] {
   const available = [...capabilitySettingsTools, projectFileTool, delegationTool, fileTool];
   const canAdmin = userRole === "admin" || userRole === "super_admin";
   const fullAccess = permissionMode === "full_access";
@@ -72,8 +72,8 @@ export function listAiBusinessTools(applicationId: ApplicationId, userRole: User
   const registered = listRegisteredAiTools(writingTarget).filter(tool => isApplicationInScope(tool.applicationIds, applicationId))
     .filter(tool => !["capabilities.prompts-list", "capabilities.prompt-load"].includes(tool.id) || includeInstalledPrompts)
     .filter(tool => !tool.onDemand || fullAccess || canAdmin || tool.id.startsWith("writing.") || tool.risk(objectValue({ operation: "read" })) === "read");
-  const coreManaged = registered.filter(tool => tool.coreManaged && (!tool.adminOnly || canAdmin) && (!tool.requiresComputerControl || includeComputerControl));
-  const extensions = includeExtensions ? registered.filter(tool => !tool.coreManaged && (!tool.requiresComputerControl || includeComputerControl)) : [];
+  const coreManaged = registered.filter(tool => tool.coreManaged && (!tool.adminOnly || canAdmin) && (!tool.requiresComputerControl || includeComputerControl) && (!tool.requiresBrowserUse || includeBrowserUse));
+  const extensions = includeExtensions ? registered.filter(tool => !tool.coreManaged && (!tool.requiresComputerControl || includeComputerControl) && (!tool.requiresBrowserUse || includeBrowserUse)) : [];
   for (const tool of [...coreManaged, ...extensions]) if (builtins.some(item => item.id === tool.id || item.name === tool.name)) throw new Error(`插件工具与内置工具冲突：${tool.name}`);
   for (const coreTool of coreManaged) if (extensions.some(item => item.id === coreTool.id || item.name === coreTool.name)) throw new Error(`核心管理工具与扩展工具冲突：${coreTool.name}`);
   return [...builtins, ...coreManaged, ...extensions];

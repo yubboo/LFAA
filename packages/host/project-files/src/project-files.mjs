@@ -7,12 +7,17 @@ import { createReadStream } from "node:fs";
 import { readFile, writeFile, realpath, stat, lstat, readdir, mkdir, opendir, rename, rm, unlink } from "node:fs/promises";
 import { resolve, relative, dirname, basename, join, isAbsolute, sep, parse } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
+import { promisify } from "node:util";
 
 const textLimit = 2 * 1024 * 1024;
+const projectDiffLimit = 2 * 1024 * 1024;
+const projectDiffUntrackedFileLimit = 200;
+const projectDiffUntrackedByteLimit = 1024 * 1024;
 const digest = text => createHash("sha256").update(text).digest("hex");
+const execFileAsync = promisify(execFile);
 let protectedDataRoot = process.env.LFAA_DAEMON_DATA_ROOT?.trim() ? resolve(process.env.LFAA_DAEMON_DATA_ROOT.trim()) : "";
 let protectedDataRootPromise;
 let protectedDataRootRealPath;
@@ -181,6 +186,96 @@ async function readText(path) {
   return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
 }
 
+function projectGitEnvironment() {
+  const environment = { ...process.env };
+  for (const name of Object.keys(environment)) {
+    if (/^GIT_(?:DIR|WORK_TREE|COMMON_DIR|INDEX_FILE|CONFIG(?:_|$)|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|NAMESPACE)$/iu.test(name)) delete environment[name];
+  }
+  environment.GIT_CONFIG_COUNT = "0";
+  environment.GIT_TERMINAL_PROMPT = "0";
+  environment.GIT_OPTIONAL_LOCKS = "0";
+  environment.LC_ALL = "C";
+  return environment;
+}
+
+async function projectGitOutput(root, args, maxBuffer = projectDiffLimit + 8192, timeout = 12_000) {
+  const result = await execFileAsync("git", ["--no-pager", "-c", "core.fsmonitor=false", "-C", root, ...args], {
+    encoding: "utf8", windowsHide: true, timeout, maxBuffer, env: projectGitEnvironment()
+  });
+  return result.stdout;
+}
+
+/** `git diff --no-index` returns 1 when it successfully found a difference. */
+async function projectGitDiffOutput(root, args, timeout) {
+  try { return await projectGitOutput(root, args, projectDiffLimit + 8192, timeout); }
+  catch (error) {
+    if (error?.code === 1 && typeof error.stdout === "string" && error.stdout.length > 0) return error.stdout;
+    throw error;
+  }
+}
+
+function projectGitPathspec(value) {
+  return `:(literal)${value.replaceAll("\\", "/")}`;
+}
+
+async function readProjectGitDiff(root, selectedPath) {
+  const deadline = Date.now() + 12_000;
+  const remainingTime = () => Math.max(1, deadline - Date.now());
+  const relativePath = relative(root, selectedPath).split(sep).join("/");
+  const selected = relativePath && relativePath !== "." ? projectGitPathspec(relativePath) : "";
+  const trackedArgs = ["diff", "--no-ext-diff", "--no-textconv", "--"];
+  if (selected) trackedArgs.push(selected);
+  let diff = await projectGitOutput(root, trackedArgs, 8 * 1024 * 1024, remainingTime());
+  let diffBytes = Buffer.byteLength(diff, "utf8");
+  let diffTruncated = false;
+  if (diffBytes > projectDiffLimit) {
+    diff = Buffer.from(diff, "utf8").subarray(0, projectDiffLimit).toString("utf8");
+    diffBytes = Buffer.byteLength(diff, "utf8");
+    diffTruncated = true;
+  }
+
+  const statusArgs = ["status", "--porcelain=v1", "-z", "--untracked-files=all"];
+  if (selected) statusArgs.push("--", selected);
+  const status = await projectGitOutput(root, statusArgs, 8 * 1024 * 1024, remainingTime());
+  let untrackedFiles = 0;
+  let untrackedBytes = 0;
+  for (const row of status.split("\0")) {
+    if (!row.startsWith("?? ")) continue;
+    const file = row.slice(3);
+    if (Date.now() >= deadline) { diffTruncated = true; break; }
+    untrackedFiles += 1;
+    if (untrackedFiles > projectDiffUntrackedFileLimit || untrackedBytes >= projectDiffUntrackedByteLimit || diffBytes >= projectDiffLimit) {
+      diffTruncated = true;
+      break;
+    }
+    try {
+      const filePath = await checkedPath(root, file);
+      const details = await lstat(filePath);
+      if (details.isSymbolicLink() || !details.isFile() || details.size > projectDiffUntrackedByteLimit - untrackedBytes) {
+        diffTruncated = true;
+        continue;
+      }
+      untrackedBytes += details.size;
+      const content = await readText(filePath);
+      const piece = await projectGitDiffOutput(root, ["diff", "--no-index", "--no-ext-diff", "--no-textconv", "--unified=3", "--", process.platform === "win32" ? "NUL" : "/dev/null", file.replaceAll("\\", "/")], remainingTime());
+      if (/\bBinary files\b/u.test(piece)) {
+        diffTruncated = true;
+        continue;
+      }
+      const pieceBytes = Buffer.byteLength(piece, "utf8");
+      const remainingDiffBytes = projectDiffLimit - diffBytes;
+      if (pieceBytes > remainingDiffBytes || Buffer.byteLength(content, "utf8") !== details.size) diffTruncated = true;
+      const outputBytes = Math.min(pieceBytes, remainingDiffBytes);
+      diff += Buffer.from(piece, "utf8").subarray(0, outputBytes).toString("utf8");
+      diffBytes = Buffer.byteLength(diff, "utf8");
+    } catch (error) {
+      if (error?.code === "ENOENT") continue;
+      diffTruncated = true;
+    }
+  }
+  return { diff, diffTruncated };
+}
+
 export async function executeProjectFile(input) {
   if (input?.operation === "resolve_default_workspace") return await inspectDefaultWorkspaceDirectory();
   if (input?.operation === "initialize_default_workspace") return { path: await createDefaultWorkspaceDirectory() };
@@ -339,7 +434,7 @@ export async function executeProjectFile(input) {
     };
     await walk(path); return { root, matches, scanned, truncated };
   }
-  if (input.operation === "diff") return { path, diff: execFileSync("git", ["-C", root, "diff", "--", relative(root, path)], { encoding: "utf8", windowsHide: true, maxBuffer: textLimit }) };
+  if (input.operation === "diff") return { path, ...(await readProjectGitDiff(root, path)) };
   if (input.operation === "create") {
     if (typeof input.content !== "string" || Buffer.byteLength(input.content) > textLimit) throw new Error("文件内容无效或超过允许大小。");
     await mkdir(dirname(path), { recursive: true });

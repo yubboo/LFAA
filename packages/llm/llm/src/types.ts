@@ -53,13 +53,20 @@ export interface TokenUsage {
 }
 
 /**
- * 把 LFAA 现有 AiCompletionUsage（promptTokens/completionTokens，可空）桥接为 TokenUsage。
+ * 把 LFAA 现有 AiCompletionUsage（promptTokens/completionTokens/cacheReadTokens，可空）桥接为 TokenUsage。
  * provider 未上报的计数记为 0，便于计量包做求和与完整性判定。
  */
 export function tokenUsageFromCompletion(usage: AiCompletionUsage | null | undefined): TokenUsage {
-  const inputTokens = usage?.promptTokens ?? 0;
+  const promptTokens = usage?.promptTokens ?? 0;
+  const cacheReadTokens = usage?.cacheReadTokens ?? null;
+  const inputTokens = Math.max(0, promptTokens - (cacheReadTokens ?? 0));
   const outputTokens = usage?.completionTokens ?? 0;
-  return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens + (cacheReadTokens ?? 0),
+    ...(cacheReadTokens !== null ? { cacheReadTokens } : {})
+  };
 }
 
 /** 流式分片协议：适配器把 provider 增量翻译成这些事件；块下标关联交错增量。 */

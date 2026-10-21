@@ -4,6 +4,7 @@
  * 关联文件：service.ts、api/remotes/src/route-contracts.ts、api/settings-controller/src/index.ts。
  */
 import Joi from "joi";
+import { BROWSER_PROVIDER_IDS } from "lfaa-util-values/src/browser-provider.js";
 import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, DEFAULT_USER_SETTINGS } from "lfaa-util-values/src/settings-contract.js";
 import { APPLICATION_IDS, APPLICATION_NAVIGATION_IDS } from "lfaa-util-values/src/application-id.js";
 import type { SettingsCategory } from "lfaa-util-values/src/settings-contract.js";
@@ -171,6 +172,12 @@ export const computerControlSettingsSchema = Joi.object({
   enabled: Joi.boolean().required()
 }).unknown(false);
 
+export const browserUseSettingsSchema = Joi.object({
+  enabled: Joi.boolean().required(),
+  enabledProviderIds: Joi.array().items(Joi.string().valid(...BROWSER_PROVIDER_IDS)).unique().max(BROWSER_PROVIDER_IDS.length).required(),
+  showFullUrl: Joi.boolean().required()
+}).unknown(false);
+
 export const appearanceFontsSchema = Joi.object({
   interface: Joi.string().valid("system", "sans", "serif").required(),
   content: Joi.string().valid("system", "sans", "serif").required(),
@@ -258,7 +265,8 @@ export const settingsSchemas = {
   "permissions": permissionsSettingsSchema,
   "plugins": pluginsSettingsSchema,
   "personalization": personalizationSettingsSchema,
-  "computer-control": computerControlSettingsSchema
+  "computer-control": computerControlSettingsSchema,
+  "browser-use": browserUseSettingsSchema
 };
 
 /** 写入严格拒绝未知字段和非法值，不将失败保存伪装成成功后回退。 */

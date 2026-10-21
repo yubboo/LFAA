@@ -17,6 +17,7 @@
     "lfaa-client-resources": "workspace:*",
     "lfaa-client-store": "workspace:*",
     "lfaa-client-ui-commands": "workspace:*",
+    "lfaa-client-ui-chat": "workspace:*",
     "lfaa-client-ui-minecraft": "workspace:*",
     "lfaa-client-ui-plugin-manager": "workspace:*",
     "lfaa-client-ui-primitives": "workspace:*",

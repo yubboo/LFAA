@@ -10,14 +10,23 @@ import { makeTool, strictObject, parseWithSchema, type AiBusinessTool } from "./
 export function createToolDiscoveryTools(readAvailable: () => AiBusinessTool[], load: (names: string[]) => void): AiBusinessTool[] {
   return [
     makeTool({ id: "tools.list", name: "lfaa_tools_list", coreManaged: true, applicationIds: [...APPLICATION_IDS],
-      description: "按需发现当前真实工具摘要；query 可按名称、说明或领域筛选，不返回全部参数合同。随后调用 lfaa_tools_load 明确选择需要的工具。目录不授予新的权限。",
+      description: "按需发现当前真实工具摘要；query 可填写多个空白或标点分隔的词，名称/说明中命中任一词的工具会按命中数排序并列出 matchedTerms。query 为空时按原顺序分页列出全部摘要。随后调用 lfaa_tools_load 明确选择需要的工具。目录不授予新的权限。",
       schema: strictObject({ query: { type: "string", maxLength: 120 }, offset: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: 40 } }),
       parse: value => parseWithSchema(Joi.object({ query: Joi.string().max(120).allow(""), offset: Joi.number().integer().min(0).max(100000).default(0), limit: Joi.number().integer().min(1).max(40).default(20) }).unknown(false), value),
       execute: async (parameters, context) => {
         context.signal.throwIfAborted();
-        const query = String(parameters.query ?? "").toLocaleLowerCase();
-        const found = readAvailable().filter(tool => !query || `${tool.id} ${tool.name} ${tool.description}`.toLocaleLowerCase().includes(query));
-        return { total: found.length, tools: found.slice(Number(parameters.offset), Number(parameters.offset) + Number(parameters.limit)).map(({ id, name, description, onDemand }) => ({ id, name, description: description.slice(0, 500), onDemand: onDemand === true })), readOnly: true };
+        const query = String(parameters.query ?? "").trim().toLocaleLowerCase();
+        const queryTerms = [...new Set(query.match(/[\p{L}\p{N}_-]+/gu) ?? [])];
+        const found = readAvailable().flatMap((tool, index) => {
+          const searchableText = `${tool.id} ${tool.name} ${tool.description}`.toLocaleLowerCase();
+          if (!query) return [{ tool, index, matchedTerms: [], exactMatch: false }];
+          const matchedTerms = queryTerms.filter(term => searchableText.includes(term));
+          if (matchedTerms.length === 0) return [];
+          // 多词采用任一词匹配；完整短语优先，其次命中词更多者优先，同分保留注册顺序。
+          return [{ tool, index, matchedTerms, exactMatch: searchableText.includes(query) }];
+        }).sort((left, right) => Number(right.exactMatch) - Number(left.exactMatch)
+          || right.matchedTerms.length - left.matchedTerms.length || left.index - right.index);
+        return { total: found.length, tools: found.slice(Number(parameters.offset), Number(parameters.offset) + Number(parameters.limit)).map(({ tool: { id, name, description, onDemand }, matchedTerms }) => ({ id, name, description: description.slice(0, 500), onDemand: onDemand === true, matchedTerms })), readOnly: true };
       }
     }),
     makeTool({ id: "tools.load", name: "lfaa_tools_load", coreManaged: true, applicationIds: [...APPLICATION_IDS],

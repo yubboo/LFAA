@@ -12,6 +12,7 @@ import { withControlLock } from "lfaa-storage-domain/src/control-lock.js";
 import { JsonlSessionPersistence, type SessionChange, type SessionCommit, type SessionTable } from "./persistence.js";
 // 增量对齐：把现有 JSONL 仓库声明为实现 session-persistence 协议（仅类型校验，不改变运行行为）。
 import type { SessionPersistenceBackend } from "lfaa-session-persistence";
+import { applySessionSummaryEvent, createSessionSummaryAccumulator, projectSessionUsage, type SessionContextUsage, type SessionSummaryAccumulator } from "./session-summary.js";
 
 export type SessionRecord = Record<string, unknown>;
 const tables: SessionTable[] = ["ai_sessions", "ai_messages", "ai_usage", "session_events"];
@@ -22,12 +23,15 @@ type RecentMessagePage = {
   rowBytes: Map<string, number>;
   feedback: Map<string, SessionRecord>;
   feedbackBytes: Map<string, number>;
+  usage: Map<string, SessionRecord>;
+  usageBytes: Map<string, number>;
   count: number;
   bytes: number;
   complete: boolean;
   branchParentSessionId?: string;
+  summary: SessionSummaryAccumulator;
 };
-type RecentMessagePageResult = { items: Array<{ message: SessionRecord; feedback?: SessionRecord }>; hasMore: boolean; branchParentSessionId?: string };
+type RecentMessagePageResult = { items: Array<{ message: SessionRecord; feedback?: SessionRecord; usage?: SessionRecord }>; hasMore: boolean; branchParentSessionId?: string; usageSummary: ReturnType<typeof projectSessionUsage>; contextUsage: SessionContextUsage | null };
 type UsageAggregateGroup = { providerId: string; modelId: string; requestCount: number; promptTokens: number; promptTokenCount: number; completionTokens: number; completionTokenCount: number; latestAt: string };
 type UsageAggregate = { requestCount: number; promptTokens: number; promptTokenCount: number; completionTokens: number; completionTokenCount: number; groups: Map<string, UsageAggregateGroup> };
 const recentMessagePageSize = 100;
@@ -75,6 +79,8 @@ export class SessionRepository {
       for (const message of interrupted) this.commit(String(message.session_id), [{ table: "ai_messages", key: String(message.id), value: { ...message, status: "interrupted" } }]);
     } catch (error) { this.persistence.close(); throw error; }
   }
+  /** Session Owner 已校验归属后，用于回答会话日志的实际路径；不读取文件内容。 */
+  storageLocation(sessionId: string) { return this.persistence.storageLocation(sessionId); }
   private apply(sessionId: string, changes: SessionChange[]): void {
     let hasHeaderChange = false;
     for (const change of changes) {
@@ -136,7 +142,7 @@ export class SessionRepository {
     if (rows.size) this.sessionEventsBySession.set(sessionId, rows);
     else this.sessionEventsBySession.delete(sessionId);
     this.updateAssociationProjection(sessionId, value, old, rows);
-    this.updateRecentSessionEventProjection(sessionId, value, old);
+    this.updateRecentSessionEventProjection(sessionId, value, old, rows);
   }
   private evictSession(sessionId: string): void {
     for (const table of tables) {
@@ -156,7 +162,7 @@ export class SessionRepository {
   }
   private createRecentMessagePage(sessionId: string): void {
     if (this.recentMessagePages.has(sessionId)) return;
-    const page: RecentMessagePage = { rows: new Map(), orderedRows: [], rowBytes: new Map(), feedback: new Map(), feedbackBytes: new Map(), count: 0, bytes: 128, complete: true };
+    const page: RecentMessagePage = { rows: new Map(), orderedRows: [], rowBytes: new Map(), feedback: new Map(), feedbackBytes: new Map(), usage: new Map(), usageBytes: new Map(), count: 0, bytes: 128, complete: true, summary: createSessionSummaryAccumulator() };
     this.recentMessagePages.set(sessionId, page);
     this.recentMessagePageBytes += page.bytes;
     this.trimRecentMessagePages();
@@ -228,6 +234,8 @@ export class SessionRepository {
         page.rows.delete(key); page.rowBytes.delete(key);
         const feedbackBytes = page.feedbackBytes.get(key) ?? 0;
         page.bytes -= feedbackBytes; page.feedback.delete(key); page.feedbackBytes.delete(key);
+        const usageBytes = page.usageBytes.get(key) ?? 0;
+        page.bytes -= usageBytes; page.usage.delete(key); page.usageBytes.delete(key);
         // 缺少下一条旧消息时不返回残缺首屏，回退到完整分页读取。
         page.complete = false;
       }
@@ -257,20 +265,48 @@ export class SessionRepository {
         page.rows.delete(removedId); page.rowBytes.delete(removedId);
         page.bytes -= page.feedbackBytes.get(removedId) ?? 0;
         page.feedback.delete(removedId); page.feedbackBytes.delete(removedId);
+        page.bytes -= page.usageBytes.get(removedId) ?? 0;
+        page.usage.delete(removedId); page.usageBytes.delete(removedId);
       }
     }
     this.recentMessagePageBytes += page.bytes - previousBytes;
     this.touchRecentMessagePage(sessionId, page);
     this.trimRecentMessagePages();
   }
-  private updateRecentSessionEventProjection(sessionId: string, value: SessionRecord | null | undefined, old: SessionRecord | undefined): void {
+  private updateRecentSessionEventProjection(sessionId: string, value: SessionRecord | null | undefined, old: SessionRecord | undefined, rows: Map<string, SessionRecord>): void {
     const page = this.recentMessagePages.get(sessionId);
+    if (page) {
+      const beforeBytes = Buffer.byteLength(encode({ usage: projectSessionUsage(page.summary), context: page.summary.contextUsage }));
+      if (old) applySessionSummaryEvent(page.summary, old, -1);
+      if (value) applySessionSummaryEvent(page.summary, value);
+      if (!value && old?.type === "request/context" && Number(old.seq) === page.summary.contextSeq) {
+        const latestContext = [...rows.values()]
+          .filter(event => event.type === "request/context")
+          .sort((left, right) => Number(right.seq) - Number(left.seq))[0];
+        page.summary.contextUsage = null;
+        page.summary.contextRunId = null;
+        page.summary.contextSeq = -1;
+        if (latestContext) applySessionSummaryEvent(page.summary, latestContext);
+        const response = latestContext ? [...rows.values()]
+          .filter(event => event.type === "assistant/response" && (event.data as Record<string, unknown> | undefined)?.runId === (latestContext.data as Record<string, unknown> | undefined)?.runId)
+          .sort((left, right) => Number(left.seq) - Number(right.seq)) : [];
+        for (const event of response) applySessionSummaryEvent(page.summary, event);
+      }
+      const afterBytes = Buffer.byteLength(encode({ usage: projectSessionUsage(page.summary), context: page.summary.contextUsage }));
+      page.bytes += afterBytes - beforeBytes;
+      this.recentMessagePageBytes += afterBytes - beforeBytes;
+    }
     if (!value) {
       const data = old?.data as Record<string, unknown> | undefined;
       if (old?.type === "message/feedback" && typeof data?.messageId === "string" && page?.feedback.has(data.messageId)) {
         const bytes = page.feedbackBytes.get(data.messageId) ?? 0;
         page.bytes -= bytes; this.recentMessagePageBytes -= bytes;
         page.feedback.delete(data.messageId); page.feedbackBytes.delete(data.messageId);
+      }
+      if (old?.type === "usage/record" && typeof data?.runId === "string" && page?.usage.has(data.runId)) {
+        const bytes = page.usageBytes.get(data.runId) ?? 0;
+        page.bytes -= bytes; this.recentMessagePageBytes -= bytes;
+        page.usage.delete(data.runId); page.usageBytes.delete(data.runId);
       }
       if (page && (old?.type === "session/end-seed" || old?.type === "session/branch-memory") && page.branchParentSessionId === data?.sourceSessionId) {
         delete page.branchParentSessionId; page.bytes -= 128; page.complete = false;
@@ -287,6 +323,13 @@ export class SessionRepository {
       page.bytes += bytes - (page.feedbackBytes.get(data.messageId) ?? 0);
       this.recentMessagePageBytes += page.bytes - previousBytes;
       page.feedback.set(data.messageId, feedback); page.feedbackBytes.set(data.messageId, bytes);
+    } else if (value.type === "usage/record" && typeof data?.runId === "string" && data.purpose !== "memory" && page?.rows.has(data.runId)) {
+      const previousBytes = page.bytes;
+      const usage = structuredClone(value);
+      const bytes = Buffer.byteLength(encode(usage));
+      page.bytes += bytes - (page.usageBytes.get(data.runId) ?? 0);
+      this.recentMessagePageBytes += page.bytes - previousBytes;
+      page.usage.set(data.runId, usage); page.usageBytes.set(data.runId, bytes);
     } else if ((value.type === "session/end-seed" || value.type === "session/branch-memory") && typeof data?.sourceSessionId === "string" && page) {
       if (!page.branchParentSessionId) { page.bytes += 128; this.recentMessagePageBytes += 128; }
       page.branchParentSessionId = data.sourceSessionId;
@@ -329,11 +372,25 @@ export class SessionRepository {
     return {
       items: rows.map(message => {
         const feedback = page.feedback.get(String(message.id));
-        return feedback ? { message: structuredClone(message), feedback: structuredClone(feedback) } : { message: structuredClone(message) };
+        const usage = page.usage.get(String(message.id));
+        return {
+          message: structuredClone(message),
+          ...(feedback ? { feedback: structuredClone(feedback) } : {}),
+          ...(usage ? { usage: structuredClone(usage) } : {})
+        };
       }),
       hasMore: page.count > rows.length,
-      ...(page.branchParentSessionId ? { branchParentSessionId: page.branchParentSessionId } : {})
+      ...(page.branchParentSessionId ? { branchParentSessionId: page.branchParentSessionId } : {}),
+      usageSummary: projectSessionUsage(page.summary),
+      contextUsage: page.summary.contextUsage
     };
+  }
+  /** 返回已验证会话最近消息页维护的累计 Provider 用量；冷会话只恢复一次该会话日志。 */
+  usageSummaryForSession(sessionId: string): RecentMessagePageResult["usageSummary"] {
+    this.assertReady();
+    if (!this.recentMessagePages.has(sessionId)) this.loadSession(sessionId);
+    const page = this.recentMessagePages.get(sessionId);
+    return page ? projectSessionUsage(page.summary) : { requestCount: 0, requestCountExact: true, promptTokens: 0, completionTokens: 0, cacheReadTokens: 0, models: [] };
   }
   /** 首屏缓存未命中或加载更早消息时，完整校验 JSONL 哈希链。 */
   readMessagePage(sessionId: string, before: { createdAt: string; order: number } | undefined, limit: number, observeEvent?: Parameters<JsonlSessionPersistence["readMessagePage"]>[3], signal?: AbortSignal): ReturnType<JsonlSessionPersistence["readMessagePage"]> {

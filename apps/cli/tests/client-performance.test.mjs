@@ -89,6 +89,15 @@ test("隐藏暂停读取，恢复立即对账；停止后焦点、可见事件�
   assert.equal(gates.length, 2);
 });
 
+test("Browser Dock 隐藏时停止修订轮询并取消在途读取，卸载时撤销监听和计时器", () => {
+  const panel = readFileSync(new URL("../../../packages/client/ui-sidebar-browser/src/BrowserPanel.tsx", import.meta.url), "utf8");
+  assert.match(panel, /document\.visibilityState === "hidden"/u);
+  assert.match(panel, /activeRequest\?\.abort\(\)/u);
+  assert.match(panel, /document\.addEventListener\("visibilitychange", onVisibilityChange\)/u);
+  assert.match(panel, /document\.removeEventListener\("visibilitychange", onVisibilityChange\)/u);
+  assert.match(panel, /if \(timer\) clearTimeout\(timer\)/u);
+});
+
 test("读取失败仍能在下一轮恢复，手动调用可以观察错误", async t => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   browserEvents(t);
@@ -189,7 +198,7 @@ test("AI Work 主聊挂载唯一分段展示，沿用原活动展开和完成清
   assert.ok(chat.includes('return aiActivityClock.start();'));
   assert.ok(chat.includes('import { aiActivityClock } from "./activity-clock.js";'));
   assert.doesNotMatch(chat, /const \[activityClock|setActivityClock|setInterval/u);
-  assert.ok(chat.includes('<AiWorkResponse message={item} pauseLabel='));
+  assert.ok(chat.includes('<AiWorkResponse message={message} pauseLabel='));
   assert.ok(chat.includes('<AiLiveActivityDuration activity={activity} />'));
   assert.ok(chat.includes('renderActivity={renderActivity} renderInteraction={renderInteraction}'));
   assert.ok(chat.includes('appendAiTextDelta(item, value)'));
@@ -203,6 +212,36 @@ test("AI Work 主聊挂载唯一分段展示，沿用原活动展开和完成清
   assert.ok(response.includes('<AiLiveResponseDuration message={message} />'));
   assert.ok(response.includes('pauseLabel ?? summary.label'));
   assert.match(styles, /response-divider[^}]*border-top: 1px solid var\(--color-border-subtle\)/u);
+});
+
+test("AI Work流式增量保持历史消息行的记忆边界", () => {
+  const chat = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+  assert.match(chat, /const AiWorkMessageRow = memo\(function AiWorkMessageRow/u);
+  assert.match(chat, /return <AiWorkMessageRow[\s\S]*?message=\{item\}[\s\S]*?actions=\{messageRowActions\}/u);
+  assert.match(chat, /editingMessage=\{editingMessage\?\.messageId === item\.id \? editingMessage : null\}/u);
+  assert.match(chat, /expandedActivitySteps=\{expandedActivitySteps\?\.messageId === item\.id \? expandedActivitySteps : null\}/u);
+  assert.match(chat, /useLayoutEffect\(\(\) => \{\s*messageRowActionsRef\.current = \{\s*copyMessage,\s*editUserMessage,\s*submitEditedMessage,\s*cancelMessageEditing,\s*openMessageFeedback,\s*toggleActivityStep,\s*openWritingProposal\s*\};\s*\}, \[copyMessage, editUserMessage, submitEditedMessage, cancelMessageEditing, openMessageFeedback, toggleActivityStep, openWritingProposal\]\)/u);
+  assert.match(chat, /setMessages\(current => current\.map\(item => item\.id === value\.messageId \? appendAiTextDelta\(item, value\) : item\)\)/u);
+});
+
+test("AI Work流式增量不会重复执行未变化的用量栏", () => {
+  const chat = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+  const footer = readFileSync(new URL("../../../packages/client/ui-chat/src/AiUsageFooter.tsx", import.meta.url), "utf8");
+  assert.match(footer, /export const AiUsageFooter = memo\(function AiUsageFooter/u);
+  assert.match(chat, /const openAiContextSettings = useCallback\(\(\) => onOpenSettings\("ai", "ai-context-usage-setting"\), \[onOpenSettings\]\)/u);
+  assert.match(chat, /<AiUsageFooter[\s\S]*?onOpenContextSettings=\{openAiContextSettings\}/u);
+});
+
+test("AI Work模型按钮保留可见的目录版本标签", () => {
+  const chat = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+  const styles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
+  assert.match(chat, /const activeModelVersionTag = activeModel \? modelOptionVersionTag\(activeModel\) : undefined/u);
+  assert.match(chat, /ai-work-chat__model-name[\s\S]*?ai-work-chat__model-version-tag/u);
+  assert.match(chat, /aria-label=\{activeAccount \? `模型：\$\{activeModel \? modelSelectorDisplayLabel\(activeModel\)/u);
+  assert.match(styles, /ai-work-chat__composer-control--model \.ai-work-chat__composer-control-label \{ display: flex/u);
+  assert.match(styles, /ai-work-chat__model-version-tag \{ flex: 0 0 auto/u);
+  assert.match(styles, /\.ai-work-chat__composer-control-label,\s*\.ai-work-chat__composer-control-chevron \{ display: none/u);
+  assert.match(styles, /\.ai-work-chat__composer-control--model \.ai-work-chat__composer-control-label \{ display: none/u);
 });
 
 test("AI Work 文件活动显示真实路径并通过登记项目打开现有 Git 审阅器", () => {
@@ -219,16 +258,26 @@ test("AI Work 文件活动显示真实路径并通过登记项目打开现有 Gi
   assert.match(reviewer, /<GitChangeReview appId=\{appId\} project=\{project\} status=\{status\} initialPath=\{reviewPath\}/u);
 });
 
-test("AI Work 澄清与审批记录留在发起位置，等待交互沿用真实 Owner", () => {
+test("AI Work 待处理审批与澄清贴近输入框，处理后记录回到原回复", () => {
   const chat = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+  const styles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
   assert.match(chat, /const renderInteraction = \(activity: AiActivityItem\)/u);
   assert.match(chat, /已回答的澄清问题/u);
   assert.ok(chat.includes('<strong>{questionText}</strong>'));
   assert.ok(chat.includes('skipped ? "已跳过" : answerText || "未记录文字答案"'));
   assert.ok(chat.includes('activity.detail?.startsWith("你的回答：")'));
-  assert.match(chat, /pendingInteraction\?\.kind === "approval"/u);
+  assert.match(chat, /activity\.status === "approval_required" && !activity\.approvalAnswer\) return null/u);
+  assert.match(chat, /activity\.status === "waiting_input"\) return null/u);
+  assert.match(chat, /function renderPendingComposerInteraction\(\)/u);
+  assert.match(chat, /aria-label="待处理审批"/u);
+  assert.match(chat, /\{renderPendingComposerInteraction\(\)\}/u);
+  assert.ok(chat.indexOf("{renderPendingComposerInteraction()}") < chat.indexOf("<form ref={composerFormRef}"));
+  assert.match(chat, /className="ai-work-chat__approval-record"/u);
+  assert.match(chat, /className="ai-work-chat__question-record"/u);
   assert.match(chat, /activity\.approvalQuestion/u);assert.match(chat, /activity\.approvalAnswer/u);
   assert.match(chat, /answerAiRunQuestion\(question\.runId/u);assert.match(chat, /decideAiApproval\(approvalId, decision\)/u);
+  assert.match(styles, /ai-work-chat__composer-interaction[^}]*max-height: min\(38dvh, 320px\)/u);
+  assert.match(styles, /ai-work-chat__activity-output-card[^}]*max-height: 240px/u);
   assert.doesNotMatch(chat, /result\.userMessage\.id/u);
 });
 

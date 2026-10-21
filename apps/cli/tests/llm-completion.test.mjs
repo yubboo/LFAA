@@ -6,6 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AiRecoverableRequestError, createAiCompletionService, streamAiCompletion } from "../../../packages/llm/llm/src/completion.ts";
+import { readArkUsage } from "../../../packages/llm/llm-pi-ai/src/adapter.ts";
 
 function completionInput() {
   return {
@@ -107,6 +108,43 @@ test("SSE 提前 EOF 不完成半截回答或派发工具，无输出时仅标�
       assert.equal(responseRecorded, false);
     }
   } finally { globalThis.fetch = originalFetch; }
+});
+
+test("DeepSeek 流式 usage 保留缓存命中数，兼容嵌套 cached_tokens 且不把 0 当缺失", async () => {
+  const originalFetch = globalThis.fetch;
+  const response = usage => new Response([
+    `data: ${JSON.stringify({ choices: [{ delta: { content: "已完成" }, finish_reason: "stop" }], usage })}\n\n`,
+    "data: [DONE]\n\n"
+  ].join(""), { headers: { "Content-Type": "text/event-stream" } });
+  try {
+    globalThis.fetch = async () => response({ prompt_tokens: 100, completion_tokens: 8, prompt_cache_hit_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } });
+    const cold = await streamAiCompletion(completionInput());
+    assert.deepEqual(cold.usage, { promptTokens: 100, completionTokens: 8, cacheReadTokens: 0 });
+
+    globalThis.fetch = async () => response({ prompt_tokens: 100, completion_tokens: 8, prompt_tokens_details: { cached_tokens: 76 } });
+    const warm = await streamAiCompletion(completionInput());
+    assert.deepEqual(warm.usage, { promptTokens: 100, completionTokens: 8, cacheReadTokens: 76 });
+
+    globalThis.fetch = async () => response({ prompt_tokens: 100, completion_tokens: 8, prompt_cache_miss_tokens: 24 });
+    const fromMissCount = await streamAiCompletion(completionInput());
+    assert.deepEqual(fromMissCount.usage, { promptTokens: 100, completionTokens: 8, cacheReadTokens: 76 });
+
+    globalThis.fetch = async () => response({ prompt_tokens: 100, completion_tokens: 8, prompt_cache_miss_tokens: 101 });
+    const invalidMissCount = await streamAiCompletion(completionInput());
+    assert.deepEqual(invalidMissCount.usage, { promptTokens: 100, completionTokens: 8, cacheReadTokens: null });
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("Ark usage 只在 Provider 返回命中或 miss 计数时计算缓存读取量", () => {
+  assert.deepEqual(readArkUsage({ prompt_tokens: 100, completion_tokens: 8, prompt_cache_miss_tokens: 24 }), {
+    promptTokens: 100, completionTokens: 8, cacheReadTokens: 76
+  });
+  assert.deepEqual(readArkUsage({ prompt_tokens: 100, completion_tokens: 8, prompt_cache_miss_tokens: 101 }), {
+    promptTokens: 100, completionTokens: 8, cacheReadTokens: null
+  });
+  assert.deepEqual(readArkUsage({ prompt_tokens: 100, completion_tokens: 8 }), {
+    promptTokens: 100, completionTokens: 8, cacheReadTokens: null
+  });
 });
 
 test("无换行 DONE 与正常 finish_reason 均可结束，Provider 错误结束不得视为成功", async () => {

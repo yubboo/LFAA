@@ -6,7 +6,7 @@ import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-me
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-update.mjs";
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
-import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { minecraftSceneBackgrounds } from "lfaa-util-values/src/builtin-backgrounds.js";
 import { cacheLoginAppearance } from "lfaa-client-ui-theme/src/login-appearance.js";
 import { getBrowserNotificationPermission, playNotificationSound, requestBrowserNotificationPermission, sendBrowserNotification, type BrowserNotificationPermission } from "lfaa-client-resources/src/notification-runtime.js";
@@ -300,6 +300,7 @@ function settingsCategoryForSection(section: SectionId): keyof UserSettings | nu
   if (section === "minecraft") return "minecraftRuntime";
   if (section === "permissions") return "permissions";
   if (section === "computerControl") return "computerControl";
+  if (section === "browser") return "browserUse";
   if (section === "plugins" || section === "connections") return "plugins";
   if (section === "personalization") return "personalization";
   if (section === "git") return "git";
@@ -397,7 +398,7 @@ const pendingSections: Partial<Record<SectionId, { description: string; status: 
   mini: { description: "轻量窗口和虚拟宠物尚未进入 LFAA 的桌面产品规划。", status: "桌面能力待接入" },
   account: { description: "由超级管理员查看和管理本机账号。", status: "账号管理已接入" },
   snapshots: { description: "应用快照用于保存与恢复工作区状态，当前版本尚未接入快照存储。", status: "快照服务待接入" },
-  browser: { description: "浏览器工具需要受控浏览器宿主，尚未与 LFAA Agent Runtime 连接。", status: "浏览器宿主待接入" },
+  browser: { description: "AI Work 浏览器预览台已接入 LFAA 隔离浏览器。Agent 浏览器工具复用“电脑操控”能力开关与现有权限模式；个人浏览器仅在用户本轮明确指定时使用。", status: "隔离浏览器已接入" },
   hooks: { description: "此处是编码工作流钩子设置；AI 对话推理生命周期钩子由“插件”管理。编码任务 Runtime 尚未接入。", status: "编码任务 Runtime 待接入" },
   cloudPreferences: { description: "当前设置由本机控制端保存，暂未提供云端偏好同步。", status: "云端同步待接入" },
   codeReview: { description: "代码审查工具会在 LFAA 的编码工作台接入后提供。", status: "编码工作台待接入" },
@@ -447,7 +448,7 @@ interface SettingsPageProps {
   settings: UserSettings;
   resolvedTheme: "light" | "dark";
   initialSection?: SectionId;
-  sectionRequest?: { section: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins"; requestId: number } | null;
+  sectionRequest?: { section: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins"; requestId: number; focusTarget?: string } | null;
   applications: ApplicationNavigationItem[];
   navigationApplications?: ApplicationNavigationItem[];
   onOpenApplication: (app: ApplicationId, mode: "normal") => Promise<void>;
@@ -590,6 +591,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [folderDraft, setFolderDraft] = useState("");
   const [licensesModalOpen, setLicensesModalOpen] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<BrowserNotificationPermission>(() => getBrowserNotificationPermission());
+  const [browserProviders, setBrowserProviders] = useState<{ status: "idle" | "loading" | "ready" | "error"; providers: BrowserProviderSummary[]; error: string }>({ status: "idle", providers: [], error: "" });
   const [providers, setProviders] = useState<AiProvider[]>(() => cachedSettingsData?.providers ?? []);
   const [accounts, setAccounts] = useState<AiAccount[]>(() => cachedSettingsData?.accounts ?? []);
   const imageGenerationAccounts = accounts.filter(account => account.providerId === "openai" || account.providerId === "doubao");
@@ -747,6 +749,18 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     if (view.tab === "knowledge") setKnowledgeLibraryOpened(true);
   }, [standalonePluginWorkspace, standalonePluginView]);
   const settingsNavigationScroll = useScrollRestoration(createScrollRestorationKey(user.id, "settings-navigation"));
+
+  useEffect(() => {
+    if (activeSection !== "browser") return;
+    const controller = new AbortController();
+    setBrowserProviders(current => ({ ...current, status: "loading", error: "" }));
+    void loadBrowserProviders(controller.signal).then(result => {
+      if (!controller.signal.aborted) setBrowserProviders({ status: "ready", providers: result.providers, error: "" });
+    }).catch(reason => {
+      if (!controller.signal.aborted) setBrowserProviders(current => ({ ...current, status: "error", error: getErrorMessage(reason) }));
+    });
+    return () => controller.abort();
+  }, [activeSection]);
 
   useEffect(() => {
     if (activeSection !== "about") {
@@ -960,6 +974,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     if (group) setExpandedSettingsGroups((current) => new Set(current).add(group));
     persistSettingsSection(targetSection, user.id);
   }, [sectionRequest?.requestId, standalonePluginWorkspace, user.id]);
+
+  useEffect(() => {
+    const targetId = sectionRequest?.focusTarget;
+    if (standalonePluginWorkspace || !targetId || sectionRequest?.section !== "ai" || activeSection !== resolveSettingsSection("ai")) return;
+    const frame = window.requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ block: "center" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeSection, sectionRequest?.focusTarget, sectionRequest?.requestId, sectionRequest?.section, standalonePluginWorkspace]);
 
   useEffect(() => {
     if (!isAccountSettingsSection(activeSection)) return;
@@ -2856,12 +2877,14 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="提示词建议" description="在空会话输入区显示当前应用的示例任务。">
             <SettingsSwitch label="提示词建议" checked={settings.aiRuntime.promptSuggestions} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, promptSuggestions: !settings.aiRuntime.promptSuggestions })} />
           </SettingRow>
-          <SettingRow title="显示上下文使用情况" description="显示 Provider 返回的真实 token 用量；未提供用量时明确显示“Provider 未提供”。">
+          <SettingRow title="显示上下文使用情况" id="ai-context-usage-setting" description={<><Tag color={settings.aiRuntime.showContextUsage ? "green" : "default"}>当前已{settings.aiRuntime.showContextUsage ? "开启" : "关闭"}</Tag> 开启后，主聊和侧聊输入框下方显示当前模型的上下文占用与分项；Token 总量和缓存命中统计不受此开关影响。</>}>
             <SettingsSwitch label="显示上下文使用情况" checked={settings.aiRuntime.showContextUsage} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, showContextUsage: !settings.aiRuntime.showContextUsage })} />
+          </SettingRow>
+          <SettingRow title="自动压缩较早上下文" description="模型上下文接近容量时，先摘要较早对话再继续；关闭后保留现有上下文并遵循模型和请求预算。">
             <SettingsSwitch label="自动压缩较早上下文" checked={settings.aiRuntime.autoCompaction ?? DEFAULT_USER_SETTINGS.aiRuntime.autoCompaction!} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, autoCompaction: !(settings.aiRuntime.autoCompaction ?? DEFAULT_USER_SETTINGS.aiRuntime.autoCompaction!) })} />
-            <SettingRow title="模型窗口未知时的上下文容量" description="优先使用模型目录的实际窗口；未知时按此 token 数触发摘要。摘要使用当前模型并计入请求预算。">
-              <InputNumber min={4096} max={2000000} value={settings.aiRuntime.contextWindowTokens ?? DEFAULT_USER_SETTINGS.aiRuntime.contextWindowTokens!} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, contextWindowTokens: value })} />
-            </SettingRow>
+          </SettingRow>
+          <SettingRow title="模型窗口未知时的上下文容量" description="优先使用模型目录提供的窗口；仅在目录未知时按此容量触发摘要，摘要使用当前模型并计入请求预算。">
+            <InputNumber min={4096} max={2000000} value={settings.aiRuntime.contextWindowTokens ?? DEFAULT_USER_SETTINGS.aiRuntime.contextWindowTokens!} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, contextWindowTokens: value })} />
           </SettingRow>
         </SettingGroup>
       </section>
@@ -3088,7 +3111,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           })}
         </SettingGroup>
         <SettingGroup title="AI Runtime Hooks">
-          {runtimeHooks.length ? runtimeHooks.map((hook) => <SettingRow key={hook.id} title={hook.id} description={`订阅事件：${hook.events.map((event) => event === "beforeInference" ? "推理前" : "推理后").join("、")}`} status="受信任插件"><Tag>生命周期钩子</Tag></SettingRow>) : <SettingRow title="暂无已注册钩子" description="AI 推理钩子通过 Cordis 插件生命周期注册；钩子只能观察元数据，不能改变权限或 Provider 请求。" status="空目录"><Tag>0 项</Tag></SettingRow>}
+          {runtimeHooks.length ? runtimeHooks.map((hook) => <SettingRow key={hook.id} title={hook.id} description={`订阅事件：${hook.events.map((event) => event === "beforeInference" ? "推理前" : event === "afterInference" ? "推理后" : "模型请求路由").join("、")}`} status="受信任插件"><Tag>生命周期钩子</Tag></SettingRow>) : <SettingRow title="暂无已注册钩子" description="AI Runtime Hook 由 Cordis 插件生命周期注册；模型请求路由钩子只能从当前账户已配置模型中选择，并遵守其目录支持的思考档位。" status="空目录"><Tag>0 项</Tag></SettingRow>}
         </SettingGroup>
         </> : null}
         {pluginWorkspaceTab === "mcp" ? <>
@@ -3433,6 +3456,52 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         <GitWorktreesSettings />
       </section>
     );
+
+    if (activeSection === "browser") {
+      const selectedSection = sections.find(section => section.id === activeSection);
+      const toggleBrowserProvider = async (provider: BrowserProviderSummary, linked: boolean): Promise<void> => {
+        try {
+          if (linked) await closeBrowserProviderSessions(provider.id);
+          const enabledProviderIds = linked
+            ? settings.browserUse.enabledProviderIds.filter(id => id !== provider.id)
+            : [...settings.browserUse.enabledProviderIds, provider.id];
+          updateSettings("browserUse", { ...settings.browserUse, enabledProviderIds });
+        } catch (reason) {
+          message.error(getErrorMessage(reason));
+        }
+      };
+      return <section className="settings-content" role="tabpanel" id="settings-browser-panel" aria-labelledby="settings-browser-tab" tabIndex={0}>
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">{selectedSection?.group}</span><Typography.Title level={2}>浏览器</Typography.Title><Typography.Paragraph>接入 LFAA 内置隔离浏览器或 Tabbit 浏览器，并选择是否向 Agent 开放浏览器工具。接入只登记可用入口；个人浏览器标签仍需在本轮任务中明确选择。</Typography.Paragraph></div></header>
+        <SettingGroup title="Agent 浏览器控制">
+          <SettingRow title="让 Agent 控制浏览器" description="开启后，Agent 可以使用已接入且当前 Host 可用的浏览器，查看页面、JSON 与交互元素，并按权限模式执行有限操作。关闭只停用 Agent 工具，右侧预览台仍可由你直接使用。" status={settings.browserUse.enabled ? "已开启" : "默认关闭"}>
+            <SettingsSwitch label="允许 Agent 使用浏览器" checked={settings.browserUse.enabled} onChange={() => updateSettings("browserUse", { ...settings.browserUse, enabled: !settings.browserUse.enabled })} />
+          </SettingRow>
+          <SettingRow title="Agent 操作权限" description="浏览器点击、输入和导航统一遵循此权限模式；不为浏览器另设站点白名单或审批规则。" status={settings.permissions.mode === "ask" ? "请求审批" : settings.permissions.mode === "approve_remembered" ? "替我审批" : "完全访问"}><Button onClick={() => selectSection("permissions")}>管理权限模式</Button></SettingRow>
+        </SettingGroup>
+        <SettingGroup title="浏览器应用接入">
+          {browserProviders.status === "loading" && browserProviders.providers.length === 0 ? <SettingRow title="正在检查浏览器" description="只检查 Host 支持和浏览器启动器，不读取个人 Profile、标签或登录状态。" status="检查中"><Tag>检查中</Tag></SettingRow> : null}
+          {browserProviders.status === "error" ? <Alert type="error" showIcon message="无法读取浏览器 Host 状态" description={browserProviders.error} /> : null}
+          {browserProviders.status === "ready" && browserProviders.providers.length === 0 ? <SettingRow title="当前 Host 未提供本机浏览器" description="本机 Web/Desktop Host 装配隔离浏览器；远程 Web Host 不具备这项本机能力。" status="不可用"><Tag>不可用</Tag></SettingRow> : null}
+          {browserProviders.providers.map(provider => {
+            const linked = settings.browserUse.enabledProviderIds.includes(provider.id);
+            const personalControlMissing = provider.isolation === "user-profile" && !settings.computerControl.enabled;
+            return <SettingRow key={provider.id} title={provider.name} description={provider.isolation === "new-profile" ? "LFAA 为每个会话启动独立浏览器上下文；不读取系统浏览器 Cookie 或个人 Profile。" : "接入后可在工作区显式查看并选择 Tabbit 标签；不会自动读取标签、登录状态或历史记录。个人会话还要求开启电脑操控并由本轮用户目标明确指定。"} status={!provider.available ? "不可用" : personalControlMissing ? "需启用电脑操控" : linked ? "已接入 LFAA" : "未接入"}>
+              {!linked && personalControlMissing ? <Button onClick={() => selectSection("computerControl")}>前往电脑操控设置</Button> : <SettingsSwitch label={linked ? "断开" : "接入"} checked={linked} disabled={!provider.available} onChange={() => void toggleBrowserProvider(provider, linked)} />}
+            </SettingRow>;
+          })}
+        </SettingGroup>
+        <SettingGroup title="地址栏">
+          <SettingRow title="显示完整网址" description="开启后在 Browser Dock 地址栏展示路径、查询参数和片段；关闭时地址栏只显示站点来源，实际导航地址和 JSON 数据保持完整。" status={settings.browserUse.showFullUrl ? "完整地址" : "仅显示站点"}>
+            <SettingsSwitch label="显示完整网址" checked={settings.browserUse.showFullUrl} onChange={() => updateSettings("browserUse", { ...settings.browserUse, showFullUrl: !settings.browserUse.showFullUrl })} />
+          </SettingRow>
+        </SettingGroup>
+        <SettingGroup title="当前版本支持范围">
+          <SettingRow title="页面预览与检查" description="在工作区查看当前会话页面截图、文本、可访问元素和 JSON；页面与截图仅保留在运行时。" status="已接入"><Tag color="green">已接入</Tag></SettingRow>
+          <SettingRow title="历史记录、密码/联系信息、扩展和下载管理" description="这些浏览器服务尚未接入 LFAA 设置与数据 Owner，目前不提供管理控件。" status="未接入"><Tag>未接入</Tag></SettingRow>
+          <SettingRow title="网站摄像头/麦克风权限、WebMCP 与完整 CDP" description="站点权限与 WebMCP 尚未接入；完整 CDP 不开放，Agent 只使用 LFAA 登记的受限浏览器操作。" status="未接入"><Tag>未接入</Tag></SettingRow>
+        </SettingGroup>
+      </section>;
+    }
 
     const pending = pendingSections[activeSection];
     if (pending) {

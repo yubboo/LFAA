@@ -4,6 +4,7 @@ import { isAgentAssociations, type AgentAssociations } from "lfaa-util-values/sr
  * 该模块只定义会话语义；身份、持久化、API 和 UI 仍由 LFAA 现有 Owner 管理。
  */
 import { randomUUID } from "node:crypto";
+import type { SessionContextUsage } from "lfaa-session-persistence-jsonl/src/session-summary.js";
 
 export type SessionModelMessage = {
   role: "system" | "user" | "assistant" | "tool";
@@ -141,11 +142,11 @@ export interface SessionEventDataMap {
   "assistant/response": { runId: string; message: SessionModelMessage; stream?: string[]; usage?: { promptTokens: number | null; completionTokens: number | null } };
   "assistant/attempt": { runId: string; messages: SessionModelMessage[]; error?: { name: string; message: string }; stream?: string[] };
   "request/header": { runId: string; appId: string; providerId: string; modelId: string; permissionMode: string; settings: Record<string, unknown>; tools?: SessionToolSchema[]; reason?: SessionRequestHeaderReason; startsSeries?: true };
-  "request/context": { runId: string; messages: SessionModelMessage[]; contextWindow?: number; systemPromptUpdate?: "in-history" | "out-of-history" };
+  "request/context": { runId: string; messages: SessionModelMessage[]; contextWindow?: number; contextUsage?: SessionContextUsage; systemPromptUpdate?: "in-history" | "out-of-history" };
   "tool/call": { runId: string; callId: string; name: string; arguments: string; dispatched: boolean; headerSeq?: number };
   "tool/result": { runId: string; callId: string; content: string; isError: boolean; executionState: "complete" | "failed" | "unconfirmed" | "not_started"; repaired?: boolean };
   "activity/change": { runId: string; messageId: string; activity: unknown[] };
-  "usage/record": { runId: string; providerId: string; modelId: string; promptTokens: number | null; completionTokens: number | null };
+  "usage/record": { runId: string; providerId: string; modelId: string; promptTokens: number | null; completionTokens: number | null; cacheReadTokens?: number | null; purpose?: "turn" | "memory"; requestCount?: number; cacheReadReportedRequestCount?: number; cacheReadReportedTokens?: number };
   "session/end-seed": { sourceSessionId: string; sourceSeq: number; inheritedEventCount?: number };
 }
 
@@ -234,6 +235,17 @@ function modelMessage(value: unknown): value is SessionModelMessage {
     && record(call.function) && string(call.function.name) && string(call.function.arguments));
 }
 
+function sessionContextUsage(value: unknown): value is SessionContextUsage {
+  if (!record(value)) return false;
+  const count = (candidate: unknown) => Number.isSafeInteger(candidate) && Number(candidate) >= 0;
+  return string(value.providerId) && Boolean(value.providerId) && string(value.modelId) && Boolean(value.modelId)
+    && (value.contextWindow === null || Number.isSafeInteger(value.contextWindow) && Number(value.contextWindow) > 0)
+    && ["model-catalog", "settings-fallback", "unknown"].includes(String(value.contextWindowSource))
+    && (value.promptTokens === null || count(value.promptTokens))
+    && count(value.estimatedPromptTokens) && count(value.systemTokens) && count(value.toolsTokens) && count(value.messageTokens)
+    && typeof value.includesImages === "boolean";
+}
+
 function validatePayload(event: SessionEvent): void {
   const data = event.data as unknown;
   if (!record(data)) throw new Error(`Session 事件载荷无效：${event.type}`);
@@ -285,6 +297,7 @@ function validatePayload(event: SessionEvent): void {
           && record(tool.function) && string(tool.function.name) && string(tool.function.description) && record(tool.function.parameters)));
       case "request/context": return string(data.runId) && Array.isArray(data.messages) && data.messages.every(modelMessage)
         && (data.contextWindow === undefined || Number.isSafeInteger(data.contextWindow) && Number(data.contextWindow) > 0)
+        && (data.contextUsage === undefined || sessionContextUsage(data.contextUsage))
         && (data.systemPromptUpdate === undefined || ["in-history", "out-of-history"].includes(String(data.systemPromptUpdate)));
       case "tool/call": return string(data.runId) && string(data.callId) && string(data.name) && string(data.arguments) && typeof data.dispatched === "boolean"
         && (data.headerSeq === undefined || Number.isSafeInteger(data.headerSeq) && Number(data.headerSeq) > 0);
@@ -293,7 +306,12 @@ function validatePayload(event: SessionEvent): void {
         && (data.repaired === undefined || typeof data.repaired === "boolean");
       case "activity/change": return string(data.runId) && string(data.messageId) && Array.isArray(data.activity);
       case "usage/record": return string(data.runId) && string(data.providerId) && string(data.modelId)
-        && [data.promptTokens, data.completionTokens].every(value => value === null || typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
+        && [data.promptTokens, data.completionTokens].every(value => value === null || typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
+        && (data.cacheReadTokens === undefined || data.cacheReadTokens === null || typeof data.cacheReadTokens === "number" && Number.isSafeInteger(data.cacheReadTokens) && data.cacheReadTokens >= 0)
+        && (data.requestCount === undefined || Number.isSafeInteger(data.requestCount) && Number(data.requestCount) > 0)
+        && (data.cacheReadReportedRequestCount === undefined || Number.isSafeInteger(data.cacheReadReportedRequestCount) && Number(data.cacheReadReportedRequestCount) >= 0 && Number(data.cacheReadReportedRequestCount) <= Number(data.requestCount ?? 1))
+        && (data.cacheReadReportedTokens === undefined || Number.isSafeInteger(data.cacheReadReportedTokens) && Number(data.cacheReadReportedTokens) >= 0)
+        && (data.purpose === undefined || data.purpose === "turn" || data.purpose === "memory");
       case "session/branch-memory": return string(data.sourceSessionId) && Number.isSafeInteger(data.sourceSeq) && Number(data.sourceSeq) >= 0
         && string(data.sourceEventId) && string(data.summary) && data.summary.length > 0 && data.summary.length <= 16000 && data.version === 1;
       case "session/end-seed": return string(data.sourceSessionId) && Number.isSafeInteger(data.sourceSeq) && Number(data.sourceSeq) >= 0

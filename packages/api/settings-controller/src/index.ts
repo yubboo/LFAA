@@ -17,7 +17,7 @@ import { activateAiAccount, deleteAiAccount, deleteUserBackground, getUserBackgr
 import { cancelDataDirectoryChange, confirmDataDirectoryLocation, recommendDataDirectoryLocation, DataDirectorySettingsError, getDataDirectorySettings, requestDataDirectoryChange } from "lfaa-workspace-data-directory/src/service.js";
 import { confirmProjectContentDirectory, getProjectStorageLocations, saveProjectContentDirectory } from "lfaa-settings/src/project-storage.js";
 import { adoptProjectContentDirectory, compareProjectContentDirectories, copyProjectContentToDirectory, createProjectContentArchive, importProjectContentArchive } from "lfaa-settings/src/content-storage-migration.js";
-import { asyncHandler, parseBody, preferencesSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, projectContentStorageSchema, projectContentMigrationSchema, projectContentArchiveImportSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { asyncHandler, parseBody, preferencesSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, projectContentStorageSchema, projectContentMigrationSchema, projectContentArchiveImportSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
 export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher): void {
 
 function authorizeBusinessContentAction(userId: string, action: string, targetDirectory: string): void {
@@ -93,7 +93,8 @@ router.put("/settings/:category", requireAuthentication, (request, response) => 
       permissions: permissionsSettingsSchema,
       plugins: pluginsSettingsSchema,
       personalization: personalizationSettingsSchema,
-      "computer-control": computerControlSettingsSchema
+      "computer-control": computerControlSettingsSchema,
+      "browser-use": browserUseSettingsSchema
     };
     const schema = schemas[category];
     if (!schema) throw new ApiError(404, "settings_category_not_found", "找不到此设置分类。");

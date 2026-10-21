@@ -192,7 +192,7 @@ export class ConfigurationDomain {
         const key = JSON.stringify(keys[table]!.map(field => record[field]));
         if (keys[table]!.some(field => record[field] === null || record[field] === undefined) || seen.has(key)) throw new Error(`配置域 ${table} 的主键缺失或重复。`);
         seen.add(key);
-        if (table === "user_settings" && (!["general", "appearance", "shortcuts", "ai-runtime", "minecraft-runtime", "git", "permissions", "plugins", "personalization", "computer-control"].includes(String(record.category)) || typeof record.value_json !== "string")) throw new Error("用户设置记录无效。");
+        if (table === "user_settings" && (!["general", "appearance", "shortcuts", "ai-runtime", "minecraft-runtime", "git", "permissions", "plugins", "personalization", "computer-control", "browser-use"].includes(String(record.category)) || typeof record.value_json !== "string")) throw new Error("用户设置记录无效。");
         if (table === "user_preferences" && (!APPLICATION_IDS.includes(String(record.selected_app) as ApplicationId) || !["normal", "ai-work"].includes(String(record.selected_mode)))) throw new Error("应用偏好记录无效。");
         if ("install_mode" in record && !["online", "manual"].includes(String(record.install_mode))) throw new Error("SteamCMD 安装模式无效。");
         if ("id" in record && table.endsWith("defaults") && record.id !== 1) throw new Error("应用默认配置主键无效。");

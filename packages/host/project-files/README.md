@@ -5,3 +5,5 @@
 本包不持有 Agent 会话、仓库登记或权限，也不接受工具调用者提供的权限模式。Daemon 只保留 stdin/stdout 适配器，不复制文件业务规则。
 
 构建只写仓库根 `dist/packages/host/project-files/`。
+
+项目 Git 差异对根目录省略空 pathspec，并将未跟踪普通 UTF-8 文本与已跟踪差异一起返回；执行器禁用外部 diff/textconv，路径按 literal 传给 Git。差异输出最多 2 MiB、未跟踪文本最多 200 个文件/1 MiB，超过上限以 `diffTruncated` 标记；二进制、符号链接和无效 UTF-8 不按文本内容返回。

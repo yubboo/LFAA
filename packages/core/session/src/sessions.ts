@@ -11,6 +11,7 @@ import { randomUUID } from "node:crypto";
 import { isSessionReplyParts, type SessionReplyPart } from "./kernel.js";
 import { sessionRecords } from "lfaa-session-persistence-jsonl/src/repository.js";
 import type { SessionChange, SessionCommit } from "lfaa-session-persistence-jsonl/src/persistence.js";
+import type { SessionContextUsage, SessionUsageSummary } from "lfaa-session-persistence-jsonl/src/session-summary.js";
 import type { ApplicationId } from "lfaa-settings/src/preferences/service.js";
 import { SessionKernel, SessionStore, sessionRequestHeadersEqual, type SessionEvent, type SessionEventDataMap, type SessionEventType, type SessionModelMessage, type SessionSurfaceOperation } from "./kernel.js";
 export { SessionKernel, SessionStore };
@@ -64,8 +65,17 @@ export interface AiMessageView {
   status: "complete" | "queued" | "streaming" | "interrupted" | "error";
   createdAt: string;
   activity: AiActivityItem[];
+  usage?: AiMessageUsageView;
   parts?: SessionReplyPart[];
   feedback?: AiMessageFeedbackView;
+}
+
+export interface AiMessageUsageView {
+  providerId: string;
+  modelId: string;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  cacheReadTokens: number | null;
 }
 
 export interface AiMessageFeedbackView {
@@ -419,7 +429,7 @@ function commitSessionChanges(userId: string, sessionId: string, changes: Sessio
   sessionRecords.commit(sessionId, [...changes, ...sessionEventChanges(sessionId, specs, { userId, appId: session.app_id })]);
 }
 
-export function recordAiSessionRequest(userId: string, sessionId: string, runId: string, header: Omit<SessionEventDataMap["request/header"], "appId" | "runId"> & { appId?: string }, messages: SessionModelMessage[]): void {
+export function recordAiSessionRequest(userId: string, sessionId: string, runId: string, header: Omit<SessionEventDataMap["request/header"], "appId" | "runId"> & { appId?: string }, messages: SessionModelMessage[], contextUsage?: SessionContextUsage): void {
   const session = sessionRow(userId, sessionId);
   if (!session) throw new Error("找不到当前账户的 AI 会话。");
   const kernel = ensureSessionEventLog(session);
@@ -432,7 +442,7 @@ export function recordAiSessionRequest(userId: string, sessionId: string, runId:
     : !same ? "change" : previous.runId === runId ? "resume" : "series";
   appendAiSessionEvents(userId, sessionId, [
     eventSpec("request/header", { ...nextHeader, reason, ...(previous && previous.runId !== runId && same ? { startsSeries: true as const } : {}) }),
-    eventSpec("request/context", { runId, messages: safeMessages })
+    eventSpec("request/context", { runId, messages: safeMessages, ...(contextUsage?.contextWindow ? { contextWindow: contextUsage.contextWindow } : {}), ...(contextUsage ? { contextUsage } : {}) })
   ]);
 }
 
@@ -752,7 +762,25 @@ export function setAiSessionProject(userId: string, sessionId: string, project: 
   return mapSession(updated);
 }
 
-function mapMessage(row: MessageRow, feedback?: AiMessageFeedbackView): AiMessageView {
+function mapUsageEvent(value: unknown): AiMessageUsageView | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const event = value as Record<string, unknown>;
+  const data = event.data;
+  if (event.type !== "usage/record" || !data || typeof data !== "object" || Array.isArray(data)) return undefined;
+  const usage = data as Record<string, unknown>;
+  if (typeof usage.providerId !== "string" || typeof usage.modelId !== "string" || usage.purpose === "memory") return undefined;
+  const valid = (value: unknown) => value === null || Number.isSafeInteger(value) && Number(value) >= 0;
+  if (!valid(usage.promptTokens) || !valid(usage.completionTokens) || usage.cacheReadTokens !== undefined && !valid(usage.cacheReadTokens)) return undefined;
+  return {
+    providerId: usage.providerId,
+    modelId: usage.modelId,
+    promptTokens: usage.promptTokens as number | null,
+    completionTokens: usage.completionTokens as number | null,
+    cacheReadTokens: usage.cacheReadTokens === undefined ? null : usage.cacheReadTokens as number | null
+  };
+}
+
+function mapMessage(row: MessageRow, feedback?: AiMessageFeedbackView, usage?: AiMessageUsageView): AiMessageView {
   let activity: AiActivityItem[] = [];
   try {
     const value: unknown = JSON.parse(row.activity_json);
@@ -760,7 +788,7 @@ function mapMessage(row: MessageRow, feedback?: AiMessageFeedbackView): AiMessag
   } catch {
     // 单条消息的旧版或损坏活动 JSON 回退为空，不影响会话文本读取。
   }
-  return { id: row.id, role: row.role, content: row.content, status: row.status, createdAt: row.created_at, activity, ...(row.parts && isSessionReplyParts(row.parts, row.content.length) ? { parts: row.parts.map(({ id, start, end, kind }) => ({ id, start, end, kind })) } : {}), ...(feedback ? { feedback } : {}) };
+  return { id: row.id, role: row.role, content: row.content, status: row.status, createdAt: row.created_at, activity, ...(usage && row.role === "assistant" ? { usage } : {}), ...(row.parts && isSessionReplyParts(row.parts, row.content.length) ? { parts: row.parts.map(({ id, start, end, kind }) => ({ id, start, end, kind })) } : {}), ...(feedback ? { feedback } : {}) };
 }
 
 function mapMessageFeedback(event: Extract<SessionEvent, { type: "message/feedback" }>): AiMessageFeedbackView {
@@ -853,6 +881,21 @@ export function assertAiSessionQueryScope(userId: string, callerSessionId: strin
     && caller.workspace_directory === target.workspace_directory)) throw new Error("目标会话不在当前账户/App/项目的查询范围内。");
 }
 
+export interface AiSessionStorageLocation {
+  sessionId: string;
+  format: "jsonl";
+  rootDirectory: string;
+  sessionDirectory: string;
+  eventFile: string;
+}
+
+/** 只公开当前账户/App 会话的持久化位置；不检查文件是否存在，也不读取日志。 */
+export function getAiSessionStorageLocation(userId: string, appId: ApplicationId, sessionId: string): AiSessionStorageLocation | null {
+  const session = sessionRow(userId, sessionId);
+  if (!session || session.app_id !== appId) return null;
+  return { sessionId, format: "jsonl", ...sessionRecords.storageLocation(sessionId) };
+}
+
 /** 诊断只暴露执行结构和已展示消息；排除模型请求、内部指令、工具原始参数/输出及图像。 */
 export async function getAiQueryEventsPage(userId: string, callerSessionId: string, targetSessionId: string, input: { after: number; limit: number; query?: string; seq?: number }, signal?: AbortSignal): Promise<{ events: Record<string, unknown>[]; nextAfter: number | null }> {
   assertAiSessionQueryScope(userId, callerSessionId, targetSessionId);
@@ -876,10 +919,15 @@ export function getAiSessionMessages(userId: string, sessionId: string): AiMessa
   if (!session) return null;
   const kernel = ensureSessionEventLog(session);
   const feedbackByMessage = new Map<string, AiMessageFeedbackView>();
+  const usageByMessage = new Map<string, AiMessageUsageView>();
   for (const event of kernel.events) {
     if (event.type === "message/feedback") feedbackByMessage.set(event.data.messageId, mapMessageFeedback(event));
+    else if (event.type === "usage/record" && event.data.purpose !== "memory") {
+      const usage = mapUsageEvent(event);
+      if (usage) usageByMessage.set(event.data.runId, usage);
+    }
   }
-  return messageRows(sessionId, true).slice(-500).map(row => mapMessage(row, feedbackByMessage.get(row.id)));
+  return messageRows(sessionId, true).slice(-500).map(row => mapMessage(row, feedbackByMessage.get(row.id), usageByMessage.get(row.id)));
 }
 
 export class InvalidAiSessionMessageCursorError extends Error {
@@ -887,7 +935,7 @@ export class InvalidAiSessionMessageCursorError extends Error {
 }
 
 /** 按需异步读取单会话展示页；单次固定内存扫描校验完整 JSONL 哈希链，不恢复整份 Kernel。 */
-export async function getAiSessionMessagesPage(userId: string, sessionId: string, cursor: string | undefined, limit = 50, signal?: AbortSignal): Promise<{ messages: AiMessageView[]; nextCursor: string | null; branchSource?: AiSessionBranchSourceView } | null> {
+export async function getAiSessionMessagesPage(userId: string, sessionId: string, cursor: string | undefined, limit = 50, signal?: AbortSignal): Promise<{ messages: AiMessageView[]; nextCursor: string | null; branchSource?: AiSessionBranchSourceView; usageSummary: SessionUsageSummary; contextUsage: SessionContextUsage | null } | null> {
   const session = sessionRow(userId, sessionId);
   if (!session) return null;
   let before: { createdAt: string; order: number } | undefined;
@@ -907,10 +955,11 @@ export async function getAiSessionMessagesPage(userId: string, sessionId: string
     const data = event.data as Record<string, unknown>;
     if (typeof data.sourceSessionId === "string" && Number.isSafeInteger(data.sourceSeq) && Number(data.sourceSeq) >= 0) branchParentSessionId = data.sourceSessionId;
   }, signal);
-  const messages = page.items.map(({ message, feedback }) => {
+  const messages = page.items.map(({ message, feedback, usage: usageRecord }) => {
     const row = message as MessageRow;
     const event = feedback as Extract<SessionEvent, { type: "message/feedback" }> | undefined;
-    return event ? mapMessage(row, mapMessageFeedback(event)) : mapMessage(row);
+    const usage = mapUsageEvent(usageRecord);
+    return mapMessage(row, event ? mapMessageFeedback(event) : undefined, usage);
   });
   const oldest = page.items[0]?.message as MessageRow | undefined;
   const nextCursor = page.hasMore && oldest
@@ -922,7 +971,7 @@ export async function getAiSessionMessagesPage(userId: string, sessionId: string
       ? { title: parent.title, session: mapSession(parent, sessionRecords.planMode(parent.id)) }
       : { title: "来源会话已不可用", session: null }
     : undefined;
-  return { messages, nextCursor, ...(branchSource ? { branchSource } : {}) };
+  return { messages, nextCursor, ...(branchSource ? { branchSource } : {}), usageSummary: page.usageSummary, contextUsage: page.contextUsage };
 }
 
 /** 每条已完成助手消息接受一次有界反馈，并从唯一 Session 事件日志投影给会话 Owner。 */
@@ -1130,14 +1179,56 @@ interface UsageRow {
   prompt_tokens: number | null; completion_tokens: number | null; created_at: string;
 }
 
-export function recordAiUsage(userId: string, sessionId: string, messageId: string, providerId: string, modelId: string, promptTokens: number | null, completionTokens: number | null): void {
+export function recordAiUsage(userId: string, sessionId: string, messageId: string, providerId: string, modelId: string, promptTokens: number | null, completionTokens: number | null, cacheReadTokens: number | null = null, purpose: "turn" | "memory" = "turn", details: { requestCount?: number; cacheReadReportedRequestCount?: number; cacheReadReportedTokens?: number } = {}): void {
   if (!sessionRow(userId, sessionId)) return;
   const message = sessionRecords.get("ai_messages", messageId) as MessageRow | undefined;
   if (message?.session_id !== sessionId) return;
   const row: UsageRow = { id: randomUUID(), user_id: userId, session_id: sessionId, message_id: messageId, provider_id: providerId, model_id: modelId, prompt_tokens: promptTokens, completion_tokens: completionTokens, created_at: new Date().toISOString() };
-  commitSessionChanges(userId, sessionId, [change("ai_usage", row)], [eventSpec("usage/record", { runId: messageId, providerId, modelId, promptTokens, completionTokens }, row.created_at)]);
+  commitSessionChanges(userId, sessionId, [change("ai_usage", row)], [eventSpec("usage/record", { runId: messageId, providerId, modelId, promptTokens, completionTokens, cacheReadTokens, purpose, ...details }, row.created_at)]);
 }
 
 export function getAiUsageSummary(userId: string): AiUsageSummary {
   return sessionRecords.usageSummary(userId);
+}
+
+/** 查询归属账户内单个会话的累计真实 Provider 用量，不混合其他会话。 */
+export function getAiSessionTokenUsageSummary(userId: string, sessionId: string): SessionUsageSummary | null {
+  if (!sessionRow(userId, sessionId)) return null;
+  return sessionRecords.usageSummaryForSession(sessionId);
+}
+
+/** 在提交前将活动轮次的当前 Provider 计数叠加到已有会话汇总，供 SSE 展示而不写重复记录。 */
+export function previewAiSessionTokenUsageSummary(summary: SessionUsageSummary, providerId: string, modelId: string, usage: { promptTokens: number | null; completionTokens: number | null; cacheReadTokens: number | null; requestCount?: number; cacheReadReportedRequestCount?: number; cacheReadReportedTokens?: number }): SessionUsageSummary {
+  if (usage.promptTokens === null && usage.completionTokens === null && usage.cacheReadTokens === null && usage.requestCount === undefined) return summary;
+  const models = new Map(summary.models.map(model => [JSON.stringify([model.providerId, model.modelId]), { ...model }]));
+  const key = JSON.stringify([providerId, modelId]);
+  const previous = models.get(key);
+  const requestCount = usage.requestCount ?? 1;
+  const reportedRequestCount = usage.cacheReadReportedRequestCount ?? (usage.cacheReadTokens === null ? 0 : requestCount);
+  models.set(key, {
+    providerId, modelId,
+    requestCount: (previous?.requestCount ?? 0) + requestCount,
+    requestCountExact: previous?.requestCountExact !== false && usage.requestCount !== undefined,
+    promptTokens: previous ? previous.promptTokens === null || usage.promptTokens === null ? null : previous.promptTokens + usage.promptTokens : usage.promptTokens,
+    completionTokens: previous ? previous.completionTokens === null || usage.completionTokens === null ? null : previous.completionTokens + usage.completionTokens : usage.completionTokens,
+    cacheReadTokens: previous ? previous.cacheReadTokens === null || usage.cacheReadTokens === null ? null : previous.cacheReadTokens + usage.cacheReadTokens : usage.cacheReadTokens,
+    cacheReadReportedTokens: (previous?.cacheReadReportedTokens ?? 0) + (usage.cacheReadReportedTokens ?? (usage.cacheReadTokens ?? 0)),
+    cacheReadReportedRequestCount: previous?.cacheReadReportedRequestCount === null
+      ? null
+      : previous
+        ? previous.cacheReadReportedRequestCount + reportedRequestCount
+        : usage.requestCount === undefined ? null : reportedRequestCount
+  });
+  const values = [...models.values()];
+  const total = (field: "promptTokens" | "completionTokens" | "cacheReadTokens") => values.every(model => model[field] !== null)
+    ? values.reduce((sum, model) => sum + Number(model[field]), 0)
+    : null;
+  return {
+    requestCount: summary.requestCount + requestCount,
+    requestCountExact: summary.requestCountExact && usage.requestCount !== undefined,
+    promptTokens: total("promptTokens"),
+    completionTokens: total("completionTokens"),
+    cacheReadTokens: total("cacheReadTokens"),
+    models: values.sort((left, right) => left.providerId.localeCompare(right.providerId) || left.modelId.localeCompare(right.modelId))
+  };
 }

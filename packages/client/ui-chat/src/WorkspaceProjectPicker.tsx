@@ -71,7 +71,7 @@ export function WorkspaceProjectPicker({ appId, applicationName, projects, proje
   const unresolvedProjectTitle = selectedProjectTitle ?? (value ? "当前项目" : null);
   const unresolvedProjectStatus = projectListStatus === "loading" ? "正在确认" : projectListStatus === "error" ? "暂不可确认" : "已移除";
   const unresolvedProjectLabel = unresolvedProjectTitle
-    ? `${unresolvedProjectStatus} · ${unresolvedProjectTitle}`
+    ? projectListStatus === "loading" ? unresolvedProjectTitle : `${unresolvedProjectStatus} · ${unresolvedProjectTitle}`
     : projectListStatus === "loading" ? "正在读取项目…" : "选择项目文件夹";
   const unresolvedProjectDescription = projectListStatus === "loading"
     ? "正在读取项目目录登记，完成后再确认当前会话项目状态。"
@@ -302,7 +302,7 @@ export function WorkspaceProjectPicker({ appId, applicationName, projects, proje
 
   return <>
     <Popover open={open} onOpenChange={next => { setOpen(next); if (!next) setQuery(""); }} trigger="click" placement="topLeft" arrow={false} overlayClassName="ai-work-chat__project-overlay" content={projectMenu} getPopupContainer={trigger => trigger.closest<HTMLElement>(".workbench-shell") ?? trigger.parentElement ?? document.body}>
-      <Button className="ai-work-chat__project-trigger" type="text" disabled={disabled} aria-label={selected ? `当前项目：${selected.title}` : unresolvedProjectTitle ? `当前会话项目${unresolvedProjectStatus}：${unresolvedProjectTitle}` : `选择 ${applicationName} 项目文件夹`} title={selected?.path ?? unresolvedProjectDescription} icon={<WorkbenchIcon name="folder" size={13} />}><span className="ai-work-chat__project-trigger-label">{selected?.title ?? unresolvedProjectLabel}</span></Button>
+      <Button className="ai-work-chat__project-trigger" type="text" disabled={disabled} aria-label={selected ? `当前项目：${selected.title}` : unresolvedProjectTitle ? `当前会话项目${projectListStatus === "loading" ? "正在确认登记" : unresolvedProjectStatus}：${unresolvedProjectTitle}` : `选择 ${applicationName} 项目文件夹`} title={selected?.path ?? unresolvedProjectDescription} icon={<WorkbenchIcon name="folder" size={13} />}><span className="ai-work-chat__project-trigger-label">{selected?.title ?? unresolvedProjectLabel}</span></Button>
     </Popover>
     <Modal className="ai-work-chat__project-modal" title={`关联 ${applicationName} 项目文件夹`} open={createOpen} onCancel={() => { if (!saving) setCreateOpen(false); }} onOk={() => void registerCurrentDirectory()} okText="关联此文件夹" cancelText="取消" okButtonProps={{ disabled: !directoryPath || directoryLoading || saving }} cancelButtonProps={{ disabled: saving }} confirmLoading={saving} destroyOnHidden>
       <div className="ai-work-chat__project-browser">

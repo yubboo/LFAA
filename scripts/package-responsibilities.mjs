@@ -9,6 +9,7 @@ const annotations = {
   api: `account-controller:账户认证、个人资料与身份 API，调用身份 Owner
 agent-git-controller:Agent 本机 Git 仓库登记、会话绑定与固定操作认证 API
 ai-video-controller:账户 AI 视频项目与生成任务的认证 API
+browser-controller:浏览器预览台与本机 Browser Owner 的认证 API 适配
 connectivity-controller:联机目标、连接配置与节点网络操作 API
 github-connection-controller:GitHub OAuth 授权状态和只读仓库资源的认证 API 适配
 gateway:共享认证 API Gateway 与 Controller 路由承载

@@ -6,7 +6,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 import type { AiExtensionKind, AiExtensionManifest, AiExtensionRegistry } from "lfaa-agent/src/extension-registry.js";
-import type { AiRuntimeHookInfo, AiRuntimeHookRegistry, AiRuntimeHookResult } from "lfaa-hook-protocol/src/runtime-hooks.js";
+import type { AiRequestRouteEvent, AiRequestRouteResult, AiRuntimeHookInfo, AiRuntimeHookRegistry, AiRuntimeHookResult } from "lfaa-hook-protocol/src/runtime-hooks.js";
 import type { PluginRuntimeSnapshot } from "./plugin-runtime.js";
 import type { SkillLookupOptions, SkillSummary } from "lfaa-skill";
 import type { AiCompletionMessage } from "lfaa-llm/src/completion.js";
@@ -48,6 +48,7 @@ export interface AiPluginHost {
   loadInstruction?: (id: string, applicationId: ApplicationId) => Promise<AiExtensionManifest & { instructions: string }>;
   runBeforeInference(event: Parameters<AiRuntimeHookRegistry["beforeInference"]>[0]): AiRuntimeHookResult;
   runAfterInference(event: Parameters<AiRuntimeHookRegistry["afterInference"]>[0]): AiRuntimeHookResult;
+  runRequestRoute(event: Readonly<AiRequestRouteEvent>): Promise<AiRequestRouteResult>;
   close(): Promise<void>;
 }
 
@@ -78,6 +79,7 @@ export function createAiPluginHost(context: Context): AiPluginHost {
     loadInstruction: (id, applicationId) => (context.aiExtensions as AiExtensionRegistry).loadInstructions(id, applicationId),
     runBeforeInference: (event) => (context.aiRuntimeHooks as AiRuntimeHookRegistry).beforeInference(event),
     runAfterInference: (event) => (context.aiRuntimeHooks as AiRuntimeHookRegistry).afterInference(event),
+    runRequestRoute: (event) => (context.aiRuntimeHooks as AiRuntimeHookRegistry).requestRoute(event),
     close: async () => {
       if (closed) return;
       closed = true;

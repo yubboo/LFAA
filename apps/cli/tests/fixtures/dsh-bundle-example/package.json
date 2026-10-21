@@ -19,7 +19,7 @@
   },
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml"
+      "patch": ["./cordis.patch.yml", "./cordis.extra.patch.yml"]
     }
   }
 }

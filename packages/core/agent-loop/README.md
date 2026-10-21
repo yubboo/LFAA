@@ -16,6 +16,10 @@ AI Work 每次 Provider 请求的公开正文以稳定 ID 和起止范围标记�
 
 助手消息、主 Provider 用量和 `done` 事件提交后，才开始记忆提取。提取作为有界后台后处理运行：最多同时处理 4 个账户，每个账户最多 1 个任务；请求不带工具，输出上限为 512 token，超时为 30 秒。同账户已有新轮次或本地并发上限已满时跳过提取，并在活动记录中说明原因。成功提取记为触发该流程的助手消息上的独立 Provider 用量记录。提取错误不会改变已经完成的回答。
 
+主 Agent 回合累计这一轮全部模型请求的 prompt/output/cache-read usage，并以一个主回合 SSE 与 Session 记录发布；同时记录请求总数和 Provider 实际返回缓存读取计数的请求数，以便 UI 显示覆盖率。任一请求未上报的分量保持未知，不当成零；回复后的账户记忆提取仍保留独立用量事件，但标记为 `purpose=memory`，消息输入区的本轮统计不会将它混入主回答。
+
+每个真实 Provider 请求发送前，Loop 用 `lfaa-token-meter` 按最终模型可见的 system/messages/tools 生成上下文分项估算，并将当前账户模型目录容量（缺失时读取设置中心 `aiRuntime.contextWindowTokens`）及容量来源随 `request/context` 保存；响应后以 Provider 实际 prompt Token 更新上下文总量。SSE 发送请求前估算、响应后实际值及会话累计用量预览；缓存读取字段始终只采用 Provider usage。模型上下文统计由共享 UI 的 `aiRuntime.showContextUsage` 控制显示。
+
 发送前，循环会对当前用户消息和最终回答中的常见凭据、个人标识模式做本地启发式过滤；该过滤无法识别所有敏感表达，不处理工具参数、工具结果或较早的 Session 历史。Session Owner 会从持久化的模型快照中移除注入的记忆区块。
 
 用户提问能力由 `lfaa-user-questions` 插件提供。Agent Loop 注册 `agent-run` 回答者，将问题限定到当前账户、App 与 Run，再复用 Run 已有的等待、取消和 Session 活动/工具结果记录；回答作为原 `lfaa_ask_user` 工具结果继续，不创建普通用户消息。Client 将问题卡片嵌在提出问题的助手消息下，答案留在原卡片中。回答服务不另建问题持久化或交互界面。插件卸载时撤销回答者并取消其未完成请求。
@@ -38,7 +42,7 @@ Provider 协议归 `lfaa-llm`，MCP 协议归 `lfaa-mcp-client`。每次模型�
 
 本机及目标节点 Shell 活动会在 Session 既有活动说明中显示有长度上限、对常见凭据格式脱敏的命令预览；不写入 stdout/stderr 或原始工具结果，也不改变授权和派发路径。
 
-Provider 请求、隐藏推理与正文接收按当前活动 ID 顺序结束；阶段只结束一次，保留真实时长，不在正文开始或整轮完成后遗留“推理中”。本机 Shell 的失败和结果未知状态由 Tool Owner 返回；循环将它们分别记为 `failed`、`unconfirmed`，不当作成功写入。Shell 标记 retryAfterRecovery，仅在确认失败且其后有新的成功写入修复时允许模型再次选择同一命令；没有修复、结果未知及成功副作用仍按原规则防重。模型与思考力度仍取用户设置，任务规模指引不改变执行权限或工具范围。
+Provider 请求、隐藏推理与正文接收按当前活动 ID 顺序结束；阶段只结束一次，保留真实时长，不在正文开始或整轮完成后遗留“推理中”。本机 Shell 的失败和结果未知状态由 Tool Owner 返回；循环将它们分别记为 `failed`、`unconfirmed`，不当作成功写入。Shell 标记 retryAfterRecovery，仅在确认失败且其后有新的成功写入修复时允许模型再次选择同一命令；没有修复、结果未知及成功副作用仍按原规则防重。受信任 AI Runtime Hook 可为每次请求建议模型账户及思考档位；Agent Loop 逐项通过当前账户 Settings/凭据 Owner 重新解析，只接受该用户现存账户及模型目录声明的思考档位，未配置/不支持的建议会被忽略，权限模式、工具和消息不暴露为可变字段。用量按 Provider/模型分组持久化，UI 显示真实路由结果；关闭 `plugins.enabled` 时恢复本轮起始的用户选择。此接口是 LFAA Agent 的请求路由能力，不代表 DSH bundle 已能在 LFAA 中执行。
 
 项目文件 CRUD 活动只从成功的 Host/Daemon 文件执行结果记录操作类型和经校验的项目相对路径；Session 不保存正文、replace 片段或原始结果。Agent 绑定独立本机 Git 仓库时，文件与 Shell 默认使用该仓库，由 LFAA 本机 Host 执行；模型明确选择 Daemon 节点目标时才走节点任务。Git 上下文、文件目标与可选 Daemon 项目彼此分开，均服从同一 Agent Loop、Tool 和 Permission Owner。
 

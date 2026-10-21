@@ -6,6 +6,10 @@ Web/Desktop 共用的可调整工作台布局 Owner。`ResizableWorkbench` 负�
 
 常规使用者默认在 Mobile 将左右侧栏作为 Overlay。应用工作区可启用 `responsiveLeftDock`：当容器宽度至少达到中心区最小宽度、左栏最小宽度和分隔列之和时，左导航进入 Grid 并推动中心区；不足时仍使用 Overlay。`responsiveRightDock` 仅控制右侧 Dock；Compact/Mobile 右栏在右栏、当前 Surface 声明的最小中间区与分隔条可共存时，沿用与 Desktop 相同的 Grid、标准分隔条和拖拽 Owner，打开后推动中间区且不低于其最小宽度；空间不足时回退到共享的可拉伸 Overlay。Overlay 不改写已记忆的右栏宽度。Desktop 仍沿用原有两侧宽度预算。
 
+Mobile Overlay 侧栏根据工作台自身可用宽度铺展，并保留 12px 的另一侧内容间距，最大宽度为 320px；极窄容器下不使用固定的 240px 最小宽度挤压剩余内容。宽度继续由该共享 DockKit 的几何样式决定，不覆盖使用者保存的桌面 Dock 宽度。
+
+Mobile 左侧 Overlay 从工作台顶边开始展开；右侧 Overlay 仍避开所属 Surface 的顶栏。左侧栏没有额外的顶栏占位行。
+
 布局断点由工作台实际容器的 `ResizeObserver` 尺寸决定，不依赖浏览器窗口宽度。样式使用共享外观令牌，不创建主题或设置副本。
 
 `ApplicationWorkspace` 启用 `responsiveRightDock` 时，AI Work 中间区在 Desktop/Compact/Mobile 使用 300px 下限，右栏最大值允许覆盖该容器剩余宽度并在拖动时由动态预算保护中心下限。AI Work 左栏使用专属最大值规则（比例 0.26、320px 下限、440px 上限），其最小值、默认初始宽度和用户持久化格式不变。上述左右栏规则只用于这一模式；未启用它的 Settings、Plugin Manager 等共享 Surface 保留通用宽度计算。

@@ -6,18 +6,21 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { Alert, Button, Empty, Input, Spin } from "antd";
-import { ApiError, getErrorMessage, loadAiMessages, openAiSideChatSession, streamAiSideChat, type AiMessage, type AiSession, type ApplicationId } from "lfaa-client-connection/src/api.js";
+import { ApiError, getErrorMessage, loadAiMessages, openAiSideChatSession, streamAiSideChat, type AiContextUsage, type AiMessage, type AiSession, type AiSessionUsageSummary, type ApplicationId } from "lfaa-client-connection/src/api.js";
 import { AiMarkdown } from "./AiMarkdown.js";
+import { AiUsageFooter, type AiUsageLoadState } from "./AiUsageFooter.js";
 import "./ai-work-chat.css";
 
 interface AiWorkSideChatProps {
   appId: ApplicationId;
+  showContextUsage: boolean;
   sourceSessionId: string | null;
   sourceSessionTitle: string | null;
   open: boolean;
   initialQuestion: string;
   initialQuestionRevision: number;
   onClose: () => void;
+  onOpenSettings: (section?: "ai" | "permissions", focusTarget?: string) => void;
   onSessionCreated: (session: AiSession) => void;
 }
 
@@ -25,7 +28,15 @@ function appendMessage(messages: AiMessage[], message: AiMessage): AiMessage[] {
   return [...messages.filter((item) => item.id !== message.id), message];
 }
 
-export function AiWorkSideChat({ appId, sourceSessionId, sourceSessionTitle, open, initialQuestion, initialQuestionRevision, onClose, onSessionCreated }: AiWorkSideChatProps) {
+function latestAssistant(messages: AiMessage[]): AiMessage | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === "assistant") return message;
+  }
+  return null;
+}
+
+export function AiWorkSideChat({ appId, showContextUsage, sourceSessionId, sourceSessionTitle, open, initialQuestion, initialQuestionRevision, onClose, onOpenSettings, onSessionCreated }: AiWorkSideChatProps) {
   const [sideSession, setSideSession] = useState<AiSession | null>(null);
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -34,10 +45,15 @@ export function AiWorkSideChat({ appId, sourceSessionId, sourceSessionTitle, ope
   const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  const [usageSummary, setUsageSummary] = useState<AiSessionUsageSummary | null>(null);
+  const [usageLoadState, setUsageLoadState] = useState<AiUsageLoadState>("ready");
+  const [contextUsage, setContextUsage] = useState<AiContextUsage | null>(null);
+  const [hasAssistantMessage, setHasAssistantMessage] = useState(false);
   const [error, setError] = useState("");
   const sessionsBySource = useRef(new Map<string, AiSession>());
   const creationBySource = useRef(new Map<string, Promise<AiSession>>());
   const streamController = useRef<AbortController | null>(null);
+  const usageReceivedRef = useRef(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const olderMessagesScrollRestoreRef = useRef<{ height: number; top: number } | null>(null);
   const skipBottomScrollRef = useRef(false);
@@ -45,6 +61,10 @@ export function AiWorkSideChat({ appId, sourceSessionId, sourceSessionTitle, ope
   useLayoutEffect(() => {
     setMessagePageCursor(null);
     setHasOlderMessages(false);
+    setUsageSummary(null);
+    setUsageLoadState(sourceSessionId ? "loading" : "ready");
+    setContextUsage(null);
+    setHasAssistantMessage(false);
     olderMessagesScrollRestoreRef.current = null;
   }, [sourceSessionId]);
 
@@ -52,6 +72,7 @@ export function AiWorkSideChat({ appId, sourceSessionId, sourceSessionTitle, ope
     if (!open || !sourceSessionId) return;
     let alive = true;
     setLoading(true);
+    setUsageLoadState("loading");
     setMessagePageCursor(null);
     setHasOlderMessages(false);
     setError("");
@@ -72,11 +93,18 @@ export function AiWorkSideChat({ appId, sourceSessionId, sourceSessionTitle, ope
       const result = await loadAiMessages(session.id);
       if (alive) {
         setMessages(result.messages);
+        setUsageSummary(result.usageSummary);
+        setUsageLoadState("ready");
+        setContextUsage(result.contextUsage);
+        setHasAssistantMessage(Boolean(latestAssistant(result.messages)));
         setMessagePageCursor(result.nextCursor);
         setHasOlderMessages(Boolean(result.nextCursor));
       }
     }).catch((loadError: unknown) => {
-      if (alive) setError(getErrorMessage(loadError));
+      if (alive) {
+        setError(getErrorMessage(loadError));
+        setUsageLoadState("error");
+      }
     }).finally(() => {
       if (alive) setLoading(false);
     });
@@ -120,6 +148,8 @@ export function AiWorkSideChat({ appId, sourceSessionId, sourceSessionTitle, ope
       });
       setMessagePageCursor(result.nextCursor);
       setHasOlderMessages(Boolean(result.nextCursor));
+      setUsageSummary(result.usageSummary);
+      setContextUsage(result.contextUsage);
     } catch (loadError) {
       olderMessagesScrollRestoreRef.current = null;
       setError(`加载更早侧聊消息失败：${getErrorMessage(loadError)}`);
@@ -135,6 +165,8 @@ export function AiWorkSideChat({ appId, sourceSessionId, sourceSessionTitle, ope
     setDraft("");
     setError("");
     setSending(true);
+    setHasAssistantMessage(true);
+    usageReceivedRef.current = false;
     const controller = new AbortController();
     streamController.current = controller;
     try {
@@ -147,13 +179,23 @@ export function AiWorkSideChat({ appId, sourceSessionId, sourceSessionTitle, ope
           sessionsBySource.current.set(sourceSessionId!, session);
           setSideSession(session);
           onSessionCreated(session);
+          setHasAssistantMessage(true);
           setMessages((current) => appendMessage(appendMessage(current, userMessage), assistantMessage));
         },
         onActivity: () => undefined,
         onDelta: ({ messageId, delta }) => setMessages((current) => current.map((message) => message.id === messageId ? { ...message, content: message.content + delta } : message)),
-        onUsage: () => undefined,
+        onUsage: ({ messageId, sessionUsage: nextUsageSummary, ...usage }) => {
+          usageReceivedRef.current = true;
+          if (nextUsageSummary) setUsageSummary(nextUsageSummary);
+          setMessages((current) => current.map((message) => message.id === messageId ? { ...message, usage } : message));
+        },
+        onUsageProgress: ({ sessionUsage: nextUsageSummary }) => setUsageSummary(nextUsageSummary),
+        onContextUsage: ({ contextUsage: nextContextUsage }) => setContextUsage(nextContextUsage),
         onError: setError,
-        onDone: () => setSending(false)
+        onDone: () => {
+          setSending(false);
+          if (!usageReceivedRef.current) setHasAssistantMessage(true);
+        }
       });
     } catch (sendError) {
       if (!controller.signal.aborted) setError(sendError instanceof ApiError ? sendError.message : getErrorMessage(sendError));
@@ -183,6 +225,7 @@ export function AiWorkSideChat({ appId, sourceSessionId, sourceSessionTitle, ope
         <Input.TextArea aria-label="侧边聊天提问" placeholder="针对当前聊天提问…" value={draft} onChange={(event) => setDraft(event.target.value)} autoSize={{ minRows: 2, maxRows: 7 }} disabled={!sideSession || loading || sending} />
         <div><small>独立于主任务</small><Button type="primary" htmlType="submit" disabled={!draft.trim() || !sideSession || loading || sending} loading={sending}>发送</Button></div>
       </form>
+      <AiUsageFooter usageSummary={usageSummary} contextUsage={contextUsage} showContextUsage={showContextUsage} busy={sending} usageLoadState={usageLoadState} hasAssistantMessage={hasAssistantMessage} onOpenContextSettings={() => onOpenSettings("ai", "ai-context-usage-setting")} />
     </>}
   </section>;
 }

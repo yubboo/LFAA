@@ -38,11 +38,42 @@ export function buildResponseTimeline(message: AiMessage): { blocks: ResponseTim
 
 /** 文案只描述活动元数据，不据标签决定或执行业务。 */
 export function responseToolGroupLabel(activities: AiActivityItem[]): string {
+  const runningCount = activities.filter(activity => activity.status === "running").length;
+  if (runningCount) return `正在运行 ${runningCount} 项`;
+  const changedActivities = activities.filter(activity => activity.fileChanges?.some(change => change.operation !== "read"));
+  if (changedActivities.length === activities.length) {
+    const paths = new Set(changedActivities.flatMap(activity => activity.fileChanges!.filter(change => change.operation !== "read").map(change => change.path)));
+    return paths.size > 1 ? `更改了 ${paths.size} 个文件` : "编辑了文件";
+  }
+  const commandActivities = activities.filter(activity => activity.kind === "command" || activity.title === "执行本机命令" || activity.title === "执行游戏节点命令");
+  if (commandActivities.length === activities.length) return activities.length > 1 ? `运行了 ${activities.length} 条命令` : "运行了命令";
   const labels = activities.map(activity => activity.fileChanges?.some(change => change.operation !== "read") ? "编辑了文件"
     : activity.kind === "command" || activity.title === "执行本机命令" || activity.title === "执行游戏节点命令" ? "运行了命令"
       : activity.title === "搜索网页" && activity.status === "complete" ? "已搜索网页"
       : /搜索|网页|浏览/u.test(activity.title) ? activity.title
         : activity.title === "上下文管理" ? "已优化对话" : activity.title);
   const unique = [...new Set(labels)];
-  return unique.slice(0, 3).join(" · ") + (unique.length > 3 ? ` · 等 ${activities.length} 项操作` : "");
+  return unique.slice(0, 3).join(" · ") + (activities.length > 1 ? ` · ${activities.length} 项` : "");
+}
+
+/** 从现有活动摘要中拆出已经过 Owner 脱敏/限长的命令或网页预览；不读取或展示原始工具结果。 */
+export function splitAiActivityDetail(detail: string): { summary: string; previewLabel?: string; preview?: string } {
+  const markers = [
+    { label: "本机 PowerShell 命令预览", title: "Shell 命令" },
+    { label: "目标节点 Shell 命令预览", title: "Shell 命令" },
+    { label: "搜索查询", title: "搜索查询" },
+    { label: "读取网页", title: "网页地址" }
+  ];
+  for (const marker of markers) {
+    const token = `${marker.label}：\n`;
+    const markerIndex = detail.indexOf(token);
+    if (markerIndex < 0) continue;
+    const previewStart = markerIndex + token.length;
+    return {
+      summary: detail.slice(0, markerIndex).trim(),
+      previewLabel: marker.title,
+      preview: detail.slice(previewStart).trim()
+    };
+  }
+  return { summary: detail };
 }

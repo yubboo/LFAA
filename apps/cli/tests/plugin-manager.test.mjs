@@ -190,7 +190,7 @@ test('复制的 DSH 示例 Bundle 通过静态来源检查后仍被隔离且不�
   const inspected = await manager.inspect(source);
 
   assert.equal(inspected.compatibility, 'dsh-v1');
-  assert.equal(inspected.requirements.bundlePatch, 'cordis.patch.yml');
+  assert.deepEqual(inspected.requirements.bundlePatch, ['cordis.patch.yml', 'cordis.extra.patch.yml']);
   assert.equal(inspected.requirements.hostEntry, 'index.js');
   assert.equal(inspected.canEnable, false);
   assert.match(inspected.runtimeReason, /没有匹配.*LFAA 原生适配器/u);
@@ -199,6 +199,7 @@ test('复制的 DSH 示例 Bundle 通过静态来源检查后仍被隔离且不�
   assert.equal(installed.id, 'local--fixture-bundle');
   assert.equal(installed.state, 'incompatible');
   assert.deepEqual(installed.capabilities, ['dsh.bundle']);
+  assert.equal(readFileSync(resolve(data, 'profiles/dsh-example/local--fixture-bundle/cordis.extra.patch.yml'), 'utf8'), '# second ordered fixture patch\n');
   await assert.rejects(manager.setEnabled(installed.id, true), error => error.code === 'plugin_runtime_unsupported');
   assert.equal(manager.get(installed.id).state, 'incompatible');
   await manager.remove(installed.id);

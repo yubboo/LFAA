@@ -6,6 +6,8 @@
 
 `lfaa-session` 是 LFAA AI Work、Agent Loop 与会话 API 共用的唯一 Session Owner。Session 事件、消息、活动和用量沿用 `lfaa-session-persistence-jsonl` 的账户隔离 JSONL 事务日志；SQLite 继续保存授权查询所需的会话头投影。没有另建服务、数据根或 UI。
 
+消息页同时读取会话累计 Provider 用量和最新模型上下文快照；所有数值来自 `usage/record`、`request/context` 与模型响应事件，响应上下文总量使用 Provider prompt Token，文本/工具分项保留估算标记。缓存请求数及有缓存读取计数的请求数按 Provider/模型持久化；当前账户所有权仍由 Session Owner 校验。
+
 ## 内核能力
 
 - `kernel.ts` 提供带连续序号、普通 JSON 快照和深度冻结的类型化追加日志；拒绝循环/稀疏/非有限/非 JSON 值、跳号、非法事件和重入追加。LFAA 沿用现有事件格式，用 1 起始序号、事件 UUID、Session ID 和 ISO 时间；DSH 源格式使用 0 起始序号与数字时间。
@@ -31,7 +33,7 @@ LFAA 适配继续通过既有 `/ai/sessions`、`/ai/runs` 与 AI Work 消息投�
 
 ## 性能与安全边界
 
-通用 Session Query 通过本 Owner 校验当前运行会话及目标会话的账户/App/项目范围；无项目时只查自身。最多枚举 200 个活动和 200 个归档头，消息页继续用既有投影，结构事件页采用字段白名单，不提供模型请求、隐藏推理或原始工具参数/结果。读取共用 JSONL 单次异步扫描，不新增事件存储。
+通用 Session Query 通过本 Owner 校验当前运行会话及目标会话的账户/App/项目范围；无项目时只查自身。最多枚举 200 个活动和 200 个归档头，消息页继续用既有投影，结构事件页采用字段白名单，不提供模型请求、隐藏推理或原始工具参数/结果。当前会话位置查询仅返回调用上下文绑定会话的 JSONL 路径元数据，不返回文件正文或检查文件是否存在。读取共用 JSONL 单次异步扫描，不新增事件存储。
 
 - Session 事件写入共用 JSONL 事务和已有 SHA-256 链校验；最近 Header、Tool History 和派生消息按增量/代数缓存，实时 SessionStore 有界为 32 个对象。消息分页以异步流单次校验完整日志，扫描工作集有界，但 CPU 与磁盘读取仍随历史增长；历史事务去重索引仍常驻，后续索引/压缩和真实长会话时间/内存曲线尚未完成。
 - 事件 Header 不保存 Provider URL、API key 或认证头；Tool 参数/结果、模型输入上下文保存在受保护的 Host JSONL，不返回普通消息 API 或 Client 插件。
@@ -45,3 +47,5 @@ LFAA 适配继续通过既有 `/ai/sessions`、`/ai/runs` 与 AI Work 消息投�
 session/associations 为有界、不可变、可重放的引用事件；视图增量缓存，运行/归档时不改关联。记忆分支继承所选回答时点的关联；旧 App ID/历史不改写，共享项目与账户权限分开。
 
 构建只写仓库根 dist/packages/core/session/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
+
+`usage/record` 保存 Provider 实际返回的 `requestCount`、`cacheReadReportedRequestCount`、`cacheReadTokens` 和 `promptTokens`；分组汇总用报告计数表示真实字段覆盖率。旧事件缺少请求数或缓存读数时保留为未知，不推导命中数。普通消息投影只附加当前回答的主回合 usage，不把 `purpose=memory` 的后处理请求混为主回复用量；字段随已验证的 Session JSONL 分页回读，不另建用量表或客户端存储。

@@ -13,8 +13,10 @@ export {
   estimateText,
   estimateMessage,
   estimateToolSchemas,
-  estimatePromptTokens
+  estimatePromptTokens,
+  estimateContextBreakdown
 } from "./estimate.js";
+export type { ContextBreakdownEstimate } from "./estimate.js";
 export { UsageAccumulator } from "./usage.js";
 export type { UsageSummary } from "./usage.js";
 

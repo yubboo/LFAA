@@ -7,7 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { buildResponseTimeline, responseToolGroupLabel } from "../../../packages/client/ui-chat/src/response-timeline.ts";
+import { buildResponseTimeline, responseToolGroupLabel, splitAiActivityDetail } from "../../../packages/client/ui-chat/src/response-timeline.ts";
 import { createStreamDeltas } from "../../../packages/client/connection/src/stream-deltas.ts";
 import { appendAiTextDelta, streamAiChat } from "../../../packages/client/connection/src/api.ts";
 
@@ -36,21 +36,32 @@ test("正文与操作组、确认记录交错，终态只把最终正文放在�
   assert.ok(!JSON.stringify(result.blocks).includes("已经完成"));
   assert.equal(responseToolGroupLabel([{ ...activity("shell", 0, "tool"), title: "执行本机命令" }]), "运行了命令");
   assert.equal(responseToolGroupLabel([{ ...activity("file", 0, "tool"), fileChanges: [{ operation: "modified", path: "src/main.ts", projectId: "project" }] }]), "编辑了文件");
+  assert.equal(responseToolGroupLabel([activity("command-1", 0), activity("command-2", 0), activity("command-3", 0)]), "运行了 3 条命令");
+  assert.equal(responseToolGroupLabel([
+    { ...activity("file-1", 0, "tool"), fileChanges: [{ operation: "modified", path: "src/main.ts", projectId: "project" }] },
+    { ...activity("file-2", 0, "tool"), fileChanges: [{ operation: "created", path: "src/new.ts", projectId: "project" }] }
+  ]), "更改了 2 个文件");
+  assert.deepEqual(splitAiActivityDetail("命令执行完成。\n本机 PowerShell 命令预览：\nGet-ChildItem"), {
+    summary: "命令执行完成。", previewLabel: "Shell 命令", preview: "Get-ChildItem"
+  });
+  assert.deepEqual(splitAiActivityDetail("搜索网页完成。\n搜索查询：\nLFAA 工作台"), {
+    summary: "搜索网页完成。", previewLabel: "搜索查询", preview: "LFAA 工作台"
+  });
 });
 
 test("真实组件运行计时不可展开，工具组可展开；完成后过程默认折叠且答案在分隔线下", () => {
   // 独立进程使用 Web 的正式 JSX 编译配置，不为产品注入全局 React 或测试路由。
-  const render = message => execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", `
+  const render = (message, showInteractions = true) => execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", `
     import {createRequire} from 'node:module';
     const require=createRequire(${JSON.stringify(new URL("../../web/package.json", import.meta.url).href)});
     const {createElement}=require('react');const {renderToStaticMarkup}=require('react-dom/server');
     const {AiWorkResponse}=await import(${JSON.stringify(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url).href)});
-    console.log(renderToStaticMarkup(createElement(AiWorkResponse,{message:${JSON.stringify(message)},renderActivity:item=>createElement('span',{key:item.id},item.id),renderInteraction:item=>createElement('section',null,item.question,item.detail)})));
+    console.log(renderToStaticMarkup(createElement(AiWorkResponse,{message:${JSON.stringify(message)},renderActivity:item=>createElement('span',{key:item.id},item.id),renderInteraction:${showInteractions ? "item=>createElement('section',null,item.question,item.detail)" : "()=>null"}})));
   `], { cwd: fileURLToPath(new URL("..", import.meta.url)), env: { ...process.env, TSX_TSCONFIG_PATH: fileURLToPath(new URL("../../../tsconfig.client.json", import.meta.url)) }, encoding: "utf8" }).trim();
   const running = render(fixture("streaming"));
   assert.match(running, /response-duration" role="status">已处理 \d+ (?:小时|分钟|秒)/u);
   assert.doesNotMatch(running, /response-history/u);
-  assert.match(running, /<details class="ai-work-chat__tool-group">/u);
+  assert.match(running, /<details class="ai-work-chat__tool-group" open="">/u);
   const liveStart = running.indexOf('class="ai-work-chat__response-live"');
   assert.notEqual(liveStart, -1);
   const live = running.slice(liveStart);
@@ -63,6 +74,8 @@ test("真实组件运行计时不可展开，工具组可展开；完成后过�
   const finished = render(fixture());
   assert.match(finished, /<details class="ai-work-chat__response-history">/u);
   assert.doesNotMatch(finished, /<details[^>]*\bopen(?:=|\s|>)/u);
+  assert.doesNotMatch(finished, /<details class="ai-work-chat__tool-group"[^>]*\bopen=/u);
+  assert.doesNotMatch(render(fixture("streaming"), false), /ai-work-chat__response-interaction/u);
   const final = finished.slice(finished.indexOf('class="ai-work-chat__response-final"'));
   assert.match(final, /<strong>已经完成。<\/strong>/u);
   assert.doesNotMatch(final, /先核对现状|已找到问题|command-1/u);
@@ -107,4 +120,42 @@ test("真实 SSE 解析先刷新正文帧再交付分段终态，重连快照保
     onPresentation: value => { order.push("presentation"); message.parts = value.parts; }, onDone: () => order.push("done") });
   assert.equal(attempt, 2); assert.deepEqual(order, ["delta", "presentation", "done"]);
   assert.equal(message.content, "阶段结果"); assert.equal(message.parts[1].kind, "final");
+});
+
+test("AI Work SSE 保留缓存命中计数，旧 Provider 缺字段时维持未知", async t => {
+  const payloads = [
+    { messageId: "warm", promptTokens: 100, completionTokens: 8, cacheReadTokens: 76, providerId: "deepseek", modelId: "deepseek-flash" },
+    { messageId: "legacy", promptTokens: 40, completionTokens: 5, providerId: "legacy-provider", modelId: "legacy-model" }
+  ];
+  let requestIndex = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    const payload = payloads[requestIndex++];
+    return new Response(`event: usage\ndata: ${JSON.stringify(payload)}\n\nevent: done\ndata: {"status":"complete"}\n\n`, { headers: { "Content-Type": "text/event-stream" } });
+  });
+  const received = [];
+  for (let index = 0; index < payloads.length; index += 1) {
+    await streamAiChat({ runId: "run", appId: "workspace", sessionId: "session", content: "", signal: new AbortController().signal,
+      onSession() {}, onActivity() {}, onUsage: value => received.push(value), onError: assert.fail, onDelta() {}, onDone() {} });
+  }
+  assert.equal(received[0].cacheReadTokens, 76);
+  assert.deepEqual(received[1], { messageId: "legacy", promptTokens: 40, completionTokens: 5, cacheReadTokens: null, providerId: "legacy-provider", modelId: "legacy-model" });
+});
+
+test("AI Work SSE 传递会话累计用量与模型上下文的实时快照", async t => {
+  const sessionUsage = { requestCount: 2, promptTokens: 600, completionTokens: 24, cacheReadTokens: 180, models: [
+    { providerId: "deepseek", modelId: "flash", requestCount: 2, promptTokens: 600, completionTokens: 24, cacheReadTokens: 180 }
+  ] };
+  const contextUsage = { providerId: "deepseek", modelId: "flash", contextWindow: 64000, contextWindowSource: "model-catalog", promptTokens: 500, estimatedPromptTokens: 420, systemTokens: 100, toolsTokens: 120, messageTokens: 200, includesImages: false };
+  t.mock.method(globalThis, "fetch", async () => new Response([
+    `event: usage-progress\ndata: ${JSON.stringify({ messageId: "run", sessionUsage })}`,
+    `event: context-usage\ndata: ${JSON.stringify({ messageId: "run", contextUsage })}`,
+    `event: usage\ndata: ${JSON.stringify({ messageId: "run", promptTokens: 500, completionTokens: 12, cacheReadTokens: 150, providerId: "deepseek", modelId: "flash", sessionUsage })}`,
+    `event: done\ndata: {"status":"complete"}`
+  ].join("\n\n"), { headers: { "Content-Type": "text/event-stream" } }));
+  const progress = []; const contexts = []; const completedUsage = [];
+  await streamAiChat({ runId: "run", appId: "workspace", sessionId: "session", content: "", signal: new AbortController().signal,
+    onSession() {}, onActivity() {}, onUsage: value => completedUsage.push(value), onUsageProgress: value => progress.push(value), onContextUsage: value => contexts.push(value), onError: assert.fail, onDelta() {}, onDone() {} });
+  assert.deepEqual(progress, [{ messageId: "run", sessionUsage }]);
+  assert.deepEqual(contexts, [{ messageId: "run", contextUsage }]);
+  assert.deepEqual(completedUsage[0], { messageId: "run", promptTokens: 500, completionTokens: 12, cacheReadTokens: 150, providerId: "deepseek", modelId: "flash", sessionUsage });
 });

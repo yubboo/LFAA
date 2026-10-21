@@ -19,13 +19,14 @@ import { atomicWrite, atomicWriteBytes, decode } from "lfaa-storage-json/src/ind
 import { withControlLock } from "lfaa-storage-domain/src/control-lock.js";
 import { validateSettingsInput } from "./validation.js";
 import { APPLICATION_IDS, APPLICATION_NAVIGATION_IDS, type ApplicationId, type ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
+import { BROWSER_PROVIDER_IDS, type BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 import { credentialReference, normalizeCredentialRecord, type CredentialRecord, type CredentialRecordMetadata } from "lfaa-credentials/src/index.js";
-import { defaultReasoningMode, isSelectableReasoningMode, normalizeAccountReasoningMode, normalizeProviderModelThinking, normalizeStoredModelThinking, PROVIDER_MODEL_CAPABILITY_SOURCE } from "./model-capabilities.js";
+import { defaultReasoningMode, isSelectableReasoningMode, normalizeAccountReasoningMode, normalizeProviderModelThinking, normalizeStoredModelThinking, PROVIDER_MODEL_CAPABILITY_SOURCE, selectableReasoningValues } from "./model-capabilities.js";
 import type { AiModelCatalogEntry, AiModelThinkingControl } from "./model-capabilities.js";
 export type { AiModelCatalogEntry, AiModelThinkingControl } from "./model-capabilities.js";
 
-import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, DEFAULT_USER_SETTINGS, type SettingsCategory, type GeneralSettings, type AppearanceSettings, type AppearanceFonts, type AppearanceAdvancedSettings, type AppearanceBackgroundView, type ShortcutSettings, type UserSettings, type ComputerControlSettings, type PersonalizationSettings, type AiRuntimeSettings, type MinecraftRuntimeSettings, type GitSettings, type PermissionSettings, type UserCapabilityPrompt, type PluginSettings } from "lfaa-util-values/src/settings-contract.js";
-export type { SettingsCategory, GeneralSettings, AppearanceSettings, AppearanceFonts, AppearanceAdvancedSettings, AppearanceBackgroundView, ShortcutSettings, UserSettings, ComputerControlSettings, PersonalizationSettings, AiRuntimeSettings, MinecraftRuntimeSettings, GitSettings, PermissionSettings, UserCapabilityPrompt, PluginSettings } from "lfaa-util-values/src/settings-contract.js";
+import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, DEFAULT_USER_SETTINGS, type SettingsCategory, type GeneralSettings, type AppearanceSettings, type AppearanceFonts, type AppearanceAdvancedSettings, type AppearanceBackgroundView, type ShortcutSettings, type UserSettings, type ComputerControlSettings, type BrowserUseSettings, type PersonalizationSettings, type AiRuntimeSettings, type MinecraftRuntimeSettings, type GitSettings, type PermissionSettings, type UserCapabilityPrompt, type PluginSettings } from "lfaa-util-values/src/settings-contract.js";
+export type { SettingsCategory, GeneralSettings, AppearanceSettings, AppearanceFonts, AppearanceAdvancedSettings, AppearanceBackgroundView, ShortcutSettings, UserSettings, ComputerControlSettings, BrowserUseSettings, PersonalizationSettings, AiRuntimeSettings, MinecraftRuntimeSettings, GitSettings, PermissionSettings, UserCapabilityPrompt, PluginSettings } from "lfaa-util-values/src/settings-contract.js";
 export const defaultSettings: UserSettings = structuredClone(DEFAULT_USER_SETTINGS);
 
 const allowedAccentColors = new Set(["#3457d5", "#1687a7", "#27845b", "#8956bb", "#d05b37", "#d64d8f"]);
@@ -49,6 +50,7 @@ export function getUserSettings(userId: string): UserSettings {
     if (row.category === "plugins") result.plugins = readPluginSettings(value) ?? result.plugins;
     if (row.category === "personalization") result.personalization = readPersonalizationSettings(value);
     if (row.category === "computer-control") result.computerControl = readComputerControlSettings(value);
+    if (row.category === "browser-use") result.browserUse = readBrowserUseSettings(value);
     } catch {
       // 损坏的单项设置回退到默认值，不影响其他设置分类读取。
     }
@@ -242,6 +244,18 @@ function readComputerControlSettings(value: Record<string, unknown>): ComputerCo
   return { enabled: typeof value.enabled === "boolean" ? value.enabled : defaultSettings.computerControl.enabled };
 }
 
+function readBrowserUseSettings(value: Record<string, unknown>): BrowserUseSettings {
+  const validIds = new Set<string>(BROWSER_PROVIDER_IDS);
+  const enabledProviderIds = Array.isArray(value.enabledProviderIds)
+    ? [...new Set(value.enabledProviderIds.filter((id): id is BrowserProviderId => typeof id === "string" && validIds.has(id)))].slice(0, BROWSER_PROVIDER_IDS.length)
+    : defaultSettings.browserUse.enabledProviderIds;
+  return {
+    enabled: typeof value.enabled === "boolean" ? value.enabled : defaultSettings.browserUse.enabled,
+    enabledProviderIds,
+    showFullUrl: typeof value.showFullUrl === "boolean" ? value.showFullUrl : defaultSettings.browserUse.showFullUrl
+  };
+}
+
 function readPluginSettings(value: Record<string, unknown>): PluginSettings | null {
   if (typeof value.enabled !== "boolean") return null;
   const validApplicationIds = new Set<ApplicationId>(APPLICATION_IDS);
@@ -306,7 +320,7 @@ function readPluginSettings(value: Record<string, unknown>): PluginSettings | nu
 export function saveUserSettings(
   userId: string,
   category: SettingsCategory,
-  value: GeneralSettings | AppearanceSettings | ShortcutSettings | AiRuntimeSettings | MinecraftRuntimeSettings | GitSettings | PermissionSettings | PluginSettings | PersonalizationSettings | ComputerControlSettings
+  value: GeneralSettings | AppearanceSettings | ShortcutSettings | AiRuntimeSettings | MinecraftRuntimeSettings | GitSettings | PermissionSettings | PluginSettings | PersonalizationSettings | ComputerControlSettings | BrowserUseSettings
 ): void {
   // 旧客户端提交整类设置时保留后来新增的字段，显式提交仍采用用户新值。
   const submitted = value as unknown as Record<string, unknown>;
@@ -337,6 +351,11 @@ export function saveUserSettings(
   }
   if (category === "computer-control") {
     const normalized = readComputerControlSettings(value as unknown as Record<string, unknown>);
+    configuration.save("user_settings", { user_id: userId, category, value_json: JSON.stringify(normalized) });
+    return;
+  }
+  if (category === "browser-use") {
+    const normalized = readBrowserUseSettings(value as unknown as Record<string, unknown>);
     configuration.save("user_settings", { user_id: userId, category, value_json: JSON.stringify(normalized) });
     return;
   }
@@ -1128,6 +1147,15 @@ export interface AiAccountView {
   hasSecret: true;
 }
 
+/** 可供 LFAA Agent 本轮动态选择的已配置模型；不包含凭据、URL 或账户显示名。 */
+export interface AiModelRouteOption {
+  accountId: string;
+  providerId: string;
+  modelId: string;
+  reasoningMode: string;
+  reasoningModes: string[];
+}
+
 function mapAccount(row: AiAccountRow): AiAccountView {
   let rawModels: unknown = [];
   try { rawModels = JSON.parse(row.models_json) as unknown; } catch { /* 损坏的旧目录不会影响已保存账户的基本信息。 */ }
@@ -1142,6 +1170,20 @@ function accountRows(userId: string): AiAccountRow[] {
 
 export function listAiAccounts(userId: string): AiAccountView[] {
   return accountRows(userId).map(mapAccount);
+}
+
+/** 返回当前账户实际配置的模型路由目录；不根据模型名称猜测思考能力。 */
+export function listAiModelRoutes(userId: string): AiModelRouteOption[] {
+  return listAiAccounts(userId).slice(0, 128).map(account => {
+    const model = account.models.find(candidate => candidate.id === account.modelId);
+    return {
+      accountId: account.id,
+      providerId: account.providerId,
+      modelId: account.modelId,
+      reasoningMode: account.reasoningMode,
+      reasoningModes: ["default", ...selectableReasoningValues(model?.thinking ?? null)]
+    };
+  });
 }
 
 function getEncryptionKey(): Buffer {
@@ -1282,6 +1324,13 @@ export function resolveActiveAiModelConfiguration(userId: string, accountId?: st
   if (!details) return null;
   const secret = resolveAiModelAccountCredential(userId, details.accountId);
   return secret === null ? null : { ...details, secret };
+}
+
+/** 在不改写用户账户偏好的前提下，核验本次请求所选模型与目录支持的思考档位。 */
+export function resolveAiModelRouteDetails(userId: string, accountId: string, reasoningMode?: string): ActiveAiModelDetails | null {
+  const details = resolveActiveAiModelDetails(userId, accountId);
+  if (!details || (reasoningMode !== undefined && !isSelectableReasoningMode(details.thinking, reasoningMode))) return null;
+  return { ...details, ...(reasoningMode !== undefined ? { reasoningMode } : {}) };
 }
 
 export async function saveAiAccount(userId: string, input: AiProviderInput & { displayName: string; modelId: string; reasoningMode: string }): Promise<AiAccountView> {

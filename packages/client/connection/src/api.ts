@@ -17,10 +17,12 @@ import { isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createStreamDeltas } from "./stream-deltas.js";
 import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
+import type { BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 import type { TypertRemoteCallOptions, TypertRemoteClientContract } from "lfaa-typert-protocol/src/index.js";
 import { accountControllerRemoteMethods, type AccountControllerRemoteContract } from "lfaa-api-account-controller/src/client-contract.generated.js";
 
 export type { ApplicationId } from "lfaa-util-values/src/application-id.js";
+export type { BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 export type ApplicationMode = "normal" | "ai-work";
 export type UserRole = "super_admin" | "admin" | "member";
 
@@ -79,7 +81,7 @@ export interface UserPreferences {
 }
 
 import type { UserSettings } from "lfaa-util-values/src/settings-contract.js";
-export type { UserSettings, AppearanceFonts, AppearanceModeStyle, AppearanceAdvancedSettings, AppearanceSettings, AppearanceTextFont, AppearanceCodeFont } from "lfaa-util-values/src/settings-contract.js";
+export type { UserSettings, BrowserUseSettings, AppearanceFonts, AppearanceModeStyle, AppearanceAdvancedSettings, AppearanceSettings, AppearanceTextFont, AppearanceCodeFont } from "lfaa-util-values/src/settings-contract.js";
 export { DEFAULT_APPEARANCE_ADVANCED_SETTINGS } from "lfaa-util-values/src/settings-contract.js";
 
 export interface AppearanceBackground {
@@ -97,6 +99,27 @@ export interface AiProvider {
   options: Array<{ id: string; label: string; choices: Array<{ value: string; label: string }> }>;
   discovery: "api" | "official-list";
 }
+
+export interface BrowserProviderSummary {
+  id: BrowserProviderId;
+  name: string;
+  available: boolean;
+  reason?: string;
+  isolation: "new-profile" | "user-profile";
+}
+export interface BrowserTabSummary { tabId: number; title: string; url: string; active: boolean; state: string }
+export interface BrowserSessionSnapshot {
+  sessionId: string;
+  providerId: BrowserProviderId;
+  revision: number;
+  url: string;
+  title: string;
+  pageText: string;
+  controls: Array<{ role: string; name: string; type?: string; disabled: boolean }>;
+  tabs: Array<{ id: string; title: string; url: string; active: boolean }>;
+  screenshot: { mimeType: "image/jpeg"; dataBase64: string; width: number; height: number } | null;
+}
+export interface BrowserRevision { revision: number; url: string; title: string }
 
 export interface AiModel {
   id: string;
@@ -153,7 +176,7 @@ export interface AiExtension {
 
 export interface AiRuntimeHookInfo {
   id: string;
-  events: Array<"beforeInference" | "afterInference">;
+  events: Array<"beforeInference" | "afterInference" | "requestRoute">;
 }
 
 export interface AiToolApproval {
@@ -256,7 +279,7 @@ export interface ManagedPluginInspection {
   requirements: {
     dshVersion: string | null;
     hostEntry: string | null;
-    bundlePatch: string | null;
+    bundlePatch: string | string[] | null;
     clientEntry: string | null;
     clientPlatform: string | null;
     clientInject: string[];
@@ -636,8 +659,61 @@ export interface AiMessage {
   status: "complete" | "queued" | "streaming" | "interrupted" | "error";
   createdAt: string;
   activity: AiActivityItem[];
+  usage?: AiMessageUsage;
   parts?: AiReplyPart[];
   feedback?: AiMessageFeedback;
+}
+
+export interface AiMessageUsage {
+  providerId: string;
+  modelId: string;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  cacheReadTokens: number | null;
+  models?: Array<{ providerId: string; modelId: string; requestCount: number }>;
+}
+
+export interface AiSessionUsageModelSummary {
+  providerId: string;
+  modelId: string;
+  requestCount: number;
+  requestCountExact: boolean;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  cacheReadTokens: number | null;
+  cacheReadReportedTokens: number | null;
+  /** Number of requests for which the Provider returned an exact cache-read count; null for older projections. */
+  cacheReadReportedRequestCount: number | null;
+}
+
+export interface AiSessionUsageSummary {
+  requestCount: number;
+  requestCountExact: boolean;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  cacheReadTokens: number | null;
+  models: AiSessionUsageModelSummary[];
+}
+
+export interface AiContextUsage {
+  providerId: string;
+  modelId: string;
+  contextWindow: number | null;
+  contextWindowSource: "model-catalog" | "settings-fallback" | "unknown";
+  promptTokens: number | null;
+  estimatedPromptTokens: number;
+  systemTokens: number;
+  toolsTokens: number;
+  messageTokens: number;
+  includesImages: boolean;
+}
+
+export interface AiMessagePage {
+  messages: AiMessage[];
+  nextCursor: string | null;
+  branchSource?: AiSessionBranchSource;
+  usageSummary: AiSessionUsageSummary;
+  contextUsage: AiContextUsage | null;
 }
 
 /** 同一任务各次模型可见正文的范围，正文仍只有一份。 */
@@ -1115,6 +1191,46 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   }
   // 仅共享传输，不长期缓存 API 数据，也不让某个组件修改其他调用者的响应对象。
   return structuredClone(await pending) as T;
+}
+
+export function loadBrowserProviders(signal?: AbortSignal): Promise<{ providers: BrowserProviderSummary[]; personalBrowsersInspected: false }> {
+  return request("/browser/providers", signal ? { signal } : {});
+}
+
+export function loadBrowserSession(sessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot | null }> {
+  return request(`/browser/sessions/${encodeURIComponent(sessionId)}?${new URLSearchParams({ providerId })}`, signal ? { signal } : {});
+}
+
+export function loadBrowserTabs(sessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ tabs: BrowserTabSummary[] }> {
+  return request(`/browser/tabs/${encodeURIComponent(sessionId)}?${new URLSearchParams({ providerId })}`, signal ? { signal } : {});
+}
+
+export function connectTabbitBrowser(sessionId: string): Promise<{ tabs: BrowserTabSummary[]; settings: UserSettings }> {
+  return request("/browser/providers/tabbit-personal/connect", { method: "POST", body: JSON.stringify({ sourceSessionId: sessionId }) });
+}
+
+export function closeBrowserProviderSessions(providerId: BrowserProviderId): Promise<{ closed: boolean }> {
+  return request(`/browser/providers/${encodeURIComponent(providerId)}/sessions`, { method: "DELETE" });
+}
+
+export function claimBrowserTab(sessionId: string, providerId: BrowserProviderId, tabId: number, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot }> {
+  return request(`/browser/sessions/${encodeURIComponent(sessionId)}/claim`, { method: "POST", body: JSON.stringify({ providerId, tabId }), ...(signal ? { signal } : {}) });
+}
+
+export function loadBrowserRevision(sessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ session: BrowserRevision | null }> {
+  return request(`/browser/sessions/${encodeURIComponent(sessionId)}/revision?${new URLSearchParams({ providerId })}`, signal ? { signal } : {});
+}
+
+export function navigateBrowser(sessionId: string, providerId: BrowserProviderId, url: string, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot }> {
+  return request(`/browser/sessions/${encodeURIComponent(sessionId)}/navigate`, { method: "POST", body: JSON.stringify({ providerId, url }), ...(signal ? { signal } : {}) });
+}
+
+export function actOnBrowser(sessionId: string, providerId: BrowserProviderId, action: "back" | "forward" | "reload" | "clickAt", coordinates?: { x: number; y: number }, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot }> {
+  return request(`/browser/sessions/${encodeURIComponent(sessionId)}/action`, { method: "POST", body: JSON.stringify({ providerId, action, ...(coordinates ?? {}) }), ...(signal ? { signal } : {}) });
+}
+
+export function closeBrowserSession(sessionId: string, providerId: BrowserProviderId): Promise<{ closed: boolean }> {
+  return request(`/browser/sessions/${encodeURIComponent(sessionId)}?${new URLSearchParams({ providerId })}`, { method: "DELETE" });
 }
 
 async function requestOnce<T>(path: string, options: RequestInit): Promise<T> {
@@ -1852,7 +1968,7 @@ export function loadSettings(signal?: AbortSignal): Promise<{ settings: UserSett
 }
 
 export function saveSettings<K extends keyof UserSettings>(category: K, value: UserSettings[K]): Promise<{ settings: UserSettings }> {
-  const serverCategory = category === "aiRuntime" ? "ai-runtime" : category === "minecraftRuntime" ? "minecraft-runtime" : category === "computerControl" ? "computer-control" : category;
+  const serverCategory = category === "aiRuntime" ? "ai-runtime" : category === "minecraftRuntime" ? "minecraft-runtime" : category === "computerControl" ? "computer-control" : category === "browserUse" ? "browser-use" : category;
   return request<{ settings: UserSettings }>(`/settings/${serverCategory}`, {
     method: "PUT",
     body: JSON.stringify(value),
@@ -2100,10 +2216,10 @@ export function loadAiSessions(options: { archived?: boolean; appId?: Applicatio
   return request<{ sessions: AiSession[] }>(`/ai/sessions${query.size ? `?${query}` : ""}`, options.signal ? { signal: options.signal } : {});
 }
 
-export function loadAiMessages(sessionId: string, cursor?: string, signal?: AbortSignal): Promise<{ messages: AiMessage[]; nextCursor: string | null; branchSource?: AiSessionBranchSource }> {
+export function loadAiMessages(sessionId: string, cursor?: string, signal?: AbortSignal): Promise<AiMessagePage> {
   const query = new URLSearchParams({ limit: "50" });
   if (cursor) query.set("cursor", cursor);
-  return request<{ messages: AiMessage[]; nextCursor: string | null; branchSource?: AiSessionBranchSource }>(`/ai/sessions/${encodeURIComponent(sessionId)}/messages?${query}`, signal ? { signal } : {});
+  return request<AiMessagePage>(`/ai/sessions/${encodeURIComponent(sessionId)}/messages?${query}`, signal ? { signal } : {});
 }
 
 export function submitAiMessageFeedback(sessionId: string, messageId: string, feedback: AiMessageFeedbackInput): Promise<{ feedback: AiMessageFeedback }> {
@@ -2396,10 +2512,50 @@ type AiChatStreamInput = {
   onActivity: (value: { messageId: string; activity: AiActivityItem }) => void;
   onDelta: (value: AiTextDelta) => void;
   onPresentation?: (value: { messageId: string; parts: AiReplyPart[] }) => void;
-  onUsage: (value: { messageId: string; promptTokens: number | null; completionTokens: number | null; providerId: string; modelId: string }) => void;
+  onUsage: (value: { messageId: string; promptTokens: number | null; completionTokens: number | null; cacheReadTokens: number | null; providerId: string; modelId: string; models?: Array<{ providerId: string; modelId: string; requestCount: number }>; sessionUsage?: AiSessionUsageSummary }) => void;
+  onUsageProgress?: (value: { messageId: string; sessionUsage: AiSessionUsageSummary }) => void;
+  onContextUsage?: (value: { messageId: string; contextUsage: AiContextUsage }) => void;
   onError: (message: string) => void;
   onDone: (status: "complete" | "interrupted" | "error") => void;
 };
+
+function isNonnegativeSafeInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) >= 0;
+}
+
+function readAiSessionUsageSummary(value: unknown): AiSessionUsageSummary | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (!isNonnegativeSafeInteger(row.requestCount) || !(row.requestCountExact === undefined || typeof row.requestCountExact === "boolean") || !(row.promptTokens === null || isNonnegativeSafeInteger(row.promptTokens))
+    || !(row.completionTokens === null || isNonnegativeSafeInteger(row.completionTokens))
+    || !(row.cacheReadTokens === null || isNonnegativeSafeInteger(row.cacheReadTokens)) || !Array.isArray(row.models)) return null;
+  const models: AiSessionUsageModelSummary[] = [];
+  for (const candidate of row.models) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return null;
+    const model = candidate as Record<string, unknown>;
+    if (typeof model.providerId !== "string" || typeof model.modelId !== "string" || !isNonnegativeSafeInteger(model.requestCount)
+      || !(model.requestCountExact === undefined || typeof model.requestCountExact === "boolean")
+      || !(model.promptTokens === null || isNonnegativeSafeInteger(model.promptTokens))
+      || !(model.completionTokens === null || isNonnegativeSafeInteger(model.completionTokens))
+      || !(model.cacheReadTokens === null || isNonnegativeSafeInteger(model.cacheReadTokens))
+      || !(model.cacheReadReportedTokens === undefined || model.cacheReadReportedTokens === null || isNonnegativeSafeInteger(model.cacheReadReportedTokens))
+      || !(model.cacheReadReportedRequestCount === undefined || model.cacheReadReportedRequestCount === null || isNonnegativeSafeInteger(model.cacheReadReportedRequestCount))) return null;
+    models.push({ providerId: model.providerId, modelId: model.modelId, requestCount: model.requestCount, requestCountExact: model.requestCountExact === true, promptTokens: model.promptTokens, completionTokens: model.completionTokens, cacheReadTokens: model.cacheReadTokens, cacheReadReportedTokens: model.cacheReadReportedTokens === undefined ? null : model.cacheReadReportedTokens, cacheReadReportedRequestCount: model.cacheReadReportedRequestCount === undefined ? null : model.cacheReadReportedRequestCount });
+  }
+  return { requestCount: row.requestCount, requestCountExact: row.requestCountExact === true, promptTokens: row.promptTokens, completionTokens: row.completionTokens, cacheReadTokens: row.cacheReadTokens, models };
+}
+
+function readAiContextUsage(value: unknown): AiContextUsage | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.providerId !== "string" || typeof row.modelId !== "string"
+    || !(row.contextWindow === null || isNonnegativeSafeInteger(row.contextWindow) && row.contextWindow > 0)
+    || !(row.contextWindowSource === "model-catalog" || row.contextWindowSource === "settings-fallback" || row.contextWindowSource === "unknown")
+    || !(row.promptTokens === null || isNonnegativeSafeInteger(row.promptTokens))
+    || !isNonnegativeSafeInteger(row.estimatedPromptTokens) || !isNonnegativeSafeInteger(row.systemTokens)
+    || !isNonnegativeSafeInteger(row.toolsTokens) || !isNonnegativeSafeInteger(row.messageTokens) || typeof row.includesImages !== "boolean") return null;
+  return { providerId: row.providerId, modelId: row.modelId, contextWindow: row.contextWindow, contextWindowSource: row.contextWindowSource, promptTokens: row.promptTokens, estimatedPromptTokens: row.estimatedPromptTokens, systemTokens: row.systemTokens, toolsTokens: row.toolsTokens, messageTokens: row.messageTokens, includesImages: row.includesImages };
+}
 
 export function streamAiChat(input: AiChatStreamInput): Promise<void> {
   return streamAiChatAt(input, "/api/ai/chat/stream");
@@ -2509,7 +2665,25 @@ async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string):
         }
         if (eventName === "delta" && typeof payload.messageId === "string" && typeof payload.delta === "string") deltas.push({ messageId: payload.messageId, delta: payload.delta, ...(typeof payload.partId === "string" && typeof payload.partStart === "number" ? { partId: payload.partId, partStart: payload.partStart } : {}) });
         if (eventName === "presentation" && typeof payload.messageId === "string" && Array.isArray(payload.parts)) input.onPresentation?.({ messageId: payload.messageId, parts: payload.parts as AiReplyPart[] });
-        if (eventName === "usage" && typeof payload.providerId === "string" && typeof payload.modelId === "string") input.onUsage({ messageId: typeof payload.messageId === "string" ? payload.messageId : "", promptTokens: typeof payload.promptTokens === "number" ? payload.promptTokens : null, completionTokens: typeof payload.completionTokens === "number" ? payload.completionTokens : null, providerId: payload.providerId, modelId: payload.modelId });
+        if (eventName === "usage" && typeof payload.providerId === "string" && typeof payload.modelId === "string") {
+          const sessionUsage = readAiSessionUsageSummary(payload.sessionUsage);
+          const models = Array.isArray(payload.models) ? payload.models.slice(0, 64).flatMap(value => {
+            if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+            const model = value as Record<string, unknown>;
+            return typeof model.providerId === "string" && model.providerId.length <= 160 && typeof model.modelId === "string" && model.modelId.length <= 160 && isNonnegativeSafeInteger(model.requestCount)
+              ? [{ providerId: model.providerId, modelId: model.modelId, requestCount: model.requestCount }]
+              : [];
+          }) : [];
+          input.onUsage({ messageId: typeof payload.messageId === "string" ? payload.messageId : "", promptTokens: typeof payload.promptTokens === "number" ? payload.promptTokens : null, completionTokens: typeof payload.completionTokens === "number" ? payload.completionTokens : null, cacheReadTokens: typeof payload.cacheReadTokens === "number" ? payload.cacheReadTokens : null, providerId: payload.providerId, modelId: payload.modelId, ...(models.length ? { models } : {}), ...(sessionUsage ? { sessionUsage } : {}) });
+        }
+        if (eventName === "usage-progress" && typeof payload.messageId === "string") {
+          const sessionUsage = readAiSessionUsageSummary(payload.sessionUsage);
+          if (sessionUsage) input.onUsageProgress?.({ messageId: payload.messageId, sessionUsage });
+        }
+        if (eventName === "context-usage" && typeof payload.messageId === "string") {
+          const contextUsage = readAiContextUsage(payload.contextUsage);
+          if (contextUsage) input.onContextUsage?.({ messageId: payload.messageId, contextUsage });
+        }
         if (eventName === "error" && typeof payload.message === "string") input.onError(payload.message);
         if (eventName === "done" && (payload.status === "complete" || payload.status === "interrupted" || payload.status === "error")) {
           doneReceived = true;

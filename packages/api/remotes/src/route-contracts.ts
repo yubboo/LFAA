@@ -173,7 +173,7 @@ export const preferencesSchema = Joi.object({
   selectedMode: Joi.string().valid("normal", "ai-work").required()
 });
 
-export { appearanceBackgroundIdSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, appearanceFontsSchema, appearanceModeStyleSchema, appearanceSettingsSchema, shortcutBindingsSchema, shortcutsSchema } from "lfaa-settings/src/validation.js";
+export { appearanceBackgroundIdSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, appearanceFontsSchema, appearanceModeStyleSchema, appearanceSettingsSchema, shortcutBindingsSchema, shortcutsSchema } from "lfaa-settings/src/validation.js";
 
 export const aiProbeSchema = Joi.object({
   providerId: Joi.string().valid("openai", "deepseek", "doubao", "qwen", "kimi", "zhipu", "xiaomi").required(),

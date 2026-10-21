@@ -47,7 +47,7 @@ interface PackageManifest { name?: unknown; version?: unknown; description?: unk
 export interface PluginRequirements {
   dshVersion: string | null;
   hostEntry: string | null;
-  bundlePatch: string | null;
+  bundlePatch: string | string[] | null;
   clientEntry: string | null;
   clientPlatform: string | null;
   clientInject: string[];
@@ -589,7 +589,8 @@ function inspectRequirements(snapshot: PluginSourceSnapshot): PluginRequirements
   const peerDependencies = safeManifestStringMap(manifest.peerDependencies);
   const packageDependencies = safeManifestKeys(manifest.dependencies);
   const declaredScripts = safeManifestKeys(manifest.scripts);
-  const dshPatch = safePackagePath(dshBundle?.patch, files);
+  const dshPatchPaths = safePackagePaths(dshBundle?.patch, files);
+  const dshPatch = dshPatchPaths === null ? null : typeof dshBundle?.patch === "string" ? dshPatchPaths[0] ?? null : dshPatchPaths;
   const hostEntry = safePackagePath(manifest.main, files);
   const clientExport = isRecord(manifest.exports) ? manifest.exports["./client"] : undefined;
   const clientDefault = isRecord(clientExport) ? clientExport.default : undefined;
@@ -619,6 +620,15 @@ function safePackagePath(value: unknown, files: Set<string>): string | null {
   return normalized;
 }
 
+/** DSH bundles may apply one patch file or a bounded ordered list of patch files. */
+function safePackagePaths(value: unknown, files: Set<string>): string[] | null {
+  const declared = typeof value === "string" ? [value] : value;
+  if (!Array.isArray(declared) || declared.length === 0 || declared.length > 16 || !declared.every((item) => typeof item === "string")) return null;
+  const resolved = declared.map((item) => safePackagePath(item, files));
+  if (resolved.some((item) => item === null) || new Set(resolved).size !== resolved.length) return null;
+  return resolved as string[];
+}
+
 function safeManifestKeys(value: unknown): string[] {
   if (!isRecord(value)) return [];
   return Object.keys(value).filter((key) => /^[A-Za-z0-9@._/-]{1,120}$/u.test(key)).sort().slice(0, 64);
@@ -641,9 +651,8 @@ function hasDshBundle(files: PluginArchiveFile[]): boolean {
   const packageFile = files.find((file) => file.path === "package.json");
   if (!packageFile) return false;
   const manifest = JSON.parse(packageFile.contents.toString("utf8")) as PackageManifest;
-  if (!isRecord(manifest.dsh) || !isRecord(manifest.dsh.bundle) || typeof manifest.dsh.bundle.patch !== "string") return false;
-  const patchPath = manifest.dsh.bundle.patch.replace(/^\.\//u, "");
-  return files.some((file) => file.path === patchPath);
+  if (!isRecord(manifest.dsh) || !isRecord(manifest.dsh.bundle)) return false;
+  return safePackagePaths(manifest.dsh.bundle.patch, new Set(files.map((file) => file.path))) !== null;
 }
 
 function resolvePluginEntry(value: unknown, files: PluginArchiveFile[]): string | null {

@@ -70,6 +70,12 @@
       "lfaa-api-ai-video-controller/src/*": [
         "packages/api/ai-video-controller/src/*"
       ],
+      "lfaa-api-browser-controller": [
+        "packages/api/browser-controller/src/index.ts"
+      ],
+      "lfaa-api-browser-controller/src/*": [
+        "packages/api/browser-controller/src/*"
+      ],
       "lfaa-api-connectivity-controller": [
         "packages/api/connectivity-controller/src/index.ts"
       ],
@@ -190,6 +196,12 @@
       "lfaa-bash-sandbox/src/*": [
         "packages/shell/bash-sandbox/src/*"
       ],
+      "lfaa-browser-use": [
+        "packages/browser-use/browser-use/src/index.ts"
+      ],
+      "lfaa-browser-use/src/*": [
+        "packages/browser-use/browser-use/src/*"
+      ],
       "lfaa-capability-installs": [
         "packages/boot/capability-installs/src/index.ts"
       ],
@@ -309,6 +321,12 @@
       ],
       "lfaa-client-ui-sidebar": [
         "packages/client/ui-sidebar/src/index.ts"
+      ],
+      "lfaa-client-ui-sidebar-browser": [
+        "packages/client/ui-sidebar-browser/src/index.ts"
+      ],
+      "lfaa-client-ui-sidebar-browser/src/*": [
+        "packages/client/ui-sidebar-browser/src/*"
       ],
       "lfaa-client-ui-sidebar-files": [
         "packages/client/ui-sidebar-files/src/index.ts"

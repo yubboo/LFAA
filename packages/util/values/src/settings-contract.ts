@@ -4,12 +4,13 @@
  * 关联文件：settings/settings/src/service.ts、client/connection/src/api.ts、ui-settings-general/src/default-settings.ts。
  */
 import type { ApplicationId, ApplicationNavigationId } from "./application-id.js";
+import type { BrowserProviderId } from "./browser-provider.js";
 
 export type AppearanceTextFont = "system" | "sans" | "serif";
 export type AppearanceCodeFont = "system" | "cascadia" | "consolas" | "jetbrains";
 export interface AppearanceModeStyle { accentColor: string; fonts: AppearanceFonts }
 
-export type SettingsCategory = "general" | "appearance" | "shortcuts" | "ai-runtime" | "minecraft-runtime" | "git" | "permissions" | "plugins" | "personalization" | "computer-control";
+export type SettingsCategory = "general" | "appearance" | "shortcuts" | "ai-runtime" | "minecraft-runtime" | "git" | "permissions" | "plugins" | "personalization" | "computer-control" | "browser-use";
 
 export const UI_MOTION_EFFECT_OPTIONS = [
   { id: "fluid", label: "柔和流体", cardDescription: "轻轻淡入、错开上浮；默认效果。", dialogDescription: "轻柔淡入、微缩放并顺势落位；默认效果。" },
@@ -137,10 +138,20 @@ export interface UserSettings {
   plugins: PluginSettings;
   personalization: PersonalizationSettings;
   computerControl: ComputerControlSettings;
+  browserUse: BrowserUseSettings;
 }
 
 export interface ComputerControlSettings {
   enabled: boolean;
+}
+
+export interface BrowserUseSettings {
+  /** 是否向 Agent 提供浏览器操作工具；所有动作仍由 permissions.mode 授权。 */
+  enabled: boolean;
+  /** 用户接入到 LFAA 的浏览器应用；空数组表示不接入任何浏览器。 */
+  enabledProviderIds: BrowserProviderId[];
+  /** 是否在浏览器地址栏展示完整路径、查询参数与片段。 */
+  showFullUrl: boolean;
 }
 
 export interface PersonalizationSettings {
@@ -307,6 +318,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   permissions: { mode: "ask" },
   plugins: { enabled: false, mcpServers: [], prompts: [], skillDirectories: [], disabledSkillNames: [] },
   personalization: { memoryEnabled: false, memoryFromToolChats: false },
-  computerControl: { enabled: false }
+  computerControl: { enabled: false },
+  browserUse: { enabled: false, enabledProviderIds: [], showFullUrl: false }
 };
 

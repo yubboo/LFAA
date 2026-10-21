@@ -9,9 +9,9 @@ import { loadAiSkillDirectory } from "lfaa-client-connection/src/api.js";
 import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
 import { sidebarRightRuntime, useSidebarRightSnapshot } from "./sidebar-right-runtime.js";
 
-import { createElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Alert, Button, Dropdown, Popover, Tag, Typography } from "antd";
-import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadWorkspaceProjects, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
+import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadWorkspaceProjects, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import type { AiWorkGoalRequest, AiWorkNotification, AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
 import type { WorkbenchLayoutMode } from "lfaa-client-ui-dockkit/src/workbench-layout.types.js";
@@ -31,6 +31,7 @@ import "./module-workbench.css";
 // 按当前应用模式分别加载业务面板，避免工作台外壳等待无关应用代码。
 const AiWorkChat = lazy(() => loadClientModule<typeof import("lfaa-client-ui-chat/src/AiWorkChat.js")>("lfaa-client-ui-chat/src/AiWorkChat.js").then((module) => ({ default: module.AiWorkChat })));
 const AiWorkSideChat = lazy(() => loadClientModule<typeof import("lfaa-client-ui-chat/src/AiWorkSideChat.js")>("lfaa-client-ui-chat/src/AiWorkSideChat.js").then((module) => ({ default: module.AiWorkSideChat })));
+const BrowserPanel = lazy(() => loadClientModule<typeof import("lfaa-client-ui-sidebar-browser/src/BrowserPanel.js")>("lfaa-client-ui-sidebar-browser/src/BrowserPanel.js").then(module => ({ default: module.BrowserPanel })));
 const GitChangeSummary = lazy(() => import("./GitChangeSummary.js").then((module) => ({ default: module.GitChangeSummary })));
 const GitChangeActivityReview = lazy(() => import("./GitChangeSummary.js").then((module) => ({ default: module.GitChangeActivityReview })));
 const MinecraftWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-minecraft/src/MinecraftWorkspace.js")>("lfaa-client-ui-minecraft/src/MinecraftWorkspace.js").then((module) => ({ default: module.MinecraftWorkspace })));
@@ -73,7 +74,7 @@ interface ApplicationWorkspaceProps {
   onBack: () => void;
   onSelectedModeHome: () => void;
   onOpenSelectedApplication: () => Promise<void>;
-  onOpenSettings: (section?: "ai" | "permissions") => void;
+  onOpenSettings: (section?: "ai" | "permissions", focusTarget?: string) => void;
   onOpenApplication: (app: ApplicationId, mode: ApplicationMode) => Promise<void>;
   recentSessionsOpenRequestId: number | null;
   onRecentSessionsOpenRequestHandled: (requestId: number) => void;
@@ -107,6 +108,8 @@ const LAYOUT_KEY = "lfaa.module-workbench.layout.v1";
 const aiExtensionSnapshots = new Map<string, AiExtension[]>();
 const aiSessionSnapshots = new Map<string, AiSession[]>();
 const workspaceProjectSnapshots = new Map<string, { projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean; defaultProjectId?: string | null }>();
+const initializedDefaultWorkspaceUsers = new Set<string>();
+const emptySessionFileChanges: AiActivityFileChange[] = [];
 type NavigationLayout = UserSettings["general"]["navigationLayout"];
 
 interface ChromeStorageMetadata {
@@ -191,12 +194,15 @@ interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userI
   sessionsError: string;
   chatBusy: boolean;
   providerStatus: string | null;
+  gitSummaryOpen: boolean;
+  gitSummaryContent: ReactNode;
   onNewSession: (projectId?: string) => void;
   onSelectSession: (sessionId: string) => void;
   onArchiveSession: (session: AiSession) => void;
+  onCloseGitSummary: () => void;
 }
 
-function ApplicationSidebar({ userId, app, mode, apps, layoutMode, onNavigate, onOpenApplication, onOpenSelectedApplication, onToggleLeft, notifications, onMarkNotificationsRead, onClearNotifications, onOpenNotification, sessions, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, chatBusy, providerStatus, onNewSession, onSelectSession, onArchiveSession }: ApplicationSidebarProps) {
+function ApplicationSidebar({ userId, app, mode, apps, layoutMode, onNavigate, onOpenApplication, onOpenSelectedApplication, onToggleLeft, notifications, onMarkNotificationsRead, onClearNotifications, onOpenNotification, sessions, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, chatBusy, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary }: ApplicationSidebarProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sessionMenuId, setSessionMenuId] = useState<string | null>(null);
   useEffect(() => { setSessionMenuId(null); }, [layoutMode]);
@@ -307,10 +313,17 @@ function ApplicationSidebar({ userId, app, mode, apps, layoutMode, onNavigate, o
               {unreadNotifications ? <span className="module-sidebar__notification-badge" aria-hidden="true">{unreadNotifications}</span> : null}
             </button>
           </Popover>
-          <button className="module-icon-button module-sidebar__close" type="button" aria-label="收起应用导航" title="收起应用导航" onClick={() => { setNotificationsOpen(false); onToggleLeft(); }}><WorkbenchIcon name="close" size={16} /></button>
+          <button className="module-icon-button module-sidebar__close" type="button" aria-label="收起应用导航" title="收起应用导航" onClick={() => { setNotificationsOpen(false); onCloseGitSummary(); onToggleLeft(); }}><WorkbenchIcon name="close" size={16} /></button>
         </div>
       </header>
-      {mode === "ai-work" ? <section className="module-sidebar__sessions" aria-label={`${apps.find((item) => item.id === app)?.title ?? "当前应用"} 会话`}>
+      {mode === "ai-work" ? <section className={`module-sidebar__sessions${layoutMode === "mobile" && gitSummaryOpen ? " is-git-summary" : ""}`} aria-label={layoutMode === "mobile" && gitSummaryOpen ? "项目摘要" : `${apps.find((item) => item.id === app)?.title ?? "当前应用"} 会话`}>
+        {layoutMode === "mobile" && gitSummaryOpen ? <>
+          <div className="module-sidebar__mobile-summary-heading">
+            <button type="button" onClick={onCloseGitSummary} aria-label="返回项目与会话"><WorkbenchIcon name="chevron" size={15} /><span>项目与会话</span></button>
+            <strong>Git 摘要</strong>
+          </div>
+          <div className="module-sidebar__mobile-summary-content">{gitSummaryContent}</div>
+        </> : <>
         <div className="module-sidebar__sessions-heading"><span>{apps.find(item => item.id === app)?.title ?? "当前应用"} 项目与会话</span><span className="module-sidebar__sessions-count">{appSessions.length}</span><button type="button" aria-label="新建会话" title="新建会话" disabled={chatBusy} onClick={() => { onNewSession(); if (layoutMode === "mobile") onToggleLeft(); }}><WorkbenchIcon name="plus" size={15} /></button></div>
         {sessionsError ? <p className="module-sidebar__sessions-error" role="alert">{sessionsError}</p> : null}
         {projectLoadError ? <p className="module-sidebar__sessions-error" role="alert">项目目录加载失败：{projectLoadError} <button type="button" onClick={onRetryProjects}>重试</button></p> : null}
@@ -342,6 +355,7 @@ function ApplicationSidebar({ userId, app, mode, apps, layoutMode, onNavigate, o
           {!sessionsLoading && !appSessions.length ? <span className="module-sidebar__session-message">还没有会话</span> : null}
         </div>
         <div className="module-sidebar__provider"><Tag color={providerStatus && providerStatus !== "未配置模型" && providerStatus !== "模型状态不可用" ? "green" : "default"}>{providerStatus ?? "正在读取模型…"}</Tag></div>
+        </>}
       </section> : null}
       <div className="module-sidebar__footer">
         <span>当前区域</span>
@@ -462,14 +476,21 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   const [gitStatusSnapshot, setGitStatusSnapshot] = useState<{ repositoryId: string | null; status: WorkspaceGitStatus | null; loading: boolean; error: string }>({ repositoryId: null, status: null, loading: false, error: "" });
   const [gitManagerRepositoryState, setGitManagerRepositoryState] = useState<{ userId: string; repositoryId: string | null }>({ userId, repositoryId: null });
   const [gitSummaryOpen, setGitSummaryOpen] = useState(false);
+  const [gitSummaryShowAllFiles, setGitSummaryShowAllFiles] = useState(false);
+  const [gitSummaryActionRepositoryId, setGitSummaryActionRepositoryId] = useState<string | null>(null);
+  const [gitManagerActionRequest, setGitManagerActionRequest] = useState<{ repositoryId: string; action: "commit" | "push" | "branch-create" | "branch-switch"; requestId: number } | null>(null);
   const [gitSummaryStatuses, setGitSummaryStatuses] = useState<Record<string, { status?: WorkspaceGitStatus; error?: string }>>({});
+  const [sessionFileChangesState, setSessionFileChangesState] = useState<{ sessionId: string | null; changes: AiActivityFileChange[] }>({ sessionId: null, changes: emptySessionFileChanges });
   const gitStatusRequestRevision = useRef(0);
   const gitEnsureRequests = useRef(new Map<string, Promise<AgentGitRepository | null>>());
+  const gitManagerActionRequestRevision = useRef(0);
+  const gitSummaryActionMenuRef = useRef<HTMLDivElement | null>(null);
+  const gitSummaryActionTriggerRefs = useRef(new Map<string, HTMLElement>());
   const [sideChatOpen, setSideChatOpen] = useState(false);
   const [sideChatInitialQuestion, setSideChatInitialQuestion] = useState("");
   const [sideChatQuestionRevision, setSideChatQuestionRevision] = useState(0);
   const [gitRefreshRevision, setGitRefreshRevision] = useState(0);
-  const [aiWorkView, setAiWorkView] = useState<"chat" | "git">("chat");
+  const [aiWorkView, setAiWorkView] = useState<"chat" | "git" | "browser">("chat");
   const [gitRepositoryChangeError, setGitRepositoryChangeError] = useState("");
   const [fileReviewRequest, setFileReviewRequest] = useState<{ projectId: string; path: string; requestId: number } | null>(null);
   const [aiProviderStatus, setAiProviderStatus] = useState<string | null>(null);
@@ -625,6 +646,30 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   }, [userId]);
   const visibleGitStatus = gitStatusSnapshot.repositoryId === selectedAgentGitRepository?.id ? gitStatusSnapshot : { repositoryId: selectedAgentGitRepository?.id ?? null, status: null, loading: false, error: "" };
   const gitSummaryText = !selectedAgentGitRepository ? "当前会话尚未写入项目文件" : visibleGitStatus.loading && !visibleGitStatus.status ? "读取中…" : visibleGitStatus.error ? "读取失败" : !visibleGitStatus.status ? "等待状态" : visibleGitStatus.status.repositoryState === "not-repository" ? "等待 Agent 首次写入" : visibleGitStatus.status.repositoryState === "unborn" ? `新仓库 · ${visibleGitStatus.status.changedFileCount} 项` : visibleGitStatus.status.clean ? "工作区干净" : `${visibleGitStatus.status.changedFileCount} 项 · +${visibleGitStatus.status.insertions} −${visibleGitStatus.status.deletions}`;
+  const gitSummaryPrimaryRepository = agentGitRepositories.find(repository => repository.id === selectedAgentGitRepositoryId) ?? agentGitRepositories[0] ?? null;
+  const gitSummarySecondaryRepositories = agentGitRepositories.filter(repository => repository.id !== gitSummaryPrimaryRepository?.id);
+  const gitSummaryRequestedRepositories = [...(gitSummaryPrimaryRepository ? [gitSummaryPrimaryRepository] : []), ...gitSummarySecondaryRepositories].slice(0, 12);
+  const gitSummaryStatusRequestedIds = new Set(gitSummaryRequestedRepositories.map(repository => repository.id));
+  const onSessionFileChanges = useCallback((sessionId: string | null, changes: AiActivityFileChange[]) => {
+    setSessionFileChangesState({ sessionId, changes });
+  }, []);
+  const currentSessionFileChanges = sessionFileChangesState.sessionId === activeAiSessionId ? sessionFileChangesState.changes : emptySessionFileChanges;
+  const gitSummaryWriteSignature = useMemo(() => currentSessionFileChanges.filter(change => change.operation !== "read").map(change => `${change.projectId ?? ""}:${change.operation}:${change.path}`).join("\u0000"), [currentSessionFileChanges]);
+  const sessionFileSummary = useMemo(() => {
+    const latestWriteByPath = new Map<string, AiActivityFileChange>();
+    for (const change of currentSessionFileChanges) {
+      if (change.operation !== "read") latestWriteByPath.set(`${change.projectId ?? ""}:${change.path}`, change);
+    }
+    const sources = new Map<string, AiActivityFileChange>();
+    for (const change of currentSessionFileChanges) {
+      if (change.operation === "read") sources.set(`${change.projectId ?? ""}:${change.path}`, change);
+    }
+    return {
+      outputs: [...latestWriteByPath.values()].filter(change => change.operation === "created" || change.operation === "modified"),
+      sources: [...sources.values()].reverse()
+    };
+  }, [currentSessionFileChanges]);
+  const handleGitSummaryFilesToggle = useCallback(() => setGitSummaryShowAllFiles(value => !value), []);
   useEffect(() => {
     if (mode !== "ai-work") {
       return;
@@ -658,22 +703,61 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     if (!gitSummaryOpen || mode !== "ai-work") return;
     const controller = new AbortController();
     let active = true;
-    const visibleRepositories = agentGitRepositories.slice(0, 12);
-    setGitSummaryStatuses({});
-    void Promise.all(visibleRepositories.map(async repository => {
-      try {
-        const { status } = await loadAgentGitStatus(repository.id, controller.signal);
-        if (active) setGitSummaryStatuses(current => ({ ...current, [repository.id]: { status } }));
-      } catch (error) {
-        if (active && !controller.signal.aborted) setGitSummaryStatuses(current => ({ ...current, [repository.id]: { error: getErrorMessage(error) } }));
-      }
-    }));
-    return () => { active = false; controller.abort(); };
-  }, [agentGitRepositories, gitSummaryOpen, mode]);
+    const visibleRepositories = [...(gitSummaryPrimaryRepository ? [gitSummaryPrimaryRepository] : []), ...agentGitRepositories.filter(repository => repository.id !== gitSummaryPrimaryRepository?.id)].slice(0, 12);
+    const timer = window.setTimeout(() => {
+      void Promise.all(visibleRepositories.map(async repository => {
+        try {
+          const { status } = await loadAgentGitStatus(repository.id, controller.signal);
+          if (active) setGitSummaryStatuses(current => ({ ...current, [repository.id]: { status } }));
+        } catch (error) {
+          if (active && !controller.signal.aborted) setGitSummaryStatuses(current => ({ ...current, [repository.id]: { error: getErrorMessage(error) } }));
+        }
+      }));
+    }, 180);
+    return () => { active = false; window.clearTimeout(timer); controller.abort(); };
+  }, [agentGitRepositories, gitSummaryOpen, gitSummaryPrimaryRepository?.id, gitSummaryWriteSignature, mode]);
+  useEffect(() => {
+    if (!gitSummaryActionRepositoryId) return;
+    const frame = window.requestAnimationFrame(() => gitSummaryActionMenuRef.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [gitSummaryActionRepositoryId]);
+  useEffect(() => {
+    const repositoryId = gitSummaryActionRepositoryId;
+    if (!repositoryId) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (gitSummaryActionMenuRef.current?.contains(target) || gitSummaryActionTriggerRefs.current.get(repositoryId)?.contains(target)) return;
+      setGitSummaryActionRepositoryId(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      gitSummaryActionTriggerRefs.current.get(repositoryId)?.focus();
+      setGitSummaryActionRepositoryId(null);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [gitSummaryActionRepositoryId]);
   const handleGitSummaryOpenChange = useCallback((open: boolean) => {
     setGitSummaryOpen(open);
+    if (!open) setGitSummaryActionRepositoryId(null);
     if (open && mode === "ai-work" && activeAiSessionId) void ensureSessionGitRepository(activeAiSessionId);
   }, [activeAiSessionId, ensureSessionGitRepository, mode]);
+  useEffect(() => {
+    if (metrics.mode !== "mobile" || !gitSummaryOpen || gitSummaryActionRepositoryId) return;
+    const closeSummaryOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      handleGitSummaryOpenChange(false);
+    };
+    window.addEventListener("keydown", closeSummaryOnEscape, true);
+    return () => window.removeEventListener("keydown", closeSummaryOnEscape, true);
+  }, [gitSummaryActionRepositoryId, gitSummaryOpen, handleGitSummaryOpenChange, metrics.mode]);
   const fileReviewProject = fileReviewRequest ? workspaceProjects.find(project => project.id === fileReviewRequest.projectId && (app === "workspace" || !project.appId || project.appId === app)) ?? null : null;
   const statusLabel = serverState === "online" ? "控制端已连接" : serverState === "checking" ? "正在检查控制端" : "控制端未连接";
   const contextLabel = writingNormal ? "作品信息" : mode === "ai-work" ? "工具与资源" : "应用工具";
@@ -788,17 +872,25 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     setWorkspaceProjectsTruncated(cached?.truncated ?? false);
     setDefaultWorkspaceProjectId(cached?.defaultProjectId ?? null);
     setWorkspaceProjectsError("");
+    setWorkspaceProjectsLoadStatus(cached ? "ready" : "loading");
     if (mode !== "ai-work") {
       setWorkspaceProjectsLoadStatus(cached ? "ready" : "loading");
       return;
     }
     const controller = new AbortController();
-    setWorkspaceProjectsLoadStatus("loading");
     setWorkspaceProjectsError("");
     void (async () => {
       let initializationError = "";
-      if (app === "workspace") {
-        try { await initializeDefaultWorkspace(controller.signal); }
+      if (app === "workspace" && !initializedDefaultWorkspaceUsers.has(userId)) {
+        try {
+          await initializeDefaultWorkspace(controller.signal);
+          if (controller.signal.aborted) return;
+          initializedDefaultWorkspaceUsers.add(userId);
+          if (initializedDefaultWorkspaceUsers.size > 8) {
+            const oldestUserId = initializedDefaultWorkspaceUsers.values().next().value;
+            if (oldestUserId) initializedDefaultWorkspaceUsers.delete(oldestUserId);
+          }
+        }
         catch (projectError) {
           if (controller.signal.aborted) return;
           initializationError = `默认工作区初始化失败：${getErrorMessage(projectError)}`;
@@ -878,9 +970,11 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
       ...(metrics.mode !== "desktop" ? { leftCollapsed: true } : {}),
     }));
   }, [metrics.mode, onRightPanelSectionChange]);
-  const openGitManager = useCallback((repositoryId?: string) => {
+  const openGitManager = useCallback((repositoryId?: string, action?: "commit" | "push" | "branch-create" | "branch-switch") => {
     const targetRepositoryId = repositoryId ?? selectedAgentGitRepositoryId ?? agentGitRepositories[0]?.id ?? null;
     if (targetRepositoryId) setGitManagerRepositoryState({ userId, repositoryId: targetRepositoryId });
+    setGitSummaryActionRepositoryId(null);
+    setGitManagerActionRequest(action && targetRepositoryId ? { repositoryId: targetRepositoryId, action, requestId: ++gitManagerActionRequestRevision.current } : null);
     setSideChatOpen(false);
     setGitSummaryOpen(false);
     showRightPanelSection("context");
@@ -1058,6 +1152,80 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
       setAiSessionsError(getErrorMessage(archiveError));
     }
   };
+  const gitSummaryContent = <section className={`module-git-summary${gitSummaryActionRepositoryId !== null ? " is-actions-open" : ""}${metrics.mode === "mobile" ? " is-embedded" : ""}`} data-layout-mode={metrics.mode} id={metrics.mode === "mobile" ? "module-sidebar-git-summary" : undefined} aria-label="项目摘要">
+                {gitSummaryActionRepositoryId ? <div id="module-git-summary-git-actions" ref={gitSummaryActionMenuRef} className="module-git-summary__operations-menu" role="menu" aria-label="Git 操作">
+                  {([
+                    ["commit", "提交"],
+                    ["push", "推送"],
+                    ["branch-create", "创建分支"],
+                    ["branch-switch", "切换分支"]
+                  ] as const).map(([action, title]) => <button key={action} type="button" role="menuitem" onClick={() => {
+                    const repositoryId = gitSummaryActionRepositoryId;
+                    setGitSummaryActionRepositoryId(null);
+                    if (repositoryId) openGitManager(repositoryId, action);
+                  }}>{title}</button>)}
+                </div> : null}
+                <div className="module-git-summary__body">
+                  {agentGitRepositoriesLoading ? <p className="module-git-summary__empty">正在读取项目文件夹…</p> : null}
+                  {agentGitRepositoriesError ? <p className="module-git-summary__error" role="alert">{agentGitRepositoriesError}</p> : null}
+                  {!agentGitRepositoriesLoading && !agentGitRepositories.length && !agentGitRepositoriesError ? <p className="module-git-summary__empty">Agent 首次获准在项目文件夹写入时，会自动初始化 Git 并开始版本管理。</p> : null}
+                  {gitSummaryPrimaryRepository ? (() => {
+                    const repository = gitSummaryPrimaryRepository;
+                    const entry = gitSummaryStatuses[repository.id];
+                    const status = entry?.status;
+                    const repositoryTitle = repository.title || repository.path;
+                    const branch = entry?.error ? "状态读取失败" : status?.repositoryState === "not-repository" ? "未初始化" : status?.branch || (gitSummaryStatusRequestedIds.has(repository.id) ? "读取中…" : "状态按需读取");
+                    return <article className="module-git-summary__project-card">
+                      <header className="module-git-summary__project-header">
+                        <strong className="module-git-summary__project-title" title={repository.path}>{repositoryTitle}</strong>
+                        <span className="module-git-summary__branch" title={entry?.error ?? repository.path}>{branch}</span>
+                      </header>
+                      <div className={`module-git-summary__change-row${gitSummaryActionRepositoryId === repository.id ? " is-open" : ""}`}>
+                        <Button className="module-git-summary__root-change" type="text" aria-label={`打开 ${repositoryTitle} 的 Git 变更`} onClick={() => openGitManager(repository.id)}>
+                          <WorkbenchIcon name="review" size={15} /><span>变更</span>
+                          <span className="module-git-summary__endcap">{status && status.repositoryState !== "not-repository" && !entry?.error ? <span className="module-git-summary__counts" aria-label={`新增 ${status.insertions} 行，删除 ${status.deletions} 行`}><b>+{status.insertions}</b><i>−{status.deletions}</i></span> : <span className="module-git-summary__item-state">{entry?.error ? "状态读取失败" : status?.repositoryState === "not-repository" ? "未初始化" : status ? "暂无变更" : gitSummaryStatusRequestedIds.has(repository.id) ? "正在读取…" : "点击查看"}</span>}<WorkbenchIcon name="chevron" size={14} /></span>
+                        </Button>
+                        <Button ref={element => { if (element) gitSummaryActionTriggerRefs.current.set(repository.id, element); else gitSummaryActionTriggerRefs.current.delete(repository.id); }} className="module-git-summary__operations-trigger" type="text" aria-label={`打开 ${repositoryTitle} 的 Git 操作`} title="Git 操作" aria-controls="module-git-summary-git-actions" aria-haspopup="menu" aria-expanded={gitSummaryActionRepositoryId === repository.id} onClick={() => setGitSummaryActionRepositoryId(current => current === repository.id ? null : repository.id)}><WorkbenchIcon name="branch" size={17} /></Button>
+                      </div>
+                    </article>;
+                  })() : null}
+                  {gitSummarySecondaryRepositories.length ? <div className="module-git-summary__folders" aria-label="其他项目文件夹">
+                    {gitSummarySecondaryRepositories.map(repository => {
+                      const entry = gitSummaryStatuses[repository.id];
+                      const status = entry?.status;
+                      const title = repository.title || repository.path;
+                      const state = entry?.error ? "状态读取失败" : !status ? gitSummaryStatusRequestedIds.has(repository.id) ? "读取中…" : "状态按需读取" : status.repositoryState === "not-repository" ? "未初始化" : status.clean ? "工作区干净" : `${status.changedFileCount} 项变更`;
+                      return <div key={repository.id} className={`module-git-summary__change-row${gitSummaryActionRepositoryId === repository.id ? " is-open" : ""}`}>
+                        <Button className="module-git-summary__folder-row" type="text" aria-label={`打开 ${title} 的 Git 变更：${state}`} onClick={() => openGitManager(repository.id)}>
+                          <WorkbenchIcon name="folder" size={15} /><span className="module-git-summary__folder-name" title={repository.path}>{title}</span>
+                          <span className="module-git-summary__endcap">{status && status.repositoryState !== "not-repository" && !entry?.error ? <span className="module-git-summary__counts" aria-label={`新增 ${status.insertions} 行，删除 ${status.deletions} 行`}><b>+{status.insertions}</b><i>−{status.deletions}</i></span> : <span className="module-git-summary__folder-state">{state}</span>}<WorkbenchIcon name="chevron" size={14} /></span>
+                        </Button>
+                        <Button ref={element => { if (element) gitSummaryActionTriggerRefs.current.set(repository.id, element); else gitSummaryActionTriggerRefs.current.delete(repository.id); }} className="module-git-summary__operations-trigger" type="text" aria-label={`打开 ${title} 的 Git 操作`} title="Git 操作" aria-controls="module-git-summary-git-actions" aria-haspopup="menu" aria-expanded={gitSummaryActionRepositoryId === repository.id} onClick={() => setGitSummaryActionRepositoryId(current => current === repository.id ? null : repository.id)}><WorkbenchIcon name="branch" size={17} /></Button>
+                      </div>;
+                    })}
+                  </div> : null}
+                  {agentGitRepositories.length > 12 ? <p className="module-git-summary__footnote">前 12 个文件夹自动读取状态；其他项目点击后读取。</p> : null}
+                  <section className="module-git-summary__file-section" aria-label="输出内容">
+                    <header><strong>输出内容</strong><span>{sessionFileSummary.outputs.length || ""}</span></header>
+                    {sessionFileChangesState.sessionId !== activeAiSessionId ? <p className="module-git-summary__empty">正在读取当前会话记录…</p> : sessionFileSummary.outputs.length ? sessionFileSummary.outputs.slice(0, gitSummaryShowAllFiles ? undefined : 3).map(change => {
+                      const projectTitle = workspaceProjects.find(project => project.id === change.projectId)?.title ?? gitSummaryPrimaryRepository?.title ?? "默认工作区";
+                      return <div className="module-git-summary__file-row" key={`output:${change.projectId ?? ""}:${change.path}`}>
+                        <WorkbenchIcon name="file" size={14} /><span className="module-git-summary__file-copy"><strong title={change.path}>{change.path}</strong><small>{projectTitle} · {change.operation === "created" ? "新建" : "修改"}</small></span>
+                      </div>;
+                    }) : <p className="module-git-summary__empty">当前会话暂无文件输出</p>}
+                  </section>
+                  <section className="module-git-summary__file-section" aria-label="来源">
+                    <header><strong>来源</strong><span>{sessionFileSummary.sources.length || ""}</span></header>
+                    {sessionFileChangesState.sessionId !== activeAiSessionId ? <p className="module-git-summary__empty">正在读取当前会话记录…</p> : sessionFileSummary.sources.length ? sessionFileSummary.sources.slice(0, gitSummaryShowAllFiles ? undefined : 3).map(change => {
+                      const projectTitle = workspaceProjects.find(project => project.id === change.projectId)?.title ?? gitSummaryPrimaryRepository?.title ?? "默认工作区";
+                      return <div className="module-git-summary__file-row" key={`source:${change.projectId ?? ""}:${change.path}`}>
+                        <WorkbenchIcon name="file" size={14} /><span className="module-git-summary__file-copy"><strong title={change.path}>{change.path}</strong><small>{projectTitle} · 已读取</small></span>
+                      </div>;
+                    }) : <p className="module-git-summary__empty">当前会话暂无文件来源</p>}
+                  </section>
+                </div>
+                {sessionFileSummary.outputs.length + sessionFileSummary.sources.length > 3 ? <Button className="module-git-summary__view-all" type="text" onClick={handleGitSummaryFilesToggle}>{gitSummaryShowAllFiles ? "收起" : "查看全部"}</Button> : null}
+              </section>;
   const sidebarProps: ApplicationSidebarProps = {
     userId,
     app,
@@ -1084,9 +1252,12 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     sessionsError: aiSessionsError,
     chatBusy: aiChatBusy,
     providerStatus: aiProviderStatus,
+    gitSummaryOpen,
+    gitSummaryContent,
     onNewSession: startNewAiSession,
     onSelectSession: (sessionId) => { onActiveAiSessionChange(sessionId); setNewAiSessionProjectId(null); setAiSessionsError(""); },
     onArchiveSession: (session) => { void archiveAiWorkSession(session); },
+    onCloseGitSummary: () => handleGitSummaryOpenChange(false),
   };
   const left = <ApplicationSidebar {...sidebarProps} />;
   const leftPreview = <ApplicationSidebar {...sidebarProps} />;
@@ -1103,32 +1274,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
             <button type="button" aria-pressed={aiWorkView === "git"} className={aiWorkView === "git" ? "is-active" : ""} onClick={() => openGitManager()} title={`当前 Agent 的 Git 变更：${gitSummaryText}`}>
               <WorkbenchIcon name="branch" size={14} />变更{visibleGitStatus.status && visibleGitStatus.status.repositoryState !== "not-repository" ? <span>+{visibleGitStatus.status.insertions} −{visibleGitStatus.status.deletions}</span> : null}
             </button>
-            <Popover
+            {metrics.mode === "mobile" ? <Button className="module-git-summary-trigger" type="text" aria-label="在左侧打开 Git 摘要" title="Git 摘要" aria-haspopup="dialog" aria-expanded={gitSummaryOpen} aria-controls="module-sidebar-git-summary" onClick={() => {
+              const open = !gitSummaryOpen;
+              if (open) setChrome(current => ({ ...current, leftCollapsed: false, rightCollapsed: true }));
+              handleGitSummaryOpenChange(open);
+            }}><WorkbenchIcon name="summary" size={17} /></Button> : <Popover
               arrow={false}
-              content={<section className="module-git-summary" aria-label="Git 摘要">
-                <header><strong>Git 摘要</strong><span>{agentGitRepositories.length} 个 Agent 项目</span></header>
-                {agentGitRepositoriesLoading ? <p className="module-git-summary__empty">正在读取项目 Git 状态…</p> : null}
-                {agentGitRepositoriesError ? <p className="module-git-summary__error" role="alert">{agentGitRepositoriesError}</p> : null}
-                {!agentGitRepositoriesLoading && !agentGitRepositories.length && !agentGitRepositoriesError ? <p className="module-git-summary__empty">Agent 首次获准在项目文件夹写入时，会自动初始化 Git 并开始版本管理。</p> : null}
-                <div className="module-git-summary__list">
-                  {agentGitRepositories.slice(0, 12).map(repository => {
-                    const entry = gitSummaryStatuses[repository.id];
-                    const status = entry?.status;
-                    const branch = entry?.error ? "状态读取失败" : !status ? "读取中…" : status.repositoryState === "not-repository" ? "未初始化" : status.branch || "无分支";
-                    const changeSummary = entry?.error ? entry.error : !status ? "正在读取仓库状态…" : status.repositoryState === "not-repository" ? "Agent 首次写入时自动初始化" : status.clean ? "工作区干净" : `${status.changedFileCount} 项变更`;
-                    return <article className="module-git-summary__repository" key={repository.id}>
-                      <header><strong className="module-git-summary__item-name" title={repository.title || repository.path}>{repository.title || repository.path}</strong><span className="module-git-summary__branch" title={status?.upstream ? `${status.branch} → ${status.upstream}` : branch}>{status?.repositoryState !== "not-repository" && status?.branch ? `${status.branch}${status.upstream ? ` → ${status.upstream}` : ""}` : branch}</span></header>
-                      <div className="module-git-summary__repository-actions">
-                        <Button className="module-git-summary__change" type="text" icon={<WorkbenchIcon name="review" size={15} />} onClick={() => openGitManager(repository.id)}>变更</Button>
-                        <span className="module-git-summary__item-state" title={repository.path}>{changeSummary}</span>
-                        {status && status.repositoryState !== "not-repository" && !entry?.error ? <span className="module-git-summary__counts"><b>+{status.insertions}</b><i>−{status.deletions}</i></span> : null}
-                        <WorkbenchIcon name="branch" size={15} className="module-git-summary__branch-icon" />
-                      </div>
-                    </article>;
-                  })}
-                </div>
-                {agentGitRepositories.length > 12 ? <p className="module-git-summary__footnote">摘要显示最近 12 个项目；打开变更面板可切换其他项目。</p> : null}
-              </section>}
+              content={gitSummaryContent}
               getPopupContainer={trigger => trigger.closest(".module-workbench-stage") ?? document.body}
               onOpenChange={handleGitSummaryOpenChange}
               open={gitSummaryOpen}
@@ -1136,8 +1288,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
               placement="bottomRight"
               trigger="click"
             >
-          <Button className="module-git-summary-trigger" type="text" aria-label="打开 Git 摘要" title="Git 摘要" aria-haspopup="dialog" aria-expanded={gitSummaryOpen}><WorkbenchIcon name="summary" size={17} /></Button>
-            </Popover>
+              <Button className="module-git-summary-trigger" type="text" aria-label="打开 Git 摘要" title="Git 摘要" aria-haspopup="dialog" aria-expanded={gitSummaryOpen}><WorkbenchIcon name="summary" size={17} /></Button>
+            </Popover>}
           </div> : null}
           {terminalPanelAvailable && settings.general.showBottomPanelControl && (chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
           {(chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="panelRight" title="上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
@@ -1193,6 +1345,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
               onOpenSideChat={openSideChat}
               onWritingWorkspaceChange={setWritingWorkspace}
               onOpenProjectFileReview={openProjectFileReview}
+              onSessionFileChanges={onSessionFileChanges}
             />
           </Suspense>
           </div>
@@ -1230,7 +1383,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     {!selectedAgentGitRepository && !agentGitRepositoriesLoading && !agentGitRepositoriesError ? <Alert className="module-git-manager__empty" type="info" showIcon message="当前 Agent 尚未产生 Git 仓库" description="Agent 首次在项目文件夹执行获准的创建或写入操作时，会自动初始化 Git；当前聊天仍可继续使用。" /> : null}
     <div className="module-git-manager__body">
       {selectedAgentGitRepository ? <Suspense fallback={<ApplicationContentLoading />}>
-        <GitChangeSummary key={selectedAgentGitRepository.id} embedded repositoryId={selectedAgentGitRepository.id} repositoryTitle={selectedAgentGitRepository.title} status={visibleGitStatus.status} loading={visibleGitStatus.loading} loadError={visibleGitStatus.error} onRefresh={refreshSelectedGitStatus} onStatusChange={(status) => updateGitStatus(selectedAgentGitRepository.id, status)} />
+        <GitChangeSummary key={selectedAgentGitRepository.id} embedded repositoryId={selectedAgentGitRepository.id} repositoryTitle={selectedAgentGitRepository.title} status={visibleGitStatus.status} loading={visibleGitStatus.loading} loadError={visibleGitStatus.error} onRefresh={refreshSelectedGitStatus} onStatusChange={(status) => updateGitStatus(selectedAgentGitRepository.id, status)} requestedAction={gitManagerActionRequest?.repositoryId === selectedAgentGitRepository.id ? gitManagerActionRequest : null} onActionRequestHandled={requestId => setGitManagerActionRequest(current => current?.requestId === requestId ? null : current)} />
       </Suspense> : null}
     </div>
   </section> : null;
@@ -1246,6 +1399,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
         <Suspense fallback={<ApplicationContentLoading />}><AiWorkSideChat
           key={activeAiSessionId ?? "no-session"}
           appId={app}
+          showContextUsage={settings.aiRuntime.showContextUsage}
+          onOpenSettings={onOpenSettings}
           sourceSessionId={activeAiSessionId}
           sourceSessionTitle={activeAiSessionTitle}
           open={sideChatOpen}
@@ -1258,7 +1413,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
       <div className="module-context__default-content" hidden={mode === "ai-work" && sideChatOpen}>
       {terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "right" ? <div style={{ height: metrics.bottom.initial }}><TaskTerminal appId={app} settings={settings} sessionId={activeAiSessionId} role={role} onClose={toggleTerminal} /></div> : null}
       <nav className="module-context__tabs" aria-label="右侧菜单">
-        <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView !== "git" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView !== "git"} onClick={() => { setAiWorkView("chat"); showRightPanelSection("context"); }}>{contextLabel}</button>
+        <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat"} onClick={() => { setAiWorkView("chat"); showRightPanelSection("context"); }}>{contextLabel}</button>
+        {mode === "ai-work" ? <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "browser" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "browser"} onClick={() => { setAiWorkView("browser"); setSideChatOpen(false); showRightPanelSection("context"); }}>浏览器</button> : null}
         {gitManagerAvailable ? <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "git" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "git"} onClick={() => openGitManager()}>变更</button> : null}
         <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "applications" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "applications"} aria-controls="module-context-applications" onClick={() => showRightPanelSection("applications")}>应用</button>
         {sidebarRight.tabs.flatMap((tab) => {
@@ -1278,7 +1434,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
       {sidebarRight.tabs.map((tab) => tab.keepMounted || sidebarRight.activeId === tab.id ? <div key={tab.id} className="module-context__tab-panel" hidden={sidebarRight.activeId !== tab.id} aria-hidden={sidebarRight.activeId !== tab.id}>{createElement(DshSlotOutlet, { name: "sidebar.right.pane.tab", entryKey: tab.id, fallback: <Alert type="warning" showIcon message="扩展面板尚未加载内容" description="此入口已登记，但当前没有 DSH Client 内容提供面板。请检查当前 Profile 的插件状态及 Client 入口加载错误。" /> })}</div> : null)}
       <ApplicationNavigationPanel userId={userId} app={app} mode={mode} section={section} applicationNavigationItems={applicationNavigationItems} onNavigate={navigateWithinApplication} onOpenApplication={openSidebarMode} onWritingLibraryPortalTargetChange={setWritingLibraryPortalTarget} hidden={rightPanelSection !== "applications" || sidebarRight.activeId !== null} />
       {sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "git" ? gitManagerPanel : null}
-      {sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView !== "git" ? writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingBookInfo
+      {sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "browser" ? <Suspense fallback={<ApplicationContentLoading />}><BrowserPanel sessionId={activeAiSessionId} /></Suspense> : null}
+      {sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat" ? writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingBookInfo
         workspace={writingWorkspace}
         workspaceLoading={writingWorkspaceLoading}
         onWorkspaceChange={setWritingWorkspace}
@@ -1288,8 +1445,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
         <div className="module-context__tools">
           {terminalPanelAvailable && settings.general.showBottomPanelControl ? <button type="button" onClick={openTerminal} aria-keyshortcuts={shortcuts.openTerminal.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="terminal" size={16} /><span>终端</span><kbd>{shortcuts.openTerminal.join(" / ") || "未分配"}</kbd></button> : null}
           {mode === "ai-work" ? <button type="button" className="module-context__side-chat-action" onClick={() => openSideChat()} title="主聊天任务会继续运行；侧聊使用已记录的上下文快照。" aria-keyshortcuts={sideChatShortcuts.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="help" size={16} /><span>侧边聊天</span><kbd>{sideChatShortcuts.join(" / ") || "未分配"}</kbd></button> : null}
-          {mode === "ai-work" ? <><button type="button" disabled title="当前 Web Host 尚未接入审查工具"><WorkbenchIcon name="review" size={16} /><span>审查</span><kbd>待接入</kbd></button>
-          <button type="button" disabled title="当前 Web Host 尚未接入浏览器工具"><WorkbenchIcon name="browser" size={16} /><span>浏览器</span><kbd>待接入</kbd></button></> : null}
+          {mode === "ai-work" ? <button type="button" disabled title="审查工具尚未接入"><WorkbenchIcon name="review" size={16} /><span>审查</span><kbd>待接入</kbd></button> : null}
           <button type="button" onClick={() => onNavigate("/files")} title="打开已接入的节点文件管理"><WorkbenchIcon name="file" size={16} /><span>节点文件</span></button>
         </div>
         {mode === "ai-work" ? <section className="module-context__section module-context__resources"><header><span>能力资源</span><b>{registeredExtensions.length}</b></header>

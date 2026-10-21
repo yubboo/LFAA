@@ -20,6 +20,8 @@ interface GitChangeSummaryProps {
   onRefresh: () => Promise<void>;
   onStatusChange: (status: WorkspaceGitStatus) => void;
   embedded?: boolean;
+  requestedAction?: { action: "commit" | "push" | "branch-create" | "branch-switch"; requestId: number } | null;
+  onActionRequestHandled?: (requestId: number) => void;
 }
 
 function statusLabel(status: string): string {
@@ -37,7 +39,7 @@ function shortCommit(value: string): string {
   return value.slice(0, 8);
 }
 
-export function GitChangeSummary({ appId, project = null, repositoryId = null, repositoryTitle = "", status, loading, loadError, onRefresh, onStatusChange, embedded = false }: GitChangeSummaryProps) {
+export function GitChangeSummary({ appId, project = null, repositoryId = null, repositoryTitle = "", status, loading, loadError, onRefresh, onStatusChange, embedded = false, requestedAction = null, onActionRequestHandled }: GitChangeSummaryProps) {
   const [actionBusy, setActionBusy] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
   const [metadataMode, setMetadataMode] = useState<"history" | "branches" | null>(null);
@@ -57,6 +59,9 @@ export function GitChangeSummary({ appId, project = null, repositoryId = null, r
   const [reviewPath, setReviewPath] = useState("");
   const [showAllFiles, setShowAllFiles] = useState(false);
   const [error, setError] = useState("");
+  const [requestedActionFocus, setRequestedActionFocus] = useState<"commit" | "push" | "branch-create" | "branch-switch" | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
+  const handledActionRequestRef = useRef<number | null>(null);
 
   useEffect(() => {
     setCommitMessage("");
@@ -121,6 +126,33 @@ export function GitChangeSummary({ appId, project = null, repositoryId = null, r
     else await operate({ operation: "branches" });
   }
 
+  useEffect(() => {
+    if (!requestedAction || handledActionRequestRef.current === requestedAction.requestId) return;
+    handledActionRequestRef.current = requestedAction.requestId;
+    setRequestedActionFocus(requestedAction.action);
+    if (requestedAction.action === "branch-create" || requestedAction.action === "branch-switch") void openMetadata("branches");
+    onActionRequestHandled?.(requestedAction.requestId);
+  }, [onActionRequestHandled, requestedAction]);
+
+  useEffect(() => {
+    if ((requestedActionFocus !== "commit" && requestedActionFocus !== "push") || !status) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (requestedActionFocus === "commit") {
+        const commitInput = panelRef.current?.querySelector<HTMLTextAreaElement>('[aria-label="提交信息"]');
+        commitInput?.scrollIntoView({ block: "center" });
+        commitInput?.focus();
+      } else {
+        const remotePanel = panelRef.current?.querySelector<HTMLElement>(".module-context__git-remote");
+        (remotePanel ?? panelRef.current)?.scrollIntoView({ block: "center" });
+        const pushButton = remotePanel && [...remotePanel.querySelectorAll<HTMLButtonElement>("button")].find(button => /推送|发布分支/u.test(button.textContent ?? ""));
+        if (pushButton && !pushButton.disabled) pushButton.focus();
+        else remotePanel?.querySelector<HTMLInputElement>("input")?.focus();
+      }
+      setRequestedActionFocus(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [requestedActionFocus, status]);
+
   async function submitRemoteModal(): Promise<void> {
     if (!repositoryId) return;
     setActionBusy(true);
@@ -153,13 +185,14 @@ export function GitChangeSummary({ appId, project = null, repositoryId = null, r
   }
 
   const stageableFiles = status?.files.filter(file => file.status !== "C") ?? [];
+  const firstSwitchableBranchIndex = branches.findIndex(branch => !branch.current);
   const hasUnstaged = stageableFiles.some(file => file.status === "??" || file.status[1] !== " ");
   const hasStaged = stageableFiles.some(file => file.status[0] !== " " && file.status !== "??");
   const upstreamRemote = status?.upstream?.split("/", 1)[0] ?? "";
   const canSyncSelectedRemote = Boolean(selectedRemote && status?.syncCapableRemotes?.includes(selectedRemote));
   const canSyncUpstream = Boolean(upstreamRemote && status?.syncCapableRemotes?.includes(upstreamRemote));
 
-  return <section className={`module-context__git${embedded ? " is-embedded" : ""}`} aria-label="Git 变更管理">
+  return <section ref={panelRef} className={`module-context__git${embedded ? " is-embedded" : ""}`} aria-label="Git 变更管理">
     <header className="module-context__git-heading">
       <div><strong>Git 变更</strong><span>由 LFAA 本机 Git 管理器读取</span></div>
       {project || repositoryId ? <Button type="text" size="small" aria-label="刷新 Git 状态" title="刷新 Git 状态" disabled={loading || actionBusy} onClick={() => void onRefresh()} icon={<WorkbenchIcon name="refresh" size={14} />} /> : null}
@@ -239,7 +272,7 @@ export function GitChangeSummary({ appId, project = null, repositoryId = null, r
         {remoteModalMode === "credential" || /^https:\/\//iu.test(newRemoteUrl.trim()) ? <><label>HTTPS 用户名<Input aria-label="HTTPS 用户名" maxLength={256} autoComplete="username" value={remoteUsername} onChange={event => setRemoteUsername(event.target.value)} /></label><label>访问令牌<Input.Password aria-label="Git HTTPS 访问令牌" maxLength={16384} autoComplete="new-password" value={remoteToken} onChange={event => setRemoteToken(event.target.value)} /></label></> : null}
         <p>HTTPS 凭据按当前 LFAA 账户加密保存；认证时不会调用操作系统共享的 Git 凭据助手，也不会把令牌放进远端地址、命令参数或返回给页面。留空凭据可用于公开远端。</p></div>
     </Modal>
-    <Modal className="module-context__git-metadata-modal" title={metadataMode === "history" ? "提交历史" : "Git 分支"} open={metadataMode !== null} onCancel={() => { if (!actionBusy) setMetadataMode(null); }} footer={null} destroyOnClose width="min(560px, calc(100vw - 32px))" getContainer={() => document.querySelector(".workbench-shell") ?? document.body}>
+    <Modal className="module-context__git-metadata-modal" title={metadataMode === "history" ? "提交历史" : "Git 分支"} open={metadataMode !== null} onCancel={() => { if (!actionBusy) { setMetadataMode(null); setRequestedActionFocus(null); } }} footer={null} destroyOnClose width="min(560px, calc(100vw - 32px))" getContainer={() => document.querySelector(".workbench-shell") ?? document.body}>
       {metadataMode === "history" ? <div className="module-context__git-history">
         {history.length ? history.map(commit => <article key={commit.hash}>
           <code>{commit.shortHash}</code><strong>{commit.subject || "（无提交说明）"}</strong>
@@ -247,8 +280,8 @@ export function GitChangeSummary({ appId, project = null, repositoryId = null, r
         </article>) : <p className="module-context__git-empty">当前仓库还没有提交记录。</p>}
       </div> : null}
       {metadataMode === "branches" ? <div className="module-context__git-branch-manager">
-        {branches.map(branch => <div key={branch.name}>
-          <button type="button" aria-label={`切换到分支 ${branch.name}`} disabled={branch.current || actionBusy} onClick={() => void operate({ operation: "branch-switch", branch: branch.name })}>
+        {branches.map((branch, branchIndex) => <div key={branch.name}>
+          <button type="button" autoFocus={requestedActionFocus === "branch-switch" && firstSwitchableBranchIndex === branchIndex} aria-label={`切换到分支 ${branch.name}`} disabled={branch.current || actionBusy} onClick={() => void operate({ operation: "branch-switch", branch: branch.name })}>
             <code>{branch.name}</code>{branch.current ? <Tag>当前</Tag> : null}
           </button>
           <Popconfirm title={`删除分支 ${branch.name}？`} description="只允许删除已合并的分支，未合并分支会由 Git 拒绝。" okText="删除分支" cancelText="取消" onConfirm={() => void operate({ operation: "branch-delete", branch: branch.name })}>
@@ -256,7 +289,7 @@ export function GitChangeSummary({ appId, project = null, repositoryId = null, r
           </Popconfirm>
         </div>)}
         <div className="module-context__git-create-branch">
-          <Input aria-label="新分支名称" value={branchName} maxLength={250} placeholder="新分支名称（自动添加前缀）" onChange={event => setBranchName(event.target.value)} />
+          <Input autoFocus={requestedActionFocus === "branch-create"} aria-label="新分支名称" value={branchName} maxLength={250} placeholder="新分支名称（自动添加前缀）" onChange={event => setBranchName(event.target.value)} />
           <Button size="small" type="primary" disabled={!branchName.trim() || actionBusy} loading={actionBusy} onClick={() => void operate({ operation: "branch-create", branch: branchName.trim() })}>创建并切换</Button>
         </div>
         {!branches.length ? <p className="module-context__git-empty">没有可列出的分支；新仓库可以先创建一个分支，再提交首个版本。</p> : null}

@@ -32,6 +32,7 @@
     "lfaa-client-ui-settings-account": "workspace:*",
     "lfaa-client-ui-settings-general": "workspace:*",
     "lfaa-client-ui-sidebar": "workspace:*",
+    "lfaa-client-ui-sidebar-browser": "workspace:*",
     "lfaa-client-ui-sidebar-files": "workspace:*",
     "lfaa-client-ui-theme": "workspace:*",
     "lfaa-client-ui-workspace": "workspace:*",

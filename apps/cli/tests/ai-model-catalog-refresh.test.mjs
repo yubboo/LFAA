@@ -19,7 +19,7 @@ test("模型目录更新不因当前模型容量错误失败或改写用户选�
     const {sessionRecords}=await import('lfaa-session-persistence-jsonl/src/repository.js');
     const {retireLegacyFileTables}=await import('lfaa-storage-domain/src/migration.js');retireLegacyFileTables();
     const {saveAiAccount,refreshAiAccountModelCatalog,testSavedAiAccountModel,listAiAccounts}=await import('lfaa-settings/src/service.js');
-    const {modelOptionLabel,modelOptionVersionTag}=await import('lfaa-client-ui-settings-models/src/model-options.js');
+    const {modelOptionLabel,modelOptionVersionTag,modelSelectorDisplayLabel}=await import('lfaa-client-ui-settings-models/src/model-options.js');
     database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('fixture-owner',1,'fixture-owner','test-salt','test-hash','admin',1)").run();
     const originalFetch=globalThis.fetch;
     try {
@@ -51,6 +51,7 @@ test("模型目录更新不因当前模型容量错误失败或改写用户选�
       assert.equal(result.models.find(model=>model.id==='deepseek-flash').versionTag,'1017','官方版本标记必须作为独立元数据保留');
       assert.equal(result.models.find(model=>model.id==='deepseek-flash').id,'deepseek-flash','模型请求 ID 不能被版本标签改写');
       assert.equal(modelOptionVersionTag(result.models.find(model=>model.id==='deepseek-flash')),'1017','版本标记映射须原样输出');
+      assert.equal(modelSelectorDisplayLabel(result.models.find(model=>model.id==='deepseek-flash')),'DeepSeek-V4.1-Flash 1017','折叠模型按钮应显示官方名称与目录版本标签');
       assert.equal(modelOptionLabel('deepseek',result.models.find(model=>model.id==='deepseek-v4-pro')),'DeepSeek-V4-Pro · deepseek-v4-pro','Pro 名称和调用 ID 必须逐字保留官方目录值');
       assert.equal(inferenceCalls,0,'只刷新目录不能发起真实模型推理');
       const refreshed=listAiAccounts('fixture-owner')[0];
@@ -69,7 +70,7 @@ test("模型目录更新不因当前模型容量错误失败或改写用户选�
   `;
   try {
     execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", source], {
-      cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: data, JWT_SECRET: "", LFAA_HARNESS_HOME: "" }, encoding: "utf8", stdio: "pipe", timeout: 30_000
+      cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: data, LFAA_DATA_DIR: data, JWT_SECRET: "", LFAA_HARNESS_HOME: "" }, encoding: "utf8", stdio: "pipe", timeout: 30_000
     });
   } finally {
     assert.equal(dirname(data), parent);

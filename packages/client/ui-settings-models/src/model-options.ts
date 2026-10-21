@@ -68,6 +68,12 @@ export function modelOptionVersionTag(model: AiModel): string | undefined {
   return model.versionTag;
 }
 
+/** 折叠后的模型按钮显示名称与目录版本标签，调用 ID 仍单独保留。 */
+export function modelSelectorDisplayLabel(model: AiModel): string {
+  const versionTag = modelOptionVersionTag(model);
+  return versionTag ? `${model.name} ${versionTag}` : model.name;
+}
+
 export function fixedThinkingLabel(model: AiModel): string {
   if (model.thinkingSource !== "provider-model-catalog" || model.thinking?.kind !== "fixed") return "";
   return model.thinking.value === "enabled"

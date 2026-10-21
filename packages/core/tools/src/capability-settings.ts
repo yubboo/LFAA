@@ -9,7 +9,7 @@ import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { listRegisteredAiTools } from "./registry.js";
 import type { AiBusinessTool, AiBusinessToolContext } from "./business-tools.js";
 
-export const capabilitySettingsInstruction = "通用能力：按用户目标选择行动。用户明确要求操作本机电脑时，先检查电脑操控状态；若当前 App 已登记本机适配器但账户开关关闭，按 permissions.mode 调用 lfaa_set_capability_enabled（请求审批/替我审批沿用审批，完全权限可自行开启），下一次模型请求使用新出现的真实工具。适配器未登记或当前入口不是本机 Windows 时，说明实际边界。打开现有应用不需要安装专属 MCP 或 Skill；先查登记目录，未找到时用可用的屏幕观察与输入工具通过 Windows 搜索继续找。开启设置不代表任务已完成；不要扩大用户目标或改变权限模式。";
+export const capabilitySettingsInstruction = "通用能力：按用户目标选择已登记能力。用户明确要求浏览网页/预览页面而 Browser Use 关闭时，先检查 lfaa_capability_status；若本机已登记浏览器工具但账户开关关闭，按 permissions.mode 调用 lfaa_set_capability_enabled 开启 browserUse，下一次模型请求刷新真实工具。没有接入浏览器时，引导用户到设置中心 > 浏览器接入；不得把仅检测到安装当成已连接。只有用户本轮明确点名 Tabbit、个人 Chrome/Edge 或要求访问自己的本机浏览器时才可读取个人页面，且还须启用 computerControl 并遵循当前 permissions.mode。打开现有应用不需要专属 MCP/Skill；用户明确要求电脑交互时复用已登记的真实工具。开启设置不代表任务已完成；不要扩大用户目标或改变权限模式。";
 
 function parse(schema: Joi.ObjectSchema, value: unknown): Record<string, unknown> {
   const result = schema.validate(value, { convert: false, abortEarly: false });
@@ -26,6 +26,7 @@ export function capabilitySettingsStatus(context: Pick<AiBusinessToolContext, "u
     permissionMode: settings.permissions.mode,
     plugins: { enabled: settings.plugins.enabled, registeredToolCount: registered.filter(tool => !tool.coreManaged).length },
     computerControl: { enabled: settings.computerControl.enabled, registeredTools: registered.filter(tool => tool.requiresComputerControl).map(tool => tool.name), available: settings.computerControl.enabled && registered.some(tool => tool.requiresComputerControl) },
+    browserUse: { enabled: settings.browserUse.enabled, enabledProviderIds: [...settings.browserUse.enabledProviderIds], registeredTools: registered.filter(tool => tool.requiresBrowserUse).map(tool => tool.name), available: settings.browserUse.enabled && settings.browserUse.enabledProviderIds.length > 0 && registered.some(tool => tool.requiresBrowserUse) },
     mcpServers: settings.plugins.mcpServers.filter(server => server.applicationIds.includes(context.applicationId)).map(server => ({ id: server.id, name: server.name, enabled: server.enabled, computerUse: server.computerUse === true, blockedBy: [...(!settings.plugins.enabled ? ["plugins"] : []), ...(!server.enabled ? ["server"] : []), ...(server.computerUse && !settings.computerControl.enabled ? ["computerControl"] : [])] })),
     instruction: capabilitySettingsInstruction
   };
@@ -34,7 +35,7 @@ export function capabilitySettingsStatus(context: Pick<AiBusinessToolContext, "u
 export const capabilitySettingsTools: AiBusinessTool[] = [
   {
     id: "capabilities.settings-status", name: "lfaa_capability_status", coreManaged: true, applicationIds: [...APPLICATION_IDS], activityTitle: "检查能力开关与可用范围",
-    description: "读取当前账户/App 的插件、电脑操控和已配置 MCP 服务的开关与阻塞原因。不连接设备、不公开秘密。关闭能力可通过 lfaa_set_capability_enabled 按当前权限申请开启。",
+    description: "读取当前账户/App 的插件、电脑操控、Browser Use 和已配置 MCP 服务开关与阻塞原因。不连接设备、不公开秘密。关闭能力可通过 lfaa_set_capability_enabled 按当前权限申请开启。",
     schema: { type: "object", properties: {}, additionalProperties: false },
     parse: value => parse(Joi.object({}).unknown(false), value), risk: () => "read",
     approval: () => ({ scopeKey: "capability-status", scopeSummary: "当前账户能力", summary: "查询能力状态" }),
@@ -42,16 +43,20 @@ export const capabilitySettingsTools: AiBusinessTool[] = [
   },
   {
     id: "capabilities.settings-enable", name: "lfaa_set_capability_enabled", coreManaged: true, applicationIds: [...APPLICATION_IDS], activityTitle: "修改能力开关",
-    description: "为当前目标开启或关闭当前账户的 plugins、computerControl 或已配置的 mcpServer（先查询 serverId）。请求审批/替我审批沿用授权范围，完全权限直接执行。保存偏好后下一次模型请求刷新工具。不得修改权限或安装未知服务。",
-    schema: { type: "object", additionalProperties: false, properties: { capability: { type: "string", enum: ["plugins", "computerControl", "mcpServer"] }, enabled: { type: "boolean" }, serverId: { type: "string", maxLength: 64 } }, required: ["capability", "enabled"] },
-    parse: value => parse(Joi.object({ capability: Joi.string().valid("plugins", "computerControl", "mcpServer").required(), enabled: Joi.boolean().required(), serverId: Joi.string().max(64).when("capability", { is: "mcpServer", then: Joi.required(), otherwise: Joi.forbidden() }) }).unknown(false), value),
+    description: "为当前目标开启或关闭当前账户的 plugins、computerControl、browserUse 或已配置的 mcpServer（先查询 serverId）。请求审批/替我审批沿用授权范围，完全权限直接执行。保存偏好后下一次模型请求刷新工具。不得修改权限、个人浏览器连接或安装未知服务。",
+    schema: { type: "object", additionalProperties: false, properties: { capability: { type: "string", enum: ["plugins", "computerControl", "browserUse", "mcpServer"] }, enabled: { type: "boolean" }, serverId: { type: "string", maxLength: 64 } }, required: ["capability", "enabled"] },
+    parse: value => parse(Joi.object({ capability: Joi.string().valid("plugins", "computerControl", "browserUse", "mcpServer").required(), enabled: Joi.boolean().required(), serverId: Joi.string().max(64).when("capability", { is: "mcpServer", then: Joi.required(), otherwise: Joi.forbidden() }) }).unknown(false), value),
     risk: parameters => parameters.enabled ? "dangerous" : "write",
     approval: (parameters, context) => ({ scopeKey: `capability:${context.userId}:${context.applicationId}:${parameters.capability}:${parameters.serverId ?? ""}:${parameters.enabled}`, scopeSummary: `当前账户 · ${parameters.capability}${parameters.serverId ? ` · ${parameters.serverId}` : ""}`, summary: `${parameters.enabled ? "开启" : "关闭"} ${parameters.capability}；保存后仅按当前用户目标选择能力` }),
     execute: async (parameters, context) => {
       context.signal.throwIfAborted();
       const current = getUserSettings(context.userId);
       const enabled = parameters.enabled === true;
-      if (parameters.capability === "computerControl") {
+      if (parameters.capability === "browserUse") {
+        const registered = listRegisteredAiTools().some(tool => tool.requiresBrowserUse && tool.applicationIds.includes(context.applicationId) && (!tool.adminOnly || context.userRole === "admin" || context.userRole === "super_admin"));
+        if (enabled && !registered) throw new Error("当前入口没有登记浏览器操作适配器；开启设置不能提供不存在的能力。");
+        saveUserSettings(context.userId, "browser-use", { ...current.browserUse, enabled });
+      } else if (parameters.capability === "computerControl") {
         const registered = listRegisteredAiTools().some(tool => tool.requiresComputerControl && tool.applicationIds.includes(context.applicationId) && (!tool.adminOnly || context.userRole === "admin" || context.userRole === "super_admin"));
         const configured = current.plugins.mcpServers.some(server => server.computerUse && server.applicationIds.includes(context.applicationId));
         if (enabled && !registered && !configured) throw new Error("当前入口没有登记电脑操控适配器或 Computer-Use MCP；开启设置不能提供不存在的能力。");

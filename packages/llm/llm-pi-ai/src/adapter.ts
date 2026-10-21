@@ -48,12 +48,22 @@ export function buildArkChatRequest(
 
 /** 从 Ark 响应 usage 提取 LFAA 用量。 */
 export function readArkUsage(raw: unknown): AiCompletionUsage {
-  if (typeof raw !== "object" || raw === null) return { promptTokens: null, completionTokens: null };
+  if (typeof raw !== "object" || raw === null) return { promptTokens: null, completionTokens: null, cacheReadTokens: null };
   const usage = raw as Record<string, unknown>;
   const promptTokens = usage.prompt_tokens;
   const completionTokens = usage.completion_tokens;
+  const details = typeof usage.prompt_tokens_details === "object" && usage.prompt_tokens_details !== null
+    ? usage.prompt_tokens_details as Record<string, unknown>
+    : null;
+  const nestedCacheReadTokens = details?.cached_tokens;
+  const cacheMissTokens = usage.prompt_cache_miss_tokens;
+  const validCacheCount = (candidate: unknown): candidate is number => typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0;
   return {
     promptTokens: typeof promptTokens === "number" ? promptTokens : null,
-    completionTokens: typeof completionTokens === "number" ? completionTokens : null
+    completionTokens: typeof completionTokens === "number" ? completionTokens : null,
+    cacheReadTokens: validCacheCount(usage.prompt_cache_hit_tokens)
+      ? usage.prompt_cache_hit_tokens
+      : validCacheCount(nestedCacheReadTokens) ? nestedCacheReadTokens
+        : validCacheCount(cacheMissTokens) && typeof promptTokens === "number" && Number.isSafeInteger(promptTokens) && promptTokens >= cacheMissTokens ? promptTokens - cacheMissTokens : null
   };
 }

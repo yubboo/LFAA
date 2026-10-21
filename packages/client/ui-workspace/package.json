@@ -26,6 +26,7 @@
     "lfaa-client-ui-primitives": "workspace:*",
     "lfaa-client-ui-settings-general": "workspace:*",
     "lfaa-client-ui-sidebar": "workspace:*",
+    "lfaa-client-ui-sidebar-browser": "workspace:*",
     "lfaa-client-ui-theme": "workspace:*",
     "lfaa-client-ui-writing": "workspace:*",
     "react": "^18.0.0"
@@ -52,6 +53,7 @@
         "lfaa-client-ui-connectivity",
         "lfaa-client-ui-primitives",
         "lfaa-client-ui-sidebar",
+        "lfaa-client-ui-sidebar-browser",
         "lfaa-client-ui-settings-general",
         "lfaa-client-ui-theme",
         "lfaa-client-ui-writing"

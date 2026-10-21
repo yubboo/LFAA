@@ -52,6 +52,8 @@ export interface AiBusinessTool {
   retryAfterRecovery?: boolean;
   /** 本机桌面工具只进入显式启用电脑操控设置的 Agent Run。 */
   requiresComputerControl?: boolean;
+  /** 浏览器工具只进入显式启用 Browser Use 设置的 Agent Run。 */
+  requiresBrowserUse?: boolean;
   /** 可选角色闸门；默认 false，具体 Owner 仍须在执行时做业务授权。 */
   adminOnly?: boolean;
   description: string;

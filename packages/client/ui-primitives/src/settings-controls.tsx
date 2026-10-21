@@ -9,8 +9,8 @@ export function AdvancedGroup({ children }: { children: ReactNode }) {
   return <div className="settings-advanced__group"><div className="settings-group__rows">{children}</div></div>;
 }
 
-export function SettingRow({ title, description, status, children }: { title: string; description: ReactNode; status?: string; children: ReactNode }) {
-  return <div className="settings-row"><div className="settings-row__copy"><strong>{title}</strong><span>{description}</span></div><div className="settings-row__control">{children}{status ? <small className="settings-row__status">{status}</small> : null}</div></div>;
+export function SettingRow({ title, description, status, children, id }: { title: string; description: ReactNode; status?: string; children: ReactNode; id?: string }) {
+  return <div id={id} className="settings-row"><div className="settings-row__copy"><strong>{title}</strong><span>{description}</span></div><div className="settings-row__control">{children}{status ? <small className="settings-row__status">{status}</small> : null}</div></div>;
 }
 
 export function SettingsSwitch({ checked, onChange, label, disabled = false }: { checked: boolean; onChange: () => void; label: string; disabled?: boolean }) {

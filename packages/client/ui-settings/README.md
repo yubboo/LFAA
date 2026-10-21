@@ -41,3 +41,11 @@ Minecraft 默认核心下拉框只依赖领域 Owner 登记的本地核心名称
 ## MCP 连接预设
 
 `McpConnectionsSettings` 提供官方 `rea-agents@6.7.0` Windows stdio 预设，写入现有 `plugins.mcpServers`，默认只关联 `workspace` App。用户可以修改、停用或移除；预设不改全局 `plugins.enabled`。服务启用且 AI Work 启动连接后，Windows 控制端由既有 MCP Runtime 调用 `npx` 启动；macOS/Linux 用户需按本机控制端平台编辑 launcher。工具调用仍逐项走现有 `permissions.mode`。
+
+AI 与模型设置中，上下文用量显示、较早上下文自动压缩和未知模型窗口容量分别使用独立设置行；上下文显示项旁标出当前开关状态及其作用。`aiRuntime.showContextUsage` 默认关闭时，AI Work 输入框下仍显示“上下文已关闭”提示和设置位置，不影响 Token/缓存统计；不替用户更改该偏好。
+
+从 AI Work 上下文关闭提示进入设置时，设置中心请求定位到“显示上下文使用情况”行；跳转本身不自动改变用户开关。
+
+## 浏览器接入设置
+
+`browserUse.enabled` 默认关闭，只控制 Agent 是否可发现浏览器工具；`browserUse.enabledProviderIds` 默认空，由用户显式接入和断开可用提供方；`browserUse.showFullUrl` 默认关闭，只控制地址栏展示。上述设置归 Settings Owner，写入 `browser-use` 分类并按账户保存。Tabbit 个人会话还要求既有 `computerControl.enabled`，所有 Agent 操作继续统一走 `permissions.mode`。密码/自动填充、历史、扩展、下载、站点媒体权限、WebMCP 和完整 CDP 尚未接入，页面如实显示当前限制。

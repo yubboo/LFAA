@@ -9,6 +9,7 @@ import test from "node:test";
 
 const chatStyles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
 const chatSource = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+const usageFooterSource = readFileSync(new URL("../../../packages/client/ui-chat/src/AiUsageFooter.tsx", import.meta.url), "utf8");
 const projectPickerSource = readFileSync(new URL("../../../packages/client/ui-chat/src/WorkspaceProjectPicker.tsx", import.meta.url), "utf8");
 const composerRule = chatStyles.match(/^\.ai-work-chat__composer\s*\{([^}]*)\}/mu)?.[1] ?? "";
 const composerFocusRule = chatStyles.match(/^\.ai-work-chat__composer:focus-within\s*\{([^}]*)\}/mu)?.[1] ?? "";
@@ -16,6 +17,25 @@ const composerInputRule = chatStyles.match(/^\.ai-work-chat__composer \.ant-inpu
 const messageStageRule = chatStyles.match(/^\.ai-work-chat__message-stage\s*\{([^}]*)\}/mu)?.[1] ?? "";
 const messageListRule = chatStyles.match(/^\.ai-work-chat__message-list\s*\{([^}]*)\}/mu)?.[1] ?? "";
 const anchorRule = chatStyles.match(/^\.ai-work-chat__anchors\s*\{([^}]*)\}/mu)?.[1] ?? "";
+
+test("项目与会话用量在后台读取期间保留稳定且真实的状态", () => {
+  assert.match(projectPickerSource, /projectListStatus === "loading" \? unresolvedProjectTitle/u);
+  assert.match(chatSource, /setSessionUsageLoadState\("ready"\)[\s\S]*?setSessionUsageLoadState\("error"\)/u);
+  assert.match(chatSource, /usageLoadState=\{sessionUsageLoadState\}/u);
+  assert.match(usageFooterSource, /usageLoadState === "loading" \? "正在读取会话用量…"/u);
+  assert.match(usageFooterSource, /usageLoadState === "error" \? "会话用量读取失败"/u);
+  assert.match(usageFooterSource, /hasAssistantMessage \? "Provider 未返回用量"/u);
+  assert.match(chatStyles, /\.ai-work-chat__usage-footer\s*\{[^}]*min-height:\s*25px/u);
+});
+
+test("模型按钮等到当前账户校验后显示目录名称与版本标签，并保留固定宽度", () => {
+  assert.match(chatSource, /accountLoadState === "ready" \? accounts\.find\(\(account\) => account\.active\)/u);
+  assert.match(chatSource, /modelSelectorDisplayLabel\(activeModel\)/u);
+  assert.match(chatSource, /aria-busy=\{accountLoadState === "loading" \|\| modelBusy\}/u);
+  assert.doesNotMatch(chatSource, /modelBusy \? "保存中…" : activeModel/u);
+  assert.match(chatStyles, /\.ai-work-chat__composer-control--model\.ant-btn\s*\{[^}]*width:\s*min\(18cqi,\s*190px\)/u);
+  assert.match(chatStyles, /\.ai-work-chat__composer-control-label\s*\{[^}]*text-overflow:\s*ellipsis/u);
+});
 
 test("窄中间栏的提问框及 TextArea 随容器收缩，不由隐式 Grid 最小宽度撑开", () => {
   assert.match(composerRule, /min-width:\s*0\s*;/u);

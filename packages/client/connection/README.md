@@ -6,6 +6,8 @@
 
 插件清单、搜索和来源检查读取可接收 `AbortSignal`；切换页面或放弃检查时可取消未完成读取。手动安装通过同源认证的 NDJSON 写入流读取 Plugin Manager Owner 的阶段与最终结果；流解析失败、缺少结果和服务端错误都会作为错误返回，不会推断安装成功。安装请求绑定检查时的来源类型、位置、固定摘要与本次 NPM registry；本包不保存 registry 设置或凭据。插件启用、停用与卸载继续调用受认证的 Permission Owner 管理 API，不创建 AI Work 会话。
 
+DSH 来源检查的 `requirements.bundlePatch` 与上游声明保持一致：一个 patch 路径为字符串，多个按序路径为数组；Client 透传类型不折叠多文件顺序。它是静态清单元数据，不表示插件已启用。
+
 `file-manager-location.ts` 将设置中心已保存的本机目录映射到 data 或本机卷来源，通过账户限定的路由历史把浏览目标交给文件页；不把路径当成权限、不在 URL 放入绝对路径，也不读取磁盘。文件页消费目标后移除临时历史字段，后续目录恢复继续使用原有账户缓存。
 
 AI 漫剧项目列表会在交给工作区前校验服务端返回的项目列表与全部资源限制；缺少或包含无效限制值时以 `ai_video_contract_mismatch` 报错，避免旧版控制端响应进入新版 UI。
@@ -16,7 +18,11 @@ AI 回复使用一份 `content` 和可选 `parts` 正文范围；`delta` 携带�
 
 `loadAiMessages()` 接收可选 AbortSignal，并将它传给已认证请求，使聊天切换后可取消过期的首屏读取。
 
+AI Work 消息分页除单条 `AiMessage.usage` 外，还返回该会话累计的 Provider/模型用量、每模型缓存计数覆盖请求数与最近请求上下文快照。SSE 的 `usage-progress`、`usage` 与 `context-usage` 随真实模型响应更新；`cacheReadTokens: null` 表示 Provider 缓存读数不完整，不能转成零或推算命中率。上下文快照标记容量来自模型目录、设置中心兜底或未知；分项是本次 Provider 可见消息和工具定义的估算值，响应到达后 prompt 总量使用 Provider 实际字段。
+
 `loadAiSessions()` 支持显式 App 筛选并接收可选 AbortSignal；小鱼共享工作区按当前账户读取跨 App 会话列表，在离开工作模式或切换账户时取消过期请求。
+
+Browser Panel 的 provider、snapshot、revision、navigate、click 与 close 请求只调用认证的 `/browser/*` API，并将读取取消信号传到底层请求；不在 Connection 中缓存页面数据或保存登录态。Provider 能力由当前 Host 实际返回。
 
 `loadAiExtensions()` 支持可选 AbortSignal；插件工作区与设置中心技能 Tab 共用其扩展清单，后者只筛选 `kind=skill`，不复制 Skill 数据目录。Skill 项的 `skillId` 是指向 Skill Registry 的稳定规范名称，设置页停用仍提交给原账户设置 Owner。共享工作区退出或账户切换时取消自身目录请求，其他调用方的默认并发读取仍使用原请求合并合同。普通应用面板不为展示 Agent 资源而读取此目录。
 

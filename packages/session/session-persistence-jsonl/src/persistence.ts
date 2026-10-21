@@ -8,6 +8,7 @@ import { closeSync, constants as fsConstants, existsSync, fsyncSync, lstatSync, 
 import { open as openFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { decode, encode, FileLease } from "lfaa-storage-json/src/index.js";
+import { applySessionSummaryEvent, createSessionSummaryAccumulator, projectSessionUsage, type SessionContextUsage } from "./session-summary.js";
 
 /** session_events 与消息/用量共用同一条受控 JSONL 持久化事务流。 */
 export type SessionTable = "ai_sessions" | "ai_messages" | "ai_usage" | "session_events";
@@ -16,6 +17,7 @@ export interface SessionCommit { sessionId: string; transaction: string; changes
 interface SessionEvent { format: 1; sessionId: string; transaction: string; changes: SessionChange[]; sequence: number; previous: string; checksum: string }
 type SessionRevision = { sequence: number; checksum: string; size: number; mtimeMs: number; ctimeMs: number; dev: number; ino: number };
 export interface SessionRewriteResult { rewrittenTransactions: number; commits: SessionCommit[] }
+export interface SessionStorageLocation { rootDirectory: string; sessionDirectory: string; eventFile: string }
 
 export class JsonlSessionPersistence {
   private readonly applied = new Map<string, Set<string>>();
@@ -25,6 +27,11 @@ export class JsonlSessionPersistence {
   private directory(sessionId: string): string {
     if (!sessionId || sessionId.length > 256) throw new Error("会话 ID 无效。");
     return resolve(this.root, createHash("sha256").update(sessionId).digest("hex"));
+  }
+  /** 仅从已校验的会话 ID 推导持久层位置，不访问或读取日志文件。 */
+  storageLocation(sessionId: string): SessionStorageLocation {
+    const sessionDirectory = this.directory(sessionId);
+    return { rootDirectory: this.root, sessionDirectory, eventFile: resolve(sessionDirectory, "events.jsonl") };
   }
   *readAll(): IterableIterator<SessionCommit> {
     this.applied.clear(); this.revisions.clear();
@@ -40,11 +47,13 @@ export class JsonlSessionPersistence {
     yield* this.readDirectory(this.directory(sessionId));
   }
   /** 消息页保持完整哈希链单遍校验；工作集只含读取缓冲、当前事件与请求页。 */
-  async readMessagePage(sessionId: string, before: { createdAt: string; order: number } | undefined, limit: number, observeEvent?: (event: SessionChange["value"]) => void, signal?: AbortSignal): Promise<{ items: Array<{ message: SessionChange["value"]; feedback?: SessionChange["value"] }>; hasMore: boolean }> {
+  async readMessagePage(sessionId: string, before: { createdAt: string; order: number } | undefined, limit: number, observeEvent?: (event: SessionChange["value"]) => void, signal?: AbortSignal): Promise<{ items: Array<{ message: SessionChange["value"]; feedback?: SessionChange["value"]; usage?: SessionChange["value"] }>; hasMore: boolean; usageSummary: ReturnType<typeof projectSessionUsage>; contextUsage: SessionContextUsage | null }> {
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("会话消息分页大小无效。");
     const candidates = new Map<string, Record<string, unknown>>();
     const orderedCandidates: Array<Record<string, unknown>> = [];
     const feedback = new Map<string, SessionChange["value"]>();
+    const usage = new Map<string, SessionChange["value"]>();
+    const sessionSummary = createSessionSummaryAccumulator();
     const compare = (left: Record<string, unknown>, right: Record<string, unknown>) => String(left.created_at).localeCompare(String(right.created_at))
       || Number(left._order) - Number(right._order);
     const retainCandidate = (row: Record<string, unknown>) => {
@@ -67,6 +76,7 @@ export class JsonlSessionPersistence {
         const removedId = String(orderedCandidates.shift()!.id);
         candidates.delete(removedId);
         feedback.delete(removedId);
+        usage.delete(removedId);
       }
     };
     await this.scanChanges(sessionId, change => {
@@ -76,12 +86,16 @@ export class JsonlSessionPersistence {
               if (before && (row.created_at > before.createdAt || row.created_at === before.createdAt && Number(row._order) >= before.order)) return;
               retainCandidate(row);
             } else if (change.table === "session_events" && change.value) {
+              applySessionSummaryEvent(sessionSummary, change.value);
               observeEvent?.(change.value);
               if (change.value.type === "message/feedback") {
                 const data = change.value.data;
                 if (data && typeof data === "object" && "messageId" in data && candidates.has(String(data.messageId))) {
                   feedback.set(String(data.messageId), change.value);
                 }
+              } else if (change.value.type === "usage/record") {
+                const data = change.value.data as Record<string, unknown>;
+                if (data && typeof data.runId === "string" && data.purpose !== "memory" && candidates.has(data.runId)) usage.set(data.runId, change.value);
               }
             }
     }, signal);
@@ -89,13 +103,16 @@ export class JsonlSessionPersistence {
     const ordered = orderedCandidates;
     const hasMore = ordered.length > limit;
     const page = ordered.slice(Math.max(0, ordered.length - limit));
-    if (!page.length) return { items: [], hasMore: false };
+    if (!page.length) return { items: [], hasMore: false, usageSummary: projectSessionUsage(sessionSummary), contextUsage: sessionSummary.contextUsage };
     return {
       items: page.map(message => {
         const event = feedback.get(String(message.id));
-        return event ? { message, feedback: event } : { message };
+        const usageEvent = usage.get(String(message.id));
+        return { message, ...(event ? { feedback: event } : {}), ...(usageEvent ? { usage: usageEvent } : {}) };
       }),
-      hasMore
+      hasMore,
+      usageSummary: projectSessionUsage(sessionSummary),
+      contextUsage: sessionSummary.contextUsage
     };
   }
   /** 有界事件页复用消息页的完整哈希链扫描；投影函数只保留调用 Owner 允许的字段。 */

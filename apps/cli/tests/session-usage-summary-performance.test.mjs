@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 function run(dataDirectory, script) {
   return execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", script], {
-    cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: dataDirectory, JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe"
+    cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: join(dataDirectory, "home"), LFAA_DATA_DIR: join(dataDirectory, "business-data"), LFAA_HARNESS_HOME: "", JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe"
   });
 }
 const setup = `
@@ -89,6 +89,29 @@ test("大量历史用量可在重放后 O(Provider/模型组) 汇总，且不恢
   } finally {
     assert.equal(dirname(resolve(data)), parent);
     assert.ok(basename(data).startsWith("lfaa-session-usage-summary-"));
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test("实时会话用量预览按 Provider 实际返回计数累计缓存覆盖请求数", (t) => {
+  const parent = resolve(cli, "../../dist/.tmp");
+  mkdirSync(parent, { recursive: true });
+  const data = mkdtempSync(join(parent, "lfaa-session-usage-preview-"));
+  try {
+    const result = run(data, `${setup}
+      const initial={requestCount:0,requestCountExact:true,promptTokens:0,completionTokens:0,cacheReadTokens:0,models:[]};
+      const first=sessions.previewAiSessionTokenUsageSummary(initial,'deepseek','flash',{promptTokens:10,completionTokens:2,cacheReadTokens:0,requestCount:1,cacheReadReportedRequestCount:1,cacheReadReportedTokens:0});
+      const second=sessions.previewAiSessionTokenUsageSummary(first,'deepseek','flash',{promptTokens:20,completionTokens:3,cacheReadTokens:null,requestCount:2,cacheReadReportedRequestCount:1,cacheReadReportedTokens:15});
+      console.log(JSON.stringify({first:first.models[0],second:second.models[0],cacheReadTokens:second.cacheReadTokens}));
+      close();
+    `);
+    const preview = JSON.parse(result);
+    assert.deepEqual(preview.first, { providerId: "deepseek", modelId: "flash", requestCount: 1, requestCountExact: true, promptTokens: 10, completionTokens: 2, cacheReadTokens: 0, cacheReadReportedTokens: 0, cacheReadReportedRequestCount: 1 });
+    assert.deepEqual(preview.second, { providerId: "deepseek", modelId: "flash", requestCount: 3, requestCountExact: true, promptTokens: 30, completionTokens: 5, cacheReadTokens: null, cacheReadReportedTokens: 15, cacheReadReportedRequestCount: 2 });
+    assert.equal(preview.cacheReadTokens, null);
+  } finally {
+    assert.equal(dirname(resolve(data)), parent);
+    assert.ok(basename(data).startsWith("lfaa-session-usage-preview-"));
     rmSync(data, { recursive: true, force: true });
   }
 });

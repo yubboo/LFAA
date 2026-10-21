@@ -212,6 +212,13 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 .module-context__menu-item.is-active > span { background: var(--settings-accent, var(--color-brand)); }
 .module-context__menu-item--nested { min-height: 32px; padding-left: 20px; font-size: var(--font-size-xs); }
 .module-sidebar__sessions { display: flex; min-height: 0; flex: 1 1 0; flex-direction: column; margin-top: 12px; overflow: hidden; border-top: 1px solid var(--color-border); }
+.module-sidebar__sessions.is-git-summary { margin-top: 0; }
+.module-sidebar__mobile-summary-heading { display: flex; min-height: 40px; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--color-border-subtle); }
+.module-sidebar__mobile-summary-heading > button { display: inline-flex; min-width: 0; align-items: center; gap: 5px; padding: 5px 0; border: 0; background: transparent; color: var(--color-text-secondary); cursor: pointer; font: inherit; font-size: var(--font-size-xs); }
+.module-sidebar__mobile-summary-heading > button:hover { color: var(--settings-accent, var(--color-brand)); }
+.module-sidebar__mobile-summary-heading > button svg { flex: 0 0 auto; transform: rotate(90deg); }
+.module-sidebar__mobile-summary-heading > strong { color: var(--color-text-heading); font-size: var(--font-size-xs); font-weight: 650; }
+.module-sidebar__mobile-summary-content { display: flex; min-width: 0; min-height: 0; flex: 1 1 auto; padding: 6px 8px 8px; overflow: hidden; }
 .module-sidebar__sessions-heading { display: flex; min-height: 40px; flex: 0 0 auto; align-items: center; gap: 8px; padding: 0 15px; color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 650; }
 .module-sidebar__sessions-count { display: grid; min-width: 19px; height: 18px; place-items: center; margin-left: auto; border-radius: 6px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-size: var(--font-size-xs); }
 .module-sidebar__sessions-heading button { display: grid; width: 26px; height: 26px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-secondary); cursor: pointer; }
@@ -284,35 +291,75 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 .module-center__work-tabs button > span { color: var(--color-status-success); font-size: 10px; }
 .module-git-summary-trigger { position: relative; display: inline-grid; width: 30px; min-width: 30px; height: 30px; place-items: center; padding: 0; }
 .module-git-summary-trigger > span { position: absolute; top: -3px; right: -4px; display: grid; min-width: 15px; height: 15px; place-items: center; padding-inline: 3px; border-radius: 999px; background: var(--color-brand); color: var(--color-text-inverse); font-size: 9px; line-height: 1; }
-.module-git-summary { display: flex; width: min(390px, calc(100vw - 32px)); max-height: min(68dvh, 560px); min-height: 0; flex-direction: column; gap: 9px; overflow: hidden; color: var(--color-text-primary); }
-.module-git-summary > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.module-git-summary > header strong { font-size: var(--font-size-sm); }
-.module-git-summary > header span, .module-git-summary__footnote { color: var(--color-text-muted); font-size: var(--font-size-xs); }
-.module-git-summary__list { display: flex; min-height: 0; flex-direction: column; gap: 2px; overflow: auto; }
-.module-git-summary__repository { display: grid; min-width: 0; gap: 5px; padding: 8px; border: 0; border-bottom: 1px solid var(--color-border); border-radius: 8px; background: transparent; }
-.module-git-summary__repository:hover { background: var(--color-surface-muted); }
-.module-git-summary__repository > header, .module-git-summary__repository-actions { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
-.module-git-summary__item-name { min-width: 0; overflow: hidden; font-size: var(--font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
-.module-git-summary__branch { flex: 0 1 auto; max-width: 62%; overflow: hidden; padding: 3px 8px; border: 1px solid var(--color-border); border-radius: 999px; color: var(--color-text-secondary); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
-.module-git-summary__item-state { min-width: 0; flex: 1 1 auto; overflow: hidden; color: var(--color-text-muted); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
+/* Git 摘要按项目卡片、文件夹变更和会话文件记录分层；宽度受当前工作区容器约束。 */
+.module-git-summary { position: relative; display: flex; width: min(420px, calc(100cqi - 48px)); max-width: calc(100vw - 24px); max-height: min(72dvh, 620px); min-height: 0; flex-direction: column; overflow: visible; box-sizing: border-box; color: var(--color-text-primary); container-type: inline-size; }
+.module-git-summary.is-embedded { width: 100%; max-width: 100%; height: 100%; max-height: none; }
+.module-git-summary__change-row { position: relative; display: flex; min-width: 0; align-items: stretch; gap: 3px; }
+.module-git-summary__body { display: flex; min-width: 0; min-height: 0; flex: 1 1 auto; flex-direction: column; gap: 10px; padding-inline: 4px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: auto; scrollbar-width: thin; box-sizing: border-box; }
+.module-git-summary__project-card { display: grid; width: 100%; min-width: 0; flex: 0 0 auto; gap: 9px; padding: 11px; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: color-mix(in srgb, var(--color-surface-muted) 44%, transparent); box-sizing: border-box; }
+.module-git-summary__project-header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; }
+.module-git-summary__project-title { min-width: 0; overflow: hidden; font-size: var(--font-size-sm); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.module-git-summary__branch { min-width: 0; max-width: 54%; padding: 3px 8px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 999px; color: var(--color-text-secondary); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
+.module-git-summary__root-change { display: flex; width: 100%; max-width: 100%; min-width: 0; min-height: 38px; flex: 1 1 auto; align-items: center; gap: 9px; padding-inline: 9px; border-radius: 9px; background: var(--color-surface-muted); color: var(--color-text-primary); text-align: left; box-sizing: border-box; }
+.module-git-summary__root-change:hover, .module-git-summary__folder-row:hover { background: var(--color-surface-hover); color: var(--settings-accent, var(--color-brand)); }
+.module-git-summary__root-change > span:nth-of-type(1) { min-width: 0; flex: 0 1 auto; overflow: hidden; font-size: var(--font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
+.module-git-summary__endcap { display: inline-flex; min-width: 0; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 8px; margin-inline-start: auto; transition: opacity 120ms ease; }
+.module-git-summary__operations-trigger { position: absolute; inset-inline-end: 0; top: 50%; z-index: 1; display: grid; width: 34px; min-width: 34px; min-height: 34px; place-items: center; padding: 0; border-radius: 8px; color: var(--color-text-secondary); opacity: 0; pointer-events: none; transform: translateY(-50%); transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+.module-git-summary__change-row:hover > .module-git-summary__operations-trigger, .module-git-summary__change-row:focus-within > .module-git-summary__operations-trigger, .module-git-summary__change-row.is-open > .module-git-summary__operations-trigger { opacity: 1; pointer-events: auto; }
+.module-git-summary__change-row:hover .module-git-summary__endcap, .module-git-summary__change-row:focus-within .module-git-summary__endcap, .module-git-summary__change-row.is-open .module-git-summary__endcap { opacity: 0; }
+.module-git-summary__operations-trigger:hover, .module-git-summary__operations-trigger[aria-expanded="true"] { background: var(--color-surface-hover); color: var(--settings-accent, var(--color-brand)); }
+.module-git-summary__operations-trigger:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; opacity: 1; pointer-events: auto; }
 .module-git-summary__counts { display: inline-flex; flex: 0 0 auto; gap: 5px; font-size: var(--font-size-xs); white-space: nowrap; }
 .module-git-summary__counts b { color: var(--color-status-success-text); font-weight: 500; }
 .module-git-summary__counts i { color: var(--color-status-error-text); font-style: normal; }
-.module-git-summary__repository-actions .ant-btn { flex: 0 0 auto; }
-.module-git-summary__repository-actions .module-git-summary__change { min-width: 0; flex: 1 1 auto; justify-content: flex-start; padding-inline: 9px; background: var(--color-surface-muted); }
-.module-git-summary__repository-actions .module-git-summary__change:hover { background: var(--color-surface-hover); }
-.module-git-summary__branch-icon { flex: 0 0 auto; color: var(--color-text-muted); }
-.module-git-summary__item { display: grid; width: 100%; min-width: 0; gap: 3px; padding: 8px 9px; border: 0; border-radius: 7px; background: transparent; color: inherit; cursor: pointer; text-align: left; }
-.module-git-summary__item:hover, .module-git-summary__item:focus-visible { outline: none; background: var(--color-surface-hover); }
+.module-git-summary__item-state, .module-git-summary__folder-state { min-width: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
+.module-git-summary__endcap > svg { flex: 0 0 auto; color: var(--color-text-muted); transform: rotate(-90deg); }
+.module-git-summary__folders { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 3px; }
+.module-git-summary__folder-row { display: flex; width: auto; min-width: 0; min-height: 35px; flex: 1 1 auto; align-items: center; gap: 8px; padding-inline: 9px; border-radius: 8px; color: var(--color-text-secondary); text-align: left; }
+.module-git-summary__folder-name { min-width: 0; flex: 1 1 auto; overflow: hidden; font-size: var(--font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
+.module-git-summary__file-section { display: flex; width: 100%; max-width: 100%; min-width: 0; flex-direction: column; gap: 5px; padding: 8px; border: 1px solid var(--color-border-subtle); border-radius: 10px; background: color-mix(in srgb, var(--color-surface-muted) 24%, transparent); box-sizing: border-box; }
+.module-git-summary__file-section > header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
+.module-git-summary__file-section > header strong { font-size: var(--font-size-xs); font-weight: 550; }
+.module-git-summary__file-section > header span { flex: 0 0 auto; margin-inline-start: auto; color: var(--color-text-muted); font-size: var(--font-size-xs); text-align: right; }
+.module-git-summary__file-row { display: flex; width: 100%; max-width: 100%; min-width: 0; align-items: center; gap: 8px; padding: 4px 0; color: var(--color-text-secondary); box-sizing: border-box; }
+.module-git-summary__file-row > svg { flex: 0 0 auto; color: var(--color-text-muted); }
+.module-git-summary__file-copy { display: grid; min-width: 0; gap: 2px; }
+.module-git-summary__file-copy strong, .module-git-summary__file-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.module-git-summary__file-copy strong { font-size: var(--font-size-xs); font-weight: 500; }
+.module-git-summary__file-copy small { color: var(--color-text-muted); font-size: 10px; }
 .module-git-summary__empty, .module-git-summary__error, .module-git-summary__footnote { margin: 0; }
-.module-git-summary__error { color: var(--color-status-warning); }
-.module-git-summary__footnote { padding: 0 9px; }
-.module-git-summary-popover .ant-popover-inner { padding: 14px; border: 1px solid var(--color-border); background: var(--color-surface); box-shadow: 0 14px 38px var(--color-shadow-card-soft); }
+.module-git-summary__empty { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.module-git-summary__error { color: var(--color-status-warning); font-size: var(--font-size-xs); }
+.module-git-summary__footnote { color: var(--color-text-muted); font-size: 10px; }
+.module-git-summary__view-all { width: calc(100% - 20px); min-height: 32px; flex: 0 0 auto; margin-inline: 10px; border-top: 1px solid var(--color-border-subtle); border-radius: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); box-sizing: border-box; }
+.module-git-summary__view-all:hover { color: var(--settings-accent, var(--color-brand)); }
+.module-git-summary__root-change:focus-visible, .module-git-summary__folder-row:focus-visible, .module-git-summary__view-all:focus-visible, .module-git-summary-trigger:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.module-git-summary-popover .ant-popover-inner { padding: 8px; border: 1px solid var(--color-border); background: var(--color-surface); box-shadow: 0 14px 38px var(--color-shadow-card-soft); }
 .module-git-summary-popover .ant-popover-inner-content { padding: 0; }
-.module-git-summary__repository { border-color: var(--color-border-subtle); border-radius: 12px; }
-.module-git-summary__repository + .module-git-summary__repository { margin-top: 2px; }
-.module-git-summary__repository-actions { min-height: 29px; }
-.module-git-summary__repository-actions .ant-btn { min-width: 72px; }
+.module-git-summary__operations-menu { position: absolute; inset-block-start: -14px; inset-inline-start: -126px; z-index: 3; display: flex; width: min(112px, calc(100vw - 24px)); max-width: 100%; min-width: 0; flex-direction: column; gap: 1px; padding: 4px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); box-shadow: 0 10px 30px var(--color-shadow-card-soft); box-sizing: border-box; }
+.module-git-summary__operations-menu > button { min-height: 34px; padding: 6px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--color-text-primary); cursor: pointer; font: inherit; font-size: var(--font-size-sm); text-align: left; }
+.module-git-summary__operations-menu > button:hover, .module-git-summary__operations-menu > button:focus-visible { outline: none; background: var(--color-surface-hover); color: var(--settings-accent, var(--color-brand)); }
+.module-git-summary__operations-trigger:focus-visible, .module-git-summary__operations-menu > button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+@media (hover: none) {
+  .module-git-summary__operations-trigger { opacity: 1; pointer-events: auto; }
+  .module-git-summary__endcap { margin-inline-end: 36px; }
+}
+[data-layout-mode="mobile"].module-git-summary.is-actions-open { padding-block-start: 0; }
+[data-layout-mode="mobile"].module-git-summary .module-git-summary__operations-trigger { opacity: 1; pointer-events: auto; }
+[data-layout-mode="mobile"].module-git-summary .module-git-summary__endcap { margin-inline-end: 36px; }
+[data-layout-mode="mobile"].module-git-summary .module-git-summary__change-row .module-git-summary__endcap { opacity: 1; }
+[data-layout-mode="mobile"].module-git-summary .module-git-summary__operations-menu { position: relative; inset: auto; align-self: stretch; width: calc(100% - 20px); max-width: 100%; margin: 0 10px 4px; box-sizing: border-box; grid-template-columns: repeat(4, minmax(0, 1fr)); display: grid; }
+[data-layout-mode="mobile"].module-git-summary .module-git-summary__operations-menu > button { width: 100%; max-width: 100%; min-width: 0; min-height: 44px; padding: 4px 0; font-size: var(--font-size-xs); line-height: 1.15; text-align: center; white-space: normal; overflow-wrap: anywhere; box-sizing: border-box; }
+@container (max-width: 480px) { .module-git-summary { width: min(420px, max(0px, calc(100cqi - 168px)), calc(100vw - 24px)); } }
+@container (max-width: 300px) {
+  .module-git-summary__project-header { align-items: center; flex-direction: row; gap: 6px; }
+  .module-git-summary__project-title { flex: 1 1 auto; }
+  .module-git-summary__branch { max-width: 40%; flex: 0 1 auto; }
+  .module-git-summary__folder-state { display: none; }
+}
+@container (max-width: 200px) {
+  [data-layout-mode="mobile"].module-git-summary .module-git-summary__operations-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .module-ai-work-chat { display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; }
 .module-center__content--ai-work .module-ai-work-chat > .ai-work-chat { width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; margin: 0; padding-inline: clamp(12px, 2cqi, 24px); box-sizing: border-box; border: 0; border-radius: 0; background-clip: content-box; }
 /* 聊天表面和正文按中心列自身宽度内缩 12–24px；外层仍铺满中心列，让提问锚点贴近左二菜单。 */

@@ -2,7 +2,7 @@
 
 持有工具类型/参数辅助、可撤销注册/上下文工厂与 Run 摘要目录。领域工具和正文不再集中在 business-tools。
 
-公共合同：registerAiBusinessTool、registerAiBusinessToolFactory、listAiBusinessTools、createToolDiscoveryTools；加载只选择已有合同，不执行业务。
+公共合同：registerAiBusinessTool、registerAiBusinessToolFactory、listAiBusinessTools、createToolDiscoveryTools。`lfaa_tools_list` 支持按名称、说明或领域做多词任一命中搜索，结果先按完整查询命中、再按命中词数量排序，并返回 `matchedTerms`；空查询保留注册顺序和分页。`lfaa_tools_load` 仍只按精确工具名加载已有合同，不执行业务。
 
 运行位置：Control Plane 的 Cordis 插件或内部合同库，由 base Bundle 装配；不运行在浏览器，不将凭据或节点进程带入客户端。依赖以本包 package.json 为准，真实消费者见生成包清单的静态证据。源码/装配声明与现场运行验收分别记录。
 

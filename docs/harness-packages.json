@@ -72,6 +72,23 @@
       }
     },
     {
+      "path": "packages/api/browser-controller",
+      "name": "lfaa-api-browser-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "浏览器预览台与本机 Browser Owner 的认证 API 适配",
+      "evidence": {
+        "entry": "packages/api/browser-controller/src/index.ts",
+        "readme": "packages/api/browser-controller/README.md",
+        "consumers": [],
+        "bundleDeclarations": [
+          "packages/bundle/desktop-computer-use/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
       "path": "packages/api/connectivity-controller",
       "name": "lfaa-api-connectivity-controller",
       "upstreamName": null,
@@ -100,6 +117,7 @@
         "readme": "packages/api/gateway/README.md",
         "consumers": [
           "packages/api/account-controller",
+          "packages/api/browser-controller",
           "packages/api/connectivity-controller",
           "packages/api/job-controller",
           "packages/api/minecraft-controller",
@@ -222,6 +240,7 @@
           "packages/api/account-controller",
           "packages/api/agent-git-controller",
           "packages/api/ai-video-controller",
+          "packages/api/browser-controller",
           "packages/api/connectivity-controller",
           "packages/api/gateway",
           "packages/api/github-connection-controller",
@@ -621,17 +640,21 @@
     },
     {
       "path": "packages/browser-use/browser-use",
-      "name": null,
+      "name": "lfaa-browser-use",
       "upstreamName": "@deepseek-ai/dsh-browser-use",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "浏览器观察和操作的驱动服务合同",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
-        "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "entry": "packages/browser-use/browser-use/src/index.ts",
+        "readme": "packages/browser-use/browser-use/README.md",
+        "consumers": [
+          "packages/api/browser-controller"
+        ],
+        "bundleDeclarations": [
+          "packages/bundle/desktop-computer-use/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -778,6 +801,7 @@
           "packages/client/ui-settings-models",
           "packages/client/ui-shortcuts",
           "packages/client/ui-sidebar",
+          "packages/client/ui-sidebar-browser",
           "packages/client/ui-sidebar-files",
           "packages/client/ui-theme",
           "packages/client/ui-workflow",
@@ -856,6 +880,7 @@
           "packages/client/ui-settings-account",
           "packages/client/ui-settings-general",
           "packages/client/ui-sidebar",
+          "packages/client/ui-sidebar-browser",
           "packages/client/ui-sidebar-files",
           "packages/client/ui-workspace",
           "packages/client/ui-writing",
@@ -1009,6 +1034,7 @@
         "entry": "packages/client/ui-chat/src/index.ts",
         "readme": "packages/client/ui-chat/README.md",
         "consumers": [
+          "packages/client/ui-layout",
           "packages/client/ui-workspace",
           "packages/client/web"
         ],
@@ -1325,6 +1351,7 @@
           "packages/client/ui-settings",
           "packages/client/ui-settings-account",
           "packages/client/ui-sidebar",
+          "packages/client/ui-sidebar-browser",
           "packages/client/ui-sidebar-files",
           "packages/client/ui-workspace",
           "packages/client/ui-writing",
@@ -1619,17 +1646,20 @@
     },
     {
       "path": "packages/client/ui-sidebar-browser",
-      "name": null,
+      "name": "lfaa-client-ui-sidebar-browser",
       "upstreamName": "@deepseek-ai/dsh-client-ui-sidebar-browser",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "浏览器侧栏内容展示",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/client/ui-sidebar-browser/src/index.ts",
+        "readme": "packages/client/ui-sidebar-browser/README.md",
+        "consumers": [
+          "packages/client/ui-workspace",
+          "packages/client/web"
+        ],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -2263,6 +2293,7 @@
           "packages/boot/capability-mcp",
           "packages/boot/capability-skill",
           "packages/boot/knowledge-library",
+          "packages/browser-use/browser-use",
           "packages/computer-use/computer-use",
           "packages/core/agent-loop",
           "packages/document/tool-writing",
@@ -2307,6 +2338,7 @@
           "packages/api/account-controller",
           "packages/api/agent-git-controller",
           "packages/api/ai-video-controller",
+          "packages/api/browser-controller",
           "packages/api/connectivity-controller",
           "packages/api/gateway",
           "packages/api/github-connection-controller",
@@ -3245,7 +3277,7 @@
       "responsibility": "模型请求前后钩子与可撤销事件协议",
       "evidence": {
         "entry": "packages/hooks/hook-protocol/src/index.ts",
-        "readme": null,
+        "readme": "packages/hooks/hook-protocol/README.md",
         "consumers": [
           "packages/boot/app-boot"
         ],
@@ -3896,8 +3928,9 @@
       "responsibility": "模型上下文/输出令牌估算合同",
       "evidence": {
         "entry": "packages/llm/token-meter/src/index.ts",
-        "readme": null,
+        "readme": "packages/llm/token-meter/README.md",
         "consumers": [
+          "packages/core/agent-loop",
           "packages/llm/llm-pi-ai"
         ],
         "bundleDeclarations": [
@@ -3963,6 +3996,7 @@
         "readme": "packages/mcp/mcp-client/README.md",
         "consumers": [
           "packages/boot/capability-mcp",
+          "packages/browser-use/browser-use",
           "packages/core/agent-loop"
         ],
         "bundleDeclarations": [
@@ -4788,6 +4822,7 @@
         "readme": "packages/settings/settings/README.md",
         "consumers": [
           "packages/api/agent-git-controller",
+          "packages/api/browser-controller",
           "packages/api/minecraft-controller",
           "packages/api/remotes",
           "packages/api/session-controller",
@@ -4798,6 +4833,7 @@
           "packages/boot/capability-mcp",
           "packages/boot/capability-prompt",
           "packages/boot/plugin-manager",
+          "packages/browser-use/browser-use",
           "packages/compaction/compaction-basic",
           "packages/computer-use/computer-use",
           "packages/core/agent-default-model",
@@ -6095,6 +6131,7 @@
           "packages/boot/app-boot",
           "packages/boot/hmr",
           "packages/boot/plugin-manager",
+          "packages/browser-use/browser-use",
           "packages/computer-use/computer-use",
           "packages/credentials/authorization",
           "packages/fs/fs",
@@ -6229,6 +6266,7 @@
           "packages/api/account-controller",
           "packages/api/agent-git-controller",
           "packages/api/ai-video-controller",
+          "packages/api/browser-controller",
           "packages/api/connectivity-controller",
           "packages/api/github-connection-controller",
           "packages/api/job-controller",
@@ -6250,6 +6288,7 @@
           "packages/boot/capability-prompt",
           "packages/boot/knowledge-library",
           "packages/boot/plugin-manager",
+          "packages/browser-use/browser-use",
           "packages/client/connection",
           "packages/client/ui-chat",
           "packages/client/ui-layout",

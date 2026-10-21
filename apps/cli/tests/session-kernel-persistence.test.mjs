@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 function run(dataDirectory, script) {
   return execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", script], {
-    cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: dataDirectory, JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe"
+    cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: join(dataDirectory, "home"), LFAA_DATA_DIR: join(dataDirectory, "business-data"), JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe"
   });
 }
 const setup = `
@@ -30,9 +30,13 @@ test("正文分段和审批记录经 JSONL 重启与分页保留，非法范围�
       const turn=sessions.createAiTurn('parts-owner','workspace',null,'检查分段');
       const parts=[{id:'first',start:0,end:2,kind:'commentary'},{id:'last',start:2,end:4,kind:'final'}];
       assert.throws(()=>sessions.finishAiAssistantMessage('parts-owner',turn.session.id,turn.assistantMessage.id,'阶段结果','complete',[{id:'bad',start:0,end:9,kind:'final'}]),/分段无效/);
+      sessions.recordAiSessionRequest('parts-owner',turn.session.id,turn.assistantMessage.id,{providerId:'fixture-provider',modelId:'fixture-model',permissionMode:'ask',settings:{maxTokens:null},tools:[]},[{role:'system',content:'测试系统提示词'},{role:'user',content:'检查分段'}],{providerId:'fixture-provider',modelId:'fixture-model',contextWindow:64000,contextWindowSource:'model-catalog',promptTokens:null,estimatedPromptTokens:80,systemTokens:20,toolsTokens:0,messageTokens:60,includesImages:false});
+      sessions.recordAiModelResponse('parts-owner',turn.session.id,turn.assistantMessage.id,'阶段结果',[],['阶段结果'],{promptTokens:120,completionTokens:18});
       sessions.saveAiAssistantActivity('parts-owner',turn.session.id,turn.assistantMessage.id,[{id:'approval',kind:'command',title:'真实审批',detail:'执行完成',status:'complete',startedAt:turn.assistantMessage.createdAt,completedAt:turn.assistantMessage.createdAt,durationMs:0,contentOffset:2,approvalId:'approval-id',approvalQuestion:'允许执行本次操作吗？',approvalAnswer:'approved'}]);
       sessions.finishAiAssistantMessage('parts-owner',turn.session.id,turn.assistantMessage.id,'阶段结果','complete',parts);
+      sessions.recordAiUsage('parts-owner',turn.session.id,turn.assistantMessage.id,'fixture-provider','fixture-model',120,18,96);
       assert.deepEqual(sessions.getAiSessionMessages('parts-owner',turn.session.id).at(-1).parts,parts);
+      assert.deepEqual(sessions.getAiSessionMessages('parts-owner',turn.session.id).at(-1).usage,{providerId:'fixture-provider',modelId:'fixture-model',promptTokens:120,completionTokens:18,cacheReadTokens:96});
       console.log(JSON.stringify({id:turn.session.id}));close();
     `);
     run(data, `${setup}
@@ -41,6 +45,9 @@ test("正文分段和审批记录经 JSONL 重启与分页保留，非法范围�
         const page=await sessions.getAiSessionMessagesPage('parts-owner',id,undefined,100);
         const reply=page.messages.at(-1);
         assert.deepEqual(reply.parts.map(part=>part.kind),['commentary','final']);
+        assert.deepEqual(reply.usage,{providerId:'fixture-provider',modelId:'fixture-model',promptTokens:120,completionTokens:18,cacheReadTokens:96});
+        assert.deepEqual(page.usageSummary,{requestCount:1,promptTokens:120,completionTokens:18,cacheReadTokens:96,models:[{providerId:'fixture-provider',modelId:'fixture-model',requestCount:1,promptTokens:120,completionTokens:18,cacheReadTokens:96}]});
+        assert.deepEqual(page.contextUsage,{providerId:'fixture-provider',modelId:'fixture-model',contextWindow:64000,contextWindowSource:'model-catalog',promptTokens:120,estimatedPromptTokens:80,systemTokens:20,toolsTokens:0,messageTokens:60,includesImages:false});
         assert.equal(reply.activity[0].contentOffset,2);assert.equal(reply.activity[0].approvalAnswer,'approved');
         assert.equal(await sessions.getAiSessionMessagesPage('other-owner',id,undefined),null);
       }close();

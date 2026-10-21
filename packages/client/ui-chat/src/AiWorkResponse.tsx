@@ -36,13 +36,23 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
   const liveBlock = !finished ? presentation.blocks.find(block => block.kind === "text" && block.streaming) : undefined;
   const processBlocks = liveBlock ? presentation.blocks.filter(block => block !== liveBlock) : presentation.blocks;
   const process = <div className="ai-work-chat__response-timeline">
-    {processBlocks.map(block => block.kind === "text" ? <div className="ai-work-chat__response-part" key={block.id}>
-      <ResponseText content={block.content} streaming={block.streaming} />
-    </div> : block.kind === "interaction" ? <div className="ai-work-chat__response-interaction" key={block.id}>{renderInteraction(block.activity)}</div>
-      : <details className="ai-work-chat__tool-group" key={block.id}>
-        <summary><WorkbenchIcon name={block.activities.some(activity => activity.fileChanges?.length) ? "file" : "terminal"} size={14} /><span>{responseToolGroupLabel(block.activities)}</span><WorkbenchIcon name="chevron" size={13} /></summary>
+    {processBlocks.map(block => {
+      if (block.kind === "text") return <div className="ai-work-chat__response-part" key={block.id}>
+        <ResponseText content={block.content} streaming={block.streaming} />
+      </div>;
+      if (block.kind === "interaction") {
+        const interaction = renderInteraction(block.activity);
+        return interaction ? <div className="ai-work-chat__response-interaction" key={block.id}>{interaction}</div> : null;
+      }
+      const hasFileChanges = block.activities.some(activity => activity.fileChanges?.some(change => change.operation !== "read"));
+      const isCommandGroup = block.activities.every(activity => activity.kind === "command" || activity.title === "执行本机命令" || activity.title === "执行游戏节点命令");
+      const isWebGroup = block.activities.some(activity => /搜索|网页|浏览/u.test(activity.title));
+      const icon = hasFileChanges ? "file" : isCommandGroup ? "terminal" : isWebGroup ? "browser" : "tools";
+      return <details className="ai-work-chat__tool-group" key={`${block.id}:${finished ? "finished" : "running"}`} open={!finished}>
+        <summary><WorkbenchIcon name={icon} size={14} /><span>{responseToolGroupLabel(block.activities)}</span><WorkbenchIcon name="chevron" size={13} /></summary>
         <div className="ai-work-chat__tool-group-items">{block.activities.map(renderActivity)}</div>
-      </details>)}
+      </details>;
+    })}
   </div>;
   return <section className={`ai-work-chat__response ai-work-chat__activity--${summary.tone}`}>
     {finished ? <>

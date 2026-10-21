@@ -58,3 +58,45 @@ export function estimatePromptTokens(messages: readonly AiCompletionMessage[], t
   for (const message of messages) total += estimateMessage(message);
   return total;
 }
+
+export interface ContextBreakdownEstimate {
+  estimatedPromptTokens: number;
+  systemTokens: number;
+  toolsTokens: number;
+  messageTokens: number;
+  includesImages: boolean;
+}
+
+function estimateContextMessage(message: AiCompletionMessage): { tokens: number; includesImages: boolean } {
+  let characters = message.role.length;
+  let includesImages = false;
+  if (typeof message.content === "string") characters += message.content.length;
+  else if (Array.isArray(message.content)) {
+    for (const part of message.content) {
+      if (part.type === "text") characters += part.text.length;
+      else includesImages = true;
+    }
+  }
+  if (Array.isArray(message.tool_calls)) characters += message.tool_calls.reduce((sum, call) => sum + call.function.name.length + call.function.arguments.length, 0);
+  if (typeof message.tool_call_id === "string") characters += message.tool_call_id.length;
+  return { tokens: Math.ceil(characters / CHARS_PER_TOKEN) + ROLE_OVERHEAD, includesImages };
+}
+
+/**
+ * Estimate the current request's prompt composition without a model call.
+ * Image payload tokens are provider-specific, so the result flags requests
+ * containing images and leaves their visual token cost to actual usage.
+ */
+export function estimateContextBreakdown(messages: readonly AiCompletionMessage[], tools?: readonly AiCompletionTool[]): ContextBreakdownEstimate {
+  let systemTokens = 0;
+  let messageTokens = 0;
+  let includesImages = false;
+  for (const message of messages) {
+    const estimate = estimateContextMessage(message);
+    if (message.role === "system") systemTokens += estimate.tokens;
+    else messageTokens += estimate.tokens;
+    includesImages ||= estimate.includesImages;
+  }
+  const toolsTokens = estimateToolSchemas(tools);
+  return { estimatedPromptTokens: systemTokens + toolsTokens + messageTokens, systemTokens, toolsTokens, messageTokens, includesImages };
+}

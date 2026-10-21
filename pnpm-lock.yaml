@@ -359,6 +359,9 @@ importers:
       lfaa-client-ui-sidebar:
         specifier: workspace:*
         version: link:../../packages/client/ui-sidebar
+      lfaa-client-ui-sidebar-browser:
+        specifier: workspace:*
+        version: link:../../packages/client/ui-sidebar-browser
       lfaa-client-ui-sidebar-files:
         specifier: workspace:*
         version: link:../../packages/client/ui-sidebar-files
@@ -545,6 +548,43 @@ importers:
       lfaa-video-ai-video:
         specifier: workspace:*
         version: link:../../video/ai-video
+    devDependencies:
+      '@types/express':
+        specifier: ^4.0.0
+        version: 4.17.25
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/api/browser-controller:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      express:
+        specifier: ^4.0.0
+        version: 4.22.3(supports-color@7.1.0)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-api-gateway:
+        specifier: workspace:*
+        version: link:../gateway
+      lfaa-api-remotes:
+        specifier: workspace:*
+        version: link:../remotes
+      lfaa-authorization:
+        specifier: workspace:*
+        version: link:../../credentials/authorization
+      lfaa-browser-use:
+        specifier: workspace:*
+        version: link:../../browser-use/browser-use
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
     devDependencies:
       '@types/express':
         specifier: ^4.0.0
@@ -1588,6 +1628,40 @@ importers:
         specifier: ^7.8.0
         version: 7.8.0
 
+  packages/browser-use/browser-use:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-launch-environment:
+        specifier: workspace:*
+        version: link:../../util/launch-environment
+      lfaa-mcp-client:
+        specifier: workspace:*
+        version: link:../../mcp/mcp-client
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+      playwright-core:
+        specifier: ^1.56.1
+        version: 1.64.1
+    devDependencies:
+      '@types/express':
+        specifier: ^4.0.0
+        version: 4.17.25
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
   packages/bundle/base:
     dependencies:
       lfaa-agent:
@@ -1805,6 +1879,12 @@ importers:
 
   packages/bundle/desktop-computer-use:
     dependencies:
+      lfaa-api-browser-controller:
+        specifier: workspace:*
+        version: link:../../api/browser-controller
+      lfaa-browser-use:
+        specifier: workspace:*
+        version: link:../../browser-use/browser-use
       lfaa-computer-use:
         specifier: workspace:*
         version: link:../../computer-use/computer-use
@@ -2270,6 +2350,9 @@ importers:
       lfaa-client-store:
         specifier: workspace:*
         version: link:../store
+      lfaa-client-ui-chat:
+        specifier: workspace:*
+        version: link:../ui-chat
       lfaa-client-ui-commands:
         specifier: workspace:*
         version: link:../ui-commands
@@ -2789,6 +2872,31 @@ importers:
         specifier: ^18.0.0
         version: 18.0.0
 
+  packages/client/ui-sidebar-browser:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-client-connection:
+        specifier: workspace:*
+        version: link:../connection
+      lfaa-client-modules:
+        specifier: workspace:*
+        version: link:../modules
+      lfaa-client-ui-primitives:
+        specifier: workspace:*
+        version: link:../ui-primitives
+      react:
+        specifier: ^18.0.0
+        version: 18.0.0
+    devDependencies:
+      '@types/react':
+        specifier: ^18.0.0
+        version: 18.3.31
+      '@types/react-dom':
+        specifier: ^18.0.0
+        version: 18.0.0
+
   packages/client/ui-sidebar-files:
     dependencies:
       '@deepseek-ai/cordis':
@@ -2935,6 +3043,9 @@ importers:
       lfaa-client-ui-sidebar:
         specifier: workspace:*
         version: link:../ui-sidebar
+      lfaa-client-ui-sidebar-browser:
+        specifier: workspace:*
+        version: link:../ui-sidebar-browser
       lfaa-client-ui-theme:
         specifier: workspace:*
         version: link:../ui-theme
@@ -3054,6 +3165,9 @@ importers:
       lfaa-client-ui-sidebar:
         specifier: workspace:*
         version: link:../ui-sidebar
+      lfaa-client-ui-sidebar-browser:
+        specifier: workspace:*
+        version: link:../ui-sidebar-browser
       lfaa-client-ui-sidebar-files:
         specifier: workspace:*
         version: link:../ui-sidebar-files
@@ -3255,6 +3369,9 @@ importers:
       lfaa-telemetry-logger:
         specifier: workspace:*
         version: link:../../telemetry/logger
+      lfaa-token-meter:
+        specifier: workspace:*
+        version: link:../../llm/token-meter
       lfaa-tools:
         specifier: workspace:*
         version: link:../tools
@@ -8368,6 +8485,11 @@ packages:
     resolution: {integrity: sha512-Oo/NZcSWccq8KyoG7gLE9fnltgHns+pNCjCAp/WmjsUySi+sX7y4z4Xqu4fVb42CDHzRPl33fjzT15V1wvcyhA==}
     engines: {node: '>=16.0.0'}
 
+  playwright-core@1.64.1:
+    resolution: {integrity: sha512-BC4s8y6SEVA6Q1rSxZTto8hI1KUI3xXlHGZgvGqP4IqPdI/a6FX9H29IDNz7vKo9l21b6LfYosScPL6M3xxyDQ==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   plist@3.1.0:
     resolution: {integrity: sha512-uysumyrvkUX0rX/dEVqt8gC3sTBzd4zoWfLeS29nb53imdaXVvLINYXTI2GNqzaMuvacNx4uJQ8+b3zXR0pkgQ==}
     engines: {node: '>=10.4.0'}
@@ -12278,6 +12400,8 @@ snapshots:
       pvtsutils: 1.3.6
       pvutils: 1.2.0
       tslib: 2.8.1
+
+  playwright-core@1.64.1: {}
 
   plist@3.1.0:
     dependencies:

@@ -29,7 +29,7 @@
   --lfaa-shell-header-h: var(--agent-shell-header-h, 3rem); /* Overlay 顶部避让高度，优先复用主题顶栏高度。 */
   --lfaa-overlay-left-width: clamp(13.5rem, 30%, 17.5rem); /* 紧凑模式左侧浮层宽度，并限制最小/最大值。 */
   --lfaa-overlay-right-width: clamp(15rem, 34%, 20rem); /* 紧凑模式右侧浮层宽度，并限制最小/最大值。 */
-  --lfaa-mobile-pane-width: clamp(15rem, 84%, 20rem); /* 移动端侧栏宽度：按屏幕比例变化且不超出范围。 */
+  --lfaa-mobile-pane-width: min(calc(100% - .75rem), 20rem); /* 移动端左/右侧栏宽度：取工作台可用宽度减 12px 的留边，与 320px 最大宽度取较小值。 */
 
   /* 让内部布局按工作台容器宽度响应，不依赖浏览器窗口宽度断点。 */
   container-type: inline-size;
@@ -344,6 +344,8 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   box-shadow: 0 .75rem 2.25rem rgba(0, 0, 0, .14);
 }
 .lfaa-workbench[data-layout-mode="mobile"] .lfaa-workbench__pane--left {
+  /* 左侧导航直接覆盖工作区顶边；顶栏不属于左栏浮层的占位区域。 */
+  top: 0;
   left: 0;
   box-shadow: 1rem .625rem 2.25rem rgba(0, 0, 0, .14);
 }
@@ -369,7 +371,8 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="true"][data-right-layout="dock"] .lfaa-workbench__pane--left {
   position: absolute;
   z-index: 80;
-  top: var(--lfaa-shell-header-h);
+  /* 右栏保持 Dock 时，浮起的左侧导航仍从工作区顶边开始。 */
+  top: 0;
   bottom: var(--lfaa-bottom-row);
   left: 0;
   width: var(--lfaa-mobile-pane-width);

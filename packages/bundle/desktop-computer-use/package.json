@@ -13,6 +13,8 @@
     }
   },
   "dependencies": {
-    "lfaa-computer-use": "workspace:*"
+    "lfaa-computer-use": "workspace:*",
+    "lfaa-browser-use": "workspace:*",
+    "lfaa-api-browser-controller": "workspace:*"
   }
 }

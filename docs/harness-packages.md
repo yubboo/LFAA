@@ -4,7 +4,7 @@
 
 参考 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，上游基线 commit `639ed015397290b3745d163aafe02ffee4aa3f84`。
 
-当前 373 个两级目录、200 个实际 workspace 包（198 个产品源码/组合包，2 个工程/测试包），173 个占位目录。控制端/节点运行树含 173 个包；客户端源码包单独进入 Web 构建。
+当前 374 个两级目录、203 个实际 workspace 包（201 个产品源码/组合包，2 个工程/测试包），171 个占位目录。控制端/节点运行树含 175 个包；客户端源码包单独进入 Web 构建。
 
 `implemented` 仅表示有 package.json 和源码/装配；不代表已经进入 Profile、通过运行验收或与 DSH 等价。`placeholder` 不可执行。产品能力现状见 [系统总体架构](系统总体架构.md)，历史核验见 [P0 记录](archive/audits/harness-p0-audit.md)。
 
@@ -16,8 +16,9 @@
 | [packages/api/account-controller](../packages/api/account-controller) | lfaa-api-account-controller | implemented | 账户认证、个人资料与身份 API，调用身份 Owner | [源码](../packages/api/account-controller/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/api/agent-git-controller](../packages/api/agent-git-controller) | lfaa-api-agent-git-controller | implemented | Agent 本机 Git 仓库登记、会话绑定与固定操作认证 API | [源码](../packages/api/agent-git-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/api/ai-video-controller](../packages/api/ai-video-controller) | lfaa-api-ai-video-controller | implemented | 账户 AI 视频项目与生成任务的认证 API | [源码](../packages/api/ai-video-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
+| [packages/api/browser-controller](../packages/api/browser-controller) | lfaa-api-browser-controller | implemented | 浏览器预览台与本机 Browser Owner 的认证 API 适配 | [源码](../packages/api/browser-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/api/connectivity-controller](../packages/api/connectivity-controller) | lfaa-api-connectivity-controller | implemented | 联机目标、连接配置与节点网络操作 API | [源码](../packages/api/connectivity-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
-| [packages/api/gateway](../packages/api/gateway) | lfaa-api-gateway | implemented | 共享认证 API Gateway 与 Controller 路由承载 | [源码](../packages/api/gateway/src/index.ts)；13 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/api/gateway](../packages/api/gateway) | lfaa-api-gateway | implemented | 共享认证 API Gateway 与 Controller 路由承载 | [源码](../packages/api/gateway/src/index.ts)；14 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/api/github-connection-controller](../packages/api/github-connection-controller) | lfaa-api-github-connection-controller | implemented | GitHub OAuth 授权状态和只读仓库资源的认证 API 适配 | [源码](../packages/api/github-connection-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/api/job-controller](../packages/api/job-controller) | lfaa-api-job-controller | implemented | 节点任务查询、派发与取消的协议适配 | [源码](../packages/api/job-controller/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/api/knowledge-controller](../packages/api/knowledge-controller) | lfaa-api-knowledge-controller | implemented | 账户知识库和 Markdown 资料来源管理 API | [源码](../packages/api/knowledge-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
@@ -44,7 +45,7 @@
 | [packages/boot/hmr](../packages/boot/hmr) | lfaa-hmr | implemented | 开发插件与源码热重载生命周期 | [源码](../packages/boot/hmr/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/boot/knowledge-library](../packages/boot/knowledge-library) | lfaa-knowledge-library-runtime | implemented | 知识资料目录和按需读取的工具装配适配 | [源码](../packages/boot/knowledge-library/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/boot/plugin-manager](../packages/boot/plugin-manager) | lfaa-plugin-manager | implemented | 第三方插件来源核验、安装、装载、资源和回滚管理 | [源码](../packages/boot/plugin-manager/src/index.ts)；3 个静态消费者；1 个组合声明 | DSH 同名目录 |
-| [packages/browser-use/browser-use](../packages/browser-use/browser-use) | — | placeholder | 浏览器观察和操作的驱动服务合同 | 占位不可执行 | DSH 同名目录 |
+| [packages/browser-use/browser-use](../packages/browser-use/browser-use) | lfaa-browser-use | implemented | 浏览器观察和操作的驱动服务合同 | [源码](../packages/browser-use/browser-use/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/bundle/acp-app](../packages/bundle/acp-app) | — | placeholder | ACP 应用的能力组合补丁 | 占位不可执行 | DSH 同名目录 |
 | [packages/bundle/base](../packages/bundle/base) | lfaa-base | implemented | 共享 Control Plane 基础能力的有序组合 | [源码](../packages/bundle/base/src/index.ts)；0 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/bundle/daemon-app](../packages/bundle/daemon-app) | lfaa-daemon-app | implemented | 目标节点身份、执行与任务领取的组合 | 仅组合/清单；未证实运行 | LFAA 扩展 |
@@ -57,7 +58,7 @@
 | [packages/client/file-upload](../packages/client/file-upload) | — | placeholder | 客户端文件上传协议与进度交互 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/hmr](../packages/client/hmr) | — | placeholder | 客户端模块开发热更新 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/locale](../packages/client/locale) | — | placeholder | 客户端语言资源与语言设置映射 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/modules](../packages/client/modules) | lfaa-client-modules | implemented | 客户端模块/Slots 的懒加载、装卸与作用域 | [源码](../packages/client/modules/src/index.ts)；16 个静态消费者；0 个组合声明 | DSH 同名目录 |
+| [packages/client/modules](../packages/client/modules) | lfaa-client-modules | implemented | 客户端模块/Slots 的懒加载、装卸与作用域 | [源码](../packages/client/modules/src/index.ts)；17 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/product-analytics](../packages/client/product-analytics) | — | placeholder | 客户端产品指标上报适配与隐私边界 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/resources](../packages/client/resources) | lfaa-client-resources | implemented | 客户端共享资源读取、缓存与撤销 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/client/shortcuts](../packages/client/shortcuts) | — | placeholder | 客户端快捷键服务和登记协议 | 占位不可执行 | DSH 同名目录 |
@@ -66,7 +67,7 @@
 | [packages/client/ui-approval](../packages/client/ui-approval) | — | placeholder | 审批请求和真实决定的界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-attachment](../packages/client/ui-attachment) | — | placeholder | 附件选择、预览与状态界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-brand-official](../packages/client/ui-brand-official) | — | placeholder | 产品品牌视觉组件 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/ui-chat](../packages/client/ui-chat) | lfaa-client-ui-chat | implemented | AI Work 输入、消息、公开轨迹、提问和结果界面 | [源码](../packages/client/ui-chat/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
+| [packages/client/ui-chat](../packages/client/ui-chat) | lfaa-client-ui-chat | implemented | AI Work 输入、消息、公开轨迹、提问和结果界面 | [源码](../packages/client/ui-chat/src/index.ts)；3 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-commands](../packages/client/ui-commands) | lfaa-client-ui-commands | implemented | 键盘命令匹配和交互派发 | [源码](../packages/client/ui-commands/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-connectivity](../packages/client/ui-connectivity) | lfaa-client-ui-connectivity | implemented | 联机 App 工作台和网络任务界面 | [源码](../packages/client/ui-connectivity/src/index.ts)；2 个静态消费者；0 个组合声明 | LFAA 扩展 |
 | [packages/client/ui-conversation](../packages/client/ui-conversation) | — | placeholder | 会话对话容器与消息交互组件 | 占位不可执行 | DSH 同名目录 |
@@ -85,7 +86,7 @@
 | [packages/client/ui-permission-presets](../packages/client/ui-permission-presets) | — | placeholder | 权限预设选择界面，不实现授权策略 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-plan](../packages/client/ui-plan) | — | placeholder | 计划模式和计划结果展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-plugin-manager](../packages/client/ui-plugin-manager) | lfaa-client-ui-plugin-manager | implemented | 插件安装、停用和故障管理界面 | [源码](../packages/client/ui-plugin-manager/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
-| [packages/client/ui-primitives](../packages/client/ui-primitives) | lfaa-client-ui-primitives | implemented | 跨应用可复用的基础交互组件 | [源码](../packages/client/ui-primitives/src/index.ts)；11 个静态消费者；0 个组合声明 | DSH 同名目录 |
+| [packages/client/ui-primitives](../packages/client/ui-primitives) | lfaa-client-ui-primitives | implemented | 跨应用可复用的基础交互组件 | [源码](../packages/client/ui-primitives/src/index.ts)；12 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-reference](../packages/client/ui-reference) | — | placeholder | 上下文引用与来源展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-renderer](../packages/client/ui-renderer) | lfaa-client-ui-renderer | implemented | React 根挂载、账户路由和 Slots 容器 | [源码](../packages/client/ui-renderer/src/index.ts)；1 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-schedule](../packages/client/ui-schedule) | — | placeholder | 定时任务配置与实际状态界面 | 占位不可执行 | DSH 同名目录 |
@@ -103,7 +104,7 @@
 | [packages/client/ui-settings-web-search](../packages/client/ui-settings-web-search) | — | placeholder | 网页搜索 Provider 设置界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-shortcuts](../packages/client/ui-shortcuts) | lfaa-client-ui-shortcuts | implemented | 账户快捷键配置控件 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/client/ui-sidebar](../packages/client/ui-sidebar) | lfaa-client-ui-sidebar | implemented | 共享侧栏及导航树组件 | [源码](../packages/client/ui-sidebar/src/index.ts)；6 个静态消费者；0 个组合声明 | DSH 同名目录 |
-| [packages/client/ui-sidebar-browser](../packages/client/ui-sidebar-browser) | — | placeholder | 浏览器侧栏内容展示 | 占位不可执行 | DSH 同名目录 |
+| [packages/client/ui-sidebar-browser](../packages/client/ui-sidebar-browser) | lfaa-client-ui-sidebar-browser | implemented | 浏览器侧栏内容展示 | [源码](../packages/client/ui-sidebar-browser/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-sidebar-documentpreview](../packages/client/ui-sidebar-documentpreview) | — | placeholder | 文档预览侧栏展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-sidebar-files](../packages/client/ui-sidebar-files) | lfaa-client-ui-sidebar-files | implemented | 统一文件列表、预览、编辑与回收站界面 | [源码](../packages/client/ui-sidebar-files/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-sidebar-right](../packages/client/ui-sidebar-right) | — | placeholder | 共享右侧上下文栏展示 | 占位不可执行 | DSH 同名目录 |
@@ -140,7 +141,7 @@
 | [packages/core/scope](../packages/core/scope) | lfaa-scope | implemented | 能力可见范围与 Cordis 作用域合同 | [源码](../packages/core/scope/src/index.ts)；4 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/core/session](../packages/core/session) | lfaa-session | implemented | 账户会话事务、事件与 JSONL 恢复门面 | [源码](../packages/core/session/src/index.ts)；11 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/core/system-prompt](../packages/core/system-prompt) | lfaa-system-prompt | implemented | 核心指令/权限/上下文组合，不按 App 注入领域全文 | [源码](../packages/core/system-prompt/src/index.ts)；3 个静态消费者；0 个组合声明 | DSH 同名目录 |
-| [packages/core/tools](../packages/core/tools) | lfaa-tools | implemented | 公共工具合同、参数校验、可撤销注册与 Run 工具发现 | [源码](../packages/core/tools/src/index.ts)；27 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/core/tools](../packages/core/tools) | lfaa-tools | implemented | 公共工具合同、参数校验、可撤销注册与 Run 工具发现 | [源码](../packages/core/tools/src/index.ts)；28 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/credentials/authorization](../packages/credentials/authorization) | lfaa-authorization | implemented | 凭据访问授权合同 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/credentials/credential-flows](../packages/credentials/credential-flows) | lfaa-credential-flows | implemented | 凭据获取/连接流程适配 | [源码](../packages/credentials/credential-flows/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/credentials/credentials](../packages/credentials/credentials) | lfaa-credentials | implemented | 受保护秘密存储与访问服务 | [源码](../packages/credentials/credentials/src/index.ts)；7 个静态消费者；1 个组合声明 | DSH 同名目录 |
@@ -234,11 +235,11 @@
 | [packages/llm/llm-pi-ai](../packages/llm/llm-pi-ai) | lfaa-llm-pi-ai | implemented | PI AI 模型协议桥接提供方 | [源码](../packages/llm/llm-pi-ai/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/llm/llm-retry](../packages/llm/llm-retry) | lfaa-llm-retry | implemented | 有界 Provider 重试策略，不重放工具副作用 | [源码](../packages/llm/llm-retry/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/llm/plugin-package-inventory-deepseek](../packages/llm/plugin-package-inventory-deepseek) | — | placeholder | DeepSeek 插件包目录适配 | 占位不可执行 | DSH 同名目录 |
-| [packages/llm/token-meter](../packages/llm/token-meter) | lfaa-token-meter | implemented | 模型上下文/输出令牌估算合同 | [源码](../packages/llm/token-meter/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/llm/token-meter](../packages/llm/token-meter) | lfaa-token-meter | implemented | 模型上下文/输出令牌估算合同 | [源码](../packages/llm/token-meter/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/lsp/lsp](../packages/lsp/lsp) | — | placeholder | 语言服务协议与服务合同 | 占位不可执行 | DSH 同名目录 |
 | [packages/lsp/lsp-stdio](../packages/lsp/lsp-stdio) | — | placeholder | stdio 语言服务进程提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/lsp/tool-lsp](../packages/lsp/tool-lsp) | — | placeholder | 代码导航和语言服务工具 | 占位不可执行 | DSH 同名目录 |
-| [packages/mcp/mcp-client](../packages/mcp/mcp-client) | lfaa-mcp-client | implemented | MCP 连接池、发现、按需目录/调用和账户/配置回收 | [源码](../packages/mcp/mcp-client/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/mcp/mcp-client](../packages/mcp/mcp-client) | lfaa-mcp-client | implemented | MCP 连接池、发现、按需目录/调用和账户/配置回收 | [源码](../packages/mcp/mcp-client/src/index.ts)；3 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/mcp/mcp-resources](../packages/mcp/mcp-resources) | — | placeholder | MCP 资源列表与按需读取适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/network/game-connectivity](../packages/network/game-connectivity) | lfaa-game-connectivity | implemented | 游戏联机目标、连接配置及节点网络任务领域 | [源码](../packages/network/game-connectivity/src/index.ts)；4 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/plan/plan-mode](../packages/plan/plan-mode) | — | placeholder | 计划模式状态与执行范围合同 | 占位不可执行 | DSH 同名目录 |
@@ -286,7 +287,7 @@
 | [packages/session/session-title-first-prompt-llm](../packages/session/session-title-first-prompt-llm) | lfaa-session-title-first-prompt-llm | implemented | 首轮提示的模型标题提供方 | [源码](../packages/session/session-title-first-prompt-llm/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/session/session-title-llm](../packages/session/session-title-llm) | lfaa-session-title-llm | implemented | 通用模型标题生成适配 | [源码](../packages/session/session-title-llm/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/session/session-turn-outline](../packages/session/session-turn-outline) | lfaa-session-turn-outline | implemented | 会话回合大纲投影 | [源码](../packages/session/session-turn-outline/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
-| [packages/settings/settings](../packages/settings/settings) | lfaa-settings | implemented | 账户设置类型、默认值、校验、持久化和能力映射权威 | [源码](../packages/settings/settings/src/index.ts)；37 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/settings/settings](../packages/settings/settings) | lfaa-settings | implemented | 账户设置类型、默认值、校验、持久化和能力映射权威 | [源码](../packages/settings/settings/src/index.ts)；39 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/shell/bash-local](../packages/shell/bash-local) | lfaa-bash-local | implemented | 本机 Bash Shell 提供方 | [源码](../packages/shell/bash-local/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/shell/bash-sandbox](../packages/shell/bash-sandbox) | lfaa-bash-sandbox | implemented | 隔离 Bash Shell 提供方 | [源码](../packages/shell/bash-sandbox/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/shell/pwsh-local](../packages/shell/pwsh-local) | lfaa-pwsh-local | implemented | 本机 PowerShell 提供方 | [源码](../packages/shell/pwsh-local/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |

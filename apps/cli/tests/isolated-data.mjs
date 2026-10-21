@@ -17,4 +17,5 @@ export function isolateData(test, name) {
     if (dirname(data) !== parent) throw new Error("拒绝清理测试根以外的路径。");
     rmSync(data, { recursive: true, force: true });
   });
+  return data;
 }
