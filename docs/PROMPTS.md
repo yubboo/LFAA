@@ -209,8 +209,10 @@
 | 202-AI-Work-Git摘要抽屉改为右侧分隔线展开-20261022 | 摘要卡从中心区与右侧工作台的竖向拖拽分隔线向左拉开，顶缘贴内容区顶部、按内容收高并在底部留白；修复输入框背景闪烁 | 已完成；UI 回归 30/30、Client 类型检查、Web 构建/指纹通过；内置浏览器 `/work` 1509×692、1100×600、1100×350 实测顶部对齐、底部留白、短屏卡内滚动，四项 Git 操作完整可见 | [本轮合同](#lfaa-ai-work-git-summary-divider-drawer-20261022) |
 | 201-AI-Work-Git摘要操作菜单裁切修复-20261022 | 修复中心栏 Git 摘要卡中提交、推送、创建分支、切换分支四项菜单被中心列裁切的问题 | 已修复；UI 回归 18/18、Client 类型检查、Web 构建和内置浏览器 `/work` 1513×690 / 1100×600 验收通过；四项完整可见 | [本轮合同](#lfaa-ai-work-git-summary-operations-20261022) |
 | 200-AI-Work-Git摘要卡抽屉展开-20261022 | 点击中心栏 Git 摘要后，让卡片贴中心区域右上角向左展开，并完整收在中心区域内；沿用主题与减少动态效果设置 | 已实现；UI 回归 17/17、Client 类型检查和 Web 构建通过；内置浏览器 `/work` 1280×720 点击/关闭/重开通过，摘要完整收在中心列 | [本轮合同](#lfaa-ai-work-git-summary-drawer-20261022) |
-| 203-AI-Work新标签页与工具入口-20261022 | 移除固定“LFAA 工作台”页签；中心区收起时用“新标签页”打开功能入口，选择浏览器、Git、应用或已登记扩展面板后显示对应动态页签，并支持加号新建/关闭 | 实施中：待完成动态页签、真实工具入口、回归、构建及内置浏览器 `/work` 实页验收 | [本轮合同](#lfaa-ai-work-new-tab-tool-launcher-20261022) |
-| 212-工作区四区域盒子结构-20261022 | 将工作区组织为外层容器、内层工作台及可单独定位的全局图标轨、左侧菜单、中间工作区和右侧菜单区域，保持现有样式和布局行为 | ✅ 结构回归、Client 类型检查、Web 构建通过；内置浏览器 `/work` 1680×944 实见四区域顺序，1197×690/760×640/390×640 检查响应式收纳；同文件其余 4 项断言失败，非本轮布局检查 | [本轮合同](#lfaa-workspace-four-region-boxes-20261022) |
+| 203-AI-Work新标签页与工具入口-20261022 | 移除固定“LFAA 工作台”页签；中心区收起时用“新标签页”打开功能入口，选择浏览器、Git、应用或已登记扩展面板后显示对应动态页签，并支持加号新建/关闭 | 已实现；21/21 定向回归、Client 类型检查与 Web 构建通过；内置浏览器实测中心收起、功能菜单打开浏览器及加号新建；窄屏和关闭动作未完成实页验收 | [本轮合同](#lfaa-ai-work-new-tab-tool-launcher-20261022) |
+| 212-工作区四区域盒子结构-20261022 | 将工作区组织为外层容器、共享内层布局根及四个同级可复用区域，保留当前样式和交互 | 已完成：结构/响应式回归、类型检查、相关包与 Web 构建、203 包工作区检查通过；内置浏览器桌面与窄分栏检查通过；手机视口和真实拖动未测 | [本轮合同](#lfaa-workspace-four-region-boxes-20261022) |
+| 213-菜单8源码更新版本提示-20261022 | 菜单 8 在安全快进确认前显示当前源码版本与 GitHub 将拉取的源码版本，沿用菜单 6 的提交版本格式 | 已修复 Windows PowerShell 5.1 编码解析问题；工作台入口和退出、相关脚本语法检查通过；版本快进交互及自动化回归未测 | [本轮合同](#lfaa-menu-source-update-version-notice-20261022) |
+| 214-四区域内部功能盒子与样式隔离-20261022 | 在左一、左二、中间和右侧区域内为各功能分组建立独立盒子，并按区域隔离 CSS，保持现有外观和响应式行为 | 已完成；定向回归、类型检查、Web 构建及 `/work` 浏览器验收通过；广义旧回归另有 6 项历史断言不匹配；未测真实设备/帧时间 | [本轮合同](#lfaa-workspace-region-subboxes-20261022) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
@@ -1365,7 +1367,15 @@ Owner：Agent Loop 记录每次可见模型正文的范围和活动落点；Syst
 
 ### 实施与验收记录
 
-- 待实施。
+- 实施：移除固定“LFAA 工作台”工具页签，初始工具页签改为“新标签页”入口菜单。点“浏览器”后同一页签显示“浏览器”并复用现有 Browser 面板；Git 变更、侧边聊天、应用导航和已登记扩展面板分别路由到现有 Owner。加号创建另一个“新标签页”，关闭功能页签后恢复相邻页或对话。AI 能力目录只展示登记信息，不做成虚假的可点击工作区。中心展开时保留当前对话标题；中心收起后页签显示在右侧 Dock 顶栏。
+- 布局补正：内置浏览器实页发现页签导航只按内容宽度收缩，功能名被挤成一个字。将右侧页签导航改为占满顶栏剩余宽度；窄容器仍按现有容器断点图标化，并保留可访问名称与提示。DockKit 在中心列拖动越过吸附阈值时按状态变化发出预览通知，退出阈值、松手或取消时清除预览；不按每帧更新 React 状态。
+- 设置中心：无新增或改动。仍使用 `general.navigationLayout`、`general.showServiceStatus`、现有终端显示/位置项，以及 Appearance/主题共享令牌；未写入或重置设置。动态功能页签只存在于组件本地瞬态状态。
+- 文件职责：`packages/client/ui-workspace/src/ApplicationWorkspace.tsx` 管理入口菜单、瞬态页签及现有面板 Owner 路由；`packages/client/ui-workspace/src/module-workbench.css` 管理页签、菜单及响应式宽度；`packages/client/ui-workspace/README.md` 记录工作区行为；`packages/client/ui-dockkit/src/ResizableWorkbench.tsx` 与 `workbench-layout.types.ts` 暴露拖动吸附预览回调；`packages/client/ui-dockkit/README.md` 记录 DockKit 合同；`apps/cli/tests/client-workspace-app-tabs.test.mjs` 锁定动态页签、入口、吸附和窄栏样式；本合同/索引记录目标及证据。
+- 源码/构建验证：`pnpm --filter @yubboo/lfaa test -- tests/client-workspace-app-tabs.test.mjs tests/client-workbench-responsive.test.mjs` 通过 21/21；`pnpm exec tsc --noEmit -p tsconfig.client.json` 通过；最终 `pnpm run build:web` 通过，Vite 转换 2,278 个模块并输出到根 `dist/apps/web`/`dist/packages`；`node scripts/runtime-build-state.mjs web` 返回 `[]`；`git diff --check` 通过。构建保留既有约 501KB C++ 语法高亮资源提示。
+- 内置浏览器实页：当前源码正式 Web `pnpm lfaa web --no-local-daemon`，路由 `http://127.0.0.1:3000/work`；构建后按服务提示重启由本轮启动的 Web 进程。最新构建实测视口为 1469×1296：分隔条拖到中心最小约 300px 后继续拖过阈值，中心完全收起；状态树显示对话页签与“新标签页”，截图确认页签位于右侧栏顶部。点击“浏览器”后树中标签文字变为“浏览器”，右侧实际显示 Browser Owner 面板；点击加号后出现第三个“新标签页”，三项标签文字读取为“你好 / 浏览器 / 新标签页”。修正 CSS 后这两个功能标题均完整显示。截图由内置浏览器工具在会话中展示，工具未提供本地导出路径。
+- 未完成实页项：本轮内置浏览器控制接口不提供独立 viewport 调整，因此未能实测窄屏视口；原子拖动接口只在松手后返回状态，未能截图捕获按住时的中间帧；关闭按钮动作未完成实页验收（认证在后续检查中返回登录页），但关闭逻辑由直接回归覆盖。没有运行实体手机、平板或桌面 WebView 验收，也未测帧时间。不能把这些项目计为实页通过。
+- 数据边界记录：为进入本地页面进行了应用登录。服务日志显示现有登录初始化流程调用了 Agent `repository/ensure`、`workspace/projects/initialize-default`（均返回 200）及 Git 状态读取；这些是应用既有自动流程，本轮没有在界面触发 Git 变更、提交、发送消息或设置修改。无法从登录前快照区分初始化是否实际新建数据，因此不声称纯只读，也未做删除/回滚。
+- 状态：实现完成；桌面实页主要行为通过，窄屏、按住中间帧与关闭动作保留为未验收项。
 
 <a id="lfaa-ai-work-new-tab-tool-launcher-20261022"></a>
 ## 203-AI Work 新标签页与工具入口（2026-10-22）
@@ -5163,6 +5173,39 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 - 最终边界：仅验证当前账户背景与当前主题；没有切换外观设置。减少动态效果不受影响，因为本批不增加背景运动。未分别验证其他用户上传背景、Wallpaper Engine 运行态、桌面 WebView 和帧时间；CSS 静态层无 JS 逐帧工作。
 - 状态：已完成。
 
+<a id="lfaa-menu-source-update-version-notice-20261022"></a>
+## 213-菜单 8 源码更新版本提示（2026-10-22）
+
+### 用户问题与目标
+
+- 用户希望使用工作台菜单 8 更新源码时，能在确认快进前看到本机当前源码版本和 GitHub 将拉取的版本，例如 `0.0.38 → 0.0.39`。
+- 当前 `scripts/update-project.ps1` 会 fetch、列出新增提交和文件变化，再询问是否快进；确认提示没有显示版本。
+- 版本指菜单 6 提交说明开头的源码推送版本，不是 `docs/updata-log.md` 中可能不同的产品发行版本。菜单 6 的版本格式为 `0.0.39` 或 `LFAA 0.0.39: ...`。
+
+### Owner、设置与数据边界
+
+- 入口：根目录 `lfaa.bat` 工作台菜单 8 → `scripts/install-dependencies.ps1` → `scripts/update-project.ps1`。更新脚本持有远端检查、版本预览与安全快进流程；源码提交版本解析复用菜单 6 的共享版本 Owner。
+- 版本来源：本地 `HEAD` 和已 fetch 的 `origin/main` 最近 50 条提交说明中最新的版本化提交，遵循同一个三段数字版本格式。产品更新日志不是本次提示的版本来源。
+- 设置中心：不涉及；不新增设置、默认值或持久化。
+- 数据与权限：保留当前 `scripts/resolve-data-directory.mjs` 数据根解析、fetch 前的工作区/合并状态检查、数据目录保护、用户确认及 `git merge --ff-only`；不更改认证、Git 远端或分支历史。
+
+### 修改范围与验收
+
+- 允许：`scripts/source-version.ps1`（共享源码版本解析）、`scripts/install-dependencies.ps1`（加载共享 Owner）、`scripts/update-project.ps1`（显示版本预览并写入确认提示）、`scripts/tests/push-version.Tests.ps1`（让既有解析回归定位到共享 Owner）、`docs/user/cli.md`、`docs/user/cli.zh.md` 与本合同/索引。
+- 禁止：修改菜单 6 的推送行为、产品版本或更新日志、origin/main 快进规则、用户数据与现存其他工作树改动。
+- 验收：版本提示出现在快进确认前；有版本提交时清楚显示当前与目标源码版本，例如 `0.0.38 → 0.0.39`；最近 50 条提交都无版本号时如实显示未知并列出目标提交短 SHA，不编造版本；无更新、脏工作区、分叉、数据根保护和 `-Yes` 行为保持现状。直接版本回归与源码更新回归作为既有长期检查保留；无 Web 页面或设置验收。
+
+### 实施与验收记录
+
+- 基线：用户贴出的实际更新记录显示目标提交范围 `f668533..c296570`，快进后 HEAD 提交说明为 `0.0.39`，原确认提示只显示提交数/文件列表。当前工作区 HEAD 与 `origin/main` 均为 `c296570`（`0.0.39`）。开始本任务时工作区另有 `packages/client/ui-dockkit/*` 与 `packages/client/ui-workspace/src/module-workbench.css` 的未提交修改；这些与本任务无关，必须保留。
+- 实施：新增 `scripts/source-version.ps1`，将菜单 6 原有提交版本解析与最近版本查找逻辑集中为共享 Owner；菜单 6 加载此 Owner，既有 Pester 回归改为从共享 Owner 读取函数且断言不变。菜单 8 在 fetch 后分别读取本地 `HEAD` 和 `origin/main` 最近 50 条提交说明，确认前显示当前源码版本、GitHub 目标源码版本及目标提交短号，并在确认问题中重复目标版本。版本不可识别时显示“未知”，不推测。快进、脏工作区、分叉、用户数据与用户确认逻辑未改。
+- 设置中心配置：不涉及。
+- 实际验证：PowerShell AST 语法解析覆盖 `scripts/source-version.ps1`、`scripts/install-dependencies.ps1`、`scripts/update-project.ps1`、`scripts/tests/push-version.Tests.ps1`，均通过；`git diff --check` 通过。未运行 Pester/Node 回归。当前本地 HEAD 与 `origin/main` 均为 `c296570` / `0.0.39`，没有真实待拉取版本；未运行菜单 8、未合并或移动任何分支。
+- 页面验收：不涉及，目标为 PowerShell 工作台控制台流程。
+- 性能/安全/可维护性与未测边界：版本读取限制为本地两次有界 `git log -n 50`，不增加网络请求；共享推送版本解析避免重复规则；快进/权限/数据保护合同保持不变。实际 0.0.38 → 0.0.39 更新交互、Pester/Node 回归未在本轮实测。
+- 启动回归及修复：通过真实入口 `cmd.exe /d /c lfaa.bat` 复现到工作台退出；实际调用的 Windows PowerShell 为 5.1.22621.3958，报错指向 `scripts/source-version.ps1` 第 41 行。该新增脚本是 UTF-8 无 BOM，Windows PowerShell 5.1 按系统 ANSI 代码页解码后把中文字符串解析成乱码；先前 PowerShell 7.6.5 的 AST 检查未覆盖此宿主兼容性。已仅为 `scripts/source-version.ps1` 加入 UTF-8 BOM，没有更改其文本或业务逻辑。
+- 修复后验证：再次通过 `cmd.exe /d /c lfaa.bat` 进入完整菜单并选择 `0`，工作台正常退出、进程返回码为 0；Windows PowerShell 5.1.22621.3958 对 `scripts/source-version.ps1`、`scripts/install-dependencies.ps1`、`scripts/update-project.ps1` 的 AST 解析全部通过；检查确认 BOM 存在且中文字串保持正确；目标文件 `git diff --check` 通过。未运行 Pester/Node 回归。菜单 8 的真实远端拉取/快进与版本变化交互仍未实测。
+
 <a id="lfaa-ai-work-git-summary-divider-drawer-20261022"></a>
 ## 202-AI Work Git 摘要抽屉从右侧分隔线中段展开（2026-10-22）
 
@@ -5336,32 +5379,69 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 
 ### 用户问题与目标
 
-- 用户希望先把整体工作区明确分成外层容器、内层工作台和四个可独立定位的区域：左一全局图标轨、左二菜单、中间工作区、右侧菜单，便于后续只调整目标区域的样式。
-- 当前 `/work` 已由全局导航与 `ResizableWorkbench` 组成相同的视觉栏位，但工作区根级缺少直观的内外层盒子名称；各区域的样式定位分散在通用导航与 DockKit 选择器中。
-- 目标：新增明确的外层/内层结构及四区域作用域标识，维持现有尺寸、外观、拖动、吸附、滚动和响应式行为。
+- 用户要求最外层大盒子包住一个内层大盒子，内层直接包含四个同级盒子：左一图标功能区、左二菜单栏、中间工作区、右侧菜单栏。区域样式应能共用布局组件并通过插槽按需调用，避免一个区域的样式改动牵连其他区域。
+- 先前实现只新增标记类，仍把图标栏放在共享布局根之外、另三栏留在根内，未满足“四个同级区域”，也没有提供共享插槽 API；之前的结构截图不能作为本次修正的验收证据。
+- 目标：让 `.module-workbench-stage` 包住一个共享 `ResizableWorkbench` 内层根节点；四个内容区域由同一根节点直接承载并分别接收样式作用域。保持当前外观、列宽、拖动、吸附、滚动和响应式行为。
 
 ### Owner、设置与边界
 
 - 入口：Web/Desktop 共用 Client 的 `/work`、其他 `ApplicationWorkspace` 应用页及其 `/voice` 共用容器。
-- 组合与区域标识 Owner：`packages/client/ui-workspace/src/ApplicationWorkspace.tsx` 与 `module-workbench.css`；共享左/中/右窗格真实尺寸、拖动与响应式 Owner 仍为 `packages/client/ui-dockkit/src/ResizableWorkbench.tsx`；左一导航仍复用 `packages/client/ui-sidebar/GlobalNavigationRail.tsx`。
+- 共享布局与四区域插槽 Owner：`packages/client/ui-dockkit/src/ResizableWorkbench.tsx`、布局类型与 `src/css/common*.css`；该包名是现有目录标识，公共样式以 `common*.css` 分类；模块外壳由 `packages/client/ui-layout/src/Workbench.tsx` 和 `src/css/module-shell.css` 负责；应用组合由 `packages/client/ui-workspace/src/ApplicationWorkspace.tsx`、`module-workbench.css` 和 `src/css/workbench-regions.css` 负责；图标内容仍复用 `packages/client/ui-sidebar/src/GlobalNavigationRail.tsx`。
 - 设置盘点：`general.navigationLayout` 的默认值为 `three-column`，设置校验/持久化和 `ApplicationWorkspace` 读取映射继续由现有 Settings/UI Owner 维护；侧栏尺寸与开合继续用现有 ChromeState/Dock 状态；Appearance 主题、颜色、字体/字号、对比度、壁纸、遮罩、模糊和减少动态效果继续沿用工作台共享令牌。不新增或修改设置、不重置用户偏好。
 - 数据和权限：仅 DOM/CSS 结构整理；无新增请求、数据持久化、会话、工具、权限或领域行为。
-- 允许：`ApplicationWorkspace.tsx`、该工作区专属布局 CSS、直接结构回归、Workspace README 与本合同/索引；只读核验共享 DockKit 现有 Pane 边界。
-- 禁止：改动 DockKit 几何计算、菜单/聊天/工具业务、现有尺寸偏好、任何外观样式效果、无关已有工作树修改。
+- 允许：`ApplicationWorkspace.tsx`、该工作区专属布局 CSS、`ResizableWorkbench` 的共享插槽/区域样式作用域与前置图标栏宽度预算、Renderer/Workbench 的样式归属整理、对应包 README、直接结构/响应式回归及本合同/索引。
+- 禁止：修改菜单/聊天/工具业务、持久化尺寸偏好及外观效果、改变现有栏位交互语义、触碰无关工作树内容。
 
 ### 单批实施与验收
 
-- 在外层容器内建立明确的内层工作台盒子；给图标轨、左侧菜单、中间工作区和右侧菜单各自标记可独立选择的区域边界。区域标签本身不附加视觉规则，外层与内层沿用当前 Grid 尺寸与位置。
-- 直接回归锁定父子层级、四个区域标识与 DockKit 原有 Pane 边界；运行相关 Client 类型/构建检查。按 Web 界面规则在当前源码构建的正式服务与 ChatGPT 内置浏览器检查 `/work` 常用桌面及窄分栏视口；记录实际路由、视口、四栏位置与可见交互、截图和未测边界。
+- `ResizableWorkbench` 通过可选 `leading`、既有 `left`/`center`/`right` 插槽、独立区域类名、根元素引用及不参与栏宽预算的浮层插槽提供通用布局；其他页面不传 `leading` 时，首列默认宽度为 0，不改变原布局。公共几何与交互规则按 `src/css/common*.css` 分类，调用页面仍由各自 UI 包管理盒子外观。
+- `ApplicationWorkspace` 由 `.module-workbench-stage` 包住一个内层 `ResizableWorkbench` 根节点，图标区、二级菜单、中间工作区和右侧菜单是该根节点的四个同级内容子元素；分隔条和浮层只作为布局辅助元素。左一图标列采用工作区专属的高优先级宽度声明，确保公共默认值 `0px` 不会覆盖 64px/48px 列宽；尺寸预算扣除该列后再计算左右 Dock。
+- 直接回归锁定父子层级、四个区域插槽与公共/页面 CSS 边界；运行 Client 类型/构建检查。按 Web 界面规则在当前源码构建的正式服务与 ChatGPT 内置浏览器检查 `/work` 桌面及窄分栏/短屏视口，记录实际路由、宽高、四栏位置、菜单交互、截图与未测范围。
 - 不触发消息发送、Git 写操作或设置修改；若当前运行入口会自动写入项目初始化数据，使用隔离数据验收或明确记录该运行阻碍。
 
 ### 实施与验收记录
 
-- `.module-workbench-stage` 现在是单格外层盒子；新增 `.module-workbench-inner` 作为内层工作台，以原 64px 全局图标轨和主工作区列组成 Grid。左侧菜单、中间工作区、右侧菜单分别标记 `module-workbench-region--secondary-navigation`、`module-workbench-region--center-workspace`、`module-workbench-region--right-menu`；图标轨用 `GlobalNavigationRail` 的可选 `className` 标记为 `module-workbench-region--global-navigation`。
-- 标记类不新增外观规则；原左/中/右宽度、分隔条、拖动与响应式仍由 DockKit 管理。语音页改为针对新内层盒子调整列跨度，避免新增容器影响全屏语音布局。
-- 设置：只继续使用既有 `general.navigationLayout`（默认 `three-column`）、ChromeState/Dock 尺寸状态与 Appearance 共享令牌；无新增配置或用户偏好写入。结构不新增事件、订阅、请求或持久化。
-- 代码回归：新增四区域父子层级/标识与 DockKit Pane 边界检查，指定用例 `工作区通过内外层容器和区域标识独立定位四个布局盒子` 通过（1/1）；Client TypeScript 检查通过；`pnpm run build:web` 通过，源码指纹状态为空；`git diff --check` 通过。同一测试文件的完整回归为 10 通过、4 失败，失败落在工作区默认初始化、Git 摘要与聊天间距的其他断言，不属于本轮结构标识；因此不将整文件回归记作全绿。
-- ChatGPT 内置浏览器实际页：隔离数据服务 `http://127.0.0.1:31371/work`。1680×944 截图中可见从左到右的全局图标轨、左侧会话菜单、中间工作区、右侧工具菜单；1197×690、760×640 与 390×640 截图检查了收窄时现有响应式收纳。首次运行与左侧菜单展开只发生在本轮临时隔离数据目录；未修改当前账户设置、未发消息或触发 Git 操作。浏览器视口已恢复默认。实际截图由本轮内置浏览器验收捕获；本合同未保存独立图片文件。
-- 性能与边界：仅调整 DOM 包裹和静态 Grid 定位，无新增运行时工作、监听或数据增长；没有测帧时间。桌面四区域已实页目视；窄视口验证现有响应式显示与收纳，未验证真实平板/手机设备及 Desktop WebView。
-- 文件职责：`packages/client/ui-workspace/src/ApplicationWorkspace.tsx` 组合外/内层并给四区域命名；`packages/client/ui-workspace/src/module-workbench.css` 建立内层网格与语音页适配；`packages/client/ui-sidebar/src/GlobalNavigationRail.tsx` 提供导航根类名扩展点，README 说明其契约；Workspace README 说明盒子层级和几何 Owner；`apps/cli/tests/client-app-workspace-four-column.test.mjs` 锁定 DOM 层级、标识和原 DockKit 边界；本合同记录设置、验收和限制。
-- 状态：已完成。
+- `ResizableWorkbench` 增加可选 `leading` 插槽与四区域 class，并把四个区域直接放到同一根节点下；公共 CSS 按布局、Pane、Pointer、底部区域和响应式规则分类，页面盒子外观留在各自 UI 功能包中。
+- 首次实页检查发现左一/左二区域重叠：公共 `.lfaa-workbench` 在相同选择器优先级定义了 `--lfaa-leading-width: 0px`，覆盖工作区普通 `.module-workbench-inner` 规则。现改为 `.module-workbench-stage--application > .lfaa-workbench.module-workbench-inner`，让左二菜单从图标栏后起排；语音模式另有对应的 0px 覆盖。
+- 样式归属：Renderer 不再全局导入工作区样式；模块页面外壳由 `ui-layout/src/css/module-shell.css` 负责，工作区样式仅由 `ApplicationWorkspace` 引入，文件管理页面独立声明外层盒子的 Grid 尺寸。未被任何 TSX 使用的旧三栏 `application-workspace.css` 已删除。
+- 设置：沿用既有 `general.navigationLayout`（默认 `three-column`）、ChromeState/Dock 尺寸状态、Appearance 与主题共享令牌；不新增配置或写入用户偏好。
+- 结构与响应式回归：四区域结构检查 1/1、通用响应式检查 18/18、工作区标签回归 3/3；Client TypeScript 检查、工作区包与 Web 包构建通过。Web 构建产物位于仓库根 `dist/`。
+- 包清单 Gate：`pnpm run sync:workspace` 更新生成的目录/消费者清单；`pnpm run check:workspace` 通过，203 个包、版本 `0.0.8`；仓库当前没有 `workspace-preflight` 命令，未冒充执行。
+- ChatGPT 内置浏览器：实际路由 `http://127.0.0.1:31371/work`；1480×1226 实页确认左一列、左二菜单、中心区和右菜单位置正常；760×520 窄分栏下左二菜单在图标栏右侧展开，右菜单使用浮层且无横向挤压。样式隔离后另实看 `/files`、`/plugin-manager`、`/settings?section=general`，页面外壳和各自内容样式正常；文件管理仍如既有规则受完全访问模式门禁限制。390×844 临时视口截图右侧显示为空白，无法据此确认手机渲染；视口覆盖已重置。设置中心配置、Appearance 与业务数据均未修改。未测真实手机/桌面 WebView、帧时间与拖动手势实测。
+- 性能/安全：调整布局 DOM、CSS 归属与回归断言，不增加订阅、请求、计时器或观察器；工作台继续读取已有 `general.navigationLayout`、ChromeState、Appearance 令牌与栏宽偏好，不修改设置或业务数据。
+- 验收补充：独立布局和样式检查通过；附带运行的认证布局测试为 15/17，两个失败项是既有设置分类断言与当前 Workbench 源码不符，和本次 CSS/盒子改动无关。
+- 文件职责：`ResizableWorkbench.tsx` 与布局类型提供公共 `leading` 插槽；`src/css/common*.css` 存放共用几何/交互；`ApplicationWorkspace.tsx` 装配四个同级区域；`module-workbench.css` 和 `css/workbench-regions.css` 只负责工作区；`render.tsx` 不再全局加载工作区 CSS；`Workbench.tsx` 引入 `module-shell.css`；`FileManagerPage.css` 自己声明文件页外盒尺寸；Settings/Plugin Manager/File Manager 各自 UI CSS 管各自页面；对应 README、203 包 JSON/Markdown 目录清单、结构/响应式回归和本合同同步记录。
+- 状态：已完成；手机视口目视验收与真实拖动仍未测。
+- 最新构建/运行复核：`pnpm run build:web` 成功（2278 modules，产物位于根 `dist/apps/web`）；构建期间的旧 Web 服务按自身保护规则提示重启后，已在隔离 `LFAA_HOME/LFAA_DATA_DIR` 下重启当前源码 Web，健康检查为 200、`node scripts/runtime-build-state.mjs web` 返回 `[]`。内置浏览器重新载入 `/work` 后再次目视确认四栏分界；左一图标轨、左二菜单、中心和右栏均无重叠。重新载入的既有初始化请求仅在隔离数据目录运行；未改用户设置。
+
+<a id="lfaa-workspace-region-subboxes-20261022"></a>
+## 214-工作区四区域内部功能盒子与样式隔离（2026-10-22）
+
+### 用户目标
+
+- 保持 `.module-workbench-stage` 与内层 `ResizableWorkbench` 的四个同级区域，不改变当前外观和交互；在左一、左二、中间、右侧区域内部，把顶部/导航/内容/操作/状态等每组功能分别包进实际 DOM 子盒子，后续改一个子盒子的样式不牵连其他盒子。
+- 样式按区域和 Owner 分类。公共 `common` 样式只负责确有复用价值的几何/交互能力；区域外观与内部功能样式留在各自 UI 包，避免全局选择器与跨区域选择器。
+
+### Owner、设置、数据和权限
+
+- 运行入口：Web/Desktop 共用 Client 的 `/work` 及复用 `ApplicationWorkspace` 的应用路由；左一由 `ui-sidebar/GlobalNavigationRail` 持有，左二及中心/右侧组合由 `ui-workspace/ApplicationWorkspace` 持有，聊天内容继续由 `ui-chat` 与其子能力包持有，右侧工具内容继续归现有面板 Owner。
+- 通用布局 Owner：当前 `ResizableWorkbench` 与 `src/css/common*.css`；四区及子盒子的内容和局部外观不得移入通用布局 Owner。包目录/公开名不在本任务迁移。
+- 设置：继续使用 `general.navigationLayout`、现有 ChromeState/Dock 栏宽与开合状态、Appearance/主题共享令牌、字体字号和减少动态效果设置；不新增设置、不写固定主题值、不修改用户偏好。
+- 数据/权限：只增加语义容器并重组区域局部 CSS；不改变请求、状态事实源、持久化、会话、工具调用、权限或业务行为。
+
+### 允许范围与验收
+
+- 允许修改：`ui-sidebar/GlobalNavigationRail.tsx` 及其区域 CSS；`ui-workspace/ApplicationWorkspace.tsx` 与其左二/中心/右侧及工作区边界 CSS；直接相关 UI 回归；相关 README 与本合同。
+- 保持四个区域为内层布局的同级内容区域；每个区域的功能组有明确的子容器和独立样式范围。不能只添加注释或命名而不形成 DOM 盒子；不能改动另一盒子的基础样式。
+- 桌面、紧凑、手机/窄分栏及短屏维持现有 Dock/Overlay、换行、滚动与操作可达行为。沿用容器宽高和已有设置，不按全局窗口尺寸另造固定断点。
+- 每批运行直接相关结构/响应式回归、Client 类型检查和 Web 构建；在当前源码正式 Web `/work` 的 ChatGPT 内置浏览器检查常用桌面及窄分栏/短屏，记录实际视口、盒子边界、溢出/滚动和截图证据。不得将源码或构建检查代替实页验收；若工具/服务受阻，记录原因和未测项。
+- 禁止修改无关工作树内容、改变四栏宽度/开合语义、改动设置或通过验收触发消息发送、Git 写入、插件状态变化等副作用。
+
+### 实施记录
+
+- 状态：已完成。四个顶层区域仍是 `ResizableWorkbench` 内层根节点的同级内容；左一新增顶部入口、中部导航、底部辅助/操作/状态等真实 DOM 子盒子，左二/中间/右侧使用各自已有功能子盒子。没有把四个栏位绑成一个共享样式组件。
+- 样式归属：`GlobalNavigationRail.css` 只管左一分组；`ui-workspace/src/css/secondary-navigation.css`、`center-workspace.css`、`right-menu.css` 分别管左二、中间、右侧；`workbench-regions.css` 保留工作区边界的公共基线；`module-workbench.css` 负责共同外壳。DockKit 继续只承载可复用的布局几何/交互，不拥有各栏业务外观。外观、尺寸、主题和动态效果继续读取现有设置/令牌，没有新增 CSS 自定义属性或写死主题值。
+- 设置：沿用 `general.navigationLayout`、ChromeState 开合状态、已有 Dock 栏宽偏好以及 Appearance 主题/字体/字号/减少动态效果令牌；未新增设置中心项。窄视口验收触发的左二栏自动收起状态已恢复为桌面展开，临时视口覆盖已清除。
+- 回归：四栏同级结构与四区功能子盒子定向断言 2/2；工作台响应式回归 18/18；工作区页签回归 3/3；Client 类型检查 `pnpm exec tsc --noEmit -p tsconfig.client.json` 通过；`pnpm run build:web` 通过，产物位于根 `dist/apps/web`，正式 Web 指纹 `node scripts/runtime-build-state.mjs web` 返回 `[]`。另一次旧回归合批为 33 通过/6 失败；失败是旧断言与既有源码位置/结构不符（AI Work 输入框样式归属、默认工作区初始化、Git 摘要偏移、右侧插槽表达式、旧中心分隔条选择器等），未扩大范围去改无关断言。
+- 内置浏览器：当前源码服务 `http://127.0.0.1:31371/work`，登录后目视检查并捕获截图。桌面 1481×1244：四栏边界依次为左一 x=0/w=64、左二 x=64/w=211、中间 x=276/w=906、右侧 x=1183/w=288，无文档横向溢出；图标栏顶部/导航/底部、左二标题/会话/底部、中间标题/内容/输入操作、右栏操作/主体各子盒子均可独立定位。窄分栏短屏 760×520：左二自动收起，中心和 288px 右栏仍有独立区域且无页面横向溢出。手机 390×720：左二作为移出视口的抽屉，右栏按 `mobile + overlay` 覆盖中心；无页面横向溢出，右侧主体保留滚动。最终已恢复原桌面视口和展开状态。未测真实手机、桌面 WebView、拖动手势与帧时间。
+- 文件职责：`packages/client/ui-sidebar/src/GlobalNavigationRail.tsx` 与 `GlobalNavigationRail.css` 负责左一 DOM 分组和样式；`packages/client/ui-workspace/src/ApplicationWorkspace.tsx` 装配区域并按职责引入局部 CSS；`module-workbench.css`、`src/css/secondary-navigation.css`、`center-workspace.css`、`right-menu.css`、`workbench-regions.css` 分别负责共同外壳和对应区域；`packages/client/ui-workspace/README.md` 记录 CSS Owner；`apps/cli/tests/client-app-workspace-four-column.test.mjs`、`client-workbench-responsive.test.mjs`、`client-workspace-app-tabs.test.mjs`、`client-ai-work-idle-blur.test.mjs` 调整为聚合对应 CSS 并锁定功能子盒子；本合同记录实施和验收证据。

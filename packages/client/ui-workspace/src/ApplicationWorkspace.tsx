@@ -3,7 +3,7 @@ import { loadAiSkillDirectory } from "lfaa-client-connection/src/api.js";
  * 文件：ApplicationWorkspace.tsx
  * 功能：装配 SteamCMD、Minecraft、写作应用内部的工作台界面。
  * 作用：连接导航轨、应用侧栏、中心工作区、右侧工具栏和底部终端区域，并提供设置入口、通知卡片与工作区 Chrome 状态。
- * 关联文件：packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-settings/src/SettingsPage.tsx、packages/client/ui-sidebar/src/GlobalNavigationRail.tsx、packages/client/resources/src/notification-runtime.ts、packages/client/store/src/scroll-restoration.ts、packages/client/ui-dockkit/src/ResizableWorkbench.tsx、packages/client/ui-workspace/src/module-workbench.css。
+ * 关联文件：packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-settings/src/SettingsPage.tsx、packages/client/ui-sidebar/src/GlobalNavigationRail.tsx、packages/client/resources/src/notification-runtime.ts、packages/client/store/src/scroll-restoration.ts、packages/client/ui-dockkit/src/ResizableWorkbench.tsx、packages/client/ui-workspace/src/module-workbench.css 与 css/workbench-regions.css。
  * 修改注意事项：工作区导航只负责切换界面；用户设置与快捷键保存由设置页面和控制端 API 负责。
  */
 import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
@@ -16,7 +16,7 @@ import type { AiWorkGoalRequest, AiWorkNotification, AiWorkNotificationInput } f
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
 import type { WorkbenchLayoutMode } from "lfaa-client-ui-dockkit/src/workbench-layout.types.js";
 import { ResizableWorkbench } from "lfaa-client-ui-dockkit/src/ResizableWorkbench.js";
-import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-metrics.js";
+import { readWorkbenchLeadingInsetWidth, useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-metrics.js";
 import { readWorkbenchLeftWidth, saveWorkbenchLeftWidth } from "lfaa-client-ui-dockkit/src/workbench-preferences.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
 import { MAX_PINNED_AI_SESSIONS, readPinnedAiSessionIds, writePinnedAiSessionIds } from "lfaa-client-store/src/ai-session-pins.js";
@@ -27,6 +27,10 @@ import { resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/def
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { TaskTerminal } from "./TaskTerminal.js";
 import "./module-workbench.css";
+import "./css/secondary-navigation.css";
+import "./css/center-workspace.css";
+import "./css/right-menu.css";
+import "./css/workbench-regions.css";
 
 // 按当前应用模式分别加载业务面板，避免工作台外壳等待无关应用代码。
 const AiWorkChat = lazy(() => loadClientModule<typeof import("lfaa-client-ui-chat/src/AiWorkChat.js")>("lfaa-client-ui-chat/src/AiWorkChat.js").then((module) => ({ default: module.AiWorkChat })));
@@ -283,7 +287,7 @@ function ApplicationSidebar({ userId, app, mode, apps, layoutMode, onNavigate, o
   }, [notificationsOpen]);
 
   return (
-    <div className="module-sidebar module-workbench-region--secondary-navigation" data-ui="left-sidebar" data-layout-mode={layoutMode}>
+    <div className="module-sidebar" data-ui="left-sidebar" data-layout-mode={layoutMode}>
       <header className="module-sidebar__brand-row">
         <button className="module-sidebar__brand" type="button" onClick={() => { if (mode === "ai-work") void onOpenSelectedApplication(); else void onOpenApplication("workspace", "ai-work"); }} aria-label={app === "workspace" ? "切换到上次使用的应用" : `切换到${nextModeLabel}`} title={app === "workspace" ? "切换到上次使用的应用" : `切换到${nextModeLabel}`}>
           <span className="module-sidebar__brand-mark">L</span><strong>LFAA</strong><WorkbenchIcon name="chevron" size={15} />
@@ -449,7 +453,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   const layoutRef = useRef<HTMLDivElement>(null);
   const previewCloseTimer = useRef<number | null>(null);
   const responsiveAppDock = true;
-  const metrics = useWorkbenchMetrics(layoutRef, () => initialMetrics(responsiveAppDock), responsiveAppDock);
+  const metrics = useWorkbenchMetrics(layoutRef, () => initialMetrics(responsiveAppDock), responsiveAppDock, readWorkbenchLeadingInsetWidth);
   const sidebarRight = useSidebarRightSnapshot();
   const [chrome, setChrome] = useState(() => readChrome(metrics.mode, responsiveAppDock));
   const [chromeStorageMetadata] = useState(readChromeStorageMetadata);
@@ -1433,7 +1437,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     <button className="module-workbench-tab-add" type="button" aria-label="新建标签页" title="新建标签页" onClick={createWorkspaceUtilityTab}><WorkbenchIcon name="plus" size={16} /></button>
   </div> : null;
   const center = (
-    <div className="module-center module-workbench-region--center-workspace">
+    <div className="module-center">
       <header className="module-center__header" data-layout-mode={metrics.mode}>
         <div className="module-center__heading">
           <button className="module-shell-icon-button" type="button" aria-label="切换会话与项目栏" aria-expanded={!chrome.leftCollapsed} aria-keyshortcuts={shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`切换会话与项目栏 · ${shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={openLeftPreview} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
@@ -1563,7 +1567,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   </section> : null;
 
   const right = (
-    <aside className="module-context module-workbench-region--right-menu" aria-label={contextLabel} data-layout-mode={metrics.mode}>
+    <aside className="module-context" aria-label={contextLabel} data-layout-mode={metrics.mode}>
       {!chrome.rightCollapsed && (metrics.mode === "desktop" || (showWorkbenchTabs && activeCenterCollapsed)) ? <header className="module-context__shell-actions">
           {workbenchTabs}
           {metrics.mode === "desktop" && terminalPanelAvailable && settings.general.showBottomPanelControl ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
@@ -1658,54 +1662,55 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
 
   const previewStyle = { "--module-left-preview-width": `${leftPaneWidth}px` } as CSSProperties;
   return (
-    <div className={`module-workbench-stage${voiceMode ? " module-workbench-stage--voice" : ""}`} style={previewStyle} data-layout-mode={metrics.mode}>
-      <div className="module-workbench-inner">
-        <GlobalNavigationRail className="module-workbench-region--global-navigation" username={username} role={role} serverState={serverState} shortcuts={shortcuts} activePage="home" homeLabel="返回当前模式首页" applications={applicationNavigationItems} onOpenRecentSessions={showRecentSessions} showServiceStatus={settings.general.showServiceStatus} onHome={onSelectedModeHome} onNavigate={onNavigate} onOpenApplication={openApplication} onOpenWork={() => void openApplication("workspace", "ai-work")} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={openToolsPanel} applicationsExpanded={rightPanelSection === "applications" && !chrome.rightCollapsed} applicationsTargetId="module-context-applications" onToggleApplications={toggleApplicationsPanel} />
-        <div className="module-workbench-main">
-          <div ref={layoutRef} className="module-workbench-layout" data-layout-mode={metrics.mode}>
-            {chrome.leftCollapsed && metrics.mode !== "mobile" ? <div className={`module-left-preview${leftPreviewOpen ? " is-visible" : ""}`} data-layout-mode={metrics.mode} aria-hidden={!leftPreviewOpen} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview}>{leftPreview}</div> : null}
-            <ResizableWorkbench
-              left={left}
-              center={center}
-              leftVisible={!voiceMode}
-              right={voiceMode ? null : right}
-              bottom={!voiceMode && terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "bottom" ? bottom : null}
-              storageKey={LAYOUT_KEY}
-              leftLimits={metrics.left}
-              rightLimits={metrics.right}
-              bottomLimits={metrics.bottom}
-              containerWidth={metrics.containerWidth}
-              snapCaptureRatio={metrics.snapCaptureRatio}
-              snapHysteresis={metrics.snapHysteresis}
-              minCenterWidth={metrics.minCenterWidth}
-              centerCollapsed={showWorkbenchTabs && centerCollapsed}
-              centerCollapseEnabled={showWorkbenchTabs}
-              onCenterCollapsedChange={handleCenterCollapsedChange}
-              onCenterCollapsePreviewChange={setCenterCollapsePreview}
-              layoutMode={metrics.mode}
-              responsiveRightDock
-              responsiveLeftDock
-              leftWidth={leftPaneWidth}
-              onLeftWidthChange={setLeftPaneWidth}
-              leftCollapsed={chrome.leftCollapsed}
-              onLeftCollapsedChange={(leftCollapsed) => setChrome((current) => ({ ...current, leftCollapsed }))}
-              rightCollapsed={chrome.rightCollapsed}
-              onRightCollapsedChange={(rightCollapsed) => setChrome((current) => ({ ...current, rightCollapsed }))}
-              bottomOpen={terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "bottom"}
-              onBottomOpenChange={(terminalOpen) => setChrome((current) => ({ ...current, terminalOpen }))}
-            />
-          </div>
-          {fileReviewRequest && fileReviewProject && (app === "workspace" || app === "minecraft") ? <Suspense fallback={null}><GitChangeActivityReview
-            key={`${fileReviewRequest.projectId}:${fileReviewRequest.path}:${fileReviewRequest.requestId}`}
-            appId={app}
-            project={fileReviewProject}
-            path={fileReviewRequest.path}
-            requestId={fileReviewRequest.requestId}
-            onClose={() => setFileReviewRequest(null)}
-            onRefresh={() => setGitRefreshRevision(revision => revision + 1)}
-          /></Suspense> : null}
-        </div>
-      </div>
+    <div className={`module-workbench-stage module-workbench-stage--application${voiceMode ? " module-workbench-stage--voice" : ""}`} style={previewStyle} data-layout-mode={metrics.mode}>
+      <ResizableWorkbench
+        rootElementRef={layoutRef}
+        className="module-workbench-inner module-workbench-layout"
+        leading={<GlobalNavigationRail username={username} role={role} serverState={serverState} shortcuts={shortcuts} activePage="home" homeLabel="返回当前模式首页" applications={applicationNavigationItems} onOpenRecentSessions={showRecentSessions} showServiceStatus={settings.general.showServiceStatus} onHome={onSelectedModeHome} onNavigate={onNavigate} onOpenApplication={openApplication} onOpenWork={() => void openApplication("workspace", "ai-work")} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={openToolsPanel} applicationsExpanded={rightPanelSection === "applications" && !chrome.rightCollapsed} applicationsTargetId="module-context-applications" onToggleApplications={toggleApplicationsPanel} />}
+        leadingRegionClassName="module-workbench-region--leading"
+        leftRegionClassName="module-workbench-region--secondary-navigation"
+        centerRegionClassName="module-workbench-region--center-workspace"
+        rightRegionClassName="module-workbench-region--right-menu"
+        bottomRegionClassName="module-workbench-region--bottom"
+        overlay={chrome.leftCollapsed && metrics.mode !== "mobile" ? <div className={`module-left-preview${leftPreviewOpen ? " is-visible" : ""}`} data-layout-mode={metrics.mode} aria-hidden={!leftPreviewOpen} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview}>{leftPreview}</div> : null}
+        left={left}
+        center={center}
+        leftVisible={!voiceMode}
+        right={voiceMode ? null : right}
+        bottom={!voiceMode && terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "bottom" ? bottom : null}
+        storageKey={LAYOUT_KEY}
+        leftLimits={metrics.left}
+        rightLimits={metrics.right}
+        bottomLimits={metrics.bottom}
+        containerWidth={metrics.containerWidth}
+        snapCaptureRatio={metrics.snapCaptureRatio}
+        snapHysteresis={metrics.snapHysteresis}
+        minCenterWidth={metrics.minCenterWidth}
+        centerCollapsed={showWorkbenchTabs && centerCollapsed}
+        centerCollapseEnabled={showWorkbenchTabs}
+        onCenterCollapsedChange={handleCenterCollapsedChange}
+        onCenterCollapsePreviewChange={setCenterCollapsePreview}
+        layoutMode={metrics.mode}
+        responsiveRightDock
+        responsiveLeftDock
+        leftWidth={leftPaneWidth}
+        onLeftWidthChange={setLeftPaneWidth}
+        leftCollapsed={chrome.leftCollapsed}
+        onLeftCollapsedChange={(leftCollapsed) => setChrome((current) => ({ ...current, leftCollapsed }))}
+        rightCollapsed={chrome.rightCollapsed}
+        onRightCollapsedChange={(rightCollapsed) => setChrome((current) => ({ ...current, rightCollapsed }))}
+        bottomOpen={terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "bottom"}
+        onBottomOpenChange={(terminalOpen) => setChrome((current) => ({ ...current, terminalOpen }))}
+      />
+      {fileReviewRequest && fileReviewProject && (app === "workspace" || app === "minecraft") ? <Suspense fallback={null}><GitChangeActivityReview
+        key={`${fileReviewRequest.projectId}:${fileReviewRequest.path}:${fileReviewRequest.requestId}`}
+        appId={app}
+        project={fileReviewProject}
+        path={fileReviewRequest.path}
+        requestId={fileReviewRequest.requestId}
+        onClose={() => setFileReviewRequest(null)}
+        onRefresh={() => setGitRefreshRevision(revision => revision + 1)}
+      /></Suspense> : null}
     </div>
   );
 }

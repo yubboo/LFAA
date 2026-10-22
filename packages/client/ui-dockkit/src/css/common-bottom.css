@@ -1,0 +1,51 @@
+/* 公共布局样式：只定义容器几何、窗格交互和响应式排布；区域表面外观由调用页面的 CSS 负责。 */
+/* ===== 6. Bottom Terminal Dock ===== */
+.lfaa-workbench__bottom {
+  position: relative;
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+  transition:
+    opacity 180ms ease-out,
+    transform var(--lfaa-snap-settle-duration) cubic-bezier(.16, .82, .24, 1),
+    visibility 0s linear 0s;
+}
+.lfaa-workbench[data-bottom-open="false"] .lfaa-workbench__bottom {
+  opacity: 0;
+  transform: translateY(.75rem);
+  visibility: hidden;
+  /* Dock 收起时不响应点击，避免不可见的终端区域挡住下方内容。 */
+  pointer-events: none;
+  transition-delay: 0s, 0s, var(--lfaa-snap-settle-duration);
+}
+/* 底部终端吸附时与左右侧栏一致：立即隐藏内容，行高收拢由工作台统一处理。 */
+.lfaa-workbench[data-snap-preview="bottom"] .lfaa-workbench__bottom {
+  visibility: hidden;
+  pointer-events: none;
+  transition: none;
+}
+.lfaa-workbench__bottom-handle {
+  position: absolute;
+  z-index: 30;
+  top: -.25rem;
+  left: 0;
+  right: 0;
+  height: .5rem;
+  cursor: row-resize;
+  /* 垂直拖动时禁用浏览器原生触摸手势，让工作台读取指针移动。 */
+  touch-action: none;
+}
+.lfaa-workbench__bottom-handle::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: .25rem;
+  height: 1px;
+  background: transparent;
+  transition: background 120ms ease, height 120ms ease;
+}
+.lfaa-workbench__bottom-handle:hover::before { height: 2px; background: var(--agent-strong-border, #cfcfcf); }
+.lfaa-workbench[data-snap-preview="bottom"] .lfaa-workbench__bottom-handle::before { height: 2px; background: var(--agent-text, #171717); }
+.lfaa-workbench__bottom-content { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
+

@@ -1,7 +1,7 @@
 ﻿<#
 功能：安全地将当前 LFAA 源码工作区快进到 GitHub origin/main。
 作用：先确认仓库、工作区和用户数据根，再 fetch；仅在可快进且不触碰数据根时更新源码。
-关联文件：lfaa.bat、scripts/project-menu.mjs、scripts/install-dependencies.ps1、scripts/resolve-data-directory.mjs。
+关联文件：lfaa.bat、scripts/project-menu.mjs、scripts/install-dependencies.ps1、scripts/source-version.ps1、scripts/resolve-data-directory.mjs。
 #>
 [CmdletBinding()]
 param(
@@ -14,6 +14,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectPath = [System.IO.Path]::GetFullPath($ProjectRoot).TrimEnd([char[]]@('\', '/'))
 $gitCommonArguments = @('-c', 'core.quotePath=false', '-C', $projectPath)
+$sourceVersionScript = Join-Path $PSScriptRoot 'source-version.ps1'
+if (-not (Test-Path -LiteralPath $sourceVersionScript -PathType Leaf)) { throw '缺少 scripts\source-version.ps1，无法显示本次源码更新版本。' }
+. $sourceVersionScript
 
 function Invoke-GitOutput {
     param([Parameter(Mandatory = $true)][string[]]$GitArguments)
@@ -99,6 +102,16 @@ $remoteRef = "refs/remotes/$Remote/$Branch"
 [void](Invoke-GitOutput -GitArguments @('rev-parse', '--verify', $remoteRef))
 $headRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', 'HEAD')) -join '').Trim()
 $remoteRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', $remoteRef)) -join '').Trim()
+$localVersionSubjects = @(Invoke-GitOutput -GitArguments @('log', '-n', '50', '--format=%s', 'HEAD'))
+$remoteVersionSubjects = @(Invoke-GitOutput -GitArguments @('log', '-n', '50', '--format=%s', $remoteRef))
+$localSourceVersion = Resolve-LastPushedVersion -CommitSubjects $localVersionSubjects -HistorySource '当前分支最近的版本提交'
+$remoteSourceVersion = Resolve-LastPushedVersion -CommitSubjects $remoteVersionSubjects -HistorySource 'GitHub main 最近的版本提交'
+$localSourceVersionLabel = if ([string]::IsNullOrWhiteSpace($localSourceVersion.Number)) { '未知（最近 50 条提交中没有版本号）' } else { "LFAA $($localSourceVersion.Number)" }
+$remoteSourceVersionLabel = if ([string]::IsNullOrWhiteSpace($remoteSourceVersion.Number)) { '未知（最近 50 条提交中没有版本号）' } else { "LFAA $($remoteSourceVersion.Number)" }
+$remoteShortRevision = $remoteRevision.Substring(0, [Math]::Min(12, $remoteRevision.Length))
+Write-Host ("当前源码版本：{0}" -f $localSourceVersionLabel) -ForegroundColor Cyan
+Write-Host ("GitHub 待拉取源码版本：{0}（目标提交 {1}）" -f $remoteSourceVersionLabel, $remoteShortRevision) -ForegroundColor Green
+Write-Host '源码版本取自菜单 6 的版本化提交说明；产品发行版本可能不同。' -ForegroundColor DarkGray
 
 $targetBranchRef = "refs/heads/$Branch"
 $targetBranchSyncState = 'not-needed'
@@ -212,7 +225,7 @@ if (-not $Yes) {
     $updateTargets = @()
     if ($needsCurrentUpdate) { $updateTargets += "当前分支 $branchName" }
     if ($willUpdateTargetBranch) { $updateTargets += "本地分支 $Branch" }
-    $answer = (Read-Host ("确认将 {0} 快进到 {1}/{2}？输入 y 继续，其他输入取消" -f ($updateTargets -join ' 和 '), $Remote, $Branch)).Trim()
+    $answer = (Read-Host ("确认将 {0} 快进到 {1}/{2}（目标源码版本：{3}）？输入 y 继续，其他输入取消" -f ($updateTargets -join ' 和 '), $Remote, $Branch, $remoteSourceVersionLabel)).Trim()
     if ($answer -notmatch '^(y|yes|是)$') { Write-Host '已取消更新；fetch 只刷新了远端提交记录，本地源码未改变。' -ForegroundColor DarkGray; return }
 }
 

@@ -5,7 +5,7 @@
  * 不负责：React 状态、Pointer 事件、CSS 视觉、业务内容。
  * 状态归属：纯函数，无运行时状态。
  * 对外接口：WORKBENCH_LAYOUT_TOKENS、resolveWorkbenchLayoutMetrics、WorkbenchLayoutMetrics、WorkbenchLayoutMode。
- * 关联文件：AgentWorkbench.tsx、ResizableWorkbench.tsx、workbench-layout.types.ts、workbench.css。
+ * 关联文件：AgentWorkbench.tsx、ResizableWorkbench.tsx、workbench-layout.types.ts、css/common.css。
  * 修改注意事项：以后改响应式尺寸优先改这里的比例/上下限；不要再在 App Shell 里直接写侧栏宽度常量。
  */
 

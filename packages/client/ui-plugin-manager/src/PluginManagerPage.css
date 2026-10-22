@@ -19,6 +19,8 @@
 }
 
 .plugin-manager-layout .lfaa-workbench { height: 100%; background: transparent; }
+.plugin-manager-layout .lfaa-workbench[data-layout-mode="mobile"] > .plugin-manager-navigation-region { box-shadow: 1rem .625rem 2.25rem rgba(0, 0, 0, .14); }
+.plugin-manager-layout .lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"] > .plugin-manager-navigation-region { box-shadow: none; }
 .plugin-manager-layout .lfaa-workbench__handle--left,
 .plugin-manager-layout .lfaa-workbench__handle--left::before { background: transparent; }
 .plugin-manager-layout .lfaa-workbench__handle--left:hover::before,

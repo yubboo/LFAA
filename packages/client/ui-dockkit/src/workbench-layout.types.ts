@@ -5,7 +5,7 @@
  * 不负责：具体拖拽算法、视觉样式、业务内容。
  * 状态归属：类型契约，无运行时状态。
  * 对外接口：WorkbenchPaneLimits、ResizableWorkbenchProps。
- * 关联文件：ResizableWorkbench.tsx、workbench.css、@lfaa/app-shell。
+ * 关联文件：ResizableWorkbench.tsx、css/common.css、@lfaa/app-shell。
  * 修改注意事项：受控属性与回调必须成对考虑，避免父子状态出现双事实源。
  */
 import type { ReactNode } from "react";
@@ -21,7 +21,20 @@ export interface WorkbenchPaneLimits {
 export interface ResizableWorkbenchProps {
   left: ReactNode;
   center: ReactNode;
-  /** 隐藏左侧 pane 与 resize handle；常驻导航轨由外层 Shell 独立拥有。 */
+  /** 可选的前置区域；启用后与 left、center、right 同属布局根节点。 */
+  leading?: ReactNode;
+  /** 与区域同级渲染的浮层内容，不参与工作区列宽计算。 */
+  overlay?: ReactNode;
+  /** 布局根节点的额外样式作用域。 */
+  className?: string;
+  leadingRegionClassName?: string;
+  leftRegionClassName?: string;
+  centerRegionClassName?: string;
+  rightRegionClassName?: string;
+  bottomRegionClassName?: string;
+  /** 可选根元素引用；供容器观察和页面级定位复用同一布局根。 */
+  rootElementRef?: { current: HTMLDivElement | null };
+  /** 隐藏左侧 pane 与 resize handle；常驻导航轨作为可选区域独立管理。 */
   leftVisible?: boolean;
   /** 可选右栏；省略时不渲染右栏与右侧 separator，供 Settings 等单侧导航 Surface 复用同一几何能力。 */
   right?: ReactNode;
@@ -30,7 +43,7 @@ export interface ResizableWorkbenchProps {
   leftLimits?: WorkbenchPaneLimits;
   rightLimits?: WorkbenchPaneLimits;
   bottomLimits?: WorkbenchPaneLimits;
-  /** 当前容器宽度；用于识别并迁移旧版默认栏宽。 */
+  /** 当前可用布局宽度；前置区域由观察器扣除，用于响应式预算与旧版默认栏宽迁移。 */
   containerWidth?: number;
   /** 吸附捕获比例：拖到 min × ratio 才正式吸附；默认来自统一 Workbench interaction config。 */
   snapCaptureRatio?: number;

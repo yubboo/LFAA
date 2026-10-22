@@ -1,11 +1,11 @@
 /**
  * 文件：ResizableWorkbench.tsx
- * 作用：提供左栏 / 中间区 / 右栏 / 底部面板的纯布局容器，并实现拖拽缩放与吸附收起。
+ * 作用：实现可复用的公共盒子排布、窗格拖拽缩放与吸附收起。
  * 负责：尺寸状态、Pointer 拖拽、吸附迟滞、动态最大宽度、键盘 Resize、布局持久化。
  * 不负责：侧栏里面显示什么、Shell 按钮放在哪里、终端内容、业务状态。
  * 状态归属：默认由本组件拥有几何尺寸；leftWidth 与栏位开合均可由父组件受控，受控时父组件是对应事实源。
- * 对外接口：ResizableWorkbench(props)，leftWidth/onLeftWidthChange 可让多个 Surface 共用同一左栏宽度事实源。
- * 关联文件：workbench-layout.types.ts、workbench.css、@lfaa/app-shell/AgentWorkbench.tsx。
+ * 对外接口：ResizableWorkbench(props)；尺寸、交互样式从 css/common.css 引入。
+ * 关联文件：workbench-layout.types.ts、css/common-*.css、@lfaa/app-shell/AgentWorkbench.tsx。
  * 修改注意事项：
  * - min 表示视觉展开态最小宽度；Pointer 越过 min 后视觉宽度保持 min，只累计“超拖距离”。
  * - 默认超拖达到 min 的 50% 才进入吸附预览，降低误触；Pointer 不松手仍可反向拉出。
@@ -13,11 +13,11 @@
  * - 本组件只管理 Pane 几何和分隔条交互；业务按钮由各 Pane 自己拥有，受控/非受控状态必须保持一致。
  *
  * Grid 结构：
- * ┌──── left ────┬ handle ┬──────── center ────────┬ handle ┬── right ──┐
- * │               │        │                        │        │           │
- * │               │        ├────────────────────────┴────────┴───────────┤
- * │               │        │                 bottom                     │
- * └───────────────┴────────┴─────────────────────────────────────────────┘
+ * ┌ leading ┬──── left ────┬ handle ┬──────── center ────────┬ handle ┬── right ──┐
+ * │         │               │        │                        │        │           │
+ * │         │               │        ├────────────────────────┴────────┴───────────┤
+ * │         │               │        │                 bottom                     │
+ * └─────────┴───────────────┴────────┴─────────────────────────────────────────────┘
  */
 import {
   useCallback,
@@ -38,7 +38,7 @@ import {
 } from "./workbench-interaction.config.ts";
 import { WORKBENCH_LAYOUT_TOKENS, resolveLegacyWorkbenchInitialWidths, resolvePreviousWorkbenchInitialWidths, resolveWorkbenchLayoutMetrics, shouldDockResponsiveLeftPane, shouldDockResponsiveRightPane } from "./workbench-layout.config.ts";
 import type { ResizableWorkbenchProps, WorkbenchPaneLimits } from "./workbench-layout.types.ts";
-import "./workbench.css";
+import "./css/common.css";
 
 // ===== 1. 内部持久化 / 拖拽状态 =====
 interface StoredLayoutState {
@@ -153,10 +153,19 @@ function loadState(
   }
 }
 
-// ===== 3. ResizableWorkbench 主组件 =====
+// ===== 3. 公共工作台布局组件 =====
 export function ResizableWorkbench({
   left,
   center,
+  leading,
+  overlay,
+  className,
+  leadingRegionClassName,
+  leftRegionClassName,
+  centerRegionClassName,
+  rightRegionClassName,
+  bottomRegionClassName,
+  rootElementRef,
   leftVisible = true,
   right,
   bottom,
@@ -231,6 +240,15 @@ export function ResizableWorkbench({
   }, [leftWidth, leftWidthProp, onLeftWidthChange]);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const setRootElement = useCallback((element: HTMLDivElement | null) => {
+    rootRef.current = element;
+    if (rootElementRef) rootElementRef.current = element;
+  }, [rootElementRef]);
+  const getAvailableContainerWidth = useCallback(() => {
+    const root = rootRef.current;
+    if (leading !== undefined && leading !== null) return containerWidth;
+    return root?.getBoundingClientRect().width ?? containerWidth;
+  }, [containerWidth, leading]);
   const centerPaneElementRef = useRef<HTMLElement | null>(null);
   const centerPaneRef = useCallback((element: HTMLElement | null) => {
     centerPaneElementRef.current = element;
@@ -295,12 +313,11 @@ export function ResizableWorkbench({
   const getDynamicMax = useCallback((side: "left" | "right", allowCenterCollapse = false) => {
     const root = rootRef.current;
     if (!root) return side === "left" ? leftLimits.max : rightLimits.max;
-    const rect = root.getBoundingClientRect();
     const staticMax = side === "left" ? leftLimits.max : rightLimits.max;
     if (side === "right" && layoutMode === "mobile" && !rightUsesGrid) {
       const leftDockBudget = (leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth : 0)
         + (leftUsesGrid && leftVisible ? HANDLE_WIDTH : 0);
-      const mobileAvailable = Math.max(0, rect.width - leftDockBudget - 12);
+      const mobileAvailable = Math.max(0, getAvailableContainerWidth() - leftDockBudget - 12);
       return centerCollapsed ? mobileAvailable : Math.min(staticMax, mobileAvailable);
     }
     const otherWidth = side === "left"
@@ -318,11 +335,12 @@ export function ResizableWorkbench({
     const centerFloor = side === "right" && (centerCollapsed || (allowCenterCollapse && centerCollapseEnabled && rightUsesGrid))
       ? 0
       : minCenterWidth;
-    const available = rect.width - otherWidth - centerFloor - handleBudget;
+    // 可选前置导航区域存在时，containerWidth 已由观察器扣除该区域；其他 Surface 继续按实际根宽度计算。
+    const available = getAvailableContainerWidth() - otherWidth - centerFloor - handleBudget;
     // 中心列可吸附收起时，`available` 表示中心列 + 右 Dock 的总预算；
     // 不能被右 Dock 自身的静态最大宽度截断，否则中心列吸附阈值会提前触发。
     return Math.max(0, allowCenterCollapse ? available : Math.min(staticMax, available));
-  }, [centerCollapseEnabled, centerCollapsed, layoutMode, leftCollapsed, leftLimits.max, leftUsesGrid, leftVisible, leftWidth, minCenterWidth, responsiveRightDock, rightCollapsed, rightLimits.max, rightLimits.min, rightUsesGrid, rightWidthForLayout]);
+  }, [centerCollapseEnabled, centerCollapsed, getAvailableContainerWidth, layoutMode, leftCollapsed, leftLimits.max, leftUsesGrid, leftVisible, leftWidth, minCenterWidth, responsiveRightDock, rightCollapsed, rightLimits.max, rightLimits.min, rightUsesGrid, rightWidthForLayout]);
 
   // 响应式计算结果变化时，把历史持久化尺寸重新夹进当前容器允许的范围。
   // 这一步很重要：用户在大屏保存的 340px 侧栏，切到小窗后不能继续拿 340px 挤压主区。
@@ -525,7 +543,6 @@ export function ResizableWorkbench({
     if (!root) return;
     const collapsed = side === "left" ? leftCollapsed : rightCollapsed;
     if (collapsed) return;
-    const rect = root.getBoundingClientRect();
     const staticMin = side === "left" ? leftLimits.min : rightLimits.min;
     const allowCenterCollapse = side === "right" && centerCollapseEnabled && !centerCollapsed && rightUsesGrid;
     const effectiveMax = getDynamicMax(side, allowCenterCollapse);
@@ -538,7 +555,7 @@ export function ResizableWorkbench({
       : typeof renderedPaneWidth === "number" && Number.isFinite(renderedPaneWidth) && renderedPaneWidth > 0
         ? renderedPaneWidth
         : side === "right" && layoutMode === "mobile" && !rightUsesGrid
-          ? Math.min(rawCurrent, Math.max(0, rect.width - 12))
+          ? Math.min(rawCurrent, Math.max(0, getAvailableContainerWidth() - 12))
           : rawCurrent;
 
     sideDragRef.current = {
@@ -561,7 +578,7 @@ export function ResizableWorkbench({
     };
 
     event.currentTarget.setPointerCapture(event.pointerId);
-  }, [centerCollapseEnabled, centerCollapsed, getDynamicMax, layoutMode, leftCollapsed, leftLimits.min, leftWidth, minCenterWidth, rightCollapsed, rightLimits.min, rightUsesGrid, rightWidth, rightWidthForLayout, snapCaptureRatio]);
+  }, [centerCollapseEnabled, centerCollapsed, getAvailableContainerWidth, getDynamicMax, layoutMode, leftCollapsed, leftLimits.min, leftWidth, minCenterWidth, rightCollapsed, rightLimits.min, rightUsesGrid, rightWidth, rightWidthForLayout, snapCaptureRatio]);
 
   const onSidePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = sideDragRef.current;
@@ -907,15 +924,15 @@ export function ResizableWorkbench({
     "--lfaa-snap-settle-duration": `${snapSettleDurationMs}ms`,
   } as CSSProperties;
 
-  const centerPane = <main ref={centerPaneRef} className="lfaa-workbench__center" aria-hidden={centerCollapsed || undefined}>{center}</main>;
-  const rightPane = rightEnabled ? <aside className="lfaa-workbench__pane lfaa-workbench__pane--right" aria-label="右侧工作区">{right}</aside> : null;
+  const centerPane = <div ref={centerPaneRef} className={`lfaa-workbench__center${centerRegionClassName ? ` ${centerRegionClassName}` : ""}`} aria-hidden={centerCollapsed || undefined}>{center}</div>;
+  const rightPane = rightEnabled ? <div className={`lfaa-workbench__pane lfaa-workbench__pane--right${rightRegionClassName ? ` ${rightRegionClassName}` : ""}`}>{right}</div> : null;
 
   // ===== 8. DOM 结构 =====
   // DOM 顺序固定为左栏、中间区、右侧栏，与视觉顺序和辅助技术阅读顺序一致。
   return (
     <div
-      ref={rootRef}
-      className="lfaa-workbench"
+      ref={setRootElement}
+      className={`lfaa-workbench${className ? ` ${className}` : ""}`}
       style={style}
       data-left-collapsed={leftCollapsed}
       data-center-collapsed={centerCollapsed}
@@ -931,7 +948,8 @@ export function ResizableWorkbench({
       data-mobile-left-layout={layoutMode === "mobile" ? (mobileLeftDock ? "dock" : "overlay") : undefined}
       data-right-layout={rightUsesGrid ? "dock" : "overlay"}
     >
-      {leftVisible ? <aside className="lfaa-workbench__pane lfaa-workbench__pane--left" aria-label="左侧导航">{left}</aside> : null}
+      {leading !== undefined && leading !== null ? <div className={`lfaa-workbench__leading${leadingRegionClassName ? ` ${leadingRegionClassName}` : ""}`}>{leading}</div> : null}
+      {leftVisible ? <div className={`lfaa-workbench__pane lfaa-workbench__pane--left${leftRegionClassName ? ` ${leftRegionClassName}` : ""}`}>{left}</div> : null}
       {leftVisible ? <div
         className="lfaa-workbench__handle lfaa-workbench__handle--left"
         role="separator"
@@ -972,8 +990,10 @@ export function ResizableWorkbench({
 
       {rightPane}
 
+      {overlay}
+
       {bottom ? (
-        <section className="lfaa-workbench__bottom" aria-label="底部面板">
+        <div className={`lfaa-workbench__bottom${bottomRegionClassName ? ` ${bottomRegionClassName}` : ""}`}>
           <div
             className="lfaa-workbench__bottom-handle"
             role="separator"
@@ -991,7 +1011,7 @@ export function ResizableWorkbench({
             onLostPointerCapture={cancelPointerEvent}
           />
           <div className="lfaa-workbench__bottom-content">{bottom}</div>
-        </section>
+        </div>
       ) : null}
     </div>
   );

@@ -166,6 +166,9 @@
   background: transparent;
 }
 
+.settings-page__stage > .lfaa-workbench[data-layout-mode="mobile"] > .settings-page__navigation-region { box-shadow: 1rem .625rem 2.25rem rgba(0, 0, 0, .14); }
+.settings-page__stage > .lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"] > .settings-page__navigation-region { box-shadow: none; }
+
 .settings-sidebar {
   position: relative;
   display: flex;

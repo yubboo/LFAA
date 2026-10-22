@@ -4,10 +4,20 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const read = (path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
+const workspaceCss = [
+  "../../../packages/client/ui-workspace/src/module-workbench.css",
+  "../../../packages/client/ui-workspace/src/css/secondary-navigation.css",
+  "../../../packages/client/ui-workspace/src/css/center-workspace.css",
+  "../../../packages/client/ui-workspace/src/css/right-menu.css",
+  "../../../packages/client/ui-workspace/src/css/workbench-regions.css",
+].map(read).join("\n");
 const workbench = read("../../../packages/client/ui-layout/src/Workbench.tsx");
 const workspace = read("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx");
-const workspaceCss = read("../../../packages/client/ui-workspace/src/module-workbench.css");
-const dockkitCss = read("../../../packages/client/ui-dockkit/src/workbench.css");
+const secondaryNavigationCss = read("../../../packages/client/ui-workspace/src/css/secondary-navigation.css");
+const rightMenuCss = read("../../../packages/client/ui-workspace/src/css/right-menu.css");
+const workspaceRegionsCss = read("../../../packages/client/ui-workspace/src/css/workbench-regions.css");
+const dockkitCss = ["common-layout.css", "common-responsive.css"].map(file => read(`../../../packages/client/ui-dockkit/src/css/${file}`)).join("\n");
+const commonCss = ["common-layout.css", "common-pane.css", "common-pointer.css", "common-bottom.css", "common-responsive.css"].map(file => read(`../../../packages/client/ui-dockkit/src/css/${file}`)).join("\n");
 const dockkit = read("../../../packages/client/ui-dockkit/src/ResizableWorkbench.tsx");
 const aiWorkChatCss = read("../../../packages/client/ui-chat/src/ai-work-chat.css");
 const rail = read("../../../packages/client/ui-sidebar/src/GlobalNavigationRail.tsx");
@@ -15,6 +25,9 @@ const secondaryNavigation = read("../../../packages/client/ui-sidebar/src/Second
 const settingsPage = read("../../../packages/client/ui-settings/src/SettingsPage.tsx");
 const pluginManagerPage = read("../../../packages/client/ui-plugin-manager/src/PluginManagerPage.tsx");
 const fileManagerPage = read("../../../packages/client/ui-sidebar-files/src/FileManagerPage.tsx");
+const fileManagerCss = read("../../../packages/client/ui-sidebar-files/src/FileManagerPage.css");
+const renderer = read("../../../packages/client/ui-renderer/src/render.tsx");
+const moduleShellCss = read("../../../packages/client/ui-layout/src/css/module-shell.css");
 
 test("应用工作区复用 Workbench 已有应用菜单数据与打开链路", () => {
   assert.match(workbench, /const allApplicationNavigationItems: ApplicationNavigationItem\[\] = \[/u);
@@ -22,7 +35,7 @@ test("应用工作区复用 Workbench 已有应用菜单数据与打开链路", 
   assert.match(workspace, /applicationNavigationItems\.map\(\(item\) =>/u);
   assert.match(workspace, /if \(item\.route\) onNavigate\(item\.route\)/u);
   assert.match(workspace, /onOpenApplication\(item\.applicationId, "normal"\)/u);
-  assert.match(workspace, /const responsiveAppDock = true;[\s\S]*?useWorkbenchMetrics\(layoutRef, \(\) => initialMetrics\(responsiveAppDock\), responsiveAppDock\)/u);
+  assert.match(workspace, /const responsiveAppDock = true;[\s\S]*?useWorkbenchMetrics\(layoutRef, \(\) => initialMetrics\(responsiveAppDock\), responsiveAppDock, readWorkbenchLeadingInsetWidth\)/u);
   assert.doesNotMatch(workspace, /const applicationNavigationItems =/u);
 });
 
@@ -210,22 +223,55 @@ test("共享二级导航支持可选说明和尾部图标，其他页面仍可�
 
 test("工作区通过内外层容器和区域标识独立定位四个布局盒子", () => {
   const outerIndex = workspace.indexOf("className={`module-workbench-stage");
-  const innerIndex = workspace.indexOf('<div className="module-workbench-inner">', outerIndex);
-  const globalNavigationIndex = workspace.indexOf('className="module-workbench-region--global-navigation"', innerIndex);
-  const mainIndex = workspace.indexOf('<div className="module-workbench-main">', globalNavigationIndex);
+  const innerIndex = workspace.indexOf('<ResizableWorkbench', outerIndex);
 
   assert.ok(outerIndex >= 0, "outer workbench container should exist");
-  assert.ok(innerIndex > outerIndex, "inner workbench should be nested inside the outer container");
-  assert.ok(globalNavigationIndex > innerIndex && globalNavigationIndex < mainIndex, "global icon rail should be the first inner region");
-  assert.match(workspace, /module-sidebar module-workbench-region--secondary-navigation/u);
-  assert.match(workspace, /module-center module-workbench-region--center-workspace/u);
-  assert.match(workspace, /module-context module-workbench-region--right-menu/u);
+  assert.ok(innerIndex > outerIndex, "shared workbench root should be nested inside the outer container");
+  assert.match(workspace, /className="module-workbench-inner module-workbench-layout"[\s\S]*?leading=\{<GlobalNavigationRail/u);
+  assert.match(workspace, /leadingRegionClassName="module-workbench-region--leading"/u);
+  assert.match(workspace, /leftRegionClassName="module-workbench-region--secondary-navigation"/u);
+  assert.match(workspace, /centerRegionClassName="module-workbench-region--center-workspace"/u);
+  assert.match(workspace, /rightRegionClassName="module-workbench-region--right-menu"/u);
+  assert.doesNotMatch(workspace, /module-workbench-main/u, "四个内容区不再被额外三栏盒子包裹");
   assert.match(rail, /className\?: string/u);
   assert.match(rail, /module-navigation-rail\$\{className \? ` \$\{className\}` : ""\}/u);
-  assert.match(dockkit, /className="lfaa-workbench__pane lfaa-workbench__pane--left"/u);
-  assert.match(dockkit, /className="lfaa-workbench__center"/u);
-  assert.match(dockkit, /className="lfaa-workbench__pane lfaa-workbench__pane--right"/u);
-  assert.match(workspaceCss, /\.module-workbench-stage\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u);
-  assert.match(workspaceCss, /\.module-workbench-inner\s*\{[^}]*grid-template-columns:\s*var\(--module-rail-width\)\s+minmax\(0,\s*1fr\)/u);
-  assert.match(workspaceCss, /\.module-workbench-stage--voice \.module-workbench-inner\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\)/u);
+  assert.match(dockkit, /className=\{`lfaa-workbench\$\{className \? ` \$\{className\}` : ""\}`\}/u);
+  assert.match(dockkit, /lfaa-workbench__leading[\s\S]*?leadingRegionClassName/u);
+  assert.match(dockkit, /lfaa-workbench__pane--left\$\{leftRegionClassName/u);
+  assert.match(dockkit, /lfaa-workbench__center\$\{centerRegionClassName/u);
+  assert.match(dockkit, /lfaa-workbench__pane--right\$\{rightRegionClassName/u);
+  assert.match(dockkit, /import "\.\/css\/common\.css"/u);
+  assert.doesNotMatch(commonCss, /\.lfaa-workbench(?:__pane--(?:left|right)|__center|__bottom)\s*\{[^}]*\b(?:background|box-shadow|border(?:-left|-top)?)\s*:/u, "公共布局 CSS 不绘制各页面自己的内容盒子表面");
+  assert.match(secondaryNavigationCss, /\.module-workbench-layout > \.module-workbench-region--secondary-navigation[^\n]*background:\s*var\(--color-surface\)/u);
+  assert.match(rightMenuCss, /\.module-workbench-layout > \.module-workbench-region--right-menu[^\n]*background:\s*var\(--color-surface\)/u);
+  assert.match(dockkit, /getAvailableContainerWidth\(\) - otherWidth - centerFloor - handleBudget/u, "拖拽预算以扣除图标栏后的工作区宽度计算");
+  assert.match(workspace, /module-workbench-stage--application/u);
+  assert.match(workspaceCss, /\.module-workbench-stage\.module-workbench-stage--application\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u);
+  assert.match(workspaceCss, /\.module-workbench-stage--application\s*>\s*\.lfaa-workbench\.module-workbench-inner\s*\{[^}]*--lfaa-leading-width:\s*var\(--module-rail-width\)/u, "leading width must override the common zero-width default on the app workbench root");
+  assert.match(workspaceCss, /\.module-workbench-stage--voice\s*>\s*\.lfaa-workbench\.module-workbench-inner\s*\{[^}]*--lfaa-leading-width:\s*0px/u, "voice mode must intentionally release the leading column");
+  assert.doesNotMatch(workspaceCss, /\.module-workbench-stage\s*\{[^}]*grid-template-columns/u, "outer stage base rules must not force unrelated pages into the single-frame grid");
+  assert.doesNotMatch(renderer, /lfaa-client-ui-workspace\/src\/(?:application-workspace|module-workbench)\.css/u, "workspace feature CSS must not load globally on unrelated routes");
+  assert.match(workbench, /import "\.\/css\/module-shell\.css"/u, "Workbench owns the shared module-route shell geometry");
+  assert.match(moduleShellCss, /\.workbench-shell--module\s*\{[^}]*height:\s*100dvh;[^}]*overflow:\s*hidden/u);
+  assert.match(fileManagerCss, /\.module-workbench-stage\.file-manager-stage\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*min-width:\s*0;[^}]*min-height:\s*0;[^}]*overflow:\s*hidden/u, "file manager owns its own outer workbench box geometry");
+  assert.match(fileManagerCss, /\.module-workbench-stage\.file-manager-stage\s*\{[^}]*grid-template-columns:\s*var\(--module-rail-width,\s*64px\)\s+minmax\(0,\s*1fr\)/u);
+  assert.match(fileManagerCss, /\.module-workbench-stage\.file-manager-stage > \.module-navigation-rail\s*\{\s*grid-column:\s*1/u);
+  assert.match(workspaceCss, /\.module-workbench-inner\s*\{\s*--lfaa-leading-width:\s*var\(--module-rail-width\)/u);
+  assert.match(workspaceCss, /\.module-workbench-stage--voice\s*>\s*\.lfaa-workbench\.module-workbench-inner\s*\{\s*--lfaa-leading-width:\s*0px;[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u);
+  assert.match(dockkitCss, /\.lfaa-workbench\s*\{[^}]*grid-template-columns:[\s\S]*?var\(--lfaa-leading-width\)[\s\S]*?var\(--lfaa-left-column\)/u);
+  assert.match(dockkitCss, /\.lfaa-workbench__leading\s*\{[^}]*grid-column:\s*1/u);
+  assert.match(dockkitCss, /\.lfaa-workbench__pane--left\s*\{[^}]*grid-column:\s*2/u);
+});
+
+test("四个工作区大区域内部按功能盒子各自分组", () => {
+  const sidebar = workspace.slice(workspace.indexOf('<div className="module-sidebar"'), workspace.indexOf("interface ApplicationNavigationPanelProps"));
+  const center = workspace.slice(workspace.indexOf("const center = ("), workspace.indexOf("const gitManagerPanel ="));
+  const right = workspace.slice(workspace.indexOf("const right = ("), workspace.indexOf("const bottom ="));
+
+  assert.match(rail, /module-navigation-rail__top[\s\S]*?module-navigation-rail__primary[\s\S]*?module-navigation-rail__footer-actions[\s\S]*?module-navigation-rail__status-box[\s\S]*?module-navigation-rail__profile/u);
+  assert.match(sidebar, /module-sidebar__brand-row[\s\S]*?module-sidebar__sessions[\s\S]*?module-sidebar__sessions-heading[\s\S]*?module-sidebar__session-list[\s\S]*?module-sidebar__provider[\s\S]*?module-sidebar__footer/u);
+  assert.match(center, /module-center__header[\s\S]*?module-center__heading[\s\S]*?module-center__actions[\s\S]*?module-center__content[\s\S]*?module-ai-work-chat/u);
+  assert.match(right, /module-context__shell-actions[\s\S]*?module-context__body[\s\S]*?module-context__side-chat[\s\S]*?module-context__default-content[\s\S]*?module-context__tabs/u);
+  assert.match(workspace, /import "\.\/css\/secondary-navigation\.css"[\s\S]*?import "\.\/css\/center-workspace\.css"[\s\S]*?import "\.\/css\/right-menu\.css"/u);
+  assert.match(workspaceRegionsCss, /\.module-workbench-region--leading,[\s\S]*?color:\s*var\(--color-text-primary\)/u);
 });

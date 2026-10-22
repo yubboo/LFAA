@@ -1,10 +1,14 @@
 ﻿<#
 功能：显示 LFAA 项目主菜单并按用户选择执行操作。
 作用：安装与构建当前包工作区、选择 Harness 运行入口、检查环境、备份源码、推送 GitHub 源码、发布 npm CLI 或安全更新源码。
-关联文件：lfaa.bat、scripts/project-menu.mjs、scripts/backup-project.ps1、scripts/update-project.ps1、scripts/start-dev.ps1、scripts/package-cli.mjs、apps/cli/bin/lfaa.mjs、apps/web/package.json、apps/web/scripts/wait-for-server.mjs、packages/util/home-paths/src/resolve-data-directory.mjs、packages/storage/storage-json/src/index.ts、package.json、pnpm-workspace.yaml。
+关联文件：lfaa.bat、scripts/project-menu.mjs、scripts/backup-project.ps1、scripts/update-project.ps1、scripts/source-version.ps1、scripts/start-dev.ps1、scripts/package-cli.mjs、apps/cli/bin/lfaa.mjs、apps/web/package.json、apps/web/scripts/wait-for-server.mjs、packages/util/home-paths/src/resolve-data-directory.mjs、packages/storage/storage-json/src/index.ts、package.json、pnpm-workspace.yaml。
 #>
 
 $ErrorActionPreference = 'Stop'
+$sourceVersionScript = Join-Path $PSScriptRoot 'source-version.ps1'
+if (-not (Test-Path -LiteralPath $sourceVersionScript -PathType Leaf)) { throw '缺少 scripts\source-version.ps1，无法读取源码推送版本规则。' }
+. $sourceVersionScript
+
 $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $rootManifest = Join-Path $projectRoot 'package.json'
 $workspaceFile = Join-Path $projectRoot 'pnpm-workspace.yaml'
@@ -780,16 +784,6 @@ function Get-ProjectReleaseVersion {
     }
 }
 
-function Get-CommitMessageVersion {
-    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$CommitMessage)
-
-    if ($CommitMessage -match '^\s*(?:LFAA\s+)?v?(?<version>\d+\.\d+\.\d+)(?=$|[\s:：-])') {
-        return $Matches['version']
-    }
-
-    return ''
-}
-
 function Test-PushVersionIsNewer {
     param(
         [Parameter(Mandatory = $true)][string]$Candidate,
@@ -797,35 +791,6 @@ function Test-PushVersionIsNewer {
     )
 
     return ([version]$Candidate).CompareTo([version]$Previous) -gt 0
-}
-
-function Resolve-LastPushedVersion {
-    param(
-        [string[]]$RemoteCommitSubjects = @(),
-        [string]$LocalVersion = ''
-    )
-
-    foreach ($subject in $RemoteCommitSubjects) {
-        $version = Get-CommitMessageVersion -CommitMessage $subject
-        if (-not [string]::IsNullOrWhiteSpace($version)) {
-            return [PSCustomObject]@{
-                Number = $version
-                Source = 'GitHub main 最近的版本提交'
-            }
-        }
-    }
-
-    if ($LocalVersion -match '^\d+\.\d+\.\d+$') {
-        return [PSCustomObject]@{
-            Number = $LocalVersion
-            Source = '本机最近一次成功推送记录'
-        }
-    }
-
-    return [PSCustomObject]@{
-        Number = ''
-        Source = '尚无可识别的推送版本记录'
-    }
 }
 
 function Get-LastPushedVersion {

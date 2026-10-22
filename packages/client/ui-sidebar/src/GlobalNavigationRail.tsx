@@ -78,8 +78,10 @@ export function GlobalNavigationRail({ className, username, role, serverState, s
 
   return (
     <nav className={`module-navigation-rail${className ? ` ${className}` : ""}`} aria-label="LFAA 主导航" ref={railRef}>
-      <div className="module-navigation-rail__primary">
+      <div className="module-navigation-rail__top" role="group" aria-label="顶部入口">
         <button className={`module-navigation-rail__button${activePage === "home" ? " is-active" : ""}`} type="button" aria-label={homeLabel} aria-current={activePage === "home" ? "page" : undefined} title={homeLabel} onClick={() => { setOpenPopover(null); onHome(); }}><WorkbenchIcon name="home" size={19} /></button>
+      </div>
+      <div className="module-navigation-rail__primary" role="group" aria-label="中部导航">
         <button className={`module-navigation-rail__button${(onToggleApplications ? applicationsExpanded : openPopover === "applications") ? " is-active" : ""}`} type="button" aria-label="应用" title="应用" aria-haspopup={onToggleApplications ? undefined : "dialog"} aria-expanded={onToggleApplications ? applicationsExpanded : openPopover === "applications"} aria-controls={onToggleApplications ? applicationsTargetId : openPopover === "applications" ? "module-navigation-rail-applications" : undefined} onClick={toggleApplications}><WorkbenchIcon name="grid" size={19} /></button>
         {onOpenWork ? <button className="module-navigation-rail__button" type="button" aria-label="工作 · 小鱼智能体" title="工作 · 小鱼智能体" onClick={() => { setOpenPopover(null); onOpenWork(); }}><WorkbenchIcon name="spark" size={19} /></button> : null}
         <button className="module-navigation-rail__button" type="button" aria-label="最近会话" title="最近会话" aria-expanded={applicationsExpanded} aria-controls={applicationsExpanded ? "module-sidebar-applications" : undefined} onClick={() => {
@@ -91,7 +93,7 @@ export function GlobalNavigationRail({ className, username, role, serverState, s
         <button className="module-navigation-rail__button" type="button" aria-label="工具与资源" title={onToggleTools ? "工具与资源" : "当前页面没有工具资源栏"} aria-keyshortcuts="Control+Alt+B Meta+Alt+B" disabled={!onToggleTools} onClick={() => { setOpenPopover(null); onToggleTools?.(); }}><WorkbenchIcon name="tools" size={19} /></button>
         <button className={`module-navigation-rail__button${activePage === "settings" ? " is-active" : ""}`} type="button" aria-label="设置中心" aria-current={activePage === "settings" ? "page" : undefined} title="设置中心" aria-keyshortcuts="Control+, Meta+," onClick={() => { setOpenPopover(null); onOpenSettings(); }}><WorkbenchIcon name="settings" size={19} /></button>
       </div>
-      <div className="module-navigation-rail__footer">
+      <div className="module-navigation-rail__footer" role="group" aria-label="底部辅助区">
         {!onToggleApplications && openPopover === "applications" ? <section className="module-navigation-rail__popover module-navigation-rail__popover--applications" id="module-navigation-rail-applications" role="dialog" aria-label="应用">
           <header><div><strong>应用</strong><span>打开专业工作区</span></div><button type="button" aria-label="关闭应用菜单" onClick={() => setOpenPopover(null)}><WorkbenchIcon name="close" size={14} /></button></header>
           <div className="module-navigation-rail__application-list">
@@ -133,9 +135,11 @@ export function GlobalNavigationRail({ className, username, role, serverState, s
             </>}
           </dl>
         </section> : null}
-        <button className={`module-navigation-rail__button${openPopover === "shortcuts" ? " is-active" : ""}`} type="button" aria-label="键盘快捷键" title="键盘快捷键" aria-expanded={openPopover === "shortcuts"} onClick={() => setOpenPopover((current) => current === "shortcuts" ? null : "shortcuts")}><WorkbenchIcon name="keyboard" size={18} /></button>
-        <button className={`module-navigation-rail__button${openPopover === "menu" ? " is-active" : ""}`} type="button" aria-label="更多入口" title="更多入口" aria-expanded={openPopover === "menu"} onClick={() => setOpenPopover((current) => current === "menu" ? null : "menu")}><WorkbenchIcon name="dots" size={19} /></button>
-        {showServiceStatus ? <span className={`module-navigation-rail__status module-navigation-rail__status--${serverState}`} title={serverState === "online" ? "控制端已连接" : serverState === "checking" ? "正在检查控制端" : "控制端未连接"} /> : null}
+        <div className="module-navigation-rail__footer-actions" role="group" aria-label="快捷入口">
+          <button className={`module-navigation-rail__button${openPopover === "shortcuts" ? " is-active" : ""}`} type="button" aria-label="键盘快捷键" title="键盘快捷键" aria-expanded={openPopover === "shortcuts"} onClick={() => setOpenPopover((current) => current === "shortcuts" ? null : "shortcuts")}><WorkbenchIcon name="keyboard" size={18} /></button>
+          <button className={`module-navigation-rail__button${openPopover === "menu" ? " is-active" : ""}`} type="button" aria-label="更多入口" title="更多入口" aria-expanded={openPopover === "menu"} onClick={() => setOpenPopover((current) => current === "menu" ? null : "menu")}><WorkbenchIcon name="dots" size={19} /></button>
+        </div>
+        {showServiceStatus ? <div className="module-navigation-rail__status-box"><span className={`module-navigation-rail__status module-navigation-rail__status--${serverState}`} title={serverState === "online" ? "控制端已连接" : serverState === "checking" ? "正在检查控制端" : "控制端未连接"} /></div> : null}
         {openPopover === "profile" ? <section className="module-navigation-rail__popover module-navigation-rail__popover--profile" role="dialog" aria-label="个人账户">
           <header><div><strong>{username}</strong><span>{userRoleLabel(role)}</span></div><button type="button" aria-label="关闭个人账户" onClick={() => setOpenPopover(null)}><WorkbenchIcon name="close" size={14} /></button></header>
           <div className="module-navigation-rail__popover-actions">

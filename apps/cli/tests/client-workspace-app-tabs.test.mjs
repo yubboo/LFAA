@@ -1,5 +1,5 @@
 /**
- * 功能：回归 AI Work 顶部应用标签与共享 DockKit 中心列的切换合同。
+ * 功能：回归 AI Work 顶部应用标签与公共布局中心列的切换合同。
  * 作用：检查会话/工作台标签复用当前 Browser Owner，并确保零宽中心仅由受控调用方启用。
  */
 import assert from "node:assert/strict";
@@ -10,8 +10,20 @@ const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
 const workspace = read("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx");
 const workbench = read("../../../packages/client/ui-dockkit/src/ResizableWorkbench.tsx");
 const workbenchTypes = read("../../../packages/client/ui-dockkit/src/workbench-layout.types.ts");
-const workbenchCss = read("../../../packages/client/ui-dockkit/src/workbench.css");
-const workspaceCss = read("../../../packages/client/ui-workspace/src/module-workbench.css");
+const workbenchCss = [
+  "common-layout.css",
+  "common-pane.css",
+  "common-pointer.css",
+  "common-bottom.css",
+  "common-responsive.css",
+].map(file => read(`../../../packages/client/ui-dockkit/src/css/${file}`)).join("\n");
+const workspaceCss = [
+  "../../../packages/client/ui-workspace/src/module-workbench.css",
+  "../../../packages/client/ui-workspace/src/css/secondary-navigation.css",
+  "../../../packages/client/ui-workspace/src/css/center-workspace.css",
+  "../../../packages/client/ui-workspace/src/css/right-menu.css",
+  "../../../packages/client/ui-workspace/src/css/workbench-regions.css",
+].map(read).join("\n");
 
 test("AI Work 中心区收起后显示会话、新标签页及动态工具标签", () => {
   assert.match(workspace, /const showWorkbenchTabs = mode === "ai-work" && !voiceMode/u);
@@ -50,7 +62,7 @@ test("AI Work 中心区收起后显示会话、新标签页及动态工具标签
   assert.match(workspace, /<BrowserPanel sessionId=\{activeAiSessionId\} settings=\{settings\} \/>/u);
   assert.match(workspace, /<ResizableWorkbench[\s\S]*?centerCollapsed=\{showWorkbenchTabs && centerCollapsed\}/u);
   assert.match(workbenchTypes, /onCenterCollapsePreviewChange\?: \(preview: boolean \| null\) => void/u);
-  assert.match(workbench, /if \(previousCenterSnapped !== sideDrag\.centerSnapped\) onCenterCollapsePreviewChange\?\.\(sideDrag\.centerSnapped\)/u, "DockKit 仅在进入或退出吸附预览时通知页面");
+  assert.match(workbench, /if \(previousCenterSnapped !== sideDrag\.centerSnapped\) onCenterCollapsePreviewChange\?\.\(sideDrag\.centerSnapped\)/u, "公共布局仅在进入或退出吸附预览时通知页面");
   assert.match(workbench, /if \(drag\.centerCollapseEnabled\) onCenterCollapsePreviewChange\?\.\(null\)/u, "松开后清除临时预览状态");
   assert.match(workbench, /if \(sideDrag\?\.centerCollapseEnabled\) onCenterCollapsePreviewChange\?\.\(null\)/u, "取消拖动后清除临时预览状态");
 });
@@ -73,10 +85,10 @@ test("中心列拖动越过下限阈值后吸附收起，标签仍可显式切�
   assert.match(workbenchCss, /data-center-collapsed="true"\] \.lfaa-workbench__center \{ visibility: hidden; pointer-events: none; \}/u);
   assert.match(workbenchCss, /data-snap-preview="center"\] \.lfaa-workbench__center \{ visibility: hidden; pointer-events: none; transition: none; \}/u);
   assert.match(workspaceCss, /\.module-workbench-tabstrip \{[^}]*flex: 1 1 auto/u, "收起后的右侧顶栏为页签提供弹性空间");
-  assert.match(workspaceCss, /\.module-workbench-tabs--context \{[^}]*overflow-x: auto/u, "多个页签在窄右栏横向滚动，不把右侧空出来");
+  assert.match(workspaceCss, /\.module-workbench-tabs--context \{[^}]*width: 100%;[^}]*flex: 1 1 auto;[^}]*overflow-x: auto/u, "页签导航占满顶部可用宽度，窄栏仍可横向滚动");
   assert.match(workspaceCss, /\.module-context__launcher-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/u);
   assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-context__launcher-grid \{ grid-template-columns: minmax\(0, 1fr\)/u, "窄栏入口切换为单列");
-  assert.match(workspaceCss, /\.module-workbench-main\s*\{[^}]*container-name:\s*module-workbench-main/u);
+  assert.match(workspaceCss, /\.module-workbench-layout\s*\{[^}]*container-name:\s*module-workbench-main/u);
   assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-workbench-tab-item \.module-workbench-tab \{ justify-content: center; padding-inline: 6px; \}/u, "窄右栏收起页签将文字收为图标并保留辅助名称");
 });
 

@@ -1,25 +1,31 @@
 Describe 'GitHub source push version tracking' {
     BeforeAll {
-        $scriptPath = Join-Path $PSScriptRoot '..\install-dependencies.ps1'
-        $tokens = $null
-        $parseErrors = $null
-        $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile(
-            $scriptPath,
-            [ref]$tokens,
-            [ref]$parseErrors
-        )
-        if ($parseErrors.Count -gt 0) {
-            throw "install-dependencies.ps1 has PowerShell parse errors: $($parseErrors.Count)"
+        $functionPaths = @{
+            'Get-CommitMessageVersion' = Join-Path $PSScriptRoot '..\source-version.ps1'
+            'Resolve-LastPushedVersion' = Join-Path $PSScriptRoot '..\source-version.ps1'
+            'Test-PushVersionIsNewer' = Join-Path $PSScriptRoot '..\install-dependencies.ps1'
         }
 
         foreach ($name in @('Get-CommitMessageVersion', 'Test-PushVersionIsNewer', 'Resolve-LastPushedVersion')) {
+            $scriptPath = $functionPaths[$name]
+            $tokens = $null
+            $parseErrors = $null
+            $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile(
+                $scriptPath,
+                [ref]$tokens,
+                [ref]$parseErrors
+            )
+            if ($parseErrors.Count -gt 0) {
+                throw "$(Split-Path -Leaf $scriptPath) has PowerShell parse errors: $($parseErrors.Count)"
+            }
+
             $functionAst = $scriptAst.Find({
                 param($node)
                 $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
                     $node.Name -eq $name
             }, $true)
             if (-not $functionAst) {
-                throw "$name was not found in install-dependencies.ps1."
+                throw "$name was not found in $(Split-Path -Leaf $scriptPath)."
             }
 
             . ([scriptblock]::Create($functionAst.Extent.Text))

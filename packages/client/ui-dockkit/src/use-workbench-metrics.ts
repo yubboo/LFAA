@@ -6,7 +6,13 @@
 import { useEffect, useState, type RefObject } from "react";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "./workbench-layout.config.js";
 
-export function observeWorkbenchMetrics(element: HTMLDivElement, onChange: (metrics: WorkbenchLayoutMetrics) => void, responsiveRightDock = false) {
+export function readWorkbenchLeadingInsetWidth(element: HTMLElement) {
+  const rawWidth = window.getComputedStyle(element).getPropertyValue("--lfaa-leading-width");
+  const width = Number.parseFloat(rawWidth);
+  return Number.isFinite(width) ? Math.max(0, width) : 0;
+}
+
+export function observeWorkbenchMetrics(element: HTMLDivElement, onChange: (metrics: WorkbenchLayoutMetrics) => void, responsiveRightDock = false, measureLeadingInset?: (element: HTMLDivElement) => number) {
   if (typeof ResizeObserver === "undefined") return () => undefined;
   let frame: number | null = null;
   let stopped = false;
@@ -16,7 +22,8 @@ export function observeWorkbenchMetrics(element: HTMLDivElement, onChange: (metr
     if (stopped || frame !== null) return;
     frame = window.requestAnimationFrame(() => {
       frame = null;
-      const next = resolveWorkbenchLayoutMetrics(size.width, size.height, responsiveRightDock);
+      const leadingInset = measureLeadingInset?.(element) ?? 0;
+      const next = resolveWorkbenchLayoutMetrics(Math.max(0, size.width - leadingInset), size.height, responsiveRightDock);
       if (previous?.containerWidth === next.containerWidth && previous.containerHeight === next.containerHeight) return;
       previous = next;
       onChange(next);
@@ -41,14 +48,14 @@ export function observeWorkbenchMetrics(element: HTMLDivElement, onChange: (metr
   };
 }
 
-export function useWorkbenchMetrics(ref: RefObject<HTMLDivElement | null>, initialize: () => WorkbenchLayoutMetrics, responsiveRightDock = false) {
+export function useWorkbenchMetrics(ref: RefObject<HTMLDivElement | null>, initialize: () => WorkbenchLayoutMetrics, responsiveRightDock = false, measureLeadingInset?: (element: HTMLDivElement) => number) {
   const [metrics, setMetrics] = useState(initialize);
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
     return observeWorkbenchMetrics(element, next => {
       setMetrics(current => current.containerWidth === next.containerWidth && current.containerHeight === next.containerHeight ? current : next);
-    }, responsiveRightDock);
-  }, [ref, responsiveRightDock]);
+    }, responsiveRightDock, measureLeadingInset);
+  }, [measureLeadingInset, ref, responsiveRightDock]);
   return metrics;
 }

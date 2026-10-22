@@ -1,0 +1,335 @@
+/* 中间工作区盒子样式；只限定于中心标题、内容和聊天区域。 */
+.module-workbench-layout > .module-workbench-region--center-workspace {
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+.module-workbench-stage--voice .module-workbench-region--leading,
+.module-workbench-stage--voice .module-center__header { display: none; }
+
+.module-workbench-stage--voice .module-workbench-layout,
+.module-workbench-stage--voice .module-center,
+.module-workbench-stage--voice .module-center__content { width: 100%; height: 100%; }
+
+.module-center { position: relative; display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; background: transparent; container-type: inline-size; container-name: module-center; }
+
+.module-center__header { position: relative; z-index: 2; display: grid; min-height: var(--agent-shell-header-h, 3rem); grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 0 14px; border-bottom: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-surface) 82%, transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
+
+.module-center__heading { display: flex; min-width: 0; grid-column: 1; align-items: center; gap: 9px; }
+
+.module-center__title { display: flex; min-width: 0; align-items: center; gap: 8px; color: var(--color-text-secondary); }
+
+.module-center__title strong { overflow: hidden; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+
+.module-center__title svg { color: var(--settings-accent, var(--color-brand)); }
+
+.module-center__actions { display: flex; min-width: 0; grid-column: 2; justify-self: end; align-items: center; gap: 3px; }
+
+@container module-center (max-width: 560px) {
+
+  .module-center__header { gap: 8px; padding-inline: 8px; }
+
+  .module-center__heading { gap: 6px; }
+
+  .module-center__title { max-width: min(190px, 40cqi); flex: 1 1 0; justify-content: flex-start; gap: 6px; }
+
+  .module-center__title strong { min-width: 0; font-size: var(--font-size-xs); }
+
+  .module-center__actions { gap: 1px; }
+
+  .module-center__voice-button,
+  .module-center__actions > .module-panel-control { width: 30px; min-width: 30px; height: 30px; justify-content: center; gap: 0; padding: 0; font-size: 0; }
+
+  .module-center__work-tabs { gap: 0; padding: 0; border: 0; background: transparent; }
+
+  .module-center__work-tabs > button:not(.module-git-summary-trigger) { width: 30px; min-width: 30px; height: 30px; justify-content: center; gap: 0; padding: 0; font-size: 0; }
+
+  .module-center__work-tabs > button:not(.module-git-summary-trigger) > span { display: none; }
+
+  .module-center__voice-button:focus-visible,
+  .module-center__work-tabs > button:focus-visible { outline: 2px solid var(--color-border-strong); outline-offset: 1px; }
+
+}
+
+/* 中间画布保留滚动能力并隐藏滚动条，同时作为命名宽度容器供内部内容按真实列宽排版。 */
+.module-center__content { position: relative; z-index: 1; display: flex; width: 100%; max-width: none; min-height: 0; flex: 1; flex-direction: column; margin: 0; padding: 0; overflow: auto; container-type: inline-size; container-name: module-center-content; background: transparent; }
+
+.module-center__content,
+.module-center__content * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+
+.module-center__content::-webkit-scrollbar,
+.module-center__content *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+
+.module-center__content--ai-work { gap: 0; overflow: hidden; }
+
+.module-workbench-stage--voice .module-center__content--ai-work > .module-ai-work-chat { width: 100%; }
+
+.module-center__work-tabs { display: inline-flex; min-width: 0; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface-muted); }
+
+.module-center__work-tabs button { display: inline-flex; min-height: 27px; align-items: center; gap: 6px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); cursor: pointer; font: inherit; font-size: var(--font-size-xs); white-space: nowrap; }
+
+.module-center__work-tabs button:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
+
+.module-center__work-tabs button.is-active { background: var(--color-surface); color: var(--settings-accent, var(--color-brand)); box-shadow: 0 1px 3px var(--color-shadow-card-soft); }
+
+.module-center__work-tabs button > span { color: var(--color-status-success); font-size: 10px; }
+
+.module-git-summary-trigger { position: relative; display: inline-grid; width: 30px; min-width: 30px; height: 30px; place-items: center; padding: 0; }
+
+.module-git-summary-trigger > span { position: absolute; top: -3px; right: -4px; display: grid; min-width: 15px; height: 15px; place-items: center; padding-inline: 3px; border-radius: 999px; background: var(--color-brand); color: var(--color-text-inverse); font-size: 9px; line-height: 1; }
+
+/* Git 摘要按项目卡片、文件夹变更和会话文件记录分层；宽度受当前工作区容器约束。 */
+.module-git-summary { position: relative; display: flex; width: min(420px, calc(100cqi - 48px)); max-width: calc(100vw - 24px); height: auto; max-height: min(72dvh, 620px); min-height: 0; flex-direction: column; overflow: visible; box-sizing: border-box; color: var(--color-text-primary); container-type: inline-size; }
+
+.module-git-summary.is-embedded { width: 100%; max-width: 100%; height: 100%; max-height: none; }
+
+.module-git-summary__change-row { position: relative; display: flex; min-width: 0; align-items: stretch; gap: 3px; }
+
+.module-git-summary__body { display: flex; min-width: 0; min-height: 0; flex: 1 1 auto; flex-direction: column; gap: 10px; padding-inline: 4px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: auto; scrollbar-width: thin; box-sizing: border-box; }
+
+.module-git-summary__project-card { display: grid; width: 100%; min-width: 0; flex: 0 0 auto; gap: 9px; padding: 11px; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: color-mix(in srgb, var(--color-surface-muted) 44%, transparent); box-sizing: border-box; }
+
+.module-git-summary__project-header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; }
+
+.module-git-summary__project-title { min-width: 0; overflow: hidden; font-size: var(--font-size-sm); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+
+.module-git-summary__branch { min-width: 0; max-width: 54%; padding: 3px 8px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 999px; color: var(--color-text-secondary); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
+
+.module-git-summary__root-change { display: flex; width: 100%; max-width: 100%; min-width: 0; min-height: 38px; flex: 1 1 auto; align-items: center; gap: 9px; padding-inline: 9px; border-radius: 9px; background: var(--color-surface-muted); color: var(--color-text-primary); text-align: left; box-sizing: border-box; }
+
+.module-git-summary__root-change:hover, .module-git-summary__folder-row:hover { background: var(--color-surface-hover); color: var(--settings-accent, var(--color-brand)); }
+
+.module-git-summary__root-change > span:nth-of-type(1) { min-width: 0; flex: 0 1 auto; overflow: hidden; font-size: var(--font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
+
+.module-git-summary__endcap { display: inline-flex; min-width: 0; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 8px; margin-inline-start: auto; transition: opacity 120ms ease; }
+
+.module-git-summary__operations-trigger { position: absolute; inset-inline-end: 0; top: 50%; z-index: 1; display: grid; width: 34px; min-width: 34px; min-height: 34px; place-items: center; padding: 0; border-radius: 8px; color: var(--color-text-secondary); opacity: 0; pointer-events: none; transform: translateY(-50%); transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
+
+.module-git-summary__change-row:hover > .module-git-summary__operations-trigger, .module-git-summary__change-row:focus-within > .module-git-summary__operations-trigger, .module-git-summary__change-row.is-open > .module-git-summary__operations-trigger { opacity: 1; pointer-events: auto; }
+
+.module-git-summary__change-row:hover .module-git-summary__endcap, .module-git-summary__change-row:focus-within .module-git-summary__endcap, .module-git-summary__change-row.is-open .module-git-summary__endcap { opacity: 0; }
+
+.module-git-summary__operations-trigger:hover, .module-git-summary__operations-trigger[aria-expanded="true"] { background: var(--color-surface-hover); color: var(--settings-accent, var(--color-brand)); }
+
+.module-git-summary__operations-trigger:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; opacity: 1; pointer-events: auto; }
+
+.module-git-summary__counts { display: inline-flex; flex: 0 0 auto; gap: 5px; font-size: var(--font-size-xs); white-space: nowrap; }
+
+.module-git-summary__counts b { color: var(--color-status-success-text); font-weight: 500; }
+
+.module-git-summary__counts i { color: var(--color-status-error-text); font-style: normal; }
+
+.module-git-summary__item-state, .module-git-summary__folder-state { min-width: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
+
+.module-git-summary__endcap > svg { flex: 0 0 auto; color: var(--color-text-muted); transform: rotate(-90deg); }
+
+.module-git-summary__folders { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 3px; }
+
+.module-git-summary__folder-row { display: flex; width: auto; min-width: 0; min-height: 35px; flex: 1 1 auto; align-items: center; gap: 8px; padding-inline: 9px; border-radius: 8px; color: var(--color-text-secondary); text-align: left; }
+
+.module-git-summary__folder-name { min-width: 0; flex: 1 1 auto; overflow: hidden; font-size: var(--font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
+
+.module-git-summary__file-section { display: flex; width: 100%; max-width: 100%; min-width: 0; flex-direction: column; gap: 5px; padding: 8px; border: 1px solid var(--color-border-subtle); border-radius: 10px; background: color-mix(in srgb, var(--color-surface-muted) 24%, transparent); box-sizing: border-box; }
+
+.module-git-summary__file-section > header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
+
+.module-git-summary__file-section > header strong { font-size: var(--font-size-xs); font-weight: 550; }
+
+.module-git-summary__file-section > header span { flex: 0 0 auto; margin-inline-start: auto; color: var(--color-text-muted); font-size: var(--font-size-xs); text-align: right; }
+
+.module-git-summary__file-row { display: flex; width: 100%; max-width: 100%; min-width: 0; align-items: center; gap: 8px; padding: 4px 0; color: var(--color-text-secondary); box-sizing: border-box; }
+
+.module-git-summary__file-row > svg { flex: 0 0 auto; color: var(--color-text-muted); }
+
+.module-git-summary__file-copy { display: grid; min-width: 0; gap: 2px; }
+
+.module-git-summary__file-copy strong, .module-git-summary__file-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.module-git-summary__file-copy strong { font-size: var(--font-size-xs); font-weight: 500; }
+
+.module-git-summary__file-copy small { color: var(--color-text-muted); font-size: 10px; }
+
+.module-git-summary__empty, .module-git-summary__error, .module-git-summary__footnote { margin: 0; }
+
+.module-git-summary__empty { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+
+.module-git-summary__error { color: var(--color-status-warning); font-size: var(--font-size-xs); }
+
+.module-git-summary__footnote { color: var(--color-text-muted); font-size: 10px; }
+
+.module-git-summary__view-all { width: calc(100% - 20px); min-height: 32px; flex: 0 0 auto; margin-inline: 10px; border-top: 1px solid var(--color-border-subtle); border-radius: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); box-sizing: border-box; }
+
+.module-git-summary__view-all:hover { color: var(--settings-accent, var(--color-brand)); }
+
+.module-git-summary__root-change:focus-visible, .module-git-summary__folder-row:focus-visible, .module-git-summary__view-all:focus-visible, .module-git-summary-trigger:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
+.module-git-summary-popover .ant-popover-inner { padding: 8px; border: 1px solid var(--color-border); background: var(--color-surface); box-shadow: 0 14px 38px var(--color-shadow-card-soft); }
+
+.module-git-summary-popover .ant-popover-inner-content { padding: 0; }
+
+/* Git 摘要顶缘贴中心内容区，按内容自然收高并在短屏内滚动；右缘贴住可拖分隔线，向左揭开且底部留白。 */
+.module-git-summary-popover { inset-inline-start: auto !important; inset-inline-end: 0 !important; top: var(--agent-shell-header-h, 3rem) !important; bottom: auto !important; height: auto !important; transform: none !important; transform-origin: right center; }
+
+.module-git-summary-popover.ant-zoom-big-fast-enter-active,
+.module-git-summary-popover.ant-zoom-big-fast-appear-active { animation: module-git-summary-drawer-in 220ms cubic-bezier(.2, .8, .2, 1); }
+
+.workbench-shell[data-reduced-motion="on"] .module-git-summary-popover { animation-duration: 0ms !important; }
+
+@media (prefers-reduced-motion: reduce) {
+
+  .workbench-shell[data-reduced-motion="system"] .module-git-summary-popover { animation-duration: 0ms !important; }
+
+}
+
+/* Git 操作菜单留在摘要卡内部，避免中心列裁切掉提交、推送和分支操作。 */
+.module-git-summary__operations-menu { position: absolute; inset-block-start: -14px; inset-inline-start: 8px; z-index: 3; display: flex; width: min(112px, calc(100vw - 24px)); max-width: 100%; min-width: 0; flex-direction: column; gap: 1px; padding: 4px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); box-shadow: 0 10px 30px var(--color-shadow-card-soft); box-sizing: border-box; }
+
+.module-git-summary__operations-menu > button { min-height: 34px; padding: 6px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--color-text-primary); cursor: pointer; font: inherit; font-size: var(--font-size-sm); text-align: left; }
+
+.module-git-summary__operations-menu > button:hover, .module-git-summary__operations-menu > button:focus-visible { outline: none; background: var(--color-surface-hover); color: var(--settings-accent, var(--color-brand)); }
+
+.module-git-summary__operations-trigger:focus-visible, .module-git-summary__operations-menu > button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+
+@media (hover: none) {
+
+  .module-git-summary__operations-trigger { opacity: 1; pointer-events: auto; }
+
+  .module-git-summary__endcap { margin-inline-end: 36px; }
+
+}
+
+[data-layout-mode="mobile"].module-git-summary.is-actions-open { padding-block-start: 0; }
+
+[data-layout-mode="mobile"].module-git-summary .module-git-summary__operations-trigger { opacity: 1; pointer-events: auto; }
+
+[data-layout-mode="mobile"].module-git-summary .module-git-summary__endcap { margin-inline-end: 36px; }
+
+[data-layout-mode="mobile"].module-git-summary .module-git-summary__change-row .module-git-summary__endcap { opacity: 1; }
+
+[data-layout-mode="mobile"].module-git-summary .module-git-summary__operations-menu { position: relative; inset: auto; align-self: stretch; width: calc(100% - 20px); max-width: 100%; margin: 0 10px 4px; box-sizing: border-box; grid-template-columns: repeat(4, minmax(0, 1fr)); display: grid; }
+
+[data-layout-mode="mobile"].module-git-summary .module-git-summary__operations-menu > button { width: 100%; max-width: 100%; min-width: 0; min-height: 44px; padding: 4px 0; font-size: var(--font-size-xs); line-height: 1.15; text-align: center; white-space: normal; overflow-wrap: anywhere; box-sizing: border-box; }
+
+@container (max-width: 480px) {
+ .module-git-summary { width: min(420px, max(0px, calc(100cqi - 48px)), calc(100vw - 24px)); }
+
+}
+
+@container (max-width: 300px) {
+
+  .module-git-summary__project-header { align-items: center; flex-direction: row; gap: 6px; }
+
+  .module-git-summary__project-title { flex: 1 1 auto; }
+
+  .module-git-summary__branch { max-width: 40%; flex: 0 1 auto; }
+
+  .module-git-summary__folder-state { display: none; }
+
+}
+
+@container (max-width: 200px) {
+
+  [data-layout-mode="mobile"].module-git-summary .module-git-summary__operations-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+}
+
+.module-ai-work-chat {
+  /* 控制 AI Work 中栏 20–32px 的正文内缩与刻度左侧安全区，以及输入区 10–16px 居中补偿；均随中栏宽度响应。 */
+  --ai-work-chat-inline-gap: clamp(20px, 6cqi, 32px);
+  --ai-work-chat-inline-gap-half: clamp(10px, 3cqi, 16px);
+  display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0;
+}
+
+/* 聊天表面、正文与输入区按中栏宽度内缩 20–32px；刻度由下方独立定位规则贴中心列左缘。 */
+.module-center__content--ai-work > .module-ai-work-chat { width: calc(100% - var(--ai-work-chat-inline-gap)); height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; align-self: flex-start; box-sizing: border-box; }
+
+/* 允许消息轨道进入右侧留白到达中栏边缘，同时保持原聊天表面的尺寸与纵向裁切。 */
+.module-center__content--ai-work .module-ai-work-chat > .ai-work-chat { width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; margin: 0; padding-inline: 0; box-sizing: border-box; overflow-x: visible; overflow-y: clip; border: 0; border-radius: 0; background-clip: border-box; }
+
+/* AI Work 普通聊天需要裁切纵向外溢；全屏语音页由自身容器滚动，短屏时必须覆盖这条通用裁切。 */
+.module-workbench-stage--voice .module-center__content--ai-work .module-ai-work-chat > .ai-work-chat--voice { overflow-y: auto; }
+
+/* 恢复会话滚动列、消息舞台和正文原有尺寸；只将刻度轨道定位到中栏左缘，预览卡抵消偏移以留在原位。 */
+.module-center__content--ai-work .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation { width: calc(100% + var(--ai-work-chat-inline-gap)); margin-inline: 0; padding-inline-start: var(--ai-work-chat-inline-gap); box-sizing: border-box; }
+
+.module-center__content.module-center__content--ai-work .ai-work-chat__message-stage { width: calc(100% - var(--ai-work-chat-inline-gap)); }
+
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages { width: calc(100% + var(--ai-work-chat-inline-gap)); padding-inline-end: var(--ai-work-chat-inline-gap); box-sizing: border-box; }
+
+.module-center__content.module-center__content--ai-work .ai-work-chat__message-stage > .ai-work-chat__anchors { left: calc(-1 * var(--ai-work-chat-inline-gap)); }
+
+.module-center__content.module-center__content--ai-work .ai-work-chat__anchor-preview { left: calc(100% + var(--ai-work-chat-inline-gap) - 4px); }
+
+.module-center__content.module-center__content--ai-work :is(.ai-work-chat__composer, .ai-work-chat__usage-footer) { width: min(calc(100% - var(--ai-work-chat-inline-gap)), 920px); align-self: center; position: relative; left: calc(-1 * var(--ai-work-chat-inline-gap-half)); }
+
+/* AI 对话滚动条贴中间区右边缘；默认只留透明轨道，指针移入或键盘聚焦后显出滑块。 */
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages { scrollbar-width: thin !important; scrollbar-color: transparent transparent !important; -ms-overflow-style: auto !important; }
+
+.module-center__content.module-center__content--ai-work .ai-work-chat__message-stage:is(:hover, :focus-within) .ai-work-chat__messages { scrollbar-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 55%, transparent) transparent !important; }
+
+/* AI Work 虚化启用时，页面活动态显示滚动条滑块，与消息和刻度同步保持清晰。 */
+.workbench-shell[data-ai-work-output-focus-blur="true"] .module-center__content.module-center__content--ai-work .ai-work-chat[data-output-idle="false"] .ai-work-chat__messages { scrollbar-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 55%, transparent) transparent !important; }
+
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar { display: block !important; width: 7px !important; height: 7px !important; }
+
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button,
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:single-button,
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:vertical:decrement,
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:vertical:increment,
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:horizontal:decrement,
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:horizontal:increment,
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:vertical:start:decrement,
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:vertical:end:increment { display: none !important; width: 0 !important; height: 0 !important; min-width: 0 !important; min-height: 0 !important; -webkit-appearance: none !important; appearance: none !important; border: 0 !important; background: transparent !important; }
+
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-track { background: transparent; }
+
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: transparent; background-clip: content-box; }
+
+.module-center__content.module-center__content--ai-work .ai-work-chat__message-stage:is(:hover, :focus-within) .ai-work-chat__messages::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 55%, transparent); background-clip: content-box; }
+
+.workbench-shell[data-ai-work-output-focus-blur="true"] .module-center__content.module-center__content--ai-work .ai-work-chat[data-output-idle="false"] .ai-work-chat__messages::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 55%, transparent); background-clip: content-box; }
+
+.module-center__content:not(.module-center__content--ai-work) > .module-heading--workspace { min-height: 0; height: clamp(180px, 25vh, 280px); flex: 0 0 auto; margin: 0; border-radius: 0; }
+
+.workbench-shell[data-background-image="true"] .module-center__content:not(.module-center__content--ai-work) > .module-heading--workspace { background-color: transparent; }
+
+.workbench-shell[data-background-image="false"] .module-center__content:not(.module-center__content--ai-work) > .module-heading--workspace { background-image: none; background-color: var(--color-canvas); }
+
+.module-center__content:not(.module-center__content--ai-work) > .module-notice-card { flex: 0 0 auto; border-right: 0; border-left: 0; border-radius: 0; }
+
+.module-center__content:not(.module-center__content--ai-work) > .module-content-placeholder { min-height: 96px; flex: 1 0 96px; justify-content: center; margin: 0; border: 0; border-top: 1px solid var(--color-border-subtle); border-radius: 0; }
+
+/* 常规与 AI Work 共用这一组主要表面；壁纸和遮罩本身只由工作台外壳绘制。 */
+.workbench-shell[data-background-image="true"] :is(
+  .module-center__header,
+  .module-center__content:not(.module-center__content--ai-work) > .module-notice-card,
+  .module-terminal__header,
+  .module-terminal__body
+) {
+  background-color: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
+}
+
+@container (max-width: 760px) {
+
+  .module-center__header[data-layout-mode="mobile"] { gap: 2px 8px; padding: 5px 9px; }
+
+  .module-center__header[data-layout-mode="mobile"] .module-runtime-state { display: none; }
+
+  .module-center__header[data-layout-mode="mobile"] .module-panel-control { width: 29px; justify-content: center; padding: 0; font-size: 0; }
+
+  .module-center__work-tabs button { min-height: 27px; padding-inline: 6px; font-size: 10px; }
+
+  .module-center__content { padding: 0; }
+
+  .module-center__content--ai-work .ai-work-chat__message-list { padding-inline: clamp(4px, 1.25cqi, 10px); }
+
+}
+
+@media (max-width: 720px) {
+
+  .module-center__title { max-width: 150px; }
+
+  .module-center__title strong { font-size: 10px; }
+
+}

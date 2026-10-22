@@ -26,6 +26,7 @@ import { dshLocaleRuntime } from "lfaa-client-ui-workspace/src/dsh-locale-runtim
 import { resolveWallpaperCanvasOwnership } from "./wallpaper-canvas-ownership.js";
 import { appearanceBackgroundSlotForRoute } from "./appearance-background-slot.js";
 import { createReleaseAnnouncementPersistence } from "./release-announcement.js";
+import "./css/module-shell.css";
 const GameLibraryPage = lazy(() => import("./GameLibraryPage.js").then(module => ({ default: module.GameLibraryPage })));
 
 

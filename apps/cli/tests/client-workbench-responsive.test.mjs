@@ -8,6 +8,14 @@ import test from "node:test";
 import { resolveWorkbenchLayoutMetrics, shouldDockResponsiveLeftPane, shouldDockResponsiveRightPane, WORKBENCH_LAYOUT_TOKENS } from "../../../packages/client/ui-dockkit/src/workbench-layout.config.ts";
 import { resolveRightCenterDragFrame, resolveSideDragRawSize, resolveSnapDragFrame, WORKBENCH_INTERACTION_TOKENS } from "../../../packages/client/ui-dockkit/src/workbench-interaction.config.ts";
 
+const readWorkspaceCss = () => [
+  "../../../packages/client/ui-workspace/src/module-workbench.css",
+  "../../../packages/client/ui-workspace/src/css/secondary-navigation.css",
+  "../../../packages/client/ui-workspace/src/css/center-workspace.css",
+  "../../../packages/client/ui-workspace/src/css/right-menu.css",
+  "../../../packages/client/ui-workspace/src/css/workbench-regions.css",
+].map(path => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
+
 test("AI Work 在所有布局保留 300px 中心下限，通用 Surface 保持原断点", () => {
   const applicationDesktop = resolveWorkbenchLayoutMetrics(1536, 900, true);
   assert.equal(applicationDesktop.mode, "desktop");
@@ -44,7 +52,7 @@ test("AI Work 在所有布局保留 300px 中心下限，通用 Surface 保持�
 });
 
 test("AI Work 仅外移会话刻度；消息正文与输入区布局保持不变", () => {
-  const workspaceCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/module-workbench.css", import.meta.url), "utf8");
+  const workspaceCss = readWorkspaceCss();
   const chatCss = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
   const anchorRule = chatCss.match(/^\.ai-work-chat__anchors\s*\{([^}]+)\}/mu)?.[1] ?? "";
   const anchorDockRule = workspaceCss.match(/^\.module-center__content\.module-center__content--ai-work \.ai-work-chat__message-stage > \.ai-work-chat__anchors\s*\{([^}]+)\}/mu)?.[1];
@@ -105,7 +113,7 @@ test("Mobile 左导航 Dock 复用大屏标准分隔条宽度", () => {
 });
 
 test("Mobile 工作区标题栏只保留一行，并与菜单 Overlay 顶边对齐", () => {
-  const workspaceCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/module-workbench.css", import.meta.url), "utf8");
+  const workspaceCss = readWorkspaceCss();
   const mobileHeader = workspaceCss.match(/\.module-center__header\[data-layout-mode="mobile"\]\s*\{([^}]+)\}/u)?.[1];
 
   assert.ok(mobileHeader, "mobile chat header should have a responsive rule");
@@ -117,7 +125,7 @@ test("Mobile 工作区标题栏只保留一行，并与菜单 Overlay 顶边对�
 });
 
 test("窄中心列将操作压缩为图标，同时保留当前对话名", () => {
-  const workspaceCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/module-workbench.css", import.meta.url), "utf8");
+  const workspaceCss = readWorkspaceCss();
   const workspaceSource = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
 
   assert.match(workspaceCss, /\.module-center\s*\{[^}]*container-name:\s*module-center/u);
@@ -132,7 +140,7 @@ test("窄中心列将操作压缩为图标，同时保留当前对话名", () =>
 });
 
 test("Git 摘要抽屉从中心内容区顶部贴右侧分隔线展开，遵循减少动态效果设置", () => {
-  const workspaceCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/module-workbench.css", import.meta.url), "utf8");
+  const workspaceCss = readWorkspaceCss();
   const workspaceSource = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
 
   assert.match(workspaceCss, /^\.module-center\s*\{[^}]*position:\s*relative;/mu);
@@ -146,7 +154,7 @@ test("Git 摘要抽屉从中心内容区顶部贴右侧分隔线展开，遵循�
 });
 
 test("Git 摘要四项操作菜单完整留在摘要卡范围内", () => {
-  const workspaceCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/module-workbench.css", import.meta.url), "utf8");
+  const workspaceCss = readWorkspaceCss();
 
   assert.match(workspaceCss, /\.module-git-summary__operations-menu\s*\{[^}]*inset-inline-start:\s*8px;[^}]*max-width:\s*100%;/u);
   assert.doesNotMatch(workspaceCss, /\.module-git-summary__operations-menu\s*\{[^}]*inset-inline-start:\s*-\d/u);
@@ -216,27 +224,27 @@ test("侧栏拖动从当前实际宽度起算，指针按下时不跳变且左�
 });
 
 test("工作台 DOM 固定左栏、中间区与右菜单顺序，点击分隔线无变化且已收起的 Dock 不接受新拖动", () => {
-  const dockkitCss = readFileSync(new URL("../../../packages/client/ui-dockkit/src/workbench.css", import.meta.url), "utf8");
+  const commonCss = ["common-layout.css", "common-pane.css", "common-pointer.css", "common-bottom.css", "common-responsive.css"].map(file => readFileSync(new URL(`../../../packages/client/ui-dockkit/src/css/${file}`, import.meta.url), "utf8")).join("\n");
   const pointerOwner = readFileSync(new URL("../../../packages/client/ui-dockkit/src/ResizableWorkbench.tsx", import.meta.url), "utf8");
   const workspaceOwner = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
-  const workspaceCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/module-workbench.css", import.meta.url), "utf8");
+  const workspaceCss = readWorkspaceCss();
   const pointerMove = pointerOwner.slice(pointerOwner.indexOf("const onSidePointerMove"), pointerOwner.indexOf("const finishSideDrag"));
   const pointerDown = pointerOwner.slice(pointerOwner.indexOf("const onSidePointerDown"), pointerOwner.indexOf("const onSidePointerMove"));
   const finishPointer = pointerOwner.slice(pointerOwner.indexOf("const finishSideDrag"), pointerOwner.indexOf("// ===== 5."));
 
-  assert.match(dockkitCss, /\.lfaa-workbench__center \{ grid-column: 3; grid-row: 1; \}/u);
-  assert.match(dockkitCss, /\.lfaa-workbench__handle--right \{ grid-column: 4; grid-row: 1; \}/u);
-  assert.match(dockkitCss, /\.lfaa-workbench__pane--right \{ grid-column: 5; grid-row: 1; \}/u);
-  assert.doesNotMatch(`${dockkitCss}\n${pointerOwner}\n${workspaceOwner}\n${workspaceCss}`, /right-swapped|rightSwapped|rightPaneSwapped|swap-control|onSwapPanes|togglePaneOrder/u);
+  assert.match(commonCss, /\.lfaa-workbench__center \{ grid-column: 4; grid-row: 1; \}/u);
+  assert.match(commonCss, /\.lfaa-workbench__handle--right \{ grid-column: 5; grid-row: 1; \}/u);
+  assert.match(commonCss, /\.lfaa-workbench__pane--right \{ grid-column: 6; grid-row: 1; \}/u);
+  assert.doesNotMatch(`${commonCss}\n${pointerOwner}\n${workspaceOwner}\n${workspaceCss}`, /right-swapped|rightSwapped|rightPaneSwapped|swap-control|onSwapPanes|togglePaneOrder/u);
   assert.match(pointerMove, /if \(!drag\.activated\)[\s\S]*activationDistancePx[\s\S]*drag\.activated = true/u);
   assert.match(finishPointer, /if \(!drag\.activated\)[\s\S]*sideDragRef\.current = null;[\s\S]*return;/u);
   assert.match(pointerDown, /if \(collapsed\) return;/u);
-  assert.ok(dockkitCss.includes('.lfaa-workbench[data-left-collapsed="true"]:not([data-dragging="left"]) .lfaa-workbench__handle--left'));
-  assert.ok(dockkitCss.includes('.lfaa-workbench[data-right-collapsed="true"]:not([data-dragging="right"]) .lfaa-workbench__handle--right'));
-  assert.match(dockkitCss, /pointer-events: none;\s*cursor: default;/u);
+  assert.ok(commonCss.includes('.lfaa-workbench[data-left-collapsed="true"]:not([data-dragging="left"]) .lfaa-workbench__handle--left'));
+  assert.ok(commonCss.includes('.lfaa-workbench[data-right-collapsed="true"]:not([data-dragging="right"]) .lfaa-workbench__handle--right'));
+  assert.match(commonCss, /pointer-events: none;\s*cursor: default;/u);
   assert.match(pointerOwner, /"--lfaa-left-handle-width": `\$\{leftVisible && leftUsesGrid \? HANDLE_WIDTH : 0\}px`/u);
   assert.match(pointerOwner, /"--lfaa-right-handle-width": `\$\{rightEnabled && rightUsesGrid \? HANDLE_WIDTH : 0\}px`/u);
-  assert.ok(dockkitCss.includes('.lfaa-workbench[data-dragging="left"]:not([data-snap-preview="left"]) .lfaa-workbench__pane--left'));
+  assert.ok(commonCss.includes('.lfaa-workbench[data-dragging="left"]:not([data-snap-preview="left"]) .lfaa-workbench__pane--left'));
   assert.match(pointerOwner, /const collapseKey = side === "left" \? "ArrowLeft" : "ArrowRight"/u);
   assert.match(pointerOwner, /const expandKey = side === "left" \? "ArrowRight" : "ArrowLeft"/u);
 });

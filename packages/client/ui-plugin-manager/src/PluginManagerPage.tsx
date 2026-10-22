@@ -574,6 +574,8 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
       />
       <div ref={layoutRef} className="plugin-manager-layout">
         <ResizableWorkbench
+          leftRegionClassName="plugin-manager-navigation-region"
+          centerRegionClassName="plugin-manager-content-region"
           storageKey={PLUGIN_MANAGER_LAYOUT_KEY}
           containerWidth={layout.containerWidth}
           left={<aside className="plugin-manager-sidebar">

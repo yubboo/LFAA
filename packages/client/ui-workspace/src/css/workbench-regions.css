@@ -1,0 +1,11 @@
+/* /work 四个同级内容盒子的外观；这里只作用于工作区传入的区域类名。 */
+.module-workbench-layout > .module-workbench-region--leading,
+.module-workbench-layout > .module-workbench-region--secondary-navigation,
+.module-workbench-layout > .module-workbench-region--center-workspace,
+.module-workbench-layout > .module-workbench-region--right-menu,
+.module-workbench-layout > .module-workbench-region--bottom { color: var(--color-text-primary); }
+
+.module-workbench-layout > .module-workbench-region--bottom {
+  border-top: 1px solid var(--color-border);
+  background: var(--color-canvas);
+}

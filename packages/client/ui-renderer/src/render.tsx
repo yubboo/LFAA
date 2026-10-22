@@ -15,8 +15,6 @@ import "lfaa-client-ui-theme/src/common.css"; // 跨组件状态、共享卡片�
 import "lfaa-client-ui-settings-account/src/auth.css";
 import "lfaa-client-ui-layout/src/workbench.css";
 import "lfaa-client-ui-layout/src/pages.css";
-import "lfaa-client-ui-workspace/src/application-workspace.css";
-import "lfaa-client-ui-workspace/src/module-workbench.css"; // 文件管理独立路由也使用同一套整屏模块布局与滚动边界。
 import "lfaa-client-ui-theme/src/responsive.css";
 import App from "./App.js";
 import type { Context } from "@deepseek-ai/cordis";

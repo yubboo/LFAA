@@ -3639,6 +3639,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           onLogout={onLogout}
         />
         <ResizableWorkbench
+          leftRegionClassName="settings-page__navigation-region"
+          centerRegionClassName="settings-page__main-region"
           storageKey={SETTINGS_LAYOUT_KEY}
           containerWidth={layout.containerWidth}
           left={sidebar}

@@ -5,7 +5,7 @@
  * 不负责：左右栏 min/max 几何、React 状态、业务内容、具体 CSS 布局。
  * 状态归属：纯配置 / 纯函数，无运行时状态。
  * 对外接口：WORKBENCH_INTERACTION_TOKENS、normalizeSnapCaptureRatio、resolveSnapCaptureThreshold。
- * 关联文件：ResizableWorkbench.tsx、workbench-layout.config.ts、workbench.css、workbench-layout.types.ts。
+ * 关联文件：ResizableWorkbench.tsx、workbench-layout.config.ts、css/common-pointer.css、workbench-layout.types.ts。
  * 修改注意事项：
  * - 优先修改本文件变量调手感，不要在 Pointer 事件或 CSS 中新增同义魔法数字；
  * - captureRatio 表示“Pointer 虚拟尺寸”的触发比例；视觉栏宽永远不会低于 minWidth。

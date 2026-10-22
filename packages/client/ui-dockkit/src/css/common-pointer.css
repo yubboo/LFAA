@@ -1,0 +1,80 @@
+/* 公共布局样式：只定义容器几何、窗格交互和响应式排布；区域表面外观由调用页面的 CSS 负责。 */
+/* ===== 2. 拖拽阶段：Pointer 必须直接跟手 ===== */
+body.lfaa-is-resizing { cursor: col-resize !important; user-select: none !important; }
+body.lfaa-is-resizing * { cursor: col-resize !important; }
+body.lfaa-is-resizing-vertical { cursor: row-resize !important; user-select: none !important; }
+body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
+
+.lfaa-is-resizing .lfaa-workbench,
+.lfaa-is-resizing-vertical .lfaa-workbench,
+.lfaa-is-resizing .lfaa-workbench__pane,
+.lfaa-is-resizing-vertical .lfaa-workbench__bottom {
+  transition: none;
+}
+
+/* 左右栏普通拖动直接跟随 Pointer；捕获吸附时只对固定的零宽目标收拢一次。 */
+.lfaa-is-resizing .lfaa-workbench[data-snap-preview="left"],
+.lfaa-is-resizing .lfaa-workbench[data-snap-preview="right"],
+.lfaa-is-resizing .lfaa-workbench[data-snap-preview="center"] {
+  /* 吸附捕获后列宽目标固定为零，只运行一次收拢；栏内内容已即时隐藏。 */
+  transition: grid-template-columns var(--lfaa-snap-capture-duration) cubic-bezier(.16, .82, .24, 1);
+}
+.lfaa-is-resizing-vertical .lfaa-workbench[data-snap-preview="bottom"] {
+  transition: grid-template-rows var(--lfaa-snap-capture-duration) cubic-bezier(.16, .82, .24, 1);
+}
+
+/* 吸附后的反向释放由组件共享的有界 RAF 缓动驱动，避免叠加 CSS 行列尺寸过渡。 */
+
+@media (prefers-reduced-motion: reduce) {
+  .lfaa-workbench,
+  .lfaa-workbench__pane,
+  .lfaa-workbench__bottom,
+  .lfaa-workbench__handle {
+    transition-duration: 0ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
+
+/* ===== 5. Resize separator ===== */
+.lfaa-workbench__handle {
+  position: relative;
+  /* 让扩展后的透明拖动热区覆盖两侧栏边缘，而不只覆盖中间内容侧。 */
+  z-index: 80;
+  cursor: col-resize;
+  /* 拖动分隔条由工作台接管手势，避免浏览器同时触发页面滚动或缩放。 */
+  touch-action: none;
+  outline: none;
+  background: transparent;
+}
+.lfaa-workbench__handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--color-border);
+  opacity: 0;
+  transition: background 120ms ease, width 120ms ease, opacity 120ms ease;
+}
+.lfaa-workbench__handle::after { content: ""; position: absolute; inset: 0 -.35rem; }
+.lfaa-workbench__handle:hover::before,
+.lfaa-workbench__handle:focus-visible::before { width: 2px; opacity: 1; background: var(--color-border-strong); }
+/* 完全收起且 Pointer 已松开后不再提供拖出热区；拖动会话仍按住时由 Pointer Capture 继续接收反向移动。 */
+.lfaa-workbench[data-left-collapsed="true"]:not([data-dragging="left"]) .lfaa-workbench__handle--left,
+.lfaa-workbench[data-right-collapsed="true"]:not([data-dragging="right"]) .lfaa-workbench__handle--right {
+  pointer-events: none;
+  cursor: default;
+}
+.lfaa-workbench[data-left-collapsed="true"] .lfaa-workbench__handle--left::before,
+.lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__handle--right::before { opacity: 0; }
+.lfaa-workbench[data-snap-preview="left"] .lfaa-workbench__handle--left::before,
+.lfaa-workbench[data-snap-preview="right"] .lfaa-workbench__handle--right::before,
+.lfaa-workbench[data-snap-preview="center"] .lfaa-workbench__handle--right::before {
+  width: 2px;
+  opacity: 1;
+  background: var(--agent-text, #171717);
+}
+

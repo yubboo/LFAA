@@ -1,9 +1,26 @@
 /*
  * 功能：定义通用文件管理工作台的布局、目录表格、任务提示和在线文本编辑器样式。
  * 作用：让文件浏览在应用主导航旁占满可用空间，并在窄屏下保留主要文件操作。
- * 关联文件：packages/client/ui-sidebar-files/src/FileManagerPage.tsx、packages/client/ui-layout/src/Workbench.tsx（提供账户外观变量）、packages/client/ui-sidebar/src/GlobalNavigationRail.tsx、packages/client/ui-workspace/src/module-workbench.css。
+ * 关联文件：packages/client/ui-sidebar-files/src/FileManagerPage.tsx、packages/client/ui-layout/src/Workbench.tsx（提供模块 Shell 与账户外观变量）、packages/client/ui-sidebar/src/GlobalNavigationRail.tsx。
  */
-.file-manager-stage { background: transparent; }
+.module-workbench-stage.file-manager-stage {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  --module-rail-width: 64px; /* 文件页左一导航轨宽度；窄分栏时由父级容器查询切换到 48px。 */
+  grid-template-columns: var(--module-rail-width, 64px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  background: transparent;
+}
+.module-workbench-stage.file-manager-stage > .module-navigation-rail { grid-column: 1; grid-row: 1; }
+.module-workbench-stage.file-manager-stage > .file-manager-page { grid-column: 2; grid-row: 1; }
+
+@container (max-width: 420px) {
+  .module-workbench-stage.file-manager-stage { --module-rail-width: 48px; /* 窄文件页左一导航轨宽度；按实际嵌入容器宽度切换。 */ }
+}
 
 .file-manager-page {
   display: flex;

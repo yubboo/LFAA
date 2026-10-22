@@ -118,7 +118,7 @@
 | [packages/client/ui-user-questions](../packages/client/ui-user-questions) | — | placeholder | 用户澄清问题与答案交互 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-workflow](../packages/client/ui-workflow) | lfaa-client-ui-workflow | implemented | 工作流定义和画布界面 | [源码](../packages/client/ui-workflow/src/index.tsx)；1 个静态消费者；0 个组合声明 | LFAA 扩展 |
 | [packages/client/ui-workflow-run](../packages/client/ui-workflow-run) | — | placeholder | 工作流运行状态与节点结果界面 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/ui-workspace](../packages/client/ui-workspace) | lfaa-client-ui-workspace | implemented | App 工作区、项目、Git 审阅与共享任务界面 | [源码](../packages/client/ui-workspace/src/index.ts)；3 个静态消费者；0 个组合声明 | DSH 同名目录 |
+| [packages/client/ui-workspace](../packages/client/ui-workspace) | lfaa-client-ui-workspace | implemented | App 工作区、项目、Git 审阅与共享任务界面 | [源码](../packages/client/ui-workspace/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-writing](../packages/client/ui-writing) | lfaa-client-ui-writing | implemented | 写作作品、章节、资料和提案界面 | [源码](../packages/client/ui-writing/src/index.ts)；2 个静态消费者；0 个组合声明 | LFAA 扩展 |
 | [packages/client/web](../packages/client/web) | lfaa-client-web | implemented | 共享浏览器应用启动入口与样式装配 | [源码](../packages/client/web/src/index.ts)；1 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/compaction/command-compact](../packages/compaction/command-compact) | lfaa-command-compact | implemented | 显式压缩命令适配 | [源码](../packages/compaction/command-compact/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |

@@ -1,0 +1,35 @@
+/* 公共布局样式：只定义容器几何、窗格交互和响应式排布；区域表面外观由调用页面的 CSS 负责。 */
+/* ===== 4. collapsed / snap preview ===== */
+/* pointer-events: none 让收起栏不挡住下方操作；拖动时设为 auto，重新接收指针事件。 */
+/* 展开态的 visibility 零延迟；只有收起态延迟 hidden，避免内容等整段几何动画结束才出现。 */
+.lfaa-workbench[data-left-collapsed="true"] .lfaa-workbench__pane--left {
+  opacity: 0;
+  transform: translateX(-.75rem);
+  visibility: hidden;
+  pointer-events: none;
+  transition-delay: 0s, 0s, var(--lfaa-snap-settle-duration);
+}
+.lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__pane--right {
+  opacity: 0;
+  transform: translateX(.75rem);
+  visibility: hidden;
+  pointer-events: none;
+  transition-delay: 0s, 0s, var(--lfaa-snap-settle-duration);
+}
+.lfaa-workbench[data-dragging="left"]:not([data-snap-preview="left"]) .lfaa-workbench__pane--left,
+.lfaa-workbench[data-dragging="right"]:not([data-snap-preview="right"]) .lfaa-workbench__pane--right {
+  visibility: visible;
+  pointer-events: auto;
+}
+/* 吸附预览不绘制侧栏内容，避免透明残影越过左 Pane 的弹出菜单溢出边界。 */
+.lfaa-workbench[data-snap-preview="left"] .lfaa-workbench__pane--left {
+  visibility: hidden;
+  pointer-events: none;
+  transition: none;
+}
+.lfaa-workbench[data-snap-preview="right"] .lfaa-workbench__pane--right {
+  visibility: hidden;
+  pointer-events: none;
+  transition: none;
+}
+

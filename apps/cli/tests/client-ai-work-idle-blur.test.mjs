@@ -103,7 +103,13 @@ test("AI Work 回复、刻度/滚动条使用设置的虚化与淡出强度并�
   const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
   const chat = read("../../../packages/client/ui-chat/src/AiWorkChat.tsx");
   const chatCss = read("../../../packages/client/ui-chat/src/ai-work-chat.css");
-  const workbenchCss = read("../../../packages/client/ui-workspace/src/module-workbench.css");
+  const workbenchCss = [
+    "../../../packages/client/ui-workspace/src/module-workbench.css",
+    "../../../packages/client/ui-workspace/src/css/secondary-navigation.css",
+    "../../../packages/client/ui-workspace/src/css/center-workspace.css",
+    "../../../packages/client/ui-workspace/src/css/right-menu.css",
+    "../../../packages/client/ui-workspace/src/css/workbench-regions.css",
+  ].map(read).join("\n");
   const workbench = read("../../../packages/client/ui-layout/src/Workbench.tsx");
   const settings = read("../../../packages/client/ui-settings/src/SettingsPage.tsx");
 

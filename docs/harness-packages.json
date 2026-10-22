@@ -1880,7 +1880,6 @@
         "readme": "packages/client/ui-workspace/README.md",
         "consumers": [
           "packages/client/ui-layout",
-          "packages/client/ui-renderer",
           "packages/client/web"
         ],
         "bundleDeclarations": [],

@@ -1,0 +1,22 @@
+/* UI Layout 外壳规则：只负责模块路由共用的页面高度与滚动边界；各页面内容样式由自己的 UI 包负责。 */
+.workbench-shell--module .topbar { display: none; }
+.workbench-shell--module .topbar-nav { display: none; }
+.workbench-shell--module {
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+.workbench-content--module {
+  display: flex;
+  container-type: inline-size;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.workbench-footer--module { display: none; }
