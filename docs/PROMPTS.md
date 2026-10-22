@@ -213,6 +213,9 @@
 | 212-工作区四区域盒子结构-20261022 | 将工作区组织为外层容器、共享内层布局根及四个同级可复用区域，保留当前样式和交互 | 已完成：结构/响应式回归、类型检查、相关包与 Web 构建、203 包工作区检查通过；内置浏览器桌面与窄分栏检查通过；手机视口和真实拖动未测 | [本轮合同](#lfaa-workspace-four-region-boxes-20261022) |
 | 213-菜单8源码更新版本提示-20261022 | 菜单 8 在安全快进确认前显示当前源码版本与 GitHub 将拉取的源码版本，沿用菜单 6 的提交版本格式 | 已修复 Windows PowerShell 5.1 编码解析问题；工作台入口和退出、相关脚本语法检查通过；版本快进交互及自动化回归未测 | [本轮合同](#lfaa-menu-source-update-version-notice-20261022) |
 | 214-四区域内部功能盒子与样式隔离-20261022 | 在左一、左二、中间和右侧区域内为各功能分组建立独立盒子，并按区域隔离 CSS，保持现有外观和响应式行为 | 已完成；定向回归、类型检查、Web 构建及 `/work` 浏览器验收通过；广义旧回归另有 6 项历史断言不匹配；未测真实设备/帧时间 | [本轮合同](#lfaa-workspace-region-subboxes-20261022) |
+| 215-右侧新标签页工具主页布局-20261022 | 按参考图重排 `/work` 右侧新标签页：常用工具紧凑排布，其他入口可展开，下方展示推荐区；保留四栏结构与已有操作 | 已完成；定向回归 23/23、Client 类型检查、Web 构建/指纹通过；内置浏览器 `/work` 桌面 1536×1243、窄短屏 820×520 检查双列/单列、展开/折叠及独立滚动，原分栏宽度已恢复 | [本轮合同](#lfaa-workspace-right-launcher-layout-20261022) |
+| 216-右侧新标签页推荐网站-20261022 | 右侧“推荐”直接展示当前 Browser Dock 已打开的网页标签，并复用现有浏览器导航 | ✅ 定向回归 6/6、Client 类型检查、Web/Control Plane 构建及指纹检查通过；内置浏览器 `/work` 1543×1244 确认真实空态；未实测窄/短视口和真实标签点击 | [本轮合同](#lfaa-workspace-recommended-websites-20261022) |
+| 217-右侧最近网站与标签关闭-20261022 | 右侧新标签页记录用户与 Agent 实际访问的网站；关闭工具标签只关闭该标签，不收起右栏 | 实施中 | [本轮合同](#lfaa-workspace-recent-websites-and-tab-close-20261022) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
@@ -5445,3 +5448,118 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 - 回归：四栏同级结构与四区功能子盒子定向断言 2/2；工作台响应式回归 18/18；工作区页签回归 3/3；Client 类型检查 `pnpm exec tsc --noEmit -p tsconfig.client.json` 通过；`pnpm run build:web` 通过，产物位于根 `dist/apps/web`，正式 Web 指纹 `node scripts/runtime-build-state.mjs web` 返回 `[]`。另一次旧回归合批为 33 通过/6 失败；失败是旧断言与既有源码位置/结构不符（AI Work 输入框样式归属、默认工作区初始化、Git 摘要偏移、右侧插槽表达式、旧中心分隔条选择器等），未扩大范围去改无关断言。
 - 内置浏览器：当前源码服务 `http://127.0.0.1:31371/work`，登录后目视检查并捕获截图。桌面 1481×1244：四栏边界依次为左一 x=0/w=64、左二 x=64/w=211、中间 x=276/w=906、右侧 x=1183/w=288，无文档横向溢出；图标栏顶部/导航/底部、左二标题/会话/底部、中间标题/内容/输入操作、右栏操作/主体各子盒子均可独立定位。窄分栏短屏 760×520：左二自动收起，中心和 288px 右栏仍有独立区域且无页面横向溢出。手机 390×720：左二作为移出视口的抽屉，右栏按 `mobile + overlay` 覆盖中心；无页面横向溢出，右侧主体保留滚动。最终已恢复原桌面视口和展开状态。未测真实手机、桌面 WebView、拖动手势与帧时间。
 - 文件职责：`packages/client/ui-sidebar/src/GlobalNavigationRail.tsx` 与 `GlobalNavigationRail.css` 负责左一 DOM 分组和样式；`packages/client/ui-workspace/src/ApplicationWorkspace.tsx` 装配区域并按职责引入局部 CSS；`module-workbench.css`、`src/css/secondary-navigation.css`、`center-workspace.css`、`right-menu.css`、`workbench-regions.css` 分别负责共同外壳和对应区域；`packages/client/ui-workspace/README.md` 记录 CSS Owner；`apps/cli/tests/client-app-workspace-four-column.test.mjs`、`client-workbench-responsive.test.mjs`、`client-workspace-app-tabs.test.mjs`、`client-ai-work-idle-blur.test.mjs` 调整为聚合对应 CSS 并锁定功能子盒子；本合同记录实施和验收证据。
+
+<a id="lfaa-workspace-right-launcher-layout-20261022"></a>
+## 215-右侧新标签页工具主页布局（2026-10-22）
+
+### 用户问题与目标
+
+- 用户提供参考图，要求把 `/work` 右侧菜单栏布局改成图一的新标签页工具主页样式。
+- 目标：保留右侧栏自己的区域盒子及现有页签/收起操作；入口页上方展示常用工具的紧凑双列行，下方用“更多工具”展开其余真实工具、应用、扩展及已登记能力资源；再展示居中的“推荐 / LFAA 工作台”区域。各分组继续由右侧自己的 DOM 盒子和 `right-menu.css` 管理。
+- 只调整右侧入口页视觉与分组；四栏根结构、左一/左二/中间区域、其他右栏动态功能面板不变。所有按钮继续调用现有真实回调，不增造地址栏、浏览器会话、模拟工具或推荐数据。
+
+### Owner、设置、数据和权限
+
+- 运行入口：Web/Desktop 共用 Client `/work` → `ApplicationWorkspace` 的 `right` 区域 → `.module-context__launcher`；工具调用仍由 `openWorkspaceUtility`、终端回调、路由与各现有 Browser/Git/Files/Side Chat Owner 处理。右侧外观归 `packages/client/ui-workspace/src/css/right-menu.css`。
+- 设置：继续读取 `general.navigationLayout`（权威默认 `three-column`）、`general.showServiceStatus`（默认开启）、`general.showBottomPanelControl`（默认开启）、`general.terminalPosition`（默认 `bottom`）与现有快捷键配置；主题、色彩、字体/字号、壁纸、遮罩、模糊、对比度及减少动态效果沿用 Appearance 共享令牌。Settings Owner 负责默认、校验、持久化和映射；本任务不新增或改写设置，不改用户偏好。
+- 数据与权限：入口列表只读取既有 `gitManagerAvailable`、登记应用/扩展/能力和服务状态；点击沿用现有认证、路由与权限合同。布局调整本身不请求服务、不持久化业务数据、不发对话或 Git 操作。
+
+### 允许范围与验收
+
+- 允许修改 `packages/client/ui-workspace/src/ApplicationWorkspace.tsx`、`src/css/right-menu.css`、该包 README、直接相关的长期 UI 回归与本合同/索引。
+- 保持四个区域为布局内同级盒子；不改 `ResizableWorkbench`/左一/左二/中间布局和拖动行为，不重排其他页面右栏，不改变工具 Owner、服务数据、设置或权限。
+- 按真实容器宽度响应：宽栏采用两列紧凑工具项，窄栏收为一列；高度不足时右栏主体内部滚动、顶部控制与账户区域仍可达，不产生横向溢出。所有颜色、字体和表面从 Appearance/主题令牌读取，不新增 CSS 自定义属性。
+- 运行直接结构/响应式回归、Client 类型检查与 Web 构建；用当前源码正式 Web 和 ChatGPT 内置浏览器验收 `/work` 桌面及窄/短视口，记录工具展开、边界/溢出、滚动、截图与未测范围。验收不点击会执行 Git 写入、发送消息或改变设置的入口。
+
+### 实施记录
+
+- 状态：已完成。右侧“新标签页”入口分成工具、更多工具、推荐、状态四个独立盒子；常用工具以两列呈现，右栏窄于 520px 时改为单列。次要工具、应用、扩展及已登记能力统一收在原生可展开的“更多工具”区域；推荐区显示现有 LFAA 工作台品牌，不创建虚假卡片或数据。
+- 交互与样式：变更、终端、文件、侧边聊天、浏览器、应用、扩展面板和能力清单继续调用/读取各自已有 Owner；`ApplicationWorkspace.tsx` 负责入口分组与现有回调，`right-menu.css` 负责右侧入口页的盒子和响应式样式，未修改四栏布局根及其他区域 CSS。外观沿用 Appearance 令牌，无新增 CSS 自定义属性。
+- 设置：沿用 `general.navigationLayout`、`general.showServiceStatus`、`general.showBottomPanelControl`、`general.terminalPosition`、快捷键及当前能力登记；未新增或改写设置，未改变用户偏好。
+- 回归：右侧入口结构/回调/响应式和相邻页签、工作台响应式回归共 23/23 通过；`pnpm exec tsc --noEmit -p tsconfig.client.json` 通过；`pnpm run build:web` 通过，产物仅在根 `dist/apps/web` 与 `dist/packages`；`node scripts/runtime-build-state.mjs web` 返回 `[]`。Web 构建保留既有 cpp 资源块超过 500KB 的提示。
+- 内置浏览器：使用正式重启后的当前源码服务 `http://127.0.0.1:3000/work`。桌面 1536×1243 实页看到常用工具双列、下方“更多工具”与居中推荐区；展开后浏览器/应用入口及真实能力清单可见，折叠后恢复紧凑入口。820×520 窄短视口下常用工具折为单列，右栏主体滚动可达推荐区，滚动条留在右栏；目视未见横向溢出。验收未点击会执行 Git、发消息或改变设置的工具。临时视口清除，并将右侧分隔条值恢复至初始 938；桌面截图已在当前内置浏览器页面展示并保留。未测真实手机、桌面 WebView、帧时间及每个业务工具的执行效果。
+- 文件职责：`packages/client/ui-workspace/src/ApplicationWorkspace.tsx` 负责右栏入口的结构与现有操作回调；`packages/client/ui-workspace/src/css/right-menu.css` 负责右栏入口样式、两列/单列断点和独立滚动；`packages/client/ui-workspace/README.md` 更新区域/CSS Owner 说明；`apps/cli/tests/client-workspace-right-launcher-layout.test.mjs` 覆盖入口结构、回调、令牌和断点；`apps/cli/tests/client-workspace-app-tabs.test.mjs` 调整相关 CSS 选择器断言；本合同记录实现与验收证据。
+
+<a id="lfaa-workspace-recommended-websites-20261022"></a>
+## 216-右侧新标签页推荐网站（2026-10-22）
+
+### 用户问题与目标
+
+- 用户指出右侧新标签页“推荐”应展示浏览器网站，类似 ChatGPT 的新标签页网站卡片；当前固定展示“LFAA 工作台”是错误内容。
+- 用户澄清：推荐区数据直接来自当前浏览器已打开的标签。
+- 目标：推荐区展示当前 Browser Dock / LFAA 原生浏览器已打开的 HTTP(S) 网站标签；不配置预设站点。点击卡片后进入现有 Browser Dock 并导航到该网址。
+
+### Owner、设置、数据和权限
+
+- 运行入口：Web/Desktop 共用 Client `/work` → `ApplicationWorkspace` 右侧新标签页；打开网址复用 `BrowserPanel`、`NativeBrowserPanel` 及 Browser Owner，不增加第二条浏览器/导航链。
+- 相关设置：复用现有 Browser Dock 与 `browserUse.enabledProviderIds`；不新增设置项。Web 从 Browser Owner 当前会话快照读取打开标签；Electron 从 `nativeBrowser` 现有标签状态读取。不为填充推荐区扫描、启动或读取未由 Browser Dock 接入的系统个人 Profile、Cookie、历史或书签。
+- 数据/权限：仅展示当前 Browser Owner 已返回的标签；点击复用现有 Browser Dock 导航及其校验，不改变 Agent 权限或浏览器接入偏好。
+
+### 允许范围与验收
+
+- 允许修改 `ApplicationWorkspace`、BrowserPanel 两种宿主的数据回传、右侧 `right-menu.css`、直接相关回归、受影响 README 及本合同；本次不新增网站设置项。
+- 不改变四栏几何、工具入口与其它区域样式；不新增假网站、默认推荐、第三方 favicon 请求、浏览历史服务或对个人浏览器 Profile 的读取。
+- 推荐区仅显示 Browser Owner 已返回的当前 HTTP(S) 标签，标题和地址来自真实页面状态；无打开标签时提示先打开浏览器。布局按右栏容器宽度响应。点击卡片复用现有 Browser Dock 导航。
+- 直接回归、Client 类型检查、Web 构建后，以当前源码服务及 ChatGPT 内置浏览器验 `/work` 桌面和窄/短视口、推荐列表及点击路径。验收不得启动个人浏览器或对真实网站产生额外写入。
+
+### 实施记录
+
+- 因用户明确推荐来源为“当前浏览器已打开的标签”，撤回账户网站清单方向；不增加 `browserUse` 设置、Settings Center 字段或默认站点。
+- `ApplicationWorkspace` 保存当前 AI Session 的最近 Browser Dock 标签快照并在右栏绘制网站卡片；`BrowserPanel` 将 Browser Owner 快照中的标签回传；`NativeBrowserPanel` 回传 Electron 原生浏览器的已开标签。卡片导航仍走现有 Browser Dock 一次性请求。空态提供打开 Browser Dock 的入口。
+- 变更文件职责：`packages/client/ui-workspace/src/ApplicationWorkspace.tsx` 负责推荐区、当前 Session 标签回传/筛选和导航请求；`packages/client/ui-workspace/src/css/right-menu.css` 负责居中网站卡片、空态和按容器宽度响应的布局；`packages/client/ui-sidebar-browser/src/BrowserPanel.tsx` 回传 Web Browser Owner 当前标签快照并消费导航请求；`packages/client/ui-sidebar-browser/src/NativeBrowserPanel.tsx` 回传 Electron 原生标签状态并消费导航请求；`packages/client/ui-workspace/README.md`、`packages/client/ui-sidebar-browser/README.md` 记录 Owner/调用关系；`apps/cli/tests/client-workspace-right-launcher-layout.test.mjs`、`client-workspace-app-tabs.test.mjs` 覆盖结构、响应式样式与回传/导航调用链；本合同记录范围和验收证据。
+- 验证结果：右侧布局与标签导航定向回归 6/6 通过，`pnpm exec tsc --noEmit -p tsconfig.client.json` 通过，`git diff --check` 通过；正式 Web 与 Control Plane 构建成功，构建指纹检查均为 `[]`。Web 构建有既存的大 chunk 体积提示，不影响构建完成。
+- 内置浏览器实页：正式服务 `http://127.0.0.1:3000/work`，1543×1244。页面显示“推荐”空态和“打开浏览器”入口，原写死的“LFAA 工作台”卡片已移除；当前页未收到 Browser Dock 网站标签，因此本轮未创建测试标签、访问外部网站或验证真实卡片点击。
+- 响应式：卡片使用容器宽度驱动的 `auto-fill/minmax`，并由定向回归检查；当前 CUA 内置浏览器接口没有视口覆盖能力，窄分栏/短屏实页验收未完成，不能标记为通过。
+- 设置与性能边界：未修改或重置设置中心偏好；沿用现有 Browser Dock provider 配置和外观主题令牌。没有新增轮询、观察器或定时器；标签只在现有 BrowserPanel 快照变化时回传，实际帧时间与窄屏交互尚未测量。
+
+<a id="lfaa-workspace-recent-websites-and-tab-close-20261022"></a>
+## 217-右侧最近网站与标签关闭（2026-10-22）
+
+### 用户问题与目标
+
+- 右侧新标签页应像 ChatGPT 一样显示“推荐”和“最近”：推荐继续展示当前 Browser Dock 打开的网页标签；最近记录用户在 LFAA 浏览器内搜索/访问以及 Agent 实际访问过的网站。
+- 新标签页还要显示浏览器导航栏，允许直接输入网址或搜索词；浏览器地址输入、推荐标签和最近记录必须复用同一 Browser Dock 导航流程。
+- 点击工作区工具标签的关闭按钮关闭对应标签；关闭最后一个标签后右侧菜单栏收起，并保留空白“新标签页”状态供下次打开。
+
+### Owner、设置、数据和权限
+
+- 运行入口：Web/Desktop 共用 Client `/work` → `ApplicationWorkspace`；网站记录由 `lfaa-browser-use` Browser Owner 保存、查询与清除，UI 通过认证 Browser Controller 调用，不在 Client 建立第二份历史库。
+- 设置：Settings Owner 的 `browserUse.recordRecentSites` 控制是否记最近网站，默认开启；用户可在设置中心关闭。沿用 `browserUse.enabledProviderIds` 限定 Agent 已接入的 Provider；用户的 LFAA 原生浏览器导航由既有 Electron Browser Dock 状态回传，不读取系统个人浏览器 Profile。
+- 数据归属：最近网址按认证账户隔离并写入 SQLite 独立表，最多保留 100 个唯一网址；只保存 HTTP(S) 来源和路径，不保存 URL 查询参数/片段、凭据、页面正文、表单数据或搜索文本；删除账户时级联清除。Tabbit 个人 Profile 不纳入记录。
+- 权限：查询、记录和清除都要求现有账户认证。清除动作由用户在 UI 确认后发起，不改变 Agent 的 `permissions.mode`、浏览器连接偏好或其他设置。
+
+### 分批实施与验收
+
+1. 修复工作区标签关闭：最后一个关闭后创建/选中“新标签页”，设置 `chrome.rightCollapsed=true` 收起右侧菜单栏；定向回归锁定收起行为与其他标签关闭/切换行为。该批单独完成类型、回归、Web 构建和 `/work` 内置浏览器实页验收。
+2. 接入最近网站：增加账户设置字段及设置中心开关、Browser Owner SQLite 迁移/有界访问 API、认证 Controller、Client 调用及右侧“最近”列表；Web 与 Agent 导航通过 Browser Owner 实际快照记录，Electron 原生 Browser Dock 按真实标签地址变化报告。关闭开关时服务端停止记录并不返回历史。直接回归覆盖清洗、账户隔离、上限、开关和导航，之后按真实构建验 `/work` 桌面及相关窄/短视口。
+3. 补全新标签页浏览器工具栏：地址栏按当前 `browserUse.searchEngine` 解析网址/搜索词，与推荐/最近共用 `openBrowserWebsite` 和 Browser Dock 标签；有打开网页时工具栏后退、前进、刷新复用当前 BrowserPanel/NativeBrowserPanel 的 Browser Owner。桌面宽栏和窄分栏均检查输入、导航动作及滚动/溢出。
+- 推荐区继续使用已实现的当前 Browser Dock 开放标签，不加入静态站点；最近区从 Owner 真实历史读取，空记录有明确空态；点击历史条目沿用现有 Browser Dock 导航。
+- 不读取个人 Chrome/Edge Profile、Cookie、书签或历史；不接入 Tabbit 个人浏览器记录，不生成虚构站点、不触碰生产用户记录作为验收夹具。记录实际视口、交互、截图及无法覆盖的设备/帧时间边界。
+
+### 实施记录
+
+- 状态：功能源码、定向回归、Client/Host 类型检查及正式 Web/Control Plane 构建完成；ChatGPT 内置浏览器实页验收未完成，不能标记为视觉通过。
+- 关闭标签批次：按用户最新反馈，最后一个工作区工具标签关闭后创建并选中空白新标签状态，同时收起右侧菜单栏；关闭按钮阻止事件冒泡。`client-workspace-app-tabs.test.mjs` 对最后标签替换、右栏收起和事件隔离回归通过。
+- 最近网站批次：Browser Owner SQLite v61 表按账户隔离，HTTP(S) 规范化去查询参数和片段、上限 100；认证 Controller 提供读/写/清除；Agent BrowserSession 与 LFAA 原生 Browser Dock 的真实 URL 更新写入；设置中心开关关闭时 Owner 不读不写。设置、账户隔离、URL 清洗、上限和清除回归通过。
+- 新标签页浏览器工具栏：补入后退/前进/刷新与网址/搜索输入框；普通文字使用 `browserUse.searchEngine`，地址栏先由共享 `resolveBrowserAddress` 校验和解析，再调用共用的 `openBrowserWebsite`。推荐、最近也调用 `openBrowserWebsite`；导航按钮只提交一次性动作请求，由 `BrowserPanel`/`NativeBrowserPanel` 使用现有 Browser Owner API 执行，避免在工作区复制浏览器动作规则。无打开页面时导航按钮禁用；搜索仍可输入。使用现有主题令牌，右栏 340px 容器断点压缩导航按钮。
+- 最新定向验证：`pnpm --filter @yubboo/lfaa test -- tests/client-workspace-right-launcher-layout.test.mjs tests/client-workspace-app-tabs.test.mjs tests/browser-address.test.mjs` 通过 10/10；`pnpm run typecheck`、`git diff --check` 通过。最初裸 `node --test` 未加载工作区别名而失败，改用项目正式测试入口后通过。
+- 最新构建与运行态：`pnpm run build:control-plane` 与 `pnpm run build:web` 成功，前端转换 2281 个模块；正式项目菜单按当前源码再次重建并启动 Web，`node scripts/runtime-build-state.mjs web` 返回 `[]`，`http://127.0.0.1:3000/api/health` 与 `http://127.0.0.1:3000/work` 均返回 HTTP 200。Web 产物写入根 `dist/apps/web/`，控制端写入根 `dist/apps/control-plane/`。
+- 最新实页边界：当前轮只核验了正式服务健康和 `/work` HTTP 响应，未取得 ChatGPT 内置浏览器目视截图或窄栏实际交互；此前浏览器控制被拒，本次没有改用外部浏览器冒充验收。用户可在当前内置浏览器刷新 `http://127.0.0.1:3000/work` 查看；桌面与窄分栏/短屏的实页验收仍未完成。
+- 响应式：推荐/最近列表使用右栏容器断点及现有主题令牌，相关布局回归通过。没有取得实页截图或窄视口交互证据，真实设备、窄分栏、短屏和帧时间未验。
+- 新标签页工具栏补全：用户指出截图中的地址/搜索栏缺失，并要求与推荐和最近联动；表单直接调用 Browser Address Owner 解析输入，再交给现有 Browser Dock 标签导航，地址栏、最近和推荐共用 `openBrowserWebsite` 入口。后退/前进/刷新通过一次性动作请求委托给已选 BrowserPanel，不在工作区复制浏览器动作执行逻辑。
+- 源码与构建验证：`pnpm run typecheck`（Client、Host）通过；`pnpm run build:control-plane`、`pnpm run build:web` 通过，Web 2281 modules；`node scripts/runtime-build-state.mjs web` 返回 `[]`；正式菜单重启服务后 `/api/health` 与 `/work` 均返回 HTTP 200；`git diff --check` 通过。输出均在根 `dist/`。
+- 定向回归：标签、右侧布局、Browser Owner/电脑操控与设置合同四个测试文件共 8/8 通过。另串行运行 11 个既有存储/迁移测试模块时 16 项通过、15 项失败；已见失败包含目录夹具仍读取已移出 Data 根的 `database` 路径、多个夹具触发 `users_single_super_admin_idx` 冲突及旧数据目录锁冲突，因此该组不作为本功能通过证据，仍需先修正原测试夹具/运行条件再复验。
+- 实页验收边界：本地正式服务已重启且路由可达，但 ChatGPT 内置浏览器控制在本轮拒绝访问该工作区页面；按仓库硬规则没有改用外部浏览器或其他绕行方式。需在内置浏览器恢复可用后检查 `/work` 桌面与窄/短视口、标签关闭后右栏仍打开、当前标签推荐及最近记录点击。
+- 变更文件职责：
+  - `packages/client/ui-workspace/src/ApplicationWorkspace.tsx`、`packages/client/ui-workspace/src/css/right-menu.css`、`packages/client/ui-workspace/README.md`：右栏标签关闭保持侧栏；推荐当前标签、最近账户记录、容器响应布局及导航。
+  - `packages/client/ui-sidebar-browser/src/BrowserPanel.tsx`、`packages/client/ui-sidebar-browser/src/NativeBrowserPanel.tsx`、`packages/client/ui-sidebar-browser/README.md`：将 Browser Dock 的实际打开标签快照报告给工作区。
+  - `packages/client/connection/src/api.ts`、`packages/client/connection/README.md`：最近网站认证 API 客户端合同。
+  - `packages/browser-use/browser-use/src/session-manager.ts`、`packages/browser-use/browser-use/package.json`、`packages/browser-use/browser-use/README.md`：Browser Owner 账户历史持久化、规范化、Agent 访问记录及容量边界。
+  - `packages/api/browser-controller/src/index.ts`、`packages/api/browser-controller/README.md`：最近网站认证读写清除端点。
+  - `packages/storage/storage-sqlite/src/database.ts`、`packages/storage/storage-sqlite/README.md`：v61 最近网站表及账户索引/级联约束。
+  - `packages/storage/storage-domain/src/migration.ts`、`packages/storage/storage-domain/README.md`：按旧文件退役及 v60 工作区迁移顺序推进 v61。
+  - `packages/util/values/src/settings-contract.ts`、`packages/settings/settings/src/validation.ts`、`packages/settings/settings/src/service.ts`、`packages/settings/settings/README.md`、`packages/client/ui-settings/src/SettingsPage.tsx`、`packages/client/ui-settings/README.md`：账户开关默认值、验证、持久化、设置界面及清除操作。
+  - `apps/cli/tests/client-workspace-app-tabs.test.mjs`、`apps/cli/tests/client-workspace-right-launcher-layout.test.mjs`、`apps/cli/tests/computer-use.test.mjs`、`apps/cli/tests/settings-contract.test.mjs`：新增/扩展本功能直接回归。
+  - `apps/cli/tests/agent-git-workspace.test.mjs`、`apps/cli/tests/agent-runtime.test.mjs`、`apps/cli/tests/file-storage.test.mjs`、`apps/cli/tests/harness-agent-api.test.mjs`、`apps/cli/tests/knowledge-library.test.mjs`、`apps/cli/tests/minecraft-archive.test.mjs`、`apps/cli/tests/runtime-environment.test.mjs`、`apps/cli/tests/storage-hub.test.mjs`、`apps/cli/tests/workflow-core.test.mjs`、`apps/cli/tests/workspace-projects.test.mjs`、`apps/cli/tests/writing-book-profiles.test.mjs`：同步 v61 schema 终态断言；该组结果与夹具问题见上。
+  - `pnpm-lock.yaml`：登记 Browser Owner 到 SQLite Owner 的工作区依赖。
+  - `docs/PROMPTS.md`：记录任务边界、实现、设置、回归、构建及尚未完成的内置浏览器验收。

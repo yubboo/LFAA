@@ -8,4 +8,8 @@ Web 截图预览在当前 AI Session 有效时与 Agent 共享相同账户、Ses
 
 `browserUse.searchEngine` 由设置中心的浏览器地址栏控件读取并持久化；地址解析只允许无嵌入凭据的 HTTP(S)，普通文字走所选搜索引擎，localhost/回环开发地址保留 HTTP。当前原生页面的标签数有界，关闭视图和应用时回收页面、权限回调与活动下载。Electron 宿主视口、弹窗、登录、下载和权限仍须在真实桌面端验收后才可标为已通过。
 
+新标签页推荐卡片由 `BrowserPanel` 将当前会话快照里的已打开 HTTP(S) 标签回传给工作区；Electron 原生模式回传 `nativeBrowser` 的已打开标签。工作区不保存第二份网站清单，也不读取历史或书签。点击卡片时仍由当前 `BrowserPanel` 处理一次性导航请求。
+
+手动标签地址变化经 `ApplicationWorkspace` 回传 Browser Owner 形成账户范围的“最近”网站元数据；BrowserPanel 只提交真实 HTTP(S) 标签地址，NativeBrowserPanel 只提交当前 Electron 页面状态，不提交页面标题或正文。是否保存由 `browserUse.recordRecentSites` 控制，Agent 实际页面导航则由 Browser Owner 在受控观察时记录。
+
 构建输出为仓库根 `dist/packages/client/ui-sidebar-browser/`。

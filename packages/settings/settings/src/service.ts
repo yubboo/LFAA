@@ -253,6 +253,7 @@ function readBrowserUseSettings(value: Record<string, unknown>): BrowserUseSetti
     enabled: typeof value.enabled === "boolean" ? value.enabled : defaultSettings.browserUse.enabled,
     enabledProviderIds,
     showFullUrl: typeof value.showFullUrl === "boolean" ? value.showFullUrl : defaultSettings.browserUse.showFullUrl,
+    recordRecentSites: typeof value.recordRecentSites === "boolean" ? value.recordRecentSites : defaultSettings.browserUse.recordRecentSites,
     searchEngine: value.searchEngine === "google" || value.searchEngine === "duckduckgo" || value.searchEngine === "bing"
       ? value.searchEngine
       : defaultSettings.browserUse.searchEngine
@@ -332,6 +333,7 @@ export function saveUserSettings(
   }
   if (category === "plugins") value = { ...getUserSettings(userId).plugins, ...submitted } as PluginSettings;
   if (category === "ai-runtime") value = { ...getUserSettings(userId).aiRuntime, ...submitted } as AiRuntimeSettings;
+  if (category === "browser-use" && !Object.hasOwn(submitted, "recordRecentSites")) value = { ...getUserSettings(userId).browserUse, ...submitted } as BrowserUseSettings;
   value = validateSettingsInput(category, value) as unknown as typeof value;
   if (category === "appearance") {
     const normalized = readAppearanceSettings(value as unknown as Record<string, unknown>);

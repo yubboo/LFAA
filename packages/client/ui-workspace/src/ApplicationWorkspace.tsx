@@ -9,9 +9,9 @@ import { loadAiSkillDirectory } from "lfaa-client-connection/src/api.js";
 import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
 import { sidebarRightRuntime, useSidebarRightSnapshot } from "./sidebar-right-runtime.js";
 
-import { createElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { createElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent as ReactFormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Alert, Button, Dropdown, Popover, Tag, Typography } from "antd";
-import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadWorkspaceProjects, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
+import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadBrowserRecentSites, recordBrowserRecentSites, loadWorkspaceProjects, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type BrowserRecentSite, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import type { AiWorkGoalRequest, AiWorkNotification, AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
 import type { WorkbenchLayoutMode } from "lfaa-client-ui-dockkit/src/workbench-layout.types.js";
@@ -25,6 +25,7 @@ import { GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH, GLOBAL_NAVIGATION_RAIL_WIDTH, Glo
 import { SecondaryNavigation, type SecondaryNavigationGroup } from "lfaa-client-ui-sidebar/src/SecondaryNavigation.js";
 import { resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
+import { resolveBrowserAddress } from "lfaa-client-ui-sidebar-browser/src/browser-address.js";
 import { TaskTerminal } from "./TaskTerminal.js";
 import "./module-workbench.css";
 import "./css/secondary-navigation.css";
@@ -61,11 +62,27 @@ type ApplicationSummary = {
   color: "blue" | "green" | "plum";
 };
 
+type BrowserOpenTab = { id: string; title: string; url: string; active: boolean };
+
 type WorkspaceUtilityTab = {
   id: string;
   kind: "new" | "browser" | "git" | "applications" | "side-chat" | "extension";
   extensionId?: string;
+  browserNavigationRequest?: { id: string; url: string };
+  browserActionRequest?: { id: string; action: "back" | "forward" | "reload" };
 };
+
+function browserSiteHost(url: string): string {
+  try { return new URL(url).hostname; } catch { return url; }
+}
+
+function browserVisitTime(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const now = new Date();
+  const sameDay = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+  return new Intl.DateTimeFormat(undefined, { ...(sameDay ? {} : { month: "numeric", day: "numeric" }), hour: "2-digit", minute: "2-digit" }).format(date);
+}
 
 interface ApplicationWorkspaceProps {
   userId: string;
@@ -504,8 +521,37 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   const [aiWorkView, setAiWorkView] = useState<"chat" | "git" | "browser">("chat");
   const [workspaceUtilityTabs, setWorkspaceUtilityTabs] = useState<WorkspaceUtilityTab[]>([{ id: "workspace-tab-1", kind: "new" }]);
   const [activeWorkspaceUtilityTabId, setActiveWorkspaceUtilityTabId] = useState("workspace-tab-1");
+  const [browserAddress, setBrowserAddress] = useState("");
+  const [browserAddressError, setBrowserAddressError] = useState("");
+  const activeWorkspaceUtilityTabKind = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId)?.kind ?? null;
+  const [browserOpenTabs, setBrowserOpenTabs] = useState<BrowserOpenTab[]>([]);
+  const [browserRecentSitesState, setBrowserRecentSitesState] = useState<{ userId: string; sites: BrowserRecentSite[]; status: "idle" | "loading" | "ready" | "error" }>({ userId, sites: [], status: "idle" });
+  const reportedBrowserTabUrlsRef = useRef(new Map<string, string>());
+  const recentSiteReportTailRef = useRef(Promise.resolve());
+  const currentRecentSiteOwnerRef = useRef(userId);
+  currentRecentSiteOwnerRef.current = userId;
+  const visibleBrowserRecentSites = browserRecentSitesState.userId === userId ? browserRecentSitesState.sites : [];
   const workspaceUtilityTabId = useRef(1);
+  const browserNavigationRequestSequence = useRef(0);
+  const browserActionRequestSequence = useRef(0);
   const workspaceUtilityScope = useRef({ userId, mode });
+  useEffect(() => { setBrowserOpenTabs([]); }, [activeAiSessionId, mode, userId]);
+  useEffect(() => { reportedBrowserTabUrlsRef.current.clear(); }, [userId]);
+  useEffect(() => {
+    if (mode !== "ai-work" || activeWorkspaceUtilityTabKind !== "new") return;
+    if (!settings.browserUse.recordRecentSites) {
+      setBrowserRecentSitesState({ userId, sites: [], status: "ready" });
+      return;
+    }
+    const controller = new AbortController();
+    setBrowserRecentSitesState(current => ({ userId, sites: current.userId === userId ? current.sites : [], status: "loading" }));
+    void loadBrowserRecentSites(12, controller.signal).then(result => {
+      if (!controller.signal.aborted) setBrowserRecentSitesState({ userId, sites: result.sites, status: "ready" });
+    }).catch(() => {
+      if (!controller.signal.aborted) setBrowserRecentSitesState(current => ({ userId, sites: current.userId === userId ? current.sites : [], status: "error" }));
+    });
+    return () => controller.abort();
+  }, [activeWorkspaceUtilityTabId, activeWorkspaceUtilityTabKind, mode, settings.browserUse.recordRecentSites, userId]);
   const [centerCollapsed, setCenterCollapsed] = useState(false);
   const [centerCollapsePreview, setCenterCollapsePreview] = useState<boolean | null>(null);
   const [gitRepositoryChangeError, setGitRepositoryChangeError] = useState("");
@@ -1041,6 +1087,81 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     setActiveWorkspaceUtilityTabId(nextTab.id);
     showWorkspaceUtilityTab(nextTab);
   }, [activeWorkspaceUtilityTabId, showWorkspaceUtilityTab, workspaceUtilityTabs]);
+  const openBrowserWebsite = useCallback((url: string) => {
+    setBrowserAddressError("");
+    const activeTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId);
+    const request = { id: `browser-navigation-${++browserNavigationRequestSequence.current}`, url };
+    if (activeTab?.kind === "new" || activeTab?.kind === "browser") {
+      const nextTab: WorkspaceUtilityTab = { ...activeTab, kind: "browser", extensionId: undefined, browserNavigationRequest: request };
+      setWorkspaceUtilityTabs(current => current.map(tab => tab.id === nextTab.id ? nextTab : tab));
+      setActiveWorkspaceUtilityTabId(nextTab.id);
+      showWorkspaceUtilityTab(nextTab);
+      return;
+    }
+    const nextTab: WorkspaceUtilityTab = { id: `workspace-tab-${++workspaceUtilityTabId.current}`, kind: "browser", browserNavigationRequest: request };
+    setWorkspaceUtilityTabs(current => [...current, nextTab]);
+    setActiveWorkspaceUtilityTabId(nextTab.id);
+    showWorkspaceUtilityTab(nextTab);
+  }, [activeWorkspaceUtilityTabId, showWorkspaceUtilityTab, workspaceUtilityTabs]);
+  const submitBrowserAddress = useCallback((event: ReactFormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    try {
+      const url = resolveBrowserAddress(browserAddress, settings.browserUse.searchEngine);
+      setBrowserAddressError("");
+      setBrowserAddress("");
+      openBrowserWebsite(url);
+    } catch (reason) {
+      setBrowserAddressError(getErrorMessage(reason));
+    }
+  }, [browserAddress, openBrowserWebsite, settings.browserUse.searchEngine]);
+  const openBrowserDockAction = useCallback((action: "back" | "forward" | "reload") => {
+    if (!browserOpenTabs.some(tab => tab.active)) return;
+    const request = { id: `browser-action-${++browserActionRequestSequence.current}`, action };
+    const activeTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId);
+    const nextTab: WorkspaceUtilityTab = activeTab?.kind === "new" || activeTab?.kind === "browser"
+      ? { ...activeTab, kind: "browser", extensionId: undefined, browserActionRequest: request }
+      : { id: `workspace-tab-${++workspaceUtilityTabId.current}`, kind: "browser", browserActionRequest: request };
+    setWorkspaceUtilityTabs(current => activeTab?.kind === "new" || activeTab?.kind === "browser"
+      ? current.map(tab => tab.id === nextTab.id ? nextTab : tab)
+      : [...current, nextTab]);
+    setActiveWorkspaceUtilityTabId(nextTab.id);
+    showWorkspaceUtilityTab(nextTab);
+  }, [activeWorkspaceUtilityTabId, browserOpenTabs, showWorkspaceUtilityTab, workspaceUtilityTabs]);
+  const handleBrowserActionRequest = useCallback((requestId: string) => {
+    setWorkspaceUtilityTabs(current => current.map(tab => tab.browserActionRequest?.id === requestId
+      ? { ...tab, browserActionRequest: undefined }
+      : tab));
+  }, []);
+  const handleBrowserNavigationRequest = useCallback((requestId: string) => {
+    setWorkspaceUtilityTabs(current => current.map(tab => tab.browserNavigationRequest?.id === requestId
+      ? { ...tab, browserNavigationRequest: undefined }
+      : tab));
+  }, []);
+  const handleBrowserOpenTabsChange = useCallback((tabs: BrowserOpenTab[]) => {
+    const safeTabs = tabs.flatMap(tab => {
+      try {
+        const parsed = new URL(tab.url);
+        if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.href.length > 2048) return [];
+        return [{ id: tab.id || parsed.href, title: tab.title.trim().slice(0, 300), url: parsed.href, active: tab.active }];
+      } catch { return []; }
+    });
+    if (settings.browserUse.recordRecentSites) {
+      const changedUrls: string[] = [];
+      for (const tab of safeTabs) {
+        const key = `${activeAiSessionId ?? "no-session"}:${tab.id}`;
+        if (reportedBrowserTabUrlsRef.current.get(key) !== tab.url) changedUrls.push(tab.url);
+        reportedBrowserTabUrlsRef.current.set(key, tab.url);
+      }
+      while (reportedBrowserTabUrlsRef.current.size > 256) reportedBrowserTabUrlsRef.current.delete(reportedBrowserTabUrlsRef.current.keys().next().value!);
+      if (changedUrls.length) {
+        const pending = recentSiteReportTailRef.current.then(async () => {
+          if (currentRecentSiteOwnerRef.current === userId) await recordBrowserRecentSites(changedUrls.slice(0, 64));
+        });
+        recentSiteReportTailRef.current = pending.then(() => undefined, () => undefined);
+      }
+    }
+    setBrowserOpenTabs(safeTabs);
+  }, [activeAiSessionId, settings.browserUse.recordRecentSites, userId]);
   const createWorkspaceUtilityTab = useCallback(() => {
     const nextTab: WorkspaceUtilityTab = { id: `workspace-tab-${++workspaceUtilityTabId.current}`, kind: "new" };
     setWorkspaceUtilityTabs(current => [...current, nextTab]);
@@ -1059,6 +1180,10 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     showWorkspaceUtilityTab(selectedTab);
     setCenterCollapsed(true);
   }, [showWorkspaceUtilityTab, workspaceUtilityTabs]);
+  const selectRightUtilityTab = useCallback((tab: WorkspaceUtilityTab) => {
+    setActiveWorkspaceUtilityTabId(tab.id);
+    showWorkspaceUtilityTab(tab);
+  }, [showWorkspaceUtilityTab]);
   const handleCenterCollapsedChange = useCallback((collapsed: boolean) => {
     setCenterCollapsed(collapsed);
     if (!collapsed) {
@@ -1077,12 +1202,15 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     const index = workspaceUtilityTabs.findIndex(tab => tab.id === tabId);
     if (index < 0) return;
     const nextTabs = workspaceUtilityTabs.filter(tab => tab.id !== tabId);
-    setWorkspaceUtilityTabs(nextTabs);
     if (nextTabs.length === 0) {
-      setActiveWorkspaceUtilityTabId("");
-      setCenterCollapsed(false);
+      const replacementTab: WorkspaceUtilityTab = { id: `workspace-tab-${++workspaceUtilityTabId.current}`, kind: "new" };
+      setWorkspaceUtilityTabs([replacementTab]);
+      setActiveWorkspaceUtilityTabId(replacementTab.id);
+      showWorkspaceUtilityTab(replacementTab);
+      setChrome(current => ({ ...current, rightCollapsed: true }));
       return;
     }
+    setWorkspaceUtilityTabs(nextTabs);
     if (activeWorkspaceUtilityTabId === tabId) {
       const nextTab = nextTabs[Math.min(index, nextTabs.length - 1)];
       setActiveWorkspaceUtilityTabId(nextTab.id);
@@ -1392,6 +1520,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   const showWorkbenchTabs = mode === "ai-work" && !voiceMode;
   const activeCenterCollapsed = centerCollapsePreview ?? centerCollapsed;
   const activeWorkspaceUtilityTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId) ?? null;
+  const hasActiveBrowserOpenTab = browserOpenTabs.some(tab => tab.active);
   const workspaceUtilityTabTitle = (tab: WorkspaceUtilityTab): string => {
     if (tab.kind === "new") return "新标签页";
     if (tab.kind === "browser") return "浏览器";
@@ -1401,9 +1530,9 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     const extension = sidebarRight.tabs.find(item => item.id === tab.extensionId);
     return extension ? (typeof extension.title === "function" ? extension.title() : extension.title) : "扩展面板";
   };
-  const selectedWorkbenchTab = activeCenterCollapsed ? activeWorkspaceUtilityTab?.id ?? "chat" : "chat";
+  const selectedWorkbenchTab = activeCenterCollapsed ? activeWorkspaceUtilityTab?.id ?? "chat" : activeWorkspaceUtilityTab?.id ?? "";
   const handleWorkbenchTabKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, tabId: string) => {
-    const order = ["chat", ...workspaceUtilityTabs.map(tab => tab.id)];
+    const order = [...(activeCenterCollapsed ? ["chat"] : []), ...workspaceUtilityTabs.map(tab => tab.id)];
     const index = order.indexOf(tabId);
     const targetIndex = event.key === "Home" ? 0
       : event.key === "End" ? order.length - 1
@@ -1414,22 +1543,26 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     event.preventDefault();
     const target = order[targetIndex];
     document.getElementById(`module-workbench-tab-${target}`)?.focus();
-    selectWorkbenchTab(target);
+    if (activeCenterCollapsed) selectWorkbenchTab(target);
+    else {
+      const targetTab = workspaceUtilityTabs.find(tab => tab.id === target);
+      if (targetTab) selectRightUtilityTab(targetTab);
+    }
   };
-  const workbenchTabs = showWorkbenchTabs && activeCenterCollapsed ? <div className="module-workbench-tabstrip">
+  const workbenchTabs = showWorkbenchTabs ? <div className="module-workbench-tabstrip">
     <nav className="module-workbench-tabs module-workbench-tabs--context" role="tablist" aria-label="工作区标签">
-      <button id="module-workbench-tab-chat" className="module-workbench-tab" type="button" role="tab" aria-selected={selectedWorkbenchTab === "chat"} aria-controls="module-workbench-tab-panel" tabIndex={selectedWorkbenchTab === "chat" ? 0 : -1} onClick={() => selectWorkbenchTab("chat")} onKeyDown={event => handleWorkbenchTabKeyDown(event, "chat")} aria-label={activeAiSessionTitle?.trim() || "小鱼智能体"} title={activeAiSessionTitle?.trim() || "小鱼智能体"}>
+      {activeCenterCollapsed ? <button id="module-workbench-tab-chat" className="module-workbench-tab" type="button" role="tab" aria-selected={selectedWorkbenchTab === "chat"} aria-controls="module-workbench-tab-panel" tabIndex={selectedWorkbenchTab === "chat" ? 0 : -1} onClick={() => selectWorkbenchTab("chat")} onKeyDown={event => handleWorkbenchTabKeyDown(event, "chat")} aria-label={activeAiSessionTitle?.trim() || "小鱼智能体"} title={activeAiSessionTitle?.trim() || "小鱼智能体"}>
         <WorkbenchIcon name="spark" size={14} /><span>{activeAiSessionTitle?.trim() || "小鱼智能体"}</span>
-      </button>
+      </button> : null}
       {workspaceUtilityTabs.map(tab => {
         const title = workspaceUtilityTabTitle(tab);
         const selected = selectedWorkbenchTab === tab.id;
         const icon = tab.kind === "browser" ? "browser" : tab.kind === "git" ? "branch" : tab.kind === "applications" ? "grid" : tab.kind === "side-chat" ? "help" : tab.kind === "extension" ? "extension" : "new";
         return <div key={tab.id} className={`module-workbench-tab-item${selected ? " is-active" : ""}`} role="presentation">
-          <button id={`module-workbench-tab-${tab.id}`} className="module-workbench-tab" type="button" role="tab" aria-selected={selected} aria-controls="module-workbench-tab-panel" tabIndex={selected ? 0 : -1} onClick={() => selectWorkbenchTab(tab.id)} onKeyDown={event => handleWorkbenchTabKeyDown(event, tab.id)} aria-label={title} title={title}>
+          <button id={`module-workbench-tab-${tab.id}`} className="module-workbench-tab" type="button" role="tab" aria-selected={selected} aria-controls="module-workbench-tab-panel" tabIndex={selected ? 0 : -1} onClick={() => activeCenterCollapsed ? selectWorkbenchTab(tab.id) : selectRightUtilityTab(tab)} onKeyDown={event => handleWorkbenchTabKeyDown(event, tab.id)} aria-label={title} title={title}>
             <WorkbenchIcon name={icon} size={14} /><span>{title}</span>
           </button>
-          <button className="module-workbench-tab-close" type="button" aria-label={`关闭${title}`} title={`关闭${title}`} tabIndex={selected ? 0 : -1} onClick={() => closeWorkspaceUtilityTab(tab.id)}><WorkbenchIcon name="close" size={12} /></button>
+          <button className="module-workbench-tab-close" type="button" aria-label={`关闭${title}`} title={`关闭${title}`} tabIndex={selected ? 0 : -1} onClick={event => { event.stopPropagation(); closeWorkspaceUtilityTab(tab.id); }}><WorkbenchIcon name="close" size={12} /></button>
         </div>;
       })}
     </nav>
@@ -1568,12 +1701,12 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
 
   const right = (
     <aside className="module-context" aria-label={contextLabel} data-layout-mode={metrics.mode}>
-      {!chrome.rightCollapsed && (metrics.mode === "desktop" || (showWorkbenchTabs && activeCenterCollapsed)) ? <header className="module-context__shell-actions">
+      {!chrome.rightCollapsed && (metrics.mode === "desktop" || showWorkbenchTabs) ? <header className="module-context__shell-actions">
           {workbenchTabs}
           {metrics.mode === "desktop" && terminalPanelAvailable && settings.general.showBottomPanelControl ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
           {metrics.mode === "desktop" ? <PanelControl name="panelRight" title="收起上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active onClick={toggleRight} /> : null}
       </header> : null}
-      <div id={showWorkbenchTabs && activeCenterCollapsed ? "module-workbench-tab-panel" : undefined} role={showWorkbenchTabs && activeCenterCollapsed ? "tabpanel" : undefined} aria-labelledby={showWorkbenchTabs && activeCenterCollapsed ? `module-workbench-tab-${selectedWorkbenchTab}` : undefined} ref={contextBodyScroll.ref} onScroll={contextBodyScroll.onScroll} className="module-context__body">
+      <div id={showWorkbenchTabs && !chrome.rightCollapsed ? "module-workbench-tab-panel" : undefined} role={showWorkbenchTabs && !chrome.rightCollapsed ? "tabpanel" : undefined} aria-labelledby={showWorkbenchTabs && !chrome.rightCollapsed && selectedWorkbenchTab ? `module-workbench-tab-${selectedWorkbenchTab}` : undefined} ref={contextBodyScroll.ref} onScroll={contextBodyScroll.onScroll} className="module-context__body">
       {mode === "ai-work" ? <div className="module-context__side-chat" hidden={!sideChatOpen}>
         <Suspense fallback={<ApplicationContentLoading />}><AiWorkSideChat
           key={activeAiSessionId ?? "no-session"}
@@ -1611,7 +1744,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
       {sidebarRight.tabs.map((tab) => tab.keepMounted || sidebarRight.activeId === tab.id ? <div key={tab.id} className="module-context__tab-panel" hidden={sidebarRight.activeId !== tab.id} aria-hidden={sidebarRight.activeId !== tab.id}>{createElement(DshSlotOutlet, { name: "sidebar.right.pane.tab", entryKey: tab.id, fallback: <Alert type="warning" showIcon message="扩展面板尚未加载内容" description="此入口已登记，但当前没有 DSH Client 内容提供面板。请检查当前 Profile 的插件状态及 Client 入口加载错误。" /> })}</div> : null)}
       <ApplicationNavigationPanel userId={userId} app={app} mode={mode} section={section} applicationNavigationItems={applicationNavigationItems} onNavigate={navigateWithinApplication} onOpenApplication={openSidebarMode} onWritingLibraryPortalTargetChange={setWritingLibraryPortalTarget} hidden={rightPanelSection !== "applications" || sidebarRight.activeId !== null} />
       {sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "git" ? gitManagerPanel : null}
-      {sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "browser" ? <Suspense fallback={<ApplicationContentLoading />}><BrowserPanel sessionId={activeAiSessionId} settings={settings} /></Suspense> : null}
+      {sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "browser" ? <Suspense fallback={<ApplicationContentLoading />}><BrowserPanel sessionId={activeAiSessionId} settings={settings} navigationRequest={activeWorkspaceUtilityTab?.browserNavigationRequest ?? null} onNavigationRequestHandled={handleBrowserNavigationRequest} actionRequest={activeWorkspaceUtilityTab?.browserActionRequest ?? null} onActionRequestHandled={handleBrowserActionRequest} onOpenTabsChange={handleBrowserOpenTabsChange} /></Suspense> : null}
       {sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat" ? writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingBookInfo
         workspace={writingWorkspace}
         workspaceLoading={writingWorkspaceLoading}
@@ -1619,25 +1752,74 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
         onClose={toggleRight}
       /></Suspense> : <>
       {mode === "ai-work" ? <>
+        {activeWorkspaceUtilityTabKind === "new" ? <div className="module-context__browser-toolbar-wrap">
+          <div className="module-context__browser-toolbar" aria-label="浏览器导航栏">
+            <nav className="module-context__browser-navigation" aria-label="浏览器导航">
+              <button type="button" aria-label="后退" title="后退" disabled={!hasActiveBrowserOpenTab} onClick={() => openBrowserDockAction("back")}>‹</button>
+              <button type="button" aria-label="前进" title="前进" disabled={!hasActiveBrowserOpenTab} onClick={() => openBrowserDockAction("forward")}>›</button>
+              <button type="button" aria-label="刷新网页" title="刷新网页" disabled={!hasActiveBrowserOpenTab} onClick={() => openBrowserDockAction("reload")}><WorkbenchIcon name="refresh" size={15} /></button>
+            </nav>
+            <form className="module-context__browser-address" onSubmit={submitBrowserAddress}>
+              <input aria-label="搜索或输入网址" type="text" inputMode="url" autoComplete="url" spellCheck={false} value={browserAddress} onChange={event => { setBrowserAddress(event.currentTarget.value); if (browserAddressError) setBrowserAddressError(""); }} placeholder="搜索或输入网址" />
+              <button type="submit" aria-label="打开网址或搜索" title="打开网址或搜索"><WorkbenchIcon name="search" size={16} /></button>
+            </form>
+          </div>
+          {browserAddressError ? <p className="module-context__browser-address-error" role="alert">{browserAddressError}</p> : null}
+        </div> : null}
         <header className="module-context__heading"><div><strong>新标签页</strong><span>选择工具，在当前标签页打开</span></div><span className={`module-context__connection module-context__connection--${serverState}`}><i aria-hidden="true" />{serverState === "online" ? "已连接" : serverState === "checking" ? "检查中" : "未连接"}</span><button className="module-shell-icon-button module-context__close" type="button" aria-label="收起工具与资源" title="收起工具与资源" onClick={toggleRight}><WorkbenchIcon name="close" size={15} /></button></header>
         <div className="module-context__launcher">
           <section className="module-context__launcher-section">
-            <header><strong>工具</strong><span>打开到当前页签</span></header>
-            <div className="module-context__launcher-grid">
-              <button type="button" onClick={() => openWorkspaceUtility("browser")}><WorkbenchIcon name="browser" size={17} /><span><strong>浏览器</strong><small>与当前 Agent 会话协同</small></span><WorkbenchIcon name="arrowRight" size={14} /></button>
-              {gitManagerAvailable ? <button type="button" onClick={() => openWorkspaceUtility("git")}><WorkbenchIcon name="branch" size={17} /><span><strong>变更</strong><small>查看当前 Agent 的 Git 变更</small></span><WorkbenchIcon name="arrowRight" size={14} /></button> : null}
-              <button type="button" onClick={() => openWorkspaceUtility("side-chat")}><WorkbenchIcon name="help" size={17} /><span><strong>侧边聊天</strong><small>使用已记录的会话上下文</small></span><WorkbenchIcon name="arrowRight" size={14} /></button>
-              {applicationNavigationItems.length > 0 ? <button type="button" onClick={() => openWorkspaceUtility("applications")}><WorkbenchIcon name="grid" size={17} /><span><strong>应用</strong><small>打开已登记的工作区应用</small></span><WorkbenchIcon name="arrowRight" size={14} /></button> : null}
-              {sidebarRight.tabs.map(tab => <button key={tab.id} type="button" onClick={() => openWorkspaceUtility("extension", tab.id)}><WorkbenchIcon name="extension" size={17} /><span><strong>{typeof tab.title === "function" ? tab.title() : tab.title}</strong><small>已登记的扩展面板</small></span><WorkbenchIcon name="arrowRight" size={14} /></button>)}
+            <header><strong>工具</strong></header>
+            <div className="module-context__launcher-grid module-context__launcher-quick-tools">
+              {gitManagerAvailable ? <button type="button" onClick={() => openWorkspaceUtility("git")}><WorkbenchIcon name="branch" size={16} /><span><strong>变更</strong></span></button> : null}
+              {terminalPanelAvailable && settings.general.showBottomPanelControl ? <button type="button" onClick={openTerminal} aria-keyshortcuts={shortcuts.openTerminal.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="terminal" size={16} /><span><strong>终端</strong></span>{shortcuts.openTerminal.length > 0 ? <kbd>{shortcuts.openTerminal.join(" / ")}</kbd> : null}</button> : null}
+              <button type="button" onClick={() => onNavigate("/files")} title="打开已接入的节点文件管理"><WorkbenchIcon name="file" size={16} /><span><strong>文件</strong></span></button>
+              <button type="button" onClick={() => openWorkspaceUtility("side-chat")} aria-keyshortcuts={shortcuts.openSideChat.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="help" size={16} /><span><strong>侧边聊天</strong></span>{shortcuts.openSideChat.length > 0 ? <kbd>{shortcuts.openSideChat.join(" / ")}</kbd> : null}</button>
+              <details className="module-context__launcher-more">
+                <summary><WorkbenchIcon name="grid" size={16} /><span>更多工具…</span><WorkbenchIcon name="chevron" size={14} /></summary>
+                <div className="module-context__launcher-more-content">
+                  <div className="module-context__launcher-extra-grid">
+                    <button type="button" onClick={() => openWorkspaceUtility("browser")}><WorkbenchIcon name="browser" size={16} /><span><strong>浏览器</strong></span></button>
+                    {applicationNavigationItems.length > 0 ? <button type="button" onClick={() => openWorkspaceUtility("applications")}><WorkbenchIcon name="grid" size={16} /><span><strong>应用</strong></span></button> : null}
+                    {sidebarRight.tabs.map(tab => <button key={tab.id} type="button" onClick={() => openWorkspaceUtility("extension", tab.id)}><WorkbenchIcon name="extension" size={16} /><span><strong>{typeof tab.title === "function" ? tab.title() : tab.title}</strong></span></button>)}
+                  </div>
+                  <section className="module-context__launcher-resources">
+                    <header><strong>能力资源</strong><span>{extensionsLoading ? "正在读取" : `${registeredExtensions.length} 项`}</span></header>
+                    {extensionsLoading ? <p className="module-context__launcher-empty">正在读取已登记能力资源…</p> : registeredExtensions.length > 0 ? <div className="module-context__resource-list">
+                      {registeredExtensions.filter(item => !item.applicationIds || item.applicationIds.includes(app)).map(item => <div key={item.id} title={item.description}><WorkbenchIcon name={item.kind === "skill" ? "bolt" : item.kind === "expert" ? "spark" : item.kind === "prompt" ? "file" : "tools"} size={14} /><span><strong>{item.name}</strong><small>{item.kind === "skill" ? "Skill" : item.kind === "expert" ? "Expert" : item.kind === "prompt" ? "Prompt" : "Tool"}</small></span></div>)}
+                    </div> : <p className="module-context__launcher-empty">当前没有已登记的能力资源。</p>}
+                    {skillReferencesError ? <p className="module-context__launcher-empty">{skillReferencesError}</p> : null}
+                  </section>
+                </div>
+              </details>
             </div>
-            {sidebarRight.tabs.length === 0 && applicationNavigationItems.length === 0 ? <p className="module-context__launcher-empty">当前没有可打开的功能。</p> : null}
           </section>
-          <section className="module-context__launcher-section module-context__launcher-resources">
-            <header><strong>能力资源</strong><span>{extensionsLoading ? "正在读取" : `${registeredExtensions.length} 项`}</span></header>
-            {extensionsLoading ? <p className="module-context__launcher-empty">正在读取已登记能力资源…</p> : registeredExtensions.length > 0 ? <div className="module-context__resource-list">
-              {registeredExtensions.filter(item => !item.applicationIds || item.applicationIds.includes(app)).map(item => <div key={item.id} title={item.description}><WorkbenchIcon name={item.kind === "skill" ? "bolt" : item.kind === "expert" ? "spark" : item.kind === "prompt" ? "file" : "tools"} size={14} /><span><strong>{item.name}</strong><small>{item.kind === "skill" ? "Skill" : item.kind === "expert" ? "Expert" : item.kind === "prompt" ? "Prompt" : "Tool"}</small></span></div>)}
-            </div> : <p className="module-context__launcher-empty">当前没有已登记的能力资源。</p>}
-            {skillReferencesError ? <p className="module-context__launcher-empty">{skillReferencesError}</p> : null}
+          <section className="module-context__launcher-recommendation" aria-labelledby="module-context-launcher-recommendation-title">
+            <header><strong id="module-context-launcher-recommendation-title">推荐</strong></header>
+            {browserOpenTabs.length ? <div className="module-context__launcher-tabs">
+              {browserOpenTabs.map(tab => <button key={`${tab.id}:${tab.url}`} className="module-context__launcher-site" type="button" title={tab.url} onClick={() => openBrowserWebsite(tab.url)}>
+                <WorkbenchIcon name="browser" size={22} />
+                <span><strong>{tab.title || browserSiteHost(tab.url)}</strong><small>{browserSiteHost(tab.url)}{tab.active ? " · 当前标签" : ""}</small></span>
+              </button>)}
+            </div> : <div className="module-context__launcher-recommendation-empty"><span>打开浏览器后，这里会显示当前已打开的网页。</span><button type="button" onClick={() => openWorkspaceUtility("browser")}>打开浏览器</button></div>}
+          </section>
+          <section className="module-context__launcher-recent" aria-labelledby="module-context-launcher-recent-title">
+            <header><strong id="module-context-launcher-recent-title">最近</strong></header>
+            {!settings.browserUse.recordRecentSites
+              ? <p className="module-context__launcher-recent-empty">最近网站记录已在浏览器设置中关闭。</p>
+              : browserRecentSitesState.userId === userId && browserRecentSitesState.status === "loading" && visibleBrowserRecentSites.length === 0
+                ? <p className="module-context__launcher-recent-empty" role="status">正在读取最近访问的网站…</p>
+                : browserRecentSitesState.userId === userId && browserRecentSitesState.status === "error" && visibleBrowserRecentSites.length === 0
+                  ? <p className="module-context__launcher-recent-empty" role="status">最近网站暂时无法读取。</p>
+                  : visibleBrowserRecentSites.length > 0
+                    ? <div className="module-context__launcher-recent-list">
+                      {visibleBrowserRecentSites.map(site => <button key={site.url} className="module-context__launcher-recent-site" type="button" title={site.url} onClick={() => openBrowserWebsite(site.url)}>
+                        <WorkbenchIcon name="browser" size={18} />
+                        <span><strong>{browserSiteHost(site.url)}</strong><small>{site.url}</small></span>
+                        <time dateTime={site.visitedAt}>{browserVisitTime(site.visitedAt)}</time>
+                      </button>)}
+                    </div>
+                    : <p className="module-context__launcher-recent-empty">你或 Agent 在 LFAA 浏览器访问过的网站会显示在这里。</p>}
           </section>
           <section className="module-context__launcher-status"><span className={`module-context__connection module-context__connection--${serverState}`}><i aria-hidden="true" />{serverState === "online" ? "控制端已连接" : serverState === "checking" ? "正在检查控制端" : "控制端未连接"}</span><span>{selectedApp.title}</span></section>
         </div>

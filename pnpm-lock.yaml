@@ -1645,6 +1645,9 @@ importers:
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
+      lfaa-storage-sqlite:
+        specifier: workspace:*
+        version: link:../../storage/storage-sqlite
       lfaa-tools:
         specifier: workspace:*
         version: link:../../core/tools

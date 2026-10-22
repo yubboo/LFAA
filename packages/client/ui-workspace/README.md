@@ -32,6 +32,10 @@ AI Work 的会话与右侧工具页签由 `ApplicationWorkspace` 持有。中心
 
 首次桌面三栏工作区默认展开右侧资源栏以组成四个可见区域；用户已有面板开合状态继续优先。`general.navigationLayout`、Appearance 共享令牌和 `ResizableWorkbench` 左栏宽度偏好保持现有设置 Owner，不新增或重置配置。
 
+AI Work 右侧“新标签页”以工具主页呈现：变更、终端、文件和侧边聊天按右栏实际容器宽度排成紧凑双列或单列；浏览器、应用、扩展面板及已登记能力资源收在原生“更多工具”展开区；推荐区接收当前 Browser Dock 已打开的网页标签，沿用 BrowserPanel / Browser Owner 数据，不另建网站清单或读取历史。空列表时提示打开浏览器；点击网页卡片通过一次性导航请求复用当前 Browser Dock。所有入口继续调用当前 `ApplicationWorkspace` 回调，样式由本包 `src/css/right-menu.css` 单独维护并沿用 Appearance 主题令牌。
+
+推荐区继续显示当前打开的网站标签；“最近”通过 Client Connection 的认证 API 加载 Browser Owner 按账户保存的 LFAA Browser Dock/Agent 最近网站记录，点击记录复用现有浏览器标签导航。记录是否启用由 Settings Owner 的 `browserUse.recordRecentSites` 控制；该区域只保留按需查询的页面状态，不建立本地历史库。新标签页地址栏复用 Browser Address Owner 的 URL/搜索词解析与 Browser Dock 导航；推荐、最近和地址栏进入同一个浏览器标签流程，后退、前进、刷新也由当前 BrowserPanel/NativeBrowserPanel 执行。关闭右侧工作区标签时只移除该页签，最后一个页签以空白“新标签页”替代并收起右侧栏。
+
 AI Work 中心区在桌面、紧凑和移动布局下均可收窄到 300px；聊天输入容器在 380px 及以下将项目、权限、更多和模型操作切换为图标，保留可访问名称及悬浮提示。会话导航刻度单独定位并贴齐中心列左缘，随左二 Dock 宽度变化；会话滚动框在左侧为刻度保留可视区并以等宽内边距补偿，消息舞台、正文、滚动区和输入区保持原有位置与响应式尺寸。右侧分隔条可将剩余宽度分配给右侧菜单。左二栏是次窄区域：启用 `responsiveRightDock` 时其最大宽度按容器宽度的 26% 计算，范围为 320–440px；最小宽度、默认宽度与用户宽度偏好格式不变。上述中心/左右栏规则不改变 Settings/Plugin Manager 的通用范围。
 
 左右分隔线均只通过拖动调整。吸附预览和反向拖回在同一 Pointer 按压期间完成；松手时若仍处于吸附预览则提交收起，收起且已松手的分隔线不再接受新拖动会话。普通点击不会改变栏宽或列顺序。

@@ -51,11 +51,15 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       const before=getUserSettings('settings-a');
       assert.equal(before.browserUse.enabled,false,'new accounts keep Agent browser control disabled');
       assert.deepEqual(before.browserUse.enabledProviderIds,[],'new accounts connect no browser by default');
+      assert.equal(before.browserUse.recordRecentSites,true,'recent-site recording follows the shared account default');
       assert.equal(settingsSchemas['browser-use'].validate({...before.browserUse,enabledProviderIds:['lfaa-managed-edge']},{convert:false}).error,undefined);
       assert.ok(settingsSchemas['browser-use'].validate({...before.browserUse,enabledProviderIds:['unknown-browser']},{convert:false}).error,'browser connection IDs come from the shared provider catalog');
       assert.ok(settingsSchemas['browser-use'].validate({...before.browserUse,enabledProviderIds:['lfaa-managed-edge','lfaa-managed-edge']},{convert:false}).error,'duplicate browser connections are rejected');
-      saveUserSettings('settings-a','browser-use',{enabled:true,enabledProviderIds:['lfaa-managed-edge'],showFullUrl:true});
-      assert.deepEqual(getUserSettings('settings-a').browserUse,{enabled:true,enabledProviderIds:['lfaa-managed-edge'],showFullUrl:true},'Browser Use preferences persist per account');
+      saveUserSettings('settings-a','browser-use',{enabled:true,enabledProviderIds:['lfaa-managed-edge'],showFullUrl:true,recordRecentSites:false});
+      assert.deepEqual(getUserSettings('settings-a').browserUse,{enabled:true,enabledProviderIds:['lfaa-managed-edge'],showFullUrl:true,recordRecentSites:false,searchEngine:'bing'},'Browser Use preferences persist per account');
+      const legacyBrowserPayload={enabled:true,enabledProviderIds:['lfaa-managed-edge'],showFullUrl:false};
+      saveUserSettings('settings-a','browser-use',legacyBrowserPayload);
+      assert.equal(getUserSettings('settings-a').browserUse.recordRecentSites,false,'older clients cannot reset the recent-site preference');
       assert.equal(getUserSettings('settings-b').browserUse.enabled,false,'another account keeps its disabled browser default');
       saveUserSettings('settings-a','browser-use',structuredClone(DEFAULT_USER_SETTINGS.browserUse));
       for(const {id} of UI_MOTION_EFFECT_OPTIONS){

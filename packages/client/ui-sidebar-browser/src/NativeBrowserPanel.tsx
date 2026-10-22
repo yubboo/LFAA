@@ -8,7 +8,15 @@ import { getErrorMessage, setNativeBrowserActiveTarget, type NativeBrowserInspec
 import "./native-browser-panel.css";
 import { resolveBrowserAddress } from "./browser-address.js";
 
-type Props = { sessionId: string | null; settings: UserSettings };
+type Props = {
+  sessionId: string | null;
+  settings: UserSettings;
+  navigationRequest?: { id: string; url: string } | null;
+  onNavigationRequestHandled?: (requestId: string) => void;
+  actionRequest?: { id: string; action: "back" | "forward" | "reload" } | null;
+  onActionRequestHandled?: (requestId: string) => void;
+  onOpenTabsChange?: (tabs: Array<{ id: string; title: string; url: string; active: boolean }>) => void;
+};
 type PanelView = "page" | "text" | "elements" | "json";
 type NativeBrowserApi = NonNullable<NonNullable<Window["lfaaDesktop"]>["nativeBrowser"]>;
 
@@ -28,7 +36,7 @@ function isNativeBrowserState(value: unknown): value is NativeBrowserState {
     && typeof (value as { visible?: unknown }).visible === "boolean";
 }
 
-export function NativeBrowserPanel({ sessionId, settings }: Props) {
+export function NativeBrowserPanel({ sessionId, settings, navigationRequest, onNavigationRequestHandled, actionRequest, onActionRequestHandled, onOpenTabsChange }: Props) {
   const api = useMemo(nativeApi, []);
   const [state, setState] = useState<NativeBrowserState>({ tabs: [], activeTabId: null, visible: false });
   const [address, setAddress] = useState("");
@@ -45,6 +53,8 @@ export function NativeBrowserPanel({ sessionId, settings }: Props) {
   const addressRef = useRef<HTMLInputElement | null>(null);
   const findRef = useRef<HTMLInputElement | null>(null);
   const boundTargetRef = useRef("");
+  const handledNavigationRequestRef = useRef("");
+  const handledActionRequestRef = useRef("");
   const [inspectionRevision, setInspectionRevision] = useState(0);
   const activeTab = state.tabs.find(tab => tab.id === state.activeTabId) ?? null;
   const searchEngine = settings.browserUse.searchEngine;
@@ -52,6 +62,10 @@ export function NativeBrowserPanel({ sessionId, settings }: Props) {
   const agentCanUseNativeBrowser = settings.browserUse.enabled && settings.browserUse.enabledProviderIds.includes("lfaa-native-browser");
 
   useEffect(() => { setDismissedTabError(""); }, [activeTab?.error, activeTab?.id]);
+
+  useEffect(() => {
+    onOpenTabsChange?.(state.tabs.map(tab => ({ id: tab.id, title: tab.title, url: tab.url, active: tab.active })));
+  }, [onOpenTabsChange, state.tabs]);
 
   useEffect(() => {
     const targetId = activeTab?.targetId ?? "";
@@ -184,6 +198,29 @@ export function NativeBrowserPanel({ sessionId, settings }: Props) {
       await run(() => api.navigate(activeTab.id, url));
     } catch (reason) { setError(getErrorMessage(reason)); }
   }, [activeTab, address, api, run, searchEngine]);
+
+  useEffect(() => {
+    if (!navigationRequest) return;
+    setAddress(navigationRequest.url);
+    if (!api || !activeTab || handledNavigationRequestRef.current === navigationRequest.id) return;
+    handledNavigationRequestRef.current = navigationRequest.id;
+    try {
+      const target = resolveBrowserAddress(navigationRequest.url, searchEngine);
+      void run(() => api.navigate(activeTab.id, target)).finally(() => onNavigationRequestHandled?.(navigationRequest.id));
+    } catch (reason) {
+      setError(getErrorMessage(reason));
+      onNavigationRequestHandled?.(navigationRequest.id);
+    }
+  }, [activeTab?.id, api, navigationRequest?.id, navigationRequest?.url, onNavigationRequestHandled, run, searchEngine]);
+
+  useEffect(() => {
+    if (!actionRequest || navigationRequest || !api || !activeTab || handledActionRequestRef.current === actionRequest.id) return;
+    handledActionRequestRef.current = actionRequest.id;
+    const operation = actionRequest.action === "back" ? () => api.back(activeTab.id)
+      : actionRequest.action === "forward" ? () => api.forward(activeTab.id)
+        : () => api.reload(activeTab.id);
+    void run(operation).finally(() => onActionRequestHandled?.(actionRequest.id));
+  }, [actionRequest?.action, actionRequest?.id, activeTab?.id, api, navigationRequest, onActionRequestHandled, run]);
 
   const switchTab = useCallback(async (tab: NativeBrowserTab) => {
     await run(() => api!.selectTab(tab.id));

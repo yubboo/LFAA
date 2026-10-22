@@ -120,6 +120,7 @@ export interface BrowserSessionSnapshot {
   screenshot: { mimeType: "image/jpeg"; dataBase64: string; width: number; height: number } | null;
 }
 export interface BrowserRevision { revision: number; url: string; title: string }
+export interface BrowserRecentSite { url: string; visitedAt: string }
 export interface NativeBrowserTab {
   id: string;
   targetId: string;
@@ -1236,6 +1237,18 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 
 export function loadBrowserProviders(signal?: AbortSignal): Promise<{ providers: BrowserProviderSummary[]; personalBrowsersInspected: false }> {
   return request("/browser/providers", signal ? { signal } : {});
+}
+
+export function loadBrowserRecentSites(limit = 12, signal?: AbortSignal): Promise<{ sites: BrowserRecentSite[] }> {
+  return request(`/browser/recent-sites?${new URLSearchParams({ limit: String(limit) })}`, signal ? { signal } : {});
+}
+
+export function recordBrowserRecentSites(urls: string[], signal?: AbortSignal): Promise<{ recorded: number }> {
+  return request("/browser/recent-sites", { method: "POST", body: JSON.stringify({ urls }), ...(signal ? { signal } : {}) });
+}
+
+export function clearBrowserRecentSites(): Promise<{ cleared: true }> {
+  return request("/browser/recent-sites", { method: "DELETE" });
 }
 
 export function loadBrowserSession(sessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot | null }> {

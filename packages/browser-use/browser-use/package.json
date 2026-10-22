@@ -14,6 +14,7 @@
     "lfaa-launch-environment": "workspace:*",
     "lfaa-mcp-client": "workspace:*",
     "lfaa-settings": "workspace:*",
+    "lfaa-storage-sqlite": "workspace:*",
     "lfaa-tools": "workspace:*",
     "lfaa-util-values": "workspace:*",
     "playwright-core": "^1.56.1"

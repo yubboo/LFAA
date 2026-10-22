@@ -1,7 +1,7 @@
 /**
  * 文件：database.ts
  * 功能：打开控制端 SQLite 数据库并依次执行结构迁移。
- * 作用：持久化账户、身份权限、节点、应用任务及按记录存储的结构化配置；会话事件继续由 JSONL 负责。
+ * 作用：持久化账户、身份权限、节点、应用任务、账户设置及 Browser Owner 最近网站；会话事件继续由 JSONL 负责。
  * 关联文件：packages/util/launch-environment/src/config.ts、packages/identity/auth/src/service.ts、packages/identity/auth/src/passkeys.ts、packages/settings/settings/src/preferences/service.ts、packages/settings/settings/src/service.ts、packages/fs/fs/src/queue.ts、packages/games/steamcmd/src/service.ts。
  * 修改注意事项：迁移必须按版本递增并保持可重复启动；不得删除用户数据来绕过迁移。
  */
@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 60;
+const latestSupportedDatabaseVersion = 61;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -2009,3 +2009,28 @@ export function migrateWorkspaceLocalDefaultSchema(): void {
   }
 }
 migrateWorkspaceLocalDefaultSchema();
+
+/** 版本 61：账户隔离地记录 LFAA Browser Owner 实际访问过的网站，保存上限由 Browser Owner 维护。 */
+export function migrateBrowserRecentSitesSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 60 || version >= 61) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS browser_recent_sites (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        url TEXT NOT NULL CHECK (length(url) BETWEEN 1 AND 2048),
+        visited_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, url)
+      ) STRICT;
+      CREATE INDEX IF NOT EXISTS browser_recent_sites_user_recent_idx
+        ON browser_recent_sites(user_id, visited_at DESC, url);
+      PRAGMA user_version = 61;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateBrowserRecentSitesSchema();

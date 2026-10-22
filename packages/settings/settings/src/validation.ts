@@ -176,6 +176,7 @@ export const browserUseSettingsSchema = Joi.object({
   enabled: Joi.boolean().required(),
   enabledProviderIds: Joi.array().items(Joi.string().valid(...BROWSER_PROVIDER_IDS)).unique().max(BROWSER_PROVIDER_IDS.length).required(),
   showFullUrl: Joi.boolean().required(),
+  recordRecentSites: Joi.boolean().default(true),
   searchEngine: Joi.string().valid("bing", "google", "duckduckgo").default("bing")
 }).unknown(false);
 

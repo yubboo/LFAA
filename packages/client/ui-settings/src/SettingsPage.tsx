@@ -1,6 +1,7 @@
 /** 功能：呈现现有设置中心。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
+import { clearBrowserRecentSites } from "lfaa-client-connection/src/api.js";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-metrics.js";
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
@@ -3505,14 +3506,20 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           </SettingRow>
         </SettingGroup>
         <SettingGroup title="浏览数据">
-          <SettingRow title="清除网站数据" description="清除 LFAA 原生浏览器本次运行期间的 Cookie、缓存、本地站点数据和网站权限决定；不会触碰系统 Edge/Chrome 个人资料。原生网站数据不跨应用重启保存；当前版本未提供浏览历史和下载历史管理。" status={window.lfaaDesktop?.nativeBrowser ? "仅本次运行数据" : "桌面端可用"}>
+          <SettingRow title="记录最近访问的网站" description="按账户记录 LFAA 浏览器和 Agent 实际访问的网站；查询参数、片段、页面正文和表单内容不会保存，也不读取系统个人浏览器历史。关闭后停止新增记录，并隐藏已有记录。" status={settings.browserUse.recordRecentSites ? "已开启" : "已关闭"}>
+            <SettingsSwitch label="记录最近访问的网站" checked={settings.browserUse.recordRecentSites} onChange={() => updateSettings("browserUse", { ...settings.browserUse, recordRecentSites: !settings.browserUse.recordRecentSites })} />
+          </SettingRow>
+          <SettingRow title="清除最近网站记录" description="删除当前账户保存的全部最近网站条目；不会清除浏览器 Cookie、缓存或个人浏览器数据。" status="账户范围">
+            <Popconfirm title="清除当前账户的最近网站记录？" description="此操作会移除 LFAA Browser Dock 与 Agent 保存的网站条目。" okText="清除记录" cancelText="取消" onConfirm={() => void clearBrowserRecentSites().then(() => message.success("最近网站记录已清除。" )).catch(reason => message.error(getErrorMessage(reason)))}><Button>清除记录</Button></Popconfirm>
+          </SettingRow>
+          <SettingRow title="清除网站数据" description="清除 LFAA 原生浏览器本次运行期间的 Cookie、缓存、本地站点数据和网站权限决定；不会触碰系统 Edge/Chrome 个人资料。原生网站数据不跨应用重启保存；最近网站记录由上方账户设置单独管理。" status={window.lfaaDesktop?.nativeBrowser ? "仅本次运行数据" : "桌面端可用"}>
             <Button disabled={!window.lfaaDesktop?.nativeBrowser} onClick={() => void window.lfaaDesktop?.nativeBrowser.clearData().then(result => { if (result.cleared) message.success("LFAA 浏览器网站数据已清除。"); }).catch(reason => message.error(getErrorMessage(reason)))}>清除数据</Button>
           </SettingRow>
         </SettingGroup>
         <SettingGroup title="当前版本支持范围">
           <SettingRow title="Electron 原生浏览器工作区" description="源码包含 Chromium 原生页面、多标签、地址导航、前进后退、停止/刷新、页面查找、缩放、打印与下载入口；真实桌面窗口尚未运行验收。" status="桌面实页待验"><Tag>桌面实页待验</Tag></SettingRow>
           <SettingRow title="页面观察、网站权限与下载" description="源码包含页面信息读取、网站权限请求处理和系统下载对话框；摄像头、麦克风、位置、通知等真实桌面弹窗及下载结果尚未验收。网页登录、OAuth 授权和验证码由用户手动完成。" status="桌面实页待验"><Tag>桌面实页待验</Tag></SettingRow>
-          <SettingRow title="历史、书签、密码/联系信息、扩展和下载历史管理" description="这些服务尚未接入独立的设置与数据 Owner；目前没有历史、书签、扩展及下载记录的管理控件。" status="尚未接入"><Tag>尚未接入</Tag></SettingRow>
+          <SettingRow title="书签、密码/联系信息、扩展和下载历史管理" description="除上方按账户保存的最近网站记录外，书签、密码/联系信息、扩展和下载记录管理尚未接入独立 Owner。" status="部分未接入"><Tag>部分未接入</Tag></SettingRow>
           <SettingRow title="Agent 原生页面控制" description="源码已接入：受信 Electron Host 的回环 CDP 只用于 Browser Owner 按账户、LFAA Session 和用户当前选中的 Target 绑定；调用仍经认证 API 与 Permission Owner。CDP 端点不提供给 Renderer 或 Agent Tool；桌面实际操作尚未验收。" status="源码已接入 · 桌面实测待验"><Tag>桌面实测待验</Tag></SettingRow>
         </SettingGroup>
       </section>;

@@ -10,7 +10,17 @@ import { NativeBrowserPanel } from "./NativeBrowserPanel.js";
 import { resolveBrowserAddress } from "./browser-address.js";
 import "./browser-panel.css";
 
-type BrowserPanelProps = { sessionId: string | null; settings: UserSettings };
+type BrowserNavigationRequest = { id: string; url: string };
+type BrowserDockActionRequest = { id: string; action: "back" | "forward" | "reload" };
+type BrowserPanelProps = {
+  sessionId: string | null;
+  settings: UserSettings;
+  navigationRequest?: BrowserNavigationRequest | null;
+  onNavigationRequestHandled?: (requestId: string) => void;
+  actionRequest?: BrowserDockActionRequest | null;
+  onActionRequestHandled?: (requestId: string) => void;
+  onOpenTabsChange?: (tabs: Array<{ id: string; title: string; url: string; active: boolean }>) => void;
+};
 type BrowserView = "preview" | "text" | "elements" | "json";
 type BrowserViewport = { width: number; height: number };
 type BrowserPagePoint = { x: number; y: number };
@@ -40,7 +50,7 @@ function originOnly(value: string): string {
   try { return new URL(value).origin; } catch { return value; }
 }
 
-function BrowserUsePanel({ sessionId, settings }: BrowserPanelProps) {
+function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationRequestHandled, actionRequest, onActionRequestHandled, onOpenTabsChange }: BrowserPanelProps) {
   const [providers, setProviders] = useState<BrowserProviderSummary[]>([]);
   const [browserSettings, setBrowserSettings] = useState<UserSettings["browserUse"]>(settings.browserUse);
   const computerControlEnabled = settings.computerControl.enabled;
@@ -57,6 +67,8 @@ function BrowserUsePanel({ sessionId, settings }: BrowserPanelProps) {
   const [viewportSyncing, setViewportSyncing] = useState(false);
   const [providerLoading, setProviderLoading] = useState(true);
   const actionInFlight = useRef(false);
+  const handledNavigationRequestRef = useRef("");
+  const handledActionRequestRef = useRef("");
   const actionEpochRef = useRef(0);
   const actionTailRef = useRef<Promise<void>>(Promise.resolve());
   const queuedActionCountRef = useRef(0);
@@ -81,6 +93,10 @@ function BrowserUsePanel({ sessionId, settings }: BrowserPanelProps) {
 
   useEffect(() => setBrowserSettings(settings.browserUse), [settings.browserUse]);
   useEffect(() => { snapshotRef.current = snapshot; }, [snapshot]);
+
+  useEffect(() => {
+    onOpenTabsChange?.(snapshot?.tabs ?? []);
+  }, [onOpenTabsChange, snapshot?.tabs]);
 
   useEffect(() => {
     const content = contentRef.current;
@@ -378,6 +394,26 @@ function BrowserUsePanel({ sessionId, settings }: BrowserPanelProps) {
       void runAction(() => navigateBrowser(sessionId, providerId, url));
     } catch (reason) { setError(getErrorMessage(reason)); }
   }, [address, browserSettings.searchEngine, providerConnected, providerId, runAction, sessionId]);
+
+  useEffect(() => {
+    if (!navigationRequest) return;
+    setAddress(navigationRequest.url);
+    if (!sessionId || !providerId || !providerConnected || handledNavigationRequestRef.current === navigationRequest.id) return;
+    handledNavigationRequestRef.current = navigationRequest.id;
+    try {
+      const target = resolveBrowserAddress(navigationRequest.url, browserSettings.searchEngine);
+      void runAction(() => navigateBrowser(sessionId, providerId, target)).finally(() => onNavigationRequestHandled?.(navigationRequest.id));
+    } catch (reason) {
+      setError(getErrorMessage(reason));
+      onNavigationRequestHandled?.(navigationRequest.id);
+    }
+  }, [browserSettings.searchEngine, navigationRequest?.id, navigationRequest?.url, onNavigationRequestHandled, providerConnected, providerId, runAction, sessionId]);
+
+  useEffect(() => {
+    if (!actionRequest || navigationRequest || !sessionId || !providerId || !providerConnected || handledActionRequestRef.current === actionRequest.id) return;
+    handledActionRequestRef.current = actionRequest.id;
+    void runAction(() => actOnBrowser(sessionId, providerId, { action: actionRequest.action })).finally(() => onActionRequestHandled?.(actionRequest.id));
+  }, [actionRequest?.action, actionRequest?.id, navigationRequest, onActionRequestHandled, providerConnected, providerId, runAction, sessionId]);
 
   const onPreviewPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
     if (!sessionId || !providerId || !snapshot?.screenshot || !imageRef.current || !event.isPrimary || event.button !== 0) return;

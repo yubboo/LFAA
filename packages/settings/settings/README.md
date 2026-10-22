@@ -25,3 +25,5 @@
 设置页沿用共享主题、字号、动效与响应式配置；[本轮提示词](../../../docs/development/file-resources.zh.md)。构建只写根 dist/packages/settings/settings。
 
 外观自定义背景由 Settings Owner 按认证账户保存文件与 MIME 索引；上传声明中的 MIME 只作提示，实际 PNG/JPEG/WebP 类型按文件签名确定，再由唯一尺寸解析和服务端 3 MiB、8192 边长、2000 万像素限制校验。素材文件回读、摘要、读取和删除继续按账户隔离；构建只写根 dist/packages/settings/settings。
+
+`browserUse.recordRecentSites` 默认开启并按账户保存设置；旧客户端保存其他 Browser Use 字段时省略该值不会覆盖已有选择。该开关不控制 Agent 工具连接权限，只由 Browser Owner 用于停止/恢复最近网站元数据的写入与读取。

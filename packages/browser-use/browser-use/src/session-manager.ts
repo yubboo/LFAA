@@ -8,6 +8,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { isPublicMcpAddress, resolveMcpEndpoint } from "lfaa-mcp-client/src/network.js";
+import { database } from "lfaa-storage-sqlite/src/database.js";
+import { getUserSettings } from "lfaa-settings/src/service.js";
 import type { BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 import { TabbitBrowserProvider, type TabbitTabSummary } from "./tabbit-provider.js";
 
@@ -21,6 +23,7 @@ const MAX_INTERACTIVE_ITEMS = 80;
 const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1280;
 const PAGE_ACTION_TIMEOUT_MS = 8_000;
+const MAX_RECENT_SITES_PER_USER = 100;
 const SENSITIVE_FIELD = /(?:password|passcode|secret|token|api[\s_-]?key|authorization|验证码|密码|密钥|令牌)/iu;
 export const BROWSER_ALLOWED_KEYS = ["Enter", "Tab", "Shift+Tab", "Escape", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Home", "End", "PageDown", "PageUp", "Space", "Backspace", "Delete", "Control+A", "Meta+A", "Control+C", "Control+V", "Control+X", "Control+Z", "Control+Y", "Meta+C", "Meta+V", "Meta+X", "Meta+Z", "Meta+Y"] as const;
 const BROWSER_ALLOWED_KEY_SET: ReadonlySet<string> = new Set(BROWSER_ALLOWED_KEYS);
@@ -39,6 +42,7 @@ export interface BrowserSnapshot {
   screenshot: { mimeType: "image/jpeg"; dataBase64: string; width: number; height: number } | null;
 }
 export interface BrowserRevision { revision: number; url: string; title: string }
+export interface BrowserRecentSite { url: string; visitedAt: string }
 export interface BrowserDragPoint { x: number; y: number; delayMs: number }
 export interface BrowserRunAdapterContext {
   ownerId: string;
@@ -73,6 +77,7 @@ interface BrowserSession {
   operationTail: Promise<void>;
   allowedLocalOrigin: string | null;
   projectPreview: { url: string; close: () => Promise<void> } | null;
+  lastRecentUrl: string;
   ownsContext: boolean;
   nativePageHandlers?: Map<Page, { domcontentloaded: () => void; close: () => void; framenavigated: (frame: import("playwright-core").Frame) => void }>;
   nativePageListener?: (page: Page) => void;
@@ -109,6 +114,14 @@ function validateNavigationUrl(input: string): URL {
   return url;
 }
 
+function normalizeRecentSiteUrl(input: string): string | null {
+  try {
+    const url = new URL(input);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.href.length > 2048) return null;
+    return `${url.origin}${url.pathname}`;
+  } catch { return null; }
+}
+
 function isSensitiveField(label: string, type?: string): boolean {
   return type?.toLowerCase() === "password" || SENSITIVE_FIELD.test(label);
 }
@@ -126,9 +139,47 @@ export class BrowserSessionManager {
   private readonly nativeAppOrigin = process.env.LFAA_ELECTRON_BROWSER_APP_ORIGIN?.trim() ?? "";
   private disposed = false;
 
-  constructor(private readonly localHostExecution: boolean) {
+  constructor(
+    private readonly localHostExecution: boolean,
+    private readonly isRecentHistoryEnabled: (ownerId: string) => boolean = ownerId => getUserSettings(ownerId).browserUse.recordRecentSites
+  ) {
     this.tabbit = new TabbitBrowserProvider(localHostExecution);
     this.sweepTimer.unref?.();
+  }
+
+  getRecentSites(ownerId: string, limit = 12): BrowserRecentSite[] {
+    if (!ownerId || !this.isRecentHistoryEnabled(ownerId)) return [];
+    const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
+    const rows = database.prepare("SELECT url, visited_at FROM browser_recent_sites WHERE user_id = ? ORDER BY visited_at DESC, url LIMIT ?").all(ownerId, safeLimit) as Array<{ url: string; visited_at: string }>;
+    return rows.map(row => ({ url: row.url, visitedAt: row.visited_at }));
+  }
+
+  recordRecentSites(ownerId: string, urls: readonly string[]): number {
+    if (!ownerId || !this.isRecentHistoryEnabled(ownerId)) return 0;
+    if (!database.prepare("SELECT id FROM users WHERE id = ?").get(ownerId)) return 0;
+    const record = database.prepare(`
+      INSERT INTO browser_recent_sites(user_id, url, visited_at) VALUES (?, ?, ?)
+      ON CONFLICT(user_id, url) DO UPDATE SET visited_at = excluded.visited_at
+    `);
+    const prune = database.prepare(`
+      DELETE FROM browser_recent_sites WHERE user_id = ? AND url NOT IN (
+        SELECT url FROM browser_recent_sites WHERE user_id = ? ORDER BY visited_at DESC, url LIMIT ${MAX_RECENT_SITES_PER_USER}
+      )
+    `);
+    let recorded = 0;
+    for (const input of urls.slice(0, 64)) {
+      const url = normalizeRecentSiteUrl(input);
+      if (!url) continue;
+      record.run(ownerId, url, new Date().toISOString());
+      recorded += 1;
+    }
+    if (recorded) prune.run(ownerId, ownerId);
+    return recorded;
+  }
+
+  clearRecentSites(ownerId: string): void {
+    if (!ownerId) return;
+    database.prepare("DELETE FROM browser_recent_sites WHERE user_id = ?").run(ownerId);
   }
 
   createRunAdapter(binding: BrowserRunAdapterContext): BrowserRunAdapter {
@@ -483,7 +534,7 @@ export class BrowserSessionManager {
     const session: BrowserSession = {
       id: randomUUID(), ownerId, sourceSessionId, providerId, browser, context,
       page, lastUsedAt: Date.now(), revision: 0,
-      operationTail: Promise.resolve(), allowedLocalOrigin: null, projectPreview: null,
+      operationTail: Promise.resolve(), allowedLocalOrigin: null, projectPreview: null, lastRecentUrl: "",
       ownsContext: !isNativeProvider, disposed: false
     };
     if (isNativeProvider) {
@@ -637,6 +688,11 @@ export class BrowserSessionManager {
     this.touch(session);
     const page = session.page;
     if (page.isClosed()) throw new Error("当前浏览器标签已关闭；请重新打开 LFAA 隔离浏览器。");
+    const recentUrl = normalizeRecentSiteUrl(page.url());
+    if (recentUrl && recentUrl !== session.lastRecentUrl) {
+      session.lastRecentUrl = recentUrl;
+      this.recordRecentSites(session.ownerId, [recentUrl]);
+    }
     const [title, pageText, controls, screenshot, tabs] = await Promise.all([
       page.title().catch(() => ""),
       page.locator("body").innerText({ timeout: 4_000 }).catch(() => ""),

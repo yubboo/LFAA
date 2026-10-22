@@ -40,6 +40,8 @@ const providerQuerySchema = Joi.object({ providerId: providerSchema }).unknown(f
 const claimSchema = Joi.object({ providerId: providerSchema.valid("tabbit-personal"), tabId: Joi.number().integer().min(0).required() }).unknown(false);
 const tabbitConnectSchema = Joi.object({ sourceSessionId: sessionSchema }).unknown(false);
 const nativeActiveTargetSchema = Joi.object({ providerId: providerSchema.valid("lfaa-native-browser"), targetId: Joi.string().trim().min(1).max(128).pattern(/^[A-Za-z0-9_-]+$/u).required() }).unknown(false);
+const recentSitesQuerySchema = Joi.object({ limit: Joi.number().integer().min(1).max(50).default(12) }).unknown(false);
+const recentSitesBodySchema = Joi.object({ urls: Joi.array().items(Joi.string().uri({ scheme: ["http", "https"] }).max(2048)).min(1).max(64).required() }).unknown(false);
 
 function readSessionId(value: unknown): string {
   const result = sessionSchema.validate(value, { convert: false });
@@ -62,6 +64,20 @@ function assertProviderLinked(userId: string, providerId: BrowserProviderId): vo
 function registerRoutes(router: Router, manager: BrowserSessionManager): void {
   const auth = [requireAuthentication];
   const actionLimit = createRateLimit(600, 60_000);
+  router.get("/browser/recent-sites", ...auth, (request, response) => {
+    const result = recentSitesQuerySchema.validate(request.query);
+    if (result.error) throw new ApiError(400, "browser_recent_sites_query_invalid", "最近网站查询范围无效。");
+    const { limit } = result.value as { limit: number };
+    response.json({ sites: manager.getRecentSites(request.auth!.user.id, limit) });
+  });
+  router.post("/browser/recent-sites", ...auth, actionLimit, asyncHandler(async (request, response) => {
+    const body = parseBody<{ urls: string[] }>(recentSitesBodySchema, request.body);
+    response.json({ recorded: manager.recordRecentSites(request.auth!.user.id, body.urls) });
+  }));
+  router.delete("/browser/recent-sites", ...auth, actionLimit, (_request, response) => {
+    manager.clearRecentSites(_request.auth!.user.id);
+    response.json({ cleared: true });
+  });
   router.get("/browser/providers", ...auth, (_request, response) => response.json({ providers: manager.listProviders(), personalBrowsersInspected: false }));
   router.post("/browser/providers/tabbit-personal/connect", ...auth, actionLimit, asyncHandler(async (request, response) => {
     const body = parseBody<{ sourceSessionId: string }>(tabbitConnectSchema, request.body);

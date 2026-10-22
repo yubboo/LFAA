@@ -152,6 +152,8 @@ export interface BrowserUseSettings {
   enabledProviderIds: BrowserProviderId[];
   /** 是否在浏览器地址栏展示完整路径、查询参数与片段。 */
   showFullUrl: boolean;
+  /** 是否按账户保存 LFAA Browser Dock 与 Agent 实际访问的网站。 */
+  recordRecentSites: boolean;
   /** 地址栏输入普通文字时使用的默认搜索引擎。 */
   searchEngine: "bing" | "google" | "duckduckgo";
 }
@@ -321,6 +323,6 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   plugins: { enabled: false, mcpServers: [], prompts: [], skillDirectories: [], disabledSkillNames: [] },
   personalization: { memoryEnabled: false, memoryFromToolChats: false },
   computerControl: { enabled: false },
-  browserUse: { enabled: false, enabledProviderIds: [], showFullUrl: false, searchEngine: "bing" }
+  browserUse: { enabled: false, enabledProviderIds: [], showFullUrl: false, recordRecentSites: true, searchEngine: "bing" }
 };
 
