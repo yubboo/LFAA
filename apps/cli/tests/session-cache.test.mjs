@@ -19,7 +19,7 @@ test("多个会话不常驻全部正文，缓存淘汰和重启保留权威历�
     const close=()=>{sessionRecords.close();configuration.close();closeDatabase();};
   `;
   const run = script => execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", setup + script], {
-    cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: data, JWT_SECRET: "", LFAA_HARNESS_HOME: "" }, encoding: "utf8", stdio: "pipe", timeout: 60_000
+    cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: join(data, "home"), LFAA_HARNESS_HOME: join(data, "home"), LFAA_DATA_DIR: join(data, "business-data"), JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe", timeout: 60_000
   });
   try {
     run(`
@@ -73,7 +73,7 @@ test("多个会话不常驻全部正文，缓存淘汰和重启保留权威历�
     `);
     run(`
       const {readFileSync,writeFileSync}=await import('node:fs');const {createHash}=await import('node:crypto');
-      const path=process.env.LFAA_DATA_DIR+'/sessions/'+createHash('sha256').update('cache-session-0').digest('hex')+'/events.jsonl';
+      const path=process.env.LFAA_HOME+'/sessions/'+createHash('sha256').update('cache-session-0').digest('hex')+'/events.jsonl';
       // 先读取其他会话，使目标正文离开缓存，再篡改冷日志；冷恢复必须重新验证链。
       for(let i=1;i<20;i++)sessionRecords.allForSession('ai_messages','cache-session-'+i);
       writeFileSync(path,readFileSync(path,'utf8').replace('冷会话更新','伪造历史'));

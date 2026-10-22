@@ -342,6 +342,12 @@ export class JsonlSessionPersistence {
         && current.dev === revision.dev && current.ino === revision.ino;
     } catch { return false; }
   }
+  /** 给已完整验证的进程内投影提供稳定版本令牌，供异步缓存查询前后检查并发改写。 */
+  validatedRevisionToken(sessionId: string): string | null {
+    const revision = this.revisions.get(sessionId);
+    if (!revision || !this.isCurrentRevision(sessionId)) return null;
+    return [revision.sequence, revision.checksum, revision.size, revision.mtimeMs, revision.ctimeMs, revision.dev, revision.ino].join(":");
+  }
   remove(sessionId: string): void { rmSync(this.directory(sessionId), { recursive: true, force: true }); this.applied.delete(sessionId); this.revisions.delete(sessionId); }
   close(): void { this.lease.close(); }
 }

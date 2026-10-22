@@ -13,7 +13,7 @@ import type { ReactElement, SVGProps } from "react";
 export type WorkbenchIconName =
   | "archive" | "bolt" | "book" | "branch" | "browser" | "check" | "chevron" | "close" | "copy" | "dots" | "file" | "folder" | "grid" | "history"
   | "help" | "home" | "keyboard" | "microphone" | "moon" | "monitor" | "new" | "panelLeft" | "panelRight" | "plus" | "refresh" | "review" | "search"
-  | "settings" | "shield" | "spark" | "summary" | "sun" | "terminal" | "thumbDown" | "thumbUp" | "tools" | "trash" | "user" | "bell" | "extension";
+  | "settings" | "shield" | "spark" | "summary" | "sun" | "terminal" | "thumbDown" | "thumbUp" | "tools" | "trash" | "user" | "bell" | "extension" | "arrowRight";
 
 export interface WorkbenchIconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
   name: WorkbenchIconName;
@@ -23,6 +23,7 @@ export interface WorkbenchIconProps extends Omit<SVGProps<SVGSVGElement>, "name"
 const paths: Record<WorkbenchIconName, ReactElement> = {
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></>,
   archive: <><path d="M4 7h16"/><path d="M5 7v12h14V7"/><path d="M8 3h8l2 4H6l2-4Z"/><path d="M9 11h6"/></>,
+  arrowRight: <><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></>,
   bolt: <path d="m13 2-8 12h6l-1 8 9-13h-6l0-7Z"/>,
   book: <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22V5.5Z"/><path d="M4 6v14a2 2 0 0 1 2-2h14"/><path d="M8 7h8"/></>,
   branch: <><circle cx="6" cy="5" r="2.5"/><circle cx="18" cy="5" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.5 5h3a3 3 0 0 1 3 3v8a3 3 0 0 0 3 3"/><path d="M8.5 5h6.5a3 3 0 0 1 3 3"/></>,

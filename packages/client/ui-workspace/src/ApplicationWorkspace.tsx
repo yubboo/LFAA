@@ -9,7 +9,7 @@ import { loadAiSkillDirectory } from "lfaa-client-connection/src/api.js";
 import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
 import { sidebarRightRuntime, useSidebarRightSnapshot } from "./sidebar-right-runtime.js";
 
-import { createElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Alert, Button, Dropdown, Popover, Tag, Typography } from "antd";
 import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadWorkspaceProjects, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import type { AiWorkGoalRequest, AiWorkNotification, AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
@@ -55,6 +55,12 @@ type ApplicationSummary = {
   title: string;
   initials: string;
   color: "blue" | "green" | "plum";
+};
+
+type WorkspaceUtilityTab = {
+  id: string;
+  kind: "new" | "browser" | "git" | "applications" | "side-chat" | "extension";
+  extensionId?: string;
 };
 
 interface ApplicationWorkspaceProps {
@@ -277,7 +283,7 @@ function ApplicationSidebar({ userId, app, mode, apps, layoutMode, onNavigate, o
   }, [notificationsOpen]);
 
   return (
-    <div className="module-sidebar" data-ui="left-sidebar" data-layout-mode={layoutMode}>
+    <div className="module-sidebar module-workbench-region--secondary-navigation" data-ui="left-sidebar" data-layout-mode={layoutMode}>
       <header className="module-sidebar__brand-row">
         <button className="module-sidebar__brand" type="button" onClick={() => { if (mode === "ai-work") void onOpenSelectedApplication(); else void onOpenApplication("workspace", "ai-work"); }} aria-label={app === "workspace" ? "切换到上次使用的应用" : `切换到${nextModeLabel}`} title={app === "workspace" ? "切换到上次使用的应用" : `切换到${nextModeLabel}`}>
           <span className="module-sidebar__brand-mark">L</span><strong>LFAA</strong><WorkbenchIcon name="chevron" size={15} />
@@ -436,6 +442,7 @@ function PanelControl({ name, title, shortcut, active, onClick }: { name: "termi
 }
 
 export function ApplicationWorkspace({ userId, app, mode, section, apps, applicationNavigationItems, username, role, serverState, error, settings, onSettingsChange, onBack, onSelectedModeHome, onOpenSelectedApplication, onNavigate, onOpenSettings, onOpenApplication, recentSessionsOpenRequestId, onRecentSessionsOpenRequestHandled, rightPanelSection, onRightPanelSectionChange, applicationsOpenRequestId, onApplicationsOpenRequestHandled, activeAiSessionId, aiDraft, aiWorkGoal, notifications, onNotification, onMarkNotificationsRead, onClearNotifications, onOpenNotification, onActiveAiSessionChange, onAiDraftChange, onAiWorkGoalConsumed, onLogout }: ApplicationWorkspaceProps) {
+  const voiceMode = app === "workspace" && mode === "ai-work" && section === "voice";
   // 旧版 Host 可能缺少后续新增的快捷键项；由 Settings 默认值补齐，不覆盖已保存的空数组。
   const shortcuts = useMemo(() => resolveShortcutSettings(settings.shortcuts), [settings.shortcuts]);
   const sideChatShortcuts = shortcuts.openSideChat;
@@ -491,6 +498,12 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   const [sideChatQuestionRevision, setSideChatQuestionRevision] = useState(0);
   const [gitRefreshRevision, setGitRefreshRevision] = useState(0);
   const [aiWorkView, setAiWorkView] = useState<"chat" | "git" | "browser">("chat");
+  const [workspaceUtilityTabs, setWorkspaceUtilityTabs] = useState<WorkspaceUtilityTab[]>([{ id: "workspace-tab-1", kind: "new" }]);
+  const [activeWorkspaceUtilityTabId, setActiveWorkspaceUtilityTabId] = useState("workspace-tab-1");
+  const workspaceUtilityTabId = useRef(1);
+  const workspaceUtilityScope = useRef({ userId, mode });
+  const [centerCollapsed, setCenterCollapsed] = useState(false);
+  const [centerCollapsePreview, setCenterCollapsePreview] = useState<boolean | null>(null);
   const [gitRepositoryChangeError, setGitRepositoryChangeError] = useState("");
   const [fileReviewRequest, setFileReviewRequest] = useState<{ projectId: string; path: string; requestId: number } | null>(null);
   const [aiProviderStatus, setAiProviderStatus] = useState<string | null>(null);
@@ -502,6 +515,17 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   const [writingLibraryPortalTarget, setWritingLibraryPortalTarget] = useState<HTMLDivElement | null>(null);
   const writingFlushRef = useRef<(() => Promise<void>) | null>(null);
   const [minecraftContentReady, setMinecraftContentReady] = useState(app !== "minecraft");
+  useEffect(() => {
+    if (workspaceUtilityScope.current.userId === userId && workspaceUtilityScope.current.mode === mode) return;
+    workspaceUtilityScope.current = { userId, mode };
+    const nextTab = { id: `workspace-tab-${++workspaceUtilityTabId.current}`, kind: "new" as const };
+    setWorkspaceUtilityTabs([nextTab]);
+    setActiveWorkspaceUtilityTabId(nextTab.id);
+    setCenterCollapsed(false);
+    setSideChatOpen(false);
+    setAiWorkView("chat");
+    sidebarRightRuntime.select(null);
+  }, [mode, userId]);
   const togglePinnedSession = useCallback((sessionId: string) => {
     setPinnedSessionState(current => {
       const ids = current.userId === userId ? current.ids : readPinnedAiSessionIds(userId);
@@ -683,13 +707,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     return () => controller.abort();
   }, [gitRefreshRevision, mode, userId]);
   useEffect(() => {
-    if (mode !== "ai-work" || !activeAiSessionId) {
+    if (mode !== "ai-work" || voiceMode || !activeAiSessionId) {
       setSessionGitBinding({ sessionId: "", repositoryId: null, loading: false });
       return;
     }
     setGitManagerRepositoryState({ userId, repositoryId: null });
     void ensureSessionGitRepository(activeAiSessionId);
-  }, [activeAiSessionId, ensureSessionGitRepository, gitRefreshRevision, mode, userId]);
+  }, [activeAiSessionId, ensureSessionGitRepository, gitRefreshRevision, mode, userId, voiceMode]);
   useEffect(() => {
     if (mode !== "ai-work" || !selectedAgentGitRepository) {
       gitStatusRequestRevision.current += 1;
@@ -881,7 +905,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     setWorkspaceProjectsError("");
     void (async () => {
       let initializationError = "";
-      if (app === "workspace" && !initializedDefaultWorkspaceUsers.has(userId)) {
+      if (app === "workspace" && !voiceMode && !initializedDefaultWorkspaceUsers.has(userId)) {
         try {
           await initializeDefaultWorkspace(controller.signal);
           if (controller.signal.aborted) return;
@@ -914,7 +938,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
       }
     })();
     return () => controller.abort();
-  }, [userId, app, mode, workspaceProjectsRevision]);
+  }, [userId, app, mode, voiceMode, workspaceProjectsRevision]);
 
   const retryWorkspaceProjects = useCallback(() => setWorkspaceProjectsRevision(revision => revision + 1), []);
 
@@ -970,36 +994,135 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
       ...(metrics.mode !== "desktop" ? { leftCollapsed: true } : {}),
     }));
   }, [metrics.mode, onRightPanelSectionChange]);
+  const showWorkspaceUtilityTab = useCallback((tab: WorkspaceUtilityTab) => {
+    setChrome((current) => ({
+      ...current,
+      rightCollapsed: false,
+      ...(metrics.mode !== "desktop" ? { leftCollapsed: true } : {}),
+    }));
+    if (tab.kind === "side-chat") {
+      onRightPanelSectionChange("context");
+      sidebarRightRuntime.select(null);
+      setAiWorkView("chat");
+      setSideChatOpen(true);
+      return;
+    }
+    setSideChatOpen(false);
+    if (tab.kind === "applications") {
+      setAiWorkView("chat");
+      showRightPanelSection("applications");
+      return;
+    }
+    onRightPanelSectionChange("context");
+    if (tab.kind === "extension") {
+      setAiWorkView("chat");
+      const extension = sidebarRight.tabs.find(item => item.id === tab.extensionId);
+      if (extension) sidebarRightRuntime.control.openTab(extension.kind);
+      else sidebarRightRuntime.select(null);
+      return;
+    }
+    sidebarRightRuntime.select(null);
+    setAiWorkView(tab.kind === "browser" ? "browser" : tab.kind === "git" ? "git" : "chat");
+  }, [metrics.mode, onRightPanelSectionChange, showRightPanelSection, sidebarRight.tabs]);
+  const openWorkspaceUtility = useCallback((kind: Exclude<WorkspaceUtilityTab["kind"], "new">, extensionId?: string) => {
+    const activeTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId);
+    if (activeTab?.kind === "new") {
+      const nextTab = { ...activeTab, kind, ...(extensionId ? { extensionId } : {}) } as WorkspaceUtilityTab;
+      setWorkspaceUtilityTabs(current => current.map(tab => tab.id === nextTab.id ? nextTab : tab));
+      showWorkspaceUtilityTab(nextTab);
+      return;
+    }
+    const nextTab = { id: `workspace-tab-${++workspaceUtilityTabId.current}`, kind, ...(extensionId ? { extensionId } : {}) } as WorkspaceUtilityTab;
+    setWorkspaceUtilityTabs(current => [...current, nextTab]);
+    setActiveWorkspaceUtilityTabId(nextTab.id);
+    showWorkspaceUtilityTab(nextTab);
+  }, [activeWorkspaceUtilityTabId, showWorkspaceUtilityTab, workspaceUtilityTabs]);
+  const createWorkspaceUtilityTab = useCallback(() => {
+    const nextTab: WorkspaceUtilityTab = { id: `workspace-tab-${++workspaceUtilityTabId.current}`, kind: "new" };
+    setWorkspaceUtilityTabs(current => [...current, nextTab]);
+    setActiveWorkspaceUtilityTabId(nextTab.id);
+    showWorkspaceUtilityTab(nextTab);
+  }, [showWorkspaceUtilityTab]);
+  const selectWorkbenchTab = useCallback((tab: "chat" | string) => {
+    setCenterCollapsePreview(null);
+    if (tab === "chat") {
+      setCenterCollapsed(false);
+      return;
+    }
+    const selectedTab = workspaceUtilityTabs.find(item => item.id === tab);
+    if (!selectedTab) return;
+    setActiveWorkspaceUtilityTabId(selectedTab.id);
+    showWorkspaceUtilityTab(selectedTab);
+    setCenterCollapsed(true);
+  }, [showWorkspaceUtilityTab, workspaceUtilityTabs]);
+  const handleCenterCollapsedChange = useCallback((collapsed: boolean) => {
+    setCenterCollapsed(collapsed);
+    if (!collapsed) {
+      setCenterCollapsePreview(null);
+      return;
+    }
+    let selectedTab = workspaceUtilityTabs.find(item => item.id === activeWorkspaceUtilityTabId);
+    if (!selectedTab) {
+      selectedTab = { id: `workspace-tab-${++workspaceUtilityTabId.current}`, kind: "new" };
+      setWorkspaceUtilityTabs(current => [...current, selectedTab!]);
+      setActiveWorkspaceUtilityTabId(selectedTab.id);
+    }
+    showWorkspaceUtilityTab(selectedTab);
+  }, [activeWorkspaceUtilityTabId, showWorkspaceUtilityTab, workspaceUtilityTabs]);
+  const closeWorkspaceUtilityTab = useCallback((tabId: string) => {
+    const index = workspaceUtilityTabs.findIndex(tab => tab.id === tabId);
+    if (index < 0) return;
+    const nextTabs = workspaceUtilityTabs.filter(tab => tab.id !== tabId);
+    setWorkspaceUtilityTabs(nextTabs);
+    if (nextTabs.length === 0) {
+      setActiveWorkspaceUtilityTabId("");
+      setCenterCollapsed(false);
+      return;
+    }
+    if (activeWorkspaceUtilityTabId === tabId) {
+      const nextTab = nextTabs[Math.min(index, nextTabs.length - 1)];
+      setActiveWorkspaceUtilityTabId(nextTab.id);
+      showWorkspaceUtilityTab(nextTab);
+    }
+  }, [activeWorkspaceUtilityTabId, showWorkspaceUtilityTab, workspaceUtilityTabs]);
   const openGitManager = useCallback((repositoryId?: string, action?: "commit" | "push" | "branch-create" | "branch-switch") => {
     const targetRepositoryId = repositoryId ?? selectedAgentGitRepositoryId ?? agentGitRepositories[0]?.id ?? null;
     if (targetRepositoryId) setGitManagerRepositoryState({ userId, repositoryId: targetRepositoryId });
     setGitSummaryActionRepositoryId(null);
     setGitManagerActionRequest(action && targetRepositoryId ? { repositoryId: targetRepositoryId, action, requestId: ++gitManagerActionRequestRevision.current } : null);
-    setSideChatOpen(false);
     setGitSummaryOpen(false);
-    showRightPanelSection("context");
-    setAiWorkView("git");
+    openWorkspaceUtility("git");
     if (!targetRepositoryId && activeAiSessionId) {
       void ensureSessionGitRepository(activeAiSessionId).then(repository => {
         if (repository && activeAiSessionIdRef.current === activeAiSessionId) setGitManagerRepositoryState({ userId, repositoryId: repository.id });
       });
     }
-  }, [activeAiSessionId, agentGitRepositories, ensureSessionGitRepository, selectedAgentGitRepositoryId, showRightPanelSection, userId]);
+  }, [activeAiSessionId, agentGitRepositories, ensureSessionGitRepository, openWorkspaceUtility, selectedAgentGitRepositoryId, userId]);
   const toggleApplicationsPanel = useCallback(() => {
     if (rightPanelSection === "applications" && !chrome.rightCollapsed) {
       setChrome((current) => ({ ...current, rightCollapsed: true }));
       return;
     }
-    showRightPanelSection("applications");
-  }, [chrome.rightCollapsed, rightPanelSection, showRightPanelSection]);
+    if (mode !== "ai-work") {
+      showRightPanelSection("applications");
+      return;
+    }
+    openWorkspaceUtility("applications");
+  }, [chrome.rightCollapsed, mode, openWorkspaceUtility, rightPanelSection, showRightPanelSection]);
   const openToolsPanel = useCallback(() => {
-    if (rightPanelSection === "context" && !chrome.rightCollapsed && aiWorkView !== "git") {
+    if (mode !== "ai-work") {
+      if (rightPanelSection === "context" && !chrome.rightCollapsed) setChrome((current) => ({ ...current, rightCollapsed: true }));
+      else showRightPanelSection("context");
+      return;
+    }
+    const activeTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId);
+    if (rightPanelSection === "context" && !chrome.rightCollapsed && activeTab?.kind === "new" && sidebarRight.activeId === null) {
       setChrome((current) => ({ ...current, rightCollapsed: true }));
       return;
     }
-    setAiWorkView("chat");
-    showRightPanelSection("context");
-  }, [aiWorkView, chrome.rightCollapsed, rightPanelSection, showRightPanelSection]);
+    if (activeTab?.kind === "new") showWorkspaceUtilityTab(activeTab);
+    else createWorkspaceUtilityTab();
+  }, [activeWorkspaceUtilityTabId, chrome.rightCollapsed, createWorkspaceUtilityTab, mode, rightPanelSection, showRightPanelSection, showWorkspaceUtilityTab, sidebarRight.activeId, workspaceUtilityTabs]);
   const showRecentSessions = useCallback(() => {
     setChrome((current) => ({
       ...current,
@@ -1016,9 +1139,10 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   }, [mode, onRecentSessionsOpenRequestHandled, recentSessionsOpenRequestId, showRecentSessions]);
   useEffect(() => {
     if (applicationsOpenRequestId === null) return;
-    showRightPanelSection("applications");
+    if (mode === "ai-work") openWorkspaceUtility("applications");
+    else showRightPanelSection("applications");
     onApplicationsOpenRequestHandled(applicationsOpenRequestId);
-  }, [applicationsOpenRequestId, onApplicationsOpenRequestHandled, showRightPanelSection]);
+  }, [applicationsOpenRequestId, mode, onApplicationsOpenRequestHandled, openWorkspaceUtility, showRightPanelSection]);
   const toggleRight = useCallback(() => {
     if (chrome.rightCollapsed) {
       showRightPanelSection("context");
@@ -1027,15 +1151,15 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
     setChrome((current) => ({ ...current, rightCollapsed: true }));
   }, [chrome.rightCollapsed, showRightPanelSection]);
   const openSideChat = useCallback((initialQuestion = "") => {
-    onRightPanelSectionChange("context");
-    sidebarRightRuntime.select(null);
-    setAiWorkView("chat");
-    setSideChatOpen(true);
     setSideChatInitialQuestion(initialQuestion);
     setSideChatQuestionRevision((revision) => revision + 1);
-    setChrome((current) => ({ ...current, rightCollapsed: false, ...(metrics.mode === "mobile" ? { leftCollapsed: true } : {}) }));
-  }, [metrics.mode, onRightPanelSectionChange]);
-  const closeSideChat = useCallback(() => setSideChatOpen(false), []);
+    openWorkspaceUtility("side-chat");
+  }, [openWorkspaceUtility]);
+  const closeSideChat = useCallback(() => {
+    setSideChatOpen(false);
+    const activeTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId);
+    if (activeTab?.kind === "side-chat") closeWorkspaceUtilityTab(activeTab.id);
+  }, [activeWorkspaceUtilityTabId, closeWorkspaceUtilityTab, workspaceUtilityTabs]);
   const toggleSideChat = useCallback(() => {
     if (sideChatOpen) closeSideChat();
     else openSideChat();
@@ -1261,17 +1385,65 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   };
   const left = <ApplicationSidebar {...sidebarProps} />;
   const leftPreview = <ApplicationSidebar {...sidebarProps} />;
+  const showWorkbenchTabs = mode === "ai-work" && !voiceMode;
+  const activeCenterCollapsed = centerCollapsePreview ?? centerCollapsed;
+  const activeWorkspaceUtilityTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId) ?? null;
+  const workspaceUtilityTabTitle = (tab: WorkspaceUtilityTab): string => {
+    if (tab.kind === "new") return "新标签页";
+    if (tab.kind === "browser") return "浏览器";
+    if (tab.kind === "git") return "变更";
+    if (tab.kind === "applications") return "应用";
+    if (tab.kind === "side-chat") return "侧边聊天";
+    const extension = sidebarRight.tabs.find(item => item.id === tab.extensionId);
+    return extension ? (typeof extension.title === "function" ? extension.title() : extension.title) : "扩展面板";
+  };
+  const selectedWorkbenchTab = activeCenterCollapsed ? activeWorkspaceUtilityTab?.id ?? "chat" : "chat";
+  const handleWorkbenchTabKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, tabId: string) => {
+    const order = ["chat", ...workspaceUtilityTabs.map(tab => tab.id)];
+    const index = order.indexOf(tabId);
+    const targetIndex = event.key === "Home" ? 0
+      : event.key === "End" ? order.length - 1
+        : event.key === "ArrowRight" ? (index + 1) % order.length
+          : event.key === "ArrowLeft" ? (index - 1 + order.length) % order.length
+            : -1;
+    if (targetIndex < 0) return;
+    event.preventDefault();
+    const target = order[targetIndex];
+    document.getElementById(`module-workbench-tab-${target}`)?.focus();
+    selectWorkbenchTab(target);
+  };
+  const workbenchTabs = showWorkbenchTabs && activeCenterCollapsed ? <div className="module-workbench-tabstrip">
+    <nav className="module-workbench-tabs module-workbench-tabs--context" role="tablist" aria-label="工作区标签">
+      <button id="module-workbench-tab-chat" className="module-workbench-tab" type="button" role="tab" aria-selected={selectedWorkbenchTab === "chat"} aria-controls="module-workbench-tab-panel" tabIndex={selectedWorkbenchTab === "chat" ? 0 : -1} onClick={() => selectWorkbenchTab("chat")} onKeyDown={event => handleWorkbenchTabKeyDown(event, "chat")} aria-label={activeAiSessionTitle?.trim() || "小鱼智能体"} title={activeAiSessionTitle?.trim() || "小鱼智能体"}>
+        <WorkbenchIcon name="spark" size={14} /><span>{activeAiSessionTitle?.trim() || "小鱼智能体"}</span>
+      </button>
+      {workspaceUtilityTabs.map(tab => {
+        const title = workspaceUtilityTabTitle(tab);
+        const selected = selectedWorkbenchTab === tab.id;
+        const icon = tab.kind === "browser" ? "browser" : tab.kind === "git" ? "branch" : tab.kind === "applications" ? "grid" : tab.kind === "side-chat" ? "help" : tab.kind === "extension" ? "extension" : "new";
+        return <div key={tab.id} className={`module-workbench-tab-item${selected ? " is-active" : ""}`} role="presentation">
+          <button id={`module-workbench-tab-${tab.id}`} className="module-workbench-tab" type="button" role="tab" aria-selected={selected} aria-controls="module-workbench-tab-panel" tabIndex={selected ? 0 : -1} onClick={() => selectWorkbenchTab(tab.id)} onKeyDown={event => handleWorkbenchTabKeyDown(event, tab.id)} aria-label={title} title={title}>
+            <WorkbenchIcon name={icon} size={14} /><span>{title}</span>
+          </button>
+          <button className="module-workbench-tab-close" type="button" aria-label={`关闭${title}`} title={`关闭${title}`} tabIndex={selected ? 0 : -1} onClick={() => closeWorkspaceUtilityTab(tab.id)}><WorkbenchIcon name="close" size={12} /></button>
+        </div>;
+      })}
+    </nav>
+    <span className="module-workbench-tabs__spacer" aria-hidden="true" />
+    <button className="module-workbench-tab-add" type="button" aria-label="新建标签页" title="新建标签页" onClick={createWorkspaceUtilityTab}><WorkbenchIcon name="plus" size={16} /></button>
+  </div> : null;
   const center = (
-    <div className="module-center">
+    <div className="module-center module-workbench-region--center-workspace">
       <header className="module-center__header" data-layout-mode={metrics.mode}>
         <div className="module-center__heading">
           <button className="module-shell-icon-button" type="button" aria-label="切换会话与项目栏" aria-expanded={!chrome.leftCollapsed} aria-keyshortcuts={shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`切换会话与项目栏 · ${shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={openLeftPreview} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
-          <div className="module-center__title"><WorkbenchIcon name={mode === "normal" ? "folder" : "spark"} size={16} /><strong>{mode === "ai-work" ? "小鱼智能体" : selectedApp.title}</strong></div>
+          <div className="module-center__title" title={mode === "ai-work" ? activeAiSessionTitle?.trim() || "小鱼智能体" : selectedApp.title}><WorkbenchIcon name={mode === "normal" ? "folder" : "spark"} size={16} /><strong>{mode === "ai-work" ? activeAiSessionTitle?.trim() || "小鱼智能体" : selectedApp.title}</strong></div>
         </div>
         <div className="module-center__actions">
-          {settings.general.showServiceStatus ? <span className={`module-runtime-state${serverState === "online" ? " is-connected" : ""}`}><i aria-hidden="true" />{statusLabel}</span> : null}
+          {app === "workspace" && mode === "ai-work" && section !== "voice" ? <Button className="module-center__voice-button" type="text" size="small" aria-label="语音主脑" title="语音主脑" icon={<WorkbenchIcon name="microphone" size={15} />} onClick={() => onNavigate("/voice")}>语音主脑</Button> : null}
+          {settings.general.showServiceStatus ? <span className={`module-runtime-state${serverState === "online" ? " is-connected" : ""}`} role="img" aria-label={statusLabel} title={statusLabel}><i aria-hidden="true" />{statusLabel}</span> : null}
           {gitManagerAvailable ? <div className="module-center__work-tabs" aria-label="Agent Git">
-            <button type="button" aria-pressed={aiWorkView === "git"} className={aiWorkView === "git" ? "is-active" : ""} onClick={() => openGitManager()} title={`当前 Agent 的 Git 变更：${gitSummaryText}`}>
+            <button type="button" aria-label={`当前 Agent 的 Git 变更：${gitSummaryText}`} aria-pressed={aiWorkView === "git"} className={aiWorkView === "git" ? "is-active" : ""} onClick={() => openGitManager()} title={`当前 Agent 的 Git 变更：${gitSummaryText}`}>
               <WorkbenchIcon name="branch" size={14} />变更{visibleGitStatus.status && visibleGitStatus.status.repositoryState !== "not-repository" ? <span>+{visibleGitStatus.status.insertions} −{visibleGitStatus.status.deletions}</span> : null}
             </button>
             {metrics.mode === "mobile" ? <Button className="module-git-summary-trigger" type="text" aria-label="在左侧打开 Git 摘要" title="Git 摘要" aria-haspopup="dialog" aria-expanded={gitSummaryOpen} aria-controls="module-sidebar-git-summary" onClick={() => {
@@ -1281,7 +1453,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
             }}><WorkbenchIcon name="summary" size={17} /></Button> : <Popover
               arrow={false}
               content={gitSummaryContent}
-              getPopupContainer={trigger => trigger.closest(".module-workbench-stage") ?? document.body}
+              getPopupContainer={trigger => trigger.closest(".module-center") ?? document.body}
               onOpenChange={handleGitSummaryOpenChange}
               open={gitSummaryOpen}
               overlayClassName="module-git-summary-popover"
@@ -1346,6 +1518,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
               onWritingWorkspaceChange={setWritingWorkspace}
               onOpenProjectFileReview={openProjectFileReview}
               onSessionFileChanges={onSessionFileChanges}
+              voiceMode={section === "voice"}
+              onExitVoice={() => onNavigate("/work")}
             />
           </Suspense>
           </div>
@@ -1389,12 +1563,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
   </section> : null;
 
   const right = (
-    <aside className="module-context" aria-label={contextLabel} data-layout-mode={metrics.mode}>
-      {metrics.mode === "desktop" && !chrome.rightCollapsed ? <header className="module-context__shell-actions">
-          {terminalPanelAvailable && settings.general.showBottomPanelControl ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
-          <PanelControl name="panelRight" title="收起上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active onClick={toggleRight} />
+    <aside className="module-context module-workbench-region--right-menu" aria-label={contextLabel} data-layout-mode={metrics.mode}>
+      {!chrome.rightCollapsed && (metrics.mode === "desktop" || (showWorkbenchTabs && activeCenterCollapsed)) ? <header className="module-context__shell-actions">
+          {workbenchTabs}
+          {metrics.mode === "desktop" && terminalPanelAvailable && settings.general.showBottomPanelControl ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
+          {metrics.mode === "desktop" ? <PanelControl name="panelRight" title="收起上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active onClick={toggleRight} /> : null}
       </header> : null}
-      <div ref={contextBodyScroll.ref} onScroll={contextBodyScroll.onScroll} className="module-context__body">
+      <div id={showWorkbenchTabs && activeCenterCollapsed ? "module-workbench-tab-panel" : undefined} role={showWorkbenchTabs && activeCenterCollapsed ? "tabpanel" : undefined} aria-labelledby={showWorkbenchTabs && activeCenterCollapsed ? `module-workbench-tab-${selectedWorkbenchTab}` : undefined} ref={contextBodyScroll.ref} onScroll={contextBodyScroll.onScroll} className="module-context__body">
       {mode === "ai-work" ? <div className="module-context__side-chat" hidden={!sideChatOpen}>
         <Suspense fallback={<ApplicationContentLoading />}><AiWorkSideChat
           key={activeAiSessionId ?? "no-session"}
@@ -1412,10 +1587,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
       </div> : null}
       <div className="module-context__default-content" hidden={mode === "ai-work" && sideChatOpen}>
       {terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "right" ? <div style={{ height: metrics.bottom.initial }}><TaskTerminal appId={app} settings={settings} sessionId={activeAiSessionId} role={role} onClose={toggleTerminal} /></div> : null}
-      <nav className="module-context__tabs" aria-label="右侧菜单">
+      {mode !== "ai-work" ? <nav className="module-context__tabs" aria-label="右侧菜单">
         <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat"} onClick={() => { setAiWorkView("chat"); showRightPanelSection("context"); }}>{contextLabel}</button>
-        {mode === "ai-work" ? <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "browser" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "browser"} onClick={() => { setAiWorkView("browser"); setSideChatOpen(false); showRightPanelSection("context"); }}>浏览器</button> : null}
-        {gitManagerAvailable ? <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "git" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "git"} onClick={() => openGitManager()}>变更</button> : null}
         <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "applications" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "applications"} aria-controls="module-context-applications" onClick={() => showRightPanelSection("applications")}>应用</button>
         {sidebarRight.tabs.flatMap((tab) => {
           const guideItems = [...(tab.guide ?? [])].sort((first, second) => first.order - second.order);
@@ -1430,7 +1603,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
             </button>;
           });
         })}
-      </nav>
+      </nav> : null}
       {sidebarRight.tabs.map((tab) => tab.keepMounted || sidebarRight.activeId === tab.id ? <div key={tab.id} className="module-context__tab-panel" hidden={sidebarRight.activeId !== tab.id} aria-hidden={sidebarRight.activeId !== tab.id}>{createElement(DshSlotOutlet, { name: "sidebar.right.pane.tab", entryKey: tab.id, fallback: <Alert type="warning" showIcon message="扩展面板尚未加载内容" description="此入口已登记，但当前没有 DSH Client 内容提供面板。请检查当前 Profile 的插件状态及 Client 入口加载错误。" /> })}</div> : null)}
       <ApplicationNavigationPanel userId={userId} app={app} mode={mode} section={section} applicationNavigationItems={applicationNavigationItems} onNavigate={navigateWithinApplication} onOpenApplication={openSidebarMode} onWritingLibraryPortalTargetChange={setWritingLibraryPortalTarget} hidden={rightPanelSection !== "applications" || sidebarRight.activeId !== null} />
       {sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "git" ? gitManagerPanel : null}
@@ -1441,29 +1614,39 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
         onWorkspaceChange={setWritingWorkspace}
         onClose={toggleRight}
       /></Suspense> : <>
-      <header className="module-context__heading"><div><strong>{contextLabel}</strong><span>{mode === "ai-work" ? "当前可用能力" : "手动操作与管理"}</span></div><span className={`module-context__connection module-context__connection--${serverState}`}><i aria-hidden="true" />{serverState === "online" ? "已连接" : serverState === "checking" ? "检查中" : "未连接"}</span><button className="module-shell-icon-button module-context__close" type="button" aria-label={`收起${contextLabel}`} title={`收起${contextLabel}`} onClick={toggleRight}><WorkbenchIcon name="close" size={15} /></button></header>
+      {mode === "ai-work" ? <>
+        <header className="module-context__heading"><div><strong>新标签页</strong><span>选择工具，在当前标签页打开</span></div><span className={`module-context__connection module-context__connection--${serverState}`}><i aria-hidden="true" />{serverState === "online" ? "已连接" : serverState === "checking" ? "检查中" : "未连接"}</span><button className="module-shell-icon-button module-context__close" type="button" aria-label="收起工具与资源" title="收起工具与资源" onClick={toggleRight}><WorkbenchIcon name="close" size={15} /></button></header>
+        <div className="module-context__launcher">
+          <section className="module-context__launcher-section">
+            <header><strong>工具</strong><span>打开到当前页签</span></header>
+            <div className="module-context__launcher-grid">
+              <button type="button" onClick={() => openWorkspaceUtility("browser")}><WorkbenchIcon name="browser" size={17} /><span><strong>浏览器</strong><small>与当前 Agent 会话协同</small></span><WorkbenchIcon name="arrowRight" size={14} /></button>
+              {gitManagerAvailable ? <button type="button" onClick={() => openWorkspaceUtility("git")}><WorkbenchIcon name="branch" size={17} /><span><strong>变更</strong><small>查看当前 Agent 的 Git 变更</small></span><WorkbenchIcon name="arrowRight" size={14} /></button> : null}
+              <button type="button" onClick={() => openWorkspaceUtility("side-chat")}><WorkbenchIcon name="help" size={17} /><span><strong>侧边聊天</strong><small>使用已记录的会话上下文</small></span><WorkbenchIcon name="arrowRight" size={14} /></button>
+              {applicationNavigationItems.length > 0 ? <button type="button" onClick={() => openWorkspaceUtility("applications")}><WorkbenchIcon name="grid" size={17} /><span><strong>应用</strong><small>打开已登记的工作区应用</small></span><WorkbenchIcon name="arrowRight" size={14} /></button> : null}
+              {sidebarRight.tabs.map(tab => <button key={tab.id} type="button" onClick={() => openWorkspaceUtility("extension", tab.id)}><WorkbenchIcon name="extension" size={17} /><span><strong>{typeof tab.title === "function" ? tab.title() : tab.title}</strong><small>已登记的扩展面板</small></span><WorkbenchIcon name="arrowRight" size={14} /></button>)}
+            </div>
+            {sidebarRight.tabs.length === 0 && applicationNavigationItems.length === 0 ? <p className="module-context__launcher-empty">当前没有可打开的功能。</p> : null}
+          </section>
+          <section className="module-context__launcher-section module-context__launcher-resources">
+            <header><strong>能力资源</strong><span>{extensionsLoading ? "正在读取" : `${registeredExtensions.length} 项`}</span></header>
+            {extensionsLoading ? <p className="module-context__launcher-empty">正在读取已登记能力资源…</p> : registeredExtensions.length > 0 ? <div className="module-context__resource-list">
+              {registeredExtensions.filter(item => !item.applicationIds || item.applicationIds.includes(app)).map(item => <div key={item.id} title={item.description}><WorkbenchIcon name={item.kind === "skill" ? "bolt" : item.kind === "expert" ? "spark" : item.kind === "prompt" ? "file" : "tools"} size={14} /><span><strong>{item.name}</strong><small>{item.kind === "skill" ? "Skill" : item.kind === "expert" ? "Expert" : item.kind === "prompt" ? "Prompt" : "Tool"}</small></span></div>)}
+            </div> : <p className="module-context__launcher-empty">当前没有已登记的能力资源。</p>}
+            {skillReferencesError ? <p className="module-context__launcher-empty">{skillReferencesError}</p> : null}
+          </section>
+          <section className="module-context__launcher-status"><span className={`module-context__connection module-context__connection--${serverState}`}><i aria-hidden="true" />{serverState === "online" ? "控制端已连接" : serverState === "checking" ? "正在检查控制端" : "控制端未连接"}</span><span>{selectedApp.title}</span></section>
+        </div>
+      </> : <>
+        <header className="module-context__heading"><div><strong>{contextLabel}</strong><span>手动操作与管理</span></div><span className={`module-context__connection module-context__connection--${serverState}`}><i aria-hidden="true" />{serverState === "online" ? "已连接" : serverState === "checking" ? "检查中" : "未连接"}</span><button className="module-shell-icon-button module-context__close" type="button" aria-label={`收起${contextLabel}`} title={`收起${contextLabel}`} onClick={toggleRight}><WorkbenchIcon name="close" size={15} /></button></header>
         <div className="module-context__tools">
           {terminalPanelAvailable && settings.general.showBottomPanelControl ? <button type="button" onClick={openTerminal} aria-keyshortcuts={shortcuts.openTerminal.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="terminal" size={16} /><span>终端</span><kbd>{shortcuts.openTerminal.join(" / ") || "未分配"}</kbd></button> : null}
-          {mode === "ai-work" ? <button type="button" className="module-context__side-chat-action" onClick={() => openSideChat()} title="主聊天任务会继续运行；侧聊使用已记录的上下文快照。" aria-keyshortcuts={sideChatShortcuts.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="help" size={16} /><span>侧边聊天</span><kbd>{sideChatShortcuts.join(" / ") || "未分配"}</kbd></button> : null}
-          {mode === "ai-work" ? <button type="button" disabled title="审查工具尚未接入"><WorkbenchIcon name="review" size={16} /><span>审查</span><kbd>待接入</kbd></button> : null}
           <button type="button" onClick={() => onNavigate("/files")} title="打开已接入的节点文件管理"><WorkbenchIcon name="file" size={16} /><span>节点文件</span></button>
         </div>
-        {mode === "ai-work" ? <section className="module-context__section module-context__resources"><header><span>能力资源</span><b>{registeredExtensions.length}</b></header>
-          {(["skill", "expert", "prompt", "tool"] as const).map((kind) => {
-            const resources = registeredExtensions.filter((extension) => extension.kind === kind && (!extension.applicationIds || extension.applicationIds.includes(app)));
-            const groupName = kind === "skill" ? "Skills" : kind === "expert" ? "Experts" : kind === "prompt" ? "Prompts" : "Tools";
-            return <section className="module-context__resource-group" key={kind}><header><span>{groupName}</span><b>{resources.length}</b></header>{resources.length ? resources.map((item) => <p title={item.description} key={item.id}>{item.name}</p>) : <p>暂无登记资源</p>}</section>;
-          })}
-        </section> : null}
-        <section className="module-context__section">
-          <header><span>当前应用</span><b>1</b></header>
-          <div className="module-context__app">
-            <span className={`application-monogram application-monogram--${selectedApp.color}`} aria-hidden="true">{selectedApp.initials}</span>
-            <div><strong>{selectedApp.title}</strong><small>{modeLabel}</small></div>
-          </div>
-        </section>
+        <section className="module-context__section"><header><span>当前应用</span><b>1</b></header><div className="module-context__app"><span className={`application-monogram application-monogram--${selectedApp.color}`} aria-hidden="true">{selectedApp.initials}</span><div><strong>{selectedApp.title}</strong><small>{modeLabel}</small></div></div></section>
         <section className="module-context__section"><header><span>服务状态</span></header><div className="module-context__service"><ServiceStatus state={serverState} /><small>控制端健康状态</small></div></section>
-        <section className="module-context__note"><strong>{mode === "ai-work" ? "工作区能力" : "应用面板"}</strong><p>{mode === "ai-work" ? "工具与资源会在当前宿主接入后显示。尚未连接的入口保持禁用状态。" : "在这里查看和操作应用数据；需要智能体协助时，从左侧导航进入小鱼智能体。"}</p></section>
+        <section className="module-context__note"><strong>应用面板</strong><p>在这里查看和操作应用数据；需要智能体协助时，从左侧导航进入小鱼智能体。</p></section>
+      </>}
       </> : null}
         <div className="module-context__account"><WorkbenchIcon name="user" size={15} /><span>{username}</span><small>{userRoleLabel(role)}</small></div>
       </div>
@@ -1475,45 +1658,54 @@ export function ApplicationWorkspace({ userId, app, mode, section, apps, applica
 
   const previewStyle = { "--module-left-preview-width": `${leftPaneWidth}px` } as CSSProperties;
   return (
-    <div className="module-workbench-stage" style={previewStyle} data-layout-mode={metrics.mode}>
-      <GlobalNavigationRail username={username} role={role} serverState={serverState} shortcuts={shortcuts} activePage="home" homeLabel="返回当前模式首页" applications={applicationNavigationItems} onOpenRecentSessions={showRecentSessions} showServiceStatus={settings.general.showServiceStatus} onHome={onSelectedModeHome} onNavigate={onNavigate} onOpenApplication={openApplication} onOpenWork={() => void openApplication("workspace", "ai-work")} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={openToolsPanel} applicationsExpanded={rightPanelSection === "applications" && !chrome.rightCollapsed} applicationsTargetId="module-context-applications" onToggleApplications={toggleApplicationsPanel} />
-      <div ref={layoutRef} className="module-workbench-layout" data-layout-mode={metrics.mode}>
-        {chrome.leftCollapsed && metrics.mode !== "mobile" ? <div className={`module-left-preview${leftPreviewOpen ? " is-visible" : ""}`} data-layout-mode={metrics.mode} aria-hidden={!leftPreviewOpen} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview}>{leftPreview}</div> : null}
-        <ResizableWorkbench
-          left={left}
-          center={center}
-          right={right}
-          bottom={terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "bottom" ? bottom : null}
-          storageKey={LAYOUT_KEY}
-          leftLimits={metrics.left}
-          rightLimits={metrics.right}
-          bottomLimits={metrics.bottom}
-          containerWidth={metrics.containerWidth}
-          snapCaptureRatio={metrics.snapCaptureRatio}
-          snapHysteresis={metrics.snapHysteresis}
-          minCenterWidth={metrics.minCenterWidth}
-          layoutMode={metrics.mode}
-          responsiveRightDock
-          responsiveLeftDock
-          leftWidth={leftPaneWidth}
-          onLeftWidthChange={setLeftPaneWidth}
-          leftCollapsed={chrome.leftCollapsed}
-          onLeftCollapsedChange={(leftCollapsed) => setChrome((current) => ({ ...current, leftCollapsed }))}
-          rightCollapsed={chrome.rightCollapsed}
-          onRightCollapsedChange={(rightCollapsed) => setChrome((current) => ({ ...current, rightCollapsed }))}
-          bottomOpen={terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "bottom"}
-          onBottomOpenChange={(terminalOpen) => setChrome((current) => ({ ...current, terminalOpen }))}
-        />
+    <div className={`module-workbench-stage${voiceMode ? " module-workbench-stage--voice" : ""}`} style={previewStyle} data-layout-mode={metrics.mode}>
+      <div className="module-workbench-inner">
+        <GlobalNavigationRail className="module-workbench-region--global-navigation" username={username} role={role} serverState={serverState} shortcuts={shortcuts} activePage="home" homeLabel="返回当前模式首页" applications={applicationNavigationItems} onOpenRecentSessions={showRecentSessions} showServiceStatus={settings.general.showServiceStatus} onHome={onSelectedModeHome} onNavigate={onNavigate} onOpenApplication={openApplication} onOpenWork={() => void openApplication("workspace", "ai-work")} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={openToolsPanel} applicationsExpanded={rightPanelSection === "applications" && !chrome.rightCollapsed} applicationsTargetId="module-context-applications" onToggleApplications={toggleApplicationsPanel} />
+        <div className="module-workbench-main">
+          <div ref={layoutRef} className="module-workbench-layout" data-layout-mode={metrics.mode}>
+            {chrome.leftCollapsed && metrics.mode !== "mobile" ? <div className={`module-left-preview${leftPreviewOpen ? " is-visible" : ""}`} data-layout-mode={metrics.mode} aria-hidden={!leftPreviewOpen} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview}>{leftPreview}</div> : null}
+            <ResizableWorkbench
+              left={left}
+              center={center}
+              leftVisible={!voiceMode}
+              right={voiceMode ? null : right}
+              bottom={!voiceMode && terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "bottom" ? bottom : null}
+              storageKey={LAYOUT_KEY}
+              leftLimits={metrics.left}
+              rightLimits={metrics.right}
+              bottomLimits={metrics.bottom}
+              containerWidth={metrics.containerWidth}
+              snapCaptureRatio={metrics.snapCaptureRatio}
+              snapHysteresis={metrics.snapHysteresis}
+              minCenterWidth={metrics.minCenterWidth}
+              centerCollapsed={showWorkbenchTabs && centerCollapsed}
+              centerCollapseEnabled={showWorkbenchTabs}
+              onCenterCollapsedChange={handleCenterCollapsedChange}
+              onCenterCollapsePreviewChange={setCenterCollapsePreview}
+              layoutMode={metrics.mode}
+              responsiveRightDock
+              responsiveLeftDock
+              leftWidth={leftPaneWidth}
+              onLeftWidthChange={setLeftPaneWidth}
+              leftCollapsed={chrome.leftCollapsed}
+              onLeftCollapsedChange={(leftCollapsed) => setChrome((current) => ({ ...current, leftCollapsed }))}
+              rightCollapsed={chrome.rightCollapsed}
+              onRightCollapsedChange={(rightCollapsed) => setChrome((current) => ({ ...current, rightCollapsed }))}
+              bottomOpen={terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "bottom"}
+              onBottomOpenChange={(terminalOpen) => setChrome((current) => ({ ...current, terminalOpen }))}
+            />
+          </div>
+          {fileReviewRequest && fileReviewProject && (app === "workspace" || app === "minecraft") ? <Suspense fallback={null}><GitChangeActivityReview
+            key={`${fileReviewRequest.projectId}:${fileReviewRequest.path}:${fileReviewRequest.requestId}`}
+            appId={app}
+            project={fileReviewProject}
+            path={fileReviewRequest.path}
+            requestId={fileReviewRequest.requestId}
+            onClose={() => setFileReviewRequest(null)}
+            onRefresh={() => setGitRefreshRevision(revision => revision + 1)}
+          /></Suspense> : null}
+        </div>
       </div>
-      {fileReviewRequest && fileReviewProject && (app === "workspace" || app === "minecraft") ? <Suspense fallback={null}><GitChangeActivityReview
-        key={`${fileReviewRequest.projectId}:${fileReviewRequest.path}:${fileReviewRequest.requestId}`}
-        appId={app}
-        project={fileReviewProject}
-        path={fileReviewRequest.path}
-        requestId={fileReviewRequest.requestId}
-        onClose={() => setFileReviewRequest(null)}
-        onRefresh={() => setGitRefreshRevision(revision => revision + 1)}
-      /></Suspense> : null}
     </div>
   );
 }

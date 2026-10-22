@@ -4,6 +4,12 @@
 
 `lfaa-client-ui-chat` 展示同一 Agent Run 的公开正文、真实工具活动、用户问题和权限审批，执行与持久化仍归原 Agent Loop、Session 与 Permission Owner。
 
+全屏 `/voice` 模式仍由 `AiWorkChat` 持有并复用当前会话；语音输入、播报和语言沿用 `aiRuntime.voiceInputEnabled`、`aiRuntime.readResponsesAloud` 与 `general.language`。真实识别文本逐轮自动发送，播报结束或关闭播报时恢复聆听；语音识别与播放由浏览器宿主提供，不创建语音会话或录音存储。独立全屏视觉只展示当前状态、输入控件和当前会话信息，粒子球图片存于 `src/assets/voice-particle-core.png`；会话记录仍由 AI Work 唯一 Owner 管理。
+
+语音主脑的粒子球由 `VoiceOrb3D` 负责：宿主可用 WebGL 时以固定数量点云绘制带透视的 3D 球，状态控制旋转与呼吸；WebGL 不可用时保留图片并使用 CSS 3D 倾转和双轨道动画。语音模式的 SpeechRecognition 临时结果只发送短暂活动强度给动画，不向输入区展示、提交或持久化临时转写。动效继续读取 Appearance 的强调色、标题色与 `appearance.advanced.reducedMotion`；不新增偏好。WebGL 路径在页面隐藏、离开视口或减少动态效果时停止/冻结逐帧绘制，减少动态效果设置在 CSS 后备中也会关闭动画；卸载时撤销帧循环、观察器、监听器与 GPU 资源。
+
+语音主脑保持透明以透出当前 Appearance 工作区背景或 Wallpaper Engine 画布，并以 `src/assets/voice-starry-background.webp` 叠加无网格的青金星空与边缘星云；桌面高度充足时铺满视口，窄屏/短屏内容通过语音容器纵向滚动，账户背景、遮罩与模糊仍沿用 Workbench 共享令牌。背景静态绘制，不覆盖用户壁纸选择或减少动态效果偏好。
+
 主聊天输入栏在模型按钮左侧消费 DSH `conversation.input.right` Slot，并把当前主会话 `sessionId` 作为 Slot owner 属性传给扩展；没有启用扩展时该位置为空，不保留占位。Slot 只提供 LFAA 已装配 Client 扩展的显示入口，不创建会话、授权或模型路由能力。
 
 消息历史按单条消息行记忆；流式增量只更新内容或交互状态实际变化的行，历史正文不会跟着每个文本批次重新渲染。用量栏也按真实用量、上下文或显示状态变化更新，不随消息文本增量重复渲染。

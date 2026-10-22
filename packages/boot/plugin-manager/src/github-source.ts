@@ -62,35 +62,37 @@ export async function searchGithubRepositories(query: string): Promise<GitHubCan
   });
 }
 
-export async function downloadGithubSnapshot(repositoryUrl: string, requestedRef?: string): Promise<GitHubSnapshot> {
+export async function downloadGithubSnapshot(repositoryUrl: string, requestedRef?: string, signal?: AbortSignal): Promise<GitHubSnapshot> {
+  signal?.throwIfAborted();
   parseGithubRepositoryUrl(repositoryUrl);
   if (requestedRef && (requestedRef.length > 200 || requestedRef.startsWith("-") || /[\r\n\0]/u.test(requestedRef))) throw new Error("插件版本或分支标识无效。");
-  try { return await downloadGithubHttpSnapshot(repositoryUrl, requestedRef); }
+  try { return await downloadGithubHttpSnapshot(repositoryUrl, requestedRef, signal); }
   catch (error) {
+    signal?.throwIfAborted();
     // GitHub API 限流和 codeload 连接失败不代表仓库不可安装。沿 DSH 的 Git 传输访问原仓库，绝不查找本项目旧副本。
     if (!(error instanceof Error) || !(error.name === "TimeoutError" || error.name === "AbortError" || /fetch failed|请求频率受限|源码快照下载失败/u.test(error.message))) throw error;
-    return downloadGithubGitSnapshot(repositoryUrl, requestedRef);
+    return downloadGithubGitSnapshot(repositoryUrl, requestedRef, signal);
   }
 }
 
-async function downloadGithubHttpSnapshot(repositoryUrl: string, requestedRef?: string): Promise<GitHubSnapshot> {
+async function downloadGithubHttpSnapshot(repositoryUrl: string, requestedRef?: string, signal?: AbortSignal): Promise<GitHubSnapshot> {
   const { owner, name } = parseGithubRepositoryUrl(repositoryUrl);
   const repositoryResponse = await fetch(`${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`, {
-    headers: githubHeaders(), redirect: "error", signal: AbortSignal.timeout(20_000)
+    headers: githubHeaders(), redirect: "error", signal: requestSignal(signal, 20_000)
   });
   const repositoryData = await readJson(repositoryResponse);
   if (typeof repositoryData.default_branch !== "string" || typeof repositoryData.full_name !== "string") throw new Error("GitHub 未返回有效仓库清单。");
   const selectedRef = requestedRef?.trim() || repositoryData.default_branch;
   if (selectedRef.length > 200 || selectedRef.startsWith("-") || /[\r\n\0]/u.test(selectedRef)) throw new Error("插件版本或分支标识无效。");
   const commitResponse = await fetch(`${API_ROOT}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/commits/${encodeURIComponent(selectedRef)}`, {
-    headers: githubHeaders(), redirect: "error", signal: AbortSignal.timeout(20_000)
+    headers: githubHeaders(), redirect: "error", signal: requestSignal(signal, 20_000)
   });
   const commitData = await readJson(commitResponse);
   const commit = commitData.sha;
   if (typeof commit !== "string" || !/^[a-f0-9]{40}$/iu.test(commit)) throw new Error("插件引用没有解析为固定的 Git 提交号。");
 
   const archiveUrl = `${ARCHIVE_ROOT}/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/zip/${commit}`;
-  const archiveResponse = await fetch(archiveUrl, { headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/zip" }, redirect: "error", signal: AbortSignal.timeout(5_000) });
+  const archiveResponse = await fetch(archiveUrl, { headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/zip" }, redirect: "error", signal: requestSignal(signal, 5_000) });
   if (!archiveResponse.ok) throw new Error(`GitHub 源码快照下载失败（HTTP ${archiveResponse.status}）。`);
   const length = Number(archiveResponse.headers.get("content-length"));
   if (Number.isFinite(length) && length > MAX_ARCHIVE_BYTES) throw new Error("插件源码快照超过 64 MiB 限制。");
@@ -118,19 +120,26 @@ async function downloadGithubHttpSnapshot(repositoryUrl: string, requestedRef?: 
     url: `https://github.com/${owner}/${name}`
   };
   const snapshot: GitHubSnapshot = { repository, requestedRef: selectedRef, commit, archiveSha256: createHash("sha256").update(archive).digest("hex"), files: readGithubZip(archive) };
+  signal?.throwIfAborted();
   // Some package repositories intentionally omit generated `lib/` outputs from Git;
   // use the published artifact only when NPM proves it belongs to this exact commit.
-  return needsPublishedFiles(snapshot) ? downloadPublishedFiles(snapshot) : snapshot;
+  return needsPublishedFiles(snapshot) ? downloadPublishedFiles(snapshot, signal) : snapshot;
 }
 
 /** Git 只取当前引用；按包清单导出发布内容，不把 .git、测试或开发依赖装入 Profile。 */
-async function downloadGithubGitSnapshot(repositoryUrl: string, requestedRef?: string): Promise<GitHubSnapshot> {
+async function downloadGithubGitSnapshot(repositoryUrl: string, requestedRef?: string, signal?: AbortSignal): Promise<GitHubSnapshot> {
+  signal?.throwIfAborted();
   const { owner, name } = parseGithubRepositoryUrl(repositoryUrl);
   const temporaryRoot = resolve(config.repositoryRoot, "dist", ".tmp", "plugin-downloads");
   mkdirSync(temporaryRoot, { recursive: true });
   const directory = mkdtempSync(resolve(temporaryRoot, "git-"));
   try {
-    const git = (args: string[], limit?: number) => runPackageProcess("git", ["-c", "protocol.file.allow=never", ...args], directory, limit);
+    const git = async (args: string[], limit?: number) => {
+      signal?.throwIfAborted();
+      const output = await runPackageProcess("git", ["-c", "protocol.file.allow=never", ...args], directory, limit, signal);
+      signal?.throwIfAborted();
+      return output;
+    };
     await git(["init", "--quiet"]);
     await git(["remote", "add", "origin", `https://github.com/${owner}/${name}.git`]);
     await git(["fetch", "--quiet", "--depth=1", "--filter=blob:none", "origin", requestedRef?.trim() || "HEAD"]);
@@ -144,11 +153,17 @@ async function downloadGithubGitSnapshot(repositoryUrl: string, requestedRef?: s
     const archive = await git(["archive", "--format=zip", "--prefix=package/", commit, "--", ...paths], MAX_ARCHIVE_BYTES);
     const repository: GitHubRepository = { owner, name, fullName: `${owner}/${name}`, url: `https://github.com/${owner}/${name}`, description: typeof manifest.description === "string" ? manifest.description.slice(0, 500) : "", stars: 0, license: typeof manifest.license === "string" ? manifest.license : null, defaultBranch: requestedRef?.trim() || "HEAD" };
     const snapshot: GitHubSnapshot = { repository, requestedRef: requestedRef?.trim() || "HEAD", commit, archiveSha256: createHash("sha256").update(archive).digest("hex"), files: readGithubZip(archive) };
-    return needsPublishedFiles(snapshot) ? downloadPublishedFiles(snapshot) : snapshot;
+    signal?.throwIfAborted();
+    return needsPublishedFiles(snapshot) ? downloadPublishedFiles(snapshot, signal) : snapshot;
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
 function githubHeaders(): Record<string, string> { return { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }; }
+
+function requestSignal(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
   if (!response.ok) {

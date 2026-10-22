@@ -12,7 +12,7 @@ export function shouldPreloadWorkbenchForRoute(pathname: string): boolean {
   return pathname === "/settings"
     || pathname === "/games" || pathname === "/games/environments"
     || pathname === "/admin/users"
-    || pathname === "/work" || pathname === "/tasks"
+    || pathname === "/work" || pathname === "/tasks" || pathname === "/voice"
     || pathname === "/files"
     || APP_WORKSPACE_ROUTE.test(pathname);
 }

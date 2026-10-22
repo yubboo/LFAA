@@ -34,6 +34,7 @@ import {
   resolveSideDragRawSize,
   resolveSnapCaptureThreshold,
   resolveSnapDragFrame,
+  resolveRightCenterDragFrame,
 } from "./workbench-interaction.config.ts";
 import { WORKBENCH_LAYOUT_TOKENS, resolveLegacyWorkbenchInitialWidths, resolvePreviousWorkbenchInitialWidths, resolveWorkbenchLayoutMetrics, shouldDockResponsiveLeftPane, shouldDockResponsiveRightPane } from "./workbench-layout.config.ts";
 import type { ResizableWorkbenchProps, WorkbenchPaneLimits } from "./workbench-layout.types.ts";
@@ -65,6 +66,10 @@ interface SideDragState extends SnapDragState {
   pointerStartX: number;
   startSize: number;
   activated: boolean;
+  centerCollapseEnabled: boolean;
+  centerCaptureThreshold: number;
+  centerSnapped: boolean;
+  releaseTarget: "center" | "side" | null;
 }
 
 interface BottomDragState extends SnapDragState {
@@ -166,6 +171,8 @@ export function ResizableWorkbench({
   snapReleaseDurationMs = WORKBENCH_INTERACTION_TOKENS.snap.releaseDurationMs,
   snapSettleDurationMs = WORKBENCH_INTERACTION_TOKENS.snap.settleDurationMs,
   minCenterWidth = 520,
+  centerCollapsed = false,
+  centerCollapseEnabled = false,
   leftWidth: leftWidthProp,
   leftCollapsed: leftCollapsedProp,
   rightCollapsed: rightCollapsedProp,
@@ -176,6 +183,8 @@ export function ResizableWorkbench({
   onLeftWidthChange,
   onLeftCollapsedChange,
   onRightCollapsedChange,
+  onCenterCollapsedChange,
+  onCenterCollapsePreviewChange,
   onBottomOpenChange,
 }: ResizableWorkbenchProps) {
   const rightEnabled = right !== undefined && right !== null;
@@ -199,7 +208,7 @@ export function ResizableWorkbench({
     && layoutMode !== "desktop"
     && shouldDockResponsiveRightPane(containerWidth, minCenterWidth, rightLimits.min, responsiveLeftWidth, responsiveRightDock);
   const rightUsesGrid = rightEnabled && (layoutMode === "desktop" || canDockResponsiveRight);
-  const responsiveRightCenterFloor = minCenterWidth;
+  const responsiveRightCenterFloor = centerCollapsed ? 0 : minCenterWidth;
   const responsiveLeftHandleWidth = leftUsesGrid && leftVisible ? HANDLE_WIDTH : 0;
   const rightGridHandleBudget = rightUsesGrid
     ? HANDLE_WIDTH + responsiveLeftHandleWidth
@@ -209,7 +218,9 @@ export function ResizableWorkbench({
     - (leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth : 0)
     - rightGridHandleBudget);
   const [rightWidth, setRightWidth] = useState(initial.rightWidth);
-  const rightWidthForLayout = rightUsesGrid ? Math.min(rightWidth, maxRightGridWidth) : rightWidth;
+  const rightWidthForLayout = rightUsesGrid
+    ? centerCollapsed ? maxRightGridWidth : Math.min(rightWidth, maxRightGridWidth)
+    : rightWidth;
 
   // 受控模式下父组件拥有 leftWidth；非受控模式下组件自己保存。
   // 工作台与 Settings 可以因此共享同一个左栏宽度事实源，而不是各存一份。
@@ -220,6 +231,14 @@ export function ResizableWorkbench({
   }, [leftWidth, leftWidthProp, onLeftWidthChange]);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const centerPaneElementRef = useRef<HTMLElement | null>(null);
+  const centerPaneRef = useCallback((element: HTMLElement | null) => {
+    centerPaneElementRef.current = element;
+    if (!element) return;
+    element.inert = centerCollapsed;
+    if (centerCollapsed) element.setAttribute("aria-hidden", "true");
+    else element.removeAttribute("aria-hidden");
+  }, [centerCollapsed]);
   const activeLayoutTransitionsRef = useRef(new Set<string>());
   const sideDragRef = useRef<SideDragState | null>(null);
   const bottomDragRef = useRef<BottomDragState | null>(null);
@@ -273,7 +292,7 @@ export function ResizableWorkbench({
   }, [onRightCollapsedChange, rightCollapsed, rightCollapsedProp]);
 
   // 动态 max 会给中间区预留 minCenterWidth；只有实际参与网格的另一侧 Dock 才占用预算。
-  const getDynamicMax = useCallback((side: "left" | "right") => {
+  const getDynamicMax = useCallback((side: "left" | "right", allowCenterCollapse = false) => {
     const root = rootRef.current;
     if (!root) return side === "left" ? leftLimits.max : rightLimits.max;
     const rect = root.getBoundingClientRect();
@@ -281,7 +300,8 @@ export function ResizableWorkbench({
     if (side === "right" && layoutMode === "mobile" && !rightUsesGrid) {
       const leftDockBudget = (leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth : 0)
         + (leftUsesGrid && leftVisible ? HANDLE_WIDTH : 0);
-      return Math.max(0, Math.min(staticMax, rect.width - leftDockBudget - 12));
+      const mobileAvailable = Math.max(0, rect.width - leftDockBudget - 12);
+      return centerCollapsed ? mobileAvailable : Math.min(staticMax, mobileAvailable);
     }
     const otherWidth = side === "left"
       // 三栏共存时先保障左栏和中心区下限；右栏可在布局中临时收窄到自身最小值，
@@ -295,10 +315,14 @@ export function ResizableWorkbench({
     const handleBudget = rightUsesGrid
       ? rightHandleWidth + leftHandleWidth
       : leftHandleWidth;
-    const centerFloor = side === "right" ? responsiveRightCenterFloor : minCenterWidth;
+    const centerFloor = side === "right" && (centerCollapsed || (allowCenterCollapse && centerCollapseEnabled && rightUsesGrid))
+      ? 0
+      : minCenterWidth;
     const available = rect.width - otherWidth - centerFloor - handleBudget;
-    return Math.max(0, Math.min(staticMax, available));
-  }, [layoutMode, leftCollapsed, leftLimits.max, leftUsesGrid, leftVisible, leftWidth, minCenterWidth, responsiveRightCenterFloor, responsiveRightDock, rightCollapsed, rightLimits.max, rightLimits.min, rightUsesGrid, rightWidthForLayout]);
+    // 中心列可吸附收起时，`available` 表示中心列 + 右 Dock 的总预算；
+    // 不能被右 Dock 自身的静态最大宽度截断，否则中心列吸附阈值会提前触发。
+    return Math.max(0, allowCenterCollapse ? available : Math.min(staticMax, available));
+  }, [centerCollapseEnabled, centerCollapsed, layoutMode, leftCollapsed, leftLimits.max, leftUsesGrid, leftVisible, leftWidth, minCenterWidth, responsiveRightDock, rightCollapsed, rightLimits.max, rightLimits.min, rightUsesGrid, rightWidthForLayout]);
 
   // 响应式计算结果变化时，把历史持久化尺寸重新夹进当前容器允许的范围。
   // 这一步很重要：用户在大屏保存的 340px 侧栏，切到小窗后不能继续拿 340px 挤压主区。
@@ -352,6 +376,23 @@ export function ResizableWorkbench({
     root.style.setProperty(sizeName, `${Math.max(1, visualSize)}px`);
   }, []);
 
+  const setRightCenterPreview = useCallback((rightSize: number, centerSize: number, snapTarget: "right" | "center" | null) => {
+    const root = rootRef.current;
+    if (!root) return;
+    root.dataset.snapPreview = snapTarget ?? "none";
+    root.dataset.autoSnap = snapTarget ?? "none";
+    root.style.setProperty("--lfaa-right-column", `${Math.max(0, rightSize)}px`);
+    root.style.setProperty("--lfaa-right-size", `${Math.max(1, rightSize)}px`);
+    root.style.setProperty("--lfaa-center-column", `${Math.max(0, centerSize)}px`);
+    const centerHidden = centerCollapsed || snapTarget === "center";
+    const center = centerPaneElementRef.current;
+    if (center) {
+      center.inert = centerHidden;
+      if (centerHidden) center.setAttribute("aria-hidden", "true");
+      else center.removeAttribute("aria-hidden");
+    }
+  }, [centerCollapsed]);
+
   const setBottomPreview = useCallback((visualHeight: number, snapped: boolean) => {
     const root = rootRef.current;
     if (!root) return;
@@ -378,6 +419,61 @@ export function ResizableWorkbench({
     if (pendingValue === null && drag.releaseStartedAt === null) return;
     const rawValue = pendingValue ?? drag.lastRaw;
     pendingRef.current = null;
+
+    if (sideDrag?.side === "right" && sideDrag.centerCollapseEnabled) {
+      const resolved = resolveRightCenterDragFrame({
+        rawRightSize: rawValue,
+        rightMinSize: sideDrag.min,
+        maxRightSize: sideDrag.max,
+        rightCaptureThreshold: sideDrag.captureThreshold,
+        rightSnapped: sideDrag.snapped,
+        centerMinSize: minCenterWidth,
+        centerCaptureThreshold: sideDrag.centerCaptureThreshold,
+        centerSnapped: sideDrag.centerSnapped,
+        releaseHysteresis: snapHysteresis,
+      });
+      sideDrag.lastRaw = resolved.rightFrame.rawSize;
+      sideDrag.snapped = resolved.rightFrame.snapped;
+      const previousCenterSnapped = sideDrag.centerSnapped;
+      sideDrag.centerSnapped = resolved.centerFrame.snapped;
+      if (previousCenterSnapped !== sideDrag.centerSnapped) onCenterCollapsePreviewChange?.(sideDrag.centerSnapped);
+
+      if (resolved.centerFrame.releasedThisFrame) {
+        sideDrag.releaseStartedAt = performance.now();
+        sideDrag.releaseTarget = "center";
+      } else if (resolved.rightFrame.releasedThisFrame) {
+        sideDrag.releaseStartedAt = performance.now();
+        sideDrag.releaseTarget = "side";
+      } else if (resolved.centerFrame.capturedThisFrame || resolved.rightFrame.capturedThisFrame) {
+        sideDrag.releaseStartedAt = null;
+        sideDrag.releaseTarget = null;
+      }
+
+      let visualCenterSize = resolved.visualCenterSize;
+      let visualRightSize = resolved.visualRightSize;
+      if (!resolved.centerFrame.snapped && !resolved.rightFrame.snapped && sideDrag.releaseStartedAt !== null) {
+        const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const progress = reducedMotion
+          ? 1
+          : clamp((performance.now() - sideDrag.releaseStartedAt) / Math.max(1, snapReleaseDurationMs), 0, 1);
+        if (sideDrag.releaseTarget === "center") {
+          visualCenterSize *= easeInOutCubic(progress);
+          visualRightSize = Math.max(0, sideDrag.max - visualCenterSize);
+        } else if (sideDrag.releaseTarget === "side") {
+          visualRightSize *= easeInOutCubic(progress);
+          visualCenterSize = Math.max(0, sideDrag.max - visualRightSize);
+        }
+        if (progress >= 1) {
+          sideDrag.releaseStartedAt = null;
+          sideDrag.releaseTarget = null;
+        }
+      }
+
+      const snapTarget = resolved.centerFrame.snapped ? "center" : resolved.rightFrame.snapped ? "right" : null;
+      setRightCenterPreview(visualRightSize, visualCenterSize, snapTarget);
+      if (sideDrag.releaseStartedAt !== null) frameRef.current = window.requestAnimationFrame(flushPending);
+      return;
+    }
 
     const frame = resolveSnapDragFrame({
       rawSize: rawValue,
@@ -415,7 +511,7 @@ export function ResizableWorkbench({
     }
     // 普通拖动逐帧直写；仅吸附后的短暂反向释放会有限时地补帧。
     if (!frame.snapped && drag.releaseStartedAt !== null) frameRef.current = window.requestAnimationFrame(flushPending);
-  }, [setBottomPreview, setSidePreview, snapHysteresis, snapReleaseDurationMs]);
+  }, [minCenterWidth, onCenterCollapsePreviewChange, setBottomPreview, setRightCenterPreview, setSidePreview, snapHysteresis, snapReleaseDurationMs]);
 
   const schedule = useCallback((value: number) => {
     pendingRef.current = value;
@@ -431,7 +527,8 @@ export function ResizableWorkbench({
     if (collapsed) return;
     const rect = root.getBoundingClientRect();
     const staticMin = side === "left" ? leftLimits.min : rightLimits.min;
-    const effectiveMax = getDynamicMax(side);
+    const allowCenterCollapse = side === "right" && centerCollapseEnabled && !centerCollapsed && rightUsesGrid;
+    const effectiveMax = getDynamicMax(side, allowCenterCollapse);
     const effectiveMin = Math.min(staticMin, effectiveMax);
     const rawCurrent = side === "left" ? leftWidth : rightWidthForLayout;
     const paneSelector = side === "left" ? ".lfaa-workbench__pane--left" : ".lfaa-workbench__pane--right";
@@ -457,10 +554,14 @@ export function ResizableWorkbench({
       captureThreshold: resolveSnapCaptureThreshold(effectiveMin, snapCaptureRatio),
       snapped: collapsed,
       releaseStartedAt: null,
+      centerCollapseEnabled: allowCenterCollapse,
+      centerCaptureThreshold: resolveSnapCaptureThreshold(minCenterWidth, snapCaptureRatio),
+      centerSnapped: false,
+      releaseTarget: null,
     };
 
     event.currentTarget.setPointerCapture(event.pointerId);
-  }, [getDynamicMax, layoutMode, leftCollapsed, leftLimits.min, leftWidth, rightCollapsed, rightLimits.min, rightUsesGrid, rightWidth, rightWidthForLayout, snapCaptureRatio]);
+  }, [centerCollapseEnabled, centerCollapsed, getDynamicMax, layoutMode, leftCollapsed, leftLimits.min, leftWidth, minCenterWidth, rightCollapsed, rightLimits.min, rightUsesGrid, rightWidth, rightWidthForLayout, snapCaptureRatio]);
 
   const onSidePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = sideDragRef.current;
@@ -478,10 +579,9 @@ export function ResizableWorkbench({
           : drag.startSize;
       const limits = drag.side === "left" ? leftLimits : rightLimits;
       drag.min = Math.min(limits.min, getDynamicMax(drag.side));
-      drag.max = getDynamicMax(drag.side);
+      drag.max = getDynamicMax(drag.side, drag.centerCollapseEnabled);
       drag.startSize = current;
       drag.lastRaw = current;
-      drag.pointerStartX = event.clientX;
       drag.captureThreshold = resolveSnapCaptureThreshold(drag.min, snapCaptureRatio);
       drag.activated = true;
       const columnName = drag.side === "left" ? "--lfaa-left-column" : "--lfaa-right-column";
@@ -492,7 +592,6 @@ export function ResizableWorkbench({
       root.dataset.snapPreview = drag.snapped ? drag.side : "none";
       root.dataset.autoSnap = drag.snapped ? drag.side : "none";
       document.body.classList.add("lfaa-is-resizing");
-      return;
     }
     const raw = resolveSideDragRawSize(drag.side, drag.startSize, drag.pointerStartX, event.clientX);
     schedule(raw);
@@ -513,23 +612,53 @@ export function ResizableWorkbench({
       frameRef.current = null;
       const rawValue = pendingRef.current;
       if (rawValue !== null) {
-        const frame = resolveSnapDragFrame({
-          rawSize: rawValue,
-          minSize: drag.min,
-          maxSize: drag.max,
-          captureThreshold: drag.captureThreshold,
-          snapped: drag.snapped,
-          releaseHysteresis: snapHysteresis,
-        });
-        drag.lastRaw = frame.rawSize;
-        drag.snapped = frame.snapped;
+        if (drag.side === "right" && drag.centerCollapseEnabled) {
+          const resolved = resolveRightCenterDragFrame({
+            rawRightSize: rawValue,
+            rightMinSize: drag.min,
+            maxRightSize: drag.max,
+            rightCaptureThreshold: drag.captureThreshold,
+            rightSnapped: drag.snapped,
+            centerMinSize: minCenterWidth,
+            centerCaptureThreshold: drag.centerCaptureThreshold,
+            centerSnapped: drag.centerSnapped,
+            releaseHysteresis: snapHysteresis,
+          });
+          drag.lastRaw = resolved.rightFrame.rawSize;
+          drag.snapped = resolved.rightFrame.snapped;
+          const previousCenterSnapped = drag.centerSnapped;
+          drag.centerSnapped = resolved.centerFrame.snapped;
+          if (previousCenterSnapped !== drag.centerSnapped) onCenterCollapsePreviewChange?.(drag.centerSnapped);
+        } else {
+          const frame = resolveSnapDragFrame({
+            rawSize: rawValue,
+            minSize: drag.min,
+            maxSize: drag.max,
+            captureThreshold: drag.captureThreshold,
+            snapped: drag.snapped,
+            releaseHysteresis: snapHysteresis,
+          });
+          drag.lastRaw = frame.rawSize;
+          drag.snapped = frame.snapped;
+        }
       }
     }
 
     const root = rootRef.current;
     document.body.classList.remove("lfaa-is-resizing");
 
-    if (drag.side === "left") {
+    if (drag.side === "right" && drag.centerCollapseEnabled && drag.centerSnapped) {
+      const finalMax = getDynamicMax("right", true);
+      root?.style.setProperty("--lfaa-center-column", "0px");
+      root?.style.setProperty("--lfaa-right-column", `${finalMax}px`);
+      root?.style.setProperty("--lfaa-right-size", `${finalMax}px`);
+      if (root) root.dataset.centerCollapsed = "true";
+      if (centerPaneElementRef.current) {
+        centerPaneElementRef.current.inert = true;
+        centerPaneElementRef.current.setAttribute("aria-hidden", "true");
+      }
+      onCenterCollapsedChange?.(true);
+    } else if (drag.side === "left") {
       if (drag.snapped) {
         root?.style.setProperty("--lfaa-left-column", "0px");
         setResolvedLeftCollapsed(true);
@@ -542,11 +671,24 @@ export function ResizableWorkbench({
       }
     } else if (drag.snapped) {
       root?.style.setProperty("--lfaa-right-column", "0px");
+      if (drag.centerCollapseEnabled) root?.style.setProperty("--lfaa-center-column", "minmax(0, 1fr)");
+      if (drag.centerCollapseEnabled && centerPaneElementRef.current) {
+        centerPaneElementRef.current.inert = centerCollapsed;
+        if (centerCollapsed) centerPaneElementRef.current.setAttribute("aria-hidden", "true");
+        else centerPaneElementRef.current.removeAttribute("aria-hidden");
+      }
       setResolvedRightCollapsed(true);
     } else {
-      const finalWidth = clamp(drag.lastRaw, drag.min, drag.max);
+      const finalMax = getDynamicMax("right");
+      const finalWidth = clamp(drag.lastRaw, Math.min(drag.min, finalMax), finalMax);
+      root?.style.setProperty("--lfaa-center-column", "minmax(0, 1fr)");
       root?.style.setProperty("--lfaa-right-column", `${finalWidth}px`);
       root?.style.setProperty("--lfaa-right-size", `${finalWidth}px`);
+      if (centerPaneElementRef.current) {
+        centerPaneElementRef.current.inert = centerCollapsed;
+        if (centerCollapsed) centerPaneElementRef.current.setAttribute("aria-hidden", "true");
+        else centerPaneElementRef.current.removeAttribute("aria-hidden");
+      }
       setRightWidth(finalWidth);
       setResolvedRightCollapsed(false);
     }
@@ -560,7 +702,8 @@ export function ResizableWorkbench({
       root.dataset.autoSnap = "none";
     }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-  }, [setResolvedLeftCollapsed, setResolvedLeftWidth, setResolvedRightCollapsed, snapHysteresis]);
+    if (drag.centerCollapseEnabled) onCenterCollapsePreviewChange?.(null);
+  }, [centerCollapsed, getDynamicMax, minCenterWidth, onCenterCollapsePreviewChange, onCenterCollapsedChange, rightLimits.max, rightLimits.min, setResolvedLeftCollapsed, setResolvedLeftWidth, setResolvedRightCollapsed, snapHysteresis]);
 
   // ===== 5. 底部面板拖拽与向下吸附收起 =====
   const onBottomPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
@@ -646,6 +789,7 @@ export function ResizableWorkbench({
     const bottomDrag = bottomDragRef.current;
     sideDragRef.current = null;
     bottomDragRef.current = null;
+    if (sideDrag?.centerCollapseEnabled) onCenterCollapsePreviewChange?.(null);
 
     if (frameRef.current !== null) {
       window.cancelAnimationFrame(frameRef.current);
@@ -658,6 +802,14 @@ export function ResizableWorkbench({
       const sizeName = sideDrag.side === "left" ? "--lfaa-left-size" : "--lfaa-right-size";
       root.style.setProperty(columnName, `${sideDrag.startSize}px`);
       root.style.setProperty(sizeName, `${sideDrag.startSize}px`);
+      if (sideDrag.centerCollapseEnabled) {
+        root.style.setProperty("--lfaa-center-column", "minmax(0, 1fr)");
+        if (centerPaneElementRef.current) {
+          centerPaneElementRef.current.inert = centerCollapsed;
+          if (centerCollapsed) centerPaneElementRef.current.setAttribute("aria-hidden", "true");
+          else centerPaneElementRef.current.removeAttribute("aria-hidden");
+        }
+      }
     }
     if (root && bottomDrag) root.style.setProperty("--lfaa-bottom-row", `${bottomDrag.startHeight}px`);
 
@@ -672,7 +824,7 @@ export function ResizableWorkbench({
 
     if (sideDrag?.target.hasPointerCapture(sideDrag.pointerId)) sideDrag.target.releasePointerCapture(sideDrag.pointerId);
     if (bottomDrag?.target.hasPointerCapture(bottomDrag.pointerId)) bottomDrag.target.releasePointerCapture(bottomDrag.pointerId);
-  }, []);
+  }, [centerCollapsed, onCenterCollapsePreviewChange]);
 
   const cancelPointerEvent = useCallback((event: PointerEvent<HTMLDivElement>) => {
     if (sideDragRef.current?.pointerId === event.pointerId || bottomDragRef.current?.pointerId === event.pointerId) {
@@ -745,6 +897,7 @@ export function ResizableWorkbench({
     "--lfaa-left-handle-width": `${leftVisible && leftUsesGrid ? HANDLE_WIDTH : 0}px`,
     "--lfaa-right-handle-width": `${rightEnabled && rightUsesGrid ? HANDLE_WIDTH : 0}px`,
     "--lfaa-right-size": `${rightWidthForLayout}px`,
+    "--lfaa-center-column": centerCollapsed ? "0px" : "minmax(0, 1fr)",
     "--lfaa-left-column": `${leftCollapsed ? 0 : leftWidth}px`,
     "--lfaa-right-column": `${rightEnabled && !rightCollapsed ? rightWidthForLayout : 0}px`,
     "--lfaa-bottom-size": `${bottomHeight}px`,
@@ -754,7 +907,7 @@ export function ResizableWorkbench({
     "--lfaa-snap-settle-duration": `${snapSettleDurationMs}ms`,
   } as CSSProperties;
 
-  const centerPane = <main className="lfaa-workbench__center">{center}</main>;
+  const centerPane = <main ref={centerPaneRef} className="lfaa-workbench__center" aria-hidden={centerCollapsed || undefined}>{center}</main>;
   const rightPane = rightEnabled ? <aside className="lfaa-workbench__pane lfaa-workbench__pane--right" aria-label="右侧工作区">{right}</aside> : null;
 
   // ===== 8. DOM 结构 =====
@@ -765,6 +918,7 @@ export function ResizableWorkbench({
       className="lfaa-workbench"
       style={style}
       data-left-collapsed={leftCollapsed}
+      data-center-collapsed={centerCollapsed}
       data-right-collapsed={rightCollapsed}
       data-bottom-open={Boolean(bottom && bottomOpen)}
       data-layout-transitioning="false"
@@ -804,10 +958,10 @@ export function ResizableWorkbench({
         aria-orientation="vertical"
         aria-label="调整中间区与侧栏宽度"
         aria-valuemin={rightCollapsed ? 0 : rightLimits.min}
-        aria-valuemax={rightLimits.max}
-        aria-valuenow={rightCollapsed ? 0 : rightWidth}
-        tabIndex={0}
-        aria-disabled={false}
+        aria-valuemax={getDynamicMax("right")}
+        aria-valuenow={rightCollapsed ? 0 : rightWidthForLayout}
+        tabIndex={centerCollapsed ? -1 : 0}
+        aria-disabled={centerCollapsed}
         onPointerDown={(event) => onSidePointerDown(event, "right")}
         onPointerMove={onSidePointerMove}
         onPointerUp={finishSideDrag}

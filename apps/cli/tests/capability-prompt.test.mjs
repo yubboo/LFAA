@@ -3,22 +3,16 @@
  * 作用：以 Owner 与设置目录夹具证明 Prompt 不进入第三方插件代码 Runtime。
  * 关联文件：packages/boot/capability-prompt/src/index.ts、settings/service.ts、core/tools/business-tools.ts。
  */
-import test, { after } from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isolateData } from "./isolated-data.mjs";
 
-const dataDirectory = mkdtempSync(join(tmpdir(), "lfaa-capability-prompt-"));
-process.env.LFAA_DATA_DIR = dataDirectory;
+isolateData(test, "capability-prompt");
 const { CapabilityInstallRegistry } = await import("lfaa-capability-installs/src/index.js");
 const { createPromptAdapter } = await import("lfaa-capability-prompt/src/index.js");
 const { createInstalledPromptTools } = await import("lfaa-prompt/src/installed-prompts.js");
 const { pluginsSettingsSchema } = await import("lfaa-api-remotes/src/route-contracts.js");
-const { configuration } = await import("lfaa-storage-domain/src/configuration.js");
-const { closeDatabase } = await import("lfaa-storage-sqlite/src/database.js");
-after(() => { configuration.close(); closeDatabase(); rmSync(dataDirectory, { recursive: true, force: true }); });
 
 const repository = "https://github.com/acme/prompts";
 const sourcePath = "prompts/code-review.prompt.md";
@@ -35,13 +29,13 @@ const snapshot = {
 };
 
 function makeUser(enabled = true) { return { plugins: { enabled, mcpServers: [], prompts: [] } }; }
-function context(userId = "user-1", applicationId = "workspace") { return { userId, userRole: "member", applicationId, signal: new AbortController().signal, onProgress() {} }; }
+function context(userId = "user-1", applicationId = "workspace", signal = new AbortController().signal) { return { userId, userRole: "member", applicationId, signal, onProgress() {} }; }
 
-function harness(initialUsers = new Map([["user-1", makeUser()], ["user-2", makeUser()]]), currentSnapshot = snapshot) {
+function harness(initialUsers = new Map([["user-1", makeUser()], ["user-2", makeUser()]]), currentSnapshot = snapshot, downloadSnapshot = async () => currentSnapshot) {
   const users = initialUsers;
   const adapter = createPromptAdapter({
     searchRepositories: async query => [{ fullName: "acme/prompts", description: query, license: "MIT" }],
-    downloadSnapshot: async () => currentSnapshot,
+    downloadSnapshot,
     getSettings: userId => users.get(userId) ?? makeUser(),
     installPrompt(userId, entry) {
       const user = users.get(userId) ?? makeUser();
@@ -103,6 +97,29 @@ test("单个 Markdown 提示词固定归档后登记到账户和单一 App，并
   await registry.remove("prompt", entry.id, "workspace", {}, ctx);
   assert.equal((await registry.list("prompt", "workspace", {}, ctx)).length, 0);
   assert.equal(users.get("user-1").plugins.prompts.length, 1, "移除只影响目标 App 的该条记录");
+});
+
+test("Prompt 下载期间取消 Run 后不写 Settings Owner，且安装凭证不可重放", async () => {
+  const users = new Map([["user-1", makeUser()]]);
+  let releaseInstallSnapshot;
+  const pendingSnapshot = new Promise(resolve => { releaseInstallSnapshot = resolve; });
+  const downloadSignals = [];
+  let downloads = 0;
+  const { registry } = harness(users, snapshot, async (_source, _ref, signal) => {
+    downloadSignals.push(signal);
+    return ++downloads === 1 ? snapshot : pendingSnapshot;
+  });
+  const controller = new AbortController();
+  const ctx = context("user-1", "workspace", controller.signal);
+  const inspected = await registry.inspect("prompt", repository, "main", "workspace", {}, ctx);
+  const installing = registry.install("prompt", inspected.inspectionId, "workspace", "user-1", ctx);
+  assert.equal(downloadSignals.length, 2, "安装必须开始固定快照下载");
+  controller.abort(new DOMException("Run cancelled", "AbortError"));
+  releaseInstallSnapshot(snapshot);
+  await assert.rejects(installing, error => error?.name === "AbortError");
+  assert.deepEqual(users.get("user-1").plugins.prompts, [], "取消后 Settings Owner 不得登记提示词");
+  await assert.rejects(registry.install("prompt", inspected.inspectionId, "workspace", "user-1", context()), /检查凭证不存在/u);
+  assert.equal(downloadSignals[1], controller.signal, "安装下载必须沿用当前 Run 的 AbortSignal");
 });
 
 test("多提示词仓库须选单个文件；固定提交或归档漂移时拒绝登记", async () => {

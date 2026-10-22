@@ -46,7 +46,7 @@ test("正文分段和审批记录经 JSONL 重启与分页保留，非法范围�
         const reply=page.messages.at(-1);
         assert.deepEqual(reply.parts.map(part=>part.kind),['commentary','final']);
         assert.deepEqual(reply.usage,{providerId:'fixture-provider',modelId:'fixture-model',promptTokens:120,completionTokens:18,cacheReadTokens:96});
-        assert.deepEqual(page.usageSummary,{requestCount:1,promptTokens:120,completionTokens:18,cacheReadTokens:96,models:[{providerId:'fixture-provider',modelId:'fixture-model',requestCount:1,promptTokens:120,completionTokens:18,cacheReadTokens:96}]});
+        assert.deepEqual(page.usageSummary,{requestCount:1,requestCountExact:false,promptTokens:120,completionTokens:18,cacheReadTokens:96,models:[{providerId:'fixture-provider',modelId:'fixture-model',requestCount:1,requestCountExact:false,promptTokens:120,completionTokens:18,cacheReadTokens:96,cacheReadReportedTokens:null,cacheReadReportedRequestCount:null}]});
         assert.deepEqual(page.contextUsage,{providerId:'fixture-provider',modelId:'fixture-model',contextWindow:64000,contextWindowSource:'model-catalog',promptTokens:120,estimatedPromptTokens:80,systemTokens:20,toolsTokens:0,messageTokens:60,includesImages:false});
         assert.equal(reply.activity[0].contentOffset,2);assert.equal(reply.activity[0].approvalAnswer,'approved');
         assert.equal(await sessions.getAiSessionMessagesPage('other-owner',id,undefined),null);
@@ -446,7 +446,7 @@ test("计划模式由 Session JSONL 持久化、按账户隔离并随分支恢�
   }
 });
 
-test("会话列表不恢复完整事件日志，消息首屏复用已验证投影并保持更早页校验", () => {
+test("会话列表不恢复完整事件日志，已验证缓存支持历史翻页且失效后完整校验", () => {
   const parent = resolve(cli, "../../dist/.tmp");
   mkdirSync(parent, { recursive: true });
   const data = mkdtempSync(join(parent, "lfaa-session-history-performance-"));
@@ -462,6 +462,9 @@ test("会话列表不恢复完整事件日志，消息首屏复用已验证投�
         sessions.finishAiAssistantMessage('history-owner',sessionId,turn.assistantMessage.id,'答复 '+index,'complete');
       }
       sessions.setAiSessionAssociations('history-owner',sessionId,{applicationIds:['writing'],capabilityIds:['lfaa-skill:writing']});
+      const earlierAssistant=sessionRecords.allForSession('ai_messages',sessionId).find(message=>message.content==='答复 30');
+      sessions.recordAiUsage('history-owner',sessionId,earlierAssistant.id,'fixture-provider','fixture-model',60,10,24);
+      sessions.submitAiMessageFeedback('history-owner',sessionId,earlierAssistant.id,{rating:'negative',reasons:['inaccurate'],detail:'历史页反馈'});
       sessions.submitAiMessageFeedback('history-owner',sessionId,turn.assistantMessage.id,{rating:'positive',reasons:[],detail:'回答清楚'});
       console.log(JSON.stringify({sessionId}));close();
     `);
@@ -469,11 +472,11 @@ test("会话列表不恢复完整事件日志，消息首屏复用已验证投�
       const ids=${JSON.stringify(JSON.parse(output))};
       let fullEventReads=0, sessionReplays=0, pageReads=0;
       const originalAllForSession=sessionRecords.allForSession.bind(sessionRecords);
-      const originalReadMessagePage=sessionRecords.readMessagePage.bind(sessionRecords);
       const persistence=sessionRecords.persistence;
+      const originalReadMessagePage=persistence.readMessagePage.bind(persistence);
       const originalReadSession=persistence.readSession.bind(persistence);
       sessionRecords.allForSession=(table,...args)=>{if(table==='session_events')fullEventReads++;return originalAllForSession(table,...args);};
-      sessionRecords.readMessagePage=(...args)=>{pageReads++;return originalReadMessagePage(...args);};
+      persistence.readMessagePage=(...args)=>{pageReads++;return originalReadMessagePage(...args);};
       persistence.readSession=(...args)=>{sessionReplays++;return originalReadSession(...args);};
       const listed=sessions.listAiSessions('history-owner',false,'workspace');
       assert.equal(fullEventReads,0);
@@ -485,19 +488,21 @@ test("会话列表不恢复完整事件日志，消息首屏复用已验证投�
       assert.equal(first.messages[0].content,'问题 31');
       assert.equal(first.messages.at(-1).feedback.rating,'positive');
       const older=await sessions.getAiSessionMessagesPage('history-owner',ids.sessionId,first.nextCursor,50);
-      assert.equal(pageReads,1);
+      assert.equal(pageReads,0,'完整恢复且修订指纹未变的会话不应为历史页重复扫描 JSONL');
       assert.equal(older.messages.length,50);
       assert.equal(older.messages.at(-1).content,'答复 30');
+      assert.equal(older.messages.at(-1).feedback.rating,'negative');
+      assert.deepEqual(older.messages.at(-1).usage,{providerId:'fixture-provider',modelId:'fixture-model',promptTokens:60,completionTokens:10,cacheReadTokens:24});
       assert.equal(new Set([...first.messages,...older.messages].map(row=>row.id)).size,100);
       const originalIsCurrentRevision=persistence.isCurrentRevision.bind(persistence);
       persistence.isCurrentRevision=()=>false;
       const fallback=await sessions.getAiSessionMessagesPage('history-owner',ids.sessionId,undefined,50);
-      assert.equal(pageReads,2);
+      assert.equal(pageReads,1,'修订失效后仍通过完整链扫描读取');
       assert.equal(fallback.messages[0].content,'问题 31');
       persistence.isCurrentRevision=originalIsCurrentRevision;
       const controller=new AbortController();controller.abort();
       await assert.rejects(sessions.getAiSessionMessagesPage('history-owner',ids.sessionId,older.nextCursor,50,controller.signal),error=>error.name==='AbortError');
-      assert.equal(pageReads,3);
+      assert.equal(pageReads,1,'缓存路径响应预先取消时不应启动磁盘扫描');
       assert.equal(await sessions.getAiSessionMessagesPage('other-owner',ids.sessionId,undefined),null);
       // 先放入列表会返回的 200 个旧头，再超过旧 512 项投影上限；旧实现会对它们逐条读日志。
       const insertHeader=database.prepare("INSERT INTO ai_sessions(id,user_id,app_id,title,archived,created_at,updated_at) VALUES (?,?,?,?,?,?,?)");
@@ -521,6 +526,103 @@ test("会话列表不恢复完整事件日志，消息首屏复用已验证投�
   } finally {
     assert.equal(dirname(resolve(data)), parent);
     assert.ok(basename(data).startsWith("lfaa-session-history-performance-"));
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test("4,000 条历史消息的缓存翻页不重复读取 JSONL", { timeout: 30_000 }, t => {
+  const parent = resolve(cli, "../../dist/.tmp");
+  mkdirSync(parent, { recursive: true });
+  const data = mkdtempSync(join(parent, "lfaa-session-cache-pages-performance-"));
+  try {
+    const script = `
+      const {database,closeDatabase}=await import('lfaa-storage-sqlite/src/database.js');
+      const {configuration}=await import('lfaa-storage-domain/src/configuration.js');
+      const {appendFileSync,mkdirSync,writeFileSync,statSync}=await import('node:fs');
+      const {join}=await import('node:path');
+      const {createHash}=await import('node:crypto');
+      const {performance}=await import('node:perf_hooks');
+      const {encode}=await import('lfaa-storage-json/src/index.js');
+      const {sessionRecords}=await import('lfaa-session-persistence-jsonl/src/repository.js');
+      (await import('lfaa-storage-domain/src/migration.js')).retireLegacyFileTables();
+      database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES ('history-owner','history-owner','salt','hash','admin')").run();
+      const sessionId='00000000-0000-4000-8000-000000000189';
+      const directory=join(process.env.LFAA_HOME,'sessions',createHash('sha256').update(sessionId).digest('hex'));
+      mkdirSync(directory,{recursive:true});
+      const path=join(directory,'events.jsonl');
+      const lines=[];let sequence=0;let previous='';
+      const append=changes=>{
+        sequence+=1;
+        const content={format:1,sessionId,transaction:'fixture-'+sequence,changes,sequence,previous};
+        const checksum=createHash('sha256').update(encode(content)).digest('hex');
+        lines.push(encode({...content,checksum}).replace(/\\n\\s*/gu,'')+'\\n');
+        previous=checksum;
+      };
+      const createdAt=new Date(Date.UTC(2026,0,1)).toISOString();
+      append([{table:'ai_sessions',key:sessionId,value:{id:sessionId,user_id:'history-owner',app_id:'workspace',title:'四千条历史夹具',archived:0,created_at:createdAt,updated_at:createdAt}}]);
+      for(let start=0;start<4000;start+=20){
+        const changes=[];
+        for(let index=start;index<Math.min(4000,start+20);index++){
+          const id='message-'+index;
+          changes.push({table:'ai_messages',key:id,value:{id,session_id:sessionId,user_id:'history-owner',role:index%2?'assistant':'user',content:'历史消息 '+index,status:'complete',created_at:new Date(Date.UTC(2026,0,1)+index*1000).toISOString(),_order:index,activity_json:'[]'}});
+        }
+        append(changes);
+      }
+      writeFileSync(path,lines.join(''),{encoding:'utf8',mode:0o600});
+      const logBytes=statSync(path).size;
+      sessionRecords.allForSession('ai_messages',sessionId);
+      const sessions=await import('lfaa-session/src/sessions.js');
+      let fullScans=0;
+      const persistence=sessionRecords.persistence;
+      const readPage=persistence.readMessagePage.bind(persistence);
+      persistence.readMessagePage=(...args)=>{fullScans+=1;return readPage(...args);};
+      const samples=[];let cursor;
+      for(let pageIndex=0;pageIndex<20;pageIndex++){
+        const started=performance.now();
+        const page=await sessions.getAiSessionMessagesPage('history-owner',sessionId,cursor,50);
+        samples.push(performance.now()-started);
+        const expectedLast=3999-pageIndex*50;
+        assert.equal(page.messages.length,50);
+        assert.equal(page.messages[0].content,'历史消息 '+(expectedLast-49));
+        assert.equal(page.messages.at(-1).content,'历史消息 '+expectedLast);
+        assert.ok(page.nextCursor);
+        cursor=page.nextCursor;
+      }
+      const sorted=[...samples].sort((left,right)=>left-right);
+      const percentile=value=>sorted[Math.ceil(value*sorted.length)-1];
+      assert.equal(fullScans,0,'完整校验后，缓存内的 20 页翻阅不得再次读取整个 JSONL');
+      console.log(JSON.stringify({pageCount:samples.length,logBytes,fullScans,p50Ms:percentile(0.5),p95Ms:percentile(0.95),avoidedFullScanBytes:logBytes*samples.length}));
+      for(let index=0;index<8;index++){
+        const otherId='00000000-0000-4000-8000-00000000019'+index;
+        const otherContent={format:1,sessionId:otherId,transaction:'fixture-1',sequence:1,previous:'',changes:[
+          {table:'ai_sessions',key:otherId,value:{id:otherId,user_id:'history-owner',app_id:'workspace',title:'缓存淘汰夹具',archived:0,created_at:createdAt,updated_at:createdAt}},
+          {table:'ai_messages',key:'message-'+otherId,value:{id:'message-'+otherId,session_id:otherId,user_id:'history-owner',role:'user',content:'淘汰夹具',status:'complete',created_at:createdAt,_order:0,activity_json:'[]'}}
+        ]};
+        const checksum=createHash('sha256').update(encode(otherContent)).digest('hex');
+        const otherDirectory=join(process.env.LFAA_HOME,'sessions',createHash('sha256').update(otherId).digest('hex'));
+        mkdirSync(otherDirectory,{recursive:true});
+        writeFileSync(join(otherDirectory,'events.jsonl'),encode({...otherContent,checksum}).replace(/\\n\\s*/gu,'')+'\\n',{encoding:'utf8',mode:0o600});
+        sessionRecords.allForSession('ai_messages',otherId);
+      }
+      const evictedPage=await sessions.getAiSessionMessagesPage('history-owner',sessionId,cursor,50);
+      assert.equal(evictedPage.messages.length,50);
+      assert.equal(evictedPage.messages.at(-1).content,'历史消息 2999');
+      assert.equal(fullScans,1,'缓存淘汰后历史页仍完整扫描日志');
+      appendFileSync(path,'{}\\n');
+      await assert.rejects(sessions.getAiSessionMessagesPage('history-owner',sessionId,cursor,50),'文件变化后必须重新校验完整日志');
+      assert.equal(fullScans,2,'文件版本变化后必须回退完整链扫描');
+      configuration.close();sessionRecords.close();closeDatabase();
+    `;
+    const output = run(data, script);
+    const measurement = JSON.parse(output.trim().split(/\r?\n/u).at(-1));
+    assert.equal(measurement.pageCount, 20);
+    assert.ok(measurement.logBytes > 0);
+    assert.equal(measurement.fullScans, 0);
+    assert.equal(measurement.avoidedFullScanBytes, measurement.logBytes * measurement.pageCount);
+    t.diagnostic(`4,000 条合成历史消息、${measurement.logBytes} 字节日志，20 页缓存翻阅；全链重扫 ${measurement.fullScans} 次，避免重复读取 ${measurement.avoidedFullScanBytes} 字节；P50 ${measurement.p50Ms.toFixed(3)} ms / P95 ${measurement.p95Ms.toFixed(3)} ms。`);
+  } finally {
+    assert.equal(dirname(resolve(data)), parent);
+    assert.ok(basename(data).startsWith("lfaa-session-cache-pages-performance-"));
     rmSync(data, { recursive: true, force: true });
   }
 });

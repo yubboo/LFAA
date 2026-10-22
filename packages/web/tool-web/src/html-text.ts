@@ -8,8 +8,10 @@
  * 移植自 DeepSeek Harness（MIT License，commit 639ed015397290b3745d163aafe02ffee4aa3f84），包名 dsh-tool-web。
  */
 
-/** 内容本身是原始文本、需要整段删除的元素。 */
-const RAW_DROP_ELEMENTS = new Set(["script", "style", "noscript", "template", "iframe", "object", "embed"]);
+/** 子树都应移除的内容元素；若输入截断导致缺少闭合标签，剩余前缀也一并丢弃。 */
+const RAW_DROP_ELEMENTS = new Set(["script", "style", "noscript", "template", "iframe", "object"]);
+/** void 元素没有子树，只需移除元素标签本身。 */
+const VOID_DROP_ELEMENTS = new Set(["embed"]);
 
 /** 块级元素：转换时在前后补换行。 */
 const BLOCK_ELEMENTS = new Set([
@@ -42,11 +44,13 @@ export function htmlToText(html: string, maxChars: number): { text: string; sour
 
   // 删除 HTML 注释。
   working = working.replace(/<!--[\s\S]*?-->/gu, "");
-  // 整段删除原始文本元素（含其内容）。
-  working = working.replace(new RegExp(`<(${[...RAW_DROP_ELEMENTS].join("|")})\\b[^>]*>[\\s\\S]*?<\\/\\1\\s*>/gui`, "giu"), "");
+  // 整段删除内容元素；截断后缺少闭合标签时，安全丢弃到输入末尾。
+  working = working.replace(new RegExp(`<(${[...RAW_DROP_ELEMENTS].join("|")})\\b[^>]*>[\\s\\S]*?(?:<\\/\\1\\s*>|$)`, "giu"), "");
+  // void 元素没有内容区，不能让其缺少闭合标签时吞掉后续正文。
+  working = working.replace(new RegExp(`<(${[...VOID_DROP_ELEMENTS].join("|")})\\b[^>]*>`, "giu"), "");
 
   // 块级标签先替换为换行，避免相邻文本被粘在一起。
-  working = working.replace(new RegExp(`</?(${[...BLOCK_ELEMENTS].join("|")})\\b[^>]*>/gui`, "giu"), "\n");
+  working = working.replace(new RegExp(`</?(${[...BLOCK_ELEMENTS].join("|")})\\b[^>]*>`, "giu"), "\n");
   // 删除其余所有标签。
   working = working.replace(/<[^>]*>/gu, "");
   working = decodeEntities(working);

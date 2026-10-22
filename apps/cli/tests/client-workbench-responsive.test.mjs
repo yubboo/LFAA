@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { resolveWorkbenchLayoutMetrics, shouldDockResponsiveLeftPane, shouldDockResponsiveRightPane, WORKBENCH_LAYOUT_TOKENS } from "../../../packages/client/ui-dockkit/src/workbench-layout.config.ts";
-import { resolveSideDragRawSize, resolveSnapDragFrame, WORKBENCH_INTERACTION_TOKENS } from "../../../packages/client/ui-dockkit/src/workbench-interaction.config.ts";
+import { resolveRightCenterDragFrame, resolveSideDragRawSize, resolveSnapDragFrame, WORKBENCH_INTERACTION_TOKENS } from "../../../packages/client/ui-dockkit/src/workbench-interaction.config.ts";
 
 test("AI Work 在所有布局保留 300px 中心下限，通用 Surface 保持原断点", () => {
   const applicationDesktop = resolveWorkbenchLayoutMetrics(1536, 900, true);
@@ -43,36 +43,48 @@ test("AI Work 在所有布局保留 300px 中心下限，通用 Surface 保持�
   assert.ok(sharedDesktop.right.max < applicationDesktop.right.max);
 });
 
-test("AI Work 中间聊天整体内缩；消息滚动条贴中栏右边，正文与输入区保留间隙", () => {
+test("AI Work 仅外移会话刻度；消息正文与输入区布局保持不变", () => {
   const workspaceCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/module-workbench.css", import.meta.url), "utf8");
   const chatCss = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
-  const gapTokens = workspaceCss.match(/\.module-ai-work-chat\s*\{([^}]+)\}/u)?.[1];
-  const chatWrapperRule = workspaceCss.match(/\.module-center__content--ai-work\s*>\s*\.module-ai-work-chat\s*\{([^}]+)\}/u)?.[1];
+  const anchorRule = chatCss.match(/^\.ai-work-chat__anchors\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const anchorDockRule = workspaceCss.match(/^\.module-center__content\.module-center__content--ai-work \.ai-work-chat__message-stage > \.ai-work-chat__anchors\s*\{([^}]+)\}/mu)?.[1];
+  const gapTokens = workspaceCss.match(/^\.module-ai-work-chat\s*\{([^}]+)\}/mu)?.[1];
+  const chatWrapperRule = workspaceCss.match(/^\.module-center__content--ai-work\s*>\s*\.module-ai-work-chat\s*\{([^}]+)\}/mu)?.[1];
   const surfaceRule = workspaceCss.match(/\.module-center__content--ai-work\s+\.module-ai-work-chat\s*>\s*\.ai-work-chat\s*\{([^}]+)\}/u)?.[1];
-  const conversationRule = workspaceCss.match(/\.module-center__content--ai-work\s+\.module-ai-work-chat\s*>\s*\.ai-work-chat\s*>\s*\.ai-work-chat__conversation\s*\{([^}]+)\}/u)?.[1];
-  const messageStageRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work\s+\.ai-work-chat__message-stage\s*\{([^}]+)\}/u)?.[1];
-  const messagesRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work\s+\.ai-work-chat__messages\s*\{([^}]+)\}/u)?.[1];
+  const conversationRule = workspaceCss.match(/^\.module-center__content--ai-work \.module-ai-work-chat > \.ai-work-chat > \.ai-work-chat__conversation\s*\{([^}]+)\}/mu)?.[1];
+  const messageStageRule = workspaceCss.match(/^\.module-center__content\.module-center__content--ai-work \.ai-work-chat__message-stage\s*\{([^}]+)\}/mu)?.[1];
+  const messagesRule = workspaceCss.match(/^\.module-center__content\.module-center__content--ai-work \.ai-work-chat__messages\s*\{([^}]+)\}/mu)?.[1];
+  const anchorPreviewRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work\s+\.ai-work-chat__anchor-preview\s*\{([^}]+)\}/u)?.[1];
   const insetControlsRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work\s+:is\(\.ai-work-chat__composer,\s*\.ai-work-chat__usage-footer\)\s*\{([^}]+)\}/u)?.[1];
   const composerRule = chatCss.match(/\.ai-work-chat__composer\s*\{([^}]+)\}/u)?.[1];
 
   assert.ok(gapTokens, "AI Work should define its responsive chat gap tokens");
   assert.ok(chatWrapperRule, "AI Work should inset the whole central chat wrapper");
   assert.ok(surfaceRule, "AI Work chat surface should fill the inset wrapper");
-  assert.ok(conversationRule, "AI Work conversation should extend through the right gap to the pane edge");
-  assert.ok(messageStageRule, "AI Work message stage should retain the inset content width");
-  assert.ok(messagesRule, "AI Work message scroller should extend to the pane edge");
+  assert.ok(conversationRule, "AI Work conversation geometry should remain unchanged");
+  assert.ok(messageStageRule, "AI Work message stage geometry should remain unchanged");
+  assert.ok(messagesRule, "AI Work message scroller geometry should remain unchanged");
+  assert.ok(anchorDockRule, "AI Work should move only the anchor rail to the pane edge");
+  assert.ok(anchorPreviewRule, "AI Work anchor preview should retain its previous position");
   assert.ok(insetControlsRule, "AI Work composer and usage footer should retain the inset width and alignment");
   assert.ok(composerRule, "AI Work composer should fill its conversation column by default");
   assert.match(gapTokens, /--ai-work-chat-inline-gap:\s*clamp\(20px,\s*6cqi,\s*32px\)/u);
   assert.match(gapTokens, /--ai-work-chat-inline-gap-half:\s*clamp\(10px,\s*3cqi,\s*16px\)/u);
-  assert.match(chatWrapperRule, /width:\s*calc\(100% - 2 \* var\(--ai-work-chat-inline-gap\)\)/u);
-  assert.match(chatWrapperRule, /align-self:\s*center/u);
+  assert.match(chatWrapperRule, /width:\s*calc\(100% - var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.match(chatWrapperRule, /align-self:\s*flex-start/u);
   assert.match(surfaceRule, /overflow-x:\s*visible/u);
   assert.match(surfaceRule, /overflow-y:\s*clip/u);
   assert.match(conversationRule, /width:\s*calc\(100% \+ var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.match(conversationRule, /margin-inline:\s*0/u);
+  assert.match(conversationRule, /padding-inline-start:\s*var\(--ai-work-chat-inline-gap\)/u);
+  assert.match(conversationRule, /box-sizing:\s*border-box/u);
   assert.match(messageStageRule, /width:\s*calc\(100% - var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.doesNotMatch(messageStageRule, /align-self:/u);
   assert.match(messagesRule, /width:\s*calc\(100% \+ var\(--ai-work-chat-inline-gap\)\)/u);
   assert.match(messagesRule, /padding-inline-end:\s*var\(--ai-work-chat-inline-gap\)/u);
+  assert.match(anchorRule, /left:\s*0\s*;/u);
+  assert.match(anchorDockRule, /left:\s*calc\(-1 \* var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.match(anchorPreviewRule, /left:\s*calc\(100% \+ var\(--ai-work-chat-inline-gap\) - 4px\)/u);
   assert.match(insetControlsRule, /width:\s*min\(calc\(100% - var\(--ai-work-chat-inline-gap\)\),\s*920px\)/u);
   assert.match(insetControlsRule, /left:\s*calc\(-1 \* var\(--ai-work-chat-inline-gap-half\)\)/u);
   assert.match(composerRule, /width:\s*min\(100%,\s*920px\)/u);
@@ -102,6 +114,42 @@ test("Mobile 工作区标题栏只保留一行，并与菜单 Overlay 顶边对�
   assert.doesNotMatch(workspaceCss, /\.module-center__header\[data-layout-mode="mobile"\]\s+\.module-center__(?:heading|actions)/u);
   assert.match(workspaceCss, /\.module-left-preview\s*\{[\s\S]*?top:\s*var\(--agent-shell-header-h\)/u);
   assert.match(workspaceCss, /\.module-sidebar__brand-row\s*\{[\s\S]*?min-height:\s*var\(--agent-shell-header-h,\s*3rem\)/u);
+});
+
+test("窄中心列将操作压缩为图标，同时保留当前对话名", () => {
+  const workspaceCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/module-workbench.css", import.meta.url), "utf8");
+  const workspaceSource = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
+
+  assert.match(workspaceCss, /\.module-center\s*\{[^}]*container-name:\s*module-center/u);
+  assert.match(workspaceCss, /@container\s+module-center\s*\(max-width:\s*560px\)[\s\S]*?\.module-center__voice-button/u);
+  assert.match(workspaceCss, /@container module-center \(max-width: 560px\)[\s\S]*?\.module-center__title strong \{ min-width: 0; font-size: var\(--font-size-xs\); \}/u);
+  assert.doesNotMatch(workspaceCss, /\.module-center__title strong\s*\{\s*font-size:\s*0/u, "窄中心列仍应显示可截断的会话名");
+  assert.match(workspaceSource, /<strong>\{mode === "ai-work" \? activeAiSessionTitle\?\.trim\(\) \|\| "小鱼智能体" : selectedApp\.title\}<\/strong>/u);
+  assert.match(workspaceCss, /\.module-center__work-tabs\s*>\s*button:not\(\.module-git-summary-trigger\)\s*>\s*span\s*\{\s*display:\s*none;/u);
+  assert.match(workspaceSource, /className="module-center__voice-button"[^>]*aria-label="语音主脑"[^>]*title="语音主脑"/u);
+  assert.match(workspaceSource, /module-runtime-state[^>]*role="img"[^>]*aria-label=\{statusLabel\}[^>]*title=\{statusLabel\}/u);
+  assert.match(workspaceSource, /aria-label=\{`当前 Agent 的 Git 变更：\$\{gitSummaryText\}`\}/u);
+});
+
+test("Git 摘要抽屉从中心内容区顶部贴右侧分隔线展开，遵循减少动态效果设置", () => {
+  const workspaceCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/module-workbench.css", import.meta.url), "utf8");
+  const workspaceSource = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
+
+  assert.match(workspaceCss, /^\.module-center\s*\{[^}]*position:\s*relative;/mu);
+  assert.match(workspaceSource, /getPopupContainer=\{trigger => trigger\.closest\("\.module-center"\) \?\? document\.body\}/u);
+  assert.match(workspaceCss, /\.module-git-summary-popover\s*\{[^}]*inset-inline-start:\s*auto !important;[^}]*inset-inline-end:\s*0 !important;[^}]*top:\s*var\(--agent-shell-header-h,\s*3rem\) !important;[^}]*bottom:\s*auto !important;[^}]*height:\s*auto !important;[^}]*transform:\s*none !important;[^}]*transform-origin:\s*right center;/u);
+  assert.match(workspaceCss, /^\.module-git-summary\s*\{[^}]*height:\s*auto;\s*max-height:\s*min\(72dvh,\s*620px\)/mu);
+  assert.match(workspaceCss, /\.module-git-summary-popover\.ant-zoom-big-fast-enter-active,[\s\S]*?animation:\s*module-git-summary-drawer-in/u);
+  assert.match(workspaceCss, /@keyframes module-git-summary-drawer-in\s*\{\s*from\s*\{\s*clip-path:\s*inset\(0 0 0 100%\)/u);
+  assert.match(workspaceCss, /data-reduced-motion="on"\] \.module-git-summary-popover\s*\{\s*animation-duration:\s*0ms/u);
+  assert.match(workspaceCss, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.workbench-shell\[data-reduced-motion="system"\] \.module-git-summary-popover/u);
+});
+
+test("Git 摘要四项操作菜单完整留在摘要卡范围内", () => {
+  const workspaceCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/module-workbench.css", import.meta.url), "utf8");
+
+  assert.match(workspaceCss, /\.module-git-summary__operations-menu\s*\{[^}]*inset-inline-start:\s*8px;[^}]*max-width:\s*100%;/u);
+  assert.doesNotMatch(workspaceCss, /\.module-git-summary__operations-menu\s*\{[^}]*inset-inline-start:\s*-\d/u);
 });
 
 test("Compact/Mobile 右栏空间足够时沿用共享 Dock 与拉伸预算", () => {
@@ -211,6 +259,59 @@ test("一次按住拖动可吸附后反向展开；pointerup 后不可另起拖�
   assert.match(pointerMove, /drag\.snapped \? drag\.side : "none"/u);
   assert.match(finishPointer, /if \(drag\.snapped\)[\s\S]*setResolvedLeftCollapsed\(true\)/u);
   assert.match(finishPointer, /sideDragRef\.current = null;[\s\S]*root\.dataset\.dragging = "none"/u);
+});
+
+test("右 Dock 扩展时中心列先保留最小宽度，超拖到阈值后才吸附收起", () => {
+  const input = {
+    rightMinSize: 240,
+    maxRightSize: 1260,
+    rightCaptureThreshold: 120,
+    rightSnapped: false,
+    centerMinSize: 300,
+    centerCaptureThreshold: 150,
+    centerSnapped: false,
+    releaseHysteresis: 24,
+  };
+  const atCenterFloor = resolveRightCenterDragFrame({ ...input, rawRightSize: 1109 });
+  const captured = resolveRightCenterDragFrame({ ...input, rawRightSize: 1110 });
+  const released = resolveRightCenterDragFrame({ ...input, rawRightSize: 936, centerSnapped: true });
+  const rightDockCaptured = resolveRightCenterDragFrame({ ...input, rawRightSize: 100 });
+
+  assert.equal(atCenterFloor.centerFrame.snapped, false);
+  assert.equal(atCenterFloor.visualCenterSize, 300);
+  assert.equal(atCenterFloor.visualRightSize, 960);
+  assert.equal(captured.centerFrame.snapped, true);
+  assert.equal(captured.visualCenterSize, 0);
+  assert.equal(captured.visualRightSize, 1260);
+  assert.equal(released.centerFrame.snapped, false);
+  assert.equal(released.visualCenterSize, 324);
+  assert.equal(released.visualRightSize, 936);
+  assert.equal(rightDockCaptured.rightFrame.snapped, true);
+  assert.equal(rightDockCaptured.visualRightSize, 0);
+  assert.equal(rightDockCaptured.visualCenterSize, 1260);
+});
+
+test("中心列阈值以容器总预算计算，不会因右 Dock 静态上限而提前吸附", () => {
+  const input = {
+    rightMinSize: 240,
+    maxRightSize: 1484,
+    rightCaptureThreshold: 120,
+    rightSnapped: false,
+    centerMinSize: 300,
+    centerCaptureThreshold: 150,
+    centerSnapped: false,
+    releaseHysteresis: 24,
+  };
+  const atCenterFloor = resolveRightCenterDragFrame({ ...input, rawRightSize: 1184 });
+  const beforeCapture = resolveRightCenterDragFrame({ ...input, rawRightSize: 1333 });
+  const captured = resolveRightCenterDragFrame({ ...input, rawRightSize: 1334 });
+
+  assert.equal(atCenterFloor.centerFrame.snapped, false);
+  assert.equal(atCenterFloor.visualCenterSize, 300);
+  assert.equal(beforeCapture.centerFrame.snapped, false);
+  assert.equal(beforeCapture.visualCenterSize, 300);
+  assert.equal(captured.centerFrame.snapped, true);
+  assert.equal(captured.visualCenterSize, 0);
 });
 
 test("仅 AI Work 右 Dock 拖动期间停用大面积毛玻璃，并复用 DockKit 清理恢复", () => {

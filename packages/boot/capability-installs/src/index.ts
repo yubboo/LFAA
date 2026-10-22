@@ -139,6 +139,7 @@ export class CapabilityInstallRegistry {
     return { scopeKey: `capability-install:${kind}:${applicationId}:${inspectionId}`, scopeSummary: `${kind} · ${target} · ${ticket.summary}`.slice(0, 240), summary: summary.slice(0, 320) };
   }
   async install(kind: CapabilityKind, inspectionId: string, applicationId: CapabilityApplicationId, userId: string, context: AiBusinessToolContext): Promise<unknown> {
+    context.signal.throwIfAborted();
     const adapter = this.adapter(kind, applicationId);
     adapter.authorize?.("install", context);
     this.expireInspections(Date.now());
@@ -151,6 +152,7 @@ export class CapabilityInstallRegistry {
       this.inspections.delete(inspectionId);
       throw new Error("检查后目标 App 或类型专属目标已变化；凭证已失效，请重新检查来源。");
     }
+    context.signal.throwIfAborted();
     // Consume before the owner performs side effects. An uncertain result must be re-inspected, never replayed.
     this.inspections.delete(inspectionId);
     const installation = await adapter.install(ticket.source, ticket.resolvedRef, ticket.applicationId, userId, ticket.target, ticket.details, context);

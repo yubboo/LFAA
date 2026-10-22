@@ -132,16 +132,19 @@ export function createProjectSkillAdapter(dependencies: ProjectSkillAdapterDepen
       return { resolvedRef: snapshot.commit, resolvedTarget: { sourcePath: sourcePath || "." }, summary: inspectionSummary(details), details: { skill: details } };
     },
     async install(source, resolvedRef, _applicationId, _userId, target, details, context) {
+      context.signal.throwIfAborted();
       const project = currentProject(context);
       if (project.nodeId !== target.nodeId || project.path !== target.path) throw new Error("当前会话项目与检查凭证绑定的项目不同；没有写入，请重新检查来源。");
       const plan = parseDetails(details, resolvedRef);
       if ((typeof target.sourcePath === "string" ? target.sourcePath : "") !== plan.sourcePath) throw new Error("Skill 目录与检查凭证中的选择不一致；没有写入。");
-      const snapshot = await download(source, resolvedRef);
+      const snapshot = await download(source, resolvedRef, context.signal);
+      context.signal.throwIfAborted();
       if (snapshot.commit !== resolvedRef || snapshot.archiveSha256 !== plan.archiveSha256) throw new Error("固定提交的源码归档与检查结果摘要不一致；没有写入项目。");
       const selectedFiles = selectSkillFiles(snapshot.files, plan.sourcePath);
       const skillFile = selectedFiles.find(file => relativeSkillPath(file.path, plan.sourcePath).toLocaleLowerCase("en-US") === "skill.md");
       if (!skillFile || decodeSkillText(skillFile).length === 0) throw new Error("固定版本中的 SKILL.md 缺失或为空；没有写入。");
       const files = selectedFiles.map(file => ({ path: relativeSkillPath(file.path, plan.sourcePath), content: decodeSkillText(file) }));
+      context.signal.throwIfAborted();
       const ownerResult = await runProjectFile({ operation: "create_tree", path: `.agents/skills/${plan.name}`, files }, context);
       const created = unwrapProjectFileResult(ownerResult);
       if (!isRecord(created) || created.created !== true || !Array.isArray(created.files)) throw new Error("项目文件 Owner 未确认目录创建；请重新检查项目状态后再决定是否重试。");

@@ -15,17 +15,24 @@ export interface PluginSourceSnapshot extends GitHubSnapshot { sourceType: Plugi
 interface LocalManifest { name?: unknown; version?: unknown; description?: unknown; license?: unknown }
 
 /** Resolve one user source to an immutable Git commit, registry artifact, or local content digest. */
-export async function resolvePluginSource(sourceValue: string, requestedRef?: string, npmRegistry?: string): Promise<PluginSourceSnapshot> {
+export async function resolvePluginSource(sourceValue: string, requestedRef?: string, npmRegistry?: string, signal?: AbortSignal): Promise<PluginSourceSnapshot> {
+  signal?.throwIfAborted();
   const source = sourceValue.trim();
   if (!source || source.length > 2048 || /[\r\n\0]/u.test(source)) throw new Error("插件来源为空或格式无效。");
   if (/^https:\/\//iu.test(source)) {
-    const snapshot = await downloadGithubSnapshot(source, requestedRef);
+    const snapshot = await downloadGithubSnapshot(source, requestedRef, signal);
+    signal?.throwIfAborted();
     return { ...snapshot, sourceType: "github", sourceLocation: snapshot.repository.url };
   }
-  if (/^(?:local|file|link):/u.test(source) || isAbsolute(source)) return resolveLocalSource(source);
+  if (/^(?:local|file|link):/u.test(source) || isAbsolute(source)) {
+    const snapshot = resolveLocalSource(source);
+    signal?.throwIfAborted();
+    return snapshot;
+  }
 
   const spec = parseNpmSpec(source, requestedRef);
-  const artifact = await downloadPluginPackageFromRegistry(spec.name, spec.version, normalizeNpmRegistryUrl(npmRegistry));
+  const artifact = await downloadPluginPackageFromRegistry(spec.name, spec.version, normalizeNpmRegistryUrl(npmRegistry), signal);
+  signal?.throwIfAborted();
   const registryUrl = artifact.registryUrl;
   const sourceLocation = `npm:${spec.name}`;
   const repository: GitHubRepository = {

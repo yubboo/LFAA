@@ -8,7 +8,7 @@ Workbench 提供唯一的 `applicationNavigationItems` 应用清单。`Applicati
 
 设置页只在 `/settings`、`/admin/users` 直达路由或用户悬停/聚焦设置导航时预热；工作台空闲时不主动下载整页，避免后台模块加载占用首屏资源。
 
-`/work` 与应用 `workspace/ai-work` 路由会在应用工作区模块加载时并行预热 AI 聊天模块，缩短嵌套懒加载形成的首屏等待。预热只在 AI Work 路由触发；失败不阻断模块正常加载，失败 Promise 会清空以便后续重试。
+`/work`、全屏语音入口 `/voice` 与应用 `workspace/ai-work` 路由会在应用工作区模块加载时并行预热 AI 聊天模块，缩短嵌套懒加载形成的首屏等待。预热只在 AI Work 路由触发；失败不阻断模块正常加载，失败 Promise 会清空以便后续重试。
 
 ## 小鱼共享工作入口（2026-10-14）
 

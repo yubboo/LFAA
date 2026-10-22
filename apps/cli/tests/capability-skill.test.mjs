@@ -24,8 +24,8 @@ const snapshot = {
   requestedRef: 'main', commit: 'b'.repeat(40), archiveSha256: 'c'.repeat(64), files: selectedFiles
 };
 
-function makeContext(selectedProject = project) {
-  return { userId: 'user-1', userRole: 'admin', applicationId: 'workspace', signal: new AbortController().signal, onProgress() {}, workspaceProject: selectedProject };
+function makeContext(selectedProject = project, signal = new AbortController().signal) {
+  return { userId: 'user-1', userRole: 'admin', applicationId: 'workspace', signal, onProgress() {}, workspaceProject: selectedProject };
 }
 
 test('单个 GitHub Skill 固定归档后写入当前项目并通过 Owner 发现核验', async () => {
@@ -62,6 +62,39 @@ test('单个 GitHub Skill 固定归档后写入当前项目并通过 Owner 发�
   assert.equal(calls[1].operation, 'discover_skills');
   assert.equal((await registry.list('skill', 'workspace', {}, context)).length, 1);
   assert.equal(calls[2].operation, 'discover_skills', '通用安装核验复用 Owner 清单读取合同');
+});
+
+test('Skill 下载期间取消 Run 后不写项目文件 Owner，且安装凭证不可重放', async () => {
+  let releaseInstallSnapshot;
+  const pendingSnapshot = new Promise(resolve => { releaseInstallSnapshot = resolve; });
+  const downloadSignals = [];
+  let downloads = 0;
+  const ownerWrites = [];
+  const adapter = createProjectSkillAdapter({
+    downloadSnapshot: async (_source, _ref, signal) => {
+      downloadSignals.push(signal);
+      return ++downloads === 1 ? snapshot : pendingSnapshot;
+    },
+    runProjectFile: async input => {
+      ownerWrites.push(input);
+      return input.operation === 'create_tree'
+        ? { result: { created: true, files: [] } }
+        : { result: { skills: [{ name: 'reviewer', path: '.agents/skills/reviewer/SKILL.md' }] } };
+    }
+  });
+  const registry = new CapabilityInstallRegistry();
+  registry.register({ effect(callback) { return callback(); } }, adapter);
+  const controller = new AbortController();
+  const context = makeContext(project, controller.signal);
+  const inspected = await registry.inspect('skill', 'https://github.com/acme/skills', 'main', 'workspace', {}, context);
+  const installing = registry.install('skill', inspected.inspectionId, 'workspace', 'user-1', context);
+  assert.equal(downloadSignals.length, 2, '安装必须开始固定快照下载');
+  controller.abort(new DOMException('Run cancelled', 'AbortError'));
+  releaseInstallSnapshot(snapshot);
+  await assert.rejects(installing, error => error?.name === 'AbortError');
+  assert.deepEqual(ownerWrites, [], '取消后项目文件 Owner 不得写入');
+  await assert.rejects(registry.install('skill', inspected.inspectionId, 'workspace', 'user-1', makeContext()), /检查凭证不存在/u);
+  assert.equal(downloadSignals[1], controller.signal, '安装下载必须沿用当前 Run 的 AbortSignal');
 });
 
 test('Skill 检查静态盘点脚本与依赖并明确不会执行或安装它们', async () => {

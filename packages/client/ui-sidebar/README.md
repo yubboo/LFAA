@@ -6,6 +6,8 @@
 
 `SecondaryNavigation` 是设置与业务工作区共用的二级菜单呈现组件。调用方提供分组、当前项与选择回调并持有唯一状态；组件统一提供滚动、分组折叠、当前项反馈和键盘移动，不读取设置或执行业务导航。侧栏尺寸、拖动、吸附、收起与响应式 Overlay 继续由 `lfaa-client-ui-dockkit/ResizableWorkbench` 持有。
 
+`GlobalNavigationRail` 的可选 `className` 会追加到导航轨根 `<nav>`，供调用方标识自己的布局区域；它不改变导航内容或交互。在 `ApplicationWorkspace` 中，该类名用于标记最左侧图标轨。
+
 全局“应用”菜单接收 Workbench 的完整应用清单及按 `general.hiddenApplicationNavigationIds` 过滤后的可见清单。工作区右侧“应用”视图消费可见清单与现有路由/应用打开回调；左二只负责 AI Work 草稿、会话和项目。设置分类只控制导航入口显隐，不改变应用权限、路由或实例状态；所有隐藏时显示设置入口提示，不生成替代应用。
 
 构建只写仓库根 dist/packages/client/ui-sidebar/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。

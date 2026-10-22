@@ -23,6 +23,7 @@ export interface ApplicationNavigationItem {
 }
 
 interface GlobalNavigationRailProps {
+  className?: string;
   username: string;
   role: UserRole;
   serverState: ServiceState;
@@ -46,7 +47,7 @@ interface GlobalNavigationRailProps {
   onToggleApplications?: () => void;
 }
 
-export function GlobalNavigationRail({ username, role, serverState, shortcuts, activePage, homeLabel, applications, navigationApplications = applications, onOpenRecentSessions, showServiceStatus, onHome, onNavigate, onOpenApplication, onOpenFiles, onOpenWork, onOpenSettings, onLogout, onToggleTools, applicationsExpanded = false, applicationsTargetId = "module-sidebar-applications", onToggleApplications }: GlobalNavigationRailProps) {
+export function GlobalNavigationRail({ className, username, role, serverState, shortcuts, activePage, homeLabel, applications, navigationApplications = applications, onOpenRecentSessions, showServiceStatus, onHome, onNavigate, onOpenApplication, onOpenFiles, onOpenWork, onOpenSettings, onLogout, onToggleTools, applicationsExpanded = false, applicationsTargetId = "module-sidebar-applications", onToggleApplications }: GlobalNavigationRailProps) {
   const [openPopover, setOpenPopover] = useState<"applications" | "menu" | "shortcuts" | "profile" | null>(null);
   const railRef = useRef<HTMLElement>(null);
 
@@ -76,7 +77,7 @@ export function GlobalNavigationRail({ username, role, serverState, shortcuts, a
   }, [openPopover]);
 
   return (
-    <nav className="module-navigation-rail" aria-label="LFAA 主导航" ref={railRef}>
+    <nav className={`module-navigation-rail${className ? ` ${className}` : ""}`} aria-label="LFAA 主导航" ref={railRef}>
       <div className="module-navigation-rail__primary">
         <button className={`module-navigation-rail__button${activePage === "home" ? " is-active" : ""}`} type="button" aria-label={homeLabel} aria-current={activePage === "home" ? "page" : undefined} title={homeLabel} onClick={() => { setOpenPopover(null); onHome(); }}><WorkbenchIcon name="home" size={19} /></button>
         <button className={`module-navigation-rail__button${(onToggleApplications ? applicationsExpanded : openPopover === "applications") ? " is-active" : ""}`} type="button" aria-label="应用" title="应用" aria-haspopup={onToggleApplications ? undefined : "dialog"} aria-expanded={onToggleApplications ? applicationsExpanded : openPopover === "applications"} aria-controls={onToggleApplications ? applicationsTargetId : openPopover === "applications" ? "module-navigation-rail-applications" : undefined} onClick={toggleApplications}><WorkbenchIcon name="grid" size={19} /></button>

@@ -4,6 +4,8 @@
 
 `lfaa-plugin-manager` 是 Web 与 Desktop Profile 共用的第三方插件来源和安装清单 Owner，并通过 `lfaa-capability-installs` 注册为 `plugin` 类型适配器。支持 GitHub 仓库、官方 NPM 包和 LFAA Host 本机绝对路径三种来源。自然语言发现、检查、安装、App 路由、清单查询、启停和移除使用跨类型的 `capability_*` AI Tools；候选始终未验证，必须先检查固定来源与清单才能判断合同兼容性。
 
+Capability Install 将 Agent Run 的 AbortSignal 沿 Plugin Adapter、Plugin Manager 与来源解析传到 GitHub/NPM 快照的每个有界请求，以及 Git fallback 子进程；用户取消会停止当前下载，不会被误识别成网络故障而触发 Git fallback。快照下载完成后、暂存目录提交前再次检查取消；原子提交过程不响应中途事件循环，提交前取消清理暂存，已提交结果由清单回读确认。未提供 signal 的既有调用继续使用各自超时限制。Prompt 与 Skill 安装也只在各自 Owner 写入前消费同一 Run signal；通用凭证保持一次性。
+
 DSH `dsh.bundle.patch` 可声明单个路径或按顺序应用的路径数组。来源检查会对每个相对路径做包内存在性、遍历与重复项校验，并将单路径保留为字符串、多路径以有序数组写入 `requirements.bundlePatch` JSON 字段；这只修复通用清单识别和来源信息回传，不代表对应的 DSH Host/Client 已有可执行 Runtime。
 
 插件清单 v5 将同一份已校验来源合同（DSH 版本、包内 Host/Client 入口、按序 patch、注入项、依赖名和脚本名）随 Profile 安装记录持久化，使服务重启后的 Host/Client 装配器能读取固定版本的元数据。读取 v1–v4 清单时为旧记录补空合同，并在下一次正常生命周期写入时迁移到 v5；不会从可能变化的已安装目录重新信任清单，也不会因此执行第三方入口或脚本。该元数据仍只是来源声明，不能替代 ABI、权限、依赖、隔离能力和运行状态验证。

@@ -49,6 +49,20 @@ test("AI Work 输入光标跟随当前文字颜色，避免浅色背景上不可
   assert.doesNotMatch(composerInputRule, /caret-color:\s*currentColor\s*!important/u);
 });
 
+test("输入框交互边框与外观设置驱动的毛玻璃背景使用独立图层", () => {
+  const composerSurfaceRule = chatStyles.match(/^\.ai-work-chat__composer::before\s*\{([^}]*)\}/mu)?.[1] ?? "";
+  const composerGlassRule = chatStyles.match(/body\[data-we-wallpaper\]\[data-we-glass-chat\][^\n]*\.ai-work-chat__composer::before\s*\{([^}]*)\}/u)?.[1] ?? "";
+
+  assert.match(composerRule, /isolation:\s*isolate\s*;/u);
+  assert.match(composerRule, /background:\s*transparent\s*;/u);
+  assert.match(composerRule, /backdrop-filter:\s*none\s*;/u);
+  assert.match(composerSurfaceRule, /backdrop-filter:\s*blur\(var\(--settings-glass-blur\)\)\s*;/u);
+  assert.match(composerSurfaceRule, /background:\s*color-mix\(in srgb, var\(--color-surface\) 94%, transparent\)\s*;/u);
+  assert.match(composerGlassRule, /backdrop-filter:\s*blur\(var\(--settings-wallpaper-chat-blur, var\(--settings-glass-blur\)\)\)/u);
+  assert.match(composerFocusRule, /border-color:/u);
+  assert.doesNotMatch(composerFocusRule, /backdrop-filter|background(?:-color|-image)?:/u);
+});
+
 test("中屏输入区悬停不触发卡片变化、无阴影且空闲时不虚化操作", () => {
   const controlRule = chatStyles.match(/^\.ai-work-chat__composer-control\.ant-btn\s*\{([^}]*)\}/mu)?.[1] ?? "";
   const submitRule = chatStyles.match(/^\.ai-work-chat__composer-submit\.ant-btn\s*\{([^}]*)\}/mu)?.[1] ?? "";

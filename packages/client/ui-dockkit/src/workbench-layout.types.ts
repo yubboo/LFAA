@@ -40,6 +40,10 @@ export interface ResizableWorkbenchProps {
   snapReleaseDurationMs?: number;
   snapSettleDurationMs?: number;
   minCenterWidth?: number;
+  /** 受控中心内容收起状态；右栏拖动吸附或明确页签操作都可请求更新。 */
+  centerCollapsed?: boolean;
+  /** 仅允许右侧 Dock 越过中心区 min 后通过超拖吸附手势收起中心列。 */
+  centerCollapseEnabled?: boolean;
   /** 可选受控左栏宽度；提供后由父组件成为 leftWidth 唯一事实源。 */
   leftWidth?: number;
   leftCollapsed?: boolean;
@@ -55,5 +59,8 @@ export interface ResizableWorkbenchProps {
   onLeftWidthChange?: (width: number) => void;
   onLeftCollapsedChange?: (collapsed: boolean) => void;
   onRightCollapsedChange?: (collapsed: boolean) => void;
+  onCenterCollapsedChange?: (collapsed: boolean) => void;
+  /** 中心列吸附预览状态；只在阈值进入/退出和手势结束时通知，不随每帧尺寸更新。 */
+  onCenterCollapsePreviewChange?: (preview: boolean | null) => void;
   onBottomOpenChange?: (open: boolean) => void;
 }

@@ -8,6 +8,7 @@ const workbench = read("../../../packages/client/ui-layout/src/Workbench.tsx");
 const workspace = read("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx");
 const workspaceCss = read("../../../packages/client/ui-workspace/src/module-workbench.css");
 const dockkitCss = read("../../../packages/client/ui-dockkit/src/workbench.css");
+const dockkit = read("../../../packages/client/ui-dockkit/src/ResizableWorkbench.tsx");
 const aiWorkChatCss = read("../../../packages/client/ui-chat/src/ai-work-chat.css");
 const rail = read("../../../packages/client/ui-sidebar/src/GlobalNavigationRail.tsx");
 const secondaryNavigation = read("../../../packages/client/ui-sidebar/src/SecondaryNavigation.tsx");
@@ -205,4 +206,26 @@ test("共享二级导航支持可选说明和尾部图标，其他页面仍可�
   assert.match(secondaryNavigation, /trailingIcon\?: WorkbenchIconName/u);
   assert.match(secondaryNavigation, /item\.description \? <small>/u);
   assert.match(secondaryNavigation, /item\.trailingIcon \? <WorkbenchIcon/u);
+});
+
+test("工作区通过内外层容器和区域标识独立定位四个布局盒子", () => {
+  const outerIndex = workspace.indexOf("className={`module-workbench-stage");
+  const innerIndex = workspace.indexOf('<div className="module-workbench-inner">', outerIndex);
+  const globalNavigationIndex = workspace.indexOf('className="module-workbench-region--global-navigation"', innerIndex);
+  const mainIndex = workspace.indexOf('<div className="module-workbench-main">', globalNavigationIndex);
+
+  assert.ok(outerIndex >= 0, "outer workbench container should exist");
+  assert.ok(innerIndex > outerIndex, "inner workbench should be nested inside the outer container");
+  assert.ok(globalNavigationIndex > innerIndex && globalNavigationIndex < mainIndex, "global icon rail should be the first inner region");
+  assert.match(workspace, /module-sidebar module-workbench-region--secondary-navigation/u);
+  assert.match(workspace, /module-center module-workbench-region--center-workspace/u);
+  assert.match(workspace, /module-context module-workbench-region--right-menu/u);
+  assert.match(rail, /className\?: string/u);
+  assert.match(rail, /module-navigation-rail\$\{className \? ` \$\{className\}` : ""\}/u);
+  assert.match(dockkit, /className="lfaa-workbench__pane lfaa-workbench__pane--left"/u);
+  assert.match(dockkit, /className="lfaa-workbench__center"/u);
+  assert.match(dockkit, /className="lfaa-workbench__pane lfaa-workbench__pane--right"/u);
+  assert.match(workspaceCss, /\.module-workbench-stage\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u);
+  assert.match(workspaceCss, /\.module-workbench-inner\s*\{[^}]*grid-template-columns:\s*var\(--module-rail-width\)\s+minmax\(0,\s*1fr\)/u);
+  assert.match(workspaceCss, /\.module-workbench-stage--voice \.module-workbench-inner\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\)/u);
 });

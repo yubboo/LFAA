@@ -329,7 +329,9 @@ export function Workbench({
   authTransitionStaging = false,
   onAuthTransitionWarmupReady
 }: WorkbenchProps) {
-  const appRoute = normalizeWorkRoute(route) === SHARED_WORK_ROUTE ? [route, "workspace", "ai-work", "overview"] : route.match(APPLICATION_ROUTE_PATTERN);
+  const appRoute = route === "/voice"
+    ? [route, "workspace", "ai-work", "voice"]
+    : normalizeWorkRoute(route) === SHARED_WORK_ROUTE ? [route, "workspace", "ai-work", "overview"] : route.match(APPLICATION_ROUTE_PATTERN);
   const isAiWorkRoute = appRoute?.[1] === "workspace" && appRoute?.[2] === "ai-work";
   const isFileManagerPage = route === "/files";
   const isPluginManagerPage = route === "/plugin-manager";

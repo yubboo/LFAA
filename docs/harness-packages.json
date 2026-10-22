@@ -6406,7 +6406,7 @@
       "responsibility": "模型网页搜索/抓取工具合同",
       "evidence": {
         "entry": "packages/web/tool-web/src/index.ts",
-        "readme": null,
+        "readme": "packages/web/tool-web/README.md",
         "consumers": [],
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"

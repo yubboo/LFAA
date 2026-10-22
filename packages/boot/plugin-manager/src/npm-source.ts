@@ -38,7 +38,8 @@ export interface RegistryPluginPackage {
 }
 
 /** Resolve a plugin from the selected registry, following DSH's public fallback on reachability or package misses. */
-export async function downloadPluginPackageFromRegistry(packageName: string, requestedVersion: string, registryValue?: string): Promise<RegistryPluginPackage> {
+export async function downloadPluginPackageFromRegistry(packageName: string, requestedVersion: string, registryValue?: string, signal?: AbortSignal): Promise<RegistryPluginPackage> {
+  signal?.throwIfAborted();
   const selected = normalizeNpmRegistryUrl(registryValue);
   const registryPlan = selected === DEFAULT_NPM_REGISTRY
     ? [selected, NPMMIRROR_REGISTRY]
@@ -49,10 +50,11 @@ export async function downloadPluginPackageFromRegistry(packageName: string, req
     const registry = registryPlan[index]!;
     try {
       const artifact = /[~^*<>=| ]/u.test(requestedVersion)
-        ? await downloadCompatibleRegistryPluginPackage(packageName, requestedVersion, registry)
-        : await downloadRegistryPluginPackage(packageName, requestedVersion, registry);
+        ? await downloadCompatibleRegistryPluginPackage(packageName, requestedVersion, registry, signal)
+        : await downloadRegistryPluginPackage(packageName, requestedVersion, registry, signal);
       return { ...artifact, registryUrl: registry };
     } catch (error) {
+      signal?.throwIfAborted();
       if (index < registryPlan.length - 1 && isRegistryFallbackEligible(error)) continue;
       throw error;
     }
@@ -61,29 +63,33 @@ export async function downloadPluginPackageFromRegistry(packageName: string, req
 }
 
 /** Resolve a dependency's declared semver range from the selected registry; never fall back to an unrelated latest. */
-export async function downloadCompatibleRegistryPluginPackage(name: string, range: string, registryValue?: string): Promise<RegistryPluginPackage> {
+export async function downloadCompatibleRegistryPluginPackage(name: string, range: string, registryValue?: string, signal?: AbortSignal): Promise<RegistryPluginPackage> {
+  signal?.throwIfAborted();
   if (!isNpmPackageName(name)) throw new Error("插件依赖包名无效。");
   if (range.length > 200 || !validRange(range)) throw new Error(`插件依赖版本范围无效：${name}@${range}`);
   const registry = normalizeNpmRegistryUrl(registryValue);
   if (valid(range)) return downloadRegistryPluginPackage(name, range, registry);
   const metadata = await readJson(await fetch(new URL(encodeURIComponent(name), registry), {
     headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/json" },
-    redirect: "error", signal: AbortSignal.timeout(20_000)
+    redirect: "error", signal: requestSignal(signal, 20_000)
   }), `NPM registry ${new URL(registry).host}`);
+  signal?.throwIfAborted();
   const version = maxSatisfying(Object.keys(isRecord(metadata.versions) ? metadata.versions : {}), range);
   if (!version) throw Object.assign(new Error(`NPM registry ${new URL(registry).host} 没有满足范围的插件依赖：${name}@${range}`), { code: "npm_registry_no_matching_version" });
-  return downloadRegistryPluginPackage(name, version, registry);
+  return downloadRegistryPluginPackage(name, version, registry, signal);
 }
 
 /** Resolve one npm package version and verify its registry integrity before reading its manifest. */
-export async function downloadRegistryPluginPackage(packageName: string, requestedVersion: string, registryValue?: string): Promise<RegistryPluginPackage> {
+export async function downloadRegistryPluginPackage(packageName: string, requestedVersion: string, registryValue?: string, signal?: AbortSignal): Promise<RegistryPluginPackage> {
+  signal?.throwIfAborted();
   if (!isNpmPackageName(packageName) || !/^[A-Za-z0-9][A-Za-z0-9.+_-]{0,99}$/u.test(requestedVersion)) throw new Error("NPM 插件包名或版本标签格式无效。");
   const registry = normalizeNpmRegistryUrl(registryValue);
   const metadataUrl = new URL(`${encodeURIComponent(packageName)}/${encodeURIComponent(requestedVersion)}`, registry);
   const metadata = await readJson(await fetch(metadataUrl, {
     headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/json" },
-    redirect: "error", signal: AbortSignal.timeout(20_000)
+    redirect: "error", signal: requestSignal(signal, 20_000)
   }), `NPM registry ${new URL(registry).host}`);
+  signal?.throwIfAborted();
   if (metadata.name !== packageName || typeof metadata.version !== "string" || !isExactVersion(metadata.version)) throw new Error("NPM registry 未返回与请求包名匹配的固定版本。");
   const dist = isRecord(metadata.dist) ? metadata.dist : undefined;
   if (!dist || typeof dist.tarball !== "string" || typeof dist.integrity !== "string") throw new Error("NPM registry 未提供插件 tarball 与 SHA-512 完整性声明。");
@@ -91,8 +97,9 @@ export async function downloadRegistryPluginPackage(packageName: string, request
   if (tarballUrl.origin !== new URL(registry).origin || tarballUrl.username || tarballUrl.password || tarballUrl.search || tarballUrl.hash) {
     throw new Error("NPM 插件 tarball 必须来自当前选择的 registry，且不能包含认证信息或重定向参数。");
   }
-  const tarballResponse = await fetchRegistryTarball(tarballUrl, registry, AbortSignal.timeout(60_000));
+  const tarballResponse = await fetchRegistryTarball(tarballUrl, registry, requestSignal(signal, 60_000));
   const tarball = await readBoundedBody(tarballResponse);
+  signal?.throwIfAborted();
   verifyIntegrity(tarball, dist.integrity);
   // DefinitelyTyped 的旧发布包使用类型包名作为单一根目录；仍拒绝混合根、链接和路径穿越。
   const files = readNpmTarGzip(tarball, packageName.startsWith("@types/") ? packageName.slice(7) : undefined);
@@ -119,18 +126,21 @@ export function needsPublishedFiles(snapshot: GitHubSnapshot): boolean {
   return expected.some((file) => !files.has(file));
 }
 
-export async function downloadPublishedFiles(snapshot: GitHubSnapshot): Promise<GitHubSnapshot> {
+export async function downloadPublishedFiles(snapshot: GitHubSnapshot, signal?: AbortSignal): Promise<GitHubSnapshot> {
+  signal?.throwIfAborted();
   const sourceManifest = readPackageManifest(snapshot.files);
   if (typeof sourceManifest.name !== "string" || !isNpmPackageName(sourceManifest.name) || typeof sourceManifest.version !== "string" || !isExactVersion(sourceManifest.version)) {
     throw new Error("GitHub 插件缺少可解析的 NPM 包名或固定版本；不能补齐发布产物。");
   }
   const packageName = sourceManifest.name;
   const metadataUrl = new URL(`${encodeURIComponent(packageName)}/${encodeURIComponent(sourceManifest.version)}`, DEFAULT_NPM_REGISTRY);
-  const metadataResponse = await fetch(metadataUrl, { headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(20_000) });
+  const metadataResponse = await fetch(metadataUrl, { headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/json" }, redirect: "error", signal: requestSignal(signal, 20_000) });
+  signal?.throwIfAborted();
   // A GitHub-only release is still a valid source snapshot. The caller records its
   // missing entrypoints and keeps it incompatible; it must not substitute another package.
   if (metadataResponse.status === 404) return snapshot;
   const metadata = await readJson(metadataResponse, "NPM registry");
+  signal?.throwIfAborted();
   if (metadata.name !== packageName || metadata.version !== sourceManifest.version || metadata.gitHead !== snapshot.commit) {
     throw new Error("NPM 发布包未声明与已检查 GitHub 提交一致的 gitHead；拒绝用其他版本产物补齐。");
   }
@@ -146,8 +156,9 @@ export async function downloadPublishedFiles(snapshot: GitHubSnapshot): Promise<
   if (tarballUrl.origin !== new URL(DEFAULT_NPM_REGISTRY).origin || tarballUrl.protocol !== "https:" || tarballUrl.port || tarballUrl.username || tarballUrl.password || tarballUrl.search || tarballUrl.hash) {
     throw new Error("NPM 发布 tarball 必须来自官方 registry.npmjs.org。");
   }
-  const tarballResponse = await fetch(tarballUrl, { headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/octet-stream" }, redirect: "error", signal: AbortSignal.timeout(60_000) });
+  const tarballResponse = await fetch(tarballUrl, { headers: { "User-Agent": "LFAA-Plugin-Manager", Accept: "application/octet-stream" }, redirect: "error", signal: requestSignal(signal, 60_000) });
   const tarball = await readBoundedBody(tarballResponse);
+  signal?.throwIfAborted();
   verifyIntegrity(tarball, dist.integrity);
   const files = readNpmTarGzip(tarball);
   const tarManifest = readPackageManifest(files);
@@ -299,6 +310,11 @@ function safeManifestText(value: string, limit: number): string {
 
 function isExactVersion(value: string): boolean { return value.length <= 100 && /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(value); }
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
+
+function requestSignal(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
 function isRegistryFallbackEligible(error: unknown): boolean {
   if (!isRecord(error)) return error instanceof TypeError;
   return error.code === "npm_registry_not_found"

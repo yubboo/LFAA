@@ -23,7 +23,9 @@ import { buildConversationAnchorLayout, createConversationScrollTracker, createF
 import { createOutputIdleBlurController } from "./output-idle-blur.js";
 import { AI_RUN_CONTROL_GUARD_MS, canControlAiRun } from "./run-stop-guard.js";
 import { AiUsageFooter, type AiUsageLoadState } from "./AiUsageFooter.js";
-import { supportsVoiceInput, startVoiceInput, readResponseAloud, stopVoicePlayback } from "./voice.js";
+import { supportsVoiceInput, supportsVoiceOutput, startVoiceInput, readResponseAloud, stopVoicePlayback } from "./voice.js";
+import voiceParticleCore from "./assets/voice-particle-core.png";
+import { VoiceOrb3D } from "./VoiceOrb3D.js";
 import { WorkbenchIcon, type WorkbenchIconName } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { DshSlotOutlet } from "lfaa-client-modules/src/client/index.js";
 import { WorkspaceProjectPicker } from "./WorkspaceProjectPicker.js";
@@ -107,6 +109,8 @@ interface AiWorkChatProps {
   onWritingWorkspaceChange?: (workspace: WritingWorkspace) => void;
   onOpenProjectFileReview?: (projectId: string, path: string) => void;
   onSessionFileChanges?: (sessionId: string | null, changes: AiActivityFileChange[]) => void;
+  voiceMode?: boolean;
+  onExitVoice?: () => void;
 }
 
 type MessageUsage = { promptTokens: number | null; completionTokens: number | null; cacheReadTokens: number | null; providerId: string; modelId: string; models?: Array<{ providerId: string; modelId: string; requestCount: number }> };
@@ -420,7 +424,7 @@ const runtimeSpeedOptions: Array<{ value: UserSettings["aiRuntime"]["speed"]; la
   { value: "deep", label: "深入", description: "按模型/自定义上限" }
 ];
 
-function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, newSessionProjectId, newSessionGitRepositoryId, defaultWorkspaceProjectId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFileReview, onWritingWorkspaceChange, onSessionFileChanges }: AiWorkChatProps) {
+function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, newSessionProjectId, newSessionGitRepositoryId, defaultWorkspaceProjectId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFileReview, onWritingWorkspaceChange, onSessionFileChanges, voiceMode = false, onExitVoice = () => undefined }: AiWorkChatProps) {
   const currentScrollConversationKey = `${appId}:${activeSessionId ?? "new-session"}`;
   const outputFocusRegionElementRef = useRef<HTMLElement | null>(null);
   const setOutputFocusRegionElement = useCallback((node: HTMLElement | null) => {
@@ -478,17 +482,45 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
   const [runPauseBusy, setRunPauseBusy] = useState(false);
   const runPauseEventRevisionRef = useRef(0);
   const [listening, setListening] = useState(false);
+  const [voiceSessionActive, setVoiceSessionActive] = useState(false);
+  const [voiceSpeaking, setVoiceSpeaking] = useState(false);
+  const [voiceSpeechActivity, setVoiceSpeechActivity] = useState(0);
+  const currentSettingsRef = useRef(settings);
+  currentSettingsRef.current = settings;
+  const voiceSessionActiveRef = useRef(false);
+  const voiceReplyInProgressRef = useRef(false);
+  const voiceResumePendingRef = useRef(false);
+  const voiceTurnDispatchRef = useRef(false);
+  const voiceSpeechActivityRef = useRef(0);
+  const voiceSpeechActivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopListening = useRef<(() => void) | null>(null);
   const draftRef = useRef(draft); draftRef.current = draft;
   const autoSubmittedGoalRequestRef = useRef<string | null>(null);
   const stopGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopGuardStartedAtRef = useRef<number | null>(null);
   useEffect(() => () => {
+    voiceSessionActiveRef.current = false;
     stopListening.current?.();
     stopVoicePlayback();
+    if (voiceSpeechActivityTimerRef.current) clearTimeout(voiceSpeechActivityTimerRef.current);
     if (stopGuardTimerRef.current) clearTimeout(stopGuardTimerRef.current);
   }, []);
-  useEffect(() => { if (!settings.aiRuntime.voiceInputEnabled) { stopListening.current?.(); stopListening.current = null; setListening(false); } if (!settings.aiRuntime.readResponsesAloud) stopVoicePlayback(); }, [settings.aiRuntime.voiceInputEnabled, settings.aiRuntime.readResponsesAloud]);
+  useEffect(() => {
+    if (!settings.aiRuntime.voiceInputEnabled) {
+      if (voiceSessionActiveRef.current) endVoiceSession();
+      else { stopListening.current?.(); stopListening.current = null; setListening(false); }
+    }
+  }, [settings.aiRuntime.voiceInputEnabled]);
+  useEffect(() => {
+    if (!settings.aiRuntime.readResponsesAloud) {
+      stopVoicePlayback();
+      if (voiceSpeaking) {
+        setVoiceSpeaking(false);
+        queueVoiceResume();
+      }
+    }
+  }, [settings.aiRuntime.readResponsesAloud]);
+  useEffect(() => { if (!voiceMode && voiceSessionActiveRef.current) endVoiceSession(); }, [voiceMode]);
   const [expandedActivitySteps, setExpandedActivitySteps] = useState<ExpandedActivitySteps | null>(null);
   function toggleActivityStep(messageId: string, activityId: string): void {
     setExpandedActivitySteps(current => {
@@ -1147,6 +1179,14 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
       setError("请先到设置中心的“AI 与模型”添加并启用一个 Provider 账户。");
       return;
     }
+    const voiceTurn = voiceMode && voiceSessionActiveRef.current && !followRunId && !targetSession;
+    if (voiceTurn) {
+      stopListening.current?.();
+      stopListening.current = null;
+      setListening(false);
+      voiceReplyInProgressRef.current = true;
+      voiceResumePendingRef.current = false;
+    }
     const requestSessionId = targetSession ? targetSession.session.id : activeSessionId;
     const requestProjectId = targetSession ? targetSession.session.projectId : selectedProjectId;
     const requestedPlanMode = sendOptions?.planMode ?? (planModeOverride?.sessionId === requestSessionId ? planModeOverride.active : undefined);
@@ -1170,6 +1210,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
     const controller = new AbortController();
     controllerRef.current = controller;
     let spokenContent = "";
+    let voiceReplyCompleted = false;
     let followedExistingCompletion = false;
     let runMessageId: string | null = null;
     let runSessionId = requestSessionId;
@@ -1261,6 +1302,27 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
         onContextUsage: ({ contextUsage: nextContextUsage }) => setContextUsage(nextContextUsage),
         onError: setError,
         onDone: (status) => {
+          if (voiceTurn) {
+            voiceReplyCompleted = status === "complete";
+            if (status !== "complete") endVoiceSession();
+            else if (currentSettingsRef.current.aiRuntime.readResponsesAloud && spokenContent && !followedExistingCompletion) {
+              if (supportsVoiceOutput()) {
+                setVoiceSpeaking(true);
+                try {
+                  readResponseAloud(spokenContent, currentSettingsRef.current.general.language, {
+                    onEnd: finishVoicePlayback,
+                    onError: message => { setError(message); finishVoicePlayback(); }
+                  });
+                } catch (playbackError) {
+                  setError(getErrorMessage(playbackError));
+                  queueVoiceResume();
+                }
+              } else {
+                setError("当前宿主不支持语音播报。");
+                queueVoiceResume();
+              }
+            } else queueVoiceResume();
+          }
           runPauseEventRevisionRef.current += 1;
           setRunPauseState(current => current?.runId === runMessageId ? null : current);
           const completedMessageId = runMessageId;
@@ -1270,7 +1332,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
           }
           if (status === "error") notifySessionIssue("本轮 小鱼智能体 回复未能完成，请打开会话查看错误详情。");
           if (status === "complete" && runSessionId) {
-            if (settings.aiRuntime.readResponsesAloud && spokenContent && !followedExistingCompletion) { try { readResponseAloud(spokenContent, settings.general.language); } catch (error) { setError(getErrorMessage(error)); } }
+            if (!voiceTurn && settings.aiRuntime.readResponsesAloud && spokenContent && !followedExistingCompletion) { try { readResponseAloud(spokenContent, settings.general.language); } catch (error) { setError(getErrorMessage(error)); } }
             notifyAiWorkCompletion({
               notification: {
                 appId,
@@ -1291,6 +1353,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
       const sessionResult = await loadAiSessions();
       onSessionsChange(sessionResult.sessions);
     } catch (sendError) {
+      if (voiceTurn) endVoiceSession();
       if (!(sendError instanceof DOMException && sendError.name === "AbortError")) {
         setError(getErrorMessage(sendError));
         notifySessionIssue("本轮 小鱼智能体 回复发生错误，请打开会话查看详情。");
@@ -1307,6 +1370,14 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
         setStopGuardElapsed(false);
         if (controllerRef.current === controller) controllerRef.current = null;
         setBusy(false);
+        if (voiceTurn) {
+          voiceReplyInProgressRef.current = false;
+          if (!voiceReplyCompleted) endVoiceSession();
+          else if (voiceResumePendingRef.current && voiceSessionActiveRef.current) {
+            voiceResumePendingRef.current = false;
+            startVoiceCapture();
+          }
+        }
       }
     }
   }
@@ -1347,11 +1418,111 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
     }
   }
 
+  function startVoiceCapture(): void {
+    if (!voiceMode || !voiceSessionActiveRef.current || stopListening.current) return;
+    if (!currentSettingsRef.current.aiRuntime.voiceInputEnabled || !supportsVoiceInput()) {
+      setError(!currentSettingsRef.current.aiRuntime.voiceInputEnabled ? "请先开启设置中心中的语音输入。" : "当前宿主不支持安全语音识别。");
+      endVoiceSession();
+      return;
+    }
+    voiceTurnDispatchRef.current = false;
+    setError("");
+    setListening(true);
+    try {
+      stopListening.current = startVoiceInput(currentSettingsRef.current.general.language, text => {
+        const content = text.trim().slice(0, 12000);
+        if (!content || !voiceSessionActiveRef.current || voiceTurnDispatchRef.current) return;
+        voiceTurnDispatchRef.current = true;
+        setListening(false);
+        setDraft(content);
+        onDraftChange(content);
+        void sendMessage(content);
+      }, message => {
+        setError(message);
+        endVoiceSession();
+      }, () => {
+        stopListening.current = null;
+        setListening(false);
+      }, {
+        interimResults: true,
+        completeOnEnd: true,
+        onActivity: activity => {
+          if (!voiceSessionActiveRef.current) return;
+          const intensity = Math.max(0.35, Math.min(1, activity));
+          voiceSpeechActivityRef.current = intensity;
+          setVoiceSpeechActivity(intensity);
+          if (voiceSpeechActivityTimerRef.current) clearTimeout(voiceSpeechActivityTimerRef.current);
+          voiceSpeechActivityTimerRef.current = setTimeout(() => {
+            voiceSpeechActivityRef.current = 0;
+            voiceSpeechActivityTimerRef.current = null;
+            setVoiceSpeechActivity(0);
+          }, 520);
+        },
+      });
+    } catch (error) {
+      setListening(false);
+      setError(getErrorMessage(error));
+      endVoiceSession();
+    }
+  }
+
+  function endVoiceSession(): void {
+    voiceSessionActiveRef.current = false;
+    voiceResumePendingRef.current = false;
+    voiceTurnDispatchRef.current = false;
+    stopListening.current?.();
+    stopListening.current = null;
+    setListening(false);
+    setVoiceSpeaking(false);
+    setVoiceSessionActive(false);
+    if (voiceSpeechActivityTimerRef.current) clearTimeout(voiceSpeechActivityTimerRef.current);
+    voiceSpeechActivityTimerRef.current = null;
+    voiceSpeechActivityRef.current = 0;
+    setVoiceSpeechActivity(0);
+    stopVoicePlayback();
+  }
+
+  function queueVoiceResume(): void {
+    if (!voiceMode || !voiceSessionActiveRef.current || !currentSettingsRef.current.aiRuntime.voiceInputEnabled) return;
+    voiceResumePendingRef.current = true;
+    if (voiceReplyInProgressRef.current) return;
+    voiceResumePendingRef.current = false;
+    startVoiceCapture();
+  }
+
+  function finishVoicePlayback(): void {
+    setVoiceSpeaking(false);
+    queueVoiceResume();
+  }
+
+  function toggleVoiceConversation(): void {
+    if (!voiceSessionActiveRef.current) {
+      if (busy) return;
+      if (!settings.aiRuntime.voiceInputEnabled || !supportsVoiceInput()) {
+        setError(!settings.aiRuntime.voiceInputEnabled ? "请先开启设置中心中的语音输入。" : "当前宿主不支持安全语音识别。");
+        return;
+      }
+      voiceSessionActiveRef.current = true;
+      setVoiceSessionActive(true);
+      startVoiceCapture();
+      return;
+    }
+    if (!busy && !voiceSpeaking && !listening) {
+      startVoiceCapture();
+      return;
+    }
+    endVoiceSession();
+  }
+
   function toggleVoiceInput(): void {
     if (listening) { stopListening.current?.(); stopListening.current = null; setListening(false); return; }
     try {
       stopVoicePlayback(); setListening(true);
-      stopListening.current = startVoiceInput(settings.general.language, text => { const next = `${draftRef.current}${draftRef.current ? "\n" : ""}${text}`.slice(0, 12000); setDraft(next); onDraftChange(next); }, setError, () => { setListening(false); stopListening.current = null; });
+      stopListening.current = startVoiceInput(settings.general.language, text => {
+        const next = voiceMode ? text.slice(0, 12000) : `${draftRef.current}${draftRef.current ? "\n" : ""}${text}`.slice(0, 12000);
+        setDraft(next);
+        onDraftChange(next);
+      }, setError, () => { setListening(false); stopListening.current = null; });
     } catch (error) { setListening(false); setError(getErrorMessage(error)); }
   }
 
@@ -1970,6 +2141,73 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
     for (let index = messages.length - 3; index >= 0; index -= 1) {
       if (messages[index]?.role === "assistant") { latestAssistantMessage = messages[index]; break; }
     }
+  }
+  if (voiceMode) {
+    const voiceStatus = voiceSpeaking ? "正在播报" : busy ? "AI 正在思考" : listening ? "正在聆听" : voiceSessionActive ? "语音对话已连接" : draft.trim() ? "语音已识别" : "准备就绪";
+    const voiceStatusDetail = voiceSpeaking
+        ? "回复播报结束后会自动恢复聆听。"
+      : busy
+        ? "正在当前 AI Work 会话中生成回复。"
+      : listening
+        ? "请开始说话；识别完成后会自动发送。"
+        : voiceSessionActive
+          ? "没有识别到语音；点麦克风继续聆听，或结束语音对话。"
+        : draft.trim()
+          ? "可以编辑文字后发送，也可以开始语音对话。"
+          : settings.aiRuntime.voiceInputEnabled
+            ? "点麦克风开始语音对话；回复完成后会自动恢复聆听。"
+          : "开启语音输入后，就可以直接和我说话。";
+    const voiceHeadline = voiceSpeaking ? "正在播报" : busy ? "正在思考" : listening ? "正在聆听" : voiceSessionActive ? "语音已连接" : draft.trim() ? "语音已识别" : "准备就绪";
+    const voiceOrbStatus = voiceSpeaking ? "speaking" : busy ? "thinking" : listening ? "listening" : voiceSessionActive ? "connected" : "ready";
+    const voiceInputAvailable = settings.aiRuntime.voiceInputEnabled && supportsVoiceInput();
+    return (
+      <section className="ai-work-chat ai-work-chat--voice" aria-label="AI 语音主脑">
+        <main className="ai-work-voice" data-voice-status={voiceOrbStatus}>
+          <header className="ai-work-voice__header">
+            <span className="ai-work-voice__brand-mark" aria-label="小鱼 AI 主脑"><WorkbenchIcon name="spark" size={16} /></span>
+            <nav className="ai-work-voice__header-actions" aria-label="主脑操作">
+              <Tooltip title="返回文字对话"><Button className="ai-work-voice__header-action" type="text" aria-label="返回文字对话" onClick={() => { endVoiceSession(); onExitVoice(); }} icon={<WorkbenchIcon name="history" size={17} />} /></Tooltip>
+              <Tooltip title="AI 与模型设置"><Button className="ai-work-voice__header-action" type="text" aria-label="打开 AI 与模型设置" onClick={() => onOpenSettings("ai")} icon={<WorkbenchIcon name="settings" size={17} />} /></Tooltip>
+              <Tooltip title={voiceSessionActive ? "结束语音对话" : "语音对话尚未开始"}><Button className="ai-work-voice__header-action" type="text" aria-label="结束语音对话" disabled={!voiceSessionActive} onClick={endVoiceSession} icon={<WorkbenchIcon name="close" size={17} />} /></Tooltip>
+            </nav>
+          </header>
+          <div className="ai-work-voice__body">
+            <section className="ai-work-voice__hero" aria-label="语音主脑状态">
+              <VoiceOrb3D fallbackSrc={voiceParticleCore} status={voiceOrbStatus} speechActivity={voiceSpeechActivity} reducedMotion={settings.appearance.advanced.reducedMotion} />
+              <div className="ai-work-voice__hero-copy" role="status" aria-live="polite">
+                <h1>{voiceHeadline}</h1>
+                <p>{voiceStatusDetail}</p>
+              </div>
+            </section>
+            <div className="ai-work-voice__control">
+              {error ? <Alert className="ai-work-voice__error" type="error" showIcon closable message={error} onClose={() => setError("")} /> : null}
+              <div className="ai-work-voice__composer">
+                <Tooltip title={!settings.aiRuntime.voiceInputEnabled ? "请先在这里开启语音输入" : !supportsVoiceInput() ? "当前宿主不支持安全语音识别" : listening ? "结束聆听" : "开始语音对话"}>
+                  <Button className="ai-work-voice__mic" type="text" aria-label={!voiceSessionActive ? "开始语音对话" : busy || voiceSpeaking || listening ? "结束语音对话" : "继续聆听"} aria-pressed={voiceSessionActive} disabled={!voiceSessionActive && (!voiceInputAvailable || busy)} onClick={toggleVoiceConversation} icon={<WorkbenchIcon name={voiceSessionActive && (busy || voiceSpeaking || listening) ? "close" : "microphone"} size={19} />} />
+                </Tooltip>
+                <Input.TextArea aria-label="语音识别文本，可编辑" value={draft} maxLength={12000} autoSize={{ minRows: 1, maxRows: 3 }} placeholder="有什么想和我聊的吗…" onChange={event => { setDraft(event.target.value); onDraftChange(event.target.value); }} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (draft.trim() && !busy) void sendMessage(draft); } }} />
+                <Button className="ai-work-voice__send" type="text" aria-label="发送消息" title="发送消息" disabled={!draft.trim() || busy || !activeAccount} loading={busy} onClick={() => void sendMessage(draft)} icon={<WorkbenchIcon name="arrowRight" size={19} />} />
+              </div>
+              <section className="ai-work-voice__assistant" aria-label="当前智能助手">
+                <span className="ai-work-voice__assistant-icon"><WorkbenchIcon name="browser" size={17} /></span>
+                <span className="ai-work-voice__assistant-copy"><strong>智能助手</strong><span>沿用当前 AI Work 会话</span></span>
+                <WorkbenchIcon className="ai-work-voice__assistant-spark" name="spark" size={15} />
+              </section>
+            </div>
+            <div className="ai-work-voice__status-bar">
+              <span className="ai-work-voice__status-label"><i aria-hidden="true" />AI 主脑 · {voiceStatus}</span>
+              <div className="ai-work-voice__settings" aria-label="语音设置">
+                {!supportsVoiceInput() ? <span className="ai-work-voice__support-note">当前宿主不支持语音识别</span> : null}
+                {settings.aiRuntime.readResponsesAloud && !supportsVoiceOutput() ? <span className="ai-work-voice__support-note">当前宿主不支持语音播报</span> : null}
+                <Button className="ai-work-voice__setting-toggle" size="small" type="text" aria-pressed={settings.aiRuntime.voiceInputEnabled} onClick={() => onSettingsChange({ ...settings, aiRuntime: { ...settings.aiRuntime, voiceInputEnabled: !settings.aiRuntime.voiceInputEnabled } })}><WorkbenchIcon name="microphone" size={13} />语音输入 · {settings.aiRuntime.voiceInputEnabled ? "开" : "关"}</Button>
+                <span className="ai-work-voice__setting-divider" aria-hidden="true" />
+                <Button className="ai-work-voice__setting-toggle" size="small" type="text" aria-pressed={settings.aiRuntime.readResponsesAloud} onClick={() => onSettingsChange({ ...settings, aiRuntime: { ...settings.aiRuntime, readResponsesAloud: !settings.aiRuntime.readResponsesAloud } })}><WorkbenchIcon name="spark" size={13} />回复播报 · {settings.aiRuntime.readResponsesAloud ? "开" : "关"}</Button>
+              </div>
+            </div>
+          </div>
+        </main>
+      </section>
+    );
   }
   return (
     <section ref={setOutputFocusRegionElement} className={`ai-work-chat ai-work-chat--${appId}${composerMenu ? " ai-work-chat--composer-menu-open" : ""}`} data-output-idle="false" aria-label="小鱼智能体会话">

@@ -23,6 +23,7 @@
   --lfaa-right-size: 18rem; /* 桌面右侧栏展开宽度；拖拽状态会由布局控制器覆盖。 */
   --lfaa-left-column: var(--lfaa-left-size); /* 左侧栏实际 Grid 列宽，默认跟随展开宽度。 */
   --lfaa-right-column: var(--lfaa-right-size); /* 右侧栏实际 Grid 列宽，默认跟随展开宽度。 */
+  --lfaa-center-column: minmax(0, 1fr); /* 中间聊天列宽；常态占剩余空间，拖动吸附预览可用像素值暂留最小宽或归零，标签收起时为 0。 */
   --lfaa-bottom-size: 15rem; /* 底部 Terminal Dock 展开高度。 */
   --lfaa-bottom-row: 0px; /* 底部 Dock 当前占用的 Grid 行高；关闭时为 0。 */
   --lfaa-handle-width: 1px; /* 左右分隔器只绘制一像素边线，实际拖动热区由伪元素向两侧扩展。 */
@@ -37,7 +38,7 @@
   grid-template-columns:
     var(--lfaa-left-column)
     var(--lfaa-left-handle-width, var(--lfaa-handle-width))
-    minmax(0, 1fr)
+    var(--lfaa-center-column)
     var(--lfaa-right-handle-width, var(--lfaa-handle-width))
     var(--lfaa-right-column);
   grid-template-rows: minmax(0, 1fr) var(--lfaa-bottom-row);
@@ -70,7 +71,8 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 
 /* 左右栏普通拖动直接跟随 Pointer；捕获吸附时只对固定的零宽目标收拢一次。 */
 .lfaa-is-resizing .lfaa-workbench[data-snap-preview="left"],
-.lfaa-is-resizing .lfaa-workbench[data-snap-preview="right"] {
+.lfaa-is-resizing .lfaa-workbench[data-snap-preview="right"],
+.lfaa-is-resizing .lfaa-workbench[data-snap-preview="center"] {
   /* 吸附捕获后列宽目标固定为零，只运行一次收拢；栏内内容已即时隐藏。 */
   transition: grid-template-columns var(--lfaa-snap-capture-duration) cubic-bezier(.16, .82, .24, 1);
 }
@@ -109,6 +111,9 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 }
 .lfaa-workbench__handle--left { grid-column: 2; grid-row: 1 / 3; }
 .lfaa-workbench__center { grid-column: 3; grid-row: 1; }
+.lfaa-workbench[data-center-collapsed="true"] .lfaa-workbench__center { visibility: hidden; pointer-events: none; }
+.lfaa-workbench[data-snap-preview="center"] .lfaa-workbench__center { visibility: hidden; pointer-events: none; transition: none; }
+.lfaa-workbench[data-center-collapsed="true"] .lfaa-workbench__handle--right { pointer-events: none; }
 .lfaa-workbench__handle--right { grid-column: 4; grid-row: 1; }
 .lfaa-workbench__pane--right { grid-column: 5; grid-row: 1; }
 .lfaa-workbench__bottom { grid-column: 3 / 6; grid-row: 2; }
@@ -192,7 +197,8 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-workbench[data-left-collapsed="true"] .lfaa-workbench__handle--left::before,
 .lfaa-workbench[data-right-collapsed="true"] .lfaa-workbench__handle--right::before { opacity: 0; }
 .lfaa-workbench[data-snap-preview="left"] .lfaa-workbench__handle--left::before,
-.lfaa-workbench[data-snap-preview="right"] .lfaa-workbench__handle--right::before {
+.lfaa-workbench[data-snap-preview="right"] .lfaa-workbench__handle--right::before,
+.lfaa-workbench[data-snap-preview="center"] .lfaa-workbench__handle--right::before {
   width: 2px;
   opacity: 1;
   background: var(--agent-text, #171717);
@@ -256,7 +262,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
  */
 .lfaa-workbench[data-layout-mode="compact"] {
   position: relative;
-  grid-template-columns: var(--lfaa-left-column) var(--lfaa-left-handle-width, var(--lfaa-handle-width)) minmax(0, 1fr);
+  grid-template-columns: var(--lfaa-left-column) var(--lfaa-left-handle-width, var(--lfaa-handle-width)) var(--lfaa-center-column);
 }
 .lfaa-workbench[data-layout-mode="compact"] .lfaa-workbench__center { grid-column: 3; }
 .lfaa-workbench[data-layout-mode="compact"] .lfaa-workbench__bottom { grid-column: 3; }
@@ -279,7 +285,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   grid-template-columns:
     var(--lfaa-left-column)
     var(--lfaa-left-handle-width, var(--lfaa-handle-width))
-    minmax(0, 1fr)
+    var(--lfaa-center-column)
     var(--lfaa-right-handle-width, var(--lfaa-handle-width))
     var(--lfaa-right-column);
 }
@@ -303,6 +309,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   top: 0;
   width: min(var(--lfaa-right-size), calc(100% - .75rem));
 }
+.lfaa-workbench[data-layout-mode="compact"][data-center-collapsed="true"][data-responsive-right-dock="true"][data-right-layout="overlay"] .lfaa-workbench__pane--right { width: calc(100% - .75rem); }
 .lfaa-workbench[data-layout-mode="compact"][data-responsive-right-dock="true"][data-right-layout="overlay"] .lfaa-workbench__handle--right:not([aria-disabled="true"]) {
   position: absolute;
   z-index: 90;
@@ -324,6 +331,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   height: 100%;
   padding-bottom: var(--lfaa-bottom-row);
 }
+.lfaa-workbench[data-layout-mode="mobile"][data-center-collapsed="true"] .lfaa-workbench__center { width: 0; height: 0; }
 .lfaa-workbench[data-layout-mode="mobile"] .lfaa-workbench__bottom {
   position: absolute;
   z-index: 65;
@@ -365,7 +373,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 /* 中心区和右栏仍放得下时，Mobile 只把左导航浮起，中心与右 Dock 保持并排。 */
 .lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="true"][data-right-layout="dock"] {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--lfaa-right-handle-width, var(--lfaa-handle-width)) var(--lfaa-right-column);
+  grid-template-columns: var(--lfaa-center-column) var(--lfaa-right-handle-width, var(--lfaa-handle-width)) var(--lfaa-right-column);
   grid-template-rows: minmax(0, 1fr) var(--lfaa-bottom-row);
 }
 .lfaa-workbench[data-layout-mode="mobile"][data-responsive-right-dock="true"][data-right-layout="dock"] .lfaa-workbench__pane--left {
@@ -411,6 +419,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 .lfaa-workbench[data-layout-mode="mobile"][data-right-layout="overlay"] .lfaa-workbench__pane--right {
   width: min(var(--lfaa-right-size), calc(100% - .75rem));
 }
+.lfaa-workbench[data-layout-mode="mobile"][data-center-collapsed="true"][data-right-layout="overlay"] .lfaa-workbench__pane--right { width: calc(100% - .75rem); }
 .lfaa-workbench[data-layout-mode="mobile"][data-right-layout="overlay"] .lfaa-workbench__handle--right:not([aria-disabled="true"]) {
   position: absolute;
   z-index: 90;
@@ -430,7 +439,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
 /* 应用工作区的 Mobile 左栏在中心区仍能保持下限时进 Grid；窄于该空间则继续使用上面的 Overlay。 */
 .lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"] {
   display: grid;
-  grid-template-columns: var(--lfaa-left-column) var(--lfaa-left-handle-width, var(--lfaa-handle-width)) minmax(0, 1fr);
+  grid-template-columns: var(--lfaa-left-column) var(--lfaa-left-handle-width, var(--lfaa-handle-width)) var(--lfaa-center-column);
   grid-template-rows: minmax(0, 1fr) var(--lfaa-bottom-row);
 }
 .lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"] .lfaa-workbench__pane--left {
@@ -473,7 +482,7 @@ body.lfaa-is-resizing-vertical * { cursor: row-resize !important; }
   grid-template-columns:
     var(--lfaa-left-column)
     var(--lfaa-left-handle-width, var(--lfaa-handle-width))
-    minmax(0, 1fr)
+    var(--lfaa-center-column)
     var(--lfaa-right-handle-width, var(--lfaa-handle-width))
     var(--lfaa-right-column);
 }

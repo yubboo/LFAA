@@ -96,6 +96,7 @@ export interface PluginInstallOptions {
   npmRegistry?: string;
   expectedResolvedRef?: string;
   expectedSource?: { kind: PluginSourceType; location: string };
+  signal?: AbortSignal;
   onProgress?: (progress: PluginInstallProgress) => void | Promise<void>;
 }
 
@@ -167,16 +168,18 @@ export class PluginManager {
   }
 
   /** Install and activate a supported plugin as one serialized Profile mutation. */
-  async installForCapability(source: string, ref: string | undefined, userId: string, applicationId: CapabilityApplicationId = "workspace", expectedResolvedRef?: string, expectedSource?: { kind: PluginSourceType; location: string }): Promise<PluginCapabilityInstallResult> {
+  async installForCapability(source: string, ref: string | undefined, userId: string, applicationId: CapabilityApplicationId = "workspace", expectedResolvedRef?: string, expectedSource?: { kind: PluginSourceType; location: string }, options: PluginInstallOptions = {}): Promise<PluginCapabilityInstallResult> {
     return this.exclusive(async () => {
-      const snapshot = await resolvePluginSource(source, ref);
+      options.signal?.throwIfAborted();
+      const snapshot = await resolvePluginSource(source, ref, options.npmRegistry, options.signal);
+      options.signal?.throwIfAborted();
       if (expectedResolvedRef !== undefined && snapshot.commit !== expectedResolvedRef) throw new PluginManagerError("plugin_source_changed", "插件来源自检查后发生变化，当前检查凭证已失效；请重新检查来源。没有写入插件清单。");
       if (expectedSource && (snapshot.sourceType !== expectedSource.kind || normalizePluginSourceLocation(snapshot.sourceLocation, snapshot.sourceType) !== normalizePluginSourceLocation(expectedSource.location, expectedSource.kind))) throw new PluginManagerError("plugin_source_changed", "插件来源与检查凭证不一致；请重新检查来源。没有写入插件清单。");
       const detected = inspectSnapshot(snapshot);
       const existing = this.readInventory().plugins.find((record) => record.id === detected.record.id);
-      const plugin = await this.installSnapshotLocked(snapshot, detected, userId, applicationId);
+      const plugin = await this.installSnapshotLocked(snapshot, detected, userId, applicationId, options.onProgress, options.signal);
       const isRevisionUpdate = Boolean(existing && existing.source.commit !== plugin.source.commit);
-      if (isRevisionUpdate || plugin.state !== "installed") return { plugin, activationRequired: false };
+      if (options.signal?.aborted || isRevisionUpdate || plugin.state !== "installed") return { plugin, activationRequired: false };
       try {
         return { plugin: await this.setEnabledLocked(plugin.id, true, applicationId), activationRequired: false };
       } catch (error) {
@@ -189,7 +192,9 @@ export class PluginManager {
   private async installLocked(source: string, ref: string | undefined, userId: string, applicationId: CapabilityApplicationId, options: PluginInstallOptions): Promise<PluginRecord> {
     const report = options.onProgress;
     await report?.({ stage: "resolving", message: "正在读取来源清单并获取固定版本。" });
-    const snapshot = await resolvePluginSource(source, ref, options.npmRegistry);
+    options.signal?.throwIfAborted();
+    const snapshot = await resolvePluginSource(source, ref, options.npmRegistry, options.signal);
+    options.signal?.throwIfAborted();
     if (options.expectedResolvedRef !== undefined && snapshot.commit !== options.expectedResolvedRef) throw new PluginManagerError("plugin_source_changed", "插件来源自检查后发生变化，当前检查凭证已失效；请重新检查来源。没有写入插件清单。");
     if (options.expectedSource && (snapshot.sourceType !== options.expectedSource.kind || normalizePluginSourceLocation(snapshot.sourceLocation, snapshot.sourceType) !== normalizePluginSourceLocation(options.expectedSource.location, options.expectedSource.kind))) throw new PluginManagerError("plugin_source_changed", "插件来源与检查凭证不一致；请重新检查来源。没有写入插件清单。");
     await report?.({
@@ -216,7 +221,7 @@ export class PluginManager {
       version: detected.record.version,
       state: canEnable ? "installed" : "incompatible"
     });
-    const plugin = await this.installSnapshotLocked(snapshot, detected, userId, applicationId, report);
+    const plugin = await this.installSnapshotLocked(snapshot, detected, userId, applicationId, report, options.signal);
     await report?.({ stage: "installed", message: plugin.state === "incompatible" ? "来源快照已安全写入；插件因当前 Runtime 不兼容而保持隔离。" : "插件已写入 Profile 清单，尚未启动。", pluginId: plugin.id, name: plugin.name, version: plugin.version, state: plugin.state });
     return plugin;
   }
@@ -227,7 +232,9 @@ export class PluginManager {
     userId: string,
     applicationId: CapabilityApplicationId,
     onProgress?: PluginInstallOptions["onProgress"],
+    signal?: AbortSignal,
   ): Promise<PluginRecord> {
+    signal?.throwIfAborted();
     if (detected.record.compatibility === "unsupported") throw new PluginManagerError("plugin_contract_unsupported", detected.reason ?? "仓库没有可识别的插件合同；未写入插件目录。" );
     const preview = this.previewRecord(snapshot, detected.record, detected.license, applicationId);
     const adapter = this.adapters.find((item) => item.supports(preview));
@@ -249,6 +256,7 @@ export class PluginManager {
         if (existing.applicationIds.length !== 1 || existing.applicationIds[0] !== applicationId) throw new PluginManagerError("plugin_target_conflict", `插件 ${existing.id} 已登记到 ${existing.applicationIds.join("、")}；不会静默扩大或改变 App 范围。`);
         if (existing.state === "enabled" || this.isActive(existing, previousAdapter)) throw new PluginManagerError("plugin_disable_required", "更新 Wallpaper Engine 前须先停用当前版本；没有覆盖已启用运行目录。" );
         await onProgress?.({ stage: "writing-files", message: "正在安全写入已检查的新版本文件。", pluginId: existing.id, name: detected.record.name, version: detected.record.version, fileCount: snapshot.files.length });
+        signal?.throwIfAborted();
         const updated = await this.replaceVerifiedWallpaperRevision(existing, snapshot, detected.record, detected.license, userId);
         await onProgress?.({ stage: "committing-inventory", message: "插件版本清单已原子更新。", pluginId: updated.id, name: updated.name, version: updated.version, state: updated.state });
         return updated;
@@ -274,10 +282,13 @@ export class PluginManager {
     const staging = resolve(this.root, `.stage-${randomUUID()}`);
     let moved = false;
     await onProgress?.({ stage: "writing-files", message: "正在将已验证文件写入安全暂存区；不会运行包内安装脚本。", pluginId: record.id, name: record.name, version: record.version, fileCount: snapshot.files.length });
+    signal?.throwIfAborted();
     mkdirSync(staging, { recursive: false, mode: 0o700 });
     try {
       writeArchiveFiles(staging, snapshot.files);
+      signal?.throwIfAborted();
       await onProgress?.({ stage: "committing-inventory", message: "文件校验与暂存完成，正在原子登记 Profile 清单。", pluginId: record.id, name: record.name, version: record.version, state: record.state });
+      signal?.throwIfAborted();
       renameSync(staging, destination);
       moved = true;
       const nextInventory = { ...previousInventory, plugins: [...previousInventory.plugins, record] };
@@ -788,12 +799,12 @@ export async function apply(ctx: Context): Promise<void> {
       const runStatus = plugin.canEnable ? "当前 Profile 有匹配的 LFAA Runtime Adapter" : `当前不可运行：${plugin.runtimeReason ?? "缺少兼容 Runtime Adapter"}`;
       return { resolvedRef: plugin.resolvedCommit, summary: `${plugin.name} ${plugin.version} · ${runStatus}`, details: { plugin } };
     },
-    install: async (source, resolvedRef, applicationId, userId, target, details) => {
+    install: async (source, resolvedRef, applicationId, userId, target, details, context) => {
       const inspectedPlugin = isRecord(details) && isRecord(details.plugin) ? details.plugin : null;
       if (Object.keys(target).length || !inspectedPlugin || inspectedPlugin.resolvedCommit !== resolvedRef || typeof inspectedPlugin.requestedRef !== "string" || !["github", "npm", "local"].includes(String(inspectedPlugin.sourceType)) || typeof inspectedPlugin.sourceLocation !== "string" || !Array.isArray(inspectedPlugin.applicationIds) || inspectedPlugin.applicationIds.length !== 1 || inspectedPlugin.applicationIds[0] !== applicationId) {
         throw new PluginManagerError("plugin_inspection_mismatch", "检查凭证与固定提交或目标 App 不一致；没有安装插件。");
       }
-      return await manager.installForCapability(source, inspectedPlugin.requestedRef || undefined, userId, applicationId, resolvedRef, { kind: inspectedPlugin.sourceType as PluginSourceType, location: inspectedPlugin.sourceLocation });
+      return await manager.installForCapability(source, inspectedPlugin.requestedRef || undefined, userId, applicationId, resolvedRef, { kind: inspectedPlugin.sourceType as PluginSourceType, location: inspectedPlugin.sourceLocation }, { signal: context.signal });
     },
     verifyInstalled: async (installation, _source, resolvedRef, applicationId, target, details) => {
       const installedPlugin = isRecord(installation) && isRecord(installation.plugin) ? installation.plugin : null;

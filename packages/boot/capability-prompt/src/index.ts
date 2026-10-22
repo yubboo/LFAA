@@ -100,10 +100,12 @@ export function createPromptAdapter(dependencies: PromptAdapterDependencies = {}
         details: { prompt: details }
       };
     },
-    async install(source, resolvedRef, applicationId, userId, target, details) {
+    async install(source, resolvedRef, applicationId, userId, target, details, context) {
+      context.signal.throwIfAborted();
       const plan = parsePromptDetails(details, resolvedRef, applicationId);
       if (target.sourcePath !== plan.sourcePath) throw new Error("提示词文件与检查凭证的目标路径不一致；没有登记。");
-      const snapshot = await download(source, resolvedRef);
+      const snapshot = await download(source, resolvedRef, context.signal);
+      context.signal.throwIfAborted();
       if (snapshot.commit !== resolvedRef || snapshot.archiveSha256 !== plan.archiveSha256) throw new Error("固定提交的源码归档摘要与检查结果不同；没有登记提示词。");
       const file = snapshot.files.find(item => item.path === plan.sourcePath);
       if (!file) throw new Error("固定版本中已不存在检查时选定的提示词文件；没有登记。");
@@ -126,6 +128,7 @@ export function createPromptAdapter(dependencies: PromptAdapterDependencies = {}
         enabled: true,
         createdAt: new Date().toISOString()
       };
+      context.signal.throwIfAborted();
       const stored = installPrompt(userId, entry);
       return { id: stored.id, name: stored.name, applicationId, source: { repository: stored.sourceRepository, path: stored.sourcePath, commit: stored.commit, archiveSha256: stored.archiveSha256, contentSha256: stored.contentSha256, license: stored.license } };
     },

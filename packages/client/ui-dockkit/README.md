@@ -12,7 +12,9 @@ Mobile 左侧 Overlay 从工作台顶边开始展开；右侧 Overlay 仍避开�
 
 布局断点由工作台实际容器的 `ResizeObserver` 尺寸决定，不依赖浏览器窗口宽度。样式使用共享外观令牌，不创建主题或设置副本。
 
-`ApplicationWorkspace` 启用 `responsiveRightDock` 时，AI Work 中间区在 Desktop/Compact/Mobile 使用 300px 下限，右栏最大值允许覆盖该容器剩余宽度并在拖动时由动态预算保护中心下限。AI Work 左栏使用专属最大值规则（比例 0.26、320px 下限、440px 上限），其最小值、默认初始宽度和用户持久化格式不变。上述左右栏规则只用于这一模式；未启用它的 Settings、Plugin Manager 等共享 Surface 保留通用宽度计算。
+`ApplicationWorkspace` 启用 `responsiveRightDock` 时，AI Work 中间区在 Desktop/Compact/Mobile 使用 300px 下限，右栏最大值允许覆盖该容器剩余宽度并在拖动时由动态预算保护中心下限。启用中心列吸附时，阈值按“中心列 + 右 Dock”的完整可用宽度计算，不受右 Dock 自身静态最大值截断；收起中心列后右 Dock 才接管容器剩余空间。AI Work 左栏使用专属最大值规则（比例 0.26、320px 下限、440px 上限），其最小值、默认初始宽度和用户持久化格式不变。上述左右栏规则只用于这一模式；未启用它的 Settings、Plugin Manager 等共享 Surface 保留通用宽度计算。
+
+中心列普通拖动到 `minCenterWidth` 后保持该宽度；可选 `centerCollapseEnabled` 会让右 Dock 在中心下限后继续累积超拖，达到统一 `snapCaptureRatio` 阈值才进入中心吸附预览，未达到阈值松手仍保持中心下限。`onCenterCollapsePreviewChange` 只在进入/退出阈值和手势结束/取消时通知调用方，不跟随每帧尺寸变化；页面可在按住期间即时展示吸附目标。吸附后同一手势可反向拖回，释放收起时由 `onCenterCollapsedChange` 通知调用方，中心列归零后由右侧 Grid Dock 接管剩余空间；Overlay 模式不启用该手势。中心折叠状态由 `centerCollapsed` 受控，应用标签/路由仍由上层工作区管理；吸附收起不会改写已保存的右 Dock 宽度。未启用 `centerCollapseEnabled` 的 Settings、Plugin Manager 等共享 Surface 继续将中心最小宽度作为硬保护。
 
 分隔条拖动先等待 3px 指针位移，纯点击不会开始拖动、提交宽度或截断布局过渡；确认开始拖动时，以侧栏当下的实际显示宽度为起点并冻结过渡。固定布局顺序为左栏、中心区、右栏；左栏向左拖动收窄并向左吸附，右栏向右拖动收窄并向右吸附。吸附预览期间 Pointer Capture 保持到释放，同一次按压中可反向拖回并展开；pointerup 时若仍在吸附预览才提交为完全收起。完全收起并松开后不再接受新的拖动会话，普通点击也不会改变宽度。键盘方向键随轨道边缘调整，Home 收起、End 恢复。中心内容在拖动期间持续按真实可用宽度响应，列宽仍受当前布局最小中心宽度保护。
 

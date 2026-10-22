@@ -129,3 +129,62 @@ export function resolveSnapDragFrame(input: SnapDragFrameInput): SnapDragFrameRe
     releasedThisFrame: input.snapped && !snapped,
   };
 }
+
+export interface RightCenterDragFrameInput {
+  rawRightSize: number;
+  rightMinSize: number;
+  maxRightSize: number;
+  rightCaptureThreshold: number;
+  rightSnapped: boolean;
+  centerMinSize: number;
+  centerCaptureThreshold: number;
+  centerSnapped: boolean;
+  releaseHysteresis: number;
+}
+
+export interface RightCenterDragFrameResult {
+  rightFrame: SnapDragFrameResult;
+  centerFrame: SnapDragFrameResult;
+  visualRightSize: number;
+  visualCenterSize: number;
+}
+
+/**
+ * 解析右栏向左扩展时的中心区吸附：中心区到达 min 后保持不变，继续超拖至捕获线才收起。
+ * 右栏收起和中心区收起沿同一 Pointer 手势互斥；未吸附时两列始终合计为可用宽度。
+ */
+export function resolveRightCenterDragFrame(input: RightCenterDragFrameInput): RightCenterDragFrameResult {
+  const maxRightSize = Math.max(0, input.maxRightSize);
+  const rightFrame = resolveSnapDragFrame({
+    rawSize: input.rawRightSize,
+    minSize: input.rightMinSize,
+    maxSize: maxRightSize,
+    captureThreshold: input.rightCaptureThreshold,
+    snapped: input.rightSnapped,
+    releaseHysteresis: input.releaseHysteresis,
+  });
+  const centerFrame = resolveSnapDragFrame({
+    rawSize: maxRightSize - rightFrame.rawSize,
+    minSize: input.centerMinSize,
+    maxSize: maxRightSize,
+    captureThreshold: input.centerCaptureThreshold,
+    snapped: input.centerSnapped,
+    releaseHysteresis: input.releaseHysteresis,
+  });
+
+  if (centerFrame.snapped) {
+    return { rightFrame, centerFrame, visualRightSize: maxRightSize, visualCenterSize: 0 };
+  }
+  if (rightFrame.snapped) {
+    return { rightFrame, centerFrame, visualRightSize: 0, visualCenterSize: maxRightSize };
+  }
+
+  const rightAtCenterMin = Math.max(0, maxRightSize - input.centerMinSize);
+  const visualRightSize = Math.min(rightFrame.visualSize, rightAtCenterMin);
+  return {
+    rightFrame,
+    centerFrame,
+    visualRightSize,
+    visualCenterSize: Math.max(0, maxRightSize - visualRightSize),
+  };
+}

@@ -3,7 +3,8 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { delimiter, dirname, resolve } from "node:path";
 
-export async function runPackageProcess(command: "git" | "pnpm", args: string[], cwd: string, maxBuffer = 4 * 1024 * 1024): Promise<Buffer> {
+export async function runPackageProcess(command: "git" | "pnpm", args: string[], cwd: string, maxBuffer = 4 * 1024 * 1024, signal?: AbortSignal): Promise<Buffer> {
+  signal?.throwIfAborted();
   let executable: string = command;
   let arguments_ = args;
   if (command === "pnpm" && process.platform === "win32") {
@@ -18,8 +19,8 @@ export async function runPackageProcess(command: "git" | "pnpm", args: string[],
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => allowed.test(key)));
   env.GIT_TERMINAL_PROMPT = "0";
   return await new Promise<Buffer>((resolveResult, reject) => {
-    execFile(executable, arguments_, { cwd, env, encoding: "buffer", windowsHide: true, timeout: 180_000, maxBuffer }, (error, stdout, stderr) => {
-      if (error) reject(new Error(`${command} 执行失败：${stderr.toString("utf8").slice(-2000) || error.message}`));
+    execFile(executable, arguments_, { cwd, env, encoding: "buffer", windowsHide: true, timeout: 180_000, maxBuffer, signal }, (error, stdout, stderr) => {
+      if (error) reject(signal?.aborted ? signal.reason : new Error(`${command} 执行失败：${stderr.toString("utf8").slice(-2000) || error.message}`));
       else resolveResult(stdout);
     });
   });

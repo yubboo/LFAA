@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateRawSync, gzipSync, gunzipSync } from 'node:zlib';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -1004,4 +1004,122 @@ test('legacy DefinitelyTyped roots remain single-root archives with path and lin
   assert.throws(() => readNpmTarGzip(mixed, 'legacy-fixture'), /根目录/);
   assert.throws(() => readNpmTarGzip(makeNpmTarball({ '../escape.js': 'fixture' }, 'legacy-fixture'), 'legacy-fixture'), /路径穿越/);
   assert.throws(() => readNpmTarGzip(makeNpmTarball({ 'link': { contents: 'fixture', type: '2' } }, 'legacy-fixture'), 'legacy-fixture'), /链接或特殊文件/);
+});
+
+test('Capability Install 的 Plugin Owner 将 Run 取消传到固定 GitHub 快照并在提交前保持零写入', async () => {
+  const manager = new PluginManager('capability-plugin-cancel', join(data, 'profiles'));
+  const fixtureFetch = globalThis.fetch;
+  const controller = new AbortController();
+  const reason = new DOMException('Run cancelled', 'AbortError');
+  const archiveUrl = `https://codeload.github.com/acme/demo/zip/${commit}`;
+  let requestSignal;
+  let releaseArchive;
+  let signalRequestStarted;
+  const requestStarted = new Promise(resolve => { signalRequestStarted = resolve; });
+  globalThis.fetch = (input, options = {}) => {
+    if (String(input) !== archiveUrl) return fixtureFetch(input, options);
+    requestSignal = options.signal;
+    releaseArchive = () => new Response(archive, { headers: { 'content-type': 'application/zip' } });
+    signalRequestStarted();
+    return new Promise((resolve, reject) => {
+      if (requestSignal.aborted) reject(requestSignal.reason);
+      else requestSignal.addEventListener('abort', () => reject(requestSignal.reason), { once: true });
+      const release = releaseArchive;
+      releaseArchive = () => resolve(release());
+    });
+  };
+  try {
+    const pending = manager.installForCapability(
+      'https://github.com/acme/demo', sourceRef, 'cancel-admin', 'workspace', commit,
+      { kind: 'github', location: 'https://github.com/acme/demo' },
+      { signal: controller.signal }
+    );
+    const rejection = assert.rejects(pending, error => error === reason, '取消必须透传到当前下载并保留 AbortError');
+    await requestStarted;
+    controller.abort(reason);
+    await new Promise(resolve => setImmediate(resolve));
+    if (!requestSignal.aborted) releaseArchive();
+    await rejection;
+    assert.equal(requestSignal.reason, reason);
+    assert.deepEqual(manager.list(), [], '取消后 Profile 清单不得出现新插件');
+    assert.equal(manager.get('acme-demo'), null, '固定快照取消发生在源码目录与清单提交之前');
+  } finally {
+    releaseArchive?.();
+    globalThis.fetch = fixtureFetch;
+  }
+});
+test('Wallpaper Engine revision 清单冲突时恢复旧源码目录并清理暂存与隔离目录', async () => {
+  const previousVersion = wallpaperVersion;
+  const previousCommit = wallpaperCommit;
+  const previousArchive = wallpaperArchive;
+  const pluginId = 'elysia395-dsh-wallpaper-engine';
+  const manager = new PluginManager('wallpaper-update-rollback', join(data, 'profiles'));
+  manager.registerRuntimeAdapter({
+    supports: plugin => plugin.id === pluginId && plugin.name === 'dsh-plugin-wallpaper-engine' && plugin.compatibility === 'dsh-v1',
+    inspectSnapshot: (_plugin, files) => files.find(file => file.path === 'lib/client.js')?.contents.toString('utf8').includes('RopeDock')
+      ? { supported: true, reason: null }
+      : { supported: false, reason: 'Wallpaper Engine Client 的 RopeDock 兼容锚点缺失。' },
+    enable: async () => {},
+    disable: async () => {},
+    isActive: () => false
+  });
+  const inventoryPath = join(manager.installationDirectory, 'inventory.json');
+  try {
+    wallpaperVersion = '1.2.0';
+    wallpaperCommit = 'c'.repeat(40);
+    wallpaperArchive = makeWallpaperArchive(wallpaperVersion);
+    const original = await manager.install(wallpaperRepository, sourceRef, 'wallpaper-admin');
+    assert.equal(original.source.commit, wallpaperCommit);
+    const originalInventory = readFileSync(inventoryPath);
+
+    wallpaperVersion = '1.3.0';
+    wallpaperCommit = 'd'.repeat(40);
+    wallpaperArchive = makeWallpaperArchive(wallpaperVersion);
+    let conflictInjected = false;
+    await assert.rejects(manager.install(wallpaperRepository, sourceRef, 'wallpaper-admin', 'workspace', {
+      onProgress: progress => {
+        if (conflictInjected || progress.stage !== 'writing-files' || progress.pluginId !== pluginId) return;
+        conflictInjected = true;
+        const conflictingInventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
+        conflictingInventory.plugins[0].source.commit = 'f'.repeat(40);
+        writeFileSync(inventoryPath, JSON.stringify(conflictingInventory), 'utf8');
+      }
+    }), error => error.code === 'plugin_inventory_changed');
+    assert.equal(conflictInjected, true, '在文件更新与清单提交之间注入一次并发修订冲突');
+    assert.equal(JSON.parse(readFileSync(join(manager.installationDirectory, pluginId, 'package.json'), 'utf8')).version, '1.2.0', '更新失败后插件源码目录恢复旧版本');
+    assert.deepEqual(readdirSync(manager.installationDirectory).filter(name => name.startsWith('.stage-') || name.startsWith('.update-')), [], '失败事务不遗留源码暂存或隔离目录');
+
+    writeFileSync(inventoryPath, originalInventory);
+    assert.equal(manager.get(pluginId).source.commit, original.source.commit, '恢复原清单后，旧源码与旧 revision 仍对应');
+    assert.equal(manager.get(pluginId).state, 'installed', '更新失败不得改变原运行状态');
+  } finally {
+    wallpaperVersion = previousVersion;
+    wallpaperCommit = previousCommit;
+    wallpaperArchive = previousArchive;
+  }
+});
+
+test('GitHub 快照下载沿用 Run 取消信号，取消后不降级启动 Git 回退', async () => {
+  const { downloadGithubSnapshot } = await import('lfaa-plugin-manager/src/github-source.js');
+  const previousFetch = globalThis.fetch;
+  const controller = new AbortController();
+  const reason = new DOMException('Run cancelled', 'AbortError');
+  let calls = 0;
+  let requestSignal;
+  globalThis.fetch = (_input, options = {}) => {
+    calls += 1;
+    requestSignal = options.signal;
+    return new Promise((_resolve, reject) => {
+      if (requestSignal.aborted) reject(requestSignal.reason);
+      else requestSignal.addEventListener('abort', () => reject(requestSignal.reason), { once: true });
+    });
+  };
+  try {
+    const pending = downloadGithubSnapshot('https://github.com/acme/cancel-fixture', 'main', controller.signal);
+    await new Promise(resolve => setImmediate(resolve));
+    controller.abort(reason);
+    await assert.rejects(pending, error => error === reason);
+    assert.equal(calls, 1, 'HTTP 取消不得触发后续 Git 回退请求');
+    assert.equal(requestSignal.reason, reason, '请求组合信号应保留 Run 的取消原因');
+  } finally { globalThis.fetch = previousFetch; }
 });

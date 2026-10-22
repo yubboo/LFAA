@@ -393,9 +393,76 @@ export class SessionRepository {
     return page ? projectSessionUsage(page.summary) : { requestCount: 0, requestCountExact: true, promptTokens: 0, completionTokens: 0, cacheReadTokens: 0, models: [] };
   }
   /** 首屏缓存未命中或加载更早消息时，完整校验 JSONL 哈希链。 */
-  readMessagePage(sessionId: string, before: { createdAt: string; order: number } | undefined, limit: number, observeEvent?: Parameters<JsonlSessionPersistence["readMessagePage"]>[3], signal?: AbortSignal): ReturnType<JsonlSessionPersistence["readMessagePage"]> {
+  async readMessagePage(sessionId: string, before: { createdAt: string; order: number } | undefined, limit: number, observeEvent?: Parameters<JsonlSessionPersistence["readMessagePage"]>[3], signal?: AbortSignal): Promise<Awaited<ReturnType<JsonlSessionPersistence["readMessagePage"]>>> {
     this.assertReady();
-    return this.persistence.readMessagePage(sessionId, before, limit, observeEvent, signal);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("会话消息分页大小无效。");
+    const cached = await this.readValidatedCachePage(sessionId, before, limit, observeEvent, signal);
+    return cached ?? this.persistence.readMessagePage(sessionId, before, limit, observeEvent, signal);
+  }
+  /** 仅对当前进程完整重放且文件指纹未变的有界缓存分页；任何竞态都丢弃结果并回退完整链扫描。 */
+  private async readValidatedCachePage(sessionId: string, before: { createdAt: string; order: number } | undefined, limit: number,
+    observeEvent: Parameters<JsonlSessionPersistence["readMessagePage"]>[3], signal?: AbortSignal): Promise<RecentMessagePageResult | null> {
+    if (!this.loadedSessions.has(sessionId)) return null;
+    const revision = this.persistence.validatedRevisionToken(sessionId);
+    if (!revision) return null;
+    const summaryPage = this.recentMessagePages.get(sessionId);
+    const sessionSummary = summaryPage?.summary ?? createSessionSummaryAccumulator();
+    const candidates: SessionRecord[] = [];
+    const compare = (left: SessionRecord, right: SessionRecord) => compareMessages(left, right);
+    let processed = 0;
+    for (const row of this.records.get("ai_messages")!.values()) {
+      signal?.throwIfAborted();
+      if (row.session_id === sessionId && typeof row.id === "string" && typeof row.created_at === "string" && Number.isFinite(Number(row._order))
+        && (!before || row.created_at < before.createdAt || row.created_at === before.createdAt && Number(row._order) < before.order)) {
+        let low = 0, high = candidates.length;
+        while (low < high) {
+          const middle = (low + high) >>> 1;
+          if (compare(candidates[middle]!, row) <= 0) low = middle + 1;
+          else high = middle;
+        }
+        candidates.splice(low, 0, row);
+        if (candidates.length > limit + 1) candidates.shift();
+      }
+      if (++processed % 256 === 0) await new Promise<void>(resume => setImmediate(resume));
+    }
+
+    const candidateIds = new Set(candidates.map(row => String(row.id)));
+    const feedback = new Map<string, SessionRecord>();
+    const usage = new Map<string, SessionRecord>();
+    const events = this.sessionEventsBySession.get(sessionId)?.values() ?? [];
+    for (const event of events) {
+      signal?.throwIfAborted();
+      if (!summaryPage) applySessionSummaryEvent(sessionSummary, event);
+      observeEvent?.(event);
+      const data = event.data;
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        const value = data as Record<string, unknown>;
+        if (event.type === "message/feedback" && typeof value.messageId === "string" && candidateIds.has(value.messageId)) feedback.set(value.messageId, event);
+        else if (event.type === "usage/record" && typeof value.runId === "string" && value.purpose !== "memory" && candidateIds.has(value.runId)) usage.set(value.runId, event);
+      }
+      if (++processed % 256 === 0) await new Promise<void>(resume => setImmediate(resume));
+    }
+    signal?.throwIfAborted();
+    if (this.persistence.validatedRevisionToken(sessionId) !== revision) return null;
+
+    const loadedBytes = this.loadedSessions.get(sessionId) ?? 0;
+    this.loadedSessions.delete(sessionId);
+    this.loadedSessions.set(sessionId, loadedBytes);
+    if (summaryPage) this.touchRecentMessagePage(sessionId, summaryPage);
+    const hasMore = candidates.length > limit;
+    const page = candidates.slice(Math.max(0, candidates.length - limit));
+    return {
+      items: page.map(message => {
+        const projected = Object.fromEntries(displayMessageFields.filter(field => field in message).map(field => [field, message[field]]));
+        const feedbackEvent = feedback.get(String(message.id));
+        const usageEvent = usage.get(String(message.id));
+        return { message: projected, ...(feedbackEvent ? { feedback: feedbackEvent } : {}), ...(usageEvent ? { usage: usageEvent } : {}) };
+      }),
+      hasMore,
+      ...(summaryPage?.branchParentSessionId ? { branchParentSessionId: summaryPage.branchParentSessionId } : {}),
+      usageSummary: projectSessionUsage(sessionSummary),
+      contextUsage: sessionSummary.contextUsage
+    };
   }
   /** 权限及字段投影由 Session Owner 提供，持久化层只负责单遍完整性与有界分页。 */
   readEventPage(...parameters: Parameters<JsonlSessionPersistence["readEventPage"]>): ReturnType<JsonlSessionPersistence["readEventPage"]> {

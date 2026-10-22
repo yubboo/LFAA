@@ -340,13 +340,13 @@ test("Skill 在同一 Agent Run 安装、发现、加载并引导调用真实隔
   }
 
   const root = await mkdtemp(join(tmpdir(), "lfaa-skill-browser-same-run-"));
-  await writeFile(join(root, "index.html"), "<!doctype html><html><head><meta charset=\"utf-8\"><title>Skill 安装后浏览器页</title></head><body><h1>页面来自隔离项目</h1><p>浏览器已读取真实页面内容。</p></body></html>");
+  await writeFile(join(root, "index.html"), "<!doctype html><html><head><meta charset=\"utf-8\"><title>Skill 安装后浏览器页</title></head><body><h1>页面来自隔离项目</h1><p>浏览器已读取真实页面内容。</p><button type=\"button\">增加计数</button><output id=\"counter\">点击前 0 次</output><output id=\"scroll-status\">滚动位置：0</output><main style=\"height:2400px\">长页面用于滚动验收</main><script>let count=0;document.querySelector('button').addEventListener('click',()=>{count++;document.querySelector('#counter').textContent='点击后 '+count+' 次'});window.addEventListener('scroll',()=>{document.querySelector('#scroll-status').textContent='滚动位置：'+Math.round(window.scrollY)});</script></body></html>");
   t.after(async () => { await manager.closeAll(); await rm(root, { recursive: true, force: true }); });
 
   settings.saveUserSettings(owner, "permissions", { mode: "full_access" });
   settings.saveUserSettings(owner, "plugins", { ...settings.getUserSettings(owner).plugins, enabled: true });
   settings.saveUserSettings(owner, "browser-use", { ...settings.getUserSettings(owner).browserUse, enabled: true, enabledProviderIds: [provider.id] });
-  settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, retryDelaySeconds: 0, maxModelRequests: 12, maxToolCalls: 16 });
+  settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, retryDelaySeconds: 0, maxModelRequests: 14, maxToolCalls: 16 });
 
   const project = { id: "isolated-skill-browser-project", appId: "workspace", nodeId: null, path: root, title: "隔离 Skill 浏览器项目" };
   const turn = sessions.createAiTurn(owner, "workspace", null, "安装这个临时 Browser Skill，再用它检查 index.html。", false, project);
@@ -421,18 +421,52 @@ test("Skill 在同一 Agent Run 安装、发现、加载并引导调用真实隔
           return sse(providerCall("lfaa_skill_load", { source: "project", path: ".agents/skills/browser-check/SKILL.md" }, "skill-load"));
         case 5:
           assert.match(lastResult, /LFAA 已登记的浏览器工具/u, "同一 Run 必须能加载刚安装的 Skill 指引");
+          assert.match(lastResult, /lfaa_browser_navigate/u, "通用 Skill 执行边界必须把网页导航语义映射到已登记的 Browser Owner 工具");
+          assert.match(lastResult, /lfaa_browser_observe/u, "通用 Skill 执行边界必须把页面读取语义映射到已登记的 Browser Owner 工具");
+          assert.match(lastResult, /lfaa_browser_click/u, "通用 Skill 执行边界必须要求先观察再用可访问角色/名称点击");
+          assert.match(lastResult, /lfaa_browser_scroll/u, "通用 Skill 执行边界必须把滚动语义映射到已登记的 Browser Owner 工具");
           assert.ok(names.includes("lfaa_tools_list"));
-          return sse(providerCall("lfaa_tools_list", { query: "用 LFAA 内置浏览器打开当前项目 index.html 并读取标题正文" }, "browser-discovery"));
+          return sse(providerCall("lfaa_tools_list", { query: "", limit: 40 }, "browser-discovery"));
         case 6:
-          assert.match(lastResult, /lfaa_browser_open_workspace_file/u);
-          return sse(providerCall("lfaa_tools_load", { names: ["lfaa_browser_open_workspace_file"] }, "browser-load"));
+          for (const name of ["lfaa_browser_open_workspace_file", "lfaa_browser_navigate", "lfaa_browser_observe", "lfaa_browser_click", "lfaa_browser_scroll"]) assert.match(lastResult, new RegExp(name, "u"));
+          return sse(providerCall("lfaa_tools_load", { names: ["lfaa_browser_open_workspace_file", "lfaa_browser_navigate", "lfaa_browser_observe", "lfaa_browser_click", "lfaa_browser_scroll"] }, "browser-load"));
         case 7:
-          assert.ok(names.includes("lfaa_browser_open_workspace_file"));
+          for (const name of ["lfaa_browser_open_workspace_file", "lfaa_browser_navigate", "lfaa_browser_observe", "lfaa_browser_click", "lfaa_browser_scroll"]) assert.ok(names.includes(name), `${name} 必须由当前工具目录实际提供`);
           return sse(providerCall("lfaa_browser_open_workspace_file", { providerId: provider.id, path: "index.html" }, "browser-open"));
         case 8:
           assert.match(lastResult, /Skill 安装后浏览器页/u);
           assert.match(lastResult, /页面来自隔离项目/u);
-          return sse({ content: "已在同一运行中安装并读取 Browser Skill，再用 LFAA 隔离浏览器打开 index.html；页面标题和正文已由真实页面状态确认。" });
+          {
+            const payload = JSON.parse(lastResult.slice(lastResult.indexOf("：") + 1));
+            assert.match(payload.url, /^http:\/\/127\.0\.0\.1:/u);
+            return sse(providerCall("lfaa_browser_navigate", { providerId: provider.id, url: payload.url }, "browser-navigate"));
+          }
+        case 9:
+          assert.match(lastResult, /Skill 安装后浏览器页/u);
+          assert.match(lastResult, /增加计数/u);
+          return sse(providerCall("lfaa_browser_observe", { providerId: provider.id }, "browser-observe"));
+        case 10: {
+          const observation = JSON.parse(lastResult.slice(lastResult.indexOf("：") + 1));
+          assert.equal(observation.title, "Skill 安装后浏览器页");
+          assert.match(observation.pageText, /页面来自隔离项目/u);
+          const button = observation.controls.find(control => control.role === "button" && control.name === "增加计数");
+          assert.ok(button, "点击目标必须来自真实隔离页面返回的可访问控件清单");
+          return sse(providerCall("lfaa_browser_click", { providerId: provider.id, role: button.role, name: button.name }, "browser-click"));
+        }
+        case 11:
+          assert.match(lastResult, /点击后 1 次/u);
+          return sse(providerCall("lfaa_browser_scroll", { providerId: provider.id, direction: "down", amount: 420 }, "browser-scroll"));
+        case 12: {
+          assert.match(lastResult, /点击后 1 次/u);
+          return sse(providerCall("lfaa_browser_observe", { providerId: provider.id }, "browser-observe-after-scroll"));
+        }
+        case 13: {
+          const observation = JSON.parse(lastResult.slice(lastResult.indexOf("：") + 1));
+          assert.match(observation.pageText, /点击后 1 次/u);
+          const scrollPosition = Number(observation.pageText.match(/滚动位置：(\d+)/u)?.[1] ?? 0);
+          assert.ok(scrollPosition > 0, `实际页面滚动事件应更新可观察状态：${observation.pageText}`);
+          return sse({ content: `同一 Agent Run 已从真实隔离页面确认标题“${observation.title}”，根据可访问控件完成点击，并读取滚动位置 ${scrollPosition} 像素。` });
+        }
         default:
           throw new Error(`Agent 意外请求了第 ${requests.length} 轮 Provider`);
       }
@@ -466,13 +500,13 @@ test("Skill 在同一 Agent Run 安装、发现、加载并引导调用真实隔
       modelResolver
     });
     assert.equal(providerFailure, null, providerFailure?.message ?? "");
-    assert.equal(requests.length, 8, "同一 Agent Run 完成固定来源检查、安装、Skill 回读、工具发现与浏览器实页读取");
-    assert.match(sessions.getAiRun(owner, turn.assistantMessage.id).message.content, /页面标题和正文/u);
+    assert.equal(requests.length, 13, "同一 Agent Run 完成 Skill 检查、安装、动作发现、导航、观察、可访问点击、滚动和滚动后回读");
+    assert.match(sessions.getAiRun(owner, turn.assistantMessage.id).message.content, /滚动位置 \d+ 像素/u);
     assert.match(await readFile(join(root, ".agents", "skills", "browser-check", "SKILL.md"), "utf8"), /LFAA 已登记的浏览器工具/u);
     assert.equal(await readFile(join(root, ".agents", "skills", "browser-check", "scripts", "check.mjs"), "utf8"), "throw new Error('Skill 附属脚本不得被安装流程执行');");
     await assert.rejects(readFile(join(root, "script-ran.txt"), "utf8"), { code: "ENOENT" });
     const events = await sessions.getAiQueryEventsPage(owner, turn.session.id, turn.session.id, { after: 0, limit: 100 });
-    for (const name of ["capability_inspect", "capability_install", "lfaa_skill_list", "lfaa_skill_load", "lfaa_browser_open_workspace_file"]) {
+    for (const name of ["capability_inspect", "capability_install", "lfaa_skill_list", "lfaa_skill_load", "lfaa_browser_open_workspace_file", "lfaa_browser_navigate", "lfaa_browser_observe", "lfaa_browser_click", "lfaa_browser_scroll"]) {
       assert.ok(events.events.some(event => event.type === "tool/call" && event.data.name === name), `缺少 ${name} 的同 Run 调用证据`);
     }
   } finally {
