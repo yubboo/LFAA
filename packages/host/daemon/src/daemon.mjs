@@ -53,6 +53,7 @@ const dataDirectory = resolveDataDirectory(repositoryRoot, configuredDataDirecto
   useStoredDataDirectory: !dataDirectoryIsExplicit
 });
 const credentialsDirectory = resolve(homeDirectory, "credentials");
+const steamcmdServerStateDirectory = resolve(credentialsDirectory, "steamcmd-servers");
 let minecraftDirectoryRelative = "games/minecraft";
 let minecraftDirectory = resolve(dataDirectory, "games", "minecraft");
 const knownMinecraftDirectories = new Set([minecraftDirectoryRelative]);
@@ -89,6 +90,8 @@ const sandboxReadyPrefix = "\u001eLFAA_SANDBOX_READY:";
 const execFileAsync = promisify(execFile);
 let nodeId = "";
 const activeServers = new Map();
+const activeSteamcmdServers = new Map();
+let knownSteamcmdServerIds = [];
 // 目录按用户填写的实例名称保存；此映射让进程和任务仍按稳定 UUID 定位实例。
 const minecraftInstanceDirectories = new Map();
 const activeTasks = new Set();
@@ -377,10 +380,13 @@ async function runLoop() {
           capabilities,
           javaRuntimes,
           activeTaskIds: [...activeTasks],
-          instances: await scanMinecraftInstances()
+          instances: await scanMinecraftInstances(),
+          steamcmdServers: await getSteamcmdServerHeartbeat()
         })
       });
       if (shuttingDown) break;
+      knownSteamcmdServerIds = Array.isArray(heartbeat?.steamcmdServers)
+        ? heartbeat.steamcmdServers.map(item => item?.id).filter(id => typeof id === "string" && /^[0-9a-f-]{36}$/iu.test(id)).slice(0, 500) : [];
       for (const id of heartbeat?.cancelTaskIds ?? []) { const command = activeCommands.get(id); if (command) void command.cancel(); }
       for(const id of heartbeat?.cancelMinecraftTaskIds??[])minecraftTaskControllers.get(id)?.abort(new DOMException("用户取消 Minecraft 任务。","AbortError"));
       if (heartbeat?.steamcmdSettings) steamcmdSettings = validateSteamcmdSettings(heartbeat.steamcmdSettings);
@@ -806,15 +812,24 @@ async function probeEasyTierVersion(executable) {
 
 async function executeSteamcmdTask(task) {
   try {
-    const result = task.kind === "install" ? await installSteamcmd(task) : await verifySteamcmd(task);
+    const result = task.kind === "install" ? await installSteamcmd(task)
+      : task.kind === "verify" ? await verifySteamcmd(task)
+        : task.kind === "install-server" || task.kind === "update-server" ? await installSteamcmdServer(task)
+          : task.kind === "start-server" ? await startSteamcmdServer(task)
+            : task.kind === "stop-server" ? await stopSteamcmdServer(task)
+              : (() => { throw new Error("SteamCMD 任务类型无效。"); })();
     await apiRequest(`/daemon/steamcmd/tasks/${task.id}/complete`, {
       method: "POST",
-      body: JSON.stringify({ nodeId, succeeded: true, message: result.verified ? "SteamCMD 已就绪，游戏存储目录已准备。" : "SteamCMD 校验完成。", result })
+      body: JSON.stringify({ nodeId, succeeded: true, message: result.verified ? "SteamCMD 已就绪，游戏存储目录已准备。"
+        : result.installed ? `${task.payload?.server?.name ?? "Steam 专用服务端"} 已安装或更新。`
+          : result.processStarted ? `${task.payload?.server?.name ?? "游戏服务器"} 进程已启动，真实游戏就绪状态仍需服务器自身确认。`
+            : result.stopped ? `${task.payload?.server?.name ?? "游戏服务器"} 进程已停止${result.forced ? "；强制结束，存档完整性未确认" : ""}。`
+              : "SteamCMD 校验完成。", result })
     });
   } catch (error) {
     await apiRequest(`/daemon/steamcmd/tasks/${task.id}/complete`, {
       method: "POST",
-      body: JSON.stringify({ nodeId, succeeded: false, message: safeMessage(error), result: { verified: false } })
+      body: JSON.stringify({ nodeId, succeeded: false, message: safeMessage(error), result: { verified: false, installed: false, processStarted: false, stopped: false } })
     }).catch(() => undefined);
   }
 }
@@ -949,6 +964,182 @@ async function verifySteamcmd(task) {
   };
 }
 
+function validateSteamcmdServerTask(task) {
+  const value = task?.payload?.server;
+  if (!value || typeof value !== "object" || value.nodeId !== nodeId || !/^[0-9a-f-]{36}$/iu.test(value.id ?? "")
+    || typeof value.name !== "string" || !value.name.trim() || value.name.length > 80
+    || !Number.isSafeInteger(value.toolAppId) || value.toolAppId < 1 || value.toolAppId > 2_147_483_647
+    || value.eulaAccepted !== true) throw new Error("控制端返回的 Steam 专用服务端配置无效，或没有记录许可同意。");
+  const installDirectory = validateMinecraftStorageDirectory(value.installDirectory);
+  if (win32.isAbsolute(installDirectory)) throw new Error("Steam 服务端安装目录必须位于当前游戏存储目录内。");
+  const executablePath = value.executablePath === "" ? "" : validateMinecraftStorageDirectory(value.executablePath);
+  if (executablePath && (win32.isAbsolute(executablePath) || !executablePath.toLocaleLowerCase().endsWith(".exe"))) throw new Error("Steam 服务端启动文件必须是安装目录中的 .exe 程序。");
+  const launchArguments = value.launchArguments ?? [];
+  if (!Array.isArray(launchArguments) || launchArguments.length > 64 || launchArguments.some(argument => typeof argument !== "string" || argument.length > 1024 || /[\r\n\u0000]/u.test(argument))) {
+    throw new Error("Steam 服务端启动参数无效。");
+  }
+  if (launchArguments.some(argument => /(?:pass(?:word)?|passwd|token|secret|api[-_]?key|auth[-_]?key|rcon)/iu.test(argument))) throw new Error("Steam 服务端参数不能包含密码、令牌或密钥。");
+  if (typeof value.stopCommand !== "string" || value.stopCommand.length > 120 || /[\r\n\u0000-\u001f\u007f]/u.test(value.stopCommand)) throw new Error("Steam 服务端控制台停服指令无效。");
+  if (!Number.isSafeInteger(value.stopTimeoutSeconds) || value.stopTimeoutSeconds < 5 || value.stopTimeoutSeconds > 300) throw new Error("Steam 服务端停服等待时间无效。");
+  return { ...value, installDirectory, executablePath, launchArguments };
+}
+
+function resolveSteamcmdServerDirectory(settings, server) {
+  const gameDirectory = resolveSteamcmdGameDirectory(settings.gameDirectory);
+  const directory = win32.resolve(gameDirectory, ...server.installDirectory.split("/"));
+  const relativeDirectory = win32.relative(gameDirectory, directory);
+  if (!relativeDirectory || relativeDirectory === ".." || relativeDirectory.startsWith(`..${win32.sep}`) || win32.isAbsolute(relativeDirectory)) {
+    throw new Error("Steam 服务端安装目录越过已配置的游戏目录。");
+  }
+  return { gameDirectory, directory };
+}
+
+async function assertSteamcmdServerPathSafe(target, allowMissing = false) {
+  const absolute = win32.resolve(target);
+  const volumeRoot = win32.parse(absolute).root;
+  if (!/^[a-z]:\\$/iu.test(volumeRoot)) throw new Error("Steam 服务端目标必须位于 Windows 数据磁盘中。");
+  let current = volumeRoot;
+  const segments = win32.relative(volumeRoot, absolute).split(win32.sep).filter(Boolean);
+  for (let index = 0; index < segments.length; index++) {
+    current = resolve(current, segments[index]);
+    let info;
+    try { info = await lstat(current); }
+    catch (error) { if (error?.code === "ENOENT" && allowMissing) return null; throw error; }
+    if (info.isSymbolicLink() || info.nlink > 1 || index < segments.length - 1 && !info.isDirectory()) {
+      throw new Error("Steam 服务端路径包含链接或非普通目录，已拒绝操作。");
+    }
+    if (index === segments.length - 1) return info;
+  }
+  return null;
+}
+
+function steamcmdServerMarkerPath(serverId) {
+  if (!/^[0-9a-f-]{36}$/iu.test(serverId)) throw new Error("Steam 服务端 ID 无效。");
+  return resolve(steamcmdServerStateDirectory, `${serverId}.json`);
+}
+
+async function readSteamcmdServerMarker(serverId) {
+  const markerPath = steamcmdServerMarkerPath(serverId);
+  let info;
+  try { info = await lstat(markerPath); }
+  catch (error) { if (error?.code === "ENOENT") return null; throw error; }
+  if (info.isSymbolicLink() || !info.isFile() || info.nlink > 1) throw new Error("Steam 服务端进程标记文件无效。");
+  const marker = JSON.parse(await readFile(markerPath, "utf8"));
+  if (!Number.isSafeInteger(marker.pid) || marker.pid < 1 || typeof marker.executable !== "string") throw new Error("Steam 服务端进程标记内容无效。");
+  return { ...marker, markerPath };
+}
+
+async function getSteamcmdServerHeartbeat() {
+  const states = [];
+  for (const id of knownSteamcmdServerIds) {
+    const active = activeSteamcmdServers.get(id);
+    if (active && Number.isSafeInteger(active.child.pid) && active.child.exitCode === null && active.child.signalCode === null && isProcessRunning(active.child.pid)) {
+      states.push({ id, status: "running", processId: active.child.pid });
+      continue;
+    }
+    let status = "stopped";
+    try {
+      const marker = await readSteamcmdServerMarker(id);
+      if (marker && isProcessRunning(marker.pid)) status = "unknown";
+      else if (marker) await rm(marker.markerPath, { force: true });
+    } catch { status = "unknown"; }
+    states.push({ id, status, processId: null });
+  }
+  return states;
+}
+
+async function assertSteamcmdServerNotRunning(serverId) {
+  if (activeSteamcmdServers.has(serverId)) throw new Error("游戏服务器当前由本机 Daemon 管理为运行状态，请先停止后再安装或修改。");
+  const marker = await readSteamcmdServerMarker(serverId);
+  if (!marker) return;
+  if (isProcessRunning(marker.pid)) throw new Error("Daemon 重启后发现服务端进程仍在运行，但当前没有控制台管道；请在目标设备确认停止后重试。");
+  await rm(marker.markerPath, { force: true });
+}
+
+async function installSteamcmdServer(task) {
+  const settings = validateSteamcmdSettings(task.payload ?? {});
+  const server = validateSteamcmdServerTask(task);
+  await assertSteamcmdServerNotRunning(server.id);
+  const steamcmdDirectory = resolveManagedFilePath(settings.steamcmdDirectory);
+  const steamcmdExecutable = resolve(steamcmdDirectory, "steamcmd.exe");
+  const steamcmdInfo = await assertManagedPathIsSafe(steamcmdExecutable);
+  if (!steamcmdInfo?.isFile()) throw new Error("目标设备尚未安装并验证 SteamCMD，请先到游戏库的运行环境中安装。");
+  const { directory } = resolveSteamcmdServerDirectory(settings, server);
+  await postSteamcmdProgress(task.id, 12, `正在准备 ${server.name} 的专用服务端目录。`);
+  await ensureStorageDirectory(directory);
+  await assertSteamcmdServerPathSafe(directory);
+  await postSteamcmdProgress(task.id, 28, `正在通过 SteamCMD 安装 Tool AppID ${server.toolAppId}。`);
+  const args = ["+force_install_dir", directory, "+login", "anonymous", "+app_update", String(server.toolAppId), "validate", "+quit"];
+  let output;
+  try {
+    output = await execFileAsync(steamcmdExecutable, args, { cwd: steamcmdDirectory, windowsHide: true, timeout: 60 * 60_000, maxBuffer: 4 * 1024 * 1024 });
+  } catch (error) {
+    const details = [error?.stdout, error?.stderr].filter(value => typeof value === "string" && value).join("\n").slice(-1200);
+    throw new Error(details ? `SteamCMD 服务端安装失败：${details}` : `SteamCMD 服务端安装失败（${safeMessage(error)}）。`);
+  }
+  const transcript = `${output.stdout ?? ""}\n${output.stderr ?? ""}`;
+  const escapedAppId = String(server.toolAppId).replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  if (!new RegExp(`App\\s+['\"]?${escapedAppId}['\"]?\\s+(?:fully installed|is up to date)`, "iu").test(transcript)) {
+    throw new Error(`SteamCMD 没有确认 Tool AppID ${server.toolAppId} 已完整安装；请检查该 AppID 是否为已发布、允许当前账户下载的专用服务端。`);
+  }
+  await postSteamcmdProgress(task.id, 95, `${server.name} 的 Steam 专用服务端文件已完成校验。`);
+  return { installed: true, toolAppId: server.toolAppId, installDirectory: server.installDirectory };
+}
+
+async function startSteamcmdServer(task) {
+  const settings = validateSteamcmdSettings(task.payload ?? {});
+  const server = validateSteamcmdServerTask(task);
+  if (!server.executablePath || !server.stopCommand) throw new Error("启动配置不完整；请填写服务端 .exe 与控制台停服指令。");
+  await assertSteamcmdServerNotRunning(server.id);
+  const { directory } = resolveSteamcmdServerDirectory(settings, server);
+  const executable = win32.resolve(directory, ...server.executablePath.split("/"));
+  const relativeExecutable = win32.relative(directory, executable);
+  if (!relativeExecutable || relativeExecutable === ".." || relativeExecutable.startsWith(`..${win32.sep}`) || win32.isAbsolute(relativeExecutable)) throw new Error("Steam 服务端启动文件越过安装目录。");
+  const executableInfo = await assertSteamcmdServerPathSafe(executable);
+  if (!executableInfo?.isFile() || !executable.toLocaleLowerCase().endsWith(".exe")) throw new Error("没有在已安装目录中找到配置的服务端 .exe 文件。");
+  await postSteamcmdProgress(task.id, 20, `正在启动 ${server.name} 服务端进程。`);
+  const child = spawn(executable, server.launchArguments, { cwd: directory, shell: false, windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
+  await new Promise((resolveStarted, rejectStarted) => {
+    const onError = error => { child.off("spawn", onSpawn); rejectStarted(error); };
+    const onSpawn = () => { child.off("error", onError); resolveStarted(); };
+    child.once("error", onError); child.once("spawn", onSpawn);
+  });
+  if (!Number.isSafeInteger(child.pid)) { await terminateProcessTree(child); throw new Error("服务端进程没有返回有效的进程编号。"); }
+  await mkdir(steamcmdServerStateDirectory, { recursive: true });
+  const markerPath = steamcmdServerMarkerPath(server.id);
+  try {
+    await writeFile(markerPath, JSON.stringify({ pid: child.pid, executable, startedAt: new Date().toISOString() }), { encoding: "utf8", flag: "wx" });
+  } catch (error) {
+    await terminateProcessTree(child);
+    await waitForChildExit(child, 10_000);
+    throw new Error(`无法安全记录服务端进程状态：${safeMessage(error)}`);
+  }
+  const record = { child, serverId: server.id, serverDirectory: directory, stopCommand: server.stopCommand, stopTimeoutSeconds: server.stopTimeoutSeconds, startedAt: Date.now() };
+  activeSteamcmdServers.set(server.id, record);
+  child.once("exit", () => {
+    activeSteamcmdServers.delete(server.id);
+    void rm(markerPath, { force: true }).catch(() => {});
+  });
+  await delay(500);
+  if (child.exitCode !== null || child.signalCode !== null) throw new Error(`服务端进程启动后立即退出（退出码 ${child.exitCode ?? "未知"}）；未确认游戏就绪。`);
+  return { processStarted: true, processId: child.pid };
+}
+
+async function stopSteamcmdServer(task) {
+  const server = validateSteamcmdServerTask(task);
+  const record = activeSteamcmdServers.get(server.id);
+  if (!record || record.child.exitCode !== null || record.child.signalCode !== null) throw new Error("本机 Daemon 未持有此 Steam 服务端的运行控制台；运行状态未确认，未发送停止操作。");
+  await postSteamcmdProgress(task.id, 20, `正在向 ${server.name} 发送配置的安全停服指令。`);
+  try { await new Promise((resolveWrite, rejectWrite) => record.child.stdin.write(`${server.stopCommand}\n`, error => error ? rejectWrite(error) : resolveWrite())); }
+  catch (error) { throw new Error(`服务端停服指令发送失败：${safeMessage(error)}`); }
+  const graceful = await waitForChildExit(record.child, server.stopTimeoutSeconds * 1000);
+  if (graceful) return { stopped: true, forced: false, processId: record.child.pid };
+  await postSteamcmdProgress(task.id, 75, "服务端未在配置的等待时间内退出，正在结束进程树；未确认游戏存档完整性。");
+  await terminateProcessTree(record.child);
+  if (!await waitForChildExit(record.child, 10_000)) throw new Error("服务端进程在安全停服指令和进程树终止请求后仍未退出。");
+  return { stopped: true, forced: true, processId: record.child.pid };
+}
+
 function assertNodeFileReadable(path) {
   const rel = relative(dataDirectory, path);
   if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return;
@@ -995,6 +1186,13 @@ async function assertNoActiveInstanceAffected(path) {
     const targetIsInside = targetInsideInstance === "" || !targetInsideInstance.startsWith(`..${sep}`) && targetInsideInstance !== ".." && !isAbsolute(targetInsideInstance);
     const instanceIsInside = instanceInsideTarget === "" || !instanceInsideTarget.startsWith(`..${sep}`) && instanceInsideTarget !== ".." && !isAbsolute(instanceInsideTarget);
     if (targetIsInside || instanceIsInside) throw new Error("Minecraft 实例正在运行；请先停止实例，再修改、移动或删除相关文件。");
+  }
+  for (const runtime of activeSteamcmdServers.values()) {
+    const targetInsideServer = win32.relative(runtime.serverDirectory, win32.resolve(path));
+    const serverInsideTarget = win32.relative(win32.resolve(path), runtime.serverDirectory);
+    const targetIsInside = targetInsideServer === "" || targetInsideServer !== ".." && !targetInsideServer.startsWith(`..${win32.sep}`) && !win32.isAbsolute(targetInsideServer);
+    const serverIsInside = serverInsideTarget === "" || serverInsideTarget !== ".." && !serverInsideTarget.startsWith(`..${win32.sep}`) && !win32.isAbsolute(serverInsideTarget);
+    if (targetIsInside || serverIsInside) throw new Error("Steam 游戏服务器正在运行；请先停止服务器，再修改或删除相关文件。");
   }
 }
 
@@ -1814,7 +2012,16 @@ async function shutdown(signal) {
     if (graceful) await rm(resolve(getInstanceDirectory(instanceId), "daemon-process.json"), { force: true });
     else process.stderr.write("实例停服等待或输入失败，已确认强制结束；保留状态标记供启动后复核。\n");
   });
-  const results = await Promise.allSettled(stops);
+  const steamStops = [...activeSteamcmdServers.values()].map(async runtime => {
+    if (runtime.child.exitCode !== null || runtime.child.signalCode !== null) return;
+    try { await new Promise((resolveWrite, rejectWrite) => runtime.child.stdin.write(`${runtime.stopCommand}\n`, error => error ? rejectWrite(error) : resolveWrite())); }
+    catch { /* 继续等待真实退出；超时后由进程树终止收尾。 */ }
+    if (!await waitForChildExit(runtime.child, runtime.stopTimeoutSeconds * 1000)) {
+      await terminateProcessTree(runtime.child);
+      if (!await waitForChildExit(runtime.child, 10_000)) throw new Error("Steam 服务端在 Daemon 停机时仍未确认退出。");
+    }
+  });
+  const results = await Promise.allSettled([...stops, ...steamStops]);
   if (results.some(result => result.status === "rejected")) {
     process.exitCode = 1;
     process.stderr.write("部分受管实例未能确认安全退出；不返回正常停机，状态标记保留。\n");

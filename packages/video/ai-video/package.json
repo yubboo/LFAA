@@ -11,7 +11,7 @@
   "lfaa": {
     "server": {
       "entry": "./src/index.ts",
-      "inject": ["lfaaCredentials", "lfaaSettings"],
+      "inject": ["lfaaCredentials", "lfaaSettings", "lfaaLocalModelRuntime"],
       "required": true,
       "capabilities": [],
       "settings": []
@@ -23,6 +23,7 @@
     "lfaa-home-paths": "workspace:*",
     "lfaa-launch-environment": "workspace:*",
     "lfaa-llm": "workspace:*",
+    "lfaa-llm-local-runtime": "workspace:*",
     "lfaa-settings": "workspace:*",
     "lfaa-storage-domain": "workspace:*",
     "lfaa-storage-json": "workspace:*",

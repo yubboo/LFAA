@@ -86,7 +86,8 @@ export const requireAuthentication: RequestHandler = (request, response, next) =
 
   const session = resolveSessionToken(token);
   if (!session) {
-    clearSessionCookie(response);
+    // 失效请求可能在新登录之后才返回；此时清 Cookie 会删除刚签发的新会话。
+    // 无效 Cookie 不会授予访问权限，显式注销仍由 /auth/logout 清理。
     response.status(401).json({ error: "invalid_session", message: "登录已失效，请重新登录。" });
     return;
   }

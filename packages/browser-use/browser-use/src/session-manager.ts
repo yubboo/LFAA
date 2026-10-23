@@ -20,6 +20,7 @@ const MAX_SESSIONS_PER_USER = 4;
 const MAX_PAGE_COUNT = 8;
 const MAX_PAGE_TEXT = 16_000;
 const MAX_INTERACTIVE_ITEMS = 80;
+const BROWSER_DOM_CHANGE_NOTIFICATION_INTERVAL_MS = 750;
 const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1280;
 const PAGE_ACTION_TIMEOUT_MS = 8_000;
@@ -36,10 +37,17 @@ export interface BrowserSnapshot {
   revision: number;
   url: string;
   title: string;
+  loading: boolean;
   pageText: string;
   controls: Array<{ role: string; name: string; type?: string; disabled: boolean }>;
   tabs: BrowserTabSummary[];
   screenshot: { mimeType: "image/jpeg"; dataBase64: string; width: number; height: number } | null;
+}
+export class BrowserNavigationTargetError extends Error {
+  constructor() {
+    super("浏览器目标无法安全解析为公网地址；只有明确指定的本机预览源可访问本机地址。");
+    this.name = "BrowserNavigationTargetError";
+  }
 }
 export interface BrowserRevision { revision: number; url: string; title: string }
 export interface BrowserRecentSite { url: string; visitedAt: string }
@@ -74,6 +82,7 @@ interface BrowserSession {
   page: Page;
   lastUsedAt: number;
   revision: number;
+  revisionWaiters: Set<(revision: BrowserRevision | null) => void>;
   operationTail: Promise<void>;
   allowedLocalOrigin: string | null;
   projectPreview: { url: string; close: () => Promise<void> } | null;
@@ -147,6 +156,14 @@ export class BrowserSessionManager {
     this.sweepTimer.unref?.();
   }
 
+  async prewarm(providerId: BrowserProviderId): Promise<void> {
+    if (this.disposed || !this.localHostExecution) throw new Error("LFAA 隔离浏览器只在本机 Web/Desktop Host 中可用。");
+    const provider = this.channels.find(item => item.id === providerId);
+    if (!provider) throw new Error("预热只支持 LFAA 隔离 Edge/Chrome 浏览器。");
+    if (!provider.paths.some(path => existsSync(path))) throw new Error(`未发现 ${provider.name} 的已安装浏览器。`);
+    await this.getBrowser(provider.channel);
+  }
+
   getRecentSites(ownerId: string, limit = 12): BrowserRecentSite[] {
     if (!ownerId || !this.isRecentHistoryEnabled(ownerId)) return [];
     const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
@@ -209,13 +226,13 @@ export class BrowserSessionManager {
       runId,
       listTabs: (): Promise<TabbitTabSummary[]> => invoke(() => this.listTabs(ownerId, sourceSessionId, "tabbit-personal", signal)),
       claimTab: (tabId: number): Promise<BrowserSnapshot> => invoke(() => this.claimTab(ownerId, sourceSessionId, "tabbit-personal", tabId, signal)),
-      navigate: (providerId: BrowserProviderId, url: string): Promise<BrowserSnapshot> => invoke(() => this.navigate(ownerId, sourceSessionId, providerId, url, signal)),
-      navigateProjectPreview: (providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }): Promise<BrowserSnapshot> => invoke(() => this.navigateProjectPreview(ownerId, sourceSessionId, providerId, preview, signal)),
-      observe: (providerId: BrowserProviderId): Promise<BrowserSnapshot> => invoke(() => this.observeForRun(ownerId, sourceSessionId, providerId, signal)),
-      click: (providerId: BrowserProviderId, role: string, name: string): Promise<BrowserSnapshot> => invoke(() => this.click(ownerId, sourceSessionId, providerId, role, name, signal)),
-      fill: (providerId: BrowserProviderId, label: string, value: string): Promise<BrowserSnapshot> => invoke(() => this.fill(ownerId, sourceSessionId, providerId, label, value, signal)),
-      pressKey: (providerId: BrowserProviderId, key: string): Promise<BrowserSnapshot> => invoke(() => this.pressKey(ownerId, sourceSessionId, providerId, key, signal)),
-      scroll: (providerId: BrowserProviderId, direction: "up" | "down", amount: number): Promise<BrowserSnapshot> => invoke(() => this.scroll(ownerId, sourceSessionId, providerId, direction, amount, signal))
+      navigate: (providerId: BrowserProviderId, url: string): Promise<BrowserSnapshot> => invoke(() => this.navigate(ownerId, sourceSessionId, providerId, url, signal, true, false)),
+      navigateProjectPreview: (providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }): Promise<BrowserSnapshot> => invoke(() => this.navigateProjectPreview(ownerId, sourceSessionId, providerId, preview, signal, false)),
+      observe: (providerId: BrowserProviderId): Promise<BrowserSnapshot> => invoke(() => this.observeForRun(ownerId, sourceSessionId, providerId, signal, false)),
+      click: (providerId: BrowserProviderId, role: string, name: string): Promise<BrowserSnapshot> => invoke(() => this.click(ownerId, sourceSessionId, providerId, role, name, signal, true, false)),
+      fill: (providerId: BrowserProviderId, label: string, value: string): Promise<BrowserSnapshot> => invoke(() => this.fill(ownerId, sourceSessionId, providerId, label, value, signal, true, false)),
+      pressKey: (providerId: BrowserProviderId, key: string): Promise<BrowserSnapshot> => invoke(() => this.pressKey(ownerId, sourceSessionId, providerId, key, signal, false)),
+      scroll: (providerId: BrowserProviderId, direction: "up" | "down", amount: number): Promise<BrowserSnapshot> => invoke(() => this.scroll(ownerId, sourceSessionId, providerId, direction, amount, signal, false))
     });
     const dispose = () => {
       if (!active) return;
@@ -283,7 +300,7 @@ export class BrowserSessionManager {
         const page = match.page;
         existing.page = page;
         this.watchNativePage(existing, page);
-        existing.revision += 1;
+        this.bumpRevision(existing);
         this.touch(existing);
       });
     }
@@ -302,12 +319,12 @@ export class BrowserSessionManager {
     return this.tabbit.claimTab(ownerId, sourceSessionId, tabId, signal);
   }
 
-  async getPanelSnapshot(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, includeScreenshot = true): Promise<BrowserSnapshot | null> {
+  async getPanelSnapshot(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, includeScreenshot = true, includePageDetails = true): Promise<BrowserSnapshot | null> {
     if (providerId === "tabbit-personal") return this.tabbit.getPanelSnapshot(ownerId, sourceSessionId, includeScreenshot);
     const key = sessionKey(ownerId, sourceSessionId, providerId), id = this.sessionKeys.get(key);
     const session = id ? this.sessions.get(id) : undefined;
     if (!session || session.disposed) return null;
-    return this.exclusive(session, () => this.observe(session, providerId === "lfaa-native-browser" ? false : includeScreenshot));
+    return this.exclusive(session, () => this.observe(session, providerId === "lfaa-native-browser" ? false : includeScreenshot, includePageDetails));
   }
 
   async resizeViewport(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, width: number, height: number, signal?: AbortSignal): Promise<BrowserSnapshot | null> {
@@ -324,10 +341,10 @@ export class BrowserSessionManager {
       const current = session.page.viewportSize();
       if (current?.width !== width || current?.height !== height) {
         await session.page.setViewportSize({ width, height });
-        session.revision += 1;
+        this.bumpRevision(session);
       }
       this.touch(session);
-      return this.observe(session, true);
+      return this.observe(session, true, false);
     }, signal);
   }
 
@@ -340,7 +357,54 @@ export class BrowserSessionManager {
     return { revision: session.revision, url: session.page.url().slice(0, 2048), title: await session.page.title().catch(() => "") };
   }
 
-  async navigate(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, value: string, signal?: AbortSignal): Promise<BrowserSnapshot> {
+  async waitForPanelRevision(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, afterRevision: number, signal?: AbortSignal): Promise<BrowserRevision | null> {
+    if (providerId === "tabbit-personal") return this.tabbit.getPanelRevision(ownerId, sourceSessionId, signal);
+    if (!Number.isSafeInteger(afterRevision) || afterRevision < 0) throw new Error("浏览器页面修订号无效。");
+    signal?.throwIfAborted();
+    const key = sessionKey(ownerId, sourceSessionId, providerId), id = this.sessionKeys.get(key);
+    const session = id ? this.sessions.get(id) : undefined;
+    if (!session || session.disposed || session.page.isClosed()) return null;
+    this.touch(session);
+    if (session.revision !== afterRevision) return this.getPanelRevision(ownerId, sourceSessionId, providerId, signal);
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        session.revisionWaiters.delete(onRevision);
+        signal?.removeEventListener("abort", onAbort);
+      };
+      const finish = (revision: BrowserRevision | null) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(revision);
+      };
+      const fail = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+      const onRevision = (revision: BrowserRevision | null) => finish(revision);
+      const onAbort = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error("浏览器页面更新等待已取消。"));
+      };
+      session.revisionWaiters.add(onRevision);
+      signal?.addEventListener("abort", onAbort, { once: true });
+      timer = setTimeout(() => {
+        void this.getPanelRevision(ownerId, sourceSessionId, providerId).then(finish, fail);
+      }, 15_000);
+      if (signal?.aborted) { onAbort(); return; }
+      if (session.disposed) finish(null);
+      else if (session.revision !== afterRevision) void this.getPanelRevision(ownerId, sourceSessionId, providerId).then(finish, fail);
+    });
+  }
+
+  async navigate(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, value: string, signal?: AbortSignal, includePageDetails = true, includeScreenshot = true): Promise<BrowserSnapshot> {
     if (providerId === "tabbit-personal") return this.tabbit.navigate(ownerId, sourceSessionId, value, signal);
     const url = validateNavigationUrl(value);
     const session = await this.getOrCreate(ownerId, sourceSessionId, providerId);
@@ -354,13 +418,14 @@ export class BrowserSessionManager {
       }
       await this.assertTarget(session, url, true);
       if (await this.isPrivateOrigin(url)) session.allowedLocalOrigin = url.origin;
-      await session.page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 20_000 });
+      await session.page.goto(url.toString(), { waitUntil: "commit", timeout: 20_000 });
       this.touch(session);
-      return this.observe(session, true);
+      this.bumpRevision(session);
+      return this.observe(session, includeScreenshot, includePageDetails);
     }, signal);
   }
 
-  async navigateProjectPreview(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }, signal?: AbortSignal): Promise<BrowserSnapshot> {
+  async navigateProjectPreview(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }, signal?: AbortSignal, includeScreenshot = true): Promise<BrowserSnapshot> {
     if (providerId === "tabbit-personal") throw new Error("工作区文件只能在 LFAA 隔离浏览器中预览，不会传给个人浏览器。");
     const url = validateNavigationUrl(preview.url);
     if (url.hostname !== "127.0.0.1" || typeof preview.close !== "function") throw new Error("项目预览源必须是受限的本机只读服务。");
@@ -372,9 +437,9 @@ export class BrowserSessionManager {
       session.projectPreview = preview;
       try {
         await this.assertTarget(session, url, true);
-        await session.page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 20_000 });
+        await session.page.goto(url.toString(), { waitUntil: "commit", timeout: 20_000 });
         this.touch(session);
-        return await this.observe(session, true);
+        return await this.observe(session, includeScreenshot);
       } catch (error) {
         await this.closeProjectPreview(session);
         session.allowedLocalOrigin = null;
@@ -383,39 +448,39 @@ export class BrowserSessionManager {
     }, signal);
   }
 
-  async observeForRun(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<BrowserSnapshot> {
+  async observeForRun(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal, includeScreenshot = false): Promise<BrowserSnapshot> {
     if (providerId === "tabbit-personal") return this.tabbit.observe(ownerId, sourceSessionId, signal);
     const session = await this.getOrCreate(ownerId, sourceSessionId, providerId);
     signal?.throwIfAborted();
-    return this.exclusive(session, () => this.observe(session, true), signal);
+    return this.exclusive(session, () => this.observe(session, includeScreenshot), signal);
   }
 
-  async back(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<BrowserSnapshot> {
+  async back(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal, includePageDetails = true, includeScreenshot = true): Promise<BrowserSnapshot> {
     if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "back", {}, signal);
-    return this.usePage(ownerId, sourceSessionId, providerId, page => page.goBack({ waitUntil: "domcontentloaded", timeout: 10_000 }), signal);
+    return this.usePage(ownerId, sourceSessionId, providerId, page => page.goBack({ waitUntil: "commit", timeout: 10_000 }), signal, includeScreenshot, includePageDetails);
   }
 
-  async forward(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<BrowserSnapshot> {
+  async forward(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal, includePageDetails = true, includeScreenshot = true): Promise<BrowserSnapshot> {
     if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "forward", {}, signal);
-    return this.usePage(ownerId, sourceSessionId, providerId, page => page.goForward({ waitUntil: "domcontentloaded", timeout: 10_000 }), signal);
+    return this.usePage(ownerId, sourceSessionId, providerId, page => page.goForward({ waitUntil: "commit", timeout: 10_000 }), signal, includeScreenshot, includePageDetails);
   }
 
-  async reload(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<BrowserSnapshot> {
+  async reload(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal, includePageDetails = true, includeScreenshot = true): Promise<BrowserSnapshot> {
     if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "reload", {}, signal);
-    return this.usePage(ownerId, sourceSessionId, providerId, page => page.reload({ waitUntil: "domcontentloaded", timeout: 15_000 }), signal);
+    return this.usePage(ownerId, sourceSessionId, providerId, page => page.reload({ waitUntil: "commit", timeout: 15_000 }), signal, includeScreenshot, includePageDetails);
   }
 
-  async click(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, role: string, name: string, signal?: AbortSignal): Promise<BrowserSnapshot> {
+  async click(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, role: string, name: string, signal?: AbortSignal, includePageDetails = true, includeScreenshot = true): Promise<BrowserSnapshot> {
     if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "click", { role, name }, signal);
     const allowedRoles = new Set(["button", "link", "checkbox", "radio", "tab", "menuitem", "option"]);
     if (!allowedRoles.has(role) || !name.trim() || name.length > 160) throw new Error("点击目标必须来自页面快照中的可访问角色和名称。");
     return this.usePage(ownerId, sourceSessionId, providerId, async page => {
       const target = page.getByRole(role as "button", { name: name.trim(), exact: true }).first();
       await target.click({ timeout: PAGE_ACTION_TIMEOUT_MS });
-    }, signal);
+    }, signal, includeScreenshot, includePageDetails);
   }
 
-  async fill(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, label: string, value: string, signal?: AbortSignal): Promise<BrowserSnapshot> {
+  async fill(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, label: string, value: string, signal?: AbortSignal, includePageDetails = true, includeScreenshot = true): Promise<BrowserSnapshot> {
     if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "fill", { label, value }, signal);
     if (!label.trim() || label.length > 160 || value.length > 4000) throw new Error("输入目标或内容超出允许范围。");
     if (isSensitiveField(label)) throw new Error("密码、验证码、令牌和密钥需由用户在页面中自行输入，LFAA 不代填或读取。");
@@ -424,34 +489,34 @@ export class BrowserSessionManager {
       const type = await target.getAttribute("type", { timeout: PAGE_ACTION_TIMEOUT_MS }).catch(() => null);
       if (isSensitiveField(label, type ?? undefined)) throw new Error("密码、验证码、令牌和密钥需由用户在页面中自行输入，LFAA 不代填或读取。");
       await target.fill(value, { timeout: PAGE_ACTION_TIMEOUT_MS });
-    }, signal);
+    }, signal, includeScreenshot, includePageDetails);
   }
 
-  async typeText(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, text: string, signal?: AbortSignal, includeScreenshot = true): Promise<BrowserSnapshot> {
+  async typeText(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, text: string, signal?: AbortSignal, includeScreenshot = true, includePageDetails = true): Promise<BrowserSnapshot> {
     if (!text || text.length > 2000) throw new Error("单次输入文字需在 1–2000 个字符内。");
     if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "type-text", { text }, signal, includeScreenshot);
-    return this.usePage(ownerId, sourceSessionId, providerId, page => page.keyboard.insertText(text), signal, includeScreenshot);
+    return this.usePage(ownerId, sourceSessionId, providerId, page => page.keyboard.insertText(text), signal, includeScreenshot, includePageDetails);
   }
 
-  async pressKey(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, key: string, signal?: AbortSignal, includeScreenshot = true): Promise<BrowserSnapshot> {
+  async pressKey(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, key: string, signal?: AbortSignal, includeScreenshot = true, includePageDetails = true): Promise<BrowserSnapshot> {
     if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "press-key", { key }, signal, includeScreenshot);
     if (!BROWSER_ALLOWED_KEY_SET.has(key)) throw new Error("此按键不在浏览器工具允许列表中。");
-    return this.usePage(ownerId, sourceSessionId, providerId, page => page.keyboard.press(key), signal, includeScreenshot);
+    return this.usePage(ownerId, sourceSessionId, providerId, page => page.keyboard.press(key), signal, includeScreenshot, includePageDetails);
   }
 
-  async scroll(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, direction: "up" | "down", amount: number, signal?: AbortSignal, includeScreenshot = true): Promise<BrowserSnapshot> {
+  async scroll(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, direction: "up" | "down", amount: number, signal?: AbortSignal, includeScreenshot = true, includePageDetails = true): Promise<BrowserSnapshot> {
     if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "scroll", { direction, amount }, signal, includeScreenshot);
     if (!Number.isInteger(amount) || amount < 1 || amount > 600) throw new Error("滚动距离必须在 1–600 像素内。");
-    return this.usePage(ownerId, sourceSessionId, providerId, page => page.mouse.wheel(0, direction === "down" ? amount : -amount), signal, includeScreenshot);
+    return this.usePage(ownerId, sourceSessionId, providerId, page => page.mouse.wheel(0, direction === "down" ? amount : -amount), signal, includeScreenshot, includePageDetails);
   }
 
-  async clickAt(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, x: number, y: number, signal?: AbortSignal): Promise<BrowserSnapshot> {
+  async clickAt(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, x: number, y: number, signal?: AbortSignal, includePageDetails = true, includeScreenshot = true): Promise<BrowserSnapshot> {
     if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "clickAt", { x, y }, signal);
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > 4096 || y > 4096) throw new Error("坐标超出浏览器视口边界。");
-    return this.usePage(ownerId, sourceSessionId, providerId, page => page.mouse.click(x, y), signal);
+    return this.usePage(ownerId, sourceSessionId, providerId, page => page.mouse.click(x, y), signal, includeScreenshot, includePageDetails);
   }
 
-  async dragAt(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, x: number, y: number, points: readonly BrowserDragPoint[], signal?: AbortSignal): Promise<BrowserSnapshot> {
+  async dragAt(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, x: number, y: number, points: readonly BrowserDragPoint[], signal?: AbortSignal, includePageDetails = true, includeScreenshot = true): Promise<BrowserSnapshot> {
     const validPoint = (point: BrowserDragPoint) => Number.isFinite(point.x) && Number.isFinite(point.y) && point.x >= 0 && point.y >= 0 && point.x <= 4096 && point.y <= 4096 && Number.isInteger(point.delayMs) && point.delayMs >= 0 && point.delayMs <= 1000;
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > 4096 || y > 4096 || points.length < 1 || points.length > 128 || points.some(point => !validPoint(point)) || points.reduce((total, point) => total + point.delayMs, 0) > 15_000) {
       throw new Error("网页拖动路径无效或超出长度、坐标与时间限制。");
@@ -468,7 +533,7 @@ export class BrowserSessionManager {
       } finally {
         if (!page.isClosed()) await page.mouse.up().catch(() => undefined);
       }
-    }, signal);
+    }, signal, includeScreenshot, includePageDetails);
   }
 
   async closeSession(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId): Promise<void> {
@@ -534,6 +599,7 @@ export class BrowserSessionManager {
     const session: BrowserSession = {
       id: randomUUID(), ownerId, sourceSessionId, providerId, browser, context,
       page, lastUsedAt: Date.now(), revision: 0,
+      revisionWaiters: new Set(),
       operationTail: Promise.resolve(), allowedLocalOrigin: null, projectPreview: null, lastRecentUrl: "",
       ownsContext: !isNativeProvider, disposed: false
     };
@@ -550,9 +616,9 @@ export class BrowserSessionManager {
     let lastChangeNotificationAt = 0;
     await context.exposeBinding("__lfaaBrowserChanged", () => {
       const now = Date.now();
-      if (now - lastChangeNotificationAt < 250) return;
+      if (now - lastChangeNotificationAt < BROWSER_DOM_CHANGE_NOTIFICATION_INTERVAL_MS) return;
       lastChangeNotificationAt = now;
-      session.revision += 1;
+      this.bumpRevision(session);
     });
     await context.addInitScript(`(() => { let queued = false; const observer = new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; void window.__lfaaBrowserChanged?.(); }); }); observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true }); window.addEventListener("pagehide", () => observer.disconnect(), { once: true }); })();`);
     await context.route("**/*", route => {
@@ -563,12 +629,14 @@ export class BrowserSessionManager {
     context.on("page", page => {
       if (context.pages().length > MAX_PAGE_COUNT) { void page.close().catch(() => undefined); return; }
       session.page = page;
-      session.revision += 1;
-      page.on("domcontentloaded", () => { session.revision += 1; });
-      page.on("close", () => { session.revision += 1; });
+      this.bumpRevision(session);
+      page.on("domcontentloaded", () => { this.bumpRevision(session); });
+      page.on("load", () => { this.bumpRevision(session); });
+      page.on("close", () => { this.bumpRevision(session); });
     });
-    session.page.on("domcontentloaded", () => { session.revision += 1; });
-    session.page.on("close", () => { session.revision += 1; });
+    session.page.on("domcontentloaded", () => { this.bumpRevision(session); });
+    session.page.on("load", () => { this.bumpRevision(session); });
+    session.page.on("close", () => { this.bumpRevision(session); });
     this.sessions.set(session.id, session);
     this.sessionKeys.set(key, session.id);
     return session;
@@ -606,9 +674,9 @@ export class BrowserSessionManager {
   private watchNativePage(session: BrowserSession, page: Page): void {
     if (session.disposed || page.isClosed() || this.isNativeAppPage(page) || session.nativePageHandlers?.has(page)) return;
     const handlers = {
-      domcontentloaded: () => { if (!session.disposed) session.revision += 1; },
-      close: () => { if (!session.disposed) session.revision += 1; },
-      framenavigated: (frame: import("playwright-core").Frame) => { if (!session.disposed && frame === page.mainFrame()) session.revision += 1; }
+      domcontentloaded: () => { if (!session.disposed) this.bumpRevision(session); },
+      close: () => { if (!session.disposed) this.bumpRevision(session); },
+      framenavigated: (frame: import("playwright-core").Frame) => { if (!session.disposed && frame === page.mainFrame()) this.bumpRevision(session); }
     };
     session.nativePageHandlers?.set(page, handlers);
     page.on("domcontentloaded", handlers.domcontentloaded);
@@ -648,7 +716,7 @@ export class BrowserSessionManager {
 
   private async isPrivateOrigin(url: URL): Promise<boolean> {
     const endpoint = await resolveMcpEndpoint(url, true);
-    return endpoint.addresses.some(item => !isPublicMcpAddress(item.address));
+    return endpoint.addresses.length > 0 && endpoint.addresses.every(item => !isPublicMcpAddress(item.address));
   }
 
   private async assertTarget(session: BrowserSession, url: URL, explicitNavigation = false): Promise<void> {
@@ -658,10 +726,10 @@ export class BrowserSessionManager {
       if (explicitNavigation) {
         try {
           const endpoint = await resolveMcpEndpoint(url, true);
-          if (endpoint.addresses.length && endpoint.addresses.some(item => !isPublicMcpAddress(item.address))) return;
+          if (endpoint.addresses.length && endpoint.addresses.every(item => !isPublicMcpAddress(item.address))) return;
         } catch { /* 解析失败仍拒绝。 */ }
       }
-      throw new Error("浏览器目标无法解析为公网地址；仅本轮直接指定的本机预览源可访问本机地址。");
+      throw new BrowserNavigationTargetError();
     }
   }
 
@@ -674,17 +742,18 @@ export class BrowserSessionManager {
     await this.assertTarget(session, url);
   }
 
-  private async usePage(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, action: (page: Page) => Promise<unknown>, signal?: AbortSignal, includeScreenshot = true): Promise<BrowserSnapshot> {
+  private async usePage(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, action: (page: Page) => Promise<unknown>, signal?: AbortSignal, includeScreenshot = true, includePageDetails = true): Promise<BrowserSnapshot> {
     const session = await this.getOrCreate(ownerId, sourceSessionId, providerId);
     signal?.throwIfAborted();
     return this.exclusive(session, async () => {
       await action(session.page);
       this.touch(session);
-      return this.observe(session, includeScreenshot);
+      this.bumpRevision(session);
+      return this.observe(session, includeScreenshot, includePageDetails);
     }, signal);
   }
 
-  private async observe(session: BrowserSession, includeScreenshot: boolean): Promise<BrowserSnapshot> {
+  private async observe(session: BrowserSession, includeScreenshot: boolean, includePageDetails = true): Promise<BrowserSnapshot> {
     this.touch(session);
     const page = session.page;
     if (page.isClosed()) throw new Error("当前浏览器标签已关闭；请重新打开 LFAA 隔离浏览器。");
@@ -693,10 +762,18 @@ export class BrowserSessionManager {
       session.lastRecentUrl = recentUrl;
       this.recordRecentSites(session.ownerId, [recentUrl]);
     }
+    const documentState = await page.evaluate(() => {
+      const runtimeDocument = (globalThis as typeof globalThis & { document?: { readyState?: string; body?: { textContent?: string; querySelector?: (selector: string) => unknown } } }).document;
+      const body = runtimeDocument?.body;
+      return {
+        loading: runtimeDocument?.readyState === "loading",
+        hasRenderableContent: Boolean(body && ((body.textContent ?? "").trim() || body.querySelector?.("img,svg,canvas,video,iframe")))
+      };
+    }).catch(() => ({ loading: false, hasRenderableContent: false }));
     const [title, pageText, controls, screenshot, tabs] = await Promise.all([
       page.title().catch(() => ""),
-      page.locator("body").innerText({ timeout: 4_000 }).catch(() => ""),
-      page.locator("a,button,input,textarea,select,[role=button],[role=link],[role=textbox]").evaluateAll<BrowserSnapshot["controls"], number>((elements, limit) => elements.slice(0, limit).filter(node => node.getClientRects().length > 0 && !node.closest('[aria-hidden="true"]')).map(node => {
+      includePageDetails && !documentState.loading ? page.locator("body").innerText({ timeout: 4_000 }).catch(() => "") : Promise.resolve(""),
+      includePageDetails && !documentState.loading ? page.locator("a,button,input,textarea,select,[role=button],[role=link],[role=textbox]").evaluateAll<BrowserSnapshot["controls"], number>((elements, limit) => elements.slice(0, limit).filter(node => node.getClientRects().length > 0 && !node.closest('[aria-hidden="true"]')).map(node => {
         const isInput = node.tagName === "INPUT";
         const innerText = (node as typeof node & { innerText?: string }).innerText;
         const label = node.getAttribute("aria-label") || innerText || (isInput ? node.getAttribute("placeholder") : null) || node.getAttribute("title") || "";
@@ -704,18 +781,19 @@ export class BrowserSessionManager {
         const type = isInput ? node.getAttribute("type") || "text" : undefined;
         const role = node.getAttribute("role") || (node.tagName === "A" ? "link" : node.tagName === "BUTTON" ? "button" : node.tagName === "INPUT" ? (type === "checkbox" ? "checkbox" : type === "radio" ? "radio" : "textbox") : node.tagName === "TEXTAREA" ? "textbox" : node.tagName === "SELECT" ? "combobox" : node.tagName.toLowerCase());
         return { role, name: type === "password" || /password|passcode|secret|token|api[\s_-]?key|authorization|验证码|密码|密钥|令牌/iu.test(name) ? "受保护的敏感字段" : name, ...(type && type !== "password" ? { type } : {}), disabled: node.hasAttribute("disabled") || node.getAttribute("aria-disabled") === "true" };
-      }).filter(item => item.name).slice(0, limit), MAX_INTERACTIVE_ITEMS).catch(() => [] as BrowserSnapshot["controls"]),
-      includeScreenshot ? this.captureScreenshot(page) : Promise.resolve(null),
+      }).filter(item => item.name).slice(0, limit), MAX_INTERACTIVE_ITEMS).catch(() => [] as BrowserSnapshot["controls"]) : Promise.resolve([] as BrowserSnapshot["controls"]),
+      includeScreenshot ? this.captureScreenshot(page, documentState.hasRenderableContent && !documentState.loading) : Promise.resolve(null),
       Promise.all(session.context.pages().filter(tab => session.providerId !== "lfaa-native-browser" || !this.isNativeAppPage(tab)).slice(0, MAX_PAGE_COUNT).map(async (tab, index) => ({ id: String(index), title: await tab.title().catch(() => ""), url: tab.url().slice(0, 2048), active: tab === page })))
     ]);
     const normalizedText = pageText.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").slice(0, MAX_PAGE_TEXT);
-    return { sessionId: session.id, providerId: session.providerId, revision: session.revision, url: page.url().slice(0, 2048), title: title.slice(0, 300), pageText: normalizedText, controls, tabs, screenshot };
+    return { sessionId: session.id, providerId: session.providerId, revision: session.revision, url: page.url().slice(0, 2048), title: title.slice(0, 300), loading: documentState.loading, pageText: normalizedText, controls, tabs, screenshot };
   }
 
-  private async captureScreenshot(page: Page): Promise<BrowserSnapshot["screenshot"]> {
+  private async captureScreenshot(page: Page, hasRenderableContent: boolean): Promise<BrowserSnapshot["screenshot"]> {
     try {
-      let data = await page.screenshot({ type: "jpeg", quality: 68, animations: "disabled", fullPage: false, timeout: 5_000 });
-      if (data.byteLength > MAX_SCREENSHOT_BYTES) data = await page.screenshot({ type: "jpeg", quality: 60, animations: "disabled", fullPage: false, timeout: 5_000 });
+      if (!hasRenderableContent) return null;
+      let data = await page.screenshot({ type: "jpeg", quality: 68, animations: "allow", fullPage: false, timeout: 5_000 });
+      if (data.byteLength > MAX_SCREENSHOT_BYTES) data = await page.screenshot({ type: "jpeg", quality: 60, animations: "allow", fullPage: false, timeout: 5_000 });
       if (!data.byteLength || data.byteLength > MAX_SCREENSHOT_BYTES) return null;
       const viewport = page.viewportSize() ?? { width: MAX_IMAGE_DIMENSION, height: 800 };
       return { mimeType: "image/jpeg", dataBase64: data.toString("base64"), width: Math.min(viewport.width, MAX_IMAGE_DIMENSION), height: viewport.height };
@@ -744,6 +822,13 @@ export class BrowserSessionManager {
 
   private touch(session: BrowserSession): void { session.lastUsedAt = Date.now(); }
 
+  private bumpRevision(session: BrowserSession): void {
+    session.revision += 1;
+    if (!session.revisionWaiters.size) return;
+    const revision = { revision: session.revision, url: session.page.url().slice(0, 2048), title: "" };
+    for (const waiter of [...session.revisionWaiters]) waiter(revision);
+  }
+
   private async closeProjectPreview(session: BrowserSession): Promise<void> {
     const preview = session.projectPreview;
     session.projectPreview = null;
@@ -758,6 +843,8 @@ export class BrowserSessionManager {
   private async disposeSession(session: BrowserSession): Promise<void> {
     if (session.disposed) return;
     session.disposed = true;
+    for (const waiter of [...session.revisionWaiters]) waiter(null);
+    session.revisionWaiters.clear();
     this.sessions.delete(session.id);
     const key = sessionKey(session.ownerId, session.sourceSessionId, session.providerId);
     this.sessionKeys.delete(key);

@@ -216,6 +216,24 @@
 | 215-右侧新标签页工具主页布局-20261022 | 按参考图重排 `/work` 右侧新标签页：常用工具紧凑排布，其他入口可展开，下方展示推荐区；保留四栏结构与已有操作 | 已完成；定向回归 23/23、Client 类型检查、Web 构建/指纹通过；内置浏览器 `/work` 桌面 1536×1243、窄短屏 820×520 检查双列/单列、展开/折叠及独立滚动，原分栏宽度已恢复 | [本轮合同](#lfaa-workspace-right-launcher-layout-20261022) |
 | 216-右侧新标签页推荐网站-20261022 | 右侧“推荐”直接展示当前 Browser Dock 已打开的网页标签，并复用现有浏览器导航 | ✅ 定向回归 6/6、Client 类型检查、Web/Control Plane 构建及指纹检查通过；内置浏览器 `/work` 1543×1244 确认真实空态；未实测窄/短视口和真实标签点击 | [本轮合同](#lfaa-workspace-recommended-websites-20261022) |
 | 217-右侧最近网站与标签关闭-20261022 | 右侧新标签页记录用户与 Agent 实际访问的网站；关闭工具标签只关闭该标签，不收起右栏 | 实施中 | [本轮合同](#lfaa-workspace-recent-websites-and-tab-close-20261022) |
+| 218-LFAA浏览器工作区直接导航-20261022 | 红框内整个区域就是 LFAA 浏览器；用户在地址栏输入后直接显示网页，推荐/最近与当前浏览会话联动，无需手动接入 Provider | 实施中 | [本轮合同](#lfaa-browser-workspace-direct-navigation-20261022) |
+| 219-LFAA浏览器实时交互与Agent共用会话-20261023 | Web 浏览器以低延迟方式持续显示真实页面并转发实际交互；内置浏览器供 Agent 直接复用，无需手动接入 | 根滚动修复由正式 Web 入口重启后加载；内置浏览器 `/work` 1280×720 实页确认整体保持深色，顶栏位置滚轮不会带动整页移动，右侧面板仍保留自身滚动；窄/短视口未单独实测 | [本轮合同](#lfaa-browser-live-interaction-agent-shared-session-20261023) |
+| 220-LFAA-MOSS-Image原生加载与本地模型目录-20261023 | 初版尝试以 MOSS 专用包识别并加载 ComfyUI safetensors | 用户澄清后确认方向错误：实现不应依赖 ComfyUI 格式或只覆盖 MOSS；由 225 实施 LFAA 自有本地模型核心 | [初版合同](#lfaa-moss-image-native-loader-20261023) |
+| 225-LFAA自有本地模型核心与原生模型系列适配-20261023 | 在 `packages/llm` 建立独立于 ComfyUI 的本地模型目录、识别、下载、加载/卸载核心；接入官方原生 MOSS-Image 与 MiniMax-H3，并连入 AI Runtime 与 AI Video | 代码、定向回归、类型与正式构建完成；内置浏览器实页受 URL Policy 阻断；真实权重/GPU 推理未测。MOSS SFT 官方原生目录 27.2 GB；H3 按官方 FL2VA 工作流下载并显示分页清单实算大小，不以全仓 498 GB 代替 | [本轮合同](#lfaa-local-model-runtime-core-20261023) |
+| 226-LFAA本地模型输入输出目录接入-20261023 | 让 AI Video 上传的项目素材进入账户隔离的 `Data/input`，并把本机模型生成结果同步到 `Data/output`，使本地部署目录真正承载输入/输出文件 | 已实现；Host 类型检查、本地模型/AI Video/API 包构建、控制端构建与差异检查通过；未运行自动化回归、真实模型推理未测 | [本轮合同](#lfaa-local-model-io-directories-20261023) |
+| 221-LFAA-游戏库统一工作区与SteamCMD游戏服务-20261023 | 将运行环境、Minecraft、SteamCMD 收入游戏库唯一入口及四栏工作区，并接通通用兼容 Steam 专用服务端的管理闭环 | 进行中：已确认当前独立页面/占位调用链；实现、直接验证及内置浏览器验收待完成 | [本轮合同](#lfaa-game-library-workspace-steamcmd-20261023) |
+| 222-右侧菜单栏盒子布局-20261023 | 按红框结构整理右侧浏览器工作区：顶部标签与地址栏、主体名称/工具/推荐/最近四个盒子、底部账户状态盒子 | 代码完成；定向回归、Client 类型检查和 Web 构建通过；正式控制端构建及窄/短视口实页验收受工作区现有 SteamCMD 编译错误影响，详见本合同 | [本轮合同](#lfaa-right-menu-box-layout-20261023) |
+| 223-变更页面差异审阅布局-20261023 | 先将 `/work` 的“变更”页面重做为截图中的紧凑 Git 变更审阅界面：状态/分支概览、批量差异展开、文件列表与逐文件并排差异；右侧浏览器菜单盒子布局不属于本轮 | 已完成；8/8 定向回归、Client 类型检查、Control Plane/Web 构建通过；内置浏览器 1280×720 桌面与 649px 窄分栏检查通过，原 904px 分栏已恢复；左右差异列已目视确认 | [本轮合同](#lfaa-git-change-review-layout-20261023) |
+| 224-登录后会话被错误清除-20261023 | 修复 Web 与桌面端登录成功后短暂又要求登录：复核当前认证会话后才广播退出，并防止旧失效响应清除新登录 Cookie | 源码与定向回归完成（15/15）、Client/Authorization/Account Controller 包构建通过；Web/Host 入口被当前工作区无关类型错误阻断，真实页面和桌面 WebView 未验 | [本轮合同](#lfaa-auth-session-expiry-race-20261023) |
+| 228-登录转场CSS性能优化-20261023 | 保留黑洞吸入的 CSS 3D 观感，移除逐帧全屏 WebGL 与碎片/粒子堆叠，缩短转场并避免引入动画依赖 | 实现完成，登录转场直接回归 3/3、账户/Renderer 包构建通过；Web 类型检查及一次正式构建通过。后续构建发现其他源码并行变化，指纹检查阻止记录新产物；内置浏览器隔离实例 `/login` → `/work` 桌面 1280×720 验收通过；窄屏、帧时间及 Desktop 未测；动画库选择条件和 Motion 按需加载/减少动态效果用法已补入插件合同 | [本轮合同](#lfaa-auth-transition-css-performance-20261023) |
+| 229-LFAA文档盘点与归档索引校正-20261023 | 盘点 Markdown 文档及已被取代的记录，保持当前规则入口清楚、历史资料只作追溯；整理 GitHub 首页 README，详细说明产品、使用、Web/桌面构建打包并提供导航 | 完成：文档索引已整理；中英文 README 已补充目录、模块与边界、首次使用、Web/CLI/npm/Windows Electron 构建命令和产物路径；本地链接/锚点及差异检查通过 | [本轮合同](#lfaa-document-inventory-archive-index-20261023) |
+| 227-变更标签单例与入口同步-20261023 | “变更”标签只保留一个：已打开时新标签页隐藏“变更”入口，再次触发聚焦原标签，关闭后入口恢复；其他工具保持可见且可重复打开 | ✅ 3 组定向回归 14/14、Client 类型、Web/Host 指纹及服务 HTTP 200 通过；内置浏览器 `/work` 1280×720 实测入口隐藏/恢复和原标签复用通过；窄/短视口未单独切换 | [本轮合同](#lfaa-workspace-unique-utility-tabs-20261023) |
+| 230-右侧工作区新建标签按钮位置-20261023 | 将右侧工作区“+”移到标签序列末尾、紧跟标签右侧；保留标签滚动、新建操作和顶部其他按钮 | 已完成：定向回归 14/14、Client 类型检查、Web 构建及指纹通过；内置浏览器 `/work` 桌面 1312×1244、窄分栏 660×720 实测相邻布局和新建交互通过 | [本轮合同](#lfaa-workspace-tab-add-button-position-20261023) |
+| 231-右侧栏宽度联动Git摘要卡-20261023 | 右侧工作区较窄时默认展开左侧 Git 项目摘要；右栏变宽越过临界区间后自动吸附收起 | 已完成：按实际工作台根容器校准阈值到 76%；定向回归 16/16、Client 类型检查、Web 构建及指纹通过；内置浏览器 `/work` 1280×720 下 69.5% 展开，1920×1080 下扩至 76.2% 后收起且浮层完成隐藏，分栏和视口已恢复；公告弹窗前验证了窄态手动关闭后不被小幅缩窄重置，弹窗出现后未再测手动打开；手机未单独实测 | [本轮合同](#lfaa-workspace-git-summary-responsive-auto-20261023) |
+| 232-Windows桌面包版本状态继承-20261023 | 修复根目录 Windows Electron 打包遇到同版本源码更新日志缺少包状态时无法启动的问题；从同一产品版本的历史记录继承包状态，并拒绝跨版本继承 | 已完成：版本状态 8/8 回归、Control Plane/Windows Sandbox Host/Web 候选/NSIS 包构建及随包 CUA 插件导入通过；最终 LFAA 0.0.9 三文件及 SHA-512 对账通过；安装启动未验 | [本轮合同](#lfaa-desktop-package-version-status-inheritance-20261023) |
+| 233-Windows桌面安装向导与灰色安装按钮-20261023 | 修复目标目录页“安装”按钮灰色时无法获知原因、旧安装目录数据路径导致启动失败；加入当前用户可选 CLI PATH、真实安装明细进度及完成页运行/快捷方式选项 | 源码修复完成；Windows x64 NSIS 重建与实际安装器交互仍待验证 | [本轮合同](#lfaa-desktop-installer-recovery-options-progress-20261023) |
+| 234-LFAA内置浏览器滚动抖动、页面泛白与打开延迟-20261023 | 修复 LFAA 内置浏览器滚轮操作导致页面抖动/外层跟滚、网页周围泛白以及普通网站首屏打开慢 | Web/桌面两条路径已修复并通过直接回归、类型及入口构建；内置浏览器实页滚动、截图泛白对照与公开网站延迟仍受隔离验收环境限制 | [本轮合同](#lfaa-browser-dock-scrolling-wash-latency-20261023) |
+| 235-工作区标签双击切换中心区并修复偶发窄布局-20261023 | 双击 `/work` 工作区标签收起/展开中间聊天区；修复右侧菜单打开或窄分栏时偶发把中心区挤窄的布局异常 | 实施中：标签 Owner、响应式断点与布局偏好已定位；源码修复、回归、构建和内置浏览器视口验收待完成 | [本轮合同](#lfaa-workspace-tab-center-toggle-layout-20261023) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
@@ -5563,3 +5581,684 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
   - `apps/cli/tests/agent-git-workspace.test.mjs`、`apps/cli/tests/agent-runtime.test.mjs`、`apps/cli/tests/file-storage.test.mjs`、`apps/cli/tests/harness-agent-api.test.mjs`、`apps/cli/tests/knowledge-library.test.mjs`、`apps/cli/tests/minecraft-archive.test.mjs`、`apps/cli/tests/runtime-environment.test.mjs`、`apps/cli/tests/storage-hub.test.mjs`、`apps/cli/tests/workflow-core.test.mjs`、`apps/cli/tests/workspace-projects.test.mjs`、`apps/cli/tests/writing-book-profiles.test.mjs`：同步 v61 schema 终态断言；该组结果与夹具问题见上。
   - `pnpm-lock.yaml`：登记 Browser Owner 到 SQLite Owner 的工作区依赖。
   - `docs/PROMPTS.md`：记录任务边界、实现、设置、回归、构建及尚未完成的内置浏览器验收。
+
+<a id="lfaa-moss-image-native-loader-20261023"></a>
+## 220-LFAA MOSS-Image 原生加载与本地模型目录（2026-10-23）
+
+> **更正：** 用户随后明确，LFAA 必须拥有独立本地模型核心，不依赖 ComfyUI 的权重格式或推理实现。该合同下的 ComfyUI safetensors 方案是方向错误的初版，由合同 225 取代；仅可复用经复核仍符合新目标的 Data 根与 AI Video 集成。
+
+### 用户问题与目标
+
+- 用户要求 LFAA 参照 ComfyUI 的原生支持模式：由 LFAA 自己管理模型类别/目录、识别和加载 MOSS-Image 权重、运行本地推理，并接入现有产品生成入口；不能只转发云端图片 API 或安装 MOSS 插件。
+- LFAA 源码必须位于 `packages/<领域>/<包名>/`；运行时模型和输入/输出文件位于当前设置选择的 `LFAA_DATA_DIR`，不能放入仓库根、应用入口或源码包目录。
+- 目标目录应明确区分扩散模型、文本编码器、VAE、LoRA/patch 等模型类别，并拥有共享 `models`、`input`、`output` 入口；加速权重/缓存和 Veo3 Provider 需按真实资产类型登记，不能伪造本地权重目录。
+
+### 当前 Owner、设置、数据和权限
+
+- 入口：AI Video 镜头生图 → 认证 `ai-video-controller` → `packages/video/ai-video` 项目/媒体 Owner → 控制端 `lfaaSubprocess` 执行服务；新增 MOSS 包负责格式/推理适配，`packages/llm/llm` 继续拥有远程图片 Provider 协议。
+- 代码归属：先按现有 `packages/llm` 图像 Provider 协作边界实现 MOSS 专用包；若需扩展包组职责，更新 `scripts/package-responsibilities.mjs`、包 README 和生成清单。Daemon 只执行目标节点已验证的任务，不成为模型或项目资产 Owner。
+- 设置：现有 `aiRuntime.imageGenerationAccountId` / `imageGenerationModelId` 控制远程账户。新增本地模型选择必须有设置中心类型、默认值、服务端校验/持久化及客户端映射；不要求、不伪造本地模型凭据，不重置现有 Provider 偏好。Data 路径继续由 `LFAA_DATA_DIR` 唯一控制。
+- 数据：`packages/util/home-paths` 拥有 Data 目录解析/分类创建；AI Video 继续拥有最终项目媒体文件与引用。推理输入/输出按账户、项目和任务隔离，任务完成后由 AI Video Owner 提交最终媒体，避免多份事实文件。模型文件共享安装于 Data 根的按类型分类目录。
+- 权限：沿用认证账户、目标节点身份、参数校验与三种既有 `permissions.mode`；不接受客户端绝对路径或自由 Shell 命令，不自动下载/安装权重或第三方运行时，不静默回退云 Provider。
+
+### 允许范围与验收
+
+- 允许：Data 路径 Owner、设置映射、MOSS 模型专用 package、其真实任务/装配合同、AI Video 生成调用、所需文档和能力登记。保留所有无关工作区改动。
+- 禁止：把推理代码放在根目录或 `apps/*`；把可变权重放在 `packages/*`；借用 AI 主机 Shell 命令任务执行任意进程；复制最终媒体形成第二存储权威；把 ComfyUI 或 MOSS 插件当作 LFAA 自有原生支持；将 Veo3 远程 API 假称本地模型。
+- 验收：启动会创建 `models/input/output` 及规范模型类别；目录扫描按真实 MOSS 格式/组件发现模型并拒绝不支持权重；推理经控制端受管子进程执行并遵循取消/超时；成功图片经原子/并发/配额校验进入 AI Video 项目资产；目录和模型选择读权威设置。
+- 真实推理验收依赖用户安装合法模型权重、MOSS 运行依赖和兼容硬件。缺少任一条件时，只报告准确的未就绪原因；不以目录扫描或包构建宣称端到端生图可用。
+
+### 实施记录
+
+- 开始时工作树已有浏览器、AI Work 与相关文档的未提交改动；本轮只追加 MOSS 合同并保留已有差异。已核实现有 Data 根包含 `models`，但未包含 `input/output`；AI Video 图片生成目前只走 OpenAI/豆包账户。
+- 已在 `packages/llm/llm-moss-image` 建立 LFAA 第一方加载器：有界异步扫描 ComfyUI safetensors 格式，配对 `diffusion_models`、`text_encoders`、`vae` 中的 MOSS DiT、Qwen3.5-9B 与 FLUX.2 VAE；支持 BF16/F32，明确跳过 INT8/未识别格式。模型转换/严格加载与上游 Apache-2.0 独立推理管线在受管 Python 子进程执行；不下载模型或安装运行时。实际推理需用户准备许可权重、依赖与本地 Qwen 配置/Tokenizer。
+- Data Owner (`packages/util/home-paths`) 现在创建共享 `models/`、`input/`、`output/`，并预建 `diffusion_models/`、`text_encoders/`、`vae/`、`loras/`、`model_patches/`、`upscale_models/`。加速/LoRA 资产有独立类别；AI Video 结果仍写入 AI Video 项目资产，不与共享 `output/` 重复。Veo 3 沿用远程 Provider，不创建本地权重目录。
+- 设置中心新增 `aiRuntime.imageGenerationMode`（默认 `provider`）、`imageGenerationMossModelId`（默认空）、`imageGenerationLocalTimeoutSeconds`（默认 900 秒，范围 60–1800）和 `imageGenerationUnloadAfterMinutes`（默认 10 分钟，范围 1–60）；保留原远程账户与模型选择。AI Video 镜头生图读取本地模式设置、拒绝尚不支持的参考图，成功图片仍由 AI Video Owner 校验并登记；认证扫描 API 不接收客户端路径，未认证返回 401。
+- 改动职责：`packages/llm/llm-moss-image/` 为格式扫描、Python worker、上游管线与许可；`packages/video/ai-video/` 为生图分支及结果入项目；`packages/api/ai-video-controller/` 与 `packages/client/connection/` 为认证扫描合同；`packages/client/ui-settings/`、`packages/settings/settings/`、`packages/util/values/` 为设置控件、服务端校验/持久化和类型默认值；`packages/util/home-paths/` 为共享 Data 目录；`packages/bundle/web-app/`、`scripts/package-responsibilities.mjs`、`packages/llm/llm/README.md` 维护装配与包职责；`docs/系统总体架构.md` 与本合同记录系统行为。
+- 回归：`node --import tsx --import ./register-package-loader.mjs --test tests/data-directory.test.mjs tests/ai-video-canvas.test.mjs tests/llm-moss-image-model-catalog.test.mjs tests/ai-video-api.test.mjs`（CLI 测试目录运行）10/10 通过，覆盖 Data 根与 Comfy 分类创建、合成 safetensors 头识别/INT8 排除、AI Video 项目 Owner 与认证模型扫描 API。`pnpm check:workspace`（204 包）、MOSS 包构建、控制端构建、Web 构建、`tsconfig.host.json`、Python 两个源码文件语法解析和 `git diff --check` 均通过，构建产物仅写根 `dist/`。全量 `pnpm typecheck` 最近一次被原有脏文件 `packages/client/ui-workspace/src/ApplicationWorkspace.tsx:484` 的三个未使用参数阻断；本轮未改该文件。
+- 实页：正式入口 `pnpm lfaa web` 已按写锁归属重启当前源码服务；Codex 内置浏览器打开 `/settings?section=ai`，1280×720 确认“生图引擎”控件与“本机 MOSS-Image”选项，未选择选项或修改账户设置。认证 GET `/api/ai-video/moss-image/models` 返回 `{"models":[]}`，证明当前未安装可识别权重。内置浏览器无可用窄视口控制，本轮窄视口未验；机器缺少本地权重/推理依赖，真实图片生成及耗时/显存未实测。
+
+<a id="lfaa-local-model-runtime-core-20261023"></a>
+## 225-LFAA 自有本地模型核心与原生模型系列适配（2026-10-23）
+
+### 用户问题与目标
+
+- 用户明确要求 LFAA 自己开发类似 ComfyUI 的本地部署核心：模型目录识别、模型下载、模型加载/卸载与 AI 功能调用都由 LFAA 自己实现，核心实现放在 `packages`；ComfyUI 只是本地部署和分类目录的参考，LFAA 不依赖 ComfyUI 的格式、代码、安装或升级。
+- 对可识别模型使用其原生公开模型目录/组件格式；不能把 ComfyUI repack safetensors 当作唯一或必需模型形式。首批围绕官方 MOSS-Image 原生 Hugging Face / Diffusers 目录和 MiniMax-H3 原生 task-family 目录建立 LFAA 自有适配器合同。
+- 运行资产落在权威 `LFAA_DATA_DIR`：共享 `models/`、`input/`、`output/`，并按语言、图像、视频、音频、编码器、VAE、适配器/加速分类。Veo3 是远程 Provider 能力，不虚构其本机权重目录。
+- 已核对官方仓库体积：MOSS-Image-SFT 完整原生模型约 27.2 GB；MiniMax-H3 全仓约 498 GB，含不同格式和 FL2VA/Ref2VA 组件。LFAA H3 适配按官方 ModularPipeline 的 fl2va 工作流筛选顶层 transformer 与共享组件；大小由分页后的 Hugging Face 文件清单计算，不预设模型变体大小；这两类数值不可互相代换。官方 MOSS ComfyUI 权重是另一种发布打包形式，不作为 LFAA 模型格式合同。
+
+### Owner、设置、数据与权限
+
+- 唯一本地模型目录/下载/适配器/进程生命周期 Owner：`packages/llm/llm-local-runtime`；`packages/llm/llm` 继续拥有远程 Provider 协议。系列适配实现由本地 Runtime 的 MOSS-Image 与 MiniMax-H3 adapter 承担。
+- 入口：设置中心/AI Runtime 的本地模型管理 UI → Client Connection → 认证模型 Controller → local-runtime；AI Video 继续拥有项目任务、媒体入库和账户/项目隔离，只调用已注册适配器生成结果。
+- 相关设置：复用远程 Provider 的现有 `imageGenerationAccountId` / `imageGenerationModelId`、`videoGenerationAccountId` / `videoGenerationModelId`；本机模式选择 ID 由 local-runtime 返回，分别使用 `imageGenerationLocalModelId` 与 `videoGenerationLocalModelId`。MOSS 专有旧选择值只用于旧数据读取迁移；Provider 偏好不覆盖。`imageGenerationLocalTimeoutSeconds` / `imageGenerationUnloadAfterMinutes` 与新增的视频本地时限/空闲释放设置都由 Settings Owner 默认、校验和持久化。
+- 数据归属：`home-paths` 解析及初始化 LFAA Data 目录；本地模型权重、下载清单、下载临时文件与进度归 local-runtime/Data，AI Video 项目输出仍由 AI Video 事务 Owner 写入。输入和公共输出是共享交接位置，不替代领域项目存储。
+- 权限和安全：认证、现有 `permissions.mode` / Permission Owner、显式模型下载动作和目标参数校验继续生效；下载固定到模型目录，不接受客户端路径/任意代码/任意仓库地址；不运行模型仓库自带 Python 代码或 `trust_remote_code`；使用固定 LFAA 官方目录的 HTTPS 下载适配；取消/卸载终止受管进程，完成文件校验后原子落盘。不会自动接受许可证、安装运行时或静默回退远程 Provider。
+
+### 允许范围与验收
+
+- 允许：在 `packages/llm` 建立可注册的本地模型核心/系列适配器；增加认证管理 API、AI Runtime 设置管理界面和必要 Client/Bundle 接线；将 MOSS 从错误的 ComfyUI safetensors 实现转向官方原生 Diffusers 目录；增加 MiniMax-H3 选定 FL2VA 原生组件的下载/识别/加载适配；更正相关 README、架构、合同和测试。
+- 禁止：依赖或调用 ComfyUI、复用它的模型文件合同、下载/执行任意第三方代码、把模型存入应用源码/包目录、提交权重、把外部 Veo3 当本地模型、改写非本轮既有工作。
+- 验收：Data 启动创建 models/input/output 及 LFAA 自有分类；本机扫描可识别/说明不支持的原生模型目录；模型目录展示来源、许可证、类别、预计下载量、真实安装/加载状态；公开权重可下载、可取消并校验原子落盘；模型适配器可加载/生成/卸载或明确报告环境未就绪；AI Video 只把真实成功输出提交项目；下载进度 UI 在取消/错误时准确收敛；设置保留现有远程 Provider 与用户外观偏好。
+- 真实权重/设备验收：区分源码、模拟 Hub 元数据回归、当前机器依赖/GPU/磁盘和真实模型推理；本地无权重或设备不支持时明确标未实测。
+
+### 实施记录
+
+- 更正前工作树已包含 220 的错误实现及其他用户未提交修改；只回收/重写 220 专属 ComfyUI 格式约束，保留无关工作与已被新目标复核的 Data `models/input/output`、AI Video 项目写入边界。
+- 官方来源核对：OpenMOSS 提供 Diffusers 独立推理以及 `transformer/text_encoder/tokenizer/vae` 原生目录；MiniMax-H3 官方仓库使用独立 FL2VA/Ref2VA 组件目录，Hub 显示约 498 GB；ComfyUI PR 仅作为可选架构参考，不能成为 LFAA 执行依赖。
+- 实现结果：`packages/llm/llm-local-runtime` 负责 LFAA 自己的模型注册、原生目录识别、固定 Hugging Face 来源、完整分页清单、文件 SHA 校验、临时文件原子落盘、取消/进度和进程加载/空闲卸载。MOSS Base/SFT 读取官方 Diffusers 组件目录；MiniMax-H3 使用官方 `ModularPipeline` 的 `fl2va` 工作流，只下载顶层 transformer 与共享组件，排除 `transformer_ref/`、独立旧 FL2VA/Ref2VA 副本及远端 Python。H3 下载前不显示过期估算，读取完分页清单后用真实选择文件总量显示字节数。
+- 目录位置：共享数据根按 `LFAA_DATA_DIR` 建立 `models/`、`input/`、`output/`；模型分类为 `models/text`、`image`、`video`、`audio`、`encoders`、`vae`、`adapters`、`acceleration`、`upscalers`。模型权重不进入 `packages` 源码。Veo3 属于远程 Provider，没有虚构的本机 `veo3` 权重目录。
+- 产品接线：设置中心列出官方仓库/许可、目录状态和下载进度，并支持取消/卸载；图像/视频模式及本地模型 ID、超时和空闲卸载时间由 Settings Owner 管理。认证 Controller 只接受已登记模型 ID。AI Video 仍持有画布任务和结果入库，只有通过文件校验的本机生成结果才能入项目。
+- 运行边界：MOSS/H3 Python worker 使用随包可审阅代码和本机受管 Python；模型下载不会自动安装 Python/CUDA/Diffusers 依赖。模型目录的“文件完整”只表示原生配置/权重结构齐全，设备、Python 依赖和真实生成在首次加载时才可验证。未下载真实权重，没有实测本机推理/GPU/显存。
+- 直接回归：`node --import tsx --import ./register-package-loader.mjs --test tests/llm-moss-image-model-catalog.test.mjs tests/data-directory.test.mjs tests/ai-video-api.test.mjs`（从 `apps/cli` 执行）12/12 通过；覆盖模型分类目录、MOSS/H3 原生组件识别、排除非目标权重、Hugging Face 分页清单、认证模型库 API 与 AI Video 既有画布事务。
+- 类型与构建：`pnpm exec tsc --noEmit -p tsconfig.host.json`、`pnpm exec tsc --noEmit -p tsconfig.client.json`、本地 Runtime/MOSS/H3/Controller/AI Video/Settings/Client/Bundle 直接包构建、`pnpm run build:control-plane`、`pnpm run build:web` 均通过；`node scripts/runtime-build-state.mjs web` 返回 `[]`，`git diff --check` 通过。Web 构建保留项目原有大块资源体积提示。
+- 工作区 Gate：`pnpm check:workspace` 只报现有 `packages/api/steamcmd-controller` 缺少其已修改源码导入的 `lfaa-permission-presets` 依赖声明；本轮未改该无关 SteamCMD 包。
+- 实页验收：正式 Web 构建指纹为新源码，`127.0.0.1:3000` 当时已有 `node ... apps/cli/src/bin.ts "web"` 进程，因此未重启未知活动服务。尝试在 ChatGPT 内置浏览器打开本地页面时，自动 URL Policy 拒绝观察权限（提示请求协议不获准）；按拒绝说明停止，不使用其他浏览器/命令绕过。`/settings?section=ai` 的真实桌面及窄视口、按钮交互未目视验收。
+- 本轮文件职责：本地模型目录/下载/进程核心由 `packages/llm/llm-local-runtime` 承担；系列适配、受管 worker 与许可证分别在 `packages/llm/llm-moss-image`、`packages/llm/llm-minimax-h3`；模型 API/AI Video 接线/设置 UI 与契约分别在 `packages/api/local-model-controller`、`packages/video/ai-video`、`packages/client/connection`、`packages/client/ui-settings`、`packages/settings/settings`、`packages/util/values`；Data 目录由 `packages/util/home-paths`；Bundle/包职责清单/工作区映射由 `packages/bundle/web-app`、`scripts/package-responsibilities.mjs`、`docs/harness-packages.*`、`tsconfig.*.json` 和 `pnpm-lock.yaml`；`apps/cli/tests/ai-video-api.test.mjs`、`apps/cli/tests/data-directory.test.mjs` 与新 `apps/cli/tests/llm-moss-image-model-catalog.test.mjs` 为相应长期回归；LFAA/llm README、包 README、架构与本合同负责记录边界和现状。
+
+<a id="lfaa-local-model-io-directories-20261023"></a>
+## 226-LFAA 本地模型输入输出目录接入（2026-10-23）
+
+### 用户问题与目标
+
+- 用户发现 `LFAA_DATA_DIR/input` 与 `output` 已创建但一直为空，要求优化。
+- 目标：明确并实现目录用途；AI Video 中账户主动上传的项目媒体同步留存到该账户的 `input` 目录，本机模型生成成功的图片/视频同步留存到该账户的 `output` 目录。
+- 运行入口：AI Video 项目上传/生图/生视频 → AI Video Owner → 本地模型 Runtime/Data。
+
+### Owner、设置、数据与权限
+
+- AI Video 继续拥有项目素材的校验、事务和生命周期；本地模型 Runtime 负责 LFAA Data 下本机模型 I/O 副本。
+- `home-paths` 在 `Data/input/<账户哈希>/` 与 `Data/output/<账户哈希>/` 解析用户隔离位置。只写 AI Video 已认证、已校验并由当前用户拥有的素材；不接受 Client 路径。
+- 不新增设置；复用现有 AI Runtime 本机图像/视频模式与模型选择/超时配置。输入/输出是业务文件，不是缓存，用户负责通过文件系统管理；项目目录中的原件仍是项目编辑权威副本。
+
+### 允许范围与验收
+
+- 允许：在 `packages/llm` 本机模型 Runtime 增加安全的账户隔离文件写入能力；从 AI Video 已校验媒体与本机生成成功路径调用；更正包 README、Data 路径说明及本合同。
+- 禁止：接收客户端绝对路径、跨账户共享素材、改变项目媒体事务/保留策略、自动清理用户文件、远程 Provider 输出写入本地模型输出目录、触碰非本轮既有工作。
+- 验收：正常媒体上传后只在当前账户 `input` 下增加文件；本机图像/视频成功且项目事务提交后只在当前账户 `output` 下增加真实媒体；项目事务失败/取消不留下半成品；路径拒绝符号链接和不安全文件名；既有远程 Provider 与模型设置保持不变。
+- 本轮直接构建/类型检查与差异检查作为实现证据；浏览器界面不改。真实权重、GPU 推理和本机生成文件流未执行时明确标记未测。
+
+### 实施记录
+
+- `packages/util/home-paths` 在 `resolveUserDataPaths()` 返回账户隔离的 `input/` 与 `output/` 子目录；共享目录只有在有效内容首次写入时才创建账户子目录。
+- `packages/llm/llm-local-runtime` 增加有限 MIME/大小、服务端净化文件名、UUID 文件名、符号链接检查及临时文件原子改名的镜像写入/回滚能力；路径固定从当前 Data 根与认证账户推导，不接受客户端文件路径。
+- AI Video Owner 在参考图、取景图和媒体库上传成功事务前后回滚控制下镜像到 `input/<账户 SHA-256>/`；MOSS 生图与 MiniMax-H3 生视频只有在项目素材事务提交后保留 `output/<账户 SHA-256>/` 副本。远程 Provider 和浏览器导出仍不会自动写入本机输出目录。项目副本仍是 AI Video 编辑权威数据；Input/Output 副本不随项目删除自动清理，由用户在本机文件系统管理。
+- 设置中心不新增配置，沿用既有本机图像/视频模式、模型 ID、超时和空闲释放配置；不改变用户偏好。
+- 本轮直接回归未运行。`pnpm exec tsc --noEmit -p tsconfig.host.json` 通过；`lfaa-home-paths`、`lfaa-llm-local-runtime`、`lfaa-video-ai-video`、`lfaa-api-ai-video-controller` 包构建通过；`pnpm run build:control-plane` 通过，输出在根 `dist/apps/control-plane/`；`node scripts/runtime-build-state.mjs control-plane` 返回 `[]`；`git diff --check` 通过。
+- 本机模型权重/GPU 不在本轮执行，未验证真实生成媒体落盘；浏览器界面未改。既有 `Data/input/`、`Data/output/` 不会伪造测试文件；它们会在下次用户上传素材或本机模型成功生成后出现账户子目录与文件。
+- 本轮变更文件职责：`packages/util/home-paths/src/data-layout.mjs` 与 `data-layout.d.mts` 定义账户隔离路径；`packages/llm/llm-local-runtime/src/contracts.ts`、`index.ts`、`workspace-assets.ts` 定义并执行本机文件安全镜像；`packages/video/ai-video/src/index.ts` 将已校验输入和本机推理输出接入文件镜像，`packages/api/ai-video-controller/src/index.ts` 等待 Owner 的异步上传事务；`packages/util/home-paths/README.md`、`packages/llm/llm-local-runtime/README.md`、`packages/video/ai-video/README.md` 与 `docs/系统总体架构.md` 记录目录及数据边界；本合同记录目标与证据。
+
+<a id="lfaa-browser-live-interaction-agent-shared-session-20261023"></a>
+## 219-LFAA 浏览器实时交互与 Agent 共用会话（2026-10-23）
+
+### 用户问题与目标
+
+- 用户指出浏览器只能看到迟缓、偶尔泛白的画面，感觉像预览功能；目标是把 Web/Dock 作为真正可操作的浏览器界面，Electron 桌面继续使用原生网页视图，Agent 可控制同一个内置浏览器会话，不要求用户手动接入内置 Provider。
+- Web 普通网页无法在 LFAA 源站内直接嵌入任意第三方页面；Web 继续由 Browser Owner 实际加载页面并将画面与用户输入同步到 Dock。界面与文案不得把浏览器称为“预览台/预览功能”。
+- 目标验收：页面变化能及时刷新画面；点击、输入、滚动及 Agent 导航共用同一账户、LFAA Session 和 Browser Owner；主页隐藏时不继续高频读取；桌面仍是 Electron `WebContentsView` 原生页面；Provider 不需单独连接。
+
+### Owner、设置、数据与权限
+
+- 运行入口：Web/Desktop `/work` → `ApplicationWorkspace` 当前浏览器标签 → Web `BrowserPanel` 或桌面 `NativeBrowserPanel`；Browser Owner 为 `lfaa-browser-use`，认证 HTTP 适配器为 `lfaa-api-browser-controller`。
+- Web 使用相同 Browser Owner 的真实 Edge/Chrome 页面，通过经认证的轻量页面变化等待接口取得新画面并转发交互；Agent Browser Tools 使用同一 `(account, LFAA Session, provider)` 会话键。Electron 继续使用受信主进程创建的原生 Chromium `WebContentsView`，Agent 的 Browser Owner 按当前标签 Target 附着同一页面。
+- 设置：`browserUse.searchEngine`（默认 bing）、`showFullUrl`（默认 false）、`recordRecentSites`（默认 true）继续驱动地址栏与最近记录；`browserUse.enabled`（默认 false）只作为 Agent 浏览器工具总开关；`enabledProviderIds` 不再作为 LFAA 内置原生/隔离浏览器的手工接入门槛，仍由显式个人浏览器接入流程使用。`permissions.mode`（默认 ask）仍是 Agent 所有浏览动作的唯一授权 Owner。保留账户现有值，不静默修改或重置用户偏好。
+- 不读取个人浏览器 Profile、Cookie、历史或书签；不绕过网页登录、OAuth、反自动化挑战或验证码；不提供 CDP 端点给 Renderer 或 Agent。
+
+### 分批实施与验收
+
+1. Browser Owner 增加账户/Session 隔离的页面变更等待，Controller 继续要求认证并校验 Session、Provider、修订号和取消信号；Dock 读取轻量页面快照，避免抓正文/控件造成页面画面刷新延迟。Web 当前主页隐藏时停止视口调整、动作队列和画面订阅；变更后立即取得新图像，使用真实浏览器/网页措辞并保留当前错误状态。先运行 Owner/API/UI 定向回归、类型检查及 Web/Control Plane 构建，再在内置浏览器检查 `/work`。
+2. Agent 对当前 Host 实际可用的 LFAA 内置浏览器自动视为可用，不要求 Provider 接入设置；保留 Agent 浏览器总开关、用户指定个人 Provider 的既有门槛以及唯一 `permissions.mode` 授权。桌面当前 NativeBrowserPanel 选中标签可供 Agent 复用，不要求接入设置。更新设置/包职责文档及回归，完成 Web 与桌面构建/类型检查，再检查桌面原生运行路径可由源码确认的边界。
+
+### 实施记录
+
+- 状态：已完成（Web 与共享 Browser Owner 的代码、直接回归和真实内置浏览器验收完成；Electron 原生 Owner 有回归与类型/构建证据，但未启动独立 Electron 窗口验收）。
+- 实现结果：Browser Owner 提供带认证、Session/Provider 校验和可取消等待的页面修订通知；Web 只在页面有变化时请求轻量新快照，主页隐藏时暂停订阅，并在新图像尚未到达时保留当前画面。点击/输入/滚动继续转发给真实 Browser Owner 页面。标签页内导航会同步工作区标签名与地址；Electron 原生视图仍由 `WebContentsView` 持有。LFAA 内置 Web/Native Provider 不再要求单独加入 Agent Provider 列表；Agent 浏览器总开关、统一 Permission Owner 和个人 Tabbit 的显式接入保持有效。
+- 设置/数据/权限：沿用 `browserUse.searchEngine`、`browserUse.showFullUrl`、`browserUse.recordRecentSites`、`browserUse.enabled`、`browserUse.enabledProviderIds` 和 `permissions.mode`；没有新增或改写账户偏好。Web 实页验收按现存 `showFullUrl=false` 显示主机名；`recordRecentSites` 按现存开启状态记录本次实际访问的 example.com 与 IANA 站点。没有向 Agent 发送真实会话指令；定向回归覆盖内置会话复用及设置/权限门槛。
+- 直接回归：`pnpm --filter @yubboo/lfaa test -- --test-concurrency=1 tests/browser-use.test.mjs tests/computer-use.test.mjs tests/general-agent-capabilities.test.mjs tests/client-workspace-right-launcher-layout.test.mjs tests/client-workspace-app-tabs.test.mjs tests/agent-browser-preview.test.mjs`，27/27 通过。Owner 测试使用隔离临时数据目录，没有连接当前运行服务的数据目录。
+- 类型/构建：`pnpm run typecheck`、`pnpm run build:web`（2281 modules）、`pnpm run build:control-plane`、`pnpm --filter lfaa-desktop-electron run test:native-browser-workspace`（6/6）通过；`git diff --check` 通过；`node scripts/runtime-build-state.mjs web` 返回 `[]`。Web 构建保留已有 cpp 资源约 501 KB 的 chunk 体积提示。
+- 实页验收：正式 Web `/work`，ChatGPT 内置浏览器桌面视口 1543×1244、右栏分隔值 1167。地址栏导航到 `https://example.com` 后，同一标签显示 `example.com` 与真实页面；随后导航到 `https://www.iana.org/help/example-domains`，同一标签更新为 `www.iana.org`，右侧浏览区域显示 IANA Example Domains 网页（完整路径按现存 `showFullUrl=false` 隐去）。当前最终页面截图已在本轮内置浏览器检查中显示。820×520 窄分栏检查通过，页面无横向溢出（检查时 document scrollWidth 810 ≤ clientWidth 820）；之后重置视口并恢复分隔值 1167。未改变工作区宽度偏好。
+- 性能/边界：固定 1.8 秒轮询已由页面修订等待替代，隐藏主页停止订阅；截图尺寸与质量有界，DOM 正文/控件扫描不再进入显示快照路径。没有采集真实帧时间或设备级流畅度数据，因此低延迟改进有行为/工作量回归证据，不声称已通过帧时间基准。真实 Electron 窗口、真触屏设备和 Agent 发起的在线操作未实测。
+- 卡顿跟进（2026-10-23）：将 Web 浏览器首次滚轮合并等待从 160ms 缩短到 60ms，将操作后的截图刷新等待从 180ms 缩短到 40ms；截图不再强制快进/取消网页动画，避免每次取图都干预页面动画（Playwright 官方文档说明 `animations: "disabled"` 会快进有限动画并取消无限动画，默认 `"allow"` 不干预）。浏览器 Owner 与工作区标签页定向回归 10/10、`pnpm run typecheck`、Web/Control Plane 构建通过；运行指纹 `[]`，`/api/health` 返回 200。ChatGPT 内置浏览器 `/work` 桌面视口 1543×1244 中打开 IANA 长页面实测上下滚动：输入派发约 85–107ms 返回，首张包含滚动后内容的画面约 389–417ms 到达，随后约 721ms 加载提示消失。页面没有泛白/空白，但首帧仍有可见延迟，因此只确认链路已缩短，不宣称已经丝滑；未测真实帧时间或持续滚动时的设备级表现。
+- 本轮文件职责（绝对路径均相对当前仓库根 `E:\lfaa1\lfaa`）：
+  - `apps/cli/tests/agent-browser-preview.test.mjs`、`apps/cli/tests/browser-use.test.mjs`、`apps/cli/tests/client-workspace-app-tabs.test.mjs`、`apps/cli/tests/client-workspace-right-launcher-layout.test.mjs`、`apps/cli/tests/computer-use.test.mjs`、`apps/cli/tests/general-agent-capabilities.test.mjs`：覆盖 Owner 变更等待/取消、Agent Provider 判定、同标签导航与命名、画面保留、布局和浏览器工具权限回归。
+  - `packages/browser-use/browser-use/src/session-manager.ts`、`packages/browser-use/browser-use/src/browser-tools.ts`、`packages/browser-use/browser-use/README.md`：浏览器会话页面修订等待、轻量有界页面快照、内置 Provider Agent 可用性和 Browser Owner 职责说明。
+  - `packages/api/browser-controller/src/index.ts`、`packages/api/browser-controller/README.md`：经认证的页面修订长轮询 API、请求校验/取消及适配职责说明。
+  - `packages/client/connection/src/api.ts`、`packages/client/connection/README.md`：浏览器修订等待的 Client API 与连接包职责。
+  - `packages/client/ui-sidebar-browser/src/BrowserPanel.tsx`、`packages/client/ui-sidebar-browser/src/NativeBrowserPanel.tsx`、`packages/client/ui-sidebar-browser/src/browser-panel.css`、`packages/client/ui-sidebar-browser/src/native-browser-panel.css`、`packages/client/ui-sidebar-browser/README.md`：Web 实时页面交互、桌面原生 Target 绑定、浏览器区域样式及模块职责。
+  - `packages/client/ui-workspace/src/ApplicationWorkspace.tsx`、`packages/client/ui-workspace/README.md`：同一区域地址/页面状态、活跃标签名称与当前 URL 同步，以及工作区 Owner 职责。
+  - `packages/client/ui-settings/src/SettingsPage.tsx`、`packages/client/ui-settings/README.md`：内置浏览器自动可用状态、保留个人 Provider 显式接入与设置界面职责。
+  - `packages/core/agent-loop/src/execute-turn.ts`、`packages/core/agent-loop/README.md`：Agent 选中当前内置会话及执行链职责说明。
+  - `packages/core/tools/src/capability-settings.ts`、`packages/core/tools/README.md`：内置浏览器能力判定、总开关/个人 Provider 设置约束与工具包职责。
+  - `packages/util/values/src/settings-contract.ts`：更新浏览器设置合同注释，明确内置 Provider 不需要手动接入；不改变设置默认值或序列化结构。
+  - `docs/PROMPTS.md`：记录本合同状态、逐批结果、设置/权限边界、验收与未测范围。
+
+### 2026-10-23 浏览器标签新增回归跟进
+
+- 用户补充的产品边界：复用 LFAA 已有的浏览器视图与 Browser Owner，让用户和 Agent 操控同一会话；不是开发一套完整浏览器产品，也不新增第二个浏览器入口或接入流程。
+- 当前问题：点击浏览器标签栏“+”会把 Browser Owner 已打开页面的 URL 自动写进新标签，使新标签直接显示当前搜索结果。根因位于 `ApplicationWorkspace` 对浏览器标签快照的同步：空白工作区标签被无条件绑定到已存在的活动网页。
+- 本批目标：新建标签保持空白起始页；只有当前 Browser Owner 页面实际发生导航或切换时，才把新页面地址同步到正在显示的空白标签。已有网页标签仍在同一内容区域显示真实 Browser Owner 页面，Agent 仍通过原 Browser Owner/权限链操控页面。
+- Owner、设置与边界：UI 状态由 `packages/client/ui-workspace` 管理，页面和 Agent 控制继续归 `packages/browser-use` 与既有 Browser Controller；沿用 `browserUse.searchEngine`、`browserUse.showFullUrl`、`browserUse.recordRecentSites`、`browserUse.enabled`、`browserUse.enabledProviderIds` 和 `permissions.mode` 原值，不新建设置、不调整账户偏好、不扩展浏览器产品功能。
+- 允许范围：当前标签同步条件、相应长期回归、`docs/PROMPTS.md` 验收记录。禁止新增独立浏览器服务、另一套标签/会话状态、独立登录/接入流程或额外权限规则。
+- 验收：定向测试确认空白标签不会继承原网页地址；实际网页 URL 变化仍会同步标签标题/地址，地址栏提交后仍在当前内容区域导航；在正式 Web `/work` 的 ChatGPT 内置浏览器实测“当前页面 → + → 新标签仍为空白”，再输入 URL 后在该标签区域显示页面。响应式检查使用当前视口与窄分栏。
+- 状态：标签新增回归已实现并由 `apps/cli/tests/client-workspace-app-tabs.test.mjs` 覆盖；当前继续处理页面加载后的卡顿，最终构建与实页验收证据待补。
+
+### 2026-10-23 浏览器加载后卡顿回归跟进
+
+- 用户反馈：空白新标签疑似已修好，本轮重点检查网页加载后的滚动/操作卡顿；浏览器仍为工作区里唯一的真实页面，Agent 复用同一 Browser Owner 页面。
+- 检查发现：Dock 的点击/滚动/地址导航若同步获取截图，会把截图渲染时间加入每个动作响应；动态页面的 DOM 变化之前每 250ms 最多通知一次，Dock 收到每个通知后会获取整屏 JPEG。Agent 工具还会执行结构化页面读取，截图内容并无必要。
+- 本批修改：Dock 导航和动作默认不等待截图，用户动作后由现有 BrowserPanel 异步刷新页面画面；动态 DOM 通知节流到每页最多每 750ms 一次；Agent 浏览器工具使用结构化页面数据，不同步捕获图片。账户、Agent 总开关、`permissions.mode`、`browserUse.searchEngine`、`browserUse.showFullUrl` 与 `browserUse.recordRecentSites` 均沿用既有值，不添加或重置设置。
+- 允许范围：Browser Owner 页面更新节流、Agent/Dock 截图调用、对应定向回归、受影响 README 与本合同。保留标签页新增回归及工作区当前未提交修改。
+- 验收：`tests/browser-use.test.mjs` 与 `tests/client-workspace-app-tabs.test.mjs` 定向回归 14/14 通过，含空白新标签不继承原网页和 DOM 通知节流；`tsconfig.client.json` 类型检查及 Browser Owner、Browser Controller、Browser UI 能力包构建通过；正式 Web 构建通过。全量 `pnpm run typecheck` 与 Control Plane 构建被现有 `lfaa-llm-local-runtime` / `lfaa-llm-moss-image` 导出和类型错误阻断，Control Plane 因此无法启动，内置浏览器 `/work` 实页操作未完成。
+- 实际浏览器 Owner 单独验证：隔离 LFAA Edge 打开 `https://example.com/`，首轮导航 1719ms（含冷启动/主文档提交），DOM 可用等待 371ms，结构化读取 58ms，滚动动作 6ms（不含截图），独立截图 95ms、回传 66188 个 Base64 字符。此结果不是 Dock/内置浏览器帧率测量；UI 仍需在服务恢复后验收滚动和画面刷新。
+- 差异检查 `git diff --check` 通过；没有新增/修改设置或账户偏好。
+- 状态：源码与定向回归完成；实页验收被当前 Control Plane 启动错误阻断，未标为通过。
+
+#### 实时画面刷新节流（继续跟进）
+
+- 问题：滚轮操作本身不等待截图，但每个滚动都会提升 Browser Owner 页面修订号；变化等待返回后仍可能每个修订都读取并传输一张整页 JPEG。连续滚动时，截图处理会进入 Browser Owner 串行操作队列，给后续输入与页面操作造成额外等待。
+- 本批目标：Web Dock 快照刷新合并并限制为最多约每 120ms 发起一次；正在等待或获取的快照复用同一个请求，连续滚动期间保留最后一张有效画面，避免重复 Base64 解码与截图读取。导航与交互动作仍不等待截图；Agent 继续通过同一账户、LFAA Session 和 Browser Owner 操作页面并读取结构化 JSON。
+- Owner、设置与权限：只改 Browser Dock Client 的快照刷新节奏与直接回归；沿用 `browserUse.searchEngine`、`browserUse.showFullUrl`、`browserUse.recordRecentSites`、`browserUse.enabled`、`browserUse.enabledProviderIds` 和 `permissions.mode` 既有值，不新增设置，不改变账户偏好或授权范围。
+- 验收：测试证明快照刷新有 120ms 最小间隔且并发调用合并；滚动/点击操作仍不请求同步截图且有效旧帧不被空快照覆盖；直接相关 UI 回归、Client 类型检查与 Web 构建通过。按仓库要求在正式 Web `/work` 的桌面和相关窄分栏检查加载、连续滚动、停止滚动后的最新画面及不泛白，并记录实际响应与未测帧时间边界。
+- 允许：`BrowserPanel` 快照请求节流/并发合并、对应长期回归、包职责说明与本合同记录。禁止：改用独立浏览器服务/会话、降低 Agent 页面数据能力、调整现有设置/权限或重做浏览器 UI。
+
+#### 实施与验证记录
+
+- `packages/client/ui-sidebar-browser/src/BrowserPanel.tsx`：增加 120ms 最短截图请求间隔；同时到达的画面更新复用一个请求；等待中的刷新可随其请求信号取消；继续使用有效旧帧直到新帧返回。用户的滚轮/键盘/点击动作仍不等待截图。
+- `packages/client/ui-sidebar-browser/src/browser-frame-interval.ts`：单独持有 120ms 最短截图帧间隔计算，供 UI 与长期回归复用。
+- `apps/cli/tests/client-workspace-right-launcher-layout.test.mjs`：直接验证首帧立即请求、120ms 最小间隔和到期后不额外等待，并覆盖请求合并、取消与旧帧保留的结构回归；`tests/browser-use.test.mjs` 已覆盖 Agent 页面读取/点击不捕获截图。
+- `packages/client/ui-sidebar-browser/README.md`：记录 Dock 实时画面请求节奏，以及 Agent 结构化读取与用户画面更新分离的职责。
+- 设置与数据：沿用原浏览器及外观设置、当前账户/Session 和 Browser Owner；无新增设置、账户偏好写入或权限变化。
+- 验证：`pnpm --filter @yubboo/lfaa test -- --test-concurrency=1 tests/browser-use.test.mjs tests/client-workspace-app-tabs.test.mjs tests/client-workspace-right-launcher-layout.test.mjs` 通过，19/19；`pnpm exec tsc --noEmit -p tsconfig.client.json` 通过；`pnpm run build:web` 最终重跑通过，产物位于 `dist/apps/web/`，`node scripts/runtime-build-state.mjs web` 返回 `[]`。期间另一包源码变化导致的一次构建被指纹保护拒绝；源码稳定后再构建通过。`git diff --check` 通过。正式控制端 `/api/health` 返回 `ok`，`/work` HTTP 状态 200。
+- 实页边界：本轮尝试在 ChatGPT 内置浏览器检查当前 `/work` 时，浏览器安全策略拒绝读取该页，提示 URL Policy 不允许观察；按工具要求没有改用其他浏览器、CDP 或命令绕过。故新限频后的目视滚动、白屏状态和实际帧时间均未实测；HTTP 可达与构建通过不等于视觉/流畅度验收。
+- 本批文件职责（当前仓库绝对路径）：`E:/lfaa1/lfaa/packages/client/ui-sidebar-browser/src/BrowserPanel.tsx`（截图节流与按会话/Provider 合并请求）、`E:/lfaa1/lfaa/packages/client/ui-sidebar-browser/src/browser-frame-interval.ts`（帧间隔计算）、`E:/lfaa1/lfaa/apps/cli/tests/client-workspace-right-launcher-layout.test.mjs`（浏览器 UI 行为回归）、`E:/lfaa1/lfaa/packages/client/ui-sidebar-browser/README.md`（模块职责合同）、`E:/lfaa1/lfaa/docs/PROMPTS.md`（任务验收记录）。
+
+#### 工作区最外层滚动边界（用户澄清后跟进）
+
+- 本批只处理工作区整页滚动与背景呈现；不把网页内容区域内的浏览器滚轮当作故障，也不修改网站自身颜色。
+- 前序已移除会撑开短屏文档的 `.workbench-shell--module` 580px 最小高度，并锁定模块路由的 `html/body`；内部内容盒继续使用各自滚动区。
+- 本轮源码复核发现 Web 入口仍给 `#root` 设置 `min-height:100vh`，而模块工作台高度是 `100dvh`；动态/短视口下 `#root` 可能高于视口，保留外层滚动并露出入口浅色底。工作台背景使用账户 `appearance.theme/overlay`；不覆盖网站页面颜色，也不重置用户外观偏好。
+- 外部排查：按缺陷排查顺序检索 X、技术社区、GitHub 与 MDN。没有找到可直接套用且能证明 LFAA 根因的修复；外部资料只支持全屏应用需限制文档根高度及 Flex 子项最小高度，根因由当前 `apps/web/index.html` 的 `#root` 规则与 `module-shell.css` 的视口约束差异确认。
+- 本轮修改目标：模块工作台出现期间将 `#root` 限制在动态视口并裁切溢出，提高模块壳选择器优先级确保通用 `min-height:100vh` 不撑高模块壳；不改变内部滚动、网页颜色和设置偏好。
+- 验证：本轮 `pnpm run build:web` 通过（2284 modules，含 Client 类型检查），产物 CSS 已包含 `:root:has(.workbench-shell--module) #root` 与更高优先级的模块 Shell 规则；`node scripts/runtime-build-state.mjs web` 返回 `[]`，`/api/health` 返回 `ok`，`/work` 返回 HTTP 200，`git diff --check` 通过。本轮不运行测试套件。
+- 实页状态：通过项目正式入口 `pnpm lfaa web` 按数据目录写锁核验并重启 Web；ChatGPT 内置浏览器 `/work` 1280×720 截图中整页保持深色，没有露出浅色底。将滚轮放在顶栏非滚动区，画面位置未移动；右栏可见的滚动条仍属于右侧内容盒。没有操作浏览器网页内部滚动。未单独切换窄/短视口；实页验收不等同于长期滚动与不同设备的帧时间测量。
+- 本批文件职责：`E:/lfaa1/lfaa/packages/client/ui-layout/src/css/module-shell.css`（模块路由文档高度、`#root` 高度与根滚动锁定）、`E:/lfaa1/lfaa/packages/client/ui-theme/src/responsive.css`（移除短屏整页最小高度）、`E:/lfaa1/lfaa/packages/client/ui-layout/README.md`（记录页面与面板滚动职责）、`E:/lfaa1/lfaa/docs/PROMPTS.md`（跟进验收和限制）。
+
+<a id="lfaa-game-library-workspace-steamcmd-20261023"></a>
+## 221-LFAA 游戏库统一工作区与 SteamCMD 游戏服务（2026-10-23）
+
+### 用户问题与目标
+
+- 当前 `/games` 与 `/games/environments` 是脱离四栏工作区的独立页面；应用导航另列 SteamCMD、Minecraft；SteamCMD 常规入口仍是未接业务能力的占位页。
+- 将运行环境、Minecraft 和 SteamCMD 管理统一到游戏库单一入口 `/games`，复用现有四栏 `ApplicationWorkspace`；所有旧游戏深链映射到游戏库内的相应功能，不丢失已有账户、会话、实例或节点身份。
+- 修复 SteamCMD 的真实游戏服务能力，面向通用 Steam Dedicated Server Tool AppID，而非只针对某一款游戏；部署/更新及实例管理必须走现有 SteamCMD Owner、认证 API、Daemon 和 Permission Owner。只声明经 Steam 官方发行且实际兼容的专用服务器支持；Steam 商店客户端 AppID 不自动等同可匿名部署的服务端。
+
+### Owner、入口、设置、数据与权限
+
+- 运行入口：Web/Desktop `Workbench` → `/games` → 四栏 `ApplicationWorkspace`；游戏库内部提供运行环境、Minecraft 与 SteamCMD/游戏服务器入口。旧 `/apps/{steamcmd,minecraft}/normal/*` 兼容导航需归并到 `/games/*`，保留 SteamCMD/Minecraft 内部 `ApplicationId`、Agent 工具过滤和现存 API 权限合同。
+- UI 组合由 `packages/client/ui-layout` 装配，四栏边界由 `packages/client/ui-workspace` 持有；Minecraft 实例与生命周期仍归 `packages/games/minecraft`、`packages/client/ui-minecraft`；运行环境任务归 `packages/games/runtime-manager`；SteamCMD 配置/任务归 `packages/games/steamcmd`、认证 API 与节点 Daemon。不得复制业务状态或新增第二条身份/服务实现。
+- 设置：沿用 SteamCMD `installMode`、`steamcmdDirectory`、`gameDirectory`（Owner 为 SteamCMD 配置服务与项目/存储设置）；Minecraft 实例与 `minecraftRuntime.*` 沿用原设置；运行时资源沿用 Runtime Manager 与 `runtimeDirectory` 等现有配置；所有动作只使用 `permissions.mode` 与现有角色/节点认证。外观读取设置中心主题、强调色、字体字号、对比度、壁纸遮罩/模糊及减少动态效果，不新增偏好或重置账户值。
+- Steam 服务器配置与运行状态属于 SteamCMD 领域数据，必须通过节点执行回报呈现真实状态。路径按节点 `LFAA_DATA_DIR` 相对配置解析，拒绝越界路径/自由 Shell 参数；安装、更新、启动、停止均复用当前认证账户、目标在线 Windows x64 Daemon、角色授权和 Permission Owner。EULA/许可接受按现有唯一权限流程处理。
+
+### 允许范围与验收
+
+- 允许：唯一游戏库路由/导航、四栏工作区内容组合、SteamCMD 服务器定义与任务/API/Daemon 合同、相关长期回归、受影响包 README、架构事实及本任务合同。保留工作区其他未提交修改。
+- 禁止：独立运行环境入口、单列 SteamCMD/Minecraft 应用入口、伪造成功/运行状态、客户端自由拼 Shell、越过路径校验、权限或 EULA 授权；不得安装/重启真实用户服务或改变已运行 Minecraft 实例。
+- 批次 A：游戏库所有子视图使用同一四栏 Shell，隐藏独立 SteamCMD/Minecraft 导航，重定向旧路由与快捷键；直接布局回归/构建后在 ChatGPT 内置浏览器检查桌面与窄分栏/短屏。
+- 批次 B：SteamCMD 通用兼容 Dedicated Server 部署/更新与实例生命周期闭环，执行认证/输入/路径/权限及任务状态回归，构建受影响包和 Web/Control Plane；静态成功不替代目标 Daemon 实测。
+- 最终：从 `/games` 进入并切换运行环境、Minecraft 与 SteamCMD；唯一导航无重复入口；窄视口可用且无横向溢出；当前设置值生效；报告真实 Web、Daemon、Provider 与帧时间未覆盖项。
+
+### 实施记录
+
+- 开始时工作树已有多项未提交改动，包含 `docs/PROMPTS.md`、`Workbench.tsx`、`ApplicationWorkspace.tsx` 及无关浏览器/AI Video 文件；保持原差异并逐段核对后修改。已确认 `GameLibraryPage` 当前脱离四栏壳，SteamCMD 应用页为占位，现有运行环境安装由 Runtime Manager/SteamCMD 各自 Owner 提供。
+- 批次 A 已完成：`Workbench` 将 `/games`、运行环境、Minecraft 与 Steam 服务统一放进 `ApplicationWorkspace` 四栏；应用菜单隐藏 SteamCMD/Minecraft 独立入口，旧路由归并到 `/games/*`，快捷键改到游戏库内路径。未改 `general.hiddenApplicationNavigationIds` 等账户偏好；AI Work 仍由小鱼智能体入口提供。
+- 批次 A 回归与构建：定向 UI 回归 15/15、`pnpm run typecheck`、`pnpm run build:web`、`pnpm run build:control-plane`、`git diff --check` 通过；Web 构建仍提示约 501 KB 的 C++ 语法块。
+- 批次 A 实页：复用当前 checkout 的正式 Web `http://127.0.0.1:3000`，`/api/health` 返回 200，Web 构建指纹为最新。ChatGPT 内置浏览器 `/games` 与 `/games/environments` 的 1280×720 桌面窗口及约 365px 中心窄列已实测；侧栏只有游戏库一级入口，运行环境仍在四栏 Shell 内；`/games/minecraft` 与实例子路由加载真实现有数据。SteamCMD 子入口的占位状态在批次 B 修复前仍可复现。
+- 正式菜单启动尝试发现数据目录已被现有控制端持有，未启动第二实例；复核后复用其现有 3000 服务完成以上实际验收，未停止服务或改写运行数据。
+- 批次 B 已完成：SteamCMD Owner 增加通用 Dedicated Server Tool AppID 服务端登记、安装/更新/启动/停止任务和 Daemon 状态回报；安装仍走原 SteamCMD 任务/节点 Owner，启动使用参数数组与 `shell: false`，状态未知时拒绝重复安装、更新和启动。服务端许可由用户单独阅读确认。Steam 客户端商店 AppID 不推断为可匿名安装；Steamworks 未发布 Dedicated Server Tool AppID 的游戏不承诺支持。
+- SteamCMD 页面已经从游戏库中心槽提供节点选择、配置、任务进度、真实状态、运行环境跳转和停服风险提示；游戏库、运行环境、Minecraft 子路由与 Steam 服务使用同一 `ApplicationWorkspace` 四栏。没有新增设置中心项：SteamCMD 读取既有 `installMode`、`steamcmdDirectory`、`gameDirectory`；运行环境/Minecraft 继续读取 Runtime Manager、Minecraft 与 `minecraftRuntime.*`；通用样式读取 Appearance 主题、强调色、字体字号、对比度、壁纸遮罩/模糊与减少动态效果；副作用仍经过现有账户/节点认证、角色和 Permission Owner。
+- 批次 B 回归：定向回归 22/22（游戏库导航/预加载、Steam 安装、安全回退、数据库历史迁移及版本 61→62）、`pnpm run typecheck`、`pnpm run build:web`、`pnpm run build:control-plane` 通过。迁移夹具现用隔离 Home/Data，避免读取本机账户数据库。Web 构建保留现有 C++ chunk 约 501 KB 的提示。
+- 批次 B 实页：ChatGPT 内置浏览器经游戏库菜单实际进入 `/games`、`/games/steamcmd`、`/games/environments` 和 `/games/minecraft/instances`。隔离正式 Web 为 `http://127.0.0.1:3107`，浏览器窗口 1536×1240；把四栏中心列压到约 380px 后，Steam 表单单列并可在中心列纵向滚动，运行环境 SteamCMD 分类及 Minecraft 实例空状态可读，没有出现中心列横向溢出。Steam 页面显示隔离环境未登记可用 Steam Daemon，因而安装/启停按钮保持禁用；没有伪造节点、接受第三方 EULA 或触发下载。短屏/实体设备、真实 Steamworks Tool AppID、真实 Steam 下载、长时间运行与帧时间未实测。
+- 正式 `http://127.0.0.1:3000` 的原有 Web 进程未停止或重启；构建后它在 `/work` 显示“LFAA 需要重新启动”，提示 Web/控制端文件已更新。隔离 `3107` 服务已停止，端口不再监听。临时验收数据位于 `dist/.tmp/lfaa-game-library-ui-acceptance-20261023`；PowerShell 删除该目录被自动审批策略拦截，未改用其他删除途径。最终 `git diff --check` 通过。
+
+<a id="lfaa-browser-workspace-direct-navigation-20261022"></a>
+## 218-LFAA 浏览器工作区直接导航（2026-10-22）
+
+### 用户问题与目标
+
+- 用户明确红框覆盖范围就是 LFAA 浏览器工作区：标签/地址工具栏及其下方网页区域属于同一个浏览器；输入网址或搜索词后，网页直接在该区域显示，不再出现“接入浏览器”步骤，也不切换到另一个面板。
+- 用户强调 LFAA Agent 已具备浏览器操控能力；LFAA 浏览器页签、地址栏、推荐的当前打开页面及最近访问记录应联动到同一 Browser Owner Session。用户手动浏览不应自动打开/修改 Agent 接入设置。
+
+### Owner、设置、数据与权限
+
+- 入口：Web/Desktop `/work` → `ApplicationWorkspace` 右侧统一地址栏与当前新标签页 → 同一红框页面区域。未输入网址时显示工具/推荐/最近入口；提交 URL/search 后，原地切换为 `BrowserPanel` 页面视口。没有独立的浏览器工具页，也没有嵌套的第二套标签、地址栏和导航控件。浏览器上下文与页面仍由 `lfaa-browser-use` 唯一持有，认证适配器由 `lfaa-api-browser-controller` 持有，URL/search 解释复用 Browser Address Owner。
+- 设置盘点：`browserUse.searchEngine` 默认 `bing`，经 Settings Owner 持久化，普通搜索词按此设置解析；`browserUse.showFullUrl` 默认 `false`，控制地址展示；`browserUse.recordRecentSites` 默认 `true`，控制最近网址记录；`browserUse.enabled` 默认 `false` 与 `enabledProviderIds` 默认空列表仅控制 Agent Browser Tools 的使用，不作为用户手动打开 LFAA 浏览器的门禁。全部偏好保持原值，不新增配置。
+- 数据：地址栏/推荐/最近都导航到当前认证账户和 AI Session 对应的 Browser Owner；Web 隔离浏览器使用相同 `(account, session, provider)` 会话键，Agent 配置允许此 Provider 时复用同一页。最近记录仍按既有开关和账户隔离规则，最多保存 100 条规范化 HTTP(S) 来源/路径，不写查询、片段、正文或个人浏览器数据。
+- 权限：浏览器工作区直接使用 LFAA Browser Owner 提供的隔离浏览器能力；不要求用户再做一次 Provider 接入，也不自动接入 Tabbit 个人 Profile，不改变账户设置。手动输入、导航和交互由该认证用户明确发起；Agent Tools 仍受 `browserUse.enabled`、`enabledProviderIds`、认证/校验和唯一 Permission Owner 控制，不通过 Dock API 路由绕过。
+
+### 允许范围与验收
+
+- 允许：Browser Dock 的认证 Client API 与 API Controller、BrowserPanel 当前 provider 选择/状态表现、直接相关 Owner/API/UI 回归、对应 Browser Controller/Browser Owner/Client UI 包 README、`docs/PROMPTS.md`。
+- 禁止：自动写入或修改 `browserUse` / `computerControl` / 权限设置；接入用户个人 Profile；通过 iframe/fake screenshot 代替真实 Browser Owner；更改四栏外层布局、无关主题样式或其他浏览器功能。
+- 回归结果：同标签直接导航、移除嵌套浏览器控件及工具入口回归通过；Agent 专用路径仍受原设置与权限合同约束。`GET /browser/dock` 仅读取 Browser Owner 当前快照（不因新标签页空白态而启动浏览器），用户提交地址后才由导航请求创建/复用页面。设置 `browserUse.searchEngine`、`showFullUrl`、`recordRecentSites`、`enabled`、`enabledProviderIds` 均保持现有值和 Owner；未新增设置或写入用户偏好。
+- 验证：定向回归 11/11、`pnpm run typecheck`、`pnpm run build:web`（2281 modules）、`pnpm run build:control-plane`、`git diff --check` 均通过；正式 Web 已启动，`node scripts/runtime-build-state.mjs web` 返回 `[]`，`/work` 与 `/api/health` 返回 HTTP 200。Web 构建仍报告既有 C++ 资源 chunk 约 501 KB 的体积提示。
+- 实页验收：当前 ChatGPT 内置浏览器控制未能操作页面，因此没有将页面交互或视觉状态标记为通过。后续用户截图仍显示旧版 BrowserPanel 的 Provider 接入选择器和第二条地址栏；已核对当前正式构建入口 `/assets/index-BU0BTVCp.js` 指向新版 `ApplicationWorkspace-Bn671IIv.js`，新版 BrowserPanel 只渲染网页视口，服务返回 HTML 的 `Cache-Control: public, no-cache`。这说明截图中的已打开页面仍持有旧版前端代码，不能作为新界面验收；最新 `/work` 预览已排入 Codex 右侧面板，但交互目视结果仍待用户界面实际刷新后确认。桌面、窄分栏和短屏上的地址提交、页面原地替换、返回/前进、标签关闭及推荐/最近联动均未完成实页验收；本次未改账户偏好，也未使用真实登录信息或发送消息。
+
+<a id="lfaa-right-menu-box-layout-20261023"></a>
+## 222-右侧菜单栏盒子布局（2026-10-23）
+
+### 用户问题与目标
+
+- 用户以红框明确 `/work` 右侧工作区的层级：顶部区域分为工作区标签和地址栏；主体分为名称、工具、推荐、最近四个盒子；底部账户状态独立固定。
+- 目标是按此层级整理右侧菜单布局，让主体分区清楚、滚动边界稳定，并保留已有导航与面板交互。
+
+### Owner、设置、数据与权限
+
+- 入口与 Owner：Web/Desktop 共用 Client `/work` → `ApplicationWorkspace` → 右侧 `module-context`；工作区标签/地址栏归 `ui-workspace`，网页渲染归 `ui-sidebar-browser`，页面与导航状态继续由 Browser Owner 持有。
+- 设置：沿用 `browserUse.searchEngine`、`browserUse.showFullUrl`、`browserUse.recordRecentSites` 及 Appearance 的主题、色彩、字体/字号、壁纸、遮罩、模糊、对比度和减少动态效果映射；不增加设置、不改变用户偏好。
+- 数据和权限：菜单区域只展示现有标签、最近访问记录、工具与连接状态；现有账户隔离、Browser/工具认证授权和业务执行合同保持不变。
+
+### 允许范围与验收
+
+- 允许修改 `packages/client/ui-workspace/src/ApplicationWorkspace.tsx`、`src/css/right-menu.css`、该包 README、直接相关长期 UI 回归和本合同/索引。
+- 保持四栏外层、Workbench/Browser Owner 与现有按钮回调不变；内容区恰好包含名称、工具、推荐、最近四个主分区，账户状态作为固定底部区域，长内容只在主体滚动；宽窄与短屏均不得横向溢出或遮挡地址栏/账户状态。
+- 运行对应结构/响应式回归、Client 类型检查、Web 构建和差异检查；从当前源码启动正式 Web，并在 ChatGPT 内置浏览器检查 `/work` 桌面及窄/短视口、标签与地址栏、主体滚动及底部可达性，记录截图和未测边界。验收不修改真实用户偏好、不执行工具写操作。
+
+### 实施记录
+
+- 状态：本轮布局实现完成；构建/实页验收存在明确限制，不能标记为全量验收通过。开始前工作区已有大量未提交改动，本轮保留了其他功能的差异。
+- 改动文件与职责：
+  - `packages/client/ui-workspace/src/ApplicationWorkspace.tsx`：将工作区标签与浏览器导航栏并入顶部固定区；新标签主页按名称、工具、推荐、最近四个同级分区组织；账号状态移至主体滚动区之外的底部。
+  - `packages/client/ui-workspace/src/css/right-menu.css`：为四个主体区提供统一卡片边界与间距，保持主体独立滚动；使用既有主题令牌，并按容器窄宽收紧卡片内边距。
+  - `apps/cli/tests/client-workspace-right-launcher-layout.test.mjs`：补充区域顺序、顶部栏、底部账户、主题令牌和容器响应式结构回归。
+  - `packages/client/ui-workspace/README.md`：记录右侧浏览器区的固定顶栏、四区主体和底部账户布局合同。
+  - `docs/PROMPTS.md`：登记本轮目标、边界、文件职责、配置与验证证据。
+- 设置：复用既有 `browserUse.searchEngine`、`browserUse.showFullUrl`、`browserUse.recordRecentSites` 和外观设置映射/主题令牌；没有新增或修改设置，也没有写入用户偏好。
+- 源码检查：`pnpm exec node --test apps/cli/tests/client-workspace-right-launcher-layout.test.mjs` 通过（4/4）；`pnpm exec tsc --noEmit -p tsconfig.client.json` 通过；`pnpm run build:web` 通过，产物位于仓库根 `dist/apps/web`；`git diff --check` 通过。
+- 构建限制：`pnpm run build:control-plane` 未通过，报错为 `packages/games/steamcmd/src/service.ts:313` 找不到 `pathsOverlap`。这是同一工作区内与本轮菜单布局无关的 SteamCMD 改动；本轮未越界修改它。`node scripts/runtime-build-state.mjs web` 返回 `host`，因此 3000 端口的正式 `/work` 服务因控制端构建指纹过期而拒绝加载。
+- 实页证据：ChatGPT 内置浏览器通过本轮启动的源码前端 `http://127.0.0.1:5173/work` 查看了当前源码；1536×1180 页面确认顶栏、四个主区、底部账户和“更多工具”展开；将右侧分栏收窄到 288px 后，内置浏览器辅助树仍按“浏览器导航栏 → 名称 → 工具 → 推荐 → 最近 → 账户”呈现，之后已恢复原宽度/折叠状态。前端服务已停止。
+- 未完成实页范围：由于正式 `/work` 运行版本受上述 host 构建错误阻挡，窄分栏只核对了实际辅助树，未完成干净截图下的视觉验收；未完成独立短屏/手机视口、真实设备或帧时间测量。不能将这些项目描述为已通过。
+
+<a id="lfaa-git-change-review-layout-20261023"></a>
+## 223-变更页面差异审阅布局（2026-10-23）
+
+### 目标与范围
+
+- 用户要求先按截图重做“变更”页面：顶端显示当前变更范围、增删统计和当前分支/上游；主体按文件顺序列出真实变更，每个文件头显示路径/状态/行数并展示左右并排差异，提供统一的展开/折叠操作。
+- 当前阶段只处理 Git 变更审阅页；右侧浏览器菜单盒子布局的后续优化不属于本轮。
+- 不显示或执行未接入的分支间比较；只展示 Host Git Owner 已提供的当前分支、上游和工作区/基线文件差异事实。
+
+### Owner、设置、数据与权限
+
+- 入口：Web/Desktop 共用 Client `/work` → `ApplicationWorkspace` 的 Git “变更”页 → `GitChangeSummary` / `GitChangeReview`（`ui-workspace`）。真实状态/差异由 Agent Git Controller 与 Host Git Owner 返回；不在 Client 自行运行 Git。
+- 设置：沿用 Appearance 主题/颜色/字体、`appearance.advanced.fonts.code`、`appearance.advanced.codeFontSize`、`appearance.advanced.diffMarkers`、壁纸/遮罩/模糊/对比度及减少动态效果映射；不新增设置、不更改用户偏好。
+- 数据与权限：只读现有认证账户和登记仓库/项目的 Git 状态/差异。完整文件读取/编辑继续使用既有路径校验、账户隔离与 SHA-256 防覆盖合同；提交、暂存、远端等写操作留在折叠的 Git 管理区并沿用原 Permission/Owner 合同。
+
+### 实施批次与验收
+
+- 批次 1：变更页精简为截图风格的分支/统计工具条和多文件审阅列表；按可见区域懒加载实际差异并限制未折叠区的同时请求/驻留内容；保留完整文件查看与 Git 管理入口。响应式以容器宽度处理窄分栏和短视口。
+- 批次 2：实现并排旧/新代码、逐文件折叠和全局展开/折叠；保留差异选项、刷新和现有文件编辑入口。不伪造分支比较、不运行写操作。
+- 每批均运行对应 UI 回归、Client 类型检查与 Web 构建，再在 ChatGPT 内置浏览器 `/work` 检查当前源码桌面视口及相关窄分栏/短屏，记录截图、交互结果和阻碍。
+- 本轮完成后更新本合同实施记录及 `packages/client/ui-workspace/README.md`。不因现有 SteamCMD 相关构建错误越界修改其他包；构建与正式运行服务状态分别记录。
+
+### 实施记录
+
+- 状态：已完成。只处理 Git 变更审阅页面；右侧浏览器菜单主体盒子布局未动。视觉检查发现并修复并排差异外层网格列数与两侧行容器不符的问题，新增文件内容现显示在右侧列。
+- 改动文件与职责：
+  - `packages/client/ui-workspace/src/GitChangeReview.tsx`：嵌入式完整变更审阅页、真实状态/统计、筛选、折叠、并排/统一视图、可见区域懒加载、差异上下文展开与现有完整文件入口。
+  - `packages/client/ui-workspace/src/GitChangeSummary.tsx`：默认在变更标签显示审阅页；原有 Git 管理面板仍可经管理入口访问。
+  - `packages/client/ui-workspace/src/module-workbench.css`、`packages/client/ui-workspace/src/css/right-menu.css`：差异行左右两列、主题/代码令牌、窄容器布局；审阅页显示时收起重复的仓库标题栏，不改变右侧菜单其他盒子。
+  - `packages/client/connection/src/api.ts`：文件差异读取支持取消请求与可选上下文行数。
+  - `packages/api/agent-git-controller/src/index.ts`、`packages/api/workspace-controller/src/index.ts`：校验并传递差异上下文参数。
+  - `packages/host/git/src/git-workspace.mjs`：由 Git Owner 按边界限制的上下文行数返回真实差异。
+  - `apps/cli/tests/client-git-change-review-layout.test.mjs`、`apps/cli/tests/git-workspace.test.mjs`：覆盖页面合同、左右差异列、窄容器/设置令牌、请求取消和上下文差异。
+  - `packages/client/ui-workspace/README.md`、`packages/client/connection/README.md`、`packages/api/agent-git-controller/README.md`、`packages/api/workspace-controller/README.md`、`packages/host/git/README.md`：记录页面、API 与 Host Git Owner 合同。
+  - `docs/PROMPTS.md`：登记目标、设置、实施与验证结果。
+- 设置：没有新增设置或更改用户偏好；继续使用 Appearance 的主题、代码字体/字号、差异标记与现有页面遮罩映射。
+- 回归与构建：`node --import tsx --import ./apps/cli/register-package-loader.mjs --test apps/cli/tests/client-git-change-review-layout.test.mjs apps/cli/tests/git-workspace.test.mjs` 通过（8/8）；`node node_modules/typescript/bin/tsc --noEmit -p tsconfig.client.json` 通过；`pnpm run build:control-plane` 与 `pnpm run build:web` 通过；本轮文件 `git diff --check` 通过。Web 构建报告现有 `cpp` chunk 大于 500 kB 警告。
+- 内置浏览器实页：正式 `pnpm lfaa web`（默认托管本机 Daemon），`http://127.0.0.1:3000/work`，1280×720。点击“变更”后看到真实分支 `main → 工作区`、3 个文件、`+621 −0` 和展开的逐文件差异；截图确认新增代码位于并排右列。临时收窄右侧栏至 649px，顶部控件换行、代码仅在差异内容区水平滚动；之后恢复原 splitter 读数 904。未打开“完整文件”、管理操作或 Git 写操作。截图由内置浏览器显示，工具未提供本地导出路径；未测独立手机设备。
+- 服务状态：控制端/Web 构建更新后按正式入口重启当前 checkout 的 Web；最终 `/api/health` 与 `/work` 页面返回成功。页面首次切换到 Git 时，应用照现有合同发送了 Agent 仓库 ensure 和默认工作区初始化请求；未提交/暂存/推送或改写项目文件。
+
+<a id="lfaa-auth-session-expiry-race-20261023"></a>
+## 224-登录后会话被错误清除（2026-10-23）
+
+### 用户问题、目标与入口
+
+- 用户问题及影响：Web 与桌面端都遇到登录成功后很快又被要求登录，导致账户工作区无法稳定使用。
+- 当前证据/复现：本机日志显示 `/api/auth/login` 返回 200，约 5 秒后 `/api/auth/passkeys` 返回 401；Passkey 设置提示在用户进入工作台 5 秒后读取通行密钥。当前日志未保留该 401 的错误码，不能据此断言是 Cookie 缺失还是会话无效。Client 对明确会话 401 会立即派发全局 `lfaa:session-expired`，App 随即清除当前用户并返回登录页。
+- 目标结果：刚成功建立的登录会话不被迟到的旧响应或非权威单次读取误判为过期；只有当前认证 Owner 确认会话无效时才要求重新登录。密码和通行密钥登录均适用。
+- 运行入口：Web 与 Electron Desktop 共用 Client；登录页 `/` 或 `/login` → `/work`。回归覆盖 Client Connection 与隔离 Host/API，实际 Web 页面目标为当前源码正式服务 `http://127.0.0.1:3000/`。
+
+### Owner、设置与数据边界
+
+- 调用链和唯一 Owner：Client `packages/client/connection` 的 API 请求 → Account Controller `auth/me` Typert Remote → Authorization Middleware → Identity Auth 的 SQLite Session。Cookie 签发/校验、会话表和账户隔离不迁移、不复制。
+- 设置：没有认证设置项；现有 `general.notificationPopupsEnabled`（默认开启、设置中心 General 持久化）只控制通行密钥设置提示。本修复不修改该设置或任何用户偏好。
+- 数据与权限：`lfaa_session` 继续由服务端设置为 HttpOnly、SameSite Strict Cookie，Session 继续由 Identity Auth 按账户管理；不延长会话、不绕过认证、不增加权限模式。
+
+### 修改范围与验收
+
+- 允许修改：`packages/client/connection/src/api.ts`、`packages/credentials/authorization/src/middleware.ts`、直接相关长期回归、必要包 README 与本合同/索引。
+- 禁止改变：密码或通行密钥校验、服务端会话有效期、角色/账户隔离、Cookie 安全属性、设置值、与本缺陷无关的已有工作区差异。
+- 可观察验收：登录/通行密钥登录完成前发起的旧请求即使随后返回 401，也不能触发新会话退出或清除新 Cookie；当前请求 401 后须复核现行 `auth/me`，仅其明确返回会话鉴权失败时派发一次全局退出；临时网络/服务错误不能当作失效；请求重试/复核有界；服务端拒绝无效会话的认证行为保持不变。
+- 验证：运行 Client/API/Authorization 直接回归，Client 与 Host 类型检查及直接包/入口构建；检查登录态入口的源码服务与实际页面状态，不使用真实密码修改账户数据，不把未实测的桌面 WebView 描述为通过。
+
+### 实施与验收记录
+
+- 状态：源码修复与直接回归完成；正式 Web/Host 入口构建及实页/桌面验收受当前工作区其他未完成改动阻断，不能标记为端到端验收通过。
+- 外部排查：已依仓库顺序检查社交媒体、技术社区、项目 GitHub 与官方文档；未找到与 LFAA 该调用链及版本匹配、可验证的现成修复。本轮方案基于当前源码、已有本机请求日志和隔离回归自行验证。
+- 根因与修复：5 秒后的通行密钥设置提示请求 `/auth/passkeys` 会进入通用 Client Connection 认证错误处理；原逻辑让任意受保护读取的会话 401 立即触发全局退出。现在 401 先由 `auth/me` Remote 复核；并发复核每个认证代次最多一条，网络/服务异常不当作已退出；密码/通行密钥登录和注销推进认证代次，旧请求和旧复核不能覆盖新身份。所有普通 API、二进制、插件流及 AI SSE 的会话 401 共用该处理。
+- 服务端认证仍严格拒绝缺失、无效或过期 Session。`requireAuthentication` 不再从失效请求发送清 Cookie 响应，避免请求处理/响应乱序时删掉后来成功登录的 Cookie；显式 `/auth/logout` 仍清 Cookie，Identity Auth 的 Session 校验、账户隔离与 8 小时有效期不变。
+- 变更文件：
+  - `packages/client/connection/src/api.ts`：加入认证代次和可撤销、合并的当前会话复核；保护普通 API、二进制、插件安装流和 AI SSE，不在辅助请求的单次 401 上直接退出。
+  - `packages/credentials/authorization/src/middleware.ts`：失效 Session 仍返回 401，但不让迟到的错误响应清除当前 Cookie。
+  - `apps/cli/tests/client-requests.test.mjs`：回归旧 401 晚到、有效 Session 保持登录、复核服务故障不误退、权威会话失效及并发复核合并。
+  - `apps/cli/tests/authorization-session-cookie.test.mjs`：在独立临时 SQLite 目录直接验证缺失/无效 Cookie 仍拒绝请求且不下发清 Cookie。
+  - `apps/cli/tests/typert-gateway.test.mjs`：补充真实 Host 登录后旧 Cookie 请求不能清除新登录 Cookie 的集成断言；该集成用例在当前 Host 启动阶段被本工作区已有的本地模型导入错误阻断，独立 Middleware 回归已通过。
+  - `packages/client/connection/README.md`：记录会话复核、登录代次与显式注销清 Cookie 的 Client 合同。
+  - `docs/PROMPTS.md`：登记任务范围与本轮实施/验收证据。
+- 设置：未新增或修改设置；`general.notificationPopupsEnabled` 默认开启并继续仅控制通行密钥设置提示。没有写入账户偏好或真实会话数据。
+- 实际验证通过：`pnpm exec node --import tsx --import ./apps/cli/register-package-loader.mjs --test apps/cli/tests/client-requests.test.mjs apps/cli/tests/authorization-session-cookie.test.mjs`（15/15）；`pnpm --filter lfaa-client-connection run build`、`pnpm --filter lfaa-authorization run build`、`pnpm --filter lfaa-api-account-controller run build` 均通过，输出在根 `dist/packages/`；`git diff --check` 通过。
+- 实际验证受阻：`pnpm exec tsc --noEmit -p tsconfig.client.json` 与 `pnpm run build:web` 被当前 `packages/client/ui-settings/src/SettingsPage.tsx` 内未完成的本地模型设置改动阻断；Web 构建未进入 Vite。`pnpm exec tsc --noEmit -p tsconfig.host.json` 与 `pnpm run build:control-plane` 被当前未完成的 `packages/llm/llm-local-runtime` / `llm-minimax-h3` / `llm-moss-image` / `video/ai-video` 改动中的缺失导出、类型错误阻断。`apps/cli/tests/typert-gateway.test.mjs` 启动 Host 时同样因 `lfaa-llm-local-runtime` 未导出 `ManagedPythonWorker` 失败；错误不在本轮修改文件。
+- 实页/运行验收：未运行 Web 登录页面或 Electron WebView 登录流程。`node scripts/runtime-build-state.mjs web` 返回 `['host']`，表示 Web 产物指纹匹配当前源码但控制端产物过期；`pnpm run build:web` 在 TypeScript 预检失败，未进入该命令的 Vite 阶段；当前 3000 端口没有服务监听，Host 构建也受前述类型错误阻断，因此没有可运行的当前源码完整入口。测试验证的是客户端时序和服务端认证中间件，不等同真实浏览器或桌面端到端验收。
+- 性能/安全/维护性：正常请求路径没有增加请求；仅在会话类 401 时发起一次当前身份读取，同一代并发失败共用复核；登录/注销会取消过期复核。失效 Session 仍被拒绝，认证错误不能清除新 Cookie，显式注销仍清理 Cookie。真实帧时间、Web 浏览器与桌面 WebView 均未测。
+
+<a id="lfaa-auth-transition-css-performance-20261023"></a>
+## 228-登录转场 CSS 性能优化（2026-10-23）
+
+### 用户问题、目标与入口
+
+- 用户感觉登录后进入工作台的动画卡顿，要求优化时减少代码冲突和性能影响；明确要求保留 3D 观感，并指出简单动画优先使用 CSS。
+- 运行入口：Web 与 Electron Desktop 共用 Client；未认证 `/` 或 `/login` → 登录成功后的 `/work`。
+- 验收目标：保留黑洞吸入、透视旋转与核心环绕的 3D 感；不再运行全屏逐帧 WebGL 着色器，不再创建多组碎片/粒子 DOM；动画只改 transform/opacity，时长显著缩短；转场结束后及时释放登录覆盖层并恢复工作台交互。
+
+### Owner、设置与数据/权限边界
+
+- 唯一 Owner：`packages/client/ui-settings-account` 持有登录页和转场视觉，`packages/client/ui-renderer/src/App.tsx` 只负责已有转场阶段及工作台门控；Web/Desktop 使用同一 Client。
+- 设置：复用 `appearance.advanced.reducedMotion`（默认 `system`）及 `appearance.advanced.authTransitionPluginId`（默认 `builtin`）；保持系统减少动态效果和自定义转场槽行为，不新增依赖或设置。
+- 数据与权限：不读写账户数据、不改变认证、会话、权限与工作台预热合同。
+
+### 允许范围与验收
+
+- 允许修改登录转场组件/CSS、仅含转场超时的 App 精确代码段、对应长期登录反馈回归、该包 README 与本合同/索引；允许删除不再使用的 WebGL 转场源文件。
+- 禁止删除或弱化 3D 透视/旋转观感，禁止扩大改动到工作台/认证逻辑；本轮不新增动画库或用户偏好，后续动画库的选择门槛与 Motion 使用约定见 `docs/development/auth-transition-plugins.zh.md`；禁止覆盖已有未提交工作。
+- 运行登录反馈定向回归、Client 类型检查、相关包构建、Web 构建和差异检查；按当前可运行入口条件完成桌面、窄/短视口实页检查。记录源码/构建与真实帧时间的区别。
+
+### 实施与验收记录
+
+- 状态：实现完成；本轮某次后续 Web 构建检测到源码在构建期间变化，按指纹规则未记录该次产物。源码稳定后需重建 Web/Host 再确认运行树。
+- 文档补充：`docs/development/auth-transition-plugins.zh.md` 记录固定时序动画继续使用 CSS、复杂 React 编排/手势/退出协调才评估 Motion，以及 `motion/react`、`m` + `LazyMotion`、`useAnimate`、Owner 减少动态效果判断、包体积和帧时间核对方式；本轮登录动画仍由 CSS 实现，没有新增动画依赖。
+- 外部排查：已按社交媒体、技术社区、项目 GitHub、官方文档顺序排查；社交/社区只提供一般经验，未找到可直接套用到 LFAA 当前转场的方案；项目 GitHub 搜索未返回匹配问题，网页 Issue 页面受限。官方性能指导支持仅动画 transform/opacity，并提醒图层数量也有内存成本。方案按当前 Owner 精简 CSS，不引入动画库。
+- 实施：移除 `LoginTransitionScene` 全屏 WebGL 逐帧绘制，以及 12 个碎片、8 个粒子的 DOM/CSS 动画；使用 CSS 保留倾斜吸积环、核心、卡片透视和深度吸入，主动画约 420ms，覆盖层淡出 160ms，`App.tsx` 兜底 520ms。动画限于 `transform`/`opacity`，`will-change` 仅在转场期间启用；减少动态效果设置仍由现有设置驱动。
+- 定向验证：`client-auth-feedback-layout.test.mjs` 中反馈位、CSS 3D 转场与工作台门控 3/3 通过；账户包和 Renderer 包构建通过。该文件完整 17 项运行结果为 15 通过、2 失败；失败断言针对当前未完成的 `SettingsPage.tsx` 改动，不属于本轮转场。
+- 构建验证：Web TypeScript 预检及 Vite 构建曾在本轮通过；后续构建过程中检测到 `llm-local-runtime`、`home-paths`、`ui-workspace` 等当前工作区文件发生变化而中止，`runtime-build-state.mjs web` 当前返回 `['host','web']`。没有将过期/变化中的运行树标记为有效。
+- 实页验收：隔离数据目录启动 `http://127.0.0.1:3001`，实际走 `/login` → `/work`；内置浏览器视口 1280×720 捕获到倾斜缩小的登录卡片、黑洞遮罩及工作台在覆盖层后的显示。3000 原实例会话未参与本次登录测试。窄/短视口、真实帧时间、Electron WebView 未测；当前内置浏览器 API 不提供视口覆盖或帧时间采样。
+- 清理：测试服务已停止；本轮临时 Home/Data 位于 `dist/.tmp/auth-transition-css-performance-20261023`。本机命令策略阻止了目录删除，目录未清理，不进入产品构建/运行树。
+
+<a id="lfaa-document-inventory-archive-index-20261023"></a>
+## 229-LFAA 文档盘点与归档索引校正（2026-10-23）
+
+### 用户问题与目标
+
+- 用户希望了解仓库文档数量和分布，检查文档是否混乱，并找出已确认标记废弃/被取代的文档，避免旧架构与新架构同时作为当前要求。
+- 目标：报告可复核的 Markdown 数量和目录分布；当前架构/开发规范继续作为权威入口，旧材料只保留为历史证据；核对归档合同索引与实际文件一致。
+- 用户补充希望优化 GitHub 展示的说明文档，并指出根目录 README 仍有旧架构说明；随后要求 README 写得详细、提供页内和文档跳转，并明确说明用户如何使用、构建 Web、组装 npm 包及构建/打包桌面端。核查确认旧 README 把 App 内 AI Work 模式、`/tasks` 主入口和迁移期目录图作为当前架构；目标是以现行 `/work` 通用 Agent 工作台与领域 App 分工重写根目录中英文 README，准确给出仓库实际支持的命令、产物和平台边界。
+- 用户再次明确要求包括“用户怎么用、Web 怎么构建/打包、桌面端怎么构建/打包”的可执行步骤。按当前 `package.json`、CLI 指南、Electron 包 README 和桌面产物整理脚本补全说明；区分前端单独构建、完整 Web 运行树、npm CLI tarball 和 Electron NSIS 安装包。
+- 根 README 引用的 `docs/img/system-architecture.svg` 和 `docs/img/app-workbench-mindmap.svg` 也都描述旧的 App 内 AI Work 模式，因此从 GitHub 首页移除图示引用；图文件保留，不在本轮重绘或删除。
+
+### Owner、设置、数据与权限
+
+- 文档权威：根目录 `开发规范.md` 定义工程规则；`docs/系统总体架构.md` 定义当前事实；`docs/开发计划.md` 定义待办；`docs/PROMPTS.md` 保存任务合同与实施证据；`docs/archive/README.md` 与 `.zh.md` 说明历史资料边界。
+- 设置、账户数据与权限：本轮只读盘点并修改索引、导航和根 README，不涉及产品设置、用户数据、认证或权限。
+
+### 允许范围与验收
+
+- 允许修正中英文归档索引中合同文件范围和历史合同总数；新增 `docs/development/README.md`、`.zh.md` 导航并从 `docs/README.md`、`.zh.md` 链接；更新根目录 `README.md`、`README.en.md`，详细说明产品结构、主要能力、首次使用、开发启动、Web/CLI/npm/桌面构建与打包、平台边界，并提供页内目录及分主题文档链接。保留既有历史审计、合同及用户资料，不迁移文件、不删除历史证据；移除根 README 中过时架构图的引用，不修改图文件或其他产品源码。
+- 盘点排除依赖目录、构建产物和 Git 元数据。区分独立文件被废弃与任务合同/旧设计中的某项约定被取代；只有前者才作为整份文档删除候选。
+- 验收：Markdown 数量和归档合同数量由当前 checkout 文件清单复算；中英文索引一致；开发文档索引的文件链接全部指向现有文档；两份根 README 对当前主入口、能力边界、首次使用、Web 与桌面构建/打包命令、输出位置和平台状态的说明与架构/计划/CLI/根 `package.json` 实际脚本一致；提供可用的页内目录和有效文档跳转；不引用旧架构图；README 本地链接有效；`git diff --check` 通过。文档变更不运行产品构建。
+
+### 实施与验收记录
+
+- 盘点结果：仓库共 316 份 Markdown，其中 `docs/` 137 份；`docs/archive/` 23 份（审计 10、合同 10、旧计划 1、中英文索引 2）。`docs/archive/contracts/01.md` 至 `10.md` 共 172 个二级合同标题、173 个显式锚点。上述数量按当前工作区文件清单统计，排除 `node_modules/`、`dist/` 与 `.git/`。
+- 明确被取代的任务记录见 `docs/PROMPTS.md`：79 号旧插件工作区卡片布局被统一标签任务取代；220 号 ComfyUI 格式 MOSS 初版由 225 号 LFAA 原生模型核心合同取代；`LFAA-PORTABLE-DATA-ISOLATION-01` 由更新后的数据归属规则取代。它们是任务历史条目，不是可删除的独立文档。没有发现整份 Markdown 文档被明确标为废弃。
+- 归档索引修正：实际归档范围为合同文件 01–10，共 172 项；历史记录继续仅作追溯，不作为当前架构、有效合同或操作授权。
+- 用户补充：要求进一步优化导航；新增开发文档中英文入口，按长期指南、当前目标和按主题分组的实施/验收记录组织。现有文件路径与历史证据保持不动。
+- 根 README 改写：将产品入口更新为统一 `/work` 通用 Agent 工作区，说明 Agent 与手动 App 操作共用领域 Owner，并概述 Profile/Bundle、Daemon、游戏服务端/写作/AI 视频能力；提供页内目录、功能表和按用户操作/架构能力/开发维护分类的文档跳转。删除两张旧架构图的首页引用，避免继续展示“每个 App 内切换 AI Work”的错误结构。中英文版本的章节与事实保持对应。
+- 使用和构建说明：补充首次管理员初始化、设置中心配置 Provider、进入 `/work`；列出 `pnpm dev`、`pnpm run build:web`、`pnpm run build:control-plane`、`pnpm run build`、`pnpm run pack:cli`、`pnpm run build:desktop:win` 及 Tauri 兼容命令的用途和输出。写清 Electron 当前仅交付 Windows x64 NSIS，含 `.exe`、`.blockmap`、`latest.yml` 的最终目录，以及 macOS/Linux 桌面无可用打包命令的现状。
+- 文件职责：根目录 `README.md` 与 `README.en.md` 是 GitHub 首页中英文入口，含页内目录、工作流程、能力边界、首次使用、Web/CLI/npm/Windows Electron 构建打包命令、产物路径及分主题文档导航；`docs/development/README.md`、`README.zh.md` 提供中英文开发文档导航；`docs/README.md`、`README.zh.md` 从总目录指向对应开发索引；`docs/archive/README.md`、`README.zh.md` 修正归档合同范围/数量并标注历史边界；本文件记录盘点、被取代合同与验收结果。
+- 验证：重新统计 Markdown 与归档合同标题/锚点；对两份根 README 检查所有本地 Markdown 目标和页内/文档锚点，断链 0、无效锚点 0；过时架构图引用未再出现；`git diff --check` 通过。命令和产物与根 `package.json`、CLI 指南、Electron 脚本及产物整理器核对一致。没有运行产品构建、产品测试或界面验收，因为本轮仅修改文档。
+
+<a id="lfaa-workspace-unique-utility-tabs-20261023"></a>
+## 227-变更标签单例与入口同步（2026-10-23）
+
+### 用户问题、目标与入口
+
+- 用户截图指出：右侧“新标签页”工具列表里，“变更”已经打开为独立顶栏标签后，“变更”入口仍出现并允许重复打开。
+- 目标：仅“变更”工具是单例。只要 Git 变更标签已存在，所有新标签页立即隐藏“变更”入口、不留占位；再次从快捷键/程序入口触发时切换到现有标签；关闭变更标签后入口恢复。其他工具仍保持入口可见并允许重复打开。
+- 当前阶段只修 Git 变更标签唯一实例和新标签页中的对应入口；不改右侧盒子布局、其他工具行为、工具内容、Git 执行或 Browser Owner。普通网页仍沿浏览器自己的多网页标签合同运行。
+
+### Owner、设置、数据与权限
+
+- 运行入口：Web/Desktop 共用 Client `/work`；`ApplicationWorkspace` (`packages/client/ui-workspace`) 持有 `workspaceUtilityTabs`、活动标签和新标签页 Git 入口。Git 变更内容仍由现有 Git UI/Owner 呈现；其他工具仍由现有面板、应用导航、扩展和路由呈现。
+- 设置：继续使用 `gitManagerAvailable` 的真实能力状态控制“变更”入口；新标签页继续使用 Appearance/工作台共享样式。不新增设置、不保存偏好。
+- 数据与权限：标签唯一性仅为当前工作区的内存 UI 状态，不跨账户/模式保留；功能执行、导航、扩展登记、认证和 Permission Owner 合同不变。
+
+### 允许范围与验收
+
+- 单批次：新标签页仅在已有 `kind: "git"` 标签时隐藏“变更”按钮；打开已有 Git 工具时选中原标签，不创建副本。应用、侧边聊天、扩展和终端入口始终沿用现有可见/重复打开行为；浏览器网页多标签和右侧盒子样式保持原行为。
+- 回归覆盖 Git 入口存在时的隐藏、入口恢复、程序入口重复触发聚焦原 Git 标签且不新增标签；并确认其他工具入口未新增隐藏条件。运行直接相关 Client 类型检查、Web 构建及差异检查。
+- 内置浏览器打开实际 `/work`：打开“变更”后新建空白标签，确认“变更”按钮消失且其他工具仍显示；通过中心 Git 入口再次请求 Git 时回到原标签；关闭 Git 标签后按钮恢复。检查常用桌面和窄分栏视口，记录截图证据与未测边界。
+
+### 实施与验收记录
+
+- 状态：代码、定向回归、Client 类型检查、正式 Web 构建、Host/Web 指纹检查和内置浏览器实页验收均已完成。
+- 外部排查：已按社交媒体、技术社区、项目 GitHub、官方文档顺序查询；未找到 LFAA 对应现成修复。React 官方文档说明动态组件应由单一状态源与稳定身份管理；该建议与当前 `ApplicationWorkspace` 标签 Owner 一致，但具体唯一键/入口过滤由当前实现决定。`gh` CLI 未安装，网页项目仓库检索未返回相关 LFAA Issue；不以其他项目的重复标签案例套用实现。
+- 用户补充边界：仅“变更”工具需隐藏重复入口并禁止重复标签；应用、侧边聊天、扩展、终端和文件保持原有可见/重复打开/路由行为。
+- 改动文件：
+  - `packages/client/ui-workspace/src/ApplicationWorkspace.tsx`：按当前 `workspaceUtilityTabs` 派生 Git 标签是否已开；已开时新标签页不渲染“变更”入口，再次打开 Git 时选中既有标签并返回，其他工具的入口及创建行为不变。
+  - `apps/cli/tests/client-workspace-unique-git-tab.test.mjs`：覆盖变更入口隐藏/恢复、重复触发聚焦现有标签以及其他工具保持原行为。
+  - `packages/client/ui-workspace/README.md`：补充仅 Git“变更”单例、其他工具可重复打开的 Client 合同。
+  - `docs/PROMPTS.md`：登记用户补充边界及本轮实现/验证状态。
+- 设置：未新增或修改设置；沿用 Git 能力状态与工作台现有 Appearance 映射，没有写入账户偏好。
+- 已通过：`node --test apps/cli/tests/client-workspace-unique-git-tab.test.mjs`（3/3）、`node --test apps/cli/tests/client-workspace-app-tabs.test.mjs`（6/6）、`node --test apps/cli/tests/client-workspace-right-launcher-layout.test.mjs`（5/5）、`pnpm exec tsc --noEmit -p tsconfig.client.json`、`git diff --check`、`pnpm run build:web`；最终 `node scripts/runtime-build-state.mjs web` 返回 `[]`，Host/Web 指纹匹配，`http://127.0.0.1:3000/work` 返回 HTTP 200。构建早期因其他源码并行变化失效的尝试及一次无关 Control Plane 类型错误已由稳定源码后的成功构建与服务启动取代。
+- 内置浏览器验收：在 `/work` 的 1280×720 页面先打开“变更”，再新建标签页，确认“变更”入口隐藏且“终端”“文件”“侧边聊天”仍显示；从中心 Git 入口再次调用后选中同一个“变更”标签，未产生第二个 Git 标签；关闭它后新标签页中的“变更”入口立即恢复。当前截图来自正式 Web 服务的实际页面。窄/短视口未单独切换，本轮没有改 CSS、布局或几何尺寸。
+- 性能与边界：仅扫描当前内存标签数组派生 Git 入口显隐，没有新增请求、订阅、定时器或持久化状态；实际页面交互通过，未单独采集帧时间；其他工具的重复打开路径由静态定向回归保护，本次实页只检查其入口仍显示。
+
+<a id="lfaa-workspace-tab-add-button-position-20261023"></a>
+## 230-右侧工作区新建标签按钮位置（2026-10-23）
+
+### 用户问题、目标与入口
+
+- 用户截图指出：右侧工作区“+”目前固定在顶栏最右侧，与工作区标签隔开；应移到标签序列末尾，紧跟最后一个标签右侧。
+- 运行入口：Web/Desktop 共用 Client `/work` 的 `ApplicationWorkspace` 工作区标签栏，样式由 `packages/client/ui-workspace/src/css/right-menu.css` 负责。
+- 目标：让“+”成为标签条末尾的相邻按钮；继续通过原 `createWorkspaceUtilityTab` 创建空白标签，不改变标签选择、关闭、滚动及其他顶栏按钮。
+
+### Owner、设置、数据与权限
+
+- Owner：标签状态与新建操作归 `ApplicationWorkspace`；响应式标签栏外观归 `ui-workspace` 的右侧菜单样式。`+` 保持在 `role="tablist"` 之外，避免将操作按钮伪装成标签。
+- 设置：此位置调整不对应设置中心选项；继续沿用既有外观令牌，不新增或改写主题/尺寸偏好。
+- 数据、权限：只创建现有内存工作区空白标签；不改变账户、浏览器、Git、认证或 Permission Owner。
+
+### 允许范围与验收
+
+- 只调整工作区标签栏中标签导航与“+”的相邻布局；不改右侧盒子、标签语义/功能或顶栏终端和收起按钮。
+- 通过直接相关回归与 Client 类型检查，构建正式 Web 并校验 Host/Web 指纹。
+- 内置浏览器实际打开 `/work`，常用桌面及窄右栏视口检查“+”紧邻标签、不会挤掉/遮挡顶栏其他按钮；点击“+”仍新建标签。记录实际视口、交互、截图及未测范围。
+
+### 实施与验收记录
+
+- 状态：完成。移除标签导航与“+”之间的弹性空白；标签导航按现有标签内容收缩，超出时保留横向滚动，并为加号预留宽度。窄右栏切换紧凑标签尺寸。
+- 改动文件：
+  - `packages/client/ui-workspace/src/ApplicationWorkspace.tsx`：移除标签导航后的弹性占位；“+”仍是标签导航的下一个兄弟按钮，位于 `tablist` 外。
+  - `packages/client/ui-workspace/src/css/right-menu.css`：标签条按内容收缩并为加号预留空间；常规与窄右栏限制标签宽度，保留横向滚动。
+  - `apps/cli/tests/client-workspace-app-tabs.test.mjs`：回归检查标签/加号结构、无弹性空白、内容宽度和窄栏空间预留。
+  - `packages/client/ui-workspace/README.md`：记录“+”紧跟当前标签序列末尾的工作区标签栏合同。
+  - `docs/PROMPTS.md`：记录本任务范围与验收证据。
+- 设置：未新增或修改设置；继续沿用现有外观令牌，没有写入用户偏好。
+- 已通过：`node --test apps/cli/tests/client-workspace-app-tabs.test.mjs`（6/6）、`node --test apps/cli/tests/client-workspace-right-launcher-layout.test.mjs`（5/5）、`node --test apps/cli/tests/client-workspace-unique-git-tab.test.mjs`（3/3）、`pnpm exec tsc --noEmit -p tsconfig.client.json`、`pnpm run build:web`、`node scripts/runtime-build-state.mjs web`（返回 `[]`）、`git diff --check`。正式 Web 服务 `/work` 返回 HTTP 200。
+- 内置浏览器实页：`http://127.0.0.1:3000/work`。最终构建重新加载后，桌面 1312×1244、1 个标签时，标签导航右边界 x=918，“+”左边界 x=922，间隔 4px；点击“+”后标签数增至 2，再关闭临时标签恢复 1 个。窄分栏 660×720 时，右侧容器宽 273px；2 个紧凑标签时，导航右边界 x=449.67，“+”左边界 x=450.67，间隔 1px；点击“+”成功新增标签。测试后关闭临时标签并恢复默认视口，最终保留 1 个标签。截图确认加号紧随标签末尾且其他顶栏按钮仍可见。
+- 性能与边界：只调整标签栏的弹性尺寸与最大宽度，没有新增请求、订阅、定时器或持久化状态；响应式断点只在 660×720 和默认桌面视口实测。平板、手机、桌面原生 WebView 及帧时间未单独测试。
+
+<a id="lfaa-desktop-package-version-status-inheritance-20261023"></a>
+## 232-Windows 桌面包版本状态继承（2026-10-23）
+
+### 用户问题、目标与入口
+
+- 用户从仓库根目录运行 `pnpm run build:desktop:win` 时，版本预检因最新源码级更新日志没有 Windows Electron 包状态而失败；用户要求修复并避免每次出现同类问题。
+- 目标入口：根目录 `build:desktop:win` → `build:desktop:electron:win` → `scripts/desktop-package-version.mjs prepare` → Electron Windows x64 NSIS 打包。
+- 目标：源码级日志沿用相同产品版本时，从最近的同版本历史记录恢复已消耗/待构建状态；绝不从其他产品版本继承包状态。
+
+### Owner、设置、数据与权限
+
+- 唯一 Owner：`scripts/desktop-package-version.mjs` 解析权威 `docs/updata-log.md`，并与 CLI/Web/Electron 清单和 `update.json` 对账；Electron 产物归 `scripts/desktop-package-artifacts.mjs`。
+- 设置：不涉及设置中心配置。
+- 数据与权限：不读写运行数据、账户或密钥；只更新产品版本/发行日志及根 `dist/` 构建产物。用户已授权实际运行打包命令；不上传、不安装、不发布。
+
+### 允许范围与验收
+
+- 只改版本状态读取、随包运行树验收的临时数据隔离、直接相关的长期回归、桌面包说明与本合同。
+- 同版本缺少状态时继承最近的匹配记录；历史状态中的安装器版本必须和该记录版本一致；不同版本状态不得被继承。无同版本历史状态时沿用“待构建”初始行为。
+- 运行桌面版本状态定向回归、`git diff --check` 与用户要求的根目录打包命令；核对最终安装器、`blockmap`、`latest.yml`、清单版本、更新日志状态及源码改动范围。构建不等于安装启动或桌面体验验收。
+
+### 实施与验收记录
+
+- 状态：实现与候选安装包验收完成。`findPackageReleaseForVersion()` 沿更新日志查找最近的同版本桌面包记录，并以该记录状态/日期/发布说明与 `update.json` 对账；状态不跨产品版本继承，带错误版本号的安装器状态会明确拒绝。随包运行时检查每次在根 `dist/.tmp/desktop-electron/` 下创建唯一临时 `LFAA_HOME` 与 `LFAA_DATA_DIR`，进程结束后校验路径边界并删除，避免打开真实用户账户数据库或锁住运行中的服务。
+- 本轮文件职责与改动：
+  - `scripts/desktop-package-version.mjs`：新增同版本历史包记录继承与精确版本一致性校验；由历史 #19 判断 0.0.8 已消耗，生成下一修订版本 0.0.9。
+  - `apps/desktop-electron/scripts/verify-packaged-runtime.mjs`：为随包 Profile 插件导入检查建立并清理隔离 Home/Data，修复与运行中 LFAA 的 Home 锁冲突。
+  - `apps/desktop-electron/tests/desktop-package-version.test.mjs`：增加源码记录继承同版本发行状态、忽略其他版本、拒绝状态版本不匹配三类回归。
+  - `apps/desktop-electron/README.md`：说明同版本源码日志、桌面包状态/更新清单继承，以及随包检查使用隔离 Home/Data。
+  - `apps/cli/package.json`、`apps/web/package.json`、`apps/desktop-electron/package.json`、`update.json`、`docs/updata-log.md`：根打包流程同步为 `0.0.9`；更新清单采用本轮发行说明，日志标记 NSIS 安装器已生成。
+  - `docs/PROMPTS.md`：登记本合同和本轮构建/验收事实。
+- 设置：未新增或修改设置中心配置。构建不读写账户偏好；随包导入检查使用一次性隔离的账户/业务数据目录。
+- 定向验证通过：`node --test apps/desktop-electron/tests/desktop-package-version.test.mjs`（8/8）；`node --check apps/desktop-electron/scripts/verify-packaged-runtime.mjs`；`git diff --check`；更新清单校验；修复后的 `node apps/desktop-electron/scripts/verify-packaged-runtime.mjs`（“桌面 Profile CUA Driver 导入与工具注册通过”）；`node scripts/desktop-package-artifacts.mjs collect`；`node scripts/desktop-package-version.mjs complete`。最终 `verifyDesktopPackageArtifacts()` 返回版本 0.0.9、安装器大小 176175201 字节，SHA-512 与 `latest.yml` 一致；`getDesktopPackageBuildState()` 返回 `{ version: '0.0.9', packageStatus: 'built' }`。发行目录只含安装器、blockmap 和 latest.yml。
+- 根命令过程：首次 `pnpm run build:desktop:win` 在旧预检因 #21 缺包状态退出；补上同版本历史恢复后发现旧校验还把源码记录和 update.json 强制逐字相同，改为对账同版本桌面包记录。之后同一根命令构建 Control Plane、Windows Sandbox Host、2284 模块 Web 候选及 NSIS 安装器成功，首次随包导入检查因旧实现漏设 `LFAA_HOME` 而退出；隔离修复后对已生成的同一 0.0.9 暂存包重新执行导入检查、整理和版本登记，均通过。未再次重启全量根命令，以免为复核而额外生成下一个产品版本；因此本轮根命令完整单次退出码仍为失败，最终包已通过其后置校验并完成交付整理。
+- 发行边界：最终产物为 `dist/apps/desktop-electron/LFAA-0.0.9/` 下三文件，安装器未签名（`Get-AuthenticodeSignature` 为 `NotSigned`）。未安装、启动 Electron 窗口、做升级/卸载或真实设备交互；GitHub/其他外部位置未上传。构建通过不代表桌面实机体验验收。
+
+<a id="lfaa-workspace-git-summary-responsive-auto-20261023"></a>
+## 231-右侧栏宽度联动 Git 摘要卡（2026-10-23）
+
+### 用户问题、目标与入口
+
+- 用户提供两张不同右栏宽度的 `/work` 截图：较窄时，右栏左边的 Git 项目摘要卡应已展开；右栏进一步变宽后，摘要卡应自动吸附收起。
+- 目标：按工作台实际容器和右栏宽度做响应式切换，不读取全局窗口宽度。窄态默认展开，宽态默认收起；只在初次测量或跨越临界边界时自动切换，用户手动开合在当前宽度状态内保留，跨边界后重新对齐默认态。
+- 适用桌面/紧凑布局的 `/work` Git 项目摘要浮层；手机继续使用现有侧栏摘要页面，不自动打开。
+
+### Owner、设置、数据与权限
+
+- Owner：`ApplicationWorkspace` 持有 Git 摘要开合状态；DockKit 提供已布局的真实工作台根容器和右侧栏 DOM 尺寸。摘要内容、仓库状态读取和操作仍归现有 Git Summary / Git Owner。
+- 设置盘点：右栏尺寸与收起状态沿用 `ResizableWorkbench` 现有本地布局存储和用户拖动结果；外观继续读取 Appearance 的主题、颜色、字体与减少动态效果映射。没有对应的用户可配置阈值，本轮不新增设置、不覆盖已保存布局或外观偏好。
+- 性能与数据：通过一个可清理的 `ResizeObserver` 观察工作台根容器和右栏；仅在初始测量或跨越状态边界时更新摘要开合，不轮询、不写入持久化数据。摘要打开后的真实 Git 状态加载仍复用原 Owner 与去重请求。
+- 认证、数据归属及 Permission Owner 合同不变。
+
+### 允许范围与验收
+
+- 只让右侧栏实宽联动 Git 摘要浮层的默认展开/收起；不改右栏盒子、标签、工具入口与 Git 执行逻辑。
+- 用相对工作台根宽度的阈值区分截图所示较窄和较宽状态；检查容器变化、右栏拖动跨界、用户手动开合及手机摘要页。
+- 添加定向回归，运行 Client 类型检查、正式 Web 构建和 Host/Web 指纹校验。
+- 内置浏览器打开正式 `/work`；实测两种右栏宽度、拖动跨界和窄分栏，记录真实视口、交互结果与截图。不得将静态或构建检查代替实页验收。
+
+### 实施与验收记录
+
+- 状态：完成。`ApplicationWorkspace` 只在初次测量或工作台根宽度比例跨越 76% 时自动更新摘要浮层状态；使用 `ResizeObserver` 观察真实根容器与右栏宽度，排除手机和语音布局。用户在当前窄/宽状态内手动开合时不触发重置；离开状态后再次跨界才回到对应默认值。右栏隐藏或无有效尺寸时不覆盖当前状态。
+- 阈值按参照图对应的实际工作台范围重新校准：窄图中的右栏约占工作台根宽 67%，宽图约占 85%，在两者之间取 76%。不读取整个应用窗口尺寸，不新增设置；继续沿用 Appearance 外观令牌、减少动态效果设置及 `ResizableWorkbench` 的布局偏好。
+- 改动文件：`packages/client/ui-workspace/src/ApplicationWorkspace.tsx`（观察真实布局并同步 Git 摘要默认状态）；`packages/client/ui-workspace/src/git-summary-layout.config.ts`（76%边界计算）；`apps/cli/tests/client-workspace-git-summary-responsive.test.mjs`（阈值、无效尺寸、ResizeObserver 清理和状态覆盖回归）；`packages/client/ui-workspace/README.md`（摘要布局合同）；本节及任务索引（任务记录）。
+- 定向回归 16/16、`pnpm exec tsc --noEmit -p tsconfig.client.json`、`pnpm run build:web`（2284 modules）和 `node scripts/runtime-build-state.mjs web`（`[]`）通过；`git diff --check` 通过。Web 构建仍报告既有 `cpp` chunk 501.30 kB 的大小提示。
+- 内置浏览器实页验收：正式服务 `http://127.0.0.1:3000/work` 返回 HTTP 200。1280×720 视口下，工作台根宽 1260px、右栏 875.5px（69.5%），首次进入时摘要 `aria-expanded=true`，截图确认卡片已展开；手动关闭后将右栏稍微缩窄，状态仍保持关闭。临时调整为 1920×1080 后，根宽 1900px；右栏扩至 1447.9px（76.2%）时摘要 `aria-expanded=false`，等待 400ms 后实际浮层 `display/visibility/opacity` 均确认隐藏。随后反向恢复右栏至 875.5px、重置浏览器视口至 1280×720；实际页面宽度复核通过。宽态截图时浏览器显示新版本公告并遮住部分页面，未点击或关闭公告；因此没有在公告遮挡下继续测试手动打开。手机分辨率未单独实测，现有手机摘要页路径未改。
+- 更早一次较宽组合回归中有一条既有陈旧断言失败，断言期待旧的 `activeAiSessionTitle` 标题表达式，而当前 `ApplicationWorkspace` 已使用 `activeApplicationTitle`；本轮最终 16 个直接相关用例通过。未改变设置中心偏好、Git 数据、认证或权限；没有提交或发布。
+
+<a id="lfaa-desktop-installer-recovery-options-progress-20261023"></a>
+## 233-Windows 桌面安装向导与灰色安装按钮（2026-10-23）
+
+### 用户问题与目标
+
+- 用户报告 Windows 安装失败，并展示目标目录页：目标为 `H:\1\LFAA`、所需空间约 608.2 MB、“安装”按钮为灰色不可点击；用户确认失败发生在选择目录或点击安装阶段。
+- 用户随后展示启动失败弹窗，旧数据目录仍指向原安装位置。当前 Windows 用户 `storage.json` 的 `dataDirectory` 确实保存了该旧目录；历史源码确认 0.0.8 曾默认将 `dirname(app.getPath("exe"))\\data` 作为数据目录，而 0.0.9 已改为用户 `.lfaa/data`，但旧保存值仍优先。
+- 目标：不绕过 NSIS 对无效目录/磁盘空间的保护；让用户能看懂为什么不能继续；按截图加入可选 CLI PATH、可见的逐文件安装进度/明细，以及完成页的“运行 LFAA”和“创建桌面快捷方式”选项。
+- 当前候选入口为根 `pnpm run build:desktop:win` → Windows Electron x64 NSIS。现存 `LFAA 0.0.9` 包尚未真实安装验收；截图中的 H 盘在本轮环境不可用，不能断言具体是空间不足还是目录/驱动器无效。
+- 体积核对：修改前候选 `win-unpacked` 总计约 608.2 MiB，是解压安装占用估算；Electron 可执行文件约 234.6 MiB，Chromium/Electron 资源和语言包约 135 MiB，应用运行树约 238.7 MiB（独立 Node 87.4 MiB、CLI 生产依赖 126.7 MiB、Web/Control Plane 构建产物约 24.4 MiB）。CLI 的 `node-pty` 中发现约 52.8 MiB PDB 调试符号及其他架构预编译文件；Windows x64 打包过滤后 NSIS 计算的安装占用为 564,839 KiB（约 551.6 MiB），比原候选少约 56.6 MiB。
+
+### Owner、设置、数据与权限
+
+- 安装器页面、文件释放、快捷方式和 PATH 由 Electron Builder NSIS 单一 Owner 管理；CLI 命令使用 `apps/cli/bin/lfaa.mjs`、随包 Node 与 Control Plane 运行树，不新造 CLI 业务实现。
+- 设置中心：无适用设置。PATH 是否写入由安装向导的明确可选项控制，只写当前 Windows 用户 PATH；完成页启动和桌面快捷方式分别由用户勾选决定。安装器不修改已有设置中心偏好或用户业务数据。
+- 卸载继续保留安装目录 `data/`；若安装选项写入 PATH，卸载只移除本安装器添加的精确条目并通知当前用户环境更新，不覆盖其他 PATH 项。
+- 安装明细必须来自 NSIS 实际解压、创建文件夹/快捷方式等事件，不伪造阶段百分比或成功状态；进度条使用 NSIS 真实文件工作量。
+- 旧桌面 `storage.json` 记录的目录不可用时，回退到当前用户 `.lfaa/data`，将旧路径作为恢复元数据保留并明确提示；不搬动/删除旧数据。LFAA Home 中明确配置的项目与存储路径仍失败关闭，不自动覆盖用户选择。
+
+### 允许范围与验收
+
+- 允许修改 Electron 安装器配置/NSIS include、Windows x64 CLI 依赖打包过滤（保留 x64 运行文件并移除调试符号及其他架构预编译件）、为已随包 CLI 运行树补足可执行入口、直接相关说明和本合同；禁止改 Tauri 兼容入口、服务认证、数据迁移策略或清理用户 `data/`。
+- 目录页即使无效或空间不足也能继续到解释页，显示具体原因后返回目录页；有效且空间充足的目录可继续安装。PATH 复选项默认勾选且仅作用于当前用户，可取消；完成页运行与桌面快捷方式选项可独立选择。
+- 旧版安装目录数据路径不可用时，新版能使用用户默认目录启动；旧目录内容仍保留，恢复记录可核对；Home 中显式配置的不可用路径不被自动替换。
+- 构建后检查 NSIS 脚本编译、产物版本/路径/清单；若可用隔离 Windows 环境，实测有效/无效/空间不足目标、PATH 写入及卸载清理、真实进度和完成页行为。真实宿主不可用时须明确未验，不用打包成功冒充安装实测。
+
+### 外部排查与实现记录
+
+- 社交媒体检索未找到与本包配置及灰色按钮现象匹配、可验证的修复；技术社区仅有通用 NSIS 目录选择配置，不能证明本机根因；项目 GitHub Issues/PR 查询未取得可核实的对应记录（Issues 搜索被限制、Discussions 页面返回 404）。
+- 官方 [NSIS `DirVerify` 文档](https://nsis.sourceforge.io/Docs/Chapter4.html)说明默认目录校验可因安装目录无效或空间不足禁用继续；[electron-builder v26 NSIS 文档](https://www.electron.build/v26/docs/nsis/)支持 `customPageAfterChangeDir` 与自定义完成页。它们解释可见状态并提供向导扩展点，但不能替代读取用户 H 盘的真实空间/权限。
+- 实施记录：`MUI_DIRECTORYPAGE_VERIFYONLEAVE` 让目录页保留继续按钮，再由 NSIS `GetInstDirError` 在离开时读取无效目录/空间不足原因。当前 `LFAA-0.0.9.exe` 早于本轮安装脚本变更，不能代表修复后安装器；本地用户配置中的旧 `dataDirectory` 复现了 H 盘路径来源。主进程现会为不可用的旧 `storage.json` 路径切换到用户 `.lfaa/data`、保留旧路径恢复元数据并提示用户，不移动旧目录内容；明确的 Home 数据位置仍保持失败关闭。
+- 官方资料：[NSIS Modern UI 2 文档](https://nsis.sourceforge.io/Docs/Modern%20UI%202/Readme.html)说明 `MUI_DIRECTORYPAGE_VERIFYONLEAVE` 不会禁用 Next，并允许离开回调读取错误；[NSIS `DirVerify` 文档](https://nsis.sourceforge.io/Docs/Chapter4.html)给出无效路径与空间不足标志。前述文档支撑按钮处理方式，不替代 H 盘现场核验。
+- 验证结果：根命令 `pnpm run build:desktop:win` 已完整执行，Windows x64 NSIS 安装器编译、打包运行树的 CUA Driver 导入/工具登记检查、发行文件收集和 0.0.10 版本登记均通过。最终 `dist/apps/desktop-electron/LFAA-0.0.10/LFAA-0.0.10.exe` 为 167,770,988 字节（160 MiB），`latest.yml` 版本、大小与 SHA-512 一致；安装器未签名。NSIS 构建日志仅显示 x64 node-pty 原生文件，ARM64/macOS 预编译及 PDB 已由过滤规则排除。未在隔离 Windows 环境实际安装/启动/升级/卸载，也未现场验看进度页与 PATH 交互；H 盘不可访问，无法确认用户现场目录的空间/ACL。
+
+<a id="lfaa-browser-dock-scrolling-wash-latency-20261023"></a>
+## 234-LFAA 内置浏览器滚动抖动、页面泛白与打开延迟（2026-10-23）
+
+### 用户问题、目标与入口
+
+- 用户截图展示 LFAA 内置浏览器中的网页：网页滚轮时整块画面抖动/跟滚；网页内容周围呈现白色泛白；用户补充普通网站打开慢，并明确根因应从 LFAA 内置浏览器排查，不改登录页或目标网站自身样式。
+- 目标入口：Web/Desktop 共用 Client `/work` → `ApplicationWorkspace` 当前浏览器标签 → Web `BrowserPanel` 或 Electron `NativeBrowserPanel`；Web 网页经 Browser Dock API 映射到 `lfaa-browser-use` 隔离浏览器，Electron 页面由现有 `WebContentsView` Owner 承载。
+- 当前直接证据：Web `BrowserPanel` 以 Chromium 可见视口 JPEG 更新网页，并将滚轮转发给真实 Browser Session；页面交互、快照刷新与外层容器滚动可能竞争。历史实测基线（example.com）：Browser Owner 冷导航约 1719ms（含 Chromium 冷启动/主文档提交）、首帧完整链路约 389–417ms，滚轮动作约 85–107ms；不代表本轮当前源码的测量。
+
+### Owner、设置、数据与权限
+
+- Owner：Web 滚轮输入、网页画面布局与刷新由 `packages/client/ui-sidebar-browser` 的 `BrowserPanel` 持有；真实页面、导航和页面修订由 `packages/browser-use/browser-use` 持有；认证与参数校验由 `packages/api/browser-controller` 持有；地址输入和工作区标签由 `packages/client/ui-workspace` 持有。Electron 原生网页定位由 `NativeBrowserPanel` 与 `apps/desktop-electron/src/native-browser-workspace.mjs` 协作，Client 计算可视边界，主进程唯一持有 WebContentsView。
+- 设置：沿用设置中心现有 `browserUse.searchEngine`（地址栏搜索解析）、`browserUse.showFullUrl`、`browserUse.recordRecentSites`、`browserUse.enabled`、`browserUse.enabledProviderIds`；Agent 操作仍走 `permissions.mode`。Appearance 的页面主题只用于 LFAA 容器，不覆盖目标网页截图；本轮不调整用户设置值。
+- 数据与安全：实际网页状态只保留在当前账户/LFAA Session/Provider 的 Browser Owner 中；网址仅按现有 `browserUse.recordRecentSites` 设置记录。修复保留 HTTP(S) 校验、DNS/IP 安全检查、服务端认证、Agent 权限和有界截图/页面会话，不引入跨账户缓存或外部浏览器 Profile。
+
+### 允许范围与验收
+
+- 分批处理：A）实测并修复 Web 截图滚轮/外层误滚，以及桌面原生网页层位置更新造成的抖动/周边露底；B）测量 Browser Owner 冷/暖启动与桌面导航等待，优化浏览器预热和主文档提交反馈。每批各自完成回归、相关类型/构建检查，再做 ChatGPT 内置浏览器 `/work` 实页验收。
+- 明确禁止：不改 AuthView、登录表单或目标网站颜色/DOM；不以降低安全校验、权限门槛或关闭必要页面内容换速度；不更改账户设置，不使用个人浏览器 Profile，不增加并行页面状态。
+- 实页验收：在隔离数据目录的正式 Web 服务中通过真实登录流程进入 `/work`，用普通 HTTP(S) 页面测冷/暖导航提交到首帧时间；桌面和一个窄分栏视口检查滚轮仅滚动网页、停止后画面稳定、Browser Dock 与外层不跟滚、周边露底/白色泛白消失；记录真实视口、交互、截图和与本轮基线对比。未测 Electron 原生视图或设备帧时间须单独标注。
+
+### 外部排查与实施记录
+
+- 既有缺陷排查已按社交媒体、技术社区、项目 GitHub、官方资料顺序完成。社交/技术社区只有通用截图刷新/滤镜滚动经验，不能证明 LFAA 根因；项目仓库 Issues 没有可核实的匹配项；官方 Playwright 文档说明截图可以保留页面动画，禁用动画会快进或取消动画，因此不把该选项作为默认加速手段。实现以当前 Browser Dock/Owner 代码与实际页面证据为准。
+- 根因与修复：桌面 `NativeBrowserPanel` 原先在滚动捕获、窗口滚动、尺寸观察和 160ms 定时轮询中重复读取位置，并对每个变更直接发送 Electron `setBounds` IPC；在原生 `WebContentsView` 覆盖 DOM 工作区时，视图会滞后追踪滚动容器，造成抖动并可能让周围工作区表面短暂露出。现在每帧最多读取一次坐标、限制一个 bounds IPC 在途、只保留最新待发位置，并删除固定轮询。Web BrowserPanel 的滚轮也由非被动捕获监听器消费，阻止浏览器截图区域向外层传播滚动；滚动动作串行合并，期间跳过中间截图并保留最后有效画面。截图显示层不叠加 Appearance 遮罩/滤镜。
+- 打开延迟：Browser Owner 实测本机 Edge 冷启动到本地主文档提交约 570ms，已启动后再次打开约 35ms；首个提交后截图约 68ms、暖截图约 25ms。新标签页确认本机隔离 Provider 可用后，经认证 Dock 路由预热浏览器进程；预热不创建账户 BrowserContext/网页、不访问网址，后续导航复用该进程。Electron 导航改为主文档提交后返回，资源继续加载时保留 loading 状态。公开网站基准请求在本隔离环境报 `net::ERR_CONNECTION_CLOSED`，因此没有用它宣称普通公网实际延迟已下降。
+- 源码回归：Browser Owner、Dock Controller、滚轮/布局及工作区相关回归 21/21；Electron 原生 Browser Workspace 7/7；客户端 TypeScript 检查通过。`pnpm run build:web` 与 `pnpm run build:control-plane` 通过，入口产物位于根 `dist/apps/web/` 与 `dist/apps/control-plane/`；`runtime-build-state.mjs web` 返回 `[]`；`git diff --check` 通过。Web 构建仍提示 `cpp` 语法块约 501.30 kB。设置中心沿用 `browserUse.searchEngine`、`showFullUrl`、`recordRecentSites`、`enabled`、`enabledProviderIds` 和 `permissions.mode`；未改设置默认值、持久化或账户偏好。
+- ChatGPT 内置浏览器：完成构建后重启本轮自建的隔离 Web 服务，正式加载 `http://127.0.0.1:3107/work`，视口 1312×1238。新标签主页可见，服务日志确认认证 `/api/browser/dock/prewarm` 返回 200、耗时 469ms。隔离测试账户没有配置模型、没有活动 AI Session，因此地址导航无法走现有 session 绑定 Browser Dock，未能在 IAB 展示普通网站或实测滚轮/周边露底消失；截图原始 JPEG 无二次遮罩/滤镜代码证据，最终只能由目标页面实图区分网页自身视觉与原生视图周边露底。没有创建账户、配置 Provider/模型或修改设置。真实桌面 Electron、窄分栏 Browser Dock、滚动截图与设备帧时间未测；不将源码回归/构建等同于实页通过。
+
+<a id="lfaa-workspace-tab-center-toggle-layout-20261023"></a>
+## 235-工作区标签双击切换中心区并修复偶发窄布局（2026-10-23）
+
+### 用户问题、目标与入口
+
+- 用户要求在 `/work` 双击右侧工作区标签时展开/收起中间聊天区；截图还显示中间工作区有时变窄、整体排版异常。截图地址为 `http://127.0.0.1:3107/work`，但本轮尚未从当前源码服务复现该异常，触发步骤、当时视口及 Dock 状态未知。
+- 目标：双击工作区工具标签只切换中心区折叠，不新建/关闭/切换重复工具标签；保证共享 DockKit 在嵌入分栏下以真实容器宽度判定右 Dock/Overlay，恢复时不将中心聊天压至其可用宽度下限以下。
+- 实际入口：Web/Desktop 共用 `/work` → `packages/client/ui-workspace/src/ApplicationWorkspace.tsx` 维护工作区标签及中心折叠受控状态 → `packages/client/ui-dockkit/src/ResizableWorkbench.tsx` 与 `workbench-layout.config.ts` 负责响应式列宽、Dock 与拖拽。
+
+### Owner、设置、数据与权限
+
+- 标签交互状态归 `ui-workspace`；工作区列宽和断点归 `ui-dockkit`。右侧 Git/浏览器等内容各自继续走现有 Owner。
+- 使用现有工作台容器尺寸与左右栏宽度偏好、`general.navigationLayout` 及外观共享令牌；中心区折叠不新增持久化值/设置，不重置已保存 Dock 宽度或账户外观。
+- 不改认证、Permission Owner、浏览器页面数据和工具单例规则；不触发 Git 写入或外部 Tool。
+
+### 缺陷排查顺序与允许范围
+
+- 已依次查询社交媒体、技术社区、LFAA GitHub Issues/Discussions/PR 与官方资料。前两者只找到通用 CSS Grid/ResizeObserver 讨论，未验证与本项目同因；指定仓库搜索未返回可核验匹配记录。MDN 说明 Grid/Flex 项默认最小尺寸受内容影响，ResizeObserver 可观察元素自身尺寸；这些资料仅提供排查背景，不直接指定本修复。最终根因须由当前 Workbench 调用链、容器尺寸和实页复现确定。
+- 允许范围：标签双击事件及直接回归；只有能从代码/浏览器证据确认的尺寸恢复或 Dock 断点缺陷才调整相关布局 Owner；更新包 README 与本合同。
+- 禁止范围：任意改大默认中心宽、覆盖用户保存宽度、强制改变用户 Dock 开合偏好、修改无关右侧盒子/工具行为、增加新设置或 CSS 自定义属性。
+
+### 验收条件
+
+- 定向回归验证：双击当前与非当前工具标签可交替切换中心展开/收起，单击仍只选择标签；工具仍唯一/可重复打开的既有差异不变。
+- DockKit 回归验证代表性桌面、窄分栏及短屏容器：中心区与右栏空间够时 Dock，不足时右侧回到 Overlay；历史侧栏宽度和任意窄分栏尺寸变化后不产生比当前响应式中心下限更窄的 Grid 中心列。
+- 正式 Web 构建完成后，在 ChatGPT 内置浏览器实际打开 `/work`，桌面与一处窄分栏/短屏视口复验单双击、实际 Dock/Overlay 状态、中心区可用尺寸、滚动及溢出；提供截图证据。若内置浏览器阻断，记录实际服务/浏览器故障并将实页结果标为未验。
+
+### 实施与验收记录
+
+- 状态：源码修改中。代码层已确认首次指标初始化按 `window.innerWidth`，而工作台容器的 ResizeObserver 在提交后才完成校准；这会让嵌入式窄分栏首帧套用整窗断点。现将首次真实容器测量前置到布局提交阶段；正式实页仍需复验是否覆盖截图现象。
+- 环境初查：用户截图指向本机端口 3107；当前发现端口 3000 由 LFAA CLI Web 进程监听，但 `/work` HEAD 返回 503。当前 CUA 内置浏览器没有已打开标签，尚未完成正式实页验收。
+- 设置：尚未更改。预期只消费现有导航布局、Dock 尺寸与 Appearance 共享令牌；若最终修复需要调整设置映射，将先确认设置 Owner 再实现。
+- 改动文件、回归、构建、实际路由/视口/交互截图及未测边界：待实施后补齐。

@@ -260,7 +260,7 @@ export default function App() {
       const handleAnimationEnd = (event: AnimationEvent) => {
         if (event.target === vortex && event.animationName === "lfaa-auth-vortex-veil") beginSettling();
       };
-      fallbackTimer = window.setTimeout(beginSettling, 2250);
+      fallbackTimer = window.setTimeout(beginSettling, 520);
       vortex.addEventListener("animationend", handleAnimationEnd);
       vortex.addEventListener("animationcancel", beginSettling);
       return () => {
@@ -588,7 +588,8 @@ export default function App() {
       }
       if (isCurrent()) {
         setPreferences(preferencesRef.current);
-        routeTo(`/apps/${app}/normal`, setRoute, { applicationEntryApp: app });
+        const targetRoute = app === "steamcmd" || app === "minecraft" ? `/games/${app}` : `/apps/${app}/normal`;
+        routeTo(targetRoute, setRoute, app === "steamcmd" || app === "minecraft" ? {} : { applicationEntryApp: app });
       }
     }).catch((saveError: unknown) => {
       if (isCurrent()) setError(getErrorMessage(saveError));

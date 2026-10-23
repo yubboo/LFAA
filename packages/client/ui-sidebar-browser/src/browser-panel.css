@@ -1,6 +1,4 @@
 .lfaa-browser-panel {
-  container-name: browser-dock;
-  container-type: inline-size;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -12,377 +10,40 @@
   background: var(--color-surface);
 }
 
-.lfaa-browser-panel button,
-.lfaa-browser-panel input {
-  font-family: inherit;
-}
-
-.lfaa-browser-panel button:focus-visible,
-.lfaa-browser-panel input:focus-visible {
-  outline: 2px solid var(--settings-accent, var(--color-brand));
-  outline-offset: 2px;
-}
-
-.lfaa-browser-panel__header {
-  display: flex;
-  min-width: 0;
-  min-height: 58px;
-  align-items: center;
-  justify-content: space-between;
-  gap: .75rem;
-  padding: .7rem .85rem;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.lfaa-browser-panel__header > div {
-  display: grid;
-  min-width: 0;
-  gap: .2rem;
-}
-
-.lfaa-browser-panel__header strong {
-  overflow: hidden;
-  color: var(--color-text-heading);
-  font-size: var(--font-size-sm);
-  font-weight: 680;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lfaa-browser-panel__header span {
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lfaa-browser-panel__settings-link,
-.lfaa-browser-panel__provider-actions button,
-.lfaa-browser-panel__connect-card button,
-.lfaa-browser-panel__secondary-action {
-  flex: 0 0 auto;
-  border: 1px solid var(--color-border);
-  border-radius: .55rem;
-  padding: .42rem .65rem;
-  color: var(--color-text-primary);
-  background: var(--color-surface-muted);
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
-}
-
-.lfaa-browser-panel__settings-link:hover,
-.lfaa-browser-panel__provider-actions button:hover,
-.lfaa-browser-panel__connect-card button:hover,
-.lfaa-browser-panel__secondary-action:hover {
-  border-color: var(--color-border-strong);
-  background: var(--color-surface-hover);
-}
-
-.lfaa-browser-panel__settings-link:disabled,
-.lfaa-browser-panel__provider-actions button:disabled,
-.lfaa-browser-panel__connect-card button:disabled,
-.lfaa-browser-panel__secondary-action:disabled {
-  cursor: default;
-  opacity: .5;
-}
-
-.lfaa-browser-panel__provider-tabs {
-  display: flex;
-  min-width: 0;
-  gap: .4rem;
-  overflow-x: auto;
-  padding: .55rem .7rem;
-  border-bottom: 1px solid var(--color-border-subtle);
-  background: var(--color-surface-muted);
-  scrollbar-width: thin;
-}
-
-.lfaa-browser-panel__provider-tabs button {
-  display: grid;
-  min-width: 72px;
-  min-height: 42px;
-  flex: 1 1 0;
-  align-content: center;
-  gap: .12rem;
-  overflow: hidden;
-  padding: .38rem .48rem;
-  border: 1px solid transparent;
-  border-radius: .65rem;
-  color: var(--color-text-secondary);
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
-}
-
-.lfaa-browser-panel__provider-tabs button:hover:not(:disabled) {
-  background: var(--color-surface-hover);
-}
-
-.lfaa-browser-panel__provider-tabs button.is-active {
-  border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 28%, var(--color-border));
-  color: var(--settings-accent, var(--color-brand));
-  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, var(--color-surface));
-}
-
-.lfaa-browser-panel__provider-tabs button:disabled {
-  cursor: default;
-  opacity: .5;
-}
-
-.lfaa-browser-panel__provider-tabs strong,
-.lfaa-browser-panel__provider-tabs span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lfaa-browser-panel__provider-tabs strong {
-  font-size: var(--font-size-xs);
-  font-weight: 650;
-}
-
-.lfaa-browser-panel__provider-tabs span,
-.lfaa-browser-panel__provider-empty {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-
-.lfaa-browser-panel__provider-empty {
-  align-self: center;
-  padding: .25rem .4rem;
-}
-
-.lfaa-browser-panel__provider-actions {
-  display: flex;
-  min-width: 0;
-  min-height: 38px;
-  align-items: center;
-  justify-content: space-between;
-  gap: .5rem;
-  padding: .3rem .8rem;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.lfaa-browser-panel__provider-actions span {
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lfaa-browser-panel__connect-card {
-  display: grid;
-  min-width: 0;
-  justify-items: center;
-  gap: .65rem;
-  overflow-y: auto;
-  padding: clamp(.9rem, 4vw, 1.6rem);
-  text-align: center;
-}
-
-.lfaa-browser-panel__connect-card > svg {
-  color: var(--settings-accent, var(--color-brand));
-}
-
-.lfaa-browser-panel__connect-card > strong {
-  color: var(--color-text-heading);
-  font-size: var(--font-size-sm);
-}
-
-.lfaa-browser-panel__connect-card > p {
-  max-width: 32rem;
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-
-.lfaa-browser-panel__connect-card button {
-  border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 36%, var(--color-border));
-  color: var(--settings-accent, var(--color-brand));
-  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, var(--color-surface));
-}
-
-.lfaa-browser-panel__address {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: .38rem;
-  padding: .55rem .7rem;
-  border-bottom: 1px solid var(--color-border-subtle);
-  background: var(--color-surface);
-}
-
-.lfaa-browser-panel__nav {
-  display: flex;
-  gap: .08rem;
-}
-
-.lfaa-browser-panel__address button,
-.lfaa-browser-panel__nav button {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 1px solid transparent;
-  border-radius: .55rem;
-  color: var(--color-text-secondary);
-  background: transparent;
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
-}
-
-.lfaa-browser-panel__address > button[type="submit"] {
-  width: auto;
-  min-width: 2.7rem;
-  padding-inline: .55rem;
-  color: var(--settings-accent, var(--color-brand));
-  font-size: var(--font-size-xs);
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.lfaa-browser-panel__address button:hover:not(:disabled),
-.lfaa-browser-panel__nav button:hover:not(:disabled) {
-  border-color: var(--color-border);
-  background: var(--color-surface-hover);
-}
-
-.lfaa-browser-panel__address button:disabled,
-.lfaa-browser-panel__nav button:disabled {
-  cursor: default;
-  opacity: .45;
-}
-
-.lfaa-browser-panel__address input {
-  width: 100%;
-  min-width: 0;
-  min-height: 2.15rem;
-  padding: .4rem .7rem;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  color: var(--color-text-primary);
-  background: var(--color-surface-muted);
-  font-size: var(--font-size-xs);
-  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
-}
-
-.lfaa-browser-panel__address input:focus {
-  border-color: var(--settings-accent, var(--color-brand));
-  background: var(--color-surface);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--settings-accent, var(--color-brand)) 16%, transparent);
-  outline: none;
-}
-
-.lfaa-browser-panel__notice,
-.lfaa-browser-panel__error {
-  margin: .5rem .75rem 0;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: .6rem;
-  padding: .5rem .6rem;
-  font-size: var(--font-size-xs);
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.lfaa-browser-panel__notice {
-  color: var(--color-text-secondary);
-  background: var(--color-surface-muted);
-}
-
-.lfaa-browser-panel__error {
-  border-color: color-mix(in srgb, var(--color-danger) 28%, var(--color-border));
-  color: var(--color-danger);
-  background: var(--color-status-warning-surface);
-}
-
-.lfaa-browser-panel__views {
-  display: flex;
-  min-width: 0;
-  min-height: 42px;
-  align-items: center;
-  gap: .2rem;
-  padding: .35rem .65rem;
-  border-bottom: 1px solid var(--color-border-subtle);
-  background: var(--color-surface);
-}
-
-.lfaa-browser-panel__views button {
-  min-width: 0;
-  min-height: 1.9rem;
-  border: 1px solid transparent;
-  border-radius: .5rem;
-  padding: .28rem .55rem;
-  color: var(--color-text-secondary);
-  background: transparent;
-  font-size: var(--font-size-xs);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
-}
-
-.lfaa-browser-panel__views button:hover {
-  background: var(--color-surface-hover);
-}
-
-.lfaa-browser-panel__views button.is-active {
-  border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 20%, var(--color-border-subtle));
-  color: var(--settings-accent, var(--color-brand));
-  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, var(--color-surface));
-  font-weight: 650;
-}
-
-.lfaa-browser-panel__views span {
-  min-width: 0;
-  margin-left: auto;
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.lfaa-browser-panel[hidden] {
+  display: none;
 }
 
 .lfaa-browser-panel__content {
+  display: flex;
   min-width: 0;
   min-height: 0;
   flex: 1 1 auto;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
+  overscroll-behavior: none;
   background: var(--color-surface-muted);
   scrollbar-color: var(--color-border-strong) transparent;
   scrollbar-width: thin;
 }
 
-.lfaa-browser-panel__preview-wrap {
+.lfaa-browser-panel__viewport-wrap {
   position: relative;
   display: flex;
   width: 100%;
   height: 100%;
-  min-height: 100%;
+  min-height: 0;
+  overflow: hidden;
   align-items: stretch;
   justify-content: center;
-  padding: 0;
   touch-action: none;
 }
 
-.lfaa-browser-panel__preview {
+.lfaa-browser-panel__viewport {
   display: block;
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: .55rem;
   background: var(--color-surface);
-  box-shadow: 0 5px 18px color-mix(in srgb, var(--color-shadow-float) 45%, transparent);
   cursor: default;
   pointer-events: none;
   object-fit: contain;
@@ -412,11 +73,11 @@
   user-select: none;
 }
 
-.lfaa-browser-panel__interaction-hint {
+.lfaa-browser-panel__busy {
   position: absolute;
   z-index: 2;
-  left: .65rem;
-  bottom: .65rem;
+  top: .65rem;
+  right: .65rem;
   max-width: calc(100% - 1.3rem);
   overflow: hidden;
   border: 1px solid var(--color-border-subtle);
@@ -428,310 +89,31 @@
   font-size: var(--font-size-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
-  pointer-events: none;
 }
 
-.lfaa-browser-panel__busy {
-  position: absolute;
-  z-index: 3;
-  right: 1rem;
-  bottom: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  padding: .3rem .6rem;
-  color: var(--color-text-primary);
-  background: var(--color-surface);
-  box-shadow: 0 3px 12px var(--color-shadow-float);
-  font-size: var(--font-size-xs);
-  pointer-events: none;
-}
-
-.lfaa-browser-panel__data {
-  min-width: 0;
-  margin: 0;
-  padding: .9rem;
-  color: var(--color-text-primary);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-xs);
-  line-height: 1.55;
-}
-
-.lfaa-browser-panel__elements {
-  display: grid;
-  gap: .35rem;
-  padding: .65rem;
-}
-
-.lfaa-browser-panel__elements > div {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: minmax(3.5rem, auto) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: .45rem;
-  padding: .55rem;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: .55rem;
-  background: var(--color-surface);
-  font-size: var(--font-size-xs);
-}
-
-.lfaa-browser-panel__elements code {
-  overflow: hidden;
-  color: var(--settings-accent, var(--color-brand));
-  text-overflow: ellipsis;
-}
-
-.lfaa-browser-panel__elements span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.lfaa-browser-panel__elements small,
-.lfaa-browser-panel__elements p {
-  color: var(--color-text-muted);
-}
-
-.lfaa-browser-panel__tab-list {
-  display: grid;
-  min-width: 0;
-  max-height: min(38vh, 22rem);
-  align-content: start;
-  gap: .55rem;
-  overflow-y: auto;
-  padding: .65rem .75rem;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.lfaa-browser-panel__tab-list > p {
-  margin: 0;
-  color: var(--color-text-muted);
+.lfaa-browser-panel__error {
+  flex: 0 0 auto;
+  margin: .5rem .75rem 0;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 28%, var(--color-border));
+  border-radius: .6rem;
+  padding: .5rem .6rem;
+  color: var(--color-danger);
+  background: var(--color-status-warning-surface);
   font-size: var(--font-size-xs);
   line-height: 1.5;
-}
-
-.lfaa-browser-panel__tab {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: .5rem;
-  padding: .55rem;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: .65rem;
-  background: var(--color-surface);
-}
-
-.lfaa-browser-panel__tab > div {
-  display: grid;
-  min-width: 0;
-  gap: .2rem;
-}
-
-.lfaa-browser-panel__tab strong,
-.lfaa-browser-panel__tab span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lfaa-browser-panel__tab strong {
-  font-size: var(--font-size-xs);
-}
-
-.lfaa-browser-panel__tab span,
-.lfaa-browser-panel__tab small {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-
-.lfaa-browser-panel__tab button {
-  border: 1px solid var(--color-border);
-  border-radius: .5rem;
-  padding: .4rem .55rem;
-  color: var(--color-text-primary);
-  background: var(--color-surface-muted);
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-}
-
-.lfaa-browser-panel__tab button:disabled {
-  cursor: default;
-  opacity: .45;
-}
-
-.lfaa-browser-panel__secondary-action {
-  justify-self: start;
-}
-
-.lfaa-browser-panel__footer {
-  display: flex;
-  min-width: 0;
-  min-height: 40px;
-  align-items: center;
-  justify-content: space-between;
-  gap: .5rem;
-  padding: .35rem .75rem;
-  border-top: 1px solid var(--color-border-subtle);
-  background: var(--color-surface);
-}
-
-.lfaa-browser-panel__footer span {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lfaa-browser-panel__footer button {
-  flex: 0 0 auto;
-  border: 0;
-  border-radius: .45rem;
-  padding: .35rem .45rem;
-  color: var(--color-text-secondary);
-  background: transparent;
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-}
-
-.lfaa-browser-panel__footer button:hover {
-  color: var(--color-text-primary);
-  background: var(--color-surface-hover);
+  overflow-wrap: anywhere;
 }
 
 .lfaa-browser-panel__empty {
   display: grid;
   min-width: 0;
-  min-height: 7rem;
-  align-content: center;
-  justify-items: center;
-  gap: .6rem;
-  padding: 1.1rem;
-  color: var(--color-text-muted);
-  text-align: center;
-}
-
-.lfaa-browser-panel__content > .lfaa-browser-panel__empty {
   min-height: 100%;
-}
-
-.lfaa-browser-panel__empty > svg {
-  color: var(--settings-accent, var(--color-brand));
-  opacity: .8;
-}
-
-.lfaa-browser-panel__empty strong {
-  color: var(--color-text-primary);
-}
-
-.lfaa-browser-panel__empty p {
-  max-width: 26rem;
-  margin: 0;
-  font-size: var(--font-size-xs);
-  line-height: 1.55;
-}
-
-.workbench-shell[data-background-image="true"] .lfaa-browser-panel {
-  background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
-  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
-  backdrop-filter: blur(var(--settings-glass-blur));
-}
-
-@container browser-dock (max-width: 380px) {
-  .lfaa-browser-panel__header {
-    min-height: 54px;
-    padding-inline: .65rem;
-  }
-
-  .lfaa-browser-panel__provider-tabs {
-    gap: .28rem;
-    padding-inline: .5rem;
-  }
-
-  .lfaa-browser-panel__provider-tabs button {
-    min-width: 68px;
-    padding-inline: .38rem;
-  }
-
-  .lfaa-browser-panel__address {
-    gap: .2rem;
-    padding-inline: .45rem;
-  }
-
-  .lfaa-browser-panel__address button,
-  .lfaa-browser-panel__nav button {
-    width: 1.8rem;
-  }
-
-  .lfaa-browser-panel__address > button[type="submit"] {
-    min-width: 2.35rem;
-    padding-inline: .3rem;
-  }
-
-  .lfaa-browser-panel__views {
-    gap: .05rem;
-    padding-inline: .4rem;
-  }
-
-  .lfaa-browser-panel__views button {
-    padding-inline: .38rem;
-  }
-
-  .lfaa-browser-panel__views span {
-    font-size: max(9px, var(--font-size-xs));
-  }
-}
-
-@container browser-dock (max-width: 300px) {
-  .lfaa-browser-panel__header span {
-    max-width: 11rem;
-  }
-
-  .lfaa-browser-panel__nav button {
-    width: 1.55rem;
-  }
-
-  .lfaa-browser-panel__address input {
-    padding-inline: .55rem;
-  }
-
-  .lfaa-browser-panel__views button {
-    padding-inline: .3rem;
-  }
-}
-
-@media (max-height: 520px) {
-  .lfaa-browser-panel__header,
-  .lfaa-browser-panel__provider-tabs {
-    padding-block: .3rem;
-  }
-
-  .lfaa-browser-panel__header {
-    min-height: 46px;
-  }
-
-  .lfaa-browser-panel__provider-tabs button {
-    min-height: 36px;
-  }
-
-  .lfaa-browser-panel__address,
-  .lfaa-browser-panel__views {
-    padding-block: .25rem;
-  }
-
-  .lfaa-browser-panel__empty {
-    min-height: 4.5rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lfaa-browser-panel button,
-  .lfaa-browser-panel input {
-    scroll-behavior: auto;
-    transition: none;
-  }
+  flex: 1 1 auto;
+  place-items: center;
+  padding: clamp(.75rem, 3vw, 1.5rem);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  text-align: center;
+  overflow-wrap: anywhere;
 }

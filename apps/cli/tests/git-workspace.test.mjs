@@ -301,16 +301,26 @@ test("Git file review returns bounded per-file diffs and enforces registered pro
   await git("config", "user.name", "LFAA Test");
   await git("config", "user.email", "lfaa-test@example.invalid");
   await writeFile(join(projectRoot, "tracked.txt"), "value changed\n", "utf8");
+  const originalContextLines = Array.from({ length: 100 }, (_, index) => `line ${index + 1}`);
+  await writeFile(join(projectRoot, "context.txt"), `${originalContextLines.join("\n")}\n`, "utf8");
   await writeFile(join(sourceRoot, "outside.txt"), "outside\n", "utf8");
-  await git("add", "--", "project/tracked.txt", "outside.txt");
+  await git("add", "--", "project/tracked.txt", "project/context.txt", "outside.txt");
   await git("commit", "-m", "initial");
   await writeFile(join(projectRoot, "tracked.txt"), "value  changed\n", "utf8");
+  const changedContextLines = [...originalContextLines];
+  changedContextLines[1] = "line two edited";
+  changedContextLines[77] = "line seventy-eight edited";
+  await writeFile(join(projectRoot, "context.txt"), `${changedContextLines.join("\n")}\n`, "utf8");
   await writeFile(join(projectRoot, "new.txt"), "new content\n", "utf8");
 
   const { executeGitWorkspace } = await import("../../../packages/host/git/src/git-workspace.mjs");
   const normal = await executeGitWorkspace({ operation: "file-diff", projectDirectory: projectRoot, path: "project/tracked.txt" });
   assert.equal(normal.path, "project/tracked.txt");
   assert.match(normal.diff, /value  changed/u);
+  const compactContextDiff = await executeGitWorkspace({ operation: "file-diff", projectDirectory: projectRoot, path: "project/context.txt" });
+  assert.equal((compactContextDiff.diff.match(/^@@/gmu) ?? []).length, 2, "默认差异保留分隔开的代码段");
+  const expandedContextDiff = await executeGitWorkspace({ operation: "file-diff", projectDirectory: projectRoot, path: "project/context.txt", contextLines: 40 });
+  assert.equal((expandedContextDiff.diff.match(/^@@/gmu) ?? []).length, 1, "受限的大上下文请求会把间隔行纳入真实 Git 差异");
   const patchTargetRoot = join(fixtureRoot, "patch-target");
   await execFileAsync("git", ["clone", "--quiet", "--no-hardlinks", sourceRoot, patchTargetRoot], { encoding: "utf8", windowsHide: true });
   const trackedPatchPath = join(fixtureRoot, "tracked-file.patch");

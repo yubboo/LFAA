@@ -12,7 +12,6 @@ import { applyAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearan
 import { appearanceCodeFontStacks, appearanceTextFontStacks } from "lfaa-client-ui-theme/src/fonts.js";
 import { getCachedLoginAppearance, resolveLoginAppearance, resolveLoginBackgroundImage } from "lfaa-client-ui-theme/src/login-appearance.js";
 import { DshSlotOutlet, LFAA_AUTH_TRANSITION_SLOT, type AuthTransitionPhase, type AuthTransitionSlotOwner } from "lfaa-client-modules/src/client/index.js";
-import { LoginTransitionScene } from "./LoginTransitionScene.js";
 import { isPasswordAcceptable, PasswordStrengthIndicator } from "./PasswordStrengthIndicator.js";
 import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 
@@ -155,13 +154,6 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
       ) : null}
       {transitionExiting ? (
         <>
-          <LoginTransitionScene
-            backgroundImage={loginBackgroundImage}
-            theme={resolvedLoginAppearance.theme}
-            overlay={resolvedLoginAppearance.overlay}
-            accentColor={resolvedLoginAppearance.accentColor}
-            reducedMotion={reducedMotion}
-          />
           <div className="auth-page__transition-vortex" aria-hidden="true" />
           <div className="auth-page__transition-horizon" aria-hidden="true">
             <span className="auth-page__transition-vortex-core" />
@@ -170,20 +162,6 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
         </>
       ) : null}
       <div className="auth-page__split-layout">
-        {transitionExiting ? (
-          <>
-            <div className="auth-page__transition-shards" aria-hidden="true">
-              {Array.from({ length: 12 }, (_, index) => (
-                <span key={index} className={`auth-page__transition-shard auth-page__transition-shard--${index + 1}`} />
-              ))}
-            </div>
-            <div className="auth-page__transition-particles" aria-hidden="true">
-              {Array.from({ length: 8 }, (_, index) => (
-                <i key={index} className={`auth-page__transition-particle auth-page__transition-particle--${index + 1}`} />
-              ))}
-            </div>
-          </>
-        ) : null}
         <section className="auth-page__form-panel" aria-labelledby="form-heading">
           <span className="auth-page__brand-mark" aria-hidden="true">L</span>
           <Typography.Text className="auth-page__brand-name">LFAA</Typography.Text>

@@ -131,10 +131,11 @@ async function readCurrentRelease(repositoryRoot) {
   const version = latestSection.match(/^- \*\*项目版本：\*\*\s+`LFAA (\d+\.\d+\.\d+)`\s*$/mu)?.[1];
   const date = latestSection.match(/^- \*\*日期：\*\*\s+(\d{4}-\d{2}-\d{2})\s*$/mu)?.[1];
   const notesText = latestSection.match(/^- \*\*更新内容：\*\*\s+(.+)\s*$/mu)?.[1];
-  const packageState = latestSection.match(/^- \*\*Windows Electron 包状态：\*\*\s+(待构建|已生成：LFAA-\d+\.\d+\.\d+\.exe)\s*$/mu)?.[1];
-  if (!version || !date || !notesText || !packageState) {
-    throw new Error("最新更新日志必须包含版本、日期、更新内容和 Windows Electron 包状态。" );
+  if (!version || !date || !notesText) {
+    throw new Error("最新更新日志必须包含版本、日期和更新内容。" );
   }
+  const packageRelease = findPackageReleaseForVersion(changelog, headers, version);
+  const packageState = packageRelease?.state ?? "待构建";
 
   const productManifests = new Map();
   for (const relativePath of PRODUCT_PACKAGES) {
@@ -150,9 +151,10 @@ async function readCurrentRelease(repositoryRoot) {
 
   const updateManifest = JSON.parse(await readFile(resolve(repositoryRoot, "update.json"), "utf8"));
   const validatedManifest = validateLfaaUpdateManifest(updateManifest, publisher.url);
-  if (validatedManifest.version !== version || validatedManifest.publishedAt !== date
-    || validatedManifest.releaseNotes.join("；") !== notesText) {
-    throw new Error("update.json 与 docs/updata-log.md 最新版本记录不一致。" );
+  const manifestRelease = packageRelease ?? { date, notesText };
+  if (validatedManifest.version !== version || validatedManifest.publishedAt !== manifestRelease.date
+    || validatedManifest.releaseNotes.join("；") !== manifestRelease.notesText) {
+    throw new Error("update.json 与 docs/updata-log.md 的同版本桌面包记录不一致。" );
   }
 
   const packageStatus = packageState === "待构建" ? "pending" : "built";
@@ -169,6 +171,43 @@ async function readCurrentRelease(repositoryRoot) {
     updateManifest: validatedManifest,
     version
   };
+}
+
+function findPackageReleaseForVersion(changelog, headers, version) {
+  for (let index = 0; index < headers.length; index += 1) {
+    const start = headers[index].index;
+    if (start === undefined) continue;
+    const end = headers[index + 1]?.index ?? changelog.length;
+    const section = changelog.slice(start, end);
+    const sectionVersion = section.match(/^- \*\*项目版本：\*\*\s+`LFAA (\d+\.\d+\.\d+)`\s*$/mu)?.[1];
+    if (sectionVersion !== version) continue;
+
+    const state = parsePackageState(section, version);
+    if (!state) continue;
+    const date = section.match(/^- \*\*日期：\*\*\s+(\d{4}-\d{2}-\d{2})\s*$/mu)?.[1];
+    const notesText = section.match(/^- \*\*更新内容：\*\*\s+(.+)\s*$/mu)?.[1];
+    if (!date || !notesText) {
+      throw new Error(`LFAA ${version} 的桌面包记录缺少日期或更新说明。`);
+    }
+    return { date, notesText, state };
+  }
+
+  // 同一产品版本可以有多条源码更新记录；没有同版本打包记录时以最新记录作为首次构建基准。
+  return undefined;
+}
+
+function parsePackageState(section, version) {
+  const match = section.match(/^- \*\*Windows Electron 包状态：\*\*[ \t]*([^\r\n]+)[ \t]*$/mu);
+  if (!match) return undefined;
+  const state = match[1].trim();
+  if (state === "待构建") return state;
+
+  const builtVersion = state.match(/^已生成：LFAA-(\d+\.\d+\.\d+)\.exe$/u)?.[1];
+  if (!builtVersion) throw new Error("更新日志中的 Windows Electron 包状态格式无效。" );
+  if (builtVersion !== version) {
+    throw new Error(`更新日志中的 Windows Electron 包版本 ${builtVersion} 与项目版本 ${version} 不一致。`);
+  }
+  return state;
 }
 
 function nextChangelogNumber(changelog) {

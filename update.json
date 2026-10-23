@@ -2,12 +2,13 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "0.0.8",
-  "title": "LFAA 0.0.8",
-  "publishedAt": "2026-10-09",
+  "version": "0.0.10",
+  "title": "LFAA 0.0.10",
+  "publishedAt": "2026-10-23",
   "releaseNotes": [
-    "完善通用 Agent 能力调用链，支持模型规划并执行已登记工具、Skill、MCP 等能力",
-    "修复 Windows 本机 Web 电脑操控能力登记，限制在本机回环访问"
+    "修复安装目录校验导致安装按钮灰色且无原因提示",
+    "完善 Windows 安装向导的 CLI PATH、文件进度和快捷方式选项",
+    "修复旧安装路径数据目录失效后无法启动的问题"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "0.0.1",

@@ -12,6 +12,6 @@ SSE 必须收到 `[DONE]` 或正常 `finish_reason` 才能完成；只有 EOF �
 
 Chat Completions usage 保留 DeepSeek `prompt_cache_hit_tokens`，兼容 `prompt_tokens_details.cached_tokens`，并在 Provider 只返回 `prompt_cache_miss_tokens` 时用已返回的输入总量减去 miss 数得到 hit 数；显式的 `0` 是真实冷缓存，缺字段或无效计数为未知。DeepSeek 上下文缓存由 Provider 默认自动处理，支持缓存的会话无需单独开关；LFAA 保持系统提示前缀稳定、把动态运行上下文放在后段，不注入缓存控制字段，也不伪造命中率。会话内前缀复用程度和命中仍由 Provider 决定并以其 usage 为准。
 
-图片生成通过固定的 OpenAI Images 与火山方舟 Seedream 端点执行。没有参考图时走各自生成 API；有项目本机角色/场景参考图时，OpenAI 走 Images Edit multipart、Ark 走官方 Base64 `image` 字段，文件数量和字节数有界。调用方可传入 AbortSignal；请求超时和 Agent 主动取消分别报告，取消监听随请求完成撤销，不切换模型或端点。
+远程图片 Provider 通过固定的 OpenAI Images 与火山方舟 Seedream 端点执行。没有参考图时走各自生成 API；有项目本机角色/场景参考图时，OpenAI 走 Images Edit multipart、Ark 走官方 Base64 `image` 字段，文件数量和字节数有界。调用方可传入 AbortSignal；请求超时和 Agent 主动取消分别报告，取消监听随请求完成撤销，不切换模型或端点。LFAA 的本地模型目录、Hub 下载、适配器注册和模型进程归 `packages/llm/llm-local-runtime`，MOSS-Image / MiniMax-H3 原生组件加载归各自系列适配器；本包继续独立拥有远程 Provider 请求协议。
 
 异步视频任务由本模块唯一 Provider Owner 调用火山方舟 `contents/generations/tasks` 创建、查询和取消排队任务。只向固定官方 API 发送用户选定的账户密钥/目录模型和 Settings 参数；参考图作为有界 data URL 与任务提示一起发送。任务输出 URL 必须符合已登记的 Ark 北京 TOS 主机，下载时拒绝重定向、限制 MP4 内容类型/ftyp 文件头、超时和 128 MiB 文件大小；仅返回二进制，不将临时 URL传给 Client。OpenAI 视频生成不在可用范围（其 Videos API 已下线）；真实 Provider 任务、额度、模型能力和账户权限需现场单独验收。

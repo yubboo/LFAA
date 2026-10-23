@@ -1,6 +1,6 @@
 /**
  * 功能：集中解析账户 Home 与业务 Data 的目录布局。
- * 作用：账户/控制数据由 Home 管理；游戏、环境、工具、缓存、日志、备份和模型等业务数据由 LFAA_DATA_DIR 管理。
+ * 作用：账户/控制数据由 Home 管理；业务、模型、输入和输出文件由 LFAA_DATA_DIR 管理。
  * 关联文件：storage-domain、settings、workflow、knowledge-library。
  */
 import { createHash } from "node:crypto";
@@ -9,7 +9,9 @@ import { resolve } from "node:path";
 import { protectPrivateDirectory } from "./private-directory.mjs";
 
 const accountDirectoryKeys = Object.freeze(["database", "users", "sessions", "credentials", "storages"]);
-const businessDirectoryKeys = Object.freeze(["users", "games", "environments", "lib", "cache", "tmp", "logs", "backups", "models", "connectivity"]);
+const businessDirectoryKeys = Object.freeze(["users", "games", "environments", "lib", "cache", "tmp", "logs", "backups", "models", "input", "output", "connectivity"]);
+// LFAA model library categories; model family adapters define the native files stored under each category.
+const modelDirectoryNames = Object.freeze(["text", "image", "video", "audio", "encoders", "vae", "adapters", "acceleration", "upscalers"]);
 
 export function resolveHomePaths(homeDirectory) {
   const root = resolve(homeDirectory);
@@ -38,6 +40,8 @@ export function resolveDataPaths(dataDirectory) {
     logs: path("logs"),
     backups: path("backups"),
     models: path("models"),
+    input: path("input"),
+    output: path("output"),
     connectivity: path("connectivity")
   });
 }
@@ -81,6 +85,14 @@ export function ensureDataDirectories(dataDirectory) {
       throw new Error(`LFAA 业务数据分类目录无效：${key} 必须是实际目录。`);
     }
   }
+  for (const name of modelDirectoryNames) {
+    const directory = resolve(paths.models, name);
+    mkdirSync(directory, { recursive: true });
+    const info = lstatSync(directory);
+    if (info.isSymbolicLink() || !info.isDirectory()) {
+      throw new Error(`LFAA 模型分类目录无效：models/${name} 必须是实际目录。`);
+    }
+  }
   return paths;
 }
 
@@ -100,11 +112,14 @@ export function resolveUserAccountPaths(homeDirectory, userId) {
 
 export function resolveUserDataPaths(dataDirectory, userId) {
   const paths = resolveDataPaths(dataDirectory);
-  const userRoot = resolve(paths.users, createUserDirectoryId(userId));
+  const userDirectoryId = createUserDirectoryId(userId);
+  const userRoot = resolve(paths.users, userDirectoryId);
   const withinUser = (...segments) => resolve(userRoot, ...segments);
   return Object.freeze({
     root: userRoot,
     projects: withinUser("projects"),
+    input: resolve(paths.input, userDirectoryId),
+    output: resolve(paths.output, userDirectoryId),
     workflows: (applicationId) => {
       if (typeof applicationId !== "string" || !/^[a-z][a-z0-9-]{0,31}$/u.test(applicationId)) {
         throw new Error("工作流 App 目录标识无效。");

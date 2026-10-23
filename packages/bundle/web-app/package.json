@@ -17,6 +17,7 @@
   "dependencies": {
     "lfaa-api-account-controller": "workspace:*",
     "lfaa-api-ai-video-controller": "workspace:*",
+    "lfaa-api-local-model-controller": "workspace:*",
     "lfaa-api-connectivity-controller": "workspace:*",
     "lfaa-api-gateway": "workspace:*",
     "lfaa-api-job-controller": "workspace:*",
@@ -34,6 +35,9 @@
     "lfaa-api-agent-git-controller": "workspace:*",
     "lfaa-api-workflow-controller": "workspace:*",
     "lfaa-video-ai-video": "workspace:*",
+    "lfaa-llm-moss-image": "workspace:*",
+    "lfaa-llm-local-runtime": "workspace:*",
+    "lfaa-llm-minimax-h3": "workspace:*",
     "lfaa-video-tool-ai-video": "workspace:*",
     "lfaa-workflow": "workspace:*",
     "lfaa-api-writing-controller": "workspace:*",

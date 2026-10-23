@@ -5,18 +5,15 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Button, Spin, Typography } from "antd";
-import { getErrorMessage, type ApplicationId, type ApplicationMode, type User } from "lfaa-client-connection/src/api.js";
-import { SHARED_WORK_ROUTE } from "lfaa-util-values/src/application-id.js";
+import { getErrorMessage, type User } from "lfaa-client-connection/src/api.js";
 import { loadRuntimeOverview, runRuntimeOperation, loadRuntimeTask, listRuntimeTasks,cancelRuntimeTask, type RuntimeOverview, type RuntimeTask } from "lfaa-client-connection/src/runtime-api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
 import "./GameLibraryPage.css";
 import {RuntimeEnvironmentPanel} from "./RuntimeEnvironmentPanel.js";
 
-export function GameLibraryPage({ user, environments = false, onNavigate, onOpenApplication,onOpenStorage }: {
-  user: User; environments?: boolean; onNavigate: (path: string) => void;
-  onOpenApplication: (app: ApplicationId, mode: ApplicationMode) => Promise<void>;
-  onOpenStorage:()=>void;
+export function GameLibraryPage({ user, environments = false, onNavigate, onOpenStorage }: {
+  user: User; environments?: boolean; onNavigate: (path: string) => void; onOpenStorage:()=>void;
 }) {
   const [overview, setOverview] = useState<RuntimeOverview | null>(null);
   const [error, setError] = useState("");
@@ -55,12 +52,11 @@ export function GameLibraryPage({ user, environments = false, onNavigate, onOpen
     finally { setBusy(false); }
   }, [targetId]);
   const canOperate = user.role !== "member" && !busy && !["queued", "running"].includes(task?.status ?? "");
-  const openMinecraft=async(path:string)=>{await onOpenApplication("minecraft","normal");onNavigate(path);};
   return <section className={`game-library${environments?" game-library--environments":""}`} aria-labelledby="game-library-heading">
     <header className="game-library__header">
       <div><Typography.Title id="game-library-heading" level={1}>{environments ? "运行环境" : "游戏库"}</Typography.Title>
         <Typography.Paragraph>{environments ? "本机与远程设备各自管理环境，Minecraft 和 SteamCMD 共用已验证的运行资源。" : "从环境准备到服务器运行，在同一个入口管理游戏服务。"}</Typography.Paragraph></div>
-      <Button onClick={() => onNavigate(environments ? "/games" : SHARED_WORK_ROUTE)}>{environments ? "返回游戏库" : "返回小鱼智能体"}</Button>
+      {environments ? <Button onClick={() => onNavigate("/games")}>返回游戏库</Button> : null}
     </header>
     {error ? <Alert type="error" showIcon message={error} action={<Button onClick={() => setRevision(value => value + 1)}>重试读取</Button>} /> : null}
     {!environments ? <div className="game-library__grid">
@@ -76,19 +72,18 @@ export function GameLibraryPage({ user, environments = false, onNavigate, onOpen
         <Typography.Title level={2}>Minecraft 开服部署</Typography.Title>
         <Typography.Paragraph>保留已有实例、世界和配置。手动部署或交给 小鱼智能体 准备并启动。</Typography.Paragraph>
         <p className="game-library__status">已有部署与服务器管理</p>
-        <div className="game-library__actions"><Button type="primary" onClick={() => void onOpenApplication("minecraft", "normal")}>进入 Minecraft</Button><Button onClick={() => void onOpenApplication("workspace", "ai-work")}>小鱼智能体</Button></div>
+        <Button type="primary" onClick={() => onNavigate("/games/minecraft")}>进入 Minecraft</Button>
       </article>
       <article className="game-library__card">
         <span className="game-library__icon"><WorkbenchIcon name="terminal" size={28} /></span>
-        <Typography.Title level={2}>SteamCMD</Typography.Title>
-        <Typography.Paragraph>管理 SteamCMD 安装、更新与节点命令，沿用现有游戏服务能力。</Typography.Paragraph>
-        <p className="game-library__status">环境与命令已接入 · 游戏开服待接入</p>
-        <div className="game-library__actions"><Button type="primary" onClick={() => void onOpenApplication("steamcmd", "normal")}>进入 SteamCMD</Button><Button onClick={() => void onOpenApplication("workspace", "ai-work")}>小鱼智能体</Button></div>
+        <Typography.Title level={2}>Steam 游戏服务</Typography.Title>
+        <Typography.Paragraph>部署和更新 Steam 专用服务端，按目标设备管理游戏服务器实例。</Typography.Paragraph>
+        <p className="game-library__status">支持 Steam 已发布的专用服务端 AppID</p>
+        <Button type="primary" onClick={() => onNavigate("/games/steamcmd")}>管理 Steam 游戏服务</Button>
       </article>
     </div> : <>
-      {overview?<RuntimeEnvironmentPanel overview={overview} targetId={targetId} setTargetId={setTargetId} canOperate={canOperate} operate={operate} task={task} onNavigate={path=>void openMinecraft(path)} onOpenStorage={onOpenStorage} onOpenSteamcmd={()=>void onOpenApplication("steamcmd","normal")} />:!error?<div role="status"><Spin/> 正在读取设备的实际环境…</div>:null}
+      {overview?<RuntimeEnvironmentPanel overview={overview} targetId={targetId} setTargetId={setTargetId} canOperate={canOperate} operate={operate} task={task} onNavigate={onNavigate} onOpenStorage={onOpenStorage} onOpenSteamcmd={()=>onNavigate("/games/steamcmd")} />:!error?<div role="status"><Spin/> 正在读取设备的实际环境…</div>:null}
       {task ? <section className="game-library__runtime" aria-label="运行环境任务"><div><Typography.Title level={3}>环境任务</Typography.Title><p>{task.message}</p>{task.result&&typeof task.result==="object"&&"message" in task.result?<p>{String(task.result.message)}</p>:null}{task.result&&typeof task.result==="object"&&"installerPath" in task.result?<code>{String(task.result.installerPath)}</code>:null}<p>{({ queued: "等待中", running: "执行中", succeeded: "已完成", failed: "失败", cancelled: "已取消" })[task.status]}</p></div>{["queued", "running"].includes(task.status) ? <Button disabled={task.cancelRequested} onClick={() => void cancelRuntimeTask(task.id).then(setTask).catch(reason => setError(getErrorMessage(reason)))}>{task.cancelRequested ? "等待确认取消" : "取消任务"}</Button> : null}</section> : null}
-      <Button onClick={() => void onOpenApplication("steamcmd", "normal")}>管理 SteamCMD 环境</Button>
     </>}
   </section>;
 }

@@ -9,7 +9,7 @@ import { getDaemonNode, listDaemonNodes, recordDaemonHeartbeat } from "lfaa-host
 import { claimNextNodeFileTask, completeNodeFileTask, getNodeFileTask, renewNodeFileTaskLeases } from "lfaa-fs/src/queue.js";
 import { claimNextAiHostTask, completeAiHostTask, getAiHostTask, renewAiHostTaskLeases, listAiHostCancellationRequests, updateAiHostTaskOutput, type AiHostTaskResult } from "lfaa-jobs/src/ai-host-tasks.js";
 import { claimNextMinecraftTask, appendMinecraftTaskLogs, completeMinecraftTask, getMinecraftTask, renewMinecraftTaskLeases, updateMinecraftTaskProgress } from "lfaa-jobs/src/minecraft-queue.js";
-import { claimNextSteamcmdTask, completeSteamcmdTask, getSteamcmdNodeSettings, renewSteamcmdTaskLeases, updateSteamcmdTaskProgress } from "lfaa-games-steamcmd/src/service.js";
+import { claimNextSteamcmdTask, completeSteamcmdTask, getSteamcmdNodeSettings, renewSteamcmdTaskLeases, steamcmdServerIdsForNode, updateSteamcmdServerStatesFromDaemon, updateSteamcmdTaskProgress } from "lfaa-games-steamcmd/src/service.js";
 import { getMinecraftInstance, getMinecraftNodeStorageDirectories, updateInstanceStatesFromDaemon } from "lfaa-games-minecraft/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
@@ -21,15 +21,17 @@ router.post("/daemon/heartbeat", requireLocalDaemon, (request, response) => {
     const body = parseBody<Parameters<typeof recordDaemonHeartbeat>[0] & {
       activeTaskIds: string[];
       instances: Array<{ id: string; state: "stopped" | "running" | "starting" | "installing" | "unknown"; sandboxStatus: "unsupported" | "unprepared" | "prepared" | "running" | "unknown" }>;
+      steamcmdServers: Array<{ id: string; status: "unknown" | "stopped" | "running" | "starting" | "stopping"; processId: number | null }>;
     }>(daemonHeartbeatSchema, request.body);
-    const { activeTaskIds, instances, ...heartbeat } = body;
+    const { activeTaskIds, instances, steamcmdServers, ...heartbeat } = body;
     const nodeChanged = recordDaemonHeartbeat(heartbeat);
     renewMinecraftTaskLeases(body.id, activeTaskIds);
     renewNodeFileTaskLeases(body.id, activeTaskIds);
     renewSteamcmdTaskLeases(body.id, activeTaskIds);
+    const changedSteamcmdServers = updateSteamcmdServerStatesFromDaemon(body.id, steamcmdServers);
     renewAiHostTaskLeases(body.id, activeTaskIds);
     const changedInstanceIds = updateInstanceStatesFromDaemon(body.id, instances);
-    if (nodeChanged || changedInstanceIds.length) {
+    if (nodeChanged || changedInstanceIds.length || changedSteamcmdServers) {
       realtime.publishMinecraftChange(["state"]);
     }
     response.json({
@@ -37,6 +39,7 @@ router.post("/daemon/heartbeat", requireLocalDaemon, (request, response) => {
       cancelTaskIds: listAiHostCancellationRequests(body.id),
       cancelMinecraftTaskIds: listMinecraftCancellationRequests(body.id),
       steamcmdSettings: getSteamcmdNodeSettings(body.id),
+      steamcmdServers: steamcmdServerIdsForNode(body.id).map(id => ({ id })),
       minecraftStorageSettings: getMinecraftNodeStorageDirectories(body.id),
       runtimeStorageSettings: runtimeStorageFor(body.id)
     });

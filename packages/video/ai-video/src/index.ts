@@ -11,12 +11,16 @@ import { database } from "lfaa-storage-sqlite/src/database.js";
 import { withControlLock } from "lfaa-storage-domain/src/control-lock.js";
 import { credentialReference } from "lfaa-credentials/src/index.js";
 import type { CredentialConsumer } from "lfaa-credentials/src/index.js";
-import { generateProviderImage, type GeneratedImageMimeType, type ImageGenerationProvider } from "lfaa-llm/src/image-generation.js";
+import { generateProviderImage, type GeneratedImageMimeType, type ImageGenerationProvider, type ProviderReferenceImage } from "lfaa-llm/src/image-generation.js";
+import type { LocalModelRuntimeService } from "lfaa-llm-local-runtime/src/index.js";
 import { cancelArkVideoTask, createArkVideoTask, downloadArkVideo, getArkVideoTask, type ArkVideoTaskStatus } from "lfaa-llm/src/video-generation.js";
 import { getUserSettings, imageDimensions, listAiAccounts } from "lfaa-settings/src/service.js";
 import { getProjectStorageDirectoryCandidates } from "lfaa-settings/src/project-storage.js";
 
 export const AI_VIDEO_CANVAS_LIMITS = Object.freeze({ canvases: 20, shots: 64, links: 128, characters: 24, locations: 24, scriptCharacters: 100_000, referencesPerShot: 8, referenceImageBytes: 3 * 1024 * 1024, referenceImageDimension: 8_192, referenceImagePixels: 20_000_000, imageAssetBytes: 16 * 1024 * 1024, storeBytes: 4 * 1024 * 1024, assetBytes: 2 * 1024 * 1024 * 1024, assetFiles: 2_048, mediaAssetBytes: 128 * 1024 * 1024, videoAssetBytes: 128 * 1024 * 1024, timelineClips: 256, timelineSeconds: 300, whiteModelItems: 32, activeVideoTasks: 2 });
+type AiVideoImageGenerationTarget =
+  | { generationMode: "local"; prompt: string; modelId: string; timeoutMs: number; unloadAfterMs: number }
+  | { generationMode: "provider"; prompt: string; referenceImages: ProviderReferenceImage[]; accountId: string; modelId: string; providerId: ImageGenerationProvider; timeoutMs: number };
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const MAX_COORDINATE = 50_000;
 const PROJECT_FORMAT = "lfaa-aivideo-project";
@@ -25,6 +29,7 @@ const SUPPORTED_PROJECT_FORMAT_VERSIONS = new Set([1, 2, 3, 4, 5, PROJECT_FORMAT
 const LEGACY_FILE_NAME = "storyboards.json";
 const LEGACY_BACKUP_FILE_NAME = "storyboards.v1.migrated.json";
 const videoPollLeases = new Set<string>();
+const localVideoJobs = new Map<string, AbortController>();
 let watchSubmittedVideoTask: ((userId: string, canvasId: string, shotId: string, localTaskId: string) => void) | null = null;
 
 function videoTaskKey(userId: string, canvasId: string, shotId: string, localTaskId: string): string {
@@ -90,17 +95,17 @@ export interface AiVideoCanvasService {
   create(userId: string, title: unknown): AiVideoCanvas;
   update(userId: string, canvasId: string, expectedUpdatedAt: string, input: unknown): AiVideoCanvas | null;
   remove(userId: string, canvasId: string): boolean;
-  uploadReferenceImage(userId: string, canvasId: string, kind: AiVideoReferenceKind, referenceId: string, expectedUpdatedAt: string, dataUrl: unknown): AiVideoCanvas | null;
+  uploadReferenceImage(userId: string, canvasId: string, kind: AiVideoReferenceKind, referenceId: string, expectedUpdatedAt: string, dataUrl: unknown): Promise<AiVideoCanvas | null>;
   removeReferenceImage(userId: string, canvasId: string, kind: AiVideoReferenceKind, referenceId: string, expectedUpdatedAt: string): AiVideoCanvas | null;
   generateShotImage(userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, signal?: AbortSignal): Promise<AiVideoCanvas | null>;
   startShotVideo(userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, signal?: AbortSignal): Promise<AiVideoCanvas | null>;
   refreshShotVideo(userId: string, canvasId: string, shotId: string, signal?: AbortSignal): Promise<AiVideoCanvas | null>;
   cancelShotVideo(userId: string, canvasId: string, shotId: string, signal?: AbortSignal): Promise<AiVideoCanvas | null>;
   listMediaAssets(userId: string, canvasId: string): AiVideoMediaAssetSummary[] | null;
-  importMediaAsset(userId: string, canvasId: string, expectedUpdatedAt: string, name: unknown, mimeType: unknown, bytes: Buffer): AiVideoCanvas | null;
+  importMediaAsset(userId: string, canvasId: string, expectedUpdatedAt: string, name: unknown, mimeType: unknown, bytes: Buffer): Promise<AiVideoCanvas | null>;
   saveExportAsset(userId: string, canvasId: string, expectedUpdatedAt: string, bytes: Buffer, mimeType: unknown): { canvas: AiVideoCanvas; asset: AiVideoMediaAsset } | null;
   removeMediaAsset(userId: string, canvasId: string, assetId: string, expectedUpdatedAt: string): AiVideoCanvas | null;
-  uploadShotImage(userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, bytes: Buffer, mimeType: unknown): AiVideoCanvas | null;
+  uploadShotImage(userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, bytes: Buffer, mimeType: unknown): Promise<AiVideoCanvas | null>;
   openMediaAsset(userId: string, canvasId: string, assetId: string, rangeHeader?: string): { stream?: ReadStream; mimeType: AiVideoMediaMimeType; size: number; start?: number; end?: number; rangeNotSatisfiable?: boolean } | null;
   readGeneratedImage(userId: string, canvasId: string, assetId: string): { bytes: Buffer; mimeType: AiVideoMediaMimeType } | null;
 }
@@ -912,15 +917,16 @@ function persistGeneratedImage(userId: string, canvasId: string, shotId: string,
   }
 }
 
-export function uploadAiVideoReferenceImage(userId: string, canvasId: string, kind: AiVideoReferenceKind, referenceId: string, expectedUpdatedAt: string, dataUrl: unknown): AiVideoCanvas | null {
+async function uploadAiVideoReferenceImage(userId: string, canvasId: string, kind: AiVideoReferenceKind, referenceId: string, expectedUpdatedAt: string, dataUrl: unknown, localModels: LocalModelRuntimeService): Promise<AiVideoCanvas | null> {
   const id = normalizedId(canvasId, "项目 ID");
   const targetReferenceId = normalizedId(referenceId, "角色/场景档案 ID");
   if (kind !== "characters" && kind !== "locations") return fail("参考图片类型无效。");
   const expected = normalizedText(expectedUpdatedAt, "预期更新时间", 40);
   const image = parseReferenceImageDataUrl(dataUrl);
+  const inputCopy = await localModels.saveWorkspaceAsset(userId, "input", `${kind}-${targetReferenceId}`, image.mimeType, image.bytes);
   let createdAssetPath: string | null = null;
   try {
-    return withControlLock(database, () => {
+    const canvas = withControlLock(database, () => {
       const root = ensureCurrentFormat(userId);
       const records = readProjectCollection(root);
       const current = records.find(record => record.canvas.id === id)?.canvas;
@@ -953,11 +959,14 @@ export function uploadAiVideoReferenceImage(userId: string, canvasId: string, ki
       removeUnreferencedAssetsAfterCommit(root, current, canvas);
       return canvas;
     });
+    if (!canvas) await localModels.removeWorkspaceAsset(userId, inputCopy);
+    return canvas;
   } catch (error) {
     if (createdAssetPath && existsSync(createdAssetPath)) {
       try { unlinkSync(createdAssetPath); }
       catch { /* 原始保存错误优先；残留文件会计入后续素材容量校验。 */ }
     }
+    await localModels.removeWorkspaceAsset(userId, inputCopy);
     throw error;
   }
 }
@@ -1065,8 +1074,16 @@ function saveMediaAsset(userId: string, canvasId: string, expectedUpdatedAt: str
   }
 }
 
-function importMediaAsset(userId: string, canvasId: string, expectedUpdatedAt: string, name: unknown, mimeType: unknown, bytes: Buffer): AiVideoCanvas | null {
-  return saveMediaAsset(userId, canvasId, expectedUpdatedAt, name, mimeType, bytes, "imported")?.canvas ?? null;
+async function importMediaAsset(userId: string, canvasId: string, expectedUpdatedAt: string, name: unknown, mimeType: unknown, bytes: Buffer, localModels: LocalModelRuntimeService): Promise<AiVideoCanvas | null> {
+  const inputCopy = await localModels.saveWorkspaceAsset(userId, "input", String(name), String(mimeType ?? ""), bytes);
+  try {
+    const canvas = saveMediaAsset(userId, canvasId, expectedUpdatedAt, name, mimeType, bytes, "imported")?.canvas ?? null;
+    if (!canvas) await localModels.removeWorkspaceAsset(userId, inputCopy);
+    return canvas;
+  } catch (error) {
+    await localModels.removeWorkspaceAsset(userId, inputCopy);
+    throw error;
+  }
 }
 
 function saveExportAsset(userId: string, canvasId: string, expectedUpdatedAt: string, bytes: Buffer, mimeType: unknown): { canvas: AiVideoCanvas; asset: AiVideoMediaAsset } | null {
@@ -1074,16 +1091,17 @@ function saveExportAsset(userId: string, canvasId: string, expectedUpdatedAt: st
   return saveMediaAsset(userId, canvasId, expectedUpdatedAt, `漫剧导出-${now}`, mimeType, bytes, "export");
 }
 
-function uploadShotImage(userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, bytes: Buffer, mimeInput: unknown): AiVideoCanvas | null {
+async function uploadShotImage(userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, bytes: Buffer, mimeInput: unknown, localModels: LocalModelRuntimeService): Promise<AiVideoCanvas | null> {
   const mimeType = typeof mimeInput === "string" && IMAGE_MIME_TYPES.has(mimeInput as AiVideoMediaMimeType) ? mimeInput as GeneratedImageMimeType : fail("镜头参考图只支持 PNG、JPEG 或 WebP。" );
   if (bytes.byteLength > AI_VIDEO_CANVAS_LIMITS.referenceImageBytes) return fail("镜头参考图不能超过 3 MiB。" );
   validateMediaBytes(bytes, mimeType);
   const id = normalizedId(canvasId, "项目 ID");
   const shotIdValue = normalizedId(shotId, "镜头 ID");
   const expected = normalizedText(expectedUpdatedAt, "预期更新时间", 40);
+  const inputCopy = await localModels.saveWorkspaceAsset(userId, "input", `shot-reference${MEDIA_EXTENSIONS[mimeType]}`, mimeType, bytes);
   let createdPath: string | null = null;
   try {
-    return withControlLock(database, () => {
+    const canvas = withControlLock(database, () => {
       const root = ensureCurrentFormat(userId);
       const records = readProjectCollection(root);
       const current = records.find(item => item.canvas.id === id)?.canvas;
@@ -1114,11 +1132,14 @@ function uploadShotImage(userId: string, canvasId: string, shotId: string, expec
       removeUnreferencedAssetsAfterCommit(root, current, canvas);
       return canvas;
     });
+    if (!canvas) await localModels.removeWorkspaceAsset(userId, inputCopy);
+    return canvas;
   } catch (error) {
     if (createdPath && existsSync(createdPath)) {
       try { unlinkSync(createdPath); }
       catch { /* 保留原始保存错误；遗留文件仍进入容量统计。 */ }
     }
+    await localModels.removeWorkspaceAsset(userId, inputCopy);
     throw error;
   }
 }
@@ -1213,12 +1234,12 @@ function openMediaAsset(userId: string, canvasId: string, assetId: string, range
   });
 }
 
-async function generateShotImage(userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, credentials: CredentialConsumer, signal?: AbortSignal): Promise<AiVideoCanvas | null> {
+async function generateShotImage(userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, credentials: CredentialConsumer, localModels: LocalModelRuntimeService, signal?: AbortSignal): Promise<AiVideoCanvas | null> {
   signal?.throwIfAborted();
   const id = normalizedId(canvasId, "项目 ID");
   const targetShotId = normalizedId(shotId, "镜头 ID");
   const expected = normalizedText(expectedUpdatedAt, "预期更新时间", 40);
-  const target = withControlLock(database, () => {
+  const target = withControlLock(database, (): AiVideoImageGenerationTarget | null => {
     const root = ensureCurrentFormat(userId);
     const records = readProjectCollection(root);
     const record = records.find(item => item.canvas.id === id);
@@ -1228,13 +1249,16 @@ async function generateShotImage(userId: string, canvasId: string, shotId: strin
     if (!shot) throw new Error("找不到当前分镜板中的镜头。");
     if (!shot.description.trim()) throw new Error("请先填写镜头的画面与动作，再生成图片。");
     const settings = getUserSettings(userId).aiRuntime;
+    const generationMode = settings.imageGenerationMode === "local" ? "local" : "provider";
     const accountId = settings.imageGenerationAccountId;
     const modelId = settings.imageGenerationModelId;
-    if (!accountId || !modelId) throw new Error("请先在设置中心选择 AI 漫剧图片模型账户和模型 ID。");
-    const account = listAiAccounts(userId).find(item => item.id === accountId);
-    if (!account?.hasSecret) throw new Error("设置中心找不到所选图片模型账户或其密钥已删除。");
-    if (account.providerId !== "openai" && account.providerId !== "doubao") throw new Error("AI 漫剧图片生成只支持 OpenAI 和豆包/火山方舟账户。");
-    if (!account.models.some(item => item.id === modelId)) throw new Error("所选图片模型不在当前账户保存的模型目录中，请重新选择。");
+    const localModelId = settings.imageGenerationLocalModelId;
+    const account = generationMode === "provider" ? listAiAccounts(userId).find(item => item.id === accountId) : undefined;
+    if (generationMode === "local" && !localModelId) throw new Error("请先在设置中心选择已登记的本机生图模型。");
+    if (generationMode === "provider" && (!accountId || !modelId)) throw new Error("请先在设置中心选择 AI 漫剧图片模型账户和模型 ID。");
+    if (generationMode === "provider" && !account?.hasSecret) throw new Error("设置中心找不到所选图片模型账户或其密钥已删除。");
+    if (generationMode === "provider" && account?.providerId !== "openai" && account?.providerId !== "doubao") throw new Error("AI 漫剧图片生成只支持 OpenAI 和豆包/火山方舟账户。");
+    if (generationMode === "provider" && !account?.models.some(item => item.id === modelId)) throw new Error("所选图片模型不在当前账户保存的模型目录中，请重新选择。");
     const previousImageBytes = shot.imageAssetId && shot.imageMimeType
       ? lstatSync(imageAssetPath(root, id, shot.imageAssetId, shot.imageMimeType)).size : 0;
       referencedAssetBytes(root, records);
@@ -1260,14 +1284,31 @@ async function generateShotImage(userId: string, canvasId: string, shotId: strin
       if (bytes.byteLength > AI_VIDEO_CANVAS_LIMITS.referenceImageBytes) throw new Error(`角色或场景「${reference.name}」的参考图片超过本次模型输入上限。`);
       return { bytes, mimeType: reference.imageMimeType! };
     });
-    return { prompt, referenceImages, accountId, modelId, providerId: account.providerId as ImageGenerationProvider, timeoutMs: settings.requestTimeoutSeconds * 1_000 };
+    if (generationMode === "local" && referenceImages.length) throw new Error("当前登记的 MOSS-Image 适配只支持文字生图；请移除镜头关联角色/场景的参考图片，或切回 Provider 模式。");
+    return generationMode === "local"
+      ? { generationMode: "local", prompt, modelId: localModelId!, timeoutMs: settings.imageGenerationLocalTimeoutSeconds * 1_000, unloadAfterMs: settings.imageGenerationUnloadAfterMinutes * 60_000 }
+      : { generationMode: "provider", prompt, referenceImages, accountId: accountId!, modelId: modelId!, providerId: account!.providerId as ImageGenerationProvider, timeoutMs: settings.requestTimeoutSeconds * 1_000 };
   });
   if (!target) return null;
-  const apiKey = credentials.resolve(userId, credentialReference("lfaa-settings", target.accountId));
-  if (!apiKey) throw new Error("设置中心的图像模型账户密钥不可用。");
-  const image = await generateProviderImage({ providerId: target.providerId, modelId: target.modelId, apiKey, prompt: target.prompt, referenceImages: target.referenceImages, timeoutMs: target.timeoutMs, ...(signal ? { signal } : {}) });
+  let image: { bytes: Buffer; mimeType: GeneratedImageMimeType };
+  if (target.generationMode === "local") {
+    image = await localModels.generateImage({ modelId: target.modelId, prompt: target.prompt, timeoutMs: target.timeoutMs, unloadAfterMs: target.unloadAfterMs, ...(signal ? { signal } : {}) });
+  } else {
+    const apiKey = credentials.resolve(userId, credentialReference("lfaa-settings", target.accountId));
+    if (!apiKey) throw new Error("设置中心的图像模型账户密钥不可用。");
+    image = await generateProviderImage({ providerId: target.providerId, modelId: target.modelId, apiKey, prompt: target.prompt, referenceImages: target.referenceImages, timeoutMs: target.timeoutMs, ...(signal ? { signal } : {}) });
+  }
   signal?.throwIfAborted();
-  return persistGeneratedImage(userId, id, targetShotId, expected, image);
+  if (target.generationMode !== "local") return persistGeneratedImage(userId, id, targetShotId, expected, image);
+  const outputCopy = await localModels.saveWorkspaceAsset(userId, "output", `${target.modelId}-${targetShotId}`, image.mimeType, image.bytes);
+  try {
+    const canvas = persistGeneratedImage(userId, id, targetShotId, expected, image);
+    if (!canvas) await localModels.removeWorkspaceAsset(userId, outputCopy);
+    return canvas;
+  } catch (error) {
+    await localModels.removeWorkspaceAsset(userId, outputCopy);
+    throw error;
+  }
 }
 
 function persistVideoTaskState(userId: string, canvasId: string, shotId: string, localId: string, taskUpdate: Partial<AiVideoTask>, video?: Buffer): AiVideoCanvas | null {
@@ -1280,6 +1321,7 @@ function persistVideoTaskState(userId: string, canvasId: string, shotId: string,
       if (!current) return null;
       const shot = current.shots.find(item => item.id === shotId);
       if (!shot?.videoTask || shot.videoTask.localId !== localId) return current;
+      if (["succeeded", "failed", "cancelled", "expired"].includes(shot.videoTask.status) && taskUpdate.status && taskUpdate.status !== shot.videoTask.status) return current;
       let videoAssetId = shot.videoAssetId;
       let videoMimeType = shot.videoMimeType;
       if (video) {
@@ -1326,7 +1368,7 @@ function persistVideoTaskState(userId: string, canvasId: string, shotId: string,
   }
 }
 
-async function startShotVideo(userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, credentials: CredentialConsumer, signal?: AbortSignal): Promise<AiVideoCanvas | null> {
+async function startShotVideo(userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, credentials: CredentialConsumer, localModels: LocalModelRuntimeService, signal?: AbortSignal): Promise<AiVideoCanvas | null> {
   signal?.throwIfAborted();
   const id = normalizedId(canvasId, "项目 ID");
   const targetShotId = normalizedId(shotId, "镜头 ID");
@@ -1344,12 +1386,14 @@ async function startShotVideo(userId: string, canvasId: string, shotId: string, 
     const activeTaskCount = records.reduce((total, record) => total + record.canvas.shots.filter(item => item.videoTask && ["submitting", "queued", "running"].includes(item.videoTask.status)).length, 0);
     if (activeTaskCount >= AI_VIDEO_CANVAS_LIMITS.activeVideoTasks) throw new Error(`当前账户最多同时排队或运行 ${AI_VIDEO_CANVAS_LIMITS.activeVideoTasks} 个视频任务。`);
     const settings = getUserSettings(userId).aiRuntime;
-    const accountId = settings.videoGenerationAccountId;
-    const modelId = settings.videoGenerationModelId;
-    if (!accountId || !modelId) throw new Error("请先在设置中心选择火山方舟视频账户和模型。");
-    const account = listAiAccounts(userId).find(item => item.id === accountId);
-    if (!account?.hasSecret || account.providerId !== "doubao") throw new Error("设置中心找不到所选火山方舟账户或密钥已删除。");
-    if (!account.models.some(item => item.id === modelId)) throw new Error("视频模型不在当前账户保存的模型目录中，请重新选择。");
+    const generationMode = settings.videoGenerationMode === "local" ? "local" : "provider";
+    const accountId = generationMode === "provider" ? settings.videoGenerationAccountId : "local";
+    const modelId = generationMode === "provider" ? settings.videoGenerationModelId : settings.videoGenerationLocalModelId;
+    if (!modelId || generationMode === "provider" && !accountId) throw new Error(generationMode === "local" ? "请先在设置中心选择已登记的本机视频模型。" : "请先在设置中心选择火山方舟视频账户和模型。");
+    const account = generationMode === "provider" ? listAiAccounts(userId).find(item => item.id === accountId) : undefined;
+    if (generationMode === "provider" && (!account?.hasSecret || account.providerId !== "doubao")) throw new Error("设置中心找不到所选火山方舟账户或密钥已删除。");
+    if (generationMode === "provider" && !account?.models.some(item => item.id === modelId)) throw new Error("视频模型不在当前账户保存的模型目录中，请重新选择。");
+    if (generationMode === "local" && (settings.videoGenerationDurationSeconds < 5 || settings.videoGenerationDurationSeconds > 15)) throw new Error("当前本机 MiniMax-H3 适配只接受 5 至 15 秒视频；请在设置中心调整时长或切换远程 Provider。");
     const characters = shot.characterIds.map(referenceId => current.characters.find(reference => reference.id === referenceId)).filter((reference): reference is AiVideoReference => Boolean(reference));
     const location = shot.locationId ? current.locations.find(reference => reference.id === shot.locationId) : undefined;
     const promptParts = [
@@ -1368,10 +1412,12 @@ async function startShotVideo(userId: string, canvasId: string, shotId: string, 
       if (bytes.byteLength > AI_VIDEO_CANVAS_LIMITS.referenceImageBytes) throw new Error(`角色或场景「${reference.name}」的参考图超过视频模型输入上限。`);
       return { bytes, mimeType: reference.imageMimeType! };
     });
-    const apiKey = credentials.resolve(userId, credentialReference("lfaa-settings", accountId));
-    if (!apiKey) throw new Error("设置中心的火山方舟账户密钥不可用。");
+    if (generationMode === "local" && referenceImages.length > 1) throw new Error("当前本机 MiniMax-H3 适配只接收一张首帧图；请减少角色/场景参考图片，或切换远程 Provider。");
+    const apiKey = generationMode === "provider" ? credentials.resolve(userId, credentialReference("lfaa-settings", accountId)) : null;
+    if (generationMode === "provider" && !apiKey) throw new Error("设置中心的火山方舟账户密钥不可用。");
     const now = new Date().toISOString();
-    const task: AiVideoTask = { localId: randomUUID(), accountId, modelId, status: "submitting", createdAt: now, updatedAt: now };
+    const localId = randomUUID();
+    const task: AiVideoTask = { localId, accountId, modelId, status: generationMode === "local" ? "running" : "submitting", ...(generationMode === "local" ? { providerTaskId: `lfaa-local:${localId}` } : {}), createdAt: now, updatedAt: now };
     const reserved: AiVideoCanvas = {
       ...current,
       shots: current.shots.map(item => item.id === targetShotId ? { ...item, videoTask: task } : item),
@@ -1379,20 +1425,54 @@ async function startShotVideo(userId: string, canvasId: string, shotId: string, 
     };
     assertProjectCapacity(records, reserved, id);
     writeProject(root, reserved);
-    return {
+    const targetData = {
       task,
-      apiKey,
       prompt,
       referenceImages,
       durationSeconds: settings.videoGenerationDurationSeconds,
-      ratio: settings.videoGenerationRatio,
-      resolution: settings.videoGenerationResolution,
-      generateAudio: settings.videoGenerationGenerateAudio,
-      watermark: settings.videoGenerationWatermark,
-      timeoutMs: settings.requestTimeoutSeconds * 1_000
+      timeoutMs: generationMode === "local" ? settings.videoGenerationLocalTimeoutSeconds * 1_000 : settings.requestTimeoutSeconds * 1_000,
+      canvas: reserved
     };
+    return generationMode === "local"
+      ? { ...targetData, mode: "local" as const, ratio: settings.videoGenerationRatio === "adaptive" ? current.whiteModel.ratio : settings.videoGenerationRatio, unloadAfterMs: settings.videoGenerationUnloadAfterMinutes * 60_000 }
+      : { ...targetData, mode: "provider" as const, apiKey: apiKey!, ratio: settings.videoGenerationRatio, resolution: settings.videoGenerationResolution, generateAudio: settings.videoGenerationGenerateAudio, watermark: settings.videoGenerationWatermark };
   });
   if (!target) return null;
+  if (target.mode === "local") {
+    const taskKey = videoTaskKey(userId, id, targetShotId, target.task.localId);
+    const controller = new AbortController();
+    localVideoJobs.set(taskKey, controller);
+    void localModels.generateVideo({
+      modelId: target.task.modelId,
+      prompt: target.prompt,
+      durationSeconds: target.durationSeconds,
+      aspectRatio: target.ratio,
+      referenceImages: target.referenceImages,
+      timeoutMs: target.timeoutMs,
+      unloadAfterMs: target.unloadAfterMs,
+      signal: controller.signal
+    }).then(async result => {
+      if (controller.signal.aborted) {
+        persistVideoTaskState(userId, id, targetShotId, target.task.localId, { status: "cancelled", error: "" });
+        return;
+      }
+      const outputCopy = await localModels.saveWorkspaceAsset(userId, "output", `${target.task.modelId}-${targetShotId}`, result.mimeType, result.bytes);
+      try {
+        const canvas = persistVideoTaskState(userId, id, targetShotId, target.task.localId, { status: "succeeded", error: "" }, result.bytes);
+        const committed = canvas?.shots.some(shot => shot.id === targetShotId && shot.videoTask?.localId === target.task.localId && shot.videoTask.status === "succeeded" && Boolean(shot.videoAssetId));
+        if (!committed) await localModels.removeWorkspaceAsset(userId, outputCopy);
+      } catch (error) {
+        await localModels.removeWorkspaceAsset(userId, outputCopy);
+        throw error;
+      }
+    }).catch(error => {
+      const cancelled = controller.signal.aborted || error instanceof DOMException && error.name === "AbortError";
+      const message = cancelled ? "" : error instanceof Error ? error.message.slice(0, 1_000) : "本机视频生成失败。";
+      persistVideoTaskState(userId, id, targetShotId, target.task.localId, { status: cancelled ? "cancelled" : "failed", error: message });
+    }).finally(() => localVideoJobs.delete(taskKey));
+    watchSubmittedVideoTask?.(userId, id, targetShotId, target.task.localId);
+    return target.canvas;
+  }
   try {
     const providerTask = await createArkVideoTask({
       modelId: target.task.modelId,
@@ -1440,6 +1520,10 @@ async function refreshShotVideo(userId: string, canvasId: string, shotId: string
     const shot = canvas.shots.find(item => item.id === targetShotId);
     if (!shot?.videoTask) throw new Error("此镜头还没有视频生成任务。");
     const task = shot.videoTask;
+    if (["succeeded", "failed", "cancelled", "expired"].includes(task.status)) return { canvas, task, canRefresh: false };
+    if (task.providerTaskId?.startsWith("lfaa-local:")) {
+      return { canvas, task, canRefresh: false, localActive: localVideoJobs.has(videoTaskKey(userId, id, targetShotId, task.localId)) };
+    }
     if (!task.providerTaskId || task.status === "submitting") {
       const requestTimeoutMs = getUserSettings(userId).aiRuntime.requestTimeoutSeconds * 1_000;
       const stale = task.status === "submitting" && Date.now() - Date.parse(task.createdAt) > requestTimeoutMs + 15_000;
@@ -1450,13 +1534,20 @@ async function refreshShotVideo(userId: string, canvasId: string, shotId: string
     return { canvas, task, ...taskApiKey(userId, task, credentials), canRefresh: true };
   });
   if (!target) return null;
+  if ("localActive" in target) {
+    if (target.localActive) return target.canvas;
+    return persistVideoTaskState(userId, id, targetShotId, target.task.localId, {
+      status: "failed",
+      error: "本机视频推理进程已中断；LFAA 没有登记不完整的生成结果。"
+    }) ?? target.canvas;
+  }
   if ("stale" in target && target.stale) {
     return persistVideoTaskState(userId, id, targetShotId, target.task.localId, {
       status: "failed",
-      error: "本机在服务商回执前中断了任务提交，服务商是否已受理无法确认。请先查看火山方舟任务记录，再决定是否重试。"
+      error: "LFAA 在服务商回执前中断了任务提交，服务商是否已受理无法确认。请先查看服务商任务记录，再决定是否重试。"
     }) ?? target.canvas;
   }
-  if (!target.canRefresh) return target.canvas;
+  if (!("apiKey" in target) || !target.canRefresh || typeof target.timeoutMs !== "number") return target.canvas;
   const lease = videoTaskKey(userId, id, targetShotId, target.task.localId);
   if (videoPollLeases.has(lease)) return target.canvas;
   videoPollLeases.add(lease);
@@ -1491,10 +1582,19 @@ async function cancelShotVideo(userId: string, canvasId: string, shotId: string,
     if (!canvas) return null;
     const shot = canvas.shots.find(item => item.id === targetShotId);
     if (!shot?.videoTask) throw new Error("此镜头没有可取消的视频任务。");
+    if (shot.videoTask.providerTaskId?.startsWith("lfaa-local:")) {
+      const controller = localVideoJobs.get(videoTaskKey(userId, id, targetShotId, shot.videoTask.localId));
+      if (!controller) throw new Error("本机视频任务已结束或没有可取消的运行进程。");
+      return { task: shot.videoTask, localController: controller };
+    }
     if (shot.videoTask.status !== "queued" || !shot.videoTask.providerTaskId) throw new Error("只有仍在排队中的视频任务可以取消；运行中的任务需等服务商返回结果。");
     return { task: shot.videoTask, ...taskApiKey(userId, shot.videoTask, credentials) };
   });
   if (!target) return null;
+  if ("localController" in target) {
+    target.localController.abort(new Error("用户取消本机视频生成。"));
+    return persistVideoTaskState(userId, id, targetShotId, target.task.localId, { status: "cancelled", error: "" });
+  }
   await cancelArkVideoTask({ taskId: target.task.providerTaskId!, apiKey: target.apiKey, timeoutMs: target.timeoutMs, ...(signal ? { signal } : {}) });
   return persistVideoTaskState(userId, id, targetShotId, target.task.localId, { status: "cancelled", error: "" });
 }
@@ -1518,7 +1618,7 @@ export function deleteAiVideoCanvas(userId: string, canvasId: string): boolean {
 
 declare module "@deepseek-ai/cordis" { interface Context { lfaaAiVideo: AiVideoCanvasService } }
 export const name = "lfaaAiVideo";
-export const inject = ["lfaaCredentials", "lfaaSettings"];
+export const inject = ["lfaaCredentials", "lfaaSettings", "lfaaLocalModelRuntime"];
 export function apply(ctx: Context): void {
   const credentials = ctx.lfaaCredentials.createConsumer(ctx);
   let disposed = false;
@@ -1567,6 +1667,8 @@ export function apply(ctx: Context): void {
       watcher.controller.abort();
     }
     watchers.clear();
+    for (const controller of localVideoJobs.values()) controller.abort(new Error("LFAA AI Video 正在卸载。"));
+    localVideoJobs.clear();
     if (watchSubmittedVideoTask === watch) watchSubmittedVideoTask = null;
   });
   ctx.provide(name, {
@@ -1575,15 +1677,15 @@ export function apply(ctx: Context): void {
     update: updateAiVideoCanvas,
     remove: deleteAiVideoCanvas,
     listMediaAssets,
-    importMediaAsset,
+    importMediaAsset: (userId: string, canvasId: string, expectedUpdatedAt: string, name: unknown, mimeType: unknown, bytes: Buffer) => importMediaAsset(userId, canvasId, expectedUpdatedAt, name, mimeType, bytes, ctx.lfaaLocalModelRuntime),
     saveExportAsset,
     removeMediaAsset,
-    uploadShotImage,
+    uploadShotImage: (userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, bytes: Buffer, mimeType: unknown) => uploadShotImage(userId, canvasId, shotId, expectedUpdatedAt, bytes, mimeType, ctx.lfaaLocalModelRuntime),
     openMediaAsset,
-    uploadReferenceImage: uploadAiVideoReferenceImage,
+    uploadReferenceImage: (userId: string, canvasId: string, kind: AiVideoReferenceKind, referenceId: string, expectedUpdatedAt: string, dataUrl: unknown) => uploadAiVideoReferenceImage(userId, canvasId, kind, referenceId, expectedUpdatedAt, dataUrl, ctx.lfaaLocalModelRuntime),
     removeReferenceImage: removeAiVideoReferenceImage,
-    generateShotImage: (userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, signal?: AbortSignal) => generateShotImage(userId, canvasId, shotId, expectedUpdatedAt, credentials, signal),
-    startShotVideo: (userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, signal?: AbortSignal) => startShotVideo(userId, canvasId, shotId, expectedUpdatedAt, credentials, signal),
+    generateShotImage: (userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, signal?: AbortSignal) => generateShotImage(userId, canvasId, shotId, expectedUpdatedAt, credentials, ctx.lfaaLocalModelRuntime, signal),
+    startShotVideo: (userId: string, canvasId: string, shotId: string, expectedUpdatedAt: string, signal?: AbortSignal) => startShotVideo(userId, canvasId, shotId, expectedUpdatedAt, credentials, ctx.lfaaLocalModelRuntime, signal),
     refreshShotVideo: (userId: string, canvasId: string, shotId: string, signal?: AbortSignal) => refreshShotVideo(userId, canvasId, shotId, credentials, signal),
     cancelShotVideo: (userId: string, canvasId: string, shotId: string, signal?: AbortSignal) => cancelShotVideo(userId, canvasId, shotId, credentials, signal),
     readGeneratedImage

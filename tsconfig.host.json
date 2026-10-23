@@ -105,6 +105,12 @@
       "lfaa-api-knowledge-controller/src/*": [
         "packages/api/knowledge-controller/src/*"
       ],
+      "lfaa-api-local-model-controller": [
+        "packages/api/local-model-controller/src/index.ts"
+      ],
+      "lfaa-api-local-model-controller/src/*": [
+        "packages/api/local-model-controller/src/*"
+      ],
       "lfaa-api-minecraft-controller": [
         "packages/api/minecraft-controller/src/index.ts"
       ],
@@ -545,6 +551,24 @@
       ],
       "lfaa-llm": [
         "packages/llm/llm/src/index.ts"
+      ],
+      "lfaa-llm-local-runtime": [
+        "packages/llm/llm-local-runtime/src/index.ts"
+      ],
+      "lfaa-llm-local-runtime/src/*": [
+        "packages/llm/llm-local-runtime/src/*"
+      ],
+      "lfaa-llm-minimax-h3": [
+        "packages/llm/llm-minimax-h3/src/index.ts"
+      ],
+      "lfaa-llm-minimax-h3/src/*": [
+        "packages/llm/llm-minimax-h3/src/*"
+      ],
+      "lfaa-llm-moss-image": [
+        "packages/llm/llm-moss-image/src/index.ts"
+      ],
+      "lfaa-llm-moss-image/src/*": [
+        "packages/llm/llm-moss-image/src/*"
       ],
       "lfaa-llm-pi-ai": [
         "packages/llm/llm-pi-ai/src/index.ts"

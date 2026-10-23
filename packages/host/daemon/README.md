@@ -35,3 +35,5 @@ Agent Git 管理使用 `packages/host/git`，由 LFAA 本机 Control Plane 执�
 ## 游戏文件资源范围（2026-10-14）
 
 节点新增 node-filesystem-instance-v1 与 node-filesystem-game-storage-v1：实例请求只提交已登记实例 ID，目标节点用既有核验索引定位真实目录；Minecraft/SteamCMD 平台目录从节点自己的已保存设置解析，支持原 Owner 允许的绝对自定义位置。实例根、元数据、活动进程或保留进程/安装标记由共享 instance-files 保护。普通 data、实例和平台来源共用文件执行器和串行写锁；回收站命名空间由控制端依据真实账户派生，不能由浏览器覆盖。旧节点不声称支持这些范围。扩展 plugins 目录由 Plugin Manager 生命周期维护，不受通用文件写操作管理。构建和隔离夹具不等于实际节点/游戏进程验收。
+
+SteamCMD Dedicated Server 通过 `steamcmd_servers` 配置和现有 SteamCMD 租约任务执行；只从服务端安装目录内启动 `.exe`，参数数组使用 `shell:false`。运行态写入 Daemon 受保护的进程标记并经心跳回报；Daemon 重启后仍运行、但无法恢复控制台的进程标记为未知，拒绝重复启动、更新或假报停止。停服先发送服务端配置的控制台命令，等待秒数读取该服务端配置；超时会终止进程树并报告存档完整性未确认。运行中服务端目录拒绝文件管理写入。真实 Steam 下载、目标游戏就绪、网络可达性和实体节点状态须另行验收。

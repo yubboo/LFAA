@@ -16,6 +16,13 @@ const readWorkspaceCss = () => [
   "../../../packages/client/ui-workspace/src/css/workbench-regions.css",
 ].map(path => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
 
+test("嵌入式工作台首次绘制前按实际容器尺寸校准响应式布局", () => {
+  const metricsHook = readFileSync(new URL("../../../packages/client/ui-dockkit/src/use-workbench-metrics.ts", import.meta.url), "utf8");
+
+  assert.match(metricsHook, /useLayoutEffect\(\(\) => \{[\s\S]*?element\.getBoundingClientRect\(\)[\s\S]*?resolveWorkbenchLayoutMetrics\(Math\.max\(0, bounds\.width - leadingInset\), bounds\.height, responsiveRightDock\)[\s\S]*?setMetrics\(/u);
+  assert.match(metricsHook, /return observeWorkbenchMetrics\(element, next =>/u, "首次真实测量之后仍由 ResizeObserver 管理容器变化");
+});
+
 test("AI Work 在所有布局保留 300px 中心下限，通用 Surface 保持原断点", () => {
   const applicationDesktop = resolveWorkbenchLayoutMetrics(1536, 900, true);
   assert.equal(applicationDesktop.mode, "desktop");

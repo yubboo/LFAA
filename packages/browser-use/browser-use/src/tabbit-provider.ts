@@ -371,7 +371,7 @@ export class TabbitBrowserProvider {
     session.pageUrl = url;
     session.pageTitle = title;
     this.touch(session);
-    const snapshot: BrowserSnapshot = { sessionId: session.id, providerId: "tabbit-personal", revision: session.revision, url, title, pageText: record.pageText.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").slice(0, MAX_TEXT), controls, tabs, screenshot };
+    const snapshot: BrowserSnapshot = { sessionId: session.id, providerId: "tabbit-personal", revision: session.revision, url, title, loading: record.loading === true, pageText: record.pageText.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").slice(0, MAX_TEXT), controls, tabs, screenshot };
     session.snapshot = snapshot;
     return structuredClone(snapshot);
   }

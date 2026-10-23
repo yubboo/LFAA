@@ -198,7 +198,7 @@ export class NativeBrowserWorkspace {
     this.applyLayout();
     try {
       tab.targetId = await this.readTargetId(contents);
-      if (initialUrl !== "about:blank") await contents.loadURL(initialUrl);
+      if (initialUrl !== "about:blank") await this.navigate(id, initialUrl);
     } catch {
       if (contents.isDestroyed() || this.disposed) {
         this.tabs.delete(id);
@@ -332,12 +332,63 @@ export class NativeBrowserWorkspace {
     this.activeTabId = id;
     tab.error = null;
     this.applyLayout();
+    const contents = tab.view.webContents;
+    tab.navigationFinish?.();
+    const navigationToken = Symbol("native-browser-navigation");
+    tab.navigationToken = navigationToken;
+    const expectedUrls = new Set([url]);
+    let finishNavigation = () => undefined;
+    const committed = new Promise(resolve => {
+      let settled = false;
+      const cleanup = () => {
+        contents.off("did-navigate", onNavigate);
+        contents.off("will-redirect", onRedirect);
+        contents.off("did-fail-load", onFailure);
+        contents.off("render-process-gone", onProcessGone);
+        contents.off("destroyed", onDestroyed);
+        if (tab.navigationToken === navigationToken) {
+          tab.navigationToken = null;
+          tab.navigationFinish = null;
+        }
+      };
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve();
+      };
+      const onNavigate = (_event, committedUrl) => {
+        if (tab.navigationToken === navigationToken && expectedUrls.has(committedUrl)) finish();
+      };
+      const onRedirect = (_event, redirectedUrl, _isInPlace, isMainFrame) => {
+        if (isMainFrame && tab.navigationToken === navigationToken) expectedUrls.add(redirectedUrl);
+      };
+      const onFailure = (_event, errorCode, _description, failedUrl, isMainFrame) => {
+        if (isMainFrame && expectedUrls.has(failedUrl)) finish();
+      };
+      const onProcessGone = () => finish();
+      const onDestroyed = () => finish();
+      finishNavigation = finish;
+      tab.navigationFinish = finish;
+      contents.on("did-navigate", onNavigate);
+      contents.on("will-redirect", onRedirect);
+      contents.on("did-fail-load", onFailure);
+      contents.once("render-process-gone", onProcessGone);
+      contents.once("destroyed", onDestroyed);
+    });
     try {
-      await tab.view.webContents.loadURL(url);
+      void Promise.resolve(contents.loadURL(url)).catch(() => {
+        if (tab.navigationToken === navigationToken) {
+          tab.error ??= "页面加载失败，请检查网络或网址后重试。";
+          this.publish();
+        }
+        finishNavigation();
+      });
     } catch {
-      if (tab.view.webContents.isDestroyed() || this.disposed) throw new Error("浏览器标签在页面加载期间已关闭。");
       tab.error ??= "页面加载失败，请检查网络或网址后重试。";
+      finishNavigation();
     }
+    await committed;
     this.publish();
     return this.getState();
   }

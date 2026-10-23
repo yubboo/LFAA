@@ -17,7 +17,7 @@ retireLegacyFileTables();
 const { executeAiTurn } = await import("lfaa-agent-loop/src/execute-turn.js");
 const { createAiCompletionService } = await import("lfaa-llm/src/completion.js");
 const { registerAiBusinessTool } = await import("lfaa-tools/src/registry.js");
-const { capabilitySettingsTools } = await import("lfaa-tools/src/capability-settings.js");
+const { capabilitySettingsTools, capabilitySettingsStatus } = await import("lfaa-tools/src/capability-settings.js");
 const permissions = await import("lfaa-permission-presets/src/permissions.js");
 const { Context } = await import("@deepseek-ai/cordis");
 const ctx = new Context();
@@ -31,17 +31,6 @@ const candidateTool = { id: "fixture.computer", name: "fixture_computer", descri
 registerAiBusinessTool({ effect: setup => { const dispose = setup(); disposers.push(dispose); return dispose; } }, candidateTool);
 const alternateWriteTool = { id: "fixture.alternate-write", name: "fixture_alternate_write", description: "审批拒绝后验证替代写工具也被封锁", coreManaged: true, applicationIds: ["workspace"], schema: { type: "object", properties: {}, additionalProperties: false }, parse: value => value, risk: () => "write", approval: () => ({ scopeKey: "fixture-alternate", scopeSummary: "fixture", summary: "fixture alternate write" }), execute: async () => { alternateWriteExecutions++; return { executed: true }; } };
 registerAiBusinessTool({ effect: setup => { const dispose = setup(); disposers.push(dispose); return dispose; } }, alternateWriteTool);
-const browserConnectionTool = {
-  id: "browser-use.provider-connection", name: "fixture_browser_connection", description: "隔离浏览器接入设置夹具", coreManaged: true, requiresBrowserUse: true, applicationIds: ["workspace"],
-  schema: { type: "object", properties: { providerId: { type: "string" }, enabled: { type: "boolean" } }, required: ["providerId", "enabled"], additionalProperties: false },
-  parse: value => value, risk: () => "write", approval: () => ({ scopeKey: "fixture-browser", scopeSummary: "fixture", summary: "fixture" }),
-  execute: async (parameters, context) => {
-    const current = settings.getUserSettings(context.userId);
-    settings.saveUserSettings(context.userId, "browser-use", { ...current.browserUse, enabledProviderIds: parameters.enabled ? [parameters.providerId] : [] });
-    return { providerId: parameters.providerId, connected: parameters.enabled };
-  }
-};
-registerAiBusinessTool({ effect: setup => { const dispose = setup(); disposers.push(dispose); return dispose; } }, browserConnectionTool);
 const host = { llm: createAiCompletionService(), listPlugins: () => [], listExtensions: () => [], listInstructionExtensions: () => [], listHooks: () => [], getSystemInstructions: () => [], runBeforeInference: () => ({ failedHookIds: [] }), runAfterInference: () => ({ failedHookIds: [] }) };
 const account = { providerId: "openai", modelId: "fixture", chatUrl: "https://provider.example.test/chat", secret: "invalid-fixture-key", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_completion_tokens", reasoningMode: "default" };
 const modelResolver = { resolve: () => account };
@@ -131,28 +120,15 @@ test("拒绝审批后改选其他写工具仍被同一任务门禁拦截；继�
   assert.throws(() => tool.parse({ capability: "mcpServer", enabled: true, serverId: "test", command: "unknown" }));
 });
 
-test("Browser Provider 设置工具会通知 Client 重新读取账户设置", async () => {
+test("内置浏览器不要求连接偏好，Browser Use 状态不误报待连接", () => {
   const previousBrowserUse = settings.getUserSettings(owner).browserUse;
-  settings.saveUserSettings(owner, "permissions", { mode: "full_access" });
-  settings.saveUserSettings(owner, "browser-use", { ...previousBrowserUse, enabled: true, enabledProviderIds: [] });
-  settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, retryDelaySeconds: 0 });
-  const turn = sessions.createAiTurn(owner, "workspace", null, "浏览器设置事件回归");
-  const native = globalThis.fetch, events = [];
-  globalThis.fetch = async (_url, options) => {
-    const body = JSON.parse(options.body);
-    const toolResults = body.messages.filter(message => message.role === "tool");
-    if (!toolResults.length) {
-      assert.ok(body.tools.some(tool => tool.function.name === "fixture_browser_connection"));
-      return sse(call("fixture_browser_connection", { providerId: "lfaa-managed-edge", enabled: true }));
-    }
-    return sse({ content: "浏览器设置事件回归完成" });
-  };
   try {
-    await executeAiTurn({ userId: owner, userRole: "admin", body: { appId: "workspace", sessionId: turn.session.id, content: "fixture" }, turn, aiPluginHost: host, abortController: new AbortController(), emit(event, data) { events.push({ event, data }); }, modelResolver, approvalNotifications: ctx.lfaaUserApproval });
-    assert.deepEqual(settings.getUserSettings(owner).browserUse.enabledProviderIds, ["lfaa-managed-edge"]);
-    assert.equal(events.filter(item => item.event === "capability-settings" && item.data.changed === true).length, 1);
+    settings.saveUserSettings(owner, "browser-use", { ...previousBrowserUse, enabled: true, enabledProviderIds: [] });
+    const status = capabilitySettingsStatus({ userId: owner, userRole: "admin", applicationId: "workspace" });
+    assert.equal(status.browserUse.enabled, true);
+    assert.deepEqual(settings.getUserSettings(owner).browserUse.enabledProviderIds, [], "checking capability status does not write a built-in provider connection");
+    assert.equal(Object.hasOwn(status.browserUse, "needsProviderConnection"), false, "an empty personal-provider list is not misreported as a missing built-in browser connection");
   } finally {
-    globalThis.fetch = native;
     settings.saveUserSettings(owner, "browser-use", previousBrowserUse);
   }
 });

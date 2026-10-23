@@ -10,7 +10,7 @@ const desktopPackage = JSON.parse(await readFile(resolve(packageRoot, "package.j
 const iconPath = resolve(packageRoot, desktopPackage.build.win.icon);
 const installNoticePath = resolve(packageRoot, "assets/installation-notice.txt");
 
-test("Windows 安装器绑定 LFAA 图标、同意须知与始终创建桌面快捷方式", async () => {
+test("Windows 安装器绑定 LFAA 图标、同意须知与完成页快捷方式选项", async () => {
   const icon = await readFile(iconPath);
   const noticeBytes = await readFile(installNoticePath);
   assert.deepEqual(noticeBytes.subarray(0, 3), Buffer.from([0xef, 0xbb, 0xbf]));
@@ -24,8 +24,9 @@ test("Windows 安装器绑定 LFAA 图标、同意须知与始终创建桌面快
   assert.equal(nsis.allowToChangeInstallationDirectory, true);
   assert.equal(nsis.installerIcon, "lfaa.ico");
   assert.equal(nsis.uninstallerIcon, "lfaa.ico");
-  assert.equal(nsis.createDesktopShortcut, "always");
+  assert.equal(nsis.createDesktopShortcut, false);
   assert.equal(nsis.createStartMenuShortcut, true);
+  assert.equal(nsis.runAfterFinish, true);
   assert.match(notice, /选择“我同意”表示你确认/);
   assert.match(notice, /选择拒绝会取消安装/);
 
@@ -52,7 +53,12 @@ test("NSIS 安装页显示详情并如实列出已安装的本机组件", async 
   assert.match(installer, /ShowInstDetails show/);
   assert.match(installer, /SetDetailsPrint both/);
   assert.match(installer, /Control Plane 与 Daemon 运行组件已随程序安装/);
-  assert.match(installer, /开始菜单与桌面快捷方式已创建/);
+  assert.match(installer, /开始菜单快捷方式已创建；桌面快捷方式将在完成页按选择创建/);
+  assert.match(installer, /MUI_DIRECTORYPAGE_VERIFYONLEAVE/);
+  assert.match(installer, /GetInstDirError/);
+  assert.match(installer, /customPageAfterChangeDir/);
+  assert.match(installer, /MUI_FINISHPAGE_SHOWREADME_TEXT "创建桌面快捷方式"/);
+  assert.match(installer, /MUI_FINISHPAGE_RUN_TEXT "运行 LFAA"/);
 });
 
 test("NSIS 安装文件状态使用低重绘模式并写入用户选择的安装目录", async () => {

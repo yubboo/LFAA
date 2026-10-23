@@ -80,7 +80,7 @@ test("Agent 通过真实工具循环打开临时 HTML、读取页面并点击按
   t.after(async () => { await manager.closeAll(); await rm(root, { recursive: true, force: true }); });
 
   settings.saveUserSettings(owner, "permissions", { mode: "full_access" });
-  settings.saveUserSettings(owner, "browser-use", { ...settings.getUserSettings(owner).browserUse, enabled: true, enabledProviderIds: [provider.id] });
+  settings.saveUserSettings(owner, "browser-use", { ...settings.getUserSettings(owner).browserUse, enabled: true, enabledProviderIds: [] });
   settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, retryDelaySeconds: 0, maxModelRequests: 10, maxToolCalls: 10 });
 
   const project = { id: "isolated-preview-project", appId: "workspace", nodeId: null, path: root, title: "隔离预览项目" };
@@ -186,7 +186,7 @@ test("Agent 完成 HTML 创建、实页找错、摘要保护修复和重新验�
   t.after(async () => { await manager.closeAll(); await rm(root, { recursive: true, force: true }); });
 
   settings.saveUserSettings(owner, "permissions", { mode: "full_access" });
-  settings.saveUserSettings(owner, "browser-use", { ...settings.getUserSettings(owner).browserUse, enabled: true, enabledProviderIds: [provider.id] });
+  settings.saveUserSettings(owner, "browser-use", { ...settings.getUserSettings(owner).browserUse, enabled: true, enabledProviderIds: [] });
   settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, retryDelaySeconds: 0, maxModelRequests: 24, maxToolCalls: 24 });
 
   const project = { id: "isolated-dev-loop-project", appId: "workspace", nodeId: null, path: root, title: "隔离开发循环项目" };
@@ -345,7 +345,7 @@ test("Skill 在同一 Agent Run 安装、发现、加载并引导调用真实隔
 
   settings.saveUserSettings(owner, "permissions", { mode: "full_access" });
   settings.saveUserSettings(owner, "plugins", { ...settings.getUserSettings(owner).plugins, enabled: true });
-  settings.saveUserSettings(owner, "browser-use", { ...settings.getUserSettings(owner).browserUse, enabled: true, enabledProviderIds: [provider.id] });
+  settings.saveUserSettings(owner, "browser-use", { ...settings.getUserSettings(owner).browserUse, enabled: true, enabledProviderIds: [] });
   settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, retryDelaySeconds: 0, maxModelRequests: 14, maxToolCalls: 16 });
 
   const project = { id: "isolated-skill-browser-project", appId: "workspace", nodeId: null, path: root, title: "隔离 Skill 浏览器项目" };

@@ -6,6 +6,6 @@
 
 由 launch-environment、Settings 和 Daemon 的既有凭据路径调用；它不负责用户认证、加密或权限审批。测试检查真实目录和既有文件 ACL，不使用产品凭据。
 
-2026-10-20 路径说明：`.lfaa` 是账户/控制 Home，`LFAA_DATA_DIR` 默认指向 `.lfaa/data`。`ensureHomeDirectories()` 只创建 Home 的账户与控制分类；`ensureDataDirectories()` 只在有效 Data 根创建 `users/`、`games/`、`environments/`、`lib/`、`cache/`、`tmp/`、`logs/`、`backups/`、`models/` 和 `connectivity/`。两组目录名称相同也不代表归属相同；账户设置与业务项目文件分别由各自 Owner 持有。
+2026-10-23 路径说明：`.lfaa` 是账户/控制 Home，`LFAA_DATA_DIR` 默认指向 `.lfaa/data`。`ensureHomeDirectories()` 只创建 Home 的账户与控制分类；`ensureDataDirectories()` 只在有效 Data 根创建业务分类，并初始化共享 `models/`、`input/`、`output/`。LFAA 模型目录由自身适配器合同定义，分类为 `models/text/`、`image/`、`video/`、`audio/`、`encoders/`、`vae/`、`adapters/`、`acceleration/`、`upscalers/`。完整 Hugging Face / Diffusers 模型目录保留其原生组件结构，分别落入 `models/image/<模型>/` 或 `models/video/<模型>/`；目录类别不意味着采用其他推理引擎的权重格式。`input/` 与 `output/` 下按账户 SHA-256 分目录；AI Video 用户上传的图片/视频/音频素材镜像到 `input/<账户哈希>/`，本机模型成功生成并提交项目的图片/视频镜像到 `output/<账户哈希>/`，不会把远程 Provider 输出写入本机输出目录。它们是用户管理的文件库，不自动清理；AI Video 项目自身的素材副本仍由项目 Owner 管理。历史上创建的 `diffusion_models/`、`text_encoders/`、`loras/`、`model_patches/`、`upscale_models/` 目录不会被清理或自动识别，既有文件保留。Veo3 是远程 Provider，不登记为本机模型。账户设置与业务项目文件继续由各自 Owner 持有。
 
 `ensureHomeDirectories()` 与 `ensureDataDirectories()` 由控制端和本机 Daemon 启动时分别调用：前者只在 Home 创建账户/控制分类并保护凭据；后者只在 Data 根创建业务分类。两者仅创建普通目录，不创建账户、作品或游戏实例；重复调用安全。Profile 根由各自 Owner 管理，不由两种分类初始化接管。

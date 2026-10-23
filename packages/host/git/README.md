@@ -4,4 +4,6 @@
 
 受管 AI Worktree 与临时 Git index 位于配置的 `LFAA_DATA_DIR`，与源仓库隔离。包不持有账户、会话、权限或持久化凭据；认证/授权由 API 与 Permission Owner 负责。只接收 API 从 `lfaa-credentials` 按账户读取的短期 HTTPS 用户名/token，在当前 Git 子进程环境中使用；显式清空机器级 credential helper 并禁止认证重定向。SSH remote 可登记但暂不执行同步。仅提供 fetch、干净工作区快进 pull、当前分支 push、发布分支及 remote 管理，不支持强制推送或 Pull Request。
 
+单文件差异的上下文默认为 3 行；只接受 0–1000 的整数并在 Host 再次限幅。Client 可在用户展开折叠间隔时请求更宽上下文；路径、基线和返回字节上限保持不变。
+
 构建只写仓库根 `dist/packages/host/git/`。

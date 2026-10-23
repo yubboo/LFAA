@@ -4,7 +4,10 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { BrowserSessionManager } from "../../../packages/browser-use/browser-use/src/session-manager.ts";
+import { isolateData } from "./isolated-data.mjs";
+
+isolateData(test, "browser-use");
+const { BrowserSessionManager } = await import("lfaa-browser-use/src/session-manager.js");
 
 function makePage(state = {}) {
   let currentUrl = state.url ?? "about:blank";
@@ -14,20 +17,41 @@ function makePage(state = {}) {
     url: () => currentUrl,
     title: async () => state.title ?? "Example",
     viewportSize: () => ({ width: 1280, height: 800 }),
-    screenshot: async () => state.screenshot ?? Buffer.from("jpeg"),
-    on(event, listener) { listeners.set(event, listener); },
-    locator(selector) {
-      if (selector === "body") return { innerText: async () => state.pageText ?? "body" };
-      return { evaluateAll: async (_map, limit) => (state.controls ?? []).slice(0, limit) };
+    evaluate: async () => ({
+      loading: (state.readyState ?? "complete") === "loading",
+      hasRenderableContent: state.hasRenderableContent ?? true
+    }),
+    screenshot: async options => {
+      state.screenshotOptions = [...(state.screenshotOptions ?? []), options];
+      return state.screenshot ?? Buffer.from("jpeg");
     },
-    async goto(url) {
+    on(event, listener) {
+      const eventListeners = listeners.get(event) ?? new Set();
+      eventListeners.add(listener);
+      listeners.set(event, eventListeners);
+    },
+    emit(event) { for (const listener of listeners.get(event) ?? []) listener(); },
+    locator(selector) {
+      if (selector === "body") return { innerText: async () => { state.pageTextReads = (state.pageTextReads ?? 0) + 1; return state.pageText ?? "body"; } };
+      return { evaluateAll: async (_map, limit) => { state.controlReads = (state.controlReads ?? 0) + 1; return (state.controls ?? []).slice(0, limit); } };
+    },
+    getByRole() { return { first: () => ({ click: async () => undefined }) }; },
+    mouse: {
+      click: async () => undefined,
+      move: async () => undefined,
+      down: async () => undefined,
+      up: async () => undefined,
+      wheel: async () => undefined
+    },
+    async goto(url, options) {
+      state.gotoOptions = options;
       state.started?.();
       if (state.waitUntilClosed) await new Promise((resolve, reject) => {
         state.release = resolve;
         state.reject = reject;
       });
       currentUrl = url;
-      listeners.get("domcontentloaded")?.();
+      for (const listener of listeners.get("domcontentloaded") ?? []) listener();
     },
     state
   };
@@ -45,7 +69,9 @@ function makeBrowser(optionsLog = []) {
       const context = {
         pages: () => pages,
         newPage: async () => page,
-        exposeBinding: async () => undefined,
+        exposeBinding: async (_name, callback) => {
+          page.state.exposedBindings = [...(page.state.exposedBindings ?? []), callback];
+        },
         addInitScript: async () => undefined,
         route: async () => undefined,
         on: () => undefined,
@@ -84,6 +110,7 @@ function makeNativeBrowser() {
     page.title = async () => title;
     page.context = () => context;
     page.mainFrame = () => ({ page });
+    page.evaluate = async () => ({ loading: false, hasRenderableContent: true });
     page.locator = selector => selector === "body"
       ? { innerText: async () => text }
       : { evaluateAll: async () => [] };
@@ -168,6 +195,21 @@ test("Browser Owner enforces isolated account/session contexts and strict naviga
   }
 });
 
+test("Browser Owner can prewarm the managed browser before a page or context exists", async () => {
+  const manager = new BrowserSessionManager(true);
+  const browser = makeBrowser();
+  useFakeEdge(manager, browser);
+  try {
+    await manager.prewarm("lfaa-managed-edge");
+    assert.equal(browser.contexts.length, 0, "prewarming starts the managed browser without creating a page or account context");
+    await manager.navigate("user-a", "session-a", "lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
+    assert.equal(browser.contexts.length, 1, "the later navigation creates the normal isolated context on the warmed browser");
+    await assert.rejects(manager.prewarm("tabbit-personal"), /只支持 LFAA 隔离 Edge\/Chrome/u);
+  } finally {
+    await manager.closeAll();
+  }
+});
+
 test("Browser Run adapter is account/session/run bound and released with the Run", async () => {
   const manager = new BrowserSessionManager(true);
   const browser = makeBrowser();
@@ -193,14 +235,23 @@ test("Browser Run adapter is account/session/run bound and released with the Run
     const pageA = await runA.navigate("lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
     const pageNextRun = await nextRun.navigate("lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
     const pageOtherAccount = await otherAccount.navigate("lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
+    const sharedPage = browser.contexts[0].pages()[0];
     assert.equal(pageA.sessionId, pageNextRun.sessionId, "Browser Session remains shared across Runs in the same LFAA session");
     assert.notEqual(pageA.sessionId, pageOtherAccount.sessionId, "Browser Session stays isolated by account");
     assert.equal(browser.contexts.length, 2);
+    assert.equal(pageA.screenshot, null, "Agent navigation returns structured page data without capturing a screenshot");
+    assert.equal(sharedPage.state.screenshotOptions?.length ?? 0, 0, "Agent navigation skips the expensive screenshot path");
     assert.equal(cleanupsA.length, 1, "the Run registers only one cleanup callback");
 
     cleanupsA[0]();
     assert.throws(() => runA.observe("lfaa-managed-edge"), /Run.*浏览器桥接已结束/u);
-    assert.match((await nextRun.observe("lfaa-managed-edge")).pageText, /body/u, "disposing one Run leaves the Session context available to another Run");
+    const observed = await nextRun.observe("lfaa-managed-edge");
+    assert.match(observed.pageText, /body/u, "disposing one Run leaves the Session context available to another Run");
+    assert.equal(observed.screenshot, null, "Agent observation stays structured JSON rather than returning an image");
+    assert.equal(sharedPage.state.screenshotOptions?.length ?? 0, 0, "Agent observation does not capture an image");
+    const clicked = await nextRun.click("lfaa-managed-edge", "button", "Continue");
+    assert.equal(clicked.screenshot, null, "Agent actions return structured state without blocking on a screenshot");
+    assert.equal(sharedPage.state.screenshotOptions?.length ?? 0, 0, "Agent click skips screenshot capture too");
     const replacement = manager.createRunAdapter({ ...bindingA, signal: new AbortController().signal, onRunDispose: cleanup => cleanupsA.push(cleanup) });
     assert.notStrictEqual(replacement, runA, "disposed bridge registration is removed");
   } finally {
@@ -224,6 +275,113 @@ test("Browser snapshots bound text, controls, tabs, and screenshot bytes", async
     assert.equal(snapshot.controls.length, 80);
     assert.equal(snapshot.tabs.length, 8);
     assert.equal(snapshot.screenshot, null, "oversized screenshot bytes are not returned");
+    assert.deepEqual(activePage.state.screenshotOptions.map(options => options.animations), ["allow", "allow"], "capturing frames keeps page animations running");
+  } finally {
+    await manager.closeAll();
+  }
+});
+
+test("Dock waits for real page revisions, reads a light frame, and releases cancelled waiters", async () => {
+  const manager = new BrowserSessionManager(true);
+  const browser = makeBrowser();
+  useFakeEdge(manager, browser);
+  try {
+    const initial = await manager.navigate("user-a", "session-dock", "lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
+    const session = [...manager.sessions.values()][0];
+    const controller = new AbortController();
+    const waiting = manager.waitForPanelRevision("user-a", "session-dock", "lfaa-managed-edge", initial.revision, controller.signal);
+    assert.equal(session.revisionWaiters.size, 1, "the Dock waits on the current Browser Owner session");
+    session.page.emit("domcontentloaded");
+    const updated = await waiting;
+    assert.ok(updated.revision > initial.revision, "a page change wakes the waiting Dock");
+    assert.equal(session.revisionWaiters.size, 0, "a successful wait unregisters its listener");
+
+    const bodyReadsBefore = session.page.state.pageTextReads ?? 0;
+    const controlReadsBefore = session.page.state.controlReads ?? 0;
+    const lightSnapshot = await manager.getPanelSnapshot("user-a", "session-dock", "lfaa-managed-edge", true, false);
+    assert.equal(lightSnapshot.pageText, "", "the Dock frame does not fetch full page text");
+    assert.deepEqual(lightSnapshot.controls, [], "the Dock frame does not rescan interactive controls");
+    assert.equal(session.page.state.pageTextReads ?? 0, bodyReadsBefore);
+    assert.equal(session.page.state.controlReads ?? 0, controlReadsBefore);
+
+    const screenshotsBeforeClick = session.page.state.screenshotOptions?.length ?? 0;
+    const clickResult = await manager.clickAt("user-a", "session-dock", "lfaa-managed-edge", 80, 40, undefined, false, false);
+    assert.equal(clickResult.screenshot, null, "Dock click can return immediately and refresh its screenshot separately");
+    assert.equal(session.page.state.screenshotOptions?.length ?? 0, screenshotsBeforeClick, "Dock click with screenshots disabled skips capture");
+
+    const cancelledController = new AbortController();
+    const cancelledWait = manager.waitForPanelRevision("user-a", "session-dock", "lfaa-managed-edge", session.revision, cancelledController.signal);
+    cancelledController.abort();
+    await assert.rejects(cancelledWait, /浏览器页面更新等待已取消/u);
+    assert.equal(session.revisionWaiters.size, 0, "cancellation clears both the waiter and its timeout");
+  } finally {
+    await manager.closeAll();
+  }
+});
+
+test("Browser Owner coalesces rapid DOM mutation notifications", async () => {
+  const manager = new BrowserSessionManager(true);
+  const browser = makeBrowser();
+  useFakeEdge(manager, browser);
+  try {
+    await manager.navigate("user-a", "session-mutations", "lfaa-managed-edge", "http://127.0.0.1:3000/api/health", undefined, false, false);
+    const session = [...manager.sessions.values()][0];
+    const notifyPageMutation = session.page.state.exposedBindings?.[0];
+    assert.equal(typeof notifyPageMutation, "function", "the Browser Owner installs the bounded DOM observer bridge");
+
+    const originalNow = Date.now;
+    let now = originalNow();
+    Date.now = () => now;
+    try {
+      const before = session.revision;
+      await notifyPageMutation();
+      const firstMutation = session.revision;
+      await notifyPageMutation();
+      assert.ok(firstMutation > before, "the first DOM change wakes the browser Dock");
+      assert.equal(session.revision, firstMutation, "a rapid follow-up mutation does not trigger another full-frame refresh");
+
+      now += 750;
+      await notifyPageMutation();
+      assert.ok(session.revision > firstMutation, "later DOM changes continue to refresh after the coalescing interval");
+    } finally {
+      Date.now = originalNow;
+    }
+  } finally {
+    await manager.closeAll();
+  }
+});
+
+test("Browser Dock displays the first renderable frame before slow subresources finish", async () => {
+  const manager = new BrowserSessionManager(true);
+  const browser = makeBrowser();
+  useFakeEdge(manager, browser);
+  try {
+    const initial = await manager.navigate("user-a", "session-loading", "lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
+    const session = [...manager.sessions.values()][0];
+    assert.equal(session.page.state.gotoOptions.waitUntil, "commit", "address navigation returns as soon as the main document commits");
+    session.page.state.readyState = "loading";
+    session.page.state.hasRenderableContent = false;
+    const loadingFrame = await manager.getPanelSnapshot("user-a", "session-loading", "lfaa-managed-edge", true, false);
+    assert.equal(loadingFrame?.screenshot, null, "a genuinely blank frame does not replace the last visible page");
+    assert.equal(loadingFrame?.loading, true, "the Dock can keep showing the loading state while the document is empty");
+
+    const waiting = manager.waitForPanelRevision("user-a", "session-loading", "lfaa-managed-edge", initial.revision, new AbortController().signal);
+    session.page.state.readyState = "interactive";
+    session.page.state.hasRenderableContent = true;
+    session.page.emit("domcontentloaded");
+    const domRevision = await waiting;
+    assert.ok(domRevision && domRevision.revision > initial.revision, "the first DOM frame wakes the Dock without waiting for every resource");
+    const interactiveFrame = await manager.getPanelSnapshot("user-a", "session-loading", "lfaa-managed-edge", true, false);
+    assert.equal(interactiveFrame?.loading, false, "DOMContentLoaded clears the loading indicator");
+    assert.equal(interactiveFrame?.screenshot?.mimeType, "image/jpeg", "the first renderable DOM frame is captured before the load event");
+
+    assert.ok(interactiveFrame, "the first renderable frame should produce a Dock snapshot");
+    const beforeLoadRevision = interactiveFrame.revision;
+    const waitingForLoad = manager.waitForPanelRevision("user-a", "session-loading", "lfaa-managed-edge", beforeLoadRevision, new AbortController().signal);
+    session.page.state.readyState = "complete";
+    session.page.emit("load");
+    const completedRevision = await waitingForLoad;
+    assert.ok(completedRevision && completedRevision.revision > beforeLoadRevision, "later page completion still refreshes the Dock");
   } finally {
     await manager.closeAll();
   }

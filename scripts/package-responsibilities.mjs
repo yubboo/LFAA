@@ -9,6 +9,7 @@ const annotations = {
   api: `account-controller:账户认证、个人资料与身份 API，调用身份 Owner
 agent-git-controller:Agent 本机 Git 仓库登记、会话绑定与固定操作认证 API
 ai-video-controller:账户 AI 视频项目与生成任务的认证 API
+local-model-controller:认证 LFAA 本机模型目录、下载、进度、取消和卸载 API
 browser-controller:浏览器预览台与本机 Browser Owner 的认证 API 适配
 connectivity-controller:联机目标、连接配置与节点网络操作 API
 github-connection-controller:GitHub OAuth 授权状态和只读仓库资源的认证 API 适配
@@ -222,6 +223,9 @@ tool-jobs:后台任务查询/控制工具`,
   knowledge: `knowledge-library:账户知识、Prompt、Skill、专家资料及项目来源目录`,
   llm: `deepseek-llm-api-extensions:DeepSeek Provider 专属协议扩展
 llm:模型请求、流、错误、能力和用量的实际 Provider Owner
+llm-local-runtime:LFAA 本地模型目录、固定 Hub 下载、适配器注册与受管推理进程核心
+llm-moss-image:LFAA 官方 MOSS-Image Diffusers 原生模型目录识别与生图适配
+llm-minimax-h3:LFAA 官方 MiniMax-H3 FL2VA Diffusers 原生模型目录识别与视频适配
 llm-deepseek:DeepSeek 模型 Provider 适配
 llm-deepseek-account:DeepSeek 账户方式的模型连接适配
 llm-deepseek-api-key:DeepSeek API Key 方式的模型连接适配

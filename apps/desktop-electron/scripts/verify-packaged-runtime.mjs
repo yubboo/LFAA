@@ -1,8 +1,8 @@
-/** 功能：验收 Electron 已封装的桌面运行树。作用：用随包 Node/Loader 实际加载桌面 Profile 的 CUA 插件，但不启动服务或执行桌面操作。关联文件：apps/desktop-electron/package.json、apps/cli/package-loader.mjs、apps/desktop-electron/scripts/prepare-runtime.mjs。 */
+/** 功能：验收 Electron 已封装的桌面运行树。作用：用随包 Node/Loader 在隔离的临时数据目录中加载桌面 Profile 的 CUA 插件，不启动服务或执行桌面操作。关联文件：apps/desktop-electron/package.json、apps/cli/package-loader.mjs、apps/desktop-electron/scripts/prepare-runtime.mjs。 */
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
@@ -11,6 +11,7 @@ const desktopPackageRoot = resolve(repositoryRoot, "apps/desktop-electron");
 const packageManifest = JSON.parse(await readFile(resolve(desktopPackageRoot, "package.json"), "utf8"));
 const packageOutputRoot = resolve(desktopPackageRoot, packageManifest.build?.directories?.output ?? "");
 const expectedPackageOutputRoot = resolve(repositoryRoot, "dist/.tmp/desktop-electron", `LFAA-${packageManifest.version}`);
+const desktopTemporaryRoot = resolve(repositoryRoot, "dist/.tmp/desktop-electron");
 if (packageOutputRoot !== expectedPackageOutputRoot) {
   throw new Error(`Electron 验收只读取本版本根 dist/.tmp/desktop-electron 下的隔离暂存包：${packageOutputRoot}`);
 }
@@ -37,43 +38,56 @@ const smokeCode = [
   'console.log("桌面 Profile CUA Driver 导入与工具注册通过。");'
 ].join("\n");
 
+const smokeDataRoot = await mkdtemp(resolve(desktopTemporaryRoot, "runtime-smoke-"));
 const smokeEnvironment = Object.fromEntries(["PATH", "SystemRoot", "WINDIR", "TEMP", "TMP"]
   .filter(key => process.env[key])
   .map(key => [key, process.env[key]]));
 Object.assign(smokeEnvironment, {
   CUA_DRIVER_RS_TELEMETRY_ENABLED: "false",
   JWT_SECRET: randomBytes(32).toString("hex"),
-  LFAA_DATA_DIR: resolve(repositoryRoot, "dist/.tmp/desktop-electron/runtime-smoke-data"),
+  LFAA_HOME: smokeDataRoot,
+  LFAA_DATA_DIR: resolve(smokeDataRoot, "data"),
   LFAA_DESKTOP_MODE: "true",
   NODE_ENV: "production"
 });
 
-const child = spawn(nodePath, ["--import", pathToFileURL(loaderPath).href, "--input-type=module", "-e", smokeCode], {
-  cwd: resolve(runtimeRoot, "apps/cli"),
-  env: smokeEnvironment,
-  windowsHide: true,
-  stdio: ["ignore", "pipe", "pipe"]
-});
-
-let stdout = "";
-let stderr = "";
-child.stdout.setEncoding("utf8").on("data", chunk => { stdout += chunk; });
-child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
-
-await new Promise((resolvePromise, rejectPromise) => {
-  const timeout = setTimeout(() => {
-    child.kill();
-    rejectPromise(new Error("Electron 随包桌面 Profile 导入检查超过 60 秒。"));
-  }, 60_000);
-  child.once("error", error => {
-    clearTimeout(timeout);
-    rejectPromise(error);
+let child;
+try {
+  child = spawn(nodePath, ["--import", pathToFileURL(loaderPath).href, "--input-type=module", "-e", smokeCode], {
+    cwd: resolve(runtimeRoot, "apps/cli"),
+    env: smokeEnvironment,
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"]
   });
-  child.once("exit", code => {
-    clearTimeout(timeout);
-    if (code === 0) resolvePromise();
-    else rejectPromise(new Error(`Electron 随包桌面 Profile 导入失败（退出码 ${code}）。\n${stdout}${stderr}`));
-  });
-});
 
-process.stdout.write(stdout || "Electron 随包桌面 Profile CUA Driver 导入检查通过。\n");
+  let stdout = "";
+  let stderr = "";
+  child.stdout.setEncoding("utf8").on("data", chunk => { stdout += chunk; });
+  child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
+
+  await new Promise((resolvePromise, rejectPromise) => {
+    const timeout = setTimeout(() => {
+      child.kill();
+      rejectPromise(new Error("Electron 随包桌面 Profile 导入检查超过 60 秒。"));
+    }, 60_000);
+    child.once("error", error => {
+      clearTimeout(timeout);
+      rejectPromise(error);
+    });
+    child.once("exit", code => {
+      clearTimeout(timeout);
+      if (code === 0) resolvePromise();
+      else rejectPromise(new Error(`Electron 随包桌面 Profile 导入失败（退出码 ${code}）。\n${stdout}${stderr}`));
+    });
+  });
+
+  process.stdout.write(stdout || "Electron 随包桌面 Profile CUA Driver 导入检查通过。\n");
+} finally {
+  if (child?.exitCode === null) child.kill();
+  const relativeSmokePath = relative(desktopTemporaryRoot, smokeDataRoot);
+  if (!relativeSmokePath || relativeSmokePath === ".." || relativeSmokePath.startsWith(`..${sep}`)
+    || resolve(desktopTemporaryRoot, relativeSmokePath) !== smokeDataRoot) {
+    throw new Error(`拒绝清理 Electron 验收临时目录之外的路径：${smokeDataRoot}`);
+  }
+  await rm(smokeDataRoot, { recursive: true, force: true });
+}

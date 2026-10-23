@@ -30,7 +30,7 @@ test("设置与旧账户管理直达路由先加载 Workbench 再预热 Settings
 });
 
 test("其他直接工作区路由只预热共享 Workbench", async () => {
-  for (const pathname of ["/tasks", "/files", "/apps/workspace/ai-work", "/apps/minecraft/normal/instances"]) {
+  for (const pathname of ["/tasks", "/files", "/apps/workspace/ai-work", "/apps/minecraft/normal/instances", "/games", "/games/environments", "/games/minecraft/instances", "/games/steamcmd"]) {
     const calls = [];
     assert.equal(shouldPreloadWorkbenchForRoute(pathname), true);
     await preloadWorkbenchForRoute(pathname, async () => {

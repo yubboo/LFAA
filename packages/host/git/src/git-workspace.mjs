@@ -323,6 +323,7 @@ async function snapshotFileDiff(root, projectRelativePath, baseline, filePath, o
   }
   // Git 管理覆盖整个仓库根；Agent 文件工具仍按登记项目目录单独校验。
   const compareTo = baseline ?? null;
+  const contextLines = Number.isInteger(options.contextLines) ? Math.max(0, Math.min(1000, options.contextLines)) : 3;
   const selectedPath = pathspec(filePath);
   const statusRows = parseStatus(await runGit(root, ["status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all", "--", selectedPath]));
   const status = statusRows.find(file => file.path === filePath)?.status ?? "";
@@ -335,12 +336,12 @@ async function snapshotFileDiff(root, projectRelativePath, baseline, filePath, o
   let diffTruncated = false;
   if (status === "??" || !compareTo && status.includes("A")) {
     try {
-      diff = await runGitDiff(root, ["diff", "--no-index", "--no-ext-diff", "--no-textconv", "--unified=3", "--", gitNullDevice(), filePath], { maxBuffer: outputLimit });
+      diff = await runGitDiff(root, ["diff", "--no-index", "--no-ext-diff", "--no-textconv", `--unified=${contextLines}`, "--", gitNullDevice(), filePath], { maxBuffer: outputLimit });
       if (/\bBinary files\b/u.test(diff)) { diff = ""; diffTruncated = true; }
     } catch { /* 文件并发删除、二进制或编码错误时由文件读取操作给出准确状态。 */ }
     if (!diff) diffTruncated = true;
   } else {
-    const args = ["diff", "--no-ext-diff", "--no-textconv", "--unified=3"];
+    const args = ["diff", "--no-ext-diff", "--no-textconv", `--unified=${contextLines}`];
     if (options.ignoreWhitespace) args.push("--ignore-all-space");
     if (options.wordDiff) args.push("--word-diff=plain");
     args.push(compareTo, "--", selectedPath);
@@ -741,7 +742,8 @@ export async function executeGitWorkspace(input) {
     })), repositoryState: project.head ? "ready" : "unborn", projectRelativePath: project.projectRelativePath };
   }
   if (input.operation === "file-diff") {
-    const options = { ignoreWhitespace: input.ignoreWhitespace === true, wordDiff: input.wordDiff === true };
+    const options = { ignoreWhitespace: input.ignoreWhitespace === true, wordDiff: input.wordDiff === true,
+      contextLines: Number.isInteger(input.contextLines) ? Math.max(0, Math.min(1000, input.contextLines)) : 3 };
     if (typeof input.worktreeId === "string") {
       const root = await assertManagedWorktree(input.worktreeId);
       const top = await realpath(await runGit(root, ["rev-parse", "--show-toplevel"]));

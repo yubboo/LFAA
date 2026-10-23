@@ -1,13 +1,13 @@
 /** 功能：呈现现有设置中心。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
-import { clearBrowserRecentSites } from "lfaa-client-connection/src/api.js";
+import { clearBrowserRecentSites, loadLocalModels, startLocalModelDownload, readLocalModelDownload, cancelLocalModelDownload, unloadLocalModel } from "lfaa-client-connection/src/api.js";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-metrics.js";
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-update.mjs";
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
-import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings, type LocalModelSummary, type LocalModelDownloadSnapshot } from "lfaa-client-connection/src/api.js";
 import { minecraftSceneBackgrounds } from "lfaa-util-values/src/builtin-backgrounds.js";
 import { cacheLoginAppearance } from "lfaa-client-ui-theme/src/login-appearance.js";
 import { getBrowserNotificationPermission, playNotificationSound, requestBrowserNotificationPermission, sendBrowserNotification, type BrowserNotificationPermission } from "lfaa-client-resources/src/notification-runtime.js";
@@ -595,10 +595,17 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [browserProviders, setBrowserProviders] = useState<{ status: "idle" | "loading" | "ready" | "error"; providers: BrowserProviderSummary[]; error: string }>({ status: "idle", providers: [], error: "" });
   const [providers, setProviders] = useState<AiProvider[]>(() => cachedSettingsData?.providers ?? []);
   const [accounts, setAccounts] = useState<AiAccount[]>(() => cachedSettingsData?.accounts ?? []);
+  const [localModels, setLocalModels] = useState<LocalModelSummary[]>([]);
+  const [localModelsLoading, setLocalModelsLoading] = useState(false);
+  const [localModelsError, setLocalModelsError] = useState("");
+  const [localModelDownload, setLocalModelDownload] = useState<LocalModelDownloadSnapshot | null>(null);
+  const [localModelAction, setLocalModelAction] = useState<string | null>(null);
   const imageGenerationAccounts = accounts.filter(account => account.providerId === "openai" || account.providerId === "doubao");
   const selectedImageGenerationAccount = imageGenerationAccounts.find(account => account.id === settings.aiRuntime.imageGenerationAccountId);
+  const localImageModels = localModels.filter(model => model.modality === "image");
   const videoGenerationAccounts = accounts.filter(account => account.providerId === "doubao");
   const selectedVideoGenerationAccount = videoGenerationAccounts.find(account => account.id === settings.aiRuntime.videoGenerationAccountId);
+  const localVideoModels = localModels.filter(model => model.modality === "video");
   const [, setAiAccountsLoadState] = useState<"idle" | "loading" | "ready" | "error">(() => cachedSettingsData?.loadedSections.has("ai") || cachedSettingsData?.loadedSections.has("configuration") ? "ready" : "idle");
   const [extensions, setExtensions] = useState<AiExtension[]>(() => cachedSettingsData?.extensions ?? []);
   const [capabilityInstallCatalog, setCapabilityInstallCatalog] = useState<CapabilityInstallCatalogEntry[]>(() => cachedSettingsData?.capabilityInstallCatalog ?? []);
@@ -762,6 +769,47 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     });
     return () => controller.abort();
   }, [activeSection]);
+
+  useEffect(() => {
+    if (activeSection !== resolveSettingsSection("ai")) return;
+    const controller = new AbortController();
+    setLocalModelsLoading(true);
+    setLocalModelsError("");
+    void loadLocalModels(controller.signal).then(result => {
+      if (controller.signal.aborted) return;
+      setLocalModels(result.models);
+      setLocalModelDownload(result.activeDownload);
+    }).catch(reason => {
+      if (!controller.signal.aborted) setLocalModelsError(getErrorMessage(reason));
+    }).finally(() => {
+      if (!controller.signal.aborted) setLocalModelsLoading(false);
+    });
+    return () => controller.abort();
+  }, [activeSection]);
+
+  useEffect(() => {
+    if (activeSection !== resolveSettingsSection("ai") || !localModelDownload || !["queued", "downloading"].includes(localModelDownload.status)) return;
+    let cancelled = false;
+    let timer: number | null = null;
+    const poll = async () => {
+      try {
+        const result = await readLocalModelDownload(localModelDownload.id);
+        if (cancelled) return;
+        setLocalModelDownload(result.download);
+        if (result.download.status === "completed") void refreshLocalModelLibrary();
+        else if (result.download.status === "queued" || result.download.status === "downloading") timer = window.setTimeout(() => void poll(), 1_500);
+      } catch (reason) {
+        if (cancelled) return;
+        setLocalModelsError(getErrorMessage(reason));
+        timer = window.setTimeout(() => void poll(), 4_000);
+      }
+    };
+    timer = window.setTimeout(() => void poll(), 1_000);
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [activeSection, localModelDownload?.id, localModelDownload?.status]);
 
   useEffect(() => {
     if (activeSection !== "about") {
@@ -1902,6 +1950,68 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     setAiAccountsLoadState("ready");
   }
 
+  async function refreshLocalModelLibrary(): Promise<void> {
+    setLocalModelsLoading(true);
+    setLocalModelsError("");
+    try {
+      const result = await loadLocalModels();
+      setLocalModels(result.models);
+      setLocalModelDownload(result.activeDownload);
+    } catch (scanError) {
+      const description = getErrorMessage(scanError);
+      setLocalModelsError(description);
+      messageApi.error(description);
+    } finally {
+      setLocalModelsLoading(false);
+    }
+  }
+
+  async function beginLocalModelDownload(model: LocalModelSummary): Promise<void> {
+    setLocalModelAction(model.id);
+    setLocalModelsError("");
+    try {
+      const result = await startLocalModelDownload(model.id);
+      setLocalModelDownload(result.download);
+      messageApi.info(`已开始下载 ${model.name}。`);
+    } catch (downloadError) {
+      const description = getErrorMessage(downloadError);
+      setLocalModelsError(description);
+      messageApi.error(description);
+    } finally {
+      setLocalModelAction(null);
+    }
+  }
+
+  async function stopLocalModelDownload(): Promise<void> {
+    if (!localModelDownload) return;
+    setLocalModelAction(localModelDownload.modelId);
+    try {
+      const result = await cancelLocalModelDownload(localModelDownload.id);
+      setLocalModelDownload(result.download);
+    } catch (cancelError) {
+      const description = getErrorMessage(cancelError);
+      setLocalModelsError(description);
+      messageApi.error(description);
+    } finally {
+      setLocalModelAction(null);
+    }
+  }
+
+  async function releaseLocalModel(model: LocalModelSummary): Promise<void> {
+    setLocalModelAction(model.id);
+    try {
+      await unloadLocalModel(model.id);
+      await refreshLocalModelLibrary();
+      messageApi.success(`${model.name} 已释放运行内存。`);
+    } catch (unloadError) {
+      const description = getErrorMessage(unloadError);
+      setLocalModelsError(description);
+      messageApi.error(description);
+    } finally {
+      setLocalModelAction(null);
+    }
+  }
+
   async function restoreArchivedSession(session: AiSession): Promise<void> {
     try {
       await archiveAiSession(session.id, false);
@@ -2700,8 +2810,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         <SettingGroup title="导航">
           <ShortcutRow title="打开设置中心" value={settings.shortcuts.openSettings} onChange={(value) => updateShortcut("openSettings", value)} />
           <ShortcutRow title="返回首页" value={settings.shortcuts.openHome} onChange={(value) => updateShortcut("openHome", value)} />
-          <ShortcutRow title="前往 SteamCMD 入口" value={settings.shortcuts.openSteamcmd} onChange={(value) => updateShortcut("openSteamcmd", value)} />
-          <ShortcutRow title="前往 Minecraft 入口" value={settings.shortcuts.openMinecraft} onChange={(value) => updateShortcut("openMinecraft", value)} />
+          <ShortcutRow title="前往游戏库中的 Steam 游戏服务" value={settings.shortcuts.openSteamcmd} onChange={(value) => updateShortcut("openSteamcmd", value)} />
+          <ShortcutRow title="前往游戏库中的 Minecraft" value={settings.shortcuts.openMinecraft} onChange={(value) => updateShortcut("openMinecraft", value)} />
           <ShortcutRow title="前往写作入口" value={settings.shortcuts.openWriting} onChange={(value) => updateShortcut("openWriting", value)} />
         </SettingGroup>
         <SettingGroup title="应用工作区面板">
@@ -2808,7 +2918,59 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             </> : null}
           </div> : null}
         </Modal>
+        <SettingGroup title="LFAA 本机模型库">
+          <SettingRow title="模型目录与识别" description="模型文件存放在 LFAA Data/models；输入和输出暂存目录分别是 Data/input 与 Data/output。目录由 LFAA 适配器识别模型自己的原生组件格式。">
+            <Button loading={localModelsLoading} onClick={() => void refreshLocalModelLibrary()}>刷新模型库</Button>
+          </SettingRow>
+          {localModelsError ? <Alert type="error" showIcon message="本机模型操作失败" description={localModelsError} /> : null}
+          {localModelDownload ? <Alert
+            type={localModelDownload.status === "failed" ? "error" : localModelDownload.status === "completed" ? "success" : localModelDownload.status === "cancelled" ? "info" : "info"}
+            showIcon
+            message={`${localModels.find(model => model.id === localModelDownload.modelId)?.name ?? localModelDownload.modelId} · ${({ queued: "排队中", downloading: "下载中", completed: "已完成", failed: "失败", cancelled: "已取消" } as Record<LocalModelDownloadSnapshot["status"], string>)[localModelDownload.status]}`}
+            description={<Space direction="vertical" size="small" style={{ width: "100%" }}>
+              {localModelDownload.totalBytes !== null ? <Progress percent={Math.min(100, Math.round(localModelDownload.receivedBytes / Math.max(1, localModelDownload.totalBytes) * 100))} status={localModelDownload.status === "failed" ? "exception" : localModelDownload.status === "completed" ? "success" : "active"} /> : <Progress percent={0} status="active" />}
+              <Typography.Text>{localModelDownload.totalBytes === null ? "正在读取官方文件清单…" : `${formatStorageBytes(localModelDownload.receivedBytes)} / ${formatStorageBytes(localModelDownload.totalBytes)} · ${localModelDownload.completedFiles}/${localModelDownload.totalFiles ?? "?"} 个文件`}</Typography.Text>
+              {localModelDownload.message ? <Typography.Text type={localModelDownload.status === "failed" ? "danger" : "secondary"}>{localModelDownload.message}</Typography.Text> : null}
+              {localModelDownload.status === "queued" || localModelDownload.status === "downloading" ? <Button danger size="small" loading={localModelAction === localModelDownload.modelId} onClick={() => void stopLocalModelDownload()}>取消下载</Button> : null}
+            </Space>}
+          /> : null}
+          {localModels.length ? <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+            {localModels.map(model => {
+              const active = localModelDownload?.modelId === model.id && ["queued", "downloading"].includes(localModelDownload.status);
+              const failed = localModelDownload?.modelId === model.id && localModelDownload.status === "failed";
+              return <Card key={model.id} size="small" title={<Space wrap><strong>{model.name}</strong><Tag color={model.ready ? "green" : model.installed ? "orange" : undefined}>{model.ready ? "文件完整" : model.installed ? "文件不完整" : "未安装"}</Tag>{model.loaded ? <Tag color="blue">已加载</Tag> : null}</Space>}>
+                <Space direction="vertical" size="small" style={{ width: "100%" }}>
+                  <Typography.Text type="secondary">{model.family} · {model.modality} · {model.task}</Typography.Text>
+                  <Typography.Text>{model.directory} · {model.installedBytes ? formatStorageBytes(model.installedBytes) : model.estimatedDownloadBytes === null ? "下载前读取官方文件清单估算大小" : `文件预计 ${formatStorageBytes(model.estimatedDownloadBytes)}`}</Typography.Text>
+                  <Space wrap><Typography.Link href={`https://huggingface.co/${model.repository}`} target="_blank" rel="noreferrer">官方模型仓库</Typography.Link><Typography.Link href={model.licenseUrl} target="_blank" rel="noreferrer">{model.licenseName} 许可</Typography.Link></Space>
+                  {!model.ready && model.reason ? <Typography.Text type="warning">{model.reason}</Typography.Text> : null}
+                  {failed && localModelDownload.message ? <Typography.Text type="danger">{localModelDownload.message}</Typography.Text> : null}
+                  <Space wrap>
+                    {!model.ready && !active ? <Button type="primary" loading={localModelAction === model.id} disabled={localModelDownload !== null && ["queued", "downloading"].includes(localModelDownload.status)} onClick={() => void beginLocalModelDownload(model)}>{model.installed ? "补齐并校验文件" : "下载模型"}</Button> : null}
+                    {model.loaded ? <Button loading={localModelAction === model.id} onClick={() => void releaseLocalModel(model)}>释放运行内存</Button> : null}
+                  </Space>
+                </Space>
+              </Card>;
+            })}
+          </Space> : <Alert type="info" showIcon message={localModelsLoading ? "正在读取 LFAA 本机模型库" : "当前没有可识别的模型"} description="这里显示 LFAA 已内置适配器支持的官方原生模型目录。其他格式不会自动执行或改写。" />}
+          <Alert type="info" showIcon message="本机推理环境" description="LFAA 会使用随包审阅的模型适配器和受管 Python 进程；当前适配依赖、GPU 与显存要求因模型而异。下载只安装权重，不代表当前电脑满足推理条件；缺少运行依赖时会显示真实错误。" />
+        </SettingGroup>
         <SettingGroup title="AI 漫剧图片生成">
+          <SettingRow title="生图引擎" description="选择已保存的远程图片 Provider，或由 LFAA 本机模型加载器调用已登记的生图模型；切换模式不会清除另一模式的选择。">
+            <Select value={settings.aiRuntime.imageGenerationMode} options={[{ value: "provider", label: "远程 Provider" }, { value: "local", label: "LFAA 本机模型" }]} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationMode: value })} />
+          </SettingRow>
+          {settings.aiRuntime.imageGenerationMode === "local" ? <>
+            <SettingRow title="本机图像模型" description="选择已下载且原生组件完整的模型；运行时按模型适配器检查目录并在首次生成时加载。">
+              <Select allowClear showSearch optionFilterProp="label" value={settings.aiRuntime.imageGenerationLocalModelId || undefined} placeholder="先在上方模型库下载并刷新" options={localImageModels.map(model => ({ value: model.id, label: `${model.name} · ${model.ready ? model.loaded ? "已加载" : "目录完整" : model.installed ? "文件不完整" : "未下载"}`, title: model.reason ?? model.directory, disabled: !model.ready }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationLocalModelId: value ?? "" })} />
+            </SettingRow>
+            <SettingRow title="本机生图时限" description="包含首次读取权重和生成时间；超时会停止受管进程，不登记生成结果。">
+              <InputNumber min={60} max={1800} step={60} value={settings.aiRuntime.imageGenerationLocalTimeoutSeconds} addonAfter="秒" onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationLocalTimeoutSeconds: value })} />
+            </SettingRow>
+            <SettingRow title="生图后保留模型" description="模型在此时限内留在受管进程中，空闲到期后自动释放内存。">
+              <InputNumber min={1} max={60} step={1} value={settings.aiRuntime.imageGenerationUnloadAfterMinutes} addonAfter="分钟" onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationUnloadAfterMinutes: value })} />
+            </SettingRow>
+            {localImageModels.length ? <Alert type="info" showIcon message="MOSS-Image 首发适配能力" description="当前 MOSS-Image 支持文字/布局生图，输出 1024×1024 PNG；不接受参考图片。首次生成会在本机加载原生 Diffusers 组件。" /> : null}
+          </> : <>
             <SettingRow title="图片模型账户" description="复用此处加密保存的 OpenAI 或豆包/火山方舟账户。生成只在你点击镜头卡片上的按钮时发起，服务商可能按其规则计费。">
               <Select allowClear value={settings.aiRuntime.imageGenerationAccountId || undefined} placeholder="选择 OpenAI 或豆包账户" options={imageGenerationAccounts.map(account => ({ value: account.id, label: `${account.displayName} · ${account.providerId}` }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationAccountId: value ?? "", imageGenerationModelId: "" })} />
             </SettingRow>
@@ -2816,30 +2978,48 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
               <Select allowClear showSearch optionFilterProp="label" disabled={!selectedImageGenerationAccount} value={settings.aiRuntime.imageGenerationModelId || undefined} placeholder={selectedImageGenerationAccount ? "选择模型目录中的图像模型" : "请先选择图片模型账户"} options={selectedImageGenerationAccount?.models.map(model => ({ value: model.id, label: model.id })) ?? []} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationModelId: value ?? "" })} />
             </SettingRow>
             {!imageGenerationAccounts.length ? <Alert type="info" showIcon message="请先在上方配置并加密保存 OpenAI 或豆包/火山方舟账户。" /> : null}
+          </>}
         </SettingGroup>
         <SettingGroup title="AI 漫剧视频生成">
-          <SettingRow title="火山方舟视频账户" description="复用此处加密保存的火山方舟账户；视频生成会创建服务商异步任务并按服务商规则计费。">
-            <Select allowClear value={settings.aiRuntime.videoGenerationAccountId || undefined} placeholder="选择火山方舟账户" options={videoGenerationAccounts.map(account => ({ value: account.id, label: `${account.displayName} · 火山方舟` }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationAccountId: value ?? "", videoGenerationModelId: "" })} />
+          <SettingRow title="视频引擎" description="选择火山方舟异步服务，或 LFAA 本机模型库中的视频模型。两种模式独立保存选择，不会互相覆盖。">
+            <Select value={settings.aiRuntime.videoGenerationMode} options={[{ value: "provider", label: "远程 Provider" }, { value: "local", label: "LFAA 本机模型" }]} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationMode: value })} />
           </SettingRow>
-          <SettingRow title="视频模型 ID" description="从所选账户保存的模型目录选择。目录不声明视频能力时仍由服务商按真实请求判定，不自动切换模型。">
-            <Select allowClear showSearch optionFilterProp="label" disabled={!selectedVideoGenerationAccount} value={settings.aiRuntime.videoGenerationModelId || undefined} placeholder={selectedVideoGenerationAccount ? "选择模型目录中的视频模型" : "请先选择火山方舟账户"} options={selectedVideoGenerationAccount?.models.map(model => ({ value: model.id, label: model.id })) ?? []} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationModelId: value ?? "" })} />
-          </SettingRow>
+          {settings.aiRuntime.videoGenerationMode === "local" ? <>
+            <SettingRow title="本机视频模型" description="MiniMax-H3 FL2VA 使用模型原生 Diffusers 目录；支持文字生成视频/音频和单张首帧图，要求兼容的 CUDA GPU。">
+              <Select allowClear showSearch optionFilterProp="label" value={settings.aiRuntime.videoGenerationLocalModelId || undefined} placeholder="先在上方模型库下载并刷新" options={localVideoModels.map(model => ({ value: model.id, label: `${model.name} · ${model.ready ? model.loaded ? "已加载" : "目录完整" : model.installed ? "文件不完整" : "未下载"}`, title: model.reason ?? model.directory, disabled: !model.ready }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationLocalModelId: value ?? "" })} />
+            </SettingRow>
+            <SettingRow title="本机视频时限" description="包含首次读取权重和生成时间；超时会停止受管进程，不登记生成结果。">
+              <InputNumber min={60} max={1800} step={60} value={settings.aiRuntime.videoGenerationLocalTimeoutSeconds} addonAfter="秒" onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationLocalTimeoutSeconds: value })} />
+            </SettingRow>
+            <SettingRow title="视频生成后保留模型" description="模型空闲到此时限后自动卸载，以释放 GPU 显存与系统内存。">
+              <InputNumber min={1} max={60} step={1} value={settings.aiRuntime.videoGenerationUnloadAfterMinutes} addonAfter="分钟" onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationUnloadAfterMinutes: value })} />
+            </SettingRow>
+          </> : <>
+            <SettingRow title="火山方舟视频账户" description="复用此处加密保存的火山方舟账户；视频生成会创建服务商异步任务并按服务商规则计费。">
+              <Select allowClear value={settings.aiRuntime.videoGenerationAccountId || undefined} placeholder="选择火山方舟账户" options={videoGenerationAccounts.map(account => ({ value: account.id, label: `${account.displayName} · 火山方舟` }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationAccountId: value ?? "", videoGenerationModelId: "" })} />
+            </SettingRow>
+            <SettingRow title="视频模型 ID" description="从所选账户保存的模型目录选择。目录不声明视频能力时仍由服务商按真实请求判定，不自动切换模型。">
+              <Select allowClear showSearch optionFilterProp="label" disabled={!selectedVideoGenerationAccount} value={settings.aiRuntime.videoGenerationModelId || undefined} placeholder={selectedVideoGenerationAccount ? "选择模型目录中的视频模型" : "请先选择火山方舟账户"} options={selectedVideoGenerationAccount?.models.map(model => ({ value: model.id, label: model.id })) ?? []} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationModelId: value ?? "" })} />
+            </SettingRow>
+          </>}
           <SettingRow title="生成时长" description="时长单位为秒；模型支持范围和可选离散值由火山方舟实际判定。">
-            <InputNumber min={1} max={15} step={1} value={settings.aiRuntime.videoGenerationDurationSeconds} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationDurationSeconds: value })} />
+            <InputNumber min={settings.aiRuntime.videoGenerationMode === "local" ? 5 : 1} max={15} step={1} value={settings.aiRuntime.videoGenerationDurationSeconds} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationDurationSeconds: value })} />
           </SettingRow>
           <SettingRow title="画面比例" description="不同模型支持的比例不同；“自适应”交由所选模型按参考素材决定。">
             <Select value={settings.aiRuntime.videoGenerationRatio} options={[{ value: "adaptive", label: "自适应" }, { value: "16:9", label: "16:9 横屏" }, { value: "9:16", label: "9:16 竖屏" }, { value: "1:1", label: "1:1 方形" }, { value: "4:3", label: "4:3" }, { value: "3:4", label: "3:4" }]} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationRatio: value })} />
           </SettingRow>
-          <SettingRow title="清晰度" description="清晰度选择也受模型和所选比例限制；不支持时显示服务商错误。">
-            <Select value={settings.aiRuntime.videoGenerationResolution} options={[{ value: "480p", label: "480p" }, { value: "720p", label: "720p" }, { value: "1080p", label: "1080p" }]} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationResolution: value })} />
-          </SettingRow>
-          <SettingRow title="生成声音" description="将镜头对白与声音提示交给模型；具体音频支持由模型决定。">
-            <SettingsSwitch label="生成音频" checked={settings.aiRuntime.videoGenerationGenerateAudio} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationGenerateAudio: !settings.aiRuntime.videoGenerationGenerateAudio })} />
-          </SettingRow>
-          <SettingRow title="水印" description="按所选账户模型的水印参数发送偏好；最终结果遵循服务商规则。">
-            <SettingsSwitch label="保留水印" checked={settings.aiRuntime.videoGenerationWatermark} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationWatermark: !settings.aiRuntime.videoGenerationWatermark })} />
-          </SettingRow>
-          {!videoGenerationAccounts.length ? <Alert type="info" showIcon message="请先在上方配置并加密保存火山方舟账户。" /> : null}
+          {settings.aiRuntime.videoGenerationMode === "provider" ? <>
+            <SettingRow title="清晰度" description="清晰度选择也受模型和所选比例限制；不支持时显示服务商错误。">
+              <Select value={settings.aiRuntime.videoGenerationResolution} options={[{ value: "480p", label: "480p" }, { value: "720p", label: "720p" }, { value: "1080p", label: "1080p" }]} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationResolution: value })} />
+            </SettingRow>
+            <SettingRow title="生成声音" description="将镜头对白与声音提示交给模型；具体音频支持由模型决定。">
+              <SettingsSwitch label="生成音频" checked={settings.aiRuntime.videoGenerationGenerateAudio} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationGenerateAudio: !settings.aiRuntime.videoGenerationGenerateAudio })} />
+            </SettingRow>
+            <SettingRow title="水印" description="按所选账户模型的水印参数发送偏好；最终结果遵循服务商规则。">
+              <SettingsSwitch label="保留水印" checked={settings.aiRuntime.videoGenerationWatermark} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationWatermark: !settings.aiRuntime.videoGenerationWatermark })} />
+            </SettingRow>
+            {!videoGenerationAccounts.length ? <Alert type="info" showIcon message="请先在上方配置并加密保存火山方舟账户。" /> : null}
+          </> : <Alert type="info" showIcon message="本机 MiniMax-H3 会按模型默认生成音频；角色/场景参考图最多合并为一张首帧。" />}
         </SettingGroup>
         <SettingGroup title="推理参数">
           <SettingRow title="输出长度策略" description="快速策略最多请求 1024 tokens；平衡/深入遵循所选模型能力或你填写的上限，不改变模型思考力度。">
@@ -3461,6 +3641,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     if (activeSection === "browser") {
       const selectedSection = sections.find(section => section.id === activeSection);
       const toggleBrowserProvider = async (provider: BrowserProviderSummary, linked: boolean): Promise<void> => {
+        if (provider.isolation !== "user-profile") return;
         try {
           if (linked) await closeBrowserProviderSessions(provider.id);
           const enabledProviderIds = linked
@@ -3472,28 +3653,29 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         }
       };
       return <section className="settings-content" role="tabpanel" id="settings-browser-panel" aria-labelledby="settings-browser-tab" tabIndex={0}>
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">{selectedSection?.group}</span><Typography.Title level={2}>浏览器</Typography.Title><Typography.Paragraph>管理桌面端原生 Chromium、隔离 Edge/Chrome 和 Tabbit 接入。Electron 桌面端的原生网页可由你直接操作；原生标签已接入认证的 Browser Owner，桌面实页验收完成后才确认运行可用。浏览器操作遵循统一权限模式。</Typography.Paragraph></div></header>
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">{selectedSection?.group}</span><Typography.Title level={2}>浏览器</Typography.Title><Typography.Paragraph>LFAA 内置浏览器随工作区直接可用，地址栏输入后会在当前网页区域打开；Agent 可在启用浏览器控制后复用同一会话。只有个人浏览器需要由你明确选择接入，所有 Agent 操作仍遵循统一权限模式。</Typography.Paragraph></div></header>
         <SettingGroup title="Agent 浏览器控制">
-          <SettingRow title="让 Agent 控制浏览器" description="开启后，Agent 可以使用已接入且当前 Host 可用的浏览器，查看页面、JSON 与交互元素，并按权限模式执行有限操作。关闭只停用 Agent 工具，你仍可直接操作右侧浏览器工作区。" status={settings.browserUse.enabled ? "已开启" : "默认关闭"}>
+          <SettingRow title="让 Agent 控制浏览器" description="开启后，Agent 可以使用当前 Host 可用的 LFAA 内置浏览器并复用右侧当前页面；无需单独接入内置浏览器。关闭只停用 Agent 工具，你仍可直接操作右侧浏览器。" status={settings.browserUse.enabled ? "已开启" : "默认关闭"}>
             <SettingsSwitch label="允许 Agent 使用浏览器" checked={settings.browserUse.enabled} onChange={() => updateSettings("browserUse", { ...settings.browserUse, enabled: !settings.browserUse.enabled })} />
           </SettingRow>
           <SettingRow title="Agent 操作权限" description="浏览器点击、输入和导航统一遵循此权限模式；不为浏览器另设站点白名单或审批规则。" status={settings.permissions.mode === "ask" ? "请求审批" : settings.permissions.mode === "approve_remembered" ? "替我审批" : "完全访问"}><Button onClick={() => selectSection("permissions")}>管理权限模式</Button></SettingRow>
         </SettingGroup>
-        <SettingGroup title="浏览器应用接入">
+        <SettingGroup title="内置浏览器与个人浏览器">
           {browserProviders.status === "loading" && browserProviders.providers.length === 0 ? <SettingRow title="正在检查浏览器" description="只检查 Host 支持和浏览器启动器，不读取个人 Profile、标签或登录状态。" status="检查中"><Tag>检查中</Tag></SettingRow> : null}
           {browserProviders.status === "error" ? <Alert type="error" showIcon message="无法读取浏览器 Host 状态" description={browserProviders.error} /> : null}
           {browserProviders.status === "ready" && browserProviders.providers.length === 0 ? <SettingRow title="当前 Host 未提供本机浏览器" description="本机 Web/Desktop Host 装配隔离浏览器；远程 Web Host 不具备这项本机能力。" status="不可用"><Tag>不可用</Tag></SettingRow> : null}
           {browserProviders.providers.map(provider => {
-            const linked = settings.browserUse.enabledProviderIds.includes(provider.id);
+            const builtIn = provider.isolation !== "user-profile";
+            const linked = builtIn || settings.browserUse.enabledProviderIds.includes(provider.id);
             const personalControlMissing = provider.isolation === "user-profile" && !settings.computerControl.enabled;
             const description = provider.isolation === "app-session"
-              ? "桌面端原生 Chromium 页面在右侧工作区运行。源码已通过认证 Browser Owner 按账户、LFAA Session 和当前标签 Target 接入 Agent；启用后可控制同一标签。桌面运行验收待做；登录、站点授权和验证码由你在页面中完成。"
+              ? "Electron 桌面端的内置网页在右侧浏览器区域运行。Agent 浏览器控制开启后会自动复用当前选中标签；不需要额外接入。登录、站点授权和验证码由你在页面中完成。"
               : provider.isolation === "new-profile"
-                ? "LFAA 为每个会话启动独立浏览器上下文；不读取系统浏览器 Cookie 或个人 Profile。"
+                ? "LFAA 自动使用当前 Host 可用的隔离浏览器，并按账户和会话共享当前页面；不读取系统浏览器 Cookie 或个人 Profile。"
                 : "接入后可在工作区显式查看并选择 Tabbit 标签；不会自动读取标签、登录状态或历史记录。个人会话还要求开启电脑操控并由本轮用户目标明确指定。";
-            const providerStatus = !provider.available ? "不可用" : personalControlMissing ? "需启用电脑操控" : provider.isolation === "app-session" ? linked ? "已接入 LFAA · 桌面实测待验" : "源码已接入 · 桌面实测待验" : linked ? "已接入 LFAA" : "未接入";
+            const providerStatus = !provider.available ? "当前 Host 不可用" : personalControlMissing ? "需启用电脑操控" : builtIn ? "LFAA 内置" : linked ? "已接入 LFAA" : "未接入";
             return <SettingRow key={provider.id} title={provider.name} description={description} status={providerStatus}>
-              {!linked && personalControlMissing ? <Button onClick={() => selectSection("computerControl")}>前往电脑操控设置</Button> : <SettingsSwitch label={linked ? "断开" : "接入"} checked={linked} disabled={!provider.available} onChange={() => void toggleBrowserProvider(provider, linked)} />}
+              {builtIn ? <Tag>{provider.available ? "随 LFAA 内置" : "当前 Host 不可用"}</Tag> : !linked && personalControlMissing ? <Button onClick={() => selectSection("computerControl")}>前往电脑操控设置</Button> : <SettingsSwitch label={linked ? "断开" : "接入"} checked={linked} disabled={!provider.available} onChange={() => void toggleBrowserProvider(provider, linked)} />}
             </SettingRow>;
           })}
         </SettingGroup>

@@ -107,6 +107,7 @@ test("电脑操控受 Profile、本机监听、账户开关、逐轮观察和隔
   ({ storedToolArguments, persistedModelMessages, persistedComputerToolResult, computerObservationContent, browserObservationContent, releaseOlderComputerImages } = await import("lfaa-agent-loop/src/execute-turn.js"));
   ({ createBrowserTools } = await import("lfaa-browser-use/src/browser-tools.js"));
   ({ BrowserSessionManager } = await import("lfaa-browser-use/src/session-manager.js"));
+  const { apply: applyBrowserController } = await import("lfaa-api-browser-controller/src/index.js");
   ({ createWindowsProcessLauncher, createLocalAppsRuntime } = await import("lfaa-computer-use/src/local-apps.js"));
   const { database } = await import("lfaa-storage-sqlite/src/database.js");
   assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 61, "数据库必须完成当前产品真实迁移");
@@ -116,6 +117,49 @@ test("电脑操控受 Profile、本机监听、账户开关、逐轮观察和隔
   assert.equal(getUserSettings("computer-a").computerControl.enabled, true, "the account setting is persisted by its Owner");
   assert.equal(getUserSettings("computer-b").computerControl.enabled, false, "another account retains its own disabled default");
   assert.equal(getUserSettings("computer-a").browserUse.recordRecentSites, true, "recent websites are enabled by the shared account default");
+  const browserControllerRoutes = new Map();
+  const browserDockCalls = [];
+  const browserPrewarmCalls = [];
+  const browserRouteManager = {
+    listProviders: () => [{ id: "lfaa-managed-edge", name: "LFAA Edge", available: true, isolation: "new-profile" }],
+    prewarm: async (...args) => { browserPrewarmCalls.push(args); },
+    navigate: async (...args) => { browserDockCalls.push(args); return { sessionId: "browser-session-a", providerId: args[2], revision: 1, url: args[3], title: "Example", pageText: "", controls: [], tabs: [], screenshot: null }; },
+    getPanelSnapshot: async () => null,
+    getPanelRevision: async () => null,
+    resizeViewport: async () => null,
+    back: async () => ({}), forward: async () => ({}), reload: async () => ({}), clickAt: async () => ({}), dragAt: async () => ({}), typeText: async () => ({}), pressKey: async () => ({}), scroll: async () => ({}), closeSession: async () => undefined
+  };
+  const browserControllerRouter = Object.fromEntries(["get", "post", "delete"].map(method => [method, (path, ...handlers) => browserControllerRoutes.set(`${method.toUpperCase()} ${path}`, handlers)]));
+  applyBrowserController({ apiGateway: { register: (_context, _id, register) => register(browserControllerRouter) }, lfaaBrowser: browserRouteManager });
+  const invokeBrowserControllerRoute = (routeKey, request) => new Promise((resolve, reject) => {
+    const handler = browserControllerRoutes.get(routeKey)?.at(-1);
+    assert.equal(typeof handler, "function", `route is registered: ${routeKey}`);
+    handler({ ...request, auth: { user: { id: "computer-a" } } }, { json: resolve }, error => error ? reject(error) : resolve(undefined));
+  });
+  const browserSettingsBeforePrewarm = structuredClone(getUserSettings("computer-a").browserUse);
+  const prewarmBrowserResponse = await invokeBrowserControllerRoute("POST /browser/dock/prewarm", {
+    params: {}, query: {}, body: { providerId: "lfaa-managed-edge" }
+  });
+  assert.deepEqual(prewarmBrowserResponse, { ready: true }, "the authenticated Dock route reports readiness only after Browser Owner prewarming");
+  assert.deepEqual(browserPrewarmCalls, [["lfaa-managed-edge"]], "Dock prewarming uses only a currently available managed provider");
+  assert.deepEqual(getUserSettings("computer-a").browserUse, browserSettingsBeforePrewarm, "prewarming does not change browser preferences or Agent connection state");
+  const manualBrowserResponse = await invokeBrowserControllerRoute("POST /browser/dock/sessions/:sourceSessionId/navigate", {
+    params: { sourceSessionId: "session-a" }, query: {}, body: { providerId: "lfaa-managed-edge", url: "https://example.test/" }
+  });
+  assert.equal(manualBrowserResponse.session.url, "https://example.test/", "the authenticated user can navigate directly in Browser Dock without enabling an Agent provider");
+  assert.deepEqual(browserDockCalls[0].slice(0, 3), ["computer-a", "session-a", "lfaa-managed-edge"], "Dock navigation remains bound to the authenticated account and active LFAA Session");
+  saveUserSettings("computer-a", "browser-use", { ...getUserSettings("computer-a").browserUse, enabled: true, enabledProviderIds: [] });
+  const automaticallyAvailableBrowserResponse = await invokeBrowserControllerRoute("POST /browser/sessions/:sourceSessionId/navigate", {
+    params: { sourceSessionId: "session-a" }, query: {}, body: { providerId: "lfaa-managed-edge", url: "https://example.test/current-session" }
+  });
+  assert.equal(automaticallyAvailableBrowserResponse.session.url, "https://example.test/current-session", "the Agent-facing built-in browser route does not require a per-provider connection preference");
+  assert.deepEqual(getUserSettings("computer-a").browserUse.enabledProviderIds, [], "using the built-in browser does not write enabledProviderIds");
+  saveUserSettings("computer-a", "browser-use", { ...getUserSettings("computer-a").browserUse, enabled: false });
+  await assert.rejects(invokeBrowserControllerRoute("POST /browser/sessions/:sourceSessionId/navigate", {
+    params: { sourceSessionId: "session-a" }, query: {}, body: { providerId: "lfaa-managed-edge", url: "https://example.test/" }
+  }), error => error?.errorCode === "browser_use_disabled", "the Agent-facing route still obeys the Browser Use master switch");
+  assert.equal(getUserSettings("computer-a").browserUse.enabled, false, "manual Dock navigation does not turn on Agent browser tools");
+  assert.deepEqual(getUserSettings("computer-a").browserUse.enabledProviderIds, [], "manual Dock navigation does not add an Agent provider connection");
   assert.equal(computerControlSettingsSchema.validate({ enabled: true }).error, undefined);
   assert.ok(computerControlSettingsSchema.validate({ enabled: true, extra: "not allowed" }).error, "the API rejects unknown setting fields");
   assert.equal(browserUseSettingsSchema.validate({ enabled: true, enabledProviderIds: ["lfaa-managed-edge"], showFullUrl: true, recordRecentSites: true }).error, undefined);
@@ -232,6 +276,7 @@ test("电脑操控受 Profile、本机监听、账户开关、逐轮观察和隔
   assert.ok(browserTools.every(tool => tool.requiresBrowserUse), "browser tools reuse the Browser Use master setting");
   assert.ok(browserTools.filter(tool => tool.name === "lfaa_browser_list_tabs" || tool.name === "lfaa_browser_claim_tab").every(tool => tool.requiresComputerControl), "personal Tabbit tools additionally reuse the existing computerControl setting");
   assert.ok(browserTools.filter(tool => !["lfaa_browser_list_tabs", "lfaa_browser_claim_tab"].includes(tool.name)).every(tool => !tool.requiresComputerControl), "isolated browser tools are controlled by Browser Use rather than the desktop-control switch");
+  assert.equal(browserTools.some(tool => tool.name === "lfaa_browser_set_provider_connection"), false, "built-in LFAA browsers do not expose a separate connect/disconnect tool");
   const browserToolCleanups = [];
   const browserToolOwner = { effect(callback) { const cleanup = callback(); if (typeof cleanup === "function") browserToolCleanups.push(cleanup); return cleanup; } };
   for (const tool of browserTools) registerAiBusinessTool(browserToolOwner, tool);
@@ -241,9 +286,33 @@ test("电脑操控受 Profile、本机监听、账户开关、逐轮观察和隔
   assert.ok(listBrowserProviders);
   await assert.rejects(listBrowserProviders.execute({}, runContext("browser-disabled", "computer-a")), /设置中心关闭/u, "execution rechecks the account Browser Use toggle");
   saveUserSettings("computer-a", "browser-use", { enabled: true, enabledProviderIds: [], showFullUrl: false });
-  assert.deepEqual(await listBrowserProviders.execute({}, runContext("browser-no-links", "computer-a")), { providers: [], personalBrowsersInspected: false }, "provider discovery returns no unlinked browser and does not enumerate personal tabs");
+  assert.deepEqual(await listBrowserProviders.execute({}, runContext("browser-no-links", "computer-a")), { providers: [], personalBrowsersInspected: false }, "provider discovery reflects this remote Host's actual lack of local browsers");
   saveUserSettings("computer-a", "browser-use", { enabled: true, enabledProviderIds: ["lfaa-managed-edge"], showFullUrl: false });
   assert.deepEqual(await listBrowserProviders.execute({}, runContext("browser-unavailable", "computer-a")), { providers: [], personalBrowsersInspected: false }, "linked preferences still do not invent providers absent from the current Host");
+
+  const builtinBrowserManager = {
+    listProviders: () => [
+      { id: "lfaa-managed-edge", name: "LFAA Edge", available: true, isolation: "new-profile" },
+      { id: "tabbit-personal", name: "Tabbit", available: true, isolation: "user-profile" }
+    ],
+    createRunAdapter: binding => ({
+      navigate: async (providerId, url) => ({ sessionId: binding.sourceSessionId, providerId, url, screenshot: null, tabs: [] })
+    })
+  };
+  saveUserSettings("computer-a", "browser-use", { enabled: true, enabledProviderIds: [], showFullUrl: false });
+  const builtinBrowserTools = createBrowserTools(builtinBrowserManager);
+  const builtinProviderList = builtinBrowserTools.find(tool => tool.name === "lfaa_browser_list_providers");
+  const builtinNavigate = builtinBrowserTools.find(tool => tool.name === "lfaa_browser_navigate");
+  const availableProviders = await builtinProviderList.execute({}, runContext("builtin-browser-list", "computer-a"));
+  assert.equal(availableProviders.providers.find(provider => provider.id === "lfaa-managed-edge").connected, true, "the built-in browser is automatically available without changing enabledProviderIds");
+  assert.equal(availableProviders.providers.find(provider => provider.id === "tabbit-personal").connected, false, "personal Tabbit remains explicitly disconnected");
+  const sharedAgentContext = { ...runContext("builtin-browser-run", "computer-a"), sessionId: "shared-ai-session" };
+  const openedByAgent = await builtinNavigate.execute({ providerId: "lfaa-managed-edge", url: "https://example.test/" }, sharedAgentContext);
+  assert.equal(openedByAgent.sessionId, "shared-ai-session", "Agent browser actions bind to the current LFAA AI session");
+  assert.equal(getUserSettings("computer-a").browserUse.enabledProviderIds.length, 0, "using the built-in browser does not write a provider connection preference");
+  await assert.rejects(builtinNavigate.execute({ providerId: "tabbit-personal", url: "https://example.test/" }, sharedAgentContext), /明确选择并接入/u, "personal browser use still requires a user-selected connection");
+  saveUserSettings("computer-a", "browser-use", { enabled: false, enabledProviderIds: [], showFullUrl: false });
+  await assert.rejects(builtinNavigate.execute({ providerId: "lfaa-managed-edge", url: "https://example.test/" }, sharedAgentContext), /设置中心关闭/u, "the Agent Browser Use master switch still gates built-in browser tools");
   for (const cleanup of browserToolCleanups.reverse()) await cleanup();
   await browserManager.closeAll();
   const forbiddenDriver = { isAvailable: () => true, shutdown() {}, getDesktopState() { throw new Error("不应读取桌面"); } };

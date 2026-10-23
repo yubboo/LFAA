@@ -1,0 +1,2 @@
+`pipeline_moss_image.py` is the official OpenMOSS standalone MOSS-Image pipeline, vendored from `OpenMOSS-Team/MOSS-Image-Base` at Hugging Face (`pipeline_moss_image.py`, retrieved 2026-10-23). It is licensed under Apache-2.0; the complete license text is in `MOSS-IMAGE-LICENSE.txt`. The LFAA adapter loads the official Hugging Face / Diffusers component directory using this vendored pipeline; it does not use ComfyUI weight repacking or execute the pipeline Python file downloaded with a model.
+

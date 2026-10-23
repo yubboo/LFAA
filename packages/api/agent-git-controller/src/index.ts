@@ -251,9 +251,9 @@ export function registerRoutes(router: Router, context: Context, consumer: Crede
   }));
 
   router.post("/agent/git/repositories/:repositoryId/file-diff", requireAuthentication, asyncHandler(async (request, response) => {
-    const body = parseBody<{ path: string; ignoreWhitespace?: boolean; wordDiff?: boolean }>(Joi.object({ path: repositoryFilePathSchema, ignoreWhitespace: Joi.boolean(), wordDiff: Joi.boolean() }).unknown(false), request.body);
+    const body = parseBody<{ path: string; ignoreWhitespace?: boolean; wordDiff?: boolean; contextLines?: number }>(Joi.object({ path: repositoryFilePathSchema, ignoreWhitespace: Joi.boolean(), wordDiff: Joi.boolean(), contextLines: Joi.number().integer().min(0).max(1000) }).unknown(false), request.body);
     const repository = requireRepository(request.auth!.user.id, request.params.repositoryId);
-    response.json({ diff: await executeGitWorkspace({ operation: "file-diff", projectDirectory: repository.path, path: body.path, ignoreWhitespace: body.ignoreWhitespace, wordDiff: body.wordDiff }) });
+    response.json({ diff: await executeGitWorkspace({ operation: "file-diff", projectDirectory: repository.path, path: body.path, ignoreWhitespace: body.ignoreWhitespace, wordDiff: body.wordDiff, contextLines: body.contextLines }) });
   }));
 
   router.post("/agent/git/repositories/:repositoryId/file", requireAuthentication, asyncHandler(async (request, response) => {

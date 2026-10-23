@@ -102,6 +102,8 @@ async function prepareRuntime() {
   await cp(resolve(repositoryRoot, "scripts", "extract-business-content-archive.ps1"), resolve(runtimeRoot, "scripts", "extract-business-content-archive.ps1"));
   await cp(resolve(repositoryRoot, "scripts", "get-project-drive-type.ps1"), resolve(runtimeRoot, "scripts", "get-project-drive-type.ps1"));
   await cp(resolve(repositoryRoot, "apps", "cli", "package.json"), resolve(runtimeRoot, "apps", "cli", "package.json"));
+  await mkdir(resolve(runtimeRoot, "apps", "cli", "bin"), { recursive: true });
+  await cp(resolve(repositoryRoot, "apps", "cli", "bin", "lfaa.mjs"), resolve(runtimeRoot, "apps", "cli", "bin", "lfaa.mjs"));
   await cp(resolve(repositoryRoot, "apps", "cli", "register-package-loader.mjs"), resolve(runtimeRoot, "apps", "cli", "register-package-loader.mjs"));
   await cp(resolve(repositoryRoot, "apps", "cli", "package-loader.mjs"), resolve(runtimeRoot, "apps", "cli", "package-loader.mjs"));
   await copyDirectory(resolve(repositoryRoot, "packages", "util", "home-paths", "src"), resolve(runtimeRoot, "packages", "util", "home-paths", "src"));
@@ -121,6 +123,7 @@ async function prepareRuntime() {
   const requiredRuntimeFiles = [
     "node.exe",
     "apps/cli/package.json",
+    "apps/cli/bin/lfaa.mjs",
     "apps/cli/register-package-loader.mjs",
     "apps/cli/package-loader.mjs",
     "dist/apps/control-plane/packages/host/daemon/src/daemon.mjs",

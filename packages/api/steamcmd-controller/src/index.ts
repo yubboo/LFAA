@@ -2,12 +2,13 @@
 import { Router } from "express";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication, requireRole } from "lfaa-authorization/src/middleware.js";
+import { authorizeExplicitUserAction } from "lfaa-permission-presets/src/permissions.js";
 import { assertSystemFileAccess } from "lfaa-fs/src/library.js";
 import { getDaemonDataRoot, getDaemonNode, listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
-import { createSteamcmdTask, getSteamcmdConfigurationDefaults, getSteamcmdNodeConfiguration, getSteamcmdNodeStorageSettings, getSteamcmdStorageDefaults, getSteamcmdTask, hasSteamcmdNodeConfiguration, hasSteamcmdNodeStorageSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdNodeStorageSettings, saveSteamcmdStorageDefaults } from "lfaa-games-steamcmd/src/service.js";
+import { createSteamcmdServer, createSteamcmdServerTask, createSteamcmdTask, getSteamcmdConfigurationDefaults, getSteamcmdNodeConfiguration, getSteamcmdNodeStorageSettings, getSteamcmdServer, getSteamcmdStorageDefaults, getSteamcmdTask, hasSteamcmdNodeConfiguration, hasSteamcmdNodeStorageSettings, listSteamcmdServers, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdNodeStorageSettings, saveSteamcmdStorageDefaults, updateSteamcmdServer, type SteamcmdServerInput } from "lfaa-games-steamcmd/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
-import { parseBody, steamcmdConfigurationSettingsSchema, steamcmdStorageSettingsSchema, steamcmdTaskSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { parseBody, steamcmdConfigurationSettingsSchema, steamcmdServerSchema, steamcmdServerTaskSchema, steamcmdStorageSettingsSchema, steamcmdTaskSchema } from "lfaa-api-remotes/src/route-contracts.js";
 import { ensureProjectStorageDirectory, isOutsideProjectDataDirectory } from "lfaa-settings/src/project-storage.js";
 export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, realtime: MinecraftRealtimePublisher): void {
 
@@ -39,6 +40,43 @@ router.get("/steamcmd/settings", requireAuthentication, requireRole("admin"), (_
       storageDefaults: storageDefaults.settings,
       storageDefaultsConfigured: storageDefaults.configured
     });
+  });
+
+router.get("/steamcmd/servers", requireAuthentication, requireRole("admin"), (request, response) => {
+    const nodeId = typeof request.query.nodeId === "string" ? request.query.nodeId : undefined;
+    if (nodeId && !getDaemonNode(nodeId)) throw new ApiError(404, "daemon_node_not_found", "找不到目标 daemon 节点。");
+    response.json({ servers: listSteamcmdServers(nodeId) });
+  });
+
+router.post("/steamcmd/servers", requireAuthentication, requireRole("admin"), (request, response) => {
+    const body = parseBody<SteamcmdServerInput>(steamcmdServerSchema, request.body);
+    const authorization = authorizeExplicitUserAction({ userId: request.auth!.user.id, activeApplicationId: "steamcmd", toolApplicationIds: ["steamcmd"], toolId: "steamcmd.server.create", toolVersion: "1", risk: "write", scopeKey: `${body.nodeId}:${body.toolAppId}`, executable: true });
+    if (authorization !== "allow") throw new ApiError(403, "steamcmd_server_not_authorized", "当前权限模式未授权此 Steam 游戏服务器配置写入。");
+    try { response.status(201).json({ server: createSteamcmdServer({ ...body, createdBy: request.auth!.user.id }) }); }
+    catch (error) { throw new ApiError(400, "steamcmd_server_invalid", error instanceof Error ? error.message : "Steam 游戏服务器配置无效。"); }
+  });
+
+router.put("/steamcmd/servers/:serverId", requireAuthentication, requireRole("admin"), (request, response) => {
+    const body = parseBody<Parameters<typeof updateSteamcmdServer>[1]>(steamcmdServerSchema, request.body);
+    const server = getSteamcmdServer(request.params.serverId);
+    if (!server) throw new ApiError(404, "steamcmd_server_not_found", "找不到此 Steam 游戏服务器。");
+    const authorization = authorizeExplicitUserAction({ userId: request.auth!.user.id, activeApplicationId: "steamcmd", toolApplicationIds: ["steamcmd"], toolId: "steamcmd.server.configure", toolVersion: "1", risk: "write", scopeKey: server.id, executable: true });
+    if (authorization !== "allow") throw new ApiError(403, "steamcmd_server_not_authorized", "当前权限模式未授权此 Steam 游戏服务器配置写入。");
+    try { response.json({ server: updateSteamcmdServer(server.id, body) }); }
+    catch (error) { throw new ApiError(409, "steamcmd_server_update_conflict", error instanceof Error ? error.message : "Steam 游戏服务器配置无法更新。"); }
+  });
+
+router.post("/steamcmd/servers/:serverId/tasks", requireAuthentication, requireRole("admin"), (request, response) => {
+    const body = parseBody<{ kind: "install-server" | "update-server" | "start-server" | "stop-server" }>(steamcmdServerTaskSchema, request.body);
+    const server = getSteamcmdServer(request.params.serverId);
+    if (!server) throw new ApiError(404, "steamcmd_server_not_found", "找不到此 Steam 游戏服务器。");
+    const risk = body.kind === "install-server" || body.kind === "update-server" ? "write" : "dangerous";
+    const authorization = authorizeExplicitUserAction({ userId: request.auth!.user.id, activeApplicationId: "steamcmd", toolApplicationIds: ["steamcmd"], toolId: `steamcmd.server.${body.kind}`, toolVersion: "1", risk, scopeKey: server.id, executable: true });
+    if (authorization !== "allow") throw new ApiError(403, "steamcmd_server_not_authorized", "当前权限模式未授权此 Steam 游戏服务器操作。");
+    try {
+      const task = createSteamcmdServerTask({ serverId: server.id, nodeId: server.nodeId, createdBy: request.auth!.user.id, kind: body.kind });
+      response.status(202).json({ task: { ...task, payload: undefined } });
+    } catch (error) { throw new ApiError(409, "steamcmd_server_task_unavailable", error instanceof Error ? error.message : "Steam 游戏服务器任务暂不可用。"); }
   });
 
 router.put("/steamcmd/configuration-settings/defaults", requireAuthentication, requireRole("admin"), (request, response) => {

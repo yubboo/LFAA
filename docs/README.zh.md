@@ -8,7 +8,7 @@
 |---|---|---|
 | 用户指南 | [启动与命令](user/cli.zh.md) | Web、节点、开发与打包 |
 | 子系统 | [架构导读](subsystems/architecture.zh.md) · [存储](subsystems/storage.zh.md) · [执行控制](subsystems/execution-control.zh.md) | Owner、数据、权限与生命周期 |
-| 开发 | [开发手册：功能地图与记录](development/handbook.zh.md) · [开发流程](development/guide.zh.md) · [性能治理](development/performance.zh.md) · [本轮审查](development/workspace-audit-20261008.zh.md) | 项目内 UI 手册入口：设置中心 → 关于与更新；源码专题、功能问题、Owner、开发记录与验收证据 |
+| 开发 | [开发文档索引](development/README.zh.md) · [开发手册](development/handbook.zh.md) | 长期指南、当前目标与按主题整理的实施/验收记录；项目内 UI 手册入口：设置中心 → 关于与更新 |
 | 参考 | [根目录职责](reference/repository-layout.zh.md) · [生成的包清单](harness-packages.md) · [提示词资料](reference/prompts/README.zh.md) | 路径、包状态与非工程资料 |
 | 语言维护 | [中英文配对规则](i18n/README.zh.md) | 对应文件、翻译范围与权威来源 |
 | 历史 | [归档索引](archive/README.zh.md) | 审计快照、旧计划与已完成合同 |

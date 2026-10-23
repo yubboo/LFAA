@@ -52,6 +52,13 @@ test('账户 Remote 经真实 Host 登录认证并由 Client Connection 调用',
   const cookie = setup.headers.get('set-cookie')?.split(';', 1)[0];
   assert.ok(cookie);
 
+  const staleSessionResponse = await fetch(`${base}/api/auth/passkeys`, {
+    headers: { cookie: 'lfaa_session=stale.invalid.session' }
+  });
+  assert.equal(staleSessionResponse.status, 401);
+  assert.equal((await staleSessionResponse.json()).error, 'invalid_session');
+  assert.equal(staleSessionResponse.headers.get('set-cookie'), null, '旧失效响应不得清除可能已更新的新登录 Cookie');
+
   const remote = await fetch(`${base}/api/typert/auth/me`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie },

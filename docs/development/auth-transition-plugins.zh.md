@@ -1,6 +1,36 @@
 # 登录进入动画插件合同
 
-LFAA 的登录进入动画是可替换的 Client 扩展点。默认实现由 LFAA 根 Renderer 提供：先在登录覆盖层后挂载并预热隐藏的 Workbench，再播放内置的壁纸引力透镜与登录卡片吸入动画。动画到达事件视界后，Workbench 在覆盖层后变为可见但继续保持 `inert` 和 `aria-hidden`；覆盖层用 240ms `opacity` 淡出后才解除门控并显示提醒。登录卡片使用首尾减速的 `transform` 缓动，不缩放整屏壁纸。默认路径不捕获整页快照，也不在动画期间同步挂载 Workbench。安装并装配的 DSH Client 插件可以贡献 `auth.transition`，用户从设置中心选择实际动画来源。
+LFAA 的登录进入动画是可替换的 Client 扩展点。默认实现由 LFAA 根 Renderer 提供：先在登录覆盖层后挂载并预热隐藏的 Workbench，再用 CSS 播放约 420ms 的黑洞核心、倾斜吸积环与登录卡片 3D 吸入动画，仅改变 `transform` 和 `opacity`。动画到达事件视界后，Workbench 在覆盖层后变为可见但继续保持 `inert` 和 `aria-hidden`；覆盖层用 160ms `opacity` 淡出后才解除门控并显示提醒。默认路径不运行逐帧 WebGL、不捕获整页快照，也不在动画期间同步挂载 Workbench。安装并装配的 DSH Client 插件可以贡献 `auth.transition`，用户从设置中心选择实际动画来源。
+
+## 动画实现选择与 Motion 使用约定
+
+- 固定时序、少量元素的进入/退出、淡入淡出和 3D 吸入继续用 CSS。当前内置登录转场保持 CSS 实现，不增加动画依赖；继续使用 `transform`、`opacity`、`perspective` 和 `transform-style: preserve-3d` 表达 3D 场景。
+- 只有在动画需要 React 状态驱动的多段编排、手势/拖拽、布局协同或退出动画协调，且 CSS/现有浏览器 API 已难以清楚维护时，才评估 Motion for React。库不会自动消除卡顿；先确认实际需求，再检查产物体积、动画属性和目标设备上的帧时间。
+- 若登录视觉 Owner 确实需要 Motion，将 `motion` 作为 `packages/client/ui-settings-account` 的直接依赖安装并更新工作区锁文件，不要放到应用根包或另一个共用 Owner 中重复声明。其他功能由其唯一视觉 Owner 持有依赖。Motion 只负责动画表达，不接管认证、转场阶段、工作台门控或用户设置。
+- 常规 API：安装 `motion` 后从 `motion/react` 导入 `motion`，使用 `initial`、`animate`、`exit`、`transition` 等声明式属性。对关注首屏包体积的入口，优先评估 `m` + `LazyMotion`，只加载所需功能；文档示例：
+
+  ```tsx
+  import * as m from "motion/react-m";
+  import { LazyMotion, domAnimation } from "motion/react";
+
+  function Scene() {
+    return (
+      <LazyMotion features={domAnimation}>
+        <m.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18 }}
+        />
+      </LazyMotion>
+    );
+  }
+  ```
+
+- 对确实需要按阶段触发的时间线，可评估 `useAnimate`；它把选择器限制在组件作用域并在组件卸载时清理动画。不要用每帧 React state 更新驱动动画。使用 Motion 时仍优先动画 `transform`/`opacity`，避免无依据地增加滤镜、阴影、布局动画或常驻 `will-change`；保留现有透视和 3D 层级，不能为了接库把 3D 场景改平。
+- 减少动态效果的唯一来源仍是设置中心的 `appearance.advanced.reducedMotion`，登录贡献项读取 `owner.reducedMotion`。Motion 的 `MotionConfig reducedMotion="always"` 仅自动跳过变换与布局动画、仍可能播放透明度等动画，因此不能单独满足本合同；当 `owner.reducedMotion` 为 `true` 时，必须显式跳过该转场的全部动态效果。不得新建第二套偏好或自行读取系统设置覆盖 Owner。
+- 引入库前核对当前 React 兼容要求、维护状态、依赖体积与工作区包边界；改动依赖后运行对应包构建和直接回归，并检查打包体积。构建通过不等于运行流畅，仍需在代表性真实视口观察转场和帧时间。
+
+参考资料（以官方文档当前内容为准）：[Motion 安装](https://motion.dev/docs/react-installation)、[Motion 性能与包体积](https://motion.dev/docs/react-reduce-bundle-size)、[Motion `useAnimate`](https://motion.dev/docs/react-use-animate)、[Motion 减少动态效果](https://motion.dev/docs/react-accessibility)、[Web Animations 性能指南](https://web.dev/articles/animations-guide)。
 
 ## Slot 与输入
 
@@ -10,7 +40,7 @@ LFAA 的登录进入动画是可替换的 Client 扩展点。默认实现由 LFA
 - `owner.phase`：`preparing` 表示登录成功、设置和工作台依赖仍在准备；`entering` 表示目标场景已就绪且转场正在运行。自定义插件路径持续到浏览器 `ViewTransition.finished`；默认动画还会在主动画结束后淡出覆盖层，再解除工作台交互门控。提醒只在完整收尾后显示。
 - `owner.reducedMotion`：当前「减少动态效果」设置对本次进入动画的最终判断。值为 `true` 时插件不能启动动态效果。
 
-组件通过 DSH Slot 收到 `owner`。自定义插件可在 `entering` 阶段为 `::view-transition-group(lfaa-auth-scene)` 和 `::view-transition-old(lfaa-auth-scene)` 提供自己的 CSS；Renderer 在 `ViewTransition.ready` 后隐藏底层真实工作台并隐藏新场景快照，直到 `finished` 后才揭开页面、显示提醒并释放动画贡献。插件不得覆盖此约束或提前显示工作台内容。内置动画不创建 View Transition 快照：Workbench 首次挂载及主动画期间保持 `visibility:hidden`、`aria-hidden` 和 `inert`；最后 240ms 在登录覆盖层后显现并淡入，期间仍不可交互。淡出结束后，Renderer 才卸载覆盖层、解除 Workbench 门控并显示提醒。未选择插件或插件已不可用时使用内置动画；旧选择保留在设置中，用户可重新选择。
+组件通过 DSH Slot 收到 `owner`。自定义插件可在 `entering` 阶段为 `::view-transition-group(lfaa-auth-scene)` 和 `::view-transition-old(lfaa-auth-scene)` 提供自己的 CSS；Renderer 在 `ViewTransition.ready` 后隐藏底层真实工作台并隐藏新场景快照，直到 `finished` 后才揭开页面、显示提醒并释放动画贡献。插件不得覆盖此约束或提前显示工作台内容。内置动画不创建 View Transition 快照：Workbench 首次挂载及主动画期间保持 `visibility:hidden`、`aria-hidden` 和 `inert`；最后 160ms 在登录覆盖层后显现并淡入，期间仍不可交互。淡出结束后，Renderer 才卸载覆盖层、解除 Workbench 门控并显示提醒。未选择插件或插件已不可用时使用内置动画；旧选择保留在设置中，用户可重新选择。
 
 ## 生命周期示例
 

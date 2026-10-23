@@ -22,12 +22,24 @@
     - id: api-workflow-controller
       name: lfaa-api-workflow-controller
       inject: [apiGateway, lfaaWorkflow]
+    - id: llm-local-runtime
+      name: lfaa-llm-local-runtime
+      inject: []
+    - id: llm-moss-image
+      name: lfaa-llm-moss-image
+      inject: [lfaaSubprocess, lfaaLocalModelRuntime]
+    - id: llm-minimax-h3
+      name: lfaa-llm-minimax-h3
+      inject: [lfaaSubprocess, lfaaLocalModelRuntime]
     - id: video-ai-video
       name: lfaa-video-ai-video
-      inject: [lfaaCredentials, lfaaSettings]
+      inject: [lfaaCredentials, lfaaSettings, lfaaLocalModelRuntime]
     - id: api-ai-video-controller
       name: lfaa-api-ai-video-controller
       inject: [apiGateway, lfaaAiVideo]
+    - id: api-local-model-controller
+      name: lfaa-api-local-model-controller
+      inject: [apiGateway, lfaaLocalModelRuntime]
     - id: tool-ai-video
       name: lfaa-video-tool-ai-video
       inject: [lfaaAiVideo, lfaaTools]

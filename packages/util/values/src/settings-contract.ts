@@ -148,7 +148,7 @@ export interface ComputerControlSettings {
 export interface BrowserUseSettings {
   /** 是否向 Agent 提供浏览器操作工具；所有动作仍由 permissions.mode 授权。 */
   enabled: boolean;
-  /** 用户接入到 LFAA 的浏览器应用；空数组表示不接入任何浏览器。 */
+  /** 用户明确接入的个人浏览器提供方；LFAA 内置浏览器不读写此字段。 */
   enabledProviderIds: BrowserProviderId[];
   /** 是否在浏览器地址栏展示完整路径、查询参数与片段。 */
   showFullUrl: boolean;
@@ -183,9 +183,25 @@ export interface AiRuntimeSettings {
   /** 0 使用产品单轮硬上限；正数可设置更低的用户预算。 */
   maxToolCalls: number;
   subagentAccountId: string;
+  /** 漫剧图片生成方式；本地模型不创建虚假的服务商账户。 */
+  imageGenerationMode: "provider" | "local";
   /** AI 漫剧图片生成使用的已保存 Settings 账户与模型目录 ID。 */
   imageGenerationAccountId: string;
   imageGenerationModelId: string;
+  /** 从 LFAA 本地模型库选择的原生图像模型 ID。 */
+  imageGenerationLocalModelId: string;
+  /** 首次装载与本机图像推理合计的最长等待秒数。 */
+  imageGenerationLocalTimeoutSeconds: number;
+  /** 生成完成后模型保留在运行进程中的空闲分钟数。 */
+  imageGenerationUnloadAfterMinutes: number;
+  /** 漫剧视频生成方式；本地模型不创建虚假的服务商账户。 */
+  videoGenerationMode: "provider" | "local";
+  /** 从 LFAA 本地模型库选择的原生视频模型 ID。 */
+  videoGenerationLocalModelId: string;
+  /** 首次装载与本机视频推理合计的最长等待秒数。 */
+  videoGenerationLocalTimeoutSeconds: number;
+  /** 视频生成后模型保留在运行进程中的空闲分钟数。 */
+  videoGenerationUnloadAfterMinutes: number;
   /** AI 漫剧视频生成使用的已保存火山方舟账户与模型目录 ID。 */
   videoGenerationAccountId: string;
   videoGenerationModelId: string;
@@ -316,7 +332,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   },
   appearance: { theme: "system", accentColor: "#3457d5", sidebarColor: "auto", backgrounds: { login: "forest-bridge-evening", appCenter: "cherry-blossom-shore", steamcmd: "ocean-cliff-sunset", minecraft: "cherry-blossom-village", writing: "snowy-cabin-interior", settings: "lakeside-pagoda-morning" }, wallpaperEngine: { enabled: false, projectId: "" }, overlay: 65, blur: 14, updateSurfaceOpacity: 92, advanced: structuredClone(DEFAULT_APPEARANCE_ADVANCED_SETTINGS) },
   shortcuts: { openSettings: ["Ctrl+,"], openHome: ["Alt+0"], openSteamcmd: ["Ctrl+Alt+1"], openMinecraft: ["Ctrl+Alt+2"], openWriting: ["Ctrl+Alt+3"], toggleSidebar: ["Ctrl+B"], toggleContextPanel: ["Ctrl+Alt+B"], toggleBottomPanel: ["Ctrl+J"], openTerminal: ["Ctrl+`"], switchNormalMode: ["Alt+1"], switchAiWorkMode: ["Alt+2"], openSideChat: ["Ctrl+Alt+S"], wallpaperSidebarToggle: [] },
-  aiRuntime: { speed: "balanced", promptSuggestions: true, showContextUsage: false, requestTimeoutSeconds: 90, requestRetries: 1, retryDelaySeconds: 1, maxOutputTokens: 0, maxModelRequests: 0, maxToolCalls: 0, subagentAccountId: "", imageGenerationAccountId: "", imageGenerationModelId: "", videoGenerationAccountId: "", videoGenerationModelId: "", videoGenerationDurationSeconds: 5, videoGenerationRatio: "adaptive", videoGenerationResolution: "720p", videoGenerationGenerateAudio: false, videoGenerationWatermark: true, maxSubagents: 4, maxDelegationDepth: 2, voiceInputEnabled: false, readResponsesAloud: false, commandTimeoutSeconds: 0, autoCompaction: true, contextWindowTokens: 32768 },
+  aiRuntime: { speed: "balanced", promptSuggestions: true, showContextUsage: false, requestTimeoutSeconds: 90, requestRetries: 1, retryDelaySeconds: 1, maxOutputTokens: 0, maxModelRequests: 0, maxToolCalls: 0, subagentAccountId: "", imageGenerationMode: "provider", imageGenerationAccountId: "", imageGenerationModelId: "", imageGenerationLocalModelId: "", imageGenerationLocalTimeoutSeconds: 900, imageGenerationUnloadAfterMinutes: 10, videoGenerationMode: "provider", videoGenerationLocalModelId: "", videoGenerationLocalTimeoutSeconds: 900, videoGenerationUnloadAfterMinutes: 10, videoGenerationAccountId: "", videoGenerationModelId: "", videoGenerationDurationSeconds: 5, videoGenerationRatio: "adaptive", videoGenerationResolution: "720p", videoGenerationGenerateAudio: false, videoGenerationWatermark: true, maxSubagents: 4, maxDelegationDepth: 2, voiceInputEnabled: false, readResponsesAloud: false, commandTimeoutSeconds: 0, autoCompaction: true, contextWindowTokens: 32768 },
   minecraftRuntime: { minecraftReadyTimeoutSeconds: 120, minecraftStopTimeoutSeconds: 30, minecraftDefaultMemoryMb: 4096, minecraftDefaultPort: 25565, minecraftDownloadTimeoutSeconds: 1800, minecraftInstallTimeoutSeconds: 900, minecraftExecutionMode: "native", minecraftDefaultCore: "Paper", minecraftBedrockDefaultPort: 19132 },
   git: { branchPrefix: "codex/" },
   permissions: { mode: "ask" },

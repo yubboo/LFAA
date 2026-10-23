@@ -48,4 +48,4 @@ AI 与模型设置中，上下文用量显示、较早上下文自动压缩和�
 
 ## 浏览器接入设置
 
-`browserUse.enabled` 默认关闭，只控制 Agent 是否可发现浏览器工具；`browserUse.enabledProviderIds` 默认空，由用户显式接入和断开可用提供方；`browserUse.showFullUrl` 默认关闭，只控制地址栏展示；`browserUse.recordRecentSites` 默认开启，控制按账户保存 LFAA Browser Dock 与 Agent 实际访问的网站元数据。设置中心提供该记录开关及当前账户清除操作；不保存 URL 查询/片段、页面内容或个人浏览器历史。上述设置归 Settings Owner，写入 `browser-use` 分类并按账户保存。Tabbit 个人会话还要求既有 `computerControl.enabled`，所有 Agent 操作继续统一走 `permissions.mode`。密码/自动填充、书签、扩展、下载、站点媒体权限、WebMCP 和完整 CDP 尚未接入，页面如实显示当前限制。
+`browserUse.enabled` 默认关闭，只控制 Agent 是否可发现浏览器工具；LFAA 内置浏览器随当前 Host 自动可用，不需要手动连接；`browserUse.enabledProviderIds` 默认空，只保存用户明确选择的个人 Tabbit 提供方；`browserUse.showFullUrl` 默认关闭，只控制地址栏展示；`browserUse.recordRecentSites` 默认开启，控制按账户保存 LFAA Browser Dock 与 Agent 实际访问的网站元数据。设置中心提供该记录开关及当前账户清除操作；不保存 URL 查询/片段、页面内容或个人浏览器历史。上述设置归 Settings Owner，写入 `browser-use` 分类并按账户保存。Tabbit 个人会话还要求既有 `computerControl.enabled`，所有 Agent 操作继续统一走 `permissions.mode`。密码/自动填充、书签、扩展、下载、站点媒体权限、WebMCP 和完整 CDP 尚未接入，页面如实显示当前限制。

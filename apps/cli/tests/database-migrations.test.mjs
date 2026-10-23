@@ -171,7 +171,13 @@ function runDatabaseStartup(dataDirectory) {
     "-e", "import { closeDatabase } from 'lfaa-storage-sqlite/src/database.js'; closeDatabase();"
   ], {
     cwd: serverRoot,
-    env: { ...process.env, LFAA_DATA_DIR: dataDirectory, NODE_ENV: "test", JWT_SECRET: "" },
+    env: {
+      ...process.env,
+      LFAA_HOME: dataDirectory,
+      LFAA_DATA_DIR: join(dataDirectory, "test-business-data"),
+      NODE_ENV: "test",
+      JWT_SECRET: ""
+    },
     stdio: "pipe"
   });
 }
@@ -358,6 +364,49 @@ test("版本 27 写作作品迁移后保留内容并归入第一卷，重复启�
     const resolvedDataDirectory = resolve(dataDirectory);
     assert.equal(dirname(resolvedDataDirectory), resolve(tmpdir()));
     assert.ok(basename(resolvedDataDirectory).startsWith("lfaa-db-v27-writing-"));
+    rmSync(resolvedDataDirectory, { recursive: true, force: true });
+  }
+});
+
+test("版本 61 数据库迁移 Steam 专用服务端结构 62，重复启动保留同一结构", () => {
+  const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v62-steamcmd-"));
+  try {
+    const databaseDirectory = join(dataDirectory, "database");
+    mkdirSync(databaseDirectory, { recursive: true });
+    const legacyDatabase = new DatabaseSync(join(databaseDirectory, "lfaa.sqlite"));
+    legacyDatabase.exec(`
+      CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL) STRICT;
+      CREATE TABLE daemon_nodes (id TEXT PRIMARY KEY NOT NULL) STRICT;
+      PRAGMA user_version = 61;
+    `);
+    legacyDatabase.close();
+
+    runDatabaseStartup(dataDirectory);
+    const databasePath = join(dataDirectory, "database", "lfaa.sqlite");
+    const database = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 62);
+      assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'steamcmd_servers'").get());
+      const columns = database.prepare("PRAGMA table_info(steamcmd_servers)").all().map(column => column.name);
+      assert.ok(columns.includes("tool_app_id"));
+      assert.ok(columns.includes("install_directory"));
+      assert.ok(columns.includes("launch_arguments_json"));
+      assert.ok(columns.includes("eula_accepted"));
+      assert.ok(columns.includes("stop_timeout_seconds"));
+      assert.ok(columns.includes("status"));
+      assert.deepEqual(database.prepare("PRAGMA foreign_key_check").all(), []);
+    } finally { database.close(); }
+
+    runDatabaseStartup(dataDirectory);
+    const restartedDatabase = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      assert.equal(Number(restartedDatabase.prepare("PRAGMA user_version").get().user_version), 62);
+      assert.equal(Number(restartedDatabase.prepare("SELECT COUNT(*) AS count FROM steamcmd_servers").get().count), 0);
+    } finally { restartedDatabase.close(); }
+  } finally {
+    const resolvedDataDirectory = resolve(dataDirectory);
+    assert.equal(dirname(resolvedDataDirectory), resolve(tmpdir()));
+    assert.ok(basename(resolvedDataDirectory).startsWith("lfaa-db-v62-steamcmd-"));
     rmSync(resolvedDataDirectory, { recursive: true, force: true });
   }
 });

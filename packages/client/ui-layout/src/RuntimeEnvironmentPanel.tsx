@@ -26,7 +26,7 @@ export function RuntimeEnvironmentPanel({overview,targetId,setTargetId,canOperat
   const online=device?.status==="online",enabled=canOperate&&online;
   const java=runtimes.filter(item=>item.type==="java"),majors=[...new Set([8,11,17,21,25,...java.map(item=>item.major!).filter(Boolean)])].sort((a,b)=>a-b);
   const returnValue=new URLSearchParams(window.location.search).get("return");
-  const returnPath=returnValue==="minecraft"?"/apps/minecraft/normal/deployment":returnValue==="overview"?"/apps/minecraft/normal/overview":returnValue&&/^[a-f0-9-]{36}$/iu.test(returnValue)?`/apps/minecraft/normal/instance/${returnValue}/overview`:null;
+  const returnPath=returnValue==="minecraft"?"/games/minecraft/deployment":returnValue==="overview"?"/games/minecraft/overview":returnValue&&/^[a-f0-9-]{36}$/iu.test(returnValue)?`/games/minecraft/instance/${returnValue}/overview`:null;
   useEffect(()=>{if(!steamTask||!["queued","running"].includes(steamTask.status))return;let active=true;const poller=createReadPoller(async()=>{try{const value=await loadSteamcmdTask(steamTask.id);if(active)setSteamTask(value.task);if(!["queued","running"].includes(value.task.status))poller.stop();}catch(reason){if(active)setError(getErrorMessage(reason));}},1500);return()=>{active=false;poller.stop();};},[steamTask?.id]);
   const steamAction=async(kind:"install"|"verify")=>{setSteamBusy(true);setError("");try{setSteamTask((await createSteamcmdTask({nodeId:targetId,kind})).task);}catch(reason){setError(getErrorMessage(reason));}finally{setSteamBusy(false);}};
   return <>
@@ -56,6 +56,6 @@ export function RuntimeEnvironmentPanel({overview,targetId,setTargetId,canOperat
         </>:null}
       </div>
     </section>
-    {device?.servers?.length?<section className="runtime-manager__detected" aria-label="此设备的 Minecraft 实例"><Typography.Title level={3}>对应服务器</Typography.Title>{device.servers.map(server=><article className="game-library__runtime" key={server.id}><div><strong>{server.name}</strong><p>配置要求 {server.requiredJavaMajor?`Java ${server.requiredJavaMajor}`:"官方 PHP"}；安装状态与运行状态分别核对。</p></div><Button onClick={()=>onNavigate(`/apps/minecraft/normal/instance/${server.id}/overview`)}>打开服务器</Button></article>)}</section>:null}
+    {device?.servers?.length?<section className="runtime-manager__detected" aria-label="此设备的 Minecraft 实例"><Typography.Title level={3}>对应服务器</Typography.Title>{device.servers.map(server=><article className="game-library__runtime" key={server.id}><div><strong>{server.name}</strong><p>配置要求 {server.requiredJavaMajor?`Java ${server.requiredJavaMajor}`:"官方 PHP"}；安装状态与运行状态分别核对。</p></div><Button onClick={()=>onNavigate(`/games/minecraft/instance/${server.id}/overview`)}>打开服务器</Button></article>)}</section>:null}
   </>;
 }

@@ -20,5 +20,11 @@ export const APPLICATION_ROUTE_PATTERN = new RegExp(`^/apps/(${APPLICATION_IDS.j
 /** 所有 App 共用工作入口；根首页、旧工作地址及旧 App 工作地址统一归一到这里。 */
 export const SHARED_WORK_ROUTE = "/work";
 export function normalizeWorkRoute(path: string): string {
-  return path === "/" || path === "/tasks" || path.match(APPLICATION_ROUTE_PATTERN)?.[2] === "ai-work" ? SHARED_WORK_ROUTE : path;
+  if (path === "/" || path === "/tasks" || path.match(APPLICATION_ROUTE_PATTERN)?.[2] === "ai-work") return SHARED_WORK_ROUTE;
+  const appRoute = path.match(APPLICATION_ROUTE_PATTERN);
+  if (appRoute?.[2] === "normal" && (appRoute[1] === "steamcmd" || appRoute[1] === "minecraft")) {
+    const section = appRoute[3] ? `/${appRoute[3]}` : "";
+    return `/games/${appRoute[1]}${section}`;
+  }
+  return path;
 }

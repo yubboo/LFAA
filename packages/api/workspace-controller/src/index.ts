@@ -66,7 +66,7 @@ const gitWorkspaceOperationSchema = Joi.object({
 }).unknown(false);
 const projectFileReadSchema = Joi.object({ appId: projectAppIdSchema, path: projectRelativeFilePathSchema.required(), offset: Joi.number().integer().min(0).max(2 * 1024 * 1024).default(0), limit: Joi.number().integer().min(1).max(100000).default(40000) }).unknown(false);
 const projectFileWriteSchema = Joi.object({ appId: projectAppIdSchema, path: projectRelativeFilePathSchema.required(), sha256: Joi.string().pattern(/^[a-f0-9]{64}$/u).required(), content: Joi.string().max(2 * 1024 * 1024).required() }).unknown(false);
-const gitFileDiffSchema = Joi.object({ appId: projectAppIdSchema, path: projectRelativeFilePathSchema.required(), ignoreWhitespace: Joi.boolean().default(false), wordDiff: Joi.boolean().default(false) }).unknown(false);
+const gitFileDiffSchema = Joi.object({ appId: projectAppIdSchema, path: projectRelativeFilePathSchema.required(), ignoreWhitespace: Joi.boolean().default(false), wordDiff: Joi.boolean().default(false), contextLines: Joi.number().integer().min(0).max(1000).default(3) }).unknown(false);
 const projectsQuerySchema = Joi.object({ appId: Joi.string().valid(...WORKSPACE_PROJECT_APPLICATION_IDS).optional(), query: Joi.string().trim().max(200).allow("") }).unknown(false);
 
 function projectHasOtherAppSessions(userId: string, projectId: string, appId: WorkspaceProjectApplicationId): boolean {
@@ -243,12 +243,12 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
   }));
 
   router.post("/workspace/projects/:projectId/git/file-diff", requireAuthentication, asyncHandler(async (request, response) => {
-    const body = parseBody<{ appId: WorkspaceProjectApplicationId; path: string; ignoreWhitespace: boolean; wordDiff: boolean }>(gitFileDiffSchema, request.body);
+    const body = parseBody<{ appId: WorkspaceProjectApplicationId; path: string; ignoreWhitespace: boolean; wordDiff: boolean; contextLines: number }>(gitFileDiffSchema, request.body);
     const userId = request.auth!.user.id;
     const project = requireProjectForApp(userId, request.params.projectId, body.appId);
     requireLocalGitProject(project);
     response.json({ file: await runLocalGitOperation(project, { operation: "file-diff", path: body.path,
-      ignoreWhitespace: body.ignoreWhitespace, wordDiff: body.wordDiff }) });
+      ignoreWhitespace: body.ignoreWhitespace, wordDiff: body.wordDiff, contextLines: body.contextLines }) });
   }));
 
   router.post("/workspace/projects/:projectId/files/read", requireAuthentication, asyncHandler(async (request, response) => {

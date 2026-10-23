@@ -1,7 +1,7 @@
 {
   "name": "lfaa-desktop-electron",
   "private": true,
-  "version": "0.0.8",
+  "version": "0.0.10",
   "type": "module",
   "main": "src/main.mjs",
   "description": "LFAA Windows 本机一体版桌面外壳",
@@ -26,7 +26,7 @@
     "appId": "com.lfaa.desktop",
     "productName": "LFAA",
     "directories": {
-      "output": "../../dist/.tmp/desktop-electron/LFAA-0.0.8",
+      "output": "../../dist/.tmp/desktop-electron/LFAA-0.0.10",
       "buildResources": "../../dist/.tmp/desktop-electron/build-resources"
     },
     "files": [
@@ -45,7 +45,12 @@
         "from": "../../dist/.tmp/desktop-electron/server-deploy/node_modules",
         "to": "app-runtime/apps/cli/node_modules",
         "filter": [
-          "**/*"
+          "**/*",
+          "!node-pty/**/*.pdb",
+          "!node-pty/prebuilds/win32-arm64/**",
+          "!node-pty/prebuilds/darwin-arm64/**",
+          "!node-pty/prebuilds/darwin-x64/**",
+          "!node-pty/third_party/conpty/*/win10-arm64/**"
         ]
       }
     ],
@@ -75,8 +80,9 @@
       "license": "installation-notice.txt",
       "installerIcon": "lfaa.ico",
       "uninstallerIcon": "lfaa.ico",
-      "createDesktopShortcut": "always",
-      "createStartMenuShortcut": true
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
     }
   }
 }

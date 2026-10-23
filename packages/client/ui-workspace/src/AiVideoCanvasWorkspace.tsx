@@ -103,7 +103,7 @@ const ShotNodeCard = memo(function ShotNodeCard({ id, data, selected }: NodeProp
       <div className="aivideo-shot__actions nodrag nopan">
         <Button size="small" type="primary" loading={data.isGenerating} disabled={!data.canGenerate || !data.description.trim()} onClick={() => data.onGenerate(id)}>{data.imageAssetId ? "重新生成图片" : "生成图片"}</Button>
         <Button size="small" loading={data.isVideoOperating} disabled={!data.canGenerate || !data.description.trim() || ["submitting", "queued", "running"].includes(data.videoTask?.status ?? "")} onClick={() => data.onGenerateVideo(id)}>{data.videoAssetId ? "重新生成视频" : "生成视频"}</Button>
-        {data.videoTask?.status === "queued" ? <Button size="small" danger loading={data.isVideoOperating} disabled={data.isVideoOperating} onClick={() => data.onCancelVideo(id)}>取消排队</Button> : null}
+        {data.videoTask?.status === "queued" || data.videoTask?.status === "running" && data.videoTask.accountId === "local" ? <Button size="small" danger loading={data.isVideoOperating} disabled={data.isVideoOperating} onClick={() => data.onCancelVideo(id)}>{data.videoTask.accountId === "local" ? "取消本机生成" : "取消排队"}</Button> : null}
         {data.videoTask && (data.videoTask.status === "running" || data.videoTask.status === "submitting") ? <Button size="small" loading={data.isVideoOperating} disabled={data.isVideoOperating} onClick={() => data.onRefreshVideo(id)}>刷新状态</Button> : null}
         {data.videoTask?.status === "succeeded" && !data.videoAssetId && !data.videoTask.error ? <Button size="small" loading={data.isVideoOperating} disabled={data.isVideoOperating} onClick={() => data.onRefreshVideo(id)}>下载成片</Button> : null}
         {data.videoTask?.status === "succeeded" && !data.videoAssetId && data.videoTask.error ? <Button size="small" loading={data.isVideoOperating} disabled={data.isVideoOperating} onClick={() => data.onRefreshVideo(id)}>重试下载</Button> : null}
@@ -454,7 +454,7 @@ export function AiVideoCanvasWorkspace() {
     try {
       const { canvas } = await cancelAiVideoShotVideo(current.id, shotId);
       applyVideoTaskCanvas(canvas);
-      setNotice("服务商已取消排队任务。");
+      setNotice(current.shots.find(shot => shot.id === shotId)?.videoTask?.accountId === "local" ? "本机视频生成已取消。" : "服务商已取消排队任务。");
     } catch (cancelError) {
       setError(canvasError(cancelError, "取消视频排队任务失败。"));
     } finally {

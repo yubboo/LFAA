@@ -10,7 +10,7 @@ Skill 附属文本资源通过 `lfaa_skill_load` 按当前 Skill Provider 或项
 
 设置：复用 plugins.enabled（第三方扩展）、plugins.skillDirectories（Skill 来源）、permissions.mode、Provider/模型及 aiRuntime 的输出/请求/上下文/工具/委派预算；领域工具读取原 minecraftRuntime、设备存储位置及节点覆盖。没有新增设置或默认值，不重置用户偏好。内置方法不因第三方开关关闭而成为虚假不可用，用户内容仍受原范围与开关约束。
 
-`capabilities.settings-status` 对 Browser Use 区分主开关、已登记工具和待接入提供方，不能以 `enabledProviderIds` 为空误报浏览器工具未登记。设置变更仍通过统一 Permission Owner；具体 Host 是否有可启动浏览器由 Browser Owner 的提供方目录确认。
+`capabilities.settings-status` 对 Browser Use 显示主开关与已登记工具；内置浏览器不需要接入偏好，个人 Tabbit 选择保存在 `enabledProviderIds`。具体 Host 是否有可用浏览器由 Browser Owner 的提供方目录确认。设置变更仍通过统一 Permission Owner。
 
 安全与数据：目录/方法不构成授权；真实动作经过原 Permission、参数、账户、作品/项目/节点和领域事务。本机项目只由 `nodeId: null` 或精确匹配受保护本机 Daemon 身份的目录进入本机 Host；身份未知的非空节点 ID 不会被当作本机。加载不执行外部文档指令，不自动重放未知副作用。注册随所属 Fiber 撤销，异步正文加载前后检查登记，Run 工具选择不进入全局状态；子任务只继承父 Run 提供的范围。
 

@@ -145,16 +145,16 @@ export function registerRoutes(router: Router, _aiHost: AiPluginHost, _realtime:
     dataUrl: Joi.string().max(Math.ceil(AI_VIDEO_CANVAS_LIMITS.referenceImageBytes * 4 / 3) + 128).required()
   }).unknown(false);
   const referenceImageRemovalInput = Joi.object({ expectedUpdatedAt: Joi.string().isoDate().required() }).unknown(false);
-  router.put("/ai-video/canvases/:canvasId/references/:kind/:referenceId/image", requireAuthentication, (request, response) => {
+  router.put("/ai-video/canvases/:canvasId/references/:kind/:referenceId/image", requireAuthentication, asyncHandler(async (request, response) => {
     const input = parse<{ expectedUpdatedAt: string; dataUrl: string }>(referenceImageInput, request.body);
     if (request.params.kind !== "characters" && request.params.kind !== "locations") throw new ApiError(400, "ai_video_canvas_invalid", "参考图片类型无效。");
     try {
-      const canvas = service.uploadReferenceImage(request.auth!.user.id, request.params.canvasId, request.params.kind, request.params.referenceId, input.expectedUpdatedAt, input.dataUrl);
+      const canvas = await service.uploadReferenceImage(request.auth!.user.id, request.params.canvasId, request.params.kind, request.params.referenceId, input.expectedUpdatedAt, input.dataUrl);
       if (!canvas) throw new ApiError(404, "ai_video_canvas_not_found", "找不到当前账户的分镜画布。");
       response.setHeader("Cache-Control", "no-store");
       response.json({ canvas });
     } catch (error) { handleError(error); }
-  });
+  }));
 
   router.delete("/ai-video/canvases/:canvasId/references/:kind/:referenceId/image", requireAuthentication, (request, response) => {
     const input = parse<{ expectedUpdatedAt: string }>(referenceImageRemovalInput, request.body);
@@ -169,14 +169,19 @@ export function registerRoutes(router: Router, _aiHost: AiPluginHost, _realtime:
 
   router.post("/ai-video/canvases/:canvasId/shots/:shotId/image", requireAuthentication, asyncHandler(async (request, response) => {
     const input = parse<{ expectedUpdatedAt: string }>(Joi.object({ expectedUpdatedAt: Joi.string().isoDate().required() }).unknown(false), request.body);
+    const abortController = new AbortController();
+    const abortOnDisconnect = () => { if (!response.writableFinished) abortController.abort(); };
+    response.once("close", abortOnDisconnect);
     try {
-      const canvas = await service.generateShotImage(request.auth!.user.id, request.params.canvasId, request.params.shotId, input.expectedUpdatedAt);
+      const canvas = await service.generateShotImage(request.auth!.user.id, request.params.canvasId, request.params.shotId, input.expectedUpdatedAt, abortController.signal);
       if (!canvas) throw new ApiError(404, "ai_video_canvas_not_found", "找不到当前账户的分镜画布。");
       response.setHeader("Cache-Control", "no-store");
       response.json({ canvas });
     } catch (error) {
       if (error instanceof AiVideoCanvasConflictError || error instanceof ApiError) throw error;
       throw new ApiError(422, "ai_video_image_generation_failed", error instanceof Error ? error.message : "图片生成失败。没有登记生成结果。");
+    } finally {
+      response.removeListener("close", abortOnDisconnect);
     }
   }));
 
@@ -260,16 +265,16 @@ export function registerRoutes(router: Router, _aiHost: AiPluginHost, _realtime:
     } catch (error) { handleError(error); }
   });
 
-  router.post("/ai-video/canvases/:canvasId/assets", requireAuthentication, reserveMediaUpload, mediaBody, (request, response) => {
+  router.post("/ai-video/canvases/:canvasId/assets", requireAuthentication, reserveMediaUpload, mediaBody, asyncHandler(async (request, response) => {
     const query = parse<{ expectedUpdatedAt: string; name: string }>(mediaUploadQuery, request.query);
     const bytes = Buffer.isBuffer(request.body) ? request.body : null;
     if (!bytes) throw new ApiError(400, "ai_video_media_invalid", "媒体文件内容无效。");
     try {
-      const canvas = service.importMediaAsset(request.auth!.user.id, request.params.canvasId, query.expectedUpdatedAt, query.name, request.headers["content-type"], bytes);
+      const canvas = await service.importMediaAsset(request.auth!.user.id, request.params.canvasId, query.expectedUpdatedAt, query.name, request.headers["content-type"], bytes);
       if (!canvas) throw new ApiError(404, "ai_video_canvas_not_found", "找不到当前账户的漫剧项目。");
       response.status(201).json({ canvas });
     } catch (error) { handleError(error); }
-  });
+  }));
 
   router.delete("/ai-video/canvases/:canvasId/assets/:assetId", requireAuthentication, (request, response) => {
     const query = parse<{ expectedUpdatedAt: string }>(mediaMutationQuery, request.query);
@@ -291,16 +296,16 @@ export function registerRoutes(router: Router, _aiHost: AiPluginHost, _realtime:
     } catch (error) { handleError(error); }
   });
 
-  router.put("/ai-video/canvases/:canvasId/shots/:shotId/image", requireAuthentication, reserveMediaUpload, shotImageBody, (request, response) => {
+  router.put("/ai-video/canvases/:canvasId/shots/:shotId/image", requireAuthentication, reserveMediaUpload, shotImageBody, asyncHandler(async (request, response) => {
     const query = parse<{ expectedUpdatedAt: string }>(mediaMutationQuery, request.query);
     const bytes = Buffer.isBuffer(request.body) ? request.body : null;
     if (!bytes) throw new ApiError(400, "ai_video_image_invalid", "取景图片内容无效。");
     try {
-      const canvas = service.uploadShotImage(request.auth!.user.id, request.params.canvasId, request.params.shotId, query.expectedUpdatedAt, bytes, request.headers["content-type"]);
+      const canvas = await service.uploadShotImage(request.auth!.user.id, request.params.canvasId, request.params.shotId, query.expectedUpdatedAt, bytes, request.headers["content-type"]);
       if (!canvas) throw new ApiError(404, "ai_video_canvas_not_found", "找不到当前账户的漫剧项目。");
       response.json({ canvas });
     } catch (error) { handleError(error); }
-  });
+  }));
 
   router.delete("/ai-video/canvases/:canvasId", requireAuthentication, (request, response) => {
     try {

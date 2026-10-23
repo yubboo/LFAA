@@ -28,6 +28,7 @@ import { appearanceBackgroundSlotForRoute } from "./appearance-background-slot.j
 import { createReleaseAnnouncementPersistence } from "./release-announcement.js";
 import "./css/module-shell.css";
 const GameLibraryPage = lazy(() => import("./GameLibraryPage.js").then(module => ({ default: module.GameLibraryPage })));
+const SteamcmdWorkspace = lazy(() => import("./SteamcmdWorkspace.js").then(module => ({ default: module.SteamcmdWorkspace })));
 
 
 
@@ -139,8 +140,18 @@ function formatDesktopUpdateBytes(bytes: number): string {
 // 将文件页来源归一为应用模式根页；通用任务的正式入口 `/tasks` 对应 workspace AI Work。
 function applicationModeHomeRoute(pathname: string): string | null {
   if (normalizeWorkRoute(pathname) === SHARED_WORK_ROUTE) return SHARED_WORK_ROUTE;
+  if (/^\/games(?:\/|$)/u.test(pathname)) return "/games";
   const match = pathname.match(APPLICATION_ROUTE_PATTERN);
   return match ? `/apps/${match[1]}/${match[2]}` : null;
+}
+
+function gameLibraryApplicationRoute(pathname: string): string[] | null {
+  const match = pathname.match(/^\/games(?:\/(.*))?$/u);
+  if (!match) return null;
+  const [area, ...parts] = (match[1] ?? "").split("/").filter(Boolean);
+  if (area === "minecraft") return [pathname, "minecraft", "normal", parts.join("/") || "overview"];
+  if (area === "steamcmd") return [pathname, "steamcmd", "normal", parts.join("/") || "overview"];
+  return [pathname, "workspace", "normal", area === "environments" ? "environments" : "library"];
 }
 
 const SettingsPage = lazy(() => loadSettingsPageModule().then((module) => ({ default: module.SettingsPage })));
@@ -311,6 +322,7 @@ const applicationCards: Array<{
 const allApplicationNavigationItems: ApplicationNavigationItem[] = [
   { id: "games", title: "游戏库", description: "运行环境 · Minecraft · SteamCMD", route: "/games" },
   ...applicationCards
+    .filter((application) => application.id !== "steamcmd" && application.id !== "minecraft")
     .map((application) => ({ id: application.id, title: application.title, applicationId: application.id }))
 ];
 
@@ -332,7 +344,8 @@ export function Workbench({
 }: WorkbenchProps) {
   const appRoute = route === "/voice"
     ? [route, "workspace", "ai-work", "voice"]
-    : normalizeWorkRoute(route) === SHARED_WORK_ROUTE ? [route, "workspace", "ai-work", "overview"] : route.match(APPLICATION_ROUTE_PATTERN);
+    : normalizeWorkRoute(route) === SHARED_WORK_ROUTE ? [route, "workspace", "ai-work", "overview"] : gameLibraryApplicationRoute(route) ?? route.match(APPLICATION_ROUTE_PATTERN);
+  const isGameLibraryRoute = route === "/games" || route.startsWith("/games/");
   const isAiWorkRoute = appRoute?.[1] === "workspace" && appRoute?.[2] === "ai-work";
   const isFileManagerPage = route === "/files";
   const isPluginManagerPage = route === "/plugin-manager";
@@ -560,6 +573,9 @@ export function Workbench({
   const handleRecentSessionsOpenRequest = useCallback((requestId: number) => {
     setRecentSessionsOpenRequestId(current => current === requestId ? null : current);
   }, []);
+  const openApplicationFromCurrentPage = useCallback((targetApp: ApplicationId) => {
+    void onOpenApplication(targetApp, "normal").catch(() => undefined);
+  }, [onOpenApplication]);
   const requestApplicationsOpen = useCallback(() => {
     setWorkspaceRightPanelSection("applications");
     const requestId = ++applicationsOpenRequestSequenceRef.current;
@@ -569,9 +585,6 @@ export function Workbench({
   const handleApplicationsOpenRequest = useCallback((requestId: number) => {
     setApplicationsOpenRequestId(current => current === requestId ? null : current);
   }, []);
-  const openApplicationFromCurrentPage = useCallback((targetApp: ApplicationId) => {
-    void onOpenApplication(targetApp, "normal").catch(() => undefined);
-  }, [onOpenApplication]);
   const updateAiWorkUiState = (update: Partial<AiWorkUiState>) => {
     if (Object.prototype.hasOwnProperty.call(update, "activeSessionId")) persistActiveAiSession(user.id, "workspace", update.activeSessionId ?? null);
     setAiWorkUiState(current => ({ ...current, ...update }));
@@ -708,8 +721,8 @@ export function Workbench({
       const entries: Array<[keyof UserSettings["shortcuts"], () => void]> = [
         ["openSettings", openSettings],
         ["openHome", () => onNavigate(SHARED_WORK_ROUTE)],
-        ["openSteamcmd", () => openApplicationFromCurrentPage("steamcmd")],
-        ["openMinecraft", () => openApplicationFromCurrentPage("minecraft")],
+        ["openSteamcmd", () => onNavigate("/games/steamcmd")],
+        ["openMinecraft", () => onNavigate("/games/minecraft")],
         ["openWriting", () => openApplicationFromCurrentPage("writing")]
       ];
       const shortcuts = resolveShortcutSettings(shortcutSettingsRef.current);
@@ -886,6 +899,10 @@ export function Workbench({
           app={app}
           mode={appRoute[2] as ApplicationMode}
           section={appRoute[3] || "overview"}
+          gameLibrary={isGameLibraryRoute}
+          workspaceTitle={isGameLibraryRoute ? app === "workspace" ? appRoute[3] === "environments" ? "运行环境" : "游戏库" : app === "steamcmd" ? "Steam 游戏服务" : undefined : undefined}
+          applicationContent={isGameLibraryRoute && app === "workspace" ? <GameLibraryPage onOpenStorage={() => openSettings("workspace")} user={user} environments={appRoute[3] === "environments"} onNavigate={onNavigate} />
+            : isGameLibraryRoute && app === "steamcmd" ? <SteamcmdWorkspace user={user} onNavigate={onNavigate} /> : undefined}
           settings={settings}
           onSettingsChange={updateWorkbenchSettings}
           apps={[...applicationCards, { id: "workspace", title: "小鱼智能体", initials: "L", color: "blue" }]}
@@ -894,9 +911,9 @@ export function Workbench({
           role={user.role}
           serverState={serverState}
           error={error}
-          onBack={() => onNavigate(`/apps/${app === "workspace" ? preferences.selectedApp : app}/normal`)}
+          onBack={() => onNavigate(isGameLibraryRoute ? "/games" : `/apps/${app === "workspace" ? preferences.selectedApp : app}/normal`)}
           onOpenSelectedApplication={() => onOpenApplication(preferences.selectedApp, "normal")}
-          onSelectedModeHome={() => onNavigate(appRoute[2] === "ai-work" ? SHARED_WORK_ROUTE : `/apps/${app}/normal`)}
+          onSelectedModeHome={() => onNavigate(isGameLibraryRoute ? "/games" : appRoute[2] === "ai-work" ? SHARED_WORK_ROUTE : `/apps/${app}/normal`)}
           onNavigate={onNavigate}
           onOpenSettings={openSettings}
           onOpenApplication={onOpenApplication}
@@ -921,8 +938,6 @@ export function Workbench({
         />
       </Suspense>
     );
-  } else if (route === "/games" || route === "/games/environments") {
-    pageContent = <Suspense fallback={<div role="status">正在打开游戏库…</div>}><GameLibraryPage onOpenStorage={()=>openSettings("workspace")} user={user} environments={route === "/games/environments"} onNavigate={onNavigate} onOpenApplication={onOpenApplication} /></Suspense>;
   } else {
     pageContent = (
       <section className="module-page" aria-labelledby="missing-route-heading">

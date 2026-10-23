@@ -11,7 +11,7 @@ import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 
 type DiffKind = "context" | "added" | "removed" | "meta";
 interface DiffRow { text: string; kind: DiffKind }
-interface SplitRow { left: DiffRow | null; right: DiffRow | null }
+interface SplitRow { left: DiffRow | null; right: DiffRow | null; leftNumber: number | null; rightNumber: number | null }
 type GitFileFilter = "all" | "unstaged" | "staged" | "untracked" | "committed";
 
 interface GitChangeReviewProps {
@@ -23,6 +23,7 @@ interface GitChangeReviewProps {
   initialPath: string;
   open: boolean;
   embedded?: boolean;
+  onManage?: () => void;
   onClose: () => void;
   onRefresh: () => Promise<void>;
 }
@@ -55,19 +56,31 @@ function displayLines(diff: string, hideImports: boolean): DiffRow[][] {
 
 function splitHunk(lines: DiffRow[]): SplitRow[] {
   const result: SplitRow[] = [];
+  const range = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u.exec(lines[0]?.text ?? "");
+  let oldLine = Number(range?.[1] ?? 0);
+  let newLine = Number(range?.[3] ?? 0);
   let index = 0;
   while (index < lines.length) {
     const row = lines[index]!;
-    if (row.kind === "meta") { result.push({ left: row, right: row }); index += 1; continue; }
-    if (row.kind === "context") { result.push({ left: row, right: row }); index += 1; continue; }
+    if (row.kind === "meta") { result.push({ left: row, right: row, leftNumber: null, rightNumber: null }); index += 1; continue; }
+    if (row.kind === "context") { result.push({ left: row, right: row, leftNumber: oldLine++, rightNumber: newLine++ }); index += 1; continue; }
     const removed: DiffRow[] = [];
     const added: DiffRow[] = [];
     while (index < lines.length && lines[index]!.kind === "removed") removed.push(lines[index++]!);
     while (index < lines.length && lines[index]!.kind === "added") added.push(lines[index++]!);
     const count = Math.max(removed.length, added.length);
-    for (let part = 0; part < count; part += 1) result.push({ left: removed[part] ?? null, right: added[part] ?? null });
+    for (let part = 0; part < count; part += 1) result.push({ left: removed[part] ?? null, right: added[part] ?? null,
+      leftNumber: removed[part] ? oldLine++ : null, rightNumber: added[part] ? newLine++ : null });
   }
   return result;
+}
+
+function unchangedGap(previous: DiffRow[], next: DiffRow[]): number {
+  const previousRange = /^@@ -(\d+)(?:,(\d+))?/u.exec(previous[0]?.text ?? "");
+  const nextRange = /^@@ -(\d+)/u.exec(next[0]?.text ?? "");
+  if (!previousRange || !nextRange) return 0;
+  const previousEnd = Number(previousRange[1]) + Number(previousRange[2] ?? 1);
+  return Math.max(0, Number(nextRange[1]) - previousEnd);
 }
 
 function statusText(status: string): string {
@@ -100,7 +113,12 @@ function encodeBase64(value: string): string {
   return btoa(binary);
 }
 
-export function GitChangeReview({ appId, projectId, projectTitle, repositoryId, status, initialPath, open, embedded = false, onClose, onRefresh }: GitChangeReviewProps) {
+export function GitChangeReview(props: GitChangeReviewProps) {
+  if (props.embedded) return <GitChangeReviewInline {...props} />;
+  return <GitChangeReviewDialog {...props} embedded={false} />;
+}
+
+function GitChangeReviewDialog({ appId, projectId, projectTitle, repositoryId, status, initialPath, open, embedded = false, onClose, onRefresh }: GitChangeReviewProps) {
   const [selectedPath, setSelectedPath] = useState(initialPath);
   const [filter, setFilter] = useState("");
   const [fileFilter, setFileFilter] = useState<GitFileFilter>("all");
@@ -416,4 +434,197 @@ export function GitChangeReview({ appId, projectId, projectTitle, repositoryId, 
     maskClosable={!dirty}
     getContainer={() => document.querySelector(".workbench-shell") ?? document.body}
   >{reviewContent}</Modal>;
+}
+
+const maxConcurrentGitDiffs = 4;
+let activeGitDiffs = 0;
+const queuedGitDiffs: Array<{ signal: AbortSignal; resolve: (release: (() => void) | null) => void; onAbort: () => void }> = [];
+
+function acquireGitDiffSlot(signal: AbortSignal): Promise<(() => void) | null> {
+  if (signal.aborted) return Promise.resolve(null);
+  if (activeGitDiffs < maxConcurrentGitDiffs) {
+    activeGitDiffs += 1;
+    return Promise.resolve(releaseGitDiffSlot);
+  }
+  return new Promise(resolve => {
+    const waiter: typeof queuedGitDiffs[number] = { signal, resolve, onAbort: () => {} };
+    waiter.onAbort = () => {
+      const index = queuedGitDiffs.indexOf(waiter);
+      if (index >= 0) queuedGitDiffs.splice(index, 1);
+      resolve(null);
+    };
+    queuedGitDiffs.push(waiter);
+    signal.addEventListener("abort", waiter.onAbort, { once: true });
+  });
+}
+
+function releaseGitDiffSlot(): void {
+  activeGitDiffs = Math.max(0, activeGitDiffs - 1);
+  while (activeGitDiffs < maxConcurrentGitDiffs && queuedGitDiffs.length) {
+    const next = queuedGitDiffs.shift()!;
+    next.signal.removeEventListener("abort", next.onAbort);
+    if (next.signal.aborted) { next.resolve(null); continue; }
+    activeGitDiffs += 1;
+    let released = false;
+    next.resolve(() => {
+      if (released) return;
+      released = true;
+      releaseGitDiffSlot();
+    });
+  }
+}
+
+function GitChangeReviewInline({ appId, projectId, projectTitle, repositoryId, status, onManage, onRefresh }: GitChangeReviewProps) {
+  const [fileFilter, setFileFilter] = useState<GitFileFilter>("all");
+  const [allExpanded, setAllExpanded] = useState(true);
+  const [splitView, setSplitView] = useState(true);
+  const [hideWhitespace, setHideWhitespace] = useState(false);
+  const [wordDiff, setWordDiff] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [reviewPath, setReviewPath] = useState("");
+  const [scrollRoot, setScrollRoot] = useState<HTMLElement | null>(null);
+  const filteredFiles = useMemo(() => status.files.filter(file => fileFilter === "all"
+    || fileFilter === "untracked" && file.status === "??"
+    || fileFilter === "committed" && file.status === "C"
+    || fileFilter === "staged" && file.status !== "??" && file.status[0] !== " "
+    || fileFilter === "unstaged" && (file.status === "??" || file.status[1] !== " ")), [fileFilter, status.files]);
+  const refresh = async () => {
+    setRefreshing(true);
+    try { await onRefresh(); } finally { setRefreshing(false); }
+  };
+  const selected = status.files.find(file => file.path === reviewPath);
+  const optionItems = [
+    { key: "word-diff", label: `${wordDiff ? "✓ " : "　"}词级差异` },
+    { key: "whitespace", label: `${hideWhitespace ? "✓ " : "　"}隐藏空白差异` },
+  ];
+
+  return <div className="git-review-inline">
+    <div className="git-review git-review--stacked is-embedded" aria-label="Git 变更审阅器">
+    <header className="git-review__stacked-toolbar">
+      <Select aria-label="变更范围筛选" size="small" value={fileFilter} onChange={setFileFilter} options={[
+        { value: "all", label: "分支 · 全部变更" }, { value: "unstaged", label: "未暂存" }, { value: "staged", label: "已暂存" }, { value: "untracked", label: "未跟踪" }, { value: "committed", label: "基线差异" }
+      ]} />
+      <span className="git-review__stacked-branch" title={status.upstream ? `${status.branch} → ${status.upstream}` : status.branch}>
+        <WorkbenchIcon name="branch" size={14} /><code>{status.branch}</code><span>→</span><code>{status.upstream ?? "工作区"}</code>
+        {status.upstream ? <span className="git-review__stacked-ahead-behind"><b>↑{status.ahead}</b><i>↓{status.behind}</i></span> : null}
+      </span>
+      <span className="git-review__stacked-file-total" title={status.unknownLineCounts ? `${status.unknownLineCounts} 个二进制或大文件未统计行数` : undefined}>{status.shownFileCount}{status.statusTruncated ? "+" : ""} 个文件</span>
+      <span className="git-review__stacked-counts"><b className="is-added">+{status.insertions}</b><b className="is-removed">−{status.deletions}</b></span>
+      <span className="git-review__toolbar-spacer" />
+      <Button size="small" type="text" aria-label="刷新差异" title="刷新差异" loading={refreshing} onClick={() => void refresh()}><WorkbenchIcon name="refresh" size={15} /></Button>
+      <Dropdown menu={{ items: optionItems, onClick: ({ key }) => key === "word-diff" ? setWordDiff(value => !value) : setHideWhitespace(value => !value) }} trigger={["click"]} placement="bottomRight">
+        <Button size="small" type="text" aria-label="差异选项" title="差异选项"><WorkbenchIcon name="dots" size={16} /></Button>
+      </Dropdown>
+      <Button size="small" type="text" aria-label="切换并排或统一差异" title="切换并排或统一差异" onClick={() => setSplitView(value => !value)}>{splitView ? "并排" : "统一"}</Button>
+      <Button size="small" type="text" aria-label={allExpanded ? "折叠全部差异" : "展开全部差异"} title={allExpanded ? "折叠全部差异" : "展开全部差异"} onClick={() => setAllExpanded(value => !value)}>
+        {allExpanded ? "折叠全部差异" : "展开全部差异"}
+      </Button>
+      {onManage ? <Button size="small" type="text" aria-label="Git 管理" title="Git 管理" onClick={onManage}>管理</Button> : null}
+    </header>
+    {status.statusTruncated ? <p className="git-review__stacked-truncated">仅展示 Git 返回的前 {status.shownFileCount} 个文件。</p> : null}
+    <section className="git-review__stacked-content" ref={setScrollRoot} aria-label="变更文件与差异">
+      {!filteredFiles.length ? <div className="git-review__empty">当前筛选条件下没有变更文件。</div> : filteredFiles.map(file => <GitChangeDiffCard
+        key={`${file.path}-${hideWhitespace}-${wordDiff}`}
+        file={file}
+        expanded={allExpanded}
+        root={scrollRoot}
+        appId={appId}
+        projectId={projectId}
+        repositoryId={repositoryId}
+        ignoreWhitespace={hideWhitespace}
+        wordDiff={wordDiff}
+        splitView={splitView}
+        onOpenFile={() => setReviewPath(file.path)}
+      />)}
+    </section>
+    {selected ? <GitChangeReviewDialog key={selected.path} appId={appId} projectId={projectId} projectTitle={projectTitle} repositoryId={repositoryId} status={status} initialPath={selected.path} open onClose={() => setReviewPath("")} onRefresh={onRefresh} /> : null}
+    </div>
+  </div>;
+}
+
+function GitChangeDiffCard({ file, expanded, root, appId, projectId, repositoryId, ignoreWhitespace, wordDiff, splitView, onOpenFile }: {
+  file: WorkspaceGitStatus["files"][number]; expanded: boolean; root: Element | null;
+  appId?: WorkspaceProjectApplicationId; projectId: string; repositoryId?: string;
+  ignoreWhitespace: boolean; wordDiff: boolean; splitView: boolean; onOpenFile: () => void;
+}) {
+  const cardRef = useRef<HTMLElement | null>(null);
+  const [nearby, setNearby] = useState(false);
+  const [fileExpanded, setFileExpanded] = useState(expanded);
+  const [contextLines, setContextLines] = useState(3);
+  const [diff, setDiff] = useState<WorkspaceGitFileDiff | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => { setFileExpanded(expanded); }, [expanded]);
+
+  useEffect(() => {
+    const target = cardRef.current;
+    if (!target || !fileExpanded || typeof IntersectionObserver === "undefined") {
+      setNearby(Boolean(target && fileExpanded));
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => setNearby(Boolean(entry?.isIntersecting)), { root, rootMargin: "500px 0px" });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [fileExpanded, root]);
+
+  useEffect(() => {
+    if (!nearby || !fileExpanded || diff) return;
+    const controller = new AbortController();
+    let active = true;
+    setLoading(true);
+    setError("");
+    let release: (() => void) | null = null;
+    void acquireGitDiffSlot(controller.signal).then(async slot => {
+      release = slot;
+      if (!slot || !active) return null;
+      return repositoryId
+        ? loadAgentGitFileDiff(repositoryId, file.path, { ignoreWhitespace, wordDiff, contextLines, signal: controller.signal }).then(({ diff: result }) => result)
+        : loadWorkspaceGitFileDiff(projectId, appId!, file.path, { ignoreWhitespace, wordDiff, contextLines, signal: controller.signal }).then(({ file: result }) => result);
+    }).then(result => { if (result && active) setDiff(result); }).catch(errorValue => {
+      if (active && !(typeof errorValue === "object" && errorValue !== null && "name" in errorValue && errorValue.name === "AbortError")) setError(getErrorMessage(errorValue));
+    }).finally(() => { release?.(); if (active) setLoading(false); });
+    return () => { active = false; controller.abort(); };
+  }, [appId, contextLines, diff, file.path, fileExpanded, ignoreWhitespace, nearby, projectId, repositoryId, wordDiff]);
+
+  useEffect(() => { if (!nearby) setDiff(null); }, [nearby]);
+
+  const hunks = useMemo(() => displayLines(diff?.diff ?? "", false), [diff?.diff]);
+  const renderSide = (row: DiffRow | null, number: number | null) => <div className="git-review__stacked-side" data-diff-type={row?.kind ?? "empty"}>
+    <span className="git-review__stacked-line-number">{number ?? ""}</span>
+    <code>{row ? row.kind === "added" || row.kind === "removed" ? row.text.slice(1) : row.text : " "}</code>
+  </div>;
+
+  return <article ref={cardRef} className="git-review__stacked-file">
+    <header className="git-review__stacked-file-heading">
+      <span className="git-review__stacked-file-path"><WorkbenchIcon name="file" size={14} /><code title={file.displayPath}>{file.displayPath}</code></span>
+      <Tag>{statusText(file.status)}</Tag>
+      <span className="git-review__stacked-file-counts"><b className="is-added">{file.insertions === null ? "·" : `+${file.insertions}`}</b><b className="is-removed">{file.deletions === null ? "·" : `−${file.deletions}`}</b></span>
+      <Button size="small" type="text" onClick={onOpenFile}>完整文件</Button>
+    </header>
+    <details className="git-review__stacked-file-body" open={fileExpanded} onToggle={event => setFileExpanded(event.currentTarget.open)}>
+      <summary>{fileExpanded ? "收起文件差异" : "展开文件差异"}</summary>
+      {loading ? <div className="git-review__loading"><Spin size="small" />正在读取差异…</div> : null}
+      {error ? <Alert type="warning" showIcon message={error} /> : null}
+      {diff?.diffTruncated ? <Alert type="warning" showIcon message="差异内容已按 Git Owner 上限截断。" /> : null}
+      {diff?.diff ? <div className="git-review__stacked-diff">{hunks.map((hunk, hunkIndex) => {
+        const gap = hunkIndex > 0 ? unchangedGap(hunks[hunkIndex - 1]!, hunk) : 0;
+        return <div className="git-review__stacked-hunk" key={`${file.path}-${hunkIndex}`}>
+          {gap > 0 ? <button type="button" className="git-review__unchanged" disabled={gap > 2000 || loading} onClick={() => {
+            setDiff(null);
+            setContextLines(current => Math.max(current, Math.min(1000, Math.ceil(gap / 2) + 3)));
+          }}>{gap.toLocaleString()} 行未变更{gap > 2000 ? " · 上下文超过展开上限" : " · 点击展开"}</button> : null}
+          <div className="git-review__hunk">
+            <div className="git-review__hunk-title">{hunk[0]?.text ?? `差异区块 ${hunkIndex + 1}`}</div>
+            {splitView ? <div className="git-review__stacked-split">{splitHunk(hunk).map((row, rowIndex) => row.left?.kind === "meta"
+              ? <div className="git-review__stacked-hunk-title" key={`${hunkIndex}-${rowIndex}`}>{row.left.text}</div>
+              : <div className="git-review__stacked-split-row" key={`${hunkIndex}-${rowIndex}`}>{renderSide(row.left, row.leftNumber)}{renderSide(row.right, row.rightNumber)}</div>)}</div>
+              : <div className="git-review__unified">{hunk.slice(1).map((row, rowIndex) => <div className={`git-review__line git-review__line--${row.kind}`} data-diff-type={row.kind} key={`${hunkIndex}-${rowIndex}`}><code>{row.text}</code></div>)}</div>}
+          </div>
+        </div>;
+      })}</div> : null}
+      {diff && !diff.diff ? <div className="git-review__empty">Git 没有返回可显示的文本差异。</div> : null}
+      {fileExpanded && !nearby && !diff ? <div className="git-review__loading">滚动到此处时读取差异…</div> : null}
+    </details>
+  </article>;
 }

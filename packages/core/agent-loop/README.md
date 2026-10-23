@@ -10,7 +10,7 @@ AI Work 每次 Provider 请求的公开正文以稳定 ID 和起止范围标记�
 
 网页活动显示经过校验和有界遮蔽的实际搜索查询，读取 URL 移除身份凭据、查询串与片段；不显示网页正文或原始结果。工具类型只控制展示摘要，不决定调用或权限。
 
-Browser Use 只在设置中心 `browserUse.enabled` 开启后暴露 Agent 工具。模型可读取实际 Host 浏览器目录；用户明确要求内置隔离浏览器时，由统一 Permission Owner 管理接入偏好，Tabbit 个人会话仍单独受 `computerControl.enabled` 与 `permissions.mode` 约束。当前会话绑定本机工作区时，Agent Loop 只把 Project Files Owner 的相对路径预览回调提供给 Browser Tools；预览结果通过相同账户/Session 的 Browser Owner 返回，右 Dock 在会话刚创建时也会继续轮询并发现它。
+Browser Use 只在设置中心 `browserUse.enabled` 开启后暴露 Agent 工具。当前 Host 可用的 LFAA 内置浏览器自动提供给 Agent；右 Dock 与 Agent 通过相同账户/Session/provider 会话共用当前页面，不单独连接内置 Provider。`browserUse.enabledProviderIds` 只保留个人 Tabbit 的显式选择；Tabbit 还受 `computerControl.enabled` 与 `permissions.mode` 约束。当前会话绑定本机工作区时，Agent Loop 只把 Project Files Owner 的相对路径 HTML 打开回调提供给 Browser Tools；页面通过相同账户/Session 的 Browser Owner 返回，右 Dock 通过页面修订等待同步最新画面。
 
 `lfaa-agent-loop` 负责 AI Work 的模型与工具循环。对话记忆仍由 `lfaa-conversation-memory` 持有；循环只检查账户设置，把符合条件的根轮次输入发送给已选 Provider，并通过记忆 Owner 保存已校验结果。
 

@@ -191,6 +191,23 @@
       }
     },
     {
+      "path": "packages/api/local-model-controller",
+      "name": "lfaa-api-local-model-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "认证 LFAA 本机模型目录、下载、进度、取消和卸载 API",
+      "evidence": {
+        "entry": "packages/api/local-model-controller/src/index.ts",
+        "readme": "packages/api/local-model-controller/README.md",
+        "consumers": [],
+        "bundleDeclarations": [
+          "packages/bundle/web-app/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
       "path": "packages/api/minecraft-controller",
       "name": "lfaa-api-minecraft-controller",
       "upstreamName": null,
@@ -246,6 +263,7 @@
           "packages/api/github-connection-controller",
           "packages/api/job-controller",
           "packages/api/knowledge-controller",
+          "packages/api/local-model-controller",
           "packages/api/minecraft-controller",
           "packages/api/plugin-controller",
           "packages/api/session-controller",
@@ -310,7 +328,7 @@
       "responsibility": "SteamCMD 节点工具安装与校验 API",
       "evidence": {
         "entry": "packages/api/steamcmd-controller/src/index.ts",
-        "readme": null,
+        "readme": "packages/api/steamcmd-controller/README.md",
         "consumers": [
           "packages/test-support/api"
         ],
@@ -1351,7 +1369,6 @@
           "packages/client/ui-settings",
           "packages/client/ui-settings-account",
           "packages/client/ui-sidebar",
-          "packages/client/ui-sidebar-browser",
           "packages/client/ui-sidebar-files",
           "packages/client/ui-workspace",
           "packages/client/ui-writing",
@@ -2343,6 +2360,7 @@
           "packages/api/github-connection-controller",
           "packages/api/job-controller",
           "packages/api/knowledge-controller",
+          "packages/api/local-model-controller",
           "packages/api/minecraft-controller",
           "packages/api/plugin-controller",
           "packages/api/remotes",
@@ -3113,7 +3131,7 @@
       "responsibility": "SteamCMD 工具安装和校验领域服务",
       "evidence": {
         "entry": "packages/games/steamcmd/src/index.ts",
-        "readme": null,
+        "readme": "packages/games/steamcmd/README.md",
         "consumers": [
           "packages/api/job-controller",
           "packages/api/steamcmd-controller",
@@ -3637,6 +3655,7 @@
           "packages/api/plugin-controller",
           "packages/api/session-controller",
           "packages/api/settings-controller",
+          "packages/api/steamcmd-controller",
           "packages/api/terminal-controller",
           "packages/api/workspace-controller",
           "packages/core/agent-loop"
@@ -3867,6 +3886,62 @@
         "consumers": [],
         "bundleDeclarations": [],
         "boundary": "目标职责；占位不可执行"
+      }
+    },
+    {
+      "path": "packages/llm/llm-local-runtime",
+      "name": "lfaa-llm-local-runtime",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "LFAA 本地模型目录、固定 Hub 下载、适配器注册与受管推理进程核心",
+      "evidence": {
+        "entry": "packages/llm/llm-local-runtime/src/index.ts",
+        "readme": "packages/llm/llm-local-runtime/README.md",
+        "consumers": [
+          "packages/api/local-model-controller",
+          "packages/llm/llm-minimax-h3",
+          "packages/llm/llm-moss-image",
+          "packages/video/ai-video"
+        ],
+        "bundleDeclarations": [
+          "packages/bundle/web-app/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
+      "path": "packages/llm/llm-minimax-h3",
+      "name": "lfaa-llm-minimax-h3",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "LFAA 官方 MiniMax-H3 FL2VA Diffusers 原生模型目录识别与视频适配",
+      "evidence": {
+        "entry": "packages/llm/llm-minimax-h3/src/index.ts",
+        "readme": "packages/llm/llm-minimax-h3/README.md",
+        "consumers": [],
+        "bundleDeclarations": [
+          "packages/bundle/web-app/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
+      "path": "packages/llm/llm-moss-image",
+      "name": "lfaa-llm-moss-image",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "LFAA 官方 MOSS-Image Diffusers 原生模型目录识别与生图适配",
+      "evidence": {
+        "entry": "packages/llm/llm-moss-image/src/index.ts",
+        "readme": "packages/llm/llm-moss-image/README.md",
+        "consumers": [],
+        "bundleDeclarations": [
+          "packages/bundle/web-app/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -4850,6 +4925,9 @@
           "packages/interaction/permission-presets",
           "packages/jobs/jobs",
           "packages/llm/llm",
+          "packages/llm/llm-local-runtime",
+          "packages/llm/llm-minimax-h3",
+          "packages/llm/llm-moss-image",
           "packages/mcp/mcp-client",
           "packages/prompt/prompt",
           "packages/shell/tool-shell",
@@ -5368,7 +5446,7 @@
       "responsibility": "领域存储协调、配置事务及迁移",
       "evidence": {
         "entry": "packages/storage/storage-domain/src/index.ts",
-        "readme": null,
+        "readme": "packages/storage/storage-domain/README.md",
         "consumers": [
           "packages/games/minecraft",
           "packages/games/steamcmd",
@@ -5423,10 +5501,11 @@
       "responsibility": "SQLite 连接、Schema、事务与持久化后端",
       "evidence": {
         "entry": "packages/storage/storage-sqlite/src/index.ts",
-        "readme": null,
+        "readme": "packages/storage/storage-sqlite/README.md",
         "consumers": [
           "packages/api/account-controller",
           "packages/api/gateway",
+          "packages/browser-use/browser-use",
           "packages/core/conversation-memory",
           "packages/document/writing",
           "packages/fs/fs",
@@ -5631,6 +5710,9 @@
         "entry": "packages/subprocess/subprocess/src/index.ts",
         "readme": "packages/subprocess/subprocess/README.md",
         "consumers": [
+          "packages/llm/llm-local-runtime",
+          "packages/llm/llm-minimax-h3",
+          "packages/llm/llm-moss-image",
           "packages/ssh/subprocess-ssh",
           "packages/subprocess/subprocess-local",
           "packages/terminal/terminal"
@@ -6087,6 +6169,9 @@
           "packages/games/steamcmd",
           "packages/host/daemon",
           "packages/knowledge/knowledge-library",
+          "packages/llm/llm-local-runtime",
+          "packages/llm/llm-minimax-h3",
+          "packages/llm/llm-moss-image",
           "packages/network/game-connectivity",
           "packages/settings/settings",
           "packages/storage/storage-domain",
@@ -6270,6 +6355,7 @@
           "packages/api/github-connection-controller",
           "packages/api/job-controller",
           "packages/api/knowledge-controller",
+          "packages/api/local-model-controller",
           "packages/api/minecraft-controller",
           "packages/api/plugin-controller",
           "packages/api/remotes",

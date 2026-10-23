@@ -4,4 +4,6 @@
 
 Session Owner 校验会话账户归属；Workspace Owner 提供 Agent 当前选择的项目目录；Agent Git Workspace Owner 持久化账户隔离的仓库元数据与会话关系；Git Host 执行固定 Git 操作。当前会话可管理 remote、fetch、干净工作区快进 pull、当前分支 push 和发布分支。HTTPS 用户名/token 由本 Controller 通过 `lfaa-credentials` 加密记录按账户隔离；凭据写入和同步均经 `permissions.mode` 与 Permission Owner，秘密不返回 Client。SSH remote 可登记但不会执行同步。用户无需手动添加仓库或点击初始化。
 
+`POST /agent/git/repositories/:repositoryId/file-diff` 仅读取仓库内登记路径；差异上下文行数由 Joi 限制在 0–1000，默认 3，支持 Client 按需展开折叠的未变更区间。
+
 构建只写仓库根 `dist/packages/api/agent-git-controller/`。

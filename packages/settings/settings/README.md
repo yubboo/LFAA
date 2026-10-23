@@ -1,10 +1,12 @@
 # 设置 Owner 与统一数据根
 
+AI 漫剧生图使用 `aiRuntime.imageGenerationMode` 选择远程 Provider 或 LFAA 本机模型。远程模式使用现有 `imageGenerationAccountId` / `imageGenerationModelId`；本机模式使用模型 Runtime 返回的 `imageGenerationLocalModelId`，并读取 `imageGenerationLocalTimeoutSeconds`（900 秒，60–1800）及 `imageGenerationUnloadAfterMinutes`（10 分钟，1–60）。视频同样以 `videoGenerationMode` 分别选择远程 Provider 或本机模型；本机选择为 `videoGenerationLocalModelId`，时限和空闲释放分别读取 `videoGenerationLocalTimeoutSeconds` 与 `videoGenerationUnloadAfterMinutes`。模型选择、下载和加载不创建虚假 Provider 账户或密钥，切换引擎不会清除另一模式的选择。
+
 `registerAiProvider` 是 Provider 设置目录的 Cordis 扩展合同：插件可提供受校验的 Provider 选项、模型发现与真实模型测试处理器，列表 API 返回防篡改副本，注销会移除该插件的目录定义。静态账户凭据仍由本包及 Credentials Owner 管理；Provider 连接 URL 必须使用 HTTPS 且不得内嵌身份信息。该扩展接口不改变当前外部插件 Runtime 的隔离边界。
 
 已保存账户的“更新目录”只重新读取并保存 Provider 官方模型目录，不发起模型推理，也不更改已选模型 ID 或 `reasoning_mode`；若当前型号已从新目录移除，保留原选择并提示用户手动选择。“重测模型”只对当前已选型号发起真实请求，可能产生 Provider 用量。两个动作共用本包的账户隔离、加密凭据与 Provider 目录 Owner，不新增配置。
 
-账户偏好、Provider 凭据引用和权限留在 LFAA Home（默认 `%USERPROFILE%\\.lfaa`，不增加 `system-data` 子目录）。`project-storage.ts` 负责统一业务 Data 根，首次默认 `<LFAA_HOME>/data`（Windows 默认 `%USERPROFILE%\\.lfaa\\data`）；Home Paths 只在 Data 根下创建游戏、环境、工具、缓存、临时文件、日志、备份、模型和联机等业务分类，账户业务文件位于 Data 根的 `users/` 下。系统推荐路径按当前项目或安装根动态解析为其 `data` 子目录；自定义路径把用户所选目录作为父目录，在其中创建 `data/`（所选目录本身名为 `data` 时直接使用）。位置保存在 Home 控制配置；切换时创建新业务分类、保留旧根，控制端与 Daemon 重启后使用新值。游戏、小说和漫剧内容复制/核对/ZIP 仅处理受管业务子树，不复制 Home 系统账户数据。浏览器验收使用现有 `admin` 测试账号，不增加临时存储模式或测试账号。远端环境位置由该节点真实 data 根与平台推导，不能复用控制端盘符。
+账户偏好、Provider 凭据引用和权限留在 LFAA Home（默认 `%USERPROFILE%\\.lfaa`，不增加 `system-data` 子目录）。`project-storage.ts` 负责统一业务 Data 根，首次默认 `<LFAA_HOME>/data`（Windows 默认 `%USERPROFILE%\\.lfaa\\data`）；Home Paths 在 Data 根创建共享 `models/`、`input/`、`output/`，模型适配器按自身模态与原生组件格式管理 `models/text/`、`models/image/`、`models/video/`、`models/audio/`、`models/encoders/`、`models/vae/`、`models/adapters/`、`models/acceleration/`、`models/upscalers/`。目录结构由 LFAA 自己定义，和 ComfyUI 权重格式/版本无关；Veo3 是远程 Provider 能力，不当作本机模型。AI Video 的最终项目素材仍由其 Owner 保存于项目目录，避免同时写进共享 `output/`。账户业务文件位于 Data 根的 `users/` 下。系统推荐路径按当前项目或安装根动态解析为其 `data` 子目录；自定义路径把用户所选目录作为父目录，在其中创建 `data/`（所选目录本身名为 `data` 时直接使用）。位置保存在 Home 控制配置；切换时创建新业务分类、保留旧根，控制端与 Daemon 重启后使用新值。游戏、小说和漫剧内容复制/核对/ZIP 仅处理受管业务子树，不复制 Home 系统账户数据。远端环境位置由该节点真实 data 根与平台推导，不能复用控制端盘符。
 
 常规设置中的 `general.cardMotionEffect` 与 `general.dialogMotionEffect` 由此处执行 Strict 校验、按账户持久化和旧值兼容；旧记录缺字段时分别回落到共享默认值，旧客户端省略动效字段保存其他常规设置时保留已选效果。
 

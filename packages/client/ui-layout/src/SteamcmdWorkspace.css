@@ -1,0 +1,50 @@
+.steamcmd-workspace__header { align-items: flex-end; }
+.steamcmd-workspace__node-picker { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .5rem; min-width: min(100%, 20rem); }
+.steamcmd-workspace__node-picker label { grid-column: 1 / -1; color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.steamcmd-workspace__node-picker .ant-select { min-width: 0; }
+.steamcmd-workspace__alert { margin-block: .75rem; }
+.steamcmd-workspace__task { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .35rem 1rem; margin-block: 1rem; padding: .85rem 1rem; border: 1px solid var(--color-border); border-radius: .8rem; background: var(--color-surface); }
+.steamcmd-workspace__task > div { display: flex; flex-wrap: wrap; gap: .35rem .8rem; min-width: 0; }
+.steamcmd-workspace__task p { width: 100%; margin: 0; color: var(--color-text-secondary); }
+.steamcmd-workspace__layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(17rem, .9fr); align-items: start; gap: 1rem; }
+.steamcmd-workspace__servers, .steamcmd-workspace__form-card { min-width: 0; padding: clamp(.85rem, 2cqw, 1.25rem); border: 1px solid var(--color-border); border-radius: 1rem; background: var(--color-surface); }
+.steamcmd-workspace__section-title { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .8rem; }
+.steamcmd-workspace__section-title h2 { margin: 0; font-size: var(--font-size-lg); }
+.steamcmd-workspace__loading { display: flex; align-items: center; gap: .65rem; padding: 1.25rem .25rem; color: var(--color-text-secondary); }
+.steamcmd-workspace__empty { padding: 1.2rem; border: 1px dashed var(--color-border-strong); border-radius: .8rem; }
+.steamcmd-workspace__empty h3 { margin-top: 0; font-size: var(--font-size-md); }
+.steamcmd-workspace__empty p, .steamcmd-workspace__hint { margin-bottom: 0; color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.steamcmd-workspace__server-list { display: grid; gap: .75rem; }
+.steamcmd-workspace__server { display: grid; gap: .65rem; min-width: 0; padding: .95rem; border: 1px solid var(--color-border); border-radius: .8rem; background: color-mix(in srgb, var(--color-text-primary) 3%, transparent); }
+.steamcmd-workspace__server-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: .5rem; min-width: 0; }
+.steamcmd-workspace__server-heading h3 { margin: 0; font-size: var(--font-size-md); overflow-wrap: anywhere; }
+.steamcmd-workspace__server-heading p, .steamcmd-workspace__server > p { margin: .25rem 0 0; color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.steamcmd-workspace__tags { display: flex; flex-wrap: wrap; gap: .35rem; }
+.steamcmd-workspace__tags .ant-tag { margin-inline-end: 0; }
+.steamcmd-workspace__path { font-family: var(--settings-code-font); font-size: var(--settings-code-font-size); }
+.steamcmd-workspace__server code { overflow-wrap: anywhere; }
+.steamcmd-workspace__form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+.steamcmd-workspace__form label { display: grid; align-content: start; gap: .4rem; min-width: 0; color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.steamcmd-workspace__form .ant-input, .steamcmd-workspace__form .ant-input-number { width: 100%; min-width: 0; }
+.steamcmd-workspace__wide { grid-column: 1 / -1; }
+.steamcmd-workspace__form > .ant-checkbox-wrapper { grid-column: 1 / -1; align-items: flex-start; }
+.steamcmd-workspace__submit { grid-column: 1 / -1; }
+.steamcmd-workspace__hint { margin-top: .9rem; font-size: var(--font-size-sm); }
+.steamcmd-workspace__hint a { margin-inline-start: .3rem; color: var(--settings-accent, var(--color-brand)); }
+.workbench-shell[data-background-image="true"] .steamcmd-workspace__servers,
+.workbench-shell[data-background-image="true"] .steamcmd-workspace__form-card,
+.workbench-shell[data-background-image="true"] .steamcmd-workspace__server,
+.workbench-shell[data-background-image="true"] .steamcmd-workspace__task {
+  background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur));
+  backdrop-filter: blur(var(--settings-glass-blur));
+}
+@container (max-width: 58rem) { .steamcmd-workspace__layout { grid-template-columns: minmax(0, 1fr); } }
+@container (max-width: 38rem) {
+  .steamcmd-workspace__header { align-items: stretch; }
+  .steamcmd-workspace__node-picker { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+  .steamcmd-workspace__node-picker label { grid-column: auto; }
+  .steamcmd-workspace__node-picker > .ant-btn { width: 100%; }
+  .steamcmd-workspace__form { grid-template-columns: minmax(0, 1fr); }
+  .steamcmd-workspace__wide, .steamcmd-workspace__form > .ant-checkbox-wrapper, .steamcmd-workspace__submit { grid-column: auto; }
+}

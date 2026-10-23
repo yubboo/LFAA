@@ -69,6 +69,8 @@ const defaultProjectStorageLocations = (row: ProjectStorageRow | undefined, save
     logs: "日志",
     backups: "备份",
     models: "模型",
+    input: "输入素材",
+    output: "生成输出",
     connectivity: "联机配置"
   };
   return { contentDirectory, defaultContentDirectory: defaultContentDirectory(), recommendedContentDirectory: recommendedContentDirectory(),

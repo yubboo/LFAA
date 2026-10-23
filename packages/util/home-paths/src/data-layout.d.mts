@@ -22,12 +22,16 @@ export interface DataPaths {
   logs: string;
   backups: string;
   models: string;
+  input: string;
+  output: string;
   connectivity: string;
 }
 
 export interface UserDataPaths {
   root: string;
   projects: string;
+  input: string;
+  output: string;
   workflows(applicationId: string): string;
   knowledge: string;
 }

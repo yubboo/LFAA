@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 61;
+const latestSupportedDatabaseVersion = 62;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -2034,3 +2034,41 @@ export function migrateBrowserRecentSitesSchema(): void {
   }
 }
 migrateBrowserRecentSitesSchema();
+
+/** 版本 62：SteamCMD 专用服务端由 SteamCMD Owner 按 AppID 管理；运行进程状态来自目标 Daemon 回报。 */
+export function migrateSteamcmdServersSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 61 || version >= 62) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS steamcmd_servers (
+        id TEXT PRIMARY KEY NOT NULL,
+        node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+        created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
+        tool_app_id INTEGER NOT NULL CHECK (tool_app_id BETWEEN 1 AND 2147483647),
+        install_directory TEXT NOT NULL CHECK (length(install_directory) BETWEEN 1 AND 512),
+        executable_path TEXT NOT NULL DEFAULT '' CHECK (length(executable_path) <= 1024),
+        launch_arguments_json TEXT NOT NULL DEFAULT '[]',
+        stop_command TEXT NOT NULL DEFAULT '' CHECK (length(stop_command) <= 120),
+        stop_timeout_seconds INTEGER NOT NULL DEFAULT 60 CHECK (stop_timeout_seconds BETWEEN 5 AND 300),
+        eula_accepted INTEGER NOT NULL DEFAULT 0 CHECK (eula_accepted IN (0, 1)),
+        installation_status TEXT NOT NULL DEFAULT 'unknown' CHECK (installation_status IN ('unknown', 'installing', 'installed', 'failed')),
+        status TEXT NOT NULL DEFAULT 'unknown' CHECK (status IN ('unknown', 'stopped', 'running', 'starting', 'stopping')),
+        process_id INTEGER,
+        last_seen_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        UNIQUE (node_id, install_directory)
+      ) STRICT;
+      CREATE INDEX IF NOT EXISTS steamcmd_servers_node_recent_idx ON steamcmd_servers(node_id, updated_at DESC, id);
+      PRAGMA user_version = 62;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateSteamcmdServersSchema();

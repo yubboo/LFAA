@@ -1,27 +1,30 @@
 /**
- * 功能：在 AI Work 右 Dock 内以独立标签预览并操作每个已接入的浏览器。
- * 作用：通过已认证 Client API 与本机 Browser Owner 共享当前 AI Session；接入偏好归 Settings Owner。
+ * 功能：只在 AI Work 当前新标签页内容区域显示网页并转发页面交互。
+ * 作用：浏览器地址栏、工作区标签与导航动作统一由 ApplicationWorkspace 提供；Browser Owner 保存真实页面状态。
  * 关联文件：packages/client/connection/src/api.ts、packages/browser-use/browser-use、packages/client/ui-workspace。
  */
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type WheelEvent } from "react";
-import { actOnBrowser, claimBrowserTab, closeBrowserProviderSessions, closeBrowserSession, connectTabbitBrowser, getErrorMessage, loadBrowserProviders, loadBrowserRevision, loadBrowserSession, loadBrowserTabs, navigateBrowser, resizeBrowserViewport, saveSettings, type BrowserProviderId, type BrowserProviderSummary, type BrowserSessionSnapshot, type BrowserTabSummary, type UserSettings } from "lfaa-client-connection/src/api.js";
-import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent } from "react";
+import { actOnBrowserDock, getErrorMessage, loadBrowserDockSession, loadBrowserProviders, navigateBrowserDock, prewarmBrowserDock, resizeBrowserDockViewport, waitForBrowserDockRevision, type BrowserProviderId, type BrowserProviderSummary, type BrowserSessionSnapshot, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { NativeBrowserPanel } from "./NativeBrowserPanel.js";
 import { resolveBrowserAddress } from "./browser-address.js";
+import { browserScreenshotWaitMs } from "./browser-frame-interval.js";
 import "./browser-panel.css";
+
+const BROWSER_SCROLL_INPUT_DELAY_MS = 60;
+const BROWSER_VISUAL_REFRESH_DELAY_MS = 40;
 
 type BrowserNavigationRequest = { id: string; url: string };
 type BrowserDockActionRequest = { id: string; action: "back" | "forward" | "reload" };
 type BrowserPanelProps = {
   sessionId: string | null;
   settings: UserSettings;
+  hidden?: boolean;
   navigationRequest?: BrowserNavigationRequest | null;
   onNavigationRequestHandled?: (requestId: string) => void;
   actionRequest?: BrowserDockActionRequest | null;
   onActionRequestHandled?: (requestId: string) => void;
   onOpenTabsChange?: (tabs: Array<{ id: string; title: string; url: string; active: boolean }>) => void;
 };
-type BrowserView = "preview" | "text" | "elements" | "json";
 type BrowserViewport = { width: number; height: number };
 type BrowserPagePoint = { x: number; y: number };
 type BrowserGesture = { pointerId: number; pointerType: string; start: BrowserPagePoint; startClientX: number; startClientY: number; points: Array<BrowserPagePoint & { delayMs: number }>; lastPage: BrowserPagePoint; lastClientX: number; lastClientY: number; lastAt: number; mode: "pending" | "drag" | "scroll" };
@@ -40,31 +43,37 @@ function pagePoint(image: HTMLImageElement, width: number, height: number, clien
   };
 }
 
-function shortProviderName(provider: BrowserProviderSummary): string {
-  if (provider.id === "lfaa-managed-edge") return "LFAA Edge";
-  if (provider.id === "lfaa-managed-chrome") return "LFAA Chrome";
-  return "Tabbit";
+function waitForScreenshotFrameSlot(delayMs: number, signal?: AbortSignal): Promise<void> {
+  if (delayMs <= 0) {
+    signal?.throwIfAborted();
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+    };
+    const onAbort = () => {
+      cleanup();
+      reject(new Error("浏览器画面更新已取消。"));
+    };
+    timer = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, delayMs);
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+  });
 }
 
-function originOnly(value: string): string {
-  try { return new URL(value).origin; } catch { return value; }
-}
-
-function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationRequestHandled, actionRequest, onActionRequestHandled, onOpenTabsChange }: BrowserPanelProps) {
+function BrowserUsePanel({ sessionId, settings, hidden = false, navigationRequest, onNavigationRequestHandled, actionRequest, onActionRequestHandled, onOpenTabsChange }: BrowserPanelProps) {
   const [providers, setProviders] = useState<BrowserProviderSummary[]>([]);
-  const [browserSettings, setBrowserSettings] = useState<UserSettings["browserUse"]>(settings.browserUse);
-  const computerControlEnabled = settings.computerControl.enabled;
-  const [tabbitTabs, setTabbitTabs] = useState<BrowserTabSummary[]>([]);
-  const [tabbitTabsRequested, setTabbitTabsRequested] = useState(false);
   const [providerId, setProviderId] = useState<BrowserProviderId | "">("");
   const [snapshot, setSnapshot] = useState<BrowserSessionSnapshot | null>(null);
   const snapshotRef = useRef<BrowserSessionSnapshot | null>(null);
-  const [address, setAddress] = useState("");
-  const [addressFocused, setAddressFocused] = useState(false);
-  const [view, setView] = useState<BrowserView>("preview");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [viewportSyncing, setViewportSyncing] = useState(false);
   const [providerLoading, setProviderLoading] = useState(true);
   const actionInFlight = useRef(false);
   const handledNavigationRequestRef = useRef("");
@@ -73,11 +82,16 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
   const actionTailRef = useRef<Promise<void>>(Promise.resolve());
   const queuedActionCountRef = useRef(0);
   const snapshotRequestInFlight = useRef(false);
+  const snapshotRequestCountRef = useRef(0);
+  const snapshotScopeRef = useRef("");
+  const snapshotRefreshPromiseRef = useRef<{ scope: string; promise: Promise<BrowserSessionSnapshot | null> } | null>(null);
+  const lastScreenshotRequestAtRef = useRef(0);
   const viewportSyncInFlight = useRef(false);
   const lastViewportAttempt = useRef<string | null>(null);
-  const previewViewportRef = useRef<BrowserViewport | null>(null);
-  const [previewViewport, setPreviewViewport] = useState<BrowserViewport | null>(null);
+  const viewportSizeRef = useRef<BrowserViewport | null>(null);
+  const [viewportSize, setViewportSize] = useState<BrowserViewport | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const viewportWrapRef = useRef<HTMLDivElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const keyboardCaptureRef = useRef<HTMLTextAreaElement | null>(null);
   const pointerGestureRef = useRef<BrowserGesture | null>(null);
@@ -89,9 +103,8 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
   const wheelFlushRef = useRef<(() => void) | null>(null);
   const visualRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const needsVisualRefreshRef = useRef(false);
-  const providerConnected = Boolean(providerId && browserSettings?.enabledProviderIds.includes(providerId));
+  const browserProviderReady = Boolean(providerId && providers.some(provider => provider.id === providerId && provider.available));
 
-  useEffect(() => setBrowserSettings(settings.browserUse), [settings.browserUse]);
   useEffect(() => { snapshotRef.current = snapshot; }, [snapshot]);
 
   useEffect(() => {
@@ -100,7 +113,7 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
 
   useEffect(() => {
     const content = contentRef.current;
-    if (!providerConnected || !content || typeof ResizeObserver === "undefined") return;
+    if (hidden || !browserProviderReady || !content || typeof ResizeObserver === "undefined") return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let pending: BrowserViewport | null = null;
     const observer = new ResizeObserver(entries => {
@@ -110,14 +123,14 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
         width: Math.min(1280, Math.max(320, Math.round(bounds.width))),
         height: Math.min(1600, Math.max(400, Math.round(bounds.height)))
       };
-      const current = pending ?? previewViewportRef.current;
+      const current = pending ?? viewportSizeRef.current;
       if (current && Math.abs(current.width - next.width) < 8 && Math.abs(current.height - next.height) < 8) return;
       pending = next;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         if (!pending) return;
-        previewViewportRef.current = pending;
-        setPreviewViewport(pending);
+        viewportSizeRef.current = pending;
+        setViewportSize(pending);
         pending = null;
       }, 220);
     });
@@ -126,63 +139,98 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
       observer.disconnect();
       if (timer) clearTimeout(timer);
     };
-  }, [providerConnected, providerId, sessionId]);
+  }, [browserProviderReady, hidden, providerId, sessionId]);
 
-  const refreshSnapshot = useCallback(async (selectedProvider: BrowserProviderId, sourceSession: string, signal?: AbortSignal) => {
-    if (snapshotRequestInFlight.current) return null;
-    snapshotRequestInFlight.current = true;
-    try {
-      const result = await loadBrowserSession(sourceSession, selectedProvider, signal);
-      if (result.session) {
-        setSnapshot(current => !current || result.session!.revision >= current.revision ? result.session : current);
-        if (result.session.revision >= (snapshotRef.current?.revision ?? -1)) setAddress(result.session.url);
-        if (result.session.screenshot) needsVisualRefreshRef.current = false;
-      } else setSnapshot(null);
-      return result.session;
-    } finally {
-      snapshotRequestInFlight.current = false;
+  const refreshSnapshot = useCallback((selectedProvider: BrowserProviderId, sourceSession: string, signal?: AbortSignal) => {
+    const requestScope = `${sourceSession}:${selectedProvider}`;
+    if (snapshotScopeRef.current !== requestScope) {
+      snapshotScopeRef.current = requestScope;
+      lastScreenshotRequestAtRef.current = 0;
+      snapshotRefreshPromiseRef.current = null;
     }
+    const pending = snapshotRefreshPromiseRef.current;
+    if (pending?.scope === requestScope) return pending.promise;
+    snapshotRequestCountRef.current += 1;
+    snapshotRequestInFlight.current = true;
+    let request: Promise<BrowserSessionSnapshot | null>;
+    request = Promise.resolve().then(async () => {
+      try {
+        const lastRequestAt = lastScreenshotRequestAtRef.current;
+        const waitMs = browserScreenshotWaitMs(lastRequestAt, performance.now());
+        await waitForScreenshotFrameSlot(waitMs, signal);
+        signal?.throwIfAborted();
+        if (snapshotScopeRef.current !== requestScope) return null;
+        lastScreenshotRequestAtRef.current = performance.now();
+        const result = await loadBrowserDockSession(sourceSession, selectedProvider, signal);
+        if (snapshotScopeRef.current === requestScope && result.session) {
+          setSnapshot(current => {
+            if (snapshotScopeRef.current !== requestScope) return current;
+            const next = result.session!;
+            if (current && next.revision < current.revision) return current;
+            if (current?.screenshot && !next.screenshot) return { ...next, screenshot: current.screenshot };
+            return next;
+          });
+          if (result.session.screenshot) needsVisualRefreshRef.current = false;
+        } else if (snapshotScopeRef.current === requestScope) setSnapshot(null);
+        return result.session;
+      } finally {
+        snapshotRequestCountRef.current = Math.max(0, snapshotRequestCountRef.current - 1);
+        snapshotRequestInFlight.current = snapshotRequestCountRef.current > 0;
+        if (snapshotRefreshPromiseRef.current?.promise === request) snapshotRefreshPromiseRef.current = null;
+      }
+    });
+    snapshotRefreshPromiseRef.current = { scope: requestScope, promise: request };
+    return request;
   }, []);
 
   useEffect(() => {
     if (!providers.length) return;
     setProviderId(current => {
-      if (current && settings.browserUse.enabledProviderIds.includes(current)) return current;
-      return providers.find(provider => settings.browserUse.enabledProviderIds.includes(provider.id))?.id ?? current ?? providers[0]?.id ?? "";
+      if (current && providers.some(provider => provider.id === current && provider.available)) return current;
+      return providers.find(provider => provider.id === "lfaa-managed-edge" && provider.available)?.id ?? providers.find(provider => provider.available)?.id ?? "";
     });
-  }, [providers, settings.browserUse.enabledProviderIds]);
+  }, [providers]);
+
+  useEffect(() => {
+    if (!providerId || !browserProviderReady) return;
+    const controller = new AbortController();
+    void prewarmBrowserDock(providerId, controller.signal).catch(reason => {
+      if (!controller.signal.aborted) setError(getErrorMessage(reason));
+    });
+    return () => controller.abort();
+  }, [browserProviderReady, providerId]);
 
   useEffect(() => {
     const controller = new AbortController();
     setProviderLoading(true);
     void loadBrowserProviders(controller.signal).then(browserResult => {
       if (controller.signal.aborted) return;
-      setProviders(browserResult.providers);
-      setProviderId(current => current && browserResult.providers.some(item => item.id === current)
+      const localProviders = browserResult.providers.filter(item => item.id === "lfaa-managed-edge" || item.id === "lfaa-managed-chrome");
+      setProviders(localProviders);
+      setProviderId(current => current && localProviders.some(item => item.id === current && item.available)
         ? current
-        : browserResult.providers.find(item => settings.browserUse.enabledProviderIds.includes(item.id))?.id
-          ?? browserResult.providers[0]?.id ?? "");
+        : localProviders.find(item => item.id === "lfaa-managed-edge" && item.available)?.id
+          ?? localProviders.find(item => item.available)?.id ?? "");
       setError("");
     }).catch(reason => {
       if (!controller.signal.aborted) setError(getErrorMessage(reason));
     }).finally(() => { if (!controller.signal.aborted) setProviderLoading(false); });
     return () => controller.abort();
-  }, [settings.browserUse.enabledProviderIds]);
+  }, []);
 
   useEffect(() => {
     setSnapshot(null);
-    setAddress("");
-    if (!sessionId || !providerId || !providerConnected) return;
+    if (!sessionId || !providerId || !browserProviderReady) return;
     const controller = new AbortController();
     void refreshSnapshot(providerId, sessionId, controller.signal).catch(reason => {
       if (!controller.signal.aborted) setError(getErrorMessage(reason));
     });
     return () => controller.abort();
-  }, [providerConnected, providerId, refreshSnapshot, sessionId]);
+  }, [browserProviderReady, providerId, refreshSnapshot, sessionId]);
 
   useEffect(() => {
-    if (!sessionId || !providerId || providerId === "tabbit-personal" || !providerConnected || !snapshot || !previewViewport) return;
-    const { width, height } = previewViewport;
+    if (hidden || !sessionId || !providerId || !browserProviderReady || !snapshot || !viewportSize) return;
+    const { width, height } = viewportSize;
     const requestKey = `${sessionId}:${providerId}:${width}x${height}`;
     if (lastViewportAttempt.current === requestKey) return;
     if (snapshot.screenshot?.width === width && snapshot.screenshot.height === height) {
@@ -193,44 +241,47 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
 
     lastViewportAttempt.current = requestKey;
     viewportSyncInFlight.current = true;
-    setViewportSyncing(true);
     setLoading(true);
-    void resizeBrowserViewport(sessionId, providerId, width, height).then(result => {
+    void resizeBrowserDockViewport(sessionId, providerId, width, height).then(result => {
       const resized = result.session;
-      if (resized) setSnapshot(current => !current || resized.revision >= current.revision ? resized : current);
+      if (resized) setSnapshot(current => {
+        if (current && resized.revision < current.revision) return current;
+        if (current?.screenshot && !resized.screenshot) return { ...resized, screenshot: current.screenshot };
+        return resized;
+      });
     }).catch(reason => {
       setError(getErrorMessage(reason));
     }).finally(() => {
       viewportSyncInFlight.current = false;
-      setViewportSyncing(false);
       setLoading(false);
     });
-  }, [loading, previewViewport, providerConnected, providerId, sessionId, snapshot, viewportSyncing]);
+  }, [hidden, loading, viewportSize, browserProviderReady, providerId, sessionId, snapshot]);
 
   useEffect(() => {
-    if (!sessionId || !providerId || !providerConnected) return;
+    if (hidden || !sessionId || !providerId || !browserProviderReady || !snapshot) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
     let activeRequest: AbortController | null = null;
-    const isPageVisible = () => document.visibilityState !== "hidden";
+    const isPageVisible = () => !hidden && document.visibilityState !== "hidden";
     const poll = async () => {
-      if (cancelled || !isPageVisible() || activeRequest) return;
+      if (cancelled || !isPageVisible() || activeRequest || actionInFlight.current || viewportSyncInFlight.current) return;
+      const current = snapshotRef.current;
+      if (!current) return;
+      const request = new AbortController();
+      activeRequest = request;
       try {
-        if (!actionInFlight.current && !viewportSyncInFlight.current) {
-          const request = new AbortController();
-          activeRequest = request;
-          const response = await loadBrowserRevision(sessionId, providerId, request.signal);
-          if (!cancelled && response.session && (!snapshot || response.session.revision !== snapshot.revision)) {
-            await refreshSnapshot(providerId, sessionId, request.signal);
-          } else if (!cancelled && !response.session) {
-            setSnapshot(null);
-          }
+        const response = await waitForBrowserDockRevision(sessionId, providerId, current.revision, request.signal);
+        const latest = snapshotRef.current;
+        if (!cancelled && response.session && latest && response.session.revision !== latest.revision) {
+          await refreshSnapshot(providerId, sessionId, request.signal);
+        } else if (!cancelled && !response.session) {
+          setSnapshot(null);
         }
       } catch (reason) {
-        if (!cancelled && !activeRequest?.signal.aborted) setError(getErrorMessage(reason));
+        if (!cancelled && !request.signal.aborted) setError(getErrorMessage(reason));
       } finally {
         activeRequest = null;
-        if (!cancelled && isPageVisible()) timer = setTimeout(() => { void poll(); }, 1800);
+        if (!cancelled && isPageVisible()) timer = setTimeout(() => { void poll(); }, 120);
       }
     };
     const onVisibilityChange = () => {
@@ -241,14 +292,14 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
       } else if (!activeRequest) void poll();
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
-    timer = setTimeout(() => { void poll(); }, 1800);
+    void poll();
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisibilityChange);
       activeRequest?.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [providerConnected, providerId, refreshSnapshot, sessionId, snapshot]);
+  }, [browserProviderReady, hidden, providerId, refreshSnapshot, sessionId, Boolean(snapshot)]);
 
   const runAction = useCallback((operation: () => Promise<{ session: BrowserSessionSnapshot }>): Promise<boolean> => {
     if (queuedActionCountRef.current >= 256) {
@@ -273,7 +324,6 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
             if (!next.screenshot && current?.screenshot) return { ...next, screenshot: current.screenshot };
             return next;
           });
-          setAddress(result.session.url);
         }
         return true;
       } catch (reason) {
@@ -285,14 +335,18 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
           if (queuedActionCountRef.current === 0) {
             actionInFlight.current = false;
             setLoading(false);
-            if (needsVisualRefreshRef.current && sessionId && providerId && providerConnected) {
+            const wheelPending = Math.abs(wheelDeltaRef.current) >= 1;
+            if (wheelPending) {
+              if (wheelFlushTimerRef.current) clearTimeout(wheelFlushTimerRef.current);
+              wheelFlushTimerRef.current = setTimeout(() => wheelFlushRef.current?.(), 0);
+            } else if (needsVisualRefreshRef.current && sessionId && providerId && browserProviderReady) {
               visualRefreshTimerRef.current = setTimeout(() => {
                 visualRefreshTimerRef.current = null;
                 if (epoch !== actionEpochRef.current || actionInFlight.current) return;
                 void refreshSnapshot(providerId, sessionId).catch(reason => {
                   if (epoch === actionEpochRef.current) setError(getErrorMessage(reason));
                 });
-              }, 180);
+              }, BROWSER_VISUAL_REFRESH_DELAY_MS);
             }
           }
         }
@@ -300,7 +354,7 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
     });
     actionTailRef.current = task.then(() => undefined);
     return task;
-  }, [providerConnected, providerId, refreshSnapshot, sessionId]);
+  }, [browserProviderReady, providerId, refreshSnapshot, sessionId]);
 
   useEffect(() => {
     actionEpochRef.current += 1;
@@ -321,101 +375,26 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
     return clearPending;
   }, [providerId, sessionId]);
 
-  const connectProvider = useCallback(async (provider: BrowserProviderSummary) => {
-    if (!browserSettings || !sessionId || loading) return;
-    setLoading(true);
-    setError("");
-    try {
-      let discoveredTabs: BrowserTabSummary[] | null = null;
-      if (provider.id === "tabbit-personal") {
-        const result = await connectTabbitBrowser(sessionId);
-        discoveredTabs = result.tabs;
-        setBrowserSettings(result.settings.browserUse);
-      }
-      if (provider.id !== "tabbit-personal") {
-        const enabledProviderIds = [...new Set([...browserSettings.enabledProviderIds, provider.id])];
-        const result = await saveSettings("browserUse", { ...browserSettings, enabledProviderIds });
-        setBrowserSettings(result.settings.browserUse);
-      }
-      if (discoveredTabs) {
-        setTabbitTabs(discoveredTabs);
-        setTabbitTabsRequested(true);
-      }
-    } catch (reason) {
-      setError(getErrorMessage(reason));
-    } finally {
-      setLoading(false);
-    }
-  }, [browserSettings, loading, sessionId]);
-
-  const disconnectProvider = useCallback(async (provider: BrowserProviderSummary) => {
-    if (!browserSettings || loading) return;
-    setLoading(true);
-    setError("");
-    try {
-      await closeBrowserProviderSessions(provider.id);
-      const enabledProviderIds = browserSettings.enabledProviderIds.filter(id => id !== provider.id);
-      const result = await saveSettings("browserUse", { ...browserSettings, enabledProviderIds });
-      setBrowserSettings(result.settings.browserUse);
-      setSnapshot(null);
-      setAddress("");
-      if (provider.id === "tabbit-personal") {
-        setTabbitTabs([]);
-        setTabbitTabsRequested(false);
-      }
-    } catch (reason) {
-      setError(getErrorMessage(reason));
-    } finally {
-      setLoading(false);
-    }
-  }, [browserSettings, loading]);
-
-  const readTabbitTabs = useCallback(async () => {
-    if (!sessionId || loading || !computerControlEnabled) return;
-    setLoading(true);
-    setError("");
-    try {
-      const result = await loadBrowserTabs(sessionId, "tabbit-personal");
-      setTabbitTabs(result.tabs);
-      setTabbitTabsRequested(true);
-    } catch (reason) {
-      setError(getErrorMessage(reason));
-    } finally {
-      setLoading(false);
-    }
-  }, [computerControlEnabled, loading, sessionId]);
-
-  const onNavigate = useCallback((event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!sessionId || !providerId || !providerConnected) return;
-    try {
-      const url = resolveBrowserAddress(address, browserSettings.searchEngine);
-      setAddress(url);
-      void runAction(() => navigateBrowser(sessionId, providerId, url));
-    } catch (reason) { setError(getErrorMessage(reason)); }
-  }, [address, browserSettings.searchEngine, providerConnected, providerId, runAction, sessionId]);
-
   useEffect(() => {
     if (!navigationRequest) return;
-    setAddress(navigationRequest.url);
-    if (!sessionId || !providerId || !providerConnected || handledNavigationRequestRef.current === navigationRequest.id) return;
+    if (!sessionId || !providerId || !browserProviderReady || handledNavigationRequestRef.current === navigationRequest.id) return;
     handledNavigationRequestRef.current = navigationRequest.id;
     try {
-      const target = resolveBrowserAddress(navigationRequest.url, browserSettings.searchEngine);
-      void runAction(() => navigateBrowser(sessionId, providerId, target)).finally(() => onNavigationRequestHandled?.(navigationRequest.id));
+      const target = resolveBrowserAddress(navigationRequest.url, settings.browserUse.searchEngine);
+      void runAction(() => navigateBrowserDock(sessionId, providerId, target)).finally(() => onNavigationRequestHandled?.(navigationRequest.id));
     } catch (reason) {
       setError(getErrorMessage(reason));
       onNavigationRequestHandled?.(navigationRequest.id);
     }
-  }, [browserSettings.searchEngine, navigationRequest?.id, navigationRequest?.url, onNavigationRequestHandled, providerConnected, providerId, runAction, sessionId]);
+  }, [browserProviderReady, navigationRequest?.id, navigationRequest?.url, onNavigationRequestHandled, providerId, runAction, sessionId, settings.browserUse.searchEngine]);
 
   useEffect(() => {
-    if (!actionRequest || navigationRequest || !sessionId || !providerId || !providerConnected || handledActionRequestRef.current === actionRequest.id) return;
+    if (!actionRequest || navigationRequest || !sessionId || !providerId || !browserProviderReady || handledActionRequestRef.current === actionRequest.id) return;
     handledActionRequestRef.current = actionRequest.id;
-    void runAction(() => actOnBrowser(sessionId, providerId, { action: actionRequest.action })).finally(() => onActionRequestHandled?.(actionRequest.id));
-  }, [actionRequest?.action, actionRequest?.id, navigationRequest, onActionRequestHandled, providerConnected, providerId, runAction, sessionId]);
+    void runAction(() => actOnBrowserDock(sessionId, providerId, { action: actionRequest.action })).finally(() => onActionRequestHandled?.(actionRequest.id));
+  }, [actionRequest?.action, actionRequest?.id, browserProviderReady, navigationRequest, onActionRequestHandled, providerId, runAction, sessionId]);
 
-  const onPreviewPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
+  const onViewportPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
     if (!sessionId || !providerId || !snapshot?.screenshot || !imageRef.current || !event.isPrimary || event.button !== 0) return;
     const point = pagePoint(imageRef.current, snapshot.screenshot.width, snapshot.screenshot.height, event.clientX, event.clientY);
     if (!point) return;
@@ -425,7 +404,7 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
     pointerGestureRef.current = { pointerId: event.pointerId, pointerType: event.pointerType, start: point, startClientX: event.clientX, startClientY: event.clientY, points: [], lastPage: point, lastClientX: event.clientX, lastClientY: event.clientY, lastAt: event.timeStamp, mode: "pending" };
   }, [providerId, sessionId, snapshot]);
 
-  const onPreviewPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
+  const onViewportPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const gesture = pointerGestureRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId || !snapshot?.screenshot || !imageRef.current) return;
     const clientDeltaX = event.clientX - gesture.lastClientX, clientDeltaY = event.clientY - gesture.lastClientY;
@@ -460,7 +439,7 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
     event.preventDefault();
   }, [snapshot]);
 
-  const onPreviewPointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
+  const onViewportPointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const gesture = pointerGestureRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId || !snapshot?.screenshot || !imageRef.current) return;
     event.preventDefault();
@@ -476,18 +455,18 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
         if (gesture.points.length >= 128) gesture.points[127] = lastPoint;
         else gesture.points.push(lastPoint);
       }
-      if (gesture.points.length) void runAction(() => actOnBrowser(sessionId, providerId, { action: "dragAt", x: gesture.start.x, y: gesture.start.y, points: gesture.points }));
-      else void runAction(() => actOnBrowser(sessionId, providerId, { action: "clickAt", x: gesture.start.x, y: gesture.start.y }));
+      if (gesture.points.length) void runAction(() => actOnBrowserDock(sessionId, providerId, { action: "dragAt", x: gesture.start.x, y: gesture.start.y, points: gesture.points }));
+      else void runAction(() => actOnBrowserDock(sessionId, providerId, { action: "clickAt", x: gesture.start.x, y: gesture.start.y }));
     } else if (gesture.mode === "scroll") {
       const amount = Math.max(-12_000, Math.min(12_000, Math.round(gesture.startClientY - event.clientY)));
       wheelDeltaRef.current = Math.max(-12_000, Math.min(12_000, wheelDeltaRef.current + amount));
       if (!wheelFlushTimerRef.current) wheelFlushTimerRef.current = setTimeout(() => wheelFlushRef.current?.(), 0);
     } else {
-      void runAction(() => actOnBrowser(sessionId, providerId, { action: "clickAt", x: gesture.start.x, y: gesture.start.y }));
+      void runAction(() => actOnBrowserDock(sessionId, providerId, { action: "clickAt", x: gesture.start.x, y: gesture.start.y }));
     }
   }, [providerId, runAction, sessionId, snapshot]);
 
-  const onPreviewPointerCancel = useCallback((event: PointerEvent<HTMLDivElement>) => {
+  const onViewportPointerCancel = useCallback((event: PointerEvent<HTMLDivElement>) => {
     if (pointerGestureRef.current?.pointerId !== event.pointerId) return;
     pointerGestureRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
@@ -502,7 +481,7 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
     }
     const text = pendingTextRef.current.slice(0, 2000);
     pendingTextRef.current = pendingTextRef.current.slice(text.length);
-    void runAction(() => actOnBrowser(sessionId, providerId, { action: "typeText", text, includeScreenshot: false }));
+    void runAction(() => actOnBrowserDock(sessionId, providerId, { action: "typeText", text, includeScreenshot: false }));
     if (pendingTextRef.current) textFlushTimerRef.current = setTimeout(flushText, 120);
   }, [providerId, runAction, sessionId]);
 
@@ -517,7 +496,7 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
     textFlushTimerRef.current = setTimeout(flushText, 240);
   }, [flushText]);
 
-  const onPreviewInput = useCallback((event: FormEvent<HTMLTextAreaElement>) => {
+  const onViewportInput = useCallback((event: FormEvent<HTMLTextAreaElement>) => {
     const nativeEvent = event.nativeEvent as InputEvent;
     if (composingRef.current || nativeEvent.isComposing) return;
     const target = event.currentTarget;
@@ -526,7 +505,7 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
     appendUserText(text);
   }, [appendUserText]);
 
-  const onPreviewKeyDown = useCallback((event: KeyboardEvent<HTMLTextAreaElement>) => {
+  const onViewportKeyDown = useCallback((event: KeyboardEvent<HTMLTextAreaElement>) => {
     const key = event.key;
     if (["Shift", "Control", "Alt", "Meta", "CapsLock", "Process", "Dead"].includes(key)) return;
     const altGraph = event.getModifierState("AltGraph");
@@ -541,7 +520,7 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
     if (forwarded) {
       event.preventDefault();
       event.stopPropagation();
-      if (sessionId && providerId) void runAction(() => actOnBrowser(sessionId, providerId, { action: "pressKey", key: forwarded, includeScreenshot: false }));
+      if (sessionId && providerId) void runAction(() => actOnBrowserDock(sessionId, providerId, { action: "pressKey", key: forwarded, includeScreenshot: false }));
     } else if (!altGraph && (modifier || event.altKey)) {
       event.preventDefault();
       event.stopPropagation();
@@ -552,86 +531,60 @@ function BrowserUsePanel({ sessionId, settings, navigationRequest, onNavigationR
   const flushWheel = useCallback(() => {
     wheelFlushTimerRef.current = null;
     if (!sessionId || !providerId || Math.abs(wheelDeltaRef.current) < 1) return;
+    if (actionInFlight.current) {
+      wheelFlushTimerRef.current = setTimeout(flushWheel, BROWSER_SCROLL_INPUT_DELAY_MS);
+      return;
+    }
     if (queuedActionCountRef.current >= 250) {
-      wheelFlushTimerRef.current = setTimeout(flushWheel, 160);
+      wheelFlushTimerRef.current = setTimeout(flushWheel, BROWSER_SCROLL_INPUT_DELAY_MS);
       return;
     }
     const delta = wheelDeltaRef.current;
     const amount = Math.min(600, Math.max(1, Math.round(Math.abs(delta))));
     wheelDeltaRef.current -= Math.sign(delta) * amount;
-    void runAction(() => actOnBrowser(sessionId, providerId, { action: "scroll", direction: delta > 0 ? "down" : "up", amount, includeScreenshot: false }));
-    if (Math.abs(wheelDeltaRef.current) >= 1) wheelFlushTimerRef.current = setTimeout(flushWheel, 160);
+    void runAction(() => actOnBrowserDock(sessionId, providerId, { action: "scroll", direction: delta > 0 ? "down" : "up", amount, includeScreenshot: false }));
+    if (Math.abs(wheelDeltaRef.current) >= 1) wheelFlushTimerRef.current = setTimeout(flushWheel, BROWSER_SCROLL_INPUT_DELAY_MS);
   }, [providerId, runAction, sessionId]);
 
   useEffect(() => { wheelFlushRef.current = flushWheel; }, [flushWheel]);
 
-  const onPreviewWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    if (!sessionId || !providerId || !snapshot?.screenshot) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const factor = event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? Math.max(400, contentRef.current?.clientHeight ?? 800) : 1;
-    wheelDeltaRef.current = Math.max(-12000, Math.min(12000, wheelDeltaRef.current + event.deltaY * factor));
-    if (!wheelFlushTimerRef.current) wheelFlushTimerRef.current = setTimeout(flushWheel, 160);
-  }, [flushWheel, providerId, sessionId, snapshot]);
+  useEffect(() => {
+    const viewport = viewportWrapRef.current;
+    if (!snapshot?.screenshot || !viewport) return;
+    const onWheel = (event: globalThis.WheelEvent) => {
+      if (!sessionId || !providerId || !snapshotRef.current?.screenshot) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const factor = event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? Math.max(400, contentRef.current?.clientHeight ?? 800) : 1;
+      wheelDeltaRef.current = Math.max(-12000, Math.min(12000, wheelDeltaRef.current + event.deltaY * factor));
+      if (visualRefreshTimerRef.current) clearTimeout(visualRefreshTimerRef.current);
+      visualRefreshTimerRef.current = null;
+      if (!wheelFlushTimerRef.current) wheelFlushTimerRef.current = setTimeout(() => wheelFlushRef.current?.(), BROWSER_SCROLL_INPUT_DELAY_MS);
+    };
+    viewport.addEventListener("wheel", onWheel, { capture: true, passive: false });
+    return () => viewport.removeEventListener("wheel", onWheel, true);
+  }, [providerId, sessionId, Boolean(snapshot?.screenshot)]);
 
-  const currentProvider = providers.find(item => item.id === providerId);
-  const snapshotControls = snapshot && Array.isArray(snapshot.controls) ? snapshot.controls : [];
-  const snapshotTabs = snapshot && Array.isArray(snapshot.tabs) ? snapshot.tabs : [];
-  const shownAddress = address && !browserSettings?.showFullUrl && !addressFocused ? originOnly(address) : address;
-  return <section className="lfaa-browser-panel" aria-label="浏览器工作区">
-    <header className="lfaa-browser-panel__header">
-      <div><strong>浏览器</strong><span>{browserSettings?.enabled ? "你与 Agent 操作同一浏览器会话" : "Agent 控制关闭 · 你仍可直接操作"}</span></div>
-      {browserSettings ? <button type="button" className="lfaa-browser-panel__settings-link" onClick={() => { window.location.assign("/settings?section=browser"); }}>设置</button> : null}
-    </header>
-    <nav className="lfaa-browser-panel__provider-tabs" aria-label="浏览器应用">
-      {providers.map(provider => {
-        const linked = browserSettings?.enabledProviderIds.includes(provider.id) === true;
-        return <button type="button" key={provider.id} className={provider.id === providerId ? "is-active" : ""} aria-pressed={provider.id === providerId} disabled={!provider.available || providerLoading || loading} title={provider.available ? provider.name : provider.reason} onClick={() => { setProviderId(provider.id); setSnapshot(null); setAddress(""); setTabbitTabs([]); setTabbitTabsRequested(false); setError(""); }}>
-          <strong>{shortProviderName(provider)}</strong><span>{!provider.available ? "不可用" : linked ? "已接入" : "接入"}</span>
-        </button>;
-      })}
-      {!providers.length && !providerLoading ? <span className="lfaa-browser-panel__provider-empty">当前 Host 未登记本机浏览器</span> : null}
-    </nav>
-    {!sessionId ? <div className="lfaa-browser-panel__empty"><WorkbenchIcon name="browser" size={26} /><strong>浏览器将与当前 AI 会话共享</strong><p>先打开或发起一个 AI Work 会话，Agent 和右侧浏览器工作区才能操作同一页面。</p></div> : null}
-    {sessionId && providerLoading ? <div className="lfaa-browser-panel__empty" role="status"><span>正在读取浏览器接入状态…</span></div> : null}
-    {sessionId && !providerLoading && providers.length === 0 ? <div className="lfaa-browser-panel__empty"><WorkbenchIcon name="browser" size={26} /><strong>当前宿主没有本机浏览器</strong><p>隔离浏览器只在 LFAA 本机 Web 或桌面 Host 中运行。远程 Web Host 不会访问这台设备的浏览器。</p></div> : null}
-    {sessionId && currentProvider && !providerConnected ? <div className="lfaa-browser-panel__connect-card">
-      <WorkbenchIcon name="browser" size={28} />
-      <strong>接入 {currentProvider.name}</strong>
-      <p>{currentProvider.isolation === "new-profile" ? "接入后会为当前 AI 会话创建隔离页面，不读取系统浏览器中的登录状态。" : "点击后会启动 Tabbit LocalAgent 并读取可连接标签的标题与净化后地址；只有你再选择某个标签后，才会获取页面正文和截图。连接个人会话需要启用电脑操控；Agent 还要求本轮目标明确指定 Tabbit。"}</p>
-      <button type="button" disabled={!currentProvider.available || loading || !browserSettings || currentProvider.id === "tabbit-personal" && !computerControlEnabled} onClick={() => void connectProvider(currentProvider)}>{loading ? "正在连接…" : currentProvider.id === "tabbit-personal" ? computerControlEnabled ? "连接并查看标签" : "先启用电脑操控" : "接入浏览器"}</button>
-      {error ? <div className="lfaa-browser-panel__error" role="alert">{error}</div> : null}
-    </div> : null}
-    {sessionId && providerConnected && currentProvider ? <>
-      <div className="lfaa-browser-panel__provider-actions"><span>{currentProvider.isolation === "new-profile" ? "LFAA 隔离会话" : "Tabbit 个人会话"}</span><button type="button" disabled={loading} onClick={() => void disconnectProvider(currentProvider)}>断开</button></div>
-      {providerId === "tabbit-personal" && !snapshot ? <div className="lfaa-browser-panel__tab-list">
-        <p>只有点击下方按钮才会读取 Tabbit 的标签标题和地址；选中具体标签后才会读取页面内容。个人标签仍受设置中心电脑操控与当前权限模式管理。</p>
-        {tabbitTabsRequested ? tabbitTabs.length ? tabbitTabs.map(tab => <div className="lfaa-browser-panel__tab" key={tab.tabId}><div><strong>{tab.title || "无标题标签"}</strong><span title={tab.url}>{tab.url || "地址不可用"}</span><small>{tab.active ? "当前标签" : tab.state === "available" ? "可连接" : tab.state === "busy" ? "由其他任务使用" : tab.state}</small></div><button type="button" disabled={tab.state !== "available" || loading} onClick={() => void runAction(() => claimBrowserTab(sessionId, "tabbit-personal", tab.tabId))}>选择此标签</button></div>) : <div className="lfaa-browser-panel__empty"><span>没有可连接的 Tabbit 标签。你也可以使用地址栏打开一个新网页。</span></div> : null}
-        <button type="button" className="lfaa-browser-panel__secondary-action" disabled={loading || !computerControlEnabled} onClick={() => void readTabbitTabs()}>{!computerControlEnabled ? "先启用电脑操控" : tabbitTabsRequested ? "刷新标签列表" : "读取可连接的标签"}</button>
-      </div> : null}
-      <form className="lfaa-browser-panel__address" onSubmit={onNavigate}>
-        <div className="lfaa-browser-panel__nav">
-          {(["back", "forward", "reload"] as const).map(action => <button key={action} type="button" aria-label={action === "back" ? "后退" : action === "forward" ? "前进" : "刷新"} title={action === "back" ? "后退" : action === "forward" ? "前进" : "刷新"} disabled={loading || !snapshot || !providerId} onClick={() => { if (providerId) void runAction(() => actOnBrowser(sessionId, providerId, { action })); }}>{action === "reload" ? <WorkbenchIcon name="refresh" size={15} /> : action === "back" ? "‹" : "›"}</button>)}
-        </div>
-        <input aria-label="浏览器地址" type="text" inputMode="url" autoComplete="url" spellCheck={false} value={shownAddress} onFocus={() => setAddressFocused(true)} onBlur={() => setAddressFocused(false)} onChange={event => setAddress(event.currentTarget.value)} placeholder="搜索网页或输入网址" disabled={loading} />
-        <button type="submit" aria-label="打开网页" title="打开网页" disabled={loading}>打开</button>
-      </form>
-      {providerId === "tabbit-personal" ? <p className="lfaa-browser-panel__notice">网页操作会作用于所选的真实 Tabbit 标签。不要在本轮未明确要求时切换或读取个人浏览器。</p> : null}
-      {error ? <div className="lfaa-browser-panel__error" role="alert">{error}</div> : null}
-      <nav className="lfaa-browser-panel__views" aria-label="浏览器检查视图">{(["preview", "text", "elements", "json"] as const).map(item => <button type="button" key={item} aria-pressed={view === item} className={view === item ? "is-active" : ""} onClick={() => setView(item)}>{item === "preview" ? "网页" : item === "text" ? "文本" : item === "elements" ? "元素" : "JSON"}</button>)}<span aria-live="polite">{viewportSyncing ? "适配网页大小…" : loading ? "处理中…" : snapshot ? `修订 ${snapshot.revision}` : "未打开网页"}</span></nav>
-      <div ref={contentRef} className="lfaa-browser-panel__content">
-        {view === "preview" ? snapshot?.screenshot ? <div className="lfaa-browser-panel__preview-wrap" onPointerDown={onPreviewPointerDown} onPointerMove={onPreviewPointerMove} onPointerUp={onPreviewPointerUp} onPointerCancel={onPreviewPointerCancel} onWheel={onPreviewWheel}>
-          <img ref={imageRef} className="lfaa-browser-panel__preview" src={`data:${snapshot.screenshot.mimeType};base64,${snapshot.screenshot.dataBase64}`} alt={`${snapshot.title || snapshot.url} 页面；点击可操作，滚轮可滚动`} />
-          <textarea ref={keyboardCaptureRef} className="lfaa-browser-panel__input-capture" aria-label="网页交互区；点击后可输入，按住并拖动可操作页面" autoCapitalize="off" autoCorrect="off" spellCheck={false} onInput={onPreviewInput} onKeyDown={onPreviewKeyDown} onCompositionStart={() => { composingRef.current = true; }} onCompositionEnd={() => { composingRef.current = false; }} />
-          <span className="lfaa-browser-panel__interaction-hint" aria-hidden="true">点击输入 · 按住拖动 · 滚轮或触屏滚动</span>
-          {loading ? <span className="lfaa-browser-panel__busy" role="status">同步页面…</span> : null}
-        </div> : <div className="lfaa-browser-panel__empty"><WorkbenchIcon name="browser" size={24} /><span>{snapshot ? "页面截图暂不可用，可切换到文本或元素视图。" : providerId === "tabbit-personal" ? "连接并选择一个 Tabbit 标签，或在地址栏打开新页面。" : "输入网址后，在此打开并操作网页。"}</span></div> : null}
-        {view === "text" ? <pre className="lfaa-browser-panel__data">{snapshot?.pageText || "页面正文为空或尚未打开。"}</pre> : null}
-        {view === "elements" ? <div className="lfaa-browser-panel__elements">{snapshotControls.length ? snapshotControls.map((control, index) => <div key={`${control.role}:${control.name}:${index}`}><code>{control.role}</code><span>{control.name}</span>{control.disabled ? <small>禁用</small> : null}</div>) : <p>没有发现可访问的交互元素。</p>}</div> : null}
-        {view === "json" ? <pre className="lfaa-browser-panel__data">{snapshot ? JSON.stringify({ url: snapshot.url, title: snapshot.title, revision: snapshot.revision, tabs: snapshotTabs, controls: snapshotControls }, null, 2) : "尚无页面数据。"}</pre> : null}
-      </div>
-      {snapshot ? <footer className="lfaa-browser-panel__footer"><span title={browserSettings?.showFullUrl ? snapshot.url : originOnly(snapshot.url)}>{browserSettings?.showFullUrl ? snapshot.url : originOnly(snapshot.url)}</span><button type="button" disabled={loading} onClick={() => void closeBrowserSession(sessionId, snapshot.providerId).then(() => { setSnapshot(null); setAddress(""); }).catch(reason => setError(getErrorMessage(reason)))}>关闭会话</button></footer> : null}
-    </> : null}
+  const currentProvider = providers.find(item => item.id === providerId && item.available);
+  const providerReason = providers.map(provider => provider.reason).filter(Boolean).join(" ");
+  const emptyText = !sessionId
+    ? "当前没有可用的 AI 会话。"
+    : providerLoading
+      ? "正在准备网页…"
+      : !currentProvider
+        ? providerReason || "当前 Host 没有可用的 LFAA 浏览器。"
+        : snapshot
+          ? "网页正在加载，或当前页面暂时无法显示。"
+          : "正在当前区域打开网页…";
+  return <section className="lfaa-browser-panel" aria-label="网页内容" hidden={hidden}>
+    {error ? <div className="lfaa-browser-panel__error" role="alert">{error}</div> : null}
+    <div ref={contentRef} className="lfaa-browser-panel__content">
+      {snapshot?.screenshot ? <div ref={viewportWrapRef} className="lfaa-browser-panel__viewport-wrap" onPointerDown={onViewportPointerDown} onPointerMove={onViewportPointerMove} onPointerUp={onViewportPointerUp} onPointerCancel={onViewportPointerCancel}>
+        <img ref={imageRef} className="lfaa-browser-panel__viewport" src={`data:${snapshot.screenshot.mimeType};base64,${snapshot.screenshot.dataBase64}`} alt={`${snapshot.title || snapshot.url} 页面；点击可操作，滚轮可滚动`} />
+        <textarea ref={keyboardCaptureRef} className="lfaa-browser-panel__input-capture" aria-label="网页交互区；点击后可输入，按住并拖动可操作页面" autoCapitalize="off" autoCorrect="off" spellCheck={false} onInput={onViewportInput} onKeyDown={onViewportKeyDown} onCompositionStart={() => { composingRef.current = true; }} onCompositionEnd={() => { composingRef.current = false; }} />
+        {loading || snapshot.loading ? <span className="lfaa-browser-panel__busy" role="status">网页加载中…</span> : null}
+      </div> : <div className="lfaa-browser-panel__empty" role={providerLoading || loading ? "status" : undefined}>{emptyText}</div>}
+    </div>
   </section>;
 }
 

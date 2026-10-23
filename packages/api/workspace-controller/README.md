@@ -8,7 +8,7 @@
 
 本地 Git 路由还要求节点在线并报告 `git-workspace-v1`。显式初始化只在当前已登记目录创建 `.git` 元数据，不自动暂存或提交；stage/unstage 与提交使用项目相对路径，提交仅接受暂存变更，并拒绝提交当前登记子目录之外的暂存文件。分支前缀读取账户 `git` 设置；分支切换/删除只允许仓库根项目，避免通过子目录登记改变仓库其他项目；AI Worktree 的分支名由 Workspace Owner 管理。所有写操作通过 Permission Owner 的显式用户操作授权。恢复和删除只接受账户已登记的工作树，不接收模型/浏览器提供的绝对路径；不提供任意 Git 命令、远端 Git、推送、合并或 PR。GitHub OAuth 仍是只读 API 凭据，不可用于 Git transport。
 
-变更审阅通过 `POST /workspace/projects/:projectId/git/file-diff` 返回单文件 Git 差异；`/files/read` 提供分段 UTF-8 文本读取，`/files/write` 只接受带 SHA-256 的用户主动编辑保存。三条路由均从认证账户、App 项目登记和目标 Daemon 解析真实根目录，不接受任意绝对路径。文件读写继续由 `project-files-v1` 执行器校验路径、符号链接、文本类型、2 MiB 上限和并发摘要；编辑器 API 不加入模型 `project-tools` 的操作合同。
+变更审阅通过 `POST /workspace/projects/:projectId/git/file-diff` 返回单文件 Git 差异；`contextLines` 为 0–1000 的整数并默认为 3，供 Client 按需展开真实未变更上下文。`/files/read` 提供分段 UTF-8 文本读取，`/files/write` 只接受带 SHA-256 的用户主动编辑保存。三条路由均从认证账户、App 项目登记和目标 Daemon 解析真实根目录，不接受任意绝对路径。文件读写继续由 `project-files-v1` 执行器校验路径、符号链接、文本类型、2 MiB 上限和并发摘要；编辑器 API 不加入模型 `project-tools` 的操作合同。
 
 以上是可选 `WorkspaceProject` 项目能力，不是 Agent Git 管理器。Agent 本机 Git 仓库由独立的 `packages/api/agent-git-controller` 管理，不依赖本控制器、项目登记或 Daemon 节点。
 

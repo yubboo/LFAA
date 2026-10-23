@@ -2,6 +2,8 @@
 
 此包提供已认证控制端 API 和 AI Work SSE 消费协议，不持有模型、Session 或权限业务规则。
 
+会话类 401 由账户 `auth/me` Remote 复核后才通知 UI 退出；成功的密码/通行密钥登录会使之前请求的迟到响应失效。服务端拒绝无效 Cookie 时不发送清 Cookie 响应，避免旧请求晚到覆盖新登录；显式注销仍由账户 Controller 清理 Cookie。
+
 `project-version.ts` 导出由 Web 构建注入的当前产品版本、发布日期、官方版本清单地址和对应发布说明。构建只接受与所有产品包版本匹配的仓库根 `update.json`，Workbench 的版本公告不在运行时重复请求版本说明。
 
 插件清单、搜索和来源检查读取可接收 `AbortSignal`；切换页面或放弃检查时可取消未完成读取。手动安装通过同源认证的 NDJSON 写入流读取 Plugin Manager Owner 的阶段与最终结果；流解析失败、缺少结果和服务端错误都会作为错误返回，不会推断安装成功。安装请求绑定检查时的来源类型、位置、固定摘要与本次 NPM registry；本包不保存 registry 设置或凭据。插件启用、停用与卸载继续调用受认证的 Permission Owner 管理 API，不创建 AI Work 会话。
@@ -11,6 +13,8 @@ DSH 来源检查的 `requirements.bundlePatch` 与上游声明保持一致：一
 `file-manager-location.ts` 将设置中心已保存的本机目录映射到 data 或本机卷来源，通过账户限定的路由历史把浏览目标交给文件页；不把路径当成权限、不在 URL 放入绝对路径，也不读取磁盘。文件页消费目标后移除临时历史字段，后续目录恢复继续使用原有账户缓存。
 
 AI 漫剧项目列表会在交给工作区前校验服务端返回的项目列表与全部资源限制；缺少或包含无效限制值时以 `ai_video_contract_mismatch` 报错，避免旧版控制端响应进入新版 UI。
+
+Browser Dock Client API 通过认证 `/browser/dock/prewarm` 请求 Browser Owner 提前启动当前可用的本机隔离浏览器；请求只用于减少首次网页导航的浏览器进程启动延迟。
 
 AI 回复使用一份 `content` 和可选 `parts` 正文范围；`delta` 携带分段 ID/起点，`presentation` 同步阶段及最终答案范围。帧合并仅合并同一消息的同一分段，非正文事件先冲刷待处理文本。`appendAiTextDelta` 更新同一消息投影；活动的 `contentOffset`、问题和实际审批答案只用于展示。重新订阅的原子快照恢复当前正文与范围，旧服务没有范围时保持兼容。
 
@@ -22,7 +26,7 @@ AI Work 消息分页除单条 `AiMessage.usage` 外，还返回该会话累计�
 
 `loadAiSessions()` 支持显式 App 筛选并接收可选 AbortSignal；小鱼共享工作区按当前账户读取跨 App 会话列表，在离开工作模式或切换账户时取消过期请求。
 
-Browser Panel 的 provider、snapshot、revision、navigate、视口调整、坐标点击、用户文字/按键/滚轮动作与 close 请求只调用认证的 `/browser/*` API，并将读取取消信号传到底层请求；高频输入/滚动动作可选择暂缓截图，由 Dock 空闲后读取同一真实页面的新截图；不在 Connection 中缓存页面数据或保存登录态。Provider 能力由当前 Host 实际返回。
+Browser Panel 的 provider、snapshot、revision、页面修订等待、navigate、视口调整、坐标点击、用户文字/按键/滚轮动作与 close 请求只调用认证的 `/browser/dock/*` API；这些请求由当前认证用户在浏览器 Dock 明确发起，不要求开启 Agent Browser Use。Agent 使用的 `/browser/sessions/*` API 检查 Agent Browser Use 主开关；内置 LFAA Provider 随 Host 自动可用，只有个人 Tabbit 仍检查显式连接及电脑操控。两类请求进入同一个 Browser Owner 与 `(account, LFAA Session, provider)` 页面上下文；Client 不缓存页面数据或保存登录态。Provider 能力由当前 Host 实际返回。
 
 `loadAiExtensions()` 支持可选 AbortSignal；插件工作区与设置中心技能 Tab 共用其扩展清单，后者只筛选 `kind=skill`，不复制 Skill 数据目录。Skill 项的 `skillId` 是指向 Skill Registry 的稳定规范名称，设置页停用仍提交给原账户设置 Owner。共享工作区退出或账户切换时取消自身目录请求，其他调用方的默认并发读取仍使用原请求合并合同。普通应用面板不为展示 Agent 资源而读取此目录。
 
@@ -40,6 +44,8 @@ Profile 插件的 `inspectManagedPlugin()` 可将一次性 NPM registry 传给�
 
 GitHub 连接 Client API 仅调用认证的 `/integrations/github/*` 路由，返回去除 token 的状态与规范化仓库、Issue、PR 字段；Device Flow 验证码仅在用户主动连接时显示。断开与列表读取均支持 AbortSignal，页面卸载或切换资源时取消当前请求，不在 Client 中持有 OAuth token 或设置第二个凭据存储。
 
-Agent Git API 使用账户隔离的本机仓库 ID 与会话绑定 ID调用认证 Agent Git Controller；不发送绝对目录、Daemon `nodeId` 或任意 Git 命令。当前会话的项目目录由 Session/Workspace Owner 解析并自动关联；该只读登记不会创建 `.git`。Agent 首次获准创建或写入项目文件时，文件 Tool 会在同一权限结果内对非仓库目录执行一次 `git init`。Client 不持有或回读 Git 凭据；HTTPS 远端凭据通过用户显式填写交给 Credentials Owner 加密保存，并只把是否已配置的状态返回 Client。Git 状态、差异、暂存/取消暂存、提交、历史、分支、remote、fetch、快进 pull、push 和文件审阅均调用本机 Host 的固定操作合同；SSH 同步与 Pull Request 写 API 尚未接入。
+Agent Git API 使用账户隔离的本机仓库 ID 与会话绑定 ID调用认证 Agent Git Controller；不发送绝对目录、Daemon `nodeId` 或任意 Git 命令。当前会话的项目目录由 Session/Workspace Owner 解析并自动关联；该只读登记不会创建 `.git`。Agent 首次获准创建或写入项目文件时，文件 Tool 会在同一权限结果内对非仓库目录执行一次 `git init`。Client 不持有或回读 Git 凭据；HTTPS 远端凭据通过用户显式填写交给 Credentials Owner 加密保存，并只把是否已配置的状态返回 Client。Git 状态、差异、暂存/取消暂存、提交、历史、分支、remote、fetch、快进 pull、push 和文件审阅均调用本机 Host 的固定操作合同；单文件差异支持 0–1000 行受限上下文和 AbortSignal；SSH 同步与 Pull Request 写 API 尚未接入。
 
 浏览器最近网站 API `loadBrowserRecentSites`、`recordBrowserRecentSites`、`clearBrowserRecentSites` 只透传认证 Browser Controller 的账户范围合同；Client 不持有网站历史副本、不自行去重或持久化。
+
+SteamCMD Client Connection 提供服务端列表、创建/配置和安装/更新/启动/停止任务 API，类型只表达服务端领域结果；权限、参数校验和节点执行继续归服务端 Owner。调用使用现有认证请求和错误映射，不保存游戏配置副本。构建写根 `dist/packages/client/connection/`。

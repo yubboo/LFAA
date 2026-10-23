@@ -2,7 +2,7 @@
 
 `Workbench` 将认证后的 `/plugins` 路由懒加载到 `ui-plugin-manager`，并把它作为独立模块工作区显示。页面的全局导航归 `ui-sidebar`，插件来源/状态展示与动作意图归 `ui-plugin-manager`；Workbench 只装配该页面，不持有插件规则。插件目录工具栏齿轮调用 `openSettings("plugins")` 路由到设置中心现有插件分区，并保留返回来源；设置内容仍归 `ui-settings`。
 
-模块页面的 Shell 高度与滚动边界由 `src/css/module-shell.css` 管理并由 `Workbench.tsx` 引入；工作区、文件管理和插件管理的内容样式留在各自 UI 包，不由 Renderer 全局加载。
+模块页面的 Shell 高度与滚动边界由 `src/css/module-shell.css` 管理并由 `Workbench.tsx` 引入；模块路由激活时将 `html/body/#root` 限制在动态视口并锁定文档根滚动，内容仍由各自面板滚动，短屏不以最小高度撑开整页。工作区、文件管理和插件管理的内容样式留在各自 UI 包，不由 Renderer 全局加载。
 
 Workbench 还负责把设置、文件和插件页面的“最近会话”请求送入 `/work`；请求 ID 只在内存中暂存，由 `ApplicationWorkspace` 消费并确认后清除。会话列表、刷新和 Dock 展开仍归工作区 Owner，不由 Workbench 复制。
 
@@ -14,9 +14,13 @@ Workbench 提供唯一的 `applicationNavigationItems` 应用清单。`Applicati
 
 ## 小鱼共享工作入口（2026-10-14）
 
-小鱼智能体对话区是首页，根地址与登录默认入口都落到 `/work`；旧工作路由归一。左侧紧凑“应用”菜单保留游戏库和各专业 App 的常规入口，沿用已有 App 打开、偏好保存和路由状态。共用工作区只有一个草稿写入器与活动会话选择；旧 App 草稿保留，首次无共享草稿时回读上次 App。通知直接打开共享会话。General 中旧 `defaultMode/defaultStandaloneChat` 字段保持账户读写兼容，不再改变首页。
+小鱼智能体工作区是独立工作入口，根地址与登录默认入口都落到 `/work`；旧工作路由归一。右侧“应用”视图显示游戏库及联机、写作、漫剧入口；SteamCMD 与 Minecraft 只从游戏库内部进入。常规应用页面作为维护和管理面板，小鱼 Agent 负责 `/work` 的智能体交互。共用工作区只有一个草稿写入器与活动会话选择；旧 App 草稿保留，首次无共享草稿时回读上次 App。通知直接打开共享会话。General 中旧 `defaultMode/defaultStandaloneChat` 字段保持账户读写兼容，不再改变首页。
 
 构建只写仓库根 dist/packages/client/ui-layout/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
+
+## 游戏库四栏入口（2026-10-23）
+
+Workbench 将 `/games/*` 全部装配到共享 `ApplicationWorkspace` 四栏 Shell。全局应用导航只呈现“游戏库”；运行环境、Minecraft 与 Steam 游戏服务为游戏库内部视图。`GameLibraryPage`、`SteamcmdWorkspace` 是本包的组合适配器；Minecraft 实例/生命周期、Runtime Manager 和 SteamCMD 数据/任务仍归各自领域 Owner。旧 `/apps/{minecraft,steamcmd}/normal/*` 路由映射到 `/games/*`，内部 `ApplicationId`、认证和 Agent 工具合同保留。外观沿用 Settings/Appearance 共享令牌，不新增偏好；窄分栏使用容器断点。
 
 工作区现存卡片通过 `lfaa-card-motion` 和 `lfaa-card-motion-list` 注册到共享动效；Workbench 将账户 `general.cardMotionEffect` 映射到根节点，并将 `general.dialogMotionEffect`、减少动态效果偏好及当前 Appearance 主题/强调色/字体字号/对比度/壁纸表面令牌同步到 body，供 Ant Design Portal 的 Modal、确认弹窗和 Popconfirm 读取；弹窗外框、标题/正文/操作区留白和响应式滚动基础归 `ui-theme` 集中维护，业务页面只保留内容布局与必要尺寸。
 

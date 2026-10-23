@@ -1,34 +1,91 @@
+<a id="readme-top"></a>
+
 # LFAA-Harness
 
-[English](README.en.md) · [中文文档目录](docs/README.zh.md)
+[English](README.en.md) · [文档总目录](docs/README.zh.md) · [开发文档索引](docs/development/README.zh.md)
 
-LFAA-Harness 是 LFAA 自有的 Harness 项目与面向本机和远程主机的应用工作台，首期聚焦 SteamCMD 游戏服务器、Minecraft 服务器和写作应用。用户既可以在各应用的常规模式中操作，也可以切换到内置的 AI Work，由大模型驱动 Agent 完成多步骤任务。
+LFAA-Harness 是 LFAA 自有的通用 AI 智能体工作台与应用平台。它拥有自己的 Runtime、Profile/Bundle、第一方能力包和应用服务；运行 LFAA 不需要另外安装 DeepSeek Harness。
 
-> LFAA 当前主线是通用 Agent 工作台与领域 App。AI Work 已接入模型工具循环、顺序执行的独立子 Agent、项目文件工具、可执行插件工具和 Streamable HTTP MCP；写作工具仍只操作当前账户的作品，主机 Shell 通过目标在线 Daemon 按账户权限模式执行。完全权限模式不逐项审批，但不扩大用户目标、不构成 OS 沙盒，也不替代 Minecraft EULA 的单独同意。Minecraft 已有多核心部署服务；具体核心、版本、构建和节点执行能力须以本轮工具目录、业务服务校验及 Daemon 回报为准。子 Agent 并行调度、外部 Agent 任务交接和 Steam 游戏服务端 Runner 仍未接入。浏览器、Provider、Windows 节点和安装包的实际验收状态见[开发计划与交付记录](docs/开发计划.md)。
+## 目录
 
-## 系统架构
+- [项目定位](#project-overview)
+- [产品入口与工作方式](#product-workflow)
+- [主要能力与当前边界](#capabilities-and-status)
+- [首次使用](#first-use)
+- [从源码运行 Web](#run-web)
+- [构建与打包命令](#build-and-package)
+- [Windows Electron 桌面端](#windows-desktop)
+- [构建产物位置](#build-outputs)
+- [数据、模型与权限](#data-model-permissions)
+- [文档导航](#documentation-map)
 
-![LFAA 迁移期现有组件部署图](docs/img/system-architecture.svg)
+<a id="project-overview"></a>
+## 项目定位
 
-![应用工作台思维导图](docs/img/app-workbench-mindmap.svg)
+LFAA 是一个由大模型驱动的工作台。用户提出目标，模型结合当前启用的能力规划步骤、按需选择已登记的提示词、Skill、领域专家和工具，并根据工具返回的真实结果继续处理。具体能力由 LFAA 的第一方插件和能力包装配；Profile 选择运行组合，Bundle 声明应用装配。
 
-详细设计见 [系统总体架构](docs/系统总体架构.md)。
+产品由统一的 Agent 工作区和多个领域应用组成：Agent 负责理解目标、调用能力和汇报结果；领域应用提供传统操作界面和成果管理。二者共用对应的领域服务、数据和权限 Owner，避免聊天入口与手动页面各自实现一套业务规则。
 
-LFAA 现已采用对标 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的包架构：上游 316 个包目录原名保留，现有产品源码迁入对应职责包；浏览器界面位于 `packages/client/ui-*`，控制端和节点由 Cordis 管理插件生命周期。Profile 选择普通 Bundle 包，Bundle 提供 `cordis.patch.yml`。目录状态见[完整包树](docs/harness-packages.md)，源码与验证记录见[迁移交付清单](docs/archive/audits/harness-migration.md)。
+<a id="product-workflow"></a>
+## 产品入口与工作方式
 
-## 启动 LFAA Web
+智能体对话的统一入口是 `/work`。旧 `/tasks` 和过去的 App 专属工作路由只用于兼容归一，不是当前产品主入口。专业应用从全局导航进入。
 
-运行环境需要 Node.js 24.15.0 或更新版本。Web 命令使用构建后的界面与控制端，默认在 `http://127.0.0.1:3000` 同源提供页面、API 和 Socket.IO；监听地址和端口读取环境配置。按 `Ctrl+C` 停止。
-
-### 方式一：npm 包
-
-```sh
-npx @yubboo/lfaa web
+```mermaid
+flowchart LR
+    U[用户目标] --> W["/work · 通用 Agent"]
+    W --> M[设置中心已启用的模型]
+    W --> C[按需发现的提示词、Skill、专家和工具]
+    A[领域应用的手动操作] --> O[同一领域服务、数据和权限 Owner]
+    C --> O
+    O -->|需要操作主机时| D[经认证的 Daemon]
+    D -->|执行状态与结果| O
+    O --> W
 ```
 
-此命令需要 `@yubboo/lfaa` 已发布到 npm。本仓库已提供发布组装和打包命令，未发布的版本不能通过在线 npx 获取。npm 模式默认将插件安装文件放在用户目录 `~/.lfaa/plugins`，用户数据放在 `~/.lfaa/data`，不放在 npx 缓存内；当前目录的 `.env` 和显式环境变量可以分别配置 `LFAA_HOME` 与 `LFAA_DATA_DIR`。`LFAA_HOME` 必须是绝对路径；显式 `LFAA_DATA_DIR` 相对路径按当前目录解析。
+工作流程如下：
 
-### 方式二：源码仓库
+1. 用户在 `/work` 描述目标，或者在领域应用中执行手动操作。
+2. Agent 使用当前账户启用的 Provider 和模型；模型按目标发现、加载并选择真实可用的能力，不由关键词或固定业务流程替代模型判断。
+3. 工具调用进入其所属的业务 Owner，由 Owner 校验账户、数据范围、参数、节点和现有权限模式。
+4. 需要在主机上执行的工作经控制端派发给已认证的 Daemon；Daemon 返回执行状态和结果，Agent 再据此继续或结束任务。
+
+<a id="capabilities-and-status"></a>
+## 主要能力与当前边界
+
+下表概述产品方向和源码中已接入的能力。实际入口会受 Profile、设置、账户权限、Provider 连接和节点在线状态影响；具体完成情况以[当前开发计划](docs/开发计划.md)为准。
+
+| 模块 | 用途 | 当前边界与进一步阅读 |
+|---|---|---|
+| 通用 Agent 工作区 | 在 `/work` 与模型协作；按需使用项目、文件、Git、浏览器和其他已登记工具 | 浏览器和电脑操控能力受对应设置、Profile、运行环境和权限约束；见[Agent 能力说明](docs/development/general-agent-capabilities-20261009.md)、[小鱼工作区说明](docs/development/xiaoyu-agent.zh.md) |
+| 游戏与运行环境 | 管理 Minecraft 服务端及 Java 等运行环境；逐步把 SteamCMD 专用服务端纳入统一游戏库 | Minecraft 的部署与执行取决于核心、版本和目标节点；SteamCMD 游戏库整合仍在实施中。见[游戏库记录](docs/development/game-library-runtime-20261014.md)及[当前 SteamCMD 合同](docs/PROMPTS.md#lfaa-game-library-workspace-steamcmd-20261023) |
+| 写作 | 管理账户自己的作品、资料和写作流程，Agent 按需读取相关内容 | 作品内容仍由写作 Owner 管理；Skill 和提示词提供方法，不自动扩大文件访问或写入权限。见[系统架构](docs/系统总体架构.md) |
+| AI 漫剧 | 围绕项目、剧本、角色/场景参考图、分镜、媒体和时间线组织制作 | 图像/视频生成使用已配置的远程 Provider 或可用的本机模型；实际推理、设备和桌面验收状态见[开发计划](docs/开发计划.md)及[漫剧画布记录](docs/development/ai-video-canvas-mvp-20261010.md) |
+| 跨游戏联机 | 整合组网引擎、节点安装和路由相关能力 | 当前仍缺玩家网关、完整邀请/语音/协作及真实跨网验收，不能视作完整联机服务。见[系统架构](docs/系统总体架构.md) |
+
+能力登记、目录和包状态可在[Harness 包清单](docs/harness-packages.md)查看。目录中存在的包不一定已装配或可运行；请结合当前 Profile 和开发计划判断。
+
+<a id="first-use"></a>
+## 首次使用
+
+1. 按下方命令构建并启动 Web，或在 Windows 使用根目录的 `lfaa.bat` 工作台。
+2. 在浏览器打开 `http://127.0.0.1:3000`。新数据目录首次访问时按页面提示创建超级管理员账户；已有数据目录直接使用原账户登录。
+3. 登录后进入“设置中心 → AI 与模型”，添加 Provider 账户、配置 API Key 并选择模型。模型账户和密钥由设置服务管理，密钥不会返回浏览器；Provider 请求可能按服务商规则计费。
+4. 回到 `/work` 开始对话。需要使用游戏、写作或漫剧功能时，从全局导航打开对应应用；Agent 与手动操作共用其业务服务。
+5. 工具执行是否等待逐项审批，由设置中心的账户权限模式和具体操作风险决定。远程主机功能还要求节点已连接且具备对应能力。
+
+Provider、数据目录和部署环境的详细配置见[CLI 配置与数据说明](docs/user/cli.zh.md#配置与数据)；认证、授权和节点执行合同见[执行控制说明](docs/subsystems/execution-control.zh.md)。
+
+<a id="run-web"></a>
+## 从源码运行 Web
+
+### 环境要求
+
+- Node.js `>=24.15.0`
+- pnpm `11.17.0`（版本由根目录 `package.json` 声明）
+- Windows 桌面安装包另需 Rust stable MSVC 工具链；普通 Web 构建不需要 Rust。
+
+### 克隆、安装、构建并启动
 
 ```sh
 git clone https://github.com/yubboo/LFAA.git lfaa
@@ -38,130 +95,116 @@ pnpm run build
 pnpm lfaa web
 ```
 
-克隆时显式指定 `lfaa` 目录，保证区分大小写的系统也能执行 `cd lfaa`。源码模式沿用仓库 `.env`、现有数据目录解析和用户配置；不必手动设置 `LFAA_SERVE_FRONTEND`。普通 Web 构建不要求 Rust，全部输出进入根 `dist/`。
+`pnpm run build` 生成完整的 Harness、Web、Control Plane 和 CLI 运行树。`pnpm lfaa web` 使用构建产物启动 Web 服务；默认由 `http://127.0.0.1:3000` 同源提供页面、API 和 Socket.IO，实际监听地址可由部署配置调整。按 `Ctrl+C` 正常停止服务。
 
-本机回环监听可自动生成并持久保存真实签名密钥；修改为公网生产监听时，仍需显式设置不少于 32 个字符的 `JWT_SECRET` 和绝对持久数据目录。首次访问沿用现有管理员创建流程，不注入假账户。
+Windows x64 本机模式会托管本机 Daemon；如只需要 Web 控制端，可加 `--no-local-daemon`。独立 Daemon 启动方式、Windows 菜单步骤及端口/数据目录配置见[CLI 启动指南](docs/user/cli.zh.md)。
 
-### 节点与发布
-
-`web` 启动控制端；Windows x64 本机模式默认托管本机 Daemon，`--no-local-daemon` 可仅启动 Web。Daemon 独立执行节点任务。当前本机节点支持 Windows x64，源码模式先准备 Rust/MSVC 工具链，再运行：
+### 开发模式
 
 ```sh
-pnpm run build:windows-sandbox-host
-pnpm lfaa daemon
-```
-
-控制端与本机节点使用相同的 `LFAA_DATA_DIR`。npm Web 包不携带 Windows Sandbox Host；节点应使用上述源码节点入口或现有桌面运行包。发布包只收录产品运行文件，不收录测试支持、凭据、运行数据和历史备份。
-
-```sh
-pnpm run pack:cli
-# 在确认发布版本并登录 npm 后执行：
-pnpm run publish:cli
-```
-
-发布组装目录为 `dist/npm/lfaa/`，tarball 写入 `dist/npm/`，npm 名称固定为 `@yubboo/lfaa`。详细职责、配置和验证见 [CLI 启动与发布](docs/user/cli.zh.md)。
-
-开发菜单和 `pnpm dev` 保留；`pnpm lfaa --profile web` 与 `pnpm lfaa --profile daemon` 仍可选择运行组合。自定义组合使用 `--home <目录>`，补丁使用 `--patch <文件>`。
-
-## 本机开发
-
-运行环境要求 Node.js 24.15.0 或更新版本、根目录指定的 pnpm 11.17.0，以及带有 `x86_64-pc-windows-msvc` target 的 Rust stable MSVC 工具链（用于构建 Windows Sandbox Host）。首次启动前，在仓库根目录复制环境模板：
-
-```powershell
-Copy-Item .env.example .env
-pnpm install
-```
-
-Windows 下从仓库根目录运行以下命令，会通过完整项目启动器安全检查并启动前端、server 和本机 Daemon；这也支持设置中心的数据根目录迁移。Linux 开发环境直接并行启动服务。服务仍并行启动，但前端会先等待 server 的 `/api/health` 就绪（最长 120 秒）再启动 Vite；server 未就绪时会明确提示检查 server 终端。开发期间若控制端热重启，Vite 会把同一故障期间重复的 `ECONNREFUSED` 代理堆栈合并成一条提示，并在控制端恢复时提示连接已恢复。按 `Ctrl+C` 停止三项服务：
-
-```powershell
 pnpm dev
 ```
 
-也可以分别启动单个服务：
+开发启动器负责启动前端、Control Plane 和本机 Daemon。只启动 Vite 前端的命令是 `pnpm run dev:frontend`，它需要现有 Control Plane；分别启动其他服务的命令见[CLI 指南](docs/user/cli.zh.md#windows-工作台)。
+
+<a id="build-and-package"></a>
+## 构建与打包命令
+
+以下命令均从仓库根目录运行。Web 是同源 UI/API/Socket.IO 服务，构建前端静态资源不等于构建完整 Web 服务。
+
+如果要得到可启动的完整 Web 服务，运行 `pnpm run build` 后再执行 `pnpm lfaa web`。`pnpm run build:web` 只构建前端资源；它不会单独打包 API 和 Socket.IO 服务。
+
+| 目标 | 命令 | 结果 |
+|---|---|---|
+| 只构建 Web 前端 | `pnpm run build:web` | 写入 `dist/apps/web/`；不单独包含 Control Plane |
+| 只构建 Control Plane | `pnpm run build:control-plane` | 写入 `dist/apps/control-plane/` |
+| 构建完整源码运行树 | `pnpm run build` | 构建 Harness 包、Web、Control Plane 和 CLI；之后用 `pnpm lfaa web` 启动 |
+| 本地组装 npm CLI tarball | `pnpm run pack:cli` | 完整构建后把 `.tgz` 写入 `dist/npm/`；只生成本地产物，不会发布到 npm |
+| 构建 Windows Electron 安装包 | `pnpm run build:desktop:win` | 自动构建 Control Plane、Windows Sandbox Host 和隔离 Web 候选，再生成 x64 NSIS 安装包 |
+| Windows Tauri 兼容构建 | `pnpm run build:desktop:tauri:win` | 保留的兼容入口，不是当前桌面主线 |
+
+`pnpm run build:desktop:win` 是推荐的 Windows 桌面命令，也可显式运行 `pnpm run build:desktop:electron:win`。桌面构建会校验 Electron 版本、更新清单与[产品更新日志](docs/updata-log.md)；新版本构建前先按更新流程更新这些元数据。桌面流程与安装包内容见[Electron 桌面说明](apps/desktop-electron/README.md)。
+
+<a id="windows-desktop"></a>
+## Windows Electron 桌面端
+
+桌面主线是 Windows x64 Electron。完成仓库依赖安装并准备 Rust stable MSVC 工具链后，从仓库根目录运行：
 
 ```powershell
-pnpm run dev:frontend
+pnpm run build:desktop:win
 ```
 
-```powershell
-pnpm run dev:server
+该命令会构建 Control Plane、Windows 原生 Sandbox Host 和 Web 候选，随后使用 Electron Builder 生成 NSIS 安装程序，并核对安装器、更新清单、文件大小和哈希。构建过程不会上传或发布文件。最终文件位于：
+
+```text
+dist/apps/desktop-electron/LFAA-<版本号>/
+├── LFAA-<版本号>.exe
+├── LFAA-<版本号>.exe.blockmap
+└── latest.yml
 ```
 
-```powershell
-pnpm run dev:daemon
-```
+将 `.exe` 安装到 Windows 后即可启动桌面版。桌面包内含共享客户端、Control Plane 和本机 Daemon；远程节点仍需单独配置连接。当前只有 Windows x64 NSIS 路线已登记；macOS Electron 打包和签名、Linux 桌面及 Android 尚未交付，因此没有可用的 macOS/Linux 桌面打包命令。
 
-从项目根目录运行 `pnpm build` 可构建能力包、Web、控制端和 npm 发布目录；Web、控制端和 Daemon 的入口产物分别位于 `dist/apps/web/`、`dist/apps/control-plane/`、`dist/apps/daemon/`，能力包位于 `dist/packages/<领域>/<包名>/`。Windows Rust Sandbox Host 由 `pnpm run build:windows-sandbox-host` 单独构建。也可以单独运行 `pnpm run build:web`、`pnpm run build:control-plane` 或 `pnpm run build:windows-sandbox-host`。Linux/macOS 尚无 Minecraft Sandbox Host，不会回退为普通 Java 进程。
+日常 Windows 用户也可双击 `lfaa.bat`：菜单 `1` 安装依赖，菜单 `2` 后选择 `1` 启动 Web，菜单 `3` 构建 Windows Electron 安装包。详细菜单行为见[Windows 工作台指南](docs/user/cli.zh.md#windows-工作台)。
 
-LFAA-Harness 桌面产品主线目标为 Windows/macOS Electron，Web 与桌面共用前端。根 `pnpm run build:desktop:win` 现在调用 Electron Windows x64 NSIS 路线；`build:desktop:tauri:win` 明确保留 Tauri 兼容入口。macOS Electron 包与签名、Linux 和 Android 仍未交付。旧 Tauri 的直接终止子进程路径存在安全退出缺口，不作为当前主线验收证据。
-纯净源码 ZIP 和全新安装包只包含 LFAA 仓库中正式登记的第一方 Harness 能力与锁定的运行依赖。外部另装插件、账户凭据、Provider 密钥、游戏实例、数据库、缓存、日志和开发机路径均不得进入发行物；首次启动才创建空白用户数据。开发盘构建与干净克隆构建必须遵守相同文件边界。真实新安装和异盘验收通过前，不宣称产品包已纯净。
+<a id="build-outputs"></a>
+## 构建产物位置
 
-Electron Windows x64 桌面包可运行 `pnpm run build:desktop:electron:win`；仅重新打包当前 Host/Web 产物时，可运行 `pnpm --filter lfaa-desktop-electron run package:win`，该入口会把当前 Web 源码构建到 `dist/.tmp/desktop-electron/web-candidate`，不覆盖开发服务正在使用的 `dist/apps/web`。打包后的 Windows NSIS 应用启动后检查 `update.json`，发现更新时在 LFAA 工作台显示静音更新提示；用户可暂缓或选择下载，暂缓后本次运行期间不重复提示同一版本，重启后重新检查。下载完成后用户可选择稍后或重启安装；现有自动安装偏好继续生效，只有确认本机服务安全退出后才调用安装。候选暂存位于 `dist/.tmp/desktop-electron/LFAA-<版本>/`，交付位于 `dist/apps/desktop-electron/LFAA-<版本>/`，仅包含安装器、blockmap 和 latest.yml。发布须先确认 Release 工件就绪，再提交宣告新版本的 update.json。更新清单必须与 `docs/updata-log.md` 和 Electron 包版本一致；构建会校验版本、发布日期、说明和更新源。当前仓库未配置 Authenticode 发布者名称或签名证书，代码签名者验证尚未完成。打包命令只生成本地产物，不会上传或发布。
+所有产品构建和打包产物都写入仓库根目录 `dist/`：
 
-Web 设置中心“关于与更新”会显示当前 Web 构建版本，并在用户点击后读取同一官方更新清单、展示更新说明和官方发布页。Web 不会自动下载、安装或替换本机程序。
+| 内容 | 位置 |
+|---|---|
+| Harness 能力包 | `dist/packages/<领域>/<包名>/` |
+| Web 前端 | `dist/apps/web/` |
+| Control Plane | `dist/apps/control-plane/` |
+| Daemon 运行入口 | `dist/apps/daemon/` |
+| npm 发布目录与 tarball | `dist/npm/lfaa/`、`dist/npm/*.tgz` |
+| Electron 最终安装文件 | `dist/apps/desktop-electron/LFAA-<版本号>/` |
+| 桌面临时组装目录 | `dist/.tmp/desktop-electron/` |
 
-本机一体版面向管理当前 Windows 主机；远程主机仍由 Web 界面连接部署在远端的控制端。公网访问本机控制端的内网穿透尚未接入，后续需要同时转发 Web、API 与 Socket.IO，并继续通过控制端鉴权。
+普通 `pnpm run build` 不生成桌面安装包，也不递增产品版本。更多入口、数据与构建边界见[CLI 指南](docs/user/cli.zh.md#命令与产物)。
 
-Windows 下双击根目录 `lfaa.bat`，首次依次选择 `1` 安装依赖、`2` 后按 Enter 启动 Harness Web（`pnpm lfaa web`）。启动子菜单中选择 `1` 启动 Web、`2` 独立启动节点、`3` 使用完整开发启动器、`4` 启动 Vite 热更新前端、`0` 返回。Vite 菜单等待现有控制端健康后只启动 `127.0.0.1:5173` 前端，不重启控制端或 Daemon；若检测到本工作区 Vite 已在运行且页面就绪，会直接复用。打开 `http://127.0.0.1:5173/apps/minecraft/ai-work` 查看源码改动，按 `Ctrl+C` 停止 Vite。未知程序占用 5173 时会显示进程并停止，不会终止进程或换端口。菜单及服务使用当前终端；正式 Web 不启动 Vite；Windows x64 本机模式默认托管 Daemon，`--no-local-daemon` 可关闭。主菜单选择 `4` 检查环境和实际工作区包。普通 Web 不要求 Rust；节点原生 Host 使用 `pnpm run build:windows-sandbox-host` 单独构建。完整菜单见 [CLI 合同](docs/user/cli.zh.md)。
+<a id="data-model-permissions"></a>
+## 数据、模型与权限
 
-打开 `http://localhost:5173`。本机数据尚无账户时，首次访问创建 UID 1 的超级管理员；之后不开放公开注册，由超级管理员在“设置 → 账户”新增管理员或普通账户、编辑和删除账户、按 UID/用户名/邮箱/角色/创建时间筛选，并可把超级管理员权限转移给其他账户。删除账户会释放其 UID，后续优先复用最小空号。密码至少 8 位并须包含至少 3 类字符，初始化或创建账户时需设置密码；忘记密码时可用恢复密钥重设密码。管理员登录后可在“设置 → 账户”生成或设置独立恢复密钥。邮箱仅用于账户资料和筛选，邮箱找回尚未接入。登录后可在“设置 → 账户”添加通行密钥；Windows Hello、设备 PIN、生物识别或密码管理器只负责本机验证，LFAA 不接收设备 PIN、生物特征或私钥。开发环境通行密钥默认限定 `http://localhost:5173`；使用 `http://127.0.0.1:5173` 时仍可用密码登录，但不会显示通行密钥入口。
+- **模型账户：** 在设置中心配置 Provider 和模型。模型密钥由后端设置/凭据 Owner 保存，不放进前端或 README 示例中；真实请求可能产生 Provider 费用。
+- **用户数据：** 账户、会话、设置、项目和应用数据由各自 Owner 持久化，运行目录由 `LFAA_DATA_DIR` 等部署配置决定。换目录不会自动搬迁旧数据；迁移前应查看[存储说明](docs/subsystems/storage.zh.md)和[CLI 配置说明](docs/user/cli.zh.md#配置与数据)。
+- **权限执行：** 请求审批、替我审批、完全访问是设置中心统一提供的权限模式。工具仍须经过服务端身份、参数、目标和数据范围校验；完全访问不等于操作系统沙盒。
+- **公开部署：** 公网监听需要强 `JWT_SECRET` 和绝对持久化数据目录，不能把本机回环开发配置直接暴露到公网。请先阅读[CLI 配置与数据说明](docs/user/cli.zh.md#配置与数据)。
 
-当前采用用户确认的混合存储：设置、应用偏好、加密 Provider 配置和节点目录配置保存于 `<LFAA_DATA_DIR>/storages/configuration.json`；Agent 会话、消息、活动与用量追加保存于 `sessions/<会话摘要>/events.jsonl`；账户、登录会话、权限、节点、任务、写作正文与修订继续使用本机 SQLite。Provider 加密密钥仍位于 `credentials/settings.key`，明文不下发前端。旧数据迁移按导入、回读校验、备份后再退役旧权威表的顺序执行；SQLite 迁移版本以 `packages/storage/storage-sqlite/src/database.ts` 为准，当前最高迁移版本以 `packages/storage/storage-sqlite/src/database.ts` 为准（当前 47）。完整归属、备份与恢复见[混合存储合同](docs/subsystems/storage.zh.md)。本机回环 CLI 可持久化自动生成的 JWT 密钥；公网生产继续要求强 `JWT_SECRET` 和绝对数据目录。通行密钥仍需匹配 `WEBAUTHN_RP_ID`、`WEBAUTHN_ORIGIN`。
+<a id="documentation-map"></a>
+## 文档导航
 
-控制端使用 Node 内置 SQLite。插件包与受控运行适配副本默认放在当前用户 `%USERPROFILE%\.lfaa\plugins`（非 Windows 为 `~/.lfaa/plugins`）；用户数据默认放在同一 Home 下的 `data/`。`LFAA_HOME` 可用绝对路径覆盖安装 Home，`LFAA_DATA_DIR` 可独立覆盖用户数据根。Windows 完整开发启动器与 Electron/Tauri 桌面端的设置中心支持三种数据迁移方式：系统复制到空目录、用户手动复制后由系统逐项核对并采用、ZIP 备份安全解包后检查。迁移在完整重启后停止服务并通过清单与 SQLite `quick_check` 才切换；旧数据保留。改变 `LFAA_DATA_DIR` 不会移动插件安装文件；用户私有插件运行数据随用户数据根迁移。显式系统环境变量 `LFAA_DATA_DIR` 优先，设置页会说明该部署位置由环境变量管理。Linux 生产服务由部署环境配置绝对持久化路径（例如 `/var/lib/lfaa`），Web 设置页不会改写服务器目录。用户 Home 中其他应用的 `config/`、`state/`、`plugins/`、`runtimes/` 不会被扫描或合并。
+### 用户与运行
 
-## 首期功能范围
+| 想了解 | 文档 |
+|---|---|
+| 安装依赖、启动 Web/Daemon、Windows 菜单 | [CLI 启动与打包指南](docs/user/cli.zh.md) |
+| 端口、数据目录、环境变量和本地/公网模式 | [CLI 配置与数据](docs/user/cli.zh.md#配置与数据) |
+| Electron 安装包构建流程和交付文件 | [Electron 桌面说明](apps/desktop-electron/README.md) |
+| 产品发行版本和更新记录 | [更新日志](docs/updata-log.md) |
 
-- SteamCMD 游戏目录和一键部署流程，逐步扩展至 40+ 款游戏。
-- Minecraft 服务端核心目录、部署、实例配置、启停、日志和停服后世界备份。核心目录包含多种部署类型，但每个版本/构建/运行时/节点组合以实时目录和业务服务校验为准。常规执行默认使用 native；显式 AppContainer 仅保留旧 Vanilla 兼容路径，不能据此宣称所有核心均处于 OS 沙盒。节点与安装包实机验收状态见[开发计划](docs/开发计划.md)。Minecraft 插件/模组安装仍未接入。
-- 所有应用共用的文件管理工作台；管理员可在在线 daemon 节点的 `LFAA_DATA_DIR` 内浏览、搜索、新建、编辑 UTF-8 文本、上传、下载、重命名和删除文件。凭据与控制端数据库目录不开放；路径越界、链接文件、超过大小限制的文件会被拒绝。上传不覆盖现有文件，运行中的 Minecraft 实例目录禁止修改。
-- 游戏实例、配置文件、存档、日志、备份和运行环境的持久化管理。
-- 响应式 Ant Design 管理界面、可视化配置编辑与实例状态；主机资源监控仍未接入。
-- Minecraft 任务进度、Daemon 日志及节点/实例状态通过已认证的 Socket.IO 变更通知触发页面刷新，状态和日志仍由受保护 REST API 提供；Daemon 继续使用 HTTP 心跳与任务上报。交互式终端和资源监控尚未接入。
-- JWT 用户认证和授权；部署、文件、进程等操作由后端进行权限校验。
-- AI Work 内置在 SteamCMD、Minecraft 和写作应用中。LLM 负责理解与推理，主 Agent 规划任务、调用工具，必要时召唤子 Agent 协作。
-- Docker Compose 部署控制端；`daemon` 可安装在本机或多台远程主机执行具体任务。
-- Web 与 Electron 共用 React 前端；Windows 默认打包入口为 Electron，Tauri 保留显式兼容入口。macOS Electron、Linux 和 Android 尚需后续平台交付。
+### 架构与能力
 
-## 目录职责
+| 想了解 | 文档 |
+|---|---|
+| 当前产品身份、工作入口、AI、应用与节点架构 | [系统总体架构](docs/系统总体架构.md) |
+| 已接入能力、待办与未验收边界 | [当前开发计划](docs/开发计划.md) |
+| 通用 Agent、工具发现与执行边界 | [Agent 通用能力记录](docs/development/general-agent-capabilities-20261009.md) |
+| 游戏库与运行环境实现记录 | [游戏库记录](docs/development/game-library-runtime-20261014.md) |
+| 会话、设置和文件的存储归属 | [存储说明](docs/subsystems/storage.zh.md) |
+| 账户权限、节点操作和安全执行边界 | [执行控制说明](docs/subsystems/execution-control.zh.md) |
 
-- `.github/`：问题表单、Pull Request 模板与 Linux/Windows 持续检查，不承载产品运行代码。
-- `.agents/skills/`：LFAA 仓库 AI 技能的唯一正文来源；根 `AGENTS.md` 和开发规范仍是权威规则。
-- `.claude/`、`.codex/`：对应工具的轻量技能入口，正文统一回到 `.agents/skills/`。
-- `packages/client/ui-*`：现有界面与交互，按聊天、命令、设置、导航、文件及应用划分。
-- `packages/boot/app-boot`、`packages/bundle/*`：共享装配入口与组合补丁。
-- `packages/api/*`：Gateway 与可撤销的控制器路由。
-- `packages/core`、`settings`、`storage`、`identity`、`credentials`：现有 AI、账户、设置、权限及持久化能力。
-- `packages/games`、`packages/document/writing`、`packages/host/daemon`：LFAA 业务与节点执行。
-- `apps/cli`、`apps/web`、`apps/daemon`：命令行、Web 与节点启动工具。
-- `apps/desktop-electron`、`apps/desktop-tauri`：保留现有外壳和打包路线，使用相同的编译后 Harness 入口。
-- `native/system`：现有 Windows AppContainer/Job Object Sandbox Host。
-- `apps/web/public`：原公共静态资源。
-- `data`：既有运行数据，实际位置读取配置；本轮不迁移或重置。
-- `dist`：唯一产物目录，各构建只清理自身子目录。
-- `docs/harness-packages.md`：全部上游目录及每个实际包/占位目录的状态。
-- `docs/archive/audits/design-qa.md`：历史设计验收记录。
+### 开发与维护
 
-## 技术方案
+| 想了解 | 文档 |
+|---|---|
+| 所有文档入口 | [文档总目录](docs/README.zh.md) |
+| 长期工程指南与专题实施记录 | [开发文档索引](docs/development/README.zh.md) |
+| 包 Owner、公开合同和应用装配 | [包职责与应用装配规范](docs/development/package-responsibilities.zh.md) |
+| 功能地图、任务登记与验收方法 | [开发手册](docs/development/handbook.zh.md) · [任务合同索引](docs/PROMPTS.md) |
+| 能力包与占位目录状态 | [Harness 包清单](docs/harness-packages.md) |
+| 仓库修改与交付规则 | [开发规范](开发规范.md) |
+| 已归档的审计、计划和历史合同 | [归档索引](docs/archive/README.zh.md) |
 
-当前前端使用 React 18、TypeScript、Ant Design 5、Vite 和 Socket.IO Client；控制端使用 Express、Joi、JWT、Socket.IO、Winston 与 Node 内置 SQLite。Minecraft 的显式 AppContainer 兼容路径使用最小 Rust helper 调用原生 AppContainer 与 Job Object API；常规 native 执行使用目标节点进程权限，不宣称 OS 沙盒。文件操作通过受认证 HTTP 接口排入 Daemon 节点任务。交互式终端和资源监控尚未接入。
-
-项目统一使用 pnpm 工作区安装 `packages/*/*` 与 `apps/*` 已声明的 Node.js 依赖。Windows 工作台选项 `1` 安装、`2` 选择 Harness 运行模式、`3` 构建、`4` 检查环境及安装范围、`0` 退出。安装按根目录 `package.json` 指定的 pnpm 版本运行，并生成或更新根目录 `pnpm-lock.yaml`。Daemon Sandbox Host 与桌面原生 Rust/Cargo 依赖不属于 pnpm 管理范围，需使用各自构建入口。
-
-## 数据约定
-
-- 一次本机开发中，server 与本机 daemon 使用同一个 `LFAA_DATA_DIR`，这样控制端数据库与本机节点共用一个持久化根；它们仍按子目录分工。控制端的账户、权限、设置、AI 配置、节点登记、任务与实例元数据放在 `database/lfaa.sqlite`，密钥放 `credentials/`。
-- 每台远程 daemon 主机有自己的 `LFAA_DATA_DIR`；游戏服务端文件、实例世界、Java 环境和辅助依赖留在执行任务的节点本机。控制端数据库只保存必要元数据与相对路径，不复制或承载这些大文件。
-- `games/steamcmd/` 是 SteamCMD 部署的游戏服务端文件；`lib/steamcmd/` 是 SteamCMD 下载器和命令行工具本身。
-- 数据按内容命名，例如 `games/steamcmd/`、`games/minecraft/`、`environments/java/`、`lib/pty/`、`lib/zip-tools/` 和 `plugins/`；路径不包含 `server/` 或 `nodes/<节点名>/`。
-- Windows 可移动盘开发默认跟随项目目录，固定盘开发默认进入当前用户数据目录；设置页可安排完整数据迁移，桌面端可选文件夹，源目录保留。Linux 服务由部署配置指定持久化卷。Electron macOS、Linux 桌面与 Android 数据路径和安装流程尚未接入；升级程序不得清理游戏实例和运行环境。
-
-## 文档
-
-- [开发计划与进度](docs/开发计划.md)
-- [系统总体架构](docs/系统总体架构.md)
-- [更新日志](docs/updata-log.md)
-- [开发规范](开发规范.md)
-- [AI 协作技能索引](.agents/README.md)
-- [设计验收记录](docs/archive/audits/design-qa.md)
+[返回顶部](#readme-top)

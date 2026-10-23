@@ -11,6 +11,8 @@ class FakeWebContents extends EventEmitter {
     this.url = "about:blank";
     this.destroyed = false;
     this.zoom = 1;
+    this.loading = false;
+    this.holdLoad = false;
     this.failNextLoad = false;
     this.targetId = `fixture_target_${FakeWebContents.nextTarget++}`;
     let attached = false;
@@ -25,14 +27,17 @@ class FakeWebContents extends EventEmitter {
   loadURL(url) {
     if (this.failNextLoad) { this.failNextLoad = false; throw new Error("fixture load failed"); }
     this.url = url;
+    this.loading = true;
     this.emit("did-navigate", {}, url);
+    if (this.holdLoad) return new Promise(resolve => { this.finishLoad = () => { this.loading = false; resolve(); }; });
+    this.loading = false;
     return Promise.resolve();
   }
   isDestroyed() { return this.destroyed; }
   close() { if (!this.destroyed) { this.destroyed = true; this.emit("destroyed"); } }
   getURL() { return this.url; }
   getTitle() { return this.url === "about:blank" ? "" : "Fixture page"; }
-  isLoading() { return false; }
+  isLoading() { return this.loading; }
   canGoBack() { return false; }
   canGoForward() { return false; }
   getZoomFactor() { return this.zoom; }
@@ -142,6 +147,19 @@ test("native browser bounds every tab set", async () => {
   const { workspace } = createFixture();
   for (let index = 0; index < 32; index += 1) await workspace.createTab();
   await assert.rejects(workspace.createTab(), /最多同时打开 32 个/u);
+  workspace.dispose();
+});
+
+test("native navigation returns after the main document commits while page resources continue", async () => {
+  const { workspace } = createFixture();
+  const initial = await workspace.createTab();
+  const contents = workspace.tabs.get(initial.activeTabId).view.webContents;
+  contents.holdLoad = true;
+  const snapshot = await workspace.navigate(initial.activeTabId, "https://slow.example/");
+  assert.equal(snapshot.tabs[0].url, "https://slow.example/", "the committed URL is available immediately");
+  assert.equal(snapshot.tabs[0].loading, true, "the browser reports continued page loading after returning");
+  contents.finishLoad();
+  assert.equal(contents.isLoading(), false);
   workspace.dispose();
 });
 

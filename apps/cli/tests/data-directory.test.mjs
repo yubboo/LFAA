@@ -10,7 +10,7 @@ const projectRoot='H:\\LFAA1', userProfile='C:\\Users\\yu';
 const temporaryRoot = mkdtempSync(join(tmpdir(), 'lfaa-data-layout-test-'));
 after(() => { assert.ok(temporaryRoot.startsWith(tmpdir())); rmSync(temporaryRoot, { recursive: true, force: true }); });
 test('未配置系统根时固定盘与移动盘都使用用户 .lfaa Home',()=>{
-  for(const driveType of ['Fixed','Removable','Unknown'])assert.equal(resolveDataDirectory(projectRoot,'',{platform:'win32',driveType,userProfile}),'C:\\Users\\yu\\.lfaa');
+  for(const driveType of ['Fixed','Removable','Unknown'])assert.equal(resolveDataDirectory(projectRoot,'',{platform:'win32',driveType,userProfile}),'C:\\Users\\yu\\.lfaa\\data');
 });
 test('项目 data 只在显式选择推荐位置后使用',()=>{
   assert.equal(resolveDataDirectory(projectRoot,'data',{platform:'win32',userProfile}),'H:\\LFAA1\\data');
@@ -26,11 +26,11 @@ test('未配置且系统账户主目录无效时拒绝猜测根目录',()=>{
 test('LFAA_HOME 同时作为系统数据根与插件安装根',()=>{
   assert.equal(resolveHomeDirectory(projectRoot,'',{platform:'win32',userProfile}), 'C:\\Users\\yu\\.lfaa');
   assert.equal(resolveHomeDirectory(projectRoot,'E:\\LFAA-Home',{platform:'win32',userProfile}), 'E:\\LFAA-Home');
-  assert.equal(resolveDataDirectory(projectRoot,'',{platform:'win32',userProfile,lfaaHome:'E:\\LFAA-Home'}), 'E:\\LFAA-Home');
+  assert.equal(resolveDataDirectory(projectRoot,'',{platform:'win32',userProfile,lfaaHome:'E:\\LFAA-Home'}), 'E:\\LFAA-Home\\data');
   assert.throws(()=>resolveHomeDirectory(projectRoot,'relative-home',{platform:'win32',userProfile}),/绝对路径/u);
 });
 test('非 Windows 未配置时也使用当前账户 Home；显式位置继续优先',()=>{
-  assert.equal(resolveDataDirectory('/workspace/LFAA','',{platform:'linux',userProfile:'/home/tester'}),'/home/tester/.lfaa');
+  assert.equal(resolveDataDirectory('/workspace/LFAA','',{platform:'linux',userProfile:'/home/tester'}),'/home/tester/.lfaa/data');
   assert.equal(resolveDataDirectory('/workspace/LFAA','data',{platform:'linux',userProfile:'/home/tester'}),'/workspace/LFAA/data');
 });
 test('空白或新选中的数据根会补齐全部顶层目录，不生成账户或业务文件', () => {
@@ -45,7 +45,6 @@ test('空白或新选中的数据根会补齐全部顶层目录，不生成账�
   }
   assert.deepEqual(readdirSync(paths.users), []);
   assert.deepEqual(readdirSync(paths.games), []);
-  assert.deepEqual(readdirSync(paths.storages), []);
   ensureDataDirectories(dataRoot);
   assert.equal(resolveDataPaths(dataRoot).root, paths.root);
 });

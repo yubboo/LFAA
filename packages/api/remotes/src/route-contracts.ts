@@ -335,7 +335,12 @@ export const daemonHeartbeatSchema = Joi.object({
       id: Joi.string().guid().required(),
       state: Joi.string().valid("stopped", "running", "starting", "installing", "unknown").required(),
       sandboxStatus: Joi.string().valid("unsupported", "unprepared", "prepared", "running", "unknown").default("unknown")
-    }).unknown(false)).max(500).required()
+    }).unknown(false)).max(500).required(),
+    steamcmdServers: Joi.array().items(Joi.object({
+      id: Joi.string().guid().required(),
+      status: Joi.string().valid("unknown", "stopped", "running", "starting", "stopping").required(),
+      processId: Joi.number().integer().min(1).allow(null).required()
+    }).unknown(false)).max(500).default([])
   }).unknown(false);
 
 export const minecraftDeploymentSchema = Joi.object({
@@ -449,6 +454,22 @@ export const steamcmdStorageSettingsSchema = Joi.object({
     gameDirectory: Joi.string().trim().min(1).max(512).required()
   }).unknown(false);
 
+export const steamcmdServerSchema = Joi.object({
+    nodeId: Joi.string().guid().required(),
+    name: Joi.string().trim().min(1).max(80).pattern(/^[^\u0000-\u001f\u007f]+$/u).required(),
+    toolAppId: Joi.number().integer().min(1).max(2147483647).required(),
+    installDirectory: Joi.string().trim().min(1).max(512).required(),
+    executablePath: Joi.string().max(1024).allow("").default(""),
+    launchArguments: Joi.array().items(Joi.string().max(1024).pattern(/^[^\r\n\u0000]*$/u)).max(64).default([]),
+    stopCommand: Joi.string().max(120).pattern(/^[^\r\n\u0000-\u001f\u007f]*$/u).allow("").default(""),
+    stopTimeoutSeconds: Joi.number().integer().min(5).max(300).default(60),
+    eulaAccepted: Joi.boolean().required()
+  }).unknown(false);
+
+export const steamcmdServerTaskSchema = Joi.object({
+    kind: Joi.string().valid("install-server", "update-server", "start-server", "stop-server").required()
+  }).unknown(false);
+
 export const minecraftStorageSettingsSchema = Joi.object({
     instanceDirectory: Joi.string().trim().min(1).max(512).required()
   }).unknown(false);
@@ -495,7 +516,14 @@ export const steamcmdCompletionSchema = Joi.object({
       steamcmdDirectory: Joi.string().max(512),
       gameDirectory: Joi.string().max(512),
       version: Joi.string().max(120),
-      verified: Joi.boolean()
+      verified: Joi.boolean(),
+      installed: Joi.boolean(),
+      toolAppId: Joi.number().integer().min(1).max(2147483647),
+      installDirectory: Joi.string().max(512),
+      processStarted: Joi.boolean(),
+      processId: Joi.number().integer().min(1),
+      stopped: Joi.boolean(),
+      forced: Joi.boolean()
     }).unknown(false).default({})
   }).unknown(false);
 

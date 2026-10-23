@@ -114,6 +114,7 @@ export interface BrowserSessionSnapshot {
   revision: number;
   url: string;
   title: string;
+  loading: boolean;
   pageText: string;
   controls: Array<{ role: string; name: string; type?: string; disabled: boolean }>;
   tabs: Array<{ id: string; title: string; url: string; active: boolean }>;
@@ -149,6 +150,37 @@ export interface AiModel {
   maxOutputTokens?: number;
   thinking: AiModelThinkingControl | null;
   thinkingSource: "provider-model-catalog" | null;
+}
+
+export interface LocalModelSummary {
+  id: string;
+  name: string;
+  family: string;
+  modality: "text" | "image" | "video" | "audio";
+  task: string;
+  repository: string;
+  licenseName: string;
+  licenseUrl: string;
+  directory: string;
+  estimatedDownloadBytes: number | null;
+  installedBytes: number;
+  installed: boolean;
+  loaded: boolean;
+  ready: boolean;
+  reason: string | null;
+}
+
+export interface LocalModelDownloadSnapshot {
+  id: string;
+  modelId: string;
+  status: "queued" | "downloading" | "completed" | "failed" | "cancelled";
+  receivedBytes: number;
+  totalBytes: number | null;
+  completedFiles: number;
+  totalFiles: number | null;
+  message: string | null;
+  startedAt: string;
+  updatedAt: string;
 }
 
 export type AiModelThinkingControl =
@@ -498,8 +530,9 @@ export function loadAgentGitStatus(repositoryId: string, signal?: AbortSignal): 
   return request(`/agent/git/repositories/${encodeURIComponent(repositoryId)}/status`, { method: "POST", ...(signal ? { signal } : {}) });
 }
 
-export function loadAgentGitFileDiff(repositoryId: string, path: string, options: { ignoreWhitespace?: boolean; wordDiff?: boolean } = {}): Promise<{ diff: WorkspaceGitFileDiff }> {
-  return request(`/agent/git/repositories/${encodeURIComponent(repositoryId)}/file-diff`, { method: "POST", body: JSON.stringify({ path, ...options }) });
+export function loadAgentGitFileDiff(repositoryId: string, path: string, options: { ignoreWhitespace?: boolean; wordDiff?: boolean; contextLines?: number; signal?: AbortSignal } = {}): Promise<{ diff: WorkspaceGitFileDiff }> {
+  const { signal, ...parameters } = options;
+  return request(`/agent/git/repositories/${encodeURIComponent(repositoryId)}/file-diff`, { method: "POST", body: JSON.stringify({ path, ...parameters }), ...(signal ? { signal } : {}) });
 }
 
 export function loadAgentGitFile(repositoryId: string, path: string, options: { offset?: number; limit?: number } = {}): Promise<{ file: WorkspaceProjectTextFile }> {
@@ -995,7 +1028,7 @@ export interface SteamcmdTask {
   id: string;
   nodeId: string;
   createdBy: string;
-  kind: "install" | "verify";
+  kind: "install" | "verify" | "install-server" | "update-server" | "start-server" | "stop-server";
   status: "queued" | "running" | "succeeded" | "failed";
   progress: number;
   message: string;
@@ -1003,6 +1036,38 @@ export interface SteamcmdTask {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+}
+
+export interface SteamcmdServer {
+  id: string;
+  nodeId: string;
+  createdBy: string;
+  name: string;
+  toolAppId: number;
+  installDirectory: string;
+  executablePath: string;
+  launchArguments: string[];
+  stopCommand: string;
+  stopTimeoutSeconds: number;
+  eulaAccepted: boolean;
+  installationStatus: "unknown" | "installing" | "installed" | "failed";
+  status: "unknown" | "stopped" | "running" | "starting" | "stopping";
+  processId: number | null;
+  lastSeenAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SteamcmdServerInput {
+  nodeId: string;
+  name: string;
+  toolAppId: number;
+  installDirectory: string;
+  executablePath: string;
+  launchArguments: string[];
+  stopCommand: string;
+  stopTimeoutSeconds: number;
+  eulaAccepted: boolean;
 }
 
 export interface MinecraftStorageNode extends FileManagerNode {
@@ -1213,6 +1278,75 @@ export class ApiError extends Error {
 export const sessionExpiredEventName = "lfaa:session-expired";
 
 const pendingReads = new Map<string, Promise<unknown>>();
+let authenticationGeneration = 0;
+let pendingAuthenticationCheck: { generation: number; controller: AbortController; promise: Promise<boolean | null> } | null = null;
+
+function isSessionAuthenticationError(status: number, code: string | undefined): boolean {
+  return status === 401 && (code === "authentication_required" || code === "invalid_session");
+}
+
+function currentUserRemotePath(): string {
+  const { namespace, method } = accountControllerRemoteMethods["auth/me"];
+  return `/typert/${encodeURIComponent(namespace)}/${encodeURIComponent(method)}`;
+}
+
+function isCurrentUserRequest(path: string): boolean {
+  return path === currentUserRemotePath() || path === "/auth/me";
+}
+
+function advanceAuthenticationGeneration(): void {
+  authenticationGeneration += 1;
+  pendingAuthenticationCheck?.controller.abort();
+  pendingAuthenticationCheck = null;
+  pendingReads.clear();
+}
+
+function expireCurrentSession(generation: number): void {
+  if (generation !== authenticationGeneration || typeof window === "undefined") return;
+  advanceAuthenticationGeneration();
+  window.dispatchEvent(new Event(sessionExpiredEventName));
+}
+
+// 非身份读取返回 401 时先用唯一账户 Remote 核对；并发复核合并，登录代次变化会撤销旧复核。
+function checkCurrentSession(generation: number, requestPath: string): void {
+  if (generation !== authenticationGeneration || typeof window === "undefined") return;
+  pendingReads.clear();
+  if (isCurrentUserRequest(requestPath)) {
+    expireCurrentSession(generation);
+    return;
+  }
+
+  if (pendingAuthenticationCheck?.generation === generation) return;
+  const controller = new AbortController();
+  const promise = fetch(`/api${currentUserRemotePath()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input: {} }),
+    credentials: "include",
+    signal: controller.signal
+  }).then(async (response): Promise<boolean | null> => {
+    if (response.ok) return true;
+    if (response.status !== 401) return null;
+    try {
+      const body: unknown = await response.json();
+      if (typeof body !== "object" || body === null || !("error" in body) || typeof body.error !== "string") return null;
+      return body.error === "authentication_required" || body.error === "invalid_session" ? false : null;
+    } catch {
+      return null;
+    }
+  }).catch(() => null);
+  pendingAuthenticationCheck = { generation, controller, promise };
+  void promise.then((valid) => {
+    if (valid === false) expireCurrentSession(generation);
+  }).finally(() => {
+    if (pendingAuthenticationCheck?.promise === promise) pendingAuthenticationCheck = null;
+  });
+}
+
+function handleSessionAuthenticationFailure(path: string, generation: number): void {
+  if (isCurrentUserRequest(path)) expireCurrentSession(generation);
+  else checkCurrentSession(generation, path);
+}
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method ?? "GET").toUpperCase();
@@ -1253,6 +1387,40 @@ export function clearBrowserRecentSites(): Promise<{ cleared: true }> {
 
 export function loadBrowserSession(sessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot | null }> {
   return request(`/browser/sessions/${encodeURIComponent(sessionId)}?${new URLSearchParams({ providerId })}`, signal ? { signal } : {});
+}
+
+/** 浏览器工作区由认证用户直接操控；不因 Agent Provider 未启用而要求额外接入。 */
+export function loadBrowserDockSession(sessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot | null }> {
+  return request(`/browser/dock/sessions/${encodeURIComponent(sessionId)}?${new URLSearchParams({ providerId })}`, signal ? { signal } : {});
+}
+
+export function prewarmBrowserDock(providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ ready: true }> {
+  return request("/browser/dock/prewarm", { method: "POST", body: JSON.stringify({ providerId }), ...(signal ? { signal } : {}) });
+}
+
+export function loadBrowserDockRevision(sessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ session: BrowserRevision | null }> {
+  return request(`/browser/dock/sessions/${encodeURIComponent(sessionId)}/revision?${new URLSearchParams({ providerId })}`, signal ? { signal } : {});
+}
+
+export function waitForBrowserDockRevision(sessionId: string, providerId: BrowserProviderId, revision: number, signal?: AbortSignal): Promise<{ session: BrowserRevision | null }> {
+  const query = new URLSearchParams({ providerId, revision: String(revision) });
+  return request(`/browser/dock/sessions/${encodeURIComponent(sessionId)}/wait?${query}`, signal ? { signal } : {});
+}
+
+export function navigateBrowserDock(sessionId: string, providerId: BrowserProviderId, url: string, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot }> {
+  return request(`/browser/dock/sessions/${encodeURIComponent(sessionId)}/navigate`, { method: "POST", body: JSON.stringify({ providerId, url }), ...(signal ? { signal } : {}) });
+}
+
+export function resizeBrowserDockViewport(sessionId: string, providerId: BrowserProviderId, width: number, height: number, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot | null }> {
+  return request(`/browser/dock/sessions/${encodeURIComponent(sessionId)}/viewport`, { method: "POST", body: JSON.stringify({ providerId, width, height }), ...(signal ? { signal } : {}) });
+}
+
+export function actOnBrowserDock(sessionId: string, providerId: BrowserProviderId, action: BrowserActionRequest, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot }> {
+  return request(`/browser/dock/sessions/${encodeURIComponent(sessionId)}/action`, { method: "POST", body: JSON.stringify({ providerId, ...action }), ...(signal ? { signal } : {}) });
+}
+
+export function closeBrowserDockSession(sessionId: string, providerId: BrowserProviderId): Promise<{ closed: boolean }> {
+  return request(`/browser/dock/sessions/${encodeURIComponent(sessionId)}?${new URLSearchParams({ providerId })}`, { method: "DELETE" });
 }
 
 export function loadBrowserTabs(sessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ tabs: BrowserTabSummary[] }> {
@@ -1304,6 +1472,7 @@ export function closeBrowserSession(sessionId: string, providerId: BrowserProvid
 }
 
 async function requestOnce<T>(path: string, options: RequestInit): Promise<T> {
+  const requestGeneration = authenticationGeneration;
   const headers = new Headers(options.headers);
   if (options.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -1334,13 +1503,8 @@ async function requestOnce<T>(path: string, options: RequestInit): Promise<T> {
       && typeof responseBody.error === "string"
       ? responseBody.error
       : undefined;
-    const isSessionExpired = response.status === 401
-      && (code === "authentication_required" || code === "invalid_session");
-
-    // 只有明确的会话鉴权失败才通知全局登出，密码错误等其他 401 仍由当前表单处理。
-    if (isSessionExpired && typeof window !== "undefined") {
-      pendingReads.clear();
-      window.dispatchEvent(new Event(sessionExpiredEventName));
+    if (isSessionAuthenticationError(response.status, code)) {
+      handleSessionAuthenticationFailure(path, requestGeneration);
     }
 
     throw new ApiError(response.status, message, code);
@@ -1350,6 +1514,7 @@ async function requestOnce<T>(path: string, options: RequestInit): Promise<T> {
 }
 
 async function requestBinary(path: string, options: RequestInit = {}): Promise<Blob> {
+  const requestGeneration = authenticationGeneration;
   const headers = new Headers(options.headers);
   const response = await fetch(`/api${path}`, { ...options, headers, credentials: "include" });
   if (!response.ok) {
@@ -1362,9 +1527,8 @@ async function requestBinary(path: string, options: RequestInit = {}): Promise<B
     const code = typeof responseBody === "object" && responseBody !== null && "error" in responseBody && typeof responseBody.error === "string"
       ? responseBody.error
       : undefined;
-    if (response.status === 401 && (code === "authentication_required" || code === "invalid_session") && typeof window !== "undefined") {
-      pendingReads.clear();
-      window.dispatchEvent(new Event(sessionExpiredEventName));
+    if (isSessionAuthenticationError(response.status, code)) {
+      handleSessionAuthenticationFailure(path, requestGeneration);
     }
     throw new ApiError(response.status, message, code);
   }
@@ -1454,6 +1618,23 @@ export function saveSteamcmdNodeStorageSettings(nodeId: string, settings: Steamc
 
 export function saveSteamcmdStorageDefaults(settings: SteamcmdStorageValues): Promise<{ settings: SteamcmdStorageValues }> {
   return request("/steamcmd/storage-settings/defaults", { method: "PUT", body: JSON.stringify(settings) });
+}
+
+export function loadSteamcmdServers(nodeId?: string): Promise<{ servers: SteamcmdServer[] }> {
+  const query = nodeId ? `?nodeId=${encodeURIComponent(nodeId)}` : "";
+  return request(`/steamcmd/servers${query}`);
+}
+
+export function createSteamcmdServer(input: SteamcmdServerInput): Promise<{ server: SteamcmdServer }> {
+  return request("/steamcmd/servers", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function updateSteamcmdServer(serverId: string, input: SteamcmdServerInput): Promise<{ server: SteamcmdServer }> {
+  return request(`/steamcmd/servers/${encodeURIComponent(serverId)}`, { method: "PUT", body: JSON.stringify(input) });
+}
+
+export function createSteamcmdServerTask(serverId: string, kind: "install-server" | "update-server" | "start-server" | "stop-server"): Promise<{ task: SteamcmdTask }> {
+  return request(`/steamcmd/servers/${encodeURIComponent(serverId)}/tasks`, { method: "POST", body: JSON.stringify({ kind }) });
 }
 
 export function loadMinecraftStorageSettings(): Promise<{ nodes: MinecraftStorageNode[]; defaults: MinecraftStorageSettings; defaultsConfigured: boolean }> {
@@ -1934,11 +2115,13 @@ function isTypertIdentifier(value: string): boolean {
   return value.length <= 128 && /^[a-z0-9][a-z0-9._-]*$/u.test(value);
 }
 
-export function login(username: string, password: string): Promise<{ user: User }> {
-  return request<{ user: User }>("/auth/login", {
+export async function login(username: string, password: string): Promise<{ user: User }> {
+  const result = await request<{ user: User }>("/auth/login", {
     method: "POST",
     body: JSON.stringify({ username, password })
   });
+  advanceAuthenticationGeneration();
+  return result;
 }
 
 export function loadPasskeyAvailability(): Promise<PasskeyAvailability> {
@@ -1955,10 +2138,12 @@ export async function loginWithPasskey(): Promise<{ user: User }> {
     options: PublicKeyCredentialRequestOptionsJSON;
   }>("/auth/passkeys/authentication/options", { method: "POST", body: "{}" });
   const response: AuthenticationResponseJSON = await startAuthentication({ optionsJSON: options });
-  return request("/auth/passkeys/authentication/verify", {
+  const result = await request<{ user: User }>("/auth/passkeys/authentication/verify", {
     method: "POST",
     body: JSON.stringify({ flowId, response })
   });
+  advanceAuthenticationGeneration();
+  return result;
 }
 
 export async function registerPasskey(currentPassword: string, name: string): Promise<{ passkey: PasskeySummary }> {
@@ -2019,6 +2204,7 @@ export function updateCurrentUserUsername(input: { currentPassword: string; user
 }
 
 export function logout(): Promise<void> {
+  advanceAuthenticationGeneration();
   return request<void>("/auth/logout", { method: "POST" });
 }
 
@@ -2089,6 +2275,26 @@ export function loadAiAccounts(): Promise<{ accounts: AiAccount[] }> {
   return request<{ accounts: AiAccount[] }>("/settings/ai/accounts");
 }
 
+export function loadLocalModels(signal?: AbortSignal): Promise<{ models: LocalModelSummary[]; activeDownload: LocalModelDownloadSnapshot | null }> {
+  return request<{ models: LocalModelSummary[]; activeDownload: LocalModelDownloadSnapshot | null }>("/local-models", signal ? { signal } : {});
+}
+
+export function startLocalModelDownload(modelId: string): Promise<{ download: LocalModelDownloadSnapshot }> {
+  return request<{ download: LocalModelDownloadSnapshot }>(`/local-models/${encodeURIComponent(modelId)}/downloads`, { method: "POST", body: "{}" });
+}
+
+export function readLocalModelDownload(downloadId: string, signal?: AbortSignal): Promise<{ download: LocalModelDownloadSnapshot }> {
+  return request<{ download: LocalModelDownloadSnapshot }>(`/local-models/downloads/${encodeURIComponent(downloadId)}`, signal ? { signal } : {});
+}
+
+export function cancelLocalModelDownload(downloadId: string): Promise<{ download: LocalModelDownloadSnapshot }> {
+  return request<{ download: LocalModelDownloadSnapshot }>(`/local-models/downloads/${encodeURIComponent(downloadId)}`, { method: "DELETE" });
+}
+
+export function unloadLocalModel(modelId: string): Promise<void> {
+  return request<void>(`/local-models/${encodeURIComponent(modelId)}/unload`, { method: "POST", body: "{}" });
+}
+
 export function loadAiSkillDirectory(signal?: AbortSignal): Promise<{ skills: Array<{ id: string; name: string; description: string; kind: "skill"; source: string; enabled: boolean }>; truncated: boolean }> {
   return request("/ai/skills", { signal });
 }
@@ -2115,6 +2321,7 @@ export async function installManagedPlugin(
   input: { repositoryUrl: string; ref: string; expectedResolvedRef: string; expectedSourceType: ManagedPluginInspection["sourceType"]; expectedSourceLocation: string; npmRegistry?: string },
   onProgress?: (progress: ManagedPluginInstallProgress) => void
 ): Promise<{ plugin: ManagedPluginRecord }> {
+  const requestGeneration = authenticationGeneration;
   pendingReads.clear();
   try {
     const response = await fetch("/api/plugins/install", {
@@ -2129,9 +2336,7 @@ export async function installManagedPlugin(
       try { responseBody = rawBody ? JSON.parse(rawBody) as unknown : undefined; } catch { responseBody = undefined; }
       const message = typeof responseBody === "object" && responseBody !== null && "message" in responseBody && typeof responseBody.message === "string" ? responseBody.message : "插件安装请求失败，请稍后重试。";
       const code = typeof responseBody === "object" && responseBody !== null && "error" in responseBody && typeof responseBody.error === "string" ? responseBody.error : undefined;
-      if (response.status === 401 && (code === "authentication_required" || code === "invalid_session") && typeof window !== "undefined") {
-        window.dispatchEvent(new Event(sessionExpiredEventName));
-      }
+      if (isSessionAuthenticationError(response.status, code)) handleSessionAuthenticationFailure("/plugins/install", requestGeneration);
       throw new ApiError(response.status, message, code);
     }
     if (!response.body) throw new ApiError(response.status, "插件安装服务没有返回进度流。", "plugin_install_stream_missing");
@@ -2393,8 +2598,9 @@ export function runWorkspaceGitOperation(projectId: string, appId: WorkspaceProj
   return request<WorkspaceGitOperationResult>(`/workspace/projects/${encodeURIComponent(projectId)}/git/operation`, { method: "POST", body: JSON.stringify({ appId, ...input }) });
 }
 
-export function loadWorkspaceGitFileDiff(projectId: string, appId: WorkspaceProjectApplicationId, path: string, options: { ignoreWhitespace?: boolean; wordDiff?: boolean } = {}): Promise<{ file: WorkspaceGitFileDiff }> {
-  return request<{ file: WorkspaceGitFileDiff }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/file-diff`, { method: "POST", body: JSON.stringify({ appId, path, ignoreWhitespace: options.ignoreWhitespace === true, wordDiff: options.wordDiff === true }) });
+export function loadWorkspaceGitFileDiff(projectId: string, appId: WorkspaceProjectApplicationId, path: string, options: { ignoreWhitespace?: boolean; wordDiff?: boolean; contextLines?: number; signal?: AbortSignal } = {}): Promise<{ file: WorkspaceGitFileDiff }> {
+  const { signal, ...parameters } = options;
+  return request<{ file: WorkspaceGitFileDiff }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/file-diff`, { method: "POST", body: JSON.stringify({ appId, path, ignoreWhitespace: parameters.ignoreWhitespace === true, wordDiff: parameters.wordDiff === true, ...(parameters.contextLines === undefined ? {} : { contextLines: parameters.contextLines }) }), ...(signal ? { signal } : {}) });
 }
 
 export function readWorkspaceProjectTextFile(projectId: string, appId: WorkspaceProjectApplicationId, path: string, offset = 0, limit = 40000): Promise<{ file: WorkspaceProjectTextFile }> {
@@ -2667,6 +2873,10 @@ async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string):
   try {
     while (!input.signal.aborted) {
       let response: Response;
+      const requestPath = activeRunId
+        ? `/ai/runs/${encodeURIComponent(activeRunId)}/events`
+        : streamEndpoint.startsWith("/api/") ? streamEndpoint.slice(4) : streamEndpoint;
+      const requestGeneration = authenticationGeneration;
       try {
         response = await fetch(activeRunId ? `/api/ai/runs/${encodeURIComponent(activeRunId)}/events` : streamEndpoint, {
           method: activeRunId ? "GET" : "POST",
@@ -2685,9 +2895,7 @@ async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string):
       if (!response.ok) {
         let result: { message?: string; error?: string } = {};
         try { result = await response.json() as typeof result; } catch { /* 非 JSON 错误由通用 API 错误承载。 */ }
-        if (response.status === 401 && (result.error === "authentication_required" || result.error === "invalid_session")) {
-          window.dispatchEvent(new Event(sessionExpiredEventName));
-        }
+        if (isSessionAuthenticationError(response.status, result.error)) handleSessionAuthenticationFailure(requestPath, requestGeneration);
         if (activeRunId && isRetryableAiRunStreamStatus(response.status)) {
           if (!await waitForAiRunStreamReconnect(input.signal, reconnectAttempt++)) return;
           continue;

@@ -60,9 +60,6 @@
   }
 }
 @media (max-width: 720px) {
-  .workbench-shell--module {
-    min-height: 580px;
-  }
   .module-workspace__toolbar {
     min-height: 54px;
     gap: 6px;

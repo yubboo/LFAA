@@ -8,4 +8,4 @@
 
 Renderer 从 Account Owner 读取默认凭据待处理状态，并在用户离开设置路由后重新读取；修改仍未完成且凭据提醒偏好开启时继续提醒。`ui-settings-general/SetupReminder` 将它与 AI Provider、业务内容目录提醒排队显示；当日暂停按账户/类别/日期保存，稍后重试只在当前工作区延后五分钟。SteamCMD 游戏安装位置仍由“项目与存储”管理，但不触发首次登录提醒。Renderer 不会因本地暂停或稍后重试而确认或修改服务端凭据状态；类别关闭状态由 Settings Owner 持久化并由提醒弹窗交互更新，设置中心只提供统一的通知总开关，不暴露分类提醒开关。
 
-内置登录转场由 Renderer 预热 Workbench 并持有显示/交互门控；黑洞主动画完成后，Workbench 先在覆盖层后变为可见，再由登录覆盖层做 240ms 淡出，淡出结束后才释放 `inert`/`aria-hidden` 并显示提醒。认证转场合同见 [登录进入动画插件合同](../../../docs/development/auth-transition-plugins.zh.md)。
+内置登录转场由 Renderer 预热 Workbench 并持有显示/交互门控；约 420ms 黑洞主动画完成后，Workbench 先在覆盖层后变为可见，再由登录覆盖层做 160ms 淡出，淡出结束后才释放 `inert`/`aria-hidden` 并显示提醒。认证转场合同见 [登录进入动画插件合同](../../../docs/development/auth-transition-plugins.zh.md)。

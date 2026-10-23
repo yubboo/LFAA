@@ -13,8 +13,12 @@ import { spawnSync } from "node:child_process";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(readFileSync(resolve(packageRoot, "package.json"), "utf8"));
-const packaged = existsSync(resolve(packageRoot, "dist/apps/control-plane/workspace.json"));
-const runtimeRoot = packaged ? packageRoot : resolve(packageRoot, "../..");
+const packageRuntime = existsSync(resolve(packageRoot, "dist/apps/control-plane/workspace.json"));
+const desktopRuntimeRoot = resolve(packageRoot, "../..");
+const desktopRuntime = !existsSync(resolve(desktopRuntimeRoot, "pnpm-workspace.yaml"))
+  && existsSync(resolve(desktopRuntimeRoot, "dist/apps/control-plane/workspace.json"));
+const packaged = packageRuntime || desktopRuntime;
+const runtimeRoot = packageRuntime ? packageRoot : desktopRuntimeRoot;
 
 async function assertWebPortAvailable(host, port) {
   const reservation = createServer();

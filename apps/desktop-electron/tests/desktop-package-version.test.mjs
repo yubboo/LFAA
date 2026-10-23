@@ -107,6 +107,58 @@ test("首次构建复用待构建的 0.0.4，不提前递增", async (t) => {
   }
 });
 
+test("最新源码记录缺少包状态时继承最近的同版本历史状态", async (t) => {
+  const { root } = await createFixture();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const changelogPath = resolve(root, "docs/updata-log.md");
+  const changelog = await readFile(changelogPath, "utf8");
+  const withoutLatestState = changelog
+    .replace("- **Windows Electron 包状态：** 待构建\r\n", "")
+    .replace(`- **更新内容：** ${initialNotes.join("；")}`, "- **更新内容：** 同版本源码调整，未更新产品包");
+  const withPreviousBuiltState = withoutLatestState.replace(
+    "## #14 上一版本\r\n\r\n- 历史内容",
+    `## #14 上一版本\r\n\r\n- **项目版本：** \`LFAA 0.0.4\`\r\n- **日期：** 2026-10-07\r\n- **更新内容：** ${initialNotes.join("；")}\r\n- **Windows Electron 包状态：** 已生成：LFAA-0.0.4.exe\r\n\r\n- 历史内容`
+  );
+  await writeFile(changelogPath, withPreviousBuiltState, "utf8");
+
+  assert.deepEqual(await getDesktopPackageBuildState(root), { version, packageStatus: "built" });
+  assert.deepEqual(
+    await prepareDesktopPackageVersion(root, { notes: ["修复桌面端版本预检", "优化 Windows 安装包构建"] }),
+    { version: "0.0.5", incremented: true }
+  );
+});
+
+test("不会把其他产品版本的安装包状态继承到当前版本", async (t) => {
+  const { root } = await createFixture();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const changelogPath = resolve(root, "docs/updata-log.md");
+  const changelog = await readFile(changelogPath, "utf8");
+  const withoutLatestState = changelog.replace("- **Windows Electron 包状态：** 待构建\r\n", "");
+  const withPreviousVersion = withoutLatestState.replace(
+    "## #14 上一版本\r\n\r\n- 历史内容",
+    "## #14 上一版本\r\n\r\n- **项目版本：** `LFAA 0.0.3`\r\n- **日期：** 2026-10-01\r\n- **更新内容：** 旧版本说明\r\n- **Windows Electron 包状态：** 已生成：LFAA-0.0.3.exe\r\n\r\n- 历史内容"
+  );
+  await writeFile(changelogPath, withPreviousVersion, "utf8");
+
+  assert.deepEqual(await getDesktopPackageBuildState(root), { version, packageStatus: "pending" });
+  assert.deepEqual(await prepareDesktopPackageVersion(root), { version, incremented: false });
+});
+
+test("拒绝继承与历史记录产品版本不一致的安装包状态", async (t) => {
+  const { root } = await createFixture();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const changelogPath = resolve(root, "docs/updata-log.md");
+  const changelog = await readFile(changelogPath, "utf8");
+  const withoutLatestState = changelog.replace("- **Windows Electron 包状态：** 待构建\r\n", "");
+  const withMismatchedState = withoutLatestState.replace(
+    "## #14 上一版本\r\n\r\n- 历史内容",
+    "## #14 上一版本\r\n\r\n- **项目版本：** `LFAA 0.0.4`\r\n- **日期：** 2026-10-07\r\n- **更新内容：** 桌面端新增顶部更新入口；自动下载并安装默认关闭\r\n- **Windows Electron 包状态：** 已生成：LFAA-0.0.3.exe\r\n\r\n- 历史内容"
+  );
+  await writeFile(changelogPath, withMismatchedState, "utf8");
+
+  await assert.rejects(getDesktopPackageBuildState(root), /与项目版本 0\.0\.4 不一致/u);
+});
+
 test("只有安装器与 latest.yml 版本匹配时才登记完成，并保留日志段落换行", async (t) => {
   const { root } = await createFixture();
   t.after(() => rm(root, { recursive: true, force: true }));

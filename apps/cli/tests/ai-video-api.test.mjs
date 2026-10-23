@@ -12,6 +12,8 @@ test("AI 漫剧 API 仅向认证账户开放并持久化画布更新", async () 
   const temporaryParent = resolve(dirname(fileURLToPath(import.meta.url)), "../../../dist/.tmp");
   mkdirSync(temporaryParent, { recursive: true });
   const data = mkdtempSync(join(temporaryParent, "lfaa-aivideo-api-"));
+  const home = mkdtempSync(join(temporaryParent, "lfaa-aivideo-api-home-"));
+  process.env.LFAA_HOME = home;
   process.env.LFAA_DATA_DIR = data;
   process.env.NODE_ENV = "test";
   process.env.JWT_SECRET = "";
@@ -22,12 +24,16 @@ test("AI 漫剧 API 仅向认证账户开放并持久化画布更新", async () 
   process.env.SERVER_PORT = String(reservation.address().port);
   await new Promise(resolve => reservation.close(resolve));
   process.env.LFAA_LOCAL_MODE = "true";
+  delete process.env.LFAA_DATA_DIR_CONFIGURED;
+  delete process.env.LFAA_DATA_DIR_MANAGED_BY_LAUNCHER;
+  delete process.env.LFAA_DATA_DIR_MANAGED_BY_DESKTOP;
 
   const { boot } = await import("lfaa-app-boot/src/index.js");
   const context = await boot(["--profile", "web"]);
   try {
     const base = `http://127.0.0.1:${process.env.SERVER_PORT}/api`;
     assert.equal((await fetch(`${base}/ai-video/canvases`)).status, 401);
+    assert.equal((await fetch(`${base}/local-models`)).status, 401);
     const setup = await fetch(`${base}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -36,6 +42,9 @@ test("AI 漫剧 API 仅向认证账户开放并持久化画布更新", async () 
     assert.equal(setup.status, 200);
     const cookie = setup.headers.get("set-cookie").split(";")[0];
     const headers = { "Content-Type": "application/json", Cookie: cookie };
+    const localModelsResponse = await fetch(`${base}/local-models`, { headers });
+    assert.equal(localModelsResponse.status, 200, await localModelsResponse.clone().text());
+    assert.deepEqual((await localModelsResponse.json()).models.map(model => model.id), ["moss-image-base", "moss-image-sft", "minimax-h3"]);
     const createdResponse = await fetch(`${base}/ai-video/canvases`, {
       method: "POST", headers, body: JSON.stringify({ title: "第一幕" })
     });
@@ -77,7 +86,8 @@ test("AI 漫剧 API 仅向认证账户开放并持久化画布更新", async () 
     assert.equal(context.get("lfaaAiVideo") !== undefined, true);
   } finally {
     await context.fiber.dispose();
-    if (dirname(data) !== temporaryParent) throw new Error("拒绝清理测试根以外的路径。");
+    if (dirname(data) !== temporaryParent || dirname(home) !== temporaryParent) throw new Error("拒绝清理测试根以外的路径。");
     rmSync(data, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
   }
 });

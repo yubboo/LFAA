@@ -55,7 +55,8 @@ export function GitChangeSummary({ appId, project = null, repositoryId = null, r
   const [remoteModalOpen, setRemoteModalOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetConfirmed, setResetConfirmed] = useState(false);
-  const [reviewOpen, setReviewOpen] = useState(embedded);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(false);
   const [reviewPath, setReviewPath] = useState("");
   const [showAllFiles, setShowAllFiles] = useState(false);
   const [error, setError] = useState("");
@@ -130,6 +131,7 @@ export function GitChangeSummary({ appId, project = null, repositoryId = null, r
     if (!requestedAction || handledActionRequestRef.current === requestedAction.requestId) return;
     handledActionRequestRef.current = requestedAction.requestId;
     setRequestedActionFocus(requestedAction.action);
+    if (embedded) setManagerOpen(true);
     if (requestedAction.action === "branch-create" || requestedAction.action === "branch-switch") void openMetadata("branches");
     onActionRequestHandled?.(requestedAction.requestId);
   }, [onActionRequestHandled, requestedAction]);
@@ -192,9 +194,14 @@ export function GitChangeSummary({ appId, project = null, repositoryId = null, r
   const canSyncSelectedRemote = Boolean(selectedRemote && status?.syncCapableRemotes?.includes(selectedRemote));
   const canSyncUpstream = Boolean(upstreamRemote && status?.syncCapableRemotes?.includes(upstreamRemote));
 
+  if (embedded && status && status.repositoryState !== "not-repository" && !managerOpen) {
+    return <GitChangeReview appId={appId} projectId={repositoryId ?? project!.id} projectTitle={repositoryId ? repositoryTitle ?? "" : project!.title} repositoryId={repositoryId ?? undefined} status={status} initialPath={status.files[0]?.path ?? ""} open embedded onManage={() => setManagerOpen(true)} onClose={() => undefined} onRefresh={onRefresh} />;
+  }
+
   return <section ref={panelRef} className={`module-context__git${embedded ? " is-embedded" : ""}`} aria-label="Git 变更管理">
     <header className="module-context__git-heading">
       <div><strong>Git 变更</strong><span>由 LFAA 本机 Git 管理器读取</span></div>
+      {embedded ? <Button size="small" type="text" onClick={() => setManagerOpen(false)}>返回变更列表</Button> : null}
       {project || repositoryId ? <Button type="text" size="small" aria-label="刷新 Git 状态" title="刷新 Git 状态" disabled={loading || actionBusy} onClick={() => void onRefresh()} icon={<WorkbenchIcon name="refresh" size={14} />} /> : null}
     </header>
     {!project && !repositoryId ? <p className="module-context__git-empty">选择 Agent Git 仓库后显示真实状态与差异。</p> : null}
@@ -296,7 +303,7 @@ export function GitChangeSummary({ appId, project = null, repositoryId = null, r
       </div> : null}
       {error || loadError ? <Alert className="module-context__git-error" type="warning" showIcon message={error || loadError} /> : null}
     </Modal>
-    {(project || repositoryId) && status && status.repositoryState !== "not-repository" ? <GitChangeReview appId={appId} projectId={repositoryId ?? project!.id} projectTitle={repositoryId ? repositoryTitle ?? "" : project!.title} repositoryId={repositoryId ?? undefined} status={status} initialPath={reviewPath || status.files[0]?.path || ""} open={reviewOpen} embedded={embedded} onClose={() => setReviewOpen(false)} onRefresh={onRefresh} /> : null}
+    {(project || repositoryId) && status && status.repositoryState !== "not-repository" ? <GitChangeReview appId={appId} projectId={repositoryId ?? project!.id} projectTitle={repositoryId ? repositoryTitle ?? "" : project!.title} repositoryId={repositoryId ?? undefined} status={status} initialPath={reviewPath || status.files[0]?.path || ""} open={reviewOpen} onClose={() => setReviewOpen(false)} onRefresh={onRefresh} /> : null}
   </section>;
 }
 

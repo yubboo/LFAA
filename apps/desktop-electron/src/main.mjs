@@ -51,6 +51,7 @@ let serviceShutdownComplete = false;
 let packagedFrontendUrl = "";
 let trustedFrontendUrl = "";
 let logFilePath = "";
+let unavailableSavedDataDirectory = null;
 let updateCheckTimer = null;
 let activeUpdateManifest = null;
 let acceptedUpdateManifest = null;
@@ -123,7 +124,7 @@ function readHomeDataDirectory() {
   }
 }
 
-function saveDesktopDataDirectory(directory) {
+function saveDesktopDataDirectory(directory, unavailablePreviousDirectory = "") {
   const settingsPath = getDesktopStorageSettingsPath();
   mkdirSync(dirname(settingsPath), { recursive: true });
   let settings = {};
@@ -135,6 +136,14 @@ function saveDesktopDataDirectory(directory) {
   }
 
   settings.dataDirectory = directory;
+  if (unavailablePreviousDirectory) {
+    settings.dataDirectoryRecovery = {
+      previousDirectory: unavailablePreviousDirectory,
+      activeDirectory: directory
+    };
+  } else {
+    delete settings.dataDirectoryRecovery;
+  }
   const temporaryPath = `${settingsPath}.${process.pid}.tmp`;
   writeFileSync(temporaryPath, `${JSON.stringify(settings, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
   try {
@@ -170,11 +179,24 @@ function resolveDesktopDataDirectory(runtimeRoot) {
   if (savedDirectory) {
     const legacyHomeRoot = sameWindowsDirectory(savedDirectory, defaultHomeDirectory);
     const directory = resolve(legacyHomeRoot ? defaultDirectory : savedDirectory);
-    if (!existsSync(directory) || !canUseDataDirectory(directory)) {
-      throw new Error(`已保存的数据目录不可用或不可写：${directory}。请连接原磁盘后重启，或修复该目录权限。`);
+    if (existsSync(directory) && canUseDataDirectory(directory)) {
+      if (legacyHomeRoot) saveDesktopDataDirectory(directory);
+      return { directory, managedByDesktop: true };
     }
-    if (legacyHomeRoot) saveDesktopDataDirectory(directory);
-    return { directory, managedByDesktop: true };
+
+    if (canUseDataDirectory(defaultDirectory)) {
+      const fallbackDirectory = resolve(defaultDirectory);
+      if (!sameWindowsDirectory(directory, fallbackDirectory)) {
+        unavailableSavedDataDirectory = {
+          previousDirectory: directory,
+          activeDirectory: fallbackDirectory
+        };
+        saveDesktopDataDirectory(fallbackDirectory, directory);
+      }
+      return { directory: fallbackDirectory, managedByDesktop: true };
+    }
+
+    throw new Error(`已保存的数据目录不可用或不可写：${directory}。当前用户默认数据目录也不可用：${defaultDirectory}。请检查磁盘和目录权限。`);
   }
 
   if (canUseDataDirectory(defaultDirectory)) {
@@ -304,6 +326,12 @@ async function startLocalServices(runtimeRoot) {
   const serverLoader = join(runtimeRoot, "apps", "cli", "register-package-loader.mjs");
 
   await writeLog("桌面端", `正在启动本机控制端，监听端口 ${port}。`);
+  if (unavailableSavedDataDirectory) {
+    await writeLog(
+      "数据目录 警告",
+      `已保存的数据目录不可用，改用当前用户默认目录。原路径：${unavailableSavedDataDirectory.previousDirectory}；当前目录：${unavailableSavedDataDirectory.activeDirectory}。原目录内容未移动或删除。`
+    );
+  }
   serverProcess = spawn(nodePath, ["--import", pathToFileURL(serverLoader).href, serverEntry, "--profile", "desktop"], {
     cwd: runtimeRoot,
     env: environment,
@@ -868,6 +896,17 @@ if (singleInstance) {
         await startLocalServices(runtimeRoot);
       }
       await createMainWindow();
+      if (unavailableSavedDataDirectory && mainWindow) {
+        await dialog.showMessageBox(mainWindow, {
+          type: "warning",
+          title: "LFAA 数据目录已调整",
+          message: "上次保存的数据目录当前不可用，LFAA 已切换到当前 Windows 用户的默认数据目录。",
+          detail: `旧目录：${unavailableSavedDataDirectory.previousDirectory}\n当前目录：${unavailableSavedDataDirectory.activeDirectory}\n\n旧目录中的数据没有移动或删除；本次启动和后续新数据将使用当前目录。`,
+          buttons: ["继续"],
+          defaultId: 0,
+          noLink: true
+        });
+      }
       scheduleDesktopUpdateCheck();
     } catch (error) {
       const message = error instanceof Error ? error.message : "未知启动错误。";

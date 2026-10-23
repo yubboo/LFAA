@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { loadAiExtensions, loadAiAccounts, loadAiMessages, loadAiSessions, loadSettings, saveSettings, login, ApiError } from "../../../packages/client/connection/src/api.ts";
+import { loadAiExtensions, loadAiAccounts, loadAiMessages, loadAiSessions, loadSettings, saveSettings, login, loadCurrentUser, loadUserPasskeys, ApiError } from "../../../packages/client/connection/src/api.ts";
 import { DEFAULT_USER_SETTINGS } from "../../../packages/client/ui-settings-general/src/default-settings.ts";
 
 function deferredFetch(t) {
@@ -139,7 +139,93 @@ test("登录写入前后不能加入此前身份的读取，旧请求完成不�
   assert.deepEqual(shared, fresh);
 });
 
-test("并发鉴权失败只通知一次会话失效，其他旧查询不再被新调用加入", async (t) => {
+test("登录成功后迟到的旧会话 401 不会退出新会话", async (t) => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const browserEvents = new EventTarget();
+  Object.defineProperty(globalThis, "window", { configurable: true, value: browserEvents });
+  t.after(() => {
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+    else delete globalThis.window;
+  });
+  let expiredEvents = 0;
+  browserEvents.addEventListener("lfaa:session-expired", () => { expiredEvents += 1; });
+  const calls = deferredFetch(t);
+  const oldRead = loadUserPasskeys();
+  const rejected = assert.rejects(oldRead, (error) => error instanceof ApiError && error.code === "invalid_session");
+  const signingIn = login("隔离测试用户", "隔离测试密码");
+  assert.equal(calls.length, 2);
+  calls[1].resolve(jsonResponse({ user: { id: "隔离用户" } }));
+  await signingIn;
+  calls[0].resolve(jsonResponse({ error: "invalid_session", message: "旧会话已失效" }, 401));
+  await rejected;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls.length, 2, "旧请求不应启动对新会话的退出判断");
+  assert.equal(expiredEvents, 0);
+});
+
+test("单个受保护读取 401 时先复核当前会话", async (t) => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const browserEvents = new EventTarget();
+  Object.defineProperty(globalThis, "window", { configurable: true, value: browserEvents });
+  t.after(() => {
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+    else delete globalThis.window;
+  });
+  let expiredEvents = 0;
+  browserEvents.addEventListener("lfaa:session-expired", () => { expiredEvents += 1; });
+  const calls = deferredFetch(t);
+  const pending = loadUserPasskeys();
+  const rejected = assert.rejects(pending, (error) => error instanceof ApiError && error.code === "invalid_session");
+  calls[0].resolve(jsonResponse({ error: "invalid_session", message: "本次读取失败" }, 401));
+  await rejected;
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].url, "/api/typert/auth/me", "使用认证 Owner 的账户读取复核会话");
+  assert.equal(calls[1].options.credentials, "include");
+  calls[1].resolve(jsonResponse({ result: { user: { id: "当前用户" } } }));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(expiredEvents, 0, "当前会话仍有效时不得要求重新登录");
+});
+
+test("认证复核暂时不可用时不把未知状态当成已退出", async (t) => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const browserEvents = new EventTarget();
+  Object.defineProperty(globalThis, "window", { configurable: true, value: browserEvents });
+  t.after(() => {
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+    else delete globalThis.window;
+  });
+  let expiredEvents = 0;
+  browserEvents.addEventListener("lfaa:session-expired", () => { expiredEvents += 1; });
+  const calls = deferredFetch(t);
+  const pending = loadUserPasskeys();
+  const rejected = assert.rejects(pending, (error) => error instanceof ApiError && error.code === "invalid_session");
+  calls[0].resolve(jsonResponse({ error: "invalid_session", message: "本次读取失败" }, 401));
+  await rejected;
+  calls[1].resolve(jsonResponse({ error: "unavailable", message: "身份服务暂不可用" }, 503));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(expiredEvents, 0, "无法核验时保留当前 UI 状态");
+});
+
+test("账户 Owner 的当前会话读取确认 401 后立即通知退出", async (t) => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const browserEvents = new EventTarget();
+  Object.defineProperty(globalThis, "window", { configurable: true, value: browserEvents });
+  t.after(() => {
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+    else delete globalThis.window;
+  });
+  let expiredEvents = 0;
+  browserEvents.addEventListener("lfaa:session-expired", () => { expiredEvents += 1; });
+  const calls = deferredFetch(t);
+  const pending = loadCurrentUser();
+  const rejected = assert.rejects(pending, (error) => error instanceof ApiError && error.code === "authentication_required");
+  calls[0].resolve(jsonResponse({ error: "authentication_required", message: "请先登录。" }, 401));
+  await rejected;
+  assert.equal(expiredEvents, 1);
+  assert.equal(calls.length, 1, "身份 Owner 的 401 不再重复发起复核");
+});
+
+test("并发鉴权失败只复核一次；Owner 确认失效后只通知一次", async (t) => {
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const browserEvents = new EventTarget();
   Object.defineProperty(globalThis, "window", { configurable: true, value: browserEvents });
@@ -155,13 +241,18 @@ test("并发鉴权失败只通知一次会话失效，其他旧查询不再被�
   const oldAccounts = loadAiAccounts();
   const rejected = Promise.all([first, second].map((pending) => assert.rejects(pending, (error) => error instanceof ApiError && error.code === "invalid_session")));
   calls[0].resolve(jsonResponse({ error: "invalid_session", message: "测试会话已失效" }, 401));
+  calls[1].resolve(jsonResponse({ error: "invalid_session", message: "测试会话已失效" }, 401));
   await rejected;
+  await assert.rejects(oldAccounts, (error) => error instanceof ApiError && error.code === "invalid_session");
+  assert.equal(calls.length, 3, "并发 401 应共用一次当前会话复核");
+  assert.equal(calls[2].url, "/api/typert/auth/me");
+  calls[2].resolve(jsonResponse({ error: "authentication_required", message: "请先登录。" }, 401));
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(expiredEvents, 1);
   const newAccounts = loadAiAccounts();
-  assert.equal(calls.length, 3);
-  calls[1].resolve(jsonResponse({ accounts: [] }));
-  calls[2].resolve(jsonResponse({ accounts: [] }));
-  await Promise.all([oldAccounts, newAccounts]);
+  assert.equal(calls.length, 4);
+  calls[3].resolve(jsonResponse({ accounts: [] }));
+  await newAccounts;
 });
 
 test("设置读取保留已保存外观，保存后下一次读取重新取得权威设置", async (t) => {

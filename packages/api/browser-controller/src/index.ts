@@ -12,7 +12,7 @@ import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { BROWSER_PROVIDER_IDS } from "lfaa-util-values/src/browser-provider.js";
 import { getUserSettings, saveUserSettings } from "lfaa-settings/src/service.js";
-import { BROWSER_ALLOWED_KEYS, type BrowserSessionManager } from "lfaa-browser-use/src/session-manager.js";
+import { BROWSER_ALLOWED_KEYS, BrowserNavigationTargetError, type BrowserSessionManager } from "lfaa-browser-use/src/session-manager.js";
 import type { BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 
 declare module "@deepseek-ai/cordis" {
@@ -23,8 +23,10 @@ declare module "@deepseek-ai/cordis" {
 }
 
 const providerSchema = Joi.string().valid(...BROWSER_PROVIDER_IDS).required();
+const dockProviderSchema = Joi.string().valid("lfaa-managed-edge", "lfaa-managed-chrome").required();
 const sessionSchema = Joi.string().trim().min(1).max(160).pattern(/^[A-Za-z0-9._-]+$/u).required();
 const navigateSchema = Joi.object({ providerId: providerSchema, url: Joi.string().uri({ scheme: ["http", "https"] }).max(2048).required() }).unknown(false);
+const dockPrewarmSchema = Joi.object({ providerId: dockProviderSchema }).unknown(false);
 const viewportSchema = Joi.object({ providerId: providerSchema.valid("lfaa-managed-edge", "lfaa-managed-chrome"), width: Joi.number().integer().min(320).max(1280).required(), height: Joi.number().integer().min(400).max(1600).required() }).unknown(false);
 const actionSchema = Joi.object({
   providerId: providerSchema,
@@ -37,6 +39,8 @@ const actionSchema = Joi.object({
   includeScreenshot: Joi.boolean()
 }).unknown(false);
 const providerQuerySchema = Joi.object({ providerId: providerSchema }).unknown(false);
+const dockProviderQuerySchema = Joi.object({ providerId: dockProviderSchema }).unknown(false);
+const dockRevisionWaitSchema = Joi.object({ providerId: dockProviderSchema, revision: Joi.number().integer().min(0).max(Number.MAX_SAFE_INTEGER).required() }).unknown(false);
 const claimSchema = Joi.object({ providerId: providerSchema.valid("tabbit-personal"), tabId: Joi.number().integer().min(0).required() }).unknown(false);
 const tabbitConnectSchema = Joi.object({ sourceSessionId: sessionSchema }).unknown(false);
 const nativeActiveTargetSchema = Joi.object({ providerId: providerSchema.valid("lfaa-native-browser"), targetId: Joi.string().trim().min(1).max(128).pattern(/^[A-Za-z0-9_-]+$/u).required() }).unknown(false);
@@ -55,10 +59,28 @@ function readProvider(value: unknown): BrowserProviderId {
   return (result.value as { providerId: BrowserProviderId }).providerId;
 }
 
+function readDockProvider(value: unknown): BrowserProviderId {
+  const result = dockProviderQuerySchema.validate({ providerId: value }, { convert: false });
+  if (result.error) throw new ApiError(400, "browser_dock_provider_invalid", "LFAA 浏览器工作区只支持本机隔离浏览器。");
+  return (result.value as { providerId: BrowserProviderId }).providerId;
+}
+
 function assertProviderLinked(userId: string, providerId: BrowserProviderId): void {
   const settings = getUserSettings(userId);
-  if (!settings.browserUse.enabledProviderIds.includes(providerId)) throw new ApiError(403, "browser_provider_not_connected", "此浏览器尚未接入当前账户。");
-  if (providerId === "tabbit-personal" && !settings.computerControl.enabled) throw new ApiError(403, "browser_personal_control_disabled", "个人浏览器会话需要在设置中心启用电脑操控。");
+  if (!settings.browserUse.enabled) throw new ApiError(403, "browser_use_disabled", "Agent 浏览器控制已在设置中心关闭。");
+  if (providerId === "tabbit-personal") {
+    if (!settings.browserUse.enabledProviderIds.includes(providerId)) throw new ApiError(403, "browser_provider_not_connected", "Tabbit 个人浏览器尚未由用户明确选择并接入。");
+    if (!settings.computerControl.enabled) throw new ApiError(403, "browser_personal_control_disabled", "个人浏览器会话需要在设置中心启用电脑操控。");
+  }
+}
+
+function assertProviderAvailable(manager: BrowserSessionManager, providerId: BrowserProviderId): void {
+  const provider = manager.listProviders().find(item => item.id === providerId);
+  if (!provider?.available) throw new ApiError(503, "browser_dock_provider_unavailable", provider?.reason ?? "当前 LFAA Host 没有可用的隔离浏览器。");
+}
+
+function assertDockProviderAvailable(manager: BrowserSessionManager, providerId: BrowserProviderId): void {
+  assertProviderAvailable(manager, providerId);
 }
 
 function registerRoutes(router: Router, manager: BrowserSessionManager): void {
@@ -91,6 +113,99 @@ function registerRoutes(router: Router, manager: BrowserSessionManager): void {
     saveUserSettings(ownerId, "browser-use", { ...current.browserUse, enabledProviderIds });
     response.json({ tabs, settings: getUserSettings(ownerId) });
   }));
+
+  // 用户在 Browser Dock 里的手动浏览不要求开启 Agent Browser Use；Agent 专用路由仍保留下方 Provider 设置门禁。
+  router.post("/browser/dock/prewarm", ...auth, actionLimit, asyncHandler(async (request, response) => {
+    const body = parseBody<{ providerId: BrowserProviderId }>(dockPrewarmSchema, request.body);
+    assertDockProviderAvailable(manager, body.providerId);
+    await manager.prewarm(body.providerId);
+    response.json({ ready: true });
+  }));
+  router.get("/browser/dock/sessions/:sourceSessionId", ...auth, asyncHandler(async (request, response) => {
+    const sourceSessionId = readSessionId(request.params.sourceSessionId);
+    const providerId = readDockProvider(request.query.providerId);
+    assertDockProviderAvailable(manager, providerId);
+    const session = await manager.getPanelSnapshot(request.auth!.user.id, sourceSessionId, providerId, true, false);
+    response.json({ session });
+  }));
+  router.get("/browser/dock/sessions/:sourceSessionId/wait", ...auth, asyncHandler(async (request, response) => {
+    const sourceSessionId = readSessionId(request.params.sourceSessionId);
+    const result = dockRevisionWaitSchema.validate(request.query);
+    if (result.error) throw new ApiError(400, "browser_dock_revision_invalid", "浏览器页面修订号无效。");
+    const { providerId, revision } = result.value as { providerId: BrowserProviderId; revision: number };
+    assertDockProviderAvailable(manager, providerId);
+    const controller = new AbortController();
+    const cancel = () => { if (!response.writableEnded) controller.abort(); };
+    response.once("close", cancel);
+    try {
+      const session = await manager.waitForPanelRevision(request.auth!.user.id, sourceSessionId, providerId, revision, controller.signal);
+      if (!response.writableEnded) response.json({ session });
+    } catch (error) {
+      if (!controller.signal.aborted) throw error;
+    } finally {
+      response.off("close", cancel);
+    }
+  }));
+  router.get("/browser/dock/sessions/:sourceSessionId/revision", ...auth, asyncHandler(async (request, response) => {
+    const sourceSessionId = readSessionId(request.params.sourceSessionId);
+    const providerId = readDockProvider(request.query.providerId);
+    assertDockProviderAvailable(manager, providerId);
+    const session = await manager.getPanelRevision(request.auth!.user.id, sourceSessionId, providerId);
+    response.json({ session });
+  }));
+  router.post("/browser/dock/sessions/:sourceSessionId/navigate", ...auth, actionLimit, asyncHandler(async (request, response) => {
+    const sourceSessionId = readSessionId(request.params.sourceSessionId);
+    const body = parseBody<{ providerId: BrowserProviderId; url: string }>(navigateSchema, request.body);
+    readDockProvider(body.providerId);
+    assertDockProviderAvailable(manager, body.providerId);
+    let session;
+    try {
+      session = await manager.navigate(request.auth!.user.id, sourceSessionId, body.providerId, body.url, undefined, false, false);
+    } catch (error) {
+      if (error instanceof BrowserNavigationTargetError) throw new ApiError(400, "browser_target_unsafe", error.message);
+      throw error;
+    }
+    response.json({ session });
+  }));
+  router.post("/browser/dock/sessions/:sourceSessionId/viewport", ...auth, actionLimit, asyncHandler(async (request, response) => {
+    const sourceSessionId = readSessionId(request.params.sourceSessionId);
+    const body = parseBody<{ providerId: BrowserProviderId; width: number; height: number }>(viewportSchema, request.body);
+    assertDockProviderAvailable(manager, body.providerId);
+    const session = await manager.resizeViewport(request.auth!.user.id, sourceSessionId, body.providerId, body.width, body.height);
+    response.json({ session });
+  }));
+  router.post("/browser/dock/sessions/:sourceSessionId/action", ...auth, actionLimit, asyncHandler(async (request, response) => {
+    const sourceSessionId = readSessionId(request.params.sourceSessionId);
+    const body = parseBody<{ providerId: BrowserProviderId; action: "back" | "forward" | "reload" | "clickAt" | "dragAt" | "typeText" | "pressKey" | "scroll"; x?: number; y?: number; points?: Array<{ x: number; y: number; delayMs: number }>; text?: string; key?: string; direction?: "up" | "down"; amount?: number; includeScreenshot?: boolean }>(actionSchema, request.body);
+    const providerId = readDockProvider(body.providerId);
+    assertDockProviderAvailable(manager, providerId);
+    const fieldsByAction: Record<typeof body.action, string[]> = {
+      back: [], forward: [], reload: [], clickAt: ["x", "y"], dragAt: ["x", "y", "points"], typeText: ["text"], pressKey: ["key"], scroll: ["direction", "amount"]
+    };
+    const allowedFields = new Set(["providerId", "action", "includeScreenshot", ...fieldsByAction[body.action]]);
+    if (Object.keys(body).some(key => !allowedFields.has(key)) || fieldsByAction[body.action].some(key => body[key as keyof typeof body] === undefined)) {
+      throw new ApiError(400, "browser_action_invalid", "浏览器交互参数与动作不匹配。");
+    }
+    const ownerId = request.auth!.user.id;
+    const includeScreenshot = body.includeScreenshot === true;
+    const session = body.action === "back" ? await manager.back(ownerId, sourceSessionId, providerId, undefined, false, includeScreenshot)
+      : body.action === "forward" ? await manager.forward(ownerId, sourceSessionId, providerId, undefined, false, includeScreenshot)
+        : body.action === "reload" ? await manager.reload(ownerId, sourceSessionId, providerId, undefined, false, includeScreenshot)
+          : body.action === "clickAt" ? await manager.clickAt(ownerId, sourceSessionId, providerId, body.x!, body.y!, undefined, false, includeScreenshot)
+            : body.action === "dragAt" ? await manager.dragAt(ownerId, sourceSessionId, providerId, body.x!, body.y!, body.points!, undefined, false, includeScreenshot)
+              : body.action === "typeText" ? await manager.typeText(ownerId, sourceSessionId, providerId, body.text!, undefined, includeScreenshot, false)
+                : body.action === "pressKey" ? await manager.pressKey(ownerId, sourceSessionId, providerId, body.key!, undefined, includeScreenshot, false)
+                  : await manager.scroll(ownerId, sourceSessionId, providerId, body.direction!, body.amount!, undefined, includeScreenshot, false);
+    response.json({ session });
+  }));
+  router.delete("/browser/dock/sessions/:sourceSessionId", ...auth, actionLimit, asyncHandler(async (request, response) => {
+    const sourceSessionId = readSessionId(request.params.sourceSessionId);
+    const providerId = readDockProvider(request.query.providerId);
+    assertDockProviderAvailable(manager, providerId);
+    await manager.closeSession(request.auth!.user.id, sourceSessionId, providerId);
+    response.json({ closed: true });
+  }));
+
   router.get("/browser/tabs/:sourceSessionId", ...auth, asyncHandler(async (request, response) => {
     const sourceSessionId = readSessionId(request.params.sourceSessionId);
     const providerId = readProvider(request.query.providerId);
@@ -115,7 +230,7 @@ function registerRoutes(router: Router, manager: BrowserSessionManager): void {
   router.post("/browser/sessions/:sourceSessionId/native-active", ...auth, actionLimit, asyncHandler(async (request, response) => {
     const sourceSessionId = readSessionId(request.params.sourceSessionId);
     const body = parseBody<{ providerId: BrowserProviderId; targetId: string }>(nativeActiveTargetSchema, request.body);
-    assertProviderLinked(request.auth!.user.id, body.providerId);
+    assertProviderAvailable(manager, body.providerId);
     await manager.setNativeActiveTarget(request.auth!.user.id, sourceSessionId, body.targetId);
     response.json({ active: true });
   }));
@@ -123,7 +238,13 @@ function registerRoutes(router: Router, manager: BrowserSessionManager): void {
     const sourceSessionId = readSessionId(request.params.sourceSessionId);
     const body = parseBody<{ providerId: BrowserProviderId; url: string }>(navigateSchema, request.body);
     assertProviderLinked(request.auth!.user.id, body.providerId);
-    const session = await manager.navigate(request.auth!.user.id, sourceSessionId, body.providerId, body.url);
+    let session;
+    try {
+      session = await manager.navigate(request.auth!.user.id, sourceSessionId, body.providerId, body.url);
+    } catch (error) {
+      if (error instanceof BrowserNavigationTargetError) throw new ApiError(400, "browser_target_unsafe", error.message);
+      throw error;
+    }
     response.json({ session });
   }));
   router.post("/browser/sessions/:sourceSessionId/viewport", ...auth, actionLimit, asyncHandler(async (request, response) => {
@@ -173,7 +294,7 @@ function registerRoutes(router: Router, manager: BrowserSessionManager): void {
   router.delete("/browser/providers/:providerId/sessions", ...auth, actionLimit, asyncHandler(async (request, response) => {
     const providerId = readProvider(request.params.providerId);
     const ownerId = request.auth!.user.id;
-    if (!getUserSettings(ownerId).browserUse.enabledProviderIds.includes(providerId)) throw new ApiError(403, "browser_provider_not_connected", "此浏览器尚未接入当前账户。");
+    if (providerId === "tabbit-personal" && !getUserSettings(ownerId).browserUse.enabledProviderIds.includes(providerId)) throw new ApiError(403, "browser_provider_not_connected", "Tabbit 个人浏览器尚未由用户明确选择并接入。");
     await manager.closeProviderSessions(ownerId, providerId);
     response.json({ closed: true });
   }));

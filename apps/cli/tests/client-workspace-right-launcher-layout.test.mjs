@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { BROWSER_SCREENSHOT_FRAME_INTERVAL_MS, browserScreenshotWaitMs } from "../../../packages/client/ui-sidebar-browser/src/browser-frame-interval.ts";
 
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
 const workspace = read("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx");
 const rightMenuCss = read("../../../packages/client/ui-workspace/src/css/right-menu.css");
 const right = workspace.match(/const right = \([\s\S]*?\n  const bottom/u)?.[0] ?? "";
-const launcher = right.match(/<div className="module-context__launcher">[\s\S]*?<\/div>\s*<\/div>\s*<\/aside>/u)?.[0] ?? "";
+const launcher = right.match(/<div className="module-context__launcher">[\s\S]*?<\/section>\s*<\/div>\s*<\/>\s*:\s*null\}/u)?.[0] ?? "";
 
 test("右侧新标签页将常用工具、更多工具和推荐分为独立区域", () => {
   assert.ok(right, "右侧面板 JSX 应可定位");
@@ -16,11 +17,12 @@ test("右侧新标签页将常用工具、更多工具和推荐分为独立区�
   assert.match(launcher, /onNavigate\("\/files"\)/u);
   assert.match(launcher, /openWorkspaceUtility\("side-chat"\)/u);
   assert.match(launcher, /<details className="module-context__launcher-more">[\s\S]*?<summary>[\s\S]*?更多工具…[\s\S]*?<\/details>/u);
-  assert.match(launcher, /openWorkspaceUtility\("browser"\)/u);
+  assert.doesNotMatch(launcher, /openWorkspaceUtility\("browser"\)/u, "浏览器本身不再作为另一个工具标签打开");
   assert.match(launcher, /openWorkspaceUtility\("applications"\)/u);
   assert.match(launcher, /openWorkspaceUtility\("extension", tab\.id\)/u);
   assert.match(launcher, /registeredExtensions\.filter\(item => !item\.applicationIds \|\| item\.applicationIds\.includes\(app\)\)\.map/u);
   assert.match(launcher, /module-context__launcher-recommendation[\s\S]*?推荐[\s\S]*?browserOpenTabs\.map/u);
+  assert.match(launcher, /module-context__launcher-name[\s\S]*?新标签页[\s\S]*?选择工具/u);
   assert.match(launcher, /openBrowserWebsite\(tab\.url\)/u);
   assert.match(launcher, /module-context__launcher-recent[\s\S]*?最近/u);
   assert.ok(workspace.includes("visibleBrowserRecentSites.map(site =>"), "最近条目读取 Browser Owner 返回的账户记录");
@@ -28,13 +30,25 @@ test("右侧新标签页将常用工具、更多工具和推荐分为独立区�
   assert.ok(workspace.includes("openBrowserWebsite(site.url)"), "点击最近条目复用现有浏览器导航");
   assert.match(workspace, /loadBrowserRecentSites\(12, controller\.signal\)/u, "最近网站按需加载并可在切换时取消过期请求");
   assert.match(workspace, /recordBrowserRecentSites\(changedUrls\.slice\(0, 64\)\)/u, "原生 Browser Dock 的实际标签地址回传 Browser Owner");
-  assert.match(launcher, /onClick=\{\(\) => openWorkspaceUtility\("browser"\)\}/u);
-  assert.match(launcher, /打开浏览器后，这里会显示当前已打开的网页/u);
+  assert.match(launcher, /browserAddressInputRef\.current\?\.focus\(\)/u, "推荐空态直接聚焦同一浏览器地址栏");
+  assert.match(launcher, /打开的网页会显示在这里/u);
   assert.doesNotMatch(launcher, /LFAA 工作台/u, "推荐区不得再显示固定的品牌卡");
-  assert.match(launcher, /module-context__launcher-status/u);
+  assert.deepEqual([...launcher.matchAll(/<section className="(module-context__launcher-(?:name|section|recommendation|recent))"/gu)].map(match => match[1]), [
+    "module-context__launcher-name",
+    "module-context__launcher-section",
+    "module-context__launcher-recommendation",
+    "module-context__launcher-recent",
+  ], "主体直接包含名称、工具、推荐、最近四个同级盒子");
+  assert.doesNotMatch(launcher, /module-context__launcher-status/u, "状态显示放在名称盒子，主体不增加第五个区域");
+  const accountIndex = right.indexOf('<div className="module-context__account">');
+  const bodyIndex = right.indexOf('className="module-context__body"');
+  assert.ok(accountIndex > bodyIndex && /<\/div>\s*$/.test(right.slice(0, accountIndex)), "账户状态盒子位于主体滚动容器之外并固定在底部");
 });
 
 test("右侧新标签页按区域容器宽度响应，并沿用主题令牌", () => {
+  assert.match(rightMenuCss, /\.module-context__browser-controls \{[^}]*flex-direction: column/u);
+  assert.match(rightMenuCss, /\.module-context__launcher-name,[\s\S]*?\.module-context__launcher-recent \{[^}]*border: 1px solid var\(--color-border-subtle\)/u);
+  assert.match(rightMenuCss, /\.module-context__account \{[^}]*flex: 0 0 auto/u);
   assert.match(rightMenuCss, /\.module-context__browser-toolbar \{[^}]*display: flex;[^}]*min-width: 0/u);
   assert.match(rightMenuCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-context__browser-navigation button,[\s\S]*?\.module-context__browser-address button \{ width: 26px/u);
   assert.match(rightMenuCss, /\.module-context__launcher-grid,[\s\S]*?\.module-context__launcher-extra-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/u);
@@ -50,20 +64,45 @@ test("右侧新标签页按区域容器宽度响应，并沿用主题令牌", ()
   assert.doesNotMatch(rightMenuCss, /display:\s*inline-block/u);
 });
 
-test("新标签页地址栏与推荐、最近共用 Browser Dock 页面导航", () => {
-  const toolbar = right.match(/activeWorkspaceUtilityTabKind === "new" \? <div className="module-context__browser-toolbar-wrap">[\s\S]*?<div className="module-context__launcher">/u)?.[0] ?? "";
-  assert.ok(toolbar, "浏览器导航栏应位于新标签页内容之前");
+test("同一个新标签页内用地址栏替换主页内容，不新增第二套浏览器壳", () => {
+  const controlsStart = right.indexOf('className="module-context__browser-controls"');
+  const bodyStart = right.indexOf('className="module-context__body"', controlsStart);
+  const toolbar = controlsStart >= 0 && bodyStart > controlsStart ? right.slice(controlsStart, bodyStart) : "";
+  assert.ok(toolbar.includes('className="module-context__shell-actions"') && toolbar.includes('className="module-context__browser-toolbar-wrap"'), "工作区标签与浏览器地址栏组合为主体上方的固定顶栏");
   assert.match(toolbar, /aria-label="后退"[\s\S]*?openBrowserDockAction\("back"\)/u);
   assert.match(toolbar, /aria-label="前进"[\s\S]*?openBrowserDockAction\("forward"\)/u);
   assert.match(toolbar, /aria-label="刷新网页"[\s\S]*?openBrowserDockAction\("reload"\)/u);
   assert.match(toolbar, /onSubmit=\{submitBrowserAddress\}[\s\S]*?aria-label="搜索或输入网址"/u);
   assert.match(workspace, /resolveBrowserAddress\(browserAddress, settings\.browserUse\.searchEngine\)[\s\S]*?openBrowserWebsite\(url\)/u, "地址栏读取当前搜索引擎设置并复用推荐/最近的 Browser Dock 导航入口");
+  assert.match(workspace, /kind: "new", browserUrl: url, browserNavigationRequest: request/u, "输入网址保留同一个新标签页并直接切换其内容");
+  assert.match(workspace, /activeWorkspaceUtilityTabKind === "new" \? <Suspense[\s\S]*?<BrowserPanel[^>]*hidden=\{!activeWorkspaceUtilityTab\?\.browserUrl\}/u, "同一新标签页始终承载 Browser Owner，只有网页区按当前地址显示");
+  assert.match(workspace, /!activeWorkspaceUtilityTab\?\.browserUrl \? <>[\s\S]*?module-context__launcher/u, "只有当前页面没有网址时才显示新标签主页");
+  assert.doesNotMatch(workspace, /kind: "browser"|aiWorkView === "browser"|openWorkspaceUtility\("browser"\)/u, "不再创建第二个浏览器工作区标签");
   assert.match(workspace, /browserActionRequest\?: \{ id: string; action: "back" \| "forward" \| "reload" \}/u);
   assert.match(workspace, /actionRequest=\{activeWorkspaceUtilityTab\?\.browserActionRequest[\s\S]*?onActionRequestHandled=\{handleBrowserActionRequest\}/u);
   const browser = read("../../../packages/client/ui-sidebar-browser/src/BrowserPanel.tsx");
   const nativeBrowser = read("../../../packages/client/ui-sidebar-browser/src/NativeBrowserPanel.tsx");
-  assert.match(browser, /actOnBrowser\(sessionId, providerId, \{ action: actionRequest\.action \}\)/u);
+  assert.match(browser, /actOnBrowserDock\(sessionId, providerId, \{ action: actionRequest\.action \}\)/u);
+  assert.match(browser, /navigateBrowserDock\(sessionId, providerId, target\)/u);
+  assert.match(browser, /browserScreenshotWaitMs\(lastRequestAt, performance\.now\(\)\)/u, "整页截图刷新读取有回归覆盖的最短帧间隔");
+  assert.match(browser, /pending\?\.scope === requestScope\) return pending\.promise/u, "同一浏览器会话的修订通知合并到同一截图请求");
+  assert.match(browser, /const requestScope = `\$\{sourceSession\}:\$\{selectedProvider\}`/u, "不同账户会话或浏览器 Provider 不会错误复用旧快照");
+  assert.match(browser, /waitForScreenshotFrameSlot\(waitMs, signal\)/u, "截图节流等待可随页面隐藏或组件卸载取消");
+  assert.match(browser, /current\?\.screenshot && !next\.screenshot/u, "没有新画面时保留最后一张有效网页帧");
+  assert.doesNotMatch(browser, /接入浏览器|providerConnected|connectProvider\(/u, "LFAA Browser Dock 的手动导航不再出现 Provider 接入门槛");
+  assert.doesNotMatch(browser, /lfaa-browser-panel__(?:header|provider-tabs|address|views|footer)/u, "内容区组件不再包含第二套浏览器标题、标签或地址栏");
   assert.match(nativeBrowser, /actionRequest\.action === "back"[\s\S]*?api\.forward\(activeTab\.id\)[\s\S]*?api\.reload\(activeTab\.id\)/u);
+  assert.match(nativeBrowser, /window\.requestAnimationFrame\(\(\) => \{\s*frame = 0;\s*readBounds\(\);/u, "原生网页位置更新合并到动画帧，避免逐条处理滚动事件");
+  assert.match(nativeBrowser, /if \(!live \|\| hidden \|\| sending \|\| !pending\) return/u, "原生网页视图最多只有一个坐标 IPC 在途");
+  assert.match(nativeBrowser, /if \(live && pending\) sendPending\(\)/u, "滚动中的新位置只保留最新一份并在当前 IPC 后发送");
+  assert.doesNotMatch(nativeBrowser, /watchPosition|setTimeout\(watchPosition, 160\)/u, "不再用 160ms 轮询拖动原生网页视图");
+});
+
+test("连续页面变化时截图间隔有界，且首帧不延迟", () => {
+  assert.equal(BROWSER_SCREENSHOT_FRAME_INTERVAL_MS, 120);
+  assert.equal(browserScreenshotWaitMs(0, 50), 0, "首张网页帧应立即请求");
+  assert.equal(browserScreenshotWaitMs(100, 150), 70, "两次截图请求至少间隔 120ms");
+  assert.equal(browserScreenshotWaitMs(100, 220), 0, "达到帧间隔后不增加等待");
 });
 
 test("推荐区显示 Browser Dock 当前打开标签，并复用一次性导航请求", () => {
@@ -76,13 +115,18 @@ test("推荐区显示 Browser Dock 当前打开标签，并复用一次性导航
   const nativeBrowser = read("../../../packages/client/ui-sidebar-browser/src/NativeBrowserPanel.tsx");
   assert.match(browser, /onOpenTabsChange\?\.\(snapshot\?\.tabs \?\? \[\]\)/u);
   assert.match(nativeBrowser, /onOpenTabsChange\?\.\(state\.tabs\.map\(tab => \(\{ id: tab\.id, title: tab\.title, url: tab\.url, active: tab\.active \}\)\)\)/u);
-  assert.match(browser, /navigationRequest[\s\S]*?navigateBrowser\(sessionId, providerId, target\)/u);
+  assert.match(browser, /navigationRequest[\s\S]*?navigateBrowserDock\(sessionId, providerId, target\)/u);
   assert.match(nativeBrowser, /navigationRequest[\s\S]*?api\.navigate\(activeTab\.id, target\)/u);
   assert.doesNotMatch(workspace, /recommendedSites|管理网站/u);
   const settingsPage = read("../../../packages/client/ui-settings/src/SettingsPage.tsx");
   assert.match(settingsPage, /settings\.browserUse\.recordRecentSites/u);
   assert.match(settingsPage, /clearBrowserRecentSites\(\)/u);
+  assert.match(settingsPage, /const builtIn = provider\.isolation !== "user-profile"/u, "built-in browsers are not represented by a connect/disconnect switch");
+  assert.match(settingsPage, /\{builtIn \? <Tag>/u, "settings displays built-in availability without a user connection action");
   const browserController = read("../../../packages/api/browser-controller/src/index.ts");
+  assert.match(browserController, /router\.post\("\/browser\/dock\/sessions\/:sourceSessionId\/navigate"[\s\S]*?manager\.navigate/u, "手动地址栏走独立的认证 Browser Dock 路由");
+  assert.match(browserController, /router\.post\("\/browser\/sessions\/:sourceSessionId\/navigate"[\s\S]*?assertProviderLinked/u, "Agent 导航仍受 Agent 浏览器总开关限制");
+  assert.match(browserController, /if \(!settings\.browserUse\.enabled\).*?browser_use_disabled/u, "Agent 仍受 Browser Use 总开关控制");
   assert.match(browserController, /router\.get\("\/browser\/recent-sites", \.\.\.auth/u, "读取最近网站走现有认证链");
   assert.match(browserController, /router\.post\("\/browser\/recent-sites", \.\.\.auth, actionLimit/u, "记录最近网站经认证并受写入速率限制");
   assert.match(browserController, /router\.delete\("\/browser\/recent-sites", \.\.\.auth/u, "清除最近网站仅作用于当前认证账户");
