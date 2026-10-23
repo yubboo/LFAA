@@ -13,6 +13,7 @@
     "lfaa-fs": "workspace:*",
     "lfaa-games-steamcmd": "workspace:*",
     "lfaa-host-daemon": "workspace:*",
+    "lfaa-permission-presets": "workspace:*",
     "lfaa-settings": "workspace:*",
     "lfaa-util-values": "workspace:*"
   },

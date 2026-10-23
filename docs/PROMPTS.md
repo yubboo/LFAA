@@ -213,6 +213,7 @@
 | 212-工作区四区域盒子结构-20261022 | 将工作区组织为外层容器、共享内层布局根及四个同级可复用区域，保留当前样式和交互 | 已完成：结构/响应式回归、类型检查、相关包与 Web 构建、203 包工作区检查通过；内置浏览器桌面与窄分栏检查通过；手机视口和真实拖动未测 | [本轮合同](#lfaa-workspace-four-region-boxes-20261022) |
 | 213-菜单8源码更新版本提示-20261022 | 菜单 8 在安全快进确认前显示当前源码版本与 GitHub 将拉取的源码版本，沿用菜单 6 的提交版本格式 | 已修复 Windows PowerShell 5.1 编码解析问题；工作台入口和退出、相关脚本语法检查通过；版本快进交互及自动化回归未测 | [本轮合同](#lfaa-menu-source-update-version-notice-20261022) |
 | 241-菜单8跨盘源码更新-20261023 | 菜单 8 从当前工作区动态识别仓库路径，并仅在本次 Git 调用中信任该精确路径，支持朋友克隆到任意盘符后安全更新 | Windows 所有权模拟与原更新回归 7/7、差异检查通过；实际朋友设备/其他盘符未测 | [本轮合同](#lfaa-menu-source-update-any-drive-20261023) |
+| 242-GitHub工作区检查修复-20261023 | 修复 GitHub Actions 的 `check:workspace` 因两个包漏声明内部依赖且生成清单过期而失败 | 已修复；本地门禁通过、CI 对应回归 4/4；推送后的 GitHub Actions 待验 | [本轮合同](#lfaa-github-workspace-check-fix-20261023) |
 | 214-四区域内部功能盒子与样式隔离-20261022 | 在左一、左二、中间和右侧区域内为各功能分组建立独立盒子，并按区域隔离 CSS，保持现有外观和响应式行为 | 已完成；定向回归、类型检查、Web 构建及 `/work` 浏览器验收通过；广义旧回归另有 6 项历史断言不匹配；未测真实设备/帧时间 | [本轮合同](#lfaa-workspace-region-subboxes-20261022) |
 | 215-右侧新标签页工具主页布局-20261022 | 按参考图重排 `/work` 右侧新标签页：常用工具紧凑排布，其他入口可展开，下方展示推荐区；保留四栏结构与已有操作 | 已完成；定向回归 23/23、Client 类型检查、Web 构建/指纹通过；内置浏览器 `/work` 桌面 1536×1243、窄短屏 820×520 检查双列/单列、展开/折叠及独立滚动，原分栏宽度已恢复 | [本轮合同](#lfaa-workspace-right-launcher-layout-20261022) |
 | 216-右侧新标签页推荐网站-20261022 | 右侧“推荐”直接展示当前 Browser Dock 已打开的网页标签，并复用现有浏览器导航 | ✅ 定向回归 6/6、Client 类型检查、Web/Control Plane 构建及指纹检查通过；内置浏览器 `/work` 1543×1244 确认真实空态；未实测窄/短视口和真实标签点击 | [本轮合同](#lfaa-workspace-recommended-websites-20261022) |
@@ -6464,3 +6465,31 @@ Windows 回归模拟 Git 所有权检查拒绝当前仓库，确认菜单更新�
 - 验证：`node --test --test-name-pattern="Windows 本地源码更新" apps/cli/tests/workspace-maintenance.test.mjs` 通过，7/7；`git diff --check` 通过；PowerShell AST 语法解析通过。首次运行中一个新断言受 PowerShell 5.1 输出编码影响而失败，移除对本地化显示文本的脆弱匹配后重跑，所有行为断言通过。
 - 边界：回归在本机 Windows 当前 checkout 所在盘运行，并以 Git 官方开关模拟不同所有者；没有访问朋友设备，也没有在另一块物理盘实际执行 GitHub fetch。未改设置中心配置、真实用户数据或服务。
 - 文件职责：`scripts/update-project.ps1`（菜单 8 的动态 Git 安全目录作用域）、`apps/cli/tests/workspace-maintenance.test.mjs`（所有权模拟及原更新保护回归）、`docs/PROMPTS.md`（本合同、索引与实施证据）。
+
+<a id="lfaa-github-workspace-check-fix-20261023"></a>
+
+## 242-GitHub 工作区检查修复（2026-10-23）
+
+### 目标与 Owner
+
+GitHub Actions 的 Ubuntu 与 Windows 工作区门禁均在 `pnpm run check:workspace` 失败。修复两个包未声明源码实际导入的内部 workspace 依赖，并同步门禁生成的包目录清单。
+
+Owner：依赖由各自 `package.json` 声明，`scripts/check-workspace.mjs` 生成并校验 `docs/harness-packages.json` 与 `docs/harness-packages.md`。无设置中心配置；不改变运行时业务逻辑。
+
+### 允许与禁止
+
+- 在 `packages/api/steamcmd-controller` 声明 `lfaa-permission-presets: workspace:*`；在 `packages/client/ui-workspace` 声明 `lfaa-util-values: workspace:*`。
+- 同步工作区生成文件及 pnpm lockfile（若命令需要）。
+- 仅修改上述依赖清单、生成清单、本合同和直接回归；不改无关逻辑，不提交或推送。
+
+### 验收
+
+运行 `pnpm run check:workspace`、`node --test scripts/tests/workspace-check.test.mjs` 和 `git diff --check`；核对差异仅覆盖合同允许范围。GitHub Actions 需本地修复推送后才能验证。
+
+### 实施与验证记录
+
+- `packages/api/steamcmd-controller/package.json` 增加 `lfaa-permission-presets: workspace:*`；`packages/client/ui-workspace/package.json` 增加 `lfaa-util-values: workspace:*`；pnpm lockfile 已同步。`scripts/check-workspace.mjs --write` 更新 `docs/harness-packages.json` 中缺失的 `ui-workspace` 目录记录，生成的 Markdown 无需变更。
+- `scripts/tests/workspace-check.test.mjs` 为隔离 fixture 提供最小包职责清单，避免复制真实仓库的数百条目录注解；同时保留缺入口、漏依赖、依赖环、版本和包内产物的门禁断言。
+- 验证：`pnpm run check:workspace` 通过（207 个包）；GitHub workflow 对应的三文件 Node 测试组通过（4/4）；`git diff --check` 通过。首次运行回归暴露 fixture 缺少当前门禁导入及职责清单不匹配，修复 fixture 后完整重跑通过。
+- 边界：本地检查模拟了 CI 的工作区门禁和测试步骤；没有创建提交或推送。GitHub Actions 需推送这些本地变更后才会重新运行。未使用设置中心配置，也未改变产品运行逻辑。
+- 文件职责：`packages/api/steamcmd-controller/package.json`（声明 SteamCMD Controller 实际使用的权限预设依赖）；`packages/client/ui-workspace/package.json`（声明工作区 UI 实际使用的共享值依赖）；`pnpm-lock.yaml`（锁定 workspace 链接）；`docs/harness-packages.json`（生成的目录/消费者清单）；`scripts/tests/workspace-check.test.mjs`（隔离工作区门禁回归 fixture）；`docs/PROMPTS.md`（合同、索引和验证证据）。

@@ -29,6 +29,7 @@
     "lfaa-client-ui-sidebar-browser": "workspace:*",
     "lfaa-client-ui-theme": "workspace:*",
     "lfaa-client-ui-writing": "workspace:*",
+    "lfaa-util-values": "workspace:*",
     "react": "^18.0.0"
   },
   "devDependencies": {

@@ -6384,6 +6384,7 @@
           "packages/client/ui-settings-general",
           "packages/client/ui-sidebar",
           "packages/client/ui-theme",
+          "packages/client/ui-workspace",
           "packages/computer-use/computer-use",
           "packages/core/agent",
           "packages/core/agent-loop",

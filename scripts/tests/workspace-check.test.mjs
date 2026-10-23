@@ -16,6 +16,7 @@ test("同步 TSX 入口后门禁拒绝缺失入口、漏声明、依赖环、版
   const rejected = pattern => { const result = run(); assert.equal(result.status, 1); assert.match(result.stderr, pattern); };
   try {
     for (const path of ["scripts/check-workspace.mjs", "scripts/harness-workspace.mjs"]) { mkdirSync(resolve(fixture, "scripts"), { recursive: true }); cpSync(resolve(root, path), resolve(fixture, path)); }
+    write("scripts/package-responsibilities.mjs", 'export const packageResponsibilities = { "packages/util/a": "fixture A", "packages/util/b": "fixture B" };');
     write("package.json", { type: "module" }); write("packages/util/a/package.json", a); write("packages/util/a/src/index.tsx", "export const a = 1;");
     write("packages/util/b/package.json", b); write("packages/util/b/src/index.mjs", "export const b = 1;");
     for (const path of ["apps/cli/package.json", "apps/web/package.json", "apps/desktop-electron/package.json", "update.json"]) write(path, { version: "0.0.7" });
