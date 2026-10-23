@@ -13,7 +13,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectPath = [System.IO.Path]::GetFullPath($ProjectRoot).TrimEnd([char[]]@('\', '/'))
-$gitCommonArguments = @('-c', 'core.quotePath=false', '-C', $projectPath)
+$safeProjectPath = $projectPath.Replace('\', '/')
+# 只在本脚本的 Git 进程中信任当前 checkout；目录可位于任意盘符，不写用户或仓库配置。
+$gitCommonArguments = @('-c', 'core.quotePath=false', '-c', "safe.directory=$safeProjectPath", '-C', $projectPath)
 $sourceVersionScript = Join-Path $PSScriptRoot 'source-version.ps1'
 if (-not (Test-Path -LiteralPath $sourceVersionScript -PathType Leaf)) { throw '缺少 scripts\source-version.ps1，无法显示本次源码更新版本。' }
 . $sourceVersionScript

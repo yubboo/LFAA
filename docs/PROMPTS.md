@@ -212,6 +212,7 @@
 | 203-AI-Work新标签页与工具入口-20261022 | 移除固定“LFAA 工作台”页签；中心区收起时用“新标签页”打开功能入口，选择浏览器、Git、应用或已登记扩展面板后显示对应动态页签，并支持加号新建/关闭 | 已实现；21/21 定向回归、Client 类型检查与 Web 构建通过；内置浏览器实测中心收起、功能菜单打开浏览器及加号新建；窄屏和关闭动作未完成实页验收 | [本轮合同](#lfaa-ai-work-new-tab-tool-launcher-20261022) |
 | 212-工作区四区域盒子结构-20261022 | 将工作区组织为外层容器、共享内层布局根及四个同级可复用区域，保留当前样式和交互 | 已完成：结构/响应式回归、类型检查、相关包与 Web 构建、203 包工作区检查通过；内置浏览器桌面与窄分栏检查通过；手机视口和真实拖动未测 | [本轮合同](#lfaa-workspace-four-region-boxes-20261022) |
 | 213-菜单8源码更新版本提示-20261022 | 菜单 8 在安全快进确认前显示当前源码版本与 GitHub 将拉取的源码版本，沿用菜单 6 的提交版本格式 | 已修复 Windows PowerShell 5.1 编码解析问题；工作台入口和退出、相关脚本语法检查通过；版本快进交互及自动化回归未测 | [本轮合同](#lfaa-menu-source-update-version-notice-20261022) |
+| 241-菜单8跨盘源码更新-20261023 | 菜单 8 从当前工作区动态识别仓库路径，并仅在本次 Git 调用中信任该精确路径，支持朋友克隆到任意盘符后安全更新 | Windows 所有权模拟与原更新回归 7/7、差异检查通过；实际朋友设备/其他盘符未测 | [本轮合同](#lfaa-menu-source-update-any-drive-20261023) |
 | 214-四区域内部功能盒子与样式隔离-20261022 | 在左一、左二、中间和右侧区域内为各功能分组建立独立盒子，并按区域隔离 CSS，保持现有外观和响应式行为 | 已完成；定向回归、类型检查、Web 构建及 `/work` 浏览器验收通过；广义旧回归另有 6 项历史断言不匹配；未测真实设备/帧时间 | [本轮合同](#lfaa-workspace-region-subboxes-20261022) |
 | 215-右侧新标签页工具主页布局-20261022 | 按参考图重排 `/work` 右侧新标签页：常用工具紧凑排布，其他入口可展开，下方展示推荐区；保留四栏结构与已有操作 | 已完成；定向回归 23/23、Client 类型检查、Web 构建/指纹通过；内置浏览器 `/work` 桌面 1536×1243、窄短屏 820×520 检查双列/单列、展开/折叠及独立滚动，原分栏宽度已恢复 | [本轮合同](#lfaa-workspace-right-launcher-layout-20261022) |
 | 216-右侧新标签页推荐网站-20261022 | 右侧“推荐”直接展示当前 Browser Dock 已打开的网页标签，并复用现有浏览器导航 | ✅ 定向回归 6/6、Client 类型检查、Web/Control Plane 构建及指纹检查通过；内置浏览器 `/work` 1543×1244 确认真实空态；未实测窄/短视口和真实标签点击 | [本轮合同](#lfaa-workspace-recommended-websites-20261022) |
@@ -6434,3 +6435,32 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 - 分批验证：Client/Host TypeScript 通过；浏览器与工作区直接回归 20/20 通过，其中真实已安装 Edge 的隔离 Chromium 集成回归完成“手动打开页面 → 不同 AI 会话的 Agent Run 观察同一 Page → 同名按钮精确点第二个 → 通过关联标签填写输入框”，浏览器回归 13/13 通过；Electron 原生浏览器 Owner 回归 7/7 通过。`pnpm run build:web`、`pnpm run build:control-plane` 与 `pnpm --filter lfaa-web run build:desktop-candidate` 成功，产物均在根 `dist/`。
 - 最终构建的正式 Web 由当前 checkout 在隔离数据下启动于 `http://127.0.0.1:3000/work`。ChatGPT 内置浏览器 1312×1244 桌面视口下，无 AI 会话时打开本机真实网页 `http://127.0.0.1:3400/`，点击、输入、上下滚动生效，Canvas 实际尺寸 716×1062，左第二栏为 200px（缺陷截图/复现时 85px）；外部 HTTPS 页面也在同一 Dock 实际显示。880×600 短屏收起左栏后右栏边界为 860px，未超出 860px 工作区；回到桌面宽度后左栏恢复 200px。ChatGPT 内置浏览器已留有本轮截图工具证据，未读取或改写外部网页内容。正式测试服务使用根 `dist/.tmp/browser-acceptance-240` 隔离账户数据，未写用户实际偏好。
 - 边界：Web 使用连续 Chromium 合成帧和输入转发，仍受普通 Web 无法直接嵌入任意跨站原生页面的限制；Electron 使用原生 `WebContentsView`。桌面实际 GUI、长期帧时间、真实模型自动选择/权限模式、外部复杂网站兼容性尚未实测，不将源码/回归通过声明为这些场景已验收。
+
+<a id="lfaa-menu-source-update-any-drive-20261023"></a>
+
+## 241-菜单 8 跨盘源码更新（2026-10-23）
+
+### 目标与 Owner
+
+用户把 LFAA 源码交给朋友后，朋友从 GitHub 克隆到 `F:\github\lfaa`，菜单 8 的 Git 命令因 `detected dubious ownership` 中止。目标是让菜单 8 在任意盘符的当前 checkout 上使用实际项目根目录完成现有安全更新流程。
+
+入口：`lfaa.bat` → `scripts/project-menu.mjs` → `scripts/install-dependencies.ps1` → `scripts/update-project.ps1`。更新实现由 `scripts/update-project.ps1` 唯一持有；该脚本从调用方传入的当前根目录运行 Git。数据根仍由 `scripts/resolve-data-directory.mjs` 解析。无设置中心配置。
+
+### 允许与禁止
+
+- 仅在菜单 8 的 Git 调用中，把动态解析出的当前 checkout 根目录作为唯一 `safe.directory` 值；不写全局/仓库 Git 配置，不使用通配符，不依赖历史盘符。
+- 保留当前工作分支、本地 `main` 的只快进逻辑、脏工作区保护、数据根保护和用户确认；不增加 reset/clean/强制更新。
+- 修改 `scripts/update-project.ps1`、直接相关长期回归 `apps/cli/tests/workspace-maintenance.test.mjs`、本索引和本合同。无 UI/设置/构建/服务变更。
+
+### 验收
+
+Windows 回归模拟 Git 所有权检查拒绝当前仓库，确认菜单更新只对动态当前根临时信任，并能完成原有快进/数据保护流程；验证不改变全局或仓库 Git 配置，且 `git diff --check` 通过。报告是否实际覆盖朋友机器和其他盘符；没有远程授权时不对真实 GitHub 执行 fetch/merge。
+
+### 实施与验证记录
+
+- `scripts/update-project.ps1` 将当前规范化项目根目录的正斜杠形式作为每个 Git 进程的 `-c safe.directory=<当前根目录>` 参数。信任范围仅限这次脚本启动的各 Git 命令，不改全局或仓库配置；盘符从当前 `-ProjectRoot` 解析，不保存固定路径。
+- `apps/cli/tests/workspace-maintenance.test.mjs` 新增 Windows 回归，使用 Git 官方所有权测试开关模拟所有权不一致，确认原更新流程可安全快进、用户数据保留、隔离的全局配置文件没有被创建。已有更新分叉、脏工作区和自定义数据保护用例保持通过。
+- 外部依据：Git 官方配置文档说明 `safe.directory` 支持多值精确路径且只从受保护配置读取；Git 上游 `t/t0033-safe-directory.sh` 明确覆盖命令行 `-c safe.directory=<当前仓库>` 和 `GIT_TEST_ASSUME_DIFFERENT_OWNER` 行为。没有将该配置写入用户全局设置，也未用通配符。
+- 验证：`node --test --test-name-pattern="Windows 本地源码更新" apps/cli/tests/workspace-maintenance.test.mjs` 通过，7/7；`git diff --check` 通过；PowerShell AST 语法解析通过。首次运行中一个新断言受 PowerShell 5.1 输出编码影响而失败，移除对本地化显示文本的脆弱匹配后重跑，所有行为断言通过。
+- 边界：回归在本机 Windows 当前 checkout 所在盘运行，并以 Git 官方开关模拟不同所有者；没有访问朋友设备，也没有在另一块物理盘实际执行 GitHub fetch。未改设置中心配置、真实用户数据或服务。
+- 文件职责：`scripts/update-project.ps1`（菜单 8 的动态 Git 安全目录作用域）、`apps/cli/tests/workspace-maintenance.test.mjs`（所有权模拟及原更新保护回归）、`docs/PROMPTS.md`（本合同、索引与实施证据）。

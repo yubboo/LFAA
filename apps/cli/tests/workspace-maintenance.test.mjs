@@ -46,12 +46,12 @@ function createUpdateFixture(t) {
   return { root, remote, local, writer, childEnvironment };
 }
 
-function updateProject(fixture, yes = true) {
+function updateProject(fixture, yes = true, environmentOverrides = {}) {
   const args = ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", join(repository, "scripts/update-project.ps1"), "-ProjectRoot", fixture.local];
   if (yes) args.push("-Yes");
   return spawnSync("powershell.exe", args, {
     cwd: fixture.local,
-    env: fixture.childEnvironment,
+    env: { ...fixture.childEnvironment, ...environmentOverrides },
     encoding: "utf8",
     windowsHide: true
   });
@@ -205,6 +205,27 @@ test("Windows 本地源码更新只快进并保留数据根内容", { skip: proc
   assert.equal(readFileSync(join(fixture.local, "data", "must-survive.txt"), "utf8"), "local user data\n");
   assert.equal(git(fixture.local, ["rev-parse", "HEAD"]), git(fixture.local, ["rev-parse", "origin/main"]));
   assert.equal(git(fixture.local, ["status", "--porcelain"]), "");
+});
+
+test("Windows 本地源码更新仅临时信任动态项目根以通过 Git 所有权检查", { skip: process.platform !== "win32" }, t => {
+  const fixture = createUpdateFixture(t);
+  writeFileSync(join(fixture.writer, "latest-source.ts"), "latest upstream source\n");
+  git(fixture.writer, ["add", "latest-source.ts"]);
+  git(fixture.writer, ["commit", "-m", "upstream update"]);
+  git(fixture.writer, ["push", "origin", "main"]);
+
+  const globalConfigPath = join(fixture.root, "isolated-gitconfig");
+  const result = updateProject(fixture, true, {
+    GIT_CONFIG_GLOBAL: globalConfigPath,
+    GIT_TEST_ASSUME_DIFFERENT_OWNER: "1"
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(existsSync(globalConfigPath), false);
+  const localSafeDirectory = spawnSync("git", ["config", "--local", "--get-all", "safe.directory"], { cwd: fixture.local, encoding: "utf8", windowsHide: true });
+  assert.notEqual(localSafeDirectory.status, 0, "更新脚本不得写入仓库级 safe.directory");
+  assert.equal(readFileSync(join(fixture.local, "latest-source.ts"), "utf8").replace(/\r\n/g, "\n"), "latest upstream source\n");
+  assert.equal(git(fixture.local, ["rev-parse", "HEAD"]), git(fixture.local, ["rev-parse", "origin/main"]));
+  assert.equal(readFileSync(join(fixture.local, "data", "must-survive.txt"), "utf8"), "local user data\n");
 });
 
 test("Windows 本地源码更新在远端 main 重写但本地仍可快进时应用最新源码", { skip: process.platform !== "win32" }, t => {
