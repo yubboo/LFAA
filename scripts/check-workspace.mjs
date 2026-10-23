@@ -102,7 +102,7 @@ if (writing) {
   writeFileSync(resolve(root, "docs/harness-packages.md"), markdown);
 } else {
   if (JSON.stringify(previous) !== JSON.stringify(current)) errors.push("包目录 JSON 清单过期");
-  if (readFileSync(resolve(root, "docs/harness-packages.md"), "utf8") !== markdown) errors.push("包目录 Markdown 清单过期");
+  if (readFileSync(resolve(root, "docs/harness-packages.md"), "utf8").replace(/\r\n?/gu, "\n") !== markdown) errors.push("包目录 Markdown 清单过期");
 }
 const versions = ["apps/cli/package.json", "apps/web/package.json", "apps/desktop-electron/package.json", "update.json"].map(path => readJson(path).version);
 const changelog = readFileSync(resolve(root, "docs/updata-log.md"), "utf8");

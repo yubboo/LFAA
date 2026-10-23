@@ -214,6 +214,7 @@
 | 213-菜单8源码更新版本提示-20261022 | 菜单 8 在安全快进确认前显示当前源码版本与 GitHub 将拉取的源码版本，沿用菜单 6 的提交版本格式 | 已修复 Windows PowerShell 5.1 编码解析问题；工作台入口和退出、相关脚本语法检查通过；版本快进交互及自动化回归未测 | [本轮合同](#lfaa-menu-source-update-version-notice-20261022) |
 | 241-菜单8跨盘源码更新-20261023 | 菜单 8 从当前工作区动态识别仓库路径，并仅在本次 Git 调用中信任该精确路径，支持朋友克隆到任意盘符后安全更新 | Windows 所有权模拟与原更新回归 7/7、差异检查通过；实际朋友设备/其他盘符未测 | [本轮合同](#lfaa-menu-source-update-any-drive-20261023) |
 | 242-GitHub工作区检查修复-20261023 | 修复 GitHub Actions 的 `check:workspace` 因两个包漏声明内部依赖且生成清单过期而失败 | 已修复；本地门禁通过、CI 对应回归 4/4；推送后的 GitHub Actions 待验 | [本轮合同](#lfaa-github-workspace-check-fix-20261023) |
+| 243-GitHub Actions跨平台检查修复-20261023 | 修复 Windows 清单换行误报与 Ubuntu CLI 回归中的共享 Home 锁冲突、Windows Daemon 路径夹具错误 | 本地 Windows workflow 验收通过；GitHub Actions 推送后待验 | [本轮合同](#lfaa-github-actions-ci-cross-platform-20261023) |
 | 214-四区域内部功能盒子与样式隔离-20261022 | 在左一、左二、中间和右侧区域内为各功能分组建立独立盒子，并按区域隔离 CSS，保持现有外观和响应式行为 | 已完成；定向回归、类型检查、Web 构建及 `/work` 浏览器验收通过；广义旧回归另有 6 项历史断言不匹配；未测真实设备/帧时间 | [本轮合同](#lfaa-workspace-region-subboxes-20261022) |
 | 215-右侧新标签页工具主页布局-20261022 | 按参考图重排 `/work` 右侧新标签页：常用工具紧凑排布，其他入口可展开，下方展示推荐区；保留四栏结构与已有操作 | 已完成；定向回归 23/23、Client 类型检查、Web 构建/指纹通过；内置浏览器 `/work` 桌面 1536×1243、窄短屏 820×520 检查双列/单列、展开/折叠及独立滚动，原分栏宽度已恢复 | [本轮合同](#lfaa-workspace-right-launcher-layout-20261022) |
 | 216-右侧新标签页推荐网站-20261022 | 右侧“推荐”直接展示当前 Browser Dock 已打开的网页标签，并复用现有浏览器导航 | ✅ 定向回归 6/6、Client 类型检查、Web/Control Plane 构建及指纹检查通过；内置浏览器 `/work` 1543×1244 确认真实空态；未实测窄/短视口和真实标签点击 | [本轮合同](#lfaa-workspace-recommended-websites-20261022) |
@@ -6493,3 +6494,33 @@ Owner：依赖由各自 `package.json` 声明，`scripts/check-workspace.mjs` �
 - 验证：`pnpm run check:workspace` 通过（207 个包）；GitHub workflow 对应的三文件 Node 测试组通过（4/4）；`git diff --check` 通过。首次运行回归暴露 fixture 缺少当前门禁导入及职责清单不匹配，修复 fixture 后完整重跑通过。
 - 边界：本地检查模拟了 CI 的工作区门禁和测试步骤；没有创建提交或推送。GitHub Actions 需推送这些本地变更后才会重新运行。未使用设置中心配置，也未改变产品运行逻辑。
 - 文件职责：`packages/api/steamcmd-controller/package.json`（声明 SteamCMD Controller 实际使用的权限预设依赖）；`packages/client/ui-workspace/package.json`（声明工作区 UI 实际使用的共享值依赖）；`pnpm-lock.yaml`（锁定 workspace 链接）；`docs/harness-packages.json`（生成的目录/消费者清单）；`scripts/tests/workspace-check.test.mjs`（隔离工作区门禁回归 fixture）；`docs/PROMPTS.md`（合同、索引和验证证据）。
+
+<a id="lfaa-github-actions-ci-cross-platform-20261023"></a>
+
+## 243-GitHub Actions 跨平台检查修复（2026-10-23）
+
+### 目标与 Owner
+
+修复 GitHub `main` 提交 `c1c667ec02186f6079255836ba93e9f2bbc4e85b` 的跨平台 CI 失败。Windows 失败表现为 `pnpm run check:workspace` 报 Markdown 清单过期；Ubuntu CLI 测试出现配置目录锁冲突和 `platform: win32` 的 Daemon 夹具使用 POSIX `dataRoot`。工作区清单比较 Owner 是 `scripts/check-workspace.mjs`；隔离 Home/Data 和 Daemon 合同夹具由对应 CLI 测试文件拥有；生产 `daemonHeartbeatSchema` 保持不变。无设置中心配置，无产品运行时行为变更。
+
+### 允许与禁止
+
+- 允许将 Markdown 内容比较前归一化 CRLF/CR，并在 `scripts/tests/workspace-check.test.mjs` 覆盖 Windows CRLF 文件。
+- 允许在 `apps/cli/tests/credentials-authorization.test.mjs` 和 `apps/cli/tests/execution-control.test.mjs` 中隔离 `LFAA_HOME` 与 `LFAA_DATA_DIR`、修正 Home Owner 文件断言并完整释放测试资源。
+- 允许把模拟 Windows Daemon 的 `dataRoot` 改成符合既有盘符/UNC 合同的测试路径。
+- 禁止放宽生产 schema、删除断言、改锁策略、触碰真实用户数据或绕过菜单 6 的版本/凭据/正常快进推送保护。
+
+### 验收
+
+- 修复前确认：当前 Windows checkout `main` 为 `c1c667e`；`pnpm run check:workspace` 复现 Markdown 清单过期；对应 CLI 两个测试文件复现 Home 锁冲突。
+- 验证 `pnpm run check:workspace`、工作区与私有目录/数学渲染测试、CI 中完整 CLI/Electron 测试组、`pnpm run typecheck`、针对性 CRLF 与凭据/执行控制回归、`git diff --check`。
+- 本地验证限 Windows。提交后 GitHub Actions Ubuntu/Windows 实际结果单独记录；源码推送只走菜单 6，使用高于 `0.0.47` 的源码提交版本，不强推。
+
+### 实施与验收记录
+
+- 当前真实源码工作区先经菜单 8 安全快进到 `c1c667e`。修复前在 Windows 重现了 `pnpm run check:workspace` 的 Markdown 清单过期，以及 CLI 两项测试的 Home 配置锁冲突。
+- `scripts/check-workspace.mjs` 比较清单前将 CRLF/CR 归一化为 LF；工作区门禁测试将生成文件转成 CRLF 后再断言通过。
+- 两个 CLI 测试分别使用隔离的 `LFAA_HOME` 与 `LFAA_DATA_DIR`。凭据配置断言读取 Home Owner 的 `storages/configuration.json`；执行控制 teardown 释放 Fiber、关闭 Configuration/SQLite 并清理两个临时目录。模拟 Windows Daemon 改用 `C:\LFAA-test-data`，未放宽生产 schema。
+- Windows 当前工作区验证：`pnpm run check:workspace` 通过（207 个包）；CI 根测试组 4/4、CLI 测试组 33/33、Electron 测试组 22/22；`pnpm run typecheck`、CRLF 回归、凭据/执行控制回归及 `git diff --check` 通过。未在 Ubuntu runner 本地实测。
+- 当前不使用设置中心配置，不改产品运行时逻辑。菜单 6 的正常推送与 GitHub Actions 远端结果待完成后补记。
+- 文件职责：`scripts/check-workspace.mjs`（跨平台清单比较）；`scripts/tests/workspace-check.test.mjs`（CRLF 回归）；`apps/cli/tests/credentials-authorization.test.mjs`（凭据 Home/Data 隔离）；`apps/cli/tests/execution-control.test.mjs`（执行控制隔离/清理与 Windows 路径夹具）；`docs/PROMPTS.md`（合同、索引及验收记录）。

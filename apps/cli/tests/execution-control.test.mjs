@@ -10,8 +10,8 @@ import { tmpdir } from "node:os";
 import { dirname, basename, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
-const parent = resolve(tmpdir()), data = mkdtempSync(join(parent, "lfaa-execution-control-"));
-process.env.LFAA_DATA_DIR = data; process.env.NODE_ENV = "test"; process.env.JWT_SECRET = "";
+const parent = resolve(tmpdir()), home = mkdtempSync(join(parent, "lfaa-execution-control-home-")), data = mkdtempSync(join(parent, "lfaa-execution-control-"));
+process.env.LFAA_HOME = home; process.env.LFAA_DATA_DIR = data; process.env.NODE_ENV = "test"; process.env.JWT_SECRET = "";
 const { database, closeDatabase } = await import("lfaa-storage-sqlite/src/database.js");
 const { EASYTIER_RUNTIME_RELEASE } = await import("lfaa-game-connectivity/src/easytier-release.mjs");
 const userId = randomUUID(), precedenceUserId = randomUUID(), nodeId = randomUUID();
@@ -26,7 +26,6 @@ const { Context } = await import("@deepseek-ai/cordis");
 const toolsContext = new Context();
 const toolsFiber = await toolsContext.plugin(await import("lfaa-tools/src/index.js"));
 const shellFiber = await toolsContext.plugin(await import("lfaa-tool-shell/src/index.js"));
-test.after(async () => { await shellFiber.dispose(); await toolsFiber.dispose(); });
 const { retireLegacyFileTables } = await import("lfaa-storage-domain/src/migration.js");
 // 文件配置协调器先迁移旧配置，之后才可升级版本 34 的控制面字段。
 await import("lfaa-session/src/sessions.js"); retireLegacyFileTables();
@@ -36,10 +35,11 @@ const mc = await import("lfaa-games-minecraft/src/service.js");
 const identity = await import("lfaa-host-daemon/src/node-credentials.js");
 const { recordDaemonHeartbeat } = await import("lfaa-host-daemon/src/local-daemon.js");
 const { requireLocalDaemon, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, daemonHeartbeatSchema, aiHostTaskCompletionSchema } = await import("lfaa-api-remotes/src/route-contracts.js");
-recordDaemonHeartbeat({ id: nodeId, displayName: "测试隔离节点", platform: "win32", architecture: "x64", version: "test", dataRoot: data, capabilities: ["agent-shell-v1", "project-files-v1", "minecraft-native-v1", "app-sandbox-windows-appcontainer-v1", "minecraft-vanilla", EASYTIER_RUNTIME_RELEASE.installCapability], javaRuntimes: [] });
+const daemonDataRoot = "C:\\LFAA-test-data";
+recordDaemonHeartbeat({ id: nodeId, displayName: "测试隔离节点", platform: "win32", architecture: "x64", version: "test", dataRoot: daemonDataRoot, capabilities: ["agent-shell-v1", "project-files-v1", "minecraft-native-v1", "app-sandbox-windows-appcontainer-v1", "minecraft-vanilla", EASYTIER_RUNTIME_RELEASE.installCapability], javaRuntimes: [] });
 const newTask = () => tasks.createAiHostTask({ nodeId, createdBy: userId, appId: "workspace", shell: "system", workingDirectory: "", command: "fixture-only", timeoutSeconds: 0 });
 const output = { stdout: "运行中", stderr: "", exitCode: null, timedOut: false, outputTruncated: false };
-test.after(() => { closeDatabase(); assert.equal(dirname(resolve(data)), parent); assert.ok(basename(data).startsWith("lfaa-execution-control-")); rmSync(data, { recursive: true, force: true }); });
+test.after(async () => { await shellFiber.dispose(); await toolsFiber.dispose(); configuration.close(); closeDatabase(); assert.equal(dirname(resolve(data)), parent); assert.ok(basename(data).startsWith("lfaa-execution-control-")); rmSync(data, { recursive: true, force: true }); assert.equal(dirname(resolve(home)), parent); assert.ok(basename(home).startsWith("lfaa-execution-control-home-")); rmSync(home, { recursive: true, force: true }); });
 
 test("升级时原子拆分旧 AI Runtime 中的 Minecraft 值并保留原值", async () => {
   const saved = settings.getUserSettings(userId);
@@ -99,7 +99,7 @@ test("远程密钥经受保护文件一次导出，撤销文件不可导出", ()
   const revoked = identity.issueDaemonCredential("撤销文件测试", undefined, "https://fixture.example"); identity.revokeDaemonCredential(revoked.nodeId); assert.throws(() => identity.exportDaemonConnection(revoked.nodeId, join(data, "revoked-export.json")), /撤销/u);
 });
 test("节点真实能力合同接受已接入能力，拒绝虚构能力", () => {
-  const value = { id: nodeId, displayName: "测试节点", platform: "win32", architecture: "x64", version: "test", dataRoot: data, capabilities: ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability], javaRuntimes: [], instances: [] };
+  const value = { id: nodeId, displayName: "测试节点", platform: "win32", architecture: "x64", version: "test", dataRoot: daemonDataRoot, capabilities: ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "steamcmd-ready-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability], javaRuntimes: [], instances: [] };
   assert.equal(daemonHeartbeatSchema.validate(value).error, undefined);
   assert.ok(daemonHeartbeatSchema.validate({ ...value, capabilities: ["fictional-desktop-driver"] }).error);
 });

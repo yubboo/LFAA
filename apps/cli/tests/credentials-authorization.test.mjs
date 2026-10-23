@@ -8,10 +8,10 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-function run(dataDirectory, script) {
+function run(homeDirectory, dataDirectory, script) {
   execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", script], {
     cwd: cli,
-    env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: dataDirectory, JWT_SECRET: "" },
+    env: { ...process.env, NODE_ENV: "test", LFAA_HOME: homeDirectory, LFAA_DATA_DIR: dataDirectory, JWT_SECRET: "" },
     encoding: "utf8",
     stdio: "pipe",
     timeout: 30000
@@ -21,6 +21,7 @@ function run(dataDirectory, script) {
 test("Settings 将通用凭据记录加密持久化，并按账户/插件地址隔离", () => {
   const parent = resolve(cli, "../../dist/.tmp");
   mkdirSync(parent, { recursive: true });
+  const home = mkdtempSync(join(parent, "lfaa-credential-home-"));
   const data = mkdtempSync(join(parent, "lfaa-credential-records-"));
   const imports = `
     import assert from 'node:assert/strict';
@@ -36,7 +37,7 @@ test("Settings 将通用凭据记录加密持久化，并按账户/插件地址�
     const reference = { providerId: 'fixture-provider', id: 'primary-account' };
   `;
   try {
-    run(data, `${imports}
+    run(home, data, `${imports}
       database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('fixture-admin',1,'fixture-admin','test-salt','test-hash','admin',1),('fixture-member',2,'fixture-member','test-salt','test-hash','member',0),('fixture-other',3,'fixture-other','test-salt','test-hash','member',0)").run();
       const providerFiber = await context.plugin({ name: 'fixture-provider', inject: ['lfaaCredentials'], apply(ctx) { ctx.effect(() => ctx.lfaaCredentials.registerRecordOwner(ctx, ['fixture-agent'])); } });
       context.lfaaCredentials.commitRecord(providerFiber.ctx, 'fixture-member', reference, { kind: 'grant', payload: { accessToken: 'credential-record-private-value' } });
@@ -52,12 +53,12 @@ test("Settings 将通用凭据记录加密持久化，并按账户/插件地址�
       sessionRecords.close();
     `);
 
-    const configurationPath = join(data, "storages", "configuration.json");
+    const configurationPath = join(home, "storages", "configuration.json");
     const persisted = readFileSync(configurationPath, "utf8");
     assert.equal(persisted.includes("credential-record-private-value"), false);
     assert.doesNotMatch(persisted, /"record_kind"\s*:\s*"grant"/u);
 
-    run(data, `${imports}
+    run(home, data, `${imports}
       const providerFiber = await context.plugin({ name: 'fixture-provider', inject: ['lfaaCredentials'], apply(ctx) { ctx.effect(() => ctx.lfaaCredentials.registerRecordOwner(ctx, ['fixture-agent'])); } });
       let allowed;
       const agentFiber = await context.plugin({ name: 'fixture-agent', inject: ['lfaaCredentials'], apply(ctx) { allowed = ctx.lfaaCredentials.createConsumer(ctx); } });
@@ -77,14 +78,14 @@ test("Settings 将通用凭据记录加密持久化，并按账户/插件地址�
       sessionRecords.close();
     `);
 
-    run(data, `${imports}
+    run(home, data, `${imports}
       database.prepare("UPDATE configuration_credentials SET record_id='swapped-account' WHERE user_id='fixture-member'").run();
       await settingsFiber.dispose();
       await credentialsFiber.dispose();
       configuration.close();
       sessionRecords.close();
     `);
-    run(data, `${imports}
+    run(home, data, `${imports}
       assert.throws(() => context.lfaaSettings.readPluginCredentialRecord('fixture-member', { providerId: 'fixture-provider', id: 'swapped-account' }));
       await settingsFiber.dispose();
       await credentialsFiber.dispose();
@@ -95,6 +96,9 @@ test("Settings 将通用凭据记录加密持久化，并按账户/插件地址�
     assert.equal(dirname(resolve(data)), parent);
     assert.equal(existsSync(data), true);
     rmSync(data, { recursive: true, force: true });
+    assert.equal(dirname(resolve(home)), parent);
+    assert.equal(existsSync(home), true);
+    rmSync(home, { recursive: true, force: true });
   }
 });
 

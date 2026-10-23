@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, writeFileSync, rmSync, rmdirSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync, rmdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +25,9 @@ test("同步 TSX 入口后门禁拒绝缺失入口、漏声明、依赖环、版
     write("docs/updata-log.md", "**项目版本：** `LFAA 0.0.7`\n## #1 fixture\n"); write("README.md", "fixture"); write("开发规范.md", "fixture");
     write("docs/系统总体架构.md", "fixture"); write("docs/archive/audits/harness-p0-audit.md", "fixture");
     const synced = run("--write"); assert.equal(synced.status, 0, synced.stderr); assert.equal(run().status, 0);
+    const markdownPath = resolve(fixture, "docs/harness-packages.md");
+    writeFileSync(markdownPath, readFileSync(markdownPath, "utf8").replace(/\n/gu, "\r\n"), "utf8");
+    assert.equal(run().status, 0, "Windows CRLF checkout must match the generated LF content");
     write("packages/util/a/package.json", { ...a, exports: { ".": "./src/missing.ts" } }); rejected(/公开入口不存在/); write("packages/util/a/package.json", a);
     write("packages/util/a/src/index.tsx", 'import {b} from "lfaa-b/src/index.mjs";'); rejected(/未声明内部依赖/);
     write("packages/util/a/package.json", { ...a, dependencies: { "lfaa-b": "workspace:*" } });
