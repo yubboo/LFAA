@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import { createServer } from "node:http";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,6 +9,7 @@ import { isolateData } from "./isolated-data.mjs";
 
 isolateData(test, "browser-use");
 const { BrowserSessionManager } = await import("lfaa-browser-use/src/session-manager.js");
+const { BUILTIN_BROWSER_WORKSPACE_ID } = await import("lfaa-util-values/src/browser-provider.js");
 
 function makePage(state = {}) {
   let currentUrl = state.url ?? "about:blank";
@@ -16,10 +18,12 @@ function makePage(state = {}) {
     isClosed: () => false,
     url: () => currentUrl,
     title: async () => state.title ?? "Example",
-    viewportSize: () => ({ width: 1280, height: 800 }),
+    viewportSize: () => state.viewport ?? ({ width: 1280, height: 800 }),
+    setViewportSize: async viewport => { state.viewport = { ...viewport }; },
     evaluate: async () => ({
       loading: (state.readyState ?? "complete") === "loading",
-      hasRenderableContent: state.hasRenderableContent ?? true
+      hasRenderableContent: state.hasRenderableContent ?? true,
+      viewport: state.viewport ?? { width: 1280, height: 800 }
     }),
     screenshot: async options => {
       state.screenshotOptions = [...(state.screenshotOptions ?? []), options];
@@ -30,12 +34,17 @@ function makePage(state = {}) {
       eventListeners.add(listener);
       listeners.set(event, eventListeners);
     },
-    emit(event) { for (const listener of listeners.get(event) ?? []) listener(); },
+    once(event, listener) {
+      const wrapped = (...args) => { listeners.get(event)?.delete(wrapped); listener(...args); };
+      this.on(event, wrapped);
+    },
+    off(event, listener) { listeners.get(event)?.delete(listener); },
+    emit(event, ...args) { for (const listener of listeners.get(event) ?? []) listener(...args); },
     locator(selector) {
       if (selector === "body") return { innerText: async () => { state.pageTextReads = (state.pageTextReads ?? 0) + 1; return state.pageText ?? "body"; } };
       return { evaluateAll: async (_map, limit) => { state.controlReads = (state.controlReads ?? 0) + 1; return (state.controls ?? []).slice(0, limit); } };
     },
-    getByRole() { return { first: () => ({ click: async () => undefined }) }; },
+    getByRole() { return { count: async () => state.roleCount ?? 1, first: () => ({ click: async () => undefined }), nth: index => ({ click: async () => { state.clickedOccurrence = index; } }) }; },
     mouse: {
       click: async () => undefined,
       move: async () => undefined,
@@ -68,16 +77,21 @@ function makeBrowser(optionsLog = []) {
       pages.push(page);
       const context = {
         pages: () => pages,
-        newCDPSession: async () => ({
-          send: async method => {
+        newCDPSession: async () => {
+          const client = new EventEmitter();
+          client.send = async method => {
+            page.state.cdpCalls = [...(page.state.cdpCalls ?? []), method];
             if (method === "Page.stopLoading") {
               page.state.stopLoadingCalls = (page.state.stopLoadingCalls ?? 0) + 1;
               page.state.waitUntilClosed = false;
               page.state.release?.();
             }
-          },
-          detach: async () => undefined
-        }),
+            if (method === "Page.startScreencast") setImmediate(() => client.emit("Page.screencastFrame", { data: "/9j/2Q==", sessionId: 7, metadata: { deviceWidth: 640, deviceHeight: 480 } }));
+            return {};
+          };
+          client.detach = async () => { page.state.cdpDetachCount = (page.state.cdpDetachCount ?? 0) + 1; };
+          return client;
+        },
         newPage: async () => page,
         exposeBinding: async (_name, callback) => {
           page.state.exposedBindings = [...(page.state.exposedBindings ?? []), callback];
@@ -205,16 +219,109 @@ test("Browser Owner enforces isolated account/session contexts and strict naviga
   }
 });
 
-test("Browser Owner can prewarm the managed browser before a page or context exists", async () => {
+test("Browser Owner coalesces concurrent navigation so one account/session owns one real Page", async () => {
   const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const browser = makeBrowser();
   useFakeEdge(manager, browser);
   try {
-    await manager.prewarm("lfaa-managed-edge");
-    assert.equal(browser.contexts.length, 0, "prewarming starts the managed browser without creating a page or account context");
+    const [first, concurrent] = await Promise.all([
+      manager.navigate("user-a", "session-a", "lfaa-managed-edge", "http://127.0.0.1:3000/api/health"),
+      manager.navigate("user-a", "session-a", "lfaa-managed-edge", "http://127.0.0.1:3000/api/health")
+    ]);
+    assert.equal(browser.contexts.length, 1, "concurrent Dock/Agent startup opens one isolated BrowserContext");
+    assert.equal(first.sessionId, concurrent.sessionId, "both callers bind to the same Browser Owner session");
+    assert.equal(browser.contexts[0].pages().length, 1, "both callers share one actual Page");
+  } finally {
+    await manager.closeAll();
+  }
+});
+
+test("Browser Dock waiting on an empty workspace sees the Page created by Agent", async () => {
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
+  const browser = makeBrowser();
+  useFakeEdge(manager, browser);
+  try {
+    const controller = new AbortController();
+    const cancelled = manager.waitForPanelRevision("user-a", BUILTIN_BROWSER_WORKSPACE_ID, "lfaa-managed-edge", 0, controller.signal);
+    controller.abort();
+    await assert.rejects(cancelled, /已取消/u);
+    assert.equal(manager.sessionCreationWaiters.size, 0, "cancelled empty-Dock wait releases its listener");
+    const waiting = manager.waitForPanelRevision("user-a", BUILTIN_BROWSER_WORKSPACE_ID, "lfaa-managed-edge", 0);
+    assert.equal(manager.sessionCreationWaiters.size, 1, "empty Dock keeps one cancellable creation waiter");
+    await manager.navigate("user-a", BUILTIN_BROWSER_WORKSPACE_ID, "lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
+    assert.ok(await waiting, "the waiting Dock receives the new browser session");
+    assert.equal(manager.sessionCreationWaiters.size, 0, "creation notification releases the waiter");
+  } finally {
+    await manager.closeAll();
+  }
+});
+
+test("real Chromium lets Agent operate the page already opened in LFAA browser", async t => {
+  const manager = new BrowserSessionManager(true, () => false, { headless: true });
+  const provider = manager.listProviders().find(item => item.id === "lfaa-managed-edge" && item.available);
+  if (!provider) { await manager.closeAll(); t.skip("Microsoft Edge is unavailable on this host"); return; }
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    response.end('<!doctype html><html><head><title>Browser handoff</title></head><body><button id="first">同名</button><button id="second">同名</button><label>姓名 <input id="name"></label><output id="result">尚未操作</output><script>document.querySelector("#first").onclick=()=>document.querySelector("#result").textContent="第一个按钮";document.querySelector("#second").onclick=()=>document.querySelector("#result").textContent="第二个按钮";document.querySelector("#name").oninput=e=>document.querySelector("#result").textContent="输入:"+e.target.value;</script></body></html>');
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  const url = `http://127.0.0.1:${address.port}/`;
+  const controller = new AbortController();
+  const cleanups = [];
+  try {
+    const manual = await manager.navigate("user-a", BUILTIN_BROWSER_WORKSPACE_ID, "lfaa-managed-edge", url, undefined, true, false);
+    const agent = manager.createRunAdapter({ ownerId: "user-a", sourceSessionId: "unrelated-ai-chat", runId: "handoff-run", signal: controller.signal, onRunDispose: cleanup => cleanups.push(cleanup) });
+    const observed = await agent.observe("lfaa-managed-edge");
+    assert.equal(observed.sessionId, manual.sessionId, "Agent observes the manually opened Page rather than a new browser");
+    assert.deepEqual(observed.controls.filter(control => control.name === "同名").map(control => control.occurrence), [0, 1]);
+    assert.ok(observed.controls.some(control => control.name === "姓名" && control.role === "textbox"), "linked label appears in Agent snapshot");
+    await assert.rejects(agent.click("lfaa-managed-edge", "button", "同名"), /多个同名控件/u);
+    const clicked = await agent.click("lfaa-managed-edge", "button", "同名", 1);
+    assert.match(clicked.pageText, /第二个按钮/u);
+    const filled = await agent.fill("lfaa-managed-edge", "姓名", "LFAA");
+    assert.match(filled.pageText, /输入:LFAA/u);
+  } finally {
+    controller.abort();
+    for (const cleanup of cleanups) cleanup();
+    await manager.closeAll();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+test("Browser Dock streams Chromium compositor frames and releases its CDP subscription on disconnect", async () => {
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
+  const browser = makeBrowser();
+  useFakeEdge(manager, browser);
+  const controller = new AbortController();
+  const frames = [];
+  try {
     await manager.navigate("user-a", "session-a", "lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
-    assert.equal(browser.contexts.length, 1, "the later navigation creates the normal isolated context on the warmed browser");
-    await assert.rejects(manager.prewarm("tabbit-personal"), /只支持 LFAA 隔离 Edge\/Chrome/u);
+    await manager.streamDockFrames("user-a", "session-a", "lfaa-managed-edge", controller.signal, async frame => {
+      frames.push(frame);
+      controller.abort();
+    });
+    assert.deepEqual(frames, [{ dataBase64: "/9j/2Q==", width: 640, height: 480 }], "the Dock receives the current page's compositor frame");
+    assert.deepEqual(browser.contexts[0].pages()[0].state.cdpCalls, ["Page.startScreencast", "Page.screencastFrameAck", "Page.stopScreencast"], "each delivered frame is acknowledged and the compositor stream is stopped");
+    assert.equal(browser.contexts[0].pages()[0].state.cdpDetachCount, 1, "disconnect releases the page-scoped CDP session");
+  } finally {
+    controller.abort();
+    await manager.closeAll();
+  }
+});
+
+test("Browser Dock resizes the real Page viewport to the embedded container without taking a screenshot", async () => {
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
+  const browser = makeBrowser();
+  useFakeEdge(manager, browser);
+  try {
+    await manager.navigate("user-a", "session-a", "lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
+    const screenshotCountBeforeResize = browser.contexts[0].pages()[0].state.screenshotOptions.length;
+    const resized = await manager.resizeViewport("user-a", "session-a", "lfaa-managed-edge", 560, 920, undefined, false);
+    assert.deepEqual(browser.contexts[0].pages()[0].state.viewport, { width: 560, height: 920 }, "the Chromium viewport follows the right Dock's tall layout");
+    assert.deepEqual(resized.viewport, { width: 560, height: 920 });
+    assert.equal(resized.screenshot, null, "resizing does not create a parallel static screenshot");
+    assert.equal(browser.contexts[0].pages()[0].state.screenshotOptions.length, screenshotCountBeforeResize, "resize uses the compositor stream without invoking another page.screenshot");
   } finally {
     await manager.closeAll();
   }
@@ -242,15 +349,20 @@ test("Browser Run adapter is account/session/run bound and released with the Run
     assert.notStrictEqual(otherAccount, runA, "another account receives a separate adapter");
     assert.deepEqual(Object.keys(runA).sort(), ["claimTab", "click", "fill", "listTabs", "navigate", "navigateProjectPreview", "observe", "pressKey", "runId", "scroll"], "the adapter exposes only bounded browser actions");
 
+    const manualPage = await manager.navigate("user-a", BUILTIN_BROWSER_WORKSPACE_ID, "lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
+    assert.equal(manager.listProviders("user-a").find(provider => provider.id === "lfaa-managed-edge")?.activeInWorkspace, true, "provider directory identifies the manually opened browser for Agent selection");
+    assert.equal(manager.listProviders("user-b").find(provider => provider.id === "lfaa-managed-edge")?.activeInWorkspace, false, "another account cannot see this workspace as active");
+    const manualScreenshotCount = browser.contexts[0].pages()[0].state.screenshotOptions?.length ?? 0;
     const pageA = await runA.navigate("lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
     const pageNextRun = await nextRun.navigate("lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
     const pageOtherAccount = await otherAccount.navigate("lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
     const sharedPage = browser.contexts[0].pages()[0];
+    assert.equal(pageA.sessionId, manualPage.sessionId, "Agent connects to the browser page already opened manually");
     assert.equal(pageA.sessionId, pageNextRun.sessionId, "Browser Session remains shared across Runs in the same LFAA session");
     assert.notEqual(pageA.sessionId, pageOtherAccount.sessionId, "Browser Session stays isolated by account");
     assert.equal(browser.contexts.length, 2);
     assert.equal(pageA.screenshot, null, "Agent navigation returns structured page data without capturing a screenshot");
-    assert.equal(sharedPage.state.screenshotOptions?.length ?? 0, 0, "Agent navigation skips the expensive screenshot path");
+    assert.equal(sharedPage.state.screenshotOptions?.length ?? 0, manualScreenshotCount, "Agent navigation skips the expensive screenshot path");
     assert.equal(cleanupsA.length, 1, "the Run registers only one cleanup callback");
 
     cleanupsA[0]();
@@ -258,10 +370,14 @@ test("Browser Run adapter is account/session/run bound and released with the Run
     const observed = await nextRun.observe("lfaa-managed-edge");
     assert.match(observed.pageText, /body/u, "disposing one Run leaves the Session context available to another Run");
     assert.equal(observed.screenshot, null, "Agent observation stays structured JSON rather than returning an image");
-    assert.equal(sharedPage.state.screenshotOptions?.length ?? 0, 0, "Agent observation does not capture an image");
+    assert.equal(sharedPage.state.screenshotOptions?.length ?? 0, manualScreenshotCount, "Agent observation does not capture an image");
     const clicked = await nextRun.click("lfaa-managed-edge", "button", "Continue");
     assert.equal(clicked.screenshot, null, "Agent actions return structured state without blocking on a screenshot");
-    assert.equal(sharedPage.state.screenshotOptions?.length ?? 0, 0, "Agent click skips screenshot capture too");
+    assert.equal(sharedPage.state.screenshotOptions?.length ?? 0, manualScreenshotCount, "Agent click skips screenshot capture too");
+    sharedPage.state.roleCount = 2;
+    await assert.rejects(nextRun.click("lfaa-managed-edge", "button", "Continue"), /多个同名控件/u, "Agent must not silently click the first ambiguous control");
+    await nextRun.click("lfaa-managed-edge", "button", "Continue", 1);
+    assert.equal(sharedPage.state.clickedOccurrence, 1, "Agent can target the occurrence reported by its page observation");
     const replacement = manager.createRunAdapter({ ...bindingA, signal: new AbortController().signal, onRunDispose: cleanup => cleanupsA.push(cleanup) });
     assert.notStrictEqual(replacement, runA, "disposed bridge registration is removed");
   } finally {
@@ -274,7 +390,7 @@ test("Browser snapshots bound text, controls, tabs, and screenshot bytes", async
   const activePage = makePage({
     url: "https://example.test/",
     pageText: `${"x".repeat(16_010)}\u0000tail`,
-    controls: Array.from({ length: 100 }, (_, index) => ({ role: "button", name: `Button ${index}`, disabled: false })),
+    controls: Array.from({ length: 100 }, (_, index) => ({ role: "button", name: index < 2 ? "Same" : `Button ${index}`, disabled: false })),
     screenshot: Buffer.alloc(2 * 1024 * 1024 + 1)
   });
   const pages = [activePage, ...Array.from({ length: 9 }, (_, index) => makePage({ url: `https://example.test/${index}`, title: `Tab ${index}` }))];
@@ -283,6 +399,7 @@ test("Browser snapshots bound text, controls, tabs, and screenshot bytes", async
     assert.equal(snapshot.pageText.length, 16_000);
     assert.equal(snapshot.pageText.includes("\u0000"), false);
     assert.equal(snapshot.controls.length, 80);
+    assert.deepEqual(snapshot.controls.slice(0, 2).map(control => control.occurrence), [0, 1], "same-name controls expose distinct occurrence numbers");
     assert.equal(snapshot.tabs.length, 8);
     assert.equal(snapshot.screenshot, null, "oversized screenshot bytes are not returned");
     assert.deepEqual(activePage.state.screenshotOptions.map(options => options.animations), ["allow", "allow"], "capturing frames keeps page animations running");

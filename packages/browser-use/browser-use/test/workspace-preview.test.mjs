@@ -34,7 +34,7 @@ test("opens a scoped workspace preview in the same isolated Browser Session used
   const resized = await manager.resizeViewport("preview-test-owner", "preview-test-session", provider.id, 960, 1120);
   assert.equal(resized?.screenshot?.width, 960);
   assert.equal(resized?.screenshot?.height, 1120);
-  assert.match(resized?.pageText ?? "", /workspace preview/u);
+  assert.equal(resized?.pageText, "", "viewport resize returns a light snapshot and does not reread the page body");
   await assert.rejects(manager.resizeViewport("preview-test-owner", "preview-test-session", provider.id, 200, 1120), /视口尺寸/u);
   await assert.rejects(manager.resizeViewport("preview-test-owner", "preview-test-session", "tabbit-personal", 960, 1120), /由用户控制/u);
 

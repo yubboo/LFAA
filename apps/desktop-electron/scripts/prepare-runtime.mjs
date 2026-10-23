@@ -132,7 +132,9 @@ async function prepareRuntime() {
     "scripts/extract-data-directory-archive.ps1",
     "scripts/get-project-drive-type.ps1",
     "dist/apps/web/index.html",
+    "dist/apps/web/build-state.json",
     "dist/apps/control-plane/index.js",
+    "dist/apps/control-plane/build-state.json",
     "dist/apps/daemon/target/x86_64-pc-windows-msvc/release/lfaa-sandbox-host.exe"
   ];
 

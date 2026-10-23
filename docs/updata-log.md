@@ -6,6 +6,13 @@
 
 历史版本线曾按用户授权重置；旧条目保留原版本、编号和结果。当前产品版本取最新条目，CLI/Web/Electron/update.json 对账，私有实现包独立版本不当作产品发行版本。2026-10-08 工作区整改不生成安装包、不改产品版本；源码修复与验证见 [审查记录](development/workspace-audit-20261008.zh.md)。
 
+## #26 Electron 桌面安装包
+
+- **项目版本：** `LFAA 0.0.13`
+- **日期：** 2026-10-23
+- **更新内容：** 修复 Windows Electron 安装包缺少 Web 构建指纹导致控制端启动失败
+- **Windows Electron 包状态：** 已生成：LFAA-0.0.13.exe
+
 ## #25 Electron 桌面安装包
 
 - **项目版本：** `LFAA 0.0.12`

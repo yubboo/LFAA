@@ -5,7 +5,7 @@
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, lstatSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve, relative } from "node:path";
+import { dirname, resolve, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -52,10 +52,15 @@ export function runtimeBuildFingerprint(kind, repository = root) {
   return hash.digest("hex");
 }
 
-export function recordRuntimeBuild(kind, repository = root, expectedFingerprint) {
+export function recordRuntimeBuild(kind, repository = root, expectedFingerprint, outputDirectory) {
   const fingerprint = runtimeBuildFingerprint(kind, repository);
   if (expectedFingerprint !== undefined && fingerprint !== expectedFingerprint) throw new Error("构建期间源码发生变化，请重新构建，避免记录过期输出。");
-  const output = resolve(repository, outputs[kind]);
+  const output = outputDirectory === undefined ? resolve(repository, outputs[kind]) : resolve(repository, outputDirectory);
+  const distRoot = resolve(repository, "dist");
+  const relativeOutput = relative(distRoot, output);
+  if (!relativeOutput || relativeOutput === ".." || relativeOutput.startsWith(`..${sep}`)) {
+    throw new Error(`构建指纹只允许写入仓库根 dist/ 下的输出目录：${output}`);
+  }
   mkdirSync(output, { recursive: true });
   writeFileSync(resolve(output, "build-state.json"), JSON.stringify({ kind, fingerprint }));
 }

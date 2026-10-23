@@ -57,8 +57,8 @@ class FakeWebContentsView {
     FakeWebContentsView.failNextLoad = false;
     FakeWebContentsView.created.push(this);
   }
-  setVisible(value) { this.visible = value; }
-  setBounds(bounds) { this.bounds = bounds; }
+  setVisible(value) { this.visibleCalls = (this.visibleCalls ?? 0) + 1; this.visible = value; }
+  setBounds(bounds) { this.boundsCalls = (this.boundsCalls ?? 0) + 1; this.bounds = bounds; }
 }
 FakeWebContentsView.created = [];
 FakeWebContentsView.failNextLoad = false;
@@ -125,6 +125,12 @@ test("native tabs use an isolated in-memory browser session, expose exact CDP ta
   workspace.setVisible(true);
   assert.deepEqual(firstView.bounds, { x: 0, y: 7, width: 16_384, height: 300 });
   assert.equal(firstView.visible, true);
+  const boundsCalls = firstView.boundsCalls;
+  const visibilityCalls = firstView.visibleCalls;
+  workspace.setBounds({ x: -10, y: 7.4, width: 20_000, height: 300 });
+  workspace.setVisible(true);
+  assert.equal(firstView.boundsCalls, boundsCalls, "reapplying identical native bounds does not schedule Chromium layout work");
+  assert.equal(firstView.visibleCalls, visibilityCalls, "reapplying identical visibility does not toggle the native view");
 
   FakeWebContentsView.failNextLoad = true;
   const failedNavigation = await workspace.createTab("https://bad.example");

@@ -1,5 +1,5 @@
 /**
- * 功能：持有 LFAA 隔离 Chromium BrowserContext 与可见页面状态。
+ * 功能：持有 LFAA 隔离 Chromium BrowserContext 与内嵌页面状态。
  * 作用：Agent Tools 与右 Dock 读取/操控同一会话；不附着用户个人浏览器 Profile。
  * 关联文件：index.ts、packages/api/browser-controller、packages/client/ui-sidebar-browser。
  */
@@ -12,7 +12,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from "playwrig
 import { isPublicMcpAddress, resolveMcpEndpoint } from "lfaa-mcp-client/src/network.js";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
-import type { BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
+import { BUILTIN_BROWSER_WORKSPACE_ID, type BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 import { TabbitBrowserProvider, type TabbitTabSummary } from "./tabbit-provider.js";
 
 const SESSION_IDLE_TTL_MS = 30 * 60_000;
@@ -31,7 +31,7 @@ const SENSITIVE_FIELD = /(?:password|passcode|secret|token|api[\s_-]?key|authori
 export const BROWSER_ALLOWED_KEYS = ["Enter", "Tab", "Shift+Tab", "Escape", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Home", "End", "PageDown", "PageUp", "Space", "Backspace", "Delete", "Control+A", "Meta+A", "Control+C", "Control+V", "Control+X", "Control+Z", "Control+Y", "Meta+C", "Meta+V", "Meta+X", "Meta+Z", "Meta+Y"] as const;
 const BROWSER_ALLOWED_KEY_SET: ReadonlySet<string> = new Set(BROWSER_ALLOWED_KEYS);
 
-export interface BrowserProviderSummary { id: BrowserProviderId; name: string; available: boolean; reason?: string; isolation: "app-session" | "new-profile" | "user-profile" }
+export interface BrowserProviderSummary { id: BrowserProviderId; name: string; available: boolean; reason?: string; isolation: "app-session" | "new-profile" | "user-profile"; activeInWorkspace?: boolean }
 export interface BrowserTabSummary { id: string; title: string; url: string; active: boolean }
 export interface BrowserSnapshot {
   sessionId: string;
@@ -41,8 +41,9 @@ export interface BrowserSnapshot {
   title: string;
   loading: boolean;
   pageText: string;
-  controls: Array<{ role: string; name: string; type?: string; disabled: boolean }>;
+  controls: Array<{ role: string; name: string; type?: string; disabled: boolean; occurrence?: number }>;
   tabs: BrowserTabSummary[];
+  viewport?: { width: number; height: number } | null;
   screenshot: { mimeType: "image/jpeg"; dataBase64: string; width: number; height: number } | null;
 }
 export class BrowserNavigationTargetError extends Error {
@@ -69,7 +70,7 @@ export interface BrowserRunAdapter {
   navigate(providerId: BrowserProviderId, url: string): Promise<BrowserSnapshot>;
   navigateProjectPreview(providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }): Promise<BrowserSnapshot>;
   observe(providerId: BrowserProviderId): Promise<BrowserSnapshot>;
-  click(providerId: BrowserProviderId, role: string, name: string): Promise<BrowserSnapshot>;
+  click(providerId: BrowserProviderId, role: string, name: string, occurrence?: number): Promise<BrowserSnapshot>;
   fill(providerId: BrowserProviderId, label: string, value: string): Promise<BrowserSnapshot>;
   pressKey(providerId: BrowserProviderId, key: string): Promise<BrowserSnapshot>;
   scroll(providerId: BrowserProviderId, direction: "up" | "down", amount: number): Promise<BrowserSnapshot>;
@@ -92,6 +93,7 @@ interface BrowserSession {
   lastRecentUrl: string;
   userDataDir: string | null;
   ownsContext: boolean;
+  dockFrameStreamActive: boolean;
   nativePageHandlers?: Map<Page, { domcontentloaded: () => void; close: () => void; framenavigated: (frame: import("playwright-core").Frame) => void }>;
   nativePageListener?: (page: Page) => void;
   disposed: boolean;
@@ -143,6 +145,7 @@ export class BrowserSessionManager {
   private readonly sessions = new Map<string, BrowserSession>();
   private readonly sessionKeys = new Map<string, string>();
   private readonly pendingSessions = new Map<string, { ownerId: string; promise: Promise<BrowserSession> }>();
+  private readonly sessionCreationWaiters = new Map<string, Set<(revision: BrowserRevision | null) => void>>();
   private readonly runAdapters = new Map<string, { adapter: BrowserRunAdapter; signal: AbortSignal; dispose: () => void }>();
   private readonly channels = availableChannels();
   private readonly headless: boolean;
@@ -159,7 +162,7 @@ export class BrowserSessionManager {
     private readonly isRecentHistoryEnabled: (ownerId: string) => boolean = ownerId => getUserSettings(ownerId).browserUse.recordRecentSites,
     options: BrowserSessionManagerOptions = {}
   ) {
-    this.headless = options.headless ?? false;
+    this.headless = options.headless ?? true;
     this.tabbit = new TabbitBrowserProvider(localHostExecution);
     this.sweepTimer.unref?.();
   }
@@ -222,17 +225,18 @@ export class BrowserSessionManager {
       signal.throwIfAborted();
       return operation();
     };
+    const browserWorkspaceId = (providerId: BrowserProviderId) => providerId === "tabbit-personal" ? sourceSessionId : BUILTIN_BROWSER_WORKSPACE_ID;
     const adapter: BrowserRunAdapter = Object.freeze({
       runId,
       listTabs: (): Promise<TabbitTabSummary[]> => invoke(() => this.listTabs(ownerId, sourceSessionId, "tabbit-personal", signal)),
       claimTab: (tabId: number): Promise<BrowserSnapshot> => invoke(() => this.claimTab(ownerId, sourceSessionId, "tabbit-personal", tabId, signal)),
-      navigate: (providerId: BrowserProviderId, url: string): Promise<BrowserSnapshot> => invoke(() => this.navigate(ownerId, sourceSessionId, providerId, url, signal, true, false)),
-      navigateProjectPreview: (providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }): Promise<BrowserSnapshot> => invoke(() => this.navigateProjectPreview(ownerId, sourceSessionId, providerId, preview, signal, false)),
-      observe: (providerId: BrowserProviderId): Promise<BrowserSnapshot> => invoke(() => this.observeForRun(ownerId, sourceSessionId, providerId, signal, false)),
-      click: (providerId: BrowserProviderId, role: string, name: string): Promise<BrowserSnapshot> => invoke(() => this.click(ownerId, sourceSessionId, providerId, role, name, signal, true, false)),
-      fill: (providerId: BrowserProviderId, label: string, value: string): Promise<BrowserSnapshot> => invoke(() => this.fill(ownerId, sourceSessionId, providerId, label, value, signal, true, false)),
-      pressKey: (providerId: BrowserProviderId, key: string): Promise<BrowserSnapshot> => invoke(() => this.pressKey(ownerId, sourceSessionId, providerId, key, signal, false)),
-      scroll: (providerId: BrowserProviderId, direction: "up" | "down", amount: number): Promise<BrowserSnapshot> => invoke(() => this.scroll(ownerId, sourceSessionId, providerId, direction, amount, signal, false))
+      navigate: (providerId: BrowserProviderId, url: string): Promise<BrowserSnapshot> => invoke(() => this.navigate(ownerId, browserWorkspaceId(providerId), providerId, url, signal, true, false)),
+      navigateProjectPreview: (providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }): Promise<BrowserSnapshot> => invoke(() => this.navigateProjectPreview(ownerId, browserWorkspaceId(providerId), providerId, preview, signal, false)),
+      observe: (providerId: BrowserProviderId): Promise<BrowserSnapshot> => invoke(() => this.observeForRun(ownerId, browserWorkspaceId(providerId), providerId, signal, false)),
+      click: (providerId: BrowserProviderId, role: string, name: string, occurrence?: number): Promise<BrowserSnapshot> => invoke(() => this.click(ownerId, browserWorkspaceId(providerId), providerId, role, name, signal, true, false, occurrence)),
+      fill: (providerId: BrowserProviderId, label: string, value: string): Promise<BrowserSnapshot> => invoke(() => this.fill(ownerId, browserWorkspaceId(providerId), providerId, label, value, signal, true, false)),
+      pressKey: (providerId: BrowserProviderId, key: string): Promise<BrowserSnapshot> => invoke(() => this.pressKey(ownerId, browserWorkspaceId(providerId), providerId, key, signal, false)),
+      scroll: (providerId: BrowserProviderId, direction: "up" | "down", amount: number): Promise<BrowserSnapshot> => invoke(() => this.scroll(ownerId, browserWorkspaceId(providerId), providerId, direction, amount, signal, false))
     });
     const dispose = () => {
       if (!active) return;
@@ -249,7 +253,7 @@ export class BrowserSessionManager {
     return adapter;
   }
 
-  listProviders(): BrowserProviderSummary[] {
+  listProviders(ownerId?: string): BrowserProviderSummary[] {
     if (!this.localHostExecution) return [];
     const providers: BrowserProviderSummary[] = this.channels.map(channel => {
       const executableExists = channel.paths.some(path => existsSync(path));
@@ -272,7 +276,11 @@ export class BrowserSessionManager {
       });
     }
     providers.push({ id: "tabbit-personal", name: "Tabbit Browser · 个人会话", available: this.tabbit.isAvailable(), ...(!this.tabbit.isAvailable() ? { reason: "未在当前账户稳定启动器位置发现 Tabbit LocalAgent。" } : {}), isolation: "user-profile" as const });
-    return providers;
+    return ownerId ? providers.map(provider => ({
+      ...provider,
+      activeInWorkspace: provider.id !== "tabbit-personal" && (this.sessionKeys.has(sessionKey(ownerId, BUILTIN_BROWSER_WORKSPACE_ID, provider.id))
+        || provider.id === "lfaa-native-browser" && this.nativeActiveTargets.has(sessionKey(ownerId, BUILTIN_BROWSER_WORKSPACE_ID, provider.id)))
+    })) : providers;
   }
 
   async setNativeActiveTarget(ownerId: string, sourceSessionId: string, targetId: string): Promise<void> {
@@ -328,7 +336,74 @@ export class BrowserSessionManager {
     return this.exclusive(session, () => this.observe(session, providerId === "lfaa-native-browser" ? false : includeScreenshot, includePageDetails));
   }
 
-  async resizeViewport(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, width: number, height: number, signal?: AbortSignal): Promise<BrowserSnapshot | null> {
+  async streamDockFrames(
+    ownerId: string,
+    sourceSessionId: string,
+    providerId: BrowserProviderId,
+    signal: AbortSignal,
+    onFrame: (frame: { dataBase64: string; width: number; height: number }) => Promise<void>
+  ): Promise<void> {
+    if (providerId !== "lfaa-managed-edge" && providerId !== "lfaa-managed-chrome") throw new Error("当前浏览器来源不支持内嵌实时画面。");
+    const key = sessionKey(ownerId, sourceSessionId, providerId);
+    const id = this.sessionKeys.get(key);
+    const session = id ? this.sessions.get(id) : undefined;
+    if (!session || session.disposed || session.page.isClosed()) throw new Error("当前没有可显示的浏览器页面。");
+    if (session.dockFrameStreamActive) throw new Error("当前浏览器页面已经连接到右侧栏。");
+    if (signal.aborted) return;
+
+    const page = session.page;
+    session.dockFrameStreamActive = true;
+    let client: Awaited<ReturnType<BrowserContext["newCDPSession"]>>;
+    try { client = await session.context.newCDPSession(page); }
+    catch (error) { session.dockFrameStreamActive = false; throw error; }
+    type ScreencastFrame = { data: string; sessionId: number; metadata?: { deviceWidth?: number; deviceHeight?: number } };
+    const pending: { frame: ScreencastFrame | null } = { frame: null };
+    let wake: (() => void) | null = null;
+    let started = false;
+    const notify = () => { const callback = wake; wake = null; callback?.(); };
+    const acknowledge = (frame: ScreencastFrame) => client.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => undefined);
+    const onScreencastFrame = (frame: ScreencastFrame) => {
+      if (signal.aborted || page.isClosed()) { void acknowledge(frame); return; }
+      if (pending.frame) void acknowledge(pending.frame);
+      pending.frame = frame;
+      notify();
+    };
+    const onPageClose = () => notify();
+    const onAbort = () => notify();
+    client.on("Page.screencastFrame", onScreencastFrame);
+    page.once("close", onPageClose);
+    signal.addEventListener("abort", onAbort, { once: true });
+    try {
+      await client.send("Page.startScreencast", { format: "jpeg", quality: 62, maxWidth: 1280, maxHeight: 1600, everyNthFrame: 1 });
+      started = true;
+      this.touch(session);
+      while (!signal.aborted && !page.isClosed()) {
+        if (!pending.frame) await new Promise<void>(resolve => { wake = resolve; });
+        const frame = pending.frame;
+        pending.frame = null;
+        if (!frame || signal.aborted || page.isClosed()) continue;
+        const viewport = page.viewportSize() ?? { width: 1280, height: 800 };
+        const width = Math.max(1, Math.min(1280, Math.floor(frame.metadata?.deviceWidth ?? viewport.width)));
+        const height = Math.max(1, Math.min(1600, Math.floor(frame.metadata?.deviceHeight ?? viewport.height)));
+        if (frame.data.length <= 4_000_000) {
+          await onFrame({ dataBase64: frame.data, width, height });
+          this.touch(session);
+        }
+        await acknowledge(frame);
+      }
+    } finally {
+      session.dockFrameStreamActive = false;
+      client.off("Page.screencastFrame", onScreencastFrame);
+      page.off("close", onPageClose);
+      signal.removeEventListener("abort", onAbort);
+      notify();
+      if (pending.frame) await acknowledge(pending.frame);
+      if (started) await client.send("Page.stopScreencast").catch(() => undefined);
+      await client.detach().catch(() => undefined);
+    }
+  }
+
+  async resizeViewport(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, width: number, height: number, signal?: AbortSignal, includeScreenshot = true): Promise<BrowserSnapshot | null> {
     if (providerId === "tabbit-personal") throw new Error("Tabbit 个人浏览器的视口由用户控制，LFAA 不会调整其窗口尺寸。");
     if (providerId === "lfaa-native-browser") throw new Error("原生浏览器视口由当前工作区布局控制。");
     if (!Number.isInteger(width) || width < 320 || width > MAX_IMAGE_DIMENSION || !Number.isInteger(height) || height < 400 || height > 1600) {
@@ -345,7 +420,7 @@ export class BrowserSessionManager {
         this.bumpRevision(session);
       }
       this.touch(session);
-      return this.observe(session, true, false);
+      return this.observe(session, includeScreenshot, false);
     }, signal);
   }
 
@@ -364,7 +439,26 @@ export class BrowserSessionManager {
     signal?.throwIfAborted();
     const key = sessionKey(ownerId, sourceSessionId, providerId), id = this.sessionKeys.get(key);
     const session = id ? this.sessions.get(id) : undefined;
-    if (!session || session.disposed || session.page.isClosed()) return null;
+    if (!session || session.disposed || session.page.isClosed()) return new Promise((resolve, reject) => {
+      let settled = false;
+      if (!this.sessionCreationWaiters.has(key) && this.sessionCreationWaiters.size >= 128) { reject(new Error("浏览器更新等待数量已达上限。")); return; }
+      const waiters = this.sessionCreationWaiters.get(key) ?? new Set<(revision: BrowserRevision | null) => void>();
+      if (waiters.size >= 16) { reject(new Error("当前浏览器工作区更新等待数量已达上限。")); return; }
+      this.sessionCreationWaiters.set(key, waiters);
+      const cleanup = () => {
+        clearTimeout(timer);
+        waiters.delete(onCreated);
+        if (!waiters.size) this.sessionCreationWaiters.delete(key);
+        signal?.removeEventListener("abort", onAbort);
+      };
+      const onCreated = (revision: BrowserRevision | null) => { if (!settled) { settled = true; cleanup(); resolve(revision); } };
+      const onAbort = () => { if (!settled) { settled = true; cleanup(); reject(new Error("浏览器页面更新等待已取消。")); } };
+      const timer = setTimeout(() => onCreated(null), 15_000);
+      waiters.add(onCreated);
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) onAbort();
+      else if (this.sessionKeys.has(key)) void this.getPanelRevision(ownerId, sourceSessionId, providerId).then(onCreated, error => { cleanup(); reject(error); });
+    });
     this.touch(session);
     if (session.revision !== afterRevision) return this.getPanelRevision(ownerId, sourceSessionId, providerId, signal);
     return new Promise((resolve, reject) => {
@@ -471,13 +565,21 @@ export class BrowserSessionManager {
     return this.usePage(ownerId, sourceSessionId, providerId, page => page.reload({ waitUntil: "commit", timeout: 15_000 }), signal, includeScreenshot, includePageDetails);
   }
 
-  async click(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, role: string, name: string, signal?: AbortSignal, includePageDetails = true, includeScreenshot = true): Promise<BrowserSnapshot> {
-    if (providerId === "tabbit-personal") return this.tabbit.action(ownerId, sourceSessionId, "click", { role, name }, signal);
+  async click(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, role: string, name: string, signal?: AbortSignal, includePageDetails = true, includeScreenshot = true, occurrence?: number): Promise<BrowserSnapshot> {
+    if (occurrence !== undefined && (!Number.isInteger(occurrence) || occurrence < 0 || occurrence >= MAX_INTERACTIVE_ITEMS)) throw new Error("网页控件序号无效。");
+    if (providerId === "tabbit-personal") {
+      if (occurrence !== undefined) throw new Error("Tabbit 当前不支持按同名控件序号点击。");
+      return this.tabbit.action(ownerId, sourceSessionId, "click", { role, name }, signal);
+    }
     const allowedRoles = new Set(["button", "link", "checkbox", "radio", "tab", "menuitem", "option"]);
     if (!allowedRoles.has(role) || !name.trim() || name.length > 160) throw new Error("点击目标必须来自页面快照中的可访问角色和名称。");
     return this.usePage(ownerId, sourceSessionId, providerId, async page => {
-      const target = page.getByRole(role as "button", { name: name.trim(), exact: true }).first();
-      await target.click({ timeout: PAGE_ACTION_TIMEOUT_MS });
+      const matches = page.getByRole(role as "button", { name: name.trim(), exact: true });
+      const count = await matches.count();
+      if (count === 0) throw new Error("当前网页已找不到此控件，请重新观察页面。");
+      if (occurrence === undefined && count !== 1) throw new Error("当前网页有多个同名控件，请使用页面快照中的 occurrence 序号。");
+      if ((occurrence ?? 0) >= count) throw new Error("网页控件序号已失效，请重新观察页面。");
+      await matches.nth(occurrence ?? 0).click({ timeout: PAGE_ACTION_TIMEOUT_MS });
     }, signal, includeScreenshot, includePageDetails);
   }
 
@@ -486,7 +588,9 @@ export class BrowserSessionManager {
     if (!label.trim() || label.length > 160 || value.length > 4000) throw new Error("输入目标或内容超出允许范围。");
     if (isSensitiveField(label)) throw new Error("密码、验证码、令牌和密钥需由用户在页面中自行输入，LFAA 不代填或读取。");
     return this.usePage(ownerId, sourceSessionId, providerId, async page => {
-      const target = page.getByRole("textbox", { name: label.trim(), exact: true }).first();
+      const matches = page.getByRole("textbox", { name: label.trim(), exact: true });
+      if (await matches.count() !== 1) throw new Error("网页文本框不存在或名称重复，请重新观察页面。");
+      const target = matches.first();
       const type = await target.getAttribute("type", { timeout: PAGE_ACTION_TIMEOUT_MS }).catch(() => null);
       if (isSensitiveField(label, type ?? undefined)) throw new Error("密码、验证码、令牌和密钥需由用户在页面中自行输入，LFAA 不代填或读取。");
       await target.fill(value, { timeout: PAGE_ACTION_TIMEOUT_MS });
@@ -562,6 +666,8 @@ export class BrowserSessionManager {
   async closeAll(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    for (const waiters of [...this.sessionCreationWaiters.values()]) for (const waiter of [...waiters]) waiter(null);
+    this.sessionCreationWaiters.clear();
     clearInterval(this.sweepTimer);
     for (const entry of this.runAdapters.values()) entry.dispose();
     this.runAdapters.clear();
@@ -629,12 +735,13 @@ export class BrowserSessionManager {
       }
       if (!context || !page) throw new Error("原生浏览器里没有可接管的网页标签；先在右侧工作区打开一个标签。");
       if (this.disposed) throw new Error("Browser Owner 已关闭。");
+      const activeContext = context;
       const session: BrowserSession = {
-        id: randomUUID(), ownerId, sourceSessionId, providerId, browser, context,
+        id: randomUUID(), ownerId, sourceSessionId, providerId, browser, context: activeContext,
         page, lastUsedAt: Date.now(), revision: 0,
         revisionWaiters: new Set(),
         operationTail: Promise.resolve(), allowedLocalOrigin: null, projectPreview: null, lastRecentUrl: "",
-        ownsContext: !isNativeProvider, userDataDir, disposed: false
+        ownsContext: !isNativeProvider, dockFrameStreamActive: false, userDataDir, disposed: false
       };
       if (isNativeProvider) {
         session.nativePageHandlers = new Map();
@@ -644,23 +751,24 @@ export class BrowserSessionManager {
         context.on("page", session.nativePageListener);
         this.sessions.set(session.id, session);
         this.sessionKeys.set(key, session.id);
+        this.notifySessionCreated(key, session);
         return session;
       }
       let lastChangeNotificationAt = 0;
-      await context.exposeBinding("__lfaaBrowserChanged", () => {
+      await activeContext.exposeBinding("__lfaaBrowserChanged", () => {
         const now = Date.now();
         if (now - lastChangeNotificationAt < BROWSER_DOM_CHANGE_NOTIFICATION_INTERVAL_MS) return;
         lastChangeNotificationAt = now;
         this.bumpRevision(session);
       });
-      await context.addInitScript("(() => { let queued = false; const observer = new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; void window.__lfaaBrowserChanged?.(); }); }); observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true }); window.addEventListener(\"pagehide\", () => observer.disconnect(), { once: true }); })();");
-      await context.route("**/*", route => {
+      await activeContext.addInitScript("(() => { let queued = false; const notify = () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; void window.__lfaaBrowserChanged?.(); }); }; const observer = new MutationObserver(notify); observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true }); window.addEventListener(\"resize\", notify, { passive: true }); window.addEventListener(\"pagehide\", () => { observer.disconnect(); window.removeEventListener(\"resize\", notify); }, { once: true }); })();");
+      await activeContext.route("**/*", route => {
         const requestUrl = route.request().url();
         if (/^(?:about:|blob:|data:)/iu.test(requestUrl)) { void route.continue(); return; }
         void this.guardRequest(session, requestUrl).then(() => route.continue()).catch(() => route.abort("blockedbyclient"));
       });
-      context.on("page", nextPage => {
-        if (context.pages().length > MAX_PAGE_COUNT) { void nextPage.close().catch(() => undefined); return; }
+      activeContext.on("page", nextPage => {
+        if (activeContext.pages().length > MAX_PAGE_COUNT) { void nextPage.close().catch(() => undefined); return; }
         session.page = nextPage;
         this.bumpRevision(session);
         nextPage.on("domcontentloaded", () => { this.bumpRevision(session); });
@@ -673,6 +781,7 @@ export class BrowserSessionManager {
       if (this.disposed) throw new Error("Browser Owner 已关闭。");
       this.sessions.set(session.id, session);
       this.sessionKeys.set(key, session.id);
+      this.notifySessionCreated(key, session);
       return session;
     } catch (error) {
       if (context && !isNativeProvider) await context.close().catch(() => undefined);
@@ -801,21 +910,25 @@ export class BrowserSessionManager {
       session.lastRecentUrl = recentUrl;
       this.recordRecentSites(session.ownerId, [recentUrl]);
     }
-    const documentState = await page.evaluate(() => {
+      const documentState = await page.evaluate(() => {
       const runtimeDocument = (globalThis as typeof globalThis & { document?: { readyState?: string; body?: { textContent?: string; querySelector?: (selector: string) => unknown } } }).document;
       const body = runtimeDocument?.body;
       return {
         loading: runtimeDocument?.readyState === "loading",
-        hasRenderableContent: Boolean(body && ((body.textContent ?? "").trim() || body.querySelector?.("img,svg,canvas,video,iframe")))
+        hasRenderableContent: Boolean(body && ((body.textContent ?? "").trim() || body.querySelector?.("img,svg,canvas,video,iframe"))),
+        viewport: (() => {
+          const pageWindow = globalThis as typeof globalThis & { innerWidth?: number; innerHeight?: number };
+          return { width: pageWindow.innerWidth ?? 0, height: pageWindow.innerHeight ?? 0 };
+        })()
       };
-    }).catch(() => ({ loading: false, hasRenderableContent: false }));
-    const [title, pageText, controls, screenshot, tabs] = await Promise.all([
+    }).catch(() => ({ loading: false, hasRenderableContent: false, viewport: page.viewportSize() }));
+    const [title, pageText, rawControls, screenshot, tabs] = await Promise.all([
       page.title().catch(() => ""),
       includePageDetails && !documentState.loading ? page.locator("body").innerText({ timeout: 4_000 }).catch(() => "") : Promise.resolve(""),
       includePageDetails && !documentState.loading ? page.locator("a,button,input,textarea,select,[role=button],[role=link],[role=textbox]").evaluateAll<BrowserSnapshot["controls"], number>((elements, limit) => elements.slice(0, limit).filter(node => node.getClientRects().length > 0 && !node.closest('[aria-hidden="true"]')).map(node => {
         const isInput = node.tagName === "INPUT";
         const innerText = (node as typeof node & { innerText?: string }).innerText;
-        const label = node.getAttribute("aria-label") || innerText || (isInput ? node.getAttribute("placeholder") : null) || node.getAttribute("title") || "";
+        const label = node.getAttribute("aria-label") || (["INPUT", "TEXTAREA", "SELECT"].includes(node.tagName) ? (node as typeof node & { labels?: ArrayLike<{ textContent?: string | null }> }).labels?.[0]?.textContent : null) || innerText || (isInput ? node.getAttribute("placeholder") : null) || node.getAttribute("title") || "";
         const name = label.replace(/[\u0000-\u001f\u007f]/gu, " ").trim().slice(0, 160);
         const type = isInput ? node.getAttribute("type") || "text" : undefined;
         const role = node.getAttribute("role") || (node.tagName === "A" ? "link" : node.tagName === "BUTTON" ? "button" : node.tagName === "INPUT" ? (type === "checkbox" ? "checkbox" : type === "radio" ? "radio" : "textbox") : node.tagName === "TEXTAREA" ? "textbox" : node.tagName === "SELECT" ? "combobox" : node.tagName.toLowerCase());
@@ -824,8 +937,15 @@ export class BrowserSessionManager {
       includeScreenshot ? this.captureScreenshot(page, documentState.hasRenderableContent && !documentState.loading) : Promise.resolve(null),
       Promise.all(session.context.pages().filter(tab => session.providerId !== "lfaa-native-browser" || !this.isNativeAppPage(tab)).slice(0, MAX_PAGE_COUNT).map(async (tab, index) => ({ id: String(index), title: await tab.title().catch(() => ""), url: tab.url().slice(0, 2048), active: tab === page })))
     ]);
+    const occurrences = new Map<string, number>();
+    const controls = rawControls.map(control => {
+      const key = `${control.role}\0${control.name}`;
+      const occurrence = occurrences.get(key) ?? 0;
+      occurrences.set(key, occurrence + 1);
+      return { ...control, occurrence };
+    });
     const normalizedText = pageText.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").slice(0, MAX_PAGE_TEXT);
-    return { sessionId: session.id, providerId: session.providerId, revision: session.revision, url: page.url().slice(0, 2048), title: title.slice(0, 300), loading: documentState.loading, pageText: normalizedText, controls, tabs, screenshot };
+    return { sessionId: session.id, providerId: session.providerId, revision: session.revision, url: page.url().slice(0, 2048), title: title.slice(0, 300), loading: documentState.loading, pageText: normalizedText, controls, tabs, viewport: documentState.viewport, screenshot };
   }
 
   private async captureScreenshot(page: Page, hasRenderableContent: boolean): Promise<BrowserSnapshot["screenshot"]> {
@@ -870,6 +990,11 @@ export class BrowserSessionManager {
   }
 
   private touch(session: BrowserSession): void { session.lastUsedAt = Date.now(); }
+
+  private notifySessionCreated(key: string, session: BrowserSession): void {
+    const revision = { revision: session.revision, url: session.page.url().slice(0, 2048), title: "" };
+    for (const waiter of [...this.sessionCreationWaiters.get(key) ?? []]) waiter(revision);
+  }
 
   private bumpRevision(session: BrowserSession): void {
     session.revision += 1;

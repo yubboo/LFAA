@@ -119,12 +119,12 @@ test("电脑操控受 Profile、本机监听、账户开关、逐轮观察和隔
   assert.equal(getUserSettings("computer-a").browserUse.recordRecentSites, true, "recent websites are enabled by the shared account default");
   const browserControllerRoutes = new Map();
   const browserDockCalls = [];
-  const browserPrewarmCalls = [];
+  const browserDockSnapshotCalls = [];
   const browserRouteManager = {
     listProviders: () => [{ id: "lfaa-managed-edge", name: "LFAA Edge", available: true, isolation: "new-profile" }],
-    prewarm: async (...args) => { browserPrewarmCalls.push(args); },
     navigate: async (...args) => { browserDockCalls.push(args); return { sessionId: "browser-session-a", providerId: args[2], revision: 1, url: args[3], title: "Example", pageText: "", controls: [], tabs: [], screenshot: null }; },
-    getPanelSnapshot: async () => null,
+    getPanelSnapshot: async (...args) => { browserDockSnapshotCalls.push(args); return null; },
+    streamDockFrames: async () => undefined,
     getPanelRevision: async () => null,
     resizeViewport: async () => null,
     back: async () => ({}), forward: async () => ({}), reload: async () => ({}), clickAt: async () => ({}), dragAt: async () => ({}), typeText: async () => ({}), pressKey: async () => ({}), scroll: async () => ({}), closeSession: async () => undefined
@@ -134,15 +134,17 @@ test("电脑操控受 Profile、本机监听、账户开关、逐轮观察和隔
   const invokeBrowserControllerRoute = (routeKey, request) => new Promise((resolve, reject) => {
     const handler = browserControllerRoutes.get(routeKey)?.at(-1);
     assert.equal(typeof handler, "function", `route is registered: ${routeKey}`);
-    handler({ ...request, auth: { user: { id: "computer-a" } } }, { json: resolve }, error => error ? reject(error) : resolve(undefined));
+    const headers = request.headers ?? {};
+    handler({ ...request, get: request.get ?? (name => headers[name.toLowerCase()]), auth: { user: { id: "computer-a" } } }, { json: resolve }, error => error ? reject(error) : resolve(undefined));
   });
-  const browserSettingsBeforePrewarm = structuredClone(getUserSettings("computer-a").browserUse);
-  const prewarmBrowserResponse = await invokeBrowserControllerRoute("POST /browser/dock/prewarm", {
-    params: {}, query: {}, body: { providerId: "lfaa-managed-edge" }
+  assert.equal(browserControllerRoutes.has("POST /browser/dock/prewarm"), false, "the Dock no longer starts an unused browser process before navigation");
+  const emptyDockSnapshot = await invokeBrowserControllerRoute("GET /browser/dock/sessions/:sourceSessionId", {
+    params: { sourceSessionId: "session-a" }, query: { providerId: "lfaa-managed-edge" }, body: {}
   });
-  assert.deepEqual(prewarmBrowserResponse, { ready: true }, "the authenticated Dock route reports readiness only after Browser Owner prewarming");
-  assert.deepEqual(browserPrewarmCalls, [["lfaa-managed-edge"]], "Dock prewarming uses only a currently available managed provider");
-  assert.deepEqual(getUserSettings("computer-a").browserUse, browserSettingsBeforePrewarm, "prewarming does not change browser preferences or Agent connection state");
+  assert.deepEqual(emptyDockSnapshot, { session: null });
+  assert.deepEqual(browserDockSnapshotCalls[0], ["computer-a", "session-a", "lfaa-managed-edge", false, false], "ordinary Dock status reads do not capture screenshots or page text");
+  assert.equal(browserControllerRoutes.has("GET /browser/dock/sessions/:sourceSessionId/stream"), true, "the authenticated Dock can subscribe to the Browser Owner live page stream");
+  assert.equal(browserControllerRoutes.has("POST /browser/dock/sessions/:sourceSessionId/capture-handle"), false, "the Dock no longer requires a browser chooser or capture identity handshake");
   const manualBrowserResponse = await invokeBrowserControllerRoute("POST /browser/dock/sessions/:sourceSessionId/navigate", {
     params: { sourceSessionId: "session-a" }, query: {}, body: { providerId: "lfaa-managed-edge", url: "https://example.test/" }
   });

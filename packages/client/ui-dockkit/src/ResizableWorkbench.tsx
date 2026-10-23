@@ -224,7 +224,7 @@ export function ResizableWorkbench({
     : 0;
   const maxRightGridWidth = Math.max(0, containerWidth
     - responsiveRightCenterFloor
-    - (leftUsesGrid && leftVisible && !leftCollapsed ? leftWidth : 0)
+    - (leftUsesGrid && leftVisible && !leftCollapsed ? Math.max(leftWidth, leftLimits.min) : 0)
     - rightGridHandleBudget);
   const [rightWidth, setRightWidth] = useState(initial.rightWidth);
   const rightWidthForLayout = rightUsesGrid

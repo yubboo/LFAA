@@ -236,7 +236,9 @@
 | 235-工作区标签双击切换中心区并修复偶发窄布局-20261023 | 双击 `/work` 工作区标签收起/展开中间聊天区；修复右侧菜单打开或窄分栏时偶发把中心区挤窄的布局异常 | 本任务专项回归 2/2、尺寸合并 1/1、Client 类型检查、Web/Host 构建及内置浏览器实页通过；共享 BrowserPanel 随后被并行修改，当前组合回归 24/25 且最新构建指纹已变旧，详见合同边界 | [本轮合同](#lfaa-workspace-tab-center-toggle-layout-20261023) |
 | 236-Agent使用内置浏览器-20261023 | 让 Agent 直接使用真实 Chromium 页面读取内容并执行语义操作，不依赖截图识别网页 | 浏览器回归 21/21、Control Plane 构建与 Host 类型检查通过；`check:workspace` 被 SteamCMD 包缺少内部依赖阻断；真实模型 Provider 未测 | [本轮合同](#lfaa-agent-native-browser-tools-20261023) |
 | 237-Windows安装进度、PATH失败提示与控制端锁冲突-20261023 | 修复安装阶段 PATH 写入失败只显示错误码、NSIS 解压进度缺少百分比/明细，以及启动失败未说明已有控制端占用数据锁 | 相关代码、6/6 定向回归、Windows PowerShell 5.1 解析检查与 0.0.12 Windows x64 构建通过；真实隔离安装未运行。BrowserPanel 于 0.0.12 Web 候选生成后被并行改动，完整当前源码发行验证待重建 | [本轮合同](#lfaa-windows-installer-progress-path-lock-20261023) |
-| 238-LFAA内置Agent浏览器原生呈现与同页控制-20261023 | 纠正 Web Browser Dock 的 JPEG 截图播放器架构；本机 Web 提供可见隔离 Chromium 窗口并与 Agent 共页，Electron 保留 WebContentsView 原生嵌入；核实滚动、泛白、启动性能和安全边界 | 实施中：BrowserPanel 当前仍显示 JPEG 并转发坐标/滚轮；隔离 Browser Owner 启动 headless Chromium；Electron 已有原生 WebContentsView 与 CDP Target 绑定。真实站点 URL、Electron GUI 与真实 Provider 需逐项实测 | [本轮合同](#lfaa-agent-browser-native-rendering-20261023) |
+| 238-LFAA内置Agent浏览器原生呈现与同页控制-20261023 | 将 Web 与 Electron 的真实网页都放进 LFAA AI Work 右侧 Dock；Web 用用户选择的实时浏览器标签视频流与 Agent 共页，Electron 使用 WebContentsView；排查滚动、泛白、延迟与安全 | 实时 MediaStream Dock、Browser Owner 隔离可见 Page、Electron 原生 Bounds 去重已实现；定向回归 17/17、Electron 7/7、Client 类型通过；正式构建及 `/work` 内置浏览器实页待复验 | [本轮合同](#lfaa-agent-browser-native-rendering-20261023) |
+| 239-Windows桌面安装包缺少Web构建指纹-20261023 | 修复 Electron 桌面候选包的 `dist/apps/web/build-state.json` 未进入随包运行树，导致 Control Plane 启动即退出、窗口打不开 | 已定位 Web 候选 Vite 输出没有登记指纹且打包前后检查漏验；源码回归、候选构建、随包文件核对与 Windows 安装启动状态见合同实施记录 | [本轮合同](#lfaa-desktop-web-fingerprint-packaging-20261023) |
+| 240-Agent浏览器可用性重整-20261023 | 修复右栏滚动、泛白、白屏与 Agent 元素误点，并按真实宿主完成网页任务 | 实施中；保留 238 号合同正在修改的工作树 | [本轮合同](#lfaa-agent-browser-reliability-20261023) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
@@ -6343,33 +6345,92 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 
 ### 用户问题、目标与实际入口
 
-- 用户明确指出内置浏览器不能以截图播放器代替浏览器，要求 Agent 自主检索、打开、读取、操作并根据真实结果继续计划；人可观察/接管同一页面；按阶段修复滚动、泛白、性能并完成真实 Chromium/Electron 验收。
-- 当前入口：`/work` → `ApplicationWorkspace` 的共享地址栏与当前工作区标签 → `lfaa-client-ui-sidebar-browser`；普通 Web 的 `BrowserPanel` 当前用 Browser Owner 返回的 JPEG `<img>` 并把点击、滚轮、输入法文字转发成 Playwright 动作。Agent 走 `lfaa_tools_list/load` → `lfaa-browser-use` → `BrowserSessionManager` 的结构化 DOM 与真实 Playwright 动作，不依赖截图。Electron 的 `NativeBrowserPanel` 把实际可见区域映射到 `apps/desktop-electron` 的 `WebContentsView`，由 Browser Owner 通过本机 CDP 按当前账户、LFAA Session、显式选中 Target 附着同一页面。
-- 普通网页无法将任意跨域网站的 Chromium 文档直接嵌进 Web DOM。本机 Web Host 应以受控、隔离、可见的 Chromium 页面作为真实浏览器窗口并与 Agent 共享 Page；Electron 保持现有应用内 `WebContentsView`；远程 Web 若无本机 Host 必须准确呈现不可本机可视接管的能力边界。不得保留 JPEG/Canvas 播放器作为普通网页浏览和输入通道。
+- 用户指出旧浏览器以截图冒充网页，要求真实网页显示在 LFAA AI Work 规定位置的右侧菜单栏。用户确认 Web 与 Electron 都要同栏显示，并接受低延迟实时流与同页输入转发。最新截图已复现当前实现的错误：输入 `127.0.0.1:3000` 后，左侧弹出独立 Edge/Chromium 登录窗口，右侧仍为空面板；“连接实时画面”又弹出浏览器标签共享选择器，要求用户在外部浏览器中选 LFAA 标签。这与目标相反，用户再次明确要求网址直接显示在 LFAA 内部，不能跳转或打开独立浏览器窗口。
+- 用户最新验收截图指出右栏红框内从地址栏下方到面板底部的整块区域都属于浏览器视区；当前固定 1280×800 合成帧在窄高 Dock 中等比居中，产生很大的上下黑边。修复须按右栏真实可用容器尺寸调整 Browser Owner 视口并填满内容区；不能只把固定比例画面摆在中间。用户补充“不要被隔离环境没配置模型卡住”，实页验收可用隔离数据中的空 AI Session，不需要模型推理。
+- 目标入口：`/work` → `ApplicationWorkspace` 共享地址栏和右侧当前工作区标签 → `lfaa-client-ui-sidebar-browser`。Web 的 Browser Owner 在本机 Host 使用不可见隔离 Chromium 页面，通过认证的实时页面画面流推送到当前 Dock；Dock 自动播放该流并把鼠标/滚动/键盘输入交给同一 Browser Owner Page。不出现独立浏览器窗口或操作系统共享来源选择器。Agent 继续用同一个 Browser Owner Page 的结构化 DOM/语义 Tools。Electron `NativeBrowserPanel` 把右栏视口直接映射至 `apps/desktop-electron` 的 `WebContentsView`；账户、LFAA Session 与 Agent Run 绑定仍由 Browser Owner 负责。
+- 普通网页不能保证允许跨站 `iframe` 嵌入，因此 Web 使用 Browser Owner 原生页面合成器事件的持续流，不调用 `getDisplayMedia`、不要求浏览器外部选标签、不按间隔抓取截图。Electron 由 `WebContentsView` 原生绘制；普通 Dock 不得退回 JPEG/截图轮询或外部浏览器窗口。
 
 ### Owner、设置、数据与权限
 
-- Browser Session、导航/观察/动作、取消与隔离归 `packages/browser-use/browser-use`；认证 API/参数映射归 `packages/api/browser-controller`；地址栏/工作区/能力提示归 `packages/client/ui-sidebar-browser` 与现有 `ui-workspace`；Electron WebContentsView、可信 IPC、下载/站点权限和 CDP 配置归 `apps/desktop-electron`。
-- 沿用 `browserUse.enabled`（默认关闭，仅 Agent Tools）、`searchEngine`、`showFullUrl`、`recordRecentSites`、个人 Tabbit 专用 `enabledProviderIds`、`permissions.mode` 与现有 Appearance 令牌。手动浏览不受 Agent 开关误拦；不改默认值和用户偏好。账户、LFAA Session、Agent Run、BrowserContext、Page、Target 映射继续归 Browser Owner 与 Agent Loop，副作用仍经唯一 Permission Owner。
+- Browser Session、导航/观察/动作、取消与隔离归 `packages/browser-use/browser-use`；认证 API/参数映射归 `packages/api/browser-controller`；地址栏/工作区/实时流视口与输入转发归 `packages/client/ui-sidebar-browser` 和现有 `ui-workspace`；Electron WebContentsView、可信 IPC、下载/站点权限和 CDP 配置归 `apps/desktop-electron`。
+- 沿用 `browserUse.enabled`（默认关闭，仅 Agent Tools）、`searchEngine`、`showFullUrl`、`recordRecentSites`、个人 Tabbit 专用 `enabledProviderIds`、`permissions.mode` 与现有 Appearance 令牌。手动浏览不受 Agent 开关误拦；不改默认值和用户偏好。画面流仅导出当前账户/Session 的 Browser Owner Page，不开放系统桌面采集权限。账户、LFAA Session、Agent Run、BrowserContext、Page、Target 映射继续归 Browser Owner 与 Agent Loop，副作用仍经唯一 Permission Owner。
 - 浏览器不读取个人 Profile/Cookie。保留 URL/DNS 网络目标校验、认证、账户/Session/Target 隔离、取消/超时和资源回收；审计 CDP 仅回环绑定、端口文件、Target 过滤以及潜在网页/本机进程访问面，不放宽 Chromium 安全选项。
 
 ### 外部排查、根因与允许范围
 
 - 按社交媒体 → 技术社区 → 项目 GitHub → 官方文档查询。Reddit 只出现其他 Electron 应用的滚动/重排个案；Stack Overflow 的 WebContentsView 提问强调 Bounds 应相对 contentView，但未能证明 LFAA 当前的滚动根因；LFAA 仓库搜索没有可核验的匹配 issue。Electron 官方文档确认 WebContentsView 是显示 WebContents 的原生 View、`setBounds` 以父视图坐标设置；这些资料用于核对接口，不替代本机复现。参考：[Electron WebContentsView](https://www.electronjs.org/docs/latest/api/web-contents-view)、[Electron View](https://www.electronjs.org/docs/latest/api/view)、[Electron WebContents](https://www.electronjs.org/docs/latest/api/web-contents)。
-- 本轮源码初核实：`BrowserPanel.tsx` 当前展示 JPEG 并映射鼠标坐标/滚轮；`session-manager.ts` 默认 `headless: true`；Agent 输出则为 DOM 文本/控件和真实 Page 动作。Electron 主进程只绑定 `127.0.0.1` 动态 CDP 端口并写入用户数据目录端口文件，仍需完成同账户本机访问面审查。滚动抖动须分别实测截图 Web 与原生 Electron；泛白没有目标网站 URL/原始截图，不能先归因到 LFAA CSS、Appearance 或 JPEG。
+- 外部问题排查按社交媒体 → 技术社区 → 项目 GitHub → 官方文档完成：社区/Stack Overflow 仅找到其他 Electron 嵌入经验，不能证明 LFAA 实现；本仓库公开 Issues/Discussions 未发现匹配项。Electron 官方确认 `WebContentsView` 是原生内容 View；Chromium DevTools Protocol 提供页面合成帧事件与 ACK，可用于持续的页面画面推送。[Electron WebContentsView](https://www.electronjs.org/docs/latest/api/web-contents-view)、[CDP Page](https://chromedevtools.github.io/devtools-protocol/tot/Page/)。此前 `getDisplayMedia` 调用本身要求用户触发且由浏览器选择来源，[MDN](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia)、[W3C Screen Capture](https://www.w3.org/TR/screen-capture/)；这解释了当前系统弹窗，但不符合 LFAA 内部浏览器的产品目标，故应移除该方案。
+- 本轮复核用户截图后确认根因是此前错误地把 Web 实时画面接到 `getDisplayMedia` 标签共享：右 Dock 因而要求用户去外部 Edge 选页，且 Browser Owner 仍启动可见 Chromium 窗口。当前修正为无窗口隔离 Chromium + Browser Owner CDP `Page.startScreencast` 帧事件 + 认证 SSE，Dock 自动显示并将输入送回同一 Page；Agent 仍读写同一 Browser Owner Page。账户/Session 并发创建、页面状态与 Run 清理保持原 Owner。Electron 原生布局仍跳过相同 Bounds/可见状态写入。目标页面登录框泛白是否来自站点自身尚未确认；用户指明的运行入口为 `127.0.0.1:3000/work`。
 - 允许改动以上 Owner 的必要源码、直接回归、受影响 README、架构事实与本合同；不得新建第二套浏览器会话/权限/设置，不读取个人 Profile，不删除 Electron 原生路径，不用静态图片或构建代替实页验收。
 
 ### 分批实施与验收条件
 
-1. 核实调用链、Settings、Agent Run 取消、CDP Target 安全与真实复现基线；未知根因保持待验证。
-2. 先将 Web Browser Dock 从截图交互改为真实可见、账户/Session 隔离的本机 Chromium 窗口接入；Agent 与手动使用同一 Page。每批立即回归/构建并在 ChatGPT 内置浏览器打开 `/work` 目视检查；Electron 单独使用实际桌面宿主验收。
-3. 覆盖真实 Chromium 打开、滚动、点击、中文输入、导航、多标签、SPA、缩放、窗口调整与关闭；Agent DOM 操作、同页接管、SPA、取消后页面保留及越权 Target 拒绝。真实 Provider、真实 Electron GUI 与 Provider 未可用项如实标记。
-4. 在简单与动态本地页面记录冷/热启动、BrowserContext/Page、导航提交、首个可见内容、Agent observe/action、滚动帧时间、输入延迟和多标签资源；与本轮修改前可取得的源码/历史基线区分。对登录泛白仅在有准确 URL/页面环境时与系统 Chromium 对照。
-5. 桌面、窄分栏/短屏实际页面检查布局、溢出、标签操作、导航、滚动和状态；需要 Windows 125%/150% DPI 或 Electron 原生屏幕能力的项目不得用普通 Web 代替。
+- A 批：撤掉 Web 的 `getDisplayMedia` 标签共享按钮/系统选择器及可见 Chromium 窗口；Web Browser Owner 改为不可见隔离 Chromium，并由 Host 推送同一 Page 的连续合成画面流至右 Dock，自动呈现、同页输入转发。Electron 原生 View 只在 Bounds/可见状态变化时更新。每批完成直接回归、构建并立即验 `/work`。
+- B 批：完成 CDP 帧推送与 SSE 背压、单流约束、取消清理、Client 解码和 Dock 输入映射；同步 Owner、Controller、Connection、Dock README 与本合同。完成类型、构建与 Owner 回归后再进行最终运行验收。
+- 实页至少在桌面及窄分栏/短屏检查右栏整块内容区无上下黑边、视口随容器 resize、地址导航、自动显示首帧、点击/滚动/输入、页面隐藏/切换后的流清理；确认没有外部浏览器窗口和系统共享选择器。Canvas 点击坐标需与同步后的 Chromium 视口对应，容器快速 resize 时只保留最新尺寸且不产生重叠请求。
+- Browser Owner 覆盖隔离、单 Page、Agent DOM 操作、同页导航和 Run 取消；Electron Host 覆盖 WebContentsView Bounds。对用户提供的 `127.0.0.1:3000` 核对服务归属及 `/work` 实际显示；没有目标网页原始截图/复现步骤时，不推断登录框外围泛白的站点级根因。
+- 冷启动、导航提交、DOM 观察与动作延迟分别记录环境；缺少同版本旧数据时标注无法作可靠前后比较。真实 Provider、Electron GUI 无法实测的能力分别标记，不用构建或静态用例冒充实测。
 
 ### 实施与验收记录
 
-- 状态：实施中，尚未修改浏览器产品源码。
-- 当前工作树在本轮开始时已有用户改动 `apps/desktop-electron/nsis/installer.nsh`、`apps/desktop-electron/nsis/path-environment.ps1`、`patches/app-builder-lib@26.15.3.patch`；本任务保留这些未提交内容，不改其职责。
-- 初始 Browser UI/Owner/设置证据如上；待进一步核实主页隐藏/重复订阅、Web 可见 Host 能力、同页用户控制、原生 Bounds 实测与 CDP 暴露。设置和权限本轮尚未变更。
-- 改动文件、分批源码/回归/构建结果、正式 Web 服务指纹、内置浏览器路由/视口/证据、Electron 实页、性能数据和未测项待实施后逐项补充。
+- 状态：已移除外部浏览器窗口与系统标签选择流程；源码回归通过，当前无窗口 Chromium → CDP 合成器帧 → SSE → 右 Dock 已接线。当前修正版的构建和 `/work` 实页验收待本轮完成后记录；Electron GUI 仍未实测。此前 `/work` 截图来自错误的外部标签共享实现，不作为修正版验收证据。
+- 实现：Web `BrowserSessionManager` 默认使用无窗口的隔离 Chromium Page；同一 Session 最多一条页面合成器订阅，CDP 帧事件经 Browser Controller 认证 SSE 推送，断连、页面关闭或 Dock 隐藏时停止 screencast 并 detach 会话。Client 只保留一个待绘制帧并异步解码到右 Dock Canvas；没有调用 `getDisplayMedia`、Capture Handle、外部 Edge 窗口或系统选屏。点击/拖动、滚动、普通键盘与 IME 输入均映射回同一 Browser Owner Page。Electron 继续使用真实 `WebContentsView`，重复 Bounds/可见状态不再写入。
+- 直接回归：本轮正在运行 Browser Owner CDP 流、Controller 路由、Client Dock 与既有浏览器动作定向回归；通过结果及包构建/类型结果在验收后补记。
+- 实页证据：最新用户截图可复现旧行为——Edge 外部窗口与系统“共享内容”弹窗出现、LFAA Dock 留空。修正版运行 `/work` 的桌面与窄分栏/短屏验收尚未运行；实际首帧、点击、滚动和输入证据待本轮验证，不沿用旧实现截图。
+- 设置：沿用 `browserUse.enabled`、`browserUse.searchEngine`、`browserUse.showFullUrl`、`browserUse.recordRecentSites`、个人 Tabbit 专用 `browserUse.enabledProviderIds`、`permissions.mode` 和外观令牌；本轮未改默认值或用户偏好。`browserUse.enabled` 仍只控制 Agent Tools，不误拦手动 Browser Dock。
+- 性能与边界：页面帧由 CDP 事件推送，无定时截图请求；服务端只保留一个待处理帧并在写出/背压后 ACK，Client 只保留一个最新待绘制帧；流在隐藏、切换与卸载时取消。沿用 `browserUse.enabled`、`searchEngine`、`showFullUrl`、`recordRecentSites`、Tabbit 专用 `enabledProviderIds`、`permissions.mode` 与 Appearance 令牌，不改默认值、持久化或用户偏好。实际冷启动、导航/输入延迟、帧率、Web 窄分栏/短屏及 Electron 可见 GUI 仍需测量；未实测前不宣称端到端通过。
+
+<a id="lfaa-desktop-web-fingerprint-packaging-20261023"></a>
+## 239-Windows 桌面安装包缺少 Web 构建指纹（2026-10-23）
+
+### 用户问题、目标与实际入口
+
+- 用户反馈已安装 LFAA 启动时报“本机控制端意外退出”，同时任务管理器短暂显示多个 LFAA 子进程。桌面日志的 Control Plane 堆栈明确指出无法读取安装目录 `resources/app-runtime/dist/apps/web/build-state.json`，随后以退出码 1 结束。
+- 目标入口：根 `pnpm run build:desktop:win` → `apps/web` 的 `build:desktop-candidate` → `apps/desktop-electron/scripts/prepare-runtime.mjs` → electron-builder `extraResources` → `verify-packaged-runtime.mjs`；运行时由 `packages/host/webserver/src/http-delivery.ts` 读取随包 Web/Control Plane 构建指纹。
+- 目标是让独立 Web 候选输出写入与当前源码绑定的指纹，确保拷贝、封装后仍存在且格式有效，使 Control Plane 可以正常捕获运行身份；不改变数据目录、锁策略或子进程关闭行为。
+
+### Owner、设置、数据与允许范围
+
+- Web 构建指纹的计算与登记归 `scripts/runtime-build-state.mjs`；Vite 输出目录选择归 `apps/web/vite.config.ts`；桌面运行目录组装及发行物核验归 `apps/desktop-electron/scripts/**`。Control Plane Webserver 只消费运行树中的指纹文件。
+- 无适用设置中心配置；不新增或修改默认值、持久化、账户数据、权限、LFAA Home 或用户偏好。
+- 只允许改指纹登记调用、桌面装配/最终包必需文件检查、直接回归、`apps/web`/`apps/desktop-electron` 包说明和本合同；不清理/重写无关 `dist/`，不访问安装目录所在的其他 checkout，不停止或终止无法确认归属的进程。
+
+### 外部排查、根因与验收
+
+- 按社交媒体 → 技术社区 → 项目 GitHub → 官方文档顺序检索。本机日志和源码足以确定 LFAA 的缺失路径与失败调用；社交媒体及技术社区只找到其他 Electron 应用关于 `extraResources` 的一般个案，没有与 LFAA 候选指纹构建链相符的可验证补丁；项目 GitHub 没有检索到匹配安装启动问题。Electron Builder 官方文档确认 `extraResources` 会把指定源目录内容复制至 Windows `resources/`，因此本缺陷在候选/装配阶段，而不是 NSIS 解压路径映射。参考：[electron-builder Application Contents](https://www.electron.build/docs/contents/)、[Electron `process.resourcesPath`](https://www.electronjs.org/docs/latest/api/process#processresourcespath)。
+- 直接回归须覆盖：候选输出记录有效 `kind=web` 指纹且不覆盖正式 Web 指纹；构建期间源码变化仍拒绝登记；桌面运行树和最终 `win-unpacked/resources/app-runtime` 必须含有效 Web 与 Control Plane 指纹。
+- 运行 `pnpm --filter lfaa-web run build:desktop-candidate` 并检查实际候选指纹；运行适用的 Control Plane/Web 构建和 Windows Electron 打包入口，产物只能位于根 `dist/`。核验 exe 元数据/哈希及 `latest.yml`，必要时查看打包暂存文件清单。隔离 Windows GUI 安装启动只有在独立/可丢弃用户或虚拟机中可行时才运行；没有隔离环境则明确标记未验，不用源码构建冒充安装启动成功。
+
+### 实施与验收记录
+
+- 状态：源码和 Windows x64 安装包 `LFAA 0.0.13` 已构建；安装包仍待独立 Windows 用户/虚拟机实际安装启动验收。
+- 根因：`apps/web/vite.config.ts` 只在正式 `dist/apps/web` 输出登记指纹；Electron 单独构建到 `dist/.tmp/desktop-electron/web-candidate`，因此候选页面随包进入但 `build-state.json` 缺失。`prepare-runtime.mjs` 和 `verify-packaged-runtime.mjs` 先前没有把该文件列为必需产物，导致问题漏过打包。
+- 修复：`scripts/runtime-build-state.mjs` 允许将已校验的源码指纹写入根 `dist/` 下的指定输出，并拒绝越界路径；Vite 只对 Electron 专用候选目录额外登记该指纹。桌面运行树组装要求 Web/Control Plane 两份指纹都存在，最终 `win-unpacked/resources/app-runtime` 检查 JSON 结构和职责类型后才继续 CUA 导入检查。
+- 回归与构建：`node --test apps/cli/tests/workspace-maintenance.test.mjs apps/desktop-electron/tests/control-plane-startup-error.test.mjs apps/desktop-electron/tests/installer-package.test.mjs` 20/20 通过；客户端 TypeScript、3 个受影响 Node 脚本语法和 `git diff --check` 通过。`pnpm run build:desktop:win` 成功完成 Control Plane、Windows Sandbox Host、Web 候选、运行目录装配、Electron Builder、随包指纹校验及 CUA 导入检查。Web 候选的 `kind=web` 指纹与当前源码一致。交付安装器为 `dist/apps/desktop-electron/LFAA-0.0.13/LFAA-0.0.13.exe`（167,775,999 字节）；`latest.yml` 的大小和 SHA-512 对账一致，版本为 0.0.13。
+- 实页与安装边界：没有在隔离 Windows 用户/虚拟机实际安装或打开图形界面，因此启动修复通过的是源码回归、最终运行树核验和安装包构建证据，不宣称用户机器安装启动已实测。没有停止进程、清除锁、访问安装目录所在的其他 checkout，也没有改动设置中心配置或用户偏好。
+
+<a id="lfaa-agent-browser-reliability-20261023"></a>
+## 240-Agent 浏览器可用性重整（2026-10-23）
+
+### 问题、目标与边界
+
+- 用户要求 Web 与 Electron 共用一套 LFAA 内置浏览器系统，浏览器直接呈现在 AI Work 右栏；当前反馈为异常滚动、泛白、白屏、截图播放器感，Agent 必须能独自完成网页任务。参考 agent-browser 的快照与元素引用流程，以及 ego(lite) 的人机共用浏览器理念，但不引入第二套模型、会话或权限系统。
+- 入口：`/work` 的 Browser Dock；Electron `WebContentsView`；Web 本机 Host 的隔离 Chromium 页面；AI Work Agent Loop 经 `lfaa-browser-use` 工具与同一 Browser Owner Page 交互。运行结果必须来自真实页面。
+- Owner：页面/上下文、导航、观察、动作与回收归 `packages/browser-use/browser-use`；认证路由归 `packages/api/browser-controller`；Web 右栏输入/呈现归 `packages/client/ui-sidebar-browser`；桌面原生 View 归 `apps/desktop-electron`；权限归现有 Permission Owner。只改直接相关边界，保留当前工作树的 238 号浏览器改动。
+- 设置：`browserUse.enabled=false` 仅控制 Agent 工具；`enabledProviderIds=[]` 仅用于个人浏览器；`searchEngine=bing`、`showFullUrl=false`、`recordRecentSites=true` 分别控制搜索、地址展示、最近站点。Agent 操作沿用 `permissions.mode`；界面沿用 Appearance 共享令牌。本轮不改默认值与已有用户偏好。页面数据仅限有界内存与已有最近网站元数据；不读取个人 Profile/Cookie。
+- 验收：两端右栏打开真实页面、占满视区、滚动/点击/输入位置正确、导航/隐藏/切换不白屏或重复连接；Agent 对同名控件不得误点，操作后读取新状态，账号/Session/Run/Provider 不串用。导航保留 URL/DNS 校验；工具继续走认证和 Permission Owner。检查取消、流背压、事件/观察器清理和长时资源界限。
+
+### 分批实施
+
+- A：复现并修 Web 右栏的滚动、画面流中断和尺寸映射；每批直接回归、类型/构建后用内置浏览器验 `/work` 桌面与窄/短视口。
+- B：核对 Electron 原生 View 的 Bounds、可见性、网页输入与异常页面恢复，并运行直接回归；有可用隔离桌面运行环境时做 GUI 验收。
+- C：Agent 快照、定位、标签与表单闭环；用真实隔离 Chromium 和工具循环验重复名称、导航后状态、取消与权限。
+
+### 外部资料与当前证据
+
+- 已有 238 号合同记录了用户截图复现、社交媒体、技术社区、项目 GitHub、Electron/CDP 官方资料的核对；这些资料不能替代本轮运行证据。本轮另核对 agent-browser 官方仓库的 snapshot/ref 工作流、ego(lite) 官方产品资料和 Playwright 官方 Locator 严格匹配/动作检查。LFAA 当前源码存在 `.first()` 点击同名角色，页面控件列表与实际可访问名称可能不一致；Web 侧触屏滚动被转为拖动、画面流结束后没有可靠重连。这些是源码观察，仍需实页复现。
+- 2026-10-23 本轮修复：Web/Desktop `BrowserPanel` 统一使用账户内稳定的内置浏览器工作区标识；Agent Run 对内置 Provider 解析到同一 Page，个人 Tabbit 继续按 AI 会话隔离。Provider 列表显示当前账户 `activeInWorkspace`；空白 Dock 用可取消的修订等待接收 Agent 首次建页，随后自动显示网页。Agent 控件快照给同名角色标注 `occurrence`，不传序号时拒绝歧义点击；关联 label 的普通文本框可被观察和填写。
+- Web 画面流中断后有界重连，重连时保留上一帧；触屏纵向位移用于滚动。工作台右栏先为左侧第二栏保留最小宽度，避免 85px 竖排；窄视口的自动收起暂存并恢复原开合偏好。
+- 分批验证：Client/Host TypeScript 通过；浏览器与工作区直接回归 20/20 通过，其中真实已安装 Edge 的隔离 Chromium 集成回归完成“手动打开页面 → 不同 AI 会话的 Agent Run 观察同一 Page → 同名按钮精确点第二个 → 通过关联标签填写输入框”，浏览器回归 13/13 通过；Electron 原生浏览器 Owner 回归 7/7 通过。`pnpm run build:web`、`pnpm run build:control-plane` 与 `pnpm --filter lfaa-web run build:desktop-candidate` 成功，产物均在根 `dist/`。
+- 最终构建的正式 Web 由当前 checkout 在隔离数据下启动于 `http://127.0.0.1:3000/work`。ChatGPT 内置浏览器 1312×1244 桌面视口下，无 AI 会话时打开本机真实网页 `http://127.0.0.1:3400/`，点击、输入、上下滚动生效，Canvas 实际尺寸 716×1062，左第二栏为 200px（缺陷截图/复现时 85px）；外部 HTTPS 页面也在同一 Dock 实际显示。880×600 短屏收起左栏后右栏边界为 860px，未超出 860px 工作区；回到桌面宽度后左栏恢复 200px。ChatGPT 内置浏览器已留有本轮截图工具证据，未读取或改写外部网页内容。正式测试服务使用根 `dist/.tmp/browser-acceptance-240` 隔离账户数据，未写用户实际偏好。
+- 边界：Web 使用连续 Chromium 合成帧和输入转发，仍受普通 Web 无法直接嵌入任意跨站原生页面的限制；Electron 使用原生 `WebContentsView`。桌面实际 GUI、长期帧时间、真实模型自动选择/权限模式、外部复杂网站兼容性尚未实测，不将源码/回归通过声明为这些场景已验收。

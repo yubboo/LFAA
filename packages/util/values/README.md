@@ -21,3 +21,5 @@
 `PluginSettings.disabledSkillNames` 是账户级逐 Skill 停用列表，唯一默认值为 `[]`。持久化、严格校验、读取和运行时执行由 Settings/Skill Owners 负责；本包不创建 UI 状态或第二份设置存储。
 
 `GeneralSettings.hiddenApplicationNavigationIds` 保存被用户从全局“应用”菜单隐藏的内置导航 ID，唯一默认值为 `[]`。此偏好仅控制菜单可见项，不授予或撤销应用权限、不卸载应用；ID 白名单与 Workbench 应用导航清单保持一致。
+
+2026-10-23：`browser-provider.ts` 统一登记 `BUILTIN_BROWSER_WORKSPACE_ID`，供 Web/Desktop Client 与 Browser Run Adapter 绑定同一个账户内置浏览器工作区，避免 AI 会话切换导致页面分裂。

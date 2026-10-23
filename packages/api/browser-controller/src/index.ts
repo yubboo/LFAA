@@ -9,6 +9,7 @@ import Joi from "joi";
 import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
 import { asyncHandler, parseBody } from "lfaa-api-remotes/src/route-contracts.js";
 import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
+import { openSseStream } from "lfaa-api-gateway/src/sse.js";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { BROWSER_PROVIDER_IDS } from "lfaa-util-values/src/browser-provider.js";
 import { getUserSettings, saveUserSettings } from "lfaa-settings/src/service.js";
@@ -99,7 +100,7 @@ function registerRoutes(router: Router, manager: BrowserSessionManager): void {
     manager.clearRecentSites(_request.auth!.user.id);
     response.json({ cleared: true });
   });
-  router.get("/browser/providers", ...auth, (_request, response) => response.json({ providers: manager.listProviders(), personalBrowsersInspected: false }));
+  router.get("/browser/providers", ...auth, (request, response) => response.json({ providers: manager.listProviders(request.auth!.user.id), personalBrowsersInspected: false }));
   router.post("/browser/providers/tabbit-personal/connect", ...auth, actionLimit, asyncHandler(async (request, response) => {
     const body = parseBody<{ sourceSessionId: string }>(tabbitConnectSchema, request.body);
     const ownerId = request.auth!.user.id;
@@ -118,8 +119,45 @@ function registerRoutes(router: Router, manager: BrowserSessionManager): void {
     const sourceSessionId = readSessionId(request.params.sourceSessionId);
     const providerId = readDockProvider(request.query.providerId);
     assertDockProviderAvailable(manager, providerId);
-    const session = await manager.getPanelSnapshot(request.auth!.user.id, sourceSessionId, providerId, true, false);
+    const session = await manager.getPanelSnapshot(request.auth!.user.id, sourceSessionId, providerId, false, false);
     response.json({ session });
+  }));
+  router.get("/browser/dock/sessions/:sourceSessionId/stream", ...auth, asyncHandler(async (request, response) => {
+    const sourceSessionId = readSessionId(request.params.sourceSessionId);
+    const providerId = readDockProvider(request.query.providerId);
+    assertDockProviderAvailable(manager, providerId);
+    const stream = openSseStream(request, response, { heartbeatMs: 5_000 });
+    const controller = new AbortController();
+    const cancel = () => controller.abort();
+    response.once("close", cancel);
+    try {
+      await manager.streamDockFrames(request.auth!.user.id, sourceSessionId, providerId, controller.signal, async frame => {
+        if (stream.closed || controller.signal.aborted) return;
+        const writable = response.write(`event: frame\ndata: ${JSON.stringify(frame)}\n\n`);
+        if (!writable) {
+          await new Promise<void>(resolve => {
+            const finish = () => {
+              response.off("drain", finish);
+              response.off("close", finish);
+              controller.signal.removeEventListener("abort", finish);
+              resolve();
+            };
+            response.once("drain", finish);
+            response.once("close", finish);
+            controller.signal.addEventListener("abort", finish, { once: true });
+            if (controller.signal.aborted || stream.closed) finish();
+          });
+        }
+      });
+    } catch {
+      if (!controller.signal.aborted && !stream.closed && !response.destroyed && !response.writableEnded) {
+        response.write(`event: error\ndata: ${JSON.stringify({ message: "浏览器实时画面连接失败，请重试。" })}\n\n`);
+      }
+    } finally {
+      response.off("close", cancel);
+      stream.close();
+      if (!response.writableEnded && !response.destroyed) response.end();
+    }
   }));
   router.get("/browser/dock/sessions/:sourceSessionId/wait", ...auth, asyncHandler(async (request, response) => {
     const sourceSessionId = readSessionId(request.params.sourceSessionId);
@@ -164,7 +202,7 @@ function registerRoutes(router: Router, manager: BrowserSessionManager): void {
     const sourceSessionId = readSessionId(request.params.sourceSessionId);
     const body = parseBody<{ providerId: BrowserProviderId; width: number; height: number }>(viewportSchema, request.body);
     assertDockProviderAvailable(manager, body.providerId);
-    const session = await manager.resizeViewport(request.auth!.user.id, sourceSessionId, body.providerId, body.width, body.height);
+    const session = await manager.resizeViewport(request.auth!.user.id, sourceSessionId, body.providerId, body.width, body.height, undefined, false);
     response.json({ session });
   }));
   router.post("/browser/dock/sessions/:sourceSessionId/action", ...auth, actionLimit, asyncHandler(async (request, response) => {

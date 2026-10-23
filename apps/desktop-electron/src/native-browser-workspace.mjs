@@ -153,7 +153,7 @@ export class NativeBrowserWorkspace {
         sandbox: true
       }
     });
-    const tab = { id, view, error: null, targetId: "" };
+    const tab = { id, view, error: null, targetId: "", appliedVisible: false, appliedBoundsKey: "" };
     this.tabs.set(id, tab);
     this.window.contentView.addChildView(view);
     view.setVisible(false);
@@ -289,8 +289,18 @@ export class NativeBrowserWorkspace {
     const pageVisible = this.visible && this.bounds.width > 0 && this.bounds.height > 0;
     for (const tab of this.tabs.values()) {
       const active = tab.id === this.activeTabId;
-      tab.view.setVisible(pageVisible && active);
-      if (active) tab.view.setBounds(this.bounds);
+      const visible = pageVisible && active;
+      if (tab.appliedVisible !== visible) {
+        tab.view.setVisible(visible);
+        tab.appliedVisible = visible;
+      }
+      if (active) {
+        const boundsKey = `${this.bounds.x}:${this.bounds.y}:${this.bounds.width}:${this.bounds.height}`;
+        if (tab.appliedBoundsKey !== boundsKey) {
+          tab.view.setBounds(this.bounds);
+          tab.appliedBoundsKey = boundsKey;
+        }
+      }
     }
   }
 

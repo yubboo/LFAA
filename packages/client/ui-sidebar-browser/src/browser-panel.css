@@ -1,3 +1,8 @@
+/*
+ * 功能：LFAA AI Work 浏览器右侧 Dock 样式。
+ * 作用：布局 Browser Owner 实时页面流和窄栏/短屏内容。
+ * 关联文件：BrowserPanel.tsx；Electron 原生页面样式由 native-browser-panel.css 负责。
+ */
 .lfaa-browser-panel {
   display: flex;
   min-width: 0;
@@ -15,15 +20,117 @@
 }
 
 .lfaa-browser-panel__content {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--color-surface);
+}
+
+.lfaa-browser-panel__page {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lfaa-browser-panel__page-header {
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: .5rem;
+  padding: .35rem .6rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface);
+}
+
+.lfaa-browser-panel__page-heading {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: .15rem;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-browser-panel__page-heading strong,
+.lfaa-browser-panel__page-heading span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-browser-panel__page-heading span { color: var(--color-text-secondary); }
+
+.lfaa-browser-panel__stream-status {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-browser-panel__live-view {
+  position: relative;
   display: grid;
   min-width: 0;
   min-height: 0;
   flex: 1 1 auto;
   place-items: center;
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: clamp(.75rem, 3vw, 1.5rem);
-  background: var(--color-surface-muted);
+  overflow: hidden;
+  background: var(--color-surface);
+  touch-action: none;
+}
+
+.lfaa-browser-panel__live-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  object-fit: fill;
+  background: var(--color-surface);
+  user-select: none;
+}
+
+.lfaa-browser-panel__stream-overlay {
+  position: absolute;
+  display: grid;
+  inset: 0;
+  place-items: center;
+  padding: 1rem;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  pointer-events: none;
+}
+
+.lfaa-browser-panel__keyboard-capture {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lfaa-browser-panel__empty-card {
+  display: grid;
+  width: min(100%, 44rem);
+  min-width: 0;
+  gap: .8rem;
+  margin: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: .9rem;
+  padding: clamp(1rem, 3vw, 1.75rem);
+  background: var(--color-surface);
+  box-shadow: 0 8px 28px var(--color-shadow-float);
 }
 
 .lfaa-browser-panel__status,
@@ -97,12 +204,10 @@
 }
 
 @media (max-width: 560px) {
-  .lfaa-browser-panel__content {
-    align-items: start;
-    padding: .75rem;
-  }
+  .lfaa-browser-panel__page-header { flex-wrap: wrap; }
 
-  .lfaa-browser-panel__status,
+  .lfaa-browser-panel__stream-status { max-width: 100%; }
+
   .lfaa-browser-panel__empty-card {
     border-radius: .65rem;
     padding: .9rem;

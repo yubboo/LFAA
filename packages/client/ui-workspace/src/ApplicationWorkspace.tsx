@@ -27,6 +27,7 @@ import { SecondaryNavigation, type SecondaryNavigationGroup } from "lfaa-client-
 import { resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { resolveBrowserAddress } from "lfaa-client-ui-sidebar-browser/src/browser-address.js";
+import { BUILTIN_BROWSER_WORKSPACE_ID } from "lfaa-util-values/src/browser-provider.js";
 import { TaskTerminal } from "./TaskTerminal.js";
 import "./module-workbench.css";
 import "./css/secondary-navigation.css";
@@ -618,6 +619,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     if (!busy) setGitRefreshRevision((revision) => revision + 1);
   }, []);
   const appliedLayoutMode = useRef(metrics.mode);
+  const responsiveLeftRestore = useRef<boolean | null>(null);
   const appliedNavigationLayout = useRef<NavigationLayout | null>(chromeStorageMetadata.navigationLayout);
   const activeAiSessionIdRef = useRef(activeAiSessionId);
   activeAiSessionIdRef.current = activeAiSessionId;
@@ -1048,8 +1050,17 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   useLayoutEffect(() => {
     if (appliedLayoutMode.current === metrics.mode) return;
     appliedLayoutMode.current = metrics.mode;
-    if (metrics.mode === "mobile") setChrome((current) => ({ ...current, leftCollapsed: true, terminalOpen: false }));
-    else if (metrics.mode === "compact" && mode === "ai-work") setChrome(current => current.rightCollapsed ? current : { ...current, leftCollapsed: true });
+    if (metrics.mode === "desktop") {
+      const previous = responsiveLeftRestore.current;
+      responsiveLeftRestore.current = null;
+      if (previous !== null) setChrome(current => ({ ...current, leftCollapsed: previous }));
+      return;
+    }
+    setChrome(current => {
+      const hideLeft = metrics.mode === "mobile" || metrics.mode === "compact" && mode === "ai-work" && !current.rightCollapsed;
+      if (hideLeft && responsiveLeftRestore.current === null) responsiveLeftRestore.current = current.leftCollapsed;
+      return { ...current, ...(hideLeft ? { leftCollapsed: true } : {}), ...(metrics.mode === "mobile" ? { terminalOpen: false } : {}) };
+    });
   }, [metrics.mode, mode]);
 
   useEffect(() => {
@@ -1071,7 +1082,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   }, [chromeStorageMetadata.hasSavedState, metrics.mode, settings.general.navigationLayout]);
 
   useEffect(() => {
-    window.localStorage.setItem(CHROME_KEY, JSON.stringify({ ...chrome, navigationLayout: settings.general.navigationLayout }));
+    window.localStorage.setItem(CHROME_KEY, JSON.stringify({ ...chrome, leftCollapsed: responsiveLeftRestore.current ?? chrome.leftCollapsed, navigationLayout: settings.general.navigationLayout }));
   }, [chrome, settings.general.navigationLayout]);
 
   useEffect(() => {
@@ -1082,11 +1093,14 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     if (previewCloseTimer.current !== null) window.clearTimeout(previewCloseTimer.current);
   }, []);
 
-  const toggleLeft = useCallback(() => setChrome((current) => ({
-    ...current,
-    leftCollapsed: !current.leftCollapsed,
-    ...(metrics.mode !== "desktop" && current.leftCollapsed ? { rightCollapsed: true } : {}),
-  })), [metrics.mode]);
+  const toggleLeft = useCallback(() => {
+    responsiveLeftRestore.current = null;
+    setChrome((current) => ({
+      ...current,
+      leftCollapsed: !current.leftCollapsed,
+      ...(metrics.mode !== "desktop" && current.leftCollapsed ? { rightCollapsed: true } : {}),
+    }));
+  }, [metrics.mode]);
   const showRightPanelSection = useCallback((nextSection: "context" | "applications") => {
     onRightPanelSectionChange(nextSection);
     sidebarRightRuntime.select(null);
@@ -1227,7 +1241,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     const previousActiveBrowserTab = browserOpenTabs.find(tab => tab.active);
     const activeBrowserPageChanged = Boolean(previousActiveBrowserTab
       && (previousActiveBrowserTab.id !== activeBrowserTab?.id || previousActiveBrowserTab.url !== activeBrowserTab.url));
-    if (activeUtilityTab?.kind === "new" && activeBrowserTab && (activeUtilityTab.browserUrl !== undefined || activeBrowserPageChanged)) {
+    if (activeUtilityTab?.kind === "new" && activeBrowserTab && (activeUtilityTab.browserUrl !== undefined || activeBrowserPageChanged || browserOpenTabs.length === 0)) {
       setWorkspaceUtilityTabs(current => current.map(tab => tab.id === activeUtilityTab.id && tab.kind === "new" && tab.browserUrl !== activeBrowserTab.url
         ? { ...tab, browserUrl: activeBrowserTab.url }
         : tab));
@@ -1849,7 +1863,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
         onClose={toggleRight}
       /></Suspense> : <>
       {mode === "ai-work" ? <>
-        {activeWorkspaceUtilityTabKind === "new" ? <Suspense fallback={<ApplicationContentLoading />}><BrowserPanel sessionId={activeAiSessionId} settings={settings} hidden={!activeWorkspaceUtilityTab?.browserUrl} navigationRequest={activeWorkspaceUtilityTab?.browserNavigationRequest ?? null} onNavigationRequestHandled={handleBrowserNavigationRequest} actionRequest={activeWorkspaceUtilityTab?.browserActionRequest ?? null} onActionRequestHandled={handleBrowserActionRequest} onOpenTabsChange={handleBrowserOpenTabsChange} /></Suspense> : null}
+        {activeWorkspaceUtilityTabKind === "new" ? <Suspense fallback={<ApplicationContentLoading />}><BrowserPanel sessionId={BUILTIN_BROWSER_WORKSPACE_ID} settings={settings} hidden={!activeWorkspaceUtilityTab?.browserUrl} navigationRequest={activeWorkspaceUtilityTab?.browserNavigationRequest ?? null} onNavigationRequestHandled={handleBrowserNavigationRequest} actionRequest={activeWorkspaceUtilityTab?.browserActionRequest ?? null} onActionRequestHandled={handleBrowserActionRequest} onOpenTabsChange={handleBrowserOpenTabsChange} /></Suspense> : null}
         {!activeWorkspaceUtilityTab?.browserUrl ? <>
         <div className="module-context__launcher">
           <section className="module-context__launcher-name" aria-label="名称">

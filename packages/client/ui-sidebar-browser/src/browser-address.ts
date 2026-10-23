@@ -1,6 +1,6 @@
 /**
  * 功能：统一浏览器工作区的地址栏识别与搜索地址生成。
- * 作用：桌面原生页面和 Web 截图预览使用同一套 URL、凭据与搜索引擎规则。
+ * 作用：桌面原生页面和 Web 实时 Browser Dock 使用同一套 URL、凭据与搜索引擎规则。
  * 关联文件：NativeBrowserPanel.tsx、BrowserPanel.tsx、SettingsPage.tsx。
  */
 import type { UserSettings } from "lfaa-client-connection/src/api.js";

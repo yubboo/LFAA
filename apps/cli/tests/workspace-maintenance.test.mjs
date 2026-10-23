@@ -113,6 +113,20 @@ test("构建期间源码变化不得记为新输出；损坏或缺失记录要�
   assert.deepEqual(staleRuntimeBuilds("daemon", root), ["host"]);
 });
 
+test("桌面 Web 候选输出写入独立指纹且拒绝写到 dist 外", t => {
+  const { root } = fixture(t);
+  const candidateDirectory = join(root, "dist/.tmp/desktop-electron/web-candidate");
+  const sourceFingerprint = runtimeBuildFingerprint("web", root);
+  recordRuntimeBuild("web", root, sourceFingerprint, candidateDirectory);
+
+  assert.deepEqual(JSON.parse(readFileSync(join(candidateDirectory, "build-state.json"), "utf8")), {
+    kind: "web",
+    fingerprint: sourceFingerprint
+  });
+  assert.equal(existsSync(join(root, "dist/apps/web/build-state.json")), false);
+  assert.throws(() => recordRuntimeBuild("web", root, sourceFingerprint, join(root, "outside-dist")), /只允许写入仓库根 dist/u);
+});
+
 test("Web 源码指纹忽略 Vite 时间戳配置临时 bundle，但保留真实源码变化", t => {
   const { root, put } = fixture(t);
   put("apps/web/vite.config.ts");

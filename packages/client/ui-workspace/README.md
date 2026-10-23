@@ -36,7 +36,7 @@ AI Work 的会话与右侧工具页签由 `ApplicationWorkspace` 持有。中心
 
 AI Work 右侧“新标签页”以工具主页呈现：变更、终端、文件和侧边聊天按右栏实际容器宽度排成紧凑双列或单列；应用、扩展面板及已登记能力资源收在原生“更多工具”展开区；浏览器本身是该标签页的内容模式，不作为另一个工具或另一个工作区标签。主页地址栏常驻在标签条下方；提交网址/搜索、推荐站点或最近记录后，只替换主页内容，BrowserPanel 的网页画面在同一红框内容区域显示，工具栏和右侧工作区标签保持原位。BrowserPanel 隐藏期间读取当前 Browser Owner 已有标签，不在主页访问时启动新浏览器会话。推荐与最近继续复用当前 Browser Owner 数据和一次性导航请求，不另建网站清单或读取个人浏览器历史。样式由本包 `src/css/right-menu.css` 单独维护并沿用 Appearance 主题令牌。
 
-推荐区继续显示当前打开的网站标签；“最近”通过 Client Connection 的认证 API 加载 Browser Owner 按账户保存的 LFAA Browser Dock/Agent 最近网站记录，点击记录复用当前工作区标签。记录是否启用由 Settings Owner 的 `browserUse.recordRecentSites` 控制；该区域只保留按需查询的页面状态，不建立本地历史库。新标签页地址栏复用 Browser Address Owner 的 URL/搜索词解析与 Browser Dock 导航；手动导航不要求用户接入 Provider 或改 Agent 设置。浏览工具栏在主页与网页内容模式保持同一套；BrowserPanel/NativeBrowserPanel 只渲染网页，不再包含嵌套地址栏、Provider 选择或第二套标签。推荐、最近和地址栏进入同一个 Browser Owner Session；若 Agent 已配置为同一账户/Session/provider，则可按现有权限与设置复用同一页面。关闭右侧工作区标签时只移除该页签，最后一个页签以空白“新标签页”替代并收起右侧栏。
+推荐区继续显示当前打开的网站标签；“最近”通过 Client Connection 的认证 API 加载 Browser Owner 按账户保存的 LFAA Browser Dock/Agent 最近网站记录，点击记录复用当前工作区标签。记录是否启用由 Settings Owner 的 `browserUse.recordRecentSites` 控制；该区域只保留按需查询的页面状态，不建立本地历史库。新标签页地址栏复用 Browser Address Owner 的 URL/搜索词解析与 Browser Dock 导航；手动导航不要求用户接入 Provider 或改 Agent 设置。浏览工具栏在主页与网页内容模式保持同一套；BrowserPanel/NativeBrowserPanel 只渲染网页，不再包含嵌套地址栏、Provider 选择或第二套标签。推荐、最近和地址栏进入同一个 Browser Owner Session；若 Agent 已配置为同一账户/内置工作区/provider，则可按现有权限与设置复用同一页面。关闭右侧工作区标签时只移除该页签，最后一个页签以空白“新标签页”替代并收起右侧栏。
 
 AI Work 中心区在桌面、紧凑和移动布局下均可收窄到 300px；聊天输入容器在 380px 及以下将项目、权限、更多和模型操作切换为图标，保留可访问名称及悬浮提示。会话导航刻度单独定位并贴齐中心列左缘，随左二 Dock 宽度变化；会话滚动框在左侧为刻度保留可视区并以等宽内边距补偿，消息舞台、正文、滚动区和输入区保持原有位置与响应式尺寸。右侧分隔条可将剩余宽度分配给右侧菜单。左二栏是次窄区域：启用 `responsiveRightDock` 时其最大宽度按容器宽度的 26% 计算，范围为 320–440px；最小宽度、默认宽度与用户宽度偏好格式不变。上述中心/左右栏规则不改变 Settings/Plugin Manager 的通用范围。
 
@@ -52,7 +52,7 @@ AI Work 右侧工作区工具标签单击继续只选择功能；双击同一标
 
 独立 `/voice` 页面复用同一个 ApplicationWorkspace 与 AiWorkChat 会话，隐藏工作区导航和 Dock。语音页加载仅读取现有工作区状态，不触发默认目录初始化或 Session Git 仓库 ensure 写入；项目、会话和 AI 请求仍归原 Owner。语音页在 Workspace 通用聊天纵向裁切规则之上保留独立可滚动容器，短屏时可访问页面底部状态和语音设置，不影响普通 AI Work 的消息滚动区。
 
-AI Work 右侧工作区标签的新标签页即浏览器入口：统一地址栏直接操作 Browser Owner，页面内容在同一 Dock 原位显示，不再切换到独立“浏览器”工作区标签。Web 页面以真实 Browser Owner 截图呈现并转发用户交互；桌面页面由现有 Electron `WebContentsView` 承载。页面状态不另存为第二份；Agent 是否能操作当前页面仍由其既有设置和权限决定。默认隔离 Edge/Chrome 不继承系统个人登录态；不自动选择个人 Profile/Tabbit。
+AI Work 右侧工作区标签的新标签页即浏览器入口：统一地址栏直接操作 Browser Owner，页面内容在同一 Dock 原位显示，不再切换到独立“浏览器”工作区标签。普通 Web 在无窗口 Chromium 中打开真实页面后，通过认证 SSE 连续推送合成器帧到 Dock 并转发同页输入；不打开外部窗口或系统共享选择器。桌面页面由现有 Electron `WebContentsView` 原生承载。页面状态不另存为第二份；Agent 是否能操作当前页面仍由其既有设置和权限决定。默认隔离 Edge/Chrome 不继承系统个人登录态；不自动选择个人 Profile/Tabbit。
 
 右侧新标签页将工作区标签和浏览器地址栏放在固定顶栏；主页主体由名称、工具、推荐、最近四个同级盒子组成并在主体内滚动，账户状态固定在右栏底部。四个盒子使用 `right-menu.css` 与 Appearance 共享主题令牌，窄容器按自身宽度收窄，保留原有 Browser/Git/Files/Side Chat Owner 与导航回调。
 
@@ -65,3 +65,5 @@ AI Work 右侧工作区标签的新标签页即浏览器入口：统一地址栏
 桌面和紧凑布局中的 Git 摘要浮层挂载在当前中心列，宽度受真实列宽约束，右缘贴齐中心列与右侧工作台之间的可拖拽分隔线；它从中心内容区顶部向左展开，按摘要内容自然收高，底部保留空间，超出短屏时内容在卡片内滚动。四项 Git 操作菜单定位在摘要卡范围内，避免被中心列裁切。右栏宽度按工作台根容器比例响应：不超过约 76% 时默认展开，越过边界后默认吸附收起；只在初次测量或跨界时自动切换，用户在同一宽度状态内手动开合后保持该选择。手机继续在左侧项目/会话栏显示摘要页。展开效果读取 Appearance 的减少动态效果状态，摘要数据与 Git 操作仍由原有 Owner 管理。
 
 游戏库四栏 Shell 由 `ui-layout/Workbench` 组合，并通过 `ApplicationWorkspace.applicationContent` 提供中心内容槽；本包继续持有四个同级工作区区域与响应式尺寸，不持有 Minecraft、SteamCMD 或运行环境业务数据。
+
+2026-10-23：AI Work 地址栏的 BrowserPanel 固定绑定 `BUILTIN_BROWSER_WORKSPACE_ID`，手动打开网页无需 AI 会话；Agent 首次打开网页时，空白新标签同步其真实页面。窄窗口自动收起左栏时暂存此前开合偏好，回到桌面宽度后恢复，临时响应式状态不覆盖持久化偏好。

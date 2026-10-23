@@ -96,6 +96,7 @@ export default defineConfig(({ mode }) => {
   };
   let sourceFingerprint: string;
   let writesActiveRuntime: boolean;
+  let webOutputDirectory: string;
   const markBackendAvailable = (proxy: { on: (event: string, listener: () => void) => unknown }) => {
     proxy.on("proxyRes", backendProxyLogger.markBackendAvailable);
     proxy.on("open", backendProxyLogger.markBackendAvailable);
@@ -107,12 +108,15 @@ export default defineConfig(({ mode }) => {
       name: "lfaa-build-state",
       apply: "build",
       configResolved(config) {
-        writesActiveRuntime = resolve(config.root, config.build.outDir) === resolve(repositoryRoot, "dist/apps/web");
+        webOutputDirectory = resolve(config.root, config.build.outDir);
+        writesActiveRuntime = webOutputDirectory === resolve(repositoryRoot, "dist/apps/web");
       },
       buildStart() { sourceFingerprint = runtimeBuildFingerprint("web", repositoryRoot); },
       writeBundle() {
         if (writesActiveRuntime) {
           recordRuntimeBuild("web", repositoryRoot, sourceFingerprint);
+        } else if (webOutputDirectory === resolve(repositoryRoot, "dist/.tmp/desktop-electron/web-candidate")) {
+          recordRuntimeBuild("web", repositoryRoot, sourceFingerprint, webOutputDirectory);
         }
       }
     }],

@@ -118,6 +118,7 @@ export interface BrowserSessionSnapshot {
   pageText: string;
   controls: Array<{ role: string; name: string; type?: string; disabled: boolean }>;
   tabs: Array<{ id: string; title: string; url: string; active: boolean }>;
+  viewport?: { width: number; height: number } | null;
   screenshot: { mimeType: "image/jpeg"; dataBase64: string; width: number; height: number } | null;
 }
 export interface BrowserRevision { revision: number; url: string; title: string }
@@ -1394,6 +1395,71 @@ export function loadBrowserDockSession(sessionId: string, providerId: BrowserPro
   return request(`/browser/dock/sessions/${encodeURIComponent(sessionId)}?${new URLSearchParams({ providerId })}`, signal ? { signal } : {});
 }
 
+export type BrowserDockFrame = { dataBase64: string; width: number; height: number };
+
+export async function streamBrowserDockFrames(
+  sessionId: string,
+  providerId: BrowserProviderId,
+  signal: AbortSignal,
+  onFrame: (frame: BrowserDockFrame) => void
+): Promise<void> {
+  const path = `/browser/dock/sessions/${encodeURIComponent(sessionId)}/stream?${new URLSearchParams({ providerId })}`;
+  const requestGeneration = authenticationGeneration;
+  const response = await fetch(`/api${path}`, { credentials: "include", headers: { Accept: "text/event-stream" }, signal });
+  if (!response.ok) {
+    const rawBody = await response.text();
+    let responseBody: unknown;
+    try { responseBody = rawBody ? JSON.parse(rawBody) as unknown : undefined; } catch { responseBody = undefined; }
+    const message = typeof responseBody === "object" && responseBody !== null && "message" in responseBody && typeof responseBody.message === "string"
+      ? responseBody.message : "浏览器实时画面连接失败。";
+    const code = typeof responseBody === "object" && responseBody !== null && "error" in responseBody && typeof responseBody.error === "string"
+      ? responseBody.error : undefined;
+    if (isSessionAuthenticationError(response.status, code)) handleSessionAuthenticationFailure(path, requestGeneration);
+    throw new ApiError(response.status, message, code);
+  }
+  if (!response.headers.get("content-type")?.includes("text/event-stream") || !response.body) throw new ApiError(response.status, "浏览器实时画面服务没有返回有效数据流。" );
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (!signal.aborted) {
+      const result = await reader.read();
+      if (result.done) break;
+      buffer += decoder.decode(result.value, { stream: true });
+      if (buffer.length > 5_500_000) throw new ApiError(502, "浏览器实时画面数据超过允许大小。" );
+      let delimiter = buffer.indexOf("\n\n");
+      while (delimiter >= 0) {
+        const event = buffer.slice(0, delimiter);
+        buffer = buffer.slice(delimiter + 2);
+        const eventName = /^event:\s*(\S+)/mu.exec(event)?.[1];
+        const data = event.split(/\r?\n/u).filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
+        if (eventName === "frame" && data.length <= 4_000_000) {
+          const value: unknown = JSON.parse(data);
+          if (typeof value === "object" && value !== null && "dataBase64" in value && typeof value.dataBase64 === "string" && value.dataBase64.length > 0
+            && "width" in value && typeof value.width === "number" && Number.isInteger(value.width) && value.width > 0
+            && "height" in value && typeof value.height === "number" && Number.isInteger(value.height) && value.height > 0) {
+            onFrame(value as BrowserDockFrame);
+          }
+        } else if (eventName === "error") {
+          let message = "浏览器实时画面连接失败，请重试。";
+          try {
+            const value = JSON.parse(data) as { message?: unknown };
+            if (typeof value.message === "string") message = value.message;
+          } catch { /* 忽略无效服务错误载荷。 */ }
+          throw new ApiError(502, message);
+        }
+        delimiter = buffer.indexOf("\n\n");
+      }
+    }
+  } catch (error) {
+    if (!signal.aborted) throw error;
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+}
+
 export function loadBrowserDockRevision(sessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ session: BrowserRevision | null }> {
   return request(`/browser/dock/sessions/${encodeURIComponent(sessionId)}/revision?${new URLSearchParams({ providerId })}`, signal ? { signal } : {});
 }
@@ -1453,8 +1519,8 @@ export function resizeBrowserViewport(sessionId: string, providerId: BrowserProv
 
 export type BrowserActionRequest =
   | { action: "back" | "forward" | "reload" }
-  | { action: "clickAt"; x: number; y: number }
-  | { action: "dragAt"; x: number; y: number; points: Array<{ x: number; y: number; delayMs: number }> }
+  | { action: "clickAt"; x: number; y: number; includeScreenshot?: boolean }
+  | { action: "dragAt"; x: number; y: number; points: Array<{ x: number; y: number; delayMs: number }>; includeScreenshot?: boolean }
   | { action: "typeText"; text: string; includeScreenshot?: boolean }
   | { action: "pressKey"; key: string; includeScreenshot?: boolean }
   | { action: "scroll"; direction: "up" | "down"; amount: number; includeScreenshot?: boolean };

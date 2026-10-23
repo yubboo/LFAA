@@ -69,14 +69,14 @@ function requireBrowserProvider(userId: string, manager: BrowserSessionManager, 
 function providerListTool(manager: BrowserSessionManager): AiBusinessTool {
   return makeTool({
     id: "browser-use.providers", name: "lfaa_browser_list_providers", coreManaged: true, onDemand: true, requiresBrowserUse: true,
-    description: "列出当前账户已接入且当前本机 Host 实际可用的浏览器提供方；不读取用户已登录的系统浏览器标签、Cookie 或历史。根据当前目标选择一个 providerId 后再加载对应浏览器操作工具。",
+    description: "列出当前账户可用的浏览器提供方。用户已经在 LFAA 内置浏览器打开网页时，优先选择 activeInWorkspace 为 true 的 providerId，随后用 lfaa_browser_observe 接管同一页面；不读取系统浏览器标签、Cookie 或历史。",
     applicationIds: [...APPLICATION_IDS], schema: strictObject({}),
     parse: value => parseWithSchema(Joi.object({}).unknown(false), value),
     execute: async (_parameters, context) => {
       context.signal.throwIfAborted();
       const settings = getUserSettings(context.userId);
       if (!settings.browserUse.enabled) throw new Error("Agent 浏览器控制已在设置中心关闭。");
-      const providers = manager.listProviders().map(provider => ({
+      const providers = manager.listProviders(context.userId).map(provider => ({
         ...provider,
         connected: provider.isolation !== "user-profile" || settings.browserUse.enabledProviderIds.includes(provider.id),
         agentUseAvailable: provider.available
@@ -197,12 +197,12 @@ export function createBrowserTools(manager: BrowserSessionManager): AiBusinessTo
       execute: async (browserRun, providerId, parameters) => snapshotResult(await browserRun.navigate(providerId, String(parameters.url)))
     }),
     makeBrowserTool(manager, {
-      id: "click", name: "lfaa_browser_click", description: "点击最近一次页面观察中明确列出的可访问角色/名称；每次点击由 LFAA 当前权限模式授权，不接受任意 CSS/JavaScript。",
-      properties: { role: { type: "string", enum: ["button", "link", "checkbox", "radio", "tab", "menuitem", "option"] }, name: { type: "string", minLength: 1, maxLength: 160 } }, required: ["role", "name"],
-      schema: Joi.object({ providerId: providerIdSchema, role: Joi.string().valid("button", "link", "checkbox", "radio", "tab", "menuitem", "option").required(), name: Joi.string().trim().min(1).max(160).required() }).unknown(false),
+      id: "click", name: "lfaa_browser_click", description: "点击最近页面观察中列出的可访问角色/名称。同名控件必须传入快照里的零起始 occurrence 序号，避免误点第一个；每次点击由 LFAA 当前权限模式授权，不接受任意 CSS/JavaScript。",
+      properties: { role: { type: "string", enum: ["button", "link", "checkbox", "radio", "tab", "menuitem", "option"] }, name: { type: "string", minLength: 1, maxLength: 160 }, occurrence: { type: "integer", minimum: 0, maximum: 79 } }, required: ["role", "name"],
+      schema: Joi.object({ providerId: providerIdSchema, role: Joi.string().valid("button", "link", "checkbox", "radio", "tab", "menuitem", "option").required(), name: Joi.string().trim().min(1).max(160).required(), occurrence: Joi.number().integer().min(0).max(79) }).unknown(false),
       risk: parameters => parameters.role === "link" ? "read" : "write",
-      approval: approval("click", parameters => `点击网页中的${String(parameters.role)}“${String(parameters.name).slice(0, 100)}”`),
-      execute: async (browserRun, providerId, parameters) => snapshotResult(await browserRun.click(providerId, String(parameters.role), String(parameters.name)))
+      approval: approval("click", parameters => `点击网页中的${String(parameters.role)}“${String(parameters.name).slice(0, 100)}”${parameters.occurrence === undefined ? "" : `（第 ${Number(parameters.occurrence) + 1} 个）`}`),
+      execute: async (browserRun, providerId, parameters) => snapshotResult(await browserRun.click(providerId, String(parameters.role), String(parameters.name), parameters.occurrence === undefined ? undefined : Number(parameters.occurrence)))
     }),
     makeBrowserTool(manager, {
       id: "fill", name: "lfaa_browser_fill", description: "向最近页面观察中可访问名称匹配的普通文本框填写内容；不代填或读取密码、验证码、令牌、密钥等敏感字段，输入值不会写入 LFAA 会话记录。",

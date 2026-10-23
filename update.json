@@ -2,13 +2,11 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "0.0.12",
-  "title": "LFAA 0.0.12",
+  "version": "0.0.13",
+  "title": "LFAA 0.0.13",
   "publishedAt": "2026-10-23",
   "releaseNotes": [
-    "修复 Windows PowerShell 5.1 无 BOM 脚本解析失败导致的 CLI PATH 设置错误",
-    "显示 NSIS 实际解压进度",
-    "说明已有控制端占用数据锁的启动提示"
+    "修复 Windows Electron 安装包缺少 Web 构建指纹导致控制端启动失败"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "0.0.1",

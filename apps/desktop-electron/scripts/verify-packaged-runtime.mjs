@@ -29,7 +29,27 @@ if (driverManifest.name !== "@trycua/cua-driver" || driverManifest.version !== e
 const nodePath = resolve(runtimeRoot, "node.exe");
 const loaderPath = resolve(runtimeRoot, "apps/cli/register-package-loader.mjs");
 const pluginPath = resolve(runtimeRoot, "dist/apps/control-plane/packages/computer-use/computer-use/src/index.js");
-await Promise.all([stat(nodePath), stat(loaderPath), stat(pluginPath)]);
+
+async function verifyBuildState(relativePath, expectedKind) {
+  const path = resolve(runtimeRoot, relativePath);
+  let buildState;
+  try {
+    buildState = JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    throw new Error(`Electron 运行包缺少有效的 ${expectedKind} 构建指纹：${path}`, { cause: error });
+  }
+  if (buildState?.kind !== expectedKind || typeof buildState.fingerprint !== "string" || !buildState.fingerprint) {
+    throw new Error(`Electron 运行包中的 ${expectedKind} 构建指纹格式无效：${path}`);
+  }
+}
+
+await Promise.all([
+  stat(nodePath),
+  stat(loaderPath),
+  stat(pluginPath),
+  verifyBuildState("dist/apps/web/build-state.json", "web"),
+  verifyBuildState("dist/apps/control-plane/build-state.json", "host")
+]);
 
 const smokeCode = [
   `import { apply } from ${JSON.stringify(pathToFileURL(pluginPath).href)};`,
