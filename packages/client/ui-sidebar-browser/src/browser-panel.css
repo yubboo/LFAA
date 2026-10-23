@@ -15,84 +15,76 @@
 }
 
 .lfaa-browser-panel__content {
-  display: flex;
+  display: grid;
   min-width: 0;
   min-height: 0;
   flex: 1 1 auto;
-  overflow: hidden;
-  overscroll-behavior: none;
+  place-items: center;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: clamp(.75rem, 3vw, 1.5rem);
   background: var(--color-surface-muted);
-  scrollbar-color: var(--color-border-strong) transparent;
-  scrollbar-width: thin;
 }
 
-.lfaa-browser-panel__viewport-wrap {
-  position: relative;
-  display: flex;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  align-items: stretch;
-  justify-content: center;
-  touch-action: none;
-}
-
-.lfaa-browser-panel__viewport {
-  display: block;
-  width: 100%;
-  height: 100%;
-  box-sizing: border-box;
-  background: var(--color-surface);
-  cursor: default;
-  pointer-events: none;
-  object-fit: contain;
-  user-select: none;
-}
-
-.lfaa-browser-panel__input-capture {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+.lfaa-browser-panel__status,
+.lfaa-browser-panel__empty-card {
+  display: grid;
+  width: min(100%, 44rem);
   min-width: 0;
-  min-height: 0;
-  resize: none;
-  overflow: hidden;
-  border: 0;
-  padding: 0;
-  outline: 0;
-  opacity: 0;
-  color: transparent;
-  background: transparent;
-  caret-color: transparent;
-  cursor: default;
-  pointer-events: auto;
-  touch-action: none;
-  user-select: none;
+  gap: .8rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: .9rem;
+  padding: clamp(1rem, 3vw, 1.75rem);
+  background: var(--color-surface);
+  box-shadow: 0 8px 28px var(--color-shadow-float);
 }
 
-.lfaa-browser-panel__busy {
-  position: absolute;
-  z-index: 2;
-  top: .65rem;
-  right: .65rem;
-  max-width: calc(100% - 1.3rem);
-  overflow: hidden;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 999px;
-  padding: .28rem .55rem;
+.lfaa-browser-panel__status-label {
   color: var(--color-text-secondary);
-  background: var(--color-surface);
-  box-shadow: 0 2px 8px var(--color-shadow-float);
   font-size: var(--font-size-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.lfaa-browser-panel__status h2 {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.lfaa-browser-panel__status p,
+.lfaa-browser-panel__empty-card p {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.lfaa-browser-panel__status .lfaa-browser-panel__page-url {
+  border-radius: .45rem;
+  padding: .55rem .7rem;
+  color: var(--color-text-primary);
+  background: var(--color-surface-muted);
+  font-family: var(--settings-code-font, monospace);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.lfaa-browser-panel__empty {
+  display: grid;
+  width: min(100%, 44rem);
+  min-width: 0;
+  place-items: center;
 }
 
 .lfaa-browser-panel__error {
   flex: 0 0 auto;
+  max-height: 35%;
+  overflow: auto;
   margin: .5rem .75rem 0;
   border: 1px solid color-mix(in srgb, var(--color-danger) 28%, var(--color-border));
   border-radius: .6rem;
@@ -104,16 +96,15 @@
   overflow-wrap: anywhere;
 }
 
-.lfaa-browser-panel__empty {
-  display: grid;
-  min-width: 0;
-  min-height: 100%;
-  flex: 1 1 auto;
-  place-items: center;
-  padding: clamp(.75rem, 3vw, 1.5rem);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  line-height: 1.6;
-  text-align: center;
-  overflow-wrap: anywhere;
+@media (max-width: 560px) {
+  .lfaa-browser-panel__content {
+    align-items: start;
+    padding: .75rem;
+  }
+
+  .lfaa-browser-panel__status,
+  .lfaa-browser-panel__empty-card {
+    border-radius: .65rem;
+    padding: .9rem;
+  }
 }

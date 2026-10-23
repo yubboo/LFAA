@@ -13,6 +13,7 @@ import { app, BrowserWindow, WebContentsView, dialog, ipcMain, net, session } fr
 import electronUpdater from "electron-updater";
 import builderUtilRuntime from "builder-util-runtime";
 import { requestServiceShutdown } from "./service-shutdown.mjs";
+import { getControlPlaneStartupError } from "./control-plane-startup-error.mjs";
 import { compareStableVersions, getElectronUpdateFeedUrl } from "./update-manifest.mjs";
 import { createDesktopUpdateFlow, getDesktopUpdateErrorDiagnostic, getDesktopUpdateErrorMessage } from "./update-flow.mjs";
 import { fetchLfaaUpdateManifest } from "./update-manifest-fetch.mjs";
@@ -46,6 +47,7 @@ let desktopUpdatePreferencesStore = null;
 let availableDesktopUpdate = null;
 let serverProcess = null;
 let daemonProcess = null;
+let controlPlaneStartupStderr = "";
 let serviceShutdownPromise = null;
 let serviceShutdownComplete = false;
 let packagedFrontendUrl = "";
@@ -228,6 +230,9 @@ async function writeLog(source, message) {
 function connectProcessOutput(child, name) {
   child.stdout?.setEncoding("utf8");
   child.stderr?.setEncoding("utf8");
+  child.stderr?.on("data", (chunk) => {
+    if (name === "控制端") controlPlaneStartupStderr = (controlPlaneStartupStderr + String(chunk)).slice(0, 4096);
+  });
   child.stdout?.on("data", (chunk) => void writeLog(name, String(chunk).trimEnd()));
   child.stderr?.on("data", (chunk) => void writeLog(`${name} 错误`, String(chunk).trimEnd()));
   child.once("error", (error) => void writeLog(name, `进程启动失败：${error.message}`));
@@ -279,7 +284,7 @@ async function waitForControlPlane(child, port) {
   const deadline = Date.now() + 45_000;
   while (Date.now() < deadline) {
     if (child.exitCode !== null || child.signalCode !== null) {
-      throw new Error("本机控制端意外退出；请查看桌面日志。 ");
+      throw new Error(getControlPlaneStartupError(controlPlaneStartupStderr));
     }
 
     try {
@@ -325,6 +330,7 @@ async function startLocalServices(runtimeRoot) {
   const serverEntry = join(runtimeRoot, "dist", "apps", "control-plane", "index.js");
   const serverLoader = join(runtimeRoot, "apps", "cli", "register-package-loader.mjs");
 
+  controlPlaneStartupStderr = "";
   await writeLog("桌面端", `正在启动本机控制端，监听端口 ${port}。`);
   if (unavailableSavedDataDirectory) {
     await writeLog(

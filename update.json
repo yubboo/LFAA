@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "0.0.10",
-  "title": "LFAA 0.0.10",
+  "version": "0.0.12",
+  "title": "LFAA 0.0.12",
   "publishedAt": "2026-10-23",
   "releaseNotes": [
-    "修复安装目录校验导致安装按钮灰色且无原因提示",
-    "完善 Windows 安装向导的 CLI PATH、文件进度和快捷方式选项",
-    "修复旧安装路径数据目录失效后无法启动的问题"
+    "修复 Windows PowerShell 5.1 无 BOM 脚本解析失败导致的 CLI PATH 设置错误",
+    "显示 NSIS 实际解压进度",
+    "说明已有控制端占用数据锁的启动提示"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "0.0.1",

@@ -84,14 +84,18 @@ Var LfaaCliPathEntry
     StrCpy $LfaaCliPathEntry "$INSTDIR\bin"
     WriteRegStr HKCU "Software\LFAA\DesktopInstaller" "CliPathEntry" "$LfaaCliPathEntry"
     File /oname=$PLUGINSDIR\lfaa-path-environment.ps1 "${PROJECT_DIR}\nsis\path-environment.ps1"
-    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\lfaa-path-environment.ps1" -Action Add'
+    nsExec::ExecToStack /OEM '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\lfaa-path-environment.ps1" -Action Add'
     Pop $0
+    Pop $1
     ${if} $0 == 0
       DetailPrint "LFAA CLI 已加入当前用户 PATH。新打开的终端即可使用。"
       System::Call 'user32::SendMessageTimeoutW(p 0xffff, i 0x001a, p 0, w "Environment", i 2, i 5000, *p .r1)'
     ${else}
-      DetailPrint "警告：将 LFAA CLI 加入当前用户 PATH 失败，错误码：$0"
-      MessageBox MB_OK|MB_ICONEXCLAMATION "无法更新当前用户 PATH（错误码：$0）。LFAA 已安装；可以重新运行安装器尝试，或手动把安装目录下的 bin 文件夹加入 PATH。"
+      ${if} $1 == ""
+        StrCpy $1 "脚本没有返回详细原因，请查看安装明细。"
+      ${endif}
+      DetailPrint "警告：将 LFAA CLI 加入当前用户 PATH 失败（错误码：$0）：$1"
+      MessageBox MB_OK|MB_ICONEXCLAMATION "无法更新当前用户 PATH（错误码：$0）。原因：$1。LFAA 已安装；可重新运行安装器尝试，或手动把安装目录下的 bin 文件夹加入 PATH。"
     ${endif}
   ${endif}
   lfaaCliPathDone:

@@ -7,7 +7,7 @@ import { createProjectPreviewServer } from "../../../host/project-files/src/proj
 import { BrowserSessionManager } from "../src/session-manager.ts";
 
 test("opens a scoped workspace preview in the same isolated Browser Session used by the Dock", async t => {
-  const manager = new BrowserSessionManager(true);
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const provider = manager.listProviders().find(item => item.id === "lfaa-managed-edge" && item.available)
     ?? manager.listProviders().find(item => item.id === "lfaa-managed-chrome" && item.available);
   if (!provider) {

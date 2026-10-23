@@ -4,7 +4,7 @@ Windows 产品主线使用根 `build:desktop:win` / `build:win`；打包读取�
 
 `main.mjs` 是本机服务与桌面更新 Owner。Control Plane/Daemon 子进程开启 IPC；`service-shutdown.mjs` 发送既有 `lfaa-shutdown` 并监听退出，退出码 0 才确认关闭。Daemon 未完成前保持控制端可用，超时/断线/异常退出拒绝安装而不强杀。启动失败分支也不能跳过关闭确认。安装包 Profile 导入检查在根 `dist/.tmp/desktop-electron/` 下为每次运行创建独立 `LFAA_HOME` 与 `LFAA_DATA_DIR`，结束后清理，不会读取或争用用户实际账户/控制数据。
 
-Windows NSIS 安装页允许选择安装位置，并在目录无效或空间不足时给出原因；可选将随包 CLI 加入当前用户 PATH。安装期间显示 NSIS 实际文件明细，完成页可分别选择运行 LFAA 和创建桌面快捷方式。旧版曾把安装目录下的 `data/` 保存为默认数据位置；升级后若该旧目录不可用，桌面端会改用当前用户的 `.lfaa/data`，在配置中保留旧路径恢复记录，并提示旧目录数据没有被移动或删除。明确配置在 LFAA Home 的数据位置仍按原规则校验，不会自动改写。
+Windows NSIS 安装页允许选择安装位置，并在目录无效或空间不足时给出原因；可选将随包 CLI 加入当前用户 PATH。安装期间由 `Nsis7z::ExtractWithDetails` 显示实际解压百分比、文件状态与滚动明细；PATH 脚本须保留 UTF-8 BOM，供 Windows PowerShell 5.1 正确解析中文提示。PATH 更新失败时把 PowerShell 返回原因写入安装明细和提示框。完成页可分别选择运行 LFAA 和创建桌面快捷方式。启动时若同一数据目录已被另一 Control Plane 占用，提示用户正常关闭占用该目录的 LFAA 服务；不会删除数据锁或启动第二个写入者。旧版曾把安装目录下的 `data/` 保存为默认数据位置；升级后若该旧目录不可用，桌面端会改用当前用户的 `.lfaa/data`，在配置中保留旧路径恢复记录，并提示旧目录数据没有被移动或删除。明确配置在 LFAA Home 的数据位置仍按原规则校验，不会自动改写。
 
 Windows x64 桌面包的 `node-pty` 预编译目录只保留 Windows x64 运行文件；打包时排除 PDB 调试符号及 ARM64/macOS 预编译文件，避免安装时复制当前目标平台用不到的内容。安装向导展示的所需空间是解压后落盘体积，不是下载的安装器文件大小；Electron/Chromium 与随包 Node、CLI 及控制端运行组件构成了主要体积。
 

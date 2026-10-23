@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { BROWSER_SCREENSHOT_FRAME_INTERVAL_MS, browserScreenshotWaitMs } from "../../../packages/client/ui-sidebar-browser/src/browser-frame-interval.ts";
 
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
 const workspace = read("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx");
@@ -84,11 +83,12 @@ test("同一个新标签页内用地址栏替换主页内容，不新增第二�
   const nativeBrowser = read("../../../packages/client/ui-sidebar-browser/src/NativeBrowserPanel.tsx");
   assert.match(browser, /actOnBrowserDock\(sessionId, providerId, \{ action: actionRequest\.action \}\)/u);
   assert.match(browser, /navigateBrowserDock\(sessionId, providerId, target\)/u);
-  assert.match(browser, /browserScreenshotWaitMs\(lastRequestAt, performance\.now\(\)\)/u, "整页截图刷新读取有回归覆盖的最短帧间隔");
-  assert.match(browser, /pending\?\.scope === requestScope\) return pending\.promise/u, "同一浏览器会话的修订通知合并到同一截图请求");
-  assert.match(browser, /const requestScope = `\$\{sourceSession\}:\$\{selectedProvider\}`/u, "不同账户会话或浏览器 Provider 不会错误复用旧快照");
-  assert.match(browser, /waitForScreenshotFrameSlot\(waitMs, signal\)/u, "截图节流等待可随页面隐藏或组件卸载取消");
-  assert.match(browser, /current\?\.screenshot && !next\.screenshot/u, "没有新画面时保留最后一张有效网页帧");
+  assert.match(browser, /existing\?\.scope === scope\) return existing\.promise/u, "同一账户会话和 Provider 合并并发状态读取");
+  assert.match(browser, /const scope = `\$\{sourceSession\}:\$\{selectedProvider\}`/u, "不同账户会话或浏览器 Provider 不会错误复用旧快照");
+  assert.match(browser, /waitForBrowserDockRevision\(sessionId, providerId, current\.revision/u, "页面变化通过可撤销的 Browser Owner 修订等待同步");
+  assert.match(browser, /current && current\.revision > next\.revision \? current : next/u, "较旧页面响应不会覆盖较新导航状态");
+  assert.match(browser, /隔离的 Chromium 窗口中真实渲染/u, "Web 模式清楚说明真实页面在隔离浏览器窗口渲染");
+  assert.doesNotMatch(browser, /screenshot|<img|<canvas|WheelEvent|onPointerDown|clickAt|typeText/u, "Web Dock 不再生成或交互于 JPEG 页面播放器");
   assert.doesNotMatch(browser, /接入浏览器|providerConnected|connectProvider\(/u, "LFAA Browser Dock 的手动导航不再出现 Provider 接入门槛");
   assert.doesNotMatch(browser, /lfaa-browser-panel__(?:header|provider-tabs|address|views|footer)/u, "内容区组件不再包含第二套浏览器标题、标签或地址栏");
   assert.match(nativeBrowser, /actionRequest\.action === "back"[\s\S]*?api\.forward\(activeTab\.id\)[\s\S]*?api\.reload\(activeTab\.id\)/u);
@@ -96,13 +96,6 @@ test("同一个新标签页内用地址栏替换主页内容，不新增第二�
   assert.match(nativeBrowser, /if \(!live \|\| hidden \|\| sending \|\| !pending\) return/u, "原生网页视图最多只有一个坐标 IPC 在途");
   assert.match(nativeBrowser, /if \(live && pending\) sendPending\(\)/u, "滚动中的新位置只保留最新一份并在当前 IPC 后发送");
   assert.doesNotMatch(nativeBrowser, /watchPosition|setTimeout\(watchPosition, 160\)/u, "不再用 160ms 轮询拖动原生网页视图");
-});
-
-test("连续页面变化时截图间隔有界，且首帧不延迟", () => {
-  assert.equal(BROWSER_SCREENSHOT_FRAME_INTERVAL_MS, 120);
-  assert.equal(browserScreenshotWaitMs(0, 50), 0, "首张网页帧应立即请求");
-  assert.equal(browserScreenshotWaitMs(100, 150), 70, "两次截图请求至少间隔 120ms");
-  assert.equal(browserScreenshotWaitMs(100, 220), 0, "达到帧间隔后不增加等待");
 });
 
 test("推荐区显示 Browser Dock 当前打开标签，并复用一次性导航请求", () => {

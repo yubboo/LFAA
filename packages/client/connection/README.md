@@ -14,7 +14,7 @@ DSH 来源检查的 `requirements.bundlePatch` 与上游声明保持一致：一
 
 AI 漫剧项目列表会在交给工作区前校验服务端返回的项目列表与全部资源限制；缺少或包含无效限制值时以 `ai_video_contract_mismatch` 报错，避免旧版控制端响应进入新版 UI。
 
-Browser Dock Client API 通过认证 `/browser/dock/prewarm` 请求 Browser Owner 提前启动当前可用的本机隔离浏览器；请求只用于减少首次网页导航的浏览器进程启动延迟。
+Browser Dock Client API 使用认证 `/browser/dock/*` 路由。导航前只查询本机隔离 Edge/Chrome 的真实可用性；提交地址时再启动同一账户与 LFAA Session 的可见浏览器页面，避免预先弹出空白窗口。
 
 AI 回复使用一份 `content` 和可选 `parts` 正文范围；`delta` 携带分段 ID/起点，`presentation` 同步阶段及最终答案范围。帧合并仅合并同一消息的同一分段，非正文事件先冲刷待处理文本。`appendAiTextDelta` 更新同一消息投影；活动的 `contentOffset`、问题和实际审批答案只用于展示。重新订阅的原子快照恢复当前正文与范围，旧服务没有范围时保持兼容。
 

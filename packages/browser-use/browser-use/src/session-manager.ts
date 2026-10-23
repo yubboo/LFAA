@@ -5,6 +5,8 @@
  */
 import { randomUUID, createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { isPublicMcpAddress, resolveMcpEndpoint } from "lfaa-mcp-client/src/network.js";
@@ -59,6 +61,7 @@ export interface BrowserRunAdapterContext {
   signal: AbortSignal;
   onRunDispose: (cleanup: () => void) => void;
 }
+interface BrowserSessionManagerOptions { headless?: boolean }
 export interface BrowserRunAdapter {
   readonly runId: string;
   listTabs(): Promise<TabbitTabSummary[]>;
@@ -77,7 +80,7 @@ interface BrowserSession {
   ownerId: string;
   sourceSessionId: string;
   providerId: BrowserProviderId;
-  browser: Browser;
+  browser: Browser | null;
   context: BrowserContext;
   page: Page;
   lastUsedAt: number;
@@ -87,6 +90,7 @@ interface BrowserSession {
   allowedLocalOrigin: string | null;
   projectPreview: { url: string; close: () => Promise<void> } | null;
   lastRecentUrl: string;
+  userDataDir: string | null;
   ownsContext: boolean;
   nativePageHandlers?: Map<Page, { domcontentloaded: () => void; close: () => void; framenavigated: (frame: import("playwright-core").Frame) => void }>;
   nativePageListener?: (page: Page) => void;
@@ -138,8 +142,10 @@ function isSensitiveField(label: string, type?: string): boolean {
 export class BrowserSessionManager {
   private readonly sessions = new Map<string, BrowserSession>();
   private readonly sessionKeys = new Map<string, string>();
+  private readonly pendingSessions = new Map<string, { ownerId: string; promise: Promise<BrowserSession> }>();
   private readonly runAdapters = new Map<string, { adapter: BrowserRunAdapter; signal: AbortSignal; dispose: () => void }>();
   private readonly channels = availableChannels();
+  private readonly headless: boolean;
   private readonly sweepTimer = setInterval(() => { void Promise.all([this.sweepExpired(), this.tabbit.sweepExpired()]).catch(() => undefined); }, SESSION_SWEEP_MS);
   private readonly browsers = new Map<"msedge" | "chrome" | "native", Promise<Browser>>();
   private readonly nativeActiveTargets = new Map<string, string>();
@@ -150,18 +156,12 @@ export class BrowserSessionManager {
 
   constructor(
     private readonly localHostExecution: boolean,
-    private readonly isRecentHistoryEnabled: (ownerId: string) => boolean = ownerId => getUserSettings(ownerId).browserUse.recordRecentSites
+    private readonly isRecentHistoryEnabled: (ownerId: string) => boolean = ownerId => getUserSettings(ownerId).browserUse.recordRecentSites,
+    options: BrowserSessionManagerOptions = {}
   ) {
+    this.headless = options.headless ?? false;
     this.tabbit = new TabbitBrowserProvider(localHostExecution);
     this.sweepTimer.unref?.();
-  }
-
-  async prewarm(providerId: BrowserProviderId): Promise<void> {
-    if (this.disposed || !this.localHostExecution) throw new Error("LFAA 隔离浏览器只在本机 Web/Desktop Host 中可用。");
-    const provider = this.channels.find(item => item.id === providerId);
-    if (!provider) throw new Error("预热只支持 LFAA 隔离 Edge/Chrome 浏览器。");
-    if (!provider.paths.some(path => existsSync(path))) throw new Error(`未发现 ${provider.name} 的已安装浏览器。`);
-    await this.getBrowser(provider.channel);
   }
 
   getRecentSites(ownerId: string, limit = 12): BrowserRecentSite[] {
@@ -282,7 +282,8 @@ export class BrowserSessionManager {
     const existing = existingId ? this.sessions.get(existingId) : undefined;
     if (existing && !existing.disposed) {
       await this.exclusive(existing, async () => {
-        const match = await this.findNativePageInBrowser(existing.browser, targetId);
+        const browser = existing.browser ?? await this.getBrowser("native");
+        const match = await this.findNativePageInBrowser(browser, targetId);
         if (!match) throw new Error("当前活动的原生浏览器标签尚未出现在 Chromium 中。");
         if (match.context !== existing.context) {
           if (existing.nativePageListener) existing.context.off("page", existing.nativePageListener);
@@ -539,6 +540,11 @@ export class BrowserSessionManager {
   async closeSession(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId): Promise<void> {
     if (providerId === "tabbit-personal") return this.tabbit.closeSession(ownerId, sourceSessionId);
     const key = sessionKey(ownerId, sourceSessionId, providerId), id = this.sessionKeys.get(key);
+    const pending = this.pendingSessions.get(key)?.promise;
+    if (pending) {
+      try { await this.disposeSession(await pending); } catch { /* The session failed to start and owns no live page. */ }
+      return;
+    }
     if (!id) return;
     const session = this.sessions.get(id);
     if (session) await this.disposeSession(session);
@@ -560,6 +566,7 @@ export class BrowserSessionManager {
     for (const entry of this.runAdapters.values()) entry.dispose();
     this.runAdapters.clear();
     await this.tabbit.closeAll();
+    await Promise.all([...this.pendingSessions.values()].map(entry => entry.promise.catch(() => null)));
     await Promise.all([...this.sessions.values()].map(session => this.disposeSession(session)));
     const browsers = await Promise.all([...this.browsers.values()].map(browser => browser.catch(() => null)));
     this.browsers.clear();
@@ -578,68 +585,100 @@ export class BrowserSessionManager {
     const existing = existingId ? this.sessions.get(existingId) : undefined;
     if (existing && !existing.disposed && !existing.page.isClosed()) { this.touch(existing); return existing; }
     if (existing && !existing.disposed) await this.disposeSession(existing);
-    if (this.sessions.size >= MAX_SESSIONS || [...this.sessions.values()].filter(session => session.ownerId === ownerId).length >= MAX_SESSIONS_PER_USER) {
+    const pending = this.pendingSessions.get(key);
+    if (pending) return pending.promise;
+    const accountSessions = [...this.sessions.values()].filter(session => session.ownerId === ownerId).length
+      + [...this.pendingSessions.values()].filter(session => session.ownerId === ownerId).length;
+    if (this.sessions.size + this.pendingSessions.size >= MAX_SESSIONS || accountSessions >= MAX_SESSIONS_PER_USER) {
       throw new Error("浏览器会话达到当前账户的并发上限；先关闭不再使用的浏览器会话。");
     }
-    const browser = await this.getBrowser(isNativeProvider ? "native" : provider!.channel);
-    const nativeTargetId = this.nativeActiveTargets.get(key) ?? "";
-    if (isNativeProvider && !nativeTargetId) throw new Error("请在浏览器工作区选择要交给 Agent 操作的标签页。");
-    let context: BrowserContext;
-    let page: Page | null;
-    if (isNativeProvider) {
-      const match = await this.findNativePageInBrowser(browser, nativeTargetId);
-      if (!match) throw new Error("当前活动的原生浏览器标签尚未出现在 Chromium 中；切回浏览器标签后重试。");
-      context = match.context;
-      page = match.page;
-    } else {
-      context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, serviceWorkers: "block" });
-      page = await context.newPage();
-    }
-    if (!page) throw new Error("原生浏览器里没有可接管的网页标签；先在右侧工作区打开一个标签。");
-    const session: BrowserSession = {
-      id: randomUUID(), ownerId, sourceSessionId, providerId, browser, context,
-      page, lastUsedAt: Date.now(), revision: 0,
-      revisionWaiters: new Set(),
-      operationTail: Promise.resolve(), allowedLocalOrigin: null, projectPreview: null, lastRecentUrl: "",
-      ownsContext: !isNativeProvider, disposed: false
-    };
-    if (isNativeProvider) {
-      session.nativePageHandlers = new Map();
-      const watchPage = (watchedPage: Page) => this.watchNativePage(session, watchedPage);
-      session.nativePageListener = watchedPage => watchPage(watchedPage);
-      for (const watchedPage of context.pages()) watchPage(watchedPage);
-      context.on("page", session.nativePageListener);
+    const creation = this.createSession(ownerId, sourceSessionId, providerId, key, provider?.channel);
+    this.pendingSessions.set(key, { ownerId, promise: creation });
+    try { return await creation; }
+    finally { if (this.pendingSessions.get(key)?.promise === creation) this.pendingSessions.delete(key); }
+  }
+
+  private async createSession(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, key: string, channel?: "msedge" | "chrome"): Promise<BrowserSession> {
+    const isNativeProvider = providerId === "lfaa-native-browser";
+    let browser: Browser | null = null;
+    let context: BrowserContext | null = null;
+    let page: Page | null = null;
+    let userDataDir: string | null = null;
+    try {
+      if (isNativeProvider) {
+        const nativeTargetId = this.nativeActiveTargets.get(key) ?? "";
+        if (!nativeTargetId) throw new Error("请在浏览器工作区选择要交给 Agent 操作的标签页。");
+        browser = await this.getBrowser("native");
+        const match = await this.findNativePageInBrowser(browser, nativeTargetId);
+        if (!match) throw new Error("当前活动的原生浏览器标签尚未出现在 Chromium 中；切回浏览器标签后重试。");
+        context = match.context;
+        page = match.page;
+      } else {
+        if (!channel) throw new Error("所选浏览器提供方不受当前 Host 支持。");
+        if (this.headless) {
+          browser = await this.getBrowser(channel);
+          context = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: "block" });
+          page = await context.newPage();
+        } else {
+          userDataDir = await mkdtemp(join(tmpdir(), "lfaa-browser-profile-"));
+          context = await chromium.launchPersistentContext(userDataDir, {
+            channel, headless: false, timeout: 15_000, viewport: null, serviceWorkers: "block"
+          });
+          page = context.pages()[0] ?? await context.newPage();
+        }
+      }
+      if (!context || !page) throw new Error("原生浏览器里没有可接管的网页标签；先在右侧工作区打开一个标签。");
+      if (this.disposed) throw new Error("Browser Owner 已关闭。");
+      const session: BrowserSession = {
+        id: randomUUID(), ownerId, sourceSessionId, providerId, browser, context,
+        page, lastUsedAt: Date.now(), revision: 0,
+        revisionWaiters: new Set(),
+        operationTail: Promise.resolve(), allowedLocalOrigin: null, projectPreview: null, lastRecentUrl: "",
+        ownsContext: !isNativeProvider, userDataDir, disposed: false
+      };
+      if (isNativeProvider) {
+        session.nativePageHandlers = new Map();
+        const watchPage = (watchedPage: Page) => this.watchNativePage(session, watchedPage);
+        session.nativePageListener = watchedPage => watchPage(watchedPage);
+        for (const watchedPage of context.pages()) watchPage(watchedPage);
+        context.on("page", session.nativePageListener);
+        this.sessions.set(session.id, session);
+        this.sessionKeys.set(key, session.id);
+        return session;
+      }
+      let lastChangeNotificationAt = 0;
+      await context.exposeBinding("__lfaaBrowserChanged", () => {
+        const now = Date.now();
+        if (now - lastChangeNotificationAt < BROWSER_DOM_CHANGE_NOTIFICATION_INTERVAL_MS) return;
+        lastChangeNotificationAt = now;
+        this.bumpRevision(session);
+      });
+      await context.addInitScript("(() => { let queued = false; const observer = new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; void window.__lfaaBrowserChanged?.(); }); }); observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true }); window.addEventListener(\"pagehide\", () => observer.disconnect(), { once: true }); })();");
+      await context.route("**/*", route => {
+        const requestUrl = route.request().url();
+        if (/^(?:about:|blob:|data:)/iu.test(requestUrl)) { void route.continue(); return; }
+        void this.guardRequest(session, requestUrl).then(() => route.continue()).catch(() => route.abort("blockedbyclient"));
+      });
+      context.on("page", nextPage => {
+        if (context.pages().length > MAX_PAGE_COUNT) { void nextPage.close().catch(() => undefined); return; }
+        session.page = nextPage;
+        this.bumpRevision(session);
+        nextPage.on("domcontentloaded", () => { this.bumpRevision(session); });
+        nextPage.on("load", () => { this.bumpRevision(session); });
+        nextPage.on("close", () => { this.bumpRevision(session); });
+      });
+      session.page.on("domcontentloaded", () => { this.bumpRevision(session); });
+      session.page.on("load", () => { this.bumpRevision(session); });
+      session.page.on("close", () => { this.bumpRevision(session); });
+      if (this.disposed) throw new Error("Browser Owner 已关闭。");
       this.sessions.set(session.id, session);
       this.sessionKeys.set(key, session.id);
       return session;
+    } catch (error) {
+      if (context && !isNativeProvider) await context.close().catch(() => undefined);
+      if (userDataDir) await rm(userDataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }).catch(() => undefined);
+      throw error;
     }
-    let lastChangeNotificationAt = 0;
-    await context.exposeBinding("__lfaaBrowserChanged", () => {
-      const now = Date.now();
-      if (now - lastChangeNotificationAt < BROWSER_DOM_CHANGE_NOTIFICATION_INTERVAL_MS) return;
-      lastChangeNotificationAt = now;
-      this.bumpRevision(session);
-    });
-    await context.addInitScript(`(() => { let queued = false; const observer = new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; void window.__lfaaBrowserChanged?.(); }); }); observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true }); window.addEventListener("pagehide", () => observer.disconnect(), { once: true }); })();`);
-    await context.route("**/*", route => {
-      const requestUrl = route.request().url();
-      if (/^(?:about:|blob:|data:)/iu.test(requestUrl)) { void route.continue(); return; }
-      void this.guardRequest(session, requestUrl).then(() => route.continue()).catch(() => route.abort("blockedbyclient"));
-    });
-    context.on("page", page => {
-      if (context.pages().length > MAX_PAGE_COUNT) { void page.close().catch(() => undefined); return; }
-      session.page = page;
-      this.bumpRevision(session);
-      page.on("domcontentloaded", () => { this.bumpRevision(session); });
-      page.on("load", () => { this.bumpRevision(session); });
-      page.on("close", () => { this.bumpRevision(session); });
-    });
-    session.page.on("domcontentloaded", () => { this.bumpRevision(session); });
-    session.page.on("load", () => { this.bumpRevision(session); });
-    session.page.on("close", () => { this.bumpRevision(session); });
-    this.sessions.set(session.id, session);
-    this.sessionKeys.set(key, session.id);
-    return session;
   }
 
   private async getBrowser(channel: "msedge" | "chrome" | "native"): Promise<Browser> {
@@ -647,7 +686,7 @@ export class BrowserSessionManager {
     if (!browserPromise) {
       browserPromise = channel === "native"
         ? this.connectNativeBrowser()
-        : chromium.launch({ channel, headless: true, timeout: 15_000 }).catch(error => {
+        : chromium.launch({ channel, headless: this.headless, timeout: 15_000 }).catch(error => {
         this.browsers.delete(channel);
         throw new Error(`隔离浏览器启动失败：${error instanceof Error ? error.message : "未知错误"}`);
       });
@@ -811,13 +850,23 @@ export class BrowserSessionManager {
     let abortListener: (() => void) | undefined;
     const aborted = new Promise<never>((_resolve, reject) => {
       abortListener = () => {
-        void this.disposeSession(session);
+        void this.stopPageLoading(session);
         reject(new Error("浏览器操作已取消。"));
       };
       signal.addEventListener("abort", abortListener, { once: true });
     });
     try { return await Promise.race([pending, aborted]); }
     finally { if (abortListener) signal.removeEventListener("abort", abortListener); }
+  }
+
+  private async stopPageLoading(session: BrowserSession): Promise<void> {
+    if (session.disposed || session.page.isClosed()) return;
+    let client: Awaited<ReturnType<BrowserContext["newCDPSession"]>> | undefined;
+    try {
+      client = await session.context.newCDPSession(session.page);
+      await client.send("Page.stopLoading");
+    } catch { /* Unsupported providers may not expose CDP; keep the session alive. */ }
+    finally { await client?.detach().catch(() => undefined); }
   }
 
   private touch(session: BrowserSession): void { session.lastUsedAt = Date.now(); }
@@ -859,5 +908,6 @@ export class BrowserSessionManager {
     if (session.ownsContext) await session.context.close().catch(() => undefined);
     await this.closeProjectPreview(session);
     await session.operationTail.catch(() => undefined);
+    if (session.userDataDir) await rm(session.userDataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }

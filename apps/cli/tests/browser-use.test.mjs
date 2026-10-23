@@ -68,6 +68,16 @@ function makeBrowser(optionsLog = []) {
       pages.push(page);
       const context = {
         pages: () => pages,
+        newCDPSession: async () => ({
+          send: async method => {
+            if (method === "Page.stopLoading") {
+              page.state.stopLoadingCalls = (page.state.stopLoadingCalls ?? 0) + 1;
+              page.state.waitUntilClosed = false;
+              page.state.release?.();
+            }
+          },
+          detach: async () => undefined
+        }),
         newPage: async () => page,
         exposeBinding: async (_name, callback) => {
           page.state.exposedBindings = [...(page.state.exposedBindings ?? []), callback];
@@ -132,7 +142,7 @@ test("native Browser Owner binds only the selected non-app Target to its authent
   process.env.LFAA_ELECTRON_CDP_PORT_FILE = portFile;
   process.env.LFAA_ELECTRON_BROWSER_APP_ORIGIN = "http://localhost:3000";
 
-  const manager = new BrowserSessionManager(true);
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const { browser, context, appPage, nativePage } = makeNativeBrowser();
   manager.getBrowser = async channel => {
     assert.equal(channel, "native");
@@ -171,7 +181,7 @@ test("native Browser Owner binds only the selected non-app Target to its authent
 });
 
 test("Browser Owner enforces isolated account/session contexts and strict navigation URLs", async () => {
-  const manager = new BrowserSessionManager(true);
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const contextOptions = [];
   const browser = makeBrowser(contextOptions);
   useFakeEdge(manager, browser);
@@ -196,7 +206,7 @@ test("Browser Owner enforces isolated account/session contexts and strict naviga
 });
 
 test("Browser Owner can prewarm the managed browser before a page or context exists", async () => {
-  const manager = new BrowserSessionManager(true);
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const browser = makeBrowser();
   useFakeEdge(manager, browser);
   try {
@@ -211,7 +221,7 @@ test("Browser Owner can prewarm the managed browser before a page or context exi
 });
 
 test("Browser Run adapter is account/session/run bound and released with the Run", async () => {
-  const manager = new BrowserSessionManager(true);
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const browser = makeBrowser();
   useFakeEdge(manager, browser);
   const controllerA = new AbortController();
@@ -282,7 +292,7 @@ test("Browser snapshots bound text, controls, tabs, and screenshot bytes", async
 });
 
 test("Dock waits for real page revisions, reads a light frame, and releases cancelled waiters", async () => {
-  const manager = new BrowserSessionManager(true);
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const browser = makeBrowser();
   useFakeEdge(manager, browser);
   try {
@@ -320,7 +330,7 @@ test("Dock waits for real page revisions, reads a light frame, and releases canc
 });
 
 test("Browser Owner coalesces rapid DOM mutation notifications", async () => {
-  const manager = new BrowserSessionManager(true);
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const browser = makeBrowser();
   useFakeEdge(manager, browser);
   try {
@@ -352,7 +362,7 @@ test("Browser Owner coalesces rapid DOM mutation notifications", async () => {
 });
 
 test("Browser Dock displays the first renderable frame before slow subresources finish", async () => {
-  const manager = new BrowserSessionManager(true);
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const browser = makeBrowser();
   useFakeEdge(manager, browser);
   try {
@@ -387,8 +397,8 @@ test("Browser Dock displays the first renderable frame before slow subresources 
   }
 });
 
-test("cancelling an active Browser operation closes its context", async () => {
-  const manager = new BrowserSessionManager(true);
+test("cancelling an active Browser operation stops loading and keeps its page available", async () => {
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const browser = makeBrowser();
   useFakeEdge(manager, browser);
   let markStarted;
@@ -410,7 +420,13 @@ test("cancelling an active Browser operation closes its context", async () => {
     await started;
     controller.abort();
     await assert.rejects(operation, /浏览器操作已取消/u);
-    assert.equal(closedContexts, 1, "cancellation tears down the active context");
+    const page = browser.contexts[0].pages()[0];
+    assert.equal(page.state.stopLoadingCalls, 1, "cancellation asks Chromium to stop the current navigation");
+    assert.equal(page.isClosed(), false, "cancellation leaves the visible page open");
+    assert.equal(closedContexts, 0, "cancellation does not dispose the browser context");
+    page.state.waitUntilClosed = false;
+    const snapshot = await manager.observeForRun("user-a", "session-a", "lfaa-managed-edge");
+    assert.equal(snapshot.url, "http://127.0.0.1:3000/api/health", "the same page remains observable after cancellation");
   } finally {
     await manager.closeAll();
   }

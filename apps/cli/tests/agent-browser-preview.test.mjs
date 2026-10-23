@@ -64,7 +64,7 @@ test("仅精确匹配隔离 Home 的本机 Daemon 身份；未知节点不当作
 });
 
 test("Agent 通过真实工具循环打开临时 HTML、读取页面并点击按钮", async t => {
-  const manager = new BrowserSessionManager(true);
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const provider = manager.listProviders().find(item => item.id === "lfaa-managed-edge" && item.available)
     ?? manager.listProviders().find(item => item.id === "lfaa-managed-chrome" && item.available);
   if (!provider) {
@@ -175,7 +175,7 @@ test("Agent 通过真实工具循环打开临时 HTML、读取页面并点击按
 });
 
 test("Agent 完成 HTML 创建、实页找错、摘要保护修复和重新验证", async t => {
-  const manager = new BrowserSessionManager(true);
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const provider = manager.listProviders().find(item => item.id === "lfaa-managed-edge" && item.available)
     ?? manager.listProviders().find(item => item.id === "lfaa-managed-chrome" && item.available);
   if (!provider) {
@@ -333,7 +333,7 @@ test("Agent 完成 HTML 创建、实页找错、摘要保护修复和重新验�
 });
 
 test("Skill 在同一 Agent Run 安装、发现、加载并引导调用真实隔离浏览器", async t => {
-  const manager = new BrowserSessionManager(true);
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const provider = manager.listProviders().find(item => item.id === "lfaa-managed-edge" && item.available)
     ?? manager.listProviders().find(item => item.id === "lfaa-managed-chrome" && item.available);
   if (!provider) {
@@ -520,8 +520,8 @@ test("Skill 在同一 Agent Run 安装、发现、加载并引导调用真实隔
   assert.equal(previewCloseCount, 1, "Run 完成后预览服务已回收");
 });
 
-test("取消 Run 中挂起的真实浏览器导航会回收页面、预览服务和桥接", async t => {
-  const manager = new BrowserSessionManager(true);
+test("取消 Run 中挂起的真实浏览器导航会停止加载并保留页面与预览服务", async t => {
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const provider = manager.listProviders().find(item => item.id === "lfaa-managed-edge" && item.available)
     ?? manager.listProviders().find(item => item.id === "lfaa-managed-chrome" && item.available);
   if (!provider) {
@@ -588,11 +588,15 @@ test("取消 Run 中挂起的真实浏览器导航会回收页面、预览服务
   await assert.rejects(navigation, /浏览器操作已取消/u);
   runCleanup?.();
   assert.throws(() => runAdapter.observe(provider.id), /桥接已结束/u);
-  assert.equal(await manager.getPanelRevision(ownerId, sourceSessionId, provider.id), null, "取消后不能继续读取已关闭的浏览器页面");
-  const cleanupDeadline = Date.now() + 5_000;
-  while ((previewCloseCount === 0 || sockets.size > 0) && Date.now() < cleanupDeadline) await new Promise(resolve => setTimeout(resolve, 10));
-  assert.equal(previewCloseCount, 1, "取消时只回收一次 Run 所有的项目预览服务");
-  assert.equal(server.listening, false, "项目预览 HTTP 服务已停止监听");
+  assert.ok(await manager.getPanelRevision(ownerId, sourceSessionId, provider.id), "取消 Run 后用户仍可接管同一浏览器页面");
+  const retainedPage = await manager.observeForRun(ownerId, sourceSessionId, provider.id);
+  assert.equal(retainedPage.providerId, provider.id, "取消后同一 Browser Session 仍可观察");
+  const stopDeadline = Date.now() + 5_000;
+  while (sockets.size > 0 && Date.now() < stopDeadline) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(previewCloseCount, 0, "取消 Run 不会关闭页面仍在使用的项目预览服务");
+  assert.equal(server.listening, true, "项目预览服务继续供保留页面使用");
   assert.equal(sockets.size, 0, "挂起的浏览器 HTTP 连接已关闭");
   await manager.closeAll();
+  assert.equal(previewCloseCount, 1, "用户关闭浏览器会话后只回收一次项目预览服务");
+  assert.equal(server.listening, false, "浏览器会话关闭后停止项目预览监听");
 });

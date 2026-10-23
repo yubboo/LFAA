@@ -1,7 +1,7 @@
 {
   "name": "lfaa-desktop-electron",
   "private": true,
-  "version": "0.0.10",
+  "version": "0.0.12",
   "type": "module",
   "main": "src/main.mjs",
   "description": "LFAA Windows 本机一体版桌面外壳",
@@ -26,7 +26,7 @@
     "appId": "com.lfaa.desktop",
     "productName": "LFAA",
     "directories": {
-      "output": "../../dist/.tmp/desktop-electron/LFAA-0.0.10",
+      "output": "../../dist/.tmp/desktop-electron/LFAA-0.0.12",
       "buildResources": "../../dist/.tmp/desktop-electron/build-resources"
     },
     "files": [

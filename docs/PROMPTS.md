@@ -233,9 +233,10 @@
 | 232-Windows桌面包版本状态继承-20261023 | 修复根目录 Windows Electron 打包遇到同版本源码更新日志缺少包状态时无法启动的问题；从同一产品版本的历史记录继承包状态，并拒绝跨版本继承 | 已完成：版本状态 8/8 回归、Control Plane/Windows Sandbox Host/Web 候选/NSIS 包构建及随包 CUA 插件导入通过；最终 LFAA 0.0.9 三文件及 SHA-512 对账通过；安装启动未验 | [本轮合同](#lfaa-desktop-package-version-status-inheritance-20261023) |
 | 233-Windows桌面安装向导与灰色安装按钮-20261023 | 修复目标目录页“安装”按钮灰色时无法获知原因、旧安装目录数据路径导致启动失败；加入当前用户可选 CLI PATH、真实安装明细进度及完成页运行/快捷方式选项 | 源码修复完成；Windows x64 NSIS 重建与实际安装器交互仍待验证 | [本轮合同](#lfaa-desktop-installer-recovery-options-progress-20261023) |
 | 234-LFAA内置浏览器滚动抖动、页面泛白与打开延迟-20261023 | 修复 LFAA 内置浏览器滚轮操作导致页面抖动/外层跟滚、网页周围泛白以及普通网站首屏打开慢 | Web/桌面两条路径已修复并通过直接回归、类型及入口构建；内置浏览器实页滚动、截图泛白对照与公开网站延迟仍受隔离验收环境限制 | [本轮合同](#lfaa-browser-dock-scrolling-wash-latency-20261023) |
-| 235-工作区标签双击切换中心区并修复偶发窄布局-20261023 | 双击 `/work` 工作区标签收起/展开中间聊天区；修复右侧菜单打开或窄分栏时偶发把中心区挤窄的布局异常 | 实施中：标签 Owner、响应式断点与布局偏好已定位；源码修复、回归、构建和内置浏览器视口验收待完成 | [本轮合同](#lfaa-workspace-tab-center-toggle-layout-20261023) |
+| 235-工作区标签双击切换中心区并修复偶发窄布局-20261023 | 双击 `/work` 工作区标签收起/展开中间聊天区；修复右侧菜单打开或窄分栏时偶发把中心区挤窄的布局异常 | 本任务专项回归 2/2、尺寸合并 1/1、Client 类型检查、Web/Host 构建及内置浏览器实页通过；共享 BrowserPanel 随后被并行修改，当前组合回归 24/25 且最新构建指纹已变旧，详见合同边界 | [本轮合同](#lfaa-workspace-tab-center-toggle-layout-20261023) |
 | 236-Agent使用内置浏览器-20261023 | 让 Agent 直接使用真实 Chromium 页面读取内容并执行语义操作，不依赖截图识别网页 | 浏览器回归 21/21、Control Plane 构建与 Host 类型检查通过；`check:workspace` 被 SteamCMD 包缺少内部依赖阻断；真实模型 Provider 未测 | [本轮合同](#lfaa-agent-native-browser-tools-20261023) |
-| 237-Windows安装进度、PATH失败提示与控制端锁冲突-20261023 | 修复安装阶段 PATH 写入失败只显示错误码、NSIS 解压进度缺少百分比/明细，以及启动失败未说明已有控制端占用数据锁 | 实施中：PATH 错误原因、真实压缩进度与安全锁冲突均已定位；修复、构建和隔离验收待完成 | [本轮合同](#lfaa-windows-installer-progress-path-lock-20261023) |
+| 237-Windows安装进度、PATH失败提示与控制端锁冲突-20261023 | 修复安装阶段 PATH 写入失败只显示错误码、NSIS 解压进度缺少百分比/明细，以及启动失败未说明已有控制端占用数据锁 | 相关代码、6/6 定向回归、Windows PowerShell 5.1 解析检查与 0.0.12 Windows x64 构建通过；真实隔离安装未运行。BrowserPanel 于 0.0.12 Web 候选生成后被并行改动，完整当前源码发行验证待重建 | [本轮合同](#lfaa-windows-installer-progress-path-lock-20261023) |
+| 238-LFAA内置Agent浏览器原生呈现与同页控制-20261023 | 纠正 Web Browser Dock 的 JPEG 截图播放器架构；本机 Web 提供可见隔离 Chromium 窗口并与 Agent 共页，Electron 保留 WebContentsView 原生嵌入；核实滚动、泛白、启动性能和安全边界 | 实施中：BrowserPanel 当前仍显示 JPEG 并转发坐标/滚轮；隔离 Browser Owner 启动 headless Chromium；Electron 已有原生 WebContentsView 与 CDP Target 绑定。真实站点 URL、Electron GUI 与真实 Provider 需逐项实测 | [本轮合同](#lfaa-agent-browser-native-rendering-20261023) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
@@ -6260,10 +6261,14 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 
 ### 实施与验收记录
 
-- 状态：源码修改中。代码层已确认首次指标初始化按 `window.innerWidth`，而工作台容器的 ResizeObserver 在提交后才完成校准；这会让嵌入式窄分栏首帧套用整窗断点。现将首次真实容器测量与断点对应的 Dock 开合校准前置到布局提交阶段；正式实页仍需复验是否覆盖截图现象。
-- 环境初查：用户截图指向本机端口 3107；当前发现端口 3000 由 LFAA CLI Web 进程监听，但 `/work` HEAD 返回 503。当前 CUA 内置浏览器没有已打开标签，尚未完成正式实页验收。
-- 设置：尚未更改。预期只消费现有导航布局、Dock 尺寸与 Appearance 共享令牌；若最终修复需要调整设置映射，将先确认设置 Owner 再实现。
-- 改动文件、回归、构建、实际路由/视口/交互截图及未测边界：待实施后补齐。
+- 状态：已完成。`ApplicationWorkspace` 给右侧工具标签加入双击事件，只切换中心区受控折叠状态并清掉旧拖动预览；单击仍沿用原标签选择行为，工具 Owner 与单例规则不变。DockKit 首次在绘制前读取工作台自身外框并同步响应式指标；尺寸后续仍由现有 `ResizeObserver` 更新。模式断点变化时 Dock 状态也在绘制前同步，避免嵌入式窄分栏首帧按整窗宽度估算。
+- 设置：沿用 `general.navigationLayout`、已有工作台左右栏尺寸偏好及 Appearance 共享令牌。本轮没有新增/修改设置中心配置，没有重置账户偏好，也没有新增 CSS 自定义属性。
+- 回归与构建：本任务专项 `AI Work 中心区收起后显示会话、新标签页及动态工具标签` 与 `嵌入式工作台首次绘制前按实际容器尺寸校准响应式布局` 最新复跑 2/2；`client-performance.test.mjs` 中“1000 个容器尺寸通知”直接用例 1/1；`pnpm exec tsc --noEmit -p tsconfig.client.json` 与 `pnpm run build:web` 通过，Web 产物位于根 `dist/apps/web/`。为当前 Web Host 运行又执行 `pnpm run build:control-plane`，两次构建后 `runtime-build-state.mjs web` 与 `control-plane` 均曾返回 `[]`。随后共用浏览器面板工作树改动导致该两项最终返回 `['host','web']` / `['host']`，当前产物不再与最终工作树一致；本任务 UI 的内置浏览器实测发生在构建指纹为新的快照。
+- 内置浏览器：从本轮源码构建启动隔离 Web 服务，实际路由 `http://127.0.0.1:3111/work`，使用临时验收数据目录。默认视口 1280×720，工作台外框 1260×720、`desktop/dock`；点击“变更”后双击该标签，`centerCollapsed` 从 `false` 变为 `true`，聊天列收起且 Git 工具内容占满；再次双击恢复 `false`。双击收起和恢复状态的 CUA 页面截图已随本轮验收结果显示。另在 850×720（工作台 830×720，`compact/dock`）与 640×600（工作台 620×600，`mobile/dock`）检查，工具卡片按窄宽纵向排布，中心区与工具区仍可见，页面没有横向溢出。测试期间视口为临时覆盖，验收结束重置。实际浏览器未重现截图中的偶发错排；首帧错误断点的源码原因已修复，但原用户环境与触发步骤未知，不能声称复现了其具体瞬态。
+- 组合回归与并行边界：最后一次合并运行 `client-workspace-app-tabs.test.mjs` + `client-workbench-responsive.test.mjs` 为 24/25；失败的是另一项 `Web Browser Dock 使用可见 Chromium 会话，不再把截图当网页交互`，其断言与当前并行改动后的 `BrowserPanel.tsx` 接口不一致。与本任务直接相关的两项随后独立重跑 2/2 通过；浏览器 Owner 的改动不属于本任务，未调整其实现/断言。最终工作树现包含未提交的共享浏览器改动，因此最新 `dist` 指纹已过期；不以之前构建状态宣称最终全仓产物新鲜。
+- 服务边界与临时数据：用户截图中的 3107 未监听；原有 3000 端口由一个无法确认源码归属的 CLI 服务占用，`/api/health` 正常而 `/work` 返回 503，因此没有复用或停止该进程。使用当前仓库正式 Web 服务在独立 3111 与临时目录完成内置浏览器实页验收；3111 已停止。验收临时目录位于 `%TEMP%\lfaa-ui-acceptance-235`；目录递归清理请求被本地执行策略拒绝，已保留目录以避免绕过拒绝规则，其中运行服务已关闭。
+- 本任务涉及文件与职责：`packages/client/ui-workspace/src/ApplicationWorkspace.tsx`（中心区折叠状态与工具标签双击）、`packages/client/ui-dockkit/src/use-workbench-metrics.ts`（真实容器首帧指标）、`apps/cli/tests/client-workspace-app-tabs.test.mjs`（标签交互和断点回归）、`apps/cli/tests/client-workbench-responsive.test.mjs`（首帧测量回归）、`packages/client/ui-workspace/README.md`（工具标签行为合同）、`packages/client/ui-dockkit/README.md`（尺寸测量与布局边界）、本合同（实现及验收记录）。
+- 未测边界：未在用户原始 3107 环境或 Electron 原生窗口复测；没有获知用户截图时分栏宽度与触发步骤。构建和内置浏览器所测视口不能替代这两处环境的实测。
 
 <a id="lfaa-agent-native-browser-tools-20261023"></a>
 ## 236-Agent 使用内置浏览器（2026-10-23）
@@ -6325,4 +6330,46 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 ### 外部排查与实施记录
 
 - 外部排查顺序：社交媒体检索未找到与本包 PATH 错误/插件组合对应的可验证解法；技术社区结果仅说明 nsExec 返回子进程退出码，不能替代本机原因；项目 GitHub 查询没有找到本项目相关安装问题；官方 NSIS/electron-builder 文档用于核对支持的能力与模板入口。
-- 待完成：补充修复文件及职责、直接回归、构建命令/产物、隔离宿主可用性与未测边界；实测用户新包后再把安装交互结果更新为完成。
+- `apps/desktop-electron/nsis/installer.nsh`：通过 `nsExec::ExecToStack` 收集 PATH 脚本输出，并在安装明细/弹窗中展示失败原因；保留可选 PATH 行为、快捷方式与用户安装位置。
+- `apps/desktop-electron/nsis/path-environment.ps1`：异常消息写入标准输出供 NSIS 收集；文件以 UTF-8 BOM 保存，确保 NSIS 调用的 Windows PowerShell 5.1 能解析中文并避免因此返回错误码 1。脚本仍只修改当前用户 PATH，不改变其他条目。Windows PowerShell 5.1 的文件语法解析通过；由于安全策略阻止在当前账户 HKCU 创建/写入临时注册表夹具，PATH Add/Remove 集成操作未运行，且没有修改真实用户 PATH。
+- `patches/app-builder-lib@26.15.3.patch` 与 `pnpm-lock.yaml`：将两处应用解压调用切换到 Nsis7z `ExtractWithDetails`，使用插件实际进度和已处理/总量；依赖模板回归确认两处调用。
+- `apps/desktop-electron/src/main.mjs`、`src/control-plane-startup-error.mjs`：捕获控制端启动 stderr，将已确认的数据锁冲突解释为请关闭正在使用同一数据目录的 LFAA 服务；没有删除锁、结束 PID 或改变数据目录。
+- `apps/desktop-electron/tests/installer-package.test.mjs`、`tests/control-plane-startup-error.test.mjs`：定向回归 6/6 通过。运行入口：`pnpm --filter lfaa-desktop-electron exec node --test tests/control-plane-startup-error.test.mjs tests/installer-package.test.mjs`。
+- `pnpm run build:desktop:win` 先生成 `dist/apps/desktop-electron/LFAA-0.0.11/LFAA-0.0.11.exe`（167,771,997 字节）；该安装器含真实 NSIS 解压进度与启动锁提示，但不含后来发现的 PowerShell BOM 修复。随后正式递增至 0.0.12，生成 `dist/apps/desktop-electron/LFAA-0.0.12/LFAA-0.0.12.exe`（167,769,747 字节）；`latest.yml` 的 SHA-512 与文件校验和、size 均匹配。0.0.12 已包含 BOM 修复，不覆盖已消耗的 0.0.11。
+- 构建期间发现 `packages/client/ui-sidebar-browser/src/BrowserPanel.tsx` 在 Web 候选产物生成后被另一活跃任务并行修改（源码修改时间 13:23:06，候选 Web `index.html` 生成时间 13:21:48）。这不影响安装器 PATH/NSIS 修复，但 0.0.12 不代表构建结束时的完整当前源码；该并行改动被保留，相关任务稳定后应以新版本重建完整发行包。真实隔离 Windows 用户/虚拟机不可用，本轮未执行安装、PATH 注册或 GUI 进度实测；因此不宣称 PATH 实际更新成功或真实界面通过。
+
+<a id="lfaa-agent-browser-native-rendering-20261023"></a>
+## 238-LFAA 内置 Agent 浏览器原生呈现与同页控制（2026-10-23）
+
+### 用户问题、目标与实际入口
+
+- 用户明确指出内置浏览器不能以截图播放器代替浏览器，要求 Agent 自主检索、打开、读取、操作并根据真实结果继续计划；人可观察/接管同一页面；按阶段修复滚动、泛白、性能并完成真实 Chromium/Electron 验收。
+- 当前入口：`/work` → `ApplicationWorkspace` 的共享地址栏与当前工作区标签 → `lfaa-client-ui-sidebar-browser`；普通 Web 的 `BrowserPanel` 当前用 Browser Owner 返回的 JPEG `<img>` 并把点击、滚轮、输入法文字转发成 Playwright 动作。Agent 走 `lfaa_tools_list/load` → `lfaa-browser-use` → `BrowserSessionManager` 的结构化 DOM 与真实 Playwright 动作，不依赖截图。Electron 的 `NativeBrowserPanel` 把实际可见区域映射到 `apps/desktop-electron` 的 `WebContentsView`，由 Browser Owner 通过本机 CDP 按当前账户、LFAA Session、显式选中 Target 附着同一页面。
+- 普通网页无法将任意跨域网站的 Chromium 文档直接嵌进 Web DOM。本机 Web Host 应以受控、隔离、可见的 Chromium 页面作为真实浏览器窗口并与 Agent 共享 Page；Electron 保持现有应用内 `WebContentsView`；远程 Web 若无本机 Host 必须准确呈现不可本机可视接管的能力边界。不得保留 JPEG/Canvas 播放器作为普通网页浏览和输入通道。
+
+### Owner、设置、数据与权限
+
+- Browser Session、导航/观察/动作、取消与隔离归 `packages/browser-use/browser-use`；认证 API/参数映射归 `packages/api/browser-controller`；地址栏/工作区/能力提示归 `packages/client/ui-sidebar-browser` 与现有 `ui-workspace`；Electron WebContentsView、可信 IPC、下载/站点权限和 CDP 配置归 `apps/desktop-electron`。
+- 沿用 `browserUse.enabled`（默认关闭，仅 Agent Tools）、`searchEngine`、`showFullUrl`、`recordRecentSites`、个人 Tabbit 专用 `enabledProviderIds`、`permissions.mode` 与现有 Appearance 令牌。手动浏览不受 Agent 开关误拦；不改默认值和用户偏好。账户、LFAA Session、Agent Run、BrowserContext、Page、Target 映射继续归 Browser Owner 与 Agent Loop，副作用仍经唯一 Permission Owner。
+- 浏览器不读取个人 Profile/Cookie。保留 URL/DNS 网络目标校验、认证、账户/Session/Target 隔离、取消/超时和资源回收；审计 CDP 仅回环绑定、端口文件、Target 过滤以及潜在网页/本机进程访问面，不放宽 Chromium 安全选项。
+
+### 外部排查、根因与允许范围
+
+- 按社交媒体 → 技术社区 → 项目 GitHub → 官方文档查询。Reddit 只出现其他 Electron 应用的滚动/重排个案；Stack Overflow 的 WebContentsView 提问强调 Bounds 应相对 contentView，但未能证明 LFAA 当前的滚动根因；LFAA 仓库搜索没有可核验的匹配 issue。Electron 官方文档确认 WebContentsView 是显示 WebContents 的原生 View、`setBounds` 以父视图坐标设置；这些资料用于核对接口，不替代本机复现。参考：[Electron WebContentsView](https://www.electronjs.org/docs/latest/api/web-contents-view)、[Electron View](https://www.electronjs.org/docs/latest/api/view)、[Electron WebContents](https://www.electronjs.org/docs/latest/api/web-contents)。
+- 本轮源码初核实：`BrowserPanel.tsx` 当前展示 JPEG 并映射鼠标坐标/滚轮；`session-manager.ts` 默认 `headless: true`；Agent 输出则为 DOM 文本/控件和真实 Page 动作。Electron 主进程只绑定 `127.0.0.1` 动态 CDP 端口并写入用户数据目录端口文件，仍需完成同账户本机访问面审查。滚动抖动须分别实测截图 Web 与原生 Electron；泛白没有目标网站 URL/原始截图，不能先归因到 LFAA CSS、Appearance 或 JPEG。
+- 允许改动以上 Owner 的必要源码、直接回归、受影响 README、架构事实与本合同；不得新建第二套浏览器会话/权限/设置，不读取个人 Profile，不删除 Electron 原生路径，不用静态图片或构建代替实页验收。
+
+### 分批实施与验收条件
+
+1. 核实调用链、Settings、Agent Run 取消、CDP Target 安全与真实复现基线；未知根因保持待验证。
+2. 先将 Web Browser Dock 从截图交互改为真实可见、账户/Session 隔离的本机 Chromium 窗口接入；Agent 与手动使用同一 Page。每批立即回归/构建并在 ChatGPT 内置浏览器打开 `/work` 目视检查；Electron 单独使用实际桌面宿主验收。
+3. 覆盖真实 Chromium 打开、滚动、点击、中文输入、导航、多标签、SPA、缩放、窗口调整与关闭；Agent DOM 操作、同页接管、SPA、取消后页面保留及越权 Target 拒绝。真实 Provider、真实 Electron GUI 与 Provider 未可用项如实标记。
+4. 在简单与动态本地页面记录冷/热启动、BrowserContext/Page、导航提交、首个可见内容、Agent observe/action、滚动帧时间、输入延迟和多标签资源；与本轮修改前可取得的源码/历史基线区分。对登录泛白仅在有准确 URL/页面环境时与系统 Chromium 对照。
+5. 桌面、窄分栏/短屏实际页面检查布局、溢出、标签操作、导航、滚动和状态；需要 Windows 125%/150% DPI 或 Electron 原生屏幕能力的项目不得用普通 Web 代替。
+
+### 实施与验收记录
+
+- 状态：实施中，尚未修改浏览器产品源码。
+- 当前工作树在本轮开始时已有用户改动 `apps/desktop-electron/nsis/installer.nsh`、`apps/desktop-electron/nsis/path-environment.ps1`、`patches/app-builder-lib@26.15.3.patch`；本任务保留这些未提交内容，不改其职责。
+- 初始 Browser UI/Owner/设置证据如上；待进一步核实主页隐藏/重复订阅、Web 可见 Host 能力、同页用户控制、原生 Bounds 实测与 CDP 暴露。设置和权限本轮尚未变更。
+- 改动文件、分批源码/回归/构建结果、正式 Web 服务指纹、内置浏览器路由/视口/证据、Electron 实页、性能数据和未测项待实施后逐项补充。

@@ -1394,10 +1394,6 @@ export function loadBrowserDockSession(sessionId: string, providerId: BrowserPro
   return request(`/browser/dock/sessions/${encodeURIComponent(sessionId)}?${new URLSearchParams({ providerId })}`, signal ? { signal } : {});
 }
 
-export function prewarmBrowserDock(providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ ready: true }> {
-  return request("/browser/dock/prewarm", { method: "POST", body: JSON.stringify({ providerId }), ...(signal ? { signal } : {}) });
-}
-
 export function loadBrowserDockRevision(sessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ session: BrowserRevision | null }> {
   return request(`/browser/dock/sessions/${encodeURIComponent(sessionId)}/revision?${new URLSearchParams({ providerId })}`, signal ? { signal } : {});
 }

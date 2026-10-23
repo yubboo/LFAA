@@ -15,3 +15,12 @@ index 053772f55ca6ece52f0a34c4fa0f05c9a5f07bd2..b895965761cffb9c3fbdb2457d087e2e
  ${endif}
 
  StrCpy $appExe "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+diff --git a/templates/nsis/include/extractAppPackage.nsh b/templates/nsis/include/extractAppPackage.nsh
+--- a/templates/nsis/include/extractAppPackage.nsh
++++ b/templates/nsis/include/extractAppPackage.nsh
+@@ -97 +97 @@
+-  Nsis7z::Extract "${FILE}"
++  Nsis7z::ExtractWithDetails "${FILE}" "正在解压缩 LFAA 文件：%s"
+@@ -127 +127 @@
+-    Nsis7z::Extract "${FILE}"
++    Nsis7z::ExtractWithDetails "${FILE}" "正在解压缩 LFAA 文件：%s"

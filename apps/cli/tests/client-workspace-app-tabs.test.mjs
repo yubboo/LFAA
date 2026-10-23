@@ -92,21 +92,17 @@ test("游戏库将运行环境、Minecraft 与 SteamCMD 收入四栏工作区唯
   assert.match(workspace, /gameLibrary \? <nav className="module-context__app-menu" aria-label="游戏库菜单"/u, "四栏右侧菜单提供游戏库内部导航");
 });
 
-test("浏览器导航保留上一帧，滚轮只滚网页并合并截图刷新", () => {
-  assert.match(browserPanel, /const BROWSER_SCROLL_INPUT_DELAY_MS = 60/u, "滚动事件快速合并，减少首个滚轮响应等待");
-  assert.match(browserPanel, /const BROWSER_VISUAL_REFRESH_DELAY_MS = 40/u, "滚轮操作完成后尽快刷新网页画面");
+test("Web Browser Dock 使用可见 Chromium 会话，不再把截图当网页交互", () => {
   assert.match(browserPanel, /prewarmBrowserDock\(providerId, controller\.signal\)/u, "打开浏览器标签时提前启动可用的隔离浏览器进程");
-  assert.match(browserPanel, /return \(\) => controller\.abort\(\);\s*\}, \[browserProviderReady, providerId\]\)/u, "切换或卸载标签时撤销未完成的预热请求");
-  assert.match(browserPanel, /loading \|\| snapshot\.loading/u, "导航请求结束但文档尚未渲染时仍显示加载状态");
-  assert.match(browserPanel, /setTimeout\(flushWheel, BROWSER_SCROLL_INPUT_DELAY_MS\)/u);
-  assert.match(browserPanel, /viewport\.addEventListener\("wheel", onWheel, \{ capture: true, passive: false \}\)/u, "用非被动捕获监听消费滚轮，避免工作区外层同时滚动");
-  assert.match(browserPanel, /if \(actionInFlight\.current\) \{[\s\S]*?setTimeout\(flushWheel, BROWSER_SCROLL_INPUT_DELAY_MS\)/u, "上次滚动完成前累计滚轮距离，不排队提交重复页面动作");
-  assert.match(browserPanel, /const wheelPending = Math\.abs\(wheelDeltaRef\.current\) >= 1;[\s\S]*?else if \(needsVisualRefreshRef\.current/u, "连续滚动期间跳过中间整页截图，停止后刷新最终画面");
-  assert.match(browserPanelCss, /\.lfaa-browser-panel__content\s*\{[^}]*overflow: hidden;[^}]*overscroll-behavior: none;/u, "浏览器截图内容区不再成为页面级滚动容器");
-  assert.match(browserPanel, /\}, BROWSER_VISUAL_REFRESH_DELAY_MS\)/u);
+  assert.match(browserPanel, /return \(\) => controller\.abort\(\);\s*\}, \[providerId, providerReady\]\)/u, "切换或卸载标签时撤销未完成的预热请求");
+  assert.match(browserPanel, /waitForBrowserDockRevision\(sessionId, providerId, current\.revision/u, "页面状态变化使用 Browser Owner 的修订等待，而不是定时截图");
+  assert.match(browserPanel, /你与 Agent 使用同一个浏览器页面/u, "页面状态明确说明人与 Agent 共用同一真实页面");
+  assert.match(browserPanel, /snapshot\.loading \? "网页仍在加载"/u, "导航提交后仍能报告真实页面加载状态");
+  assert.match(browserPanelCss, /@media \(max-width: 560px\)/u, "状态页卡片适配窄分栏与手机视口");
+  assert.doesNotMatch(browserPanel, /<img|<canvas|WheelEvent|onPointerDown|onWheel|screenshot|clickAt|typeText/u, "普通 Web 页面不使用截图、坐标或事件转发模拟网页交互");
+  assert.doesNotMatch(browserPanel, /resizeBrowserDockViewport/u, "外部真实浏览器窗口尺寸不再跟随右侧 Dock 重置");
   assert.match(workspace, /if \(activeUtilityTab\?\.kind === "new" && activeBrowserTab && \(activeUtilityTab\.browserUrl !== undefined \|\| activeBrowserPageChanged\)\) \{[\s\S]*?tab\.browserUrl !== activeBrowserTab\.url[\s\S]*?browserAddressEditingRef\.current/u, "已有网页标签随真实页面导航同步，新建空白标签不会被快照自动填入");
-  assert.match(browserPanel, /if \(current && next\.revision < current\.revision\) return current;[\s\S]*?if \(current\?\.screenshot && !next\.screenshot\) return \{ \.\.\.next, screenshot: current\.screenshot \};/u, "页面切换或刷新期间没有新画面时保留最近一帧");
-  assert.match(browserPanel, /if \(current && resized\.revision < current\.revision\) return current;[\s\S]*?if \(current\?\.screenshot && !resized\.screenshot\) return \{ \.\.\.resized, screenshot: current\.screenshot \};/u, "视口同步期间没有新画面时保留最近一帧");
+  assert.match(browserPanel, /current && current\.revision > next\.revision \? current : next/u, "较旧状态响应不会覆盖更新的页面导航结果");
 });
 
 test("浏览器加号只创建空白标签，不能继承当前搜索结果", () => {

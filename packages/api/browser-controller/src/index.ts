@@ -26,7 +26,6 @@ const providerSchema = Joi.string().valid(...BROWSER_PROVIDER_IDS).required();
 const dockProviderSchema = Joi.string().valid("lfaa-managed-edge", "lfaa-managed-chrome").required();
 const sessionSchema = Joi.string().trim().min(1).max(160).pattern(/^[A-Za-z0-9._-]+$/u).required();
 const navigateSchema = Joi.object({ providerId: providerSchema, url: Joi.string().uri({ scheme: ["http", "https"] }).max(2048).required() }).unknown(false);
-const dockPrewarmSchema = Joi.object({ providerId: dockProviderSchema }).unknown(false);
 const viewportSchema = Joi.object({ providerId: providerSchema.valid("lfaa-managed-edge", "lfaa-managed-chrome"), width: Joi.number().integer().min(320).max(1280).required(), height: Joi.number().integer().min(400).max(1600).required() }).unknown(false);
 const actionSchema = Joi.object({
   providerId: providerSchema,
@@ -115,12 +114,6 @@ function registerRoutes(router: Router, manager: BrowserSessionManager): void {
   }));
 
   // 用户在 Browser Dock 里的手动浏览不要求开启 Agent Browser Use；Agent 专用路由仍保留下方 Provider 设置门禁。
-  router.post("/browser/dock/prewarm", ...auth, actionLimit, asyncHandler(async (request, response) => {
-    const body = parseBody<{ providerId: BrowserProviderId }>(dockPrewarmSchema, request.body);
-    assertDockProviderAvailable(manager, body.providerId);
-    await manager.prewarm(body.providerId);
-    response.json({ ready: true });
-  }));
   router.get("/browser/dock/sessions/:sourceSessionId", ...auth, asyncHandler(async (request, response) => {
     const sourceSessionId = readSessionId(request.params.sourceSessionId);
     const providerId = readDockProvider(request.query.providerId);

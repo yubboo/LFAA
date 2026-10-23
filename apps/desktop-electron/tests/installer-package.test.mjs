@@ -47,6 +47,17 @@ test("Windows 安装器绑定 LFAA 图标、同意须知与完成页快捷方式
   assert.deepEqual(dimensions, [16, 32, 48, 256]);
 });
 
+test("PATH 写入错误显示 PowerShell 原因，不能只暴露通用退出码", async () => {
+  const installer = await readFile(resolve(packageRoot, "nsis/installer.nsh"), "utf8");
+  const pathScriptBytes = await readFile(resolve(packageRoot, "nsis/path-environment.ps1"));
+  const pathScript = pathScriptBytes.toString("utf8");
+
+  assert.match(installer, /nsExec::ExecToStack \/OEM/);
+  assert.match(installer, /原因：\$1/u);
+  assert.match(pathScript, /\[Console\]::Out\.WriteLine\(\$_\.Exception\.Message\)/u);
+  assert.deepEqual(pathScriptBytes.subarray(0, 3), Buffer.from([0xef, 0xbb, 0xbf]));
+});
+
 test("NSIS 安装页显示详情并如实列出已安装的本机组件", async () => {
   const installer = await readFile(resolve(packageRoot, "nsis/installer.nsh"), "utf8");
 
@@ -71,6 +82,10 @@ test("NSIS 安装文件状态使用低重绘模式并写入用户选择的安装
     resolve(dirname(appBuilderManifest), "templates/nsis/installSection.nsh"),
     "utf8",
   );
+  const extractAppPackage = await readFile(
+    resolve(dirname(appBuilderManifest), "templates/nsis/include/extractAppPackage.nsh"),
+    "utf8",
+  );
   const detailModeOffset = installSection.indexOf("SetDetailsPrint listonly");
   const stableStatusOffset = installSection.indexOf("!insertmacro customInstallFilesStart");
   const outputPathOffset = installSection.indexOf("SetOutPath $INSTDIR");
@@ -81,6 +96,8 @@ test("NSIS 安装文件状态使用低重绘模式并写入用户选择的安装
     installSection,
     /\$\{IfNot\}\s+\$\{Silent\}\s+!ifmacrodef customInstallFilesStart\s+!insertmacro customInstallFilesStart\s+!else\s+SetDetailsPrint listonly\s+!endif\s+\$\{endif\}/,
   );
+  assert.match(extractAppPackage, /Nsis7z::ExtractWithDetails "\$\{FILE\}" "正在解压缩 LFAA 文件：%s"/u);
+  assert.equal([...extractAppPackage.matchAll(/Nsis7z::ExtractWithDetails/gu)].length, 2);
   assert.doesNotMatch(installSection, /SetDetailsPrint none/);
   assert.ok(stableStatusOffset >= 0 && detailModeOffset > stableStatusOffset);
   assert.ok(outputPathOffset > detailModeOffset && copyFilesOffset > outputPathOffset);

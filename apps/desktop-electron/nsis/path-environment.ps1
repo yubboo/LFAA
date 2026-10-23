@@ -1,3 +1,4 @@
+﻿# Windows PowerShell 5.1 按系统代码页读取无 BOM 脚本；此文件含中文文案，必须保存为 UTF-8 BOM。
 param(
   [Parameter(Mandatory = $true)]
   [ValidateSet("Add", "Remove")]
@@ -102,7 +103,7 @@ try {
   [Console]::Out.WriteLine("LFAA CLI PATH 清理完成。")
   exit 0
 } catch {
-  [Console]::Error.WriteLine($_.Exception.Message)
+  [Console]::Out.WriteLine($_.Exception.Message)
   exit 1
 } finally {
   if ($null -ne $environment) { $environment.Dispose() }
