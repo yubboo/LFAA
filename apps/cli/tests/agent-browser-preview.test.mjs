@@ -114,6 +114,7 @@ test("Agent 通过真实工具循环打开临时 HTML、读取页面并点击按
       case 4:
         assert.match(lastResult, /预览页面已打开/u);
         assert.match(lastResult, /计数/u);
+        assert.doesNotMatch(lastResult, /dataBase64|"images"/u, "Agent 页面观察只返回结构化数据，不附带截图图像");
         assert.ok(names.includes("lfaa_tools_list"));
         return sse(providerCall("lfaa_tools_list", { query: "browser click button" }));
       case 5:
@@ -124,6 +125,7 @@ test("Agent 通过真实工具循环打开临时 HTML、读取页面并点击按
         return sse(providerCall("lfaa_browser_click", { providerId: provider.id, role: "button", name: "计数" }));
       case 7:
         assert.match(lastResult, /点击 1 次/u);
+        assert.doesNotMatch(lastResult, /dataBase64|"images"/u, "Agent 点击结果回传页面状态，不附带截图图像");
         return sse({ content: "已打开 index.html，并根据页面实际按钮完成点击；页面显示“点击 1 次”。" });
       default:
         throw new Error(`Agent 意外请求了第 ${requests.length} 轮 Provider`);

@@ -234,6 +234,8 @@
 | 233-Windows桌面安装向导与灰色安装按钮-20261023 | 修复目标目录页“安装”按钮灰色时无法获知原因、旧安装目录数据路径导致启动失败；加入当前用户可选 CLI PATH、真实安装明细进度及完成页运行/快捷方式选项 | 源码修复完成；Windows x64 NSIS 重建与实际安装器交互仍待验证 | [本轮合同](#lfaa-desktop-installer-recovery-options-progress-20261023) |
 | 234-LFAA内置浏览器滚动抖动、页面泛白与打开延迟-20261023 | 修复 LFAA 内置浏览器滚轮操作导致页面抖动/外层跟滚、网页周围泛白以及普通网站首屏打开慢 | Web/桌面两条路径已修复并通过直接回归、类型及入口构建；内置浏览器实页滚动、截图泛白对照与公开网站延迟仍受隔离验收环境限制 | [本轮合同](#lfaa-browser-dock-scrolling-wash-latency-20261023) |
 | 235-工作区标签双击切换中心区并修复偶发窄布局-20261023 | 双击 `/work` 工作区标签收起/展开中间聊天区；修复右侧菜单打开或窄分栏时偶发把中心区挤窄的布局异常 | 实施中：标签 Owner、响应式断点与布局偏好已定位；源码修复、回归、构建和内置浏览器视口验收待完成 | [本轮合同](#lfaa-workspace-tab-center-toggle-layout-20261023) |
+| 236-Agent使用内置浏览器-20261023 | 让 Agent 直接使用真实 Chromium 页面读取内容并执行语义操作，不依赖截图识别网页 | 浏览器回归 21/21、Control Plane 构建与 Host 类型检查通过；`check:workspace` 被 SteamCMD 包缺少内部依赖阻断；真实模型 Provider 未测 | [本轮合同](#lfaa-agent-native-browser-tools-20261023) |
+| 237-Windows安装进度、PATH失败提示与控制端锁冲突-20261023 | 修复安装阶段 PATH 写入失败只显示错误码、NSIS 解压进度缺少百分比/明细，以及启动失败未说明已有控制端占用数据锁 | 实施中：PATH 错误原因、真实压缩进度与安全锁冲突均已定位；修复、构建和隔离验收待完成 | [本轮合同](#lfaa-windows-installer-progress-path-lock-20261023) |
 | LFAA-AI-VIDEO-CANVAS-MVP-20261010 | 接入 AI 漫剧应用的真实账户隔离分镜画布首版，不伪装视频生成或执行工作流 | 已实现并修复入口回退；入口/Owner/API 回归 4/4、Web 构建、工作区 Gate 和登录浏览器入口/画布首屏/空列表读取通过；浏览器写入、帧时间、Desktop、Provider、白模导入未验 | [本轮合同](development/ai-video-canvas-mvp-20261010.md) |
 | LFAA-AGENT-STDIO-COMPUTER-USE-20261008 | 在现有模型驱动 Agent/MCP Owner 中接入受设置与权限约束的本机 stdio MCP，并将 Computer-Use MCP 图片和说明送入当前模型请求 | 实现与定向回归完成；真实 Provider/桌面验收待做 | [当前合同](#lfaa-agent-stdio-computer-use-20261008) |
 | LFAA-MCP-EGRESS-SESSION-PAGING-REPAIR-20261008 | 为远程 MCP 连接增加出站地址约束，并将 JSONL 消息分页改为单次异步完整链校验 | 已修复；MCP 2/2、Session 分页/冷缓存 1/1、Web Profile API 1/1、Host 类型检查、workspace Gate 和 4 个直接包构建通过 | [当前合同](#lfaa-mcp-egress-session-paging-repair-20261008) |
@@ -6258,7 +6260,69 @@ Owner 与设置：共享弹窗及其文案/操作编排属于 `packages/client/u
 
 ### 实施与验收记录
 
-- 状态：源码修改中。代码层已确认首次指标初始化按 `window.innerWidth`，而工作台容器的 ResizeObserver 在提交后才完成校准；这会让嵌入式窄分栏首帧套用整窗断点。现将首次真实容器测量前置到布局提交阶段；正式实页仍需复验是否覆盖截图现象。
+- 状态：源码修改中。代码层已确认首次指标初始化按 `window.innerWidth`，而工作台容器的 ResizeObserver 在提交后才完成校准；这会让嵌入式窄分栏首帧套用整窗断点。现将首次真实容器测量与断点对应的 Dock 开合校准前置到布局提交阶段；正式实页仍需复验是否覆盖截图现象。
 - 环境初查：用户截图指向本机端口 3107；当前发现端口 3000 由 LFAA CLI Web 进程监听，但 `/work` HEAD 返回 503。当前 CUA 内置浏览器没有已打开标签，尚未完成正式实页验收。
 - 设置：尚未更改。预期只消费现有导航布局、Dock 尺寸与 Appearance 共享令牌；若最终修复需要调整设置映射，将先确认设置 Owner 再实现。
 - 改动文件、回归、构建、实际路由/视口/交互截图及未测边界：待实施后补齐。
+
+<a id="lfaa-agent-native-browser-tools-20261023"></a>
+## 236-Agent 使用内置浏览器（2026-10-23）
+
+### 用户问题、目标与入口
+
+- 用户指出当前内置浏览器被做成依赖截图的浏览器，明确目标是让 Agent 像 ChatGPT 内置浏览器一样自行浏览和操作网页，不把截图视觉识别当成浏览器能力本身。
+- 目标入口：AI Work Agent Loop → 工具目录 `lfaa_tools_list/load` → `lfaa-browser-use` 登记的 Browser Tools → `BrowserSessionManager` 的真实 Playwright Chromium 页面；桌面原生 Provider 仅在用户明确选中当前 LFAA 标签时附着同一 Electron Chromium Target。
+- 真实页面观察应以有界正文、页面地址/标题、可访问角色/名称/状态和新鲜页面结果为主；导航、点击、填写普通文本、受限按键和滚动直接操作浏览器页面，不把页面截图作为 Agent 默认输入/输出。Web 的 JPEG 视图如保留，仅属于用户查看网页的呈现层，与 Agent 的结构化页面控制分开。
+
+### Owner、设置、数据与权限
+
+- Browser Owner：`packages/browser-use/browser-use` 持有隔离 Chromium、账户/LFAA Session 页面状态和 Agent Run 适配器；`packages/core/tools` 与 `packages/core/agent-loop` 负责能力发现、设置开启和模型工具选择；`packages/api/browser-controller` 只提供认证后的 Browser Dock/Agent API；共享 Client 负责用户可见工作区。
+- 设置：复用 `browserUse.enabled`（默认关闭，用户明确提出网页浏览目标后由能力工具依现有权限模式启用）、`browserUse.enabledProviderIds`（仅个人 Tabbit 选择）、`browserUse.searchEngine`、`browserUse.showFullUrl`、`browserUse.recordRecentSites` 与 `permissions.mode`。本任务不得静默更改用户保存的偏好。
+- 数据与安全：内置 Edge/Chrome 使用 LFAA 账户与 Session 隔离上下文，不继承个人 Profile/Cookie；Electron Target 仅绑定当前 LFAA 工作区显式选中的标签。页面正文不持久化，导航只允许现有 HTTP(S) 与目标地址安全校验，动作经统一 Permission Owner；不运行任意网页脚本，不读取或填充敏感字段。
+
+### 外部排查、允许范围与验收
+
+- 缺陷检索顺序已按社交媒体、技术社区、项目 GitHub、官方资料核对。社交/技术社区结果只能提供设计背景，不能代替本仓库调用链证据；本仓库 Issues/Discussions 查询未找到匹配项。官方 Playwright 文档把可访问性快照用于页面结构/元素定位、把 `getByRole` 等语义 Locator 用于交互；截图适合布局、Canvas 和视觉验收，不是普通网页结构/操作的必需通道。
+- 允许范围：沿现有 Browser Owner，修正 Agent 工具暴露/发现时机、默认内置 Provider 可用规则、结构化页面观察和动作回读；补齐直接相关长期回归、包 README 与本合同。
+- 禁止范围：把 Web 页面截图改造当作 Agent 浏览器功能；默认让 Agent 读取截图；接入个人 Profile 或复用 Tabbit 代替内置浏览器；绕开设置、授权、认证、URL 校验或用户保存的权限模式；新建第二套浏览器会话、权限或用户设置。
+- 验收条件：源码能证明 Browser Tools 操作真实页面并返回结构化快照，默认 Agent 路径不附带截图；内置 Provider 在真实本机 Host 上可用且不需要个人浏览器接入；关闭 `browserUse.enabled` 时 Agent 先走现有能力/Permission Owner 流程，开启后当前 Run 可发现并调用；每次动作后以新页面状态核实结果。运行相关构建与回归；具备隔离运行条件时用无副作用页面完成一次 Agent 浏览器实际操作，否则明确记录未实测边界，不以编译/截图面板代替 Agent 验收。
+
+### 实施与验证记录
+
+- 状态：已完成源码与隔离浏览器验证。
+- 实现边界：`packages/browser-use/browser-use/src/browser-tools.ts` 的 Agent 输出只返回结构化正文、控件、地址、标题与标签；工具不附带截图。`session-manager.ts` 在真实 Playwright `Page` 上执行导航、观察、语义点击、普通文本填写、受限按键及滚动，并将每次动作后的页面状态回传给模型。Electron 原生 Provider 只附着当前工作区明确选择的 Chromium Target。Web 侧 `BrowserPanel` 仍以截图为用户可见预览；这不是 Agent 的观察或操作通道。
+- 能力启用：`browserUse.enabled` 默认关闭；用户明确提出网页任务时，Agent 按当前 `permissions.mode` 使用 `lfaa_capability_status` / `lfaa_set_capability_enabled` 走现有 Settings 与 Permission Owner 流程。内置 Provider 无需写入 `enabledProviderIds`，该字段仅用于个人 Tabbit。隔离回归使用独立临时账户和设置，未改真实用户偏好。
+- 直接回归：`apps/cli` 运行 `node --import tsx --import ./register-package-loader.mjs --test tests/browser-use.test.mjs tests/agent-browser-preview.test.mjs tests/general-agent-capabilities.test.mjs`，21/21 通过，0 跳过。Agent 集成测试启动本机真实 Edge/Chrome 隔离上下文，使用临时本地 HTML，模型 Provider 由测试夹具驱动；Agent 根据 DOM 正文/控件清单点击计数按钮，并从操作后页面读到“点击 1 次”。新增断言确认观察和点击的 Agent Tool 结果不含截图 Base64/图片字段。Browser Use 还覆盖 Electron Target 过滤、账户/Session 隔离、截图默认关闭、设置开关与 Run 清理。
+- 构建/类型：`pnpm run build:control-plane` 通过，产物写入 `dist/apps/control-plane/`；`pnpm exec tsc --noEmit -p tsconfig.host.json` 通过。
+- Gate/差异：仓库没有 `scripts/workspace-preflight.mjs`；`pnpm run check:workspace` 已运行但被既有的 `packages/api/steamcmd-controller` 未声明内部依赖 `lfaa-permission-presets` 阻断，该包不属于本任务修改范围。`git diff --check -- apps/cli/tests/agent-browser-preview.test.mjs docs/PROMPTS.md` 通过。
+- 外部来源：社交媒体搜索结果仅作背景（Reddit 上讨论了结构化 DOM/accessibility 与截图的定位差异）；技术社区讨论指出 DOM 快照与截图验证各自适用范围；本仓库 `yubboo/LFAA` 搜索未返回可核验的 Browser Use 匹配 issue；Playwright 官方资料：[Snapshots](https://playwright.dev/agent-cli/snapshots)、[Locators](https://playwright.dev/docs/locators)。官方资料支持以可访问性结构和角色 Locator 读取及操作页面；截图适用于布局/Canvas 等视觉检查，不是网页结构观察的默认通道。
+- 本任务涉及的实现与说明文件：`packages/browser-use/browser-use/src/browser-tools.ts`（Agent 工具合同与无图输出）、`packages/browser-use/browser-use/src/session-manager.ts`（隔离 BrowserContext、结构化快照和真实页面动作）、`packages/api/browser-controller/src/index.ts`（认证、参数校验和内置 Provider 路由）、`packages/core/agent-loop/src/execute-turn.ts`（模型使用指引与工具刷新）、`packages/core/tools/src/capability-settings.ts`（Browser Use 能力状态及按权限启用指引）、`packages/util/values/src/settings-contract.ts`（现有设置说明），以及对应包 README 与 `apps/cli/tests/browser-use.test.mjs`、`apps/cli/tests/agent-browser-preview.test.mjs`、`apps/cli/tests/general-agent-capabilities.test.mjs`。
+- 未测边界：本轮未使用真实模型 Provider 发送请求；没有在 Electron 桌面 UI 中操作可见原生浏览器，也没有覆盖需要截图理解的 Canvas/图像密集网页。Web 可见预览仍然是 JPEG，但 Agent Browser 工具链经实页回归确认直接操作 Chromium DOM/语义控件。
+
+<a id="lfaa-windows-installer-progress-path-lock-20261023"></a>
+## 237-Windows 安装进度、PATH 失败提示与控制端锁冲突（2026-10-23）
+
+### 用户问题、目标与入口
+
+- 用户反馈 LFAA 0.0.10 安装时出现“将 CLI 加入当前用户 PATH 失败，错误码：1”，完成后桌面启动弹出“本机控制端意外退出”；用户同时指出缺少参照图中的百分比、当前写入状态和可滚动安装明细。
+- 目标入口：根 `pnpm run build:desktop:win` → Electron Builder 26.15.3 → NSIS → `apps/desktop-electron/nsis/installer.nsh`；运行入口为 `apps/desktop-electron/src/main.mjs` 启动同一用户的 Control Plane/Daemon。
+- 本轮证据：PATH 更新由随包 PowerShell 脚本返回通用退出码，安装器没有把脚本异常消息放进提示框。electron-builder 的 NSIS 模板以 `Nsis7z::Extract` 解压整个应用包，未要求插件给安装状态标签显示压缩百分比。本机桌面日志显示锁冲突时 `.lfaa` 的配置/会话锁由同一工作区正在运行的 CLI Web Control Plane 进程持有；不应删除活锁或强杀进程。
+
+### Owner、设置、数据与权限
+
+- NSIS 安装步骤、当前用户 CLI PATH、安装明细与快捷方式仍归 Electron Builder/NSIS 安装适配器；不复制 CLI 或 Control Plane 业务逻辑。
+- Control Plane 数据锁由 `packages/storage/storage-json` 与 `packages/storage/storage-domain` 持有。桌面端不得删除其他活进程的锁、覆盖用户 Home 或绕过单写者保护；仅把已知“数据目录已被另一控制端使用”错误转换成可执行的提示。
+- 设置中心：无适用设置。PATH 写入仍由安装向导复选框选择，安装器只修改当前 Windows 用户 PATH；桌面端启动与快捷方式保留完成页显式选项。本轮不修改设置默认值或用户偏好。
+- 安装数据路径、安装目录和 LFAA Home 分属各自 Owner；安装目录路径不用于推断用户数据目录。
+
+### 允许范围与验收
+
+- 允许改动 electron-builder 26.15.3 的既有 pnpm 补丁、NSIS include、PATH 脚本、桌面启动错误呈现、直接回归、桌面入口说明与本合同；不修改存储锁策略或自动选择/迁移用户数据路径。
+- PATH 写入失败须把可读原始原因传给安装日志与提示，且不阻断已解压文件/快捷方式完成；NSIS 解压进度必须来自 Nsis7z 实际字节进度，显示真实百分比与已处理/总量，保留可滚动安装明细；不生成定时假百分比。
+- 已有控制端持有同一数据锁时，桌面报错需指出需要关闭/连接已有 LFAA Web、桌面或 CLI 服务；不得清锁、终止 PID 或启动第二个写入者。
+- 执行 PATH 脚本与 NSIS 结构的直接回归、桌面包构建、产物元数据/大小/校验和核对。仅在可丢弃 Windows 用户/虚拟机中实际安装、验收百分比/日志/按钮与启动；不得用开发机真实 `.lfaa` 用户数据做破坏性安装/卸载。缺少隔离环境时将真实 GUI 安装验收标记未运行。
+
+### 外部排查与实施记录
+
+- 外部排查顺序：社交媒体检索未找到与本包 PATH 错误/插件组合对应的可验证解法；技术社区结果仅说明 nsExec 返回子进程退出码，不能替代本机原因；项目 GitHub 查询没有找到本项目相关安装问题；官方 NSIS/electron-builder 文档用于核对支持的能力与模板入口。
+- 待完成：补充修复文件及职责、直接回归、构建命令/产物、隔离宿主可用性与未测边界；实测用户新包后再把安装交互结果更新为完成。

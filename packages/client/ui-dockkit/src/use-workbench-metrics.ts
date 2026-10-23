@@ -3,7 +3,7 @@
  * 作用：按帧合并 ResizeObserver 通知，同尺寸保留原状态，避免重复布局读取和整页重渲染。
  * 关联文件：workbench-layout.config.ts、SettingsPage.tsx、ApplicationWorkspace.tsx。
  */
-import { useEffect, useLayoutEffect, useState, type RefObject } from "react";
+import { useLayoutEffect, useState, type RefObject } from "react";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "./workbench-layout.config.js";
 
 export function readWorkbenchLeadingInsetWidth(element: HTMLElement) {

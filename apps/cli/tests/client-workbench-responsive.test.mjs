@@ -139,7 +139,7 @@ test("窄中心列将操作压缩为图标，同时保留当前对话名", () =>
   assert.match(workspaceCss, /@container\s+module-center\s*\(max-width:\s*560px\)[\s\S]*?\.module-center__voice-button/u);
   assert.match(workspaceCss, /@container module-center \(max-width: 560px\)[\s\S]*?\.module-center__title strong \{ min-width: 0; font-size: var\(--font-size-xs\); \}/u);
   assert.doesNotMatch(workspaceCss, /\.module-center__title strong\s*\{\s*font-size:\s*0/u, "窄中心列仍应显示可截断的会话名");
-  assert.match(workspaceSource, /<strong>\{mode === "ai-work" \? activeAiSessionTitle\?\.trim\(\) \|\| "小鱼智能体" : selectedApp\.title\}<\/strong>/u);
+  assert.match(workspaceSource, /<strong>\{mode === "ai-work" \? activeAiSessionTitle\?\.trim\(\) \|\| "小鱼智能体" : activeApplicationTitle\}<\/strong>/u);
   assert.match(workspaceCss, /\.module-center__work-tabs\s*>\s*button:not\(\.module-git-summary-trigger\)\s*>\s*span\s*\{\s*display:\s*none;/u);
   assert.match(workspaceSource, /className="module-center__voice-button"[^>]*aria-label="语音主脑"[^>]*title="语音主脑"/u);
   assert.match(workspaceSource, /module-runtime-state[^>]*role="img"[^>]*aria-label=\{statusLabel\}[^>]*title=\{statusLabel\}/u);

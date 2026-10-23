@@ -55,6 +55,7 @@ test("AI Work 中心区收起后显示会话、新标签页及动态工具标签
   assert.doesNotMatch(legacyRightNav, />浏览器|>变更/u, "AI Work 不再将工具功能固定在右侧互斥导航行");
   assert.match(workspace, /const activeCenterCollapsed = centerCollapsePreview \?\? centerCollapsed/u, "拖动预览优先于已提交的中心列状态");
   assert.match(workspace, /const toggleCenterCollapsed = useCallback\(\(\) => \{\s*setCenterCollapsePreview\(null\);\s*setCenterCollapsed\(collapsed => !collapsed\);/u, "双击切换只改变受控中心区状态并清除旧预览");
+  assert.match(workspace, /useLayoutEffect\(\(\) => \{\s*if \(appliedLayoutMode\.current === metrics\.mode\) return;[\s\S]*?\}, \[metrics\.mode, mode\]\);/u, "实际容器断点变化时在绘制前对齐 Dock 状态");
   assert.match(workspace, /const workbenchTabs = showWorkbenchTabs \? <div className="module-workbench-tabstrip"/u, "右侧工作区标签在聊天区展开时也显示");
   assert.match(workspace, /selectRightUtilityTab = useCallback\(\(tab: WorkspaceUtilityTab\)/u, "右侧标签切换复用当前 Utility Owner");
   assert.match(workspace, /onClick=\{\(\) => activeCenterCollapsed \? selectWorkbenchTab\(tab\.id\) : selectRightUtilityTab\(tab\)\}/u, "聊天区展开时切换右侧标签不收起中间工作区");
